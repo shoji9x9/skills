@@ -21,7 +21,7 @@ kaizen_lib="$(dirname "${BASH_SOURCE[0]}")/kaizen-hook-common.sh"
 if [ -r "${kaizen_lib}" ]; then
 	. "${kaizen_lib}"
 else
-	printf '%s: 共通ライブラリを読めないため縮退します: %s\n' "$(basename "${BASH_SOURCE[0]}")" "${kaizen_lib}" >&2
+	printf '%s: 共通ライブラリを読めないため、機能を減らして動きます: %s\n' "$(basename "${BASH_SOURCE[0]}")" "${kaizen_lib}" >&2
 fi
 # `.kaizen/` は**いま作業している作業ツリー**基準で解決する（他の kaizen スクリプトと統一）。
 # $CLAUDE_PROJECT_DIR を最優先にすると、git worktree で作業しているときにコミット対象と
@@ -38,7 +38,7 @@ fi
 # frontmatter（最初の `---` ブロック）の 1 フィールドを取り出す。
 # `sed ... | head -n 1` は使わない——大きなノートでは head が先に閉じて sed が SIGPIPE で死に、
 # pipefail 下でスクリプトごと 141 で落ちる（実測: 5.7MB のノートで再現）。awk なら自前で exit
-# するのでパイプが要らず、読めないファイルは `|| true` で空文字に倒せる。
+# するのでパイプが要らず、読めないファイルは `|| true` で空文字にできる。
 # 本文中の `priority:` 等を拾わないよう、走査は frontmatter 内に限る。
 frontmatter_field() {
 	awk -v key="$2" '

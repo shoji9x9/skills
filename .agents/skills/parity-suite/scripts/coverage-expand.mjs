@@ -1,23 +1,23 @@
-// 被覆プロファイルから候補集合を展開し、部品被覆表と機械的に照合する（正本）。
-// 正本はこのスキル側にあり、実行時はスキルディレクトリ内から直接実行する
+// 網羅プロファイルから候補集合を展開し、部品網羅表と機械的に照合する（原本）。
+// 原本はこのスキル側にあり、実行時はスキルディレクトリ内から直接実行する
 // （プロジェクトへコピーしない。プロファイルを同梱ディレクトリから読むため）。
 //
-// 何をするか: components[].profile が指すプロファイルを assets/coverage-profiles/ から読み、
-// インスタンスごとの列挙（enumeration）と candidate_rules の直積から候補集合を展開して、
-// 被覆表の items / cells / equivalence_classes と照合する。
+// 何をするか: components[].profile が指すプロファイルを assets/coverage-profiles/ から読む。
+// インスタンスごとの列挙（enumeration）と candidate_rules の直積から候補集合を展開し、
+// 網羅表の items / cells / equivalence_classes と照合する。
 //
 // 何をしないか: 候補が本当に全て列挙されたか（ソースの読み落とし）は判定できない。
-// 判定できるのは「列挙した要素が候補へ展開され、候補がセルへ落ち、セルに証拠と対応付けがある」ことまで。
-// 列挙そのものの網羅は enumeration.source の来歴と complete フラグで fail-closed に扱う。
-// 差分の検出・分類（parity-diff の仕事）、被覆表の測定値の記入（人／エージェントの仕事）は行わない。
+// 判定できるのは、「列挙した要素が候補へ展開され、候補がセルに対応し、セルに証拠と対応付けがある」ことまでである。
+// 列挙そのものの網羅は、enumeration.source の出所と complete フラグで扱い、判定できなければ不合格にする。
+// 差分の検出・分類（parity-diff の仕事）、網羅表の測定値の記入（人／エージェントの仕事）は行わない。
 //
-// fail-closed: 候補ゼロ・列挙なし・complete: false・required_rules が 0 件・
-// 同値クラスの所属漏れは、いずれも「問題なし」に倒さず非ゼロ終了にする。
+// 候補ゼロ・列挙なし・complete: false・required_rules が 0 件・同値クラスの所属の抜けは、
+// いずれも「問題なし」として扱わず、0 以外で終了する。
 // 「その部品には無い」を主張するには、列挙側の enumeration.justified_absences に根拠を残す
-// （根拠を読む経路が無いと fail-closed が行き止まりになり、フラグを偽って true にする以外の逃げ道が消える）。
+// （根拠を読む手段が無いと、不合格にした後に進む先が無くなり、フラグを偽って true にする以外の方法が無くなる）。
 //
 // 部品固有の条件分岐を持たない。新しい部品はプロファイルの追加だけで足せる
-// （契約は references/coverage-profiles.md、形式は assets/coverage-profiles/profile-schema.json）。
+// （取り決めは references/coverage-profiles.md、形式は assets/coverage-profiles/profile-schema.json）。
 //
 // 決定論的: 乱数・現在時刻に依存しない。入力順を保って展開する。
 // TypeScript 構文は使わない（型は JSDoc）。
@@ -28,21 +28,21 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
- * ツールのバージョン（正本）。展開規則・照合規則・出力形状を変えたら上げる。
- * 被覆表の conformance.tool_version に記録する値はこれを使う（手入力にしない）。
+ * ツールのバージョン（原本）。展開規則・照合規則・出力形状を変えたら上げる。
+ * 網羅表の conformance.tool_version に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
 export const VERSION = "20";
 
-/** 被覆表のセルが取りうる値（正本は coverage.md「部品網羅表」）。 */
+/** 網羅表のセルが取りうる値（原本は coverage.md「部品網羅表」）。 */
 const VALUES = ["present", "absent", "unmeasured"];
 
-// 撮影状態の種別。部品の操作から「見た目が変わる状態」を写す語彙で、
+// 撮影状態の種別。部品の操作から「見た目が変わる状態」を表す語彙で、
 // capture_conditions.states の状態名そのものではない（名前は撮る側が決める）。
 // 先頭の 5 種は操作の**途中**の見た目、after-operation は操作を**終えた後に残る**見た目
 // （選択の塗り・絞り込み中の見出しの印・並べ替えの印）。途中だけを導くと、
 // 終えた後の見た目は撮られず、差は「差 0 件」と同じ見え方になる。
-// 導出は下限であって上限ではない——操作から導けない状態（error / 初期表示のバリアント）は
+// 導出は下限であって上限ではない。操作から導けない状態（error / 初期表示のバリアント）は
 // 従来どおり手で states へ足す。
 const VISUAL_STATE_KINDS = [
   "opens-container",
@@ -96,7 +96,7 @@ export function coverageFingerprint(table) {
 }
 
 /**
- * 撮影条件の指紋。撮影状態の照合に実際に使った入力（slug・ページ名・状態名・器の状態名）だけを取る。
+ * 撮影条件の指紋。撮影状態の照合に実際に使った入力（slug・ページ名・状態名・ポップアップの状態名）だけを取る。
  * 配列は並びで指紋が変わらないよう整列する（内容が同じなら同じ指紋にする）。
  * @param {{slug?: string, pageNames?: string[], states: string[], popupStates: string[]}} capture
  * @returns {string}
@@ -139,7 +139,7 @@ function canonicalize(v) {
 
 /**
  * `instances[].applicable_states.source.kind` の語彙。
- * 正本は parity-suite の `assets/component-coverage-template.json`。空でないだけを通すと
+ * 形は parity-suite の `assets/component-coverage-template.json` で定義する。空でないだけを通すと
  * 出所不明の状態manifest（`kind: "invented"` 等）で `non-renderable` / `absent` を収束させられる。
  */
 const APPLICABLE_STATE_SOURCE_KINDS = ["profile", "vendor-spec", "current-source", "app-ui"];
@@ -165,7 +165,7 @@ function inAllowlist(v, allowed) {
 /**
  * 操作可能な要素へ発火を確認した absent（`kind: fired-without-response`）の証拠を検査する。
  * 散文 `evidence` の非空だけでは「送り方・発火確認・観測結果」の 3 点を測ったかを区別できず、
- * 0 寸法要素の中心座標で**重なった別要素**が発火した結果も同じ経路で通ってしまう。
+ * 0 寸法要素の中心座標で**重なった別要素**が発火した結果も同じ判定で通ってしまう。
  * @param {Record<string, unknown>} evidence
  * @param {string} label
  * @returns {string|null}
@@ -181,7 +181,7 @@ function firedEvidenceProblem(evidence, label) {
   if (!inAllowlist(action.method, FIRED_ACTION_METHODS)) {
     return `${label}: fired-without-response の action.method が ${FIRED_ACTION_METHODS.join(" / ")} のいずれでもない`;
   }
-  // この経路の前提は「操作可能な可視要素へ送った」こと。どちらの method でも正の矩形と可視性を実測させる。
+  // この判定の前提は「操作可能な可視要素へ送った」こと。どちらの method でも正の矩形と可視性を実測させる。
   // force / dispatchEvent のように actionability を迂回する送り方は、可視要素への操作の証拠にならない。
   if (!isPlainObject(action.bounding_box)) {
     return `${label}: fired-without-response なのに action.bounding_box が JSON オブジェクトではない`;
@@ -225,8 +225,8 @@ function firedEvidenceProblem(evidence, label) {
 }
 
 /**
- * absent セルの経路別証拠を検査する。散文 evidence の非空だけでは、全状態を測ったという
- * 自己申告と実測の構造を区別できないため、非描画経路は状態ごとの証拠を必須にする。
+ * absent セルの証拠を、証拠の種類（`kind`）ごとに検査する。散文 evidence の非空だけでは、全状態を測ったという
+ * 自己申告と実測の構造を区別できないため、`non-renderable` は状態ごとの証拠を必須にする。
  * @param {Record<string, unknown>} row
  * @param {string} label
  * @param {unknown} stateManifest - components[].instances[].applicable_states
@@ -403,17 +403,17 @@ function absentEvidenceProblem(row, label, stateManifest) {
   return null;
 }
 /**
- * 集合の来歴（`component_inventory` / `components[].instance_inventory`）と
+ * 集合の出所（`component_inventory` / `components[].instance_inventory`）と
  * `instances[].enumeration.source` で使う情報源の kind の語彙。
  * **並びは強い順**で、先頭が一次情報源（静的に読み切れる受領ソース）。実 UI の歩行はその画面がその時
  * 描いたものしか拾えないため、弱い情報源で列挙したときは一次情報源が使えなかった理由を要求する。
- * 正本は parity-suite の `assets/component-coverage-template.json`。
+ * 形は parity-suite の `assets/component-coverage-template.json` で定義する。
  */
 const SET_SOURCE_KINDS = ["current-source", "config", "app-ui"];
 
 /**
  * `components[].source.kind`（項目集合の列挙元）の語彙。受領ソースから起こした項目集合を
- * `app-ui` へ倒さずに書けるよう `current-source` を持つ——`app-ui` に倒すと、静的に全部読んだのか
+ * `app-ui` として扱わずに書けるよう `current-source` を持つ。`app-ui` として扱うと、静的に全部読んだのか
  * 画面に出ていたものを数えたのかが後から区別できない。
  */
 const ITEM_SOURCE_KINDS = [
@@ -438,7 +438,7 @@ function showKind(v) {
 /**
  * 一次情報源（`SET_SOURCE_KINDS[0]`）以外で列挙したときに、その情報源が使えなかった理由の申告を要求する。
  * `fail_closed`（ソースを読めないときの `complete: false`）の裏側——**読めるのに読まなかった**——には
- * それまで経路が無く、いちばん弱い情報源だけで `complete: true` が通っていた。
+ * それまで検査する手段が無く、いちばん弱い情報源だけで `complete: true` が通っていた。
  * 「読めなかった」のか「実 UI から起こした」のかは機械では区別できないので、申告を残させる。
  * 強さの判定は記録側（coverage-expand）・判定側（coverage-check）のどちらも同じ語彙で行う
  * （片側だけ厳しいと「記録は通るが収束しない表」が作れる）。
@@ -457,7 +457,7 @@ function strongerSourceProblems(block, label) {
   const primary = SET_SOURCE_KINDS[0];
   const reason = block.stronger_source_unavailable_reason;
   if (source.kind === primary) {
-    // 効いていない免除は失敗させる。一次情報源で列挙したのに理由が残っていると、
+    // 使われていない免除は失敗させる。一次情報源で列挙したのに理由が残っていると、
     // 後から読む側はその集合を弱い情報源から起こしたものと誤読する。
     if (reason !== null && reason !== undefined) {
       problems.push(
@@ -474,9 +474,9 @@ function strongerSourceProblems(block, label) {
 
 /**
  * 読み切れた（`complete: true`）のに `incomplete_reason` が残っている記録を落とす。
- * 効いていない免除は `stronger_source_unavailable_reason` と同じ扱いにする——機械は収束させるのに、
+ * 使われていない免除は `stronger_source_unavailable_reason` と同じ扱いにする。機械は収束させるのに、
  * 成果物を読む側には「まだ読み切れていない集合」と見え、`gaps.md` の行も同じ文言で残り続ける。
- * 集合の来歴（`component_inventory` / `instance_inventory`）とインスタンスの列挙（`enumeration`）の
+ * 集合の出所（`component_inventory` / `instance_inventory`）とインスタンスの列挙（`enumeration`）の
  * **両方**へ当てる（片方だけに当てると、同じ表の中で「完全」と「未完了」を同時に主張できる）。
  * @param {Record<string, unknown>} block - `complete` と `incomplete_reason` を持つブロック
  * @param {string} label - エラーメッセージ用のラベル
@@ -491,8 +491,8 @@ function staleIncompleteReasonProblems(block, label) {
 }
 
 /**
- * 集合の来歴＋完全性のブロックを検査する（部品の集合とインスタンスの集合で同じ形を使う）。
- * 列挙しなかった部品・インスタンスは期待セルにも現れないため、宣言が無いと「測り漏れ」と
+ * 集合の出所と完全性のブロックを検査する（部品の集合とインスタンスの集合で同じ形を使う）。
+ * 列挙しなかった部品・インスタンスは期待セルにも現れないため、宣言が無いと「測りの抜け」と
  * 「本当に無い」が同じ見え方（未測定 0 で収束）になる。軸の要素・適用可能状態が既に持っている
  * `source` ＋ `complete` と同じ形を、集合の側にも当てる。
  * @param {unknown} raw - 検査するブロック（`source` / `complete` / `incomplete_reason` / `stronger_source_unavailable_reason`）
@@ -526,7 +526,7 @@ function setInventoryProblems(raw, label) {
     problems.push(...strongerSourceProblems(block, label));
   }
   // complete: false は「列挙元を読み切れなかった」の記録。未列挙として扱い、確認済みにしない。
-  // 真偽値でないときも合格に倒さない（未設定を「完全」と読まない）。
+  // 真偽値でないときも合格として扱わない（未設定を「完全」と読まない）。
   if (block.complete !== true) {
     if (block.complete === false) {
       if (!nonEmptyString(block.incomplete_reason)) {
@@ -548,8 +548,8 @@ function setInventoryProblems(raw, label) {
 }
 
 /**
- * 項目集合の来歴（`components[].source`）を検査する。語彙の外の値・キーごとの欠落を
- * 報告しないと、来歴の欄が「書けたことが効いている証拠」にならない。
+ * 項目集合の出所（`components[].source`）を検査する。語彙の外の値・キーごとの欠落を
+ * 報告しないと、出所の欄が「書いたことが機能している証拠」にならない。
  * @param {unknown} raw - `components[].source`
  * @param {string} label - エラーメッセージ用のラベル
  * @returns {string[]}
@@ -574,7 +574,7 @@ function itemSourceProblems(raw, label) {
 }
 
 /**
- * インスタンスの列挙（`instances[].enumeration`）の来歴のうち、語彙と一次情報源の申告を検査する。
+ * インスタンスの列挙（`instances[].enumeration`）の出所のうち、語彙と一次情報源の申告を検査する。
  * 記録側は加えてプロファイルの `enumeration.sources` に属することも見るが、
  * 強さの判定はどちらの側も `SET_SOURCE_KINDS` で行う。
  * @param {Record<string, unknown>} en - `instances[].enumeration`
@@ -604,7 +604,7 @@ function enumerationSourceProblems(en, label) {
 /**
  * 期待セルの展開に使える id を集める。`coverage-check.mjs` の `collectIds` と同じ規則にする——
  * id が空・重複の要素は識別できないので展開に使わず、その要素が関わるセルは未測定として数える。
- * **黙って読み飛ばさない**（読み飛ばすと、識別できない要素があるのに conformance.ok: true になる）。
+ * **警告なしに読み飛ばさない**（読み飛ばすと、識別できない要素があるのに conformance.ok: true になる）。
  * @param {unknown[]} entries
  * @param {string} label - 問題文に出す位置
  * @param {string[]} problems - 問題の追記先
@@ -638,8 +638,8 @@ function collectGenericIds(entries, label, problems) {
 }
 
 /**
- * 被覆表のセル 1 件を採点する。判定規則の正本は `references/coverage.md`「部品網羅表」。
- * **候補経路（プロファイル宣言あり）と汎用経路（`profile: null`）で同じ規則を使う**——
+ * 網羅表のセル 1 件を採点する。判定規則の原本は `references/coverage.md`「部品網羅表」。
+ * **候補を展開する場合（プロファイル宣言あり）と汎用の場合（`profile: null`）で同じ規則を使う**。
  * 片方だけ検査すると、記録側は conformance.ok を出すのに収束側（parity-diff の
  * coverage-check.mjs）が同じ表を弾く状態になる。
  * @param {unknown} row - セル行（無ければ undefined）
@@ -686,8 +686,8 @@ function gradeCellRow(row, isDuplicated, label, stateManifest, problems) {
 }
 
 /**
- * プロファイルの形式を検査する。壊れたプロファイルを静かに無視すると、
- * 候補ゼロ＝「照合するものが無い」で素通りするため、その場で問題として返す。
+ * プロファイルの形式を検査する。不正なプロファイルを警告なしに無視すると、
+ * 候補ゼロ＝「照合するものが無い」として通ってしまうため、その場で問題として返す。
  * @param {unknown} profile
  * @param {string} source - 由来（エラーメッセージ用）
  * @returns {string[]} 問題の一覧（空なら妥当）
@@ -767,8 +767,8 @@ export function validateProfile(profile, source) {
       if (!axisById.has(String(axisId)))
         at(`ルール ${rid}: 未定義の軸 ${String(axisId)} を参照している`);
     }
-    // visual_states はキーごと省略させない。省略を「見た目が変わらない」に倒すと、
-    // 状態を書き忘れたルールが撮影状態の導出から静かに落ちる（撮られない＝差 0 件と同じ見え方になる）。
+    // visual_states はキーごと省略させない。省略を「見た目が変わらない」として扱うと、
+    // 状態を書き忘れたルールが、撮影状態の導出から警告なしに外れる（撮られない＝差 0 件と同じ見え方になる）。
     if (!Array.isArray(r.visual_states)) {
       at(
         `ルール ${rid}: visual_states が配列ではない（見た目が変わらないなら空配列と no_visual_state_reason を書く）`,
@@ -807,7 +807,7 @@ export function validateProfile(profile, source) {
           }
           if (axis.kind !== "element")
             at(`ルール ${rid}: guard は element 軸にしか置けない（${key}）`);
-          // 宣言されていないフラグ名は誤記の可能性が高く、黙って「該当なし」＝候補ゼロで通る。
+          // 宣言されていないフラグ名は誤記の可能性が高く、警告なしに「該当なし」＝候補ゼロで通る。
           else if (!axis.flags.includes(flag))
             at(`ルール ${rid}: 軸 ${axisId} に宣言の無いフラグ ${flag} を参照している`);
           if (typeof value !== "boolean") at(`ルール ${rid}: guard ${key} の値が真偽値ではない`);
@@ -863,7 +863,7 @@ export function validateProfile(profile, source) {
       seenRequired.add(String(rid));
     }
     // 組は「どれか 1 つで満たす」ので、同じ要求を guard だけで分けたルールに限る。軸が違うルールを組にすると
-    // 片方の候補がもう片方の候補 0 件を黙らせる（例: 列の表示と右クリックメニューを組にするとメニューの列挙漏れが消える）
+    // 片方の候補が、もう片方の候補 0 件を隠してしまう（例: 列の表示と右クリックメニューを組にすると、メニューの列挙の抜けが消える）
     if (group.length > 1 && new Set(group.map((rid) => axesOfRule.get(String(rid)))).size > 1) {
       at(
         `required_rules: 代替の組 ${group.map(String).join(" / ")} の axes が揃っていない（同じ要求を guard だけで分けたルールしか組にしない）`,
@@ -878,7 +878,7 @@ export function validateProfile(profile, source) {
           `required_rules: 代替の組 ${group.map(String).join(" / ")} の requirement が揃っていない（同じ要求を分けたルールには、組の全てに同じ requirement を書く）`,
         );
     }
-    // 軸が揃っていても、別の要求（列の表示と列の絞り込み等）を組にすると片方の候補がもう片方の 0 件を黙らせる。
+    // 軸が揃っていても、別の要求（列の表示と列の絞り込みなど）を組にすると、片方の候補がもう片方の 0 件を隠してしまう。
     // 組の全ての組み合わせで guard が排他（同じフラグに逆の値を要求）なことを要求する
     for (let i = 0; i < group.length; i += 1) {
       for (let j = i + 1; j < group.length; j += 1) {
@@ -890,18 +890,18 @@ export function validateProfile(profile, source) {
     }
   }
 
-  // enumeration ブロックは形式の正本（profile-schema.json）が必須にしている。
-  // とくに sources が空だと readEnumeration の source.kind 検査が「候補ゼロ」で黙って素通りし、
-  // どの列挙元でも通ってしまう（fail-open）。procedure / fail_closed / pitfalls が空のプロファイルは
-  // 列挙手順・落ちやすい経路・ソースを読めない場合の扱いを持たないまま配布されるため、ここで落とす。
+  // enumeration ブロックは形式の原本（profile-schema.json）が必須にしている。
+  // とくに sources が空だと、readEnumeration の source.kind 検査が「候補ゼロ」として警告なしに通り、
+  // どの列挙元でも通ってしまう。procedure / fail_closed / pitfalls が空のプロファイルは、
+  // 列挙手順・落としやすい箇所・ソースを読めない場合の扱いを持たないまま配布されるため、ここで落とす。
   const enumeration = isPlainObject(p.enumeration)
     ? /** @type {Record<string, unknown>} */ (p.enumeration)
     : null;
   if (!enumeration) {
-    at("enumeration が無い（列挙元・手順・fail-closed の扱いが宣言されていない）");
+    at("enumeration が無い（列挙元・手順・読めない場合の扱いが宣言されていない）");
   } else {
-    // 型崩れ（非文字列・空文字・入れ子）を filter で落としてから検査すると、残った要素だけが
-    // 語彙・順序の検査を通り、壊れた宣言が「適合」として配布される（fail-open）。先に生の要素を見る。
+    // 型の誤り（非文字列・空文字・入れ子）を filter で落としてから検査すると、残った要素だけが
+    // 語彙・順序の検査を通り、不正な宣言が「適合」として配布される。先に生の要素を見る。
     const rawSources = Array.isArray(enumeration.sources) ? enumeration.sources : null;
     if (rawSources === null) {
       at("enumeration.sources が配列ではない（列挙元の kind を検査できず、どの値でも通る）");
@@ -940,7 +940,7 @@ export function validateProfile(profile, source) {
       ? enumeration.pitfalls.filter(nonEmptyString)
       : [];
     if (pitfalls.length === 0) {
-      at("enumeration.pitfalls が空（列挙から落ちやすい経路が宣言されていない）");
+      at("enumeration.pitfalls が空（列挙から落としやすい箇所が宣言されていない）");
     }
   }
 
@@ -958,7 +958,7 @@ export function validateProfile(profile, source) {
 }
 
 /**
- * 同梱プロファイルを読み込む。壊れたものは無視せず問題として返す（静かな候補ゼロを作らない）。
+ * 同梱プロファイルを読み込む。不正なものは無視せず問題として返す（警告なしの候補ゼロを作らない）。
  * @param {string} dir - プロファイルディレクトリ
  * @param {{readdir?: (d: string) => string[], readFile?: (p: string) => string}} [deps]
  * @returns {{profiles: Map<string, Record<string, unknown>>, problems: string[]}}
@@ -1033,7 +1033,7 @@ export function readEnumeration(enumeration, profile, label) {
     ? /** @type {Record<string, unknown>} */ (en.source)
     : null;
   if (!source) {
-    problems.push(`${label}: enumeration.source が無い（来歴が残らない）`);
+    problems.push(`${label}: enumeration.source が無い（出所が残らない）`);
   } else {
     for (const key of ["kind", "ref", "version", "extracted_at", "condition"]) {
       if (!nonEmptyString(source[key])) problems.push(`${label}: enumeration.source.${key} が空`);
@@ -1053,8 +1053,8 @@ export function readEnumeration(enumeration, profile, label) {
     problems.push(...enumerationSourceProblems(en, label));
   }
 
-  // complete: false は「ソースを読めなかった」の記録。候補を展開せず未列挙として扱う（fail-closed）。
-  // 真偽値でないときも合格に倒さない（未設定を「完全」と読まない）。
+  // complete: false は「ソースを読めなかった」の記録。候補を展開せず、未列挙として扱う。
+  // 真偽値でないときも合格として扱わない（未設定を「完全」と読まない）。
   if (en.complete !== true) {
     if (en.complete === false) {
       if (!nonEmptyString(en.incomplete_reason)) {
@@ -1074,7 +1074,7 @@ export function readEnumeration(enumeration, profile, label) {
     return { elements, problems, usable: false };
   }
   // 読み切れたのに理由が残っている記録は、同じ表の中で「完全」と「未完了」を同時に主張する。
-  // 集合の来歴（setInventoryProblems）と同じ扱いで落とす（判定側も同じ関数で見る）。
+  // 集合の出所（setInventoryProblems）と同じ扱いで落とす（判定側も同じ関数で見る）。
   problems.push(...staleIncompleteReasonProblems(en, label));
 
   const axes = Array.isArray(profile.axes) ? profile.axes : [];
@@ -1160,8 +1160,8 @@ export function readEnumeration(enumeration, profile, label) {
 
 /**
  * 「その軸／その要素は無い」の根拠（enumeration.justified_absences）を読む。
- * 根拠を読む経路が無いと、候補ゼロの fail-closed が行き止まりになり、
- * 「実際には無いのにフラグを true と偽って absent を測る」以外の逃げ道が消える。
+ * 根拠を読む手段が無いと、候補ゼロで不合格にした後に進む先が無くなり、
+ * 「実際には無いのにフラグを true と偽って absent を測る」以外の方法が無くなる。
  * scope は `<軸 id>`（軸ごと空）か `<軸 id>/<要素 id>`（要素は在るがどの候補にもならない）。
  * @param {unknown} raw - enumeration.justified_absences
  * @param {Map<string, Array<{id: string, flags: Record<string, boolean>}>>} elements
@@ -1416,14 +1416,14 @@ export function checkEquivalenceClasses(classes, profile, candidateIndex, label)
         `${label}: 同値クラス ${cid}: representative ${representative} が members に含まれていない`,
       );
     }
-    // 束ねてよいのは宣言した軸だけ。他の軸やルールが違うメンバーが混ざると、
+    // 束ねてよいのは宣言した軸だけ。他の軸やルールが違うメンバーが含まれると、
     // 代表 1 件の採取では別物の差分が見えなくなる。
     if (axisId && resolved.length > 1) {
       const [first, ...rest] = resolved;
       for (const other of rest) {
         if (other.rule !== first.rule) {
           problems.push(
-            `${label}: 同値クラス ${cid}: ルールの違う候補が混ざっている（${first.rule} と ${other.rule}）`,
+            `${label}: 同値クラス ${cid}: ルールの違う候補が含まれている（${first.rule} と ${other.rule}）`,
           );
           break;
         }
@@ -1453,7 +1453,7 @@ export function checkEquivalenceClasses(classes, profile, candidateIndex, label)
 /**
  * 部品の宣言セル数（項目数 × インスタンス数）。採点せずに抜ける分岐が未測定として数える件数の定義で、
  * 判定側（parity-diff の coverage-check.mjs）の declaredCells と同じ式にする。列挙が空・部品が JSON
- * オブジェクトでないときに 0 へ落ちると「未測定 0」を主張できるため、fail-closed の下限として 1 を取る。
+ * オブジェクトでないときに 0 になると「未測定 0」を主張できるため、下限として 1 を取る。
  * @param {unknown} component
  * @returns {number}
  */
@@ -1467,7 +1467,7 @@ function declaredCellCount(component) {
 /**
  * プロファイルを読めない部品の未測定の下限。記録側は候補を展開できないので採点しないが、判定側
  * （parity-diff の coverage-check.mjs）はプロファイルを読まず、インスタンスごとに記録された候補から数え直す。
- * 宣言セル数だけでは、items が欠けて候補だけ記録された被覆表で判定側を下回るため、判定側がその
+ * 宣言セル数だけでは、items が欠けて候補だけ記録された網羅表で判定側を下回るため、判定側がその
  * インスタンスで数えうる件数の上限も取る: 候補ごとのセル（重複を除く）＋ 軸値が引けない候補（記録の要素数ぶん）
  * または列挙した要素のうち候補に現れないもの。どちらか一方しか数えないので大きい方を足す。下限は 1。
  * @param {Record<string, unknown>} c
@@ -1495,11 +1495,11 @@ function unscoredProfiledCellCount(c) {
 }
 
 /**
- * 被覆表とプロファイルを照合する。
+ * 網羅表とプロファイルを照合する。
  * @param {unknown} coverage - component-coverage.json をパースしたもの
  * @param {Map<string, Record<string, unknown>>} profiles
  * @param {{pageNames: string[], states: string[], popupStates: string[]} | null} [metadata] - metadata.json の撮影条件。
- *   渡さない実行では撮影状態の照合を checked: false にする（照合していない記録を照合済みに倒さない）。
+ *   渡さない実行では撮影状態の照合を checked: false にする（照合していない記録を照合済みとして扱わない）。
  * @returns {{ok: boolean, components: Array<Record<string, unknown>>, problems: string[], candidates: number, unmeasured: number, visualStates: {checked: boolean, rows: number, undecided: number, missing_states: string[]}}}
  */
 export function reconcile(coverage, profiles, metadata = null) {
@@ -1513,7 +1513,7 @@ export function reconcile(coverage, profiles, metadata = null) {
     return {
       ok: false,
       components: [],
-      problems: ["被覆表が JSON オブジェクトではない"],
+      problems: ["網羅表が JSON オブジェクトではない"],
       candidates: 0,
       unmeasured: 1,
       visualStates: { checked: false, rows: 0, undecided: 1, missing_states: [] },
@@ -1523,7 +1523,7 @@ export function reconcile(coverage, profiles, metadata = null) {
   const components = Array.isArray(cov.components) ? cov.components : [];
   if (components.length === 0) problems.push("components が空");
 
-  // 部品の集合の来歴と完全性。列挙しなかった部品は期待セルにも現れないため、宣言が無いと
+  // 部品の集合の出所と完全性。列挙しなかった部品は期待セルにも現れないため、宣言が無いと
   // 「載せなかった部品」が未測定 0 のまま収束する（判定側の coverage-check.mjs と同じ扱い）。
   const inventoryProblems = setInventoryProblems(cov.component_inventory, "component_inventory");
   if (inventoryProblems.length > 0) {
@@ -1579,7 +1579,7 @@ export function reconcile(coverage, profiles, metadata = null) {
     }
     seenComponents.add(cid);
 
-    // インスタンスの集合（この部品をどの画面に何個置いたか）の来歴と完全性と、項目集合の来歴
+    // インスタンスの集合（この部品をどの画面に何個置いたか）の出所と完全性と、項目集合の出所
     // （components[].source）の語彙・キー欠落。判定側（coverage-check.mjs）と同じ検査を当てる。
     const setProblems = [
       ...setInventoryProblems(c.instance_inventory, `部品 ${cid} の instance_inventory`),
@@ -1590,7 +1590,7 @@ export function reconcile(coverage, profiles, metadata = null) {
       unmeasured += 1;
     }
 
-    // profile キーの欠落を「汎用扱い」に倒さない。プロファイル無しを選ぶには理由が要る。
+    // profile キーの欠落を「汎用」として扱わない。プロファイル無しを選ぶには理由が要る。
     if (!("profile" in c)) {
       problems.push(
         `部品 ${cid}: profile キーが無い（適合プロファイルが無いなら profile: null ＋ profile_absent_reason を書く。暗黙の汎用扱いにしない）`,
@@ -1605,11 +1605,11 @@ export function reconcile(coverage, profiles, metadata = null) {
         );
       }
       // プロファイルを宣言しない部品でも期待セルは 項目 × インスタンス で存在する。
-      // 候補展開はしないが、セルの判定規則は候補経路と同じものを当てる（記録側だけ通る表を作らない）。
+      // 候補展開はしないが、セルの判定規則は候補を展開する場合と同じものを当てる（記録側だけ通る表を作らない）。
       const genericItems = Array.isArray(c.items) ? c.items : [];
       const genericInstances = Array.isArray(c.instances) ? c.instances : [];
       if (genericItems.length === 0 || genericInstances.length === 0) {
-        // 空の列挙は期待セル 0 ＝ 未測定 0 に化けるので、fail-closed で 1 件の未測定として数える
+        // 空の列挙は期待セル 0 ＝ 未測定 0 と誤って判定されるので、1 件の未測定として数える
         // （判定側の coverage-check.mjs と同じ扱い）。
         problems.push(`部品 ${cid}: items または instances が空（列挙が起きていない）`);
         unmeasured += 1;
@@ -1769,7 +1769,7 @@ export function reconcile(coverage, profiles, metadata = null) {
         if (candidates.some((cand) => group.includes(cand.rule))) continue;
         // 「その部品には無い」の主張は、ルールが使う element 軸のいずれかが
         // 根拠付きで空（軸ごと空、または全要素が要素ごとの免除を持つ）のときだけ通す。
-        // 代替の組は、組の全てのルールについて根拠があるときだけ通す（1 つでも根拠が無ければ列挙漏れと区別できない）。
+        // 代替の組は、組の全てのルールについて根拠があるときだけ通す（1 つでも根拠が無ければ、列挙の抜けと区別できない）。
         const justified = group.map((rid) => justifiedEmptyAxis(profile, rid, elements, absences));
         if (justified.every(Boolean)) {
           for (const scopes of justified) for (const scope of scopes ?? []) usedAbsences.add(scope);
@@ -1780,7 +1780,7 @@ export function reconcile(coverage, profiles, metadata = null) {
         );
         unmeasured += 1;
       }
-      // 列挙した要素が候補へ 1 件も現れないのは、フラグの記録漏れかルールの取りこぼし。
+      // 列挙した要素が候補へ 1 件も現れないのは、フラグの記録忘れかルールの取りこぼしである。
       // 「40 列を列挙したが候補は代表 1 列だけ」をここで落とす。
       // 根拠付きの免除（justified_absences）がある要素だけを通す。
       for (const [axisId, list] of elements) {
@@ -1792,22 +1792,22 @@ export function reconcile(coverage, profiles, metadata = null) {
             continue;
           }
           problems.push(
-            `${label}: 列挙した ${axisId} の要素 ${el.id} がどの候補にも現れない（フラグの記録漏れか、ルールの取りこぼし。意図的なら enumeration.justified_absences に根拠を残す）`,
+            `${label}: 列挙した ${axisId} の要素 ${el.id} がどの候補にも現れない（フラグの記録忘れか、ルールの取りこぼし。意図的なら enumeration.justified_absences に根拠を残す）`,
           );
           unmeasured += 1;
         }
       }
-      // 使われない免除を黙って残さない（状況が変わったのに根拠だけが残る＝古い免除が効いているように見える）。
+      // 使われない免除を警告なしに残さない（状況が変わったのに根拠だけが残る＝古い免除が有効に見える）。
       for (const scope of [...absences.axes, ...absences.elements]) {
         if (!usedAbsences.has(scope)) {
           problems.push(
-            `${label}: justified_absences の ${scope} は効いていない（候補が展開されている。古い免除を残さない）`,
+            `${label}: justified_absences の ${scope} は有効になっていない（候補が展開されている。古い免除を残さない）`,
           );
         }
       }
 
       candidateTotal += candidates.length;
-      // 候補ごとに未測定へ数えたかを覚える。下の instances[].candidates の記録漏れと同じ候補を二重に数えない。
+      // 候補ごとに未測定へ数えたかを覚える。下の instances[].candidates の記録忘れと同じ候補を二重に数えない。
       /** @type {Set<string>} */
       const unmeasuredCandidates = new Set();
       const countCandidateUnmeasured = (/** @type {string} */ id) => {
@@ -1825,7 +1825,7 @@ export function reconcile(coverage, profiles, metadata = null) {
         // 項目が無い・記録が無い・展開結果と違う候補は判定側の数え直しを成立させないので、セルの値に依らず 1 件を未測定に数える。
         let recordMatches = recorded !== null;
         if (!item) {
-          problems.push(`${label}: 候補 ${cand.id} に対応する項目が被覆表に無い（欠落）`);
+          problems.push(`${label}: 候補 ${cand.id} に対応する項目が網羅表に無い（欠落）`);
         } else if (!recorded) {
           problems.push(
             `${label}: 項目 ${cand.id} に candidate（ルール id と軸値）が記録されていない`,
@@ -1854,7 +1854,7 @@ export function reconcile(coverage, profiles, metadata = null) {
           }
         }
 
-        // セルの判定規則は coverage.md「部品網羅表」が正本。候補由来の期待セルへ同じ規則を当てる。
+        // セルの判定規則は coverage.md「部品網羅表」が原本。候補由来の期待セルへ同じ規則を当てる。
         const key = keyOf(cid, cand.id, iid);
         expectedKeys.add(key);
         // 記録の不備とセルの不備は別の欠陥として数える。判定側は軸値が引けない候補を 1 件数えたうえで、
@@ -1948,7 +1948,7 @@ export function reconcile(coverage, profiles, metadata = null) {
       [...candidateIndex.keys()].map((k) => k.slice(k.indexOf(ID_SEPARATOR) + 1)),
     );
     // 列挙できなかったインスタンスがあると候補集合が不完全なので、余剰の判定は行わない
-    // （全項目が「余剰」に化けて本当の原因〈列挙の問題〉を覆い隠す）。
+    // （全項目が「余剰」と誤って判定され、本当の原因〈列挙の問題〉を覆い隠す）。
     if (instanceReports.every((r) => r.usable)) {
       for (const [itemId, item] of itemById) {
         if (item.candidate !== undefined && !candidateIds.has(itemId)) {
@@ -1992,8 +1992,8 @@ export function reconcile(coverage, profiles, metadata = null) {
 }
 
 /**
- * 撮影状態の行のキー。**要求元（`required_by`）を含める**——種別だけで束ねると、
- * 同じ種別を要求する別の操作が 1 行へ潰れ、片方を撮るだけで門が通る。
+ * 撮影状態の行のキー。**要求元（`required_by`）を含める**。種別だけで束ねると、
+ * 同じ種別を要求する別の操作が 1 行へ潰れ、片方を撮るだけでチェックが通る。
  * @param {Record<string, unknown>} row
  * @returns {string}
  */
@@ -2007,10 +2007,10 @@ function visualRowKey(row) {
 }
 
 /**
- * 撮影状態の必要集合を被覆表から導く（純関数）。
+ * 撮影状態の必要集合を網羅表から導く（純関数）。
  *
  * 測った操作（value: present のセル）と、その項目が宣言した見た目の状態の種別（items[].visual_states）から
- * 「部品 × インスタンス × 要求元の操作 × 種別」の行を作る。撮っていない状態には差が出ず、差分器は撮った 2 枚しか比べないので、
+ * 「部品 × インスタンス × 要求元の操作 × 種別」の行を作る。撮っていない状態には差が出ず、差分ツールは撮った 2 枚しか比べないので、
  * 集合が足りないぶんは「差 0 件」と区別が付かない。導出はその不足を撮る前に見えるようにする。
  *
  * 下限であって上限ではない——操作から導けない状態（error / 初期表示のバリアント）は手で states へ足す。
@@ -2025,12 +2025,12 @@ export function deriveVisualStateRows(cov) {
   const components = Array.isArray(cov.components) ? cov.components : [];
   const cells = Array.isArray(cov.cells) ? cov.cells : [];
 
-  // 部品 → "<インスタンス id>/<候補 id>" → 視覚採取する代表 "<インスタンス id>/<候補 id>"。
-  // 縮約してよい軸かどうか・所属の全体性・根拠・代表の妥当性は checkEquivalenceClasses が
-  // 同じ実行の reconcile で検査するので、ここは構造（members / representative）だけを読む
+  // 部品 → "<インスタンス id>/<候補 id>" → 視覚採取する代表 "<インスタンス id>/<候補 id>" の対応である。
+  // 縮約してよい軸かどうか・所属の全体性・根拠・代表の妥当性は、checkEquivalenceClasses が
+  // 同じ実行の reconcile で検査する。そのため、ここは構造（members / representative）だけを読む
   // （不正なクラスは problems が立って ok: false になるため、縮約が誤っても緑にはならない）。
-  // **プロファイルを宣言した部品だけ**を対象にする——reducible_axes を持たない部品には
-  // どの軸を縮約してよいかの宣言が無く、検証も走らないため。
+  // **プロファイルを宣言した部品だけ**を対象にする。reducible_axes を持たない部品には、
+  // どの軸を縮約してよいかの宣言が無く、検証も実行されないためである。
   /** @type {Map<string, Map<string, string>>} */
   const representativeOf = new Map();
   for (const component of components) {
@@ -2103,7 +2103,7 @@ export function deriveVisualStateRows(cov) {
         kinds.push(k);
       }
       // 理由欄の要否は「宣言した長さ」で見る（誤記を弾いた後の kinds.length で見ると、
-      // 誤記だけの宣言が「空なのに理由が無い」に化けて原因が 2 つに割れる。validateProfile と同じ規則）。
+      // 誤記だけの宣言が「空なのに理由が無い」と誤って判定され、原因が 2 つに割れる。validateProfile と同じ規則）。
       if (it.visual_states.length === 0 && !nonEmptyString(it.no_visual_state_reason))
         problems.push(
           `部品 ${cid}: 項目 ${iid}: visual_states が空なのに no_visual_state_reason が空（考えていないのと区別が付かない）`,
@@ -2147,8 +2147,8 @@ export function deriveVisualStateRows(cov) {
     for (const kind of item.kinds) {
       // 要求元をキーに含める。種別だけで束ねると、同じ種別を要求する別の操作
       // （列フィルタの吹き出しと右クリックメニューはどちらも opens-container）が 1 行へ潰れ、
-      // 片方の状態名を書くだけで門が通る——撮られなかった方の差は「差 0 件」と同じ見え方になり、
-      // 本導出が塞ごうとした穴がそのまま残る。
+      // 片方の状態名を書くだけでチェックが通る。撮られなかった方の差は「差 0 件」と同じ見え方になり、
+      // この導出で防ごうとした抜けがそのまま残る。
       const key = JSON.stringify([cid, rowInstance, rowRequiredBy, kind]);
       derived.set(key, {
         component: cid,
@@ -2159,7 +2159,7 @@ export function deriveVisualStateRows(cov) {
     }
   }
 
-  // 入力順ではなく安定な並びで出す（書き戻した被覆表が実行ごとに変わらないようにする）。
+  // 入力順ではなく安定な並びで出す（書き戻した網羅表が実行ごとに変わらないようにする）。
   const rows = [...derived.values()]
     .sort(
       (a, b) =>
@@ -2176,7 +2176,7 @@ export function deriveVisualStateRows(cov) {
 }
 
 /**
- * 導いた行を被覆表へ書き戻す。captured / reason は同じキー（部品・インスタンス・要求元・種別）の
+ * 導いた行を網羅表へ書き戻す。captured / reason は同じキー（部品・インスタンス・要求元・種別）の
  * 既存行から引き継ぐ——導出は要求の集合だけを決め、撮る／撮らないの判断は人／エージェントが持つ。
  * 要求が消えた行は落とす（測っていない操作の撮影判断が残り続けない）。
  * @param {Record<string, unknown>} cov
@@ -2200,7 +2200,7 @@ export function fillVisualStateRows(cov) {
     )
       continue;
     const key = visualRowKey(r);
-    // 同じキーの重複は先勝ちにせず、どちらの判断も引き継がない（黙って一方を採ると判断が消える）。
+    // 同じキーの重複は先勝ちにせず、どちらの判断も引き継がない（警告なしに一方を採ると判断が消える）。
     if (prevByKey.has(key)) prevByKey.set(key, {});
     else prevByKey.set(key, r);
   }
@@ -2219,7 +2219,7 @@ export function fillVisualStateRows(cov) {
  * 記録された撮影状態の行を、導いた集合と metadata.json の撮影条件に照らして検査する。
  *
  * --metadata を渡さない実行では capture_conditions.states との差を取れないため checked: false にする
- * （照合していない記録を「照合済み」に倒さない。parity-diff は checked: true を要求する）。
+ * （照合していない記録を「照合済み」として扱わない。parity-diff は checked: true を要求する）。
  * @param {Record<string, unknown>} cov
  * @param {{pageNames: string[], states: string[], popupStates: string[]} | null} metadata
  * @returns {{problems: string[], summary: {checked: boolean, rows: number, undecided: number, missing_states: string[]}}}
@@ -2232,7 +2232,7 @@ export function checkVisualStates(cov, metadata) {
   /** @type {Map<string, Record<string, unknown>>} */
   const recorded = new Map();
   if (!recordedBlock || !Array.isArray(recordedBlock.rows)) {
-    // キーの欠落を「行が無い＝要求が無い」に倒さない。導出を一度も走らせていない表を通さないため。
+    // キーの欠落を「行が無い＝要求が無い」として扱わない。導出を一度も実行していない表を通さないためである。
     problems.push(
       "visual_state_coverage.rows が無い（coverage-expand.mjs --write で撮影状態を導出する）",
     );
@@ -2268,7 +2268,7 @@ export function checkVisualStates(cov, metadata) {
   const states = metadata ? new Set(metadata.states) : null;
   const popupStates = metadata ? new Set(metadata.popupStates) : null;
   // metadata を渡された以上、ページ名の集合も来ているはず（readCaptureConditions が必ず返す）。
-  // 「無ければ照合しない」に倒すと、呼び出し側が pageNames を落とすだけでページ名の検査が消える。
+  // 「無ければ照合しない」として扱うと、呼び出し側が pageNames を落とすだけでページ名の検査が消える。
   const pageNames =
     metadata === null
       ? null
@@ -2282,8 +2282,8 @@ export function checkVisualStates(cov, metadata) {
   // 撮影の単位は ページ × 状態名 × ビューポートなので、同じページで状態名を使い回した行は
   // 同じ 1 枚を指す。行のキーを要求元まで割っても、値が同じなら 1 回の撮影で複数の操作が満たされ、
   // 撮られなかった側の差は「差 0 件」に戻る（キーの粒度と同じ故障が値の側に残る）。
-  // ページはこの撮影単位を決めるキーなので、欠けていたら狭いスコープへ倒さず落とす。
-  // 倒すと、同じページに載る別部品どうしが根拠なく状態名を使い回しても通る（fail-open）。
+  // ページはこの撮影単位を決めるキーなので、欠けていたら狭いスコープとして扱わず落とす。
+  // 狭いスコープとして扱うと、同じページに載る別部品どうしが根拠なく状態名を使い回しても通る。
   // 落とすのは撮影状態を要求する行を持つインスタンスだけ（要求が無ければ撮影単位も無い）。
   /** @type {Map<string, string>} */
   const scopeByInstance = new Map();
@@ -2310,7 +2310,7 @@ export function checkVisualStates(cov, metadata) {
     if (!row) {
       undecided += 1;
       problems.push(
-        `撮影状態が導出から漏れている: ${label}（coverage-expand.mjs --write で行を起こす）`,
+        `撮影状態が導出から外れている: ${label}（coverage-expand.mjs --write で行を起こす）`,
       );
       continue;
     }
@@ -2343,7 +2343,7 @@ export function checkVisualStates(cov, metadata) {
     }
     // ページ名が非空なだけでは足りない。採取は metadata の capture_conditions.pages を外側のループにして
     // 回るので、宣言に無いページ名（誤記・旧称）を書いた行はどのページでも撮られない。
-    // 誤記は使い回しの判定単位も割るため、共有すべきスコープが黙って分かれる。
+    // 誤記は使い回しの判定単位も割るため、共有すべきスコープが警告なしに分かれる。
     if (pageNames === "unreadable") {
       undecided += 1;
       problems.push(
@@ -2370,18 +2370,18 @@ export function checkVisualStates(cov, metadata) {
       );
       continue;
     }
-    // 器を開く状態は popup_inventory にも行が要る。states にあるだけでは、
+    // コンテナを開く状態は popup_inventory にも行が要る。states にあるだけでは、
     // 開く操作・親子・撮る判断が棚卸しされていないまま状態名だけが立つ。
     if (derivedRow.kind === "opens-container" && popupStates && !popupStates.has(captured)) {
       missingStates.add(captured);
       problems.push(
-        `撮影状態 ${label}: captured の ${captured} が capture_conditions.popup_inventory[].captured に無い（器の棚卸しに行を足す）`,
+        `撮影状態 ${label}: captured の ${captured} が capture_conditions.popup_inventory[].captured に無い（コンテナの棚卸しに行を足す）`,
       );
     }
   }
 
   // 同じ撮影単位で状態名を共有する行は、共有してよい根拠が全行に要る。
-  // 根拠の欄を置くのは、fail-closed を行き止まりにしないため（本当に同じ器を開く 2 操作がありうる）。
+  // 根拠の欄を置くのは、不合格にした後に進む先を残すためである（本当に同じコンテナを開く 2 操作がありうる）。
   // 根拠なしの共有は、1 枚で複数の操作を満たした状態と区別が付かないので落とす。
   for (const uses of capturedUses.values()) {
     if (uses.length < 2) continue;
@@ -2390,7 +2390,7 @@ export function checkVisualStates(cov, metadata) {
     undecided += missingReason.length;
     problems.push(
       `撮影状態の使い回し: ${uses.map((u) => u.label).join(" / ")} が同じ状態名 ${String(uses[0].row.captured)} を指している` +
-        `（同じ撮影単位では 1 枚が複数の操作を満たしてしまう。別の状態名にするか、同じ器を開く操作であることを全行の shared_capture_reason に書く。` +
+        `（同じ撮影単位では 1 枚が複数の操作を満たしてしまう。別の状態名にするか、同じコンテナを開く操作であることを全行の shared_capture_reason に書く。` +
         `根拠が空: ${missingReason.map((u) => u.label).join(" / ")}）`,
     );
   }
@@ -2418,7 +2418,7 @@ export function checkVisualStates(cov, metadata) {
 
 /**
  * プロファイルを宣言した部品の items[].visual_states を candidate_rules から書き戻す。
- * 撮影状態の種別は操作の性質なので、部品ごとに手で書かずプロファイルを正本にする。
+ * 撮影状態の種別は操作の性質なので、部品ごとに手で書かずプロファイルを原本にする。
  * @param {Record<string, unknown>} coverage
  * @param {Map<string, Record<string, unknown>>} profiles
  * @returns {Record<string, unknown>}
@@ -2448,7 +2448,7 @@ export function fillVisualStates(coverage, profiles) {
       const candidate = isPlainObject(it.candidate)
         ? /** @type {Record<string, unknown>} */ (it.candidate)
         : null;
-      // ルールを名乗らない項目は推測で埋めない（id の前半からの推測は別ルールの状態を写しうる）。
+      // ルールを名乗らない項目は推測で埋めない（id の前半からの推測は、別ルールの状態を取り込みうる）。
       // 対応付けの欠落は reconcile が候補との突き合わせで落とす。
       if (!candidate || !nonEmptyString(candidate.rule)) continue;
       const declared = byRule.get(String(candidate.rule));
@@ -2461,7 +2461,7 @@ export function fillVisualStates(coverage, profiles) {
 }
 
 /**
- * 被覆表へ展開結果（instances[].candidates と profile_version）を書き戻す。
+ * 網羅表へ展開結果（instances[].candidates と profile_version）を書き戻す。
  * 測定値（cells の value / evidence / covered_by）には触れない。
  * 照合の前に呼ぶ——記録された候補が古い／無いことを理由にした問題を、書き戻しで先に解消してから
  * 残る欠落だけを報告するため（書き戻しても直らない欠落だけが問題として残る）。
@@ -2491,7 +2491,7 @@ export function fillCandidates(coverage, profiles) {
 }
 
 /**
- * 照合結果を conformance として被覆表へ記録する。parity-diff はプロファイルを読まないため、
+ * 照合結果を conformance として網羅表へ記録する。parity-diff はプロファイルを読まないため、
  * ここに残った ok が「展開ルールまで含めて適合したか」の唯一の記録になる。
  * @param {Record<string, unknown>} coverage
  * @param {{ok: boolean, problems: string[], candidates: number, unmeasured: number, visualStates: {checked: boolean, rows: number, undecided: number, missing_states: string[]}}} result
@@ -2511,7 +2511,7 @@ export function recordConformance(coverage, result) {
 }
 
 /**
- * metadata.json から撮影条件（撮影状態と器の棚卸し）と slug を読む。
+ * metadata.json から撮影条件（撮影状態とコンテナの棚卸し）と slug を読む。
  *
  * slug を返すのは、渡された metadata が同じ機能のものかを呼び出し側で照合するため。
  * 照合しないと別機能の metadata で checked: true を記録でき、状態名が汎用（hover 等）だと
@@ -2523,13 +2523,13 @@ export function recordConformance(coverage, result) {
 export function readCaptureConditions(parsed) {
   if (!isPlainObject(parsed)) return null;
   const meta = /** @type {Record<string, unknown>} */ (parsed);
-  // slug の欠落は「照合しない」に倒さない（照合できない metadata を通すと上の穴がそのまま開く）。
+  // slug の欠落は「照合しない」として扱わない（照合できない metadata を通すと、上の抜けがそのまま残る）。
   if (!nonEmptyString(meta.slug)) return null;
   if (!isPlainObject(meta.capture_conditions)) return null;
   const cc = /** @type {Record<string, unknown>} */ (meta.capture_conditions);
   if (!Array.isArray(cc.states)) return null;
   // pages は撮影の外側のループ（parity-diff の採取スペックは pages × states × viewports で回す）。
-  // 宣言されたページ名の集合を返さないと、被覆表の instances[].page が実在するかを照合できない。
+  // 宣言されたページ名の集合を返さないと、網羅表の instances[].page が実在するかを照合できない。
   if (!Array.isArray(cc.pages)) return null;
   // popup_inventory はキーの欠落と空配列を区別する（欠落は棚卸し未実施＝照合できない）。
   if (!Array.isArray(cc.popup_inventory)) return null;
@@ -2557,8 +2557,11 @@ export function readCaptureConditions(parsed) {
 
 /**
  * CLI 本体。
+ *
  * `node coverage-expand.mjs --coverage <component-coverage.json> [--metadata <metadata.json>] [--profiles <dir>] [--write]`
+ *
  * `node coverage-expand.mjs --list-profiles [--profiles <dir>]`
+ *
  * 終了コード: 0 ＝ 適合／1 ＝ 欠落・未測定・不整合が残る／2 ＝ 使い方の誤り・読み込み失敗。
  * @param {string[]} argv - process.argv.slice(2)
  * @param {{readFile?: (p: string) => string, readdir?: (d: string) => string[], writeFile?: (p: string, s: string) => void, defaultProfilesDir?: string}} [deps]
@@ -2591,7 +2594,7 @@ export function main(argv, deps = {}) {
         return 2;
       }
       if (opts[a.slice(2)] !== undefined) {
-        // 同じフラグの重複指定を黙って後勝ちにしない（どちらを読んだか出力から分からなくなる）。
+        // 同じフラグの重複指定を警告なしに後勝ちにしない（どちらを読んだか出力から分からなくなる）。
         process.stderr.write(`error: ${a} が複数回指定されている\n${usage}`);
         return 2;
       }
@@ -2618,7 +2621,7 @@ export function main(argv, deps = {}) {
   for (const p of loadProblems) process.stderr.write(`error: プロファイル: ${p}\n`);
   if (loadProblems.length > 0) return 2;
   if (profiles.size === 0) {
-    // 0 件を「照合するものが無い」で素通りさせない（同梱の取りこぼしを合格に倒さない）。
+    // 0 件を「照合するものが無い」として通さない（同梱の取りこぼしを合格として扱わない）。
     process.stderr.write(`error: プロファイルが 1 件も読み込めなかった: ${profilesDir}\n`);
     return 2;
   }
@@ -2649,15 +2652,15 @@ export function main(argv, deps = {}) {
   try {
     coverage = JSON.parse(readFile(opts.coverage));
   } catch (e) {
-    process.stderr.write(`error: 被覆表を読めない: ${opts.coverage}: ${String(e)}\n`);
+    process.stderr.write(`error: 網羅表を読めない: ${opts.coverage}: ${String(e)}\n`);
     return 2;
   }
 
   if (write && !isPlainObject(coverage)) {
-    process.stderr.write("error: 被覆表が JSON オブジェクトではないので書き戻せない\n");
+    process.stderr.write("error: 網羅表が JSON オブジェクトではないので書き戻せない\n");
     return 2;
   }
-  // 書き戻しは照合の前に行う。候補の記録漏れを書き戻しで埋めたうえで、
+  // 書き戻しは照合の前に行う。候補の記録忘れを書き戻しで埋めたうえで、
   // 埋めても直らない欠落（項目・セルが無い、証拠が無い）だけを問題として残す。
   /** @type {{states: string[], popupStates: string[]} | null} */
   let metadata = null;
@@ -2672,24 +2675,24 @@ export function main(argv, deps = {}) {
     }
     metadata = readCaptureConditions(parsed);
     if (metadata !== null && isPlainObject(coverage)) {
-      // 別機能の metadata を黙って受理しない。状態名が汎用なら突き合わせも通ってしまい、
+      // 別機能の metadata を警告なしに受理しない。状態名が汎用なら突き合わせも通ってしまい、
       // parity-diff はこの conformance を信頼して比較をやり直さない。
       const coverageSlug = /** @type {Record<string, unknown>} */ (coverage).slug;
       if (!nonEmptyString(coverageSlug)) {
         process.stderr.write(
-          `error: 被覆表に slug が無いので metadata と同じ機能か照合できない: ${opts.coverage}\n`,
+          `error: 網羅表に slug が無いので metadata と同じ機能か照合できない: ${opts.coverage}\n`,
         );
         return 2;
       }
       if (String(coverageSlug) !== metadata.slug) {
         process.stderr.write(
-          `error: metadata の slug（${metadata.slug}）が被覆表の slug（${String(coverageSlug)}）と違う: ${opts.metadata}\n`,
+          `error: metadata の slug（${metadata.slug}）が網羅表の slug（${String(coverageSlug)}）と違う: ${opts.metadata}\n`,
         );
         return 2;
       }
     }
     if (metadata === null) {
-      // 渡されたのに読めない metadata は「照合しない」に倒さない（黙って checked: false にすると、
+      // 渡されたのに読めない metadata は「照合しない」として扱わない（警告なしに checked: false にすると、
       // 撮影状態の差を見ていない成果物が通ってしまう）。
       process.stderr.write(
         `error: metadata に slug、または capture_conditions.states / capture_conditions.popup_inventory が配列で無い: ${opts.metadata}\n`,
@@ -2710,7 +2713,7 @@ export function main(argv, deps = {}) {
     try {
       writeFile(opts.coverage, `${JSON.stringify(coverage, null, 2)}\n`);
     } catch (e) {
-      process.stderr.write(`error: 被覆表を書き戻せない: ${opts.coverage}: ${String(e)}\n`);
+      process.stderr.write(`error: 網羅表を書き戻せない: ${opts.coverage}: ${String(e)}\n`);
       return 2;
     }
   }
@@ -2759,11 +2762,11 @@ export function main(argv, deps = {}) {
   return result.ok ? 0 : 1;
 }
 
-// CLI エントリ判定は両辺を実パスに解決してから突き合わせる。
-// process.argv[1] は起動時のパスのまま、import.meta.url も --preserve-symlinks(-main)
-// （NODE_OPTIONS 経由でも付く）では未解決のままなので、片側だけ解決すると
-// シンボリックリンク経由（.claude/skills/<name> → .agents/skills/<name>）の起動で条件が偽になり、
-// main() が呼ばれず何も出力せず exit 0 になる（サイレント no-op）。
+// CLI として起動されたかは、両辺を実パスに解決してから突き合わせて判定する。
+// process.argv[1] は起動時のパスのままである。--preserve-symlinks(-main) を付けると（NODE_OPTIONS 経由でも付く）、
+// import.meta.url もシンボリックリンクを解決しない。
+// 片側だけを解決すると、シンボリックリンク経由（.claude/skills/<name> → .agents/skills/<name>）の起動で条件が偽になる。
+// そのときは main() が呼ばれず、何も出力せずに exit 0 で終わる。
 const invokedAsCli = (() => {
   const entry = process.argv[1];
   if (!entry) return false;

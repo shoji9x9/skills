@@ -17,7 +17,7 @@ kaizen_lib="$(dirname "${BASH_SOURCE[0]}")/kaizen-hook-common.sh"
 if [ -r "${kaizen_lib}" ]; then
 	. "${kaizen_lib}"
 else
-	printf '%s: 共通ライブラリを読めないため縮退します: %s\n' "$(basename "${BASH_SOURCE[0]}")" "${kaizen_lib}" >&2
+	printf '%s: 共通ライブラリを読めないため、機能を減らして動きます: %s\n' "$(basename "${BASH_SOURCE[0]}")" "${kaizen_lib}" >&2
 fi
 # `.kaizen/` は**いま作業している作業ツリー**基準で解決する（他の kaizen スクリプトと統一）。
 # $CLAUDE_PROJECT_DIR を最優先にすると、git worktree で作業しているときにコミット対象と
@@ -38,7 +38,7 @@ frontmatter_state() {
 	awk '
 		# 空配列は `[]` だけでなく `[ ]` のような空白入りでも、フォーマッタによる折り返しでも
 		# 書かれる。内部の空白を落とし、折り返し分を連結してから判定しないと、pending は
-		# 誤ブロック（空なのに「適用先あり」）、applied / rejected は検査漏れ（空なのに素通り）になる。
+		# 誤ってブロック（空なのに「適用先あり」）し、applied / rejected はチェックの抜け（空なのにそのまま通る）になる。
 		# 4 つ目のフィールドは applied-to の要素を `,` で連ねたもの（括弧と引用符は落とす）。
 		# 「空か否か」だけでは、決定論的な対策を提案したノートが doc だけで閉じられたことを
 		# 判定できない。要素は read の最後の変数へ丸ごと渡すため `|` を含んでも
@@ -113,8 +113,8 @@ frontmatter_state() {
 			next
 		}
 		# ブロックシーケンスは親キーと同じ桁 0 に置いても正しい YAML で、フォーマッタ次第で
-		# その形で書かれる。桁 0 というだけで値の終わりに倒すと、非空の applied-to が空と
-		# 読まれ、applied / rejected は誤ブロック、pending は検査漏れ（fail open）になる（実測）。
+		# その形で書かれる。桁 0 というだけで値の終わりと判定すると、空でない applied-to が空と
+		# 読まれ、applied / rejected は誤ってブロックし、pending はチェックの抜けになる（実測）。
 		# 閉じ `---` は先頭のルールが先に next するのでここへは来ない。
 		in_applied && /^-[[:space:]]+[^[:space:]]/ {
 			nonempty = 1
@@ -146,7 +146,7 @@ frontmatter_state() {
 # 参照注入（kaizen-context-inject.sh）が要約に使う節の**先頭段落**が、複数の物理行に
 # 折り返されていないかを判定する。注入はその節の最初の非空行だけを供給するため、
 # 折り返されていると注入される要約が文の途中で切れる。切れても注入は
-# 成功し終了コードも 0 なので、書いた時点で気づける経路はこの形式検査しかない。
+# 成功し終了コードも 0 なので、書いた時点で気づける方法はこの形式のチェックしかない。
 # 節の選び方は注入側と同じにする（見出しは前方一致、最初の非空行を要約とみなす）。
 # 出力: `none`（その節に要約となる行が無い）/ `ok` / `wrapped` / `error`（読めなかった）。
 # 判定が付いた時点で awk を `exit` させる（END は実行される）。5MB 級のノートを最後まで
@@ -212,7 +212,7 @@ for note in .kaizen/*.md .kaizen/archive/*.md; do
 	[ "$(basename "${note}")" = "INDEX.md" ] && continue
 	# 1 件の読み取り失敗でループごと落とさない（set -e で残りのノートが未検査になり、
 	# 診断も awk のメッセージだけになって「何の不整合か分からないまま commit できない」状態になる）。
-	# 読めないノートは検査できていないので、素通りさせず不整合として数えて fail closed を保つ。
+	# 読めないノートはチェックできていないので、そのまま通さず、不整合として数えてブロックする。
 	if ! state=$(frontmatter_state "${note}" 2>/dev/null); then
 		# 失敗理由は権限とは限らない（破損・awk の内部エラー等）。捨てると「何の不整合か
 		# 分からないまま commit できない」状態に戻るので、失敗時だけ読み直して診断を添える。
@@ -245,7 +245,7 @@ for note in .kaizen/*.md .kaizen/archive/*.md; do
 				;;
 			ok | none) ;;
 			*)
-				# 判定不能を素通りさせない（ループ先頭の frontmatter 読み取りと同じ fail closed）。
+				# 判定できないものをそのまま通さない（ループの先頭の frontmatter の読み取りと同じく、ブロックする）。
 				# 素通りさせると「検査した」と「検査できなかった」が同じ exit 0 になる。
 				# 理由を捨てると直しようがないので、失敗時だけ読み直して awk の診断を添える。
 				detail=$(section_lead_state "${lead_section}" "${note}" 2>&1 >/dev/null | tr '\n' ' ') || true
@@ -295,7 +295,7 @@ archive_dir=.kaizen/archive
 index_file=${archive_dir}/INDEX.md
 if [ -d "${archive_dir}" ]; then
 	# エントリ一覧は 1 度だけ抽出する。archived note ごとに INDEX.md を読み直すと
-	# 件数の二乗に比例して重くなり、コミット前ゲートの実行時間へ効いてくる。
+	# 件数の二乗に比例して重くなり、コミット前のチェックの実行時間が延びる。
 	index_entries=""
 	if [ -f "${index_file}" ]; then
 		# shellcheck disable=SC2016 # sed の backtick と後方参照はリテラル。

@@ -1502,7 +1502,9 @@ describe("ゲート全体の締め切り", () => {
       env: { KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "2" },
     });
     expect(gate.status, gate.stderr).toBe(2);
-    expect(gate.stderr).toMatch(/lifecycle 検査がゲートの締め切り（2 秒）までに終わりませんでした/);
+    expect(gate.stderr).toMatch(
+      /lifecycle 検査がチェックの締め切り（2 秒）までに終わりませんでした/,
+    );
     expect(elapsed).toBeLessThan(2000 + 1500);
   }, 15000);
 

@@ -1,17 +1,18 @@
-// 応答ヘッダーの正規化（正本）。parity-suite の録画と parity-diff の比較前の両方がこれを通す。
+// 応答ヘッダーの正規化（原本）。parity-suite の録画と parity-diff の比較前の両方がこれを通す。
 // 規則を文書の 2 か所に書くと片方だけ直って食い違うため、規則はここだけに置く。
 //
-// 何をするか: .replace/response-headers.json（横断の応答ヘッダーの一覧。形式の正本は replace-strategy の
-//   assets/response-headers-template.json）を読み、応答ヘッダーを
-//   1. 一覧に載るヘッダーだけに絞る（付け手が unknown の行を含むヘッダーは落とす）
-//   2. ヘッダー名を小文字に揃える（allHeaders() は小文字、headersArray() や HAR は元の表記で返す）
-//   3. Set-Cookie を cookie ごとの { name, attributes: { HttpOnly, Secure, SameSite } } にして並べ替える
-//      （値と Expires / Max-Age / Domain / Path は捨てる。値は秘密、期限は実行ごとに変わる）
-//   4. CSP の nonce- の値を固定の文字列に置き換える
-// の順で変換した JSON を返す。出力には cookie の値も nonce の値も残らない。
+// 何をするか: .replace/response-headers.json（横断の応答ヘッダーの一覧。形式の原本は replace-strategy の
+//   assets/response-headers-template.json）を読み、応答ヘッダーを次の順で変換した JSON を返す。
+//   1. 一覧に載るヘッダーだけに絞る（付け手が unknown の行を含むヘッダーは落とす）。
+//   2. ヘッダー名を小文字に揃える（allHeaders() は小文字、headersArray() や HAR は元の表記で返す）。
+//   3. Set-Cookie を cookie ごとに `{ name, attributes: { HttpOnly, Secure, SameSite } }` の形にして並べ替える。
+//      値と Expires / Max-Age / Domain / Path は捨てる。値は秘密で、期限は実行ごとに変わる。
+//   4. CSP の nonce- の値を固定の文字列に置き換える。
+//
+// 出力には cookie の値も nonce の値も残らない。
 //
 // 何をしないか: 付く応答の種類（画面・API・静的）で絞らない（どの応答かを知るのは呼び出し側）。
-// Markdown の表（以前の survey.md 7 節）は読まない——人が書く表の区切り・強調・注記の書き方で穴が出続けたため。
+// Markdown の表（以前の survey.md 7 節）は読まない。人が書く表は、区切り・強調・注記の書き方によって読み取れない行が出続けた。
 // 値の空白や大文字小文字を揃えない（SameSite の値だけは大文字小文字を区別しない属性なので正準形に揃える）。
 //
 // 決定論的: 乱数・現在時刻に依存しない。出力のキーは名前順、Set-Cookie は cookie 名順。
@@ -22,8 +23,8 @@ import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
- * ツールのバージョン（正本）。正規化の規則・出力形状を変えたら上げる。
- * 録画と比較で違う版を使うと、規則の差が現新の差分に化ける。
+ * ツールのバージョン（原本）。正規化の規則・出力形状を変えたら上げる。
+ * 録画と比較で違う版を使うと、規則の差が現新の差分として誤って検出される。
  * @type {string}
  */
 export const VERSION = "2";
@@ -31,7 +32,7 @@ export const VERSION = "2";
 /** 伏せた nonce の置き換え先。 */
 export const NONCE_MASK = "nonce-<masked>";
 
-/** 応答の種類の語彙（正本は replace-strategy の assets/response-headers-template.json）。 */
+/** 応答の種類の語彙（原本は replace-strategy の assets/response-headers-template.json）。 */
 const RESPONSE_KINDS = new Set([
   "page",
   "login",
@@ -45,7 +46,7 @@ const RESPONSE_KINDS = new Set([
 /** どの機能にも属さない応答の種類。所有者 slug はこれを含む行にだけ書く。 */
 const UNOWNED_KINDS = new Set(["static", "not-found"]);
 
-/** 付け手の語彙。`unknown` の行は比べない（再構築の既定値かもしれない）。 */
+/** 付け手の語彙。`unknown` の行は比べない（再構築で入ったデフォルトの値である可能性がある）。 */
 const SETTERS = new Set(["app-code", "server-config", "unknown"]);
 
 /** 分類の語彙。defense は値を、exposure は付かないこと（value: null）を持つ。 */
@@ -82,11 +83,11 @@ const CSP_HEADERS = new Set(["content-security-policy", "content-security-policy
 
 /**
  * 一覧に書けるヘッダー名。RFC 9110 の token のうち英数字と `-` `_` `.` だけに絞る——token は `*` `_` とバッククォートも許すので、
- * Markdown の強調・コードの記号を残した名前（`**X-Frame-Options**`）が別名として通り、本来のヘッダーが黙って比較から外れる。
+ * Markdown の強調・コードの記号を残した名前（`**X-Frame-Options**`）が別名として通り、本来のヘッダーが警告なしに比較から外れる。
  */
 const HEADER_NAME = /^[0-9A-Za-z][0-9A-Za-z._-]*$/;
 
-/** 一覧を読めないときの例外。CLI は終了コード 3 に写す（入力の誤りの 2 と分ける）。 */
+/** 一覧を読めないときの例外。CLI は終了コード 3 にする（入力の誤りの 2 と分ける）。 */
 export class NoHeaderListError extends Error {}
 
 /**
@@ -106,7 +107,7 @@ function isNonEmptyString(v) {
 }
 
 /**
- * 語彙に無いキー（`_` で始まる注記を除く）があれば投げる。打ち間違えたキーは読まれないまま既定値に倒れるため。
+ * 語彙に無いキー（`_` で始まる注記を除く）があれば投げる。打ち間違えたキーは読まれず、デフォルトの値として扱われてしまうためである。
  * @param {Record<string, unknown>} obj
  * @param {Set<string>} allowed
  * @param {string} where
@@ -257,8 +258,8 @@ export function parseHeaderList(text) {
     for (const r of responses) seen.add(r);
     covered.set(key, seen);
     // 同じヘッダーが応答の種類ごとに複数行あり、1 行でも付け手が unknown なら、そのヘッダーは録画にも比較にも入れない。
-    // 出力はヘッダー名で絞るだけで応答の種類を知らないので、比べる側へ倒すと unknown の行が指す応答の値
-    // （再構築の既定値かもしれない）まで現行の仕様として固定する。決まった行の後退は、スイートがその応答の
+    // 出力はヘッダー名で絞るだけで、応答の種類を知らない。比べる側として扱うと、unknown の行が指す応答の値
+    // （再構築で入ったデフォルトの値である可能性がある）まで現行の仕様として固定してしまう。決まった行の後退は、スイートがその応答の
     // assertion で両側に確かめる（parity-suite の references/api-batch.md「応答ヘッダー」）。
     known.set(key, (known.get(key) ?? true) && setter !== "unknown");
   });
@@ -351,7 +352,7 @@ export function maskNonce(value) {
 
 /**
  * response-headers.json のパスから一覧を読む。スイートも CLI もこれを使う（ファイルの読み方を 2 か所に書かない）。
- * ファイル自体が無いのも「一覧が無い」（NoHeaderListError。測定をやり直す経路へ送る）。
+ * ファイル自体が無いのも「一覧が無い」（NoHeaderListError。測定をやり直す処理へ回す）。
  * 読めない理由が他（権限等）なら、その例外をそのまま投げる（入力の誤り）。
  * @param {string} path
  * @returns {Set<string>}
@@ -362,7 +363,7 @@ export function loadHeaderList(path) {
     text = readFileSync(path, "utf8");
   } catch (err) {
     // 一覧の置き場（.replace/）はあるのにファイルが無いときだけ「一覧が無い」。置き場ごと無いのは
-    // パスの誤りか作業ディレクトリの取り違えで、「一覧が無い」にするとヘッダーの比較が黙って外れる。
+    // パスの誤りか作業ディレクトリの取り違えで、「一覧が無い」にするとヘッダーの比較が警告なしに外れる。
     if (/** @type {NodeJS.ErrnoException} */ (err).code === "ENOENT" && existsSync(dirname(path)))
       throw new NoHeaderListError(
         `${path} が無い（survey.md の 7 節に表で書いた一覧は読まない。replace-strategy の測定の 7 で response-headers.json へ採り直す）`,

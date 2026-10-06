@@ -1,5 +1,5 @@
-// 採取した CSS 規則のカスケード解決（正本）。
-// **プロジェクトへコピーせずスキル配下からそのまま実行する**（css-rules-capture.mjs と同じ規約）。
+// 採取した CSS 規則のカスケードの解決（解決の仕方はこのスクリプトで定義する）。
+// **プロジェクトへコピーせずスキルの中からそのまま実行する**（css-rules-capture.mjs と同じ取り決め）。
 //
 // 何をするか: `css-rules.json`（css-rules-capture.mjs の出力）を読み、プロパティ × 擬似要素ごとに
 // **実際に勝っている宣言を 1 つに確定**する。優先順位は CSS のカスケード順で、
@@ -17,15 +17,15 @@
 // この形で実装に残っていた。インライン値が `!important` 付き規則に負ける形（`width: 10px` の
 // インラインが `.SearchBoxButton { width: 25px !important }` に負ける）も同じ。
 //
-// fail-closed: 「勝者を 1 つに決められない」ことを黙って最初の宣言に倒さない。次は `undecidable`
-// として理由付きで残し、exit 1 にする（利用者は現行の CSS を直接読んで確定する）:
+// 判定できないときは失敗として扱う。「勝つ宣言を 1 つに決められない」ときに、警告なしに最初の宣言を勝者として扱わない。
+// 次のものは `undecidable` として理由付きで残し、exit 1 にする（利用者は現行の CSS を直接読んで確定する）。
 //   - セレクタの詳細度を機械的に決められない（トップレベルのカンマ＝どの枝が当たったか不明、
 //     未解決の `&`、読めないトークン）
 //   - 競合する候補が**別のカスケードレイヤ**にある（レイヤの宣言順は `css-rules.json` に無く、
 //     `layers` の名前だけからは前後を決められない）
 //   - 条件付き（`@media` / `@supports` / `@container`）の候補が勝ちうる。css-rules-capture.mjs は
 //     条件を**評価せず記録するだけ**なので、当たっているかどうかはこの入力から決まらない
-//   - 恒常状態（`:enabled` / `:valid` / `:read-only` 等）で門番された候補が勝ちうる。これらは
+//   - 恒常状態（`:enabled` / `:valid` / `:read-only` 等）を条件とする候補が勝ちうる。これらは
 //     要素の性質であって採取ディレクトリ名からは決まらない（下記 TRANSIENT_STATES）
 //   - 競合が**無名レイヤ**にある。無名 `@layer` の名前は空文字で記録されるため、別々のレイヤが
 //     同じパスに見える
@@ -38,8 +38,8 @@
 // `matched` には他の状態でだけ当たる規則（`states: ["hover"]` 等）も並ぶため、**`--state` は必須**にする。
 // `--state default` は「追加の状態擬似クラス無しで当たる規則だけ」を意味する。
 //
-// 何を決めないか: これは**合否判定ではない**。勝者を決めるのは実装時に「何を写すのか」を
-// 確定するためで、現新の差分は画素比較と特性照合が出す（css-rules-capture.mjs と同じ分担）。
+// 何を決めないか: これは**合否の判定ではない**。勝つ宣言を決めるのは、実装時に何を反映するかを
+// 確定するためで、現新の差分は画素の比較と特性の照合で出す（css-rules-capture.mjs と同じ分担）。
 //
 // 決定論的: 乱数・現在時刻・ネットワークに依存しない。TypeScript 構文は使わない（型は JSDoc）。
 
@@ -47,7 +47,7 @@ import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 /**
- * ツールのバージョン（正本）。優先順位の規則・出力形状・fail-closed の条件を変えたら上げる。
+ * ツールのバージョン（このスクリプトで定義する）。優先順位の規則・出力の形・判定できないとする条件を変えたら上げる。
  * @type {string}
  */
 export const VERSION = "1";
@@ -65,16 +65,16 @@ const MAX_OF_ARGUMENT = new Set(["is", "not", "has", "matches", "-moz-any", "-we
 const ZERO_SPECIFICITY = new Set(["where"]);
 
 /**
- * ポインタ・キーボード・遷移で作る**一時的な**状態擬似クラス（正本）。
+ * ポインタ・キーボード・遷移で作る**一時的な**状態擬似クラス（このスクリプトで定義する）。
  * これらは「いま作っていなければ当たっていない」と言い切れるので、`--state` に無ければ確実に不成立。
  *
- * `:link` / `:visited` / `:target` はここに入れない——採取で作るものではなく、
- * 要素と履歴・URL の性質（`<a href>` は既定で `:link` に当たる）なので、下の恒常状態と同じ扱いにする。
+ * `:link` / `:visited` / `:target` はここに入れない。これらは採取で作るものではなく、
+ * 要素と履歴・URL の性質（`<a href>` はデフォルトで `:link` に当たる）なので、下の恒常状態と同じに扱う。
  *
  * 逆に、ここに無い状態擬似クラス（`:enabled` / `:valid` / `:read-only` / `:link` 等）は**要素の性質**であって、
  * 採取ディレクトリ名からは成否が決まらない。`css-rules-capture.mjs` の `STATE_PSEUDO_CLASSES` は
- * 両者を区別せず `states` に記録するため、ディレクトリ名だけで不成立に倒すと
- * **採取時に実際に効いていた宣言を落として、負けるはずの宣言を勝者として exit 0 で返す**。
+ * 両者を区別せず `states` に記録する。そのため、ディレクトリ名だけで不成立と判定すると、
+ * **採取時に実際に当たっていた宣言を捨てて、負けるはずの宣言を勝者として exit 0 で返す**。
  * そこで、`--state` に無い恒常状態は「不成立」ではなく**不明**として扱い、勝ちうるなら undecidable にする。
  * 成否が分かっているなら `--state <name>` で明示的に渡す。
  * @type {ReadonlySet<string>}
@@ -82,13 +82,13 @@ const ZERO_SPECIFICITY = new Set(["where"]);
 const TRANSIENT_STATES = new Set(["active", "focus", "focus-visible", "focus-within", "hover"]);
 
 /**
- * 同時に成立しうる一時的な状態（正本）。鍵の状態を `--state` で渡したとき、値の側は
+ * 同時に成立しうる一時的な状態（このスクリプトで定義する）。キーの状態を `--state` で渡したとき、値の側は
  * **不成立と言い切れない**ので不明として扱う。
  *
  * ポインタで `:active` を作れば同じポインタが要素の上にあるので `:hover` も当たっている。
  * `:focus-visible` は `:focus` の部分集合で、`:focus` の要素は祖先の `:focus-within` も立てる。
- * 採取ディレクトリ名は 1 つしか持てないため、この共起を無視すると**採取時に効いていた宣言を
- * 落として、負けるはずの宣言を勝者として exit 0 で返す**。
+ * 採取ディレクトリ名は 1 つしか持てないため、この共起を無視すると、**採取時に当たっていた宣言を
+ * 捨てて、負けるはずの宣言を勝者として exit 0 で返す**。
  * @type {Readonly<Record<string, readonly string[]>>}
  */
 const CO_OCCURRING_STATES = {
@@ -334,9 +334,9 @@ export function specificity(selector) {
  * `.target` を hover した採取に対してこの規則を成立と扱ってしまう——**隣の要素が hover されているか**は
  * 採取ディレクトリ名からは分からない。主語の外に状態が付いていたら成否を決めず undecidable に回す。
  *
- * @param {string} selector - 規則のセレクタ（状態擬似クラスを含む形）
- * @param {readonly string[]} states - その規則が要求する状態擬似クラスの名前
- * @returns {string[]} 主語の外に現れた状態の名前（空なら主語だけに付いている）
+ * @param {string} selector - 規則のセレクタ（状態擬似クラスを含む形）。
+ * @param {readonly string[]} states - その規則が要求する状態擬似クラスの名前。
+ * @returns {string[]} 主語の外に現れた状態の名前（空なら主語だけに付いている）。
  */
 export function statesOutsideSubject(selector, states) {
   if (typeof selector !== "string" || states.length === 0) return [];
@@ -414,13 +414,12 @@ function strongest(candidates) {
 /**
  * `css-rules.json` の内容を読み、プロパティ × 擬似要素ごとに勝者を確定する。
  *
- * @param {any} document - css-rules.json をパースしたもの
- * @param {{ states: string[], properties?: string[]|null, source?: string, allowIncomplete?: boolean }} options
- * states: いま採っている状態で成立している状態擬似クラスの集合（`default` は空集合と同義）
- * properties: 解決するプロパティ名（省略時は候補に現れる全プロパティ）
- * allowIncomplete: `inaccessible` / `unresolved` が非ゼロでも解決する（既定は停止）
- * @returns {{ source:(string|null), tool_version:(string|null), active_states:string[],
- *             results:any[], counts:{resolved:number, undecidable:number, absent:number} }}
+ * @param {any} document - css-rules.json をパースしたもの。
+ * @param {{ states: string[], properties?: string[]|null, source?: string, allowIncomplete?: boolean }} options 次のオプション。
+ * states: いま採っている状態で成立している状態擬似クラスの集合（`default` は空集合と同じ意味）。
+ * properties: 解決するプロパティ名（省略時は候補に現れるすべてのプロパティ）。
+ * allowIncomplete: `inaccessible` / `unresolved` が 0 でなくても解決する（デフォルトは止まる）。
+ * @returns {object} source・tool_version・active_states・results・counts（resolved・undecidable・absent）を持つ結果。
 
  */
 export function resolveCascade(document, options) {
@@ -479,7 +478,7 @@ export function resolveCascade(document, options) {
    * `all` の宣言（擬似要素ごと）。**ブラウザは `all` を longhand へ展開しない**
    * （Chrome 149 で実測: `margin` / `background` / `font` は展開されるが `all: unset` は `all` のまま）。
    * そのためプロパティ名で振り分けるだけでは、`all` が勝つ場面でも個別プロパティの宣言を勝者にしてしまう。
-   * どのプロパティにも効きうる候補として別に持ち、勝ちうるなら undecidable にする。
+   * どのプロパティにも当たりうる候補として別に持ち、勝ちうるなら undecidable にする。
    * @type {Map<string, any[]>}
    */
   const wildcards = new Map();
@@ -507,12 +506,12 @@ export function resolveCascade(document, options) {
     const layers = Array.isArray(rule.layers) ? rule.layers : [];
     const declarations = Array.isArray(rule.declarations) ? rule.declarations : [];
     // 一時的な状態は「作っていないなら不成立」と言い切れる。恒常状態（`:enabled` 等）は
-    // ディレクトリ名から成否が決まらないので、不成立に倒さず「不明」として持つ。
+    // ディレクトリ名から成否が決まらないので、不成立と判定せず「不明」として持つ。
     const inactive = states.filter((state) => !active.has(state));
     // 主語の外に付いた状態は、名前が一致しても「いまその状態か」を採取ディレクトリ名が決めない
-    // （`.trigger:hover + .target` の `hover` は隣の要素の話）。不成立にも成立にも倒さず不明にする。
+    // （`.trigger:hover + .target` の `hover` は隣の要素の話）。不成立とも成立とも判定せず、不明にする。
     const foreign = statesOutsideSubject(String(rule.selector ?? ""), states);
-    // 渡された状態と共起しうる一時的な状態は「不成立」に倒さない（下記 CO_OCCURRING_STATES）。
+    // 渡された状態と共起しうる一時的な状態は、「不成立」と判定しない（下記 CO_OCCURRING_STATES）。
     const gated = inactive.some(
       (state) => TRANSIENT_STATES.has(state) && !coOccurring.has(state) && !foreign.includes(state),
     );
@@ -533,7 +532,7 @@ export function resolveCascade(document, options) {
     for (let declIndex = 0; declIndex < declarations.length; declIndex += 1) {
       const decl = declarations[declIndex];
       if (decl === null || typeof decl !== "object" || typeof decl.property !== "string") continue;
-      // `all` はプロパティ名の振り分けに載せない（どのプロパティにも効きうるので別に持つ）。
+      // `all` はプロパティ名の振り分けに入れない（どのプロパティにも当たりうるので別に持つ）。
       const wildcard = decl.property === "all";
       const entry = wildcard ? null : bucket(rule.pseudo_element ?? null, decl.property);
       if (gated) {
@@ -593,7 +592,7 @@ export function resolveCascade(document, options) {
       wildcards.get("").push({ ...candidate, unknown_states: [] });
       continue;
     }
-    // インラインは擬似要素に効かないので、要素自身のバケットにだけ入れる。
+    // インラインは擬似要素に当たらないので、要素自身のバケットにだけ入れる。
     bucket(null, decl.property).applying.push(candidate);
   }
 
@@ -727,7 +726,7 @@ function decide(entry, wildcard = []) {
     return out;
   }
 
-  // 段（強い順）: インライン !important → 規則 !important → インライン → 規則
+  // 段（強い順）: インラインの `!important` → 規則の `!important` → インライン → 規則
   const inlineImportant = entry.applying.filter((c) => c.source === "inline" && c.important);
   const ruleImportant = entry.applying.filter((c) => c.source === "rule" && c.important);
   const inlineNormal = entry.applying.filter((c) => c.source === "inline" && !c.important);
@@ -741,7 +740,7 @@ function decide(entry, wildcard = []) {
   /**
    * 無名レイヤ（`@layer { … }`）の名前は `css-rules-capture.mjs` で空文字になる。
    * 別々の無名レイヤが同じ `[""]` として記録されるため、**同じパスに見えても同一レイヤとは限らない**。
-   * レイヤ順は詳細度より強く `!important` で逆転するので、同一視すると黙って誤った勝者になる。
+   * レイヤの順序は詳細度より強く `!important` で逆転するので、同一視すると、警告なしに誤った勝者になる。
    */
   const isAnonymous = (c) => c.layers.some((name) => name === "");
   // 判定は `applying` に閉じない。条件付き・状態不明・`all` の候補も同じレイヤ順の曖昧さを持ち、
@@ -846,13 +845,13 @@ const USAGE = [
   "  --state      この採取物を採ったときに成立していた状態（繰り返し可）。`default` は「状態擬似クラス無し」。",
   "               baseline/<instance>/<state>/ の <state> をそのまま渡す（必須。推測しない）。",
   "               :hover / :focus 等の一時的な状態は渡さなければ不成立として扱うが、",
-  "               :enabled / :valid / :read-only のような恒常状態は不明として undecidable に倒す。",
+  "               :enabled / :valid / :read-only のような恒常状態は不明として undecidable と判定する。",
   "               成否が分かっているものは --state で明示的に足す",
   "  --property   解決するプロパティ（繰り返し可）。省略時は --all が要る。",
   "               CSS カスタムプロパティ（--brand-color 等）もそのまま渡せる",
   "  --all        候補に現れる全プロパティを解決する",
   "  --allow-incomplete",
-  "               inaccessible / unresolved が非ゼロでも解決する。既定は停止（見えていない規則に",
+  "               inaccessible / unresolved が0 でなくても解決する。デフォルトは止まる（見えていない規則に",
   "               より強い宣言がありうるため）。免除したことは component-api.md に残す",
   "",
   "exit 0=全て resolved / absent、1=undecidable が 1 件以上、2=入力エラー",

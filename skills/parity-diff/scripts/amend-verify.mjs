@@ -1,12 +1,12 @@
-// 共通部品の改修後、新側の撮り直しを機械で判定する（正本）。
-// 正本はこのスキル側にあり、実行時はスキルディレクトリ内から直接実行する（プロジェクトへコピーしない）。
+// 共通部品を改修した後に撮り直した新側の画像を、機械で判定する（原本）。
+// 原本はこのスキルの中にあり、スキルのディレクトリから直接実行する（プロジェクトへコピーしない）。
 //
 // 何のためか: 部品の改修（変更宣言。parity-component の component-change.json）が影響する組を撮り直したとき、
 // 変更の中身は分かっているのに、撮り直しの結果をページごとに検出 → トリアージ → 承認で分類し直すことになる。
 // 変更が宣言どおりなら次の 2 つが成り立つので、それを画素で確かめて分類のやり直しを省く。
-//   1) 影響インスタンスの矩形（margin だけ広げた領域）の**外**は、改修前の新側と画素が完全に一致する
+//   1) 影響インスタンスの矩形（margin だけ広げた領域）の**外**は、改修前の新側と画素がすべて一致する
 //   2) 領域の**中**は、現行との不一致画素が改修前より増えていない
-// どちらかが崩れた組だけを従来のトリアージへ回す。
+// どちらかが成り立たない組だけを、従来のトリアージへ回す。
 //
 // 何をしないか: 画素の差が重要かどうかは判断しない（許容・要対応の分類はしない）。現側は撮り直さない前提で、
 // 渡された current をそのまま正解の基準に使う。
@@ -31,7 +31,8 @@ import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
- * ツールのバージョン（正本）。判定規則・記録の形を変えたら上げる。
+ * ツールのバージョン（原本）。判定の規則や記録の形を変えたら上げる。
+ *
  * @type {string}
  */
 export const VERSION = "1";
@@ -40,7 +41,8 @@ export const VERSION = "1";
 /** @typedef {{ x:number, y:number, width:number, height:number }} Rect */
 
 /**
- * `x,y,w,h` を矩形にする。数でない・幅か高さが 0 以下なら null（空の領域は「変更が効いた場所」を示さない）。
+ * `x,y,w,h` を矩形にする。数でない・幅か高さが 0 以下なら null（空の領域は「変更が反映された場所」を示さない）。
+ *
  * @param {string} text
  * @returns {Rect | null}
  */
@@ -56,6 +58,7 @@ export function parseRegion(text) {
 
 /**
  * JSON の領域表記（`{x,y,width,height}` か `[x,y,w,h]`）を矩形にする。読めなければ null。
+ *
  * @param {unknown} value
  * @returns {Rect | null}
  */
@@ -73,6 +76,7 @@ export function regionFromJson(value) {
  * 矩形を margin だけ広げ、画像の範囲に切り詰めて整数の画素矩形にする。
  * 小数の rect（getBoundingClientRect 由来）は外側へ丸める（掛かっている画素を領域から落とさない）。
  * 画像と重ならなければ null。
+ *
  * @param {Rect} rect
  * @param {number} margin
  * @param {number} imageWidth
@@ -90,6 +94,7 @@ export function expandRegion(rect, margin, imageWidth, imageHeight) {
 
 /**
  * 領域の和集合のマスク（1 = 領域の中）を作る。
+ *
  * @param {Rect[]} regions - expandRegion 済みの矩形
  * @param {number} width
  * @param {number} height
@@ -107,6 +112,7 @@ export function buildRegionMask(regions, width, height) {
 
 /**
  * 厳密比較で 1 画素が違うか（pixel-strict-count.mjs と同じ規則。両側とも完全な透明なら同じ）。
+ *
  * @param {Uint8Array} a
  * @param {Uint8Array} b
  * @param {number} o - バイトオフセット
@@ -122,7 +128,8 @@ function strictDiffers(a, b, o) {
  * - prev-new と new の寸法が違う → fail（改修で配置が動いた。外の一致を画素で示せない）
  * - current の寸法が new と違う → fail（現行との不一致を同じ座標で数えられない）
  * - 領域が 1 つも画像と重ならない → fail（宣言したインスタンスが画面に無い）
- * - pass = 領域の外がバイト完全一致 && 領域の中の現行との不一致が増えていない
+ * - pass = 領域の外がバイト単位で一致し、かつ領域の中の現行との不一致が増えていない
+ *
  * @param {{ prevNew: Image, next: Image, current: Image, regions: Rect[], margin?: number }} input
  * @returns {{ pass:boolean, outside_identical:boolean, outside_diff_pixels:(number|null),
  *             inside_diff_before:(number|null), inside_diff_after:(number|null),
@@ -195,6 +202,7 @@ export function judgePair({ prevNew, next, current, regions, margin = 0 }) {
 
 /**
  * ファイルの sha256（16 進）。
+ *
  * @param {string} path
  * @returns {string}
  */
@@ -204,6 +212,7 @@ export function sha256File(path) {
 
 /**
  * 既存の記録へ組を追記する。同じ pair id の組は置き換える（順序は既存の位置を保ち、新しい組は末尾）。
+ *
  * @param {{ pairs?: Array<{ pair:string }> } | null} existing
  * @param {Array<{ pair:string }>} entries
  * @param {string | undefined} changeId
@@ -225,6 +234,7 @@ export function mergeRecord(existing, entries, changeId) {
 
 /**
  * pngjs を動的 import する（未導入なら null）。
+ *
  * @returns {Promise<any|null>}
  */
 async function loadPng() {
@@ -245,6 +255,7 @@ const USAGE =
 
 /**
  * 引数を組の指定に直す。誤りは文字列で返す。
+ *
  * @param {string[]} argv
  * @returns {{ error: string } | { specs: Array<{ pair:string, prev_new:string, new:string, current:string,
  *   regions: Rect[], margin:number }>, changeId?: string, out?: string }}
@@ -308,7 +319,7 @@ export function parseArgs(argv) {
     for (const key of ["pair", "prev_new", "new", "current"]) {
       if (single[key] === undefined) return { error: `--${key.replace("_", "-")} is required` };
     }
-    // 領域が無いと「外」が画像全体になり、変更がどこにも効いていないことになる。宣言の欠落として弾く。
+    // 領域が無いと「外」が画像全体になり、変更がどこにも反映されていないことになる。宣言の欠落として弾く。
     if (single.regions.length === 0) return { error: "at least one --region is required" };
     return { specs: [{ ...single, margin }], changeId, out };
   }
@@ -367,6 +378,7 @@ export function parseArgs(argv) {
 
 /**
  * CLI エントリ。exit 0 = 全組 pass / 1 = fail の組あり / 2 = 入力不備（pngjs が無い場合を含む）。
+ *
  * @param {string[]} argv - process.argv.slice(2)
  * @returns {Promise<number>} exit code
  */
@@ -464,8 +476,8 @@ export async function main(argv) {
   return entries.every((e) => e.pass) ? 0 : 1;
 }
 
-// CLI エントリ判定は両辺を実パスに解決してから突き合わせる（シンボリックリンク経由の起動で
-// 条件が偽になり、何も出力せず exit 0 になるのを避ける）。
+// CLI として起動されたかは、両辺を実パスに解決してから比べる。シンボリックリンクから起動したときに
+// 条件が偽になり、何も出力せずに exit 0 で終わるのを避ける。
 const invokedAsCli = (() => {
   const entry = process.argv[1];
   if (!entry) return false;

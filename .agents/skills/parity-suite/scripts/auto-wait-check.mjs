@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 
 const SOURCE_EXTENSIONS = new Set([".js", ".mjs", ".cjs", ".jsx", ".ts", ".mts", ".cts", ".tsx"]);
 
-/** 現側専用の採取スペックを置くディレクトリ名（正本は references/locator-mapping.md の配置表）。 */
+/** 現側専用の採取スペックを置くディレクトリ名（原本は references/locator-mapping.md の配置表）。 */
 const CAPTURE_ONLY_SEGMENT = "current-only";
 /** 採取スペックで免除する規則。値を記録するための読み取りには置き換える assertion が無い。 */
 const CAPTURE_EXEMPT_RULES = new Set(["immediate-read"]);
@@ -63,7 +63,7 @@ const RULES = [
 const UNRESOLVED_RULE = "unresolved-receiver";
 /** 判定不能の理由ごとの直し方。理由を混ぜると直す側がどちらを試すか分からない。 */
 const UNRESOLVED_MESSAGES = {
-  call: "受け側を解決できない（関数呼び出しの戻り値が経路に混じる）。その関数の戻り値へ Page / Locator の型注釈を付ける",
+  call: "受け側を解決できない（受け側の式に関数呼び出しの戻り値が含まれる）。その関数の戻り値へ Page / Locator の型注釈を付ける",
   computed:
     "受け側を解決できない（添字アクセスでプロパティ名が読めない）。プロパティ名で引いた値をローカル変数へ束ねる",
   alias:
@@ -79,12 +79,12 @@ const UNRESOLVED_MESSAGES = {
 /**
  * `/` の直前の意味のあるトークンから、そこが正規表現リテラルを開始できる位置かを判定する。
  * ECMAScript の字句は前のトークンで分岐する（<https://tc39.es/ecma262/#sec-literals-regular-expression-literals>）。
- * 曖昧なときは除算に倒す——正規表現を除算と誤れば引用符が残って終端不明の例外（fail-closed）になるが、
- * 除算を正規表現と誤ると実コードを潰して違反が静かに消える。
+ * 曖昧なときは除算として扱う。正規表現を除算と誤れば、引用符が残って終端不明の例外になる（判定できないので失敗する）。
+ * 一方、除算を正規表現と誤ると、実コードを潰して違反が警告なしに消える。
  */
 // `in` / `of` は contextual keyword で、ふつうの識別子にもなれる（`const of = 2; of / d`）。
 // 一方この位置で正規表現が来る形（`for (const r of /re/.exec(s))`）は実在しないため、
-// 識別子側の誤りだけが残る。誤って除算を潰すと違反が静かに消えるので、集合に入れない。
+// 識別子側の誤りだけが残る。誤って除算を潰すと違反が警告なしに消えるので、集合に入れない。
 // 予約語（`return` 等）は識別子になれないので同じ問題は起きない。
 const REGEX_ALLOWED_AFTER_KEYWORDS = new Set([
   "return",
@@ -230,7 +230,7 @@ function regexLiteralEnd(source, start) {
  * **空白だけでなくコメントも読み飛ばす。** コメントは意味を持つトークンではないので、
  * 非 null の後ろにブロックコメントを挟んでから除算する形の曖昧さは、挟まない形と同じである。
  * コメントの `/` で「曖昧でない」と打ち切ると、その先の本物の `/` が正規表現の開始として扱われ、
- * 次の `/` までの違反が黙って消える。
+ * 次の `/` までの違反が警告なしに消える。
  * 終端まで意味を持つトークンが無い場合は曖昧でない（続く式が無い。未終端コメント自体は
  * maskNonCode が別途エラーにする）。
  * @param {string} source
@@ -261,11 +261,11 @@ function startsAmbiguousSlash(source, from) {
 
 /**
  * コメント・文字列・テンプレート文字列・正規表現リテラルを空白へ置換し、行・桁位置を保つ。
- * 判定不能な終端はエラーにする（走査できなかったファイルを違反 0 件へ倒さない）。
+ * 判定不能な終端はエラーにする（走査できなかったファイルを違反 0 件として扱わない）。
  */
 export function maskNonCode(source) {
   // source.length / source[i] と同じ UTF-16 code unit 単位にする。スプレッドは code point 単位なので、
-  // 非 BMP 文字の後で添字がずれ、マスク位置・違反位置が壊れる。
+  // 非 BMP 文字の後で添字がずれ、マスク位置・違反位置が誤った値になる。
   const out = source.split("");
   /** テンプレートと補間の入れ子を積む。`${}` の中のテンプレートを閉じるために深さが要る。 */
   const stack = [];
@@ -314,7 +314,7 @@ export function maskNonCode(source) {
       // `</` は JSX / TSX の閉じタグ。`<` は値で終わらないので正規表現が許される位置だが、
       // ここを正規表現の開始と読むと次の閉じタグの `/` までを潰し、間の実コードごと違反が消える。
       // 空白を挟む比較（`a < /re/`）は隣接しないので区別できる。空白なしの `a</re/` は
-      // 正規表現として読まれずマスクされないが、その場合は終端不明の例外（fail-closed）に倒れる。
+      // 正規表現として読まれずマスクされないが、その場合は終端不明の例外になる（判定できないので失敗する）。
       const jsxClosingTag = c === "/" && i > 0 && source[i - 1] === "<";
       if (c === "/" && !jsxClosingTag && regexAllowedAfter(lastToken)) {
         const end = regexLiteralEnd(source, i);
@@ -411,11 +411,11 @@ export function maskNonCode(source) {
       }
       if (c === "!") {
         // `await` / `yield` は文脈依存キーワードで、script / CommonJS では識別子にもなる。
-        // 直後の `!` が前置の否定（キーワード）か後置の非 null（識別子）かは、**次のトークンの形**で決まる:
-        // 被演算子が続けば前置（`await !Promise.resolve(x)`）、演算子が続けば後置（`await! / d`）。
-        // 曖昧なのは次が `/` のときだけ——前置なら正規表現の開始、後置なら除算で、
-        // 前置に倒すと次の `/` までがマスクされてその間の違反が黙って消える。
-        // そこだけ走査できないファイルとして落とす（判定不能を違反 0 件へ倒さない）。
+        // 直後の `!` が前置の否定（キーワード）か後置の非 null（識別子）かは、**次のトークンの形**で決まる。
+        // 被演算子が続けば前置（`await !Promise.resolve(x)`）、演算子が続けば後置（`await! / d`）である。
+        // 曖昧なのは次が `/` のときだけである。前置なら正規表現の開始、後置なら除算になる。
+        // 前置として扱うと、次の `/` までがマスクされ、その間の違反が警告なしに消える。
+        // そこだけ、走査できないファイルとして失敗させる（判定不能を違反 0 件として扱わない）。
         if (
           lastToken !== null &&
           lastToken.type === "word" &&
@@ -514,7 +514,7 @@ const NON_RECEIVER_KEYWORDS = new Set([
 const BUILTIN_NON_RECEIVERS = new Set(["Promise", "console", "document", "window"]);
 /**
  * Page から取り出して「Playwright 以外」と確定してよいプロパティ（Page API の既知の名前に限る許可リスト）。
- * 任意の名前を認めると、`page.row = page.locator(…)` のように後から Locator を入れたプロパティが確定に化ける。
+ * 任意の名前を認めると、`page.row = page.locator(…)` のように後から Locator を入れたプロパティが、誤って確定と判定される。
  * 同じファイルでこの名前へ代入していれば（`page.clock = …`）、その名前は根拠にしない。
  */
 const PAGE_NON_RECEIVER_PROPERTIES = new Set([
@@ -691,7 +691,7 @@ function playwrightReceivers(code, file = "<source>") {
   // 括弧無しに限ると、注釈を付けても解決せず「注釈を付けろ」と言い続ける）。
   const params = String.raw`(?:[^()]|\([^()]*\))*`;
   // generic なメソッド・関数（`rows<T>(): Locator`）。型引数を読み飛ばさないと注釈を
-  // 付けても解決せず、「注釈を付けろ」と言い続けるゲートになる。入れ子は 1 段まで。
+  // 付けても解決せず、「注釈を付けろ」と言い続けるチェックになる。入れ子は 1 段まで。
   const typeParams = String.raw`(?:\s*<(?:[^<>()]|<[^<>()]*>)*>)?`;
   const returnAnnotation = String.raw`\)\s*:\s*(?:Promise\s*<\s*)?(Page|Locator)\b`;
   for (const match of code.matchAll(
@@ -721,18 +721,18 @@ function playwrightReceivers(code, file = "<source>") {
 
   /** 代入の右辺の先頭にあるメンバーチェーン（引数より前）を区間に分けて返す。 */
   // 末尾の区間が呼ばれているか（直後が `(`）も返す。戻り値注釈で解決した名前は呼ばれている
-  // 区間にだけ当てる——`const snapshot = model.rows` の未呼び出しプロパティに当てると、
-  // 同名の関数宣言 1 つで無関係な変数が Locator に化け、誤検出でスイートを止める。
+  // 区間にだけ当てる。`const snapshot = model.rows` の未呼び出しプロパティに当てると、
+  // 同名の関数宣言 1 つで無関係な変数が誤って Locator と判定され、誤検出でスイートを止める。
   const leadingChain = (rhs) => {
     const head = rhs.match(/^\s*(?:await\s+)?([A-Za-z_$][\w$]*(?:\s*\??\.\s*[A-Za-z_$][\w$]*)*)/);
     if (head === null) return null;
     // `?.` も区切りとして落とす。`split(".")` だと `page?.getByRole` が `["page?", …]` になり、
-    // どの区間も名前で照合できず、解決できる式が「由来を追えない別名」に化けて誤検出になる。
+    // どの区間も名前で照合できず、解決できる式が「由来を追えない別名」と誤って判定され、誤検出になる。
     const names = head[1].split(/\s*\??\.\s*/).map((part) => part.trim());
     const rest = rhs.slice(head[0].length);
     const calledIndex = /^\s*\(/.test(rest) ? names.length - 1 : null;
     // チェーンが呼び出し・添字で途切れたか。途切れた先は名前で追えないので、分類できなければ
-    // 「追えなかった」側（判定不能）へ倒す材料にする（純粋なプロパティ取り出しと区別する）。
+    // 「追えなかった」側（判定不能）として扱う材料にする（純粋なプロパティ取り出しと区別する）。
     const truncated = /^\s*[([]/.test(rest);
     return { names, calledIndex, truncated };
   };
@@ -740,20 +740,20 @@ function playwrightReceivers(code, file = "<source>") {
   // 同じ強さで受け側を決め（対象が識別子チェーンの形に限る。下の TRAILING_ASSERTION を参照）、
   // Page / Locator 以外へアサートした別名は由来を追えないものとして扱う。
   // 読まないと `leadingChain` の後段の条件（`ident` の直後が `.` / `(` / `[`）に当たらず、
-  // locators にも pages にも opaqueAliases にも入らないまま——違反 0 件でも判定不能 0 件でもなく——静かに消える。
-  // **続きが識別子で始まる形だけを角括弧アサーションと読む**——`(` を許すと、`.ts` で
+  // locators にも pages にも opaqueAliases にも入らないまま、違反 0 件でも判定不能 0 件でもなく、警告なしに消える。
+  // **続きが識別子で始まる形だけを角括弧アサーションと読む**。`(` を許すと、`.ts` で
   // generic なアロー関数（`const pick = <T>(x: T) => x;`）が `<T>` のアサーションに見え、
   // 関数の別名が opaqueAliases へ入る。角括弧アサーションが書けるのは `.ts` 系だけなので、
   // 誤読が起きるのはまさにその拡張子に限られる。
   const ANGLE_ASSERTION =
     /^\s*<\s*([A-Za-z_$][\w$.]*)(?:\s*<[^<>]*>)?(?:\[\])?\s*>\s*(?=[A-Za-z_$])/;
-  // **引数の中のアサーションを別名のものと読まない**——`const n = helper(x as Locator)` の `as` を
-  // 拾うと、無関係な `n` が Locator に化ける。括弧が開く前に現れる形（`x as Locator`）だけを見る。
+  // **引数の中のアサーションを別名のものと読まない**。`const n = helper(x as Locator)` の `as` を
+  // 拾うと、無関係な `n` が誤って Locator と判定される。括弧が開く前に現れる形（`x as Locator`）だけを見る。
   // **そのぶん、アサート対象に括弧・添字を含む形（`helper() as Locator` / `rows[0] as Locator`）は
-  // ここで解決しない。** 深さ 0 の `as` を数えれば拾えるが、それは解決できる別名を増やす＝
-  // fail-closed の網を緩める向きの変更なので採らない。これらは従来どおりチェーンが途切れた
-  // 別名として判定不能に落ち、書き手には戻り値注釈を付ける直し方が出る（挙動は本修正の前後で同じ）。
-  // **`<` / `>` も跨がない**——`.tsx` では JSX のテキストが右辺に来る。跨ぐと
+  // ここで解決しない。** 深さ 0 の `as` を数えれば拾えるが、それは解決できる別名を増やし、
+  // 判定できないときに止める範囲を狭める変更なので採らない。これらは従来どおりチェーンが途切れた
+  // 別名として判定不能になり、書き手には戻り値注釈を付ける直し方が出る。
+  // **`<` / `>` も跨がない**。`.tsx` では JSX のテキストが右辺に来る。跨ぐと
   // `const el = <span>use as reference</span>;` の本文が `as reference` のアサーションに見える
   // （`maskNonCode` は JSX テキストを潰さない）。角括弧アサーションと違い `as` はどの拡張子でも
   // 書けるので、拡張子で止めるのではなく区切りで止める。
@@ -809,7 +809,7 @@ function playwrightReceivers(code, file = "<source>") {
           (name, index) =>
             pages.has(name) || (index === chain.calledIndex && pageCallables.has(name)),
         );
-      // 呼ばれている区間の名前で見る経路を先に置く。テキスト照合は最初の物理行しか見ないので、
+      // 呼ばれている区間の名前で見る処理を先に置く。テキスト照合は最初の物理行しか見ないので、
       // 整形で折られたチェーン（`const cell = page\n  .getByRole(...)`）を取りこぼす。
       // 区間はチェーン走査が改行をまたいで拾っているため、名前で見れば折り返しに依存しない。
       const callsLocatorFactory =
@@ -820,11 +820,11 @@ function playwrightReceivers(code, file = "<source>") {
         hasLocator ||
         (hasPage &&
           (callsLocatorFactory || /\.\s*(?:locator|getBy\w+)\s*\(/.test(rhs.split(/[;\n]/, 1)[0])));
-      // 呼び出しも添字も含まない純粋なプロパティ経路で、末尾が Page に解決する形（`const p = page;`
+      // 呼び出しも添字も含まない純粋なプロパティの取り出しで、末尾が Page に解決する形（`const p = page;`
       // `const p = this.page;`）を Page として束ねる。末尾で見るのは、`const url = page.url` のように
-      // Page から取り出した別の値まで Page に化けさせないため。
-      // 束ねないと page 専用規則（`waitForTimeout` / `page.$`）が静かに外れる——チェーンに `page` を
-      // 含むので opaqueAliases にも入らず、違反 0 件でも判定不能 0 件でもない黙った素通りになる。
+      // Page から取り出した別の値まで、誤って Page と判定しないためである。
+      // 束ねないと、page 専用の規則（`waitForTimeout` / `page.$`）が警告なしに外れる。チェーンに `page` を
+      // 含むので opaqueAliases にも入らず、違反 0 件でも判定不能 0 件でもないまま、警告なしに通る。
       const isPagePath =
         hasPage &&
         /^[A-Za-z_$][\w$]*(?:\s*\??\.\s*[A-Za-z_$][\w$]*)*$/.test(rhsStatement) &&
@@ -849,13 +849,13 @@ function playwrightReceivers(code, file = "<source>") {
         changed = true;
       } else if (
         // Page / Locator 以外へアサートした別名。右辺がどちらにも解決しない以上、由来は追えない。
-        // 型アサーションを挟めば検査から消える、という抜け道を残さない（fail-closed）。
+        // 型アサーションを挟めば検査から消える、という抜け道を残さない（判定できないものとして扱う）。
         asserted === "other" &&
-        // **純粋なプロパティ取り出しの免除をアサーションで外さない**——`const timers = page.clock;` は
-        // Page でも Locator でもない値として下の枝が従来から対象外にしている。`as Clock` を足しただけで
-        // 判定不能へ倒すと、その枝が避けている「注釈を強いる誤検出」がアサーション経由で復活する。
+        // **純粋なプロパティ取り出しの免除をアサーションで外さない**。`const timers = page.clock;` は、
+        // Page でも Locator でもない値として、下の枝が従来から対象外にしている。`as Clock` を足しただけで
+        // 判定不能として扱うと、その枝が避けている「注釈を強いる誤検出」がアサーション経由で戻る。
         // ただし**受け側そのもの**（末尾が Page / Locator に解決する形。`page as Foo`）は、
-        // アサートした先で受け側でなくなったことを追えないので従来どおり倒す。
+        // アサートした先で受け側でなくなったことを追えないので、従来どおり判定不能として扱う。
         (chain === null ||
           chain.truncated ||
           (!hasLocator && !hasPage) ||
@@ -869,8 +869,8 @@ function playwrightReceivers(code, file = "<source>") {
         changed = true;
       } else if (
         // Page / Locator を含むチェーンでも、**呼び出し・添字で途切れていて**上の 2 つに当たらなければ
-        // ここへ落とす（`const cell = page.frames()[0].getByRole(...)` 等）。除外すると
-        // 「違反 0 件・判定不能 0 件」で黙って捨てられ、fail-closed のはずのゲートがその形だけ素通りする。
+        // ここで扱う（`const cell = page.frames()[0].getByRole(...)` など）。除外すると
+        // 「違反 0 件・判定不能 0 件」で警告なしに捨てられ、判定できないときに止めるはずのチェックが、その形だけを通してしまう。
         // 途切れていない純粋なプロパティ取り出し（`const timers = page.clock`）は Page でも Locator でも
         // ない値なので、従来どおり対象外にする（判定不能にすると注釈を強いる誤検出になる）。
         chain !== null &&
@@ -907,8 +907,8 @@ function playwrightReceivers(code, file = "<source>") {
 
 /**
  * 代入の右辺のうち、その宣言子に属する範囲（括弧の外の `;` / `,`、または文を終える改行まで）。
- * 行を折った右辺の続きを読み落とすと、後ろの行に現れる名前が「確定」の判定から漏れる（fail-open）ので、
- * 迷ったら長く取る側へ倒す——前の行が演算子で終わるか、次の行が演算子で始まるなら続きとして読む。
+ * 行を折った右辺の続きを読み落とすと、後ろの行に現れる名前が「確定」の判定から外れ、確かめずに通してしまう。
+ * そのため、迷ったら長く取る。前の行が演算子で終わるか、次の行が演算子で始まるなら、続きとして読む。
  */
 function declaratorRhs(rawRhs) {
   let depth = 0;
@@ -941,7 +941,7 @@ function declaratorRhs(rawRhs) {
  * **確定の根拠を閉じた集合で持つ**——「解決しなかったら対象外」にすると、読んでいない束縛の形
  * （分割代入・引数・再代入・for-of・import）が、違反 0 件でも判定不能 0 件でもないまま消える。
  *
- * 根拠は 2 つ:
+ * 根拠は次の 2 つである。
  *   1. 同一ファイルの `const|let|var x = <右辺>` で、右辺が Playwright の値を運ばない
  *      （リテラル・起点が全て確定済みの式・JSX・Page から取り出した Page / Locator でないプロパティ）
  *   2. 標準の組み込み（BUILTIN_NON_RECEIVERS）
@@ -953,7 +953,7 @@ function declaratorRhs(rawRhs) {
  *
  * **名前はファイル全体で 1 つとして扱う**（スコープを見ない）。そのため、同じ名前が根拠の無い形でも
  * 束縛されていれば（引数・分割代入・再代入・import・2 つ目の宣言）、どの根拠があっても確定にしない。
- * 迷ったら判定不能側（fail-closed）へ倒す。
+ * 迷ったら判定不能として扱う。
  */
 function nonPlaywrightNames(
   code,
@@ -965,7 +965,7 @@ function nonPlaywrightNames(
     for (const name of rootNames(text)) unknown.add(name);
   };
   // 引数・catch・for の頭。閉じ括弧の後が `=>` / `{` / `:`（戻り値注釈）なら束縛の並びと読む。
-  // 呼び出しの引数を束縛と誤っても、名前が候補から外れるだけ（判定不能側）なので安全側に倒れる。
+  // 呼び出しの引数を束縛と誤っても、名前が候補から外れる（判定不能になる）だけなので、確かめずに通すことはない。
   for (let open = code.indexOf("("); open !== -1; open = code.indexOf("(", open + 1)) {
     const close = matchingClose(code, open);
     if (close === -1) continue;
@@ -978,7 +978,7 @@ function nonPlaywrightNames(
     const bindingList =
       head === "catch" || head === "for" || /^\s*(?:=>|\{|:)/.test(code.slice(close + 1));
     if (!bindingList) continue;
-    // 型注釈の有無に依らず、引数の名前はすべて根拠の無い束縛として数える（Page / Locator の注釈は別経路で解決する）。
+    // 型注釈の有無に依らず、引数の名前はすべて根拠の無い束縛として数える（Page / Locator の注釈は別の処理で解決する）。
     for (const param of splitTopLevel(code.slice(open + 1, close))) markUnknown(param);
   }
   // 括弧の無い単引数のアロー関数（`row => row.count()`）。
@@ -1000,7 +1000,7 @@ function nonPlaywrightNames(
     }
   }
   // 分割代入による再代入（`[row] = …` / `({ row } = …)`）。名前が `=` に隣接しないので上では拾えない。
-  // 添字への代入（`arr[i] = …`）も拾うが、名前が候補から外れるだけ（判定不能側）なので安全側に倒れる。
+  // 添字への代入（`arr[i] = …`）も拾うが、名前が候補から外れる（判定不能になる）だけなので、確かめずに通すことはない。
   for (const match of code.matchAll(/[\]}]\s*=(?![=>])/g)) {
     const open = matchingOpen(code, match.index);
     if (open !== -1) markUnknown(code.slice(open + 1, match.index));
@@ -1105,9 +1105,9 @@ function nonPlaywrightNames(
  * チェーンの区間を root 側から見て受け側の種別を決める。種別は最も呼び出しに近い一致で決まる
  * （`page.locator(…)` の受け側は Locator）。
  * どの区間も解決できず、かつ名前で解決できない形（未知の関数呼び出し・添字アクセス）が
- * 混じっていれば判定不能にする——黙って違反 0 件へ倒さないための分岐。
+ * 含まれていれば判定不能にする。警告なしに違反 0 件として扱わないための分岐である。
  * 呼び出しは起点に限らずチェーン途中も見る（`helpers.rows(view).count()` / `this.rows().count()` は
- * 起点が識別子でも戻り値が読めない。起点だけを見ると、この形が静かに違反 0 件へ落ちる）。
+ * 起点が識別子でも戻り値が読めない。起点だけを見ると、この形が警告なしに違反 0 件として扱われる）。
  * どれか 1 区間でも解決すれば（`kind !== null`）判定不能にはしない。
  */
 function resolveReceiver(segments, receivers) {
@@ -1141,7 +1141,7 @@ function resolveReceiver(segments, receivers) {
     } else if (segment.called) {
       hasUnknownCall = true;
     } else if (receivers.opaqueAliases.has(segment.name)) {
-      // 由来を追えない別名。ローカル変数へ束ねると静かに消える、という形を残さない。
+      // 由来を追えない別名。ローカル変数へ束ねると警告なしに消える、という形を残さない。
       hasOpaqueAlias = true;
     }
   }
@@ -1186,7 +1186,7 @@ export function scanSourceWithStats(source, file = "<source>") {
       }
       const { kind, undecidable, reason } = resolveReceiver(chain.segments, receivers);
       // 括弧の中身から辿った区間が何にも解決しなければ、括弧で包んだ式（`(a + b).count()` 等）
-      // と区別できないので判定不能に倒す。中身を見に行ったぶんを fail-open にしない。
+      // と区別できないので、判定不能として扱う。中身を見に行ったぶん、確かめずに通す形を増やさない。
       if (undecidable || (kind === null && chain.fromGroupInterior)) {
         stats.undecidable += 1;
         findings.push({
@@ -1199,7 +1199,7 @@ export function scanSourceWithStats(source, file = "<source>") {
       }
       if (kind === null) {
         // どれにも解決しない受け側は、起点が Playwright 以外と確定した名前のときだけ対象外に数える。
-        // 黙って読み飛ばすと、束縛を読めなかった名前（引数・分割代入・再代入・for-of・import）の呼び出しが
+        // 警告なしに読み飛ばすと、束縛を読めなかった名前（引数・分割代入・再代入・for-of・import）の呼び出しが
         // 違反 0 件でも判定不能 0 件でもないまま消える。
         // 同じファイルで確定した名前は、その名前そのもの（チェーン長 1）だけを対象外に数える。
         // プロパティ（`box.row` / `timers.row`）は後から Locator を代入できる（代入・Object.assign 等）ので、
@@ -1242,14 +1242,14 @@ export function scanSourceWithStats(source, file = "<source>") {
 /**
  * 走査の内訳が呼び出し数と合わなければ、その説明を返す（合えば null）。
  * 各呼び出しは「解決」「判定不能」「Playwright 以外と確定」のどれか 1 つに必ず数える。
- * 合わないのは走査器が呼び出しをどこにも数えずに捨てた＝違反 0 件と「見えていない」が同じ見え方になる状態。
+ * 合わないのはスキャナが呼び出しをどこにも数えずに捨てた＝違反 0 件と「見えていない」が同じ見え方になる状態。
  */
 export function breakdownMismatch(stats) {
   const { callSites, resolved, undecidable, excluded } = stats;
   if (callSites === resolved + undecidable + excluded) return null;
   return (
     `禁止 API の呼び出し ${callSites} 件 ≠ 解決 ${resolved} + 判定不能 ${undecidable} + ` +
-    `Playwright 以外と確定 ${excluded}（走査器が呼び出しを数えずに捨てている）`
+    `Playwright 以外と確定 ${excluded}（スキャナが呼び出しを数えずに捨てている）`
   );
 }
 

@@ -592,7 +592,7 @@ test("陽性コントロール（CLI）: 子プロセスとして起動しても
   });
   const { dir } = run(t);
   const r = cli(dir);
-  expect(r.stderr).toContain('["src/share.js",2,3,"toast"] が被覆表に記録されていない');
+  expect(r.stderr).toContain('["src/share.js",2,3,"toast"] が網羅表に記録されていない');
   expect(r.status).toBe(1);
   expect(JSON.parse(r.stdout)).toMatchObject({ ok: false });
 });
@@ -861,7 +861,7 @@ test.each([
   [
     "ソースの呼び出しが記録されていない",
     (t) => (t.feedback_calls.call_sites = []),
-    "被覆表に記録されていない",
+    "網羅表に記録されていない",
   ],
   [
     "記録だけ残っている（行ずれ）",
@@ -876,7 +876,7 @@ test.each([
   [
     "存在しない反応へ対応付け",
     (t) => (t.feedback_calls.call_sites[0].reaction = "copy/missing"),
-    "被覆表の反応に無い",
+    "網羅表の反応に無い",
   ],
   [
     "reaction と excluded_reason が両方空",
@@ -923,7 +923,7 @@ test.each([
     (t) => {
       t.__source = "function copy() {\n  showFeedback('Copied'); showFeedback('Again');\n}\n";
     },
-    '["src/share.js",2,27,"toast"] が被覆表に記録されていない',
+    '["src/share.js",2,27,"toast"] が網羅表に記録されていない',
   ],
   [
     "呼び出し箇所の重複",
@@ -963,7 +963,7 @@ test("改行をまたぐ呼び出しも検出する（記録が無ければ落�
   });
   const r = run(t, { source: "function copy() {\n  showFeedback\n    ('Copied');\n}\n" });
   expect(r.status).toBe(1);
-  expect(r.stderr).toContain('["src/share.js",2,3,"toast"] が被覆表に記録されていない');
+  expect(r.stderr).toContain('["src/share.js",2,3,"toast"] が網羅表に記録されていない');
 });
 
 test("改行をまたぐ呼び出しと CRLF でも名前の開始位置を行・列で記録すれば通す", () => {
@@ -1104,7 +1104,7 @@ test("ファイル名やパターン id に : があっても別の呼び出し�
   writeFileSync(join(dir, "tests.json"), JSON.stringify(list));
   const r = rerun(dir);
   expect(r.status).toBe(1);
-  expect(r.stderr).toContain('["src/a",1,1,"2:toast"] が被覆表に記録されていない');
+  expect(r.stderr).toContain('["src/a",1,1,"2:toast"] が網羅表に記録されていない');
 });
 
 test("行頭アンカー付きのパターンでも 2 行目以降の呼び出しを検出する", () => {
@@ -1117,7 +1117,7 @@ test("行頭アンカー付きのパターンでも 2 行目以降の呼び出�
   });
   const r = run(t);
   expect(r.status).toBe(1);
-  expect(r.stderr).toContain('["src/share.js",2,1,"toast"] が被覆表に記録されていない');
+  expect(r.stderr).toContain('["src/share.js",2,1,"toast"] が網羅表に記録されていない');
 });
 
 test.each([
@@ -2221,7 +2221,7 @@ test("部品被覆表を宣言していなければ表をまたいだ照合の�
 });
 
 test.each([
-  ["部品被覆表が無い", undefined, "部品被覆表を読めない: component-coverage.json"],
+  ["部品被覆表が無い", undefined, "部品網羅表を読めない: component-coverage.json"],
   ["visual_state_coverage.rows が無い", { components: [] }, "visual_state_coverage.rows が無い"],
 ])("部品被覆表を宣言したのに読めなければ落とす: %s（Issue #485）", (_name, coverage, message) => {
   const r = run(copyOnShare(null), { metadata: coverageMeta(), coverage });
@@ -2653,12 +2653,12 @@ test.each([
   [
     "操作が被覆表に無い",
     (t) => (t.side_effect_writes.sites[0].operation = "export"),
-    'operation "export" が被覆表の操作に無い',
+    'operation "export" が網羅表の操作に無い',
   ],
   [
     "操作を書いていない",
     (t) => delete t.side_effect_writes.sites[0].operation,
-    'operation "undefined" が被覆表の操作に無い',
+    'operation "undefined" が網羅表の操作に無い',
   ],
   ["時機が空", (t) => (t.side_effect_writes.sites[0].occasion = ""), "occasion（いつ書くか"],
   ["書く値が空", (t) => delete t.side_effect_writes.sites[0].values, "values（書く値）"],
@@ -3237,7 +3237,7 @@ test("covered_by のテストが current / new の片側でしか走らなけれ
   const t = baseTable();
   const r = run(t, { tests: testList(namesOf(t), ["current"]) });
   expect(r.status).toBe(1);
-  expect(r.stderr).toContain("が new プロジェクトで走らない");
+  expect(r.stderr).toContain("が new プロジェクトで実行されない");
 });
 
 test("1 つの名前が 2 本のテストに当たるなら曖昧として落とす（Issue #506）", () => {
@@ -3584,7 +3584,7 @@ test("covered_by のテストを片側で静的に飛ばす（test.skip / test.f
   }
   const r = run(t, { tests: list });
   expect(r.status).toBe(1);
-  expect(r.stderr).toContain("が new プロジェクトで走らない");
+  expect(r.stderr).toContain("が new プロジェクトで実行されない");
   // 陽性コントロール: 同じ一覧で飛ばさなければ通る
   expect(run(t, { tests: testList(namesOf(t)) }).status).toBe(0);
 });
@@ -3606,7 +3606,7 @@ test.each([
     }
     const r = run(t, { tests: list });
     expect(r.status).toBe(1);
-    expect(r.stderr).toContain("が new プロジェクトで走らない");
+    expect(r.stderr).toContain("が new プロジェクトで実行されない");
   },
 );
 

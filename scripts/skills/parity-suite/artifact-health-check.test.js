@@ -472,7 +472,7 @@ test("changes 履歴が欠けていれば影響なしに倒さない", () => {
   const { root, slugDir, metadataPath } = makeProject(undefined, { dataset: { version: 7 } });
   writeStage(slugDir, { dataset_version: 6, converged: true });
   const r = run(metadataPath, ["--target", "local-dev"]);
-  expect(r.stdout).toMatch(/changes 履歴が壊れている/);
+  expect(r.stdout).toMatch(/changes 履歴が不正/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
@@ -489,7 +489,7 @@ test("changes に欠番があれば影響なしに倒さない", () => {
   });
   writeStage(slugDir, { dataset_version: 6, converged: true });
   const r = run(metadataPath, ["--target", "local-dev"]);
-  expect(r.stdout).toMatch(/changes 履歴が壊れている/);
+  expect(r.stdout).toMatch(/changes 履歴が不正/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
@@ -1608,7 +1608,7 @@ test("#473 再現: 状態を変えないスペックを変えても、そのス�
   );
   const stale = run(metadataPath);
   expect(stale.stdout).toContain(
-    `状態を変えないスペック ${ORDERS} の直近の緑は現在のスペック・土台のものでない`,
+    `状態を変えないスペック ${ORDERS} の直近の緑は現在のスペック・共通部分のものでない`,
   );
   expect(stale.stdout).not.toContain(LOCALE + " の 2 回の記録");
   expect(stale.status).toBe(1);
@@ -1656,7 +1656,7 @@ test.each([
   writeFileSync(join(root, "e2e/parity/lib/expectations.ts"), "export const changed = 2;\n");
   const r = run(metadataPath);
   expect(r.stdout).toContain(`current_excluded の ${path} が suite.specs（${SPEC_DIR}）の下でない`);
-  expect(r.stdout).toContain(`スペック ${LOCALE} の 2 回の記録は現在の土台のものでない`);
+  expect(r.stdout).toContain(`スペック ${LOCALE} の 2 回の記録は現在の共通部分のものでない`);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
@@ -1696,7 +1696,7 @@ test.each([
   recordRuns(metadataPath, [LOCALE], "2026-09-20");
   writeFileSync(join(root, file), "export const changed = 2;\n");
   const r = run(metadataPath);
-  expect(r.stdout).toContain(`スペック ${LOCALE} の 2 回の記録は現在の土台のものでない`);
+  expect(r.stdout).toContain(`スペック ${LOCALE} の 2 回の記録は現在の共通部分のものでない`);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
@@ -1953,7 +1953,7 @@ test.each([
     "実体が無い",
     (m) =>
       m.suite.repeat_run.shared_files.push({ path: `${SPEC_DIR}/gone.ts`, reason: "共通関数" }),
-    `repeat_run.shared_files のファイルが suite.specs の下の土台に無い: ${SPEC_DIR}/gone.ts`,
+    `repeat_run.shared_files のファイルが suite.specs の下の共通部分に無い: ${SPEC_DIR}/gone.ts`,
   ],
 ])("#473: shared_files の記録の不備は exit 1: %s", (_name, mutate, needle) => {
   const { root, metadataPath } = perSpecProject();
@@ -1987,7 +1987,7 @@ test("#473: current_excluded の下にあっても、土台の宣言パス（int
   recordRuns(metadataPath, [LOCALE, ORDERS], "2026-09-20");
   writeFileSync(join(root, adapter), "export const click = () => 2;\n");
   const r = run(metadataPath);
-  expect(r.stdout).toContain(`スペック ${LOCALE} の 2 回の記録は現在の土台のものでない`);
+  expect(r.stdout).toContain(`スペック ${LOCALE} の 2 回の記録は現在の共通部分のものでない`);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });

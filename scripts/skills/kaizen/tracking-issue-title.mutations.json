@@ -199,7 +199,7 @@
       "id": "X2-kaizen",
       "why": "TRACKING_LIB の env 宣言を落とす",
       "file": ".github/workflows/kaizen-schedule.yml",
-      "find": "          # 照会の正本（同梱スクリプト）。`Locate kaizen scripts` が実在を確かめた 1 本。\n          TRACKING_LIB: ${{ steps.locate.outputs.lib }}\n",
+      "find": "          # 照会の原本（同梱のスクリプト）。`Locate kaizen scripts` が実在を確かめた 1 本である。\n          TRACKING_LIB: ${{ steps.locate.outputs.lib }}\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [

@@ -1,9 +1,9 @@
-// 部品の動き（出し入れ・開閉のアニメーション）の時系列を採る探針（正本）。
-// 正本はこのスキル側にあり、実行時はプロジェクトの `<parity_suite_dir>/parity/lib/tools/vendor/` へ
-// コピーして使う（Playwright のスペックから import するため。parity-suite 同梱の element-shot.mjs と同じ規約）。
+// 部品の動き（出し入れ・開閉のアニメーション）の時系列を採るプローブ（採り方はこのスクリプトで定義する）。
+// 原本はこのスキルの中にある。実行時はプロジェクトの `<parity_suite_dir>/parity/lib/tools/vendor/` へコピーして使う。
+// Playwright のスペックから import するためで、parity-suite 同梱の element-shot.mjs と同じ取り決めである。
 //
-// 何のためか: 見た目の照合は `animations: "disabled"` で止めて撮るので、現行の部品が持つ動き
-// （jQuery の `show('slide')` / `fadeIn`、CSS の `transition` / `animation`）は採取物にも見本の照合にも写らない。
+// 何のためか: 見た目の照合は `animations: "disabled"` で止めて撮る。そのため、現行の部品が持つ動き
+// （jQuery の `show('slide')` / `fadeIn`、CSS の `transition` / `animation`）は、採取物にも見本の照合にも記録されない。
 // 新側が動きを持たないまま、部品の照合・スイート・parity-diff がすべて緑になる（実際の移行で起きた）。
 // 画素では比べられなくても、`requestAnimationFrame` ごとに要素の矩形と不透明度を採れば、
 // 動きの長さ・始まるまでの遅れ・軌跡は数値で比べられる。比較は同梱の motion-compare.mjs が行う。
@@ -13,23 +13,23 @@
 // 各フレームで、要素が在るか・矩形（x / y / width / height）・実効の不透明度（祖先まで掛け合わせた値）を記録する。
 //
 // 要素は CSS セレクタで引く（論理名ではない）。出現する動きでは、操作の前に要素がまだ無いので
-// ロケータを先に解決できず、ページ側で毎フレーム引き直すしかないため。セレクタは片側の実装に固有でよい
-// （現行と新側で別のセレクタを使う）——比べるのは時系列の数値で、セレクタは比べない。
+// ロケータを先に解決できず、ページ側で毎フレーム探し直すしかないためである。セレクタは片側の実装に固有でよい
+// （現行と新側で別のセレクタを使う）。比べるのは時系列の数値で、セレクタは比べない。
 // 引いた要素が複数あるときは採らずに失敗させる（どの要素の動きかを後から決められない）。
 //
-// 前提: 探針のあいだはアニメーションを止めない（element-shot.mjs の `animations: "disabled"` や、
+// 前提: 採取のあいだはアニメーションを止めない（element-shot.mjs の `animations: "disabled"` や、
 // ページ側で全体を止める仕掛けを外して開く）。止めたまま採ると、動きのある部品も長さ 0 に記録される。
 //
 // 決定論的: 乱数に依存しない。時刻はページの `performance.now()` だけを使い、値は丸めて記録する。
 // Playwright はピア前提であり import しない（Page / Frame は引数で受け取る）。TypeScript 構文は使わない（型は JSDoc）。
 
 /**
- * ツールのバージョン（正本）。採る値・変化の判定・終わりの判定・出力の形を変えたら上げる。
+ * ツールのバージョン（このスクリプトで定義する）。採る値・変化の判定・終わりの判定・出力の形を変えたら上げる。
  */
 export const VERSION = "1";
 
 /**
- * 変化とみなす最小の差（正本。motion-compare.mjs の CHANGE_EPSILON と同じ値にする）。
+ * 変化とみなす最小の差（このスクリプトで定義する。motion-compare.mjs の CHANGE_EPSILON と同じ値にする）。
  * 採った値は丸めて記録するので、丸めの桁より細かい差は変化にしない。
  */
 export const CHANGE_EPSILON = { px: 0.01, opacity: 0.001 };
@@ -53,8 +53,8 @@ export function sampleLimit(timeoutMs) {
 
 /**
  * ページ側で採取を始める（`page.evaluate` に渡す関数。直列化されるので外側の名前を参照しない）。
- * 既に採取中のものがあれば上書きせずに失敗させる（前の探針が終わっていない）。
- * @param {{ selector: string, settleMs: number, timeoutMs: number, epsilon: { px: number, opacity: number }, maxSamples: number }} arg
+ * 既に採取中のものがあれば、上書きせずに失敗させる（前の採取が終わっていない）。
+ * @param {{ selector: string, settleMs: number, timeoutMs: number, epsilon: { px: number, opacity: number }, maxSamples: number }} arg 採取の条件。
  * @returns {{ ok: true } | { ok: false, error: string }}
  */
 export function installSampler({ selector, settleMs, timeoutMs, epsilon, maxSamples }) {
@@ -179,17 +179,12 @@ export function readSampler() {
 /**
  * 動きを 1 回採る。
  *
- * @param {{ evaluate: Function, waitForFunction: Function }} page Playwright の Page か Frame（要素が居る文書）
- * @param {{
- *   selector: string,
- *   trigger: () => Promise<unknown>,
- *   settleMs?: number,
- *   timeoutMs?: number,
- * }} options
- *   - selector: 動く要素を引く CSS セレクタ（その文書で高々 1 件に当たること）
+ * @param {{ evaluate: Function, waitForFunction: Function }} page Playwright の Page か Frame（要素がある文書）。
+ * @param {{ selector: string, trigger: () => Promise<unknown>, settleMs?: number, timeoutMs?: number }} options 採取の条件。
+ *   - selector: 動く要素を探す CSS セレクタ（その文書で高々 1 件に当たること）
  *   - trigger: 動きを起こす操作。採取を始めた直後に呼ぶ（論理名の手順で書く）
- *   - settleMs: 最後の変化からこの時間なにも変わらなければ終わりとみなす（既定 500ms）
- *   - timeoutMs: 採取の上限（既定 10000ms。自動で閉じるまでの時間を測るなら、その時間より長くする）
+ *   - settleMs: 最後の変化からこの時間なにも変わらなければ終わりとみなす（デフォルトは 500ms）
+ *   - timeoutMs: 採取の上限（デフォルトは 10000ms。自動で閉じるまでの時間を測るなら、その時間より長くする）
  * @returns {Promise<{ probe_version: string, selector: string, settle_ms: number, timeout_ms: number, timed_out: boolean, samples: object[] }>}
  */
 export async function probeMotion(page, options) {

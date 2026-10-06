@@ -1,5 +1,5 @@
-// parity-suite の実行フローの区切り（成果物で引き継げる境目）を記録し、再開の前に照合する（正本）。
-// 正本は parity-suite にあり、スキルディレクトリ内から直接実行する（プロジェクトへコピーしない）。
+// parity-suite の実行フローの区切り（成果物で引き継げる境目）を記録し、再開の前に照合する（原本）。
+// 原本は parity-suite にあり、スキルディレクトリ内から直接実行する（プロジェクトへコピーしない）。
 //
 // なぜ要るか: 実行フロー 1〜9 を 1 つの文脈で最後まで回すと、読んだ参照・書いた成果物が
 // 文脈に積まれ続け、費用がターン数の 2 乗で増える。区切りで止めて新しい文脈から再開するには、
@@ -14,10 +14,11 @@
 // 区切りの語彙と順序: authored（手順 5 の後）→ captured（手順 6 の後）→ gated（手順 7 の後）。
 //   前の区切りに戻って記録し直すと、それより後の区切りの記録は消える（採り直した成果物の上に古い記録を残さない）。
 //
-// 指紋から外すもの（区切りの後に正規に変わるもの）: checkpoints.json 自身、pending-decisions.json（利用者の回答が区切りの間に入る）、
+// 指紋から外すのは、区切りの後に正規に変わる次のものである。
+//   checkpoints.json 自身、pending-decisions.json（利用者の回答が区切りの間に入る）、
 //   noise-pass2/（基準値を記録したら消す一時物）、new/（parity-replace / parity-diff の新側の成果物）。
 //
-// fail-closed: 指紋の対象が 0 件・--include が存在しない・区切りの順序違反・記録の型崩れは合格に倒さない。
+// 指紋の対象が 0 件・--include が存在しない・区切りの順序違反・記録の型の誤りは、合格として扱わない。
 // 終了コード: 0 ＝ 記録した・照合が通った、1 ＝ 照合の不一致（再開してはいけない）、2 ＝ 使い方の誤り・記録の不備。
 //
 // 決定論的: 指紋にも出力にも時刻を入れない。TypeScript 構文は使わない（型は JSDoc）。
@@ -35,7 +36,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "nod
 import { fileURLToPath } from "node:url";
 
 /**
- * ツールのバージョン（正本）。指紋の取り方・記録の形を変えたら上げる。版が違う記録は verify で落ちる。
+ * ツールのバージョン（原本）。指紋の取り方・記録の形を変えたら上げる。版が違う記録は verify で落ちる。
  * @type {string}
  */
 export const VERSION = "1";
@@ -79,7 +80,7 @@ function toRel(cwd, p) {
 /**
  * 実在する最も深い祖先まで `realpathSync` で解いてから、残りの区間を継ぎ足して実パスを組む。
  * verify では記録後に消えた根も数えるため、存在しないパスでも実パスで包含を判定できるようにする。
- * ENOENT 以外（ELOOP・EACCES 等）は「解けなかった」であって「外にある」ではないので null を返す（fail-closed）。
+ * ENOENT 以外（ELOOP・EACCES 等）は「解けなかった」であって「外にある」ではないので、null を返す（判定できないものとして扱う）。
  * @param {string} p - 絶対パス
  * @returns {string | null}
  */
@@ -115,8 +116,9 @@ function realUnder(a, b) {
  * スイートの根を実パスで確かめ、最初に見つけた問題を返す（無ければ null）。
  *
  * 字面の比較だけでは、slug のディレクトリの中を指すシンボリックリンク（`e2e/parity/share.spec.ts` →
- * `.replace/parity/share/reactions.json` 等）がスイートの根として通り、スイートを 1 つも照合しないまま
- * record と verify が通る。根の重複も同じで、字面の違う 2 つの根が同じ実体を指すと 1 つの根として働く。
+ * `.replace/parity/share/reactions.json` など）が、スイートの根として通ってしまう。
+ * すると、スイートを 1 つも照合しないまま record と verify が通る。根の重複も同じで、字面の違う 2 つの根が同じ実体を指すと 1 つの根として働く。
+ *
  * @param {string} cwd
  * @param {string} slugDir - cwd 基準の相対パス
  * @param {string[]} suiteRoots - cwd 基準の相対パス（slug のディレクトリを含まない）
@@ -133,7 +135,7 @@ function realRootProblem(cwd, slugDir, suiteRoots) {
     if (realUnder(real, slugReal)) {
       return `スイートの根 ${r} の実パス（${real}）が --dir の中を指す（シンボリックリンク経由でも slug のディレクトリの成果物はスイートにならない）`;
     }
-    // 逆向き（根が slug のディレクトリを含む祖先）も止める。slug の成果物を二重に数え、別機能の slug の成果物まで指紋に混ざる。
+    // 逆向き（根が slug のディレクトリを含む祖先）も止める。slug の成果物を二重に数え、別機能の slug の成果物まで指紋に含まれる。
     // 根の下の要素が slug のディレクトリの中を指す形は fingerprintFiles が辿りながら止める
     if (realUnder(slugReal, real)) {
       return `スイートの根 ${r} の実パス（${real}）が --dir を含む（slug のディレクトリの祖先はスイートの根にしない。別機能の成果物が指紋に混ざる）`;
@@ -151,7 +153,7 @@ function realRootProblem(cwd, slugDir, suiteRoots) {
  * @param {string[]} roots - cwd 基準の相対パス（先頭は slug のディレクトリ）
  * @param {string} slugDir - cwd 基準の相対パス
  * @param {{ allowMissing?: boolean }} [opts] - verify では記録後に消えた根を「その下のファイルが全て削除された」として数える
- *   （使い方の誤り〈exit 2〉に倒すと、成果物の不一致〈exit 1〉と区別できなくなる）
+ *   （使い方の誤り〈exit 2〉として扱うと、成果物の不一致〈exit 1〉と区別できなくなる）
  * @returns {Record<string, string>} 相対パス → sha256
  */
 export function fingerprintFiles(cwd, roots, slugDir, opts = {}) {
@@ -167,7 +169,7 @@ export function fingerprintFiles(cwd, roots, slugDir, opts = {}) {
    * @param {boolean} inSuite - スイートの根（--include）の下の要素か（根そのものは realRootProblem が確かめる）
    */
   const visit = (abs, inSuite) => {
-    // スイートの根の中のシンボリックリンクが slug のディレクトリの中を指すと、スイートの指紋が slug の成果物の写しになり、
+    // スイートの根の中のシンボリックリンクが slug のディレクトリの中を指すと、スイートの指紋が slug の成果物のコピーになり、
     // 書いたスイートを 1 つも照合しないまま通る。根の下で辿る要素をすべて実パスで確かめる
     if (inSuite) {
       const real = realPathOf(abs);
@@ -232,9 +234,9 @@ const ENTRY_KEYS = ["at", "next_step", "roots", "files"];
 /**
  * 記録が record の書く形かを検査し、最初に見つけた違反を返す（無ければ null）。
  *
- * 読み手の検証は「思いついた壊れ方」ではなく、書き手（下の main の record）が必ず満たす不変条件から作る。
- * 手で直した・壊れた記録も同じ経路で読まれ、--from の再開判定（fail-closed なゲート）になるため、
- * 書き手が作らない形を 1 つでも受けると、前段の成果物を確かめないまま再開できてしまう（Codex レビューで 7 巡指摘された形）。
+ * 読み手の検証は、思いついた不正な形からではなく、書き手（下の main の record）が必ず満たす不変条件から作る。
+ * 手で直した記録や不正な記録も同じ処理で読まれ、--from で再開してよいかの判定に使われる（判定できなければ止めるチェック）。
+ * そのため、書き手が作らない形を 1 つでも受けると、前段の成果物を確かめないまま再開できてしまう。
  *
  * | # | 書き手が保証すること | 根拠（record の実装） |
  * |---|---|---|
@@ -373,7 +375,7 @@ export function main(argv, deps = {}) {
       err(`error: ${a} に値が無い\n${usage}\n`);
       return 2;
     }
-    // --include 以外を重ねると後勝ちで黙って別の区切り・別の slug を扱うので止める
+    // --include 以外を重ねると後勝ちで警告なしに別の区切り・別の slug を扱うので止める
     if ((a === "--dir" && dir !== null) || (a === "--at" && at !== null)) {
       err(`error: ${a} が重複している\n${usage}\n`);
       return 2;
@@ -396,7 +398,7 @@ export function main(argv, deps = {}) {
       throw new UsageError(`--dir がディレクトリでない: ${dir}`);
     }
     const recordPath = join(slugAbs, RECORD_NAME);
-    // authored は記録を作り直すので、既存の記録（壊れていても）は読まない。それ以外は書き手の形であることを先に確かめる
+    // authored は記録を作り直すので、既存の記録（不正な形でも）は読まない。それ以外は書き手の形であることを先に確かめる
     const raw =
       command === "record" && pos === 0
         ? { tool: "checkpoint", version: VERSION, checkpoints: [] }
@@ -471,7 +473,7 @@ export function main(argv, deps = {}) {
         "authored には --include でスイートの置き場所（<parity_suite_dir>/parity/ 等）を渡す",
       );
     }
-    // gated の結果は手順 7 の中で strength.md に書く。書いていなければ、新しい文脈から手順 8 へ進んでも強度ゲートの結果が無い
+    // gated の結果は手順 7 の中で strength.md に書く。書いていなければ、新しい文脈から手順 8 へ進んでも強度チェックの結果が無い
     if (at === "gated" && !existsSync(join(slugAbs, "strength.md"))) {
       throw new UsageError("gated の前に strength.md（故障カタログと結果）を書く");
     }
@@ -487,7 +489,7 @@ export function main(argv, deps = {}) {
     if (emptyRoots.length > 0) {
       throw new UsageError(`--include の根にファイルが無い: ${emptyRoots.join(", ")}`);
     }
-    // 前の区切りから成果物が足されも書き換えられもしていないなら、その間の手順は何も作っていない（採取・強度ゲートを飛ばした記録になる）。
+    // 前の区切りから成果物が足されも書き換えられもしていないなら、その間の手順は何も作っていない（採取・強度チェックを飛ばした記録になる）。
     // 削除だけは進んだ証拠にしない——前段の成果物が消えただけでも指紋は変わる
     if (pos > 0) {
       const prevFiles = /** @type {Record<string, string>} */ (

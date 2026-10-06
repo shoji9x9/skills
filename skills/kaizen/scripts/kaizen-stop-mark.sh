@@ -2,7 +2,7 @@
 # kaizen stop sentinel mark (Stop / sessionEnd hook)
 #
 # タスク/セッション終了時に未抽出センチネル `.kaizen/.pending-extract<suffix>.<session key>` を
-# 残し、「未抽出の活動がある」ことを記録する。コミット前ゲート（kaizen-precommit-gate.sh）が
+# 残し、「未抽出の活動がある」ことを記録する。コミット前のチェック（kaizen-precommit-gate.sh）が
 # これを検出して `git commit` をブロックし、エージェントに kaizen --current を促す。
 #
 # 第 1 引数 $1: センチネルのサフィックス（例: -codex / -copilot）。省略時は空（Claude Code 用）。
@@ -10,13 +10,13 @@
 #
 # センチネルは **session 単位**にする。agent 単位のままだと、同じプロジェクトで同じ agent の
 # セッションを 2 つ動かしたときに、片方の抽出完了が他方の未抽出シグナルを消す。
-# session id を取れない環境では従来どおり agent 単位の名前へ縮退する（機能が落ちるだけ）。
+# session id を取れない環境では、これまでどおり agent 単位の名前を使う（機能が減るだけである）。
 #
-# センチネルの中身は「1 行 1 値」で、それを解消するための同定情報を持たせる:
-#   1 行目 UTC タイムスタンプ（従来からの唯一の内容。後方互換のため位置を維持）
-#   2 行目 transcript パス（取れなければ空。Copilot は payload に持たない）
-#   3 行目 エージェント名（claude-code / codex / copilot）
-#   4 行目 session id（原文。key ではなく人が読む・案内コマンドに載せる用）
+# センチネルの中身は「1 行に 1 つの値」で、それを解消するための情報を次の順に持たせる。
+#   1 行目は UTC タイムスタンプ。以前から唯一の内容だったので、後方互換のため位置を変えない。
+#   2 行目は transcript のパス。取れなければ空にする（Copilot は payload に持たない）。
+#   3 行目はエージェント名（claude-code / codex / copilot）。
+#   4 行目は session id の原文。key ではなく、人が読むためと、案内のコマンドに載せるために使う。
 # これが無いと、フラグを立てた本人が戻らないまま別セッションがブロックされたときに、
 # どの transcript を抽出すれば解消するのかを機械的に解決できない。
 #
@@ -57,19 +57,19 @@ kaizen_lib="$(dirname "${BASH_SOURCE[0]}")/kaizen-hook-common.sh"
 if [ -r "${kaizen_lib}" ]; then
 	. "${kaizen_lib}"
 else
-	printf '%s: 共通ライブラリを読めないため縮退します: %s\n' "$(basename "${BASH_SOURCE[0]}")" "${kaizen_lib}" >&2
+	printf '%s: 共通ライブラリを読めないため、機能を減らして動きます: %s\n' "$(basename "${BASH_SOURCE[0]}")" "${kaizen_lib}" >&2
 fi
 
 session_id=""
 transcript=""
 payload_cwd=""
 session_key=""
-# 共通ライブラリが読めて Hook JSON を実際に解析できたかどうか。次のセンチネル省略判定は
-# 「transcript_path を解析した結果、値が無かった」場合だけに限る必要がある。ライブラリが
-# 読めない配布物の欠落・部分展開（呼び出し側は動く前提。冒頭コメント参照）では
-# `transcript` は解析できずに空のままになるだけで、「セッションに transcript が無い」とは
-# 別の理由であり、区別しないと縮退時に一律センチネルを立てなくなってしまう（実測で確認済み:
-# 有効な transcript_path を含む payload でもライブラリ欠落時は完全にセンチネルが消える）。
+# 共通ライブラリを読めて、Hook JSON を実際に解析できたかどうか。次の「センチネルを立てない」判定は、
+# 「transcript_path を解析した結果、値が無かった」場合だけに限る必要がある。
+# 配布物の欠落や一部だけの展開でライブラリを読めないとき（呼び出し側は動く前提。冒頭のコメントを参照）、
+# `transcript` は解析できずに空のままになる。これは「セッションに transcript が無い」とは別の理由である。
+# 区別しないと、機能を減らして動くときに、どのセッションでもセンチネルを立てなくなる。
+# 実測で確かめた。有効な transcript_path を含む payload でも、ライブラリが無いとセンチネルがまったく立たなかった。
 hook_fields_resolved=0
 if declare -f kaizen_hook_fields >/dev/null 2>&1; then
 	{
@@ -82,19 +82,18 @@ if declare -f kaizen_hook_fields >/dev/null 2>&1; then
 fi
 
 # Claude Code / Codex は Hook payload に transcript_path を必ず持つ（`string | null`）。
-# `/compact` 専用の隠しセッションのように transcript を一度も作らないまま Stop が走ることが
-# あり、そのままセンチネルを立てるとコミット前ゲートの案内どおりに解消できない
-# 恒久ブロッカーになる（記録された transcript が実在しないため、案内の「探して抽出する」手順が
-# 完結しない）。transcript の無いセッションには抽出すべき学びも無いので、活動なしとして扱い
-# センチネルを立てない。
-# 判定は存在確認（`-e`）に留め、可読性（`-r`）では判定しない。可読性まで見ると、実在するが
-# 権限・FS 状態で一時的に読めないだけの transcript（本当は学びが積まれている）まで「無い」扱いに
-# なり、その未抽出の学びがコミット前ゲートで検出されなくなる。存在するが読めない場合は従来どおり
-# センチネルを立て、ゲート側の「記録はあるが読めない」復旧案内に委ねる。
+# `/compact` 専用の隠しセッションのように、transcript を一度も作らないまま Stop が実行されることがある。
+# そのままセンチネルを立てると、コミット前のチェックの案内どおりに解消できず、ずっとブロックし続ける
+# （記録された transcript が実在しないので、案内の「探して抽出する」手順を終えられない）。
+# transcript の無いセッションには抽出すべき学びも無いので、活動なしとして扱いセンチネルを立てない。
+# 判定は存在の確認（`-e`）にとどめ、読めるか（`-r`）では判定しない。読めるかまで見ると、実在していて
+# 権限やファイルシステムの状態で一時的に読めないだけの transcript（実際は学びがたまっている）まで「無い」として扱い、
+# その未抽出の学びをコミット前のチェックで検出できなくなる。存在していて読めない場合はこれまでどおり
+# センチネルを立て、チェック側の「記録はあるが読めない」場合の復旧の案内に任せる。
 # また、この判定は Hook JSON を実際に解析できた（`hook_fields_resolved=1`）ときに限る。
-# 解析できていなければ「transcript が無い」のか「取れなかっただけ」なのか区別できず、
-# 従来どおりセンチネルを立てる（縮退時は機能が落ちるだけで壊れない、という既存方針を維持する）。
-# Copilot は Hook payload に transcript を持たないのが正常系なので対象外（従来どおり立てる）。
+# 解析できていなければ「transcript が無い」のか「取れなかっただけ」なのか区別できないので、
+# これまでどおりセンチネルを立てる（機能を減らして動くときは、機能が減るだけで誤った結果を出さない、という方針を変えない）。
+# Copilot は Hook payload に transcript を持たないのが正常なので対象外にする（これまでどおり立てる）。
 case "${agent}" in
 claude-code | codex)
 	if [ "${hook_fields_resolved}" -eq 1 ]; then
@@ -104,7 +103,7 @@ claude-code | codex)
 esac
 
 # .kaizen/ をプロジェクトルート基準で解決する。共通ライブラリが読めれば、コミットが実行される
-# 作業ツリー（git worktree を含む）を優先する。読めなければ従来の解決へ縮退する。
+# 作業ツリー（git worktree を含む）を優先する。読めなければ、以前からの方法で決める。
 if declare -f kaizen_resolve_project_root >/dev/null 2>&1; then
 	project_root=$(kaizen_resolve_project_root "${payload_cwd}")
 else

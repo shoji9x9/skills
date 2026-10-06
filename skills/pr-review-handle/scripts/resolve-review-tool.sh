@@ -1,29 +1,29 @@
 #!/usr/bin/env bash
-# review_tool の解決を決定論的に行い、値と**出所の層**を出力する。
+# review_tool の値を決定論的に決め、値と**出所の層**を出力する。
 #
-# なぜ要るか: 多層の解決順（CLI → 環境変数 → 共有 YAML → 既定）を人が頭で引くと、
-# 正本を読む前に環境変数名を推測して「未設定」と判定し、別のツールへ 3 回依頼した事故が起きた。
-# 解決は正本（references/review-tool.md）の順序をそのまま実行し、**どの層から来た値か**を
-# 表示してから使う。
+# なぜ要るか: 決める順序（CLI → 環境変数 → 共有 YAML → デフォルト）を人が頭の中でたどると、
+# 原本を読む前に環境変数名を推測して「未設定」と判定し、別のツールへ 3 回依頼したことがある。
+# このスクリプトは原本（references/review-tool.md）の順序をそのまま実行し、**どの層から来た値か**を
+# 表示する。利用者はそれを見てから値を使う。
 #
 # 使い方:
 #   resolve-review-tool.sh [--review-tool <tool>] [--config <path>]
 #
-# `--config` を省いた既定の共有設定パスは、cwd ではなく `git rev-parse --show-toplevel` 基準で
-# 解決する（どこから起動しても同じ層を読む）。
+# `--config` を省いたときの共有設定のパスは、cwd ではなく `git rev-parse --show-toplevel` を基準に
+# 決める（どこから起動しても同じ層を読む）。
 #
 # 出力（key=value の 2 行。パースして使う）:
 #   value=<copilot|claude-code|codex|none>
 #   source=<cli|env|config|default>
 #
-# 終了コード: 0=解決できた / 2=受理しない値（黙って既定へ倒さず停止する） / 64=引数が不正。
+# 終了コード: 0=値を決められた / 2=受理しない値（警告なしにデフォルトとして扱わず、止まる） / 64=引数が不正。
 set -euo pipefail
 
 ACCEPTED="copilot claude-code codex none"
 DEFAULT_TOOL="copilot"
-# 共有設定の既定パスは**リポジトリルート基準**で解決する。cwd 相対のままだと、
-# サブディレクトリから起動しただけで config 層が黙って飛ばされ、`source=default` を
-# 正しい解決結果として報告してしまう（このスクリプトが防ぐはずの誤報そのもの）。
+# 共有設定のデフォルトのパスは、**リポジトリルートを基準**に決める。cwd からの相対パスのままだと、
+# サブディレクトリから起動しただけで config 層が警告なしに飛ばされ、`source=default` を
+# 正しい結果として報告してしまう（このスクリプトが防ぐはずの誤った報告そのもの）。
 CONFIG_REL=".config/skills/shoji9x9/skills.yml"
 config_path=""
 config_explicit=""
@@ -41,8 +41,8 @@ while [ "$#" -gt 0 ]; do
 			usage
 			exit 64
 		}
-		# 空文字は「未指定」と同じ扱いになり、CLI 指定が黙って下の層（env / config）へ
-		# 落ちる。指定したつもりの層と報告される層がずれるので、ここで落とす。
+		# 空文字は「未指定」と同じに扱われ、CLI の指定が警告なしに下の層（env / config）の値になる。
+		# 指定したつもりの層と報告される層がずれるので、ここでエラーにする。
 		[ -n "$2" ] || {
 			echo "error: --review-tool の値が空" >&2
 			usage
@@ -78,9 +78,9 @@ while [ "$#" -gt 0 ]; do
 	esac
 done
 
-# --config が無ければリポジトリルート基準の既定パスを使う。git の外なら cwd 相対へ倒す。
-# 判定は「値が空か」ではなく「--config が渡されたか」で行う（空文字は上で弾いてあるが、
-# 空かどうかで分けると `--config ""` のような入力が黙って既定へ化ける形に戻りやすい）。
+# --config が無ければ、リポジトリルートを基準にしたデフォルトのパスを使う。git の外なら cwd からの相対パスにする。
+# 判定には「--config が渡されたか」を使う。空文字は上でエラーにしてあるが、
+# 値が空かどうかで分けると、`--config ""` のような入力が警告なしにデフォルトとして扱われる形に戻りやすい。
 if [ -z "${config_explicit}" ]; then
 	repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 	if [ -n "${repo_root}" ]; then
@@ -140,9 +140,9 @@ elif [ -n "${SKILLS_REVIEW_TOOL:-}" ]; then
 	value="${SKILLS_REVIEW_TOOL}"
 	source="env"
 else
-	# env を「設定したのに空」で通り過ぎると、指定したつもりの層と報告される層がずれる。
-	# ただし `SKILLS_REVIEW_TOOL= cmd` は env 層を無効化する常套手段なので、CLI の空値
-	# （exit 64）とは扱いを分け、飛ばしたことを出力に残したうえで下の層へ進む。
+	# env が「設定したのに空」のまま次の層へ進むと、指定したつもりの層と報告される層がずれる。
+	# ただし `SKILLS_REVIEW_TOOL= cmd` は env 層を無効にするよく使われる書き方なので、CLI の空の値
+	# （exit 64）とは扱いを分ける。飛ばしたことを出力に残してから、下の層へ進む。
 	if [ "${SKILLS_REVIEW_TOOL+set}" = "set" ]; then
 		echo "note: SKILLS_REVIEW_TOOL が空のため env 層を飛ばす（無効化として扱う）" >&2
 	fi
@@ -153,9 +153,9 @@ else
 	else
 		value="${DEFAULT_TOOL}"
 		source="default"
-		# 既定へ倒した理由と参照先を必ず残す。`--config` 指定時も出す——
-		# パスを渡し間違えたときこそ「ファイルが無い」と「キーが無い」が同じ
-		# `source=default` に潰れ、誤ったパスを黙って受け入れることになる。
+		# デフォルトを使った理由と参照先を必ず残す。`--config` を指定したときも出す。
+		# パスを渡し間違えたときに出さないと、「ファイルが無い」と「キーが無い」が同じ
+		# `source=default` になり、誤ったパスを警告なしに受け入れることになる。
 		if [ -f "${config_path}" ]; then
 			echo "note: 共有設定に review_tool が無いため既定を使う（参照: ${config_path}）" >&2
 		else

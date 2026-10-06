@@ -5,10 +5,10 @@
 # 学びを 1 本の Issue にまとめる。LLM をここでは動かさない——エージェント実行は
 # 呼び出し側（workflow）が担い、このスクリプトはその**入力と出力の素材**だけを作る。
 #
-# 使い方（プロジェクトルートで実行する。全 kaizen スクリプト共通）:
-#   kaizen-schedule-report.sh config   実効設定を KEY=VALUE で出力（workflow の判定材料）
-#   kaizen-schedule-report.sh issue    通知 Issue の本文（Markdown）
-#   kaizen-schedule-report.sh prompt   エージェントへ渡す指示（Markdown）
+# 使い方は次のとおりである（プロジェクトルートで実行する。kaizen のスクリプトすべてに共通）。
+#   kaizen-schedule-report.sh config   有効な設定を KEY=VALUE で出力する（workflow の判定材料）。
+#   kaizen-schedule-report.sh issue    通知 Issue の本文（Markdown）を出力する。
+#   kaizen-schedule-report.sh prompt   エージェントへ渡す指示（Markdown）を出力する。
 #
 # 設定の解決順（上が優先）。**どの層の値を採ったかを stderr に出す**ので、
 # 「設定したつもりの値で動いていない」を実行ログから切り分けられる。
@@ -16,13 +16,13 @@
 #   2. `.kaizen/config` の schedule_* キー = リポジトリの意思（コミットされる）
 #   3. 既定値
 #
-# 同梱ワークフローが第 1 層へ流すのは、`workflow_dispatch` の入力（mode / agent / model /
-# effort）と、リポジトリ変数 `vars.KAIZEN_SCHEDULE_SKIP` だけ。**`inputs.*` は schedule
-# イベントでは常に空**なので、定期実行で効く上書きは KAIZEN_SCHEDULE_SKIP に限られる。
-# mode / agent / model / effort を定期実行にも効かせたいなら `.kaizen/config` へ書く
-# （リポジトリ変数を増やすと `.kaizen/config` とスコープが重なるため足していない）。
+# 同梱のワークフローが第 1 層へ渡すのは、`workflow_dispatch` の入力（mode / agent / model /
+# effort）と、リポジトリ変数 `vars.KAIZEN_SCHEDULE_SKIP` だけである。**`inputs.*` は schedule
+# イベントでは常に空**なので、定期実行で有効になる上書きは KAIZEN_SCHEDULE_SKIP に限られる。
+# mode / agent / model / effort を定期実行にも反映したいなら、`.kaizen/config` に書く
+# （リポジトリ変数を増やすと `.kaizen/config` と範囲が重なるので、足していない）。
 #
-# 不正値は既定へ倒し、倒したことを stderr に出す（`.kaizen/config` 既存キーと同じ方針）。
+# 不正な値はデフォルトの値として扱い、そう扱ったことを stderr に出す（`.kaizen/config` の既存のキーと同じ方針）。
 #
 # **定期実行そのものは opt-in**（`schedule_enabled` の既定は off）。有効化するには
 # `.kaizen/config` に `schedule_enabled=on` を書く。理由は `DEFAULT_SCHEDULE_ENABLED` の注記。
@@ -34,25 +34,25 @@ kaizen_lib="$(dirname "${BASH_SOURCE[0]}")/kaizen-hook-common.sh"
 if [ -r "${kaizen_lib}" ]; then
 	. "${kaizen_lib}"
 else
-	printf '%s: 共通ライブラリを読めないため縮退します: %s\n' "$(basename "${BASH_SOURCE[0]}")" "${kaizen_lib}" >&2
+	printf '%s: 共通ライブラリを読めないため、機能を減らして動きます: %s\n' "$(basename "${BASH_SOURCE[0]}")" "${kaizen_lib}" >&2
 fi
-# 共通ライブラリを読めないときの縮退。**停止スイッチだけは fail-closed に倒す**——
-# mode / agent が既定へ倒れるのは「動き方が変わる」だけだが、`schedule_enabled=off` を
-# 読み落とすと「止めたはずのリポジトリが毎週動く」側へ倒れる（凍結プロジェクト・
-# レートリミット接近時という、この停止スイッチの存在理由そのものを裏切る）。
-# 設定ファイルが在るのに読めないときは、この fail-closed が停止させる。**そもそも無い場合は
-# ここでは扱わない**——`schedule_enabled` の既定が off（opt-in）なので、下の `resolve_config` が
-# 「キーが無い」として停止させる（「読めない」と理由を重ねないため）。
+# 共通ライブラリを読めないときに、機能を減らして動く処理。**停止スイッチだけは、読めなければ止める側として扱う。**
+# mode / agent がデフォルトの値になるのは「動き方が変わる」だけである。しかし `schedule_enabled=off` を
+# 読み落とすと、「止めたはずのリポジトリが毎週動く」ことになる（凍結したプロジェクトや、
+# レートリミットに近いときに止めるという、この停止スイッチがある理由そのものに反する）。
+# 設定ファイルが在るのに読めないときは、ここで止める。**そもそも無い場合は
+# ここでは扱わない。** `schedule_enabled` のデフォルトは off（opt-in）なので、下の `resolve_config` が
+# 「キーが無い」として止める（「読めない」という理由と重ねないため）。
 #
-# 「読めない」経路はライブラリ欠落だけではない。`kaizen_config_value` は設定ファイルを
-# 読めないときもキーが無いときも同じ 1 を返すため、**パーミッション等でファイル自体が
-# 読めない場合も同じ穴**になる。どちらも「在るのに読めない」として扱う。
+# 「読めない」のは、ライブラリが無いときだけではない。`kaizen_config_value` は設定ファイルを
+# 読めないときもキーが無いときも同じ 1 を返すので、**パーミッションなどでファイルそのものを
+# 読めない場合も、同じ抜けになる**。どちらも「在るのに読めない」として扱う。
 config_unreadable=""
 if [ -e .kaizen/config ] && [ ! -r .kaizen/config ]; then
 	config_unreadable=".kaizen/config が在るのに読めない（パーミッション等）"
 fi
 if ! declare -f kaizen_config_value >/dev/null 2>&1; then
-	# 縮退したことを黙らせない（縮退した run と本番構成の run を出力で区別できるようにする）。
+	# 機能を減らして動いたことを、必ず出力する（その実行と本番の構成の実行を、出力で区別できるようにする）。
 	echo "kaizen-schedule-report: kaizen-hook-common.sh を読めないため .kaizen/config を読めない" >&2
 	kaizen_config_value() { return 1; }
 	if [ -e .kaizen/config ] && [ -z "${config_unreadable}" ]; then
@@ -75,8 +75,8 @@ readonly DEFAULT_SCHEDULE_ENABLED=off
 # **予算はコメントで宣言するだけでなく実装で強制する。** 要約を切らずに「1 行およそ
 # 400 文字」と書いていた版は、実データで既に 439 文字の行を出していた（実測）。
 # 1 行 = 要約 120 + パス・優先度・種別・記録日・区切り およそ 150 で 270 文字、
-# 60 行で 16,200 文字。切った分は件数と参照先を明示する
-# （黙って落とすと「表に無い＝存在しない」と読まれる）。
+# 60 行で 16,200 文字。切った分は、件数と参照先を明示する
+# （警告なしに省くと「表に無い＝存在しない」と読まれる）。
 readonly MAX_TABLE_ROWS=60
 readonly MAX_SUMMARY_CHARS=120
 
@@ -86,11 +86,11 @@ warn() { echo "kaizen-schedule-report: $*" >&2; }
 # （`summary_of` はノートごとに呼ばれるので、毎回 `locale` を起動しない）。
 # bash のパラメータ展開は UTF-8 ロケールでは文字単位、非 UTF-8 ではバイト単位になる。
 # 後者で切ると日本語が文字の途中で割れるので切らず、代わりに警告を出す。
-# GitHub Actions のランナーは UTF-8（`C.UTF-8`）なので、CI では常に切り詰めが効く。
-# パイプで渡さない——`grep -q` は一致した時点で抜けるため、書き手がまだ書き終えていないと
-# EPIPE → SIGPIPE でパイプライン全体が非 0 になり、**UTF-8 なのに非 UTF-8 と読む**
-# （`kaizen-context-inject.sh` と同じ機構。repo の検査もこの形を弾く）。herestring なら
-# 書き手のプロセスが無いのでこの経路が消える。
+# GitHub Actions のランナーは UTF-8（`C.UTF-8`）なので、CI では常に切り詰める。
+# パイプで渡さない。`grep -q` は一致した時点で終わるので、書き手がまだ書き終えていないと
+# EPIPE → SIGPIPE でパイプライン全体が 0 以外になり、**UTF-8 なのに UTF-8 でないと読む**。
+# `kaizen-context-inject.sh` と同じ仕組みで、repo のチェックもこの形をエラーにする。herestring なら
+# 書き手のプロセスが無いので、この問題は起きない。
 utf8_locale=0
 if grep -qi 'utf-\{0,1\}8' <<<"$(locale charmap 2>/dev/null)"; then
 	utf8_locale=1
@@ -116,8 +116,8 @@ resolve_value() {
 }
 
 # 真偽値の解釈。on/true/yes/1 を真、off/false/no/0 を偽とし、それ以外は 2 を返して
-# 呼び出し側に既定へ倒させる（不正値を黙って偽＝skip に倒すと、止めたつもりのない
-# リポジトリが無言で止まる／止めたつもりのリポジトリが動く、のどちらにも化ける）。
+# 呼び出し側にデフォルトの値を使わせる。不正な値を警告なしに偽（skip）として扱うと、2 通りの誤りが起きうる。
+# 止めたつもりのないリポジトリが警告なしに止まるか、止めたつもりのリポジトリが動く。
 parse_bool() {
 	case "$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')" in
 	on | true | yes | 1) return 0 ;;
@@ -127,8 +127,8 @@ parse_bool() {
 }
 
 # frontmatter（最初の `---` ブロック）の 1 フィールドを取り出す。
-# `sed | head` を使わないのは kaizen-context-inject.sh と同じ理由（早く抜ける読み手 ×
-# pipefail で、一致しているのに「一致しなかった」と読む経路ができる）。
+# `sed | head` を使わないのは、kaizen-context-inject.sh と同じ理由である（早く終わる読み手と
+# pipefail の組み合わせで、一致しているのに「一致しなかった」と読む形になる）。
 frontmatter_field() {
 	awk -v key="$2" '
 		BEGIN { fm = 0 }
@@ -157,7 +157,7 @@ first_line_under() {
 #
 # **ソート用のセンチネルと表示値を兼用しない。** 日付が無いノートを末尾へ回すための
 # `9999-99-99` をそのまま表示に使うと、Issue の「記録日」列にありもしない日付が出る
-# （priority / type は `unknown` に倒れるのに date だけ嘘の値になる）。列を分ける。
+# （priority / type は `unknown` になるのに、date だけ誤った値になる）。列を分ける。
 build_pending_index() {
 	local index f priority date_value type_value rank sort_key
 	index=$(mktemp)
@@ -199,18 +199,18 @@ summary_of() {
 	summary=$(printf '%s' "${summary}" | sed -E 's/^- +//; s/^`type:[^`]*`。?[[:space:]]*//' || true)
 	# 表のセルに入れるので `|` と改行を落とす。
 	summary=${summary//|/｜}
-	# 予算どおりに切り詰める。`cut -c` は使わない——GNU coreutils ではバイト単位で切るため
-	# 日本語が文字の途中で割れる（kaizen-context-inject.sh と同じ理由・同じ方式）。
-	# bash のパラメータ展開は UTF-8 ロケールでは文字単位なので割れない。非 UTF-8 では
-	# バイト単位に戻るので切らず、割れた文字を出さない側へ倒す（CI のランナーは UTF-8）。
-	# 長さ判定を先に置き、大半の短い要約ではロケール判定のプロセス起動まで到達させない。
+	# 予算どおりに切り詰める。`cut -c` は使わない。GNU coreutils ではバイト単位で切るので、
+	# 日本語が文字の途中で切れる（kaizen-context-inject.sh と同じ理由・同じ方式）。
+	# bash のパラメータ展開は UTF-8 ロケールでは文字単位なので、途中で切れない。UTF-8 でなければ
+	# バイト単位に戻るので切らず、途中で切れた文字を出さない（CI のランナーは UTF-8）。
+	# 長さの判定を先に置き、大半の短い要約ではロケールの判定のためのプロセスを起動しない。
 	if [ "${#summary}" -gt "${MAX_SUMMARY_CHARS}" ]; then
 		if [ "${utf8_locale}" = 1 ]; then
 			summary="${summary:0:$((MAX_SUMMARY_CHARS - 1))}…"
 		else
-			# 縮退を黙らせない。非 UTF-8 では予算が効かないので、本文が上限へ近づいても
-			# 「切ったはず」と読めてしまう（このリポジトリの縮退方針: 縮退した run と
-			# 本番構成の run を出力で区別できるようにする）。
+			# 機能を減らして動いたことを必ず出力する。UTF-8 でなければ予算が機能しないので、本文が上限に近づいても
+			# 「切ったはず」と読めてしまう（機能を減らして動く実行と本番の構成の実行を、
+			# 出力で区別できるようにする、というこのリポジトリの方針）。
 			warn "ロケールが UTF-8 でないため要約を切り詰めない（文字が割れるため）: ${f}"
 		fi
 	fi
@@ -227,7 +227,7 @@ resolve_config() {
 
 	if [ -n "${config_unreadable}" ]; then
 		skip="true"
-		skip_reason="${config_unreadable}。停止側へ倒した"
+		skip_reason="${config_unreadable}。停止する側として扱った"
 		warn "${skip_reason}"
 	fi
 
@@ -240,12 +240,12 @@ resolve_config() {
 		case "${bool_status}" in
 		0)
 			skip="true"
-			# 追記にする。上書きにすると、先に立った理由（fail-closed の発動等）が
+			# 追記にする。上書きにすると、先に記録した理由（読めないので止めた、など）が
 			# step summary からも要約からも消え、停止の実態と表示がずれる。
 			skip_reason="${skip_reason:+${skip_reason} / }環境変数 KAIZEN_SCHEDULE_SKIP=${skip_raw}"
 			;;
 		1) : ;;
-		*) warn "KAIZEN_SCHEDULE_SKIP=${skip_raw} は真偽値として読めない。skip しない側へ倒す" ;;
+		*) warn "KAIZEN_SCHEDULE_SKIP=${skip_raw} は真偽値として読めない。skip しない側として扱う" ;;
 		esac
 	fi
 
@@ -261,8 +261,8 @@ resolve_config() {
 			enabled_source=".kaizen/config の schedule_enabled=${enabled_raw}"
 			parse_bool "${enabled_raw}" && bool_status=0 || bool_status=$?
 			if [ "${bool_status}" = 2 ]; then
-				# 不正値を有効側へ倒すと、typo した `.kaizen/config` が opt-in の証拠になってしまう。
-				warn "schedule_enabled=${enabled_raw} は真偽値として読めない。既定 ${DEFAULT_SCHEDULE_ENABLED} へ倒す"
+				# 不正な値を有効として扱うと、typo した `.kaizen/config` が opt-in の根拠になってしまう。
+				warn "schedule_enabled=${enabled_raw} は真偽値として読めない。既定 ${DEFAULT_SCHEDULE_ENABLED} として扱う"
 				enabled_source="${enabled_source} を真偽値として読めない（既定 ${DEFAULT_SCHEDULE_ENABLED}）"
 				enabled_raw=${DEFAULT_SCHEDULE_ENABLED}
 			fi
@@ -281,7 +281,7 @@ resolve_config() {
 	case "${mode}" in
 	notify | agent) ;;
 	*)
-		warn "mode=${mode} は notify | agent のいずれでもない。既定 ${DEFAULT_MODE} へ倒す"
+		warn "mode=${mode} は notify | agent のいずれでもない。既定 ${DEFAULT_MODE} として扱う"
 		mode=${DEFAULT_MODE}
 		;;
 	esac
@@ -290,24 +290,24 @@ resolve_config() {
 	case "${agent}" in
 	claude | codex | copilot) ;;
 	*)
-		warn "agent=${agent} は claude | codex | copilot のいずれでもない。既定 ${DEFAULT_AGENT} へ倒す"
+		warn "agent=${agent} は claude | codex | copilot のいずれでもない。既定 ${DEFAULT_AGENT} として扱う"
 		agent=${DEFAULT_AGENT}
 		;;
 	esac
 
 	model=$(resolve_value KAIZEN_SCHEDULE_MODEL schedule_model "" model)
 	if [ -n "${model}" ] && ! [[ "${model}" =~ ^[A-Za-z0-9][A-Za-z0-9._:/-]{0,63}$ ]]; then
-		warn "model=${model} は識別子として受理できない形。既定（エージェント側の既定モデル）へ倒す"
+		warn "model=${model} は識別子として受理できない形。既定（エージェント側の既定モデル）として扱う"
 		model=""
 	fi
 
 	effort=$(resolve_value KAIZEN_SCHEDULE_EFFORT schedule_effort "" effort)
 	if [ -n "${effort}" ] && ! [[ "${effort}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$ ]]; then
-		warn "effort=${effort} は識別子として受理できない形。既定へ倒す"
+		warn "effort=${effort} は識別子として受理できない形。既定として扱う"
 		effort=""
 	fi
 	# effort を受け取るのは codex だけ（openai/codex-action の `effort` 入力）。
-	# claude-code-action / Copilot CLI には対応する入力が無いため、黙って捨てずに知らせる。
+	# claude-code-action / Copilot CLI には対応する入力が無いので、警告なしに捨てずに知らせる。
 	if [ -n "${effort}" ] && [ "${agent}" != "codex" ]; then
 		warn "effort=${effort} は agent=${agent} では渡す先が無いので無視する（対応は codex のみ）"
 		effort=""
@@ -328,9 +328,9 @@ cmd_config() {
 	count=$(wc -l <"${index}")
 	count=${count//[[:space:]]/}
 	rm -f "${index}"
-	# pending が 0 件なら、エージェントを起動しても読む材料が無い。起動前に notify へ倒す。
+	# pending が 0 件なら、エージェントを起動しても読む材料が無い。起動する前に notify に切り替える。
 	if [ "${count}" -eq 0 ] && [ "${resolved_mode}" = agent ]; then
-		warn "pending が 0 件なので mode=agent を notify へ倒す（エージェントへ渡す材料が無い）"
+		warn "pending が 0 件なので mode=agent を notify に切り替える（エージェントへ渡す材料が無い）"
 		resolved_mode=notify
 	fi
 	printf 'skip=%s\n' "${skip}"

@@ -500,7 +500,7 @@ test("理由の無い除外宣言を受理しない（唯一の緩和経路を�
       ],
     });
     expect(result.ok).toBe(false);
-    expect(result.problems.join("\n")).toContain("契約の形でない");
+    expect(result.problems.join("\n")).toContain("仕様の形でない");
   }
 });
 

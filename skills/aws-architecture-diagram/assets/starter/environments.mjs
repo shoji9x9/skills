@@ -1,7 +1,7 @@
 // 環境レジストリ。**このリポジトリに「どの環境の構成図があるべきか」の単一ソース**。
 // base 仕様（architecture-spec.mjs）を各環境で共有し、環境ごとの差分だけを
-//   { title, transform?(base) => spec }
-// で表現する。transform を省略した環境は base をそのまま描く。環境の差分は
+//   `{ title, transform?(base) => spec }`
+// で表す。transform を省略した環境は base をそのまま描く。環境の差分は
 // 未使用ノード/エッジの淡色（dim）化・ラベル差し替え・環境固有フローのエッジ追加・
 // 凡例（notes）付与などで表す。base の配置を直せば全環境の図が自動追従する。
 //
@@ -9,7 +9,7 @@
 // どの環境が base と同じかは対象システム次第。ここではサンプルとして
 //   prod  … base そのまま（クラウド上の正規構成）
 //   local … ローカル開発の差分を transform で表現
-// を定義している。render-diagram.mjs は既定でここに定義した**全環境**を対象にし、
+// を定義している。render-diagram.mjs はデフォルトで、ここに定義した**全環境**を対象にし、
 // --env で一部だけに絞れる（詳細は references/environments.md）。
 import { baseSpec } from "./architecture-spec.mjs";
 

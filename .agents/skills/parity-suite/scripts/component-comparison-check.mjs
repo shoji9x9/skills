@@ -1,14 +1,14 @@
-// 被覆表の `present` を新側で突き合わせたかを数える検査（正本）。
+// 網羅表の `present` を新側で突き合わせたかを数える検査（原本）。
 //
-// 何のためか: 部品被覆表の 3 値（`present` / `absent` / `unmeasured`）は**移行元側の測定**である。
+// 何のためか: 部品網羅表の 3 値（`present` / `absent` / `unmeasured`）は**移行元側の測定**である。
 // 「移行元でその操作が在ることを確かめた」と「新側で同じ操作を実施して移行元と差が無いことを確かめた」は
 // **別の測定**なのに、どちらも `present` に見える。**欠落を見つけるのは後者だけ**で、
 // 前者をいくら積んでも新側の欠落は 1 件も示されない（移行元の記録だから）。
 //
 // そこで**新側の突き合わせを別の成果物に持たせ**（`new/<target>/component-comparison.json`）、
-// 被覆表の `present` セルすべてに対応する行を要求する。行が無ければ未突合として数える。
+// 網羅表の `present` セルすべてに対応する行を要求する。行が無ければ未突合として数える。
 //
-// 突き合わせの証拠は 3 点に分ける——**入口・当たり判定・完了**。
+// 突き合わせの証拠は、**起点・当たり判定・完了**の 3 点に分ける。
 // 実測された欠落（下位を持つ項目を押すとメニューが閉じる／三角が押せる範囲の外にある／
 // 並び替えの印が省略された文字に重なる）は、どれも「機能は在る」が「操作を最後まで完了できない」形で、
 // ケースの文面（「エクスポート」「列のソート」）には出てこない。1 点でも欠けたら突き合わせ済みにしない。
@@ -23,16 +23,16 @@ import { readFileSync, realpathSync } from "node:fs";
 import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-// 同じディレクトリの evidence-carry.mjs は、このファイルの実パスから引く。静的な "./evidence-carry.mjs" は
-// --preserve-symlinks-main でファイル単位のシンボリックリンクから起動されると、リンクの置き場所から解決して
-// 見つからず、持ち越しを使わない実行（引数不足の usage 表示を含む）まで起動時に落ちる。
+// 同じディレクトリの evidence-carry.mjs は、このファイルの実パスから解決して読み込む。
+// 静的な "./evidence-carry.mjs" は、--preserve-symlinks-main でファイル単位のシンボリックリンクから起動されると、
+// リンクの置き場所から解決して見つからない。持ち越しを使わない実行（引数不足の usage 表示を含む）まで、起動時に失敗する。
 const { EVIDENCE_CARRY_FILE, judgeCarry } = await import(
   pathToFileURL(join(dirname(realpathSync(fileURLToPath(import.meta.url))), "evidence-carry.mjs"))
     .href
 );
 
 /**
- * ツールのバージョン（正本）。判定規則・出力形状を変えたら上げる。
+ * ツールのバージョン（原本）。判定規則・出力形状を変えたら上げる。
  * @type {string}
  */
 export const VERSION = "4";
@@ -40,14 +40,14 @@ export const VERSION = "4";
 /** セルの鍵の区切り。`component` / `item` / `instance` にこの文字は使えない。 */
 export const KEY_SEPARATOR = "|";
 
-/** 突き合わせの証拠の 3 点（正本）。ケースの文面に出てこない軸をここで固定する。 */
+/** 突き合わせの証拠の 3 点（原本）。ケースの文面に出てこない軸をここで固定する。 */
 export const EVIDENCE_AXES = ["entry", "hit_area", "completion"];
 
-/** 未突合の扱いの語彙（正本）。`accepted` は承認記録が要る。 */
+/** 未突合の扱いの語彙（原本）。`accepted` は承認記録が要る。 */
 export const DISPOSITIONS = ["blocking", "accepted"];
 
 /**
- * セルの鍵。**材料が 1 つでも欠けたら鍵を作らない**——`String(undefined)` は有効な鍵へ化け、
+ * セルの鍵。**材料が 1 つでも欠けたら鍵を作らない**。`String(undefined)` は有効な鍵になってしまい、
  * 1 行が全セルを満たして未突合が 0 件に見える。
  * @param {{component?: unknown, item?: unknown, instance?: unknown}} cell
  * @returns {string | null}
@@ -85,9 +85,9 @@ function toInteger(value) {
 }
 
 /**
- * 被覆表の `present` セルの鍵から指紋を作る。
+ * 網羅表の `present` セルの鍵から指紋を作る。
  *
- * **指紋は突き合わせ表が「どの被覆表に対する記録か」を縛る**——被覆表が更新されて
+ * **指紋は突き合わせ表が「どの網羅表に対する記録か」を縛る**——網羅表が更新されて
  * `present` が増えたのに古い突き合わせ表が残ると、増えた分が数えられないまま通る。
  * @param {string[]} keys
  * @returns {string}
@@ -99,14 +99,14 @@ export function fingerprintOf(keys) {
 }
 
 /**
- * 被覆表と突き合わせ表を突き合わせる。
+ * 網羅表と突き合わせ表を突き合わせる。
  *
  * `carry`（任意）は new_implementation.commit と現在の new.commit が両側とも SHA で食い違うときに呼ぶ持ち越しの判定
  * （evidence-carry.mjs の judgeCarry を包んだもの。CLI が組み立てる）。渡されなければ従来どおり stale で落とす。
- * artifact-health-check.mjs の checkStage も同じ judgeCarry で判定し、2 つの検査器の判定を揃える。
+ * artifact-health-check.mjs の checkStage も同じ judgeCarry で判定し、2 つのチェックの判定を揃える。
  * `carryTo`（任意。--carry-to）を渡すと、new_implementation.commit からその版への持ち越しを、現在の new.commit が
  * 記録と同じでも必ず判定する（部品改修の一括再検証の直後は両方が改修前の版で一致する）。
- * 判定できない（記録の版が SHA でない・carry が無い）ときは合格に倒さない。
+ * 判定できない（記録の版が SHA でない・carry が無い）ときは合格として扱わない。
  * @param {{ coverage: unknown, comparison: unknown, metadata?: unknown, replaceMetadata?: unknown, target?: string | null, carryTo?: string | null, carry?: (input: { recordedCommit: string, wantedCommit: string, renderInputs: unknown }) => { ok: boolean, findings: string[], notes: string[] } }} input
  * @returns {{ findings: {code:string, message:string}[], notes: string[], counts: Record<string, number>, structural: boolean, judged: boolean }}
  */
@@ -122,7 +122,7 @@ export function checkComponentComparison(input) {
       findings: [
         {
           code: "coverage-unreadable",
-          message: "被覆表が読めない（cells を持つ JSON オブジェクトでない）。合格に倒さない",
+          message: "網羅表が読めない（cells を持つ JSON オブジェクトでない）。合格として扱わない",
         },
       ],
       notes,
@@ -142,16 +142,16 @@ export function checkComponentComparison(input) {
     if (!key) {
       findings.push({
         code: "coverage-cell-unkeyed",
-        message: `被覆表に component / item / instance の揃っていない、または区切り文字（${KEY_SEPARATOR}）を含む present セルがある（突き合わせの鍵を作れない）`,
+        message: `網羅表に component / item / instance の揃っていない、または区切り文字（${KEY_SEPARATOR}）を含む present セルがある（突き合わせの鍵を作れない）`,
       });
       continue;
     }
     // 鍵の重複は突き合わせ表側と同じく落とす——数え上げ（present / compared / blocking）が
-    // 1 セルにつき 2 回進み、被覆の規模も未突合の件数も実際と違う数で報告される。
+    // 1 セルにつき 2 回進み、網羅の規模も未突合の件数も実際と違う数で報告される。
     if (seenPresent.has(key)) {
       findings.push({
         code: "coverage-cell-duplicated",
-        message: `被覆表に ${key} の present セルが 2 つ以上ある（1 セルが 2 回数えられ、present / 未突合の件数が実際と合わなくなる）`,
+        message: `網羅表に ${key} の present セルが 2 つ以上ある（1 セルが 2 回数えられ、present / 未突合の件数が実際と合わなくなる）`,
       });
       continue;
     }
@@ -165,7 +165,7 @@ export function checkComponentComparison(input) {
     findings.push({
       code: "comparison-missing",
       message:
-        "新側の突き合わせ表が無い（被覆表の present は移行元側の測定であり、新側の欠落を 1 件も示さない）",
+        "新側の突き合わせ表が無い（網羅表の present は移行元側の測定であり、新側の欠落を 1 件も示さない）",
     });
     return { findings, notes, counts, structural: false, judged: true };
   }
@@ -175,7 +175,7 @@ export function checkComponentComparison(input) {
       message: `突き合わせ表の target「${String(comparison.target)}」が判定対象の target「${String(input.target)}」と違う（別環境の記録で収束させない）`,
     });
   }
-  // **突き合わせは新側の実装の版に紐づく**——target・slug・被覆表の指紋だけで縛ると、
+  // **突き合わせは新側の実装の版に紐づく**——target・slug・網羅表の指紋だけで縛ると、
   // 記録した後に新側を変えても古い証拠が通る。当たり判定・完了の退行はスイートの green に
   // 出ないので、この工程が唯一の網になる。
   const observed = comparison.new_implementation;
@@ -192,7 +192,7 @@ export function checkComponentComparison(input) {
   }
   // **記録した版が「汚れていない」ことまで求める。** commit だけを鍵にすると、未コミットの変更を
   // 抱えた作業ツリーで操作した記録が同じ commit の記録として通り、鍵が版を指さなくなる。
-  // 欠落・非真偽値は「調べていない」なので false 以外を落とす（fail-closed）。
+  // 欠落・非真偽値は「調べていない」ので、false 以外を不合格にする。
   const observedDirty =
     observed && typeof observed === "object"
       ? /** @type {Record<string, any>} */ (observed).dirty
@@ -205,7 +205,7 @@ export function checkComponentComparison(input) {
   }
   // **`--replace-metadata` は省略を許さない。** 照合相手が無いと鮮度の検査そのものが飛び、
   // 「記録の後に実装が変わっていない」ことを一度も確かめないまま収束する
-  // （`comparison-implementation-stale` は相手が渡されたときにしか効かない）。
+  // （`comparison-implementation-stale` は相手が渡されたときにしか機能しない）。
   const replaceMetadata = /** @type {Record<string, any> | undefined} */ (input.replaceMetadata);
   const replaceNew =
     replaceMetadata &&
@@ -223,7 +223,7 @@ export function checkComponentComparison(input) {
     findings.push({
       code: "replace-metadata-unusable",
       message:
-        "replace-metadata.json を new オブジェクトを持つ形で読めない（現在の新側の版が分からず、突き合わせの鮮度を確かめられない。省略・型崩れを免除にしない）",
+        "replace-metadata.json を new オブジェクトを持つ形で読めない（現在の新側の版が分からず、突き合わせの鮮度を確かめられない。省略・型の誤りを免除にしない）",
     });
   } else {
     if (!nonEmptyString(replaceNew.commit)) {
@@ -240,17 +240,17 @@ export function checkComponentComparison(input) {
         // **`none` センチネルを素の文字列として比べない**——新側が git 管理を持たないと両側とも
         // `none` になり、実装をいくら変えても `none !== none` は常に偽で、古い記録が鮮度検査を
         // 永久に素通りする。artifact-health-check.mjs の checkStage と同じく反復回数へ退く。
-        // **退き先が無いことを合格に倒さない**——材料（どちらかの反復回数）が読めなければ落とす。
-        // **片側だけが `none` なら、その時点で記録と現在は別の版**——記録した SHA と現在の `none`
-        // （またはその逆）は同じ版を指さない。反復回数がたまたま一致しただけで合格に倒すと、
-        // git 管理の有無が変わった新側で古い記録が無音で通る。ここで落とし、反復回数の検査へは進まない——
-        // 進めると、契約上 `iteration` を書く義務が無い SHA 記録に対して
-        // `comparison-implementation-unversionable`（「iteration を書き足せ」と読める）が併発し、
-        // 実際に必要な直し方（同じ版で取り直す）と案内がずれる。
+        // **退き先が無いことを合格として扱わない**。材料（どちらかの反復回数）が読めなければ不合格にする。
+        // **片側だけが `none` なら、その時点で記録と現在は別の版である**。記録した SHA と現在の `none`
+        // （またはその逆）は同じ版を指さない。反復回数がたまたま一致しただけで合格として扱うと、
+        // git 管理の有無が変わった新側で、古い記録が警告なしに通る。ここで不合格にし、反復回数の検査へは進まない。
+        // 進めると、取り決めの上で `iteration` を書く義務が無い SHA 記録に対して
+        // `comparison-implementation-unversionable`（「iteration を書き足せ」と読める）が同時に出て、
+        // 実際に必要な直し方（同じ版でもう一度測る）と案内がずれる。
         if (recorded !== wanted) {
           findings.push({
             code: "comparison-implementation-stale",
-            message: `突き合わせ表の new_implementation.commit「${recorded}」が現在の新側「${wanted}」と違う（片側だけが ${NO_COMMIT} なので、反復回数が一致しても同じ版を指さない。同じ版で取り直す）`,
+            message: `突き合わせ表の new_implementation.commit「${recorded}」が現在の新側「${wanted}」と違う（片側だけが ${NO_COMMIT} なので、反復回数が一致しても同じ版を指さない。同じ版で記録し直す）`,
           });
         } else {
           // 両側とも `none`。文字列の比較は常に一致するので、鮮度は反復回数だけが担う。
@@ -276,13 +276,13 @@ export function checkComponentComparison(input) {
           } else if (recordedIteration !== wantedIteration) {
             findings.push({
               code: "comparison-implementation-stale",
-              message: `突き合わせ表の new_implementation.iteration「${recordedIteration}」が現在の新側の反復回数「${wantedIteration}」と違う（new.commit が ${NO_COMMIT} なので反復回数で判定する。記録の後に実装が変わっている。同じ版で取り直す）`,
+              message: `突き合わせ表の new_implementation.iteration「${recordedIteration}」が現在の新側の反復回数「${wantedIteration}」と違う（new.commit が ${NO_COMMIT} なので反復回数で判定する。記録の後に実装が変わっている。同じ版で記録し直す）`,
             });
           }
         }
       } else if (recorded !== wanted) {
         // SHA の不一致を即失効にせず、ページの描画入力の差分で持ち越せるかを見る。
-        // 判定の正本は evidence-carry.mjs。artifact-health-check.mjs の checkStage も同じ関数で判定する。
+        // 判定の原本は evidence-carry.mjs。artifact-health-check.mjs の checkStage も同じ関数で判定する。
         const carry =
           typeof input.carry === "function"
             ? input.carry({
@@ -296,7 +296,7 @@ export function checkComponentComparison(input) {
         } else {
           findings.push({
             code: "comparison-implementation-stale",
-            message: `突き合わせ表の new_implementation.commit「${recorded}」が現在の新側「${wanted}」と違う（記録の後に実装が変わっている。同じ版で取り直す）`,
+            message: `突き合わせ表の new_implementation.commit「${recorded}」が現在の新側「${wanted}」と違う（記録の後に実装が変わっている。同じ版で記録し直す）`,
           });
           if (carry !== null) {
             for (const message of carry.findings) {
@@ -361,20 +361,20 @@ export function checkComponentComparison(input) {
       });
     }
   }
-  // **slug の照合は被覆表との間で常に行う**——`--metadata` は任意なので、metadata があるときだけ見ると、
-  // 別機能から写した突き合わせ表が「target と鍵がたまたま一致する」だけで通る（指紋は鍵しか数えない）。
+  // **slug の照合は網羅表との間で常に行う**——`--metadata` は任意なので、metadata があるときだけ見ると、
+  // 別機能からコピーした突き合わせ表が「target と鍵がたまたま一致する」だけで通る（指紋は鍵しか数えない）。
   if (!nonEmptyString(coverage.slug)) {
-    // **被覆表に slug が無いことを免除にしない**——照合相手が消えるだけで、
-    // 別機能から写した突き合わせ表が「鍵と target が一致する」だけで通る。
+    // **網羅表に slug が無いことを免除にしない**——照合相手が消えるだけで、
+    // 別機能からコピーした突き合わせ表が「鍵と target が一致する」だけで通る。
     findings.push({
       code: "coverage-slug-missing",
       message:
-        "被覆表に slug が無い（どの機能の測定か決まらず、突き合わせ表との帰属を照合できない）",
+        "網羅表に slug が無い（どの機能の測定か決まらず、突き合わせ表との帰属を照合できない）",
     });
   } else if (comparison.slug !== coverage.slug) {
     findings.push({
       code: "comparison-slug-mismatch",
-      message: `突き合わせ表の slug「${String(comparison.slug)}」が被覆表の slug「${String(coverage.slug)}」と違う（別機能の記録で収束させない）`,
+      message: `突き合わせ表の slug「${String(comparison.slug)}」が網羅表の slug「${String(coverage.slug)}」と違う（別機能の記録で収束させない）`,
     });
   }
   const metadata = /** @type {Record<string, any> | undefined} */ (input.metadata);
@@ -392,12 +392,12 @@ export function checkComponentComparison(input) {
     findings.push({
       code: "coverage-fingerprint-missing",
       message:
-        "突き合わせ表に source_coverage.fingerprint が無い（どの被覆表に対する記録か縛られず、present が増えても古い記録で通る）",
+        "突き合わせ表に source_coverage.fingerprint が無い（どの網羅表に対する記録か縛られず、present が増えても古い記録で通る）",
     });
   } else if (recorded !== expectedFingerprint) {
     findings.push({
       code: "coverage-fingerprint-mismatch",
-      message: `source_coverage.fingerprint が被覆表の present セルと一致しない（記録後に被覆表が変わっている。期待 ${expectedFingerprint}）`,
+      message: `source_coverage.fingerprint が網羅表の present セルと一致しない（記録後に網羅表が変わっている。期待 ${expectedFingerprint}）`,
     });
   }
 
@@ -426,7 +426,7 @@ export function checkComponentComparison(input) {
     if (!presentSet.has(key)) {
       findings.push({
         code: "comparison-row-unknown",
-        message: `突き合わせ表の ${key} は被覆表の present セルに無い（測っていない操作の記録が混ざっている）`,
+        message: `突き合わせ表の ${key} は網羅表の present セルに無い（測っていない操作の記録が含まれている）`,
       });
     }
   }
@@ -446,7 +446,7 @@ export function checkComponentComparison(input) {
       if (missing.length > 0) {
         findings.push({
           code: "evidence-axis-missing",
-          message: `${key} の突き合わせに ${missing.join(" / ")} の観測が無い（入口・当たり判定・完了のどれかで止まる欠落はケースの文面に出てこない）`,
+          message: `${key} の突き合わせに ${missing.join(" / ")} の観測が無い（起点・当たり判定・完了のどれかで止まる欠落はケースの文面に出てこない）`,
         });
         counts.blocking += 1;
         continue;
@@ -572,7 +572,7 @@ export function main(argv, deps = {}) {
     );
   }
   // `--target` を省ける形にすると、別環境で採った突き合わせ表がそのまま通る
-  // （`comparison-target-mismatch` は照合相手が渡されたときにしか効かない）。
+  // （`comparison-target-mismatch` は照合相手が渡されたときにしか機能しない）。
   // 突き合わせは環境別の記録なので、判定対象の target を必ず受け取る。
   // **空白だけの値を通さない**——CLI の truthy 判定は通るのに、判定側は非空文字列でないと
   // 「渡されていない」として target 照合を飛ばすため、別環境の記録が通る。
@@ -599,8 +599,8 @@ export function main(argv, deps = {}) {
       parsed[key] = JSON.parse(readFile(resolve(cwd, path)));
     } catch (error) {
       if (key === "--comparison") {
-        // 突き合わせ表が無い・壊れているのは「まだ突き合わせていない」ことと区別できないので、
-        // 合格にも型崩れにも倒さず未突合として数える（判定は checkComponentComparison が行う）。
+        // 突き合わせ表が無い・読めないのは「まだ突き合わせていない」ことと区別できないので、
+        // 合格としても型の誤りとしても扱わず、未突合として数える（判定は checkComponentComparison が行う）。
         parsed[key] = null;
         continue;
       }

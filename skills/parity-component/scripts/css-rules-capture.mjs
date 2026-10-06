@@ -1,40 +1,42 @@
-// 当たっている CSS 規則の採取（正本）。
-// 正本はこのスキル側にあり、**プロジェクトへコピーせずスキル配下からそのまま実行する**
-// （`gh skill update` の自動更新を効かせるため。SKILL.md「成果物」と references/capture.md が同じ規約）。
-// `<parity_suite_dir>/parity/lib/tools/vendor/` へコピーするのは `parity-suite` 同梱の差分器・
-// 特性採取ツールの側で、本スクリプトは対象外。
+// 当たっている CSS 規則の採取（採取の仕方はこのスクリプトで定義する）。
+// 原本はこのスキルの中にあり、**プロジェクトへコピーせずスキルの中からそのまま実行する**
+// （`gh skill update` の自動更新を反映させるため。SKILL.md「成果物」と references/capture.md も同じ取り決めである）。
+// `<parity_suite_dir>/parity/lib/tools/vendor/` へコピーするのは、`parity-suite` 同梱の差分ツールと
+// 特性採取ツールのほうで、このスクリプトはコピーしない。
 //
-// 何を採るか: 論理名を付けた要素に当たりうる CSS 規則を、宣言（プロパティ・値・`!important`）・
-// 成立に必要な状態擬似クラス・擬似要素・条件（`@media` / `@supports` / `@container`）・
-// カスケードレイヤ・出所（スタイルシートの URL と規則の位置）付きで列挙する。
-// 併せて `style` 属性の宣言を `inline_declarations` として採る（どのスタイルシートにも現れず、
-// 規則走査だけでは 1 件も残らない。インスタンス固有の値がここで当たっている部品では、
-// 出所と `!important` の優先度が計算後スタイルから復元できない）。
+// 何を採るか: 論理名を付けた要素に当たりうる CSS 規則を列挙する。
+// 規則ごとに、宣言（プロパティ・値・`!important`）、成立に必要な状態擬似クラス・擬似要素、
+// 条件（`@media` / `@supports` / `@container`）、カスケードレイヤ、出所（スタイルシートの URL と規則の位置）を付ける。
+// あわせて、`style` 属性の宣言を `inline_declarations` として採る。この宣言はどのスタイルシートにも現れないので、
+// 規則の走査だけでは 1 件も残らない。インスタンス固有の値がここで当たっている部品では、
+// 出所と `!important` の優先度を計算後スタイルから復元できない。
 //
-// 何を採らないか: **どの宣言が勝つか（カスケードの解決結果）は採らない。** 勝者は計算後スタイルが
-// 持っており、それは `parity-suite` の trait-capture.mjs が採る。本ツールが埋めるのはその裏側——
+// 何を採らないか: **どの宣言が勝つか（カスケードの解決結果）は採らない。** 勝った宣言は計算後スタイルに
+// 現れ、それは `parity-suite` の trait-capture.mjs が採る。このツールが補うのは、計算後スタイルに現れないほうである。
 // 計算値は「いまの状態の結果」なので、`:hover` の宣言も `!important` の競合も見えない。
-// 実装者が「何を写すのか」を決めるための一次資料であって、合否判定の入力ではない
-// （合否は画素比較と特性照合が出す）。
+// 採った規則は、実装者が何を反映するかを決めるための一次資料であり、合否の判定の入力ではない
+// （合否は画素の比較と特性の照合で決まる）。
 //
-// 実測（Chrome 149.0.7827.155。CDP の Page.setDocumentContent ＋ Runtime.evaluate で確認）:
+// Chrome 149.0.7827.155 で実測した結果は次のとおりである（CDP の Page.setDocumentContent と Runtime.evaluate で確かめた）。
 //   1. `CSSImportRule` は `cssRules` を持たない（`"cssRules" in rule === false`）。
 //      持つのは `styleSheet` で、`@import` の先の規則はそこからしか辿れない。
 //   2. `CSSStyleRule` は（CSS 入れ子のため）`cssRules` を持つ。入れ子が無くても length 0 の
 //      空 CSSRuleList になる。このため `if (rule.cssRules) 再帰する; else 数える;` の走査は
 //      通常の規則を 1 件も数えない（同じ入力で 6 件が 1 件になることを確認した）。
 //   3. 入れ子の規則の `selectorText` は `&` を保った形で返る（`.inner` と書いても `& .inner`）。
-//      `el.matches("&:hover")` は throw せず false を返すため、`&` を解決しないと静かに取りこぼす。
+//      `el.matches("&:hover")` は throw せず false を返すため、`&` を解決しないと警告なしに取りこぼす。
 //   4. `el.matches(".btn::after")` も throw せず false を返す。擬似要素も剥がさないと同じ取りこぼしになる。
-// 1 と 2 は実際の移行の報告（辿らないと 883 件、辿ると 3,206 件／883 件のはずが 4 件）と同じ現象で、
-// どちらも「取りこぼしても例外が出ない」ため、走査が壊れていることが出力から分からない。
-// だから本ツールは**数えられなかったものを必ず出力に残す**（`inaccessible` / `unresolved`）。
+// 1 と 2 は、実際の移行で報告された現象と同じである（辿らないと 883 件、辿ると 3,206 件。883 件のはずが 4 件）。
+// どちらも、取りこぼしても例外が出ないので、走査が誤っていることが出力から分からない。
+// そのため、このツールは**数えられなかったものを必ず出力に残す**（`inaccessible` / `unresolved`）。
 //
-// 陽性コントロール: 同じ Chrome 149 上で本関数をそのまま実行し、@import の先の `!important` 付き
-// `:hover` 宣言・入れ子の `&:hover` の解決（`:is(.card):hover`）・`@layer` と `@media` の条件付与・
-// `::after` の擬似要素判定・`@keyframes` をレイヤとして数えないこと、および当たらない入れ子
-// （`& .inner`）を採らないことを確認した。偽 CSSOM に対するユニットテストは
-// 配布元のリポジトリのテスト（素朴な走査が同じ入力で取りこぼすことを併せて実証している）。
+// 検出されることも確かめた。同じ Chrome 149 の上でこの関数をそのまま実行し、次のものを確かめた。
+//   - `@import` の先の `!important` 付きの `:hover` の宣言を採る。
+//   - 入れ子の `&:hover` を `:is(.card):hover` に解決する。
+//   - `@layer` と `@media` の条件を付ける。
+//   - `::after` を擬似要素と判定し、`@keyframes` をレイヤとして数えない。
+//   - 当たらない入れ子（`& .inner`）を採らない。
+// 偽の CSSOM に対するユニットテストは、配布元のリポジトリにある（素朴な走査が同じ入力で取りこぼすことも、あわせて示している）。
 //
 // Playwright はピア前提であり import しない。Locator は引数で受け取り、
 // locator.evaluate() 経由でブラウザ内 DOM を操作する（型は JSDoc のみ。TypeScript 構文は使わない）。
@@ -42,22 +44,22 @@
 // 補助関数はすべて関数内に閉じてある（分割して見通しを良くするとブラウザ側で ReferenceError になる）。
 
 /**
- * ツールのバージョン（正本）。採取スキーマ（出力の形・状態擬似クラスの集合）を変えたら上げる。
- * 2: `inline_declarations`（style 属性の宣言）と `counts.outer_scope_skipped` を追加し、
- *    シャドウツリー内の要素では走査を自分の根に限定した（外側 document の規則は
- *    カプセル化で当たらないため matched に入れず、`::part()` だけ unresolved に残す）。
- *    1 で採った css-rules.json は、インライン指定が「無い」のか「採っていない」のか区別できず、
- *    シャドウ部品では外側の規則を当たったものとして含んでいるので再採取する。
+ * ツールのバージョン（このスクリプトで定義する）。採取スキーマ（出力の形・状態擬似クラスの集合）を変えたら上げる。
+ * 2: `inline_declarations`（style 属性の宣言）と `counts.outer_scope_skipped` を足した。
+ *    シャドウツリーの中の要素では、走査を自分の根に限った（外側の document の規則は
+ *    カプセル化で当たらないため matched に入れず、`::part()` だけを unresolved に残す）。
+ *    1 で採った css-rules.json は、インラインの指定が「無い」のか「採っていない」のかを区別できない。
+ *    また、シャドウの部品では外側の規則を当たったものとして含んでいるので、採り直す。
  *    ホスト自身のシャドウルートは `:host` 系だけを unresolved に残し、残りを
  *    `counts.host_scope_skipped` に数える（`shadow_host` で対象がホストだったかを出す）。
- *    **2 の定義はこの PR がマージされた状態を指す**——版を上げてから同じ PR 内で 2 の形を
- *    足しているが、2 が main へ出たことは一度も無いので、外に「別の 2」で採った成果物は存在しない。
+ *    **2 の定義は、この PR がマージされた状態を指す**。版を上げてから同じ PR の中で 2 の形を
+ *    足しているが、2 が main に入ったことは一度も無いので、外に「別の 2」で採った成果物は存在しない。
  * 3: 自分の根にある `::part()` / `::slotted()` の規則を matched に入れず unresolved に残す。
  *    2 はそれを擬似要素として剥がして判定し、`.host::part(label)` をホストに、`::slotted(*)` を
- *    任意の要素に当たった規則として記録していた（偽の根拠）。2 で採った css-rules.json は再採取する。
+ *    任意の要素に当たった規則として記録していた（偽の根拠）。2 で採った css-rules.json は採り直す。
  * 4: 擬似クラス・擬似要素の名前を大文字小文字を区別せずに判定し、`states` / `pseudo_element` には小文字で記録する。
  *    3 は小文字の綴りしか認識せず、`.host::PART(label)` をホストに当たった規則として matched に入れ、
- *    `:HOVER` を未知の擬似クラスとして unresolved に落としていた。3 で採った css-rules.json は再採取する。
+ *    `:HOVER` を未知の擬似クラスとして unresolved に入れていた。3 で採った css-rules.json は採り直す。
  * metadata.json の `capture.tools.css_rules_version` に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
@@ -65,9 +67,9 @@ export const VERSION = "4";
 
 /**
  * 構造・関係を表す擬似クラスで、状態ではないもの（セレクタに残したまま matches() へ渡してよい）。
- * この集合にも STATE_PSEUDO_CLASSES にも無い擬似クラスは**未知**として unresolved に落とす——
- * `:popover-open` / `:user-valid` / `:fullscreen` のような動的状態を知らないまま残すと、
- * その状態でない要素に対して matches() が false を返し、当たるはずの規則が記録も警告も無く消える。
+ * この集合にも STATE_PSEUDO_CLASSES にも無い擬似クラスは、**未知**として unresolved に入れる。
+ * `:popover-open` / `:user-valid` / `:fullscreen` のような動的な状態を知らないまま残すと、
+ * その状態でない要素に対して matches() が false を返す。すると、当たるはずの規則が記録も警告も無く消える。
  * 集合を増やすときは「その状態でなくても当たるか（構造）」「状態のときだけ当たるか（状態）」で分ける。
  * @type {readonly string[]}
  */
@@ -98,7 +100,7 @@ export const STRUCTURAL_PSEUDO_CLASSES = [
 ];
 
 /**
- * 状態を表す擬似クラスの集合（正本）。
+ * 状態を表す擬似クラスの集合（このスクリプトで定義する）。
  * これらは「その状態のときだけ当たる」ことを意味するので、セレクタから剥がして
  * 残りで要素に当たるかを判定し、剥がした名前を `states` として記録する。
  * 剥がさずに matches() へ渡すと、hover 中でない要素に対して常に false になり、
@@ -131,9 +133,9 @@ export const STATE_PSEUDO_CLASSES = [
 /**
  * 要素に当たりうる CSS 規則を採る（ブラウザ内で実行される）。
  *
- * @param {Element} el 対象要素
- * @param {{ statePseudoClasses: readonly string[] }} options 状態擬似クラスの集合
- * @returns {object} 採取結果（matched / unresolved / inaccessible / counts）
+ * @param {Element} el 対象の要素。
+ * @param {{ statePseudoClasses: readonly string[] }} options 状態擬似クラスの集合。
+ * @returns {object} 採取の結果（matched / unresolved / inaccessible / counts）。
  */
 export function collectMatchedRules(el, options) {
   const stateNames = new Set(options.statePseudoClasses);
@@ -153,7 +155,7 @@ export function collectMatchedRules(el, options) {
         continue;
       }
       // 引用符の外のエスケープ（`.foo\\,bar` の `\\,` 等）は次の 1 文字ごと読み飛ばす。
-      // 飛ばさないとエスケープされた区切り文字で分割し、断片が無効セレクタになって静かに落ちる。
+      // 飛ばさないと、エスケープされた区切り文字で分割し、断片が無効なセレクタになって警告なしに捨てられる。
       if (c === "\\") {
         i++;
         continue;
@@ -178,7 +180,7 @@ export function collectMatchedRules(el, options) {
     const parent = `:is(${parentSelector})`;
     // `&` は文字列リテラルと属性セレクタの中にも現れる（`& [data-label="A&B"]`）。素朴な
     // split("&").join(...) はその `&` まで置換し、属性値の中に `:is(...)` が入った不正な
-    // セレクタになる。matches() は throw せず false を返すので、当たるはずの規則が静かに落ちる。
+    // セレクタになる。matches() は throw せず false を返すので、当たるはずの規則が警告なしに消える。
     // 置換するのは引用符・角括弧の外にある `&` だけにする。
     const replaceNestingTokens = (part) => {
       let out = "";
@@ -223,12 +225,12 @@ export function collectMatchedRules(el, options) {
       .join(", ");
   }
 
-  // `selector[open]` の `(` に対応する `)` の次の位置を返す。引用符・エスケープ・角括弧を
-  // 見ない素朴な括弧勘定だと、文字列や属性セレクタに入った括弧で釣り合いが崩れる——
-  // `.button:has([data-label="("]):hover` は `:hover` まで引数として食い、状態が剥がれないまま
-  // matches() へ渡って（hover していない要素では）規則が黙って落ちる。scanPseudos の
-  // トップレベル走査と同じ規則で数える。閉じないまま終端に達したら末尾を返す（呼び出し側の
-  // slice が壊れた引数を返し、未知の擬似クラス扱いで unresolved に落ちる）。
+  // `selector[open]` の `(` に対応する `)` の次の位置を返す。
+  // 引用符・エスケープ・角括弧を見ない素朴な括弧の勘定では、文字列や属性セレクタに入った括弧で釣り合いが合わなくなる。
+  // `.button:has([data-label="("]):hover` は `:hover` まで引数として読み、状態が剥がれないまま
+  // matches() へ渡る。すると、hover していない要素では規則が警告なしに消える。scanPseudos の
+  // トップレベルの走査と同じ規則で数える。閉じないまま終端に達したら末尾を返す（呼び出し側の
+  // slice が不正な引数を返し、未知の擬似クラスとして unresolved に入る）。
   function skipBalanced(selector, open) {
     let depth = 0;
     let quote = null;
@@ -292,7 +294,7 @@ export function collectMatchedRules(el, options) {
         // 擬似クラス・擬似要素の名前は ASCII の大文字小文字を区別しない（`:HOVER` は `:hover`、
         // `::PART(label)` は `::part(label)`）。ここで正規化しないと、名前で引く判定がすべて
         // 小文字の綴りだけを認識し、`.host::PART(label)` は擬似要素として剥がされて `.host` に当たり、
-        // `:HOVER` は未知の擬似クラスとして unresolved に落ちる。`[-\w]` は ASCII なので toLowerCase で足りる。
+        // `:HOVER` は未知の擬似クラスとして unresolved に入る。`[-\w]` は ASCII なので toLowerCase で足りる。
         found.push({ start: i, end: j, name: name.toLowerCase(), doubled, args });
         i = j - 1;
       }
@@ -334,15 +336,15 @@ export function collectMatchedRules(el, options) {
     }
     base += selector.slice(cursor);
     base = base.trim();
-    // 状態・擬似要素だけのセレクタ（`:hover` 単体等）は、残りが空になるので全称に倒す。
+    // 状態・擬似要素だけのセレクタ（`:hover` 単体など）は、残りが空になるので全称セレクタとして扱う。
     if (base === "" || /[\s>+~]$/.test(base)) base += "*";
 
     // `:is()` / `:where()` / `:has()` の引数に状態が入っていると、剥がさない限り matches() が
-    // その状態でだけ true になる。ここで拾わないと「当たらない規則」として静かに落ちるので、
+    // その状態でだけ true になる。ここで拾わないと「当たらない規則」として警告なしに消えるので、
     // 判定せず unresolved に回す（`:not()` は状態を否定する側なので対象にしない）。
     // 入れ子は 1 段とは限らない。`.card:is(:has(:hover))` は第 1 段に `:has` しか見えないので、
     // 直下だけを見る実装では「状態は無い」と判定され、hover していない要素に対して
-    // matches() が false を返して規則が黙って消える。段数を決め打ちせず降りる。
+    // matches() が false を返して、規則が警告なしに消える。段数を決め打ちせずに降りる。
     // `:not()` は状態を否定する側なので降りない（否定の中の状態は、その状態でないときに当たる）。
     const hasStateInsideFunctional = (selector) => {
       for (const p of scanPseudos(selector)) {
@@ -412,12 +414,12 @@ export function collectMatchedRules(el, options) {
     const index = order++;
     for (const part of splitSelectorList(resolved)) {
       // シャドウツリーの外の規則。`::part()` だけが中へ届くが、本ツールは part 名を解決しないので
-      // 当たる側にも当たらない側にも倒さず残す。それ以外の外側の規則はカプセル化で届かないので
+      // 当たる側にも当たらない側にも分類せずに残す。それ以外の外側の規則はカプセル化で届かないので
       // matched には入れず、数だけ残す（0 件を「外側に規則が無い」と読まないため）。
-      // ホスト自身のシャドウルートの規則。ホストに効くのは `:host` 系だけで、それ以外は
+      // ホスト自身のシャドウルートの規則。ホストに当たるのは `:host` 系だけで、それ以外は
       // シャドウの中の要素に当たる規則なのでホストの基準ではない。
       // スロット側のシャドウルートの規則。ライト DOM の要素へ届くのは `::slotted()` だけで、
-      // 引数の解決は本ツールの射程外なので、当たった側へ倒さず残す。
+      // 引数の解決はこのツールの範囲の外なので、当たった側に分類せずに残す。
       if (ctx.slottedScope) {
         if (hasPseudo(part, isSlotted)) {
           unresolved.push({
@@ -456,7 +458,7 @@ export function collectMatchedRules(el, options) {
       // 割り当てられたライト DOM の要素で、**どちらもこの根にある要素そのものではない**。
       // 下の analyzeSelector は両者を擬似要素として剥がすので、`.host::part(label)` は `.host` に、
       // `::slotted(*)` は `*` になって matches() が真を返し、ホストや任意の要素の偽の根拠として
-      // matched に入る。当たった側へ倒さず判定不能として残す（外側・スロット側の分岐と同じ理由）。
+      // matched に入る。当たった側に分類せず、判定できないものとして残す（外側・スロット側の分岐と同じ理由）。
       const treeCrossing = scanPseudos(part).find((p) => isPart(p) || isSlotted(p));
       if (treeCrossing) {
         unresolved.push({
@@ -469,7 +471,7 @@ export function collectMatchedRules(el, options) {
         continue;
       }
       // @scope の中の規則は、セレクタが当たってもスコープ根・限界の外では適用されない。
-      // 本ツールはスコープを評価しないので、当たった側へ倒さず判定不能として残す。
+      // このツールはスコープを評価しないので、当たった側に分類せず、判定できないものとして残す。
       if (ctx.scope) {
         unresolved.push({
           selector: part,
@@ -535,8 +537,8 @@ export function collectMatchedRules(el, options) {
       if ("styleSheet" in rule) {
         counts.import_rules++;
         // 読み込めていない `@import`（未ロード・404・解析失敗）は `styleSheet` が null になる。
-        // 真偽値で分岐すると、どの分岐にも掛からないまま静かに消え、「その @import の先に
-        // 関係する規則が無い」と区別できなくなる（本ツールが塞ごうとしている fail-open そのもの）。
+        // 真偽値で分岐すると、どの分岐にも掛からないまま警告なしに消え、「その @import の先に
+        // 関係する規則が無い」と区別できなくなる（このツールが防ごうとしている、判定できないものを合格とする振る舞いそのもの）。
         // 規則の種別は `styleSheet` の**有無**で判定し、null は採れなかった事実として残す。
         if (!rule.styleSheet) {
           inaccessible.push({
@@ -547,7 +549,7 @@ export function collectMatchedRules(el, options) {
         }
         const mediaText = rule.media && rule.media.mediaText ? rule.media.mediaText : "";
         // `@import url(x) supports(display: grid) screen;` の supports 条件は supportsText にしか無い。
-        // 引き継がないと、読み込んだ規則が「無条件」として記録され、なぜ効いているかを説明できなくなる。
+        // 引き継がないと、読み込んだ規則が「無条件」として記録され、なぜ当たっているかを説明できなくなる。
         const supportsText = typeof rule.supportsText === "string" ? rule.supportsText : "";
         walkSheet(rule.styleSheet, {
           ...ctx,
@@ -619,10 +621,10 @@ export function collectMatchedRules(el, options) {
 
   function walkSheet(sheet, ctx) {
     if (!sheet) return;
-    // 重複排除はスコープ込みで行う。シート単位にすると、同じ CSSStyleSheet を
-    // `shadowRoot.adoptedStyleSheets` と document で共有している構成で、内側を先に走った時点で
-    // 既読になり、外側スコープの走査が丸ごと飛ぶ。`::part()` が unresolved に残らず
-    // `outer_scope_skipped` も増えない——「判定できない規則を黙って落とさない」契約に反する。
+    // 重複の排除は、スコープを含めて行う。シート単位にすると、同じ CSSStyleSheet を
+    // `shadowRoot.adoptedStyleSheets` と document で共有している構成で、内側を先に走査した時点で
+    // 既読になり、外側のスコープの走査がまるごと飛ぶ。すると、`::part()` が unresolved に残らず、
+    // `outer_scope_skipped` も増えない。「判定できない規則を警告なしに捨てない」という取り決めに反する。
     const scope =
       ctx && ctx.outerScope
         ? "outer"
@@ -659,10 +661,10 @@ export function collectMatchedRules(el, options) {
     });
   }
 
-  // 走査するのは**その要素の根**だけ。シャドウツリーの中の要素に対して外側の document の
-  // スタイルシートまで走ると、`el.matches(".btn")` は true を返すのに実際には
+  // 走査するのは**その要素の根**だけである。シャドウツリーの中の要素に対して外側の document の
+  // スタイルシートまで走査すると、`el.matches(".btn")` は true を返す。しかし実際には
   // カプセル化で当たらない規則を「当たっている」として記録し、部品の基準が偽になる。
-  // 外側から中へ届くのは `::part()` だけなので、それを黙って捨てず unresolved に残す。
+  // 外側から中へ届くのは `::part()` だけなので、それを警告なしに捨てず unresolved に残す。
   const root = el.getRootNode();
   const inShadow = Boolean(root && root !== el.ownerDocument && root.styleSheets);
   const ownRoot = inShadow ? root : el.ownerDocument;
@@ -677,9 +679,9 @@ export function collectMatchedRules(el, options) {
   }
   // 対象がカスタム要素のホストのとき、`getRootNode()` は document を返すので上の分岐に入らない。
   // だがホストの見た目を決めているのは**そのホスト自身のシャドウルート**の `:host` 規則で、
-  // それを走らないと「CSS 規則が 1 件も当たっていない部品」という誤った基準が出る。
-  // `:host()` / `:host-context()` の引数解決は本ツールの射程外なので、当たった側へ倒さず残す。
-  // ライト DOM の要素がシャドウの `<slot>` に割り当てられているとき、その要素に効く
+  // それを走査しないと、「CSS 規則が 1 件も当たっていない部品」という誤った基準が出る。
+  // `:host()` / `:host-context()` の引数の解決はこのツールの範囲の外なので、当たった側に分類せずに残す。
+  // ライト DOM の要素がシャドウの `<slot>` に割り当てられているとき、その要素に当たる
   // `::slotted()` 規則は**スロット側のシャドウルート**にある。`getRootNode()` は document を
   // 返すのでここまで辿らないと見えず、規則を 1 件も採らないまま基準が出る。
   const slotRoot =
@@ -723,9 +725,9 @@ export function collectMatchedRules(el, options) {
 /**
  * 論理名を付けた要素ごとに、当たっている CSS 規則を採る。
  *
- * @param {{ name: string, locator: { evaluate: Function } }[]} entries 論理名と Playwright Locator の組
+ * @param {{ name: string, locator: { evaluate: Function } }[]} entries 論理名と Playwright Locator の組。
  * @param {{ statePseudoClasses?: readonly string[] }} [options]
- * @returns {Promise<object[]>} 論理名ごとの採取結果
+ * @returns {Promise<object[]>} 論理名ごとの採取の結果。
  */
 export async function captureMatchedRules(entries, options = {}) {
   const resolved = {

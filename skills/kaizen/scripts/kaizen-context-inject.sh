@@ -4,16 +4,16 @@
 # セッション開始時に `.kaizen/` の学びダイジェストを stdout に出力し、
 # エージェントのコンテキストへ「参照データ」として供給する。これにより
 # 各エージェント（Claude Code / Codex / Copilot）が過去の学びを踏まえて
-# タスクに着手できる（KEDB 照合の入口）。
+# タスクに着手できる（KEDB 照合の起点）。
 #
-# これは「kaizen を実行せよ」という行動リマインダーではなく、過去の学びの
-# 中身そのものを供給する点が echo リマインダーと異なる（references/extract.md
-# 「使わない方式」参照）。Claude Code は SessionStart の stdout を context に注入する。
-# Codex は plain text の stdout を extra developer context として追加する
-# (https://learn.chatgpt.com/docs/hooks#sessionstart)。
-# Copilot は注入可否がドキュメント上不明確なため、効けば
-# 加点・効かなくても無害というベストエフォート。失敗してもセッションを止めない
-# よう常に exit 0 で抜ける。
+# これは「kaizen を実行せよ」という行動のリマインダーではない。過去の学びの中身そのものを
+# 供給する点が、echo のリマインダーと異なる（references/extract.md「使わない方式」を参照）。
+# Claude Code は SessionStart の stdout を context に注入する。
+# Codex は plain text の stdout を extra developer context として追加する。
+# 出典は https://learn.chatgpt.com/docs/hooks#sessionstart である。
+# Copilot は注入できるかがドキュメントからは分からないので、ベストエフォートで出す。
+# 反映されれば役に立ち、反映されなくても害は無い。失敗してもセッションを止めないように、
+# 常に exit 0 で終える。
 #
 # SessionStart フックとして各エージェントに設定する（SKILL.md Step 3 参照）。
 set -euo pipefail
@@ -32,7 +32,7 @@ kaizen_lib="$(dirname "${BASH_SOURCE[0]}")/kaizen-hook-common.sh"
 if [ -r "${kaizen_lib}" ]; then
 	. "${kaizen_lib}"
 else
-	printf '%s: 共通ライブラリを読めないため縮退します: %s\n' "$(basename "${BASH_SOURCE[0]}")" "${kaizen_lib}" >&2
+	printf '%s: 共通ライブラリを読めないため、機能を減らして動きます: %s\n' "$(basename "${BASH_SOURCE[0]}")" "${kaizen_lib}" >&2
 fi
 
 session_key=""
@@ -56,24 +56,24 @@ else
 fi
 [ -n "${project_root}" ] && cd "${project_root}" 2>/dev/null || true
 
-# セッション開始 = 抽出完了マーカーの失効点。**このセッションの**マーカーを削除し、
-# このセッションの活動には再びコミット前ゲートが効くようにする。マーカーは checkpoint を
-# 記録できなかった抽出だけが書く fail safe で、それが残っている間はそのセッションの
-# commit が素通りするため、セッション境界で必ず失効させる。
-# 他セッションのマーカーは消さない——消すと、まだ生きている別セッションが抽出済みの活動で
-# 再びブロックされる（session 間で制御ファイルを奪い合う形の一つ）。
-# ただし SessionStart は自動圧縮（source: compact）でも発火し得る。圧縮は同一セッションの
-# 継続なので、そのときだけマーカーを残す（消すと、まさに対象の長時間自律ループで commit が
-# ゲートに再ブロックされる）。source は stdin の JSON から取り出す。取り出せない・無い場合は
-# 削除側（ブロックが増える安全側）に倒す。
-# パイプで渡さない——`grep -q` は一致した時点で抜けるため、書き手（`printf`）がまだ書き終えて
-# いなければ `write` が EPIPE で SIGPIPE になり、pipefail 下ではパイプライン全体が非 0 になる。
-# 一致しているのに「一致しなかった」と読む形（下の `sed ... | head -n 1` と同じ機構）で、
-# ここでは source: compact なのにマーカーを消す側＝長時間の自律ループが再ブロックされる側へ倒れる。
-# herestring なら書き手のプロセスが無いのでこの経路が消える（末尾の改行が増えるが `grep` は行単位）。
-# 失効させる範囲は**リポジトリの全作業ツリー**にする。ゲートはマーカーを全ツリーから探して
-# センチネルを覆わせるため、自分のツリーだけ消すと別ツリーに残ったマーカーが
-# このセッションのセンチネルを覆い続け、**commit が素通りする**（fail open。実測）。
+# セッションの開始で、抽出完了マーカーを無効にする。**このセッションの**マーカーを削除し、
+# このセッションの活動に、再びコミット前のチェックが働くようにする。マーカーは、checkpoint を
+# 記録できなかった抽出だけが、安全のために書くものである。それが残っている間は、そのセッションの
+# commit がチェックなしに通るので、セッションの境目で必ず無効にする。
+# 他のセッションのマーカーは消さない。消すと、まだ動いている別のセッションが、抽出済みの活動で
+# 再びブロックされる（session 間で制御ファイルを奪い合う形の 1 つ）。
+# ただし SessionStart は自動圧縮（source: compact）でも発火しうる。圧縮は同じセッションの
+# 続きなので、そのときだけマーカーを残す（消すと、対象そのものである長時間の自律ループで、commit が
+# 再びブロックされる）。source は stdin の JSON から取り出す。取り出せない・無い場合は
+# 削除する側（ブロックが増える側）として扱う。
+# パイプで渡さない。`grep -q` は一致した時点で終わるので、書き手（`printf`）がまだ書き終えて
+# いなければ `write` が EPIPE で SIGPIPE になり、pipefail の下ではパイプライン全体が 0 以外になる。
+# 一致しているのに「一致しなかった」と読む形（下の `sed ... | head -n 1` と同じ仕組み）である。
+# ここでは、source: compact なのにマーカーを消し、長時間の自律ループが再びブロックされる。
+# herestring なら書き手のプロセスが無いので、この問題は起きない（末尾の改行が増えるが、`grep` は行単位で見る）。
+# 無効にする範囲は**リポジトリのすべての作業ツリー**にする。チェックはマーカーをすべてのツリーから探して
+# センチネルより優先するため、自分のツリーだけ消すと、別のツリーに残ったマーカーが
+# このセッションのセンチネルを上書きし続け、**commit がチェックなしに通る**（実測）。
 # マーカーの置き場は kaizen-extract-done.sh が「制御ファイルが既に在るツリー」で決めるので、
 # セッションが共有ツリーと worktree にまたがると自分のツリー以外へ書かれ得る。
 is_compact=0
@@ -112,7 +112,7 @@ fi
 # frontmatter（最初の `---` ブロック）の 1 フィールドを取り出す。
 # `sed ... | head -n 1` は使わない——大きなノートでは head が先に閉じて sed が SIGPIPE で死に、
 # pipefail 下でスクリプトごと 141 で落ちる（実測: 5.7MB のノートで再現）。awk なら自前で exit
-# するのでパイプが要らず、読めないファイルは `|| true` で空文字に倒せる。
+# するのでパイプが要らず、読めないファイルは `|| true` で空文字にできる。
 # 機構は `head` に限らない: **早く抜ける読み手 × pipefail × 終了コードを真偽値として読む**形は
 # すべて当たる（`grep -q` / `grep -Eq` も一致した時点で抜ける）。読み手が抜けた後に書き手が
 # 書けば EPIPE → SIGPIPE で 141 になり、**一致しているのに「一致しなかった」と読む。**
@@ -172,7 +172,7 @@ count=${count//[[:space:]]/}
 echo "## kaizen: 未適用の学び（${count} 件）"
 echo ""
 echo "このプロジェクトには以下の未適用（status: pending）の学びがあります。"
-echo "関連する作業では内容を踏まえ、同じ失敗を繰り返さないこと（根本原因分析の KEDB 照合の入口）。"
+echo "関連する作業では内容を踏まえ、同じ失敗を繰り返さないこと（根本原因分析の KEDB 照合の起点）。"
 echo ""
 
 # 指定見出し（例「## 提案」）直後の最初の非空行を返す。見出しは前方一致で判定し、
@@ -188,7 +188,7 @@ first_line_under() {
 # 提案が無い古い学びは「## 事象」にフォールバックする。
 while IFS=$'\t' read -r _rank _date f; do
 	[ -n "$f" ] || continue
-	# meta も frontmatter 限定にする。全文 grep だと本文の `type:` 等を拾って壊れる。
+	# meta も frontmatter に限る。全文を grep すると、本文の `type:` などを拾って誤った値になる。
 	meta="date: $(frontmatter_field "$f" date) type: $(frontmatter_field "$f" type) priority: $(frontmatter_field "$f" priority) "
 	summary_src=$(first_line_under "## 提案" "$f")
 	[ -n "$summary_src" ] || summary_src=$(first_line_under "## 事象" "$f")
@@ -196,16 +196,16 @@ while IFS=$'\t' read -r _rank _date f; do
 	# SC2016: sed の式はバッククォートを含むリテラル正規表現で、シェル展開させない意図のため単一引用符が正しい。
 	# shellcheck disable=SC2016
 	summary=$(printf '%s' "$summary_src" | sed -E 's/^- +//; s/^`type:[^`]*`。?[[:space:]]*//' || true)
-	# 120 文字に切り詰め。`cut -c` は使わない——GNU coreutils ではバイト単位で切るため、
-	# 日本語（UTF-8 で 1 文字 3 バイト）だと文字の途中で割れ、壊れたバイト列がそのまま
-	# エージェントのコンテキストへ入る（locale を変えても同じ）。
-	# bash のパラメータ展開は UTF-8 ロケールでは文字単位なので割れない。
-	# 非 UTF-8 ロケールではバイト単位に戻るため、UTF-8 のときだけ切り詰めて安全側に倒す
-	# （kaizen-archive.sh の INDEX 生成と同じ方針。python 等の追加ランタイムには依存しない）。
+	# 120 文字に切り詰める。`cut -c` は使わない。GNU coreutils ではバイト単位で切るので、
+	# 日本語（UTF-8 で 1 文字 3 バイト）は文字の途中で切れ、不正なバイト列がそのまま
+	# エージェントのコンテキストに入る（locale を変えても同じ）。
+	# bash のパラメータ展開は UTF-8 ロケールでは文字単位なので、文字の途中で切れない。
+	# UTF-8 でないロケールではバイト単位に戻るので、UTF-8 のときだけ切り詰める
+	# （kaizen-archive.sh の INDEX の生成と同じ方針。python などの追加のランタイムには依存しない）。
 	# 長さ判定を先に置く。ロケール判定は `locale` と `grep` のプロセス起動を伴うので、
 	# 切り詰めが要らない短い要約（大半）ではそこまで到達させない。
-	# パイプで渡さない（上の source 判定と同じ理由。`grep -q` が先に抜けると pipefail が
-	# 一致を非 0 に化けさせ、UTF-8 なのに切り詰めない側へ倒れる）。
+	# パイプで渡さない（上の source の判定と同じ理由。`grep -q` が先に終わると、pipefail によって
+	# 一致が 0 以外の終了コードになり、UTF-8 なのに切り詰めないと判定される）。
 	if [ "${#summary}" -gt 120 ] && grep -qi 'utf-\{0,1\}8' <<<"$(locale charmap 2>/dev/null)"; then
 		summary="${summary:0:119}…"
 	fi

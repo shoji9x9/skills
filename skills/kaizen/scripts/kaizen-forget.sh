@@ -3,28 +3,28 @@
 #
 # 適用されないまま古くなった pending の学びを `status: forgotten` にする。
 #
-#   kaizen-forget.sh --list        忘却候補を一覧する（何も変更しない）
-#   kaizen-forget.sh --auto        条件を満たす候補を忘却する（抽出完了時に kaizen-extract-done.sh が呼ぶ既定経路）
-#   kaizen-forget.sh FILE...       指定したノートを条件に関わらず忘却する（明示指示）
+#   kaizen-forget.sh --list        忘却の候補を一覧にする（何も変更しない）。
+#   kaizen-forget.sh --auto        条件を満たす候補を忘却する（抽出の完了時に kaizen-extract-done.sh が呼ぶ。デフォルトの呼び出し方）。
+#   kaizen-forget.sh FILE...       指定したノートを、条件に関わらず忘却する（明示の指示）。
 #
-# **忘却はファイルを動かさない。** frontmatter の `status` を 1 行書き換えるだけにする——
-# 自動で走る経路なので、`git mv` を含めると勝手にステージされた差分が生まれる。
-# 狙いである「SessionStart 注入の肥大」は status だけで解ける
+# **忘却はファイルを動かさない。** frontmatter の `status` を 1 行書き換えるだけにする。
+# 自動で実行されるので、`git mv` を含めると、利用者が意図しないステージ済みの差分ができる。
+# 目的である「SessionStart で注入する量が増えすぎる」問題は、status だけで解決できる
 # （kaizen-context-inject.sh は `status: pending` しか注入しない）。
-# 本文は top-level に残るので KEDB 照合（kaizen-kedb-match.sh）は従来どおり全文を照合し、
-# **同じ事象が再発すればヒットする**。そこで pending へ戻せる（`references/extract.md`）。
-# 物理的な移動は従来どおり明示の `kaizen archive` が担う。
+# 本文は top-level に残るので、KEDB 照合（kaizen-kedb-match.sh）はこれまでどおり全文を照合し、
+# **同じ事象が再発すれば一致する**。そこで pending に戻せる（`references/extract.md`）。
+# ファイルの移動は、これまでどおり明示の `kaizen archive` が行う。
 #
-# 判定材料:
+# 判定に使う材料は次のとおりである。
 #   - `status: pending`（applied / rejected / forgotten は対象外）
-#   - `priority` が閾値以下（既定は medium まで。KEDB 照合で再発が見つかったノートは
-#     `references/extract.md` の契約により優先度が上がるので、low のままは「再発していない」証跡）
-#   - `date` から閾値日数以上が経過している（日付を読めないノートは対象外＝忘れない）
+#   - `priority` が閾値以下（デフォルトは medium まで）。KEDB 照合で再発が見つかったノートは、
+#     `references/extract.md` の取り決めで優先度が上がる。low のままなら「再発していない」根拠になる。
+#   - `date` から閾値の日数以上が過ぎている（日付を読めないノートは対象外で、忘れない）
 #
-# 設定（`.kaizen/config` の `KEY=VALUE`。既定値はこのスクリプトが持つ）:
-#   forget_auto=on|off              --auto の有効・無効（既定 on）
-#   forget_after_days=<整数>        記録からこの日数が過ぎたら候補（既定 30）
-#   forget_max_priority=low|medium|high  この優先度までを候補にする（既定 medium）
+# 設定は `.kaizen/config` の `KEY=VALUE` で書く。デフォルトの値はこのスクリプトが持つ。
+#   forget_auto=on|off              --auto の有効・無効（デフォルトは on）。
+#   forget_after_days=<整数>        記録からこの日数が過ぎたら候補にする（デフォルトは 30）。
+#   forget_max_priority=low|medium|high  この優先度までを候補にする（デフォルトは medium）。
 #
 # 詳細手順は references/housekeeping.md を参照。
 set -euo pipefail
@@ -37,7 +37,7 @@ kaizen_lib="$(dirname "${BASH_SOURCE[0]}")/kaizen-hook-common.sh"
 if [ -r "${kaizen_lib}" ]; then
 	. "${kaizen_lib}"
 else
-	printf '%s: 共通ライブラリを読めないため縮退します: %s\n' "$(basename "${BASH_SOURCE[0]}")" "${kaizen_lib}" >&2
+	printf '%s: 共通ライブラリを読めないため、機能を減らして動きます: %s\n' "$(basename "${BASH_SOURCE[0]}")" "${kaizen_lib}" >&2
 fi
 # `.kaizen/` は**いま作業している作業ツリー**基準で解決する（他の kaizen スクリプトと統一）。
 if declare -f kaizen_resolve_project_root >/dev/null 2>&1; then
@@ -61,7 +61,7 @@ resolve_path() {
 
 # frontmatter（最初の `---` ブロック）の 1 フィールドを取り出す。
 # 本文中の `status:` / `priority:` を拾わないよう範囲を frontmatter に限る
-# （kaizen-context-inject.sh の frontmatter_field と同じ契約）。
+# （kaizen-context-inject.sh の frontmatter_field と同じ取り決め）。
 frontmatter_field() { # $1: ノート $2: キー
 	awk -v key="$2" '
 		BEGIN { fm = 0 }
@@ -86,8 +86,9 @@ config_value() { # $1: キー名
 }
 
 # --- 設定の解決 -------------------------------------------------------------
-# 不正値は既定へ倒し、黙って倒さずに stderr へ出す（設定したつもりの閾値で動いていると
-# 読めてしまうため。kaizen-precommit-gate.sh の resolve_retention_days と同じ方針）。
+#
+# 不正な値はデフォルトの値として扱い、そのことを stderr に出す（出さないと、設定したつもりの閾値で
+# 動いていると読めてしまう。kaizen-precommit-gate.sh の resolve_retention_days と同じ方針）。
 forget_auto=on
 if raw=$(config_value forget_auto); then
 	case "${raw}" in
@@ -112,7 +113,7 @@ priority_rank() { # $1: priority
 	medium) printf '1' ;;
 	low) printf '2' ;;
 	# 未知・未設定の priority は**忘却の対象外**にする。注入側は末尾へ回すだけだが、
-	# こちらは「消える側」の操作なので、読めない値を最も低い優先度に倒すと
+	# こちらは「消える側」の操作なので、読めない値を最も低い優先度として扱うと
 	# priority を書き忘れただけの学びが自動で忘れられる。
 	*) return 1 ;;
 	esac
@@ -135,7 +136,7 @@ if declare -f kaizen_days_from_date >/dev/null 2>&1; then
 	today_days=$(kaizen_days_from_date "$(date -u '+%Y-%m-%d' 2>/dev/null || true)") || today_days=""
 fi
 
-# 候補なら 0、そうでなければ 1 を返す。判定できない材料は候補から外す（忘れない側へ倒す）。
+# 候補なら 0、そうでなければ 1 を返す。判定できない材料は候補から外す（忘れない側として扱う）。
 is_candidate() { # $1: ノート
 	local note="$1" status priority rank note_days age
 	status=$(frontmatter_field "${note}" status)
@@ -168,9 +169,9 @@ list_candidates() {
 # （kaizen-archive.sh のリンク補正と同じ手順）。
 rewrite_status() { # $1: ノート
 	local note="$1" tmp
-	# **固定名にしない。** 掃引は抽出完了時に走るので、同じリポジトリで 2 セッションが
-	# 同時に commit を通せば両方が同じ tmp を書き合い、`cat tmp >note` が途中の内容を
-	# 書き戻してノートを壊す（rc 0 なので「忘却した」と報告される）。
+	# **固定の名前にしない。** 掃引は抽出の完了時に実行されるので、同じリポジトリで 2 つのセッションが
+	# 同時に commit すると両方が同じ tmp に書き込み、`cat tmp >note` が途中の内容を
+	# 書き戻してノートの中身が不正になる（rc 0 なので「忘却した」と報告される）。
 	tmp=$(mktemp "${note}.kaizen-forget-XXXXXX") || return 2
 	# 中断（Ctrl-C・SIGTERM）で untracked の残骸を残さない。残ると clean 確認を持つ工程が
 	# そこで止まる。EXIT だけでは kill に届かないのでシグナルも拾う。
@@ -188,10 +189,10 @@ rewrite_status() { # $1: ノート
 		trap - EXIT INT TERM
 		return 1
 	}
-	# 書き戻しの失敗を握り潰さない。この関数は `if rewrite_status ...` から呼ばれるため
-	# 関数本文では `set -e` が効かず、`cat` が失敗しても最後の `rm -f` の終了コード（0）が
-	# 返る——読み取り専用のノートや書き込み失敗で、**書き換わっていないのに「忘却した」と
-	# 報告する**（そのぶんが注入から消えたと誤解される）。
+	# 書き戻しの失敗を握り潰さない。この関数は `if rewrite_status ...` から呼ばれるので、
+	# 関数の本文では `set -e` が有効にならず、`cat` が失敗しても最後の `rm -f` の終了コード（0）が
+	# 返る。読み取り専用のノートや書き込みの失敗で、**書き換わっていないのに「忘却した」と
+	# 報告する**（その分が注入から消えたと誤解される）。
 	# 返す値で理由を分ける（1 = status 行が無い / 2 = 書き戻せなかった）。同じ 1 にすると
 	# 書き込み権限の問題が「新形式ではない」と案内され、直しようがなくなる。
 	if ! cat "${tmp}" >"${note}"; then
@@ -280,7 +281,7 @@ list)
 	require_today_days || exit 1
 	candidates=$(list_candidates)
 	if [ -z "${candidates}" ]; then
-		# 対象 0 件を黙って成功にしない。閾値が効いているのか材料が読めていないのかを
+		# 対象 0 件を、警告なしに成功にしない。閾値が機能しているのか材料を読めていないのかを
 		# 呼び出し側が区別できるよう、使った閾値まで出す。
 		echo "kaizen-forget: 忘却候補はありません（status: pending / priority ${forget_max_priority} 以下 / ${forget_after_days} 日以上）" >&2
 		exit 0

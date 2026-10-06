@@ -1,16 +1,18 @@
-// 構成図 SVG を生成する（スキル所有のエンジン。コピーせずスキルから実行する）。
-//   cd <プロジェクトの図ディレクトリ> && node <skill>/assets/engine/render-diagram.mjs [--env a,b]
-//   （または DIAGRAM_DIR=<図ディレクトリ> を指定）
+// 構成図の SVG を生成する（スキルが持つエンジン。コピーせず、スキルの場所から実行する）。
+// DIAGRAM_DIR=<図ディレクトリ> を指定すれば、cd しなくてよい。
 //
-// プロジェクト所有ファイル（DIAGRAM_DIR に置く。既定は cwd）:
-//   environments.mjs      環境レジストリ（＝存在すべき環境の単一ソース。.js でもよい）
-//   architecture-spec.mjs 環境レジストリが読む base 仕様（レジストリからの相対 import なので
-//                         ファイル名・拡張子はプロジェクトが自由に決めてよい）
-//   icons/                アイコン（browser/internet ＋ fetch した aws-icons/）
-//   out/                  SVG 出力先
+//     cd <プロジェクトの図ディレクトリ> && node <skill>/assets/engine/render-diagram.mjs [--env a,b]
 //
-// 対象環境: --env 省略時は環境レジストリの全環境、--env a,b で一部だけ。
-// 場所の上書き: DIAGRAM_DIR / DIAGRAM_ICON_DIR / DIAGRAM_OUT_DIR。
+// プロジェクトが持つファイル（DIAGRAM_DIR に置く。デフォルトは cwd）は次のとおりである。
+//
+// - `environments.mjs`: 環境レジストリ。在るべき環境を定義する唯一の場所で、`.js` でもよい。
+// - `architecture-spec.mjs`: 環境レジストリが読む base 仕様。レジストリから相対パスで import するので、
+//   ファイル名と拡張子はプロジェクトが自由に決めてよい。
+// - `icons/`: アイコン（browser・internet と、取得した aws-icons/）。
+// - `out/`: SVG の出力先。
+//
+// 対象の環境は、--env を省略すると環境レジストリの全環境、`--env a,b` なら指定した環境だけになる。
+// 場所は DIAGRAM_DIR・DIAGRAM_ICON_DIR・DIAGRAM_OUT_DIR で上書きできる。
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -20,7 +22,7 @@ const DIAGRAM_DIR = process.env.DIAGRAM_DIR ?? process.cwd();
 const ICON_DIR = process.env.DIAGRAM_ICON_DIR ?? join(DIAGRAM_DIR, "icons");
 const OUT_DIR = process.env.DIAGRAM_OUT_DIR ?? join(DIAGRAM_DIR, "out");
 
-// 環境レジストリの拡張子は決め打ちしない。"type": "module" のプロジェクトでは .js が既定で ESM に
+// 環境レジストリの拡張子は決め打ちしない。"type": "module" のプロジェクトでは .js がデフォルトで ESM に
 // なるため、リポジトリの拡張子規約に合わせて environments.js で置けるようにする（.mjs 優先なので
 // 既存プロジェクトの挙動は変わらない）。どちらも無いときは ERR_MODULE_NOT_FOUND ではなく、探した
 // 候補を示すエラーで止める（「レジストリの中身を間違えた」との誤診を防ぐ）。
@@ -34,8 +36,8 @@ if (!registryPath) {
     `環境レジストリが見つかりません: ${DIAGRAM_DIR} に ${REGISTRY_CANDIDATES.join(" か ")} を置いてください。`,
   );
 }
-// 両方あると先勝ちで片方が黙って無視され、「編集したのに図に反映されない」を起こす（.mjs →
-// .js へリネームした際の消し忘れが典型）。どちらを使いどちらを捨てたかを必ず知らせる。
+// 両方あると、先に見つかった方を使い、もう片方は警告なしに無視される。「編集したのに図に反映されない」が起きる
+// （.mjs から .js へ名前を変えたときの消し忘れでよく起きる）。そこで、どちらを使い、どちらを使わなかったかを必ず知らせる。
 if (found.length > 1) {
   console.error(
     `警告: 環境レジストリが複数あります。${registryPath} を使い、${found.slice(1).join(" / ")} は無視します（リネームしたなら古い方を削除してください）。`,

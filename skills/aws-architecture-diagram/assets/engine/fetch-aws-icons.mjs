@@ -1,20 +1,18 @@
-// AWS 公式アイコン（AWS Architecture Icons）を取得し、icon-manifest.json の
-// マッピングに従って aws-icons/<id>.svg として書き出す（スキル所有のエンジン。
-// コピーせずスキルから実行する）。SVG 自体はスキルに同梱せず、使う人が公式パッケージ
-// から取得する（再配布を避ける）。
+// AWS の公式アイコン（AWS Architecture Icons）を取得し、icon-manifest.json の対応表に従って
+// aws-icons/<id>.svg として書き出す（スキルが持つエンジン。コピーせず、スキルの場所から実行する）。
+// SVG そのものはスキルに同梱せず、使う人が公式のパッケージから取得する（再配布を避けるため）。
+// DIAGRAM_DIR を指定すれば cd しなくてよい。--out で出力先を直接指定できる。
 //
-//   cd <図ディレクトリ> && node <skill>/assets/engine/fetch-aws-icons.mjs [--only id,...]
-//   （または DIAGRAM_DIR を指定。--out で出力先を直接指定も可）
+//     cd <図ディレクトリ> && node <skill>/assets/engine/fetch-aws-icons.mjs [--only id,...]
 //
-// プロジェクト所有ファイル（DIAGRAM_DIR に置く。既定は cwd）:
-//   icon-manifest.json    id → AWS サービス名のマッピング（ここに追記して増やす）
-//   icons/aws-icons/      既定の出力先
+// プロジェクトが持つファイル（DIAGRAM_DIR に置く。デフォルトは cwd）は次のとおりである。
 //
-// パッケージ URL は四半期ごとに変わるため固定せず、公式ページ
-//   https://aws.amazon.com/architecture/icons/
-// から現行の Icon-package_*.zip を動的に取得する。ZIP は Node の zlib だけで展開する
-// （unzip / python への依存なし）。マニフェストに載っていて見つからなかった id は
-// stderr に警告する（AWS 側のファイル名変更に気づけるように）。
+// - `icon-manifest.json`: id から AWS のサービス名への対応表。ここに追記してアイコンを増やす。
+// - `icons/aws-icons/`: デフォルトの出力先。
+//
+// パッケージの URL は四半期ごとに変わるので固定しない。公式ページ（https://aws.amazon.com/architecture/icons/）から、
+// 現行の Icon-package_*.zip を動的に取得する。ZIP は Node の zlib だけで展開する（unzip や python に依存しない）。
+// マニフェストに載っているのに見つからなかった id は、stderr に警告する（AWS の側のファイル名の変更に気づけるように）。
 //
 // 出典・利用条件は出力先ディレクトリに NOTICE.md を書き出す。
 import { inflateRawSync } from "node:zlib";
@@ -24,8 +22,8 @@ import { join } from "node:path";
 const DIAGRAM_DIR = process.env.DIAGRAM_DIR ?? process.cwd();
 const ICONS_PAGE = "https://aws.amazon.com/architecture/icons/";
 
-// フラグの「存在」と「値」を区別する。値が無い／次が別フラグ（--）のときは
-// 黙って次フラグを値扱いしたり全件取得に化けさせず、明示的にエラーにする。
+// フラグが在ることと値を区別する。値が無いときや、次が別のフラグ（--）のときは、エラーにする。
+// 警告なしに次のフラグを値として扱ったり、全件の取得として扱ったりしない。
 function arg(name) {
   const argv = process.argv.slice(2);
   const eq = argv.find((a) => a.startsWith(`${name}=`));
@@ -48,8 +46,8 @@ const only = arg("--only")
   ?.split(",")
   .map((s) => s.trim())
   .filter(Boolean);
-// --only を付けたのに有効な id が 0 件（例: --only=,  や  --only="   "）なら、
-// 黙って 0 件取得に化けさせず明示エラーにする。
+// --only を付けたのに有効な id が 0 件（例: `--only=,` や `--only="   "`）なら、エラーにする。
+// 警告なしに 0 件の取得として扱わない。
 if (only && !only.length) {
   throw new Error("--only に有効な id がありません（例: --only lambda,dynamodb）");
 }
@@ -67,7 +65,7 @@ if (only) {
     console.error(`警告: マニフェストに無い id を無視します: ${unknown.join(", ")}`);
 }
 
-// HTTP ステータスを確認してから本文を返す（非 200 を後段の不可解なエラーに化けさせない）。
+// HTTP ステータスを確かめてから本文を返す（200 以外の応答が、後の処理で原因の分からないエラーにならないように）。
 async function fetchOk(url, what) {
   const res = await fetch(url);
   if (!res.ok)

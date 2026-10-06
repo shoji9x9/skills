@@ -198,7 +198,7 @@ test("代表列だけを確認した被覆表は欠落として失敗する", ()
   cov.cells = cov.cells.filter((x) => keep(x.item));
   const r = reconcile(cov, bundled);
   expect(r.ok).toBe(false);
-  expect(r.problems.join("\n")).toMatch(/候補 column-visible\/name に対応する項目が被覆表に無い/);
+  expect(r.problems.join("\n")).toMatch(/候補 column-visible\/name に対応する項目が網羅表に無い/);
   expect(r.unmeasured).toBeGreaterThan(0);
 });
 
@@ -840,7 +840,7 @@ test("使われない justified_absences は残さない（古い免除が効い
     { scope: "column/price", reason: "もう成り立たない根拠" },
   ];
   expect(reconcile(cov, bundled).problems.join("\n")).toMatch(
-    /justified_absences の column\/price は効いていない/,
+    /justified_absences の column\/price は有効になっていない/,
   );
 });
 
@@ -1276,7 +1276,7 @@ test("新しい仮想部品のプロファイルを、共通処理と中心ド�
     files: { "component-coverage.json": short },
   });
   expect(bad.status).toBe(1);
-  expect(bad.stderr).toMatch(/候補 node-select\/leaf に対応する項目が被覆表に無い/);
+  expect(bad.stderr).toMatch(/候補 node-select\/leaf に対応する項目が網羅表に無い/);
 });
 
 test("壊れたプロファイルを静かに無視せず exit 2 で落ちる（候補ゼロで素通りさせない）", () => {
@@ -1496,7 +1496,7 @@ test("記録された行は導いた集合と過不足なく一致していな�
     (r) => r.kind !== "focus",
   );
   expect(reconcile(dropped, bundled, captureConditionsFor(dropped)).problems.join("\n")).toMatch(
-    /撮影状態が導出から漏れている: grid \/ orders \/ column-sort\/[^ ]* \/ focus/,
+    /撮影状態が導出から外れている: grid \/ orders \/ column-sort\/[^ ]* \/ focus/,
   );
 
   // 余剰行: 導出が要求しなくなった行が残っているケース。メニュー項目の測定を落とすと
@@ -1710,7 +1710,7 @@ test("CLI: --metadata を渡すと撮影状態まで照合し、読めない met
     },
   );
   expect(otherFeature.status).toBe(2);
-  expect(otherFeature.stderr).toMatch(/slug（another-feature）が被覆表の slug（order-list）と違う/);
+  expect(otherFeature.stderr).toMatch(/slug（another-feature）が網羅表の slug（order-list）と違う/);
 
   // --metadata 無しは通るが、照合していないことを黙らない。
   const unchecked = runCli(

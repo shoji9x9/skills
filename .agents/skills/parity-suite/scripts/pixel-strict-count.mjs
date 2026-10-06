@@ -1,5 +1,5 @@
-// ノイズ基準値の画素計数（正本）。同一条件で 2 回撮った PNG から、しきい値なしの差分画素を数える。
-// 正本はこのスキル側にあり、実行時はスキルディレクトリ内から直接実行する（プロジェクトへコピーしない）。
+// ノイズ基準値の画素計数（原本）。同一条件で 2 回撮った PNG から、しきい値なしの差分画素を数える。
+// 原本はこのスキル側にあり、実行時はスキルディレクトリ内から直接実行する（プロジェクトへコピーしない）。
 //
 // 何のためか: `metadata.json.noise_baseline[]` は `pixel_diff`（記録済みツールのしきい値つき）だけでなく
 // `pixel_diff_strict` / `pixel_diff_strict_only` を持つ。`parity-diff` は現新差の strict な計数を
@@ -7,7 +7,7 @@
 //
 // なぜ parity-suite に同梱するか: 本スキルの前提は `replace-strategy` と `golden-dataset` だけで、
 // `parity-diff` は入っていないことがある。同じ数を出す実装が手元に無いと、この項目を決定論的に埋められない
-// （配布スキルの成果物同梱規約）。**`parity-diff` の `scripts/pixel-crops.mjs` に同じ計数がある**が、
+// （配布スキルは、実行時に使う成果物を同梱する）。**`parity-diff` の `scripts/pixel-crops.mjs` に同じ計数がある**が、
 // 同梱スクリプトは互いを import しない（インストール先が別々のため）。片方の計数規則を直したらもう片方も直す。
 //
 // 決定論的: 乱数・現在時刻に依存しない。PNG のデコードは pngjs を使う（記録済みツールが pixelmatch なら
@@ -18,7 +18,7 @@ import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 /**
- * ツールのバージョン（正本）。計数規則・出力形状を変えたら上げる。
+ * ツールのバージョン（原本）。計数規則・出力形状を変えたら上げる。
  * @type {string}
  */
 export const VERSION = "1";

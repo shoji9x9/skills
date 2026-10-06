@@ -1,21 +1,22 @@
 #!/usr/bin/env node
-// 部品の一生の順番で壊れる経路の記録（build-metadata.json の lifecycle）を検査する（正本）。
+// 部品の一生の順番で不具合が起きる実行パスの記録（build-metadata.json の lifecycle）を検査する（検査の仕方はこのスクリプトで定義する）。
 //
-// 何のためか: 見本の照合・操作の突き合わせ・パリティスイートは毎回同じ順で部品を描くので、結び直し・引数の差し替え・
-// 付け直し・初期化の後の変化で壊れる不具合に一度も入らない。build はこの経路を判定して順番を強制する見本で確かめるが、
-// 記録が散文の規律だけだと、経路を黙って落とした記録（4 経路のどれにも振り分けていない・検査が落ちている・
-// 経路に入っていない）でも完了できてしまう。この検査が記録の形と完了の条件を機械的に確かめる。
+// 何のためか: 見本の照合・操作の突き合わせ・パリティスイートは毎回同じ順で部品を描く。そのため、結び直し・引数の差し替え・
+// 付け直し・初期化の後の変化で起きる不具合を、一度も通らない。build はこの実行パスを判定し、順番を強制する見本で確かめる。
+// しかし、記録を文章の規律だけに任せると、実行パスを警告なしに除いた記録でも完了できてしまう。
+// 例えば、4 つの実行パスのどれにも振り分けていない記録、検査が無い記録、実行パスに入っていない記録である。
+// この検査は、記録の形と完了の条件を機械的に確かめる。
 //
-// 判定（lifecycle.applies が true のとき）:
-//   - paths[].path と not_applicable_paths[].path の和が、4 経路（PATHS）をちょうど 1 回ずつ含む（漏れ・重複・語彙外を落とす）
-//   - paths は 1 件以上（名指しできる経路が 1 つも無いなら対象ではない＝applies: false）
+// lifecycle.applies が true のときは、次のものを判定する。
+//   - paths[].path と not_applicable_paths[].path の和が、4 つの実行パス（PATHS）をちょうど 1 回ずつ含む（抜け・重複・語彙の外を失敗にする）
+//   - paths は 1 件以上（名指しできる実行パスが 1 つも無いなら対象ではないので、applies: false にする）
 //   - paths の各行: breaking_process / story / entry_attribute / check が記入済み、result が pass、
 //     entered が 1 以上の整数、fix_removal_verified が true
 //   - not_applicable_paths の各行: reason が記入済み
 // applies が false のときは paths が空であること（対象でないのに検査の見本を置くと、照合されない見本がカタログに残る）。
 //
 // 決定論的: 乱数・現在時刻・ネットワークに依存しない。読むのは JSON だけで、見本も検査も実行しない
-// （検査を実行して結果を記録するのは build の手順。この検査は記録が条件を満たすかだけを見る）。
+// （検査の実行と結果の記録は build の手順で行う。この検査は、記録が条件を満たすかだけを見る）。
 //
 // 使い方: node lifecycle-check.mjs --build-metadata <new/<target>/build-metadata.json>
 // 終了コード: 0 ＝ 条件を満たす（対象でない場合を含む）、1 ＝ 不足が残る、2 ＝ 使い方の誤り・型崩れ。
@@ -31,10 +32,10 @@ const { filled, nonEmptyString } = await import(
     .href
 );
 
-/** ツールのバージョン（正本）。判定規則・出力形状を変えたら上げる。 */
+/** ツールのバージョン（このスクリプトで定義する）。判定の規則・出力の形を変えたら上げる。 */
 export const VERSION = "1";
 
-/** 4 経路の語彙（正本。references/lifecycle.md「4 つの実行パス」と同じ）。 */
+/** 4 つの実行パスの語彙（このスクリプトで定義する。references/lifecycle.md「4 つの実行パス」と同じ）。 */
 export const PATHS = ["strict-rebind", "prop-identity", "remount", "prop-change-after-init"];
 
 /**
@@ -89,7 +90,7 @@ export function checkLifecycle(metadata) {
     findings.push({
       code: "lifecycle-no-paths",
       detail:
-        "対象（applies: true）なのに名指しできた経路が 0 件（名指しできないなら対象ではない）",
+        "対象（applies: true）なのに名指しできた実行パスが 0 件（名指しできないなら対象ではない）",
     });
   }
   /** @type {Map<string, number>} */
@@ -127,7 +128,7 @@ export function checkLifecycle(metadata) {
       findings.push({
         code: "lifecycle-path-not-entered",
         path: name,
-        detail: `entered が 1 以上の整数でない: ${JSON.stringify(row.entered)}（経路に入らないまま症状だけを見た検査は何も示さない）`,
+        detail: `entered が 1 以上の整数でない: ${JSON.stringify(row.entered)}（実行パスに入らないまま症状だけを見た検査は何も示さない）`,
       });
     }
     if (nonEmptyString(row.story) && visualStories.has(row.story)) {
@@ -163,7 +164,7 @@ export function checkLifecycle(metadata) {
       findings.push({
         code: "lifecycle-path-missing",
         path: name,
-        detail: "paths にも not_applicable_paths にも無い（経路を黙って落とさない）",
+        detail: "paths にも not_applicable_paths にも無い（実行パスを警告なしに除かない）",
       });
     } else if (n > 1) {
       findings.push({ code: "lifecycle-path-duplicate", path: name, count: n });

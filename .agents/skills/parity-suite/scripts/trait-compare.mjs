@@ -1,12 +1,12 @@
-// 特性照合（正本）。trait-capture.mjs の採取結果 2 つを決定論的に比較する。
-// 正本はこのスキル側にあり、実行時はプロジェクトの
-// `<parity_suite_dir>/parity/lib/tools/vendor/` へコピーして使う（配布スキルの成果物同梱規約）。
+// 特性照合（原本）。trait-capture.mjs の採取結果 2 つを決定論的に比較する。
+// 原本はこのスキル側にあり、実行時はプロジェクトの
+// `<parity_suite_dir>/parity/lib/tools/vendor/` へコピーして使う（配布スキルは、実行時に使う成果物を同梱する）。
 // コピー先はコピー専用のサブディレクトリで、プロジェクト自作ツールと同居させない（修正しない規約のため）。
 //
 // 使いどころ:
 //   - ノイズ基準値の測定: 現行を同一条件で 2 回採り、その差分量を metadata.json に記録する
-//   - 強度ゲート: スタイル注入後のキャプチャをベースライン相手に照合し、差分器が既知の差を赤にできるか確認する
-//   - parity-diff: 現・新の照合に同じ関数/CLI をそのまま再利用する（検証済み差分器の引き継ぎ）
+//   - 強度チェック: スタイル注入後のキャプチャをベースライン相手に照合し、差分ツールが既知の差を赤にできるか確認する
+//   - parity-diff: 現・新の照合に同じ関数/CLI をそのまま再利用する（検証済み差分ツールの引き継ぎ）
 //
 // 相対幾何の原則: 絶対座標は比較しない。要素対ごとの関係（左右・上下・端揃え）を両側で導出し、
 // 関係が変わった対だけを差分にする。位置がページ全体でずれても、要素同士の関係が保たれていれば差分にしない。
@@ -18,11 +18,11 @@
 // DOM の道筋（path）では突き合わせない——入れ子の深さが違う現・新（span に文字を持つ現行と、要素自身が
 // 文字を持つ新側）の比較こそが目的だから。文字列が違う組は寸法を比べない（別の文字の幅は比べられない）が、
 // 書体の差は出す。件数の違いは、はみ出した側の行を 1 件ずつ出す。
-// 片側だけが text_owners を持つ（採取ツールの版違い）なら kind "missing" で出し、黙って比較を省かない。
+// 片側だけが text_owners を持つ（採取ツールの版違い）なら kind "missing" で出し、警告なしに比較を省かない。
 //
-// スクロールする器（scroll。trait-capture.mjs VERSION 6 以降）: 器かどうか（null か否か）、
-// はみ出しの有無、スクロールバーが取った幅・高さ（alignTolerance 付き）、見た目の宣言と ::-webkit-scrollbar 系の
-// 計算値の差を kind "scroll" で出す。片側だけがキーを持つ（採取ツールの版違い）なら text_owners と同じく kind "missing"。
+// スクロールする領域（scroll。trait-capture.mjs VERSION 6 以降）では、次の差を kind "scroll" で出す。
+// スクロールする領域かどうか（null か否か）、はみ出しの有無、スクロールバーが取った幅・高さ（alignTolerance 付き）、
+// 見た目の宣言と ::-webkit-scrollbar 系の計算値である。片側だけがキーを持つ（採取ツールの版違い）なら text_owners と同じく kind "missing"。
 //
 // 決定論的: 乱数・現在時刻に依存しない。Playwright に依存しない（純粋な JS）。
 // TypeScript 構文は使わない（型は JSDoc）。
@@ -31,7 +31,7 @@ import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 /**
- * ツールのバージョン（正本）。比較ロジック・差分形状を変えたら上げる。
+ * ツールのバージョン（原本）。比較ロジック・差分形状を変えたら上げる。
  * metadata.json の differ.trait_compare に記録する「バージョン」はこの値を使う（手入力にしない）。
  * @type {string}
  */
@@ -74,8 +74,8 @@ export const VERSION = "3";
  * @typedef {object} Diff
  * @property {string} name  - 要素の論理名。幾何差分は "A | B" の対で表す。
  * @property {'property'|'pseudo'|'geometry'|'missing'|'duplicate'|'text'|'scroll'} kind
- * @property {string} [prop]  - kind "text" は "text[<i>]/<項目>"（i は text_owners の並び順）、
- *   kind "scroll" は "scroll"（器かどうか）/ "scroll/<項目>" / "scroll/<擬似要素>/<プロパティ>"
+ * @property {string} [prop]  - kind "text" は "text[<i>]/<項目>" である（i は text_owners の並び順）。
+ *   kind "scroll" は "scroll"（スクロールする領域かどうか）・"scroll/<項目>"・"scroll/<擬似要素>/<プロパティ>" のどれかである。
  * @property {string} [expected]
  * @property {string} [actual]
  * @property {string} [text]  - kind "text" のとき、ベースライン側のその行の文字（どの文字の差かを読むための診断材料）
@@ -227,7 +227,7 @@ function diffTextOwners(name, expectedOwners, actualOwners, tol, out) {
 }
 
 /**
- * スクロールする器の特性（scroll）の差を kind "scroll" で積む（冒頭の説明を参照）。
+ * スクロールする領域の特性（scroll）の差を kind "scroll" で積む（冒頭の説明を参照）。
  * @param {string} name
  * @param {Scroll | null} expected
  * @param {Scroll | null} actual
@@ -293,7 +293,7 @@ export function compareTraits(baselineEntries, captureEntries, options = {}) {
   const out = [];
 
   // 0. 論理名の重複は authoring ミス（Map が後勝ちで潰れ、先勝ち分の退行が隠れる）。
-  //    黙って比較を続けず、診断として差分に出す。
+  //    警告なしに比較を続けず、診断として差分に出す。
   for (const [label, entries] of [
     ["baseline", baselineEntries],
     ["capture", captureEntries],
@@ -330,7 +330,7 @@ export function compareTraits(baselineEntries, captureEntries, options = {}) {
         actual: capHas ? "present" : "absent",
       });
     }
-    // scroll は null（器でない）を正規の値に持つので、キーの在否で版違いを見る
+    // scroll は null（スクロールする領域でない）を正規の値に持つので、キーの在否で版違いを見る
     const baseHasScroll = Object.hasOwn(base, "scroll");
     const capHasScroll = Object.hasOwn(cap, "scroll");
     if (baseHasScroll && capHasScroll) {
@@ -446,11 +446,11 @@ export function main(argv) {
   return diffs.length > 0 ? 1 : 0;
 }
 
-// CLI エントリ判定は両辺を実パスに解決してから突き合わせる。
-// process.argv[1] は起動時のパスのまま、import.meta.url も --preserve-symlinks(-main)
-// （NODE_OPTIONS 経由でも付く）では未解決のままなので、片側だけ解決すると
-// シンボリックリンク経由（.claude/skills/<name> → .agents/skills/<name>）の起動で条件が偽になり、
-// main() が呼ばれず何も出力せず exit 0 になる（サイレント no-op）。
+// CLI として起動されたかは、両辺を実パスに解決してから突き合わせて判定する。
+// process.argv[1] は起動時のパスのままである。--preserve-symlinks(-main) を付けると（NODE_OPTIONS 経由でも付く）、
+// import.meta.url もシンボリックリンクを解決しない。
+// 片側だけを解決すると、シンボリックリンク経由（.claude/skills/<name> → .agents/skills/<name>）の起動で条件が偽になる。
+// そのときは main() が呼ばれず、何も出力せずに exit 0 で終わる。
 const invokedAsCli = (() => {
   const entry = process.argv[1];
   if (!entry) return false;

@@ -1,58 +1,61 @@
-// 追記専用（非破壊追記）の成果物が縮んでいないことを git の履歴と突き合わせて確かめる（正本）。
+// 追記専用（非破壊追記）の成果物が縮んでいないことを、git の履歴と突き合わせて確かめる。
+// 判定の規則は、このファイルで定義する。
 //
-// スキル群は決定を積み上げる成果物を持ち、そこへの書き込みを「非破壊追記」と定めているが、
-// 追記であることを確かめる道具が無いと、積み上げた文書を丸ごと書き直しても何も落ちない。
-// 失われるのは過去の決定（なぜ許容したのか・いつ誰が承認したのか）で、現在の状態しか見ない
-// 収束判定は通ってしまう。
+// スキル群は決定を積み上げる成果物を持ち、そこへの書き込みを「非破壊追記」と定めている。
+// しかし、追記であることを確かめるツールが無いと、積み上げた文書を丸ごと書き直してもチェックは失敗しない。
+// 失われるのは過去の決定（なぜ許容したのか・いつ誰が承認したのか）で、現在の状態しか見ない収束の判定は通ってしまう。
 //
-// 何をするか:
-//   1. 追記専用の成果物を機械可読な一覧（assets/append-only-manifest.json）から読む
-//      （--exclude <id> で項目を外せる。一覧に無い id・全項目の除外は exit 2、外した id は出力に必ず出す）
-//   2. 一覧のパターンに一致する追跡ファイルを列挙し、比較元の版（既定 HEAD）の内容を git から取る
-//   3. 比較元に在った「単位」が現在も全部残っているかを数える（多重度まで見る）
-//   4. 比較元に在ったファイルが消えていれば落とす
+// 処理の流れは次のとおりである。
 //
-// 突き合わせの単位は一覧の unit で決める。全部を行として比べると、正本が明示的に求めている
-// その場の更新（版の +1・状態列の 未→済・Issue 列の 未起票→番号・最終更新の日時）が
-// 「失われた行」に化け、決定を 1 つも捨てていない成果物で収束が止まる:
-//   - lines（既定）: 空白を畳んだ行の多重集合。書き換えず積み上げるだけの台帳に使う。
-//     正本が**移動を定めている**領域（設定ファイルの intentional_diffs は棚卸しで人が pending の文言を
-//     keep / may_change へ移す）は registry_groups に鍵のグループを挙げて要素の単位へ展開する。
-//     mutable_blocks（配下を単位から外す）は、その削除を誰も数えなくてよい領域にだけ使う
-//   - markdown-structure: 見出し・表の列名・表の行（先頭セルを鍵にする）・定義箇条書きの鍵・
-//     それ以外の散文行。セルの値と箇条書きの値はその場で更新してよいが、行・列・節は消せない
-//   - json-arrays: arrays に挙げた配列の要素（深い等価）。version のようなスカラは更新してよいが、
-//     積み上げた要素（changes[] / component_diff_exceptions[]）は消せない。
-//     要素の同一性を深い等価で取るので、2 つの要素の間でフィールドを入れ替える書き換え
-//     （どの例外を誰がいつ承認したかの付け替え）も縮小として落ちる。
-//     key を指定した配列は鍵で要素を対応づけ、フィールドごとに突き合わせる。既定は「鍵以外は不変」で、
-//     正本が更新を認めている項目だけを fill_only（空 → 非空だけ。既に入っている値の差し替えは落とす）と
-//     transitions（明示した <変更前>-><変更後> だけ。unmeasured.entries の blocking->accepted）で開ける。
-//     markdown-structure の表の行も同様に、鍵（先頭セル）だけでなく行 × 列のセルを単位にし、
-//     正本がその場の更新を定めている列だけ mutable_columns で外す（鍵だけだと残りのセルが自由に書き換わる）。
-//     「空欄で追記し、後で人が決定を埋める」列は fill_only_columns に挙げる（空セル → 非空だけを許し、
-//     入っている値の差し替えは落とす）。mutable_columns に置くと決めた値の書き換えまで通り、
-//     どちらにも置かないと空欄を埋めるだけの正規の編集が縮小に化ける。
-//     同じ鍵の行は出現順で区別する（区別しないと、同じ鍵の 2 行の間でセルを入れ替えても単位が変わらない）
+// 1. 追記専用の成果物を、機械可読な一覧（assets/append-only-manifest.json）から読む。
+//    --exclude <id> で項目を外せる。一覧に無い id と、全項目の除外は exit 2 にする。外した id は出力に必ず出す。
+// 2. 一覧のパターンに一致する追跡ファイルを列挙し、比較元の版（デフォルトは HEAD）の内容を git から取得する。
+// 3. 比較元に在った「単位」が、現在も全部残っているかを数える（多重度まで見る）。
+// 4. 比較元に在ったファイルが消えていれば、失敗にする。
 //
-// 行の突き合わせは空白を畳んで（連続する空白を 1 つに、前後を除去して）から行う——
-// Markdown の表はフォーマッタが桁を詰め直すため、素の文字列比較では整形だけで落ちる。
-// 空行は比較しない（節の間隔は決定ではない）。
+// 突き合わせの単位は、一覧の unit で決める。全部を行として比べると、その場の更新が「失われた行」と誤って判定される。
+// その場の更新とは、各文書の原本が明示的に求めている更新（版の +1・状態列の 未→済・Issue 列の 未起票→番号・最終更新の日時）である。
+// すると、決定を 1 つも捨てていない成果物で、収束が止まる。unit は次の 3 つである。
 //
-// 行が単位のときだけ、「フロー形式のコンテナ（key: [a, b]）が育った」ことによる行の書き換えを縮小に数えない——
-// 空リストとして作られるキーへ最初の要素を足す書き手は必ずこの形を通り（intentional_diffs.pending /
-// keep / may_change / component_diffs）、棚卸しで pending から keep へ移した文言も keep の行の書き換えになる。
-// 緩めるのは元の要素がすべて現在側にも在るときだけで、要素を 1 つでも落とせば落ちる。
-// フロー形式のコンテナは**1 行で閉じているものだけ**を読む。折り返されたものは読めたことにせず行のまま突き合わせ、
-// 落ちたときに「復元せず 1 行へ書き直す」と案内する（読めたことにすると、折り返しの中身が空に見えて
-// 追記が縮小に化ける）。
+// - lines（デフォルト）: 空白を畳んだ行の多重集合。書き換えずに積み上げるだけの台帳に使う。
+//   原本が**移動を定めている**領域は、registry_groups に鍵のグループを挙げて、要素の単位に展開する。
+//   例えば設定ファイルの intentional_diffs では、棚卸しで人が pending の文言を keep や may_change へ移す。
+//   mutable_blocks（配下を単位から外す）は、その削除を誰も数えなくてよい領域にだけ使う。
+// - markdown-structure: 見出し・表の列名・表の行（先頭のセルを鍵にする）・定義の箇条書きの鍵・それ以外の散文の行。
+//   セルの値と箇条書きの値はその場で更新してよいが、行・列・節は消せない。
+// - json-arrays: arrays に挙げた配列の要素（深い等価で比べる）。version のようなスカラは更新してよいが、
+//   積み上げた要素（changes[] や component_diff_exceptions[]）は消せない。
+//   要素が同じかを深い等価で決めるので、2 つの要素の間でフィールドを入れ替える書き換えも、縮小として失敗にする
+//   （どの例外を誰がいつ承認したかの付け替えに当たる）。
+//   key を指定した配列は、鍵で要素を対応づけて、フィールドごとに突き合わせる。デフォルトは「鍵以外は変えない」である。
+//   原本が更新を認めている項目だけを、fill_only と transitions で開ける。
+//   fill_only は、空から空でない値への変更だけを許す（既に入っている値の差し替えは失敗にする）。
+//   transitions は、明示した <変更前>-><変更後> だけを許す（例: unmeasured.entries の blocking->accepted）。
+//   markdown-structure の表の行も同じように、鍵（先頭のセル）だけでなく、行 × 列のセルを単位にする。
+//   原本がその場の更新を定めている列だけを、mutable_columns で外す（鍵だけを見ると、残りのセルを自由に書き換えられる）。
+//   「空欄で追記し、後で人が決定を埋める」列は、fill_only_columns に挙げる（空のセルから空でない値への変更だけを許す）。
+//   mutable_columns に置くと、決めた値の書き換えまで通ってしまう。
+//   どちらにも置かないと、空欄を埋めるだけの正規の編集が縮小と誤って判定される。
+//   同じ鍵の行は、出現した順で区別する（区別しないと、同じ鍵の 2 行の間でセルを入れ替えても単位が変わらない）。
 //
-// 何をしないか: 追記の中身の妥当性は見ない。消えていないことだけを数える。
+// 行の突き合わせは、空白を畳んでから（連続する空白を 1 つにし、前後を除いてから）行う。
+// Markdown の表は、フォーマッタが桁を詰め直すので、素の文字列で比べると整形だけで失敗する。
+// 空行は比べない（節の間隔は決定ではない）。
 //
-// fail-closed: git が使えない・比較元の版を読めない・対象 0 件・一覧の unit が語彙外・
-//              比較元の木に在るのに内容を取り出せないファイルは合格に倒さない（exit 2）。
+// 行が単位のときだけ、「フロー形式のコンテナ（key: [a, b]）が育った」ことによる行の書き換えを、縮小に数えない。
+// 空のリストとして作られるキーへ最初の要素を足す書き手は、必ずこの形を通る（intentional_diffs.pending・keep・may_change・component_diffs）。
+// 棚卸しで pending から keep へ移した文言も、keep の行の書き換えになる。
+// 緩めるのは、元の要素がすべて現在の側にも在るときだけで、要素を 1 つでも消せば失敗にする。
+// フロー形式のコンテナは、**1 行で閉じているものだけ**を読む。折り返したものは読めたことにせず、行のまま突き合わせる。
+// 失敗したときは、「復元せず 1 行に書き直す」と案内する。
+// 読めたことにすると、折り返しの中身が空に見えて、追記が縮小と誤って判定されるためである。
 //
-// 決定論的: 乱数・現在時刻に依存しない。TypeScript 構文は使わない（型は JSDoc）。
+// 追記の中身が妥当かは見ない。消えていないことだけを数える。
+//
+// 判定できないときは失敗として扱う（exit 2）。git が使えない・比較元の版を読めない・対象が 0 件・
+// 一覧の unit が語彙にない・比較元のツリーに在るのに内容を取り出せないファイルがある、のどれかに当たるときである。
+//
+// 決定論的に動く（乱数と現在時刻に依存しない）。TypeScript の構文は使わない（型は JSDoc で書く）。
 
 import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
@@ -60,7 +63,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
- * ツールのバージョン（正本）。判定ロジック・出力形状を変えたら上げる。
+ * ツールのバージョン（このファイルで定義する）。判定のロジックや出力の形を変えたら上げる。
  * @type {string}
  */
 export const VERSION = "13";
@@ -73,7 +76,7 @@ export const UNITS = ["lines", "markdown-structure", "json-arrays"];
 
 /**
  * 一覧に書くキーパスの形（ルートからの完全なパス）。`-` だけのセグメントは
- * リスト要素へ積むマーカーと同じ綴りなので拒む——名指しすると全リスト要素が同じ鍵を共有し、
+ * リスト要素へ積むマーカーと同じ綴りなので拒む。名指しすると全リスト要素が同じ鍵を共有し、
  * 兄弟を区別できなくなる。
  */
 const KEY_PATH = /^(?!-+(?:\.|$))[A-Za-z0-9_-]+(\.(?!-+(?:\.|$))[A-Za-z0-9_-]+)*$/;
@@ -189,43 +192,44 @@ function listFiles(root, startRel) {
 }
 
 /**
- * YAML のキーパス（ドット区切り）で指定したブロック——そのキー行と配下——を落とす。
+ * YAML のキーパス（ドット区切り）で指定したブロック（そのキーの行と配下）を外す。
  *
- * 追記専用の契約は「積み上げた決定を消さない」ことだが、**正本が削除を定めている領域**が
- * 同じファイルに混ざることがある（設定ファイルの `intentional_diffs.pending` は、棚卸しで人が
- * `keep` / `may_change` へ文言を移すため要素が減るのが正規の運用）。行の多重集合で見ると、この移動は
- * 「`item` / `slug` / `added_by` / `added_at` の 4 行が失われた」に化け、**正しく棚卸しした実行が落ちる**。
- * 落ちたあと指示どおり復元すると、記録した保留が消える（データを失う方向へ誘導される）。
- * そこで一覧の mutable_blocks に挙げたキーパスの**配下**だけを単位から外し、キー行は鍵だけの単位
- * （`<mutable-block: <パス>>`）へ畳む——キーを丸ごと消した破壊は落ち、表現の揺れ（`pending: []` ⇄ `pending:`。
- * 棚卸しは要素が増える方向にも減る方向にも動く）では落ちない。
+ * 追記専用の取り決めは「積み上げた決定を消さない」ことである。しかし、同じファイルに
+ * **原本が削除を定めている領域**が含まれることがある。例えば設定ファイルの `intentional_diffs.pending` では、
+ * 棚卸しで人が `keep` や `may_change` へ文言を移すので、要素が減るのが正規の運用である。
+ * 行の多重集合で見ると、この移動は「`item`・`slug`・`added_by`・`added_at` の 4 行が失われた」と誤って判定され、
+ * **正しく棚卸しした実行が失敗する**。失敗した後に指示どおり復元すると、記録した保留が消える（データを失う方向へ誘導される）。
+ * そこで、一覧の mutable_blocks に挙げたキーパスの**配下**だけを単位から外し、キーの行は鍵だけの単位
+ * （`<mutable-block: <パス>>`）に畳む。キーを丸ごと消す破壊は失敗にし、表現の揺れ（`pending: []` ⇄ `pending:`）では失敗にしない。
+ * 棚卸しは、要素が増える方向にも減る方向にも動くためである。
  *
- * **外した領域の要素の消失には検出主体が無い。** `pending-triage-check.mjs` は**現在の** `pending` を母集合にするので、
- * 棚卸しを経ずに丸ごと消された要素はそもそも対象にならない（`parity-diff` の棚卸しも同じ母集合を読む）。
- * 「別の工程が数える」に委ねると、保留の記録を黙って消せる状態になる——だから `intentional_diffs.pending` は
- * このオプションではなく `registry_groups` で扱う（鍵をまたぐ移動は通し、どの鍵にも無くなったときだけ落ちる）。
- * `mutable_blocks` を使ってよいのは、**配下の削除を誰も数えなくてよいと正本が定めている**領域だけ。
+ * **外した領域の要素が消えても、検出するものが無い。** `pending-triage-check.mjs` は**現在の** `pending` を母集合にするので、
+ * 棚卸しを経ずに丸ごと消された要素は、そもそも対象にならない（`parity-diff` の棚卸しも同じ母集合を読む）。
+ * 「別の工程が数える」に任せると、保留の記録を警告なしに消せる状態になる。
+ * そのため `intentional_diffs.pending` は、このオプションではなく `registry_groups` で扱う。
+ * 鍵をまたぐ移動は通し、どの鍵からも無くなったときだけ失敗にする。
+ * `mutable_blocks` を使ってよいのは、**配下の削除を誰も数えなくてよいと原本が定めている**領域だけである。
  *
- * あわせて `growable_containers` に挙げたキーパスのフロー形式コンテナを**要素ごとの単位へ展開する**
- * （`keep: ["a", "b"] # c` → 鍵の単位 1 つと要素の単位 2 つ）。要素を足すと単位が増えるだけなので通り、
- * 要素を落とせば単位が失われて落ちる。**緩和を鍵で名指しするのはここだけ**——
- * 行の多重集合は同名の兄弟（`targets[].forbidden_actions` 等）を 1 つの鍵に畳むので、
- * 鍵を名指しせずに「育った」を判定すると、**兄弟の間で要素が移動しただけの編集**（片方を空にして
- * もう片方へ足す）まで通る。名指ししたパスは文書内で一意なので、この取り違えが起きない。
+ * あわせて、`growable_containers` に挙げたキーパスのフロー形式のコンテナを、**要素ごとの単位に展開する**
+ * （`keep: ["a", "b"] # c` は、鍵の単位 1 つと要素の単位 2 つになる）。要素を足しても単位が増えるだけなので通り、
+ * 要素を消せば単位が失われて失敗する。**緩和を鍵で名指しするのは、ここだけである。**
+ * 行の多重集合は、同じ名前の兄弟（`targets[].forbidden_actions` など）を 1 つの鍵に畳む。
+ * そのため、鍵を名指しせずに「育った」を判定すると、**兄弟の間で要素を移しただけの編集**（片方を空にして、もう片方へ足す）まで通る。
+ * 名指ししたパスは文書の中で一意なので、この取り違えは起きない。
  *
- * **YAML のパーサは持たない**（配布スキルに依存を増やさないため）。インデントでブロックを切るので、
- * 意図的に見ていないものがある: ブロックスカラー（`|` / `>`）は本文をキー行として読まないよう配下ごと飛ばし、
- * リスト要素（`- …`）は配下のキーが親のパスを継がないようマーカーを積むが、
- * アンカー・別名・複数文書（`---`）・フロー形式の入れ子（`{ a: { b: [] } }`）は解釈しない。
- * 解釈できなかったパスは対象に一致しないので、**検査は厳しい側（行が単位のまま）へ倒れる**。
+ * **YAML のパーサは持たない**（配布スキルの依存を増やさないため）。インデントでブロックを切るので、意図して見ていないものがある。
+ * ブロックスカラー（`|`・`>`）は、本文をキーの行として読まないように配下ごと飛ばす。
+ * リスト要素（`- …`）は、配下のキーが親のパスを継がないようにマーカーを積む。
+ * アンカー・別名・複数の文書（`---`）・フロー形式の入れ子（`{ a: { b: [] } }`）は解釈しない。
+ * 解釈できなかったパスは対象に一致しないので、**チェックは厳しい側（行が単位のまま）として扱われる**。
  * @param {string} text
- * @param {string[]} blocks 単位から外すキーパス。**ルート（文書の先頭）からの完全なパス**で書く——
- *   部分一致・末尾一致では引かないので、実在の入れ子（例: skills.replace-strategy.intentional_diffs.pending）を書く
- * @param {string[]} [growable] 要素ごとの単位へ展開するキーパス（同じくルートからの完全なパス）
- * @param {{ id: string, itemKey: string, paths: string[] }[]} [registryGroups] 鍵をまたぐ移動を許すグループ
+ * @param {string[]} blocks 単位から外すキーパス。**ルート（文書の先頭）からの完全なパス**で書く。
+ *   部分一致や末尾の一致では探さないので、実在の入れ子（例: skills.replace-strategy.intentional_diffs.pending）を書く。
+ * @param {string[]} [growable] 要素ごとの単位に展開するキーパス（同じく、ルートからの完全なパス）。
+ * @param {{ id: string, itemKey: string, paths: string[] }[]} [registryGroups] 鍵をまたぐ移動を許すグループ。
  * @param {{ path: string, prefixes: string[], lines: string[] }[]} [wrappedOut] 連結しても閉じない
- *   フロー形式のコンテナを積む先（診断用。帰属判定の材料を伴う）
- * @returns {string} 変換後の行を改行で連結したもの
+ *   フロー形式のコンテナを積む先（診断用。どこに属するかを判定する材料を伴う）。
+ * @returns {string} 変換した後の行を、改行で連結したもの。
  */
 export function stripYamlBlocks(text, blocks, growable = [], registryGroups = [], wrappedOut = []) {
   if (blocks.length === 0 && growable.length === 0 && registryGroups.length === 0) return text;
@@ -241,10 +245,9 @@ export function stripYamlBlocks(text, blocks, growable = [], registryGroups = []
     for (const path of group.paths) registryPaths.set(path.trim(), group.id);
   }
   /**
-   * @type {{ id: string, indent: number, itemKey: string,
-   *   current: { body: string[], raw: string[] } | null } | null}
-   * ブロック形式のレジストリを読み進めている状態（`current` は読みかけの要素の行。
-   * `body` は畳んだ行＝照合キーを探す対象、`raw` は読めなかったときに単位へ戻す元の行）
+   * ブロック形式のレジストリを読み進めている状態。`current` は読みかけの要素の行である。
+   * `body` は畳んだ行（照合キーを探す対象）、`raw` は読めなかったときに単位へ戻す元の行である。
+   * @type {{ id: string, indent: number, itemKey: string, current: { body: string[], raw: string[] } | null } | null}
    */
   let registry = null;
   /** 読みかけの要素を確定して単位へ落とす。 */
@@ -259,21 +262,21 @@ export function stripYamlBlocks(text, blocks, growable = [], registryGroups = []
       const { code } = splitTrailingComment(line);
       if (value === null && code.startsWith(prefix)) value = code.slice(prefix.length).trim();
     }
-    // **要素の行末コメントは単位にしない**（キー行のコメントは守るのと非対称）。
-    // 要素は鍵をまたいで移動する設計で、移動先（`keep: ["<文言>"]`）に注記の置き場所が無い。
-    // 守ると、注記の付いた要素を棚卸ししただけで縮小に化ける（注記の付いた要素の誤検出が再発し、
-    // 指示どおり復元すると保留の記録が消える）。注記を消せることと引き換えに、正規の棚卸しを通す。
-    // 照合キーが見つからない要素は素のスカラ（`- <文言>`）として読む。
+    // **要素の行末コメントは単位にしない**（キーの行のコメントは守るので、扱いが非対称になる）。
+    // 要素は鍵をまたいで移動する設計で、移動先（`keep: ["<文言>"]`）には注記の置き場所が無い。
+    // 守ると、注記の付いた要素を棚卸ししただけで、縮小と誤って判定される。注記の付いた要素の誤検出が再発し、
+    // 指示どおり復元すると保留の記録が消える。注記を消せることと引き換えに、正規の棚卸しを通す。
+    // 照合キーが見つからない要素は、素のスカラ（`- <文言>`）として読む。
     if (value === null) {
       const { code } = splitTrailingComment(lines[0] ?? "");
       value = code;
     }
-    // **1 行に収まっていない値は読めたことにしない。** 照合キーの値が空（次行以降へ続くプレーンな多行スカラー）・
-    // ブロックスカラー指示子（`|` / `>`）・閉じない引用符のとき、`code.slice(prefix.length)` は本文を取りこぼす。
-    // 畳むと本文が単位から消え、**要素を丸ごと消しても文言を正反対へ差し替えても通る**（実測: main は exit 1、
-    // 畳むと exit 0 の fail-open）。要素の行は `kept` へ戻らないので、行としても残らない。
-    // ここだけ緩い側（単位ゼロ）へ倒れていたので、他の解釈不能ケースと同じく**集めた行をそのまま単位へ戻す**。
-    // 厳しい側なので棚卸しの移動は通らなくなるが、`pending` 要素の形の正本は 1 行のスカラ鍵 4 つである。
+    // **1 行に収まっていない値は、読めたことにしない。** 照合キーの値が空（次の行以降へ続くプレーンな複数行のスカラー）、
+    // ブロックスカラーの指示子（`|`・`>`）、閉じない引用符のときは、`code.slice(prefix.length)` が本文を取りこぼす。
+    // 畳むと本文が単位から消え、**要素を丸ごと消しても、文言を正反対に差し替えても通る**。
+    // 実測では、main は exit 1、畳むと exit 0 になり、判定できないのに合格として扱っていた。要素の行は `kept` に戻らないので、行としても残らない。
+    // ここだけ緩い側（単位ゼロ）として扱っていたので、他の解釈できない場合と同じく、**集めた行をそのまま単位に戻す**。
+    // 厳しい側なので棚卸しの移動は通らなくなるが、`pending` の要素の形の原本は、1 行のスカラの鍵 4 つである。
     if (!isSingleLineScalar(value)) {
       for (const line of rawLines) kept.push(line);
       return;
@@ -293,7 +296,7 @@ export function stripYamlBlocks(text, blocks, growable = [], registryGroups = []
     const raw = srcLines[li];
     const trimmed = raw.trim();
     const indent = raw.length - raw.trimStart().length;
-    // 空行・コメントは構造に属さないので**ブロックを閉じない**——閉じると、間にコメントを挟んだだけで
+    // 空行・コメントは構造に属さないので**ブロックを閉じない**。閉じると、間にコメントを挟んだだけで
     // 除外が切れ、続きの行が単位に戻る（設定ファイルのテンプレートは要素の書き方をコメントで示す）。
     const structural = trimmed !== "" && !trimmed.startsWith("#");
     if (scalarIndent !== null) {
@@ -304,9 +307,9 @@ export function stripYamlBlocks(text, blocks, growable = [], registryGroups = []
       }
     }
     if (excludeIndent !== null) {
-      // 空行・コメントは**ブロックを閉じないが、単位からも落とさない**——落とすと、外した領域の後ろに続く
-      // コメント（次の構造行までは閉じないので配下として扱われる）が黙って消せるようになる。
-      // 設定ファイルの正本は「既存のキー・値・コメントは変更しない」を要求しているので、コメントは守る側に残す。
+      // 空行・コメントは**ブロックを閉じないが、単位からも落とさない**。落とすと、外した領域の後ろに続く
+      // コメント（次の構造行までは閉じないので配下として扱われる）を警告なしに消せるようになる。
+      // 設定ファイルの原本は「既存のキー・値・コメントは変更しない」を要求しているので、コメントは守る側に残す。
       if (!structural) {
         kept.push(raw);
         continue;
@@ -339,7 +342,7 @@ export function stripYamlBlocks(text, blocks, growable = [], registryGroups = []
           registry.current.raw.push(raw);
         } else {
           // リストではない構造（マッピング等）。解釈できないので**行のまま単位に残す**
-          // （捨てると配下を丸ごと消しても通る。他の解釈不能ケースと同じく厳しい側へ倒す）。
+          // （捨てると配下を丸ごと消しても通る。他の解釈できない場合と同じく、厳しい側として扱う）。
           kept.push(raw);
         }
         continue;
@@ -369,17 +372,17 @@ export function stripYamlBlocks(text, blocks, growable = [], registryGroups = []
     const path = [...stack.map((s) => s.key), key].join(".");
     stack.push({ indent, key });
     if (targets.has(path)) {
-      // 配下は外すが、**キーが在り続けること自体は単位に残す**——行ごと外すと、キーを丸ごと消した破壊が
+      // 配下は外すが、**キーが在り続けること自体は単位に残す**。行ごと外すと、キーを丸ごと消した破壊が
       // 「外した領域」に紛れて通る。ただし行そのものを残すと表現の揺れ（`pending: []` ⇄ `pending:`）で落ちる。
       // 棚卸しは要素が増える方向にも減る方向にも動くので、**鍵だけの単位へ畳む**。
       kept.push(`${MUTABLE_BLOCK_PREFIX}${path}>`);
-      // 折り返したフロー値は**配下ごと消費する**——閉じ括弧の行は鍵と同じインデントに置けるので
+      // 折り返したフロー値は**配下ごと消費する**。閉じ括弧の行は鍵と同じインデントに置けるので
       // インデントによる除外が先に閉じ、1 行へ畳んだだけでその行（`] # c`）の単位が失われる。
       // 外すのは配下の要素なので、要素行の行末注記は単位にしない（独立したコメント行と閉じる行の注記は残す。
       // 除外中の空行・コメント行を単位に残す既存の扱いと揃う）。
       const { comment } = splitTrailingComment(trimmed);
-      // **値の形で門番しない**——`flowValue !== ""` で絞ると、開き括弧が次の行にある形
-      // （フォーマッタが畳む形）がブロック形式の側に落ち、閉じ括弧の行が素の行として単位になる。
+      // **値の形で門番しない**。`flowValue !== ""` で絞ると、開き括弧が次の行にある形
+      // （フォーマッタが畳む形）がブロック形式の側として扱われ、閉じ括弧の行が素の行として単位になる。
       // 形の判定は `readNamedFlow` が一手に持ち、ここは「フロー形式として読めたか（`block` でないか）」だけを見る。
       const flow = readNamedFlow(
         srcLines,
@@ -389,12 +392,12 @@ export function stripYamlBlocks(text, blocks, growable = [], registryGroups = []
         path,
         indent,
         wrappedOut,
-        // **接頭辞は渡さない**——mutable_blocks は配下を単位から外すので、この接頭辞が当たるのは
+        // **接頭辞は渡さない**。mutable_blocks は配下を単位から外すので、この接頭辞が当たるのは
         // 「鍵を丸ごと消した」ときだけ。当てると破壊に対して「表記を直しても通らない。内容を人が確認して通す」と
         // 案内することになる。折り返しで失われうるのは読みに行った行（`lines`）の方なので、そちらだけで帰属する。
         // **だから mutable_blocks で案内が出るのは、鍵と同じインデントに置いた要素行が失われたときだけ**
         // （除外がそこで閉じて行のまま単位になる。深い要素行は除外されて失われない）。
-        // 鍵・閉じる行の注記は独立した単位へ落とすので帰属せず、案内も出さない——配下は単位から外すので
+        // 鍵の行と閉じる行の注記は、独立した単位にするので帰属させず、案内も出さない。配下は単位から外すので、
         // 比較元が読めなくても判定は成り立ち、例に出た注記を戻せば通る（実測: 閉じ忘れ・比較元が閉じていない、
         // のどちらも注記を戻して exit 0。growable では同じ注記が読めない行のまま単位になるので案内が出る）。
         [],
@@ -406,8 +409,8 @@ export function stripYamlBlocks(text, blocks, growable = [], registryGroups = []
         continue;
       }
       excludeIndent = indent;
-      // 行末コメントは畳まず単位に残す——一覧の requirement は「既存のキー・値・コメントは変更しない」で、
-      // 外すのは配下の**要素**だけ。畳むとキー行に付いた注記だけが黙って消せるようになる
+      // 行末コメントは畳まず単位に残す。一覧の requirement は「既存のキー・値・コメントは変更しない」で、
+      // 外すのは配下の**要素**だけ。畳むと、キーの行に付いた注記だけを警告なしに消せるようになる
       // （別行のコメントは守られるので、残さないと同じファイルの中で非対称になる）。
       if (comment !== "") kept.push(comment);
       continue;
@@ -422,21 +425,21 @@ export function stripYamlBlocks(text, blocks, growable = [], registryGroups = []
         path,
         indent,
         wrappedOut,
-        // **要素の接頭辞（`<registry-item: <グループ id>>`）は渡さない**——鍵をまたぐ移動を許すため
-        // グループ共通で、鍵を弁別できない（`keep` が読めないだけで `pending` の削除にまで案内が付く）。
+        // **要素の接頭辞（`<registry-item: <グループ id>>`）は渡さない**。鍵をまたぐ移動を許すため
+        // グループ共通で、鍵を区別できない（`keep` が読めないだけで `pending` の削除にまで案内が付く）。
         // 読めなくなると鍵の単位（`<registry: パス>`）が失われるので、真の陽性はそちらで拾える。
         [`${REGISTRY_PREFIX}${path}>`],
         { keepItemComments: false },
       );
-      // 読めない値・スカラは展開せず行のまま（厳しい側へ倒す）。
+      // 読めない値・スカラは展開せず行のまま（厳しい側として扱う）。
       if (items === null) {
         kept.push(raw);
         continue;
       }
       li = last;
-      // 鍵の存在は鍵ごとの単位で守り、要素は**グループ共通の単位**にする——
+      // 鍵の存在は鍵ごとの単位で守り、要素は**グループ共通の単位**にする。
       // 棚卸しで `pending` の文言が `keep` / `may_change` へ移るのは正規の運用なので鍵をまたいで同じ単位にし、
-      // どの鍵にも無くなった（黙って消された）ときだけ単位が失われるようにする。
+      // どの鍵にも無くなった（警告なしに消された）ときだけ単位が失われるようにする。
       kept.push(`${REGISTRY_PREFIX}${path}>`);
       for (const c of comments) kept.push(c);
       const flowItemKey = registryItemKeys.get(registryId) ?? "item";
@@ -473,7 +476,7 @@ export function stripYamlBlocks(text, blocks, growable = [], registryGroups = []
         // 鍵（＋行末コメント）と要素を別々の単位にする。要素を足すと単位が増えるだけで通り、
         // 落とすと単位が失われて落ちる。値がフロー形式でない（ブロック形式・スカラ）ときは展開せず行のまま。
         kept.push(`${GROWABLE_PREFIX}${path}>`);
-        // 行末コメントは**鍵の単位に連結せず独立した単位にする**——連結すると、同じ注記を上の行へ
+        // 行末コメントは**鍵の単位に連結せず独立した単位にする**。連結すると、同じ注記を上の行へ
         // 出しただけの編集が「単位の消失」になり、mutable_blocks 側（独立した単位）と非対称になる。
         for (const c of comments) kept.push(c);
         for (const item of items) kept.push(`${GROWABLE_ITEM_PREFIX}${path}> ${item}`);
@@ -481,7 +484,7 @@ export function stripYamlBlocks(text, blocks, growable = [], registryGroups = []
       }
     }
     // ブロックスカラー指示子は `|2-` / `|-2` のようにインデント指示子とチョップ指示子が任意の順に付く。
-    // 取りこぼしても**外れる側には倒れない**——本文はスカラのキーの配下にあるので、本文行をキーとして
+    // 取りこぼしても、**外れる側とは判定されない**。本文はスカラのキーの配下にあるので、本文行をキーとして
     // 読んでもパスにそのキー名（`note.` 等）が入り、対象のキーパスとは一致しないため
     // （実測で再現を作れなかったので回帰テストは置いていない。ここは仕様への準拠として直してある）。
     if (/^[|>](?:[-+]?\d*|\d*[-+]?)$/.test(m[2].trim())) scalarIndent = indent;
@@ -495,7 +498,7 @@ export function stripYamlBlocks(text, blocks, growable = [], registryGroups = []
  * 次の構造行（空行・コメント行を飛ばした最初の行）を返す。無ければ空文字。
  *
  * 開き括弧が次の行にある形の判定に使う。**1 行だけ見ると、鍵と `[` の間に空行・コメント行が
- * 1 行入っただけでブロック形式に倒れ、フロー表記の誤検出が案内も出ないまま残る**
+ * 1 行入っただけでブロック形式と判定され、フロー表記の誤検出が案内も出ないまま残る**
  * （`joinWrappedFlow` は途中の空行・コメント行をまたぐので、そちらとも非対称になる）。
  * @param {string[]} lines
  * @param {number} li 鍵の行の添字
@@ -513,24 +516,23 @@ function nextStructuralLine(lines, li) {
  * 折り返されたフロー形式のコンテナを、続きの行を連結して 1 つの値として読む。
  *
  * **連結するのは名指しした鍵（`growable_containers` / `registry_groups`）の値だけ。**
- * 折り返しを読めないままにすると、比較元の折り返し行がそのまま単位になり、
- * 要素を足した編集も 1 行へ畳んだ編集も「行が失われた」に化ける（旧版・修正版の両方で実測）。
- * 自由度を広げるのはこの 1 軸——**名指しした鍵の値が何行に渡るか**——に限り、
- * 鍵のブロックを抜けても閉じなければ今までどおり読めなかったことにする（fail-closed）。
+ * 折り返しを読めないままにすると、比較元の折り返した行がそのまま単位になる。
+ * すると、要素を足した編集も 1 行に畳んだ編集も「行が失われた」と誤って判定される（旧版と修正版の両方で実測した）。
+ * 自由度を広げるのは、この 1 つの軸（**名指しした鍵の値が何行に渡るか**）に限る。
+ * 鍵のブロックを抜けても閉じなければ、今までどおり読めなかったことにする（判定できないときは失敗として扱う）。
  * 途中の空行・コメント行も**同じ軸の内側**なので連結を続ける。ここで打ち切ると、
  * 比較元の折り返し行がそのまま単位になり、**案内どおり 1 行へ書き直しても落ちる**
- * （実測: 追記で lost=1、1 行へ書き直して lost=3）。実行できない指示を出す側に倒さない。
- * @param {string[]} lines 文書の全行
- * @param {number} start 鍵の行の添字
- * @param {string} head 鍵の行（行末コメントを切った後）
- * @param {number} keyIndent 鍵の行のインデント
- * @param {string[]} scannedOut 読みに行った行（正規化済み）を積む先。読めなかったときの帰属判定に使う
- * @returns {{ items: string[], comments: string[], lineComments: string[], closing: string[],
- *   last: number } | "trailing" | null} `null` = 閉じないまま兄弟の構造へ出た・文書が終わった、
- *   `"trailing"` = 閉じた後に余りがある（案内の文面が変わるので区別する）。
- *   `items` = 連結して読めた要素、`comments` = 要素行の**行末**の注記、
- *   `lineComments` = 独立したコメント行、`closing` = 閉じる行の注記（＝鍵の注記）、
- *   `last` = 消費した最後の行の添字
+ * （実測: 追記で lost=1、1 行へ書き直して lost=3）。実行できない指示を出す側として扱わない。
+ * @param {string[]} lines 文書の全行。
+ * @param {number} start 鍵の行の添字。
+ * @param {string} head 鍵の行（行末コメントを切った後）。
+ * @param {number} keyIndent 鍵の行のインデント。
+ * @param {string[]} scannedOut 読みに行った行（正規化済み）を積む先。読めなかったときに、どこに属するかの判定に使う。
+ * @returns {{ items: string[], comments: string[], lineComments: string[], closing: string[], last: number } | "trailing" | null}
+ *   `null` は、閉じないまま兄弟の構造へ出たか、文書が終わったことを表す。
+ *   `"trailing"` は、閉じた後に余りがあることを表す（案内の文面が変わるので区別する）。
+ *   `items` は連結して読めた要素、`comments` は要素の行の**行末**の注記、`lineComments` は独立したコメントの行である。
+ *   `closing` は閉じる行の注記（＝鍵の注記）、`last` は消費した最後の行の添字である。
  */
 function joinWrappedFlow(lines, start, head, keyIndent, scannedOut) {
   let joined = head;
@@ -545,17 +547,17 @@ function joinWrappedFlow(lines, start, head, keyIndent, scannedOut) {
     // 空行は値の途中に書ける（単位にはならない）。コメント行は単位として残す。
     if (trimmed === "") continue;
     if (trimmed.startsWith("#")) {
-      // **帰属材料には入れない**——連結が失敗したときは閉じ括弧が無いので、この注記がコンテナの
+      // **帰属材料には入れない**。連結が失敗したときは閉じ括弧が無いので、この注記がコンテナの
       // 内にあったのか外（次の構造行の手前）にあったのかを区別できない。入れると、外の注記を
       // 消しただけで「復元せず閉じ括弧を補う」が付く（閉じ直しても消した注記は戻らないので行き止まりの指示）。
       lineComments.push(trimmed);
       continue;
     }
     // 鍵のブロックを抜けた＝**兄弟の構造**（新しい鍵・リスト要素）が同じか浅いインデントに現れた。
-    // インデントだけでは打ち切らない——フロー形式の要素は鍵と同じインデントに置けて、それは妥当な YAML
+    // インデントだけでは打ち切らない。フロー形式の要素は鍵と同じインデントに置けて、それは妥当な YAML
     // （`a:\n  keep: [\n  "x"\n  ]` は js-yaml で `{"a":{"keep":["x"]}}`）。打ち切るとフロー表記の誤検出が
     // そのまま残るうえ、打ち切らせた行は帰属材料に入らないので案内すら出ない。
-    // **打ち切らせた行は `scannedOut` に入れない**——コンテナの外にある兄弟の構造行なので、
+    // **打ち切らせた行は `scannedOut` に入れない**。コンテナの外にある兄弟の構造行なので、
     // 帰属材料に混ぜるとその行を消しただけで「復元せず閉じ括弧を補う」が付く（無関係な鍵の正規の削除に当たる）。
     const sibling =
       /^[A-Za-z0-9_.-]+:(\s|$)/.test(trimmed) || trimmed === "-" || trimmed.startsWith("- ");
@@ -564,7 +566,7 @@ function joinWrappedFlow(lines, start, head, keyIndent, scannedOut) {
     const split = splitTrailingComment(trimmed);
     joined = `${joined} ${split.code}`;
     const flow = scanFlow(joined.slice(joined.indexOf(":") + 1).trim());
-    // 読めた要素はここで返す。呼び出し側で連結後の文字列を取り直して読み直すと、値の切り出し方が
+    // 読めた要素はここで返す。呼び出し側で連結した後の文字列をもう一度取り出して読み直すと、値の切り出し方が
     // 2 箇所に分かれて片方だけ直る余地が残るので、読み方はこの 1 箇所に閉じる。
     // **閉じる行の注記は鍵の注記**（1 行で書けば鍵の行末に来る）なので、要素行の注記と分けて返す。
     if (flow.items !== null) {
@@ -587,13 +589,13 @@ function joinWrappedFlow(lines, start, head, keyIndent, scannedOut) {
  * 名指しした鍵の値をフロー形式のコンテナとして読む。読めなければ `items` が `null`
  * （呼び出し側は行のまま単位に残す）。
  *
- * 連結しても閉じないコンテナは `wrappedOut` へ積む——行のまま突き合わせると、要素を足した編集が
+ * 連結しても閉じないコンテナは `wrappedOut` へ積む。行のまま突き合わせると、要素を足した編集が
  * **直前の要素の行に付くカンマ**の書き換えとして縮小に見えるので、落ちたときに「復元せず閉じ括弧を補う」と
  * 案内するための材料。**帰属できる単位（読みに行った行と、このコンテナの要素が作る単位の接頭辞）まで
- * 一緒に積む**——ファイル単位で案内を出すと、同じファイルの**無関係な鍵**で起きた正規の削除にまで
+ * 一緒に積む**。ファイル単位で案内を出すと、同じファイルの**無関係な鍵**で起きた正規の削除にまで
  * 「復元せず閉じ括弧を補う」が付き、記録した決定を消させないというツールの目的と逆向きの指示になる。
- * @param {string[]} lines 文書の全行
- * @param {number} li 鍵の行の添字
+ * @param {string[]} lines 文書の全行。
+ * @param {number} li 鍵の行の添字。
  * @param {string} trimmed 鍵の行（前後の空白を除いたもの）
  * @param {string} key 鍵
  * @param {string} path 鍵パス
@@ -621,7 +623,7 @@ function readNamedFlow(
   const value = first.code.slice(key.length + 1).trim();
   // 鍵の行に値が無い形は 2 つある。**開き括弧が次の行にあるフロー形式**（YAML のフォーマッタは
   // 1 行に収まらないコンテナをこの形へ畳む）と、ブロック形式（`- …`）。前者をブロック形式として
-  // 扱うと中身が行のまま単位になり、要素を足しただけの編集が縮小に化けるうえ `wrappedOut` にも
+  // 扱うと中身が行のまま単位になり、要素を足しただけの編集が縮小と誤って判定されるうえ、 `wrappedOut` にも
   // 積まれないので「復元せず閉じ括弧を補う」案内すら出ない（フロー表記の誤検出と同じ害が残る）。
   const openedNext = value === "" && /^[[{]/.test(nextStructuralLine(lines, li));
   if (value === "" && !openedNext) return { items: [], comments, last: li, block: true };
@@ -638,12 +640,12 @@ function readNamedFlow(
   }
   return {
     items: joined.items,
-    // 要素行の注記を単位にするかは成果物の要求で分かれる。**registry は単位にしない**——
+    // 要素行の注記を単位にするかは成果物の要求で分かれる。**registry は単位にしない**。
     // `flushRegistryItem` がブロック形式で同じ判断をしており（移動先に置き場所が無く、注記の付いた要素の誤検出になる）、
     // フロー形式だけが守ると、正規の棚卸し（pending の文言を keep へ移す）が表記を変えただけで落ちる。
-    // 独立したコメント行（`joined.lineComments`）は**どちらの成果物でも単位にする**——
-    // 要素に付いた注記と違って移動先の問題が無く、落とすと折り返したコンテナの中の注記だけが
-    // 黙って消せるようになる（main では落ちていた形を通す fail-open）。
+    // 独立したコメント行（`joined.lineComments`）は**どちらの成果物でも単位にする**。
+    // 要素に付いた注記と違って移動先の問題が無く、単位から外すと、折り返したコンテナの中の注記だけを
+    // 警告なしに消せるようになる（main では失敗にしていた形を通してしまう）。
     comments: options.keepItemComments
       ? [...comments, ...joined.lineComments, ...joined.comments, ...joined.closing]
       : [...comments, ...joined.lineComments, ...joined.closing],
@@ -655,11 +657,11 @@ function readNamedFlow(
 /**
  * 行を突き合わせ用に正規化する（空白を畳む。空行は落とす）。
  * @param {string} text
- * @param {string[]} [mutableBlocks] 単位から外す YAML のキーパス（上記 stripYamlBlocks）
- * @param {string[]} [growableContainers] 要素ごとの単位へ展開する YAML のキーパス（同上）
- * @param {{ id: string, itemKey: string, paths: string[] }[]} [registryGroups] 同上
+ * @param {string[]} [mutableBlocks] 単位から外す YAML のキーパス（上の stripYamlBlocks を参照）。
+ * @param {string[]} [growableContainers] 要素ごとの単位へ展開する YAML のキーパス（同上）。
+ * @param {{ id: string, itemKey: string, paths: string[] }[]} [registryGroups] 同上。
  * @param {{ path: string, prefixes: string[], lines: string[] }[]} [wrappedOut] 連結しても閉じない
- *   フロー形式のコンテナを積む先（診断用。帰属判定の材料を伴う）
+ *   フロー形式のコンテナを積む先（診断用。どこに属するかを判定する材料を伴う）。
  * @returns {Map<string, number>} 正規化した行 → 出現回数
  */
 export function normalizeLines(
@@ -688,7 +690,7 @@ export function normalizeLines(
  *
  * 入れ子・引用符を数えるだけの簡易スキャナで、YAML の全機能（アンカー・別名・複数行）は解釈しない。
  * **読み切れなければ `null`**（判定不能）を返し、呼び出し側は厳しい側＝縮小として扱う。
- * 閉じ括弧まで揃っているかを見るのは**この関数の責務**なので、呼び出し側に事前条件は無い——
+ * 閉じ括弧まで揃っているかを見るのは**この関数の責務**なので、呼び出し側に事前条件は無い。
  * 任意の文字列を渡してよく、フロー形式として読めなければ `null` が返る
  * （「閉じていることを確かめてから渡す」と読める書き方にすると、`null` 判定を握り潰す実装を誘う）。
  * @param {string} raw 任意の文字列（`[` / `{` で始まり同じ行で閉じていなければ `null`）
@@ -699,12 +701,12 @@ export function flowItems(raw) {
 }
 
 /**
- * フロー形式のコンテナを読む（`flowItems` と折り返し検出の共通の正本）。
+ * フロー形式のコンテナを読む（`flowItems` と、折り返しの検出に共通する処理）。
  *
- * **閉じ括弧の位置まで見る。** 以前は `raw.slice(1, -1)` で末尾 1 文字を閉じ括弧と決め打ちしていたため、
- * 1 行に収まっていないコンテナ（フォーマッタや長い値で折り返されたもの）を「読めた」ことにしていた——
+ * **閉じ括弧の位置まで見る。** 以前は `raw.slice(1, -1)` で、末尾の 1 文字を閉じ括弧と決め打ちしていた。
+ * 1 行に収まっていないコンテナ（フォーマッタや長い値で折り返されたもの）を、「読めた」ことにしていた。
  * `[` は空コンテナ（`[]`）、`[ "a",` は要素 1 件の完全な読みとして返り、
- * 要素を足しただけの編集が縮小に化けた。読めない形は `null` へ倒し、呼び出し側は行のまま突き合わせる。
+ * 要素を足しただけの編集が縮小と誤って判定された。読めない形は `null` を返し、呼び出し側は行のまま突き合わせる。
  * @param {string} raw
  * @returns {{ items: string[] | null, reason: null | "not-flow" | "unclosed" | "trailing" }}
  *   `unclosed` = 同じ行で閉じていない（折り返されたコンテナ）、`trailing` = 閉じた後に余りがある
@@ -728,10 +730,10 @@ function scanFlow(raw) {
       if (ch === quote) quote = null;
       continue;
     }
-    // 引用符は**値の開始**でだけ開く。`opensQuoteAt` と同じ判定を同じ実装（`opensQuoteAfter`）で行う——
-    // 「要素の先頭」に狭めると、マッピングの値（`{item: "…"}`）では引用符が直前の `item:` に阻まれて開かず、
-    // 値の中のカンマがペアの区切りに化ける（`registryItemValue` が単位を `"順序は id` のような断片へ畳み、
-    // 棚卸しが落ち、文言の差し替えが無音で通る）。`don't` のアポストロフィは値の途中なので今までどおり値の一部。
+    // 引用符は**値の開始**でだけ開く。`opensQuoteAt` と同じ判定を同じ実装（`opensQuoteAfter`）で行う。
+    // 「要素の先頭」に狭めると、マッピングの値（`{item: "…"}`）では、直前の `item:` があるので引用符が開かない。
+    // すると値の中のカンマがペアの区切りと誤って判定される（`registryItemValue` が単位を `"順序は id` のような断片へ畳み、
+    // 棚卸しが失敗し、文言の差し替えが警告なしに通る）。`don't` のアポストロフィは値の途中なので今までどおり値の一部。
     if ((ch === '"' || ch === "'") && opensQuoteAfter(cur)) {
       quote = ch;
       cur += ch;
@@ -774,7 +776,7 @@ function scanFlow(raw) {
           t.length >= 2 &&
           ((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'")));
         if (quoted) return t.slice(1, -1);
-        // 入れ子のコンテナは**正規形へ組み直す**——要素自身が折り返されると末尾カンマや余分な空白が
+        // 入れ子のコンテナは**正規形へ組み直す**。要素自身が折り返されると末尾カンマや余分な空白が
         // 残り、内容を 1 文字も変えていない整形だけで別の単位になる（コンテナは閉じているので
         // 案内も出ず、書き手は「復元」へ向かう。フロー表記の誤検出で避けたかった向き）。
         const nested = scanFlow(t);
@@ -791,8 +793,8 @@ function scanFlow(raw) {
  *
  * ブロック形式は flushRegistryItem が `item_key:` の行を探すが、フロー形式
  * （`pending: [{item: <文言>, slug: …}]`）は 1 要素が 1 つの文字列として返るので、同じ抜き出しをここで行う。
- * 行わないとマッピング全文が単位になり、追随フィールド（`slug` / `added_by` / `added_at`）ごと突き合わせることになって、
- * 棚卸しで鍵をまたいで移した要素（移動先に追随フィールドは無い）が「失われた」に化ける——
+ * 行わないと、マッピングの全文が単位になり、追随フィールド（`slug`・`added_by`・`added_at`）ごと突き合わせることになる。
+ * すると、棚卸しで鍵をまたいで移した要素（移動先に追随フィールドは無い）が、「失われた」と誤って判定される。
  * ブロック形式で通る棚卸しが表記を変えただけで落ちる非対称が残り、注記の付いた要素の誤検出がフロー表記のまま生き残る。
  * @param {string} raw 要素のテキスト（flowItems が引用符を剥がした後）
  * @param {string} itemKey 照合キー
@@ -802,7 +804,7 @@ function registryItemValue(raw, itemKey) {
   const t = raw.trim();
   if (!t.startsWith("{") || !t.endsWith("}")) return unquote(t);
   const pairs = flowItems(t);
-  // 読めないマッピング・照合キーの無いマッピングは**全文を単位に残す**（他の解釈不能ケースと同じく厳しい側へ倒す。
+  // 読めないマッピング・照合キーの無いマッピングは**全文を単位に残す**（他の解釈できない場合と同じく、厳しい側として扱う。
   // 鍵をまたぐ移動は追随フィールドまで一致したときだけ通る）。
   if (pairs === null) return t;
   for (const pair of pairs) {
@@ -818,7 +820,7 @@ function registryItemValue(raw, itemKey) {
  * その値が**1 行に収まったスカラ**かを見る（`kept` へ畳んでよいか）。
  *
  * YAML のパーサを持たないので、1 行を超える値は読めない。読めない値を畳むと本文が単位から消えるため、
- * この判定が false のものは畳まず行のまま残す（厳しい側へ倒す）。
+ * この判定が false のものは、畳まずに行のまま残す（厳しい側として扱う）。
  * @param {string} value 行末コメントを切った後の値
  * @returns {boolean}
  */
@@ -873,10 +875,10 @@ export function splitTrailingComment(line) {
  * その位置の引用符が**値の開始**かを見る（YAML のプレーンスカラーでは引用符は特別扱いされない）。
  *
  * 位置に関わらず開き引用符として扱うと、`keep: [don't rename] # …` のアポストロフィで行末まで閉じず、
- * コメントも値も読めないまま緩和が無音で外れる。逆に「閉じなければ引用符を無視して取り直す」形にすると、
- * **同じ値でも同じ行の別の要素次第でモードが変わり**、比較元と現在で読み方が割れる
- * （`["a, b"]` は 1 要素、`["a, b", don't]` は 3 要素に割れて、要素を足しただけで縮小に見える）。
- * そこで直前の非空白文字で判定する——値の開始（行頭・`:`・`,`・`[`・`{` の直後）だけを開き引用符にする。
+ * コメントも値も読めないまま、緩和が警告なしに外れる。逆に「閉じなければ引用符を無視して読み直す」形にすると、
+ * **同じ値でも、同じ行の別の要素によってモードが変わり**、比較元と現在で読み方が割れる。
+ * 例えば `["a, b"]` は 1 要素、`["a, b", don't]` は 3 要素に割れるので、要素を足しただけで縮小に見える。
+ * そこで直前の非空白文字で判定する。値の開始（行頭・`:`・`,`・`[`・`{` の直後）だけを開き引用符にする。
  * @param {string} line
  * @param {number} i
  * @returns {boolean}
@@ -886,7 +888,7 @@ function opensQuoteAt(line, i) {
 }
 
 /**
- * 直前までのテキストを見て、次に来る引用符が**値の開始**かを判定する（`opensQuoteAt` と `flowItems` の共通の正本）。
+ * 直前までのテキストを見て、次に来る引用符が**値の開始**かを判定する（`opensQuoteAt` と `flowItems` に共通する判定）。
  *
  * 2 箇所で同じ規則だと書きながら別々に実装していたために、片方（`flowItems`）だけが「要素の先頭」に狭まり、
  * マッピングの値の引用符が開かなくなっていた。**判定を共有して規則が 1 つであることを実装で保証する。**
@@ -929,14 +931,14 @@ function tableCells(line) {
  * 落とさせない相手は「節・列・行・行の決定内容・箇条書きの鍵・散文」。
  * 行の同一性は先頭セル（slug・種類・箇所などの鍵）で見るが、**鍵だけを残すと残りのセルが
  * 自由に書き換えられる**（決定の出どころ・方針・理由を丸ごと差し替えても行は在る）。
- * そこで行 × 列のセルも単位にし、正本がその場の更新を定めている列だけ mutableColumns で外す。
+ * そこで行 × 列のセルも単位にし、原本がその場の更新を定めている列だけを mutableColumns で外す。
  * 列を足す非破壊更新は新しい単位が増えるだけなので落ちない。
- * 空欄で追記して後で決定を埋める列は fillOnlyColumns に挙げ、**空セルだけ**を単位にしない——
+ * 空欄で追記して後で決定を埋める列は fillOnlyColumns に挙げ、**空セルだけ**を単位にしない。
  * 空 → 非空は単位が増えるだけなので通り、入っている値の差し替え・消去は単位の消失として落ちる。
- * 箇条書きも鍵と値の両方を守り、正本が更新を定めている項目だけ mutableBullets で外す。散文は行そのもの。
- * @param {string} text
- * @param {string[]} [mutableColumns] 値の更新を正本が認めている列名（"*" でセルを契約の対象外）
- * @param {string[]} [mutableBullets] 値の更新を正本が認めている箇条書きの鍵（"*" で値を契約の対象外）
+ * 箇条書きも鍵と値の両方を守り、原本が更新を定めている項目だけを mutableBullets で外す。散文は行そのもの。
+ * @param {string} text 文書の本文。
+ * @param {string[]} [mutableColumns] 値の更新を原本が認めている列名（"*" なら、セルを取り決めの対象外にする）。
+ * @param {string[]} [mutableBullets] 値の更新を原本が認めている箇条書きの鍵（"*" なら、値を取り決めの対象外にする）。
  * @param {string[]} [fillOnlyColumns] 空 → 非空だけを許す列名
  * @returns {Map<string, number>} 単位 → 出現回数
  */
@@ -949,7 +951,7 @@ export function markdownUnits(
   const mutable = new Set(mutableColumns.map((c) => c.trim()));
   const fillOnly = new Set(fillOnlyColumns.map((c) => c.trim()));
   const mutableBullet = new Set(mutableBullets.map((c) => c.trim()));
-  // "*" は「中身は契約の対象外」（一覧の requirement が節・列・行・ヘッダ項目だけを守ると定めている成果物）。
+  // "*" は「中身は取り決めの対象外」（一覧の requirement が節・列・行・ヘッダ項目だけを守ると定めている成果物）。
   const allCellsMutable = mutable.has("*");
   const allBulletsMutable = mutableBullet.has("*");
   /** @type {Map<string, number>} 同じ鍵の箇条書きが何度目か */
@@ -999,7 +1001,7 @@ export function markdownUnits(
       add(`R:${path}#${tableIndex}|${rowKey}`);
       // 同じ鍵の行は出現順で区別する。区別しないと列ごとの多重集合になり、
       // 同じ鍵を持つ 2 行の間でセルを入れ替えても単位が変わらない
-      // （assets.md は方針を覆した行と現在の行が同じ「種類」で 2 行並ぶ——正本が想定する形）。
+      // （assets.md は方針を覆した行と現在の行が同じ「種類」で 2 行並ぶ。原本が想定する形である）。
       // 追記専用の台帳なので既存行の並びは変わらず、出現順は安定した識別子になる。
       const seenKey = `${path}#${tableIndex}|${rowKey}`;
       const occurrence = rowOccurrences.get(seenKey) ?? 0;
@@ -1008,8 +1010,8 @@ export function markdownUnits(
         for (const [i, cell] of cells.entries()) {
           if (i === 0) continue; // 先頭セルは鍵そのもの
           const column = columns[i] ?? `#${i}`;
-          if (mutable.has(column)) continue; // 正本がその場の更新を定めている列
-          // 未記入は空セルだけ。`-`（該当なし）と `未確認` は決めた値・記録として守る——
+          if (mutable.has(column)) continue; // 原本がその場の更新を定めている列
+          // 未記入は空セルだけ。`-`（該当なし）と `未確認` は決めた値・記録として守る。
           // `-` も未記入に数えると、決定済みの行の「該当なし」をその場で値へ書き換えられる。
           if (fillOnly.has(column) && cell === "") continue;
           add(`R:${seenKey}@${occurrence}|${column}=${cell}`);
@@ -1025,7 +1027,7 @@ export function markdownUnits(
       add(`B:${path}|${bulletKey}`);
       if (!allBulletsMutable && !mutableBullet.has(bulletKey)) {
         // 鍵だけを守ると値（決定の中身）が自由に書き換わる。
-        // 正本がその場の更新を定めている項目だけ mutable_bullets で外す。
+        // 原本がその場の更新を定めている項目だけを mutable_bullets で外す。
         const seenBullet = `${path}|${bulletKey}`;
         const n = bulletOccurrences.get(seenBullet) ?? 0;
         bulletOccurrences.set(seenBullet, n + 1);
@@ -1117,8 +1119,8 @@ export function jsonArrayUnits(text, paths, label, key = null) {
  * JSON の指定した配列を鍵で対応づけ、フィールド単位で突き合わせる。
  *
  * 鍵だけを同一性にすると、鍵以外のフィールドが自由に書き換えられる（承認済みの項目の
- * 理由・承認者・承認日時を差し替えても鍵は残る）。そこで既定は「鍵以外は不変」にし、
- * 正本が更新を定めている項目だけを fill_only（空 → 非空だけ）と transitions（明示した値の遷移だけ）で開ける。
+ * 理由・承認者・承認日時を差し替えても鍵は残る）。そこで、デフォルトは「鍵以外は変えない」にする。
+ * 原本が更新を定めている項目だけを、fill_only（空から空でない値への変更だけ）と transitions（明示した値の遷移だけ）で開ける。
  * @param {string} beforeText
  * @param {string} afterText
  * @param {{ arrays: string[], key: string, fillOnly: string[], transitions: Record<string, string[]> }} artifact
@@ -1288,7 +1290,7 @@ export function readManifest(manifestPath) {
     parsed = JSON.parse(readFileSync(manifestPath, "utf8"));
   } catch (e) {
     throw new UsageError(
-      `一覧が JSON として壊れている: ${manifestPath}（${e instanceof Error ? e.message : String(e)}）`,
+      `一覧を JSON として読めない: ${manifestPath}（${e instanceof Error ? e.message : String(e)}）`,
     );
   }
   if (!isPlainObject(parsed) || !Array.isArray(parsed.artifacts)) {
@@ -1301,7 +1303,7 @@ export function readManifest(manifestPath) {
     if (!nonEmptyString(a.id) || !nonEmptyString(a.pattern)) {
       throw new UsageError(`artifacts[${i}] の id / pattern が空`);
     }
-    // **id は一覧の中で一意**——重複を許すと「同じ id なら同じ項目」という前提が崩れ、
+    // **id は一覧の中で一意**。重複を許すと「同じ id なら同じ項目」という前提が崩れ、
     // 同じファイルに当たった突き合わせ方の違う 2 項目が無音で先勝ちに決まる
     // （緩い規則＝mutable_columns の多い方が先に来ると、厳しい規則が守るはずの列への破壊的編集が検出から外れる）。
     const id = String(a.id).trim();
@@ -1372,7 +1374,7 @@ export function readManifest(manifestPath) {
             throw new UsageError(`artifacts[${i}].transitions.${field} が空の配列`);
           }
           for (const t of list) {
-            // 「<変更前>-><変更後>」だけを受ける。曖昧な表記を黙って通さない。
+            // 「<変更前>-><変更後>」だけを受ける。曖昧な表記を警告なしに通さない。
             if (!nonEmptyString(t) || !/^[^>]+->[^>]+$/.test(String(t).trim())) {
               throw new UsageError(
                 `artifacts[${i}].transitions.${field} の要素が <変更前>-><変更後> の形でない: ${JSON.stringify(t)}`,
@@ -1433,13 +1435,13 @@ export function readManifest(manifestPath) {
             throw new UsageError(`artifacts[${i}].fill_only_columns に空の要素がある`);
         }
         fillOnlyColumns = a.fill_only_columns.map((x) => String(x).trim());
-        // "*" は「全列を空 → 非空だけ」と「契約の対象外」のどちらにも読めるので受けない。
+        // "*" は「全列を空 → 非空だけ」と「取り決めの対象外」のどちらにも読めるので受けない。
         if (fillOnlyColumns.includes("*")) {
           throw new UsageError(
             `artifacts[${i}].fill_only_columns に "*" がある（列名で名指しする）`,
           );
         }
-        // 同じ列を両方に書くと、緩い方（mutable_columns）が黙って勝ち、決めた値の書き換えが通る。
+        // 同じ列を両方に書くと、緩い方（mutable_columns）が警告なしに優先され、決めた値の書き換えが通る。
         const overlap = mutableColumns.includes("*")
           ? fillOnlyColumns
           : fillOnlyColumns.filter((c) => mutableColumns.includes(c));
@@ -1469,7 +1471,7 @@ export function readManifest(manifestPath) {
             throw new UsageError(`artifacts[${i}].registry_groups の要素に id / item_key が無い`);
           }
           const id = String(group.id).trim();
-          // id が重なると別グループの要素が同じ単位に畳まれ、鍵をまたぐ移動の範囲が黙って広がる。
+          // id が重なると別グループの要素が同じ単位に畳まれ、鍵をまたぐ移動の範囲が警告なしに広がる。
           if (seenGroupIds.has(id)) {
             throw new UsageError(`artifacts[${i}].registry_groups の id が重複している: ${id}`);
           }
@@ -1529,7 +1531,7 @@ export function readManifest(manifestPath) {
         for (const b of a.mutable_blocks) {
           if (!nonEmptyString(b))
             throw new UsageError(`artifacts[${i}].mutable_blocks に空の要素がある`);
-          // キーパス以外（先頭・末尾のドット、空のセグメント）は黙って「一致しないパス」になり、
+          // キーパス以外（先頭・末尾のドット、空のセグメント）は、警告なしに「一致しないパス」になり、
           // 外したつもりの領域が単位に残る。書いた側の誤りとして落とす。
           if (!KEY_PATH.test(String(b).trim())) {
             throw new UsageError(
@@ -1554,10 +1556,10 @@ export function readManifest(manifestPath) {
       }
     }
     // **3 つのオプションの間でパスは重ならない。完全一致だけでなく祖先・子孫の重なりも落とす。**
-    // 重なると同じキーに 2 通りの単位が当たり、実装の分岐順で先勝ちが決まる（緩い方が勝つと、
-    // 検出できていたはずの削除が無音で通る）。祖先の側はとくに危ない——`mutable_blocks` は配下を丸ごと
-    // 単位から外すので、子孫に書いた `growable_containers` / `registry_groups` の展開はそこへ到達せず、
-    // **その配下の削除がすべて通る**（実測: `a.b` を外した状態で `a.b.c` を空にし `a.b.d` を消しても失われた単位 0）。
+    // 重なると、同じキーに 2 通りの単位が当たり、実装の分岐の順で先に当たった方に決まる。緩い方が当たると、
+    // 検出できていたはずの削除が警告なしに通る。祖先の側はとくに危ない。`mutable_blocks` は配下を丸ごと
+    // 単位から外すので、子孫に書いた `growable_containers` / `registry_groups` の展開は、そこへ到達しない。
+    // すると、**その配下の削除がすべて通る**（実測: `a.b` を外した状態で `a.b.c` を空にし `a.b.d` を消しても失われた単位 0）。
     // 一覧をコピーして `--manifest` で渡す運用でコピー側に祖先を足した瞬間に成立するため、使い方の誤りとして落とす。
     // グループ内・グループ間の重複を exit 2 にしているのと同じ理由。
     /** @type {{ path: string, option: string }[]} 既に見たパスと由来のオプション名 */
@@ -1613,7 +1615,7 @@ export function check(opts) {
   // 一覧の形の検査（id の重複・パスの入れ子）は除外の前に全項目へ当てる。
   const declared = readManifest(manifestPath);
   if (declared.length === 0) throw new UsageError(`一覧の artifacts が 0 件: ${manifestPath}`);
-  // 除外は緩和経路なので閉じた集合にする: 一覧に無い id は綴り違いでも黙って何も外さないことになるため落とす。
+  // 除外は緩和の手段なので、閉じた集合にする。一覧に無い id は、綴り違いでも警告なしに何も外さないことになるので、エラーにする。
   const unknown = exclude.filter((id) => !declared.some((a) => a.id === id));
   if (unknown.length > 0) {
     throw new UsageError(
@@ -1623,7 +1625,7 @@ export function check(opts) {
   const artifacts = declared.filter((a) => !exclude.includes(a.id));
   if (artifacts.length === 0) {
     throw new UsageError(
-      `--exclude で一覧の項目がすべて外れた（何も突き合わせずに合格に倒さない）`,
+      `--exclude で一覧の項目がすべて外れた（何も突き合わせずに合格として扱わない）`,
     );
   }
 
@@ -1637,8 +1639,8 @@ export function check(opts) {
   }
 
   // root がリポジトリのトップレベルとは限らない（.replace が monorepo の一階層下に在る等）。
-  // ls-tree の既定は cwd 相対のパスを返す一方、`git show <rev>:<path>` の path はトップレベル起点なので、
-  // 揃えずに混ぜると全件が「比較元に無い＝新規」に化けて、突き合わせが 1 件も成立しない。
+  // ls-tree はデフォルトで cwd 相対のパスを返す一方、`git show <rev>:<path>` の path はトップレベル起点なので、
+  // 揃えずに混在させると、全件が「比較元に無い＝新規」と誤って判定され、突き合わせが 1 件も成立しない。
   // そこで --full-tree でトップレベル起点に揃え、root までの prefix で相互に変換する。
   const top = git(root, ["rev-parse", "--show-toplevel"]);
   if (top.status !== 0 || top.stdout.trim() === "") {
@@ -1745,7 +1747,7 @@ export function check(opts) {
     const before = git(root, ["show", `${base}:${prefix}${file}`]);
     if (before.status !== 0) {
       if (inBase) {
-        // 比較元の木に在るのに取り出せない。「新規」に倒すと縮小が数えられないまま素通りする。
+        // 比較元の木に在るのに取り出せない。「新規」として扱うと、縮小を数えられないまま通ってしまう。
         throw new UsageError(
           `比較元 ${base} の木に在るのに内容を取り出せない: ${file}（${before.stderr.trim()}）`,
         );
@@ -1778,7 +1780,7 @@ export function check(opts) {
     }
     /**
      * @type {{ path: string, prefixes: string[], lines: string[] }[]}
-     * 連結しても閉じないフロー形式のコンテナ。**比較元と現在で分けて集める**——
+     * 連結しても閉じないフロー形式のコンテナ。**比較元と現在で分けて集める**。
      * 比較元側にあると、比較元の行がそのまま単位なので**どう直しても通らない**（案内の指示が実行できない）。
      * `lines` / `prefixes` は、失われた単位をそのコンテナへ帰属させるための材料。
      */
@@ -1817,12 +1819,12 @@ export function check(opts) {
       // 書き換えとして縮小に見える。指示どおり復元すると記録した決定が消えるので、
       // 書き直す方向を名指しで案内する。
       // 比較元側に読めないコンテナがあると、比較元の行がそのまま単位なので**どの編集でも通らない**。
-      // 「直せば通る」と読める案内を出さず、人の確認で通す経路を示す。
-      // **現在側の案内を比較元側で抑止しない**——別の鍵のコンテナをこの変更で壊したなら、それは閉じ直せば
+      // 「直せば通る」と読める案内を出さず、人の確認で通す方法を示す。
+      // **現在側の案内を比較元側で抑止しない**。別の鍵のコンテナをこの変更で壊したなら、それは閉じ直せば
       // 通る部分なので名指しする（抑止すると、閉じ直せば通るコンテナが一度も案内されない）。
       // 同じ鍵が両側に在るときだけ比較元側に寄せる（閉じ直しても比較元の行は戻らない）。
       const afterOnly = [...blamedAfter].filter((path) => !blamedBefore.has(path));
-      // 直し方は「閉じ括弧を補う」に限る。**1 行へ畳むは示さない**——growable_containers は要素行の
+      // 直し方は「閉じ括弧を補う」に限る。**1 行へ畳むは示さない**。growable_containers は要素行の
       // 行末注記も単位なので、畳むと注記の単位が消えて落ちる（実測: 追記＋閉じ忘れで lost=5、
       // 1 行へ畳むと lost=1 で案内も消える、閉じ直すと exit 0）。閉じ直しはどの成果物でも通る。
       const hint =
@@ -1851,7 +1853,7 @@ export function check(opts) {
   return { findings, notes, checked };
 }
 
-/** 同梱の一覧（正本）。 */
+/** 同梱の一覧（原本）。 */
 export function defaultManifestPath() {
   return resolve(
     dirname(fileURLToPath(import.meta.url)),
