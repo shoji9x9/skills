@@ -19,7 +19,7 @@
       "id": "CC-HEREDOC",
       "why": "heredoc の本文をコメントとして取り出す",
       "file": "scripts/lib/code-comments.js",
-      "find": "          heredocs.push({ delimiter: m[3], stripTabs: m[1] === \"-\" });",
+      "find": "          heredocs.push({ delimiter: m[3].replace(/\\\\/g, \"\"), stripTabs: m[1] === \"-\" });",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
@@ -29,7 +29,8 @@
         "シェル heredoc の本文（タブを外す区切り）はコメントにしない",
         "シェル heredoc の本文（コマンド置換の中）はコメントにしない",
         "シェル CRLF の heredoc でも、区切りの行で本文が終わる",
-        "シェル 区切りの名前に - や . を含む heredoc も、その名前の行で終わる"
+        "シェル 区切りの名前に - や . を含む heredoc も、その名前の行で終わる",
+        "シェル heredoc の本文（バックスラッシュで引用した区切り）はコメントにしない"
       ]
     },
     {
@@ -129,17 +130,21 @@
         "JavaScript・TypeScript 行コメントとブロックコメントを取り出し、記号を外す",
         "JavaScript・TypeScript 続く行は 1 段落、間にコードの行があれば別の段落にする",
         "JavaScript・TypeScript コメントの中の空行で段落を分ける",
-        "JavaScript・TypeScript 日本語を含まない段落は入れない"
+        "JavaScript・TypeScript 日本語を含まない段落は入れない",
+        "JavaScript・TypeScript 英語だけの JSDoc は、次の行に続く型を置き換えても入れない"
       ]
     },
     {
       "id": "CC-JAPANESE",
       "why": "日本語を含まない段落も入れる",
       "file": "scripts/lib/code-comments.js",
-      "find": "    if (!directive && !block.some((p) => JAPANESE.test(p.text))) continue;",
+      "find": "    if (!directive && !block.some((p) => JAPANESE.test(p.original ?? p.text))) continue;",
       "replace": "",
       "occurrences": 1,
-      "expect_failing": ["JavaScript・TypeScript 日本語を含まない段落は入れない"]
+      "expect_failing": [
+        "JavaScript・TypeScript 日本語を含まない段落は入れない",
+        "JavaScript・TypeScript 英語だけの JSDoc は、次の行に続く型を置き換えても入れない"
+      ]
     },
     {
       "id": "CC-DIRECTIVE-JOIN",
@@ -173,7 +178,8 @@
       "occurrences": 1,
       "expect_failing": [
         "JavaScript・TypeScript JSDoc のタグと型はタグの名前のインラインコードにし、タグの行ごとに段落を分ける",
-        "JavaScript・TypeScript 型の括弧が次の行以降で閉じるなら、閉じるところまでを型として置き換える"
+        "JavaScript・TypeScript 型の括弧が次の行以降で閉じるなら、閉じるところまでを型として置き換える",
+        "JavaScript・TypeScript JSDoc の本文の // を別のコメントとして二重に取り出さない"
       ]
     },
     {
@@ -187,7 +193,8 @@
         "JavaScript・TypeScript JSDoc のタグと型はタグの名前のインラインコードにし、タグの行ごとに段落を分ける",
         "JavaScript・TypeScript 型の括弧が次の行以降で閉じるなら、閉じるところまでを型として置き換える",
         "JavaScript・TypeScript 位置: 型の続きの行の後ろの文章も、元の行と桁に戻す",
-        "JavaScript・TypeScript 位置: JSDoc のタグの後ろの文章も、元の行と桁に戻す"
+        "JavaScript・TypeScript 位置: JSDoc のタグの後ろの文章も、元の行と桁に戻す",
+        "JavaScript・TypeScript JSDoc の本文の // を別のコメントとして二重に取り出さない"
       ]
     },
     {
@@ -212,7 +219,8 @@
         "JavaScript・TypeScript 行コメントとブロックコメントを取り出し、記号を外す",
         "JavaScript・TypeScript JSDoc のタグと型はタグの名前のインラインコードにし、タグの行ごとに段落を分ける",
         "JavaScript・TypeScript 型の括弧が次の行以降で閉じるなら、閉じるところまでを型として置き換える",
-        "JavaScript・TypeScript コメントの中の空行で段落を分ける"
+        "JavaScript・TypeScript コメントの中の空行で段落を分ける",
+        "JavaScript・TypeScript JSDoc の本文の // を別のコメントとして二重に取り出さない"
       ]
     },
     {
@@ -256,7 +264,8 @@
         "JavaScript・TypeScript 続く行は 1 段落、間にコードの行があれば別の段落にする",
         "JavaScript・TypeScript 行の後ろのコメントは、前後のコメントと別の段落にする",
         "JavaScript・TypeScript 日本語を含まない段落は入れない",
-        "JavaScript・TypeScript 位置: 行コメント・ブロックコメントの 1 行目・2 行目以降を元の行と桁に戻す"
+        "JavaScript・TypeScript 位置: 行コメント・ブロックコメントの 1 行目・2 行目以降を元の行と桁に戻す",
+        "JavaScript・TypeScript 英語だけの JSDoc は、次の行に続く型を置き換えても入れない"
       ]
     },
     {
@@ -289,8 +298,8 @@
       "id": "CC-SH-SEPARATOR",
       "why": "シェルの空白と区切りの後を語の先頭として扱わない",
       "file": "scripts/lib/code-comments.js",
-      "find": "        wordStart = true;\n        continue;",
-      "replace": "        continue;",
+      "find": "      if (/[\\s;&|()]/.test(c)) {\n        wordStart = true;\n",
+      "replace": "      if (/[\\s;&|()]/.test(c)) {\n",
       "occurrences": 1,
       "expect_failing": [
         "シェル 行頭と空白の後の # をコメントにする",
@@ -327,7 +336,10 @@
       "find": "([^\\s'\"<>;&|()]+)",
       "replace": "([A-Za-z_][A-Za-z0-9_]*)",
       "occurrences": 1,
-      "expect_failing": ["シェル 区切りの名前に - や . を含む heredoc も、その名前の行で終わる"]
+      "expect_failing": [
+        "シェル 区切りの名前に - や . を含む heredoc も、その名前の行で終わる",
+        "シェル heredoc の本文（バックスラッシュで引用した区切り）はコメントにしない"
+      ]
     },
     {
       "id": "CC-ANSI",
@@ -378,7 +390,8 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "JavaScript・TypeScript JSDoc のタグと型はタグの名前のインラインコードにし、タグの行ごとに段落を分ける"
+        "JavaScript・TypeScript JSDoc のタグと型はタグの名前のインラインコードにし、タグの行ごとに段落を分ける",
+        "JavaScript・TypeScript JSDoc の本文の // を別のコメントとして二重に取り出さない"
       ]
     },
     {
@@ -412,6 +425,51 @@
         "JavaScript・TypeScript 区切りの行（両側の記号）は前後の行と別の段落にする",
         "JavaScript・TypeScript 区切りの行（記号だけ）は前後の行と別の段落にする",
         "JavaScript・TypeScript 区切りの行（後ろの記号）は前後の行と別の段落にする"
+      ]
+    },
+    {
+      "id": "CC-SH-ARITH",
+      "why": "算術の中の << を heredoc の開始として読む",
+      "file": "scripts/lib/code-comments.js",
+      "find": "      if (arith === 0 && c === \"<\"",
+      "replace": "      if (c === \"<\"",
+      "occurrences": 1,
+      "expect_failing": [
+        "シェル 算術（$(( ))）の中の << は heredoc として扱わない",
+        "シェル 算術（(( ))）の中の << は heredoc として扱わない"
+      ]
+    },
+    {
+      "id": "CC-DELIM-BACKSLASH",
+      "why": "バックスラッシュで引用した区切りの \\ を外さず、本文の終わりを見つけられない",
+      "file": "scripts/lib/code-comments.js",
+      "find": "delimiter: m[3].replace(/\\\\/g, \"\")",
+      "replace": "delimiter: m[3]",
+      "occurrences": 1,
+      "expect_failing": [
+        "シェル heredoc の本文（バックスラッシュで引用した区切り）はコメントにしない"
+      ]
+    },
+    {
+      "id": "CC-JS-NESTED",
+      "why": "JSDoc の中から読んだ範囲を別のコメントとして二重に取り出す",
+      "file": "scripts/lib/code-comments.js",
+      "find": "    if (r.pos < coveredUntil) continue;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "JavaScript・TypeScript JSDoc の本文の // を別のコメントとして二重に取り出さない"
+      ]
+    },
+    {
+      "id": "CC-JAPANESE-ORIGINAL",
+      "why": "置き換えた `型` を日本語として数え、英語だけの JSDoc を入れる",
+      "file": "scripts/lib/code-comments.js",
+      "find": "JAPANESE.test(p.original ?? p.text)",
+      "replace": "JAPANESE.test(p.text)",
+      "occurrences": 1,
+      "expect_failing": [
+        "JavaScript・TypeScript 英語だけの JSDoc は、次の行に続く型を置き換えても入れない"
       ]
     }
   ]

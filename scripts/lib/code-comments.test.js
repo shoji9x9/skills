@@ -146,6 +146,17 @@ describe("JavaScript・TypeScript", () => {
     }
   });
 
+  test("JSDoc の本文の // を別のコメントとして二重に取り出さない", () => {
+    const src = "/**\n * 説明。\n * @param {string} a //の後ろ\n */\nexport function f(a) {}\n";
+    expect(paragraphs("a.js", src)).toEqual(["説明。", "`@param` a //の後ろ"]);
+  });
+
+  test("英語だけの JSDoc は、次の行に続く型を置き換えても入れない", () => {
+    const src =
+      "/**\n * Load the config.\n * @returns {{\n *   root: string }} the config\n */\nexport function f() {}\n// 説明。\n";
+    expect(paragraphs("a.js", src)).toEqual(["説明。"]);
+  });
+
   test("行の先頭の太字（**）の * はブロックコメントの記号として外さない", () => {
     expect(paragraphs("a.js", "/*\n **太字** の説明。\n */\n")).toEqual(["**太字** の説明。"]);
   });
@@ -201,6 +212,7 @@ describe("シェル", () => {
     ["囲まない区切り", "cat <<EOF\n# 本文の中\nEOF\n"],
     ["タブを外す区切り", "cat <<-EOF\n\t# 本文の中\n\tEOF\n"],
     ["コマンド置換の中", "x=$(cat <<'PY'\n# 本文の中\nPY\n)\n"],
+    ["バックスラッシュで引用した区切り", "cat <<\\EOF\n# 本文の中\nEOF\n"],
   ])("heredoc の本文（%s）はコメントにしない", (_, src) => {
     expect(paragraphs("a.sh", `${src}# 後の説明。\n`)).toEqual(["後の説明。"]);
   });
@@ -219,6 +231,13 @@ describe("シェル", () => {
 
   test("$'...' の中のエスケープした ' で引用を閉じない", () => {
     expect(paragraphs("a.sh", "echo $'it\\'s # 引用の中'\n# 後の説明。\n")).toEqual(["後の説明。"]);
+  });
+
+  test.each([
+    ["$(( ))", "x=$((1 << 2))\n"],
+    ["(( ))", "(( x <<= 1 ))\n"],
+  ])("算術（%s）の中の << は heredoc として扱わない", (_, src) => {
+    expect(paragraphs("a.sh", `${src}# 後の説明。\n`)).toEqual(["後の説明。"]);
   });
 
   test("here-string（<<<）は heredoc として扱わない", () => {

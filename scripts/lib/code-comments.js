@@ -93,7 +93,8 @@ export function commentMarkdown(path, source) {
   };
   for (const block of blocks) {
     const directive = directiveOf(block[0]);
-    if (!directive && !block.some((p) => JAPANESE.test(p.text))) continue;
+    // 置き換える前の文章で見る（JSDoc の型を置き換えた `` `型` `` を日本語として数えない）。
+    if (!directive && !block.some((p) => JAPANESE.test(p.original ?? p.text))) continue;
     if (md.length) emit("", block[0].line, 0);
     if (directive) emit(`<!-- textlint-${directive} -->`, block[0].line, 0);
     else for (const p of block) emit(p.text, p.line, p.column, p.start);
@@ -134,7 +135,12 @@ function jsComments(source, path) {
     return lo;
   };
   const pieces = [];
+  // JSDoc の子のノードの位置はコメントの中にあるので、そこから読んだ範囲（本文の `//` など）は
+  // 前の範囲の中に入る。同じ文章を別のコメントとして二重に取り出さないよう、外側の範囲だけを使う。
+  let coveredUntil = -1;
   for (const r of [...ranges.values()].sort((a, b) => a.pos - b.pos)) {
+    if (r.pos < coveredUntil) continue;
+    coveredUntil = r.end;
     const raw = source.slice(r.pos, r.end);
     const first = lineOf(r.pos);
     if (r.kind === ts.SyntaxKind.SingleLineCommentTrivia) {
@@ -170,6 +176,7 @@ function jsComments(source, path) {
       pieces.push({
         line: first + i,
         text: piece.text,
+        original: text,
         column: piece.column,
         start: piece.start,
         tag: piece.tag,
@@ -234,6 +241,8 @@ function shellComments(source) {
   const pieces = [];
   const heredocs = [];
   let quote = "";
+  // 算術（`$(( ... ))`・`(( ... ))`）の入れ子の深さ。その中の `<<` はシフトで、heredoc ではない。
+  let arith = 0;
   source.split("\n").forEach((line, n) => {
     if (heredocs.length) {
       const { delimiter, stripTabs } = heredocs[0];
@@ -277,16 +286,29 @@ function shellComments(source) {
         pieces.push({ line: n, column: i + 1 + pad, text: rest.slice(pad).trimEnd(), trailing });
         break;
       }
+      if (c === "(" && line[i + 1] === "(") {
+        arith++;
+        i++;
+        wordStart = true;
+        continue;
+      }
+      if (c === ")" && line[i + 1] === ")" && arith > 0) {
+        arith--;
+        i++;
+        wordStart = true;
+        continue;
+      }
       if (/[\s;&|()]/.test(c)) {
         wordStart = true;
         continue;
       }
       // heredoc の開始。本文は次の行から始まる。
       // `<<<` の 1 文字目は、続く `<` が区切りの名前に当たらないので heredoc にならない。2 文字目は直前の `<` で外す。
-      if (c === "<" && line[i + 1] === "<" && line[i - 1] !== "<") {
+      if (arith === 0 && c === "<" && line[i + 1] === "<" && line[i - 1] !== "<") {
         const m = line.slice(i + 2).match(/^(-?)\s*(['"]?)([^\s'"<>;&|()]+)\2/);
         if (m) {
-          heredocs.push({ delimiter: m[3], stripTabs: m[1] === "-" });
+          // `<<\EOF` のようにバックスラッシュで引用した区切りも、区切りの行は `EOF` になる。
+          heredocs.push({ delimiter: m[3].replace(/\\/g, ""), stripTabs: m[1] === "-" });
           i += 1 + m[0].length;
         }
       }
