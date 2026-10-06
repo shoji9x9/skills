@@ -1,4 +1,4 @@
-// 配布スキルの検査の配線宣言（checks.json）と、配線しない一覧の分類検査の回帰テスト。
+// 配布スキルのチェックを組み込む宣言（checks.json）と、組み込まない一覧の分類のチェックの回帰テスト。
 //
 // 判定は一時ディレクトリの fixture で測り、実リポジトリには「通ること」と「宣言が実在の検査を
 // 名指していること」だけを当てる。
@@ -51,7 +51,7 @@ const entry = (over = {}) => ({
 });
 
 /**
- * skills/s に a-check.mjs（配線）と b-check.mjs（配線しない）を置いた一時リポジトリ。
+ * skills/s に a-check.mjs（組み込む）と b-check.mjs（組み込まない）を置いた一時リポジトリ。
  * `decl` が null なら checks.json を置かない。
  */
 function makeRepo({ decl, unwired, extraFiles = {} } = {}) {
@@ -74,7 +74,7 @@ function makeRepo({ decl, unwired, extraFiles = {} } = {}) {
 const violationsOf = (root) => checkSkillChecks(root).violations;
 const declWith = (over) => ({ version: 1, skill: "s", wire: [entry(over)] });
 
-// ---- 陰性コントロール（通さねばならない入力）----
+// ---- 誤検知しないことの確認（通さねばならない入力）----
 
 test("陰性: 全検査が wire か unwired の一方にだけ載っていれば通し、件数を数える", () => {
   expect(checkSkillChecks(makeRepo())).toEqual({

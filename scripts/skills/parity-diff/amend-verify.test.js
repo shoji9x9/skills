@@ -1,5 +1,5 @@
 // 部品改修後の撮り直しの機械判定（parity-diff 同梱 amend-verify.mjs）の回帰テスト（#454）。
-// pngjs はこのリポジトリに入れないため、判定は純関数 judgePair で測り、CLI は入力不備（exit 2）の経路だけを測る。
+// pngjs はこのリポジトリに入れないため、判定は純関数 judgePair で測り、CLI は入力不備（exit 2）の分岐だけを測る。
 
 import { expect, test } from "vitest";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -307,7 +307,7 @@ test("mergeRecord は同じ pair id の組を置き換え、新しい組を末�
   expect(verify.mergeRecord(null, [], undefined)).not.toHaveProperty("change_id");
 });
 
-// 終了コードだけでは弁別できない（この環境には pngjs が無く、どの入力不備も exit 2 になりうる）。
+// 終了コードだけでは区別できない（この環境には pngjs が無く、どの入力不備も exit 2 になりうる）。
 // 落ちた理由（stderr）まで固定する。
 async function run(argv) {
   const written = [];

@@ -17,7 +17,7 @@
 // そのためスタイルシートは `<style>` 要素で、css-rules.json の `href` は null になる。
 //
 // 前提: ローカルに Chrome（既定 /usr/bin/google-chrome。CHROME で上書き）があること。
-// CI では走らせない（ブラウザが無い）。書き出した JSON の整形はこのスクリプトが自分で行う
+// CI では実行しない（ブラウザが無い）。書き出した JSON の整形はこのスクリプトが自分で行う
 // （対象ファイルを列挙して oxfmt へ渡す。ディレクトリを渡すと Markdown まで整形されるため）。
 //
 // 使い方: node scripts/eval/generate-parity-component-fixtures.js
@@ -71,9 +71,9 @@ const APP_CSS = `.btn {
 // 現行アプリ（基礎スタイルシート → テーマ層 → 個別テーマの順に読み込み、後段が同一セレクタ・
 // 同一プロパティを再宣言して上書きする構成）で実際に起きた 2 形を、ブラウザに解決させて再現する:
 //
-//   width          インライン 10px（非 !important）が、テーマ層の 60px !important に**負ける**。
-//                  基礎側は 40px。素朴な読み方は 10px（インラインだけ読む）か 40px（matched の最初）になる
-//                  （`button` の UA 既定は border-box なので rect.width がそのまま 60 になる）
+//   width          インライン 10px（`!important` なし）が、テーマ層の 60px `!important` に**負ける**。
+//                  基礎側は 40px。素朴な読み方では 10px（インラインだけ読む）か 40px（matched の最初）になる。
+//                  `button` の UA のデフォルトは border-box なので、rect.width がそのまま 60 になる
 //   letter-spacing 基礎の normal を、テーマ層の 1px が**上書きする**。matched の最初を採ると normal になる
 //
 // どちらも trait-capture.mjs の FIXED_PROPERTIES に無いプロパティを選んである。集合にある
@@ -201,7 +201,7 @@ async function launchChrome() {
   );
   let ws = null;
   // Chrome は SIGTERM 後もしばらくプロファイルへ書くので、終了を待ってから消す
-  // （待たずに消すと ENOTEMPTY で finally が throw し、成功した生成が非 0 終了に化ける）。
+  // （待たずに消すと ENOTEMPTY で finally が throw し、成功した生成が非 0 の終了になってしまう）。
   // 起動・ハンドシェイクの途中で失敗したときも同じ片付けを通す（通さないと Chrome とプロファイルが残る）。
   const shutdown = async () => {
     if (ws) ws.close();
@@ -320,7 +320,7 @@ async function launchChrome() {
   }
 }
 
-// Playwright の locator.evaluate(fn, arg) と同じ契約（関数を文字列化して要素と引数で呼ぶ）の最小実装。
+// Playwright の locator.evaluate(fn, arg) と同じ取り決め（関数を文字列化して要素と引数で呼ぶ）の最小実装。
 const locator = (cdp, selector) => ({
   async evaluate(fn, arg) {
     const r = await cdp.send("Runtime.evaluate", {
@@ -358,7 +358,7 @@ async function captureOnce(cdp, pages, instance, state) {
   const el = locator(cdp, instance.selector);
   const [traits] = await traitCapture.captureTraits([{ name, locator: el }]);
   const [rules] = await cssRules.captureMatchedRules([{ name, locator: el }]);
-  // 要素スクショの clip は element-shot.mjs に決めさせる（矩形の丸めの正本。
+  // 要素スクショの clip は element-shot.mjs に決めさせる（矩形の丸めの原本。
   // 生の rect を渡すと小数座標のぶん寸法が揺れ、寸法一致を要求する画素比較の入力にならない）。
   const clip = elementShot.planElementClip(traits.rect, VIEWPORT);
   const shot = await cdp.send("Page.captureScreenshot", {
@@ -366,7 +366,7 @@ async function captureOnce(cdp, pages, instance, state) {
     clip: { ...clip, scale: 1 },
   });
   const png = Buffer.from(shot.data, "base64");
-  // element.png の隣の記録（element.shot.json）も element-shot.mjs の正本の形で組み立てる。
+  // element.png の隣の記録（element.shot.json）も element-shot.mjs が原本として定める形で組み立てる。
   // fixture は最上位フレームの要素だけで、ページにアニメーションを持たないので、
   // page_rect は rect と同じ・animations は capture_conditions の記録どおり "disabled"。
   const shotRecord = elementShot.buildShotRecord({
@@ -485,7 +485,7 @@ try {
       if (fontsUsed.length === 0) throw new Error("描画に使われたフォントを取得できない");
       meta.capture_conditions = {
         environment: `${cdp.browser}（headless）/ Linux / DPR 1。"Noto Sans JP", sans-serif は ${fontsUsed.join(" / ")} に解決`,
-        // 想定利用者環境との一致は採取からは決まらない fixture の前提。両 fixture の gaps.md（採取環境依存の未検証: なし）と
+        // 想定する利用者の環境との一致は、採取からは決まらない fixture の前提。両 fixture の gaps.md（採取環境依存の未検証: なし）と
         // 揃えて「一致」とする（既存値の有無で分けると、null だった fixture だけ別の前提になり gaps.md と食い違う）
         viewer_environment: VIEWER_ENVIRONMENT,
         viewports: [{ ...VIEWPORT, label: "desktop" }],
@@ -501,7 +501,7 @@ try {
         pixel: 0,
         traits: 0,
       }));
-      // 軸の件数は axes.json から写す。先に metadata を書かないと --baseline がプロパティ集合を読めない。
+      // 軸の件数は axes.json から転記する。先に metadata を書かないと --baseline がプロパティ集合を読めない。
       writeJson(metaPath, meta);
       const axes = axisDiff.diffAxes(axisDiff.assembleFromBaseline(dir));
       if (!axes.ok) throw new Error(`${dir}: axis-diff が ok でない: ${axes.problems.join(" / ")}`);
@@ -542,7 +542,7 @@ try {
 } catch (err) {
   generationError = err;
 }
-// 起動失敗の経路と同じく、片付けの失敗（SIGKILL 後も終了しない等）で生成の元のエラーを上書きしない。
+// 起動に失敗したときの処理と同じく、片付けの失敗（SIGKILL 後も終了しない等）で生成の元のエラーを上書きしない。
 try {
   await cdp.close();
 } catch (cleanupErr) {

@@ -1,4 +1,4 @@
-# pre-commit は 3 段で実行する:
+# pre-commit は次の 3 段で実行する。
 #   1. format: 整形して再ステージするジョブ（piped＝逐次。並列 stage_fixed の index 競合を避ける）
 #   2. lint:   ファイル単位の checker（並列・再ステージしない）
 #   3. scan:   シークレット走査・リポジトリ全体検査（並列）
@@ -9,8 +9,8 @@ pre-commit:
         piped: true
         jobs:
           - name: markdownlint
-            # 見る範囲は .markdownlint-cli2.yaml の globs が決める（引数で渡したファイルにも除外が効く）。
-            # ここで .agents/** を除くと、.agents/rules/ と private skill だけを直した commit で走らない。
+            # 見る範囲は .markdownlint-cli2.yaml の globs が決める（引数で渡したファイルにも除外が反映される）。
+            # ここで .agents/** を除くと、.agents/rules/ と private skill だけを直した commit で実行されない。
             glob: "*.md"
             run: pnpm exec markdownlint-cli2 --fix {staged_files}
             stage_fixed: true
@@ -144,13 +144,13 @@ pre-commit:
             run: node scripts/gates/check-js-extensions.js
           - name: kaizen-refs
             # .kaizen/ の学びへの参照の実在。参照される側（.kaizen/ の archive への移動）で
-            # 参照する側が壊れるので、path glob で絞らず毎コミット全走査する。
+            # 参照する側のリンクが切れるので、path glob で絞らず毎コミット全走査する。
             run: node scripts/gates/check-kaizen-refs.js
           - name: identical-copies
             # 同一であるべきコピー（scripts/gates/identical-copies.json で宣言）の一致。
             run: node scripts/gates/check-identical-copies.js
           - name: skill-checks
-            # 配布スキルの検査が、利用者の入口へ配線するか（skills/<name>/checks.json）・しないか
+            # 配布スキルの検査を、利用者の起点へ組み込むか（skills/<name>/checks.json）・しないか
             # （scripts/gates/skill-checks-unwired.json）のどちらかに分類されているか。
             run: node scripts/gates/check-skill-checks.js
           - name: time-sensitive-prose
@@ -168,8 +168,8 @@ pre-commit:
             # AGENTS.md の参照スキルガイドと README のスキル表が skills/ の実体と対応しているか。
             run: node scripts/gates/check-skill-index.js
           - name: rule-symlinks
-            # rule の多エージェント配線（.agents/rules → .claude/rules / .github/instructions）。
-            # 配線漏れは「ドキュメント上は適用される」状態と見分けが付かないので毎コミット検査する。
+            # rule の多エージェントへの接続（.agents/rules → .claude/rules / .github/instructions）。
+            # 接続の抜けは「ドキュメント上は適用される」状態と見分けが付かないので毎コミット検査する。
             run: node scripts/gates/check-rule-symlinks.js
           - name: lint-scope
             # 各 lint と整形の除外が scripts/lib/source-scope.js と一致するか。スキルを足してインストールすると
@@ -189,9 +189,9 @@ pre-commit:
           - name: skill-frontmatter
             # SKILL.md frontmatter を検査（YAML 妥当性・description<=1024B・name 形式）。
             # 配布スキル（skills/*/SKILL.md）に加え private skill（.agents/skills/*/SKILL.md）も
-            # 拾うためブレースで両ルートを対象にする。lefthook は gobwas/glob を separators なしで
-            # 使い（internal/run/controller/filter/filter.go の glob.MustCompile）、gobwas は
-            # スラッシュを含む pattern-list を含めブレース展開をサポートするため、この glob は機能する。
+            # 拾うためブレースで両ルートを対象にする。この glob は機能する。
+            # lefthook は gobwas/glob を separators なしで使う（internal/run/controller/filter/filter.go の glob.MustCompile）。
+            # gobwas は、スラッシュを含む pattern-list を含めてブレース展開をサポートする。
             glob: "{skills,.agents/skills}/*/SKILL.md"
             run: node scripts/gates/check-skill-frontmatter.js {staged_files}
     - name: scan

@@ -22,9 +22,12 @@ scripts/eval/run-skill-eval.sh \
   --model opus
 ```
 
-fixture 付き eval（`evals.json` に `fixture` があるもの）は `--fixture evals/golden-dataset/<fixture の値>` を足して実行する（例: eval 6 は `--fixture evals/golden-dataset/fixtures/dbless-target`）。
+fixture 付きの eval（`evals.json` に `fixture` があるもの）は、`--fixture evals/golden-dataset/<fixture の値>` を足して実行する。
+例えば eval 6 は `--fixture evals/golden-dataset/fixtures/dbless-target` を足す。
 
-- 使い捨てプロジェクトには `.replace/features.md`・設定・`.replace/dataset/metadata.json` が無いため、eval 1 は「捏造せず停止し setup を促す」、eval 2 は「`--phase b` でも setup 未完了の停止が最優先で発火し（フェーズ A 未完了も合わせて案内）、写像・投入を始めない」パスを検証する
+- 使い捨てプロジェクトには `.replace/features.md`・設定・`.replace/dataset/metadata.json` が無い。
+  そのため eval 1 は「捏造せずに停止し、setup を促す」パスを検証する。
+  eval 2 は「`--phase b` でも setup 未完了による停止が最優先で発火し（フェーズ A 未完了も合わせて案内する）、変換・投入を始めない」パスを検証する
 - eval 3〜5 は前提の有無に関わらず成立する拒否挙動（本番参照・非決定論・非冪等の拒否）を対象にする
 - eval 6 は fixture `dbless-target`（フェーズ A 完了済み・`develop` は `db` を持たない新側 target）で、「`db.env_vars` を持たない target を投入先にせず停止し、db を持つ target を選ぶよう促す（勝手に読み替えない）」パスを検証する
 - eval 7 は fixture `readonly-db-target`（`develop` が `db.env_vars` を持つが `seedable` を持たない読み取り専用 target）で、「接続を知っていること ≠ シードしてよいこと」の分離を検証する。
@@ -32,46 +35,50 @@ fixture 付き eval（`evals.json` に `fixture` があるもの）は `--fixtur
 - eval 8 は fixture `static-dataset`（`dataset_mode: static`・DB を持つ target がゼロ・フェーズ A 完了済み・`gaps.md` にデータ不足 2 件）で、
   **DB レス・プロジェクトのフェーズ A 再実行がデッドロックしない**ことを検証する。実 DB を要さず生成先がリポジトリ内（`dataset_static_paths`）で完結するため、
   使い捨てプロジェクトでも設計追記 → ツール更新 → 再生成 → `version` +1 → ベースライン再取得の案内まで通しで実行できる。
-  `current-site/src/works-list.ts` は現行実装としてページサイズ、絞り込み、並び順、tag 変更時の page 保持を持つ。fixture のコメントは実装挙動だけを述べ、必要件数や追加すべきデータという答えは書かない。
-  これを読まずにページサイズ等を推測しても成果物の存在 assertion は通るため、消費側パラメータと根拠の assertion を独立に置く
+  `current-site/src/works-list.ts` は現行実装で、ページサイズ、絞り込み、並び順、tag 変更時の page の保持を持つ。
+  fixture のコメントは実装の挙動だけを述べ、必要な件数や追加すべきデータという答えは書かない。
+  これを読まずにページサイズなどを推測しても成果物の存在の assertion は通るので、消費側のパラメータと根拠の assertion を別に置く
 - eval 12 は fixture 無しで、`features.md` の抜粋を会話で与えて**対象テーブルの参照元**を問う。`db` モードのフェーズ A は使い捨てプロジェクトでは step 1 の
   接続確認で止まりデータ設計へ到達しないため、実行させず問いの形にして到達性を確保している。横断 API 行の**参照テーブルが空欄**という材料だけを与え、
-  「空欄＝参照テーブル無し」と断定せず記録漏れを疑って確定を保留するかを見る（結論はプロンプトに書かない）
-- eval 13 の fixture（`bootstrap-handoff`）は **`current.origin: received-assets` で `current-environment-bootstrap` が引き渡し済み**の状態
-  （`.replace/bootstrap/metadata.json` の `status: handed-off`・確定済みと確認待ちが混在する `semantics.md`・暫定起動データ投入ツール `bootstrap/seed.sh`）を持たせ、
+  「空欄＝参照テーブル無し」と断定せず、記録の抜けを疑って確定を保留するかを見る（結論はプロンプトに書かない）
+- eval 13 の fixture（`bootstrap-handoff`）は、**`current.origin: received-assets` で `current-environment-bootstrap` が引き渡し済み**の状態を持つ。
+  具体的には、`.replace/bootstrap/metadata.json` の `status: handed-off`、確定済みと確認待ちが混在する `semantics.md`、暫定起動データの投入ツール `bootstrap/seed.sh` を置く。
   **確定済みの意味論だけを根拠にすること**・**起動要件をフェーズ A の設計に引き継ぐこと**・**暫定起動データを流用しないこと**を検証する。
   fixture には「流用してはいけない」「この項目は確定扱いにしない」といった判定を書かない（書くとベースラインがそれを読んで assertion を満たす）
 - eval 14 は fixture 無しで、1 ページ 20 件と次／前・ページ番号・最終ページ遷移に加え、古い設計書と受領ログがある条件を材料として与える。2 ページ分で固定せず、
-  3 ページを識別できる最小件数 `(3 - 1) × 20 + 1 = 41` を導き、ページ送り方式・表示件数・必要ページ数・確認経路を設計へ記録するかを見る。
-  古い設計書・受領ログを現行挙動の確定根拠にせず、選択した現行 target から取得した観測だけをログ経路の根拠にすることに加え、調査コストが高くなる順序だから必要な証拠が得られた時点で止める意図も検証する
+  3 ページを識別できる最小件数 `(3 - 1) × 20 + 1 = 41` を導き、ページ送り方式・表示件数・必要ページ数・確認方法を設計へ記録するかを見る。
+  古い設計書・受領ログを現行挙動の確定根拠にせず、選択した現行 target から取得した観測だけを、ログによる確認の根拠にすることを検証する。
+  あわせて、調査コストが高くなる順序なので、必要な証拠が得られた時点で止めるという意図も検証する
 - eval 15 は fixture 無しで、ベースラインが複数 version を跨ぐ状態と、影響テーブルが異なる機能・sentinel `-` の機能を同時に与える。最新変更だけでなく記録後の全履歴を和集合で評価し、交差する slug だけを陳腐化すること、影響なしの成果物の採取 version を書き換えないことを検証する
-- eval 16 は fixture 無しで、旧 metadata に `changes` が無く過去の変更根拠も無い移行状態を与える。欠落を影響なしへ倒さず、推測した個別テーブルで履歴を捏造せず、復元不能な版を `*` で保守的に埋めることを検証する
+- eval 16 は fixture 無しで、旧 metadata に `changes` が無く過去の変更根拠も無い移行状態を与える。欠落を影響なしとして扱わず、推測した個別テーブルで履歴を捏造せず、復元不能な版を `*` で保守的に埋めることを検証する
 - eval 17 は fixture 無しで、DDL と古い仕様書だけがある設計相談を与える。テーブル列だけで設計を終えず、消費側の絞り込み・並び替え・ページサイズを現行コード／実測から導いて `design.md` に根拠付きで残すことを検証する
-- eval 18 は fixture 無しで、baseline と phase B の記録 version が現在の dataset version より大きい不可能な状態を与える。空の変更区間を影響なしに倒さず、整数かつ `1..現在 version` の範囲検証で差分検出前に停止することを検証する
+- eval 18 は fixture 無しで、baseline と phase B の記録 version が現在の dataset version より大きい不可能な状態を与える。空の変更区間を影響なしとして扱わず、整数かつ `1..現在 version` の範囲検証で差分検出前に停止することを検証する
 - eval 19 は fixture 無しで、`--feature order-list` の実行中に「その機能に固有の差」と「どの機能にも固有でない差」を同時に与え、
-  まとめて横断扱いにしてよいかを問う。帰属できる差には slug を書き、`cross-cutting` は帰属できないときだけ使うこと
-  （まとめて横断にするのは安全側ではなく、閉じる担当が決まらず毎回の棚卸しに出続けること）、空欄・素の文字列は帰属不明になることを検証する
-  （Issue #279。要素の形の正本は `replace-strategy` の `references/project-config.md`）
-- eval 20 は fixture 無しで、`features.md` の横断 API 行が読むのに `design.md` の写しからは落ちている参照表を与え、
+  まとめて横断扱いにしてよいかを問う。次の 3 点を検証する（Issue #279。要素の形は `replace-strategy` の `references/project-config.md` で定義する）。
+  - 帰属できる差には slug を書き、`cross-cutting` は帰属できないときだけ使うこと
+  - まとめて横断にするのは安全側ではないこと。閉じる担当が決まらず、毎回の棚卸しに出続ける
+  - 空欄・素の文字列は帰属不明になること
+- eval 20 は fixture 無しで、`features.md` の横断 API 行が読むのに `design.md` のコピーからは抜けている参照表を与え、
   **引き方（`FROM` の母集合として引くだけ）と行数 1 を理由に投入対象から外してよいか**を問う。役割を消費側の集合から決め直すこと、
-  1 行では絞り込みの効きを観測できないこと、踏めない分岐を足すか `gaps` に記録するかを設計の段で選ぶこと（足すと版が上がり採取物が陳腐化する）を検証する。
-  プロンプトには「写し漏れ」「投入対象になる」という結論を書かない（Issue #388）。
+  1 行では絞り込みが機能するかを観測できないこと、踏めない分岐を足すか `gaps` に記録するかを設計の段で選ぶこと（足すと版が上がり採取物が陳腐化する）を検証する。
+  プロンプトには、コピーの抜けだという結論も、「投入対象になる」という結論も書かない（Issue #388）。
   **「どの画面・API からも参照されない `guest` 行」を材料に足してある**——初版は消費側が実際に使う分岐しか無く、
   正解が常に「足す」になるため「足す／`gaps` に記録」の選択に到達しなかった（iteration-16 で 3 run 中 1 run）。
   選択が live になる材料が無いまま選択を要求すると、assertion が到達性で落ちる
 - eval 21 は fixture 無しで、**整合性検査が全部通った投入後の状態**と、絞り込みの片側にしか行が無いデータを与える。
   「入れたものが入ったか」と「入れたもので消費側のどの分岐が踏めるか」を区別し、述語ごとの該当行数を検証にも残すかを見る。
-  0 件の側があると新側が絞り込みを落としても緑のままになる、という帰結はプロンプトに書かない（Issue #388）
+  0 件の側があると、新側が絞り込みを落としても緑のままになる。この結果はプロンプトに書かない（Issue #388）
 - eval 22 は fixture 無しで、**投入先が 1 つしか無い状態で機能ごとに worktree を分けて並行に進めている**状況と、
   「2 回連続実行で冪等性を確かめる予定」という設計を与える。冪等性と同時実行の別、削除 → 投入の途中で投入先が空になること、
-  ツール自身への排他の実装、取得失敗時に待たず非 0 で終えること、排他が効くことの陽性コントロール、
+  ツール自身への排他の実装、取得失敗時に待たず非 0 で終えること、排他が機能することをわざと衝突させて確かめること、
   ロックが読み手との衝突までは止めないことを検証する（Issue #328）。
   プロンプトには「排他」「ロック」「同時実行」という語も、2 回連続実行では足りないという結論も書かない
   （書くと baseline がそれを読んで assertion を満たす）。**並行して同じ投入先を読むテストが回る**ことだけを材料として置き、
   最後の assertion（読み手との衝突）が到達可能になるようにしてある。
   **iteration-18 で実測**（変更確認・各 config 1 run・claude-code / opus）: `with_skill` 6/6・`without_skill` 3/6。baseline は contamination: clean / isolation: sandboxed。
-  **弁別したのは assertion 2・4・5**——baseline は「DB を worktree ごとに分ける」を主対策に置き、ロックは**待って直列化する**代替として挙げるため、
-  取得できないときに待たず非 0 で終える形にも、排他が効くことの実測にも届かない。空の表を読む害も「比較が成立しない」までで、
-  **空を正解として緑で通る**形は説明しない。冪等性と同時実行の区別（assertion 1）と読み手との衝突（assertion 6）は baseline も自力で到達するので後退検知の項目として残す
+  **差が出たのは assertion 2・4・5** である。baseline は「DB を worktree ごとに分ける」を主対策に置き、ロックは**待って直列化する**代替として挙げる。
+  そのため、取得できないときに待たず非 0 で終える形にも、排他が機能することの実測にも届かない。空の表を読む害も「比較が成立しない」までで、
+  **空を正解として緑で通る**形は説明しない。
+  冪等性と同時実行の区別（assertion 1）と、読み手との衝突（assertion 6）は baseline も自力で到達するので、後退の検知の項目として残す
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json`）は `node scripts/eval/build-skill-eval-benchmark.js` で生成する（判定は assertion テキストで突き合わせる。`benchmark.md` は人が書く。詳細は `docs/skill-development.md`）

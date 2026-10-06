@@ -16,9 +16,9 @@
 // | backlog        | 存在 / 不在 / 孤児キー / reachability 済みなのに残存                              |
 // | 走査モード     | 全走査（孤児を見る） / 部分走査（見ない）                                          |
 //
-// 陰性コントロール（通さねばならない入力）は 2 つ——(1) reachability を正しく書いた eval、
+// 誤検知しないことの確認（通さねばならない入力）は 2 つある。(1) reachability を正しく書いた eval。
 // (2) **実リポジトリ全体**（299 eval が backlog の宣言で通ること）。
-// 陽性コントロールも実データから取る（実在の eval の prompt を 1 文字変えると指紋が外れること）。
+// 検出されることの確認も、実データから行う（実在の eval の prompt を 1 文字変えると、指紋が外れること）。
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -248,10 +248,10 @@ test("配布スキルの中の eval（skills/<name>/evals/）は全走査でだ�
   const evalsPath = join(root, "evals/demo/evals.json");
   writeFileSync(evalsPath, file());
   writeFileSync(join(root, BACKLOG_PATH), JSON.stringify({ exempt: {} }));
-  // 陰性コントロール: 置き場所が evals/<name>/ だけなら違反 0 件で、走査にも拾われる。
+  // 誤検知しないことの確認: 置き場所が evals/<name>/ だけなら違反 0 件で、走査にも拾われる。
   expect(listEvalFiles(root)).toEqual([evalsPath]);
   expect(checkAll(root, [evalsPath]).violations).toEqual([]);
-  // 陽性コントロール: 旧配置に戻すと、走査から外れる（listEvalFiles は拾わない）うえで違反になる。
+  // 検出されることの確認: 旧配置に戻すと、走査から外れる（listEvalFiles は拾わない）うえで違反になる。
   mkdirSync(join(root, "skills/demo/evals"), { recursive: true });
   writeFileSync(join(root, "skills/demo/evals/evals.json"), file());
   expect(listEvalFiles(root)).toEqual([evalsPath]);
@@ -272,8 +272,8 @@ test("backlog が無ければ免除の正本が読めないので落とす", () 
 });
 
 test("backlog が壊れていても、クラッシュせず違反として落とす", () => {
-  // 不在を違反にしている以上、壊れている場合も違反にする（素の JSON.parse だと merge 衝突の
-  // 残骸でスタックトレースごと検査が止まり、「検査した結果」ではなくクラッシュで落ちる）。
+  // 不在を違反にしている以上、形式が不正な場合も違反にする。素の JSON.parse だと、merge 衝突の
+  // 残骸でスタックトレースを出してチェックが止まり、「チェックした結果」ではなくクラッシュで落ちる。
   const root = makeTempDir("eval-reach-");
   mkdirSync(join(root, "evals/demo"), { recursive: true });
   mkdirSync(join(root, "scripts/gates"), { recursive: true });

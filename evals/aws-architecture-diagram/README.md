@@ -22,17 +22,17 @@
 
 - IaC（CDK / Terraform 等）や説明から spec（nodes / edges / groups）を起こせるか
 - 環境（prod / local など）ごとに出し分けできるか
-- 作図ルール（交差最小・直交配線・軸整列・ラベル可読）に沿って崩れを直せるか
+- 作図ルール（交差の最小化・線の直交・軸の整列・ラベルの読みやすさ）に沿って崩れを直せるか
 
 ## 前提条件
 
-- **Node.js 18+** — 描画・取得スクリプト（`assets/engine/*.mjs`）の実行に必要。
-  `fetch-aws-icons.mjs` がグローバル `fetch` を使うため 18 未満は不可
-- **Chrome / Chromium**（headless）— SVG→PNG 変換（`preview-diagram.mjs`）に必要。無い場合は
-  `PUPPETEER_EXECUTABLE_PATH` / `CHROME_PATH` を設定する
-- **skill-creator スキル** — テスト実行・評価に必要（`~/.claude/skills/skill-creator/`・
-  `.claude/skills/skill-creator/`・`.agents/skills/skill-creator/` のいずれかにインストール済みであること）
-- **Python 3.8+** — 集計スクリプトの実行に必要
+- Node.js 18 以上（描画・取得スクリプト `assets/engine/*.mjs` の実行に使う）。
+  `fetch-aws-icons.mjs` がグローバルの `fetch` を使うので、18 未満では動かない
+- Chrome か Chromium（headless。SVG→PNG 変換 `preview-diagram.mjs` に使う）。見つからない場合は
+  `PUPPETEER_EXECUTABLE_PATH` か `CHROME_PATH` を設定する
+- skill-creator スキル（テストの実行と評価に使う）。`~/.claude/skills/skill-creator/`・
+  `.claude/skills/skill-creator/`・`.agents/skills/skill-creator/` のどれかにインストールしておく
+- Python 3.8 以上（集計スクリプトの実行に使う）
 
 ```bash
 node --version

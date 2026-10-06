@@ -3,7 +3,7 @@
 // 照合が「宣言の文全体が差分の "<name> <prop>" に含まれるか」だけだったため、理由を添えた宣言
 // （書くべきとされている形）は原理的に一度も当たらず、登録済みの差分も unexplained のまま残っていた。
 // 照合は match（element / property は必須、page / state / viewport は任意）で行い、散文の item は人が読む。
-// match の欠けたキーは「どれにでも合う」ではなく照合に使わない（fail-closed）。散文だけの宣言が
+// match の欠けたキーは「どれにでも合う」とは扱わず、その宣言を照合に使わない。散文だけの宣言が
 // 当たらなかったことは stderr に数えて出す（宣言の書き方の誤りと本物の未説明の差を区別するため）。
 
 import { test, expect } from "vitest";
@@ -170,7 +170,7 @@ test("pending の要素も match で当たり、分類の群の優先順は keep
   ).toMatchObject({ group: "may_change" });
 });
 
-/** CLI を 1 回走らせる（分類・終了コード・stderr は同じ実行の観測でしか結び付かない）。 */
+/** CLI を 1 回実行する（分類・終了コード・stderr は同じ実行の観測でしか結び付かない）。 */
 function runCli(intentional, diffs, ctxArgs = ["--page", "main", "--viewport", "1280x800"]) {
   const dir = makeTempDir("diff-normalize-intentional-");
   const registries = join(dir, "registries.json");
@@ -242,7 +242,7 @@ test("page / viewport を書いた宣言は、実行側にその軸が無けれ�
       declared({ element: "heading", property: "border-top-style", page: "main" }),
       declared({ element: "heading", property: "border-top-style", viewport: "1280x800" }),
       declared({ element: "heading", property: "border-top-style" }),
-      declared({ property: "border-top-style", page: "main" }), // 壊れた match は別の警告で出るので数えない
+      declared({ property: "border-top-style", page: "main" }), // 不正な match は別の警告で出るので数えない
       PROSE,
     ],
   };

@@ -9,7 +9,7 @@
 // | 設定内容 | 正常 / 行末コメント付き / 引用符付き / 別セクションの同名キー / キー欠落 / ファイル不在 |
 // | 引数     | 正常 / 値の無い --review-tool / 不明な引数                                |
 //
-// 陰性コントロールとして**リポジトリの実設定**も 1 件読む（合成 YAML だけだと、
+// 誤検知しないことの確認として、**リポジトリの実設定**も 1 件読む（合成 YAML だけだと、
 // 実ファイルの書き方〈行末コメント〉と解析がずれていても緑のまま通る）。
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
@@ -98,9 +98,9 @@ for (const script of SCRIPTS) {
     const r = run(script, { config: join(tmpdir(), "does-not-exist.yml") });
     expect(r.status).toBe(0);
     expect(parse(r.stdout)).toEqual({ value: "copilot", source: "default" });
-    // 設定ファイルが無いのは正常系なので、解析器のエラーは漏らさない。
+    // 設定ファイルが無いのは正常系なので、解析ツールのエラーは出さない。
     expect(r.stderr).not.toMatch(/awk|error:/);
-    // ただし黙らない——`--config` のパスを渡し間違えたときこそ、既定へ倒した理由と
+    // ただし警告は出す。`--config` のパスを渡し間違えたときこそ、既定として扱った理由と
     // 参照先が残らないと「ファイルが無い」と「キーが無い」が同じ default に潰れる。
     expect(r.stderr).toMatch(/見つからないため既定を使う（参照: .*does-not-exist\.yml）/);
   });
@@ -116,7 +116,7 @@ for (const script of SCRIPTS) {
   });
 
   test(`${name}: SKILLS_REVIEW_TOOL が空なら env 層を飛ばしたことを残す`, () => {
-    // `VAR= cmd` は env 層の無効化として使われるので落とさない。ただし黙って下の層へ
+    // `VAR= cmd` は env 層の無効化として使われるので落とさない。ただし警告なしに下の層へ
     // 進むと、指定したつもりの層と報告される層がずれたことに気づけない。
     withConfig("version: 1\nskills:\n  common:\n    review_tool: codex\n", (path) => {
       const r = run(script, { config: path, env: { SKILLS_REVIEW_TOOL: "" } });
@@ -127,7 +127,7 @@ for (const script of SCRIPTS) {
   });
 
   test(`${name}: --review-tool の値が空なら下の層へ落とさず usage エラーで落ちる`, () => {
-    // 空文字を「未指定」と同じに扱うと、CLI 指定が黙って env / config へ落ち、
+    // 空文字を「未指定」と同じに扱うと、CLI 指定が警告なしに env / config へ移り、
     // 指定したつもりの層と報告される層がずれる（実測で source=config になった）。
     withConfig("version: 1\nskills:\n  common:\n    review_tool: codex\n", (path) => {
       const r = run(script, { config: path, args: ["--review-tool", ""] });
@@ -137,7 +137,7 @@ for (const script of SCRIPTS) {
   });
 
   test(`${name}: --config の値が空なら既定へ化けさせず usage エラーで落ちる`, () => {
-    // 空文字を「未指定」と同じに扱うと、渡したつもりのパスが黙ってリポジトリルートの
+    // 空文字を「未指定」と同じに扱うと、渡したつもりのパスが警告なしにリポジトリルートの
     // 既定へ差し替わり、source=default を正しい解決結果として報告してしまう。
     const r = run(script, { args: ["--config", ""] });
     expect(r.status).toBe(64);
@@ -192,7 +192,7 @@ for (const script of SCRIPTS) {
   });
 
   // 既定の共有設定パスは cwd 相対だと、サブディレクトリから起動しただけで config 層が
-  // 黙って飛ばされ `source=default` を正しい解決結果として報告する（誤報そのもの）。
+  // 警告なしに飛ばされ、`source=default` を正しい解決結果として報告する（誤報そのもの）。
   // リポジトリルート基準で解決していることを、ルートとサブディレクトリの両方で測る。
   test.each([
     ["リポジトリルート", repoRoot],

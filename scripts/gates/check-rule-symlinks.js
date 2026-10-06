@@ -1,21 +1,21 @@
 #!/usr/bin/env node
-// rule の多エージェント配線（symlink 3 点）を決定論的に検査する（lefthook pre-commit + CI）。
+// rule を各エージェントに読ませる symlink（3 点）を、決定論的にチェックする（lefthook pre-commit + CI）。
 //
-// 正本は `.agents/rules/<name>.md`。Claude Code は `.claude/rules/<name>.md`、
-// GitHub Copilot は `.github/instructions/<name>.instructions.md` の symlink 経由で同じ実体を読む。
-// symlink を作り忘れると「ドキュメント上は適用されるのに、2 エージェントでは適用されない」状態になり、
-// 成功した作業と見分けが付かない（実例: eval-run-scope.md。レビューで指摘されるまで気付かなかった）。
+// 原本は `.agents/rules/<name>.md`。Claude Code は `.claude/rules/<name>.md`、
+// GitHub Copilot は `.github/instructions/<name>.instructions.md` の symlink を通して、同じ実体を読む。
+// symlink を作り忘れると、「ドキュメント上は適用されるのに、2 エージェントでは適用されない」状態になる。
+// これは成功した作業と見分けが付かない（実例: eval-run-scope.md。レビューで指摘されるまで気付かなかった）。
 //
-// 期待集合は観測ではなく宣言から作る——`.agents/rules/*.md` の実在が正本で、配線側はその写し。
-// 逆向き（正本の無い孤児 symlink）も同じ表から検出する。
-// 対象 0 件は成功に倒さず fail する（走査できていないことと、違反が無いことを区別する）。
+// 期待する集合は、観測ではなく宣言から作る。`.agents/rules/*.md` の実在が原本で、symlink の側はその反映である。
+// 逆向き（原本の無い孤児の symlink）も、同じ表から検出する。
+// 対象 0 件は成功として扱わず、fail にする（走査できていないことと、違反が無いことを区別する）。
 import { existsSync, lstatSync, readdirSync, readlinkSync, realpathSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const CANON_DIR = ".agents/rules";
 
-// 配線先の宣言。`suffix` は正本のベース名（拡張子なし）に付く。
+// symlink を置く先の宣言。`suffix` は原本のベース名（拡張子なし）に付く。
 export const WIRINGS = [
   { dir: ".claude/rules", suffix: ".md", agent: "Claude Code" },
   { dir: ".github/instructions", suffix: ".instructions.md", agent: "GitHub Copilot" },
@@ -23,13 +23,13 @@ export const WIRINGS = [
 
 const canonBase = (file) => file.replace(/\.md$/, "");
 
-// 配線名 → 正本のベース名。対応しない名前は null（孤児判定に使う）。
+// symlink の名前 → 原本のベース名。対応しない名前は null（孤児判定に使う）。
 const baseFromWiring = (name, suffix) =>
   name.endsWith(suffix) ? name.slice(0, -suffix.length) : null;
 
 /**
  * @param {string} root リポジトリルート（テストでは一時ディレクトリ）
- * @returns {{ rules: string[], violations: string[] }} rules は走査した正本の絶対パス
+ * @returns {{ rules: string[], violations: string[] }} rules は走査した原本の絶対パス
  */
 export function checkRuleSymlinks(root) {
   const violations = [];
@@ -54,7 +54,7 @@ export function checkRuleSymlinks(root) {
       continue;
     }
 
-    // 正本 → 配線（欠落・実ファイル・誤った指し先・壊れた symlink）
+    // 原本 → symlink（欠落・実ファイル・誤った指し先・リンク先の無い symlink）
     for (const base of bases) {
       const linkPath = join(wiringDir, `${base}${suffix}`);
       const expected = relative(wiringDir, join(canonDir, `${base}.md`));
@@ -86,7 +86,7 @@ export function checkRuleSymlinks(root) {
       }
     }
 
-    // 配線 → 正本（孤児）
+    // symlink → 原本（孤児）
     for (const name of readdirSync(wiringDir)) {
       const base = baseFromWiring(name, suffix);
       if (base === null) {
@@ -110,8 +110,8 @@ function lstatSafe(p) {
   }
 }
 
-// CLI エントリ判定は両辺を実パスへ揃える（片側だけの解決は symlink 経由の起動でサイレント no-op になる）。
-// 正規化に失敗したら「起動されていない」へ倒さず、理由を出して非 0 で落とす。
+// CLI エントリ判定は、両辺を実パスに揃える（片側だけを解決すると、symlink を通した起動で何もせずに終わる）。
+// 正規化に失敗したら「起動されていない」として扱わず、理由を出して非 0 で落とす。
 function isCliEntry() {
   if (!process.argv[1]) return false;
   try {

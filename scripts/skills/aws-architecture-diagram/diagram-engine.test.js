@@ -1,11 +1,11 @@
 // aws-architecture-diagram の描画エンジンの回帰テスト。
 //
-// 対象は目視では守り切れない 2 点（Issue #196）:
+// 対象は、目視では守り切れない次の 2 点である（Issue #196）。
 //   1. エッジラベルが屈曲点に乗ると白背景が角を覆い、「線が折れていること」が図から消える。
 //      自動 L 字は常に 4 点なので、中央インデックス固定だと必ず屈曲点に乗っていた。
-//   2. 斜めのエッジ（直交配線違反）は目視で見落とすため、エンジンが描画前にエラーで止める。
+//   2. 斜めのエッジ（直交する線で描く規則の違反）は目視で見落とすため、エンジンが描画前にエラーで止める。
 //
-// アイコンは埋め込みを避けるため icon: null（無地の箱）で描く。配置・経路の計算は
+// アイコンは埋め込みを避けるため icon: null（無地の箱）で描く。配置と線の道筋の計算は
 // アイコンの有無に依存しない（ICON は固定サイズ）ため、幾何の検証には影響しない。
 
 import { test, expect } from "vitest";
@@ -20,7 +20,7 @@ const iconDir = join(skillDir, "assets/starter/icons");
 const render = (spec) => renderDiagram(spec, { iconDir });
 const noIcons = (spec) => ({ ...spec, nodes: spec.nodes.map((n) => ({ ...n, icon: null })) });
 
-/** 描かれたエッジ経路の点列（line jump のアーチは含めず M/L の頂点だけ）。 */
+/** 描かれたエッジの道筋の点列（line jump のアーチは含めず M/L の頂点だけ）。 */
 function pathPoints(svg) {
   const d = svg.match(/<path d="([^"]+)" fill="none"/)[1];
   return [...d.matchAll(/[ML] (-?[\d.]+) (-?[\d.]+)/g)].map((m) => ({ x: +m[1], y: +m[2] }));
@@ -68,7 +68,7 @@ test("自動 L 字のエッジラベルが屈曲点を覆わない", () => {
   const svg = render(diagonalPair);
   const pts = pathPoints(svg);
   const corners = bends(pts);
-  // 屈曲の無い経路で検査すると素通りするため、検査対象が屈曲していることを先に固定する。
+  // 屈曲の無い線で検査すると素通りするため、検査対象が屈曲していることを先に固定する。
   expect(corners.length).toBeGreaterThan(0);
 
   const box = labelBox(svg);
@@ -84,7 +84,7 @@ test("ラベルは直線区間の上に置かれる", () => {
   const svg = render(diagonalPair);
   const pts = pathPoints(svg);
   const { x: cx, y: cy } = labelAnchor(svg);
-  // 基準点が経路のいずれかの直線区間上（両端の間）にあること。
+  // 基準点が線のいずれかの直線区間上（両端の間）にあること。
   const onSegment = pts.slice(0, -1).some((a, i) => {
     const b = pts[i + 1];
     if (a.x === b.x) return cx === a.x && cy > Math.min(a.y, b.y) && cy < Math.max(a.y, b.y);
@@ -172,7 +172,7 @@ test("直交検査は starter の spec に対しても働く（陽性コント�
   const env = environments[name];
   const spec = noIcons(env.transform ? env.transform(structuredClone(baseSpec)) : baseSpec);
   // 1 本だけ斜めに壊した spec は必ず落ちること（＝上のテストの green が「検査が
-  // 走っていない」ではなく「違反が無い」ことを意味すると示す）。
+  // 実行されていない」ではなく「違反が無い」ことを意味すると示す）。
   const target = spec.edges[0];
   const from = spec.nodes.find((n) => n.id === target.from);
   const broken = {

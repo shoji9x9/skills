@@ -1,18 +1,18 @@
-// kaizen 同梱スクリプトが共通ライブラリを読めないとき、縮退を stderr に残すことの回帰テスト。
+// kaizen 同梱スクリプトが共通ライブラリを読めないとき、機能を減らして動くことを stderr に残すかの回帰テスト。
 //
 // なぜ要るか: 修正の裏取りでスクリプトを 1 本だけ scratchpad へコピーして実行すると、
-// 相対パスで読む `kaizen-hook-common.sh` が見つからず**無言で縮退**する。
+// 相対パスで読む `kaizen-hook-common.sh` が見つからず、**警告なしに機能を減らして動く**。
 // 終了コードも出力も本番構成と同じに見えるため、**検証対象が別物へすり替わったまま**
-// 「直った」と判断してしまう。縮退した run と本番構成の run を出力で区別できるようにする。
+// 「直った」と判断してしまう。機能を減らした run と本番構成の run を、出力で区別できるようにする。
 //
 // 状態空間の軸:
 //
 // | 軸           | 値                                                       |
 // | ------------ | -------------------------------------------------------- |
-// | ライブラリ   | 同じディレクトリにある（本番構成） / 無い（縮退）        |
+// | ライブラリ   | 同じディレクトリにある（本番構成） / 無い（機能を減らす）|
 // | 対象スクリプト | 共通ライブラリを読む同梱スクリプト全部（列挙は実測から） |
 //
-// 陰性コントロール: 本番構成（正本の場所）で実行したとき、この警告が出ないこと。
+// 誤検知しないことの確認: 本番構成（原本の場所）で実行したとき、この警告が出ないこと。
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
 import { copyFileSync, readFileSync, readdirSync, rmSync } from "node:fs";
@@ -23,8 +23,8 @@ import { makeTempDir } from "../../lib/test-tmpdir.js";
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const scriptsDir = join(repoRoot, "skills/kaizen/scripts");
 
-// 対象は「共通ライブラリを読むスクリプト」。一覧は宣言（ソースの実体）から機械的に作る——
-// 手で並べると、後から追加されたスクリプトが黙って対象外になる。
+// 対象は「共通ライブラリを読むスクリプト」。一覧は宣言（ソースの実体）から機械的に作る。
+// 手で並べると、後から追加されたスクリプトが警告なしに対象外になる。
 const LIB = "kaizen-hook-common.sh";
 const targets = readdirSync(scriptsDir)
   .filter((f) => f.endsWith(".sh") && f !== LIB)

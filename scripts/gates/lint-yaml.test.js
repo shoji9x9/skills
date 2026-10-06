@@ -1,8 +1,9 @@
 // YAML の構文検査（lint-yaml.js）の回帰テスト（Issue #507）。
 //
-// 「該当が無い」を合格の根拠にする検査なので、壊れた YAML を置いて落ちる陽性コントロールと、
-// 除外（起点直下の .agents / .claude / node_modules・gitignore）の内と外に同じ壊れた YAML を置いて
-// 弁別できることを固定する。対象 0 件・git が使えない起点は成功に倒さない。
+// 「該当が無い」を合格の根拠にするチェックなので、次の 2 点を固定する。
+// 不正な YAML を置くと落ちること（検出されることの確認）。
+// 除外（起点直下の .agents / .claude / node_modules・gitignore）の内と外に同じ不正な YAML を置いて、区別できること。
+// 対象 0 件と、git が使えない起点は、成功として扱わない。
 
 import { expect, test } from "vitest";
 import { spawnSync } from "node:child_process";

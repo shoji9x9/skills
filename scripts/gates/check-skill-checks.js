@@ -1,23 +1,26 @@
 #!/usr/bin/env node
-// 配布スキルの検査（`skills/*/scripts/**/*-check.*`）が、利用者の検査の入口（pre-commit・CI）へ
-// 配線するか決まっているかを検査する（lefthook pre-commit + CI）。
+// 配布スキルのチェック（`skills/*/scripts/**/*-check.*`）について、利用者の pre-commit・CI に
+// 組み込むかどうかが決まっているかをチェックする（lefthook pre-commit + CI）。
 //
-// なぜ要るか: スキルの検査は工程の中で 1 回呼ばれるだけなので、工程を通らずに入った変更は
-// 利用者の入口に配線されていないかぎり 1 度も検査されない。配線すべきものはスキルが
-// `skills/<name>/checks.json` で宣言する。宣言に無いことは「配線しない」を表すが、それだけでは
-// 「配線しないと決めた」と「決めていない（検査を足して宣言を忘れた）」が同じ見え方になる。
-// そこで配線しないと決めた検査は理由付きで `scripts/gates/skill-checks-unwired.json`（配布しない）に置き、
-// 全検査がどちらか一方にだけ載っていることをここで確かめる。
+// なぜ要るか: スキルのチェックは、手順の中で 1 回呼ばれるだけである。手順を通らずに入った変更は、
+// 利用者の pre-commit・CI に組み込まれていないかぎり、1 度もチェックされない。
+// 組み込むべきものは、スキルが `skills/<name>/checks.json` で宣言する。宣言に無いことは「組み込まない」を表す。
+// しかしそれだけでは、「組み込まないと決めた」と「決めていない（チェックを足して宣言を忘れた）」が同じに見える。
+// そこで、組み込まないと決めたチェックは、理由を付けて `scripts/gates/skill-checks-unwired.json`（配布しない）に置く。
+// そして、全チェックがどちらか一方にだけ載っていることを、ここで確かめる。
 //
 // 判定規則:
-// - 検査は名前で拾う（`*-check.<拡張子>`。`*-check.test.mjs` は末尾が合わないので拾わない）。0 本なら exit 2（走査が届いていない）。
-// - 検査を 1 本でも持つスキルは `checks.json` を持つ（配線対象 0 件なら `"wire": []`）。
+// - チェックは名前で見つける（`*-check.<拡張子>`。`*-check.test.mjs` は末尾が合わないので見つけない）。
+//   0 本なら exit 2 にする（走査が届いていない）。
+// - チェックを 1 本でも持つスキルは、`checks.json` を持つ（組み込む対象が 0 件なら `"wire": []`）。
 // - `checks.json` の形（キー・型・プレースホルダの解決・スクリプトの実在）を確かめる。利用者が機械的に
-//   読むので、未知のキーや解決できないプレースホルダは黙って無視されないよう違反にする。
-// - 終了コード: 判定そのものが成り立たない入力は exit 2——配線しない一覧（scripts/gates/skill-checks-unwired.json）が
-//   読めない（無い・JSON でない・形が違う）、検査が 0 本、リポジトリの外を指すリンク。
-//   スキルの checks.json の誤り（JSON でない・形が違う）は exit 1 の違反として扱う——1 スキルの宣言が壊れていても
-//   他のスキルの分類は判定でき、全スキルの違反をまとめて報告できるため（宣言を直す人が 1 件ずつ往復しない）。
+//   読むので、未知のキーや解決できないプレースホルダは、警告なしに無視されないよう違反にする。
+// - 終了コード: 判定そのものが成り立たない入力は exit 2 にする。
+//   組み込まない一覧（scripts/gates/skill-checks-unwired.json）が読めない（無い・JSON でない・形が違う）、
+//   チェックが 0 本、リポジトリの外を指すリンク、がこれに当たる。
+//   スキルの checks.json の誤り（JSON でない・形が違う）は、exit 1 の違反として扱う。
+//   1 スキルの宣言が不正でも、他のスキルの分類は判定でき、全スキルの違反をまとめて報告できるためである
+//   （宣言を直す人が 1 件ずつ往復しない）。
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { basename, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -53,13 +56,14 @@ const isTextArray = (v) => Array.isArray(v) && v.length > 0 && v.every(isText);
 /** real が base（実パス）の中か。 */
 const isInside = (base, real) => real === base || real.startsWith(base + sep);
 
-// ancestors はいま辿っている経路上のディレクトリの実パス。自分や祖先を指すリンクで経路上へ戻ったら
-// 辿り直さない（辿ると ELOOP まで潜って「判定できない」に化ける）。全体の訪問済み集合にはしない——
-// 兄弟の 2 本のリンクが同じディレクトリを指すと、2 本目の先の検査が分類を問われないまま漏れる。
-// 境界（skillReal＝そのスキルのディレクトリの実パス）の外を指すリンクは辿らず判定できないに倒す。
+// ancestors は、いま辿っているパスの上にあるディレクトリの実パス。自分や祖先を指すリンクで
+// そのパスの上へ戻ったら、辿り直さない（辿ると ELOOP まで潜り、誤って「判定できない」と判定される）。
+// 全体の訪問済み集合にはしない。兄弟の 2 本のリンクが同じディレクトリを指すと、
+// 2 本目の先のチェックが、分類を問われないまま対象から外れる。
+// 境界（skillReal＝そのスキルのディレクトリの実パス）の外を指すリンクは辿らず、判定できないとして扱う。
 // 配布されるのはスキルのディレクトリだけなので、外を指すリンクの先は利用者の手元に届かない
-// （リポジトリの外なら CI のファイルシステムを走査することにもなる）。黙って飛ばすと、その先の検査が
-// 分類を問われないまま通り、配線しない側に載せれば exit 0 になる。
+// （リポジトリの外なら CI のファイルシステムを走査することにもなる）。警告なしに飛ばすと、その先のチェックが
+// 分類を問われないまま通り、組み込まない側に載せれば exit 0 になる。
 function listFiles(dir, skillReal, ancestors = new Set()) {
   const real = realpathSync(dir);
   // 走査の起点（skills/<name>/scripts）自体がリンクで外を指す場合も、辿る前に止める。
@@ -71,8 +75,8 @@ function listFiles(dir, skillReal, ancestors = new Set()) {
   const out = [];
   for (const e of readdirSync(dir, { withFileTypes: true })) {
     const p = join(dir, e.name);
-    // シンボリックリンクは Dirent では isFile / isDirectory がどちらも偽になり、黙って走査から外れる
-    // （リンクした検査が分類を問われないまま通る）ので、リンク先の種類で判定する。
+    // シンボリックリンクは、Dirent では isFile / isDirectory がどちらも偽になり、警告なしに走査から外れる
+    // （リンクしたチェックが分類を問われないまま通る）。そこで、リンク先の種類で判定する。
     if (e.isSymbolicLink() && !isInside(skillReal, realpathSync(p))) {
       throw new Error(
         `${p} がスキルのディレクトリの外（${realpathSync(p)}）を指している（配布されない）`,
@@ -87,8 +91,8 @@ function listFiles(dir, skillReal, ancestors = new Set()) {
 
 /**
  * skills/ 直下のスキルのディレクトリ名。リンクはリンク先の種類で判定する（Dirent の isDirectory は
- * リンクで偽になり、リンクしたスキルの検査が分類を問われないまま漏れる）。リンク先がリポジトリの外なら
- * scripts/ の走査（listFiles）が判定できないに倒す。
+ * リンクで偽になり、リンクしたスキルのチェックが、分類を問われないまま対象から外れる）。
+ * リンク先がリポジトリの外なら、scripts/ の走査（listFiles）が判定できないとして扱う。
  */
 function skillDirs(root) {
   const skillsDir = join(root, "skills");
@@ -101,7 +105,7 @@ function skillDirs(root) {
 
 /**
  * パスを宣言と同じ `/` 区切りにする。Windows の relative は `\\` 区切りを返すので、そのままでは
- * checks.json / 配線しない一覧の `/` 区切りのパスと一致せず、全検査が未分類に化ける。
+ * checks.json / 組み込まない一覧の `/` 区切りのパスと一致せず、全チェックが誤って未分類と判定される。
  * @param {string} p
  * @param {string} [separator] テスト用（既定は実行環境の区切り）
  */
@@ -128,7 +132,7 @@ export function findCheckScripts(root) {
   return out.sort();
 }
 
-/** 配線しない検査の一覧を読む。形の誤りは例外にする（読めない一覧を 0 件に倒さない）。 */
+/** 組み込まないチェックの一覧を読む。形の誤りは例外にする（読めない一覧を 0 件として扱わない）。 */
 export function loadUnwired(root) {
   const path = join(root, UNWIRED_PATH);
   if (!existsSync(path)) throw new Error(`${UNWIRED_PATH} が無い`);
@@ -184,8 +188,8 @@ export function checkDeclaration(root, skill) {
     else if (ids.has(e.id)) v.push(`${at}: id ${e.id} が重複している`);
     else ids.add(e.id);
 
-    // `.` / 空のセグメントも落とす: 実在確認は通るが、検査一覧のパスと字面が一致せず
-    // 宣言した検査が「配線するか決まっていない」と報告される（宣言の誤りを別の違反に化けさせない）。
+    // `.` / 空のセグメントも落とす。実在の確認は通るが、チェックの一覧のパスと字面が一致しないので、
+    // 宣言したチェックが「組み込むか決まっていない」と報告される（宣言の誤りを、別の違反として報告させない）。
     if (
       !isText(e.script) ||
       e.script.startsWith("/") ||
@@ -225,7 +229,7 @@ export function checkDeclaration(root, skill) {
         if (keys.length !== 1) v.push(`${pat}: by_stage は他のキーと併用しない`);
         const bs = p.by_stage;
         const want = Array.isArray(stages) ? [...stages].sort().join(",") : "";
-        // 入口ごとの値は、そのまま置き換えられる値（value）か、入口側で求める手順（resolve）のどちらか一方。
+        // 実行箇所（stage）ごとの値は、そのまま置き換えられる値（value）か、実行箇所の側で求める手順（resolve）のどちらか一方。
         // 説明文を value の位置に置くと、機械的に置き換える利用者がその文をそのまま引数に渡す。
         const stageValue = (sv) =>
           isObject(sv) && Object.keys(sv).length === 1 && (isText(sv.value) || isText(sv.resolve));
@@ -284,7 +288,7 @@ export function checkDeclaration(root, skill) {
           if (!isObject(o) || !isTextArray(o.args) || !isText(o.when_exists)) {
             v.push(`${at}: optional_args[${j}] は args（空でない配列）と when_exists を持つ`);
           } else if (Object.keys(o).some((k) => k !== "args" && k !== "when_exists")) {
-            // 未知のキー（綴り違いの条件など）を黙って捨てると、利用者は書かれた条件が効くと読む。
+            // 未知のキー（綴り違いの条件など）を警告なしに捨てると、利用者は書かれた条件が有効になると読む。
             v.push(`${at}: optional_args[${j}] の未知のキー（args / when_exists だけを持つ）`);
           } else resolveIn([...o.args, o.when_exists], `optional_args[${j}]`, false);
         });
@@ -307,7 +311,7 @@ export function checkDeclaration(root, skill) {
         if (k in aw && !isTextArray(aw[k])) v.push(`${at}: applies_when.${k} は空でない配列にする`);
       }
       // 形が違う値は上で違反にしたので展開しない（真偽値・オブジェクトの展開は
-      // TypeError になり、宣言の誤り＝exit 1 が「判定できない」＝exit 2 に化ける）。
+      // TypeError になり、宣言の誤り＝exit 1 が、誤って「判定できない」＝exit 2 と判定される）。
       const paths = awKeys.flatMap((k) => (isTextArray(aw[k]) ? aw[k] : []));
       resolveIn(paths, "applies_when", false);
     }
@@ -351,8 +355,8 @@ export function checkSkillChecks(root) {
     violations.push(...v);
     for (const s of scripts) {
       if (wired.has(s)) violations.push(`${s}: ${DECLARATION_NAME} に重複して宣言されている`);
-      // 配線できるのは走査で見つかった検査（scripts/ 配下の *-check.*）だけ。検査でないファイルを配線し、
-      // 本物の検査を「配線しない」に載せた宣言を通すと、利用者は検査でないものを入口で走らせる。
+      // 組み込めるのは、走査で見つかったチェック（scripts/ 配下の *-check.*）だけ。チェックでないファイルを組み込み、
+      // 本物のチェックを「組み込まない」に載せた宣言を通すと、利用者はチェックでないものを pre-commit・CI で実行する。
       if (checks.indexOf(s) === -1) {
         violations.push(
           `${s}: 検査（scripts/ 配下の *-check.<拡張子>）として見つからないものを配線している`,

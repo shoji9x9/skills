@@ -1,9 +1,9 @@
 // parity-suite の新側突き合わせの検査（component-comparison-check.mjs）の回帰テスト（Issue #337）。
 //
-// 被覆表の 3 値は移行元側の測定なので、present をいくら積んでも新側の欠落は 1 件も示されない。
-// 新側で同じ操作を実施したことを別の記録に持たせ、入口・当たり判定・完了の 3 点が揃うまで突き合わせ済みにしない。
+// 網羅表の 3 値は移行元側の測定なので、present をいくら積んでも新側の欠落は 1 件も示されない。
+// 新側で同じ操作を実施したことを別の記録に持たせ、起点・当たり判定・完了の 3 点が揃うまで突き合わせ済みにしない。
 //
-// 陽性コントロール（3 点の揃った記録が exit 0）を置く——これが無いと「常に落とす」実装と区別できない。
+// 通ることの確認（3 点の揃った記録が exit 0）を置く。これが無いと「常に落とす」実装と区別できない。
 
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -23,7 +23,7 @@ import {
   writeJson,
 } from "./evidence-carry-fixture.js";
 
-/** 移行元側の被覆表（present 2 件 ＋ absent / unmeasured 各 1 件）。 */
+/** 移行元側の網羅表（present 2 件 ＋ absent / unmeasured 各 1 件）。 */
 const COVERAGE = {
   slug: "order-list",
   measured_target: "current",
@@ -139,7 +139,7 @@ test("セルの鍵は材料が 1 つでも欠けたら作らない（undefined �
 });
 
 test("区切り文字を含む材料からは鍵を作らない（別の操作の記録が証拠に化ける）", () => {
-  // ("a|b","c","d") と ("a","b|c","d") はどちらも a|b|c|d になり、
+  // `("a|b","c","d")` と `("a","b|c","d")` はどちらも a|b|c|d になり、
   // 別セルの突き合わせ記録が present セルの証拠として通る（指紋も同じ鍵を数えるので一致する）。
   expect(cellKey({ component: "a|b", item: "c", instance: "d" })).toBeNull();
   expect(cellKey({ component: "a", item: "b|c", instance: "d" })).toBeNull();
@@ -299,7 +299,7 @@ test("指紋の欄そのものが無い記録も落ちる", () => {
 });
 
 test("突き合わせは新側の版に紐づける（記録後に実装が変わったら落ちる）", () => {
-  // target・slug・被覆表の指紋だけでは、記録の後に新側を変えても古い証拠が通る。
+  // target・slug・網羅表の指紋だけでは、記録の後に新側を変えても古い証拠が通る。
   const stale = checkComponentComparison({
     coverage: COVERAGE,
     comparison: comparisonOf(),
@@ -308,7 +308,7 @@ test("突き合わせは新側の版に紐づける（記録後に実装が変�
   }).findings.map((f) => f.code);
   expect(stale).toContain("comparison-implementation-stale");
 
-  // 同じ版なら通る（陽性コントロール）。
+  // 同じ版なら通る（通ることの確認）。
   const fresh = checkComponentComparison({
     coverage: COVERAGE,
     comparison: comparisonOf(),
@@ -451,7 +451,7 @@ test("replace-metadata が new オブジェクトを持たなければ鮮度を�
   for (const broken of [undefined, null, 3, "x", [], {}, { new: 3 }, { new: [] }]) {
     expect(codesOf({ replaceMetadata: broken })).toContain("replace-metadata-unusable");
   }
-  // 陽性コントロール: new オブジェクトが揃っていればこの finding は出ない。
+  // 誤検知しないことの確認: new オブジェクトが揃っていればこの finding は出ない。
   expect(codesOf()).not.toContain("replace-metadata-unusable");
 });
 
@@ -463,7 +463,7 @@ test("版の記録は dirty: false まで求める（未コミットの作業ツ
       "replace-metadata-dirty",
     );
   }
-  // 陽性コントロール: どちらも false なら出ない。
+  // 誤検知しないことの確認: どちらも false なら出ない。
   const clean = codesOf();
   expect(clean).not.toContain("comparison-implementation-dirty");
   expect(clean).not.toContain("replace-metadata-dirty");
@@ -494,7 +494,7 @@ test("new.commit が none なら反復回数で鮮度を判定する", () => {
       replaceMetadata: noneReplaceMetadata(3),
     }),
   ).toContain("comparison-implementation-stale");
-  // 一致していれば通る（陽性コントロール。常に落とす実装ではない）。
+  // 一致していれば通る（通ることの確認。常に落とす実装ではない）。
   expect(
     codesOf({
       comparison: comparisonOf({
@@ -518,8 +518,8 @@ test.each([
   ).toContain("comparison-implementation-unversionable");
 });
 
-// 片側だけが none なら必要な直し方は「同じ版で取り直す」なので stale だけを出す。
-// 反復回数の検査まで進めると、契約上 iteration を書く義務が無い SHA 記録に対して
+// 片側だけが none なら必要な直し方は「同じ版で再取得する」なので stale だけを出す。
+// 反復回数の検査まで進めると、仕様上 iteration を書く義務が無い SHA 記録に対して
 // unversionable（「iteration を書き足せ」と読める）が併発し、案内と実際の直し方がずれる。
 test("片側だけが none なら stale だけを出し、iteration の欠落は問わない", () => {
   const codes = codesOf({
@@ -539,7 +539,7 @@ test("commit が実在の SHA なら従来どおり文字列で判定する（�
   ).toContain("comparison-implementation-stale");
 });
 
-// 片側だけが none のとき、反復回数がたまたま一致しただけで合格に倒さない。
+// 片側だけが none のとき、反復回数がたまたま一致しただけで合格として扱わない。
 // `none` と実在の SHA は同じ版を指さないので、反復回数の検査とは別に必ず落とす。
 test.each([
   ["記録が SHA・現在が none", { commit: "abc123", dirty: false, iteration: 3 }, "none", 3],
@@ -568,11 +568,11 @@ test("両側とも none で反復回数も一致すれば通る（陽性コン�
 });
 
 // 証跡の持ち越し（Issue #454）。comparison-implementation-stale の SHA 不一致でも、描画入力の差分が変更宣言と
-// amend-verify で説明できれば持ち越す（判定の正本は evidence-carry.mjs。artifact-health-check.mjs と同じ関数）。
+// amend-verify で説明できれば持ち越す（判定の原本は evidence-carry.mjs。artifact-health-check.mjs と同じ関数）。
 // git を実物で使うので、ここだけメモリ上のファイルではなく一時ディレクトリで回す。
 
 /**
- * 持ち越しの fixture に被覆表・突き合わせ表・replace-metadata.json を足す。
+ * 持ち越しの fixture に網羅表・突き合わせ表・replace-metadata.json を足す。
  * @param {[string, string, string][]} scope
  * @param {Record<string, unknown>} [replaceNewExtra]
  */

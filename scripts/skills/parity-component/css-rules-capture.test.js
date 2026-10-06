@@ -1,11 +1,11 @@
-// 当たっている CSS 規則の採取が「取りこぼしても例外が出ない」経路で壊れないことの回帰テスト（Issue #326）。
+// 当たっている CSS 規則の採取が、「取りこぼしても例外が出ない」入力で規則を取りこぼさないことの回帰テスト（Issue #326）。
 //
 // 検査するのは走査の検出能力そのものなので、素朴な走査（`if (rule.cssRules) 再帰; else 数える;`・
-// @import を辿らない）を同じ入力に当てる**陽性コントロール**を同居させる。
-// 素朴な走査が取りこぼすことまで確かめないと、この fixture が弁別できているのか
+// @import を辿らない）を同じ入力に当て、**検出できることを確かめるテスト**を同居させる。
+// 素朴な走査が取りこぼすことまで確かめないと、この fixture で区別できているのか
 // （＝テストが赤くなりうるのか）が分からない。
 //
-// fixture の形は Chrome 149.0.7827.155 での実測に合わせてある:
+// fixture の形は、Chrome 149.0.7827.155 で実測した次の形に合わせてある。
 //   - CSSImportRule は cssRules を持たず styleSheet を持つ
 //   - CSSStyleRule は入れ子が無くても空の cssRules を持つ
 //   - 入れ子の selectorText は `&` を保った形で返る
@@ -146,9 +146,9 @@ const capture = (overrides) =>
 
 const findMatch = (result, predicate) => result.matched.find(predicate);
 
-// --- 陽性コントロール: 素朴な走査が同じ入力で取りこぼすことを実証する ---
+// --- 検出できることの確認: 素朴な走査が同じ入力で取りこぼすことを実証する ---
 
-// Issue #326 が報告した 2 つの壊れ方をそのまま実装した走査。
+// Issue #326 が報告した 2 つの取りこぼし方をそのまま実装した走査。
 function naiveCollect(sheets) {
   const selectors = [];
   const walk = (rules) => {
@@ -162,7 +162,7 @@ function naiveCollect(sheets) {
     try {
       walk(sheet.cssRules);
     } catch {
-      // 素朴な走査はクロスオリジンを黙って捨てる。
+      // 素朴な走査はクロスオリジンを警告なしに捨てる。
     }
   }
   return selectors;
@@ -318,7 +318,7 @@ test("adoptedStyleSheets も走査する", () => {
 test("入れ子の途中に現れた裸の宣言（CSSNestedDeclarations）を黙って落とさない", () => {
   // `.card { color: red; & .inner { … } background: blue; }` の `background` は Chrome 130+ で
   // CSSNestedDeclarations として返る。selectorText も cssRules も持たないため、
-  // 分岐を足さないと matched / unresolved / counts のどこにも残らず静かに消える。
+  // 分岐を足さないと matched / unresolved / counts のどこにも残らず、警告なしに消える。
   const nestedDeclarations = { style: decl({ background: "rgb(7, 7, 7)" }) };
   const sheets = [
     {
@@ -384,7 +384,7 @@ test("captureMatchedRules は論理名とツール版を付けて返す", async 
 
 test("属性セレクタの中の & を入れ子セレクタとして置換しない", () => {
   // `& [data-label="A&B"]` の引用符内の & まで置換すると、属性値に :is(...) が入った
-  // 不正なセレクタになる。matches() は throw せず false を返すので静かに落ちる。
+  // 不正なセレクタになる。matches() は throw せず false を返すので、エラーにならずに規則が外れる。
   const child = styleRule('& [data-label="A&B"]', { color: "red" });
   const parent = styleRule(".card", { color: "blue" }, { children: [child] });
   const sheets = [{ href: MAIN_HREF, cssRules: [parent] }];
@@ -402,7 +402,7 @@ test("属性セレクタの中の & を入れ子セレクタとして置換し�
 
 test("@scope の中の規則はスコープを評価せず unresolved に残す", () => {
   // セレクタだけを見ると当たるが、スコープ根の外では適用されない。
-  // 当たった側へ倒すと、その部品には効いていない規則を根拠として出すことになる。
+  // 当たった側として扱うと、その部品には適用されていない規則を根拠として出すことになる。
   const scopeRule = {
     start: "(.dialog)",
     end: null,
@@ -420,7 +420,7 @@ test("@scope の中の規則はスコープを評価せず unresolved に残す"
 
 test("エスケープされた区切り文字でセレクタを分割しない", () => {
   // `.foo\,bar` は 1 つのクラスセレクタ。エスケープを飛ばさずに分割すると
-  // 断片が無効セレクタになり、当たるはずの規則が静かに落ちる。
+  // 断片が無効セレクタになり、当たるはずの規則がエラーにならずに外れる。
   const sheets = [{ href: MAIN_HREF, cssRules: [styleRule(".foo\\,bar", { color: "red" })] }];
   const el = fakeElement(sheets, { selectors: new Set([".foo\\,bar"]) });
   const result = collectMatchedRules(el, {
@@ -469,7 +469,7 @@ test("@import の supports() 条件を引き継ぐ", () => {
 
 test("style 属性の宣言を別の出所として採る", () => {
   // インスタンス固有の値が style 属性で来ている部品では、規則走査だけだと出所も
-  // !important の優先度も残らず、計算後スタイルの結果値しか手掛かりが無くなる。
+  // `!important` の優先度も残らず、計算後スタイルの結果値しか手掛かりが無くなる。
   const el = fakeElement(buildSheets(), {
     inline: { width: "240px", color: "rgb(9, 9, 9)" },
     inlineImportant: ["color"],
@@ -541,8 +541,8 @@ const shadowCapture = (overrides) =>
 
 test("シャドウツリー内の要素に外側 document の規則を当てない", () => {
   // document のスタイルシートはカプセル化でシャドウツリーの中へ届かないが、
-  // el.matches(".btn") は true を返す。外側まで走ると、効いていない規則が
-  // 部品の基準として記録され、実装がそれを写して現行と食い違う。
+  // el.matches(".btn") は true を返す。外側まで走査すると、適用されていない規則が
+  // 部品の基準として記録され、実装がそれを反映して現行と食い違う。
   const outer = {
     href: MAIN_HREF,
     cssRules: [styleRule(".btn", { color: "rgb(255, 0, 0)" })],
@@ -642,7 +642,7 @@ test(":not() の中の状態は unresolved にしない", () => {
 });
 
 test("シャドウと document が同じシートを共有しても外側の走査を飛ばさない", () => {
-  // seenSheets をシート単位にすると、内側を先に走った時点で既読になり、外側スコープの
+  // seenSheets をシート単位にすると、内側を先に走査した時点で既読になり、外側スコープの
   // 走査が丸ごと消える。::part() が unresolved に残らず outer_scope_skipped も増えない。
   const shared = {
     href: MAIN_HREF,
@@ -663,7 +663,7 @@ test("シャドウと document が同じシートを共有しても外側の走�
 
 test("カスタム要素のホストでは自分のシャドウルートの :host 規則を残す", () => {
   // getRootNode() は document を返すのでシャドウ判定に入らないが、ホストの見た目を
-  // 決めているのは自分のシャドウルートの :host 規則。走らないと「規則ゼロ」の誤った基準になる。
+  // 決めているのは自分のシャドウルートの :host 規則。走査しないと「規則ゼロ」の誤った基準になる。
   const hostSheet = {
     href: null,
     cssRules: [
@@ -746,7 +746,7 @@ test("読み込めている @import は従来どおり辿る", () => {
 });
 
 test("スロットに割り当てられた要素では ::slotted() を残す", () => {
-  // ライト DOM の要素に効く ::slotted() 規則はスロット側のシャドウルートにある。
+  // ライト DOM の要素に適用される ::slotted() 規則はスロット側のシャドウルートにある。
   // getRootNode() は document を返すので、辿らないと 1 件も見えない。
   const slotSheet = {
     href: null,
@@ -810,7 +810,7 @@ const OPTIONS = {
 test("ホストを対象にしたとき document の ::part() をホストの根拠にしない", () => {
   // `.host::part(label)` は擬似要素を剥がすと `.host` になり、ホストに対して matches() が真を返す。
   // 飾っているのはシャドウツリー内の部品なので、matched に入るとホストの偽の根拠になる。
-  // selectors に `.host` を入れてあるので、分岐を外すと matched へ入る（陽性コントロールを兼ねる）。
+  // selectors に `.host` を入れてあるので、分岐を外すと matched へ入る（検出できることの確認を兼ねる）。
   const sheets = [
     {
       href: MAIN_HREF,
@@ -886,8 +886,8 @@ test("シャドウツリー内の要素に自分の根の ::slotted() を当て�
 // --- 擬似クラス・擬似要素の名前の大文字小文字（Issue #357） ---
 //
 // CSS の擬似クラス・擬似要素の名前は ASCII の大文字小文字を区別しない。小文字の綴りしか
-// 認識しない判定は、例外を出さずに別の分岐へ落ちる（`::PART` は擬似要素として剥がされて
-// ホストに当たり、`:HOVER` は未知の擬似クラスとして unresolved に落ちる）。
+// 認識しない判定は、例外を出さずに別の分岐で扱われる（`::PART` は擬似要素として剥がされて
+// ホストに当たり、`:HOVER` は未知の擬似クラスとして unresolved として扱われる）。
 // 各ケースは小文字版と同じ結果になることを確かめる（小文字側が正しいことは上の各テストが固定している）。
 
 // セレクタ文字列以外の判定結果を取り出す（selector / original_selector は綴りのまま残るので比べない）。
@@ -914,7 +914,7 @@ function captureOne(selector, scope, selectors) {
 }
 
 test.each([
-  // [ラベル, 小文字, 大文字混じり, スコープ, 当たる base, 期待する判定]
+  // 各行の要素: ラベル・小文字・大文字混じり・スコープ・当たる base・期待する判定
   [
     "自分の根の ::part()",
     ".host::part(label)",

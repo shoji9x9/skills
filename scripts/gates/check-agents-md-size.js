@@ -9,7 +9,7 @@
 // 「一度超えた」は git の履歴で判定する。状態をファイルに記録すると、commit されない限り手元の作業ツリーにしか残らず、
 // restore・別の clone・hook の無い環境で消える。履歴なら pre-commit と CI が同じ事実を読める。
 //
-// 判定規則（範囲は base との分岐点より後の commit。サイズは各 commit の AGENTS.md のバイト数）:
+// 判定規則は次のとおり（範囲は base との分岐点より後の commit。サイズは各 commit の AGENTS.md のバイト数）。
 // - pre-commit（`--pre-commit`）: 測るのは index の AGENTS.md。
 //   - 範囲に limit 超の commit がなく、index だけが limit を超える: 初めて超えた commit なので、警告して通す
 //     （履歴に残して、以降の commit と CI に「一度超えた」ことを伝えるため）。

@@ -3,27 +3,31 @@
 // （lefthook pre-commit + CI）。
 //
 // なぜ要るか: 学びは適用・忘却のたびに `.kaizen/` 直下から `.kaizen/archive/` へ移る。移動は参照側を
-// 書き換えないので、コメントや文書に書いた根拠のリンクが黙って切れる。切れた参照は読み手が
+// 書き換えないので、コメントや文書に書いた根拠のリンクが、警告なしに切れる。切れた参照は読み手が
 // 「根拠がある」と受け取ったまま辿れない。
 //
 // 判定規則:
 // - 対象は追跡ファイルと、ignore されていない未追跡ファイル（add 前の新規ファイルを手元で見落とさない。
 //   commit の前後で走査集合が変わらない）のうち、テキスト拡張子のもの（`check-control-chars.js` と同じ集合）。
-//   配布スキルのインストール済みコピー（`.agents/skills/<name>/` のうち `skills/<name>/` に正本があるもの）、
-//   エージェント用リンク（`.claude/`）、テスト結果（`tests/`）、学び自身（`.kaizen/`。学びは書かれた時点の記録で、
-//   参照先が後で archive/ へ移って現存しなくても不整合ではない〈kaizen スキルの references/extract.md の規定〉。
-//   ここで落とすと archive のたびに過去の記録を書き換えることになる）、`node_modules/` を除く。`.agents/` のそれ以外は正本なので走査する——
-//   private skill（`skills/` に無い `.agents/skills/<name>/`）と rule（`.agents/rules/`）。
-//   シンボリックリンクは読まない（`.github/instructions/` → `.agents/rules/` のようなリンクは、リンク先の正本を
+//   次のものは除く。
+//   - 配布スキルのインストール済みコピー（`.agents/skills/<name>/` のうち、`skills/<name>/` に原本があるもの）
+//   - エージェント用リンク（`.claude/`）、テスト結果（`tests/`）、`node_modules/`
+//   - 学び自身（`.kaizen/`）。学びは書かれた時点の記録なので、参照先が後で archive/ へ移って現存しなくても、
+//     不整合ではない〈kaizen スキルの references/extract.md の規定〉。
+//     ここで落とすと、archive のたびに過去の記録を書き換えることになる。
+//   `.agents/` のそれ以外は原本なので走査する。private skill（`skills/` に無い `.agents/skills/<name>/`）と
+//   rule（`.agents/rules/`）である。
+//   シンボリックリンクは読まない（`.github/instructions/` → `.agents/rules/` のようなリンクは、リンク先の原本を
 //   走査するので、辿ると同じ本文を二重に数える）。
 //   eval の入力（`evals/<name>/evals.json` と `evals/<name>/fixtures/`）は、eval が想定する別リポジトリの状態を
 //   書いたもので、このリポジトリの学びを指さない（prompt 中の仮のパスは意図的な非実在）ので除く。
-//   `evals/<name>/README.md` のような文書は対象に残す。この検査自身のテストと変異宣言（切れた参照の fixture を持つ）も除く。
+//   `evals/<name>/README.md` のような文書は対象に残す。
+//   このチェック自身のテストとミューテーションテストの定義ファイル（切れた参照の fixture を持つ）も除く。
 // - 拾う参照は `.kaizen/<YYYY-MM-DD>-<slug>.md` と `.kaizen/archive/<name>.md`。プレースホルダ
 //   （`${base}` / `*` / `<slug>`）は名前の文字集合に入らないので拾わない。
 // - `.md` の直後がパスの続き（名前の文字 `[A-Za-z0-9_-]`、`/`、または `.` の直後に `[A-Za-z0-9_]`。例: `.md.bak` /
 //   `.md-old` / `.mdx` / `.md/subpath` / `.md/`）なら、書かれた文字どおりのパスは学びではない。`.md` までを参照として拾うと、
-//   実在する学びを指して合格になるので、判定不能を合格に倒さず違反にする（1 つのパスとして書くよう求める）。
+//   実在する学びを指して合格になる。そこで、判定できないものを合格として扱わず、違反にする（1 つのパスとして書くよう求める）。
 //   文末の `.`（直後が空白・行末・約物）や `)` `）` `、` `。` `` ` `` `"` などの約物は参照の終わりとして受け入れる。
 //   URL のアンカー（`.md#L10`）も参照の終わりとして受け入れる（指すファイルは変わらない）。
 //   折り返した参照をつないだ後にも同じ規則を当てる。位置はリポジトリルート基準で解決する
@@ -33,7 +37,7 @@
 // - 行末で折り返された参照（例: `// ... .kaizen/archive/2026-09-19-length-limit-` の次行が
 //   `// measured-by-proxy-not-enforcer.md`）は、次行の先頭（コメント記号・引用記号・空白を除いた位置）の
 //   名前の続きとつないで 1 件として検査する。つないでも参照の形にならない折り返しは、
-//   判定不能を合格に倒さず違反にする（1 行に収めるよう求める）。切れ目が日付の途中・`.kaizen/` や
+//   判定できないものを合格として扱わず、違反にする（1 行に収めるよう求める）。切れ目が日付の途中・`.kaizen/` や
 //   `.kaizen/archive/` の直後でも同じく扱う。ただし名前を 1 文字も持たない切れ目は、つないで参照に
 //   ならなければディレクトリへの言及として通す。
 // - 意図的な非実在（テストが一時ディレクトリに作る fixture のパス）は、走査するリポジトリの
@@ -41,7 +45,7 @@
 //   免除はデータとして走査対象と一緒に持つ（コードに埋めると、別のリポジトリを走査したとき「使われていない免除」になる）。
 //   ファイルが無ければ免除 0 件。使われなくなった免除も違反にする（免除が残ると、同じ参照を後から本物として書いても素通りする）。
 //
-// 対象ファイル 0 件・参照 0 件は成功に倒さない（走査できていないことと違反が無いことを区別する）。
+// 対象ファイル 0 件・参照 0 件は、成功として扱わない（走査できていないことと違反が無いことを区別する）。
 import { execFileSync } from "node:child_process";
 import { existsSync, lstatSync, readFileSync, realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -55,20 +59,20 @@ const EVAL_INPUT_RE = /^evals\/[^/]+\/(?:evals\.json$|fixtures\/)/;
 
 // 免除の宣言ファイルは、実在しない参照を並べるのが役目なので走査しない。
 export const EXEMPTIONS_PATH = "scripts/gates/kaizen-refs-exemptions.json";
-// この検査自身のテストと変異宣言は、切れた参照の fixture を本文に持つのが役目なので走査しない
+// このチェック自身のテストとミューテーションテストの定義ファイルは、切れた参照の fixture を本文に持つのが役目なので走査しない
 // （参照ごとに免除を宣言すると、ケースを足すたびに免除が要る）。閉じた集合として名指しする。
 export const SELF_FIXTURES = [
   "scripts/gates/check-kaizen-refs.test.js",
   "scripts/gates/check-kaizen-refs.mutations.json",
 ];
 
-/** 配布スキルのインストール済みコピーか（正本 `skills/<name>/` が一覧に在る名前だけ）。 */
+/** 配布スキルのインストール済みコピーか（原本 `skills/<name>/` が一覧に在る名前だけ）。 */
 export const isInstalledCopy = (path, distributed) => {
   const m = AGENTS_SKILL_RE.exec(path);
   return Boolean(m) && distributed.has(m[1]);
 };
 
-/** 一覧のうち `skills/<name>/` 配下にファイルを持つ名前（配布スキルの正本）。 */
+/** 一覧のうち `skills/<name>/` 配下にファイルを持つ名前（配布スキルの原本）。 */
 export const distributedSkills = (paths) =>
   new Set(paths.map((f) => SKILL_RE.exec(f)?.[1]).filter(Boolean));
 
@@ -80,7 +84,7 @@ export const isScanned = (path, distributed = new Set()) =>
   !EXCLUDED_PREFIXES.some((p) => path.startsWith(p)) &&
   !EVAL_INPUT_RE.test(path);
 
-/** 免除の宣言を読む。無ければ 0 件、形が崩れていれば例外（判定不能を免除 0 件に倒さない）。 */
+/** 免除の宣言を読む。無ければ 0 件、形が不正なら例外（判定できないものを、免除 0 件として扱わない）。 */
 export function loadExemptions(root) {
   const path = join(root, EXEMPTIONS_PATH);
   if (!existsSync(path)) return [];
@@ -106,7 +110,7 @@ const PATH_TAIL_RE = /^(?:[A-Za-z0-9_-]|\/|\.(?=[A-Za-z0-9_]))*/;
 const FULL_RE = new RegExp(`^\\.kaizen/(?:archive/${NAME}\\.md|${DATED})$`);
 // 行末で切れた参照。切れ目は名前の途中に限らない——日付の途中（`2026-09-`）や、
 // `.kaizen/` / `.kaizen/archive/` の直後でも切れうる。日付を丸ごと要求すると、それより手前で
-// 切れた参照は「参照」とも「復元できない折り返し」とも判定されず黙って素通りする。
+// 切れた参照は「参照」とも「復元できない折り返し」とも判定されず、警告なしに通ってしまう。
 // 直下は日付で始まる名前だけを拾う（`.kaizen/config` のような制御ファイルへの言及を巻き込まない）。
 const TRUNCATED_RE = new RegExp(
   `${LEAD}(\\.kaizen/(?:archive/${NAME}|archive/|\\d[A-Za-z0-9_-]*)?)$`,
@@ -149,7 +153,7 @@ export function findRefs(text) {
   return { refs, broken, malformed };
 }
 
-/** `git ls-files` の一覧（NUL 区切りなので改行を含む名前も壊れない）。 */
+/** `git ls-files` の一覧（NUL 区切りなので、改行を含む名前も正しく分けられる）。 */
 export function gitFiles(root, ...args) {
   const out = execFileSync("git", ["ls-files", "-z", ...args], {
     cwd: root,

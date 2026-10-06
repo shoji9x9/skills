@@ -35,8 +35,8 @@ function archive(dir, ...files) {
   return archiveIn(dir, { LANG: "C.UTF-8", LC_ALL: "C.UTF-8" }, ...files);
 }
 
-// `locale` が無い／使えない環境（最小コンテナ）を作る。UTF-8 ロケールへ寄せる経路が
-// 使えないので、スクリプトは「切らずに要約を落とす」縮退へ入る。
+// `locale` が無い／使えない環境（最小コンテナ）を作る。UTF-8 ロケールへ切り替えられない
+// ので、スクリプトは「切らずに要約を省く」形で、機能を減らして動く。
 function withoutLocaleCommand(dir) {
   const shim = join(dir, "shim-bin");
   mkdirSync(shim, { recursive: true });
@@ -131,7 +131,7 @@ test.each([
 
 // Issue #303: 先頭段落が折り返されたノートで、索引の要約が文の途中で切れていた。
 // 連結してから 80 文字で切り詰めるため、境界（見出し・空行・箇条書きの兄弟項目）で
-// 止まることと、止まらずに継ぐことの両方を弁別する。
+// 止まることと、止まらずに継ぐことの両方を区別する。
 test("折り返した先頭段落を連結してから索引化する", () => {
   const dir = createRepo();
   const note = writeNote(
@@ -255,9 +255,9 @@ test("非 UTF-8 ロケールでも行長規約を満たす（切らずに要約�
     .find((l) => l.startsWith("- "));
   expect(line.length).toBeLessThanOrEqual(200);
   expect(line).toContain(longName);
-  // 切ったのではなく落としたので、壊れた多バイト文字（U+FFFD）は現れない。
+  // 切ったのではなく省いたので、途中で切れた多バイト文字（U+FFFD）は現れない。
   expect(line).not.toContain("�");
-  // 縮退経路に入った証拠——UTF-8 へ寄せられていれば「切り詰めた要約＋…」になる。
+  // 機能を減らして動く分岐に入った証拠。UTF-8 へ切り替えられていれば「切り詰めた要約＋…」になる。
   expect(line).not.toContain("あ");
   expect(line).not.toContain("…");
 });
@@ -334,7 +334,7 @@ test("照合順を固定する指定がソースにある（挙動テストで�
 
 test("glibc 流の名前（en_US.utf8）しか無い環境でも UTF-8 ロケールを見つける", () => {
   // 候補名を決め打ちで完全一致させると、glibc の `locale -a` は `en_US.utf8` と
-  // ハイフン無し・小文字で出すため一度も一致せず、使える UTF-8 があるのに縮退する。
+  // ハイフン無し・小文字で出すため一度も一致せず、使える UTF-8 があるのに機能を減らして動く。
   const dir = createRepo();
   const note = writeNote(dir, "2026-09-01-glibc-names.md", "あ".repeat(60));
 
@@ -345,7 +345,7 @@ test("glibc 流の名前（en_US.utf8）しか無い環境でも UTF-8 ロケー
 });
 
 test("UTF-8 ロケールが無いときは縮退した旨を stderr に残す", () => {
-  // 縮退した run と本番構成の run を出力で区別できるようにする（黙って要約を落とさない）。
+  // 機能を減らした run と本番構成の run を、出力で区別できるようにする（警告なしに要約を省かない）。
   const dir = createRepo();
   const note = writeNote(dir, "2026-09-01-degraded.md", "あ".repeat(60));
 
@@ -373,7 +373,7 @@ test.each([
   // pre-commit が落ちる（行長だけを見るテストでは緑のまま通る）。
   const dir = createRepo();
   const note = writeNote(dir, name, summary);
-  // 非 UTF-8 側は UTF-8 ロケールへ寄せる経路を塞いで、要約を落とす分岐へ入れる。
+  // 非 UTF-8 側は UTF-8 ロケールへ切り替える手段を塞いで、要約を省く分岐へ入れる。
   const env = localeEnv.LC_ALL === "C" ? { ...localeEnv, ...withoutLocaleCommand(dir) } : localeEnv;
 
   const result = archiveIn(dir, env, note);

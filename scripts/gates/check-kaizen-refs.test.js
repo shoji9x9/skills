@@ -17,7 +17,7 @@
 // | 免除               | 使われる / 使われない / 理由が空                                              |
 // | 件数               | ファイル 0 件 / 参照 0 件 / 1 件以上                                          |
 //
-// 陽性コントロールの実データ: 学びを archive/ へ移したとき実際に切れていた折り返し参照
+// 検出されることの確認に使う実データ: 学びを archive/ へ移したときに、実際に切れていた折り返しの参照
 // （`scripts/skills/kaizen/kaizen-schedule-report.test.js` の修正前の 2 行）をそのまま入力にする。
 import { expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
@@ -57,7 +57,7 @@ function makeRepo(files = {}, { untracked = {} } = {}) {
 
 const run = (root, exemptions = []) => checkKaizenRefs(root, { exemptions });
 
-// ---- 陰性コントロール（通さねばならない入力）----
+// ---- 誤検知しないことの確認（通さねばならない入力）----
 
 test("陰性: 直下の実在する学びへの参照は違反 0 件で 1 件と数える", () => {
   const r = run(makeRepo({ "docs/a.md": `根拠は \`${NOTE}\`。\n` }));
@@ -232,7 +232,7 @@ test("陰性: 実リポジトリの参照が違反 0 件で、参照を 1 件以
   expect(r.refs).toBeGreaterThan(0);
 });
 
-// ---- 陽性コントロール（落とす入力）----
+// ---- 検出されることの確認（落とす入力）----
 
 test("陽性（実データ）: archive/ へ移した学びを指したままの折り返し参照を落とす", () => {
   // 修正前の scripts/skills/kaizen/kaizen-schedule-report.test.js の 2 行（学びは archive/ にだけ在る）。
@@ -299,7 +299,7 @@ test("陽性: eval の文書（README.md）の切れた参照は拾う（除外�
 });
 
 test.each([
-  ".agents/skills/x/SKILL.md", // skills/x/ に正本がある配布スキルのインストール済みコピー
+  ".agents/skills/x/SKILL.md", // skills/x/ に原本がある配布スキルのインストール済みコピー
   ".claude/x.md",
   "tests/x/benchmark.json",
   ".kaizen/2026-09-03-other.md",

@@ -94,7 +94,7 @@ test("tierOf: 1 件ならその tier、階層の外は null、0 件と 2 件以�
   expect(tierOf(overlap, "docs/a.md")).toBe(undefined);
 });
 
-// ---- 陰性コントロール ----
+// ---- 誤検知しないことの確認 ----
 
 test("陰性: 表が一致し、Markdown がちょうど 1 つの項目に当たれば違反 0 件", () => {
   const r = checkDocTiers(makeRepo());
@@ -117,7 +117,7 @@ test("陰性: 実リポジトリは表が原本と一致し、違反 0 件", () 
   expect(r.files.length).toBeGreaterThan(100);
 });
 
-// ---- 陽性コントロール ----
+// ---- 検出されることの確認 ----
 
 test("陽性: どの階層にも属さない Markdown を落とす", () => {
   expect(checkDocTiers(makeRepo({ "README.md": "x\n" })).violations).toEqual([

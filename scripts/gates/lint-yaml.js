@@ -10,7 +10,7 @@
 //   node scripts/gates/lint-yaml.js <file> ...      # 指定したファイルだけ（lefthook 用）
 //   node scripts/gates/lint-yaml.js --root <dir>    # 走査の起点を変える（テスト用）
 //
-// **対象 0 件は成功に倒さない**（走査が空振りしただけの緑を根拠にしない）。検査した件数と起点を必ず出す。
+// **対象 0 件は成功として扱わない**（走査が何も見なかっただけの成功を根拠にしない）。検査した件数と起点を必ず出す。
 // 終了コード: 0 = 全件読めた / 1 = 読めないファイルがある・対象 0 件 / 2 = 使い方の誤り
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -29,7 +29,7 @@ const YAML_RE = /\.ya?ml$/;
 /**
  * 起点のリポジトリの YAML ファイルを列挙する。**列挙は git に任せる**（追跡済み＋未追跡のうち ignore されないもの）。
  * ディレクトリを素で走査すると、gitignore された手元の eval 出力（`tests/<スキル>/iteration-N/eval-N/` 配下）まで拾い、
- * CI の checkout には無いファイルで手元だけ赤くなる（実測）。git が失敗したら空配列に倒さず投げる。
+ * CI の checkout には無いファイルで、手元でだけ失敗する（実測）。git が失敗したら、空配列として扱わずに投げる。
  */
 export function findYamlFiles(root) {
   const out = execFileSync(

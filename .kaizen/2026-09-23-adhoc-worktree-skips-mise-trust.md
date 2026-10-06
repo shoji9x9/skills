@@ -17,10 +17,10 @@ Issue #442 で変更前後の所要時間を同条件で測るため、scratchpa
 
 ## 根本原因
 
-- なぜ落ちたか? → worktree は新しいパスで、共有ツリーの mise trust が引き継がれない
-  - なぜ知っていたのに踏んだか? → 注意点は git-worktree スキル手順 8 にだけあり、
+- なぜ落ちたか → worktree は新しいパスで、共有ツリーの mise trust が引き継がれない
+  - なぜ知っていたのに踏んだか → 注意点は git-worktree スキル手順 8 にだけあり、
     スキルを通さない計測用 worktree では読まれない
-    - なぜスキルを通さなかったか? → AGENTS.md が「旧版と現行版を同じ条件で測る」を
+    - なぜスキルを通さなかったか → AGENTS.md が「旧版と現行版を同じ条件で測る」を
       推奨する一方、その手段（使い捨て worktree）の前提条件が基底ドキュメントに無い ← 根本原因
 
 KEDB: archive/2026-06-08-mise-shim-runtime-untrusted（applied。eval の使い捨てプロジェクト）と同根。

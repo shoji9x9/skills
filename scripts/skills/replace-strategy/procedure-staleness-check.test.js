@@ -3,7 +3,7 @@
 // 手順に確かめる軸を足しても、既に閉じた機能へ当て直す工程が無いと、前の機能は古い手順のまま収束扱いで残る。
 // 検査は「変更より前に作られた成果物を持つ機能」ごとに当て直しの判断の記録を要求する。
 //
-// 陽性コントロール（最新の改訂で作った成果物・追加日より後に作った成果物・判断済みの組み合わせが exit 0）を置く——
+// 最新の改訂で作った成果物・追加日より後に作った成果物・判断済みの組み合わせが exit 0 になることも確かめる。
 // これが無いと「常に落とす」実装と区別できない。
 
 import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
@@ -267,7 +267,7 @@ test("台帳の表の欠落・語彙外の値・実在しない変更 ID・空�
         RECORD_HEADER,
       "表の外に表の行",
     ],
-    // 列が 1 つ欠けた行（5 セル）が表の外に落ちても数える。
+    // 列が 1 つ欠けた行（5 セル）が表の外として扱われても数える。
     [
       ledger([], []).replace(
         "|---|---|---|---|---|---|\n\n## 既に",
@@ -275,7 +275,7 @@ test("台帳の表の欠落・語彙外の値・実在しない変更 ID・空�
       ),
       "表の外に表の行",
     ],
-    // 表の外に落ちた行自身が外側の `|` を省いた形でも数える。
+    // 表の外として扱われた行自身が外側の `|` を省いた形でも数える。
     [
       ledger([], []).replace(
         "|---|---|---|---|---|---|\n\n## 既に",
@@ -327,7 +327,7 @@ test("成果物を読めず対象かを決められない機能は合格に倒�
     }),
   );
   expect(impossible.code).toBe(3);
-  // UTC より遅れたオフセットの終了日時を換算して翌日に倒さない（同じ日の追加の対象に残す）。
+  // UTC より遅れたオフセットの終了日時を換算して翌日として扱わない（同じ日の追加の対象に残す）。
   const behindUtc = run(
     workspace({
       ledger: ledger(["| PC-001 | 2026-09-28 | 軸 | 由来 | feature | #1 |"], []),
@@ -343,7 +343,7 @@ test("成果物を読めず対象かを決められない機能は合格に倒�
   const dangling = run(broken);
   expect(dangling.code).toBe(3);
   expect(dangling.json.undeterminable[0].slug).toBe("dangling");
-  // metadata.json 自体が壊れたリンクなら、特性化前として黙って外さず判定不能に残す。
+  // metadata.json 自体がリンク切れのシンボリックリンクなら、特性化前として警告なしに外さず、判定不能に残す。
   const brokenMeta = workspace({
     artifacts: { order: meta({ procedure_revision: 2 }), edit: null },
   });
@@ -370,7 +370,7 @@ test("成果物の置き場・台帳を読めないときは合格にも未判�
   expect(run(missing, ["--parity-dir", "file"]).code).toBe(2);
   mkdirSync(join(missing, "ledger-dir"));
   expect(run(missing, ["--ledger", "ledger-dir"]).code).toBe(2);
-  // 台帳自体が壊れたリンクなら「台帳なし」に倒さない（成果物が最新でも exit 0 にしない）。
+  // 台帳自体がリンク切れのシンボリックリンクなら「台帳なし」として扱わない（成果物が最新でも exit 0 にしない）。
   const lostLedger = workspace({ artifacts: { order: meta({ procedure_revision: 2 }) } });
   symlinkSync(join(lostLedger, "gone.md"), join(lostLedger, ".replace", "procedure-changes.md"));
   expect(run(lostLedger).code).toBe(2);
@@ -385,7 +385,7 @@ test("明示した --ledger が無いときは「台帳なし」に倒さず exi
   const typo = run(work, ["--ledger", ".replace/procedure-change.md"]);
   expect(typo.code).toBe(2);
   expect(typo.stderr).toContain("--ledger に渡した");
-  // 陰性コントロール: 既定の置き場に台帳が無いのは「プロジェクト側で軸を足していない」なので通す。
+  // 誤検知しないことの確認: デフォルトの置き場に台帳が無いのは「プロジェクト側で軸を足していない」なので通す。
   const absent = run(work);
   expect(absent.code).toBe(0);
   expect(absent.json.ledger_exists).toBe(false);
@@ -447,7 +447,7 @@ test("--change では置き場の別 Issue へ回した見直し中を受け渡�
     ["export", "未判断"],
     ["user", "見直し中"],
   ]);
-  // 陽性コントロール: 全ての対象を置き場の番号で受け渡せば、この変更の工程は閉じられる。
+  // 誤検知しないことの確認: 全ての対象を置き場の番号で受け渡せば、この変更の工程は閉じられる。
   const done = workspace({
     ledger: ledger(
       ["| PC-001 | 2026-09-20 | 軸 | issue: #10 | feature | #131 |"],

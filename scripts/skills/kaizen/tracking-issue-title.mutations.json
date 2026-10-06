@@ -356,7 +356,7 @@
       "id": "X2-outdated",
       "why": "TRACKING_LIB の env 宣言を落とす",
       "file": ".github/workflows/outdated.yml",
-      "find": "          # 照会の正本。配布物なのでスキル内（`skills/kaizen/scripts/`）に置いてあり、\n          # ここはその正本をそのまま読む（複製を作ると片方だけ直る余地が戻る）。\n          TRACKING_LIB: skills/kaizen/scripts/tracking-issue-lib.sh\n",
+      "find": "          # 照会の原本。配布物なのでスキル内（`skills/kaizen/scripts/`）に置いてあり、\n          # ここはその原本をそのまま読む（複製を作ると片方だけ直る余地が戻る）。\n          TRACKING_LIB: skills/kaizen/scripts/tracking-issue-lib.sh\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [

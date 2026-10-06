@@ -1,15 +1,15 @@
 // parity-diff の保留棚卸しチェッカ（pending-triage-check.mjs）の回帰テスト（Issue #347）。
 //
-// 形の検証を「棚卸しの対象範囲」と同じ範囲でだけ終了コードへ入れる契約を固定する。
+// 形の検証の結果を、「棚卸しの対象範囲」と同じ範囲でだけ終了コードへ入れる取り決めを固定する。
 // 別機能に帰属すると読めている要素の形の不備で落ちると、対象 0 件の機能が
 // 無関係な要素のせいで閉じられない（その要素は別機能の棚卸しが落とすので見逃しにはならない）。
 // 逆に、対象を決められない要素（slug 欠落・item が読めない・オブジェクトでない）は
-// 帰属不明として全機能の対象なので、従来どおり落ちることを陽性コントロールで固定する。
+// 帰属不明として全機能の対象である。そのため従来どおり落ちることを、検出できることの確認として固定する。
 //
-// あわせて `error:` 行が壊れている場所で分かれること（設定ファイルの登録簿か、成果物の棚卸し記録か）を
-// 固定する——`error:` だけを読む自動化が直す場所を取り違えるため。
+// あわせて、`error:` 行が不備のある場所で分かれること（設定ファイルの登録簿か、成果物の棚卸し記録か）を
+// 固定する。`error:` だけを読む自動化が、直す場所を取り違えるためである。
 //
-// 状態空間（帰属 × 不備の種類）。各セルに 1 ケースずつ置く:
+// 状態空間（帰属 × 不備の種類）は次のとおり。各セルに 1 ケースずつ置く。
 //
 // | 帰属 \ 不備            | added_by / added_at 欠落 | item が読めない | 文言の重複 |
 // |------------------------|--------------------------|-----------------|------------|
@@ -19,40 +19,42 @@
 // | 帰属不明（slug 欠落）  | exit 1（登録簿）         | exit 1          | —          |
 // | 要素が文字列でも object でもない | —               | exit 1          | —          |
 //
-// 帰属の名前空間（added_by × slug の名前空間。レビュー指摘。PR #397）。機能 slug を書けないスキルは
-// cross-cutting しか書けず、部品 slug を書かれると inScope がどの機能でも偽になり永久に棚卸しされない:
+// 帰属の名前空間（added_by × slug の名前空間。レビュー指摘。PR #397）も確かめる。
+// 機能 slug を書けないスキルは cross-cutting しか書けない。部品 slug を書かれると、inScope がどの機能でも偽になり、
+// いつまでも棚卸しされない。扱いは次のとおり。
 //
 // | added_by         | slug            | 扱い                                          |
 // |------------------|-----------------|-----------------------------------------------|
-// | parity-component | 部品 slug       | 帰属不明へ倒す（全機能の対象。未棚卸しで exit 1）|
+// | parity-component | 部品 slug       | 帰属不明として扱う（全機能の対象。未棚卸しで exit 1）|
 // | parity-component | cross-cutting   | 従来どおり対象（正しい形。棚卸し済みなら exit 0）|
-// | replace-strategy | 機能 slug     | 帰属不明へ倒す（採番より前の工程なので機能 slug を書けない）|
+// | replace-strategy | 機能 slug     | 帰属不明として扱う（採番より前の工程なので機能 slug を書けない）|
 // | replace-strategy | cross-cutting   | 従来どおり対象（正しい形。棚卸し済みなら exit 0）|
-// | parity-suite 等  | 別機能の slug   | 倒さない（従来どおり対象外。exit 0）           |
-// | 欠落 / unknown / 未知の名前 | 任意の slug | 帰属不明へ倒す（名前空間を確認できない）   |
-// | 欠落 / unknown / 未知の名前 | cross-cutting | 倒さない（書き手に依らず全機能の対象）   |
-// | parity-suite 等  | 実在しない slug | 帰属不明へ倒す（担当機能が現れない）       |
-// | （インベントリ未提示） | 任意の slug | 緩和を適用しない（全件対象。fail-closed） |
+// | parity-suite 等  | 別機能の slug   | 帰属不明にしない（従来どおり対象外。exit 0）           |
+// | 欠落 / unknown / 未知の名前 | 任意の slug | 帰属不明として扱う（名前空間を確認できない）   |
+// | 欠落 / unknown / 未知の名前 | cross-cutting | 帰属不明にしない（書き手に依らず全機能の対象）   |
+// | parity-suite 等  | 実在しない slug | 帰属不明として扱う（担当機能が現れない）       |
+// | （インベントリ未提示） | 任意の slug | 緩和を適用しない（判定できないので全件を対象にする） |
 //
-// 変異による検出能力の実証（このファイルを書いた時点で 4 通り実施し、いずれも赤くなることを実測した）:
-//   1. countTriage の `if (inScope(issue, slug))` を `if (true)` に → 2 件 fail
-//      （別機能に帰属する要素の added_at 欠落 / item が読めない要素。緩和経路が効いていることを測れている）
-//   2. 同じ行を `if (false)` に → 5 件 fail
-//      （この機能 / cross-cutting / slug 欠落 / item が読めない要素の陽性コントロール / 非オブジェクト。対象内の検出が効いている）
-//   3. 重複文言の `items.some(... inScope ...)` を `true` に → 1 件 fail（重複は別の分岐なので 1・2 では赤くならない）
-//   4. main の `counted.record_problems.length > 0` の error 行を消す → 1 件 fail（記録側と登録簿側の分離）
-//   5. normalizePending の `CROSS_CUTTING_ONLY_WRITERS.has(...)` を `false` に（分岐を殺す）→ 2 件 fail
-//      （部品 slug の 2 ケース。名前空間の検出が効いている）
-//   6. 同じ位置を `true` に（全スキルへ広げる）→ 5 件 fail
-//      （別機能に帰属する要素を倒してしまうケース群。倒す範囲が広すぎないことを測れている）
-//   7. normalizePending の `namespaceVerified` を `true` に（slug を常に信用する＝修正前の挙動）→ 5 件 fail
-//   8. 同じ位置を `false` に（帰属を一切信用しない）→ 8 件 fail（#347 の緩和が効いていることを測れている）
-//   9. normalizePending の `slugInInventory` を `true` に（実在を検証しない＝修正前）→ 2 件 fail
-//  10. 同じ位置を `false` に（常に不在扱い）→ 7 件 fail
-//  11. CROSS_CUTTING_ONLY_WRITERS から `replace-strategy` を外す（Issue #419 の修正前）→ 1 件 fail
-//      （「replace-strategy が機能 slug を書いた…」が「名前空間を確認できない」の診断に戻る。倒す先は同じなので差は診断の表現だけ）
-//  12. `replace-strategy` を FEATURE_SLUG_WRITERS へ入れる（分類を間違える）→ 1 件 fail
-//      （同じテストが in_scope 0 件で落ちる。採番前の推測 slug を信用して対象外へ倒す退行を測れている）
+// 次の変異で、検出できることを確かめた（このファイルを書いた時点で 4 通り実施し、いずれも赤くなることを実測した）。
+//   1. countTriage の `if (inScope(issue, slug))` を `if (true)` に → 2 件 fail。
+//      別機能に帰属する要素の added_at 欠落と、item が読めない要素。緩和する処理が機能していることを測れている。
+//   2. 同じ行を `if (false)` に → 5 件 fail。
+//      この機能・cross-cutting・slug 欠落・item が読めない要素の確認・非オブジェクト。対象内の検出が機能している。
+//   3. 重複文言の `items.some(... inScope ...)` を `true` に → 1 件 fail（重複は別の分岐なので 1・2 では赤くならない）。
+//   4. main の `counted.record_problems.length > 0` の error 行を消す → 1 件 fail（記録側と登録簿側の分離）。
+//   5. normalizePending の `CROSS_CUTTING_ONLY_WRITERS.has(...)` を `false` に（分岐を殺す）→ 2 件 fail。
+//      部品 slug の 2 ケース。名前空間の検出が機能している。
+//   6. 同じ位置を `true` に（全スキルへ広げる）→ 5 件 fail。
+//      別機能に帰属する要素を帰属不明として扱ってしまうケース群。その範囲が広すぎないことを測れている。
+//   7. normalizePending の `namespaceVerified` を `true` に（slug を常に信用する＝修正前の挙動）→ 5 件 fail。
+//   8. 同じ位置を `false` に（帰属を一切信用しない）→ 8 件 fail（#347 の緩和が機能していることを測れている）。
+//   9. normalizePending の `slugInInventory` を `true` に（実在を検証しない＝修正前）→ 2 件 fail。
+//  10. 同じ位置を `false` に（常に不在扱い）→ 7 件 fail。
+//  11. CROSS_CUTTING_ONLY_WRITERS から `replace-strategy` を外す（Issue #419 の修正前）→ 1 件 fail。
+//      「replace-strategy が機能 slug を書いた…」が「名前空間を確認できない」の診断に戻る。
+//      帰属不明として扱う点は同じなので、差は診断の表現だけである。
+//  12. `replace-strategy` を FEATURE_SLUG_WRITERS へ入れる（分類を間違える）→ 1 件 fail。
+//      同じテストが in_scope 0 件で落ちる。採番前の推測 slug を信用して対象外として扱う退行を測れている。
 //      cross-cutting のケースは 11 ・12 のいずれでも赤くならない（cross-cutting は書き手に依らず信用されるため）。
 //      したがって許可値を増やす修正が変えるのは、機能 slug を書いたときの**診断の表現**であって、正しい形の扱いではない
 
@@ -69,7 +71,7 @@ const script = join(repoRoot, "skills/parity-diff/scripts/pending-triage-check.m
 const SLUG = "my-feature";
 
 /**
- * pending の要素と棚卸し記録を書いてスクリプトを 1 回走らせる。
+ * pending の要素と棚卸し記録を書いてスクリプトを 1 回実行する。
  * @param {{pending: unknown[], entries?: unknown[], keep?: unknown[], may_change?: unknown[], slugs?: string[], features?: false}} input
  */
 function run(input) {
@@ -127,7 +129,7 @@ test("同じ不備でもこの機能に帰属していれば落ち、error は�
   });
   expect(status).toBe(1);
   expect(stderr).toContain("error: 設定ファイルの登録簿の不整合（intentional_diffs.pending");
-  // 壊れているのは成果物ではない（直す場所を取り違えさせない）。
+  // 不備があるのは成果物ではない（直す場所を取り違えさせない）。
   expect(stderr).not.toContain("error: 棚卸し記録の不整合");
 });
 
@@ -173,7 +175,7 @@ test("item が読めない要素は、別機能に帰属していればこの機
     "warn: intentional_diffs.pending[0]: item が空／文字列でない",
   );
 
-  // 陽性コントロール: その機能の棚卸しでは同じ要素で落ちる（黙って捨てていない）。
+  // 検出できることの確認: その機能の棚卸しでは同じ要素で落ちる（警告なしに捨てていない）。
   const owner = run({ pending: [{ ...broken, slug: SLUG }] });
   expect(owner.status).toBe(1);
   expect(owner.stderr).toContain("error: 設定ファイルの登録簿の不整合");
@@ -314,7 +316,7 @@ test("parity-component が cross-cutting で書いた要素は従来どおり通
 
 // replace-strategy の帰属（Issue #419）。意図的差異レジストリを作る工程（setup の手順 8）は
 // 機能 slug の採番（同 手順 9）より前なので、機能 slug を書けない。
-// 許可値に無いままだと「未知のスキル名」として帰属不明へ倒れ、機能に帰属する保留が閉じられない。
+// 許可値に無いままだと「未知のスキル名」として帰属不明と判定されてしまい、機能に帰属する保留が閉じられない。
 
 test("replace-strategy が cross-cutting で書いた要素は従来どおり通る（陰性コントロール）", () => {
   const { status, stderr } = run({
@@ -425,7 +427,7 @@ test("--features を渡さないと別機能への緩和を適用しない（fai
     pending: [{ ...otherFeature, added_at: "2026-09-01" }],
     features: false,
   });
-  // 同じ入力でも --features 付きなら対象 0 件・exit 0（下の陽性コントロール）。
+  // 同じ入力でも --features 付きなら対象 0 件・exit 0（下の、検出できることの確認）。
   expect(status).toBe(1);
   expect(stderr).toContain("--features を渡していないので");
   expect(JSON.parse(stdout).in_scope).toBe(1);

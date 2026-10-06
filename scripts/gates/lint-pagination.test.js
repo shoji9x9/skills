@@ -152,7 +152,7 @@ test("複数指摘: GraphQL と REST を両方検出", () => {
 // クリーンな checkout）では出ない指摘が手元でだけ出る。実際に
 // tests/*/iteration-*/eval-*/ の eval 実行成果物で 2 件の偽の赤が出た。
 // 除外を入れた検査は「本当に無い」と「検査が動いていない」が同じ出力になるので、
-// 除外の内と外に**同じ違反**を置いて弁別できることまで確かめる。
+// 除外の内と外に**同じ違反**を置いて、区別できることまで確かめる。
 
 const script = join(dirname(fileURLToPath(import.meta.url)), "lint-pagination.js");
 const OFFENDING =
@@ -181,7 +181,7 @@ function runCli(cwd, args = []) {
 test("除外の内と外に同じ違反を置くと、無視されていない側だけが指摘される（弁別）", () => {
   const dir = makeRepo();
   write(dir, ".gitignore", "tests/*/iteration-*/eval-*/\n");
-  // 除外の外（tracked でなくても .gitignore に当たらないので走査対象）＝陽性コントロール
+  // 除外の外（tracked でなくても .gitignore に当たらないので走査対象）＝検出されるべき側
   write(dir, "docs/guide.md", OFFENDING);
   // 除外の中（eval 実行成果物と同じ場所）＝飛ぶべき側
   write(
@@ -193,7 +193,7 @@ test("除外の内と外に同じ違反を置くと、無視されていない�
   const out = runCli(dir);
   expect(out.status).toBe(1);
   expect(out.stderr).toContain("docs/guide.md");
-  // 陽性コントロールが出ていることを確かめたうえで、除外側が出ていないことを主張する。
+  // 検出されるべき側が出ていることを確かめたうえで、除外側が出ていないことを主張する。
   expect(out.stderr).not.toContain("response.md");
   expect(out.stderr).toContain("1 件の指摘");
 });
@@ -352,7 +352,7 @@ test("listFiles は git があれば git の結果を使う", () => {
 test("1 件でも読めなければ合格に倒さない", () => {
   const dir = makeRepo();
   write(dir, "ok.md", "# t\n");
-  // 読めない対象は引数経路で作る（列挙は実在するファイルしか返さないため）。
+  // 読めない対象は、引数で渡す方法で作る（列挙は実在するファイルしか返さないため）。
   const res = spawnSync(process.execPath, [script, join(dir, "ok.md"), join(dir, "missing.md")], {
     cwd: dir,
     encoding: "utf8",

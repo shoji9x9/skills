@@ -20,9 +20,11 @@
 
 ## 前提条件
 
-- **Python 3.8+** — 集計スクリプトの実行に必要
-- **skill-creator スキル** — テスト実行・評価に必要（`~/.claude/skills/skill-creator/`・`.claude/skills/skill-creator/`・`.agents/skills/skill-creator/` のいずれかにインストール済みであること）
-- **テスト用 PR** — `evals.json` の `prompt` は実在 PR URL を前提とする。CI 失敗・未解決レビュースレッドを含む検証用 PR を用意し、必要に応じて `prompt` の URL を差し替える（破壊的操作を避けるため、本物の本番 PR ではなく使い捨ての検証用 PR を使う）
+- Python 3.8 以上（集計スクリプトの実行に使う）
+- skill-creator スキル（テストの実行と評価に使う）。`~/.claude/skills/skill-creator/`・`.claude/skills/skill-creator/`・`.agents/skills/skill-creator/` のどれかにインストールしておく
+- テスト用の PR。`evals.json` の `prompt` は、実在する PR の URL を前提にする。
+  CI の失敗と未解決のレビュースレッドを含む検証用の PR を用意し、必要なら `prompt` の URL を差し替える。
+  破壊的な操作を避けるため、本番の PR ではなく使い捨ての検証用の PR を使う
 
 ```bash
 python --version

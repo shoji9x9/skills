@@ -1,11 +1,11 @@
-// 静的資産の台帳で「実体を写す」と決めた資産の新側突き合わせ（asset-delivery-check.mjs）の回帰テスト（Issue #458）。
+// 静的資産の台帳で「実体をコピーする」と決めた資産の新側突き合わせ（asset-delivery-check.mjs）の回帰テスト（Issue #458）。
 //
-// 実例: 台帳で favicon を「実体を写す」と決めたのに、新側の index.html に指定が無いまま機能が閉じた。
-// favicon はタブにしか出ないので、スイート・画素・特性照合・aria のどれにも写らない。
+// 実例: 台帳で favicon を「実体をコピーする」と決めたのに、新側の index.html に指定が無いまま機能が閉じた。
+// favicon はタブにしか出ないので、スイート・画素・特性照合・aria のどれにも記録されない。
 //
-// 台帳の fixture は正本（replace-strategy の assets/assets-template.md）をそのまま読み、行を足して作る
+// 台帳の fixture は原本（replace-strategy の assets/assets-template.md）をそのまま読み、行を足して作る
 // （判定に要る列だけを残した表で測ると、実装が別の列を読み始めたときに実在しない形を固定するテストになる）。
-// 陰性コントロール（通さねばならない入力）と陽性コントロール（落とす入力）を同じ数だけ置く。
+// 通さねばならない入力と落とす入力を、同じ数だけ置く。
 
 import { expect, test, vi } from "vitest";
 import { spawnSync } from "node:child_process";
@@ -35,7 +35,7 @@ const FAVICON_ROW =
 const FIGURE_ROW =
   "| 画面内の図 | `flow.png`（現行の配信物） | `img`、/orders/:id だけ | 実体をコピーする | 可（自社作成） | - | - | 有効 | 2026-09-01・setup | 図の内容を一致させるため |";
 
-/** 正本のテンプレートの方針の表の末尾に行を足す。 */
+/** 原本のテンプレートの方針の表の末尾に行を足す。 */
 function ledger(...extraRows) {
   const lines = TEMPLATE.split("\n");
   let last = -1;
@@ -80,7 +80,7 @@ const FONT_ENTRY = {
   ],
 };
 
-/** URL → バイト列の表から取得器を作る（表に無い URL は 404）。 */
+/** URL → バイト列の表から取得する関数を作る（表に無い URL は 404）。 */
 function fetcherOf(table) {
   return async (url) => {
     if (!(url in table)) return { ok: false, status: 404, bytes: null, error: null };
@@ -509,7 +509,7 @@ test("落とす: 実例の形——favicon を配っていてバイトも同じ�
   expect(r.stdout).toMatch(/「favicon」の \/favicon.ico を新側の画面が参照していない/u);
   expect(r.code).toBe(1);
   expect(r.written.asset_delivery_check.ok).toBe(false);
-  // 参照の漏れは referenced の軸。バイトは一致しているので bytes_match に混ぜない（「バイト不一致」と読ませない）
+  // 参照の抜けは referenced の軸。バイトは一致しているので bytes_match に混ぜない（「バイト不一致」と読ませない）
   const favicon = r.written.asset_delivery_check.files.find((f) => f.kind === "favicon");
   expect(favicon).toMatchObject({ referenced: false, bytes_match: true });
 });

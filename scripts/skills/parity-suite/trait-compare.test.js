@@ -1,6 +1,6 @@
 // 文字の持ち主（text_owners）の照合の回帰テスト（Issue #459）。
 // 名前を付けた要素の計算値が一致していても、文字を描く子孫の書体・大きさの差を kind "text" で出すこと。
-// スクロールする器の特性（scroll）の照合（Issue #495）。
+// スクロールするコンテナの特性（scroll）の照合（Issue #495）。
 
 import { expect, test } from "vitest";
 import { dirname, join } from "node:path";
@@ -179,7 +179,7 @@ test("両側とも text_owners を持たない（旧版どうし）なら文字�
   expect(compareTraits([trait(undefined)], [trait(undefined)])).toEqual([]);
 });
 
-// スクロールする器（Issue #495）。値は Chrome 149 の実測: 628×298 の器・中身 628 幅で、スクロールバーが場所を取る撮影では
+// スクロールするコンテナ（Issue #495）。値は Chrome 149 の実測: 628×298 のコンテナ・中身 628 幅で、スクロールバーが場所を取る撮影では
 // 現行（overflow: auto）は縦横とも 15px、新側（overflow-x: hidden）は横のバーが出ない。
 const scrollOf = (overrides = {}) => ({
   overflowing_x: true,

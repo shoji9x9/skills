@@ -1,10 +1,10 @@
 // parity-suite の部品改修の影響判定（component-impact.mjs）の回帰テスト（Issue #454）。
 //
 // 共通部品を 1 行直すと全ページの証跡が古くなる。変更宣言から撮り直すべき組だけを導き、
-// 影響しない機能は理由付きで外す。判定は fail-closed で、判定できない入力を「影響なし」に倒さない。
+// 影響しない機能は理由付きで外す。判定できない入力は「影響なし」として扱わず、失敗にする。
 //
-// fixture は同梱テンプレート（parity-component / parity-suite の assets/metadata-template.json、
-// parity-component の assets/component-change-template.json）を読んで値だけ埋める。
+// fixture は同梱テンプレートを読んで値だけ埋める。テンプレートは parity-component / parity-suite の assets/metadata-template.json と、
+// parity-component の assets/component-change-template.json である。
 // 判定に要る列だけの切り詰めた形にすると、実装が別の列を読み始めたときに実在しない形を固定する。
 // 「落とす入力」と「通す入力」を両側に置く（片側だけでは常に落とす／常に通す実装と区別できない）。
 

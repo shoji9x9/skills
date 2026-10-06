@@ -1,7 +1,7 @@
 // 要素スクリーンショットの clip を整数へ丸める回帰テスト（Issue #434）。
 //
-// Playwright の locator.screenshot() は要素の矩形を**外接**整数矩形へ広げてから撮るため
-// （v1.56.1 helper.enclosingIntRect: floor(x+1e-3) / ceil(x+w-1e-3)）、絶対座標が小数だと
+// Playwright の locator.screenshot() は要素の矩形を**外接**整数矩形へ広げてから撮る
+// （v1.56.1 helper.enclosingIntRect: floor(x+1e-3) / ceil(x+w-1e-3)）。そのため絶対座標が小数だと
 // PNG が軸ごと最大 1px 大きくなる。現行が小数座標・新側が整数座標だと、同じ CSS box でも
 // PNG の寸法が食い違い、寸法一致を要求する画素比較が実行不能になる。
 
@@ -61,7 +61,7 @@ test.each(FRACTIONAL.map((c) => [c.label, c.rect]))(
     expect(clip.width).toBe(Math.round(rect.width));
     expect(clip.height).toBe(Math.round(rect.height));
 
-    // 陽性コントロール: 現行の locator.screenshot() 相当（外接）ならどれかの軸が 1px 膨らむ。
+    // 検出されることの確認: 現行の locator.screenshot() 相当（外接）ならどれかの軸が 1px 膨らむ。
     // 膨らまない入力で測っていると、この検査は何も実証しない。
     const enclosing = enclosingIntRect(rect);
     expect(enclosing.width !== clip.width || enclosing.height !== clip.height).toBe(true);
@@ -73,7 +73,7 @@ test("整数座標の側は外接でも丸めでも同じ（現・新で同じ�
   const fresh = planElementClip({ x: 100, y: 200, width: 25, height: 28 }, VIEWPORT);
   expect([current.width, current.height]).toEqual([fresh.width, fresh.height]);
 
-  // 陽性コントロール: 外接だと両側の寸法が食い違い、画素比較が実行不能になっていた。
+  // 検出されることの確認: 外接だと両側の寸法が食い違い、画素比較が実行不能になっていた。
   const currentEnclosing = enclosingIntRect({ x: 1328.8125, y: 100, width: 25, height: 28 });
   const freshEnclosing = enclosingIntRect({ x: 100, y: 200, width: 25, height: 28 });
   expect(currentEnclosing.width).not.toBe(freshEnclosing.width);
@@ -320,9 +320,9 @@ test("入れ子の iframe の中の要素は、各段のオフセットを足し
   expect(out.rect).toEqual(LOCAL); // フレーム内の座標（trait-capture.mjs の rect と同じ座標系）は別に残す
   expect(out.frame_depth).toBe(2);
 
-  // 陽性コントロール: オフセットを足さずフレーム内の座標で切ると別の場所になる（旧実装が拒否していた理由）。
+  // 検出されることの確認: オフセットを足さずフレーム内の座標で切ると別の場所になる（旧実装が拒否していた理由）。
   expect(planElementClip(LOCAL, VIEWPORT)).not.toEqual(page.calls[0].clip);
-  // 陽性コントロール: 外接（locator.screenshot() 相当）だと最上位の小数座標で 1px 膨らむ。
+  // 検出されることの確認: 外接（locator.screenshot() 相当）だと最上位の小数座標で 1px 膨らむ。
   const enclosing = enclosingIntRect(pageRect);
   expect([enclosing.width, enclosing.height]).toEqual([81, 29]);
 });
@@ -471,7 +471,7 @@ test("PNG でないものが返ったら実寸を記録せず失敗し、何も�
   ).rejects.toThrow(/did not return a PNG/);
   expect(existsSync(target)).toBe(false);
   expect(existsSync(join(dir, "element.shot.json"))).toBe(false);
-  // 陽性コントロール: PNG ヘッダなら読める。
+  // 通ることの確認: PNG ヘッダなら読める。
   expect(readPngSize(pngHeader(81, 29))).toEqual({ width: 81, height: 29 });
 });
 
@@ -734,9 +734,9 @@ test("animations に未知の値を渡したら撮らずに失敗する", async 
 
 // --- 撮影中に要素が動いていないかの検査 -------------------------------------
 //
-// clip は撮影前の矩形から決まるが、animations: "disabled" は撮影のときに効く
+// clip は撮影前の矩形から決まるが、animations: "disabled" は撮影のときに有効になる
 // （有限のアニメーションは完了まで早送りされる）。早送りで動いた要素を古い矩形で切ると、
-// 別の領域を写した PNG がエラー無しで残る。
+// 別の領域を撮った PNG がエラー無しで残る。
 
 function movingSpy(before, after) {
   const rects = [before, after];
@@ -768,7 +768,7 @@ test("撮影中に矩形が変わったら失敗する", async () => {
     { x: 10, y: 34, width: 40, height: 20 },
   );
   await expect(captureElementShot(page, locator)).rejects.toThrow(/box changed while capturing/);
-  // 撮影自体は走っている（検知は事後）。撮れた PNG を基準にしないことが目的。
+  // 撮影自体は実行されている（検知は事後）。撮れた PNG を基準にしないことが目的。
   expect(calls).toHaveLength(1);
 });
 

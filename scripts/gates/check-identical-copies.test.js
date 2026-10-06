@@ -47,7 +47,7 @@ function makeRepo(files, groups) {
 
 const group = (...files) => ({ files, reason: "姉妹スキルが同じ規則で動く" });
 
-// ---- 陰性コントロール（通さねばならない入力）----
+// ---- 誤検知しないことの確認（通さねばならない入力）----
 
 test("陰性: 2 件の組が完全一致なら違反 0 件で、組と件数を数える", () => {
   const root = makeRepo({ "a/x.md": BODY, "b/x.md": BODY }, [group("a/x.md", "b/x.md")]);
@@ -105,7 +105,7 @@ test("陰性: 実リポジトリの宣言が形を満たし、宣言したファ
     for (const f of g.files) expect(existsSync(join(repoRoot, f)), f).toBe(true);
 });
 
-// ---- 陽性コントロール（落とす入力）----
+// ---- 検出されることの確認（落とす入力）----
 
 test("陽性: 片方の途中にだけ行を足したら、最初に食い違う行番号を付けて落とす", () => {
   const edited = BODY.replace("2 行目\n", "2 行目\n片方にだけ足した実測の追記\n");

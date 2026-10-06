@@ -13,13 +13,18 @@ session: claude-code
 
 モデル指定の置き場を探す探索コマンドで、`git grep ...; echo ---; sed ...; ls ~/.claude/agents` のように、
 実在を確かめていないディレクトリへの `ls` を最後に置いた。ディレクトリが無かったため呼び出し全体が exit 2 になり、
-探索自体は成功していたのにツールエラーとして記録された（kaizen のコミット前ゲートが候補として拾い、commit が止まった）。
+探索自体は成功していたのにツールエラーとして記録された（kaizen のコミット前チェックが候補として拾い、commit が止まった）。
 
 ### 追記（2026-09-30・再発）
 
-eval の assertion 差し替えで `...; node check-eval-reachability.js >/dev/null && echo reach-ok; [ -e tests/.../iteration-12 ] && echo EXISTS` と、
-未作成であるはずのディレクトリの存在確認を末尾に置いた。無いのが正常なので `[ -e ]` が偽で exit 1 になり、
-処理は全部成功していたのにツールエラーとして記録され、コミット前ゲートが候補として拾った。
+eval の assertion 差し替えで、未作成であるはずのディレクトリの存在確認を末尾に置いた。
+
+```bash
+...; node check-eval-reachability.js >/dev/null && echo reach-ok; [ -e tests/.../iteration-12 ] && echo EXISTS
+```
+
+無いのが正常なので `[ -e ]` が偽で exit 1 になり、
+処理は全部成功していたのにツールエラーとして記録され、コミット前チェックが候補として拾った。
 下の提案に書いた形 `[ -d <path> ] && ls <path>` 自体が、同じ故障（無ければ非 0）を持っていた。
 
 ## 根本原因

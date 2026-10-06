@@ -5,10 +5,10 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { makeTempDir } from "../../lib/test-tmpdir.js";
 
-// kaizen-schedule-report.sh は **CI から無人で走り、出力がそのまま Issue になる**。
+// kaizen-schedule-report.sh は **CI から無人で実行され、出力がそのまま Issue になる**。
 // 判定が狂っても人が見ているのは結果の Issue だけなので、狂ったこと自体は出力に現れない。
-// とくに skip は「止めたはずのリポジトリが毎週動く」「動かしたいリポジトリが黙って止まる」の
-// どちらにも倒れうるため、層ごと・軸ごとに 1 検体ずつ固定する。
+// とくに skip は「止めたはずのリポジトリが毎週動く」「動かしたいリポジトリが警告なしに止まる」の
+// どちらにも誤って判定されうるため、層ごと・軸ごとに 1 検体ずつ固定する。
 //
 // 状態空間:
 //
@@ -21,17 +21,17 @@ import { makeTempDir } from "../../lib/test-tmpdir.js";
 // | model       | 妥当 / 不正（空白入り） / 未設定                                  |
 // | effort      | codex に指定 / codex 以外に指定 / 不正 / 未設定                   |
 // | pending     | 0 件 / 1 件 / 複数件（priority 降順・日付昇順）                    |
-// | 縮退        | 共通ライブラリ欠落 × .kaizen/config あり / なし                    |
+// | 機能を減らす | 共通ライブラリ欠落 × .kaizen/config あり / なし                   |
 //
 // **`schedule_enabled` の既定は off（opt-in）。** 書いていないリポジトリは止まる。
-// 既定が on へ戻ると、テンプレートを置いただけの配布先が週次で走り出す（Issue #417）。
-// 縮退・パーミッションの検体は `schedule_enabled=on` で採る——`off` だと「fail-closed が
-// 効いた」のか「既定 off に倒れただけ」なのかを区別できず、変異で赤くならない。
+// 既定が on へ戻ると、テンプレートを置いただけの配布先が週次で実行し始める（Issue #417）。
+// 機能を減らす場合とパーミッションの検体は、`schedule_enabled=on` で採る。`off` だと、「読めないときに停止する処理が
+// 機能した」のか「既定の off として扱われただけ」なのかを区別できず、変異で赤くならない。
 //
-// 変異による検出能力の実証（実測。いずれも狙った assertion が落ちることを確認した）:
-//   1. `config_unreadable` の skip 代入を消す → 縮退・パーミッションの各 fail-closed が fail
-//   2. schedule_enabled の `1)` 分岐から skip 代入を消す → config での停止が効かず fail
-//   3. pending 0 件での `resolved_mode=notify` への倒しを消す → 1 件 fail
+// ミューテーションテストで検出できることを、次のように確かめた（実測。いずれも狙った assertion が失敗することを確認した）。
+//   1. `config_unreadable` の skip 代入を消す → 機能を減らす場合とパーミッションの、読めないときに停止する各テストが fail
+//   2. schedule_enabled の `1)` 分岐から skip 代入を消す → config での停止が機能せず fail
+//   3. pending 0 件で `resolved_mode=notify` として扱う処理を消す → 1 件 fail
 //   4. キーなしの `else` 分岐から skip 代入を消す → opt-in の既定が fail
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const scriptDir = join(repoRoot, "skills/kaizen/scripts");
@@ -95,8 +95,8 @@ function run({ dir, target }, args, env = {}) {
     encoding: "utf8",
     // 呼び出し側が渡さない変数は「未設定」であって空文字ではない。継承した値が
     // 紛れ込むと env 層のテストが本来の層を測らなくなるので、明示したものだけを渡す。
-    // ロケールだけは明示する——最小 env は C ロケールになり、要約の切り詰めが
-    // 縮退経路へ落ちる。CI のランナー（UTF-8）と違う条件で測らないよう既定を揃える。
+    // ロケールだけは明示する。最小 env は C ロケールになり、要約の切り詰めが
+    // 機能を減らす分岐で処理される。CI のランナー（UTF-8）と違う条件で測らないよう既定を揃える。
     env: { PATH: process.env.PATH, HOME: dir, LC_ALL: "C.UTF-8", ...env },
   });
   const settings = Object.fromEntries(
@@ -189,25 +189,25 @@ describe("opt-in（schedule_enabled の既定は off）", () => {
 
   // **既定は定数が決める。** 分岐ごとに `skip="true"` を直書きすると、定数を on にしても
   // 挙動は止まったままメッセージだけが「既定 on」と嘘をつく（実測でこの状態だった）。
-  // 定数を差し替えた複製を走らせ、既定が本当に反転することで判定点の単一性を測る。
+  // 定数を差し替えたコピーで動かし、既定が本当に反転することで判定点の単一性を測る。
   test("DEFAULT_SCHEDULE_ENABLED が実際の既定を決める（メッセージだけではない）", () => {
     const flipped = readFileSync(script, "utf8").replace(
       /^readonly DEFAULT_SCHEDULE_ENABLED=off$/m,
       "readonly DEFAULT_SCHEDULE_ENABLED=on",
     );
-    // 置換が当たったことの陽性コントロール（空振りだと既定 off のまま測ってしまう）。
+    // 置換が当たったことの確認（空振りだと既定 off のまま測ってしまう）。
     expect(flipped).toContain("readonly DEFAULT_SCHEDULE_ENABLED=on");
     const dir = makeTempDir("kaizen-sched-default-");
     try {
       mkdirSync(join(dir, ".kaizen"), { recursive: true });
       writeFileSync(join(dir, ".kaizen", "a.md"), note({ slug: "a" }));
       const target = join(dir, "kaizen-schedule-report.sh");
-      // 共通ライブラリも一緒に置く（縮退経路で測らないため）。
+      // 共通ライブラリも一緒に置く（機能を減らす分岐で測らないため）。
       copyFileSync(join(scriptDir, "kaizen-hook-common.sh"), join(dir, "kaizen-hook-common.sh"));
       writeFileSync(target, flipped);
-      // 既定が on になるので、キーが無くても走る側へ反転する。
+      // 既定が on になるので、キーが無くても実行する側へ反転する。
       expect(run({ dir, target }, ["config"]).settings.skip).toBe("false");
-      // 明示的な off は既定に関わらず止まる（既定の反転が上書きに化けていないこと）。
+      // 明示的な off は既定に関わらず止まる（既定の反転が、誤って上書きとして扱われていないこと）。
       writeFileSync(join(dir, ".kaizen", "config"), "schedule_enabled=off\n");
       expect(run({ dir, target }, ["config"]).settings.skip).toBe("true");
     } finally {
@@ -215,7 +215,7 @@ describe("opt-in（schedule_enabled の既定は off）", () => {
     }
   });
 
-  // 不正値を有効側へ倒すと、typo した `.kaizen/config` が「有効化した証拠」になってしまう。
+  // 不正値を有効として扱うと、typo した `.kaizen/config` が「有効化した証拠」になってしまう。
   test("schedule_enabled が真偽値として読めなければ既定 off へ倒して止まる", () => {
     withProject({ notes: { a: {} }, config: "schedule_enabled=maybe\n" }, (p) => {
       const { settings, stderr } = run(p, ["config"]);
@@ -251,14 +251,14 @@ describe("skip（どちらかが立てば止まる）", () => {
   });
 
   // 理由は step summary と要約に出る唯一の手がかり。上書きにすると、先に立った理由
-  // （fail-closed の発動など）が消えて「停止の実態」と「表示された理由」がずれる。
+  // （読めないときの停止など）が消えて「停止の実態」と「表示された理由」がずれる。
   //
   // 判別できるのは **config_unreadable が先に立ったとき**だけ。`schedule_enabled` 側は
   // env より後に評価されるので、env を上書きにしても後勝ちで両方残ってしまい、
   // この分岐へ到達しない（最初に書いたテストがまさにそれで、変異で赤くならなかった）。
   test("先に立った fail-closed の理由が env skip で消えない", () => {
-    // 検体は `on`。`off` だと「読めないので止めた」のか「既定 off に倒れた」のかを
-    // 区別できず、fail-closed を消す変異で赤くならない。
+    // 検体は `on`。`off` だと「読めないので止めた」のか「既定の off として扱われた」のかを
+    // 区別できず、読めないときの停止を消す変異で赤くならない。
     withProject({ notes: { a: {} }, config: "schedule_enabled=on\n" }, (p) => {
       const configPath = join(p.dir, ".kaizen", "config");
       chmodSync(configPath, 0o000);
@@ -278,7 +278,7 @@ describe("skip（どちらかが立てば止まる）", () => {
   });
 
   // 一時停止レバーの既定は「止めない」。こちらは opt-in の軸と逆なので、不正値を
-  // 止める側へ倒すと、typo したリポジトリ変数が無言の停止に化ける。
+  // 止める側として扱うと、typo したリポジトリ変数が、警告のない停止になってしまう。
   test("KAIZEN_SCHEDULE_SKIP が真偽値として読めなければ一時停止しない", () => {
     withProject({ notes: { a: {} }, config: "schedule_enabled=on\n" }, (p) => {
       const { settings, stderr } = run(p, ["config"], { KAIZEN_SCHEDULE_SKIP: "perhaps" });
@@ -289,8 +289,8 @@ describe("skip（どちらかが立てば止まる）", () => {
 });
 
 describe("縮退（共通ライブラリを読めない）", () => {
-  // 検体は `on`。有効化したつもりのリポジトリを、読めないという理由で止める経路を測る。
-  // `off` だと既定 off に倒れただけでも緑になり、fail-closed を消しても赤くならない。
+  // 検体は `on`。有効化したつもりのリポジトリを、読めないという理由で止める処理を測る。
+  // `off` だと既定の off として扱われただけでも緑になり、読めないときの停止を消しても赤くならない。
   test("config が在るのに読めないなら停止側へ倒す（fail-closed）", () => {
     withProject({ notes: { a: {} }, config: "schedule_enabled=on\n", degraded: true }, (p) => {
       const { settings } = run(p, ["config"]);
@@ -310,15 +310,15 @@ describe("縮退（共通ライブラリを読めない）", () => {
     });
   });
 
-  // ライブラリが読めても `.kaizen/config` 自体が読めなければ同じ穴になる。
+  // ライブラリが読めても、`.kaizen/config` 自体が読めなければ同じ抜けになる。
   // kaizen_config_value は「読めない」と「キーが無い」を同じ 1 で返すため、
-  // 区別しないと schedule_enabled=off を読み落として fail-open する。
+  // 区別しないと schedule_enabled=off を読み落とし、判定できないのに実行してしまう。
   test("config がパーミッションで読めないときも停止側へ倒す", () => {
-    // 同じ理由で検体は `on`（`off` では既定 off との弁別ができない）。
+    // 同じ理由で検体は `on`（`off` では既定の off と区別できない）。
     withProject({ notes: { a: {} }, config: "schedule_enabled=on\n" }, (p) => {
       const configPath = join(p.dir, ".kaizen", "config");
       chmodSync(configPath, 0o000);
-      // root で走ると 000 でも読めてしまい、この分岐へ到達しない（到達しない実行を緑にしない）。
+      // root で実行すると 000 でも読めてしまい、この分岐へ到達しない（到達しない実行を緑にしない）。
       let readable = true;
       try {
         readFileSync(configPath);
@@ -379,7 +379,7 @@ describe("pending の数え方と並び", () => {
   });
 
   // ソート用のセンチネル（末尾へ回すための 9999-99-99）を表示へ流用しない。
-  // priority / type は `unknown` に倒れるのに date だけありもしない日付が出ると、
+  // priority / type は `unknown` として扱われるのに date だけありもしない日付が出ると、
   // Issue の読み手はそれを記録日として読む。
   test("date が無いノートはソート用センチネルではなく unknown と表示する", () => {
     withProject(
@@ -398,7 +398,7 @@ describe("pending の数え方と並び", () => {
 
   // Issue 本文は 65,536 文字が上限。超えると `gh issue create/edit` が失敗し、
   // その週のレポートが 1 件も届かない。切った分は件数と参照先を明示する
-  // （黙って落とすと「表に無い＝存在しない」と読まれる）。
+  // （警告なしに省くと「表に無い＝存在しない」と読まれる）。
   test("表は上限行数で切り、残件数を明示する", () => {
     const notes = {};
     for (let i = 0; i < 65; i += 1) {
@@ -410,7 +410,7 @@ describe("pending の数え方と並び", () => {
       const rows = [...body.matchAll(/^\| medium \| rule \|/gm)].length;
       expect(rows).toBe(60);
       expect(body).toContain("残り 5 件");
-      // 切った側のノートは表に出ない（上限が効いている陰性コントロール）。
+      // 切った側のノートは表に出ない（上限が機能していることの確認）。
       expect(body).not.toContain(".kaizen/n064.md");
     });
   });
@@ -430,15 +430,15 @@ describe("pending の数え方と並び", () => {
           .replace(/ \|$/, "");
       expect(cell("long")).toHaveLength(120);
       expect(cell("long").endsWith("\u2026")).toBe(true);
-      // 壊れた文字（置換文字）を出さない＝文字単位で切れている。
+      // 途中で切れた文字（置換文字）を出さない＝文字単位で切れている。
       expect(cell("long")).not.toContain("\uFFFD");
-      // 上限以下の要約はそのまま（切り詰めが無差別に効いていない陰性コントロール）。
+      // 上限以下の要約はそのまま（切り詰めがすべてに適用されていないことの確認）。
       expect(cell("short").endsWith("\u2026")).toBe(false);
     });
   });
 
-  // 非 UTF-8 ロケールではバイト単位になり文字が割れるので切らない。黙って縮退すると
-  // 「切ったはず」と読めてしまうので、縮退した run を出力で区別できることまで固定する。
+  // 非 UTF-8 ロケールではバイト単位になり文字が割れるので切らない。警告なしに機能を減らして動くと
+  // 「切ったはず」と読めてしまう。そのため、機能を減らした run を出力で区別できることまで固定する。
   test("非 UTF-8 ロケールでは切り詰めず、縮退したと分かる警告を出す", () => {
     const long = "あ".repeat(300);
     withProject({ notes: { long: { proposal: long } } }, (p) => {

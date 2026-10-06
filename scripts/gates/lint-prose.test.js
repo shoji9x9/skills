@@ -48,10 +48,10 @@ function makeRepo(files, pending = []) {
   return root;
 }
 
-// ---- 単語帳（陽性コントロール）----
+// ---- 単語帳（検出されることの確認）----
 
 describe("単語帳: 各エントリの example が、そのエントリの message で検出される", () => {
-  // textlint の起動は重いので、全エントリの example を 1 つのリポジトリに別ファイルで置き、1 回だけ走らせる。
+  // textlint の起動は重いので、全エントリの example を 1 つのリポジトリに別ファイルで置き、1 回だけ実行する。
   const root = makeSharedTempDir("lint-prose-words-");
   const fileOf = (i) => `entry-${String(i).padStart(3, "0")}.md`;
   let violations;
@@ -68,7 +68,7 @@ describe("単語帳: 各エントリの example が、そのエントリの mess
   });
 });
 
-// ---- 単語帳（陰性コントロール）----
+// ---- 単語帳（誤検知しないことの確認）----
 
 test.each([
   ["残すと決めた語", "部品を照合し、検査の結果を突き合わせて実測する。"],

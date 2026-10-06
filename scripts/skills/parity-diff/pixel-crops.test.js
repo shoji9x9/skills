@@ -1,6 +1,6 @@
 // 画素の量を「しきい値つき」と「しきい値なし」の 2 本で報告する回帰テスト（Issue #384）。
 // pngjs はこのリポジトリに入れないため、PNG を読まない純関数だけを対象にする
-// （CLI 経路は pixel-crops.mjs の main が同じ関数を呼ぶ）。
+// （CLI から呼んだ場合も、pixel-crops.mjs の main が同じ関数を呼ぶ）。
 
 import { expect, test } from "vitest";
 import { dirname, join } from "node:path";
@@ -128,7 +128,7 @@ test("透明度だけの差も厳密比較では差として数える", () => {
 
   expect(strict.count).toBe(1);
   expect(strict.maxChannelDelta).toBe(127);
-  // しきい値マスクを渡さない呼び出しでは「内側」の集合が定まらない。0 に倒すと
+  // しきい値マスクを渡さない呼び出しでは「内側」の集合が定まらない。0 として扱うと
   // 「隠れた差は無い」と読めてしまうので null を返す。
   expect(strict.maxStrictOnlyChannelDelta).toBeNull();
 });
@@ -211,9 +211,9 @@ test("上限を超えた候補は画素数の多い順に選ばれ、出力は (
   expect(selectStrictRegions(regions, 10)).toHaveLength(3);
 });
 
-// --- 下限未満の strict-only を黙って捨てない（PR #395 の codex レビュー 2 巡目 P1）---
+// --- 下限未満の strict-only を警告なしに捨てない（PR #395 の codex レビュー 2 巡目 P1）---
 // 落としてからマージすると、1〜3 画素に散った差が合流する前に全部消え、
-// strict_only_pixels > 0 なのに候補ゼロ・exit 0 という fail-open に戻る。
+// strict_only_pixels > 0 なのに候補ゼロ・exit 0 で合格になる状態に戻る。
 
 test("近接した 1 画素の成分は、先にマージしてから下限に掛ける", () => {
   const components = [
@@ -568,7 +568,7 @@ test("離れた strict-only 候補には隣り合う領域を付けない（隣�
 
 test("まとめた bbox に別の領域が入るなら、その領域もまとめる（候補の内側に候補を残さない）", () => {
   // PR #521 のレビュー（6 巡目）の再現: pad 10、(0,0) と (25,25) が縁でつながってまとまると、
-  // bbox (0,0,36,36) の角にある (25,0) の領域が、どの構成要素からも pad より離れたまま別の候補として残っていた。
+  // bbox `(0,0,36,36)` の角にある `(25,0)` の領域が、どの構成要素からも pad より離れたまま別の候補として残っていた。
   const w = 40;
   const h = 40;
   const regions = [

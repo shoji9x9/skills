@@ -4,7 +4,7 @@
 // `"type": "module"` のプロジェクトが規約通り .js で置くと ERR_MODULE_NOT_FOUND になり、
 // 「レジストリの中身を間違えた」と誤診しやすかった。解決規則（.mjs 優先 → .js フォールバック →
 // どちらも無ければ候補を示すエラー）を、図ディレクトリを実際に作って実測する。
-// 解決はスクリプト冒頭の top-level await で走るため、import ではなく子プロセスで検証する。
+// 解決はスクリプト冒頭の top-level await で実行されるため、import ではなく子プロセスで検証する。
 
 import { test, expect, afterEach } from "vitest";
 import { spawnSync } from "node:child_process";
@@ -23,7 +23,7 @@ afterEach(() => {
   for (const dir of createdDirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
-/** 環境名だけが違う最小のレジストリ（どちらの拡張子が読まれたかを出力ファイル名で弁別する）。 */
+/** 環境名だけが違う最小のレジストリ（どちらの拡張子が読まれたかを出力ファイル名で区別する）。 */
 const registry = (envName) => `
 export const baseSpec = {
   W: 400,
@@ -84,7 +84,7 @@ test("environments.mjs は environments.js より優先され、無視した方�
   // 既存プロジェクトの挙動を変えない（.mjs が勝つ）。
   expect(status).toBe(0);
   expect(readdirSync(join(dir, "out"))).toEqual(["architecture-frommjs.svg"]);
-  // 黙って捨てると「編集したのに反映されない」に化けるため、捨てた方を必ず名指しする。
+  // 警告なしに捨てると「編集したのに反映されない」状態になるため、捨てた方を必ず名指しする。
   expect(stderr).toContain("environments.js");
   expect(stderr).toContain("無視");
 });

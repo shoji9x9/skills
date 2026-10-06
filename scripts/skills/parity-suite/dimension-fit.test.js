@@ -1,9 +1,9 @@
 // parity-suite の寸法の決まり方の当てはめ・照合（dimension-fit.mjs）の回帰テスト（Issue #367）。
 //
-// 撮影条件が 1 ビューポートだと、その 1 点の実測 px を並べた新側が画素・特性照合・aria の 3 経路すべてで緑になる。
+// 撮影条件が 1 ビューポートだと、その 1 点の実測 px を並べた新側が画素・特性照合・aria の 3 つの方法すべてで緑になる。
 // 現側で窓を変えて式を読み、新側を同じ窓で照合すれば、この版組を落とせることを固定する。
 //
-// 陽性コントロール（式で写した新側が exit 0）を置く——これが無いと「常に落とす」実装と区別できない。
+// 通ることの確認（式を反映した新側が exit 0）を置く。これが無いと「常に落とす」実装と区別できない。
 
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
@@ -24,7 +24,7 @@ const WINDOWS = [
   { width: 1920, height: 800 },
 ];
 
-/** 移行元の式: 操作ボタンは器（幅 W − 40 の 50%）＋ 12、グリッドの高さは H − 132。 */
+/** 移行元の式: 操作ボタンはコンテナ（幅 W − 40 の 50%）＋ 12、グリッドの高さは H − 132。 */
 const formula = (w) => ({
   button: { x: 0.5 * (w.width - 40) + 12, y: 64, width: 96, height: 32 },
   grid: { x: 20, y: 120, width: w.width - 40, height: w.height - 132 },
@@ -222,7 +222,7 @@ test("check: 1 点の px を並べた新側は、撮影ビューポートでは�
   expect(r.code).toBe(1);
   expect(r.json.judged).toBe(true);
   expect(r.json.ok).toBe(false);
-  // 撮影ビューポートでは差が出ない（3 経路が緑になる形そのもの）
+  // 撮影ビューポートでは差が出ない（3 つの方法が緑になる形そのもの）
   expect(r.json.failures.some((f) => f.window?.width === 1366 && f.window?.height === 768)).toBe(
     false,
   );

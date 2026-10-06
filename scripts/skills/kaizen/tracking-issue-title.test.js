@@ -10,22 +10,22 @@ import { makeTempDir } from "../../lib/test-tmpdir.js";
 // 同名の Issue が open / closed に並び、一覧で世代を区別できない（Issue #417）。
 // タイトルへ更新日を入れ、既存 Issue は「接頭辞 + 空 or (YYYY-MM-DD)」で引く。
 //
-// この照合は**間違え方が両側にある**:
+// この照合には、次のように**両側の間違え方がある**。
 //   - 狭すぎる（完全一致のまま）→ 毎週新しい Issue が立ち、追跡が分裂する
 //   - 広すぎる（素の前方一致）→ 接頭辞で始まるだけの無関係な Issue を毎週上書きする
-// どちらも run は緑のまま進むので、実際の jq 式を取り出してラベル付き検体で弁別を測る。
+// どちらも run は緑のまま進むので、実際の jq 式を取り出してラベル付き検体で区別できるかを測る。
 //
-// 照会の正本は同梱スクリプト 1 本（`skills/kaizen/scripts/tracking-issue-lib.sh`）で、
+// 照会の原本は同梱スクリプト 1 本（`skills/kaizen/scripts/tracking-issue-lib.sh`）で、
 // 2 つのワークフローがそれを source する（Issue #420 で約 100 行の重複を解消した）。
-// このファイルは 2 層に分けて検査する:
-//   - lib: 実際に source して**挙動**を測る（照合・フォールバック・打ち切り・fail-closed）
-//   - ワークフロー: lib を呼んでいること＋分岐（リネーム・クローズ・警告）の**配線**
+// このファイルは、次の 2 層に分けて検査する。
+//   - lib: 実際に source して**挙動**を測る（照合・フォールバック・打ち切り・照会できないときの停止）
+//   - ワークフロー: lib を呼んでいること＋分岐（リネーム・クローズ・警告）の**組み込み**
 //
-// **変異実証は散文で持たない。** 以前はこの位置に A〜U のコメントとして置いていたが、
-// テストを直した瞬間に検証されない主張になる（実際に 3 通りの綻び方をした。Issue #420）。
-// 変異は `scripts/skills/kaizen/tracking-issue-title.mutations.json` にデータとして持ち、
-// `node scripts/mutation/check-mutation-proof.js` が「置換が当たったこと」と「狙ったテストが
-// 落ちたこと」の両方を機械で確かめる。
+// **ミューテーションテストの結果は散文で持たない。** 以前はこの位置に A〜U のコメントとして置いていた。
+// しかし、テストを直した瞬間に検証されない主張になる（実際に 3 通りの食い違い方をした。Issue #420）。
+// 変異は `scripts/skills/kaizen/tracking-issue-title.mutations.json` にデータとして持つ。
+// `node scripts/mutation/check-mutation-proof.js` が、「置換が当たったこと」と「狙ったテストが
+// 失敗したこと」の両方を機械で確かめる。
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 
 const LIB = "skills/kaizen/scripts/tracking-issue-lib.sh";
@@ -39,7 +39,7 @@ const WORKFLOWS = [
     prefix: "kaizen: 未適用の学び",
     // 追跡 Issue が 1 件も見つからず、新規作成へ進む条件。
     createEnv: { PENDING_COUNT: "3" },
-    // ステップの挙動を決める入力。空・仕様外の値で gh を呼ばずに落ちること（fail-closed）。
+    // ステップの挙動を決める入力。空・仕様外の値なら、gh を呼ばずに失敗すること。
     gateVar: "PENDING_COUNT",
     badValues: ["", "3件", "-1"],
   },
@@ -62,7 +62,7 @@ fi
 printf 'CALL: %s\\n' "$*" >>"$GH_LOG"
 `;
 
-// 一致 0 件を正常に返すスタブ（陽性コントロール: 新規作成の分岐へ到達することを示す）。
+// 一致 0 件を正常に返すスタブ（新規作成の分岐へ到達することを示す確認用）。
 const GH_EMPTY = `#!/usr/bin/env bash
 set -euo pipefail
 if [ "\${1-}" = issue ] && [ "\${2-}" = list ]; then
@@ -73,8 +73,8 @@ printf 'CALL: %s\\n' "$*" >>"$GH_LOG"
 `;
 
 /**
- * **照会の呼び出しまで記録する**スタブ。`gh` を呼ぶ前に落ちること（fail-closed の入口側）は
- * 変更系だけを記録するスタブでは測れない——照会が走っても記録が空のままになる。
+ * **照会の呼び出しまで記録する**スタブ。`gh` を呼ぶ前に失敗すること（照会できないときの停止の起点）は、
+ * 変更系だけを記録するスタブでは測れない。照会が実行されても記録が空のままになる。
  * 返す本文は `LIST_OUT` で与え、`--search` 付きと無しで出し分けたいときは `LIST_OUT_2` を使う。
  */
 const GH_LOGGING = `#!/usr/bin/env bash
@@ -90,7 +90,7 @@ if [ "\${1-}" = issue ] && [ "\${2-}" = list ]; then
 fi
 `;
 
-/** スタブ化した `gh` を PATH 前段に置いて bash スクリプトを走らせる。 */
+/** スタブ化した `gh` を PATH 前段に置いて bash スクリプトを実行する。 */
 function runBash(script, ghScript, env) {
   const dir = makeTempDir("tracking-step-");
   try {
@@ -124,7 +124,7 @@ function runBash(script, ghScript, env) {
   }
 }
 
-/** lib を source して `script` を走らせる（lib の挙動を実測する）。 */
+/** lib を source して `script` を実行する（lib の挙動を実測する）。 */
 function runLib(script, ghScript, env) {
   return runBash(`. ${JSON.stringify(libPath)}\n${script}\n`, ghScript, env);
 }
@@ -138,7 +138,7 @@ function step(wfPath, name) {
   // `uses:` で再利用ワークフローを呼ぶ job には `steps` が無い（TypeError で落ちるのを避ける）。
   const steps = Object.values(doc.jobs).flatMap((job) => job.steps ?? []);
   const matched = steps.filter((s) => s.name === name);
-  // 0 件・複数件を合格に倒さない（ステップ名を変えたら検査が空振りするだけになる）。
+  // 0 件・複数件を合格として扱わない（ステップ名を変えたら検査が空振りするだけになる）。
   expect(matched, `${wfPath}: "${name}" ステップ`).toHaveLength(1);
   return matched[0];
 }
@@ -150,8 +150,8 @@ function trackingStep(wfPath) {
 
 /**
  * ワークフローが `env:` で宣言している値を返す（0 件・複数件は落とす）。
- * **実行テストへはこの値を渡す**——ハードコードした期待値を渡すと、宣言を落とす変異で
- * テストが緑のまま通り、空の値でステップが走っていることに気づけない（実測）。
+ * **実行テストへはこの値を渡す**。ハードコードした期待値を渡すと、宣言を消す変異で
+ * テストが緑のまま通り、空の値でステップが実行されていることに気づけない（実測）。
  */
 function declaredEnv(wfPath, key) {
   const doc = yaml.load(readFileSync(join(repoRoot, wfPath), "utf8"));
@@ -169,14 +169,14 @@ function declaredEnv(wfPath, key) {
 /**
  * ステップの `TRACKING_LIB` 宣言が**実在する lib を指していること**を確かめる。
  *
- * kaizen 側は `Locate kaizen scripts` の出力を受けるので、**その探索ステップを実際に走らせて**
+ * kaizen 側は `Locate kaizen scripts` の出力を受けるので、**その探索ステップを実際に実行して**
  * 解決する（ハードコードすると、探索が lib を出さなくなる変異で緑のまま通る）。
  * outdated 側はリポジトリ内の相対パス直書きなので、実在を確かめてから絶対パスにする。
  *
  * **返り値を実行テストへは渡さない。** 探索は `.claude/skills/kaizen/scripts` を先に見るので、
  * ここで解決した先は**インストール済みコピー**になりうる。それを source して測ると、
- * 再インストール前の週に正本ではない別のファイルを測ることになり、正本へ入れた退行が
- * 緑のまま通る（変異実証で実際に踏んだ）。実行は正本（`libPath`）で測り、
+ * 再インストール前の週に原本ではない別のファイルを測ることになり、原本へ入れた退行が
+ * 緑のまま通る（ミューテーションテストで実際に起きた）。実行は原本（`libPath`）で測り、
  * コピーとの一致は `scripts/gates/check-skills-sync.js` が別に見る。
  */
 function resolveLib(wfPath) {
@@ -199,7 +199,7 @@ function resolveLib(wfPath) {
   return abs;
 }
 
-/** 探索ステップを `cwd` で実際に走らせ、`$GITHUB_OUTPUT` へ書かれた値を返す。 */
+/** 探索ステップを `cwd` で実際に実行し、`$GITHUB_OUTPUT` へ書かれた値を返す。 */
 function runLocate(wfPath, cwd) {
   const dir = makeTempDir("tracking-locate-");
   try {
@@ -232,9 +232,9 @@ function jqFilter(source) {
 }
 
 /**
- * 追跡 Issue の分岐を 3 つに割る。**分岐ごとに別々の assertion を当てる**ために要る——
+ * 追跡 Issue の分岐を 3 つに割る。**分岐ごとに別々の assertion を当てる**ために要る。
  * `run` 全体へ `toContain('--title "$title"')` を当てると、新規作成側の `gh issue create`
- * だけで満たされてしまい、更新側（`gh issue edit`）からリネームを落としても緑のままになる
+ * だけで満たされてしまう。すると、更新側（`gh issue edit`）からリネームを消しても緑のままになる
  * （両方とも変異で実測した）。
  *
  *   close  : 追跡 Issue を閉じる／何もしない側（`elif` の手前）
@@ -258,23 +258,23 @@ function branches(run) {
 }
 
 describe("照会の正本（tracking-issue-lib.sh）", () => {
-  // **接頭辞が空なら `gh` を呼ぶ前に落ちる。** 空のまま進むと `startswith("")` が全 open
+  // **接頭辞が空なら `gh` を呼ぶ前に失敗する。** 空のまま進むと `startswith("")` が全 open
   // Issue に当たり、無関係な Issue をリネームして本文を上書きする。
-  // 「呼ばなかった」は照会まで記録するスタブでないと測れない（変更系だけ記録するスタブでは
-  // 照会が走っても空のまま緑になる）。
+  // 「呼ばなかった」は照会まで記録するスタブでないと測れない（変更系だけ記録するスタブでは、
+  // 照会が実行されても空のまま緑になる）。
   test("接頭辞が空なら gh を 1 度も呼ばずに落ちる", () => {
     const res = runLib("resolve_tracking_issues", GH_LOGGING, { ISSUE_TITLE_PREFIX: "" });
     expect(res.status, "空の接頭辞で成功した").not.toBe(0);
     expect(res.calls, "空の接頭辞で gh を呼んだ").toBe("");
 
-    // 陽性コントロール: 接頭辞があれば同じスクリプトが照会まで到達する
-    // （到達しない経路で「呼ばなかった」を測っても何も実証しない）。
+    // 検出されることの確認: 接頭辞があれば、同じスクリプトが照会まで到達する
+    // （到達しない呼び出し方で「呼ばなかった」を測っても何も実証しない）。
     const ok = runLib("resolve_tracking_issues", GH_LOGGING, { ISSUE_TITLE_PREFIX: "p" });
     expect(ok.status, ok.stderr).toBe(0);
     expect(ok.calls).toContain("CALL: issue list");
   });
 
-  // **`gh` の失敗を「追跡 Issue が無い」へ倒さない。** `$( )` を代入に置けば `set -e` が
+  // **`gh` の失敗を「追跡 Issue が無い」として扱わない。** `$( )` を代入に置けば `set -e` が
   // 拾うが、関数の引数に置くと終了コードが捨てられる（実測）。捨てると secondary rate
   // limit や 5xx を踏んだ週に「0 件」と読み、既存 Issue を残したまま 2 本目を作って緑で終わる。
   test("gh issue list が失敗したら非 0 で返る（fail-closed）", () => {
@@ -282,7 +282,7 @@ describe("照会の正本（tracking-issue-lib.sh）", () => {
     expect(res.status, "gh が失敗したのに成功した").not.toBe(0);
     expect(res.calls, "失敗した照会の後に Issue を触った").toBe("");
 
-    // 陽性コントロール: 同じ呼び出しで `gh` が正常なら 0 件として返る。
+    // 検出されることの確認: 同じ呼び出しで `gh` が正常なら、0 件として返る。
     const ok = runLib('resolve_tracking_issues; echo "numbers=${#numbers[@]}"', GH_EMPTY, {
       ISSUE_TITLE_PREFIX: "p",
     });
@@ -290,9 +290,10 @@ describe("照会の正本（tracking-issue-lib.sh）", () => {
     expect(ok.stdout).toContain("numbers=0");
   });
 
-  // **fail-closed を呼び出し側の `set -e` に依存させない。** `if resolve_tracking_issues; then` や
-  // `|| ...` の左辺では errexit が効かないので、照会の失敗を関数の戻り値で伝える必要がある
-  // （伝えないと 0 件として新規作成へ倒れ、既存 Issue を残したまま 2 本目を立てる）。
+  // **照会できないときの停止を、呼び出し側の `set -e` に依存させない。**
+  // `if resolve_tracking_issues; then` や `|| ...` の左辺では errexit が機能しない。
+  // そのため、照会の失敗を関数の戻り値で伝える必要がある
+  // （伝えないと 0 件として新規作成の側へ進み、既存 Issue を残したまま 2 本目を立てる）。
   test("errexit が効かない文脈でも照会の失敗を戻り値で伝える", () => {
     const probe =
       'if resolve_tracking_issues; then echo "REACHED-SUCCESS"; else echo "FAILED-CLOSED"; fi';
@@ -300,7 +301,7 @@ describe("照会の正本（tracking-issue-lib.sh）", () => {
     expect(failed.stdout, "gh の失敗が成功として返った").toContain("FAILED-CLOSED");
     expect(failed.stdout).not.toContain("REACHED-SUCCESS");
 
-    // 陽性コントロール: 同じ文脈で gh が正常なら成功側へ入る。
+    // 検出されることの確認: 同じ文脈で gh が正常なら、成功側へ入る。
     const ok = runLib(probe, GH_EMPTY, { ISSUE_TITLE_PREFIX: "p" });
     expect(ok.stdout).toContain("REACHED-SUCCESS");
   });
@@ -327,7 +328,7 @@ describe("照会の正本（tracking-issue-lib.sh）", () => {
     expect(hit.calls.split("\n").filter((l) => l.startsWith("CALL: issue list"))).toHaveLength(1);
     expect(hit.stdout).toContain("numbers=7");
 
-    // フォールバックで拾えた週は、その経路を通ったことを stderr に残す。
+    // フォールバックで拾えた週は、その処理を通ったことを stderr に残す。
     const late = runLib("resolve_tracking_issues", GH_LOGGING, {
       ISSUE_TITLE_PREFIX: "p",
       LIST_OUT: "scanned=0",
@@ -337,7 +338,7 @@ describe("照会の正本（tracking-issue-lib.sh）", () => {
     expect(late.stderr).toContain("--search 無しで再取得");
   });
 
-  // 100 件上限に張り付いたまま「無い」と結論すると、取りこぼしが黙って新規作成に化ける。
+  // 100 件上限に張り付いたまま「無い」と結論すると、取りこぼしが警告なしに新規作成になる。
   // 打ち切りの害は**照会ごと**ではなく**動いた分岐ごと**に出るので、flag は 1 本に畳み、
   // 鳴らすかどうかは呼び出し側（触った分岐だけ `warn_if_truncated`）が決める。
   test("どちらの照会が打ち切られても truncated を立て、下回れば鳴らさない", () => {
@@ -359,7 +360,7 @@ describe("照会の正本（tracking-issue-lib.sh）", () => {
     expect(second.status, second.stderr).toBe(0);
     expect(second.stdout).toContain("::warning::open Issue の照会が 100 件で打ち切られた。");
 
-    // 陰性コントロール: 上限を下回る週に鳴らさない（誤警告は毎週のノイズになる）。
+    // 誤検知しないことの確認: 上限を下回る週に鳴らさない（誤警告は毎週のノイズになる）。
     const below = runLib(probe, GH_LOGGING, {
       ISSUE_TITLE_PREFIX: "p",
       LIST_OUT: "scanned=99\n7",
@@ -368,9 +369,9 @@ describe("照会の正本（tracking-issue-lib.sh）", () => {
     expect(below.stdout).not.toContain("::warning::");
   });
 
-  // 打ち切り判定 `[ "$scanned" -ge "$list_limit" ]` は `if` の条件なので `set -e` が効かない。
+  // 打ち切り判定 `[ "$scanned" -ge "$list_limit" ]` は `if` の条件なので `set -e` が機能しない。
   // 非数値だと bash が `integer expression expected` を出して非 0 を返すが、その非 0 は
-  // `truncated=false` として通過する（＝打ち切りを黙って成功へ倒す）。入力の側で落とす。
+  // `truncated=false` として通過する（＝打ち切りを警告なしに成功として扱う）。入力の側で失敗させる。
   test("走査件数が 10 進でなければ落ちる（打ち切り判定を fail-open にしない）", () => {
     const res = runLib('resolve_tracking_issues; echo "REACHED-END"', GH_LOGGING, {
       ISSUE_TITLE_PREFIX: "p",
@@ -380,7 +381,7 @@ describe("照会の正本（tracking-issue-lib.sh）", () => {
     expect(res.stdout).not.toContain("REACHED-END");
     expect(res.stderr).toContain("走査件数が 10 進でない");
 
-    // 陽性コントロール: 10 進なら通る（この検査が常に落とすだけの形になっていないこと）。
+    // 誤検知しないことの確認: 10 進なら通る（この検査が常に失敗させるだけの形になっていないこと）。
     const ok = runLib('resolve_tracking_issues; echo "REACHED-END"', GH_LOGGING, {
       ISSUE_TITLE_PREFIX: "p",
       LIST_OUT: "scanned=1\n7",
@@ -396,7 +397,7 @@ describe("照会の正本（tracking-issue-lib.sh）", () => {
     const decl = src.match(/^list_limit=(\d+)$/m);
     expect(decl, "list_limit の宣言が無い").not.toBeNull();
     expect(Number(decl[1])).toBeGreaterThan(30);
-    // 閾値側に数値リテラルが残っていないこと（片方だけ上げたときに誤警告と検出漏れが出る）。
+    // 閾値側に数値リテラルが残っていないこと（片方だけ上げたときに、誤警告と検出の抜けが出る）。
     expect(src).not.toMatch(/-ge 100\b/);
     expect(src).toContain('-ge "$list_limit"');
   });
@@ -407,9 +408,9 @@ describe("照会の正本（tracking-issue-lib.sh）", () => {
     expect(src).toContain("startswith(env.ISSUE_TITLE_PREFIX)");
   });
 
-  // 実式をそのまま jq へ通し、拾うべき検体と拾ってはいけない検体で弁別を測る。
+  // 実式をそのまま jq へ通し、拾うべき検体と拾ってはいけない検体で、区別できるかを測る。
   // 接頭辞は 2 つのワークフローの宣言値と、正規表現のメタ文字を含む値の 3 通りで測る
-  // （照合は文字列比較なので、メタ文字でも壊れないことまで含めて固定する）。
+  // （照合は文字列比較なので、メタ文字でも誤らないことまで含めて固定する）。
   // 接頭辞はここでは静的な値を使う（宣言と一致することは各ワークフローのテストが見る）。
   // 収集時にワークフローを読むと、宣言を落とす変異でファイルごと収集に失敗し、
   // 「どのテストが落ちたか」で実証できなくなる。
@@ -417,7 +418,7 @@ describe("照会の正本（tracking-issue-lib.sh）", () => {
     "jq 式が世代違いだけを拾う: 接頭辞 %s",
     (prefix) => {
       const probe = spawnSync("bash", ["-c", "command -v jq"], { encoding: "utf8" });
-      // jq が無い環境を「該当なし＝合格」に倒さない。
+      // jq が無い環境を「該当なし＝合格」として扱わない。
       expect(probe.status, "jq が必要（このテストは jq 式を実行して弁別を測る）").toBe(0);
 
       const cases = [
@@ -444,7 +445,7 @@ describe("照会の正本（tracking-issue-lib.sh）", () => {
           why: "日付の後ろに続きがある",
         },
       ];
-      // 両側に検体があることを確かめる（片側だけだと弁別を測れない）。
+      // 両側に検体があることを確かめる（片側だけだと区別できるかを測れない）。
       expect(cases.some((c) => c.hit)).toBe(true);
       expect(cases.some((c) => !c.hit)).toBe(true);
 
@@ -476,9 +477,9 @@ describe("照会の正本（tracking-issue-lib.sh）", () => {
   );
 });
 
-// 探索は配布先の構成でだけ壊れる（本リポには 4 つの探索先のうち 1 つが必ず在る）。
+// 探索は配布先の構成でだけ失敗する（本リポには 4 つの探索先のうち 1 つが必ず在る）。
 // レポートと lib が**同じディレクトリに揃っている**ことを条件にしてあるので、
-// 片方だけのディレクトリを採らないことを実際に走らせて測る。
+// 片方だけのディレクトリを採らないことを、実際に実行して測る。
 describe("kaizen スクリプトの探索（レポートと照会を同じ版から採る）", () => {
   const wfPath = ".github/workflows/kaizen-schedule.yml";
   const SEARCH_DIRS = [
@@ -488,7 +489,7 @@ describe("kaizen スクリプトの探索（レポートと照会を同じ版か
     "skills/kaizen/scripts",
   ];
 
-  /** 探索先に指定のファイルだけを置いた使い捨てツリーを作って探索を走らせる。 */
+  /** 探索先に指定のファイルだけを置いた使い捨てツリーを作り、探索する。 */
   function locateWith(files) {
     const dir = makeTempDir("tracking-tree-");
     try {
@@ -541,7 +542,7 @@ describe.each(WORKFLOWS)(
       const r = run();
       expect(r).toContain('. "$TRACKING_LIB"');
       expect(r).toMatch(/^ *resolve_tracking_issues$/m);
-      // 正本の関数・上限がステップ側へ戻っていないこと。
+      // 原本の関数・上限がステップ側へ戻っていないこと。
       for (const copied of [
         "find_tracking_issues()",
         "read_matches()",
@@ -558,7 +559,7 @@ describe.each(WORKFLOWS)(
 
     test("既存の追跡 Issue は毎回リネームし、新規作成も日付つきで立てる", () => {
       const { update, create } = branches(run());
-      // 分岐へ到達していることの陽性コントロール（空文字を検査しても常に緑になる）。
+      // 分岐へ到達していることの確認（空文字を検査しても常に緑になる）。
       expect(update).toContain("gh issue edit");
       expect(create).toContain("gh issue create");
       // 本 PR の主目的。`run` 全体へ当てると create 側だけで満たされてしまうので分岐ごとに当てる。
@@ -566,15 +567,15 @@ describe.each(WORKFLOWS)(
       expect(create).toContain('--title "$title"');
     });
 
-    // ステップ全体を、差し替えた `gh` と実物の lib で走らせる。静的な文字列検査では
-    // 書き方を変えた瞬間に素通りするので、**実際に走らせて**測る。
+    // ステップ全体を、差し替えた `gh` と実物の lib で実行する。静的な文字列検査では
+    // 書き方を変えた瞬間に素通りするので、**実際に実行して**測る。
     test("gh issue list が失敗したら Issue を触らずに落ちる（fail-closed）", () => {
       const failed = runStep(path, GH_FAILING, createEnv);
       expect(failed.status, "gh が失敗したのにステップが成功した").not.toBe(0);
       expect(failed.calls, "失敗した週に Issue を作成・更新・クローズした").toBe("");
 
-      // 陽性コントロール: 同じ入力で `gh` が正常なら新規作成まで到達する
-      // （到達していない経路で「触らなかった」を測っても何も実証しない）。
+      // 検出されることの確認: 同じ入力で `gh` が正常なら、新規作成まで到達する
+      // （到達していない呼び出し方で「触らなかった」を測っても何も実証しない）。
       // 日付は**ステップ実行の前後**で採る。後で 1 回だけ採ると、シェルの `date -u` が先・
       // JS が後という並びのため UTC の日跨ぎで期待値だけ翌日になって落ちる。
       const before = new Date().toISOString().slice(0, 10);
@@ -583,7 +584,7 @@ describe.each(WORKFLOWS)(
       expect(ok.status, ok.stderr).toBe(0);
       expect(ok.calls).toContain("issue create");
       // 接頭辞と日付が実際にタイトルへ乗っていること。ここを見ないと、空の接頭辞で
-      // 走っていても「作成へ到達した」だけで緑になる。
+      // 実行していても「作成へ到達した」だけで緑になる。
       const titles = [...new Set([before, after])].map((d) => `--title ${prefix} (${d})`);
       expect(
         titles.some((t) => ok.calls.includes(t)),
@@ -591,7 +592,7 @@ describe.each(WORKFLOWS)(
       ).toBe(true);
     });
 
-    // 照会できないまま分岐へ進むと、`numbers` が未設定のまま新規作成へ倒れて重複を作る。
+    // 照会できないまま分岐へ進むと、`numbers` が未設定のまま新規作成の側へ進み、重複を作る。
     // lib を読めない構成（配布先の古いインストール・パスの typo）でも Issue を触らない。
     test("lib を読めないときは Issue を触らずに落ちる", () => {
       const res = runStep(path, GH_EMPTY, {
@@ -602,9 +603,9 @@ describe.each(WORKFLOWS)(
       expect(res.calls, "lib が無い週に Issue を触った").toBe("");
     });
 
-    // ステップの挙動を決める入力は、空・仕様外の値で**黙って片側へ倒れる**。
-    // `[ "$PENDING_COUNT" = 0 ]` は文字列比較なので、空文字は「未適用あり」側へ倒れ、
-    // 件数の抜けたコメントを投稿しつつ Issue を更新した（実測）。gh を呼ぶ前に落とす。
+    // ステップの挙動を決める入力は、空・仕様外の値だと**警告なしに片側と判定されてしまう**。
+    // `[ "$PENDING_COUNT" = 0 ]` は文字列比較なので、空文字は「未適用あり」側と判定され、
+    // 件数の抜けたコメントを投稿しつつ Issue を更新した（実測）。gh を呼ぶ前に失敗させる。
     test.each(badValues)(`${gateVar}="%s" なら Issue を触らずに落ちる`, (bad) => {
       const res = runStep(path, GH_EMPTY, { ...createEnv, [gateVar]: bad });
       expect(res.status, `${gateVar}="${bad}" で成功した`).not.toBe(0);
@@ -637,7 +638,7 @@ describe.each(WORKFLOWS)(
       // 何もしない分岐へ警告を挿す変異が緑のまま通った（実測）。
       const doNothing = close.match(/[\s\S]*\n *else\n([\s\S]*)$/);
       expect(doNothing, "何もしない分岐を切り出せない").not.toBeNull();
-      // 切り出せた中身が本当に「何もしない」側であることの陽性コントロール。
+      // 切り出せた中身が、本当に「何もしない」側であることの確認。
       expect(doNothing[1]).toContain("何もしない");
       expect(doNothing[1]).not.toContain("warn_if_truncated");
     });
@@ -662,20 +663,20 @@ describe.each(WORKFLOWS)(
       const { close, update } = branches(run());
       expect(close).toContain('for n in "${numbers[@]}"');
       expect(close).toContain('gh issue close "$n"');
-      // 更新側は 1 本だけ（ループになっていないこと＝過剰一般化の陰性コントロール）。
+      // 更新側は 1 本だけ（ループになっていないこと＝過剰一般化していないことの確認）。
       expect(update).not.toContain('for n in "${numbers[@]}"');
       expect(update).toContain('gh issue edit "$number"');
     });
 
-    /** ステップの `run` を、差し替えた `gh` と宣言から解決した lib で実際に走らせる。 */
+    /** ステップの `run` を、差し替えた `gh` と宣言から解決した lib で実際に実行する。 */
     function runStep(wfPath, ghScript, env) {
       // 宣言が実在の lib を指していることは先に確かめる（宣言を落とす変異はここで落ちる）。
       resolveLib(wfPath);
       return runBash(trackingStep(wfPath), ghScript, {
         // ステップは workflow-level の `env:` に依存する。`run` だけ取り出すこのヘルパには
-        // 届かないので、宣言から読んで明示的に渡す（渡さないと空の接頭辞で走る）。
+        // 届かないので、宣言から読んで明示的に渡す（渡さないと空の接頭辞で実行される）。
         ISSUE_TITLE_PREFIX: declaredEnv(wfPath, "ISSUE_TITLE_PREFIX"),
-        // **正本を source して測る**（インストール済みコピーではなく）。理由は `resolveLib`。
+        // **原本を source して測る**（インストール済みコピーではなく）。理由は `resolveLib`。
         TRACKING_LIB: libPath,
         ...env,
       });

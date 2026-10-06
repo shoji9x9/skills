@@ -1,6 +1,6 @@
 import { releaseRules } from "./commit-types.ts";
 
-// preset: "conventionalcommits" は `!` 記法の破壊的変更検出に必要（angular 既定では未検出）。
+// preset: "conventionalcommits" は、`!` 記法で破壊的変更を検出するのに必要（angular のデフォルトでは検出しない）。
 // releaseRules は commit-types.ts から導出する（許可種別と publish 対象を一致させる）。
 // commit-analyzer は --dry-run で次バージョンの算出にのみ使う（タグ／Release は gh skill publish が作る）。
 export default {

@@ -13,15 +13,15 @@
 //
 // 使い方: node scripts/gates/lint-pagination.js [files...]
 //   引数なし: リポジトリ内の *.sh と *.md を全件走査。
-//   引数あり: 渡されたファイルだけを走査する（無視規則は適用しない。lefthook が staged file を渡す経路）。
+//   引数あり: 渡されたファイルだけを走査する（無視規則は適用しない。lefthook が staged file を渡すときの呼び出し方）。
 //
 // 引数なしの走査対象は **git の無視規則をそのまま使って**決める（`git ls-files --cached --others
 // --exclude-standard`）。ディレクトリを素朴に辿ると `.gitignore` 済みの生成物まで読むため、
 // CI（クリーンな checkout ＝ tracked のみ）では出ない指摘が手元でだけ出る。
 // 実際に `tests/*/iteration-*/eval-*/`（.gitignore 済みの eval 実行成果物。エージェントの応答が
-// そのまま入っており、こちらが書いたコードではない）で 2 件の偽の赤が出て、CI が緑なのに
-// 手元が赤いという食い違いになった。git を使えない場所（git 未導入・work tree の外）では
-// 走査を止めず、従来のディレクトリ走査へ落ちる（無視規則は効かないぶん過検出側に倒す）。
+// そのまま入っており、こちらが書いたコードではない）で、2 件の誤検知が出た。CI は成功するのに、
+// 手元では失敗するという食い違いになった。git を使えない場所（git 未導入・work tree の外）では、
+// 走査を止めずに従来のディレクトリ走査に切り替える（無視規則が使えないぶん、多めに検出する側にする）。
 
 import { execFileSync } from "node:child_process";
 import { readFileSync, readdirSync, statSync } from "node:fs";
@@ -207,7 +207,7 @@ export function lint(path, content) {
       if (!suppressed) findings.push({ path, n: (unit[startIdx] ?? unit[0]).n, msg: GRAPHQL_MSG });
     }
 
-    // REST: コレクション取得の --paginate 漏れ。
+    // REST: コレクション取得の --paginate の付け忘れ。
     for (const ll of logicalLines(unit)) {
       const c = ll.text;
       if (!/gh\s+api\s/.test(c) || /gh\s+api\s+graphql/.test(c)) continue;
@@ -223,7 +223,7 @@ export function lint(path, content) {
   return findings;
 }
 
-/** ツールの作業領域。どちらの列挙経路でも外す。 */
+/** ツールの作業領域。どちらの列挙方法でも外す。 */
 const SKIP_DIRS = new Set(["node_modules", ".git"]);
 
 export function isLintable(path) {
@@ -231,7 +231,7 @@ export function isLintable(path) {
 }
 
 /**
- * dir 配下を素朴に辿る（git を使えないときのフォールバック。無視規則は効かない）。
+ * dir 配下を素朴に辿る（git を使えないときのフォールバック。無視規則は使えない）。
  * エージェント用のコピーとリンク（scripts/lib/source-scope.js）も、走査の起点 root からの相対で外す。
  */
 export function walkFiles(dir, deps = {}, root = dir) {
@@ -295,9 +295,9 @@ export function main(argv = process.argv.slice(2), deps = {}) {
   const read = deps.readFileSync ?? readFileSync;
   const log = deps.log ?? console.log;
   const err = deps.error ?? console.error;
-  // 引数ありは「これを見ろ」という明示なので無視規則を当てない（lefthook の staged file 経路）。
+  // 引数ありは「これを見ろ」という明示なので、無視規則を当てない（lefthook が staged file を渡すとき）。
   const targets = (argv.length ? argv : listFiles(".", deps)).filter(isLintable);
-  // 対象 0 件を成功に倒さない。列挙が壊れると「指摘 0 件」と見分けが付かなくなる。
+  // 対象 0 件を成功として扱わない。列挙が失敗すると、「指摘 0 件」と見分けが付かなくなる。
   if (targets.length === 0) {
     err(
       `error: 走査対象が 0 件（cwd: ${process.cwd()}）。列挙が壊れているか、対象の *.sh / *.md が無い`,
@@ -318,9 +318,9 @@ export function main(argv = process.argv.slice(2), deps = {}) {
     scanned += 1;
     findings.push(...lint(path, content));
   }
-  // 読めなかったファイルは走査していない。**1 件でも読めなければ合格に倒さない**——
-  // その中の違反は「無い」ではなく「見ていない」で、OK と印字した瞬間に見分けが付かなくなる。
-  // 全件読めない場合は列挙かパスの解決が壊れているので、理由を分けて出す。
+  // 読めなかったファイルは走査していない。**1 件でも読めなければ、合格として扱わない**。
+  // その中の違反は「無い」のではなく「見ていない」のであり、OK と出力した時点で見分けが付かなくなる。
+  // 全件が読めない場合は、列挙かパスの解決が失敗しているので、理由を分けて出す。
   const unread = unreadable > 0 ? `・${unreadable} ファイルは読めず未走査` : "";
   if (findings.length) {
     findings.sort((a, b) => a.path.localeCompare(b.path) || a.n - b.n);
@@ -345,7 +345,7 @@ export function main(argv = process.argv.slice(2), deps = {}) {
   return 0;
 }
 
-// CLI として実行されたときだけ走らせる（テストから import しても main は動かない）。
+// CLI として実行されたときだけ動かす（テストから import しても main は動かない）。
 // import.meta.url との比較は pathToFileURL で正規化する（相対パス/URL エスケープ差分での不一致を避ける）。
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   process.exitCode = main();

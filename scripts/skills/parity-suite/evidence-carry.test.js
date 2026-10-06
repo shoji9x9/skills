@@ -2,15 +2,17 @@
 //
 // 共通部品を 1 行直すと、新側リポジトリ全体の SHA に結びついた証跡が全ページで古くなる。
 // judgeCarry はページの描画入力（render_inputs）の差分と変更宣言・影響の再計算・amend-verify の記録から、
-// 持ち越してよいときだけ ok を返す。fail-closed: 読めない入力はどれも持ち越さない。
+// 持ち越してよいときだけ ok を返す。読めない入力は、どれも持ち越さない。
 //
-// 状態空間（軸 × 「読めない」を含む値）:
-//   render_inputs: 無い / 空 / プレースホルダ / 有効
-//   リポジトリ: 渡さない / 無い / 最上位でない / 有効      コミット: 無い / 16 進でない / 有効
-//   差分 D: 空（描画入力の外だけ変わった）/ 宣言の files に含まれる / 含まれないファイルがある / 宣言の後に宣言外の編集
-//   evidence-carry.json: 無い / 壊れた JSON / 形が違う / 有効    変更宣言: 無い / 不正 / 有効
-//   影響: 影響なし / 影響あり / 判定不能（capture_scope 無し・部品 metadata 無し）
-//   amend-verify: null / 記録が無い / change_id 違い / 組が無い / pass でない / sha256 不一致 / 有効
+// 状態空間（軸 × 「読めない」を含む値）は次のとおり。
+//   - render_inputs: 無い / 空 / プレースホルダ / 有効
+//   - リポジトリ: 渡さない / 無い / 最上位でない / 有効
+//   - コミット: 無い / 16 進でない / 有効
+//   - 差分 D: 空（描画入力の外だけ変わった）/ 宣言の files に含まれる / 含まれないファイルがある / 宣言の後に宣言外の編集
+//   - evidence-carry.json: 無い / 不正な JSON / 形が違う / 有効
+//   - 変更宣言: 無い / 不正 / 有効
+//   - 影響: 影響なし / 影響あり / 判定不能（capture_scope 無し・部品 metadata 無し）
+//   - amend-verify: null / 記録が無い / change_id 違い / 組が無い / pass でない / sha256 不一致 / 有効
 // git は本物のリポジトリを一時ディレクトリに作って使う（fixture は scripts/skills/parity-suite/evidence-carry-fixture.js）。
 
 import { spawnSync } from "node:child_process";
@@ -598,7 +600,7 @@ test("--replace-root を決められない: 落とす", () => {
   expect(result.findings.join("\n")).toContain("--replace-root");
 });
 
-// 2 つの検査器が同じ fixture に同じ判定を出すこと（どちらも judgeCarry で判定する）。
+// 2 つのチェックが同じ fixture に同じ判定を出すこと（どちらも judgeCarry で判定する）。
 const healthCheck = join(repoRoot, "skills/parity-suite/scripts/artifact-health-check.mjs");
 const comparisonCheck = join(
   repoRoot,
@@ -606,7 +608,7 @@ const comparisonCheck = join(
 );
 
 /**
- * 両方の検査器が読む成果物を、記録の版 recorded・今の版 wanted で書く。
+ * 両方のチェックが読む成果物を、記録の版 recorded・今の版 wanted で書く。
  * @param {ReturnType<typeof project>} p
  * @param {string} recorded
  * @param {string} wanted
@@ -663,7 +665,7 @@ function writeCheckerInputs(p, recorded, wanted) {
 }
 
 /**
- * 両検査器を CLI として回す。
+ * 両方のチェックを CLI として回す。
  * @param {ReturnType<typeof project>} p
  * @param {{ carryTo?: string, newRepo?: boolean }} [options] carryTo は両方へ --carry-to で渡す。newRepo: false で --new-repo を渡さない
  */

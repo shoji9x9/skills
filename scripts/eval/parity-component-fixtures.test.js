@@ -1,10 +1,9 @@
 // parity-component の eval fixture（採取物）が、実物のツールの出力として互いに整合していることの検査（Issue #354）。
 //
-// 手で作った採取物は、metadata.json の `traits_property_set` が実物の FIXED_PROPERTIES と違う・
-// css-rules.json の宣言が traits.json の計算値と食い違う・element.png がプレースホルダ、という形で
-// 壊れてきた。`build` の前提検証はこれらを突き合わせるので、壊れた fixture では eval が目的の分岐へ届かない。
+// 手で作った採取物は、次の形で不正になってきた。metadata.json の `traits_property_set` が実物の
+// FIXED_PROPERTIES と違う・css-rules.json の宣言が traits.json の計算値と食い違う・element.png がプレースホルダ。`build` の前提検証はこれらを突き合わせるので、不正な fixture では eval が目的の分岐へ届かない。
 // 採取物は scripts/eval/generate-parity-component-fixtures.js で生成し、ここでは生成物どうしの整合だけを見る
-// （CI にブラウザが無いので再生成はしない）。各検査は壊した写しで赤くなることを併せて確かめる。
+// （CI にブラウザが無いので再生成はしない）。各検査は、わざと不正にしたコピーで赤くなることを併せて確かめる。
 
 import { expect, test } from "vitest";
 import { cpSync, existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -55,7 +54,7 @@ function checkComponent(dir) {
   if (tools.element_shot_version !== elementShot.VERSION) {
     problems.push(`element_shot_version ${tools.element_shot_version} ≠ ${elementShot.VERSION}`);
   }
-  // テンプレートはコピー先のパスも記録させる（`traits` と対）。版だけ埋めて経路を書かない
+  // テンプレートはコピー先のパスも記録させる（`traits` と対）。版だけ埋めてパスを書かない
   // 採取物を fixture が手本にしてしまうため、パス側も揃っていることを検査する。
   for (const key of ["traits", "element_shot"]) {
     if (typeof tools[key] !== "string" || tools[key] === "") {
@@ -68,7 +67,7 @@ function checkComponent(dir) {
   if (tools.axis_diff_version !== axisDiff.VERSION) {
     problems.push(`axis_diff_version ${tools.axis_diff_version} ≠ ${axisDiff.VERSION}`);
   }
-  // `build` の前段ゲートを満たしていること自体も検査する。整合していても、採取未完了や
+  // `build` の前段のチェックを満たしていること自体も検査する。整合していても、採取未完了や
   // 軸の割り出しが失敗した採取物は、eval を目的の分岐より手前で止める。
   if (meta.capture.complete !== true) problems.push("capture.complete が true でない");
   for (const name of ["axes.json", "component-api.md"]) {
@@ -146,7 +145,7 @@ function checkComponent(dir) {
         if (png && (shot.png?.width !== png.width || shot.png?.height !== png.height)) {
           problems.push(`${where}: element.shot.json の png が element.png の実寸と合わない`);
         }
-        // 記録の契約全体を、対になる採取物から組み立て直した期待値と突き合わせる（キーの過不足も含む）。
+        // 記録の仕様全体を、対になる採取物から組み立て直した期待値と突き合わせる（キーの過不足も含む）。
         // fixture は最上位フレームの要素だけなので page_rect = traits.rect・frame_depth = 0、clip は
         // 記録した撮影条件のビューポートで element-shot.mjs の planElementClip が決める値。
         // 寸法が同じ別の撮影の記録を差し込んでも、rect / clip の座標で食い違う。
@@ -196,7 +195,7 @@ function checkComponent(dir) {
     conditions && Array.isArray(conditions.viewports)
       ? conditions.viewports.map((v) => v && v.label)
       : [];
-  // キーの集合はスキーマの正本（assets/metadata-template.json）から取る。検査する項目を手で選ぶと、
+  // キーの集合はスキーマの原本（assets/metadata-template.json）から取る。検査する項目を手で選ぶと、
   // 選び漏れた項目（viewer_environment / masks 等）の欠落・型崩れが合格する。
   const sameKeys = (value, template) =>
     Boolean(value) &&
@@ -239,8 +238,8 @@ function checkComponent(dir) {
     })
     .flatMap(([id, st]) => viewportLabels.map((vp) => `${id}\u001f${st}\u001f${vp}`))
     .sort();
-  // 形の壊れた行は捨てずに問題にする。除外してから突き合わせると、期待する行が揃っている限り
-  // 壊れた余分な行が metadata.json に残ったまま合格する。
+  // 形が不正な行は捨てずに問題にする。除外してから突き合わせると、期待する行が揃っている限り、
+  // 不正な余分な行が metadata.json に残ったまま合格する。
   const noiseRows = Array.isArray(meta.noise_baseline) ? meta.noise_baseline : [];
   const malformedNoise = noiseRows.filter(
     (n) =>
@@ -294,7 +293,7 @@ function checkComponent(dir) {
   return problems;
 }
 
-// baseline を持つ部品の採取物を全 fixture から集める（0 件を合格に倒さない）。
+// baseline を持つ部品の採取物を全 fixture から集める（0 件を合格として扱わない）。
 const componentDirs = readdirSync(fixturesRoot)
   .map((name) => join(fixturesRoot, name, ".replace/components"))
   .filter((dir) => existsSync(dir))
@@ -336,7 +335,7 @@ test.each(componentDirs.map((d) => [d.slice(fixturesRoot.length + 1), d]))(
   },
 );
 
-// --- 陽性コントロール: 壊した写しで各検査が赤くなる ---
+// --- 検出されることの確認: わざと不正にしたコピーで各検査が赤くなる ---
 
 const copyFixture = () => {
   const dir = join(makeTempDir("parity-component-fixture-"), "button");
@@ -365,8 +364,8 @@ test("陽性コントロール: 実物に無いプロパティを含む traits_p
 test("陽性コントロール: 記録されていない element_shot_version を検出する", () => {
   const dir = copyFixture();
   edit(join(dir, "metadata.json"), (m) => {
-    // 「値が違う」ではなく「キーごと無い」形で壊す。element-shot.mjs は今回の追加なので、
-    // 既存の fixture がキーを持たないまま通り抜けるのがいちばん起きやすい壊れ方。
+    // 「値が違う」ではなく「キーごと無い」形で不正にする。element-shot.mjs は今回の追加なので、
+    // 既存の fixture がキーを持たないまま通り抜けるのが、いちばん起きやすい誤り。
     delete m.capture.tools.element_shot_version;
   });
   expect(checkComponent(dir)).toContain(`element_shot_version undefined ≠ ${elementShot.VERSION}`);
@@ -609,7 +608,7 @@ test("陽性コントロール: capture_conditions の全項目の欠落・型�
 });
 
 test("capture_conditions の正当な値の変化は通す", () => {
-  // 過剰修正の検知: 契約が許す値（乖離の宣言・マスクの列挙）では落とさない。
+  // 過剰修正の検知: 仕様が許す値（乖離の宣言・マスクの列挙）では落とさない。
   for (const mutate of [
     (c) => (c.viewer_environment = "乖離: 利用者は Windows 既定フォント（gaps.md 参照）"),
     (c) => (c.viewer_environment = "未確認"),

@@ -1,17 +1,17 @@
-// Bash 呼び出しの PreToolUse ゲートの回帰テスト。
+// Bash 呼び出しを PreToolUse で止めるチェックの回帰テスト。
 //
 // 状態空間の軸と、各セルに置いた入力:
 //
 // | 軸           | 値                                                                                  |
 // | ------------ | ------------------------------------------------------------------------------------ |
-// | 入力         | 正常な Hook JSON / command フィールド欠落 / 壊れた JSON / 空 stdin                     |
+// | 入力         | 正常な Hook JSON / command フィールド欠落 / 不正な JSON / 空 stdin                     |
 // | gh の口      | gh api（--body-file は無い） / gh pr create / gh issue create（--body-file は正当）     |
 // | プロセス終了 | pkill -f（素） / pkill -f '[d]...'（自分に一致しない） / pkill（-f 無し） / killall -f / kill PID / pgrep -af |
 // | 区切り       | && / \|\| / ; / \| / 改行（セグメントごとに判定する）                                  |
 // | 危険語なし   | 通常のコマンド（hot path で即 exit 0）                                                 |
 //
-// 陰性コントロール（通さねばならない入力）がゲートと同数以上あることが要点——
-// 陽性だけのゲートは「全部落とす実装」と区別が付かない。
+// 誤検知しないことの確認（通さねばならない入力）が、止める入力と同数以上あることが要点——
+// 止める入力だけのテストでは、「全部落とす実装」と区別が付かない。
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -28,7 +28,7 @@ const hook = (command) => JSON.stringify({ tool_name: "Bash", tool_input: { comm
 
 const guard = (command) => run(hook(command));
 
-// --- 陰性コントロール（通す） ---
+// --- 誤検知しないことの確認（通す） ---
 
 const PASSING = [
   ["gh pr の --body-file は正当", "gh pr create --body-file /tmp/body.md"],
@@ -61,17 +61,17 @@ const PASSING = [
   ["引用符の中の ; で切らない", 'git commit -m "fix; pkill -f x"'],
   // 行コメントはデータ。コード側に入れると注意書きの文章で発動する。
   ["行コメントの注意書きでは発動しない", "gh pr create --body-file b  # gh api では使えない"],
-  // コマンド置換の中の ; は本物の区切り。潰して 1 セグメントにすると別コマンドの引数が混ざる。
+  // コマンド置換の中の ; は本物の区切り。潰して 1 セグメントにすると別コマンドの引数が含まれてしまう。
   ["コマンド置換の中は区切りで分ける", 'out="$(gh api x > f; gh pr create --body-file b)"'],
   ["バッククォートの中も区切りで分ける", "out=`gh api x > f; gh pr create --body-file b`"],
   // 引用符の**外**の $( ) を閉じた後は引用符の外に戻る。常に二重引用符へ戻すと、
-  // 以降が引用内扱い→未閉じ扱いになり、fail-safe 経由でコメントの文章まで検査対象になる。
+  // 以降が引用内扱い→未閉じ扱いになり、未閉じを止める側の扱いでコメントの文章まで検査対象になる。
   [
     "コマンド置換を閉じた後はコード文脈へ戻る",
     "out=$(date); gh pr create --body-file b  # gh api では使えない",
   ],
   // 文脈はスタックで持つ。単一変数で戻り先を覚えると、入れ子で内側が外側を壊し、
-  // 閉じたのに未閉じ扱い→fail-safe で正当な呼び出しが落ちる。
+  // 閉じたのに未閉じ扱い→止める側の扱いで正当な呼び出しが落ちる。
   [
     "入れ子のコマンド置換と引用を正しく閉じる",
     `gh pr create --body-file "$(dirname "$0")/b.md" --title 'gh api の話'`,
@@ -87,8 +87,8 @@ const PASSING = [
   ["語中に置いた文字クラスは通す", "pkill -f 'my-[s]erver'"],
   ["行頭アンカーの後の文字クラスは通す", "pkill -f '^[c]hrome'"],
   ["任意文字の後の文字クラスは通す", "pkill -f 'chrome.[d]ump'"],
-  // `gh api` を部分一致で拾うと、引数の中にこのゲート自身の話題が入っただけで
-  // 正当な呼び出しが止まる（このゲートを説明する Issue / PR を書く作業で必ず踏む）。
+  // `gh api` を部分一致で拾うと、引数の中にこのチェック自身の話題が入っただけで
+  // 正当な呼び出しが止まる（このチェックを説明する Issue / PR を書く作業で必ず踏む）。
   [
     "引数の文章に gh api が現れる gh issue create は通す",
     "gh issue create --title 'gh api の --body-file について' --body-file /tmp/b.md",
@@ -107,7 +107,7 @@ for (const [name, command] of PASSING) {
   });
 }
 
-// --- 陽性コントロール（止める） ---
+// --- 検出されることの確認（止める） ---
 
 test("gh api の --body-file を止める", () => {
   const r = guard("gh api repos/o/r/pulls/1/comments/2/replies --body-file /tmp/b.md");
@@ -204,7 +204,7 @@ test.each([
 });
 
 // 引用文字列をそのままシェルへ渡すコマンドは、その引数がコードとして実行される。
-// 引用の中を一律データにすると、ゲートが止めるために作られた形そのものが素通りする。
+// 引用の中を一律データにすると、このチェックが止めるために作られた形そのものが素通りする。
 test.each([
   ["bash -c", 'bash -c "pkill -f chrome"'],
   ["ssh", "ssh host 'pkill -f node'"],
@@ -238,7 +238,7 @@ test("区切り文字はどちらのセグメントにも混ぜない", () => {
 
 test("引用が閉じていない入力は解釈せず fail-safe に倒す", () => {
   // ヒアドキュメント本文のアポストロフィ 1 個で以降が全部データ扱いになり、
-  // 黙って最強の免除になっていた（実測）。解釈できない入力は検査側へ倒す。
+  // 警告なしに最強の免除になっていた（実測）。解釈できない入力は検査する側として扱う。
   const r = guard("echo it's ok; gh api repos/o/r/pulls/1 --body-file /tmp/b.md");
   expect(r.status).toBe(2);
   expect(r.stderr).toMatch(/unknown flag/);
@@ -261,7 +261,7 @@ test.each([
   ["引用符の中のコマンド置換", 'out="$(gh api x --body-file b)"'],
 ])("ブロックメッセージは打っていないコマンドを引用しない（%s）", (_name, command) => {
   // $( の ( を落として full を組むと、存在しない `$gh api ... )` を引用して読み手を誤導する。
-  // 経路は 2 つ（コード文脈と二重引用符の中）あるので、両方を固定する。
+  // この処理の流れは 2 つ（コード文脈と二重引用符の中）あるので、両方を固定する。
   const r = guard(command);
   expect(r.status).toBe(2);
   expect(r.stderr).toContain(command);
@@ -290,7 +290,7 @@ test("変数展開と併用した文字クラスは免除する", () => {
 // --- ヒアドキュメントの本文（Issue #423） ---
 //
 // 本文はコマンドの標準入力に渡るデータで、実行されない。本文をコードとして読むと、
-// ゲートや注意書きを説明する文章を heredoc で書いただけで止まる（引用符の有無に依らず、本文の各行を
+// チェックや注意書きを説明する文章を heredoc で書いただけで止まる（引用符の有無に依らず、本文の各行を
 // コマンドとして切っていた）。ただし本文が実行される形は従来どおりコードとして読む。
 //
 // | 軸                 | データ（通す）                                     | コード（止める）                                   |
@@ -402,9 +402,9 @@ test.each(HEREDOC_BLOCKING)("ヒアドキュメントでも実行される形は
   expect(guard(command).status).toBe(2);
 });
 
-// --- 意図的な穴と、構造を見ずに拾えている形（Issue #423） ---
+// --- 意図して残した検出できない範囲と、構造を見ずに拾えている形（Issue #423） ---
 //
-// スクリプト冒頭の「意図的な穴」の各行を、現在の挙動として固定する。挙動を変えたらここと冒頭を一緒に直す。
+// スクリプト冒頭の「判定の限界」の各行を、現在の挙動として固定する。挙動を変えたらここと冒頭を一緒に直す。
 test.each([
   ["xargs 経由", "echo chrome | xargs pkill -f"],
   ["find -exec 経由", "find . -exec pkill -f {} \\;"],
@@ -431,7 +431,7 @@ test("意図的な穴（見逃し側）: インタプリタが読むヒアドキ
 });
 
 test("意図的な穴（見逃し側）: 許可リストの読み手でファイルへ書き出してから実行する形は見逃す", () => {
-  // 書き出した内容の行方はゲートから追えない（Write ツールで書いてから実行するのと同じ）。
+  // 書き出した内容の行方はこのチェックから追えない（Write ツールで書いてから実行するのと同じ）。
   expect(guard("cat > s.sh <<'EOF' && bash s.sh\npkill -f chrome\nEOF").status).toBe(0);
 });
 
@@ -499,10 +499,10 @@ test("壊れた JSON は通すが、検査していないことを stderr に残
 
 // --- payload の形（エージェントごとに違う） ---
 //
-// このゲートは 3 エージェント（Claude Code / Codex / Copilot）へ配線してある。
-// `.tool_input.command` だけを読むと残り 2 つでは command が空になり、JSON 自体は読めるので
-// 警告も出ないまま全件素通りする（配線済みに見えて 1 つしか効かない）。
-// 陽性コントロールは各形に同じ違反コマンドを載せて取る。
+// このチェックは 3 エージェント（Claude Code / Codex / Copilot）へ組み込んである。
+// `.tool_input.command` だけを読むと、残り 2 つでは command が空になる。JSON 自体は読めるので、
+// 警告も出ないまま全件素通りする（組み込み済みに見えて、1 つしか機能しない）。
+// 検出されることの確認は、各形に同じ違反コマンドを載せて行う。
 const OFFENDING = "pkill -f dump-dom";
 
 test.each([
@@ -521,18 +521,18 @@ test.each([
 });
 
 test("危険語はあるが command を取り出せない payload は、検査していないことを stderr に残す", () => {
-  // 未知の形（command がどのフィールドにも無い）。通すが、黙って合格にはしない。
+  // 未知の形（command がどのフィールドにも無い）。通すが、警告なしに合格にはしない。
   const r = run(JSON.stringify({ tool_name: "Bash", args: { script: OFFENDING } }));
   expect(r.status).toBe(0);
   expect(r.stderr).toMatch(/検査していない/);
 });
 
-// --- jq 単独経路（node が無い環境） ---
+// --- jq だけで取り出す処理（node が無い環境） ---
 //
 // 上の「payload の形」テストは node フォールバックが拾うため、jq の filter が落ちていても緑になる。
 // 実際 `.toolArgs.command` は toolArgs が文字列のとき jq がエラー終了し（実測: jq 1.8.2 で rc=5）、
 // node の無い環境では Codex の JSON 文字列形が検査されないまま通っていた。
-// そこでスクリプトから filter を取り出し、jq に直接当てて経路ごとに検証する。
+// そこでスクリプトから filter を取り出し、jq に直接当てて処理の流れごとに検証する。
 const guardSource = readFileSync(script, "utf8");
 const jqFilter = guardSource.match(/jq -r '([\s\S]*?)'\s*2>\/dev\/null/)?.[1];
 
@@ -554,7 +554,7 @@ test.each([
     input: JSON.stringify(payload),
     encoding: "utf8",
   });
-  // jq が無い環境ではこの検証は成立しない。黙って緑にせず落とす。
+  // jq が無い環境ではこの検証は成立しない。警告なしに緑にせず落とす。
   expect(r.error, "jq が必要（この検証は jq 経路の回帰テスト）").toBeUndefined();
   expect(r.status).toBe(0);
   expect(r.stdout.trim()).toBe(OFFENDING);

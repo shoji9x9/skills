@@ -61,7 +61,7 @@ test("テンプレート文字列の文字部分にある例示は誤検出し�
 });
 
 // 同名メソッドを違反にしない。ただし由来を確定できない名前（未宣言＝import・グローバル）は
-// Playwright 以外とも確定できないので、黙って読み飛ばさず判定不能にする（Issue #412）。
+// Playwright 以外とも確定できないので、警告なしに読み飛ばさず判定不能にする（Issue #412）。
 test("Playwright 以外の同名メソッドは違反にせず、由来を確定できない名前は判定不能にする", () => {
   const source = `
     await Promise.all(tasks);
@@ -228,7 +228,7 @@ test.each([
   ["for", "for (const r of rows) /it's ok/.test(r);"],
   ["入れ子の呼び出しを含む if", "if (f(x)) /it's ok/.test(y);"],
 ])("制御構文の頭を閉じる )（%s）の後の正規表現を潰す", (_name, head) => {
-  // `)` を一律に「値の終わり」と読むと、正規表現内のアポストロフィが文字列の開始に化け、
+  // `)` を一律に「値の終わり」と読むと、正規表現内のアポストロフィが文字列の開始と誤って判定され、
   // 偶数個なら間の実コードが静かに潰れる（Issue #346 と同じ故障クラス）。
   const source = [head, "const value = await locator.textContent();", "// isn't relevant"].join(
     "\n",
@@ -417,7 +417,7 @@ test.each([["return"], ["throw"], ["typeof"], ["case"]])(
 );
 
 test("generic なメソッドの戻り値注釈も読む", () => {
-  // `<T>` がメソッド名と `(` の間に入ると読めず、注釈を付けても解除できないゲートになる。
+  // `<T>` がメソッド名と `(` の間に入ると読めず、注釈を付けても解除できないチェックになる。
   const source = [
     "class P {",
     "  rows<T>(): Locator { return this.page.locator('tr'); }",
@@ -429,7 +429,7 @@ test("generic なメソッドの戻り値注釈も読む", () => {
 
 test.each([
   // 戻り値注釈は呼ばれている区間だけに当てる。未呼び出しプロパティに当てると、同名の関数宣言
-  // 1 つで無関係な変数が Locator に化けて誤検出になる。
+  // 1 つで無関係な変数が Locator と誤って判定され、誤検出になる。
   [
     "未呼び出しプロパティは誤検出しない（判定不能に倒す）",
     "const snapshot = model.rows;",
@@ -494,7 +494,7 @@ test("戻り値注釈で解決した名前は呼ばれていないプロパテ�
 });
 
 test("export default の後の正規表現を潰す", () => {
-  // `default` を許可位置から落とすと、正規表現内のアポストロフィが文字列開始に化け、
+  // `default` を許可位置から落とすと、正規表現内のアポストロフィが文字列開始と誤って判定され、
   // 次のアポストロフィまで（行をまたいで）潰れて違反ごと消える。
   const source = [
     "export default /won't/;",
@@ -511,7 +511,7 @@ test.each([
   ["locator 経由", "const row = this.page.locator('tr');", "row.textContent()"],
   ["page 経由", "const row = this.page.getByRole('row');", "row.textContent()"],
   // optional chaining を挟んでも同じ。区間を `split(".")` で切ると `this?` が残って
-  // どの区間も照合できず、解決できる式が「由来を追えない別名」に化けて誤検出になる。
+  // どの区間も照合できず、解決できる式が誤って「由来を追えない別名」と判定され、誤検出になる。
   ["optional chaining", "const row = this?.page?.getByRole('row');", "row.textContent()"],
 ])("メンバー式から束ねた別名（%s）を受け側として解決する", (_name, binding, usage) => {
   const source = [
@@ -547,7 +547,7 @@ test.each([
   ["optional chaining", "const p = ctx?.page;"],
 ])("プロパティ経路で束ねた Page の別名（%s）にも page 専用規則を当てる", (_name, binding) => {
   // チェーンに `page` を含むため opaqueAliases にも入らない。束ね直しを解決しないと
-  // 違反 0 件でも判定不能 0 件でもない「黙った素通り」になり、出力から取りこぼしが読めない。
+  // 違反 0 件でも判定不能 0 件でもない「警告なしの素通り」になり、出力から取りこぼしが読めない。
   const source = [binding, "await p.waitForTimeout(100);"].join("\n");
   expect(scanSource(source).map((v) => v.rule)).toEqual(["fixed-wait"]);
 });
@@ -558,7 +558,7 @@ test.each([
 ])("整形で折り返した %s チェーンの別名も Locator として解決する", (_name, binding) => {
   // 分類をテキスト照合だけに任せると、見るのが最初の物理行（`const cell = page`）に限られ、
   // 折り返した `.getByRole(` を取りこぼす。チェーンに `page` を含むため opaqueAliases にも入らず、
-  // 「違反 0 件・判定不能 0 件」の黙った素通りになる。
+  // 「違反 0 件・判定不能 0 件」の警告なしの素通りになる。
   const source = [binding, "const text = await cell.textContent();"].join("\n");
   expect(scanSource(source).map((v) => v.rule)).toEqual(["immediate-read"]);
 });
@@ -574,7 +574,7 @@ test("呼び出し・添字で途切れて分類できないチェーンは判�
 });
 
 test("Page から取り出した別の値は Page として束ねない", () => {
-  // 束ねるかどうかは末尾の区間で決める。`page.` で始まるだけで Page に化けさせると、
+  // 束ねるかどうかは末尾の区間で決める。`page.` で始まるだけで Page と判定すると、
   // page 専用規則（fixed-wait）が Page でない受け側に当たって誤検出になる。
   const source = ["const timers = page.clock;", "await timers.waitForTimeout(100);"].join("\n");
   expect(scanSource(source)).toEqual([]);
@@ -697,8 +697,8 @@ test("CLI は判定不能を 0 件へ倒さず、測れた量を出力する", (
 // --- 文脈依存キーワードの直後の `!`（レビュー指摘。PR #397） ---
 //
 // `await` / `yield` は module では常にキーワードだが、script / CommonJS では識別子にもなる。
-// 直後の `!` を前置の否定に倒すと、続く `/` から次の `/` までがマスクされ、その間の違反が黙って消える。
-// 状態空間（直前のトークン × `!` の後に `/` が来るか）:
+// 直後の `!` を前置の否定として扱うと、続く `/` から次の `/` までがマスクされ、その間の違反が警告なしに消える。
+// 状態空間（直前のトークン × `!` の後に `/` が来るか）は次のとおり。
 //
 // | 直前              | 判定           |
 // |-------------------|----------------|
@@ -712,7 +712,7 @@ test("CLI は判定不能を 0 件へ倒さず、測れた量を出力する", (
 // 変異による検出能力の実証:
 //   - `CONTEXTUAL_VALUE_KEYWORDS.has(...)` を `false`（＝修正前の挙動）に戻すと 3 件 fail。
 //     修正前は `const x = await! / d; const v = locator.textContent(); const y = a / e;` が違反 0 件・判定不能 0 件で
-//     exit 0 になることを実測した（読み取りがマスクに飲まれる黙った素通り）。
+//     exit 0 になることを実測した（読み取りがマスクに飲まれる警告なしの素通り）。
 //   - `startsAmbiguousSlash(...)` を `true`（曖昧形を絞らず常に止める）にすると 3 件 fail、
 //     `false`（止めない）にすると 3 件 fail。止める範囲が広すぎず狭すぎないことを両側から測れている。
 //   - コメントの読み飛ばしを外す（コメントの `/` で「曖昧でない」と打ち切る＝修正前）と 3 件 fail。
@@ -723,7 +723,7 @@ test.each([["await"], ["yield"]])(
   "%s の直後の `!` に `/` が続く形は正規表現とも除算とも読めるので走査を止める",
   (keyword) => {
     const source = `const locator = page.locator('.x');\nconst x = ${keyword}! / d; const v = locator.textContent(); const y = a / e;\n`;
-    // 倒すと textContent の読み取りがマスクに飲まれて「違反 0 件」になる。
+    // 前置の否定として扱うと textContent の読み取りがマスクに飲まれて「違反 0 件」になる。
     expect(() => scanSource(source)).toThrow(/正規表現の開始.+除算/);
   },
 );
@@ -927,7 +927,7 @@ test("複数宣言子の後ろの型アサーションを先頭の別名に当�
   expect(r.findings.map((x) => x.rule)).not.toContain("immediate-read");
 });
 
-// --- 束縛を読めない受け側を黙って読み飛ばさない（Issue #412） ---
+// --- 束縛を読めない受け側を警告なしに読み飛ばさない（Issue #412） ---
 //
 // どれにも解決しない受け側は、起点が「Playwright 以外と確定」した名前のときだけ対象外（excluded）に数え、
 // それ以外は判定不能にする。確定の根拠は閉じた集合（リテラル・起点が確定済みの式・関数式・JSX・
@@ -1060,7 +1060,7 @@ test("束縛を読めない受け側には、束縛へ型注釈を付ける直�
   expect(finding.message).toMatch(/document/);
 });
 
-// 陰性コントロール: 確定の根拠がある名前は判定不能にしない（通常運用を止めない）。
+// 誤検知しないことの確認: 確定の根拠がある名前は判定不能にしない（通常運用を止めない）。
 const excludedForms = [
   ["数値リテラル", "const limit = 3;\nlimit.count();", "spec.ts"],
   ["起点が確定済みの算術", "const limit = 3;\nconst total = limit + 1;\ntotal.count();", "spec.ts"],
@@ -1204,8 +1204,8 @@ test("CLI は Playwright 以外と確定した件数を出力する", () => {
 });
 
 // 名前はファイル全体で 1 つとして扱うので、確定の根拠（`const loc = 1`）が同じファイルの別の場所にあっても、
-// 根拠の無い形で束縛された同名は判定不能に倒す。上の表は根拠そのものが無い形なので、
-// 束縛の読み取りを外しても緑のまま——この表が束縛の各形を読んでいることを弁別する。
+// 根拠の無い形で束縛された同名は判定不能として扱う。上の表は根拠そのものが無い形なので、
+// 束縛の読み取りを外しても緑のままになる。この表で、束縛の各形を読んでいることを区別する。
 const shadowedForms = [
   ["型注釈の無い引数", "function f(loc) { return loc.textContent(); }"],
   ["括弧の無い単引数のアロー", "const read = loc => loc.textContent();"],
@@ -1221,7 +1221,7 @@ const shadowedForms = [
   ["catch の束縛", "try { x(); } catch (loc) { loc.count(); }"],
   ["import した名前", "import { loc } from './mapping';\nawait loc.count();"],
   ["再代入", "function f(page) { loc = page.locator('a'); return loc.count(); }"],
-  // `assignments` は `loc =` の形しか拾わないので、型注釈を挟んだ宣言は別経路で束縛として数える。
+  // `assignments` は `loc =` の形しか拾わないので、型注釈を挟んだ宣言は別の方法で束縛として数える。
   [
     "型注釈付きの宣言",
     "function f(page) { const loc: Foo = page.locator('a'); return loc.count(); }",

@@ -7,7 +7,7 @@
 // 気づけない（実際に private skill のスクリプトが lint も整形もされていなかった）。
 //
 // コピーかどうかは `skills/<name>/` が在るかで決める。`.private-skill` の印では決めない。
-// 印を付け忘れた private skill も、コピーと判定されずに lint の対象に残る（見落とす側に倒れない）。
+// 印を付け忘れた private skill も、コピーと判定されずに lint の対象に残る（見落とす側と判定されてしまうことはない）。
 //
 // リンク（`.claude/rules/`・`.claude/skills/` と、rule へのリンクの `.github/instructions/`）は、リンク先の実体を
 // lint するので除く。`.claude/` を丸ごと除かないのは、`.claude/settings.json` が実体だから。

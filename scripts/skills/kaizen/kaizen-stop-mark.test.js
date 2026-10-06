@@ -1,11 +1,11 @@
 // kaizen の Stop フック（kaizen-stop-mark.sh）の回帰テスト。
 //
 // Claude Code / Codex は Hook payload に transcript_path を必ず持つ。`/compact` 専用の
-// 隠しセッションのように transcript を一度も作らないまま Stop が走ると、記録された
-// transcript が永遠に読めないセンチネルが立ち、コミット前ゲートの案内どおりに解消できない
-// 恒久ブロッカーになる（Issue #240）。このスクリプトは transcript が無い／読めない場合に
-// センチネルを立てないことで発生を防ぐ。「立てない」ことの検証は「立てる」場合との対比
-// （陽性コントロール）がないと、スクリプトが単に壊れて何も書けていないのと区別できない。
+// 隠しセッションのように transcript を一度も作らないまま Stop が実行されると、記録された
+// transcript が永遠に読めないセンチネルが立つ。これはコミット前のチェックの案内どおりに解消できない
+// 恒久的なブロッカーになる（Issue #240）。このスクリプトは transcript が無い／読めない場合に
+// センチネルを立てないことで発生を防ぐ。「立てない」ことの検証は、「立てる」場合との対比
+// （検出されることの確認）がないと、スクリプトが単に失敗して何も書けていないのと区別できない。
 
 import { describe, expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
@@ -31,7 +31,7 @@ function makeProject() {
   return dir;
 }
 
-/** Stop Hook を 1 回走らせる。$1 = センチネルのサフィックス（省略時は claude-code）。 */
+/** Stop Hook を 1 回実行する。$1 = センチネルのサフィックス（省略時は claude-code）。 */
 function runStopMark(
   cwd,
   { suffix, sessionId = "s1", transcriptPath, includeTranscriptField = true } = {},
@@ -98,7 +98,7 @@ describe("transcript が無い claude-code / codex の Stop はセンチネル�
 
   // 判定は存在確認（-e）に留め、可読性（-r）では判定しない。実在するが権限・FS 状態で
   // 一時的に読めないだけの transcript まで「無い」扱いにすると、そのセッションの未抽出の
-  // 学びがコミット前ゲートで検出されなくなる（code review で指摘・修正）。
+  // 学びがコミット前のチェックで検出されなくなる（code review で指摘・修正）。
   test.skipIf(process.getuid?.() === 0)(
     "claude-code: transcript_path が存在するが読めない場合はセンチネルを立てる",
     () => {

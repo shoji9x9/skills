@@ -5,15 +5,15 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 // absent セルの証拠スキーマは、記録側（parity-suite の coverage-expand.mjs）と
-// 収束判定側（parity-diff の coverage-check.mjs）の 2 つの独立したゲートが検査する。
+// 収束判定側（parity-diff の coverage-check.mjs）の 2 つの独立したチェックが検査する。
 // 配布スキルは実行時に参照する成果物を自分の中に同梱する規約のため共有モジュールに
 // できず、実体が複製される。片方だけ直すと「記録側は通すが収束側が弾く」（またはその逆）
-// が起き、被覆表を作った側は conformance を得たのに収束できない状態になる。
+// が起き、網羅表を作った側は conformance を得たのに収束できない状態になる。
 //
 // 抽出はソースの構文解析ではなく**明示マーカーの探索**で行う。波括弧やセミコロンを
 // 数える方式は、文字列・テンプレートリテラル・正規表現・コメント内の同じ文字で
 // 途中終了しうる——そして両コピーが同じ前半を共有していれば、切り詰められた範囲だけを
-// 比較して「一致」と報告する（分岐した後半を黙って見逃す fail-open）。マーカー方式なら
+// 比較して「一致」と報告する（分岐した後半を警告なしに見逃し、合格として扱う）。マーカー方式なら
 // 抽出範囲がソースの字句に依存しない。
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 
@@ -25,7 +25,7 @@ const SOURCES = {
   "coverage-expand": join(repoRoot, "skills/parity-suite/scripts/coverage-expand.mjs"),
 };
 
-/** 契約領域に必ず含まれるはずの要素（抽出が空振り・切り詰めしていないことの陽性コントロール）。 */
+/** 取り決めの領域に必ず含まれるはずの要素（抽出が空振り・切り詰めしていないことを確かめる）。 */
 const REQUIRED_MEMBERS = [
   "const APPLICABLE_STATE_SOURCE_KINDS =",
   "const FIRED_ACTION_METHODS =",
@@ -33,7 +33,7 @@ const REQUIRED_MEMBERS = [
   "function inAllowlist(",
   "function firedEvidenceProblem(",
   "function absentEvidenceProblem(",
-  // 集合の来歴と完全性（Issue #392 / #393）。記録側・判定側が同じ語彙と同じ強さの順序で見る。
+  // 集合の出所と完全性（Issue #392 / #393）。記録側・判定側が同じ語彙と同じ強さの順序で見る。
   "const SET_SOURCE_KINDS =",
   "const ITEM_SOURCE_KINDS =",
   "function strongerSourceProblems(",
@@ -43,8 +43,8 @@ const REQUIRED_MEMBERS = [
 ];
 
 /**
- * マーカーで囲まれた契約領域を切り出す。マーカーが欠落・重複・逆順のときは、
- * 「一致」へ倒さず投げる（検査が動いていない状態を合格にしない）。
+ * マーカーで囲まれた取り決めの領域を切り出す。マーカーが欠落・重複・逆順のときは、
+ * 「一致」として扱わずに投げる（検査が動いていない状態を合格にしない）。
  * @param {string} source
  * @param {string} tool
  * @returns {string}
@@ -71,7 +71,7 @@ const regions = Object.fromEntries(
 test.each(Object.keys(SOURCES))(
   "陽性コントロール: %s の契約領域が実体を含む（空振り・切り詰めを一致と報告しない）",
   (tool) => {
-    // 長さの下限は置かない。契約の意味ではなく実装サイズに依存し、コメント整理や
+    // 長さの下限は置かない。取り決めの意味ではなく実装サイズに依存し、コメント整理や
     // 共通化だけで落ちる。空振り・切り詰めは REQUIRED_MEMBERS と構文検査が捕まえる。
     const region = regions[tool];
     for (const member of REQUIRED_MEMBERS) {

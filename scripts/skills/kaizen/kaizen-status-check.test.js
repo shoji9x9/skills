@@ -7,11 +7,11 @@ import { makeTempDir } from "../../lib/test-tmpdir.js";
 
 // kaizen-status-check.sh は awk で frontmatter の applied-to を読む。値が
 // 折り返された flow 配列（.kaizen/*.md にフォーマッタを掛けると applied-to が
-// 長いだけで起きる）を「空」と誤判定すると、コミット前ゲートが commit を
+// 長いだけで起きる）を「空」と誤判定すると、コミット前のチェックが commit を
 // 恒久的に止める（--no-verify を使わない方針のため回避できない）。
 // awk の行単位パースは折り返し・ブロックシーケンス・コメント行のどれでも
-// 静かに壊れうるので、受理側と拒否側の両方を決定論的に固定する。
-// 検査対象は配布正本のみ。.agents/ 配下のインストール済みコピーは
+// エラーにならずに誤った結果を返しうるので、受理側と拒否側の両方を決定論的に固定する。
+// 検査対象は配布する原本だけである。.agents/ 配下のインストール済みコピーは
 // skill-reinstall ルールで同期される。
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "skills/kaizen/scripts/kaizen-status-check.sh");
@@ -100,8 +100,8 @@ const ACCEPTED = [
   },
 ];
 
-// 空の適用先・status との矛盾を検出できなければならない検体（陽性コントロール）。
-// これが無いと「常に exit 0 を返すだけの壊れた検査」も ACCEPTED を全て通してしまう。
+// 空の適用先・status との矛盾を検出できなければならない検体（検出されることの確認）。
+// これが無いと「常に exit 0 を返すだけの不正な検査」も ACCEPTED を全て通してしまう。
 const REJECTED = [
   {
     name: "applied なのに空配列",
@@ -124,7 +124,7 @@ const REJECTED = [
     message: "status is rejected but applied-to is empty",
   },
   {
-    // 桁 0 のブロックシーケンスを読み落とすと「空」に化けて pending が素通りする（fail open）。
+    // 桁 0 のブロックシーケンスを読み落とすと、誤って「空」と判定されて pending が素通りする（判定できないのに合格として扱う）。
     name: "pending なのに桁 0 のブロックシーケンスに適用先がある",
     status: "pending",
     appliedTo: `
@@ -163,8 +163,8 @@ test.each(REJECTED)("不整合は exit 2 で止める: $name", ({ status, applie
 
 // applied-to の継続行の終わりを「キー名が [[:alnum:]_-]+ のキー行」で判定していた頃は、
 // それ以外の文字を含むキー（`kedb.ref:` や引用符付きキー）の後ろで継続状態が残り、
-// そのブロックスカラー本文まで applied-to の値へ連結された。空配列が非空に化けて pending が
-// 誤ブロックされ（偽陽性）、逆に applied の空配列は「非空」と見なされて素通りした（fail open）。
+// そのブロックスカラー本文まで applied-to の値へ連結された。空配列が誤って非空と判定され、pending が
+// 誤ってブロックされた（偽陽性）。逆に applied の空配列は「非空」と見なされて素通りした（合格として扱われた）。
 // キー名の字種だけが違う対照検体を並べ、字種で結果が変わらないことを固定する。
 const KEY_CHARSET_CASES = [
   { name: "非 alnum のキー（kedb.ref）", key: "kedb.ref" },
@@ -194,8 +194,8 @@ test.each(KEY_CHARSET_CASES)(
     expect(empty.stderr).toBe("");
     expect(empty.status).toBe(0);
 
-    // 同じ本文でも applied × 空配列は不整合として検出できること（緩めすぎの陽性コントロール。
-    // 継続行を吸い込んでいた頃はここが「非空」に化けて exit 0 で素通りしていた）。
+    // 同じ本文でも applied × 空配列は不整合として検出できること（緩めすぎを検出できることの確認。
+    // 継続行を吸い込んでいた頃は、ここが誤って「非空」と判定され、exit 0 で素通りしていた）。
     const appliedEmpty = runCheck(noteWithBlockKey("applied", " []", key));
     expect(appliedEmpty.stderr).toContain("status is applied but applied-to is empty");
     expect(appliedEmpty.status).toBe(2);
@@ -210,8 +210,8 @@ test.each(KEY_CHARSET_CASES)(
 // 参照注入（kaizen-context-inject.sh）は要約として `## 提案`（無ければ `## 事象`）の
 // **最初の非空行だけ**を供給する。先頭段落を折り返すと、注入される要約は文の途中で
 // 切れた断片になるのに、注入も検査も成功して終了コード 0 のまま通っていた（Issue #301）。
-// 書いた時点で気づける経路はこの形式検査だけなので、折り返し（陽性）と、折り返しでない
-// 形（陰性）の両方を固定して「常に報告する／常に黙る」への退化を防ぐ。
+// 書いた時点で気づける方法はこの形式検査だけである。そこで、折り返し（検出する側）と、折り返しでない
+// 形（検出しない側）の両方を固定して、「常に報告する／常に何も出さない」への退化を防ぐ。
 const FRONTMATTER = (status, appliedTo) => `---
 date: 2026-01-01
 type: doc
@@ -234,7 +234,7 @@ function runCheckOnBody(body, { status = "pending", appliedTo = "[]", archived =
     writeFileSync(join(noteDir, "2026-01-01-note.md"), FRONTMATTER(status, appliedTo) + body);
     if (archived) {
       // archive の索引不整合は別の検査で exit 2 になる。折り返し検査だけを見たいので
-      // INDEX.md を整合させ、この検体で出る stderr が折り返し由来かを弁別できるようにする。
+      // INDEX.md を整合させ、この検体で出る stderr が折り返し由来かを区別できるようにする。
       writeFileSync(join(dir, ".kaizen", "archive", "INDEX.md"), "- `2026-01-01-note.md` — 学び\n");
     }
     const result = spawnSync("bash", [script], {
@@ -286,8 +286,8 @@ const WRAPPED_LEADS = [
   },
 ];
 
-// 注入される要約が完結するため、通さなければならない検体（偽陽性の陽性コントロール）。
-// コミット前ゲートが実行する検査なので、偽陽性は commit を止める実害になる。
+// 注入される要約が完結するため、通さなければならない検体（誤検知しないことの確認）。
+// コミット前のチェックが実行する検査なので、偽陽性は commit を止める実害になる。
 const INTACT_LEADS = [
   {
     name: "1 行に収まった段落",
@@ -322,7 +322,7 @@ const INTACT_LEADS = [
   {
     // 見出しの前に空行が無い Markdown（MD022 を適用していない下流リポでは起こる）。
     // 見出しを段落の続きと読むと、1 行で完結した先頭段落を wrapped と誤報する（実測）。
-    // コミット前ゲートに乗る検査なので、この偽陽性は commit を止める実害になる。
+    // コミット前のチェックで実行する検査なので、この偽陽性は commit を止める実害になる。
     name: "1 行の先頭段落の直後に見出し",
     body: "\n## 提案\n\n一行で完結した提案。\n## 次の見出し\n\n本文。\n",
   },
@@ -374,10 +374,10 @@ test("同じ本文でも pending なら報告する（対照）", () => {
 });
 
 // 折り返し検査が awk の失敗で「判定できなかった」ときは、素通り（exit 0）ではなく
-// 不整合として数える（ループ先頭の frontmatter 読み取りと同じ fail closed）。素通りさせると
-// 「検査して問題なし」と「検査できていない」が同じ exit 0 に潰れる。
-// 陽性コントロール: `awk -v h=...`（＝折り返し検査の呼び出しだけ）を失敗させる stub を PATH の
-// 先頭に置く。frontmatter 読み取りは `-v` を使わないので通り、折り返し検査だけが落ちる。
+// 不整合として数える（ループ先頭の frontmatter 読み取りと同じく、判定できないときは失敗として扱う）。
+// 素通りさせると、「検査して問題なし」と「検査できていない」が同じ exit 0 に潰れる。
+// 検出されることの確認: `awk -v h=...`（＝折り返し検査の呼び出しだけ）を失敗させる stub を PATH の
+// 先頭に置く。frontmatter 読み取りは `-v` を使わないので通り、折り返し検査だけが失敗する。
 const AWK_STUB = (realAwk) => `#!/bin/sh
 if [ "$1" = "-v" ]; then
   case "$2" in
@@ -407,7 +407,7 @@ test("折り返し検査が実行できなかったら素通りさせない", ()
     const stub = join(binDir, "awk");
     writeFileSync(stub, AWK_STUB(realAwk), { mode: 0o755 });
 
-    // 陰性コントロール: stub 無しなら同じ検体は通る（=stub が原因だと弁別できる）。
+    // 誤検知しないことの確認: stub 無しなら同じ検体は通る（=stub が原因だと区別できる）。
     const intact = spawnSync("bash", [script], {
       env: { ...process.env, CLAUDE_PROJECT_DIR: dir },
       encoding: "utf8",
@@ -435,30 +435,30 @@ test("折り返し検査が実行できなかったら素通りさせない", ()
 // 症状は同じ学びの再発としてしか現れない。
 //
 // **判定材料は提案の文面ではなく frontmatter の `type`。** 文面から採る案（lint / hook / 検査 等の
-// 語を「## 提案」に照合する）は実装して実データで測ったが、applied 131 件のうち一致 16 件はすべて
+// 語を「## 提案」に照合する）は、実装して実データで測った。applied 131 件のうち一致 16 件はすべて
 // `検査` / `ゲート` / `スクリプト` の 3 語で、どれも「提案が何について述べているか」を指すだけだった。
 // 適用先に機構が入ったノートへの一致 38%、doc だけのノートへの一致 33% で、2 クラスを分離しない。
 //
 // これは **exit 0 のままの警告**にする。意図してドキュメントへ寄せる判断は実在するので、
 // 遮断すると通せなくなる。したがってテストは「終了コードが 0 のまま」と「警告の有無」を
-// 別々に固定する——どちらか片方だけだと、遮断へ倒す実装も黙る実装も通ってしまう。
+// 別々に固定する。どちらか片方だけだと、遮断する実装も何も出さない実装も通ってしまう。
 //
 // 状態空間（type × applied-to の種類 × status × 置き場）。各セルに 1 検体:
 //
 // | type \ applied-to | `.md` だけ | 機構を含む | `#<Issue>` | 空              |
 // |-------------------|------------|------------|------------|-----------------|
-// | hook              | 警告       | 黙る       | 黙る       | exit 2（別検査）|
-// | doc / rule / 無し | 黙る       | 黙る       | 黙る       | exit 2（別検査）|
+// | hook              | 警告       | 出さない   | 出さない   | exit 2（別検査）|
+// | doc / rule / 無し | 出さない   | 出さない   | 出さない   | exit 2（別検査）|
 //
 // | status \ 判定 | applied | pending | rejected | forgotten | archive 配下 |
 // |---------------|---------|---------|----------|-----------|--------------|
 // | 警告するか    | する    | しない（applied-to は空が正） | しない | しない | しない（履歴） |
 //
-// 変異による検出能力の実証（このファイルを書いた時点で 3 通り実施し、いずれも赤くなることを実測した）:
+// ミューテーションテストで検出できることを、次のように確かめた（このファイルを書いた時点で 3 通り実施し、いずれも赤くなることを実測した）。
 //   1. `mechanism_types="hook"` を `mechanism_types="hook doc rule"` に広げる → 6 件 fail
 //      （doc / rule / skill の検体と、type を問わず鳴ることで巻き込まれる検体）
 //   2. `applied_to_is_docs_only` の `*.md) found=1 ;;` を `*) found=1 ;;` に広げる → 2 件 fail
-//      （「機構を含む」「Issue へ委譲」。`.md` かどうかで弁別できている）
+//      （「機構を含む」「Issue へ委譲」。`.md` かどうかで区別できている）
 //   3. 警告分岐の `[ "${status}" = "applied" ]` を消す → 2 件 fail（pending / forgotten）
 const WARNING_MESSAGE = "applied-to lists documents only";
 
@@ -506,7 +506,7 @@ function runCheckTyped({
   }
 }
 
-// 警告しなければならない検体（陽性コントロール）。
+// 警告しなければならない検体（検出されることの確認）。
 const WARNED = [
   { name: "type: hook × .md だけ", note: {} },
   {
@@ -519,7 +519,7 @@ const WARNED = [
   },
 ];
 
-// 黙らなければならない検体（陰性コントロール）。片側だけだと「常に警告する」実装も通る。
+// 警告を出してはならない検体（誤検知しないことの確認）。片側だけだと「常に警告する」実装も通る。
 const NOT_WARNED = [
   { name: "機構を含む（.sh）", note: { appliedTo: '["scripts/a.sh", "docs/a.md"]' } },
   { name: "Issue へ委譲（#123）", note: { appliedTo: '["#123"]' } },
@@ -557,7 +557,7 @@ test.each(NOT_WARNED)("警告しない: $name", ({ note }) => {
 
 test.each(["pending", "forgotten"])("applied 以外の status では警告しない: %s", (status) => {
   // applied-to に値を入れて doc 判定へ到達させる（空だと判定の手前で外れ、status の条件が
-  // 効いているかを測れない）。この形は lifecycle の不整合なので別の検査が exit 2 で落とす——
+  // 機能しているかを測れない）。この形は lifecycle の不整合なので、別の検査が exit 2 で失敗させる。
   // そこへ警告を重ねても直す先が増えるだけなので、警告は出さないことを固定する。
   const { status: exitCode, stderr } = runCheckTyped({ status, appliedTo: '["docs/a.md"]' });
   expect(stderr).toContain(`applied-to is set but status is ${status}`);

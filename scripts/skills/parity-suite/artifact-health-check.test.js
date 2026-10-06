@@ -4,7 +4,7 @@
 // 4 つの形で緑のまま抜ける——読み手のいない採取物・古い加工物・回っていない工程・1 回だけ回した状態変更スイート。
 // 加えて、gaps.md の散文は収束判定の入力ではないため、未測定と書いてあっても収束する（#278）。
 //
-// 陽性コントロール（健全な成果物が exit 0、旧成果物は判定しない）を置く——これが無いと「常に落とす」実装と区別できない。
+// 通ることの確認（健全な成果物が exit 0、旧成果物は判定しない）を置く。これが無いと「常に落とす」実装と区別できない。
 
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
@@ -122,8 +122,8 @@ function makeProject(mutate, opts = {}) {
 }
 
 /**
- * main を同じプロセスで呼ぶ（子プロセスの起動を省く。変異実証が変異ごとにこのファイルを丸ごと回すため、Issue #478）。
- * CLI として起動できること（エントリ判定・引数と出力の受け渡し）は cli() の陽性コントロールが持つ。
+ * main を同じプロセスで呼ぶ（子プロセスの起動を省く。ミューテーションテストが変異ごとにこのファイルを丸ごと回すため、Issue #478）。
+ * CLI として起動できること（エントリ判定・引数と出力の受け渡し）は cli() の通ることの確認が受け持つ。
  * @param {string} metadataPath
  * @param {string[]} [extra]
  */
@@ -433,7 +433,7 @@ function writeStage(slugDir, diffMeta, replaceExtra = {}) {
   writeFileSync(join(slugDir, "new/local-dev/diff-metadata.json"), JSON.stringify(diffMeta));
 }
 
-/** 新側の版と反復を両成果物に記録した状態（対応づけの陽性コントロールの土台）。 */
+/** 新側の版と反復を両成果物に記録した状態（対応づけが通ることを確かめる基になる状態）。 */
 const CORRELATED = {
   replace: {
     new: { target: "local-dev", commit: "a".repeat(40), dirty: false },
@@ -813,7 +813,7 @@ test("2 回緑を記録した後にスペックを変えたら落ちる（記録
   const meta = JSON.parse(readFileSync(metadataPath, "utf8"));
   for (const r of meta.suite.repeat_run.runs) r.suite_fingerprint = fp;
   writeFileSync(metadataPath, JSON.stringify(meta, null, 2));
-  // 記録した後に後始末を外す（スペックのコードが変わる。コメントだけの書き換えは #457 で指紋に効かない）。
+  // 記録した後に後始末を外す（スペックのコードが変わる。コメントだけの書き換えは #457 で指紋に反映されない）。
   writeFileSync(
     join(root, "e2e/parity/order-list/orders.spec.ts"),
     "// orders.default.desktop.png と orders.xlsx.json を読む\nconst cleanup = false;\n",
@@ -857,7 +857,7 @@ test("指紋を持たない旧成果物はこの軸を判定しない（後方�
   rmSync(root, { recursive: true, force: true });
 });
 
-// Issue #457: 指紋がコメントを含むと、注記を書き換えただけで現行での 2 回の実行を取り直すことになる。
+// Issue #457: 指紋がコメントを含むと、注記を書き換えただけで現行での 2 回の実行をやり直すことになる。
 // 新方式（sha256-nc:）は JS / TS 系のコメントを除いて数え、旧方式（sha256:）の記録は旧方式で照合する。
 
 /** 指紋の対象（mutatingSuite と同じ宣言）。 */
@@ -952,7 +952,7 @@ test("#457: 文字列・テンプレート・正規表現の中の // や /* は
   expect(out).toContain("/a\\//;");
   expect(out).toContain("g / h / i");
   expect(out).not.toContain("real");
-  // 陽性コントロール: 文字列・テンプレート・正規表現の中の // の後ろを変えれば正規形が変わる。
+  // 検出されることの確認: 文字列・テンプレート・正規表現の中の // の後ろを変えれば正規形が変わる。
   for (const [from, to] of [
     ["in single", "in SINGLE"],
     ["in double", "in DOUBLE"],
@@ -1082,7 +1082,7 @@ test("#457: 字句解析が閉じない JS / TS 系のファイルは生バイ�
   const r = run(metadataPath);
   expect(r.stdout).toMatch(/コメントを除けず生バイトで数えたファイル.*orders\.spec\.ts/);
   expect(r.status).toBe(0);
-  // 生バイトなのでコメントの書き換えも差になる（除けないときに変更を見逃す側へ倒さない）。
+  // 生バイトなのでコメントの書き換えも差になる（除けないときに変更を見逃す扱いにしない）。
   writeFileSync(
     specPath,
     "// orders.default.desktop.png と orders.xlsx.json（書き換え）\nconst s = 'unterminated\n",
@@ -1121,7 +1121,7 @@ test("new.commit が none でも dirty なら落とす（コミットの比較�
 });
 
 test("別の環境の成果物を写しただけなら落とす（new.target と --target の照合）", () => {
-  // 同じコミット・同じ反復は環境をまたいで一致しうるので、版だけでは写しを見分けられない。
+  // 同じコミット・同じ反復は環境をまたいで一致しうるので、版だけではコピーを見分けられない。
   const { root, slugDir, metadataPath } = makeProject();
   writeStage(
     slugDir,
@@ -1278,7 +1278,7 @@ test("read_by が本当に無いときは従来どおり「無い」と報告す
 });
 
 // new.commit が none の枝は版の対応を反復回数へ委ねている。委ねた先も読めないと、
-// 版の検査を 1 つも通らないまま古い成果物が素通りする（委譲先が無いことを合格に倒さない）。
+// 版の検査を 1 つも通らないまま古い成果物が素通りする（委譲先が無いことを合格として扱わない）。
 test.each([
   ["記録側の iteration が無い", undefined, { iterations: 3 }],
   ["現在側の loop.iterations が無い", 3, {}],
@@ -1321,7 +1321,7 @@ test("commit が実在の SHA なら反復回数の片側欠落は従来どお�
 });
 
 // 反復回数へ委ねてよいのは両側とも none のときだけ。片側だけ none は別の版なので、
-// 反復回数が一致しても合格に倒さない（component-comparison-check.mjs と同じ規則）。
+// 反復回数が一致しても合格として扱わない（component-comparison-check.mjs と同じ規則）。
 test.each([
   ["記録が none・現在が SHA", "none", "a".repeat(40)],
   ["記録が SHA・現在が none", "a".repeat(40), "none"],
@@ -1344,7 +1344,7 @@ test.each([
 });
 
 // 同じ loop.iterations を読む component-comparison-check.mjs は数値だけを受ける。
-// 片方だけ数字列を受けると、同じ記録に 2 つの検査器が矛盾した判定を出す。
+// 片方だけ数字列を受けると、同じ記録に 2 つのチェックが矛盾した判定を出す。
 test("反復回数は数字列を受けない（姉妹の検査器と判定を揃える）", () => {
   const { root, slugDir, metadataPath } = makeProject();
   writeStage(
@@ -1363,9 +1363,9 @@ test("反復回数は数字列を受けない（姉妹の検査器と判定を�
   rmSync(root, { recursive: true, force: true });
 });
 
-// 証跡の持ち越し（Issue #454）。new.commit が食い違っても、replace-metadata.json の new.render_inputs の差分が
-// 変更宣言と amend-verify で説明できれば持ち越す（判定の正本は evidence-carry.mjs。
-// 状態空間は scripts/skills/parity-suite/evidence-carry.test.js が持つ。ここは checkStage への組み込みの両側と legacy を測る）。
+// 証跡の持ち越し（Issue #454）。new.commit が食い違っても、持ち越せる場合がある。
+// replace-metadata.json の new.render_inputs の差分を変更宣言と amend-verify で説明できれば持ち越す。判定の原本は evidence-carry.mjs で、
+// 状態空間は scripts/skills/parity-suite/evidence-carry.test.js が持つ。ここでは checkStage への組み込みの両側と legacy を測る。
 
 /**
  * makeProject に持ち越しの fixture（新側 git リポジトリ・変更宣言・部品 metadata・amend-verify の記録）を足す。
@@ -1507,7 +1507,7 @@ test("持ち越し: render_inputs が無ければ従来のメッセージのま�
 
 // Issue #473: 2 回の記録をスイート全体の 1 つの指紋に結びつけると、状態を変えないスペックを 1 行変えただけで
 // 状態を変えるスペックまで現行へ 2 回回し直すことになる。repeat_run.specs（スペックごとの分類）を持つ成果物は、
-// 状態を変えるスペックごとに「そのスペックを含む直近 2 回」を、スペックの指紋と共有の土台の指紋で照合する。
+// 状態を変えるスペックごとに「そのスペックを含む直近 2 回」を、スペックの指紋と共有の基盤の指紋で照合する。
 
 const SPEC_DIR = "e2e/parity/order-list";
 const LOCALE = `${SPEC_DIR}/locale.spec.ts`;
@@ -1560,7 +1560,7 @@ function fingerprints(metadataPath) {
 }
 
 /**
- * 回したスペックを 2 回緑で記録する（--fingerprint の出力から写す）。
+ * 回したスペックを 2 回緑で記録する（--fingerprint の出力からコピーする）。
  * @param {string} metadataPath
  * @param {string[]} ranSpecs
  * @param {string} day - started_at の日付部分（記録を足すたびに後の日付を渡す）

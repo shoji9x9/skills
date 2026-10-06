@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-// 変異実証（mutation proof）を再実行可能な形で検査する。
+// ミューテーションテスト（mutation proof）を、何度でも実行できる形でチェックする。
 //
-// 検査の強度を「変異を当てたら赤くなった」で示す実証は、テストファイル冒頭の散文コメントに
-// 書くと腐る。当時の主張が残るだけで、テストを直した瞬間に検証されなくなる
-// （実際に「行単位の検査で分岐に混ざった変異を見逃す」「変異が当たっておらず偽の生存を
-// 実証と読みかける」「テスト書き換え後に取り直さず記録だけ残る」の 3 通りで踏んだ。Issue #420）。
+// チェックの強度は「変異を当てたらテストが失敗した」ことで示す。これをテストファイルの冒頭の
+// コメントに書くと、内容が古くなる。当時の主張が残るだけで、テストを直した時点から検証されなくなる。
+// 実際に次の 3 通りの失敗があった（Issue #420）。
+// 行単位のチェックで、分岐に含まれた変異を見逃した。変異が当たっていないのに、偽の生存を実証と読みかけた。
+// テストを書き換えた後にもう一度測らず、記録だけが残った。
 //
 // そこで変異を `<テスト名>.mutations.json` のデータとして持ち、このスクリプトが
 // 各変異について次の**両方**を確かめる。
@@ -12,22 +13,23 @@
 //   1. 置換が実際に当たったこと（対象ファイル内の出現数が宣言どおりで、内容が変わったこと）
 //   2. 宣言した assertion（テスト名）が**それだけ**落ちたこと
 //
-// 当たらなかった変異は成功に倒さず FAIL にする（偽の生存を潰す）。合否は終了コードではなく
-// 「対象テストが走り、狙ったテストが落ちたこと」で判定する
+// 当たらなかった変異は成功として扱わず、FAIL にする（偽の生存をなくす）。合否は終了コードでは判定しない。
+// 「対象のテストが実行され、狙ったテストが落ちたこと」で判定する
 // （`.agents/rules/state-space-and-mutation-proof.md`）。
 //
 // 使い方:
-//   node scripts/mutation/check-mutation-proof.js                     # scripts/**/*.mutations.json を全部
-//   node scripts/mutation/check-mutation-proof.js <spec.json> ...     # 指定したものだけ
-//   node scripts/mutation/check-mutation-proof.js --only A,B          # id で絞る（開発中の 1 本だけ回す）
-//   node scripts/mutation/check-mutation-proof.js --changed-since origin/main
-//                                                                     # 差分に当たる宣言だけ（PR 用）
-//   node scripts/mutation/check-mutation-proof.js --shard 2/4         # 選んだ変異を 4 分割した 2 番目だけ（CI の並列実行用）
+//   node scripts/mutation/check-mutation-proof.js                     # scripts/**/*.mutations.json を全部見る。
+//   node scripts/mutation/check-mutation-proof.js <spec.json> ...     # 指定したものだけを見る。
+//   node scripts/mutation/check-mutation-proof.js --only A,B          # id で絞る（開発中の 1 本だけを回す）。
+//   node scripts/mutation/check-mutation-proof.js --changed-since origin/main  # 差分に当たる宣言だけを見る（PR 用）。
+//   node scripts/mutation/check-mutation-proof.js --shard 2/4         # 選んだ変異を 4 分割した 2 番目だけを見る。
+//                                                                     # CI の並列実行に使う。
 //
-// **全件は重い。** 1 変異 = 対象テストファイル 1 回の実行で、実行器自身を変異させる宣言
-// （テストが入れ子で runner を起動する）が全体の 3 分の 2 を占める（手元実測: 98 変異 390 秒のうち
-// `check-mutation-proof` の 23 変異が 255 秒。Issue #442 でスタブ化と `pnpm exec` の省略を入れる前は
-// 95 変異 975 秒・うち 792 秒）。PR では `--changed-since` で差分に当たる宣言へ絞り、
+// **全件の実行は重い。** 1 変異ごとに、対象のテストファイルを 1 回実行する。
+// ランナー自身を変異させる宣言（テストが入れ子で runner を起動する）が、全体の時間の 3 分の 2 を占める。
+// 手元の実測では、98 変異 390 秒のうち `check-mutation-proof` の 23 変異が 255 秒だった。
+// Issue #442 でスタブ化と `pnpm exec` の省略を入れる前は、95 変異 975 秒のうち 792 秒だった。
+// そのため PR では `--changed-since` で差分に当たる宣言に絞り、
 // **全件は定期実行**（`.github/workflows/mutation-proof.yml`）で測る。
 //
 // 終了コード: 0 = 全変異が実証できた / 1 = 実証できない変異がある / 2 = 使い方・宣言・前提の誤り
@@ -52,13 +54,13 @@ import { fileURLToPath } from "node:url";
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const SPEC_DIR = "scripts";
 const SPEC_SUFFIX = ".mutations.json";
-// `check-mutation-proof.test.js` が `scripts/` 直下に作る使い捨ての fixture。中の宣言は実証の対象ではない
-// （再帰で拾うと、テスト中に走る runner が他のテストの fixture まで測る）。
+// `check-mutation-proof.test.js` が `scripts/` 直下に作る使い捨ての fixture。中の宣言はチェックの対象ではない
+// （再帰で拾うと、テスト中に実行される runner が他のテストの fixture まで測る）。
 const FIXTURE_PREFIX = "mutation-proof-fixture-";
 
 /**
  * `dir` 配下の宣言ファイルを再帰で集める（役割ごとのサブディレクトリに置くため。Issue #514）。
- * `mutations-declaration.test.js` が同じ探索を写している（このファイルは import 時に `main()` が走るので共有できない）。
+ * `mutations-declaration.test.js` が同じ探索をコピーしている（このファイルは import 時に `main()` が実行されるので共有できない）。
  */
 function findSpecs(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -77,12 +79,12 @@ function die(message) {
   process.exit(2);
 }
 
-// **この検査は作業ツリーを書き換えて戻す。** 並行して走らせる（別の mutation-proof、
-// 同時に走るテスト）と、相手が変異を当てている最中のファイルを読んで**無関係な赤**が出る
-// （実測: 並行実行中に集計器のテストが 1 本落ちた）。単一実行をロックで担保する。
+// **このチェックは作業ツリーを書き換えて戻す。** 並行して実行する（別の mutation-proof、
+// 同時に実行されるテスト）と、相手が変異を当てている最中のファイルを読んで**無関係な失敗**が出る
+// （実測: 並行実行中に集計スクリプトのテストが 1 本落ちた）。ロックで、同時に 1 つだけ実行されるようにする。
 // **状態ファイルは `/tmp` に置かない。** `os.tmpdir()`（1777）は同一ホストの別ユーザーも書けるうえ、
 // パスは repoRoot から決定論的に導けるので**先に作っておける**。ロックを先取りされれば実行を止められ、
-// 復元情報を植え付けられれば次回起動が任意のファイルを上書きしてしまう（実測で確認された経路）。
+// 復元情報を植え付けられれば次回起動が任意のファイルを上書きしてしまう（実測で確認された攻撃の方法）。
 // 作業ツリー内の自分が所有するディレクトリ（`node_modules/.cache/`。vitest を `node_modules` から解決する以上必ず在る）へ置く。
 // worktree ごとに `node_modules` が分かれるので、ハッシュで取り合う問題も起きない。
 const stateDir = join(repoRoot, "node_modules", ".cache", "mutation-proof");
@@ -92,8 +94,8 @@ let lockHeld = false;
 function takeLock() {
   mkdirSync(dirname(lockPath), { recursive: true });
   // **pid を書き終えてから公開する。** `openSync(wx)` → `writeFileSync` の 2 段だと、
-  // 作成直後の窓ではロックが**空**で、そこに入った 2 本目が「pid が読めない＝残骸」と判定して
-  // 生きている持ち主のロックを奪える（`Number("")` は NaN ではなく 0 なので `pid > 0` が false）。
+  // 作成した直後の短い間はロックが**空**になる。そこに入った 2 本目は「pid が読めない＝残骸」と判定し、
+  // 生きている持ち主のロックを奪える。`Number("")` は NaN ではなく 0 なので、`pid > 0` が false になる。
   // 一時ファイルへ pid を書いてから `linkSync` で公開すると、公開されたロックは常に pid を持つ。
   const staging = `${lockPath}.${process.pid}.staging`;
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -119,10 +121,10 @@ function takeLock() {
         /* 作れていなければ消すものが無い */
       }
       if (err.code !== "EEXIST") die(`ロックを作れない（${lockPath}）: ${err.message}`);
-      // **読み取りも失敗しうる。** EEXIST を受けてから持ち主が `releaseLock()` で unlink する窓に
-      // 入ると ENOENT を投げ、`catch` の中なので誰も受けず未処理例外になる（終了コード 1 は
-      // 「実証できない変異がある」の意味なので、一過性の競合が実証の失敗に化ける）。
-      // 読めなかったロックは残骸として扱い、次の試行へ落とす。
+      // **読み取りも失敗しうる。** EEXIST を受けてから、持ち主が `releaseLock()` で unlink するまでの間に
+      // 読むと ENOENT を投げる。`catch` の中なので誰も受けず、未処理例外になる。終了コード 1 は
+      // 「実証できない変異がある」の意味なので、一時的な競合が、誤って実証の失敗と判定される。
+      // 読めなかったロックは残骸として扱い、次の試行に回す。
       let pid = NaN;
       try {
         pid = Number(readFileSync(lockPath, "utf8").trim());
@@ -177,7 +179,7 @@ function releaseLock() {
 const tempDirs = new Set();
 
 // 変異を当てている間だけ置く復元情報。プロセスが殺されて（SIGKILL・電源断・端末の Ctrl-C）
-// 復元が走らなかった場合に、**次回起動で作業ツリーを元へ戻す**ための記録。
+// 復元が実行されなかった場合に、**次回起動で作業ツリーを元へ戻す**ための記録。
 const recoveryPath = `${lockPath}.recovery.json`;
 
 function writeRecovery(target, before, after) {
@@ -305,8 +307,8 @@ function parseArgs(argv) {
 }
 
 /**
- * `--shard i/N` を読む（1 始まり）。**範囲外・非整数は前提の誤りにする**——黙って 0 件のシャードにすると、
- * どのシャードも測らない変異が出ても全ジョブが緑になる。
+ * `--shard i/N` を読む（1 始まり）。**範囲外・非整数は前提の誤りにする**。
+ * 警告なしに 0 件のシャードにすると、どのシャードも測らない変異が出ても、全ジョブが成功する。
  */
 function parseShard(value) {
   const m = /^([1-9]\d*)\/([1-9]\d*)$/.exec(value ?? "");
@@ -321,7 +323,7 @@ function parseShard(value) {
   return { index, total };
 }
 
-/** 宣言ファイルの一覧。**0 件は成功に倒さない**（検査が空振りしただけの緑を根拠にしない）。 */
+/** 宣言ファイルの一覧。**0 件は成功として扱わない**（チェックが何も見なかっただけの成功を根拠にしない）。 */
 function specPaths(files) {
   const found = files.length
     ? files.map((f) => (isAbsolute(f) ? f : resolve(repoRoot, f)))
@@ -336,10 +338,10 @@ function specPaths(files) {
 /**
  * `ref` からの差分で変更されたリポジトリ相対パスを返す。
  *
- * **失敗を「変更なし」に倒さない**（未知の ref・git が無い・repo でない）。0 件と失敗が同じ
- * 空配列になると、当たるはずの宣言を 1 件も走らせないまま緑で終わる。
- * テスト用に `MUTATION_PROOF_CHANGED_FILES`（改行区切り）で差し替えられる。**使ったら必ず印字する**
- * ——CI が気づかないまま注入された一覧に頼るのを防ぐ。
+ * **失敗を「変更なし」として扱わない**（未知の ref・git が無い・repo でない）。0 件と失敗が同じ
+ * 空配列になると、当たるはずの宣言を 1 件も実行しないまま成功で終わる。
+ * テスト用に `MUTATION_PROOF_CHANGED_FILES`（改行区切り）で差し替えられる。**使ったら必ず出力する**。
+ * CI が気づかないまま、注入された一覧に頼るのを防ぐためである。
  */
 function changedFiles(ref) {
   const injected = process.env.MUTATION_PROOF_CHANGED_FILES;
@@ -363,12 +365,12 @@ function changedFiles(ref) {
 
 /**
  * 差分に当たる宣言だけを返す。当たり方は 3 通り:
- *   - 実行器（このファイル）が変わった → **全宣言**（判定の仕組みが変わったので全部測り直す）
+ *   - ランナー（このファイル）が変わった → **全宣言**（判定の仕組みが変わったので全部測り直す）
  *   - 宣言ファイル自身が変わった
  *   - その宣言の `test_file` か、いずれかの変異の対象ファイルが変わった
  *
  * それ以外は対象も検査も変わっていないので、前回の実証がそのまま有効。
- * **選んだ／飛ばした理由は必ず印字する**（0 件を黙って緑にしない）。
+ * **選んだ／飛ばした理由は必ず出力する**（0 件を警告なしに成功にしない）。
  */
 function selectChangedSpecs(specs, ref) {
   const changed = new Set(changedFiles(ref));
@@ -398,7 +400,7 @@ function asString(value, label) {
   return value;
 }
 
-/** 宣言を読んで形を検証する（実行前に落とす。走らせてから気づくと部分適用が残る）。 */
+/** 宣言を読んで形を検証する（実行前に落とす。実行してから気づくと、一部だけ適用した状態が残る）。 */
 function loadSpec(specPath) {
   let raw;
   try {
@@ -406,8 +408,8 @@ function loadSpec(specPath) {
   } catch (err) {
     die(`${specPath} を読めない: ${err.message}`);
   }
-  // 壊れた宣言は「実証できない変異がある」（exit 1）ではなく前提の誤り（exit 2）。
-  // 素通りさせると後続の参照が TypeError になり、CI では本物の実証失敗と同じ赤に見える。
+  // 不正な宣言は「実証できない変異がある」（exit 1）ではなく、前提の誤り（exit 2）にする。
+  // そのまま通すと後続の参照が TypeError になり、CI では本物の実証の失敗と同じ失敗に見える。
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
     die(`${specPath} が JSON オブジェクトでない（${Array.isArray(raw) ? "配列" : String(raw)}）`);
   }
@@ -451,13 +453,14 @@ function loadSpec(specPath) {
 /**
  * テストを起動するコマンド（実行ファイルと、`run <testFile> ...` の前に置く引数）。
  *
- * **既定は vitest の entry を Node のモジュール解決で求め、`node` で直接起動する。** `pnpm exec` を経由すると
- * 1 回あたり約 0.6 秒の起動コストが乗り（実測: `pnpm exec vitest --version` 0.70 秒 / `node vitest.mjs --version`
- * 0.07 秒）、変異 1 件ごとに基準 run・入れ子の runner を含めて数十回起動するこの検査では支配的になる。
+ * **デフォルトでは、vitest の entry を Node のモジュール解決で求め、`node` で直接起動する**。
+ * `pnpm exec` を経由すると、1 回あたり約 0.6 秒の起動コストが加わる
+ * （実測: `pnpm exec vitest --version` 0.70 秒 / `node vitest.mjs --version` 0.07 秒）。
+ * このチェックは、変異 1 件ごとに基準の run と入れ子の runner を含めて繰り返し起動するので、この時間が大半を占める。
  * `node_modules/.bin/` のハードパスは使わない（docs/tooling.md「ツールの起動」の例外。解決はパッケージの `bin` から取る）。
  *
- * `MUTATION_PROOF_TEST_COMMAND` で実行ファイルを差し替えられる（**テスト用の seam**。実行器のロック・復元・
- * 判定のテストを、決まった JSON レポートを返すスタブで回して vitest の起動を省くため）。引数は vitest と同じ
+ * `MUTATION_PROOF_TEST_COMMAND` で実行ファイルを差し替えられる（**テスト用の seam**）。ランナーのロック・復元・
+ * 判定のテストを、決まった JSON レポートを返すスタブで回して、vitest の起動を省くためである。引数は vitest と同じ
  * `run <testFile> --reporter=json --outputFile=<path>` を渡す。**使ったら必ず印字する**（`MUTATION_PROOF_CHANGED_FILES` と同じ扱い）。
  */
 let testCommandCache = null;
@@ -465,7 +468,7 @@ function testCommand() {
   if (testCommandCache) return testCommandCache;
   const injected = process.env.MUTATION_PROOF_TEST_COMMAND;
   if (injected !== undefined) {
-    // 空文字を「未指定」に倒さない（注入のつもりで本物の vitest を測ると、速さも中身も別物になる）。
+    // 空文字を「未指定」として扱わない（注入のつもりで本物の vitest を測ると、速さも中身も別物になる）。
     if (injected === "") die("MUTATION_PROOF_TEST_COMMAND が空");
     console.error(
       `テストコマンド: MUTATION_PROOF_TEST_COMMAND=${injected}（テスト用の注入。vitest は起動しない）`,
@@ -489,8 +492,8 @@ function testCommand() {
 }
 
 /**
- * テストファイルを 1 回走らせ、テスト名 → 状態のマップを返す。
- * **終了コードでは判定しない**——走らなかった（収集で落ちた）のか、狙ったテストが落ちたのかを
+ * テストファイルを 1 回実行し、テスト名 → 状態のマップを返す。
+ * **終了コードでは判定しない**。実行されなかった（収集で落ちた）のか、狙ったテストが落ちたのかを
  * 区別できないため、JSON レポータの結果から名前で読む。
  */
 function runTests(testFile) {
@@ -512,9 +515,9 @@ function runTests(testFile) {
         env: { ...process.env, MUTATION_PROOF_CHILD: "1" },
       },
     );
-    // **起動できなかったのは「実証の失敗」ではない。** spawn 自体が失敗すると理由は
-    // `res.error` にだけ入り stdout/stderr は null なので、そのままだと理由なしの FAIL
-    // （exit 1 =「実証できない変異がある」）に化ける。前提の誤りとして exit 2 に倒す。
+    // **起動できなかったのは「実証の失敗」ではない。** spawn 自体が失敗すると、理由は
+    // `res.error` にだけ入り、stdout/stderr は null になる。そのままだと、誤って理由なしの FAIL
+    // （exit 1 =「実証できない変異がある」）と判定される。前提の誤りとして exit 2 にする。
     if (res.error) {
       die(`テストを起動できない（${command.file}）: ${res.error.message}`);
     }
@@ -534,9 +537,9 @@ function runTests(testFile) {
     const duplicated = [];
     for (const file of report.testResults ?? []) {
       for (const a of file.assertionResults ?? []) {
-        // **名前をキーにする設計なので、名前の一意性が前提。** 同名（`test.each` の展開が
-        // 同じ文字列になる等）があると後の状態が前を上書きし、「1 件目だけ落ちた」変異が
-        // 「落ちなかった」に化ける（逆向きなら効いていない assertion が PASS になる）。
+        // **名前をキーにする設計なので、名前が一意であることが前提。** 同名（`test.each` の展開が
+        // 同じ文字列になる等）があると、後の状態が前を上書きする。すると「1 件目だけ落ちた」変異が、
+        // 誤って「落ちなかった」と判定される（逆向きなら、機能していない assertion が PASS になる）。
         if (results.has(a.fullName)) duplicated.push(a.fullName);
         results.set(a.fullName, a.status);
       }
@@ -568,13 +571,13 @@ function sorted(values) {
   return [...values].sort();
 }
 
-/** 変異を当てて走らせ、元に戻す。戻し漏れを残さないため復元まで必ず通る。 */
+/** 変異を当てて実行し、元に戻す。戻し忘れを残さないため、復元まで必ず通る。 */
 function proveMutation(mutation, testFile) {
   const original = readFileSync(mutation.target, "utf8");
   const hits = original.split(mutation.find).length - 1;
   if (hits !== mutation.occurrences) {
-    // **当たらなかった変異を成功に倒さない。** 偽の生存（効いていない assertion を効いていると
-    // 読む）は、この検査が防ごうとしている失敗そのもの。
+    // **当たらなかった変異を成功として扱わない。** 偽の生存（機能していない assertion を、機能していると
+    // 読む）は、このチェックが防ごうとしている失敗そのものである。
     return {
       ok: false,
       reason: `置換が当たらない: ${mutation.file} 内の find の出現数が ${hits} 件（宣言は ${mutation.occurrences} 件）`,
@@ -654,8 +657,8 @@ function main() {
   }));
   const skipped = plans.reduce((n, p) => n + (p.spec.mutations.length - p.targeted.length), 0);
   if (only) {
-    // **どの宣言にも無い id は走らせる前に落とす。** typo を黙って無視すると、
-    // 実証していない変異を「実証済み」と読む（0 件を成功に倒さないのと同じ理由）。
+    // **どの宣言にも無い id は、実行する前に落とす。** typo を警告なしに無視すると、
+    // 実証していない変異を「実証済み」と読む（0 件を成功として扱わないのと同じ理由）。
     const selected = new Set(plans.flatMap((p) => p.targeted.map((m) => m.id)));
     const unmatched = sorted([...only].filter((id) => !selected.has(id)));
     if (unmatched.length) die(`--only で 1 件も選ばれなかった: ${unmatched.join(" / ")}`);
@@ -696,8 +699,8 @@ function main() {
     }
     console.log(`baseline: ${baseline.results.size} tests passed`);
 
-    // 宣言したテスト名が実在すること。**名前が腐っていたら実証にならない**——テストを
-    // リネームすると `expect_failing` は永遠に落ちない名前を指し、この検査が空振りする。
+    // 宣言したテスト名が実在すること。**名前が古くなっていたら実証にならない**。テストを
+    // リネームすると、`expect_failing` は決して失敗しない名前を指し、このチェックが何も見なくなる。
     for (const m of targeted) {
       const unknown = m.expect.filter((name) => !baseline.results.has(name));
       if (unknown.length) {

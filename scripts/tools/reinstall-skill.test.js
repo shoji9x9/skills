@@ -83,7 +83,7 @@ function run(ctx, cwd, args, { input, env } = {}) {
   });
 }
 
-// .agents / .claude の中身を、ファイルは内容、symlink はリンク先で写す（root 自身の絶対パスは伏せる）。
+// .agents / .claude の中身を、ファイルは内容、symlink はリンク先で記録する（root 自身の絶対パスは伏せる）。
 function snapshot(root) {
   const out = {};
   const walk = (dir) => {
@@ -212,7 +212,7 @@ test("スクリプトへの symlink から実行しても、リンク先のツ�
 });
 
 // ルートを特定できない形。どれも cwd には完全な（インストール済みの）リポジトリを置き、
-// cwd へ黙って倒れないこと・削除より前で止まることを確かめる（受け入れ条件 2・3）。
+// 警告なしに cwd をルートとして扱わないこと・削除より前で止まることを確かめる（受け入れ条件 2・3）。
 test.each([
   [
     "スクリプトの位置のツリーに frontmatter 検査が無い",

@@ -1,12 +1,12 @@
 // golden-dataset フェーズ A（dataset_mode: static）が生成した投入ツール（fixture の初期状態）。
-// 削除 → 生成 → 検証を 1 エントリで走らせる。冪等・決定論的（id は固定、日付は BASE_TIME からの相対）。
+// 削除 → 生成 → 検証を 1 つのエントリで実行する。冪等・決定論的（id は固定、日付は BASE_TIME からの相対）。
 // 書き込み先は設定の dataset_static_paths 配下だけに限る。
 
 import { mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const BASE_TIME = new Date("2026-05-01T00:00:00Z");
-const ALLOWED_PATHS = ["content/works"]; // dataset_static_paths（設定由来ゲート）
+const ALLOWED_PATHS = ["content/works"]; // dataset_static_paths（設定から決まる書き込み先の制限）
 const OUT_DIR = "content/works";
 
 type Work = {

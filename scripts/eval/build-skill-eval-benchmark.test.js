@@ -5,8 +5,8 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { makeTempDir } from "../lib/test-tmpdir.js";
 
-// `build-skill-eval-benchmark.js` は **assertion テキストをキーにした入力だけを受理する**
-// 集計器（Issue #421）。位置で対応づけると、assertion の追加・削除・並べ替えで判定がずれ、
+// `build-skill-eval-benchmark.js` は、**assertion テキストをキーにした入力だけを受理する**
+// 集計スクリプト（Issue #421）。位置で対応づけると、assertion の追加・削除・並べ替えで判定がずれ、
 // 件数を誤る（`parity-diff` #27 の without_skill を 1/6 と 2/6 の両方で数えた実例がある）。
 // ここでは「受理しない入力」と「数値の境界」を固定する。
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -199,7 +199,7 @@ describe("集計（揃った iteration）", () => {
   });
 
   // **位置ではなくテキストで対応づける**ことの直接の検査。判定を並べ替えても、
-  // 出力は eval_metadata（run 時点の正本）の順に並び、テキストごとの判定が保たれる。
+  // 出力は eval_metadata（run 時点の原本）の順に並び、テキストごとの判定が保たれる。
   test("判定が並べ替わっていてもテキストで対応づける", () => {
     const root = makeIteration();
     const shuffled = [
@@ -518,7 +518,7 @@ describe("受理しない入力（exit 2）", () => {
     );
   });
 
-  // 「記録が無い」を「揃っている」に倒さない（全 run で executor が欠けると混在検査が空振りする）。
+  // 「記録が無い」を「揃っている」として扱わない（全 run で executor が欠けると混在検査が空振りする）。
   test("timing.json に executor.name が無ければ落とす", () => {
     const root = makeIteration();
     writeRun(root, {
@@ -557,7 +557,7 @@ describe("受理しない入力（exit 2）", () => {
     expect(missing.status, missing.out).toBe(2);
     expect(missing.out).toContain("outputs/metrics.json が無い");
 
-    // null は正規化器が「この executor では測れない」を明示した形なので受理して 0 にする。
+    // null は正規化のスクリプトが「この executor では測れない」を明示した形なので受理して 0 にする。
     writeFileSync(
       join(dir, "outputs", "metrics.json"),
       JSON.stringify({ total_tool_calls: null, errors_encountered: 0 }),
@@ -595,7 +595,7 @@ describe("受理しない入力（exit 2）", () => {
     expect(res.status, res.out).toBe(2);
     expect(res.out).toContain("eval ディレクトリ名が eval-<番号>");
 
-    // 陽性コントロール: 注記つき（本リポの成果物にある形）は通る。
+    // 検出しすぎないことの確認: 注記つき（本リポの成果物にある形）は通る。
     const ok = makeIteration();
     writeRun(ok, {
       evalDir: "eval-31-mutation-ownership",
@@ -631,7 +631,7 @@ describe("受理しない入力（exit 2）", () => {
     expect(res.out).toContain("timing.json が無い");
   });
 
-  // 採点の無い run（汚染・invalid_run）は黙って落とさない。既定は落として、
+  // 採点の無い run（汚染・invalid_run）は警告なしに落とさない。既定は落として、
   // 除外を承知したときだけ --ungraded skip で進む。
   test("採点の無い run は既定で落とし、--ungraded skip で除外する", () => {
     const root = completeIteration();
@@ -654,8 +654,9 @@ describe("受理しない入力（exit 2）", () => {
     expect(b.metadata.runs_per_configuration).toBe(1);
   });
 
-  // **`--ungraded skip` の穴**: ある eval × configuration の run が**全部**未採点だと採点済み 0 件に
-  // なり、0 を突き合わせから外すと「揃っている」に倒れて Delta が別母集団の比較になる（実測）。
+  // **`--ungraded skip` で検出できない範囲**: ある eval × configuration の run が**全部**未採点だと、
+  // 採点済みが 0 件になる。0 を突き合わせから外すと「揃っている」と判定されてしまい、
+  // Delta が別の母集団の比較になる（実測）。
   test("採点済み 0 件の eval × configuration は --ungraded skip でも落とす", () => {
     const root = makeIteration();
     writeRun(root, { evalDir: "eval-1", evalId: 1, configuration: "with_skill" });
@@ -672,7 +673,7 @@ describe("受理しない入力（exit 2）", () => {
     expect(res.out).toContain("採点済みの run が 1 件も無い eval × configuration がある");
     expect(res.out).toContain("eval-2/without_skill");
 
-    // 陽性コントロール: 余分な run だけが未採点なら（採点済みが残るので）skip で通る。
+    // 検出しすぎないことの確認: 余分な run だけが未採点なら（採点済みが残るので）skip で通る。
     const ok = makeIteration();
     writeRun(ok, { evalDir: "eval-1", evalId: 1, configuration: "with_skill" });
     writeRun(ok, { evalDir: "eval-1", evalId: 1, configuration: "without_skill" });
@@ -713,7 +714,7 @@ describe("受理しない入力（exit 2）", () => {
     expect(res.out).toContain("違う assertion 集合を採点している");
     expect(res.out).toContain("with_skill/run-2");
 
-    // 陰性コントロール: 全 run が同じ集合なら通る（テキストの並び順は問わない）。
+    // 誤検知しないことの確認: 全 run が同じ集合なら通る（テキストの並び順は問わない）。
     const ok = makeIteration();
     writeRun(ok, { evalDir: "eval-1", evalId: 1, configuration: "with_skill" });
     writeRun(ok, {
@@ -756,7 +757,7 @@ describe("受理しない入力（exit 2）", () => {
     expect(res.out).toContain("run 数が揃っていない");
   });
 
-  // 片側の configuration しか無い eval を黙って混ぜると、Delta は **eval 集合の違う母集団**
+  // 片側の configuration しか無い eval を警告なしに含めると、Delta は **eval 集合の違う母集団**
   // 同士の比較になる（with は 2 eval・without は 1 eval でも runs_per_configuration は 1）。
   test("configuration が eval ごとに違えば落とす（Delta の母集団がずれる）", () => {
     const root = completeIteration();
@@ -765,7 +766,7 @@ describe("受理しない入力（exit 2）", () => {
     expect(res.status, res.out).toBe(2);
     expect(res.out).toContain("eval ごとに揃っている configuration が違う");
 
-    // 陰性コントロール: iteration 全体が片側だけなら通す（Delta を出さないだけ）。
+    // 誤検知しないことの確認: iteration 全体が片側だけなら通す（Delta を出さないだけ）。
     const single = makeIteration();
     writeRun(single, { evalDir: "eval-1", evalId: 1, configuration: "with_skill" });
     writeRun(single, { evalDir: "eval-2", evalId: 2, configuration: "with_skill" });
@@ -775,7 +776,7 @@ describe("受理しない入力（exit 2）", () => {
   });
 
   // run 数の突き合わせはディレクトリ単位、集計のキーは eval_id。食い違うと
-  // 「eval-1 の run が 2 として数えられる」取り違えが黙って通る。
+  // 「eval-1 の run が 2 として数えられる」取り違えが警告なしに通る。
   test("eval_id がディレクトリ名と食い違えば落とす", () => {
     const root = makeIteration();
     writeRun(root, { evalDir: "eval-1", evalId: 2, configuration: "with_skill" });
@@ -784,7 +785,7 @@ describe("受理しない入力（exit 2）", () => {
     expect(res.out).toContain("eval_id=2 がディレクトリ名（eval-1）と違う");
   });
 
-  // **知らない名前のディレクトリを黙って捨てない。** 既知の 2 名だけを拾う形だと、1 文字違いの
+  // **知らない名前のディレクトリを警告なしに捨てない。** 既知の 2 名だけを拾う形だと、1 文字違いの
   // 成果物が集計から消えて「片側だけの iteration」として通る。
   test("configuration に使えないディレクトリがあれば落とす", () => {
     const root = completeIteration();
@@ -836,8 +837,8 @@ describe("受理しない入力（exit 2）", () => {
     expect(b.runs).toHaveLength(4);
   });
 
-  // 辿れないエントリは `listDirs` が落とすだけなので、**呼び出し側で報告しないと黙って消える**
-  // （実測: 壊れたリンクの eval が無警告で集計から外れて exit 0 になった）。
+  // 辿れないエントリは `listDirs` が落とすだけなので、**呼び出し側で報告しないと警告なしに消える**
+  // （実測: リンク先が無い eval が無警告で集計から外れ、exit 0 になった）。
   test("壊れたリンクの eval があれば落とす", () => {
     const root = makeIteration();
     writeRun(root, { evalDir: "eval-1", evalId: 1, configuration: "with_skill" });

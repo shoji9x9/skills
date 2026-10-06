@@ -6,7 +6,7 @@
 
 実ブラウザ（chrome-devtools MCP）と稼働中のアプリを要する全フロー（ページ巡回・console 確認・クロス環境切り分け）は
 使い捨てプロジェクト（空・非対話）では回せない。そのため本スキルの evals は、**MCP が無い環境での停止パス**と、
-**前提の有無に関わらず成立する挙動**（設定解決の順序・スコープ導出の方針・副作用操作の拒否／承認・呼び出し元からの環境受け渡し契約）を対象にしている。
+**前提の有無に関わらず成立する挙動**（設定解決の順序・スコープ導出の方針・副作用操作の拒否／承認・呼び出し元から環境を受け取るときの取り決め）を対象にしている。
 
 ## 実行例
 
@@ -26,6 +26,6 @@ scripts/eval/run-skill-eval.sh \
   --model opus
 ```
 
-- eval 7 の fixture は `skills.browser-test.environments` だけを持つ設定を置く**囮**で、呼び出し元から環境を渡されたときに設定解決を行わない契約（`references/project-config.md`）を検証する
+- eval 7 の fixture は `skills.browser-test.environments` だけを持つ設定を置く**囮**で、呼び出し元から環境を渡されたときに設定解決を行わないという取り決め（`references/project-config.md`）を検証する
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json`）は `node scripts/eval/build-skill-eval-benchmark.js` で生成する（判定は assertion テキストで突き合わせる。`benchmark.md` は人が書く。詳細は `docs/skill-development.md`）

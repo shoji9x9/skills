@@ -1,10 +1,10 @@
 // parity-suite の撮る範囲の検査（capture-scope-check.mjs）の回帰テスト（Issue #239）。
 //
 // 撮る範囲が狭いと、実装後に範囲外の差分が現れて現側から撮り直すループになる。
-// 範囲の狭さは「差分 0 件」と同じ見え方になるので、撮る段で穴を数えて落とす。
+// 範囲の狭さは「差分 0 件」と同じ見え方になるので、撮る段で抜けを数えて落とす。
 //
-// 陽性コントロール（穴の無い採取が exit 0）を置く——これが無いと「常に落とす」実装と区別できない。
-// 穴の種別は 1 つずつ独立に注入し、注入した種別の id が出ることまで確かめる。
+// 通ることの確認（抜けの無い採取が exit 0）を置く。これが無いと「常に落とす」実装と区別できない。
+// 抜けの種別は 1 つずつ独立に注入し、注入した種別の id が出ることまで確かめる。
 
 import { test, expect } from "vitest";
 import {
@@ -87,7 +87,7 @@ function noAxes(except = []) {
 }
 
 /**
- * ロケール（既定 en、ほかに ja）を持つ宣言。1 軸ずつ振る変種と、窓との対の判断まで揃えた穴の無い形。
+ * ロケール（既定 en、ほかに ja）を持つ宣言。1 軸ずつ振る変種と、窓との対の判断まで揃えた抜けの無い形。
  * @param {Record<string, unknown>} [override]
  */
 function localeAxes(override = {}) {
@@ -138,7 +138,7 @@ function withVariantCaptures(states = ["default", "hover"]) {
 }
 
 /**
- * 穴の無い metadata を組み立てる。差し替えたい部分だけ渡す。
+ * 抜けの無い metadata を組み立てる。差し替えたい部分だけ渡す。
  *
  * 期待値（撮るはずの組）は `capture_conditions` の 3 軸の直積なので、
  * 1 組だけを対象にするテストは `states` 等の軸も同時に狭める（狭めないと「採っていない組」が増える）。
@@ -301,11 +301,11 @@ test("内部スクロール器の外は穴になる（画素にも特性にも�
   expect(holeIdsOf(metadata)).toEqual(["list|default|desktop#scroll:グリッド本体"]);
 });
 
-// 器ごとの overflow とスクロールバーの厚み（Issue #495）。実例: ダイアログの中のデータグリッド（628×298、中身 628 幅）。
+// コンテナごとの overflow とスクロールバーの厚み（Issue #495）。実例: ダイアログの中のデータグリッド（628×298、中身 628 幅）。
 // バーを隠して撮ると client 628 = scroll 628 で横のはみ出しが消え、現行の横のバーと新側の右端の切れが区別できない。
 /**
- * 撮影組 1 つ・器 1 つの metadata。
- * @param {Record<string, unknown>} container 器の差し替え
+ * 撮影組 1 つ・コンテナ 1 つの metadata。
+ * @param {Record<string, unknown>} container コンテナの差し替え
  * @param {Record<string, unknown>} [override] metadataOf へ渡す差し替え
  */
 function withContainer(container, override = {}) {
@@ -451,7 +451,7 @@ test("同じ論理名が 2 つあれば落ちる（同じ id の穴が 2 つで�
     noise: [{ page: "list", state: "default", viewport: "desktop", pixel_diff: 0 }],
   });
   expect(codesOf(metadata)).toContain("named-element-duplicated");
-  // 重複した分から穴を作らない（1 つの宣言が 2 つの穴を消すのを防ぐ）。
+  // 重複した分から抜けを作らない（1 つの宣言が 2 つの抜けを消すのを防ぐ）。
   expect(holeIdsOf(metadata)).toEqual(["list|default|desktop#offscreen:フッタの件数表示"]);
 });
 
@@ -613,7 +613,7 @@ test("noise_baseline が空なら合格に倒さない", () => {
 });
 
 test("穴の id の材料に区切り文字が入っていれば落とす（1 つの宣言が 2 つの穴を黙らせる）", () => {
-  // ビューポート `v#scroll:x` の below-fold と、ビューポート `v` の器 `x#below-fold` は
+  // ビューポート `v#scroll:x` の below-fold と、ビューポート `v` のコンテナ `x#below-fold` は
   // どちらも p|s|v#scroll:x#below-fold になり、1 つの宣言で両方が消える。
   const metadata = metadataOf({
     scope: [
@@ -639,7 +639,7 @@ test("穴の id の材料に区切り文字が入っていれば落とす（1 �
   const codes = codesOf(metadata);
   expect(codes).toContain("scroll-container-name-unsafe");
   expect(codes).toContain("named-element-name-unsafe");
-  // 区切りを含む名前からは穴の id を作らない（作ると衝突した id が宣言で消える）。
+  // 区切りを含む名前からは抜けの id を作らない（作ると衝突した id が宣言で消える）。
   expect(holeIdsOf(metadata)).toEqual([]);
 });
 
@@ -664,7 +664,7 @@ test("ビューポート label に id の区切りが入っていても落とす
 });
 
 test("鍵の材料に区切り文字が入っていれば落とす（別々の組が同じ鍵に潰れる）", () => {
-  // ("a|b", "c", "d") と ("a", "b|c", "d") はどちらも a|b|c|d になり、
+  // `("a|b", "c", "d")` と `("a", "b|c", "d")` はどちらも a|b|c|d になり、
   // 1 つの範囲の実測が 2 つの撮影組を満たしたことになる。
   const metadata = metadataOf({
     scope: [
@@ -696,7 +696,7 @@ test("撮影組の鍵はページ・状態・ビューポートで作る", () =>
 
 test("テンプレートのプレースホルダ（寸法 0）は測っていない組として落ちる", () => {
   // assets/metadata-template.json は寸法を 0 で置いてある。0 を通すと文書も撮影領域も 0×0 になり、
-  // 穴が 1 つも出ないまま exit 0（「測っていない組」が「穴の無い組」に化ける）。
+  // 抜けが 1 つも出ないまま exit 0 になる（「測っていない組」が誤って「抜けの無い組」と判定される）。
   const metadata = metadataOf({
     scope: [
       {
@@ -781,7 +781,7 @@ test("feature モードは判定に入る（judged: true）", () => {
 });
 
 test("宣言した組を採っていなければ穴として数える（採った組の一覧を期待値にしない）", () => {
-  // noise_baseline だけを突き合わせ相手にすると、組ごと落とした範囲が期待値からも消えて穴が 0 件になる。
+  // noise_baseline だけを突き合わせ相手にすると、組ごと落とした範囲が期待値からも消えて抜けが 0 件になる。
   const metadata = metadataOf({
     scope: [
       {
@@ -800,7 +800,7 @@ test("宣言した組を採っていなければ穴として数える（採っ�
   expect(holeIdsOf(metadata)).toEqual(["list|hover|desktop#not-captured"]);
   expect(codesOf(metadata)).toContain("hole-unexempted");
 
-  // 理由付きの宣言なら通る（他の穴と同じ出口）。
+  // 理由付きの宣言なら通る（他の抜けと同じ扱い）。
   const exempted = metadataOf({
     scope: metadata.capture_conditions.capture_scope,
     noise: metadata.noise_baseline,
@@ -827,7 +827,7 @@ test("撮影条件の軸が空・区切り文字入り・重複なら落とす�
   expect(codesOf(metadataOf({ states: ["default", "hover", "hover"] }))).toContain(
     "declared-axis-value-duplicated",
   );
-  // 陽性コントロール: 3 軸が揃った宣言ではこれらは出ない。
+  // 誤検知しないことの確認: 3 軸が揃った宣言ではこれらは出ない。
   expect(codesOf(base)).toEqual([]);
   expect(checkCaptureScope(base).counts.declared).toBe(2);
 });
@@ -845,7 +845,7 @@ test("引数の誤り・読めない入力は exit 2", () => {
 });
 
 // Issue #407: capture_scope の重複要素を finding の後も無条件に上書きしていたため（後勝ち）、
-// 本物の実測の後にプレースホルダーが続くと deriveHoles が最後の要素しか見ず、穴が消えていた。
+// 本物の実測の後にプレースホルダーが続くと deriveHoles が最後の要素しか見ず、抜けが消えていた。
 // noise_baseline の重複と同じく先勝ちで残す。
 test("capture_scope の重複要素は先勝ちで残り、本物の穴が消えない", () => {
   const real = {
@@ -857,7 +857,7 @@ test("capture_scope の重複要素は先勝ちで残り、本物の穴が消え
     scroll_containers: [],
     named_elements_outside: [],
   };
-  // 同じ鍵を持つプレースホルダー（寸法が一致し穴が無い）。後勝ちだとこれが採られて穴が消える。
+  // 同じ鍵を持つプレースホルダー（寸法が一致し抜けが無い）。後勝ちだとこれが採られて抜けが消える。
   const placeholder = {
     ...real,
     document: { width: 100, height: 100 },
@@ -889,7 +889,7 @@ test("holes の中身は先に来た実測で決まり、合否は並び順に�
     captured: { width: 1366, height: 3200 },
   };
   const noise = [{ page: "list", state: "default", viewport: "desktop", pixel_diff: 0 }];
-  // 穴の無い方を先に置いたときは、後ろの穴は（先勝ちなので）採らない＝ holes は並び順で変わる。
+  // 抜けの無い方を先に置いたときは、後ろの抜けは（先勝ちなので）採らない＝ holes は並び順で変わる。
   expect(
     holeIdsOf(metadataOf({ states: ["default"], scope: [noHole, withHole], noise })),
   ).not.toContain("list|default|desktop#below-fold");
@@ -901,7 +901,7 @@ test("holes の中身は先に来た実測で決まり、合否は並び順に�
 
 // ---- スクロールバーが場所を取る窓のはみ出し（Issue #449） ----
 //
-// スクロールバーを隠した撮影では 100vh と height: 100% の差が 0 になり、3 経路すべてが緑のまま通る。
+// スクロールバーを隠した撮影では 100vh と height: 100% の差が 0 になり、3 つの方法すべてが緑のまま通る。
 // 撮影時の扱い（scrollbars）と、スクロールバーを表示した窓の縦・横のはみ出し（overflow）を宣言させる。
 
 /** @param {Record<string, unknown>} windowOverride 頁 list の 2 つ目の窓（1180x768）へ当てる差し替え */
@@ -1002,7 +1002,7 @@ test("スクロールバーを隠して測った記録は落とす（100vh と 1
       "overflow-scrollbars-hidden",
     );
   }
-  // 陽性コントロール: 横にはみ出した窓で横スクロールバーの厚みが 0 なら、隠れたまま測っている
+  // 検出されることの確認: 横にはみ出した窓で横スクロールバーの厚みが 0 なら、隠れたまま測っている
   expect(codesOf(metadataOf({ overflow: overflowWithWindow({ horizontal_bar_px: 0 }) }))).toContain(
     "overflow-bar-takes-no-space",
   );
@@ -1123,7 +1123,7 @@ test("中身が収まる高さの狭い窓が無い記録は落とす（Codex �
       ),
     ).toContain("overflow-content-height-malformed");
   }
-  // 陰性コントロール: 中身が収まる高さの窓でも縦にはみ出す頁（body の height: 100% と既定の margin）は落とさない
+  // 誤検知しないことの確認: 中身が収まる高さの窓でも縦にはみ出す頁（body の height: 100% と既定の margin）は落とさない
   expect(
     codesOf(
       metadataOf({
@@ -1251,7 +1251,7 @@ test("最小幅の探索の範囲の記録が無い・読めないスタイル�
   expect(codesOf(withProbe({ ...page.probe, gaps_ref: "gaps.md#stale" }))).toContain(
     "overflow-probe-gaps-ref-unexpected",
   );
-  // 陰性コントロール: 読めないスタイルシートを gaps.md に回した記録は通す
+  // 誤検知しないことの確認: 読めないスタイルシートを gaps.md に回した記録は通す
   expect(
     codesOf(
       withProbe({
@@ -1352,7 +1352,7 @@ test("軸が効かないページは not_applicable と理由で撮るはずの�
       displayAxes: { ...axes, axes: [{ ...axes.axes[0], not_applicable: na }] },
       ...withVariantCaptures(),
     });
-  // 外さなければ print ページの変種と基準の組が穴になる（陽性コントロール）
+  // 外さなければ print ページの変種と基準の組が抜けになる（検出されることの確認）
   expect(holeIdsOf(withNa([]))).toContain("print|default|desktop-ja#not-captured");
   const excluded = holeIdsOf(withNa([{ page: "print", reason: "印刷画面は英語固定（実測）" }]));
   expect(excluded.filter((id) => id.includes("desktop-ja"))).toEqual([]);
@@ -1413,7 +1413,7 @@ test("スイートへの写し方は期待値の所在か変わらない根拠�
     );
   expect(withSuite(null, null)).toEqual(["display-axis-suite-undecided"]);
   expect(withSuite("e2e/x.ts", "変わらない")).toEqual(["display-axis-suite-undecided"]);
-  // 陰性コントロール: 変わらない根拠だけでも通る
+  // 誤検知しないことの確認: 変わらない根拠だけでも通る
   expect(withSuite(null, "配色だけが変わり文言・振る舞いは変わらない（移行元ソース）")).toEqual([]);
 });
 
@@ -1540,7 +1540,7 @@ test("viewer_environment が未確認・確かめ方の無い一致・欠落な�
   const metadata = metadataOf();
   delete (/** @type {any} */ (metadata).capture_conditions.viewer_environment);
   expect(codesOf(metadata)).toEqual(["viewer-environment-missing"]);
-  // 陰性コントロール: 理由付きの乖離と、全角コロンの一致は通す
+  // 誤検知しないことの確認: 理由付きの乖離と、全角コロンの一致は通す
   expect(
     codesOf(
       metadataOf({
@@ -1602,7 +1602,7 @@ test("not_applicable が撮影ページの全てを覆う軸は落とす（変�
     // 0 ページの変種は数えないので、その値を撮る変種も無いことになる
     "display-axis-value-unswept",
   ]);
-  // 撮るはずの組は 0 件なので穴は出ない（落とすのは上の finding だけ）
+  // 撮るはずの組は 0 件なので抜けは出ない（落とすのは上の finding だけ）
   expect(holeIdsOf(metadata)).toEqual([]);
 });
 
@@ -1669,7 +1669,7 @@ test("乖離に gaps.md の該当箇所が無ければ落とす（既知の乖�
   expect(codesOf(metadataOf({ viewerEnvironment: "乖離: Linux と Windows が異なる" }))).toEqual([
     "viewer-environment-gaps-ref-missing",
   ]);
-  // 陰性コントロール: gaps.md の該当箇所を書けば通る
+  // 誤検知しないことの確認: gaps.md の該当箇所を書けば通る
   expect(
     codesOf(
       metadataOf({
@@ -1692,7 +1692,7 @@ test("「一致: 未確認」のように形だけ満たしたプレースホル
       "viewer-environment-unconfirmed",
     ]);
   }
-  // 陰性コントロール: 確かめ方が書いてあれば、途中に「未確認」の語を含んでも通る
+  // 誤検知しないことの確認: 確かめ方が書いてあれば、途中に「未確認」の語を含んでも通る
   expect(
     codesOf(
       metadataOf({
@@ -1772,7 +1772,7 @@ test("browser が cdp なのに接続先の同一性が無ければ落とす（�
       "browser-identity-missing",
     ]);
   }
-  // 陰性コントロール: launched では同一性を求めない
+  // 誤検知しないことの確認: launched では同一性を求めない
   expect(codesOf(metadataOf({ browser: "launched", browserIdentity: null }))).toEqual([]);
 });
 
@@ -1791,7 +1791,7 @@ test("browser が cdp なのに描画するブラウザ側の OS が無ければ
       "browser-os-missing",
     ]);
   }
-  // 陰性コントロール: launched では OS を求めない
+  // 誤検知しないことの確認: launched では OS を求めない
   expect(codesOf(metadataOf({ browser: "launched", browserIdentity: null }))).toEqual([]);
 });
 
@@ -1844,7 +1844,7 @@ test("宣言に無い組（消した・改名した変種の古い記録）が n
   const metadata = metadataOf({ displayAxes: localeAxes({ variants: [] }), scope, noise });
   const codes = codesOf(metadata);
   expect(codes.filter((c) => c === "recorded-combination-undeclared")).toHaveLength(2);
-  // 陰性コントロール: 宣言どおりの記録だけなら出ない
+  // 誤検知しないことの確認: 宣言どおりの記録だけなら出ない
   expect(
     codesOf(metadataOf({ displayAxes: localeAxes(), scope, noise })).filter(
       (c) => c === "recorded-combination-undeclared",

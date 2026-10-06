@@ -1,6 +1,6 @@
-// 静止画に写らない computed style を固定集合に入れ、解決しない名前で fail closed する回帰テスト（Issue #342）。
+// 静止画に表れない computed style を固定集合に入れ、解決しない名前を失敗にする回帰テスト（Issue #342）。
 // 併せて、採った対象が「画面に描かれているもの」かの判定と子の inline style の記録（Issue #386）、
-// 文字の持ち主（text_owners）の採取（Issue #459）、スクロールする器の特性（scroll）の採取（Issue #495）。
+// 文字の持ち主（text_owners）の採取（Issue #459）、スクロールするコンテナの特性（scroll）の採取（Issue #495）。
 
 import { expect, test } from "vitest";
 import { dirname, join } from "node:path";
@@ -35,7 +35,7 @@ function fakeLocator(
     shadowRoot = null,
     // el 自身が文字の持ち主になる場合の計算値（styles に重ねる。省略時は textStyle を持たない）
     rootTextStyle = null,
-    // 器の寸法（offsetWidth 等）。省略時は offsetWidth を持たない（HTML 要素でない）扱いで scroll は null
+    // コンテナの寸法（offsetWidth 等）。省略時は offsetWidth を持たない（HTML 要素でない）扱いで scroll は null
     box = null,
     // 擬似要素ごとの計算値（::-webkit-scrollbar 系）。無い擬似要素は pseudoStyles を返す
     pseudoStylesBy = {},
@@ -58,7 +58,7 @@ function fakeLocator(
         ...box,
         ownerDocument: {
           // canvas の measureText は文字数 × 13 の幅と 12 + 3 の高さを返す偽（ボタンとして描く <input> 用）
-          // 大文字を含む文字列には 1000 を足し、letterSpacing は 1 文字ごとに足す（渡した形を弁別するため）
+          // 大文字を含む文字列には 1000 を足し、letterSpacing は 1 文字ごとに足す（渡した形を区別するため）
           createElement: () => ({
             getContext: () => ({
               font: "",
@@ -168,7 +168,7 @@ test.each([
   "right",
   "bottom",
   "left",
-  // 矩形の外に描かれる／下地に依存して弁別できない（Issue #434）
+  // 矩形の外に描かれる／下地に依存して区別できない（Issue #434）
   "box-shadow",
   "opacity",
   // 折り返し・省略を決めるが、採取時の文字列が短ければ静止画に差として出ない（Issue #434）
@@ -181,7 +181,7 @@ test.each([
   expect(FIXED_PROPERTIES).toContain(prop);
 });
 
-// 集合の中身が変わったら version を上げる契約（parity-diff は property_set を正とする）。
+// 集合の中身が変わったら version を上げる取り決め（parity-diff は property_set を正とする）。
 // 陳腐化判定はこの版でしか働かないので、集合だけ変えて版を据え置く変異をここで落とす。
 test("固定集合の要素数と VERSION が対応している", () => {
   expect(FIXED_PROPERTIES).toHaveLength(48);
@@ -238,8 +238,8 @@ test("解決しないプロパティ名は空文字で通さず論理名付き�
   ).rejects.toThrow(/detail\.save[\s\S]*user-select/);
 });
 
-// 本体側は全部解決させ、擬似要素側だけを欠かす。本体側も欠かすと pick(null) が先に落ちるため、
-// 擬似要素の分岐を無効化しても green のままになる（弁別できない）。
+// 本体側は全部解決させ、擬似要素側だけを欠かす。本体側も欠かすと pick(null) が先に失敗するため、
+// 擬似要素の分岐を無効化しても green のままになる（区別できない）。
 test("擬似要素側だけで解決しないプロパティ名も落ちる", async () => {
   const pseudoStyles = allResolved();
   delete pseudoStyles.cursor;
@@ -333,8 +333,8 @@ test.each([
   expect(trait.computed.cursor).toBe(value);
 });
 
-// origin が http(s) でないときは畳まない。"" を含めるのはガードの弁別のため——ガードを外すと
-// 空オリジンが value.includes("/") に化けて、あらゆるスラッシュを印へ置換し値を壊す。
+// origin が http(s) でないときは畳まない。"" を含めるのはガードの効果を区別するためである。ガードを外すと
+// 空オリジンが value.includes("/") を満たし、あらゆるスラッシュを印へ置換して値を不正にする。
 test.each([
   ["file:// 等で origin が null", "null"],
   ["origin が空", ""],
@@ -349,8 +349,8 @@ test.each([
 // --- 採った対象が「画面に描かれているもの」か（Issue #386 形 2） ---
 
 // 実測: 市販のデータグリッド（Wijmo FlexGrid 5.20261）は列見出しを 2 つの木に作り、
-// getByRole("columnheader") が返すのは y = -32000 に置かれた支援技術のための写しだった。
-// 写しから採った 34 プロパティは全部一致し、画素だけが差を出した。
+// getByRole("columnheader") が返すのは y = -32000 に置かれた支援技術のためのコピーだった。
+// コピーから採った 34 プロパティは全部一致し、画素だけが差を出した。
 test("文書の外に置かれた写しからの採取は論理名付きで落ちる", async () => {
   await expect(
     captureTraits([
@@ -385,7 +385,7 @@ test.each([
     "面積 0 の矩形（display: none 等の状態）",
     { rect: { x: 0, y: 0, width: 0, height: 0 }, documentSize: { width: 1280, height: 2400 } },
   ],
-  // ガード（box.width > 0 && box.height > 0）が効いていることの陽性コントロール。
+  // ガード（box.width > 0 && box.height > 0）が機能していることの確認（検出されること）。
   // 文書の外の座標かつ面積 0 なので、ガードを外すと判定に掛かって落ちる（＝この行が赤くなる）。
   // 素通りするのは仕様——面積 0 は display: none を正当に採るための除外で、その射程は
   // skills/parity-suite/references/baseline.md に限界として書いてある。
@@ -880,9 +880,9 @@ test("文字が無ければ空配列になる（キーの欠落と区別する�
   expect(trait.text_owners).toEqual([]);
 });
 
-// スクロールする器（Issue #495）。実例: ダイアログの中のデータグリッドで、現行は overflow: auto、新側は
+// スクロールするコンテナ（Issue #495）。実例: ダイアログの中のデータグリッドで、現行は overflow: auto、新側は
 // overflow-x: hidden。スクロールバーが場所を取る撮影では、現行だけ縦のバーの 15px で中身がはみ出して横のバーが出る。
-// 値は Chrome 149 の実測（枠 0・器 628×298、中身 628 幅）に合わせている。
+// 値は Chrome 149 の実測（枠 0・コンテナ 628×298、中身 628 幅）に合わせている。
 function scrollStyles(overrides = {}) {
   // allResolved は固定集合のキーしか持たないので、スクロールバーの宣言は外で重ねる
   return {
@@ -968,7 +968,7 @@ test("スクロールバーが場所を取る撮影では、現行の横のバ�
 });
 
 test("スクロールバーの厚みは枠を差し引いて数える", async () => {
-  // 実測: 枠 2px・overflow: auto の器で offsetWidth 204 / clientWidth 185（バー 15px）
+  // 実測: 枠 2px・overflow: auto のコンテナで offsetWidth 204 / clientWidth 185（バー 15px）
   const [trait] = await captureTraits([
     {
       name: "list",

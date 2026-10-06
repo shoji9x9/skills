@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // SKILL.md の frontmatter を決定論的に検査する（lefthook pre-commit + CI）。
-// gh skill publish の dry-run や reinstall でしか気付けなかった不備を、コミット時に止める:
-//   (a) frontmatter が YAML としてパース可能であること（未クオート description 内の「: 」＝
-//       コロン＋スペースがマッピング区切りと解釈され YAML が壊れる典型を検出）。
+// gh skill publish の dry-run や reinstall でしか気付けなかった不備を、コミット時に止める。チェックするのは次の点である。
+//   (a) frontmatter が YAML としてパースできること。よくある誤りは、クオートしていない description の中の
+//       「: 」（コロン＋スペース）がマッピングの区切りと解釈され、YAML として不正になることである。
 //   (b) description の UTF-8 バイト長が 1024 以下であること（日本語は 1 文字 3 バイトで実質約
 //       340 文字。gh の上限は「文字数」ではなく UTF-8 バイト数で判定される）。
 //   (c) name が必須で、形式は小文字英数字とハイフン・64 文字以内であること。
@@ -93,7 +93,7 @@ export function checkFrontmatter(path, content) {
 //   - skills/*/SKILL.md: 配布スキルのソース。
 //   - .agents/skills/*/SKILL.md（`.private-skill` マーカー付きのみ）: private skill。
 //     private skill は skills/ にソースを持たず、publish / reinstall / skills-sync の
-//     どの経路でも frontmatter 検査されないため、ここで明示的に対象へ加える。
+//     どの方法でも frontmatter をチェックされないため、ここで明示的に対象へ加える。
 function listSkillFiles() {
   const out = [];
 
@@ -148,5 +148,5 @@ function main() {
   console.log("skill-frontmatter: OK");
 }
 
-// CLI として実行されたときだけ走らせる（テストから import しても main は動かない）。
+// CLI として実行されたときだけ動かす（テストから import しても main は動かない）。
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();

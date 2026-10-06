@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 // eval の採点結果を `benchmark.json` へ集計する。
 //
-// 集計を毎 iteration の書き捨てスクリプトで組み立てていたため、判定を位置（配列 index）で
-// 対応づけて件数を誤った（`parity-diff` #27 の `without_skill` を 1/6 と 2/6 の両方で数えた。
-// Issue #421 / `.kaizen/2026-09-17-eval-benchmark-assembled-ad-hoc.md`）。
+// 以前は集計を iteration ごとの使い捨てのスクリプトで組み立てていた。
+// そのスクリプトが判定を位置（配列の index）で対応づけたため、件数を誤った。
+// `parity-diff` #27 の `without_skill` を、1/6 と 2/6 の両方で数えた
+// （Issue #421 / `.kaizen/2026-09-17-eval-benchmark-assembled-ad-hoc.md`）。
 // この集計は **assertion テキストをキーにした入力だけを受理する**。
 //
-//   - assertion テキストの正本は各 run の `eval_metadata.json`（run 時点の宣言）。
+//   - assertion テキストの原本は各 run の `eval_metadata.json`（run 時点の宣言）。
 //     `evals.json` から採ると、後から assertion を変えたときに過去の記録のテキストがずれる。
 //   - 判定（`grading.json`）はテキストをキーにして突き合わせる。**位置配列は受理しない。**
 //   - キー集合の不一致・件数の不一致・採点内訳と summary の食い違いは exit 2。
@@ -178,8 +179,8 @@ function verdictsFromGrading(grading, where) {
     map.set(text, { passed: verdict.passed, evidence });
   };
 
-  // **両方あるなら、どちらが正本か決められない。** `verdicts` を優先して `expectations` を
-  // 黙って無視すると、viewer が読む `expectations` と benchmark の判定が食い違ったまま通る。
+  // **両方あるなら、どちらが原本か決められない。** `verdicts` を優先して `expectations` を
+  // 警告なしに無視すると、viewer が読む `expectations` と benchmark の判定が食い違ったまま通る。
   if (grading.verdicts !== undefined && grading.expectations !== undefined) {
     die(`${where}: verdicts と expectations の両方がある（どちらが正本か決められない）`);
   }
@@ -218,7 +219,7 @@ function verdictsFromGrading(grading, where) {
  * **`withFileTypes` の `isDirectory()` を使わない。** リンク自体の型を見るので、ディレクトリを指す
  * シンボリックリンクに false を返し、`eval-*` がリンクだと**不明エントリとしても報告されずに**
  * 集計から消える（実測: exit 0 のまま eval が 1 つ減った）。`statSync` はリンクを辿るので
- * 「黙って捨てない」という設計目標と揃う。辿れないリンク（壊れている）は false のまま残し、
+ * 「警告なしに捨てない」という設計目標と揃う。辿れないリンク（リンク先が無いもの）は false のまま残し、
  * 呼び出し側の不明エントリ検査で報告させる。
  */
 function listDirs(parent, prefix) {
@@ -237,8 +238,8 @@ function listDirs(parent, prefix) {
 /**
  * `parent` 直下で `names` に含まれるのに**ディレクトリとして辿れない**エントリ名を返す。
  *
- * `listDirs` はこれを false で落とすだけなので、**呼び出し側がここで報告しないと黙って消える**
- * ——実測で、壊れたリンクの `eval-9` が警告も無く集計から外れて exit 0 になった。
+ * `listDirs` はこれを false で落とすだけなので、**呼び出し側がここで報告しないと警告なしに消える**。
+ * 実測では、リンク先が無い `eval-9` が警告も無く集計から外れ、exit 0 になった。
  * **「ディレクトリでない全エントリ」を返さない**——eval 直下には `eval_metadata.json` のような
  * ファイルが正当に在り、それを不明扱いにすると実データの iteration が落ちる（実測で踏んだ）。
  */
@@ -264,7 +265,7 @@ function loadRun(runDir, configuration, evalDir) {
   if (!Number.isInteger(evalId)) die(`${metaPath}: eval_id が整数でない`);
   // **ディレクトリ名と宣言を突き合わせる。** run 数の突き合わせはディレクトリ単位、集計の
   // キーは `eval_id` なので、食い違うと「eval-27 の run が 26 として数えられる」取り違えが
-  // 黙って通る（位置で対応づけて件数を誤ったのと同じクラス。Issue #421）。
+  // 警告なしに通る（位置で対応づけて件数を誤ったのと同じ種類の誤り。Issue #421）。
   // 形は `eval-<番号>` か `eval-<番号>-<注記>`（本リポの成果物に `eval-31-mutation-ownership` 等が
   // 4 件ある）。**形に合わない名前は突き合わせを飛ばさず落とす**——飛ばすと `eval-27b` や
   // `eval-1 copy` が eval として採り込まれ、eval_id の重複に気づけない。
@@ -330,7 +331,7 @@ function loadRun(runDir, configuration, evalDir) {
   // **保存値の桁に合わせて比べる。** `pass_rate` の小数桁は規約が定めていないので、採点者は
   // 0.56（= 5/9）のように 2〜3 桁で保存する（本リポの既存成果物に 10 件ある）。4 桁固定で
   // 比べると、内訳が正しい採点を「summary と食い違う」と誤報して落とす。
-  // 桁は 1〜4 に収める——0 桁（整数で保存）をそのまま使うと 1 と 0.6667 が同じに丸まって弁別が消える。
+  // 桁は 1〜4 に収める——0 桁（整数で保存）をそのまま使うと 1 と 0.6667 が同じに丸まり、区別できなくなる。
   const storedDigits = decimals(summary.pass_rate);
   const digits = Math.min(Math.max(storedDigits, 1), 4);
   if (round(computedRate, digits) !== round(summary.pass_rate, digits)) {
@@ -347,7 +348,7 @@ function loadRun(runDir, configuration, evalDir) {
   const tokens = timing.total_tokens;
   if (typeof tokens !== "number") die(`${timingPath}: total_tokens が数値でない`);
   // `metrics.json` が無いのは成果物が切り詰められた形なので落とす（20 件の旧 run が該当）。
-  // **キーが `null` なのは別の状態**——正規化器が「この executor では測れない」を明示した形
+  // **キーが `null` なのは別の状態**——正規化のスクリプトが「この executor では測れない」を明示した形
   // （`total_tool_calls` は 436 件中 235 件が null）。その場合だけ 0 として記録する。
   const metricsPath = join(runDir, "outputs", "metrics.json");
   if (!existsSync(metricsPath)) {
@@ -401,8 +402,8 @@ function runNumber(runDir) {
 function main() {
   const opts = parseArgs(process.argv.slice(2));
   const evalDirs = listDirs(opts.dir, "eval-");
-  // **iteration 直下の `eval-*` も「辿れないから消える」を作らない。** 壊れたリンクやファイルは
-  // `listDirs` が落とすだけなので、ここで報告して落とす（実測: 壊れたリンクの eval が無警告で消えた）。
+  // **iteration 直下の `eval-*` も「辿れないから消える」を作らない。** リンク先が無いリンクやファイルは
+  // `listDirs` が落とすだけなので、ここで報告して落とす（実測: リンク先が無い eval が無警告で消えた）。
   const badEvalEntries = readdirSync(opts.dir)
     .filter((name) => name.startsWith("eval-") && !evalDirs.includes(name))
     .sort();
@@ -415,7 +416,7 @@ function main() {
   if (evalDirs.length === 0)
     die(`${opts.dir}: eval-* ディレクトリが無い（対象 0 件を成功に倒さない）`);
 
-  // **実在する子ディレクトリを列挙して、知らない名前を黙って捨てない。** 既知の 2 名だけを
+  // **実在する子ディレクトリを列挙して、知らない名前を警告なしに捨てない。** 既知の 2 名だけを
   // `existsSync` で拾う形だと、`without-skill` のような 1 文字違いの成果物が誰にも告げられずに
   // 集計から消え、「片側だけの iteration」として exit 0 で通る（実測）。除外は人が明示する。
   const unknownDirs = [];
@@ -423,7 +424,8 @@ function main() {
     for (const name of listDirs(join(opts.dir, evalDir), "")) {
       if (!CONFIGURATIONS.includes(name)) unknownDirs.push(`${evalDir}/${name}`);
     }
-    // configuration が壊れたリンクだと `existsSync` が false になって黙って飛ばされ、
+    // configuration がリンク先の無いリンクだと、`existsSync` が false になって警告なしに飛ばされる。
+    // そして
     // 全 eval が同じ形なら「片側だけの iteration」として通る。**configuration 名のエントリが
     // 在るのにディレクトリとして辿れない**ものだけを不明扱いにする（他のファイルは正当）。
     for (const name of undirNamed(join(opts.dir, evalDir), CONFIGURATIONS)) {
@@ -448,7 +450,7 @@ function main() {
       presentByEval.get(evalDir).push(configuration);
       const runDirs = listDirs(configDir, "run-");
       if (runDirs.length === 0) die(`${configDir}: run-* ディレクトリが無い`);
-      // `run-` に一致しないディレクトリも同じく黙って落とさない（`run1` / `retry-run-2` 等）。
+      // `run-` に一致しないディレクトリも、同じく警告なしに落とさない（`run1` / `retry-run-2` 等）。
       const strayRuns = listDirs(configDir, "").filter((n) => !runDirs.includes(n));
       if (strayRuns.length > 0) {
         die(
@@ -460,7 +462,7 @@ function main() {
       for (const runDir of runDirs) {
         const abs = join(configDir, runDir);
         if (!existsSync(join(abs, "grading.json"))) {
-          // 汚染・`invalid_run` の run は `grading.json` を置かない運用。**黙って落とさない。**
+          // 汚染・`invalid_run` の run は `grading.json` を置かない運用。**警告なしに落とさない。**
           ungraded.push(abs);
           continue;
         }
@@ -483,7 +485,7 @@ function main() {
   }
   if (loaded.length === 0) die(`${opts.dir}: 採点済みの run が 1 件も無い`);
 
-  // executor / model が混ざった run を同じ母集団へ集計しない（iteration を分ける）。
+  // executor / model が混在する run を同じ母集団へ集計しない（iteration を分ける）。
   const executorKeys = new Set(
     loaded.map((r) =>
       JSON.stringify([
@@ -493,8 +495,8 @@ function main() {
       ]),
     ),
   );
-  // **「記録が無い」を「揃っている」に倒さない。** `timing.executor` を欠く run ばかりだと
-  // キーが全部 `[null,null,null]` になり、本当に混ざっていても size 1 で素通りする
+  // **「記録が無い」を「揃っている」として扱わない。** `timing.executor` を欠く run ばかりだと
+  // キーが全部 `[null,null,null]` になり、本当に混在していても size 1 で素通りする
   // （本リポの成果物にも executor を欠く run が 20 件ある）。名前は必須にする。
   const missingExecutor = loaded.filter((r) => !r.executor?.name).map((r) => r.runDir);
   if (missingExecutor.length > 0) {
@@ -510,9 +512,9 @@ function main() {
   }
   console.error(`executor（timing.json 実測）: ${[...executorKeys][0]}`);
 
-  // **configuration の欠落を「揃っている」に倒さない。** `perPair` には存在しない
-  // configuration のエントリが立たないので、片側だけの eval は run 数の突き合わせを素通りし、
-  // Delta が**eval 集合の違う母集団同士**の比較になる（with は 2 eval・without は 1 eval でも
+  // **configuration の欠落を「揃っている」として扱わない。** `perPair` には、存在しない
+  // configuration のエントリが立たない。そのため片側だけの eval は run 数の突き合わせを素通りする。
+  // すると Delta が**eval 集合の違う母集団同士**の比較になる（with は 2 eval・without は 1 eval でも、
   // `runs_per_configuration` は 1 のまま揃って見える）。iteration 全体が片側だけ（Delta を
   // 出さない）のは許すので、**eval 間で揃っているか**を見る。
   const shapes = new Map();
@@ -530,8 +532,8 @@ function main() {
   }
 
   // **採点済み 0 件の pair を 0 のまま捨てない。** `--ungraded skip` で片側の run が全部
-  // 未採点になった pair は `graded` が 0 になり、その 0 を集合から消すと run 数の突き合わせを
-  // 素通りする（ディレクトリは在るので上の configuration 検査も通る）。実測で、with_skill が
+  // 未採点になった pair は、`graded` が 0 になる。その 0 を集合から消すと、run 数の突き合わせを
+  // 素通りする（ディレクトリは在るので、上の configuration 検査も通る）。実測で、with_skill が
   // 2 eval・without_skill が 1 eval のまま `delta` が出た。除外の判断は人が下すので落とす。
   const emptyPairs = [...perPair].filter(([, n]) => n === 0).map(([k]) => k);
   if (emptyPairs.length > 0) {
@@ -550,9 +552,9 @@ function main() {
   }
   const runsPerConfiguration = [...counts][0];
 
-  // **同じ (eval_id, configuration, run_number) の run が 2 件あれば落とす。** 置き直した
-  // コピー（`eval-1` と `eval-1-retry` が同じ eval_id）や `run-1` / `run-01` の同居で、
-  // 片方の eval が 2 倍の重みで mean に入るのを防ぐ（成果物からは判別できない）。
+  // **同じ (eval_id, configuration, run_number) の run が 2 件あれば落とす。**
+  // 置き直したコピー（`eval-1` と `eval-1-retry` が同じ eval_id）や、`run-1` と `run-01` の同居がありうる。
+  // そのとき片方の eval が 2 倍の重みで mean に入るのを防ぐ（成果物からは判別できない）。
   const seenRuns = new Map();
   for (const r of loaded) {
     const key = `${r.run.eval_id}/${r.run.configuration}/run-${r.run.run_number}`;
@@ -565,10 +567,10 @@ function main() {
     seenRuns.set(key, r.runDir);
   }
 
-  // **同じ eval の run が同じ assertion 集合を採点していることを確かめる。** run の合間に
-  // `evals.json` を編集すると、各 run は自分の宣言と整合したまま assertion 数が変わり、
-  // `pass_rate` の分母が run 間で違う（mean / stddev / delta が別の採点基準の混合平均になる）。
-  // eval_id とディレクトリ名・executor の混在と同じ「母集団を混ぜない」検査。
+  // **同じ eval の run が同じ assertion 集合を採点していることを確かめる。**
+  // run の合間に `evals.json` を編集すると、各 run は自分の宣言と整合したまま assertion 数が変わる。
+  // すると `pass_rate` の分母が run 間で違い、mean / stddev / delta が別の採点基準の混合平均になる。
+  // eval_id とディレクトリ名・executor の混在と同じく、母集団を混在させないための検査。
   const assertionSets = new Map();
   for (const r of loaded) {
     const key = r.run.eval_id;

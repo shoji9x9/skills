@@ -3,7 +3,7 @@
 // 保留は「決まった（resolution あり）」と「済んだ（blocks の工程まで実施した）」が別の状態なのに、
 // resolution の有無だけで数えると、「方針は A。実施は後で」の回答で blocks の工程が行われないまま完了になる。
 //
-// 陽性コントロール（実施の記録・置き場・blocks 空の保留が exit 0）を置く——これが無いと「常に落とす」実装と区別できない。
+// 実施の記録・置き場・blocks が空の保留が exit 0 になることも確かめる。これが無いと「常に落とす」実装と区別できない。
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -101,7 +101,7 @@ test("陽性コントロール: 実施の記録・置き場・blocks 空の保�
   const r = run(["--file", "p.json"], work);
   expect(r.code).toBe(0);
   expect(r.json.counts.settled).toBe(3);
-  // 置き場へ回した保留は見えるように残す（黙って済んだ側に消さない）。
+  // 置き場へ回した保留は見えるように残す（警告なしに済んだ側へ移さない）。
   expect(r.json.tracked).toEqual([{ id: "pd-2", tracked_in: "#500" }]);
 });
 
