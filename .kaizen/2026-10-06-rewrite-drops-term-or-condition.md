@@ -2,7 +2,8 @@
 date: 2026-10-06
 type: doc
 priority: medium
-status: pending
+status: applied
+applied-to: [docs/writing-style.md]
 session: claude-code
 ---
 
