@@ -109,12 +109,15 @@ AI が書いた文章には、英語を直訳したような言い回し、日�
 
 規則 2・4・6・7・8 の一部は `scripts/gates/lint-prose.js` が textlint でチェックする（pre-commit と CI）。
 設定は `.textlintrc.json`、使わない語の一覧は `.textlint/words.json` に置く。
+Markdown に加えて、JavaScript・TypeScript・シェル・YAML のコメントもチェックする。
+コメントは日本語を含む段落だけを見て、文字列（利用者に表示するメッセージ）は見ない。メッセージは、書いた人とレビューする人が確かめる。
 
 - 書き換えがまだ済んでいないファイルは `scripts/gates/prose-lint-pending.json` に載っていて、指摘を数えない。
   ファイルを書き換えて指摘が 0 件になったら、一覧から外す。
 - 語を一覧に足すときは、言い換え先を `message` に、検出されることを確かめる文を `example` に書く。
   `scripts/gates/lint-prose.test.js` が全エントリの `example` で検出されることを確かめる。
 - 図の線のように字義どおりの意味で使う語は、その箇所だけ `<!-- textlint-disable -->` で除外する。
+  コメントでは、`textlint-disable` と `textlint-enable` だけを書いたコメントの行で囲む。
 
 規則 1・3・5・9 は機械では判定しきれない。書いた人とレビューする人が確かめる。
 

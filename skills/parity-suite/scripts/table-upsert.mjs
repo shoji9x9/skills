@@ -1,23 +1,23 @@
-// 大きな JSON 成果物（被覆表・反応の被覆表など）の配列へ、要素を 1 件ずつ足す・差し替える・消す・読む（正本）。
-// 正本は parity-suite にあり、スキルディレクトリ内から直接実行する（プロジェクトへコピーしない）。
+// 大きな JSON 成果物（網羅表・反応の網羅表など）の配列へ、要素を 1 件ずつ足す・差し替える・消す・読む（原本）。
+// 原本は parity-suite にあり、スキルディレクトリ内から直接実行する（プロジェクトへコピーしない）。
 //
-// なぜ要るか: 被覆表を Write で本文ごと書き直すと、書いた本文がそのままエージェントの文脈に積まれる。
+// なぜ要るか: 網羅表を Write で本文ごと書き直すと、書いた本文がそのままエージェントの文脈に積まれる。
 // 表は測るたびに 1 行ずつ育つので、書き直すたびに全文が積み増され、費用がターン数の 2 乗で増える。
 // 1 行ぶんの断片だけを渡して差し替え、読むときも 1 行だけを引けば、表の全文は文脈に載らない。
 //
 // 何をするか:
-//   upsert: --from の断片（1 要素）を、--key の値が一致する要素と差し替える。一致が無ければ末尾に足す
-//   remove: --match に一致する要素を消す
-//   get:    --match に一致する要素を 1 件だけ出力する
-//   keys:   配列の全要素の鍵を 1 行 1 件で出力する
+//   upsert: --from の断片（1 要素）を、--key の値が一致する要素と差し替える。一致が無ければ末尾に足す。
+//   remove: --match に一致する要素を消す。
+//   get:    --match に一致する要素を 1 件だけ出力する。
+//   keys:   配列の全要素の鍵を 1 行 1 件で出力する。
 //   書き換えたら最上位の conformance を消す——照合結果は表の内容に対する記録なので、書き換えた表に残すと
 //   照合し直していない表が照合済みに見える（照合スクリプトを通し直すまで未照合として扱わせる）
 //
-// 配列の指し方（--array）: "." 区切りのキー。配列の中の 1 要素を経由するときは name[field=value] で選ぶ
-//   例: operations / feedback_calls.call_sites / cells / components[id=grid].instances
+// 配列の指し方（--array）: "." 区切りのキー。配列の中の 1 要素を経由するときは name[field=value] で選ぶ。
+//   例: `operations` / `feedback_calls.call_sites` / `cells` / `components[id=grid].instances`
 //   選んだ要素が 0 件・複数件なら止める（先勝ちにしない）。value が "]" や '"' を含むなら JSON 文字列で書く（components[id="grid[mobile]"]）
 //
-// fail-closed: 鍵の欠落・空・型崩れ・既存要素の鍵の重複は書き込まずに止める（鍵が潰れて別の行を上書きしないため）。
+// 鍵の欠落・空・型の誤り・既存要素の鍵の重複があれば、書き込まずに止める（同じ鍵になった別の行を上書きしないため）。
 // 終了コード: 0 ＝ 成功、1 ＝ get / remove で一致する要素が無い、2 ＝ 使い方の誤り・ファイルや構造の不備。
 //
 // 決定論的: 乱数・現在時刻に依存しない。TypeScript 構文は使わない（型は JSDoc）。
@@ -163,7 +163,7 @@ function indexArray(arr, fields, spec) {
     const k = keyOf(e, fields);
     if (k === null) {
       throw new UsageError(
-        `${spec}[${i}] の鍵（${fields.join(", ")}）が欠けている・空・型崩れ（表を直してから使う）`,
+        `${spec}[${i}] の鍵（${fields.join(", ")}）が欠けている・空・型の誤り（表を直してから使う）`,
       );
     }
     if (index.has(k)) {
@@ -218,7 +218,7 @@ export function main(argv, deps = {}) {
       process.stderr.write(`error: ${a} に値が無い\n${usage}\n`);
       return 2;
     }
-    // 同じ引数を重ねると後勝ちで黙って別のファイル・配列・鍵を書き換えうるので、曖昧な呼び出しは止める
+    // 同じ引数を重ねると後勝ちで警告なしに別のファイル・配列・鍵を書き換えうるので、曖昧な呼び出しは止める
     if (Object.hasOwn(opts, a.slice(2))) {
       process.stderr.write(`error: ${a} が重複している\n${usage}\n`);
       return 2;
@@ -275,7 +275,7 @@ export function main(argv, deps = {}) {
     const key = keyOf(probe, fields);
     if (key === null) {
       throw new UsageError(
-        `${command === "upsert" ? "断片" : "--match"} の鍵（${fields.join(", ")}）が欠けている・空・型崩れ`,
+        `${command === "upsert" ? "断片" : "--match"} の鍵（${fields.join(", ")}）が欠けている・空・型の誤り`,
       );
     }
     const at = index.get(key);

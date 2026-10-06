@@ -576,6 +576,17 @@
       ]
     },
     {
+      "message": "「〜に倒す」は使わない。「〜として扱う」「〜と判定する」と書く（例: 合格に倒さない → 合格として扱わない）。",
+      "example": "値は空文字に倒せる。",
+      "tokens": [
+        {
+          "pos": "動詞",
+          "pos_detail_1": "自立",
+          "basic_form": "倒せる"
+        }
+      ]
+    },
+    {
       "term": "〜へ倒れる",
       "instead": "〜と判定されてしまう",
       "message": "「〜へ倒れる」は使わない。「〜と判定されてしまう」と書く。",
@@ -711,6 +722,21 @@
         },
         {
           "surface_form": "-"
+        },
+        {
+          "surface_form": ["closed", "open", "safe"]
+        }
+      ]
+    },
+    {
+      "message": "「fail-closed」「fail-open」「fail-safe」は使わない。「判定できないときは失敗として扱う」のように振る舞いを書く。",
+      "example": "この判定は fail closed とする。",
+      "tokens": [
+        {
+          "surface_form": "fail"
+        },
+        {
+          "surface_form": " "
         },
         {
           "surface_form": ["closed", "open", "safe"]

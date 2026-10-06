@@ -54,7 +54,9 @@ test.each(targets)("%s: ライブラリが無い場所で実行すると縮退�
   // 入力待ちで止まらないよう stdin を閉じ、引数なしで起動する。
   const { args = [], input = "" } = INVOCATION[name] ?? {};
   const r = spawnSync("bash", [name, ...args], { cwd: dir, encoding: "utf8", input });
-  expect(r.stderr).toMatch(new RegExp(`${name}: 共通ライブラリを読めないため縮退します`));
+  expect(r.stderr).toMatch(
+    new RegExp(`${name}: 共通ライブラリを読めないため、機能を減らして動きます`),
+  );
   rmSync(dir, { recursive: true, force: true });
 });
 
@@ -65,5 +67,5 @@ test.each(targets)("%s: 本番構成では縮退の警告を出さない（陰�
     encoding: "utf8",
     input,
   });
-  expect(r.stderr).not.toMatch(/共通ライブラリを読めないため縮退します/);
+  expect(r.stderr).not.toMatch(/共通ライブラリを読めないため、機能を減らして動きます/);
 });

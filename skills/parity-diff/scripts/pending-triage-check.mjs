@@ -1,51 +1,52 @@
-// 意図的差異の保留（intentional_diffs.pending）の棚卸しを数え直して収束条件を判定する（正本）。
-// 正本はこのスキル側にあり、実行時はスキルディレクトリ内から直接実行する
-// （プロジェクトへコピーしない。gh skill update の自動更新を効かせるため）。
+// 意図的差異の保留（intentional_diffs.pending）の棚卸しを数え直して、収束の条件を判定する（原本）。
+// 原本はこのスキルの中にあり、スキルのディレクトリから直接実行する。
+// プロジェクトへはコピーしない。gh skill update の自動更新を反映させるためである。
 //
-// 何をするか: registries.json の intentional_diffs.pending からこの機能の棚卸し対象を列挙し、
-// diff-metadata.json の intentional_diffs_pending の記録と突き合わせて、
-// 未棚卸し（対象なのに記録が無い）と不整合（移したと書いてあるのに移っていない等）を数える。
-// 宣言された件数は参照せず必ず数え直す（宣言値を信用すると、棚卸しをせずに件数だけ 0 と書けてしまう）。
+// registries.json の intentional_diffs.pending から、この機能の棚卸しの対象を列挙する。
+// それを diff-metadata.json の intentional_diffs_pending の記録と突き合わせ、
+// 未棚卸し（対象なのに記録が無い）と不整合（移したと書いてあるのに移っていない、など）を数える。
+// 宣言された件数は参照せず、必ず数え直す。宣言の値を信用すると、棚卸しをせずに件数だけ 0 と書けてしまう。
 //
-// 何をしないか: 分類の判断（keep / may_change のどちらへ移すか）は人間の仕事で、ここでは行わない。
-// 設定ファイルの書き換えもしない（pending から keep / may_change へ移すのは人間）。
+// 分類の判断（keep と may_change のどちらへ移すか）は人が行い、ここでは行わない。
+// 設定ファイルも書き換えない（pending から keep や may_change へ移すのは人である）。
 //
-// 棚卸しの対象は 3 群ある（正本は references/convergence.md「intentional_diffs.pending の棚卸し」）:
-//   - この機能に帰属する pending（slug 一致）
-//   - 機能に帰属しない pending（slug: cross-cutting）——閉じる工程を持たないので毎回提示する
-//   - 帰属不明の pending（素の文字列の旧形式 / slug 欠落）——黙って対象外にすると、
-//     いちばん古くから積んでいる保留だけが誰の目にも触れなくなる
+// 棚卸しの対象は次の 3 群である（references/convergence.md「intentional_diffs.pending の棚卸し」で定義する）。
+//   - この機能に帰属する pending（slug が一致する）
+//   - 機能に帰属しない pending（slug: cross-cutting）。閉じる工程を持たないので、毎回提示する
+//   - 帰属不明の pending（ただの文字列の旧形式、または slug の欠落）。警告なしに対象外にすると、
+//     いちばん古くから溜まっている保留だけが、誰の目にも触れなくなる
 //
-// fail-closed: intentional_diffs_pending キーが無いときは「旧成果物」として合格に倒さず未実施として落とす
-// （棚卸しは対象 0 件でも記録を要求する。0 件を無記録と同じ出力にしない）。
-// 「移した」と記録されたのに pending に残っている・移動先に見つからないものは不整合として落とす
+// intentional_diffs_pending のキーが無いときは「旧成果物」として合格にせず、未実施として失敗にする
+// （棚卸しは、対象が 0 件でも記録を求める。0 件と無記録を同じ出力にしない）。
+// 「移した」と記録されたのに pending に残っているものと、移動先に見つからないものは、不整合として失敗にする
 // （記録だけで通ると、棚卸しが「書けば通るチェックリスト」になる）。
-// 照合キー（item の文言）が pending 内で重複していたら、黙って先勝ちにせず不整合として落とす。
-// registries.json 側が読めない形（オブジェクトでない・intentional_diffs / pending が無い）のときも
-// 「対象 0 件で合格」に倒さず exit 2 で落とす（空集合に倒すと全件が黙って対象外になる）。
+// 照合キー（item の文言）が pending の中で重複していたら、警告なしに先のものを採らず、不整合として失敗にする。
+// registries.json が読めない形（オブジェクトでない、intentional_diffs や pending が無い）のときも、
+// 「対象 0 件で合格」とせず exit 2 で終わる（空集合として扱うと、全件が警告なしに対象外になる）。
 //
-// 決定論的: 乱数・現在時刻に依存しない。入力順を保って数える。
-// TypeScript 構文は使わない（型は JSDoc）。
+// 乱数と現在時刻に依存しない。入力の順を保って数える。
+// TypeScript の構文は使わない（型は JSDoc で書く）。
 
 import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 /**
- * ツールのバージョン（正本）。判定ロジック・出力形状を変えたら上げる。
+ * ツールのバージョン（原本）。判定の処理や出力の形を変えたら上げる。
  * diff-metadata.json の differ_versions.pending_triage_check に記録する値はこれを使う（手入力にしない）。
+ *
  * @type {string}
  */
 export const VERSION = "3";
 
-/** 機能に帰属しない追記を表す予約語（正本は replace-strategy の references/project-config.md）。 */
+/** 機能に帰属しない追記を表す予約語（replace-strategy の references/project-config.md で定義する）。 */
 export const CROSS_CUTTING = "cross-cutting";
 
 /**
  * slug に機能 slug を書けないスキル（追記は必ず CROSS_CUTTING）。
- * parity-component は部品 slug が機能 slug と別の名前空間なので、書かれると inScope がどの機能でも偽になり
- * 永久に棚卸しされない。replace-strategy は意図的差異レジストリを作る工程（setup の手順 8）が
- * 機能 slug の採番（同 手順 9）より前なので、追記の時点で書ける機能 slug がまだ無い。
- * 正本は replace-strategy の references/project-config.md「pending 要素の形」。
+ * parity-component では、部品の slug が機能の slug と別の名前空間にある。書かれると inScope がどの機能でも偽になり、
+ * いつまでも棚卸しされない。replace-strategy では、意図的差異レジストリを作る工程（setup の手順 8）が
+ * 機能の slug の採番（同じく手順 9）より前にあるので、追記する時点では書ける機能の slug がまだ無い。
+ * replace-strategy の references/project-config.md「pending 要素の形」で定義する。
  *
  * **この集合が変えるのは診断文言だけ**である。cross-cutting を強制しているのは FEATURE_SLUG_WRITERS に
  * 入っていないこと（= namespaceVerified が偽になる）であって、この集合は namespaceVerified の判定に入らない。
@@ -55,12 +56,13 @@ export const CROSS_CUTTING = "cross-cutting";
 const CROSS_CUTTING_ONLY_WRITERS = new Set(["parity-component", "replace-strategy"]);
 
 /**
- * slug に機能 slug を書けるスキル（正本は replace-strategy の references/project-config.md）。
- * 帰属を信用してよいのは書き手が読めていてこの集合にいるときだけで、書き手が読めない
- * （欠落・unknown・未知の名前）要素の slug は名前空間を確認できないため帰属不明として扱う。
- * 書き手を増やすときは、replace-strategy の references/project-config.md「pending 要素の形」の
- * added_by の一覧と、この集合か CROSS_CUTTING_ONLY_WRITERS のどちらか一方を同時に更新する
- * （一覧だけ増やすと、その書き手の追記が帰属不明へ倒れる）。
+ * slug に機能の slug を書けるスキル（replace-strategy の references/project-config.md で定義する）。
+ * 帰属を信用してよいのは、書き手が読めて、その書き手がこの集合にいるときだけである。
+ * 書き手が読めない（欠落・unknown・未知の名前）要素の slug は、名前空間を確認できないので帰属不明として扱う。
+ * 書き手を増やすときは、次の 2 つを同時に更新する。
+ * replace-strategy の references/project-config.md「pending 要素の形」の added_by の一覧と、
+ * この集合か CROSS_CUTTING_ONLY_WRITERS のどちらか一方である。
+ * 一覧だけを増やすと、その書き手の追記が帰属不明と判定されてしまう。
  */
 const FEATURE_SLUG_WRITERS = new Set(["golden-dataset", "parity-suite", "parity-replace"]);
 
@@ -71,14 +73,15 @@ const DISPOSITIONS = ["keep", "may_change", "carried_over"];
  * 意図的差異レジストリの 1 要素から照合に使う散文テキストを取り出す。
  *
  * `pending` は追記元（slug / added_by / added_at）を持つオブジェクト形式で書かれるため、
- * 照合キーは `item` である（要素の形の正本は replace-strategy の
- * references/project-config.md「`pending` 要素の形」）。素の文字列の要素も読む（旧形式）。
- * `item` が文字列でないオブジェクトは照合に使わない（fail-closed）。
+ * 照合のキーは `item` である（要素の形は replace-strategy の
+ * references/project-config.md「`pending` 要素の形」で定義する）。ただの文字列の要素も読む（旧形式）。
+ * `item` が文字列でないオブジェクトは照合に使わない。
  *
- * diff-normalize.mjs にも同じ関数がある。**同梱スクリプトは互いを import しない**——
- * シンボリックリンク経由の起動（`--preserve-symlinks-main`）では相対 import が
- * リンク先ではなくリンクの置き場所を基準に解決され、ERR_MODULE_NOT_FOUND で落ちる
- * （SKILL.md が案内する実行パスは常にリンク経由になる）。片方を直したらもう片方も直す。
+ * diff-normalize.mjs にも同じ関数がある。**同梱スクリプトは互いを import しない**。
+ * シンボリックリンクから起動する（`--preserve-symlinks-main`）と、相対 import が
+ * リンク先ではなくリンクの置き場所を基準に解決され、ERR_MODULE_NOT_FOUND で失敗する
+ * （SKILL.md が案内する実行パスは、常にリンクを通る）。片方を直したら、もう片方も直す。
+ *
  * @param {unknown} entry
  * @returns {string} 照合に使うテキスト（取り出せなければ空文字列）
  */
@@ -93,6 +96,7 @@ export function intentionalEntryText(entry) {
 
 /**
  * 空でない文字列か。
+ *
  * @param {unknown} v
  * @returns {boolean}
  */
@@ -103,6 +107,7 @@ function nonEmptyString(v) {
 /**
  * 照合キーの表記ゆれ（前後の空白・連続空白）だけを吸収する。
  * 大文字小文字は畳まない——散文の宣言は固有名を含み、畳むと別の宣言が同一視されうる。
+ *
  * @param {unknown} v
  * @returns {string}
  */
@@ -114,6 +119,7 @@ export function matchKey(v) {
 
 /**
  * プレーンオブジェクトか（配列・null を除く）。
+ *
  * @param {unknown} v
  * @returns {boolean}
  */
@@ -124,10 +130,11 @@ function isPlainObject(v) {
 /**
  * 機能インベントリ（`.replace/features.md`）から slug の集合を読む。
  *
- * slug は機能・横断 API・バッチ・その他 Issue で**同じ名前空間**を共有し（正本は replace-strategy の
- * `assets/features-template.md`）、いずれも 1 列目が `slug` の表に並ぶ。ここではその表だけを読む。
+ * slug は、機能・横断 API・バッチ・その他の Issue で**同じ名前空間**を共有する（replace-strategy の
+ * `assets/features-template.md` で定義する）。どれも 1 列目が `slug` の表に並ぶ。ここではその表だけを読む。
  * **slug 表が 1 つも無いファイルは読めなかったものとして null を返す**——空集合を返すと
  * 「インベントリに 1 件も無い」と区別が付かない。
+ *
  * @param {string} markdown
  * @returns {Set<string>|null}
  */
@@ -174,19 +181,21 @@ export function parseFeatureSlugs(markdown) {
 /**
  * registries.json の intentional_diffs.pending を正規化する。
  *
- * 素の文字列は旧形式として読むが帰属不明にする（slug: null）。
- * slug の名前空間を確認できない要素——書き手が読めない（added_by の欠落・unknown・未知の名前）、
- * または機能 slug を書けないスキル（CROSS_CUTTING_ONLY_WRITERS）が cross-cutting 以外を書いた——も、
- * どの機能の inScope にも入らないため帰属不明へ倒して全機能の対象にする。
- * オブジェクトは item / slug / added_by / added_at を検証し、欠けていれば不整合として数える
- * （帰属が読めない追記は棚卸しの対象を決められないため、黙って帰属不明へ倒さない）。
+ * ただの文字列は旧形式として読むが、帰属不明にする（slug: null）。
+ * slug の名前空間を確認できない要素も、どの機能の inScope にも入らないので、帰属不明として扱い、すべての機能の対象にする。
+ * 当たるのは、書き手が読めない要素（added_by の欠落・unknown・未知の名前）と、
+ * 機能の slug を書けないスキル（CROSS_CUTTING_ONLY_WRITERS）が cross-cutting 以外を書いた要素である。
+ * オブジェクトは item・slug・added_by・added_at を検証し、欠けていれば不整合として数える
+ * （帰属が読めない追記は棚卸しの対象を決められないので、警告なしに帰属不明として扱わない）。
  *
  * 不整合には、その要素の帰属（読めた slug。読めなければ null ＝帰属不明）を添えて返す。
- * 呼び出し側が「棚卸しの対象と同じ範囲」だけを終了コードへ入れるためで、
- * 別機能に帰属すると読めている要素の形の不備で、いま閉じたい機能を止めない
- * （その要素はその機能の棚卸しが落とす。slug を読めない要素——素の空文字列・文字列でもオブジェクトでもない要素・
- * slug が無い／空／文字列でない要素——は帰属不明として全機能の対象なので落ちる。
- * item が読めなくても slug が読めるなら、その slug の機能の棚卸しが落とす）。
+ * 呼び出し側が「棚卸しの対象と同じ範囲」だけを終了コードに入れるためである。
+ * 別の機能に帰属すると読めている要素の形の不備で、いま閉じたい機能を止めない。
+ * その要素は、その機能の棚卸しで失敗にする。
+ * slug を読めない要素は帰属不明として全機能の対象になるので、どの機能でも失敗にする。
+ * 当たるのは、ただの空文字列、文字列でもオブジェクトでもない要素、slug が無い・空・文字列でない要素である。
+ * item が読めなくても slug が読めるなら、その slug の機能の棚卸しで失敗にする。
+ *
  * @param {unknown[]} entries
  * @param {Set<string>|null} knownSlugs 機能インベントリの slug 集合（読めなければ null ＝何も検証できない）
  * @returns {{ items: {key:string, slug:(string|null), index:number}[], problems: string[], issues: {index:number, slug:(string|null), message:string}[] }}
@@ -214,7 +223,7 @@ export function normalizePending(entries, knownSlugs = null) {
       issues.push({
         index,
         slug: null,
-        message: `intentional_diffs.pending[${index}]: 文字列でもオブジェクトでもない（要素の形の正本は replace-strategy の references/project-config.md「pending 要素の形」）`,
+        message: `intentional_diffs.pending[${index}]: 文字列でもオブジェクトでもない（要素の形は replace-strategy の references/project-config.md「pending 要素の形」で定義する）`,
       });
       return;
     }
@@ -258,7 +267,7 @@ export function normalizePending(entries, knownSlugs = null) {
       });
     }
     if (rec.slug === undefined) {
-      // slug 欠落は帰属不明として扱い、どの機能の棚卸しでも提示する（黙って対象外にしない）。
+      // slug の欠落は帰属不明として扱い、どの機能の棚卸しでも提示する（警告なしに対象外にしない）。
       issues.push({
         index,
         slug: null,
@@ -277,8 +286,8 @@ export function normalizePending(entries, knownSlugs = null) {
       return;
     }
     const entrySlug = String(rec.slug).trim();
-    // 名前空間を確認できない slug は、どの機能の inScope にも入らず永久に棚卸しされない。
-    // 帰属不明（slug: null）へ倒して全機能の対象にする（合格に倒さない）。
+    // 名前空間を確認できない slug は、どの機能の inScope にも入らず、いつまでも棚卸しされない。
+    // 帰属不明（slug: null）として扱い、すべての機能の対象にする（合格として扱わない）。
     if (!namespaceVerified) {
       let reason;
       if (writer !== null && CROSS_CUTTING_ONLY_WRITERS.has(writer)) {
@@ -305,6 +314,7 @@ export function normalizePending(entries, knownSlugs = null) {
 
 /**
  * 棚卸し対象か（この slug に帰属 / 横断 / 帰属不明）。
+ *
  * @param {{slug:(string|null)}} item
  * @param {string} slug
  * @returns {boolean}
@@ -315,6 +325,7 @@ function inScope(item, slug) {
 
 /**
  * registries.json の keep / may_change の照合キー集合を作る。
+ *
  * @param {unknown} registry
  * @param {'keep'|'may_change'} group
  * @returns {Set<string>}
@@ -336,11 +347,12 @@ function targetKeys(registry, group) {
 /**
  * 棚卸しの記録と設定ファイルの pending を突き合わせて数え直す。
  *
- * 不整合は壊れている場所で分けて返す——`registry_problems` は設定ファイルの登録簿
+ * 不整合は、不備のある場所で分けて返す。`registry_problems` は設定ファイルの登録簿
  * （`intentional_diffs.pending`）、`record_problems` は成果物の棚卸し記録
  * （`intentional_diffs_pending.entries`）。終了コードへ入れるのはこの 2 つと未棚卸しだけで、
  * 別機能に帰属すると読めている要素の形の不備は `out_of_scope_problems` として報告だけする
  * （棚卸しの対象範囲と終了コードの範囲を揃える。対象 0 件の機能が、無関係な要素で閉じられなくならないため）。
+ *
  * @param {unknown} registries registries.json の内容
  * @param {unknown} record diff-metadata.json の intentional_diffs_pending
  * @param {string} slug 対象機能の slug
@@ -444,8 +456,8 @@ export function countTriage(registries, record, slug, knownSlugs = null) {
       return;
     }
     const rec = /** @type {Record<string, unknown>} */ (entry);
-    // 文字列以外は matchKey で "[object Object]" 等へ潰れて照合キーに化けるため、型で弾く（registries 側の
-    // intentionalEntryText と同じ fail-closed。潰れたキーは pending と偶然一致・不一致を起こす）。
+    // 文字列以外は matchKey で "[object Object]" などに潰れ、誤って照合キーとして使われる。そのため型で弾く
+    // （registries の側の intentionalEntryText と同じ扱い。潰れたキーは、pending と偶然に一致や不一致を起こす）。
     const key = typeof rec.item === "string" ? matchKey(rec.item) : "";
     if (key === "") {
       addRecordProblem(`intentional_diffs_pending.entries[${index}]: item が空／文字列でない`);
@@ -571,6 +583,7 @@ export function countTriage(registries, record, slug, knownSlugs = null) {
 
 /**
  * CLI 本体。
+ *
  * @param {string[]} argv
  * @param {{ readFile?: (p:string)=>string }} deps
  * @returns {number} 終了コード
@@ -590,7 +603,7 @@ export function main(argv, deps = {}) {
         return 2;
       }
       if (opts[a.slice(2)] !== undefined) {
-        // 同じフラグの重複指定を黙って後勝ちにしない（どちらを読んだか出力から分からなくなる）。
+        // 同じフラグを重ねて指定したときに、警告なしに後のものを採らない（どちらを読んだかが出力から分からなくなる）。
         process.stderr.write(`error: ${a} が複数回指定されている\n${usage}`);
         return 2;
       }
@@ -606,7 +619,7 @@ export function main(argv, deps = {}) {
     return 2;
   }
 
-  // 機能インベントリ。渡されなければ何も検証できないので、別機能への緩和を適用しない（fail-closed）。
+  // 機能インベントリ。渡されなければ何も検証できないので、別の機能への緩和を当てない。
   /** @type {Set<string>|null} */
   let knownSlugs = null;
   if (opts.features) {
@@ -621,7 +634,7 @@ export function main(argv, deps = {}) {
     knownSlugs = parseFeatureSlugs(featuresText);
     if (knownSlugs === null) {
       // 読めたのに slug 表が無いのは、別のファイルを渡したか形式が変わったかのどちらか。
-      // 黙って fail-closed へ倒すと、緩和が効かない理由が出力から分からない。
+      // 警告なしに緩和を当てないと、緩和が当たらない理由が出力から分からない。
       process.stderr.write(
         `error: features.md に slug 列の表が無い（機能インベントリとして読めない）: ${opts.features}\n`,
       );
@@ -637,7 +650,7 @@ export function main(argv, deps = {}) {
     process.stderr.write(`error: registries.json を読めない: ${opts.registries}: ${String(e)}\n`);
     return 2;
   }
-  // 空集合に倒すと「対象 0 件で合格」になり、間違ったファイル・キー欠落の設定が黙って通る。
+  // 空集合として扱うと「対象 0 件で合格」になり、間違ったファイルやキーの欠けた設定が警告なしに通る。
   if (!isPlainObject(registries)) {
     process.stderr.write(`error: registries.json がオブジェクトでない: ${opts.registries}\n`);
     return 2;
@@ -669,7 +682,7 @@ export function main(argv, deps = {}) {
   }
   const meta = /** @type {Record<string, unknown>} */ (metadata);
   if (!nonEmptyString(meta.slug)) {
-    // slug が無いと棚卸しの対象を決められない。空集合に倒すと全件が黙って対象外になる。
+    // slug が無いと棚卸しの対象を決められない。空集合として扱うと、全件が警告なしに対象外になる。
     process.stderr.write(`error: diff-metadata.json に slug が無い: ${opts.metadata}\n`);
     return 2;
   }
@@ -677,12 +690,12 @@ export function main(argv, deps = {}) {
 
   const record = meta.intentional_diffs_pending;
   if (record === undefined) {
-    // 旧成果物として合格に倒さない（棚卸しは対象 0 件でも記録を要求する）。
+    // 旧成果物として合格にしない（棚卸しは、対象が 0 件でも記録を求める）。
     process.stdout.write(
       `${JSON.stringify({ tool: "pending-triage-check", version: VERSION, slug, recorded: false, in_scope: null, attributed: 0, cross_cutting: 0, unattributed: 0, resolved: 0, carried_over: 0, untriaged: null, problems: ["intentional_diffs_pending が無い（棚卸し未実施）"], registry_problems: [], record_problems: ["intentional_diffs_pending が無い（棚卸し未実施）"], out_of_scope_problems: [] }, null, 2)}\n`,
     );
     process.stderr.write(
-      `error: diff-metadata.json に intentional_diffs_pending が無い（棚卸し未実施）— 収束させず棚卸しを行う: ${opts.metadata}\n`,
+      `error: diff-metadata.json に intentional_diffs_pending が無い（棚卸し未実施）。収束させずに棚卸しする: ${opts.metadata}\n`,
     );
     return 1;
   }
@@ -693,16 +706,16 @@ export function main(argv, deps = {}) {
     return 2;
   }
   if (!Array.isArray(/** @type {Record<string, unknown>} */ (record).entries)) {
-    // 成果物の型崩れは「未棚卸し」(exit 1) と混ぜず、型崩れ・使い方の誤り (exit 2) に寄せる
-    // （両方を 1 で返すと、自動化が「棚卸しをやり直せば直る」と「成果物が壊れている」を区別できない）。
+    // 成果物の型の誤りは「未棚卸し」(exit 1) とまとめず、型の誤りや使い方の誤り (exit 2) として返す
+    // （両方を 1 で返すと、自動化が「棚卸しをやり直せば直る」と「成果物が不正」を区別できない）。
     process.stderr.write(
       `error: intentional_diffs_pending.entries が配列でない（棚卸しの記録が読めない）: ${opts.metadata}\n`,
     );
     return 2;
   }
 
-  // 対象機能の slug 自体がインベントリに無いなら、比較の基準が壊れている（綴り違いなら
-  // 全ての帰属が「別機能」に見え、対象 0 件で閉じられる）。合格に倒さず成果物の不整合として落とす。
+  // 対象の機能の slug そのものがインベントリに無いなら、比較の基準が誤っている（綴りが違えば、
+  // すべての帰属が「別の機能」に見え、対象 0 件で閉じられる）。合格にせず、成果物の不整合として失敗にする。
   if (knownSlugs !== null && !knownSlugs.has(slug)) {
     process.stderr.write(
       `error: 対象 slug が機能インベントリに無い（${slug}）: ${opts.features}\n`,
@@ -734,7 +747,7 @@ export function main(argv, deps = {}) {
     );
   }
   if (knownSlugs === null) {
-    // 緩和が効かない理由を出す（--features 無しは「別機能へ回す」判断ができない状態）。
+    // 緩和が当たらない理由を出す（--features が無いと、「別の機能へ回す」判断ができない）。
     process.stderr.write(
       "note: --features を渡していないので、別機能に帰属する要素の緩和を適用していない（slug の実在を確認できないため全件を対象にした）\n",
     );
@@ -745,7 +758,7 @@ export function main(argv, deps = {}) {
     );
   }
   if (counted.registry_problems.length > 0) {
-    // 壊れているのは設定ファイルの登録簿であって成果物ではない（直す場所を取り違えさせない）。
+    // 不備があるのは設定ファイルの登録簿で、成果物ではない（直す場所を取り違えさせない）。
     process.stderr.write(
       `error: 設定ファイルの登録簿の不整合（intentional_diffs.pending。上の warn を参照）— 収束させず直す: ${opts.registries}\n`,
     );
@@ -759,11 +772,11 @@ export function main(argv, deps = {}) {
   return ok ? 0 : 1;
 }
 
-// CLI エントリ判定は両辺を実パスに解決してから突き合わせる。
-// process.argv[1] は起動時のパスのまま、import.meta.url も --preserve-symlinks(-main)
-// （NODE_OPTIONS 経由でも付く）では未解決のままなので、片側だけ解決すると
-// シンボリックリンク経由（.claude/skills/<name> → .agents/skills/<name>）の起動で条件が偽になり、
-// main() が呼ばれず何も出力せず exit 0 になる（サイレント no-op）。
+// CLI として起動されたかは、両辺を実パスに解決してから比べる。
+// process.argv[1] は起動したときのパスのままである。--preserve-symlinks(-main) を付けると
+// （NODE_OPTIONS で付けた場合も）import.meta.url も解決されない。片側だけ解決すると、
+// シンボリックリンク（.claude/skills/<name> → .agents/skills/<name>）から起動したときに条件が偽になる。
+// すると main() が呼ばれず、何も出力せずに exit 0 で終わる。
 const invokedAsCli = (() => {
   const entry = process.argv[1];
   if (!entry) return false;
@@ -771,7 +784,7 @@ const invokedAsCli = (() => {
   try {
     return realpathSync(entry) === realpathSync(self);
   } catch {
-    // 実パス解決に失敗したら生パスで突き合わせる（サイレント no-op より誤検出を選ぶ）。
+    // 実パスに解決できなければ、そのままのパスで比べる（何もせずに終わるより、誤って起動するほうを選ぶ）。
     return entry === self;
   }
 })();

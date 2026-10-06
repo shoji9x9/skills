@@ -44,8 +44,8 @@
       "id": "LP-UNTRACKED",
       "why": "ignore されていない未追跡のファイルを見ない（新しく作った文書が commit 前に見られない）",
       "file": "scripts/gates/lint-prose.js",
-      "find": "\"--cached\", \"--others\", \"--exclude-standard\",",
-      "replace": "\"--cached\",",
+      "find": "\"--cached\", \"--others\", \"--exclude-standard\"]",
+      "replace": "\"--cached\"]",
       "occurrences": 1,
       "expect_failing": ["陽性: ignore されていない未追跡のファイルも見る"]
     },
@@ -53,8 +53,8 @@
       "id": "LP-ZERO",
       "why": "全体を見る実行で対象 0 件を合格として扱う",
       "file": "scripts/gates/lint-prose.js",
-      "find": "  if (whole && targets.length === 0) throw new Error(\"対象の Markdown が 0 件\");",
-      "replace": "  if (false) throw new Error(\"対象の Markdown が 0 件\");",
+      "find": "  if (whole && targets.length === 0) throw new Error(\"対象のファイルが 0 件\");",
+      "replace": "  if (false) throw new Error(\"対象のファイルが 0 件\");",
       "occurrences": 1,
       "expect_failing": [
         "全体: 対象が 0 件なら例外にする（何も見ていない実行を合格として扱わない）"
@@ -69,7 +69,8 @@
       "occurrences": 1,
       "expect_failing": [
         "陰性: 保留したファイルの指摘は数えない",
-        "陽性: 保留したファイルの指摘が 0 件になったら、一覧から外すよう求める"
+        "陽性: 保留したファイルの指摘が 0 件になったら、一覧から外すよう求める",
+        "陰性: コメントの指摘も、保留したファイルなら数えず、0 件になったら外すよう求める"
       ]
     },
     {
@@ -79,7 +80,10 @@
       "find": "      if (messages.length === 0)",
       "replace": "      if (false)",
       "occurrences": 1,
-      "expect_failing": ["陽性: 保留したファイルの指摘が 0 件になったら、一覧から外すよう求める"]
+      "expect_failing": [
+        "陽性: 保留したファイルの指摘が 0 件になったら、一覧から外すよう求める",
+        "陰性: コメントの指摘も、保留したファイルなら数えず、0 件になったら外すよう求める"
+      ]
     },
     {
       "id": "LP-GONE",
@@ -109,6 +113,109 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": ["保留の一覧がfiles が重複なら例外にする"]
+    },
+    {
+      "id": "LP-COMMENTS",
+      "why": "コメントを持つファイルを対象にしない（「陰性: 文字列の中…」は対象 0 件の例外で落ちる）",
+      "file": "scripts/gates/lint-prose.js",
+      "find": "  if (!rel.endsWith(\".md\") && !hasComments(rel)) return false;",
+      "replace": "  if (!rel.endsWith(\".md\")) return false;",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: コメントの指摘を、元のファイルの行と桁で報告する",
+        "陰性: 文字列の中の語と、日本語を含まないコメントは検出しない",
+        "コメントの textlint-disable で囲んだ箇所だけを除外する",
+        "文の長さの指摘に、Markdown の行番号を残さない",
+        "陰性: コメントの指摘も、保留したファイルなら数えず、0 件になったら外すよう求める",
+        "JSDoc のタグの行の指摘も、元の行の文章より前の桁を指さない",
+        "陽性: コメントを取り出せないシェルは、指摘として報告する",
+        "陽性: 保留したファイルでも、コメントを取り出せなければ報告する",
+        "shfmt が無ければ、ファイルの指摘にせず例外にし、main は保留の一覧を名指ししない exit 2"
+      ]
+    },
+    {
+      "id": "LP-COMMENT-LINE",
+      "why": "コメントの指摘の行を、元のファイルの行に戻さない",
+      "file": "scripts/gates/lint-prose.js",
+      "find": "    line: lines[m.line - 1] + 1,\n",
+      "replace": "    line: m.line,\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: コメントの指摘を、元のファイルの行と桁で報告する",
+        "コメントの textlint-disable で囲んだ箇所だけを除外する",
+        "文の長さの指摘に、Markdown の行番号を残さない",
+        "JSDoc のタグの行の指摘も、元の行の文章より前の桁を指さない"
+      ]
+    },
+    {
+      "id": "LP-COMMENT-COLUMN",
+      "why": "コメントの指摘の桁を、元のファイルの桁に戻さない",
+      "file": "scripts/gates/lint-prose.js",
+      "find": "    column: Math.max(starts[m.line - 1], columns[m.line - 1] + m.column),\n",
+      "replace": "    column: Math.max(starts[m.line - 1], m.column),\n",
+      "occurrences": 1,
+      "expect_failing": ["陽性: コメントの指摘を、元のファイルの行と桁で報告する"]
+    },
+    {
+      "id": "LP-LINE-NUMBER",
+      "why": "文の長さの指摘に Markdown の行番号を残す",
+      "file": "scripts/gates/lint-prose.js",
+      "find": "    message: m.message.replace(/^Line \\d+ /, \"\"),\n",
+      "replace": "    message: m.message,\n",
+      "occurrences": 1,
+      "expect_failing": ["文の長さの指摘に、Markdown の行番号を残さない"]
+    },
+    {
+      "id": "LP-COLUMN-CLAMP",
+      "why": "置き換えた JSDoc のタグの中の指摘が、行の文章より前の桁を指す",
+      "file": "scripts/gates/lint-prose.js",
+      "find": "    column: Math.max(starts[m.line - 1], columns[m.line - 1] + m.column),\n",
+      "replace": "    column: columns[m.line - 1] + m.column,\n",
+      "occurrences": 1,
+      "expect_failing": ["JSDoc のタグの行の指摘も、元の行の文章より前の桁を指さない"]
+    },
+    {
+      "id": "LP-PARSE-ERROR",
+      "why": "コメントを取り出せないファイルを指摘 0 件として通す",
+      "file": "scripts/gates/lint-prose.js",
+      "find": "    return [{ line: 1, column: 1, message: error.message, ruleId: PARSE_RULE }];",
+      "replace": "    return [];",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: コメントを取り出せないシェルは、指摘として報告する",
+        "陽性: 保留したファイルでも、コメントを取り出せなければ報告する"
+      ]
+    },
+    {
+      "id": "LP-PENDING-PARSE",
+      "why": "保留したファイルでは、コメントを取り出せないことを報告しない",
+      "file": "scripts/gates/lint-prose.js",
+      "find": "      for (const m of messages.filter((m) => m.ruleId === PARSE_RULE))\n",
+      "replace": "      for (const m of [])\n",
+      "occurrences": 1,
+      "expect_failing": ["陽性: 保留したファイルでも、コメントを取り出せなければ報告する"]
+    },
+    {
+      "id": "LP-MISSING-TOOL",
+      "why": "shfmt が無いことを、ファイルごとの指摘として扱う",
+      "file": "scripts/gates/lint-prose.js",
+      "find": "    if (error.missingTool) throw error;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "shfmt が無ければ、ファイルの指摘にせず例外にし、main は保留の一覧を名指ししない exit 2"
+      ]
+    },
+    {
+      "id": "LP-TOOL-MESSAGE",
+      "why": "shfmt が無いときも、保留の一覧のパスを添えて報告する",
+      "file": "scripts/gates/lint-prose.js",
+      "find": "    const where = error.missingTool ? \"\" : `（${resolve(PENDING_PATH)}）`;",
+      "replace": "    const where = `（${resolve(PENDING_PATH)}）`;",
+      "occurrences": 1,
+      "expect_failing": [
+        "shfmt が無ければ、ファイルの指摘にせず例外にし、main は保留の一覧を名指ししない exit 2"
+      ]
     }
   ]
 }

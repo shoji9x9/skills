@@ -8,17 +8,20 @@
 // | 軸                 | 値                                                                          |
 // | ------------------ | --------------------------------------------------------------------------- |
 // | 単語帳のエントリ   | 全エントリの example（検出される）/ 残すと決めた語・技術用語（検出されない）    |
-// | 文章の位置         | 本文 / インラインコード / コードブロック / frontmatter                         |
+// | 文章の位置         | 本文 / インラインコード / コードブロック / frontmatter / コメント / 文字列       |
+// | コメントの言語     | JavaScript / シェル / YAML（取り出し方の状態は scripts/lib/code-comments.test.js） |
 // | ファイルの場所     | 対象 / .agents/rules / private skill / スキルのコピー / .claude/ / .kaizen/ と archive / tests/ / シンボリックリンク / .md 以外 |
 // | 保留の一覧         | 在る / 無い / JSON でない / reason が空 / files が配列でない / 重複            |
 // | 保留したファイル   | 指摘あり / 指摘 0 件 / ファイルが無い                                         |
 // | 実行のしかた       | 全体（引数なし）/ ファイル指定（lefthook）/ 対象 0 件                          |
-import { beforeAll, describe, expect, test } from "vitest";
+import { beforeAll, describe, expect, test, vi } from "vitest";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import yaml from "js-yaml";
 import { PENDING_PATH, lintProse, loadPending, main } from "./lint-prose.js";
+import { COMMENT_EXTENSIONS } from "../lib/code-comments.js";
 import { makeSharedTempDir, makeTempDir } from "../lib/test-tmpdir.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -169,6 +172,117 @@ test("ファイル指定: 対象が 0 件でも失敗にしない（lefthook は
 test("全体: 対象が 0 件なら例外にする（何も見ていない実行を合格として扱わない）", async () => {
   const root = makeRepo({ "notes.txt": "x" });
   await expect(lintProse({ root })).rejects.toThrow("0 件");
+});
+
+// ---- コメント ----
+
+test("陽性: コメントの指摘を、元のファイルの行と桁で報告する", async () => {
+  const root = makeRepo({
+    "a.js": "const a = 1;\n// 一覧は正本である。\n",
+    "b.sh": "echo x\necho y # 一覧は正本である。\n",
+    "c.yml": "a: 1\n# 一覧は正本である。\n",
+  });
+  const { checked, violations } = await lintProse({ root });
+  expect(checked).toBe(3);
+  expect(violations.map((v) => v.split(" ")[0]).sort()).toEqual([
+    "a.js:2:7",
+    "b.sh:2:13",
+    "c.yml:2:6",
+  ]);
+});
+
+test("陰性: 文字列の中の語と、日本語を含まないコメントは検出しない", async () => {
+  const root = makeRepo({
+    "a.js":
+      'console.log("一覧は正本である。");\n// a, b, c, d, e, f: see https://example.com?x=1!\n',
+  });
+  expect((await lintProse({ root })).violations).toEqual([]);
+});
+
+test("コメントの textlint-disable で囲んだ箇所だけを除外する", async () => {
+  const src =
+    "// textlint-disable\n// 一覧は正本である。\n// textlint-enable\nconst a = 1;\n// 仕様は正本にある。\n";
+  const { violations } = await lintProse({ root: makeRepo({ "a.js": src }) });
+  expect(violations).toHaveLength(1);
+  expect(violations[0]).toMatch(/^a\.js:5:/);
+});
+
+test("JSDoc のタグの行の指摘も、元の行の文章より前の桁を指さない", async () => {
+  // 文の長さの指摘は文の先頭（囲んだタグの中）を指す。囲んだ分を戻しても、行の文章の先頭より前にしない。
+  const long = "ファイルを読んで中身を確かめてから結果を返す".repeat(8);
+  const root = makeRepo({ "a.js": `/**\n * @returns ${long}\n */\n` });
+  const lengths = (await lintProse({ root })).violations.filter((v) =>
+    v.includes("sentence-length"),
+  );
+  expect(lengths.map((v) => v.split(" ")[0])).toEqual(["a.js:2:4"]);
+});
+
+test("文の長さの指摘に、Markdown の行番号を残さない", async () => {
+  // 1 行目を空けて、Markdown の行番号（1）と元の行番号（3）をずらす。
+  const long = "ファイルを読んで中身を確かめてから結果を返す".repeat(8);
+  const root = makeRepo({ "a.js": `const a = 1;\n\n// ${long}。\n` });
+  const lengths = (await lintProse({ root })).violations.filter((v) =>
+    v.includes("sentence-length"),
+  );
+  expect(lengths).toHaveLength(1);
+  expect(lengths[0]).toMatch(/^a\.js:3:\d+ sentence length\(\d+\) exceeds/);
+});
+
+test("陰性: コメントの指摘も、保留したファイルなら数えず、0 件になったら外すよう求める", async () => {
+  const dirty = await lintProse({
+    root: makeRepo({ "a.js": "// 一覧は正本である。\n" }, ["a.js"]),
+  });
+  expect(dirty).toEqual({ checked: 1, pending: 1, violations: [], stale: [] });
+  const clean = await lintProse({ root: makeRepo({ "a.js": "// 一覧を確かめる。\n" }, ["a.js"]) });
+  expect(clean.stale).toEqual([`a.js: 指摘が 0 件になった。${PENDING_PATH} から外す`]);
+});
+
+test("陽性: コメントを取り出せないシェルは、指摘として報告する", async () => {
+  const { violations } = await lintProse({ root: makeRepo({ "a.sh": 'x="abc\n# 説明。\n' }) });
+  expect(violations).toHaveLength(1);
+  expect(violations[0]).toMatch(/^a\.sh:1:1 .*判定できない.*\(code-comments\)$/);
+});
+
+test("陽性: 保留したファイルでも、コメントを取り出せなければ報告する", async () => {
+  const { violations } = await lintProse({ root: makeRepo({ "a.sh": 'x="abc\n' }, ["a.sh"]) });
+  expect(violations).toHaveLength(1);
+  expect(violations[0]).toMatch(/^a\.sh:1:1 .*判定できない.*\(code-comments\)$/);
+});
+
+test("shfmt が無ければ、ファイルの指摘にせず例外にし、main は保留の一覧を名指ししない exit 2", async () => {
+  const root = makeRepo({ "a.sh": "# 説明。\n" });
+  // git は要るので、git へのリンクだけを置いたディレクトリを PATH にする（shfmt の置き場所に依らない）。
+  const bin = makeTempDir("git-only-");
+  const git = spawnSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).stdout.trim();
+  symlinkSync(git, join(bin, "git"));
+  const path = process.env.PATH;
+  const cwd = process.cwd();
+  const errors = [];
+  const spy = vi.spyOn(console, "error").mockImplementation((m) => errors.push(String(m)));
+  process.env.PATH = bin;
+  try {
+    await expect(lintProse({ root })).rejects.toThrow("shfmt を起動できない");
+    process.chdir(root);
+    expect(await main([])).toBe(2);
+  } finally {
+    process.env.PATH = path;
+    process.chdir(cwd);
+    spy.mockRestore();
+  }
+  expect(errors.join("\n")).toMatch(/^lint-prose: 実行できない: shfmt を起動できない/m);
+  expect(errors.join("\n")).not.toContain(PENDING_PATH);
+});
+
+test("lefthook の prose の glob は、Markdown とコメントを持つ拡張子に一致する", () => {
+  const jobs = yaml
+    .load(readFileSync(join(repoRoot, "lefthook.yml"), "utf8"))
+    ["pre-commit"].jobs.flatMap((j) => j.group?.jobs ?? [j]);
+  const glob = jobs.find((j) => j.name === "prose").glob;
+  const exts = glob
+    .match(/^\*\.\{(.+)\}$/)[1]
+    .split(",")
+    .map((e) => `.${e}`);
+  expect(exts.sort()).toEqual([".md", ...COMMENT_EXTENSIONS].sort());
 });
 
 // ---- 保留の一覧 ----

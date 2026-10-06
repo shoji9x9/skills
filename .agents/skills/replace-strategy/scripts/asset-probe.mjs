@@ -1,18 +1,18 @@
-// 移行元の静的資産の棚卸しプローブ（正本）。
+// 移行元の静的資産の棚卸しのプローブ。
 // 使い方: 下の `assetProbe` の関数リテラルを chrome-devtools MCP の evaluate_script の
 // function 引数にそのまま渡す（Node では実行しない。ブラウザの document を参照する）。
-// 使い方の正本は references/static-assets.md。
+// 使い方の原本は references/static-assets.md である。
 //
 // 測るもの: 現行画面が「実際に描いている」静的資産。img だけを見ると取りこぼすため、
 // 同じ走査で疑似要素（::before / ::after）の content と書体、background-image 等の url()、
 // document.fonts、@font-face の src、アイコンの link、読み込まれた資源を読む。
-// 画面に出ていない img（display: none 等）は rendered: false として残す——
+// 画面に出ていない img（display: none 等）は rendered: false として残す。
 // 「出ていないから描かない」と決める前に、同じ場所を疑似要素が描いていないかを突き合わせるため。
 // 決定論的: 乱数・時刻に依存せず、document 順に走査する（resources だけは読み込み順）。
 
 export const assetProbe = () => {
   // url() を取りうるプロパティ。allowlist なので、走査した一覧を urlPropsScanned で返して
-  // 「載っていないプロパティは見ていない」を台帳側で扱えるようにする（黙って落とさない）。
+  // 「載っていないプロパティは見ていない」を台帳側で扱えるようにする（警告なしに外さない）。
   const URL_PROPS = [
     "background-image",
     "list-style-image",
@@ -63,7 +63,7 @@ export const assetProbe = () => {
   // 計算後スタイルの url() は解決済みの絶対 URL で返るが、CSSOM の規則（@font-face の src 等）は書かれたままの相対 URL を返す。
   // 相対 URL の基準はそのスタイルシートの URL なので、規則から読むときは base にシートの href を渡す。
   // 同一文書内の断片参照（fill: url(#grad) 等）は外部資産ではない。base で解決すると文書自身の URL になり、
-  // 台帳に「現在の HTML を写すか」という行が生まれるので、外部参照と分けて返す。
+  // 台帳に「現在の HTML をコピーするか」という行が生まれるので、外部参照と分けて返す。
   // 判定は生の文字列の先頭 "#" ではなく解決後の URL で行う（./page.html#grad や絶対 URL でも同じ参照になる）。
   const docWithoutHash = (() => {
     const u = new URL(document.baseURI);
@@ -74,7 +74,7 @@ export const assetProbe = () => {
     const u = new URL(raw, base);
     const hash = u.hash;
     u.hash = "";
-    // 断片を持ち、断片以外が現在の文書と同じなら同一文書内参照（文書 URL は資産ではないので落とす）。
+    // 断片を持ち、断片以外が現在の文書と同じなら同じ文書の中の参照である（文書の URL は資産ではないので外す）。
     if (hash && u.href === docWithoutHash) return { url: hash, localFragment: true };
     return { url: new URL(raw, base).href, localFragment: false };
   };
@@ -127,7 +127,7 @@ export const assetProbe = () => {
   const glyphs = new Map();
 
   // open な shadow root の内側も走査する（querySelectorAll は shadow 境界を越えないため、
-  // Web Components が描く資産を黙って取りこぼす）。closed な shadow root は読めないので件数に出ない。
+  // Web Components が描く資産を警告なしに取りこぼす）。closed な shadow root は読めないので件数に出ない。
   const roots = [document];
   const allElements = [];
   for (let i = 0; i < roots.length; i += 1) {
@@ -272,7 +272,7 @@ export const assetProbe = () => {
     .filter((link) => /(^|\s)manifest(\s|$)/i.test(link.rel))
     .map((link) => ({ href: link.href, iconsInspected: false }));
 
-  // 拡張子は資産の十分条件でしかない（/assets/content?id=123 のような拡張子なしの配信がある）。
+  // 拡張子は資産の十分条件でしかない（`/assets/content?id=123` のような、拡張子の無い配信がある）。
   // 拡張子にも initiatorType にも当たらない取得は捨てず unclassified として残す。
   const ASSET_EXT = /\.(woff2?|ttf|otf|eot|png|jpe?g|gif|svg|webp|avif|ico|bmp|cur)(\?|#|$)/i;
   // initiatorType が資産だと言い切れるものだけを昇格させる。link / css はスタイルシート・スクリプトの

@@ -1,10 +1,14 @@
-// 構成図 SVG を headless Chrome で PNG にラスタライズし、目視確認用に出力する。
-// SVG は画像参照ツールで直接描画できないため、この PNG 化を挟む。エージェントは
-// 出力 PNG を画像として読み、references/conventions.md の確認観点で品質チェックする。
-//   node preview-diagram.mjs <env名 | SVGファイル名>   → 出力 PNG の絶対パスを表示
-//   例: node preview-diagram.mjs local
-//       node preview-diagram.mjs architecture-prod.svg
-// SVG の場所は render-diagram.mjs と同じ規則（DIAGRAM_DIR/out、DIAGRAM_OUT_DIR で上書き）。
+// 構成図の SVG を headless Chrome で PNG にラスタライズし、目視で確認するために出力する。
+// 画像を読むツールは SVG を直接描画できないので、PNG への変換を挟む。エージェントは
+// 出力した PNG を画像として読み、references/conventions.md の確認観点で品質をチェックする。
+//
+// 使い方は次のとおりである。出力した PNG の絶対パスを表示する。
+//
+//     node preview-diagram.mjs <env名 | SVGファイル名>
+//     node preview-diagram.mjs local
+//     node preview-diagram.mjs architecture-prod.svg
+//
+// SVG の場所は render-diagram.mjs と同じ規則で決める（DIAGRAM_DIR/out。DIAGRAM_OUT_DIR で上書きできる）。
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -64,11 +68,11 @@ const height = Math.round(Number(dimAttr("height") ?? vb?.[2] ?? 900));
 
 const work = mkdtempSync(join(tmpdir(), "diagram-preview-"));
 const out = join(tmpdir(), `${basename(svgPath, ".svg")}-preview.png`);
-// Chrome サンドボックスは既定で有効（ローカルの安全性を下げない）。root/コンテナ等
-// サンドボックスが使えない環境でだけ DIAGRAM_CHROME_NO_SANDBOX=1 で opt-in する。
+// Chrome のサンドボックスはデフォルトで有効にする（ローカルの安全性を下げない）。root やコンテナなど、
+// サンドボックスを使えない環境でだけ、DIAGRAM_CHROME_NO_SANDBOX=1 で無効にする。
 const noSandbox = process.env.DIAGRAM_CHROME_NO_SANDBOX === "1";
 // 応答が返らない（ハングする）ケースを検出可能な失敗に変える。DIAGRAM_CHROME_TIMEOUT_MS で調整。
-// 不正値（非数・0 以下）は既定へ倒す（NaN を渡すと timeout が無効になり元のハングへ戻るため）。
+// 不正な値（数でない・0 以下）はデフォルトの値として扱う（NaN を渡すと timeout が無効になり、元のハングに戻るため）。
 const timeoutEnv = Number(process.env.DIAGRAM_CHROME_TIMEOUT_MS);
 const timeoutMs = Number.isFinite(timeoutEnv) && timeoutEnv > 0 ? timeoutEnv : 120000;
 // work は preview.html 置き場。out（PNG）は tmpdir 直下なのでクリーンアップの影響を受けない。

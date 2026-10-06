@@ -1,27 +1,28 @@
-// 新側のコミットが変わった証跡を、ページの描画入力の差分で持ち越せるかを判定する（正本）。
+// 新側のコミットが変わった証跡を、ページの描画入力の差分で持ち越せるかを判定する（原本）。
 //
 // 何のためか: 証跡（diff-metadata.json の new.commit・component-comparison.json の new_implementation.commit）は
 // 新側リポジトリ全体のコミット SHA に結びついている。共通部品を 1 行直すと、その部品を使うかどうかに関わらず
 // 全ページの証跡が「古い」になる。ここでは SHA の不一致を即失効にせず、次を全部確かめられたときだけ持ち越す。
-//   1. そのページの描画に効くファイル（replace-metadata.json の new.render_inputs。git pathspec）の差分 D を取る
-//   2. D が空なら描画入力は変わっていない → 持ち越す
+//   1. そのページの描画に影響するファイル（replace-metadata.json の new.render_inputs。git pathspec）の差分 D を取る。
+//   2. D が空なら描画入力は変わっていないので、持ち越す。
 //   3. D の各ファイルが、evidence-carry.json の carries が指す変更宣言（parity-component の
-//      component-change.json）の files のどれかに含まれ、かつ記録の版から今の版までのそのファイルの変化が
-//      宣言した改修（commits.before → commits.after）の連鎖で説明できる（宣言の後に宣言外の編集が無い）
-//   4. 使った変更宣言ごとに component-impact.mjs の computeImpact をこの機能で再計算し、
-//      影響なし → 持ち越す／影響あり → amend-verify.mjs の記録が影響する組を全部覆い、全組 pass で、
-//      記録した入力画像の sha256 が今のファイルと一致する → 持ち越す／判定不能 → 落とす
+//      component-change.json）の files のどれかに含まれることを確かめる。
+//      加えて、記録の版から今の版までのそのファイルの変化が、宣言した改修（commits.before → commits.after）の
+//      連鎖で説明できることを確かめる（宣言の後に宣言外の編集が無い）。
+//   4. 使った変更宣言ごとに、component-impact.mjs の computeImpact をこの機能で再計算する。
+//      影響なしなら持ち越す。影響ありなら、amend-verify.mjs の記録が影響する組を全部覆い、全組が pass で、
+//      記録した入力画像の sha256 が今のファイルと一致するときだけ持ち越す。判定不能なら持ち越さない。
 //
 // 呼び出し元: artifact-health-check.mjs の checkStage と component-comparison-check.mjs の
-// comparison-implementation-stale。**2 つの検査器は同じ入力に同じ判定を出す**——どちらもこの関数だけで
+// comparison-implementation-stale。**2 つのチェックは同じ入力に同じ判定を出す**——どちらもこの関数だけで
 // 持ち越しを決め、独自の緩和を足さない。
 //
-// fail-closed: リポジトリが無い・git が失敗する・コミットが無い・変更宣言が読めない／不正・影響が判定不能・
-// amend-verify の記録が無い／読めない・組が覆われていない・pass でない・sha256 が一致しない、のどれも
-// 持ち越さない。render_inputs が無い・空のときだけは判定せず `legacy: true` を返し、呼び出し元は
-// 従来どおり SHA の不一致として落とす（後方互換。持ち越しは描画入力を宣言した記録にだけ効く）。
+// 次のどれに当たっても持ち越さない。リポジトリが無い・git が失敗する・コミットが無い・変更宣言が読めない／不正・
+// 影響が判定不能・amend-verify の記録が無い／読めない・組が覆われていない・pass でない・sha256 が一致しない。
+// render_inputs が無い・空のときだけは判定せず、`legacy: true` を返す。呼び出し元は従来どおり SHA の不一致として不合格にする
+// （後方互換。持ち越しは、描画入力を宣言した記録にだけ適用する）。
 //
-// パスの解決（正本）: evidence-carry.json の change / amend_verify と、amend-verify の記録の inputs.*.path は、
+// パスの解決（原本）: evidence-carry.json の change / amend_verify と、amend-verify の記録の inputs.*.path は、
 // 相対パスなら**プロジェクトルート（`.replace` の親ディレクトリ）**から解決する。amend-verify.mjs は
 // パスを与えられたまま記録するので、プロジェクトルートを作業ディレクトリにして実行する（amend-verify.mjs の
 // 冒頭の注記と対）。絶対パスはそのまま使う。
@@ -36,7 +37,7 @@ import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { computeImpact, validateChange } from "./component-impact.mjs";
 
 /**
- * ツールのバージョン（正本）。判定規則を変えたら上げる。
+ * ツールのバージョン（原本）。判定規則を変えたら上げる。
  * @type {string}
  */
 export const VERSION = "1";
@@ -52,7 +53,7 @@ const AMEND_VERIFY_TOOL = "amend-verify";
  * @type {string}
  */
 export const LEGACY_HINT =
-  "replace-metadata.json に new.render_inputs（ページの描画に効くファイルの git pathspec）が無いので、証跡を描画入力の差分で持ち越せない（部品の改修で持ち越すなら parity-replace で render_inputs を記録する）";
+  "replace-metadata.json に new.render_inputs（ページの描画に影響するファイルの git pathspec）が無いので、証跡を描画入力の差分で持ち越せない（部品の改修で持ち越すなら parity-replace で render_inputs を記録する）";
 
 /**
  * @param {unknown} v
@@ -71,7 +72,7 @@ function isPlainObject(v) {
 }
 
 /**
- * 既定の git 起動。stdin は閉じ、stdout を文字列で返す。失敗は例外（呼び出し側で fail-closed にする）。
+ * デフォルトの git の起動。stdin は閉じ、stdout を文字列で返す。失敗は例外にする（呼び出し側で、持ち越さないものとして扱う）。
  * @param {string} repo
  * @param {string[]} args
  * @returns {string}
@@ -197,9 +198,9 @@ function checkVerdict(entry) {
 /**
  * amend-verify の組の 3 つの入力が、それぞれの役割の採取物を指しているか。
  * 画像の sha256 は「そのパスのバイト」を認証するだけで、役割を認証しない（撮り直した新側を 3 つ全部に渡しても
- * 判定は合格し、ハッシュも一致する）。役割ごとに置き場所を固定して突き合わせる:
+ * 判定は合格し、ハッシュも一致する）。そこで、役割ごとに置き場所を固定して、次のように突き合わせる。
  * - new: `<stage>/baseline-new/<page>/<state>/<viewport>/screenshot.png`（撮り直した組そのもの）
- * - prev_new: `<stage>/pre-change/<change-id>/<page>/<state>/<viewport>/screenshot.png`（撮る前に写した改修前の新側）
+ * - prev_new: `<stage>/pre-change/<change-id>/<page>/<state>/<viewport>/screenshot.png`（撮り直す前に撮った改修前の新側）
  * - current: `<replaceRoot>/parity/<slug>/baseline/` の下（現側の基準。その下の並びは採取スペックが決める）
  * `<stage>` は evidence-carry.json のあるディレクトリ（new/<target>/）。
  * @param {Record<string, any>} entry
@@ -227,15 +228,15 @@ function checkProvenance(entry, pair, changeId, where) {
     return `inputs.new が撮り直した組の採取物（${expectedNew}）でない: ${at("new")}`;
   }
   if (at("prev_new") !== expectedPrev) {
-    return `inputs.prev_new が撮る前に写した改修前の新側（${expectedPrev}）でない: ${at("prev_new")}`;
+    return `inputs.prev_new が撮り直す前に撮った改修前の新側（${expectedPrev}）でない: ${at("prev_new")}`;
   }
   const current = at("current");
   if (current === null || !current.startsWith(where.currentRoot + sep)) {
     return `inputs.current が現側の基準（${where.currentRoot}${sep} の下）でない: ${current}`;
   }
-  // 現側の基準の並び（<page>/<state>/<viewport>/screenshot.png、<page>.<state>.<viewport>.png 等）は採取スペックが決めるので、
-  // 基準の下のパスを `/` と `.` で区切った語に、組の page / state / viewport が全部あることを求める（別の組の基準を渡した記録を弾く）
-  // 語の有無だけでは軸の入れ替え（hover/list/desktop）を通すので、page → state → viewport の順に現れることを求める
+  // 現側の基準の並び（<page>/<state>/<viewport>/screenshot.png、<page>.<state>.<viewport>.png など）は、採取スペックが決める。
+  // そこで、基準の下のパスを `/` と `.` で区切った語に、組の page / state / viewport が全部あることを求める（別の組の基準を渡した記録を弾く）。
+  // 語の有無だけでは軸の入れ替え（hover/list/desktop）を通すので、page → state → viewport の順に現れることを求める。
   const tokens = current.slice(where.currentRoot.length + 1).split(/[/\\.]/);
   let from = 0;
   const missing = [];
@@ -461,7 +462,7 @@ export function judgeCarry(input) {
     try {
       return { ok: true, value: JSON.parse(text) };
     } catch (e) {
-      return { ok: false, message: `${label} が JSON として壊れている: ${path}（${reasonOf(e)}）` };
+      return { ok: false, message: `${label} が JSON として不正: ${path}（${reasonOf(e)}）` };
     }
   };
 
@@ -487,7 +488,7 @@ export function judgeCarry(input) {
       value = JSON.parse(carryBytes.toString("utf8"));
     } catch (e) {
       return fail(
-        `${EVIDENCE_CARRY_FILE} が JSON として壊れている: ${input.evidenceCarryPath}（${reasonOf(e)}）`,
+        `${EVIDENCE_CARRY_FILE} が JSON として不正: ${input.evidenceCarryPath}（${reasonOf(e)}）`,
       );
     }
     if (!isPlainObject(value) || !Array.isArray(value.carries)) {
@@ -613,7 +614,7 @@ export function judgeCarry(input) {
   }
   // unmatched_instances の判定に使う全機能のページ（component-impact.mjs の --feature 実行と同じ扱い）。
   // 他の機能のページにある影響インスタンスを「どこにも一致しない」に数えない。読めない metadata は足さないだけ
-  // （一致しないインスタンスが残れば持ち越さない側へ倒れる）。
+  // （一致しないインスタンスが残れば、持ち越さないと判定される）。
   /** @type {unknown[]} */
   const pageUniverse = [featureMetadata];
   const parityDir = join(replaceRoot, "parity");
@@ -625,7 +626,7 @@ export function judgeCarry(input) {
       .map((entry) => entry.name)
       .sort();
   } catch {
-    // 読めなければこの機能のページだけで数える（一致しないものは落ちる側へ倒れる）。
+    // 読めなければこの機能のページだけで数える（一致しないものは、持ち越さないと判定される）。
   }
   for (const name of featureDirs) {
     if (name === input.featureSlug) continue;
@@ -635,7 +636,7 @@ export function judgeCarry(input) {
   for (const d of used) {
     const id = String(d.change.id);
     // 部品側の照合（宣言した範囲の外は差分ゼロ・範囲の中は現行と一致）が通っていない宣言は、
-    // 範囲の外にも効いている疑いがあるので、影響の計算そのものを根拠にできない
+    // 範囲の外にも影響している疑いがあるので、影響の計算そのものを根拠にできない
     const catalog = /** @type {Record<string, unknown>} */ (d.change.catalog_verification);
     if (catalog.outside_scope_identical !== true || catalog.inside_matches_current !== true) {
       findings.push(
@@ -671,12 +672,12 @@ export function judgeCarry(input) {
           .map((u) => `${u.id}（${u.page}）`)
           .join(
             ", ",
-          )}（path の書き方の食い違いを「影響なし」に倒さない。component-impact.mjs を全機能で回して確かめる）`,
+          )}（path の書き方の食い違いを「影響なし」として扱わない。component-impact.mjs を全機能で回して確かめる）`,
       );
       continue;
     }
     if (impact.unmatched_usages.length > 0) {
-      // usages も同じ理由で持ち越さない（綴り違いの usages は、使っているページを「影響なし」に倒す）
+      // usages も同じ理由で持ち越さない（綴り違いの usages は、使っているページを「影響なし」と判定させる）
       findings.push(
         `変更宣言 ${id} の usages がどの機能のページとも一致しない: ${impact.unmatched_usages.join(", ")}（component-impact.mjs を全機能で回して確かめる）`,
       );
@@ -731,7 +732,7 @@ export function judgeCarry(input) {
     }
     if (r.change_id !== id) {
       findings.push(
-        `amend-verify の記録の change_id（${JSON.stringify(r.change_id)}）が変更宣言 ${id} と違う（--change-id ${id} で取り直す）: ${recordPath}`,
+        `amend-verify の記録の change_id（${JSON.stringify(r.change_id)}）が変更宣言 ${id} と違う（--change-id ${id} で記録し直す）: ${recordPath}`,
       );
       continue;
     }

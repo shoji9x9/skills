@@ -221,7 +221,7 @@ describe("opt-in（schedule_enabled の既定は off）", () => {
       const { settings, stderr } = run(p, ["config"]);
       expect(settings.skip).toBe("true");
       expect(stderr).toContain("真偽値として読めない");
-      expect(stderr).toContain("既定 off へ倒す");
+      expect(stderr).toContain("既定 off として扱う");
       expect(settings.skip_reason).toContain("schedule_enabled=maybe");
     });
   });

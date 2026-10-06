@@ -1,40 +1,42 @@
-// 特性照合の差分に正規化レジストリを適用して機械分類する（正本）。
-// 正本はこのスキル側にあり、実行時はスキルディレクトリ内から直接実行する
-// （プロジェクトへコピーしない。gh skill update の自動更新を効かせるため）。
+// 特性照合の差分に正規化のレジストリを当てて、機械で分類する（原本）。
+// 原本はこのスキルの中にあり、スキルのディレクトリから直接実行する。
+// プロジェクトへはコピーしない。gh skill update の自動更新を反映させるためである。
 //
-// 何をするか: trait-compare.mjs の出力（Diff 配列）に、意図的差異レジストリ・コンポーネント系統差 T・
-// インスタンス例外・ノイズ基準値を機械的に当てて各 Diff を分類する。「LLM に判断させない部分」を担う。
-// LLM トリアージは、ここで unexplained / deviates_T / pending_review として残った候補だけを 1 件ずつ扱う。
+// trait-compare.mjs の出力（Diff の配列）に、意図的差異のレジストリ・コンポーネントの系統差 T・
+// インスタンスの例外・ノイズ基準値を機械的に当てて、各 Diff を分類する。「LLM に判断させない部分」を受け持つ。
+// LLM のトリアージは、ここで unexplained・deviates_T・pending_review として残った候補だけを 1 件ずつ扱う。
 //
-// 何をしないか: 差分の検出（trait-compare の仕事）・crop 生成（pixel-crops の仕事）・
-// 分類の主観判断（triage の仕事）は行わない。
+// 差分の検出（trait-compare が行う）・crop の生成（pixel-crops が行う）・
+// 主観による分類（triage が行う）は行わない。
 //
-// レジストリは YAML パーサを同梱しないため、キーを名前を変えずに集めた registries.json を受け取る
-// （intentional_diffs / component_diffs は設定ファイル由来、component_diff_exception_causes /
-// component_diff_exceptions は .replace/parity/<slug>/component-diff-exceptions.json 由来。
-// 組み立て方の正本は references/normalize.md「registries.json の組み立て」）。
+// YAML のパーサを同梱しないので、キーの名前を変えずに集めた registries.json を受け取る。
+// intentional_diffs と component_diffs は、設定ファイルから取る。
+// component_diff_exception_causes と component_diff_exceptions は、.replace/parity/<slug>/component-diff-exceptions.json から取る。
+// 組み立て方は references/normalize.md「registries.json の組み立て」で定義する。
 //
-// インスタンス例外は原因を causes 側に 1 回だけ持ち、インスタンスは cause（id）で参照する。
-// 参照や照合キーが揃わないインスタンスは fail-closed で照合に使わない（吸収されず unexplained として
-// 残る）。理由は「黙って吸収する」より「残す」ほうが安全側だから。
-// ただし黙って捨てもしない——fail-closed で照合に使わなかった例外は stderr の警告として出す
-// （diff.md の不整合の母数。条件の一覧は references/normalize.md が正本なのでここでは数を固定しない）。
+// インスタンスの例外は、原因を causes の側に 1 回だけ持ち、インスタンスは cause（id）で参照する。
+// 参照や照合のキーがそろわないインスタンスは、照合に使わない（吸収されず、unexplained として残る）。
+// 警告なしに吸収するより、残すほうが安全だからである。
+// ただし、警告なしに捨てもしない。照合に使わなかった例外は stderr に警告として出す
+// （diff.md の不整合の件数になる。条件の一覧は references/normalize.md で定義するので、ここでは数を固定しない）。
 //
-// 決定論的: 乱数・現在時刻に依存しない。入力順を保って分類する。
-// TypeScript 構文は使わない（型は JSDoc）。
+// 乱数と現在時刻に依存しない。入力の順を保って分類する。
+// TypeScript の構文は使わない（型は JSDoc で書く）。
 
 import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 /**
- * ツールのバージョン（正本）。分類ロジック・出力形状を変えたら上げる。
+ * ツールのバージョン（原本）。分類の処理や出力の形を変えたら上げる。
  * diff-metadata.json の differ_versions.diff_normalize に記録する値はこれを使う（手入力にしない）。
+ *
  * @type {string}
  */
 export const VERSION = "5";
 
 /**
  * CSS 値・ラベルの表記ゆれを吸収した正規化文字列を返す（単位そのものは残す）。
+ *
  * @param {unknown} v
  * @returns {string}
  */
@@ -49,14 +51,15 @@ export function normalizeValue(v) {
  * 意図的差異レジストリの 1 要素から照合に使う散文テキストを取り出す。
  *
  * `pending` は追記元（slug / added_by / added_at）を持つオブジェクト形式で書かれるため、
- * 照合キーは `item` である（要素の形の正本は replace-strategy の
- * references/project-config.md「`pending` 要素の形」）。素の文字列の要素も読む（旧形式）。
- * `item` が文字列でないオブジェクトは照合に使わない（fail-closed。`[object Object]` を
- * needle にすると意図しない一致・不一致が混ざる）。
+ * 照合のキーは `item` である（要素の形は replace-strategy の
+ * references/project-config.md「`pending` 要素の形」で定義する）。ただの文字列の要素も読む（旧形式）。
+ * `item` が文字列でないオブジェクトは照合に使わない。`[object Object]` を
+ * needle にすると、意図しない一致や不一致が含まれる。
  *
  * pending-triage-check.mjs にも同じ関数がある。**同梱スクリプトは互いを import しない**——
  * シンボリックリンク経由の起動（`--preserve-symlinks-main`）では相対 import が
  * リンクの置き場所を基準に解決され ERR_MODULE_NOT_FOUND で落ちるため。片方を直したらもう片方も直す。
+ *
  * @param {unknown} entry
  * @returns {string} 照合に使うテキスト（取り出せなければ空文字列）
  */
@@ -82,9 +85,10 @@ const INTENTIONAL_MATCH_KEYS = ["element", "property", "page", "state", "viewpor
  * 文全体を差分の `"<name> <prop>"` に含まれるかで照合すると、理由を添えた宣言は原理的に一度も当たらない。
  * そこで照合は `match` の構造（`element` / `property` は必須、`page` / `state` / `viewport` は任意）で行う。
  *
- * - `match` が無い要素は null（散文だけの宣言。文全体の包含で照合する旧来の経路へ回る）
- * - `match` があるのに形が壊れている要素は `{ invalid: <理由> }`（fail-closed。照合に使わず警告に出す——
- *   欠けたキーを「どれにでも合う」と読むと、1 件の宣言が全要素・全プロパティの差を吸収する）
+ * - `match` が無い要素は null を返す（散文だけの宣言。文全体が含まれるかで照合する旧来の処理に回る）
+ * - `match` があるのに形が不正な要素は `{ invalid: <理由> }` を返す。照合に使わず、警告に出す。
+ *   欠けたキーを「どれにでも合う」と読むと、1 件の宣言がすべての要素とプロパティの差を吸収してしまう
+ *
  * @param {unknown} entry
  * @returns {{ element:string, property:string, page?:string, state?:string, viewport?:string } | { invalid:string } | null}
  */
@@ -127,6 +131,7 @@ export function intentionalEntryMatch(entry) {
 
 /**
  * glob（`*` は任意個の文字、それ以外はリテラル）か完全一致で、正規化した文字列を照合する。
+ *
  * @param {unknown} pattern
  * @param {unknown} value
  * @returns {boolean}
@@ -145,6 +150,7 @@ function matchesGlob(pattern, value) {
  * それぞれ glob か完全一致で当てる。`page` / `state` / `viewport` は書いたときだけ実行の組（ctx）と
  * 完全一致で突き合わせ、ctx 側に無ければ不一致にする（どの組の差分か確かめられないまま吸収しない）。
  * `state` だけは両側でスキーマの既定値 `default` を補う。
+ *
  * @param {{ element:string, property:string, page?:string, state?:string, viewport?:string }} match
  * @param {{ name?:string, prop?:string }} diff
  * @param {{ page?:string, state?:string, viewport?:string }} ctx
@@ -165,12 +171,13 @@ export function matchesIntentionalKey(match, diff, ctx) {
  * 意図的差異レジストリの分類 3 群のどれに該当するかを返す。
  *
  * - **`match` を持つ要素**は構造で照合する（`matchesIntentionalKey`）。散文の `item` は照合に使わない
- * - **`match` を持たない要素**（素の文字列・`item` だけのオブジェクト）は、文全体が Diff の
- *   `"<name> <prop>"` に含まれるときだけ当たる（旧来の経路。短い宣言〈`"heading border-top-style"`〉は
- *   これで当たるので残すが、理由を添えた文は当たらない——`validateIntentionalDiffs` と CLI の警告で見えるようにする）
- * - `match` が壊れている要素は照合に使わない（fail-closed）
+ * - **`match` を持たない要素**（ただの文字列・`item` だけのオブジェクト）は、文全体が Diff の
+ *   `"<name> <prop>"` に含まれるときだけ当たる（旧来の処理）。短い宣言（`"heading border-top-style"`）は
+ *   これで当たるので残す。理由を添えた文は当たらないので、`validateIntentionalDiffs` と CLI の警告で見えるようにする
+ * - `match` が不正な要素は照合に使わない
  *
  * 最終判断は triage が担う（ここは機械的な粗フィルタ）。
+ *
  * @param {{ name?:string, prop?:string }} diff
  * @param {{ keep?:unknown[], may_change?:unknown[], pending?:unknown[] }} registry
  * @param {{ page?:string, state?:string, viewport?:string }} [ctx]
@@ -201,8 +208,9 @@ export function matchIntentional(diff, registry, ctx = {}) {
 }
 
 /**
- * 意図的差異レジストリの要素のうち、`match` が壊れていて照合に使えないものの理由を列挙する。
- * 黙って無効化すると、宣言側からは吸収されたのか掛からなかったのかが見えない。
+ * 意図的差異レジストリの要素のうち、`match` が不正で照合に使えないものの理由を列挙する。
+ * 警告なしに無効にすると、宣言した側からは、吸収されたのか当たらなかったのかが見えない。
+ *
  * @param {{ keep?:unknown[], may_change?:unknown[], pending?:unknown[] }} registry
  * @returns {string[]}
  */
@@ -225,8 +233,9 @@ export function validateIntentionalDiffs(registry) {
 
 /**
  * `match` に `page` / `viewport` を書いた宣言のうち、実行側にその軸が無いため当たりようがないものを数える。
- * 照合は fail-closed（実行側に無ければ当てない）なので、黙って 0 件にすると宣言の書き方の誤りと
- * 本物の未説明の差を区別できない。インスタンス例外の `--page` / `--viewport` 省略の警告と同じ扱いにする。
+ * 照合では、実行側に軸が無ければ当てない。そのため警告なしに 0 件にすると、宣言の書き方の誤りと
+ * 本物の未説明の差を区別できない。インスタンス例外で `--page` / `--viewport` を省いたときの警告と同じように扱う。
+ *
  * @param {{ keep?:unknown[], may_change?:unknown[], pending?:unknown[] }} registry
  * @param {{ page?:string, viewport?:string }} ctx
  * @returns {number}
@@ -254,6 +263,7 @@ export function countMatchesMissingCtx(registry, ctx) {
  * 散文の宣言は文全体の包含でしか照合されないため、理由を添えた文は原理的に当たらない。
  * 宣言の書き方の誤りと本物の未説明の差を区別できるよう、件数を呼び出し側（CLI）が stderr に出す。
  * 「当たった」は分類に使われた宣言（同じ差分に先に当たる宣言があれば、後ろの宣言は使われていない）。
+ *
  * @param {{ keep?:unknown[], may_change?:unknown[], pending?:unknown[] }} registry
  * @param {Array<{ name?:string, prop?:string }>} diffs
  * @param {{ page?:string, state?:string, viewport?:string }} ctx
@@ -281,6 +291,7 @@ export function countUnmatchedProseDeclarations(registry, diffs, ctx) {
 
 /**
  * 正規表現メタ文字を打ち消す（glob の `*` は呼び出し側で分割済みなのでここには来ない）。
+ *
  * @param {string} s
  * @returns {string}
  */
@@ -292,6 +303,7 @@ function escapeRegExp(s) {
  * Diff の論理名を照合候補へ分解する。
  * 幾何差分の name は trait-compare が `"A | B"` の対で出すため、両側を候補にする
  * （対の片側が T の対象要素なら掛ける。対の文字列そのものに一致させる書き方は要求しない）。
+ *
  * @param {unknown} name
  * @returns {string[]}
  */
@@ -305,13 +317,14 @@ function componentCandidates(name) {
  * T の `component` を Diff の論理名へ照合する。
  * `*` を含めば glob（`*` は任意個の文字）、含まなければ完全一致。
  *
- * `component` の欠落・空は「どの要素にも合う」ではなく不一致として扱う（fail-closed）。
- * T は slug 横断のレジストリなので、欠落を wildcard と読むと 1 件の宣言が全要素へ効き、
- * 別要素の本物の回帰を absorbed_T として黙って吸収する（収束条件を満たしてしまう）。
- * matchException が照合キーの欠落を不一致として扱うのと同じ規律。
+ * `component` の欠落と空は、「どの要素にも合う」ではなく不一致として扱う。
+ * T は slug をまたぐレジストリなので、欠落を wildcard と読むと 1 件の宣言がすべての要素に当たる。
+ * すると別の要素の本物の回帰を absorbed_T として警告なしに吸収し、収束の条件を満たしてしまう。
+ * matchException が照合キーの欠落を不一致として扱うのと同じ規律である。
  *
  * 論理名を持たない Diff（name が空）にも掛けない。特性照合の Diff は必ず論理名を持つため、
  * 名前が無い入力は照合キーを確かめられない＝不一致（unexplained として残る）。
+ *
  * @param {unknown} pattern - T の component
  * @param {unknown} name - Diff の name（論理名。幾何差分は "A | B"）
  * @returns {boolean}
@@ -328,9 +341,10 @@ export function matchesComponentPattern(pattern, name) {
 
 /**
  * コンポーネント系統差 T の宣言のうち、照合に使えないものの理由を列挙する。
- * `component` は照合キーなので、欠落した宣言は 1 件も掛からない——
- * 警告が無いと「黙って無効化された宣言」になり、宣言側からは吸収されたのか
- * 掛からなかったのかが見えない（fail-closed は落とすだけでなく見えるまで作る）。
+ * `component` は照合キーなので、欠落した宣言は 1 件も当たらない。
+ * 警告が無いと「警告なしに無効になった宣言」になり、宣言した側からは、吸収されたのか
+ * 当たらなかったのかが見えない。照合に使わないだけでなく、そのことが見えるようにする。
+ *
  * @param {Array<object>} componentDiffs
  * @returns {string[]} 問題の説明（空配列なら全件が照合に使える）
  */
@@ -357,6 +371,7 @@ export function validateComponentDiffs(componentDiffs) {
  * コンポーネント系統差 T との照合。要素（`component`）・`property`・値の 3 つで判定する。
  * `component` は Diff の論理名に対する完全一致 / glob であり、
  * 一致しない要素の差分には掛からない（別要素の回帰を吸収せず、別要素の差分を deviates_T へ格上げしない）。
+ *
  * @param {{ name?:string, prop?:string, expected?:string, actual?:string }} diff
  * @param {Array<{ component:string, property:string, current:string, new:string, reason?:string }>} componentDiffs
  * @returns {{ status:'absorbed_T'|'deviates_T', rule:object } | null}
@@ -381,8 +396,9 @@ export function matchComponentT(diff, componentDiffs) {
 
 /**
  * インスタンス例外の cause（id）を causes 配列へ解決する。
- * 解決できない・根拠（evidence）が空の原因は null を返し、呼び出し側は照合に使わない（fail-closed）。
+ * 解決できない原因と、根拠（evidence）が空の原因は null を返し、呼び出し側は照合に使わない。
  * 原因の文言をインスタンスへ複製させないための参照解決であり、照合キーには一切関与しない。
+ *
  * @param {object} ex - インスタンス例外
  * @param {Array<{ id?:string, reason?:string, evidence?:string }>} causes
  * @returns {{ id:string, reason:string, evidence:string } | null}
@@ -405,8 +421,9 @@ export function resolveExceptionCause(ex, causes) {
  * インスタンス例外の参照整合を検査して、照合に使えないものの理由を列挙する。
  * 「何も出ないこと」を合格根拠にせず、CLI は結果を stderr の警告として出す
  * （警告が出た例外は照合されていない＝候補は unexplained のまま残る）。
- * 検査するのは fail-closed の各条件（条件の一覧は references/normalize.md が正本）で、
- * これが diff-metadata.json の accepted_exceptions.unresolved の母数になる。
+ * 検査するのは、照合に使わない各条件である（条件の一覧は references/normalize.md で定義する）。
+ * これが diff-metadata.json の accepted_exceptions.unresolved の件数になる。
+ *
  * @param {Array<object>} exceptions
  * @param {Array<object>} causes
  * @param {string} [slug] - 対象 slug（ctx.slug）。渡すと slug 不一致も検出する
@@ -430,7 +447,7 @@ export function validateExceptions(exceptions, causes, slug) {
     }
     // 照合キーの欠落は「どの値にも合う」ではなく不一致（1 エントリで N 件を畳めないようにする）。
     // element も照合キー（論理名。無ければ "none" を書く）なので欠落を検出する——書き忘れると
-    // どの Diff にも合致せず、警告が無ければ「黙って無効化された例外」になる。
+    // どの Diff にも合致せず、警告が無ければ「警告なしに無効になった例外」になる。
     // state だけはスキーマに既定値 default があるので欠落を不足として数えない。
     const missingKeys = ["page", "viewport", "element"].filter((k) => !ex[k]);
     if (missingKeys.length > 0) {
@@ -456,20 +473,21 @@ export function validateExceptions(exceptions, causes, slug) {
  * インスタンス例外との照合。slug・page・state・viewport・element・property・値が合致するか。
  * slug はスキーマ上必須のため、欠落・不一致の例外は常に不一致として扱う
  * （書き忘れた例外が全 slug の差分を吸収しないための安全側）。
- * cause が解決できない例外も同じく不一致として扱う（fail-closed）。
+ * cause が解決できない例外も、同じように不一致として扱う。
  *
  * 照合キー（page / viewport）の欠落も不一致として扱う。欠落を「どの値にも合う」と
- * 読むと 1 エントリが N インスタンスを吸収でき、契約が禁じている「件数を畳まない」を
- * スキーマ側から破れてしまう（元の実装では別ページ・別状態の 2 件が警告なしで吸収された）。
+ * 読むと、1 エントリが N インスタンスを吸収できる。すると、取り決めで禁じている「件数を畳まない」が
+ * スキーマの側から破れてしまう（元の実装では、別のページと別の状態の 2 件が警告なしに吸収された）。
  * matchNoise が「行側の欠落は不一致として扱う」のと同じ規律で、
  * 「件数は検証の弱さのシグナル」を命名規約ではなくコードで守る。
  * state だけはスキーマの既定値 default を補う。
  *
  * element の "none" は「論理名が無い要素」を指すスキーマ値であって match-all ではない
- * （特性照合の Diff は必ず論理名を持つため、"none" の例外はこの経路では合致しない。
- * 画素経路の例外は本スキルが適用する）。
+ * 特性照合の Diff は必ず論理名を持つので、"none" の例外はこの処理では合致しない。
+ * 画素の比較の例外は、このスキルが当てる。
  *
  * 合致したら解決済みの原因を cause_reason / cause_evidence として添えて返す。
+ *
  * @param {{ name?:string, prop?:string, expected?:string, actual?:string }} diff
  * @param {Array<object>} exceptions
  * @param {{ slug:string, page?:string, state?:string, viewport?:string }} ctx
@@ -481,8 +499,8 @@ export function matchException(diff, exceptions, ctx, causes) {
   for (const ex of list) {
     if (!ex.slug || ex.slug !== ctx.slug) continue;
     // ctx 側の欠落も不一致にする。Diff は page / viewport を持たないので、ctx に無ければ
-    // 「どの page / viewport の候補か」を確かめる手段が無い——ここを「指定されたときだけ比較」に
-    // すると --page / --viewport を省いた実行で例外がページ・viewport を跨いで一致してしまう。
+    // 「どの page / viewport の候補か」を確かめる手段が無い。ここを「指定されたときだけ比較」にすると、
+    // --page / --viewport を省いた実行で、例外がページや viewport をまたいで一致してしまう。
     if (!ctx.page || ex.page !== ctx.page) continue;
     if (!ctx.viewport || ex.viewport !== ctx.viewport) continue;
     // state だけは両側にスキーマ既定値 default があるので、欠落を default として突き合わせる。
@@ -506,8 +524,9 @@ export function matchException(diff, exceptions, ctx, causes) {
 /**
  * ノイズ基準値から該当 page/state/viewport の行を引く（最初に合致した行）。
  * 吸収の判定はここでは行わない（applyNoiseBaseline が残余の件数と集計で比較する）。
- * noise_baseline は page × state × viewport の組で記録する契約のため、ctx で指定した軸は
+ * noise_baseline は page × state × viewport の組で記録する取り決めなので、ctx で指定した軸は
  * 行側の値と厳密に比較し、行側の欠落は不一致として扱う（別の組の基準値を誤適用しない）。
+ *
  * @param {Array<{ page?:string, state?:string, viewport?:string, trait_diffs?:number }>} noiseBaseline
  * @param {{ page?:string, state?:string, viewport?:string }} ctx
  * @returns {{ trait_diffs:number } | null}
@@ -526,9 +545,10 @@ export function matchNoise(noiseBaseline, ctx) {
 /**
  * レジストリで説明できなかった残余（unexplained）にノイズ基準値を集計で適用する。
  * 「新側との差分が基準値と同程度なら回帰ではない」の判定であり、個々の Diff 単位では
- * どれがノイズかを決められないため、残余の件数が基準値 trait_diffs 以下のときに限り
- * 全件を noise_candidate に落とす。超えていれば 1 件も吸収しない（実回帰を黙って
- * 吸収しないための安全側）。基準値の行が無い組は吸収しない。
+ * どれがノイズかを決められない。そのため、残余の件数が基準値 trait_diffs 以下のときに限り、
+ * 全件を noise_candidate にする。超えていれば 1 件も吸収しない（本物の回帰を警告なしに
+ * 吸収しないためである）。基準値の行が無い組は吸収しない。
+ *
  * @param {Array<{ classification:string, matched_rule:(object|string|null) }>} classified
  * @param {Array<object>} noiseBaseline
  * @param {{ page?:string, state?:string, viewport?:string }} ctx
@@ -553,6 +573,7 @@ export function applyNoiseBaseline(classified, noiseBaseline, ctx) {
 /**
  * 1 件の Diff を分類する。順序は intentional → T → exception → unexplained。
  * ノイズ基準値は個々の Diff ではなく残余へ集計で適用する（applyNoiseBaseline）。
+ *
  * @param {object} diff
  * @param {object} registries - { intentional_diffs, component_diffs, component_diff_exceptions, component_diff_exception_causes }
  * @param {{ slug:string, page?:string, state?:string, viewport?:string }} ctx
@@ -586,8 +607,11 @@ export function classifyDiff(diff, registries, ctx) {
 
 /**
  * CLI エントリ。
+ *
  * `node diff-normalize.mjs <trait-diffs.json> --registries <registries.json> --slug <slug> [--page <p> --state <s> --viewport <v>] [--noise <metadata.json>]`
+ *
  * unexplained / deviates_T / pending_review があれば exit 1、全て吸収なら exit 0、入力エラーは exit 2。
+ *
  * @param {string[]} argv - process.argv.slice(2)
  * @returns {number} exit code
  */
@@ -640,11 +664,11 @@ export function main(argv) {
     return 2;
   }
   const ctx = { slug: opts.slug, page: opts.page, state: opts.state, viewport: opts.viewport };
-  // match が壊れた意図的差異の宣言は照合に使わない。黙って無効化せず理由を出す。
+  // match が不正な意図的差異の宣言は照合に使わない。警告なしに無効にせず、理由を出す。
   for (const problem of validateIntentionalDiffs(registries.intentional_diffs)) {
     process.stderr.write(`warning: ${problem}\n`);
   }
-  // 照合キー（component）が欠けた T は 1 件も掛からない。黙って無効化せず理由を出す。
+  // 照合キー（component）が欠けた T は 1 件も当たらない。警告なしに無効にせず、理由を出す。
   for (const problem of validateComponentDiffs(registries.component_diffs)) {
     process.stderr.write(`warning: ${problem}\n`);
   }
@@ -657,8 +681,8 @@ export function main(argv) {
   )) {
     process.stderr.write(`warning: ${problem}\n`);
   }
-  // fail-closed は「落とす」だけでなく「見える」まで作る。--page / --viewport を省くと
-  // 照合キーを確かめられず例外は 1 件も適用されないので、黙って 0 件にせず理由を出す。
+  // 照合に使わないだけでなく、そのことが見えるようにする。--page / --viewport を省くと
+  // 照合キーを確かめられず、例外は 1 件も当たらない。警告なしに 0 件にせず、理由を出す。
   const exceptionCount = Array.isArray(registries.component_diff_exceptions)
     ? registries.component_diff_exceptions.length
     : 0;
@@ -706,11 +730,11 @@ export function main(argv) {
   return actionable ? 1 : 0;
 }
 
-// CLI エントリ判定は両辺を実パスに解決してから突き合わせる。
-// process.argv[1] は起動時のパスのまま、import.meta.url も --preserve-symlinks(-main)
-// （NODE_OPTIONS 経由でも付く）では未解決のままなので、片側だけ解決すると
-// シンボリックリンク経由（.claude/skills/<name> → .agents/skills/<name>）の起動で条件が偽になり、
-// main() が呼ばれず何も出力せず exit 0 になる（サイレント no-op）。
+// CLI として起動されたかは、両辺を実パスに解決してから比べる。
+// process.argv[1] は起動したときのパスのままである。--preserve-symlinks(-main) を付けると
+// （NODE_OPTIONS で付けた場合も）import.meta.url も解決されない。片側だけ解決すると、
+// シンボリックリンク（.claude/skills/<name> → .agents/skills/<name>）から起動したときに条件が偽になる。
+// すると main() が呼ばれず、何も出力せずに exit 0 で終わる。
 const invokedAsCli = (() => {
   const entry = process.argv[1];
   if (!entry) return false;
@@ -718,7 +742,7 @@ const invokedAsCli = (() => {
   try {
     return realpathSync(entry) === realpathSync(self);
   } catch {
-    // 実パス解決に失敗したら生パスで突き合わせる（サイレント no-op より誤検出を選ぶ）。
+    // 実パスに解決できなければ、そのままのパスで比べる（何もせずに終わるより、誤って起動するほうを選ぶ）。
     return entry === self;
   }
 })();

@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// 部品インスタンス間で「固定の軸」と「可変の軸」を決定論的に割り出す（正本）。
+// 部品インスタンス間で「固定の軸」と「可変の軸」を決定論的に割り出す（割り出しはこのツールで定義する）。
 //
-// 何のためか: 共通部品の引数（props）は「どこが可変か」を決めてから設計する。これをモデルの
-// 目視で決めると、現行に 6 種あるバリアントを 3 種で作る類の取りこぼしが、実装が終わってから
-// 人の目でしか出ない（実際の移行の 1 往復目で起きた）。同じ部品の複数インスタンスを採ってあれば、
+// 何のためか: 共通部品の引数（props）は、どこが可変かを決めてから設計する。これをモデルが目視で決めると、
+// 現行に 6 種あるバリアントを 3 種で作るような取りこぼしが起きる。その取りこぼしは、実装が終わってから
+// 人が見て初めて見つかる（実際の移行の 1 往復目で起きた）。同じ部品の複数インスタンスを採ってあれば、
 // **インスタンス間で値が割れた軸が可変、割れない軸が固定**であることは機械的に決まる。
-// 本ツールはその割り出しだけを行い、「どれを引数にするか」の判断は呼び出し側（人・エージェント）が行う。
+// このツールは割り出しだけを行い、どれを引数にするかは呼び出し側（人・エージェント）が判断する。
 //
 // 入力は採取物のマニフェスト（JSON）。特性は `parity-suite` の trait-capture.mjs が返す形
 // （computed / before / after / rect）をそのまま入れる。
@@ -17,15 +17,15 @@
 //     ]
 //   }
 //
-// fail-closed の方針:
-//   - インスタンスが 1 つしか無いと、固定と可変は原理的に区別できない。0 件の「可変軸なし」を
-//     返さず問題として落とす（「1 画面で測った結果を部品の値として固定しない」という
-//     parity-suite の被覆表と同じ理由）。
-//   - インスタンスごとに採った状態集合が違うときも落とす。片方にしか無い状態は
-//     「その状態では割れない」ではなく「測っていない」なので、固定側へ倒さない。
+// 判定できない入力は、失敗として扱う。
+//   - インスタンスが 1 つしか無いと、固定と可変は原理的に区別できない。そのため「可変軸なし」を
+//     0 件で返さず、問題として報告する（「1 画面で測った結果を部品の値として固定しない」という
+//     parity-suite の網羅表と同じ理由）。
+//   - インスタンスごとに採った状態の集合が違うときも、問題として報告する。片方にしか無い状態は
+//     「その状態では割れない」のではなく「測っていない」ので、固定として扱わない。
 //
 // 使い方: node axis-diff.mjs (<manifest.json> | --baseline <dir>) [--out <path>]
-//   採取物から起こす正本は `--baseline <部品の成果物ディレクトリ>`。metadata.json と
+//   採取物から組み立てるときは `--baseline <部品の成果物ディレクトリ>` を使う。metadata.json と
 //   baseline/<instance>/<state>/traits.json だけを入力に決定論的に組み立てるので、
 //   手で組んだマニフェストと採取物がずれることがない。
 
@@ -33,7 +33,7 @@ import { readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
-/** ツールのバージョン（正本）。出力スキーマを変えたら上げる。 */
+/** ツールのバージョン（このツールで定義する）。出力スキーマを変えたら上げる。 */
 export const VERSION = "2";
 
 // 状態名と軸名を 1 つのキーに畳むときの区切り。空白やスラッシュは軸名（`::before/content` 等）に
@@ -41,32 +41,33 @@ export const VERSION = "2";
 const SEPARATOR = String.fromCharCode(31);
 
 /**
- * 1 つの採取物（trait-capture.mjs の返り値の形）を「軸名 → 値」の平坦な表に畳む。
- * 畳むのは computed / before / after / rect だけ。`child_inline_styles`（trait-capture.mjs VERSION 3 以降）は
- * 照合に使わない診断材料なので**意図して読まない**（軸にすると子の書き方の違いが可変軸に化ける）。
- * `text_owners`（VERSION 5 以降）も読まない——行の数が文言やデータで変わるため、軸にすると
- * 一部インスタンスにしか無い軸として problems に落ちる。文字の持ち主の照合は build の trait-compare.mjs が担う。
- * `scroll`（VERSION 6 以降。スクロールする器の特性）も読まない——はみ出しの有無はインスタンスの実データの量で変わるので、
- * 軸にするとデータ量の違いが可変軸に化ける。器の照合は build の trait-compare.mjs が担う。
+ * 1 つの採取物（trait-capture.mjs の返り値の形）を「軸名 → 値」の平坦な表にまとめる。
+ * まとめるのは computed / before / after / rect だけである。
+ * `child_inline_styles`（trait-capture.mjs VERSION 3 以降）は照合に使わない診断用の情報なので、**意図して読まない**。
+ * 軸にすると、子の書き方の違いが誤って可変軸と判定される。
+ * `text_owners`（VERSION 5 以降）も読まない。行の数が文言やデータで変わるため、軸にすると
+ * 一部のインスタンスにしか無い軸として problems に入る。文字の持ち主の照合は build の trait-compare.mjs が行う。
+ * `scroll`（VERSION 6 以降。スクロールする要素の特性）も読まない。はみ出しの有無はインスタンスの実データの量で変わるので、
+ * 軸にするとデータ量の違いが誤って可変軸と判定される。スクロールする要素の照合は build の trait-compare.mjs が行う。
  * 擬似要素は content が無いと null で返るため、その不在自体を値として扱う
  * （片方のインスタンスだけ ::before で描いている、という差が可変軸として出る）。
  *
  * **`null`（測って不在）と キーの欠落（測っていない）を同一視しない。** 同一視すると、擬似要素を
- * 採らずに組んだマニフェストが `<present>: "false"` の固定軸として通り、本ツールが防ごうとしている
- * 「未測定が固定軸に化ける」経路そのものになる。欠落は軸ごと出さず、突き合わせの段で
- * 「一部インスタンスでしか採れていない軸」として problems に落とす（全インスタンスで欠落していれば
- * 軸が存在しないだけで、固定とは主張しない）。
+ * 採らずに組んだマニフェストが `<present>: "false"` の固定軸として通る。
+ * これは、このツールが防ごうとしている「未測定が誤って固定軸と判定される」ことそのものである。
+ * 欠落した軸は出さず、突き合わせの段で「一部のインスタンスでしか採れていない軸」として problems に入れる。
+ * 全インスタンスで欠落していれば、軸が存在しないだけなので、固定とは主張しない。
  * @param {{computed?: object, before?: object|null, after?: object|null, rect?: object}} traits
  * @returns {Record<string, string>}
  */
 export function flattenTraits(traits) {
-  // プロトタイプを持たない表にする。`{}` に `flat["__proto__"] = v` と書くと代入が黙って捨てられ、
+  // プロトタイプを持たない表にする。`{}` に `flat["__proto__"] = v` と書くと、代入が警告なしに無視され、
   // JSON 由来の `__proto__` キーが軸ごと消える（固定とも可変とも出ず、欠落の問題にもならない）。
   const flat = Object.create(null);
   for (const [property, value] of Object.entries(traits.computed || {})) flat[property] = value;
   for (const pseudo of ["before", "after"]) {
     const prefix = `::${pseudo}/`;
-    if (!Object.hasOwn(traits, pseudo)) continue; // 測っていない——固定側へ倒さず軸を出さない
+    if (!Object.hasOwn(traits, pseudo)) continue; // 測っていないので、固定として扱わず軸を出さない
     const captured = traits[pseudo];
     if (captured == null) {
       flat[`${prefix}<present>`] = "false";
@@ -91,7 +92,7 @@ export function flattenTraits(traits) {
 /**
  * 採取物のディレクトリ（`.replace/components/<slug>/`）からマニフェストを組み立てる。
  *
- * マニフェストを手で組む余地を残すと、`axes.json` が採取物と対応している保証が無くなる——
+ * マニフェストを手で組めると、`axes.json` が採取物と対応している保証が無くなる。
  * 古い軸や手で直した軸がそのまま `build` の引数設計へ渡り、しかも出力からは分からない。
  * 組み立ては `metadata.json`（インスタンス・状態・宣言済みの到達不能）と
  * `baseline/<instance>/<state>/traits.json` だけを入力にし、決定論的に行う。
@@ -125,7 +126,7 @@ export function assembleFromBaseline(dir) {
   };
   for (const st of states) segment(st, "capture.states[]");
   // 採取ツールのプロパティ集合（記録されていれば）。計算後スタイルのキーと突き合わせて、
-  // 集合外の軸名（空文字・typo）や採り漏れを diffAxes の problems に落とす。
+  // 集合の外の軸名（空文字・typo）や採り忘れを diffAxes の problems に入れる。
   const propertySet =
     meta && meta.capture && meta.capture.tools && meta.capture.tools.traits_property_set;
   return {
@@ -143,8 +144,8 @@ export function assembleFromBaseline(dir) {
       return {
         id,
         unreachable_states: inst.unreachable_states,
-        // 到達不能と宣言された状態は採取物が無いのが正しいので読みに行かない。
-        // 宣言の無い欠落は読みに行って失敗させる（採り忘れを黙って除外しない）。
+        // 到達不能と宣言された状態は、採取物が無いのが正しいので読みに行かない。
+        // 宣言の無い欠落は読みに行って失敗させる（採り忘れを警告なしに除外しない）。
         states: states
           .filter((st) => !unreachable.has(st))
           .map((st) => {
@@ -185,17 +186,17 @@ export function diffAxes(manifest) {
     problems.push(`id が重複している: ${[...new Set(duplicated)].join(", ")}`);
   }
 
-  // 状態集合の一致を先に確かめる。片方に無い状態を「割れない」に倒すと未測定が固定軸に化ける。
-  // 名前が不正な採取（null・非文字列・空文字）は**黙って捨てず問題として数える**。捨ててから
-  // 突き合わせると、全インスタンスの状態名が壊れている入力が「状態 0 件・軸 0 件・問題 0 件」に
-  // なり、1 件も測っていないのに ok: true を返す（このツールが防ごうとしている fail-open そのもの）。
+  // 状態の集合が一致するかを先に確かめる。片方に無い状態を「割れない」として扱うと、未測定が誤って固定軸と判定される。
+  // 名前が不正な採取（null・文字列でない・空文字）は、**警告なしに捨てず問題として数える**。捨ててから
+  // 突き合わせると、全インスタンスの状態名が不正な入力が「状態 0 件・軸 0 件・問題 0 件」になる。
+  // すると、1 件も測っていないのに ok: true を返す（このツールが防ごうとしている、判定できない入力を合格とする振る舞いそのもの）。
   const stateSets = instances.map((instance, i) => {
     const entries = Array.isArray(instance && instance.states) ? instance.states : [];
     const names = [];
     let invalid = 0;
     for (const entry of entries) {
       // 空白だけの名前も不正として弾く。`" "` は `!== ""` を通り、状態の和集合に入って
-      // 軸を作り ok: true に化ける（前後の空白も揺れの元なので同一視しない）。
+      // 軸を作り、誤って ok: true と判定される（前後の空白も揺れの元なので同一視しない）。
       if (
         entry &&
         typeof entry.state === "string" &&
@@ -213,15 +214,15 @@ export function diffAxes(manifest) {
     return names;
   });
   // 宣言された到達不能な状態（そのインスタンスでは作れない状態）は、欠落ではなく既知の除外として扱う。
-  // 宣言が無い欠落は採り忘れと区別できないので従来どおり問題にする（fail-closed は変えない）。
+  // 宣言が無い欠落は採り忘れと区別できないので、従来どおり問題にする（判定できない入力を失敗とする扱いは変えない）。
   const invalidUnreachable = [];
   const declaredUnreachable = instances.map((instance, i) => {
     const declared = instance && instance.unreachable_states;
     if (!Array.isArray(declared)) return new Set();
-    // 成果物の契約（metadata.json / references/instances.md）は `{ state, reason }` のオブジェクト形。
-    // **これは唯一の緩和経路**（欠落を比較対象から外す）なので、通す入力クラスを閉じた集合として
-    // 列挙する——`reason` を持つオブジェクト形だけを受理し、裸の文字列や理由の無い宣言は問題にする。
-    // 広く受けると、typo や理由なしの宣言でも欠落が `not_compared` として ok: true に化ける。
+    // 成果物の形（metadata.json / references/instances.md で定義する）は `{ state, reason }` のオブジェクトである。
+    // **欠落を比較対象から外す緩和は、ここにしか無い**。そのため、通す入力を閉じた集合として列挙する。
+    // `reason` を持つオブジェクトだけを受け付け、裸の文字列や理由の無い宣言は問題にする。
+    // 広く受けると、typo や理由なしの宣言でも、欠落が `not_compared` として扱われ、誤って ok: true と判定される。
     const names = new Set();
     for (const d of declared) {
       if (
@@ -240,13 +241,13 @@ export function diffAxes(manifest) {
   });
   for (const bad of invalidUnreachable) {
     problems.push(
-      `${ids[bad.instance] || `#${bad.instance}`}: unreachable_states の宣言が契約の形でない（{ state, reason } で reason は非空）`,
+      `${ids[bad.instance] || `#${bad.instance}`}: unreachable_states の宣言が仕様の形でない（{ state, reason } で reason は非空）`,
     );
   }
-  // 候補となる状態は「採れた状態 ∪ 契約の形で宣言された到達不能な状態」。
-  // 採取側の和集合だけで作ると、**全インスタンスで到達できない状態が候補から消える**——
-  // どのインスタンスにとっても「欠けている状態」でなくなるので not_compared に 1 件も残らず、
-  // 除外した組み合わせが成果物から追えない（宣言の typo も、突き合わせる候補が無いので誰も気付かない）。
+  // 候補となる状態は「採れた状態 ∪ 成果物の形で宣言された到達不能な状態」である。
+  // 採取した側の和集合だけで作ると、**全インスタンスで到達できない状態が候補から消える**。
+  // どのインスタンスにとっても「欠けている状態」でなくなるので、not_compared に 1 件も残らない。
+  // すると、除外した組み合わせを成果物から追えない（宣言の typo も、突き合わせる候補が無いので誰も気付かない）。
   const states = [
     ...new Set([...stateSets.flat(), ...declaredUnreachable.flatMap((d) => [...d])]),
   ].sort();
@@ -255,7 +256,7 @@ export function diffAxes(manifest) {
     problems.push("採取された状態が 1 つも無い——固定と可変を突き合わせる対象が無い");
   }
   // 全インスタンスが到達不能と宣言した状態は、比較の母集合が空になる。採取条件に載せるべきでない
-  // 状態か、状態名の typo のどちらかなので、除外として静かに通さない。
+  // 状態か、状態名の typo のどちらかなので、除外として警告なしに通さない。
   const unreachableEverywhere = states.filter(
     (st) =>
       !stateSets.some((set) => set.includes(st)) && declaredUnreachable.every((d) => d.has(st)),
@@ -266,8 +267,8 @@ export function diffAxes(manifest) {
     );
   }
 
-  // 実際に採れている状態を「到達できない」と宣言している矛盾を落とす。
-  // 母集合はこの宣言を引いて作るので、放置すると採取済みの基準が見本も照合も無いまま隠れる。
+  // 実際に採れている状態を「到達できない」と宣言している矛盾を、問題として報告する。
+  // 母集合はこの宣言を除いて作るので、放置すると、採取済みの基準が見本も照合も無いまま隠れる。
   declaredUnreachable.forEach((declared, i) => {
     const contradicted = [...declared].filter((st) => stateSets[i].includes(st));
     if (contradicted.length > 0) {
@@ -297,7 +298,7 @@ export function diffAxes(manifest) {
 
   // 採取ツールのプロパティ集合（`--baseline` では metadata.json の `capture.tools.traits_property_set`）。
   // 渡されたときだけ、計算後スタイルと擬似要素のキーがこの集合と一致することを求める。
-  // 集合そのものが壊れていたら突き合わせの根拠にならないので、黙って照合を飛ばさず問題にする。
+  // 集合そのものが不正なら突き合わせの根拠にならないので、照合を警告なしに飛ばさず問題にする。
   let propertySet = null;
   if (manifest && manifest.property_set !== undefined) {
     const declared = manifest.property_set;
@@ -308,7 +309,7 @@ export function diffAxes(manifest) {
       new Set(declared).size !== declared.length
     ) {
       problems.push(
-        "採取ツールのプロパティ集合（traits_property_set）が契約の形でない（重複の無い非空の文字列の配列）",
+        "採取ツールのプロパティ集合（traits_property_set）が仕様の形でない（重複の無い非空の文字列の配列）",
       );
     } else propertySet = new Set(declared);
   }
@@ -327,8 +328,8 @@ export function diffAxes(manifest) {
       // 有無だけが立つ採取が measured 2 を作って通る（本体のスタイルも幾何も測っていない）。
       // 数えた軸の**中身を問わない**条件は、退化形が新しく現れるたびに破られる。
       const missing = [];
-      // `typeof [] === "object"` なので配列を明示的に弾く。`computed: ["x"]` は numeric key を
-      // 軸として通ってしまい、壊れた採取物でも ok: true になりうる（どちらもレコード形が契約）。
+      // `typeof [] === "object"` なので、配列を明示的に弾く。`computed: ["x"]` は数値のキーを
+      // 軸として通してしまい、不正な採取物でも ok: true になりうる（どちらもレコードの形が仕様である）。
       const isRecord = (v) => Boolean(v) && typeof v === "object" && !Array.isArray(v);
       // 値の型まで見る。trait-capture.mjs は計算後スタイルを**非空の文字列**で返すので、
       // `{}` や `""` は採取物ではない。ここを通すと flattenTraits がそのまま軸の値にし、
@@ -366,24 +367,24 @@ export function diffAxes(manifest) {
         missing.push(...keyProblems(computed, "computed"));
       }
       // trait-capture.mjs は x / y / width / height を常に数値で返す。キーの有無だけを見ると
-      // `{ width: null }` のような壊れた採取が通り、軸を作って ok: true に化ける。
+      // `{ width: null }` のような不正な採取が通り、軸を作って、誤って ok: true と判定される。
       const rect = entry.traits.rect;
       const isFiniteNumber = (v) => typeof v === "number" && Number.isFinite(v);
       if (!isRecord(rect) || !isFiniteNumber(rect.width) || !isFiniteNumber(rect.height)) {
         missing.push("rect");
       } else if (Object.values(rect).some((v) => !isFiniteNumber(v))) {
-        // rect は flattenTraits が String() で文字列化するので、壊れた値も
-        // `"[object Object]"` という非空の文字列になって検証をすり抜ける。数値のまま見る。
+        // rect は flattenTraits が String() で文字列にするので、不正な値も
+        // `"[object Object]"` という空でない文字列になって検証を通ってしまう。数値のまま見る。
         missing.push("rect の値（有限の数値でないものがある）");
       } else if (Object.keys(rect).some((k) => !["x", "y", "width", "height"].includes(k))) {
         // trait-capture.mjs の rect は x / y / width / height だけ。それ以外のキー（空文字を含む）は
         // `rect/<キー>` の軸になるので、キーの側でも閉じた集合で受ける。
         missing.push("rect のキー（x / y / width / height 以外がある）");
       }
-      // 擬似要素は「測っていない（キーが無い）」「無い（null）」「在る（レコード）」の 3 値が契約。
-      // 形を見ずに flattenTraits へ渡すと、`before: "x"` が `::before/0 = "x"` という軸を、
-      // `after: []` が `::after/<present> = "true"` だけを作り、壊れた採取物が measured を稼いで
-      // ok: true に化ける（computed / rect と同じ fail-open で、擬似要素側だけが素通りしていた）。
+      // 擬似要素は「測っていない（キーが無い）」「無い（null）」「在る（レコード）」の 3 値が仕様である。
+      // 形を見ずに flattenTraits へ渡すと、`before: "x"` は `::before/0 = "x"` という軸を作る。
+      // `after: []` は `::after/<present> = "true"` だけを作る。こうして不正な採取物が measured を増やし、誤って ok: true と判定される。
+      // computed と rect には同じ検証があり、擬似要素の側だけが検証を通っていた。
       for (const pseudo of ["before", "after"]) {
         if (!Object.hasOwn(entry.traits, pseudo)) continue;
         const captured = entry.traits[pseudo];
@@ -441,8 +442,8 @@ export function diffAxes(manifest) {
     };
   }
   // 軸の割り出しは「全インスタンスで到達できる状態」だけを対象にする。あるインスタンスで作れない状態は
-  // 突き合わせる相手が居ないので、固定とも可変とも言えない（その組み合わせは照合の母集合からも
-  // 外れる——到達できないので基準が無く見本も作らない。正本は SKILL.md「比較の母集合」）。
+  // 突き合わせる相手がいないので、固定とも可変とも言えない（その組み合わせは照合の母集合からも
+  // 外れる。到達できないので基準が無く、見本も作らない。母集合は SKILL.md「比較の母集合」で定義する）。
   const comparableStates = new Set(
     states.filter((st) => instances.every((_, i) => stateSets[i].includes(st))),
   );
@@ -469,9 +470,9 @@ export function diffAxes(manifest) {
   }
 
   // 合格は「問題が無いこと」ではなく「測れたことの積極的な証拠」で定義する。
-  // problems の不在だけを見ると、退化した入力（インスタンス 1 件・状態名が全部不正・空の traits）が
-  // 「表が空 → 突き合わせる相手が無い → problems も空 → ok: true」で通る。実際このクラスの
-  // fail-open が 1 つのツールから 3 回出ている。個別の分岐を足し続けるのではなく式で閉じる。
+  // problems が無いことだけを見ると、退化した入力（インスタンス 1 件・状態名がすべて不正・空の traits）が
+  // 「表が空 → 突き合わせる相手が無い → problems も空 → ok: true」で通る。
+  // 実際、判定できない入力を合格とするこの種の誤りが、1 つのツールで 3 回起きた。個別の分岐を足し続けず、式で防ぐ。
   const measured = fixed.length + variable.length;
   if (measured === 0) {
     problems.push("突き合わせられた軸が 0 件——測れたことの証拠が無いので合格にしない");
@@ -493,10 +494,10 @@ export function diffAxes(manifest) {
 
 export function main(argv) {
   const args = argv.filter((a) => a !== "");
-  // 受け付けるオプションは `--out <path>` だけ。`--` で始まるトークンを一括で読み飛ばすと、
-  // `--otu=result.json` のような綴り違いや `--out=path` の等号形が黙って捨てられ、
-  // 成果物を作らないまま標準出力へ書いて exit 0 になる（--out が軸成果物を生む前提の工程が、
-  // ファイルが無いことに気付かないまま次へ進む）。知らないオプションは受理しない。
+  // 受け付けるオプションは `--out <path>` だけである。`--` で始まるトークンをまとめて読み飛ばすと、
+  // `--otu=result.json` のような綴りの誤りや `--out=path` の等号の形が、警告なしに無視される。
+  // すると、成果物を作らないまま標準出力へ書いて exit 0 になる。--out が軸の成果物を作る前提の工程は、
+  // ファイルが無いことに気付かないまま次へ進む。そのため、知らないオプションは受け付けない。
   const positionals = [];
   let baseline = null;
   let out = null;
@@ -570,16 +571,16 @@ export function main(argv) {
   for (const problem of result.problems) process.stderr.write(`warn: ${problem}\n`);
   if (!result.ok) {
     process.stderr.write(
-      `error: 軸の割り出しに ${result.problems.length} 件の問題——採取へ戻す（固定側へ倒さない）\n`,
+      `error: 軸の割り出しに ${result.problems.length} 件の問題——採取へ戻す（固定として扱わない）\n`,
     );
   }
   return result.ok ? 0 : 1;
 }
 
-// CLI エントリ判定は両辺を実パスに解決してから突き合わせる。
-// process.argv[1] は起動時のパスのまま、import.meta.url も --preserve-symlinks(-main) では
-// 未解決のままなので、片側だけ解決するとシンボリックリンク経由の起動で main() が呼ばれず
-// 何も出力せず exit 0 になる（サイレント no-op）。
+// CLI として起動されたかの判定は、両辺を実パスに解決してから突き合わせる。
+// process.argv[1] は起動時のパスのままである。import.meta.url も --preserve-symlinks(-main) では未解決のままである。
+// そのため、片側だけ解決すると、シンボリックリンク経由の起動で main() が呼ばれない。
+// 何も出力せず exit 0 になる（警告なしに何もしない）。
 const invokedAsCli = (() => {
   const entry = process.argv[1];
   if (!entry) return false;

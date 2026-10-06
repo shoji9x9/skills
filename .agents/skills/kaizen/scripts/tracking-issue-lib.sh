@@ -9,16 +9,16 @@
 # composite action へ括り出すと、下流リポジトリが本リポへの外部参照と SHA pin 更新を負い、
 # `gh skill install` が配る一式だけでは定期実行が成立しなくなる。
 #
-# 呼び出し規約:
-#   ISSUE_TITLE_PREFIX      照合する接頭辞（env。空・未設定は fail-closed で落とす）
-#   resolve_tracking_issues 照会して `numbers`（昇順の Issue 番号）/ `scanned` / `truncated` を設定する
+# 呼び出し方は次のとおりである。
+#   ISSUE_TITLE_PREFIX      照合する接頭辞（env）。空や未設定ならエラーで止める。
+#   resolve_tracking_issues 照会して `numbers`（昇順の Issue 番号）/ `scanned` / `truncated` を設定する。
 #   warn_if_truncated "<この分岐で出る害>"
-#                           打ち切っていたときだけ `::warning::` を出す（触った分岐だけで呼ぶ）
+#                           打ち切っていたときだけ `::warning::` を出す（触った分岐だけで呼ぶ）。
 #
 # shellcheck shell=bash
 
-# 取得上限は 1 箇所で決める。打ち切り判定の閾値と別リテラルにすると、片方だけ
-# 上げたときに誤警告（打ち切っていないのに鳴る）と検出漏れの両方が起きる。
+# 取得の上限は 1 か所で決める。打ち切りの判定の閾値を別のリテラルにすると、片方だけ
+# 上げたときに、誤った警告（打ち切っていないのに出る）と見逃しの両方が起きる。
 list_limit=100
 
 # 追跡 Issue は 1 本だけ。タイトルへ更新日が入るので完全一致では引けない。
@@ -27,21 +27,21 @@ list_limit=100
 # あることまで確かめる。空を受理するのは、日付を入れる前に作られた既存の追跡 Issue を
 # 引き継いでリネームするため。
 #
-# `gh issue list` の既定は 30 件までなので、open Issue の多いリポジトリでは
-# 既定のままだと取りこぼして毎週新しい Issue を作る。`--search` で母数を絞る。
-# `| head -n1` は使わない——書き手より先に読み手が閉じると pipefail が
-# 「見つからなかった」に化ける。タイトルは jq の `env` 経由で渡し、引用符や
-# 正規表現のメタ文字を含む値でも壊れないようにする（接頭辞側は文字列比較）。
+# `gh issue list` のデフォルトは 30 件までなので、open の Issue が多いリポジトリでは
+# デフォルトのままだと取りこぼし、毎週新しい Issue を作る。`--search` で母数を絞る。
+# `| head -n1` は使わない。書き手より先に読み手が閉じると、pipefail によって
+# 「見つからなかった」と誤って判定される。タイトルは jq の `env` で渡し、引用符や
+# 正規表現のメタ文字を含む値でも正しく照合できるようにする（接頭辞の側は文字列で比べる）。
 #
 # 走査件数は同じ呼び出しの中で `scanned=N` として先頭行に出す。件数を別の API で
 # 引き直すと、2 回の呼び出しの間に open 数が動いて判定と根拠がずれる。
 #
 # pagination-ok: --search が母数を絞る。フォールバックは --limit で母数を明示し、
-# 上限に張り付いたら警告する（打ち切りを成功へ倒さない）。
-# **`state` は返ってきた値で確かめる。** `--search` の `is:open` はインデックス側の
-# 評価なので、閉じた直後の Issue が open として返る（結果整合は偽陰性だけでなく
-# 偽陽性にも振れる）。素通りさせると closed な Issue にリネームとコメントを当て、
-# その週のレポートが閉じた Issue へ積まれる（`gh` はどちらも成功する）。
+# 上限に達したら警告する（打ち切りを成功として扱わない）。
+# **`state` は返ってきた値で確かめる。** `--search` の `is:open` はインデックスの側で
+# 評価するので、閉じた直後の Issue が open として返る（結果整合は、偽陰性だけでなく
+# 偽陽性も起こす）。確かめずに通すと、closed の Issue をリネームしてコメントを付け、
+# その週のレポートが閉じた Issue にたまる（`gh` はどちらも成功する）。
 find_tracking_issues() {
 	gh issue list --state open --limit "$list_limit" "$@" \
 		--json number,title,state \
@@ -58,9 +58,9 @@ find_tracking_issues() {
 # 先頭行の `scanned=N` と、それ以降の Issue 番号を分けて読む。
 #
 # **`scanned` が 10 進でなければ落とす。** 打ち切り判定 `[ "$scanned" -ge "$list_limit" ]` は
-# `if` の条件なので `set -e` が効かず、非数値だと bash が `integer expression expected` を出して
-# 非 0 を返したぶんが `truncated=false` として通過する（＝打ち切りを黙って成功へ倒す。実測）。
-# 判定の手前で入力を検証して fail-closed にする（接頭辞が空のときと同じ扱い）。
+# `if` の条件なので `set -e` が有効にならない。数値でないと bash が `integer expression expected` を出して
+# 0 以外を返し、それが `truncated=false` として通る（打ち切りを、警告なしに成功として扱う。実測）。
+# 判定の前に入力を確かめ、確かめられなければエラーで止める（接頭辞が空のときと同じ扱い）。
 read_matches() {
 	scanned=0
 	numbers=()
@@ -79,11 +79,11 @@ read_matches() {
 	esac
 }
 
-# **`gh` の失敗を「追跡 Issue が無い」へ倒さない。** `$( )` を**代入**に置けば
+# **`gh` の失敗を「追跡 Issue が無い」として扱わない。** `$( )` を**代入**に置けば
 # `set -e` が拾うが、**関数の引数**に置くとその終了コードは捨てられる（実測）。
-# 捨てると、secondary rate limit（403）や 5xx を踏んだ週に「0 件」と読んで
-# 既存 Issue を残したまま 2 本目を作り、run は緑で終わる。
-# 出力と終了コードを分けて受け、非 0 はここで落とす（fail-closed）。
+# 捨てると、secondary rate limit（403）や 5xx になった週に「0 件」と読んで、
+# 既存の Issue を残したまま 2 本目を作り、run は緑で終わる。
+# 出力と終了コードを分けて受け取り、0 以外ならここでエラーにする。
 query_tracking_issues() {
 	local out
 	if ! out="$(find_tracking_issues "$@")"; then
@@ -114,21 +114,21 @@ warn_if_truncated() {
 # （`warn_if_truncated`。何もしない分岐で鳴らすと、追跡 Issue が無い正常な定常状態で
 # 毎週ノイズが出る）。
 #
-# 追加の 1 往復が走るのは一致 0 件のとき——つまり追跡 Issue が無い期間の定常 run でも
-# 毎回走る。1 回の GET なので許容する。
+# 追加の 1 往復は一致が 0 件のときに実行される。つまり、追跡 Issue が無い期間の通常の run でも
+# 毎回実行される。1 回の GET なので許容する。
 resolve_tracking_issues() {
-	# **接頭辞が空なら gh を呼ぶ前に落とす。** 空のまま進むと `startswith("")` が全 open
-	# Issue に当たり、無関係な Issue をリネームして本文を上書きする。ワークフロー側の
-	# `env:` 宣言を落とす退行も、ここで落ちれば run ログに出る（以前は空の接頭辞のまま
-	# 緑で走った）。
+	# **接頭辞が空なら、gh を呼ぶ前にエラーにする。** 空のまま進むと `startswith("")` がすべての open の
+	# Issue に一致し、無関係な Issue をリネームして本文を上書きする。ワークフローの
+	# `env:` の宣言が消える退行も、ここでエラーになれば run のログに出る（以前は空の接頭辞のまま
+	# 緑で終わった）。
 	if [ -z "${ISSUE_TITLE_PREFIX:-}" ]; then
 		echo "ISSUE_TITLE_PREFIX が空。全 open Issue に当たるため追跡 Issue を触らずに落とす" >&2
 		return 1
 	fi
 
-	# **戻り値を捨てない。** `set -e` が効かない文脈（`if resolve_tracking_issues; then` や
-	# `|| ...` の左辺、別のシェル設定で source した配布先）では、照会が 403 で失敗しても
-	# 最後のコマンドの終了コードで 0 を返し、一致 0 件として新規作成へ倒れて 2 本目を立てる。
+	# **戻り値を捨てない。** `set -e` が有効にならない文脈がある（`if resolve_tracking_issues; then` や
+	# `|| ...` の左辺、別のシェルの設定で source した配布先）。そこでは、照会が 403 で失敗しても
+	# 最後のコマンドの終了コードで 0 を返し、一致 0 件として扱われて、新しく 2 本目を作る。
 	query_tracking_issues --search "$ISSUE_TITLE_PREFIX in:title" || return 1
 	# **どちらの照会が打ち切られても、窓の外に本物が残りうる。** 1 本の flag にまとめる。
 	# `scanned` は照会が返した件数であって接頭辞一致の件数ではない（接頭辞の判定は jq 側）

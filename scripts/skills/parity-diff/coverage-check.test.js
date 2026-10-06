@@ -583,7 +583,7 @@ test("id 欠落のインスタンスも同様に、その列ぶんのセルが�
 test("配列の被覆表・列挙要素・セル行は JSON オブジェクトでないとして弾く", () => {
   // 被覆表そのもの: 「components が空」等へすり替わらず、型崩れの問題文が返ること。
   const arr = countCoverage([], "order-list");
-  expect(arr.problems).toEqual(["被覆表が JSON オブジェクトではない"]);
+  expect(arr.problems).toEqual(["網羅表が JSON オブジェクトではない"]);
   expect(arr.unmeasured).toBe(1);
   // 列挙要素とセル行: 配列を混ぜても索引に入らず、未測定として数えられること。
   const mixed = countCoverage(
@@ -1003,7 +1003,7 @@ test("CLI: 未測定 0 でも不整合が残れば error 行を出して exit 1 
   const r = runCli(declared, { slug: "order-list", components: [], cells: [] });
   expect(r.status).toBe(1);
   expect(JSON.parse(r.stdout).unmeasured).toBe(0);
-  expect(r.stderr).toMatch(/error: 被覆表の不整合/);
+  expect(r.stderr).toMatch(/error: 網羅表の不整合/);
 });
 
 test("CLI: 型崩れの metadata.json は exit 2（後方互換の exit 0 に倒さない）", () => {
@@ -1054,7 +1054,7 @@ test("撮影状態の要約は現在の入力と結び付いていなければ�
   const edited = base();
   edited.components[0].items.push({ id: "追加された項目" });
   expect(countCoverageRaw(edited, "order-list", now).problems.join("\n")).toMatch(
-    /table_fingerprint が被覆表の内容と一致しない/,
+    /table_fingerprint が網羅表の内容と一致しない/,
   );
 
   // 撮影条件を書き換えたら落ちる（撮る状態を metadata から消した等）。

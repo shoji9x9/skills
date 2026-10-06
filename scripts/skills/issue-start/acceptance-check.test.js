@@ -223,7 +223,7 @@ test("文言の無い項目は黙って捨てず、Issue 側を直すよう落�
 test("本文と HTML を別の時点で取った・HTML が無い・形が違う入力は exit 2", () => {
   const edited = run({ issueHtml: htmlOf(RENDERED.bodyChecked.markdown) });
   expect(edited.code).toBe(2);
-  expect(edited.json.error).toContain("取り直す");
+  expect(edited.json.error).toContain("再取得する");
   expect(run({ issueHtml: { body: BODY } }).code).toBe(2);
   const work = makeTempDir("acceptance-check-");
   expect(main(["--issue", "i.json", "--table", "t.json"], { cwd: work, stderr: () => {} })).toBe(2);

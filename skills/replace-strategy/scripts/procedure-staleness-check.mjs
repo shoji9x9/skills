@@ -1,6 +1,6 @@
-// 手順・観点の軸を足した後に、それより前に閉じた（特性化を終えた）機能を「旧手順のまま」として列挙する検査（正本）。
-// 正本はこのスキル側にあり、実行時はスキルディレクトリ内から直接実行する
-// （プロジェクトへコピーしない。gh skill update の自動更新を効かせるため）。
+// 手順・観点の軸を足した後に、それより前に閉じた（特性化を終えた）機能を「旧手順のまま」として列挙するチェック。判定の規則は、このファイルで定義する。
+// 原本はこのスキルの側にあり、スキルのディレクトリから直接実行する
+// （プロジェクトへコピーしない。gh skill update の自動更新が反映されるようにするため）。
 //
 // 何のためか: 機能は 1 つずつ閉じるので、後の機能で見つけた確かめる軸（0 件の表示・送っている間の押し直し等）を
 // 手順に足しても、既に閉じた機能へ遡って当てる工程が無いと、前の機能は古い手順のまま収束扱いで残る。
@@ -11,15 +11,18 @@
 //     成果物の metadata.json の run.procedure_revision がその改訂より小さい機能が対象（キーが無い成果物は 0＝本機構の導入前）
 //   - プロジェクト側の観点の追加: .replace/procedure-changes.md の「観点の追加」表（--ledger）。
 //     成果物の run.finished_at の日付が追加日以前の機能が対象（同じ日は含める。当てたかを日付で決められないため）
-// 判断の記録は同じ台帳の「既に閉じた機能への当て直し」表に追記する。形式の正本は references/procedure-changes.md。
+// 判断の記録は同じ台帳の「既に閉じた機能への当て直し」表に追記する。形式の原本は references/procedure-changes.md である。
 //
 // 何をしないか: 当て直しが本当に行われたかの再測定はしない（記録の形だけを見る）。台帳・成果物の書き換えもしない。
 // Issue の open / closed は見ない（成果物があれば閉じていなくても旧手順で特性化されている）。
 //
-// 終了コード: 0 ＝ 対象の組み合わせがすべて判断済み、1 ＝ 未判断・見直し中が残る、
-// 2 ＝ 使い方の誤り・読めない入力（台帳の表・列の欠落、語彙外の値、重複 ID、実在しない変更 ID 等）、
-// 3 ＝ 未判断は無いが、成果物を読めず対象かどうかを判定できない機能がある（合格に倒さない）、
-// 4 ＝ 対象外（特性化済みの成果物が 1 つも無い。0 件を「旧手順の機能なし」と読ませない）。
+// 終了コードは次のとおりである。
+//
+// - 0: 対象の組み合わせが、すべて判断済み。
+// - 1: 未判断・見直し中が残る。
+// - 2: 使い方の誤り・読めない入力（台帳の表や列の欠落、語彙にない値、重複した ID、実在しない変更 ID など）。
+// - 3: 未判断は無いが、成果物を読めず、対象かどうかを判定できない機能がある（合格として扱わない）。
+// - 4: 対象外（特性化済みの成果物が 1 つも無い。0 件を「旧手順の機能なし」と読ませない）。
 //
 // 決定論的: 乱数・現在時刻に依存しない。slug は名前順、記録は台帳の順で読む。
 // TypeScript 構文は使わない（型は JSDoc）。
@@ -81,7 +84,7 @@ export function parseTables(text, consumed) {
   let comment = false;
   for (let i = 0; i < lines.length; i += 1) {
     // HTML コメントの中の表（コメントアウトした記入例・退役した表）は台帳ではない。読むと、生きた表の代わりに
-    // 変更を供給するか、同じ列名の表の重複に化ける。countRowLikeLines と同じ規則で読み飛ばす。
+    // 変更を供給するか、同じ列名の表の重複と誤って判定される。countRowLikeLines と同じ規則で読み飛ばす。
     if (fence === null && (comment || lines[i].trim().startsWith("<!--"))) {
       comment = !lines[i].includes("-->");
       continue;
@@ -114,7 +117,7 @@ export function parseTables(text, consumed) {
 }
 
 /**
- * ツールのバージョン（正本）。判定規則・出力形状を変えたら上げる。
+ * ツールのバージョン（このファイルで定義する）。判定の規則や出力の形を変えたら上げる。
  * @type {string}
  */
 export const VERSION = "1";
@@ -122,7 +125,7 @@ export const VERSION = "1";
 /** 成果物の mode の語彙（parity-suite の metadata.json の mode）。 */
 export const MODES = ["feature", "api-resource", "batch"];
 
-/** 当て直しの判断の語彙（正本は references/procedure-changes.md「判断の語彙」）。 */
+/** 当て直しの判断の語彙（原本は references/procedure-changes.md「判断の語彙」）。 */
 export const DECISIONS = {
   reapplied: "当て直し済み",
   skipped: "当てない",
@@ -182,7 +185,7 @@ export function dateOf(value) {
   if (!isDate(value.slice(0, 10))) return null;
   if (Number.isNaN(Date.parse(value))) return null;
   // UTC へ換算しない。UTC より遅れたオフセット（-05:00 等）の終了日時を換算すると翌日になり、
-  // 同じ日に足した軸の対象から漏れる（見逃す側に倒れる）。書き手の日付のまま比べる。
+  // 同じ日に足した軸の対象から外れる（見逃す側と判定されてしまう）。書き手の日付のまま比べる。
   return value.slice(0, 10);
 }
 
@@ -281,7 +284,7 @@ function findTable(tables, headers) {
 
 /**
  * 表の行に見えるか。外側の `|` を省いた行（`PC-002 | … | #1`）も表の行として書ける（GFM）ので、
- * `|` で始まるかでは見ない。列が欠けた行（5 セル）も表の外に落ちれば同じく判定から消えるので、
+ * `|` で始まるかでは見ない。列が欠けた行（5 セル）も表の外として扱われれば同じく判定から消えるので、
  * 台帳の列数ではなく 3 セル（区切り 2 つ）以上を表の行とみなす。HTML コメントの中は呼び出し側で除く。
  * @param {string} line
  * @returns {boolean}
@@ -293,8 +296,8 @@ function looksLikeTableRow(line) {
 
 /**
  * コードフェンスの外で表の行に見える行を数える（parseTables が読んだ行と突き合わせるため）。
- * 読んだ行は件数の差し引きではなく行番号で除く——外側の `|` を省いた表の行は `|` で始まらないので、
- * 件数で差し引くと表の外の行を打ち消して黙って通す。
+ * 読んだ行は件数の差し引きではなく行番号で除く。外側の `|` を省いた表の行は `|` で始まらないので、
+ * 件数で差し引くと表の外の行を打ち消して、警告なしに通してしまう。
  * @param {string} text
  * @param {Set<number>} [consumed] parseTables が表として読んだ行番号（数えない）
  * @returns {number}
@@ -323,7 +326,7 @@ export function countRowLikeLines(text, consumed = new Set()) {
 /**
  * HTML コメントの記号が、読み飛ばしの規則（parseTables / countRowLikeLines）が扱える位置にだけあるかを確かめる。
  * 扱える形は「行頭の `<!--` で始まり行末の `-->` で終わる 1 行」「行頭の `<!--` だけの開始行 … 行末の `-->` で終わる終了行」の 2 つ。
- * それ以外（散文の後ろの `<!--`、行の途中の `-->`、1 行に複数の記号、閉じないコメント）は読める形を足さずに落とす——
+ * それ以外（散文の後ろの `<!--`、行の途中の `-->`、1 行に複数の記号、閉じないコメント）は読める形を足さずに落とす。
  * 読み飛ばしの規則に合わない位置のコメントは、中の表を生きた表として読むか、以降の表を丸ごと読み飛ばす。
  * @param {string} text
  * @returns {{ lines: number[], unclosed: boolean }} 扱えない位置の記号を含む行番号（1 始まり）と、閉じないコメントの有無
@@ -390,14 +393,14 @@ export function readLedger(text, skillChangeIds) {
   const tables = parseTables(text, consumed);
   const changeTable = findTable(tables, CHANGE_HEADERS);
   const recordTable = findTable(tables, RECORD_HEADERS);
-  // 表の不在を「変更なし」「記録なし」と読まない。列名を書き換えた台帳も同じ（黙って 0 件になる）。
+  // 表の不在を「変更なし」「記録なし」と読まない。列名を書き換えた台帳も同じ（警告なしに 0 件になる）。
   if (changeTable.table === null)
     errors.push(`「観点の追加」表が無い（列: ${CHANGE_HEADERS.join(" | ")}）`);
   if (recordTable.table === null) {
     errors.push(`「既に閉じた機能への当て直し」表が無い（列: ${RECORD_HEADERS.join(" | ")}）`);
   }
   if (changeTable.duplicated) errors.push("「観点の追加」表が 2 つ以上ある");
-  // 表は空行で終わる。区切り行と行の間に空行を挟むと、以降の行は表の外として黙って捨てられ、
+  // 表は空行で終わる。区切り行と行の間に空行を挟むと、以降の行は表の外として警告なしに捨てられ、
   // 「観点の追加」の行なら、その変更の対象が判定から丸ごと消える（偽の合格）。表の外の表の行を数えて落とす。
   const orphans = countRowLikeLines(text, consumed);
   if (orphans > 0) {
@@ -500,7 +503,7 @@ export function readArtifacts(parityDir, latestRevision) {
   const names = readdirSync(parityDir).sort();
   for (const name of names) {
     const dir = join(parityDir, name);
-    // 壊れたシンボリックリンクは statSync が例外を投げる。捨てずに判定不能として残す。
+    // リンク先の無いシンボリックリンクでは、statSync が例外を投げる。捨てずに判定不能として残す。
     let isDir = false;
     try {
       isDir = statSync(dir).isDirectory();
@@ -517,7 +520,7 @@ export function readArtifacts(parityDir, latestRevision) {
       continue;
     }
     // 置き場の外に置く正当なファイルは無い（ドットファイル〈.gitkeep 等〉だけ許す）。
-    // slug の置き場がファイルに置き換わった形を黙って飛ばすと、その機能が判定から消える。
+    // slug の置き場がファイルに置き換わった形を警告なしに飛ばすと、その機能が判定から消える。
     if (!isDir) {
       if (!name.startsWith(".")) {
         slugs.push({
@@ -534,11 +537,11 @@ export function readArtifacts(parityDir, latestRevision) {
     }
     const path = join(dir, "metadata.json");
     // metadata.json の無い slug は特性化前（未着手）であって、旧手順で閉じた機能ではない。
-    // 中身のあるディレクトリでも同じ扱いにする——parity-suite は metadata.json を終盤（手順 8）で書くので、
+    // 中身のあるディレクトリでも同じ扱いにする。parity-suite は metadata.json を終盤（手順 8）で書くので、
     // 対応表・スペックだけがある形は特性化中の正常な状態で、判定不能にすると特性化中の機能 1 つで検査が止まる。
     if (!existsSync(path)) {
-      // existsSync はリンクを辿るので、壊れたシンボリックリンクも「無い」になる。
-      // 特性化前（metadata.json が本当に無い）と区別し、壊れたリンクは読めない成果物として残す。
+      // existsSync はリンクを辿るので、リンク先の無いシンボリックリンクも「無い」になる。
+      // 特性化前（metadata.json が本当に無い）と区別し、リンク先の無いリンクは、読めない成果物として残す。
       let linked = false;
       try {
         linked = lstatSync(path).isSymbolicLink();
@@ -551,7 +554,7 @@ export function readArtifacts(parityDir, latestRevision) {
           mode: null,
           procedure_revision: null,
           finished_on: null,
-          problems: ["metadata.json が壊れたシンボリックリンク（リンク先が無い）"],
+          problems: ["metadata.json がリンク先の無いシンボリックリンク"],
         });
       }
       continue;
@@ -574,7 +577,7 @@ export function readArtifacts(parityDir, latestRevision) {
     }
     const meta = isObject(doc) ? doc : {};
     // 置き場の slug と成果物の slug が違えば、別の機能の成果物をこの機能として判定することになる。
-    // 欠落・型崩れも同じく照合できないので合格に倒さない（parity-suite の metadata.json は slug を必須で持つ）。
+    // 欠落や型の誤りも同じく照合できないので、合格として扱わない（parity-suite の metadata.json は slug を必須で持つ）。
     if (meta.slug !== name) {
       problems.push(
         `metadata.json の slug (${JSON.stringify(meta.slug)}) が置き場の slug (${name}) と一致しない`,
@@ -588,7 +591,7 @@ export function readArtifacts(parityDir, latestRevision) {
     /** @type {number | null} */
     let procedureRevision = null;
     if (!Object.hasOwn(run, "procedure_revision")) {
-      // キーが無いのは本機構の導入前の成果物。どの改訂も当たっていないとして 0 で比べる（合格に倒さない）。
+      // キーが無いのは本機構の導入前の成果物。どの改訂も当たっていないとして 0 で比べる（合格として扱わない）。
       procedureRevision = 0;
     } else if (
       !Number.isInteger(run.procedure_revision) ||
@@ -654,7 +657,7 @@ export function check(input) {
     for (const change of input.ledger.changes) {
       if (!change.affects.includes(entry.mode)) continue;
       if (entry.finished_on === null) {
-        // 日付を読めないと、追加より前に閉じたかを決められない。対象外に倒さない。
+        // 日付を読めないと、追加より前に閉じたかを決められない。対象外として扱わない。
         undeterminable.push({
           slug: entry.slug,
           change: change.id,
@@ -731,7 +734,7 @@ export function main(argv, deps = {}) {
     args[key] = value;
     i += 1;
   }
-  // 改訂一覧を省略可能にすると、スキルの手順の改訂が黙って判定から消える。
+  // 改訂一覧を省略可能にすると、スキルの手順の改訂が、警告なしに判定から消える。
   if (args["--revisions"] === undefined) return fail("--revisions は必須");
   const revisionsPath = resolve(cwd, args["--revisions"]);
   const ledgerPath = resolve(cwd, args["--ledger"] ?? ".replace/procedure-changes.md");
@@ -752,7 +755,7 @@ export function main(argv, deps = {}) {
 
   // 台帳が無いのは「プロジェクト側で観点を足していない」。ただし出力に残してパスの誤りと区別できるようにする。
   const ledgerExists = existsSync(ledgerPath);
-  // existsSync はリンクを辿るので、壊れたシンボリックリンクの台帳も「無い」になる。
+  // existsSync はリンクを辿るので、リンク先の無いシンボリックリンクの台帳も「無い」になる。
   // 台帳が無い（プロジェクト側で軸を足していない）と、台帳を失った状態を区別して後者を落とす。
   if (!ledgerExists) {
     let linked = false;
@@ -761,8 +764,8 @@ export function main(argv, deps = {}) {
     } catch {
       linked = false;
     }
-    if (linked) return fail(`${ledgerPath} が壊れたシンボリックリンク（リンク先が無い）`);
-    // 明示したパスが無いのは綴り・cwd の誤り。「台帳なし」として読むと台帳の未判断が黙って消える（--parity-dir と同じ扱い）。
+    if (linked) return fail(`${ledgerPath} がリンク先の無いシンボリックリンク`);
+    // 明示したパスが無いのは綴り・cwd の誤り。「台帳なし」として読むと台帳の未判断が警告なしに消える（--parity-dir と同じ扱い）。
     if (args["--ledger"] !== undefined) return fail(`--ledger に渡した ${ledgerPath} が無い`);
   }
   /** @type {{ changes: any[], records: any[] }} */
@@ -784,7 +787,7 @@ export function main(argv, deps = {}) {
     ledger = read;
   }
 
-  // 成果物の置き場が無いのを「旧手順の機能なし」に倒さない（cwd の誤り・綴り違いで合格が出る）。
+  // 成果物の置き場が無いのを「旧手順の機能なし」として扱わない（cwd の誤り・綴り違いで合格が出る）。
   // 特性化前のプロジェクトでも .replace/parity/ は空のディレクトリとして置けば通る。
   /** @type {ReturnType<typeof readArtifacts>} */
   let artifacts;

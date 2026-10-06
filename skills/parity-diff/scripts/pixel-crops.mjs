@@ -1,64 +1,70 @@
-// 画素差分画像から差分領域を切り出す（正本）。
-// 正本はこのスキル側にあり、実行時はスキルディレクトリ内から直接実行する
-// （プロジェクトへコピーしない。gh skill update の自動更新を効かせるため）。
+// 画素の差分画像から、差分の領域を切り出す（原本）。
+// 原本はこのスキルの中にあり、スキルのディレクトリから直接実行する。
+// プロジェクトへはコピーしない。gh skill update の自動更新を反映させるためである。
 //
-// 何をするか: 記録済みの画素差分ツール（pixelmatch / odiff 等。metadata.json の differ.pixel_tool）が
-// 出力した差分画像 diff.png を入力に取り、差分としてマークされた画素を 8 近傍で連結成分に
-// クラスタリングし、近接する bbox をマージして、current / new から同座標の crop 対を切り出す。
+// 入力は、記録済みの画素差分ツール（pixelmatch・odiff など。metadata.json の differ.pixel_tool）が出した
+// 差分画像 diff.png である。差分として印の付いた画素を 8 近傍でつないで連結成分にまとめ、
+// 近い bbox を合わせてから、current と new の同じ座標から crop 対を切り出す。
 //
-// 何をしないか: 画素比較そのもの（＝検出）は行わない。検出はツールに委ね、本スクリプトは
-// ツール出力のクラスタリングと crop 切り出しだけを行う（差分器を再実装しない）。
-// これは「検出は決定論的ツールの仕事、モデルの仕事は分類だけ」の設計を、画素経路で担保する足場。
+// 画素の比較そのもの（検出）は行わない。検出はツールに任せ、このスクリプトはツールの出力をまとめて
+// crop を切り出すだけである（差分ツールを作り直さない）。
+// 「検出は決定論的なツールが行い、モデルは分類だけを行う」という設計を、画素の比較で守るための部品である。
 //
-// ただし**画素の量は 2 本で報告する**。記録済みツールのしきい値（pixelmatch の threshold 等）は
-// 許容の内側の差を**総量にも件数にも出さない**ため、その 1 本だけを報告すると
-// 小さな数が「ほぼ一致」と読まれる（実測: 報告 756 画素・0.0569% の裏に、緑が 1/255 違う画素が
-// 3,364 画素あった）。そこで current / new を**しきい値なしで**突き合わせた数
-// （strict_pixels・そのうちマークされていない strict_only_pixels・最大チャンネル差は全体
-// strict_max_channel_delta と内側だけ strict_only_max_channel_delta の 2 本）を summary に併記する。
-// これは検出のやり直しではなく、既に読んでいる 2 枚の画素を数えるだけ。
+// ただし、**画素の量は 2 通りで報告する**。記録済みツールのしきい値（pixelmatch の threshold など）は、
+// 許容の内側の差を総量にも件数にも出さない。そのため、その 1 通りだけを報告すると、小さな数が「ほぼ一致」と読まれる。
+// 実測では、報告が 756 画素・0.0569% だったのに、緑が 1/255 違う画素が 3,364 画素あった。
+// そこで、current と new をしきい値なしで比べた数を summary に並べて書く。
+// 書くのは strict_pixels、そのうち印の付いていない strict_only_pixels、最大のチャンネル差の 2 つ
+// （全体の strict_max_channel_delta と、内側だけの strict_only_max_channel_delta）である。
+// これは検出のやり直しではなく、すでに読んでいる 2 枚の画素を数えるだけである。
 //
-// しきい値の内側にだけ差がある画素（strict-only）は、記録済みツールの差分画像に出ないため
-// 従来の経路ではクラスタも crop 対も作られず、**数だけ報告されて分類できない**状態になる。
+// しきい値の内側にだけ差がある画素（strict-only）は、記録済みツールの差分画像に出ない。
+// そのため従来の処理ではまとまりも crop 対も作られず、**数だけが報告されて分類できない**。
 // トリアージは候補ごとの crop 対を入力にするので、数だけでは差し戻しにも分類にも進めない。
-// そこで strict-only のマスクも同じクラスタリングに掛け、crop 対を持つ候補として出す
-// （`--strict-min-cluster` 未満の孤立画素は落とし、件数は `--strict-max-regions` で上限を付けて
-// 総数も報告する。黙って捨てない）。
+// そこで strict-only のマスクも同じようにまとめ、crop 対を持つ候補として出す。
+// `--strict-min-cluster` 未満の孤立した画素は捨て、件数は `--strict-max-regions` で上限を付ける。
+// 捨てた分も含めた総数を報告し、警告なしには捨てない。
 //
-// **同じ場所の 1 つの差は 1 つの候補にする。** アイコンの輪郭のにじみのような差は、芯の数画素が
-// しきい値を超え、縁がしきい値の内側に収まるので、分けたままだと芯が regions に小さい bbox で、
-// 縁が strict_only_regions に大きい bbox で出て、同じ差が 2 件になる。台帳（画素の例外）は bbox の
-// 一致で照合するため、どちらの bbox を書いても片方が unexplained に残り、両方を書くと件数と承認の N が倍になる。
-// そこで strict-only の画素のうち、しきい値つきの領域の芯を `--pad` だけ広げた範囲にあるものは、
-// その領域へ取り込んで bbox を外側に広げる。strict_only_regions に残るのは、その範囲の外の画素から作った領域だけ。
-// 縁が --pad より外まで続く差はそれでも 2 件に分かれうるので、外側の候補に隣り合う領域の id（overlaps_regions）を付けて警告する。
+// **同じ場所の 1 つの差は 1 つの候補にする。** アイコンの輪郭のにじみのような差では、芯の数画素が
+// しきい値を超え、縁はしきい値の内側に収まる。分けたままだと、芯が regions に小さい bbox で、
+// 縁が strict_only_regions に大きい bbox で出て、同じ差が 2 件になる。
+// 台帳（画素の例外）は bbox の一致で照合する。そのため、どちらの bbox を書いても片方が unexplained に残り、
+// 両方を書くと件数と承認の N が倍になる。
+// そこで、strict-only の画素のうち、しきい値つきの領域の芯を `--pad` だけ広げた範囲にあるものは、
+// その領域に取り込んで bbox を外側に広げる。strict_only_regions に残るのは、その範囲の外の画素から作った領域だけである。
+// 縁が --pad より外まで続く差は、それでも 2 件に分かれることがある。
+// そこで、外側の候補に、隣り合う領域の id（overlaps_regions）を付けて警告する。
 //
-// 決定論的: 乱数・現在時刻に依存しない。連結成分はラスタ走査順に発見し、最終 bbox は
-// (y, x) 昇順に整列するため入力が同じなら出力は常に同じ。
-// PNG デコード/エンコードは pngjs を使う（pixel_tool が pixelmatch ならプロジェクトに入っていることが多い。
-// 無ければ導入をユーザーに確認する。本スクリプトは勝手にインストールしない）。
-// TypeScript 構文は使わない（型は JSDoc）。
+// 乱数と現在時刻に依存しない。連結成分はラスタの走査順に見つけ、最後の bbox は
+// (y, x) の昇順に並べるので、入力が同じなら出力も同じになる。
+// PNG のデコードとエンコードには pngjs を使う（pixel_tool が pixelmatch なら、プロジェクトに入っていることが多い）。
+// 無ければ、導入してよいかを利用者に確認する。このスクリプトは勝手にインストールしない。
+// TypeScript の構文は使わない（型は JSDoc で書く）。
 
 import { readFileSync, writeFileSync, mkdirSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
- * ツールのバージョン（正本）。クラスタリング・出力形状を変えたら上げる。
+ * ツールのバージョン（原本）。まとめ方や出力の形を変えたら上げる。
  * diff-metadata.json の differ_versions.pixel_crops に記録する値はこれを使う（手入力にしない）。
+ *
  * @type {string}
  */
 export const VERSION = "4";
 
 /**
- * 差分色判定のチャンネル許容差（既定）。赤 (255,0,0) と、アンチエイリアス色として使われがちな
- * 黄 (255,255,0) を分離できる幅にする（黄は緑チャンネルが 255 で赤の 0 と大きく離れるため除外される）。
+ * 差分の色かを判定するときの、チャンネルの許容差（デフォルト）。
+ * 赤 `(255,0,0)` と、アンチエイリアスの色によく使われる黄 `(255,255,0)` を分けられる幅にする。
+ * 黄は緑のチャンネルが 255 で、赤の 0 から大きく離れるので除かれる。
+ *
  * @type {number}
  */
 export const DEFAULT_COLOR_TOLERANCE = 96;
 
 /**
  * 16 進カラー文字列（"ff0000" / "#ff0000"）を RGB に変換する。
+ *
  * @param {string} hex
  * @returns {{ r:number, g:number, b:number } | null}
  */
@@ -74,6 +80,7 @@ export function hexToRgb(hex) {
 
 /**
  * 画素が差分色（target）に近いかを判定する。各チャンネルが tol 以内なら差分画素とみなす。
+ *
  * @param {number} r
  * @param {number} g
  * @param {number} b
@@ -89,6 +96,7 @@ export function isDiffPixel(r, g, b, target, tol) {
 
 /**
  * RGBA バッファ（pngjs の data）から差分マスク（0/1 の Uint8Array）を作る。
+ *
  * @param {Uint8Array | Buffer} data - 長さ width*height*4 の RGBA
  * @param {number} width
  * @param {number} height
@@ -164,11 +172,13 @@ export function buildStrictMask(currentData, nextData, pixels, thresholdMask = n
  * しきい値つき（記録済みツールの差分画像）としきい値なし（厳密比較）の画素数を並べた summary を返す。
  * `strict_only_pixels` が**許容の内側に隠れた差**——ここが非ゼロなら、差分領域が 0 件でも
  * 「一致」とは読めない（ノイズ基準値と対比して分類する。判断は呼び出し側＝トリアージが行う）。
+ *
  * @param {Uint8Array} thresholdMask - 差分画像から作ったマスク
  * @param {Uint8Array} strictMask - 厳密比較のマスク
  * @param {number} maxChannelDelta - 差がある画素**全体**の最大チャンネル差
  * @param {number|null} [maxStrictOnlyChannelDelta] - **しきい値の内側だけ**の最大チャンネル差
  *   （`buildStrictMask` に `thresholdMask` を渡した呼び出しでのみ定まる。渡していなければ null）
+ *
  * @returns {{ total_pixels:number, threshold_pixels:number, strict_pixels:number,
  *             strict_only_pixels:number, strict_max_channel_delta:number,
  *             strict_only_max_channel_delta:(number|null),
@@ -206,6 +216,7 @@ export function summarizePixels(
 
 /**
  * しきい値の内側にだけ差がある画素（記録済みツールがマークしなかった差）のマスクを作る。
+ *
  * @param {Uint8Array} thresholdMask
  * @param {Uint8Array} strictMask
  * @returns {Uint8Array}
@@ -226,7 +237,8 @@ export function buildStrictOnlyMask(thresholdMask, strictMask) {
  * 既存の候補が採番し直され、同じ `crop-sN-*` が別の bbox を指す。
  *
  * 選抜は画素数の多い順（同数なら y, x 昇順）で上限 max 件、出力は (y, x) 昇順。
- * 上限で落とした分は呼び出し側が総数と併せて報告する（黙って捨てない）。
+ * 上限で外した分は、呼び出し側が総数と一緒に報告する（警告なしには捨てない）。
+ *
  * @param {Array<{ id?:string, pixels:number, bbox:{ x:number, y:number, width:number, height:number } }>} regions
  * @param {number} max
  * @returns {Array<{ id:string, pixels:number, bbox:{ x:number, y:number, width:number, height:number } }>}
@@ -245,6 +257,7 @@ export function selectStrictRegions(regions, max) {
 
 /**
  * bbox の内側で mask が立っている画素数を数える。
+ *
  * @param {Uint8Array} mask
  * @param {number} width
  * @param {{ x:number, y:number, width:number, height:number }} bbox
@@ -262,6 +275,7 @@ export function countInBbox(mask, width, bbox) {
 
 /**
  * 差分マスクを 8 近傍で連結成分にクラスタリングする。ラスタ走査順にシードするため決定論的。
+ *
  * @param {Uint8Array} mask
  * @param {number} width
  * @param {number} height
@@ -313,6 +327,7 @@ export function clusterComponents(mask, width, height) {
 
 /**
  * pad 拡張した 2 つの bbox が重なるかを判定する。
+ *
  * @param {{ x:number, y:number, width:number, height:number }} a
  * @param {{ x:number, y:number, width:number, height:number }} b
  * @param {number} pad
@@ -332,6 +347,7 @@ function bboxOverlap(a, b, pad) {
 
 /**
  * 2 つの bbox を包含する bbox を返す。
+ *
  * @param {{ x:number, y:number, width:number, height:number }} a
  * @param {{ x:number, y:number, width:number, height:number }} b
  */
@@ -347,14 +363,16 @@ function unionBbox(a, b) {
  * しきい値つきの領域に、芯を pad だけ広げた範囲にある strict-only の**画素**を取り込む。
  *
  * 同じ場所の 1 つの差（芯はしきい値を超え、縁はしきい値の内側）を 1 つの候補にするための段。
- * **取り込むのは画素単位で、芯（しきい値つきの領域の bbox）を pad だけ広げた範囲の内側にある画素だけ。**
- * 連結成分・マージした塊・外接 bbox を単位にすると、疎に散った差の塊や、ページ全体に広がる 1 つの差
- * （背景色の 1 階調のずれ等）が丸ごと取り込まれ、領域の bbox が画面大に広がって離れた領域まで 1 件に潰れる。
+ * **取り込むのは画素単位で、芯（しきい値つきの領域の bbox）を pad だけ広げた範囲の内側にある画素だけである**。
+ * 連結成分・マージした塊・外接 bbox を単位にすると、まばらに散った差の塊や、ページ全体に広がる 1 つの差
+ * （背景色の 1 階調のずれなど）が丸ごと取り込まれる。
+ * すると領域の bbox が画面の大きさまで広がり、離れた領域まで 1 件にまとまってしまう。
  * 画素単位なら、取り込み後の領域の bbox は常に「芯＋pad」の内側に収まり、範囲の外の画素は strict-only に残る。
  *
  * 芯を広げた範囲が重なる画素は、入力順で先の領域が取る（二重に数えない）。
  * 取り込み後、構成要素（芯と取り込んだ画素の bbox）同士が pad 以内の領域は 1 つにまとめる
  * （どちらも「芯＋pad」の内側なので、まとめる範囲も有界）。
+ *
  * @param {Array<{ pixels:number, bbox:{ x:number, y:number, width:number, height:number } }>} regions - しきい値つきの領域
  * @param {Uint8Array} strictOnlyMask - しきい値の内側にだけ差がある画素のマスク
  * @param {number} width
@@ -460,9 +478,10 @@ export function absorbStrictIntoRegions(regions, strictOnlyMask, width, height, 
 /**
  * strict-only の候補ごとに、bbox が重なるか接する（隣の画素に並ぶ）しきい値つきの候補の id を返す。
  *
- * 縁の取り込みは「芯＋pad」の範囲に限る（範囲を広げると、ページ全体に広がる差が全領域を 1 件に潰す）ので、
- * 縁が pad より外まで続く差（box-shadow のぼかし差等）は、芯の候補と外側の strict-only の候補の 2 件に分かれうる。
- * 分かれたことを黙らせないため、隣り合う相手を候補に書いて見えるようにする（トリアージと台帳はこれを読んで同じ場所の差として扱う）。
+ * 縁を取り込むのは「芯＋pad」の範囲に限る。範囲を広げると、ページ全体に広がる差がすべての領域を 1 件にまとめてしまう。
+ * そのため、縁が pad より外まで続く差（box-shadow のぼかしの差など）は、芯の候補と外側の strict-only の候補の 2 件に分かれることがある。
+ * 分かれたことが見えるように、隣り合う相手を候補に書く。トリアージと台帳はこれを読み、同じ場所の差として扱う。
+ *
  * @param {Array<{ bbox:{ x:number, y:number, width:number, height:number } }>} strictCandidates
  * @param {Array<{ id:number, bbox:{ x:number, y:number, width:number, height:number } }>} regions
  * @returns {number[][]} strictCandidates と同じ並びで、隣り合う regions の id（昇順）
@@ -479,14 +498,15 @@ export function adjacentRegionIds(strictCandidates, regions) {
 /**
  * **先に pad 以内でマージしてから** minCluster 未満を落とす。結果は (y, x) 昇順。
  *
- * strict-only はこちらを使う。`filterAndMerge`（落としてからマージ）だと、
- * **1〜3 画素の連結成分に散る差**（細いグリフのヒンティング差・点線装飾の差など）が
- * 近接する箱と合流する前に全部消え、`strict_only_pixels > 0` なのに候補ゼロ・exit 0 になる
- * （この PR が塞ごうとしている fail-open そのもの）。
+ * strict-only はこちらを使う。`filterAndMerge`（捨ててからマージ）では、
+ * **1〜3 画素の連結成分に散る差**（細いグリフのヒンティングの差・点線の装飾の差など）が、
+ * 近くの箱と合わさる前にすべて消える。すると `strict_only_pixels > 0` なのに候補が 0 件で exit 0 になり、
+ * 差があるのに合格として扱われる。
  *
- * マージ後も下限に満たなかった分は捨てるが、**件数と画素数を返して呼び出し側に報告させる**
- * （黙って捨てない）。しきい値つきの領域の縁は、呼び出し側が先に `absorbStrictIntoRegions` で取り込み、
+ * マージした後も下限に満たない分は捨てるが、**件数と画素数を返して呼び出し側に報告させる**
+ * （警告なしには捨てない）。しきい値つきの領域の縁は、呼び出し側が先に `absorbStrictIntoRegions` で取り込み、
  * 残りのマスクから作った成分だけをここへ渡す。
+ *
  * @param {Array<{ pixels:number, bbox:{ x:number, y:number, width:number, height:number } }>} components
  * @param {number} minCluster
  * @param {number} pad
@@ -512,6 +532,7 @@ export function mergeThenFilter(components, minCluster, pad) {
 
 /**
  * minCluster 未満の成分を落とし、pad 以内で近接する bbox をマージする。結果は (y, x) 昇順。
+ *
  * @param {Array<{ pixels:number, bbox:{ x:number, y:number, width:number, height:number } }>} components
  * @param {number} minCluster
  * @param {number} pad
@@ -546,6 +567,7 @@ export function filterAndMerge(components, minCluster, pad) {
 /**
  * 画像から bbox の矩形を margin 分広げて切り出した新しい PNG を返す。bbox は画像内にクランプする。
  * margin は分類の判断材料になる周辺文脈を crop に含めるためのもの（bbox 自体は広げない）。
+ *
  * @param {{ width:number, height:number, data:Uint8Array }} img - pngjs の PNG インスタンス相当
  * @param {{ x:number, y:number, width:number, height:number }} bbox
  * @param {number} margin
@@ -572,6 +594,7 @@ function cropImage(img, bbox, margin, PngCtor) {
 
 /**
  * pngjs を動的 import する（未導入なら null）。
+ *
  * @returns {Promise<any|null>}
  */
 async function loadPng() {
@@ -586,10 +609,14 @@ async function loadPng() {
 /**
  * CLI エントリ。
  * `node pixel-crops.mjs <current.png> <new.png> <diff.png> --out <dir> [--min-cluster <count>] [--pad <px>] [--crop-margin <px>] [--diff-color <hex>]`
- * stdout は `{ summary, regions, strict_only_regions }`（summary はしきい値つき／なしの画素数、
- * regions は記録済みツールが出した差分領域〈芯＋--pad の範囲の strict-only の縁を取り込んだ外側の bbox〉の crop 対、
- * strict_only_regions はしきい値の内側にだけ差があり、その範囲の外にある画素から作った領域の crop 対）。
- * 分類すべき候補（どちらかの領域）があれば exit 1、無ければ exit 0、入力エラーは exit 2。
+ *
+ * stdout には `{ summary, regions, strict_only_regions }` を出す。
+ * - summary: しきい値つきとしきい値なしの画素数
+ * - regions: 記録済みツールが出した差分領域の crop 対。bbox は、芯＋--pad の範囲の strict-only の縁を取り込んだ外側の bbox
+ * - strict_only_regions: しきい値の内側にだけ差があり、その範囲の外にある画素から作った領域の crop 対
+ *
+ * 分類すべき候補（どちらかの領域）があれば exit 1、無ければ exit 0、入力の誤りは exit 2 で終わる。
+ *
  * @param {string[]} argv - process.argv.slice(2)
  * @returns {Promise<number>} exit code
  */
@@ -837,18 +864,18 @@ export async function main(argv) {
     JSON.stringify({ summary, regions: result, strict_only_regions: strictResult }, null, 2) + "\n",
   );
   // 終了コードは「分類すべき候補があるか」を表す。strict-only の候補も候補なので 1 を返す。
-  // 下限で捨てた分が残るときも 0 を返さない——候補を出せていない＝分類できていない状態であり、
-  // ここで 0 にすると「差が無い」と読める（この PR が塞ごうとしている fail-open に戻る）。
+  // 下限で捨てた分が残るときも 0 を返さない。候補を出せていないので、分類できていない。
+  // ここで 0 にすると「差が無い」と読め、差があるのに合格として扱われる。
   // 説明は summary の数と stderr の警告に出ているので、ノイズ基準値（strict 側）との対比で片付ける。
   const hasCandidate = result.length > 0 || strictResult.length > 0;
   return hasCandidate || strictClustered.droppedClusters > 0 ? 1 : 0;
 }
 
-// CLI エントリ判定は両辺を実パスに解決してから突き合わせる。
-// process.argv[1] は起動時のパスのまま、import.meta.url も --preserve-symlinks(-main)
-// （NODE_OPTIONS 経由でも付く）では未解決のままなので、片側だけ解決すると
-// シンボリックリンク経由（.claude/skills/<name> → .agents/skills/<name>）の起動で条件が偽になり、
-// main() が呼ばれず何も出力せず exit 0 になる（サイレント no-op）。
+// CLI として起動されたかは、両辺を実パスに解決してから比べる。
+// process.argv[1] は起動したときのパスのままである。--preserve-symlinks(-main) を付けると
+// （NODE_OPTIONS で付けた場合も）import.meta.url も解決されない。片側だけ解決すると、
+// シンボリックリンク（.claude/skills/<name> → .agents/skills/<name>）から起動したときに条件が偽になる。
+// すると main() が呼ばれず、何も出力せずに exit 0 で終わる。
 const invokedAsCli = (() => {
   const entry = process.argv[1];
   if (!entry) return false;
@@ -856,7 +883,7 @@ const invokedAsCli = (() => {
   try {
     return realpathSync(entry) === realpathSync(self);
   } catch {
-    // 実パス解決に失敗したら生パスで突き合わせる（サイレント no-op より誤検出を選ぶ）。
+    // 実パスに解決できなければ、そのままのパスで比べる（何もせずに終わるより、誤って起動するほうを選ぶ）。
     return entry === self;
   }
 })();

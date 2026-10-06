@@ -1,13 +1,13 @@
 #!/usr/bin/env node
-// 部品の動き（出し入れ・開閉のアニメーション）を現行とカタログで突き合わせる検査（正本）。
+// 部品の動き（出し入れ・開閉のアニメーション）を現行とカタログで突き合わせる検査（検査の仕方はこのスクリプトで定義する）。
 //
 // 何のためか: 見た目の照合は `animations: "disabled"` で止めて撮るので、現行の部品が持つ動きは
-// 採取物にも見本の照合にも写らない。新側が動きを持たないまま（即時に出る・消える）、部品の照合・
+// 採取物にも見本の照合にも記録されない。新側が動きを持たないまま（即時に出る・消える）、部品の照合・
 // パリティスイート・parity-diff がすべて緑になり、利用者が画面を触って初めて気づいた（実際の移行で起きた）。
 //
-// そこで capture が現行で採った時系列（`baseline/<instance>/motions.json`。同梱の motion-probe.mjs の出力を
-// 同じ条件で 2 回以上）と、build がカタログの見本で同じ操作をして採った時系列
-// （`new/<target>/motion-comparison.json`）を、**遷移 × インスタンス**の組み合わせごとに比べる。
+// そこで、capture が現行で採った時系列と、build がカタログの見本で同じ操作をして採った時系列を比べる。
+// 現行の時系列は `baseline/<instance>/motions.json` で、同梱の motion-probe.mjs の出力を同じ条件で 2 回以上採ったものである。
+// 見本の時系列は `new/<target>/motion-comparison.json` である。比べる単位は、**遷移 × インスタンス**の組み合わせである。
 // 比べるのは次の数値で、画素は比べない。
 //   - 在るか（操作の前と、落ち着いた後）: 一致を要求する（出る動きが消える動きになっていないか）
 //   - 始まるまでの遅れ（操作から最初の変化まで）と長さ（最初の変化から最後の変化まで）
@@ -20,17 +20,20 @@
 // 動きを揃えた後も位置の差は最大 6.1px 残った）。揺れを測らずに固定の許容差を置くと、
 // 厳しすぎて永久に落ちるか、緩すぎて動きの欠落まで通すかのどちらかになる。
 //
-// fail-closed の方針（behavior-compare.mjs と同じ形）:
-//   - 動きの列挙（`capture.motions`）が無いのは「動きが無い」と区別できないので型崩れとして落とす。
-//     動きの無い部品は `transitions` を空にし `none_reason` に理由を書く（その場合だけ判定しない）
-//   - 到達できない遷移は `instances[].unreachable_motions` の宣言だけが除外の根拠。宣言の無い欠落は未採取
-//   - 現行の時系列が 2 回分に満たないと揺れを測れないので、比べずに落とす
-//   - 打ち切り（timed_out）・要素が一度も在らなかった時系列は、終わりや対象を見ていないので比較に使わない
-//   - 突き合わせ表が無い・母集合に無い行・承認の無い accepted は behavior-compare.mjs と同じ扱い
+// 判定できない入力は、失敗として扱う（behavior-compare.mjs と同じ形）。
+//   - 動きの列挙（`capture.motions`）が無いのは「動きが無い」と区別できないので、型の誤りとして失敗にする。
+//     動きの無い部品は `transitions` を空にし、`none_reason` に理由を書く（その場合だけ判定しない）
+//   - 到達できない遷移を除外する根拠は、`instances[].unreachable_motions` の宣言だけである。宣言の無い欠落は未採取
+//   - 現行の時系列が 2 回分に満たないと揺れを測れないので、比べずに失敗にする
+//   - 打ち切り（timed_out）・要素が一度も無かった時系列は、終わりや対象を見ていないので比較に使わない
+//   - 突き合わせ表が無い・母集合に無い行・承認の無い accepted は behavior-compare.mjs と同じに扱う
 //
 // 決定論的: 乱数・現在時刻・ネットワークに依存しない。読むのは JSON だけで、ブラウザは駆動しない。
 //
-// 使い方: node motion-compare.mjs --baseline <部品の成果物ディレクトリ> --comparison <突き合わせ表> --target <new target 名>
+// 使い方は次のとおりである。
+//
+//     node motion-compare.mjs --baseline <部品の成果物ディレクトリ> --comparison <突き合わせ表> --target <new target 名>
+//
 // 終了コード: 0 ＝ 条件を満たす（判定しない場合を含む）、1 ＝ 未突合・不一致・記録の不備が残る、2 ＝ 使い方の誤り・型崩れ。
 
 import { readFileSync, realpathSync } from "node:fs";
@@ -46,13 +49,13 @@ const { cellKey, filled, isoDateTime, nonEmptyString, safeSegment } = await impo
     .href
 );
 
-/** ツールのバージョン（正本）。判定規則・許容差・出力形状を変えたら上げる。 */
+/** ツールのバージョン（このスクリプトで定義する）。判定の規則・許容差・出力の形を変えたら上げる。 */
 export const VERSION = "1";
 
-/** 突き合わせ表の行が取れる扱いの語彙（正本）。null は「比べた」。 */
+/** 突き合わせ表の行がとりうる扱いの語彙（このスクリプトで定義する）。null は「比べた」。 */
 export const DISPOSITIONS = ["accepted"];
 
-/** 変化とみなす最小の差（正本は motion-probe.mjs の CHANGE_EPSILON。同じ値にする）。 */
+/** 変化とみなす最小の差（原本は motion-probe.mjs の CHANGE_EPSILON。同じ値にする）。 */
 export const CHANGE_EPSILON = { px: 0.01, opacity: 0.001 };
 
 /** 許容差の下限（揺れが測れても、これより細かい差は落とさない）。 */
@@ -387,7 +390,7 @@ export function compareMotions({ metadata, motions, comparison, target }) {
   const probeVersion = metadata.capture.tools && metadata.capture.tools.motion_probe_version;
   if (!filled(probeVersion)) {
     return structural(
-      "capture.tools.motion_probe_version が空（どの版の探針で採った時系列かを照合できない）",
+      "capture.tools.motion_probe_version が空（どの版のプローブで採った時系列かを照合できない）",
     );
   }
 
@@ -509,9 +512,9 @@ export function compareMotions({ metadata, motions, comparison, target }) {
         baseline.set(key, undefined);
         continue;
       }
-      // 遷移に入れるのは探針が採れる動き（矩形か実効の不透明度が変わるもの）だけなので、現行で一度も
-      // 変化しなかったのは探針が動きを捉えていない疑いが濃い（アニメーションを止めたまま採った・セレクタが
-      // 静止した別の要素に当たった）。ソースに宣言の無い、実機でだけ見つかった動きも同じく落とす——
+      // 遷移に入れるのは、プローブが採れる動き（矩形か実効の不透明度が変わるもの）だけである。そのため、現行で一度も
+      // 変化しなかったのは、プローブが動きを捉えていない疑いが濃い（アニメーションを止めたまま採った、セレクタが
+      // 静止した別の要素に当たった、など）。ソースに宣言の無い、実機でだけ見つかった動きも同じく失敗にする。
       // 基準にすると、新側も動かなければ「動きなし」同士で一致してしまう。
       if (!summaries[0].changed) {
         findings.push({
@@ -519,7 +522,7 @@ export function compareMotions({ metadata, motions, comparison, target }) {
           instance: id,
           transition: tr,
           detail:
-            "現行の時系列が一度も変化していない（止めたまま採った・別の要素を引いた疑い。色だけの動きのように探針の射程外なら、遷移に入れず gaps.md へ残す）",
+            "現行の時系列が一度も変化していない（止めたまま採った・別の要素を探した疑い。色だけの動きのようにプローブで採れない動きなら、遷移に入れず gaps.md へ残す）",
         });
         baseline.set(key, undefined);
         continue;

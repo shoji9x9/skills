@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 # Box OAuth 2.0 の認可コードを access/refresh token に交換し、refresh token を保存する（初回のみ実行）。
-# 使い方: box-oauth-init.sh（認可コードは引数ではなくプロンプト or stdin から入力する）
-#   対話: box-oauth-init.sh を実行し、プロンプトに認可コードを貼り付けて Enter（ps/proc 露出を確実に避ける）
+# 使い方: box-oauth-init.sh（認可コードは引数ではなく、プロンプトか stdin から入力する）
+#   対話: box-oauth-init.sh を実行し、プロンプトに認可コードを貼り付けて Enter を押す（ps/proc に値が出ない）。
 #   stdin: f="$(mktemp)"; trap 'rm -f "$f"' EXIT; cat >"$f"; box-oauth-init.sh <"$f"（自動実行向け。値を argv に載せない）
-#          一時ファイルは mktemp（0600）で作る。CWD の code.txt は既定 umask 0022 では 0644 になり他ユーザに読める
-#          削除は trap EXIT で行う（`; rm -f` の連結は set -e のシェルだと交換失敗時に到達せず認可コードが残留する）
+#          一時ファイルは mktemp（0600）で作る。CWD の code.txt は、umask 0022 では 0644 になり、他のユーザーが読める。
+#          削除は trap EXIT で行う。`; rm -f` でつなぐと、set -e のシェルでは交換に失敗したときに実行されず、認可コードが残る。
 # 認可コードを引数で渡さないのは、実行中に ps/proc から他プロセスへ露出させないため。
 # 必要env: BOX_CLIENT_ID, BOX_CLIENT_SECRET
 # 任意env: BOX_REDIRECT_URI（既定 https://app.box.com）, BOX_REFRESH_TOKEN_FILE（既定 $HOME/.config/box/refresh_token）
 set -euo pipefail
 
-# 旧来の `box-oauth-init.sh <code>` 形式を弾く。引数で渡すと ps/proc に露出し、かつ現在は
-# 無視されて stdin 待ちになり混乱するため、明示的にエラーで新しい入力方法へ誘導する。
+# 以前の `box-oauth-init.sh <code>` 形式をエラーにする。引数で渡すと ps/proc に値が出るうえ、
+# 引数は無視されて stdin の入力を待つので、利用者が混乱する。エラーで新しい入力方法を案内する。
 if [ "$#" -gt 0 ]; then
 	echo "エラー: 認可コードは引数で渡しません（ps/proc 露出を避けるため）。引数なしで実行してプロンプトに貼り付けるか、mktemp で作った 0600 の一時ファイルに書いて stdin で渡してください（CWD の code.txt は既定 umask では 0644 になるため使わない）。" >&2
 	exit 2
@@ -34,9 +34,9 @@ token_file="${BOX_REFRESH_TOKEN_FILE:-$HOME/.config/box/refresh_token}"
 stripped="${token_file#\~/}"
 [ "$stripped" != "$token_file" ] && token_file="$HOME/$stripped"
 
-# 認可コード・client_secret を curl の argv（ps/proc）に載せないよう、umask 077 の一時ファイル経由で
-# 渡す（--data-urlencode name@file は curl がファイル内容を読んで URL エンコードする。argv には
-# ファイル名しか現れない。送信ボディは name=value 直挿しと同一）。client_id は秘密でないため直挿し。
+# 認可コードと client_secret は、curl の argv（ps/proc）に載せず、umask 077 の一時ファイルで渡す。
+# --data-urlencode name@file では、curl がファイルの中身を読んで URL エンコードするので、argv にはファイル名しか現れない。
+# 送信する本文は、name=value を直接書いた場合と同じである。client_id は秘密ではないので、直接書く。
 secret_dir="$(mktemp -d "${TMPDIR:-/tmp}/box-oauth.XXXXXX")"
 trap 'rm -rf "$secret_dir"' EXIT
 (

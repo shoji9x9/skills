@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 # git-worktree branch guard (PreToolUse hook)
 #
-# worktree の作成手段に branch を作らせる経路を捕捉し、**通知だけ**して素通しする。
+# worktree を作る手段に branch を作らせる呼び出しを見つけ、**通知だけ**して通す。
 # Issue に紐づかない worktree（過去の版を読む・使い捨ての検証）にも正当な用途があるため、
 # ブロックはしない。
 #
-# 捕捉する経路:
+# 見つける呼び出しは次のとおりである。
 #   - Claude Code の `EnterWorktree` で `path` を渡していない呼び出し（`name` 指定・引数なし）。
 #     `path` は既存 worktree に入るだけなので対象外。
 #   - `git worktree add` のうち branch を作る形（`-b` / `-B` / `--orphan`、
 #     および commit-ish も `--detach` も無い形＝git が path の basename から branch を作る DWIM）。
 #
-# 出力は agent の payload 形式で切り替える:
+# 出力は、agent の payload の形式で切り替える。
 #   - Claude Code / Codex（snake_case `tool_name`）: exit 0 ＋
 #     `hookSpecificOutput.additionalContext`（ブロックせずコンテキストへ足す）
 #     <https://code.claude.com/docs/en/hooks> / <https://learn.chatgpt.com/docs/hooks>
@@ -20,8 +20,8 @@
 #     （<https://docs.github.com/en/copilot/reference/hooks-reference>）ため、通知は
 #     `permissionDecisionReason` に載せて `ask` で人へ回す。
 #
-# **常に exit 0 で終える。** Copilot の preToolUse は非 0 終了を fail-closed（deny）として扱うため、
-# 解析に失敗した通知目的のフックが tool 呼び出しを落とすことがあってはならない。
+# **常に exit 0 で終える。** Copilot の preToolUse は 0 以外の終了を deny として扱うため、
+# 通知のためのフックが、解析に失敗して tool の呼び出しを止めてはならない。
 set -uo pipefail
 
 input=""
@@ -108,8 +108,8 @@ for interp in jq python3; do
 done
 
 # jq も python3 も無い環境では、構造として取り出せないので通知しない。
-# ここで縮退照合に倒すと、コマンド文字列の中の `worktree` に反応して無関係な呼び出しへ
-# 通知を出し続ける（通知の信頼を落とす方が、取りこぼしより高くつく）。
+# ここで文字列だけの照合に切り替えると、コマンド文字列の中の `worktree` に反応し、無関係な呼び出しに
+# 通知を出し続ける（通知が信頼されなくなる方が、見逃すより損失が大きい）。
 [ "${extracted}" -eq 1 ] || exit 0
 
 # --- 検出 ---------------------------------------------------------------------
@@ -206,10 +206,10 @@ tokenize() { # $1: コマンド文字列
 		' ' | $'\t') flush ;;
 		';' | '&' | '|' | '(' | ')' | $'\n')
 			flush
-			# 配列要素の**非引用**展開だけはパス名展開の対象になるため引用する
-			# （`\x1e` に glob メタ文字は無いので展開されないが、区切り文字を増やした
-			# ときに静かに壊れる形を残さない）。`tok+=${c}` 等の代入 RHS は
-			# パス名展開されないので対象外（実測）。
+			# 配列の要素を**引用せずに**展開するとパス名展開の対象になるので、引用する。
+			# `\x1e` に glob のメタ文字は無いので展開されないが、区切り文字を増やしたときに
+			# エラーにならずに誤った分割になる形を残さない。`tok+=${c}` などの代入の右辺は
+			# パス名展開されないので対象外である（実測）。
 			out+=("${sep}")
 			;;
 		*) tok+=${c} ;;
@@ -247,8 +247,8 @@ worktree_add_creates_branch() { # $1: コマンド文字列
 				;;
 			esac
 			# ラッパーのオプション（`time -p git ...` / `nice -n 10 git ...`）を読み飛ばす。
-			# **ラッパーを見た後だけ**に限る——コマンド位置で無条件に `-*` を飛ばすと、
-			# markdown の箇条書き（`- git worktree add -b ...`）が散文の中でコマンド位置に化ける。
+			# 読み飛ばすのは**ラッパーを見た後だけ**にする。コマンドの位置で無条件に `-*` を飛ばすと、
+			# 散文の中の markdown の箇条書き（`- git worktree add -b ...`）を、誤ってコマンドとして判定する。
 			if [ "${saw_wrapper}" -eq 1 ]; then
 				case "${t}" in
 				*=*) continue ;; # `--opt=値`。値は同じトークンなので次を食わない
@@ -346,8 +346,8 @@ worktree_add_creates_branch() { # $1: コマンド文字列
 			fi
 			operands=$((operands + 1))
 		done
-		# commit-ish 省略かつ `--detach` 無しは、git が path の basename から branch を作る
-		# （git-worktree(1) の "as a convenience, the new worktree is associated with a new branch"）。
+		# commit-ish を省き `--detach` も無いときは、git が path の basename から branch を作る。
+		# 根拠は git-worktree(1) の "as a convenience, the new worktree is associated with a new branch" である。
 		if [ "${operands}" -le 1 ] && [ "${detach}" -eq 0 ]; then
 			return 0
 		fi

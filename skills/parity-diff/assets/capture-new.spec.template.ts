@@ -1,36 +1,38 @@
 /**
  * 新側ベースライン採取スペック（雛形）— parity-diff
  *
- * このファイルはプロジェクトへコピーして使う雛形。コピー先の既定は
+ * このファイルは、プロジェクトへコピーして使う雛形である。コピー先のデフォルトは
  * `<parity_suite_dir>/parity/<slug>/new-only/capture-new.spec.ts`（実際のパスは
  * `.replace/parity/<slug>/metadata.json` の `suite.new_only` に記録する）。
  *
- * 満たすべきこと（parity-diff の references/capture-new.md が要求する条件）:
- *   1. 現側と同一条件で撮る。条件は手で書き写さず metadata.json の capture_conditions から引く
+ * 満たすべき条件は次のとおりである（parity-diff の references/capture-new.md が求める）。
+ *   1. 現側と同じ条件で撮る。条件は手で書き写さず、metadata.json の capture_conditions から読む
  *   2. 現側ベースラインと対称のレイアウトで書き出す（page × state × viewport の対応が取れる形）
  *   3. 同一条件で 2 回撮り、新側の自己ノイズを測れるようにする（2 回目は別ディレクトリへ）。
  *      2 回目は測定後に parity-diff が削除する一時作業物であり、成果物として残さない
- *   4. 採取専用の `new-capture` プロジェクトでだけ走らせる。`current` にも `new` にも入れない
- *      （`current` に入ると現行アプリの画面が新側ベースラインとして書き出され差分ゼロに化ける。
+ *   4. 採取専用の `new-capture` プロジェクトでだけ実行する。`current` にも `new` にも入れない。
+ *      `current` に入ると、現行アプリの画面が新側ベースラインとして書き出され、差分が誤ってゼロと判定される。
  *      `new` に残すと、採取用の環境変数を渡さない parity-replace の green 検証が
- *      このファイルの読み込み時点で落ち、往復ループが進まなくなる）。
+ *      このファイルを読み込んだ時点で失敗し、往復のループが進まなくなる。
  *      除外は playwright.config の `current` / `new` の `testIgnore: '**\/new-only\/**'` で行い、
  *      採取は `testDir` を new-only/ に絞った `new-capture` プロジェクトが担う
  *      （parity-suite が設定し `metadata.json` の `suite.new_only` に記録する）。
- *      下の beforeEach は設定漏れに備えた fail-fast であり、testIgnore の代わりではない
+ *      下の beforeEach は、設定の忘れに備えてすぐに止めるためのもので、testIgnore の代わりではない
  *
- * 環境変数:
- *   PARITY_NEW_TARGET  … 対象の新側 target 名（必須。成果物の出力先 new/<target>/ を決める）
- *   PARITY_SLUG        … 対象機能の slug（必須。.replace/features.md が採番したもの）
- *   PARITY_CAPTURE_PASS… "baseline"（既定。1 回目＝新側ベースライン）| "noise"（2 回目＝自己ノイズ用）
- *   PARITY_NOISE_PAIRS … noise パスで撮り直す組（"page|state|viewport" のカンマ区切り）。未設定なら全組
- *   PARITY_CAPTURE_PAIRS … baseline パスで撮る組（同じ書式）。未設定なら全組。部品改修の一括再検証
- *                        （parity-diff の references/component-change.md）で、component-impact.mjs が返した
- *                        影響する組だけを撮り直すために使う。撮らない組の baseline-new は触らない
- *   PARITY_NEW_UI_URL  … 新側 UI の baseURL（playwright.config の `new-capture` プロジェクトが参照する）
- *   PARITY_REPO_ROOT   … `.replace/` を持つリポジトリルート（省略時は cwd）。Playwright は
- *                        playwright.config のあるディレクトリ（既定 `e2e/`）から起動されることがあり、
- *                        cwd 相対のままだと metadata が読めない／成果物が `e2e/.replace/...` へ逸れる
+ * 環境変数は次のとおりである。
+ *
+ *   PARITY_NEW_TARGET  … 対象の新側 target 名（必須。成果物の出力先 new/<target>/ を決める）。
+ *   PARITY_SLUG        … 対象機能の slug（必須。.replace/features.md が採番したもの）。
+ *   PARITY_CAPTURE_PASS… "baseline"（既定。1 回目＝新側ベースライン）| "noise"（2 回目＝自己ノイズ用）。
+ *   PARITY_NOISE_PAIRS … noise パスで撮り直す組（"page|state|viewport" のカンマ区切り）。未設定なら全組。
+ *   PARITY_CAPTURE_PAIRS … baseline パスで撮る組（同じ書式）。未設定なら全組。
+ *                        部品の改修をまとめて検証し直すとき（parity-diff の references/component-change.md）に、
+ *                        component-impact.mjs が返した影響する組だけを撮り直すために使う。
+ *                        撮らない組の baseline-new には触れない。
+ *   PARITY_NEW_UI_URL  … 新側 UI の baseURL（playwright.config の `new-capture` プロジェクトが参照する）。
+ *   PARITY_REPO_ROOT   … `.replace/` を持つリポジトリルート（省略時は cwd）。
+ *                        Playwright は playwright.config のあるディレクトリ（デフォルトは `e2e/`）から起動されることがある。
+ *                        cwd からの相対のままだと、metadata が読めないか、成果物が `e2e/.replace/...` へ出てしまう。
  *
  * 1 回目と 2 回目の差分量（pixel_diff / trait_diffs）を測るのはスペックの仕事ではない。
  * 記録済みの画素差分ツールと trait-compare に、下の 2 つの出力ディレクトリを渡して測る。
@@ -42,12 +44,12 @@
 import { readFileSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { arch, platform, release } from "node:os";
 import { dirname, isAbsolute, join, relative } from "node:path";
-// 現側の capture_conditions.browser が cdp なら、@playwright/test ではなく共通のフィクスチャ（利用者環境のブラウザへ接続する。
-// parity-suite の references/locator-mapping.md「利用者環境のブラウザへ接続する」）から import する
+// 現側の capture_conditions.browser が cdp なら、@playwright/test ではなく共通のフィクスチャから import する。
+// このフィクスチャは利用者の環境のブラウザへ接続する（parity-suite の references/locator-mapping.md「利用者環境のブラウザへ接続する」）
 import { test } from "@playwright/test";
 
-// TODO: プロジェクトの現側スペックが使っている入口をそのまま使う（現側と対称に書く）。
-//       パスは metadata.json の suite.locator_map / suite.interactions / suite.tools から引き、推測しない。
+// TODO: プロジェクトの現側スペックが使っている呼び出し元をそのまま使う（現側と対称に書く）。
+//       パスは metadata.json の suite.locator_map / suite.interactions / suite.tools から読み、推測しない。
 import { captureTraits } from "../../lib/tools/vendor/trait-capture.mjs";
 import { resolveLocator as resolveCurrent } from "../../lib/locator-map/<slug>";
 // 新側のロケータ例外（new/<target>/replace-metadata.json の suite.locator_map_new が指すファイル）。
@@ -66,9 +68,9 @@ if (pass !== "baseline" && pass !== "noise") {
 }
 const repoRoot = process.env.PARITY_REPO_ROOT ?? process.cwd();
 
-// 撮影条件は metadata.json（parity-suite が記録した現側の条件）から引く。手で書き写さない。
-// pages[].name は noise_baseline[].page と同じ語彙、masks[].name はロケータマッピングで解決できる論理名
-// （形式の正本は parity-suite の assets/metadata-template.json の capture_conditions）
+// 撮影条件は metadata.json（parity-suite が記録した現側の条件）から読む。手で書き写さない。
+// pages[].name は noise_baseline[].page と同じ語彙で、masks[].name はロケータマッピングで解決できる論理名である。
+// 形式は parity-suite の assets/metadata-template.json の capture_conditions で定義する。
 const metadata = JSON.parse(
   readFileSync(join(repoRoot, ".replace", "parity", slug, "metadata.json"), "utf8"),
 );
@@ -76,8 +78,8 @@ const { viewports, states, masks, full_page: fullPage } = metadata.capture_condi
 const pages: { name: string; path: string }[] = metadata.capture_conditions.pages;
 
 // 表示を切り替える軸。基準の組は全軸の既定値を明示して当て、変種（variants）は既定値に変種の値を重ねて当てる。
-// 変種の label はビューポートの label と同じ位置（書き出し先・組の鍵）に入り、窓の寸法は変種の viewport が指す窓を使う
-// （形式の正本は parity-suite の assets/metadata-template.json の capture_conditions.display_axes）
+// 変種の label は、ビューポートの label と同じ位置（書き出し先・組のキー）に入る。窓の寸法は、変種の viewport が指す窓を使う
+// （形式は parity-suite の assets/metadata-template.json の capture_conditions.display_axes で定義する）
 type Axis = { name: string; default: string; not_applicable?: { page: string }[] };
 type Variant = { label: string; viewport: string; values: Record<string, string> };
 const displayAxes = metadata.capture_conditions.display_axes;
@@ -146,7 +148,7 @@ if (capturePairs.length > 0 && pass !== "baseline") {
   );
 }
 
-// 新側は「現側マッピング → 新側例外」の順で解決する（例外は解決できない論理名だけを埋める契約）
+// 新側は「現側マッピング → 新側例外」の順で解決する（例外は、解決できない論理名だけを埋める取り決めである）
 function resolveLocator(page: import("@playwright/test").Page, name: string) {
   return resolveNewException(page, name) ?? resolveCurrent(page, name);
 }
@@ -193,7 +195,7 @@ if (unknownPairs.length > 0) {
 // 厚みの分ずれて全面差分になる）。Playwright のヘッドレス Chromium の既定は hidden（--hide-scrollbars）。
 // launchOptions はワーカー単位の設定なので describe の中には置けず、ファイルの最上位で切り替える。
 // test.use はプロジェクトの launchOptions をオブジェクトごと置き換えるので、new-capture に launchOptions（args 等）が
-// あるならその値をここへ写してから ignoreDefaultArgs を足す（落とすと現側と起動条件がずれる）
+// あるなら、その値をここへ転記してから ignoreDefaultArgs を足す（抜けると、現側と起動の条件がずれる）
 const scrollbars: unknown = metadata.capture_conditions.scrollbars;
 if (scrollbars !== "hidden" && scrollbars !== "shown") {
   throw new Error(
@@ -224,12 +226,12 @@ const identityPath = join(
 let identityRecorded = false;
 
 // 描画するブラウザ側の OS。現側の browser_identity.browser_os と同じ正規化で読む
-// （正本は parity-suite の references/locator-mapping.md「利用者環境のブラウザへ接続する」。読み方・拾うキーを変えるなら両方を変える）。
+// （parity-suite の references/locator-mapping.md「利用者環境のブラウザへ接続する」で定義する。読み方や拾うキーを変えるなら、両方を変える）。
 // - 撮影に使うコンテキストでは読まない。use の userAgent（デバイスの設定を含む）を当てると、Playwright は userAgentData も
 //   その文字列から作って上書きする（Linux の機械で Mac の UA を当てると platform が macOS になる。実測）ので、機械を表さない。
 //   同じブラウザに設定を当てない別のコンテキストを作って読み、閉じる（cdp では接続先の機械、launched では起動した機械）
 // - userAgentData は安全なコンテキストにしか無い。Playwright が開いた直後の about:blank は安全なコンテキストでない（実測）ので、
-//   合成した https の URL を route で返した頁で読む。撮影に使うページは移動させない（verifyScrollbars は about:blank で測る契約）
+//   合成した https の URL を route で返した頁で読む。撮影に使うページは移動させない（verifyScrollbars は about:blank で測る取り決めである）
 // - 拾うのは platform / platformVersion / architecture の 3 キーだけ（getHighEntropyValues は brands・mobile も返す。版は product が持つ）
 // - userAgentData を持たないブラウザ（Firefox / WebKit）は navigator.platform だけを残す。cdp の接続先は Chromium 系で、
 //   現側の記録にこの形は capture-scope-check.mjs が通さない（Chromium の platform も縮められている）ので、cdp の照合では食い違いとして止まる
@@ -281,11 +283,11 @@ function sameBrowserOs(a: unknown, b: Record<string, string>): boolean {
   return keys.length === want.length && keys.every((k, i) => k === want[i] && left[k] === b[k]);
 }
 // スクロールバーの扱いは起動引数ではなく、撮影に使うページで実測して確かめる。
-// cdp では共通のフィクスチャが connectOverCDP で接続するので launchOptions は効かず、接続先が --hide-scrollbars や
+// cdp では共通のフィクスチャが connectOverCDP で接続するので launchOptions は反映されず、接続先が --hide-scrollbars や
 // オーバーレイのバーで起動していても分からない。launched でもプロジェクトの launchOptions が上書きしうる。
 // overflow: scroll の箱を 1 つ置いてバーの幅を読み、現側の scrollbars と食い違えば撮らない（片側だけ場所を取る）。
 // 読むのは頁へ移動する前の about:blank——確かめるのはブラウザの起動の仕方で、頁の CSS（scrollbar-width: none 等）ではない。
-// 頁の CSS で隠したバーは現側も同じ CSS で隠れ、器ごとの差は trait-capture.mjs の scroll が照合する。
+// 頁の CSS で隠したバーは現側も同じ CSS で隠れ、スクロールする箱ごとの差は trait-capture.mjs の scroll が照合する。
 // 移動後に測ると、頁が正当にバーを隠しているだけで shown の撮影が止まる
 let scrollbarPx: number | null = null;
 async function verifyScrollbars(page: import("@playwright/test").Page): Promise<number> {
@@ -343,7 +345,7 @@ async function recordIdentity(
 }
 
 test.beforeEach(async (_fixtures, testInfo) => {
-  // fail-fast: current で走ると現行アプリを新側ベースラインとして書き出す（testIgnore の設定漏れ対策）
+  // すぐに止める。current で実行すると、現行アプリを新側ベースラインとして書き出してしまう（testIgnore の設定忘れに備える）
   if (testInfo.project.name !== "new-capture") {
     throw new Error(
       `new-only spec ran under project "${testInfo.project.name}": exclude it with testIgnore`,
@@ -368,14 +370,14 @@ for (const viewport of shots) {
           await recordIdentity(page, browserName, testInfo);
           // noise パスは「測り直す組」だけを撮る（再利用の可否は parity-diff が判定して PARITY_NOISE_PAIRS で渡す）。
           // noise パスの出力は撮る組・撮らない組とも先に消す——前反復の 2 回目が残っていると、
-          // 撮らない組は「今回の baseline-new」対「前反復の 2 回目」が突き合わされて反復間のコード変更を
-          // 自己ノイズとして計上し、撮る組は今回撮り直さなかったファイルが混ざる。
+          // 撮らない組では「今回の baseline-new」と「前反復の 2 回目」が突き合わされ、反復の間のコードの変更を
+          // 自己ノイズとして計上してしまう。撮る組では、今回撮り直さなかったファイルが含まれる。
           // 通常は前回の測定後に parity-diff が削除済みなので no-op で、削除が中断した場合の保険として残す
           const reused = pass === "noise" && onlyPairs.length > 0 && !onlyPairs.includes(pair);
           if (pass === "noise") rmSync(outDir, { recursive: true, force: true });
           test.skip(reused, "reused noise measurement");
           // baseline パスの絞り込み: 撮らない組は前回の baseline-new をそのまま残す（削除しない。
-          // 部品改修の機械判定は前回の新側と今回の新側を比べるため、前回分は呼び出し側が別の場所へ写してある）
+          // 部品の改修の機械判定は前回の新側と今回の新側を比べるので、前回の分は呼び出し側が別の場所へコピーしてある）
           test.skip(
             pass === "baseline" && capturePairs.length > 0 && !capturePairs.includes(pair),
             "not in PARITY_CAPTURE_PAIRS",
@@ -383,7 +385,7 @@ for (const viewport of shots) {
 
           mkdirSync(outDir, { recursive: true });
 
-          // browser が cdp なら、共通のフィクスチャが接続した印を確かめる（import の差し替え漏れで、起動したブラウザのまま撮らない）
+          // browser が cdp なら、共通のフィクスチャが接続した印を確かめる（import の差し替えを忘れて、起動したブラウザのまま撮らない）
           if (browserMode === "cdp" && process.env.PARITY_CDP_CONNECTED !== "1") {
             throw new Error(
               "capture_conditions.browser is cdp but the browser was not connected over CDP: import test from the shared fixtures",
@@ -416,8 +418,8 @@ for (const viewport of shots) {
           // 表示の軸の値は状態へ遷移する前に当てる（基準の組も既定値を明示して当てる。ブラウザや OS の既定に委ねない）
           if (axes.length > 0) await applyDisplayAxes(page, { ...defaults, ...viewport.values });
           // 状態遷移は現側と同じ操作アダプタを使う（遷移できない状態は例外にして停止させる）。
-          // applyState は撮る対象の矩形が 2 回続けて同じ値になるまで待ってから返す契約
-          // （正本は parity-suite の references/baseline.md「撮る対象が動かなくなるまで待つ」）。
+          // applyState は、撮る対象の矩形が 2 回続けて同じ値になるまで待ってから返す取り決めである
+          // （parity-suite の references/baseline.md「撮る対象が動かなくなるまで待つ」で定義する）。
           // 出現直後に撮ると 1 画素の上下で結果が 2 値に転び、自己ノイズの 2 回撮りでは検出できない
           await applyState(page, state);
 

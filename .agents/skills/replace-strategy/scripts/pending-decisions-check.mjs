@@ -1,18 +1,18 @@
-// 自律実行の保留（pending_decisions[]）が「済んだ」かを数える検査（正本）。
-// 正本はこのスキル側にあり、実行時はスキルディレクトリ内から直接実行する
-// （プロジェクトへコピーしない。gh skill update の自動更新を効かせるため）。
+// 自律実行の保留（pending_decisions[]）が「済んだ」かを数えるチェック。判定の規則は、このファイルで定義する。
+// 原本はこのスキルの側にあり、スキルのディレクトリから直接実行する
+// （プロジェクトへコピーしない。gh skill update の自動更新が反映されるようにするため）。
 //
 // 何のためか: 保留は「決まった（resolution あり）」と「済んだ（blocks に挙げた工程まで実施した）」が別の状態なのに、
 // resolution の有無だけで数えると、回答が付いた時点で解決と数えられる。「方針は A。実施は後で」の回答では
 // blocks の工程が行われないまま、前提の判定・完了判定・収束判定がすべて通る。
 // そこで blocks を持つ保留には、resolution の後に工程を実施した記録（resumed）か、
-// 残作業の置き場（follow_up.tracked_in）のどちらかを要求する。状態の定義の正本は references/autonomy.md「保留の状態」。
+// 残作業の置き場（follow_up.tracked_in）のどちらかを要求する。状態の定義の原本は references/autonomy.md「保留の状態」である。
 //
 // 何をしないか: 回答の内容の当否・工程が本当に行われたかの再測定はしない（記録の形だけを見る）。
 // 成果物の書き換えもしない。
 //
 // 範囲の絞り込み（--mode / --phase / --slug / --target）は references/autonomy.md「下流の前提判定」の表に従う。
-// 絞り込みの材料が欠けた要素は範囲に入れる（fail-closed。範囲を決められない保留で止めずに進めない）。
+// 絞り込みの材料が欠けた要素は範囲に入れる（判定できないときは失敗として扱う。範囲を決められない保留で止めずに進めない）。
 //
 // 終了コード: 0 ＝ 範囲内に未解決の保留が無い（ファイルが無い＝保留なし を含む）、1 ＝ 未解決が残る、
 // 2 ＝ 使い方の誤り・読めない入力（JSON でない・pending_decisions が配列でない）。
@@ -25,12 +25,12 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
- * ツールのバージョン（正本）。判定規則・出力形状を変えたら上げる。
+ * ツールのバージョン（このファイルで定義する）。判定の規則や出力の形を変えたら上げる。
  * @type {string}
  */
 export const VERSION = "1";
 
-/** 保留の状態の語彙（正本は references/autonomy.md「保留の状態」）。 */
+/** 保留の状態の語彙（原本は references/autonomy.md「保留の状態」）。 */
 export const STATES = ["open", "decided", "settled"];
 
 /**
@@ -65,7 +65,7 @@ export function classifyDecision(element) {
   if (resolution === null || resolution === undefined) {
     return { state: "open", reason: "resolution が無い" };
   }
-  // 回答として読めない resolution を「解決済み」に倒さない（`true` や空オブジェクトで通さない）。
+  // 回答として読めない resolution を「解決済み」として扱わない（`true` や空オブジェクトで通さない）。
   if (!isObject(resolution) || !nonEmptyString(resolution.answer)) {
     return { state: "open", reason: "resolution に answer が無い" };
   }
@@ -92,7 +92,7 @@ export function classifyDecision(element) {
  */
 function settledOrDecided(resolution, missingReason) {
   const resumed = resolution.resumed;
-  // 実施の記録は日時と証拠の両方を要る——日時だけだと「再開した」と書けば通る。
+  // 実施の記録は日時と証拠の両方を要る。日時だけだと「再開した」と書けば通る。
   if (
     isObject(resumed) &&
     nonEmptyString(resumed.at) &&
@@ -102,7 +102,7 @@ function settledOrDecided(resolution, missingReason) {
     return { state: "settled", reason: "blocks の工程を実施した記録がある" };
   }
   const followUp = resolution.follow_up;
-  // 置き場は残作業（what）と追跡先（tracked_in）の両方を要る——追跡先だけでは何を追っているか分からない。
+  // 置き場は残作業（what）と追跡先（tracked_in）の両方を要る。追跡先だけでは何を追っているか分からない。
   if (isObject(followUp) && nonEmptyString(followUp.what) && nonEmptyString(followUp.tracked_in)) {
     return {
       state: "settled",
@@ -114,7 +114,7 @@ function settledOrDecided(resolution, missingReason) {
 }
 
 /**
- * 範囲の絞り込み。材料が欠けた要素は範囲に入れる（fail-closed）。
+ * 範囲の絞り込み。材料が欠けた要素は範囲に入れる（判定できないときは失敗として扱う）。
  * @param {Record<string, unknown>} element
  * @param {{ mode?: string, phase?: string, slug?: string, target?: string }} scope
  * @returns {boolean}

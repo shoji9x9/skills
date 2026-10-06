@@ -1,24 +1,24 @@
-// 共通部品の改修が、どの機能のどの撮影組（ページ × 状態 × ビューポート）に効くかを導く検査（正本）。
+// 共通部品の改修が、どの機能のどの撮影組（ページ × 状態 × ビューポート）に影響するかを導くチェック（原本）。
 //
 // 何のためか: 共通部品を 1 行直すと、証跡がリポジトリ全体のコミット SHA に結びついているため
 // **その部品を使うかどうかに関わらず全ページの証跡が古くなり**、撮り直しとトリアージを全ページで回すことになる。
-// 改修を「部品 × インスタンス × 状態 × プロパティ」で宣言した変更宣言（parity-component の
-// assets/component-change-template.json が形式の正本）と、既にある記録（部品の metadata.json の instances、
-// 各機能の metadata.json の capture_conditions.pages / capture_scope）から、**撮り直すべき組だけ**と
-// **影響しない機能とその理由**を導く。
+// 入力は、改修を「部品 × インスタンス × 状態 × プロパティ」で宣言した変更宣言と、既にある記録である。
+// 変更宣言の形式の原本は、parity-component の assets/component-change-template.json である。
+// 既にある記録は、部品の metadata.json の instances と、各機能の metadata.json の capture_conditions.pages / capture_scope である。
+// ここから、**撮り直すべき組だけ**と、**影響しない機能とその理由**を導く。
 //
 // parity-suite に置く理由: 証跡の鮮度検査（artifact-health-check / component-comparison-check）が
 // 同じスキル内からこのモジュールを import して、機能ごとの影響を再計算するため。
 //
-// 判定は fail-closed。**「判定できない」を「影響なし」に倒さない**——capture_scope が無い機能、
-// 部品 metadata で引けないインスタンス id は判定不能として返す。ページの path の照合は完全一致で、
+// **「判定できない」を「影響なし」として扱わない**。capture_scope が無い機能と、
+// 部品 metadata に無いインスタンス id は、判定不能として返す。ページの path の照合は完全一致で、
 // 前後の空白・末尾スラッシュも正規化しない（正規化の規則を足すと、どちらの側が正しいかをここで決めることになる）。
-// 部品 metadata の instances[].page と機能の capture_conditions.pages[].path は同じ語彙（target の baseURL からの
-// 相対パス）で書く契約で、ここで書き方を橋渡ししない——片側で吸収すると、吸収しきれない書き方（baseURL の
-// パス接頭辞等）が「どれとも一致しない＝影響なし」に化ける。スキーム付きの絶対 URL は入力の誤り（exit 2）にする。
+// 部品 metadata の instances[].page と機能の capture_conditions.pages[].path は、同じ語彙（target の baseURL からの
+// 相対パス）で書く取り決めである。ここで書き方の違いを吸収しない。片側で吸収すると、吸収しきれない書き方
+// （baseURL のパス接頭辞など）が「どれとも一致しない＝影響なし」と誤って判定される。スキーム付きの絶対 URL は入力の誤り（exit 2）にする。
 // どの機能のページとも一致しない影響インスタンスは unmatched_instances と findings に載せ、
-// 実行全体を判定不能（exit 1）にする——未着手の機能のページと書き方の食い違いを、ここでは区別できないため。各機能の verdict はそのまま
-// （別のページのインスタンスが一致しないことで、その機能自身の判定は変えない）。
+// 実行全体を判定不能（exit 1）にする。未着手の機能のページと書き方の食い違いを、ここでは区別できないためである。
+// 各機能の verdict は変えない（別のページのインスタンスが一致しないことで、その機能自身の判定は変えない）。
 //
 // 決定論的: 乱数・現在時刻・ネットワークに依存しない。読むのは JSON だけで、ブラウザは駆動しない。
 // TypeScript 構文は使わない（型は JSDoc）。
@@ -37,7 +37,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
- * ツールのバージョン（正本）。判定規則・出力形状を変えたら上げる。
+ * ツールのバージョン（原本）。判定規則・出力形状を変えたら上げる。
  * @type {string}
  */
 export const VERSION = "1";
@@ -47,7 +47,7 @@ export const TOOL = "component-impact";
 
 /**
  * 変更宣言の `kind` の語彙。`align-to-current` は現行に合わせ直す修正、`new-appearance` は利用側の要求で足す新しい見た目。
- * 正本は parity-component の references/amend.md。
+ * 原本は parity-component の references/amend.md。
  */
 export const KINDS = ["align-to-current", "new-appearance"];
 
@@ -67,7 +67,7 @@ function nonEmptyString(value) {
  * 雛形のプレースホルダ（`<...>`）のまま残った文字列か。
  *
  * **プレースホルダを値として受けない**——usages に `<...>` が残ると、どのページの path とも一致せず
- * 「その部品を使うページが無い」と同じ見え方になって影響なしに倒れる。
+ * 「その部品を使うページが無い」と同じ見え方になり、影響なしと判定されてしまう。
  * @param {unknown} value
  * @returns {boolean}
  */
@@ -78,8 +78,8 @@ function isPlaceholder(value) {
 /**
  * 変更宣言の型を検証する。問題が無ければ空配列。
  *
- * 型崩れ・キーの欠落は「影響なし」に倒さず使い方の誤り（exit 2）にする——読み違えた宣言から導いた
- * 「影響なし」は、その後の撮り直しを黙って省かせる。
+ * 型の誤り・キーの欠落は「影響なし」として扱わず、使い方の誤り（exit 2）にする。読み違えた宣言から導いた
+ * 「影響なし」は、その後の撮り直しを警告なしに省かせる。
  * @param {unknown} change
  * @returns {string[]}
  */
@@ -143,7 +143,7 @@ export function validateChange(change) {
   if (Array.isArray(c.instances) && Array.isArray(c.usages)) {
     if (c.instances.length === 0 && c.usages.length === 0) {
       errors.push(
-        "instances も usages も空（どのページにも効かない改修は宣言できない。影響先を数え損ねた宣言と区別できない）",
+        "instances も usages も空（どのページにも影響しない改修は宣言できない。影響先を数え損ねた宣言と区別できない）",
       );
     }
   }
@@ -266,7 +266,7 @@ function resolveInstances(change, componentMetadata) {
     return { resolved, problems };
   }
   // 宣言した状態は部品が採った状態（capture.states）の語彙で書く。綴り違いの状態はどの撮影組にも当たらず、
-  // 「その状態を撮っていない＝影響なし」に化けるので、語彙に無い状態は判定不能にする
+  // 「その状態を撮っていない＝影響なし」と誤って判定される。そのため、語彙に無い状態は判定不能にする
   const captureStates = /** @type {any} */ (m.capture)?.states;
   if (!Array.isArray(captureStates) || !captureStates.every((st) => nonEmptyString(st))) {
     problems.push(
@@ -335,7 +335,7 @@ function judgeFeature(slug, metadata, change, instances) {
   });
   if (metadata === null || metadata === undefined) {
     return undeterminable([
-      "metadata.json が無い（どの組を撮ったか分からない。「影響なし」に倒さない）",
+      "metadata.json が無い（どの組を撮ったか分からない。「影響なし」として扱わない）",
     ]);
   }
   if (typeof metadata !== "object" || Array.isArray(metadata)) {
@@ -348,7 +348,7 @@ function judgeFeature(slug, metadata, change, instances) {
       verdict: "unaffected",
       pairs: [],
       reasons: [
-        `mode が ${m.mode}（視覚採取物を持たないので部品の見た目の改修は比較結果に効かない）`,
+        `mode が ${m.mode}（視覚採取物を持たないので部品の見た目の改修は比較結果に影響しない）`,
       ],
     };
   }
@@ -362,7 +362,7 @@ function judgeFeature(slug, metadata, change, instances) {
   const cc = /** @type {Record<string, unknown>} */ (conditions);
   if (!Array.isArray(cc.capture_scope)) {
     return undeterminable([
-      "capture_conditions.capture_scope が無い・配列でない（どの組を撮ったか分からない。「影響なし」に倒さない）",
+      "capture_conditions.capture_scope が無い・配列でない（どの組を撮ったか分からない。「影響なし」として扱わない）",
     ]);
   }
   if (!Array.isArray(cc.pages)) {
@@ -402,7 +402,7 @@ function judgeFeature(slug, metadata, change, instances) {
       ]);
     }
     // 組 id は page|state|viewport を区切り文字でつなぐので、値に区切り文字を含むと別の組が同じ id になり、
-    // 重複除去で片方が黙って落ちる（影響する組が 1 つ減る）
+    // 重複除去で片方が警告なしに消える（影響する組が 1 つ減る）
     const withSeparator = [e.page, e.state, e.viewport].filter((v) => v.includes(PAIR_SEPARATOR));
     if (withSeparator.length > 0) {
       return undeterminable([
@@ -507,7 +507,7 @@ export function computeImpact({ change, componentMetadata, features, pageUnivers
   );
   // どの機能のページの path とも一致しなかった影響インスタンス。未着手の機能のページなら正当だが、
   // 部品 metadata の page と capture_conditions.pages[].path の書き方が違う（baseURL のパス接頭辞等）と
-  // 全機能が黙って影響なしになる。区別できないので findings に載せて実行全体を判定不能にする
+  // 全機能が警告なしに影響なしになる。区別できないので findings に載せて実行全体を判定不能にする
   // （各機能の verdict は変えない）。
   const capturedPaths = new Set();
   const universe = Array.isArray(pageUniverse) ? pageUniverse : sorted.map((f) => f.metadata);
@@ -521,7 +521,7 @@ export function computeImpact({ change, componentMetadata, features, pageUnivers
   const unmatched = resolved
     .filter((instance) => !capturedPaths.has(instance.page))
     .map((instance) => ({ id: instance.id, page: instance.page }));
-  // usages も同じ扱い。綴り違いの usages はどの機能とも一致せず、usages だけに頼る宣言では全機能が黙って影響なしになる
+  // usages も同じ扱い。綴り違いの usages はどの機能とも一致せず、usages だけに頼る宣言では全機能が警告なしに影響なしになる
   const unmatchedUsages = /** @type {string[]} */ (c.usages).filter(
     (usage) => !capturedPaths.has(usage),
   );
@@ -651,14 +651,14 @@ export function main(argv, deps = {}) {
       .sort();
   }
   if (slugs.length === 0) {
-    // 機能 0 件を「全部影響なし」に倒さない。
+    // 機能 0 件を「全部影響なし」として扱わない。
     return fail(`${args["--parity-root"]} に機能のディレクトリが 1 つも無い`);
   }
   /** @type {{slug:string, metadata:unknown}[]} */
   const features = [];
   // unmatched_instances の判定には、--feature で絞っても全機能のページを使う
   // （他の機能のページのインスタンスを「どこにも一致しない」に数えない）。読めない metadata は
-  // ページを足さないだけ（一致しないインスタンスが残れば判定不能に倒れる）。
+  // ページを足さないだけにする（一致しないインスタンスが残れば判定不能になる）。
   /** @type {unknown[]} */
   const pageUniverse = [];
   if (args["--feature"] !== undefined) {
@@ -674,7 +674,7 @@ export function main(argv, deps = {}) {
   for (const slug of slugs) {
     const path = join(root, slug, "metadata.json");
     if (!exists(path)) {
-      // 採取前の機能かもしれないが、撮った組が分からないので影響なしとは言えない。
+      // 採取前の機能である可能性もあるが、撮った組が分からないので影響なしとは言えない。
       features.push({ slug, metadata: null });
       continue;
     }

@@ -1,8 +1,8 @@
 # kaizen の定期レビュー。
 #
-# 正本は kaizen スキルに同梱された `skills/kaizen/assets/kaizen-schedule.yml` で、
-# このファイルはその**バイト単位の複製**（配布元のリポジトリのテストが一致を検査する）。
-# 片方だけ直すと、配布先へ配られるテンプレートと本リポの実物が食い違う。両方を同じ内容で更新する。
+# 原本は kaizen スキルに同梱された `skills/kaizen/assets/kaizen-schedule.yml` で、
+# このファイルはその**バイト単位の複製**である（配布元のリポジトリのテストが一致をチェックする）。
+# 片方だけ直すと、配布先へ配るテンプレートとこのリポジトリの実物が食い違う。両方を同じ内容で更新する。
 #
 # 設定・skip・モード・エージェントの選び方は kaizen の `references/setup.md`「定期実行（任意・GitHub Actions）」を参照。
 name: Kaizen schedule
@@ -66,17 +66,17 @@ jobs:
         with:
           persist-credentials: false
 
-      # 一時停止スイッチだけは**スクリプトの所在確認より前**に評価する。後ろに置くと、
-      # スクリプトが見つからないリポジトリでは `Locate` の exit 1 が先に立ち、
-      # 「止めたい状況でノイズになる」まさにその場合に停止スイッチが効かない。
+      # 一時停止スイッチだけは、**スクリプトの場所を確かめるより前**に評価する。後ろに置くと、
+      # スクリプトが見つからないリポジトリでは `Locate` の exit 1 が先に起き、
+      # 「止めたい状況でノイズになる」その場合に、停止スイッチが機能しない。
       #
       # ここで見るのはリポジトリ変数だけ。`.kaizen/config` の `schedule_enabled` は
-      # スクリプトが読む（設定の読み取り実装を 2 つに増やさないため）ので、そちらを効かせるには
+      # スクリプトが読む（設定を読む実装を 2 つに増やさないため）ので、そちらを反映するには
       # スキル本体がリポジトリに在る必要がある。スクリプトごと欠けている構成を止めたいときは
       # このリポジトリ変数を使う。
       #
-      # 受理する真値はスクリプトの `parse_bool` と同じ集合。それ以外（不正値を含む）は
-      # ここでは止めず、スクリプト側の正本の判定へ委ねる（警告もそちらが出す）。
+      # 受け付ける真の値は、スクリプトの `parse_bool` と同じ集合である。それ以外（不正な値を含む）は
+      # ここでは止めず、スクリプトの側の判定（原本）に任せる（警告もそちらが出す）。
       - name: Check pause switch
         id: pause
         env:
@@ -100,10 +100,10 @@ jobs:
       # `$HOME` 配下のユーザースコープは checkout に無いので探さない——そのため
       # **スキル本体がリポジトリにコミットされていること**がこのワークフローの前提になる。
       #
-      # **レポートと追跡 Issue の照会は同じディレクトリから採る。** 片方だけ見つかる
-      # ディレクトリは古い（または壊れた）インストールなので、そこで採ると
-      # レポートは新しいのに照会は旧版という組み合わせで走りうる。両方揃った
-      # ディレクトリだけを採用し、揃わなければ落とす。
+      # **レポートと追跡 Issue の照会は、同じディレクトリから採る。** 片方だけ見つかる
+      # ディレクトリは古い（または一部が欠けた）インストールなので、そこから採ると、
+      # レポートは新しいのに照会は古い版、という組み合わせで実行されうる。両方がそろった
+      # ディレクトリだけを使い、そろわなければエラーにする。
       - name: Locate kaizen scripts
         id: locate
         if: steps.pause.outputs.skip != 'true'
@@ -148,7 +148,7 @@ jobs:
             echo "理由: $SKIP_REASON"
           } >>"$GITHUB_STEP_SUMMARY"
 
-      # 以降は settings が走って skip=false と答えたときだけ動かす。`!= 'true'` にすると、
+      # 以降は、settings が実行されて skip=false と答えたときだけ動かす。`!= 'true'` にすると、
       # 一時停止で settings 自体が skip されたときに出力が空になり、条件を満たしてしまう。
       - name: Build notify body
         if: steps.settings.outputs.skip == 'false'
@@ -159,7 +159,7 @@ jobs:
         run: bash "${{ steps.locate.outputs.script }}" prompt >"$PROMPT_FILE"
 
       # 資格情報の有無を先に測る。無いまま起動すると失敗ログだけが残り、
-      # 「エージェントが何も見つけなかった」と区別が付かない（notify へ倒す判断材料にする）。
+      # 「エージェントが何も見つけなかった」と区別できない（notify に切り替えるかの判断材料にする）。
       - name: Check agent credential
         id: cred
         if: steps.settings.outputs.skip == 'false' && steps.settings.outputs.mode == 'agent'
@@ -185,7 +185,7 @@ jobs:
           fi
           echo "present=$present" >>"$GITHUB_OUTPUT"
           if [ "$present" != true ]; then
-            echo "agent=$AGENT の資格情報が未設定。通知のみへ倒す" >&2
+            echo "agent=$AGENT の資格情報が未設定。通知のみに切り替える" >&2
           fi
 
       - name: Run Claude Code
@@ -238,9 +238,9 @@ jobs:
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           MODEL: ${{ steps.settings.outputs.model }}
         run: |
-          # メジャーを固定する。`uses:` の SHA pin と違い、インライン install は pinact も
-          # Dependabot も見ないため、完全固定にすると更新経路が無いまま古い CLI が配布先へ
-          # 残り、その版が unpublish されると install ごと落ちる。メジャー範囲なら破壊的変更を
+          # メジャーを固定する。`uses:` の SHA pin と違い、インラインの install は pinact も
+          # Dependabot も見ない。版を 1 つに固定すると、更新する手段が無いまま古い CLI が配布先に
+          # 残り、その版が unpublish されると install が失敗する。メジャーの範囲なら、破壊的な変更を
           # 避けつつ修正は入る。最新の版は `npm view @github/copilot version` で確かめる。
           npm install -g "@github/copilot@^1"
           model_args=()
@@ -248,7 +248,7 @@ jobs:
             model_args+=("--model=$MODEL")
           fi
           # stdin を明示的に閉じる。引数でプロンプトを渡していても stdin も読む CLI は
-          # 珍しくなく、非対話の runner では即 EOF にならず無限待機に化ける。
+          # 珍しくなく、非対話の runner ではすぐに EOF にならず、待ち続けてしまう。
           copilot -p "$(cat "$PROMPT_FILE")" \
             "${model_args[@]}" \
             --allow-tool=read \
@@ -285,7 +285,7 @@ jobs:
             echo "- 実行: [ワークフロー run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)"
             echo
             if [ "$CRED_PRESENT" != true ]; then
-              echo "> 資格情報（\`$AGENT\` 用の secret）が未設定のため、通知のみに倒しました。"
+              echo "> 資格情報（\`$AGENT\` 用の secret）が未設定のため、通知のみに切り替えました。"
             elif [ "$outcome" != success ]; then
               # 非空だけで成否を測らない。copilot は CLI の stdout がそのまま
               # レポートになるため、レート制限等で途中終了した run の**部分出力**が
@@ -317,12 +317,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PENDING_COUNT: ${{ steps.settings.outputs.pending_count }}
-          # 照会の正本（同梱スクリプト）。`Locate kaizen scripts` が実在を確かめた 1 本。
+          # 照会の原本（同梱のスクリプト）。`Locate kaizen scripts` が実在を確かめた 1 本である。
           TRACKING_LIB: ${{ steps.locate.outputs.lib }}
         run: |
-          # `settings` は必ず 10 進の件数を書く。空や非数値のまま進むと、`= 0` は文字列比較
-          # なので「未適用あり」側へ倒れ、件数の抜けたコメントを投稿しつつ Issue を更新する
-          # （実測）。`outdated.yml` の `has_outdated` 検証と同じく、gh を呼ぶ前に落とす。
+          # `settings` は必ず 10 進の件数を書く。空や数値でないまま進むと、`= 0` は文字列の比較
+          # なので「未適用あり」と判定され、件数の抜けたコメントを投稿しつつ Issue を更新する
+          # （実測）。`outdated.yml` の `has_outdated` の検証と同じく、gh を呼ぶ前にエラーにする。
           case "$PENDING_COUNT" in
           '' | *[!0-9]*)
             echo "pending_count=\"$PENDING_COUNT\" が 10 進の件数でない。追跡 Issue を触らずに落とす" >&2
@@ -334,17 +334,17 @@ jobs:
           # 手動実行でもランナーのタイムゾーンに依存しない値になる。
           title="$ISSUE_TITLE_PREFIX ($(date -u +%F))"
 
-          # 追跡 Issue の照会（接頭辞での照合・フォールバック・打ち切り判定・fail-closed）は
-          # `outdated.yml` と共通なので、正本は同梱スクリプト 1 本だけに置く。
+          # 追跡 Issue の照会（接頭辞での照合・フォールバック・打ち切りの判定・読めないときに止める処理）は
+          # `outdated.yml` と共通なので、原本は同梱のスクリプト 1 本だけに置く。
           # `numbers` / `scanned` / `truncated` と `warn_if_truncated` はそこで定義される。
           # shellcheck source=/dev/null
           . "$TRACKING_LIB"
           resolve_tracking_issues
 
           number="${numbers[0]-}"
-          # 複数見つかるのは手動で作られた等の異常。黙って先勝ちにせず件数と番号を出す。
-          # **ここでは何をするかを書かない**——分岐によって扱いが違う（更新は最も古い 1 本だけ、
-          # クローズは全件）ので、この位置で断定すると run ログが実挙動と食い違う。
+          # 複数見つかるのは、手動で作られたなどの異常である。警告なしに最初のものを使わず、件数と番号を出す。
+          # **ここでは何をするかを書かない。** 分岐によって扱いが違う（更新は最も古い 1 本だけ、
+          # クローズは全件）ので、この位置で言い切ると、run のログが実際の振る舞いと食い違う。
           if [ "${#numbers[@]}" -gt 1 ]; then
             echo "追跡 Issue が ${#numbers[@]} 件ある（番号: ${numbers[*]}）" >&2
           fi

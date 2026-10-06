@@ -1,46 +1,49 @@
 #!/usr/bin/env node
-// 部品の「操作の結果」を現行とカタログで突き合わせる検査（正本）。
+// 部品の「操作の結果」を現行とカタログで突き合わせる検査（検査の仕方はこのスクリプトで定義する）。
 //
 // 何のためか: 部品の照合（画素・特性・当たっている CSS 規則）が見るのは「その状態に置いたときの見た目」だけで、
-// **操作した結果が現行と同じか**はどの工程も見ていない。隅のアイコンを押すと列ピッカーではなく全選択になる、
-// 全選択の後に 1 行外しても見出しのチェックが残る、書き出しで落ちる——どれも状態ごとの見た目は基準と一致したまま、
-// 部品の完了判定（未説明差分ゼロ）を通った（実際の移行で起きた）。機能単位の parity-suite はページが
-// できてから動くので、部品を先に作る進め方では画面の実装まで誰も突き合わせない。
+// **操作した結果が現行と同じか**は、どの工程も見ていない。実際の移行で、次の不具合が起きた。
+// 隅のアイコンを押すと列ピッカーではなく全選択になる。全選択の後に 1 行外しても見出しのチェックが残る。書き出しで失敗する。
+// どれも状態ごとの見た目は基準と一致したまま、部品の完了判定（未説明差分ゼロ）を通った。機能単位の parity-suite は
+// ページができてから動くので、部品を先に作る進め方では、画面の実装まで誰も突き合わせない。
 //
 // そこで capture が現行で操作した結果（`baseline/<instance>/behaviors.json`）と、build がカタログの見本で
 // 同じ操作をした結果（`new/<target>/behavior-comparison.json`）を、**操作 × インスタンス**の組み合わせごとに比べる。
 // 比べるのは観測した状態の値（選択範囲・チェック・行の並び・開いた要素・書き出したファイルの有無・例外の件数など）で、
 // 画素は比べない。
 //
-// fail-closed の方針:
+// 判定できない入力は、失敗として扱う。
 //   - 観測項目は操作ごとに `capture.operations[].observe` で固定し、**両側ともちょうどその集合を要求する**。
-//     観測を空にした記録同士は `{}` と `{}` で一致してしまうので、項目の欠落・余分は不一致ではなく記録の不備として落とす
-//   - 到達できない操作（禁止された書き込みで作る結果等）は `instances[].unreachable_operations` の宣言だけが除外の根拠。
-//     宣言の無い欠落は採り忘れと区別できないので未採取として落とす
-//   - 突き合わせ表が無い・読めないのは「まだ突き合わせていない」と区別できないので、全組み合わせを未突合として数える
-//   - 母集合に無い組み合わせの行（基準の無い突き合わせ）も落とす。照合されない記録が合格の証拠に見えるため
-//   - 比べないことを選ぶ・差を残すことを選ぶには利用者の承認（`disposition: accepted` ＋ 理由・承認者・承認日時）が要る
+//     観測を空にした記録同士は `{}` と `{}` で一致してしまうので、項目の欠落・余分は不一致ではなく記録の不備として失敗にする
+//   - 到達できない操作（禁止された書き込みで作る結果など）を除外する根拠は、`instances[].unreachable_operations` の宣言だけである。
+//     宣言の無い欠落は採り忘れと区別できないので、未採取として失敗にする
+//   - 突き合わせ表が無い・読めないのは「まだ突き合わせていない」と区別できないので、すべての組み合わせを未突合として数える
+//   - 母集合に無い組み合わせの行（基準の無い突き合わせ）も失敗にする。照合されない記録が合格の証拠に見えるため
+//   - 比べないことや差を残すことを選ぶには、利用者の承認（`disposition: accepted` ＋ 理由・承認者・承認日時）が要る
 //   - 比べる組み合わせが 0 件なら合格にしない（`capture.operations_none_reason` で操作の無い部品と宣言した場合だけ判定しない）
 //
 // 鮮度（記録の後に実装を変えたか）はこの検査では見ない。build の照合は commit 前の作業ツリーに対して行うため、
-// commit SHA で版を特定できない（見た目の照合も同じ性質を持つ）。実装を変えたら取り直すことは手順側の規律である。
+// commit SHA で版を特定できない（見た目の照合も同じ性質を持つ）。実装を変えたら採り直すことは、手順の側の規律である。
 //
 // 決定論的: 乱数・現在時刻・ネットワークに依存しない。読むのは JSON だけで、ブラウザは駆動しない。
 //
-// 使い方: node behavior-compare.mjs --baseline <部品の成果物ディレクトリ> --comparison <突き合わせ表> --target <new target 名>
+// 使い方は次のとおりである。
+//
+//     node behavior-compare.mjs --baseline <部品の成果物ディレクトリ> --comparison <突き合わせ表> --target <new target 名>
+//
 // 終了コード: 0 ＝ 条件を満たす（判定しない場合を含む）、1 ＝ 未突合・不一致・記録の不備が残る、2 ＝ 使い方の誤り・型崩れ。
 
 import { readFileSync, realpathSync } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
-/** ツールのバージョン（正本）。判定規則・出力形状を変えたら上げる。 */
+/** ツールのバージョン（このスクリプトで定義する）。判定の規則・出力の形を変えたら上げる。 */
 export const VERSION = "1";
 
-/** 突き合わせ表の行が取れる扱いの語彙（正本）。null は「比べた」。 */
+/** 突き合わせ表の行がとりうる扱いの語彙（このスクリプトで定義する）。null は「比べた」。 */
 export const DISPOSITIONS = ["accepted"];
 
-/** 操作の導出源の語彙（正本。metadata-template.json の capture.operation_source と同じ）。 */
+/** 操作の導出元の語彙（このスクリプトで定義する。metadata-template.json の capture.operation_source と同じ）。 */
 export const OPERATION_SOURCES = [
   "vendor-feature-list",
   "component-catalog",
@@ -59,7 +62,7 @@ export function nonEmptyString(value) {
 
 /**
  * 同梱テンプレートのプレースホルダ（`<...>` の形）か。テンプレートは利用者がそのまま提出しうる入力なので、
- * 空でないだけの値を「記入済み」と読むと、写しただけの承認・理由・識別子が判定を通る。
+ * 空でないだけの値を「記入済み」と読むと、テンプレートからコピーしただけの承認・理由・識別子が判定を通る。
  * @param {unknown} value
  * @returns {boolean}
  */
@@ -154,16 +157,11 @@ function observationShape(observed, expected) {
 /**
  * 操作の結果を突き合わせる（純関数）。
  *
- * @param {{
- *   metadata: any,
- *   behaviors: Record<string, any>,
- *   comparison: any,
- *   target: string,
- * }} input
+ * @param {{ metadata: any, behaviors: Record<string, any>, comparison: any, target: string }} input 突き合わせの入力。
  *   - metadata: capture の `metadata.json`
  *   - behaviors: インスタンス id → `baseline/<id>/behaviors.json` の中身（読めなければ null）
  *   - comparison: `new/<target>/behavior-comparison.json` の中身（読めなければ null）
- *   - target: 判定対象の new target 名
+ *   - target: 判定の対象の new target 名
  * @returns {{ structural: boolean, judged: boolean, findings: object[], counts: Record<string, number> }}
  */
 export function compareBehaviors({ metadata, behaviors, comparison, target }) {
@@ -270,7 +268,7 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
         continue;
       }
       if (!filled(u.reason)) {
-        // 理由の無い宣言は除外にしない（採り忘れを除外に化けさせない）。母集合に残す。
+        // 理由の無い宣言は除外にしない（採り忘れを誤って除外として扱わない）。母集合に残す。
         findings.push({
           code: "unreachable-declaration-invalid",
           instance: inst.id,
@@ -596,7 +594,7 @@ export function main(
   try {
     comparison = JSON.parse(readFileSync(resolve(cwd, args["--comparison"]), "utf8"));
   } catch {
-    // 無い・壊れているのは「まだ突き合わせていない」と区別できないので、未突合として数える。
+    // 無い・読めないのは「まだ突き合わせていない」と区別できないので、未突合として数える。
     comparison = null;
   }
   const result = compareBehaviors({

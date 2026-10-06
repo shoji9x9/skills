@@ -1,26 +1,27 @@
-// 寸法の決まり方（窓の寸法に対する位置・寸法の式）を当てはめ・照合する（正本）。
-// 正本は parity-suite にあり、スキルディレクトリ内から直接実行する（プロジェクトへコピーしない）。
+// 寸法の決まり方（窓の寸法に対する位置・寸法の式）を当てはめ・照合する（原本）。
+// 原本は parity-suite にあり、スキルディレクトリ内から直接実行する（プロジェクトへコピーしない）。
 // parity-replace は完了判定でインストール済みの parity-suite から同じスクリプトを check で呼ぶ。
 //
-// なぜ要るか: 撮影条件が 1 ビューポートだと、画素・特性照合・aria の 3 経路はその 1 点でしか比べない。
-// 移行元が「割合 × 器の寸法 ＋ 定数」で決まっていても、測った px を並べた新側は 3 経路すべてで緑になり、
+// なぜ要るか: 撮影条件が 1 ビューポートだと、画素・特性照合・aria の 3 つの比較方法はその 1 点でしか比べない。
+// 移行元が「割合 × 親要素の寸法 ＋ 定数」で決まっていても、測った px を並べた新側は 3 つの比較方法すべてで緑になり、
 // 別の窓で数十 px ずれる。窓を変えて同じ要素を読み、式を記録して新側に当てれば、この形を落とせる。
 //
 // 何をするか:
-//   fit   現側で窓を 4 つ以上変えて読んだ矩形（samples）から、要素 × 軸（x / y / width / height）ごとに
-//         値 = ratio.width × 窓の幅 ＋ ratio.height × 窓の高さ ＋ offset を最小二乗で当てはめ、
-//         残差（最大絶対誤差）が許容内なら fits、超える・一部の窓で表示されないなら unfit（式が読めない）に記録する。
-//         --write で metadata.json の capture_conditions.dimension_model へ書く（手で転記させない）
+//   fit   現側で窓を 4 つ以上変えて読んだ矩形（samples）から、要素 × 軸（x / y / width / height）ごとに式を当てはめる。
+//         式は `値 = ratio.width × 窓の幅 ＋ ratio.height × 窓の高さ ＋ offset` で、最小二乗で当てはめる。
+//         残差（最大絶対誤差）が許容内なら fits に記録する。超える・一部の窓で表示されないなら unfit（式が読めない）に記録する。
+//         --write で metadata.json の capture_conditions.dimension_model へ書く（手で転記させない）。
 //   check 新側で同じ窓（measured_at）に読んだ矩形を、現側の fits の式による予測値と突き合わせる。
-//         --write <replace-metadata.json> で結果を dimension_check として書く（exit 2 も error として書き、前回の合格を残さない）
+//         --write <replace-metadata.json> で結果を dimension_check として書く。
+//         exit 2 も error として書き、前回の合格を残さない。
 //
-// 器の寸法を窓の寸法に固定する理由: 器（グリッド・パネル）自身が窓に対して線形なら、器に対して線形な要素も
-// 窓に対して線形になる（合成しても線形）。窓の幅と高さを独立に動かして 2 変数で当てれば、器を選ぶ判断が要らない。
-// ブレークポイント（メディアクエリ）や min / max の頭打ちをまたぐと線形にならず unfit になる——それは正しい振る舞い。
+// 基準の寸法を窓の寸法に固定する理由: 親要素（グリッド・パネル）自身が窓に対して線形なら、親要素に対して線形な要素も
+// 窓に対して線形になる（合成しても線形）。窓の幅と高さを独立に動かして 2 変数で当てれば、どの親要素を基準にするかを選ぶ判断が要らない。
+// ブレークポイント（メディアクエリ）や min / max の頭打ちをまたぐと線形にならず、unfit になる。これは正しい振る舞いである。
 //
-// fail-closed: 窓 4 未満・窓が一直線上に並ぶ（幅と高さを独立に動かしていない）・宣言したビューポートを含まない・
-// 窓の欠け／重複・要素キーの欠落／重複・型崩れは合格に倒さない（exit 2）。
-// 判定しない経路（judged: false）は dimension_model の欠落・status: not_measured / not_required に閉じ、理由を出力に残す。
+// 次の入力は合格として扱わない（exit 2）。窓 4 未満・窓が一直線上に並ぶ（幅と高さを独立に動かしていない）・
+// 宣言したビューポートを含まない・窓の欠け／重複・要素キーの欠落／重複・型の誤り。
+// 判定しない場合（judged: false）は、dimension_model の欠落と status: not_measured / not_required だけに限り、理由を出力に残す。
 //
 // 決定論的: 乱数・現在時刻に依存しない。TypeScript 構文は使わない（型は JSDoc）。
 
@@ -30,7 +31,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
- * ツールのバージョン（正本）。当てはめ・判定ロジック・出力形状を変えたら上げる。
+ * ツールのバージョン（原本）。当てはめ・判定ロジック・出力形状を変えたら上げる。
  * dimension_model.tool_version と一致しない記録は check で落ちる（現側を採り直す）。
  * @type {string}
  */
@@ -96,7 +97,7 @@ function windowKey(w) {
 }
 
 /**
- * 窓 1 つを検証する（キーを作る前に型を確かめる。"1366" のような文字列を実在の窓のキーへ化けさせない）。
+ * 窓 1 つを検証する（キーを作る前に型を確かめる。"1366" のような文字列を、実在の窓のキーとして扱わない）。
  * @param {unknown} w
  * @param {string} at
  * @returns {{ width: number, height: number }}
@@ -202,7 +203,7 @@ function indexElements(elements, windows, label) {
   const index = new Map();
   elements.forEach((e, i) => {
     const at = `${label}.elements[${i}]`;
-    // キーの材料を先に弾く（欠落を "undefined" という有効なキーへ化けさせない）
+    // キーの材料を先に弾く（欠落を "undefined" という有効なキーとして扱わない）
     if (!isPlainObject(e) || !nonEmptyString(e.page) || !nonEmptyString(e.element)) {
       throw new UsageError(`${at} の page / element が空でない文字列でない`);
     }
@@ -376,7 +377,7 @@ function readTargets(metadata) {
   ) {
     throw new UsageError("metadata.json の capture_conditions.pages[].name が空でない配列でない");
   }
-  // 同じ論理名の重複を 1 つの集合要素へ潰さない（上書きされた論理名の分だけ測る対象が黙って減る）
+  // 同じ論理名の重複を 1 つの集合要素へ潰さない（上書きされた論理名の分だけ測る対象が警告なしに減る）
   const elementNames = /** @type {string[]} */ (traits.elements);
   const duplicatedElements = elementNames.filter((n, i) => elementNames.indexOf(n) !== i);
   if (duplicatedElements.length > 0) {
@@ -384,7 +385,7 @@ function readTargets(metadata) {
       `traits.elements が重複している: ${[...new Set(duplicatedElements)].join(", ")}`,
     );
   }
-  // 同名のページを 1 つの集合キーへ潰さない（1 つ目のページを測っただけで 2 つ目の測り漏れが通る）
+  // 同名のページを 1 つの集合キーへ潰さない（1 つ目のページを測っただけで、2 つ目を測り忘れても通る）
   const names = cc.pages.map((p) => /** @type {string} */ (p.name));
   const duplicated = names.filter((n, i) => names.indexOf(n) !== i);
   if (duplicated.length > 0) {
@@ -439,7 +440,7 @@ export function checkModel(metadata, loadSamples, loadCurrentSamplesText) {
   const cc = /** @type {Record<string, unknown>} */ (
     /** @type {Record<string, unknown>} */ (metadata).capture_conditions
   );
-  // キーの欠落は免除にしない（判定しない経路は理由付きの not_measured / not_required に閉じる）
+  // キーの欠落は免除にしない（判定しない場合は、理由付きの not_measured / not_required だけに限る）
   if (!Object.hasOwn(cc, "dimension_model")) {
     throw new UsageError(
       "capture_conditions.dimension_model が無い。parity-suite で fit を通すか、測れないなら status: not_measured と reason を書く（キーを省略したまま判定を免除しない）",
@@ -449,14 +450,14 @@ export function checkModel(metadata, loadSamples, loadCurrentSamplesText) {
   if (!isPlainObject(dm) || !STATUSES.includes(/** @type {string} */ (dm.status))) {
     throw new UsageError(`dimension_model.status が ${STATUSES.join(" / ")} のいずれでもない`);
   }
-  // 判定しない経路は閉じた集合（not_measured / not_required）に限り、理由を必須にする
+  // 判定しない場合は閉じた集合（not_measured / not_required）に限り、理由を必須にする
   if (dm.status !== "measured") {
     if (!nonEmptyString(dm.reason)) {
       throw new UsageError(`dimension_model.status: ${dm.status} に reason が無い`);
     }
     if (dm.status === "not_required" && viewports.length < 2) {
       throw new UsageError(
-        "ビューポートが 1 つの撮影で dimension_model.status: not_required は使えない（1 点の px を並べた版組が 3 経路で緑になる）",
+        "ビューポートが 1 つの撮影で dimension_model.status: not_required は使えない（1 点の px を並べた版組が 3 つの比較方法で緑になる）",
       );
     }
     return { judged: false, reason: `dimension_model.status: ${dm.status}（${dm.reason}）` };
@@ -495,7 +496,7 @@ export function checkModel(metadata, loadSamples, loadCurrentSamplesText) {
       !finite(f.ratio.height) ||
       !finite(f.offset)
     ) {
-      throw new UsageError(`dimension_model.fits[${i}] の形が崩れている`);
+      throw new UsageError(`dimension_model.fits[${i}] の形が不正`);
     }
     const key = JSON.stringify([f.page, f.element, f.property]);
     if (seenFit.has(key)) throw new UsageError(`dimension_model.fits[${i}] が重複している`);
@@ -504,7 +505,7 @@ export function checkModel(metadata, loadSamples, loadCurrentSamplesText) {
       f
     );
   });
-  // unfit も fits と同じくキーの材料を検証する（崩れた記録を中身の無い note に化けさせない）
+  // unfit も fits と同じくキーの材料を検証する（不正な記録を、中身の無い note として扱わない）
   const seenUnfit = new Set();
   const unfit = dm.unfit.map((u, i) => {
     if (
@@ -514,7 +515,7 @@ export function checkModel(metadata, loadSamples, loadCurrentSamplesText) {
       !PROPERTIES.includes(/** @type {string} */ (u.property)) ||
       !nonEmptyString(u.reason)
     ) {
-      throw new UsageError(`dimension_model.unfit[${i}] の形が崩れている`);
+      throw new UsageError(`dimension_model.unfit[${i}] の形が不正`);
     }
     const key = JSON.stringify([u.page, u.element, u.property]);
     if (seenUnfit.has(key)) throw new UsageError(`dimension_model.unfit[${i}] が重複している`);
@@ -527,7 +528,7 @@ export function checkModel(metadata, loadSamples, loadCurrentSamplesText) {
     return { page: u.page, element: u.element, property: u.property, reason: u.reason };
   });
   // 記録された (page, element) は 4 軸すべてを fits か unfit のどちらかにちょうど 1 回持つこと
-  // （軸を消した記録で、消した軸の照合を黙って飛ばさない）
+  // （軸を消した記録で、消した軸の照合を警告なしに飛ばさない）
   /** @type {Map<string, { page: string, element: string, properties: Set<string> }>} */
   const byElement = new Map();
   for (const e of [...fits, ...unfit]) {
@@ -641,7 +642,7 @@ export function checkModel(metadata, loadSamples, loadCurrentSamplesText) {
       }
     }
   }
-  // 照合できる式が 0 件（全軸が unfit）なら合格を名乗らない。写していない軸として porting.md へ明示させる
+  // 照合できる式が 0 件（全軸が unfit）なら合格を名乗らない。新側へ反映していない軸として porting.md へ明示させる
   if (fits.length === 0) {
     return {
       judged: false,
@@ -655,7 +656,7 @@ export function checkModel(metadata, loadSamples, loadCurrentSamplesText) {
     ok: failures.length === 0,
     checked,
     failures,
-    // 式が読めなかった軸。新側で写したかをスクリプトは判定できないので、porting.md へ明示させる
+    // 式が読めなかった軸。新側へ反映したかをスクリプトは判定できないので、porting.md へ明示させる
     unfit_to_note: unfit,
   };
 }
@@ -812,7 +813,7 @@ export function main(argv, deps = {}) {
     if (result.judged && !result.ok) {
       for (const f of result.failures) process.stderr.write(`warn: ${JSON.stringify(f)}\n`);
       process.stderr.write(
-        `error: 寸法の決まり方が現側と合わない ${result.failures.length} 件 — 1 点の px ではなく式で写す\n`,
+        `error: 寸法の決まり方が現側と合わない ${result.failures.length} 件 — 1 点の px ではなく式で反映する\n`,
       );
       return 1;
     }

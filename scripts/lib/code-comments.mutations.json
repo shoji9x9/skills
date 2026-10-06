@@ -1,0 +1,427 @@
+{
+  "$comment": [
+    "code-comments.test.js の検出能力を示す変異の一覧。",
+    "データとして持ち、scripts/mutation/check-mutation-proof.js が再実行する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/lib/code-comments.test.js",
+  "mutations": [
+    {
+      "id": "CC-STARTS",
+      "why": "YAML の語の途中の # もコメントの始まりにする",
+      "file": "scripts/lib/code-comments.js",
+      "find": "  return i === 0 || /\\s/.test(line[i - 1]);",
+      "replace": "  return true;",
+      "occurrences": 1,
+      "expect_failing": ["YAML URL の # の # はコメントにしない"]
+    },
+    {
+      "id": "CC-YAML-QUOTE",
+      "why": "YAML の引用符の中の # をコメントとして取り出す",
+      "file": "scripts/lib/code-comments.js",
+      "find": "      if ((c === \"'\" || c === '\"') && (i === 0 || /[\\s[{,]/.test(line[i - 1]))) {",
+      "replace": "      if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "YAML 一重引用符 の # はコメントにしない",
+        "YAML 二重引用符 の # はコメントにしない",
+        "YAML エスケープした二重引用符の後 の # はコメントにしない",
+        "YAML フローの配列 の引用の中の # はコメントにしない",
+        "YAML フローの対応 の引用の中の # はコメントにしない",
+        "YAML フローの区切りの後 の引用の中の # はコメントにしない",
+        "YAML 一重引用符の中の '' は引用の終わりにしない"
+      ]
+    },
+    {
+      "id": "CC-YAML-QUOTE-START",
+      "why": "YAML の語の中の ' を引用の始まりにする",
+      "file": "scripts/lib/code-comments.js",
+      "find": "      if ((c === \"'\" || c === '\"') && (i === 0 || /[\\s[{,]/.test(line[i - 1]))) {",
+      "replace": "      if (c === \"'\" || c === '\"') {",
+      "occurrences": 1,
+      "expect_failing": ["YAML 語の中の ' は引用の始まりにしない（後ろのコメントを取り出す）"]
+    },
+    {
+      "id": "CC-TRAILING-JOIN",
+      "why": "行の後ろのコメントを前後のコメントと 1 段落にする",
+      "file": "scripts/lib/code-comments.js",
+      "find": "      !previous.trailing &&\n      !piece.trailing &&\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "JavaScript・TypeScript 行の後ろのコメントは、前後のコメントと別の段落にする",
+        "シェル 行頭と空白の後の # をコメントにする",
+        "YAML 行頭と空白の後の # をコメントにし、ブロックスカラーの中のシェルのコメントも取り出す"
+      ]
+    },
+    {
+      "id": "CC-JOIN-LINE",
+      "why": "間にコードの行があっても 1 段落にする",
+      "file": "scripts/lib/code-comments.js",
+      "find": "      piece.line === previous.line + 1;",
+      "replace": "      true;",
+      "occurrences": 1,
+      "expect_failing": [
+        "JavaScript・TypeScript 行コメントとブロックコメントを取り出し、記号を外す",
+        "JavaScript・TypeScript 続く行は 1 段落、間にコードの行があれば別の段落にする",
+        "JavaScript・TypeScript コメントの中の空行で段落を分ける",
+        "JavaScript・TypeScript 日本語を含まない段落は入れない",
+        "JavaScript・TypeScript 英語だけの JSDoc は、次の行に続く型を置き換えても入れない",
+        "シェル esac の後のリダイレクト の case も構文どおりに読む",
+        "シェル time のオプションの後 の case も構文どおりに読む",
+        "シェル 関数の定義の中 の case も構文どおりに読む"
+      ]
+    },
+    {
+      "id": "CC-JAPANESE",
+      "why": "日本語を含まない段落も入れる",
+      "file": "scripts/lib/code-comments.js",
+      "find": "    if (!directive && !block.some((p) => JAPANESE.test(p.original ?? p.text))) continue;",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "JavaScript・TypeScript 日本語を含まない段落は入れない",
+        "JavaScript・TypeScript 英語だけの JSDoc は、次の行に続く型を置き換えても入れない"
+      ]
+    },
+    {
+      "id": "CC-DIRECTIVE-JOIN",
+      "why": "ディレクティブの行を前後のコメントと 1 段落にする",
+      "file": "scripts/lib/code-comments.js",
+      "find": "      !directiveOf(previous) &&\n      !directiveOf(piece) &&\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "textlint-disable・enable 単独の行のディレクティブを Markdown のコメントにし、前後の段落と分ける"
+      ]
+    },
+    {
+      "id": "CC-DIRECTIVE",
+      "why": "ディレクティブを Markdown のコメントにしない",
+      "file": "scripts/lib/code-comments.js",
+      "find": "    if (directive) emit(`<!-- textlint-${directive} -->`, block[0].line, 0);\n    else for",
+      "replace": "    for",
+      "occurrences": 1,
+      "expect_failing": [
+        "textlint-disable・enable 単独の行のディレクティブを Markdown のコメントにし、前後の段落と分ける",
+        "textlint-disable・enable ディレクティブだけの段落は、日本語を含まなくても入れる"
+      ]
+    },
+    {
+      "id": "CC-JSDOC",
+      "why": "JSDoc のタグと型をインラインコードにしない",
+      "file": "scripts/lib/code-comments.js",
+      "find": "  if (!tag) return { text, column, depth: 0 };",
+      "replace": "  return { text, column, depth: 0 };",
+      "occurrences": 1,
+      "expect_failing": [
+        "JavaScript・TypeScript JSDoc のタグと型はタグの名前のインラインコードにし、タグの行ごとに段落を分ける",
+        "JavaScript・TypeScript 型の括弧が次の行以降で閉じるなら、閉じるところまでを型として置き換える",
+        "JavaScript・TypeScript JSDoc の本文の // を別のコメントとして二重に取り出さない"
+      ]
+    },
+    {
+      "id": "CC-JSDOC-BRACE",
+      "why": "JSDoc の型の閉じ括弧を探さない（型を行の終わりまで読む）",
+      "file": "scripts/lib/code-comments.js",
+      "find": "    else if (text[i] === \"}\" && --depth === 0) return { end: i + 1, depth: 0 };",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "JavaScript・TypeScript JSDoc のタグと型はタグの名前のインラインコードにし、タグの行ごとに段落を分ける",
+        "JavaScript・TypeScript 型の括弧が次の行以降で閉じるなら、閉じるところまでを型として置き換える",
+        "JavaScript・TypeScript 位置: 型の続きの行の後ろの文章も、元の行と桁に戻す",
+        "JavaScript・TypeScript 位置: JSDoc のタグの後ろの文章も、元の行と桁に戻す",
+        "JavaScript・TypeScript JSDoc の本文の // を別のコメントとして二重に取り出さない"
+      ]
+    },
+    {
+      "id": "CC-OPEN-COL",
+      "why": "/** の後の桁を 1 文字ずらす",
+      "file": "scripts/lib/code-comments.js",
+      "find": "    const body = \" \".repeat(open.length) +",
+      "replace": "    const body = \"  \" +",
+      "occurrences": 1,
+      "expect_failing": [
+        "JavaScript・TypeScript 位置: 行コメント・ブロックコメントの 1 行目・2 行目以降を元の行と桁に戻す"
+      ]
+    },
+    {
+      "id": "CC-BLOCK-LEAD",
+      "why": "ブロックコメントの 2 行目以降の * を外さない",
+      "file": "scripts/lib/code-comments.js",
+      "find": "part.match(/^\\s*(?:\\*(?!\\*) ?)?/)",
+      "replace": "part.match(/^\\s*/)",
+      "occurrences": 1,
+      "expect_failing": [
+        "JavaScript・TypeScript 行コメントとブロックコメントを取り出し、記号を外す",
+        "JavaScript・TypeScript JSDoc のタグと型はタグの名前のインラインコードにし、タグの行ごとに段落を分ける",
+        "JavaScript・TypeScript 型の括弧が次の行以降で閉じるなら、閉じるところまでを型として置き換える",
+        "JavaScript・TypeScript コメントの中の空行で段落を分ける",
+        "JavaScript・TypeScript JSDoc の本文の // を別のコメントとして二重に取り出さない"
+      ]
+    },
+    {
+      "id": "CC-JS-VISIT",
+      "why": "JavaScript の子のノードをたどらない（ファイルの先頭のコメントしか取り出さない）",
+      "file": "scripts/lib/code-comments.js",
+      "find": "    for (const child of node.getChildren(sf)) visit(child);\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "JavaScript・TypeScript 行コメントとブロックコメントを取り出し、記号を外す",
+        "JavaScript・TypeScript 文字列・テンプレート・正規表現の中の // と /* は取り出さない",
+        "JavaScript・TypeScript 続く行は 1 段落、間にコードの行があれば別の段落にする",
+        "JavaScript・TypeScript 行の後ろのコメントは、前後のコメントと別の段落にする",
+        "JavaScript・TypeScript 日本語を含まない段落は入れない",
+        "JavaScript・TypeScript 位置: 行コメント・ブロックコメントの 1 行目・2 行目以降を元の行と桁に戻す",
+        "JavaScript・TypeScript 英語だけの JSDoc は、次の行に続く型を置き換えても入れない"
+      ]
+    },
+    {
+      "id": "CC-JS-TRAILING",
+      "why": "JavaScript のノードの後ろのコメントを取り出さない",
+      "file": "scripts/lib/code-comments.js",
+      "find": "    add(ts.getTrailingCommentRanges(source, node.getEnd()));\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "JavaScript・TypeScript 行の後ろのコメントは、前後のコメントと別の段落にする",
+        "JavaScript・TypeScript 位置: 行コメント・ブロックコメントの 1 行目・2 行目以降を元の行と桁に戻す"
+      ]
+    },
+    {
+      "id": "CC-JSDOC-COLUMN",
+      "why": "JSDoc の型を置き換えた分の桁を戻さない",
+      "file": "scripts/lib/code-comments.js",
+      "find": "  return { text: replaced, column: column - (replaced.length - text.length), start: column + 1 };",
+      "replace": "  return { text: replaced, column, start: column + 1 };",
+      "occurrences": 1,
+      "expect_failing": [
+        "JavaScript・TypeScript 位置: 型の続きの行の後ろの文章も、元の行と桁に戻す",
+        "JavaScript・TypeScript 位置: JSDoc のタグの後ろの文章も、元の行と桁に戻す"
+      ]
+    },
+    {
+      "id": "CC-BOLD",
+      "why": "行の先頭の ** の * をブロックコメントの記号として外す",
+      "file": "scripts/lib/code-comments.js",
+      "find": "part.match(/^\\s*(?:\\*(?!\\*) ?)?/)",
+      "replace": "part.match(/^\\s*\\*? ?/)",
+      "occurrences": 1,
+      "expect_failing": [
+        "JavaScript・TypeScript 行の先頭の太字（**）の * はブロックコメントの記号として外さない"
+      ]
+    },
+    {
+      "id": "CC-EMPTY-BLOCK",
+      "why": "/**/ の /** を開始として読む",
+      "file": "scripts/lib/code-comments.js",
+      "find": "raw.match(/^\\/\\*(?:\\*(?!\\/))?/)",
+      "replace": "raw.match(/^\\/\\*\\*?/)",
+      "occurrences": 1,
+      "expect_failing": ["JavaScript・TypeScript 空のブロックコメント /**/ は何も残さない"]
+    },
+    {
+      "id": "CC-YAML-FLOW",
+      "why": "YAML のフローの [ { , の後の引用符を引用の始まりにしない",
+      "file": "scripts/lib/code-comments.js",
+      "find": "/[\\s[{,]/.test(line[i - 1])",
+      "replace": "/\\s/.test(line[i - 1])",
+      "occurrences": 1,
+      "expect_failing": [
+        "YAML フローの配列 の引用の中の # はコメントにしない",
+        "YAML フローの区切りの後 の引用の中の # はコメントにしない"
+      ]
+    },
+    {
+      "id": "CC-TAG-PARAGRAPH",
+      "why": "JSDoc のタグの行を前の行と 1 段落にする",
+      "file": "scripts/lib/code-comments.js",
+      "find": "      !piece.tag &&\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "JavaScript・TypeScript JSDoc のタグと型はタグの名前のインラインコードにし、タグの行ごとに段落を分ける",
+        "JavaScript・TypeScript JSDoc の本文の // を別のコメントとして二重に取り出さない"
+      ]
+    },
+    {
+      "id": "CC-JSDOC-SCOPE",
+      "why": "/** 以外のコメントの行頭の @ もタグとして扱う",
+      "file": "scripts/lib/code-comments.js",
+      "find": "      if (open === \"/**\") {",
+      "replace": "      if (true) {",
+      "occurrences": 1,
+      "expect_failing": ["JavaScript・TypeScript /** 以外のコメントの行頭の @ はタグとして扱わない"]
+    },
+    {
+      "id": "CC-TYPE-CONTINUATION",
+      "why": "次の行に続く型を文章として読む",
+      "file": "scripts/lib/code-comments.js",
+      "find": "          typeDepth > 0\n",
+      "replace": "          false\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "JavaScript・TypeScript 型の括弧が次の行以降で閉じるなら、閉じるところまでを型として置き換える"
+      ]
+    },
+    {
+      "id": "CC-SEPARATOR",
+      "why": "区切りの行を前後の行と 1 段落にする",
+      "file": "scripts/lib/code-comments.js",
+      "find": "      !isSeparator(previous) &&\n      !isSeparator(piece) &&\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "JavaScript・TypeScript 区切りの行（両側の記号）は前後の行と別の段落にする",
+        "JavaScript・TypeScript 区切りの行（記号だけ）は前後の行と別の段落にする",
+        "JavaScript・TypeScript 区切りの行（後ろの記号）は前後の行と別の段落にする"
+      ]
+    },
+    {
+      "id": "CC-JS-NESTED",
+      "why": "JSDoc の中から読んだ範囲を別のコメントとして二重に取り出す",
+      "file": "scripts/lib/code-comments.js",
+      "find": "    if (r.pos < coveredUntil) continue;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "JavaScript・TypeScript JSDoc の本文の // を別のコメントとして二重に取り出さない"
+      ]
+    },
+    {
+      "id": "CC-JAPANESE-ORIGINAL",
+      "why": "置き換えた `型` を日本語として数え、英語だけの JSDoc を入れる",
+      "file": "scripts/lib/code-comments.js",
+      "find": "JAPANESE.test(p.original ?? p.text)",
+      "replace": "JAPANESE.test(p.text)",
+      "occurrences": 1,
+      "expect_failing": [
+        "JavaScript・TypeScript 英語だけの JSDoc は、次の行に続く型を置き換えても入れない"
+      ]
+    },
+    {
+      "id": "CC-YAML-ESCAPE",
+      "why": "YAML の一重引用符の中の '' を引用の終わりとして読む",
+      "file": "scripts/lib/code-comments.js",
+      "find": "        if (c === \"'\" && line[i + 1] === \"'\") i++;\n        else if",
+      "replace": "        if",
+      "occurrences": 1,
+      "expect_failing": ["YAML 一重引用符の中の '' は引用の終わりにしない"]
+    },
+    {
+      "id": "CC-SHEBANG",
+      "why": "シェルの 1 行目のシバンをコメントとして取り出す",
+      "file": "scripts/lib/code-comments.js",
+      "find": "    if (c.Hash.Offset === 0 && c.Text.startsWith(\"!\")) continue;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["シェル シバンは 1 行目だけ外し、2 行目以降の #! は外さない"]
+    },
+    {
+      "id": "CC-SH-EMPTY",
+      "why": "# だけの空のコメント（Text が省かれる）を取りこぼす",
+      "file": "scripts/lib/code-comments.js",
+      "find": "      if (node.Hash) comments.set(node.Hash.Offset, { ...node, Text: node.Text ?? \"\" });",
+      "replace": "      if (node.Hash && typeof node.Text === \"string\") comments.set(node.Hash.Offset, node);",
+      "occurrences": 1,
+      "expect_failing": [
+        "シェル # だけの行も取り出し、前後の行と 1 つの塊にする（英語の行も日本語を含む塊として入る）"
+      ]
+    },
+    {
+      "id": "CC-SH-LAST",
+      "why": "Comments のキーにあるコメントだけを集める（末尾の Last を取りこぼす）",
+      "file": "scripts/lib/code-comments.js",
+      "find": "      if (node.Hash) comments.set(node.Hash.Offset, { ...node, Text: node.Text ?? \"\" });",
+      "replace": "      for (const c of node.Comments ?? []) comments.set(c.Hash.Offset, { ...c, Text: c.Text ?? \"\" });",
+      "occurrences": 1,
+      "expect_failing": [
+        "シェル シバンは 1 行目だけ外し、2 行目以降の #! は外さない",
+        "シェル 二重引用符の中の置換の中の引用 のあとのコメントも取り出す",
+        "シェル 置換の中の括弧 のあとのコメントも取り出す",
+        "シェル 引用の外の置換の中の引用 のあとのコメントも取り出す",
+        "シェル then の後 の case も数える",
+        "シェル do の後 の case も数える",
+        "シェル { の後 の case も数える",
+        "シェル time のオプションの後 の case も構文どおりに読む",
+        "シェル esac の後のリダイレクト の case も構文どおりに読む",
+        "シェル 関数の定義の中 の case も構文どおりに読む",
+        "シェル ; の後の case も数え、その分岐の ) で置換を閉じない",
+        "シェル 置換の中の case の分岐の ) で置換を閉じない",
+        "シェル 置換を閉じた後の二重引用符の中の # はコメントにしない",
+        "シェル 複数行にまたがる引用の中の # はコメントにしない",
+        "シェル heredoc の本文（引用符で囲んだ区切り）はコメントにしない",
+        "シェル heredoc の本文（二重引用符で囲んだ区切り）はコメントにしない",
+        "シェル heredoc の本文（囲まない区切り）はコメントにしない",
+        "シェル heredoc の本文（タブを外す区切り）はコメントにしない",
+        "シェル heredoc の本文（コマンド置換の中）はコメントにしない",
+        "シェル heredoc の本文（バックスラッシュで引用した区切り）はコメントにしない",
+        "シェル CRLF の heredoc でも、区切りの行で本文が終わる",
+        "シェル 区切りの名前に - や . を含む heredoc も、その名前の行で終わる",
+        "シェル $'...' の中のエスケープした ' で引用を閉じない",
+        "シェル 算術（$(( ))）の中の << は heredoc として扱わない",
+        "シェル 算術（(( ))）の中の << は heredoc として扱わない",
+        "シェル here-string（<<<）は heredoc として扱わない",
+        "textlint-disable・enable ディレクティブだけの段落は、日本語を含まなくても入れる"
+      ]
+    },
+    {
+      "id": "CC-SH-BYTES",
+      "why": "shfmt のバイト単位の位置を、文字の位置に直さない",
+      "file": "scripts/lib/code-comments.js",
+      "find": "    const index = bytes.subarray(0, c.Hash.Offset).toString(\"utf8\").length;",
+      "replace": "    const index = c.Hash.Offset;",
+      "occurrences": 1,
+      "expect_failing": [
+        "シェル 位置: 同じ行の # の前に日本語があっても、元の桁に戻す",
+        "シェル 位置: 行頭と行の後ろのコメントを元の行と桁に戻す"
+      ]
+    },
+    {
+      "id": "CC-SH-PARSE",
+      "why": "shfmt で解析できないシェルを、コメント 0 件として通す",
+      "file": "scripts/lib/code-comments.js",
+      "find": "    throw new Error(\n      `シェルを解析できないので、コメントを判定できない（shfmt --to-json: ${detail}）`,\n    );",
+      "replace": "    return [];",
+      "occurrences": 1,
+      "expect_failing": [
+        "シェル 終わりで 閉じていない引用 が残れば例外にする",
+        "シェル 終わりで 閉じていない置換 が残れば例外にする",
+        "シェル 終わりで 区切りの行が無い heredoc が残れば例外にする"
+      ]
+    },
+    {
+      "id": "CC-TRAILING-SH",
+      "why": "シェルの行の後ろのコメントを、行頭のコメントとして扱う",
+      "file": "scripts/lib/code-comments.js",
+      "find": "      trailing: source.slice(starts[line], index).trim() !== \"\",",
+      "replace": "      trailing: false,",
+      "occurrences": 1,
+      "expect_failing": ["シェル 行頭と空白の後の # をコメントにする"]
+    },
+    {
+      "id": "CC-SH-TOOL",
+      "why": "shfmt を起動できないことを、ファイルの解析の失敗と同じに扱う",
+      "file": "scripts/lib/code-comments.js",
+      "find": "  if (problem) throw Object.assign(new Error(problem), { missingTool: true });",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "シェル shfmt を起動できない（PATH に無い）なら、解析の失敗と分けて missingTool を付けた例外にする",
+        "シェル shfmt を起動できない（shim が版を解決できない（exit 1））なら、解析の失敗と分けて missingTool を付けた例外にする",
+        "シェル shfmt を起動できるかは、カレントディレクトリごとに確かめ直す"
+      ]
+    },
+    {
+      "id": "CC-SH-TOOL-CWD",
+      "why": "shfmt を起動できるかの結果を PATH だけで使い回す（カレントディレクトリが変わっても確かめ直さない）",
+      "file": "scripts/lib/code-comments.js",
+      "find": "  const key = `${process.env.PATH ?? \"\"}\\0${process.cwd()}`;",
+      "replace": "  const key = process.env.PATH ?? \"\";",
+      "occurrences": 1,
+      "expect_failing": ["シェル shfmt を起動できるかは、カレントディレクトリごとに確かめ直す"]
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-// セマンティクス測定の role プローブ（正本）。
+// セマンティクス測定の role プローブ。
 // 使い方: 下の `roleProbe` の関数リテラルを chrome-devtools MCP の evaluate_script の
 // function 引数にそのまま渡す（Node では実行しない。ブラウザの document を参照する）。
 // evaluate_script は渡された関数宣言を自ら呼び出して実行し、返り値を JSON で返すため、

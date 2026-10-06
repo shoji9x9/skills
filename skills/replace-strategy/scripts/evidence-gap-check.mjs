@@ -1,56 +1,55 @@
-// 「要求単位の根拠」の書き戻し漏れを数える（正本）。
+// 「要求単位の根拠」の書き戻しの抜けを数える。判定の規則は、このファイルで定義する。
 //
-// .replace/features.md の「要求単位の根拠」列は、口の要求単位を確定した本人が
-// replace-strategy evidence で 推定 → 実測 へ更新する。確定できなかった口は 推定 のまま残し、
-// 測るまで機能を閉じさせないものは parity-suite が .replace/parity/<slug>/metadata.json の
-// unmeasured へ宣言する。どちらも行われないと、確定済みの口が status の未検証領域に残り続け、
-// 未検証領域の一覧が実態より多く出る（読まれなくなる）。
+// .replace/features.md の「要求単位の根拠」列は、口の要求単位を確定した本人が、
+// replace-strategy evidence で 推定 → 実測 へ更新する。確定できなかった口は 推定 のまま残す。
+// 測るまで機能を閉じさせないものは、parity-suite が .replace/parity/<slug>/metadata.json の unmeasured へ宣言する。
+// どちらも行われないと、確定済みの口が status の未検証領域に残り続け、未検証領域の一覧が実態より多く出る（読まれなくなる）。
 //
-// このツールが数えるのは 1 つだけ:
-//   「未確認の口」のうち、unmeasured にも宣言されていないもの = 書き戻しか宣言の漏れ
+// このツールが数えるのは、「未確認の口」のうち unmeasured にも宣言されていないもの（書き戻しか宣言の抜け）の 1 つだけである。
 //
-// 未確認の口の定義（正本は references/status.md の導出項目 11）:
-//   - 根拠が 推定 の口
-//   - API 列にあるのに、根拠列のどのエントリにも対応づかない口（根拠が無い＝未確認）
-//   - 根拠の語彙が 実測: / 推定: のどちらでもない口（語彙外は未確認に倒す。fail-closed。
-//     区切りまで見る——前方一致だと「実測できず」が 実測 に化ける）
+// 未確認の口は、次のどれかに当たる口である（原本は references/status.md の導出項目 11）。
 //
-// 対応づけの単位（宣言）: 口の文字列の完全一致。根拠エントリの `<口> → <根拠>` の矢印より前を
-//   `,` / `、` で分割し、空白を 1 つに畳んでから API 列の口と突き合わせる。
-//   散文（「両方」等）は口に一致しないので対応づかないものとして数える——
-//   曖昧な対応づけを許すと、書き戻し漏れが「まとめて書いてある」に化ける。
-//   unmeasured 側も同じ単位で、entries[].endpoint の完全一致だけを宣言として数える
-//   （item の散文に口が含まれることを宣言に数えない。部分一致は別の口を宣言済みに化けさせる）。
-//   unmeasured.declared: false は「宣言を持たない」なので entries を読まない
-//   （parity-suite の artifact-health-check.mjs はその節を判定しないため、読むと誰も効かせていない宣言で通る）。
+// - 根拠が 推定 の口。
+// - API 列にあるのに、根拠列のどのエントリにも対応づかない口（根拠が無い＝未確認）。
+// - 根拠の語彙が 実測: と 推定: のどちらでもない口。語彙にないものは未確認として扱う（判定できないときは失敗として扱う）。
+//   区切りまで見て判定する。前方一致だと、「実測できず」が 実測 と誤って判定される。
 //
-// fail-closed: 列が無い・宣言の有無を判定できない・入力が壊れているものを合格に倒さない。
-// 対象外（バッチ・「その他の Issue」の行）は不合格ではないが exit 0 とも分ける——
-// 口を持たない行と「口はあるが未確認 0 件」を同じ出口にすると、表を置き間違えた行が合格に化ける。
+// 対応づけの単位（宣言）は、口の文字列の完全一致である。根拠エントリの `<口> → <根拠>` の矢印より前を
+// `,` と `、` で分割し、空白を 1 つに畳んでから、API 列の口と突き合わせる。
+// 散文（「両方」など）は口に一致しないので、対応づかないものとして数える。
+// 曖昧な対応づけを許すと、書き戻しの抜けが「まとめて書いてある」と誤って判定される。
+// unmeasured の側も同じ単位で、entries[].endpoint の完全一致だけを宣言として数える。
+// item の散文に口が含まれることは、宣言に数えない。部分一致では、別の口が宣言済みと誤って判定される。
+// unmeasured.declared: false は「宣言を持たない」という意味なので、entries を読まない。
+// parity-suite の artifact-health-check.mjs はその節を判定しないので、読むと、誰も確かめていない宣言で通ってしまう。
 //
-// 決定論的: 乱数・現在時刻・ネットワークに依存しない。TypeScript 構文は使わない（型は JSDoc）。
+// 判定できないときは失敗として扱う。列が無い・宣言の有無を判定できない・入力が不正なものを、合格として扱わない。
+// 対象外（バッチ・「その他の Issue」の行）は不合格ではないものの、exit 0 とも分ける。
+// 口を持たない行と「口はあるが未確認 0 件」を同じ出口にすると、表を置き間違えた行が合格と誤って判定される。
+//
+// 決定論的に動く（乱数・現在時刻・ネットワークに依存しない）。TypeScript の構文は使わない（型は JSDoc で書く）。
 
 import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 
-/** ツールのバージョン（正本）。判定ロジック・出力形状を変えたら上げる。 */
+/** ツールのバージョン（このファイルで定義する）。判定のロジックや出力の形を変えたら上げる。 */
 export const VERSION = "1";
 
 /** 使い方の誤り・入力の不備（exit 2）。 */
 export class UsageError extends Error {}
 
-/** 判定不能（exit 3）。合格にも不合格にも倒さない。 */
+/** 判定不能（exit 3）。合格としても不合格としても扱わない。 */
 export class UndecidableError extends Error {}
 
 /**
  * 対象外（exit 4）。口を持たない表の行（バッチ・「その他の Issue」）。
- * 検査すべき口が存在しないので不合格ではないが、「検査した結果 0 件」とも区別する
- * （exit 0 に畳むと、口を持つ行が表を間違えて置かれたときに合格へ化ける）。
+ * チェックすべき口が無いので不合格ではない。ただし、「チェックした結果 0 件」とも区別する
+ * （exit 0 に畳むと、口を持つ行を表に置き間違えたときに、合格と誤って判定される）。
  */
 export class NotApplicableError extends Error {}
 
-/** 根拠列の見出し（features.md の正本）。 */
+/** 根拠列の見出し（原本は features.md）。 */
 const EVIDENCE_HEADER = "要求単位の根拠";
 
 /** 口を並べる列の見出し（機能一覧は「新規実装 API」、横断 API 表は「API」）。 */
@@ -62,8 +61,8 @@ const ESTIMATED = "推定";
 
 /**
  * 語彙は区切り（`実測:` / `推定:`）まで見て判定する。前方一致だけだと
- * 「実測できず」「実測不能」「実測予定」が 実測 に化けて、確定していない口が
- * 書き戻し済みとして素通りする（語彙外を未確認へ倒す fail-closed が、この 1 語で裏返る）。
+ * 「実測できず」「実測不能」「実測予定」が 実測 と誤って判定され、確定していない口が
+ * 書き戻し済みとして通ってしまう（語彙にないものを未確認として扱う判定が、この 1 語で逆になる）。
  */
 const VERDICT_PATTERNS = [
   { verdict: MEASURED, pattern: /^実測\s*[:：]/u },
@@ -83,7 +82,7 @@ const ENDPOINT_HEADERS_SQUEEZED = new Set(
 
 /**
  * バッチ表・「その他の Issue」表を陽性に同定する見出しか。
- * 対象外（exit 4）はこの同定が取れたときだけ名乗る——取れないまま対象外にすると、
+ * 対象外（exit 4）はこの同定が取れたときだけ名乗る。取れないまま対象外にすると、
  * 列の導入前の機能一覧まで「バッチ表にある」という事実と違う記録で通過する。
  * @param {string} header
  * @returns {boolean}
@@ -95,8 +94,8 @@ export function looksLikeNonEndpointTableHeader(header) {
 
 /**
  * 根拠列「らしい」見出しか。完全一致しないが根拠列のつもりで書かれた見出しを拾う。
- * 根拠列の不在を「列の導入前」（exit 3）に倒すと完了判定を止めないので、
- * 列名がずれただけの現役インベントリはここで拾って入力の不備（exit 2）へ倒す。
+ * 根拠列の不在を「列の導入前」（exit 3）として扱うと、完了の判定を止めない。そこで、
+ * 列名がずれただけの現役インベントリはここで拾って入力の不備（exit 2）として扱う。
  * @param {string} header
  * @returns {boolean}
  */
@@ -110,12 +109,12 @@ export function looksLikeEvidenceHeader(header) {
 /**
  * 口の列「らしい」見出しか。完全一致しないが口の列のつもりで書かれた見出しを拾う。
  * 対象外（exit 4）を「口の列が無い」で決めると、列名がずれた機能行が痕跡なく通過するため、
- * ここで拾って入力の不備（exit 2）へ倒す。
+ * ここで拾って入力の不備（exit 2）として扱う。
  * @param {string} header
  * @returns {boolean}
  */
 export function looksLikeEndpointHeader(header) {
-  // NFKC で全角を畳む——`ＡＰＩ` のような表記を拾えないと、口の列を持つ機能行が
+  // NFKC で全角を畳む。`ＡＰＩ` のような表記を拾えないと、口の列を持つ機能行が
   // 対象外（exit 4）で素通りする。
   const squeezed = collapse(header).normalize("NFKC").replace(/\s+/gu, "");
   if (squeezed.length === 0) return false;
@@ -142,7 +141,7 @@ export function parseTables(text) {
   /** @type {{ headers: string[], rows: string[][] }[]} */
   const tables = [];
   // コードフェンスの中は例示であって台帳ではない。読むと、例の表が本物の行と並んで
-  // 「slug が 2 件ある」（exit 2）に化けたり、例の列で判定可能に見えたりする。
+  // 「slug が 2 件ある」（exit 2）と誤って判定されたり、例の列で判定可能に見えたりする。
   let fence = null;
   for (let i = 0; i < lines.length; i += 1) {
     const fenceMark = fenceOf(lines[i]);
@@ -193,8 +192,8 @@ function splitRow(line) {
   let trimmed = line.trim();
   if (!trimmed.includes("|")) return null;
   // GFM は行頭・行末の `|` を必須にしない。必須にすると、外側の `|` を省いた正当な
-  // インベントリが「表が無い」と読まれ、exit 3（列の導入前）に化ける——
-  // parity-replace 手順 8 は exit 3 で完了を止めないので、推定の口が残る台帳が黙って通る。
+  // インベントリが「表が無い」と読まれ、exit 3（列の導入前）と誤って判定される。
+  // parity-replace 手順 8 は exit 3 で完了を止めないので、推定の口が残る台帳が警告なしに通る。
   if (trimmed.startsWith("|")) trimmed = trimmed.slice(1);
   if (trimmed.endsWith("|")) trimmed = trimmed.slice(0, -1);
   return trimmed.split("|");
@@ -234,7 +233,7 @@ export function parseEvidenceEntries(cell) {
 
 /**
  * 表の種別を見出しから 1 回だけ同定する。行ごとの分岐をこの種別に閉じることで、
- * 条件の入れ子が増えるたびに非対称な穴が開くのを防ぐ。
+ * 条件の入れ子が増えるたびに非対称な抜けができるのを防ぐ。
  * @param {string[]} headers
  * @returns {{ kind: "feature" | "legacy" | "not-applicable" | "missing-endpoint-column" | "malformed-endpoint" | "malformed-evidence", headers?: string[], missingEvidence?: boolean }}
  */
@@ -247,8 +246,8 @@ export function classifyTable(headers) {
 
   if (hasEndpoint && hasEvidence) return { kind: "feature" };
   if (hasEndpoint) {
-    // 根拠列らしい見出しがあるのに完全一致しないのは列名のずれ。判定不能（exit 3）へ倒すと
-    // 完了判定を止めないため、推定の口が残る現役インベントリが素通りする。
+    // 根拠列らしい見出しがあるのに完全一致しないのは列名のずれ。判定不能（exit 3）として扱うと、
+    // 完了の判定を止めないので、推定の口が残る現役のインベントリが通ってしまう。
     return evidenceish.length > 0
       ? { kind: "malformed-evidence", headers: evidenceish }
       : { kind: "legacy" };
@@ -260,16 +259,16 @@ export function classifyTable(headers) {
       ? { kind: "malformed-endpoint", headers: endpointish, missingEvidence: false }
       : { kind: "missing-endpoint-column" };
   }
-  // 口の列も根拠列も無い表は 3 通り——設計上どちらも持たないバッチ・「その他の Issue」、
+  // 口の列も根拠列も無い表は 3 通りある。設計上どちらも持たないバッチ・「その他の Issue」、
   // 列の導入前の機能一覧、そして列名がずれた表。
-  // **バッチの同定を最初に見る**——見出しに `API` を含むバッチ表（`比較する出力（API レスポンス…）`）が
-  // あるので、口の列らしさの判定を先に置くと正当なバッチ表が列名のずれ（exit 2）に化け、
+  // **バッチかどうかを最初に判定する。** 見出しに `API` を含むバッチ表（`比較する出力（API レスポンス…）`）が
+  // あるので、口の列らしさの判定を先に置くと正当なバッチ表が列名のずれ（exit 2）と誤って判定され、
   // batch モードの完了判定が通らなくなる。
   if (batchMarker) return { kind: "not-applicable" };
   if (endpointish.length > 0)
     return { kind: "malformed-endpoint", headers: endpointish, missingEvidence: true };
   if (evidenceish.length > 0) return { kind: "malformed-evidence", headers: evidenceish };
-  // どれとも同定できない表は対象外を名乗らず判定不能へ倒す（対象外にすると、列の導入前の
+  // どれとも同定できない表は対象外とせず、判定不能として扱う（対象外にすると、列の導入前の
   // 機能一覧まで「バッチ表にある」という事実と違う記録で通過する）。
   return { kind: "legacy" };
 }
@@ -288,7 +287,7 @@ export function readRow(text, slug) {
   // 直す場所（列名・列の追加・表の置き場所）を取り違える。
   let legacyRows = 0;
   let nonEndpointRows = 0;
-  /** @type {string[]} 列名のずれで判定できない行の理由（経路ごとに書き分ける）。 */
+  /** @type {string[]} 列名のずれで判定できない行の理由（理由の種類ごとに書き分ける）。 */
   const malformed = [];
   for (const table of tables) {
     const slugIndex = table.headers.indexOf("slug");
@@ -357,7 +356,7 @@ export function readRow(text, slug) {
   const row = matched[0];
   if (row.endpointCell.length === 0) {
     throw new UsageError(
-      `slug ${slug} の API 列が空欄——口が無いことを確かめたなら \`-\` か \`なし\` と書く。空欄は未調査であり、口 0 件（合格）に倒さない`,
+      `slug ${slug} の API 列が空欄——口が無いことを確かめたなら \`-\` か \`なし\` と書く。空欄は未調査であり、口 0 件（合格）として扱わない`,
     );
   }
   const seen = new Set();
@@ -387,7 +386,7 @@ export function readDeclaredEndpoints(text, path) {
   const unmeasured = /** @type {Record<string, unknown>} */ (parsed).unmeasured;
   if (unmeasured === undefined) {
     // 宣言の置き場所そのものが無い成果物なので、未確認の口は 1 つも宣言されていない。
-    // 判定不能（exit 3）へ倒すと消費側が完了を止めず、推定の口が残ったまま通過する——
+    // 判定不能（exit 3）として扱うと、消費する側が完了を止めず、推定の口が残ったまま通過する。
     // 「判定できない」ではなく「宣言ゼロ」が事実なので、未宣言として数える。
     return {
       declared: new Set(),
@@ -400,9 +399,9 @@ export function readDeclaredEndpoints(text, path) {
   if (typeof unmeasured !== "object" || unmeasured === null || Array.isArray(unmeasured)) {
     throw new UsageError(`${path} の unmeasured が object でない`);
   }
-  // declared の扱いは parity-suite の artifact-health-check.mjs と揃える——向こうは
-  // declared: false で節ごと判定せず entries の妥当性も見ないので、ここだけが entries を
-  // 宣言として数えると「誰も効かせていない宣言」で合格に倒れる。
+  // declared の扱いは parity-suite の artifact-health-check.mjs と揃える。向こうは
+  // declared: false で節ごと判定せず entries の妥当性も見ない。ここだけが entries を
+  // 宣言として数えると、「誰も確かめていない宣言」で合格と判定されてしまう。
   const declaredFlag = /** @type {Record<string, unknown>} */ (unmeasured).declared;
   if (typeof declaredFlag !== "boolean") {
     throw new UsageError(
@@ -429,7 +428,7 @@ export function readDeclaredEndpoints(text, path) {
   if (!Array.isArray(entries)) throw new UsageError(`${path} の unmeasured.entries が配列でない`);
   /** @type {Set<string>} */
   const declared = new Set();
-  // 型が違う endpoint は宣言に数えないが、黙って捨てない——`artifact-health-check.mjs` は
+  // 型が違う endpoint は宣言に数えないが、警告なしに捨てない。`artifact-health-check.mjs` は
   // このキーを検査しないので、捨てた件数を出さないと「宣言したのに未宣言と言われる」が読めない。
   let invalidEndpoints = 0;
   // 捨てる理由は 3 つあり、症状（exit 1・未宣言扱い）は同じ。種別を分けて数えないと
@@ -463,13 +462,13 @@ export function readDeclaredEndpoints(text, path) {
  * @returns {{ findings: string[], notes: string[], counts: Record<string, number> }}
  */
 export function check(input) {
-  // 行の分類を先に済ませる——`--unmeasured` を先に読むと、metadata.json が未生成の
+  // 行の分類を先に済ませる。`--unmeasured` を先に読むと、metadata.json が未生成の
   // バッチ slug が対象外（exit 4）ではなく ENOENT（exit 2）になり、
   // 「インベントリを直す」という誤った直し方へ案内してしまう。
   const row = readRow(input.featuresText, input.slug);
   // 宣言を読むのは未確認の口が 1 つでもあるときだけ。全て `実測` の行では宣言が判定に
-  // 寄与しないので、旧成果物（unmeasured キーが無い）でも exit 3 にしない——
-  // 判定不能が日常化すると、消費側が exit 3 を無視する運用に倒れる。
+  // 寄与しないので、旧成果物（unmeasured キーが無い）でも exit 3 にしない。
+  // 判定不能が日常化すると、消費する側が exit 3 を無視する運用になってしまう。
   /** @type {Map<string, Set<string>>} 口 → 対応づいた根拠の語彙 */
   const verdicts = new Map();
   for (const endpoint of row.endpoints) verdicts.set(endpoint, new Set());
@@ -491,9 +490,9 @@ export function check(input) {
     }
   }
 
-  // 未確認の口が 1 つも無いなら宣言は判定に寄与しないので読まない——旧成果物
+  // 未確認の口が 1 つも無いなら宣言は判定に寄与しないので読まない。旧成果物
   // （unmeasured キーが無い）でも全て `実測` の行は exit 0 にする。判定不能が
-  // 日常化すると、消費側が exit 3 を無視する運用に倒れる。
+  // 日常化すると、消費する側が exit 3 を無視する運用になってしまう。
   const hasUnresolved = row.endpoints.some((endpoint) => {
     const bucket = verdicts.get(endpoint) ?? new Set();
     return !(bucket.size === 1 && bucket.has(MEASURED));
@@ -592,7 +591,7 @@ const usage = [
   "  --features    .replace/features.md のパス（必須）",
   "  --slug        対象の slug（必須。機能一覧・横断 API 表のどちらでもよい）",
   "  --unmeasured  .replace/parity/<slug>/metadata.json（省略すると宣言を考慮せず、未確認の口があれば落とす）",
-  "exit: 0 = 未確認の口が無い、または全て unmeasured に宣言済み / 1 = 宣言の無い未確認の口がある（書き戻しか宣言の漏れ）",
+  "exit: 0 = 未確認の口が無い、または全て unmeasured に宣言済み / 1 = 宣言の無い未確認の口がある（書き戻しか宣言の抜け）",
   "      2 = 使い方の誤り・入力の不備 / 3 = 判定不能（根拠列が無い。unmeasured キーが無い成果物は宣言ゼロとして数える）",
   "      4 = 対象外（口を持たない表の行＝バッチ・その他の Issue。検査対象が無い）",
 ].join("\n");
@@ -622,7 +621,7 @@ export function main(argv) {
       );
       return 1;
     }
-    process.stdout.write(`ok: 書き戻しの漏れは無い（evidence-gap-check ${VERSION}）\n`);
+    process.stdout.write(`ok: 書き戻しの抜けは無い（evidence-gap-check ${VERSION}）\n`);
     return 0;
   } catch (e) {
     if (e instanceof NotApplicableError) {
@@ -638,13 +637,13 @@ export function main(argv) {
       return 2;
     }
     // 読めない入力（ENOENT だけでなく EISDIR / EACCES 等）は入力の不備。
-    // 投げ直すと未捕捉例外の exit 1 になり、「宣言の無い未確認の口がある」と同じ終了コードに化ける。
+    // 投げ直すと未捕捉例外の exit 1 になり、「宣言の無い未確認の口がある」と同じ終了コードになってしまう。
     if (e instanceof Error && typeof (/** @type {NodeJS.ErrnoException} */ (e).code) === "string") {
       process.stderr.write(`error: ${e.message}\n${usage}\n`);
       return 2;
     }
-    // errno を持たない想定外の例外も同じ理由で exit 2（判定していない）に倒す——
-    // 投げ直すと Node の未捕捉例外が exit 1 になり、消費側が「書き戻し漏れがある」と読んで
+    // errno を持たない想定外の例外も同じ理由で exit 2（判定していない）として扱う。
+    // 投げ直すと Node の未捕捉例外が exit 1 になり、消費側が「書き戻しの抜けがある」と読んで
     // 存在しない口を探すことになる。原因を追えるようスタックはそのまま出す。
     const detail = e instanceof Error ? (e.stack ?? e.message) : String(e);
     process.stderr.write(`error: 判定できない例外で終了した: ${detail}\n${usage}\n`);

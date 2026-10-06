@@ -1,20 +1,21 @@
 // AWS 構成図の描画エンジン（複数環境の図で共用する純関数）。
-// spec を受け取り SVG 文字列を返す。GUI 不要・テキスト差分で管理できる。
-// 作図ルールと品質確認は SKILL のガイド（references/conventions.md）を参照。
+// spec を受け取り、SVG の文字列を返す。GUI が要らず、テキストの差分で管理できる。
+// 作図のルールと品質の確認は、スキルのガイド（references/conventions.md）にある。
 //
-// spec = { W, H, title, nodes, edges, groups, notes? }
-//   node : { id, icon, label:[行...], x, y, lp, dim? }
-//            icon = アイコンディレクトリ相対のパス（拡張子なし。例 "aws-icons/lambda"）。
-//                   null なら無地の箱を描く。
-//            lp   = ラベル位置 "top"|"bottom"|"left"|"right"（線の出ていない辺へ寄せる）。
-//            dim  = true で淡色化（環境差分の「未使用」表現）。
-//   edge : { from, to, label?, labelAt?, dashed?, waypoints?, dim? }
-//            waypoints = [[x,y]...] 直交配線の経由点。無ければ自動 L 字。
-//            labelAt   = [x,y] ラベルの中心座標。省略時は屈曲点を避けて自動配置。
-//   group: { label, x, y, w, h, color }   背景の枠（左上基準）。
-//   notes: [{ x, y, w, title, lines:[...] }]   凡例/注記ボックス。
+// spec の形は次のとおりである（`?` を付けたキーは省略できる）。
 //
-// 使い方: renderDiagram(spec, { iconDir })  ← iconDir にアイコン群のルートを渡す。
+// - `{ W, H, title, nodes, edges, groups, notes? }`
+// - node は `{ id, icon, label: [行...], x, y, lp, dim? }` の形にする。
+//   - `icon` はアイコンのディレクトリからの相対パス（拡張子なし。例 `"aws-icons/lambda"`）。`null` なら無地の箱を描く。
+//   - `lp` はラベルの位置（`"top"`・`"bottom"`・`"left"`・`"right"`）。線の出ていない辺に寄せる。
+//   - `dim` が `true` なら淡い色で描く（環境の差分で「使わない」ことを表す）。
+// - edge は `{ from, to, label?, labelAt?, dashed?, waypoints?, dim? }` の形にする。
+//   - `waypoints`（`[[x, y]...]`）は直交する線の経由点。無ければ L 字の線を自動で引く。
+//   - `labelAt`（`[x, y]`）はラベルの中心の座標。省略すると、屈曲点を避けて自動で置く。
+// - group は `{ label, x, y, w, h, color }` の形にする。背景の枠で、座標は左上を基準にする。
+// - notes は `[{ x, y, w, title, lines: [...] }]` の形にする。凡例と注記の箱である。
+//
+// 使い方: `renderDiagram(spec, { iconDir })` を呼ぶ。`iconDir` にはアイコンを置いたディレクトリのルートを渡す。
 import { readFileSync, realpathSync } from "node:fs";
 import { isAbsolute, join, relative } from "node:path";
 
@@ -24,7 +25,7 @@ const FONT =
   '-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Sans","Noto Sans JP",sans-serif';
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-// ラベル等をSVGテキストへ埋め込むときのXMLエスケープ（& < > で壊れないように）。
+// ラベルなどを SVG のテキストに埋め込むときの XML エスケープ（`&`・`<`・`>` で SVG が不正にならないように）。
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 export function renderDiagram(spec, options = {}) {
@@ -56,7 +57,7 @@ export function renderDiagram(spec, options = {}) {
     let inner = iconCache.get(name);
     if (inner === undefined) {
       const file = join(iconDir, `${name}.svg`);
-      // 1) 字面のチェック（spec の name に .. / 絶対パスが混ざっても弾く）。
+      // 1) 字面のチェック（spec の name に `..` や絶対パスが含まれていても拒否する）。
       const rel = relative(iconDir, file);
       if (rel.startsWith("..") || isAbsolute(rel))
         throw new Error(`アイコンパスが iconDir の外を指しています: ${name}`);
@@ -120,7 +121,7 @@ export function renderDiagram(spec, options = {}) {
     return { x: clamp(px, b.left + PAD, b.right - PAD), y: py >= n.y ? b.bottom : b.top };
   };
 
-  // 経路の座標列。waypoints があればそれを経由、無ければ直交 L 字を自動生成。
+  // 線の座標の列。waypoints があればそこを経由し、無ければ直交する L 字の線を自動で作る。
   const route = (a, b, e) => {
     if (e.waypoints?.length) {
       const first = e.waypoints[0];
@@ -174,13 +175,13 @@ export function renderDiagram(spec, options = {}) {
       .join("\n  ");
   };
 
-  // 全エッジの経路を先に確定し、垂直セグメント一覧を作る（交差の飛び越し判定用）。
+  // 全エッジの線を先に確定し、垂直の区間の一覧を作る（交差を飛び越すかの判定に使う）。
   const routed = edges.map((e) => ({ e, pts: route(node(e.from), node(e.to), e) }));
 
-  // 直交配線（conventions.md の確認観点 (b)）を機械的に強制する。斜め線は目視で
-  // 見落としやすく、`waypoints` の座標を 1 つ間違えるだけで発生するのでここで止める。
-  // 両端の区間も検査対象。ノード側の接続点は相手側 waypoint に合わせて辺上を動くが、
-  // 辺の範囲（中心 ±20px）を超える指定は丸められるため斜めになる。
+  // 線が直交していること（conventions.md の確認観点 (b)）を機械的に強制する。
+  // 斜めの線は目視で見落としやすく、`waypoints` の座標を 1 つ間違えるだけで生じるので、ここで止める。
+  // 両端の区間もチェックする。ノードの側の接続点は、相手の側の waypoint に合わせて辺の上を動く。
+  // ただし、辺の範囲（中心から ±20px）を超える指定は丸められるので、斜めになる。
   for (const { e, pts } of routed) {
     for (let i = 0; i < pts.length - 1; i++) {
       const a = pts[i];

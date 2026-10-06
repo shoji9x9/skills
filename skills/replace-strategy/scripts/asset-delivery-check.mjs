@@ -1,29 +1,37 @@
-// 静的資産の台帳で「実体をコピーする」と決めた資産を、新側が実際に配っているかを突き合わせる（正本）。
+// 静的資産の台帳で「実体をコピーする」と決めた資産を、新側が実際に配っているかを突き合わせる。
+// 判定の規則は、このファイルで定義する。
 //
-// 何のためか: `.replace/assets.md` は資産の種類ごとに「実体をコピーする／同等物を作る／コピーしない」を決めるが、
-// 決めた方針どおりに新側が配っているかは、スイートの green・画素・特性照合・aria のどれにも写らないことがある
-// （favicon はタブにしか出ない。title・印刷用の資産も同じ）。parity-replace の完了判定でここを通す。
+// `.replace/assets.md` は、資産の種類ごとに「実体をコピーする／同等物を作る／コピーしない」を決める。
+// しかし、決めた方針どおりに新側が配っているかは、スイートの green・画素・特性照合・aria のどれにも現れないことがある
+// （favicon はタブにしか出ない。title や印刷用の資産も同じ）。そこで、parity-replace の完了の判定でこのチェックを通す。
 //
-// 期待集合の出所: 台帳（宣言）の「状態 `有効` × 方針 `実体をコピーする`」の行。突き合わせの記録（asset-delivery.json）は
-// その全行に 1 件ずつ答える——記録に無い行は「確かめていない」として落とす（記録の側から期待集合を作らない）。
+// 期待する集合の出所は、台帳（宣言）の「状態 `有効` × 方針 `実体をコピーする`」の行である。
+// 突き合わせの記録（asset-delivery.json）は、その全行に 1 件ずつ答える。
+// 記録に無い行は「確かめていない」として失敗にする（記録の側から期待する集合を作らない）。
 //
-// 行ごとに確かめること（files を書いた行）:
-//   1. 新側の配信物が参照している: 新側の画面で asset-probe.mjs を当てた出力（--probe）の
-//      images[].src / urlRefs[].url / fontFaces[].src[] / icons[].href / resources[].url のどれかに、
-//      記録の new を --new-base で解決した URL が完全一致（href）で現れる。
-//      採用しないフィールド: unclassifiedResources（資産以外の取得も混ざる）・manifests（manifest 自体の URL で、
-//      中の icons は読んでいない）・localFragmentRefs（文書内の参照）。
-//   2. 取得したバイトが移行元の配信物と一致する: current を --current-base、new を --new-base で解決して取得し、
-//      どちらも 2xx で sha256 が一致する（SPA のフォールバックが 200 で index.html を返す形もここで落ちる）。
-// 突き合わせない行: disposition: accepted（この機能の画面が使わない・機械的に確かめられない。reason と利用者の承認
-//   approved_by / approved_at 必須）だけ。「この画面では使わない」を検査者が自分で宣言する used: false は置かない——
-//   台帳の「描き方と使われるページ」は自由記述で、そこから外してよい行を読み取る規則は表記ゆれのたびに外せる側へ漏れた
-//   （全頁・共通ヘッダー・`/*`・日本語の続くパス・サブパス配下）。外すのは常に利用者の判断にする。
+// files を書いた行ごとに、次の 2 つを確かめる。
 //
-// fail-closed: 台帳の表が無い・複数ある・状態や方針が語彙外・同じ種類に `有効` が 2 行・記録の形が崩れている・
-//   表に属さない行がある・確かめる資産があるのにプローブが無い、はどれも exit 2（判定していない）。取得の失敗・参照が無い・バイト不一致・
-//   記録に無い行・台帳に無い記録は exit 1。
+// 1. 新側の配信物が参照している。記録の new を --new-base で解決した URL が、
+//    新側の画面で asset-probe.mjs を当てた出力（--probe）に、完全一致（href）で現れることを確かめる。
+//    見るフィールドは images[].src・urlRefs[].url・fontFaces[].src[]・icons[].href・resources[].url である。
+//    次のフィールドは採用しない。unclassifiedResources（資産以外の取得も含まれる）、
+//    manifests（manifest そのものの URL で、中の icons は読んでいない）、localFragmentRefs（文書の中の参照）である。
+// 2. 取得したバイト列が、移行元の配信物と一致する。current を --current-base、new を --new-base で解決して取得し、
+//    どちらも 2xx で、sha256 が一致することを確かめる（SPA のフォールバックが 200 で index.html を返す形も、ここで失敗にする）。
 //
+// 突き合わせない行は、disposition: accepted（この機能の画面が使わない・機械的に確かめられない）だけである。
+// accepted には、reason と利用者の承認（approved_by・approved_at）が必須である。
+// 「この画面では使わない」をチェックする人が自分で宣言する used: false は置かない。
+// 台帳の「描き方と使われるページ」は自由記述で、そこから外してよい行を読み取る規則は、表記ゆれのたびに外せる側へ外れた
+// （全頁・共通ヘッダー・`/*`・日本語の続くパス・サブパスの配下）。外すのは、常に利用者の判断にする。
+//
+// 判定できないときは失敗として扱う。次のものは、どれも exit 2（判定していない）にする。
+// 台帳の表が無い・複数ある・状態や方針が語彙にない・同じ種類に `有効` が 2 行ある・記録の形が不正・
+// 表に属さない行がある・確かめる資産があるのにプローブが無い。
+// 取得の失敗・参照が無い・バイト列の不一致・記録に無い行・台帳に無い記録は、exit 1 にする。
+//
+// ネットワークに依存する（取得して比べることがチェックの中身である）。それ以外は決定論的に動く。
+// TypeScript の構文は使わない（型は JSDoc で書く）。
 // ネットワークに依存する（取得して比べることが検査の中身）。それ以外は決定論的。TypeScript 構文は使わない（型は JSDoc）。
 
 import { createHash } from "node:crypto";
@@ -31,7 +39,7 @@ import { readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-/** ツールのバージョン（正本）。判定規則・出力形状を変えたら上げる。 */
+/** ツールのバージョン（このファイルで定義する）。判定の規則や出力の形を変えたら上げる。 */
 export const VERSION = "1";
 
 /** replace-metadata.json に書くキー。 */
@@ -121,13 +129,13 @@ function fenceOf(line) {
  * @returns {{ tables: { headers: string[], rows: string[][], rowLines: number[] }[], strayRows: { line: number, cells: number, leadingPipe: boolean }[] }}
  */
 export function parseTables(text) {
-  // コメントは改行を保ったまま空白に置き換える（行の対応を崩さない）。閉じていないコメントは末尾まで。
+  // コメントは改行を保ったまま空白に置き換える（行の対応を変えない）。閉じていないコメントは末尾まで。
   const uncommented = text.replace(/<!--[\s\S]*?(?:-->|$)/gu, (m) => m.replace(/[^\n]/gu, " "));
   const lines = uncommented.split(/\r?\n/u);
   /** @type {{ headers: string[], rows: string[][], rowLines: number[] }[]} */
   const tables = [];
   /**
-   * 表に属さないのに `|` を含む行（空行で本体が切れた後の行など）。黙って捨てず、行番号・セル数・行頭の `|` の有無を
+   * 表に属さないのに `|` を含む行（空行で本体が切れた後の行など）。警告なしに捨てず、行番号・セル数・行頭の `|` の有無を
    * 呼び出し側へ返す（GFM は行頭・行末の `|` を省けるので、行頭の `|` だけでは表の行を見分けられない）。
    */
   /** @type {{ line: number, cells: number, leadingPipe: boolean }[]} */
@@ -200,8 +208,8 @@ export function readLedger(text) {
     );
   }
   const { headers, rows, rowLines } = candidates[0];
-  // 表に属さない行（本体の途中の空行で切れた追記など）に「実体をコピーする」の行があると、期待集合から黙って消える。
-  // 行頭の `|` があるか、方針の表と同じセル数なら表の行を意図したものとみなし、どの表の行か決められないので判定しない（fail-closed）。
+  // 表に属さない行（本体の途中の空行で切れた追記など）に「実体をコピーする」の行があると、期待する集合から警告なしに消える。
+  // 行頭の `|` があるか、方針の表と同じセル数なら表の行を意図したものとみなし、どの表の行か決められないので判定しない（判定できないときは失敗として扱う）。
   // 散文中の `|`（セル数が合わず行頭にも無い）は対象にしない。
   const stray = strayRows.filter((r) => r.leadingPipe || r.cells === headers.length);
   if (stray.length > 0) {
@@ -306,11 +314,12 @@ export function readRecord(doc) {
   return doc.entries.map((raw, i) => {
     const at = `entries[${i}]`;
     if (!isPlainObject(raw)) throw new UsageError(`${at} がオブジェクトでない`);
-    if (!nonEmptyString(raw.kind)) throw new UsageError(`${at}.kind が空（台帳の「種類」を写す）`);
+    if (!nonEmptyString(raw.kind))
+      throw new UsageError(`${at}.kind が空（台帳の「種類」を転記する）`);
     const kind = normalizeCell(raw.kind);
     if (seen.has(kind)) throw new UsageError(`記録に「${kind}」が 2 件ある`);
     seen.add(kind);
-    // 「この画面では使わない」を検査者が自分で宣言して外す形（used: false）は持たない。黙って読み飛ばすと
+    // 「この画面では使わない」をチェックする人が自分で宣言して外す形（used: false）は持たない。警告なしに読み飛ばすと
     // used: false と書いた記録が files の無い行として別の理由で落ち、外し方が伝わらないので、名指しで落とす
     if (raw.used !== undefined) {
       throw new UsageError(
@@ -744,7 +753,7 @@ export async function main(argv, deps = {}) {
     const recordText = readFileSync(args.record, "utf8");
     fingerprints.record = createHash("sha256").update(recordText).digest("hex");
     const record = parseJson(recordText, args.record);
-    // プローブも判定を左右する入力なので指紋を残す（プローブを取り直した後の古い合格を見分けるため）
+    // プローブも判定を左右する入力なので指紋を残す（プローブをもう一度当てた後に、古い合格を見分けるため）
     const probes = args.probes.map((p) => {
       const text = readFileSync(p, "utf8");
       fingerprints.probes.push({
@@ -791,7 +800,7 @@ export async function main(argv, deps = {}) {
     }
     if (!ok) {
       process.stdout.write(
-        `error: 台帳の方針どおりに配っていない資産が ${findings.length} 件ある — 新側の配信物と参照を直して取り直す\n`,
+        `error: 台帳の方針どおりに配っていない資産が ${findings.length} 件ある — 新側の配信物と参照を直して、もう一度突き合わせる\n`,
       );
       return 1;
     }

@@ -1,23 +1,26 @@
-// API / バッチの構造比較（正本）。正規化してから決定論的に差分パスを列挙する。
-// 正本はこのスキル側にあり、実行時はスキルディレクトリ内から直接実行する
-// （プロジェクトへコピーしない。gh skill update の自動更新を効かせるため）。
+// API とバッチの構造を比べる（原本）。正規化してから、差分のパスを決定論的に列挙する。
+// 原本はこのスキルの中にあり、スキルのディレクトリから直接実行する。
+// プロジェクトへはコピーしない。gh skill update の自動更新を反映させるためである。
 //
-// 何をするか: 現行応答 current.json と新側応答 new.json を、指定パスの除外（揮発項目）→
-// 必要なら指定配列のソート（並び順が意図的差異と宣言されている場合のみ）→ 深い比較、の順で
-// 突き合わせ、差分パスと both 値を列挙する。api-resource / batch モードで使う。
+// 現行の応答 current.json と新側の応答 new.json を、次の順で比べ、差分のパスと両方の値を列挙する。
+// api-resource と batch のモードで使う。
+// 1. 指定したパス（揮発する項目）を除く。
+// 2. 並び順が意図的差異と宣言されている場合だけ、指定した配列をソートする。
+// 3. 深く比較する。
 //
-// 何をしないか: しきい値で差分を潰さない。宣言の無い並び順差を勝手にソートで消さない。
+// しきい値で差分を消さない。宣言されていない並び順の差を、勝手にソートして消さない。
 //
-// 決定論的: 乱数・現在時刻に依存しない。オブジェクトのキーは union をソートして走査するため、
-// キー順の違いは差分にしない（値の違いだけを差分にする）。配列は index 順で比較する
-// （順序差を差分にする。--sort-arrays を指定したパスだけ順序を正規化する）。
-// TypeScript 構文は使わない（型は JSDoc）。
+// 乱数と現在時刻に依存しない。オブジェクトのキーは両方の和集合をソートしてたどるので、
+// キーの順の違いは差分にせず、値の違いだけを差分にする。配列は index の順に比べる。
+// 順序の差は差分にし、--sort-arrays で指定したパスだけ順序を正規化する。
+// TypeScript の構文は使わない（型は JSDoc で書く）。
 
 import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 /**
- * ツールのバージョン（正本）。比較ロジック・出力形状を変えたら上げる。
+ * ツールのバージョン（原本）。比較の処理や出力の形を変えたら上げる。
+ *
  * @type {string}
  */
 export const VERSION = "1";
@@ -27,6 +30,7 @@ export const ABSENT = "(absent)";
 
 /**
  * ドット記法パスのセグメント配列を返す。"data.*.updated_at" → ["data","*","updated_at"]。
+ *
  * @param {string} path
  * @returns {string[]}
  */
@@ -38,6 +42,7 @@ function segments(path) {
 
 /**
  * オブジェクト/配列から指定パス（* ワイルドカード対応）のキーを非破壊で除去した複製を返す。
+ *
  * @param {unknown} node
  * @param {string[]} segs
  * @returns {unknown}
@@ -52,7 +57,7 @@ export function removePath(node, segs) {
         const idx = Number(head);
         if (Number.isInteger(idx)) {
           if (idx < 0 || idx >= node.length) return el;
-          // 配列 index 指定の除去は、その要素だけ null 化する（穴を作らない）。
+          // 配列の index を指定した除去は、その要素だけを null にする（配列に空きを作らない）。
           return i === idx ? (rest.length === 0 ? null : removePath(el, rest)) : el;
         }
         return el;
@@ -78,6 +83,7 @@ export function removePath(node, segs) {
 
 /**
  * オブジェクトのキーを再帰的に昇順へ正規化した複製を返す（ソートキー生成用）。
+ *
  * @param {unknown} v
  * @returns {unknown}
  */
@@ -96,6 +102,7 @@ function canonicalize(v) {
  * （宣言済みの並び順差の正規化）。素の JSON.stringify だと同じ集合でもキー挿入順の違いで
  * ソート順が変わり、current/new の並びが揃わず偽の差分が出るため、キーを昇順に正規化してから
  * 文字列化する。
+ *
  * @param {unknown} node
  * @param {string[]} segs
  * @returns {unknown}
@@ -128,6 +135,7 @@ export function sortArrayAtPath(node, segs) {
 
 /**
  * 2 つの値を深く比較し、差分パスと both 値を out へ積む。決定論的（キーは昇順）。
+ *
  * @param {unknown} a
  * @param {unknown} b
  * @param {string} path
@@ -163,6 +171,7 @@ export function deepDiff(a, b, path, out) {
  * CLI エントリ。
  * `node json-normalize-diff.mjs <current.json> <new.json> [--ignore <path>...] [--sort-arrays <path>...]`
  * 差分があれば exit 1、無ければ exit 0、入力エラーは exit 2。
+ *
  * @param {string[]} argv - process.argv.slice(2)
  * @returns {number} exit code
  */
@@ -214,11 +223,11 @@ export function main(argv) {
   return out.length > 0 ? 1 : 0;
 }
 
-// CLI エントリ判定は両辺を実パスに解決してから突き合わせる。
-// process.argv[1] は起動時のパスのまま、import.meta.url も --preserve-symlinks(-main)
-// （NODE_OPTIONS 経由でも付く）では未解決のままなので、片側だけ解決すると
-// シンボリックリンク経由（.claude/skills/<name> → .agents/skills/<name>）の起動で条件が偽になり、
-// main() が呼ばれず何も出力せず exit 0 になる（サイレント no-op）。
+// CLI として起動されたかは、両辺を実パスに解決してから比べる。
+// process.argv[1] は起動したときのパスのままである。--preserve-symlinks(-main) を付けると
+// （NODE_OPTIONS で付けた場合も）import.meta.url も解決されない。片側だけ解決すると、
+// シンボリックリンク（.claude/skills/<name> → .agents/skills/<name>）から起動したときに条件が偽になる。
+// すると main() が呼ばれず、何も出力せずに exit 0 で終わる。
 const invokedAsCli = (() => {
   const entry = process.argv[1];
   if (!entry) return false;
@@ -226,7 +235,7 @@ const invokedAsCli = (() => {
   try {
     return realpathSync(entry) === realpathSync(self);
   } catch {
-    // 実パス解決に失敗したら生パスで突き合わせる（サイレント no-op より誤検出を選ぶ）。
+    // 実パスに解決できなければ、そのままのパスで比べる（何もせずに終わるより、誤って起動するほうを選ぶ）。
     return entry === self;
   }
 })();

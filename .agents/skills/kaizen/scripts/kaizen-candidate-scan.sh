@@ -2,11 +2,11 @@
 # Scan the unprocessed portion of an agent transcript for kaizen candidates.
 # exit 0: candidates found, exit 1: verified no candidates, exit 2: inconclusive.
 #
-# 検証済みゼロ（exit 1）のときは、走査した終端位置を stdout に出す:
+# 検証済みゼロ（exit 1）のときは、走査を終えた位置を次の形で stdout に出す。
 #   kaizen-candidate-scan: scanned-bytes=<走査済みバイト数>
 #   kaizen-candidate-scan: scanned-lines=<走査済み行数>
 # checkpoint はこの値で進める。呼び出し側が改めて `wc -c` を測ると、走査と記録の間に
-# 追記されたレコードを検査しないまま処理済みにしてしまう（fail open）。
+# 追記されたレコードをチェックしないまま、処理済みとして扱ってしまう。
 set -euo pipefail
 
 transcript=${1:-}
@@ -63,7 +63,7 @@ emit_scanned_position() {
 }
 
 # 前回の走査以降に新しいレコードが無い場合。レコードが無いので「未知形式」と同じ
-# recognized=0 に落ちるが、意味は正反対なので検証済みゼロ（exit 1）として扱う。そうしないと、
+# recognized=0 になるが、意味は正反対なので検証済みゼロ（exit 1）として扱う。そうしないと、
 # 候補ゼロで自動通過した直後に Stop フックがセンチネルを再装填しただけで次の commit が止まる（実測済み）。
 # エージェントは checkpoint に記録された確定値を使う。無い（旧形式）なら従来どおり安全側。
 no_new_records() { # $1: 走査済みバイト数 / $2: 走査済み行数
@@ -77,9 +77,9 @@ no_new_records() { # $1: 走査済みバイト数 / $2: 走査済み行数
 	exit 2
 }
 
-# 内部の失敗は必ず exit 2（不明）へ倒す。set -e に任せると mktemp の失敗がそのまま
-# exit 1 になり、ゲートからは「検証済みゼロ」に見えてしまう（今は scan_agent が空に
-# なるおかげで止まっているだけで、契約としては壊れている）。
+# 内部の失敗は必ず exit 2（不明）として扱う。set -e に任せると mktemp の失敗がそのまま
+# exit 1 になり、コミット前のチェックからは「検証済みゼロ」に見えてしまう（scan_agent が空に
+# なるので止まっているだけで、終了コードの取り決めは守られていない）。
 slice=$(mktemp 2>/dev/null) || {
 	echo "kaizen-candidate-scan: could not create a temporary file" >&2
 	exit 2
@@ -95,7 +95,7 @@ tail -c "+$((offset + 1))" "${transcript}" >"${slice}" 2>/dev/null || {
 }
 
 # 走査したのは「この slice の終端まで」。呼び出し側が後から wc -c を測り直すと、走査と
-# checkpoint 記録の間に追記されたレコードを未検査のまま処理済みにしてしまう（fail open）。
+# checkpoint の記録の間に追記されたレコードを、チェックしないまま処理済みにしてしまう。
 # 行数は「offset より前にある改行の数」で統一する（`kaizen-extract-done.sh` の `wc -l` と同じ定義）。
 # 改行で終わらない末尾レコードを 1 行として足すと、後から改行だけが届いたときにその行を
 # 二重に数え、以降の根拠行番号が 1 ずつ恒久的にずれる。jq の input_line_number は
@@ -149,7 +149,7 @@ if ! jq -Rr '
 		 "E\t" + $tool_text)
 	elif $j.type == "session_meta" then "D", "R"
 	# Codex CLI の token_usage_record は会話・ツール結果・編集を運ばない使用量メタデータ。
-	# top-level の閉じた既知 type としてだけ許容し、未知の payload 付き type は下の fail-closed に残す。
+	# top-level の閉じた既知 type としてだけ許容し、未知の payload 付き type は、下の「判定できない」の扱いに残す。
 	elif $j.type == "token_usage_record" then "D", "R"
 	elif $j.type == "response_item" and $j.payload.type == "message" then
 		"D", "R",
@@ -213,13 +213,13 @@ if ! jq -Rr '
 	      $j.type == "system" or $j.type == "agent-name" or $j.type == "started" or
 	      $j.type == "atis-latch") then "R"
 	elif $j.type == "result" and $j.agentId? != null and $j.key? != null and $j.result? != null then "R"
-	# 未知の `type` は名前ではなく**構造**で弁別する。会話を運ぶ入れ物（`message` / `payload` /
-	# `content`）を持たないレコードは候補の判定に関係しないので読み飛ばし、持つものだけ従来どおり
-	# fail closed にする。型名を 1 つずつ許可する形にすると、エージェントが内部レコードを 1 種類
-	# 増やすたびに「候補ゼロのセッションでも判定不能」へ倒れ、恒久ブロックになる。
-	# 壊れた JSON はここへ来ない——`fromjson` が失敗した行は上の `$j == null` で "X" になる。
-	# ただし既知の container（response_item / event_msg）は除く。payload が丸ごと欠けた形は
-	# こちらの想定外なので、subtype 欠損と同じく fail closed に残す。
+	# 未知の `type` は、名前ではなく**構造**で区別する。会話を運ぶ入れ物（`message` / `payload` /
+	# `content`）を持たないレコードは候補の判定に関係しないので読み飛ばし、持つものだけ、これまでどおり
+	# 判定できないとして扱う。型名を 1 つずつ許可する形にすると、エージェントが内部レコードを 1 種類
+	# 増やすたびに「候補ゼロのセッションでも判定できない」となり、ずっとブロックし続ける。
+	# 不正な JSON はここに来ない。`fromjson` が失敗した行は、上の `$j == null` で "X" になる。
+	# ただし、既知の container（response_item / event_msg）は除く。payload が全部欠けた形は
+	# こちらの想定外なので、subtype が欠けた場合と同じく、判定できないとして扱う。
 	elif ($j.type | type) == "string" and $j.type != "response_item" and $j.type != "event_msg" and
 	     $j.message == null and $j.payload == null and $j.content == null then "R"
 	else "X" end)
@@ -229,8 +229,8 @@ if ! jq -Rr '
 fi
 
 # 候補の根拠は「どこで検出したか」だけを出し、transcript の本文（ユーザー発話・ツール出力・
-# 編集先パス）は 1 文字も出さない。ゲートはこの出力を block 理由の stderr へ転送するため、
-# 秘密値・社外情報がスクロールバックやログへ漏れる経路を塞ぐ。位置を出すのは、ブロックされた
+# 編集先パス）は 1 文字も出さない。コミット前のチェックはこの出力を block の理由として stderr へ転送するため、
+# 秘密の値や社外の情報が、スクロールバックやログに出ないようにする。位置を出すのは、ブロックされた
 # エージェントが session directory を手探りせず該当レコードへ直行できるようにするため
 #（読むのは自分のセッションの transcript なので、位置さえ分かれば内容は自分で取得できる）。
 recognized=0

@@ -1,11 +1,11 @@
-// capture_conditions.pages[].path を URL へ解決し、押した後の URL を宣言済みのページへ一意に引く（正本）。
+// capture_conditions.pages[].path を URL へ解決し、押した後の URL を宣言済みのページへ一意に引く（原本）。
 //
 // 何のためか: 撮影の単位はページ × 状態名 × ビューポートで、使い回しの照合（reaction-check.mjs）は
 // 「押した後に撮ったページ」（capture_page）を名乗らせて数える。名乗りを押した後の URL（aftermath.returns_to.url_after）と
 // 照合しないと、同じ URL に着く 2 操作が別のページ名を名乗り、1 枚の撮影が両方の操作を満たしても根拠を求められない。
 // 照合のキーも名前ではなく解決したページにする（別名で同じページを指す 2 つの名前は同じ 1 枚）。
 //
-// 解決規則（正本は references/baseline.md「ページの path の解決規則」。ここと食い違わせない）:
+// 解決規則は次のとおりである（原本は references/baseline.md「ページの path の解決規則」。ここと食い違わせない）。
 //   - path は target の baseURL（metadata.json の target.ui_url）に対して WHATWG URL の相対解決（new URL(path, baseURL)）で解く。
 //     Playwright の page.goto(path) が baseURL を当てる規則と同じなので、撮影が開いたページと同じ URL になる。
 //     `/` で始まる path は baseURL のパス接頭辞を捨てる（`https://host/portal/` に `/orders` は `https://host/orders`）。
@@ -23,6 +23,7 @@ const PLACEHOLDER_ORIGIN = "http://runtime.invalid/";
 
 /**
  * @typedef {{ name: string, path: string, pathname: string, search: string | null, hash: string | null, key: string }} ResolvedPage
+ *
  * search / hash は path に書いたときだけ文字列（`?` / `#` を含む）、書いていなければ null（照合で何でも合う）。
  * key は照合のキー（pathname と、書いた search / hash を連ねたもの）。別名のページは同じ key になる。
  */
@@ -35,9 +36,10 @@ const PLACEHOLDER_ORIGIN = "http://runtime.invalid/";
  *   unresolved: Map<string, string>,
  *   problems: string[],
  * }} PageResolution
+ *
  * resolvable: 全てのページを解けたか（false なら URL との照合をしない。reason に理由）。
  * pages: 解けたページだけ（名前 → 解決結果）。problems: 入力の誤り（path が空・解けない・baseURL が URL でない）。
- * unresolved: runtime で baseURL が無く解けなかった相対の path（名前 → 書いた path）。使い回しは書いた path で数える
+ * unresolved: runtime で baseURL が無く解けなかった相対の path（名前 → 書いた path）。使い回しは書いた path で数える。
  */
 
 /**
@@ -207,7 +209,7 @@ export function pageForUrl(urlAfter, resolution) {
 /**
  * 使い回しの照合のキー。解けたページは解決結果（別名は同じ 1 枚）。
  * runtime で解けない相対の path は書いた path の文字列で数える（URL との照合はしないが、同じ path を書いた別名は同じ 1 枚にまとめる。
- * 名前へ縮退させると、別名を名乗り分けるだけで根拠なしの使い回しが通る）。どれでもなければ名前で数える。
+ * 名前で数えると、別名を名乗り分けるだけで根拠なしの使い回しが通る）。どれでもなければ名前で数える。
  * @param {string} name
  * @param {PageResolution | null} resolution
  */

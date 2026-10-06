@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// 人が読む Markdown の文章を textlint でチェックする（lefthook pre-commit + CI）。
+// 人が読む文章（Markdown と、コードや設定ファイルのコメント）を textlint でチェックする（lefthook pre-commit + CI）。
 //
 // なぜ要るか: AI が書いた文章には、人が読むと違和感のある語（「正本」「倒す」など）や書式
 // （`- **見出し**:` の箇条書きなど）が繰り返し現れる。規約を文書に書くだけでは同じ書き方が戻るため、
@@ -7,7 +7,10 @@
 // `.textlint/words.json`（言い換え先を各エントリの message に書く）。
 //
 // 判定規則:
-// - 対象は git が管理する（または ignore されていない未追跡の）`*.md`。次のものは除く。
+// - 対象は git が管理する（または ignore されていない未追跡の）`*.md` と、コメントを持つファイル
+//   （JavaScript・TypeScript・シェル・YAML。拡張子は `scripts/lib/code-comments.js` で定義する）。
+//   コメントは、取り出した文章を Markdown にして見る。文字列（利用者に表示するメッセージなど）は見ない。
+//   次のものは除く。
 //   - エージェント用のコピーとリンク（判定は `scripts/lib/source-scope.js`）。rule（`.agents/rules/`）と
 //     private skill（`skills/` に無い `.agents/skills/<name>/`）は実体なので見る。
 //   - 過去の記録（`.kaizen/archive/`）とテスト結果（`tests/`）。有効な学び（`.kaizen/*.md`）は見る。
@@ -22,9 +25,12 @@ import { existsSync, lstatSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createLinter, loadTextlintrc } from "textlint";
+import { commentMarkdown, hasComments } from "../lib/code-comments.js";
 import { isAgentCopy } from "../lib/source-scope.js";
 
 export const PENDING_PATH = "scripts/gates/prose-lint-pending.json";
+/** コメントを取り出せなかったファイルの指摘に付ける ruleId。 */
+const PARSE_RULE = "code-comments";
 const EXCLUDED_PREFIXES = [".kaizen/archive/", "tests/", "node_modules/"];
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -47,7 +53,7 @@ export function loadPending(root) {
 
 /** リポジトリ相対パスが対象か。 */
 export function isTarget(root, rel) {
-  if (!rel.endsWith(".md")) return false;
+  if (!rel.endsWith(".md") && !hasComments(rel)) return false;
   if (EXCLUDED_PREFIXES.some((p) => rel.startsWith(p))) return false;
   if (isAgentCopy(root, rel)) return false;
   const abs = join(root, rel);
@@ -55,14 +61,41 @@ export function isTarget(root, rel) {
   return !lstatSync(abs).isSymbolicLink();
 }
 
-/** 全体を見るときの対象（git が管理する、または ignore されていない未追跡の `*.md`）。 */
+/** 全体を見るときの対象（git が管理する、または ignore されていない未追跡のファイルのうち、isTarget に当たるもの）。 */
 export function listTargets(root) {
   const out = execFileSync(
     "git",
-    ["ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", "*.md"],
+    ["ls-files", "-z", "--cached", "--others", "--exclude-standard"],
     { cwd: root, encoding: "utf8" },
   );
   return [...new Set(out.split("\0").filter(Boolean))].filter((rel) => isTarget(root, rel)).sort();
+}
+
+/**
+ * コメントの文章を Markdown にして textlint に渡し、指摘の位置を元のファイルの行と桁に戻す。
+ * 拡張子 `.md` を足したパスを渡すのは、textlint が拡張子で Markdown として読むかを決めるためである。
+ */
+async function lintComments(linter, root, rel) {
+  const abs = join(root, rel);
+  let parsed;
+  try {
+    parsed = commentMarkdown(rel, readFileSync(abs, "utf8"));
+  } catch (error) {
+    // ツールが無いのはファイルの問題ではないので、実行そのものを止める（exit 2）。
+    if (error.missingTool) throw error;
+    // コメントを取り出せないファイルは、指摘として報告する（0 件として通さない）。
+    return [{ line: 1, column: 1, message: error.message, ruleId: PARSE_RULE }];
+  }
+  const { markdown, lines, columns, starts } = parsed;
+  if (!markdown) return [];
+  const result = await linter.lintText(markdown, `${abs}.md`);
+  return result.messages.map((m) => ({
+    ...m,
+    line: lines[m.line - 1] + 1,
+    column: Math.max(starts[m.line - 1], columns[m.line - 1] + m.column),
+    // sentence-length は Markdown の行番号を本文に書くので、元のファイルの行と食い違う。番号を外す。
+    message: m.message.replace(/^Line \d+ /, ""),
+  }));
 }
 
 /**
@@ -77,17 +110,21 @@ export async function lintProse({ root, files, configRoot = REPO_ROOT }) {
     : files
         .map((f) => relative(root, resolve(root, f)).split(sep).join("/"))
         .filter((rel) => isTarget(root, rel));
-  if (whole && targets.length === 0) throw new Error("対象の Markdown が 0 件");
+  if (whole && targets.length === 0) throw new Error("対象のファイルが 0 件");
 
   const descriptor = await loadTextlintrc({
     configFilePath: join(configRoot, ".textlintrc.json"),
     node_modulesDir: join(configRoot, "node_modules"),
   });
   const linter = createLinter({ descriptor, cwd: root });
-  const results = targets.length ? await linter.lintFiles(targets.map((t) => join(root, t))) : [];
+  const docs = targets.filter((t) => t.endsWith(".md"));
+  const results = docs.length ? await linter.lintFiles(docs.map((t) => join(root, t))) : [];
   const byPath = new Map(
     results.map((r) => [relative(root, r.filePath).split(sep).join("/"), r.messages]),
   );
+  for (const rel of targets.filter((t) => !t.endsWith(".md"))) {
+    byPath.set(rel, await lintComments(linter, root, rel));
+  }
 
   const violations = [];
   const stale = [];
@@ -98,6 +135,9 @@ export async function lintProse({ root, files, configRoot = REPO_ROOT }) {
     if (pending.has(rel)) {
       if (messages.length === 0)
         stale.push(`${rel}: 指摘が 0 件になった。${PENDING_PATH} から外す`);
+      // コメントを取り出せないことは、書き換えの保留と関係が無いので、保留したファイルでも報告する。
+      for (const m of messages.filter((m) => m.ruleId === PARSE_RULE))
+        violations.push(`${rel}:${m.line}:${m.column} ${m.message} (${m.ruleId})`);
       continue;
     }
     for (const m of messages)
@@ -123,7 +163,9 @@ export async function main(argv) {
   try {
     result = await lintProse({ root: process.cwd(), files: files.length ? files : undefined });
   } catch (error) {
-    console.error(`lint-prose: 実行できない（${resolve(PENDING_PATH)}）: ${error.message}`);
+    // ツールが無いときは、保留の一覧の問題と読めないように、一覧のパスを添えない。
+    const where = error.missingTool ? "" : `（${resolve(PENDING_PATH)}）`;
+    console.error(`lint-prose: 実行できない${where}: ${error.message}`);
     return 2;
   }
   const { checked, pending, violations, stale } = result;

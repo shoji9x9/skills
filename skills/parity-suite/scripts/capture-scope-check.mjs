@@ -1,65 +1,68 @@
-// 撮る範囲の穴を採取の段で数える検査（正本）。
+// 撮る範囲の抜けを採取の段で数える検査（原本）。
 //
 // 何のためか: 撮る範囲が狭いと、**実装したあとに範囲外の差分が現れる**。
 // そこで範囲を広げて撮り直すことになるが、**現側も撮り直し**なので反復が 1 つ増える。
-// 範囲の狭さは「差分が出なかった」と同じ見え方になる——**差分器は撮った 2 枚しか比べない**ので、
-// 撮らなかった領域は永久に差 0 件として通る。だから**撮る段で穴を数える**。
+// 範囲の狭さは「差分が出なかった」と同じ見え方になる——**差分ツールは撮った 2 枚しか比べない**ので、
+// 撮らなかった領域は永久に差 0 件として通る。だから**撮る段で抜けを数える**。
 //
-// この検査が落とすのは 4 つ。
-//   1. **撮影組の取りこぼし**: ノイズ基準値を採った組（ページ × 状態 × ビューポート）に、範囲の実測が無い。
-//      「範囲を測っていない組」と「穴の無い組」を同じ見え方にしない。
-//   2. **文書が撮影領域より大きい**（`below-fold` / `beyond-right`）: `full_page: false` で下・右が切れている。
-//   3. **内部スクロール器の外**（`scroll:<名前>`）: 器の `scrollHeight` / `scrollWidth` が `clientHeight` / `clientWidth` より大きく、
-//      画素にも特性にも出ない領域が器の中に残っている（仮想スクロール・固定高のグリッドが該当する）。
-//      あわせて器ごとに、**特性照合に器が無い**（`untraced:<名前>`。器の名前が `traits.elements` に無く、
-//      スクロールバーの有無・厚み・見た目が trait-capture.mjs の `scroll` に採られない）と、
-//      **スクロールバーを表示して撮ったのに、はみ出した向きのバーが場所を取っていない**（`scrollbar-hidden:<名前>`。
-//      `--hide-scrollbars` が残っているか、オーバーレイ型・`scrollbar-width: none` のバー）を穴として数える。
-//   4. **撮影領域の外にある論理名付き要素**（`offscreen:<名前>`）: 特性は採れても画素には写らない。
+// この検査が落とすのは次の 4 つである。出力では、この抜けを `穴` と表示する。
+//   1. 撮影組の取りこぼし。ノイズ基準値を採った組（ページ × 状態 × ビューポート）に、範囲の実測が無い。
+//      「範囲を測っていない組」と「抜けの無い組」を同じ見え方にしない。
+//   2. 文書が撮影領域より大きい（`below-fold` / `beyond-right`）。`full_page: false` で下・右が切れている。
+//   3. 内部のスクロール領域の外（`scroll:<名前>`）。スクロール領域の `scrollHeight` / `scrollWidth` が
+//      `clientHeight` / `clientWidth` より大きく、画素にも特性にも出ない領域がスクロール領域の中に残っている
+//      （仮想スクロール・固定高のグリッドが該当する）。
+//      あわせてスクロール領域ごとに、次の 2 つも抜けとして数える。
+//      - 特性照合にスクロール領域が無い（`untraced:<名前>`）。スクロール領域の名前が `traits.elements` に無く、
+//        スクロールバーの有無・厚み・見た目が trait-capture.mjs の `scroll` に採られない。
+//      - スクロールバーを表示して撮ったのに、はみ出した向きのバーが場所を取っていない（`scrollbar-hidden:<名前>`）。
+//        `--hide-scrollbars` が残っているか、オーバーレイ型・`scrollbar-width: none` のバーである。
+//   4. 撮影領域の外にある論理名付き要素（`offscreen:<名前>`）。特性は採れても、画素には記録されない。
 //
-// あわせて**スクロールバーが場所を取る窓でのはみ出し**の宣言を数える（`checkOverflow`）。
-// スクロールバーを隠した撮影では `100vh` と `height: 100%` の差が 0 になり、上の穴と同じく「差分 0 件」に化けるため。
-// 撮影時の扱い（`scrollbars`）は `shown` を既定にし、`hidden` で撮るなら理由（`scrollbars_reason`）を、
+// あわせて、**スクロールバーが場所を取る窓でのはみ出し**の宣言を数える（`checkOverflow`）。
+// スクロールバーを隠した撮影では `100vh` と `height: 100%` の差が 0 になり、上の抜けと同じく「差分 0 件」と誤って判定されるためである。
+// 撮影時の扱い（`scrollbars`）は `shown` をデフォルトにする。`hidden` で撮るなら理由（`scrollbars_reason`）を、
 // `shown` ならどの環境のスクロールバーで撮ったか（`scrollbar_environment`）を書かせる。
-// **表示を切り替える軸**（ロケール・配色テーマ等。`checkDisplayAxes`）も数える——既定の 1 値だけで撮ると、
-// 他の値での差がどの経路にも写らない。既定以外の値ごとの撮影（変種）は撮るはずの組に入り、撮っていなければ `#not-captured` の穴になる。
-// **採取環境と利用者環境の一致**（`checkViewerEnvironment` / `checkBrowser`）も数える——「未確認」のままでは、
-// 採取環境でだけ成立する一致が差分ゼロのまま収束する。
+// **表示を切り替える軸**（ロケール・配色テーマなど。`checkDisplayAxes`）も数える。デフォルトの 1 値だけで撮ると、
+// 他の値での差がどの比較方法にも表れない。デフォルト以外の値ごとの撮影（変種）は撮るはずの組に入り、
+// 撮っていなければ `#not-captured` の抜けになる。
+// **採取環境と利用者環境の一致**（`checkViewerEnvironment` / `checkBrowser`）も数える。「未確認」のままでは、
+// 採取環境でだけ成立する一致が、差分ゼロのまま収束する。
 //
-// 穴は消すか、**対象外として理由付きで宣言する**（`capture_scope_exemptions`）。宣言の無い穴は落とす。
-// 効かない宣言（対応する穴が無い）も落とす——古い宣言が残ると、範囲を狭めても静かに通る。
+// 抜けは消すか、**対象外として理由付きで宣言する**（`capture_scope_exemptions`）。宣言の無い抜けは落とす。
+// 機能しない宣言（対応する抜けが無い）も落とす。古い宣言が残っていると、範囲を狭めてもチェックがエラーを出さない。
 //
 // 決定論的: 乱数・現在時刻・ネットワークに依存しない。読むのは `metadata.json` だけで、ブラウザは駆動しない
 // （範囲の実測は採取スペックが行い、その結果をこのスクリプトが数える）。TypeScript 構文は使わない（型は JSDoc）。
 //
-// 終了コード: 0 ＝ 条件を満たす、1 ＝ 穴・不整合が残る（採取へ戻す）、2 ＝ 使い方の誤り・型崩れ。
+// 終了コード: 0 ＝ 条件を満たす、1 ＝ 抜け・不整合が残る（採取へ戻す）、2 ＝ 使い方の誤り・型崩れ。
 
 import { readFileSync, realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
- * ツールのバージョン（正本）。判定規則・出力形状を変えたら上げる。
+ * ツールのバージョン（原本）。判定規則・出力形状を変えたら上げる。
  * @type {string}
  */
 export const VERSION = "5";
 
-/** `metadata.json` の `mode` の語彙（正本は parity-suite の SKILL.md）。視覚採取物を持つのは `feature` だけ。 */
+/** `metadata.json` の `mode` の語彙（原本は parity-suite の SKILL.md）。視覚採取物を持つのは `feature` だけ。 */
 export const MODES = ["feature", "api-resource", "batch"];
 
 /** 撮影組の鍵の区切り。ページ名・状態名・ビューポート label にこの文字は使えない。 */
 export const KEY_SEPARATOR = "|";
 
-/** 穴の id の区切り（`<鍵>#<種別>:<名前>`）。鍵の材料・器の名前・論理名にこの文字は使えない。 */
+/** 抜けの id の区切り（`<鍵>#<種別>:<名前>`）。鍵の材料・スクロール領域の名前・論理名にこの文字は使えない。 */
 export const ID_SEPARATOR = "#";
 
 /**
  * id の材料として安全か（区切り文字を含まない非空の文字列）。
  *
  * **id は利用者が `capture_scope_exemptions` へ書き写す**ので、符号化で逃げず材料の側で弾く。
- * 区切りを含めると別々の穴が同じ id になり、**1 つの宣言が 2 つの穴を黙らせる**
- * （ビューポート `v#scroll:x` の below-fold と、ビューポート `v` の器 `x#below-fold` は
- * どちらも `p|s|v#scroll:x#below-fold` になる）。
+ * 区切りを含めると別々の抜けが同じ id になり、**1 つの宣言が 2 つの抜けを対象外にしてしまう**。
+ * 例えば、ビューポート `v#scroll:x` の below-fold と、ビューポート `v` のスクロール領域 `x#below-fold` は、
+ * どちらも `p|s|v#scroll:x#below-fold` になる。
  * @param {unknown} value
  * @returns {boolean}
  */
@@ -85,8 +88,8 @@ export function combinationKey(entry) {
  * 鍵の材料に区切り文字が入っていないか。
  *
  * **入っていると別々の組が同じ鍵に潰れる**——`("a|b", "c", "d")` と `("a", "b|c", "d")` はどちらも
- * `a|b|c|d` になり、1 つの範囲の実測が 2 つの撮影組を満たしたことになって穴が消える。
- * 鍵は穴の id にも入る（利用者が `capture_scope_exemptions` に書き写す）ので、
+ * `a|b|c|d` になり、1 つの範囲の実測が 2 つの撮影組を満たしたことになって抜けが消える。
+ * 鍵は抜けの id にも入る（利用者が `capture_scope_exemptions` に書き写す）ので、
  * 符号化で回避せず**材料の側で弾く**。
  * @param {{page?: unknown, state?: unknown, viewport?: unknown}} entry
  * @returns {boolean}
@@ -117,8 +120,8 @@ function nonEmptyString(value) {
  * 寸法（`{width, height}`）を検証して返す。型崩れ・0 以下なら null。
  *
  * **0 を通さない**——同梱テンプレートは寸法を `0` で置いてあるので、
- * プレースホルダのまま書いた組は文書も撮影領域も 0×0 になり、寸法の比較では穴が 1 つも出ない。
- * 「測っていない組」が「穴の無い組」と同じ見え方になるため、実測値は正の数だけを受ける。
+ * プレースホルダのまま書いた組は文書も撮影領域も 0×0 になり、寸法の比較では抜けが 1 つも出ない。
+ * 「測っていない組」が「抜けの無い組」と同じ見え方になるため、実測値は正の数だけを受ける。
  * @param {unknown} value
  * @returns {{width:number, height:number} | null}
  */
@@ -145,14 +148,14 @@ function nonNegativeNumber(value) {
 }
 
 /**
- * 1 つの撮影組の実測から穴を導く。
+ * 1 つの撮影組の実測から抜けを導く。
  *
- * **穴は記録された `holes` ではなく寸法から導く**——書き手が挙げた分だけを見ると、
- * 挙げ忘れた穴が「穴が無い」と同じ見え方になる。
+ * **抜けは記録された `holes` ではなく寸法から導く**——書き手が挙げた分だけを見ると、
+ * 挙げ忘れた抜けが「抜けが無い」と同じ見え方になる。
  *
- * `context.elements` は `traits.elements`（特性照合する論理名）の集合。null（読めない）なら器ごとの
+ * `context.elements` は `traits.elements`（特性照合する論理名）の集合。null（読めない）ならスクロール領域ごとの
  * `untraced` の判定をしない（読めないことは呼び出し側が finding にする）。`context.scrollbars` は撮影時の扱いで、
- * `shown` のときだけ `scrollbar-hidden` の陽性コントロールを当てる（`hidden` ではバーの厚み 0 が正規の値）。
+ * `shown` のときだけ `scrollbar-hidden` の検出の確認を当てる（`hidden` ではバーの厚み 0 が正規の値）。
  * @param {Record<string, unknown>} entry
  * @param {{ elements?: Set<string> | null, scrollbars?: unknown }} [context]
  * @returns {{ holes: {id:string, kind:string, detail:string}[], findings: {code:string, message:string}[] }}
@@ -169,7 +172,7 @@ export function deriveHoles(entry, context = {}) {
   if (!document || !captured) {
     findings.push({
       code: "scope-size-unreadable",
-      message: `${key} の document / captured の寸法が数値で書かれていない（測っていないことを穴が無いことに倒さない）`,
+      message: `${key} の document / captured の寸法が数値で書かれていない（測っていないことを、穴が無いこととして扱わない）`,
     });
     return { holes, findings };
   }
@@ -191,7 +194,7 @@ export function deriveHoles(entry, context = {}) {
   if (!Array.isArray(containers)) {
     findings.push({
       code: "scroll-containers-missing",
-      message: `${key} に scroll_containers が無い（内部スクロール器を数えていないことと、器が無いことを書き分ける。無ければ空配列を書く）`,
+      message: `${key} に scroll_containers が無い（内部のスクロール領域を数えていないことと、スクロール領域が無いことを書き分ける。無ければ空配列を書く）`,
     });
   } else {
     const seen = new Set();
@@ -208,14 +211,14 @@ export function deriveHoles(entry, context = {}) {
       if (!idPartIsSafe(name)) {
         findings.push({
           code: "scroll-container-name-unsafe",
-          message: `${key} の scroll_containers[${String(name)}] に区切り文字（${KEY_SEPARATOR} / ${ID_SEPARATOR}）が入っている（別々の穴が同じ id になり、1 つの宣言が 2 つの穴を黙らせる）`,
+          message: `${key} の scroll_containers[${String(name)}] に区切り文字（${KEY_SEPARATOR} / ${ID_SEPARATOR}）が入っている（別々の穴が同じ id になり、1 つの宣言が 2 つの穴を対象外にしてしまう）`,
         });
         continue;
       }
       if (seen.has(name)) {
         findings.push({
           code: "scroll-container-duplicated",
-          message: `${key} の scroll_containers に ${name} が 2 つ以上ある（宣言がどちらに効くか決まらない）`,
+          message: `${key} の scroll_containers に ${name} が 2 つ以上ある（宣言がどちらに当たるか決まらない）`,
         });
       }
       seen.add(name);
@@ -232,10 +235,10 @@ export function deriveHoles(entry, context = {}) {
         holes.push({
           id: `${key}#scroll:${String(name)}`,
           kind: "scroll-container",
-          detail: `器 ${String(name)} の内容 ${scroll.width}x${scroll.height} が可視部 ${client.width}x${client.height} より大きい`,
+          detail: `スクロール領域 ${String(name)} の内容 ${scroll.width}x${scroll.height} が可視部 ${client.width}x${client.height} より大きい`,
         });
       }
-      // 器ごとの overflow とスクロールバーの厚み。寸法だけでは、現行が overflow: auto で横のバーを出し、
+      // スクロール領域ごとの overflow とスクロールバーの厚み。寸法だけでは、現行が overflow: auto で横のバーを出し、
       // 新側が overflow-x: hidden で右端を切る差が見えない（バーを隠して撮ると client と scroll が両側とも揃う）
       const overflowX = container.overflow_x;
       const overflowY = container.overflow_y;
@@ -266,10 +269,10 @@ export function deriveHoles(entry, context = {}) {
         holes.push({
           id: `${key}#untraced:${String(name)}`,
           kind: "untraced-scroll-container",
-          detail: `器 ${String(name)} が traits.elements に無い（スクロールバーの有無・厚み・見た目が特性照合に写らない。器に論理名を付けて採る）`,
+          detail: `スクロール領域 ${String(name)} が traits.elements に無い（スクロールバーの有無・厚み・見た目が特性照合で採られない。スクロール領域に論理名を付けて採る）`,
         });
       }
-      // 陽性コントロール: バーを描く overflow ではみ出しているのに厚みが 0 なら、バーが場所を取っていない
+      // バーを描く overflow ではみ出しているのに厚みが 0 なら、バーが場所を取っていない（隠したまま撮ったことを検出する）
       const hiddenVertical =
         scroll.height > client.height &&
         SCROLLBAR_OVERFLOW.includes(/** @type {string} */ (overflowY)) &&
@@ -282,7 +285,7 @@ export function deriveHoles(entry, context = {}) {
         holes.push({
           id: `${key}#scrollbar-hidden:${String(name)}`,
           kind: "scrollbar-hidden",
-          detail: `器 ${String(name)} は${hiddenVertical ? "縦" : "横"}にはみ出しているのにスクロールバーの厚みが 0（scrollbars: shown で撮ったはずが --hide-scrollbars が残っているか、オーバーレイ型・scrollbar-width: none のバー）`,
+          detail: `スクロール領域 ${String(name)} は${hiddenVertical ? "縦" : "横"}にはみ出しているのにスクロールバーの厚みが 0（scrollbars: shown で撮ったはずが --hide-scrollbars が残っているか、オーバーレイ型・scrollbar-width: none のバー）`,
         });
       }
     }
@@ -310,8 +313,8 @@ export function deriveHoles(entry, context = {}) {
         });
         continue;
       }
-      // **同じ論理名が 2 つあると同じ id の穴が 2 つできる**——1 つの宣言で両方が消えるので、
-      // 器の名前と同じく重複の側で落とす（棚卸しが潰れたまま exit 0 にしない）。
+      // **同じ論理名が 2 つあると同じ id の抜けが 2 つできる**——1 つの宣言で両方が消えるので、
+      // スクロール領域の名前と同じく重複の側で落とす（棚卸しが潰れたまま exit 0 にしない）。
       if (seenOutside.has(name)) {
         findings.push({
           code: "named-element-duplicated",
@@ -323,7 +326,7 @@ export function deriveHoles(entry, context = {}) {
       holes.push({
         id: `${key}#offscreen:${String(name)}`,
         kind: "offscreen-named-element",
-        detail: `論理名 ${String(name)} が撮影領域の外にある（特性は採れても画素には写らない）`,
+        detail: `論理名 ${String(name)} が撮影領域の外にある（特性は採れても画素には表れない）`,
       });
     }
   }
@@ -335,7 +338,7 @@ export function deriveHoles(entry, context = {}) {
  *
  * **突き合わせ相手を `noise_baseline` だけにしない**——採った組の一覧を期待値にすると、
  * 宣言した組を採らずに落とした場合に「採っていない組」が一覧から消え、
- * 穴が 1 つも出ないまま通る（範囲の狭さが差分 0 件と同じ見え方になる、というこの検査の前提そのもの）。
+ * 抜けが 1 つも出ないまま通る（範囲の狭さが差分 0 件と同じ見え方になる、というこの検査の前提そのもの）。
  * 期待値は `capture_conditions` の 3 軸から作り、採った側・測った側の双方と突き合わせる。
  *
  * 軸の材料に区切り文字が入ると別々の組が同じ鍵に潰れるため、`keyPartsAreSafe` と同じ規律で材料の側を弾く。
@@ -422,9 +425,9 @@ export function declaredCombinations(conditions, displayAxes) {
 }
 
 /**
- * 表示を切り替える軸の候補（正本）。
+ * 表示を切り替える軸の候補（原本）。
  *
- * **軸は思いついた分だけ数えると、数えなかった軸の値での差がどの経路にも写らない**（ロケールを数えずに English だけで撮り、
+ * **軸は思いついた分だけ数えると、数えなかった軸の値での差がどの比較方法にも表れない**（ロケールを数えずに English だけで撮り、
  * 利用者が Japanese で開いて初めて気づいた）。候補の全件を「在る（`axes[].candidate`）」か「無い（`absent`）」に振り分けさせ、
  * 振り分けていない候補を落とす。一覧に無い軸は `candidate: "other"` で足す。
  * スクロールバーの出方（常に表示・オーバーレイ）は利用者の OS・ブラウザの設定で変わる軸として数える。
@@ -453,7 +456,7 @@ export const OTHER_CANDIDATE = "other";
 export const VIEWPORT_AXIS = "viewport";
 
 /**
- * 軸の名前・値として使えるか。組の鍵と穴の id に入る label の材料にはしないが、
+ * 軸の名前・値として使えるか。組の鍵と抜けの id に入る label の材料にはしないが、
  * 宣言の突き合わせで `名前=値` の形に並べるので、`=` と `,` も弾く。
  * @param {unknown} value
  * @returns {boolean}
@@ -464,7 +467,7 @@ function axisPartIsSafe(value) {
 
 /**
  * 根拠として数えてよい文字列か（空でなく、テンプレートの <…> や TODO・未確認のようなプレースホルダで始まらない）。
- * 空でないだけで数えると、同梱テンプレートの値を埋めずに残した軸が「来歴付きで数えた」ことになる。
+ * 空でないだけで数えると、同梱テンプレートの値を埋めずに残した軸が「出所付きで数えた」ことになる。
  * @param {unknown} value
  * @returns {boolean}
  */
@@ -488,13 +491,14 @@ function variantSignature(values) {
  * 表示を切り替える軸（`capture_conditions.display_axes`）の宣言を検査する。
  *
  * 落とすのは 4 群。
- *   1. **数えていない**: キーごと無い・候補の一覧に振り分けていない候補がある。
- *   2. **値の撮り漏れ**: 既定以外の値ごとに、他の軸を既定のままその値だけを振った変種が無い（1 軸ずつ振る）。
- *   3. **掛け合わせの判断漏れ**: 軸（とビューポート）の対ごとに、掛けたか掛けなかったかと理由が無い。掛けると宣言した対の組み合わせの変種が無い。
- *   4. **スイートに写していない**: 軸ごとに、値ごとの期待値を引く箇所か、値で文言・振る舞いが変わらない根拠が無い。
+ *   1. 数えていない。キーごと無い・候補の一覧に振り分けていない候補がある。
+ *   2. 値の撮り忘れ。デフォルト以外の値ごとに、他の軸をデフォルトのままその値だけを振った変種が無い（1 軸ずつ振る）。
+ *   3. 掛け合わせの判断の抜け。軸（とビューポート）の対ごとに、掛けたか掛けなかったかと理由が無い。
+ *      または、掛けると宣言した対の組み合わせの変種が無い。
+ *   4. スイートに反映していない。軸ごとに、値ごとの期待値を読む箇所か、値で文言・振る舞いが変わらない根拠が無い。
  *
  * 撮った組の数え直しはここではしない——変種の label を `declaredCombinations` に渡し、
- * 撮っていない組を `#not-captured` の穴として他の穴と同じ経路で数える。
+ * 撮っていない組を `#not-captured` の抜けとして他の抜けと同じ処理で数える。
  * @param {Record<string, unknown>} conditions
  * @returns {{ findings: {code:string, message:string}[], variants: {label:string, axes:string[]}[], notApplicable: Map<string, Set<string>> }}
  */
@@ -511,7 +515,7 @@ export function checkDisplayAxes(conditions) {
   if (!Object.hasOwn(conditions, "display_axes")) {
     add(
       "display-axes-missing",
-      "capture_conditions.display_axes が無い（表示を切り替える軸〈ロケール・配色テーマ等〉を数えていない。既定の 1 値だけで撮った差は 3 経路のどれにも写らない）",
+      "capture_conditions.display_axes が無い（表示を切り替える軸〈ロケール・配色テーマ等〉を数えていない。デフォルトの 1 値だけで撮った差は 3 経路のどれにも写らない）",
     );
     return result();
   }
@@ -614,7 +618,7 @@ export function checkDisplayAxes(conditions) {
     if (!evidenceText(axis.source)) {
       add(
         "display-axis-source-missing",
-        `${at}（${axisName}）に source が無い（値の一覧をどこから数えたかの来歴が残らない）`,
+        `${at}（${axisName}）に source が無い（値の一覧をどこから数えたかの出所が残らない）`,
       );
     }
     if (!evidenceText(axis.apply)) {
@@ -662,18 +666,18 @@ export function checkDisplayAxes(conditions) {
         if (!evidenceText(na.reason)) {
           add(
             "display-axis-not-applicable-reason-missing",
-            `${at}（${axisName}）の not_applicable の ${page} に reason が無い（軸が効かないことの来歴が残らない）`,
+            `${at}（${axisName}）の not_applicable の ${page} に reason が無い（軸が機能しないことの出所が残らない）`,
           );
           return;
         }
         excludedPages.add(page);
       });
     }
-    // 全ページで効かない軸は切り替えの軸ではない。変種を宣言しても撮るはずの組が 0 件になり、撮らずに通る
+    // 全ページで機能しない軸は切り替えの軸ではない。変種を宣言しても撮るはずの組が 0 件になり、撮らずに通る
     if (declaredPages.length > 0 && declaredPages.every((page) => excludedPages.has(page))) {
       add(
         "display-axis-not-applicable-all-pages",
-        `${at}（${axisName}）の not_applicable が撮影ページの全てを覆う（どのページでも効かない軸は absent に書く。変種の撮るはずの組が 0 件になり、撮らずに通る）`,
+        `${at}（${axisName}）の not_applicable が撮影ページの全てを覆う（どのページでも機能しない軸は absent に書く。変種の撮るはずの組が 0 件になり、撮らずに通る）`,
       );
     }
     notApplicable.set(axisName, excludedPages);
@@ -699,7 +703,7 @@ export function checkDisplayAxes(conditions) {
     if (!evidenceText(absent.source)) {
       add(
         "display-axis-absent-source-missing",
-        `${at}（${String(absent.candidate)}）に source が無い（無いと確かめた来歴が残らない。思いつかなかった軸と区別できない）`,
+        `${at}（${String(absent.candidate)}）に source が無い（無いと確かめた出所が残らない。思いつかなかった軸と区別できない）`,
       );
     }
   });
@@ -708,7 +712,7 @@ export function checkDisplayAxes(conditions) {
       const label = AXIS_CANDIDATES.find((c) => c.id === id)?.label ?? id;
       add(
         "display-axis-candidate-unsurveyed",
-        `表示の軸の候補 ${id}（${label}）が axes にも absent にも無い（数えていない軸の値での差は、どの経路にも写らない）`,
+        `表示の軸の候補 ${id}（${label}）が axes にも absent にも無い（数えていない軸の値での差は、どの比較方法にも表れない）`,
       );
     }
   }
@@ -771,7 +775,7 @@ export function checkDisplayAxes(conditions) {
     ) {
       add(
         "display-axis-variant-values-unusable",
-        `${at}（${labelText}）の values が「軸の名前 → 既定以外の値」のオブジェクトではない`,
+        `${at}（${labelText}）の values が「軸の名前 → デフォルト以外の値」のオブジェクトではない`,
       );
       return;
     }
@@ -799,7 +803,7 @@ export function checkDisplayAxes(conditions) {
       if (value === axis.default) {
         add(
           "display-axis-variant-values-unusable",
-          `${at}（${labelText}）の ${axisName} が既定値 ${value}（既定値は基準の組が撮る。変種には既定以外の値だけを書く）`,
+          `${at}（${labelText}）の ${axisName} がデフォルト値 ${value}（デフォルト値は基準の組が撮る。変種にはデフォルト以外の値だけを書く）`,
         );
         usable = false;
         continue;
@@ -807,7 +811,7 @@ export function checkDisplayAxes(conditions) {
       picked[axisName] = value;
     }
     if (!usable) return;
-    // 変種の軸のどれかが効かないページは撮らない。全ページが外れる変種は撮るはずの組が 0 件になり、
+    // 変種の軸のどれかが機能しないページは撮らない。全ページが外れる変種は撮るはずの組が 0 件になり、
     // それでも掛け合わせの対を満たしたことになるので落とす
     const pickedAxes = Object.keys(picked);
     if (
@@ -816,7 +820,7 @@ export function checkDisplayAxes(conditions) {
     ) {
       add(
         "display-axis-variant-no-pages",
-        `${at}（${labelText}）の軸が効くページが 1 つも無い（not_applicable が合わせて全ページを覆う。撮るはずの組が 0 件のまま掛け合わせの対を満たさない。同時に効かない対なら crossed: false にする）`,
+        `${at}（${labelText}）の軸が機能するページが 1 つも無い（not_applicable が合わせて全ページを覆う。撮るはずの組が 0 件のまま掛け合わせの対を満たさない。同時に効かない対なら crossed: false にする）`,
       );
       return;
     }
@@ -841,7 +845,7 @@ export function checkDisplayAxes(conditions) {
       if (!signatures.has(variantSignature({ [axisName]: value }))) {
         add(
           "display-axis-value-unswept",
-          `軸 ${axisName} の値 ${value} を撮る変種が無い（他の軸を既定のまま ${axisName}=${value} だけを振った変種を 1 つの窓で撮る）`,
+          `軸 ${axisName} の値 ${value} を撮る変種が無い（他の軸をデフォルトのまま ${axisName}=${value} だけを振った変種を 1 つの窓で撮る）`,
         );
       }
     }
@@ -999,8 +1003,8 @@ export const BROWSER_MODES = ["launched", "cdp"];
 /**
  * `cdp` の `browser_identity.browser_os` のキー（`navigator.userAgentData.getHighEntropyValues` から、この 3 つだけを拾った形）。
  * Chromium は UA の OS 版を固定値に縮めて返す（reduced UA）ので、`product` と `user_agent` だけでは OS の版・アーキテクチャが違う機械を見分けられない。
- * `navigator.platform` への代替は認めない——`cdp` の接続先は Chromium 系で、`platform` も縮められており同じ穴が残る。
- * 正規化と読み方（安全なコンテキストの頁で読む）の正本は parity-suite の references/locator-mapping.md「利用者環境のブラウザへ接続する」。
+ * `navigator.platform` への代替は認めない——`cdp` の接続先は Chromium 系で、`platform` も縮められており同じ抜けが残る。
+ * 正規化と読み方（安全なコンテキストの頁で読む）の原本は parity-suite の references/locator-mapping.md「利用者環境のブラウザへ接続する」。
  */
 export const BROWSER_OS_KEYS = ["platform", "platformVersion", "architecture"];
 
@@ -1100,7 +1104,7 @@ export const OVERFLOW_STATUSES = ["measured", "not_measured"];
  * スクロールバーの扱いと、スクロールバーが場所を取る窓での「はみ出し」の宣言を検査する。
  *
  * **スクロールバーが隠れていると `100vh` と `height: 100%` の差が測れない。** 隠れたスクロールバーは場所を取らないので、
- * 横スクロールバーが出る窓でも「見える高さ」が減らず、頁の高さの決め方の違いが 3 経路のどれにも写らない。
+ * 横スクロールバーが出る窓でも「見える高さ」が減らず、頁の高さの決め方の違いが 3 つの比較方法のどれにも表れない。
  * そこで撮影時の扱い（`scrollbars`）を記録させ、別に「スクロールバーを表示した窓で、頁の最小幅より狭い窓の縦・横のはみ出し」を
  * `overflow` に宣言させる（現・新の突き合わせはこの記録を読むスイートの assertion が行う）。
  *
@@ -1123,10 +1127,10 @@ export function checkOverflow(conditions) {
       `capture_conditions.scrollbars「${String(conditions.scrollbars)}」が語彙外（${SCROLLBAR_MODES.join(" / ")}）`,
     );
   } else if (conditions.scrollbars === "hidden" && !evidenceText(conditions.scrollbars_reason)) {
-    // 既定は shown。隠して撮ると、バーが場所を取る差（はみ出し・横のバーの有無）が 3 経路のどれにも写らない
+    // デフォルトは shown。隠して撮ると、バーが場所を取る差（はみ出し・横のバーの有無）が 3 つの比較方法のどれにも表れない
     add(
       "scrollbars-hidden-reason-missing",
-      "capture_conditions.scrollbars が hidden なのに scrollbars_reason が無い（既定は shown。隠して撮るなら、スクロールバーが場所を取る差を測らない理由を書き gaps.md に残す）",
+      "capture_conditions.scrollbars が hidden なのに scrollbars_reason が無い（デフォルトは shown。隠して撮るなら、スクロールバーが場所を取る差を測らない理由を書き gaps.md に残す）",
     );
   } else if (conditions.scrollbars === "shown" && !evidenceText(conditions.scrollbar_environment)) {
     // バーの描き方は OS とブラウザで変わるので、撮ったバーの画素を利用者環境の見え方の根拠にしない
@@ -1183,7 +1187,7 @@ export function checkOverflow(conditions) {
       "capture_conditions.overflow.spec が空（この記録を現・新の両側に当てるスペックが無いと、新側と突き合わせられない）",
     );
   }
-  // 期待集合は撮影条件の pages（宣言）から作る。記録された頁だけを見ると、頁ごと落とした測り漏れが通る
+  // 期待集合は撮影条件の pages（宣言）から作る。記録された頁だけを見ると、頁ごと測り忘れても通る
   const declaredPages = Array.isArray(conditions.pages)
     ? conditions.pages
         .map((p) => (p && typeof p === "object" ? /** @type {any} */ (p).name : undefined))
@@ -1235,7 +1239,7 @@ export function checkOverflow(conditions) {
         `${at}.content_height が正の整数でない（最小幅より狭い窓で読んだ文書の scrollHeight を書く）`,
       );
     }
-    // 最小幅の探索の範囲。刻みだけの探索は狭い帯でだけ効く最小幅を見落とすので、メディアクエリの境界も探す。
+    // 最小幅の探索の範囲。刻みだけの探索は狭い帯でだけ有効になる最小幅を見落とすので、メディアクエリの境界も探す。
     // 読めないスタイルシートの境界は探索できていないので、未検証として gaps.md への参照を要求する
     const probe = /** @type {Record<string, unknown>} */ (entry.probe ?? {});
     if (
@@ -1250,7 +1254,7 @@ export function checkOverflow(conditions) {
     ) {
       add(
         "overflow-probe-malformed",
-        `${at}.probe が無いか型が崩れている（step: 正の整数、breakpoints: 正の数の配列、unreadable_stylesheets: 0 以上の整数）`,
+        `${at}.probe が無いか型が不正（step: 正の整数、breakpoints: 正の数の配列、unreadable_stylesheets: 0 以上の整数）`,
       );
     } else if (
       /** @type {number} */ (probe.unreadable_stylesheets) > 0 &&
@@ -1323,7 +1327,7 @@ export function checkOverflow(conditions) {
           `${wat} のはみ出しの真偽値とはみ出し量が矛盾している（horizontal は overflow_x_px > 0、vertical は overflow_y_px > 0 と一致させる）`,
         );
       }
-      // 陽性コントロール: 横にはみ出した窓で横スクロールバーが場所を取っていなければ、スクロールバーが隠れたまま測っている
+      // 横にはみ出した窓で横スクロールバーが場所を取っていなければ、スクロールバーが隠れたまま測っている（それを検出する）
       if (w.horizontal && w.horizontal_bar_px === 0) {
         add(
           "overflow-bar-takes-no-space",
@@ -1340,7 +1344,7 @@ export function checkOverflow(conditions) {
         }
         return;
       }
-      // 最小幅より狭い窓が全て横にはみ出すとは限らない（最小幅が中間のブレークポイントでだけ効くレスポンシブな頁は、
+      // 最小幅より狭い窓が全て横にはみ出すとは限らない（最小幅が中間のブレークポイントでだけ有効になるレスポンシブな頁は、
       // モバイル幅ではみ出さない）。数えるのは「最小幅より狭く、横にはみ出した窓」
       if (/** @type {number} */ (w.width) < /** @type {number} */ (minWidth) && w.horizontal) {
         narrow += 1;
@@ -1376,7 +1380,7 @@ export function checkOverflow(conditions) {
 }
 
 /**
- * `metadata.json` の内容から撮る範囲の穴を数える。
+ * `metadata.json` の内容から撮る範囲の抜けを数える。
  *
  * `judged: false` は「視覚採取物を持たないモードなので判定に入れない」の意味で、合格とは別物
  * （呼び出し側は判定しなかった事実を記録に残す）。
@@ -1402,8 +1406,8 @@ export function checkCaptureScope(metadata) {
   const meta = /** @type {Record<string, any>} */ (metadata);
   // 視覚採取物を持たないモード（api-resource / batch）は撮影条件そのものを持たないので判定に入れない。
   // **通すのはこの閉じた集合だけ**で、mode が読めない・知らない値のときは判定を飛ばさず落とす
-  // （緩和経路を「壊れている入力」全部に広げない）。
-  // **欠落・非文字列も同じ**——分岐の外へ落として feature 扱いにすると、壊れた metadata が
+  // （緩和を「不正な入力」全部に広げない）。
+  // **欠落・非文字列も同じ**。分岐の外へ落として feature として扱うと、不正な metadata が
   // 「撮影条件が読めた feature」として判定を通りうる。mode は語彙の中の文字列であることを先に確かめる。
   if (typeof meta.mode !== "string" || !MODES.includes(meta.mode)) {
     return {
@@ -1446,7 +1450,7 @@ export function checkCaptureScope(metadata) {
   const conditionsRecord = /** @type {Record<string, unknown>} */ (
     /** @type {unknown} */ (conditions)
   );
-  // 特性照合する論理名（器ごとの untraced の判定に使う）。読めなければ判定を飛ばさず、器があるときに落とす
+  // 特性照合する論理名（スクロール領域ごとの untraced の判定に使う）。読めなければ判定を飛ばさず、スクロール領域があるときに落とす
   const traitElements = meta.traits && meta.traits.elements;
   const elements =
     Array.isArray(traitElements) && traitElements.every((name) => nonEmptyString(name))
@@ -1513,7 +1517,7 @@ export function checkCaptureScope(metadata) {
     }
     const key = combinationKey(entry);
     // **後勝ちで上書きしない**——`deriveHoles` は鍵ごとに最後に残った要素しか評価しないので、
-    // 本物の実測の後にプレースホルダーが続くと、警告は出るのに穴そのものが消える。
+    // 本物の実測の後にプレースホルダーが続くと、警告は出るのに抜けそのものが消える。
     // noise_baseline の重複と同じく先勝ちで残す。
     // **先勝ちにしても `holes` の中身は並び順で変わる**（どちらの重複を読むかが入れ替わるだけ）。
     // 並び順に依らないのは合否のほうで、重複そのものが必ず `scope-entry-duplicated` で落ちるため、
@@ -1551,7 +1555,7 @@ export function checkCaptureScope(metadata) {
         continue;
       }
       const noiseKey = combinationKey(entry);
-      // **同じ組が 2 行あると Set が黙って畳む**——parity-diff の突き合わせは先に当たった行を使うので、
+      // **同じ組が 2 行あると Set が警告なしに畳む**——parity-diff の突き合わせは先に当たった行を使うので、
       // しきい値の大きい行が選ばれると実差がノイズとして分類されうる。畳む前に落とす。
       if (shot.has(noiseKey)) {
         findings.push({
@@ -1571,9 +1575,9 @@ export function checkCaptureScope(metadata) {
       });
     }
   }
-  // **宣言した組を採らなかった場合は穴として数える。**
+  // **宣言した組を採らなかった場合は抜けとして数える。**
   // 採った組の一覧（`noise_baseline`）だけを突き合わせ相手にすると、組ごと落とした範囲が
-  // 期待値からも消えて穴が 0 件になる。対象外にするなら他の穴と同じく理由付きで宣言させる。
+  // 期待値からも消えて抜けが 0 件になる。対象外にするなら他の抜けと同じく理由付きで宣言させる。
   for (const key of declared.keys) {
     if (!shot.has(key) && !scopeByKey.has(key)) {
       holes.push({
@@ -1600,7 +1604,7 @@ export function checkCaptureScope(metadata) {
     if (shot.size > 0 && !shot.has(key)) {
       findings.push({
         code: "scope-entry-unknown",
-        message: `capture_scope の ${key} は noise_baseline に無い組（撮っていない組の実測が混ざっている）`,
+        message: `capture_scope の ${key} は noise_baseline に無い組（撮っていない組の実測が含まれている）`,
       });
     }
   }
@@ -1616,7 +1620,7 @@ export function checkCaptureScope(metadata) {
     findings.push({
       code: "traits-elements-unreadable",
       message:
-        "traits.elements が空でない文字列の配列ではない（内部スクロール器が特性照合の対象かを判定できない）",
+        "traits.elements が空でない文字列の配列ではない（内部のスクロール領域が特性照合の対象かを判定できない）",
     });
   }
 
@@ -1682,7 +1686,7 @@ export function checkCaptureScope(metadata) {
     if (!holeIds.has(id)) {
       findings.push({
         code: "exemption-ineffective",
-        message: `${id} の宣言に対応する穴が無い（効かない宣言。範囲を狭めても静かに通る状態になるので消す）`,
+        message: `${id} の宣言に対応する穴が無い（機能しない宣言。残すと範囲を狭めてもエラーにならないので消す）`,
       });
     }
   }

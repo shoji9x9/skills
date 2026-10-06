@@ -1,25 +1,27 @@
-// 参照表の役割と行数を、消費側の全部から決めるための検査（正本）。
+// 参照表の役割と行数を、すべての消費側から決めるための検査（原本）。
 //
 // 何のためか: データ設計は「入れたものが入ったか」までしか数えていない。
 // **「入れたもので現行のどの分岐が踏めるか」を数える段が無い**ので、
 // 踏めない分岐は下流（parity-suite / parity-replace）が「観測できない」に当たってから分かる。
-// そのときにはベースラインを採り終えているため、行を足すと version が上がり交差する slug の採取物が陳腐化する。
+// そのときにはベースラインを採り終えているので、行を足すと version が上がり、交差する slug の採取物が古くなる。
 //
-// この検査が落とすのは 4 つ。
-//   1. **写し漏れ**: `.replace/features.md` の 3 表（機能一覧「テーブル」・横断 API「参照テーブル」・バッチ「参照テーブル」）に
-//      在る (テーブル, slug) が `design.md`「対象テーブル」表の写しに無い。写しが落ちると
-//      「どの機能もこの表を読まない」と読める状態になり、役割が「読み取りだけ」へ倒れて行数を増やす検討に入らない。
-//   2. **役割の矛盾**: 消費側 slug が 1 つでも在るのに役割が「読み取りだけ」。
+// この検査は、次の 4 つを失敗にする。
+//   1. 転記の抜け。`.replace/features.md` の 3 表（機能一覧「テーブル」・横断 API「参照テーブル」・バッチ「参照テーブル」）に
+//      在る (テーブル, slug) が、`design.md`「対象テーブル」表に転記されていない。転記が抜けると
+//      「どの機能もこの表を読まない」と読める。すると役割が「読み取りだけ」と判定され、行数を増やす検討に入らない。
+//   2. 役割の矛盾。消費側の slug が 1 つでも在るのに役割が「読み取りだけ」。
 //      役割は**消費するかどうか**で決まる（`JOIN` で引くか `FROM` の母集合として引くかは関係がない）。
-//   3. **踏めない分岐**: 参照表の件数が 0 / 1、または述語の真・偽どちらかの該当行数が 0。
-//      0 件は真の分岐へ入れず、1 件は絞り込みを外しても結果が変わらない（絞り込みが効いていることを観測できない）。
-//      踏めない分岐は「足す」か「gaps に記録」かを**設計の段で**選ばせる（足すと版が上がるため、選択は判断であって既定値ではない）。
-//   4. **変換で値が変わる識別子**: データセットが決めた識別子の値（採番帯）が、消費側の変換
-//      （整数への変換・桁の切り詰め・型の上限）の後に同じ値で届くかを消費側ごとに列挙していない、
-//      述語の「値の出どころ」が無い、届かないと記録した値の述語を「踏める」と数えている。
+//   3. 踏めない分岐。参照表の件数が 0 / 1、または述語の真・偽どちらかの該当行数が 0。
+//      0 件では真の分岐へ入れない。1 件では絞り込みを外しても結果が変わらない（絞り込みが機能していることを観測できない）。
+//      踏めない分岐は、「足す」か「gaps に記録」かを**設計の段で**選ばせる（足すと版が上がるので、選ぶのは判断であってデフォルトの値ではない）。
+//   4. 変換で値が変わる識別子。次のどれかに当たる。
+//      - データセットが決めた識別子の値（採番帯）が、消費側の変換（整数への変換・桁の切り詰め・型の上限）の後に
+//        同じ値で届くかを、消費側ごとに列挙していない
+//      - 述語の「値の出どころ」が無い
+//      - 届かないと記録した値の述語を「踏める」と数えている
 //
-// 決定論的: 乱数・現在時刻・ネットワークに依存しない。読むのは Markdown だけで DB へは接続しない
-// （投入後の実測件数は `verification.md` に書かれたものを読む）。TypeScript 構文は使わない（型は JSDoc）。
+// 乱数・現在時刻・ネットワークに依存しない。読むのは Markdown だけで、DB へは接続しない
+// （投入した後の実測の件数は、`verification.md` に書かれたものを読む）。TypeScript の構文は使わない（型は JSDoc で書く）。
 //
 // 終了コード: 0 ＝ 条件を満たす、1 ＝ 不備が残る（設計へ戻す）、2 ＝ 使い方の誤り・表が読めない。
 
@@ -28,17 +30,18 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
- * ツールのバージョン（正本）。判定規則・出力形状を変えたら上げる。
+ * ツールのバージョン（原本）。判定の規則や出力の形を変えたら上げる。
+ *
  * @type {string}
  */
 export const VERSION = "3";
 
 /**
- * 役割の語彙（正本）。
+ * 役割の語彙（原本）。
  *
- * `FK 親のみ` は**消費側がどの表からも直接読まないが、FK を満たすために投入が要る親表**
- * （`orders` の背後の `customers` 等）。`投入する` にすると「消費側が居ない」で落ち、
- * `読み取りだけ` にすると投入対象から外れて FK が満たせない——どちらも事実と違うので別の語にする。
+ * `FK 親のみ` は、**消費側がどの表からも直接読まないが、FK を満たすために投入が要る親表**である
+ * （`orders` の背後の `customers` など）。`投入する` にすると「消費側が居ない」で失敗し、
+ * `読み取りだけ` にすると投入の対象から外れて FK を満たせない。どちらも事実と違うので、別の語にする。
  */
 export const ROLES = ["投入する", "読み取りだけ", "FK 親のみ"];
 
@@ -48,19 +51,19 @@ export const ROLES = ["投入する", "読み取りだけ", "FK 親のみ"];
  */
 export const PREDICATE_TABLE_HEADINGS = ["述語ごとの分岐網羅", "述語ごとの分岐被覆"];
 
-/** 踏めない分岐の扱いの語彙（正本）。 */
+/** 踏めない分岐の扱いの語彙（原本）。 */
 export const DISPOSITIONS = ["足す", "gaps に記録"];
 
-/** 識別子の値が消費側の変換の後も同じ値で届くかの語彙（正本）。 */
+/** 識別子の値が、消費側の変換の後も同じ値で届くかの語彙（原本）。 */
 export const ID_REACH = ["届く", "届かない"];
 
 /**
- * 変換の後に届かない識別子の扱いの語彙（正本）。
- * 「帯を変える」は語彙に入れない——変えたなら表は変えた後の帯で書き直し、「届く」になる。
+ * 変換の後に届かない識別子の扱いの語彙（原本）。
+ * 「帯を変える」は語彙に入れない。変えたなら、表は変えた後の帯で書き直すので「届く」になる。
  */
 export const ID_DISPOSITIONS = ["行を足す", "gaps に記録"];
 
-/** 「読むテーブル無し」の sentinel（正本は replace-strategy）。 */
+/** 「読むテーブル無し」の sentinel（replace-strategy で定義する）。 */
 const NONE_SENTINEL = "-";
 
 /**
@@ -68,6 +71,7 @@ const NONE_SENTINEL = "-";
  *
  * **`_` は落とさない**——識別子（`order_items`）の一部であり、落とすと別のテーブル名
  * （`orders_2024` と `orders2024`）が同じ鍵に潰れる。`_` による強調は表のセルでは使わない。
+ *
  * @param {string} cell
  * @returns {string}
  */
@@ -82,6 +86,7 @@ export function normalizeCell(cell) {
  * Markdown のパイプ表を見出しごとに集める。
  *
  * 行頭が `|` の連続した塊のうち、2 行目が区切り行（`---`）であるものだけを表として扱う。
+ *
  * @param {string} markdown
  * @returns {{ heading: string, headers: string[], rows: string[][], line: number }[]}
  */
@@ -147,6 +152,7 @@ export function parseTables(markdown) {
 
 /**
  * 見出しの前方一致と必須の列名から表を 1 つ引く。
+ *
  * @param {{ heading: string, headers: string[], rows: string[][], line: number }[]} tables
  * @param {string | string[]} heading 見出しの前方一致の候補（どれかに一致すればよい）
  * @param {string[]} requiredHeaders
@@ -165,6 +171,7 @@ export function findTable(tables, heading, requiredHeaders) {
 
 /**
  * 行を列名で引ける形にする。
+ *
  * @param {{ headers: string[], rows: string[][] }} table
  * @returns {Record<string, string>[]}
  */
@@ -183,6 +190,7 @@ export function rowsAsRecords(table) {
  * 一覧セル（`orders, order_items` / `-` / 空欄）を読む。
  *
  * **空欄と `-` を同じに扱わない**——空欄は「まだ調べていない」で、`-` だけが「調べた結果ゼロ件」。
+ *
  * @param {string} cell
  * @returns {{ kind: "blank" | "none" | "items", items: string[] }}
  */
@@ -200,8 +208,9 @@ export function splitList(cell) {
 /**
  * 区切り（`,` `、` `／` `/`）で分けるが、**引用符・括弧の内側では分けない**。
  *
- * 条件の中の区切りで割ると、`status IN ('pending','canceled')` が 2 件の絞り込みに化け、
- * 正しく列挙した設計が「述語行が無い」として落ちる（exit 0 に到達できない偽陽性）。
+ * 条件の中の区切りで割ると、`status IN ('pending','canceled')` が誤って 2 件の絞り込みと判定される。
+ * すると、正しく列挙した設計が「述語行が無い」として失敗する（exit 0 に到達できない誤検知）。
+ *
  * @param {string} value
  * @returns {string[]}
  */
@@ -250,6 +259,7 @@ export function splitTopLevel(value) {
  * **部分文字列で見ない**——`owner_id = :me` は `id` を部分文字列として含むので、
  * `id, owner_id` のように一方が他方の一部になる列名の組では、片方の分岐が数えられていなくても通る。
  * 前後が識別子を構成しない文字（英数字・`_` 以外）であることまで確かめる。
+ *
  * @param {string} predicateText
  * @param {string} column
  * @returns {boolean}
@@ -263,12 +273,13 @@ export function namesColumn(predicateText, column) {
 /**
  * 絞り込みの記述から列名を取り出す。読めなければ null。
  *
- * 先頭の括弧・引用符は剥がしてから読む（`(owner_id = :me)` のような形で
- * 先頭トークンが空になると、その列の分岐が黙って数えられなくなる）。
+ * 先頭の括弧と引用符は剥がしてから読む（`(owner_id = :me)` のような形で
+ * 先頭のトークンが空になると、その列の分岐が警告なしに数えられなくなる）。
  *
  * **区切りは先頭で剥がす記号と対称に持つ。** 開き側だけを区切りにすると、
  * 囲んだ形（`(status)` / `「status」` / `"status"`）で閉じ側が列名の一部として残り、
  * 実在しない列名で述語行を探すことになる（半角の `)` が欠けていた）。
+ *
  * @param {string} filter
  * @returns {string | null}
  */
@@ -284,6 +295,7 @@ export function filterColumn(filter) {
  * **行の再利用を許さない**——1 行が複数の列の文面を含むと、その 1 行で複数の絞り込みを
  * 満たしたことになり、真・偽の行数は結合した条件のものしか表さない。
  * 貪欲だと「後の列が使える行を先の列が取る」形で取りこぼすので、増加路で全体の最大マッチングを取る。
+ *
  * @param {string[]} columns
  * @param {string[]} predicateTexts
  * @returns {number[]} 列ごとの割り当て先 index（未割り当ては -1）
@@ -316,6 +328,7 @@ export function matchColumnsToRows(columns, predicateTexts) {
 
 /**
  * 件数セルを読む。数値でなければ null（型崩れとして扱う）。
+ *
  * @param {string} cell
  * @returns {number | null}
  */
@@ -328,8 +341,9 @@ export function parseCount(cell) {
 /**
  * `.replace/features.md` の 3 表から「テーブル → 消費側 slug の集合」を導く。
  *
- * 3 表のどれか 1 つでも読めなければ**合格に倒さない**（読めた表だけで突き合わせると、
- * 読めなかった表にしか出てこないテーブルが写し漏れとして報告されない）。
+ * 3 表のどれか 1 つでも読めなければ、**合格にしない**（読めた表だけで突き合わせると、
+ * 読めなかった表にしか出てこないテーブルが、転記の抜けとして報告されない）。
+ *
  * @param {string} featuresMarkdown
  * @returns {{ consumers: Map<string, Set<string>>, findings: {code:string, message:string}[], structural: boolean }}
  */
@@ -358,13 +372,13 @@ export function collectConsumers(featuresMarkdown) {
     for (const row of rowsAsRecords(table)) {
       const slug = normalizeCell(row.slug);
       const list = splitList(row[source.column]);
-      // **テーブルを挙げているのに slug が空の行を黙って捨てない**——その参照が突き合わせに入らず、
-      // design.md からそのテーブルが丸ごと落ちていても写し漏れとして出なくなる。
+      // **テーブルを挙げているのに slug が空の行を、警告なしに捨てない**。捨てるとその参照が突き合わせに入らず、
+      // design.md からそのテーブルが丸ごと抜けていても、転記の抜けとして出なくなる。
       if (slug === "") {
         if (list.kind === "items") {
           findings.push({
             code: "features-slug-missing",
-            message: `${source.label} に [${list.items.join(", ")}] を挙げている行があるが slug が空（どの消費側の参照か決まらず、写し漏れの突き合わせに入らない）`,
+            message: `${source.label} に [${list.items.join(", ")}] を挙げている行があるが slug が空（どの消費側の参照か決まらず、転記の抜けの突き合わせに入らない）`,
           });
         }
         continue;
@@ -387,6 +401,7 @@ export function collectConsumers(featuresMarkdown) {
 
 /**
  * 設計（と、渡されたなら検証記録）を突き合わせる。
+ *
  * @param {{ featuresMarkdown: string, designMarkdown: string, verificationMarkdown?: string | null }} input
  * @returns {{ findings: {code:string, message:string}[], counts: Record<string, number>, structural: boolean }}
  */
@@ -473,13 +488,13 @@ export function checkPredicateCoverage(input) {
     }
   }
 
-  // 1. 写し漏れ・写し過ぎ（集合の差）
+  // 1. 転記の抜けと、転記しすぎ（集合の差）
   for (const [tableName, slugs] of consumers) {
     const entry = declared.get(tableName);
     if (!entry) {
       findings.push({
         code: "copy-missing-table",
-        message: `features.md が ${tableName} を [${[...slugs].sort().join(", ")}] から参照しているのに、design.md の対象テーブル表に行が無い（写し漏れ）`,
+        message: `features.md が ${tableName} を [${[...slugs].sort().join(", ")}] から参照しているのに、design.md の対象テーブル表に行が無い（転記の抜け）`,
       });
       continue;
     }
@@ -487,7 +502,7 @@ export function checkPredicateCoverage(input) {
       if (!entry.slugs.has(slug)) {
         findings.push({
           code: "copy-missing-slug",
-          message: `${tableName} を参照する slug ${slug} が design.md の写しに無い（写しが 1 slug 落ちると役割が「読み取りだけ」へ倒れる）`,
+          message: `${tableName} を参照する slug ${slug} が design.md に転記されていない（転記が 1 slug 抜けると、役割が「読み取りだけ」と判定されてしまう）`,
         });
       }
     }
@@ -498,7 +513,7 @@ export function checkPredicateCoverage(input) {
       if (!actual.has(slug)) {
         findings.push({
           code: "copy-extra-slug",
-          message: `design.md が ${tableName} の消費側に ${slug} を書いているが features.md の 3 表に無い（推測で足したか features.md 側の記録漏れ）`,
+          message: `design.md が ${tableName} の消費側に ${slug} を書いているが features.md の 3 表に無い（推測で足したか、features.md の側の記録の抜け）`,
         });
       }
     }
@@ -549,7 +564,7 @@ export function checkPredicateCoverage(input) {
     const reason =
       entry.count === 0
         ? "0 件では真になる分岐へ入れない"
-        : "1 件では絞り込みを外しても結果が変わらず、絞り込みが効いていることを観測できない";
+        : "1 件では絞り込みを外しても結果が変わらず、絞り込みが機能していることを観測できない";
     const rows = predicatesByTable.get(tableName) ?? [];
     const decided = rows.some((row) => DISPOSITIONS.includes(normalizeCell(row["扱い"])));
     if (!decided) {
@@ -605,16 +620,16 @@ export function checkPredicateCoverage(input) {
         }
       }
     }
-    // **述語の値は、消費側が述語に渡す値で書く**——設計者が書いた値（`id = '900000000001'`）と、
-    // 消費側が変換した後に渡す値（32 ビット整数への変換で 0）が違うと、述語は設計どおり真でも
-    // 消費側が引く行は 0 件になり、この表は「踏める」のまま比べられない経路が残る。
+    // **述語の値は、消費側が述語に渡す値で書く**。設計者が書いた値（`id = '900000000001'`）と、
+    // 消費側が変換した後に渡す値（32 ビット整数への変換で 0）が違うと、述語は設計どおり真でも、
+    // 消費側が取得する行は 0 件になる。この表は「踏める」のまま、比べられない処理が残る。
     // 値の意味は読めないので、少なくとも出どころの欠けを落とす。値はどの述語にも在るので `-` も欠けとして扱う。
     if (hasOriginColumn) {
       const origin = normalizeCell(row["値の出どころ"]);
       if (origin === "" || origin === NONE_SENTINEL) {
         findings.push({
           code: "predicate-origin-missing",
-          message: `述語 ${id} の値の出どころが「${origin || "（空欄）"}」（消費側のどのコードが作る値か・変換を経るかが書かれていないと、変換で値が変わる経路を踏めると数えたまま通る）`,
+          message: `述語 ${id} の値の出どころが「${origin || "（空欄）"}」（消費側のどのコードが作る値か・変換を経るかが書かれていないと、変換で値が変わる処理を踏めると数えたまま通る）`,
         });
       }
     }
@@ -632,7 +647,7 @@ export function checkPredicateCoverage(input) {
     // **真・偽はその表の行を分けたもの**なので、合計が表の件数を超えることはない
     // （三値論理で真でも偽でもない行〈NULL〉はありうるので、等号は求めない）。
     // 超えている行を通すと、1 件の表に「真 1 / 偽 1」と書いて踏める判定を作り、
-    // 表の件数 0 / 1 の検査を扱いで黙らせる、という形で被覆を捏造できる。
+    // 表の件数 0 / 1 の検査を扱いの欄で抑える、という形で網羅を捏造できる。
     const tableCount = declared.get(tableName)?.count ?? null;
     if (tableCount !== null && trueCount + falseCount > tableCount) {
       findings.push({
@@ -698,7 +713,7 @@ export function checkPredicateCoverage(input) {
         continue;
       }
       if (filters.kind !== "items") continue;
-      // **鍵が欠けた行を黙って飛ばさない**——絞り込みが書いてあるのに slug / テーブルが空だと、
+      // **キーが欠けた行を、警告なしに飛ばさない**。絞り込みが書いてあるのに slug やテーブルが空だと、
       // 「数える相手が決まらない行」と「絞り込みの無い行」が同じ（findings 0 件）に見える。
       if (slug === "" || tableName === "") {
         findings.push({
@@ -727,8 +742,8 @@ export function checkPredicateCoverage(input) {
       for (const filter of filters.items) {
         const column = filterColumn(filter);
         if (column === null) {
-          // **読めない絞り込みを飛ばさない**——括弧つきの条件（`(owner_id = :me)`）で
-          // 先頭のトークンが空になる形を黙って捨てると、その列の分岐が数えられないまま通る。
+          // **読めない絞り込みを飛ばさない**。括弧つきの条件（`(owner_id = :me)`）で
+          // 先頭のトークンが空になる形を警告なしに捨てると、その列の分岐が数えられないまま通る。
           findings.push({
             code: "predicate-filter-unreadable",
             message: `消費側パラメータの ${slug} × ${tableName} の絞り込み「${filter}」から列名を読めない（列名で始まる形で書く）`,
@@ -737,9 +752,9 @@ export function checkPredicateCoverage(input) {
         }
         columns.push(column);
       }
-      // **列ごとに別の述語行を要する**——`status = 'shipped' AND owner_id = :me` の 1 行は
-      // 2 つの列の文面を含むので、行の再利用を許すと 1 行で複数の絞り込みを満たしたことになり、
-      // 真・偽の行数は結合した条件のものしか表さない（1 列 1 行の契約が崩れる）。
+      // **列ごとに別の述語行が要る**。`status = 'shipped' AND owner_id = :me` の 1 行は
+      // 2 つの列の文面を含むので、行の再利用を許すと、1 行で複数の絞り込みを満たしたことになる。
+      // 真・偽の行数は、結合した条件のものしか表さない（1 列に 1 行という取り決めが成り立たなくなる）。
       const predicateTexts = rows.map((r) => normalizeCell(r["述語（列・条件）"]));
       const assignment = matchColumnsToRows(columns, predicateTexts);
       columns.forEach((column, index) => {
@@ -786,9 +801,10 @@ export function checkPredicateCoverage(input) {
 
   // 5c. データセットが決めた識別子の値（採番帯）が、消費側の変換の後も同じ値で届くか
   //
-  // 採番帯は他の環境・作業と混ざらないようデータセット自身が決める値なので、実運用の範囲の外に出やすい。
+  // 採番帯は、ほかの環境や作業と重ならないように、データセット自身が決める値である。そのため実運用の範囲の外に出やすい。
   // 消費側が述語へ渡す前に変換する（32 ビット整数への変換・桁の切り詰め・型の上限）と別の値になり、
-  // 述語は設計どおり真でも消費側が引く行は 0 件になる。分岐網羅の表と verification.md は設計者の値で数えるので何も出ない。
+  // 述語は設計どおり真でも、消費側が取得する行は 0 件になる。
+  // 分岐網羅の表と verification.md は設計者の値で数えるので、何も出ない。
   // **消費側 (slug, テーブル) ごとに変換を列挙させる**——表ごと 1 行で済ませると、変換する消費側が 1 つでも
   // 在ることが「別の消費側で届いた」に隠れる。
   const idRangeTable = findTable(designTables, "識別子の値の範囲", [
@@ -846,7 +862,7 @@ export function checkPredicateCoverage(input) {
           });
         }
         // 列 `-` の行に範囲・消費側・変換・判定が書いてあると、帯の値を持つ列が在るという記述と矛盾する。
-        // 黙って表ごとの免除へ倒すと、変換の検査を丸ごと外せる。残りのセルは `-` か空欄に限る。
+        // 警告なしに表ごとの免除として扱うと、変換の検査を丸ごと外せる。残りのセルは `-` か空欄に限る。
         const populated = [
           "データセットの値の範囲",
           "実運用の値の範囲",
@@ -882,8 +898,8 @@ export function checkPredicateCoverage(input) {
         });
       }
       realColumnTables.add(tableName);
-      // 範囲の 2 列は `-` も欠けとして落とす——値を持つ列の行なので範囲は必ず在り、
-      // `-` を受けると範囲を並べて記録させる契約が黙って外れる。`-`（変換なし）が意味を持つのは変換の列だけ。
+      // 範囲の 2 列は、`-` も欠けとして失敗にする。値を持つ列の行なので、範囲は必ず在る。
+      // `-` を受けると、範囲を並べて記録させる取り決めが警告なしに外れる。`-`（変換なし）が意味を持つのは、変換の列だけである。
       for (const header of ["データセットの値の範囲", "実運用の値の範囲"]) {
         const value = normalizeCell(row[header]);
         if (value === "" || value === NONE_SENTINEL) {
@@ -904,7 +920,7 @@ export function checkPredicateCoverage(input) {
       if (reasonMissing) {
         findings.push({
           code: "id-range-reason-missing",
-          message: `識別子の値の範囲の ${label} の根拠が「${reason || "（空欄）"}」（変換の後も届くか・届かない経路をどう扱ったかを確かめた材料が残らない）`,
+          message: `識別子の値の範囲の ${label} の根拠が「${reason || "（空欄）"}」（変換の後も届くか、届かない処理をどう扱ったかを確かめた材料が残らない）`,
         });
       }
       const slugList = splitList(row["消費側 slug"]);
@@ -955,7 +971,7 @@ export function checkPredicateCoverage(input) {
         continue;
       }
       // 届かない。「帯を変える」を選んだなら表は変えた後の帯で書き直すので「届く」になる。
-      // 残る選択は、届く値の行を足す（帯の外になるなら利用者の判断）か、比べられない経路として gaps に記録する。
+      // 残る選択は、届く値の行を足す（帯の外になるなら利用者が判断する）か、比べられない処理として gaps に記録するかである。
       if (!ID_DISPOSITIONS.includes(disposition)) {
         findings.push({
           code: "id-range-disposition-missing",
@@ -971,7 +987,7 @@ export function checkPredicateCoverage(input) {
       if (!realColumnTables.has(tableName)) continue;
       findings.push({
         code: "id-range-dash-conflict",
-        message: `識別子の値の範囲で ${tableName} は列 - （帯の値を持つ列が無い）と、実在の列の行の両方がある（- の行が消費側ごとの行の要求を黙って外す）`,
+        message: `識別子の値の範囲で ${tableName} は列 - （帯の値を持つ列が無い）と、実在の列の行の両方がある（- の行が、消費側ごとの行の要求を警告なしに外す）`,
       });
     }
     for (const [tableName, slugs] of consumers) {
@@ -1026,8 +1042,8 @@ export function checkPredicateCoverage(input) {
       for (const row of rowsAsRecords(measured)) {
         const id = normalizeCell(row["述語 id"]);
         if (id === "") continue;
-        // 後勝ちで黙って上書きしない——同じ id の行が 2 つあると、食い違うほうの実測が
-        // 突き合わせに使われずに落ち、0 件の分岐が報告に出ないまま通る。
+        // 後の行で警告なしに上書きしない。同じ id の行が 2 つあると、食い違うほうの実測が
+        // 突き合わせに使われずに捨てられ、0 件の分岐が報告に出ないまま通る。
         if (measuredById.has(id)) {
           findings.push({
             code: "verification-predicate-duplicated",
@@ -1065,7 +1081,7 @@ export function checkPredicateCoverage(input) {
         }
         // **設計の段で「gaps に記録」と決めた分岐は、投入後も踏めないのが正しい姿**。
         // 0 件を無条件に落とすと、設計が受理した扱いを検証が覆し、
-        // 「足す」を選ばない限り exit 0 にできなくなる（記録して進む経路が閉じる）。
+        // 「足す」を選ばない限り exit 0 にできなくなる（記録して進む方法が無くなる）。
         const disposition = normalizeCell(row["扱い"]);
         if ((measuredTrue === 0 || measuredFalse === 0) && disposition !== "gaps に記録") {
           findings.push({
@@ -1086,6 +1102,7 @@ export function checkPredicateCoverage(input) {
 
 /**
  * CLI 本体。
+ *
  * @param {string[]} argv
  * @param {{ readFile?: (path: string) => string, cwd?: string, write?: (s: string) => void, writeErr?: (s: string) => void }} [deps]
  * @returns {number}
@@ -1099,6 +1116,7 @@ export function main(argv, deps = {}) {
     "usage: predicate-coverage-check.mjs --features <.replace/features.md> --design <.replace/dataset/design.md> [--verification <.replace/dataset/verification.md>]";
   /**
    * 引数・入力の誤りを stderr へ知らせる（判定結果ではないので stdout の JSON には混ぜない）。
+   *
    * @param {string} message
    * @returns {number}
    */
@@ -1177,7 +1195,7 @@ export function main(argv, deps = {}) {
   return result.findings.length === 0 ? 0 : 1;
 }
 
-// CLI エントリ判定は両辺を実パスに解決してから突き合わせる（シンボリックリンク経由の起動でサイレント no-op にしない）。
+// CLI として起動されたかは、両辺を実パスに解決してから比べる（シンボリックリンクから起動したときに、何もせずに終わらないように）。
 const invokedAsCli = (() => {
   const entry = process.argv[1];
   if (!entry) return false;

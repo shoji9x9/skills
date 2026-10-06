@@ -1,31 +1,31 @@
-// 採取物と工程の健全性を数える（正本）。
-// 正本は parity-suite にあり、スキルディレクトリ内から直接実行する（プロジェクトへコピーしない）。
+// 採取物と工程の健全性を数える（原本）。
+// 原本は parity-suite にあり、スキルディレクトリ内から直接実行する（プロジェクトへコピーしない）。
 // parity-diff は収束判定でインストール済みの parity-suite から同じスクリプトを呼ぶ。
 //
-// 何をするか（metadata.json の宣言を読んで数え直す）:
+// 何をするか: metadata.json の宣言を読んで、次のものを数え直す。
 //   1. 採取物（artifact_health）: 採取物ごとに「読むスペック」と「何から作ったか」の宣言を要求する。
-//      読み手は字面の照合（スペックの中に basename が現れるか）で足りる——assertion に使っているかまでは見ない。
+//      読み手は字面の照合（スペックの中に basename が現れるか）で足りる。assertion に使っているかまでは見ない。
 //      加工物（kind: derived）は元の実体の sha256 を数え直し、一致しなければ古いものとして落とす。
 //      baseline_dir に在るのに entries に無いファイルは未宣言として落とす（宣言の無いものだけを落とす）。
 //   2. 反復実行（suite.state_mutating / suite.repeat_run）: 状態を変えるスイートは 2 回続けて緑であることを求める。
 //      1 回目は初期状態から始まるため後始末の有無が結果に現れない。
-//      記録は suite_fingerprint で「どの版のスイートを回したか」に結びつける——
-//      結びつけないと、2 回緑を記録した後にスペックや後始末を変えても古い記録で緑のまま通る。
-//      repeat_run.specs（スペックごとの分類）を持つ成果物はスペック単位で判定する——
-//      2 回を求めるのは状態を変えるスペックだけで、記録はスペックごとの指紋と共有の土台の指紋に結びつける。
+//      記録は suite_fingerprint で「どの版のスイートを回したか」に結びつける。
+//      結びつけないと、2 回緑を記録した後にスペックや後始末を変えても、古い記録で緑のまま通る。
+//      repeat_run.specs（スペックごとの分類）を持つ成果物は、スペック単位で判定する。
+//      2 回を求めるのは状態を変えるスペックだけで、記録はスペックごとの指紋と共通部分の指紋に結びつける。
 //      記録する指紋は --fingerprint で出す（手で計算しない）。
 //   3. 未測定（unmeasured）: gaps.md の散文と対になる機械可読の宣言。disposition: blocking が残る間は収束させない。
-//   4. 工程の成果物（--target）: suite.new_green が真なら同じ場所に diff-metadata.json が在り、
-//      それが「いまの新側」（new.commit と loop.iterations）に対応していることを求める
-//      （converged が偽でも落とさない）。dataset_version は数値の一致では見ない——陳腐化の正本は
-//      golden-dataset の references/versioning.md で、交差を見るまでもなく確定する形だけをここで落とす。
+//   4. 工程の成果物（--target）: suite.new_green が真なら、同じ場所に diff-metadata.json が在ることを求める。
+//      加えて、それが「いまの新側」（new.commit と loop.iterations）に対応していることを求める
+//      （converged が偽でも落とさない）。dataset_version は数値の一致では見ない。陳腐化の原本は
+//      golden-dataset の references/versioning.md で、ここでは交差を見るまでもなく確定する形だけを落とす。
 //      投入対象でない target は dataset_version: null ＋ dataset_version_exempt で免除される（parity-diff の references/preflight.md）。
-//      --carry-to <SHA> を渡すと、diff-metadata.json の new.commit からその版への持ち越しも必ず判定する（
-//      部品改修の一括再検証の直後は replace-metadata.json の new.commit が改修前のままで、食い違いの判定が呼ばれない）。
+//      --carry-to <SHA> を渡すと、diff-metadata.json の new.commit からその版への持ち越しも必ず判定する。
+//      部品改修の一括再検証の直後は、replace-metadata.json の new.commit が改修前のままで、食い違いの判定が呼ばれないためである。
 //
 // 何をしないか: 採取・加工・スイートの実行はしない。ここでは記録と実体を突き合わせるだけ。
 //
-// fail-closed: 宣言が無い・読み手が無い・元が読めない・対象 0 件・判定不能は合格に倒さない。
+// 宣言が無い・読み手が無い・元が読めない・対象 0 件・判定不能は、合格として扱わない。
 // 後方互換: artifact_health / unmeasured / suite.state_mutating をキーごと持たない旧成果物は
 //           その節を判定しない（judged: false。理由を出力に残す）。
 //
@@ -46,16 +46,16 @@ import {
 } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-// 同じディレクトリの evidence-carry.mjs は、このファイルの実パスから引く。静的な "./evidence-carry.mjs" は
-// --preserve-symlinks-main でファイル単位のシンボリックリンクから起動されると、リンクの置き場所から解決して
-// 見つからず、持ち越しを使わない実行（引数不足の usage 表示を含む）まで起動時に落ちる。
+// 同じディレクトリの evidence-carry.mjs は、このファイルの実パスから解決して読み込む。
+// 静的な "./evidence-carry.mjs" は、--preserve-symlinks-main でファイル単位のシンボリックリンクから起動されると、
+// リンクの置き場所から解決して見つからない。持ち越しを使わない実行（引数不足の usage 表示を含む）まで、起動時に失敗する。
 const { EVIDENCE_CARRY_FILE, judgeCarry } = await import(
   pathToFileURL(join(dirname(realpathSync(fileURLToPath(import.meta.url))), "evidence-carry.mjs"))
     .href
 );
 
 /**
- * ツールのバージョン（正本）。判定ロジック・出力形状を変えたら上げる。
+ * ツールのバージョン（原本）。判定ロジック・出力形状を変えたら上げる。
  * @type {string}
  */
 export const VERSION = "10";
@@ -63,15 +63,15 @@ export const VERSION = "10";
 /** 採取物の種別。derived は元の実体から作った加工物。 */
 const ARTIFACT_KINDS = ["captured", "derived"];
 
-/** 未測定の処置。語彙外・欠落は blocking として数える（fail-closed）。 */
+/** 未測定の処置。語彙外・欠落は blocking として数える（判定できないものは収束させない）。 */
 const DISPOSITIONS = ["blocking", "accepted"];
 
 /**
- * 呼び出し元の工程。同じ記録でも「誰のゲートか」で blocking の扱いが変わる。
- * - diff（既定・最も厳しい）: parity-diff の収束判定。blocking が残る間は収束させない
+ * 呼び出し元の工程。同じ記録でも「誰のチェックか」で blocking の扱いが変わる。
+ * - diff（デフォルト・最も厳しい）: parity-diff の収束判定。blocking が残る間は収束させない
  * - suite: parity-suite の完了判定。blocking は本スキルが書く出力そのものなので落とさない
- *   （記録の不備——item の空・重複・reason の空・語彙外の disposition・承認記録の無い accepted——は
- *   どちらの工程でも落とす。測定待ちと壊れた記録は別物）
+ *   （記録の不備は、どちらの工程でも落とす。不備とは、item の空・重複・reason の空・語彙外の disposition・
+ *   承認記録の無い accepted である。測定待ちと不正な記録は別物である）
  */
 const STAGES = ["diff", "suite"];
 
@@ -83,8 +83,8 @@ const NO_COMMIT = "none";
 
 /**
  * 反復回数を整数として読む。**数字列は受けない**——同じ `loop.iterations` を読む
- * component-comparison-check.mjs は数値だけを受けるので、片方だけ緩めると 2 つの検査器が
- * 同じ記録に矛盾した判定（片方合格・片方 unversionable）を出す。正本のテンプレートも数値。
+ * component-comparison-check.mjs は数値だけを受けるので、片方だけ緩めると 2 つのチェックが
+ * 同じ記録に矛盾した判定（片方合格・片方 unversionable）を出す。原本のテンプレートも数値。
  * dataset の版（`toInteger`）とは入力の出所が違うので共有しない。
  * @param {unknown} value
  * @returns {number | null}
@@ -118,10 +118,10 @@ function isPlainObject(v) {
 /**
  * 実在する最も深い祖先まで `realpathSync` で解いてから、残りの区間を継ぎ足して実パスを組む。
  *
- * **まだ存在しないパスでも実パスで判定できるようにする**——存在しないことを理由に
+ * **まだ存在しないパスでも実パスで判定できるようにする**。存在しないことを理由に
  * 文字列のまま扱うと、途中のディレクトリがシンボリックリンクでも閉じ込めを確かめられない。
- * ENOENT 以外（ELOOP・EACCES 等）は「解けなかった」であって「外でない」ではないので、
- * 合格に倒さず null を返す（fail-closed）。
+ * ENOENT 以外（ELOOP・EACCES など）は「解けなかった」であって「外でない」ではないので、
+ * 合格として扱わず null を返す。
  * @param {string} p
  * @returns {string | null}
  */
@@ -147,8 +147,8 @@ function realPathOf(p) {
 /**
  * 相対パスが基準ディレクトリの外へ出ないことを確かめてから解決する。
  *
- * **文字列の比較だけでは閉じ込められない**——`baseline_dir` の直下に外を指すシンボリックリンクを
- * 置くと `resolve()` / `relative()` は中に見え、その後の `readFileSync` はリンクを解いて
+ * **文字列の比較だけでは閉じ込められない**。`baseline_dir` の直下に外を指すシンボリックリンクを
+ * 置くと、`resolve()` / `relative()` では中に見える。その後の `readFileSync` はリンクを解いて
  * ルートの外のファイルを読み、そのハッシュを検証に使う（何の finding も出さずに）。
  * 同じファイルの CLI 自己起動判定が `realpathSync` で両辺を実パスに揃えているのと同じ扱いにする。
  * @param {string} baseDir
@@ -194,7 +194,7 @@ function listFiles(dir) {
 }
 
 /**
- * JSON を読む。読めない・壊れているは型崩れ（exit 2）。
+ * JSON を読む。読めない・JSON として不正なら、型の誤り（exit 2）にする。
  * @param {string} path
  * @param {string} label
  * @returns {unknown}
@@ -212,7 +212,7 @@ function readJson(path, label) {
     return JSON.parse(text);
   } catch (e) {
     throw new UsageError(
-      `${label} が JSON として壊れている: ${path}（${e instanceof Error ? e.message : String(e)}）`,
+      `${label} が JSON として不正: ${path}（${e instanceof Error ? e.message : String(e)}）`,
     );
   }
 }
@@ -272,20 +272,20 @@ const REGEX_AFTER_KEYWORDS = new Set([
 /**
  * JS / TS 系のソースからコメントを除き、コメントの書き換えで変わらない正規形にする。
  *
- * 正規化の選択（指紋を「動きに効く書き換え」だけで変えるため）:
+ * 指紋を「動きに影響する書き換え」だけで変えるため、正規化を次のように選ぶ。
  * - コメントは空白として扱う（`a/**\/b` を `ab` に潰さない）。
  * - 文字列・テンプレートリテラル（`${}` の入れ子を含む）・正規表現リテラルの外では、空白の連なりを
- *   改行を含むなら `\n` 1 個、含まなければ空白 1 個に畳む。改行の有無は ASI に効くので残し、
+ *   改行を含むなら `\n` 1 個、含まなければ空白 1 個に畳む。改行の有無は ASI に影響するので残し、
  *   個数・インデント・コメントの行数は捨てる。行末コメントの有無・JSDoc の行数を変えても指紋は変わらない。
  * - 文字列・テンプレート・正規表現の中身は 1 バイトも変えない（`test.skip` の理由のような文字列は
- *   動きに効かないと言い切れないため対象外。中の `//` `/*` もコメントとして扱わない）。
+ *   動きに影響する可能性があるため対象外。中の `//` `/*` もコメントとして扱わない）。
  * - `/` が正規表現か除算かは直前の有意なトークンで決める。識別子（上のキーワードを除く）・数値・
- *   文字列・`)` `]` の後は除算、それ以外（`}` を含む）は正規表現。`}` を正規表現側に倒すのは、
+ *   文字列・`)` `]` の後は除算、それ以外（`}` を含む）は正規表現。`}` を正規表現として扱うのは、
  *   正規表現を除算と読み違えると `/a\//` の `//` を行コメントとして読み、コードを捨てて変更を見逃すため。
  * - 指示コメント（isDirectiveComment）は除かず残す。
  * 限界: JSX のテキスト（`<p>http://x</p>`）の `//` はコメントと読むので、`.jsx` / `.tsx` には当てない
- * （JS_FAMILY_EXTENSIONS）。字句解析が閉じない
- * （終わらない文字列・コメント・正規表現）ときは null を返し、呼び出し側は生バイトで指紋を取る。
+ * （JS_FAMILY_EXTENSIONS）。
+ * 字句解析が閉じない（終わらない文字列・コメント・正規表現）ときは null を返し、呼び出し側は生バイトで指紋を取る。
  * @param {string} src
  * @returns {string | null}
  */
@@ -413,7 +413,7 @@ export function stripJsComments(src) {
     if (c === "/" && out.endsWith(")")) {
       // `)` の後の `/` は、`(a + b) / 2` なら除算、`if (x) /[//]/.test(v)` なら正規表現で、字句だけでは決まらない。
       // 除算と読んだまま同じ行の残りに `//` `/*` があると、正規表現の中身をコメントとして捨ててコードの変更を
-      // 見逃しうるので、その形は読めないとして生バイトに倒す（null）
+      // 見逃しうる。そのため、その形は読めないものとして扱い、生バイトで指紋を取る（null）
       const eol = src.slice(i + 1).search(/[\n\r\u2028\u2029]/);
       const rest = eol < 0 ? src.slice(i + 1) : src.slice(i + 1, i + 1 + eol);
       if (rest.includes("//") || rest.includes("/*")) return null;
@@ -437,8 +437,8 @@ export function stripJsComments(src) {
 
 /**
  * スペックの本文に採取物の名前が「ファイル名として」現れるかを見る。
- * 素の部分文字列一致にすると orders.xlsx が orders.xlsx.json にも当たり、
- * 実際には読まれていない採取物が読み手ありとして素通りする。
+ * 素の部分文字列の一致にすると、orders.xlsx が orders.xlsx.json にも当たり、
+ * 実際には読まれていない採取物が、読み手ありとして通ってしまう。
  * 前後がファイル名を構成しうる文字（英数・. _ -）でないことまで確かめる。
  * @param {string} text
  * @param {string} name
@@ -527,7 +527,9 @@ export function checkArtifacts(metadata, ctx) {
   }
 
   if (present.length === 0 && byPath.size === 0) {
-    findings.push(`採取物が 0 件（宣言も実体も無い）。対象 0 件を合格に倒さない: ${baselineDir}`);
+    findings.push(
+      `採取物が 0 件（宣言も実体も無い）。対象 0 件を合格として扱わない: ${baselineDir}`,
+    );
   }
 
   for (const file of present) {
@@ -761,7 +763,7 @@ function digestFiles(files, root, legacy) {
  */
 const SPEC_FILE_PATTERN = /\.(spec|test)\.[cm]?[jt]sx?$/i;
 
-/** JS / TS 系の拡張子。suite.specs の下で命名規則に当たらないこれらのファイルは、スペックか土台かの宣言を要る。 */
+/** JS / TS 系の拡張子。suite.specs の下で命名規則に当たらないこれらのファイルは、スペックか共通部分かの宣言が要る。 */
 const JS_TS_FILE_PATTERN = /\.[cm]?[jt]sx?$/i;
 
 /**
@@ -786,13 +788,13 @@ function underRel(f, r) {
  *
  * スイート全体の 1 つの指紋に 2 回の記録を結びつけると、状態を変えないスペックを 1 行変えただけで
  * 状態を変えるスペックまで現行へ 2 回回し直すことになる。2 回目が意味を持つのは状態を変えるスペックだけなので、
- * 記録はスペックごとの指紋と、スペックが共通に読む土台（shared）の指紋に結びつける。
+ * 記録はスペックごとの指紋と、スペックが共通に読む部分（shared）の指紋に結びつける。
  *
- * - スペック: suite.specs の下で SPEC_FILE_PATTERN に当たるファイルと、分類表に書いたファイル。1 ファイルずつ指紋を取る
- * - 土台（shared）: それ以外の宣言パスの全ファイル（locator_map / expectations / interactions / tools と、
- *   suite.specs の下のスペック以外——スペックが読む共通の関数・fixture）。変われば全スペックの記録が失効する
- * - 外すもの: excluded（current プロジェクトが testIgnore で走らせないディレクトリ。新側専用スペック等）の下。
- *   現行へ走らないものは現行の状態を変えられず、記録を失効させる理由にならない
+ * - スペック: suite.specs の下で SPEC_FILE_PATTERN に当たるファイルと、分類表に書いたファイル。1 ファイルずつ指紋を取る。
+ * - 共通部分（shared）: それ以外の宣言パスの全ファイル。locator_map / expectations / interactions / tools と、
+ *   suite.specs の下のスペック以外（スペックが読む共通の関数・fixture）である。変われば全スペックの記録が失効する。
+ * - 外すもの: excluded（current プロジェクトが testIgnore で実行しないディレクトリ。新側専用スペックなど）の下。
+ *   現行に対して実行しないものは現行の状態を変えられず、記録を失効させる理由にならない。
  * @param {Record<string, unknown>} suiteObj
  * @param {string} root
  * @param {{ declared?: string[], sharedDeclared?: string[], excluded?: string[] }} [opts] - いずれも normalizeRel 済みの root 基準の相対パス
@@ -829,8 +831,8 @@ export function specFingerprints(suiteObj, root, opts = {}) {
   // 同じファイルが specs と別のキーの両方に入る宣言（tools を specs の下に置く等）は、スペックとして数える
   for (const f of specFiles) sharedFiles.delete(f);
   // suite.specs の下で命名規則にも分類表にも当たらない JS / TS 系のファイルは、repeat_run.shared_files に宣言していなければ落とす。
-  // 字面（test( の呼び出し）でスペックかどうかを推測すると、別名 import（test as it）等ですり抜け、状態を変えるスペックが
-  // 2 回続けての緑を求められないまま土台に紛れる。推測せず宣言を求める（fail-closed）
+  // 字面（test( の呼び出し）でスペックかどうかを推測すると、別名 import（test as it）などで検出できない。
+  // すると、状態を変えるスペックが、2 回続けての緑を求められないまま共通部分として扱われる。推測せず宣言を求める
   /** @type {string[]} */
   const specsTreeShared = [];
   /** @type {string[]} */
@@ -896,7 +898,7 @@ function pairFindings(tail, label) {
   if (startedAt.length === 2) {
     if (startedAt[0] === startedAt[1]) {
       findings.push(
-        `${label}連続する 2 回の started_at が同じ（1 回の記録の写しと区別が付かない）: ${startedAt[0]}`,
+        `${label}連続する 2 回の started_at が同じ（1 回の記録のコピーと区別が付かない）: ${startedAt[0]}`,
       );
     } else {
       const t0 = Date.parse(startedAt[0]);
@@ -938,9 +940,9 @@ function readSpecClassification(record, root, specsDecl) {
     }
     const rel = String(e.path).trim();
     if (!nonEmptyString(e.reason)) {
-      // 外したものは記録を失効させなくなる（緩和）ので、現行へ走らない根拠が無いものは外さない
+      // 外したものは記録を失効させなくなる（緩和）ので、現行に対して実行しない根拠が無いものは外さない
       findings.push(
-        `current_excluded の ${rel} に reason が無い（current プロジェクトが走らせない根拠が残らない）。外さずに数える`,
+        `current_excluded の ${rel} に reason が無い（current プロジェクトが実行しない根拠が残らない）。外さずに数える`,
       );
       continue;
     }
@@ -948,12 +950,12 @@ function readSpecClassification(record, root, specsDecl) {
       findings.push(`current_excluded の ${rel} がルートの外を指しているか実パスを解決できない`);
       continue;
     }
-    // 外せるのは suite.specs の下（current が走らせないスペックの置き場所）だけ。土台（locator_map 等）やその祖先を外すと、
-    // 土台を変えても記録が失効しなくなる。suite.specs そのものも外せない（全スペックが判定から消える）
+    // 外せるのは suite.specs の下（current が実行しないスペックの置き場所）だけ。共通部分（locator_map 等）やその祖先を外すと、
+    // 共通部分を変えても記録が失効しなくなる。suite.specs そのものも外せない（全スペックが判定から消える）
     const normalized = normalizeRel(rel);
     if (specsRoot === null || normalized === specsRoot || !underRel(normalized, specsRoot)) {
       findings.push(
-        `current_excluded の ${rel} が suite.specs（${specsRoot ?? "未宣言"}）の下でない（外せるのは current が走らせないスペックの置き場所だけ）。外さずに数える`,
+        `current_excluded の ${rel} が suite.specs（${specsRoot ?? "未宣言"}）の下でない（外せるのは current が実行しないスペックの置き場所だけ）。外さずに数える`,
       );
       continue;
     }
@@ -996,16 +998,16 @@ function readSpecClassification(record, root, specsDecl) {
       continue;
     }
     const rel = normalizeRel(String(e.path));
-    // 土台と宣言すると 2 回続けての緑を求めなくなる（緩和）ので、テストを定義しない根拠が無いものは土台と認めない
+    // 共通部分と宣言すると 2 回続けての緑を求めなくなる（緩和）ので、テストを定義しない根拠が無いものは共通部分と認めない
     if (!nonEmptyString(e.reason)) {
       findings.push(
-        `repeat_run.shared_files の ${rel} に reason が無い（テストを定義しない共通の関数だと判断した根拠が残らない）。土台と認めない`,
+        `repeat_run.shared_files の ${rel} に reason が無い（テストを定義しない共通の関数だと判断した根拠が残らない）。共通部分と認めない`,
       );
       continue;
     }
     if (declared.has(rel)) {
       findings.push(
-        `${rel} が repeat_run.specs と repeat_run.shared_files の両方にある（スペックか土台かが決まらない）`,
+        `${rel} が repeat_run.specs と repeat_run.shared_files の両方にある（スペックか共通部分かが決まらない）`,
       );
       continue;
     }
@@ -1022,8 +1024,8 @@ function readSpecClassification(record, root, specsDecl) {
  * スペック単位の反復実行を数え直す（repeat_run.specs を持つ成果物）。
  *
  * 状態を変えるスペックごとに、そのスペックを含む直近 2 回の記録が緑・別の日時で順に始まり、
- * どちらもそのスペックの指紋と土台（shared）の指紋が現在と一致することを求める。
- * 状態を変えないスペックは 1 回の緑（current_green）で足りる。分類されていないスペックは落とす（fail-closed）。
+ * どちらもそのスペックの指紋と共通部分（shared）の指紋が現在と一致することを求める。
+ * 状態を変えないスペックは 1 回の緑（current_green）で足りる。分類されていないスペックは落とす。
  * @param {Record<string, unknown>} suiteObj
  * @param {Record<string, unknown>} record - suite.repeat_run
  * @param {string} root
@@ -1044,7 +1046,7 @@ function checkRepeatRunPerSpec(suiteObj, record, root) {
   });
   if (current.shared === null) {
     findings.push(
-      `現在のスイートの指紋を計算できない（判定不能を合格に倒さない）: ${current.missing.length > 0 ? `読めない ${current.missing.join(" / ")}` : "suite.specs / locator_map / interactions がどれも宣言されていない"}`,
+      `現在のスイートの指紋を計算できない（判定不能を合格として扱わない）: ${current.missing.length > 0 ? `読めない ${current.missing.join(" / ")}` : "suite.specs / locator_map / interactions がどれも宣言されていない"}`,
     );
     return { findings, notes };
   }
@@ -1065,7 +1067,7 @@ function checkRepeatRunPerSpec(suiteObj, record, root) {
   for (const f of sharedDeclared) {
     if (!treeShared.has(f)) {
       findings.push(
-        `repeat_run.shared_files のファイルが suite.specs の下の土台に無い: ${f}（実体が無い・suite.specs の外・current_excluded の下のいずれか）`,
+        `repeat_run.shared_files のファイルが suite.specs の下の共通部分に無い: ${f}（実体が無い・suite.specs の外・current_excluded の下のいずれか）`,
       );
     }
   }
@@ -1101,7 +1103,7 @@ function checkRepeatRunPerSpec(suiteObj, record, root) {
         `suite.repeat_run.runs[${i}].spec_fingerprints が「スペックのパス → 指紋」のオブジェクトでない`,
       );
     }
-    // 正規化すると同じスペックになるキーが 2 つあると、どちらを読むかが挿入順で決まり、矛盾した記録が黙って通る（--fingerprint は書かない形）
+    // 正規化すると同じスペックになるキーが 2 つあると、どちらを読むかが挿入順で決まり、矛盾した記録が警告なしに通る（--fingerprint は書かない形）
     const normalizedKeys = Object.keys(prints).map((k) => normalizeRel(k));
     const dup = normalizedKeys.find((k, j) => normalizedKeys.indexOf(k) !== j);
     if (dup !== undefined) {
@@ -1139,12 +1141,12 @@ function checkRepeatRunPerSpec(suiteObj, record, root) {
     );
     if (shared.some((fp) => fp === null)) {
       findings.push(
-        `スペック ${spec} の記録に shared_fingerprint が無い（スペックが共通に読む土台のどの版で回したか対応づかない）`,
+        `スペック ${spec} の記録に shared_fingerprint が無い（スペックが共通に読む部分のどの版で回したか対応づかない）`,
       );
     } else if (shared.some((fp) => fp !== current.shared)) {
       findings.push(
-        `スペック ${spec} の 2 回の記録は現在の土台のものでない（shared_fingerprint ${shared.join(" / ")} ≠ 実測 ${current.shared}）。` +
-          "土台（locator_map / expectations / interactions / tools・suite.specs の下のスペック以外）を変えたら、状態を変えるスペックをすべて 2 回続けて回し直す",
+        `スペック ${spec} の 2 回の記録は現在の共通部分のものでない（shared_fingerprint ${shared.join(" / ")} ≠ 実測 ${current.shared}）。` +
+          "共通部分（locator_map / expectations / interactions / tools・suite.specs の下のスペック以外）を変えたら、状態を変えるスペックをすべて 2 回続けて回し直す",
       );
     }
   }
@@ -1177,12 +1179,12 @@ function checkRepeatRunPerSpec(suiteObj, record, root) {
       );
     } else if (recorded !== current.specs[spec] || shared !== current.shared) {
       findings.push(
-        `状態を変えないスペック ${spec} の直近の緑は現在のスペック・土台のものでない（spec ${recorded} / shared ${shared} ≠ 実測 ${current.specs[spec]} / ${current.shared}）。このスペックを 1 回回して記録を足す`,
+        `状態を変えないスペック ${spec} の直近の緑は現在のスペック・共通部分のものでない（spec ${recorded} / shared ${shared} ≠ 実測 ${current.specs[spec]} / ${current.shared}）。このスペックを 1 回回して記録を足す`,
       );
     }
   }
   notes.push(
-    `スペック単位で判定: 状態を変えるスペック ${mutating.length} 件は 2 回続けての緑、状態を変えないスペック ${readOnly.length} 件は現在の版での 1 回の緑で足りる（土台 ${current.sharedFiles} ファイル、current_excluded ${excluded.length} 件）`,
+    `スペック単位で判定: 状態を変えるスペック ${mutating.length} 件は 2 回続けての緑、状態を変えないスペック ${readOnly.length} 件は現在の版での 1 回の緑で足りる（共通部分 ${current.sharedFiles} ファイル、current_excluded ${excluded.length} 件）`,
   );
   if (withoutSpecPrints > 0) {
     notes.push(
@@ -1209,8 +1211,8 @@ export function checkRepeatRun(metadata, ctx) {
   const suite = metadata.suite;
   if (suite !== undefined && suite !== null && !isPlainObject(suite))
     throw new UsageError("suite がオブジェクトでない");
-  // suite をキーごと持たない成果物も「state_mutating が無い」と同じ扱いにする（型崩れに倒さない）。
-  // artifact_health を宣言していれば下の分岐が未検証として落とすので、後方互換は fail-open にならない。
+  // suite をキーごと持たない成果物も「state_mutating が無い」と同じ扱いにする（型の誤りとして扱わない）。
+  // artifact_health を宣言していれば下の分岐が未検証として落とすので、後方互換のために確かめずに通すことはない。
   const suiteObj = isPlainObject(suite) ? suite : {};
   if (!("state_mutating" in suiteObj)) {
     // 判定の根拠は artifact_health の「宣言の有無」ではなく「キーの有無」。
@@ -1262,7 +1264,7 @@ export function checkRepeatRun(metadata, ctx) {
 
   if (record.cleanup_in_suite !== true) {
     findings.push(
-      "状態を変えるスイートなのに repeat_run.cleanup_in_suite が true でない（後始末が外の道具に依存すると次の実行が壊れる）",
+      "状態を変えるスイートなのに repeat_run.cleanup_in_suite が true でない（後始末が外のツールに依存すると次の実行が壊れる）",
     );
   }
   // 分類表を持つ成果物はスペック単位で判定する（持たない成果物は従来どおりスイート全体の指紋で判定する）
@@ -1308,7 +1310,7 @@ export function checkRepeatRun(metadata, ctx) {
       );
     } else {
       // 記録の接頭辞で照合の方式を決める。旧方式（sha256:）の記録は旧方式で数え直す
-      // （新方式へ一律に切り替えると、スイートを変えていない記録まで全部取り直しになる）。
+      // （新方式へ一律に切り替えると、スイートを変えていない記録まで全部もう一度測ることになる）。
       const scheme = recorded[0].startsWith("sha256-nc:")
         ? "nc"
         : recorded[0].startsWith("sha256:")
@@ -1324,7 +1326,7 @@ export function checkRepeatRun(metadata, ctx) {
         );
       } else if (current.fingerprint === null) {
         findings.push(
-          `現在のスイートの指紋を計算できない（判定不能を合格に倒さない）: ${current.missing.length > 0 ? `読めない ${current.missing.join(" / ")}` : "suite.specs / locator_map / interactions がどれも宣言されていない"}`,
+          `現在のスイートの指紋を計算できない（判定不能を合格として扱わない）: ${current.missing.length > 0 ? `読めない ${current.missing.join(" / ")}` : "suite.specs / locator_map / interactions がどれも宣言されていない"}`,
         );
       } else if (current.fingerprint !== recorded[0]) {
         findings.push(
@@ -1422,8 +1424,8 @@ export function checkUnmeasured(metadata, ctx) {
       continue;
     }
     blocking += 1;
-    // suite 工程では blocking は「これから測る」の記録なので落とさない（書いた本人のゲートを止めない）。
-    // diff 工程では収束を止める（正本: parity-suite の references/coverage.md「未測定を機械可読にする」）。
+    // suite 工程では blocking は「これから測る」の記録なので落とさない（書いた本人のチェックを止めない）。
+    // diff 工程では収束を止める（原本: parity-suite の references/coverage.md「未測定を機械可読にする」）。
     if (stage === "suite") pending.push(item);
     else findings.push(`未測定が残っている（disposition: blocking）: ${item}`);
   }
@@ -1449,8 +1451,8 @@ function toInteger(v) {
 
 /**
  * 記録済みの版 V より後、現在の版 C までの changes[].affects を集める。
- * 履歴が壊れている（欠番・重複・affects が配列でない）ときは null を返す——
- * 正本（golden-dataset の references/versioning.md）が「影響なしへ倒さない」と定めているため、
+ * 履歴が不正（欠番・重複・affects が配列でない）なときは null を返す。
+ * 原本（golden-dataset の references/versioning.md）が「影響なしとして扱わない」と定めているため、
  * 呼び出し側はこれを陳腐化として扱う。
  * @param {unknown} changes
  * @param {number} v
@@ -1485,12 +1487,12 @@ export function affectsBetween(changes, v, c) {
  *
  * new.commit が両側とも SHA で食い違うときは、evidence-carry.mjs の judgeCarry で描画入力の差分から
  * 持ち越せるかを判定する（replace-metadata.json に new.render_inputs があるときだけ。無ければ従来どおり落とす）。
- * component-comparison-check.mjs の comparison-implementation-stale と同じ関数で判定し、2 つの検査器の判定を揃える。
+ * component-comparison-check.mjs の comparison-implementation-stale と同じ関数で判定し、2 つのチェックの判定を揃える。
  *
  * carryTo（--carry-to）を渡すと、replace-metadata.json の new.commit とは別に、diff-metadata.json の new.commit から
  * その版への持ち越しを必ず judgeCarry で判定する。部品改修の一括再検証の直後は両方の記録が改修前の版で
- * 一致し、上の食い違いの判定が呼ばれないため、壊れた evidence-carry.json がその場で見つからない。
- * 判定できない状態（工程の節を判定しない・記録の版が SHA でない）は合格に倒さない。
+ * 一致し、上の食い違いの判定が呼ばれないため、不正な evidence-carry.json がその場で見つからない。
+ * 判定できない状態（工程の節を判定しない・記録の版が SHA でない）は合格として扱わない。
  * @param {{ root: string, slugDir: string, target: string, newRepo?: string | null, replaceRoot?: string | null, featureMetadata?: unknown, carryTo?: string | null }} ctx
  * @returns {{ judged: boolean, findings: string[], notes: string[] }}
  */
@@ -1541,14 +1543,14 @@ export function checkStage(ctx) {
 
   // 同じ target の diff-metadata.json が「いまの新側」に対応しているかを見る。
   // dataset_version だけを鮮度にすると、データセットを変えずに parity-replace が作り直した実装に対して、
-  // 前の反復で収束した古い diff-metadata.json がそのままこのゲートを満たす（差分を採り直していないのに「済んだ」に見える）。
+  // 前の反復で収束した古い diff-metadata.json が、そのままこのチェックを満たす（差分を採り直していないのに「済んだ」に見える）。
   // 対応づけは両成果物が既に持っている識別子で取る——新側のコミット SHA と反復回数。
   const replaceNew = isPlainObject(replaceMeta.new) ? replaceMeta.new : null;
   const diffNew = isPlainObject(diffMeta.new) ? diffMeta.new : null;
 
   // 環境の対応づけ。同じコミット・同じ反復は環境をまたいで一致しうるので、
   // 両成果物が記録している target 名を --target と突き合わせる
-  // （別 target のディレクトリへ写しただけの成果物が、その環境で差分を採らずに通るのを塞ぐ）。
+  // （別 target のディレクトリへコピーしただけの成果物が、その環境で差分を採らずに通るのを防ぐ）。
   for (const [label, value] of /** @type {[string, unknown][]} */ ([
     ["replace-metadata.json", replaceNew === null ? undefined : replaceNew.target],
     ["diff-metadata.json", diffNew === null ? undefined : diffNew.target],
@@ -1591,15 +1593,15 @@ export function checkStage(ctx) {
   /** @type {string | null} */
   let judgedWanted = null;
   // commit が `none` センチネルで、版の対応が反復回数だけに委ねられたか。
-  // 委ねた先も読めないときに合格へ倒さないための材料（下の反復回数の判定で使う）。
+  // 委ねた先も読めないときに、合格として扱わないための材料（下の反復回数の判定で使う）。
   let versionDelegatedToIteration = false;
   if (nonEmptyString(replaceCommit) && nonEmptyString(diffCommit)) {
     const wanted = String(replaceCommit).trim();
     const recordedCommit = String(diffCommit).trim();
-    // **反復回数へ委ねるのは両側とも `${NO_COMMIT}` のときだけ**——片側だけが `none` なら
-    // 記録した SHA と現在の `none`（またはその逆）は同じ版を指さないので、反復回数が
-    // たまたま一致しただけで合格に倒すと、git 管理の有無が変わった新側で古い成果物が通る
-    // （component-comparison-check.mjs と同じ規則。正本は references/coverage.md）。
+    // **反復回数へ委ねるのは、両側とも `${NO_COMMIT}` のときだけである**。片側だけが `none` なら、
+    // 記録した SHA と現在の `none`（またはその逆）は同じ版を指さない。反復回数が
+    // たまたま一致しただけで合格として扱うと、git 管理の有無が変わった新側で古い成果物が通る
+    // （component-comparison-check.mjs と同じ規則。原本は references/coverage.md）。
     if (wanted === NO_COMMIT && recordedCommit === NO_COMMIT) {
       versionDelegatedToIteration = true;
       notes.push(
@@ -1607,7 +1609,7 @@ export function checkStage(ctx) {
       );
     } else if (wanted !== recordedCommit) {
       // SHA の不一致を即失効にせず、ページの描画入力の差分で持ち越せるかを見る。
-      // 判定の正本は evidence-carry.mjs。component-comparison-check.mjs も同じ関数で判定する。
+      // 判定の原本は evidence-carry.mjs。component-comparison-check.mjs も同じ関数で判定する。
       const carry = carryFrom(recordedCommit, wanted);
       judgedWanted = wanted;
       if (carry.ok) {
@@ -1657,9 +1659,9 @@ export function checkStage(ctx) {
       );
     }
   } else if (versionDelegatedToIteration) {
-    // **委譲した先が読めないことを合格に倒さない**——commit が `none` の枝は版の対応を
-    // 反復回数へ委ねている。その反復回数も読めないと、実装を変えても古い成果物が
-    // 版の検査を 1 つも通らずに素通りする（component-comparison-check.mjs の
+    // **委譲した先が読めないことを合格として扱わない**。commit が `none` の枝は、版の対応を
+    // 反復回数へ委ねている。その反復回数も読めないと、実装を変えても古い成果物が、
+    // 版の検査を 1 つも受けずに通ってしまう（component-comparison-check.mjs の
     // comparison-implementation-unversionable と同じ扱いにする）。
     findings.push(
       `新側の版を対応づける指標が無い（new.commit が ${NO_COMMIT} なのに iteration: ${recordedIteration === null ? "読めない" : recordedIteration} / loop.iterations: ${iterations === null ? "読めない" : iterations}）: ${diffPath}`,
@@ -1671,14 +1673,14 @@ export function checkStage(ctx) {
   }
 
   // 投入対象でない target（db を持たない／seedable の無い読み取り専用）は phase B との整合を免除できる。
-  // 正本: parity-diff の references/preflight.md と assets/diff-metadata-template.json の dataset_version_exempt。
+  // 原本: parity-diff の references/preflight.md と assets/diff-metadata-template.json の dataset_version_exempt。
   // 免除は dataset_version: null と対で書かれるので、空の判定より先に見る（正規の記録を落とさない）。
   const exempt = diffMeta.dataset_version_exempt;
   if (exempt !== undefined && exempt !== null && typeof exempt !== "string") {
     throw new UsageError("diff-metadata.json の dataset_version_exempt が文字列でも null でもない");
   }
   if (nonEmptyString(exempt)) {
-    // 免除は「dataset_version: null ＋ 理由」という閉じた対（正本の定める形）。
+    // 免除は「dataset_version: null ＋ 理由」という閉じた対（原本の定める形）。
     // 理由が残っているだけで版の検査を飛ばすと、投入対象の target に古い免除文字列が残ったまま
     // 鮮度の判定が丸ごと外れる。対になっていなければ免除ではなく記録の不整合として落とす。
     if (diffMeta.dataset_version !== null) {
@@ -1697,7 +1699,7 @@ export function checkStage(ctx) {
   const datasetPath = join(ctx.root, ".replace", "dataset", "metadata.json");
   if (!existsSync(datasetPath)) {
     findings.push(
-      `データセットの版を読めないため鮮度を判定できない（判定不能を合格に倒さない）: ${datasetPath}`,
+      `データセットの版を読めないため鮮度を判定できない（判定不能を合格として扱わない）: ${datasetPath}`,
     );
     return { judged: true, findings, notes };
   }
@@ -1717,11 +1719,11 @@ export function checkStage(ctx) {
     return { judged: true, findings, notes };
   }
 
-  // 数値が古いだけでは陳腐化にしない。正本は golden-dataset の references/versioning.md——
+  // 数値が古いだけでは陳腐化にしない。原本は golden-dataset の references/versioning.md である。
   // 記録済み V・現在 C として 1 <= V <= C を確かめ、V < change.version <= C の affects が
-  // slug の実効参照テーブルと交差するときだけ陳腐化する。実効参照テーブルは .replace/features.md から
-  // 導くもので導出規則の正本は golden-dataset 側にあるため、ここで 2 つ目の実装を作らない。
-  // ここで落とすのは、交差を見るまでもなく陳腐化が確定する形（版が読めない・区間に * がある・履歴が壊れている）だけ。
+  // slug の実効参照テーブルと交差するときだけ陳腐化する。実効参照テーブルは .replace/features.md から導く。
+  // 導出規則の原本は golden-dataset 側にあるため、ここで 2 つ目の実装を作らない。
+  // ここで落とすのは、交差を見るまでもなく陳腐化が確定する形（版が読めない・区間に * がある・履歴が不正）だけである。
   const v = toInteger(recorded);
   const c = toInteger(current);
   if (v === null || c === null) {
@@ -1740,7 +1742,7 @@ export function checkStage(ctx) {
     const affects = affectsBetween(datasetMeta.changes, v, c);
     if (affects === null) {
       findings.push(
-        `dataset の changes 履歴が壊れている（欠番・重複・affects が配列でない）ため影響なしに倒さない（記録 ${v} / 現在 ${c}）: ${datasetPath}`,
+        `dataset の changes 履歴が不正（欠番・重複・affects が配列でない）ため影響なしとして扱わない（記録 ${v} / 現在 ${c}）: ${datasetPath}`,
       );
     } else if (affects.includes("*")) {
       findings.push(
@@ -1810,7 +1812,7 @@ export function parseArgs(argv) {
     throw new UsageError(`--stage は ${STAGES.join(" | ")} のいずれか（渡された値: ${stage}）`);
   }
   // --carry-to は持ち越しを判定させる指定なので、判定に要る入力が欠けたまま受け付けない
-  // （黙って判定を飛ばすと、持ち越しを確かめないまま通る）。
+  // （警告なしに判定を飛ばすと、持ち越しを確かめないまま通る）。
   if (opts["carry-to"] !== undefined) {
     if (!nonEmptyString(opts["carry-to"])) throw new UsageError("--carry-to が空");
     if (!nonEmptyString(opts.target)) {
@@ -1838,7 +1840,7 @@ export function parseArgs(argv) {
 
 /**
  * 反復実行の記録に書く指紋を出す（--fingerprint）。検査はしない。
- * spec_fingerprints は分類表と current_excluded を反映した全スペックの指紋で、runs[] にはその回に回したスペックの分だけを写す。
+ * spec_fingerprints は分類表と current_excluded を反映した全スペックの指紋である。runs[] には、その回に回したスペックの分だけを書く。
  * @param {Record<string, unknown>} metadata
  * @param {string} root
  * @returns {Record<string, unknown>}
@@ -1949,18 +1951,18 @@ export function run(argv, io) {
   return 0;
 }
 
-/** 使い方（stderr に出す。CLI エントリ判定が壊れたときのサイレント no-op を検出できるようにする）。 */
+/** 使い方（stderr に出す。CLI として起動されたかの判定が誤ったときに、何もせずに終わったことを検出できるようにする）。 */
 const usage = [
   "usage: artifact-health-check.mjs --metadata <path> [--root <dir>] [--target <name>] [--stage diff|suite] [--new-repo <path>] [--replace-root <dir>] [--carry-to <SHA>] [--fingerprint]",
   "  --metadata  .replace/parity/<slug>/metadata.json のパス（必須）",
   "  --root      リポジトリルート（省略時は metadata のパスの .replace の親から導く）",
   "  --target    新側 target 名。渡したときだけ工程の成果物（diff-metadata.json）の在否と鮮度を判定する",
-  "  --stage     呼び出し元の工程。diff（既定・収束判定。未測定の blocking で落とす） | suite（完了判定。blocking は落とさない）",
+  "  --stage     呼び出し元の工程。diff（デフォルト・収束判定。未測定の blocking で落とす） | suite（完了判定。blocking は落とさない）",
   "  --new-repo  新側リポジトリの最上位。new.commit が食い違うとき、new.render_inputs の差分で証跡を持ち越せるかを判定する（無ければ持ち越さない）",
   "  --carry-to  検証先の新側の版（部品改修の一括再検証では変更宣言の commits.after）。diff-metadata.json の new.commit からこの版への持ち越しを、replace-metadata.json の new.commit が同じでも必ず判定する（--target と --new-repo が要る）",
   "  --fingerprint  検査せず、反復実行の記録に書く指紋（suite_fingerprint / shared_fingerprint / spec_fingerprints）を JSON で出す",
   "  --replace-root  .replace ディレクトリ（省略時は <root>/.replace）。変更宣言・部品 metadata・evidence-carry.json の相対パスはその親から解決する",
-  "exit: 0 = 条件を満たす（判定しない節を含む） / 1 = 未検証・不整合が残る / 2 = 使い方の誤り・型崩れ",
+  "exit: 0 = 条件を満たす（判定しない節を含む） / 1 = 未検証・不整合が残る / 2 = 使い方の誤り・型の誤り",
 ].join("\n");
 
 /**

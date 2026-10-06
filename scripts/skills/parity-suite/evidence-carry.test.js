@@ -318,7 +318,7 @@ test("影響あり・撮り直した組の traits.json が無い: 持ち越さ�
 });
 
 test.each([
-  ["prev_new", "inputs.prev_new が撮る前に写した改修前の新側"],
+  ["prev_new", "inputs.prev_new が撮り直す前に撮った改修前の新側"],
   ["current", "inputs.current が現側の基準"],
 ])(
   "影響あり・撮り直した新側の画像を %s にも渡した記録（ハッシュは一致する）: 役割が違うので持ち越さない",
@@ -449,7 +449,7 @@ test("amend-verify の inputs のパスはプロジェクトルートから解�
   const result = judge(p);
   expect(result.ok).toBe(false);
   // プロジェクトルートから解決するので、記録のディレクトリ相対に書いたパスは役割の置き場所と一致しない
-  expect(result.findings.join("\n")).toContain("inputs.prev_new が撮る前に写した改修前の新側");
+  expect(result.findings.join("\n")).toContain("inputs.prev_new が撮り直す前に撮った改修前の新側");
 });
 
 test.each([
@@ -534,7 +534,7 @@ test.each([
   [
     "evidence-carry.json が壊れた JSON",
     (p) => writeFileSync(p.evidenceCarryPath, "{ broken"),
-    "JSON として壊れている",
+    "JSON として不正",
   ],
   [
     "evidence-carry.json の形が違う",

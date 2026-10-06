@@ -1,78 +1,84 @@
-// 論理名付き要素の特性採取（正本）。
-// 正本はこのスキル側にあり、実行時はプロジェクトの
-// `<parity_suite_dir>/parity/lib/tools/vendor/` へコピーして使う（配布スキルの成果物同梱規約）。
+// 論理名付き要素の特性採取（原本）。
+// 原本はこのスキル側にあり、実行時はプロジェクトの
+// `<parity_suite_dir>/parity/lib/tools/vendor/` へコピーして使う（配布スキルは、実行時に使う成果物を同梱する）。
 // コピー先はコピー専用のサブディレクトリで、プロジェクト自作ツールと同居させない（修正しない規約のため）。
 // このファイルのスキーマ（FIXED_PROPERTIES・採取形状）を変えたら、成果物の
 // `metadata.json` の `traits.property_set` も必ず更新する（parity-diff は property_set を正とする）。
 //
-// 何を採るか: 論理名（ロケータマッピングの契約名）を付けた要素について、
-// 固定プロパティ集合の computed style ＋ 擬似要素（::before / ::after）の computed style ＋
-// getBoundingClientRect() ＋ 1 段下の子の inline style（child_inline_styles）＋
-// 文字の持ち主（text_owners。部分木の中で文字を描いている要素ごとの書体・大きさ・文字の寸法）＋
-// スクロールする器の特性（scroll。スクロールバーの有無・厚み・見た目の宣言）を採る。
+// 何を採るか: 論理名を付けた要素について、次のものを採る。
+//   - 固定プロパティ集合の computed style
+//   - 擬似要素（::before / ::after）の computed style
+//   - getBoundingClientRect()
+//   - 1 段下の子の inline style（child_inline_styles）
+//   - 文字の持ち主（text_owners。部分木の中で文字を描いている要素ごとの書体・大きさ・文字の寸法）
+//   - スクロールする領域の特性（scroll。スクロールバーの有無・厚み・見た目の宣言）
 // 相対幾何（要素対の関係）は絶対座標ではなくこの rect から trait-compare.mjs 側で導出する。
 //
 // 採った対象が「画面に描かれているもの」かを、採取の中で 1 度だけ確かめる。特性照合は
 // 「論理名を付けた要素そのもの」の固定プロパティ集合しか見ないため、名前が描かれていない要素へ
 // 解決していると、全プロパティ一致のまま緑になり画素だけが差を出す（差が出ない形なので、
-// 緑を根拠に先へ進める）。2 つの形を塞ぐ:
-//   - 支援技術のための写し: 市販部品は aria のための木を別に作り、getByRole が返す要素が
-//     画面の外（y = -32000 等）に置かれていることがある。矩形が文書の外なら採取を失敗させる
-//     （下記 captureElement。getBoundingClientRect() は相対幾何のために既に読んでいる）
-//   - 装飾が子ノードに乗っている: 名前を付けた要素の計算値は一致するのに、子の inline style が
-//     見た目を変えている。子の計算値は採らず、inline style の在否と値だけを記録して、
-//     画素の差をフォントの版・ヒンティングの切り分けへ持っていかずに済むようにする
-//     （照合には使わない診断材料。正本の説明は references/baseline.md）
+// 緑を根拠に先へ進める）。次の 2 つの形を防ぐ。
+//   - 支援技術のためのコピー。市販部品は aria のための木を別に作り、getByRole が返す要素が
+//     画面の外（y = -32000 など）に置かれていることがある。矩形が文書の外なら採取を失敗させる
+//     （下記 captureElement。getBoundingClientRect() は相対幾何のために既に読んでいる）。
+//   - 装飾が子ノードに乗っている。名前を付けた要素の計算値は一致するのに、子の inline style が
+//     見た目を変えている。子の計算値は採らず、inline style の在否と値だけを記録する。
+//     画素の差を、フォントの版・ヒンティングの切り分けへ持っていかずに済むようにするためである
+//     （照合には使わない診断材料。原本の説明は references/baseline.md）。
 //
 // 文字の持ち主（text_owners）: 固定集合の font 系は「名前を付けた要素そのもの」の値でしかない。
 // 文字を持つのが子孫の要素だと（<button><div><span>設定</span></div></button>）、実際に文字を
 // 描いている書体・大きさ・行の高さはどこにも採られず、新側が要素自身に文字を置く実装だと
 // 要素の計算値が一致したまま特性照合が緑になる（文字の幅が 26px と 30.4px で違っていた）。
-// そこで部分木のテキストノードを平坦木の順（開いたシャドウルートの中と、<slot> に割り当てられた
-// ノードを描かれる位置で辿る）に拾い、平坦木の親要素（文字の持ち主。slot に割り当てられた文字は slot）ごとに 1 行、TEXT_OWNER_PROPERTIES の
-// 計算値と、その要素が直接持つ文字の寸法（行の断片の幅の合計 advance・最大の高さ glyph_height・行の数 lines）を記録する。行は文字が現れる順に並び、入れ子の深さに
-// 依らないので、DOM の形が違う現・新でも「i 番目の文字の持ち主」どうしを trait-compare.mjs が突き合わせられる。
+// そこで、部分木のテキストノードを平坦木の順に拾う（開いたシャドウルートの中と、<slot> に割り当てられた
+// ノードを、描かれる位置で辿る）。平坦木の親要素（文字の持ち主。slot に割り当てられた文字は slot）ごとに 1 行を記録する。
+// 記録するのは、TEXT_OWNER_PROPERTIES の計算値と、その要素が直接持つ文字の寸法である。
+// 文字の寸法は、行の断片の幅の合計 advance・最大の高さ glyph_height・行の数 lines である。
+// 行は文字が現れる順に並び、入れ子の深さに依らない。そのため、DOM の形が違う現・新でも、
+// 「i 番目の文字の持ち主」どうしを trait-compare.mjs が突き合わせられる。
 // 描かれていない文字（空白だけ・矩形の面積 0・visibility が visible でない・祖先の切り抜きで実質見えない〈sr-only 等〉）は
 // 数えない。ボタンとして描く <input>（submit / button / reset）の value は文字として数える。
 // 射程: 閉じたシャドウルートの中は辿れない。描画に使われた書体の実体（フォールバックの解決先）は
 // 計算値に出ないので採らない——採取環境と利用者環境の乖離として references/baseline.md の手順で確かめる。
 //
-// スクロールする器（scroll）: overflow-x / overflow-y の片方でも visible / clip でない、display: inline でない HTML 要素について、
-// はみ出しの有無（scrollWidth > clientWidth 等）、スクロールバー（とガター）が取った幅・高さ
-// （offsetWidth − clientWidth − 左右の枠。縦のバーの幅）、見た目の宣言（SCROLLBAR_PROPERTIES と
-// SCROLLBAR_PSEUDOS の計算値）を採る。固定集合の overflow-x / overflow-y だけでは、
-// 現行が overflow: auto で横スクロールバーを出し、新側が overflow-x: hidden で右端を切る差のうち、
-// 「バーが幅を取って中身がはみ出したか」が値に出ない（実測: 628px の器で現行だけ横スクロールバーが出た）。
-// バーの厚みは撮影時のスクロールバーの扱いで変わる——--hide-scrollbars（Playwright のヘッドレス Chromium の既定）では
-// 0 になり、上の差は両側とも「はみ出し無し・厚み 0」に揃って消える。撮影条件の正本は references/baseline.md。
-// 器でない要素は null（器かどうかの差は overflow-x / overflow-y の差として固定集合に出る）。
+// スクロールする領域（scroll）: 対象は、overflow-x / overflow-y の片方でも visible / clip でなく、display: inline でない HTML 要素である。
+// 次のものを採る。
+//   - はみ出しの有無（scrollWidth > clientWidth など）
+//   - スクロールバー（とガター）が取った幅・高さ（offsetWidth − clientWidth − 左右の枠。縦のバーの幅）
+//   - 見た目の宣言（SCROLLBAR_PROPERTIES と SCROLLBAR_PSEUDOS の計算値）
+// 現行が overflow: auto で横スクロールバーを出し、新側が overflow-x: hidden で右端を切る場合を考える。
+// 固定集合の overflow-x / overflow-y だけでは、この差のうち「バーが幅を取って中身がはみ出したか」が値に出ない。
+// 実測では、628px のスクロール領域で現行だけ横スクロールバーが出た。
+// バーの厚みは、撮影時のスクロールバーの扱いで変わる。--hide-scrollbars（Playwright のヘッドレス Chromium のデフォルト）では
+// 0 になり、上の差は両側とも「はみ出し無し・厚み 0」に揃って消える。撮影条件の原本は references/baseline.md。
+// スクロール領域でない要素は null（スクロール領域かどうかの差は overflow-x / overflow-y の差として固定集合に出る）。
 // ::-webkit-scrollbar 系を読めないブラウザ（CSS.supports で判定）では webkit を "unsupported" にする
 // （空の計算値を採って両側が一致したように見せない）。
 //
-// 何を採らないか: letter-spacing・text-transform・background-image 等、要素の矩形の内側に
-// そのまま写る項目はこの集合に含めない（名前無し要素の見た目差と同様、画素経路＝要素
+// 何を採らないか: letter-spacing・text-transform・background-image など、要素の矩形の内側に
+// そのまま撮影される項目は、この集合に含めない（名前無し要素の見た目差と同様、画素の比較＝要素
 // スクリーンショット側に委ねる）。プロパティを足すときは、決定論的に採れ（乱数・時刻・
 // アニメーションに依存せず）、両実装で意味が保たれる項目に限る。
 //
-// 画素経路へ委ねられるのは「要素の矩形を撮った静止画に写る」プロパティだけ。写らないものを
-// 外すと、特性照合でも画素比較でも差が出ない＝どちらの経路にも現れない見た目になる
-// （cursor の写し忘れが 12 状態 × 2 ロケールの照合と画素比較を全部緑で通り抜け、利用者が
-// 触って気づいた実例がある）。委ねる先が無いので、次の 4 族はこの集合に入れる:
+// 画素の比較へ委ねられるのは、「要素の矩形を撮った静止画に表れる」プロパティだけである。表れないものを
+// 外すと、特性照合でも画素比較でも差が出ず、どちらの比較方法にも現れない見た目になる
+// （cursor を採り忘れたまま 12 状態 × 2 ロケールの照合と画素比較を全部緑で通り、利用者が
+// 触って気づいた実例がある）。委ねる先が無いので、次の 4 種類はこの集合に入れる。
 //
-//   - 操作したときの手応えを決めるが静止画には出ない: cursor / user-select / pointer-events
-//   - 要素が**どこに置かれるか**を決めるが、切り出しが要素についてくるため矩形の中には出ない:
+//   - 操作したときの手応えを決めるが、静止画には出ないもの。cursor / user-select / pointer-events
+//   - 要素が**どこに置かれるか**を決めるもの。切り出しが要素についてくるため、矩形の中には出ない。
 //     position / top / right / bottom / left（絶対座標そのものは rect が持つが、rect の差は
 //     「ずれた」としか言わない。どの宣言がずらしているかは top / left の計算値でしか分からない）
-//   - 要素の**矩形の外側**に描かれる、または下地に依存して弁別できない: box-shadow（外側の影は
-//     要素の矩形の外なので要素スクショに写らない）/ opacity（下地が違えば同じ値でも別の色になり、
-//     逆に下地が同じでも半透明と不透明の差が画素差として現れないことがある）
-//   - 折り返し・省略を決めるが、採取時の文字列が短ければ静止画には差として出ない:
+//   - 要素の**矩形の外側**に描かれるもの、または下地に依存して区別できないもの。box-shadow（外側の影は
+//     要素の矩形の外なので要素スクショに表れない）/ opacity（下地が違えば同じ値でも別の色になり、
+//     逆に下地が同じでも、半透明と不透明の差が画素差として現れないことがある）
+//   - 折り返し・省略を決めるもの。採取時の文字列が短ければ、静止画には差として出ない。
 //     white-space / overflow-x / overflow-y / text-overflow / word-break
-//     （実データが長くなった利用側で初めて崩れる。部品カタログの見本では再現しない）
+//     （実データが長くなった利用側で初めて表示が崩れる。部品カタログの見本では再現しない）
 //
-// 足す候補を検討するときは「決定論的か」「両実装で意味が保たれるか」に加えて「外したとき
-// **要素の矩形を撮った**画素経路が拾えるか」を必ず問う。ページ全体のスクショなら写るものでも、
-// 要素の矩形で切ると写らない。
+// 足す候補を検討するときは、「決定論的か」「両実装で意味が保たれるか」に加えて、「外したとき
+// **要素の矩形を撮った**画素の比較が拾えるか」を必ず問う。ページ全体のスクショなら表れるものでも、
+// 要素の矩形で切ると表れない。
 //
 // 計算値が url() を含みうる項目（cursor のカスタムカーソル等）は、相対 URL が自分のオリジンで
 // 絶対化されるため、そのままでは現・新のホスト違いが偽の差分になる。captureElement が同一
@@ -86,14 +92,14 @@
 // locator.evaluate() 経由でブラウザ内 DOM を操作する（型は JSDoc のみ。TypeScript 構文は使わない）。
 
 /**
- * ツールのバージョン（正本）。採取スキーマ（FIXED_PROPERTIES・採取形状）を変えたら上げる。
+ * ツールのバージョン（原本）。採取スキーマ（FIXED_PROPERTIES・採取形状）を変えたら上げる。
  * metadata.json の traits.tool / differ に記録する「バージョン」はこの値を使う（手入力にしない）。
  * @type {string}
  */
 export const VERSION = "6";
 
 /**
- * 採取する computed style プロパティの固定集合（正本）。
+ * 採取する computed style プロパティの固定集合（原本）。
  * getComputedStyle が返す longhand 名で列挙する（決定論的に採れる項目のみ）。
  * @type {readonly string[]}
  */
@@ -131,7 +137,7 @@ export const FIXED_PROPERTIES = [
   "text-align",
   "display",
   "visibility",
-  // 以下は「要素の矩形を撮った静止画」に写らないため画素経路へ委ねられない
+  // 以下は「要素の矩形を撮った静止画」に表れないため、画素の比較へ委ねられない
   // （上の「何を採らないか」の 4 族を参照）。
   "cursor",
   "user-select",
@@ -151,9 +157,9 @@ export const FIXED_PROPERTIES = [
 ];
 
 /**
- * 文字の持ち主（text_owners）について採る computed style の固定集合（正本）。
+ * 文字の持ち主（text_owners）について採る computed style の固定集合（原本）。
  * 文字の見た目のうち、描いている要素の計算値でしか決まらない書体・大きさ・行の高さに絞る
- * （色や装飾は要素の矩形の内側に写るので画素経路が拾う）。変えたら VERSION を上げる。
+ * （色や装飾は要素の矩形の内側に表れるので、画素の比較が拾う）。変えたら VERSION を上げる。
  * @type {readonly string[]}
  */
 export const TEXT_OWNER_PROPERTIES = [
@@ -165,13 +171,13 @@ export const TEXT_OWNER_PROPERTIES = [
 ];
 
 /**
- * スクロールする器について採る、スクロールバーの見た目の宣言（正本）。変えたら VERSION を上げる。
+ * スクロールする領域について採る、スクロールバーの見た目の宣言（原本）。変えたら VERSION を上げる。
  * @type {readonly string[]}
  */
 export const SCROLLBAR_PROPERTIES = ["scrollbar-width", "scrollbar-color", "scrollbar-gutter"];
 
 /**
- * スクロールする器について計算値を採る、Chromium / WebKit のスクロールバーの擬似要素（正本）。変えたら VERSION を上げる。
+ * スクロールする領域について計算値を採る、Chromium / WebKit のスクロールバーの擬似要素（原本）。変えたら VERSION を上げる。
  * @type {readonly string[]}
  */
 export const SCROLLBAR_PSEUDOS = [
@@ -183,7 +189,7 @@ export const SCROLLBAR_PSEUDOS = [
 ];
 
 /**
- * スクロールバーの擬似要素ごとに採る computed style（正本）。幅・高さ・背景・角の丸み・枠。変えたら VERSION を上げる。
+ * スクロールバーの擬似要素ごとに採る computed style（原本）。幅・高さ・背景・角の丸み・枠。変えたら VERSION を上げる。
  * @type {readonly string[]}
  */
 export const SCROLLBAR_PSEUDO_PROPERTIES = [
@@ -209,7 +215,7 @@ export const SCROLLBAR_PSEUDO_PROPERTIES = [
  * ブラウザ内で 1 要素分の特性を採る純関数（locator.evaluate に渡す）。
  * el と props を受け取り、computed / before / after / rect / child_inline_styles / text_owners / scroll を返す。
  * 擬似要素は content が "none"（＝生成コンテンツ無し）のとき null を返し、省略できるようにする。
- * 矩形が文書の外に丸ごと出ている要素（支援技術のための写し）はここで失敗させる。
+ * 矩形が文書の外に丸ごと出ている要素（支援技術のためのコピー）はここで失敗させる。
  * この関数は文字列化して evaluate に渡るため、外部スコープを参照しない（props で受け取る）。
  * @param {Element} el
  * @param {{ fixed: readonly string[], textOwner: readonly string[], scrollbar: readonly string[], scrollbarPseudos: readonly string[], scrollbarPseudoProps: readonly string[] }} props
@@ -230,7 +236,7 @@ function captureElement(
   // 畳むのは自分のオリジンで始まる URL だけ。data: と他オリジンの URL は両側で同じ文字列に
   // なるので触らない（畳むと別ホストの資産どうしが同一視され、本物の差分を消す）。
   // 正規化できないとき（file:// 等で origin が "null"）は元の値のまま残す——偽の差分として
-  // 目に見える側へ倒し、黙って一致させない。
+  // 目に見える側として扱い、警告なしに一致させない。
   //
   // 置換は url() トークンの中身を取り出し、その URL 自体が自オリジンで始まるときだけ行う。
   // 値全体への単純置換にすると、他オリジン URL のパス・クエリにたまたま自オリジンが現れた値
@@ -238,7 +244,7 @@ function captureElement(
   // 現・新で別物を指している外部参照を同値化し、本物の差分を消す。
   //
   // 射程: 畳むのは URL 文字列までで、参照先の資産の中身は照合しない。現新が同じパスで
-  // 別バイトの資産を配信していると、その見た目差はこの経路にも画素にも現れない。
+  // 別バイトの資産を配信していると、その見た目差は、この正規化にも画素にも現れない。
   // 対象要素がある機能は gaps.md へ「採取値の射程外」として残す（確認済みにしない）。
   const origin = location.origin;
   const foldable = /^https?:\/\//.test(origin);
@@ -262,7 +268,7 @@ function captureElement(
       const value = style.getPropertyValue(prop);
       // getPropertyValue はブラウザが知らないプロパティ名に空文字を返す。空のまま採ると
       // 現・新の両側が同じ空文字になり「差が無い」と読めてしまう（集合に入れた意味が消える）。
-      // 検出できないことを黙って通さず、どの名前が解決しなかったかを付けて落とす。
+      // 検出できないことを警告なしに通さず、どの名前が解決しなかったかを付けて落とす。
       if (value === "") unknown.push(prop);
       out[prop] = foldOrigin(value);
     }
@@ -276,16 +282,16 @@ function captureElement(
   const box = el.getBoundingClientRect();
 
   // 描かれているかの判定は、ビューポートではなく**文書**の矩形に対して行う。ビューポートで測ると
-  // 折り返し下の要素（full_page 撮影では正当に写る）やスクロールで外へ出た要素まで落ちる。
+  // 折り返し下の要素（full_page 撮影では正当に撮影される）やスクロールで外へ出た要素まで落ちる。
   // 文書座標へ直したうえで「文書の外側に丸ごと出ている」ものだけを失敗にする——
-  // 支援技術のための写しは y = -32000 のような座標に置かれるので、この判定で捕まる。
+  // 支援技術のためのコピーは y = -32000 のような座標に置かれるので、この判定で捕まる。
   // 面積 0 の矩形（display: none 等）はこの判定から外す。描かれていないのは同じだが、
-  // 状態として正当に採る対象であり、写しの合図ではない。
-  // 射程: この除外のぶん、width: 0; height: 0 で置かれた写しは素通りする（捕まえるのは
-  // 文書の外へ動かした写しだけ）。限界は references/baseline.md に書いてある。
+  // 状態として正当に採る対象であり、コピーの合図ではない。
+  // 射程: この除外のぶん、width: 0; height: 0 で置かれたコピーは検出できない（捕まえるのは
+  // 文書の外へ動かしたコピーだけ）。限界は references/baseline.md に書いてある。
   // なお内側にスクロール領域を持つ部品（横スクロールするデータグリッド等）では、正当な要素でも
-  // 器の外へ出た位置に矩形が出て文書の外と判定されうる。写しとは原因が違うので、失敗メッセージには
-  // どちらの可能性も出す（採り直す前に対象を器の中へスクロールさせる）。
+  // スクロール領域の外へ出た位置に矩形が出て文書の外と判定されうる。コピーとは原因が違うので、失敗メッセージには
+  // どちらの可能性も出す（採り直す前に対象をスクロール領域の中へスクロールさせる）。
   if (box.width > 0 && box.height > 0) {
     // 参照はすべて素のグローバル（scrollX / innerWidth / document）で書く。ブラウザでは window と
     // 同じものを指し、locator.evaluate へ文字列化して渡るこの関数を差し替え無しで単体検査できる。
@@ -330,10 +336,10 @@ function captureElement(
   // 照合には使わない診断材料（どの要素が文字を持っているかを採取物から読むため）。
   const owners = new Map();
   const textOwners = [];
-  // 持ち主ごとの生の文字列。空白の畳み込みと trim は全ノードを繋いだ後に 1 回だけ当てる——
-  // ノードごとに trim して " " で繋ぐと、フレームワークがテキストを分けたかどうかで文字列が変わり
-  // （React の <span>{count}件</span> は "3" と "件" の 2 ノードで "3 件"、1 ノードなら "3件"）、
-  // 見た目が同じ文字の寸法の照合が trait-compare.mjs で黙って省かれる。
+  // 持ち主ごとの生の文字列。空白の畳み込みと trim は、全ノードを繋いだ後に 1 回だけ当てる。
+  // ノードごとに trim して " " で繋ぐと、フレームワークがテキストを分けたかどうかで文字列が変わる
+  // （React の <span>{count}件</span> は "3" と "件" の 2 ノードで "3 件"、1 ノードなら "3件"）。
+  // すると、見た目が同じ文字の寸法の照合が、trait-compare.mjs で警告なしに省かれる。
   const rawText = new Map();
   // 持ち主ごとの行の断片（縦の範囲）。行の数は断片の数ではなく、行の帯の数で数える——
   // テキストノードが分かれると同じ行に断片が 2 つ出る（実測: "3" と "件" の 2 ノードで断片 2、1 ノードで 1）。
@@ -352,10 +358,10 @@ function captureElement(
     }
     return lines;
   };
-  // 畳む・端から外す空白は CSS が畳む空白（スペース・タブ・改行・CR・FF）だけにする。JavaScript の \s と
-  // trim は NBSP や全角スペースも空白とみなすが、CSS はそれらを幅を持つ文字として描く——\s で扱うと
-  // 全角スペースで字下げした「\u3000設定」が「設定」と同じ文字列になり、字下げの幅まで差し引かれて
-  // 字下げの無い文字と区別できなくなる（別の文字列として残せば、寸法は比べないが字下げは画素経路に写る）。
+  // 畳む・端から外す空白は、CSS が畳む空白（スペース・タブ・改行・CR・FF）だけにする。
+  // JavaScript の \s と trim は NBSP や全角スペースも空白とみなすが、CSS はそれらを幅を持つ文字として描く。
+  // \s で扱うと、全角スペースで字下げした「\u3000設定」が「設定」と同じ文字列になり、字下げの幅まで差し引かれて、
+  // 字下げの無い文字と区別できなくなる。別の文字列として残せば寸法は比べないが、字下げは画素の比較に表れる。
   const collapse = (value) => value.replace(/[ \t\n\r\f]+/g, " ").replace(/^ | $/g, "");
   // 持ち主ごとの文字の区切り（テキストノード 1 つ分）。幅の合計 advance は全区切りの幅から、持ち主の
   // 先頭と末尾の空白の幅だけを差し引いて出す——文字列は空白を畳んで trim して比べるので、端の空白の幅を
@@ -407,7 +413,7 @@ function captureElement(
     range.selectNodeContents(node);
     const r = range.getBoundingClientRect();
     if (!(r.width > 0 && r.height > 0)) return;
-    // 比較に使う寸法は行の断片（getClientRects）から出す。外接矩形（r）は折り返すと「1 行目の左端〜
+    // 比較に使う寸法は行の断片（getClientRects）から出す。外接矩形（`r`）は、折り返すと「1 行目の左端〜
     // 最終行の右端」まで広がり、同じ持ち主の文字どうしを合わせると間に挟まる子要素の領域まで覆うため、
     // 書体と無関係な寸法の差を出す（外接矩形は診断材料として rect に残すだけ）。
     const fragments = Array.from(range.getClientRects()).filter((f) => f.width > 0 && f.height > 0);
@@ -422,8 +428,8 @@ function captureElement(
     record(flatParent, path, raw, r, fragments, segment);
   };
   // 文字の矩形が、el までの祖先の切り抜き（overflow が visible でない箱・clip: rect(0 0 0 0)）で
-  // 実質的に見えなくなっているか。視覚的に隠した文字（sr-only: 1px の箱に overflow: hidden で閉じ込める、
-  // text-indent: -9999px で箱の外へ逃がす）は矩形の面積も visibility も通常の文字と同じなので、
+  // 実質的に見えなくなっているか。視覚的に隠した文字は、矩形の面積も visibility も通常の文字と同じである
+  // （sr-only は 1px の箱に overflow: hidden で閉じ込め、text-indent: -9999px は箱の外へ逃がす）。そのため、
   // 切り抜いた後の幅か高さが 2px 未満なら描かれていないとみなす（実測: sr-only の「閉じる」は
   // 切り抜き後 1×1）。省略記号で切られた長い文字は大きく残るので数え続ける。
   const clippedAway = (owner, r) => {
@@ -578,10 +584,11 @@ function captureElement(
     entry.lines = countLines(bands.get(entry));
   }
 
-  // スクロールする器の特性（冒頭の「スクロールする器」を参照）。offsetWidth を持たない要素（SVG 等）は
-  // 器の寸法を読めないので null にする（器かどうかの差は overflow-x / overflow-y の差として固定集合に出る）。
-  // display: inline の要素にも overflow は効かず、clientWidth / clientHeight が 0 になるので
-  // offsetWidth − clientWidth が文字の幅そのものに化ける（実測: overflow: hidden の <a> で 122px / 17px）。器として扱わない。
+  // スクロールする領域の特性（冒頭の「スクロールする領域」を参照）。offsetWidth を持たない要素（SVG 等）は
+  // スクロール領域の寸法を読めないので null にする（スクロール領域かどうかの差は overflow-x / overflow-y の差として固定集合に出る）。
+  // display: inline の要素には overflow が機能せず、clientWidth / clientHeight が 0 になる。
+  // すると offsetWidth − clientWidth が文字の幅そのものになってしまう（実測: overflow: hidden の <a> で 122px / 17px）。
+  // そのため、スクロール領域として扱わない。
   const elementStyle = getComputedStyle(el);
   const clipsNothing = (value) => value === "visible" || value === "clip";
   let scroll = null;
@@ -605,7 +612,7 @@ function captureElement(
       overflowing_x: el.scrollWidth > el.clientWidth,
       overflowing_y: el.scrollHeight > el.clientHeight,
       // 縦のスクロールバー（とガター）が取った幅・横のスクロールバーが取った高さ。枠を差し引く
-      // （実測: 枠 2px・overflow: auto の器で offsetWidth 204 / clientWidth 185 → 15px）
+      // （実測: 枠 2px・overflow: auto のスクロール領域で offsetWidth 204 / clientWidth 185 → 15px）
       vertical_bar_px: Math.round(
         el.offsetWidth - el.clientWidth - border("left") - border("right"),
       ),
@@ -630,11 +637,12 @@ function captureElement(
 
 /**
  * 論理名付き要素の特性を採取する。呼び出し側が目的の状態へ遷移させたうえで呼ぶこと
- * （この関数は状態遷移を行わない）。
+ * （この関数は状態を遷移させない）。
  *
- * 返り値の各要素:
+ * 返り値の各要素は次の形である。
+ * ```js
  *   {
- *     name: string,              // 論理名（ロケータマッピングの契約名）
+ *     name: string,              // 論理名
  *     computed: Record<string,string>,        // FIXED_PROPERTIES の computed 値
  *     before: Record<string,string> | null,   // ::before（content が none なら null）
  *     after:  Record<string,string> | null,   // ::after（content が none なら null）
@@ -650,7 +658,7 @@ function captureElement(
  *       lines: number,                 // 縦に重ならない行の帯の数（照合する。折り返しの差）
  *       rect: { x:number, y:number, width:number, height:number },  // 文字の外接矩形（診断材料）
  *     }[],
- *     scroll: {                        // スクロールする器（overflow-x / overflow-y が visible / clip でない）でなければ null
+ *     scroll: {                        // スクロールする領域（overflow-x / overflow-y が visible / clip でない）でなければ null
  *       overflowing_x: boolean,        // scrollWidth > clientWidth
  *       overflowing_y: boolean,        // scrollHeight > clientHeight
  *       vertical_bar_px: number,       // 縦のスクロールバー（とガター）が取った幅（枠を除く）
@@ -659,20 +667,21 @@ function captureElement(
  *       webkit: Record<string, Record<string,string>> | "unsupported",  // SCROLLBAR_PSEUDOS ごとの SCROLLBAR_PSEUDO_PROPERTIES
  *     } | null
  *   }
+ * ```
  *
  * 採取に失敗したエントリ（ロケータが複数要素に解決した・0 件で待ちがタイムアウトした・
  * FIXED_PROPERTIES の名前をブラウザが解決しなかった等）は、
- * どの論理名で失敗したかを付けたエラーで報告する（既採取分を黙って失うより、失敗箇所の特定を優先）。
- * したがって「失敗した名前だけ落として続行したい」呼び出し側（強度ゲートの故障注入）は、
+ * どの論理名で失敗したかを付けたエラーで報告する（既採取分を警告なしに失うより、失敗箇所の特定を優先）。
+ * したがって「失敗した名前だけ落として続行したい」呼び出し側（強度チェックの故障注入）は、
  * entries を 1 件ずつ渡して呼び、成功分を連結する（まとめて渡すと最初の失敗で既採取分ごと失う）。
  *
  * ただし**失敗を要素の欠落へ変換してよいのはロケータが解決しなかった場合だけ**。メッセージに
  * `computed style did not resolve` を含む失敗は FIXED_PROPERTIES の名前をそのブラウザが解決できない
  * ツール・環境側の欠陥であり、要素の欠落ではない。欠落に変換すると trait-compare が全論理名を
  * `missing`（＝赤）として出し、注入と無関係に「捕捉できた」に見える。この失敗は捕捉せず停止する。
- * `element is outside the document` も同じ扱いで、**論理名が描かれていない要素（支援技術のための写し）へ
+ * `element is outside the document` も同じ扱いで、**論理名が描かれていない要素（支援技術のためのコピー）へ
  * 解決している**というマッピング側の欠陥である。欠落に変換すると、注入と無関係に赤が出るうえ、
- * 写しから採り続ける状態が残る。この失敗も捕捉せず停止し、ロケータマッピングを直してから採り直す。
+ * コピーから採り続ける状態が残る。この失敗も捕捉せず停止し、ロケータマッピングを直してから採り直す。
  *
  * @param {{ name: string, locator: import('playwright').Locator }[]} entries
  * @returns {Promise<Array<{ name: string, computed: Record<string,string>, before: (Record<string,string>|null), after: (Record<string,string>|null), rect: { x:number, y:number, width:number, height:number }, child_inline_styles: { index:number, tag:string, style:string }[], text_owners: { path:string, tag:string, text:string, style: Record<string,string>, advance:number, glyph_height:number, lines:number, rect: { x:number, y:number, width:number, height:number } }[], scroll: ({ overflowing_x:boolean, overflowing_y:boolean, vertical_bar_px:number, horizontal_bar_px:number, style: Record<string,string>, webkit: (Record<string, Record<string,string>>|"unsupported") }|null) }>>}

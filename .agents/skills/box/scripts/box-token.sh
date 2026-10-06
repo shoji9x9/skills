@@ -19,14 +19,14 @@ refresh="${BOX_REFRESH_TOKEN:-}"
 if [ -z "$refresh" ] && [ -f "$token_file" ]; then
 	refresh="$(<"$token_file")"
 fi
-# 手動 export/手動保存で混入し得る改行/CR/空白を除去する（token は非空白のみ）。
-# 環境変数・ファイルのどちらの経路でも同じ正規化を適用して挙動を対称にする。
+# 手で export や保存をしたときに入りうる改行・CR・空白を除く（token は空白を含まない）。
+# 環境変数とファイルのどちらから読んでも、同じ正規化を当てて同じ振る舞いにする。
 refresh="$(printf '%s' "$refresh" | tr -d '[:space:]')"
 : "${refresh:?refresh token が無い（BOX_REFRESH_TOKEN か $token_file を設定）}"
 
-# refresh_token・client_secret を curl の argv（ps/proc）に載せないよう、umask 077 の一時ファイル経由で
-# 渡す（--data-urlencode name@file は curl がファイル内容を読んで URL エンコードする。argv には
-# ファイル名しか現れない。送信ボディは name=value 直挿しと同一）。client_id は秘密でないため直挿し。
+# refresh_token と client_secret は、curl の argv（ps/proc）に載せず、umask 077 の一時ファイルで渡す。
+# --data-urlencode name@file では、curl がファイルの中身を読んで URL エンコードするので、argv にはファイル名しか現れない。
+# 送信する本文は、name=value を直接書いた場合と同じである。client_id は秘密ではないので、直接書く。
 secret_dir="$(mktemp -d "${TMPDIR:-/tmp}/box-token.XXXXXX")"
 trap 'rm -rf "$secret_dir"' EXIT
 (

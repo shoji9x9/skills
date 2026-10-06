@@ -685,7 +685,7 @@ test("持ち越し: render_inputs が無ければ従来の stale だけで落と
   expect(result.findings).toEqual([
     {
       code: "comparison-implementation-stale",
-      message: `突き合わせ表の new_implementation.commit「${base}」が現在の新側「${component}」と違う（記録の後に実装が変わっている。同じ版で取り直す）`,
+      message: `突き合わせ表の new_implementation.commit「${base}」が現在の新側「${component}」と違う（記録の後に実装が変わっている。同じ版で記録し直す）`,
     },
   ]);
   expect(result.notes.join("\n")).toContain("render_inputs");

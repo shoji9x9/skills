@@ -1,12 +1,12 @@
-// Issue の受け入れ条件を 1 項目ずつ根拠と突き合わせた表（受け入れ条件の突き合わせ表）を検査する（正本）。
-// 正本はこのスキル側にあり、実行時はスキルディレクトリ内から直接実行する
-// （プロジェクトへコピーしない。gh skill update の自動更新を効かせるため）。
+// Issue の受け入れ条件を 1 項目ずつ根拠と突き合わせた表（受け入れ条件の突き合わせ表）をチェックする（原本）。
+// 原本はこのスキルの側にあり、スキルのディレクトリから直接実行する
+// （プロジェクトへコピーしない。gh skill update の自動更新を反映するため）。
 //
-// 何のためか: テスト・リント・スイートの緑はどれも成果物の形の検査で、Issue にだけ書かれた条件
-// （「状態を URL で持つ」「失敗時にログを書く」等）はどの工程にも数えられないまま完了になる。
-// 長い作業では着手時に読んだ受け入れ条件を完了の前に読み直す契機も無い。そこで Issue の条件を列挙した表を書かせ、
+// 何のためか: テスト・リント・スイートの緑は、どれも成果物の形のチェックである。Issue にだけ書かれた条件
+// （「状態を URL で持つ」「失敗時にログを書く」など）は、どの工程でも数えられないまま完了になる。
+// 長い作業では、着手時に読んだ受け入れ条件を、完了の前に読み直すきっかけも無い。そこで Issue の条件を列挙した表を書かせる。
 // 表が Issue と対応していること（チェックリストの項目と行が 1 対 1・引用が本文にある）と、
-// 各行に根拠があることをここで機械的に確かめる。表の様式の正本は assets/acceptance-template.json。
+// 各行に根拠があることを、ここで機械的に確かめる。表の形式の原本は assets/acceptance-template.json である。
 //
 // 何をしないか: gh を呼ばない（Issue は `gh issue view --json number,url,title,body,comments` の出力と、
 // GraphQL の `issue { body bodyHTML }` の出力をファイルで受け取る）。
@@ -27,13 +27,13 @@ import { isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
- * ツールのバージョン（正本）。判定規則・出力形状を変えたら上げる。
+ * ツールのバージョン（原本）。判定の規則や出力の形を変えたら上げる。
  * @type {string}
  */
 export const VERSION = "1";
 
 /**
- * 行の状態の語彙（正本）。met / waived / deferred / later だけが完了側。
+ * 行の状態の語彙（原本）。met / waived / deferred / later だけが完了の側である。
  * later は同じ流れの後工程が満たす条件（例: parity-replace の完了時点での parity-diff の収束）で、Issue は閉じない。
  */
 export const STATUSES = ["met", "unmet", "pending-decision", "waived", "deferred", "later"];
@@ -193,8 +193,9 @@ export function checklistItems(html) {
 }
 
 /**
- * 指紋の材料にする本文。チェックの有無と末尾の空白・改行は畳む——完了の報告で項目にチェックを付けて
- * 本文を書き戻すと、チェックと（取得・書き戻しの経路によっては）末尾の改行が変わるが、条件そのものは変わっていないので表を古くしない。
+ * 指紋の材料にする本文。チェックの有無と、末尾の空白・改行はそろえる。完了の報告で項目にチェックを付けて
+ * 本文を書き戻すと、チェックと（取得・書き戻しの方法によっては）末尾の改行が変わる。
+ * しかし条件そのものは変わっていないので、表を古いものとして扱わない。
  * @param {string} body
  * @returns {string}
  */
@@ -254,7 +255,7 @@ export function fingerprintOf(body, comments, title = "") {
 function checkEvidence(evidence, checkFile) {
   if (!isObject(evidence)) return { kind: null, problem: "根拠がオブジェクトでない" };
   if (evidence.kind === "command") {
-    // 結果の記録が無いコマンドは「走らせるつもり」と区別できない。
+    // 結果の記録が無いコマンドは、「実行するつもり」と区別できない。
     if (!nonEmptyString(evidence.command)) return { kind: "command", problem: "command が空" };
     if (!nonEmptyString(evidence.result)) return { kind: "command", problem: "result が空" };
     return { kind: "command", problem: null };
@@ -338,11 +339,11 @@ export function checkAcceptance(input) {
     // 別の時点で取った本文と HTML を突き合わせると、項目の列挙が本文と食い違う。
     return {
       structural: true,
-      error: "Issue の本文と HTML を取った後に本文が変わった（両方を取り直す）",
+      error: "Issue の本文と HTML を取った後に本文が変わった（両方を再取得する）",
     };
   }
   const comments = commentBodies(issue.comments);
-  if (comments === null) return { structural: true, error: "Issue の comments の型が崩れている" };
+  if (comments === null) return { structural: true, error: "Issue の comments の型が正しくない" };
   if (!isObject(table)) return { structural: true, error: "表がオブジェクトでない" };
   if (!isObject(table.issue) || table.issue.number !== issue.number) {
     // 別の Issue の表を検査しても何も示さないので、未充足ではなく取り違えとして落とす。
@@ -367,7 +368,7 @@ export function checkAcceptance(input) {
     add(
       "stale-issue",
       null,
-      `表を書いた後に Issue の本文かコメントが変わった（または指紋が未記録）。条件を読み直して表を直し、source_fingerprint に ${expected} を写す`,
+      `表を書いた後に Issue の本文かコメントが変わった（または指紋が未記録）。条件を読み直して表を直し、source_fingerprint に ${expected} を転記する`,
     );
   }
   if (!nonEmptyString(table.commit)) {
@@ -377,7 +378,7 @@ export function checkAcceptance(input) {
     add(
       "stale-commit",
       null,
-      `表のコミット ${table.commit} が現在の HEAD ${head} と違う。根拠を取り直す`,
+      `表のコミット ${table.commit} が現在の HEAD ${head} と違う。根拠をもう一度確かめる`,
     );
   }
 
@@ -391,7 +392,7 @@ export function checkAcceptance(input) {
     deferred: 0,
     later: 0,
   };
-  // 0 件を「条件が無い」に倒さない——表を書き忘れた状態と同じ出力になる。
+  // 0 件を「条件が無い」として扱わない。表を書き忘れた状態と同じ出力になる。
   if (table.items.length === 0) add("no-items", null, "表に行が無い");
 
   const issueChecklist = checklistItems(issueHtml.bodyHTML);
@@ -399,7 +400,7 @@ export function checkAcceptance(input) {
   /** @type {Map<string, number>} */
   const remaining = new Map();
   for (const item of issueChecklist) {
-    // 文言の無い項目は行と対応づけられない。黙って捨てず、Issue 側を直す（か利用者に確かめる）よう出す。
+    // 文言の無い項目は、行と対応づけられない。警告なしに捨てず、Issue の側を直す（か利用者に確かめる）よう出す。
     if (item === "")
       add("checklist-item-empty", null, "本文に文言の無いチェックリストの項目がある");
     else remaining.set(item, (remaining.get(item) ?? 0) + 1);
@@ -503,7 +504,7 @@ export function checkAcceptance(input) {
           `later の owner が呼び出し元の許した後工程に無い: ${raw.owner}`,
         );
     } else {
-      // waived（外す）と deferred（別の置き場へ回す）は、どちらも利用者の決定が要る。実装役が黙って決めない。
+      // waived（外す）と deferred（別の置き場へ回す）は、どちらも利用者の決定が要る。実装役が独断で決めない。
       const approval = raw.approval;
       if (
         !isObject(approval) ||
@@ -644,7 +645,7 @@ export function main(argv, deps = {}) {
     closable: result.closable,
     findings: result.findings,
     expected_fingerprint: result.expected_fingerprint,
-    // source: checklist の行の criterion はここから写す（描画後の文言。Markdown の記号やタグは落ちている）。
+    // source: checklist の行の criterion は、ここから転記する（描画した後の文言。Markdown の記号やタグは除かれている）。
     checklist_items: result.checklist_items,
     counts: { ...result.counts, findings: result.findings.length },
   });

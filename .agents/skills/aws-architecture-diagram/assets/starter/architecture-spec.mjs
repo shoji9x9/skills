@@ -16,8 +16,12 @@
 const W = 1540;
 const H = 860;
 
-// node: id, icon（iconDir 相対・拡張子なし。null は無地の箱）, label（複数行可）,
-//        x/y（中心）, lp（ラベル位置: top/bottom/left/right。線の出ていない辺へ寄せる）
+// node のキーは次のとおりである。
+// - `id`
+// - `icon`: iconDir からの相対パス（拡張子なし）。`null` なら無地の箱を描く。
+// - `label`: 複数行にできる。
+// - `x`・`y`: 中心の座標。
+// - `lp`: ラベルの位置（`top`・`bottom`・`left`・`right`）。線の出ていない辺に寄せる。
 const nodes = [
   { id: "browser", icon: "browser", label: ["ブラウザ（利用者）"], x: 90, y: 380, lp: "top" },
 
@@ -81,8 +85,9 @@ const nodes = [
   },
 ];
 
-// edge: from, to, label?, dashed?, waypoints?（経由点で他アイコン/ラベルを避けて直交配線）,
-//        labelAt?（ラベル中心の [x,y]。省略時は屈曲点を避けて自動配置されるので通常は不要）
+// edge のキーは `from`・`to`・`label`・`dashed`・`waypoints`・`labelAt` である（`from` と `to` 以外は省略できる）。
+// - `waypoints`: 経由点。他のアイコンやラベルを避けて、直交する線を引くために使う。
+// - `labelAt`: ラベルの中心の `[x, y]`。省略すると屈曲点を避けて自動で置くので、通常は要らない。
 const edges = [
   { from: "browser", to: "cf" },
   {

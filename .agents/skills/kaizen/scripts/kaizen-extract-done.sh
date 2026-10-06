@@ -1,29 +1,29 @@
 #!/usr/bin/env bash
 # kaizen extract-done marker（抽出完了の記録）
 #
-# 既定（抽出完了時にエージェントが呼び出す）: 対象セッションの未抽出センチネルを削除し、
-# transcript を渡されていれば処理位置 `.kaizen/.extract-checkpoint.<session key>` を transcript の
-# 現在の終端まで進める。以降のコミット前ゲート（kaizen-precommit-gate.sh）は、その位置より後の
-# 未処理範囲だけを走査する——1 本の branch で複数 commit しても、前回の抽出以降に積まれた活動が
-# 毎回検査される。
-# checkpoint を記録できなかった場合（transcript 未指定・読めない・書き込み失敗）だけ、抽出完了
-# マーカー `.kaizen/.extract-done.<session key>`（UTC タイムスタンプ）を書き、古い checkpoint は
-# 落とす（残すとゲートがマーカーを尊重せず、古い起点から同じ候補を再検出して止まり続ける）。
-# 差分走査の起点が無いと毎 commit が全走査＝恒久ブロックになるため、そのセッションのゲートを
-# 解除する fail safe。
-# ゲートはそのセッションのマーカーがある間、Stop フックによるセンチネル再装填を無視して commit を
-# 通す。マーカーはセッション開始時に kaizen-context-inject.sh（SessionStart フック）が削除する。
+# デフォルト（抽出の完了時にエージェントが呼び出す）では、対象のセッションの未抽出センチネルを削除する。
+# transcript を渡されていれば、処理位置 `.kaizen/.extract-checkpoint.<session key>` を transcript の
+# 現在の終わりまで進める。以降のコミット前のチェック（kaizen-precommit-gate.sh）は、その位置より後の
+# 未処理の範囲だけを走査する。1 本の branch で複数回 commit しても、前回の抽出の後にたまった活動を
+# 毎回チェックする。
+# checkpoint を記録できなかった場合（transcript の指定が無い・読めない・書き込みに失敗した）だけ、
+# 抽出完了マーカー `.kaizen/.extract-done.<session key>`（UTC タイムスタンプ）を書き、古い checkpoint は削除する。
+# 残すと、チェックがマーカーより checkpoint を優先し、古い起点から同じ候補を再検出して止まり続ける。
+# 差分を走査する起点が無いと、commit のたびに全体を走査してずっとブロックし続けるので、
+# そのセッションのチェックを解除する安全策である。
+# チェックは、そのセッションのマーカーがある間、Stop フックがセンチネルを立て直しても無視して commit を
+# 通す。マーカーは、セッションの開始時に kaizen-context-inject.sh（SessionStart フック）が削除する。
 #
 # `--session-id <id>`: 対象セッション（センチネルを立てた本人。自分自身とは限らない）。
 # センチネル・checkpoint・抽出完了マーカーはこの id で決まる key を名前に持つ。省略すると
 # session 単位化より前の agent 単位の名前（`.pending-extract<suffix>` 等）を対象にする（後方互換）。
 #
-# `--checkpoint-only`（ゲートが候補ゼロを検証できたときに呼ぶ）: transcript の処理位置
-# `.kaizen/.extract-checkpoint.<session key>` を走査器が報告した終端（`--scanned-bytes` /
-# `--scanned-lines`。どちらも必須）まで進め、対象セッションのセンチネルだけを削除する。
-# **`.extract-done` は書かない**——セッション全体を抽出済みにすると、以降に新しい活動が
-# 積まれても同一セッション内の commit が素通りしてしまうため。次の commit では checkpoint
-# 以降の未処理範囲だけが再走査される。
+# `--checkpoint-only` は、チェックが候補ゼロを確かめられたときに呼ぶ。
+# transcript の処理位置 `.kaizen/.extract-checkpoint.<session key>` を、スキャナが報告した終わりの位置
+# （`--scanned-bytes` / `--scanned-lines`。どちらも必須）まで進め、対象のセッションのセンチネルだけを削除する。
+# **`.extract-done` は書かない。** セッション全体を抽出済みにすると、その後に新しい活動が
+# たまっても、同じセッションの commit がチェックなしに通ってしまう。次の commit では、checkpoint
+# より後の未処理の範囲だけを走査し直す。
 #
 # 抽出完了の記録が済んだ後、適用されないまま閾値を過ぎた pending を `status: forgotten` にする
 # （同梱の kaizen-forget.sh へ委譲）。ここに置くのは、書き込む瞬間を「リポジトリを
@@ -33,12 +33,12 @@
 #（kaizen-stop-mark.sh の注記参照）。このスクリプトでプロジェクトルート基準に統一する。
 set -euo pipefail
 
-# .kaizen/ をプロジェクトルート基準で解決する（他の kaizen スクリプトと統一）。
-# CLAUDE_PROJECT_DIR 未設定かつ git ルートも解決できない（または cd に失敗する）場合は
-# cwd 基準に縮退する（他の kaizen スクリプトと同じ縮退）。ただしこのスクリプトの場合、
-# ゲートが見る .kaizen/ と別の場所へマーカーを書くとゲート解除が効かないため、
-# 縮退したことを stderr に警告して気づけるようにする（exit 0 のまま続行はする）。
-# cd する前に解決する（BASH_SOURCE は起動時の cwd 相対になり得るため）。
+# .kaizen/ の場所は、プロジェクトルートを基準に決める（他の kaizen のスクリプトと揃える）。
+# CLAUDE_PROJECT_DIR が未設定で git のルートも決められない（または cd に失敗する）場合は、
+# cwd を基準にする（他の kaizen のスクリプトと同じく、機能を減らして動く）。ただしこのスクリプトでは、
+# チェックが見る .kaizen/ と別の場所にマーカーを書くと、チェックを解除できない。
+# そこで、機能を減らして動いたことを stderr に警告し、気づけるようにする（exit 0 のまま続ける）。
+# cd する前に決める（BASH_SOURCE は起動時の cwd からの相対パスになりうるため）。
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || true)
 kaizen_lib="$(dirname "${BASH_SOURCE[0]}")/kaizen-hook-common.sh"
 # 共通ライブラリは同梱物。source 先を静的追跡できない旨の SC1091 は仕様どおりなので抑止する。
@@ -46,7 +46,7 @@ kaizen_lib="$(dirname "${BASH_SOURCE[0]}")/kaizen-hook-common.sh"
 if [ -r "${kaizen_lib}" ]; then
 	. "${kaizen_lib}"
 else
-	printf '%s: 共通ライブラリを読めないため縮退します: %s\n' "$(basename "${BASH_SOURCE[0]}")" "${kaizen_lib}" >&2
+	printf '%s: 共通ライブラリを読めないため、機能を減らして動きます: %s\n' "$(basename "${BASH_SOURCE[0]}")" "${kaizen_lib}" >&2
 fi
 
 if declare -f kaizen_resolve_project_root >/dev/null 2>&1; then
@@ -138,31 +138,31 @@ if [ "${mode}" = "checkpoint-only" ] && [ "${sentinel_suffix_set}" -ne 1 ]; then
 	echo "kaizen-extract-done: checkpoint-only requires --sentinel-suffix" >&2
 	exit 2
 fi
-# 走査済み位置はバイト位置と行数が対でしか意味を持たない（片方だけでは checkpoint の
-# 2 行目と 4 行目が別の地点を指す）。片方だけの指定は呼び出し側の誤りなので、黙って
-# 両方 wc へ縮退させず、モードに依らずここで落とす。
+# 走査済みの位置は、バイト位置と行数の対でしか意味を持たない（片方だけでは checkpoint の
+# 2 行目と 4 行目が別の地点を指す）。片方だけの指定は呼び出し側の誤りなので、警告なしに
+# 両方を wc で測り直すことはせず、モードに関わらずここでエラーにする。
 if { [ -n "${scanned_bytes}" ] && [ -z "${scanned_lines}" ]; } ||
 	{ [ -z "${scanned_bytes}" ] && [ -n "${scanned_lines}" ]; }; then
 	echo "kaizen-extract-done: --scanned-bytes and --scanned-lines must be given together" >&2
 	exit 2
 fi
-# checkpoint-only は「走査器が候補ゼロを検証できた範囲」を記録するためのモード。ここで
-# transcript を測り直すと、走査から呼び出しまでの間に追記されたレコードを検査しないまま
-# 処理済みにしてしまう（fail open）。走査器が出した終端位置を必須にして塞ぐ。
+# checkpoint-only は「スキャナが候補ゼロを確かめられた範囲」を記録するためのモードである。ここで
+# transcript を測り直すと、走査から呼び出しまでの間に追記されたレコードを、チェックしないまま
+# 処理済みにしてしまう。スキャナが出した終わりの位置を必須にして、これを防ぐ。
 if [ "${mode}" = "checkpoint-only" ] && { [ -z "${scanned_bytes}" ] || [ -z "${scanned_lines}" ]; }; then
 	echo "kaizen-extract-done: checkpoint-only requires --scanned-bytes and --scanned-lines from the scanner" >&2
 	exit 2
 fi
-# 逆向きも塞ぐ。抽出完了（--checkpoint-only なし）は transcript 全体を読んだ後の記録なので、
-# 走査器の終端を受け付ける理由が無い。受け付けると checkpoint を任意の位置へ進められ、
-# 未走査範囲を飛ばせてしまう（.extract-done と違い checkpoint はセッションをまたいで残る）。
+# 逆の向きも防ぐ。抽出の完了（--checkpoint-only なし）は transcript 全体を読んだ後の記録なので、
+# スキャナの終わりの位置を受け付ける理由が無い。受け付けると checkpoint を任意の位置へ進められ、
+# まだ走査していない範囲を飛ばせてしまう（.extract-done と違い、checkpoint はセッションをまたいで残る）。
 if [ "${mode}" != "checkpoint-only" ] && { [ -n "${scanned_bytes}" ] || [ -n "${scanned_lines}" ]; }; then
 	echo "kaizen-extract-done: --scanned-bytes / --scanned-lines require --checkpoint-only" >&2
 	exit 2
 fi
-# 制御ファイルは session 単位。session id を渡されない（または共通ライブラリを読めない）場合は
-# session 単位化より前の agent 単位の名前へ縮退する。縮退した状態で複数セッションを動かすと
-# 従来どおり奪い合うため、呼び出し側（ゲートの案内・references/extract.md）は常に渡す。
+# 制御ファイルは session 単位である。session id を渡されない（または共通ライブラリを読めない）場合は、
+# session 単位にする前の agent 単位の名前を使う（機能を減らして動く）。この状態で複数のセッションを動かすと
+# 以前と同じく奪い合うので、呼び出し側（チェックの案内・references/extract.md）は常に session id を渡す。
 session_key=""
 if declare -f kaizen_session_key >/dev/null 2>&1; then
 	session_key=$(kaizen_session_key "${session_id}")
@@ -179,18 +179,18 @@ else
 	done_path=".kaizen/.extract-done"
 fi
 
-# 制御ファイルは**このセッションのものが既に在るツリー**へ書く。置き場は作業ディレクトリから
-# 決まるため、同じセッションが共有ツリーと git worktree にまたがって続くと、センチネルと
-# checkpoint が別のツリーに散る。散ったままだと、ゲートは片方しか見つけられず
-# 「抽出済みの範囲を再検出してブロックし続ける」か「未抽出を素通りする」のどちらかに倒れる。
-# 既存の制御ファイルが見つからなければ従来どおり自分のツリー（cwd）へ書く。
+# 制御ファイルは、**このセッションのものが既に在るツリー**に書く。置き場は作業ディレクトリで
+# 決まるので、同じセッションが共有ツリーと git worktree にまたがって続くと、センチネルと
+# checkpoint が別のツリーに分かれる。分かれたままだと、チェックは片方しか見つけられず、
+# 「抽出済みの範囲を再検出してブロックし続ける」か「未抽出をチェックなしに通す」のどちらかになる。
+# 既存の制御ファイルが見つからなければ、これまでどおり自分のツリー（cwd）に書く。
 #
-# **探索順は checkpoint → 抽出完了マーカー → センチネル**。センチネルは Stop フックが
-# **そのターンの作業ツリー**へ立て直すため、置き場が cwd に従って動く。センチネルを先に見ると
-# checkpoint の置き場までそれに引きずられ、共有ツリーと worktree に**別々の offset を持つ
-# checkpoint が 1 つずつ残る**（実測）。ゲートは自分のツリーのものを先に読むので、古い方を
-# 掴んだ側は抽出済みの範囲を再検出して止まり続ける。置き場を決めるのは、セッションを跨いで
-# 残り連続性が要る checkpoint（次点でマーカー）にする。
+# **探す順は checkpoint → 抽出完了マーカー → センチネル**である。センチネルは Stop フックが
+# **そのターンの作業ツリー**に立て直すので、置き場が cwd に従って変わる。センチネルを先に見ると
+# checkpoint の置き場までそれに合わせて変わり、共有ツリーと worktree に**別々の offset を持つ
+# checkpoint が 1 つずつ残る**（実測）。チェックは自分のツリーのものを先に読むので、古い方を
+# 読んだ側は、抽出済みの範囲を再検出して止まり続ける。置き場は、セッションをまたいで残り、
+# 続けて使う必要がある checkpoint（その次にマーカー）で決める。
 control_dir=".kaizen"
 if declare -f kaizen_find_control_file >/dev/null 2>&1; then
 	control_found=$(kaizen_find_control_file "" "${checkpoint_path#.kaizen/}" 2>/dev/null) ||
@@ -206,7 +206,7 @@ checkpoint_path="${control_dir}/${checkpoint_path#.kaizen/}"
 done_path="${control_dir}/${done_path#.kaizen/}"
 
 # 制御ファイルを**全作業ツリー**から消す。名前は `.kaizen/` を含まないファイル名で渡す。
-# 1 ツリーだけ消すと、散った複製が残ってゲートの判定を狂わせる。
+# 1 つのツリーだけ消すと、他のツリーに分かれた複製が残り、チェックが誤って判定する。
 remove_control_file_everywhere() { # $1: 制御ファイル名
 	local name="${1:-}" dir
 	[ -n "${name}" ] || return 0
@@ -222,7 +222,7 @@ remove_control_file_everywhere() { # $1: 制御ファイル名
 mkdir -p "${control_dir}"
 
 # checkpoint を記録できたか。transcript を渡されない呼び出しでは下のブロックに入らないため、
-# `set -u` に落ちないようここで初期化する（0 のままなら「差分走査の起点が無い」を意味する）。
+# `set -u` でエラーにならないように、ここで初期化する（0 のままなら「差分を走査する起点が無い」を意味する）。
 checkpoint_written=0
 
 # PreToolUse が渡した transcript_path を受け取れる場合は、処理済みバイト位置を記録する。
@@ -232,22 +232,22 @@ if [ "${mode}" = "checkpoint-only" ] && { [ -z "${transcript}" ] || [ ! -r "${tr
 	exit 2
 fi
 if [ -n "${transcript}" ] && [ -r "${transcript}" ]; then
-	# mktemp が無い／失敗する環境でも、この後のセンチネル削除と .extract-done 記録まで
-	# 必ず到達させる。ここで set -e に中断されるとゲートを解除する手段が無くなり、
-	# commit が永久に止まる（ゲート解除はこのスクリプトだけが行う）。
+	# mktemp が無い・失敗する環境でも、この後のセンチネルの削除と .extract-done の記録まで
+	# 必ず進める。ここで set -e に中断されるとチェックを解除する手段が無くなり、
+	# commit がずっと止まる（チェックの解除は、このスクリプトだけが行う）。
 	checkpoint_tmp=$(mktemp 2>/dev/null) || checkpoint_tmp="${control_dir}/.extract-checkpoint.tmp.$$"
 	trap 'rm -f "${checkpoint_tmp}"' EXIT
-	# checkpoint の様式:
-	#   1 行目 transcript パス / 2 行目 バイト位置 / 3 行目 エージェント（空可）/ 4 行目 行数
-	# 3 行目は、新しいレコードが 1 件も無いときにレコードから判定できないエージェントを
-	# 持ち越すため。4 行目は走査器が根拠の絶対行番号を出すときの起点で、これが無いと
-	# 処理済み部分を毎回読み直すことになる（走査は O(差分) に保つ）。
-	# 行位置を固定するため、agent が空でも 3 行目は空行として書く。
-	# wc の出力は実装によって先頭に空白が入る。数値だけを書かないと読み側の
-	# `^[0-9]+$` 検証に落ち、offset が無視されて毎回全走査へ静かに退行する。
-	# 走査器から終端位置を渡された場合（checkpoint-only）はそれを使う。抽出完了
-	# （--checkpoint-only なし）は transcript 全体を読んだ後なので現在位置を測る。
-	# 採用条件にモードを含め、上の引数検査だけに依存しない（検査を後で緩めても穴が開かない）。
+	# checkpoint の形式は次のとおりである。
+	#   1 行目 transcript パス / 2 行目 バイト位置 / 3 行目 エージェント（空でもよい）/ 4 行目 行数
+	# 3 行目は、新しいレコードが 1 件も無いときに、レコードから判定できないエージェントを
+	# 引き継ぐためにある。4 行目は、スキャナが根拠の絶対行番号を出すときの起点で、これが無いと
+	# 処理済みの部分を毎回読み直すことになる（走査は O(差分) に保つ）。
+	# 行の位置を固定するため、agent が空でも 3 行目は空行として書く。
+	# wc の出力は、実装によって先頭に空白が入る。数値だけを書かないと読む側の
+	# `^[0-9]+$` の検証で不合格になり、offset が無視されて、エラーにならずに毎回全体を走査する形に戻る。
+	# スキャナから終わりの位置を渡された場合（checkpoint-only）は、それを使う。抽出の完了
+	# （--checkpoint-only なし）は transcript 全体を読んだ後なので、現在の位置を測る。
+	# 使うかどうかの条件にモードを含め、上の引数のチェックだけに依存しない（チェックを後で緩めても抜けができない）。
 	if [ "${mode}" = "checkpoint-only" ] && [ -n "${scanned_bytes}" ] && [ -n "${scanned_lines}" ]; then
 		checkpoint_bytes=${scanned_bytes}
 		checkpoint_lines=${scanned_lines}
@@ -266,8 +266,8 @@ if [ -n "${transcript}" ] && [ -r "${transcript}" ]; then
 	fi
 	if [ "${checkpoint_written}" -eq 0 ]; then
 		echo "kaizen-extract-done: checkpoint を記録できませんでした（次回は transcript を全走査します）" >&2
-		# checkpoint-only は checkpoint を進めること自体が目的。書けないのにセンチネルを
-		# 消すと未処理の活動を取りこぼすので、消さずに失敗させてゲートを fail closed に保つ。
+		# checkpoint-only は、checkpoint を進めることそのものが目的である。書けないのにセンチネルを
+		# 消すと未処理の活動を取りこぼすので、消さずに失敗させ、チェックが commit を止める状態を保つ。
 		if [ "${mode}" = "checkpoint-only" ]; then
 			exit 2
 		fi
@@ -275,32 +275,32 @@ if [ -n "${transcript}" ] && [ -r "${transcript}" ]; then
 fi
 if [ "${mode}" = "complete" ]; then
 	# `.extract-done` は**セッション全体**を抽出済みにする強い印なので、checkpoint を記録できた
-	# ときは書かない。書くと同一セッション内の後続 commit が素通りし、1 本の branch で複数
-	# commit する運用では最初の commit までの活動しか抽出されない。
-	# checkpoint があれば、次の commit ではその位置より後の未処理範囲だけが再走査され、
-	# 候補ゼロなら自動で通り、候補があればブロックされる——取りこぼしも恒久ブロックも起きない。
-	# 逆に checkpoint を記録できなかった場合（transcript 未指定・読めない・書き込み失敗）は、
-	# 差分走査の起点が無く再走査が毎回全走査＝毎 commit ブロックになるため、従来どおり
-	# マーカーを書いてゲートを解除する（fail safe。セッション開始時に SessionStart が失効させる）。
+	# ときは書かない。書くと、同じセッションの後の commit がチェックなしに通り、1 本の branch で複数回
+	# commit する運用では、最初の commit までの活動しか抽出されない。
+	# checkpoint があれば、次の commit ではその位置より後の未処理の範囲だけを走査し直す。
+	# 候補ゼロなら自動で通り、候補があればブロックされるので、取りこぼしも、ずっと続くブロックも起きない。
+	# 逆に、checkpoint を記録できなかった場合（transcript の指定が無い・読めない・書き込みに失敗した）は、
+	# 差分を走査する起点が無く、毎回全体を走査して commit のたびにブロックする。
+	# そこで、これまでどおりマーカーを書いてチェックを解除する（安全策。セッションの開始時に SessionStart が無効にする）。
 	if [ "${checkpoint_written}" -eq 1 ]; then
-		# 同一セッションで先に checkpoint 無しの完了があった場合の古いマーカーを失効させる。
-		# 残すとゲート側が素通りへ倒れ、いま記録した checkpoint 以降の活動を取りこぼす。
+		# 同じセッションで先に checkpoint 無しの完了があった場合に残る、古いマーカーを無効にする。
+		# 残すとチェックが commit をそのまま通し、いま記録した checkpoint より後の活動を取りこぼす。
 		remove_control_file_everywhere "${done_path##*/}"
 	else
 		date -u '+%Y-%m-%dT%H:%M:%SZ' >"${done_path}"
-		# 古い checkpoint を残すとゲートがマーカーを尊重せず（「checkpoint がある間は覆わない」）、
-		# いま抽出したばかりの範囲を古い起点から再走査して同じ候補で再びブロックする。
-		# 抽出をやり直しても checkpoint を記録できない限り同じ状態に戻るため、fail safe が
-		# 効かないまま commit が止まり続ける。上の警告どおり「次回は全走査」に倒すため、
-		# マーカーを書けた後に差分走査の起点も落として整合させる。
-		# **落とすのは全作業ツリーぶん。** 既存インストールでは同じ key の checkpoint が
-		# 本体と worktree に散っていることがあり（この変更が直そうとしている状態そのもの）、
-		# 1 つだけ消すと残ったほうをゲートが見つけて fail safe を無効化する（実測）。
+		# 古い checkpoint を残すと、チェックがマーカーより checkpoint を優先し（「checkpoint がある間はマーカーで上書きしない」）、
+		# いま抽出したばかりの範囲を古い起点から走査し直して、同じ候補で再びブロックする。
+		# 抽出をやり直しても、checkpoint を記録できない限り同じ状態に戻るので、安全策が
+		# 機能しないまま commit が止まり続ける。上の警告どおり「次回は全体を走査する」形にするため、
+		# マーカーを書けた後に、差分を走査する起点も削除して揃える。
+		# **削除はすべての作業ツリーで行う。** 既存のインストールでは、同じ key の checkpoint が
+		# 本体と worktree に分かれていることがある（この変更が直そうとしている状態そのもの）。
+		# 1 つだけ消すと、残った方をチェックが見つけて、安全策を無効にする（実測）。
 		remove_control_file_everywhere "${checkpoint_path##*/}"
 	fi
 fi
-# センチネルの削除は**リポジトリの全作業ツリー**に対して行う。ゲートも全ツリーを見て遮断するので、
-# 自分のツリーだけ消すと別ツリーに残ったセンチネルでブロックが続く。
+# センチネルの削除は、**リポジトリのすべての作業ツリー**に対して行う。チェックもすべてのツリーを見て止めるので、
+# 自分のツリーだけ消すと、別のツリーに残ったセンチネルでブロックが続く。
 kaizen_dirs=()
 if declare -f kaizen_worktree_kaizen_dirs >/dev/null 2>&1; then
 	while IFS= read -r -d '' kaizen_dir; do
@@ -316,9 +316,9 @@ for kaizen_dir in "${kaizen_dirs[@]}"; do
 	if [ "${sentinel_suffix_set}" -eq 1 ]; then
 		targets=("${kaizen_dir}/${sentinel_name}")
 	else
-		# 引数なしの既存利用は後方互換のため全センチネルを完了扱いにする。他エージェント・
-		# 他セッションのシグナルまで消すため、マルチエージェント／複数セッション環境では
-		# --sentinel-suffix と --session-id を必ず使う（ゲートの案内は常に両方を含める）。
+		# 引数なしの呼び出しは、後方互換のため、すべてのセンチネルを完了として扱う。他のエージェントや
+		# 他のセッションのシグナルまで消すので、マルチエージェントや複数セッションの環境では
+		# --sentinel-suffix と --session-id を必ず使う（チェックの案内は常に両方を含める）。
 		targets=("${kaizen_dir}"/.pending-extract*)
 	fi
 	for target in "${targets[@]}"; do
@@ -338,23 +338,23 @@ fi
 
 # 適用されないまま古くなった pending を自動で忘却する。
 #
-# **発火点をここに置く理由は、書き込む瞬間を「リポジトリを変更する意思が確定した時点」に
-# 揃えるため。** SessionStart に置くと、リポジトリを変更するつもりのない調査だけのセッションでも
-# 追跡ファイルが書き換わり、しかもその差分は未ステージで残るので、clean 確認を持つ工程
+# **実行する位置をここに置くのは、書き込む時点を「リポジトリを変更する意思が決まった時点」に
+# 揃えるためである。** SessionStart に置くと、リポジトリを変更するつもりのない調査だけのセッションでも
+# 追跡しているファイルが書き換わる。しかもその差分は未ステージのまま残るので、clean を確かめる工程
 # （`git-worktree` の後片付け、`issue-batch` の収束）がそこで止まる。
 # ここは「学びを 1 件記録し終えた直後」で、呼び出し側はこの後 `.kaizen/` を stage して
-# commit を再実行する——忘却の差分も新しいノートと同じ commit に収まり、ツリーは clean に戻る。
-# 台帳へ 1 件足した瞬間に反対側から 1 件落ちる、という対称性も自然。
+# commit を実行し直す。忘却の差分も新しいノートと同じ commit に入り、ツリーは clean に戻る。
+# 台帳に 1 件足したときに、反対側から 1 件外れるという対称な形にもなる。
 #
-# **センチネル解消の後に置く。** 掃引が失敗しても抽出完了の記録は済んでいる必要がある
-# （ここで止めると、抽出したのにゲートが解除されず commit できない恒久ブロッカーになる）。
-# 同じ理由で失敗はすべて握り潰し、exit 0 を維持する。
+# **センチネルを解消した後に置く。** 掃引が失敗しても、抽出の完了の記録は済んでいる必要がある
+# （ここで止めると、抽出したのにチェックが解除されず、commit がずっとできなくなる）。
+# 同じ理由で、失敗はすべて握りつぶし、exit 0 を保つ。
 #
-# **`complete` に限る。** `--checkpoint-only` はゲートが `git commit` の PreToolUse で
-# 「候補ゼロを検証できた」ことを記録するために呼ぶ経路で、学びは 1 件も記録されていない。
+# **`complete` に限る。** `--checkpoint-only` は、チェックが `git commit` の PreToolUse で
+# 「候補ゼロを確かめられた」ことを記録するために呼ぶもので、学びは 1 件も記録されていない。
 # ここで掃引すると、ユーザーが `git add` を済ませた状態の追跡ファイルを書き換えて
-# **未ステージ差分を残す**——この発火点が避けようとした dirty tree そのものになる。
-# しかもゲートは出力を変数へ取り込んで非 0 のときしか出さないので、何を忘れたかも伝わらない。
+# **未ステージの差分を残す**。この実行位置で避けようとした dirty tree そのものになる。
+# しかもチェックは出力を変数に取り込んで、0 以外のときしか出さないので、何を忘れたかも伝わらない。
 if [ "${mode}" = "complete" ] && [ -n "${script_dir}" ] && [ -r "${script_dir}/kaizen-forget.sh" ]; then
 	# **終了コードは握り潰すが、診断は捨てない。** 忘却側は「0 件」と「判定不能・書き込み失敗」を
 	# 区別するために stderr へ理由を出す（`今日の日付を〜`、`skip (could not write the note)`）。
@@ -368,7 +368,7 @@ if [ "${mode}" = "complete" ] && [ -n "${script_dir}" ] && [ -r "${script_dir}/k
 		forgotten_notes=$(bash "${script_dir}/kaizen-forget.sh" --auto || true)
 	fi
 	if [ -n "${forgotten_notes}" ]; then
-		# 黙って忘れない。何を忘れたかを出しておかないと、注入から消えたことに気づけず、
+		# 警告なしに忘れない。何を忘れたかを出しておかないと、注入から消えたことに気づけず、
 		# 戻す判断（閾値の調整・status を pending へ戻す）ができない。
 		{
 			printf 'kaizen-extract-done: 適用されないまま閾値を過ぎた学びを忘却しました（status: forgotten。以降は SessionStart 注入に載りません）:\n'
