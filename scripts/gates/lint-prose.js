@@ -75,13 +75,13 @@ export function listTargets(root) {
  */
 async function lintComments(linter, root, rel) {
   const abs = join(root, rel);
-  const { markdown, lines, columns } = commentMarkdown(rel, readFileSync(abs, "utf8"));
+  const { markdown, lines, columns, starts } = commentMarkdown(rel, readFileSync(abs, "utf8"));
   if (!markdown) return [];
   const result = await linter.lintText(markdown, `${abs}.md`);
   return result.messages.map((m) => ({
     ...m,
     line: lines[m.line - 1] + 1,
-    column: columns[m.line - 1] + m.column,
+    column: Math.max(starts[m.line - 1], columns[m.line - 1] + m.column),
     // sentence-length は Markdown の行番号を本文に書くので、元のファイルの行と食い違う。番号を外す。
     message: m.message.replace(/^Line \d+ /, ""),
   }));

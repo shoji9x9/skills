@@ -168,23 +168,26 @@
       "id": "CC-JSDOC",
       "why": "JSDoc のタグと型をインラインコードにしない",
       "file": "scripts/lib/code-comments.js",
-      "find": "  if (!tag) return { text, column };",
-      "replace": "  return { text, column };",
+      "find": "  if (!tag) return { text, column, depth: 0 };",
+      "replace": "  return { text, column, depth: 0 };",
       "occurrences": 1,
       "expect_failing": [
-        "JavaScript・TypeScript JSDoc のタグと型はインラインコードにし、説明は文章のまま残す",
-        "JavaScript・TypeScript 型の括弧が同じ行で閉じなければ、タグだけをインラインコードにする"
+        "JavaScript・TypeScript JSDoc のタグと型はタグの名前のインラインコードにし、タグの行ごとに段落を分ける",
+        "JavaScript・TypeScript 型の括弧が次の行以降で閉じるなら、閉じるところまでを型として置き換える"
       ]
     },
     {
       "id": "CC-JSDOC-BRACE",
-      "why": "JSDoc の型の括弧を探さず、タグだけを囲む",
+      "why": "JSDoc の型の閉じ括弧を探さない（型を行の終わりまで読む）",
       "file": "scripts/lib/code-comments.js",
-      "find": "        end = i + 1;\n",
+      "find": "    else if (text[i] === \"}\" && --depth === 0) return { end: i + 1, depth: 0 };",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "JavaScript・TypeScript JSDoc のタグと型はインラインコードにし、説明は文章のまま残す"
+        "JavaScript・TypeScript JSDoc のタグと型はタグの名前のインラインコードにし、タグの行ごとに段落を分ける",
+        "JavaScript・TypeScript 型の括弧が次の行以降で閉じるなら、閉じるところまでを型として置き換える",
+        "JavaScript・TypeScript 位置: 型の続きの行の後ろの文章も、元の行と桁に戻す",
+        "JavaScript・TypeScript 位置: JSDoc のタグの後ろの文章も、元の行と桁に戻す"
       ]
     },
     {
@@ -207,8 +210,8 @@
       "occurrences": 1,
       "expect_failing": [
         "JavaScript・TypeScript 行コメントとブロックコメントを取り出し、記号を外す",
-        "JavaScript・TypeScript JSDoc のタグと型はインラインコードにし、説明は文章のまま残す",
-        "JavaScript・TypeScript 型の括弧が同じ行で閉じなければ、タグだけをインラインコードにする",
+        "JavaScript・TypeScript JSDoc のタグと型はタグの名前のインラインコードにし、タグの行ごとに段落を分ける",
+        "JavaScript・TypeScript 型の括弧が次の行以降で閉じるなら、閉じるところまでを型として置き換える",
         "JavaScript・TypeScript コメントの中の空行で段落を分ける"
       ]
     },
@@ -298,12 +301,13 @@
     },
     {
       "id": "CC-JSDOC-COLUMN",
-      "why": "JSDoc のタグを囲んだ分の桁を戻さない",
+      "why": "JSDoc の型を置き換えた分の桁を戻さない",
       "file": "scripts/lib/code-comments.js",
-      "find": "  return { text: wrapped, column: column - (wrapped.length - text.length) };",
-      "replace": "  return { text: wrapped, column };",
+      "find": "  return { text: replaced, column: column - (replaced.length - text.length), start: column + 1 };",
+      "replace": "  return { text: replaced, column, start: column + 1 };",
       "occurrences": 1,
       "expect_failing": [
+        "JavaScript・TypeScript 位置: 型の続きの行の後ろの文章も、元の行と桁に戻す",
         "JavaScript・TypeScript 位置: JSDoc のタグの後ろの文章も、元の行と桁に戻す"
       ]
     },
@@ -364,6 +368,50 @@
       "expect_failing": [
         "YAML フローの配列 の引用の中の # はコメントにしない",
         "YAML フローの区切りの後 の引用の中の # はコメントにしない"
+      ]
+    },
+    {
+      "id": "CC-TAG-PARAGRAPH",
+      "why": "JSDoc のタグの行を前の行と 1 段落にする",
+      "file": "scripts/lib/code-comments.js",
+      "find": "      !piece.tag &&\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "JavaScript・TypeScript JSDoc のタグと型はタグの名前のインラインコードにし、タグの行ごとに段落を分ける"
+      ]
+    },
+    {
+      "id": "CC-JSDOC-SCOPE",
+      "why": "/** 以外のコメントの行頭の @ もタグとして扱う",
+      "file": "scripts/lib/code-comments.js",
+      "find": "      if (open === \"/**\") {",
+      "replace": "      if (true) {",
+      "occurrences": 1,
+      "expect_failing": ["JavaScript・TypeScript /** 以外のコメントの行頭の @ はタグとして扱わない"]
+    },
+    {
+      "id": "CC-TYPE-CONTINUATION",
+      "why": "次の行に続く型を文章として読む",
+      "file": "scripts/lib/code-comments.js",
+      "find": "          typeDepth > 0\n",
+      "replace": "          false\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "JavaScript・TypeScript 型の括弧が次の行以降で閉じるなら、閉じるところまでを型として置き換える"
+      ]
+    },
+    {
+      "id": "CC-SEPARATOR",
+      "why": "区切りの行を前後の行と 1 段落にする",
+      "file": "scripts/lib/code-comments.js",
+      "find": "      !isSeparator(previous) &&\n      !isSeparator(piece) &&\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "JavaScript・TypeScript 区切りの行（両側の記号）は前後の行と別の段落にする",
+        "JavaScript・TypeScript 区切りの行（記号だけ）は前後の行と別の段落にする",
+        "JavaScript・TypeScript 区切りの行（後ろの記号）は前後の行と別の段落にする"
       ]
     }
   ]

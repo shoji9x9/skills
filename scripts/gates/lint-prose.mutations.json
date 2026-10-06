@@ -126,7 +126,8 @@
         "陰性: 文字列の中の語と、日本語を含まないコメントは検出しない",
         "コメントの textlint-disable で囲んだ箇所だけを除外する",
         "文の長さの指摘に、Markdown の行番号を残さない",
-        "陰性: コメントの指摘も、保留したファイルなら数えず、0 件になったら外すよう求める"
+        "陰性: コメントの指摘も、保留したファイルなら数えず、0 件になったら外すよう求める",
+        "JSDoc のタグの行の指摘も、元の行の文章より前の桁を指さない"
       ]
     },
     {
@@ -139,15 +140,16 @@
       "expect_failing": [
         "陽性: コメントの指摘を、元のファイルの行と桁で報告する",
         "コメントの textlint-disable で囲んだ箇所だけを除外する",
-        "文の長さの指摘に、Markdown の行番号を残さない"
+        "文の長さの指摘に、Markdown の行番号を残さない",
+        "JSDoc のタグの行の指摘も、元の行の文章より前の桁を指さない"
       ]
     },
     {
       "id": "LP-COMMENT-COLUMN",
       "why": "コメントの指摘の桁を、元のファイルの桁に戻さない",
       "file": "scripts/gates/lint-prose.js",
-      "find": "    column: columns[m.line - 1] + m.column,\n",
-      "replace": "    column: m.column,\n",
+      "find": "    column: Math.max(starts[m.line - 1], columns[m.line - 1] + m.column),\n",
+      "replace": "    column: Math.max(starts[m.line - 1], m.column),\n",
       "occurrences": 1,
       "expect_failing": ["陽性: コメントの指摘を、元のファイルの行と桁で報告する"]
     },
@@ -159,6 +161,15 @@
       "replace": "    message: m.message,\n",
       "occurrences": 1,
       "expect_failing": ["文の長さの指摘に、Markdown の行番号を残さない"]
+    },
+    {
+      "id": "LP-COLUMN-CLAMP",
+      "why": "置き換えた JSDoc のタグの中の指摘が、行の文章より前の桁を指す",
+      "file": "scripts/gates/lint-prose.js",
+      "find": "    column: Math.max(starts[m.line - 1], columns[m.line - 1] + m.column),\n",
+      "replace": "    column: columns[m.line - 1] + m.column,\n",
+      "occurrences": 1,
+      "expect_failing": ["JSDoc のタグの行の指摘も、元の行の文章より前の桁を指さない"]
     }
   ]
 }

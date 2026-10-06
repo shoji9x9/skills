@@ -72,17 +72,31 @@ describe("JavaScript・TypeScript", () => {
     expect(paragraphs("a.ts", src)).toEqual(["型の説明。"]);
   });
 
-  test("JSDoc のタグと型はインラインコードにし、説明は文章のまま残す", () => {
+  test("JSDoc のタグと型はタグの名前のインラインコードにし、タグの行ごとに段落を分ける", () => {
     const src =
-      "/**\n * 説明。\n * @param {{ a?: string }} options 渡す値。\n * @returns 結果。\n */\n";
+      "/**\n * 説明。\n * @param {{ a?: string }} options 渡す値\n *   続きの説明\n * @returns 結果\n */\n";
     expect(paragraphs("a.js", src)).toEqual([
-      "説明。\n`` @param {{ a?: string }} `` options 渡す値。\n`` @returns `` 結果。",
+      "説明。",
+      "`@param` options 渡す値\n  続きの説明",
+      "`@returns` 結果",
     ]);
   });
 
-  test("型の括弧が同じ行で閉じなければ、タグだけをインラインコードにする", () => {
-    const src = "/**\n * @typedef {{\n *   a: string 説明。\n * }} T\n */\n";
-    expect(paragraphs("a.js", src)[0].split("\n")[0]).toBe("`` @typedef `` {{");
+  test("/** 以外のコメントの行頭の @ はタグとして扱わない", () => {
+    expect(paragraphs("a.js", "// @import の説明。\n/* @see の説明。 */\n")).toEqual([
+      "@import の説明。\n@see の説明。",
+    ]);
+  });
+
+  test("型の括弧が次の行以降で閉じるなら、閉じるところまでを型として置き換える", () => {
+    const src =
+      "/**\n * @returns {{ a: string,\n *   b: { c: number } }} 結果の説明\n * 続きの説明。\n */\n";
+    expect(paragraphs("a.js", src)).toEqual(["`@returns`\n`型` 結果の説明\n続きの説明。"]);
+  });
+
+  test("位置: 型の続きの行の後ろの文章も、元の行と桁に戻す", () => {
+    const src = "/**\n * @param {{\n *   a: string }} options 後ろの語\n */\n";
+    expect(locate("a.js", src, "後ろの語")).toEqual(sourcePosition(src, "後ろの語"));
   });
 
   test("続く行は 1 段落、間にコードの行があれば別の段落にする", () => {
@@ -93,6 +107,16 @@ describe("JavaScript・TypeScript", () => {
   test("行の後ろのコメントは、前後のコメントと別の段落にする", () => {
     const src = "// 前の説明。\nconst a = 1; // 後ろの説明。\n// 次の説明。\n";
     expect(paragraphs("a.js", src)).toEqual(["前の説明。", "後ろの説明。", "次の説明。"]);
+  });
+
+  test.each([
+    ["両側の記号", "// --- 設定の解決 ---"],
+    ["記号だけ", "// ======"],
+    ["後ろの記号", "// 設定の解決 ----"],
+  ])("区切りの行（%s）は前後の行と別の段落にする", (_, rule) => {
+    const got = paragraphs("a.js", `// 前の説明。\n${rule}\n// 次の説明。\n`);
+    expect(got).toContain("前の説明。");
+    expect(got).toContain("次の説明。");
   });
 
   test("コメントの中の空行で段落を分ける", () => {

@@ -48,16 +48,22 @@ const JAPANESE = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u;
  *
  * 続けて書いたコメントの行を 1 つの段落にし、段落の間に空行を置く。
  * 行の後ろに書いたコメントは、それだけで 1 つの段落にする（隣の行のコメントと 1 文につながらないように）。
+ * JSDoc のタグの行（`@param` など）も、新しい段落として始める。タグの説明は `。` で終えないことが多く、
+ * 前後の行と 1 文につながって文の長さを誤って数えるためである。
+ * 記号で始まるか終わる区切りの行（`--- 設定の解決 ---`・`=====` など）は、見出しとして 1 つの段落にする。
  * 日本語の文字を含まない段落は入れない。規約は日本語の文章を対象にしていて、英語のコメントや
  * ディレクティブ（`shellcheck disable=...` など）に日本語の規則を当てると誤検知になる。
  *
- * @returns {{ markdown: string, lines: number[], columns: number[] }}
- *   lines[i] と columns[i] は、Markdown の i 行目（0 始まり）が元のファイルの何行目・何文字目（どちらも 0 始まり）か
+ * @returns {{ markdown: string, lines: number[], columns: number[], starts: number[] }}
+ *   Markdown の i 行目（0 始まり）について、lines[i] は元のファイルの行（0 始まり）。
+ *   Markdown の桁 c（1 始まり）は、元のファイルの桁 columns[i] + c に当たる。
+ *   starts[i] は文章が元の行で始まる桁（1 始まり）。囲んだ JSDoc のタグの中の指摘は、この桁より前を指さない
  */
 export function commentMarkdown(path, source) {
   const extract = EXTRACTORS[extOf(path)];
   if (!extract) throw new Error(`${path}: コメントを取り出せない拡張子`);
   const directiveOf = (piece) => piece.text.trim().match(/^textlint-(disable|enable)$/)?.[1];
+  const isSeparator = (piece) => /^[-=─━#*]{3,}|[-=─━#*]{3,}$/.test(piece.text.trim());
   const blocks = [];
   let previous;
   for (const piece of extract(source, path)) {
@@ -67,6 +73,9 @@ export function commentMarkdown(path, source) {
       !piece.trailing &&
       !directiveOf(previous) &&
       !directiveOf(piece) &&
+      !piece.tag &&
+      !isSeparator(previous) &&
+      !isSeparator(piece) &&
       piece.line === previous.line + 1;
     if (joins) blocks.at(-1).push(piece);
     else blocks.push([piece]);
@@ -75,19 +84,21 @@ export function commentMarkdown(path, source) {
   const md = [];
   const lines = [];
   const columns = [];
-  const emit = (text, line, column) => {
+  const starts = [];
+  const emit = (text, line, column, start = column + 1) => {
     md.push(text);
     lines.push(line);
     columns.push(column);
+    starts.push(start);
   };
   for (const block of blocks) {
     const directive = directiveOf(block[0]);
     if (!directive && !block.some((p) => JAPANESE.test(p.text))) continue;
     if (md.length) emit("", block[0].line, 0);
     if (directive) emit(`<!-- textlint-${directive} -->`, block[0].line, 0);
-    else for (const p of block) emit(p.text, p.line, p.column);
+    else for (const p of block) emit(p.text, p.line, p.column, p.start);
   }
-  return { markdown: md.join("\n"), lines, columns };
+  return { markdown: md.join("\n"), lines, columns, starts };
 }
 
 /** 1 行の中の位置（0 始まり）を、行と桁に直す表。 */
@@ -130,7 +141,8 @@ function jsComments(source, path) {
       const m = raw.match(/^\/\/ ?/);
       pieces.push({
         line: first,
-        ...jsdocTypeAsCode(raw.slice(m[0].length), r.pos - starts[first] + m[0].length),
+        column: r.pos - starts[first] + m[0].length,
+        text: raw.slice(m[0].length),
         trailing: afterCode(source, starts[first], r.pos),
       });
       continue;
@@ -139,13 +151,30 @@ function jsComments(source, path) {
     // `/**/` の `/**` を開始として読まない（残った `/` が本文になる）。
     const open = raw.match(/^\/\*(?:\*(?!\/))?/)[0];
     const body = " ".repeat(open.length) + raw.slice(open.length).replace(/\*\/$/, "");
+    let typeDepth = 0;
     body.split("\n").forEach((part, i) => {
       const lead = i === 0 ? part.match(/^\s*/) : part.match(/^\s*(?:\*(?!\*) ?)?/);
       const text = part.slice(lead[0].length).trimEnd();
       if (!text) return;
       const column = i === 0 ? r.pos - starts[first] + lead[0].length : lead[0].length;
       const trailing = i === 0 && afterCode(source, starts[first], r.pos);
-      pieces.push({ line: first + i, ...jsdocTypeAsCode(text, column), trailing });
+      // JSDoc のタグは `/**` のコメントにだけ書く。`//` や `/*` の行頭の `@` は文章として読む。
+      let piece = { text, column };
+      if (open === "/**") {
+        piece =
+          typeDepth > 0
+            ? typeContinuationAsCode(text, column, typeDepth)
+            : jsdocTypeAsCode(text, column);
+        typeDepth = piece.depth;
+      }
+      pieces.push({
+        line: first + i,
+        text: piece.text,
+        column: piece.column,
+        start: piece.start,
+        tag: piece.tag,
+        trailing,
+      });
     });
   }
   return pieces;
@@ -157,29 +186,43 @@ function afterCode(source, lineStart, pos) {
 }
 
 /**
- * JSDoc のタグと型（`@param {{ root: string }}` など）をインラインコードにする。
- * 型の `?` や `|` を文章として数えないためである。型の括弧が同じ行で閉じなければ、タグだけを囲む。
- * 囲んだ分だけ文章が右へずれるので、桁を同じ分だけ左へずらして返す（指摘の桁が元のファイルの桁に戻る）。
- * @returns {{ text: string, column: number }}
+ * JSDoc のタグと型（`@param {{ root: string }}` など）を、タグの名前だけのインラインコード（`` `@param` ``）に置き換える。
+ * 型の `?` や `|` を文章として数えないためである。型を残すと、インラインコードの中の文字も文の長さに数えられる。
+ * 型の括弧が同じ行で閉じなければ、行の終わりまでを型として置き換え、閉じていない括弧の数を depth で返す。
+ * 次の行からは、括弧が閉じるまでを typeContinuationAsCode が置き換える。
+ * 置き換えで文章の位置がずれるので、桁を同じ分だけずらして返す（指摘の桁が元のファイルの桁に戻る）。
+ * start は文章が元の行で始まる桁（1 始まり）、tag はタグの行かどうか。
+ * @returns {{ text: string, column: number, start?: number, tag?: boolean, depth: number }}
  */
 function jsdocTypeAsCode(text, column) {
   const tag = text.match(/^@\w+/);
-  if (!tag) return { text, column };
-  let end = tag[0].length;
-  const open = text.slice(end).match(/^\s*\{/);
-  if (open) {
-    let depth = 0;
-    for (let i = end + open[0].length - 1; i < text.length; i++) {
-      if (text[i] === "{") depth++;
-      else if (text[i] === "}" && --depth === 0) {
-        end = i + 1;
-        break;
-      }
-    }
+  if (!tag) return { text, column, depth: 0 };
+  const open = text.slice(tag[0].length).match(/^\s*\{/);
+  const { end, depth } = open
+    ? closingBrace(text, tag[0].length + open[0].length - 1, 0)
+    : { end: tag[0].length, depth: 0 };
+  return { ...replaceWithCode(text, end, column, tag[0]), tag: true, depth };
+}
+
+/** 前の行から続く型の行を、括弧が閉じるところまで `` `型` `` に置き換える。 */
+function typeContinuationAsCode(text, column, depth) {
+  const closed = closingBrace(text, 0, depth);
+  return { ...replaceWithCode(text, closed.end, column, "型"), depth: closed.depth };
+}
+
+/** from から読み、括弧の深さが 0 に戻った直後の位置を返す。行の中で戻らなければ、行の長さと残りの深さを返す。 */
+function closingBrace(text, from, depth) {
+  for (let i = from; i < text.length; i++) {
+    if (text[i] === "{") depth++;
+    else if (text[i] === "}" && --depth === 0) return { end: i + 1, depth: 0 };
   }
-  // 型に `` ` `` を含んでもインラインコードが閉じないように、2 つのバッククォートと空白で囲む。
-  const wrapped = `\`\` ${text.slice(0, end)} \`\`${text.slice(end)}`;
-  return { text: wrapped, column: column - (wrapped.length - text.length) };
+  return { end: text.length, depth };
+}
+
+/** 先頭から end までを、label だけのインラインコードに置き換える。 */
+function replaceWithCode(text, end, column, label) {
+  const replaced = `\`${label}\`${text.slice(end)}`;
+  return { text: replaced, column: column - (replaced.length - text.length), start: column + 1 };
 }
 
 /** YAML の `#` がコメントの始まりか（行頭か、空白の直後）。 */

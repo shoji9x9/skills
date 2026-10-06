@@ -207,6 +207,16 @@ test("コメントの textlint-disable で囲んだ箇所だけを除外する",
   expect(violations[0]).toMatch(/^a\.js:5:/);
 });
 
+test("JSDoc のタグの行の指摘も、元の行の文章より前の桁を指さない", async () => {
+  // 文の長さの指摘は文の先頭（囲んだタグの中）を指す。囲んだ分を戻しても、行の文章の先頭より前にしない。
+  const long = "ファイルを読んで中身を確かめてから結果を返す".repeat(8);
+  const root = makeRepo({ "a.js": `/**\n * @returns ${long}\n */\n` });
+  const lengths = (await lintProse({ root })).violations.filter((v) =>
+    v.includes("sentence-length"),
+  );
+  expect(lengths.map((v) => v.split(" ")[0])).toEqual(["a.js:2:4"]);
+});
+
 test("文の長さの指摘に、Markdown の行番号を残さない", async () => {
   // 1 行目を空けて、Markdown の行番号（1）と元の行番号（3）をずらす。
   const long = "ファイルを読んで中身を確かめてから結果を返す".repeat(8);
