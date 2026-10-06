@@ -239,7 +239,10 @@ function startsComment(line, i) {
   return i === 0 || /\s/.test(line[i - 1]);
 }
 
-/** PATH ごとに、shfmt を起動できるかを 1 回だけ確かめた結果（エラーの文、または null）。 */
+/**
+ * PATH とカレントディレクトリの組ごとに、shfmt を起動できるかを 1 回だけ確かめた結果（エラーの文、または null）。
+ * mise の shim が版を解決できるかは、カレントディレクトリ（mise.toml があるか）でも変わる。
+ */
 const shfmtProblems = new Map();
 
 /**
@@ -248,7 +251,7 @@ const shfmtProblems = new Map();
  * 解析の失敗と同じ形になるので、解析の前にツールの有無だけを分けて確かめる。
  */
 function shfmtProblem() {
-  const key = process.env.PATH ?? "";
+  const key = `${process.env.PATH ?? ""}\0${process.cwd()}`;
   if (!shfmtProblems.has(key)) {
     let problem = null;
     try {

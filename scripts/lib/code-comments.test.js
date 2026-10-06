@@ -13,6 +13,7 @@
 // | ディレクティブ       | textlint-disable・enable（単独の行 / 段落の途中）                                       |
 // | 位置                 | 行番号・桁（行コメント / `/**` / ` * ` / シェル / YAML）                                  |
 import { describe, expect, test } from "vitest";
+import { execFileSync } from "node:child_process";
 import { chmodSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { COMMENT_EXTENSIONS, commentMarkdown, hasComments } from "./code-comments.js";
@@ -291,6 +292,34 @@ describe("シェル", () => {
       expect(caught?.message).toContain("shfmt を起動できない");
     },
   );
+
+  test("shfmt を起動できるかは、カレントディレクトリごとに確かめ直す", () => {
+    // ok のあるディレクトリでだけ起動できる shim（mise の shim が mise.toml の有無で変わるのをまねる）。
+    const real = execFileSync("mise", ["which", "shfmt"], { encoding: "utf8" }).trim();
+    const bin = makeTempDir("shfmt-cwd-shim-");
+    writeFileSync(
+      join(bin, "shfmt"),
+      `#!/bin/sh\n[ -f ok ] || { echo 'mise ERROR' >&2; exit 1; }\nexec "${real}" "$@"\n`,
+    );
+    chmodSync(join(bin, "shfmt"), 0o755);
+    const good = makeTempDir("shfmt-good-");
+    writeFileSync(join(good, "ok"), "");
+    const bad = makeTempDir("shfmt-bad-");
+    const cwd = process.cwd();
+    const run = (dir) => {
+      process.chdir(dir);
+      return caughtWithPath(`${bin}:${process.env.PATH}`, () =>
+        commentMarkdown("a.sh", "# 説明。\n"),
+      );
+    };
+    try {
+      expect(run(good)).toBeUndefined();
+      expect(run(bad)?.missingTool).toBe(true);
+      expect(run(good)).toBeUndefined();
+    } finally {
+      process.chdir(cwd);
+    }
+  });
 
   test("位置: 同じ行の # の前に日本語があっても、元の桁に戻す", () => {
     const src = 'echo "日本語" # 後ろの語\n';
