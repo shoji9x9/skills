@@ -16,7 +16,7 @@
 // | 実行のしかた       | 全体（引数なし）/ ファイル指定（lefthook）/ 対象 0 件                          |
 import { beforeAll, describe, expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
@@ -247,6 +247,22 @@ test("陽性: 保留したファイルでも、コメントを取り出せなけ
   const { violations } = await lintProse({ root: makeRepo({ "a.sh": 'x="abc\n' }, ["a.sh"]) });
   expect(violations).toHaveLength(1);
   expect(violations[0]).toMatch(/^a\.sh:1:1 .*判定できない.*\(code-comments\)$/);
+});
+
+test("shfmt が無ければ、ファイルの指摘にせず例外にする（main は exit 2）", async () => {
+  const root = makeRepo({ "a.sh": "# 説明。\n" });
+  // git は要るので、git のあるディレクトリだけを PATH に残す（そこに shfmt が無いことも確かめる）。
+  const gitDir = dirname(
+    spawnSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).stdout.trim(),
+  );
+  expect(existsSync(join(gitDir, "shfmt"))).toBe(false);
+  const path = process.env.PATH;
+  process.env.PATH = gitDir;
+  try {
+    await expect(lintProse({ root })).rejects.toThrow("shfmt が見つからない");
+  } finally {
+    process.env.PATH = path;
+  }
 });
 
 test("lefthook の prose の glob は、Markdown とコメントを持つ拡張子に一致する", () => {

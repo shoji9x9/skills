@@ -400,6 +400,17 @@
       "replace": "      trailing: false,",
       "occurrences": 1,
       "expect_failing": ["シェル 行頭と空白の後の # をコメントにする"]
+    },
+    {
+      "id": "CC-SH-ENOENT",
+      "why": "shfmt が無いことを、ファイルの解析の失敗と同じに扱う",
+      "file": "scripts/lib/code-comments.js",
+      "find": "    if (error.code === \"ENOENT\") {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "シェル shfmt が無ければ、解析の失敗と分けて missingTool を付けた例外にする"
+      ]
     }
   ]
 }

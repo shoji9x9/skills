@@ -252,6 +252,23 @@ describe("シェル", () => {
     ]);
   });
 
+  test("shfmt が無ければ、解析の失敗と分けて missingTool を付けた例外にする", () => {
+    const path = process.env.PATH;
+    process.env.PATH = "";
+    try {
+      let caught;
+      try {
+        commentMarkdown("a.sh", "# 説明。\n");
+      } catch (error) {
+        caught = error;
+      }
+      expect(caught?.missingTool).toBe(true);
+      expect(caught?.message).toContain("shfmt が見つからない");
+    } finally {
+      process.env.PATH = path;
+    }
+  });
+
   test("位置: 同じ行の # の前に日本語があっても、元の桁に戻す", () => {
     const src = 'echo "日本語" # 後ろの語\n';
     expect(locate("a.sh", src, "後ろの語")).toEqual(sourcePosition(src, "後ろの語"));

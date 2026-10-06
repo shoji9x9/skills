@@ -81,6 +81,8 @@ async function lintComments(linter, root, rel) {
   try {
     parsed = commentMarkdown(rel, readFileSync(abs, "utf8"));
   } catch (error) {
+    // ツールが無いのはファイルの問題ではないので、実行そのものを止める（exit 2）。
+    if (error.missingTool) throw error;
     // コメントを取り出せないファイルは、指摘として報告する（0 件として通さない）。
     return [{ line: 1, column: 1, message: error.message, ruleId: PARSE_RULE }];
   }

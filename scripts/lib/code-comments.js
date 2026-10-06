@@ -250,6 +250,14 @@ function shellComments(source, path) {
       maxBuffer: 64 * 1024 * 1024,
     });
   } catch (error) {
+    // shfmt を起動できないのは、ファイルではなく実行環境の問題である。ファイルごとの解析の失敗と分け、
+    // 呼び出し元が実行そのものを止められるように missingTool を付ける。
+    if (error.code === "ENOENT") {
+      throw Object.assign(
+        new Error("shfmt が見つからない（mise の shim が PATH に無いか、shfmt が入っていない）"),
+        { missingTool: true },
+      );
+    }
     const detail = String(error.stderr || error.message)
       .trim()
       .split("\n")[0];

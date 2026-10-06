@@ -129,7 +129,8 @@
         "陰性: コメントの指摘も、保留したファイルなら数えず、0 件になったら外すよう求める",
         "JSDoc のタグの行の指摘も、元の行の文章より前の桁を指さない",
         "陽性: コメントを取り出せないシェルは、指摘として報告する",
-        "陽性: 保留したファイルでも、コメントを取り出せなければ報告する"
+        "陽性: 保留したファイルでも、コメントを取り出せなければ報告する",
+        "shfmt が無ければ、ファイルの指摘にせず例外にする（main は exit 2）"
       ]
     },
     {
@@ -193,6 +194,15 @@
       "replace": "      for (const m of [])\n",
       "occurrences": 1,
       "expect_failing": ["陽性: 保留したファイルでも、コメントを取り出せなければ報告する"]
+    },
+    {
+      "id": "LP-MISSING-TOOL",
+      "why": "shfmt が無いことを、ファイルごとの指摘として扱う",
+      "file": "scripts/gates/lint-prose.js",
+      "find": "    if (error.missingTool) throw error;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["shfmt が無ければ、ファイルの指摘にせず例外にする（main は exit 2）"]
     }
   ]
 }
