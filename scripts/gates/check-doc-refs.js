@@ -92,7 +92,7 @@ export function anchorsOf(text) {
     if (h) {
       names.add(norm(h[1]));
       // 番号付きの見出し（「7. 定期実行」）は、番号を除いた名前でも参照できる。
-      names.add(norm(h[1].replace(/^\d+(?:\.\d+)*\.?\s+/, "")));
+      names.add(norm(h[1].replace(/^\d+[a-z]?(?:\.\d+[a-z]?)*\.?\s+/, "")));
     }
     for (const m of line.matchAll(/\*\*(.+?)\*\*/g)) names.add(norm(m[1]));
     if (/^\s*\|/.test(line)) {
@@ -117,13 +117,24 @@ export function hasAnchor(names, name) {
 // 節名。中に「」を 1 段だけ含んでよい（「機能の在否は「コンテナと文言がある」…」）。
 const NAME = "「((?:[^「」]|「[^「」]*」)+)」";
 
+// パスと節名の間に挟んでよい語。パスの後に「の」「の、」や空白を挟んで節名を書く形も参照として照合する
+// （挟む形を外すと、書き換えで「の」を足しただけの参照が確かめられなくなる）。
+// 節名ではない語句を引用するときは、「の分類「許容」」のように間に名詞を挟んで書く。
+const SEP = "(?:\\s*の[、,]?\\s*|\\s+)?";
+
 const SECTION_PATTERNS = [
   // スキル名を前に付けた形（バッククォートのスキル名・「の」・バッククォートのパス・節名）
-  { re: new RegExp(`\`([a-z0-9-]+)\` の \`([^\`\\s]+\\.md)\`${NAME}`, "g"), kind: "skill" },
-  // リンクの直後の節名
-  { re: new RegExp(`\\]\\(([^)\\s#]+\\.md)(?:#[^)\\s]*)?\\)${NAME}`, "g"), kind: "link" },
-  // バッククォートのパスの直後の節名
-  { re: new RegExp(`(?<!\` の )\`([^\`\\s]+\\.md)\`${NAME}`, "g"), kind: "code" },
+  {
+    re: new RegExp(`\`([a-z0-9-]+)\` の \`([^\`\\s]+\\.md)\`${SEP}${NAME}`, "g"),
+    kind: "skill",
+  },
+  // リンクの後の節名
+  {
+    re: new RegExp(`\\]\\(([^)\\s#]+\\.md)(?:#[^)\\s]*)?\\)${SEP}${NAME}`, "g"),
+    kind: "link",
+  },
+  // バッククォートのパスの後の節名
+  { re: new RegExp(`(?<!\` の )\`([^\`\\s]+\\.md)\`${SEP}${NAME}`, "g"), kind: "code" },
 ];
 
 /** スキルのディレクトリ（配布スキル・private skill・eval の対象スキル）。 */
@@ -172,8 +183,11 @@ export function resolveSectionTarget(root, file, kind, path, skill) {
 
 function generatedTemplate(config, root, file, path, skill) {
   const sk = skill ?? skillDirOf(root, file)?.split("/").pop();
+  // 同じ生成ファイルを `gaps.md`・`.replace/parity/<slug>/gaps.md` のように書くので、宣言した名前で終わるパスも当てる。
   const hit = config.generated.find(
-    (g) => g.ref === path && (g.skills === undefined || (sk && g.skills.includes(sk))),
+    (g) =>
+      (g.ref === path || path.endsWith(`/${g.ref}`)) &&
+      (g.skills === undefined || (sk && g.skills.includes(sk))),
   );
   return hit?.template ?? null;
 }

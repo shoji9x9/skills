@@ -1,18 +1,18 @@
 # 受領資産インベントリ・不足資産一覧
 
-<!-- current-environment-bootstrap が .replace/bootstrap/assets-inventory.md として生成する。形式の正本は current-environment-bootstrap が定義する。 -->
+<!-- current-environment-bootstrap が .replace/bootstrap/assets-inventory.md として生成する。形式は current-environment-bootstrap で定義する。 -->
 <!-- 実在を確認したものだけを「受領済み」にする。「あるはず」は載せない。 -->
 
 - 棚卸し日時: （ISO 8601）
 - 受領資産の所在: （設定 `current.received_assets` の各パス）
-- 現行コード: （`current.repo` の値。`none` なら導出経路が無い旨）
+- 現行コード: （`current.repo` の値。`none` なら導出する方法が無い旨）
 - 作業エージェント・モデル・エフォート・スキルバージョン: （値）
 
 ## 1. 受領資産の一覧
 
 <!-- 中身の種別まで確認したものだけを載せる。アーカイブは展開して中身を見る。 -->
 
-| 資産 | 種別 | 来歴（誰から・いつ・どの受領物） | 利用許可 | 備考 |
+| 資産 | 種別 | 出所（誰から・いつ・どの受領物） | 利用許可 | 備考 |
 |---|---|---|---|---|
 | （例）schema-dump.sql | DB スキーマダンプ | | <あり / 不明> | |
 

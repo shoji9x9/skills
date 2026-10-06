@@ -42,6 +42,12 @@ export const VERSION = "3";
  */
 export const ROLES = ["投入する", "読み取りだけ", "FK 親のみ"];
 
+/**
+ * 述語の表の見出し。先頭が新しい名前で、続くのは改名する前の名前（旧称）。
+ * 既に書かれた design.md を書き直さずに判定できるよう、旧称も同じ表として読む。警告は出さない。
+ */
+export const PREDICATE_TABLE_HEADINGS = ["述語ごとの分岐網羅", "述語ごとの分岐被覆"];
+
 /** 踏めない分岐の扱いの語彙（正本）。 */
 export const DISPOSITIONS = ["足す", "gaps に記録"];
 
@@ -142,14 +148,17 @@ export function parseTables(markdown) {
 /**
  * 見出しの前方一致と必須の列名から表を 1 つ引く。
  * @param {{ heading: string, headers: string[], rows: string[][], line: number }[]} tables
- * @param {string} heading
+ * @param {string | string[]} heading 見出しの前方一致の候補（どれかに一致すればよい）
  * @param {string[]} requiredHeaders
  * @returns {{ heading: string, headers: string[], rows: string[][], line: number } | null}
  */
 export function findTable(tables, heading, requiredHeaders) {
+  const headings = Array.isArray(heading) ? heading : [heading];
   return (
     tables.find(
-      (t) => t.heading.startsWith(heading) && requiredHeaders.every((h) => t.headers.includes(h)),
+      (t) =>
+        headings.some((h) => t.heading.startsWith(h)) &&
+        requiredHeaders.every((h) => t.headers.includes(h)),
     ) ?? null
   );
 }
@@ -398,7 +407,7 @@ export function checkPredicateCoverage(input) {
     "件数",
     "役割",
   ]);
-  const predicateTable = findTable(designTables, "述語ごとの分岐被覆", [
+  const predicateTable = findTable(designTables, PREDICATE_TABLE_HEADINGS, [
     "述語 id",
     "テーブル",
     "消費側 slug",
@@ -426,7 +435,7 @@ export function checkPredicateCoverage(input) {
     findings.push({
       code: "design-predicate-table-missing",
       message:
-        "design.md に「述語ごとの分岐被覆」表（述語 id / テーブル / 消費側 slug / 述語（列・条件） / 真の行数 / 偽の行数 / 判定 / 扱い）が無い",
+        "design.md に「述語ごとの分岐網羅」表（述語 id / テーブル / 消費側 slug / 述語（列・条件） / 真の行数 / 偽の行数 / 判定 / 扱い）が無い",
     });
   }
   if (structural || !targetTable || !predicateTable) {
@@ -546,7 +555,7 @@ export function checkPredicateCoverage(input) {
     if (!decided) {
       findings.push({
         code: "table-row-count-unusable",
-        message: `${tableName} は ${entry.count} 件（${reason}）。述語ごとの分岐被覆に扱い（${DISPOSITIONS.join(" / ")}）を決めた行が無い`,
+        message: `${tableName} は ${entry.count} 件（${reason}）。述語ごとの分岐網羅に扱い（${DISPOSITIONS.join(" / ")}）を決めた行が無い`,
       });
     }
   }
@@ -559,7 +568,7 @@ export function checkPredicateCoverage(input) {
     findings.push({
       code: "predicate-origin-column-missing",
       message:
-        "述語ごとの分岐被覆に「値の出どころ」列が無い（述語の値を、消費側が変換した後に渡す値で書いたかが読めない）",
+        "述語ごとの分岐網羅に「値の出どころ」列が無い（述語の値を、消費側が変換した後に渡す値で書いたかが読めない）",
     });
   }
   const seenPredicateIds = new Set();
@@ -705,7 +714,7 @@ export function checkPredicateCoverage(input) {
       if (rows.length === 0) {
         findings.push({
           code: "predicate-not-enumerated",
-          message: `消費側パラメータの ${slug} × ${tableName} に絞り込みがあるのに、述語ごとの分岐被覆に対応する行が無い（数えていない分岐は 0 件と同じ見え方になる）`,
+          message: `消費側パラメータの ${slug} × ${tableName} に絞り込みがあるのに、述語ごとの分岐網羅に対応する行が無い（数えていない分岐は 0 件と同じ見え方になる）`,
         });
         continue;
       }
@@ -779,7 +788,7 @@ export function checkPredicateCoverage(input) {
   //
   // 採番帯は他の環境・作業と混ざらないようデータセット自身が決める値なので、実運用の範囲の外に出やすい。
   // 消費側が述語へ渡す前に変換する（32 ビット整数への変換・桁の切り詰め・型の上限）と別の値になり、
-  // 述語は設計どおり真でも消費側が引く行は 0 件になる。分岐被覆と verification.md は設計者の値で数えるので何も出ない。
+  // 述語は設計どおり真でも消費側が引く行は 0 件になる。分岐網羅の表と verification.md は設計者の値で数えるので何も出ない。
   // **消費側 (slug, テーブル) ごとに変換を列挙させる**——表ごと 1 行で済ませると、変換する消費側が 1 つでも
   // 在ることが「別の消費側で届いた」に隠れる。
   const idRangeTable = findTable(designTables, "識別子の値の範囲", [

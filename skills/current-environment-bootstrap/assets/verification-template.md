@@ -1,6 +1,6 @@
 # 起動・到達・再構築の検証結果
 
-<!-- current-environment-bootstrap が .replace/bootstrap/verification.md として生成する。形式の正本は current-environment-bootstrap が定義する。 -->
+<!-- current-environment-bootstrap が .replace/bootstrap/verification.md として生成する。形式は current-environment-bootstrap で定義する。 -->
 <!-- すべて実測値。「起動するはず」「ログインできるはず」は未検証として書く。 -->
 
 - 検証日時: （ISO 8601）
@@ -48,7 +48,7 @@
 
 ## 6. 検証コマンド（`verification_commands.full`）
 
-- 実行結果: <通過 / 失敗（内容） / 設定に full が無いため未実行 / 値がリストで走る範囲が未宣言のため未実行>
+- 実行結果: <通過 / 失敗（内容） / 設定に full が無いため未実行 / リスト形式で実行する範囲が未宣言のため未実行>
 - 対象に含まれたパス: <再構築ツール・投入ツールが検査対象に含まれているか。含まれていないなら範囲を広げず、その旨を記録する>
 
 ## 未検証の項目

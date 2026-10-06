@@ -62,6 +62,7 @@
       "occurrences": 1,
       "expect_failing": [
         "台帳: 正本のテンプレートから「有効 × 実体を写す」の行だけを取り出す（取り消し済み・同等物・空欄は取らない）",
+        "台帳: 旧い方針の値（実体を写す・写さない）を新しい値と同じ意味に読む（改名する前の台帳を書き直さずに判定する）",
         "落とす: 台帳の「実体を写す」の有効な行に無い種類の記録（同等物の行・取り消し済みの行）",
         "通す: 「実体を写す」の有効な行が 0 件の台帳は、プローブ無しで exit 0",
         "通す: プローブの fontFaces[].src[] に現れれば参照している",
@@ -306,6 +307,17 @@
       "replace": "        if (false) {\n",
       "occurrences": 1,
       "expect_failing": ["落とす: 転送を経由した直リンク（移行元が新側へ転送する）"]
+    },
+    {
+      "id": "legacy-policy-off",
+      "why": "旧い方針の値（実体を写す・写さない）を新しい値に読み替えず、語彙外として落とす",
+      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "find": "    const policy = LEGACY_POLICIES.get(written) ?? written;\n",
+      "replace": "    const policy = written;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "台帳: 旧い方針の値（実体を写す・写さない）を新しい値と同じ意味に読む（改名する前の台帳を書き直さずに判定する）"
+      ]
     }
   ]
 }

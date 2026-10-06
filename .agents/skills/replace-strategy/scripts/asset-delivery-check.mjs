@@ -1,10 +1,10 @@
-// 静的資産の台帳で「実体を写す」と決めた資産を、新側が実際に配っているかを突き合わせる（正本）。Issue #458。
+// 静的資産の台帳で「実体をコピーする」と決めた資産を、新側が実際に配っているかを突き合わせる（正本）。Issue #458。
 //
-// 何のためか: `.replace/assets.md` は資産の種類ごとに「実体を写す／同等物を作る／写さない」を決めるが、
+// 何のためか: `.replace/assets.md` は資産の種類ごとに「実体をコピーする／同等物を作る／コピーしない」を決めるが、
 // 決めた方針どおりに新側が配っているかは、スイートの green・画素・特性照合・aria のどれにも写らないことがある
 // （favicon はタブにしか出ない。title・印刷用の資産も同じ）。parity-replace の完了判定でここを通す。
 //
-// 期待集合の出所: 台帳（宣言）の「状態 `有効` × 方針 `実体を写す`」の行。突き合わせの記録（asset-delivery.json）は
+// 期待集合の出所: 台帳（宣言）の「状態 `有効` × 方針 `実体をコピーする`」の行。突き合わせの記録（asset-delivery.json）は
 // その全行に 1 件ずつ答える——記録に無い行は「確かめていない」として落とす（記録の側から期待集合を作らない）。
 //
 // 行ごとに確かめること（files を書いた行）:
@@ -44,8 +44,16 @@ export class UsageError extends Error {}
 const STATUS_ACTIVE = "有効";
 const STATUS_CANCELLED_PREFIX = "取り消し済み";
 /** 台帳の方針の語彙（空欄は未決）。 */
-export const POLICY_COPY = "実体を写す";
-const POLICIES = new Set([POLICY_COPY, "同等物を作る", "写さない", ""]);
+export const POLICY_COPY = "実体をコピーする";
+const POLICIES = new Set([POLICY_COPY, "同等物を作る", "コピーしない", ""]);
+/**
+ * 旧い方針の値（改名する前の台帳）。同じ意味として新しい値に読み替える。
+ * 既に書かれた台帳を書き直さずに判定できるようにするためで、警告は出さない。
+ */
+export const LEGACY_POLICIES = new Map([
+  ["実体を写す", POLICY_COPY],
+  ["写さない", "コピーしない"],
+]);
 
 /**
  * 空白を 1 つに畳み、前後を除き、セル全体を囲む強調（`**` / `__`）を外す。台帳の人が書いた表記ゆれを揃える。
@@ -172,7 +180,7 @@ export function parseTables(text) {
  */
 
 /**
- * 台帳から「状態 `有効` × 方針 `実体を写す`」の行を取り出す。
+ * 台帳から「状態 `有効` × 方針 `実体をコピーする`」の行を取り出す。
  * @param {string} text
  * @returns {{ copyRows: LedgerRow[], activeRows: number }}
  */
@@ -192,7 +200,7 @@ export function readLedger(text) {
     );
   }
   const { headers, rows, rowLines } = candidates[0];
-  // 表に属さない行（本体の途中の空行で切れた追記など）に「実体を写す」の行があると、期待集合から黙って消える。
+  // 表に属さない行（本体の途中の空行で切れた追記など）に「実体をコピーする」の行があると、期待集合から黙って消える。
   // 行頭の `|` があるか、方針の表と同じセル数なら表の行を意図したものとみなし、どの表の行か決められないので判定しない（fail-closed）。
   // 散文中の `|`（セル数が合わず行頭にも無い）は対象にしない。
   const stray = strayRows.filter((r) => r.leadingPipe || r.cells === headers.length);
@@ -230,10 +238,11 @@ export function readLedger(text) {
         `台帳の ${line} 行目（${kind}）の状態が語彙外: "${status}"（${STATUS_ACTIVE} ｜ ${STATUS_CANCELLED_PREFIX}（…））`,
       );
     }
-    const policy = normalizeCell(row[policyAt]);
+    const written = normalizeCell(row[policyAt]);
+    const policy = LEGACY_POLICIES.get(written) ?? written;
     if (!POLICIES.has(policy)) {
       throw new UsageError(
-        `台帳の ${line} 行目（${kind}）の方針が語彙外: "${policy}"（実体を写す ｜ 同等物を作る ｜ 写さない ｜ 空欄）`,
+        `台帳の ${line} 行目（${kind}）の方針が語彙外: "${policy}"（実体をコピーする ｜ 同等物を作る ｜ コピーしない ｜ 空欄）`,
       );
     }
     const previous = activeByKind.get(kind);
@@ -449,7 +458,7 @@ export async function check(input) {
   for (const entry of entries) {
     if (!copyKinds.has(entry.kind)) {
       findings.push(
-        `記録の「${entry.kind}」は台帳の「状態 有効 × 方針 実体を写す」の行に無い（台帳の種類の綴りと揃えるか、方針が変わったなら記録から外す）`,
+        `記録の「${entry.kind}」は台帳の「状態 有効 × 方針 実体をコピーする」の行に無い（台帳の種類の綴りと揃えるか、方針が変わったなら記録から外す）`,
       );
     }
   }
@@ -476,7 +485,7 @@ export async function check(input) {
     const entry = byKind.get(row.kind);
     if (entry === undefined) {
       findings.push(
-        `台帳の「${row.kind}」（実体を写す）を突き合わせていない（asset-delivery.json に行が無い。この画面で使わないなら disposition: accepted と利用者の承認を書く）`,
+        `台帳の「${row.kind}」（実体をコピーする）を突き合わせていない（asset-delivery.json に行が無い。この画面で使わないなら disposition: accepted と利用者の承認を書く）`,
       );
       continue;
     }
@@ -690,7 +699,7 @@ const usage = [
   "usage: asset-delivery-check.mjs --assets <.replace/assets.md> --record <new/<target>/asset-delivery.json>",
   "         --current-base <現行の UI baseURL> --new-base <新側の UI baseURL> [--probe <asset-probe の出力 JSON>]...",
   "         [--write <new/<target>/replace-metadata.json>] [--timeout-ms <取得 1 件の上限。既定 15000>]",
-  "exit: 0 = 台帳の「有効 × 実体を写す」の行が全て突き合った（該当 0 行を含む） / 1 = 突き合わない行がある",
+  "exit: 0 = 台帳の「有効 × 実体をコピーする」の行が全て突き合った（該当 0 行を含む） / 1 = 突き合わない行がある",
   "      2 = 使い方の誤り・入力の不備（判定していない）",
 ].join("\n");
 
@@ -756,7 +765,7 @@ export async function main(argv, deps = {}) {
     for (const note of notes) process.stdout.write(`note: ${note}\n`);
     for (const finding of findings) process.stdout.write(`warn: ${finding}\n`);
     process.stdout.write(
-      `measured: 実体を写す行 ${counts.rows} 件（突き合わせ ${counts.checkedRows} 件・ファイル ${counts.files} 件）\n`,
+      `measured: 実体をコピーする行 ${counts.rows} 件（突き合わせ ${counts.checkedRows} 件・ファイル ${counts.files} 件）\n`,
     );
     const ok = findings.length === 0;
     if (args.write !== null) {
@@ -787,7 +796,7 @@ export async function main(argv, deps = {}) {
       return 1;
     }
     process.stdout.write(
-      `ok: 実体を写す資産は新側が移行元と同じバイトで配っている（asset-delivery-check ${VERSION}）\n`,
+      `ok: 実体をコピーする資産は新側が移行元と同じバイトで配っている（asset-delivery-check ${VERSION}）\n`,
     );
     return 0;
   } catch (e) {

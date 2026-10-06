@@ -8,7 +8,7 @@
 - 判定するのは差分ツールである。[`../scripts/diff-normalize.mjs`](../scripts/diff-normalize.mjs) の機械的な分類と、`diff.md` の分類の集計で判定する。モデルの主観（「もう同じに見えます」）を根拠にしない。
 - **収束の条件**は次のとおりである。
   - `diff-normalize.mjs` の出力に、`unexplained` / `deviates_T` / `pending_review` が無い。
-  - [`triage.md`](triage.md) の「許容」が、すべてユーザーに承認され、記録先に追記されている（既存の内容を消さずに追記する）。
+  - [`triage.md`](triage.md) の分類「許容」が、すべてユーザーに承認され、記録先に追記されている（既存の内容を消さずに追記する）。
     記録先は、設定ファイルの `component_diffs` / `intentional_diffs`、または `.replace/parity/<slug>/component-diff-exceptions.json` と根拠の `component-diff-exceptions.md` である。
     `diff.md` に承認の前の分類（`許容候補（要確認）`）が 1 件も残っていない（承認の前のものは未説明として数える）。
     承認の単位は原因である（[`triage.md`](triage.md)「承認の単位は原因」で定義する）。原因が承認済みなら、それを参照する N インスタンスは承認済みとして数える。
