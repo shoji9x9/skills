@@ -140,7 +140,8 @@ export function loadUnwired(root) {
   if (!Array.isArray(data?.unwired)) throw new Error("unwired は配列にする");
   return data.unwired.map((u, i) => {
     if (!isText(u?.script)) throw new Error(`unwired[${i}].script が無い`);
-    if (!isText(u?.reason)) throw new Error(`unwired[${i}].reason が無い（配線しない理由を書く）`);
+    if (!isText(u?.reason))
+      throw new Error(`unwired[${i}].reason が無い（組み込まない理由を書く）`);
     return u.script;
   });
 }
@@ -176,7 +177,7 @@ export function checkDeclaration(root, skill) {
   if (data.version !== 1) v.push(`${rel}: version は 1 にする`);
   if (data.skill !== skill) v.push(`${rel}: skill がディレクトリ名（${skill}）と一致しない`);
   if (!Array.isArray(data.wire)) {
-    v.push(`${rel}: wire は配列にする（配線する検査が無ければ []）`);
+    v.push(`${rel}: wire は配列にする（組み込む検査が無ければ []）`);
     return { scripts, violations: v };
   }
   const ids = new Set();
@@ -235,7 +236,7 @@ export function checkDeclaration(root, skill) {
           isObject(sv) && Object.keys(sv).length === 1 && (isText(sv.value) || isText(sv.resolve));
         if (!isObject(bs) || !Object.values(bs).every(stageValue)) {
           v.push(
-            `${pat}.by_stage は入口ごとに { "value": <そのまま渡す値> } か { "resolve": <入口側で求める手順> } のどちらか一方にする`,
+            `${pat}.by_stage は実行箇所ごとに { "value": <そのまま渡す値> } か { "resolve": <実行箇所の側で求める手順> } のどちらか一方にする`,
           );
         } else if (Object.keys(bs).sort().join(",") !== want) {
           v.push(`${pat}.by_stage のキーが stages と一致しない`);
@@ -243,7 +244,7 @@ export function checkDeclaration(root, skill) {
       } else {
         if (!isText(p.config_key) || !CONFIG_KEY_RE.test(p.config_key)) {
           v.push(
-            `${pat}: config_key は skills.<スキル名>.<キー> の形にする（入口ごとの値なら by_stage）`,
+            `${pat}: config_key は skills.<スキル名>.<キー> の形にする（実行箇所ごとの値なら by_stage）`,
           );
         }
         if ("default" in p && !isText(p.default)) v.push(`${pat}: default は空でない文字列にする`);
@@ -345,7 +346,7 @@ export function checkSkillChecks(root) {
     if (!hasDecl) {
       if (hasCheck) {
         violations.push(
-          `skills/${skill}: 検査を持つのに ${DECLARATION_NAME} が無い（配線する検査が無ければ "wire": [] で宣言する）`,
+          `skills/${skill}: 検査を持つのに ${DECLARATION_NAME} が無い（組み込む検査が無ければ "wire": [] で宣言する）`,
         );
       }
       continue;
@@ -359,7 +360,7 @@ export function checkSkillChecks(root) {
       // 本物のチェックを「組み込まない」に載せた宣言を通すと、利用者はチェックでないものを pre-commit・CI で実行する。
       if (checks.indexOf(s) === -1) {
         violations.push(
-          `${s}: 検査（scripts/ 配下の *-check.<拡張子>）として見つからないものを配線している`,
+          `${s}: 検査（scripts/ 配下の *-check.<拡張子>）として見つからないものを組み込んでいる`,
         );
       }
       wired.set(s, skill);
@@ -386,7 +387,7 @@ export function checkSkillChecks(root) {
       );
     } else if (!w && !u) {
       violations.push(
-        `${c}: 配線するか決まっていない（${DECLARATION_NAME} の wire か ${UNWIRED_PATH} のどちらかに載せる）`,
+        `${c}: 組み込むか決まっていない（${DECLARATION_NAME} の wire か ${UNWIRED_PATH} のどちらかに載せる）`,
       );
     }
   }
@@ -413,13 +414,13 @@ export function main(argv) {
     console.error(`skill-checks: 検査 ${checks} 本を見て、${violations.length} 件の違反:`);
     for (const v of violations) console.error(`  - ${v}`);
     console.error(
-      `Fix: 利用者の pre-commit・CI へ配線すべき検査（コミットされた成果物が常に満たす条件）は skills/<name>/${DECLARATION_NAME} の wire へ、` +
+      `Fix: 利用者の pre-commit・CI へ組み込むべき検査（コミットされた成果物が常に満たす条件）は skills/<name>/${DECLARATION_NAME} の wire へ、` +
         `工程の中でだけ呼ぶ判定は理由を付けて ${UNWIRED_PATH} へ載せる。`,
     );
     return 1;
   }
   console.log(
-    `skill-checks: OK（検査 ${checks} 本: 配線 ${wired} 本・配線しない ${unwired} 本、宣言 ${declarations} ファイル）`,
+    `skill-checks: OK（検査 ${checks} 本: 組み込み ${wired} 本・組み込まない ${unwired} 本、宣言 ${declarations} ファイル）`,
   );
   return 0;
 }

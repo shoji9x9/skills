@@ -178,7 +178,7 @@ function runCli(cwd, args = []) {
   return spawnSync(process.execPath, [script, ...args], { cwd, encoding: "utf8" });
 }
 
-test("除外の内と外に同じ違反を置くと、無視されていない側だけが指摘される（弁別）", () => {
+test("除外の内と外に同じ違反を置くと、無視されていない側だけが指摘される（区別できることの確認）", () => {
   const dir = makeRepo();
   write(dir, ".gitignore", "tests/*/iteration-*/eval-*/\n");
   // 除外の外（tracked でなくても .gitignore に当たらないので走査対象）＝検出されるべき側
@@ -198,7 +198,7 @@ test("除外の内と外に同じ違反を置くと、無視されていない�
   expect(out.stderr).toContain("1 件の指摘");
 });
 
-test("除外を外すと、同じファイルが指摘される（除外が効いていたことの裏取り）", () => {
+test("除外を外すと、同じファイルが指摘される（除外が機能していたことの裏取り）", () => {
   const dir = makeRepo();
   write(dir, ".gitignore", "# 何も無視しない\n");
   write(
@@ -233,7 +233,7 @@ test("git work tree でなければディレクトリ走査へ落ちる（走査
   expect(out.stderr).toContain("guide.md");
 });
 
-test("走査対象 0 件は成功に倒さない", () => {
+test("走査対象 0 件は成功として扱わない", () => {
   const dir = makeRepo();
   const out = runCli(dir);
   expect(out.status).toBe(2);
@@ -284,7 +284,7 @@ test("walkFiles は .sh と .md だけを拾い、除外ディレクトリへ降
   expect(files.sort()).toEqual(["a.md", "b.sh"]);
 });
 
-test("読めなかったファイルは件数として出す（黙って飛ばさない）", () => {
+test("読めなかったファイルは件数として出す（警告なしに飛ばさない）", () => {
   const dir = makeRepo();
   write(dir, "a.md", OFFENDING);
   const out = spawnSync(
@@ -305,7 +305,7 @@ test("読めなかったファイルは件数として出す（黙って飛ば�
   expect(out.stderr).toContain("1 ファイルは読めず未走査");
 });
 
-test("対象は挙がったのに 1 件も読めなければ成功に倒さない", () => {
+test("対象は挙がったのに 1 件も読めなければ成功として扱わない", () => {
   const dir = makeRepo();
   write(dir, "a.md", "# t\n");
   const out = spawnSync(
@@ -349,7 +349,7 @@ test("listFiles は git があれば git の結果を使う", () => {
   expect(walkFiles(dir).some((f) => f.endsWith("x.md"))).toBe(true);
 });
 
-test("1 件でも読めなければ合格に倒さない", () => {
+test("1 件でも読めなければ合格として扱わない", () => {
   const dir = makeRepo();
   write(dir, "ok.md", "# t\n");
   // 読めない対象は、引数で渡す方法で作る（列挙は実在するファイルしか返さないため）。

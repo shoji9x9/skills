@@ -100,7 +100,7 @@ const PASSING = [
 ];
 
 for (const [name, command] of PASSING) {
-  test(`陰性コントロール: ${name}`, () => {
+  test(`誤検知しないことの確認: ${name}`, () => {
     const r = guard(command);
     expect(r.status).toBe(0);
     expect(r.stderr).not.toMatch(/実行前に止めた/);
@@ -236,7 +236,7 @@ test("区切り文字はどちらのセグメントにも混ぜない", () => {
   expect(r.stderr).not.toMatch(/[|;&]\s*pkill/);
 });
 
-test("引用が閉じていない入力は解釈せず fail-safe に倒す", () => {
+test("引用が閉じていない入力は解釈せず、検査する側として扱う", () => {
   // ヒアドキュメント本文のアポストロフィ 1 個で以降が全部データ扱いになり、
   // 警告なしに最強の免除になっていた（実測）。解釈できない入力は検査する側として扱う。
   const r = guard("echo it's ok; gh api repos/o/r/pulls/1 --body-file /tmp/b.md");
@@ -244,7 +244,7 @@ test("引用が閉じていない入力は解釈せず fail-safe に倒す", () 
   expect(r.stderr).toMatch(/unknown flag/);
 });
 
-test("fail-safe に倒したとき、同じ違反を重複して出さない", () => {
+test("検査する側として扱ったとき、同じ違反を重複して出さない", () => {
   // 通常セグメントと全文の両方を出すと、同一の違反が 2 行に増えて読み手を混乱させる。
   const r = guard("gh api x --body-file b; echo it's ok");
   expect(r.status).toBe(2);
@@ -416,26 +416,26 @@ test.each([
   expect(guard(command).status).toBe(2);
 });
 
-test("意図的な穴（誤検知側）: シェル委譲のセグメントは位置引数の文字列もコードとして扱う", () => {
+test("意図的な抜け（誤検知側）: シェル委譲のセグメントは位置引数の文字列もコードとして扱う", () => {
   expect(guard('bash -c \'echo "$1"\' _ "pkill -f x"').status).toBe(2);
 });
 
-test("意図的な穴（見逃し側）: 変数に入れたコマンド名は展開しない", () => {
+test("意図的な抜け（見逃し側）: 変数に入れたコマンド名は展開しない", () => {
   expect(guard("K=pkill; $K -f chrome").status).toBe(0);
 });
 
-test("意図的な穴（見逃し側）: インタプリタが読むヒアドキュメントの本文はデータとして通す", () => {
+test("意図的な抜け（見逃し側）: インタプリタが読むヒアドキュメントの本文はデータとして通す", () => {
   // AGENTS.md は本文を quoted heredoc でインタプリタへ渡す形を推奨するので、読み手の許可リストに入れる。
   const command = "python3 - <<'EOF'\nimport os\npkill -f x\nEOF";
   expect(guard(command).status).toBe(0);
 });
 
-test("意図的な穴（見逃し側）: 許可リストの読み手でファイルへ書き出してから実行する形は見逃す", () => {
+test("意図的な抜け（見逃し側）: 許可リストの読み手でファイルへ書き出してから実行する形は見逃す", () => {
   // 書き出した内容の行方はこのチェックから追えない（Write ツールで書いてから実行するのと同じ）。
   expect(guard("cat > s.sh <<'EOF' && bash s.sh\npkill -f chrome\nEOF").status).toBe(0);
 });
 
-test("意図的な穴（誤検知側）: 引用していないリダイレクト先のファイル名もコードとして見る", () => {
+test("意図的な抜け（誤検知側）: 引用していないリダイレクト先のファイル名もコードとして見る", () => {
   expect(guard("echo hi > pkill-f.log").status).toBe(2);
 });
 
@@ -491,7 +491,7 @@ test("空 stdin は通す", () => {
   expect(r.status).toBe(0);
 });
 
-test("壊れた JSON は通すが、検査していないことを stderr に残す（黙って合格にしない）", () => {
+test("不正な JSON は通すが、検査していないことを stderr に残す（警告なしに合格にしない）", () => {
   const r = run('{ "tool_input": { "command": "pkill -f x" ');
   expect(r.status).toBe(0);
   expect(r.stderr).toMatch(/検査していない/);
@@ -555,7 +555,7 @@ test.each([
     encoding: "utf8",
   });
   // jq が無い環境ではこの検証は成立しない。警告なしに緑にせず落とす。
-  expect(r.error, "jq が必要（この検証は jq 経路の回帰テスト）").toBeUndefined();
+  expect(r.error, "jq が必要（この検証は jq を使う処理の回帰テスト）").toBeUndefined();
   expect(r.status).toBe(0);
   expect(r.stdout.trim()).toBe(OFFENDING);
 });

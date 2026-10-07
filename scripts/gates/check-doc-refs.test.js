@@ -392,7 +392,7 @@ test("陰性: 実リポジトリは保留と許可を当てると失敗 0 件", 
   expect(r.files).toBeGreaterThan(100);
 });
 
-test("陽性コントロール（CLI）: 子プロセスとして起動しても、違反は exit 1、無ければ exit 0", () => {
+test("検出の確認（CLI）: 子プロセスとして起動しても、違反は exit 1、無ければ exit 0", () => {
   const good = spawnSync(process.execPath, [script, makeRepo()], { encoding: "utf8" });
   expect(good.status, good.stderr).toBe(0);
   expect(good.stdout).toMatch(/doc-refs: OK（\d+ 件。保留 0 件）/);

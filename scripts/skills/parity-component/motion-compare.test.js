@@ -151,7 +151,7 @@ function run({ metadata = metadataOf(), motions, comparison, target = "preview" 
 
 const codes = (result) => result.findings.map((f) => f.code);
 
-test("陽性コントロール: 揺れを含む同じ動きは全組み合わせで一致する", () => {
+test("誤検知しないことの確認: 揺れを含む同じ動きは全組み合わせで一致する", () => {
   const result = run();
   expect(result.findings).toEqual([]);
   expect(result.counts).toMatchObject({ cells: 4, matched: 4, mismatched: 0, uncompared: 0 });
@@ -380,7 +380,7 @@ test("on_complete が列挙に無い操作を指す・trigger が無い遷移は
   expect(run({ metadata: noTrigger }).structural).toBe(true);
 });
 
-test("探針の版が記録と違う時系列は比べない（採取スキーマが違う）", () => {
+test("プローブの版が記録と違う時系列は比べない（採取スキーマが違う）", () => {
   const result = run({
     comparison: {
       component: "feedback-message",
@@ -461,7 +461,7 @@ test("全組み合わせが到達できない宣言なら合格にしない", ()
   expect(codes(result)).toEqual(["motion-nothing-compared"]);
 });
 
-test("変化の判定の閾値は探針と同じ値（片側だけ変えると、採った変化と比べる変化が食い違う）", () => {
+test("変化の判定の閾値はプローブと同じ値（片側だけ変えると、採った変化と比べる変化が食い違う）", () => {
   expect(CHANGE_EPSILON).toEqual(probe.CHANGE_EPSILON);
   expect(FLOORS.delay_ms).toBeGreaterThan(0);
 });
@@ -601,7 +601,7 @@ test("等間隔の比較点の間に収まる短い動き（一瞬の点滅）�
   expect(result.findings[0].differing.map((d) => d.measure)).toEqual(["trajectory.opacity"]);
 });
 
-test("揺れの上限は時間と軌跡のそれぞれで効く（遅れだけ・移動量だけが割れた現行も基準にしない）", () => {
+test("揺れの上限は時間と軌跡のそれぞれで適用される（遅れだけ・移動量だけが割れた現行も基準にしない）", () => {
   const withNoise = (second) => ({
     orders: baselineOf("orders", { enter: [timeline({ kind: "enter" }), second] }),
     stock: baselineOf("stock"),

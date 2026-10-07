@@ -138,7 +138,7 @@ test("D が空（描画入力の外だけ変わった）: 持ち越す・注記�
   expect(result.notes.join("\n")).toContain("差分が無い");
 });
 
-test("D が空でも evidence-carry.json を読まない（壊れていても持ち越しの判定に使わない）", () => {
+test("D が空でも evidence-carry.json を読まない（不正でも持ち越しの判定に使わない）", () => {
   const p = project();
   const unrelated = commit(p.repo, { "README.md": "app v2\n" }, "readme");
   writeFileSync(p.evidenceCarryPath, "{ broken");
@@ -241,7 +241,7 @@ test("影響あり・kind が new-appearance: amend-verify が全組 pass でも
   expect(result.findings.join("\n")).toContain("機械判定で持ち越せるのは align-to-current だけ");
 });
 
-test("影響なし・kind が new-appearance: 影響しない機能は持ち越す（kind は影響する組の機械判定だけに効く）", () => {
+test("影響なし・kind が new-appearance: 影響しない機能は持ち越す（kind は影響する組の機械判定だけに使われる）", () => {
   const p = project();
   const path = join(p.root, p.changePath);
   const change = JSON.parse(readFileSync(path, "utf8"));
@@ -534,7 +534,7 @@ test.each([
     "が不正",
   ],
   [
-    "evidence-carry.json が壊れた JSON",
+    "evidence-carry.json が不正な JSON",
     (p) => writeFileSync(p.evidenceCarryPath, "{ broken"),
     "JSON として不正",
   ],
@@ -702,7 +702,7 @@ function runBoth(p, options = {}) {
   };
 }
 
-test("両検査器の一致: 持ち越せる fixture では両方とも合格", () => {
+test("両チェックの一致: 持ち越せる fixture では両方とも合格", () => {
   const p = project();
   writeCheckerInputs(p, p.commits.base, p.commits.component);
   const { health, comparison, comparisonResult } = runBoth(p);
@@ -714,7 +714,7 @@ test("両検査器の一致: 持ち越せる fixture では両方とも合格", 
   expect(health.status).toBe(comparison.status);
 });
 
-test("両検査器の一致: 宣言外のファイルが変わった fixture では両方とも落とす", () => {
+test("両チェックの一致: 宣言外のファイルが変わった fixture では両方とも落とす", () => {
   const p = project();
   const theme = commit(p.repo, { "src/theme.css": ":root { --accent: red; }\n" }, "theme");
   writeCheckerInputs(p, p.commits.base, theme);
@@ -824,7 +824,7 @@ test("--carry-to: 一括再検証の直後に evidence-carry.json が無い: 両
   expect(messages).toContain("src/components/Button.tsx");
 });
 
-test("--carry-to: 一括再検証の直後に evidence-carry.json が壊れている: 両方とも落とす", () => {
+test("--carry-to: 一括再検証の直後に evidence-carry.json が不正な JSON になっている: 両方とも落とす", () => {
   const p = project();
   writeCheckerInputs(p, p.commits.base, p.commits.base);
   writeFileSync(p.evidenceCarryPath, "{ not json");

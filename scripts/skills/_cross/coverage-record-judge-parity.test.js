@@ -427,12 +427,12 @@ test.each(CASES)("%s: 記録側の未測定が判定側と %s の関係にある
   else expect(record).toBeGreaterThanOrEqual(judge);
 });
 
-test("陽性コントロール: 全セルを埋めた被覆表は両者とも未測定 0（常に数える実装を弾く）", () => {
+test("誤検知しないことの確認: 全セルを埋めた網羅表は両者とも未測定 0（常に数える実装を弾く）", () => {
   expect(counts(generic)).toEqual({ record: 0, judge: 0 });
   expect(counts(profiled)).toEqual({ record: 0, judge: 0 });
 });
 
-test("陽性コントロール: 変異の入力は判定側で未測定を生む（ge の緩さで素通りさせない）", () => {
+test("検出されることの確認: 変異の入力は判定側で未測定を生む（ge の緩さで素通りさせない）", () => {
   // eq のケースで判定側が 0 件なら「両者とも数えない」でも一致してしまい、何も実証しない。
   // 基準の 2 件を除く全ケースで、少なくとも一方が未測定を数えることを確かめる。
   for (const [name, , make] of CASES.slice(2)) {

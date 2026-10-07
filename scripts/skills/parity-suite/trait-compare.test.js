@@ -239,7 +239,7 @@ test("見た目の宣言と ::-webkit-scrollbar 系の計算値の差を、擬�
   ]);
 });
 
-test("器かどうかの差（片側だけ null）を出す", () => {
+test("コンテナかどうかの差（片側だけ null）を出す", () => {
   expect(compareTraits([grid(scrollOf())], [grid(null)])).toEqual([
     { name: "dialog.grid", kind: "scroll", prop: "scroll", expected: "present", actual: "absent" },
   ]);

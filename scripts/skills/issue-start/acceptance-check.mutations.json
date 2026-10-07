@@ -147,10 +147,10 @@
       "replace": "  const issueChecklist = checklistItems(issue.body);",
       "occurrences": 1,
       "expect_failing": [
-        "陽性コントロール: Issue と対応し根拠の揃った表は exit 0（deferred があれば閉じない）",
+        "誤検知しないことの確認: Issue と対応し根拠の揃った表は exit 0（deferred があれば閉じない）",
         "deferred が無ければ閉じてよい",
         "本文のチェックリストの項目に行が無ければ落とす",
-        "文言の無い項目は黙って捨てず、Issue 側を直すよう落とす",
+        "文言の無い項目は警告なしに捨てず、Issue 側を直すよう落とす",
         "later は満たす後工程が無ければ落とし、あれば通すが Issue は閉じない",
         "行が 0 件の表は合格にしない",
         "表の後で Issue の条件が変わったら古い表として落とす（チェックを付けただけでは古くしない）"
@@ -194,7 +194,7 @@
       "find": "    if (item === \"\")\n",
       "replace": "    if (item === \"\") continue;\n    if (false)\n",
       "occurrences": 1,
-      "expect_failing": ["文言の無い項目は黙って捨てず、Issue 側を直すよう落とす"]
+      "expect_failing": ["文言の無い項目は警告なしに捨てず、Issue 側を直すよう落とす"]
     },
     {
       "id": "fingerprint-checkmark-in-quote",

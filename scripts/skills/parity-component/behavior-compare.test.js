@@ -88,7 +88,7 @@ const run = (override = {}) =>
 
 const codes = (result) => result.findings.map((f) => f.code);
 
-test("陽性コントロール: 全組み合わせで観測が一致すれば findings 0 件", () => {
+test("誤検知しないことの確認: 全組み合わせで観測が一致すれば findings 0 件", () => {
   const result = run();
   expect(result.findings).toEqual([]);
   expect(result.counts).toMatchObject({ cells: 4, matched: 4, uncompared: 0, mismatched: 0 });

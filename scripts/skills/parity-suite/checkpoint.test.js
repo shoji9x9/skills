@@ -75,7 +75,7 @@ const capture = (dir) => {
   return record(dir, "captured");
 };
 
-test("陽性コントロール: 記録した直後の verify は通り、次の手順を返す", () => {
+test("誤検知しないことの確認: 記録した直後の verify は通り、次の手順を返す", () => {
   const dir = project();
   expect(record(dir, "authored", ["--include", SUITE]).status).toBe(0);
   const r = verify(dir, "authored");
@@ -237,7 +237,7 @@ test("記録が 1 つも無ければ verify は exit 1", () => {
   expect(r.stderr).toContain("1 つも記録されていない");
 });
 
-test("別の cwd から verify すると指紋の対象が見つからず落ちる（合格に倒さない）", () => {
+test("別の cwd から verify すると指紋の対象が見つからず落ちる（合格として扱わない）", () => {
   const dir = project();
   expect(record(dir, "authored", ["--include", SUITE]).status).toBe(0);
   // 子プロセスで起動する（cwd を process.cwd() から取ることまで含めて確かめる）
@@ -246,7 +246,7 @@ test("別の cwd から verify すると指紋の対象が見つからず落ち�
   expect(r.status).not.toBe(0);
 });
 
-test("陽性コントロール（CLI）: 子プロセスとして起動しても、cwd を根に record・verify が通り結果を stdout に出す", () => {
+test("CLI として動くことの確認: 子プロセスとして起動しても、cwd を根に record・verify が通り結果を stdout に出す", () => {
   const dir = project();
   const rec = cli(dir, ["record", "--dir", SLUG, "--at", "authored", "--include", SUITE]);
   expect(rec.stdout).toContain('"recorded":true');
@@ -256,7 +256,7 @@ test("陽性コントロール（CLI）: 子プロセスとして起動しても
   expect(ver.status).toBe(0);
 });
 
-test("陽性コントロール（CLI）: 子プロセスとして起動しても、使い方の誤りは exit 2 で usage を stderr に出す", () => {
+test("CLI として動くことの確認: 子プロセスとして起動しても、使い方の誤りは exit 2 で usage を stderr に出す", () => {
   const dir = project();
   const r = cli(dir, ["record", "--dir", SLUG]);
   expect(r.stderr).toContain("--dir と --at が要る");
@@ -288,7 +288,7 @@ function gatedProject() {
   return dir;
 }
 
-test("陽性コントロール: record が作った 3 区切りの記録はそのまま verify を通る", () => {
+test("誤検知しないことの確認: record が作った 3 区切りの記録はそのまま verify を通る", () => {
   expect(verify(gatedProject(), "gated").status).toBe(0);
 });
 
@@ -429,7 +429,7 @@ test.each([
   expect(r.stderr).toContain(needle);
 });
 
-test("壊れた JSON の記録は verify で exit 2、authored はそれを読まずに記録し直せる", () => {
+test("不正な JSON の記録は verify で exit 2、authored はそれを読まずに記録し直せる", () => {
   const dir = gatedProject();
   writeFileSync(join(dir, SLUG, "checkpoints.json"), "{");
   expect(verify(dir, "gated").status).toBe(2);
@@ -468,7 +468,7 @@ test("#474: 字面の違う 2 つの --include が同じ実体を指すと recor
   expect(r.stderr).toContain("同じ実体");
 });
 
-test("#474 陽性コントロール: slug のディレクトリの外を指すリンクは --include として通る", () => {
+test("#474 誤検知しないことの確認: slug のディレクトリの外を指すリンクは --include として通る", () => {
   const dir = project();
   symlinkSync(join(dir, SUITE), join(dir, "e2e/alias"));
   expect(record(dir, "authored", ["--include", "e2e/alias"]).status).toBe(0);
@@ -536,7 +536,7 @@ test("#474（Codex レビュー）: 記録した後にスイートの中のフ�
   expect(r.stderr).toContain("--dir の中を指す");
 });
 
-test("#474 陽性コントロール: スイートの根の中のリンクが slug の外を指すなら通る", () => {
+test("#474 誤検知しないことの確認: スイートの根の中のリンクが slug の外を指すなら通る", () => {
   const dir = project();
   mkdirSync(join(dir, "shared"), { recursive: true });
   writeFileSync(join(dir, "shared/helpers.ts"), "export const x = 1;\n");

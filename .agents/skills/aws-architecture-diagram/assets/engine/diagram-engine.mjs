@@ -189,7 +189,7 @@ export function renderDiagram(spec, options = {}) {
       if (a.x !== b.x && a.y !== b.y) {
         throw new Error(
           `斜めのエッジ: ${e.from}->${e.to} の区間 (${a.x},${a.y})-(${b.x},${b.y})` +
-            `（直交配線が必要。waypoints は前後の点と x か y を共有させ、` +
+            `（直交する線で結ぶ必要がある。waypoints は前後の点と x か y を共有させ、` +
             `最初/最後の waypoint は接続先ノードの中心と x か y を ±20px 以内で揃える）`,
         );
       }

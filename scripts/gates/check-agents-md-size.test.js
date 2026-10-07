@@ -98,7 +98,7 @@ test("陽性: CI は、初めて limit を超えた commit が HEAD でも失敗
   expect(ci(root)).toMatchObject({ ok: false });
 });
 
-test("陽性: 作業ツリーの状態を消しても、超えた事実は履歴に残る（restore・別の clone でも効く）", () => {
+test("陽性: 作業ツリーの状態を消しても、超えた事実は履歴に残る（restore・別の clone でも有効）", () => {
   const root = makeRepo();
   put(root, LIMIT + 1);
   put(root, LIMIT - 1, { commit: false });
@@ -168,7 +168,7 @@ test("main: 通れば 0、違反は 1、判定できなければ 2 を返す", (
   expect(main([makeRepo()])).toBe(2);
 });
 
-test("陽性コントロール（CLI）: 子プロセスとして起動しても、超えた後に縮めきらなければ exit 1、縮めれば exit 0", () => {
+test("検出の確認（CLI）: 子プロセスとして起動しても、超えた後に縮めきらなければ exit 1、縮めれば exit 0", () => {
   const root = makeRepo();
   put(root, LIMIT + 1);
   const run = () =>

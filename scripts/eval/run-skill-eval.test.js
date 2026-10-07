@@ -311,7 +311,7 @@ describe("run-skill-eval executor compatibility", () => {
     });
   });
 
-  test("Codex baseline stays uninstalled and writes a fail-closed contamination verdict", () => {
+  test("Codex baseline stays uninstalled and writes a contamination verdict that treats an unverifiable check as failure", () => {
     const { directory, stub } = makeStub();
     const output = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");
 

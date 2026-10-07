@@ -194,7 +194,7 @@ describe("散った制御ファイルは全作業ツリーで整理する", () =
     );
   }
 
-  test("checkpoint が両ツリーにあると、fail safe の際に両方落とす", () => {
+  test("checkpoint が両ツリーにあると、checkpoint を記録できない呼び出しで両方落とす", () => {
     const { main, worktree } = makeRepoWithWorktree();
     const transcript = join(main, "t.jsonl");
     writeFileSync(transcript, "{}\n");
@@ -288,7 +288,7 @@ describe("忘却の自動掃引", () => {
     expect(statusOf(main, "fresh.md")).toBe("pending");
   });
 
-  test("checkpoint-only（ゲートの候補ゼロ自動通過）では掃引しない", () => {
+  test("checkpoint-only（チェックが候補ゼロで自動的に通す場合）では掃引しない", () => {
     // このモードはコミット前のチェックが `git commit` の PreToolUse で呼ぶ。学びは 1 件も記録されて
     // いないのに追跡ファイルを書き換えると、`git add` 済みのユーザーに未ステージ差分を
     // 残す。それでは、発火点を SessionStart から移した理由そのものが成り立たなくなる。

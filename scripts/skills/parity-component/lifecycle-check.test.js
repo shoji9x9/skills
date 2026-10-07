@@ -59,7 +59,7 @@ function lifecycleOf(override = {}) {
 
 const codes = (result) => result.findings.map((f) => f.code);
 
-test("陽性コントロール: 4 経路を 1 回ずつ振り分け、検査が通った記録は findings 0 件", () => {
+test("誤検知しないことの確認: 4 つの実行パスを 1 回ずつ振り分け、検査が通った記録は findings 0 件", () => {
   expect(check(lifecycleOf())).toEqual({ structural: false, applies: true, findings: [] });
 });
 
@@ -76,7 +76,7 @@ test("対象でない部品は paths が空なら通し、paths があれば落�
   ]);
 });
 
-test("どちらにも振り分けていない経路は lifecycle-path-missing で落とす（空の paths も完了にしない）", () => {
+test("どちらにも振り分けていない実行パスは lifecycle-path-missing で落とす（空の paths も完了にしない）", () => {
   const dropped = lifecycleOf({ not_applicable_paths: [lifecycleOf().not_applicable_paths[0]] });
   expect(check(dropped).findings).toEqual([
     expect.objectContaining({ code: "lifecycle-path-missing", path: "remount" }),
@@ -88,7 +88,7 @@ test("どちらにも振り分けていない経路は lifecycle-path-missing �
   ]);
 });
 
-test("同じ経路の二重の振り分けと語彙外の経路名を落とす", () => {
+test("同じ実行パスの二重の振り分けと語彙外の実行パス名を落とす", () => {
   const dup = lifecycleOf({
     not_applicable_paths: [
       ...lifecycleOf().not_applicable_paths,
@@ -100,7 +100,7 @@ test("同じ経路の二重の振り分けと語彙外の経路名を落とす",
   expect(codes(check(unknown))).toEqual(["lifecycle-path-unknown"]);
 });
 
-test("検査が落ちた・経路に入っていない・直した処理を外した確認が無い経路を落とす", () => {
+test("検査が落ちた・実行パスに入っていない・直した処理を外した確認が無い実行パスを落とす", () => {
   const withRow = (override) =>
     lifecycleOf({ paths: [pathRow("strict-rebind", override), pathRow("prop-change-after-init")] });
   expect(codes(check(withRow({ result: "fail" })))).toEqual(["lifecycle-path-failed"]);
@@ -115,7 +115,7 @@ test("検査が落ちた・経路に入っていない・直した処理を外�
   ]);
 });
 
-test("名指しできない経路の理由が無ければ落とす", () => {
+test("名指しできない実行パスの理由が無ければ落とす", () => {
   const na = lifecycleOf({
     not_applicable_paths: [
       { path: "prop-identity", reason: "<名指しできない理由>" },
@@ -142,7 +142,7 @@ test("同梱テンプレートをそのまま渡しても合格にしない", ()
   expect(checkLifecycle(template).structural).toBe(true);
 });
 
-test("CLI: 揃った記録で exit 0、経路の漏れで exit 1、引数の誤りは exit 2", () => {
+test("CLI: 揃った記録で exit 0、実行パスの抜けで exit 1、引数の誤りは exit 2", () => {
   const dir = makeTempDir("lifecycle-check-");
   const file = join(dir, "build-metadata.json");
   writeFileSync(file, JSON.stringify({ lifecycle: lifecycleOf(), catalog: { stories: [] } }));

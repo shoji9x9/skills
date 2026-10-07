@@ -8,7 +8,7 @@
         "未導入なので setup（対話的セットアップ）で進めようとしている",
         "starter kit を図の置き場所へ導入し、fetch-aws-icons.mjs で AWS 公式アイコンを取得しようとしている",
         "CDK のソース（または cdk synth 出力）を情報源として読み、spec（nodes/edges/groups）を手で起こす方針になっている",
-        "references/conventions.md の作図ルール（交差最小・直交配線・軸整列）に従おうとしている",
+        "references/conventions.md の作図ルール（交差最小・線の直交・軸整列）に従おうとしている",
         "render-diagram.mjs で生成し preview-diagram.mjs で PNG 化して目視確認する流れになっている"
       ]
     },
@@ -37,7 +37,7 @@
       "id": 4,
       "prompt": "できた構成図、線が斜めになったり、ノードのラベルが隣のアイコンに重なったり、エッジのラベルが線の曲がり角に重なって折れているのが見えなかったりして読みにくい",
       "assertions": [
-        "conventions.md の直交配線・ラベル配置・進入位置のルールを参照している",
+        "conventions.md の線の直交・ラベル配置・進入位置のルールを参照している",
         "waypoints で直交化し、lp（ノードのラベル位置）を線の出ていない辺へ移す方針を示している",
         "斜めのエッジは diagram-engine.mjs がエラーで止める（目視ではなく生成時に検出される）ことを踏まえている",
         "エッジラベルは屈曲点を避けて自動配置されるため waypoints でラベルを動かす必要が無く、位置を明示するときは labelAt を使うと示している",

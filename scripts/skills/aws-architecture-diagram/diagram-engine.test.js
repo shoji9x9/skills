@@ -93,7 +93,7 @@ test("ラベルは直線区間の上に置かれる", () => {
   expect(onSegment).toBe(true);
 });
 
-test("直線経路のラベル位置は中央のまま（既存の図を動かさない）", () => {
+test("直線のエッジのラベル位置は中央のまま（既存の図を動かさない）", () => {
   const svg = render({
     ...diagonalPair,
     nodes: diagonalPair.nodes.map((n) => ({ ...n, y: 200 })),
@@ -164,7 +164,7 @@ test("同梱テンプレート（starter）の全環境が直交検査を通る"
   }
 });
 
-test("直交検査は starter の spec に対しても働く（陽性コントロール）", async () => {
+test("直交検査は starter の spec に対しても働く（検出されることの確認）", async () => {
   const { environments, baseSpec } = await import(
     join(skillDir, "assets/starter/environments.mjs")
   );

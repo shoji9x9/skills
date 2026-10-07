@@ -449,7 +449,7 @@ test("CLI: 読めないファイルは exit 2", () => {
 // いずれも「警告なしに誤った勝者を exit 0 で返す」形。落とす入力と、通さねばならない入力を
 // 同じ数だけ置く（片方だけだと「全部 undecidable にする実装」と区別が付かない）。
 
-test("恒常状態（:enabled 等）で門番された宣言を不成立に倒さない", () => {
+test("恒常状態（:enabled 等）を条件にした宣言を不成立として扱わない", () => {
   // css-rules-capture の STATE_PSEUDO_CLASSES は :enabled / :valid / :read-only も states に入れる。
   // これらは要素の性質で、採取ディレクトリ名からは成否が決まらない。
   const input = doc({
@@ -506,7 +506,7 @@ test("恒常状態でも勝てない候補なら resolved にする（何でも 
   expect(result.winner.value).toBe("blue");
 });
 
-test("一時的な状態（:hover 等）は従来どおり不成立に倒す", () => {
+test("一時的な状態（:hover 等）は従来どおり不成立として扱う", () => {
   // ここを恒常状態と同じ扱いにすると、default の採取で :hover を持つ部品が全部 undecidable になる。
   const input = doc({
     matched: [
@@ -627,7 +627,7 @@ test("採取が完全なら waived: false で通す（何でも止める実装�
   expect(report.results[0].status).toBe("resolved");
 });
 
-test("共起しうる一時的な状態は不成立に倒さない（:active の採取で :hover が効いている）", () => {
+test("共起しうる一時的な状態は不成立として扱わない（:active の採取で :hover も当たっている）", () => {
   const input = doc({
     matched: [
       {
@@ -896,7 +896,7 @@ test("主語の外に付いた状態は成立と扱わない（隣の要素の h
   expect(resolve(subject, "color", ["default"]).winner.value).toBe("blue");
 });
 
-test("statesOutsideSubject は主語の内外を弁別する", () => {
+test("statesOutsideSubject は主語の内外を区別する", () => {
   expect(statesOutsideSubject(".trigger:hover + .target", ["hover"])).toEqual(["hover"]);
   expect(statesOutsideSubject(".a:hover .b:hover", ["hover"])).toEqual(["hover"]);
   expect(statesOutsideSubject(":is(.a:hover) .b", ["hover"])).toEqual(["hover"]);

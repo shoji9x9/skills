@@ -241,7 +241,7 @@ const codesOf = (metadata) => checkCaptureScope(metadata).findings.map((f) => f.
 /** @param {ReturnType<typeof metadataOf>} metadata */
 const holeIdsOf = (metadata) => checkCaptureScope(metadata).holes.map((h) => h.id);
 
-test("陽性コントロール: 穴の無い採取は exit 0（常に落とす実装ではない）", () => {
+test("誤検知しないことの確認: 抜けの無い採取は exit 0（常に落とす実装ではない）", () => {
   const { code, result } = run(["--metadata", "m.json"], {
     "/w/m.json": JSON.stringify(metadataOf()),
   });
@@ -250,7 +250,7 @@ test("陽性コントロール: 穴の無い採取は exit 0（常に落とす�
   expect(code).toBe(0);
 });
 
-test("撮影領域より文書が大きい組は、下・右の切れを穴として数える", () => {
+test("撮影領域より文書が大きい組は、下・右の切れを抜けとして数える", () => {
   const metadata = metadataOf({
     scope: [
       {
@@ -273,7 +273,7 @@ test("撮影領域より文書が大きい組は、下・右の切れを穴と�
   expect(codesOf(metadata).filter((c) => c === "hole-unexempted")).toHaveLength(2);
 });
 
-test("内部スクロール器の外は穴になる（画素にも特性にも出ない）", () => {
+test("内部のスクロールコンテナの外は抜けになる（画素にも特性にも出ない）", () => {
   const metadata = metadataOf({
     scope: [
       {
@@ -337,7 +337,7 @@ function withContainer(container, override = {}) {
   });
 }
 
-test("器ごとの記録の陰性コントロール: バーが場所を取って撮った器は scroll の穴だけ", () => {
+test("コンテナごとの記録で誤検知しないことの確認: バーが場所を取って撮ったコンテナは scroll の抜けだけ", () => {
   expect(holeIdsOf(withContainer({}))).toEqual(["list|default|desktop#scroll:グリッド本体"]);
   // 新側の形（overflow-x: hidden で横のバーを描かない）は、横の厚み 0 が正規の値
   expect(
@@ -365,7 +365,7 @@ test.each([
     },
   ],
 ])(
-  "shown で撮ったのに%sにはみ出した向きのバーが場所を取っていない器は穴になる",
+  "shown で撮ったのに%sにはみ出した向きのバーが場所を取っていないコンテナは抜けになる",
   (_label, container) => {
     expect(holeIdsOf(withContainer(container))).toContain(
       "list|default|desktop#scrollbar-hidden:グリッド本体",
@@ -380,15 +380,15 @@ test.each([
     "はみ出していない",
     { scroll: { width: 628, height: 298 }, client: { width: 628, height: 298 } },
   ],
-])("バーを描かない器（%s）の厚み 0 は scrollbar-hidden にしない", (_label, container) => {
+])("バーを描かないコンテナ（%s）の厚み 0 は scrollbar-hidden にしない", (_label, container) => {
   expect(
     holeIdsOf(withContainer({ ...container, bar: { vertical: 0, horizontal: 0 } })),
   ).not.toContain("list|default|desktop#scrollbar-hidden:グリッド本体");
 });
 
-test("traits.elements に無い器は untraced の穴になる（スクロールバーの差が特性照合に写らない）", () => {
-  expect(holeIdsOf(withContainer({ name: "名前の無い器" }))).toContain(
-    "list|default|desktop#untraced:名前の無い器",
+test("traits.elements に無いコンテナは untraced の抜けになる（スクロールバーの差が特性照合に表れない）", () => {
+  expect(holeIdsOf(withContainer({ name: "名前の無いコンテナ" }))).toContain(
+    "list|default|desktop#untraced:名前の無いコンテナ",
   );
   expect(holeIdsOf(withContainer({}))).not.toContain("list|default|desktop#untraced:グリッド本体");
 });
@@ -397,11 +397,11 @@ test.each([
   ["欠落", { traits: undefined }],
   ["配列でない", { traits: { elements: "グリッド本体" } }],
   ["空の名前", { traits: { elements: ["グリッド本体", ""] } }],
-])("器があるのに traits.elements が読めない（%s）なら落とす", (_label, override) => {
+])("コンテナがあるのに traits.elements が読めない（%s）なら落とす", (_label, override) => {
   expect(codesOf(withContainer({}, override))).toContain("traits-elements-unreadable");
 });
 
-test("器が無ければ traits.elements が読めなくても落とさない（判定に使わない）", () => {
+test("コンテナが無ければ traits.elements が読めなくても落とさない（判定に使わない）", () => {
   const metadata = withContainer({}, { traits: undefined });
   /** @type {any} */ (metadata).capture_conditions.capture_scope[0].scroll_containers = [];
   expect(codesOf(metadata)).toEqual([]);
@@ -413,9 +413,12 @@ test.each([
   ["bar の欠落", { bar: undefined }, "scroll-container-bar-unreadable"],
   ["bar の負の値", { bar: { vertical: -1, horizontal: 0 } }, "scroll-container-bar-unreadable"],
   ["bar が文字列", { bar: { vertical: "15", horizontal: 0 } }, "scroll-container-bar-unreadable"],
-])("器の記録の %s は落とす（読めないことを穴が無いことに倒さない）", (_label, container, code) => {
-  expect(codesOf(withContainer(container))).toContain(code);
-});
+])(
+  "コンテナの記録の %s は落とす（読めないことを抜けが無いこととして扱わない）",
+  (_label, container, code) => {
+    expect(codesOf(withContainer(container))).toContain(code);
+  },
+);
 
 test("scrollbars が hidden なら理由を、shown なら撮った環境を書かせる", () => {
   expect(codesOf(metadataOf({ scrollbars: "hidden" }))).toContain(
@@ -434,7 +437,7 @@ test("scrollbars が hidden なら理由を、shown なら撮った環境を書�
   }
 });
 
-test("同じ論理名が 2 つあれば落ちる（同じ id の穴が 2 つできる）", () => {
+test("同じ論理名が 2 つあれば落ちる（同じ id の抜けが 2 つできる）", () => {
   const metadata = metadataOf({
     scope: [
       {
@@ -455,7 +458,7 @@ test("同じ論理名が 2 つあれば落ちる（同じ id の穴が 2 つで�
   expect(holeIdsOf(metadata)).toEqual(["list|default|desktop#offscreen:フッタの件数表示"]);
 });
 
-test("撮影領域の外にある論理名は穴になる", () => {
+test("撮影領域の外にある論理名は抜けになる", () => {
   const metadata = metadataOf({
     scope: [
       {
@@ -474,7 +477,7 @@ test("撮影領域の外にある論理名は穴になる", () => {
   expect(holeIdsOf(metadata)).toEqual(["list|default|desktop#offscreen:フッタの件数表示"]);
 });
 
-test("理由と gaps への参照が揃った宣言は穴を通す（範囲を広げる以外の出口が在る）", () => {
+test("理由と gaps への参照が揃った宣言は抜けを通す（範囲を広げる以外の出口が在る）", () => {
   const metadata = metadataOf({
     scope: [
       {
@@ -522,7 +525,7 @@ test("宣言に reason / gaps_ref が無ければ落ちる", () => {
   expect(codes).toContain("exemption-gaps-ref-missing");
 });
 
-test("対応する穴の無い宣言は効かない宣言として落ちる", () => {
+test("対応する抜けの無い宣言は機能しない宣言として落ちる", () => {
   const metadata = metadataOf({
     exemptions: [
       { id: "list|default|desktop#below-fold", reason: "以前は切れていた", gaps_ref: "gaps.md" },
@@ -531,7 +534,7 @@ test("対応する穴の無い宣言は効かない宣言として落ちる", ()
   expect(codesOf(metadata)).toContain("exemption-ineffective");
 });
 
-test("撮ったのに範囲を測っていない組は落ちる（測っていないことを穴無しに倒さない）", () => {
+test("撮ったのに範囲を測っていない組は落ちる（測っていないことを抜け無しとして扱わない）", () => {
   const metadata = metadataOf({
     scope: [
       {
@@ -549,7 +552,7 @@ test("撮ったのに範囲を測っていない組は落ちる（測ってい�
   expect(codes).toContain("scope-entry-missing");
 });
 
-test("noise_baseline に同じ組が 2 行あれば落ちる（Set が黙って畳む前に）", () => {
+test("noise_baseline に同じ組が 2 行あれば落ちる（Set が警告なしに畳む前に）", () => {
   const metadata = metadataOf({
     noise: [
       { page: "list", state: "default", viewport: "desktop", pixel_diff: 0, trait_diffs: 0 },
@@ -560,7 +563,7 @@ test("noise_baseline に同じ組が 2 行あれば落ちる（Set が黙って�
   expect(codesOf(metadata)).toContain("noise-entry-duplicated");
 });
 
-test("撮っていない組の実測が混ざっていれば落ちる", () => {
+test("撮っていない組の実測が含まれていれば落ちる", () => {
   const metadata = metadataOf({
     states: ["default"],
     noise: [{ page: "list", state: "default", viewport: "desktop", pixel_diff: 0 }],
@@ -587,7 +590,7 @@ test("scroll_containers / named_elements_outside のキー欠落は未測定と�
   expect(codes).toContain("named-elements-outside-missing");
 });
 
-test("寸法が数値でなければ穴の有無を判定せず落とす", () => {
+test("寸法が数値でなければ抜けの有無を判定せず落とす", () => {
   const derived = deriveHoles({
     page: "list",
     state: "default",
@@ -607,12 +610,12 @@ test("capture_scope をキーごと持たない成果物は落ちる（後方互
   expect(codesOf(metadata)).toContain("capture-scope-missing");
 });
 
-test("noise_baseline が空なら合格に倒さない", () => {
+test("noise_baseline が空なら合格として扱わない", () => {
   const metadata = metadataOf({ noise: [] });
   expect(codesOf(metadata)).toContain("noise-baseline-missing");
 });
 
-test("穴の id の材料に区切り文字が入っていれば落とす（1 つの宣言が 2 つの穴を黙らせる）", () => {
+test("抜けの id の材料に区切り文字が入っていれば落とす（1 つの宣言が 2 つの抜けを警告なしに通す）", () => {
   // ビューポート `v#scroll:x` の below-fold と、ビューポート `v` のコンテナ `x#below-fold` は
   // どちらも p|s|v#scroll:x#below-fold になり、1 つの宣言で両方が消える。
   const metadata = metadataOf({
@@ -717,7 +720,7 @@ test("テンプレートのプレースホルダ（寸法 0）は測っていな
   expect(result.findings.map((f) => f.code)).toContain("scope-size-unreadable");
 });
 
-test("内部スクロール器の寸法 0 も測っていない扱いにする", () => {
+test("内部のスクロールコンテナの寸法 0 も測っていない扱いにする", () => {
   const metadata = metadataOf({
     scope: [
       {
@@ -742,7 +745,7 @@ test("内部スクロール器の寸法 0 も測っていない扱いにする",
   expect(codesOf(metadata)).toContain("scroll-container-size-unreadable");
 });
 
-test("mode の欠落・非文字列は feature に倒さず exit 2", () => {
+test("mode の欠落・非文字列は feature として扱わず exit 2", () => {
   for (const mode of [undefined, null, 3, ""]) {
     const metadata = metadataOf({ mode });
     if (mode === undefined) delete metadata.mode;
@@ -764,7 +767,7 @@ test("視覚採取物を持たないモードは判定に入れない（合格�
   }
 });
 
-test("mode が語彙外なら判定を飛ばさず落とす（緩和経路を未列挙の入力へ広げない）", () => {
+test("mode が語彙外なら判定を飛ばさず落とす（緩和する処理を未列挙の入力へ広げない）", () => {
   const { code, result } = run(["--metadata", "m.json"], {
     "/w/m.json": JSON.stringify({ slug: "user", mode: "component" }),
   });
@@ -780,7 +783,7 @@ test("feature モードは判定に入る（judged: true）", () => {
   expect(result.judged).toBe(true);
 });
 
-test("宣言した組を採っていなければ穴として数える（採った組の一覧を期待値にしない）", () => {
+test("宣言した組を採っていなければ抜けとして数える（採った組の一覧を期待値にしない）", () => {
   // noise_baseline だけを突き合わせ相手にすると、組ごと落とした範囲が期待値からも消えて抜けが 0 件になる。
   const metadata = metadataOf({
     scope: [
@@ -807,7 +810,7 @@ test("宣言した組を採っていなければ穴として数える（採っ�
     exemptions: [
       {
         id: "list|hover|desktop#not-captured",
-        reason: "この機能に hover 状態の器が無い",
+        reason: "この機能に hover 状態を持つ要素が無い",
         gaps_ref: "gaps.md の撮影範囲の対象外「一覧の hover」",
       },
     ],
@@ -815,7 +818,7 @@ test("宣言した組を採っていなければ穴として数える（採っ�
   expect(codesOf(exempted)).toEqual([]);
 });
 
-test("撮影条件の軸が空・区切り文字入り・重複なら落とす（期待値を作れないことを合格に倒さない）", () => {
+test("撮影条件の軸が空・区切り文字入り・重複なら落とす（期待値を作れないことを合格として扱わない）", () => {
   const base = metadataOf();
   expect(codesOf(metadataOf({ states: [] }))).toContain("declared-axis-missing");
   expect(codesOf(metadataOf({ pages: [{ path: "/orders" }] }))).toContain(
@@ -832,7 +835,7 @@ test("撮影条件の軸が空・区切り文字入り・重複なら落とす�
   expect(checkCaptureScope(base).counts.declared).toBe(2);
 });
 
-test("capture_conditions が無い・JSON が壊れている入力は exit 2", () => {
+test("capture_conditions が無い・JSON として読めない入力は exit 2", () => {
   expect(run(["--metadata", "m.json"], { "/w/m.json": "{}" }).code).toBe(2);
   expect(run(["--metadata", "m.json"], { "/w/m.json": "{" }).code).toBe(2);
 });
@@ -847,7 +850,7 @@ test("引数の誤り・読めない入力は exit 2", () => {
 // Issue #407: capture_scope の重複要素を finding の後も無条件に上書きしていたため（後勝ち）、
 // 本物の実測の後にプレースホルダーが続くと deriveHoles が最後の要素しか見ず、抜けが消えていた。
 // noise_baseline の重複と同じく先勝ちで残す。
-test("capture_scope の重複要素は先勝ちで残り、本物の穴が消えない", () => {
+test("capture_scope の重複要素は先勝ちで残り、本物の抜けが消えない", () => {
   const real = {
     page: "list",
     state: "default",
@@ -918,7 +921,7 @@ function overflowWithWindow(windowOverride) {
   });
 }
 
-test("はみ出しの陰性コントロール: 正規の記録は落とさない（hidden / shown / not_measured）", () => {
+test("はみ出しで誤検知しないことの確認: 正規の記録は落とさない（hidden / shown / not_measured）", () => {
   expect(codesOf(metadataOf())).toEqual([]);
   // 撮影をスクロールバー表示で行ったプロジェクト
   expect(codesOf(metadataOf({ scrollbars: "shown" }))).toEqual([]);
@@ -1016,7 +1019,7 @@ test("記録を現・新に当てるスペックが無いなら落とす", () =>
   }
 });
 
-test("頁の測り漏れ・重複・撮影頁に無い頁は落とす（期待集合は capture_conditions.pages から作る）", () => {
+test("頁の測り忘れ・重複・撮影頁に無い頁は落とす（期待集合は capture_conditions.pages から作る）", () => {
   const page = /** @type {any} */ (overflowOf().pages)[0];
   expect(codesOf(metadataOf({ overflow: overflowOf({ pages: [] }) }))).toContain(
     "overflow-page-missing",
@@ -1185,7 +1188,7 @@ test("同梱テンプレートのプレースホルダのままの overflow は�
   expect(codes).toEqual(expect.arrayContaining(["scrollbars-unknown", "overflow-status-unknown"]));
 });
 
-test("最小幅が中間のブレークポイントでだけ効く頁は、狭いモバイル幅ではみ出さなくても落とさない（Codex レビュー #453）", () => {
+test("最小幅が中間のブレークポイントでだけ有効になる頁は、狭いモバイル幅ではみ出さなくても落とさない（Codex レビュー #453）", () => {
   const page = /** @type {any} */ (overflowOf().pages)[0];
   const mobile = {
     width: 375,
@@ -1265,7 +1268,7 @@ test("最小幅の探索の範囲の記録が無い・読めないスタイル�
 
 // ---- 表示を切り替える軸（Issue #489） ----
 
-test("陽性コントロール: ロケールの変種を全ページ × 全状態で撮った採取は通る", () => {
+test("誤検知しないことの確認: ロケールの変種を全ページ × 全状態で撮った採取は通る", () => {
   const { scope, noise } = withVariantCaptures();
   const metadata = metadataOf({ displayAxes: localeAxes(), scope, noise });
   expect(codesOf(metadata)).toEqual([]);
@@ -1292,7 +1295,7 @@ test("候補を axes にも absent にも振り分けていないと落ちる（
   expect(findings[0].message).toContain("color-scheme");
 });
 
-test("absent の来歴の欠落・候補の重複・一覧に無い候補は落とす", () => {
+test("absent の出所の欠落・候補の重複・一覧に無い候補は落とす", () => {
   const axes = noAxes();
   expect(
     codesOf(
@@ -1331,7 +1334,7 @@ test("既定以外の値を撮る変種が無ければ落ちる（1 軸ずつ振
   expect(codesOf(metadata)).toEqual(["display-axis-value-unswept"]);
 });
 
-test("変種を宣言したのに撮っていない組は #not-captured の穴になる（parity-diff の収束でも落ちる）", () => {
+test("変種を宣言したのに撮っていない組は #not-captured の抜けになる（parity-diff の収束でも落ちる）", () => {
   const metadata = metadataOf({ displayAxes: localeAxes() });
   expect(holeIdsOf(metadata)).toEqual([
     "list|default|desktop-ja#not-captured",
@@ -1340,7 +1343,7 @@ test("変種を宣言したのに撮っていない組は #not-captured の穴�
   expect(codesOf(metadata).filter((c) => c === "hole-unexempted")).toHaveLength(2);
 });
 
-test("軸が効かないページは not_applicable と理由で撮るはずの組から外れる", () => {
+test("軸が機能しないページは not_applicable と理由で撮るはずの組から外れる", () => {
   const pages = [
     { name: "list", path: "/orders" },
     { name: "print", path: "/orders/print" },
@@ -1372,7 +1375,7 @@ test("軸が効かないページは not_applicable と理由で撮るはずの�
   ).toContain("display-axis-not-applicable-duplicated");
 });
 
-test("軸の宣言の欠落・型崩れは落とす（名前・値・既定・来歴・当て方）", () => {
+test("軸の宣言の欠落・型崩れは落とす（名前・値・既定・出所・当て方）", () => {
   const axes = localeAxes();
   const withAxis = (patch) =>
     codesOf(
@@ -1402,7 +1405,7 @@ test("軸の宣言の欠落・型崩れは落とす（名前・値・既定・�
   ).toContain("display-axis-duplicated");
 });
 
-test("スイートへの写し方は期待値の所在か変わらない根拠のどちらか一方だけ", () => {
+test("スイートへの反映のしかたは期待値の所在か変わらない根拠のどちらか一方だけ", () => {
   const axes = localeAxes();
   const withSuite = (suite_expectations, suite_reason) =>
     codesOf(
@@ -1606,7 +1609,7 @@ test("not_applicable が撮影ページの全てを覆う軸は落とす（変�
   expect(holeIdsOf(metadata)).toEqual([]);
 });
 
-test("軸の効くページが 1 つも無い複合変種は落とす（撮るはずの組 0 件で掛け合わせの対を満たさない。Codex レビュー #491）", () => {
+test("軸が機能するページが 1 つも無い複合変種は落とす（撮るはずの組 0 件で掛け合わせの対を満たさない。Codex レビュー #491）", () => {
   const pages = [
     { name: "list", path: "/orders" },
     { name: "print", path: "/orders/print" },
@@ -1730,7 +1733,7 @@ test("軸の根拠欄にテンプレートの <…> や TODO が残っていた�
         displayAxes: {
           ...absentPlaceholder,
           absent: absentPlaceholder.absent.map((a) =>
-            a.candidate === "print" ? { ...a, source: "<無いと確かめた来歴>" } : a,
+            a.candidate === "print" ? { ...a, source: "<無いと確かめた出所>" } : a,
           ),
         },
       }),

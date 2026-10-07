@@ -15,7 +15,7 @@
       "occurrences": 1,
       "expect_failing": [
         "--exclude project-config なら設定ファイルの書き換えを通し、外した id を出力に出す",
-        "--exclude で一覧の項目がすべて外れたら合格に倒さない（exit 2）",
+        "--exclude で一覧の項目がすべて外れたら合格として扱わない（exit 2）",
         "--exclude project-config でも残りの項目（features.md の行の削除）は落とす"
       ]
     },
@@ -27,7 +27,7 @@
       "replace": "  if (false) {",
       "occurrences": 1,
       "expect_failing": [
-        "--exclude に一覧に無い id を渡したら合格に倒さない（exit 2。綴り違いで黙って何も外さない）"
+        "--exclude に一覧に無い id を渡したら合格として扱わない（exit 2。綴りを誤ったまま、警告なしに何も外さずに進まない）"
       ]
     },
     {
@@ -37,7 +37,7 @@
       "find": "  if (artifacts.length === 0) {\n    throw new UsageError(\n      `--exclude",
       "replace": "  if (false) {\n    throw new UsageError(\n      `--exclude",
       "occurrences": 1,
-      "expect_failing": ["--exclude で一覧の項目がすべて外れたら合格に倒さない（exit 2）"]
+      "expect_failing": ["--exclude で一覧の項目がすべて外れたら合格として扱わない（exit 2）"]
     },
     {
       "id": "AO-EXCL-NOTE",
@@ -88,7 +88,7 @@
       "replace": "fillOnly.has(column)",
       "occurrences": 1,
       "expect_failing": [
-        "weaknesses.md の決めた仕分けを書き換えると落ちる（写す → 直す）",
+        "weaknesses.md の決めた仕分けを書き換えると落ちる（引き継ぐ → 直す）",
         "weaknesses.md の入っている値を未記入（-）へ戻すと落ちる",
         "weaknesses.md の基準の 未確認 は未記入とみなさない（書き換えると落ちる）",
         "assets.md の入っている方針を差し替えると落ちる",
@@ -168,7 +168,9 @@
       "find": "      if (a.fill_only_columns !== undefined && a.fill_only_columns !== null) {\n        if (unit !== \"markdown-structure\") {",
       "replace": "      if (a.fill_only_columns !== undefined && a.fill_only_columns !== null) {\n        if (false) {",
       "occurrences": 1,
-      "expect_failing": ["unit が lines なのに fill_only_columns があれば合格に倒さない（exit 2）"]
+      "expect_failing": [
+        "unit が lines なのに fill_only_columns があれば合格として扱わない（exit 2）"
+      ]
     },
     {
       "id": "AO-FILL-JSON",
@@ -178,7 +180,7 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "unit が json-arrays なのに fill_only_columns があれば合格に倒さない（exit 2）"
+        "unit が json-arrays なのに fill_only_columns があれば合格として扱わない（exit 2）"
       ]
     },
     {
@@ -189,7 +191,7 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "同じファイルに fill_only_columns の違う項目が当たれば合格に倒さない（exit 2）"
+        "同じファイルに fill_only_columns の違う項目が当たれば合格として扱わない（exit 2）"
       ]
     },
     {

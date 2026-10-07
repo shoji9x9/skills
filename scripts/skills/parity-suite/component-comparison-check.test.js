@@ -130,7 +130,7 @@ const codesOf = (input = {}) =>
     target: input.target ?? null,
   }).findings.map((f) => f.code);
 
-test("セルの鍵は材料が 1 つでも欠けたら作らない（undefined が有効な鍵へ化けない）", () => {
+test("セルの鍵は材料が 1 つでも欠けたら作らない（undefined を有効な鍵として扱わない）", () => {
   expect(cellKey({ component: "grid", item: "sort", instance: "grid@list" })).toBe(
     "grid|sort|grid@list",
   );
@@ -138,7 +138,7 @@ test("セルの鍵は材料が 1 つでも欠けたら作らない（undefined �
   expect(cellKey({ component: "grid", item: "", instance: "grid@list" })).toBeNull();
 });
 
-test("区切り文字を含む材料からは鍵を作らない（別の操作の記録が証拠に化ける）", () => {
+test("区切り文字を含む材料からは鍵を作らない（別の操作の記録が誤って証拠として扱われる）", () => {
   // `("a|b","c","d")` と `("a","b|c","d")` はどちらも a|b|c|d になり、
   // 別セルの突き合わせ記録が present セルの証拠として通る（指紋も同じ鍵を数えるので一致する）。
   expect(cellKey({ component: "a|b", item: "c", instance: "d" })).toBeNull();
@@ -169,7 +169,7 @@ test("区切り文字を含む材料からは鍵を作らない（別の操作�
   expect(codes).toContain("comparison-row-unkeyed");
 });
 
-test("陽性コントロール: 3 点の揃った突き合わせは exit 0（常に落とす実装ではない）", () => {
+test("誤検知しないことの確認: 3 点の揃った突き合わせは exit 0（常に落とす実装ではない）", () => {
   const { code, result } = run(
     [
       "--coverage",
@@ -221,7 +221,7 @@ test("present なのに行が無いセルは未突合として数える", () => 
   expect(codes).toContain("cell-not-compared");
 });
 
-test("入口・当たり判定・完了のどれかが欠けたら突き合わせ済みにしない", () => {
+test("起点・当たり判定・完了のどれかが欠けたら突き合わせ済みにしない", () => {
   for (const axis of ["entry", "hit_area", "completion"]) {
     const cells = comparisonOf().cells.map((cell) => {
       if (cell.item !== "sort") return cell;
@@ -285,7 +285,7 @@ test("承認記録のある accepted だけが未突合を通す", () => {
   );
 });
 
-test("被覆表が更新されたら古い突き合わせ表は指紋で落ちる", () => {
+test("網羅表が更新されたら古い突き合わせ表は指紋で落ちる", () => {
   const codes = codesOf({
     comparison: comparisonOf({ fingerprint: fingerprintOf(["grid|sort|grid@list"]) }),
   });
@@ -331,13 +331,13 @@ test("突き合わせは新側の版に紐づける（記録後に実装が変�
   ).toContain("replace-metadata-dirty");
 });
 
-test("被覆表に slug が無いことを免除にしない", () => {
+test("網羅表に slug が無いことを免除にしない", () => {
   const coverage = { ...COVERAGE };
   delete coverage.slug;
   expect(codesOf({ coverage })).toContain("coverage-slug-missing");
 });
 
-test("別機能から写した突き合わせ表は --metadata なしでも落ちる", () => {
+test("別機能からコピーした突き合わせ表は --metadata なしでも落ちる", () => {
   // --metadata は任意なので、metadata があるときだけ slug を見ると、target と鍵が一致するだけで通る。
   const codes = codesOf({
     comparison: comparisonOf({ slug: "order-detail" }),
@@ -350,7 +350,7 @@ test("別 target の記録では収束させない", () => {
   expect(codesOf({ target: "staging" })).toContain("comparison-target-mismatch");
 });
 
-test("被覆表に無いセルの記録が混ざっていれば落ちる", () => {
+test("網羅表に無いセルの記録が含まれていれば落ちる", () => {
   const cells = [
     ...comparisonOf().cells,
     {
@@ -369,7 +369,7 @@ test("同じセルの行が 2 つあれば落ちる", () => {
   expect(codesOf({ comparison: comparisonOf({ cells }) })).toContain("comparison-row-duplicated");
 });
 
-test("被覆表が読めなければ exit 2（合格に倒さない）", () => {
+test("網羅表が読めなければ exit 2（合格として扱わない）", () => {
   const { code, result } = run(
     [
       "--coverage",
@@ -391,7 +391,7 @@ test("被覆表が読めなければ exit 2（合格に倒さない）", () => {
   expect(result.findings.map((f) => f.code)).toContain("coverage-unreadable");
 });
 
-test("被覆表に同じ present セルが 2 つあれば落ちる（1 セルを 2 回数えない）", () => {
+test("網羅表に同じ present セルが 2 つあれば落ちる（1 セルを 2 回数えない）", () => {
   const coverage = { ...COVERAGE, cells: [...COVERAGE.cells, COVERAGE.cells[0]] };
   const result = checkComponentComparison({
     coverage,
@@ -406,7 +406,7 @@ test("被覆表に同じ present セルが 2 つあれば落ちる（1 セルを
   expect(result.counts.compared).toBe(PRESENT_KEYS.length);
 });
 
-test("--target を省いた実行・空白だけの値は exit 2（別環境の記録を黙って通さない）", () => {
+test("--target を省いた実行・空白だけの値は exit 2（別環境の記録を警告なしに通さない）", () => {
   const files = {
     "/w/c.json": JSON.stringify(COVERAGE),
     "/w/n.json": JSON.stringify(comparisonOf()),
@@ -469,7 +469,7 @@ test("版の記録は dirty: false まで求める（未コミットの作業ツ
   expect(clean).not.toContain("replace-metadata-dirty");
 });
 
-test("引数の誤り・読めない被覆表は exit 2", () => {
+test("引数の誤り・読めない網羅表は exit 2", () => {
   expect(run([], {}).code).toBe(2);
   expect(run(["--coverage"], {}).code).toBe(2);
   expect(run(["--coverage", "c.json", "--nope", "x"], {}).code).toBe(2);
@@ -509,14 +509,17 @@ test.each([
   ["記録側の iteration が無い", { commit: "none", dirty: false }, 3],
   ["現在側の loop.iterations が無い", { commit: "none", dirty: false, iteration: 3 }, undefined],
   ["iteration が整数でない", { commit: "none", dirty: false, iteration: "3" }, 3],
-])("none なのに退き先が読めなければ合格に倒さない: %s", (_label, implementation, iterations) => {
-  expect(
-    codesOf({
-      comparison: comparisonOf({ new_implementation: implementation }),
-      replaceMetadata: noneReplaceMetadata(iterations),
-    }),
-  ).toContain("comparison-implementation-unversionable");
-});
+])(
+  "none なのに退き先が読めなければ合格として扱わない: %s",
+  (_label, implementation, iterations) => {
+    expect(
+      codesOf({
+        comparison: comparisonOf({ new_implementation: implementation }),
+        replaceMetadata: noneReplaceMetadata(iterations),
+      }),
+    ).toContain("comparison-implementation-unversionable");
+  },
+);
 
 // 片側だけが none なら必要な直し方は「同じ版で再取得する」なので stale だけを出す。
 // 反復回数の検査まで進めると、仕様上 iteration を書く義務が無い SHA 記録に対して
@@ -545,7 +548,7 @@ test.each([
   ["記録が SHA・現在が none", { commit: "abc123", dirty: false, iteration: 3 }, "none", 3],
   ["記録が none・現在が SHA", { commit: "none", dirty: false, iteration: 3 }, "abc123", 3],
 ])(
-  "片側だけ none で反復回数が一致しても合格に倒さない: %s",
+  "片側だけ none で反復回数が一致しても合格として扱わない: %s",
   (_label, implementation, now, iterations) => {
     expect(
       codesOf({
@@ -556,7 +559,7 @@ test.each([
   },
 );
 
-test("両側とも none で反復回数も一致すれば通る（陽性コントロール。常に落とす実装ではない）", () => {
+test("両側とも none で反復回数も一致すれば通る（誤検知しないことの確認。常に落とす実装ではない）", () => {
   expect(
     codesOf({
       comparison: comparisonOf({

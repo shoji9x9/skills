@@ -21,7 +21,7 @@
         "property は完全一致か glob で当たり、別のプロパティには当たらない",
         "page / state / viewport は書いたときだけ実行の組と突き合わせる",
         "pending の要素も match で当たり、分類の群の優先順は keep → may_change → pending",
-        "CLI: match で当たった宣言の差分は absorbed_registry で exit 0（陽性コントロール）"
+        "CLI: match で当たった宣言の差分は absorbed_registry で exit 0（誤検知しないことの確認）"
       ]
     },
     {
@@ -32,8 +32,8 @@
       "replace": "  if (false) {",
       "occurrences": 1,
       "expect_failing": [
-        "壊れた match は照合に使わない（欠けたキーはワイルドカードにならない）",
-        "CLI: 壊れた match は黙って無効化せず stderr へ警告を出す",
+        "形式の不正な match は照合に使わない（欠けたキーはワイルドカードにならない）",
+        "CLI: 形式の不正な match は警告なしに無効化せず stderr へ警告を出す",
         "page / viewport を書いた宣言は、実行側にその軸が無ければ数える（当たりようがない）"
       ]
     },
@@ -44,7 +44,9 @@
       "find": "  if (unknownKeys.length > 0) {",
       "replace": "  if (false) {",
       "occurrences": 1,
-      "expect_failing": ["壊れた match は照合に使わない（欠けたキーはワイルドカードにならない）"]
+      "expect_failing": [
+        "形式の不正な match は照合に使わない（欠けたキーはワイルドカードにならない）"
+      ]
     },
     {
       "id": "element-not-checked",

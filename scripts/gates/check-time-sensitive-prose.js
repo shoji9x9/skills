@@ -128,7 +128,7 @@ export function checkMutationCountProse(root) {
   const violations = [];
   for (const file of files) {
     for (const { line, kind, text } of findMentions(readFileSync(join(root, file), "utf8"))) {
-      violations.push(`${file}:${line}: 変異実証の${kind}「${text}」`);
+      violations.push(`${file}:${line}: ミューテーションテストの${kind}「${text}」`);
     }
   }
   return { files, violations };

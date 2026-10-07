@@ -15,9 +15,9 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "照会の正本（tracking-issue-lib.sh） jq 式が世代違いだけを拾う: 接頭辞 kaizen: 未適用の学び",
-        "照会の正本（tracking-issue-lib.sh） jq 式が世代違いだけを拾う: 接頭辞 mise outdated tool versions",
-        "照会の正本（tracking-issue-lib.sh） jq 式が世代違いだけを拾う: 接頭辞 tool (a.b) [x]*"
+        "照会の原本（tracking-issue-lib.sh） jq 式が世代違いだけを拾う: 接頭辞 kaizen: 未適用の学び",
+        "照会の原本（tracking-issue-lib.sh） jq 式が世代違いだけを拾う: 接頭辞 mise outdated tool versions",
+        "照会の原本（tracking-issue-lib.sh） jq 式が世代違いだけを拾う: 接頭辞 tool (a.b) [x]*"
       ]
     },
     {
@@ -28,9 +28,9 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "照会の正本（tracking-issue-lib.sh） jq 式が世代違いだけを拾う: 接頭辞 kaizen: 未適用の学び",
-        "照会の正本（tracking-issue-lib.sh） jq 式が世代違いだけを拾う: 接頭辞 mise outdated tool versions",
-        "照会の正本（tracking-issue-lib.sh） jq 式が世代違いだけを拾う: 接頭辞 tool (a.b) [x]*"
+        "照会の原本（tracking-issue-lib.sh） jq 式が世代違いだけを拾う: 接頭辞 kaizen: 未適用の学び",
+        "照会の原本（tracking-issue-lib.sh） jq 式が世代違いだけを拾う: 接頭辞 mise outdated tool versions",
+        "照会の原本（tracking-issue-lib.sh） jq 式が世代違いだけを拾う: 接頭辞 tool (a.b) [x]*"
       ]
     },
     {
@@ -41,7 +41,7 @@
       "replace": "gh issue list --state open \"$@\" \\",
       "occurrences": 1,
       "expect_failing": [
-        "照会の正本（tracking-issue-lib.sh） 既定 30 件で打ち切らず、上限と閾値を 1 箇所で決める"
+        "照会の原本（tracking-issue-lib.sh） 既定 30 件で打ち切らず、上限と閾値を 1 箇所で決める"
       ]
     },
     {
@@ -52,7 +52,7 @@
       "replace": "if [ \"$scanned\" -ge 100 ]; then",
       "occurrences": 2,
       "expect_failing": [
-        "照会の正本（tracking-issue-lib.sh） 既定 30 件で打ち切らず、上限と閾値を 1 箇所で決める"
+        "照会の原本（tracking-issue-lib.sh） 既定 30 件で打ち切らず、上限と閾値を 1 箇所で決める"
       ]
     },
     {
@@ -63,8 +63,8 @@
       "replace": "\t\tscanned=*) ;;\n",
       "occurrences": 1,
       "expect_failing": [
-        "照会の正本（tracking-issue-lib.sh） どちらの照会が打ち切られても truncated を立て、下回れば鳴らさない",
-        "照会の正本（tracking-issue-lib.sh） 走査件数が 10 進でなければ落ちる（打ち切り判定を fail-open にしない）"
+        "照会の原本（tracking-issue-lib.sh） どちらの照会が打ち切られても truncated を立て、下回れば鳴らさない",
+        "照会の原本（tracking-issue-lib.sh） 走査件数が 10 進でなければ落ちる（打ち切りを判定できないまま通さない）"
       ]
     },
     {
@@ -75,10 +75,10 @@
       "replace": "\tread_matches \"$(find_tracking_issues \"$@\")\"\n",
       "occurrences": 1,
       "expect_failing": [
-        "照会の正本（tracking-issue-lib.sh） gh issue list が失敗したら非 0 で返る（fail-closed）",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに落ちる（fail-closed）",
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに落ちる（fail-closed）",
-        "照会の正本（tracking-issue-lib.sh） errexit が効かない文脈でも照会の失敗を戻り値で伝える"
+        "照会の原本（tracking-issue-lib.sh） gh issue list が失敗したら非 0 で返る",
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する",
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する",
+        "照会の原本（tracking-issue-lib.sh） errexit が無効な文脈でも照会の失敗を戻り値で伝える"
       ]
     },
     {
@@ -89,8 +89,8 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "照会の正本（tracking-issue-lib.sh） 検索が 0 件なら --search 無しで引き直し、見つかった週は 2 度引かない",
-        "照会の正本（tracking-issue-lib.sh） どちらの照会が打ち切られても truncated を立て、下回れば鳴らさない"
+        "照会の原本（tracking-issue-lib.sh） 検索が 0 件なら --search 無しで引き直し、見つかった週は 2 度引かない",
+        "照会の原本（tracking-issue-lib.sh） どちらの照会が打ち切られても truncated を立て、下回れば鳴らさない"
       ]
     },
     {
@@ -101,7 +101,7 @@
       "replace": "\ttruncated=false\n",
       "occurrences": 1,
       "expect_failing": [
-        "照会の正本（tracking-issue-lib.sh） どちらの照会が打ち切られても truncated を立て、下回れば鳴らさない"
+        "照会の原本（tracking-issue-lib.sh） どちらの照会が打ち切られても truncated を立て、下回れば鳴らさない"
       ]
     },
     {
@@ -112,7 +112,7 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "照会の正本（tracking-issue-lib.sh） どちらの照会が打ち切られても truncated を立て、下回れば鳴らさない"
+        "照会の原本（tracking-issue-lib.sh） どちらの照会が打ち切られても truncated を立て、下回れば鳴らさない"
       ]
     },
     {
@@ -123,7 +123,7 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "照会の正本（tracking-issue-lib.sh） 接頭辞が空なら gh を 1 度も呼ばずに落ちる"
+        "照会の原本（tracking-issue-lib.sh） 接頭辞が空なら gh を 1 度も呼ばずに失敗する"
       ]
     },
     {
@@ -134,7 +134,7 @@
       "replace": "[ -r \"$dir/kaizen-schedule-report.sh\" ]",
       "occurrences": 1,
       "expect_failing": [
-        "kaizen スクリプトの探索（レポートと照会を同じ版から採る） kaizen-schedule-report.sh だけのディレクトリは採らずに落ちる"
+        "kaizen スクリプトの探索（レポートと照会を同じ版から採る） kaizen-schedule-report.sh だけのディレクトリは採らずに失敗する"
       ]
     },
     {
@@ -146,13 +146,13 @@
       "occurrences": 1,
       "expect_failing": [
         "kaizen スクリプトの探索（レポートと照会を同じ版から採る） 両方揃ったディレクトリを採り、lib のパスを出力する",
-        "kaizen スクリプトの探索（レポートと照会を同じ版から採る） 本リポでは実在する lib を指す（探索先の 1 つに正本がある）",
+        "kaizen スクリプトの探索（レポートと照会を同じ版から採る） 本リポでは実在する lib を指す（探索先の 1 つに原本がある）",
         "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ 照会は lib を source して呼び、ステップ内に再展開しない",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに落ちる（fail-closed）",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ lib を読めないときは Issue を触らずに落ちる",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"\" なら Issue を触らずに落ちる",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"3件\" なら Issue を触らずに落ちる",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"-1\" なら Issue を触らずに落ちる"
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する",
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ lib を読めないときは Issue を触らずに失敗する",
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"\" なら Issue を触らずに失敗する",
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"3件\" なら Issue を触らずに失敗する",
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"-1\" なら Issue を触らずに失敗する"
       ]
     },
     {
@@ -164,7 +164,7 @@
       "occurrences": 1,
       "expect_failing": [
         "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ env で接頭辞を宣言し、タイトルへ UTC の更新日を付ける",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに落ちる（fail-closed）"
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する"
       ]
     },
     {
@@ -176,11 +176,11 @@
       "occurrences": 1,
       "expect_failing": [
         "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ env で接頭辞を宣言し、タイトルへ UTC の更新日を付ける",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに落ちる（fail-closed）",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ lib を読めないときは Issue を触らずに落ちる",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"\" なら Issue を触らずに落ちる",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"3件\" なら Issue を触らずに落ちる",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"-1\" なら Issue を触らずに落ちる"
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する",
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ lib を読めないときは Issue を触らずに失敗する",
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"\" なら Issue を触らずに失敗する",
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"3件\" なら Issue を触らずに失敗する",
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"-1\" なら Issue を触らずに失敗する"
       ]
     },
     {
@@ -192,7 +192,7 @@
       "occurrences": 1,
       "expect_failing": [
         "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ 照会は lib を source して呼び、ステップ内に再展開しない",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに落ちる（fail-closed）"
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する"
       ]
     },
     {
@@ -204,11 +204,11 @@
       "occurrences": 1,
       "expect_failing": [
         "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ 照会は lib を source して呼び、ステップ内に再展開しない",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに落ちる（fail-closed）",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ lib を読めないときは Issue を触らずに落ちる",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"\" なら Issue を触らずに落ちる",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"3件\" なら Issue を触らずに落ちる",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"-1\" なら Issue を触らずに落ちる"
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する",
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ lib を読めないときは Issue を触らずに失敗する",
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"\" なら Issue を触らずに失敗する",
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"3件\" なら Issue を触らずに失敗する",
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"-1\" なら Issue を触らずに失敗する"
       ]
     },
     {
@@ -219,9 +219,9 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"\" なら Issue を触らずに落ちる",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"3件\" なら Issue を触らずに落ちる",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"-1\" なら Issue を触らずに落ちる"
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"\" なら Issue を触らずに失敗する",
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"3件\" なら Issue を触らずに失敗する",
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"-1\" なら Issue を触らずに失敗する"
       ]
     },
     {
@@ -321,7 +321,7 @@
       "occurrences": 1,
       "expect_failing": [
         "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ env で接頭辞を宣言し、タイトルへ UTC の更新日を付ける",
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに落ちる（fail-closed）"
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する"
       ]
     },
     {
@@ -333,11 +333,11 @@
       "occurrences": 1,
       "expect_failing": [
         "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ env で接頭辞を宣言し、タイトルへ UTC の更新日を付ける",
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに落ちる（fail-closed）",
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ lib を読めないときは Issue を触らずに落ちる",
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ HAS_OUTDATED=\"\" なら Issue を触らずに落ちる",
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ HAS_OUTDATED=\"TRUE\" なら Issue を触らずに落ちる",
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ HAS_OUTDATED=\"1\" なら Issue を触らずに落ちる"
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する",
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ lib を読めないときは Issue を触らずに失敗する",
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ HAS_OUTDATED=\"\" なら Issue を触らずに失敗する",
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ HAS_OUTDATED=\"TRUE\" なら Issue を触らずに失敗する",
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ HAS_OUTDATED=\"1\" なら Issue を触らずに失敗する"
       ]
     },
     {
@@ -349,7 +349,7 @@
       "occurrences": 1,
       "expect_failing": [
         "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ 照会は lib を source して呼び、ステップ内に再展開しない",
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに落ちる（fail-closed）"
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する"
       ]
     },
     {
@@ -361,11 +361,11 @@
       "occurrences": 1,
       "expect_failing": [
         "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ 照会は lib を source して呼び、ステップ内に再展開しない",
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに落ちる（fail-closed）",
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ lib を読めないときは Issue を触らずに落ちる",
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ HAS_OUTDATED=\"\" なら Issue を触らずに落ちる",
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ HAS_OUTDATED=\"TRUE\" なら Issue を触らずに落ちる",
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ HAS_OUTDATED=\"1\" なら Issue を触らずに落ちる"
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する",
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ lib を読めないときは Issue を触らずに失敗する",
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ HAS_OUTDATED=\"\" なら Issue を触らずに失敗する",
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ HAS_OUTDATED=\"TRUE\" なら Issue を触らずに失敗する",
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ HAS_OUTDATED=\"1\" なら Issue を触らずに失敗する"
       ]
     },
     {
@@ -376,9 +376,9 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ HAS_OUTDATED=\"\" なら Issue を触らずに落ちる",
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ HAS_OUTDATED=\"TRUE\" なら Issue を触らずに落ちる",
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ HAS_OUTDATED=\"1\" なら Issue を触らずに落ちる"
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ HAS_OUTDATED=\"\" なら Issue を触らずに失敗する",
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ HAS_OUTDATED=\"TRUE\" なら Issue を触らずに失敗する",
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ HAS_OUTDATED=\"1\" なら Issue を触らずに失敗する"
       ]
     },
     {
@@ -477,7 +477,7 @@
       "replace": "\n",
       "occurrences": 2,
       "expect_failing": [
-        "照会の正本（tracking-issue-lib.sh） errexit が効かない文脈でも照会の失敗を戻り値で伝える"
+        "照会の原本（tracking-issue-lib.sh） errexit が無効な文脈でも照会の失敗を戻り値で伝える"
       ]
     },
     {
@@ -488,7 +488,7 @@
       "replace": "\tcase \"$scanned\" in\n\tSKIP-THIS-PATTERN)\n",
       "occurrences": 1,
       "expect_failing": [
-        "照会の正本（tracking-issue-lib.sh） 走査件数が 10 進でなければ落ちる（打ち切り判定を fail-open にしない）"
+        "照会の原本（tracking-issue-lib.sh） 走査件数が 10 進でなければ落ちる（打ち切りを判定できないまま通さない）"
       ]
     }
   ]

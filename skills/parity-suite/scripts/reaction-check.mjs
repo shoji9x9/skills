@@ -480,7 +480,7 @@ export function coveredByProblems(owners, testIndex) {
       const hit = testIndex.get(name);
       if (hit === undefined) {
         problems.push(
-          `${path}.covered_by: "${name}" が --tests の一覧のどのテストにも解決しない（名前は「スペックのパス${TITLE_SEPARATOR}describe の題${TITLE_SEPARATOR}テストの題」。--audit-sheet の出力か一覧から写す）`,
+          `${path}.covered_by: "${name}" が --tests の一覧のどのテストにも解決しない（名前は「スペックのパス${TITLE_SEPARATOR}describe の題${TITLE_SEPARATOR}テストの題」。--audit-sheet の出力か一覧からコピーする）`,
         );
       } else if (hit.keys.size > 1) {
         problems.push(
@@ -1346,7 +1346,7 @@ function stateDisplayProblems(entry, candidate, captureStates) {
   }
   if (!ABSENT_WITHOUT_ASSERTION.includes(/** @type {string} */ (method)) && !hasAssertion) {
     out.push({
-      problem: `${candidate}: absent なのに covered_by が空（その状態で何も出ないことをスイートの assertion にしていない。新側が出しても写らない）`,
+      problem: `${candidate}: absent なのに covered_by が空（その状態で何も出ないことをスイートの assertion にしていない。新側が出しても検出されない）`,
       unmeasured: true,
     });
   }
@@ -2253,7 +2253,7 @@ export function checkReactions(table, opts = {}) {
   const evidence = table.cross_origin_evidence;
   if (!isPlainObject(evidence)) {
     problems.push(
-      'cross_origin_evidence が文書ごとの根拠のオブジェクトでない（{ "<文書>": "<根拠>" }。別オリジンの文書が無ければ {} と書く。キーの欠落を根拠不要に倒さない）',
+      'cross_origin_evidence が文書ごとの根拠のオブジェクトでない（{ "<文書>": "<根拠>" }。別オリジンの文書が無ければ {} と書く。キーの欠落を根拠不要として扱わない）',
     );
   } else if (crossOrigin !== null) {
     const lackingEvidence = crossOrigin.filter((d) => !nonEmptyString(evidence[d]));

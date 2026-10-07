@@ -95,7 +95,7 @@
       "occurrences": 1,
       "expect_failing": [
         "集計（揃った iteration） run の並び・evals_run・統計・Delta を固定する",
-        "受理しない入力（exit 2） 採点の無い run は既定で落とし、--ungraded skip で除外する"
+        "受理しない入力（exit 2） 採点の無い run はデフォルトで落とし、--ungraded skip で除外する"
       ]
     },
     {
@@ -115,7 +115,7 @@
       "replace": "  const opts = { ungraded: \"skip\", force: false, stdout: false };",
       "occurrences": 1,
       "expect_failing": [
-        "受理しない入力（exit 2） 採点の無い run は既定で落とし、--ungraded skip で除外する"
+        "受理しない入力（exit 2） 採点の無い run はデフォルトで落とし、--ungraded skip で除外する"
       ]
     },
     {
@@ -126,7 +126,7 @@
       "replace": "  if (false) {",
       "occurrences": 1,
       "expect_failing": [
-        "受理しない入力（exit 2） executor / model が混ざっていれば落とす（母集団を分ける）"
+        "受理しない入力（exit 2） executor / model が混在していれば落とす（母集団を分ける）"
       ]
     },
     {
@@ -153,7 +153,7 @@
       "id": "TIMING",
       "why": "timing.json が無い run を 0 秒 / 0 トークンで埋める",
       "file": "scripts/eval/build-skill-eval-benchmark.js",
-      "find": "  if (!existsSync(timingPath)) die(`${runDir}: timing.json が無い（時間・トークンの正本）`);",
+      "find": "  if (!existsSync(timingPath)) die(`${runDir}: timing.json が無い（時間・トークンの原本）`);",
       "replace": "  const timingMissing = !existsSync(timingPath);",
       "occurrences": 1,
       "expect_failing": [
@@ -266,7 +266,7 @@
       "occurrences": 1,
       "expect_failing": [
         "受理しない入力（exit 2） configuration に使えないディレクトリがあれば落とす",
-        "受理しない入力（exit 2） 壊れたリンクの configuration があれば落とす"
+        "受理しない入力（exit 2） 指し先の無いリンクの configuration があれば落とす"
       ]
     },
     {
@@ -286,7 +286,7 @@
       "replace": "  if (false) {",
       "occurrences": 1,
       "expect_failing": [
-        "受理しない入力（exit 2） verdicts と expectations が両方あれば落とす（正本を決められない）"
+        "受理しない入力（exit 2） verdicts と expectations が両方あれば落とす（原本を決められない）"
       ]
     },
     {
@@ -360,7 +360,7 @@
       "find": "  if (badEvalEntries.length > 0) {",
       "replace": "  if (false) {",
       "occurrences": 1,
-      "expect_failing": ["受理しない入力（exit 2） 壊れたリンクの eval があれば落とす"]
+      "expect_failing": ["受理しない入力（exit 2） 指し先の無いリンクの eval があれば落とす"]
     },
     {
       "id": "BROKEN-CONFIG-LINK",
@@ -369,7 +369,9 @@
       "find": "    for (const name of undirNamed(join(opts.dir, evalDir), CONFIGURATIONS)) {\n      unknownDirs.push(`${evalDir}/${name}`);\n    }\n",
       "replace": "",
       "occurrences": 1,
-      "expect_failing": ["受理しない入力（exit 2） 壊れたリンクの configuration があれば落とす"]
+      "expect_failing": [
+        "受理しない入力（exit 2） 指し先の無いリンクの configuration があれば落とす"
+      ]
     }
   ]
 }

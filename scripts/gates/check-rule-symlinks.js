@@ -36,7 +36,7 @@ export function checkRuleSymlinks(root) {
   const canonDir = join(root, CANON_DIR);
 
   if (!existsSync(canonDir)) {
-    return { rules: [], violations: [`${resolve(canonDir)}: 正本ディレクトリが無い`] };
+    return { rules: [], violations: [`${resolve(canonDir)}: 原本のディレクトリが無い`] };
   }
 
   const bases = readdirSync(canonDir)
@@ -49,7 +49,7 @@ export function checkRuleSymlinks(root) {
     const wiringDir = join(root, dir);
     if (!existsSync(wiringDir)) {
       violations.push(
-        `${resolve(wiringDir)}: 配線ディレクトリが無い（${agent} は rule を読めない）`,
+        `${resolve(wiringDir)}: リンクのディレクトリが無い（${agent} は rule を読めない）`,
       );
       continue;
     }
@@ -66,7 +66,7 @@ export function checkRuleSymlinks(root) {
       }
       if (!lstatSync(linkPath).isSymbolicLink()) {
         violations.push(
-          `${dir}/${base}${suffix}: symlink ではない（実体のコピーは正本と drift する）`,
+          `${dir}/${base}${suffix}: symlink ではない（実体のコピーは原本と drift する）`,
         );
         continue;
       }
@@ -78,11 +78,11 @@ export function checkRuleSymlinks(root) {
         continue;
       }
       if (!existsSync(linkPath)) {
-        violations.push(`${dir}/${base}${suffix}: symlink が壊れている（指し先が存在しない）`);
+        violations.push(`${dir}/${base}${suffix}: symlink の指し先が存在しない`);
         continue;
       }
       if (realpathSync(linkPath) !== realpathSync(join(canonDir, `${base}.md`))) {
-        violations.push(`${dir}/${base}${suffix}: 解決先が正本と一致しない`);
+        violations.push(`${dir}/${base}${suffix}: 解決先が原本と一致しない`);
       }
     }
 
@@ -94,7 +94,7 @@ export function checkRuleSymlinks(root) {
         continue;
       }
       if (!bases.includes(base)) {
-        violations.push(`${dir}/${name}: 対応する正本 ${CANON_DIR}/${base}.md が無い（孤児）`);
+        violations.push(`${dir}/${name}: 対応する原本 ${CANON_DIR}/${base}.md が無い（孤児）`);
       }
     }
   }
@@ -134,7 +134,7 @@ if (isCliEntry()) {
 
   if (violations.length) {
     console.error(
-      `rule-symlinks: ${rules.length} 件の rule を走査し、${violations.length} 件の配線不備:`,
+      `rule-symlinks: ${rules.length} 件の rule を走査し、${violations.length} 件のリンクの不備:`,
     );
     for (const v of violations) console.error(`  - ${v}`);
     console.error(

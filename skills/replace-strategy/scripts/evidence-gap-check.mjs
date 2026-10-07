@@ -340,7 +340,7 @@ export function readRow(text, slug) {
     );
   }
   if (matched.length === 0 && malformed.length > 0) {
-    throw new UsageError(`${malformed[0]}。対象外にも判定不能にも倒さない`);
+    throw new UsageError(`${malformed[0]}。対象外としても判定不能としても扱わない`);
   }
   if (matched.length === 0 && nonEndpointRows > 0) {
     throw new NotApplicableError(

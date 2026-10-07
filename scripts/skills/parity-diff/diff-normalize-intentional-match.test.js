@@ -106,7 +106,7 @@ test("page / state / viewport は書いたときだけ実行の組と突き合�
   expect(hit({ viewport: "1280x800" }, { page: "main" })).toBe(false);
 });
 
-test("壊れた match は照合に使わない（欠けたキーはワイルドカードにならない）", () => {
+test("形式の不正な match は照合に使わない（欠けたキーはワイルドカードにならない）", () => {
   const broken = [
     { item: PROSE, match: null },
     { item: PROSE, match: "heading border-top-style" },
@@ -201,7 +201,7 @@ const fontDiff = {
   actual: "roboto",
 };
 
-test("CLI: match で当たった宣言の差分は absorbed_registry で exit 0（陽性コントロール）", () => {
+test("CLI: match で当たった宣言の差分は absorbed_registry で exit 0（誤検知しないことの確認）", () => {
   const r = runCli(
     { may_change: [declared({ element: "heading", property: "border-top-style" })] },
     [borderDiff],
@@ -227,7 +227,7 @@ test("CLI: 未説明が残らなければ、使われなかった散文の宣言
   expect(r.stderr).not.toContain("prose-only");
 });
 
-test("CLI: 壊れた match は黙って無効化せず stderr へ警告を出す", () => {
+test("CLI: 形式の不正な match は警告なしに無効化せず stderr へ警告を出す", () => {
   const r = runCli({ keep: [declared({ property: "border-top-style" })] }, [borderDiff]);
   expect(r.stderr).toContain(
     "warning: intentional_diffs.keep[0]: missing match.element — not used for matching",
@@ -256,7 +256,7 @@ test("CLI: --page を省くと、match.page を書いた宣言が当たらない
   const r = runCli({ may_change: [entry] }, [borderDiff], ["--viewport", "1280x800"]);
   expect(r.classified[0].classification).toBe("unexplained");
   expect(r.stderr).toContain(
-    "warning: --page not given; 1 intentional_diffs declaration(s) with match.page / match.viewport cannot be matched (fail-closed)",
+    "warning: --page not given; 1 intentional_diffs declaration(s) with match.page / match.viewport cannot be matched (treated as not matched)",
   );
   const ok = runCli({ may_change: [entry] }, [borderDiff]);
   expect(ok.stderr).not.toContain("intentional_diffs declaration(s) with match.page");

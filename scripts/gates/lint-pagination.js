@@ -300,7 +300,7 @@ export function main(argv = process.argv.slice(2), deps = {}) {
   // 対象 0 件を成功として扱わない。列挙が失敗すると、「指摘 0 件」と見分けが付かなくなる。
   if (targets.length === 0) {
     err(
-      `error: 走査対象が 0 件（cwd: ${process.cwd()}）。列挙が壊れているか、対象の *.sh / *.md が無い`,
+      `error: 走査対象が 0 件（cwd: ${process.cwd()}）。列挙に失敗したか、対象の *.sh / *.md が無い`,
     );
     return 2;
   }
@@ -330,7 +330,7 @@ export function main(argv = process.argv.slice(2), deps = {}) {
   }
   if (scanned === 0) {
     err(
-      `error: ${targets.length} 件の対象を 1 件も読めなかった（cwd: ${process.cwd()}）。列挙かパスの解決が壊れている`,
+      `error: ${targets.length} 件の対象を 1 件も読めなかった（cwd: ${process.cwd()}）。列挙かパスの解決に失敗している`,
     );
     return 2;
   }

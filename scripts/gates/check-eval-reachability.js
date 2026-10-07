@@ -232,7 +232,7 @@ export function loadBacklog(root) {
 export function checkAll(root, files, { fullScan = true } = {}) {
   const { exempt, missing, error } = loadBacklog(root);
   const violations = [];
-  if (missing) violations.push(`${BACKLOG_PATH}: 宣言ファイルが無い（免除の正本が読めない）`);
+  if (missing) violations.push(`${BACKLOG_PATH}: 宣言ファイルが無い（免除の原本が読めない）`);
   else if (error) violations.push(`${BACKLOG_PATH}: 宣言ファイルを読めない: ${error}`);
   let evals = 0;
   const keys = [];

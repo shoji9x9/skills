@@ -27,7 +27,7 @@ test("makeTempDir で作ったものはテストの終わりに消える", () =>
   expect(existsSync(madeInPassingTest)).toBe(false);
 });
 
-test.fails("assertion が落ちたテスト（後片付けの陽性コントロール）", () => {
+test.fails("assertion が落ちたテスト（後片付けが動くことの確認）", () => {
   madeInFailingTest = makeTempDir("test-tmpdir-fail-");
   expect(existsSync(madeInFailingTest)).toBe(false);
 });

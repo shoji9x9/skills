@@ -72,7 +72,7 @@
       "occurrences": 1,
       "expect_failing": [
         "陽性: 配布スキルが README.md に未掲載なら落とす",
-        "陽性コントロール（CLI）: 子プロセスとして起動しても、不一致は exit 1、一致なら exit 0"
+        "検出の確認（CLI）: 子プロセスとして起動しても、不一致は exit 1、一致なら exit 0"
       ]
     },
     {
@@ -133,10 +133,10 @@
         "陽性: SKILL.md の無い skills/ のディレクトリを落とす",
         "陽性: private skill が AGENTS.md に未掲載なら落とす",
         "陽性: 同じスキルを重複して載せたら落とす",
-        "陽性: 節の中の形が崩れた箇条は判定不能として落とす（黙って飛ばさない）",
+        "陽性: 節の中の形が崩れた箇条は判定不能として落とす（警告なしに飛ばさない）",
         "陽性: 配布スキルが AGENTS.md に未掲載なら落とす",
         "陽性: 配布スキルが README.md に未掲載なら落とす",
-        "陽性コントロール（CLI）: 子プロセスとして起動しても、不一致は exit 1、一致なら exit 0",
+        "検出の確認（CLI）: 子プロセスとして起動しても、不一致は exit 1、一致なら exit 0",
         "陰性: 印も SKILL.md も無い .agents/skills のディレクトリは private skill の候補にしない",
         "陽性: .private-skill だけで SKILL.md の無い private skill は、AGENTS.md に載っていても数えず落とす",
         "陽性: .private-skill だけで SKILL.md の無い private skill は、AGENTS.md に未掲載でも落とす"
@@ -161,7 +161,9 @@
       "find": "    if (!text.startsWith(\"- \")) continue;",
       "replace": "    if (!BULLET_RE.test(text)) continue;",
       "occurrences": 1,
-      "expect_failing": ["陽性: 節の中の形が崩れた箇条は判定不能として落とす（黙って飛ばさない）"]
+      "expect_failing": [
+        "陽性: 節の中の形が崩れた箇条は判定不能として落とす（警告なしに飛ばさない）"
+      ]
     },
     {
       "id": "SI-ROW-MALFORMED",
@@ -190,7 +192,6 @@
       "occurrences": 1,
       "expect_failing": [
         "陰性: private skill が 0 件でも、配布スキルだけで一致すれば通す",
-        "陰性: 実リポジトリの一覧が実体と一致する",
         "陰性: 実体と同名で skills/ にもある .private-skill は配布として扱う（README に載せてよい）",
         "陰性: 正規の編集（CRLF 改行）は違反 0 件",
         "陰性: 正規の編集（private skill が複数）は違反 0 件",
@@ -215,10 +216,10 @@
         "陽性: SKILL.md の無い skills/ のディレクトリを落とす",
         "陽性: private skill が AGENTS.md に未掲載なら落とす",
         "陽性: 同じスキルを重複して載せたら落とす",
-        "陽性: 節の中の形が崩れた箇条は判定不能として落とす（黙って飛ばさない）",
+        "陽性: 節の中の形が崩れた箇条は判定不能として落とす（警告なしに飛ばさない）",
         "陽性: 配布スキルが AGENTS.md に未掲載なら落とす",
         "陽性: 配布スキルが README.md に未掲載なら落とす",
-        "陽性コントロール（CLI）: 子プロセスとして起動しても、不一致は exit 1、一致なら exit 0",
+        "検出の確認（CLI）: 子プロセスとして起動しても、不一致は exit 1、一致なら exit 0",
         "陰性: 印も SKILL.md も無い .agents/skills のディレクトリは private skill の候補にしない",
         "陽性: .private-skill だけで SKILL.md の無い private skill は、AGENTS.md に載っていても数えず落とす",
         "陽性: .private-skill だけで SKILL.md の無い private skill は、AGENTS.md に未掲載でも落とす"
@@ -233,7 +234,6 @@
       "occurrences": 1,
       "expect_failing": [
         "陰性: private skill が 0 件でも、配布スキルだけで一致すれば通す",
-        "陰性: 実リポジトリの一覧が実体と一致する",
         "陰性: 実体と同名で skills/ にもある .private-skill は配布として扱う（README に載せてよい）",
         "陰性: 正規の編集（CRLF 改行）は違反 0 件",
         "陰性: 正規の編集（private skill が複数）は違反 0 件",
@@ -258,10 +258,10 @@
         "陽性: SKILL.md の無い skills/ のディレクトリを落とす",
         "陽性: private skill が AGENTS.md に未掲載なら落とす",
         "陽性: 同じスキルを重複して載せたら落とす",
-        "陽性: 節の中の形が崩れた箇条は判定不能として落とす（黙って飛ばさない）",
+        "陽性: 節の中の形が崩れた箇条は判定不能として落とす（警告なしに飛ばさない）",
         "陽性: 配布スキルが AGENTS.md に未掲載なら落とす",
         "陽性: 配布スキルが README.md に未掲載なら落とす",
-        "陽性コントロール（CLI）: 子プロセスとして起動しても、不一致は exit 1、一致なら exit 0",
+        "検出の確認（CLI）: 子プロセスとして起動しても、不一致は exit 1、一致なら exit 0",
         "陰性: 印も SKILL.md も無い .agents/skills のディレクトリは private skill の候補にしない",
         "陽性: .private-skill だけで SKILL.md の無い private skill は、AGENTS.md に載っていても数えず落とす",
         "陽性: .private-skill だけで SKILL.md の無い private skill は、AGENTS.md に未掲載でも落とす"
@@ -283,7 +283,7 @@
       "find": "  if (distributed.length === 0) {",
       "replace": "  if (false) {",
       "occurrences": 1,
-      "expect_failing": ["配布スキル 0 件は成功に倒さず exit 1"]
+      "expect_failing": ["配布スキル 0 件は成功として扱わず exit 1"]
     },
     {
       "id": "SI-SECTION-DEPTH",

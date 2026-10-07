@@ -40,7 +40,7 @@ const INVOCATION = {
   },
 };
 
-test("対象スクリプトを検出できている（0 件を成功に倒さない）", () => {
+test("対象スクリプトを検出できている（0 件を成功として扱わない）", () => {
   expect(targets.length).toBeGreaterThan(5);
 });
 
@@ -48,24 +48,30 @@ test("起動条件の宣言は実在するスクリプトだけを指す（孤�
   for (const name of Object.keys(INVOCATION)) expect(targets).toContain(name);
 });
 
-test.each(targets)("%s: ライブラリが無い場所で実行すると縮退を stderr に残す", (name) => {
-  const dir = makeTempDir("kaizen-degraded-");
-  copyFileSync(join(scriptsDir, name), join(dir, name));
-  // 入力待ちで止まらないよう stdin を閉じ、引数なしで起動する。
-  const { args = [], input = "" } = INVOCATION[name] ?? {};
-  const r = spawnSync("bash", [name, ...args], { cwd: dir, encoding: "utf8", input });
-  expect(r.stderr).toMatch(
-    new RegExp(`${name}: 共通ライブラリを読めないため、機能を減らして動きます`),
-  );
-  rmSync(dir, { recursive: true, force: true });
-});
+test.each(targets)(
+  "%s: ライブラリが無い場所で実行すると、機能を減らして動いたことを stderr に残す",
+  (name) => {
+    const dir = makeTempDir("kaizen-degraded-");
+    copyFileSync(join(scriptsDir, name), join(dir, name));
+    // 入力待ちで止まらないよう stdin を閉じ、引数なしで起動する。
+    const { args = [], input = "" } = INVOCATION[name] ?? {};
+    const r = spawnSync("bash", [name, ...args], { cwd: dir, encoding: "utf8", input });
+    expect(r.stderr).toMatch(
+      new RegExp(`${name}: 共通ライブラリを読めないため、機能を減らして動きます`),
+    );
+    rmSync(dir, { recursive: true, force: true });
+  },
+);
 
-test.each(targets)("%s: 本番構成では縮退の警告を出さない（陰性コントロール）", (name) => {
-  const { args = [], input = "" } = INVOCATION[name] ?? {};
-  const r = spawnSync("bash", [join(scriptsDir, name), ...args], {
-    cwd: repoRoot,
-    encoding: "utf8",
-    input,
-  });
-  expect(r.stderr).not.toMatch(/共通ライブラリを読めないため、機能を減らして動きます/);
-});
+test.each(targets)(
+  "%s: 本番構成では機能を減らした旨の警告を出さない（誤検知しないことの確認）",
+  (name) => {
+    const { args = [], input = "" } = INVOCATION[name] ?? {};
+    const r = spawnSync("bash", [join(scriptsDir, name), ...args], {
+      cwd: repoRoot,
+      encoding: "utf8",
+      input,
+    });
+    expect(r.stderr).not.toMatch(/共通ライブラリを読めないため、機能を減らして動きます/);
+  },
+);

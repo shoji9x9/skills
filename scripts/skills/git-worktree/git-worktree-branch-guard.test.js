@@ -183,7 +183,7 @@ test("glob メタ文字を含むパスでも判定が cwd に依存しない", (
 // 検出できるようになったのはオプション読み飛ばしを足したからで、検出の処理全体が
 // 緩くなったからではない。同時に、ラッパーの無い `- ` 始まりの行が
 // 誤ってコマンド位置と判定されていないことも押さえる（PR #236 レビュー）。
-test("ラッパーのオプションを読み飛ばしても箇条書きは化けない", () => {
+test("ラッパーのオプションを読み飛ばしても箇条書きをコマンドとして扱わない", () => {
   expect(runGuard(bash("time -p git worktree add -b feature/x /tmp/wt")).stdout).not.toBe("");
   expect(runGuard(bash("time git worktree add -b feature/x /tmp/wt")).stdout).not.toBe("");
   expect(runGuard(bash("- git worktree add -b feature/x /tmp/wt")).stdout).toBe("");
@@ -216,7 +216,7 @@ test.each([
     name: "tool_input が文字列",
     input: '{"tool_name":"Bash","tool_input":"git worktree add -b x /tmp/wt"}',
   },
-])("壊れた入力でもブロックしない: $name", ({ input }) => {
+])("形式の不正な入力でもブロックしない: $name", ({ input }) => {
   const result = spawnSync("bash", [script], { input, encoding: "utf8" });
   expect(result.status).toBe(0);
 });

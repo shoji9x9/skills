@@ -57,13 +57,13 @@ function withDir(fn) {
 const MEASURED_BOTH = features({
   api: "GET /api/plans, POST /api/plans",
   evidence:
-    "GET /api/plans → 実測: 入口 SELECT と応答への写像を読了（母集合=MST_PLAN / 1 行=計画 1 件）／POST /api/plans → 実測: 要求の組み立てとハンドラのトランザクション境界を読了（1 要求が扱う対象=1 件）",
+    "GET /api/plans → 実測: 起点の SELECT と応答への変換を読了（母集合=MST_PLAN / 1 行=計画 1 件）／POST /api/plans → 実測: 要求の組み立てとハンドラのトランザクション境界を読了（1 要求が扱う対象=1 件）",
 });
 
 const ONE_ESTIMATED = features({
   api: "GET /api/plans, POST /api/plans",
   evidence:
-    "GET /api/plans → 実測: 入口 SELECT と応答への写像を読了（母集合=MST_PLAN / 1 行=計画 1 件）／POST /api/plans → 推定: 同形の参照なし・要求単位は未確定",
+    "GET /api/plans → 実測: 起点の SELECT と応答への変換を読了（母集合=MST_PLAN / 1 行=計画 1 件）／POST /api/plans → 推定: 同形の参照なし・要求単位は未確定",
 });
 
 function metadata(entries, options = {}) {
@@ -71,7 +71,7 @@ function metadata(entries, options = {}) {
   return JSON.stringify(options.omitUnmeasured ? { dataset_version: 3 } : { unmeasured }, null, 2);
 }
 
-test("陽性コントロール: 全ての口が実測なら exit 0", () => {
+test("誤検知しないことの確認: 全ての口が実測なら exit 0", () => {
   withDir((dir) => {
     const r = run(dir, { "features.md": MEASURED_BOTH }, [
       "--features",
@@ -100,7 +100,7 @@ test("推定の口が宣言されていなければ exit 1 で名指しする", 
   });
 });
 
-test("陽性コントロール: 推定の口が unmeasured の endpoint に宣言済みなら exit 0", () => {
+test("誤検知しないことの確認: 推定の口が unmeasured の endpoint に宣言済みなら exit 0", () => {
   withDir((dir) => {
     const r = run(
       dir,
@@ -166,7 +166,7 @@ test("API 列にあるのに根拠のエントリが対応づかない口を未�
     const text = features({
       api: "GET /api/plans, DELETE /api/plans/:id",
       evidence:
-        "GET /api/plans → 実測: 入口 SELECT と応答への写像を読了（母集合=MST_PLAN / 1 行=計画 1 件）",
+        "GET /api/plans → 実測: 起点の SELECT と応答への変換を読了（母集合=MST_PLAN / 1 行=計画 1 件）",
     });
     const r = run(dir, { "features.md": text }, ["--features", "features.md", "--slug", "plan"]);
     expect(r.status).toBe(1);
@@ -179,7 +179,8 @@ test("散文で口をまとめたエントリ（両方）は対応づけに数�
   withDir((dir) => {
     const text = features({
       api: "GET /api/plans, GET /api/plans/:id",
-      evidence: "両方 → 実測: 入口 SELECT と応答への写像を読了（母集合=MST_PLAN / 1 行=計画 1 件）",
+      evidence:
+        "両方 → 実測: 起点の SELECT と応答への変換を読了（母集合=MST_PLAN / 1 行=計画 1 件）",
     });
     const r = run(dir, { "features.md": text }, ["--features", "features.md", "--slug", "plan"]);
     expect(r.status).toBe(1);
@@ -188,11 +189,11 @@ test("散文で口をまとめたエントリ（両方）は対応づけに数�
   });
 });
 
-test("語彙外の根拠は実測に倒さず未確認として数える", () => {
+test("語彙外の根拠は実測として扱わず未確認として数える", () => {
   withDir((dir) => {
     const text = features({
       api: "GET /api/plans",
-      evidence: "GET /api/plans → 入口クエリあり（ソース）",
+      evidence: "GET /api/plans → 起点のクエリあり（ソース）",
     });
     const r = run(dir, { "features.md": text }, ["--features", "features.md", "--slug", "plan"]);
     expect(r.status).toBe(1);
@@ -200,7 +201,7 @@ test("語彙外の根拠は実測に倒さず未確認として数える", () =>
   });
 });
 
-test("実測と推定の両方が同じ口へ対応づくのは矛盾として未確認に倒す", () => {
+test("実測と推定の両方が同じ口へ対応づくのは矛盾として未確認として扱う", () => {
   withDir((dir) => {
     const text = features({
       api: "GET /api/plans",
@@ -213,7 +214,7 @@ test("実測と推定の両方が同じ口へ対応づくのは矛盾として�
   });
 });
 
-test("根拠列を持たない features.md は判定不能（exit 3）で、合格に倒さない", () => {
+test("根拠列を持たない features.md は判定不能（exit 3）で、合格として扱わない", () => {
   withDir((dir) => {
     const text = [
       "## 機能一覧",
@@ -311,7 +312,7 @@ test("整形の揺れ（桁詰め・全角空白）では判定が変わらな�
   });
 });
 
-test("実測 の前方一致では通さない（実測できず を 実測 に化けさせない）", () => {
+test("実測 の前方一致では通さない（実測できず を 実測 と誤って判定しない）", () => {
   withDir((dir) => {
     const text = features({
       api: "GET /api/plans, POST /api/plans",
@@ -325,7 +326,7 @@ test("実測 の前方一致では通さない（実測できず を 実測 に�
   });
 });
 
-test("unmeasured.declared: false の entries は宣言に数えない（誰も効かせていない宣言で通さない）", () => {
+test("unmeasured.declared: false の entries は宣言に数えない（誰も有効にしていない宣言で通さない）", () => {
   withDir((dir) => {
     const r = run(
       dir,
@@ -404,7 +405,7 @@ test("口を持たない行（なし）を口として数えない", () => {
   });
 });
 
-test("根拠列がその行の表にだけ無いのは判定不能（exit 3。行が無い＝不備に倒さない）", () => {
+test("根拠列がその行の表にだけ無いのは判定不能（exit 3。行が無い＝不備として扱わない）", () => {
   withDir((dir) => {
     const text = [
       "## 機能一覧",
@@ -426,7 +427,7 @@ test("根拠列がその行の表にだけ無いのは判定不能（exit 3。�
   });
 });
 
-test("読めない入力（ディレクトリ）は exit 2（漏れありの exit 1 に化けさせない）", () => {
+test("読めない入力（ディレクトリ）は exit 2（抜けありの exit 1 と誤って判定しない）", () => {
   withDir((dir) => {
     const r = run(dir, { "features.md": ONE_ESTIMATED }, ["--features", ".", "--slug", "plan"]);
     expect(r.status).toBe(2);
@@ -450,7 +451,7 @@ test("GFM の短い区切り（|-|-|）でも表として読む", () => {
   });
 });
 
-test("行頭・行末の | が無い表も読む（exit 3 の誤判定に倒さない）", () => {
+test("行頭・行末の | が無い表も読む（exit 3 の誤判定にしない）", () => {
   withDir((dir) => {
     const text = [
       "## 機能一覧",
@@ -505,7 +506,7 @@ test("対象外の判定は --unmeasured の読み取りより先（未生成で
   });
 });
 
-test("全ての口が実測なら、unmeasured キーの無い旧成果物でも exit 0（判定不能に倒さない）", () => {
+test("全ての口が実測なら、unmeasured キーの無い旧成果物でも exit 0（判定不能として扱わない）", () => {
   withDir((dir) => {
     const r = run(
       dir,
@@ -517,7 +518,7 @@ test("全ての口が実測なら、unmeasured キーの無い旧成果物でも
   });
 });
 
-test("口の列らしい見出しがあれば、根拠列が無くても対象外（exit 4）に倒さない", () => {
+test("口の列らしい見出しがあれば、根拠列が無くても対象外（exit 4）として扱わない", () => {
   withDir((dir) => {
     const text = [
       "## 機能一覧",
@@ -533,7 +534,7 @@ test("口の列らしい見出しがあれば、根拠列が無くても対象�
   });
 });
 
-test("列名のずれは経路ごとに違う理由を出す（直す場所が違う）", () => {
+test("列名のずれは根拠列の有無ごとに違う理由を出す（直す場所が違う）", () => {
   withDir((dir) => {
     const withEvidence = [
       "## 機能一覧",
@@ -589,7 +590,7 @@ test("全角の見出し（新規実装ＡＰＩ）も口の列らしいもの�
   });
 });
 
-test("根拠列の列名がずれている表は入力の不備（exit 2）——判定不能へ倒さない", () => {
+test("根拠列の列名がずれている表は入力の不備（exit 2）——判定不能として扱わない", () => {
   withDir((dir) => {
     const text = [
       "## 機能一覧",
@@ -606,7 +607,7 @@ test("根拠列の列名がずれている表は入力の不備（exit 2）—�
   });
 });
 
-test("口の列も根拠列も無い機能一覧は、バッチ表と名乗らず判定不能（exit 3）に倒す", () => {
+test("口の列も根拠列も無い機能一覧は、バッチ表と名乗らず判定不能（exit 3）として扱う", () => {
   withDir((dir) => {
     const text = [
       "## 機能一覧",
@@ -660,7 +661,7 @@ test("根拠列らしい見出しだけの表は、根拠列用のメッセー�
   });
 });
 
-test("endpoint が文字列でない宣言は件数を残して捨てる（黙って落とさない）", () => {
+test("endpoint が文字列でない宣言は件数を残して捨てる（警告なしに捨てない）", () => {
   withDir((dir) => {
     const r = run(
       dir,
@@ -720,7 +721,7 @@ test("捨てた宣言は種別ごとに件数を出す（オブジェクトで�
   });
 });
 
-test("想定外の例外も exit 2（判定していない）に倒す", () => {
+test("想定外の例外も exit 2（判定していない）として扱う", () => {
   withDir((dir) => {
     // features.md をディレクトリにすると readFileSync が EISDIR を投げる（errno あり）。
     // errno を持たない例外は到達させにくいので、ここでは誤って exit 1 にならないことだけを確かめる。
@@ -737,7 +738,7 @@ test("引数の不備は exit 2 で使い方を出す", () => {
   });
 });
 
-test("バッチ表の行は対象外（exit 4）で、行が無い（exit 2）にも判定不能（exit 3）にも倒さない", () => {
+test("バッチ表の行は対象外（exit 4）で、行が無い（exit 2）にも判定不能（exit 3）としても扱わない", () => {
   withDir((dir) => {
     const text = [
       "## バッチ",
@@ -759,7 +760,7 @@ test("バッチ表の行は対象外（exit 4）で、行が無い（exit 2）�
   });
 });
 
-test("根拠列はあるのに口の列名がずれている表は入力の不備（exit 2）——対象外へ倒さない", () => {
+test("根拠列はあるのに口の列名がずれている表は入力の不備（exit 2）——対象外として扱わない", () => {
   withDir((dir) => {
     const text = [
       "## 機能一覧",
@@ -791,7 +792,7 @@ test("「その他の Issue」表の行も対象外（exit 4）", () => {
   });
 });
 
-test("口を持つ表と持たない表の両方に同じ slug があれば重複として exit 2（対象外へ倒さない）", () => {
+test("口を持つ表と持たない表の両方に同じ slug があれば重複として exit 2（対象外として扱わない）", () => {
   withDir((dir) => {
     const text = [
       features({
@@ -811,7 +812,7 @@ test("口を持つ表と持たない表の両方に同じ slug があれば重�
   });
 });
 
-test("features.md が無ければ exit 2（合格に倒さない）", () => {
+test("features.md が無ければ exit 2（合格として扱わない）", () => {
   withDir((dir) => {
     const r = run(dir, {}, ["--features", "missing.md", "--slug", "plan"]);
     expect(r.status).toBe(2);

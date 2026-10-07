@@ -257,12 +257,12 @@ function branches(run) {
   };
 }
 
-describe("照会の正本（tracking-issue-lib.sh）", () => {
+describe("照会の原本（tracking-issue-lib.sh）", () => {
   // **接頭辞が空なら `gh` を呼ぶ前に失敗する。** 空のまま進むと `startswith("")` が全 open
   // Issue に当たり、無関係な Issue をリネームして本文を上書きする。
   // 「呼ばなかった」は照会まで記録するスタブでないと測れない（変更系だけ記録するスタブでは、
   // 照会が実行されても空のまま緑になる）。
-  test("接頭辞が空なら gh を 1 度も呼ばずに落ちる", () => {
+  test("接頭辞が空なら gh を 1 度も呼ばずに失敗する", () => {
     const res = runLib("resolve_tracking_issues", GH_LOGGING, { ISSUE_TITLE_PREFIX: "" });
     expect(res.status, "空の接頭辞で成功した").not.toBe(0);
     expect(res.calls, "空の接頭辞で gh を呼んだ").toBe("");
@@ -277,7 +277,7 @@ describe("照会の正本（tracking-issue-lib.sh）", () => {
   // **`gh` の失敗を「追跡 Issue が無い」として扱わない。** `$( )` を代入に置けば `set -e` が
   // 拾うが、関数の引数に置くと終了コードが捨てられる（実測）。捨てると secondary rate
   // limit や 5xx を踏んだ週に「0 件」と読み、既存 Issue を残したまま 2 本目を作って緑で終わる。
-  test("gh issue list が失敗したら非 0 で返る（fail-closed）", () => {
+  test("gh issue list が失敗したら非 0 で返る", () => {
     const res = runLib("resolve_tracking_issues", GH_FAILING, { ISSUE_TITLE_PREFIX: "p" });
     expect(res.status, "gh が失敗したのに成功した").not.toBe(0);
     expect(res.calls, "失敗した照会の後に Issue を触った").toBe("");
@@ -294,7 +294,7 @@ describe("照会の正本（tracking-issue-lib.sh）", () => {
   // `if resolve_tracking_issues; then` や `|| ...` の左辺では errexit が機能しない。
   // そのため、照会の失敗を関数の戻り値で伝える必要がある
   // （伝えないと 0 件として新規作成の側へ進み、既存 Issue を残したまま 2 本目を立てる）。
-  test("errexit が効かない文脈でも照会の失敗を戻り値で伝える", () => {
+  test("errexit が無効な文脈でも照会の失敗を戻り値で伝える", () => {
     const probe =
       'if resolve_tracking_issues; then echo "REACHED-SUCCESS"; else echo "FAILED-CLOSED"; fi';
     const failed = runLib(probe, GH_FAILING, { ISSUE_TITLE_PREFIX: "p" });
@@ -372,7 +372,7 @@ describe("照会の正本（tracking-issue-lib.sh）", () => {
   // 打ち切り判定 `[ "$scanned" -ge "$list_limit" ]` は `if` の条件なので `set -e` が機能しない。
   // 非数値だと bash が `integer expression expected` を出して非 0 を返すが、その非 0 は
   // `truncated=false` として通過する（＝打ち切りを警告なしに成功として扱う）。入力の側で失敗させる。
-  test("走査件数が 10 進でなければ落ちる（打ち切り判定を fail-open にしない）", () => {
+  test("走査件数が 10 進でなければ落ちる（打ち切りを判定できないまま通さない）", () => {
     const res = runLib('resolve_tracking_issues; echo "REACHED-END"', GH_LOGGING, {
       ISSUE_TITLE_PREFIX: "p",
       LIST_OUT: "scanned=NaN\n7",
@@ -419,7 +419,7 @@ describe("照会の正本（tracking-issue-lib.sh）", () => {
     (prefix) => {
       const probe = spawnSync("bash", ["-c", "command -v jq"], { encoding: "utf8" });
       // jq が無い環境を「該当なし＝合格」として扱わない。
-      expect(probe.status, "jq が必要（このテストは jq 式を実行して弁別を測る）").toBe(0);
+      expect(probe.status, "jq が必要（このテストは jq 式を実行して区別できるかを測る）").toBe(0);
 
       const cases = [
         { title: prefix, number: 1, hit: true, why: "日付を入れる前の既存追跡 Issue" },
@@ -510,7 +510,7 @@ describe("kaizen スクリプトの探索（レポートと照会を同じ版か
   });
 
   test.each([["kaizen-schedule-report.sh"], ["tracking-issue-lib.sh"]])(
-    "%s だけのディレクトリは採らずに落ちる",
+    "%s だけのディレクトリは採らずに失敗する",
     (only) => {
       const res = locateWith([only]);
       expect(res.status, `${only} だけで成功した`).not.toBe(0);
@@ -518,7 +518,7 @@ describe("kaizen スクリプトの探索（レポートと照会を同じ版か
     },
   );
 
-  test("本リポでは実在する lib を指す（探索先の 1 つに正本がある）", () => {
+  test("本リポでは実在する lib を指す（探索先の 1 つに原本がある）", () => {
     const res = runLocate(wfPath, repoRoot);
     expect(res.status, res.stderr).toBe(0);
     expect(SEARCH_DIRS.map((d) => `${d}/tracking-issue-lib.sh`)).toContain(res.outputs.lib);
@@ -569,7 +569,7 @@ describe.each(WORKFLOWS)(
 
     // ステップ全体を、差し替えた `gh` と実物の lib で実行する。静的な文字列検査では
     // 書き方を変えた瞬間に素通りするので、**実際に実行して**測る。
-    test("gh issue list が失敗したら Issue を触らずに落ちる（fail-closed）", () => {
+    test("gh issue list が失敗したら Issue を触らずに失敗する", () => {
       const failed = runStep(path, GH_FAILING, createEnv);
       expect(failed.status, "gh が失敗したのにステップが成功した").not.toBe(0);
       expect(failed.calls, "失敗した週に Issue を作成・更新・クローズした").toBe("");
@@ -594,7 +594,7 @@ describe.each(WORKFLOWS)(
 
     // 照会できないまま分岐へ進むと、`numbers` が未設定のまま新規作成の側へ進み、重複を作る。
     // lib を読めない構成（配布先の古いインストール・パスの typo）でも Issue を触らない。
-    test("lib を読めないときは Issue を触らずに落ちる", () => {
+    test("lib を読めないときは Issue を触らずに失敗する", () => {
       const res = runStep(path, GH_EMPTY, {
         ...createEnv,
         TRACKING_LIB: join(repoRoot, "no/such/tracking-issue-lib.sh"),
@@ -606,7 +606,7 @@ describe.each(WORKFLOWS)(
     // ステップの挙動を決める入力は、空・仕様外の値だと**警告なしに片側と判定されてしまう**。
     // `[ "$PENDING_COUNT" = 0 ]` は文字列比較なので、空文字は「未適用あり」側と判定され、
     // 件数の抜けたコメントを投稿しつつ Issue を更新した（実測）。gh を呼ぶ前に失敗させる。
-    test.each(badValues)(`${gateVar}="%s" なら Issue を触らずに落ちる`, (bad) => {
+    test.each(badValues)(`${gateVar}="%s" なら Issue を触らずに失敗する`, (bad) => {
       const res = runStep(path, GH_EMPTY, { ...createEnv, [gateVar]: bad });
       expect(res.status, `${gateVar}="${bad}" で成功した`).not.toBe(0);
       expect(res.calls, `${gateVar}="${bad}" で Issue を触った`).toBe("");

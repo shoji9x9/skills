@@ -29,7 +29,7 @@ const SPECS = findSpecs(join(repoRoot, "scripts"))
   .map((p) => relative(repoRoot, p))
   .sort();
 
-test("宣言ファイルを 1 件以上同梱している（0 件を合格に倒さない）", () => {
+test("宣言ファイルを 1 件以上同梱している（0 件を合格として扱わない）", () => {
   expect(SPECS.length).toBeGreaterThan(0);
 });
 

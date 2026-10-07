@@ -70,7 +70,7 @@ test("対象拡張子の判定: テキストだけを拾う", () => {
   expect(isTextPath("a/README")).toBe(false);
 });
 
-test("陽性コントロール（実データ）: 混入していた版を入力にすると検出する", () => {
+test("検出の確認（実データ）: 混入していた版を入力にすると検出する", () => {
   // ノートは適用後に .kaizen/archive/ へ移るので、両方の置き場を見る。
   // 見つからないときは skip せず落とす（検出の確認に使う入力が消えたまま、成功になるのを防ぐ）。
   const NOTE = "2026-09-18-control-characters-rejected-in-tool-arguments.md";
@@ -87,7 +87,7 @@ test("陽性コントロール（実データ）: 混入していた版を入力
   expect(hits.every((h) => h.byte === 0)).toBe(true);
 });
 
-test("陰性コントロール（実データ）: 実リポジトリの追跡テキストファイルは違反 0 件", () => {
+test("誤検知しないことの確認（実データ）: 実リポジトリの追跡テキストファイルは違反 0 件", () => {
   const files = trackedTextFiles(repoRoot);
   expect(files.length).toBeGreaterThan(100);
   expect(checkFiles(files, repoRoot)).toEqual([]);
@@ -124,7 +124,7 @@ test("CLI: 引数で渡したテキストファイルの違反を exit 1 で報�
   rmSync(dir, { recursive: true, force: true });
 });
 
-test("CLI: 非テキスト拡張子だけを渡したら成功に倒さず exit 1", () => {
+test("CLI: 非テキスト拡張子だけを渡したら成功として扱わず exit 1", () => {
   const dir = makeTempDir("control-chars-");
   writeFileSync(join(dir, "image.png"), Buffer.from([0x89, 0x50, 0x00, 0x01]));
   const r = spawnSync(process.execPath, [script, "image.png"], { cwd: dir, encoding: "utf8" });

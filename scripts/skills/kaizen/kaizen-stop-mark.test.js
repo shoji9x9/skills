@@ -55,7 +55,7 @@ function sentinelFiles(cwd) {
 }
 
 describe("transcript が無い claude-code / codex の Stop はセンチネルを立てない", () => {
-  test("陽性コントロール: 読める transcript があれば claude-code はセンチネルを立てる", () => {
+  test("陽性: 読める transcript があれば claude-code はセンチネルを立てる", () => {
     const cwd = makeProject();
     try {
       const transcript = join(cwd, "t.jsonl");
@@ -146,8 +146,8 @@ describe("transcript が無い claude-code / codex の Stop はセンチネル�
   });
 });
 
-describe("共通ライブラリが読めない縮退時は transcript の有無で判定しない", () => {
-  test("陽性コントロール: ライブラリが読めれば有効な transcript でセンチネルを立てる", () => {
+describe("共通ライブラリが読めず機能を減らして動くときは transcript の有無で判定しない", () => {
+  test("陽性: ライブラリが読めれば有効な transcript でセンチネルを立てる", () => {
     const cwd = makeProject();
     try {
       const transcript = join(cwd, "t.jsonl");

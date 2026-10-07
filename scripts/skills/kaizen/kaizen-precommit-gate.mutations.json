@@ -14,7 +14,7 @@
       "replace": "timeout 30 bash",
       "occurrences": 1,
       "expect_failing": [
-        "ゲート全体の締め切り lifecycle 検査が締め切りに当たったら、締め切りの内側で exit 2 にする"
+        "チェック全体の締め切り lifecycle 検査が締め切りに当たったら、締め切りの内側で exit 2 にする"
       ]
     },
     {
@@ -25,7 +25,7 @@
       "replace": "timeout 30 bash",
       "occurrences": 1,
       "expect_failing": [
-        "ゲート全体の締め切り 自セッション分の走査が締め切りに当たったら、締め切りの内側で exit 2 にする"
+        "チェック全体の締め切り 自セッション分の走査が締め切りに当たったら、締め切りの内側で exit 2 にする"
       ]
     },
     {
@@ -35,7 +35,7 @@
       "find": "\"$((10#${gate_deadline_raw}))\" -ge 2 ] &&",
       "replace": "\"$((10#${gate_deadline_raw}))\" -ge 1 ] &&",
       "occurrences": 1,
-      "expect_failing": ["ゲート全体の締め切り 不正な締め切り 1 は既定へ倒して知らせる"]
+      "expect_failing": ["チェック全体の締め切り 不正な締め切り 1 はデフォルト値に戻して知らせる"]
     },
     {
       "id": "FOREIGN-CACHE-NEVER-READ",
@@ -74,7 +74,7 @@
       "find": "\"$(fingerprint_of \"$2\")\" \"${scanner_fingerprint}\" \\",
       "replace": "\"$(fingerprint_of \"$2\")\" \"x\" \\",
       "occurrences": 1,
-      "expect_failing": ["他セッション分の走査結果の再利用 走査器が変わったら走査し直す"]
+      "expect_failing": ["他セッション分の走査結果の再利用 スキャナが変わったら走査し直す"]
     },
     {
       "id": "FOREIGN-CACHE-TWO-LINES",
@@ -117,7 +117,7 @@
       "replace": "\n",
       "occurrences": 1,
       "expect_failing": [
-        "ゲート全体の締め切り 環境変数 SECONDS を引き継いでも経過時間は 0 から数える"
+        "チェック全体の締め切り 環境変数 SECONDS を引き継いでも経過時間は 0 から数える"
       ]
     },
     {

@@ -47,7 +47,7 @@ const relTarget = (dir, name) => `../../${CANON_DIR}/${name}.md`;
 
 const cleanup = (root) => rmSync(root, { recursive: true, force: true });
 
-test("陰性コントロール: 正しく配線された rule は違反 0 件・走査件数が正本の件数と一致", () => {
+test("誤検知しないことの確認: 正しくリンクを張った rule は違反 0 件・走査件数が原本の件数と一致", () => {
   const root = makeRepo(["alpha", "beta", "gamma"]);
   const { rules, violations } = checkRuleSymlinks(root);
   expect(violations).toEqual([]);
@@ -55,13 +55,13 @@ test("陰性コントロール: 正しく配線された rule は違反 0 件・
   cleanup(root);
 });
 
-test("陰性コントロール: 実リポジトリの配線が違反 0 件", () => {
+test("誤検知しないことの確認: 実リポジトリのリンクが違反 0 件", () => {
   const { rules, violations } = checkRuleSymlinks(repoRoot);
   expect(violations).toEqual([]);
   expect(rules.length).toBeGreaterThan(0);
 });
 
-test("欠落: 配線 symlink を作っていない rule を両エージェントぶん検出する", () => {
+test("欠落: エージェント用の symlink を作っていない rule を両エージェントぶん検出する", () => {
   const root = makeRepo(["alpha"], { wire: false });
   const { violations } = checkRuleSymlinks(root);
   expect(violations).toHaveLength(2);
@@ -81,7 +81,7 @@ test("実ファイル: symlink ではなく実体のコピーを置いたら検�
   );
   const { violations } = checkRuleSymlinks(root);
   expect(violations).toEqual([
-    ".claude/rules/alpha.md: symlink ではない（実体のコピーは正本と drift する）",
+    ".claude/rules/alpha.md: symlink ではない（実体のコピーは原本と drift する）",
   ]);
   cleanup(root);
 });
@@ -96,7 +96,7 @@ test("誤った指し先: 別の rule を指す symlink を検出する", () => 
   cleanup(root);
 });
 
-test("壊れた symlink: 指し先の正本が消えていたら検出する（欠落として現れる）", () => {
+test("指し先の無い symlink: 指し先の原本が消えていたら検出する（欠落として現れる）", () => {
   const root = makeRepo(["alpha"]);
   // 原本を消すと、symlink は「対応する原本が無い孤児」になる（期待する集合は、宣言＝原本から作るため）。
   rmSync(join(root, CANON_DIR, "alpha.md"));
@@ -106,12 +106,12 @@ test("壊れた symlink: 指し先の正本が消えていたら検出する（�
   cleanup(root);
 });
 
-test("孤児: 正本の無い配線 symlink を検出する", () => {
+test("孤児: 原本の無いエージェント用の symlink を検出する", () => {
   const root = makeRepo(["alpha"]);
   symlinkSync(relTarget(".claude/rules", "ghost"), join(root, ".claude/rules/ghost.md"));
   const { violations } = checkRuleSymlinks(root);
   expect(violations).toEqual([
-    `.claude/rules/ghost.md: 対応する正本 ${CANON_DIR}/ghost.md が無い（孤児）`,
+    `.claude/rules/ghost.md: 対応する原本 ${CANON_DIR}/ghost.md が無い（孤児）`,
   ]);
   cleanup(root);
 });
@@ -126,25 +126,25 @@ test("命名規則外: suffix に合わない名前を検出する", () => {
   cleanup(root);
 });
 
-test("配線ディレクトリが不在なら、走査を飛ばさず違反として報告する", () => {
+test("リンクのディレクトリが不在なら、走査を飛ばさず違反として報告する", () => {
   const root = makeRepo(["alpha"]);
   rmSync(join(root, ".claude/rules"), { recursive: true });
   const { violations } = checkRuleSymlinks(root);
   expect(violations).toHaveLength(1);
-  expect(violations[0]).toMatch(/配線ディレクトリが無い（Claude Code/);
+  expect(violations[0]).toMatch(/リンクのディレクトリが無い（Claude Code/);
   cleanup(root);
 });
 
-test("正本ディレクトリが不在なら違反として報告し、走査件数は 0 件", () => {
+test("原本のディレクトリが不在なら違反として報告し、走査件数は 0 件", () => {
   const root = makeTempDir("rule-symlinks-");
   const { rules, violations } = checkRuleSymlinks(root);
   expect(rules).toEqual([]);
   expect(violations).toHaveLength(1);
-  expect(violations[0]).toMatch(/正本ディレクトリが無い/);
+  expect(violations[0]).toMatch(/原本のディレクトリが無い/);
   cleanup(root);
 });
 
-test("CLI: 対象 0 件は成功に倒さず exit 1", () => {
+test("CLI: 対象 0 件は成功として扱わず exit 1", () => {
   const root = makeTempDir("rule-symlinks-");
   mkdirSync(join(root, CANON_DIR), { recursive: true });
   for (const { dir } of WIRINGS) mkdirSync(join(root, dir), { recursive: true });
@@ -165,6 +165,6 @@ test("CLI: 違反があれば exit 1、無ければ exit 0 で走査件数を出
   const bad = makeRepo(["alpha"], { wire: false });
   const r = spawnSync(process.execPath, [script, bad], { encoding: "utf8" });
   expect(r.status).toBe(1);
-  expect(r.stderr).toMatch(/2 件の配線不備/);
+  expect(r.stderr).toMatch(/2 件のリンクの不備/);
   cleanup(bad);
 });

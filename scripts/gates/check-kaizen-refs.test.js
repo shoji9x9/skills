@@ -320,9 +320,9 @@ test.each([
 });
 
 test.each([
-  ["private skill（skills/ に正本が無い）", ".agents/skills/p/SKILL.md", {}],
+  ["private skill（skills/ に原本が無い）", ".agents/skills/p/SKILL.md", {}],
   ["private skill のスクリプト", ".agents/skills/p/scripts/a.js", {}],
-  ["rule の正本", ".agents/rules/r.md", {}],
+  ["rule の原本", ".agents/rules/r.md", {}],
   [
     "配布スキル xy の名前を前方に含む private skill x",
     ".agents/skills/x/SKILL.md",
@@ -333,7 +333,7 @@ test.each([
     ".agents/skills/xy/SKILL.md",
     { "skills/x/SKILL.md": "# x\n" },
   ],
-])("陽性: .agents/ の正本（%s）の切れた参照は落とす", (_, path, extra) => {
+])("陽性: .agents/ の原本（%s）の切れた参照は落とす", (_, path, extra) => {
   const root = makeRepo({
     ...extra,
     [path]: "`.kaizen/2026-01-01-missing.md`\n",
@@ -345,7 +345,7 @@ test.each([
   ]);
 });
 
-test("陰性: rule へのシンボリックリンク（.github/instructions）は辿らず、正本の参照を 1 回だけ数える", () => {
+test("陰性: rule へのシンボリックリンク（.github/instructions）は辿らず、原本の参照を 1 回だけ数える", () => {
   const root = makeRepo({
     ".agents/rules/r.md": `根拠は \`${NOTE}\`、切れた \`.kaizen/2026-01-01-missing.md\`\n`,
   });
@@ -378,7 +378,7 @@ test("陽性: 理由の無い免除を落とす", () => {
 
 // ---- 件数と CLI ----
 
-test("参照 0 件は成功に倒さず exit 1", () => {
+test("参照 0 件は成功として扱わず exit 1", () => {
   const root = makeRepo({ "docs/a.md": "参照なし\n" });
   expect(main([root])).toBe(1);
 });
@@ -386,16 +386,16 @@ test("参照 0 件は成功に倒さず exit 1", () => {
 test.each([
   ["配列でない", { exemptions: {} }],
   ["reason が欠落", { exemptions: [{ file: "docs/a.md", ref: ".kaizen/2026-01-01-x.md" }] }],
-])("免除の宣言が読めない（%s）なら exit 2（免除 0 件に倒さない）", (_, data) => {
+])("免除の宣言が読めない（%s）なら exit 2（免除 0 件として扱わない）", (_, data) => {
   const root = makeRepo({ "docs/a.md": NOTE, [EXEMPTIONS_PATH]: JSON.stringify(data) });
   expect(main([root])).toBe(2);
 });
 
-test("git リポジトリでなければ exit 2（列挙の失敗を 0 件に倒さない）", () => {
+test("git リポジトリでなければ exit 2（列挙の失敗を 0 件として扱わない）", () => {
   expect(main([makeTempDir("kaizen-refs-nogit-")])).toBe(2);
 });
 
-test("陽性コントロール（CLI）: 子プロセスとして起動しても、切れた参照は exit 1、無ければ exit 0", () => {
+test("検出の確認（CLI）: 子プロセスとして起動しても、切れた参照は exit 1、無ければ exit 0", () => {
   const good = spawnSync(process.execPath, [script, makeRepo({ "docs/a.md": NOTE })], {
     encoding: "utf8",
   });

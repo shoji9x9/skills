@@ -322,7 +322,7 @@ test.each([
   expect(order).toEqual(["a-b", "aB", "a_b", "ab"]);
 });
 
-test("照合順を固定する指定がソースにある（挙動テストでは弁別できない部分）", () => {
+test("照合順を固定する指定がソースにある（挙動テストでは区別できない部分）", () => {
   // 上の行順テストは、非 C 照合の UTF-8 ロケール（en_US.UTF-8 等）が入っていない環境では
   // 通ってしまう（C.utf8 の照合はバイト順で C と同じ）。つまり「LC_COLLATE を固定しない」
   // 変異を挙動から落とせない。落とせない部分は指定そのものを検査する。
@@ -344,7 +344,7 @@ test("glibc 流の名前（en_US.utf8）しか無い環境でも UTF-8 ロケー
   expect(result.stderr).not.toMatch(/UTF-8 ロケールが無いため/);
 });
 
-test("UTF-8 ロケールが無いときは縮退した旨を stderr に残す", () => {
+test("UTF-8 ロケールが無いときは機能を減らして動いた旨を stderr に残す", () => {
   // 機能を減らした run と本番構成の run を、出力で区別できるようにする（警告なしに要約を省かない）。
   const dir = createRepo();
   const note = writeNote(dir, "2026-09-01-degraded.md", "あ".repeat(60));

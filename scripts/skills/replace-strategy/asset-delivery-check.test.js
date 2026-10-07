@@ -157,19 +157,22 @@ async function runCheck(opts) {
 
 // ---- 台帳の読み取り ----
 
-test("台帳: 正本のテンプレートから「有効 × 実体を写す」の行だけを取り出す（取り消し済み・同等物・空欄は取らない）", () => {
+test("台帳: 原本のテンプレートから「有効 × 実体をコピーする」の行だけを取り出す（取り消し済み・同等物・空欄は取らない）", () => {
   const { copyRows } = readLedger(TEMPLATE);
   expect(copyRows.map((r) => r.kind)).toEqual(["本文の書体"]);
 });
 
-test("台帳: 旧い方針の値（実体を写す・写さない）を新しい値と同じ意味に読む（改名する前の台帳を書き直さずに判定する）", () => {
+test("台帳: 旧い方針の値を新しい値と同じ意味に読む（改名する前の台帳を書き直さずに判定する）", () => {
   const text = [
     "| 種類 | 方針 | 状態 |",
     "|---|---|---|",
     "| 新 | 実体をコピーする | 有効 |",
+    // 旧い方針の値を読めることを確かめる入力なので、旧い値をそのまま書く。
+    // textlint-disable
     "| 旧 | 実体を写す | 有効 |",
     "| 新しい除外 | コピーしない | 有効 |",
     "| 旧い除外 | 写さない | 有効 |",
+    // textlint-enable
   ].join("\n");
   const { copyRows, activeRows } = readLedger(text);
   expect(copyRows.map((r) => r.kind)).toEqual(["新", "旧"]);
@@ -184,7 +187,7 @@ test("台帳: 行番号は表の中の順番ではなく台帳ファイル上の
   expect(() => readLedger(broken)).toThrow(`台帳の ${fileLine} 行目の「種類」が空`);
 });
 
-test("台帳: 表の本体が空行で切れた後の行は黙って捨てず判定しない（例外）", () => {
+test("台帳: 表の本体が空行で切れた後の行は警告なしに捨てず判定しない（例外）", () => {
   const text = [
     "| 種類 | 描き方と使われるページ | 方針 | 状態 |",
     "|---|---|---|---|",
@@ -388,7 +391,7 @@ test("通す: 参照があり移行元とバイト一致する資産は exit 0 �
   ]);
 });
 
-test("通す: 「実体を写す」の有効な行が 0 件の台帳は、プローブ無しで exit 0", async () => {
+test("通す: 「実体をコピーする」の有効な行が 0 件の台帳は、プローブ無しで exit 0", async () => {
   const text = [
     "| 種類 | 描き方と使われるページ | 方針 | 状態 |",
     "|---|---|---|---|",
@@ -729,7 +732,7 @@ test.each([
   expect(r.code).toBe(1);
 });
 
-test("落とす: 台帳の「実体を写す」の行に記録が無い（突き合わせていない）", async () => {
+test("落とす: 台帳の「実体をコピーする」の行に記録が無い（突き合わせていない）", async () => {
   const r = await runCheck({
     ledgerText: ledger(FAVICON_ROW),
     record: { entries: [FONT_ENTRY] },
@@ -780,7 +783,7 @@ test.each([
   },
 );
 
-test("落とす: 台帳の「実体を写す」の有効な行に無い種類の記録（同等物の行・取り消し済みの行）", async () => {
+test("落とす: 台帳の「実体をコピーする」の有効な行に無い種類の記録（同等物の行・取り消し済みの行）", async () => {
   const r = await runCheck({
     record: {
       entries: [FONT_ENTRY, { kind: "ロゴ", files: [{ current: "/logo.png", new: "/logo.png" }] }],

@@ -43,7 +43,7 @@ function run(argv) {
   return { status, stdout, stderr };
 }
 
-test("陽性コントロール: 読める YAML（複数文書・.yaml・JSON の中身を含む）だけなら exit 0 で件数を出す", () => {
+test("誤検知しないことの確認: 読める YAML（複数文書・.yaml・JSON の中身を含む）だけなら exit 0 で件数を出す", () => {
   const dir = repo({
     "a.yml": VALID,
     "nested/b.yaml": MULTI_DOC,
@@ -56,7 +56,7 @@ test("陽性コントロール: 読める YAML（複数文書・.yaml・JSON の
   expect(r.status).toBe(0);
 });
 
-test("壊れた YAML を 1 件置くと exit 1 でそのファイルを名指しする", () => {
+test("不正な YAML を 1 件置くと exit 1 でそのファイルを名指しする", () => {
   const dir = repo({ "a.yml": VALID, "sub/broken.yml": BROKEN });
   const r = run(["--root", dir]);
   expect(r.stderr).toContain("sub/broken.yml: unexpected end of the stream");
@@ -72,7 +72,7 @@ test("未追跡でも ignore されていない YAML は検査する（add 前�
 });
 
 test.each([[".agents/skills/x/a.yml"], [".claude/skills/y.yml"], ["node_modules/pkg/z.yml"]])(
-  "起点直下の除外（%s）の中の壊れた YAML は見ないが、外に同じものがあれば落とす",
+  "起点直下の除外（%s）の中の不正な YAML は見ないが、外に同じものがあれば落とす",
   (excluded) => {
     // `.agents/skills/x/` は `skills/x/` があるのでコピーとして除く。
     const inside = repo({ "a.yml": VALID, "skills/x/SKILL.md": "", [excluded]: BROKEN });
@@ -101,7 +101,7 @@ test("rule と private skill（skills/ に同名の無い .agents/skills/<name>/
   expect(r.status).toBe(1);
 });
 
-test("gitignore された壊れた YAML は見ない（手元の eval 出力で CI と食い違わない）", () => {
+test("gitignore された不正な YAML は見ない（手元の eval 出力で CI と食い違わない）", () => {
   const dir = repo(
     { "a.yml": VALID, "tests/x/iteration-1/eval-1/out.yml": BROKEN },
     { track: false, gitignore: "tests/*/iteration-*/eval-*/\n" },
@@ -121,14 +121,14 @@ test("作業ツリーで消した（未ステージの削除）追跡ファイ�
   expect(r.status).toBe(0);
 });
 
-test("対象の YAML が 0 件なら exit 1（空振りを成功に倒さない）", () => {
+test("対象の YAML が 0 件なら exit 1（空振りを成功として扱わない）", () => {
   const dir = repo({ "readme.txt": "x\n" });
   const r = run(["--root", dir]);
   expect(r.stderr).toContain("対象の YAML が 0 件");
   expect(r.status).toBe(1);
 });
 
-test("起点が git リポジトリでなければ exit 2（列挙の失敗を 0 件に倒さない）", () => {
+test("起点が git リポジトリでなければ exit 2（列挙の失敗を 0 件として扱わない）", () => {
   const dir = makeTempDir("lint-yaml-nogit-");
   writeFileSync(join(dir, "a.yml"), BROKEN);
   const r = run(["--root", dir]);
@@ -159,7 +159,7 @@ test.each([[["--bogus"]], [["--root"]]])("使い方の誤り %j は exit 2", (ar
   expect(r.status).toBe(2);
 });
 
-test("陽性コントロール（CLI）: 子プロセスとして起動しても、壊れた YAML は exit 1、読めれば exit 0", () => {
+test("検出の確認（CLI）: 子プロセスとして起動しても、不正な YAML は exit 1、読めれば exit 0", () => {
   const dir = repo({ "a.yml": VALID, "broken.yml": BROKEN });
   const ng = spawnSync(process.execPath, [script, "--root", dir], { encoding: "utf8" });
   expect(ng.stderr).toContain("broken.yml:");

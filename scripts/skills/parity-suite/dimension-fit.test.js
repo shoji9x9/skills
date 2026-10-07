@@ -114,7 +114,7 @@ test("fitPlane は幅と高さへの追従を分けて読む", () => {
   expect(f.residual).toBeLessThan(1e-6);
 });
 
-test("fit: 式で決まる要素は fits に割合と定数を残す（陽性コントロール）", () => {
+test("fit: 式で決まる要素は fits に割合と定数を残す（検出されることの確認）", () => {
   const dm = fittedMetadata().capture_conditions.dimension_model;
   expect(dm.status).toBe("measured");
   expect(dm.measured_at).toEqual(WINDOWS);
@@ -232,7 +232,7 @@ test("check: 1 点の px を並べた新側は、撮影ビューポートでは�
   expect(at1600.deviation).toBe(132);
 });
 
-test("check: 式で写した新側は exit 0（陽性コントロール）", () => {
+test("check: 式どおりに作った新側は exit 0（誤検知しないことの確認）", () => {
   const r = run(
     [
       "check",
@@ -593,7 +593,7 @@ test("check --write: 引数の不備（--write より後の不明な引数）の
   });
 });
 
-test("fit: 撮影ページ名の重複は exit 2（2 つ目のページの測り漏れを潰さない）", () => {
+test("fit: 撮影ページ名の重複は exit 2（2 つ目のページの測り忘れを見逃さない）", () => {
   const m = metadataOf();
   m.capture_conditions.pages.push({ name: "list", path: "/orders/archive" });
   const r = run(["fit", "--samples", "s.json", "--metadata", "m.json"], {
@@ -752,7 +752,7 @@ test.each([
   expect(r.stderr).toMatch(message);
 });
 
-test("fit: traits.elements の論理名の重複は exit 2（測る対象を黙って減らさない）", () => {
+test("fit: traits.elements の論理名の重複は exit 2（測る対象を警告なしに減らさない）", () => {
   const m = metadataOf();
   m.traits.elements = ["button", "button", "grid"];
   const r = run(["fit", "--samples", "s.json", "--metadata", "m.json"], {

@@ -230,7 +230,7 @@ test("CLI: 引数が無ければ usage と exit 2", () => {
   expect(r.stderr).toContain("usage:");
 });
 
-test("CLI: 余った位置引数を黙って先勝ちにしない", () => {
+test("CLI: 余った位置引数を警告なしに先勝ちにしない", () => {
   // 2 つ渡して片方を警告なしに捨てると、渡したつもりのファイルが読まれないまま exit 0 になる。
   const ok = runCli({
     instances: [
@@ -249,7 +249,7 @@ test("CLI: 余った位置引数を黙って先勝ちにしない", () => {
   expect(r.stderr).toContain("マニフェストは 1 つだけ");
 });
 
-test("CLI: 知らないオプションを黙って捨てない", () => {
+test("CLI: 知らないオプションを警告なしに捨てない", () => {
   // `--` 始まりを一括で読み飛ばす実装では、綴り違いも等号形も警告なしに消える。
   // --out が軸成果物を生む前提の工程が、ファイルが作られていないことに気付かないまま進む。
   const manifest = {
@@ -287,7 +287,7 @@ test("CLI: --out は出力先パスを要求し、実際に書く", () => {
   expect(JSON.parse(readFileSync(out, "utf8")).variable).toHaveLength(1);
 });
 
-test("CLI: 読めないマニフェストを成功に倒さない", () => {
+test("CLI: 読めないマニフェストを成功として扱わない", () => {
   const dir = makeTempDir("axis-diff-");
   const path = join(dir, "broken.json");
   writeFileSync(path, "{ not json");
@@ -296,7 +296,7 @@ test("CLI: 読めないマニフェストを成功に倒さない", () => {
   expect(r.stderr).toContain("マニフェストを読めない");
 });
 
-test("状態名が不正な採取を黙って捨てず問題として数える", () => {
+test("状態名が不正な採取を警告なしに捨てず問題として数える", () => {
   // 全インスタンスの状態名が不正だと、捨ててから突き合わせる実装では
   // 「状態 0 件・軸 0 件・問題 0 件」になり、1 件も測っていないのに ok: true を返す。
   const result = diffAxes({
@@ -311,7 +311,7 @@ test("状態名が不正な採取を黙って捨てず問題として数える",
   expect(result.problems.join("\n")).toContain("採取された状態が 1 つも無い");
 });
 
-test("有効な状態がある場合でも、混ざった不正な採取を見逃さない", () => {
+test("有効な状態がある場合でも、含まれる不正な採取を見逃さない", () => {
   const result = diffAxes({
     component: "button",
     instances: [
@@ -326,7 +326,7 @@ test("有効な状態がある場合でも、混ざった不正な採取を見�
   expect(result.problems.join("\n")).toContain("状態名が不正な採取が 1 件");
 });
 
-test("空の traits から 0 軸しか取れない採取を fail-closed にする", () => {
+test("空の traits から 0 軸しか取れない採取を問題として扱う", () => {
   // traits: {} を 2 件渡すと軸が 1 つも立たず、表が空のまま problems も空になり
   // 「比較対象が無いのに ok: true」を返していた（build は axes.ok だけを前提に進む）。
   const result = diffAxes({
@@ -458,7 +458,7 @@ test("宣言の無い欠落は従来どおり問題にする", () => {
   expect(result.problems.join("\n")).toContain("未採取の状態 hover");
 });
 
-test("契約どおりのオブジェクト形で宣言された到達不能状態を受ける", () => {
+test("仕様どおりのオブジェクト形で宣言された到達不能状態を受ける", () => {
   // 成果物の取り決め（metadata.json / references/instances.md）は { state, reason } のオブジェクト形。
   // 文字列だけを拾うと、正しく宣言された除外が誤って「未採取の状態」と判定され、build を塞ぐ。
   const result = diffAxes({
@@ -480,7 +480,7 @@ test("契約どおりのオブジェクト形で宣言された到達不能状�
   expect(result.not_compared).toEqual([{ instance: "b", state: "hover" }]);
 });
 
-test("理由の無い除外宣言を受理しない（唯一の緩和経路を広げない）", () => {
+test("理由の無い除外宣言を受理しない（唯一の緩和の方法を広げない）", () => {
   for (const declared of [["hover"], [{ state: "hover" }], [{ state: "hover", reason: "  " }]]) {
     const result = diffAxes({
       component: "button",
@@ -554,7 +554,7 @@ test("空白だけの状態名を弾く", () => {
   expect(result.problems.join("\n")).toContain("状態名が不正な採取");
 });
 
-test("擬似要素の形が壊れた採取を軸に変えない", () => {
+test("擬似要素の形が不正な採取を軸に変えない", () => {
   // `before: "x"` は flattenTraits が `::before/0 = "x"` という軸に変え、`after: []` は
   // `<present> = true` だけを作る。computed / rect と同じ形の検証をしないと、
   // 不正な採取物が measured を稼いで、誤って ok: true になる。
@@ -588,7 +588,7 @@ test("擬似要素が null・レコード・キー無しなら通す", () => {
   }
 });
 
-test("全インスタンスで到達できない状態の宣言を黙って通さない", () => {
+test("全インスタンスで到達できない状態の宣言を警告なしに通さない", () => {
   // 採取側の和集合だけを候補にすると、この状態はどのインスタンスにとっても「欠け」ではなくなり、
   // not_compared にも problems にも残らない（状態名の typo が誰にも気付かれない）。
   const declared = [{ state: "hovr", reason: "その target では作れない" }];
@@ -683,7 +683,7 @@ test("空のレコードの擬似要素を採取として通さない", () => {
   expect(result.problems.join("\n")).toContain("::before の形");
 });
 
-test("契約どおりの採取は値の検証で落とさない", () => {
+test("仕様どおりの採取は値の検証で落とさない", () => {
   // 値まで見る形にした結果、正しい採取物まで弾いていないことの確認（過剰修正の検知）。
   const result = diffAxes({
     component: "button",
@@ -721,7 +721,7 @@ test("--baseline は採取物から決定論的にマニフェストを組み立
   expect(generated.measured).toBeGreaterThan(0);
 });
 
-test("--baseline は宣言の無い欠落を黙って除外しない", () => {
+test("--baseline は宣言の無い欠落を警告なしに除外しない", () => {
   // 到達不能と宣言していない状態の traits.json が無ければ、読みに行って落ちる。
   const dir = makeTempDir("axis-diff-baseline-");
   const t = { computed: { color: "rgb(0, 0, 0)" }, rect: { x: 0, y: 0, width: 80, height: 32 } };

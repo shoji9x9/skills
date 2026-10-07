@@ -27,7 +27,7 @@ const WIRED = ".github/workflows/kaizen-schedule.yml";
 // どのみち人の目を通す。CI 側の pin 検査（`ci.yml` の "Pin check (distributed workflow
 // templates)"）は、テンプレートが未 pin・コメント不整合になることを別途落とす。
 const SYNC_HINT =
-  "正本と配線がずれている。`cp .github/workflows/kaizen-schedule.yml " +
+  "配布テンプレートと本リポのワークフローがずれている。`cp .github/workflows/kaizen-schedule.yml " +
   "skills/kaizen/assets/kaizen-schedule.yml` で同期し、" +
   "`scripts/tools/reinstall-skill.sh kaizen` を実行する。";
 
@@ -58,7 +58,7 @@ test("すべての uses: を 40 桁 SHA で固定している", () => {
   }
 });
 
-test("正本が定期実行スキルの前提（cron・skip・エージェント選択）を保っている", () => {
+test("原本が定期実行スキルの前提（cron・skip・エージェント選択）を保っている", () => {
   const canon = readFileSync(join(repoRoot, CANON), "utf8");
   // 検査対象は「このワークフローが何であるか」を決める要素だけに絞る。
   // 文面の細部まで固定すると、意味を変えない編集でテストが赤くなる。
@@ -73,7 +73,7 @@ test("正本が定期実行スキルの前提（cron・skip・エージェント
 // （配布先のファイルは実行ビットを持たない）。本リポには 755 のソース配置
 // `skills/kaizen/scripts/` があるので、`-x` に戻しても `.github/skills/...` を落としても
 // ここ以外は誰も赤くならない。2 つの軸を別々に固定する。
-describe("スクリプト探索条件（配布先でだけ壊れるので実配置から固定する）", () => {
+describe("スクリプト探索条件（配布先でだけ失敗するので実配置から固定する）", () => {
   const canon = () => readFileSync(join(repoRoot, CANON), "utf8");
 
   test("実行ビットではなく可読性で判定する", () => {

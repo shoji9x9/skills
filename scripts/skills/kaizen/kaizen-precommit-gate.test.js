@@ -76,7 +76,7 @@ describe("Claude Code の atis-latch 補助レコード", () => {
     ["atis-latch は候補を隠さない", "claude-atis-latch-candidate.jsonl", 0],
     ["type 欠落は判定不能", "unknown.jsonl", 2],
     ["未知の文字列 type は判定不能", "unknown-string-type.jsonl", 2],
-    ["壊れた JSON は判定不能", "malformed-json.jsonl", 2],
+    ["不正な JSON は判定不能", "malformed-json.jsonl", 2],
     ["event_msg の subtype 欠落は判定不能", "malformed-event-msg.jsonl", 2],
     ["response_item の未知 subtype は判定不能", "unknown-response-item-subtype.jsonl", 2],
   ])("%s", (_label, fixture, expectedStatus) => {
@@ -157,7 +157,7 @@ describe("Codex の token usage / review mode 補助レコード", () => {
   });
 });
 
-describe("checkpoint は走査器が検査した範囲までしか進めない", () => {
+describe("checkpoint はスキャナが検査した範囲までしか進めない", () => {
   test("走査後に追記されたレコードは処理済みにならず、次の走査で検出される", () => {
     const cwd = makeProject();
     const transcript = join(cwd, "t.jsonl");
@@ -305,7 +305,7 @@ describe("checkpoint は走査器が検査した範囲までしか進めない",
     expect(readdirSync(join(cwd, ".kaizen"))).not.toContain(".extract-done");
   });
 
-  test("走査器が走査済み位置を報告しないときゲートはブロックする", () => {
+  test("スキャナが走査済み位置を報告しないとき、チェックはブロックする", () => {
     const scripts = cloneScripts();
     writeFileSync(
       join(scripts, "kaizen-candidate-scan.sh"),
@@ -422,7 +422,7 @@ describe("同一セッションの後続 commit も未処理範囲を再走査�
     expect(gate.stderr).toMatch(/candidate\(s\) found/);
   });
 
-  test("checkpoint を記録できない抽出完了は .extract-done でゲートを解除する", () => {
+  test("checkpoint を記録できない抽出完了は .extract-done でチェックを解除する", () => {
     const cwd = makeProject();
     const transcript = join(cwd, "t.jsonl");
     copyFileSync(join(fixturesDir, "claude-no-candidate.jsonl"), transcript);
@@ -498,7 +498,7 @@ exec "${realRm}" "$@"
   // 残したままマーカーだけ書くと、チェックはマーカーを尊重せず古い起点から再走査し、いま抽出
   // したばかりの候補で再びブロックする。抽出をやり直しても同じ状態に戻るため、安全側の扱いが
   // 機能せず commit が止まり続ける。
-  test("先に checkpoint がある状態でも .extract-done の fail safe は効く", () => {
+  test("先に checkpoint がある状態でも、.extract-done による通過は機能する", () => {
     const cwd = makeProject();
     const transcript = join(cwd, "t.jsonl");
     copyFileSync(join(fixturesDir, "claude-no-candidate.jsonl"), transcript);
@@ -548,8 +548,8 @@ exec "${realRm}" "$@"
   });
 });
 
-describe("走査器の判定はゲートの外部コマンド方言に依存しない", () => {
-  test("ゲートは sed の GNU 拡張（BRE の \\|）で agent を取り出さない", () => {
+describe("スキャナの判定はチェックの外部コマンド方言に依存しない", () => {
+  test("チェックは sed の GNU 拡張（BRE の \\|）で agent を取り出さない", () => {
     const gnuAlternation = /sed[^\n]*\\\|/;
     // 検出されることの確認: 修正前の書き方を検出できることを先に示す（「該当なし」を根拠にするため）。
     expect("scan_agent=$(sed -n 's/^x=\\(claude-code\\|codex\\)$/\\1/p' <<<\"$out\")").toMatch(
@@ -601,7 +601,7 @@ describe("走査器の判定はゲートの外部コマンド方言に依存し�
   });
 });
 
-describe("ゲートの commit 検出", () => {
+describe("チェックの commit 検出", () => {
   // 未抽出センチネルがある状態では、commit と判定されれば exit 2（ブロック）になる。
   // `{P}` は実行時にプロジェクトルートへ置換する。`-C` / `--git-dir` / `--work-tree` で
   // コミット先を指定する形は、**プロジェクト内**を指していないとチェックの対象外（exit 0）に
@@ -974,7 +974,7 @@ describe("コミット先のスコープ判定", () => {
 // commit 判定は jq を使う処理と同じ結論でなければならない（ここが緩むと合格として扱われ、きつくなると誤ブロックになる）。
 // ただしコミット先のスコープ判定（Issue #221）だけは**意図的に差がある**。この処理はコマンド行を
 // 構造として取り出せていないため外部宛てを確定できず、`git -C <外部> commit` も従来どおりブロックする。
-describe("生 JSON へ縮退した経路の commit 検出", () => {
+describe("生 JSON だけで判定するときの commit 検出", () => {
   /** jq / python3 だけを解決できない PATH を作る（他のコマンドは実体へ通す）。 */
   function makeJqlessPathDir() {
     const dir = makeSharedTempDir("kaizen-nojq-");
@@ -1178,7 +1178,7 @@ describe("lifecycle 検査", () => {
     expect(gate.stderr).not.toMatch(/kaizen-status-check:/);
   });
 
-  test("雑音に混ざっていても警告は拾う", () => {
+  test("雑音に紛れていても警告は拾う", () => {
     // 上の裏返し。雑音を落とす実装が、警告まで落としていないことを確かめる。
     const cwd = makeProject();
     writeNote(
@@ -1213,7 +1213,7 @@ describe("lifecycle 検査", () => {
     expect(gate.stderr).toMatch(/warning: type is hook/);
   });
 
-  test("警告が無ければゲートは検査の出力を足さない", () => {
+  test("警告が無ければチェックは検査の出力を足さない", () => {
     const cwd = makeProject();
     writeNote(cwd, "2026-08-10-note.md", note("applied", ' ["AGENTS.md"]'));
 
@@ -1312,7 +1312,7 @@ describe("未抽出センチネルの復旧案内は「記録なし」と「記�
 // セッションが共有ツリーで始まって git worktree で続くと、センチネルを立てたツリーと `git commit`
 // を実行するツリーが分かれ、自分のツリーの `.kaizen/` しか見ない形では **worktree の commit が
 // 素通りする**（Issue #344）。素通りは出力にも終了コードにも現れないので、決定論的に押さえる。
-describe("ゲートはリポジトリの全作業ツリーの .kaizen/ を見る", () => {
+describe("チェックはリポジトリの全作業ツリーの .kaizen/ を見る", () => {
   const SESSION = "00000000-1111-2222-3333-444444444444";
 
   /** 本体 ＋ worktree を 1 つ持つリポジトリを作る。*/
@@ -1375,7 +1375,7 @@ describe("ゲートはリポジトリの全作業ツリーの .kaizen/ を見る
     expect(runGateAt(main, main).status).toBe(2);
   });
 
-  test("センチネルがどのツリーにも無ければ従来どおり通す（全ツリー走査が常時ブロックへ倒れない）", () => {
+  test("センチネルがどのツリーにも無ければ従来どおり通す（全ツリー走査で常にブロックするようにならない）", () => {
     const { main, worktree } = makeRepoWithWorktree();
     expect(runGateAt(worktree, main).status).toBe(0);
     expect(runGateAt(main, main).status).toBe(0);
@@ -1447,7 +1447,7 @@ describe("ゲートはリポジトリの全作業ツリーの .kaizen/ を見る
 // エージェントは timeout に達したフックをブロックとして扱わない（Claude Code / Copilot とも、合格として扱う）。
 // チェック全体の所要時間に上限が無いと、exit 2 で止めるはずの commit が遅いときほど素通りする（Issue #492）。
 // チェックは 1 つの締め切りの内側で最後まで実行し、自セッション分までは締め切りに当たったら失敗として扱う。
-describe("ゲート全体の締め切り", () => {
+describe("チェック全体の締め切り", () => {
   const OWN = "own-session-1";
 
   function stubScripts(files) {
@@ -1518,7 +1518,7 @@ describe("ゲート全体の締め切り", () => {
   });
 
   test.each([["abc"], ["0"], ["1"], ["3601"], ["-5"], ["8.5"]])(
-    "不正な締め切り %s は既定へ倒して知らせる",
+    "不正な締め切り %s はデフォルト値に戻して知らせる",
     (raw) => {
       const cwd = makeProject();
       const gate = runGate("git commit -m x", {
@@ -1533,18 +1533,21 @@ describe("ゲート全体の締め切り", () => {
     },
   );
 
-  test.each([["2"], ["20"], ["3600"], ["08"]])("正しい締め切り %s は黙って受け付ける", (raw) => {
-    const cwd = makeProject();
-    const gate = runGate("git commit -m x", {
-      cwd,
-      sessionId: OWN,
-      env: { KAIZEN_PRECOMMIT_DEADLINE_SECONDS: raw },
-    });
-    // 受け付けたかだけを見る。最小の 2 秒では lifecycle 検査の持ち時間が 1 秒しかなく、負荷の高い
-    // 並列実行では、締め切りで失敗として扱われうる（それ自体は仕様どおり）。
-    expect(gate.stderr).not.toMatch(/不正です/);
-    expect([0, 2]).toContain(gate.status);
-  });
+  test.each([["2"], ["20"], ["3600"], ["08"]])(
+    "正しい締め切り %s は警告なしに受け付ける",
+    (raw) => {
+      const cwd = makeProject();
+      const gate = runGate("git commit -m x", {
+        cwd,
+        sessionId: OWN,
+        env: { KAIZEN_PRECOMMIT_DEADLINE_SECONDS: raw },
+      });
+      // 受け付けたかだけを見る。最小の 2 秒では lifecycle 検査の持ち時間が 1 秒しかなく、負荷の高い
+      // 並列実行では、締め切りで失敗として扱われうる（それ自体は仕様どおり）。
+      expect(gate.stderr).not.toMatch(/不正です/);
+      expect([0, 2]).toContain(gate.status);
+    },
+  );
 });
 
 // 候補が残っている他セッションのセンチネルは解消されないので、そのままだと commit のたびに同じ範囲を
@@ -1635,7 +1638,7 @@ describe("他セッション分の走査結果の再利用", () => {
     expect(scans()).toBe(2);
   });
 
-  test("走査器が変わったら走査し直す", () => {
+  test("スキャナが変わったら走査し直す", () => {
     const { gate, scans, scripts } = setup("exit 0");
     gate();
     appendFileSync(join(scripts, "kaizen-candidate-scan.sh"), "# updated\n");

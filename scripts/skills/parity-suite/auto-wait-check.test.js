@@ -14,7 +14,7 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..")
 const script = join(repoRoot, "skills/parity-suite/scripts/auto-wait-check.mjs");
 const { breakdownMismatch, maskNonCode, scanSource, scanSourceWithStats } = await import(script);
 
-test("陽性コントロール: locator と自動リトライ assertion は通る", () => {
+test("誤検知しないことの確認: locator と自動リトライ assertion は通る", () => {
   const source = `
     const save = page.getByRole('button', { name: 'Save' });
     await expect(save).toBeVisible();
@@ -119,7 +119,7 @@ test("閉じていない文字列は判定不能を成功扱いにしない", ()
   expect(() => scanSource("const x = 'unterminated")).toThrow(/閉じていない/);
 });
 
-test("CLI は対象 0 件を成功扱いにせず、違反と正常入力を弁別する", () => {
+test("CLI は対象 0 件を成功扱いにせず、違反と正常入力を区別する", () => {
   const dir = makeTempDir("auto-wait-check-");
   const bad = join(dir, "bad.spec.ts");
   const good = join(dir, "good.spec.ts");
@@ -431,7 +431,7 @@ test.each([
   // 戻り値注釈は呼ばれている区間だけに当てる。未呼び出しプロパティに当てると、同名の関数宣言
   // 1 つで無関係な変数が Locator と誤って判定され、誤検出になる。
   [
-    "未呼び出しプロパティは誤検出しない（判定不能に倒す）",
+    "未呼び出しプロパティは誤検出しない（判定不能として扱う）",
     "const snapshot = model.rows;",
     "unresolved-receiver",
   ],
@@ -545,7 +545,7 @@ test.each([
   ["this 経由", "const p = this.page;"],
   ["fixture 経由", "const p = ctx.page;"],
   ["optional chaining", "const p = ctx?.page;"],
-])("プロパティ経路で束ねた Page の別名（%s）にも page 専用規則を当てる", (_name, binding) => {
+])("プロパティの参照で束ねた Page の別名（%s）にも page 専用規則を当てる", (_name, binding) => {
   // チェーンに `page` を含むため opaqueAliases にも入らない。束ね直しを解決しないと
   // 違反 0 件でも判定不能 0 件でもない「警告なしの素通り」になり、出力から取りこぼしが読めない。
   const source = [binding, "await p.waitForTimeout(100);"].join("\n");
@@ -563,7 +563,7 @@ test.each([
   expect(scanSource(source).map((v) => v.rule)).toEqual(["immediate-read"]);
 });
 
-test("呼び出し・添字で途切れて分類できないチェーンは判定不能にする（黙って捨てない）", () => {
+test("呼び出し・添字で途切れて分類できないチェーンは判定不能にする（警告なしに捨てない）", () => {
   // `frames()` の先は名前で追えない。Locator とも Page とも言えないが、**追えなかった**ことは
   // 出力に残す——捨てると出力の件数からも取りこぼしが読めない。
   const source = [
@@ -606,7 +606,7 @@ test.each([
   expect(scanSource(source).map((v) => v.rule)).toEqual(["immediate-read"]);
 });
 
-test("空白を挟む比較の後の正規表現は潰す（JSX 閉じタグと弁別する）", () => {
+test("空白を挟む比較の後の正規表現は潰す（JSX 閉じタグと区別する）", () => {
   const source = [
     "const ok = a < /it's/.source.length;",
     "const value = await locator.textContent();",
@@ -625,7 +625,7 @@ test.each([
   expect(scanSource(`${declaration}\n${call}`).map((v) => v.rule)).toEqual(["immediate-read"]);
 });
 
-test("括弧の中身が何にも解決しなければ判定不能のまま（中身を見たぶんを fail-open にしない）", () => {
+test("括弧の中身が何にも解決しなければ判定不能のまま（中身を見たぶんを合格として扱わない）", () => {
   expect(scanSource("const total = (a + b).count();").map((v) => v.rule)).toEqual([
     "unresolved-receiver",
   ]);
@@ -678,7 +678,7 @@ test("current-only の採取スペックでは即時読み取りだけを免除�
 
 // --- 測れた量の報告 ---
 
-test("CLI は判定不能を 0 件へ倒さず、測れた量を出力する", () => {
+test("CLI は判定不能を 0 件として扱わず、測れた量を出力する", () => {
   const dir = makeTempDir("auto-wait-check-measured-");
   const spec = join(dir, "unresolved.spec.ts");
   writeFileSync(spec, "const total = await pagerValue(view).innerText();\n");
@@ -764,7 +764,7 @@ test("await の通常利用は走査を止めない", () => {
   expect(scanSource(source).map((v) => v.rule)).toEqual(["immediate-read"]);
 });
 
-test("走査不能なファイルは違反 0 件へ倒さず exit 2 で落ちる", () => {
+test("走査不能なファイルは違反 0 件として扱わず exit 2 で落ちる", () => {
   const dir = makeTempDir("auto-wait-check-contextual-");
   const spec = join(dir, "contextual.spec.ts");
   writeFileSync(
@@ -822,7 +822,7 @@ test("tsx の JSX を型アサーションと読み違えない（角括弧の�
   expect(stats.undecidable).toBe(0);
 });
 
-test("引数の中の型アサーションを別名のものと読まない（無関係な変数を Locator に化けさせない）", () => {
+test("引数の中の型アサーションを別名のものと読まない（無関係な変数を誤って Locator と判定しない）", () => {
   const stats = scanSourceWithStats(
     `function f(x) {\n  const n = helper(x as Locator);\n  return n.count();\n}`,
     "spec.ts",

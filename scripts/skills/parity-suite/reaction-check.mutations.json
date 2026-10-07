@@ -509,7 +509,7 @@
         "別のページの同じ状態名は別の 1 枚として扱い、同じページだけ根拠を要求する（Codex レビュー）",
         "別名のページ（同じ path の別の名前）は同じ 1 枚として数え、名乗りの照合も通す（Issue #484）",
         "表をまたいで同じページ × 状態名を指す 2 行は、根拠なしなら落ち、両方に根拠があれば通す（Issue #485）",
-        "部品被覆表の中だけの使い回しは、同じページ名なら coverage-expand.mjs に任せ、別名をまたぐならここで数える（Issue #485）",
+        "部品網羅表の中だけの使い回しは、同じページ名なら coverage-expand.mjs に任せ、別名をまたぐならここで数える（Issue #485）",
         "状態表示の振り分けの欠けは落とす: 撮る状態を反応と根拠なしに共有する（Issue #500）",
         "ui_url が runtime で解けない相対の path も、同じ path の別名は同じ 1 枚として数える（Claude Code レビュー #524）"
       ]
@@ -768,7 +768,7 @@
       "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
-        "表への書き込みの欠けは落とす: 操作が被覆表に無い（Issue #466）",
+        "表への書き込みの欠けは落とす: 操作が網羅表に無い（Issue #466）",
         "表への書き込みの欠けは落とす: 操作を書いていない（Issue #466）"
       ]
     },
@@ -1221,9 +1221,9 @@
       "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
-        "画面の宣言の型崩れは黙って捨てずに exit 2: name の無い宣言（Codex レビュー #504）",
-        "画面の宣言の型崩れは黙って捨てずに exit 2: 空の name（Codex レビュー #504）",
-        "画面の宣言の型崩れは黙って捨てずに exit 2: オブジェクトでない宣言（Codex レビュー #504）"
+        "画面の宣言の型崩れは警告なしに捨てずに exit 2: name の無い宣言（Codex レビュー #504）",
+        "画面の宣言の型崩れは警告なしに捨てずに exit 2: 空の name（Codex レビュー #504）",
+        "画面の宣言の型崩れは警告なしに捨てずに exit 2: オブジェクトでない宣言（Codex レビュー #504）"
       ]
     },
     {
@@ -1234,7 +1234,7 @@
       "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
-        "画面の宣言の型崩れは黙って捨てずに exit 2: 同じ名前の宣言（Codex レビュー #504）"
+        "画面の宣言の型崩れは警告なしに捨てずに exit 2: 同じ名前の宣言（Codex レビュー #504）"
       ]
     },
     {
@@ -1273,9 +1273,9 @@
       "replace": "if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
-        "陽性コントロール（CLI）: 子プロセスとして起動しても、完全な表は exit 0 で結果を stdout に出す",
-        "陽性コントロール（CLI）: 子プロセスとして起動しても、不整合は exit 1 で stderr に出す",
-        "陽性コントロール（CLI）: 子プロセスとして起動しても、使い方の誤りは exit 2 で usage を stderr に出す"
+        "CLI として動くことの確認: 子プロセスとして起動しても、完全な表は exit 0 で結果を stdout に出す",
+        "CLI として動くことの確認: 子プロセスとして起動しても、不整合は exit 1 で stderr に出す",
+        "CLI として動くことの確認: 子プロセスとして起動しても、使い方の誤りは exit 2 で usage を stderr に出す"
       ]
     },
     {
@@ -1289,7 +1289,7 @@
         "covered_by の名前が一覧のどのテストにも解決しなければ落とす（Issue #506）",
         "表のどの欄の covered_by も解決の対象にする（欄を列挙せず表全体を歩く。Issue #506）",
         "--write は解決できない名前が残れば covered_by_resolved: false を記録する（Issue #506）",
-        "--audit-sheet は解決できない名前があれば exit 1（監査の土台にしない。Issue #506）",
+        "--audit-sheet は解決できない名前があれば exit 1（監査の基にしない。Issue #506）",
         "_ で始まるキーの下の行も走査する（注記の文字列だけを飛ばす。Issue #506）"
       ]
     },
@@ -1302,7 +1302,7 @@
       "occurrences": 1,
       "expect_failing": [
         "1 つの名前が 2 本のテストに当たるなら曖昧として落とす（Issue #506）",
-        "同じ題で位置の違うテストは 1 本に畳まず曖昧として落とす（片側だけ走る 2 本を合算しない。Codex レビュー #510）"
+        "同じ題で位置の違うテストは 1 本に畳まず曖昧として落とす（片側だけ実行される 2 本を合算しない。Codex レビュー #510）"
       ]
     },
     {
@@ -1313,10 +1313,10 @@
       "replace": "        const absentIn = [];\n",
       "occurrences": 1,
       "expect_failing": [
-        "covered_by のテストが current / new の片側でしか走らなければ落とす（Issue #506）",
-        "covered_by のテストを片側で静的に飛ばす（test.skip / test.fixme）なら、その側では走らないものとして落とす（Issue #506）",
-        "covered_by のテストの expectedStatus が passed でない側は走らないものとして落とす: 失敗を期待する（failed）（Issue #506）",
-        "covered_by のテストの expectedStatus が passed でない側は走らないものとして落とす: 値が無い（Issue #506）"
+        "covered_by のテストが current / new の片側でしか実行されなければ落とす（Issue #506）",
+        "covered_by のテストを片側で静的に飛ばす（test.skip / test.fixme）なら、その側では実行されないものとして落とす（Issue #506）",
+        "covered_by のテストの expectedStatus が passed でない側は実行されないものとして落とす: 失敗を期待する（failed）（Issue #506）",
+        "covered_by のテストの expectedStatus が passed でない側は実行されないものとして落とす: 値が無い（Issue #506）"
       ]
     },
     {
@@ -1379,7 +1379,7 @@
         "監査の記録の不備は落とす: covered_by を持たない行を監査した（Issue #506）",
         "監査の記録の不備は落とす: 同じ行を 2 回監査した（Issue #506）",
         "監査の記録の不備は落とす: 監査役が空（Issue #506）",
-        "--recorded もスペックの指紋を取り直し、--write の後に弱めたスペックを落とす（Issue #506）",
+        "--recorded もスペックの指紋を再取得し、--write の後に弱めたスペックを落とす（Issue #506）",
         "監査の後に covered_by のスペックの assertion を弱めたら落とす（表は同じ。Issue #506）",
         "監査の記録にスペックの指紋が無ければ落とす（Issue #506）",
         "根拠の欄をテンプレートの説明文のまま出したら落とす: 監査役（Codex レビュー #510）",
@@ -1434,10 +1434,10 @@
       "replace": "      if (false) malformed.push(path);\n",
       "occurrences": 1,
       "expect_failing": [
-        "未知の欄の形の壊れた covered_by は黙って捨てず落とす: 文字列（Issue #506）",
-        "未知の欄の形の壊れた covered_by は黙って捨てず落とす: 空文字を含む配列（Issue #506）",
-        "未知の欄の形の壊れた covered_by は黙って捨てず落とす: 文字列以外を含む配列（Issue #506）",
-        "--audit-sheet は形の壊れた covered_by があれば exit 1（欠けた監査入力を ok として出さない。Issue #506）"
+        "未知の欄の形の不正な covered_by は警告なしに捨てず落とす: 文字列（Issue #506）",
+        "未知の欄の形の不正な covered_by は警告なしに捨てず落とす: 空文字を含む配列（Issue #506）",
+        "未知の欄の形の不正な covered_by は警告なしに捨てず落とす: 文字列以外を含む配列（Issue #506）",
+        "--audit-sheet は形の不正な covered_by があれば exit 1（欠けた監査入力を ok として出さない。Issue #506）"
       ]
     },
     {
@@ -1448,7 +1448,7 @@
       "replace": "        ...[].map(\n",
       "occurrences": 1,
       "expect_failing": [
-        "--audit-sheet は形の壊れた covered_by があれば exit 1（欠けた監査入力を ok として出さない。Issue #506）"
+        "--audit-sheet は形の不正な covered_by があれば exit 1（欠けた監査入力を ok として出さない。Issue #506）"
       ]
     },
     {
@@ -1469,7 +1469,7 @@
       "occurrences": 1,
       "expect_failing": [
         "監査の後に covered_by のスペックの assertion を弱めたら落とす（表は同じ。Issue #506）",
-        "--recorded もスペックの指紋を取り直し、--write の後に弱めたスペックを落とす（Issue #506）"
+        "--recorded もスペックの指紋を再取得し、--write の後に弱めたスペックを落とす（Issue #506）"
       ]
     },
     {
@@ -1521,9 +1521,9 @@
       "replace": "        if (isPlainObject(t) && nonEmptyString(t.projectName)) {\n",
       "occurrences": 1,
       "expect_failing": [
-        "covered_by のテストを片側で静的に飛ばす（test.skip / test.fixme）なら、その側では走らないものとして落とす（Issue #506）",
-        "covered_by のテストの expectedStatus が passed でない側は走らないものとして落とす: 失敗を期待する（failed）（Issue #506）",
-        "covered_by のテストの expectedStatus が passed でない側は走らないものとして落とす: 値が無い（Issue #506）"
+        "covered_by のテストを片側で静的に飛ばす（test.skip / test.fixme）なら、その側では実行されないものとして落とす（Issue #506）",
+        "covered_by のテストの expectedStatus が passed でない側は実行されないものとして落とす: 失敗を期待する（failed）（Issue #506）",
+        "covered_by のテストの expectedStatus が passed でない側は実行されないものとして落とす: 値が無い（Issue #506）"
       ]
     },
     {
@@ -1567,7 +1567,7 @@
       "replace": "      const key = JSON.stringify([spec.file, ...path]);\n",
       "occurrences": 1,
       "expect_failing": [
-        "同じ題で位置の違うテストは 1 本に畳まず曖昧として落とす（片側だけ走る 2 本を合算しない。Codex レビュー #510）"
+        "同じ題で位置の違うテストは 1 本に畳まず曖昧として落とす（片側だけ実行される 2 本を合算しない。Codex レビュー #510）"
       ]
     },
     {
@@ -1728,7 +1728,7 @@
       "occurrences": 1,
       "expect_failing": [
         "別名のページ（同じ path の別の名前）は同じ 1 枚として数え、名乗りの照合も通す（Issue #484）",
-        "部品被覆表の中だけの使い回しは、同じページ名なら coverage-expand.mjs に任せ、別名をまたぐならここで数える（Issue #485）"
+        "部品網羅表の中だけの使い回しは、同じページ名なら coverage-expand.mjs に任せ、別名をまたぐならここで数える（Issue #485）"
       ]
     },
     {
@@ -1756,7 +1756,7 @@
       "occurrences": 1,
       "expect_failing": [
         "表をまたいで同じページ × 状態名を指す 2 行は、根拠なしなら落ち、両方に根拠があれば通す（Issue #485）",
-        "部品被覆表の中だけの使い回しは、同じページ名なら coverage-expand.mjs に任せ、別名をまたぐならここで数える（Issue #485）"
+        "部品網羅表の中だけの使い回しは、同じページ名なら coverage-expand.mjs に任せ、別名をまたぐならここで数える（Issue #485）"
       ]
     },
     {
@@ -1767,9 +1767,9 @@
       "replace": "  if (false) problems.push(coverageProblem);\n",
       "occurrences": 1,
       "expect_failing": [
-        "部品被覆表を宣言したのに読めなければ落とす: 部品被覆表が無い（Issue #485）",
-        "部品被覆表を宣言したのに読めなければ落とす: visual_state_coverage.rows が無い（Issue #485）",
-        "部品被覆表を宣言したのに path が空なら落とす（Issue #485）"
+        "部品網羅表を宣言したのに読めなければ落とす: 部品網羅表が無い（Issue #485）",
+        "部品網羅表を宣言したのに読めなければ落とす: visual_state_coverage.rows が無い（Issue #485）",
+        "部品網羅表を宣言したのに path が空なら落とす（Issue #485）"
       ]
     },
     {
@@ -1780,7 +1780,7 @@
       "replace": "    if (uses.every((u) => u.source === \"coverage\"))\n",
       "occurrences": 1,
       "expect_failing": [
-        "部品被覆表の中だけの使い回しは、同じページ名なら coverage-expand.mjs に任せ、別名をまたぐならここで数える（Issue #485）"
+        "部品網羅表の中だけの使い回しは、同じページ名なら coverage-expand.mjs に任せ、別名をまたぐならここで数える（Issue #485）"
       ]
     },
     {
@@ -1811,7 +1811,7 @@
       "replace": "\n",
       "occurrences": 1,
       "expect_failing": [
-        "部品被覆表の行のうちページを引けない行は数えず、件数を出力に残す（Issue #485）"
+        "部品網羅表の行のうちページを引けない行は数えず、件数を出力に残す（Issue #485）"
       ]
     },
     {
@@ -1884,9 +1884,9 @@
       "replace": "  if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
-        "run.procedure_revision が 文字列 なら exit 2（旧成果物に倒さない。Issue #503）",
-        "run.procedure_revision が 負の数 なら exit 2（旧成果物に倒さない。Issue #503）",
-        "run.procedure_revision が 小数 なら exit 2（旧成果物に倒さない。Issue #503）"
+        "run.procedure_revision が 文字列 なら exit 2（旧成果物として扱わない。Issue #503）",
+        "run.procedure_revision が 負の数 なら exit 2（旧成果物として扱わない。Issue #503）",
+        "run.procedure_revision が 小数 なら exit 2（旧成果物として扱わない。Issue #503）"
       ]
     },
     {
@@ -1909,8 +1909,8 @@
       "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
-        "操作の無い表で 器の棚卸しが空でない なら落ちる（Issue #503）",
-        "操作の無い表で部品被覆表を宣言していれば落ちる（操作の痕跡。Issue #503）"
+        "操作の無い表で ポップアップの棚卸しが空でない なら落ちる（Issue #503）",
+        "操作の無い表で部品網羅表を宣言していれば落ちる（操作の痕跡。Issue #503）"
       ]
     },
     {
@@ -1955,8 +1955,8 @@
       "expect_failing": [
         "操作を持たない画面駆動の機能で、全画面・全候補を振り分けた表は通る（Issue #503）",
         "操作の無い表も --write の後の --recorded で通り、振り分けを消すと落ちる（parity-diff の収束判定。Issue #503）",
-        "操作の無い表で 器の棚卸しが空でない なら落ちる（Issue #503）",
-        "操作の無い表で部品被覆表を宣言していれば落ちる（操作の痕跡。Issue #503）"
+        "操作の無い表で ポップアップの棚卸しが空でない なら落ちる（Issue #503）",
+        "操作の無い表で部品網羅表を宣言していれば落ちる（操作の痕跡。Issue #503）"
       ]
     },
     {
@@ -1967,9 +1967,9 @@
       "replace": "  if (!isPlainObject(metadata.run)) return 0;\n",
       "occurrences": 1,
       "expect_failing": [
-        "run が 文字列 なら exit 2（改訂番号の導入前に倒さない。Issue #503）",
-        "run が 配列 なら exit 2（改訂番号の導入前に倒さない。Issue #503）",
-        "run が null なら exit 2（改訂番号の導入前に倒さない。Issue #503）"
+        "run が 文字列 なら exit 2（改訂番号の導入前として扱わない。Issue #503）",
+        "run が 配列 なら exit 2（改訂番号の導入前として扱わない。Issue #503）",
+        "run が null なら exit 2（改訂番号の導入前として扱わない。Issue #503）"
       ]
     },
     {

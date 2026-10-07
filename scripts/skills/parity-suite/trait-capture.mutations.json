@@ -239,9 +239,9 @@
       "expect_failing": [
         "スクロールバーが場所を取る撮影では、現行の横のバーと新側の切れが scroll に分かれて出る",
         "スクロールバーの厚みは枠を差し引いて数える",
-        "器（hidden（切るだけの器））は scroll を持つ",
-        "器（片向きだけ auto）は scroll を持つ",
-        "器（scroll）は scroll を持つ",
+        "コンテナ（hidden（切るだけのコンテナ））は scroll を持つ",
+        "コンテナ（片向きだけ auto）は scroll を持つ",
+        "コンテナ（scroll）は scroll を持つ",
         "スクロールバーの見た目の宣言と ::-webkit-scrollbar 系の計算値を擬似要素ごとに採る",
         "::-webkit-scrollbar を持たないブラウザ（CSS.supports が偽）では webkit を unsupported にする",
         "::-webkit-scrollbar を持たないブラウザ（CSS が無い）では webkit を unsupported にする",
@@ -287,7 +287,7 @@
       "replace": "true &&",
       "occurrences": 1,
       "expect_failing": [
-        "display: inline の要素は overflow を持っていても器として扱わない（文字の幅をバーの厚みにしない）"
+        "display: inline の要素は overflow を持っていてもコンテナとして扱わない（文字の幅をバーの厚みにしない）"
       ]
     }
   ]

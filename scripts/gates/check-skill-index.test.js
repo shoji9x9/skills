@@ -263,7 +263,7 @@ test("陽性: 同じスキルを重複して載せたら落とす", () => {
   ]);
 });
 
-test("陽性: 節の中の形が崩れた箇条は判定不能として落とす（黙って飛ばさない）", () => {
+test("陽性: 節の中の形が崩れた箇条は判定不能として落とす（警告なしに飛ばさない）", () => {
   const root = makeRepo();
   write(
     root,
@@ -352,11 +352,11 @@ test("陰性: 印も SKILL.md も無い .agents/skills のディレクトリは 
 
 // ---- 件数と CLI ----
 
-test("配布スキル 0 件は成功に倒さず exit 1", () => {
+test("配布スキル 0 件は成功として扱わず exit 1", () => {
   expect(main([makeRepo({ skills: [], priv: [] })])).toBe(1);
 });
 
-test("陽性コントロール（CLI）: 子プロセスとして起動しても、不一致は exit 1、一致なら exit 0", () => {
+test("検出の確認（CLI）: 子プロセスとして起動しても、不一致は exit 1、一致なら exit 0", () => {
   const good = spawnSync(process.execPath, [script, makeRepo()], { encoding: "utf8" });
   expect(good.status, good.stderr).toBe(0);
   expect(good.stdout).toMatch(/skill-index: OK（配布 2 件・private 1 件）/);

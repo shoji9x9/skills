@@ -49,7 +49,10 @@ export const ROLES = ["投入する", "読み取りだけ", "FK 親のみ"];
  * 述語の表の見出し。先頭が新しい名前で、続くのは改名する前の名前（旧称）。
  * 既に書かれた design.md を書き直さずに判定できるよう、旧称も同じ表として読む。警告は出さない。
  */
+// 旧称の見出しは改名前の design.md を読むために残す。
+// textlint-disable
 export const PREDICATE_TABLE_HEADINGS = ["述語ごとの分岐網羅", "述語ごとの分岐被覆"];
+// textlint-enable
 
 /** 踏めない分岐の扱いの語彙（原本）。 */
 export const DISPOSITIONS = ["足す", "gaps に記録"];

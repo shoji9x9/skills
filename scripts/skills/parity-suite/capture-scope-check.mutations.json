@@ -55,7 +55,7 @@
       "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
-        "頁の測り漏れ・重複・撮影頁に無い頁は落とす（期待集合は capture_conditions.pages から作る）"
+        "頁の測り忘れ・重複・撮影頁に無い頁は落とす（期待集合は capture_conditions.pages から作る）"
       ]
     },
     {
@@ -66,7 +66,7 @@
       "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
-        "頁の測り漏れ・重複・撮影頁に無い頁は落とす（期待集合は capture_conditions.pages から作る）"
+        "頁の測り忘れ・重複・撮影頁に無い頁は落とす（期待集合は capture_conditions.pages から作る）"
       ]
     },
     {
@@ -209,13 +209,13 @@
       "replace": "  for (const variant of []) {\n",
       "occurrences": 1,
       "expect_failing": [
-        "変種を宣言したのに撮っていない組は #not-captured の穴になる（parity-diff の収束でも落ちる）",
-        "軸が効かないページは not_applicable と理由で撮るはずの組から外れる",
-        "スイートへの写し方は期待値の所在か変わらない根拠のどちらか一方だけ",
+        "変種を宣言したのに撮っていない組は #not-captured の抜けになる（parity-diff の収束でも落ちる）",
+        "軸が機能しないページは not_applicable と理由で撮るはずの組から外れる",
+        "スイートへの反映のしかたは期待値の所在か変わらない根拠のどちらか一方だけ",
         "宣言に無い組（消した・改名した変種の古い記録）が noise_baseline と capture_scope に残っていたら落とす（Codex レビュー #491）",
         "軸の対の判断が無い・理由が無い・形が崩れていると落ちる",
         "軸の根拠欄にテンプレートの <…> や TODO が残っていたら落とす（Codex レビュー #491）",
-        "陽性コントロール: ロケールの変種を全ページ × 全状態で撮った採取は通る"
+        "誤検知しないことの確認: ロケールの変種を全ページ × 全状態で撮った採取は通る"
       ]
     },
     {
@@ -225,7 +225,7 @@
       "find": "      if (excluded) continue;\n",
       "replace": "      if (false) continue;\n",
       "occurrences": 1,
-      "expect_failing": ["軸が効かないページは not_applicable と理由で撮るはずの組から外れる"]
+      "expect_failing": ["軸が機能しないページは not_applicable と理由で撮るはずの組から外れる"]
     },
     {
       "id": "suite-undecided",
@@ -235,7 +235,7 @@
       "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
-        "スイートへの写し方は期待値の所在か変わらない根拠のどちらか一方だけ",
+        "スイートへの反映のしかたは期待値の所在か変わらない根拠のどちらか一方だけ",
         "軸の根拠欄にテンプレートの <…> や TODO が残っていたら落とす（Codex レビュー #491）"
       ]
     },
@@ -266,7 +266,7 @@
       "occurrences": 1,
       "expect_failing": [
         "2 つの軸を掛け合わせると宣言したら、既定以外の値の組ごとに変種が要る",
-        "軸の効くページが 1 つも無い複合変種は落とす（撮るはずの組 0 件で掛け合わせの対を満たさない。Codex レビュー #491）"
+        "軸が機能するページが 1 つも無い複合変種は落とす（撮るはずの組 0 件で掛け合わせの対を満たさない。Codex レビュー #491）"
       ]
     },
     {
@@ -318,7 +318,7 @@
       "replace": "      false\n",
       "occurrences": 1,
       "expect_failing": [
-        "軸の効くページが 1 つも無い複合変種は落とす（撮るはずの組 0 件で掛け合わせの対を満たさない。Codex レビュー #491）",
+        "軸が機能するページが 1 つも無い複合変種は落とす（撮るはずの組 0 件で掛け合わせの対を満たさない。Codex レビュー #491）",
         "not_applicable が撮影ページの全てを覆う軸は落とす（変種の撮るはずの組が 0 件になり撮らずに通る）"
       ]
     },
@@ -484,7 +484,7 @@
       "replace": "      if (false) {",
       "occurrences": 1,
       "expect_failing": [
-        "traits.elements に無い器は untraced の穴になる（スクロールバーの差が特性照合に写らない）"
+        "traits.elements に無いコンテナは untraced の抜けになる（スクロールバーの差が特性照合に表れない）"
       ]
     },
     {
@@ -495,8 +495,8 @@
       "replace": "      if (false) {",
       "occurrences": 1,
       "expect_failing": [
-        "shown で撮ったのに縦にはみ出した向きのバーが場所を取っていない器は穴になる",
-        "shown で撮ったのに横にはみ出した向きのバーが場所を取っていない器は穴になる"
+        "shown で撮ったのに縦にはみ出した向きのバーが場所を取っていないコンテナは抜けになる",
+        "shown で撮ったのに横にはみ出した向きのバーが場所を取っていないコンテナは抜けになる"
       ]
     },
     {
@@ -507,7 +507,7 @@
       "replace": "      if (hiddenVertical || hiddenHorizontal) {",
       "occurrences": 1,
       "expect_failing": [
-        "器ごとの記録の陰性コントロール: バーが場所を取って撮った器は scroll の穴だけ"
+        "コンテナごとの記録で誤検知しないことの確認: バーが場所を取って撮ったコンテナは scroll の抜けだけ"
       ]
     },
     {
@@ -536,9 +536,9 @@
       "replace": "  if (false) {",
       "occurrences": 1,
       "expect_failing": [
-        "器があるのに traits.elements が読めない（欠落）なら落とす",
-        "器があるのに traits.elements が読めない（配列でない）なら落とす",
-        "器があるのに traits.elements が読めない（空の名前）なら落とす"
+        "コンテナがあるのに traits.elements が読めない（欠落）なら落とす",
+        "コンテナがあるのに traits.elements が読めない（配列でない）なら落とす",
+        "コンテナがあるのに traits.elements が読めない（空の名前）なら落とす"
       ]
     },
     {
@@ -549,8 +549,8 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "器の記録の bar の負の値 は落とす（読めないことを穴が無いことに倒さない）",
-        "器の記録の bar が文字列 は落とす（読めないことを穴が無いことに倒さない）"
+        "コンテナの記録の bar の負の値 は落とす（読めないことを抜けが無いこととして扱わない）",
+        "コンテナの記録の bar が文字列 は落とす（読めないことを抜けが無いこととして扱わない）"
       ]
     },
     {
@@ -561,7 +561,7 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "器の記録の overflow_x の欠落 は落とす（読めないことを穴が無いことに倒さない）"
+        "コンテナの記録の overflow_x の欠落 は落とす（読めないことを抜けが無いこととして扱わない）"
       ]
     }
   ]

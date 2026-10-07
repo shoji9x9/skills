@@ -203,12 +203,12 @@ function applicableStates() {
   };
 }
 
-test("陽性コントロール: 全セルが測れていれば未測定ゼロ・問題ゼロ（常に落とす実装を弾く）", () => {
+test("誤検知しないことの確認: 全セルが測れていれば未測定ゼロ・問題ゼロ（常に落とす実装を弾く）", () => {
   const r = countCoverage(full(), "order-list");
   expect(r).toMatchObject({ cells: 4, present: 3, absent: 1, unmeasured: 0, problems: [] });
 });
 
-test("行が無い組み合わせは未測定として数える（行を落として穴を消せない）", () => {
+test("行が無い組み合わせは未測定として数える（行を削って抜けを隠せない）", () => {
   const cov = full();
   cov.cells = cov.cells.slice(0, 3);
   expect(countCoverage(cov, "order-list").unmeasured).toBe(1);
@@ -248,7 +248,7 @@ test("非描画 absent は全状態の機械可読証拠が揃った場合だけ
   expect(countCoverage(cov, "order-list")).toMatchObject({ absent: 1, unmeasured: 0 });
 });
 
-test("非描画 absent の証拠の欠落・型崩れ・空配列は未測定に倒す", () => {
+test("非描画 absent の証拠の欠落・型崩れ・空配列は未測定として扱う", () => {
   const mutations = [
     (e) => delete e.locator,
     (e) => delete e.state_source,
@@ -453,7 +453,7 @@ test("座標操作は正の矩形と対象への hit-test を実測できない�
   }
 });
 
-test("absent の経路識別が無い・未知なら散文 evidence があっても未測定", () => {
+test("absent の証拠の種類（kind）が無い・未知なら散文 evidence があっても未測定", () => {
   for (const absenceEvidence of [undefined, { kind: "unknown" }]) {
     const cov = full();
     cov.cells[1].absence_evidence = absenceEvidence;
@@ -469,7 +469,7 @@ test("同じ組み合わせの重複行は先勝ちにせず未測定として�
   expect(r.problems.join("\n")).toMatch(/複数ある/);
 });
 
-test("items / instances が空の部品は期待セル 0 に化けず未測定 1 として数える", () => {
+test("items / instances が空の部品は期待セル 0 と誤って判定せず未測定 1 として数える", () => {
   const cov = {
     slug: "order-list",
     components: [{ id: "grid", items: [], instances: [] }],
@@ -483,7 +483,7 @@ test("components が空なら問題として残す（空宣言で通さない）
   expect(r.problems.join("\n")).toMatch(/components が空/);
 });
 
-test("slug 不一致は問題として残す（別 slug の被覆表を読んでいる）", () => {
+test("slug 不一致は問題として残す（別 slug の網羅表を読んでいる）", () => {
   expect(countCoverage(full(), "customer-list").problems.join("\n")).toMatch(/slug/);
 });
 
@@ -493,7 +493,7 @@ test("components に無い組み合わせを参照する行は問題として残
   expect(countCoverage(cov, "order-list").problems.join("\n")).toMatch(/components に無い/);
 });
 
-test("列挙側の id が空なら 1 行で全セルを満たせず未測定として数える（fail-closed）", () => {
+test("列挙側の id が空なら 1 行で全セルを満たせず未測定として数える（満たせないときは未測定として扱う）", () => {
   // id を落とすと全要素が同じキーへ潰れるため、素朴な実装では 1 行が全セルを満たしてしまう。
   const cov = {
     slug: "order-list",
@@ -580,7 +580,7 @@ test("id 欠落のインスタンスも同様に、その列ぶんのセルが�
   expect(r.unmeasured).toBe(2);
 });
 
-test("配列の被覆表・列挙要素・セル行は JSON オブジェクトでないとして弾く", () => {
+test("配列の網羅表・列挙要素・セル行は JSON オブジェクトでないとして弾く", () => {
   // 網羅表そのもの: 「components が空」等へすり替わらず、型崩れの問題文が返ること。
   const arr = countCoverage([], "order-list");
   expect(arr.problems).toEqual(["網羅表が JSON オブジェクトではない"]);
@@ -641,7 +641,7 @@ test("components[].id が空・重複でも期待セルは 項目数 × イン�
   expect(dup).toMatchObject({ cells: 12, unmeasured: 12 });
 });
 
-test("型崩れの metadata.json は旧成果物に倒さず malformed として弾く", () => {
+test("型崩れの metadata.json は旧成果物として扱わず malformed として弾く", () => {
   expect(readDeclaration([])).toMatchObject({ judged: false, malformed: true });
   expect(readDeclaration({ component_coverage: [] })).toMatchObject({
     judged: false,
@@ -726,13 +726,13 @@ function profiled(overrides = {}) {
   };
 }
 
-test("陽性コントロール: プロファイル部品は候補ぶんの期待セルで数え、揃っていれば未測定ゼロ", () => {
+test("誤検知しないことの確認: プロファイル部品は候補ぶんの期待セルで数え、揃っていれば未測定ゼロ", () => {
   // 「常に落とす実装」を弾く。期待セルは 項目 × インスタンス（3×1）ではなく候補数（3）。
   const r = countCoverage(profiled(), "order-list");
   expect(r).toMatchObject({ cells: 3, present: 3, unmeasured: 0, problems: [] });
 });
 
-test("列挙した要素が候補に現れなければ未測定（代表列だけを確認した被覆表を落とす）", () => {
+test("列挙した要素が候補に現れなければ未測定（代表列だけを確認した網羅表を落とす）", () => {
   const cov = profiled();
   const inst = cov.components[0].instances[0];
   // 列は price / name の 2 列と列挙したまま、候補・項目・セルを price だけに縮める。
@@ -744,7 +744,7 @@ test("列挙した要素が候補に現れなければ未測定（代表列だ�
   expect(r.problems.join("\n")).toMatch(/要素 name がどの候補にも現れない/);
 });
 
-test("enumeration が無い・未完了・source 欠落はいずれも未測定に倒す", () => {
+test("enumeration が無い・未完了・source 欠落はいずれも未測定として扱う", () => {
   for (const mutate of [
     (inst) => delete inst.enumeration,
     (inst) => {
@@ -760,7 +760,7 @@ test("enumeration が無い・未完了・source 欠落はいずれも未測定�
   }
 });
 
-test("インスタンス id に区切り文字が入ったら未測定に倒す（同値クラスの members が切り分けられない）", () => {
+test("インスタンス id に区切り文字が入ったら未測定として扱う（同値クラスの members が切り分けられない）", () => {
   const cov = profiled();
   cov.components[0].instances[0].id = "admin/orders";
   for (const c of cov.cells) c.instance = "admin/orders";
@@ -853,7 +853,7 @@ test("同値クラスを宣言したら全候補の所属が要る（削減し�
   expect(countCoverage(cov, "order-list").problems).toEqual([]);
 });
 
-test("列挙要素の突き合わせは軸ごとに行う（別軸に同名の値があっても fail-open しない）", () => {
+test("列挙要素の突き合わせは軸ごとに行う（別軸に同名の値があっても 一致として扱わない）", () => {
   const cov = profiled();
   const c = cov.components[0];
   const inst = c.instances[0];
@@ -893,7 +893,7 @@ test("列挙要素の突き合わせは軸ごとに行う（別軸に同名の�
   expect(countCoverage(cov, "order-list").problems).toEqual([]);
 });
 
-test("candidate.axes が引けない候補は和集合へフォールバックせず未測定に倒す", () => {
+test("candidate.axes が引けない候補は和集合へフォールバックせず未測定として扱う", () => {
   const cov = profiled();
   delete cov.components[0].items[1].candidate;
   const r = countCoverage(cov, "order-list");
@@ -978,13 +978,13 @@ const declared = {
   component_coverage: { declared: true, path: "component-coverage.json" },
 };
 
-test("CLI 陽性コントロール: 未測定ゼロなら exit 0", () => {
+test("CLI 誤検知しないことの確認: 未測定ゼロなら exit 0", () => {
   const r = runCli(declared, full());
   expect(r.status).toBe(0);
   expect(JSON.parse(r.stdout)).toMatchObject({ judged: true, cells: 4, unmeasured: 0 });
 });
 
-test("CLI 陰性コントロール: 未測定が残れば exit 1 で理由が stderr に出る", () => {
+test("CLI 検出されることの確認: 未測定が残れば exit 1 で理由が stderr に出る", () => {
   const cov = full();
   cov.cells = cov.cells.slice(0, 2);
   const r = runCli(declared, cov);
@@ -993,7 +993,7 @@ test("CLI 陰性コントロール: 未測定が残れば exit 1 で理由が st
   expect(r.stderr).toMatch(/parity-suite へ戻す/);
 });
 
-test("CLI: declared: true なのに被覆表が読めなければ合格に倒さず exit 1", () => {
+test("CLI: declared: true なのに網羅表が読めなければ合格として扱わず exit 1", () => {
   const r = runCli(declared, null);
   expect(r.status).toBe(1);
   expect(JSON.parse(r.stdout)).toMatchObject({ judged: true, unmeasured: null });
@@ -1006,7 +1006,7 @@ test("CLI: 未測定 0 でも不整合が残れば error 行を出して exit 1 
   expect(r.stderr).toMatch(/error: 網羅表の不整合/);
 });
 
-test("CLI: 型崩れの metadata.json は exit 2（後方互換の exit 0 に倒さない）", () => {
+test("CLI: 型崩れの metadata.json は exit 2（後方互換の exit 0 として扱わない）", () => {
   const r = runCli([], full());
   expect(r.status).toBe(2);
   expect(JSON.parse(r.stdout)).toMatchObject({ judged: false, malformed: true, unmeasured: null });
@@ -1083,7 +1083,7 @@ test("撮影状態の要約は現在の入力と結び付いていなければ�
   ).toBe(now);
 });
 
-test("いまの撮影条件を読めないときは照合済みに倒さない", () => {
+test("いまの撮影条件を読めないときは照合済みとして扱わない", () => {
   // 記録が正常でも、metadata から capture_conditions を落としただけで
   // 古い要約が収束を通してはいけない（checked: true は突き合わせたという主張）。
   const cov = full();
@@ -1176,7 +1176,7 @@ function withSets({ componentInventory, instanceInventory, source } = {}) {
 
 const countSets = (cov) => countCoverageRaw(cov, "order-list", captureFingerprint(CAPTURE));
 
-test("陽性コントロール: 3 つの集合の来歴と完全性が揃っていれば未測定 0 で通る", () => {
+test("誤検知しないことの確認: 3 つの集合の出所と完全性が揃っていれば未測定 0 で通る", () => {
   const r = countSets(withSets());
   expect(r.problems).toEqual([]);
   expect(r).toMatchObject({ cells: 4, unmeasured: 0 });
@@ -1203,7 +1203,7 @@ test("部品・インスタンスの集合の宣言が無ければ 1 件ずつ�
   expect(bothOnSameComponent.unmeasured).toBe(1);
 });
 
-test("集合の来歴の欄が欠けている・語彙の外なら報告する（書けたことを効かせる）", () => {
+test("集合の出所の欄が欠けている・語彙の外なら報告する（書いた内容を判定に反映する）", () => {
   // Issue #393 の実測: source.kind に語彙外の値を書いても、キーごと無くても報告されなかった。
   const cases = [
     [{ ...setInventory(), source: undefined }, /component_inventory.source が無い/],
@@ -1318,7 +1318,7 @@ test("一次情報源以外で列挙したら理由を要求し、使ったの�
   expect(stale.unmeasured).toBe(1);
 });
 
-test("項目集合の来歴は current-source を受け付け、語彙外・欠落は報告する", () => {
+test("項目集合の出所は current-source を受け付け、語彙外・欠落は報告する", () => {
   // 誤検知しないことの確認: 受領ソースから起こした項目集合を app-ui として扱わずに書ける（Issue #392）。
   const fromSource = countSets({
     ...withSets({
@@ -1341,7 +1341,7 @@ test("項目集合の来歴は current-source を受け付け、語彙外・欠�
   }
 });
 
-test("インスタンスの列挙の来歴も語彙と一次情報源の理由を要求する（プロファイル経路）", () => {
+test("インスタンスの列挙の出所も語彙と一次情報源の理由を要求する（プロファイルを使う場合）", () => {
   const base = () => {
     const cov = profiled();
     cov.component_inventory = setInventory();

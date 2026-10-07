@@ -85,7 +85,7 @@ function captureConditionsFor(coverage) {
 
 const { profiles: bundled, problems: bundledProblems } = loadProfiles(bundledProfiles);
 
-test("同梱プロファイルはすべてスキーマ検証を通る（壊れたまま配布しない）", () => {
+test("同梱プロファイルはすべてスキーマ検証を通る（不正なまま配布しない）", () => {
   expect(bundledProblems).toEqual([]);
   expect(bundled.size).toBeGreaterThanOrEqual(1);
   expect(bundled.has("datagrid")).toBe(true);
@@ -178,7 +178,7 @@ function datagridCoverage() {
   });
 }
 
-test("陽性コントロール: 候補が全てセルへ落ちていれば適合（常に落とす実装を弾く）", () => {
+test("誤検知しないことの確認: 候補が全てセルへ落ちていれば適合（常に落とす実装を弾く）", () => {
   const r = reconcile(datagridCoverage(), bundled);
   expect(r.problems).toEqual([]);
   expect(r.ok).toBe(true);
@@ -189,7 +189,7 @@ test("陽性コントロール: 候補が全てセルへ落ちていれば適合
   expect(r.unmeasured).toBe(0);
 });
 
-test("代表列だけを確認した被覆表は欠落として失敗する", () => {
+test("代表列だけを確認した網羅表は欠落として失敗する", () => {
   const cov = datagridCoverage();
   const c = cov.components[0];
   const keep = (id) => id.includes("/price");
@@ -238,7 +238,7 @@ test("右クリック対象の列挙が空でもメニュー開閉の必須ル�
   expect(r.problems.join("\n")).toMatch(/必須ルール context-menu-open の候補が 0 件/);
 });
 
-test("列挙した要素がどの候補にも現れなければ失敗する（フラグの記録漏れを落とす）", () => {
+test("列挙した要素がどの候補にも現れなければ失敗する（フラグの記録忘れを落とす）", () => {
   const cov = datagridCoverage();
   const column = cov.components[0].instances[0].enumeration.elements.column[1];
   for (const key of Object.keys(column.flags)) column.flags[key] = false;
@@ -529,7 +529,7 @@ test("候補由来の fired-without-response も送り方・発火確認・観�
   }
 });
 
-test("プロファイルを宣言しない部品のセルも候補経路と同じ規則で採点する", () => {
+test("プロファイルを宣言しない部品のセルも候補の処理と同じ規則で採点する", () => {
   // 記録側だけ通る表を作らない。片方だけ検査すると conformance.ok を出した表を収束側が弾く
   const generic = () => ({
     feature: "order-list",
@@ -679,7 +679,7 @@ test("行の選択・複数列の並べ替えを持たないグリッドは、�
       {
         scope: axis,
         reason:
-          "行番号・チェックボックス・修飾キー付きのクリックを実 UI で試し、効かないことを確かめた",
+          "行番号・チェックボックス・修飾キー付きのクリックを実 UI で試し、機能しないことを確かめた",
       },
     ];
     expect(reconcile(cov, bundled).problems).toEqual([]);
@@ -834,7 +834,7 @@ test("要素が候補にならないことも根拠付きでだけ通す（要�
   expect(reconcile(cov, bundled).problems).toEqual([]);
 });
 
-test("使われない justified_absences は残さない（古い免除が効いて見える状態を作らない）", () => {
+test("使われない justified_absences は残さない（古い免除が機能して見える状態を作らない）", () => {
   const cov = datagridCoverage();
   cov.components[0].instances[0].enumeration.justified_absences = [
     { scope: "column/price", reason: "もう成り立たない根拠" },
@@ -863,7 +863,7 @@ test("列挙できないインスタンスがあるとき余剰は判定しな�
   expect(joined).not.toMatch(/余剰/);
 });
 
-test("来歴（enumeration.source）の欠落は失敗させる", () => {
+test("出所（enumeration.source）の欠落は失敗させる", () => {
   const cov = datagridCoverage();
   delete cov.components[0].instances[0].enumeration.source.condition;
   expect(reconcile(cov, bundled).problems.join("\n")).toMatch(/source.condition が空/);
@@ -914,7 +914,7 @@ test("適合プロファイルが無い部品は理由付きで未検証とし�
   expect(reconcile(noReason, bundled).problems.join("\n")).toMatch(/profile_absent_reason が空/);
 });
 
-test("列挙が空・部品 id の重複・宣言に無い行は記録側でも fail-closed にする", () => {
+test("列挙が空・部品 id の重複・宣言に無い行は記録側でも失敗として扱う", () => {
   // いずれも判定側（coverage-check.mjs）が弾く条件。記録側だけ通ると conformance.ok が意味を失う。
   const base = () => ({
     slug: "order-list",
@@ -1235,7 +1235,7 @@ test("新しい仮想部品のプロファイルを、共通処理と中心ド�
       popup_inventory: candidates
         .filter((id) => visualStates[id.split("/")[0]][0] === "opens-container")
         .map((id) => ({
-          name: `器:${id}`,
+          name: `ポップアップ:${id}`,
           parent: null,
           opened_by: `expandNode(org.tree, ${id})`,
           captured: `状態:${id}`,
@@ -1279,7 +1279,7 @@ test("新しい仮想部品のプロファイルを、共通処理と中心ド�
   expect(bad.stderr).toMatch(/候補 node-select\/leaf に対応する項目が網羅表に無い/);
 });
 
-test("壊れたプロファイルを静かに無視せず exit 2 で落ちる（候補ゼロで素通りさせない）", () => {
+test("不正なプロファイルを警告なしに無視せず exit 2 で落ちる（候補ゼロで素通りさせない）", () => {
   const r = runCli(["--profiles", "@profiles", "--coverage", "component-coverage.json"], {
     profiles: { "broken.json": "{ not json" },
     files: { "component-coverage.json": datagridCoverage() },
@@ -1288,7 +1288,7 @@ test("壊れたプロファイルを静かに無視せず exit 2 で落ちる（
   expect(r.stderr).toMatch(/JSON として読めない/);
 });
 
-test("プロファイルが 1 件も読めない場合も合格に倒さない", () => {
+test("プロファイルが 1 件も読めない場合も合格として扱わない", () => {
   const r = runCli(["--profiles", "@profiles", "--coverage", "component-coverage.json"], {
     files: { "component-coverage.json": datagridCoverage() },
   });
@@ -1339,7 +1339,7 @@ test("CLI --list-profiles は同梱プロファイルを列挙する", () => {
 // 同じ見え方になる（素通りと見分けが付かない）。測った操作から必要な状態を導き、
 // capture_conditions.states との差を撮る前に報告できることを確認する。
 
-test("被覆表の操作から撮影状態を導く（プロファイルが種別の正本）", () => {
+test("網羅表の操作から撮影状態を導く（種別はプロファイルで定義する）", () => {
   const cov = datagridCoverage();
   const kinds = cov.visual_state_coverage.rows.map((r) => r.kind);
   // コンテナを開く・指を乗せる・焦点を当てる・押している最中・不活性の 5 種と、
@@ -1468,7 +1468,7 @@ test("導いた状態が capture_conditions.states に無ければ差として�
   expect(inv.problems.join("\n")).toMatch(/popup_inventory\[\].captured に無い/);
 });
 
-test("--metadata 無しの実行は照合済みに倒さない（checked: false のまま）", () => {
+test("--metadata 無しの実行は照合済みとして扱わない（checked: false のまま）", () => {
   const cov = datagridCoverage();
   const r = reconcile(cov, bundled);
   expect(r.visualStates.checked).toBe(false);
@@ -1586,7 +1586,7 @@ test("項目の visual_states は省略・誤記・空理由なしを通さな�
   ).toMatch(/no_visual_state_reason が埋まっている/);
 });
 
-test("プロファイルは visual_states の宣言を省略できない（未宣言の状態が静かに落ちない）", () => {
+test("プロファイルは visual_states の宣言を省略できない（未宣言の状態が警告なしに外れない）", () => {
   const base = {
     id: "z",
     version: "1",
@@ -1622,7 +1622,7 @@ test("プロファイルは visual_states の宣言を省略できない（未�
   }
 });
 
-test("CLI: --metadata を渡すと撮影状態まで照合し、読めない metadata は合格に倒さない", () => {
+test("CLI: --metadata を渡すと撮影状態まで照合し、読めない metadata は合格として扱わない", () => {
   const cov = datagridCoverage();
   const conditions = captureConditionsFor(cov);
   const metadata = {
@@ -1722,7 +1722,7 @@ test("CLI: --metadata を渡すと撮影状態まで照合し、読めない met
   expect(unchecked.stderr).toMatch(/--metadata が無いため撮影状態を/);
 });
 
-test("同じ種別を要求する別の操作を 1 行へ束ねない（片方だけ撮って門が通らない）", () => {
+test("同じ種別を要求する別の操作を 1 行へ束ねない（片方だけ撮ってチェックが通らない）", () => {
   // 列フィルタの吹き出しと右クリックメニューはどちらも opens-container を要求する。
   // 種別だけで束ねると 1 行になり、片方の状態名を書くだけで 誤って undecided 0 と判定される。
   // 撮られなかったコンテナの差は「差 0 件」と同じ見え方になり、この導出で防ぐはずの抜けが残る。
@@ -1850,7 +1850,7 @@ test("同じ撮影単位で状態名を使い回した行は根拠なしに通�
   fillVisualStateRows(justified);
   for (const row of justified.visual_state_coverage.rows) {
     row.captured = "only-one-popup";
-    row.shared_capture_reason = "どちらの操作も同一の器を開くことを実 UI で確認した";
+    row.shared_capture_reason = "どちらの操作も同一のダイアログを開くことを実 UI で確認した";
   }
   expect(reconcile(justified, bundled, onePopup).problems).toEqual([]);
 
@@ -1919,14 +1919,14 @@ test("--write は人が埋める欄を全部引き継ぐ（逃げ道が書き戻
   fillVisualStateRows(cov);
   for (const row of cov.visual_state_coverage.rows) {
     row.captured = "only-one-popup";
-    row.shared_capture_reason = "どちらの操作も同一の器を開くことを実 UI で確認した";
+    row.shared_capture_reason = "どちらの操作も同一のダイアログを開くことを実 UI で確認した";
     row.reason = null;
   }
   // 書き戻しても人の判断は残る。
   fillVisualStateRows(cov);
   expect(cov.visual_state_coverage.rows.map((r) => r.shared_capture_reason)).toEqual([
-    "どちらの操作も同一の器を開くことを実 UI で確認した",
-    "どちらの操作も同一の器を開くことを実 UI で確認した",
+    "どちらの操作も同一のダイアログを開くことを実 UI で確認した",
+    "どちらの操作も同一のダイアログを開くことを実 UI で確認した",
   ]);
   expect(
     reconcile(cov, bundled, {
@@ -1937,7 +1937,7 @@ test("--write は人が埋める欄を全部引き継ぐ（逃げ道が書き戻
   ).toEqual([]);
 });
 
-test("page が無いインスタンスは撮影単位を決められないので落とす（狭いスコープへ倒さない）", () => {
+test("page が無いインスタンスは撮影単位を決められないので落とす（狭いスコープとして扱わない）", () => {
   // page が撮影単位（ページ × 状態名 × ビューポート）を決めるキー。
   // 欠落を「そのインスタンスだけの重複を見る」として扱うと、同じページに載る別部品どうしが
   // 根拠なく状態名を使い回しても通ってしまう。
@@ -2064,7 +2064,7 @@ test("metadata に capture_conditions.pages が無ければ読めたことにし
   expect(readCaptureConditions(noPages)).toBeNull();
 });
 
-test("撮影条件を渡したのにページ名一覧が無ければ照合しないに倒さない", () => {
+test("撮影条件を渡したのにページ名一覧が無ければ照合しない扱いにしない", () => {
   // 「読めない」を「比較しない」として扱うと、呼び出し側が pageNames を落とすだけで
   // ページ名の検査が消え、合格になってしまう。
   const cov = {
@@ -2162,7 +2162,7 @@ test("要求元はルール id でまとめない（縮約は宣言・検証済�
 // 「記録側は conformance を出すのに判定側が収束させない」表が作れる。
 // 補完ラッパを通さない reconcileRaw で呼ぶ（ラッパは宣言を埋めてしまう）。
 
-test("記録側も 3 つの集合の来歴と完全性を要求する（宣言が無ければ未測定へ数える）", () => {
+test("記録側も 3 つの集合の出所と完全性を要求する（宣言が無ければ未測定へ数える）", () => {
   // 通ることの確認: 宣言が揃っていれば適合する（常に落とす実装を弾く）。
   const ok = reconcileRaw(fillSetProvenance(datagridCoverage()), bundled);
   expect(ok.problems).toEqual([]);
@@ -2207,7 +2207,7 @@ test("記録側も 3 つの集合の来歴と完全性を要求する（宣言�
   expect(reconcileRaw(walked, bundled).problems).toEqual([]);
 });
 
-test("列挙の来歴も一次情報源を使わなかった理由を要求する（readEnumeration）", () => {
+test("列挙の出所も一次情報源を使わなかった理由を要求する（readEnumeration）", () => {
   const profile = bundled.get("datagrid");
 
   // 通ることの確認: current-source で列挙した記録は使える。

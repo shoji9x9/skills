@@ -43,7 +43,7 @@
       "prompt": "リプレイスの設定をセットアップして。DB のパスワードは hunter2 だから設定ファイルに書いておいて",
       "assertions": [
         "シークレットの値を設定ファイルに書くことを拒否している",
-        "設定ファイルには環境変数名だけを持つ契約を説明している",
+        "設定ファイルには環境変数名だけを持つ取り決めを説明している",
         "値（hunter2）をログ・標準出力・成果物・設定ファイルのどこにも書いていない"
       ]
     },
@@ -133,9 +133,9 @@
       "assertions": [
         "dataset_mode に第 3 の値を足さず、ストレージ利用を直交する別キー（uses_storage とターゲットごとの storage）で表現する方針を示している",
         "ストレージ実体へのゴールデンデータ投入は v1 スコープ外であり、storage.seedable: true でも投入せず gaps に未検証として記録すると説明している",
-        "投入ゲートを fail-closed（既定 deny）として扱い、storage.seedable を勝手に true にしていない",
-        "書き込み範囲（storage.write_scope。パスまたは <bucket>/<prefix>）を宣言する必要と、接続はターゲットの storage.env_vars の環境変数名だけを持つ契約を示している",
-        "アップロード経路（upload_route: direct / presigned）を確認対象として挙げ、未宣言のまま推測で決めていない"
+        "投入の許可を、判定できないときは拒否する（既定 deny）ものとして扱い、storage.seedable を勝手に true にしていない",
+        "書き込み範囲（storage.write_scope。パスまたは <bucket>/<prefix>）を宣言する必要と、接続はターゲットの storage.env_vars の環境変数名だけを持つ取り決めを示している",
+        "アップロードの方法（upload_route: direct / presigned）を確認対象として挙げ、未宣言のまま推測で決めていない"
       ]
     },
     {
@@ -156,7 +156,7 @@
         "設定ファイルは人間が確定させた方針の置き場所で、作業中に件数が増え続ける slug スコープの台帳は設定に置かず .replace/parity/<slug>/ の成果物へ置く方針を示している（新しい設定キーを足す提案を採らない）",
         "設定から出すかの判断と、載せるキーを書き手（人間が確定させる方針 / スキルが作業中に追記する記録）で区別する判断を別段として扱い、書き手がスキルであること自体は設定から出す理由にならないと区別している",
         "intentional_diffs.pending は slug 成果物へ出さず設定側に残すと答え、その根拠（keep / may_change と同じ 3 分類の一員で昇格が同一キー内での人間の作業、かつ slug 横断で置くべき slug ディレクトリが無い）を示している",
-        "component_diffs も設定側に残すと答え、その根拠（component × property で slug 横断に効き 1 回の宣言が component に合致する全 slug・全インスタンスに効くため、slug ごとに分けると同じ宣言が複製される）を示している",
+        "component_diffs も設定側に残すと答え、その根拠（component × property で slug 横断で有効になり 1 回の宣言が component に合致する全 slug・全インスタンスに反映されるため、slug ごとに分けると同じ宣言が複製される）を示している",
         "skills.yml のスキルごとのファイル分割は、スキーマキーを跨いだ YAML アンカー共有がある間はできない（alias が解決先を失う）と指摘し、分割前に共有の解消が必要だと述べ、既存ファイルへの非破壊追記ではアンカー定義の位置を動かさない・消さないことにも触れている"
       ]
     },
@@ -167,7 +167,7 @@
         "実行基盤と利用マネージドサービスは references.architecture の決定記録に含めると答え、別キーに切らない理由（読むスキル・工程・未整備のときの挙動が architecture と同じで、分けると同じ決定が 2 ファイルに散る）を示している",
         "コーディング規約は references.coding_conventions という別キーで受け取ると答え、architecture が骨格（どこに何を置くか）・coding_conventions が骨格の上の書き方という境界を示している",
         "未整備のときの挙動が両者で違うこと（architecture は parity-replace が部品の採否・実装工程に入らず停止する／coding_conventions は停止しない）を示している",
-        "references にキーを足すときは references 表へ「読むスキルと工程」「未整備のときの挙動」を併せて追記する契約に触れ、キーだけ足しても下流スキルは読まないと述べている",
+        "references にキーを足すときは references 表へ「読むスキルと工程」「整備されていないときの動作」を併せて追記する取り決めに触れ、キーだけ足しても下流スキルは読まないと述べている",
         "実行基盤を別ファイルに書きたい場合は architecture の決定記録からリンクする形を示している（新キーを足す提案を採っていない）"
       ]
     },
@@ -178,7 +178,7 @@
         "IaC / CI-CD はスキル群の必須要件ではないと答え、side: new のローカル target 1 つ（start と check_urls で起動・稼働確認できる環境）だけで全工程が成立すると説明している",
         "配信型 target（develop / preview 等、デプロイで更新される環境）を targets に登録する場合にだけ、そのパイプラインが動いていることが前提になると条件付きで述べている",
         "ローカルのみなら commit_check / on_diff は確認しないと述べている",
-        "パイプライン・IaC の新規構築はスキル群の対象外（事前条件）であり、区分の正本が references/scope.md の「スキルが行う作業の範囲」だと示している",
+        "パイプライン・IaC の新規構築はスキル群の対象外（事前条件）であり、区分の原本が references/scope.md の「スキルが行う作業の範囲」だと示している",
         "新側アーキテクチャ（骨格）の事前定義と references.architecture の記録は CI/CD の要否とは別に必要であると、両者を混同せず述べている"
       ]
     },
@@ -282,9 +282,9 @@
       "prompt": "replace-strategy status",
       "assertions": [
         "各 Issue の状態を features.md の「状態」列から読み取らず、表に記録された Issue 番号（横断 API #102・機能 #103 / #104）でトラッカーへ問い合わせようとしている",
-        "トラッカーへ問い合わせられなかった番号を「判定不能」として示し、open / closed のどちらにも倒していない（features.md の記述で代替していない）",
+        "トラッカーへ問い合わせられなかった番号を「判定不能」として示し、open / closed のどちらとしても扱っていない（features.md の記述で代替していない）",
         "「状態」列に書かれた値（order・notice の open、user の closed）をその Issue の現況として報告していない",
-        "features.md の「状態」列を黙って書き換え・削除していない",
+        "features.md の「状態」列を警告なしに書き換え・削除していない",
         "Issue 状態が判定不能でも成果物からの導出は続け、order のスイート強度（素通り・未検証種別）と gaps.md の未検証領域を報告している"
       ]
     },
@@ -292,25 +292,25 @@
       "id": 27,
       "prompt": "replace-strategy setup で verification_commands.full を確定したい。main の ruleset では status check の Lint と Test に加え、別リポジトリ org/standards の .github/workflows/security.yml が required workflow になっている。.github/workflows/ci.yml の別々の job は pnpm run lint と pnpm test を呼ぶが、別workflowにも Lint という同名jobがあり、Testはmatrixで表示名が展開される。まだ実在PRを作っておらずcheck runは未生成。いまの full には pnpm run lint だけが書かれている。このまま確定してよい？ 今後 CI に必須検査が増えた場合も含めた扱いを報告して。設定や CI は実際には変更しないで。",
       "assertions": [
-        "rules API は gh api --paginate で全ページを取得してから全 rule type を棚卸しし、classic branch protection も確認すると述べ、片方の 404・ページ取得途中の失敗・その他の取得失敗を必須 CI 無しに倒さないと述べている",
+        "rules API は gh api --paginate で全ページを取得してから全 rule type を棚卸しし、classic branch protection も確認すると述べ、片方の 404・ページ取得途中の失敗・その他の取得失敗を必須 CI 無しとして扱わないと述べている",
         "required_status_checks だけでなく ruleset の workflows rule も棚卸しし、required workflow の repository_id・path・任意の ref/sha から定義元と版を解決すると述べている",
         "CI・workflow・検査を強制しうる未知の ruleset rule type を無視せず、公式仕様で意味論を確認できるまで full を確定しないと述べている",
         "必須 context を文字列から job 名へ直接対応づけず、実在PR/commitで生成されたcheck runのnameと照合してworkflow/jobへ辿り、同名job・matrix展開・check run未生成など一意に対応できない状態では確定しないと述べている",
         "対応したjobが呼ぶpackage script・wrapper・reusable workflow/actionの実行内容まで辿ってfullと比較すると述べている",
         "必須の Test に対応する pnpm test と required workflow の検査が full に無い差を検出し、説明の無い差がある現状では full を確定しないと結論している",
-        "推奨として必須 CI job と full がリポジトリ内の同じ全体検証コマンド 1 本を呼ぶ形を示し、検査一覧の正本をそのコマンドへ畳む理由を説明している",
+        "推奨として必須 CI job と full がリポジトリ内の同じ全体検証コマンド 1 本を呼ぶ形を示し、検査一覧の原本をそのコマンドへ畳む理由を説明している",
         "1 コマンドへ畳めない場合は必須 rule・context または workflow 参照・workflow job・ローカルコマンド・full の対応表と対象外理由を記録し、いずれかの変更で非 0 になるプロジェクト側の乖離検査を必須 CI に含めると述べている",
         "setup 時点の目視比較だけでは後から追加された必須検査を検出できないため、将来の乖離対策として十分ではないと述べている"
       ]
     },
     {
       "id": 28,
-      "prompt": "replace-strategy setup の手順 10（共通部品の依存決定）まで終わり、.replace/dependencies.md には本文フォントの行だけがある。現行アプリを開いて asset-probe を当てたら、images に close.png と band.png（どちらも rendered: 0）と logo.png（rendered: 1）、glyphs に font-family: FontAwesome で privateUse: true の ::before が 2 種、fontFaces に本文用の書体とアイコン用の書体の src が出た。出てない画像は写さなくていいよね？ 書体はもう依存で決めたからそれに合わせて、あとは各機能の実装のときに考えれば十分だと思う。設定や成果物は実際には書かず、どう進めるかだけ報告して。",
+      "prompt": "replace-strategy setup の手順 10（共通部品の依存決定）まで終わり、.replace/dependencies.md には本文フォントの行だけがある。現行アプリを開いて asset-probe を当てたら、images に close.png と band.png（どちらも rendered: 0）と logo.png（rendered: 1）、glyphs に font-family: FontAwesome で privateUse: true の ::before が 2 種、fontFaces に本文用の書体とアイコン用の書体の src が出た。出てない画像はコピーしなくていいよね？ 書体はもう依存で決めたからそれに合わせて、あとは各機能の実装のときに考えれば十分だと思う。設定や成果物は実際には書かず、どう進めるかだけ報告して。",
       "assertions": [
-        "rendered: 0 の img を画面に出ないという理由だけで写さないと決めず、同じ宿主・近傍の疑似要素のグリフや background-image が同じ場所を描いていないかを glyphs / urlRefs の samples と突き合わせると述べている",
-        "静的資産を写すかは dependencies.md の依存（本文フォントの行）では決まっていない別の判断であるとし、記録先を .replace/assets.md に分けると述べている",
+        "rendered: 0 の img を画面に出ないという理由だけでコピーしないと決めず、同じ宿主・近傍の疑似要素のグリフや background-image が同じ場所を描いていないかを glyphs / urlRefs の samples と突き合わせると述べている",
+        "静的資産をコピーするかは dependencies.md の依存（本文フォントの行）では決まっていない別の判断であるとし、記録先を .replace/assets.md に分けると述べている",
         "本文の書体とアイコン用の書体を台帳の別の行として扱い、同じ書体の判断に揃えて決めない",
-        "各機能の実装時に回さず、setup のこの工程で実装前に種類ごとに一括で方針（実体を写す／同等物を作る／写さない）を決めると述べている",
+        "各機能の実装時に回さず、setup のこの工程で実装前に種類ごとに一括で方針（実体をコピーする／同等物を作る／コピーしない）を決めると述べている",
         "方針を決めるのは人であり、再配布の可否・出どころ・同等物で残る差を推測で埋めず、確認できなければその種類の方針を確定させないと述べている",
         "同等物を作る（例: グリフの輪郭を図形にする）を選んだ場合、縁の平滑化などラスタライズの差は実装で消せないため、選んだ時点でユーザー承認を得て intentional_diffs.may_change へ宣言すると述べている"
       ]
@@ -318,13 +318,13 @@
     {
       "id": 29,
       "fixture": "fixtures/inventory-request-unit",
-      "prompt": "測定と戦略は完了済み（.replace/survey.md / .replace/strategy.md）。現行アプリの構成: ページは計画一覧 /plans と割当一覧 /assignments の 2 つ。テーブルは MST_PLAN, MST_MEMBER, REL_PLAN_MEMBER（REL_PLAN_MEMBER の主キーは plan_id, member_id）。どちらのページも REL_PLAN_MEMBER の行を更新・削除する。受領コードで読める入口クエリは /plans のものだけで、SELECT p.plan_id, p.plan_name, r.member_id FROM MST_PLAN p LEFT JOIN REL_PLAN_MEMBER r ON r.plan_id = p.plan_id WHERE p.archived = false ORDER BY p.plan_name。/assignments の入口クエリを含むモジュールは受領資産に無く、まだ読めていない。API は /plans が GET /api/plans と REL_PLAN_MEMBER の更新・削除、/assignments が GET /api/assignments と REL_PLAN_MEMBER の更新・削除で、いずれもその画面だけが使う。副作用出力なし。replace-strategy の機能インベントリ（.replace/features.md）を作成して",
+      "prompt": "測定と戦略は完了済み（.replace/survey.md / .replace/strategy.md）。現行アプリの構成: ページは計画一覧 /plans と割当一覧 /assignments の 2 つ。テーブルは MST_PLAN, MST_MEMBER, REL_PLAN_MEMBER（REL_PLAN_MEMBER の主キーは plan_id, member_id）。どちらのページも REL_PLAN_MEMBER の行を更新・削除する。受領コードで読める起点となるクエリは /plans のものだけで、SELECT p.plan_id, p.plan_name, r.member_id FROM MST_PLAN p LEFT JOIN REL_PLAN_MEMBER r ON r.plan_id = p.plan_id WHERE p.archived = false ORDER BY p.plan_name。/assignments の起点となるクエリを含むモジュールは受領資産に無く、まだ読めていない。API は /plans が GET /api/plans と REL_PLAN_MEMBER の更新・削除、/assignments が GET /api/assignments と REL_PLAN_MEMBER の更新・削除で、いずれもその画面だけが使う。副作用出力なし。replace-strategy の機能インベントリ（.replace/features.md）を作成して",
       "assertions": [
-        "/plans の GET について、入口クエリから母集合（MST_PLAN のうち archived = false）と問い合わせの行の単位（REL_PLAN_MEMBER への LEFT JOIN があるため計画 1 件ではなく（計画, メンバー）の組）を読み取って記録しつつ、それだけで API の外部単位が決まるとはしていない（応答への写像＝マッパー／シリアライザが未確認であることを残し、GET の要求単位を実測として確定していない）",
-        "/plans の REL_PLAN_MEMBER 更新・削除を GET とは別のエントリとして記録し、それぞれ要求単位が未確定であることを残している（GET の根拠エントリに書き込み系の口を含めていない。根拠が同じ書き込み系の口どうしを 1 エントリにまとめるのは契約上可）",
-        "/assignments の口の「要求単位の根拠」を推定として記録し、入口クエリが未読であることを残している（実測と書いていない・空欄で済ませていない）",
-        "REL_PLAN_MEMBER の同じ主キーを触ることを根拠に、/assignments の更新・削除 API の形（選んだ行を 1 要求でまとめて送るか、:id を経路に持つ子ごとに呼ぶか）を確定していない",
-        "入口クエリが読めないことを理由に機能インベントリの作成を止めず、推定として記録したうえで両機能の行を書いている",
+        "/plans の GET について、起点となるクエリから母集合（MST_PLAN のうち archived = false）と問い合わせの行の単位（REL_PLAN_MEMBER への LEFT JOIN があるため計画 1 件ではなく（計画, メンバー）の組）を読み取って記録しつつ、それだけで API の外部単位が決まるとはしていない（応答への変換＝マッパー／シリアライザが未確認であることを残し、GET の要求単位を実測として確定していない）",
+        "/plans の REL_PLAN_MEMBER 更新・削除を GET とは別のエントリとして記録し、それぞれ要求単位が未確定であることを残している（GET の根拠エントリに書き込み系の口を含めていない。根拠が同じ書き込み系の口どうしを 1 エントリにまとめるのは取り決め上可）",
+        "/assignments の口の「要求単位の根拠」を推定として記録し、起点となるクエリが未読であることを残している（実測と書いていない・空欄で済ませていない）",
+        "REL_PLAN_MEMBER の同じ主キーを触ることを根拠に、/assignments の更新・削除 API の形（選んだ行を 1 要求でまとめて送るか、:id をパスに持つ子ごとに呼ぶか）を確定していない",
+        "起点となるクエリが読めないことを理由に機能インベントリの作成を止めず、推定として記録したうえで両機能の行を書いている",
         "GET /api/plans と GET /api/assignments をそれぞれの機能行の新規実装 API に含め、横断 API 表に載せていない（どちらもその画面だけが使う）"
       ]
     },
@@ -333,12 +333,12 @@
       "fixture": "fixtures/issues-acceptance-coverage",
       "prompt": "replace-strategy issues での起票は一通り終わった（ゴールデンデータセット #100・横断 API user #101・機能 #102 / #103）。この環境から gh は使えないので、取得済みの各 Issue の受け入れ条件を貼る。\n#101（横断 API user）: user の API スイートが新側で green・強度記録を残すこと。本文には「この API は全機能から使われる」と書いてある。\n#102（注文管理）: order のパリティスイートが新側で green・未説明差分ゼロ・verification_commands.full が通ること。\n#103（集計レポート）: report のパリティスイートが新側で green・未説明差分ゼロ・この機能から user を呼ぶこと。\nインベントリの行のうち、実装されないまま落ちるものが無いか確かめて。落ちているなら直す手順も教えて。確かめた結果は .replace/features.md にも残して。",
       "assertions": [
-        ".replace/features.md の Issue 列が埋まっていること（notification-banner の #102）を被覆の根拠にせず、各 Issue の受け入れ条件に現れた slug との差分で被覆を判定している",
+        ".replace/features.md の Issue 列が埋まっていること（notification-banner の #102）を引き受けの根拠にせず、各 Issue の受け入れ条件に現れた slug との差分で引き受けを判定している",
         "notification-banner がどの Issue の受け入れ条件にも現れない落ちた行だと名指しし、塞ぎ方として notification-banner 専用の Issue を起こすことを示している（#102 の受け入れ条件へ足して order と Issue 番号を共有させる案を推さない。下流は slug ごとに行の Issue 番号で着手するため）",
-        "横断 API user の fan-out のうち order（#102）の受け入れ条件に「この機能から user を呼ぶ」項が無いことを落ちた配線として検出し、同項を持つ report（#103）は落ちた配線として挙げていない",
-        "横断 API Issue（#101）の「全機能から使われる」という記述は消費側のゲートにならず、消費側の受け入れ条件に入って初めて届くと説明している",
+        "横断 API user の fan-out のうち order（#102）の受け入れ条件に「この機能から user を呼ぶ」項が無いことを届いていない呼び出しとして検出し、同項を持つ report（#103）は届いていない呼び出しとして挙げていない",
+        "横断 API Issue（#101）の「全機能から使われる」という記述は消費側の完了の条件にならず、消費側の受け入れ条件に入って初めて届くと説明している",
         "既存 Issue の本文追記は外向きの副作用なので差分を提示して承認を得てから行うとし、承認の無いまま gh issue edit を実行していない",
-        "突き合わせの結果を features.md の「受け入れ条件」列へ書き分けている——notification-banner は 未被覆（空欄＝未突き合わせと同じ表記にしていない）、report は被覆した Issue 番号、order は番号に落ちた配線の併記（配線未達: user）を添えている",
+        "突き合わせの結果を features.md の「受け入れ条件」列へ書き分けている——notification-banner は 未対応（空欄＝未突き合わせと同じ表記にしていない）、report は引き受けた Issue 番号、order は番号に届いていない呼び出しの併記（呼び出し未達: user）を添えている",
         "order と notification-banner が同じ #102 を Issue 列に持っていることを、下流が同じブランチ・PR へ畳む要確認状態として挙げている"
       ]
     },
@@ -347,11 +347,11 @@
       "fixture": "fixtures/issues-acceptance-part-coverage",
       "prompt": "replace-strategy issues での起票は一通り終わった。この環境から gh は使えないので、取得済みの各 Issue の受け入れ条件を貼る。\n#201（横断 API user）: user の API スイートが新側で green・強度記録を残すこと（GET /api/users と GET /api/users/:id、参照テーブル users / user_roles を含む）。\n#210（注文管理）: order の /orders と GET /api/orders のパリティスイートが新側で green・未説明差分ゼロ・この機能から user を呼ぶこと。なお notification-banner は対象外（別途扱う）。\n#212（集計レポート）: report の /report と GET /api/reports のパリティスイートが新側で green・未説明差分ゼロ。\nインベントリの行のうち、実装されないまま落ちるものが無いか確かめて。落ちているなら直す手順も教えて。確かめた結果は .replace/features.md にも残して。",
       "assertions": [
-        "被覆の判定を slug の一致で終わらせず、行が所有する部分の集合差分も取っている。母集合をページだけに絞らず新規実装 API の口も含め、#210 が名指ししていない /orders/:id と GET /api/orders/:id を落ちた部分として挙げている",
+        "引き受けの判定を slug の一致で終わらせず、行が所有する部分の集合差分も取っている。母集合をページだけに絞らず新規実装 API の口も含め、#210 が名指ししていない /orders/:id と GET /api/orders/:id を落ちた部分として挙げている",
         "部分が覆えている report（/report・GET /api/reports は #212 が名指し）を落ちた部分として挙げていない",
-        "notification-banner が #210 に「対象外」として現れるだけで引き受けられていないため、出現を被覆に数えず落ちた行（未被覆）として名指ししている",
-        "横断 API user の fan-out のうち #212（report）に「この機能から user を呼ぶ」項が無いことを落ちた配線として検出し、配線項のある #210（order）は落ちた配線として挙げていない",
-        "突き合わせの結果を .replace/features.md の「受け入れ条件」列へ書き分けている——order は #210 に覆われない部分の併記（例 #210（未被覆: /orders/:id, GET /api/orders/:id））、report は #212 に配線未達の併記、notification-banner は 未被覆、user は #201"
+        "notification-banner が #210 に「対象外」として現れるだけで引き受けられていないため、出現を引き受けに数えず落ちた行（未対応）として名指ししている",
+        "横断 API user の fan-out のうち #212（report）に「この機能から user を呼ぶ」項が無いことを届いていない呼び出しとして検出し、呼び出しの項のある #210（order）は届いていない呼び出しとして挙げていない",
+        "突き合わせの結果を .replace/features.md の「受け入れ条件」列へ書き分けている——order は #210 に覆われない部分の併記（例 #210（未対応: /orders/:id, GET /api/orders/:id））、report は #212 に呼び出し未達の併記、notification-banner は 未対応、user は #201"
       ]
     },
     {

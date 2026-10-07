@@ -26,7 +26,7 @@
       "appears_after": "parity-suite の feature モード手順 5（スイートの authoring）で {parity_suite_dir}/parity/ を置いた後",
       "run_from": "スイートを置いたリポジトリのルート（parity_suite_dir はそこからの相対）",
       "stages": ["pre-commit", "ci"],
-      "notes": "{parity_suite_dir}/parity/ が在っても走査対象のファイルが 0 件なら exit 2（対象 0 件を合格に倒さない）。ディレクトリだけを先に作る運用なら、スペックを置いてから配線する"
+      "notes": "{parity_suite_dir}/parity/ が在っても走査対象のファイルが 0 件なら exit 2（対象 0 件を合格として扱わない）。ディレクトリだけを先に作る運用なら、スペックを置いてから組み込む"
     }
   ]
 }
