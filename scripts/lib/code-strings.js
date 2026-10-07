@@ -24,6 +24,9 @@
 //
 // コメントだけの行 `textlint-disable` と `textlint-enable`（`scripts/lib/code-comments.js` と同じ）は、
 // その間の文字列をチェックから外す。わざと旧称を入れたテストの入力に使う。
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { commentDirectives } from "./code-comments.js";
 
@@ -33,8 +36,34 @@ const EVAL_STRING_KEYS = new Set(["prompt", "expected_output"]);
 
 /** 日本語の文字（ひらがな・カタカナ・漢字）を含むか。 */
 const JAPANESE = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u;
-/** 使わない語の一覧にある英語の語（`fail-closed` など）。日本語を含まない文字列でも、これを含めば見る。 */
-const ENGLISH_TERMS = /\bfail[- ](?:closed|open|safe)\b/i;
+const WORDS_PATH = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  ".textlint",
+  "words.json",
+);
+
+/**
+ * 使わない語の一覧（`.textlint/words.json`）の `term` のうち、日本語を含まない語（`fail-closed` など）。
+ * `term` は「・」で複数の語を並べることがあるので、分けてから選ぶ。
+ */
+export function englishTerms(words = JSON.parse(readFileSync(WORDS_PATH, "utf8"))) {
+  return (words.entries ?? [])
+    .flatMap((e) => (typeof e?.term === "string" ? e.term.split("・") : []))
+    .map((t) => t.trim())
+    .filter((t) => t && !JAPANESE.test(t) && /[A-Za-z]/.test(t));
+}
+
+/** 英語の語のどれかを含むかの正規表現。`-` は空白も許す（一覧は `fail closed` も検出する）。語が無ければ何にも一致しない。 */
+export function englishTermPattern(terms) {
+  if (terms.length === 0) return /(?!)/;
+  const parts = terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/-/g, "[- ]"));
+  return new RegExp(`\\b(?:${parts.join("|")})\\b`, "i");
+}
+
+/** 日本語を含まない文字列でも、この語を含めば見る（語の一覧から作るので、一覧に英語の語を足せば追随する）。 */
+const ENGLISH_TERMS = englishTermPattern(englishTerms());
 
 export function hasStrings(path) {
   return EVALS.test(path) || JS_EXTENSIONS.some((ext) => path.endsWith(ext));
@@ -97,8 +126,10 @@ export function stringMarkdown(path, source) {
     text.split("\n").forEach((part, i) => {
       // 行頭の空白と、入れ物（リストの項目・引用）の記号を外す。記号の後ろには空白か行末が要る（`-正本` や `1.5` は外さない）。
       const lead = part.match(/^(?:\s|>|[-*+](?=\s|$)|\d{1,9}[.)](?=\s|$))*/)[0].length;
+      // textlint は単独の `\r` も改行として読むので、空白にする（行の対応がずれないように）。
       const body = part
         .slice(lead)
+        .replace(/\r/g, " ")
         .replace(/</g, " ")
         .replace(/`{3,}|~{3,}/g, (m) => " ".repeat(m.length))
         .replace(/^\[(?=[^\]]*\]:)/, " ");

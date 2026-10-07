@@ -302,6 +302,14 @@ test("入れ物（リスト・引用）の中の字下げとリンク参照の�
   ]);
 });
 
+test("値に \\r を含む文字列の後ろの指摘も、元の行で報告する", async () => {
+  // textlint-disable
+  const src = 'const a = "前の行\\r次の行";\nconst b = "仕様は正本にある";\n';
+  // textlint-enable
+  const { violations } = await lintProse({ root: makeRepo({ "a.js": src }) });
+  expect(violations.map((v) => v.split(" ")[0])).toEqual(["a.js:2:15"]);
+});
+
 test("コメントの textlint-disable で囲んだ文字列だけを除外する", async () => {
   // textlint-disable
   const src =

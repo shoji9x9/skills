@@ -158,6 +158,39 @@
         "Markdown の書式 入れ物の中のリンク参照の定義: 行頭の入れ物の記号を外し、中の文を地の文にする",
         "Markdown の書式 引用の中のリンク参照の定義: 行頭の入れ物の記号を外し、中の文を地の文にする"
       ]
+    },
+    {
+      "id": "CS-CR",
+      "why": "値の \\r を残す（textlint が改行として読み、指摘の行がずれる）",
+      "file": "scripts/lib/code-strings.js",
+      "find": "\n        .replace(/\\r/g, \" \")",
+      "replace": "",
+      "expect_failing": [
+        "Markdown の書式 値の \\r を空白にして、Markdown の行数を取り出した行数と揃える"
+      ]
+    },
+    {
+      "id": "CS-TERM-SPLIT",
+      "why": "語の一覧の term を「・」で分けない（並べた英語の語を 1 語として扱い、どれにも一致しない）",
+      "file": "scripts/lib/code-strings.js",
+      "find": "e.term.split(\"・\")",
+      "replace": "[e.term]",
+      "expect_failing": [
+        "英語の語 語の一覧の英語の語を、すべて対象にする（一覧に足した語に追随する）",
+        "英語の語 一覧に英語の語を足すと、その語を含む文字列も見る",
+        "JavaScript・TypeScript 日本語を含まなくても、一覧にある英語の語（`fail-closed` など）を含む文字列は入れる"
+      ]
+    },
+    {
+      "id": "CS-TERM-SPACE",
+      "why": "英語の語の - に空白を許さない（fail closed のような書き方を見逃す）",
+      "file": "scripts/lib/code-strings.js",
+      "find": ".replace(/-/g, \"[- ]\")",
+      "replace": "",
+      "expect_failing": [
+        "英語の語 語の一覧の英語の語を、すべて対象にする（一覧に足した語に追随する）",
+        "JavaScript・TypeScript 日本語を含まなくても、一覧にある英語の語（`fail-closed` など）を含む文字列は入れる"
+      ]
     }
   ]
 }

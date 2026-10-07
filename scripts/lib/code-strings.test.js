@@ -13,7 +13,8 @@
 // | ディレクティブ   | textlint-disable・enable（単独の行 / 行の後ろ）                                           |
 // | 読めない入力     | JSON の構文エラー                                                                        |
 import { describe, expect, test } from "vitest";
-import { hasStrings, stringMarkdown } from "./code-strings.js";
+import { readFileSync } from "node:fs";
+import { englishTermPattern, englishTerms, hasStrings, stringMarkdown } from "./code-strings.js";
 
 /** Markdown の段落ごとの本文（空行で分ける）。 */
 const paragraphs = (path, source) =>
@@ -183,6 +184,15 @@ describe("Markdown の書式", () => {
     ]);
   });
 
+  test("値の \\r を空白にして、Markdown の行数を取り出した行数と揃える", () => {
+    const { markdown, lines } = stringMarkdown(
+      "a.js",
+      'const a = "前の行\\r次の行";\nconst b = "後の文";\n',
+    );
+    expect(markdown).not.toContain("\r");
+    expect(markdown.split("\n")).toHaveLength(lines.length);
+  });
+
   test("1 つのバッククォートは残す（字義どおりの言及として見ないため）", () => {
     expect(paragraphs("a.js", 'const a = "`語` の説明";\n')).toEqual(["`語` の説明"]);
   });
@@ -266,5 +276,33 @@ describe("evals.json", () => {
     expect(() => stringMarkdown("evals/x/evals.json", '{ "evals": [')).toThrow(
       "JSON として読めない",
     );
+  });
+});
+
+describe("英語の語", () => {
+  const words = JSON.parse(
+    readFileSync(new URL("../../.textlint/words.json", import.meta.url), "utf8"),
+  );
+
+  // textlint-disable
+  test("語の一覧の英語の語を、すべて対象にする（一覧に足した語に追随する）", () => {
+    const terms = englishTerms(words);
+    expect(terms).toEqual(expect.arrayContaining(["fail-closed", "fail-open", "fail-safe"]));
+    const pattern = englishTermPattern(terms);
+    for (const t of terms) {
+      expect(pattern.test(t), t).toBe(true);
+      expect(pattern.test(t.replace(/-/g, " ")), t).toBe(true);
+    }
+  });
+
+  test("一覧に英語の語を足すと、その語を含む文字列も見る", () => {
+    const pattern = englishTermPattern(englishTerms({ entries: [{ term: "foo-bar・日本語" }] }));
+    expect(pattern.test("use foo-bar here")).toBe(true);
+    expect(pattern.test("foobar")).toBe(false);
+  });
+  // textlint-enable
+
+  test("英語の語が無ければ、何にも一致しない", () => {
+    expect(englishTermPattern([]).test("anything")).toBe(false);
   });
 });
