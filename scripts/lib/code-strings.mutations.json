@@ -61,10 +61,23 @@
       "id": "CS-LITERAL-LINES",
       "why": "ソースの改行を含むテンプレートも、すべて始まりの行に戻す",
       "file": "scripts/lib/code-strings.js",
-      "find": "const literalLines = raw.includes(\"\\n\");",
-      "replace": "const literalLines = false;",
+      "find": "    } else if (raw[i] === \"\\n\") {\n      line++;\n",
+      "replace": "    } else if (raw[i] === \"\\n\") {\n",
       "expect_failing": [
-        "位置 ソースの改行を含むテンプレートは、行ごとに元の行と桁に戻す（行頭の空白を外しても桁がずれない）"
+        "位置 ソースの改行を含むテンプレートは、行ごとに元の行と桁に戻す（行頭の空白を外しても桁がずれない）",
+        "位置 エスケープの改行とソースの改行が混在するテンプレートは、ソースの改行だけ行を進める",
+        "位置 行の継続（\\ と改行）は値に改行を作らないが、後の部分の行を進める"
+      ]
+    },
+    {
+      "id": "CS-ESCAPED-NEWLINE",
+      "why": "エスケープの改行でもソースの行を進めてしまう",
+      "file": "scripts/lib/code-strings.js",
+      "find": "      if (next === \"n\") origins.push({ line, column: start.character });",
+      "replace": "      if (next === \"n\") origins.push({ line: ++line, column: start.character });",
+      "expect_failing": [
+        "位置 エスケープの改行は、すべて文字列が始まる行に戻す",
+        "位置 エスケープの改行とソースの改行が混在するテンプレートは、ソースの改行だけ行を進める"
       ]
     },
     {

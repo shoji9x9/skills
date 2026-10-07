@@ -126,6 +126,17 @@ describe("位置", () => {
     const src = 'const x = 1;\nconst a = "一行目\\n二行目";\n';
     expect(locate("a.js", src, "二行目").line).toBe(2);
   });
+
+  test("エスケープの改行とソースの改行が混在するテンプレートは、ソースの改行だけ行を進める", () => {
+    const src = "const t = `一行目\\n二行目\n三行目`;\nconst c = 1;\n";
+    expect(locate("a.js", src, "二行目").line).toBe(1);
+    expect(locate("a.js", src, "三行目")).toEqual(sourcePosition(src, "三行目"));
+  });
+
+  test("行の継続（\\ と改行）は値に改行を作らないが、後の部分の行を進める", () => {
+    const src = "const t = `一行目\\\n継続\n三行目`;\n";
+    expect(locate("a.js", src, "三行目")).toEqual(sourcePosition(src, "三行目"));
+  });
 });
 
 describe("Markdown の書式", () => {

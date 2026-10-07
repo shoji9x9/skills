@@ -82,8 +82,8 @@ export function stringMarkdown(path, source) {
     // 値の先頭は、引用符（テンプレートの部分なら `` ` `` か `}`）の次の桁にある。
     const start = sf.getLineAndCharacterOfPosition(node.getStart(sf) + 1);
     // 値の改行がソースの改行か（テンプレートリテラル）、エスケープ（`\n`）かで、行の対応が変わる。
-    const raw = source.slice(node.getStart(sf), node.getEnd());
-    const literalLines = raw.includes("\n");
+    // 1 つのテンプレートに両方が含まれることもあるので、改行ごとにどちらかを読み分ける。
+    const origins = partOrigins(source.slice(node.getStart(sf), node.getEnd()), start);
     if (md.length) emit("", start.line, 0);
     text.split("\n").forEach((part, i) => {
       const lead = part.match(/^\s*/)[0].length;
@@ -91,13 +91,38 @@ export function stringMarkdown(path, source) {
         .slice(lead)
         .replace(/</g, " ")
         .replace(/`{3,}|~{3,}/g, (m) => " ".repeat(m.length));
-      const line = literalLines ? start.line + i : start.line;
-      // 値の改行がエスケープなら、2 行目以降も文字列の始まりの桁で近似する。
-      const column = (literalLines && i > 0 ? 0 : start.character) + lead;
-      emit(body, line, column);
+      // `\u000a` などで値の改行の数がソースと合わなければ、最後に分かった位置で近似する。
+      const origin = origins[i] ?? origins.at(-1);
+      emit(body, origin.line, origin.column + lead);
     });
   }
   return { markdown: md.join("\n"), lines, columns, starts };
+}
+
+/**
+ * 値を `\n` で分けた各部分が、ソースのどの行と桁で始まるか。raw は引用符を含むソースの範囲。
+ * ソースの改行の後の部分は次の行の先頭から始まる。エスケープ（`\n`）の後の部分は同じ行に残り、
+ * 桁は文字列の始まりの桁で近似する。行の継続（`\` と改行）は値に改行を作らない。
+ */
+function partOrigins(raw, start) {
+  const origins = [{ line: start.line, column: start.character }];
+  let line = start.line;
+  for (let i = 1; i < raw.length; i++) {
+    if (raw[i] === "\\") {
+      const next = raw[i + 1];
+      if (next === "n") origins.push({ line, column: start.character });
+      else if (next === "\n") line++;
+      else if (next === "\r" && raw[i + 2] === "\n") {
+        line++;
+        i++;
+      }
+      i++;
+    } else if (raw[i] === "\n") {
+      line++;
+      origins.push({ line, column: 0 });
+    }
+  }
+  return origins;
 }
 
 /** JavaScript・TypeScript の文字列リテラルとテンプレートの各部分。import と export の指定子は除く。 */
