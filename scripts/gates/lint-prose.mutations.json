@@ -145,9 +145,10 @@
         "文の長さの指摘に、Markdown の行番号を残さない",
         "JSDoc のタグの行の指摘も、元の行の文章より前の桁を指さない",
         "コメントの textlint-disable で囲んだ文字列だけを除外する",
-        "文字列の中の HTML のコメントとコードフェンスは、後の文字列を隠さない",
         "陽性: JS の文字列とテンプレートの語を、元のファイルの行と桁で報告する",
-        "陽性: evals.json の prompt・expected_output・assertions の語を報告し、他のキーは見ない"
+        "陽性: evals.json の prompt・expected_output・assertions の語を報告し、他のキーは見ない",
+        "先頭の --- と行頭の [ラベル]: を Markdown の構文として読ませず、文字列の語を検出する",
+        "文字列の中の HTML のコメントとコードフェンスは、後の文字列を隠さない"
       ]
     },
     {
@@ -236,7 +237,8 @@
         "陽性: evals.json の prompt・expected_output・assertions の語を報告し、他のキーは見ない",
         "文字列の中の HTML のコメントとコードフェンスは、後の文字列を隠さない",
         "コメントの textlint-disable で囲んだ文字列だけを除外する",
-        "陽性: JSON として読めない evals.json は、指摘として報告する"
+        "陽性: JSON として読めない evals.json は、指摘として報告する",
+        "先頭の --- と行頭の [ラベル]: を Markdown の構文として読ませず、文字列の語を検出する"
       ]
     },
     {

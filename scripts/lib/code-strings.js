@@ -14,6 +14,8 @@
 // 文字列の中の Markdown の書式は、コメントと同じ意味で扱う。バッククォートで囲んだ語は字義どおりの言及として見ない。
 // ただし、`<` と 3 つ以上続くバッククォート・チルダは空白に置き換え、行頭の空白は外す。
 // HTML のコメントやコードフェンス・字下げのコードブロックとして読まれると、後に続く文字列がまとめて見えなくなるためである。
+// 同じ理由で、Markdown の先頭は空行にし（先頭の `---` を front matter として読ませない）、
+// 行頭の `[ラベル]:` の `[` は空白にする（リンク参照の定義として読ませない）。
 //
 // コメントだけの行 `textlint-disable` と `textlint-enable`（`scripts/lib/code-comments.js` と同じ）は、
 // その間の文字列をチェックから外す。わざと旧称を入れたテストの入力に使う。
@@ -72,7 +74,7 @@ export function stringMarkdown(path, source) {
   };
   for (const entry of entries) {
     if (entry.d) {
-      if (md.length) emit("", entry.d.line, 0);
+      emit("", entry.d.line, 0);
       emit(`<!-- textlint-${entry.d.directive} -->`, entry.d.line, 0);
       continue;
     }
@@ -84,13 +86,16 @@ export function stringMarkdown(path, source) {
     // 値の改行がソースの改行か（テンプレートリテラル）、エスケープ（`\n`）かで、行の対応が変わる。
     // 1 つのテンプレートに両方が含まれることもあるので、改行ごとにどちらかを読み分ける。
     const origins = partOrigins(source.slice(node.getStart(sf), node.getEnd()), start);
-    if (md.length) emit("", start.line, 0);
+    // 文字列の前には必ず空行を置く。前の文字列と段落を分け、Markdown の先頭も空行になる
+    // （先頭の `---` が front matter として読まれない）。
+    emit("", start.line, 0);
     text.split("\n").forEach((part, i) => {
       const lead = part.match(/^\s*/)[0].length;
       const body = part
         .slice(lead)
         .replace(/</g, " ")
-        .replace(/`{3,}|~{3,}/g, (m) => " ".repeat(m.length));
+        .replace(/`{3,}|~{3,}/g, (m) => " ".repeat(m.length))
+        .replace(/^\[(?=[^\]]*\]:)/, " ");
       // `\u000a` などで値の改行の数がソースと合わなければ、最後に分かった位置で近似する。
       const origin = origins[i] ?? origins.at(-1);
       emit(body, origin.line, origin.column + lead);

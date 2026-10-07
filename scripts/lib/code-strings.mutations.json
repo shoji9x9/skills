@@ -41,8 +41,8 @@
       "id": "CS-FENCE",
       "why": "3 つ以上のバッククォートを残してコードフェンスとして読ませる",
       "file": "scripts/lib/code-strings.js",
-      "find": "        .replace(/`{3,}|~{3,}/g, (m) => \" \".repeat(m.length));",
-      "replace": "        ;",
+      "find": "\n        .replace(/`{3,}|~{3,}/g, (m) => \" \".repeat(m.length))",
+      "replace": "",
       "expect_failing": [
         "Markdown の書式 3 つ以上のバッククォートとチルダを空白にして、コードフェンスとして読ませない"
       ]
@@ -114,6 +114,26 @@
       "replace": "",
       "expect_failing": [
         "JavaScript・TypeScript 日本語を含まなくても、一覧にある英語の語（`fail-closed` など）を含む文字列は入れる"
+      ]
+    },
+    {
+      "id": "CS-FRONTMATTER",
+      "why": "文字列の前の空行を、2 つ目以降の文字列にだけ置く（先頭の --- を front matter として読み、語のチェックから外す）",
+      "file": "scripts/lib/code-strings.js",
+      "find": "    emit(\"\", start.line, 0);\n    text.split",
+      "replace": "    if (md.length) emit(\"\", start.line, 0);\n    text.split",
+      "expect_failing": [
+        "Markdown の書式 先頭の --- を front matter として読ませない（Markdown の先頭は空行にする）"
+      ]
+    },
+    {
+      "id": "CS-LINKREF",
+      "why": "行頭の [ラベル]: をそのまま残す（リンク参照の定義として読み、語のチェックから外す）",
+      "file": "scripts/lib/code-strings.js",
+      "find": "\n        .replace(/^\\[(?=[^\\]]*\\]:)/, \" \")",
+      "replace": "",
+      "expect_failing": [
+        "Markdown の書式 行頭の [ラベル]: の [ を空白にして、リンク参照の定義として読ませない"
       ]
     }
   ]

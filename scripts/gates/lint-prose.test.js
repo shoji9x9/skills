@@ -276,6 +276,18 @@ test("文字列の中の HTML のコメントとコードフェンスは、後�
   expect(violations.map((v) => v.split(" ")[0])).toEqual(["a.js:3:15"]);
 });
 
+test("先頭の --- と行頭の [ラベル]: を Markdown の構文として読ませず、文字列の語を検出する", async () => {
+  // textlint-disable
+  const src =
+    'const a = "---\\nname: x\\n---\\n一覧は正本である";\nconst b = "[x]: 仕様は正本にある";\n';
+  // textlint-enable
+  const { violations } = await lintProse({ root: makeRepo({ "a.js": src }) });
+  expect(violations.map((v) => v.split(" ")[0].split(":").slice(0, 2).join(":"))).toEqual([
+    "a.js:1",
+    "a.js:2",
+  ]);
+});
+
 test("コメントの textlint-disable で囲んだ文字列だけを除外する", async () => {
   // textlint-disable
   const src =

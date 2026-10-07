@@ -153,6 +153,17 @@ describe("Markdown の書式", () => {
     expect(ps).toContain("後の文");
   });
 
+  test("先頭の --- を front matter として読ませない（Markdown の先頭は空行にする）", () => {
+    const { markdown } = stringMarkdown("a.js", 'const a = "---\\nname: x\\n---\\n本文の説明";\n');
+    expect(markdown.split("\n")[0]).toBe("");
+    expect(markdown).toContain("本文の説明");
+  });
+
+  test("行頭の [ラベル]: の [ を空白にして、リンク参照の定義として読ませない", () => {
+    const [first] = paragraphs("a.js", 'const a = "[x]: 参照の説明";\n');
+    expect(first).toBe(" x]: 参照の説明".trim());
+  });
+
   test("1 つのバッククォートは残す（字義どおりの言及として見ないため）", () => {
     expect(paragraphs("a.js", 'const a = "`語` の説明";\n')).toEqual(["`語` の説明"]);
   });
