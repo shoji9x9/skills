@@ -1,0 +1,245 @@
+{
+  "metadata": {
+    "skill_name": "aws-architecture-diagram",
+    "skill_path": "<repo>/skills/aws-architecture-diagram",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-07T09:01:37Z",
+    "evals_run": [1, 4],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 64.555,
+        "tokens": 450950,
+        "tool_calls": 12,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "未導入なので setup（対話的セットアップ）で進めようとしている",
+          "passed": true,
+          "evidence": "Skill を起動し、setup の手順（図の置き場所 docs/diagrams/ の決定・starter の導入・アイコン取得・環境の確定（prod のみ）・初期作図）を進めた。非対話のため質問の代わりに仮定を応答に列挙している"
+        },
+        {
+          "text": "starter kit を図の置き場所へ導入し、fetch-aws-icons.mjs で AWS 公式アイコンを取得しようとしている",
+          "passed": true,
+          "evidence": "raw: cp -rn .../assets/starter/. docs/diagrams/ の後に node $SKILL/assets/engine/fetch-aws-icons.mjs を実行（EAI_AGAIN で失敗）。応答にもネットワーク下での再実行手順を記載"
+        },
+        {
+          "text": "CDK のソース（または cdk synth 出力）を情報源として読み、spec（nodes/edges/groups）を手で起こす方針になっている",
+          "passed": true,
+          "evidence": "作業ディレクトリに CDK が無く、今回はサンプル spec を暫定として流用。応答の『次にやること』で CDK の場所を求め『stack を読んで、実際のリソースと依存関係に描き直します』と方針を示し、architecture-spec.mjs の冒頭に nodes/edges/groups を実構成に差し替える旨を追記した"
+        },
+        {
+          "text": "references/conventions.md の作図ルール（交差最小・線の直交・軸整列）に従おうとしている",
+          "passed": true,
+          "evidence": "raw: cat references/conventions.md を実行。PNG 確認で線の重なりを見つけ waypoints を直し、交差の飛び越しの印にも言及"
+        },
+        {
+          "text": "render-diagram.mjs で生成し preview-diagram.mjs で PNG 化して目視確認する流れになっている",
+          "passed": true,
+          "evidence": "raw: render-diagram.mjs と preview-diagram.mjs prod を実行し、/tmp/architecture-prod-preview.png を Read で 2 回確認。project-tree に out/architecture-prod.svg がある"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 4,
+        "failed": 2,
+        "total": 6,
+        "time_seconds": 268.451,
+        "tokens": 1613954,
+        "tool_calls": 33,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "conventions.md の線の直交・ラベル配置・進入位置のルールを参照している",
+          "passed": true,
+          "evidence": "raw: cat references/conventions.md を実行し、最後に conventions.md へ警告の説明を追記している"
+        },
+        {
+          "text": "waypoints で直交化し、lp（ノードのラベル位置）を線の出ていない辺へ移す方針を示している",
+          "passed": false,
+          "evidence": "応答の対応は、エンジンの改修と、Cognito の x 座標の移動・browser→api の線を 20px ずらす spec 修正だけで、waypoints で直交化する方針や lp を線の出ていない辺へ移す方針は示していない"
+        },
+        {
+          "text": "斜めのエッジは diagram-engine.mjs がエラーで止める（目視ではなく生成時に検出される）ことを踏まえている",
+          "passed": true,
+          "evidence": "応答: 『エンジンは斜めの線をエラーで止めます』と述べ、既存出力の斜め区間が 0 であることも機械的に確かめた"
+        },
+        {
+          "text": "エッジラベルは屈曲点を避けて自動配置されるため waypoints でラベルを動かす必要が無く、位置を明示するときは labelAt を使うと示している",
+          "passed": false,
+          "evidence": "labelAt には言及（収まる区間が無いと警告し labelAt を促す）しているが、『旧エンジンはラベルの幅を考えずに置く…角を覆う可能性』としてエンジンを改修しており、ラベルが屈曲点を避けて自動配置されるので waypoints でラベルを動かす必要が無い、とは示していない"
+        },
+        {
+          "text": "再生成 → PNG 目視確認のループで直そうとしている",
+          "passed": true,
+          "evidence": "raw: render-diagram.mjs → preview-diagram.mjs を実行し、修正後に再生成して PNG を再度 Read している"
+        },
+        {
+          "text": "推測で断定せず PNG を実際に確認して判断している",
+          "passed": true,
+          "evidence": "raw: /tmp/architecture-prod-preview.png と local-preview.png を複数回 Read し、目視で再現した 2 件を表に記載"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 107.868,
+        "tokens": 248041,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "未導入なので setup（対話的セットアップ）で進めようとしている",
+          "passed": false,
+          "evidence": "setup の概念が無く、architecture.svg を 1 枚手書きしただけ"
+        },
+        {
+          "text": "starter kit を図の置き場所へ導入し、fetch-aws-icons.mjs で AWS 公式アイコンを取得しようとしている",
+          "passed": false,
+          "evidence": "starter kit も fetch-aws-icons.mjs も使っていない。応答は『AWS 公式アイコンは使っていません。色付きの四角と略称で代用』"
+        },
+        {
+          "text": "CDK のソース（または cdk synth 出力）を情報源として読み、spec（nodes/edges/groups）を手で起こす方針になっている",
+          "passed": false,
+          "evidence": "spec（nodes/edges/groups）を起こしておらず、座標を直接書いた SVG を作った。CDK は『できたら作り直せます』と述べるのみ"
+        },
+        {
+          "text": "references/conventions.md の作図ルール（交差最小・線の直交・軸整列）に従おうとしている",
+          "passed": false,
+          "evidence": "references/conventions.md を参照していない（スキルが無い）"
+        },
+        {
+          "text": "render-diagram.mjs で生成し preview-diagram.mjs で PNG 化して目視確認する流れになっている",
+          "passed": false,
+          "evidence": "render-diagram.mjs・preview-diagram.mjs を使っていない。Chrome で PNG にして確認したと述べるが、指定のスクリプトの流れではない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 6,
+        "total": 6,
+        "time_seconds": 48.398,
+        "tokens": 104761,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "conventions.md の線の直交・ラベル配置・進入位置のルールを参照している",
+          "passed": false,
+          "evidence": "conventions.md を参照していない。Graphviz の diagrams 前提で答えた"
+        },
+        {
+          "text": "waypoints で直交化し、lp（ノードのラベル位置）を線の出ていない辺へ移す方針を示している",
+          "passed": false,
+          "evidence": "waypoints・lp ではなく、Graphviz の splines=ortho・nodesep を提案"
+        },
+        {
+          "text": "斜めのエッジは diagram-engine.mjs がエラーで止める（目視ではなく生成時に検出される）ことを踏まえている",
+          "passed": false,
+          "evidence": "diagram-engine.mjs がエラーで止めることに触れていない"
+        },
+        {
+          "text": "エッジラベルは屈曲点を避けて自動配置されるため waypoints でラベルを動かす必要が無く、位置を明示するときは labelAt を使うと示している",
+          "passed": false,
+          "evidence": "Edge(xlabel=...) と forcelabels を提案。自動配置と labelAt には触れていない"
+        },
+        {
+          "text": "再生成 → PNG 目視確認のループで直そうとしている",
+          "passed": false,
+          "evidence": "応答: 『実際に描画して見た目を確かめることはできていません』。再生成と PNG の目視のループになっていない"
+        },
+        {
+          "text": "推測で断定せず PNG を実際に確認して判断している",
+          "passed": false,
+          "evidence": "PNG を確認せず、原因を推測した表で答えている"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.8334,
+        "stddev": 0.2357,
+        "min": 0.6667,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 166.503,
+        "stddev": 144.1762,
+        "min": 64.555,
+        "max": 268.451
+      },
+      "tokens": {
+        "mean": 1032452,
+        "stddev": 822368.0149,
+        "min": 450950,
+        "max": 1613954
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0,
+        "stddev": 0,
+        "min": 0,
+        "max": 0
+      },
+      "time_seconds": {
+        "mean": 78.133,
+        "stddev": 42.0516,
+        "min": 48.398,
+        "max": 107.868
+      },
+      "tokens": {
+        "mean": 176401,
+        "stddev": 101314.2596,
+        "min": 104761,
+        "max": 248041
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.83",
+      "time_seconds": "+88.4",
+      "tokens": "+856051"
+    }
+  },
+  "notes": [
+    "Issue #567: 使わない語の言い換え（evals.json の prompt・assertion）と fixture の語の更新の後の変更確認。各 eval を with_skill / without_skill で 1 run ずつ実行した（executor: claude-code / opus）。"
+  ]
+}

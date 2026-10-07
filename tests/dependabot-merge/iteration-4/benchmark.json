@@ -1,0 +1,141 @@
+{
+  "metadata": {
+    "skill_name": "dependabot-merge",
+    "skill_path": "<repo>/skills/dependabot-merge",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-07T09:01:37Z",
+    "evals_run": [9],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 18.576,
+        "tokens": 44566,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR が close/supersede された（state が CLOSED・Superseded by #N 等）ことを検知している",
+          "passed": true,
+          "evidence": "『Superseded by #<N> が付いて close されたのは…』として #95 の close/supersede を前提に扱い、補足で state（CLOSED / MERGED）と Dependabot のコメントを見ると気づけると述べる"
+        },
+        {
+          "text": "headRefOid だけでなく state と直近の Dependabot コメントを待機の終了条件に含めている",
+          "passed": true,
+          "evidence": "補足: 『待つ間は headRefOid の変化だけでなく、state（CLOSED / MERGED）と Dependabot の直近のコメントも見ておく』"
+        },
+        {
+          "text": "close された PR を追わず、open な Dependabot PR 一覧を再取得して後継 PR を特定する方針である",
+          "passed": true,
+          "evidence": "手順 1 で #95 の待機をやめ、手順 2 で `gh pr list --state open --author app/dependabot --limit 200` で一覧を取り直し『コメントの番号をそのまま信じず』#101 を確かめる"
+        },
+        {
+          "text": "既に確認済みの更新内容（changelog/影響評価）を後継 PR で再利用する方針である",
+          "passed": true,
+          "evidence": "手順 3: 『#95 で確かめた更新内容（changelog・影響の評価）は #101 でも使える』とし、増えた・変わった分だけを追加で確認するとしている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 17.019,
+        "tokens": 36819,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR が close/supersede された（state が CLOSED・Superseded by #N 等）ことを検知している",
+          "passed": true,
+          "evidence": "『PR #95 が失敗したわけではなく、Dependabot が新しい PR に置き換えただけ』と close/supersede を認識し、改善案で CLOSED かつ未マージの判定を挙げている"
+        },
+        {
+          "text": "headRefOid だけでなく state と直近の Dependabot コメントを待機の終了条件に含めている",
+          "passed": true,
+          "evidence": "スキル側の改善案で『待っている PR が CLOSED になり、かつマージされていない場合は、Dependabot の Superseded by #N コメントを読み取る』と state と Dependabot のコメントを待機の判定に含めている"
+        },
+        {
+          "text": "close された PR を追わず、open な Dependabot PR 一覧を再取得して後継 PR を特定する方針である",
+          "passed": false,
+          "evidence": "後継はコメントの番号から gh pr view 101 で確かめ、改善案でも『その N を待ちキューに入れ直し』とする。open な Dependabot PR 一覧の再取得は『--all をもう一度実行する』として触れるだけで、後継の特定の方法になっていない"
+        },
+        {
+          "text": "既に確認済みの更新内容（changelog/影響評価）を後継 PR で再利用する方針である",
+          "passed": false,
+          "evidence": "『#95 で済ませた確認は #101 には引き継がれません』と、確認済みの内容を再利用しない方針"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 18.576,
+        "stddev": 0,
+        "min": 18.576,
+        "max": 18.576
+      },
+      "tokens": {
+        "mean": 44566,
+        "stddev": 0,
+        "min": 44566,
+        "max": 44566
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.5,
+        "stddev": 0,
+        "min": 0.5,
+        "max": 0.5
+      },
+      "time_seconds": {
+        "mean": 17.019,
+        "stddev": 0,
+        "min": 17.019,
+        "max": 17.019
+      },
+      "tokens": {
+        "mean": 36819,
+        "stddev": 0,
+        "min": 36819,
+        "max": 36819
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.50",
+      "time_seconds": "+1.6",
+      "tokens": "+7747"
+    }
+  },
+  "notes": [
+    "Issue #567: 使わない語の言い換え（evals.json の prompt・assertion）と fixture の語の更新の後の変更確認。各 eval を with_skill / without_skill で 1 run ずつ実行した（executor: claude-code / opus）。",
+    "集計の前の整理（with_skill の skill_usage.invalid_run=true は、; でつないだ読み取りを判定ツールが数え損ねたもので、raw では読んでいる。dependabot-merge eval-4 の without_skill は汚染の判定）:",
+    "- eval-4 をこの iteration から外した（採点できる run が得られなかった）"
+  ]
+}

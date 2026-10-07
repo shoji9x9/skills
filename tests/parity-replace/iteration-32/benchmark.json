@@ -1,0 +1,1587 @@
+{
+  "metadata": {
+    "skill_name": "parity-replace",
+    "skill_path": "<repo>/skills/parity-replace",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-07T09:01:38Z",
+    "evals_run": [2, 4, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 25],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 10,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 38.874,
+        "tokens": 208918,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "アップロード先のルート（upload_route）の変更と保存ファイル名（path）の命名規則の変更を意図的差異として intentional_diffs.pending へ非破壊追記し、個別にユーザー確認へ回す方針を示している（内部実装として警告なしに進めていない）",
+          "passed": true,
+          "evidence": "前提が揃ったら「intentional_diffs.pending に、少なくとも次の 2 件を追記」としてアップロード方式の変更と保存ファイル名の命名規則の変更を挙げ、「pending への追記は…非破壊の記録」「keep / may_change に分類し直すのはご自身の判断」と個別の確認へ回している。"
+        },
+        {
+          "text": "upload_route が未宣言のまま実装せず、設定側（targets[].storage.upload_route）の宣言が先に必要だと示している",
+          "passed": true,
+          "evidence": "「targets[].storage.upload_route を宣言しないまま実装に入ることは禁止されています」「実装より先に…upload_route を presigned として宣言します」と述べている。"
+        },
+        {
+          "text": "「内部実装だから記録不要」を否定し、差異を見る前の一括分類指示には従わず個々の差異を提示して分類を確定させる規約に触れている",
+          "passed": false,
+          "evidence": "「書く必要があります。内部実装の話としては扱えません」と記録不要は否定しているが、差異を見る前の一括分類指示に従わず個々の差異を提示して分類を確定させる規約には触れていない。"
+        },
+        {
+          "text": "前提未達（対象 slug の parity-suite の metadata.json / suite.current_green、verification_commands.full の欠落）を検出して実装工程に入らず停止し、slug を自分で採番していない",
+          "passed": false,
+          "evidence": "parity-suite の metadata.json（current_green）が無いことは検出して停止し、slug も replace-strategy setup で採番すると述べるが、assertion が括弧で明記する verification_commands.full の欠落に触れていない（前提表にも次の手順にも無い）。厳しく判定して不合格。設定ファイルそのものが無い fixture なので、assertion の要素が過剰な可能性がある。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 11,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8333,
+        "passed": 5,
+        "failed": 1,
+        "total": 6,
+        "time_seconds": 36.509,
+        "tokens": 159813,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定の references.coding_conventions から規約を読むと答え、未整備でも停止しないが推測で自分の流儀を持ち込まないと述べている",
+          "passed": true,
+          "evidence": "「規約の場所は設定 `skills.replace-strategy.references.coding_conventions` から読みます」「キーがなくても止まりません」「自分の流儀を推測で持ち込むことはしません」と述べている。"
+        },
+        {
+          "text": "新側が別リポジトリのときは新側リポジトリの基底ドキュメント（AGENTS.md / CLAUDE.md / .github/copilot-instructions.md 等）・リント設定・既存コードを明示的に読みに行くと述べ、実行中のエージェントに載っているのは現側のものなので自動では反映されないことに触れている",
+          "passed": true,
+          "evidence": "「新側リポジトリの基底ドキュメント → リントの設定 → 既存のコードの順で読み取り」と述べ、「読み込んでいる基底ドキュメント（CLAUDE.md など）は現側のものです。そのままでは新側の規約が反映されない」と自動では反映されないことに触れている（レビュー役についての記述だが、実行中のエージェントに載るのが現側のものという点は示している）。"
+        },
+        {
+          "text": "敵対的レビューではレビュー役へ規約を渡す一方、実装意図・確信度の申告・設計判断の経緯は渡さないという区別を示している（porting.md を丸ごと渡していない）",
+          "passed": false,
+          "evidence": "レビュー役に新側の規約を渡すことは述べているが、実装意図・確信度の申告・設計判断の経緯を渡さないという区別には触れていない（porting.md の扱いにも言及が無い）。"
+        },
+        {
+          "text": "規約と振る舞い保存が衝突したら振る舞い保存を優先し、規約に合わせた結果として挙動が変わるなら intentional_diffs.pending へ追記してユーザー確認へ回すと述べている",
+          "passed": true,
+          "evidence": "「規約に合わせた結果、振る舞いが変わる場合は…`intentional_diffs.pending` に記録され、ユーザーの確認待ちになります。規約と振る舞いの維持がぶつかったら、振る舞いの維持が優先です」と述べている。"
+        },
+        {
+          "text": "意図的差異レジストリの keep（テーブル名・項目名・API エンドポイント・関数名）は規約より上位で、規約を理由に変えないと述べている",
+          "passed": true,
+          "evidence": "「意図的差異レジストリの `keep`（テーブル名・項目名・API・関数名）は規約より優先されます。規約を理由にこれらの名前を変えると、レビューで指摘されます」と述べている。"
+        },
+        {
+          "text": "解決できた規約ドキュメントのパスを references.coding_conventions へ非破壊追記すると述べている（setup の再実行を待っていない）",
+          "passed": true,
+          "evidence": "キーが無い場合に読み取った「見つけたパスをこのキーに追記します」と、setup の再実行を待たずに追記すると述べている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 12,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 24.04,
+        "tokens": 107580,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "テーブル追加は新側実装に付随する IaC 差分として扱い、実装してよいと答えている",
+          "passed": true,
+          "evidence": "「新側の実装に必要なテーブルやルートの追加は、実装に付随する IaC の差分として書いてよい範囲です」と答えている。"
+        },
+        {
+          "text": "デプロイワークフローの新規構築は対象外（事前条件）として行わないと答え、区分の原本が replace-strategy の references/scope.md「スキルが行う作業の範囲」だと示している",
+          "passed": false,
+          "evidence": "デプロイワークフローは「このスキルでは作りません」と答え、原本として replace-strategy の references/scope.md に触れているが、assertion が明記する節「スキルが行う作業の範囲」を示していない（「この環境に入っていなかった」とファイル名を挙げるだけ）。厳しく判定して不合格。"
+        },
+        {
+          "text": "書いた付随差分は敵対的レビューと verification_commands.full（cdk synth / terraform validate 等、認証情報や実環境への問い合わせを要さない機械検証）を通すと述べ、パリティスイートが IaC を検証しないことを理由に挙げている",
+          "passed": true,
+          "evidence": "敵対的レビューと verification_commands.full の cdk synth を通し、「パリティスイートは IaC を検証しないため、この 2 つを省けません」、認証情報や実環境への問い合わせが要るコマンドは対象外と述べている。"
+        },
+        {
+          "text": "付随の範囲を超えると判断したら停止してユーザーに上げると述べている",
+          "passed": false,
+          "evidence": "付随の範囲を超えると判断したら停止してユーザーに上げる旨が無い。"
+        },
+        {
+          "text": "現行のインフラ構成と新側 IaC のパリティ比較は対象外であり、突き合わせて差分ゼロにする対象ではないと答えている",
+          "passed": true,
+          "evidence": "「現行インフラと新側 CDK の差分ゼロは必要か → 不要です」「インフラ構成は比較対象ではありません」と答えている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 13,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 30.188,
+        "tokens": 203980,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "クエリ・データアクセスを書く前に設定の references.db_semantics（移植時の点検表）を読む取り決めを示し、方言差の点検を実装後の敵対的レビューに委ねないと答えている（手戻りが最も高くつく層だと説明している）",
+          "passed": true,
+          "evidence": "点検表を references.db_semantics と示し、「点検は書く前に行う」「書いた後のレビューで見つかると、手戻りが一番大きくなります」と、敵対的レビューに委ねないと答えている。"
+        },
+        {
+          "text": "点検項目（NULL の並び順・暗黙の型変換と変換に失敗したときの値・照合順序・連結における NULL の扱い・数値／日付書式のロケール依存）を挙げたうえで、点検表は網羅ではなく実測の代替にもならないと断り、実際の検証は golden-dataset（フェーズ B の一致検証）と parity-suite（並び順の特性化）が担うと述べている",
+          "passed": true,
+          "evidence": "NULL の並び順・暗黙の型変換と変換に失敗したときの値・照合順序・連結の NULL・数値／日付書式のロケール依存の 5 項目を表で挙げ、「点検表は網羅ではありません」「実際の検証は次の工程が担います」として golden-dataset フェーズ B の一致検証と parity-suite の並び順の特性化を挙げている。"
+        },
+        {
+          "text": "references.db_semantics が未整備（キー欠落・空値・解決できないパス）でも停止しないが、方言差を推測で埋めず現行 DB と新 DB それぞれの一次ドキュメントで確認すると述べている",
+          "passed": true,
+          "evidence": "「点検表（references.db_semantics）が無くても止める必要はありません。ただし推測で埋めてはいけません」「現行 DB と新 DB それぞれの公式ドキュメントで確かめます」と述べている。"
+        },
+        {
+          "text": "点検結果を .replace/parity/<slug>/porting.md の「DB 方言差の点検結果」へ記録し、該当なしも「該当なし」と明記する（空欄にすると差が無いのか未点検なのか区別できない）と述べている",
+          "passed": true,
+          "evidence": "「porting.md の『DB 方言差の点検結果』表に必ず書きます。差が無かった項目も『該当なし』と書きます。空欄だと…区別できません」と述べている。"
+        },
+        {
+          "text": "実装で吸収しないと決めた差は intentional_diffs.pending へ非破壊追記してユーザー確認へ回すと述べ、実装者が単独で「許容」と判定していない",
+          "passed": true,
+          "evidence": "「差を吸収しないと決めた場合…自分で『許容』と判断せず、intentional_diffs.pending に追記してユーザーに確認します」と述べている。"
+        },
+        {
+          "text": "パリティスイートが green であることや型検査・テストの通過を点検の代替にしないと述べている（絞り込みが誤って全件を返すようになる類の差はデータ件数が少ないと green のまま残る）",
+          "passed": true,
+          "evidence": "「型検査もテストも通った」を点検の代わりにしないとし、「絞り込みが効かずに全件を取ってしまう差…件数が少ないと…green のまま残ります」と説明している。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 14,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 31.648,
+        "tokens": 201044,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定の verification_commands の値がコマンドのリストで、実行される範囲（全体走査か差分限定か）が宣言されていないことを検出している",
+          "passed": true,
+          "evidence": "「verification_commands が古い形式（リスト）のまま…full と diff の区別がありません」と検出している。"
+        },
+        {
+          "text": "未宣言を「全体走査」として扱わず、実装工程に入らず停止して full / diff の 2 列への移行をユーザーに促している",
+          "passed": true,
+          "evidence": "手順 1 で停止して実装に入らず、「少なくとも full: を書いてください」「verification_commands を full / diff の形に移す」と促している。リストを全体走査として扱っていない。"
+        },
+        {
+          "text": "リストの中身を自分で full / diff へ振り分けず、移行の原本（replace-strategy の references/project-config.md）を示してユーザーに委ねている",
+          "passed": false,
+          "evidence": "リストを自分で振り分けてはいないが、移行の原本を「スキーマ文書の『verification_commands の形の変更』」とだけ書き、assertion が明記する replace-strategy の references/project-config.md を示していない。"
+        },
+        {
+          "text": "完了判定（新側 green ＋検証コマンド）が verification_commands.full で行われるため、full が確定しないと完了判定が成立しないことを理由に挙げている",
+          "passed": false,
+          "evidence": "理由は「変更分だけ通した結果が『全体で通った』と記録されてしまいます」で、完了判定（新側 green ＋検証コマンド）が verification_commands.full で行われるため full が確定しないと完了判定が成立しない、という理由を挙げていない。"
+        },
+        {
+          "text": "実装・porting.md・replace-metadata.json を捏造せず、検証コマンドを自分で推測して補っていない",
+          "passed": true,
+          "evidence": "project-files は fixture の 4 ファイルのみで without_skill と同一内容（md5 一致）。porting.md・replace-metadata.json は無く、検証コマンドも補っていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 15,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 23.425,
+        "tokens": 112660,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "差分限定（verification_commands.diff）が緑でも完了判定にはならず、手順 8 では verification_commands.full を回すと述べている",
+          "passed": true,
+          "evidence": "pre-commit を verification_commands.diff に当たると特定し、「手順 8 の完了判定は、いつも full で行います。diff が通っていても full は省けません」と述べている。"
+        },
+        {
+          "text": "design token の削除で参照エラーになる相手が変更集合の外のファイルにいるため、変更ファイルだけを渡す検査では原理的に捕まらないと理由を述べている",
+          "passed": true,
+          "evidence": "「削除したトークンをまだ参照しているファイルは、変更していないので変更ファイルの一覧に入りません。つまり差分だけの検証では、参照漏れは仕組み上見つかりません」と述べている。"
+        },
+        {
+          "text": "削除・改名を含む変更では敵対的レビュー前（手順 7）の検査も full へ前倒しすると述べている",
+          "passed": true,
+          "evidence": "「手順 7 では、design token のような定義元を削除・改名したときは、レビューの前に full を実行することになっています」と述べている。"
+        },
+        {
+          "text": "実行した列（full / diff）を replace-metadata.json の証跡に記録すると述べている",
+          "passed": false,
+          "evidence": "「verification_commands.full が通り、その結果を new/local-dev/replace-metadata.json の verification に記録する」と full の結果の記録には触れるが、実行した列（full / diff）を記録するとは述べていない。厳しく判定して不合格。"
+        },
+        {
+          "text": "full を回す前に完了・green を名乗らず、完了判定を済んだことにしていない",
+          "passed": true,
+          "evidence": "「まだ完了とは言えません」と述べ、full は実行していない（new-app が無い）と明記している。project-files は fixture のまま（without_skill と md5 一致）。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 16,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 22.187,
+        "tokens": 159552,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "保留は差の文章だけで足さず、追記元が分かる形（item と slug、追記したスキル名、追記日）で書くと答えている",
+          "passed": true,
+          "evidence": "「1 行の文章だけでは足りません」とし、item・slug・added_by・added_at の 4 キーを持つ形の YAML 例を示している。"
+        },
+        {
+          "text": "slug には対象機能の slug、追記したスキル名には parity-replace を書くと具体的に示している",
+          "passed": true,
+          "evidence": "例で slug: order-list、added_by: parity-replace と具体的に示している。"
+        },
+        {
+          "text": "要素の形の原本が replace-strategy のスキーマ文書（references/project-config.md）であることを示し、その内容を自分で決め直していない",
+          "passed": false,
+          "evidence": "形の根拠を parity-replace の SKILL.md:138 としており、原本が replace-strategy のスキーマ文書（references/project-config.md）であることを示していない。"
+        },
+        {
+          "text": "追記元が分かる形にする理由として、機能を閉じるときの棚卸しでこの機能が積んだ保留を列挙できるようにすること（帰属が無いと判断待ちが機能をまたいで積み上がること）を挙げている",
+          "passed": false,
+          "evidence": "理由として「item 以外のキー名で書くと…parity-diff が保留を整理するときに…見つかる」を挙げるだけで、機能を閉じるときの棚卸しでこの機能が積んだ保留を列挙するため（帰属が無いと判断待ちが機能をまたいで積み上がる）という理由が無い。"
+        },
+        {
+          "text": "keep へ移すのは人間の作業であり、明らかに見えても自分では移さずユーザー確認へ回すと断っている",
+          "passed": true,
+          "evidence": "「keep と may_change に移すのは人間の役割で、スキルが書いてよいのは pending だけです」「明らかに変えなくてよさそうな方も…pending に足すまでにとどめます」と断っている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 17,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 22.269,
+        "tokens": 112753,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "レビュー開始から結果受領まで実装役はレビュー対象ファイルを編集せず、対象を書き換える操作や検証コマンドも実行しない取り決めを示している",
+          "passed": true,
+          "evidence": "「続けないでください」とし、対象ファイルの編集・対象を書き換える操作・検証コマンドの実行をしないと列挙している。"
+        },
+        {
+          "text": "待ち時間に進められる作業をレビュー対象と重ならない範囲に限定している",
+          "passed": true,
+          "evidence": "「待つ間に進めてよいのは、レビューの対象と重ならない作業だけです」と限定し、例を挙げている。"
+        },
+        {
+          "text": "途中で対象を変更した場合は進行中のレビュー結果を採用せず、変更と検証後に差分および未追跡ファイルの内容を再取得して新しいラウンドとして渡すと説明している",
+          "passed": true,
+          "evidence": "「そのラウンドの結果は採用しません」とし、修正と検証の後に `git diff`・`git diff --staged` と未追跡ファイルの内容を取り直して新しいラウンドとして渡すと説明している。"
+        },
+        {
+          "text": "レビュー役には固定した差分本文と未追跡ファイルの内容を対象として明示し、起動後の作業ツリーをレビュー対象へ混ぜないと説明している",
+          "passed": true,
+          "evidence": "固定した時点の `git diff` / `git diff --staged` の本文と未追跡ファイルの内容を対象とし、「起動後の作業ツリーは対象に含めず、『渡した本文だけが対象』と明示します」と説明している。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 18,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 29.555,
+        "tokens": 112683,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "機能の中でコピーの仕方を決めて進めず、.replace/assets.md に方針空欄の行（アイコン用の書体）を追記してユーザーに確認する、と台帳へ戻す扱いを示している",
+          "passed": true,
+          "evidence": "「.replace/assets.md に行を追記する…方針は空欄のまま」「3 つの方針を示して、ユーザーに決めてもらう」と台帳へ戻している。"
+        },
+        {
+          "text": "候補として実体をコピーする／同等物を作る／コピーしないを、再配布の可否や残る差とともに示し、推測で方針を埋めていない",
+          "passed": true,
+          "evidence": "実体をコピーする／同等物を作る／コピーしないの 3 案を、再配布の可否と残る差の列を持つ表で示し、方針は決めていない。"
+        },
+        {
+          "text": "方針が決まるまでその資産に依存する実装単位（閉じるボタン）を進めないと述べている（依存しない部分を進めるのは可）",
+          "passed": true,
+          "evidence": "「閉じるボタンのアイコンの実装単位は止め」「アイコンに依存しない…作業は進めてよい」と述べている。"
+        },
+        {
+          "text": "porting.md には判断を書かず、台帳の行を指す 1 行だけを残すと述べている",
+          "passed": true,
+          "evidence": "「porting.md には TODO（判断待ち: assets.md の該当行）の 1 行だけを残します」と述べ、porting.md に方針を書くことは禁止と説明している。"
+        },
+        {
+          "text": "SVG で輪郭を描く（同等物を作る）と決まった場合は、縁の平滑化の差が残るため実装前にユーザー承認を得て intentional_diffs.may_change へ宣言すると述べている",
+          "passed": true,
+          "evidence": "SVG（同等物）を選ぶ場合は「ユーザーの承認を得て、intentional_diffs.may_change に宣言を追記する」とし、残る差として輪郭・太さ・アンチエイリアス（縁の平滑化）のずれを挙げている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 19,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8571,
+        "passed": 6,
+        "failed": 1,
+        "total": 7,
+        "time_seconds": 33.721,
+        "tokens": 160732,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "display のような「箱の作り方」を変える宣言は箱の寸法・中身の配置・匿名ボックスの生成を同時に変えるため、1 つの次元の一致を他の次元の一致の根拠にしないと述べている",
+          "passed": true,
+          "evidence": "「display: table と table-layout: fixed は、箱の作り方を変える宣言です。次の 3 つを同時に変えます」として箱の寸法・中身の配置・匿名ボックスの生成を挙げ、「1 つの次元が一致しても、他の次元が一致している根拠にはなりません」と述べている。"
+        },
+        {
+          "text": "文字の位置だけでなく箱の寸法（getBoundingClientRect の高さと getComputedStyle().height）を現・新の両側で測って並べるよう求めている",
+          "passed": true,
+          "evidence": "「箱の寸法: セルの getBoundingClientRect() と getComputedStyle().height。小数まで比べます」を両側で並べるよう求めている。"
+        },
+        {
+          "text": "display: table は高さが中身で決まるため block の新側と寸法が食い違いうると述べている",
+          "passed": true,
+          "evidence": "「display: table のときの箱の高さは中身で決まります。そのため、現側だけが 31.0156px…新側が 31px になることがあります」と述べている。"
+        },
+        {
+          "text": "この形の差は特性照合（測れない要素がある）・画素（差が小さい）・aria（寸法を見ない）の 3 つの比較方法のどれにも出ないことがあり、人が数値を見るまで出ないと述べている",
+          "passed": true,
+          "evidence": "特性照合（新側に div が無く比べる相手がいない）・画素（差が 0.0156px 程度だと出ない）・パリティスイート（値・ラベル・役割しか見ない＝aria で寸法を見ない）がすり抜けると述べ、「最後の砦は人の目」としている。aria という語は無いが、役割だけを見る比較として挙げている。"
+        },
+        {
+          "text": "反映しない結論と矛盾しない観測ではなく、結論が誤りなら違う値になる観測を選ぶと述べている",
+          "passed": true,
+          "evidence": "「今回の観測は、『反映しない』が誤っていても同じ値になります。結論を確かめる観測になっていません」とし、行を高くした状態で測るなど、誤りなら値が変わる観測を求めている。"
+        },
+        {
+          "text": "測った結果と判断を porting.md の「移行元の宣言を反映しないと決めた箇所」へ記録する（該当なしも書く）と述べている",
+          "passed": false,
+          "evidence": "porting.md の「移行元の宣言を反映しないと決めた箇所」に記録すると述べ表の形も示すが、assertion が括弧で明記する「該当なしも書く」に触れていない。厳しく判定して不合格。"
+        },
+        {
+          "text": "測らないまま反映しない判断を確定して次のページへ進むと答えていない",
+          "passed": true,
+          "evidence": "「まだ確定せず、次のページへも進まないでください」と答えている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 21.531,
+        "tokens": 205243,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".replace/features.md と replace-strategy の設定が無い（setup 未完了）ことを検出している",
+          "passed": true,
+          "evidence": "前提表で `.config/skills/shoji9x9/skills.yml` と `.replace/features.md` がどちらも無いと検出している。project-files は空。"
+        },
+        {
+          "text": "slug を自分で採番せず features.md から読む取り決めを守っている",
+          "passed": true,
+          "evidence": "「features.md が無いので order-list という slug が正しいか…確認できていません」と書き、slug は replace-strategy setup で決まると案内している。自分で採番していない。"
+        },
+        {
+          "text": "実装を始めず停止し、replace-strategy setup の実行を促している",
+          "passed": true,
+          "evidence": "「手順 1（前提の検証）で停止しました。実装・ブランチ作成・ファイルの書き込みは何もしていません」、次の手順 2 で replace-strategy setup の実行を促している。project-files は空。"
+        },
+        {
+          "text": "golden-dataset や対象 slug の parity-suite など後続の前提も合わせて案内している",
+          "passed": true,
+          "evidence": "golden-dataset（フェーズ A）と parity-suite --feature order-list を前提表と次の手順で案内している。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 20,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 29.665,
+        "tokens": 169324,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "共有された型への必須プロパティの追加は、その型のリテラルを書いている変更集合の外のファイルを壊すため、敵対的レビュー前（手順 7）でも verification_commands.full へ前倒しすると述べている",
+          "passed": true,
+          "evidence": "手順 7 の規定に照らし「まだレビュー役へ渡さないでください。verification_commands.full を先に回す必要があります」「その型のリテラルを書いている別パッケージ…は変更集合に入らないので、diff では仕組み上検出できません」と述べている。"
+        },
+        {
+          "text": "前倒しの判断を操作名（削除・改名）の一覧ではなく、変更集合の外にあるファイルの判定を変えるか（型検査など判定が他ファイルに依存する検査）で行うと述べている",
+          "passed": true,
+          "evidence": "「前倒しが要るかどうかは、ファイルを削除・改名したかでは決まりません。変更集合の外にあるコードの合否を変える変更かどうかで決まります」「見るべきは、型検査を含む full」と述べている。"
+        },
+        {
+          "text": "別パッケージのテストが緑であることを前倒し不要の根拠にせず、スタブに足りないプロパティが undefined になって古い形の assertion が通りうると述べている",
+          "passed": false,
+          "evidence": "別パッケージのテストが緑でも根拠にならない理由を「テストランナーが型検査をしないなら、型の不足は実行時に出ず」とするだけで、assertion が明記する「スタブに足りないプロパティが undefined になって古い形の assertion が通りうる」に触れていない。厳しく判定して不合格。"
+        },
+        {
+          "text": "前倒しして full を回したことを replace-metadata.json の検証証跡（escalated_to_full と実行した列）に記録すると述べている",
+          "passed": true,
+          "evidence": "replace-metadata.json の verification.diff_run に commands（回した diff 列）と escalated_to_full: true を記録する例を示している。"
+        },
+        {
+          "text": "回答内で、削除・改名が無いので差分限定のまま敵対的レビューへ進んでよいと矛盾する結論を併記していない",
+          "passed": true,
+          "evidence": "結論は一貫して full の前倒しで、差分限定のまま進めてよいという結論を併記していない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 21,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 3,
+        "failed": 3,
+        "total": 6,
+        "time_seconds": 24.98,
+        "tokens": 112398,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "網羅表は移行元側の測定なので、スイートの green と unmeasured 0 だけでは新側で操作を完了できる証拠にならないと指摘している",
+          "passed": false,
+          "evidence": "「component_coverage.declared: true は完了の証拠になりません。これは新側との突き合わせが必要だという意味です」と述べるが、網羅表が移行元側の測定であることを理由として示しておらず、unmeasured 0 については evidence-gap-check の話に逸れている。厳しく判定して不合格。"
+        },
+        {
+          "text": "value: present のセルごとに new/<target>/component-comparison.json へ突き合わせを書くのが本スキルの担当だと答えている",
+          "passed": true,
+          "evidence": "「new/<target>/component-comparison.json に present のセル 1 つにつき 1 行を書く」を必要な対応として挙げている。"
+        },
+        {
+          "text": "起点・当たり判定・完了の 3 点を観測して記録すると答えている",
+          "passed": true,
+          "evidence": "「起点・当たり判定・完了の観測を記録」と答えている。"
+        },
+        {
+          "text": "突き合わせられないセルは理由を書き、突き合わせないことを選ぶなら利用者の承認（approved_by / approved_at）が要ると答えている",
+          "passed": false,
+          "evidence": "突き合わせられないセルに理由を書くことや、突き合わせないことを選ぶ場合の利用者の承認（approved_by / approved_at）に触れていない。"
+        },
+        {
+          "text": "インストール済みの parity-suite の component-comparison-check.mjs を exit 0 まで通すと述べ、parity-diff の収束判定も同じスクリプトを呼ぶため通していないと差し戻されると説明している",
+          "passed": false,
+          "evidence": "「component-comparison-check.mjs を exit 0 まで通す」「この確認をしないと、parity-diff の収束判定で差し戻されます」とは述べるが、インストール済みの parity-suite のスクリプトであることも、parity-diff が同じスクリプトを呼ぶという理由も示していない。厳しく判定して不合格。"
+        },
+        {
+          "text": "記録先が環境別（new/<target>/ 配下）であることに触れている",
+          "passed": true,
+          "evidence": "記録先を new/<target>/component-comparison.json・new/<target>/asset-delivery.json・new/<target>/replace-metadata.json と環境別に書いている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 25,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 35.522,
+        "tokens": 114470,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "favicon を used: false で外すことを認めない（記録に used は書けず、この機能の画面でもタブに出るので自分で外す根拠も無い）と答えている",
+          "passed": true,
+          "evidence": "「used というキーはありません」「タブにしか出ないことは、外す理由ではなく、この検査がある理由」「台帳が全ページ」と、used: false で外すことを認めていない。"
+        },
+        {
+          "text": "exit 1 のままでは完了を名乗らない（未完了）と答えている",
+          "passed": true,
+          "evidence": "「favicon の検査が exit 0 になるまでは、完了と報告しないでください」「本物の未完了です」と答えている。"
+        },
+        {
+          "text": "新側の index.html（配信物）から favicon を指すよう直し、新側の画面でプローブを再取得して突き合わせ（asset-delivery-check）を exit 0 まで通し直すと述べている",
+          "passed": true,
+          "evidence": "新側の index.html に link rel=icon を追加し、「新側の画面で asset-probe.mjs を当て直し」「asset-delivery-check.mjs が exit 0 になるまで通します」と述べている。"
+        },
+        {
+          "text": "参照に加えて、新側が配る favicon のバイトが移行元の配信物と一致することも確かめる対象だと述べている",
+          "passed": true,
+          "evidence": "「確かめる内容は、参照していることと、バイトが移行元と一致することの 2 つです」と述べている。"
+        },
+        {
+          "text": "突き合わせないことを選ぶなら自分で決めず、利用者の承認（disposition: accepted と承認者・承認日）が要ると述べている",
+          "passed": true,
+          "evidence": "「disposition: accepted に reason・approved_by・approved_at を付けて外す方法もあります」と、利用者の承認が要ると述べ、判断は「台帳の上で利用者が行います」としている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 22.106,
+        "tokens": 111611,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "リントを off にしない原則で拒否している（ロケータマッピング層が現側の非セマンティックさを隔離するため新側を改善してもスイートは失敗しない）",
+          "passed": true,
+          "evidence": "「リントを off にして差異を消すこと」を禁止事項として拒否し、「ロケータマッピングの層が、現行側のセマンティックでない部分を切り離しているため」新側を正しく直してもスイートは失敗しないと理由を書いている。"
+        },
+        {
+          "text": "推測で実装しない原則で拒否している（判断できない箇所は TODO で未解決を明示しレビューへ回す）",
+          "passed": true,
+          "evidence": "「判断できない箇所は、コードに TODO で未解決と書いて敵対的レビューに回します」と推測実装を拒否している。"
+        },
+        {
+          "text": "リント無効化も推測実装もしていない",
+          "passed": true,
+          "evidence": "project-files は空で、「何も変更していません」。リント無効化も推測実装もしていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 41.173,
+        "tokens": 271957,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "develop が start を持たない配信型 target であることを踏まえ、軽量な手順を確認なしに自動適用していない",
+          "passed": true,
+          "evidence": "「develop には start が無く…配信型の環境です」と述べ、軽量な手順は「当たる見込み」としつつ未解決のため進めず手順 1 で停止している。"
+        },
+        {
+          "text": "develop に commit_check が無いため、稼働中のコードが commit abc1234def5678 かをユーザーに確認する必要がある旨を述べている",
+          "passed": true,
+          "evidence": "「commit_check が定義されていません。この場合…commit abc1234def5678 が develop にデプロイされているかを利用者に確認する必要があり、確認が取れなければ当てない」と述べている。"
+        },
+        {
+          "text": "local-dev の green 証跡（.replace/parity/order-list/new/local-dev/replace-metadata.json）を develop の green 証跡として流用していない",
+          "passed": true,
+          "evidence": "local-dev の証跡を読んだうえで「develop では green 化していません」とし、流用していない。"
+        },
+        {
+          "text": ".replace/parity/order-list/new/develop/replace-metadata.json を捏造していない（project-files に存在しない）",
+          "passed": true,
+          "evidence": "project-files に .replace/parity/order-list/new/develop/replace-metadata.json は無い（new/local-dev のみ）。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 21.238,
+        "tokens": 98729,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "サブエージェントを起動できないことを理由に敵対的レビューを省略せず押し戻している（型検査・テストの通過を代替根拠にしていない）",
+          "passed": true,
+          "evidence": "「敵対的レビューを型検査とテストで代わりにすることはできません」「サブエージェントを起動できないことも、省略の理由にはなりません」と押し戻している。"
+        },
+        {
+          "text": "代替として、差分だけを人間のレビュアーへ渡してレビューを受ける方法を示している（実装意図・確信度・設計判断は渡さない）",
+          "passed": true,
+          "evidence": "「差分だけを人間のレビュアーに渡してレビューを受ける」と示している。実装意図・確信度・設計判断を渡さないことは明示していないが、「差分だけ」と限定している。"
+        },
+        {
+          "text": "レビュー結果と対応を review.md に記録する方針を示している（レビュー役が人間であった旨を含む）",
+          "passed": true,
+          "evidence": "「レビュー役が人間だったことと、結果・対応を review.md に記録します」と述べている。"
+        },
+        {
+          "text": "サブエージェント起動の可否は着手前に確認すべき前提であり、工程 7 で初めて判明する事態を避ける旨に触れている",
+          "passed": false,
+          "evidence": "サブエージェント起動の可否を着手前に確かめるべき前提だとも、工程 7 で初めて判明する事態を避けるとも述べていない（「サブエージェントを起動できる環境で実行する」という選択肢を挙げるだけ）。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 23.562,
+        "tokens": 158187,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "骨格（フレームワーク・ディレクトリ構成・API 設計方針）を自分で決めず押し戻している（具体的なフレームワーク名・構成の選定や新側実装コードを書き始めていない）",
+          "passed": true,
+          "evidence": "「ご希望の進め方はこのスキルの前提と合いません」と押し戻し、フレームワーク名の選定も実装コードも書いていない（project-files は空）。"
+        },
+        {
+          "text": "骨格は事前定義でスキル群の対象外であり、決定記録は設定の references.architecture が持つ取り決めを説明している",
+          "passed": true,
+          "evidence": "「骨格は references.architecture の決定記録を読んで従うだけで、スキルが決めることはできません」「骨格の決定はスキルの対象外」と説明している。"
+        },
+        {
+          "text": "references.architecture が未整備（キー欠落・空値・解決できないパス）なら部品の採否・実装工程（手順 3 以降）に入らず停止する挙動を示している",
+          "passed": false,
+          "evidence": "「references.architecture が無ければ手順 3（部品と依存の決定）の前で止まります」とキー欠落の場合は示すが、assertion が括弧で明記する空値・解決できないパスの場合に触れていない。厳しく判定して不合格。"
+        },
+        {
+          "text": "新側リポジトリに骨格が既に実装されている場合に限り実態から読み取った内容を下書きとして提示でき、確定はユーザーが行うという例外の範囲を守っている（読み取れる前提を勝手に置いて実装へ進んでいない）",
+          "passed": true,
+          "evidence": "「新側リポジトリにすでに骨格があれば、そこから下書きを作ることはできますが、確定するのはあなたです」と例外の範囲を守り、実装へ進んでいない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 10,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 4,
+        "total": 4,
+        "time_seconds": 26.792,
+        "tokens": 83850,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "アップロード先のルート（upload_route）の変更と保存ファイル名（path）の命名規則の変更を意図的差異として intentional_diffs.pending へ非破壊追記し、個別にユーザー確認へ回す方針を示している（内部実装として警告なしに進めていない）",
+          "passed": false,
+          "evidence": "記録すべきとは述べるが、intentional_diffs.pending への非破壊追記にも個別のユーザー確認にも触れていない。"
+        },
+        {
+          "text": "upload_route が未宣言のまま実装せず、設定側（targets[].storage.upload_route）の宣言が先に必要だと示している",
+          "passed": false,
+          "evidence": "targets[].storage.upload_route の宣言に触れていない。"
+        },
+        {
+          "text": "「内部実装だから記録不要」を否定し、差異を見る前の一括分類指示には従わず個々の差異を提示して分類を確定させる規約に触れている",
+          "passed": false,
+          "evidence": "「どちらも書くべき」と記録不要は否定しているが、一括分類指示に従わず個々の差異を提示する規約に触れていない。"
+        },
+        {
+          "text": "前提未達（対象 slug の parity-suite の metadata.json / suite.current_green、verification_commands.full の欠落）を検出して実装工程に入らず停止し、slug を自分で採番していない",
+          "passed": false,
+          "evidence": "作業ディレクトリが空だとするだけで、parity-suite の metadata.json / current_green や verification_commands.full の欠落を検出していない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 11,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 6,
+        "total": 6,
+        "time_seconds": 29.345,
+        "tokens": 88863,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定の references.coding_conventions から規約を読むと答え、未整備でも停止しないが推測で自分の流儀を持ち込まないと述べている",
+          "passed": false,
+          "evidence": "references.coding_conventions に触れていない（スキルが見つからず反映されるか判断できないと答えている）。"
+        },
+        {
+          "text": "新側が別リポジトリのときは新側リポジトリの基底ドキュメント（AGENTS.md / CLAUDE.md / .github/copilot-instructions.md 等）・リント設定・既存コードを明示的に読みに行くと述べ、実行中のエージェントに載っているのは現側のものなので自動では反映されないことに触れている",
+          "passed": false,
+          "evidence": "旧側リポジトリをカレントにすると新側の CLAUDE.md は読まれない可能性があるとは述べるが、対処は新側をチェックアウトしたディレクトリで作業することで、新側の基底ドキュメント・リント設定・既存コードを明示的に読みに行くとは述べていない。"
+        },
+        {
+          "text": "敵対的レビューではレビュー役へ規約を渡す一方、実装意図・確信度の申告・設計判断の経緯は渡さないという区別を示している（porting.md を丸ごと渡していない）",
+          "passed": false,
+          "evidence": "レビュー役に規約ファイルを明示的に渡す指示例は示すが、実装意図・確信度・設計判断の経緯を渡さないという区別が無い。"
+        },
+        {
+          "text": "規約と振る舞い保存が衝突したら振る舞い保存を優先し、規約に合わせた結果として挙動が変わるなら intentional_diffs.pending へ追記してユーザー確認へ回すと述べている",
+          "passed": false,
+          "evidence": "規約と振る舞い保存が衝突したときの優先や intentional_diffs.pending への追記に触れていない（規約違反と挙動の差分を分けて報告させるとだけ述べる）。"
+        },
+        {
+          "text": "意図的差異レジストリの keep（テーブル名・項目名・API エンドポイント・関数名）は規約より上位で、規約を理由に変えないと述べている",
+          "passed": false,
+          "evidence": "intentional_diffs.keep が規約より上位であることに触れていない。"
+        },
+        {
+          "text": "解決できた規約ドキュメントのパスを references.coding_conventions へ非破壊追記すると述べている（setup の再実行を待っていない）",
+          "passed": false,
+          "evidence": "規約ドキュメントのパスを references.coding_conventions へ追記することに触れていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 12,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2,
+        "passed": 1,
+        "failed": 4,
+        "total": 5,
+        "time_seconds": 27.415,
+        "tokens": 52672,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "テーブル追加は新側実装に付随する IaC 差分として扱い、実装してよいと答えている",
+          "passed": true,
+          "evidence": "「CDK のスタックに dynamodb.Table を足すだけで済みます」と、新側の実装に要るテーブル追加を行ってよいと答えている。付随差分という語は無いが、依頼の文脈（新側の実装で足す必要が出た）のまま肯定している。"
+        },
+        {
+          "text": "デプロイワークフローの新規構築は対象外（事前条件）として行わないと答え、区分の原本が replace-strategy の references/scope.md「スキルが行う作業の範囲」だと示している",
+          "passed": false,
+          "evidence": "「別の作業に切り出すべき」「雛形を作るだけならできます」と答え、対象外（事前条件）とも、区分の原本が references/scope.md だとも示していない。"
+        },
+        {
+          "text": "書いた付随差分は敵対的レビューと verification_commands.full（cdk synth / terraform validate 等、認証情報や実環境への問い合わせを要さない機械検証）を通すと述べ、パリティスイートが IaC を検証しないことを理由に挙げている",
+          "passed": false,
+          "evidence": "敵対的レビュー・verification_commands.full、パリティスイートが IaC を検証しないことに触れていない（cdk diff を見るよう勧めている）。"
+        },
+        {
+          "text": "付随の範囲を超えると判断したら停止してユーザーに上げると述べている",
+          "passed": false,
+          "evidence": "付随の範囲を超えたら停止してユーザーに上げる旨が無い。"
+        },
+        {
+          "text": "現行のインフラ構成と新側 IaC のパリティ比較は対象外であり、突き合わせて差分ゼロにする対象ではないと答えている",
+          "passed": false,
+          "evidence": "「差分ゼロを目標にする必要はありません。ただし、差分を突き合わせる作業そのものは必要です」と、インフラの突き合わせを必要な作業としており、対象外とは答えていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 13,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 6,
+        "total": 6,
+        "time_seconds": 50.041,
+        "tokens": 37634,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "クエリ・データアクセスを書く前に設定の references.db_semantics（移植時の点検表）を読む取り決めを示し、方言差の点検を実装後の敵対的レビューに委ねないと答えている（手戻りが最も高くつく層だと説明している）",
+          "passed": false,
+          "evidence": "実装前に点検表を作るよう勧めるが、設定の references.db_semantics を読む取り決めは示していない。手戻りが最も高くつく層だという説明も無い。"
+        },
+        {
+          "text": "点検項目（NULL の並び順・暗黙の型変換と変換に失敗したときの値・照合順序・連結における NULL の扱い・数値／日付書式のロケール依存）を挙げたうえで、点検表は網羅ではなく実測の代替にもならないと断り、実際の検証は golden-dataset（フェーズ B の一致検証）と parity-suite（並び順の特性化）が担うと述べている",
+          "passed": false,
+          "evidence": "NULL の並び順・照合順序・連結の NULL・暗黙の型変換は挙げるが、変換に失敗したときの値や数値／日付書式のロケール依存が無く、実際の検証を golden-dataset（フェーズ B）と parity-suite（並び順の特性化）が担うとも述べていない（ファジングやシャドー比較を挙げている）。"
+        },
+        {
+          "text": "references.db_semantics が未整備（キー欠落・空値・解決できないパス）でも停止しないが、方言差を推測で埋めず現行 DB と新 DB それぞれの一次ドキュメントで確認すると述べている",
+          "passed": false,
+          "evidence": "references.db_semantics が未整備の場合の扱いや、両 DB の一次ドキュメントで確認することに触れていない。"
+        },
+        {
+          "text": "点検結果を .replace/parity/<slug>/porting.md の「DB 方言差の点検結果」へ記録し、該当なしも「該当なし」と明記する（空欄にすると差が無いのか未点検なのか区別できない）と述べている",
+          "passed": false,
+          "evidence": "記録は要ると述べるが、.replace/parity/<slug>/porting.md の「DB 方言差の点検結果」や「該当なし」の明記に触れていない。"
+        },
+        {
+          "text": "実装で吸収しないと決めた差は intentional_diffs.pending へ非破壊追記してユーザー確認へ回すと述べ、実装者が単独で「許容」と判定していない",
+          "passed": false,
+          "evidence": "intentional_diffs.pending への非破壊追記に触れていない（「差を受け入れた判断は誰かの承認が必要」と一般論のみ）。"
+        },
+        {
+          "text": "パリティスイートが green であることや型検査・テストの通過を点検の代替にしないと述べている（絞り込みが誤って全件を返すようになる類の差はデータ件数が少ないと green のまま残る）",
+          "passed": false,
+          "evidence": "green では「試した入力では差が出なかった」ことしか分からないと述べるが、型検査・テストの通過に触れず、assertion が括弧で明記する「絞り込みが誤って全件を返す差がデータ件数が少ないと green のまま残る」という理由が無い（境界の入力の欠如を理由にしている）。厳しく判定して不合格。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 14,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2,
+        "passed": 1,
+        "failed": 4,
+        "total": 5,
+        "time_seconds": 22.91,
+        "tokens": 105241,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定の verification_commands の値がコマンドのリストで、実行される範囲（全体走査か差分限定か）が宣言されていないことを検出している",
+          "passed": false,
+          "evidence": "verification_commands がリストで範囲が未宣言であることに触れていない（「npm run lint と npm run typecheck … で検証する」とそのまま使う前提）。"
+        },
+        {
+          "text": "未宣言を「全体走査」として扱わず、実装工程に入らず停止して full / diff の 2 列への移行をユーザーに促している",
+          "passed": false,
+          "evidence": "停止はしているが理由はスキルと参照先の不在で、full / diff への移行を促していない。"
+        },
+        {
+          "text": "リストの中身を自分で full / diff へ振り分けず、移行の原本（replace-strategy の references/project-config.md）を示してユーザーに委ねている",
+          "passed": false,
+          "evidence": "移行の原本を示していない。"
+        },
+        {
+          "text": "完了判定（新側 green ＋検証コマンド）が verification_commands.full で行われるため、full が確定しないと完了判定が成立しないことを理由に挙げている",
+          "passed": false,
+          "evidence": "verification_commands.full と完了判定の関係に触れていない。"
+        },
+        {
+          "text": "実装・porting.md・replace-metadata.json を捏造せず、検証コマンドを自分で推測して補っていない",
+          "passed": true,
+          "evidence": "project-files は fixture の 4 ファイルのみ（変更・追加なし）。設定にある npm run lint / typecheck を挙げるだけで、検証コマンドを推測で足していない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 15,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4,
+        "passed": 2,
+        "failed": 3,
+        "total": 5,
+        "time_seconds": 21.994,
+        "tokens": 54394,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "差分限定（verification_commands.diff）が緑でも完了判定にはならず、手順 8 では verification_commands.full を回すと述べている",
+          "passed": false,
+          "evidence": "diff だけが緑で full が未実行だと指摘しているが、完了判定の手順（手順 8）で full を回すという取り決めとしては述べていない（full を「確認すべきケース」とするだけ）。厳しく判定して不合格。"
+        },
+        {
+          "text": "design token の削除で参照エラーになる相手が変更集合の外のファイルにいるため、変更ファイルだけを渡す検査では原理的に捕まらないと理由を述べている",
+          "passed": true,
+          "evidence": "「pre-commit が見ているのは変更ファイルだけです。ほかのコンポーネントやページの CSS がまだ var(--旧トークン) を参照していても、検査対象に入りません」と述べている。"
+        },
+        {
+          "text": "削除・改名を含む変更では敵対的レビュー前（手順 7）の検査も full へ前倒しすると述べている",
+          "passed": false,
+          "evidence": "削除・改名を含む変更で敵対的レビュー前の検査を full へ前倒しすることに触れていない。"
+        },
+        {
+          "text": "実行した列（full / diff）を replace-metadata.json の証跡に記録すると述べている",
+          "passed": false,
+          "evidence": "replace-metadata.json に実行した列を記録することに触れていない。"
+        },
+        {
+          "text": "full を回す前に完了・green を名乗らず、完了判定を済んだことにしていない",
+          "passed": true,
+          "evidence": "「まだ完了扱いにはできません」と述べ、full の実行を完了判定までの手順に挙げている。project-files は fixture のまま。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 16,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2,
+        "passed": 1,
+        "failed": 4,
+        "total": 5,
+        "time_seconds": 24.345,
+        "tokens": 70742,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "保留は差の文章だけで足さず、追記元が分かる形（item と slug、追記したスキル名、追記日）で書くと答えている",
+          "passed": false,
+          "evidence": "1 行では足りないとするが、挙げるのは差の内容・根拠・影響範囲・推奨などで、item と slug・追記したスキル名・追記日という追記元が分かる形ではない。"
+        },
+        {
+          "text": "slug には対象機能の slug、追記したスキル名には parity-replace を書くと具体的に示している",
+          "passed": false,
+          "evidence": "slug や追記したスキル名（parity-replace）を示していない。"
+        },
+        {
+          "text": "要素の形の原本が replace-strategy のスキーマ文書（references/project-config.md）であることを示し、その内容を自分で決め直していない",
+          "passed": false,
+          "evidence": "replace-strategy のスキーマ文書に触れず、項目を自分で決めている。"
+        },
+        {
+          "text": "追記元が分かる形にする理由として、機能を閉じるときの棚卸しでこの機能が積んだ保留を列挙できるようにすること（帰属が無いと判断待ちが機能をまたいで積み上がること）を挙げている",
+          "passed": false,
+          "evidence": "機能を閉じるときの棚卸しで保留を列挙するという理由を挙げていない（理由はユーザーが即答できるため）。"
+        },
+        {
+          "text": "keep へ移すのは人間の作業であり、明らかに見えても自分では移さずユーザー確認へ回すと断っている",
+          "passed": true,
+          "evidence": "「移さずに、保留に残すのをおすすめします。そのため、ご依頼のこの部分は実行していません」「ユーザーが判断すべき内容です」と断っている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 17,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 4,
+        "total": 4,
+        "time_seconds": 23.238,
+        "tokens": 35037,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "レビュー開始から結果受領まで実装役はレビュー対象ファイルを編集せず、対象を書き換える操作や検証コマンドも実行しない取り決めを示している",
+          "passed": false,
+          "evidence": "「続けて大丈夫です」と、レビュー中も同じ対象ファイルの実装と検証を作業中のファイルで続けてよいと答えている。"
+        },
+        {
+          "text": "待ち時間に進められる作業をレビュー対象と重ならない範囲に限定している",
+          "passed": false,
+          "evidence": "待ち時間の作業をレビュー対象と重ならない範囲に限定せず、スナップショットを取れば同じファイルを編集してよいとしている。"
+        },
+        {
+          "text": "途中で対象を変更した場合は進行中のレビュー結果を採用せず、変更と検証後に差分および未追跡ファイルの内容を再取得して新しいラウンドとして渡すと説明している",
+          "passed": false,
+          "evidence": "途中で直した場合は指摘を 1 件ずつ今のコードで確かめ直すとしており、進行中のレビュー結果を採用せず差分と未追跡ファイルを再取得して新しいラウンドとして渡すとは説明していない。"
+        },
+        {
+          "text": "レビュー役には固定した差分本文と未追跡ファイルの内容を対象として明示し、起動後の作業ツリーをレビュー対象へ混ぜないと説明している",
+          "passed": false,
+          "evidence": "レビュー役にはファイルのスナップショット（コピーとハッシュ）を渡し作業中のファイルを読ませないとするが、固定した差分本文と未追跡ファイルの内容を対象として明示してはいない。厳しく判定して不合格。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 18,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 23.126,
+        "tokens": 35197,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "機能の中でコピーの仕方を決めて進めず、.replace/assets.md に方針空欄の行（アイコン用の書体）を追記してユーザーに確認する、と台帳へ戻す扱いを示している",
+          "passed": false,
+          "evidence": "assets.md にアイコン書体の行を足すとは述べるが、方針を空欄にしてユーザーに確認するのではなく、「再現方法を決める（優先順）」と自分で方針を決める流れになっている。"
+        },
+        {
+          "text": "候補として実体をコピーする／同等物を作る／コピーしないを、再配布の可否や残る差とともに示し、推測で方針を埋めていない",
+          "passed": false,
+          "evidence": "候補は「同じ書体をそのまま使う」「公式 SVG を使う」の 2 つだけで、コピーしない案も各案の再配布の可否も示していない。"
+        },
+        {
+          "text": "方針が決まるまでその資産に依存する実装単位（閉じるボタン）を進めないと述べている（依存しない部分を進めるのは可）",
+          "passed": false,
+          "evidence": "「どうしても今すぐ先へ進む場合は porting.md に未解決（TODO）と明記」と、方針未定のまま進める道を示しており、依存する実装単位を止めるとは述べていない。"
+        },
+        {
+          "text": "porting.md には判断を書かず、台帳の行を指す 1 行だけを残すと述べている",
+          "passed": false,
+          "evidence": "porting.md に元の実装・新しい実装・出どころ・比較結果・残った差を書くとしており、台帳の行を指す 1 行だけにしていない。"
+        },
+        {
+          "text": "SVG で輪郭を描く（同等物を作る）と決まった場合は、縁の平滑化の差が残るため実装前にユーザー承認を得て intentional_diffs.may_change へ宣言すると述べている",
+          "passed": false,
+          "evidence": "SVG にする場合のユーザー承認や intentional_diffs.may_change への宣言に触れていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 19,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2857,
+        "passed": 2,
+        "failed": 5,
+        "total": 7,
+        "time_seconds": 28.727,
+        "tokens": 38136,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "display のような「箱の作り方」を変える宣言は箱の寸法・中身の配置・匿名ボックスの生成を同時に変えるため、1 つの次元の一致を他の次元の一致の根拠にしないと述べている",
+          "passed": false,
+          "evidence": "table-layout: fixed は縦位置の規則ではないと指摘するが、display が箱の寸法・中身の配置・匿名ボックスの生成を同時に変えるため 1 次元の一致を他の根拠にしない、という説明が無い。"
+        },
+        {
+          "text": "文字の位置だけでなく箱の寸法（getBoundingClientRect の高さと getComputedStyle().height）を現・新の両側で測って並べるよう求めている",
+          "passed": false,
+          "evidence": "getBoundingClientRect や getComputedStyle().height による箱の寸法の測定を求めていない（下端の位置や列幅の比較を挙げる）。"
+        },
+        {
+          "text": "display: table は高さが中身で決まるため block の新側と寸法が食い違いうると述べている",
+          "passed": false,
+          "evidence": "display: table の高さが中身で決まり block と寸法が食い違いうることに触れていない。"
+        },
+        {
+          "text": "この形の差は特性照合（測れない要素がある）・画素（差が小さい）・aria（寸法を見ない）の 3 つの比較方法のどれにも出ないことがあり、人が数値を見るまで出ないと述べている",
+          "passed": false,
+          "evidence": "特性照合・画素・aria のいずれにも出ないことがあるとは述べていない（スクリーンショット比較で拾えるとしている）。"
+        },
+        {
+          "text": "反映しない結論と矛盾しない観測ではなく、結論が誤りなら違う値になる観測を選ぶと述べている",
+          "passed": true,
+          "evidence": "「規則を外しても何も変わらなければ、その条件はこの規則の有無を見分けられない…規則を外すと現行の見た目が変わる条件を見つけ、その条件で新側と比べて」と、結論が誤りなら違う値になる観測を選ぶよう述べている。"
+        },
+        {
+          "text": "測った結果と判断を porting.md の「移行元の宣言を反映しないと決めた箇所」へ記録する（該当なしも書く）と述べている",
+          "passed": false,
+          "evidence": "porting.md の「移行元の宣言を反映しないと決めた箇所」への記録に触れていない。"
+        },
+        {
+          "text": "測らないまま反映しない判断を確定して次のページへ進むと答えていない",
+          "passed": true,
+          "evidence": "「まだ確定しないでください」と答え、確定は規則を外して変化が無いと確かめた後としている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 4,
+        "total": 4,
+        "time_seconds": 16.248,
+        "tokens": 59286,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".replace/features.md と replace-strategy の設定が無い（setup 未完了）ことを検出している",
+          "passed": false,
+          "evidence": "「parity-replace というスキルがない」「作業ディレクトリが空」とだけ述べ、.replace/features.md や replace-strategy の設定が無いことには触れていない。"
+        },
+        {
+          "text": "slug を自分で採番せず features.md から読む取り決めを守っている",
+          "passed": false,
+          "evidence": "features.md にも slug の取り決めにも触れていない。"
+        },
+        {
+          "text": "実装を始めず停止し、replace-strategy setup の実行を促している",
+          "passed": false,
+          "evidence": "作業は止めているが、replace-strategy setup の実行を促していない（スキルの配置や手作業の情報を求めている）。"
+        },
+        {
+          "text": "golden-dataset や対象 slug の parity-suite など後続の前提も合わせて案内している",
+          "passed": false,
+          "evidence": "golden-dataset・parity-suite に触れていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 20,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 57.335,
+        "tokens": 59893,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "共有された型への必須プロパティの追加は、その型のリテラルを書いている変更集合の外のファイルを壊すため、敵対的レビュー前（手順 7）でも verification_commands.full へ前倒しすると述べている",
+          "passed": true,
+          "evidence": "「まだ渡さないでください。先に全体の検証（full の列）を回す必要があります」「共有している型に必須プロパティを足すと、その型を使う変更外のファイルが壊れます」と述べ、緑になってからレビュー役に渡すとしている。"
+        },
+        {
+          "text": "前倒しの判断を操作名（削除・改名）の一覧ではなく、変更集合の外にあるファイルの判定を変えるか（型検査など判定が他ファイルに依存する検査）で行うと述べている",
+          "passed": true,
+          "evidence": "「削除も改名もしていないだけでは差分限定にしてよい理由にならない」「影響が差分の外に出ている時点で、差分限定の検証では足りません」とし、diff の列に型検査が無いことを挙げている。"
+        },
+        {
+          "text": "別パッケージのテストが緑であることを前倒し不要の根拠にせず、スタブに足りないプロパティが undefined になって古い形の assertion が通りうると述べている",
+          "passed": false,
+          "evidence": "型を消して実行するランナーなら必須プロパティが欠けていても通ると述べるが、スタブのプロパティが undefined になり古い形の assertion が通りうるという点に触れていない。厳しく判定して不合格。"
+        },
+        {
+          "text": "前倒しして full を回したことを replace-metadata.json の検証証跡（escalated_to_full と実行した列）に記録すると述べている",
+          "passed": false,
+          "evidence": "証跡として理由・影響範囲・実行記録を挙げるが、replace-metadata.json の escalated_to_full と実行した列の記録に触れていない。"
+        },
+        {
+          "text": "回答内で、削除・改名が無いので差分限定のまま敵対的レビューへ進んでよいと矛盾する結論を併記していない",
+          "passed": true,
+          "evidence": "結論は一貫して full を回してから渡すで、矛盾する結論を併記していない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 21,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 6,
+        "total": 6,
+        "time_seconds": 22.749,
+        "tokens": 37201,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "網羅表は移行元側の測定なので、スイートの green と unmeasured 0 だけでは新側で操作を完了できる証拠にならないと指摘している",
+          "passed": false,
+          "evidence": "declared は自己申告で表に載らない部品は数えられないと指摘するが、網羅表が移行元側の測定で新側の操作完了の証拠にならないという指摘ではない。"
+        },
+        {
+          "text": "value: present のセルごとに new/<target>/component-comparison.json へ突き合わせを書くのが本スキルの担当だと答えている",
+          "passed": false,
+          "evidence": "value: present のセルごとの component-comparison.json への突き合わせに触れていない。"
+        },
+        {
+          "text": "起点・当たり判定・完了の 3 点を観測して記録すると答えている",
+          "passed": false,
+          "evidence": "起点・当たり判定・完了の観測に触れていない。"
+        },
+        {
+          "text": "突き合わせられないセルは理由を書き、突き合わせないことを選ぶなら利用者の承認（approved_by / approved_at）が要ると答えている",
+          "passed": false,
+          "evidence": "突き合わせられないセルの理由や承認（approved_by / approved_at）に触れていない。"
+        },
+        {
+          "text": "インストール済みの parity-suite の component-comparison-check.mjs を exit 0 まで通すと述べ、parity-diff の収束判定も同じスクリプトを呼ぶため通していないと差し戻されると説明している",
+          "passed": false,
+          "evidence": "component-comparison-check.mjs に触れていない。"
+        },
+        {
+          "text": "記録先が環境別（new/<target>/ 配下）であることに触れている",
+          "passed": false,
+          "evidence": "記録先が new/<target>/ 配下の環境別であることに触れていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 25,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2,
+        "passed": 1,
+        "failed": 4,
+        "total": 5,
+        "time_seconds": 20.891,
+        "tokens": 17998,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "favicon を used: false で外すことを認めない（記録に used は書けず、この機能の画面でもタブに出るので自分で外す根拠も無い）と答えている",
+          "passed": false,
+          "evidence": "used: false は不可とするが、理由は「事実と違う」「証跡の改ざん」で、assertion が括弧で明記する「記録に used は書けない」に触れていない。"
+        },
+        {
+          "text": "exit 1 のままでは完了を名乗らない（未完了）と答えている",
+          "passed": true,
+          "evidence": "「完了判定は未完了（blocked）とします」と答えている。"
+        },
+        {
+          "text": "新側の index.html（配信物）から favicon を指すよう直し、新側の画面でプローブを再取得して突き合わせ（asset-delivery-check）を exit 0 まで通し直すと述べている",
+          "passed": false,
+          "evidence": "index.html を直して突き合わせを再実行し exit 0 を確認するとは述べるが、新側の画面でプローブを再取得することに触れていない。厳しく判定して不合格。"
+        },
+        {
+          "text": "参照に加えて、新側が配る favicon のバイトが移行元の配信物と一致することも確かめる対象だと述べている",
+          "passed": false,
+          "evidence": "新側が配る favicon のバイトが移行元と一致することを確かめる対象として挙げていない。"
+        },
+        {
+          "text": "突き合わせないことを選ぶなら自分で決めず、利用者の承認（disposition: accepted と承認者・承認日）が要ると述べている",
+          "passed": false,
+          "evidence": "対象外にするなら assets.md の行を承認者付きで変えると述べるが、disposition: accepted と承認者・承認日の記録には触れていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 1,
+        "failed": 2,
+        "total": 3,
+        "time_seconds": 27.279,
+        "tokens": 56049,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "リントを off にしない原則で拒否している（ロケータマッピング層が現側の非セマンティックさを隔離するため新側を改善してもスイートは失敗しない）",
+          "passed": false,
+          "evidence": "リント全体を off にしないとは述べるが、理由は「本当のずれが見えなくなる」で、assertion が括弧で明記するロケータマッピング層の隔離による根拠が無い。"
+        },
+        {
+          "text": "推測で実装しない原則で拒否している（判断できない箇所は TODO で未解決を明示しレビューへ回す）",
+          "passed": false,
+          "evidence": "「推測で埋めず、TODO と未実装の例外を置いて一覧で報告する」とあり TODO は満たすが、assertion が明記する「レビューへ回す」が無い（一覧で報告するだけ）。厳しく判定して不合格。"
+        },
+        {
+          "text": "リント無効化も推測実装もしていない",
+          "passed": true,
+          "evidence": "作業ディレクトリが空で何も変更していない。project-files も空。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 31.474,
+        "tokens": 75304,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "develop が start を持たない配信型 target であることを踏まえ、軽量な手順を確認なしに自動適用していない",
+          "passed": true,
+          "evidence": "「develop は PR マージ後に自動デプロイされる環境」と配信型であることを踏まえ、実行せず停止している。軽量な手順の自動適用はしていない。"
+        },
+        {
+          "text": "develop に commit_check が無いため、稼働中のコードが commit abc1234def5678 かをユーザーに確認する必要がある旨を述べている",
+          "passed": true,
+          "evidence": "「develop で動いているコミットを確認できない…確認手段が設定にありません」と述べ、続行の条件に「develop にデプロイされているコミットが abc1234def5678 だと確認する」を挙げている。commit_check の名前は出さないが、確認手段が無いので確認が要る旨は述べている。"
+        },
+        {
+          "text": "local-dev の green 証跡（.replace/parity/order-list/new/local-dev/replace-metadata.json）を develop の green 証跡として流用していない",
+          "passed": true,
+          "evidence": "「local-dev が green なのは seed 済みの local-dev 上での結果です。develop で同じ結果になる根拠にはなりません」と流用していない。"
+        },
+        {
+          "text": ".replace/parity/order-list/new/develop/replace-metadata.json を捏造していない（project-files に存在しない）",
+          "passed": true,
+          "evidence": "project-files に new/develop/replace-metadata.json は無い。応答も「作っていません」。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 4,
+        "total": 4,
+        "time_seconds": 12.499,
+        "tokens": 33913,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "サブエージェントを起動できないことを理由に敵対的レビューを省略せず押し戻している（型検査・テストの通過を代替根拠にしていない）",
+          "passed": false,
+          "evidence": "「方針は了解しました。今後の作業ではサブエージェントによる敵対的レビューを省き、代わりに型検査とテストを実行」と依頼を受け入れている。"
+        },
+        {
+          "text": "代替として、差分だけを人間のレビュアーへ渡してレビューを受ける方法を示している（実装意図・確信度・設計判断は渡さない）",
+          "passed": false,
+          "evidence": "人間のレビュアーに差分を渡す方法を示していない。"
+        },
+        {
+          "text": "レビュー結果と対応を review.md に記録する方針を示している（レビュー役が人間であった旨を含む）",
+          "passed": false,
+          "evidence": "review.md への記録に触れていない。"
+        },
+        {
+          "text": "サブエージェント起動の可否は着手前に確認すべき前提であり、工程 7 で初めて判明する事態を避ける旨に触れている",
+          "passed": false,
+          "evidence": "着手前に確認すべき前提であることに触れていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 20.829,
+        "tokens": 83080,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "骨格（フレームワーク・ディレクトリ構成・API 設計方針）を自分で決めず押し戻している（具体的なフレームワーク名・構成の選定や新側実装コードを書き始めていない）",
+          "passed": true,
+          "evidence": "「新しいフレームワークやディレクトリ構成を勝手に決めて実装すると…ここで止める」と押し戻している。Hono・FastAPI は候補の例として挙げただけで選定しておらず、コードも書いていない。"
+        },
+        {
+          "text": "骨格は事前定義でスキル群の対象外であり、決定記録は設定の references.architecture が持つ取り決めを説明している",
+          "passed": false,
+          "evidence": "骨格がスキル群の対象外であることにも references.architecture にも触れていない。"
+        },
+        {
+          "text": "references.architecture が未整備（キー欠落・空値・解決できないパス）なら部品の採否・実装工程（手順 3 以降）に入らず停止する挙動を示している",
+          "passed": false,
+          "evidence": "references.architecture が未整備なら停止するという挙動を示していない。"
+        },
+        {
+          "text": "新側リポジトリに骨格が既に実装されている場合に限り実態から読み取った内容を下書きとして提示でき、確定はユーザーが行うという例外の範囲を守っている（読み取れる前提を勝手に置いて実装へ進んでいない）",
+          "passed": false,
+          "evidence": "新側リポジトリに骨格が実装済みの場合の下書きの例外に触れていない。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.8106,
+        "stddev": 0.1859,
+        "min": 0.5,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 28.4552,
+        "stddev": 6.5413,
+        "min": 21.238,
+        "max": 41.173
+      },
+      "tokens": {
+        "mean": 154535.2222,
+        "stddev": 48532.1232,
+        "min": 98729,
+        "max": 271957
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.2038,
+        "stddev": 0.2643,
+        "min": 0,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 27.0687,
+        "stddev": 10.7844,
+        "min": 12.499,
+        "max": 57.335
+      },
+      "tokens": {
+        "mean": 56916.1111,
+        "stddev": 23567.3143,
+        "min": 17998,
+        "max": 105241
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.61",
+      "time_seconds": "+1.4",
+      "tokens": "+97619"
+    }
+  },
+  "notes": [
+    "Issue #567: 使わない語の言い換え（evals.json の prompt・assertion）と fixture の語の更新の後の変更確認。各 eval を with_skill / without_skill で 1 run ずつ実行した（executor: claude-code / opus）。",
+    "集計の前の整理（with_skill の skill_usage.invalid_run=true は、; でつないだ読み取りを判定ツールが数え損ねたもので、raw では読んでいる。dependabot-merge eval-4 の without_skill は汚染の判定）:",
+    "- eval-11/with_skill/run-1 を集計から外した",
+    "- eval-11/with_skill/run-2 を集計から外した",
+    "- eval-11/with_skill/run-3 を run-1 にして集計した",
+    "- eval-17/with_skill/run-1 を集計から外した",
+    "- eval-17/with_skill/run-2 を run-1 にして集計した"
+  ]
+}

@@ -1,0 +1,585 @@
+{
+  "metadata": {
+    "skill_name": "issue-batch",
+    "skill_path": "<repo>/skills/issue-batch",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-07T09:01:38Z",
+    "evals_run": [6, 7, 9, 15, 17, 18, 20],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 15,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 19.521,
+        "tokens": 66222,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Copilot では current transcript を同定できず candidate scanner が形式を検証できないと判定する",
+          "passed": true,
+          "evidence": "Copilot は transcript を渡さないので現在の transcript を特定できず、候補 0 件で進めるのは「現在の transcript とスキャナの検出能力を確かめた場合に限られる」ため確かめられない、と判定している。"
+        },
+        {
+          "text": "候補ゼロを推測や、別形式で検出されることを確かめただけで成立させない",
+          "passed": true,
+          "evidence": "「0 件だから何もしないで進む」は使えないとし、0 件として扱わない。再実行の条件も「スキャナがそれを読めることを確かめてから」としている。"
+        },
+        {
+          "text": "run の変更前に BLOCKED とし、Kaizen を省略して続行しない",
+          "passed": true,
+          "evidence": "「run 101 は、何かを変更する前に BLOCKED にします」とし、branch / worktree は作らず Kaizen を省いた続行もしない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 17,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 38.682,
+        "tokens": 167084,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "CLI の --merge-mode agent を当該 run の解決値にし、skills.yml を書き換えない",
+          "passed": true,
+          "evidence": "merge mode の解決値を CLI の agent とし、「設定ファイルへの影響: ありません」と書き、skills.yml も fixture から変わっていない。"
+        },
+        {
+          "text": "agent mode では PR の状況を自分で実測してから merge するため auto-merge の許可を前提にしない",
+          "passed": true,
+          "evidence": "agent では merge の直前に必須の check・mergeable・merge 状態を実際に確かめ、MERGED を確かめると述べ、auto-merge の許可を前提にしていない（merge queue が必須の場合だけ同じ確認が要ると区別）。"
+        },
+        {
+          "text": "設定どおりの auto mode では repository の allow_auto_merge を preflight で実測する",
+          "passed": true,
+          "evidence": "auto のときは preflight で gh api repos/{owner}/{repo} --jq .allow_auto_merge を実行して true を確かめると述べている。"
+        },
+        {
+          "text": "allow_auto_merge が false なら repository 設定を無人で変更せず、全体を停止して setup か --merge-mode agent を案内する",
+          "passed": true,
+          "evidence": "false なら設定もリポジトリ設定も無人では書き換えず全体を止め、issue-batch setup のやり直しか --merge-mode agent でのやり直しを案内すると述べている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 18,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 37.169,
+        "tokens": 142088,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "gh pr checks --required の非 0 終了を取得失敗と混同せず、必須チェック 0 件であることを区別する",
+          "passed": true,
+          "evidence": "gh pr checks --required の req_rc が 0 以外になり req_err に `no required checks reported` が出ることを「取得の失敗」と扱わず、必須チェック 0 件として区別している。"
+        },
+        {
+          "text": "必須チェック 0 件では required の pass を merge 根拠にせず、--required なしの全 check の bucket に同じ規則を当てる",
+          "passed": true,
+          "evidence": "「必須チェックがすべて pass」は対象が空なので merge の根拠にせず、--required なしの全 check の bucket（fail / cancel / pending / pass / skipping）に規則を当てる表を示している。"
+        },
+        {
+          "text": "必須チェック 0 件では UNSTABLE（必須でない check の失敗）の免除を適用しない",
+          "passed": true,
+          "evidence": "「mergeStateStatus: UNSTABLE の免除は使いません」とし、必須が 0 件なので UNSTABLE は BLOCKED にすると述べている。"
+        },
+        {
+          "text": "全 check も 0 件なら pass 扱いにせず、check を根拠にしていないことを manifest に明示する",
+          "passed": true,
+          "evidence": "CI が無い場合は check を pass 扱いにせず、manifest と最終報告に「CI が設定されていないので、check を根拠にしていない」と明記すると述べている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 20,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 52.021,
+        "tokens": 194130,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR URL と解決済みの max_pr_iterations を pr-finalize-loop <PR URL> --max-iterations 5 に渡す",
+          "passed": true,
+          "evidence": "渡すコマンドを `pr-finalize-loop <PR_URL_101> --max-iterations 5` とし、渡すのは PR の URL と max_pr_iterations（5）の 2 つだけと述べている。"
+        },
+        {
+          "text": "CI・全 reviewer の thread / review body・再レビュー依頼は pr-finalize-loop が受け持ち、issue-batch 自身から review_tool への再レビュー依頼を出さない",
+          "passed": true,
+          "evidence": "pr-finalize-loop が CI の監視、すべてのレビュアーの thread と review 本文、再レビューの依頼を受け持ち、issue-batch は「リモートの AI レビューの依頼、レビューツールを決めること」を受け持たず review_tool も渡さないと述べている。"
+        },
+        {
+          "text": "wait_ci_before_review が true のときだけ --wait-ci-before-review を足す（設定は false なので今回は付けない）",
+          "passed": true,
+          "evidence": "false なので --wait-ci-before-review は付けず、true なら `... --max-iterations 5 --wait-ci-before-review` になると対比している。"
+        },
+        {
+          "text": "収束しなければ BLOCKED / FAILED とし、隔離できるなら continue_on_blocked の方針に従って次 Issue へ進む",
+          "passed": true,
+          "evidence": "収束しなければ Issue 101 を BLOCKED か FAILED にし、continue_on_blocked: true で影響が 101 の worktree の中だけなら次の Issue に進むと述べている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 38.656,
+        "tokens": 178253,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "auth: user と禁止されたデータ変更を preflight で検出する",
+          "passed": true,
+          "evidence": "preflight の確認表で staging の auth: user を BLOCKED の理由として検出し、forbidden_actions の data update も禁止した操作として同じ表で検出している（単独では止めず、受け入れ条件に要るなら BLOCKED と判定）。"
+        },
+        {
+          "text": "ログインや禁止操作解除を求めず当該 Issue を BLOCKED にする",
+          "passed": true,
+          "evidence": "「無人では実行できず、preflight で BLOCKED になります」とし、ログインの待ちや禁止の解除を求めていない（設定を直すのは利用者で issue-batch は書き換えないと明記）。"
+        },
+        {
+          "text": "browser-test handoff 後に設定ファイルを再読させない取り決めに言及する",
+          "passed": true,
+          "evidence": "「handoff の後に、browser-test に設定ファイルを読み直させません。preflight で決めた値に固定します」と述べている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 28.857,
+        "tokens": 123083,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "変更パスと UI / API 逆引き結果を根拠に browser-test を not-applicable とする",
+          "passed": true,
+          "evidence": "変更した .md が画面に使われていないかを UI / API を通して逆にたどり、「変更したパスと、逆にたどった結果を根拠に not-applicable にする」と答えている。"
+        },
+        {
+          "text": "判定と根拠を manifest（検証名・結果・証拠 URL / SHA）と PR 本文の非適用根拠として残す",
+          "passed": true,
+          "evidence": "manifest に「検証名: browser-test / 結果: not-applicable / 証拠: commit SHA・変更パス・逆引きの結果」を残し、PR 本文の必須項目「browser-test の結果か対象外の根拠」に書くと示している。"
+        },
+        {
+          "text": "逆引きの根拠を示せないときは not-applicable と名乗らず、browser-test 実行か BLOCKED として扱う",
+          "passed": true,
+          "evidence": "判定しきれない場合は「not-applicable にはしません」とし、影響ありとして browser-test --scope branch と同じ方法で確かめるか、preflight で安全を確かめられないなどなら BLOCKED にすると答えている。"
+        },
+        {
+          "text": "無条件なページ巡回を行わない",
+          "passed": true,
+          "evidence": "not-applicable なら browser-test を呼ばず、判定しきれない場合も対象を逆引きした branch スコープの確認に限っており、無条件なページ巡回を提案していない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 24.137,
+        "tokens": 94346,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "デフォルトでは隔離可能な BLOCKED 後も Issue 102 を続行する",
+          "passed": true,
+          "evidence": "既定（continue_on_blocked: true）では、101 の影響はその worktree の中だけなので 102 を通常どおり処理し run 全体を続行すると答えている。"
+        },
+        {
+          "text": "--stop-on-blocked では Issue 101 で停止する",
+          "passed": true,
+          "evidence": "--stop-on-blocked では 102 に着手せず、101 が BLOCKED になった時点で停止すると答えている。"
+        },
+        {
+          "text": "共有認証失敗は option にかかわらず全体停止する",
+          "passed": true,
+          "evidence": "共有の GitHub 認証の失敗は「option に関係なく全体を停止する」と答えている。"
+        },
+        {
+          "text": "既定の続行方針は setup 済みの continue_on_blocked で定義され、--stop-on-blocked は当該 run だけ上書きし skills.yml を書き換えない",
+          "passed": true,
+          "evidence": "既定は skills.yml の skills.issue-batch.continue_on_blocked（issue-batch setup で確定）で決まり、--stop-on-blocked はこの run だけ false として扱い設定ファイルは書き換えないと答えている。"
+        },
+        {
+          "text": "BLOCKED の Issue 101 の worktree を削除せず、絶対パスと残作業を最終報告に残す",
+          "passed": true,
+          "evidence": "BLOCKED の worktree は削除せず、最終報告に worktree を絶対パスで、停止の理由と残りの作業とともに載せると答えている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 15,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 1,
+        "failed": 2,
+        "total": 3,
+        "time_seconds": 29.823,
+        "tokens": 99113,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Copilot では current transcript を同定できず candidate scanner が形式を検証できないと判定する",
+          "passed": false,
+          "evidence": "transcript が取れないことは判定しているが、candidate scanner が形式を検証できないことには触れていない。"
+        },
+        {
+          "text": "候補ゼロを推測や、別形式で検出されることを確かめただけで成立させない",
+          "passed": true,
+          "evidence": "「候補ゼロ」ではなく「未実施／判定不能」として扱い、別セッションの transcript などの代わりのデータで候補をでっち上げないとしている。"
+        },
+        {
+          "text": "run の変更前に BLOCKED とし、Kaizen を省略して続行しない",
+          "passed": false,
+          "evidence": "「run 101 は止めません。Kaizen は振り返りのための付帯処理」として Kaizen を SKIPPED にして続行するとしている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 17,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 61.055,
+        "tokens": 106327,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "CLI の --merge-mode agent を当該 run の解決値にし、skills.yml を書き換えない",
+          "passed": true,
+          "evidence": "merge_mode の解決値を CLI の agent とし、skills.yml の merge_mode: auto は書き換えないと述べている。skills.yml も fixture から変わっていない。"
+        },
+        {
+          "text": "agent mode では PR の状況を自分で実測してから merge するため auto-merge の許可を前提にしない",
+          "passed": true,
+          "evidence": "「GitHub の auto-merge には頼りません。エージェント自身が PR のマージ可能状態を確認」と述べている。"
+        },
+        {
+          "text": "設定どおりの auto mode では repository の allow_auto_merge を preflight で実測する",
+          "passed": true,
+          "evidence": "auto の preflight で repository の allow_auto_merge を gh api で確かめると述べている。"
+        },
+        {
+          "text": "allow_auto_merge が false なら repository 設定を無人で変更せず、全体を停止して setup か --merge-mode agent を案内する",
+          "passed": false,
+          "evidence": "false のときの主な扱いを「その run だけ agent に切り替え」て進めることとし、停止は「安全側に倒すなら」の代案にとどまる。setup の案内も無い。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 18,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 46.665,
+        "tokens": 83507,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "gh pr checks --required の非 0 終了を取得失敗と混同せず、必須チェック 0 件であることを区別する",
+          "passed": true,
+          "evidence": "必須チェック 0 件を「全部通った」と扱わず、gh pr checks は check が無いと非 0 で終わるので終了コードではなく中身で判断すると、取得の失敗と区別している。"
+        },
+        {
+          "text": "必須チェック 0 件では required の pass を merge 根拠にせず、--required なしの全 check の bucket に同じ規則を当てる",
+          "passed": false,
+          "evidence": "全 check に広げる方針はあるが、check-runs と status の API の conclusion で判定するとし、--required なしの gh pr checks の bucket に同じ規則を当てる形ではない。厳しく判定して不合格。"
+        },
+        {
+          "text": "必須チェック 0 件では UNSTABLE（必須でない check の失敗）の免除を適用しない",
+          "passed": false,
+          "evidence": "UNSTABLE（必須でない check の失敗）の免除に触れていない。"
+        },
+        {
+          "text": "全 check も 0 件なら pass 扱いにせず、check を根拠にしていないことを manifest に明示する",
+          "passed": false,
+          "evidence": "CI が無い場合は「該当なし（N/A：CI 未構成）」を run report に明記するとし、pass 扱いにはしないが、manifest に check を根拠にしていないと明示するとは述べていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 20,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 48.626,
+        "tokens": 72544,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR URL と解決済みの max_pr_iterations を pr-finalize-loop <PR URL> --max-iterations 5 に渡す",
+          "passed": false,
+          "evidence": "pr-finalize-loop に触れず、Issue・PR・repo・head_sha・review_tool など多数の値を推測の「PR収束担当」に渡すとしている。"
+        },
+        {
+          "text": "CI・全 reviewer の thread / review body・再レビュー依頼は pr-finalize-loop が受け持ち、issue-batch 自身から review_tool への再レビュー依頼を出さない",
+          "passed": false,
+          "evidence": "収束担当が「Copilot へのレビュー依頼と再依頼」を行い review_tool: copilot も渡すとしており、pr-finalize-loop が受け持つ形でも、issue-batch から review_tool を切り離す形でもない。"
+        },
+        {
+          "text": "wait_ci_before_review が true のときだけ --wait-ci-before-review を足す（設定は false なので今回は付けない）",
+          "passed": false,
+          "evidence": "--wait-ci-before-review のフラグに触れず、wait_ci_before_review の値そのものを渡すとしている。"
+        },
+        {
+          "text": "収束しなければ BLOCKED / FAILED とし、隔離できるなら continue_on_blocked の方針に従って次 Issue へ進む",
+          "passed": true,
+          "evidence": "収束しなければ blocked として記録し、continue_on_blocked: true なので次の Issue に進む（依存する Issue はスキップ）と述べている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 1,
+        "failed": 2,
+        "total": 3,
+        "time_seconds": 38.406,
+        "tokens": 107617,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "auth: user と禁止されたデータ変更を preflight で検出する",
+          "passed": true,
+          "evidence": "auth: user を不合格のブロッカーとして検出し、forbidden_actions: [data update] も確認が必要な点として検出している。"
+        },
+        {
+          "text": "ログインや禁止操作解除を求めず当該 Issue を BLOCKED にする",
+          "passed": false,
+          "evidence": "Issue を BLOCKED にするという扱いではなく「バッチを始める前に止める」とし、対処の 2 として対話セッションで「ログインの場面だけ人が対応する」ことを勧めている。"
+        },
+        {
+          "text": "browser-test handoff 後に設定ファイルを再読させない取り決めに言及する",
+          "passed": false,
+          "evidence": "「browser-test 側は同じ skills.yml の browser-test.environments から設定を引きます」と、handoff 後に設定ファイルを読む前提を述べており、再読させない取り決めに触れていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 25.603,
+        "tokens": 98718,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "変更パスと UI / API 逆引き結果を根拠に browser-test を not-applicable とする",
+          "passed": false,
+          "evidence": "スキル定義が無いとして状態値を断定せず、「対象外」を表す値の例に skipped を挙げるだけ。not-applicable で表しておらず、UI / API の逆引き結果を根拠にする形でもない。"
+        },
+        {
+          "text": "判定と根拠を manifest（検証名・結果・証拠 URL / SHA）と PR 本文の非適用根拠として残す",
+          "passed": false,
+          "evidence": "manifest に変更ファイルの一覧と理由、PR 本文に「対象外」と理由を書く一般案だけで、検証名・結果・証拠 URL / SHA の形で残すとは示していない。"
+        },
+        {
+          "text": "逆引きの根拠を示せないときは not-applicable と名乗らず、browser-test 実行か BLOCKED として扱う",
+          "passed": true,
+          "evidence": "判定しきれない場合は「対象外」にせず、「ブラウザテストを実行する扱い」か判定保留にすると答えている。"
+        },
+        {
+          "text": "無条件なページ巡回を行わない",
+          "passed": true,
+          "evidence": "無条件なページ巡回は提案していない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 23.108,
+        "tokens": 77862,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "デフォルトでは隔離可能な BLOCKED 後も Issue 102 を続行する",
+          "passed": true,
+          "evidence": "既定では 102 を続けて処理すると答えている。"
+        },
+        {
+          "text": "--stop-on-blocked では Issue 101 で停止する",
+          "passed": true,
+          "evidence": "--stop-on-blocked では 102 に着手せず、101 の BLOCKED で停止すると答えている。"
+        },
+        {
+          "text": "共有認証失敗は option にかかわらず全体停止する",
+          "passed": true,
+          "evidence": "共有認証の失敗はオプションに関係なく全体を即中断すると答えている。"
+        },
+        {
+          "text": "既定の続行方針は setup 済みの continue_on_blocked で定義され、--stop-on-blocked は当該 run だけ上書きし skills.yml を書き換えない",
+          "passed": false,
+          "evidence": "--stop-on-blocked が設定ファイルを書き換えないとは答えたが、既定の続行方針は「stop_on_blocked: false や on_blocked: continue」など推定のキーで決まるとし、setup 済みの continue_on_blocked で定義されるとは答えていない。"
+        },
+        {
+          "text": "BLOCKED の Issue 101 の worktree を削除せず、絶対パスと残作業を最終報告に残す",
+          "passed": false,
+          "evidence": "worktree を削除せず、パスとブランチ名・必要な判断を最終報告に書くとは答えたが、絶対パスで残すことには触れていない。厳しく判定して不合格。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 34.149,
+        "stddev": 10.8905,
+        "min": 19.521,
+        "max": 52.021
+      },
+      "tokens": {
+        "mean": 137886.5714,
+        "stddev": 46392.6207,
+        "min": 66222,
+        "max": 194130
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.4309,
+        "stddev": 0.1914,
+        "min": 0.25,
+        "max": 0.75
+      },
+      "time_seconds": {
+        "mean": 39.0409,
+        "stddev": 13.871,
+        "min": 23.108,
+        "max": 61.055
+      },
+      "tokens": {
+        "mean": 92241.1429,
+        "stddev": 14112.7773,
+        "min": 72544,
+        "max": 107617
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.57",
+      "time_seconds": "-4.9",
+      "tokens": "+45645"
+    }
+  },
+  "notes": [
+    "Issue #567: 使わない語の言い換え（evals.json の prompt・assertion）と fixture の語の更新の後の変更確認。各 eval を with_skill / without_skill で 1 run ずつ実行した（executor: claude-code / opus）。"
+  ]
+}

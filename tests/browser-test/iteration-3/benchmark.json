@@ -1,0 +1,139 @@
+{
+  "metadata": {
+    "skill_name": "browser-test",
+    "skill_path": "<repo>/skills/browser-test",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-07T09:01:37Z",
+    "evals_run": [7],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 18.707,
+        "tokens": 66399,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "渡された環境の URL（http://localhost:5173）を対象にし、設定ファイルの環境（http://localhost:9999 / 環境名 local）を参照も言及もしていない（呼び出し元から環境を渡されたときは設定解決を行わない取り決めに従っている）",
+          "passed": true,
+          "evidence": "応答は渡された url・check_urls・forbidden_actions だけを使い、『設定ファイル（.config/...）は開いておらず、存在も確かめていません』と述べる。localhost:9999 と環境名 local への言及は無い"
+        },
+        {
+          "text": "check_urls（http://localhost:5173/）の疎通確認で稼働判定を先に行い、落ちているときだけ pre_commands（npm run build）→ start（npm run dev）を扱う方針を示している（稼働中なら npm run build を実行しない・build を無条件に実行するとは述べていない）",
+          "passed": true,
+          "evidence": "最初に curl http://localhost:5173/ で疎通を確かめ（HTTP 000）、落ちていたので pre_commands→start を扱う段に進み、承認なしには実行しない決まりとして build も dev も実行していない。稼働中でも build する、とは述べていない"
+        },
+        {
+          "text": "渡された forbidden_actions（データの削除）を今回の確認に適用する方針を示している",
+          "passed": true,
+          "evidence": "再開後の確認の表に『禁止操作: 「データの削除」は実行せず、必要ならあなたに実施を頼む』と明記"
+        },
+        {
+          "text": "chrome-devtools MCP が無く中断する際、環境が整った後に実施する確認内容（対象ページと確認観点）を残している",
+          "passed": true,
+          "evidence": "『再開後に行う確認』の表で、対象ページ（http://localhost:5173/ と差分から導くページ）と観点（表示・コンソール・API の応答・主要コンポーネント・禁止操作）を残している"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 4,
+        "total": 4,
+        "time_seconds": 26.229,
+        "tokens": 142141,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "渡された環境の URL（http://localhost:5173）を対象にし、設定ファイルの環境（http://localhost:9999 / 環境名 local）を参照も言及もしていない（呼び出し元から環境を渡されたときは設定解決を行わない取り決めに従っている）",
+          "passed": false,
+          "evidence": "応答: 『ローカルの .config/skills/shoji9x9/skills.yml には別の値（localhost:9999、npm run start）がありますが』と設定ファイルの環境を参照・言及している"
+        },
+        {
+          "text": "check_urls（http://localhost:5173/）の疎通確認で稼働判定を先に行い、落ちているときだけ pre_commands（npm run build）→ start（npm run dev）を扱う方針を示している（稼働中なら npm run build を実行しない・build を無条件に実行するとは述べていない）",
+          "passed": false,
+          "evidence": "疎通確認の前に npm run build を実行し（失敗）、その後に curl で接続を確かめた。稼働判定を先に行う方針ではない"
+        },
+        {
+          "text": "渡された forbidden_actions（データの削除）を今回の確認に適用する方針を示している",
+          "passed": false,
+          "evidence": "forbidden_actions を渡された値として列挙し『データ削除を含め、アプリへの操作は一切していません』と事後の事実を述べるだけで、確認に適用する方針は示していない"
+        },
+        {
+          "text": "chrome-devtools MCP が無く中断する際、環境が整った後に実施する確認内容（対象ページと確認観点）を残している",
+          "passed": false,
+          "evidence": "中断の理由は build の失敗で、chrome-devtools MCP が無いことに触れていない（『ブラウザ自体は使える状態です』）。残した内容も『/ の表示とコンソールエラーの確認まで進められます』の 1 文だけ"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 18.707,
+        "stddev": 0,
+        "min": 18.707,
+        "max": 18.707
+      },
+      "tokens": {
+        "mean": 66399,
+        "stddev": 0,
+        "min": 66399,
+        "max": 66399
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0,
+        "stddev": 0,
+        "min": 0,
+        "max": 0
+      },
+      "time_seconds": {
+        "mean": 26.229,
+        "stddev": 0,
+        "min": 26.229,
+        "max": 26.229
+      },
+      "tokens": {
+        "mean": 142141,
+        "stddev": 0,
+        "min": 142141,
+        "max": 142141
+      }
+    },
+    "delta": {
+      "pass_rate": "+1.00",
+      "time_seconds": "-7.5",
+      "tokens": "-75742"
+    }
+  },
+  "notes": [
+    "Issue #567: 使わない語の言い換え（evals.json の prompt・assertion）と fixture の語の更新の後の変更確認。各 eval を with_skill / without_skill で 1 run ずつ実行した（executor: claude-code / opus）。"
+  ]
+}

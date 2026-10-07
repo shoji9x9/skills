@@ -1,0 +1,483 @@
+{
+  "metadata": {
+    "skill_name": "pr-finalize-loop",
+    "skill_path": "<repo>/skills/pr-finalize-loop",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-07T09:01:38Z",
+    "evals_run": [2, 6, 7, 8, 18],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 18,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 23.432,
+        "tokens": 104417,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Codexが指摘なしの場合にreviews[]を作らずトップレベルbotコメントだけを投稿する形を扱っている",
+          "passed": true,
+          "evidence": "「Codex は指摘が 0 件のとき…トップレベルのコメントだけを投稿します。reviews[] は作られません」と、この形を正常な完了として扱っている。"
+        },
+        {
+          "text": "Reviewed commitの短縮SHAを手で補完せずGitHub commits APIで完全SHAへ解決している",
+          "passed": true,
+          "evidence": "「短縮 SHA は自分で補わず、API で完全な SHA に解決してから照合する」とし、gh api repos/<owner>/<repo>/commits/abc123def0 --jq .sha を示している。"
+        },
+        {
+          "text": "解決した完全SHAと現在のheadRefOidが一致した場合だけレビュー完了証跡として認めている",
+          "passed": true,
+          "evidence": "「完全に一致する → 現在の HEAD はレビュー済みとして扱う」と、完全一致の場合だけ証跡として認めている。前方一致では決めないと明記している。"
+        },
+        {
+          "text": "SHAの解決失敗またはheadRefOidとの不一致をレビュー済みとして扱わない",
+          "passed": true,
+          "evidence": "「解決に失敗する、候補が複数ある、一致しない → 根拠にしない」「HEAD はレビューされていないものとして扱います」と述べている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4286,
+        "passed": 3,
+        "failed": 4,
+        "total": 7,
+        "time_seconds": 15.165,
+        "tokens": 102333,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR番号のみのため現在の repo を対象にしている",
+          "passed": true,
+          "evidence": "「6 は番号だけなので、スキルの決まりどおり『現在の repo の PR #6』とみなしました」と述べている。"
+        },
+        {
+          "text": "現在の repo を gh repo view（nameWithOwner）等で明示的に解決してから着手前チェックを行う方針である",
+          "passed": true,
+          "evidence": "raw/claude-code.jsonl で着手前に gh repo view --json nameWithOwner と git branch --show-current を実行しており、応答でも現在の repo と PR の owner/repo の一致を着手前チェックとして挙げている。"
+        },
+        {
+          "text": "--max-iterations 3 を反復上限として扱っている",
+          "passed": true,
+          "evidence": "状態の要約に「反復: 0 / 3」と書き、3 を反復上限として扱っている。"
+        },
+        {
+          "text": "上限に達したら残っている CI 失敗・未解決スレッドを明示して停止・報告する方針である",
+          "passed": false,
+          "evidence": "着手前に停止したため、上限に達したときに残る CI 失敗・未解決スレッドを明示して停止・報告する方針は応答に無い。"
+        },
+        {
+          "text": "無限ループ防止の安全弁として反復回数上限を使う方針である",
+          "passed": false,
+          "evidence": "反復回数の上限を無限ループ防止の安全弁として使う方針に触れていない。"
+        },
+        {
+          "text": "CI/レビューの待機に上限を設けハングさせない（無限待ちを避ける）方針である",
+          "passed": false,
+          "evidence": "CI・レビューの待機に上限を設ける方針に触れていない。"
+        },
+        {
+          "text": "長時間実行で auto-compaction が実行されても、各反復で GitHub の実状態（CI 状態・未解決スレッド）を再取得して再開できる方針である",
+          "passed": false,
+          "evidence": "auto-compaction 後に各反復で GitHub の実状態を再取得して再開する方針に触れていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 22.571,
+        "tokens": 151165,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "HEAD にレビューが付いていない場合に Copilot へレビューを依頼する方針である",
+          "passed": true,
+          "evidence": "「どちらも無ければ依頼する」と、HEAD にレビューが無く進行中でもなければ Copilot へ依頼する方針を示している（着手前チェックで停止したため実際の依頼はしていない）。"
+        },
+        {
+          "text": "依頼用 login として copilot-pull-request-reviewer[bot]（[bot] 付き）を使っている",
+          "passed": true,
+          "evidence": "「requested_reviewers に copilot-pull-request-reviewer[bot] を渡します」と [bot] 付きの login を示している。"
+        },
+        {
+          "text": "依頼成立をタイムラインの review_requested イベント等で確認し、reviewRequests（requested_reviewers）が空でも不成立と断定しない方針である",
+          "passed": true,
+          "evidence": "「requested_reviewers が空のままでも失敗とはみなさず、タイムラインのイベントで依頼が通ったかを確かめます」と述べている。"
+        },
+        {
+          "text": "デフォルトでは push 直後に CI 完了を待たず Copilot へ依頼し、CI とレビューを並行させる（CI 再実行の完了は次反復冒頭で待つ）方針である",
+          "passed": false,
+          "evidence": "push 直後に CI 完了を待たずに Copilot へ依頼し、CI とレビューを並行させる（CI の完了は次の反復の冒頭で待つ）方針に触れていない。"
+        },
+        {
+          "text": "レビュー出現待ちには上限を設け、上限を超えたらレビュー未着のまま反復を閉じて報告に残す方針である",
+          "passed": true,
+          "evidence": "「時間の上限を決めて」待ち、「待ちの上限を過ぎても届かない場合は…『レビュー未着で待機終了』として…報告します」と述べている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 1,
+        "failed": 2,
+        "total": 3,
+        "time_seconds": 19.598,
+        "tokens": 145666,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "--wait-ci-before-review 指定時は push 後に CI 再実行の完了を待ってから Copilot に依頼する方針である",
+          "passed": true,
+          "evidence": "「--wait-ci-before-review: 有効。push の後は CI の再実行が成功するのを待ち、新しい HEAD がまだレビューされていなければ Copilot に依頼します」と述べている。"
+        },
+        {
+          "text": "既定（フラグなし）では CI 完了を待たず並行して依頼するのと挙動が異なることを踏まえている",
+          "passed": false,
+          "evidence": "フラグなしの既定では CI を待たずに並行して依頼する、という挙動の違いに触れていない。"
+        },
+        {
+          "text": "CI が失敗している HEAD にレビューを促さないための従来挙動として扱っている",
+          "passed": false,
+          "evidence": "CI が失敗している HEAD にレビューを促さないための従来の挙動として扱う説明が無い。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 40.807,
+        "tokens": 140111,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "push 直後でも Copilot 依頼の直前に別エージェントレビューが進行中でないか確認している",
+          "passed": true,
+          "evidence": "「『レビュー進行中の検出』で、進行中のワークフローを見つけた時点で再レビューの依頼を保留します」と、依頼の前に進行中かを確かめる方針を示している（着手前チェックで停止したため実行はしていない）。"
+        },
+        {
+          "text": "進行中の検出に HEAD の pending チェック（workflow 名・ジョブ名）や bot の進行中コメントを使っている",
+          "passed": true,
+          "evidence": "gh pr checks の pending の workflow 名・ジョブ名、commits/<headRefOid>/check-runs、bot のトップレベルコメントの working / finished を挙げている。"
+        },
+        {
+          "text": "進行中を検出したら Copilot 依頼を出さず、上限つきポーリングで完了を待つ方針である",
+          "passed": true,
+          "evidence": "「新しく依頼しない」「上限を決めて完了を待つ。上限は…実測したレビュー到着時間から決めます」と述べている。"
+        },
+        {
+          "text": "完了後に HEAD レビュー済み判定を再評価し、別エージェントのレビューが HEAD に付いていれば Copilot に依頼しない方針である",
+          "passed": false,
+          "evidence": "「完了後は『HEAD のレビュー済み判定』…をやり直します」「それでも HEAD がレビューされていない場合だけ依頼する」と述べる一方、「Claude Code のワークフローは、依頼を保留する理由にはなりますが、依頼そのものの代わりにはしません」とも書いており、別エージェントのレビューが HEAD に付いていれば Copilot に依頼しないのかが読み取れない。矛盾する記述があるため厳しく判定して不合格。"
+        },
+        {
+          "text": "上限までに完了しなければ進行中シグナルを無効とみなして通常の依頼判断に戻り、その旨を報告に残す方針である",
+          "passed": true,
+          "evidence": "「上限までにワークフローが終わらなければ、進行中のシグナルは当てにならないとみなし、通常の依頼の判断に戻ります。そのことは報告に残します」と述べている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 18,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 17.856,
+        "tokens": 36952,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Codexが指摘なしの場合にreviews[]を作らずトップレベルbotコメントだけを投稿する形を扱っている",
+          "passed": true,
+          "evidence": "「Codex は指摘がないとき、PR Review を作らず、トップレベルの issue comment だけを投稿することがあります。reviews[] だけを見て未完了と判定するのは誤り」と扱っている。"
+        },
+        {
+          "text": "Reviewed commitの短縮SHAを手で補完せずGitHub commits APIで完全SHAへ解決している",
+          "passed": false,
+          "evidence": "SHA を commits API で解決せず、「headRefOid.startsWith(\"abc123def0\") で行うこと。完全一致で比べると…誤判定します」と前方一致で照合している。"
+        },
+        {
+          "text": "解決した完全SHAと現在のheadRefOidが一致した場合だけレビュー完了証跡として認めている",
+          "passed": false,
+          "evidence": "完全 SHA と headRefOid の一致を条件にしておらず、先頭 10 桁の一致でレビュー済み（クリーン）と判定している。"
+        },
+        {
+          "text": "SHAの解決失敗またはheadRefOidとの不一致をレビュー済みとして扱わない",
+          "passed": false,
+          "evidence": "SHA の解決失敗や不一致の場合の扱いに触れておらず、前方一致の時点で収束させてよいとしている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.1429,
+        "passed": 1,
+        "failed": 6,
+        "total": 7,
+        "time_seconds": 19.738,
+        "tokens": 56868,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR番号のみのため現在の repo を対象にしている",
+          "passed": false,
+          "evidence": "「PR #6 のブランチやリモートを特定できません」「PR #6 のリポジトリで実行し直す」と述べるだけで、現在の repo を対象にするとは扱っていない。"
+        },
+        {
+          "text": "現在の repo を gh repo view（nameWithOwner）等で明示的に解決してから着手前チェックを行う方針である",
+          "passed": false,
+          "evidence": "gh repo view などで現在の repo を解決していない（raw の Bash はスキルの検索だけ）。"
+        },
+        {
+          "text": "--max-iterations 3 を反復上限として扱っている",
+          "passed": true,
+          "evidence": "代替案として「/code-review high 6 --fix を最大 3 回繰り返す」と、3 を回数の上限として扱っている。"
+        },
+        {
+          "text": "上限に達したら残っている CI 失敗・未解決スレッドを明示して停止・報告する方針である",
+          "passed": false,
+          "evidence": "上限に達したときの残件の明示と停止に触れていない。"
+        },
+        {
+          "text": "無限ループ防止の安全弁として反復回数上限を使う方針である",
+          "passed": false,
+          "evidence": "無限ループ防止の安全弁としての上限に触れていない。"
+        },
+        {
+          "text": "CI/レビューの待機に上限を設けハングさせない（無限待ちを避ける）方針である",
+          "passed": false,
+          "evidence": "待機の上限に触れていない。"
+        },
+        {
+          "text": "長時間実行で auto-compaction が実行されても、各反復で GitHub の実状態（CI 状態・未解決スレッド）を再取得して再開できる方針である",
+          "passed": false,
+          "evidence": "auto-compaction 後の再開方針に触れていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2,
+        "passed": 1,
+        "failed": 4,
+        "total": 5,
+        "time_seconds": 24.537,
+        "tokens": 57128,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "HEAD にレビューが付いていない場合に Copilot へレビューを依頼する方針である",
+          "passed": false,
+          "evidence": "Copilot がレビュー待ちに入っていなければ「再リクエストが必要」とは述べるが、「実行せず、提案するだけ」「実行はユーザー確認後」とし、ループの中で依頼する方針にはしていない。厳しく判定して不合格。"
+        },
+        {
+          "text": "依頼用 login として copilot-pull-request-reviewer[bot]（[bot] 付き）を使っている",
+          "passed": false,
+          "evidence": "依頼に gh pr edit --add-reviewer @copilot を使っており、copilot-pull-request-reviewer[bot] を使っていない。"
+        },
+        {
+          "text": "依頼成立をタイムラインの review_requested イベント等で確認し、reviewRequests（requested_reviewers）が空でも不成立と断定しない方針である",
+          "passed": false,
+          "evidence": "依頼の成立を reviewRequests（レビュー待ちのリスト）で確かめるとしており、タイムラインの review_requested イベントで確かめる方針でも、空でも不成立と断定しない方針でもない。"
+        },
+        {
+          "text": "デフォルトでは push 直後に CI 完了を待たず Copilot へ依頼し、CI とレビューを並行させる（CI 再実行の完了は次反復冒頭で待つ）方針である",
+          "passed": false,
+          "evidence": "push 直後に CI を待たずに依頼して並行させる方針に触れていない。"
+        },
+        {
+          "text": "レビュー出現待ちには上限を設け、上限を超えたらレビュー未着のまま反復を閉じて報告に残す方針である",
+          "passed": true,
+          "evidence": "「最大 15〜20 分程度」と待機に上限を設け、「時間切れになってもレビューが届かない → 完了扱いにせず…ユーザーに報告して止める」と述べている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 1,
+        "failed": 2,
+        "total": 3,
+        "time_seconds": 14.228,
+        "tokens": 51491,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "--wait-ci-before-review 指定時は push 後に CI 再実行の完了を待ってから Copilot に依頼する方針である",
+          "passed": true,
+          "evidence": "「push → CI（gh pr checks --watch）が通るまで待つ → Copilot にレビュー依頼」と、CI の完了を待ってから依頼する流れを示している。"
+        },
+        {
+          "text": "既定（フラグなし）では CI 完了を待たず並行して依頼するのと挙動が異なることを踏まえている",
+          "passed": false,
+          "evidence": "既定の挙動との違いに触れていない。"
+        },
+        {
+          "text": "CI が失敗している HEAD にレビューを促さないための従来挙動として扱っている",
+          "passed": false,
+          "evidence": "CI が失敗している HEAD にレビューを促さないための従来挙動という位置づけに触れていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 21.361,
+        "tokens": 34784,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "push 直後でも Copilot 依頼の直前に別エージェントレビューが進行中でないか確認している",
+          "passed": false,
+          "evidence": "Copilot への依頼に触れておらず、依頼の直前に別エージェントのレビューが進行中か確かめる方針が無い。"
+        },
+        {
+          "text": "進行中の検出に HEAD の pending チェック（workflow 名・ジョブ名）や bot の進行中コメントを使っている",
+          "passed": false,
+          "evidence": "待機に gh pr checks --watch / gh run watch を使うとするだけで、進行中の検出に HEAD の pending チェックの workflow 名・ジョブ名や bot の進行中コメントを使うとは述べていない。"
+        },
+        {
+          "text": "進行中を検出したら Copilot 依頼を出さず、上限つきポーリングで完了を待つ方針である",
+          "passed": false,
+          "evidence": "完了を待つとは述べるが、Copilot への依頼を出さないことに触れておらず、待機の上限も「想定時間を大きく超えたらユーザーに伝える」で明確な上限つきポーリングではない。"
+        },
+        {
+          "text": "完了後に HEAD レビュー済み判定を再評価し、別エージェントのレビューが HEAD に付いていれば Copilot に依頼しない方針である",
+          "passed": false,
+          "evidence": "完了後に HEAD のレビュー済み判定を再評価して Copilot に依頼しない方針が無い。"
+        },
+        {
+          "text": "上限までに完了しなければ進行中シグナルを無効とみなして通常の依頼判断に戻り、その旨を報告に残す方針である",
+          "passed": false,
+          "evidence": "上限までに完了しない場合に進行中のシグナルを無効とみなして通常の依頼判断に戻る方針が無い（ユーザーに伝えて止める）。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.6724,
+        "stddev": 0.2803,
+        "min": 0.3333,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 24.3146,
+        "stddev": 9.7696,
+        "min": 15.165,
+        "max": 40.807
+      },
+      "tokens": {
+        "mean": 128738.4,
+        "stddev": 23492.593,
+        "min": 102333,
+        "max": 151165
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.1852,
+        "stddev": 0.1249,
+        "min": 0,
+        "max": 0.3333
+      },
+      "time_seconds": {
+        "mean": 19.544,
+        "stddev": 3.8529,
+        "min": 14.228,
+        "max": 24.537
+      },
+      "tokens": {
+        "mean": 47444.6,
+        "stddev": 10831.9839,
+        "min": 34784,
+        "max": 57128
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.49",
+      "time_seconds": "+4.8",
+      "tokens": "+81294"
+    }
+  },
+  "notes": [
+    "Issue #567: 使わない語の言い換え（evals.json の prompt・assertion）と fixture の語の更新の後の変更確認。各 eval を with_skill / without_skill で 1 run ずつ実行した（executor: claude-code / opus）。"
+  ]
+}

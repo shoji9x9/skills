@@ -1,0 +1,161 @@
+{
+  "metadata": {
+    "skill_name": "parity-replace",
+    "skill_path": "<repo>/skills/parity-replace",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-07T09:01:38Z",
+    "evals_run": [21],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 21,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8333,
+        "passed": 5,
+        "failed": 1,
+        "total": 6,
+        "time_seconds": 24.613,
+        "tokens": 107527,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "網羅表は移行元側の測定なので、スイートの green と unmeasured 0 だけでは新側で操作を完了できる証拠にならないと指摘している",
+          "passed": true,
+          "evidence": "網羅表の値は現側（移行元）を測ったもので、unmeasured 0 件は新側の確認にならないと明記し、メニューが閉じる等の例も挙げている。"
+        },
+        {
+          "text": "value: present のセルごとに new/<target>/component-comparison.json へ突き合わせを書くのが本スキルの担当だと答えている",
+          "passed": true,
+          "evidence": "value: present のセルごとに new/<target>/component-comparison.json へ 1 行書くと答えている。"
+        },
+        {
+          "text": "起点・当たり判定・完了の 3 点を観測して記録すると答えている",
+          "passed": true,
+          "evidence": "「起点・当たり判定・完了の 3 点を観測して記録」と明記している。"
+        },
+        {
+          "text": "突き合わせられないセルは理由を書き、突き合わせないことを選ぶなら利用者の承認（approved_by / approved_at）が要ると答えている",
+          "passed": false,
+          "evidence": "突き合わせられないセルの理由の記述も、突き合わせない場合の利用者承認（approved_by / approved_at）も述べていない。"
+        },
+        {
+          "text": "インストール済みの parity-suite の component-comparison-check.mjs を exit 0 まで通すと述べ、parity-diff の収束判定も同じスクリプトを呼ぶため通していないと差し戻されると説明している",
+          "passed": true,
+          "evidence": "component-comparison-check.mjs を exit 0 まで通すこと、parity-diff の収束判定も同じスクリプトを呼ぶので飛ばすと差し戻されることを述べている。"
+        },
+        {
+          "text": "記録先が環境別（new/<target>/ 配下）であることに触れている",
+          "passed": true,
+          "evidence": ".replace/parity/order-list/new/<target>/component-comparison.json と環境別の配置に触れている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 21,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 6,
+        "total": 6,
+        "time_seconds": 23.32,
+        "tokens": 37129,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "網羅表は移行元側の測定なので、スイートの green と unmeasured 0 だけでは新側で操作を完了できる証拠にならないと指摘している",
+          "passed": false,
+          "evidence": "「unmeasured 0 件は全部品の網羅ではない」とは言うが、網羅表が移行元側の測定で新側の操作完了の証拠にならないという指摘は無い。"
+        },
+        {
+          "text": "value: present のセルごとに new/<target>/component-comparison.json へ突き合わせを書くのが本スキルの担当だと答えている",
+          "passed": false,
+          "evidence": "component-comparison.json への突き合わせの記録に触れていない。"
+        },
+        {
+          "text": "起点・当たり判定・完了の 3 点を観測して記録すると答えている",
+          "passed": false,
+          "evidence": "起点・当たり判定・完了の 3 点に触れていない。"
+        },
+        {
+          "text": "突き合わせられないセルは理由を書き、突き合わせないことを選ぶなら利用者の承認（approved_by / approved_at）が要ると答えている",
+          "passed": false,
+          "evidence": "理由・承認（approved_by / approved_at）に触れていない。"
+        },
+        {
+          "text": "インストール済みの parity-suite の component-comparison-check.mjs を exit 0 まで通すと述べ、parity-diff の収束判定も同じスクリプトを呼ぶため通していないと差し戻されると説明している",
+          "passed": false,
+          "evidence": "component-comparison-check.mjs に触れていない。"
+        },
+        {
+          "text": "記録先が環境別（new/<target>/ 配下）であることに触れている",
+          "passed": false,
+          "evidence": "new/<target>/ に触れていない。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.8333,
+        "stddev": 0,
+        "min": 0.8333,
+        "max": 0.8333
+      },
+      "time_seconds": {
+        "mean": 24.613,
+        "stddev": 0,
+        "min": 24.613,
+        "max": 24.613
+      },
+      "tokens": {
+        "mean": 107527,
+        "stddev": 0,
+        "min": 107527,
+        "max": 107527
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0,
+        "stddev": 0,
+        "min": 0,
+        "max": 0
+      },
+      "time_seconds": {
+        "mean": 23.32,
+        "stddev": 0,
+        "min": 23.32,
+        "max": 23.32
+      },
+      "tokens": {
+        "mean": 37129,
+        "stddev": 0,
+        "min": 37129,
+        "max": 37129
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.83",
+      "time_seconds": "+1.3",
+      "tokens": "+70398"
+    }
+  },
+  "notes": [
+    "Issue #567: 使わない語の言い換え（evals.json の prompt・assertion）と fixture の語の更新の後の変更確認。各 eval を with_skill / without_skill で 1 run ずつ実行した（executor: claude-code / opus）。",
+    "集計の前の整理（with_skill の skill_usage.invalid_run=true は、; でつないだ読み取りを判定ツールが数え損ねたもので、raw では読んでいる。dependabot-merge eval-4 の without_skill は汚染の判定）:",
+    "- eval-21/with_skill/run-2 を集計から外した"
+  ]
+}
