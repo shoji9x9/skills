@@ -2,7 +2,13 @@
 date: 2026-10-06
 type: rule
 priority: high
-status: pending
+status: applied
+applied-to:
+  [
+    scripts/mutation/check-mutation-proof.js,
+    scripts/mutation/check-mutation-proof.test.js,
+    .agents/rules/state-space-and-mutation-proof.md,
+  ]
 session: claude-code
 ---
 
@@ -35,3 +41,6 @@ session: claude-code
 - 仕組みにするなら、ランナー（`scripts/mutation/check-mutation-proof.js`）が「実リポジトリ」を名前に持つテストを `expect_failing` の照合から外す（期待にあっても無くても、落ちても通っても数えない）。
 - 段階 ④-c と ⑤ でも文書を書き換えるので、同じ失敗が続く見込みである。
 - 3 回再発したので、規約ではなく、ランナー側の仕組み（1 つ目の箇条）で止める。
+- 反映済み（#567）: ランナーが、名前に「実リポジトリ」を含むテストを `expect_failing` に書くと exit 2 にし、
+  実行で落ちても宣言の外として数えないようにした。既存の定義 5 件から、該当する 37 件の名前を外した。
+  規約は `.agents/rules/state-space-and-mutation-proof.md` に書いた。
