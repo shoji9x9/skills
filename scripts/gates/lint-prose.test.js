@@ -288,6 +288,20 @@ test("先頭の --- と行頭の [ラベル]: を Markdown の構文として読
   ]);
 });
 
+test("入れ物（リスト・引用）の中の字下げとリンク参照の定義も、文字列の語を検出する", async () => {
+  // textlint-disable
+  const src =
+    'const a = "* [x]: 正本";\nconst b = "> [x]: 正本";\nconst c = "-     正本である";\nconst d = ">     正本である";\n';
+  // textlint-enable
+  const { violations } = await lintProse({ root: makeRepo({ "a.js": src }) });
+  expect(violations.map((v) => v.split(":").slice(0, 2).join(":"))).toEqual([
+    "a.js:1",
+    "a.js:2",
+    "a.js:3",
+    "a.js:4",
+  ]);
+});
+
 test("コメントの textlint-disable で囲んだ文字列だけを除外する", async () => {
   // textlint-disable
   const src =
