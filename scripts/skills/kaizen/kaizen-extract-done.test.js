@@ -1,8 +1,8 @@
 // kaizen-extract-done.sh の回帰テスト。
 //
-// このスクリプトはコミット前ゲートを解除する唯一の経路なので、「消したつもりで消えていない」
-// （センチネルが別の作業ツリーに残る）と「解消するものが無かった」（空振り）はどちらも
-// 黙って進む。どちらも終了コードには現れないため、ここで決定論的に押さえる（Issue #344）。
+// このスクリプトはコミット前のチェックを解除する唯一の方法である。そのため、「消したつもりで消えていない」
+// （センチネルが別の作業ツリーに残る）と「解消するものが無かった」（空振り）は、どちらも
+// 警告なしに進む。どちらも終了コードには現れないため、ここで決定論的に押さえる（Issue #344）。
 
 import { describe, expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
@@ -109,7 +109,7 @@ describe("センチネルの解消はリポジトリの全作業ツリーに及�
 
 // 制御ファイルの置き場を決めるのに**センチネル**を先に見ると、Stop フックがターンごとに
 // そのツリーへ立て直すぶんだけ置き場が動く。checkpoint がそれに引きずられると、共有ツリーと
-// worktree に**別々の offset を持つ checkpoint が 1 つずつ**残り、古い方を掴んだゲートが
+// worktree に**別々の offset を持つ checkpoint が 1 つずつ**残り、古い方を掴んだチェックが
 // 抽出済みの範囲を再検出して止まり続ける。置き場は checkpoint を起点に決める。
 describe("checkpoint はツリーをまたいで 1 つに保たれる", () => {
   test("センチネルの置き場がツリー間で移っても checkpoint は増えない", () => {
@@ -183,8 +183,8 @@ describe("改行を含む worktree のパスを取りこぼさない", () => {
 });
 
 // 既存インストールでは同じ session の checkpoint が本体と worktree に散っていることがある
-// （この変更が直そうとしている状態そのもの）。1 ツリーぶんだけ消すと、残ったほうをゲートが
-// 見つけて `.extract-done` の fail safe を無効化し、commit が止まり続ける（実測）。
+// （この変更が直そうとしている状態そのもの）。1 ツリーぶんだけ消すと、残ったほうをチェックが
+// 見つけて `.extract-done` による安全側の扱いを無効にし、commit が止まり続ける（実測）。
 describe("散った制御ファイルは全作業ツリーで整理する", () => {
   function writeCheckpoint(dir, transcript) {
     mkdirSync(join(dir, ".kaizen"), { recursive: true });
@@ -202,7 +202,7 @@ describe("散った制御ファイルは全作業ツリーで整理する", () =
     writeCheckpoint(worktree, transcript);
     writeSentinel(main);
     writeSentinel(worktree);
-    // transcript を渡さない＝checkpoint を記録できない経路。`.extract-done` を書き、
+    // transcript を渡さない＝checkpoint を記録できない呼び出し方。`.extract-done` を書き、
     // 古い checkpoint を落として整合させる。
     const run = runExtractDone(main, main);
     expect(run.status, run.stderr).toBe(0);
@@ -234,18 +234,18 @@ describe("散った制御ファイルは全作業ツリーで整理する", () =
 // 揃えるため**。SessionStart に置くと、リポジトリを変更するつもりのない調査だけのセッションでも
 // 追跡ファイルが書き換わり、その差分が未ステージで残って clean 確認を持つ工程を止める。
 //
-// 固定する契約は 3 つ:
-//   1. 掃引が走り、閾値を満たす pending だけが forgotten になる
-//   2. 掃引はセンチネル解消の**後**に走る（掃引が失敗しても抽出完了の記録は残る。ここで止めると
-//      抽出したのにゲートが解除されず commit できない恒久ブロッカーになる）
-//   3. 何を忘れたかを stderr に出す（黙って忘れると、注入から消えたことに気づけず戻せない）
+// 固定する取り決めは次の 3 つである。
+//   1. 掃引が実行され、閾値を満たす pending だけが forgotten になる
+//   2. 掃引はセンチネル解消の**後**に実行される（掃引が失敗しても抽出完了の記録は残る。ここで止めると
+//      抽出したのにチェックが解除されず、commit できない恒久的なブロッカーになる）
+//   3. 何を忘れたかを stderr に出す（警告なしに忘れると、注入から消えたことに気づけず戻せない）
 //
-// 変異による検出能力の実証（実測した結果をそのまま記録する）:
+// ミューテーションテストで検出できることを、次のように確かめた（実測した結果をそのまま記録する）。
 //   1. 掃引の呼び出しを `forgotten_notes=""` へ置き換える → 1 件 fail（「閾値を過ぎた pending だけを忘却し…」）
 //   2. 掃引ブロックをセンチネル解消より前へ移すだけ → **green のまま**。`|| true` が失敗を吸うので、
 //      位置を変えただけでは観測できない（この変異は検出能力の証拠にならない）
 //   3. 掃引ブロックを前へ移し、**かつ** `|| true` を外す → 1 件 fail（「掃引が失敗してもセンチネルは
-//      解消される」）。センチネル解消が掃引の成否に左右されない、という契約はこの形でだけ測れる
+//      解消される」）。センチネル解消が掃引の成否に左右されない、という取り決めはこの形でだけ測れる
 function staleNote(daysOld, priority = "low") {
   const d = new Date();
   d.setUTCDate(d.getUTCDate() - daysOld);
@@ -262,7 +262,7 @@ describe("忘却の自動掃引", () => {
     const { main } = makeRepoWithWorktree();
     writeSentinel(main);
     writeFileSync(join(main, ".kaizen", "stale.md"), staleNote(200));
-    // 陰性コントロール: 閾値内・高優先度は触らない（「全部忘れる」への退化を検出する）。
+    // 誤検知しないことの確認: 閾値内・高優先度は触らない（「全部忘れる」への退化を検出する）。
     writeFileSync(join(main, ".kaizen", "fresh.md"), staleNote(1));
     writeFileSync(join(main, ".kaizen", "high.md"), staleNote(200, "high"));
 
@@ -289,9 +289,9 @@ describe("忘却の自動掃引", () => {
   });
 
   test("checkpoint-only（ゲートの候補ゼロ自動通過）では掃引しない", () => {
-    // このモードはゲートが `git commit` の PreToolUse で呼ぶ。学びは 1 件も記録されて
+    // このモードはコミット前のチェックが `git commit` の PreToolUse で呼ぶ。学びは 1 件も記録されて
     // いないのに追跡ファイルを書き換えると、`git add` 済みのユーザーに未ステージ差分を
-    // 残す——発火点を SessionStart から移した理由そのものを壊す。
+    // 残す。それでは、発火点を SessionStart から移した理由そのものが成り立たなくなる。
     const { main } = makeRepoWithWorktree();
     writeSentinel(main);
     writeFileSync(join(main, ".kaizen", "stale.md"), staleNote(200));
@@ -307,8 +307,8 @@ describe("忘却の自動掃引", () => {
       transcript,
     ]);
     expect(result.status).toBe(0);
-    // 陽性コントロール: 同じノート・同じ経過日数が complete では忘却される（下の complete
-    // ケースと同じ入力）。ここで pending のままなのはモード判定が効いているから。
+    // 検出されることの確認: 同じノート・同じ経過日数が complete では忘却される（下の complete
+    // ケースと同じ入力）。ここで pending のままなのは、モード判定が機能しているからである。
     expect(statusOf(main, "stale.md")).toBe("pending");
     expect(result.stderr).not.toContain("忘却しました");
   });
@@ -352,13 +352,13 @@ describe("忘却の自動掃引", () => {
   });
 
   test("掃引が失敗してもセンチネルは解消される", () => {
-    // 抽出完了の記録は掃引より重い契約。ここで止めると、抽出したのにゲートが解除されず
-    // commit できない恒久ブロッカーになる。
+    // 抽出完了の記録は、掃引より重い取り決めである。ここで止めると、抽出したのにチェックが解除されず、
+    // commit できない恒久的なブロッカーになる。
     const { main } = makeRepoWithWorktree();
     writeSentinel(main);
     writeFileSync(join(main, ".kaizen", "stale.md"), staleNote(200));
 
-    // スクリプト一式を写し、忘却スクリプトだけを常に失敗するスタブへ差し替える。
+    // スクリプト一式をコピーし、忘却スクリプトだけを常に失敗するスタブへ差し替える。
     const stubDir = makeTempDir("kaizen-extract-done-stub-");
     for (const name of ["kaizen-extract-done.sh", "kaizen-hook-common.sh"]) {
       copyFileSync(join(scriptsDir, name), join(stubDir, name));
@@ -384,7 +384,7 @@ describe("忘却の自動掃引", () => {
     // センチネルは消えている（掃引の失敗に巻き込まれない）。
     expect(existsSync(sentinelPath(main))).toBe(false);
     expect(result.stderr).not.toMatch(noopWarning);
-    // スタブが効いていることの陽性コントロール（忘却は起きていない）。
+    // スタブが機能していることの確認（忘却は起きていない）。
     expect(statusOf(main, "stale.md")).toBe("pending");
   });
 });

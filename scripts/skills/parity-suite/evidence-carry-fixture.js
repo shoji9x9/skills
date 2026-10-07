@@ -3,7 +3,7 @@
 // evidence-carry.test.js・artifact-health-check.test.js・component-comparison-check.test.js が共有する。
 // git の差分を実物で取るため、一時ディレクトリに本物の git リポジトリを作ってコミットを積む（git を模さない）。
 // 変更宣言・部品 metadata・機能 metadata は同梱テンプレートを読んで値だけ埋める（切り詰めた形を固定しない）。
-// amend-verify の記録は pngjs を入れないため手で書くが、amend-verify.mjs の main が書く 1 組の形
+// amend-verify の記録は pngjs を入れないため手で書く。ただし amend-verify.mjs の main が書く 1 組の形
 // （pair / pass / outside_identical / … / inputs.{prev_new,new,current}.{path,sha256} / reasons）をそのまま持たせる。
 
 import { execFileSync } from "node:child_process";
@@ -206,7 +206,7 @@ export function amendVerifyPair(root, pair, options = {}) {
  * 新側リポジトリ（<root>/app）の履歴: base（初期）→ component（Button.tsx を宣言どおり直す）。以降のコミットは各テストが積む。
  * 変更宣言 hover-shadow は base → component。記録の版 base・今の版 component が既定。
  * `root` を渡すと既存のプロジェクト（artifact-health-check.test.js の makeProject 等）へ足し、
- * 機能の metadata.json は書かない（呼び出し側が featureMetadata の capture_conditions を写す）。
+ * 機能の metadata.json は書かない（呼び出し側が featureMetadata の capture_conditions をコピーする）。
  * @param {{ scope?: [string, string, string][], root?: string }} [options]
  */
 export function makeCarryProject(options = {}) {

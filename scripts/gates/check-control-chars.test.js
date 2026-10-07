@@ -11,9 +11,9 @@
 // | 引数         | 明示（ステージ差分） / 無し（追跡ファイル全体）                  |
 // | 対象件数     | 0 件 / 1 件 / 複数件                                            |
 //
-// 陽性コントロールは合成 fixture だけでなく**実データ**でも取る——このリポジトリで実際に
-// NUL が混入していた kaizen ノートの修正前の版（NUL を戻したもの）を入力にする。
-// 陰性コントロールは実リポジトリ全体（修正後は 0 件）。
+// 検出されることの確認は、合成した fixture だけでなく**実データ**でも行う。このリポジトリで実際に
+// NUL が含まれていた kaizen ノートの、修正前の版（NUL を戻したもの）を入力にする。
+// 誤検知しないことの確認は、実リポジトリ全体で行う（修正後は 0 件）。
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -72,7 +72,7 @@ test("対象拡張子の判定: テキストだけを拾う", () => {
 
 test("陽性コントロール（実データ）: 混入していた版を入力にすると検出する", () => {
   // ノートは適用後に .kaizen/archive/ へ移るので、両方の置き場を見る。
-  // 見つからないときは skip せず落とす（陽性コントロールが消えたまま緑になるのを防ぐ）。
+  // 見つからないときは skip せず落とす（検出の確認に使う入力が消えたまま、成功になるのを防ぐ）。
   const NOTE = "2026-09-18-control-characters-rejected-in-tool-arguments.md";
   const notePath = [join(repoRoot, ".kaizen", NOTE), join(repoRoot, ".kaizen/archive", NOTE)].find(
     (p) => existsSync(p),
@@ -94,15 +94,15 @@ test("陰性コントロール（実データ）: 実リポジトリの追跡テ
 });
 
 test("読めないファイルはクラッシュさせず、走査できていないこととして報告する", () => {
-  // git ls-files は index を読むので、作業ツリーから消えた追跡ファイルや壊れた symlink が
-  // 入りうる。素の readFileSync だとスタックトレースごと検査が止まり、「走査できていない」が
-  // 検査結果として残らない。
+  // git ls-files は index を読むので、作業ツリーから消えた追跡ファイルや、リンク先の無い symlink が
+  // 入りうる。素の readFileSync だと、スタックトレースを出してチェックが止まり、「走査できていない」が
+  // チェックの結果として残らない。
   const dir = makeTempDir("control-chars-");
   try {
     const violations = checkFiles(["missing.md"], dir);
     expect(violations).toHaveLength(1);
     expect(violations[0]).toMatch(/missing\.md: 読めないため走査できていない/);
-    // 陰性コントロール: 実在するファイルは通常どおり判定される（読めない扱いに倒れない）。
+    // 誤検知しないことの確認: 実在するファイルは通常どおり判定される（読めないと判定されてしまわない）。
     writeFileSync(join(dir, "ok.md"), "本文\n");
     expect(checkFiles(["ok.md"], dir)).toEqual([]);
   } finally {

@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { fillSetProvenance } from "../../lib/coverage-set-provenance-fixture.js";
 
-// 被覆表の未測定は、記録側（parity-suite の coverage-expand.mjs の reconcile）と
+// 網羅表の未測定は、記録側（parity-suite の coverage-expand.mjs の reconcile）と
 // 判定側（parity-diff の coverage-check.mjs の countCoverage）が独立に数える。
 // 配布スキルは成果物を同梱する規約のため共有モジュールにできず、ガードを片方にだけ足すと
 // 「記録側は未測定 0 を記録するが判定側は未測定を数える」が起きる（conformance の要約と metadata が
@@ -24,7 +24,7 @@ const { countCoverage: countCoverageRaw } = await import(
   join(repoRoot, "skills/parity-diff/scripts/coverage-check.mjs")
 );
 
-// 集合の来歴（component_inventory / instance_inventory / components[].source）は、
+// 集合の出所（component_inventory / instance_inventory / components[].source）は、
 // このファイルの被験対象（件数の関係）ではないので、宣言が無い fixture にだけ補う。
 // 両側へ同じオブジェクトを渡すため、補うのは片方の呼び出しの前で足りる。
 function reconcile(coverage, profiles, metadata = null) {
@@ -81,7 +81,7 @@ const presentCell = (component, item, instance) => ({
   covered_by: [`e2e/${SLUG}.spec.ts > ${item}`],
 });
 
-/** プロファイル経路: 全候補を present で埋めた被覆表。 */
+/** プロファイルを使う場合: 全候補を present で埋めた網羅表。 */
 function profiled() {
   const profile = profiles.get("datagrid");
   const { elements } = readEnumeration(enumeration(), profile, "t");
@@ -103,7 +103,7 @@ function profiled() {
   };
 }
 
-/** 汎用経路（profile: null）: 項目 2 × インスタンス 3 を present で埋めた被覆表。 */
+/** 汎用の場合（profile: null）: 項目 2 × インスタンス 3 を present で埋めた網羅表。 */
 function generic() {
   const items = [{ id: "sort" }, { id: "filter" }];
   const instances = [{ id: "orders" }, { id: "customers" }, { id: "invoices" }];
@@ -228,7 +228,7 @@ const CASES = [
     "eq",
     variant(profiled, (c) => orders(c).candidates.pop()),
   ],
-  // 同じ候補が 2 つの経路（候補ループのセル採点と candidates の記録漏れ）で欠けても 1 件に数える
+  // 同じ候補が 2 つの箇所（候補ループのセル採点と、candidates の記録の抜け）で欠けても 1 件に数える
   [
     "プロファイル: 同じ候補が candidates とセル行の両方から漏れた",
     "eq",
@@ -359,7 +359,7 @@ const CASES = [
       for (const key of Object.keys(flags)) flags[key] = false;
     }),
   ],
-  // 集合の来歴と完全性（Issue #392 / #393）。fillSetProvenance は「無いときだけ」補うので、
+  // 集合の出所と完全性（Issue #392 / #393）。fillSetProvenance は「無いときだけ」補うので、
   // null を置いた欠落はそのまま両側へ渡る（delete だと補完ラッパが埋めてしまう）。
   [
     "集合: component_inventory が無い",
@@ -506,7 +506,7 @@ test("撮影状態の指紋は記録側と判定側で一致する（別実装�
     },
   };
 
-  // 指紋は表の内容から取るので、集合の来歴を補うのは行を起こす前（＝記録側に渡す前）にする。
+  // 指紋は表の内容から取るので、集合の出所を補うのは行を起こす前（＝記録側に渡す前）にする。
   fillSetProvenance(coverage);
   expand.fillVisualStateRows(coverage);
   coverage.visual_state_coverage.rows[0].captured = "フィルタの吹き出しを開いた状態";

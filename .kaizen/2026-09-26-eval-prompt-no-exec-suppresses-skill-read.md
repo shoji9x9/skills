@@ -11,14 +11,14 @@ session: claude-code
 
 ## 事象
 
-parity-replace eval 24 を「…何も実行せず、判断と記録の仕方を説明して」で実走したところ、with_skill が Skill を起動せずファイルも 1 件も読まずに答え、
-`skill_usage.invalid_run: true` になった（「スキル定義も開いていない」と自述）。prompt を「コマンドの実行やファイルの変更はせず」に直して 2 run 取り直した（計 8 run）。
+parity-replace eval 24 を「…何も実行せず、判断と記録の仕方を説明して」で実走した。
+with_skill が Skill を起動せず、ファイルも 1 件も読まずに答え、`skill_usage.invalid_run: true` になった（「スキル定義も開いていない」と自述）。prompt を「コマンドの実行やファイルの変更はせず」に直して 2 run 測り直した（計 8 run）。
 
 ## 根本原因
 
-- なぜ読まなかった? 「何も実行しない」を「ツールを一切使わない」と解釈し、Skill 起動・読み取りまで控えた
-- なぜその文言にした? 既存 eval（issue-start 等）の dry-run 形を写した。そちらは偶然読んでいた
-- なぜ走らせる前に気付けない? 「禁止するのは副作用だけで、スキルの読み取りは禁じない」という prompt の書き方が eval の規約（`eval-assertion-discrimination.md`・`skill-development.md`）に無く、機械検査も無い ← 根本原因
+- なぜ読まなかったか → 「何も実行しない」を「ツールを一切使わない」と解釈し、Skill 起動・読み取りまで控えた
+- なぜその文言にしたか → 既存 eval（issue-start 等）の dry-run 形をコピーした。そちらは偶然読んでいた
+- なぜ実行する前に気付けないか → 「禁止するのは副作用だけで、スキルの読み取りは禁じない」という prompt の書き方が eval の規約（`eval-assertion-discrimination.md`・`skill-development.md`）に無く、機械検査も無い ← 根本原因
 
 ## 提案
 

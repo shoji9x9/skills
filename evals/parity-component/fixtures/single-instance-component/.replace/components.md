@@ -17,4 +17,4 @@
 ## 部品カタログ
 
 - カタログの実体: Storybook
-- 契約ドキュメント: docs/component-catalog.md
+- 取り決めのドキュメント: docs/component-catalog.md

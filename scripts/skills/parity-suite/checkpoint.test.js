@@ -1,6 +1,6 @@
 // parity-suite の区切りの記録・照合（checkpoint.mjs）の回帰テスト（Issue #468）。
 //
-// 新しい文脈から再開してよいかを成果物の側で決める道具なので、壊れ方は「区切りの後に動いた成果物を
+// 新しい文脈から再開してよいかを成果物の側で決めるツールなので、起こりうる不具合は「区切りの後に動いた成果物を
 // 動いていないと答える」と「順序を飛ばした区切りを記録できる」の 2 つ。
 // 追加・削除・変更のそれぞれで verify が落ちること、区切りの後に正規に変わるもの（pending-decisions.json・
 // noise-pass2/・new/）では落ちないことを両側で固定する。
@@ -18,7 +18,7 @@ const { main } = await import(pathToFileURL(script).href);
 const SLUG = ".replace/parity/share";
 const SUITE = "e2e/parity/share";
 
-/** 各テストが作った一時ディレクトリ。テストごとに消す（変異実証で何十回も回すと /tmp の inode を使い切る）。 */
+/** 各テストが作った一時ディレクトリ。テストごとに消す（ミューテーションテストで数多く回すと /tmp の inode を使い切る）。 */
 const created = [];
 afterEach(() => {
   for (const dir of created.splice(0)) rmSync(dir, { recursive: true, force: true });
@@ -36,8 +36,8 @@ function project() {
 }
 
 /**
- * main を同じプロセスで呼ぶ（子プロセスの起動を省く。変異実証が変異ごとにこのファイルを丸ごと回すため、Issue #478）。
- * CLI として起動できること（エントリ判定・cwd・引数と出力の受け渡し）は cli() の陽性コントロールが持つ。
+ * main を同じプロセスで呼ぶ（子プロセスの起動を省く。ミューテーションテストが変異ごとにこのファイルを丸ごと回すため、Issue #478）。
+ * CLI として起動できること（エントリ判定・cwd・引数と出力の受け渡し）は cli() の通ることの確認が受け持つ。
  * @param {string} dir
  * @param {string[]} args
  */
@@ -340,8 +340,8 @@ test("--include の根が空なら record は exit 2（スイートが消えた�
 const H = "0".repeat(64);
 const each = (fn) => (rec) => rec.checkpoints.forEach(fn);
 
-// 書き手（record）の不変条件 W1〜W9 ごとに、record が作った記録を 1 か所だけ崩して verify が exit 2 になることを確かめる。
-// 番号と条件の正本は checkpoint.mjs の recordProblem の表（手で直した・壊れた記録で --from が前段を確かめずに再開しない）
+// 書き手（record）の不変条件 W1〜W9 ごとに、record が作った記録を 1 か所だけ成り立たなくして verify が exit 2 になることを確かめる。
+// 番号と条件の原本は checkpoint.mjs の recordProblem の表（手で直した・不正な記録で --from が前段を確かめずに再開しない）
 test.each([
   ["W1 tool が無い", (rec) => delete rec.tool, "最上位が"],
   ["W1 version が違う", (rec) => (rec.version = "0"), "version（0）"],

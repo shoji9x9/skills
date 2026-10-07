@@ -80,13 +80,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           HAS_OUTDATED: ${{ steps.detect.outputs.has_outdated }}
-          # 照会の正本。配布物なのでスキル内（`skills/kaizen/scripts/`）に置いてあり、
-          # ここはその正本をそのまま読む（複製を作ると片方だけ直る余地が戻る）。
+          # 照会の原本。配布物なのでスキル内（`skills/kaizen/scripts/`）に置いてあり、
+          # ここはその原本をそのまま読む（複製を作ると片方だけ直る余地が戻る）。
           TRACKING_LIB: skills/kaizen/scripts/tracking-issue-lib.sh
         run: |
           # `detect` は true / false のどちらかを必ず書く。それ以外（未設定・別表記）は
-          # 「検出が壊れた」なので、`!= true` で閉じる側＝「全ツール最新」という結論へ
-          # 倒さず落とす（追跡 Issue を誤って閉じると、次の run まで更新が埋もれる）。
+          # 「検出が失敗した」なので、`!= true` で閉じる側＝「全ツール最新」という結論として
+          # 扱わず失敗させる（追跡 Issue を誤って閉じると、次の run まで更新が埋もれる）。
           case "$HAS_OUTDATED" in
           true | false) ;;
           *)
@@ -99,15 +99,15 @@ jobs:
           # タイムゾーンに依存しない値になる。
           title="$ISSUE_TITLE_PREFIX ($(date -u +%F))"
 
-          # 追跡 Issue の照会（接頭辞での照合・フォールバック・打ち切り判定・fail-closed）は
-          # `kaizen-schedule.yml` と共通なので、正本は同梱スクリプト 1 本だけに置く。
+          # 追跡 Issue の照会（接頭辞での照合・フォールバック・打ち切り判定・判定できないときに失敗にする処理）は
+          # `kaizen-schedule.yml` と共通なので、同梱スクリプト 1 本だけで定義する。
           # `numbers` / `scanned` / `truncated` と `warn_if_truncated` はそこで定義される。
           # shellcheck source=/dev/null
           . "$TRACKING_LIB"
           resolve_tracking_issues
 
           number="${numbers[0]-}"
-          # 複数見つかるのは手動で作られた等の異常。黙って先勝ちにせず件数と番号を出す。
+          # 複数見つかるのは手動で作られた等の異常。警告なしに先勝ちにせず、件数と番号を出す。
           # **ここでは何をするかを書かない**——分岐によって扱いが違う（更新は最も古い 1 本だけ、
           # クローズは全件）ので、この位置で断定すると run ログが実挙動と食い違う。
           if [ "${#numbers[@]}" -gt 1 ]; then

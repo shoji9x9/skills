@@ -1,9 +1,9 @@
-// 被覆プロファイル（parity-suite）の候補展開と照合の回帰テスト（Issue #286）。
+// 網羅プロファイル（parity-suite）の候補展開と照合の回帰テスト（Issue #286）。
 //
-// 塞ぐ穴: 被覆表は登録された項目しか数えないため、データグリッドで代表列だけを操作して
+// 防ぐ抜け: 網羅表は登録された項目しか数えないため、データグリッドで代表列だけを操作して
 // 2 項目を登録すれば、他の列・非表示列・横スクロール先の列・コンテキストメニューは
 // 期待セルにすら現れず、未測定 0 で収束できてしまう。
-// 候補集合（列挙した構成要素から機械的に展開されるもの）と被覆集合の差分が残ることを確認する。
+// 候補集合（列挙した構成要素から機械的に展開されるもの）と網羅集合の差分が残ることを確認する。
 //
 // 「新しい部品は共通処理と中心ドキュメントを変えずに足せる」ことも、
 // 仮想部品のプロファイルを一時ディレクトリへ置いて照合させることで確認する。
@@ -31,7 +31,7 @@ const {
 } = await import(script);
 
 /**
- * 集合の来歴（component_inventory / instance_inventory / components[].source）を、
+ * 集合の出所（component_inventory / instance_inventory / components[].source）を、
  * 宣言が無い fixture にだけ補ってから照合する。宣言そのものを見るテストは reconcileRaw を直接呼ぶ。
  * @param {unknown} coverage
  * @param {Map<string, Record<string, unknown>>} profiles
@@ -50,7 +50,7 @@ function resolveVisualStates(
   coverage,
   profiles = bundled,
   // 行は「要求元の操作 × 種別」なので、状態名も要求元ごとに分ける
-  // （種別名だけを配ると opens-container の別々の器が同じ状態名を指してしまう）。
+  // （種別名だけを配ると opens-container の別々のコンテナが同じ状態名を指してしまう）。
   decide = (row) => `${row.required_by}:${row.kind}`,
 ) {
   fillVisualStates(coverage, profiles);
@@ -137,7 +137,7 @@ function enumeration() {
   };
 }
 
-/** 上の列挙から展開される全候補を present で埋めた被覆表。 */
+/** 上の列挙から展開される全候補を present で埋めた網羅表。 */
 function datagridCoverage() {
   const profile = bundled.get("datagrid");
   const { elements } = readEnumeration(enumeration(), profile, "t");
@@ -388,7 +388,7 @@ test("候補由来の非描画 absent も全状態の機械可読証拠を検査
     /display: none なのに offset_parent/,
   );
 
-  // visibility 経路まで巻き込まない（offsetParent は残るため非 null が正当）
+  // visibility の判定まで巻き込まない（offsetParent は残るため非 null が正当）
   const visibilityHidden = structuredClone(displayNoneConflict);
   visibilityHidden.cells[0].absence_evidence.states[0].hidden_by.computed_style = {
     visibility: "hidden",
@@ -417,7 +417,7 @@ test("候補由来の非描画 absent も全状態の機械可読証拠を検査
   });
   expect(reconcile(partiallyAbsent, bundled)).toMatchObject({ ok: true, unmeasured: 0 });
 
-  // locator が対象を一意に引けていない記録・矛盾した 0 件記録は未測定へ倒す
+  // locator が対象を一意に引けていない記録・矛盾した 0 件記録は未測定として扱う
   for (const [mutate, pattern] of [
     [(e) => (e.states[0].locator_match_count = 2), /一意に引けていない/],
     [(e) => delete e.states[0].locator_match_count, /locator_match_count/],
@@ -451,7 +451,7 @@ test("候補由来の非描画 absent も全状態の機械可読証拠を検査
     expect(r.problems.join("\n")).toMatch(pattern);
   }
 
-  // 語彙外の source.kind は出所不明として未測定に倒す（非空判定だけでは通ってしまう）
+  // 語彙外の source.kind は出所不明として未測定として扱う（非空判定だけでは通ってしまう）
   for (const kind of ["invented", "config"]) {
     const inventedSource = datagridCoverage();
     inventedSource.cells[0] = structuredClone(cov.cells[0]);
@@ -505,7 +505,7 @@ test("候補由来の fired-without-response も送り方・発火確認・観�
     };
     return c;
   };
-  // 陽性コントロール: 実測が揃えば absent として通る
+  // 通ることの確認: 実測が揃えば absent として通る
   expect(reconcile(base(), bundled)).toMatchObject({ ok: true, unmeasured: 0 });
 
   for (const [mutate, pattern] of [
@@ -585,14 +585,14 @@ test("プロファイルを宣言しない部品のセルも候補経路と同�
     expect(r.problems.join("\n")).toMatch(pattern);
   }
 
-  // 陽性コントロール: 正しく測れていれば通る（常に落とす実装を弾く）
+  // 通ることの確認: 正しく測れていれば通る（常に落とす実装を弾く）
   const good = generic();
   good.cells[0].value = "present";
   good.cells[0].covered_by = ["e2e/parity/order-list.spec.ts > ctx menu"];
   good.cells[0].absence_evidence = null;
   expect(reconcile(good, bundled)).toMatchObject({ ok: true, unmeasured: 0 });
 
-  // id が空・重複の要素は黙って読み飛ばさず、その要素が関わるセルを未測定として数える
+  // id が空・重複の要素は警告なしに読み飛ばさず、その要素が関わるセルを未測定として数える
   // （読み飛ばすと、識別できない要素があるのに conformance.ok: true を出せる）
   for (const [mutate, pattern] of [
     [(c) => c.components[0].items.push({ name: "id が無い" }), /items\[1\]: id が空/],
@@ -632,7 +632,7 @@ test("必須ルールの候補ゼロは justified_absences の根拠付きでだ
   inst.candidates = inst.candidates.filter(keep);
   cov.cells = cov.cells.filter((c) => keep(c.item));
   // 測る操作を削ったので撮影状態の要求も変わる。導出し直さないと古い行が残り、
-  // このテストの被験対象（必須ルールの免除）と無関係な problem が混ざる。
+  // このテストの被験対象（必須ルールの免除）と無関係な problem が含まれる。
   resolveVisualStates(cov);
 
   // 根拠が無ければ「列挙していない」と区別できないので落とす。
@@ -728,7 +728,7 @@ test("必須ルールの代替の組は、どれか 1 つが候補を生めば�
 
 test("代替の組の全てのルールが候補 0 件なら、全てに根拠が要る（1 つだけの根拠では通さない）", () => {
   // row-select-revealed の軸を column だけにした版。row-selector を根拠付きで空にしても、
-  // row-select-revealed は column が実在するので根拠にならず、組として列挙漏れと区別できない。
+  // row-select-revealed は column が実在するので根拠にならず、組として列挙の抜けと区別できない。
   const dg = structuredClone(bundled.get("datagrid"));
   dg.candidate_rules.find((r) => r.id === "row-select-revealed").axes = ["column"];
   const profiles = new Map(bundled);
@@ -789,7 +789,7 @@ test("required_rules の代替の組の形を検査する", () => {
 });
 
 test("初期非表示で表示切替できる列にも、行の選択の塗りの候補が立つ（Issue #471 レビュー）", () => {
-  // 列を出してから行を選ぶ経路。初期表示の列だけを候補にすると、出した列の塗りの差が撮られない。
+  // 列を出してから行を選ぶ操作。初期表示の列だけを候補にすると、出した列の塗りの差が撮られない。
   const profile = bundled.get("datagrid");
   const en = enumeration();
   en.elements.column.push({
@@ -822,7 +822,7 @@ test("要素が候補にならないことも根拠付きでだけ通す（要�
   inst.candidates = inst.candidates.filter(keep);
   cov.cells = cov.cells.filter((c) => keep(c.item));
   // 測る候補を削ったので撮影状態の要求も変わる。導出し直さないと古い行が余剰として残り、
-  // このテストの被験対象（要素スコープの免除）と無関係な problem が混ざる。
+  // このテストの被験対象（要素スコープの免除）と無関係な problem が含まれる。
   resolveVisualStates(cov);
   expect(reconcile(cov, bundled).problems.join("\n")).toMatch(/要素 name がどの候補にも現れない/);
   inst.enumeration.justified_absences = [
@@ -945,7 +945,7 @@ test("列挙が空・部品 id の重複・宣言に無い行は記録側でも 
       },
     ],
   });
-  // 陽性コントロール: 正しく測れていれば通る
+  // 通ることの確認: 正しく測れていれば通る
   expect(reconcile(base(), bundled)).toMatchObject({ ok: true, unmeasured: 0 });
 
   const emptyItems = base();
@@ -994,7 +994,7 @@ test("同値クラス: 束ねてよい軸・全候補の所属・根拠を検査
   expect(bad.problems.join("\n")).toMatch(/軸 sort-direction は reducible_axes にない/);
   expect(bad.problems.join("\n")).toMatch(/がどの同値クラスにも属していない/);
 
-  // 陽性コントロール: 列軸で束ね、全候補を過不足なく分類すれば通る。
+  // 通ることの確認: 列軸で束ね、全候補を過不足なく分類すれば通る。
   cov.components[0].equivalence_classes = ids.map((id) => ({
     id: `c-${id}`,
     axis: "column",
@@ -1042,7 +1042,7 @@ test("プロファイルの形式検査: 誤記したフラグ・未定義の軸
   expect(validateProfile(base, "x.json")).toEqual([]);
   const typo = structuredClone(base);
   typo.candidate_rules[0].guard = { "a.onn": true };
-  // 誤記したフラグ名は「該当なし」＝候補ゼロで静かに通るため、形式検査で落とす。
+  // 誤記したフラグ名は「該当なし」＝候補ゼロでエラーにならずに通るため、形式検査で落とす。
   expect(validateProfile(typo, "x.json").join("\n")).toMatch(/宣言の無いフラグ onn/);
   const unknownAxis = structuredClone(base);
   unknownAxis.candidate_rules[0].axes = ["nope"];
@@ -1054,7 +1054,7 @@ test("プロファイルの形式検査: 誤記したフラグ・未定義の軸
 
 test("プロファイルの形式検査: enumeration の欠落・空フィールドを弾く", () => {
   // enumeration.sources が空だと readEnumeration の source.kind 検査が候補ゼロで素通りし、
-  // どの列挙元でも通ってしまう（fail-open）。配布前に形式検査で落とす。
+  // どの列挙元でも通ってしまう（判定できないのに合格になる）。配布前に形式検査で落とす。
   const base = {
     id: "y",
     version: "1",
@@ -1087,9 +1087,9 @@ test("プロファイルの形式検査: enumeration の欠落・空フィール
 });
 
 /**
- * 一時ディレクトリにプロファイルと被覆表を書いて CLI を実行する。
+ * 一時ディレクトリにプロファイルと網羅表を書いて CLI を実行する。
  * プロファイルディレクトリ（@profiles）と成果物ディレクトリを分ける——同じにすると
- * 被覆表がプロファイルとして読み込まれ、検証したい経路と別の理由で落ちる。
+ * 網羅表がプロファイルとして読み込まれ、検証したい処理と別の理由で落ちる。
  */
 function runCli(args, { profiles = {}, files = {} } = {}) {
   const root = makeTempDir("coverage-expand-");
@@ -1107,7 +1107,7 @@ function runCli(args, { profiles = {}, files = {} } = {}) {
   /** @type {Record<string, string>} */
   const paths = {};
   for (const [name, content] of Object.entries(files)) {
-    // インプロセスの reconcile ラッパと同じく、被覆表には集合の来歴を補ってから書き出す
+    // インプロセスの reconcile ラッパと同じく、網羅表には集合の出所を補ってから書き出す
     // （宣言そのものを見るテストは自分で書いた値を持つので上書きされない）。
     if (name === "component-coverage.json") fillSetProvenance(content);
     paths[name] = write(root, name, content);
@@ -1266,7 +1266,7 @@ test("新しい仮想部品のプロファイルを、共通処理と中心ド�
     visual_states: { checked: true, rows: candidates.length, undecided: 0, missing_states: [] },
   });
 
-  // 陰性コントロール: 同じ仮想部品でノードを 1 つ落とすと失敗する（常に通す実装を弾く）。
+  // 落ちることの確認: 同じ仮想部品でノードを 1 つ落とすと失敗する（常に通す実装を弾く）。
   const short = structuredClone(coverage);
   short.components[0].items = short.components[0].items.filter((i) => i.id !== "node-select/leaf");
   short.components[0].instances[0].candidates = candidates.filter((i) => i !== "node-select/leaf");
@@ -1334,15 +1334,15 @@ test("CLI --list-profiles は同梱プロファイルを列挙する", () => {
 
 // ===== 撮影状態の導出（Issue #389） =====
 //
-// 塞ぐ穴: 撮る状態の集合が「思いついた分」で決まり、部品被覆表に並んだ操作と結び付いていなかった。
-// 撮っていない状態には差が出ず、差分器は撮った 2 枚しか比べないので、集合の不足は「差 0 件」と
+// 防ぐ抜け: 撮る状態の集合が「思いついた分」で決まり、部品網羅表に並んだ操作と結び付いていなかった。
+// 撮っていない状態には差が出ず、差分ツールは撮った 2 枚しか比べないので、集合の不足は「差 0 件」と
 // 同じ見え方になる（素通りと見分けが付かない）。測った操作から必要な状態を導き、
 // capture_conditions.states との差を撮る前に報告できることを確認する。
 
 test("被覆表の操作から撮影状態を導く（プロファイルが種別の正本）", () => {
   const cov = datagridCoverage();
   const kinds = cov.visual_state_coverage.rows.map((r) => r.kind);
-  // 器を開く・指を乗せる・焦点を当てる・押している最中・不活性の 5 種と、
+  // コンテナを開く・指を乗せる・焦点を当てる・押している最中・不活性の 5 種と、
   // 操作を終えた後に残る見た目（Issue #471）が測った操作から立つ。
   expect(new Set(kinds)).toEqual(
     new Set(["opens-container", "hover", "focus", "active", "disabled", "after-operation"]),
@@ -1372,7 +1372,7 @@ test("被覆表の操作から撮影状態を導く（プロファイルが種�
     "row-select/row-number/price",
   ]);
   // 行は要求元の候補ごとに分かれる。種別だけで束ねると、同じ opens-container を要求する
-  // 列フィルタの吹き出しと右クリックメニューが 1 行へ潰れ、片方を撮るだけで門が通る。
+  // 列フィルタの吹き出しと右クリックメニューが 1 行へ潰れ、片方を撮るだけでチェックが通る。
   // column-toggle はこの列挙に toggleable な列が無いため候補が立たず、行も立たない。
   const opensBy = cov.visual_state_coverage.rows
     .filter((r) => r.kind === "opens-container")
@@ -1405,7 +1405,7 @@ test("被覆表の操作から撮影状態を導く（プロファイルが種�
 
 test("測っていない操作は撮影状態を要求しない（absent / unmeasured で行が立たない）", () => {
   const cov = datagridCoverage();
-  // disabled を要求するのは context-menu-item だけ。そのセルを absent へ倒すと行が消える。
+  // disabled を要求するのは context-menu-item だけ。そのセルを absent として扱うと行が消える。
   for (const cell of cov.cells) {
     if (cell.item.startsWith("context-menu-item/")) {
       cell.value = "unmeasured";
@@ -1443,10 +1443,10 @@ test("撮影状態の未決は「足りない状態の一覧」として報告�
 test("導いた状態が capture_conditions.states に無ければ差として報告する", () => {
   const cov = datagridCoverage();
   const conditions = captureConditionsFor(cov);
-  // 陽性コントロール: 揃っていれば通る。
+  // 通ることの確認: 揃っていれば通る。
   expect(reconcile(cov, bundled, conditions).problems).toEqual([]);
 
-  // 状態名は実データから引く（ルール id ではなく候補 id が要求元になる）。
+  // 状態名は実データから取得する（ルール id ではなく候補 id が要求元になる）。
   const anySortHover = cov.visual_state_coverage.rows.find(
     (row) => row.kind === "hover" && row.required_by.startsWith("column-sort/"),
   ).captured;
@@ -1461,7 +1461,7 @@ test("導いた状態が capture_conditions.states に無ければ差として�
     new RegExp(`captured の ${anySortHover} が metadata.json の capture_conditions`),
   );
 
-  // 器を開く状態は states に在るだけでは足りない。器の棚卸しにも行が要る。
+  // コンテナを開く状態は states に在るだけでは足りない。コンテナの棚卸しにも行が要る。
   const noInventory = { ...conditions, popupStates: [] };
   const inv = reconcile(cov, bundled, noInventory);
   expect(inv.ok).toBe(false);
@@ -1472,7 +1472,7 @@ test("--metadata 無しの実行は照合済みに倒さない（checked: false 
   const cov = datagridCoverage();
   const r = reconcile(cov, bundled);
   expect(r.visualStates.checked).toBe(false);
-  // 状態名を突き合わせないだけで、未決の検出は効く。
+  // 状態名を突き合わせないだけで、未決の検出は機能する。
   expect(r.problems).toEqual([]);
   expect(reconcile(cov, bundled, captureConditionsFor(cov)).visualStates.checked).toBe(true);
 });
@@ -1530,7 +1530,7 @@ test("--write は撮る／撮らないの判断を引き継ぎ、要求の消え
     captured: null,
     reason: "一覧のどの行にも hover の見た目が無いことを実 UI で確認した",
   });
-  // 同じキーが重複していたらどちらの判断も引き継がない（黙って一方を採ると判断が消える）。
+  // 同じキーが重複していたらどちらの判断も引き継がない（警告なしに一方を採ると判断が消える）。
   cov.visual_state_coverage.rows.push({
     ...cov.visual_state_coverage.rows.find((r) => r.kind === "hover"),
     reason: "別の判断",
@@ -1653,7 +1653,7 @@ test("CLI: --metadata を渡すと撮影状態まで照合し、読めない met
   expect(ok.status).toBe(0);
   expect(JSON.parse(ok.stdout).visual_states).toMatchObject({ checked: true, undecided: 0 });
 
-  // 陰性コントロール: 撮影条件から状態を 1 つ落とすと落ちる（常に通す実装を弾く）。
+  // 落ちることの確認: 撮影条件から状態を 1 つ落とすと落ちる（常に通す実装を弾く）。
   const short = structuredClone(metadata);
   const droppedState = cov.visual_state_coverage.rows.find(
     (row) => row.kind === "focus" && row.required_by.startsWith("column-sort/"),
@@ -1677,7 +1677,7 @@ test("CLI: --metadata を渡すと撮影状態まで照合し、読めない met
     new RegExp(`撮影条件に無い状態名 1 件（${droppedState.replace(/\//g, "\\/")}）`),
   );
 
-  // capture_conditions を持たない metadata は「照合しない」に倒さず使い方の誤りにする。
+  // capture_conditions を持たない metadata は「照合しない」として扱わず使い方の誤りにする。
   const broken = runCli(
     [
       "--coverage",
@@ -1692,7 +1692,7 @@ test("CLI: --metadata を渡すと撮影状態まで照合し、読めない met
   expect(broken.status).toBe(2);
   expect(broken.stderr).toMatch(/capture_conditions.states \/ capture_conditions.popup_inventory/);
 
-  // 別機能の metadata を黙って受理しない（状態名が汎用なら突き合わせも通ってしまう）。
+  // 別機能の metadata を警告なしに受理しない（状態名が汎用なら突き合わせも通ってしまう）。
   const otherFeature = runCli(
     [
       "--coverage",
@@ -1712,7 +1712,7 @@ test("CLI: --metadata を渡すと撮影状態まで照合し、読めない met
   expect(otherFeature.status).toBe(2);
   expect(otherFeature.stderr).toMatch(/slug（another-feature）が網羅表の slug（order-list）と違う/);
 
-  // --metadata 無しは通るが、照合していないことを黙らない。
+  // --metadata 無しは通るが、照合していないことを警告する。
   const unchecked = runCli(
     ["--coverage", "component-coverage.json", "--profiles", bundledProfiles],
     { files: { "component-coverage.json": cov } },
@@ -1724,8 +1724,8 @@ test("CLI: --metadata を渡すと撮影状態まで照合し、読めない met
 
 test("同じ種別を要求する別の操作を 1 行へ束ねない（片方だけ撮って門が通らない）", () => {
   // 列フィルタの吹き出しと右クリックメニューはどちらも opens-container を要求する。
-  // 種別だけで束ねると 1 行になり、片方の状態名を書くだけで undecided 0 に化ける——
-  // 撮られなかった器の差は「差 0 件」と同じ見え方になり、この導出が塞ぐはずの穴が残る。
+  // 種別だけで束ねると 1 行になり、片方の状態名を書くだけで 誤って undecided 0 と判定される。
+  // 撮られなかったコンテナの差は「差 0 件」と同じ見え方になり、この導出で防ぐはずの抜けが残る。
   const cov = {
     slug: "order-list",
     components: [
@@ -1776,7 +1776,7 @@ test("同じ種別を要求する別の操作を 1 行へ束ねない（片方�
     /撮影状態が未決: grid \/ orders \/ ctx-menu \/ opens-container/,
   );
 
-  // 陽性コントロール: 両方を別の状態名で決めれば通る（常に落とす実装を弾く）。
+  // 通ることの確認: 両方を別の状態名で決めれば通る（常に落とす実装を弾く）。
   cov.visual_state_coverage.rows.find((r) => r.required_by === "ctx-menu").captured =
     "右クリックメニューを開いた状態";
   const both = reconcile(cov, bundled, {
@@ -1845,7 +1845,7 @@ test("同じ撮影単位で状態名を使い回した行は根拠なしに通�
     }).problems,
   ).toEqual([]);
 
-  // fail-closed を行き止まりにしない: 同じ器を開く 2 操作は全行に根拠を書けば通る。
+  // 不合格の後に進む先を残す: 同じコンテナを開く 2 操作は全行に根拠を書けば通る。
   const justified = base();
   fillVisualStateRows(justified);
   for (const row of justified.visual_state_coverage.rows) {
@@ -1939,8 +1939,8 @@ test("--write は人が埋める欄を全部引き継ぐ（逃げ道が書き戻
 
 test("page が無いインスタンスは撮影単位を決められないので落とす（狭いスコープへ倒さない）", () => {
   // page が撮影単位（ページ × 状態名 × ビューポート）を決めるキー。
-  // 欠落を「そのインスタンスだけの重複を見る」へ倒すと、同じページに載る別部品どうしが
-  // 根拠なく状態名を使い回しても通る（fail-open）。
+  // 欠落を「そのインスタンスだけの重複を見る」として扱うと、同じページに載る別部品どうしが
+  // 根拠なく状態名を使い回しても通ってしまう。
   const cov = {
     slug: "order-list",
     components: ["grid", "panel"].map((id) => ({
@@ -1972,7 +1972,7 @@ test("page が無いインスタンスは撮影単位を決められないので
   expect(bad.ok).toBe(false);
   expect(bad.problems.join("\n")).toMatch(/page が無い/);
 
-  // 陽性コントロール: page を書けば、同じページの別部品どうしの使い回しとして落ちる。
+  // 落ちることの確認: page を書けば、同じページの別部品どうしの使い回しとして落ちる。
   for (const component of cov.components) component.instances[0].page = "受注一覧";
   expect(reconcile(cov, bundled, conditions).problems.join("\n")).toMatch(/撮影状態の使い回し/);
 
@@ -1984,7 +1984,7 @@ test("page が無いインスタンスは撮影単位を決められないので
 test("インスタンスの page は宣言されたページ名でなければ通さない（非空なだけで受理しない）", () => {
   // 採取は metadata の capture_conditions.pages を外側のループにして回るので、
   // 宣言に無いページ名（誤記・旧称）を書いた行はどのページでも撮られない。
-  // 誤記は使い回しの判定単位も割るため、共有すべきスコープが黙って分かれる。
+  // 誤記は使い回しの判定単位も割るため、共有すべきスコープが警告なしに分かれる。
   const cov = {
     slug: "order-list",
     components: [
@@ -2020,7 +2020,7 @@ test("インスタンスの page は宣言されたページ名でなければ�
     /page「TYPO」が metadata.json の capture_conditions.pages に無い/,
   );
 
-  // 陽性コントロール: 宣言されたページ名なら通る（常に落とす実装を弾く）。
+  // 通ることの確認: 宣言されたページ名なら通る（常に落とす実装を弾く）。
   cov.components[0].instances[0].page = "受注一覧";
   expect(reconcile(cov, bundled, conditions).problems).toEqual([]);
 
@@ -2058,15 +2058,15 @@ test("metadata に capture_conditions.pages が無ければ読めたことにし
     slug: "order-list",
     pageNames: ["受注一覧"],
   });
-  // pages キーの欠落を「照合しない」に倒さない。
+  // pages キーの欠落を「照合しない」として扱わない。
   const noPages = structuredClone(withPages);
   delete noPages.capture_conditions.pages;
   expect(readCaptureConditions(noPages)).toBeNull();
 });
 
 test("撮影条件を渡したのにページ名一覧が無ければ照合しないに倒さない", () => {
-  // 「読めない」を「比較しない」に倒すと、呼び出し側が pageNames を落とすだけで
-  // ページ名の検査が消える（fail-open）。
+  // 「読めない」を「比較しない」として扱うと、呼び出し側が pageNames を落とすだけで
+  // ページ名の検査が消え、合格になってしまう。
   const cov = {
     slug: "order-list",
     components: [
@@ -2095,7 +2095,7 @@ test("撮影条件を渡したのにページ名一覧が無ければ照合し�
   const r = reconcile(cov, bundled, base);
   expect(r.ok).toBe(false);
   expect(r.problems.join("\n")).toMatch(/ページ名一覧を読めない/);
-  // 陽性コントロール: 渡せば通る（常に落とす実装を弾く）。
+  // 通ることの確認: 渡せば通る（常に落とす実装を弾く）。
   expect(reconcile(cov, bundled, { ...base, pageNames: ["受注一覧"] }).problems).toEqual([]);
 });
 
@@ -2156,14 +2156,14 @@ test("要求元はルール id でまとめない（縮約は宣言・検証済�
   expect(r.problems.join("\n")).toMatch(/軸 sort-direction は reducible_axes にない/);
 });
 
-// --- 集合の来歴と完全性（Issue #392 / #393）: 記録側 ---
+// --- 集合の出所と完全性（Issue #392 / #393）: 記録側 ---
 //
 // 判定側（coverage-check.mjs）と同じ検査を authoring 時にも当てる。片側だけが厳しいと
 // 「記録側は conformance を出すのに判定側が収束させない」表が作れる。
 // 補完ラッパを通さない reconcileRaw で呼ぶ（ラッパは宣言を埋めてしまう）。
 
 test("記録側も 3 つの集合の来歴と完全性を要求する（宣言が無ければ未測定へ数える）", () => {
-  // 陽性コントロール: 宣言が揃っていれば適合する（常に落とす実装を弾く）。
+  // 通ることの確認: 宣言が揃っていれば適合する（常に落とす実装を弾く）。
   const ok = reconcileRaw(fillSetProvenance(datagridCoverage()), bundled);
   expect(ok.problems).toEqual([]);
   expect(ok).toMatchObject({ ok: true, unmeasured: 0 });
@@ -2189,14 +2189,14 @@ test("記録側も 3 つの集合の来歴と完全性を要求する（宣言�
     /instance_inventory.complete が true ではない/,
   );
 
-  // 効いていない免除（complete: true なのに incomplete_reason が残っている）も判定側と同じく落とす。
+  // 機能していない免除（complete: true なのに incomplete_reason が残っている）も判定側と同じく落とす。
   const staleReason = fillSetProvenance(datagridCoverage());
   staleReason.components[0].instance_inventory.incomplete_reason = "数え切れていない（古い記録）";
   expect(reconcileRaw(staleReason, bundled).problems.join("\n")).toMatch(
     /instance_inventory: complete: true なのに incomplete_reason が書かれている/,
   );
 
-  // 一次情報源以外で列挙したら理由を要求する（読めるのに読んでいない側の経路）。
+  // 一次の情報源以外で列挙したら理由を要求する（読めるのに読んでいない場合）。
   const walked = fillSetProvenance(datagridCoverage());
   walked.component_inventory.source.kind = "app-ui";
   expect(reconcileRaw(walked, bundled).problems.join("\n")).toMatch(
@@ -2210,7 +2210,7 @@ test("記録側も 3 つの集合の来歴と完全性を要求する（宣言�
 test("列挙の来歴も一次情報源を使わなかった理由を要求する（readEnumeration）", () => {
   const profile = bundled.get("datagrid");
 
-  // 陽性コントロール: current-source で列挙した記録は使える。
+  // 通ることの確認: current-source で列挙した記録は使える。
   expect(readEnumeration(enumeration(), profile, "t").usable).toBe(true);
 
   const walked = enumeration();
@@ -2229,7 +2229,7 @@ test("列挙の来歴も一次情報源を使わなかった理由を要求す�
   };
   expect(readEnumeration(declared, profile, "t").usable).toBe(true);
 
-  // 一次情報源を使ったのに理由が残っていれば効いていない免除として落とす。
+  // 一次情報源を使ったのに理由が残っていれば機能していない免除として落とす。
   const stale = { ...enumeration(), stronger_source_unavailable_reason: "未受領（古い記録）" };
   const staleResult = readEnumeration(stale, profile, "t");
   expect(staleResult.usable).toBe(false);
@@ -2238,7 +2238,7 @@ test("列挙の来歴も一次情報源を使わなかった理由を要求す�
   );
 
   // complete: true なのに incomplete_reason が残る記録も同じ扱い（同じ表の中で「完全」と「未完了」を
-  // 同時に主張させない）。集合の来歴だけに当てて列挙側を素通りさせない。
+  // 同時に主張させない）。集合の出所だけに当てて列挙側を素通りさせない。
   const staleReason = {
     ...enumeration(),
     incomplete_reason: "列定義が動的生成で読み切れない（complete を true へ直したときの残り）",
@@ -2249,7 +2249,7 @@ test("列挙の来歴も一次情報源を使わなかった理由を要求す�
     /complete: true なのに incomplete_reason が書かれている/,
   );
 
-  // 陽性コントロール: null / キー無しは通る（常に落とす実装を弾く）。
+  // 通ることの確認: null / キー無しは通る（常に落とす実装を弾く）。
   expect(readEnumeration({ ...enumeration(), incomplete_reason: null }, profile, "t").usable).toBe(
     true,
   );
@@ -2271,7 +2271,7 @@ test("プロファイルの形式検査: enumeration.sources は強い順に並�
     required_rules: ["r"],
     equivalence: { reducible_axes: ["a"] },
   };
-  // 陽性コントロール: 強い順・部分集合はどちらも通る。
+  // 通ることの確認: 強い順・部分集合はどちらも通る。
   expect(validateProfile(base, "z2.json")).toEqual([]);
   const subset = structuredClone(base);
   subset.enumeration.sources = ["current-source", "app-ui"];
@@ -2295,7 +2295,7 @@ test("プロファイルの形式検査: enumeration.sources は強い順に並�
   );
 
   // 型崩れを filter で落としてから検査すると、残った要素だけが語彙・順序の検査を通り、
-  // 壊れた宣言が「適合」として配布される（実測: 42 / "" / ["app-ui"] / null はいずれも problems 0 だった）。
+  // 不正な宣言が「適合」として配布される（実測: 42 / "" / ["app-ui"] / null はいずれも problems 0 だった）。
   for (const [malformed, pattern] of [
     [["current-source", 42, "app-ui"], /空でない文字列でない要素がある（42）/],
     [["current-source", "", "app-ui"], /空でない文字列でない要素がある（""）/],

@@ -15,22 +15,23 @@ import { dirname, join, relative } from "node:path";
 import { makeSharedTempDir, makeTempDir } from "../lib/test-tmpdir.js";
 
 // `check-mutation-proof.js` は「変異が当たったこと」と「狙ったテストが落ちたこと」の両方で
-// 判定する。**当たらなかった変異を成功に倒さない**のがこの検査の主目的なので、
+// 判定する。**当たらなかった変異を成功として扱わない**のがこのチェックの主目的なので、
 // わざと当たらない変異・生き残る変異・宣言外まで落とす変異を入れて、
 // それぞれが FAIL として報告されることを実測する（Issue #420 の受け入れ条件）。
 //
-// **本物の vitest を通すのは end-to-end の 3 本だけにする**（Issue #442）。このファイルは実行器自身の
-// 変異実証で変異 1 件ごとに丸ごと走るので、テストごとに runner → vitest を起動すると 1 変異 40 秒かかった。
-// ロック・復元・宣言検証・判定の分岐は、決まった JSON レポートを返すスタブ（`STUB_COMMAND`）で足りる。
-// 本物を通す 3 本は「fixture への変異 → vitest の結果の読み取り」と「選択 → 測定」の配線を実行で検証する:
+// **本物の vitest を通すのは end-to-end の 3 本だけにする**（Issue #442）。
+// このファイルは、ランナー自身のミューテーションテストで、変異 1 件ごとに丸ごと実行される。
+// テストごとに runner → vitest を起動すると、1 変異に 40 秒かかった。
+// ロック・復元・宣言の検証・判定の分岐は、決まった JSON レポートを返すスタブ（`STUB_COMMAND`）で足りる。
+// 本物を通す 3 本は、「fixture への変異 → vitest の結果の読み取り」と「選択 → 測定」のつながりを、実行して確かめる。対象は次の 3 本である。
 //   - 本物の vitest でも … PASS（子の掃引で使用中の fixture が消えない）
-//   - 対象ファイルが変わった宣言だけを選ぶ / 実行器が変わったら全宣言を測る
+//   - 対象ファイルが変わった宣言だけを選ぶ / ランナーが変わったら全宣言を測る
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const RUNNER = "scripts/mutation/check-mutation-proof.js";
 
 // fixture は `scripts/` 配下に置く。vitest の include（`scripts/**/*.test.js`）に
-// 入っていないと、runner が起動した vitest が「テストが 1 件も走らなかった」になり、
-// 検査対象（変異の判定）ではなく置き場所を測ってしまう。
+// 入っていないと、runner が起動した vitest が「テストが 1 件も実行されなかった」になり、
+// チェックの対象（変異の判定）ではなく置き場所を測ってしまう。
 const FIXTURE_TARGET = `# fixture
 check_prefix() {
   if [ -z "$X" ]; then
@@ -73,10 +74,11 @@ let dirs = [];
 
 const lockDir = makeSharedTempDir("mutation-proof-lock-");
 
-// vitest の代わりに起動されるスタブ（`MUTATION_PROOF_TEST_COMMAND`）。引数は vitest と同じ
-// `run <testFile> --reporter=json --outputFile=<path>` を受け、**実物の JSON reporter と同じ単位**
-// （`testResults[].assertionResults[]` の `fullName` / `status` / `title` / `ancestorTitles` / `failureMessages`）
-// で結果を書く。形は fixture を本物の vitest 4 で走らせた出力から起こした。
+// vitest の代わりに起動されるスタブ（`MUTATION_PROOF_TEST_COMMAND`）。
+// 引数は vitest と同じ `run <testFile> --reporter=json --outputFile=<path>` を受ける。
+// 結果は**実物の JSON reporter と同じ単位**で書く。
+// 単位は `testResults[].assertionResults[]` の `fullName` / `status` / `title` / `ancestorTitles` / `failureMessages` である。
+// 形は、fixture を本物の vitest 4 で実行した出力から作った。
 const STUB_COMMAND = join(lockDir, "stub-vitest.js");
 writeFileSync(
   STUB_COMMAND,
@@ -123,7 +125,7 @@ afterEach(() => {
 
 /**
  * fixture 一式を `scripts/` 配下の使い捨てディレクトリに作る。
- * 既定はスタブ用（`fixture.stub.json`）。`real: true` なら本物の vitest が走る `fixture.test.js` を置く。
+ * デフォルトはスタブ用（`fixture.stub.json`）。`real: true` なら、本物の vitest が実行する `fixture.test.js` を置く。
  */
 function makeFixture({ real = false, stubTests = STUB_TESTS } = {}) {
   const dir = mkdtempSync(join(repoRoot, "scripts", "mutation-proof-fixture-")); // tmpdir-ok: scripts/ 配下・afterEach で消す
@@ -156,9 +158,9 @@ function makeFixture({ real = false, stubTests = STUB_TESTS } = {}) {
 function runnerEnv(env) {
   const merged = {
     ...process.env,
-    // ロックは使い捨てパスへ寄せる（既定パスを使うと、手元で走っている実走と取り合う）。
+    // ロックは使い捨てのパスにする（デフォルトのパスを使うと、手元で実行中の本番の実行と取り合う）。
     MUTATION_PROOF_LOCK: join(lockDir, "default.lock"),
-    // 既定はスタブ。本物の vitest を通すテストは `REAL` で外す。
+    // デフォルトはスタブ。本物の vitest を通すテストは `REAL` で外す。
     MUTATION_PROOF_TEST_COMMAND: STUB_COMMAND,
     ...env,
   };
@@ -199,16 +201,16 @@ describe("変異の判定", () => {
     const res = runRunner(spec);
     expect(res.out).toContain("PASS G");
     expect(res.status, res.out).toBe(0);
-    // スタブを使ったことを黙らない（注入に気づかないまま測るのを防ぐ）。
+    // スタブを使ったことを必ず出力する（注入に気づかないまま測るのを防ぐ）。
     expect(res.out).toContain("テスト用の注入");
     // 変異は必ず戻す（戻せないと以降の run が別の版を測る）。
     expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
   });
 
-  // **使用中の fixture を掃かせない。** `scripts/lib/vitest-global-setup.ts` は収集前に
-  // `scripts/mutation-proof-fixture-*` を消すので、runner が起動する子 vitest には
-  // `MUTATION_PROOF_CHILD` を渡して掃引を止めている（渡さないと fixture ごと消えて 10 テストが落ちた）。
-  // ここでは**ambient な marker を明示的に外して**測る（ハーネス自身が渡す値で緑にならないように）。
+  // **使用中の fixture を消させない。** `scripts/lib/vitest-global-setup.ts` は、収集の前に
+  // `scripts/mutation-proof-fixture-*` を消す。そこで runner が起動する子の vitest には
+  // `MUTATION_PROOF_CHILD` を渡して、消す処理を止めている（渡さないと fixture ごと消えて、10 テストが落ちた）。
+  // ここでは**ambient な marker を明示的に外して**測る（ハーネス自身が渡す値で成功しないように）。
   // 本物の vitest を通す end-to-end を兼ねる（fixture への変異 → vitest の JSON 結果 → 判定）。
   test("本物の vitest でも PASS し、子の掃引で使用中の fixture が消えない", () => {
     const fx = makeFixture({ real: true });
@@ -273,8 +275,8 @@ describe("変異の判定", () => {
 });
 
 describe("宣言と前提の検証（走らせる前に落とす）", () => {
-  // テストをリネームすると `expect_failing` は永遠に落ちない名前を指す。
-  // 変異が効かなくなったのではなく**検査が空振りしている**ので、走らせる前に落とす。
+  // テストをリネームすると、`expect_failing` は決して失敗しない名前を指す。
+  // 変異が機能しなくなったのではなく、**チェックが何も見ていない**ので、実行する前に落とす。
   test("実在しないテスト名を宣言したら exit 2", () => {
     const fx = makeFixture();
     const spec = fx.spec([
@@ -358,7 +360,7 @@ describe("宣言と前提の検証（走らせる前に落とす）", () => {
     const fx = makeFixture();
     const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
     const lock = join(lockDir, "stale.lock");
-    // 実在しない pid（残骸）。奪えないと、以降この検査は永久に走らない。
+    // 実在しない pid（残骸）。奪えないと、以降このチェックは二度と実行されない。
     writeFileSync(lock, "2147483646\n");
     const res = runRunner(spec, { MUTATION_PROOF_LOCK: lock });
     expect(res.status, res.out).toBe(0);
@@ -404,7 +406,7 @@ describe("宣言と前提の検証（走らせる前に落とす）", () => {
     expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
   });
 
-  // 空の注入を「未指定」に倒すと、スタブのつもりで本物の vitest を測る。
+  // 空の注入を「未指定」として扱うと、スタブのつもりで本物の vitest を測る。
   test("MUTATION_PROOF_TEST_COMMAND が空なら exit 2", () => {
     const fx = makeFixture();
     const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
@@ -414,8 +416,8 @@ describe("宣言と前提の検証（走らせる前に落とす）", () => {
   });
 
   // vitest は `node_modules` からモジュール解決で求める。解決できない（`pnpm install` 前・リポジトリ外）
-  // のは前提の誤り。**実行器を 1 ファイルだけリポジトリ外へコピーして**解決を失敗させる
-  // （実行器は自分の位置から repoRoot を決めるので、コピー先には `node_modules` が無い）。
+  // のは前提の誤り。**ランナーを 1 ファイルだけリポジトリ外へコピーして**解決を失敗させる
+  // （ランナーは自分の位置から repoRoot を決めるので、コピー先には `node_modules` が無い）。
   test("vitest を解決できなければ exit 2", () => {
     const root = makeTempDir("mutation-proof-noroot-");
     mkdirSync(join(root, "scripts", "mutation"), { recursive: true });
@@ -443,8 +445,8 @@ describe("宣言と前提の検証（走らせる前に落とす）", () => {
     expect(out).toContain("vitest を解決できない");
   });
 
-  // signal handler は同期の `main()` では dispatch されない（登録すると `kill` も効かなくなる）。
-  // 中断で変異が残る可能性は**次回起動の復元**で受ける、という契約を固定する。
+  // signal handler は同期の `main()` では dispatch されない（登録すると `kill` も機能しなくなる）。
+  // 中断で変異が残る可能性は**次回起動の復元**で受ける、という取り決めを固定する。
   test("前回の中断で残った変異を次回起動で戻す", () => {
     const fx = makeFixture();
     const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
@@ -522,9 +524,10 @@ describe("宣言と前提の検証（走らせる前に落とす）", () => {
   // 差分に当たる宣言だけを測る選択。**0 件は「測るものが無い」**（全件は定期実行が測る）。
   // `MUTATION_PROOF_CHANGED_FILES` は差分の注入（git を使わずに選択だけを測るため）。
   //
-  // **`--changed-since` を測るテストは必ず `--only` で有界にする。** 選択の判定を常に真にする変異
-  // （`CHANGED-HITS`）が入ると、`--only` 無しでは選ばれた全宣言を測りに行き、入れ子の runner が
-  // 指数的に増える（実測で 30 分以上・21 プロセス以上に膨らみ、殺した後の作業ツリーに変異が残った）。
+  // **`--changed-since` を測るテストは、必ず `--only` で範囲を限る。**
+  // 選択の判定を常に真にする変異（`CHANGED-HITS`）が入ると、`--only` が無ければ、選ばれた全宣言を測りに行く。
+  // すると入れ子の runner が指数的に増える。
+  // 実測では 30 分以上・21 プロセス以上に膨らみ、止めた後の作業ツリーに変異が残った。
   test("差分に当たらない宣言は飛ばし、理由を印字する", () => {
     const res = runRunner("--changed-since", "origin/main", "--only", "D", {
       ...REAL,
@@ -532,7 +535,7 @@ describe("宣言と前提の検証（走らせる前に落とす）", () => {
     });
     expect(res.status, res.out).toBe(0);
     expect(res.out).toContain("この差分に当たる宣言は無い");
-    // 黙って緑にしない: 注入を使ったことと、飛ばした宣言が出ていること。
+    // 警告なしに成功にしない。注入を使ったことと、飛ばした宣言が出ていることを確かめる。
     expect(res.out).toContain("テスト用の注入");
     expect(res.out).toContain("飛ばす: scripts/skills/kaizen/tracking-issue-title.mutations.json");
   });
@@ -541,7 +544,7 @@ describe("宣言と前提の検証（走らせる前に落とす）", () => {
     const res = runRunner("--changed-since", "origin/main", "--only", "STDEV", {
       ...REAL,
       MUTATION_PROOF_CHANGED_FILES: "scripts/eval/build-skill-eval-benchmark.js",
-      // 集計器の宣言だけが選ばれる差分。`--only` で 1 変異に抑える（有界化の理由は上のコメント）。
+      // 集計スクリプトの宣言だけが選ばれる差分。`--only` で 1 変異に抑える（有界化の理由は上のコメント）。
     });
     expect(res.status, res.out).toBe(0);
     expect(res.out).toContain("測る: scripts/eval/build-skill-eval-benchmark.mutations.json");
@@ -551,7 +554,7 @@ describe("宣言と前提の検証（走らせる前に落とす）", () => {
 
   test("実行器が変わったら全宣言を測る", () => {
     // `--only D`（tracking の宣言にだけ在る id）で測る量を 1 変異に抑える。全宣言へ広がったことは
-    // 「飛ばす:」が出ないことで判定する（選択の結果を見るのに全件を走らせる必要はない）。
+    // 「飛ばす:」が出ないことで判定する（選択の結果を見るのに、全件を実行する必要はない）。
     const res = runRunner("--changed-since", "origin/main", "--only", "D", {
       ...REAL,
       MUTATION_PROOF_CHANGED_FILES: "scripts/mutation/check-mutation-proof.js",
@@ -563,7 +566,7 @@ describe("宣言と前提の検証（走らせる前に落とす）", () => {
     expect(res.out).not.toContain("飛ばす:");
   }, 60_000);
 
-  // 差分を取れないときは「変更なし」に倒さない（0 件と失敗が同じ空配列になる）。
+  // 差分を取れないときは「変更なし」として扱わない（0 件と失敗が同じ空配列になる）。
   test("差分を取れなければ exit 2", () => {
     const res = runRunner("--changed-since", "no-such-ref-for-test");
     expect(res.status, res.out).toBe(2);
@@ -596,7 +599,7 @@ describe("宣言と前提の検証（走らせる前に落とす）", () => {
     const res = runRunner(specA, specB, "--only", "B");
     expect(res.status, res.out).toBe(0);
     expect(res.out).toContain("PASS B");
-    // 選ばれなかった宣言は走らせず、件数として出す（黙って消さない）。
+    // 選ばれなかった宣言は実行せず、件数として出す（警告なしに消さない）。
     expect(res.out, "選ばれていない宣言まで走らせた").not.toContain("PASS A");
     expect(res.out).toContain("1 skipped");
   });

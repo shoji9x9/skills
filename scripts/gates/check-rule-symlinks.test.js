@@ -1,18 +1,18 @@
-// rule の多エージェント配線（.agents/rules → .claude/rules / .github/instructions）検査の回帰テスト。
+// rule を各エージェントに読ませる symlink（.agents/rules → .claude/rules / .github/instructions）のチェックの回帰テスト。
 //
 // 状態空間の軸（判定に使う全入力）と、各セルに置いた入力:
 //
 // | 軸                   | 値                                                              |
 // | -------------------- | --------------------------------------------------------------- |
-// | 正本ディレクトリ     | 存在（N 件） / 存在（0 件） / 不在                               |
-// | 配線ディレクトリ     | 存在 / 不在                                                      |
-// | 配線エントリ         | 正しい symlink / 欠落 / 実ファイル / 誤った指し先 / 壊れた symlink |
-// | 逆向き（配線→正本）  | 対応あり / 孤児 / 命名規則外                                     |
-// | 配線先               | .claude/rules / .github/instructions（両方が独立に評価される）   |
+// | 原本ディレクトリ       | 存在（N 件） / 存在（0 件） / 不在                                         |
+// | symlink のディレクトリ | 存在 / 不在                                                                |
+// | symlink のエントリ     | 正しい symlink / 欠落 / 実ファイル / 誤った指し先 / リンク先の無い symlink |
+// | 逆向き（symlink→原本） | 対応あり / 孤児 / 命名規則外                                               |
+// | symlink を置く先       | .claude/rules / .github/instructions（両方が独立に評価される）             |
 //
-// 陰性コントロール（通さねばならない入力）＝ 正しく配線された rule 群が violations 0 件になること。
-// 実リポジトリ自身も陰性コントロールとして 1 件置く（合成 fixture だけだと、現実の配線形と
-// 検査の期待形がずれていても緑のまま通る）。
+// 誤検知しないことの確認（通さねばならない入力）＝ 正しく symlink を張った rule 群が violations 0 件になること。
+// 実リポジトリ自身も、誤検知しないことの確認として 1 件置く。合成した fixture だけだと、
+// 実際の symlink の形とチェックが期待する形がずれていても、成功のまま通る。
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
@@ -24,7 +24,7 @@ import { makeTempDir } from "../lib/test-tmpdir.js";
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const script = join(repoRoot, "scripts/gates/check-rule-symlinks.js");
 
-/** 正しく配線された rule を持つ一時リポジトリを作る。 */
+/** 正しく symlink を張った rule を持つ一時リポジトリを作る。 */
 function makeRepo(names = ["alpha", "beta"], { wire = true } = {}) {
   const root = makeTempDir("rule-symlinks-");
   mkdirSync(join(root, CANON_DIR), { recursive: true });
@@ -42,7 +42,7 @@ function makeRepo(names = ["alpha", "beta"], { wire = true } = {}) {
   return root;
 }
 
-// 配線ディレクトリ（2 階層）から見た正本への相対パス。
+// symlink のディレクトリ（2 階層）から見た、原本への相対パス。
 const relTarget = (dir, name) => `../../${CANON_DIR}/${name}.md`;
 
 const cleanup = (root) => rmSync(root, { recursive: true, force: true });
@@ -98,7 +98,7 @@ test("誤った指し先: 別の rule を指す symlink を検出する", () => 
 
 test("壊れた symlink: 指し先の正本が消えていたら検出する（欠落として現れる）", () => {
   const root = makeRepo(["alpha"]);
-  // 正本を消すと、配線は「対応する正本が無い孤児」になる（期待集合は宣言＝正本から作るため）。
+  // 原本を消すと、symlink は「対応する原本が無い孤児」になる（期待する集合は、宣言＝原本から作るため）。
   rmSync(join(root, CANON_DIR, "alpha.md"));
   const { rules, violations } = checkRuleSymlinks(root);
   expect(rules).toEqual([]);

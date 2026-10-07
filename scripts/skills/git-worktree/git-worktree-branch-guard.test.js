@@ -3,14 +3,14 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
-// git-worktree-branch-guard.sh は「worktree の作成手段が branch を作る経路」だけを通知する。
-// 通知のみでブロックしないため、取りこぼし（fail open）は静かに起き、誤検知は通知の信頼を
+// git-worktree-branch-guard.sh は「worktree の作成手段が branch を作る呼び出し方」だけを通知する。
+// 通知のみでブロックしないため、取りこぼしは警告なしに起き、誤検知は通知の信頼を
 // 落とす。どちらも出力を見ただけでは分からないので、検出側（通知が出る）と非検出側
 // （出ない）の両方を検体で固定する。
 //
-// 「該当なし」を根拠にする側は、同じ検体が形を 1 つ変えるだけで検出側に化けることを
-// 併せて示す（例: `--detach` の有無、`add` と `list` の違い）。これが陽性コントロール。
-// 検査対象は配布正本のみ。.agents/ 配下のコピーは skill-reinstall ルールで同期される。
+// 「該当なし」を根拠にする側は、同じ検体が形を 1 つ変えるだけで検出側へ移ることを
+// 併せて示す（例: `--detach` の有無、`add` と `list` の違い）。これで、検出できることを確かめる。
+// 検査対象は配布する原本だけである。.agents/ 配下のコピーは skill-reinstall ルールで同期される。
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "skills/git-worktree/scripts/git-worktree-branch-guard.sh");
 
@@ -30,7 +30,7 @@ function enterWorktree(toolInput) {
   return { hook_event_name: "PreToolUse", tool_name: "EnterWorktree", tool_input: toolInput };
 }
 
-// 通知が出なければならない検体（branch を作る経路）。
+// 通知が出なければならない検体（branch を作る呼び出し方）。
 const NOTIFIED = [
   { name: "EnterWorktree の name 指定", payload: enterWorktree({ name: "feature/91-x" }) },
   { name: "EnterWorktree の引数なし（名前が自動生成される）", payload: enterWorktree({}) },
@@ -104,7 +104,7 @@ const SILENT = [
   // `-d` と `-f` の束ね。detach なので branch は作られない（実測）。
   { name: "短オプションの束ねの -d", payload: bash("git worktree add -df /tmp/wt") },
   // `--[no-]track` は真偽値で値を取らない。値を取ると誤読すると path を読み飛ばして
-  // operand を数え違え、既存 branch を渡す add まで検出側へ化ける。
+  // operand を数え違え、既存 branch を渡す add まで誤って検出側と判定される。
   {
     name: "--track 付きの既存 branch add",
     payload: bash("git worktree add --track /tmp/wt feature/x"),
@@ -129,8 +129,8 @@ test.each(SILENT)("通知しない: $name", ({ payload }) => {
   expect(stdout).toBe("");
 });
 
-// 陽性コントロール: 「通知しない」側の検体は、branch を作る形へ 1 か所変えるだけで
-// 検出側へ移る。移らなければ、その検体が通らないのは検出器が動いていないからだと分かる。
+// 検出できることの確認: 「通知しない」側の検体は、branch を作る形へ 1 か所変えるだけで
+// 検出側へ移る。移らなければ、その検体が通らないのは検出の処理が動いていないからだと分かる。
 test("--detach を外すと同じ add が検出側へ移る", () => {
   expect(runGuard(bash("git worktree add --detach /tmp/wt")).stdout).toBe("");
   expect(runGuard(bash("git worktree add /tmp/wt")).stdout).not.toBe("");
@@ -151,8 +151,8 @@ test("--track 付きでも commit-ish を外すと検出側へ移る", () => {
   expect(runGuard(bash("git worktree add --track /tmp/wt")).stdout).not.toBe("");
 });
 
-// 陽性コントロール: コマンド位置から外れているから通知しないのであって、検出器が
-// 死んでいるからではない。同じ語列を区切りの直後（＝コマンド位置）へ戻すと検出側へ移る。
+// 検出できることの確認: コマンド位置から外れているから通知しないのであって、検出の処理が
+// 動いていないからではない。同じ語列を区切りの直後（＝コマンド位置）へ戻すと検出側へ移る。
 test("コマンド位置へ戻すと同じ語列が検出側へ移る", () => {
   expect(runGuard(bash("printf %s まず git worktree add -b feature/x wt を避ける")).stdout).toBe(
     "",
@@ -163,8 +163,8 @@ test("コマンド位置へ戻すと同じ語列が検出側へ移る", () => {
 // 以下 2 本は**後退検知**であって Delta を測るものではない（PR #236 のレビュー指摘への対応）。
 // どちらも修正前の版でも同じ結果になることを実測した——引用が閉じないトークンは残り全部を
 // 1 トークンとして飲むため、`unquote` の重複（`'abc` を `abcabc` と読む）が判定へ現れる
-// 経路を構成できなかった。判定に現れないだけで誤った読みではあるので修正は入れてあり、
-// この 2 本はその読みが将来 verdict に効くようになったときに気付くための固定。
+// 入力を作れなかった。判定に現れないだけで誤った読みではあるので修正は入れてある。
+// この 2 本は、その読みが将来 verdict に反映されるようになったときに気付くための固定である。
 test("閉じないシングルクォートを含んでも判定が入力と対応する", () => {
   // 引用が閉じていない `-b` 付きの add。branch を作る形として検出されること。
   expect(runGuard(bash("git worktree add -b 'feature/x /tmp/wt")).stdout).not.toBe("");
@@ -179,10 +179,10 @@ test("glob メタ文字を含むパスでも判定が cwd に依存しない", (
   expect(runGuard(bash("git worktree add '/tmp/wt*' feature/x")).stdout).toBe("");
 });
 
-// 陽性コントロール: ラッパーのオプションを外すと元から検出できていた形に戻る。つまり
-// 検出できるようになったのはオプション読み飛ばしを足したからで、検出器全体が
+// 検出できることの確認: ラッパーのオプションを外すと元から検出できていた形に戻る。つまり
+// 検出できるようになったのはオプション読み飛ばしを足したからで、検出の処理全体が
 // 緩くなったからではない。同時に、ラッパーの無い `- ` 始まりの行が
-// コマンド位置に化けていないことも押さえる（PR #236 レビュー）。
+// 誤ってコマンド位置と判定されていないことも押さえる（PR #236 レビュー）。
 test("ラッパーのオプションを読み飛ばしても箇条書きは化けない", () => {
   expect(runGuard(bash("time -p git worktree add -b feature/x /tmp/wt")).stdout).not.toBe("");
   expect(runGuard(bash("time git worktree add -b feature/x /tmp/wt")).stdout).not.toBe("");
@@ -206,7 +206,7 @@ test("Copilot の camelCase payload には ask で通知する", () => {
   expect(parsed.hookSpecificOutput).toBeUndefined();
 });
 
-// Copilot の preToolUse は非 0 終了を fail-closed（deny）として扱う。通知目的のフックが
+// Copilot の preToolUse は、非 0 終了を拒否（deny）として扱う。通知目的のフックが
 // tool 呼び出しを落とすことがあってはならないので、解析できない入力でも exit 0 で抜ける。
 test.each([
   { name: "空入力", input: "" },

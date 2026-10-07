@@ -12,7 +12,7 @@
 // NUL 1 件（既知の 1 ファイル）のみで、他の C0 は 1 バイトも現れなかった。
 //
 // 走査はバイト列（Buffer）で行う。文字列へ読み込むと不正シーケンスが置換文字へ丸められ、
-// 検出したいバイトが消える。`grep -lP '\x00'` は `-a` 無しだと陽性コントロールすら拾わない。
+// 検出したいバイトが消える。`grep -lP '\x00'` は、`-a` が無いと、検出されるはずの既知の入力すら拾わない。
 import { execFileSync } from "node:child_process";
 import { readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
@@ -62,7 +62,7 @@ export function findControlBytes(buffer) {
   return found;
 }
 
-/** 追跡ファイルのうちテキスト拡張子のものを列挙する（NUL 区切りなので改行を含む名前も壊れない）。 */
+/** 追跡ファイルのうちテキスト拡張子のものを列挙する（NUL 区切りなので、改行を含む名前も正しく分けられる）。 */
 export function trackedTextFiles(cwd = process.cwd()) {
   const out = execFileSync("git", ["ls-files", "-z"], { cwd, maxBuffer: 1 << 28 }).toString();
   return out.split("\0").filter((f) => f && isTextPath(f));
@@ -71,9 +71,9 @@ export function trackedTextFiles(cwd = process.cwd()) {
 export function checkFiles(files, cwd = process.cwd()) {
   const violations = [];
   for (const file of files) {
-    // 追跡はされているのに読めない（作業ツリーから消えている・symlink が壊れている）ファイルは、
-    // 素の readFileSync だとスタックトレースごと検査を止める。検査結果として報告し、
-    // 「走査できていない」を成功に倒さない。
+    // 追跡はされているのに読めない（作業ツリーから消えている・symlink のリンク先が無い）ファイルは、
+    // 素の readFileSync だと、スタックトレースを出してチェックを止める。チェックの結果として報告し、
+    // 「走査できていない」を成功として扱わない。
     let buffer;
     try {
       buffer = readFileSync(join(cwd, file));
@@ -97,7 +97,7 @@ function main(argv) {
 
   if (files.length === 0) {
     // 引数で渡されたのに 1 件もテキスト拡張子でない／追跡ファイルが 0 件は、
-    // 「違反なし」ではなく「走査できていない」。成功に倒さない。
+    // 「違反なし」ではなく「走査できていない」。成功として扱わない。
     console.error(
       args.length > 0
         ? `control-chars: 渡された ${args.length} 件にテキスト拡張子のファイルが無い（対象の取り違え）。`

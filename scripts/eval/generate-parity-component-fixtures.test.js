@@ -1,7 +1,7 @@
 // fixture 生成スクリプトの Chrome の片付けの回帰テスト（Issue #357）。
 //
 // 本物の Chrome は CI に無いので、CHROME に偽の Chrome を渡す。偽物は DevTools の URL を出したうえで
-// ハンドシェイクを失敗させ（接続を拒否するポート）、片付けの経路へ入らせる。
+// ハンドシェイクを失敗させ（接続を拒否するポート）、片付けの処理へ進ませる。
 // SIGTERM を無視する偽物では、上限なしに終了を待つ実装は終わらない（修正前の実装で再現する）。
 
 import { spawn } from "node:child_process";
@@ -19,7 +19,7 @@ const directories = [];
 const pidFiles = [];
 
 afterEach(() => {
-  // 失敗したテスト（修正前の実装を当てた陽性コントロール等）が偽の Chrome を残しても次へ持ち越さない。
+  // 失敗したテスト（修正前の実装を当てて検出されることを確かめるもの等）が偽の Chrome を残しても次へ持ち越さない。
   for (const pidFile of pidFiles.splice(0)) {
     if (!existsSync(pidFile)) continue;
     try {
@@ -72,7 +72,7 @@ function runGenerator({ chrome, profileRoot }, timeoutMs) {
     child.stderr.on("data", (d) => {
       stderr += d;
     });
-    // 待ちが終わらない実装を打ち切るための外側の上限。打ち切りは合格に倒さない（timedOut で落とす）。
+    // 待ちが終わらない実装を打ち切るための外側の上限。打ち切りは合格として扱わない（timedOut で落とす）。
     const guard = setTimeout(() => child.kill("SIGKILL"), timeoutMs);
     child.on("exit", (code, signal) => {
       clearTimeout(guard);

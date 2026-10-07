@@ -3,16 +3,16 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, relative } from "node:path";
 
-// 変異の宣言（`scripts/**/*.mutations.json`）の**形**を速く検査する。
-// 実走（`node scripts/mutation/check-mutation-proof.js`）は 3 分ほどかかるので、単純な宣言ミス
+// 変異の宣言（`scripts/**/*.mutations.json`）の**形**を速くチェックする。
+// 本番の実行（`node scripts/mutation/check-mutation-proof.js`）は 3 分ほどかかるので、単純な宣言ミス
 // （find が実ファイルに無い・出現数が違う・id 重複・テストファイルの指し違い）はここで拾う。
 //
-// **この検査を `check-mutation-proof.test.js` に置かない。** 実行器自身を変異させる宣言
-// （`check-mutation-proof.mutations.json`）があるため、同じファイルに置くと
-// 「変異中の実行器を読んだ形の検査」が毎回落ち、狙った assertion の実証と区別できなくなる（実測）。
+// **このチェックを `check-mutation-proof.test.js` に置かない。** ランナー自身を変異させる宣言
+// （`check-mutation-proof.mutations.json`）がある。同じファイルに置くと、
+// 「変異中のランナーを読んだ形のチェック」が毎回落ちる。すると、狙った assertion の実証と区別できなくなる（実測）。
 //
-// 発見ロジックは実行器の `specPaths()` と揃える（1 ファイルを名指しすると、
-// 宣言を増やしたときにこの検査だけ追随しない）。
+// 宣言を見つける処理は、ランナーの `specPaths()` と揃える（1 ファイルを名指しすると、
+// 宣言を増やしたときにこのチェックだけ追随しない）。
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 function findSpecs(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {

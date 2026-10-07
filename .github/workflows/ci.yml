@@ -62,7 +62,7 @@ jobs:
       - name: JSON lint
         run: node scripts/gates/run-on-sources.js --ext json -- pnpm exec jsonlint --quiet --continue --no-duplicate-keys
       # js-yaml の API で全ファイルを 1 プロセスで読む（ファイルごとに `pnpm exec js-yaml` を起動すると
-      # 66 件で 44 秒かかっていた。Issue #507）。対象 0 件は成功に倒さない（スクリプト側で exit 1）。
+      # 66 件で 44 秒かかっていた。Issue #507）。対象 0 件は成功として扱わない（スクリプト側で exit 1）。
       - name: YAML lint
         run: node scripts/gates/lint-yaml.js
       - name: Pagination lint
@@ -105,7 +105,7 @@ jobs:
       - name: Word list (.textlint/word-list.md) matches .textlint/words.json
         run: node scripts/gates/check-word-list.js
 
-  # ユニットテストは Lint から独立したジョブにして並べて走らせる（Lint の所要の大半を占めていたため）。
+  # ユニットテストは Lint から独立したジョブにして並べて実行する（Lint の所要の大半を占めていたため）。
   # ファイル並列と、tracked ファイルを書き換えるテストの単独実行の分け方は `vitest.config.ts` が持つ。
   unit-tests:
     name: Unit tests
@@ -122,21 +122,21 @@ jobs:
       - name: Unit tests (vitest)
         run: pnpm test
 
-  # 変異実証（検査の検出能力の再実行）。Lint・Unit tests から独立したジョブにして並べて走らせる
+  # ミューテーションテスト（検査の検出能力の再実行）。Lint・Unit tests から独立したジョブにして並べて実行する
   # （ステップ自体は縮まないが、PR 全体の待ち時間が縮む。Issue #478）。
   #
   # **差分に当たる宣言だけ**を測る。対象も検査も変わっていない宣言は前回の実証がそのまま有効なので、
   # PR では測り直さない。**全件は定期実行**（`.github/workflows/mutation-proof.yml`）が週次で測る。
   # **pre-commit には入れない**——実行中は対象ファイルを書き換えて戻すため、staged な変更と
-  # 混ざると取り違えが起きる。
+  # 混在すると取り違えが起きる。
   #
-  # **選んだ変異を matrix で分割して並べて走らせる**（`--shard i/N`）。宣言が大きいと直列では
+  # **選んだ変異を matrix で分割して並べて実行する**（`--shard i/N`）。宣言が大きいと直列では
   # 1 宣言だけで timeout に届く。変異による作業ツリーの書き換えは
   # ジョブ（ランナー）ごとに隔離されるので、並列実行のためのロックは要らない。
   # 分割数は matrix の要素数だけで決まる（`strategy.job-total` を渡す。数を 2 箇所に書かない）。
   #
   # push（マージ後の main）では測らない: その差分は PR 側で測り終えており、基点となる
-  # 前の SHA は force-push や初回 push で欠けることがある（欠けたら fail-closed で落ちる）。
+  # 前の SHA は force-push や初回 push で欠けることがある（欠けたら判定できないので失敗にする）。
   mutation-proof-shard:
     name: Mutation proof (PR) shard ${{ matrix.shard }}
     if: github.event_name == 'pull_request'
@@ -147,7 +147,7 @@ jobs:
       matrix:
         # 分割数を変えたら、下の timeout を 1 シャードぶんの実測（mutation-proof.yml のコメント）で見直す。
         shard: [1, 2, 3, 4, 5, 6]
-    # 上限は**最悪ケース**で決める——実行器を触った PR は全宣言へ広がるので、最悪ケースは全宣言を
+    # 上限は**最悪ケース**で決める——ランナーを触った PR は全宣言へ広がるので、最悪ケースは全宣言を
     # この分割数で割った 1 シャードぶん（実測値は `.github/workflows/mutation-proof.yml` のコメント）。変異が増える前提で余裕を取る。
     timeout-minutes: 20
     permissions:
@@ -199,7 +199,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
-      # pinact は pin の検証でタグを GitHub API から引く。トークンを渡さないと未認証の上限
+      # pinact は pin の検証でタグを GitHub API から取得する。トークンを渡さないと未認証の上限
       # （ランナーの IP で共有される）に当たり、403 で落ちる（実測: PR #536）。
       - run: pinact run --check
         env:
@@ -213,7 +213,7 @@ jobs:
         run: |
           shopt -s nullglob
           templates=(skills/*/assets/*.yml skills/*/assets/*.yaml)
-          # 対象 0 件を成功に倒さない（glob が空振りしただけの緑を根拠にしない）。
+          # 対象 0 件を成功として扱わない（glob が空振りしただけの緑を根拠にしない）。
           if [ "${#templates[@]}" -eq 0 ]; then
             echo "配布テンプレートが 1 件も見つからない（glob を確認する）" >&2
             exit 1

@@ -26,8 +26,8 @@ function createRepo(summary) {
   return dir;
 }
 
-// stdout は Buffer で受ける。encoding: "utf8" だと壊れたバイト列も U+FFFD へ置換されてしまい、
-// 「文字の途中で切れた」ことを検出できなくなる（この回帰テストの弁別力が消える）。
+// stdout は Buffer で受ける。encoding: "utf8" だと不正なバイト列も U+FFFD へ置換されてしまい、
+// 「文字の途中で切れた」ことを検出できなくなる（この回帰テストで区別できなくなる）。
 function inject(dir, locale = "C.UTF-8") {
   const result = spawnSync("bash", [script], {
     cwd: dir,
@@ -53,7 +53,7 @@ function isValidUtf8(buffer) {
 }
 
 test("マルチバイトの長い要約をバイト境界で割らずに切り詰める", () => {
-  // 先頭 2 バイトの ASCII に日本語が続くと 120 バイト目が 3 バイト文字の途中に落ちる。
+  // 先頭 2 バイトの ASCII に日本語が続くと 120 バイト目が 3 バイト文字の途中になる。
   const summary = `**${"あ".repeat(150)}`;
   const stdout = inject(createRepo(summary));
 
@@ -72,7 +72,7 @@ test("120 文字以内の要約は切り詰めない", () => {
 });
 
 test("非 UTF-8 ロケールでは切り詰めずに要約を保つ", () => {
-  // C ロケールではパラメータ展開もバイト単位になるため、切り詰め自体を行わず安全側へ倒す。
+  // C ロケールではパラメータ展開もバイト単位になるため、切り詰め自体を行わない（安全な側として扱う）。
   const summary = "あ".repeat(150);
   const stdout = inject(createRepo(summary), "C");
 
@@ -94,7 +94,7 @@ test("kaizen のスクリプトはパイプラインの真偽を読まない（h
     if (!name.endsWith(".sh")) continue;
     const lines = readFileSync(join(scriptsDir, name), "utf8").split("\n");
     lines.forEach((line, i) => {
-      // コメント行は対象外（この落とし穴を説明している注記がある）。
+      // コメント行は対象外（この注意点を説明している注記がある）。
       if (/^\s*#/.test(line)) return;
       if (PIPED_TRUTH_READ.test(line)) {
         offenders.push(`${name}:${i + 1}: ${line.trim()}`);
@@ -104,7 +104,7 @@ test("kaizen のスクリプトはパイプラインの真偽を読まない（h
   expect(offenders).toEqual([]);
 });
 
-// 陽性コントロール: 検出器が実際に当たることを、既知の違反形で確かめる。
+// 既知の違反の形を置いて、検出の処理が実際に検出することを確かめる。
 test.each([
   ["grep -q", `if ! printf '%s' "$x" | grep -Eq 'pat'; then`],
   ["grep -qi", `locale charmap 2>/dev/null | grep -qi 'utf-8'`],
@@ -113,7 +113,7 @@ test.each([
   expect(PIPED_TRUTH_READ.test(line)).toBe(true);
 });
 
-// 陰性コントロール: 修正後の形（herestring）は検出されない。
+// 誤検知しないことの確認: 修正後の形（herestring）は検出されない。
 test.each([
   [`if ! grep -Eq 'pat' <<<"$x"; then`],
   [`grep -qi 'utf-8' <<<"$(locale charmap 2>/dev/null)"`],

@@ -87,7 +87,7 @@ function makeRepo({
   return root;
 }
 
-// ---- 陰性コントロール（通さねばならない入力）----
+// ---- 誤検知しないことの確認（通さねばならない入力）----
 
 test("陰性: 配布は両方に、private は AGENTS.md にだけ載っていれば違反 0 件で件数を数える", () => {
   expect(checkSkillIndex(makeRepo())).toEqual({
@@ -206,7 +206,7 @@ test("陰性: 実リポジトリの一覧が実体と一致する", () => {
   expect(distributed.length).toBeGreaterThan(0);
 });
 
-// ---- 陽性コントロール（落とす入力）----
+// ---- 検出されることの確認（落とす入力）----
 
 test("陽性: 配布スキルが AGENTS.md に未掲載なら落とす", () => {
   expect(checkSkillIndex(makeRepo({ agents: ["alpha", "secret"] })).violations).toEqual([

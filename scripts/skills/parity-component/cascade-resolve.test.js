@@ -1,7 +1,7 @@
 // css-rules.json のカスケード解決の回帰テスト（Issue #433）。
 //
-// 実装が見落としていたのは 2 形:
-//   - インラインの非 !important が、!important 付き規則に負ける（button の width 10px vs 25px）
+// 実装が見落としていたのは次の 2 つの形である。
+//   - `!important` の無いインラインが、`!important` 付き規則に負ける（button の width 10px vs 25px）
 //   - 同一セレクタ・同一プロパティを後段のテーマが再宣言して上書きする
 //     （radio-button の box-shadow、feedback-message の top / opacity）
 // どちらも「最初に見つかった宣言を採る」読み方だと実際の描画と逆になる。
@@ -76,7 +76,7 @@ test("button: !important 付き規則がインラインの非 !important に勝�
   expect(result.winner.value).toBe("25px");
   expect(result.winner.tier).toBe("rule !important");
 
-  // 陽性コントロール: インラインだけを読む素朴な実装が採っていた値が、負けた側として残っている。
+  // 検出できることの確認: インラインだけを読む素朴な実装が採っていた値が、負けた側として残っている。
   expect(result.losers.map((l) => l.value)).toContain("10px");
 });
 
@@ -119,7 +119,7 @@ test("radio-button: 後段テーマの再宣言が勝つ（同一セレクタ・
   expect(result.status).toBe("resolved");
   expect(result.winner.value).toBe("none");
   expect(result.winner.origin).toBe("LiverpoolTheme/Theme.LiverpoolTheme.css");
-  // 陽性コントロール: 最初に見つかった宣言（新側が実装していた inset の影）は負けている。
+  // 検出できることの確認: 最初に見つかった宣言（新側が実装していた inset の影）は負けている。
   expect(result.losers[0].value).toMatch(/inset/);
 });
 
@@ -341,7 +341,7 @@ test("--property は CSS カスタムプロパティも受け取る", () => {
   expect(out.status, out.stderr).toBe(0);
   expect(JSON.parse(out.stdout).results[0].winner.value).toBe("red");
 
-  // 陽性コントロール: 既知のフラグ名は値として受け取らない（取り違えを黙って飲まない）。
+  // 検出できることの確認: 既知のフラグ名は値として受け取らない（取り違えを警告なしに受け入れない）。
   const swallowed = spawnSync(
     process.execPath,
     [script, "--css-rules", path, "--state", "default", "--property", "--all"],
@@ -446,7 +446,7 @@ test("CLI: 読めないファイルは exit 2", () => {
 
 // --- codex レビュー #435 の 3 件 -------------------------------------------
 //
-// いずれも「黙って誤った勝者を exit 0 で返す」形。落とす入力と、通さねばならない入力を
+// いずれも「警告なしに誤った勝者を exit 0 で返す」形。落とす入力と、通さねばならない入力を
 // 同じ数だけ置く（片方だけだと「全部 undecidable にする実装」と区別が付かない）。
 
 test("恒常状態（:enabled 等）で門番された宣言を不成立に倒さない", () => {
@@ -468,7 +468,7 @@ test("恒常状態（:enabled 等）で門番された宣言を不成立に倒�
   expect(result.reasons.join(" ")).toMatch(/persistent state/);
   expect(result.state_unknown).toHaveLength(1);
 
-  // 陽性コントロール: 素朴にディレクトリ名だけで門番すると blue を勝者として返していた。
+  // 検出できることの確認: 素朴にディレクトリ名だけで判定すると blue を勝者として返していた。
   expect(result.winner).toBeNull();
 });
 
@@ -544,7 +544,7 @@ test("無名カスケードレイヤをまたぐ競合は undecidable（別レ�
   expect(result.status).toBe("undecidable");
   expect(result.reasons.join(" ")).toMatch(/anonymous cascade layer/);
 
-  // 陽性コントロール: 名前付きなら同一レイヤと判定でき、後勝ちで解決する。
+  // 誤検知しないことの確認: 名前付きなら同一レイヤと判定でき、後勝ちで解決する。
   const named = doc({
     matched: [
       { order: 1, selector: ".btn", layers: ["app"], declarations: [decl("color", "blue")] },
@@ -572,7 +572,7 @@ test("16 進エスケープはエスケープ全体を消費して数える", ()
 });
 
 test("エスケープの誤読が勝者を変えていたことを回帰で固定する", () => {
-  // 誤読すると `.\31 23` の詳細度が [0,1,1] になり、[0,1,0] の .btn より強く読まれる。
+  // 誤読すると `.\31 23` の詳細度が `[0,1,1]` になり、`[0,1,0]` の .btn より強く読まれる。
   const input = doc({
     matched: [
       { order: 1, selector: ".\\31 23", declarations: [decl("color", "green")] },
@@ -648,7 +648,7 @@ test("共起しうる一時的な状態は不成立に倒さない（:active の
   expect(result.status).toBe("undecidable");
   expect(result.reasons.join(" ")).toMatch(/persistent state|would outrank/);
 
-  // 陽性コントロール: :hover も成立していたと分かっているなら明示して解決できる。
+  // 誤検知しないことの確認: :hover も成立していたと分かっているなら明示して解決できる。
   expect(resolve(input, "color", ["active", "hover"]).winner.value).toBe("green");
 });
 
@@ -760,7 +760,7 @@ test("`all` が無ければ宣言の無いプロパティは従来どおり abse
 });
 
 test("条件付き・`all` の候補が無名レイヤにいても undecidable にする（applying に閉じない）", () => {
-  // @media 配下の無名レイヤの !important は、後段の無名レイヤの !important に逆順で勝ちうる。
+  // @media 配下の無名レイヤの `!important` は、後段の無名レイヤの `!important` に逆順で勝ちうる。
   const conditional = doc({
     matched: [
       {
@@ -777,7 +777,7 @@ test("条件付き・`all` の候補が無名レイヤにいても undecidable �
   expect(result.status).toBe("undecidable");
   expect(result.reasons.join(" ")).toMatch(/anonymous cascade layer/);
 
-  // 陽性コントロール: 名前付きレイヤなら同じ形でも解決できる。
+  // 誤検知しないことの確認: 名前付きレイヤなら同じ形でも解決できる。
   const named = doc({
     matched: [
       {
@@ -840,7 +840,7 @@ test("`all` しか宣言が無い採取物を --all で 0 件合格にしない"
   expect(report.results[0].status).toBe("undecidable");
   expect(report.results[0].reasons.join(" ")).toMatch(/`all` declaration/);
 
-  // 陽性コントロール: `all` が無ければ候補ゼロの採取物は結果も 0 件のまま（番兵を無条件に足さない）。
+  // 誤検知しないことの確認: `all` が無ければ候補ゼロの採取物は結果も 0 件のまま（番兵を無条件に足さない）。
   const empty = resolveCascade(doc(), { states: ["default"], properties: null });
   expect(empty.results).toEqual([]);
 });
@@ -853,7 +853,7 @@ test("インラインの `all` もワイルドカードとして扱う", () => {
   expect(result.status).toBe("undecidable");
   expect(result.reasons.join(" ")).toMatch(/`all` declaration/);
 
-  // 陽性コントロール: `all` が先なら後の宣言が勝って resolved（何でも undecidable にしない）。
+  // 誤検知しないことの確認: `all` が先なら後の宣言が勝って resolved（何でも undecidable にしない）。
   const before = doc({ inline: [decl("all", "unset"), decl("color", "red")] });
   expect(resolve(before, "color").winner.value).toBe("red");
 });
@@ -879,7 +879,7 @@ test("主語の外に付いた状態は成立と扱わない（隣の要素の h
   expect(result.status).toBe("undecidable");
   expect(result.state_unknown).toHaveLength(1);
 
-  // 陽性コントロール: 主語に付いた hover なら従来どおり成立して勝つ。
+  // 誤検知しないことの確認: 主語に付いた hover なら従来どおり成立して勝つ。
   const subject = doc({
     matched: [
       { order: 1, selector: ".target", declarations: [decl("color", "blue")] },

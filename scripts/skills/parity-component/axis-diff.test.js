@@ -1,10 +1,10 @@
-// 固定軸・可変軸の割り出しが、未測定を固定側へ倒さないことの回帰テスト（Issue #326）。
+// 固定軸・可変軸の割り出しが、未測定を固定側として扱わないことの回帰テスト（Issue #326）。
 //
-// この割り出しが壊れる方向は「可変を固定と言う」側に偏る——片方のインスタンスでしか採って
-// いない軸は、突き合わせる相手が居ないので黙って「割れていない」に見える。
+// この割り出しが誤るのは、多くの場合「可変を固定と言う」側である。片方のインスタンスでしか採って
+// いない軸は、突き合わせる相手が居ないので、警告なしに「割れていない」と見える。
 // 引数にすべき軸が固定として落ちると、実装は現行に在るバリアントを持たないまま完成し、
 // 誤りは人が現行と見比べるまで出ない（Issue #326 の往復 1）。
-// そのため本テストは値の一致より **fail-closed の側**（problems に残るか）を厚く見る。
+// そのため本テストは値の一致より、**判定できないものを失敗として扱えているか**（problems に残るか）を厚く見る。
 
 import { expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
@@ -61,7 +61,7 @@ test("インスタンスが 1 件なら固定と可変を区別せず落とす",
   });
   expect(result.ok).toBe(false);
   expect(result.problems.join("\n")).toContain("2 件以上");
-  // 1 件しか無いのに「固定軸が 1 つ見つかった」と報告しないこと（これが固定側へ倒す経路）。
+  // 1 件しか無いのに「固定軸が 1 つ見つかった」と報告しないこと（これが固定側として扱ってしまう処理の流れ）。
   expect(result.fixed).toHaveLength(0);
 });
 
@@ -152,7 +152,7 @@ test("擬似要素で描いているかどうかが可変軸として出る", ()
 test("擬似要素を測っていない採取を『不在』として固定軸にしない", () => {
   // `before` / `after` のキーごと無い採取（手で組んだマニフェスト等）を `null`（測って不在）と
   // 同一視すると、`<present>: "false"` が全インスタンスで揃って固定軸になり ok: true で通る。
-  // これは本ツールが防ごうとしている「未測定が固定軸に化ける」経路そのもの。
+  // これは本ツールが防ごうとしている「未測定が誤って固定軸と判定される」流れそのもの。
   const notMeasured = { computed: { color: "x" }, rect: { width: 1, height: 1 } };
   const measuredAbsent = {
     computed: { color: "x" },
@@ -231,7 +231,7 @@ test("CLI: 引数が無ければ usage と exit 2", () => {
 });
 
 test("CLI: 余った位置引数を黙って先勝ちにしない", () => {
-  // 2 つ渡して片方を黙って捨てると、渡したつもりのファイルが読まれないまま exit 0 になる。
+  // 2 つ渡して片方を警告なしに捨てると、渡したつもりのファイルが読まれないまま exit 0 になる。
   const ok = runCli({
     instances: [
       instance("a", [state("default", traits({ color: "x" }))]),
@@ -250,7 +250,7 @@ test("CLI: 余った位置引数を黙って先勝ちにしない", () => {
 });
 
 test("CLI: 知らないオプションを黙って捨てない", () => {
-  // `--` 始まりを一括で読み飛ばす実装では、綴り違いも等号形も静かに消える。
+  // `--` 始まりを一括で読み飛ばす実装では、綴り違いも等号形も警告なしに消える。
   // --out が軸成果物を生む前提の工程が、ファイルが作られていないことに気付かないまま進む。
   const manifest = {
     component: "button",
@@ -297,7 +297,7 @@ test("CLI: 読めないマニフェストを成功に倒さない", () => {
 });
 
 test("状態名が不正な採取を黙って捨てず問題として数える", () => {
-  // 全インスタンスの状態名が壊れていると、捨ててから突き合わせる実装では
+  // 全インスタンスの状態名が不正だと、捨ててから突き合わせる実装では
   // 「状態 0 件・軸 0 件・問題 0 件」になり、1 件も測っていないのに ok: true を返す。
   const result = diffAxes({
     component: "button",
@@ -337,7 +337,7 @@ test("空の traits から 0 軸しか取れない採取を fail-closed にす�
     ],
   });
   expect(result.ok).toBe(false);
-  // 必須フィールドの検査が先に効くので、より具体的な理由で落ちる（ok: false は変わらない）。
+  // 必須フィールドの検査が先に機能するので、より具体的な理由で落ちる（ok: false は変わらない）。
   expect(result.problems.join("\n")).toContain("採取に computed と rect が無い");
   expect(result.fixed).toHaveLength(0);
   expect(result.variable).toHaveLength(0);
@@ -459,8 +459,8 @@ test("宣言の無い欠落は従来どおり問題にする", () => {
 });
 
 test("契約どおりのオブジェクト形で宣言された到達不能状態を受ける", () => {
-  // 成果物の契約（metadata.json / references/instances.md）は { state, reason } のオブジェクト形。
-  // 文字列だけを拾うと、正しく宣言された除外が「未採取の状態」に化けて build を塞ぐ。
+  // 成果物の取り決め（metadata.json / references/instances.md）は { state, reason } のオブジェクト形。
+  // 文字列だけを拾うと、正しく宣言された除外が誤って「未採取の状態」と判定され、build を塞ぐ。
   const result = diffAxes({
     component: "button",
     instances: [
@@ -528,7 +528,7 @@ test("採取済みの状態を到達不能と宣言している矛盾を落と�
 
 test("rect の値が数値でない採取を弾く", () => {
   // trait-capture.mjs は width / height を常に数値で返す。キーの有無だけを見ると
-  // { width: null } が通り、軸を作って ok: true に化ける。
+  // { width: null } が通り、軸を作って誤って ok: true になる。
   for (const rect of [{ width: null, height: 1 }, { width: 1 }, { width: "1", height: "1" }]) {
     const result = diffAxes({
       component: "button",
@@ -557,7 +557,7 @@ test("空白だけの状態名を弾く", () => {
 test("擬似要素の形が壊れた採取を軸に変えない", () => {
   // `before: "x"` は flattenTraits が `::before/0 = "x"` という軸に変え、`after: []` は
   // `<present> = true` だけを作る。computed / rect と同じ形の検証をしないと、
-  // 壊れた採取物が measured を稼いで ok: true に化ける。
+  // 不正な採取物が measured を稼いで、誤って ok: true になる。
   for (const broken of ["x", [], 3, true]) {
     const result = diffAxes({
       component: "button",
@@ -575,7 +575,7 @@ test("擬似要素の形が壊れた採取を軸に変えない", () => {
 });
 
 test("擬似要素が null・レコード・キー無しなら通す", () => {
-  // 契約どおりの 3 値まで弾くと、正しい採取物が毎回落ちる（過剰修正の検知）。
+  // 取り決めどおりの 3 値まで弾くと、正しい採取物が毎回落ちる（過剰修正の検知）。
   for (const good of [{ before: null }, { before: { color: "x" } }, {}]) {
     const result = diffAxes({
       component: "button",
@@ -644,7 +644,7 @@ test("計算後スタイルの値が非空の文字列でない採取を落と�
 });
 
 test("rect の値が有限の数値でない採取を落とす", () => {
-  // flattenTraits が String() で文字列化するので、壊れた値も "[object Object]" という
+  // flattenTraits が String() で文字列化するので、不正な値も "[object Object]" という
   // 非空の文字列になって値の検証をすり抜ける。数値のまま見る必要がある。
   const result = diffAxes({
     component: "button",
@@ -781,7 +781,7 @@ const runBaseline = (dir) =>
   spawnSync(process.execPath, [script, "--baseline", dir], { encoding: "utf8" });
 
 test("--baseline は id のパストラバーサルで baseline の外を読まない", () => {
-  // 陽性コントロール: トラバーサル先に traits.json を実際に置く。検証が無ければこれを読んで
+  // 検出できることの確認: トラバーサル先に traits.json を実際に置く。検証が無ければこれを読んで
   // exit 0 で軸を作る（読み先が無いだけの失敗と区別できるようにする）。
   const outside = validTraits("rgb(66, 66, 66)");
   const { dir } = makeBaseline({
@@ -884,7 +884,7 @@ test("プロパティ集合が渡されたら計算後スタイルのキーと�
   const absent = withSet(["color", "cursor", "display"], { cursor: "pointer" });
   expect(absent.ok).toBe(false);
   expect(absent.problems.join("\n")).toContain("欠落: display");
-  // 集合そのものが壊れていたら照合を飛ばさず問題にする。
+  // 集合そのものが不正なら、照合を飛ばさず問題にする。
   for (const broken of [[], "color", ["color", "color"], ["color", ""]]) {
     const r = withSet(broken, {});
     expect(r.ok).toBe(false);
@@ -912,7 +912,7 @@ test("--baseline は metadata.json の traits_property_set で軸名を照合す
 
 test("--baseline で capture.states に無い状態を一部のインスタンスだけ到達不能と宣言しても通さない", () => {
   // 状態集合は capture.states から作るが、宣言した到達不能状態も diffAxes の候補に入る。
-  // 宣言していない側に「未採取」が立つので、typo の宣言が not_compared として黙って通らない。
+  // 宣言していない側に「未採取」が立つので、typo の宣言が not_compared として警告なしに通らない。
   const { dir } = makeBaseline({
     instances: [{ id: "a", unreachable_states: [{ state: "focus", reason: "r" }] }, { id: "b" }],
     files: {
@@ -943,7 +943,7 @@ test("--baseline で capture.states に無い状態を全インスタンスが�
 });
 
 test("--baseline は baseline 配下のシンボリックリンクを辿って外を読まない", () => {
-  // 陽性コントロール: リンク先に正しい形の traits.json を置く。字句上の包含判定だけなら
+  // 検出できることの確認: リンク先に正しい形の traits.json を置く。字句上の包含判定だけなら
   // これを読んで exit 0 になり、外の値が axes.json に入る。
   const { root, dir } = makeBaseline({
     instances: [{ id: "escape" }, { id: "b" }],
@@ -983,7 +983,7 @@ test("--baseline は部品ディレクトリ自体がシンボリックリンク
 
 test("プロパティ集合の欠落はプロトタイプ上の名前でも自前のキーで判定する", () => {
   // `p in record` はプロトタイプチェーンを辿るので、`constructor` / `toString` / `__proto__` を
-  // 集合に含むと、採れていないのに「在る」と判定されて ok: true に化ける。
+  // 集合に含むと、採れていないのに「在る」と判定されて、誤って ok: true になる。
   for (const inherited of ["constructor", "toString", "__proto__"]) {
     const result = diffAxes({
       property_set: ["color", inherited],

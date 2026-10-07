@@ -1,10 +1,10 @@
 // parity-suite の表の 1 行更新ツール（table-upsert.mjs）の回帰テスト（Issue #468）。
 //
-// 被覆表を本文ごと書き直さず 1 行ずつ差し替えるための道具なので、壊れ方は「別の行を上書きする」と
+// 網羅表を本文ごと書き直さず 1 行ずつ差し替えるためのツールなので、起こりうる不具合は「別の行を上書きする」と
 // 「照合し直していない表を照合済みに見せる」の 2 つ。鍵の欠落・空・重複・型崩れで書き込まずに止まること、
 // 書き換えたら conformance が消えることを固定する。
 //
-// 陽性コントロール（差し替え・追記・入れ子の配列・複合鍵・標準入力）を置く——これが無いと「常に止める」実装と区別できない。
+// 通ることの確認（差し替え・追記・入れ子の配列・複合鍵・標準入力）を置く。これが無いと「常に止める」実装と区別できない。
 
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
@@ -34,7 +34,7 @@ const baseTable = () => ({
 
 /**
  * 一時ディレクトリに表を置いて CLI を実行する。
- * @param {object | string} table - 文字列ならそのまま書く（壊れた JSON 用）
+ * @param {object | string} table - 文字列ならそのまま書く（不正な JSON 用）
  * @param {string[]} args
  * @param {{ fragment?: object | string, input?: string }} [opts]
  */

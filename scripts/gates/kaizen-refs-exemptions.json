@@ -10,11 +10,6 @@
       "reason": "一時ディレクトリの fixture リポジトリで学びを移動した先のパス（このリポジトリの学びではない）"
     },
     {
-      "file": "scripts/gates/prose-lint-pending.json",
-      "ref": ".kaizen/2026-06-14-baseline-isolation-verified-before-measuring.md",
-      "reason": "evals/kaizen/fixtures/ 内の fixture リポジトリの学びのパス（文章チェックの保留一覧に載せた。このリポジトリの学びではない）"
-    },
-    {
       "file": "scripts/gates/lint-prose.test.js",
       "ref": ".kaizen/archive/x.md",
       "reason": "一時ディレクトリの fixture リポジトリに置く、文章チェックの対象外にする過去の記録のパス（このリポジトリの学びではない）"

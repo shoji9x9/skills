@@ -1,9 +1,9 @@
-// vitest の globalSetup。**テストの収集より前**に 1 度だけ走る。
+// vitest の globalSetup。**テストの収集より前**に 1 度だけ実行される。
 //
-// `check-mutation-proof.test.js` の fixture は `scripts/` 配下に作る（vitest の
-// `include: ["scripts/**/*.test.js"]` に入っていないと、runner が起動する子 vitest が
-// 1 件も走らず、検査ではなく置き場所を測ることになるため）。SIGKILL・timeout・ジョブ打ち切りで
-// `afterEach` が走らないと `fixture.test.js` が残り、次の run で収集されてしまう。
+// `check-mutation-proof.test.js` の fixture は `scripts/` 配下に作る。
+// vitest の `include: ["scripts/**/*.test.js"]` に入っていないと、runner が起動する子 vitest が
+// 1 件も実行せず、検査ではなく置き場所を測ることになるためである。SIGKILL・timeout・ジョブ打ち切りで
+// `afterEach` が実行されないと `fixture.test.js` が残り、次の run で収集されてしまう。
 //
 // **掃き取りをテストファイルの import 時に置かない。** import は収集の**後**なので、
 // vitest が残骸を先に列挙してから削除することになり、実行順次第で

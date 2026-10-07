@@ -1,8 +1,8 @@
 // 部品の動きを現行とカタログで突き合わせる検査（motion-compare.mjs）の回帰テスト（Issue #456）。
 //
 // 見た目の照合は animations: "disabled" で止めて撮るので、動きの欠落（即時に出る・長さが違う）は
-// どの照合にも写らない。この検査が壊れる方向は「動きが無いのに一致と言う」側と「揺れで永久に落ちる」側の
-// 両方にあるので、陽性コントロール（揺れを含む同じ動きが通る）と、欠落・長さ違いが落ちることを対で置く。
+// どの照合にも記録されない。この検査の誤り方は「動きが無いのに一致と言う」と「揺れでいつまでも失敗する」の
+// 2 つがある。そのため、揺れを含む同じ動きが通ることと、欠落・長さ違いが落ちることを対で置く。
 
 import { expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
@@ -514,7 +514,7 @@ test("eval fixture の button は動きの無い部品として宣言済みで�
   const dirs = readdirSync(root)
     .map((name) => join(root, name, ".replace/components/button"))
     .filter((dir) => existsSync(join(dir, "metadata.json")));
-  // 陽性コントロール: 対象 0 件を合格にしない。
+  // 検出できることの確認: 対象 0 件を合格にしない。
   expect(dirs.length).toBeGreaterThan(0);
   for (const dir of dirs) {
     const metadata = JSON.parse(readFileSync(join(dir, "metadata.json"), "utf8"));
@@ -584,7 +584,7 @@ test("等間隔の比較点の間に収まる短い動き（一瞬の点滅）�
     orders: baselineOf("orders", { enter: [pulse(true), pulse(true)] }),
     stock: baselineOf("stock"),
   };
-  // 陽性コントロール: 同じ点滅を持つ新側は一致する。
+  // 誤検知しないことの確認: 同じ点滅を持つ新側は一致する。
   const same = {
     component: "feedback-message",
     target: "preview",

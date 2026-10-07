@@ -1,12 +1,12 @@
-// parity-diff の部品被覆表チェッカ（coverage-check.mjs）の回帰テスト（Issue #274）。
+// parity-diff の部品網羅表チェッカ（coverage-check.mjs）の回帰テスト（Issue #274）。
 //
 // 収束条件に「未測定が残っていない」を足すとき、数え方を宣言値（metadata.json の件数）や
-// 行数に任せると、被覆表を直さずに件数だけ 0 と書く／測れなかった行を落とすだけで
-// converged: true へ到達できてしまう。数え直しが fail-closed であること
+// 行数に任せると、網羅表を直さずに件数だけ 0 と書く／測れなかった行を落とすだけで
+// converged: true へ到達できてしまう。数え直しが、判定できない行を未測定として扱うこと
 // （行が無い・evidence が空・present なのに covered_by が空・重複行）を固定する。
 //
 // 後方互換（component_coverage キーが無い旧成果物と declared: false は判定に入れない）は
-// 陽性コントロールとして固定する——これが無いと「被覆表が無ければ常に落とす」実装と区別できない。
+// 誤検知しないことの確認として固定する。これが無いと「網羅表が無ければ常に落とす」実装と区別できない。
 
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
@@ -36,7 +36,7 @@ const {
 // 指紋そのものの検査は「撮影状態の要約は現在の入力と結び付いていなければ通さない」テストが持つ。
 const CAPTURE = { slug: "order-list", pageNames: [], states: [], popupStates: [] };
 function countCoverage(coverage, slug, captureNow = captureFingerprint(CAPTURE)) {
-  // 集合の来歴（component_inventory / instance_inventory / components[].source）は
+  // 集合の出所（component_inventory / instance_inventory / components[].source）は
   // 宣言が無い fixture にだけ補う。宣言そのものを見るテストは countCoverageRaw を直接呼ぶ。
   fillSetProvenance(coverage);
   if (coverage && typeof coverage === "object" && !Array.isArray(coverage)) {
@@ -67,11 +67,11 @@ const noProfile = {
   profile_absent_reason: "軸を持たない単純な部品で、適合プロファイルが無い",
 };
 
-/** 部品 1 つ・項目 2 つ・インスタンス 2 つ ＝ 期待セル 4 の被覆表の骨格。 */
+/** 部品 1 つ・項目 2 つ・インスタンス 2 つ ＝ 期待セル 4 の網羅表の骨格。 */
 const skeleton = {
   slug: "order-list",
   conformance,
-  // 3 つの集合（部品・インスタンス・項目）の来歴と完全性。専任のテストが別に見るので、
+  // 3 つの集合（部品・インスタンス・項目）の出所と完全性。専任のテストが別に見るので、
   // 骨格では妥当な宣言を持たせておく。
   component_inventory: setInventory(),
   components: [
@@ -96,7 +96,7 @@ const cell = (item, instance, extra) => ({
   ...extra,
 });
 
-/** 4 セルすべてが測れている被覆表。テストが components を書き換えても骨格を汚さないよう複製する。 */
+/** 4 セルすべてが測れている網羅表。テストが components を書き換えても骨格を汚さないよう複製する。 */
 function full() {
   return {
     ...structuredClone(skeleton),
@@ -364,7 +364,7 @@ test("一部の状態で DOM に無い候補も、1 件の状態が残ってい�
 });
 
 test("visibility: hidden では offset_parent が非 null でも非描画証拠として通る", () => {
-  // display: none だけが offsetParent を必ず null にする。visibility 経路まで巻き込むと正当な証拠を落とす
+  // display: none だけが offsetParent を必ず null にする。visibility による非表示まで巻き込むと正当な証拠を落とす
   const cov = full();
   cov.cells[1].evidence = "全到達状態で非描画";
   cov.cells[1].absence_evidence = nonRenderableEvidence();
@@ -581,7 +581,7 @@ test("id 欠落のインスタンスも同様に、その列ぶんのセルが�
 });
 
 test("配列の被覆表・列挙要素・セル行は JSON オブジェクトでないとして弾く", () => {
-  // 被覆表そのもの: 「components が空」等へすり替わらず、型崩れの問題文が返ること。
+  // 網羅表そのもの: 「components が空」等へすり替わらず、型崩れの問題文が返ること。
   const arr = countCoverage([], "order-list");
   expect(arr.problems).toEqual(["網羅表が JSON オブジェクトではない"]);
   expect(arr.unmeasured).toBe(1);
@@ -672,7 +672,7 @@ test("declared: false は理由付きで判定に入れない（キー欠落と�
   expect(d.reason).toMatch(/共通部品を使っていない/);
 });
 
-// --- 被覆プロファイル（Issue #286）: 期待セルを候補集合で数え直す経路 ---
+// --- 網羅のプロファイル（Issue #286）: 期待セルを候補集合で数え直す処理 ---
 
 /** 列 2 つ（price / name）を列挙し、候補 3 件へ展開済みの部品。 */
 function profiled(overrides = {}) {
@@ -802,10 +802,10 @@ test("conformance が無い・ok: false は収束させない（プロファイ�
   );
 });
 
-// 撮る状態の集合が足りないぶんは「差 0 件」と同じ見え方になる（差分器は撮った 2 枚しか比べない）。
+// 撮る状態の集合が足りないぶんは「差 0 件」と同じ見え方になる（差分ツールは撮った 2 枚しか比べない）。
 // 照合していない記録・未決の残る記録を収束の根拠にしないことを確認する（Issue #389）。
 test("撮影状態の導出が未照合・未決なら収束させない", () => {
-  // 陽性コントロール: 照合済みで未決ゼロなら通る（常に落とす実装を弾く）。
+  // 誤検知しないことの確認: 照合済みで未決ゼロなら通る（常に落とす実装を弾く）。
   expect(countCoverage(profiled(), "order-list").problems).toEqual([]);
 
   for (const [mutate, pattern] of [
@@ -842,7 +842,7 @@ test("同値クラスを宣言したら全候補の所属が要る（削減し�
   const r = countCoverage(cov, "order-list");
   // 3 件目（column-sort/price/asc）がどのクラスにも属していない。
   expect(r.problems.join("\n")).toMatch(/column-sort\/price\/asc がどの同値クラスにも属していない/);
-  // 陽性コントロール: 全候補を分類すれば問題ゼロ（常に落とす実装を弾く）。
+  // 誤検知しないことの確認: 全候補を分類すれば問題ゼロ（常に落とす実装を弾く）。
   cov.components[0].equivalence_classes.push({
     id: "sort",
     axis: "column",
@@ -882,7 +882,7 @@ test("列挙要素の突き合わせは軸ごとに行う（別軸に同名の�
   const r = countCoverage(cov, "order-list");
   expect(r.problems.join("\n")).toMatch(/列挙した column の要素 name がどの候補にも現れない/);
   expect(r.unmeasured).toBeGreaterThan(0);
-  // 陽性コントロール: 同じ形で column の name も候補にすれば通る（常に落とす実装を弾く）。
+  // 誤検知しないことの確認: 同じ形で column の name も候補にすれば通る（常に落とす実装を弾く）。
   inst.candidates.push("column-visible/name");
   c.items.push({
     id: "column-visible/name",
@@ -911,7 +911,7 @@ test("候補にならない要素は justified_absences の根拠付きでだけ
   expect(countCoverage(cov, "order-list").problems.join("\n")).toMatch(
     /要素 name がどの候補にも現れない/,
   );
-  // 根拠を書けば通る（fail-closed の行き止まりを作らない）。
+  // 根拠を書けば通る（失敗として扱ったまま抜け出せない状態を作らない）。
   inst.enumeration.justified_absences = [
     {
       scope: "column/name",
@@ -947,15 +947,15 @@ test("同値クラスの rationale 空・members 外の representative は問題
   expect(joined).toMatch(/representative .* が members に含まれていない/);
 });
 
-/** 一時ディレクトリに metadata.json と被覆表を書いて CLI を実行する。 */
+/** 一時ディレクトリに metadata.json と網羅表を書いて CLI を実行する。 */
 function runCli(metadata, coverage) {
   const dir = makeTempDir("coverage-check-");
   const metaPath = join(dir, "metadata.json");
   const covPath = join(dir, "component-coverage.json");
   writeFileSync(metaPath, JSON.stringify(metadata));
-  // null ＝ 被覆表を書かない（読めないケース）、undefined ＝ --coverage も渡さない。
+  // null ＝ 網羅表を書かない（読めないケース）、undefined ＝ --coverage も渡さない。
   if (coverage !== null && coverage !== undefined) {
-    // インプロセスの countCoverage ラッパと同じく、集合の来歴を補ってから指紋を現在の内容へ揃える。
+    // インプロセスの countCoverage ラッパと同じく、集合の出所を補ってから指紋を現在の内容へ揃える。
     fillSetProvenance(coverage);
     if (coverage && typeof coverage === "object" && coverage.conformance?.visual_states) {
       coverage.conformance.visual_states = {
@@ -1047,7 +1047,7 @@ test("撮影状態の要約は現在の入力と結び付いていなければ�
   };
   const now = captureFingerprint(CAPTURE);
 
-  // 陽性コントロール: 指紋が現在の入力と一致していれば通る（常に落とす実装を弾く）。
+  // 誤検知しないことの確認: 指紋が現在の入力と一致していれば通る（常に落とす実装を弾く）。
   expect(countCoverageRaw(base(), "order-list", now).problems).toEqual([]);
 
   // 表を書き換えたら落ちる（記録後に項目へ visual_states を足した等）。
@@ -1063,7 +1063,7 @@ test("撮影状態の要約は現在の入力と結び付いていなければ�
     /capture_fingerprint が metadata.json の撮影条件と一致しない/,
   );
 
-  // 指紋そのものの欠落を「照合しない」に倒さない。
+  // 指紋そのものの欠落を「照合しない」として扱わない。
   for (const [field, pattern] of [
     ["table_fingerprint", /table_fingerprint が無い/],
     ["capture_fingerprint", /capture_fingerprint が無い/],
@@ -1073,7 +1073,7 @@ test("撮影状態の要約は現在の入力と結び付いていなければ�
     expect(countCoverageRaw(missing, "order-list", now).problems.join("\n")).toMatch(pattern);
   }
 
-  // 撮影条件を読めない metadata では照合しない（読めたことにも倒さない）。
+  // 撮影条件を読めない metadata では照合しない（読めたことにもしない）。
   expect(readCaptureForFingerprint({ slug: "order-list" })).toBeNull();
   expect(
     readCaptureForFingerprint({
@@ -1091,17 +1091,17 @@ test("いまの撮影条件を読めないときは照合済みに倒さない",
   cov.conformance.visual_states.table_fingerprint = coverageFingerprint(cov);
   cov.conformance.visual_states.capture_fingerprint = captureFingerprint(CAPTURE);
 
-  // 陽性コントロール: 読めれば通る。
+  // 誤検知しないことの確認: 読めれば通る。
   expect(countCoverageRaw(cov, "order-list", captureFingerprint(CAPTURE)).problems).toEqual([]);
 
-  // 読めない（null）を「比較しない」に倒さない。
+  // 読めない（null）を「比較しない」として扱わない。
   const problems = countCoverageRaw(cov, "order-list", null).problems;
   expect(problems.join("\n")).toMatch(
     /撮影条件（capture_conditions の pages \/ states \/ popup_inventory）を読めない/,
   );
 });
 
-// 指紋は「その表を忠実に写したか」しか言わない。壊れた導出規則で作られた要約も指紋は一致するので、
+// 指紋は「その表を忠実に転記したか」しか言わない。誤った導出規則で作られた要約も指紋は一致するので、
 // 生成側の版を見ないとスキルを上げても既知の欠陥を持つ要約が通り続ける（Issue #389 のレビュー指摘）。
 test("撮影状態の要約は下限より古い導出規則で作られていたら通さない", () => {
   const base = () => {
@@ -1122,12 +1122,12 @@ test("撮影状態の要約は下限より古い導出規則で作られてい�
     return cov;
   };
 
-  // 陽性コントロール: 下限ちょうど・それ以降は通る（常に落とす実装を弾く）。
+  // 誤検知しないことの確認: 下限ちょうど・それ以降は通る（常に落とす実装を弾く）。
   for (const version of [MIN_COVERAGE_EXPAND_VERSION, MIN_COVERAGE_EXPAND_VERSION + 1]) {
     expect(countCoverageRaw(withVersion(String(version)), "order-list", now).problems).toEqual([]);
   }
 
-  // 下限より古い版・非数値・空は落とす（「判定しない」に倒さない）。
+  // 下限より古い版・非数値・空は落とす（「判定しない」として扱わない）。
   for (const version of [String(MIN_COVERAGE_EXPAND_VERSION - 1), "x", ""]) {
     const problems = countCoverageRaw(withVersion(version), "order-list", now).problems;
     expect(problems.join("\n")).toMatch(
@@ -1146,14 +1146,14 @@ test("撮影状態の要約は下限より古い導出規則で作られてい�
   }
 });
 
-// --- 集合の来歴と完全性（Issue #392 / #393）: 判定側 ---
+// --- 集合の出所と完全性（Issue #392 / #393）: 判定側 ---
 //
-// 被覆表は 3 つの集合（部品・インスタンス・軸の要素）の上に立つ。来歴と完全性を宣言させないと、
+// 網羅表は 3 つの集合（部品・インスタンス・軸の要素）の上に立つ。出所と完全性を宣言させないと、
 // 列挙しなかった部品・インスタンスは期待セルにも現れず unmeasured 0 で収束する
 // （実測: データグリッドの設定を保存・復元・リセットする 3 部品が集合から落ち、実装からも落ちた）。
 // 指紋の再計算を挟まない生の countCoverageRaw で呼ぶ——補完ラッパは宣言を埋めてしまう。
 
-/** 集合の宣言だけを差し替えられる、未測定 0 の被覆表。 */
+/** 集合の宣言だけを差し替えられる、未測定 0 の網羅表。 */
 function withSets({ componentInventory, instanceInventory, source } = {}) {
   const cov = full();
   if (componentInventory === undefined) cov.component_inventory = setInventory();
@@ -1196,7 +1196,7 @@ test("部品・インスタンスの集合の宣言が無ければ 1 件ずつ�
   }
 
   // 数え方の粒度は宣言の置き場所に揃える。同じ部品の instance_inventory と source が
-  // 両方欠けても、その部品で 1 件（件数の定義は references/coverage.md と convergence.md が正本）。
+  // 両方欠けても、その部品で 1 件（件数の定義は references/coverage.md と convergence.md で定義する）。
   const bothOnSameComponent = countSets(withSets({ instanceInventory: null, source: null }));
   expect(bothOnSameComponent.problems.join("\n")).toMatch(/instance_inventory が無い/);
   expect(bothOnSameComponent.problems.join("\n")).toMatch(/部品 grid.source が無い/);
@@ -1262,7 +1262,7 @@ test("集合の完全性は未設定を「完全」と読まず、false は理�
   expect(withReason.problems.join("\n")).toMatch(/列挙が未完了/);
   expect(withReason.unmeasured).toBe(1);
 
-  // 効いていない免除は落とす（complete: false → true へ直したのに理由が残っている）。
+  // 適用されていない免除は落とす（complete: false → true へ直したのに理由が残っている）。
   // 通すと、機械は収束させるのに成果物を読む側には「まだ読み切れていない集合」と見える。
   const stale = countSets(
     withSets({
@@ -1292,7 +1292,7 @@ test("一次情報源以外で列挙したら理由を要求し、使ったの�
   );
   expect(noReason.unmeasured).toBe(1);
 
-  // 陽性コントロール: 理由を書けば通る（「読めなかった」を残せる形にする）。
+  // 誤検知しないことの確認: 理由を書けば通る（「読めなかった」を残せる形にする）。
   const withReason = countSets(
     withSets({
       componentInventory: appUi({
@@ -1303,7 +1303,7 @@ test("一次情報源以外で列挙したら理由を要求し、使ったの�
   expect(withReason.problems).toEqual([]);
   expect(withReason.unmeasured).toBe(0);
 
-  // 効いていない免除は落とす（一次情報源で列挙したのに理由が残っている）。
+  // 適用されていない免除は落とす（一次情報源で列挙したのに理由が残っている）。
   const stale = countSets(
     withSets({
       componentInventory: {
@@ -1319,7 +1319,7 @@ test("一次情報源以外で列挙したら理由を要求し、使ったの�
 });
 
 test("項目集合の来歴は current-source を受け付け、語彙外・欠落は報告する", () => {
-  // 陽性コントロール: 受領ソースから起こした項目集合を app-ui に倒さずに書ける（Issue #392）。
+  // 誤検知しないことの確認: 受領ソースから起こした項目集合を app-ui として扱わずに書ける（Issue #392）。
   const fromSource = countSets({
     ...withSets({
       source: itemSource({ kind: "current-source", ref: "src/pages/OrderList.ascx" }),
@@ -1351,7 +1351,7 @@ test("インスタンスの列挙の来歴も語彙と一次情報源の理由�
   };
   const count = (cov) => countCoverage(cov, "order-list");
 
-  // 陽性コントロール: current-source で列挙した表は通る（候補 3 件がすべて測れている）。
+  // 誤検知しないことの確認: current-source で列挙した表は通る（候補 3 件がすべて測れている）。
   expect(count(base()).problems).toEqual([]);
 
   const outsideVocabulary = base();
@@ -1367,15 +1367,15 @@ test("インスタンスの列挙の来歴も語彙と一次情報源の理由�
     /enumeration: app-ui で列挙したのに stronger_source_unavailable_reason が空/,
   );
 
-  // 陽性コントロール: 理由を書けば通る。
+  // 誤検知しないことの確認: 理由を書けば通る。
   const declared = base();
   declared.components[0].instances[0].enumeration.source.kind = "app-ui";
   declared.components[0].instances[0].enumeration.stronger_source_unavailable_reason =
     "グリッド定義が動的生成で、ソースからは列を追えない";
   expect(count(declared).problems).toEqual([]);
 
-  // 列挙側の効いていない免除（complete: true なのに incomplete_reason が残る）も未測定に数える。
-  // 集合の来歴だけに当てると、同じ表の中で「完全」と「未完了」を同時に主張できる。
+  // 列挙側の適用されていない免除（complete: true なのに incomplete_reason が残る）も未測定に数える。
+  // 集合の出所だけに当てると、同じ表の中で「完全」と「未完了」を同時に主張できる。
   const staleReason = base();
   staleReason.components[0].instances[0].enumeration.incomplete_reason =
     "列定義が動的生成で読み切れない（complete を true へ直したときの残り）";
@@ -1385,7 +1385,7 @@ test("インスタンスの列挙の来歴も語彙と一次情報源の理由�
   );
   expect(staleResult.unmeasured).toBeGreaterThan(0);
 
-  // 陽性コントロール: null なら通る（常に落とす実装を弾く）。
+  // 誤検知しないことの確認: null なら通る（常に落とす実装を弾く）。
   const nulled = base();
   nulled.components[0].instances[0].enumeration.incomplete_reason = null;
   expect(count(nulled).problems).toEqual([]);

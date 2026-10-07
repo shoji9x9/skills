@@ -13,7 +13,7 @@ const scriptsDir = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 // --- 挙動 -------------------------------------------------------------------
 
-// テストをまたいで観測するため、作ったパスをファイル内の変数へ残す（このファイルは直列に走る）。
+// テストをまたいで観測するため、作ったパスをファイル内の変数へ残す（このファイルは直列に実行される）。
 let madeInPassingTest;
 let madeInFailingTest;
 
@@ -116,7 +116,7 @@ describe("findDirectMkdtemp", () => {
 
 test("テストは一時ディレクトリを makeTempDir / makeSharedTempDir で作る", () => {
   const files = targets(scriptsDir);
-  // 走査が空振りしていないこと（対象 0 件を合格に倒さない）。
+  // 走査が空振りしていないこと（対象 0 件を合格として扱わない）。
   expect(files.map((f) => relative(scriptsDir, f))).toContain("lib/test-tmpdir.test.js");
   expect(files.length).toBeGreaterThan(40);
   const found = files.flatMap((file) =>

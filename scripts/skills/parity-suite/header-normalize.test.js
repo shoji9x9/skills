@@ -39,7 +39,7 @@ function row(name, overrides = {}) {
   };
 }
 
-/** 測定済みの一覧（正本のテンプレートと同じトップレベルのキー）。 */
+/** 測定済みの一覧（原本のテンプレートと同じトップレベルのキー）。 */
 function doc(headers, overrides = {}) {
   return {
     _note: "test",
@@ -137,7 +137,7 @@ test("一覧: 同じヘッダーの行がすべて付け手の決まった行な
   expect([...out]).toEqual(["cache-control"]);
 });
 
-// 通さねばならない入力（正本のテンプレートが正規と定める書き方）。
+// 通さねばならない入力（原本のテンプレートが正規と定める書き方）。
 test.each([
   ["setter_source を省いた行", [row("X-Frame-Options", { setter_source: undefined })]],
   ["setter_source が null の行", [row("X-Frame-Options", { setter_source: null })]],
@@ -175,7 +175,7 @@ test("一覧: 未測定（status: unmeasured と理由だけ）なら NoHeaderLi
   ).toThrow(NoHeaderListError);
 });
 
-// 落とす入力（形の誤り）。一覧が無い扱いにも、比べる・比べないのどちらにも黙って倒さない。
+// 落とす入力（形の誤り）。一覧が無い扱いにも、比べる・比べないのどちらとしても警告なしに扱わない。
 test.each([
   ["JSON として読めない", "{"],
   ["配列", "[]"],
@@ -605,7 +605,7 @@ const TEMPLATE = JSON.parse(
   ),
 );
 
-/** 同梱テンプレートのプレースホルダを埋めたもの（正本の形から作る。キーは足さず値だけを書き換える）。 */
+/** 同梱テンプレートのプレースホルダを埋めたもの（原本の形から作る。キーは足さず値だけを書き換える）。 */
 function filledTemplate() {
   const t = JSON.parse(
     readFileSync(

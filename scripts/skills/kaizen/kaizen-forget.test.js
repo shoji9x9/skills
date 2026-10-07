@@ -13,12 +13,12 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { makeTempDir } from "../../lib/test-tmpdir.js";
 
-// kaizen-forget.sh は **SessionStart フックから無人で走り、追跡ファイルを書き換える**
-// （Issue #339）。判定が緩むと、まだ適用したい学びが黙って注入から消える——消えたことは
+// kaizen-forget.sh は **SessionStart フックから無人で実行され、追跡ファイルを書き換える**
+// （Issue #339）。判定が緩むと、まだ適用したい学びが警告なしに注入から消える。消えたことは
 // 出力にも終了コードにも現れないので、閾値の各軸を決定論的に固定する。
-// 逆に厳しすぎると 1 件も忘れず注入が肥大し続けるため、候補側も陽性コントロールで押さえる。
+// 逆に厳しすぎると 1 件も忘れず、注入が大きくなり続ける。そのため、候補になる側も検出されることを確かめる。
 //
-// 状態空間（候補判定の軸。各セルに 1 検体）:
+// 状態空間は次のとおり（候補判定の軸。各セルに 1 検体）。
 //
 // | 軸        | 候補になる     | 候補にならない                                   |
 // |-----------|----------------|--------------------------------------------------|
@@ -26,15 +26,15 @@ import { makeTempDir } from "../../lib/test-tmpdir.js";
 // | priority  | 閾値以下（既定 medium。low / medium） | high / 未知の値 / 未設定    |
 // | date      | 閾値以上（既定 30 日） | 閾値未満 / 不正な形式 / 未設定             |
 //
-// **読めない材料は候補にしない**（忘れない側へ倒す）。忘却は「消える側」の操作なので、
+// **読めない材料は候補にしない**（忘れない側として扱う）。忘却は「消える側」の操作なので、
 // priority や date を書き忘れただけの学びが自動で忘れられてはならない。
 //
 // 設定（`.kaizen/config`）の軸: forget_auto / forget_after_days / forget_max_priority、
-// および各キーの不正値（既定へ倒し、倒したことを stderr に出す）。
+// および各キーの不正値（デフォルトの値として扱い、そう扱ったことを stderr に出す）。
 //
 // モードの軸: `--list`（変更しない） / `--auto`（閾値で掃引） / 明示（閾値に関わらず忘却）。
 //
-// 変異による検出能力の実証（このファイルを書いた時点で 4 通り実施し、いずれも赤くなることを実測した）:
+// ミューテーションテストで検出できることを、次のように確かめた（このファイルを書いた時点で 4 通り実施し、いずれも赤くなることを実測した）。
 //   1. `[ "${rank}" -ge "${forget_max_rank}" ] || return 1` を削る → 3 件 fail（high が候補に入る）
 //   2. `[ "${age}" -ge "${forget_after_days}" ] || return 1` を削る → 3 件 fail（新しいノートが候補に入る）
 //   3. `[ "${status}" = "pending" ] || return 1` を削る → 4 件 fail
@@ -103,7 +103,7 @@ function statusOf(dir, name) {
   return /^status: (.*)$/m.exec(body)?.[1] ?? "";
 }
 
-// 候補になる検体（陽性コントロール）と、ならない検体（陰性コントロール）。
+// 候補になる検体（検出されることの確認）と、ならない検体（誤検知しないことの確認）。
 // 片側だけだと「常に忘れる」「1 件も忘れない」のどちらへ退化しても気づけない。
 const CANDIDATES = {
   "old-low": note({}),
@@ -175,7 +175,7 @@ test("--auto は候補だけを forgotten にし、他は触らない", () => {
 });
 
 test("--auto は冪等（2 回目は 0 件）", () => {
-  // SessionStart のたびに走るので、同じノートを何度も「忘れた」と報告してはならない。
+  // SessionStart のたびに実行されるので、同じノートを何度も「忘れた」と報告してはならない。
   const dir = makeProject(CANDIDATES);
   try {
     expect(run(dir, ["--auto"]).stderr).toContain("forgot 2 note(s)");
@@ -252,7 +252,7 @@ test("forget_auto=off で自動忘却を止める", () => {
 test("forget_after_days で閾値を変えられる", () => {
   const dir = makeProject({ "mid-low": note({ date: daysAgo(20) }) });
   try {
-    // 既定 30 日では候補にならない（陰性コントロール。設定で動いたと言えるようにする）。
+    // デフォルトの 30 日では候補にならない（誤検知しないことの確認。設定で動いたと言えるようにする）。
     expect(run(dir, ["--list"]).stdout.trim()).toBe("");
     writeFileSync(join(dir, ".kaizen", "config"), "forget_after_days = 10\n");
     expect(run(dir, ["--list"]).stdout).toContain(".kaizen/mid-low.md");
@@ -264,7 +264,7 @@ test("forget_after_days で閾値を変えられる", () => {
 test("forget_max_priority で対象の優先度を広げられる", () => {
   const dir = makeProject({ "old-high": note({ priority: "high" }) });
   try {
-    // 既定 medium では high は候補にならない（陰性コントロール）。
+    // デフォルトの medium では、high は候補にならない（誤検知しないことの確認）。
     expect(run(dir, ["--list"]).stdout.trim()).toBe("");
     // high まで広げると high も対象に入る（境界の向きを固定する）。
     writeFileSync(join(dir, ".kaizen", "config"), "forget_max_priority = high\n");
@@ -291,7 +291,7 @@ const BAD_CONFIGS = [
 test.each(BAD_CONFIGS)(
   "不正な設定値は既定へ倒し、倒したことを出す: $name",
   ({ config, message }) => {
-    // 黙って倒すと「設定したつもりの閾値で動いている」と読めてしまう。
+    // 警告なしにデフォルトの値として扱うと、「設定したつもりの閾値で動いている」と読めてしまう。
     const dir = makeProject(CANDIDATES, config);
     try {
       const { status, stderr } = run(dir, ["--auto"]);
@@ -335,7 +335,7 @@ test.each(NON_PENDING)(
   "明示指示でも pending 以外は忘却しない: $name",
   ({ note: body, expected }) => {
     // forgotten は適用先を持たない状態なので、applied-to を持つノートを書き換えると
-    // kaizen-status-check.sh が exit 2 で落ちる（コミット前ゲートが commit を止める）。
+    // kaizen-status-check.sh が exit 2 で失敗する（コミット前のチェックが commit を止める）。
     const dir = makeProject({ target: body });
     try {
       const { status, stderr } = run(dir, [".kaizen/target.md"]);
@@ -376,7 +376,7 @@ test("--list / --auto にファイル引数を混ぜたら受け付けない", (
 });
 
 test("忘却したノートは kaizen-status-check.sh を通る", () => {
-  // 自動で走る以上、掃引の結果がコミット前ゲートを止めてはならない。
+  // 自動で実行される以上、掃引の結果がコミット前のチェックを止めてはならない。
   const statusCheck = join(repoRoot, "skills/kaizen/scripts/kaizen-status-check.sh");
   const dir = makeProject({ ...CANDIDATES, ...NON_CANDIDATES });
   try {
@@ -399,7 +399,7 @@ test("忘却したノートは kaizen-status-check.sh を通る", () => {
 // 終了コードだけだと理由が分からず、診断だけだと呼び出し側（SessionStart フック・人）が
 // 失敗を拾えない。
 //
-// 変異による検出能力の実証（3 通り実施し、いずれも赤くなることを実測した）:
+// ミューテーションテストで検出できることを、次のように確かめた（3 通り実施し、いずれも赤くなることを実測した）。
 //   1. `-*)` の分岐を削る → 「未知のフラグ」が fail（ファイル名として飲み込まれ exit 0 になる）
 //   2. `rewrite_status` の `return 2` を `return 0` に → 「書き戻せないノート」が fail
 //   3. `require_today_days` の `return 1` を `return 0` に → 「ライブラリ欠落」が fail
@@ -441,7 +441,7 @@ test.each([
 });
 
 test("書き戻せないノートは忘却済みとして報告しない", () => {
-  // `rewrite_status` は `if` から呼ばれるため関数本文で set -e が効かない。書き込み失敗を
+  // `rewrite_status` は `if` から呼ばれるため関数本文で set -e が機能しない。書き込み失敗を
   // 握り潰すと、status が pending のままなのに stdout へ忘却済みとして出る。
   const dir = makeProject(CANDIDATES);
   try {
@@ -465,7 +465,7 @@ test.each(["--list", "--auto"])(
   "共通ライブラリを読めないときは 0 件と区別して止まる: %s",
   (mode) => {
     // 日付を日数へ変換できないと全件が「材料を読めない」で外れ、閾値で 0 件だったときと
-    // 同じ出力になる。縮退したことを終了コードと診断で区別できるようにする。
+    // 同じ出力になる。機能を減らして動いたことを、終了コードと診断で区別できるようにする。
     const dir = makeProject(CANDIDATES);
     const lonely = makeTempDir("kaizen-forget-nolib-");
     try {
@@ -476,7 +476,7 @@ test.each(["--list", "--auto"])(
         encoding: "utf8",
       });
       expect(result.stderr ?? "").toContain("共通ライブラリ kaizen-hook-common.sh");
-      // 「忘却候補はありません」に倒さない（検査できなかったことが消える）。
+      // 「忘却候補はありません」として扱わない（検査できなかったことが消える）。
       expect(result.stderr ?? "").not.toContain("忘却候補はありません");
       expect(result.status).toBe(1);
       expect(statusOf(dir, "old-low")).toBe("pending");
@@ -487,9 +487,9 @@ test.each(["--list", "--auto"])(
   },
 );
 
-// 書き戻しの一時ファイルは固定名にしない。掃引は抽出完了時に走るので、同じリポジトリで
+// 書き戻しの一時ファイルは固定名にしない。掃引は抽出完了時に実行されるので、同じリポジトリで
 // 2 セッションが同時に commit を通せば同じ tmp を書き合い、`cat tmp >note` が途中の内容を
-// 書き戻してノートを壊す（rc 0 なので「忘却した」と報告される）。
+// 書き戻してノートを不正な内容にする（rc 0 なので「忘却した」と報告される）。
 // 状態空間: tmp の残骸 × 名前
 //   残骸なし            → 忘却できる（既存ケースが押さえている）
 //   残骸あり（固定名）  → 固定名だと衝突する。ユニーク名なら影響を受けない  ← ここ

@@ -1,7 +1,7 @@
-// kaizen のコミット前ゲート一式（走査器・checkpoint 記録・lifecycle 検査）の回帰テスト。
+// kaizen のコミット前のチェック一式（スキャナ・checkpoint 記録・lifecycle 検査）の回帰テスト。
 //
-// このゲートは fail closed が前提なので、「検査していない範囲を処理済みにする」「候補ゼロが
-// 常にブロックへ倒れる」「commit を取りこぼす」はどれも黙って壊れる。LLM eval では
+// このチェックは、判定できないときは失敗として扱うことが前提である。そのため、「検査していない範囲を処理済みにする」
+// 「候補ゼロが常にブロックと判定される」「commit を取りこぼす」は、どれも警告なしに誤った結果になる。LLM eval では
 // 実行環境（sed の方言・パーミッション・追記タイミング）を作れないため、ここで決定論的に押さえる。
 
 import { describe, expect, test } from "vitest";
@@ -42,7 +42,7 @@ function runScript(script, args, { cwd, scripts = scriptsDir, env = {} } = {}) {
   });
 }
 
-/** PreToolUse Hook の入力を模して、ゲートに 1 コマンドを判定させる。 */
+/** PreToolUse Hook の入力を模して、チェックに 1 コマンドを判定させる。 */
 function runGate(command, { cwd, transcriptPath, sessionId, scripts = scriptsDir, env = {} } = {}) {
   const input = JSON.stringify({
     tool_input: { command },
@@ -268,7 +268,7 @@ describe("checkpoint は走査器が検査した範囲までしか進めない",
     );
     expect(done.status).toBe(2);
     expect(done.stderr).toMatch(/--scanned-bytes and --scanned-lines/);
-    // センチネルを消してゲートを解除していないこと。
+    // センチネルを消してチェックを解除していないこと。
     expect(readdirSync(join(cwd, ".kaizen"))).toContain(".pending-extract");
   });
 
@@ -280,7 +280,7 @@ describe("checkpoint は走査器が検査した範囲までしか進めない",
     const transcript = join(cwd, "t.jsonl");
     copyFileSync(join(fixturesDir, "claude-no-candidate.jsonl"), transcript);
 
-    // 片方だけ渡すと checkpoint の 2 行目と 4 行目が別地点を指す。黙って wc へ縮退させない。
+    // 片方だけ渡すと checkpoint の 2 行目と 4 行目が別地点を指す。警告なしに、機能を減らした wc での計数にしない。
     const done = runScript("kaizen-extract-done.sh", [...partial, transcript], { cwd });
     expect(done.status).toBe(2);
     expect(done.stderr).toMatch(/must be given together/);
@@ -325,8 +325,8 @@ describe("checkpoint は走査器が検査した範囲までしか進めない",
 
 // 1 本の branch で複数 commit する運用では、最初の commit の後に積まれた活動も抽出対象でなければ
 // ならない（Issue #244）。抽出完了マーカー `.extract-done.<key>` はセッション全体を抽出済みにする
-// 印なので、checkpoint がある限りゲートに尊重させない。ここが緩むと 2 回目以降の commit が静かに
-// 素通りし、「ゲートが動いている」ように見えたまま学びを取りこぼす。
+// 印なので、checkpoint がある限りチェックに尊重させない。ここが緩むと 2 回目以降の commit が
+// エラーにならずに素通りし、「チェックが動いている」ように見えたまま学びを取りこぼす。
 describe("同一セッションの後続 commit も未処理範囲を再走査する", () => {
   const SESSION = "sess-244";
   const sentinelName = `.pending-extract.${SESSION}`;
@@ -493,17 +493,17 @@ exec "${realRm}" "$@"
     expect(readdirSync(join(cwd, ".kaizen"))).not.toContain(sentinelName);
   });
 
-  // ゲートは候補ゼロの自動通過のたびに checkpoint を書く。その後の抽出で checkpoint を
+  // チェックは候補ゼロの自動通過のたびに checkpoint を書く。その後の抽出で checkpoint を
   // 記録できなかった場合（transcript を渡し忘れた・読めない・書けない）、古い checkpoint を
-  // 残したままマーカーだけ書くと、ゲートはマーカーを尊重せず古い起点から再走査し、いま抽出
-  // したばかりの候補で再びブロックする。抽出をやり直しても同じ状態に戻るため fail safe が
-  // 効かず commit が止まり続ける。
+  // 残したままマーカーだけ書くと、チェックはマーカーを尊重せず古い起点から再走査し、いま抽出
+  // したばかりの候補で再びブロックする。抽出をやり直しても同じ状態に戻るため、安全側の扱いが
+  // 機能せず commit が止まり続ける。
   test("先に checkpoint がある状態でも .extract-done の fail safe は効く", () => {
     const cwd = makeProject();
     const transcript = join(cwd, "t.jsonl");
     copyFileSync(join(fixturesDir, "claude-no-candidate.jsonl"), transcript);
 
-    // 1 回目の commit: 候補ゼロでゲートが自動通過し、checkpoint が書かれる。
+    // 1 回目の commit: 候補ゼロでチェックが自動通過し、checkpoint が書かれる。
     armSentinel(cwd, transcript);
     expect(
       runGate("git commit -m first", { cwd, transcriptPath: transcript, sessionId: SESSION })
@@ -517,7 +517,7 @@ exec "${realRm}" "$@"
     completeExtraction(cwd, []);
     const files = readdirSync(join(cwd, ".kaizen"));
     expect(files).toContain(`.extract-done.${SESSION}`);
-    // 起点を残すと fail safe がゲートに無視される。全走査へ倒すため落とす。
+    // 起点を残すと、安全側の扱いがチェックに無視される。全走査として扱うため、起点を消す。
     expect(files).not.toContain(`.extract-checkpoint.${SESSION}`);
 
     armSentinel(cwd, transcript);
@@ -551,7 +551,7 @@ exec "${realRm}" "$@"
 describe("走査器の判定はゲートの外部コマンド方言に依存しない", () => {
   test("ゲートは sed の GNU 拡張（BRE の \\|）で agent を取り出さない", () => {
     const gnuAlternation = /sed[^\n]*\\\|/;
-    // 陽性コントロール: 修正前の書き方を検出できることを先に示す（「該当なし」を根拠にするため）。
+    // 検出されることの確認: 修正前の書き方を検出できることを先に示す（「該当なし」を根拠にするため）。
     expect("scan_agent=$(sed -n 's/^x=\\(claude-code\\|codex\\)$/\\1/p' <<<\"$out\")").toMatch(
       gnuAlternation,
     );
@@ -585,7 +585,7 @@ describe("走査器の判定はゲートの外部コマンド方言に依存し�
     copyFileSync(join(fixturesDir, "claude-no-candidate.jsonl"), transcript);
     writeFileSync(join(cwd, ".kaizen", ".pending-extract"), "");
 
-    // 1 回目で checkpoint を作る（走査器はここで初めて sed で checkpoint を読むようになる）。
+    // 1 回目で checkpoint を作る（スキャナはここで初めて sed で checkpoint を読むようになる）。
     expect(runGate("git commit -m x", { cwd, transcriptPath: transcript }).status).toBe(0);
     writeFileSync(join(cwd, ".kaizen", ".pending-extract"), ""); // Stop フックによる再装填
 
@@ -594,7 +594,7 @@ describe("走査器の判定はゲートの外部コマンド方言に依存し�
       transcriptPath: transcript,
       env: { PATH: `${shimDir}:${process.env.PATH}` },
     });
-    // 代理 sed が実際に経路上で使われたこと（この確認が無いと「sed を一切呼ばなかった」でも通る）。
+    // 代理 sed が実際に処理の流れの中で使われたこと（この確認が無いと「sed を一切呼ばなかった」でも通る）。
     expect(readFileSync(callLog, "utf8")).toMatch(/called/);
     expect(gate.stderr).not.toMatch(/did not identify its agent/);
     expect(gate.status).toBe(0);
@@ -604,7 +604,7 @@ describe("走査器の判定はゲートの外部コマンド方言に依存し�
 describe("ゲートの commit 検出", () => {
   // 未抽出センチネルがある状態では、commit と判定されれば exit 2（ブロック）になる。
   // `{P}` は実行時にプロジェクトルートへ置換する。`-C` / `--git-dir` / `--work-tree` で
-  // コミット先を指定する形は、**プロジェクト内**を指していないとゲートの対象外（exit 0）に
+  // コミット先を指定する形は、**プロジェクト内**を指していないとチェックの対象外（exit 0）に
   // なるため（Issue #221）、正規表現の到達性を測るここのケースはコミット先をプロジェクト内に置く。
   // 外部宛てになる条件そのものは「コミット先のスコープ判定」で測る。
   const cases = [
@@ -643,7 +643,7 @@ describe("ゲートの commit 検出", () => {
     ["git --git-dir={P}/.git commit -m x", 2],
     // `=` 連結形の値も引用・エスケープで空白を含み得る。`-[^[:space:]]+` だけで拾うと引用の
     // 途中で切れ、続く語がオプションでないためオプション列が終わり `commit` へ到達しない
-    // （素通り＝fail open。修正前は実測で exit 0）。
+    // （素通り＝判定できないのに合格として扱う。修正前は実測で exit 0）。
     ['git --git-dir="{P}/a b/.git" commit -m x', 2],
     ["git --git-dir={P}/a\\ b/.git commit -m x", 2],
     ["git --git-dir='{P}/a b/.git' commit -m x", 2],
@@ -667,22 +667,22 @@ describe("ゲートの commit 検出", () => {
     //
     // どのケースも**引用を外せば BLOCK になる形**にしてある（区切りの直後が
     // マッチしうる `git` + サブコマンド）。引用対応を外すと下の 5 件が赤くなることを
-    // 実測して弁別性を確認した。対になる「引用の外の同じ区切り」を後ろに置き、
-    // exit 0 が引用対応によるものか検出漏れかを切り分けられるようにする。
+    // 実測して、区別できることを確認した。対になる「引用の外の同じ区切り」を後ろに置き、
+    // exit 0 が引用対応によるものか、検出の抜けかを切り分けられるようにする。
     ['echo "Bash(git commit *)"', 0],
     ["echo 'Bash(git commit *)'", 0],
     ['echo "x;git commit -m y"', 0],
     ["echo 'x && git commit -m y'", 0],
     ['echo "a|git commit -m y"', 0],
-    // 引用の**外**の同じ区切りは従来どおり止める（引用対応で fail open にしない）。
+    // 引用の**外**の同じ区切りは従来どおり止める（引用対応のせいで合格として扱わない）。
     ["(git commit -m x)", 2],
     ["(cd {P} && git commit -m x)", 2],
     ['echo "quoted" ; git commit -m x', 2],
     ["echo 'quoted' && git commit -m x", 2],
     // シェルの引用規則が当たらない領域（コメント本文・heredoc 本文）。中の素の `'` を
-    // 引用の開始として数えると、対を跨いだ範囲——本物の `git commit` を含む範囲——まで
-    // マスクされてゲートが素通りする。引用マスクからコメント／heredoc の扱いを外すと
-    // 下の 2 件が exit 0 になることを実測して弁別性を確認した。
+    // 引用の開始として数えると、対を跨いだ範囲（本物の `git commit` を含む範囲）まで
+    // マスクされて、チェックが素通りする。引用マスクからコメント／heredoc の扱いを外すと
+    // 下の 2 件が exit 0 になることを実測して、区別できることを確認した。
     ["# don't\ngit commit -m x\n# won't", 2],
     ["cat <<EOF > f\ndon't\nEOF\ngit commit -m x\n# won't", 2],
     // コメントを潰しても、引用の内側の `#` と語中の `#` はコメントではない（過剰ブロックの回帰）。
@@ -693,33 +693,33 @@ describe("ゲートの commit 検出", () => {
     // 二重引用符の**内側**でも、コマンド置換（`$( )` / `` ` ` ``）はシェルが展開する領域で、
     // 中身は実行されるコマンドである（Issue #345）。引用の内側を一律にリテラル扱いして潰すと
     // ここの `git commit` が検出から消え、**実際に実行されるコミットが素通りする**。
-    // マスクからコマンド置換の扱いを外すと下の 5 件が exit 0 になることを実測して弁別性を確認した。
+    // マスクからコマンド置換の扱いを外すと、下の 5 件が exit 0 になることを実測して、区別できることを確認した。
     ['echo "$(git commit -m x)"', 2],
     ['echo "`git commit -m x`"', 2],
     ['echo "$(echo "$(git commit -m x)")"', 2],
     ['echo "prefix $(cd {P} && git commit -m x) suffix"', 2],
     ["X=$(git commit -m x)", 2],
-    // 引用の内側のコマンド置換を写しても、その中の**引用された**文字列は実行されない
-    // （過剰ブロックの回帰。写した中身をそのまま区切り扱いしないこと）。
+    // 引用の内側のコマンド置換をコピーしても、その中の**引用された**文字列は実行されない
+    // （過剰ブロックの回帰。コピーした中身をそのまま区切り扱いしないこと）。
     [`echo "$(printf %s 'git commit')"`, 0],
     [`echo "$(echo ")" )"; echo ok`, 0],
-    // 対応する `)` / `` ` `` を数え切れない形は heredoc と同じく判定不能で fail closed。
+    // 対応する `)` / `` ` `` を数え切れない形は heredoc と同じく判定不能なので、失敗として扱う。
     ['echo "$(git commit -m x"', 2],
     ['echo "`git commit -m x"', 2],
     // コマンド置換の中のコメントは行末まで。**コメント内の `)` は対応にならない**ので、
     // 素通りさせると早く閉じてしまい、その後ろに置かれた本物の `git commit` がマスク側で
-    // 潰されて素通りする（fail open。cmdsub_span の `#` 分岐を外すと exit 0 になることを実測）。
+    // 潰されて素通りする（合格として扱われる。cmdsub_span の `#` 分岐を外すと exit 0 になることを実測）。
     ['echo "$( # note )\ngit commit -m x\n)"', 2],
     // 対応する `)` がコメントに飲まれて行末が無い形は判定不能で、マスクせず元の文字列で判定する
-    // （fail closed）。元の文字列に見える `git commit` は従来どおり捕捉する。
+    // （判定できないときは失敗として扱う）。元の文字列に見える `git commit` は従来どおり捕捉する。
     ['git commit -m "$( # note "', 2],
     // 語中の `#` はコメントではない（コメント扱いにして残りを飲むと逆に取りこぼす）。
     ["echo \"$(printf %s 'a#b')\"; git commit -m x", 2],
     // **コマンドの先頭は `;&|(` の直後だけではない。** `case` のパターンの `)` と複合コマンドの
     // `{` の直後もコマンド位置で、どれも実際にコミットを実行する（実測）。
-    // `case` のパターンの `)` は対応する `(` を持たないので cmdsub_span の深さ計算では弁別できず、
-    // そこで閉じたと読むと残りがマスクされて素通りする。mask_quoted 側を fail closed に倒し、
-    // 区切りクラスにも `)` `{` を足す——**片側だけでは塞がらない**（fail closed が使わせるのは
+    // `case` のパターンの `)` は対応する `(` を持たないので cmdsub_span の深さ計算では区別できず、
+    // そこで閉じたと読むと、残りがマスクされて素通りする。mask_quoted 側では判定できないものとして扱い、
+    // 区切りクラスにも `)` `{` を足す。**片側だけでは塞がらない**（判定できないときに使うのは
     // 元の文字列で、それを判定するのがこの正規表現のため）。
     ['echo "$(case x in x) git commit -m x;; esac)"', 2],
     ['echo "$(case x in a|b) echo hi;; *) git commit -m x;; esac)"', 2],
@@ -731,16 +731,16 @@ describe("ゲートの commit 検出", () => {
     ['echo "$(( 1 + 2 ))"; git commit -m x', 2],
     ['echo "$( (git commit -m x) )"', 2],
     ["cat <(git commit -m x)", 2],
-    // 過剰ブロックの回帰: `case` を含んでも commit が無ければ通る（fail closed は元の文字列を
-    // 使わせるだけで、区切りの直後に commit が無ければ一致しない）。
+    // 過剰ブロックの回帰: `case` を含んでも commit が無ければ通る（判定できないときは元の文字列を
+    // 使うだけで、区切りの直後に commit が無ければ一致しない）。
     ['echo "$(case x in x) echo hi;; esac)"', 0],
-    // 語境界で見るので `lowercase` / `testcase` では fail closed に倒さない。
+    // 語境界で見るので、`lowercase` / `testcase` は判定できないものとして扱わない。
     ['echo "$(echo lowercase)"', 0],
     ['echo "$(echo testcase)"', 0],
     ['echo "$(( 1 + 2 ))"', 0],
     ['echo "$(f() { echo hi; }; f)"', 0],
     // 置換の中身は「実行されるコマンド」だが、**その中の引用とコメントは実行されない**。
-    // 丸写しにすると、リテラルに書かれた区切り文字を本物の区切りと読んで誤ブロックする
+    // そのままコピーすると、リテラルに書かれた区切り文字を本物の区切りと読んで誤ブロックする
     // （実測: 下の 3 件はいずれも commit を実行しないのに exit 2 になっていた）。
     // 中身へ同じ規則を再帰で当て、実行される部分だけを残す。
     ["echo \"$(printf %s '; git commit -m x')\"", 0],
@@ -751,7 +751,7 @@ describe("ゲートの commit 検出", () => {
     // `echo "$(echo "$(git commit -m x)")"` は上の Issue #345 の組にある（同名のテストは名前で合否を判定できない）。
     // **行継続（`\` + 改行）はシェルが解析の前に取り除く。** 残したまま走査すると、トークンが
     // 継続で割れた形はどの正規表現にも当たらず素通りする（実測）。`git` / `commit` 自体が割れると
-    // 生 JSON の prefilter（`*git*commit*`）でも落ちるので、**prefilter と走査の両方**を
+    // 生 JSON の prefilter（`*git*commit*`）でも外れるので、**prefilter と走査の両方**を
     // 直さないと塞がらない。
     ["ca\\\nse x in x) git commit -m x;; esac", 2],
     ['echo "$(ca\\\nse x in x) git commit -m x;; esac)"', 2],
@@ -759,20 +759,20 @@ describe("ゲートの commit 検出", () => {
     ["git com\\\nmit -m x", 2],
     ["gi\\\nt com\\\nmit -m x", 2],
     ["echo hi \\\n&& git commit -m x", 2],
-    // `\\` + 改行は継続ではない（エスケープされた `\` の直後の改行）。落とすと次のコマンドが
-    // 前のコマンドと繋がって区切り判定から外れる（fail open）。
+    // `\\` + 改行は継続ではない（エスケープされた `\` の直後の改行）。消すと次のコマンドが
+    // 前のコマンドと繋がって区切り判定から外れる（判定できないのに合格として扱われる）。
     ["echo a\\\\\ngit commit -m x", 2],
     // 過剰ブロックの回帰: 継続があっても commit が無ければ通る。
     ["echo a \\\n b", 0],
     ['echo "a\\\nb"', 0],
     ["ec\\\nho hello", 0],
-    // **`case` は予約語として現れたときだけ弁別不能にする。** 語として含むかどうかで倒すと、
-    // 引数に書かれた `case` でも倒れ、マスクを丸ごと捨てた結果、同じコマンド行の引用された
-    // `; git commit -m x` が実行されるものとして読まれて誤ブロックになる（実測）。
+    // **`case` は予約語として現れたときだけ区別できないものとして扱う。** 語として含むかどうかで判定すると、
+    // 引数に書かれた `case` でも判定できないものとして扱われ、マスクを丸ごと捨ててしまう。
+    // その結果、同じコマンド行の引用された `; git commit -m x` が実行されるものとして読まれ、誤ブロックになる（実測）。
     // `echo "$(printf %s case)" ...` は下の「`in` が続かない `case`」の組にある（同名のテストを作らない）。
     ['echo "$(printf %s \'case\')" "; git commit -m x"', 0],
     ['echo "$(printf %s lowercase)" "; git commit -m x"', 0],
-    // 予約語が置ける位置（行頭・`;` `(` `{` ・改行の直後）はいずれも倒す。
+    // 予約語が置ける位置（行頭・`;` `(` `{` ・改行の直後）は、いずれも判定できないものとして扱う。
     ['echo "$(echo hi; case x in x) git commit -m x;; esac)"', 2],
     ['echo "$( (case x in x) git commit -m x;; esac) )"', 2],
     ['echo "$({ case x in x) git commit -m x;; esac; })"', 2],
@@ -788,7 +788,7 @@ describe("ゲートの commit 検出", () => {
     ['echo "$(until case x in x) git commit -m x;; esac; do break; done)"', 2],
     ['echo "$(! case x in x) git commit -m x;; esac)"', 2],
     ['echo "$(true && while case x in x) git commit -m x;; esac; do break; done)"', 2],
-    // 予約語も引数として書かれたときは倒さない（過剰ブロックの回帰）。
+    // 予約語も、引数として書かれたときは判定できないものとして扱わない（過剰ブロックの回帰）。
     ['echo "$(printf %s then)" "; git commit -m x"', 0],
     ['echo "$(printf %s then case)" "; git commit -m x"', 0],
     // **判定は `case` の「位置」ではなく「構文」で行う。** コマンド位置は記号の区切りにも
@@ -796,7 +796,7 @@ describe("ゲートの commit 検出", () => {
     // 不均衡な `)` を持ち込むのは `case WORD in` という構文そのものなので、そちらを直接見る。
     ['echo "$(f() case x in x) git commit -m x;; esac; f)"', 2],
     ['echo "$(function f() case x in x) git commit -m x;; esac; f)"', 2],
-    // `in` が続かない `case` は構文ではないので倒さない（過剰ブロックの回帰）。
+    // `in` が続かない `case` は構文ではないので、判定できないものとして扱わない（過剰ブロックの回帰）。
     ['echo "$(printf %s case)" "; git commit -m x"', 0],
     ['echo "$(printf %s testcase)" "; git commit -m x"', 0],
     // 引用の内側は別の分岐が消費するのでこの検査に渡らない。
@@ -812,13 +812,13 @@ describe("ゲートの commit 検出", () => {
   });
 });
 
-// コミット先がプロジェクト外のリポジトリだとコマンド行から分かる呼び出しは、ゲートの対象に
+// コミット先がプロジェクト外のリポジトリだとコマンド行から分かる呼び出しは、チェックの対象に
 // しない（Issue #221）。テストのフィクスチャとして使い捨ての一時リポジトリへコミットする形まで
 // 止めると、抽出を求めている「このプロジェクトの活動」と無関係な commit が実行できなくなる。
-// ここが緩むとプロジェクト宛ての commit を素通しし（fail open）、きつくなると元の不具合へ戻る。
+// ここが緩むとプロジェクト宛ての commit を素通しし（合格として扱い）、きつくなると元の不具合へ戻る。
 // 外部宛てのケースはいずれも「プロジェクト内を指す同形のケース」を下の blocked 側に持つ。
 // 同形の対（同じオプション・同じ引用形で、違うのはコミット先だけ）が両方あって初めて、
-// exit 0 が「スコープ判定で外した」のか「commit として検出できていない」のかを弁別できる。
+// exit 0 が「スコープ判定で外した」のか「commit として検出できていない」のかを区別できる。
 describe("コミット先のスコープ判定", () => {
   // プロジェクト（`makeProject()` の mkdtemp）の外側にある一意なパス。`/tmp` 直書きだと
   // 既存ディレクトリ・リポジトリと衝突してスコープ判定が変わり得る（`tmpdir()` は環境で異なる）。
@@ -836,7 +836,7 @@ describe("コミット先のスコープ判定", () => {
     `git --git-dir="${SPACE_FIXTURE}/.git" commit -m x`,
     `git --git-dir=${ESCAPED_SPACE_FIXTURE}/.git commit -m x`,
     `git --git-dir='${SPACE_FIXTURE}/.git' commit -m x`,
-    // フィクスチャは 1 行で作られるので、フックが走る時点では対象がまだ存在しない。
+    // フィクスチャは 1 行で作られるので、フックが実行される時点では対象がまだ存在しない。
     `git init ${FIXTURE} && git -C ${FIXTURE} add a.txt && git -C ${FIXTURE} commit -m base`,
     // 引用・エスケープを含むコミット先も、外した結果が同じであること。
     `git -C "${SPACE_FIXTURE}" commit -m x`,
@@ -854,9 +854,9 @@ describe("コミット先のスコープ判定", () => {
     // `-C` の繰り返しは累積して相対解決される（/tmp + 相対 = プロジェクト外）。
     `git -C ${dirname(FIXTURE)} -C ${basename(FIXTURE)} commit -m x`,
     // **区切りの集合は commit_re と git_head_re で揃える。** commit_re 側だけ広げると、
-    // 広げた区切りで一致した形をスコープ判定が解析できず、外部宛ての免除が効かないまま
-    // 誤ブロックになる（実測。`)` と `{` は直後に空白が入るので従来の `[[:space:]]` で
-    // 拾えていたが、`` ` `` は空白を挟まないので拾えなかった）。
+    // 広げた区切りで一致した形をスコープ判定が解析できない。すると、外部宛ての免除が機能しないまま
+    // 誤ブロックになる（実測）。`)` と `{` は直後に空白が入るので、従来の `[[:space:]]` で
+    // 拾えていた。しかし `` ` `` は空白を挟まないので拾えなかった。
     `echo "\`git -C ${FIXTURE} commit -m x\`"`,
     `case x in x) git -C ${FIXTURE} commit -m x;; esac`,
     `{ git -C ${FIXTURE} commit -m x; }`,
@@ -884,7 +884,7 @@ describe("コミット先のスコープ判定", () => {
     // `--work-tree` 単独は外部パスでも判定不能（リポジトリは cwd から探索される）。
     `git --work-tree="${SPACE_FIXTURE}" commit -m x`,
     // コミット先 repo は外部でも、作業ツリーがプロジェクトならコミットされる内容はこの
-    // プロジェクトの活動そのもの。意図的に安全側（ブロック）へ倒す。
+    // プロジェクトの活動そのもの。意図的に安全側（ブロック）として扱う。
     `git --git-dir=${FIXTURE}/.git --work-tree={P} commit -m x`,
     `git -C ${FIXTURE} --work-tree={P} commit -m x`,
     `git init ${FIXTURE} && git -C ${FIXTURE} add a.txt && git commit -m base`,
@@ -894,7 +894,7 @@ describe("コミット先のスコープ判定", () => {
     // 区切り直後に空白が無くてもプロジェクト宛ては見落とさない（上の対）。
     "ls;git -C {P} commit -m x",
     "ls&&git -C {P} commit -m x",
-    // 展開しないと値が決まらないパスは判定不能（fail closed）。外部宛てと同形だが通してはいけない。
+    // 展開しないと値が決まらないパスは判定不能（失敗として扱う）。外部宛てと同形だが通してはいけない。
     "git -C $FIXTURE commit -m x",
     'git -C "$(mktemp -d)" commit -m x',
     "git -C /tmp/kaizen-gate-*/fixture commit -m x",
@@ -902,13 +902,13 @@ describe("コミット先のスコープ判定", () => {
     // 外部を指していてもコミット先はプロジェクトのリポジトリなので通してはいけない。
     `git --work-tree=${FIXTURE} commit -m x`,
     `git --work-tree ${FIXTURE} commit -am x`,
-    // `cd` があると git が走る cwd が確定しないので、相対パス指定は判定不能。
+    // `cd` があると git を実行する cwd が確定しないので、相対パス指定は判定不能。
     "cd /tmp && git -C fixture commit -m x",
     // 1 行に複数の commit。先頭が外部宛てでも、後続のプロジェクト宛てを見落とさない。
     `git -C ${FIXTURE} commit -m a && git commit -m b`,
     // 走査位置の算出はマッチ文字列を**リテラル**として扱う必要がある。パターン展開になると
     // パス以外の引数（`-c` の値など）の glob メタ文字がマッチ範囲を広げ、後続の commit を
-    // 見落として素通りする（fail open）。
+    // 見落として素通りする（合格として扱われる）。
     `git -c user.name=A*B -C ${FIXTURE} commit -m a && git commit -m b`,
     `git -c user.name=A?B -C ${FIXTURE} commit -m a && git commit -m b`,
     `git -c user.name=A[b]B -C ${FIXTURE} commit -m a && git commit -m b`,
@@ -953,7 +953,7 @@ describe("コミット先のスコープ判定", () => {
 
     expect(runGate(`git -C ${linked} commit -m x`, { cwd: main }).status).toBe(2);
     // linked worktree の `.git` は**ファイル**（`gitdir: <path>`）。`-d` 前提で共有 git ディレクトリを
-    // 引くと解決できず、同一リポジトリ判定が抜けて外部宛て扱いで素通りする（fail open。実測）。
+    // 探すと解決できず、同一リポジトリ判定が抜けて外部宛て扱いで素通りする（合格として扱われる。実測）。
     expect(statSync(join(linked, ".git")).isFile()).toBe(true);
     expect(runGate(`git --git-dir=${linked}/.git commit -m x`, { cwd: main }).status).toBe(2);
     expect(
@@ -969,18 +969,18 @@ describe("コミット先のスコープ判定", () => {
   });
 });
 
-// jq も python3 も無い環境では、ゲートは Hook 入力を構造として読めず生 JSON を直接照合する
-// 縮退経路へ落ちる。この経路は普段の開発機では絶対に通らないため、壊れても気づけない。
-// commit 判定は jq 経路と同じ結論でなければならない（ここが緩むと fail open、きつくなると誤ブロック）。
-// ただしコミット先のスコープ判定（Issue #221）だけは**意図的に差がある**。この経路はコマンド行を
+// jq も python3 も無い環境では、チェックは Hook 入力を構造として読めない。そのため、生 JSON を直接照合する
+// 機能を減らした処理で判定する。この処理は普段の開発機では絶対に通らないため、誤っていても気づけない。
+// commit 判定は jq を使う処理と同じ結論でなければならない（ここが緩むと合格として扱われ、きつくなると誤ブロックになる）。
+// ただしコミット先のスコープ判定（Issue #221）だけは**意図的に差がある**。この処理はコマンド行を
 // 構造として取り出せていないため外部宛てを確定できず、`git -C <外部> commit` も従来どおりブロックする。
 describe("生 JSON へ縮退した経路の commit 検出", () => {
   /** jq / python3 だけを解決できない PATH を作る（他のコマンドは実体へ通す）。 */
   function makeJqlessPathDir() {
     const dir = makeSharedTempDir("kaizen-nojq-");
-    // ゲート本体と kaizen-status-check.sh が使う外部コマンドは通す。ここが欠けると
-    // 「縮退経路で正しく判定した」ではなく「別の理由で落ちた」を測ってしまう。
-    // `dirname` は両スクリプトが script_dir の解決に使う。落とすと script_dir が壊れ、
+    // チェック本体と kaizen-status-check.sh が使う外部コマンドは通す。ここが欠けると
+    // 「機能を減らした処理で正しく判定した」ではなく「別の理由で失敗した」を測ってしまう。
+    // `dirname` は両スクリプトが script_dir の解決に使う。外すと script_dir を解決できず、
     // commit 判定より手前の「bundled kaizen-status-check.sh is unavailable」で exit 2 になり、
     // 期待値 2 のケースが全部その理由で通ってしまう（lifecycle 検査以降を一切検証しない）。
     for (const tool of [
@@ -1004,8 +1004,8 @@ describe("生 JSON へ縮退した経路の commit 検出", () => {
 
   const jqlessPath = makeJqlessPathDir();
 
-  // この経路を本当に通したことの陽性コントロール。jq か python3 が解決できてしまうと
-  // ゲートは構造化経路を通り、以下のケースは縮退経路を一切検証しないまま全て pass する。
+  // この処理を本当に通したことの確認。jq か python3 が解決できてしまうと、
+  // チェックは構造化した入力を読む処理を通り、以下のケースは機能を減らした処理を一切検証しないまま全て pass する。
   test("PATH から jq / python3 が解決できないこと", () => {
     for (const tool of ["jq", "python3", "python"]) {
       const probe = spawnSync("bash", ["-c", `command -v ${tool}`], {
@@ -1017,32 +1017,32 @@ describe("生 JSON へ縮退した経路の commit 検出", () => {
   });
 
   const cases = [
-    // 区切りの後ろの commit。値の先頭だけに錨を打っていた頃は取りこぼしていた（fail open）。
+    // 区切りの後ろの commit。値の先頭だけに錨を打っていた頃は取りこぼしていた（合格として扱われた）。
     ["cd /tmp && git commit -m x", 2],
     ["make build; git commit -m x", 2],
     ["ls | xargs git commit", 2],
     ["(git commit -m x)", 2],
     ["git add -A && git -C /tmp commit -m x", 2],
-    // 外部宛てのスコープ判定はこの経路では行わない（構造化経路なら 0 になる形も 2 のまま）。
+    // 外部宛てのスコープ判定は、この処理では行わない（構造化した入力を読む処理なら 0 になる形も 2 のまま）。
     ["git -C /tmp/kaizen-gate-external-221 commit -qm base", 2],
     ["git --git-dir=/tmp/kaizen-gate-external-221/.git commit -m x", 2],
     ["cd /tmp; git --no-pager commit -m x", 2],
     // JSON では改行が `\n` の 2 文字として現れる。リテラルの区切りだけを見ていると取りこぼす。
     ["cd /tmp\ngit commit -m x", 2],
     // 行継続（`\` ＋ 改行）で割れたトークン（Issue #409）。シェルは継続を取り除いてから実行するのに、
-    // 生 JSON には `git` も `commit` も揃って現れず、この経路だけ素通りしていた（実測）。
+    // 生 JSON には `git` も `commit` も揃って現れず、この処理だけ素通りしていた（実測）。
     ["gi\\\nt commit -m x", 2],
     ["git com\\\nmit -m x", 2],
     ["cd /tmp && gi\\\nt commit -m x", 2],
     // 継続でない `\\` ＋ 改行（エスケープされた `\` の直後の改行）。改行は本物の区切りなので、
-    // 詰めた写しだけを見ていると区切りが消えて素通りする——元の入力側で捕まえる。
+    // 詰めたコピーだけを見ていると区切りが消えて素通りする。元の入力側で捕まえる。
     ["echo a\\\\\ngit commit -m x", 2],
-    // 継続で `git` と繋がって別の語になる形は commit ではない（過剰ブロックへ倒さない）。
+    // 継続で `git` と繋がって別の語になる形は commit ではない（過剰ブロックにしない）。
     ["echo a\\\ngit log", 0],
     // 先頭の commit（従来から捕捉できていた形）。
     ["git commit -m x", 2],
     ["git -C /tmp commit -m x", 2],
-    // 区切りを許しても過剰ブロックへ倒れないこと。
+    // 区切りを許しても、過剰ブロックにならないこと。
     ["echo hi; echo git commit", 0],
     ['echo "run git commit later"', 0],
     ["git log; git status", 0],
@@ -1058,8 +1058,8 @@ describe("生 JSON へ縮退した経路の commit 検出", () => {
     const result = runGate(command, { cwd, env: { PATH: jqlessPath } });
     expect(result.status).toBe(expected);
     if (expected === 2) {
-      // 縮退 PATH に必要なコマンドが欠けると、commit 判定より手前の環境エラーでも exit 2 に
-      // なる。それでは「縮退経路が commit を検出した」を測ったことにならないので、
+      // 機能を減らす PATH に必要なコマンドが欠けると、commit 判定より手前の環境エラーでも exit 2 に
+      // なる。それでは「機能を減らした処理が commit を検出した」を測ったことにならないので、
       // ブロック理由が未抽出センチネル由来であることまで固定する。
       expect(result.stderr).not.toMatch(/unavailable|command not found/);
       expect(result.stderr).toContain("kaizen --current");
@@ -1129,15 +1129,15 @@ describe("lifecycle 検査", () => {
     },
   );
 
-  // 警告（rc 0）はゲートの出力から落ちやすい。ゲートは検査の出力を変数へ取り込むうえ、
-  // **PreToolUse フックの stderr は非 0 で終えたときしか表示されない**ので、素通りの
+  // 警告（rc 0）は、チェックの出力から外れやすい。チェックは検査の出力を変数へ取り込む。
+  // さらに、**PreToolUse フックの stderr は非 0 で終えたときしか表示されない**。そのため、素通りの
   // exit 0 のまま stderr へ書いても誰にも届かない（`references/setup.md` に出典付きで
   // 書いてある仕様。他セッションの警告が warn_exit_code を使っているのと同じ理由）。
-  // 状態空間: 検査の rc × 出力の有無 × ゲートの出口
-  //   rc 2 × 出力あり            → 出す・exit 2（既存の appliedToCases が押さえている）
-  //   rc 0 × 出力あり × 素通り   → 出す・exit 1（表示される非 0）  ← ここ
-  //   rc 0 × 出力なし × 素通り   → 何も足さない・exit 0            ← ここ
-  //   rc 0 × 出力あり × -copilot → 出す・exit 0（非 0 が deny に化けるため）← ここ
+  // 状態空間は、検査の rc × 出力の有無 × チェックの出口である。
+  //   - rc 2 × 出力あり            → 出す・exit 2（既存の appliedToCases が押さえている）
+  //   - rc 0 × 出力あり × 素通り   → 出す・exit 1（表示される非 0）  ← ここ
+  //   - rc 0 × 出力なし × 素通り   → 何も足さない・exit 0            ← ここ
+  //   - rc 0 × 出力あり × -copilot → 出す・exit 0（非 0 は誤って deny として扱われるため）← ここ
   test("lifecycle 検査の警告は commit を止めずに出る", () => {
     const cwd = makeProject();
     // type は機構（hook）なのに applied-to がドキュメントだけ = Issue #341 の警告。
@@ -1161,11 +1161,11 @@ describe("lifecycle 検査", () => {
 
   test("検査と無関係な stderr は警告として扱わない", () => {
     // status_output は 2>&1 なので子プロセスの無関係な stderr も入る。非空で判定すると
-    // 警告 0 件でも非 0 になり、ロケールの壊れた環境では毎コミットが恒久的に非 0 になる。
+    // 警告 0 件でも非 0 になり、ロケールが不正な環境では毎コミットが恒久的に非 0 になる。
     const cwd = makeProject();
     writeNote(cwd, "2026-08-10-note.md", note("applied", ' ["AGENTS.md"]'));
 
-    // 陽性コントロール: この環境変数で bash が実際に stderr へ警告を出すことを確かめる。
+    // 検出されることの確認: この環境変数で bash が実際に stderr へ警告を出すことを確かめる。
     // 出ていなければ、この後の exit 0 は「雑音を無視できた」の証拠にならない。
     const noise = spawnSync("bash", ["-c", "true"], {
       encoding: "utf8",
@@ -1228,7 +1228,7 @@ describe("lifecycle 検査", () => {
 });
 
 // transcript を「一度も記録していない」センチネル（`/compact` 専用の隠しセッションのように
-// transcript を一度も作らないまま Stop が走った場合。Issue #240）は、案内どおりに探しても
+// transcript を一度も作らないまま Stop が実行された場合。Issue #240）は、案内どおりに探しても
 // 見つからない。「記録はあるが今は読めない」（移動・削除済み）とは対処が違うので、案内が
 // 両者を混同していないことを固定する。
 describe("未抽出センチネルの復旧案内は「記録なし」と「記録はあるが読めない」を区別する", () => {
@@ -1251,7 +1251,7 @@ describe("未抽出センチネルの復旧案内は「記録なし」と「記�
       /探しても見つからない場合は、transcript を指定せず次のコマンドで解消してください:\n\s*bash "[^"]+\/kaizen-extract-done\.sh" --sentinel-suffix "" --agent "claude-code" --session-id "other-session-1"\n/,
     );
     // 「記録なし」の場合はプレースホルダ無しのコマンドで解消が完結するため、"<transcript> を
-    // 置き換えてください" という穴埋め必須の注意書きは出ない（出ると、常に穴埋めが要ると誤解される）。
+    // 置き換えてください" という書き換え必須の注意書きは出ない（出ると、常に書き換えが要ると誤解される）。
     expect(gate.stderr).not.toMatch(/<transcript> だけを.*置き換えてください/);
   });
 
@@ -1267,7 +1267,7 @@ describe("未抽出センチネルの復旧案内は「記録なし」と「記�
       expect(gate.stderr).toMatch(/センチネルが記録した transcript を読めません/);
       expect(gate.stderr).not.toMatch(/transcript の記録がありません/);
       expect(gate.stderr).not.toMatch(/transcript を指定せず次のコマンドで解消してください/);
-      // このケースは <transcript> の穴埋めが必須の唯一の解消コマンドなので、注意書きが出る。
+      // このケースは <transcript> の書き換えが必須の唯一の解消コマンドなので、注意書きが出る。
       expect(gate.stderr).toMatch(/<transcript> だけを.*置き換えてください/);
     } finally {
       chmodSync(unreadable, 0o644);
@@ -1275,7 +1275,7 @@ describe("未抽出センチネルの復旧案内は「記録なし」と「記�
   });
 
   // 記録された transcript が**実在しない**（剪定・削除・移動）ケース。探しても見つからないので、
-  // 「実在するが読めない」と同じ案内に倒すと解消手段が無い恒久ブロッカーになる。
+  // 「実在するが読めない」と同じ案内として扱うと、解消手段が無い恒久的なブロッカーになる。
   // Issue #244 で抽出済みセッションのセンチネルもマーカーに覆われなくなったため、
   // transcript が剪定された旧セッションの残骸としてこの状態に到達しやすくなった。
   test("transcript の記録が実在しない場合は、transcript 無しで解消するコマンドも提示する", () => {
@@ -1289,7 +1289,7 @@ describe("未抽出センチネルの復旧案内は「記録なし」と「記�
     expect(gate.stderr).toMatch(
       /探しても見つからない場合は、transcript を指定せず次のコマンドで解消してください:\n\s*bash "[^"]+\/kaizen-extract-done\.sh" --sentinel-suffix "" --agent "claude-code" --session-id "other-session-3"\n/,
     );
-    // 穴埋め必須の注意書きは出ない（transcript 無しの解消コマンドで完結するため）。
+    // 書き換え必須の注意書きは出ない（transcript 無しの解消コマンドで完結するため）。
     expect(gate.stderr).not.toMatch(/<transcript> だけを.*置き換えてください/);
   });
 
@@ -1399,7 +1399,7 @@ describe("ゲートはリポジトリの全作業ツリーの .kaizen/ を見る
     mkdirSync(join(main, ".kaizen"), { recursive: true });
     const stale = join(main, ".kaizen", `.extract-done.${SESSION}`);
     writeFileSync(stale, "2026-09-11T12:30:00Z\n");
-    // 覆っていることを先に確かめる（この後の 0 → 2 の変化が SessionStart によるものだと弁別する）。
+    // 覆っていることを先に確かめる（この後の 0 → 2 の変化が SessionStart によるものだと区別する）。
     expect(runGateAt(worktree, main).status).toBe(0);
     const inject = spawnSync("bash", [join(scriptsDir, "kaizen-context-inject.sh")], {
       cwd: worktree,
@@ -1444,9 +1444,9 @@ describe("ゲートはリポジトリの全作業ツリーの .kaizen/ を見る
   });
 });
 
-// エージェントは timeout に達したフックをブロックとして扱わない（Claude Code / Copilot とも fail-open）。
-// ゲート全体の所要時間に上限が無いと、exit 2 で止めるはずの commit が遅いときほど素通りする（Issue #492）。
-// ゲートは 1 つの締め切りの内側で走り切り、自セッション分までは締め切りに当たったら fail closed にする。
+// エージェントは timeout に達したフックをブロックとして扱わない（Claude Code / Copilot とも、合格として扱う）。
+// チェック全体の所要時間に上限が無いと、exit 2 で止めるはずの commit が遅いときほど素通りする（Issue #492）。
+// チェックは 1 つの締め切りの内側で最後まで実行し、自セッション分までは締め切りに当たったら失敗として扱う。
 describe("ゲート全体の締め切り", () => {
   const OWN = "own-session-1";
 
@@ -1509,7 +1509,7 @@ describe("ゲート全体の締め切り", () => {
   }, 15000);
 
   // bash は環境変数 SECONDS を起動時の初期値として引き継ぐ。フックの親環境に export されていると、
-  // 経過時間が最初から大きくなり毎回 fail closed になる（PR #545 のレビュー指摘・実測）。
+  // 経過時間が最初から大きくなり、毎回失敗として扱われる（PR #545 のレビュー指摘・実測）。
   test("環境変数 SECONDS を引き継いでも経過時間は 0 から数える", () => {
     const cwd = makeProject();
     const gate = runGate("git commit -m x", { cwd, sessionId: OWN, env: { SECONDS: "100" } });
@@ -1541,7 +1541,7 @@ describe("ゲート全体の締め切り", () => {
       env: { KAIZEN_PRECOMMIT_DEADLINE_SECONDS: raw },
     });
     // 受け付けたかだけを見る。最小の 2 秒では lifecycle 検査の持ち時間が 1 秒しかなく、負荷の高い
-    // 並列実行では締め切りで fail closed になりうる（それ自体は仕様どおり）。
+    // 並列実行では、締め切りで失敗として扱われうる（それ自体は仕様どおり）。
     expect(gate.stderr).not.toMatch(/不正です/);
     expect([0, 2]).toContain(gate.status);
   });
@@ -1595,7 +1595,7 @@ describe("他セッション分の走査結果の再利用", () => {
     expect(second.stderr).toMatch(/他セッションの未抽出センチネルが残っています/);
   });
 
-  // 走査器は一時ファイルの作成・読み取りの失敗といった一過性の理由でも 2 を返す。残すと、持ち主が
+  // スキャナは一時ファイルの作成・読み取りの失敗といった一過性の理由でも 2 を返す。残すと、持ち主が
   // 戻らないセンチネルを保持期間まで再試行しなくなる（PR #545 のレビュー指摘）。
   test("判定不能はキャッシュに残さず、毎回走査し直す", () => {
     const { gate, scans, cache } = setup("exit 2");

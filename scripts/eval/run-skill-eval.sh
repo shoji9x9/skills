@@ -1,50 +1,49 @@
 #!/usr/bin/env bash
-# Dev-only: run ONE skill eval prompt through Claude Code or Codex in an
-# isolated, disposable empty project so
-# the eval's file mutations never touch this repo. Used to build regression
-# benchmarks (see docs/skill-development.md "回帰テストを実行する").
+# 開発用: スキルの eval の prompt を 1 件、Claude Code か Codex で実行する。
+# 実行先は、隔離した使い捨ての空のプロジェクトにする。eval のファイル操作がこのリポジトリに及ばないようにするためである。
+# 回帰テストのベンチマークを作るのに使う（docs/skill-development.md「回帰テストを実行する」）。
 #
-# WHY a launcher-fixed cwd instead of telling an agent to `cd /tmp`:
-#   A coding agent's Bash tool cannot be relied on to persist `cd` across separate
-#   tool calls (the cwd may persist within a turn, but resets at turn boundaries or
-#   after leaving the project), and relative-path file
-#   ops resolve against the agent's base dir. So instructing a subagent to "work
-#   in /tmp" lets the skill's relative-path steps (`mkdir .agents/...`, `ln -s`)
-#   land in THIS repo. Here the cwd is fixed by the launcher within a single
-#   shell invocation: the selected executor runs with cwd = the temp project, so the nested
-#   session's project root (and every cwd reset) stays inside it.
+# エージェントに `cd /tmp` を指示するのではなく、起動側で cwd を固定する理由:
+#   コーディングエージェントの Bash ツールでは、`cd` がツールの呼び出しをまたいで残るとは限らない。
+#   cwd はターンの中では残ることがあるが、ターンの境目やプロジェクトを出た後には戻る。
+#   また、相対パスのファイル操作はエージェントの基準のディレクトリで解決される。
+#   そのため subagent に「/tmp で作業して」と指示すると、スキルの相対パスの手順（`mkdir .agents/...`、`ln -s`）が
+#   このリポジトリに作られてしまう。
+#   ここでは、起動側が 1 回のシェルの呼び出しの中で cwd を固定する。選んだ executor は cwd = 一時プロジェクトで起動する。
+#   そのため、入れ子のセッションのプロジェクトのルート（と cwd が戻る先）は、一時プロジェクトの中に留まる。
 #
-# This script is repo-internal tooling and is NOT bundled in any distributed skill.
+# このスクリプトはリポジトリの中だけで使うツールで、配布するスキルには同梱しない。
 #
-# PRECONDITIONS: the disposable project is empty, un-trusted and non-interactive.
-# mise shims (python3/node/jq) fail "No version is set" when un-trusted; gh/git
-# skills have no repo context (use real PR/Issue numbers, not fake ones); and a
-# headless executor has no responder for interactive questions. Give prompts whose
-# intent is unambiguous and ensure skills degrade gracefully. See
-# docs/skill-development.md "eval 環境の前提（runtime / repo / 非対話）".
+# 前提: 使い捨てのプロジェクトは空で、信頼済みにしておらず、非対話である。
+# 信頼済みでないと、mise の shim（python3/node/jq）は "No version is set" で失敗する。
+# gh や git を使うスキルにはリポジトリの文脈が無い（架空の番号ではなく、実在する PR や Issue の番号を使う）。
+# headless の executor には、対話の質問に答える相手がいない。
+# 意図があいまいでない prompt を渡し、スキルが機能を減らしても動くようにする。
+# docs/skill-development.md「eval 環境の前提（runtime / repo / 非対話）」を参照する。
 #
-# EXECUTOR CONTRACT: `--executor claude-code|codex` selects the vendor CLI, but
-# both paths emit the same result.json / timing.json / outputs/response.md shape.
-# Vendor-native traces stay under raw/ and consumers must not depend on them.
-# Codex skills are installed at the native repository scope `.agents/skills`;
-# their SKILL.md is never injected into the prompt.
+# executor の取り決め: `--executor claude-code|codex` でベンダーの CLI を選ぶ。
+# どちらを選んでも、result.json / timing.json / outputs/response.md は同じ形で出す。
+# ベンダー固有の trace は raw/ に置き、読む側はそれに依存しない。
+# Codex のスキルは、Codex 本来のリポジトリの範囲 `.agents/skills` にインストールする。
+# その SKILL.md を prompt に埋め込むことはしない。
 #
-# BASELINE INTEGRITY (`--config without_skill`): isolating cwd and skill
-# installation is not enough — a vendor CLI can read this repo's skill sources and
-# then satisfy skill-specific assertions, which silently voids the measured
-# Delta. That happened 5 times, and every time it was fixed by hand-building the
-# same wrapper (.kaizen/archive/2026-07-28-eval-baseline-read-contamination.md). So the
-# harness, not the operator, owns it: baselines run inside scripts/eval/eval-sandbox.sh
-# by default, unisolated baselines are serialized against with_skill runs, and
-# every baseline run gets a contamination verdict.
+# ベースラインの健全性（`--config without_skill`）: cwd とスキルのインストールを隔離するだけでは足りない。
+# ベンダーの CLI がこのリポジトリのスキルのソースを読み、スキル固有の assertion を満たしてしまうことがある。
+# すると、測った Delta が警告なしに無意味になる。これは 5 回起き、毎回同じラッパーを手で組んで直した
+# （.kaizen/archive/2026-07-28-eval-baseline-read-contamination.md）。
+# そこで、操作する人ではなく、このスクリプトがこれを担う。
+# ベースラインはデフォルトで scripts/eval/eval-sandbox.sh の中で実行する。
+# 隔離しないベースラインは、with_skill の run と同時に実行しない（直列にする）。
+# ベースラインの run には、すべて汚染の判定を付ける。
 #
-# EXIT CODES: 0 / the CLI's own code on a failed run; 2 usage; 3 could not
-# acquire the serialization lock; 4 the run itself succeeded but the baseline is
-# contaminated (CONTAMINATED) or the contamination check could not be trusted
-# (CHECK-BROKEN / SKIPPED — a check that did not run is not a clean verdict); 5
-# fingerprint generation, result normalization, or eval metadata generation
-# failed; 6 baseline reuse was rejected because its inputs, execution
-# conditions, provenance, or artifacts could not be verified.
+# 終了コード:
+#   0。run が失敗したときは、CLI 自身の終了コード。
+#   2: 使い方の誤り。
+#   3: 直列化のロックを取れなかった。
+#   4: run 自体は成功したが、ベースラインが汚染されている（CONTAMINATED）か、汚染のチェックを信頼できない
+#      （CHECK-BROKEN / SKIPPED。実行されなかったチェックは、汚染なしの判定ではない）。
+#   5: fingerprint の生成、結果の正規化、eval の metadata の生成のどれかに失敗した。
+#   6: ベースラインの再利用を拒否した（入力・実行条件・出所・成果物のどれかを確かめられない）。
 set -euo pipefail
 
 usage() {
@@ -424,13 +423,13 @@ esac
 started_at="$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"
 started_ms="$(date +%s%3N)"
 rc=0
-# Operator-local reviewer overrides must not make eval behavior depend on who
-# launched it. Environment-precedence scenarios describe their input in the
-# eval prompt; do not leak the developer's `.env.local` into either config.
-# stdin は必ず /dev/null にする。プロンプトは引数で渡しているが、executor は stdin も読もうとし、
-# 呼び出し側の stdin が EOF しないパイプ（バックグラウンド実行・エージェント経由）だと
-# `Reading additional input from stdin...` のまま無限に待つ（raw trace は 0 バイトのまま、
-# timeout でしか終わらない。実測で codex が 7 分以上ハングした）。
+# 操作する人の手元のレビュアーの上書きで、eval の振る舞いが起動した人によって変わってはいけない。
+# 環境変数の優先順位を試すシナリオは、その入力を eval の prompt に書く。
+# 開発者の `.env.local` を、どちらの config にも持ち込まない。
+# stdin は必ず /dev/null にする。プロンプトは引数で渡しているが、executor は stdin も読もうとする。
+# 呼び出し側の stdin が EOF にならないパイプ（バックグラウンド実行・エージェント経由）だと、
+# `Reading additional input from stdin...` のまま無限に待つ。raw trace は 0 バイトのままで、
+# timeout でしか終わらない（実測で codex が 7 分以上止まった）。
 (
 	cd "${proj}"
 	unset SKILLS_REVIEW_TOOL
@@ -494,10 +493,10 @@ while IFS= read -r -d '' file; do
 	.git/* | .claude/skills/* | .agents/skills/* | node_modules/* | pnpm-lock.yaml | package-lock.json | yarn.lock)
 		continue
 		;;
-	# .ts / .tsx / .sql are the languages the replace-strategy skill family writes
-	# into the target project (golden-dataset の投入ツール〈typescript | sql〉,
-	# parity-suite の Playwright スイート・ロケータマッピング, parity-replace の新側実装).
-	# Assertions name those files directly, so they must be gradable from the snapshot.
+	# .ts / .tsx / .sql は、replace-strategy のスキル群が対象のプロジェクトに書く言語である。
+	# 例えば golden-dataset の投入ツール〈typescript | sql〉、parity-suite の Playwright スイートと
+	# ロケータマッピング、parity-replace の新側実装がある。
+	# assertion はこれらのファイルを名指しするので、スナップショットから採点できる必要がある。
 	*.md | *.txt | *.json | *.yml | *.yaml | *.toml | *.sh | *.js | *.mjs | *.ts | *.tsx | *.sql)
 		;;
 	# Extensionless config files that assertions read by content (kaizen の setup は
@@ -644,16 +643,15 @@ if [ "${config}" = "without_skill" ]; then
 		verdict="SKIPPED"
 		detail="nothing to scan (no result.json and no project-files/)"
 	else
-		# Positive control first: "no hits" and "the scan never worked" produce the
-		# same output, so prove the scan finds a marker it is meant to find before
-		# any clean verdict is trusted (docs/agent-workflow.md「「該当なし」を根拠にするチェックは、
-		# 検出できることを先に確かめる」).
-		# Put one control in every scanned directory and search that directory by
-		# itself. A single control would prove only one root and could let a broken
-		# raw-trace leg report a false clean verdict.
-		# Judge detection by OUTPUT, not by grep's exit code: ugrep returns 2 on any
-		# unreadable path even when it matched (GNU's "-q plus a match wins" rule is
-		# not universal), which would fake a CHECK-BROKEN verdict on a working scan.
+		# 最初に、検出されることを確かめる。「該当なし」と「走査が動いていない」は同じ出力になる。
+		# そのため、汚染なしの判定を信じる前に、走査が見つけるべき目印を見つけることを示す
+		# （docs/agent-workflow.md の「該当なし」を根拠にするチェックは、検出できることを先に確かめる）。
+		# 目印は走査するディレクトリごとに 1 つ置き、そのディレクトリだけを対象に検索する。
+		# 目印が 1 つだけだと、示せるのは 1 つのルートだけになる。
+		# そうすると、raw trace の側の走査が動いていなくても、誤って汚染なしと報告しうる。
+		# 検出は grep の終了コードではなく出力で判定する。ugrep は、一致があっても読めないパスがあると 2 を返す
+		# （GNU の「-q で一致があれば成功」という規則は共通ではない）。
+		# 終了コードで判定すると、動いている走査を CHECK-BROKEN と誤って判定してしまう。
 		undetected=""
 		for root in "${scan_directories[@]}"; do
 			control="${root}/.contamination-control"

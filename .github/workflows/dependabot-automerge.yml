@@ -63,7 +63,7 @@ jobs:
               ;;
           esac
           # 対象は minor/patch のみ。major は dependabot 設定で無視済み（万一来たら何もしない）。
-          # update-type が不明/空のときは取りこぼさないよう手動レビューへ回す（fail-safe）。
+          # update-type が不明/空のときは取りこぼさないよう手動レビューへ回す（判定できないものは手動で見る）。
           case "$UPDATE_TYPE" in
             version-update:semver-minor | version-update:semver-patch) ;;
             version-update:semver-major)
@@ -98,7 +98,7 @@ jobs:
         id: enable_automerge
         if: steps.route.outputs.decision == 'automerge'
         # 失敗（コンフリクト / マージ不可 / auto-merge 未許可 等）でもジョブを止めず、
-        # 下のラベル付与ステップが fail-safe で手動レビューへ振り分けられるようにする。
+        # 判定できないときに、下のラベル付与ステップが手動レビューへ振り分けられるようにする。
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -106,7 +106,7 @@ jobs:
         run: gh pr merge --auto --squash "$PR_URL"
 
       - name: Label for agent review (review route or auto-merge failure)
-        # 手動レビュー対象、または自動マージ予約が失敗したときに fail-safe で振り分ける
+        # 手動レビュー対象、または自動マージ予約が失敗したときに、手動レビューへ振り分ける
         # （>=1.0 でもコンフリクト等で予約が拒否された PR を取りこぼさない）。
         if: steps.route.outputs.decision == 'review' || steps.enable_automerge.outcome == 'failure'
         env:

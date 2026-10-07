@@ -1,4 +1,4 @@
-# 部品カタログの契約
+# 部品カタログの取り決め
 
 - 実体: Storybook
 - URL: `<baseURL>/iframe.html?id=<story id>&viewMode=story`。story id は `components-<slug>--<インスタンス id>-<状態名>`。1 インスタンス × 1 状態が 1 つの固定 URL で開ける

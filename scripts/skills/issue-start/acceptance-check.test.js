@@ -3,7 +3,7 @@
 // テスト・スイートの緑は成果物の形の検査で、Issue にだけ書かれた条件はどの工程にも数えられないまま完了になる。
 // 表が Issue と 1 対 1 に対応し、各行に根拠があるまで完了にしない。
 //
-// 陽性コントロール（Issue と対応し根拠の揃った表が exit 0）を置く——これが無いと「常に落とす」実装と区別できない。
+// Issue と対応し根拠の揃った表が exit 0 になることも確かめる。これが無いと「常に落とす」実装と区別できない。
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -33,7 +33,7 @@ function htmlOf(body) {
 }
 
 /**
- * Issue の JSON（gh issue view --json number,url,title,body,comments の形）。
+ * Issue の JSON（`gh issue view --json number,url,title,body,comments` の形）。
  * @param {{ body?: string, comments?: string[] }} [override]
  */
 function issue(override = {}) {
@@ -149,7 +149,7 @@ test("陽性コントロール: Issue と対応し根拠の揃った表は exit 
   expect(r.json.ok).toBe(true);
   expect(r.json.closable).toBe(false);
   expect(r.json.counts.checklist).toBe(2);
-  // source: checklist の行の criterion を写す元として、描画後の項目の文言を出す。
+  // source: checklist の行の criterion の転記元として、描画後の項目の文言を出す。
   expect(r.json.checklist_items).toEqual(["検索条件を URL で持つ", "準備の失敗時にログを書く"]);
 });
 
@@ -431,6 +431,6 @@ test("チェックを付けて書き戻したときの末尾の改行では表�
   for (const prefix of ["> ", "> > 1. ", "- > ", "  "]) {
     expect(fingerprintOf(`${prefix}- [ ] a`, [])).toBe(fingerprintOf(`${prefix}- [x] a`, []));
   }
-  // 中身が変われば変わる（陽性コントロール）。
+  // 中身が変われば変わる（検出できることの確認）。
   expect(fingerprintOf("- [ ] a", [])).not.toBe(fingerprintOf("- [ ] b", []));
 });

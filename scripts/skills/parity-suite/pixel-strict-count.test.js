@@ -75,7 +75,7 @@ test("parity-diff の pixel-crops.mjs と同じ画素数・最大チャンネル
   expect(mine.strict_max_channel_delta).toBe(theirs.maxChannelDelta);
 });
 
-// 終了コードだけを見ると弁別できない——この環境には pngjs が無く、検査を外しても
+// 終了コードだけを見ると区別できない。この環境には pngjs が無く、検査を外しても
 // 「pngjs is not installed」で同じ exit 2 になる。落ちた理由（stderr）まで固定する。
 async function runCapturingStderr(argv) {
   const written = [];

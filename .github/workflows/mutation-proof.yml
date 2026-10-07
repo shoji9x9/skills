@@ -1,4 +1,4 @@
-# 変異実証の全件測定。
+# ミューテーションテストの全件測定。
 #
 # PR の CI（`ci.yml` の `Mutation proof (PR)`）は**差分に当たる宣言だけ**を測る。全件は CI で 1690 秒
 # （504 変異。2026-09-28 の週次 run、PR #509 の高速化前）で、毎 PR で払うコストとしては重い。対象も検査も変わっていない宣言は前回の実証がそのまま有効だが、
@@ -39,6 +39,6 @@ jobs:
           persist-credentials: false
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
       - run: pnpm install --frozen-lockfile
-      # 引数なし = `scripts/**/*.mutations.json` の全件。宣言 0 件は成功に倒さない（スクリプト側で exit 2）。
+      # 引数なし = `scripts/**/*.mutations.json` の全件。宣言 0 件は成功として扱わない（スクリプト側で exit 2）。
       - name: Mutation proof (all specs)
         run: node scripts/mutation/check-mutation-proof.js

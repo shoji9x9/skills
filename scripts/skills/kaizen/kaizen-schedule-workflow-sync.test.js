@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 // kaizen の定期実行ワークフローは、配布スキルに同梱したテンプレート
-// （skills/kaizen/assets/kaizen-schedule.yml）が正本で、本リポの
+// （skills/kaizen/assets/kaizen-schedule.yml）を原本とし、本リポの
 // .github/workflows/kaizen-schedule.yml はその複製。
 //
 // 複製にしているのは、actionlint / ghalint / pinact が .github/workflows/** しか
@@ -17,9 +17,9 @@ const CANON = "skills/kaizen/assets/kaizen-schedule.yml";
 const WIRED = ".github/workflows/kaizen-schedule.yml";
 
 // **pin を含めた完全一致に戻した。** 前の版は `uses:` の SHA とバージョンコメントを
-// 正規化して比較していたが、それだと配布テンプレートの pin が**恒久的に古いまま**になり、
-// どの検査にも掛からない（`pinact run --check` は SHA とコメントの整合を見るだけで、
-// そのバージョンが最新かは見ない）。
+// 正規化して比較していた。それだと配布テンプレートの pin が**恒久的に古いまま**になり、
+// どの検査でも検出されない。`pinact run --check` は SHA とコメントの整合を見るだけで、
+// そのバージョンが最新かは見ないからである。
 //
 // 完全一致にする代わり、Dependabot が `.github/workflows/` 側だけを上げた PR では
 // この検査が赤くなる。**silent な陳腐化より visible な 1 コマンドの手戻りを選ぶ**
@@ -51,7 +51,7 @@ test("エージェントのレポートを無制限に cat しない", () => {
 test("すべての uses: を 40 桁 SHA で固定している", () => {
   const canon = readFileSync(join(repoRoot, CANON), "utf8");
   const pins = [...canon.matchAll(/^\s*uses:\s*\S+?@(\S+)/gm)].map((m) => m[1]);
-  // 0 件を合格に倒さない（正規表現が空振りしただけの緑を根拠にしない）。
+  // 0 件を合格として扱わない（正規表現が空振りしただけの緑を根拠にしない）。
   expect(pins.length).toBeGreaterThan(0);
   for (const pin of pins) {
     expect(pin).toMatch(/^[0-9a-f]{40}$/);
@@ -69,7 +69,8 @@ test("正本が定期実行スキルの前提（cron・skip・エージェント
   }
 });
 
-// スクリプトの探索条件は、本リポでは緑のまま配布先だけで壊れる（配布先のファイルは実行ビットを持たない）。本リポには 755 のソース配置
+// スクリプトの探索条件が誤っていても、本リポでは緑のまま、配布先でだけスクリプトが見つからなくなる
+// （配布先のファイルは実行ビットを持たない）。本リポには 755 のソース配置
 // `skills/kaizen/scripts/` があるので、`-x` に戻しても `.github/skills/...` を落としても
 // ここ以外は誰も赤くならない。2 つの軸を別々に固定する。
 describe("スクリプト探索条件（配布先でだけ壊れるので実配置から固定する）", () => {
@@ -105,7 +106,7 @@ describe("スクリプト探索条件（配布先でだけ壊れるので実配�
     const declared = [...setup.matchAll(/(^|\s)((?:\.[\w.-]+\/)+skills\/kaizen\/scripts)\b/g)].map(
       (m) => m[2],
     );
-    // 宣言側が空なら期待集合を作れていない（0 件を合格に倒さない）。
+    // 宣言側が空なら期待集合を作れていない（0 件を合格として扱わない）。
     expect(declared.length).toBeGreaterThan(0);
     const loop = canon().match(/for dir in ([\s\S]*?); do/);
     expect(loop).not.toBeNull();

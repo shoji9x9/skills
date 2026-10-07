@@ -1,10 +1,10 @@
-// parity-suite の反応の被覆表チェッカ（reaction-check.mjs）の回帰テスト（Issue #351）。
+// parity-suite の反応の網羅表のチェック（reaction-check.mjs）の回帰テスト（Issue #351）。
 //
-// 操作の特性化が「押した直後」で止まると、遅れて出る・操作した器の外に出る・自動で消える反応が
-// 被覆表を埋めたまま取りこぼされる。反応の欄の空欄・「なし」の無証拠・消える時間の単一標本・
-// 移行元のフィードバック呼び出しとの記録漏れを、それぞれ落とすことを固定する。
+// 操作の特性化が「押した直後」で止まると、遅れて出る・操作したコンテナの外に出る・自動で消える反応が
+// 網羅表を埋めたまま取りこぼされる。反応の欄の空欄・「なし」の無証拠・消える時間の単一標本・
+// 移行元のフィードバック呼び出しとの記録の抜けを、それぞれ落とすことを固定する。
 //
-// 陽性コントロール（完全な表が exit 0、旧成果物は判定しない）を置く——これが無いと「常に落とす」実装と区別できない。
+// 通ることの確認（完全な表が exit 0、旧成果物は判定しない）を置く。これが無いと「常に落とす」実装と区別できない。
 
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
@@ -371,8 +371,8 @@ const OUTSIDE_ABS = "__OUTSIDE_ABS__";
 const INSIDE_ABS = "__INSIDE_ABS__";
 
 /**
- * main を同じプロセスで呼ぶ（子プロセスの起動を省く。変異実証が変異ごとにこのファイルを丸ごと回すため、Issue #507）。
- * CLI として起動できること（エントリ判定・引数と出力・終了コードの受け渡し）は cli() の陽性コントロールが持つ。
+ * main を同じプロセスで呼ぶ（子プロセスの起動を省く。ミューテーションテストが変異ごとにこのファイルを丸ごと回すため、Issue #507）。
+ * CLI として起動できること（エントリ判定・引数と出力・終了コードの受け渡し）は cli() の通ることの確認が受け持つ。
  * @param {string} dir - 起動時の作業ディレクトリ
  * @param {string[]} args
  */
@@ -454,7 +454,7 @@ function testList(names, projects = ["current", "new"]) {
 }
 
 /**
- * 表の全ての covered_by を名乗った通りの一覧と、全行を reaches とした監査の記録を作る（陽性コントロールの既定）。
+ * 表の全ての covered_by を名乗った通りの一覧と、全行を reaches とした監査の記録を作る（通ることの確認で使う既定）。
  * @param {Record<string, unknown>} table
  */
 function passingAudit(table) {
@@ -489,11 +489,11 @@ function writeSpec(dir, file) {
  * tests.json（--tests）は表の covered_by から、assertion_audit は表に無ければ全行 reaches で作る。
  * 変えたいテストは opts.tests（名前の一覧か、一覧そのもの）・opts.audit: false で差し替える。
  * @param {object} table
- * 部品被覆表（opts.coverage）を渡すと component-coverage.json として置く（metadata の component_coverage.path が指す先）。
+ * 部品網羅表（opts.coverage）を渡すと component-coverage.json として置く（metadata の component_coverage.path が指す先）。
  * @param {{ args?: string[], metadata?: object, source?: string, exportSource?: string, tests?: string[] | object, audit?: false, coverage?: object }} [opts]
  */
 function run(table, opts = {}) {
-  // 移行元ソースのルート（dir）の外に、実在するファイルを 1 つ置く。ルートの外を指す参照を照合が読まないことを確かめる陽性コントロール
+  // 移行元ソースのルート（dir）の外に、実在するファイルを 1 つ置く。ルートの外を指す参照を照合が読まないことを確かめるための入力
   // （外に何も無いと、判定を外しても「読めない」で落ち、判定の有無を区別できない）
   const outer = makeTempDir("reaction-check-");
   writeFileSync(join(outer, OUTSIDE_FILE), "function sendOutside() {}\n");
@@ -539,7 +539,7 @@ function run(table, opts = {}) {
     writeSpec(dir, suite.file);
   }
   writeFileSync(join(dir, "tests.json"), JSON.stringify(list));
-  // 監査の記録にはスペックの指紋を写す（--audit-sheet の出力を写すのと同じ値。指紋を変えるテストは自分で書く）
+  // 監査の記録にはスペックの指紋をコピーする（--audit-sheet の出力をコピーするのと同じ値。指紋を変えるテストは自分で書く）
   if (
     isObject(final.assertion_audit) &&
     !Object.hasOwn(final.assertion_audit, "specs_fingerprint")
@@ -552,7 +552,7 @@ function run(table, opts = {}) {
         (f) => readFileSync(f, "utf8"),
       ).fingerprint;
     } catch {
-      // 一覧そのものが壊れている場合（使い方の誤りを測るテスト）は指紋を写さない
+      // 一覧そのものが不正な場合（使い方の誤りを測るテスト）は指紋をコピーしない
     }
   }
   writeFileSync(join(dir, "reactions.json"), JSON.stringify(final));
@@ -726,7 +726,7 @@ test.each([
     "documents に top",
   ],
   ["文書の棚卸しが無い", (t) => delete t.documents, "documents が空でない文字列の配列でない"],
-  // 文書のオリジン（Issue #450）: 対象 URL と別オリジンのフレームは親の文書へ反応を届けられず、実在する反応が「無い」に化ける
+  // 文書のオリジン（Issue #450）: 対象 URL と別オリジンのフレームは親の文書へ反応を届けられず、実在する反応が誤って「無い」と判定される
   [
     "none に操作した文書が無い",
     (t) => delete t.operations[1].reactions[0].observation.source_document,
@@ -1072,7 +1072,7 @@ test("版が一致しているのに照合不能の理由が埋まっていれ�
 });
 
 test("ファイル名やパターン id に : があっても別の呼び出しを 1 件に潰さない", () => {
-  // 連結キーでは ("src/a", 1, 1, "2:toast") と ("src/a:1", 1, 2, "toast") がどちらも "src/a:1:1:2:toast" になる
+  // 連結キーでは `("src/a", 1, 1, "2:toast")` と `("src/a:1", 1, 2, "toast")` がどちらも "src/a:1:1:2:toast" になる
   const dir = makeTempDir("reaction-check-colon-");
   mkdirSync(join(dir, "src"));
   writeFileSync(join(dir, "src/a"), "notify();\n");
@@ -1282,7 +1282,7 @@ test("同梱テンプレートのプレースホルダのままの文書のオ�
 });
 
 test("頁の組み方を変えない操作と、2 回繰り返して測った変える操作は通す（Issue #460）", () => {
-  // 陽性コントロールの表そのもの（copy は changes: false、search は changes: true）。
+  // 通ることの確認に使う表そのもの（copy は changes: false、search は changes: true）。
   // layout の分岐を足したことで正規の記録まで落とすようになっていないことを、他の欄と独立に固定する
   const r = run(baseTable());
   expect(r.status).toBe(0);
@@ -1460,7 +1460,7 @@ test.each([
 );
 
 test("押した後に何も残らない操作と、残る見た目・戻す範囲を測った操作は通す（Issue #471）", () => {
-  // 陽性コントロールの表そのもの（copy は残らない・戻さない、search は残る・戻す）。
+  // 通ることの確認に使う表そのもの（copy は残らない・戻さない、search は残る・戻す）。
   // aftermath の分岐を足したことで正規の記録まで落とすようになっていないことを、他の欄と独立に固定する
   const r = run(baseTable());
   expect(r.status).toBe(0);
@@ -2111,7 +2111,7 @@ test("ui_url が runtime で解けない相対の path も、同じ path の別�
   expect(both.status).toBe(0);
 });
 
-// --- 部品被覆表と反応の被覆表をまたいだ撮る状態の使い回し（Issue #485）---
+// --- 部品網羅表と反応の網羅表をまたいだ撮る状態の使い回し（Issue #485）---
 
 const coverageTemplate = JSON.parse(
   readFileSync(
@@ -2121,7 +2121,7 @@ const coverageTemplate = JSON.parse(
 );
 
 /**
- * テンプレートの形の部品被覆表。部品 grid のインスタンスごとに、導いた行（after-operation）が 1 つずつ撮る状態を指す。
+ * テンプレートの形の部品網羅表。部品 grid のインスタンスごとに、導いた行（after-operation）が 1 つずつ撮る状態を指す。
  * @param {{ instance: string, page: string, captured: string, reason?: string | null }[]} rows
  */
 const coverageWith = (rows) => {
@@ -2151,7 +2151,7 @@ const coverageWith = (rows) => {
   return cov;
 };
 
-/** 部品被覆表を宣言した metadata（ページは 2 つ。表の状態表示も 2 画面ぶん振り分ける）。 */
+/** 部品網羅表を宣言した metadata（ページは 2 つ。表の状態表示も 2 画面ぶん振り分ける）。 */
 const coverageMeta = () => ({
   ...pagesMeta("http://localhost:3000/", { 共有画面: "share", 検索画面: "search" }),
   component_coverage: { declared: true, path: "component-coverage.json" },
@@ -2175,7 +2175,7 @@ test("表をまたいで同じページ × 状態名を指す 2 行は、根拠�
   expect(bare.stderr).toContain(
     "component-coverage.json: visual_state_coverage.rows[0]（grid / main / row-select / after-operation）",
   );
-  // 片方だけの根拠では通さない（部品被覆表の側が空）
+  // 片方だけの根拠では通さない（部品網羅表の側が空）
   const half = run(copyOnShare("コピーの後に行を選んでも同じ通知が残る"), {
     metadata: coverageMeta(),
     coverage: coverageWith([{ instance: "main", page: "共有画面", captured: "copy-toast" }]),
@@ -2230,7 +2230,7 @@ test.each([
 });
 
 test("部品被覆表の行のうちページを引けない行は数えず、件数を出力に残す（Issue #485）", () => {
-  // インスタンスに page が無い行（coverage-expand.mjs が落とす形）。黙って捨てず skipped に数える
+  // インスタンスに page が無い行（coverage-expand.mjs が落とす形）。警告なしに捨てず skipped に数える
   const cov = coverageWith([{ instance: "main", page: "共有画面", captured: "copy-toast" }]);
   delete cov.components[0].instances[0].page;
   const r = run(copyOnShare(null), { metadata: coverageMeta(), coverage: cov });
@@ -3089,7 +3089,7 @@ test("同梱テンプレートのプレースホルダのままの状態表示�
     ),
   );
   const t = mutated((x) => {
-    // 画面名だけ実在の名前にして、候補ごとの記録をテンプレートのまま入れる（画面名の欠けで先に落ちないようにする）
+    // 画面名だけ実在の名前にして、候補ごとの記録をテンプレートのまま入れる（画面名の欠けで先に失敗しないようにする）
     x.state_displays = {
       pages: [{ ...structuredClone(template.state_displays.pages[0]), page: "共有画面" }],
     };
@@ -3302,7 +3302,7 @@ test("1 本のテストを 2 行が名乗るのに根拠の無い行があれば
     'テスト "share.spec.ts › コピーで通知が出て消える" を $.state_displays.pages[0].candidates.toast / $.operations[0].reactions[0] が covered_by に名乗っている',
   );
   expect(r.stderr).toContain("根拠が空: $.state_displays.pages[0].candidates.toast）");
-  // 陽性コントロール: 同じ表で両方に根拠がある（baseTable）なら通る
+  // 通ることの確認: 同じ表で両方に根拠がある（baseTable）なら通る
   expect(run(baseTable()).status).toBe(0);
 });
 
@@ -3501,7 +3501,7 @@ const weakenSpec = (dir) =>
 test("監査の後に covered_by のスペックの assertion を弱めたら落とす（表は同じ。Issue #506）", () => {
   const r = run(baseTable());
   expect(r.status).toBe(0);
-  // 陽性コントロール: 何も変えずに取り直せば通る
+  // 通ることの確認: 何も変えずに再取得すれば通る
   expect(rerun(r.dir).status).toBe(0);
   weakenSpec(r.dir);
   const after = rerun(r.dir);
@@ -3585,7 +3585,7 @@ test("covered_by のテストを片側で静的に飛ばす（test.skip / test.f
   const r = run(t, { tests: list });
   expect(r.status).toBe(1);
   expect(r.stderr).toContain("が new プロジェクトで実行されない");
-  // 陽性コントロール: 同じ一覧で飛ばさなければ通る
+  // 通ることの確認: 同じ一覧で飛ばさなければ通る
   expect(run(t, { tests: testList(namesOf(t)) }).status).toBe(0);
 });
 
@@ -3636,7 +3636,7 @@ test.each([
     const t = baseTable();
     t.assertion_audit = passingAudit(t);
     mutate(t);
-    // 監査の指紋は根拠を書き換えた後の表で取り直す（指紋の不一致で落ちたのと区別する）
+    // 監査の指紋は根拠を書き換えた後の表で計算し直す（指紋の不一致で落ちたのと区別する）
     t.assertion_audit.table_fingerprint = tableFingerprint(t);
     const r = run(t);
     expect(r.status).toBe(1);
@@ -3648,7 +3648,7 @@ test("同じ題で位置の違うテストは 1 本に畳まず曖昧として�
   const t = baseTable();
   const list = testList(namesOf(t));
   const layoutSpec = list.suites.find((s) => s.file === "layout.spec.ts");
-  // 同じ名前の 2 本目を別の行に置き、1 本目は current だけ・2 本目は new だけで走らせる
+  // 同じ名前の 2 本目を別の行に置き、1 本目は current だけ・2 本目は new だけで実行する
   const first = layoutSpec.specs.filter(
     (sp) => sp.title === "条件を 2 回足した後も頁が窓に収まりグリッドが縮む",
   );

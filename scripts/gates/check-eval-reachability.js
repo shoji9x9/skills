@@ -5,11 +5,11 @@
 // （全走査では `skills/<name>/evals/` の残存も違反にする）。
 //
 // なぜ要るか: 「assertion を 1 本ずつ『prompt のどの文が引き出すか』と問い、引用を並べた対応表を
-// 書き出す」は `.agents/rules/eval-assertion-discrimination.md` の文章規約にしかなく、書いた証拠を
-// 残す場所も、書いていないことを検出する仕組みも無かった。到達不能な assertion を抱えたまま実走し、
-// 6 run・9 run の取り直しになった記録が 3 度ある（実走が 1.75〜2.5 倍）。
+// 書き出す」は `.agents/rules/eval-assertion-discrimination.md` の文章規約にしかなかった。書いた証拠を
+// 残す場所も、書いていないことを検出する仕組みも無かった。到達できない assertion を抱えたまま実行し、
+// 6 run・9 run をやり直した記録が 3 度ある（実行の回数が 1.75〜2.5 倍になった）。
 //
-// 検査するのは機械的に判定できる 4 点だけ:
+// チェックするのは、機械的に判定できる次の 4 点だけである。
 //   1. assertion ごとに対応要素があるか
 //   2. `prompt_quote` が空でないか
 //   3. `prompt_quote` がその eval の prompt の部分文字列か
@@ -19,7 +19,7 @@
 //
 // 既存 eval の backfill は一度に行わず、宣言済みの backlog（scripts/gates/eval-reachability-backlog.json）で
 // 段階適用する。backlog の項目は eval の指紋（prompt + assertions のハッシュ）を持ち、
-// **eval を書き換えた瞬間に指紋が外れて reachability が必須になる**（免除が黙って居座らない）。
+// **eval を書き換えた時点で指紋が外れ、reachability が必須になる**（免除が警告なしに残り続けない）。
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
@@ -49,7 +49,7 @@ export function listEvalFiles(root) {
 /**
  * 配布スキルの中に置かれた eval ディレクトリ（`skills/<name>/evals/`）。
  * `gh skill install` はスキルディレクトリの全ファイルを配るため、ここに置くと
- * 下流へ eval が配られる。走査対象（`evals/<name>/`）からも外れて黙って未検査になる。
+ * 下流へ eval が配られる。走査対象（`evals/<name>/`）からも外れ、警告なしにチェックされなくなる。
  */
 export function listShippedEvalDirs(root) {
   const skillsDir = join(root, "skills");
@@ -214,9 +214,9 @@ export function checkEvalFile(path, source, backlog, label = path) {
 export function loadBacklog(root) {
   const path = join(root, BACKLOG_PATH);
   if (!existsSync(path)) return { exempt: {}, missing: true };
-  // 不在を違反として扱う以上、壊れている場合も違反にする。素の JSON.parse だと
-  // （merge 衝突の残骸などで）スタックトレースごと検査が止まり、pre-commit / CI が
-  // 「検査した結果」ではなくクラッシュで落ちる。
+  // 不在を違反として扱う以上、形式が不正な場合も違反にする。素の JSON.parse だと、
+  // （merge 衝突の残骸などで）スタックトレースを出してチェックが止まる。すると pre-commit / CI が、
+  // 「チェックした結果」ではなくクラッシュで落ちる。
   let parsed;
   try {
     parsed = JSON.parse(readFileSync(path, "utf8"));
@@ -239,8 +239,8 @@ export function checkAll(root, files, { fullScan = true } = {}) {
   for (const file of files) {
     const label = relative(root, file) || file;
     // 読めない入力は違反として報告する（check-control-chars.js と同じ扱い）。
-    // 素の readFileSync だと、消えたファイル・壊れた symlink でスタックトレース終了になり、
-    // 「検査した結果」ではなくクラッシュで pre-commit / CI が落ちる。
+    // 素の readFileSync だと、消えたファイル・リンク先の無い symlink で、スタックトレースを出して終わる。
+    // すると「チェックした結果」ではなく、クラッシュで pre-commit / CI が落ちる。
     let source;
     try {
       source = readFileSync(file, "utf8");
@@ -253,9 +253,9 @@ export function checkAll(root, files, { fullScan = true } = {}) {
     violations.push(...r.violations);
     keys.push(...r.keys);
   }
-  // 逆向き: 実在しない eval を指す免除は、黙って居座るので落とす。
-  // ただし全走査のときだけ——一部ファイルしか渡されない pre-commit で当てると、
-  // 渡されなかったファイルの免除が全部「孤児」に化けて正常な commit を止める。
+  // 逆向き: 実在しない eval を指す免除は、警告なしに残り続けるので落とす。
+  // ただし全走査のときだけである。一部のファイルしか渡されない pre-commit で当てると、
+  // 渡されなかったファイルの免除がすべて、誤って「孤児」と判定され、正常な commit を止める。
   if (!fullScan) return { evals, violations, files: files.length };
   for (const dir of listShippedEvalDirs(root)) {
     const name = relative(join(root, "skills"), dir).split("/")[0];

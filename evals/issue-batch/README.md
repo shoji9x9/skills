@@ -13,7 +13,7 @@ scripts/eval/run-skill-eval.sh \
 
 `--fixture` は `evals.json` の当該 eval に `fixture` がある場合だけ付ける。`--config without_skill` でベースラインを同様に実行する。
 
-`evals.json` の `id` が `tests/issue-batch/iteration-N/eval-<id>/` に対応する。集計とビューアの手順は `docs/skill-development.md` を正本とする。
+`evals.json` の `id` が `tests/issue-batch/iteration-N/eval-<id>/` に対応する。集計とビューアの手順は `docs/skill-development.md` にある。
 
 ## 前提
 
