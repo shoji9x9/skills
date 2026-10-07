@@ -116,14 +116,13 @@
     },
     {
       "id": "LP-COMMENTS",
-      "why": "コメントを持つファイルを対象にしない（「陰性: 文字列の中…」は対象 0 件の例外で落ちる）",
+      "why": "コメントの文章を textlint に渡さない",
       "file": "scripts/gates/lint-prose.js",
-      "find": "  if (!rel.endsWith(\".md\") && !hasComments(rel)) return false;",
-      "replace": "  if (!rel.endsWith(\".md\")) return false;",
+      "find": "    const comments = hasComments(rel) ? await lintExtracted(linter, root, rel, \"comments\") : [];",
+      "replace": "    const comments = [];",
       "occurrences": 1,
       "expect_failing": [
         "陽性: コメントの指摘を、元のファイルの行と桁で報告する",
-        "陰性: 文字列の中の語と、日本語を含まないコメントは検出しない",
         "コメントの textlint-disable で囲んだ箇所だけを除外する",
         "文の長さの指摘に、Markdown の行番号を残さない",
         "陰性: コメントの指摘も、保留したファイルなら数えず、0 件になったら外すよう求める",
@@ -135,7 +134,7 @@
     },
     {
       "id": "LP-COMMENT-LINE",
-      "why": "コメントの指摘の行を、元のファイルの行に戻さない",
+      "why": "取り出した文章（コメントと文字列）の指摘の行を、元のファイルの行に戻さない",
       "file": "scripts/gates/lint-prose.js",
       "find": "    line: lines[m.line - 1] + 1,\n",
       "replace": "    line: m.line,\n",
@@ -144,24 +143,32 @@
         "陽性: コメントの指摘を、元のファイルの行と桁で報告する",
         "コメントの textlint-disable で囲んだ箇所だけを除外する",
         "文の長さの指摘に、Markdown の行番号を残さない",
-        "JSDoc のタグの行の指摘も、元の行の文章より前の桁を指さない"
+        "JSDoc のタグの行の指摘も、元の行の文章より前の桁を指さない",
+        "コメントの textlint-disable で囲んだ文字列だけを除外する",
+        "文字列の中の HTML のコメントとコードフェンスは、後の文字列を隠さない",
+        "陽性: JS の文字列とテンプレートの語を、元のファイルの行と桁で報告する",
+        "陽性: evals.json の prompt・expected_output・assertions の語を報告し、他のキーは見ない"
       ]
     },
     {
       "id": "LP-COMMENT-COLUMN",
-      "why": "コメントの指摘の桁を、元のファイルの桁に戻さない",
+      "why": "取り出した文章（コメントと文字列）の指摘の桁を、元のファイルの桁に戻さない",
       "file": "scripts/gates/lint-prose.js",
       "find": "    column: Math.max(starts[m.line - 1], columns[m.line - 1] + m.column),\n",
       "replace": "    column: Math.max(starts[m.line - 1], m.column),\n",
       "occurrences": 1,
-      "expect_failing": ["陽性: コメントの指摘を、元のファイルの行と桁で報告する"]
+      "expect_failing": [
+        "陽性: コメントの指摘を、元のファイルの行と桁で報告する",
+        "文字列の中の HTML のコメントとコードフェンスは、後の文字列を隠さない",
+        "陽性: JS の文字列とテンプレートの語を、元のファイルの行と桁で報告する"
+      ]
     },
     {
       "id": "LP-LINE-NUMBER",
       "why": "文の長さの指摘に Markdown の行番号を残す",
       "file": "scripts/gates/lint-prose.js",
-      "find": "    message: m.message.replace(/^Line \\d+ /, \"\"),\n",
-      "replace": "    message: m.message,\n",
+      "find": "m.message.replace(/^Line \\d+ /, \"\")",
+      "replace": "m.message",
       "occurrences": 1,
       "expect_failing": ["文の長さの指摘に、Markdown の行番号を残さない"]
     },
@@ -176,14 +183,15 @@
     },
     {
       "id": "LP-PARSE-ERROR",
-      "why": "コメントを取り出せないファイルを指摘 0 件として通す",
+      "why": "コメントや文字列を取り出せないファイルを指摘 0 件として通す",
       "file": "scripts/gates/lint-prose.js",
       "find": "    return [{ line: 1, column: 1, message: error.message, ruleId: PARSE_RULE }];",
       "replace": "    return [];",
       "occurrences": 1,
       "expect_failing": [
         "陽性: コメントを取り出せないシェルは、指摘として報告する",
-        "陽性: 保留したファイルでも、コメントを取り出せなければ報告する"
+        "陽性: 保留したファイルでも、コメントを取り出せなければ報告する",
+        "陽性: JSON として読めない evals.json は、指摘として報告する"
       ]
     },
     {
@@ -215,6 +223,41 @@
       "occurrences": 1,
       "expect_failing": [
         "shfmt が無ければ、ファイルの指摘にせず例外にし、main は保留の一覧を名指ししない exit 2"
+      ]
+    },
+    {
+      "id": "LP-STRINGS",
+      "why": "文字列を textlint に渡さない（テスト名・メッセージ・eval の旧称を見逃す）",
+      "file": "scripts/gates/lint-prose.js",
+      "find": "    const strings = hasStrings(rel) ? await lintExtracted(linter, root, rel, \"strings\") : [];",
+      "replace": "    const strings = [];",
+      "expect_failing": [
+        "陽性: JS の文字列とテンプレートの語を、元のファイルの行と桁で報告する",
+        "陽性: evals.json の prompt・expected_output・assertions の語を報告し、他のキーは見ない",
+        "文字列の中の HTML のコメントとコードフェンスは、後の文字列を隠さない",
+        "コメントの textlint-disable で囲んだ文字列だけを除外する",
+        "陽性: JSON として読めない evals.json は、指摘として報告する"
+      ]
+    },
+    {
+      "id": "LP-STRING-TARGET",
+      "why": "evals.json を対象にしない",
+      "file": "scripts/gates/lint-prose.js",
+      "find": " && !hasStrings(rel)) return false;",
+      "replace": ") return false;",
+      "expect_failing": [
+        "陽性: evals.json の prompt・expected_output・assertions の語を報告し、他のキーは見ない",
+        "陽性: JSON として読めない evals.json は、指摘として報告する"
+      ]
+    },
+    {
+      "id": "LP-WORD-RULE",
+      "why": "文字列に語以外の規則（文の長さ・感嘆符など）も当てる",
+      "file": "scripts/gates/lint-prose.js",
+      "find": "kind === \"strings\" ? result.messages.filter((m) => m.ruleId === WORD_RULE) : result.messages;",
+      "replace": "result.messages;",
+      "expect_failing": [
+        "陰性: 文字列には語の規則だけを当て、バッククォートの中と import の指定子は見ない"
       ]
     }
   ]

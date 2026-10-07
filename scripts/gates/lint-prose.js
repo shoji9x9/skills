@@ -9,7 +9,10 @@
 // 判定規則:
 // - 対象は git が管理する（または ignore されていない未追跡の）`*.md` と、コメントを持つファイル
 //   （JavaScript・TypeScript・シェル・YAML。拡張子は `scripts/lib/code-comments.js` で定義する）。
-//   コメントは、取り出した文章を Markdown にして見る。文字列（利用者に表示するメッセージなど）は見ない。
+//   コメントは、取り出した文章を Markdown にして見る。
+// - 文字列（JavaScript・TypeScript の文字列リテラルと、`evals/<name>/evals.json` の prompt・expected_output・assertions）には、
+//   使わない語の規則（`ai-words-ja/no-ai-words`）だけを当てる。取り出し方は `scripts/lib/code-strings.js` で定義する。
+//   テスト名・メッセージ・eval の文字列を手本にすると旧称が広がるので見る（#567）。文章の書式の規則は当てない。
 //   次のものは除く。
 //   - エージェント用のコピーとリンク（判定は `scripts/lib/source-scope.js`）。rule（`.agents/rules/`）と
 //     private skill（`skills/` に無い `.agents/skills/<name>/`）は実体なので見る。
@@ -26,11 +29,14 @@ import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createLinter, loadTextlintrc } from "textlint";
 import { commentMarkdown, hasComments } from "../lib/code-comments.js";
+import { hasStrings, stringMarkdown } from "../lib/code-strings.js";
 import { isAgentCopy } from "../lib/source-scope.js";
 
 export const PENDING_PATH = "scripts/gates/prose-lint-pending.json";
 /** コメントを取り出せなかったファイルの指摘に付ける ruleId。 */
 const PARSE_RULE = "code-comments";
+/** 文字列に当てる規則（使わない語の一覧）。 */
+const WORD_RULE = "ai-words-ja/no-ai-words";
 const EXCLUDED_PREFIXES = [".kaizen/archive/", "tests/", "node_modules/"];
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -53,7 +59,7 @@ export function loadPending(root) {
 
 /** リポジトリ相対パスが対象か。 */
 export function isTarget(root, rel) {
-  if (!rel.endsWith(".md") && !hasComments(rel)) return false;
+  if (!rel.endsWith(".md") && !hasComments(rel) && !hasStrings(rel)) return false;
   if (EXCLUDED_PREFIXES.some((p) => rel.startsWith(p))) return false;
   if (isAgentCopy(root, rel)) return false;
   const abs = join(root, rel);
@@ -72,29 +78,33 @@ export function listTargets(root) {
 }
 
 /**
- * コメントの文章を Markdown にして textlint に渡し、指摘の位置を元のファイルの行と桁に戻す。
+ * 取り出した文章（コメントか文字列）を Markdown にして textlint に渡し、指摘の位置を元のファイルの行と桁に戻す。
  * 拡張子 `.md` を足したパスを渡すのは、textlint が拡張子で Markdown として読むかを決めるためである。
+ * 文字列には使わない語の規則だけを当て、指摘に「（文字列）」を付ける。
  */
-async function lintComments(linter, root, rel) {
+async function lintExtracted(linter, root, rel, kind) {
   const abs = join(root, rel);
+  const toMarkdown = kind === "strings" ? stringMarkdown : commentMarkdown;
   let parsed;
   try {
-    parsed = commentMarkdown(rel, readFileSync(abs, "utf8"));
+    parsed = toMarkdown(rel, readFileSync(abs, "utf8"));
   } catch (error) {
     // ツールが無いのはファイルの問題ではないので、実行そのものを止める（exit 2）。
     if (error.missingTool) throw error;
-    // コメントを取り出せないファイルは、指摘として報告する（0 件として通さない）。
+    // コメントや文字列を取り出せないファイルは、指摘として報告する（0 件として通さない）。
     return [{ line: 1, column: 1, message: error.message, ruleId: PARSE_RULE }];
   }
   const { markdown, lines, columns, starts } = parsed;
   if (!markdown) return [];
   const result = await linter.lintText(markdown, `${abs}.md`);
-  return result.messages.map((m) => ({
+  const messages =
+    kind === "strings" ? result.messages.filter((m) => m.ruleId === WORD_RULE) : result.messages;
+  return messages.map((m) => ({
     ...m,
     line: lines[m.line - 1] + 1,
     column: Math.max(starts[m.line - 1], columns[m.line - 1] + m.column),
     // sentence-length は Markdown の行番号を本文に書くので、元のファイルの行と食い違う。番号を外す。
-    message: m.message.replace(/^Line \d+ /, ""),
+    message: kind === "strings" ? `（文字列）${m.message}` : m.message.replace(/^Line \d+ /, ""),
   }));
 }
 
@@ -123,7 +133,12 @@ export async function lintProse({ root, files, configRoot = REPO_ROOT }) {
     results.map((r) => [relative(root, r.filePath).split(sep).join("/"), r.messages]),
   );
   for (const rel of targets.filter((t) => !t.endsWith(".md"))) {
-    byPath.set(rel, await lintComments(linter, root, rel));
+    const comments = hasComments(rel) ? await lintExtracted(linter, root, rel, "comments") : [];
+    const strings = hasStrings(rel) ? await lintExtracted(linter, root, rel, "strings") : [];
+    byPath.set(
+      rel,
+      [...comments, ...strings].sort((a, b) => a.line - b.line || a.column - b.column),
+    );
   }
 
   const violations = [];

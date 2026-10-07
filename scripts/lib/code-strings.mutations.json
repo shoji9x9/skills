@@ -1,0 +1,107 @@
+{
+  "test_file": "scripts/lib/code-strings.test.js",
+  "mutations": [
+    {
+      "id": "CS-EVALS-ANCHOR",
+      "why": "evals.json をリポジトリの evals/<name>/ の外（fixture の中など）でも対象にする",
+      "file": "scripts/lib/code-strings.js",
+      "find": "const EVALS = /^evals\\/",
+      "replace": "const EVALS = /evals\\/",
+      "expect_failing": ["対象のファイル evals/x/fixtures/evals/y/evals.json → false"]
+    },
+    {
+      "id": "CS-IMPORT",
+      "why": "import の指定子も文字列として見る",
+      "file": "scripts/lib/code-strings.js",
+      "find": "if (!ts.isImportDeclaration(node.parent) && !ts.isExportDeclaration(node.parent))",
+      "replace": "if (!ts.isExportDeclaration(node.parent))",
+      "expect_failing": ["JavaScript・TypeScript import と export の指定子は見ない"]
+    },
+    {
+      "id": "CS-JAPANESE",
+      "why": "日本語も一覧の英語の語も含まない文字列を入れる",
+      "file": "scripts/lib/code-strings.js",
+      "find": "    if (!JAPANESE.test(text) && !ENGLISH_TERMS.test(text)) continue;\n",
+      "replace": "",
+      "expect_failing": [
+        "JavaScript・TypeScript 日本語を含まない文字列は入れない",
+        "ディレクティブ テンプレートの中の // textlint-disable はディレクティブとして読まない",
+        "JavaScript・TypeScript 日本語を含まなくても、一覧にある英語の語（`fail-closed` など）を含む文字列は入れる"
+      ]
+    },
+    {
+      "id": "CS-LT",
+      "why": "< を残して HTML のコメントとして読ませる",
+      "file": "scripts/lib/code-strings.js",
+      "find": "        .replace(/</g, \" \")\n",
+      "replace": "",
+      "expect_failing": ["Markdown の書式 < を空白にして、HTML のコメントとして読ませない"]
+    },
+    {
+      "id": "CS-FENCE",
+      "why": "3 つ以上のバッククォートを残してコードフェンスとして読ませる",
+      "file": "scripts/lib/code-strings.js",
+      "find": "        .replace(/`{3,}|~{3,}/g, (m) => \" \".repeat(m.length));",
+      "replace": "        ;",
+      "expect_failing": [
+        "Markdown の書式 3 つ以上のバッククォートとチルダを空白にして、コードフェンスとして読ませない"
+      ]
+    },
+    {
+      "id": "CS-LEAD",
+      "why": "行頭の空白を外さない",
+      "file": "scripts/lib/code-strings.js",
+      "find": "const lead = part.match(/^\\s*/)[0].length;",
+      "replace": "const lead = 0;",
+      "expect_failing": [
+        "Markdown の書式 行頭の空白を外して、字下げのコードブロックとして読ませない"
+      ]
+    },
+    {
+      "id": "CS-LITERAL-LINES",
+      "why": "ソースの改行を含むテンプレートも、すべて始まりの行に戻す",
+      "file": "scripts/lib/code-strings.js",
+      "find": "const literalLines = raw.includes(\"\\n\");",
+      "replace": "const literalLines = false;",
+      "expect_failing": [
+        "位置 ソースの改行を含むテンプレートは、行ごとに元の行と桁に戻す（行頭の空白を外しても桁がずれない）"
+      ]
+    },
+    {
+      "id": "CS-DIRECTIVE",
+      "why": "ディレクティブの行を Markdown に入れない",
+      "file": "scripts/lib/code-strings.js",
+      "find": "const directives = isEvals ? [] : commentDirectives(path, source);",
+      "replace": "const directives = [];",
+      "expect_failing": [
+        "ディレクティブ コメントだけの行の textlint-disable と textlint-enable を、文字列の間の位置に置く"
+      ]
+    },
+    {
+      "id": "CS-EVAL-KEYS",
+      "why": "evals.json の他のキー（fixture など）の文字列も見る",
+      "file": "scripts/lib/code-strings.js",
+      "find": "if (EVAL_STRING_KEYS.has(key) && ts.isStringLiteral(prop.initializer))",
+      "replace": "if (key !== \"assertions\" && ts.isStringLiteral(prop.initializer))",
+      "expect_failing": ["evals.json prompt・expected_output・assertions だけを取り出す"]
+    },
+    {
+      "id": "CS-JSON-ERROR",
+      "why": "JSON の構文エラーを例外にしない",
+      "file": "scripts/lib/code-strings.js",
+      "find": "if (isEvals && sf.parseDiagnostics.length > 0) {",
+      "replace": "if (false) {",
+      "expect_failing": ["evals.json JSON の構文エラーは例外にする"]
+    },
+    {
+      "id": "CS-ENGLISH",
+      "why": "日本語を含まない文字列は、一覧の英語の語を含んでも見ない",
+      "file": "scripts/lib/code-strings.js",
+      "find": " && !ENGLISH_TERMS.test(text)",
+      "replace": "",
+      "expect_failing": [
+        "JavaScript・TypeScript 日本語を含まなくても、一覧にある英語の語（`fail-closed` など）を含む文字列は入れる"
+      ]
+    }
+  ]
+}

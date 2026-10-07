@@ -29,7 +29,9 @@ const script = join(repoRoot, "scripts/gates/lint-prose.js");
 const words = JSON.parse(readFileSync(join(repoRoot, ".textlint/words.json"), "utf8"));
 
 const CLEAN = "# 手順\n\nこの手順でファイルを確認する。\n";
+// textlint-disable
 const DIRTY = "# 手順\n\n一覧はこのファイルが正本である。\n";
+// textlint-enable
 
 function write(root, path, text) {
   mkdirSync(dirname(join(root, path)), { recursive: true });
@@ -85,15 +87,19 @@ test.each([
 });
 
 test("陰性: インラインコード・コードブロック・frontmatter の中の語は検出しない", async () => {
+  // textlint-disable
   const text =
     "---\ndescription: 一覧は正本である\n---\n\n# 例\n\n`正本` という語を使う。\n\n```text\n正本\n```\n";
+  // textlint-enable
   const root = makeRepo({ "doc.md": text });
   expect((await lintProse({ root })).violations).toEqual([]);
 });
 
 test("textlint-disable で囲んだ箇所だけを除外し、囲みの外は検出する", async () => {
+  // textlint-disable
   const text =
     "# 例\n\n<!-- textlint-disable -->\n\n一覧は正本である。\n\n<!-- textlint-enable -->\n\n仕様は正本にある。\n";
+  // textlint-enable
   const root = makeRepo({ "doc.md": text });
   const { violations } = await lintProse({ root });
   expect(violations).toHaveLength(1);
@@ -178,9 +184,11 @@ test("全体: 対象が 0 件なら例外にする（何も見ていない実行
 
 test("陽性: コメントの指摘を、元のファイルの行と桁で報告する", async () => {
   const root = makeRepo({
+    // textlint-disable
     "a.js": "const a = 1;\n// 一覧は正本である。\n",
     "b.sh": "echo x\necho y # 一覧は正本である。\n",
     "c.yml": "a: 1\n# 一覧は正本である。\n",
+    // textlint-enable
   });
   const { checked, violations } = await lintProse({ root });
   expect(checked).toBe(3);
@@ -191,17 +199,106 @@ test("陽性: コメントの指摘を、元のファイルの行と桁で報告
   ]);
 });
 
-test("陰性: 文字列の中の語と、日本語を含まないコメントは検出しない", async () => {
+test("陰性: 日本語を含まないコメントは検出しない", async () => {
+  const root = makeRepo({ "a.js": "// a, b, c, d, e, f: see https://example.com?x=1!\n" });
+  expect((await lintProse({ root })).violations).toEqual([]);
+});
+
+// ---- 文字列 ----
+
+test("陽性: JS の文字列とテンプレートの語を、元のファイルの行と桁で報告する", async () => {
   const root = makeRepo({
+    // textlint-disable
     "a.js":
-      'console.log("一覧は正本である。");\n// a, b, c, d, e, f: see https://example.com?x=1!\n',
+      'const a = 1;\nconsole.log("一覧は正本である。");\ntest(`x ${a} 経路を見る`, () => {});\n',
+    "b.mjs": 'throw new Error("設定が黙って無視される");\n',
+    "c.ts": 'const m: string = "正本";\n',
+    // textlint-enable
+  });
+  const { violations } = await lintProse({ root });
+  expect(violations.map((v) => v.split(" ")[0]).sort()).toEqual([
+    "a.js:2:17",
+    "a.js:3:14",
+    "b.mjs:1:21",
+    "c.ts:1:20",
+  ]);
+  expect(violations.every((v) => v.includes("（文字列）"))).toBe(true);
+});
+
+test("陽性: evals.json の prompt・expected_output・assertions の語を報告し、他のキーは見ない", async () => {
+  const evals = {
+    skill_name: "x",
+    evals: [
+      {
+        id: 1,
+        // textlint-disable
+        prompt: "一覧の正本を読む",
+        expected_output: "経路を示す",
+        fixture: "evals/x/fixtures/正本",
+        assertions: ["ok を返す", "黙って無視しない"],
+        // textlint-enable
+      },
+    ],
+  };
+  const root = makeRepo({
+    "evals/x/evals.json": JSON.stringify(evals, null, 2),
+    "other/evals.json": JSON.stringify(evals),
+    // textlint-disable
+    "evals/x/meta.json": JSON.stringify({ prompt: "正本" }),
+    // textlint-enable
+  });
+  const { violations } = await lintProse({ root });
+  expect(violations.map((v) => v.split(":").slice(0, 2).join(":")).sort()).toEqual([
+    "evals/x/evals.json:11",
+    "evals/x/evals.json:6",
+    "evals/x/evals.json:7",
+  ]);
+});
+
+test("陰性: 文字列には語の規則だけを当て、バッククォートの中と import の指定子は見ない", async () => {
+  const long = "ファイルを読んで中身を確かめてから結果を返す".repeat(8);
+  const root = makeRepo({
+    // textlint-disable
+    "a.js": `import x from "./正本.js";\nconsole.log("${long}！");\nconsole.log("\`正本\` を検出する");\n`,
+    // textlint-enable
   });
   expect((await lintProse({ root })).violations).toEqual([]);
 });
 
+test("文字列の中の HTML のコメントとコードフェンスは、後の文字列を隠さない", async () => {
+  const root = makeRepo({
+    // textlint-disable
+    "a.js":
+      'const a = "<!-- textlint-disable -->";\nconst b = "```text";\nconst c = "一覧は正本である";\n',
+    // textlint-enable
+  });
+  const { violations } = await lintProse({ root });
+  expect(violations.map((v) => v.split(" ")[0])).toEqual(["a.js:3:15"]);
+});
+
+test("コメントの textlint-disable で囲んだ文字列だけを除外する", async () => {
+  // textlint-disable
+  const src =
+    '// textlint-disable\nconst a = "一覧は正本である";\n// textlint-enable\nconst b = "仕様は正本にある";\n';
+  // textlint-enable
+  const { violations } = await lintProse({ root: makeRepo({ "a.js": src }) });
+  expect(violations).toHaveLength(1);
+  expect(violations[0]).toMatch(/^a\.js:4:/);
+});
+
+test("陽性: JSON として読めない evals.json は、指摘として報告する", async () => {
+  const { violations } = await lintProse({
+    root: makeRepo({ "evals/x/evals.json": '{ "evals": [' }),
+  });
+  expect(violations).toHaveLength(1);
+  expect(violations[0]).toMatch(/^evals\/x\/evals\.json:1:1 .*JSON として読めない/);
+});
+
 test("コメントの textlint-disable で囲んだ箇所だけを除外する", async () => {
+  // textlint-disable
   const src =
     "// textlint-disable\n// 一覧は正本である。\n// textlint-enable\nconst a = 1;\n// 仕様は正本にある。\n";
+  // textlint-enable
   const { violations } = await lintProse({ root: makeRepo({ "a.js": src }) });
   expect(violations).toHaveLength(1);
   expect(violations[0]).toMatch(/^a\.js:5:/);
@@ -230,7 +327,9 @@ test("文の長さの指摘に、Markdown の行番号を残さない", async ()
 
 test("陰性: コメントの指摘も、保留したファイルなら数えず、0 件になったら外すよう求める", async () => {
   const dirty = await lintProse({
+    // textlint-disable
     root: makeRepo({ "a.js": "// 一覧は正本である。\n" }, ["a.js"]),
+    // textlint-enable
   });
   expect(dirty).toEqual({ checked: 1, pending: 1, violations: [], stale: [] });
   const clean = await lintProse({ root: makeRepo({ "a.js": "// 一覧を確かめる。\n" }, ["a.js"]) });
@@ -273,7 +372,7 @@ test("shfmt が無ければ、ファイルの指摘にせず例外にし、main 
   expect(errors.join("\n")).not.toContain(PENDING_PATH);
 });
 
-test("lefthook の prose の glob は、Markdown とコメントを持つ拡張子に一致する", () => {
+test("lefthook の prose の glob は、Markdown とコメントを持つ拡張子と evals.json に一致する", () => {
   const jobs = yaml
     .load(readFileSync(join(repoRoot, "lefthook.yml"), "utf8"))
     ["pre-commit"].jobs.flatMap((j) => j.group?.jobs ?? [j]);
@@ -282,7 +381,7 @@ test("lefthook の prose の glob は、Markdown とコメントを持つ拡張�
     .match(/^\*\.\{(.+)\}$/)[1]
     .split(",")
     .map((e) => `.${e}`);
-  expect(exts.sort()).toEqual([".md", ...COMMENT_EXTENSIONS].sort());
+  expect(exts.sort()).toEqual([".md", ".json", ...COMMENT_EXTENSIONS].sort());
 });
 
 // ---- 保留の一覧 ----
@@ -335,10 +434,12 @@ test("main: 指摘があれば 1、無ければ 0、一覧が読めなければ 
   }
 });
 
-test("陽性コントロール（CLI）: 子プロセスとして起動しても、指摘は exit 1、無ければ exit 0", () => {
+test("検出の確認（CLI）: 子プロセスとして起動しても、指摘は exit 1、無ければ exit 0", () => {
   const run = (root) => spawnSync(process.execPath, [script], { cwd: root, encoding: "utf8" });
   const dirty = run(makeRepo({ "a.md": DIRTY }));
   expect(dirty.status).toBe(1);
+  // textlint-disable
   expect(dirty.stderr).toContain("「正本」は使わない");
+  // textlint-enable
   expect(run(makeRepo({ "a.md": CLEAN })).status).toBe(0);
 }, 60_000);
