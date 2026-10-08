@@ -53,7 +53,11 @@ export const DEFAULT_RELATIVE_FLOORS = { lcp: 0.2, cls: 0, tbt: 0.2, ttfb: 0.2 }
 /** 1 組あたりに要る測定の回数の下限（ウォームアップを除く）。 */
 export const MIN_RUNS = 5;
 
-/** 現側と新側で一致を求める環境の項目。どれかが違えば、差が実装の差か環境の差かを切り分けられない。 */
+/**
+ * 現側と新側で一致を求める環境の項目。どれかが違えば、差が実装の差か環境の差かを切り分けられない。
+ * target_placement は対象の置き場所（loopback か remote）で、違えばネットワークの遅れが TTFB・LCP に入る。
+ * context_options はコンテキストの設定（locale・userAgent など）で、違えば別の内容や描画を測る。
+ */
 export const ENVIRONMENT_KEYS = [
   "browser_name",
   "browser_version",
@@ -63,7 +67,12 @@ export const ENVIRONMENT_KEYS = [
   "runner.arch",
   "runner.cpu_model",
   "runner.cpu_count",
+  "target_placement",
+  "context_options",
 ];
+
+/** target_placement がとる値。loopback は localhost・127.0.0.0/8・::1 だけを指す。 */
+export const TARGET_PLACEMENTS = ["loopback", "remote"];
 
 /** 環境の項目のうち、null（指定なし）を値として持てるもの。他の項目の null は「確かめられない」なので受けない。 */
 export const NULLABLE_ENVIRONMENT_KEYS = ["channel"];
@@ -213,6 +222,18 @@ export function groupSamples(doc, expect) {
   }
   if (typeof getPath(doc.environment, "headless") !== "boolean") {
     throw new UsageError("採取の environment.headless が真偽値でない");
+  }
+  if (
+    !TARGET_PLACEMENTS.includes(
+      /** @type {string} */ (getPath(doc.environment, "target_placement")),
+    )
+  ) {
+    throw new UsageError(
+      `採取の environment.target_placement が ${TARGET_PLACEMENTS.join(" / ")} でない`,
+    );
+  }
+  if (!isPlainObject(getPath(doc.environment, "context_options"))) {
+    throw new UsageError("採取の environment.context_options がオブジェクトでない");
   }
   const settings = doc.settings;
   if (!isPlainObject(settings)) throw new UsageError("採取に settings が無い");
@@ -503,6 +524,14 @@ export function summaryMatches(perf, currentDoc, slug) {
   for (const key of ["environment", "settings"]) {
     if (JSON.stringify(perf[key]) !== JSON.stringify(doc[key])) return false;
   }
+  // 組の定義も同じである。capture_conditions と performance.capture だけを書き換えると、古い採取が今の定義として通る
+  if (
+    !isPlainObject(doc.capture) ||
+    JSON.stringify(captureDefinition({ capture_conditions: doc.capture })) !==
+      JSON.stringify(perf.capture)
+  ) {
+    return false;
+  }
   const pairs = /** @type {Record<string, unknown>[]} */ (perf.pairs);
   if (pairs.length !== groups.size) return false;
   return pairs.every((p) => {
@@ -528,7 +557,8 @@ export function environmentDifferences(cur, neu) {
   for (const key of ENVIRONMENT_KEYS) {
     const a = getPath(/** @type {Record<string, unknown>} */ (cur.environment ?? {}), key);
     const b = getPath(/** @type {Record<string, unknown>} */ (neu.environment ?? {}), key);
-    if (JSON.stringify(a) !== JSON.stringify(b)) {
+    // context_options はキーの順序が書き手で変わりうるので、並べ替えてから比べる
+    if (canonicalJson(a) !== canonicalJson(b)) {
       diffs.push(`environment.${key}: ${JSON.stringify(a)} → ${JSON.stringify(b)}`);
     }
   }
@@ -540,6 +570,23 @@ export function environmentDifferences(cur, neu) {
     }
   }
   return diffs;
+}
+
+/**
+ * キーを並べ替えた JSON。オブジェクトの中のキーの順序だけが違う値を等しく扱う。
+ * @param {unknown} v
+ * @returns {string}
+ */
+function canonicalJson(v) {
+  if (Array.isArray(v)) return `[${v.map(canonicalJson).join(",")}]`;
+  if (isPlainObject(v)) {
+    const o = /** @type {Record<string, unknown>} */ (v);
+    return `{${Object.keys(o)
+      .sort()
+      .map((k) => `${JSON.stringify(k)}:${canonicalJson(o[k])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(v) ?? "null";
 }
 
 /**

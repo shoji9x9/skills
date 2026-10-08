@@ -393,6 +393,8 @@
       "browser_version": "<browser.version()>",
       "channel": "<project の use.channel。指定なしは null（Playwright の headless shell）>",
       "headless": "<project の use.headless。指定なしは true>",
+      "target_placement": "<対象の置き場所。すべての頁が localhost・127.0.0.0/8・::1 を指せば loopback、それ以外は remote>",
+      "context_options": "<コンテキストに渡した設定（baseURL を除く）。認証の情報を持ちうるもの（extraHTTPHeaders・httpCredentials・storageState・clientCertificates・proxy）は値の代わりに \"set\">",
       "runner": {
         "platform": "<os.platform()>",
         "arch": "<os.arch()>",

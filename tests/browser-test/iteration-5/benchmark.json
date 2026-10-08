@@ -75,5 +75,7 @@
       }
     }
   },
-  "notes": []
+  "notes": [
+    "前提の文面を「送信を止めるかは利用者の設定に任せる」形に直した後の、with_skill だけの再実行である。prompt と判定項目は iteration-4 から変えていない。without_skill はスキルを読まないので、基準は iteration-4 の without_skill（4/5）を使う"
+  ]
 }

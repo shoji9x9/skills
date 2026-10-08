@@ -26,6 +26,8 @@ const environment = () => ({
   channel: null,
   headless: true,
   runner: { platform: "linux", arch: "x64", cpu_model: "cpu", cpu_count: 8 },
+  target_placement: "loopback",
+  context_options: { colorScheme: "light", locale: "ja-JP" },
 });
 const settings = (runs = 5) => ({ runs, warmup: 1, settle_ms: 1000, cache: "cold", workers: 1 });
 
@@ -349,6 +351,22 @@ describe("summarize", () => {
       },
     ],
     [
+      "置き場所が決まった値でない",
+      {
+        [CUR]: samplesDoc("current", bothPairs(), {
+          environment: { ...environment(), target_placement: "lan" },
+        }),
+      },
+    ],
+    [
+      "コンテキストの設定がオブジェクトでない",
+      {
+        [CUR]: samplesDoc("current", bothPairs(), {
+          environment: { ...environment(), context_options: ["ja-JP"] },
+        }),
+      },
+    ],
+    [
       "headless が真偽値でない",
       {
         [CUR]: samplesDoc("current", bothPairs(), {
@@ -585,6 +603,16 @@ describe("compare", () => {
         environment: { ...environment(), runner: { ...environment().runner, cpu_model: "other" } },
       },
     ],
+    ["置き場所", { environment: { ...environment(), target_placement: "remote" } }],
+    [
+      "コンテキストの設定",
+      {
+        environment: {
+          ...environment(),
+          context_options: { colorScheme: "light", locale: "en-US" },
+        },
+      },
+    ],
     ["待つ時間", { settings: { ...settings(), settle_ms: 2000 } }],
   ])("環境・測り方が違えば env_mismatch で exit 1: %s", (_, override) => {
     const r = compareRun(samplesDoc("new", bothPairs(), override));
@@ -592,6 +620,15 @@ describe("compare", () => {
     const perf = r.read(DIFF).performance;
     expect(perf.environment_differences.length).toBe(1);
     expect(perf.counts).toEqual({ env_mismatch: 8 });
+  });
+
+  test("コンテキストの設定はキーの順序だけが違っても一致として扱う", () => {
+    const reordered = {
+      environment: { ...environment(), context_options: { locale: "ja-JP", colorScheme: "light" } },
+    };
+    const r = compareRun(samplesDoc("new", bothPairs(), reordered));
+    expect(r.code).toBe(0);
+    expect(r.read(DIFF).performance.environment_differences).toEqual([]);
   });
 
   test("回数は両側が下限以上なら違ってよい", () => {
@@ -810,6 +847,30 @@ describe("compare", () => {
     const r = compareRun(samplesDoc("new", bothPairs(slow), changed), { base, meta });
     expect(r.code).toBe(1);
     const perf = r.read(DIFF).performance;
+    expect(perf.stale_summary).toBe(true);
+    expect(perf.regressed).toEqual([]);
+  });
+
+  test("組の定義だけを書き換え、古い現側の採取を残していれば、判定せず exit 1", () => {
+    // capture_conditions と performance.capture を新しい寸法に揃えても、現側の採取は古い寸法で採ったもの
+    const base = summarized();
+    const cc = {
+      ...metadata().capture_conditions,
+      viewports: metadata().capture_conditions.viewports.map((v) => ({ ...v, width: v.width + 1 })),
+    };
+    const meta = {
+      ...base.meta,
+      capture_conditions: cc,
+      performance: { ...base.meta.performance, capture: captureOf(cc) },
+    };
+    const slow = () => ({ ...steady(), tbt: [300, 300, 300, 300, 300] });
+    const r = compareRun(samplesDoc("new", bothPairs(slow), { capture: captureOf(cc) }), {
+      base,
+      meta,
+    });
+    expect(r.code).toBe(1);
+    const perf = r.read(DIFF).performance;
+    expect(perf.stale_capture).toBe(false);
     expect(perf.stale_summary).toBe(true);
     expect(perf.regressed).toEqual([]);
   });

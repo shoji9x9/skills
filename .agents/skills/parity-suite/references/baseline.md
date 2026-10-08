@@ -1052,10 +1052,16 @@ if (capturing) {
   下限より小さい悪化は見逃すので、気にする差の大きさに合わせて変える。使った値は `performance.floors`・`performance.relative_floors` に残る。
   判定の規則（許容幅を超えた悪化・新側のばらつき・値の欠け・環境の違い）の原本は [`../scripts/perf-stats.mjs`](../scripts/perf-stats.mjs) で、`parity-diff` が `compare` で使う。
 - 現側と新側の比較は、同じ機械・同じブラウザ・同じ測り方で採った値どうしでしか成り立たない。
-  採取ファイルの `environment`（ブラウザの名前・版・`channel`・`headless`、ランナーの OS・アーキテクチャ・CPU の型番と数）と `settings`（ウォームアップ・待つ時間・キャッシュ・並列の数）が違えば、`compare` は判定せずに止まる。
+  採取ファイルの `environment` と `settings`（ウォームアップ・待つ時間・キャッシュ・並列の数）が違えば、`compare` は判定せずに止まる。
+  `environment` は、ブラウザの名前・版・`channel`・`headless`、ランナーの OS・アーキテクチャ・CPU の型番と数、target の置き場所、コンテキストの設定である。
   新側を別の機械で測るなら、その機械で現側も採り直し、`summarize` を通し直す。
   採り直すのは `perf-samples.json` と `performance` だけで、特性化のやり直しではないので、`run.finished_at` と `run.procedure_revision` は書き換えない。
-- 現側と新側の target の置き場所（同じ機械の上か、遠いサーバーか）が違うと、TTFB と LCP に通信の差が入る。置き場所をそろえられないなら、その旨を `gaps.md` に書く。
+- 現側と新側の target の置き場所が違うと、TTFB と LCP に通信の差が入る。
+  採取のスペックは、すべての頁が localhost・`127.0.0.0/8`・`::1` を指せば `loopback`、それ以外は `remote` を `environment.target_placement` に記録し、違えば `compare` は判定しない。
+  `remote` どうしでもサーバーが違えば通信の差は入るので、両側を同じ機械の上で動かす。そろえられないなら、`declared: false` にして理由を `gaps.md` に書く。
+- コンテキストの設定（`locale`・`userAgent`・`colorScheme`・`deviceScaleFactor` など）が違うと、別の内容や描画を測る。
+  採取のスペックは、渡した設定を `environment.context_options` に記録し、違えば `compare` は判定しない。
+  認証の情報を持ちうる設定（`extraHTTPHeaders`・`httpCredentials`・`storageState`・`clientCertificates`・`proxy`）は、値を残さず指定の有無だけを残す。`baseURL` は target ごとに違うので比べない
 - `perf-samples.json` は、テキストの成果物として Git に入れる。採り直したら `summarize` も通し直す。`performance.samples_sha256` が今のファイルと違うと、`parity-diff` は古い基準として止まる。
   `capture_conditions` のページ（name・path）かビューポート（label・寸法）を変えたときも、`performance.capture` と合わなくなるので、採り直して `summarize` を通し直す。
   採取ファイルは採ったときの組の定義（`capture`）を持つので、採り直さずに `summarize` だけを通し直すと exit 2 になる。

@@ -55,10 +55,12 @@
       "replace": "        (false\n",
       "occurrences": 1,
       "expect_failing": [
-        "compare 環境・測り方が違えば env_mismatch で exit 1: ブラウザの版",
-        "compare 環境・測り方が違えば env_mismatch で exit 1: channel",
         "compare 環境・測り方が違えば env_mismatch で exit 1: CPU",
-        "compare 環境・測り方が違えば env_mismatch で exit 1: 待つ時間"
+        "compare 環境・測り方が違えば env_mismatch で exit 1: channel",
+        "compare 環境・測り方が違えば env_mismatch で exit 1: コンテキストの設定",
+        "compare 環境・測り方が違えば env_mismatch で exit 1: ブラウザの版",
+        "compare 環境・測り方が違えば env_mismatch で exit 1: 待つ時間",
+        "compare 環境・測り方が違えば env_mismatch で exit 1: 置き場所"
       ]
     },
     {
@@ -245,7 +247,8 @@
         "compare 基準の統計を手で書き換えていれば、判定せず exit 1",
         "compare 基準を採った後に組の定義が変われば、判定せず exit 1: ビューポートを足した",
         "compare 基準を採った後に組の定義が変われば、判定せず exit 1: ページの path を変えた",
-        "compare 現側の採取が集計の後に変わっていれば、組 × 指標を判定せず exit 1"
+        "compare 現側の採取が集計の後に変わっていれば、組 × 指標を判定せず exit 1",
+        "compare 組の定義だけを書き換え、古い現側の採取を残していれば、判定せず exit 1"
       ]
     },
     {
@@ -394,7 +397,8 @@
       "expect_failing": [
         "compare 基準の環境・測り方を新側に合わせて書き換えていれば、判定せず exit 1: ブラウザの版",
         "compare 基準の環境・測り方を新側に合わせて書き換えていれば、判定せず exit 1: 待つ時間",
-        "compare 基準の統計を手で書き換えていれば、判定せず exit 1"
+        "compare 基準の統計を手で書き換えていれば、判定せず exit 1",
+        "compare 組の定義だけを書き換え、古い現側の採取を残していれば、判定せず exit 1"
       ]
     },
     {
@@ -407,6 +411,58 @@
       "expect_failing": [
         "compare 基準の環境・測り方を新側に合わせて書き換えていれば、判定せず exit 1: ブラウザの版",
         "compare 基準の環境・測り方を新側に合わせて書き換えていれば、判定せず exit 1: 待つ時間"
+      ]
+    },
+    {
+      "id": "placement-any",
+      "why": "決まった値でない置き場所を受ける",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "    !TARGET_PLACEMENTS.includes(\n",
+      "replace": "    false &&\n    !TARGET_PLACEMENTS.includes(\n",
+      "occurrences": 1,
+      "expect_failing": ["summarize 入力の形が違えば exit 2: 置き場所が決まった値でない"]
+    },
+    {
+      "id": "ctxopt-any",
+      "why": "オブジェクトでないコンテキストの設定を受ける",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "  if (!isPlainObject(getPath(doc.environment, \"context_options\"))) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "summarize 入力の形が違えば exit 2: コンテキストの設定がオブジェクトでない"
+      ]
+    },
+    {
+      "id": "env-keys-placement-off",
+      "why": "置き場所とコンテキストの設定の違いを env_mismatch にしない",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "  \"target_placement\",\n  \"context_options\",\n];\n",
+      "replace": "];\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare 環境・測り方が違えば env_mismatch で exit 1: 置き場所",
+        "compare 環境・測り方が違えば env_mismatch で exit 1: コンテキストの設定"
+      ]
+    },
+    {
+      "id": "canonical-off",
+      "why": "キーの順序だけが違うコンテキストの設定を env_mismatch にする",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "    if (canonicalJson(a) !== canonicalJson(b)) {\n",
+      "replace": "    if (JSON.stringify(a) !== JSON.stringify(b)) {\n",
+      "occurrences": 1,
+      "expect_failing": ["compare コンテキストの設定はキーの順序だけが違っても一致として扱う"]
+    },
+    {
+      "id": "summary-capture-off",
+      "why": "組の定義を書き換えた基準を、古い現側の採取のまま受ける",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "      JSON.stringify(perf.capture)\n  ) {\n    return false;\n",
+      "replace": "      JSON.stringify(perf.capture)\n  ) {\n    void 0;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare 組の定義だけを書き換え、古い現側の採取を残していれば、判定せず exit 1"
       ]
     }
   ]

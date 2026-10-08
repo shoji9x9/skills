@@ -86,6 +86,13 @@ test("性能の採取", async ({ browser }, testInfo) => {
     );
   }
 
+  const contextOptions = contextOptionsFromUse(use);
+  // 置き場所が両側で違うと、ネットワークの遅れが TTFB・LCP の差に入る。perf-stats.mjs が違いを env_mismatch にする
+  const placement = targetPlacement(
+    pages.map((p) => p.path),
+    contextOptions.baseURL as string | undefined,
+  );
+
   const samples: Record<string, unknown>[] = [];
   for (const viewport of viewports) {
     for (const pageDef of pages) {
@@ -93,7 +100,7 @@ test("性能の採取", async ({ browser }, testInfo) => {
         // TODO: 認証を storageState 以外の方法で入れているなら、プロジェクトの現側スペックと同じ方法でここに入れる。
         // browser.newContext は project の use を引き継がないので、スイートと同じ指定になるよう、コンテキストの設定を移す
         const context = await browser.newContext({
-          ...contextOptionsFromUse(use),
+          ...contextOptions,
           viewport: { width: viewport.width, height: viewport.height },
         });
         try {
@@ -191,6 +198,8 @@ test("性能の採取", async ({ browser }, testInfo) => {
       browser_version: browser.version(),
       channel,
       headless,
+      target_placement: placement,
+      context_options: contextFingerprint(contextOptions),
       runner: {
         platform: platform(),
         arch: arch(),
@@ -247,6 +256,32 @@ function contextOptionsFromUse(use: Record<string, unknown>): Record<string, unk
     if (use[key] !== undefined) options[key] = use[key];
   }
   return options;
+}
+
+// 認証の情報を持ちうる設定は、値を残さず「指定あり」だけを残す
+const SECRET_CONTEXT_OPTION_KEYS = [
+  "clientCertificates",
+  "extraHTTPHeaders",
+  "httpCredentials",
+  "proxy",
+  "storageState",
+];
+
+// 両側で一致を求めるコンテキストの設定。baseURL は target ごとに違うので除き、違いは target_placement で見る
+function contextFingerprint(options: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const key of Object.keys(options).sort()) {
+    if (key === "baseURL" || options[key] === undefined) continue;
+    out[key] = SECRET_CONTEXT_OPTION_KEYS.includes(key) ? "set" : options[key];
+  }
+  return out;
+}
+
+// すべての頁が localhost・127.0.0.0/8・::1 を指せば loopback、1 つでも他を指せば remote
+function targetPlacement(paths: string[], baseURL: string | undefined): "loopback" | "remote" {
+  const loopback = (host: string) =>
+    host === "localhost" || host === "[::1]" || /^127(\.\d{1,3}){3}$/.test(host);
+  return paths.every((path) => loopback(new URL(path, baseURL).hostname)) ? "loopback" : "remote";
 }
 
 function requireName(name: string): string {
