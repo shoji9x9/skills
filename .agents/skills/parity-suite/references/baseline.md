@@ -1051,6 +1051,10 @@ if (capturing) {
   絶対値だけだと重いページほど厳しくなるので、割合で値の大きさに合わせる（LCP 1,000ms なら許容幅は 200ms、20ms なら 100ms）。
   下限より小さい悪化は見逃すので、気にする差の大きさに合わせて変える。使った値は `performance.floors`・`performance.relative_floors` に残る。
   デフォルトより緩い下限は、`parity-diff` の `compare` が結果と報告に載せる（判定は変えない）。
+  下限を変えるときは、`summarize --write` に `--floor`・`--relative-floor` を渡して通し直す。`metadata.json` を手で書き換えない。
+  `summarize` は、下限が前と違えば（初めて書くときを含む）、`performance.floor_history` に 1 件追記する。
+  下限は採取から導けないので、`compare` は値の正しさを確かめられない。
+  そのため、`replace-strategy` の `append-only-check.mjs` が、履歴を追記せずに下限を変えた変更と、履歴の既存の要素を消した・書き換えた変更を exit 1 にする。
   判定の規則（許容幅を超えた悪化・新側のばらつき・値の欠け・環境の違い）の原本は [`../scripts/perf-stats.mjs`](../scripts/perf-stats.mjs) で、`parity-diff` が `compare` で使う。
 - 現側と新側の比較は、同じ機械・同じブラウザ・同じ測り方で採った値どうしでしか成り立たない。
   採取ファイルの `environment` と `settings`（ウォームアップ・待つ時間・キャッシュ・並列の数）が違えば、`compare` は判定せずに止まる。
@@ -1074,6 +1078,8 @@ if (capturing) {
   `compare` は基準の統計を現側の採取ファイルから計算し直して突き合わせるので、`performance.pairs` を手で書き換えても判定には使われない。
   `perf-stats.mjs` の版（`performance.tool_version`）が変わったときも、`compare` は基準を読まずに exit 2 になる
 - feature モードでは、`performance` をキーごと省かない。比べられない事情（target の性能が日によって大きく揺れるなど）があるときだけ `declared: false` と `reason` を書き、`gaps.md` にも同じ文言を残す。
+  commit 済みの `floors`・`relative_floors` を消すときは、`floor_history` を残したまま、その項目を持たない要素（`{}` など）を 1 件追記する。
+  追記しないと、`replace-strategy` の `append-only-check.mjs` が exit 1 にする。
 
 ## 採取物の健全性
 

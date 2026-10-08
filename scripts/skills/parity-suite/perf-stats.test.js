@@ -283,6 +283,88 @@ describe("summarize", () => {
     expect(r.read(META).performance.floors.lcp).toBe(150);
   });
 
+  // 下限の履歴（Issue #582）。append-only-check.mjs は、履歴を追記せずに下限を変えた変更を落とす
+  describe("下限の履歴（floor_history）", () => {
+    const curDoc = samplesDoc("current", bothPairs());
+    const sha = createHash("sha256").update(JSON.stringify(curDoc)).digest("hex");
+    /** 前の performance を持つ metadata.json で summarize --write を通す。 */
+    const resummarize = (previous, floors = []) =>
+      run({ [META]: metadata({ performance: previous }), [CUR]: curDoc }, [
+        ...summarizeArgs,
+        ...floors,
+      ]);
+
+    test("初めて書くときは、使った下限を 1 件記録する", () => {
+      const r = run({ [META]: metadata(), [CUR]: curDoc }, summarizeArgs);
+      expect(r.code).toBe(0);
+      expect(r.read(META).performance.floor_history).toEqual([
+        {
+          floors: DEFAULT_FLOORS,
+          relative_floors: { lcp: 0.2, cls: 0, tbt: 0.2, ttfb: 0.2 },
+          samples_sha256: sha,
+          measured_at: "2026-10-08T00:00:00.000Z",
+        },
+      ]);
+    });
+
+    test("雛形のデフォルトと同じ下限を持つ未集計の performance に初めて書くときも、1 件記録する", () => {
+      const template = {
+        declared: "<true | false>",
+        floors: DEFAULT_FLOORS,
+        relative_floors: { lcp: 0.2, cls: 0, tbt: 0.2, ttfb: 0.2 },
+        floor_history: [],
+      };
+      const r = resummarize(template);
+      expect(r.code).toBe(0);
+      const history = r.read(META).performance.floor_history;
+      expect(history).toHaveLength(1);
+      expect(history[0].floors).toEqual(DEFAULT_FLOORS);
+    });
+
+    test("同じ下限で採り直しても追記しない", () => {
+      const first = summarized(curDoc).meta.performance;
+      const r = resummarize(first);
+      expect(r.code).toBe(0);
+      expect(r.read(META).performance.floor_history).toEqual(first.floor_history);
+    });
+
+    test("下限を変えた採り直しは 1 件追記し、既存の要素を残す", () => {
+      const first = summarized(curDoc).meta.performance;
+      const r = resummarize(first, ["--floor", "lcp=150"]);
+      expect(r.code).toBe(0);
+      const history = r.read(META).performance.floor_history;
+      expect(history).toHaveLength(2);
+      expect(history[0]).toEqual(first.floor_history[0]);
+      expect(history[1].floors).toEqual({ ...DEFAULT_FLOORS, lcp: 150 });
+    });
+
+    test("割合の下限だけを変えても追記する", () => {
+      const first = summarized(curDoc).meta.performance;
+      const r = resummarize(first, ["--relative-floor", "lcp=0.3"]);
+      expect(r.code).toBe(0);
+      const history = r.read(META).performance.floor_history;
+      expect(history).toHaveLength(2);
+      expect(history[1].relative_floors.lcp).toBe(0.3);
+    });
+
+    test("履歴を持たない前の版の基準で下限を変えると、変えた後の値を 1 件記録する", () => {
+      const { floor_history: _, ...legacy } = summarized(curDoc).meta.performance;
+      const r = resummarize(legacy, ["--floor", "tbt=80"]);
+      expect(r.code).toBe(0);
+      const history = r.read(META).performance.floor_history;
+      expect(history).toHaveLength(1);
+      expect(history[0].floors.tbt).toBe(80);
+    });
+
+    test("floor_history が配列でなければ書かずに exit 2", () => {
+      const first = summarized(curDoc).meta.performance;
+      const r = resummarize({ ...first, floor_history: {} }, ["--floor", "lcp=150"]);
+      expect(r.code).toBe(2);
+      expect(r.err).toContain("floor_history");
+      expect(r.read(META).performance.floor_history).toEqual({});
+    });
+  });
+
   test.each([
     ["指標でない", "fid=1"],
     ["負の値", "lcp=-1"],

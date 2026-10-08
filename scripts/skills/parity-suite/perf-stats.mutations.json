@@ -582,6 +582,64 @@
       "replace": "    opts.currentSamplesSha256 !== perf.samples_sha256 || staleCapture || staleSummary;\n",
       "occurrences": 1,
       "expect_failing": ["compare 現側・新側の採取と基準から同じ組を削っていれば、判定せず exit 1"]
+    },
+    {
+      "id": "floor-history-unchanged-always",
+      "why": "下限を変えても履歴に追記しない",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "  if (unchanged) return history;",
+      "replace": "  if (true) return history;",
+      "occurrences": 1,
+      "expect_failing": [
+        "summarize 下限の履歴（floor_history） 初めて書くときは、使った下限を 1 件記録する",
+        "summarize 下限の履歴（floor_history） 下限を変えた採り直しは 1 件追記し、既存の要素を残す",
+        "summarize 下限の履歴（floor_history） 割合の下限だけを変えても追記する",
+        "summarize 下限の履歴（floor_history） 履歴を持たない前の版の基準で下限を変えると、変えた後の値を 1 件記録する",
+        "summarize 下限の履歴（floor_history） 雛形のデフォルトと同じ下限を持つ未集計の performance に初めて書くときも、1 件記録する"
+      ]
+    },
+    {
+      "id": "floor-history-relative-ignored",
+      "why": "割合の下限だけの変更を変更として数えない",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "    canonicalJson(prev.relative_floors ?? null) === canonicalJson(opts.relativeFloors);",
+      "replace": "    true;",
+      "occurrences": 1,
+      "expect_failing": ["summarize 下限の履歴（floor_history） 割合の下限だけを変えても追記する"]
+    },
+    {
+      "id": "floor-history-drop-old",
+      "why": "追記のときに既存の履歴を捨てる",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "  return [\n    ...history,\n",
+      "replace": "  return [\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "summarize 下限の履歴（floor_history） 下限を変えた採り直しは 1 件追記し、既存の要素を残す",
+        "summarize 下限の履歴（floor_history） 割合の下限だけを変えても追記する"
+      ]
+    },
+    {
+      "id": "floor-history-type",
+      "why": "配列でない履歴を検出しない",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "  if (!Array.isArray(history)) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "summarize 下限の履歴（floor_history） floor_history が配列でなければ書かずに exit 2"
+      ]
+    },
+    {
+      "id": "floor-history-template-as-summarized",
+      "why": "雛形から作った未集計の performance を集計済みとして扱い、初めての書き込みを記録しない",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "    prev.declared === true &&\n",
+      "replace": "    true &&\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "summarize 下限の履歴（floor_history） 雛形のデフォルトと同じ下限を持つ未集計の performance に初めて書くときも、1 件記録する"
+      ]
     }
   ]
 }

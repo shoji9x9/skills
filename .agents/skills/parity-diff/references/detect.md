@@ -141,7 +141,8 @@ node <parity-suite の skill>/scripts/perf-stats.mjs compare \
     古い基準とは比べないので、すべての組 × 指標がこの状態になり、`regressed` は出ない。`parity-suite` の `summarize` を通し直す
 - 下限は利用者が `summarize` で決める値で、採取から導けないので、`compare` は値の正しさを確かめられない。
   デフォルトより緩い下限は、判定を変えずに `loosened_floors`（指標・`floors` か `relative_floors`・値・デフォルト）に出し、stderr にも警告する。
-  1 件以上あれば、`diff.md` の性能の行にそのまま載せる。緩めた下限は回帰を許容幅の中に入れうるので、収束を報告するときに利用者へ確かめる
+  1 件以上あれば、`diff.md` の性能の行にそのまま載せる。緩めた下限は回帰を許容幅の中に入れうるので、収束を報告するときに利用者へ確かめる。
+  下限の変更は `performance.floor_history` に残り、履歴を追記せずに変えた変更は `replace-strategy` の `append-only-check.mjs` が exit 1 にする
 - 終了コードは、0 が合格、1 が回帰か判定できない組が残る、2 が使い方の誤りか基準の形の誤りである。
   1 は結果であって停止の合図ではない。`diff-metadata.json` の `performance` を読み、残りの手順（正規化・トリアージ・収束の判定）へ進む。
   その場で止まるのは 2 だけである。`env_mismatch` の停止は、残りの手順を終えた後、収束の判定で利用者へ案内して行う。

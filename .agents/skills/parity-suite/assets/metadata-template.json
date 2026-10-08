@@ -382,7 +382,7 @@
     }
   ],
   "performance": {
-    "_note": "性能のベースラインとノイズ基準値（feature モードではキーごと省かない）。declared: true の値は parity-suite の scripts/perf-stats.mjs summarize --write が書く（手で転記しない）。parity-diff は同じスクリプトの compare で新側を比べ、許容幅（四分位範囲・floors・現側の中央値 × relative_floors のいちばん大きいもの）を超えた悪化を要対応にする。キーごと無い成果物は parity-diff が判定せず未検証に残す（後方互換）。原本は parity-suite の references/baseline.md「性能のベースラインとノイズ基準値」。",
+    "_note": "性能のベースラインとノイズ基準値（feature モードではキーごと省かない）。declared: true の値は parity-suite の scripts/perf-stats.mjs summarize --write が書く（手で転記しない）。parity-diff は同じスクリプトの compare で新側を比べ、許容幅（四分位範囲・floors・現側の中央値 × relative_floors のいちばん大きいもの）を超えた悪化を要対応にする。floor_history は floors・relative_floors の変更の履歴で、summarize --write が下限を変えたとき（初めて書くときを含む）に 1 件追記する（floors・relative_floors・samples_sha256・measured_at）。履歴を追記せずに下限を変えた変更と、既存の要素の削除・書き換えは、replace-strategy の append-only-check.mjs が落とす。キーごと無い成果物は parity-diff が判定せず未検証に残す（後方互換）。原本は parity-suite の references/baseline.md「性能のベースラインとノイズ基準値」。",
     "declared": "<true | false。false は性能を比べられない事情があるときだけ（reason と gaps.md の同じ文言が要る）>",
     "tool_version": "<perf-stats.mjs の VERSION>",
     "samples": "<現側の採取ファイルのパス（リポジトリのルートからの相対。既定 .replace/parity/<slug>/perf-samples.json）>",
@@ -422,6 +422,7 @@
       "tbt": 0.2,
       "ttfb": 0.2
     },
+    "floor_history": [],
     "capture": {
       "pages": [{ "name": "<capture_conditions.pages[].name>", "path": "<同 path>" }],
       "viewports": [{ "label": "<capture_conditions.viewports[].label>", "width": 0, "height": 0 }]

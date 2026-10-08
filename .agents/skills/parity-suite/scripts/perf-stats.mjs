@@ -26,7 +26,7 @@ import { fileURLToPath } from "node:url";
  * ツールのバージョン（原本）。判定規則・出力の形を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "1";
+export const VERSION = "2";
 
 /** 採取の形式の版。雛形の `PERF_SAMPLES_VERSION` と同じ値にする。 */
 export const SAMPLES_VERSION = "1";
@@ -37,6 +37,7 @@ export const METRICS = ["lcp", "cls", "tbt", "ttfb"];
 /**
  * 指標ごとの許容幅の絶対の下限（デフォルト）。四分位範囲が 0 に近い環境で、1ms の差まで回帰にしないための値である。
  * summarize の `--floor <指標>=<値>` で上書きでき、使った値は metadata.json の performance.floors に残る。
+ * 下限を変えた summarize は performance.floor_history に追記する（floorHistory を参照）。
  * @type {Record<string, number>}
  */
 export const DEFAULT_FLOORS = { lcp: 100, cls: 0.01, tbt: 50, ttfb: 50 };
@@ -476,11 +477,49 @@ export function summarize(metadata, samplesDoc, opts) {
       settings: doc.settings,
       floors: opts.floors,
       relative_floors: opts.relativeFloors,
+      floor_history: floorHistory(metadata.performance, samplesDoc, opts),
       capture: captureDefinition(metadata),
       pairs,
       reason: null,
     },
   };
+}
+
+/**
+ * 下限の変更の履歴を作る。下限が前の performance と違えば（初めて書くときを含む）、1 件追記する。
+ * 前の performance が集計済み（declared: true）でなければ、初めて書くときとして扱う。
+ * 下限は採取から導けない利用者の決定なので、compare は値の正しさを確かめられない。
+ * 変えた記録を残し、replace-strategy の append-only-check.mjs が、履歴を追記せずに下限を変えた変更を落とす。
+ * 既存の要素は変えずにそのまま残す。
+ * @param {unknown} previous - 書き換える前の metadata.json の performance
+ * @param {unknown} samplesDoc
+ * @param {{ floors: Record<string, number>, relativeFloors: Record<string, number>, samplesSha256: string }} opts
+ * @returns {unknown[]}
+ */
+export function floorHistory(previous, samplesDoc, opts) {
+  const prev = isPlainObject(previous) ? previous : {};
+  const history = prev.floor_history ?? [];
+  if (!Array.isArray(history)) {
+    throw new UsageError(
+      "performance.floor_history が配列でない（手で書き換えていないか確かめる）",
+    );
+  }
+  // 雛形から作った metadata.json はデフォルトと同じ下限を持つので、集計済み（declared: true）の前の値とだけ比べる
+  const unchanged =
+    prev.declared === true &&
+    canonicalJson(prev.floors ?? null) === canonicalJson(opts.floors) &&
+    canonicalJson(prev.relative_floors ?? null) === canonicalJson(opts.relativeFloors);
+  if (unchanged) return history;
+  const doc = /** @type {Record<string, unknown>} */ (samplesDoc);
+  return [
+    ...history,
+    {
+      floors: opts.floors,
+      relative_floors: opts.relativeFloors,
+      samples_sha256: opts.samplesSha256,
+      measured_at: doc.measured_at ?? null,
+    },
+  ];
 }
 
 /**
