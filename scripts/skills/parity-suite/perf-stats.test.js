@@ -135,7 +135,17 @@ function compareRun(newDoc, opts = {}) {
   const { meta, curText } = opts.base ?? summarized();
   const files = { [META]: opts.meta ?? meta, [NEW]: newDoc, [DIFF]: {} };
   if (!opts.dropCurrent) files[CUR] = opts.curText ?? curText;
-  return run(files, ["compare", "--metadata", META, "--samples", NEW, "--write", DIFF]);
+  return run(files, [
+    "compare",
+    "--metadata",
+    META,
+    "--samples",
+    NEW,
+    "--target",
+    "local",
+    "--write",
+    DIFF,
+  ]);
 }
 
 describe("集計の部品", () => {
@@ -337,6 +347,10 @@ describe("summarize", () => {
       },
     ],
     ["samples が空", { [CUR]: samplesDoc("current", [], { settings: settings() }) }],
+    [
+      "現側の採取に target がある",
+      { [CUR]: samplesDoc("current", bothPairs(), { target: "local" }) },
+    ],
     ["JSON でない", { [CUR]: "{" }],
     [
       "metadata.json の pages の name が重複",
@@ -602,6 +616,8 @@ describe("compare", () => {
       META,
       "--samples",
       NEW,
+      "--target",
+      "local",
       "--write",
       DIFF,
     ]);
@@ -692,6 +708,39 @@ describe("compare", () => {
     const r = compareRun(samplesDoc("new", bothPairs()), { base, meta });
     expect(r.code).toBe(2);
     expect(r.err).toContain("performance.capture が無い");
+  });
+
+  test.each([
+    ["別の target の採取", { target: "staging" }],
+    ["target が無い採取", { target: null }],
+  ])("新側の採取の target が --target と違えば exit 2: %s", (_, override) => {
+    const r = compareRun(samplesDoc("new", bothPairs(), override));
+    expect(r.code).toBe(2);
+    expect(r.err).toContain("採取の target");
+  });
+
+  test("--target を渡さなければ exit 2", () => {
+    const { meta, curText } = summarized();
+    const r = run(
+      { [META]: meta, [CUR]: curText, [NEW]: samplesDoc("new", bothPairs()), [DIFF]: {} },
+      ["compare", "--metadata", META, "--samples", NEW],
+    );
+    expect(r.code).toBe(2);
+    expect(r.err).toContain("比べる新側の target が無い");
+  });
+
+  test.each([
+    ["回数が下限より少ない", { n: 1, nulls: 1 }],
+    ["nulls が負", { nulls: -1 }],
+    ["nulls が n を超える", { nulls: 6 }],
+  ])("基準の回数が範囲外なら exit 2: %s", (_, override) => {
+    const base = summarized();
+    const pairs = structuredClone(base.meta.performance.pairs);
+    pairs[0].metrics.lcp = { ...pairs[0].metrics.lcp, ...override };
+    const meta = { ...base.meta, performance: { ...base.meta.performance, pairs } };
+    const r = compareRun(samplesDoc("new", bothPairs()), { base, meta });
+    expect(r.code).toBe(2);
+    expect(r.err).toContain("回数が範囲外");
   });
 
   test("新側の採取の side が current なら exit 2", () => {

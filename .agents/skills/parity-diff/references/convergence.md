@@ -324,7 +324,7 @@
     そのため、書き直しを commit した後は差が無く、何かが失われていても通ってしまう（着手した時点の版は、`git merge-base` や、機能のブランチが分かれた点から取る）。
   - 性能の比較に、回帰と判定できない組が残っていない。
     `metadata.json` の `performance.declared` が `true` のときだけ判定に入り、`perf-stats.mjs compare` が exit 0 であること（手順の原本は [`detect.md`](detect.md)「性能の比較」）。
-    `regressed` は要対応として差し戻しに入り、`noisy`・`missing`・`insufficient`・`env_mismatch`・古い基準は差し戻さずに採り直す（`env_mismatch` は `parity-suite` での採り直しを利用者へ案内して停止する）。
+    `regressed` は要対応として差し戻しに入り、`noisy`・`missing`・`env_mismatch`・古い基準は差し戻さずに採り直す（`env_mismatch` は `parity-suite` での採り直しを利用者へ案内して停止する）。
     `results` の件数には足さず、`performance.ok` だけで判定する。
     `performance` が無い・`declared: false` の成果物は判定せず、`diff-metadata.json` の `performance.judged: false` と理由、`diff.md` の未検証の領域に残す。
 

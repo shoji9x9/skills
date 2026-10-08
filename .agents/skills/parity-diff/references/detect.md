@@ -112,6 +112,7 @@
 node <parity-suite の skill>/scripts/perf-stats.mjs compare \
   --metadata .replace/parity/<slug>/metadata.json \
   --samples .replace/parity/<slug>/new/<target>/perf-samples.json \
+  --target <target> \
   --write .replace/parity/<slug>/new/<target>/diff-metadata.json
 ```
 
@@ -119,6 +120,7 @@ node <parity-suite の skill>/scripts/perf-stats.mjs compare \
 `--write` は今回の実行の `diff-metadata.json` の `performance` だけを書き換える。手順 3 でこの実行の `diff-metadata.json`（自己ノイズの測定値など）を書いた後に通す。
 前の反復のファイルに書くと、反復と版の記録が古いまま `performance` だけが新しくなる。ファイルが無ければ exit 2 になる（判定の結果は先に標準出力へ出る）。
 結果は手で転記しない。
+`--target` は比べる新側の target で、採取ファイルの `target` と違えば exit 2 になる（別の target で採った値を、置き場所の違う target の値として比べない）。
 
 - 組 × 指標ごとに、新側の中央値と現側の中央値の差を、許容幅（現側の四分位範囲・絶対の下限 `performance.floors`・現側の中央値 × 割合の下限 `performance.relative_floors` のいちばん大きいもの）と比べる。
   許容幅を超えた悪化（`regressed`）は要対応で、LLM のトリアージに回さない。性能の差は crop を持たず、「重要か」を見て決めるものではないからである。
@@ -127,7 +129,6 @@ node <parity-suite の skill>/scripts/perf-stats.mjs compare \
   - `noisy`: 新側のばらつき（四分位範囲）が許容幅を超えている。負荷の高い機械で測った・バックグラウンドの処理が動いていたなど。
     `delta` が許容幅を超えていれば、回帰の疑いとして報告に添える（ばらつきに回帰が隠れていることがある）
   - `missing`: 片側か一部の回だけ値が無い、新側に組が無い
-  - `insufficient`: 回数が 5 回に満たない（基準を手で書き換えたときだけ起きる）。`parity-suite` の `summarize` を通し直す
   - `env_mismatch`: 環境か測り方が現側と違う（`environment_differences` に項目が出る）。
     このスキルは現行アプリを動かさないので、自分で採り直さない。収束の判定で停止し、`environment_differences` を載せて利用者に報告する。
     案内するのは、新側を測った機械で `parity-suite` の性能の採取と `summarize --write` をやり直し、その後でこのスキルを再実行する手順である

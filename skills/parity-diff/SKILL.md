@@ -221,7 +221,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
    ページの一覧と、同じ target の green 証跡から有効な集合を導き直し、現側に由来する `bbox` を両方の画像に当てる。新側に root が無いことを、停止の理由や `blocked_by` の根拠にしない。
    当てた詳細は `diff-metadata.json.capture_conditions_verified.cofeature_masks[]` に記録して報告する。恒久的なマスクの検証の結果である既存の `.masks` には混ぜない。
 4. 決定論的に差分を検出する（[`references/detect.md`](references/detect.md)）。画素・特性照合・aria の 3 つの比較方法で検出し、LLM は使わない。
-   性能は、インストール済みの `parity-suite` の `scripts/perf-stats.mjs compare --write <diff-metadata.json>` で比べる。許容幅を超えた悪化（`regressed`）は、トリアージを通さず要対応にする。
+   性能は、インストール済みの `parity-suite` の `scripts/perf-stats.mjs compare --target <target> --write <diff-metadata.json>` で比べる。許容幅を超えた悪化（`regressed`）は、トリアージを通さず要対応にする。
 5. 正規化とノイズフィルタ（[`references/normalize.md`](references/normalize.md)）。
    `intentional_diffs` → `component_diffs`（T）→ インスタンス例外 → ノイズ基準値（残りへまとめて当てる）の順に当てる。宣言できない構造の差（`gaps.md`）は、未検証として転記する。
 6. LLM でトリアージする（[`references/triage.md`](references/triage.md)）。正規化の後に残った候補だけを、1 件ずつ crop の対で見せる。

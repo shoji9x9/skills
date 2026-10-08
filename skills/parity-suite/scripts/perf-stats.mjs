@@ -178,7 +178,7 @@ function isKeyPart(v) {
  * 採取ファイル（perf-samples.json）を検証し、組ごとの値の列にまとめる。
  * 形の誤りは UsageError にする（判定できない入力を、判定した結果として扱わない）。
  * @param {unknown} doc
- * @param {{ side: "current" | "new", slug: string }} expect
+ * @param {{ side: "current" | "new", slug: string, target: (string|null) }} expect - 現側の target は null
  * @returns {Map<string, { page:string, viewport:string, values: Record<string, (number|null)[]> }>}
  */
 export function groupSamples(doc, expect) {
@@ -190,6 +190,12 @@ export function groupSamples(doc, expect) {
   }
   if (doc.side !== expect.side) {
     throw new UsageError(`採取の side が ${expect.side} でない: ${JSON.stringify(doc.side)}`);
+  }
+  if (doc.target !== expect.target) {
+    // 別の target で採った値を、この target の採取として比べない（置き場所の違いが TTFB・LCP に入る）
+    throw new UsageError(
+      `採取の target が ${JSON.stringify(expect.target)} でない: ${JSON.stringify(doc.target)}`,
+    );
   }
   if (doc.slug !== expect.slug) {
     throw new UsageError(`採取の slug が metadata.json と違う: ${JSON.stringify(doc.slug)}`);
@@ -382,7 +388,11 @@ export function summarize(metadata, samplesDoc, opts) {
     );
   }
   if (!isNonEmptyString(metadata.slug)) throw new UsageError("metadata.json に slug が無い");
-  const groups = groupSamples(samplesDoc, { side: "current", slug: metadata.slug });
+  const groups = groupSamples(samplesDoc, {
+    side: "current",
+    slug: metadata.slug,
+    target: null,
+  });
   const expected = expectedPairs(metadata);
   const missing = expected.filter((k) => !groups.has(k));
   const extra = [...groups.keys()].filter((k) => !expected.includes(k));
@@ -434,8 +444,6 @@ export function judgeMetric(cur, neu, floor, relativeFloor = 0) {
   }
   // 片側だけ・一部の回だけ値が無いのは、描画が安定していないか、片側で候補が出ていない
   if (cur.nulls > 0 || neu.nulls > 0) return { status: "missing", delta: null, tolerance: null };
-  if (cur.n < MIN_RUNS || neu.n < MIN_RUNS)
-    return { status: "insufficient", delta: null, tolerance: null };
   // 許容幅は、現側のばらつき・絶対の下限・現側の中央値に対する割合の、いちばん大きいもの
   const tolerance = Math.max(
     /** @type {number} */ (cur.iqr),
@@ -482,10 +490,12 @@ export function environmentDifferences(cur, neu) {
  * 新側の採取を、metadata.json の performance と比べる。
  * @param {Record<string, unknown>} metadata
  * @param {unknown} samplesDoc
- * @param {{ currentSamplesSha256: (string|null) }} opts - 現側の採取ファイルを今読んだ sha256（読めなければ null）
+ * @param {{ currentSamplesSha256: (string|null), target: string }} opts - 現側の採取ファイルを今読んだ sha256（読めなければ null）
  * @returns {Record<string, unknown>}
  */
 export function compare(metadata, samplesDoc, opts) {
+  if (!isNonEmptyString(opts.target))
+    throw new UsageError("比べる新側の target が無い（--target）");
   const perf = metadata.performance;
   if (!isPlainObject(perf)) {
     throw new UsageError("metadata.json に performance が無い（判定しない分岐は呼ぶ側で扱う）");
@@ -524,7 +534,11 @@ export function compare(metadata, samplesDoc, opts) {
   if (!isPlainObject(perf.capture)) {
     throw new UsageError("performance.capture が無い（summarize を通し直す）");
   }
-  const groups = groupSamples(samplesDoc, { side: "new", slug: metadata.slug });
+  const groups = groupSamples(samplesDoc, {
+    side: "new",
+    slug: metadata.slug,
+    target: opts.target,
+  });
   const neuDoc = /** @type {Record<string, unknown>} */ (samplesDoc);
   // 基準を採った後にページ・ビューポートが増減したか、path や寸法が変わったら、基準は今の組を表さない
   const staleCapture = JSON.stringify(perf.capture) !== JSON.stringify(captureDefinition(metadata));
@@ -554,6 +568,12 @@ export function compare(metadata, samplesDoc, opts) {
       const cur = /** @type {ReturnType<typeof summarizeValues>} */ (p.metrics[m]);
       if (!isPlainObject(cur) || !Number.isInteger(cur.n) || !Number.isInteger(cur.nulls)) {
         throw new UsageError(`performance.pairs の ${key} の ${m} の形が違う`);
+      }
+      // 手で書き換えた基準で、回数の足りない組や値の無い組を not_applicable として通さない
+      if (cur.n < MIN_RUNS || cur.nulls < 0 || cur.nulls > cur.n) {
+        throw new UsageError(
+          `performance.pairs の ${key} の ${m} の回数が範囲外（n は ${MIN_RUNS} 以上、nulls は 0 から n まで）`,
+        );
       }
       if (cur.nulls < cur.n && !(Number.isFinite(cur.median) && Number.isFinite(cur.iqr))) {
         throw new UsageError(`performance.pairs の ${key} の ${m} の median / iqr が数でない`);
@@ -647,7 +667,7 @@ export function main(argv, deps = {}) {
   const stderr = deps.stderr ?? ((s) => process.stderr.write(s));
   const usage = [
     "usage: perf-stats.mjs summarize --metadata <metadata.json> --samples <perf-samples.json> [--floor <指標>=<ms> ...] [--relative-floor <指標>=<割合> ...] [--write]",
-    "       perf-stats.mjs compare   --metadata <現側 metadata.json> --samples <新側 perf-samples.json> [--write <diff-metadata.json>]",
+    "       perf-stats.mjs compare   --metadata <現側 metadata.json> --samples <新側 perf-samples.json> --target <新側の target> [--write <diff-metadata.json>]",
   ].join("\n");
   const [command, ...rest] = argv;
   if (command !== "summarize" && command !== "compare") {
@@ -671,7 +691,7 @@ export function main(argv, deps = {}) {
       const allowed =
         command === "summarize"
           ? ["--metadata", "--samples", "--floor", "--relative-floor"]
-          : ["--metadata", "--samples", "--write"];
+          : ["--metadata", "--samples", "--target", "--write"];
       if (!allowed.includes(a)) throw new UsageError(`不明な引数 ${a}`);
       const v = rest[i + 1];
       if (v === undefined || v === "" || v.startsWith("--"))
@@ -760,7 +780,10 @@ export function main(argv, deps = {}) {
         currentSha = null; // 読めない基準を、今の基準として扱わない
       }
     }
-    const result = compare(metadata, samplesDoc, { currentSamplesSha256: currentSha });
+    const result = compare(metadata, samplesDoc, {
+      currentSamplesSha256: currentSha,
+      target: opts.target ?? "",
+    });
     // 書き込みに失敗しても判定の結果が残るよう、先に出力する
     stdout(`${JSON.stringify(result, null, 2)}\n`);
     if (opts.write) {

@@ -149,7 +149,6 @@
       "regressed": 0,
       "noisy": 0,
       "missing": 0,
-      "insufficient": 0,
       "env_mismatch": 0,
       "stale_baseline": 0
     },
