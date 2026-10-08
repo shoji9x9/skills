@@ -1,8 +1,9 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import { describe, expect, test } from "vitest";
+
+import { makeTempDir } from "../lib/test-tmpdir.js";
 
 import {
   buildSkillContentIndex,
@@ -998,7 +999,7 @@ describe("skill eval result normalization", () => {
           }
         };
         const setup = (fixtureFiles) => {
-          const root = mkdtempSync(join(tmpdir(), "skill-content-"));
+          const root = makeTempDir("skill-content-");
           writeTree(join(root, "skills"), {
             "box/SKILL.md": `---\nname: box\n---\n${LINE}\n`,
             "box/references/api.md": `${API_LINE}\n`,
