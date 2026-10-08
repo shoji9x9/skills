@@ -14,7 +14,7 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "CLI: 正規化した JSON を出して exit 0（node で起動しても main が走る）",
+        "CLI: 正規化した JSON を出して exit 0（node で起動しても main が実行される）",
         "Set-Cookie: 一覧に載らなければ cookie の値ごと落とす",
         "絞り込み: 一覧に載らないヘッダー（揮発・秘密の値）は落とす"
       ]
@@ -29,7 +29,7 @@
       "expect_failing": [
         "CLI: --list は比べるヘッダー名を名前順の配列で出す（録画時の一覧の記録用）",
         "一覧: 付け手が unknown の行だけのヘッダーは比べる対象に入れない",
-        "一覧: 同じヘッダーの行に付け手が unknown の行が混ざれば比べる対象に入れない"
+        "一覧: 同じヘッダーの行に付け手が unknown の行が含まれれば比べる対象に入れない"
       ]
     },
     {
@@ -40,7 +40,7 @@
       "replace": "known.get(key) ?? false) || setter",
       "occurrences": 1,
       "expect_failing": [
-        "一覧: 同じヘッダーの行に付け手が unknown の行が混ざれば比べる対象に入れない"
+        "一覧: 同じヘッダーの行に付け手が unknown の行が含まれれば比べる対象に入れない"
       ]
     },
     {
@@ -51,7 +51,7 @@
       "replace": "    const key = name;\n    // allHeaders()",
       "occurrences": 1,
       "expect_failing": [
-        "CLI: 正規化した JSON を出して exit 0（node で起動しても main が走る）",
+        "CLI: 正規化した JSON を出して exit 0（node で起動しても main が実行される）",
         "Set-Cookie: cookie ごとの名前と属性（HttpOnly・Secure の有無と SameSite の値）にする",
         "nonce: 複数行の CSP を結合しても各行の nonce を伏せる",
         "小文字化: allHeaders() と headersArray() の同じ応答は同じ出力になる",
@@ -70,7 +70,7 @@
       "occurrences": 1,
       "expect_failing": [
         "CLI: --list は比べるヘッダー名を名前順の配列で出す（録画時の一覧の記録用）",
-        "CLI: 正規化した JSON を出して exit 0（node で起動しても main が走る）",
+        "CLI: 正規化した JSON を出して exit 0（node で起動しても main が実行される）",
         "Set-Cookie: SameSite は値ごと比べる（Lax と None を同じにしない）",
         "Set-Cookie: cookie ごとの名前と属性（HttpOnly・Secure の有無と SameSite の値）にする",
         "Set-Cookie: cookie 名で並べ替え、受け取った順に依らない",
@@ -88,8 +88,8 @@
         "一覧: 付け手が unknown の行だけのヘッダーは比べる対象に入れない",
         "一覧: 同じヘッダーの行がすべて付け手の決まった行なら比べる対象に入れる（名前の大文字小文字は問わない）",
         "一覧: 同じヘッダーの行どうしで付く応答が重なれば入力の誤りにする（どちらの値か読めない）",
-        "一覧: 同じヘッダーの行に付け手が unknown の行が混ざれば比べる対象に入れない",
-        "一覧: 同梱テンプレートのキーを埋めた一覧は読める（正本の形から作る）",
+        "一覧: 同じヘッダーの行に付け手が unknown の行が含まれれば比べる対象に入れない",
+        "一覧: 同梱テンプレートのキーを埋めた一覧は読める（原本の形から作る）",
         "一覧: 英数字と - _ . だけの名前 X.Custom は通す",
         "一覧: 英数字と - _ . だけの名前 X_Custom_Header は通す",
         "一覧: 行のヘッダー名を小文字で読む",

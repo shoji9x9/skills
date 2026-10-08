@@ -31,7 +31,7 @@ const popupT = {
 
 const diff = (name, actual) => ({ name, prop: "margin-top", expected: "0px", actual });
 
-test("宣言した要素の差分は従来どおり吸収する（照合が死んでいないことの陽性コントロール）", () => {
+test("宣言した要素の差分は従来どおり吸収する（照合が動いていることの確認）", () => {
   expect(matchComponentT(diff("filter-popup", "2px"), [popupT])).toEqual({
     status: "absorbed_T",
     rule: popupT,
@@ -53,7 +53,7 @@ test("別要素の逸脱値を deviates_T へ格上げしない（偽陽性: 無
   expect(matchComponentT(diff("clear-button", "5.2969px"), [popupT])).toBeNull();
 });
 
-test("glob は前方一致の複数インスタンスに効き、範囲外の要素には効かない", () => {
+test("glob は前方一致の複数インスタンスに当たり、範囲外の要素には当たらない", () => {
   const globT = { ...popupT, component: "filter-popup-*" };
   expect(matchComponentT(diff("filter-popup-clear", "2px"), [globT])).not.toBeNull();
   expect(matchComponentT(diff("filter-popup-body", "2px"), [globT])).not.toBeNull();
@@ -75,7 +75,7 @@ test('幾何差分の name（"A | B" の対）は両側を照合候補にする'
   expect(matchesComponentPattern("submit-button", "filter-popup | clear-button")).toBe(false);
 });
 
-test("component の欠落・空は wildcard ではなく不一致（fail-closed）", () => {
+test("component の欠落・空は wildcard ではなく不一致（欠けたら一致しないとして扱う）", () => {
   for (const component of [undefined, "", "   "]) {
     const t = { ...popupT, component };
     expect(matchComponentT(diff("filter-popup", "2px"), [t])).toBeNull();
@@ -141,13 +141,13 @@ test("CLI: 別要素の回帰は unexplained として残り exit 1 になる（
   expect(r.status).toBe(1);
 });
 
-test("CLI: 宣言した要素の差分は absorbed_T で exit 0（陽性コントロール）", () => {
+test("CLI: 宣言した要素の差分は absorbed_T で exit 0（誤検知しないことの確認）", () => {
   const r = runCli([popupT], [diff("filter-popup", "2px")]);
   expect(r.classified[0].classification).toBe("absorbed_T");
   expect(r.status).toBe(0);
 });
 
-test("CLI: component を欠いた宣言は黙って無効化せず stderr へ警告を出す", () => {
+test("CLI: component を欠いた宣言は警告なしに無効化せず stderr へ警告を出す", () => {
   const r = runCli([{ ...popupT, component: undefined }], [diff("filter-popup", "2px")]);
   expect(r.stderr).toContain(
     "warning: component_diffs[0]: missing component — not used for matching",

@@ -27,7 +27,7 @@ test("クォート無しでも通常の description は通る", () => {
   expect(ok("SKILL.md", skill("name: my-skill\ndescription: 何かをするスキル"))).toBe(true);
 });
 
-test("未クオート description の「: 」で YAML が壊れたら検出", () => {
+test("未クオート description の「: 」で YAML が読めなくなったら検出", () => {
   // 「A: 論理データ設計」のような ASCII コロン＋スペースがマッピング区切りと解釈される。
   const v = checkFrontmatter("SKILL.md", skill("name: my-skill\ndescription: A: 論理データ設計"));
   expect(v.length).toBe(1);

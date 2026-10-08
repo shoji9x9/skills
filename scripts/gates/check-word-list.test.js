@@ -21,9 +21,9 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const script = join(repoRoot, "scripts/gates/check-word-list.js");
 
 const ENTRIES = [
-  { term: "正本", instead: "原本", message: "m", tokens: [] },
+  { term: "旧語", instead: "新語", message: "m", tokens: [] },
   { message: "同じ語の別の形", tokens: [] },
-  { term: "走る", instead: "実行する", message: "m", tokens: [] },
+  { term: "古い名前", instead: "新しい名前", message: "m", tokens: [] },
 ];
 
 function write(root, path, text) {
@@ -56,8 +56,8 @@ test("生成: term を持つエントリだけを表の行にし、textlint の�
       "",
       "| 使わない語 | 言い換え |",
       "| --- | --- |",
-      "| 正本 | 原本 |",
-      "| 走る | 実行する |",
+      "| 旧語 | 新語 |",
+      "| 古い名前 | 新しい名前 |",
       "",
       "<!-- textlint-enable -->",
     ].join("\n"),
@@ -71,7 +71,11 @@ test("陰性: 一覧が生成した内容と一致すれば通す", () => {
 
 test("陽性: 1 行だけ違えば一致しないと報告し、ファイルは書き換えない", () => {
   const root = makeSyncedRepo();
-  write(root, LIST_PATH, list(root).replace("| 走る | 実行する |", "| 走る | 動く |"));
+  write(
+    root,
+    LIST_PATH,
+    list(root).replace("| 古い名前 | 新しい名前 |", "| 古い名前 | 別の名前 |"),
+  );
   const before = list(root);
   expect(checkWordList(root)).toEqual({ ok: false, fixed: false });
   expect(list(root)).toBe(before);
@@ -92,8 +96,8 @@ test("--fix: 生成した内容で書き換え（無ければ作り）、その�
 test.each([
   ["words.json が無い", { words: null }, "が無い"],
   ["entries が配列でない", { words: JSON.stringify({ entries: {} }) }, "配列でない"],
-  ["term だけを持つ", { entries: [{ term: "正本" }] }, "両方持つ"],
-  ["instead だけを持つ", { entries: [{ instead: "原本" }] }, "両方持つ"],
+  ["term だけを持つ", { entries: [{ term: "旧語" }] }, "両方持つ"],
+  ["instead だけを持つ", { entries: [{ instead: "新語" }] }, "両方持つ"],
   ["term が重複", { entries: [ENTRIES[0], ENTRIES[0]] }, "重複"],
   ["「|」を含む", { entries: [{ term: "a|b", instead: "c" }] }, "「|」"],
   ["一覧に出す行が 0 件", { entries: [ENTRIES[1]] }, "0 件"],
@@ -109,7 +113,7 @@ test("main: 一致なら 0、食い違いは 1、作れなければ 2 を返す"
   expect(main([makeRepo({ entries: [ENTRIES[1]] })])).toBe(2);
 });
 
-test("陽性コントロール（CLI）: 子プロセスとして起動しても、食い違いは exit 1、--fix の後は exit 0", () => {
+test("検出の確認（CLI）: 子プロセスとして起動しても、食い違いは exit 1、--fix の後は exit 0", () => {
   const root = makeRepo({ list: "x\n" });
   const run = (...args) => spawnSync(process.execPath, [script, ...args], { encoding: "utf8" });
   expect(run(root).status).toBe(1);

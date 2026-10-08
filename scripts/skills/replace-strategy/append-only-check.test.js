@@ -106,8 +106,8 @@ const ASSETS = [
   "",
   "| 種類 | ファイル・出どころ | 方針 | 宣言 | 状態 | 決定日・決めた工程 | 理由 |",
   "|---|---|---|---|---|---|---|",
-  "| ロゴ | `logo.png` | 実体を写す | - | 有効 | 2026-09-01・setup | 再配布可を確認済み |",
-  "| 本文の書体 | `body.woff2` | 実体を写す | - | 有効 | 2026-09-01・setup | 字形を一致させるため |",
+  "| ロゴ | `logo.png` | 実体をコピーする | - | 有効 | 2026-09-01・setup | 再配布可を確認済み |",
+  "| 本文の書体 | `body.woff2` | 実体をコピーする | - | 有効 | 2026-09-01・setup | 字形を一致させるため |",
   "",
 ].join("\n");
 
@@ -196,7 +196,7 @@ function writeManifest(root, artifacts) {
   return path;
 }
 
-test("陽性コントロール: 追記だけなら exit 0", () => {
+test("誤検知しないことの確認: 追記だけなら exit 0", () => {
   const root = makeRepo();
   appendFileSync(join(root, ".replace/features.md"), "| order-detail | 注文詳細 | 未 | 未起票 |\n");
   const r = run(root);
@@ -253,7 +253,7 @@ test("同じ行が 2 回在ったのが 1 回に減っても落ちる（多重�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("追記専用の成果物が 1 件も無ければ合格に倒さない（exit 2）", () => {
+test("追記専用の成果物が 1 件も無ければ合格として扱わない（exit 2）", () => {
   const root = makeTempDir("append-only-empty-");
   writeFileSync(join(root, "README.md"), "x\n");
   for (const args of [
@@ -266,12 +266,12 @@ test("追記専用の成果物が 1 件も無ければ合格に倒さない（ex
     spawnSync("git", ["-C", root, ...args], { encoding: "utf8" });
   }
   const r = run(root);
-  expect(r.stderr).toMatch(/対象 0 件を合格に倒さない/);
+  expect(r.stderr).toMatch(/対象 0 件を合格として扱わない/);
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("git リポジトリでなければ合格に倒さない（exit 2）", () => {
+test("git リポジトリでなければ合格として扱わない（exit 2）", () => {
   const root = makeTempDir("append-only-nogit-");
   const r = run(root);
   expect(r.stderr).toMatch(/git リポジトリではない/);
@@ -326,7 +326,7 @@ test("リポジトリの一階層下を --root に渡しても突き合わせが
   rmSync(repo, { recursive: true, force: true });
 });
 
-test("比較元に在る追記専用の成果物が 0 件なら合格に倒さない（突き合わせが成立していない）", () => {
+test("比較元に在る追記専用の成果物が 0 件なら合格として扱わない（突き合わせが成立していない）", () => {
   const root = makeTempDir("append-only-uncommitted-");
   writeFileSync(join(root, "README.md"), "x\n");
   for (const args of [
@@ -347,7 +347,7 @@ test("比較元に在る追記専用の成果物が 0 件なら合格に倒さ�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("正本が求めるその場の更新（状態列 未→済・Issue 列 未起票→番号・最終更新）は縮小にしない", () => {
+test("原本が求めるその場の更新（状態列 未→済・Issue 列 未起票→番号・最終更新）は縮小にしない", () => {
   const root = makeRepo();
   writeFileSync(
     join(root, ".replace/features.md"),
@@ -426,7 +426,7 @@ test("dataset の version を上げて changes を追記しても縮小にしな
   rmSync(root, { recursive: true, force: true });
 });
 
-test("dataset の過去の changes 要素を書き換えると落ちる（json-arrays の陽性コントロール）", () => {
+test("dataset の過去の changes 要素を書き換えると落ちる（json-arrays で検出されることの確認）", () => {
   const root = makeRepo();
   writeFileSync(
     join(root, ".replace/dataset/metadata.json"),
@@ -474,7 +474,7 @@ test("空の例外台帳へ最初の承認を追記しても縮小にしない",
   rmSync(root, { recursive: true, force: true });
 });
 
-test("一覧の unit が語彙外なら合格に倒さない（exit 2）", () => {
+test("一覧の unit が語彙外なら合格として扱わない（exit 2）", () => {
   const root = makeRepo();
   const manifest = writeManifest(root, [
     { id: "features", pattern: ".replace/features.md", unit: "diff" },
@@ -485,7 +485,7 @@ test("一覧の unit が語彙外なら合格に倒さない（exit 2）", () =>
   rmSync(root, { recursive: true, force: true });
 });
 
-test("unit が json-arrays なのに arrays が空なら合格に倒さない（exit 2）", () => {
+test("unit が json-arrays なのに arrays が空なら合格として扱わない（exit 2）", () => {
   const root = makeRepo();
   const manifest = writeManifest(root, [
     { id: "dataset", pattern: ".replace/dataset/metadata.json", unit: "json-arrays", arrays: [] },
@@ -496,7 +496,7 @@ test("unit が json-arrays なのに arrays が空なら合格に倒さない（
   rmSync(root, { recursive: true, force: true });
 });
 
-test("同じファイルに突き合わせ方の違う項目が当たれば合格に倒さない（exit 2）", () => {
+test("同じファイルに突き合わせ方の違う項目が当たれば合格として扱わない（exit 2）", () => {
   const root = makeRepo();
   const manifest = writeManifest(root, [
     { id: "features-lines", pattern: ".replace/features.md", unit: "lines" },
@@ -508,7 +508,7 @@ test("同じファイルに突き合わせ方の違う項目が当たれば合�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("json-arrays の対象が JSON として壊れていれば合格に倒さない（exit 2）", () => {
+test("json-arrays の対象が JSON として不正なら合格として扱わない（exit 2）", () => {
   const root = makeRepo();
   writeFileSync(join(root, ".replace/dataset/metadata.json"), "{ broken\n");
   const r = run(root);
@@ -534,7 +534,7 @@ test("unit を持たない旧い一覧は lines として読む（後方互換�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("比較元の木に在るのに内容を取り出せなければ合格に倒さない（exit 2）", () => {
+test("比較元の木に在るのに内容を取り出せなければ合格として扱わない（exit 2）", () => {
   // gitlink（サブモジュール相当）は ls-tree に名前が出るのに `git show <rev>:<path>` が失敗する。
   // これを「比較元に無い＝新規」として扱うと、一部だけ取り出せないときに縮小が数えられないまま素通りする。
   const root = makeRepo();
@@ -600,7 +600,7 @@ test("未測定の blocking → accepted（承認の追記）は正規の遷移�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("key を宣言した配列の要素に鍵が無ければ合格に倒さない（exit 2）", () => {
+test("key を宣言した配列の要素に鍵が無ければ合格として扱わない（exit 2）", () => {
   const root = makeRepo();
   const path = join(root, ".replace/parity/order-list/metadata.json");
   const doc = JSON.parse(readFileSync(path, "utf8"));
@@ -612,7 +612,7 @@ test("key を宣言した配列の要素に鍵が無ければ合格に倒さな�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("unit が json-arrays でないのに key があれば合格に倒さない（exit 2）", () => {
+test("unit が json-arrays でないのに key があれば合格として扱わない（exit 2）", () => {
   const root = makeRepo();
   const manifest = writeManifest(root, [
     { id: "features", pattern: ".replace/features.md", unit: "markdown-structure", key: "item" },
@@ -628,7 +628,7 @@ test("決定行の非鍵セルを書き換えると落ちる（鍵だけを残�
   writeFileSync(
     join(root, ".replace/assets.md"),
     ASSETS.replace(
-      "| ロゴ | `logo.png` | 実体を写す | - | 有効 | 2026-09-01・setup | 再配布可を確認済み |",
+      "| ロゴ | `logo.png` | 実体をコピーする | - | 有効 | 2026-09-01・setup | 再配布可を確認済み |",
       "| ロゴ | `logo.svg` | 同等物を作る | - | 有効 | 2026-09-17・order | 再配布不可のため |",
     ),
   );
@@ -639,13 +639,13 @@ test("決定行の非鍵セルを書き換えると落ちる（鍵だけを残�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("assets.md の 状態 列は正本が更新を定めているので通す（mutable_columns）", () => {
+test("assets.md の 状態 列は原本が更新を定めているので通す（mutable_columns）", () => {
   const root = makeRepo();
   writeFileSync(
     join(root, ".replace/assets.md"),
     ASSETS.replace(
-      "| ロゴ | `logo.png` | 実体を写す | 有効 |",
-      "| ロゴ | `logo.png` | 実体を写す | 取り消し済み（2026-09-17 → 下の行） |",
+      "| ロゴ | `logo.png` | 実体をコピーする | 有効 |",
+      "| ロゴ | `logo.png` | 実体をコピーする | 取り消し済み（2026-09-17 → 下の行） |",
     ),
   );
   const r = run(root);
@@ -676,7 +676,7 @@ test("承認済みの未測定項目の承認日時を差し替えると落ち�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("未測定項目の理由を書き換えると落ちる（鍵以外は既定で不変）", () => {
+test("未測定項目の理由を書き換えると落ちる（鍵以外はデフォルトで不変）", () => {
   const root = makeRepo();
   const path = join(root, ".replace/parity/order-list/metadata.json");
   const doc = JSON.parse(readFileSync(path, "utf8"));
@@ -700,7 +700,7 @@ test("宣言に無い disposition の遷移は落ちる", () => {
   rmSync(root, { recursive: true, force: true });
 });
 
-test("transitions の表記が <変更前>-><変更後> でなければ合格に倒さない（exit 2）", () => {
+test("transitions の表記が <変更前>-><変更後> でなければ合格として扱わない（exit 2）", () => {
   const root = makeRepo();
   const manifest = writeManifest(root, [
     {
@@ -718,7 +718,7 @@ test("transitions の表記が <変更前>-><変更後> でなければ合格に
   rmSync(root, { recursive: true, force: true });
 });
 
-test("key が無いのに fill_only を宣言したら合格に倒さない（exit 2）", () => {
+test("key が無いのに fill_only を宣言したら合格として扱わない（exit 2）", () => {
   const root = makeRepo();
   const manifest = writeManifest(root, [
     {
@@ -739,11 +739,11 @@ test("同じ鍵の 2 行の間でセルを入れ替えると落ちる（重複�
   // assets.md は方針を覆した行と現在の行が同じ「種類」で 2 行並ぶ（原本が想定する形）。
   const root = makeRepo();
   const rowA =
-    "| ロゴ | `logo.png` | 実体を写す | - | 有効 | 2026-09-01・setup | 再配布可を確認済み |";
+    "| ロゴ | `logo.png` | 実体をコピーする | - | 有効 | 2026-09-01・setup | 再配布可を確認済み |";
   const rowB =
     "| ロゴ | `logo.svg` | 同等物を作る | - | 有効 | 2026-09-10・order | 再配布不可のため |";
   const base = ASSETS.replace(
-    "| 本文の書体 | `body.woff2` | 実体を写す | - | 有効 | 2026-09-01・setup | 字形を一致させるため |",
+    "| 本文の書体 | `body.woff2` | 実体をコピーする | - | 有効 | 2026-09-01・setup | 字形を一致させるため |",
     rowB,
   );
   writeFileSync(join(root, ".replace/assets.md"), base);
@@ -767,9 +767,9 @@ test("方針を覆す正規の手順（状態・宣言・理由を更新して�
   // 原本: replace-strategy の references/static-assets.md「覆したときの手順」。
   const root = makeRepo();
   const old =
-    "| ロゴ | `logo.png` | 実体を写す | - | 有効 | 2026-09-01・setup | 再配布可を確認済み |";
+    "| ロゴ | `logo.png` | 実体をコピーする | - | 有効 | 2026-09-01・setup | 再配布可を確認済み |";
   const revoked =
-    "| ロゴ | `logo.png` | 実体を写す | 取り消し済み | 取り消し済み（2026-09-18 → 下の行） | 2026-09-01・setup | 再配布の可否を確認できず方針を覆した |";
+    "| ロゴ | `logo.png` | 実体をコピーする | 取り消し済み | 取り消し済み（2026-09-18 → 下の行） | 2026-09-01・setup | 再配布の可否を確認できず方針を覆した |";
   const appended =
     "| ロゴ | `logo.svg` | 同等物を作る | ロゴを図形で描き直す（縁と曲線の差は残る） | 有効 | 2026-09-18・order | 再配布不可のため |";
   writeFileSync(join(root, ".replace/assets.md"), ASSETS.replace(old, `${revoked}\n${appended}`));
@@ -792,7 +792,7 @@ test("決定の中身にあたる箇条書きの値を書き換えると落ち�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("正本が更新を定めている箇条書き（最終更新・方針の所在）は通す", () => {
+test("原本が更新を定めている箇条書き（最終更新・方針の所在）は通す", () => {
   const root = makeRepo();
   writeFileSync(
     join(root, ".replace/dependencies.md"),
@@ -807,7 +807,7 @@ test("正本が更新を定めている箇条書き（最終更新・方針の�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("unit が json-arrays なのに mutable_bullets があれば合格に倒さない（exit 2）", () => {
+test("unit が json-arrays なのに mutable_bullets があれば合格として扱わない（exit 2）", () => {
   const root = makeRepo();
   const manifest = writeManifest(root, [
     {
@@ -826,7 +826,7 @@ test("unit が json-arrays なのに mutable_bullets があれば合格に倒さ
   rmSync(root, { recursive: true, force: true });
 });
 
-test("unit が lines なのに mutable_bullets があれば合格に倒さない（exit 2）", () => {
+test("unit が lines なのに mutable_bullets があれば合格として扱わない（exit 2）", () => {
   const root = makeRepo();
   const manifest = writeManifest(root, [
     {
@@ -844,7 +844,7 @@ test("unit が lines なのに mutable_bullets があれば合格に倒さない
 
 // Issue #404: 同じ id を持つ項目が同じファイルに当たると、突き合わせ方が割れていても
 // 先勝ちで無音に決まっていた（`assign` の id 一致による早期 return が整合性検査を飛ばしていた）。
-test("一覧の id が重複していれば合格に倒さない（exit 2）", () => {
+test("一覧の id が重複していれば合格として扱わない（exit 2）", () => {
   const root = makeRepo();
   const manifest = writeManifest(root, [
     // 緩い方（Issue 列を書き換えてよい）を先に置く。先勝ちだとこちらが無音で採られる。
@@ -889,7 +889,7 @@ test("id が違えば突き合わせ方の食い違いは従来どおり落ち�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("id が一意で突き合わせ方も同じなら、同じファイルに 2 項目が当たっても通る（陽性コントロール）", () => {
+test("id が一意で突き合わせ方も同じなら、同じファイルに 2 項目が当たっても通る（誤検知しないことの確認）", () => {
   const root = makeRepo();
   const manifest = writeManifest(root, [
     {
@@ -1285,7 +1285,7 @@ test("名指ししていない鍵は、同名の兄弟が両方とも育って�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("mutable_blocks がキーパスの形でなければ合格に倒さない（exit 2）", () => {
+test("mutable_blocks がキーパスの形でなければ合格として扱わない（exit 2）", () => {
   const root = makeConfigRepo();
   const manifest = writeManifest(root, [
     {
@@ -1301,7 +1301,7 @@ test("mutable_blocks がキーパスの形でなければ合格に倒さない�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("unit が markdown-structure なのに mutable_blocks があれば合格に倒さない（exit 2）", () => {
+test("unit が markdown-structure なのに mutable_blocks があれば合格として扱わない（exit 2）", () => {
   const root = makeConfigRepo();
   const manifest = writeManifest(root, [
     {
@@ -1378,7 +1378,7 @@ test("決定を覆すとき状態列の更新 ＋ 新しい行の追記なら通
   rmSync(root, { recursive: true, force: true });
 });
 
-test("覆った行を消せば落ちる（状態列に倒して残す契約）", () => {
+test("覆った行を消せば落ちる（状態列を取り消し済みにして残す取り決め）", () => {
   const root = makeDependencyRepo();
   writeDependencies(
     root,
@@ -1571,7 +1571,7 @@ test("同じ鍵の空コンテナが 2 つあり片方を消せば落ちる（�
 // 一覧の突き合わせ方の食い違い・パス解決の抜け（PR #429 のレビュー指摘・2 巡目）
 // ---------------------------------------------------------------------------
 
-test("同じファイルに当たる 2 項目で mutable_blocks だけ違えば合格に倒さない（exit 2）", () => {
+test("同じファイルに当たる 2 項目で mutable_blocks だけ違えば合格として扱わない（exit 2）", () => {
   // 比較に入っていないと、一覧の並び順で外す範囲が変わる。判定できないときに失敗するはずのチェックが、並び順次第で合格を返す。
   const root = makeConfigRepo();
   const manifest = writeManifest(root, [
@@ -1594,7 +1594,7 @@ test("同じファイルに当たる 2 項目で mutable_blocks だけ違えば�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("同じファイルに当たる 2 項目で growable_containers だけ違えば合格に倒さない（exit 2）", () => {
+test("同じファイルに当たる 2 項目で growable_containers だけ違えば合格として扱わない（exit 2）", () => {
   const root = makeConfigRepo();
   const manifest = writeManifest(root, [
     {
@@ -1616,7 +1616,7 @@ test("同じファイルに当たる 2 項目で growable_containers だけ違�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("growable_containers がキーパスの形でなければ合格に倒さない（exit 2）", () => {
+test("growable_containers がキーパスの形でなければ合格として扱わない（exit 2）", () => {
   const root = makeConfigRepo();
   const manifest = writeManifest(root, [
     {
@@ -1747,7 +1747,7 @@ test("growable の鍵の注記を消せば落ちる", () => {
   rmSync(root, { recursive: true, force: true });
 });
 
-test("キーパスに `-` だけのセグメントを書けば合格に倒さない（exit 2）", () => {
+test("キーパスに `-` だけのセグメントを書けば合格として扱わない（exit 2）", () => {
   // `-` は stripYamlBlocks がリスト要素へ積むマーカーと同じ綴り。名指しできると全リスト要素が
   // 同じ鍵を共有し、兄弟を区別できなくなる（片方から要素を消しても通る抜けが、設定次第で戻る）。
   const root = makeConfigRepo();
@@ -2047,7 +2047,7 @@ test("引用符の中にカンマを持つ文言の差し替えは無音で通�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("入れ子になったキーパスを 2 つのオプションに書けば合格に倒さない（祖先が配下を丸ごと外す）", () => {
+test("入れ子になったキーパスを 2 つのオプションに書けば合格として扱わない（祖先が配下を丸ごと外す）", () => {
   const root = makeConfigRepo();
   const manifest = writeManifest(root, [
     {
@@ -2081,7 +2081,7 @@ test("接頭辞が重なるだけの兄弟キーは入れ子と数えない（a.
   rmSync(root, { recursive: true, force: true });
 });
 
-test("同じキーパスを 2 つのオプションに書けば合格に倒さない（exit 2）", () => {
+test("同じキーパスを 2 つのオプションに書けば合格として扱わない（exit 2）", () => {
   const root = makeConfigRepo();
   const manifest = writeManifest(root, [
     {
@@ -2123,7 +2123,7 @@ test("1 行で閉じないフロー形式のコンテナは読めたことにし
   expect(flowItems('["a"] trailing')).toBeNull();
 });
 
-test("陽性コントロール: 1 行で閉じるコンテナは今までどおり読める", () => {
+test("誤検知しないことの確認: 1 行で閉じるコンテナは今までどおり読める", () => {
   expect(flowItems("[]")).toEqual([]);
   expect(flowItems("[ ]")).toEqual([]);
   expect(flowItems("{}")).toEqual([]);
@@ -2233,7 +2233,7 @@ test("連結しても閉じないコンテナは読めたことにせず、表�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("弁別: 折り返しが無ければ案内を出さない", () => {
+test("区別: 折り返しが無ければ案内を出さない", () => {
   const root = makeConfigRepo();
   // 1 行のコンテナから要素を消す（同じ「縮小」でも折り返しは関係しない）。
   writeConfig(root, readConfig(root).replace('"テーブル名を保つ"', ""));
@@ -2315,7 +2315,7 @@ test("折り返しの連結: 途中の空行・コメント行を挟んでも読
   ]);
 });
 
-test("折り返しの連結: 読めない形は行のまま突き合わせる（fail-closed）", () => {
+test("折り返しの連結: 読めない形は行のまま突き合わせる（読めない形を連結の対象にしない）", () => {
   // 閉じないまま文書が終わる。
   expect(keepUnits('a:\n  keep: [\n    "x"\n')).toEqual(["a:", "  keep: [", '    "x"']);
   // 閉じないまま鍵のブロックを抜ける（続きの行を飲み込まない）。
@@ -2384,7 +2384,7 @@ test("読めないコンテナがあっても、無関係な鍵の削除には�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("陽性コントロール: 読めないコンテナ由来の消失には案内を出す", () => {
+test("検出されることの確認: 読めないコンテナ由来の消失には案内を出す", () => {
   const root = makeConfigRepo(UNREADABLE_CONFIG);
   writeConfig(root, readConfig(root).replace("      keep: [\n", ""));
   const r = run(root);
@@ -2503,7 +2503,7 @@ test("折り返した registry でも、閉じる行の注記（鍵の注記）�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("弁別: 育つコンテナは折り返した要素行の注記も単位に残す（行末コメントの削除を落とす要求）", () => {
+test("区別: 育つコンテナは折り返した要素行の注記も単位に残す（行末コメントの削除を落とす要求）", () => {
   const wrapped = [
     "    component_diffs: [",
     "      {component: grid, property: color}, # 注記",
@@ -2834,7 +2834,7 @@ test("mutable_blocks でも、開き括弧が次の行にある形を消費す�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("mutable_blocks のブロック形式は今までどおり配下を外す（消費へ倒れていない）", () => {
+test("mutable_blocks のブロック形式は今までどおり配下を外す（消費として扱われていない）", () => {
   const root = makeConfigRepo(
     CONFIG.replace("      pending: [] # 保留（測定結果で決める）\n", PENDING_BLOCK),
   );
@@ -2885,7 +2885,7 @@ test("入れ子の要素自身を折り返しても単位は変わらない（�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("弁別: 入れ子の要素の中身を差し替えれば落ちる", () => {
+test("区別: 入れ子の要素の中身を差し替えれば落ちる", () => {
   const root = makeConfigRepo(
     CONFIG.replace(
       "    component_diffs: []",
@@ -2957,7 +2957,7 @@ test("--exclude project-config でも残りの項目（features.md の行の削�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("--exclude に一覧に無い id を渡したら合格に倒さない（exit 2。綴り違いで黙って何も外さない）", () => {
+test("--exclude に一覧に無い id を渡したら合格として扱わない（exit 2。綴りを誤ったまま、警告なしに何も外さずに進まない）", () => {
   const root = makeConfigRepoWithEditedValue();
   const r = run(root, ["--exclude", "project-cofig"]);
   expect(r.stderr).toMatch(/--exclude の id が一覧に無い: project-cofig/);
@@ -2965,7 +2965,7 @@ test("--exclude に一覧に無い id を渡したら合格に倒さない（exi
   rmSync(root, { recursive: true, force: true });
 });
 
-test("--exclude で一覧の項目がすべて外れたら合格に倒さない（exit 2）", () => {
+test("--exclude で一覧の項目がすべて外れたら合格として扱わない（exit 2）", () => {
   const root = makeRepo();
   const manifest = writeManifest(root, [
     { id: "features", pattern: ".replace/features.md", unit: "markdown-structure" },
@@ -2998,9 +2998,9 @@ test.each([
 // ---------------------------------------------------------------------------
 
 const WEAKNESS_HEADER =
-  "| 弱点 | 分類 | 経路 | 基準（1 / 2 / 3） | 仕分け | 宣言 | 扱う設計作業 | 露出を広げた差異 | 状態 | 決定日・決めた工程 | 根拠 |";
+  "| 弱点 | 分類 | 攻撃の流れ | 基準（1 / 2 / 3） | 仕分け | 宣言 | 扱う設計作業 | 露出を広げた差異 | 状態 | 決定日・決めた工程 | 根拠 |";
 const WEAKNESS_DECIDED =
-  "| CSRF | A01 | `POST /api/orders` | 満 / 満 / 否 | 写す | 書き込みの API は text/plain を受け付ける | #123 | - | 有効 | 2026-09-01・setup | 現行ソースのハンドラ |";
+  "| CSRF | A01 | `POST /api/orders` | 満 / 満 / 否 | 引き継ぐ | 書き込みの API は text/plain を受け付ける | #123 | - | 有効 | 2026-09-01・setup | 現行ソースのハンドラ |";
 const WEAKNESS_BLANK =
   "| IDOR | A01 | `GET /api/orders/:id` | 満 / 満 / 満 |  |  |  | - | 有効 |  | 現行ソースのハンドラ |";
 const WEAKNESS_UNCONFIRMED =
@@ -3040,7 +3040,7 @@ function makeFillOnlyRepo() {
       "",
       "| 種類 | ファイル・出どころ | 描き方と使われるページ | 方針 | 再配布の可否（根拠） | 同等物で残る差 | 宣言 | 状態 | 決定日・決めた工程 | 理由 |",
       "|---|---|---|---|---|---|---|---|---|---|",
-      "| ロゴ | `logo.png` | `img`、ヘッダー | 実体を写す | 可（ライセンス・2026-09-01） | - | - | 有効 | 2026-09-01・setup | 字形を一致させるため |",
+      "| ロゴ | `logo.png` | `img`、ヘッダー | 実体をコピーする | 可（ライセンス・2026-09-01） | - | - | 有効 | 2026-09-01・setup | 字形を一致させるため |",
       "| 状態アイコン | `close.png` | `::before` のグリフ、/orders |  | 未確認 |  |  | 有効 |  | 再配布の可否を確認中 |",
       "",
     ].join("\n"),
@@ -3076,11 +3076,11 @@ test("weaknesses.md の仕分け空欄の行の決定の列（空セル）をそ
   rmSync(root, { recursive: true, force: true });
 });
 
-test("weaknesses.md の決めた仕分けを書き換えると落ちる（写す → 直す）", () => {
+test("weaknesses.md の決めた仕分けを書き換えると落ちる（引き継ぐ → 直す）", () => {
   const root = makeFillOnlyRepo();
-  replaceIn(root, ".replace/weaknesses.md", "/ 否 | 写す |", "/ 否 | 直す |");
+  replaceIn(root, ".replace/weaknesses.md", "/ 否 | 引き継ぐ |", "/ 否 | 直す |");
   const r = run(root);
-  expect(r.stdout).toMatch(/CSRF@0\|仕分け=写す/);
+  expect(r.stdout).toMatch(/CSRF@0\|仕分け=引き継ぐ/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
@@ -3137,7 +3137,7 @@ test("assets.md の方針空欄の行を後から埋めると通る（fill_only_
     root,
     ".replace/assets.md",
     "| 状態アイコン | `close.png` | `::before` のグリフ、/orders |  | 未確認 |  |  | 有効 |  | 再配布の可否を確認中 |",
-    "| 状態アイコン | `close.png` | `::before` のグリフ、/orders | 写さない | 未確認 | - | - | 有効 | 2026-09-20・order-list | 描いているのは書体のグリフ |",
+    "| 状態アイコン | `close.png` | `::before` のグリフ、/orders | コピーしない | 未確認 | - | - | 有効 | 2026-09-20・order-list | 描いているのは書体のグリフ |",
   );
   const r = run(root);
   expect(r.stdout).toMatch(/^ok: /m);
@@ -3147,9 +3147,9 @@ test("assets.md の方針空欄の行を後から埋めると通る（fill_only_
 
 test("assets.md の入っている方針を差し替えると落ちる", () => {
   const root = makeFillOnlyRepo();
-  replaceIn(root, ".replace/assets.md", "| 実体を写す | 可", "| 同等物を作る | 可");
+  replaceIn(root, ".replace/assets.md", "| 実体をコピーする | 可", "| 同等物を作る | 可");
   const r = run(root);
-  expect(r.stdout).toMatch(/ロゴ@0\|方針=実体を写す/);
+  expect(r.stdout).toMatch(/ロゴ@0\|方針=実体をコピーする/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
@@ -3187,7 +3187,7 @@ test.each([
   rmSync(root, { recursive: true, force: true });
 });
 
-test("unit が lines なのに fill_only_columns があれば合格に倒さない（exit 2）", () => {
+test("unit が lines なのに fill_only_columns があれば合格として扱わない（exit 2）", () => {
   const root = makeRepo();
   const manifest = writeManifest(root, [
     {
@@ -3203,7 +3203,7 @@ test("unit が lines なのに fill_only_columns があれば合格に倒さな�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("unit が json-arrays なのに fill_only_columns があれば合格に倒さない（exit 2）", () => {
+test("unit が json-arrays なのに fill_only_columns があれば合格として扱わない（exit 2）", () => {
   const root = makeRepo();
   const manifest = writeManifest(root, [
     {
@@ -3220,7 +3220,7 @@ test("unit が json-arrays なのに fill_only_columns があれば合格に倒�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("同じファイルに fill_only_columns の違う項目が当たれば合格に倒さない（exit 2）", () => {
+test("同じファイルに fill_only_columns の違う項目が当たれば合格として扱わない（exit 2）", () => {
   const root = makeRepo();
   const manifest = writeManifest(root, [
     {

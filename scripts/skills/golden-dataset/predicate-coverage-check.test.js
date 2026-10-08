@@ -178,7 +178,7 @@ test("一覧セルは空欄（未調査）と `-`（ゼロ件）を書き分け�
   expect(splitList("orders, order_items").items).toEqual(["orders", "order_items"]);
 });
 
-test("区切りは引用符・括弧の外だけで効く（条件の中のカンマで割らない）", () => {
+test("区切りは引用符・括弧の外だけで有効になる（条件の中のカンマで割らない）", () => {
   expect(splitList("status IN ('pending','canceled')").items).toEqual([
     "status IN ('pending','canceled')",
   ]);
@@ -240,14 +240,14 @@ test("features.md の (slug, テーブル) に消費側パラメータの行が�
   expect(withSentinel).not.toContain("param-row-missing");
 });
 
-test("消費側は 3 表すべてから集める（1 表しか読まないと写し漏れを検出できない）", () => {
+test("消費側は 3 表すべてから集める（1 表しか読まないと転記の抜けを検出できない）", () => {
   const { consumers, structural } = collectConsumers(FEATURES);
   expect(structural).toBe(false);
   expect([...consumers.get("orders")].sort()).toEqual(["monthly-summary", "order"]);
   expect([...consumers.get("roles")]).toEqual(["user"]);
 });
 
-test("陽性コントロール: 欠陥の無い設計は exit 0（常に落とす実装ではない）", () => {
+test("誤検知しないことの確認: 欠陥の無い設計は exit 0（常に落とす実装ではない）", () => {
   const { code, result } = run(["--features", "f.md", "--design", "d.md"], {
     "/w/f.md": FEATURES,
     "/w/d.md": designOf(),
@@ -257,7 +257,7 @@ test("陽性コントロール: 欠陥の無い設計は exit 0（常に落と�
   expect(code).toBe(0);
 });
 
-test("陽性コントロール: 実測が設計と一致する verification も exit 0", () => {
+test("誤検知しないことの確認: 実測が設計と一致する verification も exit 0", () => {
   const { code, result } = run(
     ["--features", "f.md", "--design", "d.md", "--verification", "v.md"],
     { "/w/f.md": FEATURES, "/w/d.md": designOf(), "/w/v.md": VERIFICATION },
@@ -288,7 +288,7 @@ test("空の verification は「渡していない」に丸めない（検査ご
   ).toBe(2);
 });
 
-test("写しが 1 slug 落ちると落ちる（役割が「読み取りだけ」へ倒れる前に拾う）", () => {
+test("転記から 1 slug が抜けると落ちる（役割が「読み取りだけ」と判定されてしまう前に拾う）", () => {
   const codes = codesOf({
     design: designOf({
       targets: [
@@ -303,7 +303,7 @@ test("写しが 1 slug 落ちると落ちる（役割が「読み取りだけ」
   expect(codes).toContain("copy-missing-slug");
 });
 
-test("写しに行ごと無いテーブルは写し漏れとして落ちる", () => {
+test("転記先に行ごと無いテーブルは転記の抜けとして落ちる", () => {
   const codes = codesOf({
     design: designOf({
       targets: [
@@ -375,7 +375,7 @@ test("消費側が在るのに「FK 親のみ」は落ちる（直接読まれ�
   expect(codes).toContain("fk-parent-has-consumer");
 });
 
-test("features.md の参照テーブルが空欄なら合格に倒さない", () => {
+test("features.md の参照テーブルが空欄なら合格として扱わない", () => {
   const codes = codesOf({
     features: FEATURES.replace(
       "| user | ユーザー | order, report | users, roles |",
@@ -385,7 +385,7 @@ test("features.md の参照テーブルが空欄なら合格に倒さない", ()
   expect(codes).toContain("features-reference-blank");
 });
 
-test("1 件の参照表は、扱いを決めていなければ落ちる（絞り込みの効きを観測できない）", () => {
+test("1 件の参照表は、扱いを決めていなければ落ちる（絞り込みが機能しているかを観測できない）", () => {
   const codes = codesOf({
     design: designOf({
       targets: [
@@ -468,7 +468,7 @@ test("1 行に複数の絞り込みが並ぶとき、述語 1 本で全部を満
   expect(codes).not.toContain("predicate-not-enumerated");
 });
 
-test("陽性コントロール: 並んだ絞り込みそれぞれに述語行があれば通る", () => {
+test("誤検知しないことの確認: 並んだ絞り込みそれぞれに述語行があれば通る", () => {
   const codes = codesOf({
     design: designOf({
       params: [
@@ -493,7 +493,7 @@ test("陽性コントロール: 並んだ絞り込みそれぞれに述語行が
   expect(codes).toEqual([]);
 });
 
-test("絞り込みがあるのに slug / テーブルが空の行は黙って飛ばさない", () => {
+test("絞り込みがあるのに slug / テーブルが空の行は警告なしに飛ばさない", () => {
   const codes = codesOf({
     design: designOf({
       params: [
@@ -616,7 +616,7 @@ test("列名の突き合わせは識別子境界で行う（owner_id は id を�
   expect(codes.filter((c) => c === "predicate-filter-not-enumerated")).toHaveLength(1);
 });
 
-test("真・偽の合計が表の件数を超える述語は落ちる（捏造した被覆を通さない）", () => {
+test("真・偽の合計が表の件数を超える述語は落ちる（捏造した網羅を通さない）", () => {
   // 1 件の表に「真 1 / 偽 1」と書くと踏める判定になり、件数 0 / 1 の検査も扱い次第で通ってしまう。
   const codes = codesOf({
     design: designOf({
@@ -683,7 +683,7 @@ test("述語 id が verification に無ければ落ちる", () => {
   expect(codes).toContain("verification-predicate-missing");
 });
 
-test("表そのものが無ければ型崩れとして exit 2（合格にも 1 にも倒さない）", () => {
+test("表そのものが無ければ型崩れとして exit 2（合格としても exit 1 としても扱わない）", () => {
   const { code, result } = run(["--features", "f.md", "--design", "d.md"], {
     "/w/f.md": FEATURES,
     "/w/d.md": "# データ設計（design）\n",
@@ -699,14 +699,17 @@ test("引数の誤りは exit 2", () => {
   expect(run(["--features", "f.md", "--design"], {}).code).toBe(2);
 });
 
-test("読めない入力は exit 2（存在しないことを合格に倒さない）", () => {
+test("読めない入力は exit 2（存在しないことを合格として扱わない）", () => {
   expect(run(["--features", "f.md", "--design", "d.md"], { "/w/f.md": FEATURES }).code).toBe(2);
 });
 
-test("述語の表は新しい見出し（述語ごとの分岐網羅）でも旧称（述語ごとの分岐被覆）でも同じに読む", () => {
+test("述語の表は新しい見出しでも改名する前の見出しでも同じに読む", () => {
   const renamed = designOf();
   expect(renamed).toContain("## 述語ごとの分岐網羅");
+  // 改名する前の見出しを読めることを確かめる入力なので、旧称をそのまま書く。
+  // textlint-disable
   const legacy = renamed.replace("## 述語ごとの分岐網羅", "## 述語ごとの分岐被覆");
+  // textlint-enable
   expect(legacy).not.toContain("## 述語ごとの分岐網羅");
   expect(codesOf({ design: renamed })).toEqual(codesOf({ design: legacy }));
   expect(codesOf({ design: renamed })).not.toContain("design-predicate-table-missing");
@@ -730,7 +733,7 @@ test("「消費側パラメータ」表が無ければ落ちる（絞り込み�
   expect(result.findings.map((f) => f.code)).toContain("design-param-table-missing");
 });
 
-test("verification の述語 id が重複していれば落ちる（後勝ちで実測を黙って捨てない）", () => {
+test("verification の述語 id が重複していれば落ちる（後勝ちで実測を警告なしに捨てない）", () => {
   // 2 行目（後勝ちする側）は設計と一致させる——重複を弾かないと、食い違う 1 行目が
   // 突き合わせに使われずに捨てられ、0 件の分岐が 1 件も報告されないまま通る。
   const codes = codesOf({
@@ -845,7 +848,7 @@ test("Issue #498 の形: 変換で届かないと記録した識別子の述語�
   expect(codes).toEqual(["predicate-counts-unconverted-value"]);
 });
 
-test("変換後の値で数え直して踏めない・gaps に記録にした述語は通る（陰性コントロール）", () => {
+test("変換後の値で数え直して踏めない・gaps に記録にした述語は通る（誤検知しないことの確認）", () => {
   const codes = codesOf({
     design: designOf({
       idRanges: idRangesWith([ORDERS_UNREACHED_GAPS, ORDERS_REACHED_MONTHLY]),
@@ -1072,7 +1075,7 @@ test("識別子の値の範囲の消費側・テーブルは features.md と対�
   ).toContain("id-range-consumer-blank");
 });
 
-test("列 `-` と実在の列の行を同じ表に併記すると落ちる（- の自己申告が消費側ごとの要求を黙って外す）", () => {
+test("列 `-` と実在の列の行を同じ表に併記すると落ちる（- の自己申告が消費側ごとの要求を警告なしに外す）", () => {
   const codes = codesOf({
     design: designOf({
       idRanges: idRangesWith([
@@ -1096,7 +1099,7 @@ test("同じ (テーブル, 列, slug) を 2 行に書くと落ちる（届く�
   expect(codes).toEqual(["id-range-duplicated"]);
 });
 
-test("変換の列の `-`（変換なし）は範囲の列と違い受ける（陰性コントロール）", () => {
+test("変換の列の `-`（変換なし）は範囲の列と違い受ける（誤検知しないことの確認）", () => {
   const codes = codesOf({
     design: designOf({
       idRanges: idRangesWith([

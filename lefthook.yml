@@ -119,10 +119,11 @@ pre-commit:
             glob: ".github/workflows/*.{yml,yaml}"
             run: actionlint
           - name: prose
-            # 人が読む Markdown とコメントの語と書式（textlint）。全体は CI で見るので、ここは staged だけにする。
+            # 人が読む Markdown とコメントの語と書式、文字列の語（textlint）。全体は CI で見るので、ここは staged だけにする。
             # 見る範囲はスクリプトが決める（.agents/rules/ と private skill を見て、スキルのコピーは見ない）。
-            # 拡張子は scripts/lib/code-comments.js の COMMENT_EXTENSIONS と揃える（lint-prose.test.js が一致を確かめる）。
-            glob: "*.{md,js,mjs,cjs,ts,sh,yml,yaml}"
+            # 拡張子は scripts/lib/code-comments.js の COMMENT_EXTENSIONS と、evals.json の json に揃える
+            # （lint-prose.test.js が一致を確かめる）。json は evals/<name>/evals.json だけを見る。
+            glob: "*.{md,js,mjs,cjs,ts,sh,yml,yaml,json}"
             run: node scripts/gates/lint-prose.js {staged_files}
           - name: agents-md-size
             # AGENTS.md のサイズ（Codex はデフォルトで 32 KiB までしか読まない）。このブランチで 30 KiB を超えたら、

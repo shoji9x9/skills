@@ -1,0 +1,196 @@
+{
+  "test_file": "scripts/lib/code-strings.test.js",
+  "mutations": [
+    {
+      "id": "CS-EVALS-ANCHOR",
+      "why": "evals.json をリポジトリの evals/<name>/ の外（fixture の中など）でも対象にする",
+      "file": "scripts/lib/code-strings.js",
+      "find": "const EVALS = /^evals\\/",
+      "replace": "const EVALS = /evals\\/",
+      "expect_failing": ["対象のファイル evals/x/fixtures/evals/y/evals.json → false"]
+    },
+    {
+      "id": "CS-IMPORT",
+      "why": "import の指定子も文字列として見る",
+      "file": "scripts/lib/code-strings.js",
+      "find": "if (!ts.isImportDeclaration(node.parent) && !ts.isExportDeclaration(node.parent))",
+      "replace": "if (!ts.isExportDeclaration(node.parent))",
+      "expect_failing": ["JavaScript・TypeScript import と export の指定子は見ない"]
+    },
+    {
+      "id": "CS-JAPANESE",
+      "why": "日本語も一覧の英語の語も含まない文字列を入れる",
+      "file": "scripts/lib/code-strings.js",
+      "find": "    if (!JAPANESE.test(text) && !ENGLISH_TERMS.test(text)) continue;\n",
+      "replace": "",
+      "expect_failing": [
+        "JavaScript・TypeScript 日本語を含まない文字列は入れない",
+        "ディレクティブ テンプレートの中の // textlint-disable はディレクティブとして読まない",
+        "JavaScript・TypeScript 日本語を含まなくても、一覧にある英語の語（`fail-closed` など）を含む文字列は入れる"
+      ]
+    },
+    {
+      "id": "CS-LT",
+      "why": "< を残して HTML のコメントとして読ませる",
+      "file": "scripts/lib/code-strings.js",
+      "find": "        .replace(/</g, \" \")\n",
+      "replace": "",
+      "expect_failing": ["Markdown の書式 < を空白にして、HTML のコメントとして読ませない"]
+    },
+    {
+      "id": "CS-FENCE",
+      "why": "3 つ以上のバッククォートを残してコードフェンスとして読ませる",
+      "file": "scripts/lib/code-strings.js",
+      "find": "\n        .replace(/`{3,}|~{3,}/g, (m) => \" \".repeat(m.length))",
+      "replace": "",
+      "expect_failing": [
+        "Markdown の書式 3 つ以上のバッククォートとチルダを空白にして、コードフェンスとして読ませない"
+      ]
+    },
+    {
+      "id": "CS-LEAD",
+      "why": "行頭の空白を外さない",
+      "file": "scripts/lib/code-strings.js",
+      "find": "const lead = part.match(/^(?:\\s|>|[-*+](?=\\s|$)|\\d{1,9}[.)](?=\\s|$))*/)[0].length;",
+      "replace": "const lead = 0;",
+      "expect_failing": [
+        "Markdown の書式 リストの記号: 行頭の入れ物の記号を外し、中の文を地の文にする",
+        "Markdown の書式 入れ物の中のリンク参照の定義: 行頭の入れ物の記号を外し、中の文を地の文にする",
+        "Markdown の書式 入れ物の中の字下げ: 行頭の入れ物の記号を外し、中の文を地の文にする",
+        "Markdown の書式 引用: 行頭の入れ物の記号を外し、中の文を地の文にする",
+        "Markdown の書式 引用の中のリンク参照の定義: 行頭の入れ物の記号を外し、中の文を地の文にする",
+        "Markdown の書式 番号付きリスト: 行頭の入れ物の記号を外し、中の文を地の文にする",
+        "Markdown の書式 行頭の空白を外して、字下げのコードブロックとして読ませない"
+      ]
+    },
+    {
+      "id": "CS-LITERAL-LINES",
+      "why": "ソースの改行を含むテンプレートも、すべて始まりの行に戻す",
+      "file": "scripts/lib/code-strings.js",
+      "find": "    } else if (raw[i] === \"\\n\") {\n      line++;\n",
+      "replace": "    } else if (raw[i] === \"\\n\") {\n",
+      "expect_failing": [
+        "位置 ソースの改行を含むテンプレートは、行ごとに元の行と桁に戻す（行頭の空白を外しても桁がずれない）",
+        "位置 エスケープの改行とソースの改行が混在するテンプレートは、ソースの改行だけ行を進める",
+        "位置 行の継続（\\ と改行）は値に改行を作らないが、後の部分の行を進める"
+      ]
+    },
+    {
+      "id": "CS-ESCAPED-NEWLINE",
+      "why": "エスケープの改行でもソースの行を進めてしまう",
+      "file": "scripts/lib/code-strings.js",
+      "find": "      if (next === \"n\") origins.push({ line, column: start.character });",
+      "replace": "      if (next === \"n\") origins.push({ line: ++line, column: start.character });",
+      "expect_failing": [
+        "位置 エスケープの改行は、すべて文字列が始まる行に戻す",
+        "位置 エスケープの改行とソースの改行が混在するテンプレートは、ソースの改行だけ行を進める"
+      ]
+    },
+    {
+      "id": "CS-DIRECTIVE",
+      "why": "ディレクティブの行を Markdown に入れない",
+      "file": "scripts/lib/code-strings.js",
+      "find": "const directives = isEvals ? [] : commentDirectives(path, source);",
+      "replace": "const directives = [];",
+      "expect_failing": [
+        "ディレクティブ コメントだけの行の textlint-disable と textlint-enable を、文字列の間の位置に置く"
+      ]
+    },
+    {
+      "id": "CS-EVAL-KEYS",
+      "why": "evals.json の他のキー（fixture など）の文字列も見る",
+      "file": "scripts/lib/code-strings.js",
+      "find": "if (EVAL_STRING_KEYS.has(key) && ts.isStringLiteral(prop.initializer))",
+      "replace": "if (key !== \"assertions\" && ts.isStringLiteral(prop.initializer))",
+      "expect_failing": ["evals.json prompt・expected_output・assertions だけを取り出す"]
+    },
+    {
+      "id": "CS-JSON-ERROR",
+      "why": "JSON の構文エラーを例外にしない",
+      "file": "scripts/lib/code-strings.js",
+      "find": "if (isEvals && sf.parseDiagnostics.length > 0) {",
+      "replace": "if (false) {",
+      "expect_failing": ["evals.json JSON の構文エラーは例外にする"]
+    },
+    {
+      "id": "CS-ENGLISH",
+      "why": "日本語を含まない文字列は、一覧の英語の語を含んでも見ない",
+      "file": "scripts/lib/code-strings.js",
+      "find": " && !ENGLISH_TERMS.test(text)",
+      "replace": "",
+      "expect_failing": [
+        "JavaScript・TypeScript 日本語を含まなくても、一覧にある英語の語（`fail-closed` など）を含む文字列は入れる"
+      ]
+    },
+    {
+      "id": "CS-FRONTMATTER",
+      "why": "文字列の前の空行を、2 つ目以降の文字列にだけ置く（先頭の --- を front matter として読み、語のチェックから外す）",
+      "file": "scripts/lib/code-strings.js",
+      "find": "    emit(\"\", start.line, 0);\n    text.split",
+      "replace": "    if (md.length) emit(\"\", start.line, 0);\n    text.split",
+      "expect_failing": [
+        "Markdown の書式 先頭の --- を front matter として読ませない（Markdown の先頭は空行にする）"
+      ]
+    },
+    {
+      "id": "CS-LINKREF",
+      "why": "行頭の [ラベル]: をそのまま残す（リンク参照の定義として読み、語のチェックから外す）",
+      "file": "scripts/lib/code-strings.js",
+      "find": "\n        .replace(/^\\[(?=[^\\]]*\\]:)/, \" \")",
+      "replace": "",
+      "expect_failing": [
+        "Markdown の書式 行頭の [ラベル]: の [ を空白にして、リンク参照の定義として読ませない",
+        "Markdown の書式 入れ物の中のリンク参照の定義: 行頭の入れ物の記号を外し、中の文を地の文にする",
+        "Markdown の書式 引用の中のリンク参照の定義: 行頭の入れ物の記号を外し、中の文を地の文にする"
+      ]
+    },
+    {
+      "id": "CS-CONTAINER",
+      "why": "入れ物（リストの項目・引用）の記号を外さない（中の字下げやリンク参照の定義として読まれ、語のチェックから外れる）",
+      "file": "scripts/lib/code-strings.js",
+      "find": "|>|[-*+](?=\\s|$)|\\d{1,9}[.)](?=\\s|$)",
+      "replace": "",
+      "expect_failing": [
+        "Markdown の書式 リストの記号: 行頭の入れ物の記号を外し、中の文を地の文にする",
+        "Markdown の書式 番号付きリスト: 行頭の入れ物の記号を外し、中の文を地の文にする",
+        "Markdown の書式 引用: 行頭の入れ物の記号を外し、中の文を地の文にする",
+        "Markdown の書式 入れ物の中の字下げ: 行頭の入れ物の記号を外し、中の文を地の文にする",
+        "Markdown の書式 入れ物の中のリンク参照の定義: 行頭の入れ物の記号を外し、中の文を地の文にする",
+        "Markdown の書式 引用の中のリンク参照の定義: 行頭の入れ物の記号を外し、中の文を地の文にする"
+      ]
+    },
+    {
+      "id": "CS-CR",
+      "why": "値の \\r を残す（textlint が改行として読み、指摘の行がずれる）",
+      "file": "scripts/lib/code-strings.js",
+      "find": "\n        .replace(/\\r/g, \" \")",
+      "replace": "",
+      "expect_failing": [
+        "Markdown の書式 値の \\r を空白にして、Markdown の行数を取り出した行数と揃える"
+      ]
+    },
+    {
+      "id": "CS-TERM-SPLIT",
+      "why": "語の一覧の term を「・」で分けない（並べた英語の語を 1 語として扱い、どれにも一致しない）",
+      "file": "scripts/lib/code-strings.js",
+      "find": "e.term.split(\"・\")",
+      "replace": "[e.term]",
+      "expect_failing": [
+        "英語の語 語の一覧の英語の語を、すべて対象にする（一覧に足した語に追随する）",
+        "英語の語 一覧に英語の語を足すと、その語を含む文字列も見る",
+        "JavaScript・TypeScript 日本語を含まなくても、一覧にある英語の語（`fail-closed` など）を含む文字列は入れる"
+      ]
+    },
+    {
+      "id": "CS-TERM-SPACE",
+      "why": "英語の語の - に空白を許さない（fail closed のような書き方を見逃す）",
+      "file": "scripts/lib/code-strings.js",
+      "find": ".replace(/-/g, \"[- ]\")",
+      "replace": "",
+      "expect_failing": [
+        "英語の語 語の一覧の英語の語を、すべて対象にする（一覧に足した語に追随する）",
+        "JavaScript・TypeScript 日本語を含まなくても、一覧にある英語の語（`fail-closed` など）を含む文字列は入れる"
+      ]
+    }
+  ]
+}

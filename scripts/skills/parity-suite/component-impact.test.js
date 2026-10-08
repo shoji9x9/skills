@@ -198,7 +198,7 @@ test("VERSION は文字列", () => {
   expect(typeof VERSION).toBe("string");
 });
 
-test("陰性コントロール: 雛形を埋めた変更宣言は型検査を通る（常に落とす実装ではない）", () => {
+test("誤検知しないことの確認: 雛形を埋めた変更宣言は型検査を通る（常に落とす実装ではない）", () => {
   expect(validateChange(changeOf())).toEqual([]);
 });
 
@@ -358,7 +358,7 @@ test("CLI: 部品の page が絶対 URL なら入力の誤りとして exit 2", 
   expect(code).toBe(2);
 });
 
-test("CLI: どの機能のページとも一致しない影響インスタンスがあれば exit 1（影響なしに倒さない）", () => {
+test("CLI: どの機能のページとも一致しない影響インスタンスがあれば exit 1（影響なしとして扱わない）", () => {
   const component = componentOf([
     { id: "pager-next", page: "/app/orders", locator: "button: 次へ" },
   ]);
@@ -412,7 +412,7 @@ test.each([
     (m) => (m.capture_conditions.capture_scope[0].page = "ghost"),
   ],
   ["mode が読めない", (m) => (m.mode = "<feature | api-resource | batch>")],
-])("判定不能（影響なしに倒さない）: %s", (_label, mutate) => {
+])("判定不能（影響なしとして扱わない）: %s", (_label, mutate) => {
   const metadata = featureOf();
   mutate(metadata);
   const feature = judgeOne(metadata);
@@ -544,7 +544,7 @@ test.each([
   expect(errors).toContain(needle);
 });
 
-test("陰性コントロール: instances が空でも usages があれば宣言できる", () => {
+test("誤検知しないことの確認: instances が空でも usages があれば宣言できる", () => {
   expect(validateChange(changeOf({ instances: [] }))).toEqual([]);
   expect(validateChange(changeOf({ usages: [] }))).toEqual([]);
 });
@@ -601,7 +601,7 @@ test("CLI: --feature のディレクトリが無ければ exit 2", () => {
   expect(errors).toContain("--feature ghost");
 });
 
-test("CLI: 機能 0 件は exit 2（全部影響なしに倒さない）", () => {
+test("CLI: 機能 0 件は exit 2（全部影響なしとして扱わない）", () => {
   const files = filesOf();
   delete files["/w/parity/orders/metadata.json"];
   delete files["/w/parity/search/metadata.json"];
@@ -654,7 +654,7 @@ test("CLI: 部品 metadata の instances が配列でなければ exit 2", () =>
   expect(code).toBe(2);
 });
 
-test("CLI: usages だけに頼る宣言で、usages がどの機能のページとも一致しなければ exit 1（影響なしに倒さない）", () => {
+test("CLI: usages だけに頼る宣言で、usages がどの機能のページとも一致しなければ exit 1（影響なしとして扱わない）", () => {
   const { code, result } = run(
     baseArgs,
     filesOf({ "/w/c.json": JSON.stringify(changeOf({ instances: [], usages: ["/ordres"] })) }),
@@ -680,7 +680,7 @@ test("CLI: usages が絶対 URL なら入力の誤りとして exit 2", () => {
   expect(code).toBe(2);
 });
 
-test("変更宣言の states に部品の capture.states に無い状態（綴り違い）: 撮っていない＝影響なしに倒さず全機能を判定不能にする", () => {
+test("変更宣言の states に部品の capture.states に無い状態（綴り違い）: 撮っていない＝影響なしとして扱わず全機能を判定不能にする", () => {
   const result = computeImpact({
     change: changeOf({ states: ["hovre"] }),
     componentMetadata: componentOf(),

@@ -97,7 +97,7 @@ test("陰性: applies_when は比較元の版の条件（exists_at_base）だけ
   expect(violationsOf(root)).toEqual([]);
 });
 
-test("陰性: 配線する検査が無いスキルは wire: [] で宣言できる", () => {
+test("陰性: 組み込む検査が無いスキルは wire: [] で宣言できる", () => {
   const root = makeRepo({
     decl: { version: 1, skill: "s", wire: [] },
     unwired: {
@@ -149,7 +149,7 @@ test("陰性: リンクした skills/<name> の検査も拾い、宣言と分類
   const v = violationsOf(root);
   expect(v).toContainEqual(expect.stringContaining("skills/s: 検査を持つのに checks.json が無い"));
   expect(v).toContainEqual(
-    expect.stringContaining("skills/s/scripts/a-check.mjs: 配線するか決まっていない"),
+    expect.stringContaining("skills/s/scripts/a-check.mjs: 組み込むか決まっていない"),
   );
 });
 
@@ -175,7 +175,7 @@ test("陰性: scripts/ のサブディレクトリにある検査も拾う", () 
   expect(findCheckScripts(root)).toEqual(["skills/s/scripts/sub/c-check.sh"]);
 });
 
-test("陰性: シンボリックリンクの検査・ディレクトリも拾う（リンクを黙って走査から外さない）", () => {
+test("陰性: シンボリックリンクの検査・ディレクトリも拾う（リンクを警告なしに走査から外さない）", () => {
   const root = makeTempDir("skill-checks-");
   write(root, "skills/s/shared/d-check.mjs", "");
   write(root, "skills/s/shared/dir/e-check.mjs", "");
@@ -191,7 +191,7 @@ test("陰性: シンボリックリンクの検査・ディレクトリも拾う
   ]);
 });
 
-test("陰性: 祖先を指すディレクトリのリンクは辿り直さず、判定できないに倒さない", () => {
+test("陰性: 祖先を指すディレクトリのリンクは辿り直さず、判定できないとして扱わない", () => {
   const root = makeRepo();
   symlinkSync("..", join(root, "skills/s/scripts/up"));
   expect(findCheckScripts(root)).toEqual([
@@ -201,7 +201,7 @@ test("陰性: 祖先を指すディレクトリのリンクは辿り直さず、
   expect(main([root])).toBe(0);
 });
 
-test("陰性: 同じディレクトリを指す兄弟のリンクは、どちらの経路の検査も拾う（循環の判定で別名を捨てない）", () => {
+test("陰性: 同じディレクトリを指す兄弟のリンクは、どちらのパスの検査も拾う（循環の判定で別名を捨てない）", () => {
   const root = makeTempDir("skill-checks-");
   write(root, "skills/s/shared/a-check.mjs", "");
   mkdirSync(join(root, "skills/s/scripts"), { recursive: true });
@@ -222,7 +222,7 @@ test("陽性: リポジトリの外を指すリンクは辿らず判定できな
   expect(main([root])).toBe(2);
 });
 
-test("陽性: スキルの外（リポジトリの中）を指す検査のリンクは判定できない（配線しない側に載せても通さない）", () => {
+test("陽性: スキルの外（リポジトリの中）を指す検査のリンクは判定できない（組み込まない側に載せても通さない）", () => {
   const root = makeRepo({
     extraFiles: { "shared/c-check.mjs": "" },
     unwired: {
@@ -270,7 +270,7 @@ test("陽性: scripts/ 自体がリポジトリの外を指すリンクなら辿
   expect(main([root])).toBe(2);
 });
 
-test("陽性: 検査でないファイルを配線し、本物の検査を配線しない側に載せた宣言を落とす", () => {
+test("陽性: 検査でないファイルを組み込み、本物の検査を組み込まない側に載せた宣言を落とす", () => {
   const root = makeRepo({
     extraFiles: { "skills/s/scripts/not-check-helper.mjs": "" },
     decl: declWith({ script: "scripts/not-check-helper.mjs" }),
@@ -300,16 +300,16 @@ test("陽性: checks.json がリンクでスキルの外を指していたら落
 test("陽性: 規約外の拡張子の検査も拾い、分類を問う（拡張子で分類から漏らさない）", () => {
   const root = makeRepo({ extraFiles: { "skills/s/scripts/c-check.py": "" } });
   expect(violationsOf(root)).toEqual([
-    expect.stringContaining("skills/s/scripts/c-check.py: 配線するか決まっていない"),
+    expect.stringContaining("skills/s/scripts/c-check.py: 組み込むか決まっていない"),
   ]);
 });
 
 // ---- 陽性（落とす入力）----
 
-test("陽性: どちらにも載っていない検査は「配線するか決まっていない」で落とす", () => {
+test("陽性: どちらにも載っていない検査は「組み込むか決まっていない」で落とす", () => {
   const root = makeRepo({ unwired: { unwired: [] } });
   expect(violationsOf(root)).toEqual([
-    expect.stringContaining("skills/s/scripts/b-check.mjs: 配線するか決まっていない"),
+    expect.stringContaining("skills/s/scripts/b-check.mjs: 組み込むか決まっていない"),
   ]);
 });
 
@@ -512,7 +512,7 @@ test("陽性: 同じ id・同じ script を 2 項目に宣言したら落とす"
   expect(v).toContainEqual(expect.stringContaining("checks.json に重複して宣言されている"));
 });
 
-test("陽性: 検査が 0 本なら判定できない（exit 2。走査が届いていないのを合格に倒さない）", () => {
+test("陽性: 検査が 0 本なら判定できない（exit 2。走査が届いていないのを合格として扱わない）", () => {
   const root = makeTempDir("skill-checks-");
   write(root, "skills/s/SKILL.md", "");
   write(root, UNWIRED_PATH, JSON.stringify({ unwired: [] }));
@@ -529,27 +529,27 @@ test.each([
     { unwired: [{ script: "skills/s/scripts/b-check.mjs", reason: " " }] },
     "reason が無い",
   ],
-])("陽性: 配線しない一覧が読めない（%s）なら exit 2", (_name, unwired, message) => {
+])("陽性: 組み込まない一覧が読めない（%s）なら exit 2", (_name, unwired, message) => {
   const root = makeRepo({ unwired });
   expect(() => checkSkillChecks(root)).toThrow(message);
   expect(main([root])).toBe(2);
 });
 
-test("陽性コントロール（CLI）: 子プロセスとして起動しても、違反は exit 1、合格なら exit 0", () => {
+test("検出の確認（CLI）: 子プロセスとして起動しても、違反は exit 1、合格なら exit 0", () => {
   const run = (root) => spawnSync(process.execPath, [script, root], { encoding: "utf8" });
   const bad = run(makeRepo({ unwired: { unwired: [] } }));
   expect(bad.status).toBe(1);
-  expect(bad.stderr).toContain("配線するか決まっていない");
+  expect(bad.stderr).toContain("組み込むか決まっていない");
   const ok = run(makeRepo());
   expect(ok.status).toBe(0);
   expect(ok.stdout).toContain(
-    "skill-checks: OK（検査 2 本: 配線 1 本・配線しない 1 本、宣言 1 ファイル）",
+    "skill-checks: OK（検査 2 本: 組み込み 1 本・組み込まない 1 本、宣言 1 ファイル）",
   );
 });
 
 // ---- 実リポジトリ ----
 
-test("実リポジトリ: 全検査が分類済みで、配線する検査が 1 本以上ある", () => {
+test("実リポジトリ: 全検査が分類済みで、組み込む検査が 1 本以上ある", () => {
   const r = checkSkillChecks(repoRoot);
   expect(r.violations).toEqual([]);
   expect(r.wired).toBeGreaterThan(0);

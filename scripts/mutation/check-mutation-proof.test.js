@@ -195,7 +195,7 @@ function mutation(over = {}) {
 }
 
 describe("変異の判定", () => {
-  test("当たって狙ったテストだけが落ちる変異は PASS（陽性コントロール）", () => {
+  test("当たって狙ったテストだけが落ちる変異は PASS（検出されることの確認）", () => {
     const fx = makeFixture();
     const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
     const res = runRunner(spec);
@@ -226,7 +226,7 @@ describe("変異の判定", () => {
 
   // **当たらない変異は「偽の生存」を作る。** 置換がスキップされたのに全テストが緑になり、
   // 「変異しても落ちなかった」ではなく「そもそも変異していない」状態を実証と読みかける。
-  test("置換が 1 件も当たらない変異は FAIL（成功に倒さない）", () => {
+  test("置換が 1 件も当たらない変異は FAIL（成功として扱わない）", () => {
     const fx = makeFixture();
     const spec = fx.spec([
       mutation({ file: relative(repoRoot, fx.target), find: "この文字列はファイルに無い" }),
@@ -274,7 +274,40 @@ describe("変異の判定", () => {
   });
 });
 
-describe("宣言と前提の検証（走らせる前に落とす）", () => {
+// 実リポジトリを読むテスト（名前に「実リポジトリ」を含む）が検出するかは、その時点の文書の中身で決まる。
+// 合成した入力のテスト（guard）と同じ変異で落ちても、通っても、判定に数えない。
+// このブロックのテスト名には、その語を入れない。入れると、ランナー自身のミューテーションテストでこのテストが数えられない。
+describe("文書の中身で結果が変わるテストの扱い", () => {
+  const REAL_REPO = "合成と同じ: 実リポジトリの文書にガードがある";
+
+  test.each([
+    ["落ちる", GUARD],
+    ["落ちない", "limit=100"],
+  ])("そのテストが変異で%s場合も、宣言外として数えず PASS", (_label, contains) => {
+    const fx = makeFixture({ stubTests: [...STUB_TESTS, { name: REAL_REPO, contains }] });
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    const res = runRunner(spec);
+    expect(res.out).not.toContain("宣言外で落ちた");
+    expect(res.out).toContain("PASS G");
+    expect(res.status, res.out).toBe(0);
+    // 数えなかった失敗は、名前を出力して見えるようにする。
+    const reported = res.out.includes(`数えなかった（実リポジトリを読む）: ${REAL_REPO}`);
+    expect(reported).toBe(contains === GUARD);
+  });
+
+  test("expect_failing にそのテストを書いたら exit 2", () => {
+    const fx = makeFixture({ stubTests: [...STUB_TESTS, { name: REAL_REPO, contains: GUARD }] });
+    const spec = fx.spec([
+      mutation({ file: relative(repoRoot, fx.target), expect_failing: ["guard", REAL_REPO] }),
+    ]);
+    const res = runRunner(spec);
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toContain("実リポジトリを読むテストがある");
+    expect(res.out).toContain(REAL_REPO);
+  });
+});
+
+describe("宣言と前提の検証（実行する前に落とす）", () => {
   // テストをリネームすると、`expect_failing` は決して失敗しない名前を指す。
   // 変異が機能しなくなったのではなく、**チェックが何も見ていない**ので、実行する前に落とす。
   test("実在しないテスト名を宣言したら exit 2", () => {
@@ -303,7 +336,7 @@ describe("宣言と前提の検証（走らせる前に落とす）", () => {
     [{ expect_failing: [] }, "expect_failing が空"],
     [{ occurrences: 0 }, "occurrences が 1 以上の整数でない"],
     [{ file: "scripts/この-ファイルは-無い.sh" }, "file が実在しない"],
-  ])("形の違う宣言は走らせる前に exit 2: %o", (over, message) => {
+  ])("形の違う宣言は実行する前に exit 2: %o", (over, message) => {
     const fx = makeFixture();
     const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target), ...over })]);
     const res = runRunner(spec);
@@ -333,7 +366,7 @@ describe("宣言と前提の検証（走らせる前に落とす）", () => {
     expect(res.out).toContain("guard");
   });
 
-  test("mutations が空なら exit 2（0 件を成功に倒さない）", () => {
+  test("mutations が空なら exit 2（0 件を成功として扱わない）", () => {
     const fx = makeFixture();
     const spec = fx.spec([]);
     const res = runRunner(spec);
@@ -511,14 +544,14 @@ describe("宣言と前提の検証（走らせる前に落とす）", () => {
     expect(readFileSync(outside, "utf8")).toBe("元の内容\n");
   });
 
-  test("復元情報が壊れていれば exit 2（黙って続けない）", () => {
+  test("復元情報が不正なら exit 2（警告なしに続けない）", () => {
     const fx = makeFixture();
     const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
     const lock = join(lockDir, "broken-recovery.lock");
     writeFileSync(`${lock}.recovery.json`, JSON.stringify({ file: 42 }));
     const res = runRunner(spec, { MUTATION_PROOF_LOCK: lock });
     expect(res.status, res.out).toBe(2);
-    expect(res.out).toContain("復元情報が壊れている");
+    expect(res.out).toContain("復元情報が不正である");
   });
 
   // 差分に当たる宣言だけを測る選択。**0 件は「測るものが無い」**（全件は定期実行が測る）。
@@ -552,7 +585,7 @@ describe("宣言と前提の検証（走らせる前に落とす）", () => {
     expect(res.out).toContain("PASS STDEV");
   }, 60_000);
 
-  test("実行器が変わったら全宣言を測る", () => {
+  test("ランナーが変わったら全宣言を測る", () => {
     // `--only D`（tracking の宣言にだけ在る id）で測る量を 1 変異に抑える。全宣言へ広がったことは
     // 「飛ばす:」が出ないことで判定する（選択の結果を見るのに、全件を実行する必要はない）。
     const res = runRunner("--changed-since", "origin/main", "--only", "D", {
@@ -561,7 +594,7 @@ describe("宣言と前提の検証（走らせる前に落とす）", () => {
     });
     expect(res.status, res.out).toBe(0);
     expect(res.out).toContain(
-      "実行器（scripts/mutation/check-mutation-proof.js）が変わったので全宣言を測る",
+      "ランナー（scripts/mutation/check-mutation-proof.js）が変わったので全宣言を測る",
     );
     expect(res.out).not.toContain("飛ばす:");
   }, 60_000);
@@ -591,7 +624,7 @@ describe("宣言と前提の検証（走らせる前に落とす）", () => {
 
   // **`--only` は宣言をまたいで絞る。** 宣言ごとに「1 件も選ばれなかった」で落とすと、
   // 宣言が 2 件以上ある時点で `--only <id>` が常に exit 2 になる（実測で踏んだ）。
-  test("--only は選ばれなかった宣言を飛ばす（宣言が複数あっても走る）", () => {
+  test("--only は選ばれなかった宣言を飛ばす（宣言が複数あっても実行する）", () => {
     const a = makeFixture();
     const b = makeFixture();
     const specA = a.spec([mutation({ id: "A", file: relative(repoRoot, a.target) })]);
@@ -600,7 +633,7 @@ describe("宣言と前提の検証（走らせる前に落とす）", () => {
     expect(res.status, res.out).toBe(0);
     expect(res.out).toContain("PASS B");
     // 選ばれなかった宣言は実行せず、件数として出す（警告なしに消さない）。
-    expect(res.out, "選ばれていない宣言まで走らせた").not.toContain("PASS A");
+    expect(res.out, "選ばれていない宣言まで実行した").not.toContain("PASS A");
     expect(res.out).toContain("1 skipped");
   });
 });
@@ -664,7 +697,7 @@ describe("--shard", () => {
     ["1/2/3"],
     [""],
     ["9007199254740993/9007199254740992"],
-  ])("--shard %s は exit 2（黙って 0 件のシャードにしない）", (value) => {
+  ])("--shard %s は exit 2（警告なしに 0 件のシャードにしない）", (value) => {
     const fx = makeFixture();
     const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
     const res = runRunner(spec, "--shard", value);

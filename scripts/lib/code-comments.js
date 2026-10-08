@@ -64,7 +64,6 @@ const JAPANESE = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u;
 export function commentMarkdown(path, source) {
   const extract = EXTRACTORS[extOf(path)];
   if (!extract) throw new Error(`${path}: コメントを取り出せない拡張子`);
-  const directiveOf = (piece) => piece.text.trim().match(/^textlint-(disable|enable)$/)?.[1];
   const isSeparator = (piece) => /^[-=─━#*]{3,}|[-=─━#*]{3,}$/.test(piece.text.trim());
   const blocks = [];
   let previous;
@@ -102,6 +101,28 @@ export function commentMarkdown(path, source) {
     else for (const p of block) emit(p.text, p.line, p.column, p.start);
   }
   return { markdown: md.join("\n"), lines, columns, starts };
+}
+
+/**
+ * コメントだけの行 `textlint-disable` と `textlint-enable` の位置（`scripts/lib/code-strings.js` が文字列の除外に使う）。
+ * @returns {{ line: number, directive: "disable" | "enable" }[]} line は 0 始まり
+ */
+export function commentDirectives(path, source) {
+  const extract = EXTRACTORS[extOf(path)];
+  if (!extract) throw new Error(`${path}: コメントを取り出せない拡張子`);
+  return extract(source, path).flatMap((piece) => {
+    const directive = directiveOf(piece);
+    return directive ? [{ line: piece.line, directive }] : [];
+  });
+}
+
+/**
+ * コメントの 1 つの部分がディレクティブ（コメントだけの行の `textlint-disable` か `textlint-enable`）なら、その種類を返す。
+ * 行の後ろに書いたコメントは、ディレクティブとして読まない。
+ */
+function directiveOf(piece) {
+  if (piece.trailing) return undefined;
+  return piece.text.trim().match(/^textlint-(disable|enable)$/)?.[1];
 }
 
 /** 1 行の中の位置（0 始まり）を、行と桁に直す表。 */

@@ -1,0 +1,159 @@
+{
+  "metadata": {
+    "skill_name": "dependabot-alert-issue",
+    "skill_path": "<repo>/skills/dependabot-alert-issue",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-07T09:01:37Z",
+    "evals_run": [9],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8333,
+        "passed": 5,
+        "failed": 1,
+        "total": 6,
+        "time_seconds": 44.237,
+        "tokens": 75659,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "plain transitive ではバージョン明示が有効な update の方法を警告なしの no-op にし得るため、最初に `pnpm update <pkg> --depth Infinity --lockfile-only` をバージョン無指定で試すと案内している",
+          "passed": true,
+          "evidence": "原因 1 に『plain transitive では <pkg>@<version> と書くと、指定しなければ届く場合でも何も起きずに終わることがあります』と書き、コピーでの試行の最初（A）を『pnpm update target --depth Infinity --lockfile-only（版を付けない）』にしている"
+        },
+        {
+          "text": "`pnpm config get minimumReleaseAge` で有効値を確認し、CLI override を使う場合は同じ override 付きの config get で値を確認すると案内している",
+          "passed": true,
+          "evidence": "手順 1 で `pnpm config get minimumReleaseAge` を案内し、C で『--config.minimumReleaseAge=0。上書き後の値も config get で確認』と override 付きの確認を求めている"
+        },
+        {
+          "text": "元の作業ツリーを汚さない同じ入力の使い捨てコピーで診断すると案内し、package.json / pnpm-lock.yaml は必須、pnpm-workspace.yaml / .npmrc は存在する場合だけ複製すると区別している",
+          "passed": true,
+          "evidence": "『元の作業ツリーは変えません。package.json と pnpm-lock.yaml をコピーし、あれば pnpm-workspace.yaml と .npmrc もコピーします』と必須と存在時だけを区別"
+        },
+        {
+          "text": "複製先それぞれで `pnpm config get minimumReleaseAge` を再実行し、元と同じ有効値が引き継がれたことを確認すると案内している",
+          "passed": true,
+          "evidence": "『コピー先で pnpm config get minimumReleaseAge を実行し、元と同じ値かを確かめます』。コピー①②③を使い分ける表の前提として置いている"
+        },
+        {
+          "text": "別コピーの `pnpm add --save-dev <pkg>@<patched-version> --lockfile-only` が ERR_PNPM_NO_MATURE_MATCHING_VERSION と cutoff を出すかでリリース年齢の制限を識別している",
+          "passed": false,
+          "evidence": "B で `pnpm add --save-dev target@<patched> --lockfile-only` を別コピーで実行し ERR_PNPM_NO_MATURE_MATCHING_VERSION が出るかを見ると案内しているが、assertion が明記する cutoff の出力には触れていない"
+        },
+        {
+          "text": "リリース年齢の制限を外したときにバージョン無指定 update が patched version へ到達することの確認を求め、pnpm 未起動や通信失敗を no-op と誤認しない設計になっている",
+          "passed": true,
+          "evidence": "C で制限を外して版無指定の A を再実行し届くかを確かめ、『C で何も変わらない場合は、通信の失敗、pnpm が起動していない、別の設定を読んでいる、のどれかと取り違えていないかも確かめます』"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 6,
+        "total": 6,
+        "time_seconds": 45.347,
+        "tokens": 37211,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "plain transitive ではバージョン明示が有効な update の方法を警告なしの no-op にし得るため、最初に `pnpm update <pkg> --depth Infinity --lockfile-only` をバージョン無指定で試すと案内している",
+          "passed": false,
+          "evidence": "版指定が効かない可能性は手順 3（制限を外しても差分が出ない場合）で触れるだけで、最初にバージョン無指定の update を試す案内になっていない"
+        },
+        {
+          "text": "`pnpm config get minimumReleaseAge` で有効値を確認し、CLI override を使う場合は同じ override 付きの config get で値を確認すると案内している",
+          "passed": false,
+          "evidence": "`pnpm config get minimum-release-age` は案内するが、CLI override（--config.minimum-release-age=0）を使うときに同じ override 付きの config get で値を確かめる案内は無い"
+        },
+        {
+          "text": "元の作業ツリーを汚さない同じ入力の使い捨てコピーで診断すると案内し、package.json / pnpm-lock.yaml は必須、pnpm-workspace.yaml / .npmrc は存在する場合だけ複製すると区別している",
+          "passed": false,
+          "evidence": "『cp -r repo /tmp/scratch』でリポジトリごとコピーするだけで、package.json / pnpm-lock.yaml を必須、pnpm-workspace.yaml / .npmrc を存在時だけとする区別が無い"
+        },
+        {
+          "text": "複製先それぞれで `pnpm config get minimumReleaseAge` を再実行し、元と同じ有効値が引き継がれたことを確認すると案内している",
+          "passed": false,
+          "evidence": "複製先で pnpm config get を再実行して有効値が引き継がれたかを確かめる案内は無い"
+        },
+        {
+          "text": "別コピーの `pnpm add --save-dev <pkg>@<patched-version> --lockfile-only` が ERR_PNPM_NO_MATURE_MATCHING_VERSION と cutoff を出すかでリリース年齢の制限を識別している",
+          "passed": false,
+          "evidence": "`pnpm add --save-dev <pkg>@<patched> --lockfile-only` と ERR_PNPM_NO_MATURE_MATCHING_VERSION による識別が無い"
+        },
+        {
+          "text": "リリース年齢の制限を外したときにバージョン無指定 update が patched version へ到達することの確認を求め、pnpm 未起動や通信失敗を no-op と誤認しない設計になっている",
+          "passed": false,
+          "evidence": "制限を外したコピーで差分が出るかは見るが、pnpm 未起動や通信失敗を no-op と区別する設計が無い（『差分が出ない → 原因は年齢制限ではありません』と判定している）"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.8333,
+        "stddev": 0,
+        "min": 0.8333,
+        "max": 0.8333
+      },
+      "time_seconds": {
+        "mean": 44.237,
+        "stddev": 0,
+        "min": 44.237,
+        "max": 44.237
+      },
+      "tokens": {
+        "mean": 75659,
+        "stddev": 0,
+        "min": 75659,
+        "max": 75659
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0,
+        "stddev": 0,
+        "min": 0,
+        "max": 0
+      },
+      "time_seconds": {
+        "mean": 45.347,
+        "stddev": 0,
+        "min": 45.347,
+        "max": 45.347
+      },
+      "tokens": {
+        "mean": 37211,
+        "stddev": 0,
+        "min": 37211,
+        "max": 37211
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.83",
+      "time_seconds": "-1.1",
+      "tokens": "+38448"
+    }
+  },
+  "notes": [
+    "Issue #567: 使わない語の言い換え（evals.json の prompt・assertion）と fixture の語の更新の後の変更確認。各 eval を with_skill / without_skill で 1 run ずつ実行した（executor: claude-code / opus）。"
+  ]
+}

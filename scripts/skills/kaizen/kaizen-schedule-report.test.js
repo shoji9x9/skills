@@ -108,7 +108,7 @@ function run({ dir, target }, args, env = {}) {
   return { ...res, settings };
 }
 
-describe("設定解決（層・既定倒し）", () => {
+describe("設定解決（層・デフォルト値への置き換え）", () => {
   test("有効化済みで他の指定が無ければ既定（notify / claude）で動く", () => {
     withProject({ notes: { a: {} }, config: "schedule_enabled=on\n" }, (p) => {
       const { status, settings } = run(p, ["config"]);
@@ -129,7 +129,7 @@ describe("設定解決（層・既定倒し）", () => {
     });
   });
 
-  test("不正値は既定へ倒し、倒したことを stderr に出す", () => {
+  test("不正値はデフォルト値に戻し、戻したことを stderr に出す", () => {
     const config =
       "schedule_mode=bogus\nschedule_agent=gemini\nschedule_model=has space\nschedule_effort=!!\n";
     withProject({ notes: { a: {} }, config }, (p) => {
@@ -179,7 +179,7 @@ describe("opt-in（schedule_enabled の既定は off）", () => {
     });
   });
 
-  test("schedule_enabled=on を書けば動く（陰性コントロール）", () => {
+  test("schedule_enabled=on を書けば動く（誤検知しないことの確認）", () => {
     withProject({ notes: { a: {} }, config: "schedule_enabled=on\n" }, (p) => {
       const { settings } = run(p, ["config"]);
       expect(settings.skip).toBe("false");
@@ -216,7 +216,7 @@ describe("opt-in（schedule_enabled の既定は off）", () => {
   });
 
   // 不正値を有効として扱うと、typo した `.kaizen/config` が「有効化した証拠」になってしまう。
-  test("schedule_enabled が真偽値として読めなければ既定 off へ倒して止まる", () => {
+  test("schedule_enabled が真偽値として読めなければデフォルトの off として扱って止まる", () => {
     withProject({ notes: { a: {} }, config: "schedule_enabled=maybe\n" }, (p) => {
       const { settings, stderr } = run(p, ["config"]);
       expect(settings.skip).toBe("true");
@@ -256,7 +256,7 @@ describe("skip（どちらかが立てば止まる）", () => {
   // 判別できるのは **config_unreadable が先に立ったとき**だけ。`schedule_enabled` 側は
   // env より後に評価されるので、env を上書きにしても後勝ちで両方残ってしまい、
   // この分岐へ到達しない（最初に書いたテストがまさにそれで、変異で赤くならなかった）。
-  test("先に立った fail-closed の理由が env skip で消えない", () => {
+  test("先に立った停止の理由が env skip で消えない", () => {
     // 検体は `on`。`off` だと「読めないので止めた」のか「既定の off として扱われた」のかを
     // 区別できず、読めないときの停止を消す変異で赤くならない。
     withProject({ notes: { a: {} }, config: "schedule_enabled=on\n" }, (p) => {
@@ -288,10 +288,10 @@ describe("skip（どちらかが立てば止まる）", () => {
   });
 });
 
-describe("縮退（共通ライブラリを読めない）", () => {
+describe("機能を減らして動く場合（共通ライブラリを読めない）", () => {
   // 検体は `on`。有効化したつもりのリポジトリを、読めないという理由で止める処理を測る。
   // `off` だと既定の off として扱われただけでも緑になり、読めないときの停止を消しても赤くならない。
-  test("config が在るのに読めないなら停止側へ倒す（fail-closed）", () => {
+  test("config が在るのに読めないなら停止として扱う", () => {
     withProject({ notes: { a: {} }, config: "schedule_enabled=on\n", degraded: true }, (p) => {
       const { settings } = run(p, ["config"]);
       expect(settings.skip).toBe("true");
@@ -301,7 +301,7 @@ describe("縮退（共通ライブラリを読めない）", () => {
     });
   });
 
-  test("config がそもそも無ければ opt-in の既定で止まる（縮退が理由ではない）", () => {
+  test("config がそもそも無ければ opt-in のデフォルトで止まる（機能を減らしたことが理由ではない）", () => {
     withProject({ notes: { a: {} }, degraded: true }, (p) => {
       const { settings } = run(p, ["config"]);
       expect(settings.skip).toBe("true");
@@ -313,7 +313,7 @@ describe("縮退（共通ライブラリを読めない）", () => {
   // ライブラリが読めても、`.kaizen/config` 自体が読めなければ同じ抜けになる。
   // kaizen_config_value は「読めない」と「キーが無い」を同じ 1 で返すため、
   // 区別しないと schedule_enabled=off を読み落とし、判定できないのに実行してしまう。
-  test("config がパーミッションで読めないときも停止側へ倒す", () => {
+  test("config がパーミッションで読めないときも停止として扱う", () => {
     // 同じ理由で検体は `on`（`off` では既定の off と区別できない）。
     withProject({ notes: { a: {} }, config: "schedule_enabled=on\n" }, (p) => {
       const configPath = join(p.dir, ".kaizen", "config");
@@ -347,7 +347,7 @@ describe("pending の数え方と並び", () => {
     });
   });
 
-  test("0 件のとき agent は notify へ倒れる（エージェントへ渡す材料が無い）", () => {
+  test("0 件のとき agent は notify として扱われる（エージェントへ渡す材料が無い）", () => {
     withProject(
       { notes: { done: { status: "applied" } }, config: "schedule_mode=agent\n" },
       (p) => {
@@ -439,7 +439,7 @@ describe("pending の数え方と並び", () => {
 
   // 非 UTF-8 ロケールではバイト単位になり文字が割れるので切らない。警告なしに機能を減らして動くと
   // 「切ったはず」と読めてしまう。そのため、機能を減らした run を出力で区別できることまで固定する。
-  test("非 UTF-8 ロケールでは切り詰めず、縮退したと分かる警告を出す", () => {
+  test("非 UTF-8 ロケールでは切り詰めず、機能を減らして動いたと分かる警告を出す", () => {
     const long = "あ".repeat(300);
     withProject({ notes: { long: { proposal: long } } }, (p) => {
       const { stdout, stderr } = run(p, ["issue"], { LC_ALL: "C" });

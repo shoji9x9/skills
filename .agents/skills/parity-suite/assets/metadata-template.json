@@ -36,7 +36,7 @@
     "state_mutating": "<このスイートが現行アプリの状態を変えるか（書き込み・更新・削除を含むか）を真偽値で書く。artifact_health.declared: true では省略しない。判断の原本は parity-suite の references/baseline.md「状態を変えるスイートは 2 回続けて緑にする」>",
     "repeat_run": {
       "_note": "状態を変えるスイートの反復実行の記録。state_mutating: true のときだけ検査に入る（false では runs を空配列にし reason を書く）。1 回目は初期状態から始まるため後始末の有無が結果に現れない——2 回続けて緑になって初めて後始末が効いたことの証拠になる。記録は suite_fingerprint で「どの版のスイートを回したか」に結びつける（結びつけないと、記録した後にスペックや後始末を変えても古い記録で通る）。原本は parity-suite の references/baseline.md「状態を変えるスイートは 2 回続けて緑にする」。",
-      "cleanup_in_suite": "<後始末（反対の操作）をスイートの中に置いたか。外の道具に頼ると回した人が忘れた時点で次の実行が壊れ、しかも壊れ方が「現行が変わった」と同じ見え方になる。state_mutating: true では true でなければ未検証として数える>",
+      "cleanup_in_suite": "<後始末（反対の操作）をスイートの中に置いたか。外のツールに頼ると回した人が忘れた時点で次の実行が失敗し、しかもその失敗は「現行が変わった」と同じ見え方になる。state_mutating: true では true でなければ未検証として数える>",
       "specs": [
         {
           "_note": "任意（推奨）。書くとスペック単位で判定する——2 回続けての緑を求めるのは state_mutating: true のスペックだけで、state_mutating: false のスペックは現在の版での 1 回の緑の記録で足りる。変えたスペックだけを回し直せば足りる。書かなければ suite_fingerprint でスイート全体を判定する。suite.specs の下のスペック（Playwright 既定の testMatch に当たる *.spec.* / *.test.* と、ここに書いたファイル）はすべて分類する（分類漏れは未検証として落ちる）。原本は parity-suite の references/baseline.md「スペック単位で記録する」。",

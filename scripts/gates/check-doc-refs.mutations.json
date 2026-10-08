@@ -17,7 +17,7 @@
         "陽性: 無いリンク先を落とす",
         "陽性: 閉じたフェンスの後の行は読む",
         "陰性: リンク切れの節名は link だけで報告する（二重に数えない）。フェンスの中は読まない",
-        "陽性コントロール（CLI）: 子プロセスとして起動しても、違反は exit 1、無ければ exit 0",
+        "検出の確認（CLI）: 子プロセスとして起動しても、違反は exit 1、無ければ exit 0",
         "陰性: 符号化として読めない % を含むリンク先は、書いた文字のままのパスとして確かめる"
       ]
     },
@@ -28,10 +28,7 @@
       "find": "if (/^[a-z][a-z0-9+.-]*:/i.test(target) || target.startsWith(\"#\") || target.startsWith(\"<\"))",
       "replace": "if (target.startsWith(\"<\"))",
       "occurrences": 1,
-      "expect_failing": [
-        "陰性: 在るリンク先・URL・アンカー・絶対パス・符号化・コードの中は通す",
-        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
-      ]
+      "expect_failing": ["陰性: 在るリンク先・URL・アンカー・絶対パス・符号化・コードの中は通す"]
     },
     {
       "id": "DR-LINK-FENCE",
@@ -107,7 +104,6 @@
       "expect_failing": [
         "陽性: 参照先が無い",
         "陽性: 生成ファイルの宣言がスキルに当たらない",
-        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件",
         "陽性: 間に語を挟む形と生成ファイル（名前の一部だけ一致するパスは生成ファイルとして当てない）"
       ]
     },
@@ -156,11 +152,7 @@
       "find": "const cands = [join(dirname(file), path), path];",
       "replace": "const cands = [join(dirname(file), path)];",
       "occurrences": 1,
-      "expect_failing": [
-        "陰性: 節名が在る（ルートから）",
-        "陰性: 節名が在る（JS のコメント）",
-        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
-      ]
+      "expect_failing": ["陰性: 節名が在る（ルートから）", "陰性: 節名が在る（JS のコメント）"]
     },
     {
       "id": "DR-HAS-PAREN",
@@ -174,7 +166,6 @@
         "hasAnchor: 半角の括弧書き",
         "陰性: 節名が在る（ディレクトリからの相対（バッククォート））",
         "陰性: 節名が在る（JS のコメント）",
-        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件",
         "陰性: 節名が在る（「の」を挟み、節名をバッククォートで囲む形）",
         "陰性: 節名が在る（「の」を挟む形）",
         "陽性: 間に語を挟む形と生成ファイル（1 行に複数（後ろだけ無い））"
@@ -199,7 +190,6 @@
       "expect_failing": [
         "anchorsOf: 見出し・番号を除いた見出し・太字・表のセルを集め、フェンスの中は集めない",
         "陰性: 節名が在る（ルートから）",
-        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件",
         "anchorsOf: 英字の付いた番号（6a.）も除いた見出しを集める"
       ]
     },
@@ -213,8 +203,7 @@
       "expect_failing": [
         "anchorsOf: 見出し・番号を除いた見出し・太字・表のセルを集め、フェンスの中は集めない",
         "陰性: 節名が在る（リンク）",
-        "陰性: 節名が在る（入れ子の「」）",
-        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
+        "陰性: 節名が在る（入れ子の「」）"
       ]
     },
     {
@@ -226,8 +215,7 @@
       "occurrences": 1,
       "expect_failing": [
         "anchorsOf: 見出し・番号を除いた見出し・太字・表のセルを集め、フェンスの中は集めない",
-        "陰性: 節名が在る（表のセル）",
-        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
+        "陰性: 節名が在る（表のセル）"
       ]
     },
     {
@@ -248,10 +236,7 @@
       "find": "const NAME = \"「((?:[^「」]|「[^「」]*」)+)」\";",
       "replace": "const NAME = \"「([^」]+)」\";",
       "occurrences": 1,
-      "expect_failing": [
-        "陰性: 節名が在る（入れ子の「」）",
-        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
-      ]
+      "expect_failing": ["陰性: 節名が在る（入れ子の「」）"]
     },
     {
       "id": "DR-SEC-FENCE",
@@ -271,10 +256,7 @@
       "find": "const toTier4 = tier <= 2 && !dist;",
       "replace": "const toTier4 = tier <= 3 && !dist;",
       "occurrences": 1,
-      "expect_failing": [
-        "陰性: Tier 3（eval の文書・コメント）は Tier 4 を出所として参照してよい",
-        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
-      ]
+      "expect_failing": ["陰性: Tier 3（eval の文書・コメント）は Tier 4 を出所として参照してよい"]
     },
     {
       "id": "DR-KAIZEN",
@@ -296,10 +278,7 @@
       "find": "(?:archive\\/(?!INDEX\\.md)",
       "replace": "(?:archive\\/",
       "occurrences": 1,
-      "expect_failing": [
-        "陰性: kaizen の索引 は Tier 4 への参照として数えない",
-        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
-      ]
+      "expect_failing": ["陰性: kaizen の索引 は Tier 4 への参照として数えない"]
     },
     {
       "id": "DR-TESTS",
@@ -317,10 +296,7 @@
       "find": "/(?<![\\w/.&{-])#\\d+\\b/g",
       "replace": "/(?<![/.&{-])#\\d+\\b/g",
       "occurrences": 1,
-      "expect_failing": [
-        "陰性: 他のリポジトリの番号 は Tier 4 への参照として数えない",
-        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
-      ]
+      "expect_failing": ["陰性: 他のリポジトリの番号 は Tier 4 への参照として数えない"]
     },
     {
       "id": "DR-ISSUE-BRACE",
@@ -329,10 +305,7 @@
       "find": "/(?<![\\w/.&{-])#\\d+\\b/g",
       "replace": "/(?<![\\w/.&-])#\\d+\\b/g",
       "occurrences": 1,
-      "expect_failing": [
-        "陰性: シェルの ${#1} は Tier 4 への参照として数えない",
-        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
-      ]
+      "expect_failing": ["陰性: シェルの ${#1} は Tier 4 への参照として数えない"]
     },
     {
       "id": "DR-ISSUE-AMP",
@@ -359,10 +332,7 @@
       "find": "for (const m of blankInlineCode(line).matchAll(re))",
       "replace": "for (const m of line.matchAll(re))",
       "occurrences": 1,
-      "expect_failing": [
-        "陰性: インラインコード は Tier 4 への参照として数えない",
-        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
-      ]
+      "expect_failing": ["陰性: インラインコード は Tier 4 への参照として数えない"]
     },
     {
       "id": "DR-ISSUE-EXAMPLE",
@@ -371,10 +341,7 @@
       "find": "    if (!isExample) {",
       "replace": "    if (true) {",
       "occurrences": 1,
-      "expect_failing": [
-        "陰性: 例の行 は Tier 4 への参照として数えない",
-        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
-      ]
+      "expect_failing": ["陰性: 例の行 は Tier 4 への参照として数えない"]
     },
     {
       "id": "DR-DIST-PATH",
@@ -392,10 +359,7 @@
       "find": "if (existsSync(join(root, p)) && !existsSync(join(root, dist, p)))",
       "replace": "if (!existsSync(join(root, dist, p)))",
       "occurrences": 1,
-      "expect_failing": [
-        "陰性: 配布スキルの中に在るパスと、どこにも無いパスは数えない",
-        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
-      ]
+      "expect_failing": ["陰性: 配布スキルの中に在るパスと、どこにも無いパスは数えない"]
     },
     {
       "id": "DR-DIST-RULE",
@@ -413,10 +377,7 @@
       "find": "scannedFiles(root, { exclude: SELF_FIXTURES })",
       "replace": "scannedFiles(root, { exclude: [] })",
       "occurrences": 1,
-      "expect_failing": [
-        "このチェック自身のテストは読まない",
-        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
-      ]
+      "expect_failing": ["このチェック自身のテストは読まない"]
     },
     {
       "id": "DR-REPO",
@@ -443,10 +404,7 @@
       "find": "if (tier === null || tier === 4) continue;",
       "replace": "if (tier === null) continue;",
       "occurrences": 1,
-      "expect_failing": [
-        "陰性: Tier 4 と階層の外とスキルのコピーは読まない",
-        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
-      ]
+      "expect_failing": ["陰性: Tier 4 と階層の外とスキルのコピーは読まない"]
     },
     {
       "id": "DS-OUTSIDE",
@@ -455,10 +413,7 @@
       "find": "if (tier === null || tier === 4) continue;",
       "replace": "if (tier === 4) continue;",
       "occurrences": 1,
-      "expect_failing": [
-        "陰性: Tier 4 と階層の外とスキルのコピーは読まない",
-        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
-      ]
+      "expect_failing": ["陰性: Tier 4 と階層の外とスキルのコピーは読まない"]
     },
     {
       "id": "DS-EVALINPUT",
@@ -511,8 +466,7 @@
       "replace": "const mine = () => true;",
       "occurrences": 1,
       "expect_failing": [
-        "保留: 一致は失敗にしない。古い保留・使われない許可は失敗にし、他のチェックの規則は見ない",
-        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
+        "保留: 一致は失敗にしない。古い保留・使われない許可は失敗にし、他のチェックの規則は見ない"
       ]
     },
     {
@@ -531,10 +485,7 @@
       "find": "m[1].length >= fence.length) fence = null;",
       "replace": "m[1].length >= fence.length) fence = fence;",
       "occurrences": 1,
-      "expect_failing": [
-        "陽性: 閉じたフェンスの後の行は読む",
-        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
-      ]
+      "expect_failing": ["陽性: 閉じたフェンスの後の行は読む"]
     },
     {
       "id": "DR-DIST-LINK",
@@ -610,10 +561,7 @@
       "find": "(g.ref === path || path.endsWith(`/${g.ref}`))",
       "replace": "g.ref === path",
       "occurrences": 1,
-      "expect_failing": [
-        "陰性: 節名が在る（/名前 で終わる生成ファイル）",
-        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
-      ]
+      "expect_failing": ["陰性: 節名が在る（/名前 で終わる生成ファイル）"]
     },
     {
       "id": "DR-GEN-SUFFIX-SLASH",
@@ -633,10 +581,7 @@
       "find": "/^\\d+[a-z]?(?:\\.\\d+[a-z]?)*\\.?\\s+/",
       "replace": "/^\\d+(?:\\.\\d+)*\\.?\\s+/",
       "occurrences": 1,
-      "expect_failing": [
-        "anchorsOf: 英字の付いた番号（6a.）も除いた見出しを集める",
-        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
-      ]
+      "expect_failing": ["anchorsOf: 英字の付いた番号（6a.）も除いた見出しを集める"]
     }
   ]
 }

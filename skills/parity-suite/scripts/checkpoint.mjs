@@ -138,7 +138,7 @@ function realRootProblem(cwd, slugDir, suiteRoots) {
     // 逆向き（根が slug のディレクトリを含む祖先）も止める。slug の成果物を二重に数え、別機能の slug の成果物まで指紋に含まれる。
     // 根の下の要素が slug のディレクトリの中を指す形は fingerprintFiles が辿りながら止める
     if (realUnder(slugReal, real)) {
-      return `スイートの根 ${r} の実パス（${real}）が --dir を含む（slug のディレクトリの祖先はスイートの根にしない。別機能の成果物が指紋に混ざる）`;
+      return `スイートの根 ${r} の実パス（${real}）が --dir を含む（slug のディレクトリの祖先はスイートの根にしない。別機能の成果物が指紋に含まれる）`;
     }
     const first = seen.get(real);
     if (first !== undefined) return `スイートの根 ${first} と ${r} が同じ実体（${real}）を指す`;

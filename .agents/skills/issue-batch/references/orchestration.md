@@ -182,7 +182,7 @@ workflow の `branches` と `paths` から、変更したファイルが確実�
 ```bash
 gh pr view "$PR_URL" --json state,mergeable,mergeStateStatus,reviewDecision,headRefOid
 
-# --required は非 0 終了し得るので、終了コードと stderr を捕まえてから弁別する。
+# --required は非 0 終了し得るので、終了コードと stderr を捕まえてから区別する。
 # `cmd && rc=0 || rc=$?` は set -e 下でも止まらない（実測）。
 req_err=$(mktemp); all_err=$(mktemp)
 trap 'rm -f "$req_err" "$all_err"' EXIT

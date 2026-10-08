@@ -15,13 +15,13 @@
       "replace": "          if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
-        "陽性コントロール: element.shot.json の契約違反を検出する: clip の座標",
-        "陽性コントロール: element.shot.json の契約違反を検出する: rect の欠落",
-        "陽性コントロール: element.shot.json の契約違反を検出する: page_rect の座標",
-        "陽性コントロール: element.shot.json の契約違反を検出する: frame_depth",
-        "陽性コントロール: element.shot.json の契約違反を検出する: animations",
-        "陽性コントロール: element.shot.json の契約違反を検出する: 余計なキー",
-        "陽性コントロール: 寸法が同じ別の撮影の記録を差し込むと検出する"
+        "陽性: element.shot.json の仕様違反を検出する: clip の座標",
+        "陽性: element.shot.json の仕様違反を検出する: rect の欠落",
+        "陽性: element.shot.json の仕様違反を検出する: page_rect の座標",
+        "陽性: element.shot.json の仕様違反を検出する: frame_depth",
+        "陽性: element.shot.json の仕様違反を検出する: animations",
+        "陽性: element.shot.json の仕様違反を検出する: 余計なキー",
+        "陽性: 寸法が同じ別の撮影の記録を差し込むと検出する"
       ]
     },
     {
@@ -31,7 +31,7 @@
       "find": "[...new Set([...Object.keys(expected), ...Object.keys(shot)])]",
       "replace": "Object.keys(expected)",
       "occurrences": 1,
-      "expect_failing": ["陽性コントロール: element.shot.json の契約違反を検出する: 余計なキー"]
+      "expect_failing": ["陽性: element.shot.json の仕様違反を検出する: 余計なキー"]
     }
   ]
 }

@@ -116,7 +116,7 @@ test("一覧: 付け手が unknown の行だけのヘッダーは比べる対象
   expect([...out]).toEqual(["x-frame-options"]);
 });
 
-test("一覧: 同じヘッダーの行に付け手が unknown の行が混ざれば比べる対象に入れない", () => {
+test("一覧: 同じヘッダーの行に付け手が unknown の行が含まれれば比べる対象に入れない", () => {
   const out = list(
     doc([
       row("Cache-Control", { responses: ["api-success"], setter: "unknown" }),
@@ -319,7 +319,7 @@ test("一覧: <…> を含むだけの値（注記キーの中も）はプレー
   expect([...parseHeaderList(JSON.stringify(t))]).toEqual(["x-content-type-options"]);
 });
 
-test("一覧: 同梱テンプレートのキーを埋めた一覧は読める（正本の形から作る）", () => {
+test("一覧: 同梱テンプレートのキーを埋めた一覧は読める（原本の形から作る）", () => {
   expect([...parseHeaderList(JSON.stringify(filledTemplate()))]).toEqual([
     "x-content-type-options",
   ]);
@@ -545,7 +545,7 @@ test("秘密の値: 正規化の出力に cookie の値も nonce の値も現れ
   expect(out).not.toContain(NONCE_SECRET);
 });
 
-test("秘密の値: 陽性コントロール——正規化しないと差分の出力に cookie の値と nonce の値が出る", () => {
+test("秘密の値: 検出されることの確認——正規化しないと差分の出力に cookie の値と nonce の値が出る", () => {
   const { status, stdout } = runDiff(
     rawResponse(COOKIE_SECRET, NONCE_SECRET, "Lax"),
     rawResponse(COOKIE_SECRET_2, NONCE_SECRET_2, "Lax"),
@@ -636,7 +636,7 @@ function filledTemplate() {
   return t;
 }
 
-test("CLI: 正規化した JSON を出して exit 0（node で起動しても main が走る）", () => {
+test("CLI: 正規化した JSON を出して exit 0（node で起動しても main が実行される）", () => {
   const { listPath, headersPath } = writeInputs(filledTemplate(), {
     "X-Content-Type-Options": "nosniff",
     Date: "now",

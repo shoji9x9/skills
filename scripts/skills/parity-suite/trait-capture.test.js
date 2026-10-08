@@ -177,7 +177,7 @@ test.each([
   "overflow-y",
   "text-overflow",
   "word-break",
-])("要素の矩形を撮った静止画に写らない %s が固定集合に入っている", (prop) => {
+])("要素の矩形を撮った静止画に表れない %s が固定集合に入っている", (prop) => {
   expect(FIXED_PROPERTIES).toContain(prop);
 });
 
@@ -205,7 +205,7 @@ test.each([
   ["white-space", "nowrap", "normal"],
   ["text-overflow", "ellipsis", "clip"],
 ])(
-  "%s の差は computed に現れる（画素に写らない差を特性照合へ渡す）",
+  "%s の差は computed に現れる（画素に表れない差を特性照合へ渡す）",
   async (prop, before, after) => {
     const [legacy] = await captureTraits([
       { name: "detail.save", locator: fakeLocator(allResolved({ [prop]: before })) },
@@ -338,7 +338,7 @@ test.each([
 test.each([
   ["file:// 等で origin が null", "null"],
   ["origin が空", ""],
-])("%s のときは畳まず原文のまま残す（黙って一致させない）", async (_name, origin) => {
+])("%s のときは畳まず原文のまま残す（警告なしに一致させない）", async (_name, origin) => {
   const value = cursorOn("http://legacy.example:8811", "cur.png");
   const [trait] = await captureTraits([
     { name: "detail.save", locator: fakeLocator(allResolved({ cursor: value }), { origin }) },
@@ -351,7 +351,7 @@ test.each([
 // 実測: 市販のデータグリッド（Wijmo FlexGrid 5.20261）は列見出しを 2 つの木に作り、
 // getByRole("columnheader") が返すのは y = -32000 に置かれた支援技術のためのコピーだった。
 // コピーから採った 34 プロパティは全部一致し、画素だけが差を出した。
-test("文書の外に置かれた写しからの採取は論理名付きで落ちる", async () => {
+test("文書の外に置かれたコピーからの採取は論理名付きで落ちる", async () => {
   await expect(
     captureTraits([
       {
@@ -367,7 +367,7 @@ test("文書の外に置かれた写しからの採取は論理名付きで落�
 
 test.each([
   [
-    "折り返しの下にある要素（full_page 撮影では写る）",
+    "折り返しの下にある要素（full_page 撮影では画像に入る）",
     {
       rect: { x: 10, y: 1800, width: 120, height: 32 },
       documentSize: { width: 1280, height: 2400 },
@@ -413,7 +413,7 @@ test.each([
       documentSize: { width: 1280, height: 2400 },
     },
   ],
-])("%s は描かれている扱いで採れる（陽性コントロール）", async (_name, options) => {
+])("%s は描かれている扱いで採れる（誤検知しないことの確認）", async (_name, options) => {
   const [trait] = await captureTraits([
     { name: "list.cell", locator: fakeLocator(allResolved(), options) },
   ]);
@@ -917,7 +917,7 @@ const gridBox = (clientWidth, clientHeight) => ({
   scrollHeight: 900,
 });
 
-test("スクロールする器の固定集合と VERSION が対応している", () => {
+test("スクロールするコンテナの固定集合と VERSION が対応している", () => {
   expect([...SCROLLBAR_PROPERTIES]).toEqual([
     "scrollbar-width",
     "scrollbar-color",
@@ -997,7 +997,7 @@ test("スクロールバーの厚みは枠を差し引いて数える", async ()
   expect(trait.scroll.horizontal_bar_px).toBe(15);
 });
 
-test("display: inline の要素は overflow を持っていても器として扱わない（文字の幅をバーの厚みにしない）", async () => {
+test("display: inline の要素は overflow を持っていてもコンテナとして扱わない（文字の幅をバーの厚みにしない）", async () => {
   // 実測（Chromium）: overflow: hidden の <a> は offsetWidth 122 / clientWidth 0・offsetHeight 17 / clientHeight 0
   const [trait] = await captureTraits([
     {
@@ -1025,7 +1025,7 @@ test.each([
   ["両向きとも visible", "visible", "visible"],
   ["両向きとも clip", "clip", "clip"],
   ["visible と clip", "visible", "clip"],
-])("器でない要素（%s）の scroll は null", async (_label, x, y) => {
+])("コンテナでない要素（%s）の scroll は null", async (_label, x, y) => {
   const [trait] = await captureTraits([
     {
       name: "cell",
@@ -1038,10 +1038,10 @@ test.each([
 });
 
 test.each([
-  ["hidden（切るだけの器）", "hidden", "visible"],
+  ["hidden（切るだけのコンテナ）", "hidden", "visible"],
   ["片向きだけ auto", "visible", "auto"],
   ["scroll", "scroll", "scroll"],
-])("器（%s）は scroll を持つ", async (_label, x, y) => {
+])("コンテナ（%s）は scroll を持つ", async (_label, x, y) => {
   const [trait] = await captureTraits([
     {
       name: "grid",

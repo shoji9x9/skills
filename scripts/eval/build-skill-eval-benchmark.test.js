@@ -263,7 +263,7 @@ describe("集計（揃った iteration）", () => {
     expect(b.runs[0].result.errors).toBe(2);
   });
 
-  test("notes はファイルから受け取る（集計器は文章を作らない）", () => {
+  test("notes はファイルから受け取る（集計ツールは文章を作らない）", () => {
     const root = completeIteration();
     const notes = join(root, "notes.txt");
     writeFileSync(notes, "1 行目の備考\n\n2 行目の備考\n");
@@ -633,7 +633,7 @@ describe("受理しない入力（exit 2）", () => {
 
   // 採点の無い run（汚染・invalid_run）は警告なしに落とさない。既定は落として、
   // 除外を承知したときだけ --ungraded skip で進む。
-  test("採点の無い run は既定で落とし、--ungraded skip で除外する", () => {
+  test("採点の無い run はデフォルトで落とし、--ungraded skip で除外する", () => {
     const root = completeIteration();
     writeRun(root, {
       evalDir: "eval-2",
@@ -730,7 +730,7 @@ describe("受理しない入力（exit 2）", () => {
     expect(JSON.parse(passed.stdout).runs).toHaveLength(2);
   });
 
-  test("executor / model が混ざっていれば落とす（母集団を分ける）", () => {
+  test("executor / model が混在していれば落とす（母集団を分ける）", () => {
     const root = completeIteration();
     writeRun(root, {
       evalDir: "eval-3",
@@ -741,7 +741,7 @@ describe("受理しない入力（exit 2）", () => {
     writeRun(root, { evalDir: "eval-3", evalId: 3, configuration: "without_skill" });
     const res = run(root);
     expect(res.status, res.out).toBe(2);
-    expect(res.out).toContain("executor / model / effort が混ざっている");
+    expect(res.out).toContain("executor / model / effort が混在している");
   });
 
   test("eval × configuration の run 数が揃っていなければ落とす", () => {
@@ -805,7 +805,7 @@ describe("受理しない入力（exit 2）", () => {
     expect(res.out).toContain("eval-2/with_skill/retry-run-2");
   });
 
-  test("verdicts と expectations が両方あれば落とす（正本を決められない）", () => {
+  test("verdicts と expectations が両方あれば落とす（原本を決められない）", () => {
     reject(
       {
         summary: { pass_rate: 1, passed: 3, failed: 0, total: 3 },
@@ -833,13 +833,13 @@ describe("受理しない入力（exit 2）", () => {
     const res = run(root);
     expect(res.status, res.out).toBe(0);
     const b = JSON.parse(res.stdout);
-    expect(b.metadata.evals_run, "リンクの eval が黙って落ちた").toStrictEqual([1, 2]);
+    expect(b.metadata.evals_run, "リンクの eval が警告なしに除外された").toStrictEqual([1, 2]);
     expect(b.runs).toHaveLength(4);
   });
 
   // 辿れないエントリは `listDirs` が落とすだけなので、**呼び出し側で報告しないと警告なしに消える**
   // （実測: リンク先が無い eval が無警告で集計から外れ、exit 0 になった）。
-  test("壊れたリンクの eval があれば落とす", () => {
+  test("指し先の無いリンクの eval があれば落とす", () => {
     const root = makeIteration();
     writeRun(root, { evalDir: "eval-1", evalId: 1, configuration: "with_skill" });
     writeRun(root, { evalDir: "eval-1", evalId: 1, configuration: "without_skill" });
@@ -850,7 +850,7 @@ describe("受理しない入力（exit 2）", () => {
     expect(res.out).toContain("eval-9");
   });
 
-  test("壊れたリンクの configuration があれば落とす", () => {
+  test("指し先の無いリンクの configuration があれば落とす", () => {
     const root = makeIteration();
     writeRun(root, { evalDir: "eval-1", evalId: 1, configuration: "with_skill" });
     symlinkSync(join(root, "no-such-target"), join(root, "eval-1", "without_skill"), "dir");
@@ -860,7 +860,7 @@ describe("受理しない入力（exit 2）", () => {
     expect(res.out).toContain("eval-1/without_skill");
   });
 
-  test("eval ディレクトリが無ければ落とす（対象 0 件を成功に倒さない）", () => {
+  test("eval ディレクトリが無ければ落とす（対象 0 件を成功として扱わない）", () => {
     const res = run(makeIteration());
     expect(res.status, res.out).toBe(2);
     expect(res.out).toContain("eval-* ディレクトリが無い");
@@ -870,7 +870,7 @@ describe("受理しない入力（exit 2）", () => {
     [["--skill-name"], "--skill-name は必須"],
     [["--ungraded", "maybe"], "--ungraded は fail | skip"],
     [["--nope"], "不明な引数: --nope"],
-  ])("使い方の誤りは走らせる前に exit 2: %o", (args, message) => {
+  ])("使い方の誤りは実行する前に exit 2: %o", (args, message) => {
     const root = completeIteration();
     const base = [
       SCRIPT,

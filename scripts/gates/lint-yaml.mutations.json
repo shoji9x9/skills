@@ -13,7 +13,7 @@
       "replace": "!f.split(\"/\").some((c) => PRUNED.includes(c))",
       "occurrences": 1,
       "expect_failing": [
-        "起点直下の除外（node_modules/pkg/z.yml）の中の壊れた YAML は見ないが、外に同じものがあれば落とす"
+        "起点直下の除外（node_modules/pkg/z.yml）の中の不正な YAML は見ないが、外に同じものがあれば落とす"
       ]
     },
     {
@@ -24,7 +24,7 @@
       "replace": "true",
       "occurrences": 1,
       "expect_failing": [
-        "起点直下の除外（node_modules/pkg/z.yml）の中の壊れた YAML は見ないが、外に同じものがあれば落とす"
+        "起点直下の除外（node_modules/pkg/z.yml）の中の不正な YAML は見ないが、外に同じものがあれば落とす"
       ]
     },
     {
@@ -35,8 +35,8 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "起点直下の除外（.agents/skills/x/a.yml）の中の壊れた YAML は見ないが、外に同じものがあれば落とす",
-        "起点直下の除外（.claude/skills/y.yml）の中の壊れた YAML は見ないが、外に同じものがあれば落とす"
+        "起点直下の除外（.agents/skills/x/a.yml）の中の不正な YAML は見ないが、外に同じものがあれば落とす",
+        "起点直下の除外（.claude/skills/y.yml）の中の不正な YAML は見ないが、外に同じものがあれば落とす"
       ]
     },
     {
@@ -48,7 +48,7 @@
       "occurrences": 1,
       "expect_failing": [
         "未追跡でも ignore されていない YAML は検査する（add 前の新規ファイルを見落とさない）",
-        "gitignore された壊れた YAML は見ない（手元の eval 出力で CI と食い違わない）"
+        "gitignore された不正な YAML は見ない（手元の eval 出力で CI と食い違わない）"
       ]
     },
     {
@@ -59,7 +59,7 @@
       "replace": "\"--others\"",
       "occurrences": 1,
       "expect_failing": [
-        "gitignore された壊れた YAML は見ない（手元の eval 出力で CI と食い違わない）"
+        "gitignore された不正な YAML は見ない（手元の eval 出力で CI と食い違わない）"
       ]
     },
     {
@@ -69,7 +69,7 @@
       "find": "  if (targets.length === 0) {",
       "replace": "  if (false) {",
       "occurrences": 1,
-      "expect_failing": ["対象の YAML が 0 件なら exit 1（空振りを成功に倒さない）"]
+      "expect_failing": ["対象の YAML が 0 件なら exit 1（空振りを成功として扱わない）"]
     },
     {
       "id": "LY-LIST-FAIL",
@@ -78,7 +78,9 @@
       "find": "      targets = findYamlFiles(root);\n    } catch (e) {\n",
       "replace": "      targets = findYamlFiles(root);\n    } catch (e) {\n      return 0;\n",
       "occurrences": 1,
-      "expect_failing": ["起点が git リポジトリでなければ exit 2（列挙の失敗を 0 件に倒さない）"]
+      "expect_failing": [
+        "起点が git リポジトリでなければ exit 2（列挙の失敗を 0 件として扱わない）"
+      ]
     },
     {
       "id": "LY-LOADALL",
@@ -88,13 +90,13 @@
       "replace": "    void text;",
       "occurrences": 1,
       "expect_failing": [
-        "壊れた YAML を 1 件置くと exit 1 でそのファイルを名指しする",
+        "不正な YAML を 1 件置くと exit 1 でそのファイルを名指しする",
         "未追跡でも ignore されていない YAML は検査する（add 前の新規ファイルを見落とさない）",
-        "起点直下の除外（.agents/skills/x/a.yml）の中の壊れた YAML は見ないが、外に同じものがあれば落とす",
-        "起点直下の除外（.claude/skills/y.yml）の中の壊れた YAML は見ないが、外に同じものがあれば落とす",
-        "起点直下の除外（node_modules/pkg/z.yml）の中の壊れた YAML は見ないが、外に同じものがあれば落とす",
+        "起点直下の除外（.agents/skills/x/a.yml）の中の不正な YAML は見ないが、外に同じものがあれば落とす",
+        "起点直下の除外（.claude/skills/y.yml）の中の不正な YAML は見ないが、外に同じものがあれば落とす",
+        "起点直下の除外（node_modules/pkg/z.yml）の中の不正な YAML は見ないが、外に同じものがあれば落とす",
         "ファイルを指定したらそれだけを検査する（lefthook 用）",
-        "陽性コントロール（CLI）: 子プロセスとして起動しても、壊れた YAML は exit 1、読めれば exit 0",
+        "検出の確認（CLI）: 子プロセスとして起動しても、不正な YAML は exit 1、読めれば exit 0",
         "rule と private skill（skills/ に同名の無い .agents/skills/<name>/）の実体は検査する"
       ]
     },

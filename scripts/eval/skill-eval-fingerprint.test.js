@@ -66,7 +66,7 @@ test("assertions are selected by eval id and their mutation changes the fingerpr
   );
 });
 
-test("missing eval assertions fail closed", () => {
+test("missing eval assertions are treated as a failure", () => {
   const directory = temporaryDirectory();
   const evals = join(directory, "evals.json");
   writeFileSync(evals, JSON.stringify({ evals: [{ id: 1 }] }), "utf8");

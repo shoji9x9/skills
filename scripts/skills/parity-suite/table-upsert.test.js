@@ -71,7 +71,7 @@ const upsert = (array, extra = []) => [
   ...extra,
 ];
 
-test("陽性コントロール: 鍵が一致する要素を差し替え、他の行と順序は動かさない", () => {
+test("基本の動作: 鍵が一致する要素を差し替え、他の行と順序は動かさない", () => {
   const r = run(baseTable(), upsert("operations"), {
     fragment: { id: "copy", trigger: "clickButton(複製)" },
   });
@@ -85,7 +85,7 @@ test("陽性コントロール: 鍵が一致する要素を差し替え、他の
   ]);
 });
 
-test("陽性コントロール: 一致が無ければ末尾に足す", () => {
+test("基本の動作: 一致が無ければ末尾に足す", () => {
   const r = run(baseTable(), upsert("operations"), { fragment: { id: "reset", trigger: "x()" } });
   expect(r.status).toBe(0);
   expect(JSON.parse(r.stdout)).toMatchObject({ action: "appended", count: 3 });
@@ -227,7 +227,7 @@ test.each([
   ["断片の鍵がオブジェクト", { id: { a: 1 } }, "operations", [], "鍵（id）が欠けている"],
   ["断片の鍵が小数", { id: 1.5 }, "operations", [], "鍵（id）が欠けている"],
   ["断片が配列", [{ id: "copy" }], "operations", [], "1 要素のオブジェクトでない"],
-  ["断片が壊れた JSON", "{", "operations", [], "断片を読めない"],
+  ["断片が不正な JSON", "{", "operations", [], "断片を読めない"],
   ["配列でないキーを指す", { id: "x" }, "slug", [], "配列でない"],
   ["途中のキーが無い", { id: "x" }, "nothing.call_sites", [], "nothing が無い"],
   ["途中のキーがオブジェクトでない", { id: "x" }, "slug.call_sites", [], "オブジェクトでない"],
@@ -275,7 +275,7 @@ test("既存の要素に鍵が無ければ exit 2（undefined の鍵に潰して
 });
 
 test.each([
-  ["壊れた JSON", "{"],
+  ["不正な JSON", "{"],
   ["配列の表", "[]"],
 ])("表が読めない（%s）なら exit 2", (_name, text) => {
   const r = run(text, upsert("operations"), { fragment: { id: "x" } });

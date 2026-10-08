@@ -289,7 +289,7 @@ const BAD_CONFIGS = [
 ];
 
 test.each(BAD_CONFIGS)(
-  "不正な設定値は既定へ倒し、倒したことを出す: $name",
+  "不正な設定値はデフォルト値に戻し、戻したことを出す: $name",
   ({ config, message }) => {
     // 警告なしにデフォルトの値として扱うと、「設定したつもりの閾値で動いている」と読めてしまう。
     const dir = makeProject(CANDIDATES, config);
@@ -348,7 +348,7 @@ test.each(NON_PENDING)(
   },
 );
 
-test("引数なしは usage を出して exit 2（既定で何かを忘れない）", () => {
+test("引数なしは usage を出して exit 2（引数なしで何かを忘れない）", () => {
   const dir = makeProject(CANDIDATES);
   try {
     const { status, stderr } = run(dir, []);
@@ -495,7 +495,7 @@ test.each(["--list", "--auto"])(
 //   残骸あり（固定名）  → 固定名だと衝突する。ユニーク名なら影響を受けない  ← ここ
 //   中断                → 残骸を残さない                                    ← ここ
 describe("書き戻しの一時ファイル", () => {
-  test("固定名の残骸があっても忘却は壊れない", () => {
+  test("固定名の残骸があっても忘却は失敗しない", () => {
     const dir = makeProject(CANDIDATES);
     // 旧実装が使っていた固定名を先に占有しておく。ユニーク名ならこれを読み書きしない。
     const squatter = join(dir, ".kaizen", "old-low.md.kaizen-forget-tmp");

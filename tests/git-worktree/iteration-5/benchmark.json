@@ -1,0 +1,555 @@
+{
+  "metadata": {
+    "skill_name": "git-worktree",
+    "skill_path": "<repo>/skills/git-worktree",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-07T09:01:37Z",
+    "evals_run": [1, 3, 4, 5, 6, 8, 9],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 26.815,
+        "tokens": 71448,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "`cd` を各呼び出しに書くことでは隔離にならず、セッション自体を worktree へ移す必要があると述べている（後退検知用。ベースラインも満たすため Delta には寄与しない）",
+          "passed": true,
+          "evidence": "『ツール呼び出しを cd /tmp/wt && ... と書いても…共有ツリー側で動きます』『隔離を成り立たせるには、EnterWorktree でセッションごと worktree に移るしかありません』"
+        },
+        {
+          "text": "`-b feature/x` のように worktree の作成手段に branch を作らせている点を問題として指摘し、branch は先に Issue のワークフロー（`gh issue develop` 等）で作ってから `-b` なしで張るべきだと述べている",
+          "passed": true,
+          "evidence": "問題点 1: 『-b で branch まで作らせている。branch は worktree の前に、Issue のワークフロー（gh issue develop <番号> --name ... --base main など）で作る…既存の branch を -b なしで渡してください』"
+        },
+        {
+          "text": "`/tmp/wt` がリポジトリの `.claude/worktrees/` 外にあるため、セッションをそこへ移すのに毎回ユーザー承認が要る（permission rule や「今後確認しない」では抑止できない）と述べている",
+          "passed": true,
+          "evidence": "置き場所の問題点: 『リポジトリの外なので、EnterWorktree で入るたびに利用者の承認が要る。permission rule でも省けず』とし、.claude/worktrees/ の下なら承認なしで移れると対比"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 21.362,
+        "tokens": 71675,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "`.worktreeinclude` によるコピーは新規作成時にしか実行されず、既存 worktree に入った場合は実行されないと述べている",
+          "passed": true,
+          "evidence": "『.worktreeinclude によるコピー…が動くのは、worktree を新しく作るときだけ…EnterWorktree に path を渡して既存の worktree に入る場合は、この処理は呼ばれません』"
+        },
+        {
+          "text": "不足していれば手で運ぶ必要があると述べている",
+          "passed": true,
+          "evidence": "『.env は無いと考えて手で運んでください』とし、cp -n でメインチェックアウトからコピーする手順を示す"
+        },
+        {
+          "text": "運搬した `.env` が実物の資格情報を含むため、シークレット走査などの検査対象に入らないことを確認すべきだと述べている",
+          "passed": true,
+          "evidence": "コピー後の確認 1: 『シークレットのスキャンなど .gitignore を読まない検査ツールでも、.env が対象外になっているかを確認します。本物の資格情報が検出されるのを防ぐため』"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 23.259,
+        "tokens": 69992,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "読み取り専用ではなく、リンク越しに共有ツリーの実体へ書き込み・削除ができると述べている",
+          "passed": true,
+          "evidence": "『リンク越しに受領物の実体を書き換えたり消したりできます』"
+        },
+        {
+          "text": "`rm -rf <名前>/` のように末尾スラッシュを付けるとリンクを辿って実体の中身が消えると述べている",
+          "passed": true,
+          "evidence": "表: 『rm -rf vendor/received/（末尾に / あり）→ リンクをたどって実体の中身を全部消す』"
+        },
+        {
+          "text": "`rm` を監視するガードでは `sed -i` や truncate 系の書き込みを捕まえられないと述べている",
+          "passed": true,
+          "evidence": "表: 『sed -i、truncate、: > vendor/received/f → 実体が書き換わる。rm を監視するガードでは止められない』"
+        },
+        {
+          "text": "復元の方法が外部にしかない受領物はリンクしない、という判断を示している",
+          "passed": true,
+          "evidence": "『先方から受け取ったものは自分で作り直せないので…受領物とベンダーの配布物はリンクしないと決めています』"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 28.773,
+        "tokens": 67190,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "`.gitignore` を読まない検査があるため 1 か所の除外では足りないと述べている",
+          "passed": true,
+          "evidence": "『今回落ちている 2 つのチェックは、多くの場合 .gitignore を読みません』『同じ除外を、ディレクトリを読むチェックごとに入れる必要があります』"
+        },
+        {
+          "text": "リポジトリ全体を走査する検査を列挙して同じ除外をそれぞれに入れると述べている",
+          "passed": true,
+          "evidence": "手順 1: lefthook などの pre-commit 設定と CI のワークフローから『リポジトリ全体を走査するジョブを挙げます』、手順 2: 『各チェックの設定に除外を入れる』"
+        },
+        {
+          "text": "除外が機能していることを、既知マーカーを除外の対象外に置いて検出できることを確かめる（検出されることの確認）ことで検証すると述べている",
+          "passed": true,
+          "evidence": "手順 3: 『除外されない場所に、検出されるはずのパターンを置き、検出されることを確認する』と、worktree の下で検出されないことの確認を分けて示す"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 21.915,
+        "tokens": 63075,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "glob による一括削除を行わず、完全一致した対象だけを削除すると述べている",
+          "passed": true,
+          "evidence": "『worktree と branch の削除は名前が完全一致したものだけに限ります。feature/223-* のようなパターンを git branch -D や xargs に直接渡して一括削除はしません』"
+        },
+        {
+          "text": "削除前に worktree が clean であること（未 commit の変更・未追跡ファイル・未 push の commit が無いこと）を確認すると述べている",
+          "passed": true,
+          "evidence": "手順 2: `status --porcelain`（未 commit・未追跡）と `rev-list --max-count=1 HEAD --not --remotes`（未 push）で clean を確かめる"
+        },
+        {
+          "text": "解除したあと `git worktree list` をもう一度取得して解除済みを再確認してから ref を削除する順序を示している",
+          "passed": true,
+          "evidence": "手順 5 で git worktree remove、手順 6 で『git worktree list --porcelain を再実行し、対象が消えたことを確認』、手順 7 で branch を削除する順序"
+        },
+        {
+          "text": "dirty または未 push がある場合は削除せず絶対パスと残作業を報告すると述べている",
+          "passed": true,
+          "evidence": "手順 2: 『どちらかに出力があれば削除しません…絶対パスと残っている作業を報告します』"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 33.77,
+        "tokens": 77712,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "`.claude/worktrees/` の外のパスへセッションを移すたびにユーザー承認が要り、無人実行では止まると述べている",
+          "passed": true,
+          "evidence": "見落とし 1: 『.claude/worktrees/ の外にある worktree に EnterWorktree の path で入ると、毎回利用者の承認が求められます…無人のバッチはこの承認待ちで止まります』"
+        },
+        {
+          "text": "`.gitignore` 対象ファイルの自動運搬が実行されず手で運ぶ必要があると述べている",
+          "passed": true,
+          "evidence": "見落とし 3: 『.worktreeinclude と symlinkDirectories が働くのは、name で新しく作ったときだけ….env・受領物・ベンダーの配布物は手で運ぶ必要があります』"
+        },
+        {
+          "text": "除外が不要になる利点と、承認・運搬の代償を並べて置き場所を判断させている",
+          "passed": true,
+          "evidence": "冒頭で『除外を書かなくて済むのは確か』と利点を認め、承認・再入場・運搬などの代償を並べたうえで、Issue ごとに切り替えるならリポジトリの中、外に置くなら 1 セッション 1 worktree と bypassPermissions が条件、と用途別に判断させている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 23.225,
+        "tokens": 70805,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "散文の指示だけでは守られないとして、同梱の `scripts/git-worktree-branch-guard.sh` を PreToolUse に組み込む手順（`references/branch-guard-hook.md`）を示している",
+          "passed": false,
+          "evidence": "raw では references/branch-guard-hook.md を読み、応答で同梱の git-worktree-branch-guard.sh を絶対パスで PreToolUse に登録する手順（settings.json の例・確認方法）を示している。ただし assertion が括弧で明記する references/branch-guard-hook.md の名前は応答に無い"
+        },
+        {
+          "text": "ブロックではなく通知に留める理由（Issue に紐づかない worktree にも正当な用途がある）を述べている",
+          "passed": true,
+          "evidence": "『hook は呼び出しを止めず、通知を出すだけです。Issue に紐付かない worktree にも正しい用途があるためです』"
+        },
+        {
+          "text": "Claude Code の matcher は Bash 以外の組み込みツールにも一致するため `EnterWorktree` を捕捉できるが、Codex / Copilot では `git worktree add` の呼び出しだけになると述べている",
+          "passed": true,
+          "evidence": "matcher を『EnterWorktree|Bash』として EnterWorktree を捕捉し、『Codex や Copilot…この2つでは git worktree add しか検出できません』"
+        },
+        {
+          "text": "組み込んだ後の確認で「通知が出ないこと」を成功の根拠にせず、捕捉されるはずの入力を通して通知が出ることを実測すると述べている",
+          "passed": true,
+          "evidence": "『通知が出ない』だけでは、設定されていない状態と区別できません』とし、EnterWorktree の name 指定の入力で通知が出ること、path 指定で出ないことを確かめるコマンドを示す"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 1,
+        "failed": 2,
+        "total": 3,
+        "time_seconds": 35.733,
+        "tokens": 40113,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "`cd` を各呼び出しに書くことでは隔離にならず、セッション自体を worktree へ移す必要があると述べている（後退検知用。ベースラインも満たすため Delta には寄与しない）",
+          "passed": true,
+          "evidence": "『cd してから絶対パスで書くという自分の中のルールは、subagent には届きません』とし、EnterWorktree で『セッションの cwd 自体が切り替わる』方法を挙げている"
+        },
+        {
+          "text": "`-b feature/x` のように worktree の作成手段に branch を作らせている点を問題として指摘し、branch は先に Issue のワークフロー（`gh issue develop` 等）で作ってから `-b` なしで張るべきだと述べている",
+          "passed": false,
+          "evidence": "-b の問題は分岐元の未指定・既存 branch との衝突だけで、branch を Issue のワークフローで先に作り -b なしで張るべきだとは述べていない"
+        },
+        {
+          "text": "`/tmp/wt` がリポジトリの `.claude/worktrees/` 外にあるため、セッションをそこへ移すのに毎回ユーザー承認が要る（permission rule や「今後確認しない」では抑止できない）と述べている",
+          "passed": false,
+          "evidence": "『許可を求められることがあります』と述べるだけで、セッションを移すたびに承認が要ることや permission rule で抑止できないことには触れていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 2,
+        "failed": 1,
+        "total": 3,
+        "time_seconds": 22.24,
+        "tokens": 37804,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "`.worktreeinclude` によるコピーは新規作成時にしか実行されず、既存 worktree に入った場合は実行されないと述べている",
+          "passed": true,
+          "evidence": "『.worktreeinclude は、Claude Code が worktree を新しく作るときにだけ使われます』『EnterWorktree の path で既存の worktree に入っただけです。この場合は何もコピーされません』"
+        },
+        {
+          "text": "不足していれば手で運ぶ必要があると述べている",
+          "passed": true,
+          "evidence": "『.env が無い場合は、メインの作業ツリーから手でコピーします』と cp -n の手順を示す"
+        },
+        {
+          "text": "運搬した `.env` が実物の資格情報を含むため、シークレット走査などの検査対象に入らないことを確認すべきだと述べている",
+          "passed": false,
+          "evidence": "git status で ignore 漏れを確かめ commit しないよう述べるだけで、シークレット走査などの検査対象から外れているかの確認には触れていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 20.854,
+        "tokens": 37322,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "読み取り専用ではなく、リンク越しに共有ツリーの実体へ書き込み・削除ができると述べている",
+          "passed": true,
+          "evidence": "『読み取り専用にする仕組みは含まれていません。worktree から何か書き込むと、その変更はそのまま本体の 20GB の受領データに反映されます』"
+        },
+        {
+          "text": "`rm -rf <名前>/` のように末尾スラッシュを付けるとリンクを辿って実体の中身が消えると述べている",
+          "passed": true,
+          "evidence": "表: 『rm -rf vendor/received/（末尾スラッシュ付き）→ リンク先の中身が消える』"
+        },
+        {
+          "text": "`rm` を監視するガードでは `sed -i` や truncate 系の書き込みを捕まえられないと述べている",
+          "passed": false,
+          "evidence": "rm を監視するガードと sed -i・truncate 系の書き込みの関係には触れていない"
+        },
+        {
+          "text": "復元の方法が外部にしかない受領物はリンクしない、という判断を示している",
+          "passed": false,
+          "evidence": "『設定自体は使ってかまいません』と symlinkDirectories でのリンクを勧めており、受領物はリンクしないという判断ではない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 2,
+        "failed": 1,
+        "total": 3,
+        "time_seconds": 35.439,
+        "tokens": 35945,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "`.gitignore` を読まない検査があるため 1 か所の除外では足りないと述べている",
+          "passed": true,
+          "evidence": "『.gitignore に足すだけでは、多くの場合解決しません』とし、ファイルシステムを直接たどるツールは .gitignore を見ないと説明"
+        },
+        {
+          "text": "リポジトリ全体を走査する検査を列挙して同じ除外をそれぞれに入れると述べている",
+          "passed": true,
+          "evidence": "ツール別の表で markdownlint-cli2・gitleaks・detect-secrets などの除外方法を挙げ、『lint と走査の設定に、除外を明示的に書く』を本命の対処としている"
+        },
+        {
+          "text": "除外が機能していることを、既知マーカーを除外の対象外に置いて検出できることを確かめる（検出されることの確認）ことで検証すると述べている",
+          "passed": false,
+          "evidence": "除外が機能していることを、既知のパターンを除外の外に置いて検出されることで確かめる検証には触れていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 18.668,
+        "tokens": 37099,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "glob による一括削除を行わず、完全一致した対象だけを削除すると述べている",
+          "passed": true,
+          "evidence": "『ワイルドカードでまとめて消すのは危険』とし、一覧を目で確かめたうえで git worktree remove <path>・git branch -d feature/223-xxx と 1 件ずつ具体名で削除する方針"
+        },
+        {
+          "text": "削除前に worktree が clean であること（未 commit の変更・未追跡ファイル・未 push の commit が無いこと）を確認すると述べている",
+          "passed": true,
+          "evidence": "手順 2 で status --short（未コミット・未追跡）、git log main..（main に無い commit）、@{upstream}（push 済みか）を確かめる"
+        },
+        {
+          "text": "解除したあと `git worktree list` をもう一度取得して解除済みを再確認してから ref を削除する順序を示している",
+          "passed": false,
+          "evidence": "削除の順序は worktree remove → branch -d → prune で、git worktree list の再取得は全削除後の『4. 削除後の確認』だけ。解除済みを再確認してから ref を削除する順序になっていない"
+        },
+        {
+          "text": "dirty または未 push がある場合は削除せず絶対パスと残作業を報告すると述べている",
+          "passed": false,
+          "evidence": "拒否されたものは『中身を確認してから個別に判断します』とするだけで、削除せず絶対パスと残作業を報告するとは述べていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 3,
+        "total": 3,
+        "time_seconds": 40.123,
+        "tokens": 19937,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "`.claude/worktrees/` の外のパスへセッションを移すたびにユーザー承認が要り、無人実行では止まると述べている",
+          "passed": false,
+          "evidence": "セッションを移すたびの承認や無人実行が止まることには触れていない（権限設定の許可ディレクトリの外になる可能性に一言触れるだけ）"
+        },
+        {
+          "text": "`.gitignore` 対象ファイルの自動運搬が実行されず手で運ぶ必要があると述べている",
+          "passed": false,
+          "evidence": "『追跡されていないファイルは付いてこない』と git worktree 一般の性質として述べるだけで、.gitignore 対象ファイルの自動運搬（.worktreeinclude など）が実行されなくなることには触れていない"
+        },
+        {
+          "text": "除外が不要になる利点と、承認・運搬の代償を並べて置き場所を判断させている",
+          "passed": false,
+          "evidence": "『リポジトリの外に置くのは良い判断です』と結論し、承認・運搬の代償と並べて置き場所を判断させていない（論点は /tmp の性質や並列実行の競合）"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 4,
+        "total": 4,
+        "time_seconds": 26.178,
+        "tokens": 37891,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "散文の指示だけでは守られないとして、同梱の `scripts/git-worktree-branch-guard.sh` を PreToolUse に組み込む手順（`references/branch-guard-hook.md`）を示している",
+          "passed": false,
+          "evidence": "同梱の git-worktree-branch-guard.sh を組み込む手順は無い。独自のラッパー scripts/wt-new と PreToolUse での拒否を提案"
+        },
+        {
+          "text": "ブロックではなく通知に留める理由（Issue に紐づかない worktree にも正当な用途がある）を述べている",
+          "passed": false,
+          "evidence": "PreToolUse hook で -b/-B 付きの git worktree add を『拒否』すると提案しており、通知に留める理由は無い"
+        },
+        {
+          "text": "Claude Code の matcher は Bash 以外の組み込みツールにも一致するため `EnterWorktree` を捕捉できるが、Codex / Copilot では `git worktree add` の呼び出しだけになると述べている",
+          "passed": false,
+          "evidence": "Claude Code の matcher が EnterWorktree を捕捉できることと、Codex / Copilot では git worktree add だけになることの区別は無い"
+        },
+        {
+          "text": "組み込んだ後の確認で「通知が出ないこと」を成功の根拠にせず、捕捉されるはずの入力を通して通知が出ることを実測すると述べている",
+          "passed": false,
+          "evidence": "組み込んだ後に捕捉されるはずの入力で通知が出ることを実測する確認は無い"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.9643,
+        "stddev": 0.0945,
+        "min": 0.75,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 25.5884,
+        "stddev": 4.4899,
+        "min": 21.362,
+        "max": 33.77
+      },
+      "tokens": {
+        "mean": 70271,
+        "stddev": 4478.895,
+        "min": 63075,
+        "max": 77712
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.381,
+        "stddev": 0.2841,
+        "min": 0,
+        "max": 0.6667
+      },
+      "time_seconds": {
+        "mean": 28.4621,
+        "stddev": 8.5172,
+        "min": 18.668,
+        "max": 40.123
+      },
+      "tokens": {
+        "mean": 35158.7143,
+        "stddev": 6828.509,
+        "min": 19937,
+        "max": 40113
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.58",
+      "time_seconds": "-2.9",
+      "tokens": "+35112"
+    }
+  },
+  "notes": [
+    "Issue #567: 使わない語の言い換え（evals.json の prompt・assertion）と fixture の語の更新の後の変更確認。各 eval を with_skill / without_skill で 1 run ずつ実行した（executor: claude-code / opus）。"
+  ]
+}

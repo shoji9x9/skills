@@ -61,11 +61,11 @@ const file = (overrides = {}, evalOverrides = {}) =>
 
 const check = (source, backlog = {}) => checkEvalFile("evals.json", source, backlog).violations;
 
-test("陰性コントロール: 正しい reachability は違反 0 件", () => {
+test("誤検知しないことの確認: 正しい reachability は違反 0 件", () => {
   expect(check(file())).toEqual([]);
 });
 
-test("陰性コントロール（実データ）: 実リポジトリの全 eval が backlog の宣言で通る", () => {
+test("誤検知しないことの確認（実データ）: 実リポジトリの全 eval が backlog の宣言で通る", () => {
   const files = listEvalFiles(repoRoot);
   expect(files.length).toBeGreaterThan(0);
   const { evals, violations } = checkAll(repoRoot, files);
@@ -73,7 +73,7 @@ test("陰性コントロール（実データ）: 実リポジトリの全 eval 
   expect(evals).toBeGreaterThan(100);
 });
 
-test("陽性コントロール（実データ）: 実在の eval の prompt を変えると免除の指紋が外れる", () => {
+test("検出の確認（実データ）: 実在の eval の prompt を変えると免除の指紋が外れる", () => {
   const files = listEvalFiles(repoRoot);
   const target = files[0];
   const parsed = JSON.parse(readFileSync(target, "utf8"));
@@ -205,7 +205,7 @@ test("鍵の材料: skill_name / id に区切り文字や欠落があれば落�
   expect(check(file({}, { id: "a:b" }))[0]).toMatch(/id に ":" を含む/);
 });
 
-test("id の重複を落とす（免除が別の eval へ効いてしまう）", () => {
+test("id の重複を落とす（免除が別の eval に適用されてしまう）", () => {
   const parsed = JSON.parse(file());
   parsed.evals.push({ ...parsed.evals[0] });
   const v = check(JSON.stringify(parsed));
@@ -219,7 +219,7 @@ test("prompt / assertions の退化形を落とす", () => {
   expect(check(file({}, { assertions: [A1, A1] }))[0]).toMatch(/assertions のテキストが重複/);
 });
 
-test("evals が配列でない・JSON として壊れている入力を落とす", () => {
+test("evals が配列でない・JSON として読めない入力を落とす", () => {
   expect(check(JSON.stringify({ skill_name: "demo", evals: {} }))[0]).toMatch(/evals が配列でない/);
   expect(check("{ not json")[0]).toMatch(/JSON として読めない/);
 });
@@ -262,7 +262,7 @@ test("配布スキルの中の eval（skills/<name>/evals/）は全走査でだ�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("backlog が無ければ免除の正本が読めないので落とす", () => {
+test("backlog が無ければ免除の原本が読めないので落とす", () => {
   const root = makeTempDir("eval-reach-");
   mkdirSync(join(root, "evals/demo"), { recursive: true });
   const evalsPath = join(root, "evals/demo/evals.json");
@@ -271,7 +271,7 @@ test("backlog が無ければ免除の正本が読めないので落とす", () 
   rmSync(root, { recursive: true, force: true });
 });
 
-test("backlog が壊れていても、クラッシュせず違反として落とす", () => {
+test("backlog が不正でも、クラッシュせず違反として落とす", () => {
   // 不在を違反にしている以上、形式が不正な場合も違反にする。素の JSON.parse だと、merge 衝突の
   // 残骸でスタックトレースを出してチェックが止まり、「チェックした結果」ではなくクラッシュで落ちる。
   const root = makeTempDir("eval-reach-");
@@ -297,7 +297,7 @@ test.each([
   expect(violations[0]).toMatch(/トップレベルが/);
 });
 
-test("CLI: 対象 0 件は成功に倒さず exit 1", () => {
+test("CLI: 対象 0 件は成功として扱わず exit 1", () => {
   const root = makeTempDir("eval-reach-");
   const r = spawnSync(process.execPath, [script], { cwd: root, encoding: "utf8" });
   expect(r.status).toBe(1);

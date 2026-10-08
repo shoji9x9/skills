@@ -53,11 +53,11 @@ function contractRegion(source, tool) {
   const starts = source.split(START).length - 1;
   const ends = source.split(END).length - 1;
   if (starts !== 1 || ends !== 1) {
-    throw new Error(`${tool}: 契約マーカーが 1 組ではない（start=${starts} end=${ends}）`);
+    throw new Error(`${tool}: 取り決めのマーカーが 1 組ではない（start=${starts} end=${ends}）`);
   }
   const from = source.indexOf(START);
   const to = source.indexOf(END);
-  if (to < from) throw new Error(`${tool}: 契約マーカーが逆順`);
+  if (to < from) throw new Error(`${tool}: 取り決めのマーカーが逆順`);
   return source.slice(from, to + END.length);
 }
 
@@ -69,7 +69,7 @@ const regions = Object.fromEntries(
 );
 
 test.each(Object.keys(SOURCES))(
-  "陽性コントロール: %s の契約領域が実体を含む（空振り・切り詰めを一致と報告しない）",
+  "検出されることの確認: %s の取り決めの領域が実体を含む（空振り・切り詰めを一致と報告しない）",
   (tool) => {
     // 長さの下限は置かない。取り決めの意味ではなく実装サイズに依存し、コメント整理や
     // 共通化だけで落ちる。空振り・切り詰めは REQUIRED_MEMBERS と構文検査が捕まえる。
@@ -81,7 +81,7 @@ test.each(Object.keys(SOURCES))(
 );
 
 test.each(Object.keys(SOURCES))(
-  "陽性コントロール: %s の契約領域が構文として閉じている（途中で切れた範囲を比較しない）",
+  "検出されることの確認: %s の取り決めの領域が構文として閉じている（途中で切れた範囲を比較しない）",
   (tool) => {
     // 終了マーカーを関数本体の途中へ移すと、領域は同じ前半を共有したまま短くなる。
     // 「END で終わるか」は contractRegion が END まで切り出す以上つねに真で何も示さない。
@@ -90,7 +90,7 @@ test.each(Object.keys(SOURCES))(
   },
 );
 
-test("absent 証拠スキーマの契約は両ゲートで同一である", () => {
+test("absent 証拠スキーマの取り決めは両方のチェックで同一である", () => {
   const [a, b] = Object.values(regions);
   expect(a).toBe(b);
 });

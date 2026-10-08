@@ -69,7 +69,7 @@ const UNRESOLVED_MESSAGES = {
   alias:
     "受け側を解決できない（束ねた変数の由来を追えない）。右辺の関数の戻り値、またはプロパティへ Page / Locator の型注釈を付ける",
   opaque:
-    "受け側の起点を確定できない（括弧で包んだ式・リテラル等）。Page / Locator に解決する式から引く",
+    "受け側の起点を確定できない（括弧で包んだ式・リテラル等）。Page / Locator に解決する式から取得する",
   binding:
     "受け側の名前の束縛を解決できない（Page / Locator 以外の注釈を含む引数・分割代入・再代入・for-of・import・未宣言の名前・this のプロパティ等）。" +
     "Locator / Page なら束縛へ型注釈（`loc: Locator`）を付ける。Playwright 以外の値（evaluate の中の DOM 等）は " +

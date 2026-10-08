@@ -143,7 +143,7 @@ function run(input = {}) {
   return { code, stderr, json, codes: json?.findings?.map((/** @type {any} */ f) => f.code) ?? [] };
 }
 
-test("陽性コントロール: Issue と対応し根拠の揃った表は exit 0（deferred があれば閉じない）", () => {
+test("誤検知しないことの確認: Issue と対応し根拠の揃った表は exit 0（deferred があれば閉じない）", () => {
   const r = run({ extra: ["--head", HEAD] });
   expect(r.code).toBe(0);
   expect(r.json.ok).toBe(true);
@@ -202,7 +202,7 @@ test("画面にチェックボックスとして出た項目だけを数える�
   ]);
 });
 
-test("文言の無い項目は黙って捨てず、Issue 側を直すよう落とす", () => {
+test("文言の無い項目は警告なしに捨てず、Issue 側を直すよう落とす", () => {
   const body = RENDERED.emptyItem.markdown;
   const data = issue({ body, comments: [] });
   const items = [
@@ -327,7 +327,7 @@ test("行が 0 件の表は合格にしない", () => {
   expect(r.codes).toEqual(expect.arrayContaining(["no-items", "checklist-item-missing"]));
 });
 
-test("別の Issue の表・短縮 SHA・壊れた入力は exit 2", () => {
+test("別の Issue の表・短縮 SHA・形式の不正な入力は exit 2", () => {
   const other = { ...table(), issue: { number: 465 } };
   expect(run({ tableData: other }).code).toBe(2);
   expect(run({ extra: ["--head", "abc1234"] }).code).toBe(2);

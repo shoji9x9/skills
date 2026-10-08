@@ -232,7 +232,7 @@ test("近接した 1 画素の成分は、先にマージしてから下限に�
   expect(filterAndMerge(components, 4, 8)).toHaveLength(0);
 });
 
-test("マージしても下限に届かない分は件数と画素数で報告する（黙って捨てない）", () => {
+test("マージしても下限に届かない分は件数と画素数で報告する（警告なしに捨てない）", () => {
   const components = [
     { pixels: 1, bbox: { x: 0, y: 0, width: 1, height: 1 } },
     { pixels: 2, bbox: { x: 200, y: 200, width: 2, height: 1 } },
@@ -392,7 +392,7 @@ test("芯と縁が重なる差は、外側の bbox を持つ 1 つの候補に�
   expect(strict.droppedClusters).toBe(0);
 });
 
-test("取り込まなければ同じ差が 2 件になる（陽性コントロール: 取り込みが効いていること）", () => {
+test("取り込まなければ同じ差が 2 件になる（検出されることの確認: 取り込みが機能していること）", () => {
   const thresholdMask = maskWith(W, H, [core]);
   const strictOnly = buildStrictOnlyMask(thresholdMask, maskWith(W, H, [core, halo]));
 

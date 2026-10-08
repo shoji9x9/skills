@@ -290,7 +290,7 @@ test("部品 slug の要素は、帰属不明として棚卸しすれば閉じ�
   expect(stderr).toContain("error: 設定ファイルの登録簿の不整合");
 });
 
-test("parity-component が cross-cutting で書いた要素は従来どおり通る（陰性コントロール）", () => {
+test("parity-component が cross-cutting で書いた要素は従来どおり通る（誤検知しないことの確認）", () => {
   const { status, stderr } = run({
     pending: [
       {
@@ -318,7 +318,7 @@ test("parity-component が cross-cutting で書いた要素は従来どおり通
 // 機能 slug の採番（同 手順 9）より前なので、機能 slug を書けない。
 // 許可値に無いままだと「未知のスキル名」として帰属不明と判定されてしまい、機能に帰属する保留が閉じられない。
 
-test("replace-strategy が cross-cutting で書いた要素は従来どおり通る（陰性コントロール）", () => {
+test("replace-strategy が cross-cutting で書いた要素は従来どおり通る（誤検知しないことの確認）", () => {
   const { status, stderr } = run({
     pending: [
       {
@@ -361,7 +361,7 @@ test("replace-strategy が機能 slug を書いた要素は帰属不明として
   expect(parsed.out_of_scope_problems).toEqual([]);
 });
 
-test("他のスキルが別機能の slug を書いた要素は、この検査で帰属不明に倒されない", () => {
+test("他のスキルが別機能の slug を書いた要素は、この検査で帰属不明として扱われない", () => {
   const { status, stdout } = run({
     pending: [{ ...otherFeature, added_at: "2026-09-01" }],
   });
@@ -422,7 +422,7 @@ test("実在しない slug は、書き手が正規でも帰属不明として�
   expect(parsed.out_of_scope_problems).toEqual([]);
 });
 
-test("--features を渡さないと別機能への緩和を適用しない（fail-closed）", () => {
+test("--features を渡さないと別機能への緩和を適用しない（渡されないときは緩和しない側で判定する）", () => {
   const { status, stderr, stdout } = run({
     pending: [{ ...otherFeature, added_at: "2026-09-01" }],
     features: false,
@@ -460,13 +460,13 @@ test("slug 表の無い features.md は読めないものとして exit 2 で落
   expect(result.stderr).toContain("slug 列の表が無い");
 });
 
-test("対象 slug 自体がインベントリに無ければ、比較の基準が壊れているので落ちる", () => {
+test("対象 slug 自体がインベントリに無ければ、比較の基準が無いので落ちる", () => {
   const { status, stderr } = run({ pending: [], slugs: ["other-feature"] });
   expect(status).toBe(2);
   expect(stderr).toContain("対象 slug が機能インベントリに無い");
 });
 
-test("書き手が読めない要素は cross-cutting なら従来どおり対象（陰性コントロール）", () => {
+test("書き手が読めない要素は cross-cutting なら従来どおり対象（誤検知しないことの確認）", () => {
   const { status, stderr } = run({
     pending: [
       { item: "横断の保留", slug: "cross-cutting", added_by: "unknown", added_at: "unknown" },
@@ -500,7 +500,7 @@ test("match を持つオブジェクトとして may_change へ移した要素�
   expect(r.status).toBe(0);
 });
 
-test("移動先に無ければ落ちる（陽性コントロール: 移動先の突き合わせが動いていること）", () => {
+test("移動先に無ければ落ちる（検出されることの確認: 移動先の突き合わせが動いていること）", () => {
   const r = run({
     pending: [],
     may_change: [],

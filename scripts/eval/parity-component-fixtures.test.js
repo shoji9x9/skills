@@ -252,7 +252,7 @@ function checkComponent(dir) {
       !(Number.isInteger(n.traits) && n.traits >= 0),
   );
   if (malformedNoise.length > 0) {
-    problems.push(`noise_baseline に形の壊れた行が ${malformedNoise.length} 件ある`);
+    problems.push(`noise_baseline に形の不正な行が ${malformedNoise.length} 件ある`);
   }
   const recordedNoise = noiseRows
     .filter((n) => !malformedNoise.includes(n))
@@ -348,7 +348,7 @@ const edit = (path, mutate) => {
   writeFileSync(path, JSON.stringify(value));
 };
 
-test("陽性コントロール: 実物に無いプロパティを含む traits_property_set を検出する", () => {
+test("陽性: 実物に無いプロパティを含む traits_property_set を検出する", () => {
   const dir = copyFixture();
   // 実物の FIXED_PROPERTIES に無い名前を選ぶ（集合に足された名前を使うと、重複で長さが変わる
   // せいで通ってしまい、「実物に無い名前を検出した」ことの証拠にならない）。
@@ -361,7 +361,7 @@ test("陽性コントロール: 実物に無いプロパティを含む traits_p
   );
 });
 
-test("陽性コントロール: 記録されていない element_shot_version を検出する", () => {
+test("陽性: 記録されていない element_shot_version を検出する", () => {
   const dir = copyFixture();
   edit(join(dir, "metadata.json"), (m) => {
     // 「値が違う」ではなく「キーごと無い」形で不正にする。element-shot.mjs は今回の追加なので、
@@ -371,7 +371,7 @@ test("陽性コントロール: 記録されていない element_shot_version �
   expect(checkComponent(dir)).toContain(`element_shot_version undefined ≠ ${elementShot.VERSION}`);
 });
 
-test("陽性コントロール: 計算値と食い違う規則の宣言を検出する", () => {
+test("陽性: 計算値と食い違う規則の宣言を検出する", () => {
   const dir = copyFixture();
   edit(join(dir, "baseline/users-create/hover/css-rules.json"), (r) => {
     const hover = r.matched.find((m) => m.states.includes("hover"));
@@ -382,14 +382,14 @@ test("陽性コントロール: 計算値と食い違う規則の宣言を検出
   );
 });
 
-test("陽性コントロール: rect と合わない element.png を検出する", () => {
+test("陽性: rect と合わない element.png を検出する", () => {
   const dir = copyFixture();
   const other = readFileSync(join(dir, "baseline/orders-search/default/element.png"));
   writeFileSync(join(dir, "baseline/users-create/default/element.png"), other);
   expect(checkComponent(dir).join("\n")).toContain("users-create / default: element.png");
 });
 
-test("陽性コントロール: element.shot.json の欠落・版違い・実寸違いを検出する", () => {
+test("陽性: element.shot.json の欠落・版違い・実寸違いを検出する", () => {
   const dir = copyFixture();
   rmSync(join(dir, "baseline/orders-search/default/element.shot.json"));
   edit(join(dir, "baseline/users-create/default/element.shot.json"), (r) => {
@@ -413,7 +413,7 @@ test.each([
   ["frame_depth", (r) => (r.frame_depth = 1), "frame_depth"],
   ["animations", (r) => (r.animations = "allow"), "animations"],
   ["余計なキー", (r) => (r.extra = true), "extra"],
-])("陽性コントロール: element.shot.json の契約違反を検出する: %s", (_label, mutate, key) => {
+])("陽性: element.shot.json の仕様違反を検出する: %s", (_label, mutate, key) => {
   const dir = copyFixture();
   edit(join(dir, "baseline/users-create/default/element.shot.json"), mutate);
   expect(checkComponent(dir).join("\n")).toContain(
@@ -421,7 +421,7 @@ test.each([
   );
 });
 
-test("陽性コントロール: 寸法が同じ別の撮影の記録を差し込むと検出する", () => {
+test("陽性: 寸法が同じ別の撮影の記録を差し込むと検出する", () => {
   const dir = copyFixture();
   // 同じボタン・同じ寸法で状態だけ違う記録（hover）を default に差し込む。rect が同じなら差は出ないので、
   // 別インスタンスの記録を使う（寸法は同じでも位置が違う）。
@@ -435,13 +435,13 @@ test("陽性コントロール: 寸法が同じ別の撮影の記録を差し込
   );
 });
 
-test("陽性コントロール: 採取物から導けない axes.json を検出する", () => {
+test("陽性: 採取物から導けない axes.json を検出する", () => {
   const dir = copyFixture();
   edit(join(dir, "axes.json"), (a) => a.fixed.pop());
   expect(checkComponent(dir)).toContain("axes.json が axis-diff --baseline の出力と一致しない");
 });
 
-test("陽性コントロール: null の撮影条件とノイズ基準値を検出する", () => {
+test("陽性: null の撮影条件とノイズ基準値を検出する", () => {
   const dir = copyFixture();
   edit(join(dir, "metadata.json"), (m) => {
     m.capture_conditions = null;
@@ -452,7 +452,7 @@ test("陽性コントロール: null の撮影条件とノイズ基準値を検�
   expect(problems).toContain("noise_baseline が比較の母集合 × ビューポートを 1 件ずつ覆っていない");
 });
 
-test("陽性コントロール: 組み合わせが欠けたノイズ基準値を検出する", () => {
+test("陽性: 組み合わせが欠けたノイズ基準値を検出する", () => {
   const dir = copyFixture();
   edit(join(dir, "metadata.json"), (m) => m.noise_baseline.pop());
   expect(checkComponent(dir)).toContain(
@@ -460,7 +460,7 @@ test("陽性コントロール: 組み合わせが欠けたノイズ基準値を
   );
 });
 
-test("陽性コントロール: 採取未完了の fixture を検出する", () => {
+test("陽性: 採取未完了の fixture を検出する", () => {
   for (const complete of [false, undefined]) {
     const dir = copyFixture();
     edit(join(dir, "metadata.json"), (m) => {
@@ -470,7 +470,7 @@ test("陽性コントロール: 採取未完了の fixture を検出する", () 
   }
 });
 
-test("陽性コントロール: 寸法の無い・不正なビューポートを検出する", () => {
+test("陽性: 寸法の無い・不正なビューポートを検出する", () => {
   for (const viewport of [
     { label: "desktop" },
     { label: "desktop", width: 0, height: 800 },
@@ -485,7 +485,7 @@ test("陽性コントロール: 寸法の無い・不正なビューポートを
   }
 });
 
-test("陽性コントロール: 失敗した軸の割り出しを整合して記録していても検出する", () => {
+test("陽性: 失敗した軸の割り出しを整合して記録していても検出する", () => {
   // axes.json と metadata.axes を同じ失敗結果に揃えると、一致の検査だけでは通ってしまう。
   const dir = copyFixture();
   edit(join(dir, "metadata.json"), (m) => {
@@ -508,7 +508,7 @@ test("陽性コントロール: 失敗した軸の割り出しを整合して記
   expect(problems.join("\n")).toContain("axis-diff --baseline が ok でない");
 });
 
-test("陽性コントロール: component-api.md とデータ依存の data.json の欠落を検出する", () => {
+test("陽性: component-api.md とデータ依存の data.json の欠落を検出する", () => {
   const dir = copyFixture();
   rmSync(join(dir, "component-api.md"));
   edit(join(dir, "metadata.json"), (m) => {
@@ -521,7 +521,7 @@ test("陽性コントロール: component-api.md とデータ依存の data.json
   );
 });
 
-test("陽性コントロール: 重複したビューポートのラベルを検出する", () => {
+test("陽性: 重複したビューポートのラベルを検出する", () => {
   const dir = copyFixture();
   edit(join(dir, "metadata.json"), (m) => {
     const [vp] = m.capture_conditions.viewports;
@@ -532,7 +532,7 @@ test("陽性コントロール: 重複したビューポートのラベルを検
   expect(checkComponent(dir)).toContain("capture_conditions が採取の条件として埋まっていない");
 });
 
-test("陽性コントロール: 期待する行が揃っていても形の壊れた余分なノイズ行を検出する", () => {
+test("陽性: 期待する行が揃っていても形の不正な余分なノイズ行を検出する", () => {
   for (const extra of [
     null,
     { instance: "orders-search", state: "default", viewport: "desktop", pixel: "0", traits: 0 },
@@ -541,21 +541,21 @@ test("陽性コントロール: 期待する行が揃っていても形の壊れ
     edit(join(dir, "metadata.json"), (m) => {
       m.noise_baseline.push(extra);
     });
-    expect(checkComponent(dir)).toContain("noise_baseline に形の壊れた行が 1 件ある");
+    expect(checkComponent(dir)).toContain("noise_baseline に形の不正な行が 1 件ある");
   }
 });
 
-test("陽性コントロール: 負のノイズ値と整数でない特性差分件数を検出する", () => {
+test("陽性: 負のノイズ値と整数でない特性差分件数を検出する", () => {
   for (const patch of [{ pixel: -1 }, { traits: -1 }, { traits: 0.5 }]) {
     const dir = copyFixture();
     edit(join(dir, "metadata.json"), (m) => {
       Object.assign(m.noise_baseline[0], patch);
     });
-    expect(checkComponent(dir)).toContain("noise_baseline に形の壊れた行が 1 件ある");
+    expect(checkComponent(dir)).toContain("noise_baseline に形の不正な行が 1 件ある");
   }
 });
 
-test("陽性コントロール: 到達不能の宣言があるのに not_compared が空の要約を検出する", () => {
+test("陽性: 到達不能の宣言があるのに not_compared が空の要約を検出する", () => {
   // 正当な宣言で not_compared が非空になる状態を作り、axes.json はそれに合わせて再導出、
   // metadata.json の axes だけを古い（空の not_compared の）ままにする。
   const dir = copyFixture();
@@ -585,7 +585,7 @@ test("陽性コントロール: 到達不能の宣言があるのに not_compare
   expect(problems).toContain("metadata.json の axes の要約が axes.json と一致しない");
 });
 
-test("陽性コントロール: capture_conditions の全項目の欠落・型崩れを検出する", () => {
+test("陽性: capture_conditions の全項目の欠落・型崩れを検出する", () => {
   const mutations = [
     (c) => delete c.viewer_environment,
     (c) => (c.viewer_environment = null),
@@ -620,7 +620,7 @@ test("capture_conditions の正当な値の変化は通す", () => {
   }
 });
 
-test("陽性コントロール: ノイズ行の未知・欠落キーを検出する", () => {
+test("陽性: ノイズ行の未知・欠落キーを検出する", () => {
   for (const mutate of [(row) => (row.extra = 1), (row) => delete row.viewport]) {
     const dir = copyFixture();
     edit(join(dir, "metadata.json"), (m) => mutate(m.noise_baseline[0]));

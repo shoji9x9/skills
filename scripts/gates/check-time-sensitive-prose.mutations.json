@@ -50,7 +50,7 @@
         "陽性: 対象の場所（.agents/rules/x.md）の件数を、ファイルと行を付けて落とす",
         "陽性: 対象の場所（docs/x.md）の件数を、ファイルと行を付けて落とす",
         "陽性: 対象の場所（docs/sub/y.md）の件数を、ファイルと行を付けて落とす",
-        "陽性コントロール（CLI）: 子プロセスとして起動しても、件数の記述は exit 1、無ければ exit 0",
+        "検出の確認（CLI）: 子プロセスとして起動しても、件数の記述は exit 1、無ければ exit 0",
         "陽性（実データ）: 実測値を寄せる前の ci.yml のコメントを、件数と所要時間で落とす",
         "陽性: 対象の場所（.github/workflows/ci.yml）の件数を、ファイルと行を付けて落とす",
         "陽性: 対象の場所（.github/workflows/x.yaml）の件数を、ファイルと行を付けて落とす"
@@ -188,7 +188,7 @@
       "expect_failing": [
         "陽性: 対象の場所（docs/x.md）の件数を、ファイルと行を付けて落とす",
         "陽性: 対象の場所（docs/sub/y.md）の件数を、ファイルと行を付けて落とす",
-        "陽性コントロール（CLI）: 子プロセスとして起動しても、件数の記述は exit 1、無ければ exit 0"
+        "検出の確認（CLI）: 子プロセスとして起動しても、件数の記述は exit 1、無ければ exit 0"
       ]
     },
     {
@@ -225,7 +225,7 @@
       "find": "  if (files.length === 0) {",
       "replace": "  if (false) {",
       "occurrences": 1,
-      "expect_failing": ["対象ファイル 0 件は成功に倒さず exit 1"]
+      "expect_failing": ["対象ファイル 0 件は成功として扱わず exit 1"]
     },
     {
       "id": "MC-FRACTION",
@@ -261,8 +261,7 @@
       "replace": ") files.push(rel);",
       "occurrences": 1,
       "expect_failing": [
-        "陰性: 実測値の置き場（mutation-proof.yml）・YAML 以外・サブディレクトリ（名前が .yml のディレクトリを含む）のワークフローは見ない",
-        "陰性: 実リポジトリの対象文書に件数・所要時間の記述が 0 件"
+        "陰性: 実測値の置き場（mutation-proof.yml）・YAML 以外・サブディレクトリ（名前が .yml のディレクトリを含む）のワークフローは見ない"
       ]
     },
     {
@@ -305,10 +304,7 @@
       "find": "const TIME_WORD_RE = /(?<![の「])",
       "replace": "const TIME_WORD_RE = /(?<![「])",
       "occurrences": 1,
-      "expect_failing": [
-        "陰性: 前が「の」 は拾わない",
-        "陰性: 実リポジトリは保留と許可を当てると時間の語と日付の失敗が 0 件"
-      ]
+      "expect_failing": ["陰性: 前が「の」 は拾わない"]
     },
     {
       "id": "TS-WORD-QUOTE",
@@ -317,10 +313,7 @@
       "find": "const TIME_WORD_RE = /(?<![の「])",
       "replace": "const TIME_WORD_RE = /(?<![の])",
       "occurrences": 1,
-      "expect_failing": [
-        "陰性: 語として挙げた形 は拾わない",
-        "陰性: 実リポジトリは保留と許可を当てると時間の語と日付の失敗が 0 件"
-      ]
+      "expect_failing": ["陰性: 語として挙げた形 は拾わない"]
     },
     {
       "id": "TS-DATE-MD",
@@ -329,10 +322,7 @@
       "find": "20\\d\\d-\\d\\d-\\d\\d(?![\\w-]*\\.md)",
       "replace": "20\\d\\d-\\d\\d-\\d\\d",
       "occurrences": 1,
-      "expect_failing": [
-        "陰性: 学びのファイル名 は拾わない",
-        "陰性: 実リポジトリは保留と許可を当てると時間の語と日付の失敗が 0 件"
-      ]
+      "expect_failing": ["陰性: 学びのファイル名 は拾わない"]
     },
     {
       "id": "TS-DATE-JA",
@@ -350,10 +340,7 @@
       "find": "if (line === null || EXAMPLE_LINE_RE.test(line)) return;",
       "replace": "if (line === null) return;",
       "occurrences": 1,
-      "expect_failing": [
-        "陰性: 例の行 は拾わない",
-        "陰性: 実リポジトリは保留と許可を当てると時間の語と日付の失敗が 0 件"
-      ]
+      "expect_failing": ["陰性: 例の行 は拾わない"]
     },
     {
       "id": "TS-MD-FENCE",
@@ -362,10 +349,7 @@
       "find": "(fenced[i] ? null : blankInlineCode(l))",
       "replace": "(fenced[i] ? blankInlineCode(l) : blankInlineCode(l))",
       "occurrences": 1,
-      "expect_failing": [
-        "陰性: コードフェンス は拾わない",
-        "陰性: 実リポジトリは保留と許可を当てると時間の語と日付の失敗が 0 件"
-      ]
+      "expect_failing": ["陰性: コードフェンス は拾わない"]
     },
     {
       "id": "TS-MD-INLINE",
@@ -404,7 +388,6 @@
       "expect_failing": [
         "陽性: JS の行末コメント を拾う",
         "陽性: YAML の行末コメント を拾う",
-        "陰性: 実リポジトリは保留と許可を当てると時間の語と日付の失敗が 0 件",
         "陽性: JS の行の途中のブロックコメント を拾う"
       ]
     },
@@ -425,8 +408,7 @@
       "replace": "scannedFiles(root, { exclude: [] })",
       "occurrences": 1,
       "expect_failing": [
-        "走査対象: Tier 4・階層の外・スキルのコピー・このチェックのテストは読まない",
-        "陰性: 実リポジトリは保留と許可を当てると時間の語と日付の失敗が 0 件"
+        "走査対象: Tier 4・階層の外・スキルのコピー・このチェックのテストは読まない"
       ]
     },
     {

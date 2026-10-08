@@ -77,7 +77,7 @@ test("resolution が null の保留は未解決として落とす", () => {
   expect(result.unsettled.map((u) => u.state)).toEqual(["open"]);
 });
 
-test("陽性コントロール: 実施の記録・置き場・blocks 空の保留は済んだと数える", () => {
+test("誤検知しないことの確認: 実施の記録・置き場・blocks 空の保留は済んだと数える", () => {
   const work = makeTempDir("pending-decisions-");
   writeFileSync(
     join(work, "p.json"),
@@ -133,7 +133,7 @@ test("blocks が欠落した保留は工程があるものとして扱う（空�
   expect(classifyDecision(rest).state).toBe("decided");
 });
 
-test("回答として読めない resolution は未解決に倒す", () => {
+test("回答として読めない resolution は未解決として扱う", () => {
   expect(classifyDecision(decision({ resolution: true })).state).toBe("open");
   expect(classifyDecision(decision({ resolution: {} })).state).toBe("open");
   expect(classifyDecision(decision({ resolution: { answer: "A" } })).state).toBe("open");

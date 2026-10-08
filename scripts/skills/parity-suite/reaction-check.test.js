@@ -309,7 +309,7 @@ const stateDisplayRow = (page = "共有画面") => ({
     },
     dialog: {
       status: "absent",
-      setup: { method: "not-applicable", detail: "画面が開くダイアログの器を持たない" },
+      setup: { method: "not-applicable", detail: "画面がダイアログを開かない" },
       observed: "移行元の画面のテンプレートにダイアログの要素が無い",
     },
   },
@@ -566,7 +566,7 @@ const mutated = (mutate) => {
   return t;
 };
 
-test("陽性コントロール: 完全な表は exit 0", () => {
+test("誤検知しないことの確認: 完全な表は exit 0", () => {
   const r = run(baseTable());
   expect(r.stderr).toBe("");
   expect(r.status).toBe(0);
@@ -577,7 +577,7 @@ test("陽性コントロール: 完全な表は exit 0", () => {
   });
 });
 
-test("陽性コントロール（CLI）: 子プロセスとして起動しても、完全な表は exit 0 で結果を stdout に出す", () => {
+test("CLI として動くことの確認: 子プロセスとして起動しても、完全な表は exit 0 で結果を stdout に出す", () => {
   const { dir } = run(baseTable());
   const r = cli(dir);
   expect(r.stderr).toBe("");
@@ -585,7 +585,7 @@ test("陽性コントロール（CLI）: 子プロセスとして起動しても
   expect(JSON.parse(r.stdout)).toMatchObject({ tool: "reaction-check", ok: true });
 });
 
-test("陽性コントロール（CLI）: 子プロセスとして起動しても、不整合は exit 1 で stderr に出す", () => {
+test("CLI として動くことの確認: 子プロセスとして起動しても、不整合は exit 1 で stderr に出す", () => {
   const t = mutated((x) => {
     x.feedback_calls.call_sites = [];
     x.feedback_calls.zero_calls_reason = "呼び出しは無い";
@@ -597,7 +597,7 @@ test("陽性コントロール（CLI）: 子プロセスとして起動しても
   expect(JSON.parse(r.stdout)).toMatchObject({ ok: false });
 });
 
-test("陽性コントロール（CLI）: 子プロセスとして起動しても、使い方の誤りは exit 2 で usage を stderr に出す", () => {
+test("CLI として動くことの確認: 子プロセスとして起動しても、使い方の誤りは exit 2 で usage を stderr に出す", () => {
   const { dir } = run(baseTable());
   const r = cli(dir, ["--bogus"]);
   expect(r.stderr).toContain("error: 不明な引数 --bogus");
@@ -813,9 +813,9 @@ test.each([
     (t) => (t.operations[0].reactions[0].destination.document = "別のフレーム"),
     "destination.document",
   ],
-  ["被覆表の slug が別機能", (t) => (t.slug = "other"), "slug（other）"],
+  ["網羅表の slug が別機能", (t) => (t.slug = "other"), "slug（other）"],
   [
-    "被覆表の測定 target が別環境",
+    "網羅表の測定 target が別環境",
     (t) => (t.measured_target = "local-dev"),
     "measured_target（local-dev）",
   ],
@@ -981,7 +981,7 @@ test.each([
     "handlers（file と symbol）が空",
   ],
   [
-    "ハンドラのファイルが走査範囲に無い（範囲の書き漏れ）",
+    "ハンドラのファイルが走査範囲に無い（範囲の書き忘れ）",
     (t) => (t.operations[1].handlers = [{ file: "src/list.js", symbol: "search" }]),
     "ハンドラのファイル src/list.js が走査範囲に無い",
   ],
@@ -990,13 +990,13 @@ test.each([
     (t) => (t.operations[1].handlers[0].symbol = "searchAll"),
     "ハンドラ searchAll が src/share.js に見つからない",
   ],
-])("ハンドラの来歴で落とす: %s", (_name, mutate, message) => {
+])("ハンドラの出所で落とす: %s", (_name, mutate, message) => {
   const r = run(mutated(mutate));
   expect(r.status).toBe(1);
   expect(r.stderr).toContain(message);
 });
 
-test("ハンドラが走査範囲外のファイルにあると、そこにある呼び出しの記録漏れが操作単位で見える", () => {
+test("ハンドラが走査範囲外のファイルにあると、そこにある呼び出しの記録の抜けが操作単位で見える", () => {
   // Codex の再現例: ハンドラが a.js と b.js にあるのに paths が a.js だけ
   const t = mutated((x) => {
     x.feedback_calls.source.paths = ["src/share.js"];
@@ -1007,7 +1007,7 @@ test("ハンドラが走査範囲外のファイルにあると、そこにあ�
   expect(r.stderr).toContain("ハンドラのファイル src/b.js が走査範囲に無い");
 });
 
-test("feedback_calls.declared: false ならハンドラの来歴は要求しない", () => {
+test("feedback_calls.declared: false ならハンドラの出所は要求しない", () => {
   const t = mutated((x) => {
     x.feedback_calls = { declared: false, reason: "移行元ソースを入手できない" };
     delete x.operations[0].handlers;
@@ -1123,11 +1123,11 @@ test("行頭アンカー付きのパターンでも 2 行目以降の呼び出�
 test.each([
   ["撮影状態に default 以外がある", { capture_conditions: { states: ["default", "copy-toast"] } }],
   [
-    "器の棚卸しが空でない",
+    "ポップアップの棚卸しが空でない",
     { capture_conditions: { states: ["default"], popup_inventory: [{ name: "x" }] } },
   ],
   [
-    "部品被覆表を宣言している",
+    "部品網羅表を宣言している",
     { capture_conditions: { states: ["default"] }, component_coverage: { declared: true } },
   ],
 ])("操作の痕跡がある機能の declared: false は exit 2: %s", (_n, patch) => {
@@ -1258,7 +1258,7 @@ test("--recorded は conformance が無ければ落とす", () => {
   expect(run(baseTable(), { args: ["--recorded"] }).status).toBe(1);
 });
 
-test("declared: true なのに表が読めなければ exit 1（合格に倒さない）", () => {
+test("declared: true なのに表が読めなければ exit 1（合格として扱わない）", () => {
   const r = run(baseTable(), {
     metadata: { reaction_coverage: { declared: true, path: "missing.json" } },
   });
@@ -1633,7 +1633,7 @@ test("動かさなかった状態に理由があれば通し、状態を持た�
       t.operations[0].aftermath.returns_to.probed = ["検索条件", "並べ替え"];
       t.operations[0].aftermath.returns_to.not_probed = {
         列フィルター: "この操作は列フィルターを開いている間は押せない（実 UI で確かめた）",
-        列の変更: "列の変更の器を開いている間は押せない（実 UI で確かめた）",
+        列の変更: "列の変更のダイアログを開いている間は押せない（実 UI で確かめた）",
       };
     }),
   );
@@ -1704,7 +1704,7 @@ test("残る見た目の撮る状態を操作をまたいで使い回すなら�
   const both = run(
     mutated((t) =>
       share(t, [
-        "コピーと検索を続けて行った 1 枚に両方の後の見た目が写ることを実 UI で確かめた",
+        "コピーと検索を続けて行った 1 枚に両方の後の見た目が記録されることを実 UI で確かめた",
         "同上（コピーと検索を続けて行った 1 枚で両方を確かめた）",
       ]),
     ),
@@ -1727,7 +1727,7 @@ test("反応の撮る状態と、別の操作の残る見た目が 1 枚を共�
     mutated((t) => {
       shareToast(t);
       t.operations[0].reactions[0].capture.shared_capture_reason =
-        "コピーの後に検索しても同じ通知が残り、1 枚に両方が写ることを実 UI で確かめた";
+        "コピーの後に検索しても同じ通知が残り、1 枚に両方が記録されることを実 UI で確かめた";
       t.operations[1].aftermath.look.items[1].shared_capture_reason = "同上";
     }),
   );
@@ -2067,7 +2067,7 @@ test("別名のページ（同じ path の別の名前）は同じ 1 枚とし�
   const both = run(
     mutated((t) =>
       share(t, [
-        "コピーの後に検索しても同じ通知が残り、1 枚に両方が写ることを実 UI で確かめた",
+        "コピーの後に検索しても同じ通知が残り、1 枚に両方が記録されることを実 UI で確かめた",
         "同上",
       ]),
     ),
@@ -2101,7 +2101,7 @@ test("ui_url が runtime で解けない相対の path も、同じ path の別�
   const both = run(
     mutated((t) =>
       share(t, [
-        "コピーの後に検索しても同じ通知が残り、1 枚に両方が写ることを実 UI で確かめた",
+        "コピーの後に検索しても同じ通知が残り、1 枚に両方が記録されることを実 UI で確かめた",
         "同上",
       ]),
     ),
@@ -2183,7 +2183,7 @@ test("表をまたいで同じページ × 状態名を指す 2 行は、根拠�
   expect(half.status).toBe(1);
   expect(half.stderr).toContain("根拠が空: component-coverage.json: visual_state_coverage.rows[0]");
   const both = run(
-    copyOnShare("コピーの後に行を選んだ 1 枚に通知と選択の塗りが写ることを実 UI で確かめた"),
+    copyOnShare("コピーの後に行を選んだ 1 枚に通知と選択の塗りが記録されることを実 UI で確かめた"),
     {
       metadata: coverageMeta(),
       coverage: coverageWith([
@@ -2211,7 +2211,7 @@ test("表をまたいでも別のページなら同じ状態名で通す（Issue
   expect(JSON.parse(r.stdout).coverage_captures).toEqual({ counted: 1, skipped: 0 });
 });
 
-test("部品被覆表を宣言していなければ表をまたいだ照合の相手は無い（coverage_captures: null。Issue #485）", () => {
+test("部品網羅表を宣言していなければ表をまたいだ照合の相手は無い（coverage_captures: null。Issue #485）", () => {
   const r = run(copyOnShare(null), {
     metadata: pagesMeta("http://localhost:3000/", { 共有画面: "share", 検索画面: "search" }),
   });
@@ -2221,15 +2221,15 @@ test("部品被覆表を宣言していなければ表をまたいだ照合の�
 });
 
 test.each([
-  ["部品被覆表が無い", undefined, "部品網羅表を読めない: component-coverage.json"],
+  ["部品網羅表が無い", undefined, "部品網羅表を読めない: component-coverage.json"],
   ["visual_state_coverage.rows が無い", { components: [] }, "visual_state_coverage.rows が無い"],
-])("部品被覆表を宣言したのに読めなければ落とす: %s（Issue #485）", (_name, coverage, message) => {
+])("部品網羅表を宣言したのに読めなければ落とす: %s（Issue #485）", (_name, coverage, message) => {
   const r = run(copyOnShare(null), { metadata: coverageMeta(), coverage });
   expect(r.status).toBe(1);
   expect(r.stderr).toContain(message);
 });
 
-test("部品被覆表の行のうちページを引けない行は数えず、件数を出力に残す（Issue #485）", () => {
+test("部品網羅表の行のうちページを引けない行は数えず、件数を出力に残す（Issue #485）", () => {
   // インスタンスに page が無い行（coverage-expand.mjs が落とす形）。警告なしに捨てず skipped に数える
   const cov = coverageWith([{ instance: "main", page: "共有画面", captured: "copy-toast" }]);
   delete cov.components[0].instances[0].page;
@@ -2239,7 +2239,7 @@ test("部品被覆表の行のうちページを引けない行は数えず、�
   expect(JSON.parse(r.stdout).coverage_captures).toEqual({ counted: 0, skipped: 1 });
 });
 
-test("部品被覆表を宣言したのに path が空なら落とす（Issue #485）", () => {
+test("部品網羅表を宣言したのに path が空なら落とす（Issue #485）", () => {
   const metadata = coverageMeta();
   metadata.component_coverage.path = "";
   const r = run(copyOnShare(null), { metadata });
@@ -2247,7 +2247,7 @@ test("部品被覆表を宣言したのに path が空なら落とす（Issue #4
   expect(r.stderr).toContain("component_coverage.path が空");
 });
 
-test("部品被覆表の中だけの使い回しは、同じページ名なら coverage-expand.mjs に任せ、別名をまたぐならここで数える（Issue #485）", () => {
+test("部品網羅表の中だけの使い回しは、同じページ名なら coverage-expand.mjs に任せ、別名をまたぐならここで数える（Issue #485）", () => {
   // 同じページ名の 2 インスタンスが同じ状態名を指す（coverage-expand.mjs が落とす形）。反応の側は別の状態名にする
   const noToast = mutated((t) => {
     t.state_displays.pages = [stateDisplayRow("共有画面"), stateDisplayRow("検索画面")];
@@ -2651,7 +2651,7 @@ test.each([
     'pattern "audit" が side_effect_writes.patterns に無い',
   ],
   [
-    "操作が被覆表に無い",
+    "操作が網羅表に無い",
     (t) => (t.side_effect_writes.sites[0].operation = "export"),
     'operation "export" が網羅表の操作に無い',
   ],
@@ -2663,7 +2663,7 @@ test.each([
   ["時機が空", (t) => (t.side_effect_writes.sites[0].occasion = ""), "occasion（いつ書くか"],
   ["書く値が空", (t) => delete t.side_effect_writes.sites[0].values, "values（書く値）"],
   ["回数が空", (t) => (t.side_effect_writes.sites[0].count = "<回数>"), "count（回数）"],
-  ["経路が語彙に無い", (t) => (t.side_effect_writes.sites[0].path = "catch"), "path が語彙"],
+  ["path の値が語彙に無い", (t) => (t.side_effect_writes.sites[0].path = "catch"), "path が語彙"],
   [
     "assertion と書いて assertion が無い",
     (t) => (t.side_effect_writes.sites[0].covered_by = []),
@@ -2777,7 +2777,7 @@ test.each([
         observed: "一覧の上に読み込み中の覆いが出る",
         captured: "copy-toast",
         shared_capture_reason:
-          "コピーの通知と読み込み中の覆いが同じ 1 枚に写ることを実 UI で確かめた",
+          "コピーの通知と読み込み中の覆いが同じ 1 枚に記録されることを実 UI で確かめた",
       };
       t.operations[0].reactions[0].capture.shared_capture_reason = "同上";
     },
@@ -3133,7 +3133,7 @@ test.each([
     '画面 "共有画面" が 2 つある',
   ],
 ])(
-  "画面の宣言の型崩れは黙って捨てずに exit 2: %s（Codex レビュー #504）",
+  "画面の宣言の型崩れは警告なしに捨てずに exit 2: %s（Codex レビュー #504）",
   (_name, pages, message) => {
     const r = run(baseTable(), {
       metadata: {
@@ -3204,7 +3204,7 @@ test("オリジンを含まない glob の要求パターンは通す（Codex �
 /** 表の covered_by の名前（重複を除く）。 */
 const namesOf = (t) => [...new Set(coveredByOwners(t).flatMap((o) => o.names))];
 
-test("陽性コントロール: --write は covered_by を解決した記録を残し、--recorded も同じ一覧で通る（Issue #506）", () => {
+test("誤検知しないことの確認: --write は covered_by を解決した記録を残し、--recorded も同じ一覧で通る（Issue #506）", () => {
   const w = run(baseTable(), { args: ["--write"] });
   expect(w.stderr).toBe("");
   expect(w.status).toBe(0);
@@ -3233,7 +3233,7 @@ test("表のどの欄の covered_by も解決の対象にする（欄を列挙�
   );
 });
 
-test("covered_by のテストが current / new の片側でしか走らなければ落とす（Issue #506）", () => {
+test("covered_by のテストが current / new の片側でしか実行されなければ落とす（Issue #506）", () => {
   const t = baseTable();
   const r = run(t, { tests: testList(namesOf(t), ["current"]) });
   expect(r.status).toBe(1);
@@ -3435,14 +3435,14 @@ test("--audit-sheet は監査の入力（期待値とテストの所在）を出
   expect(out.entries.map((e) => e.path)).toEqual(coveredByOwners(baseTable()).map((o) => o.path));
 });
 
-test("--audit-sheet は解決できない名前があれば exit 1（監査の土台にしない。Issue #506）", () => {
+test("--audit-sheet は解決できない名前があれば exit 1（監査の基にしない。Issue #506）", () => {
   const t = baseTable();
   const r = run(t, { args: ["--audit-sheet"], tests: namesOf(t).slice(1) });
   expect(r.status).toBe(1);
   expect(r.stderr).toContain("が --tests の一覧のどのテストにも解決しない");
 });
 
-test("--audit-sheet は形の壊れた covered_by があれば exit 1（欠けた監査入力を ok として出さない。Issue #506）", () => {
+test("--audit-sheet は形の不正な covered_by があれば exit 1（欠けた監査入力を ok として出さない。Issue #506）", () => {
   const r = run(
     mutated((x) => (x.operations[0].future_field = { covered_by: [""] })),
     {
@@ -3465,7 +3465,7 @@ test.each([
   ["文字列", "share.spec.ts › 無いテスト"],
   ["空文字を含む配列", [""]],
   ["文字列以外を含む配列", [1, "share.spec.ts › 無いテスト"]],
-])("未知の欄の形の壊れた covered_by は黙って捨てず落とす: %s（Issue #506）", (_name, value) => {
+])("未知の欄の形の不正な covered_by は警告なしに捨てず落とす: %s（Issue #506）", (_name, value) => {
   const r = run(mutated((x) => (x.operations[0].future_field = { covered_by: value })));
   expect(r.status).toBe(1);
   expect(r.stderr).toContain("$.operations[0].future_field.covered_by: 空でない文字列の配列でない");
@@ -3511,7 +3511,7 @@ test("監査の後に covered_by のスペックの assertion を弱めたら落
   );
 });
 
-test("--recorded もスペックの指紋を取り直し、--write の後に弱めたスペックを落とす（Issue #506）", () => {
+test("--recorded もスペックの指紋を再取得し、--write の後に弱めたスペックを落とす（Issue #506）", () => {
   const w = run(baseTable(), { args: ["--write"] });
   expect(w.status).toBe(0);
   expect(rerun(w.dir, ["--recorded"]).status).toBe(0);
@@ -3560,7 +3560,7 @@ test("covered_by のスペックを rootDir から読めなければ落とす（
   expect(r.stderr).toContain(`スペック export.spec.ts を一覧の rootDir（${outer}）から読めない`);
 });
 
-test("--audit-sheet はスペックの指紋を出し、それを写した監査の記録が通る（Issue #506）", () => {
+test("--audit-sheet はスペックの指紋を出し、それを転記した監査の記録が通る（Issue #506）", () => {
   const sheet = run(baseTable(), { args: ["--audit-sheet"], audit: false });
   expect(sheet.status).toBe(0);
   const { specs_fingerprint: fp } = JSON.parse(sheet.stdout);
@@ -3572,7 +3572,7 @@ test("--audit-sheet はスペックの指紋を出し、それを写した監査
   expect(r.status).toBe(0);
 });
 
-test("covered_by のテストを片側で静的に飛ばす（test.skip / test.fixme）なら、その側では走らないものとして落とす（Issue #506）", () => {
+test("covered_by のテストを片側で静的に飛ばす（test.skip / test.fixme）なら、その側では実行されないものとして落とす（Issue #506）", () => {
   const t = baseTable();
   const list = testList(namesOf(t));
   const layoutSpec = list.suites.find((s) => s.file === "layout.spec.ts");
@@ -3593,7 +3593,7 @@ test.each([
   ["失敗を期待する（failed）", "failed"],
   ["値が無い", undefined],
 ])(
-  "covered_by のテストの expectedStatus が passed でない側は走らないものとして落とす: %s（Issue #506）",
+  "covered_by のテストの expectedStatus が passed でない側は実行されないものとして落とす: %s（Issue #506）",
   (_name, status) => {
     const t = baseTable();
     const list = testList(namesOf(t));
@@ -3644,7 +3644,7 @@ test.each([
   },
 );
 
-test("同じ題で位置の違うテストは 1 本に畳まず曖昧として落とす（片側だけ走る 2 本を合算しない。Codex レビュー #510）", () => {
+test("同じ題で位置の違うテストは 1 本に畳まず曖昧として落とす（片側だけ実行される 2 本を合算しない。Codex レビュー #510）", () => {
   const t = baseTable();
   const list = testList(namesOf(t));
   const layoutSpec = list.suites.find((s) => s.file === "layout.spec.ts");
@@ -3760,7 +3760,7 @@ const displayOnlyRow = (page) => {
   row.candidates.toast = {
     status: "absent",
     setup: { method: "data", detail: "一覧を表示して待つ" },
-    observed: "トーストの器に何も出ない",
+    observed: "トーストの表示領域に何も出ない",
     covered_by: [`share.spec.ts › ${page}: 表示してもトーストが出ない`],
   };
   return row;
@@ -3880,22 +3880,25 @@ test.each([
   ["文字列", "4"],
   ["負の数", -1],
   ["小数", 3.5],
-])("run.procedure_revision が %s なら exit 2（旧成果物に倒さない。Issue #503）", (_n, revision) => {
-  const metadata = displayOnlyMeta({
-    run: { procedure_revision: revision },
-    reaction_coverage: { declared: false, reason: "操作を持たない" },
-    capture_conditions: { states: ["default"] },
-  });
-  const r = run(displayOnlyTable(), { metadata });
-  expect(r.status).toBe(2);
-  expect(r.stderr).toContain("run.procedure_revision が 0 以上の整数でない");
-});
+])(
+  "run.procedure_revision が %s なら exit 2（旧成果物として扱わない。Issue #503）",
+  (_n, revision) => {
+    const metadata = displayOnlyMeta({
+      run: { procedure_revision: revision },
+      reaction_coverage: { declared: false, reason: "操作を持たない" },
+      capture_conditions: { states: ["default"] },
+    });
+    const r = run(displayOnlyTable(), { metadata });
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain("run.procedure_revision が 0 以上の整数でない");
+  },
+);
 
 test.each([
   ["文字列", "4"],
   ["配列", []],
   ["null", null],
-])("run が %s なら exit 2（改訂番号の導入前に倒さない。Issue #503）", (_n, runValue) => {
+])("run が %s なら exit 2（改訂番号の導入前として扱わない。Issue #503）", (_n, runValue) => {
   const metadata = displayOnlyMeta({
     run: runValue,
     reaction_coverage: { declared: false, reason: "操作を持たない" },
@@ -3944,7 +3947,7 @@ test.each([
     "operations が空なのに operations_none_reason が空",
   ],
   [
-    "器の棚卸しが空でない",
+    "ポップアップの棚卸しが空でない",
     () => {},
     { popup_inventory: [{ name: "x" }] },
     "operations が空だが、操作の痕跡がある（capture_conditions.popup_inventory が空でない）",
@@ -3974,7 +3977,7 @@ test("操作の無い表で、どの状態表示も撮らない撮影状態が�
   expect(r.stderr).toContain("operations が空だが、どの状態表示も撮らない撮影状態がある: tab-2（");
 });
 
-test("操作の無い表で部品被覆表を宣言していれば落ちる（操作の痕跡。Issue #503）", () => {
+test("操作の無い表で部品網羅表を宣言していれば落ちる（操作の痕跡。Issue #503）", () => {
   const meta = displayOnlyMeta({
     component_coverage: { declared: true, path: "component-coverage.json" },
   });

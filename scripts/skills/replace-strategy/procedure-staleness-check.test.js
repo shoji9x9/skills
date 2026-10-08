@@ -110,7 +110,7 @@ test("改訂番号を持たない成果物は、スキルのすべての改訂�
   ]);
 });
 
-test("陰性コントロール: metadata.json の無い特性化中の slug は、中身があっても判定不能にしない", () => {
+test("誤検知しないことの確認: metadata.json の無い特性化中の slug は、中身があっても判定不能にしない", () => {
   // parity-suite は metadata.json を終盤で書くので、対応表・スペックだけがある形は特性化中の正常な状態。
   const work = workspace({
     artifacts: { order: meta({ procedure_revision: 2 }), draft: null },
@@ -133,7 +133,7 @@ test("成果物の改訂より新しい改訂だけが対象になり、affects 
   expect(r.json.unresolved.map((u) => [u.change, u.slug])).toEqual([["parity-suite#2", "order"]]);
 });
 
-test("陽性コントロール: 最新の改訂で作った成果物と、特性化前の slug は対象にしない", () => {
+test("誤検知しないことの確認: 最新の改訂で作った成果物と、特性化前の slug は対象にしない", () => {
   const work = workspace({
     artifacts: { order: meta({ procedure_revision: 2 }), draft: null },
   });
@@ -293,7 +293,7 @@ test("台帳の表の欠落・語彙外の値・実在しない変更 ID・空�
   }
 });
 
-test("成果物を読めず対象かを決められない機能は合格に倒さず exit 3 にする", () => {
+test("成果物を読めず対象かを決められない機能は合格として扱わず exit 3 にする", () => {
   const cases = [
     [meta({ procedure_revision: "1" }), "procedure_revision"],
     [meta({ procedure_revision: 3 }), "改訂一覧が古い"],
@@ -363,7 +363,7 @@ test("成果物を読めず対象かを決められない機能は合格に倒�
   expect(fileRun.json.undeterminable.map((u) => u.slug)).toEqual(["edit"]);
 });
 
-test("成果物の置き場・台帳を読めないときは合格にも未判断にも倒さず exit 2 にする", () => {
+test("成果物の置き場・台帳を読めないときは合格としても未判断としても扱わず exit 2 にする", () => {
   const missing = workspace({ artifacts: {} });
   expect(run(missing, ["--parity-dir", "nope"]).code).toBe(2);
   writeFileSync(join(missing, "file"), "");
@@ -380,7 +380,7 @@ test("成果物の置き場・台帳を読めないときは合格にも未判�
   expect(empty.json.artifacts).toEqual([]);
 });
 
-test("明示した --ledger が無いときは「台帳なし」に倒さず exit 2 にする", () => {
+test("明示した --ledger が無いときは「台帳なし」として扱わず exit 2 にする", () => {
   const work = workspace({ artifacts: { order: meta({ procedure_revision: 2 }) } });
   const typo = run(work, ["--ledger", ".replace/procedure-change.md"]);
   expect(typo.code).toBe(2);
@@ -505,7 +505,7 @@ test("parity-suite 以外のスキルの改訂一覧は、番号が合っても 
   expect(bad.json.errors.join("\n")).toContain("skill が parity-suite でない");
 });
 
-test("陰性コントロール: 複数行の HTML コメントの中の `|` を含む行は表の外の行に数えない", () => {
+test("誤検知しないことの確認: 複数行の HTML コメントの中の `|` を含む行は表の外の行に数えない", () => {
   const text = ledger(["| PC-001 | 2026-09-20 | 軸 | 由来 | feature | #1 |"], []).replace(
     "## 観点の追加",
     "<!--\n記入例: | PC-009 | 2026-09-01 | 軸 | 由来 | feature | #9 |\n-->\n\n## 観点の追加",
@@ -556,7 +556,7 @@ test.each([
   ["字下げした終了行", "<!--\n  説明\n  -->\n\n"],
   ["コードフェンスの中の記号", "```text\n退役 <!-- 例 --> 続き\n```\n\n"],
   ["コメントの中のフェンス記号", "<!--\n```\n-->\n\n"],
-])("陰性コントロール: 扱える位置の HTML コメントは通す: %s", (_name, prefix) => {
+])("誤検知しないことの確認: 扱える位置の HTML コメントは通す: %s", (_name, prefix) => {
   const r = readLedger(prefix + LIVE, new Set());
   expect(r.ok).toBe(true);
   expect(/** @type {any} */ (r).changes.map((c) => c.id)).toEqual(["PC-001"]);

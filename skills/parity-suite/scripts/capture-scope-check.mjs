@@ -172,7 +172,7 @@ export function deriveHoles(entry, context = {}) {
   if (!document || !captured) {
     findings.push({
       code: "scope-size-unreadable",
-      message: `${key} の document / captured の寸法が数値で書かれていない（測っていないことを、穴が無いこととして扱わない）`,
+      message: `${key} の document / captured の寸法が数値で書かれていない（測っていないことを、抜けが無いこととして扱わない）`,
     });
     return { holes, findings };
   }
@@ -204,14 +204,14 @@ export function deriveHoles(entry, context = {}) {
       if (!nonEmptyString(name)) {
         findings.push({
           code: "scroll-container-name-missing",
-          message: `${key} の scroll_containers に名前の無い要素がある（穴の id が決まらない）`,
+          message: `${key} の scroll_containers に名前の無い要素がある（抜けの id が決まらない）`,
         });
         continue;
       }
       if (!idPartIsSafe(name)) {
         findings.push({
           code: "scroll-container-name-unsafe",
-          message: `${key} の scroll_containers[${String(name)}] に区切り文字（${KEY_SEPARATOR} / ${ID_SEPARATOR}）が入っている（別々の穴が同じ id になり、1 つの宣言が 2 つの穴を対象外にしてしまう）`,
+          message: `${key} の scroll_containers[${String(name)}] に区切り文字（${KEY_SEPARATOR} / ${ID_SEPARATOR}）が入っている（別々の抜けが同じ id になり、1 つの宣言が 2 つの抜けを対象外にしてしまう）`,
         });
         continue;
       }
@@ -309,7 +309,7 @@ export function deriveHoles(entry, context = {}) {
       if (!idPartIsSafe(name)) {
         findings.push({
           code: "named-element-name-unsafe",
-          message: `${key} の named_elements_outside の ${String(name)} に区切り文字（${KEY_SEPARATOR} / ${ID_SEPARATOR}）が入っている（別々の穴が同じ id になる）`,
+          message: `${key} の named_elements_outside の ${String(name)} に区切り文字（${KEY_SEPARATOR} / ${ID_SEPARATOR}）が入っている（別々の抜けが同じ id になる）`,
         });
         continue;
       }
@@ -318,7 +318,7 @@ export function deriveHoles(entry, context = {}) {
       if (seenOutside.has(name)) {
         findings.push({
           code: "named-element-duplicated",
-          message: `${key} の named_elements_outside に ${String(name)} が 2 つ以上ある（同じ id の穴が 2 つでき、1 つの宣言で両方が消える）`,
+          message: `${key} の named_elements_outside に ${String(name)} が 2 つ以上ある（同じ id の抜けが 2 つでき、1 つの宣言で両方が消える）`,
         });
         continue;
       }
@@ -515,7 +515,7 @@ export function checkDisplayAxes(conditions) {
   if (!Object.hasOwn(conditions, "display_axes")) {
     add(
       "display-axes-missing",
-      "capture_conditions.display_axes が無い（表示を切り替える軸〈ロケール・配色テーマ等〉を数えていない。デフォルトの 1 値だけで撮った差は 3 経路のどれにも写らない）",
+      "capture_conditions.display_axes が無い（表示を切り替える軸〈ロケール・配色テーマ等〉を数えていない。デフォルトの 1 値だけで撮ると、他の値での差は 3 つの比較方法のどれにも表れない）",
     );
     return result();
   }
@@ -820,7 +820,7 @@ export function checkDisplayAxes(conditions) {
     ) {
       add(
         "display-axis-variant-no-pages",
-        `${at}（${labelText}）の軸が機能するページが 1 つも無い（not_applicable が合わせて全ページを覆う。撮るはずの組が 0 件のまま掛け合わせの対を満たさない。同時に効かない対なら crossed: false にする）`,
+        `${at}（${labelText}）の軸が機能するページが 1 つも無い（not_applicable が合わせて全ページを覆う。撮るはずの組が 0 件のまま掛け合わせの対を満たさない。同時に機能しない対なら crossed: false にする）`,
       );
       return;
     }
@@ -1478,7 +1478,7 @@ export function checkCaptureScope(metadata) {
     findings.push({
       code: "capture-scope-missing",
       message:
-        "capture_conditions.capture_scope が無い（範囲を測っていない。撮った組ごとに文書・撮影領域・内部スクロール器・領域外の論理名を実測して書く）",
+        "capture_conditions.capture_scope が無い（範囲を測っていない。撮った組ごとに文書・撮影領域・内部のスクロールコンテナ・領域外の論理名を実測して書く）",
     });
     return {
       findings,
@@ -1571,7 +1571,7 @@ export function checkCaptureScope(metadata) {
     if (!scopeByKey.has(key)) {
       findings.push({
         code: "scope-entry-missing",
-        message: `${key} は撮ったのに範囲の実測が無い（測っていない組を穴の無い組と同じ扱いにしない）`,
+        message: `${key} は撮ったのに範囲の実測が無い（測っていない組を抜けの無い組と同じ扱いにしない）`,
       });
     }
   }
@@ -1646,7 +1646,7 @@ export function checkCaptureScope(metadata) {
       findings.push({
         code: "exemption-id-missing",
         message:
-          "capture_scope_exemptions に id の無い要素がある（どの穴を対象外にしたか決まらない）",
+          "capture_scope_exemptions に id の無い要素がある（どの抜けを対象外にしたか決まらない）",
       });
       continue;
     }
@@ -1665,7 +1665,7 @@ export function checkCaptureScope(metadata) {
     if (!exemption) {
       findings.push({
         code: "hole-unexempted",
-        message: `撮る範囲に穴がある: ${hole.detail}（id: ${hole.id}）。範囲を広げて撮り直すか、対象外として理由付きで宣言する`,
+        message: `撮る範囲に抜けがある: ${hole.detail}（id: ${hole.id}）。範囲を広げて撮り直すか、対象外として理由付きで宣言する`,
       });
       continue;
     }
@@ -1686,7 +1686,7 @@ export function checkCaptureScope(metadata) {
     if (!holeIds.has(id)) {
       findings.push({
         code: "exemption-ineffective",
-        message: `${id} の宣言に対応する穴が無い（機能しない宣言。残すと範囲を狭めてもエラーにならないので消す）`,
+        message: `${id} の宣言に対応する抜けが無い（機能しない宣言。残すと範囲を狭めてもエラーにならないので消す）`,
       });
     }
   }

@@ -168,13 +168,13 @@ function naiveCollect(sheets) {
   return selectors;
 }
 
-test("陽性コントロール: 素朴な走査は @import の先を 1 件も見ない", () => {
+test("検出されることの確認: 素朴な走査は @import の先を 1 件も見ない", () => {
   const seen = naiveCollect(buildSheets());
   expect(seen).not.toContain(".marker-in-imported");
   expect(seen).not.toContain(".marker-in-imported:hover");
 });
 
-test("陽性コントロール: 素朴な走査は空の cssRules を持つ通常の規則を数えない", () => {
+test("検出されることの確認: 素朴な走査は空の cssRules を持つ通常の規則を数えない", () => {
   // `.plain-rule` は入れ子を持たないが cssRules（空）を持つため、素朴な走査では
   // 「グループ規則」と誤認されて中身（0 件）だけが見られる。
   const seen = naiveCollect(buildSheets());
@@ -242,7 +242,7 @@ test("擬似要素の規則を擬似要素として採る", () => {
   expect(hit.pseudo_element).toBe("::after");
 });
 
-test("読めないスタイルシートを黙って捨てず inaccessible に残す", () => {
+test("読めないスタイルシートを警告なしに捨てず inaccessible に残す", () => {
   const result = capture();
   expect(result.inaccessible).toEqual([
     { href: "https://cdn.example/vendor.css", error: "SecurityError" },
@@ -284,7 +284,7 @@ test("matches() が throw するセレクタを unresolved に残す", () => {
   expect(result.unresolved[0].reason).toBe("matches-threw:SyntaxError");
 });
 
-test("状態だけのセレクタは全称に倒して判定する", () => {
+test("状態だけのセレクタは全称として扱って判定する", () => {
   const sheets = [{ href: MAIN_HREF, cssRules: [styleRule(":hover", { cursor: "pointer" })] }];
   const result = collectMatchedRules(fakeElement(sheets), {
     statePseudoClasses: STATE_PSEUDO_CLASSES,
@@ -315,7 +315,7 @@ test("adoptedStyleSheets も走査する", () => {
   expect(findMatch(result, (m) => m.selector === ".plain-rule")).toBeDefined();
 });
 
-test("入れ子の途中に現れた裸の宣言（CSSNestedDeclarations）を黙って落とさない", () => {
+test("入れ子の途中に現れた裸の宣言（CSSNestedDeclarations）を警告なしに捨てない", () => {
   // `.card { color: red; & .inner { … } background: blue; }` の `background` は Chrome 130+ で
   // CSSNestedDeclarations として返る。selectorText も cssRules も持たないため、
   // 分岐を足さないと matched / unresolved / counts のどこにも残らず、警告なしに消える。
@@ -431,7 +431,7 @@ test("エスケープされた区切り文字でセレクタを分割しない",
   expect(result.matched[0].selector).toBe(".foo\\,bar");
 });
 
-test("知らない動的擬似クラスを黙って落とさず unresolved に残す", () => {
+test("知らない動的擬似クラスを警告なしに捨てず unresolved に残す", () => {
   // `:popover-open` / `:user-valid` / `:fullscreen` を知らないまま base に残すと、
   // その状態でない要素に matches() が false を返し、当たるはずの規則が記録も警告も無く消える。
   const sheets = [
@@ -511,7 +511,7 @@ function naiveArgEnd(selector, open) {
 
 const TRICKY_SELECTOR = '.button:has([data-label="("]):hover';
 
-test("陽性コントロール: 素朴な括弧勘定は引用符内の ( で :hover まで食う", () => {
+test("検出されることの確認: 素朴な括弧勘定は引用符内の ( で :hover まで食う", () => {
   const open = TRICKY_SELECTOR.indexOf("(");
   expect(naiveArgEnd(TRICKY_SELECTOR, open)).toBe(TRICKY_SELECTOR.length);
 });
@@ -564,7 +564,7 @@ test("シャドウツリー内の要素に外側 document の規則を当てな�
   expect(result.counts.outer_scope_skipped).toBe(1);
 });
 
-test("外側から届く ::part() は当たった側にも倒さず unresolved に残す", () => {
+test("外側から届く ::part() は当たった側としても扱わず unresolved に残す", () => {
   const outer = {
     href: MAIN_HREF,
     cssRules: [styleRule(".host::part(label)", { color: "rgb(1, 1, 1)" })],
@@ -602,7 +602,7 @@ function naiveStateInside(selector, scan) {
   return false;
 }
 
-test("陽性コントロール: 直下しか見ない判定は :is(:has(:hover)) を取りこぼす", () => {
+test("検出されることの確認: 直下しか見ない判定は :is(:has(:hover)) を取りこぼす", () => {
   // scanPseudos はモジュール外へ出していないので、同じ規則の最小実装で深さだけを再現する。
   const scan = (sel) => {
     const out = [];
@@ -719,7 +719,7 @@ test("状態を含まない構造擬似クラスは unresolved にしない", ()
   expect(result.matched).toHaveLength(1);
 });
 
-test("読み込めていない @import を黙って捨てない", () => {
+test("読み込めていない @import を警告なしに捨てない", () => {
   // 失敗・未ロードの @import は styleSheet が null になる。真偽値で分岐すると
   // どの分岐にも掛からず消え、「その @import の先に関係する規則が無い」と区別できなくなる。
   const broken = { styleSheet: null, href: "http://legacy.example/missing.css" };

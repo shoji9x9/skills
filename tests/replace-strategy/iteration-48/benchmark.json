@@ -1,0 +1,1265 @@
+{
+  "metadata": {
+    "skill_name": "replace-strategy",
+    "skill_path": "<repo>/skills/replace-strategy",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-07T09:01:38Z",
+    "evals_run": [5, 6, 13, 15, 17, 26, 27, 28, 29, 30, 31, 32, 38],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 13,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 31.98,
+        "tokens": 203320,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "dataset_mode に第 3 の値を足さず、ストレージ利用を直交する別キー（uses_storage とターゲットごとの storage）で表現する方針を示している",
+          "passed": true,
+          "evidence": "「dataset_mode に 3 つ目の値は足せません」とし、uses_storage と targets[].storage で宣言する方針と、2 軸が独立している理由を示している。"
+        },
+        {
+          "text": "ストレージ実体へのゴールデンデータ投入は v1 スコープ外であり、storage.seedable: true でも投入せず gaps に未検証として記録すると説明している",
+          "passed": true,
+          "evidence": "「テスト用バケットへのゴールデンデータの投入は、スキル群の対象外」「storage.seedable: true にしても golden-dataset は投入しません」「gaps.md に…未検証として必ず記録されます」と説明している。"
+        },
+        {
+          "text": "投入の許可を、判定できないときは拒否する（既定 deny）ものとして扱い、storage.seedable を勝手に true にしていない",
+          "passed": true,
+          "evidence": "例は seedable: false で、storage を書かなければストレージに一切触れず、seedable: true には env_vars と write_scope が要り欠けていると止まると説明している（宣言が無いときは許可しない扱い）。seedable を true にしていない。ファイルも作っていない。"
+        },
+        {
+          "text": "書き込み範囲（storage.write_scope。パスまたは <bucket>/<prefix>）を宣言する必要と、接続はターゲットの storage.env_vars の環境変数名だけを持つ取り決めを示している",
+          "passed": true,
+          "evidence": "write_scope（<bucket>/<prefix> の例 test-bucket/replace-parity/）の宣言と、storage.env_vars には環境変数の名前だけを書く取り決めを示している。"
+        },
+        {
+          "text": "アップロードの方法（upload_route: direct / presigned）を確認対象として挙げ、未宣言のまま推測で決めていない",
+          "passed": true,
+          "evidence": "upload_route（direct | presigned | none）を挙げ「推測で決めず、確認して書く」と明記し、方式ごとの検証対象の違いも説明している。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 15,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 40.018,
+        "tokens": 144929,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定ファイルは人間が確定させた方針の置き場所で、作業中に件数が増え続ける slug スコープの台帳は設定に置かず .replace/parity/<slug>/ の成果物へ置く方針を示している（新しい設定キーを足す提案を採らない）",
+          "passed": false,
+          "evidence": "新しいキーを足さず `.replace/parity/<slug>/` の成果物へ置く方針は示しているが、根拠は「特定の機能だけに関わり、作業中に件数が増え続ける記録なら載せない」だけで、assertion が明記する「設定ファイルは人間が確定させた方針の置き場所」という性格づけを述べていない。厳しく判定して不合格。"
+        },
+        {
+          "text": "設定から出すかの判断と、載せるキーを書き手（人間が確定させる方針 / スキルが作業中に追記する記録）で区別する判断を別段として扱い、書き手がスキルであること自体は設定から出す理由にならないと区別している",
+          "passed": true,
+          "evidence": "段 1（設定ファイルに載せるか）と段 2（どちらの区分に置くか）を分け、「『スキルが書いているから外へ出す』という理由づけは…誤り」「書き手が誰かは段 2 …の材料で、段 1 には使いません」と区別している。"
+        },
+        {
+          "text": "intentional_diffs.pending は slug 成果物へ出さず設定側に残すと答え、その根拠（keep / may_change と同じ 3 分類の一員で昇格が同一キー内での人間の作業、かつ slug 横断で置くべき slug ディレクトリが無い）を示している",
+          "passed": true,
+          "evidence": "「出しません」とし、`intentional_diffs.pending` は「`keep` / `may_change` と並ぶ 3 分類の 1 つで、人が同じキーの中で移して確定させます。複数の機能にまたがるので、置く先の機能ディレクトリがありません」と根拠を示している。"
+        },
+        {
+          "text": "component_diffs も設定側に残すと答え、その根拠（component × property で slug 横断で有効になり 1 回の宣言が component に合致する全 slug・全インスタンスに反映されるため、slug ごとに分けると同じ宣言が複製される）を示している",
+          "passed": true,
+          "evidence": "`component_diffs` も設定に残すとし、「1 つの宣言が、glob を使えばすべての機能に当たります。機能ごとに分けると、同じ宣言を機能の数だけ複製することになります」と根拠を示している（component × property の語は無いが、slug 横断で反映され分けると複製されるという要点はある）。"
+        },
+        {
+          "text": "skills.yml のスキルごとのファイル分割は、スキーマキーを跨いだ YAML アンカー共有がある間はできない（alias が解決先を失う）と指摘し、分割前に共有の解消が必要だと述べ、既存ファイルへの非破壊追記ではアンカー定義の位置を動かさない・消さないことにも触れている",
+          "passed": true,
+          "evidence": "「アンカーは 1 つのファイルの中でしか解決できません。スキルをまたいで共有している間は分割できません」「先に共有をやめ」と述べ、追記の注意で「アンカー定義を動かさない：定義の位置を動かしたり消したりしないでください」と触れている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 17,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 25.253,
+        "tokens": 107116,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "IaC / CI-CD はスキル群の必須要件ではないと答え、side: new のローカル target 1 つ（start と check_urls で起動・稼働確認できる環境）だけで全工程が成立すると説明している",
+          "passed": true,
+          "evidence": "「IaC と CI/CD パイプラインは必須ではありません。新側は side: new のローカル target を 1 つ用意すれば（start と check_urls で起動と稼働を確かめられればよい）、すべての工程を進められます」と説明している。"
+        },
+        {
+          "text": "配信型 target（develop / preview 等、デプロイで更新される環境）を targets に登録する場合にだけ、そのパイプラインが動いていることが前提になると条件付きで述べている",
+          "passed": true,
+          "evidence": "「IaC と CI/CD が前提になるのは、develop や preview のようにデプロイで更新される環境を targets に登録する場合だけです」と条件付きで述べている。"
+        },
+        {
+          "text": "ローカルのみなら commit_check / on_diff は確認しないと述べている",
+          "passed": true,
+          "evidence": "「ローカルだけと答えれば、commit_check と on_diff の確認は行いません」と述べている。"
+        },
+        {
+          "text": "パイプライン・IaC の新規構築はスキル群の対象外（事前条件）であり、区分の原本が references/scope.md の「スキルが行う作業の範囲」だと示している",
+          "passed": false,
+          "evidence": "「IaC やパイプラインを新しく作ることは、スキル群が扱う範囲の外です（scope.md:47）」とは述べるが、区分の原本として「スキルが行う作業の範囲」の節を示していない。引いた scope.md:47 は「比較・検証の範囲」の節の「インフラの構成・CI/CD のパイプラインのパリティ」の行で、作業範囲の区分ではない。「事前条件」という扱いも書いていない。"
+        },
+        {
+          "text": "新側アーキテクチャ（骨格）の事前定義と references.architecture の記録は CI/CD の要否とは別に必要であると、両者を混同せず述べている",
+          "passed": false,
+          "evidence": "新側の骨格の事前定義が必要で、CI/CD とは別の項目として挙げている（混同はしていない）が、references.architecture への記録に触れていない（response.md に architecture の語が 0 件）。括弧外の明記要素が欠けるので不合格。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 26,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 56.548,
+        "tokens": 509104,
+        "tool_calls": 10,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "各 Issue の状態を features.md の「状態」列から読み取らず、表に記録された Issue 番号（横断 API #102・機能 #103 / #104）でトラッカーへ問い合わせようとしている",
+          "passed": true,
+          "evidence": "状態列を根拠にせず（「features.md の古い「状態」列（open / closed）は、手順どおり根拠にしていません」）、#101〜#104 の番号ごとにトラッカーで確かめる前提で gh auth status を実行し、トークン無効と owner/repo 不明を理由に問い合わせできないと報告している。raw の Bash では gh issue view までは実行しておらず、問い合わせの前段で止まっている。"
+        },
+        {
+          "text": "トラッカーへ問い合わせられなかった番号を「判定不能」として示し、open / closed のどちらとしても扱っていない（features.md の記述で代替していない）",
+          "passed": true,
+          "evidence": "#102・#103・#104（と #101）をすべて「判定不能」と表に示し、open / closed のどちらとしても扱っていない。"
+        },
+        {
+          "text": "「状態」列に書かれた値（order・notice の open、user の closed）をその Issue の現況として報告していない",
+          "passed": true,
+          "evidence": "order・notice の open、user の closed を現況として報告していない（表の Issue 列はすべて「判定不能」）。"
+        },
+        {
+          "text": "features.md の「状態」列を警告なしに書き換え・削除していない",
+          "passed": true,
+          "evidence": "project-files/ が fixture（features-stale-status-column）と diff -r で一致。"
+        },
+        {
+          "text": "Issue 状態が判定不能でも成果物からの導出は続け、order のスイート強度（素通り・未検証種別）と gaps.md の未検証領域を報告している",
+          "passed": true,
+          "evidence": "order の強度（捕捉 2、素通り 1（並び順）、未検証 1（権限差））と gaps.md の未検証領域（CSV 本文、確認メール、並び順、権限差）を 6-1 の表で報告している。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 27,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.7778,
+        "passed": 7,
+        "failed": 2,
+        "total": 9,
+        "time_seconds": 45.86,
+        "tokens": 112867,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "rules API は gh api --paginate で全ページを取得してから全 rule type を棚卸しし、classic branch protection も確認すると述べ、片方の 404・ページ取得途中の失敗・その他の取得失敗を必須 CI 無しとして扱わないと述べている",
+          "passed": false,
+          "evidence": "gh api --paginate で全ページ取得・全 rule type の棚卸し・classic protection の取得と「どちらかが 404 でも、もう一方は必ず確かめる」、「必須 CI を取得できない」なら確定しないとは述べる。しかし、ページ取得の途中の失敗を必須 CI 無しとして扱わないという要素が答えに無い（厳しく判定）。"
+        },
+        {
+          "text": "required_status_checks だけでなく ruleset の workflows rule も棚卸しし、required workflow の repository_id・path・任意の ref/sha から定義元と版を解決すると述べている",
+          "passed": true,
+          "evidence": "表 #2 で ruleset の workflows rule を挙げ、「repository_id から定義元を解決し、path と ref/sha の版を読む必要があります」と述べている。"
+        },
+        {
+          "text": "CI・workflow・検査を強制しうる未知の ruleset rule type を無視せず、公式仕様で意味論を確認できるまで full を確定しないと述べている",
+          "passed": false,
+          "evidence": "未知の rule type を含めて棚卸しし「強制される未知の rule がある」場合は確定できないとは述べるが、公式仕様で意味論を確認できるまで確定しないという解除の条件を述べていない（厳しく判定）。"
+        },
+        {
+          "text": "必須 context を文字列から job 名へ直接対応づけず、実在PR/commitで生成されたcheck runのnameと照合してworkflow/jobへ辿り、同名job・matrix展開・check run未生成など一意に対応できない状態では確定しないと述べている",
+          "passed": true,
+          "evidence": "表 #3〜#5 で、文字列から job を推測しない、実在 PR / commit の check run の name から workflow / job へたどる、同名 job・matrix 展開・check run 未生成では確定できないと述べている。"
+        },
+        {
+          "text": "対応したjobが呼ぶpackage script・wrapper・reusable workflow/actionの実行内容まで辿ってfullと比較すると述べている",
+          "passed": true,
+          "evidence": "「steps[].run・package の script・reusable workflow・action の呼び先までたどります」、表 #7 で lint / test の script の中身を読む必要を述べている。"
+        },
+        {
+          "text": "必須の Test に対応する pnpm test と required workflow の検査が full に無い差を検出し、説明の無い差がある現状では full を確定しないと結論している",
+          "passed": true,
+          "evidence": "表 #1 で必須の Test（pnpm test）が full に無く理由の記録も無いこと、#2 で required workflow を調べていないことを挙げ、「いまの full（pnpm run lint だけ）では確定できません」と結論している。"
+        },
+        {
+          "text": "推奨として必須 CI job と full がリポジトリ内の同じ全体検証コマンド 1 本を呼ぶ形を示し、検査一覧の原本をそのコマンドへ畳む理由を説明している",
+          "passed": true,
+          "evidence": "推奨として pnpm run verify:full のような 1 本のコマンドを必須 CI job と full の両方が呼ぶ形を示し、「検査を足すときはこのコマンドを直すだけで、full の列を手で合わせる必要がなくなります」と理由を説明している。"
+        },
+        {
+          "text": "1 コマンドへ畳めない場合は必須 rule・context または workflow 参照・workflow job・ローカルコマンド・full の対応表と対象外理由を記録し、いずれかの変更で非 0 になるプロジェクト側の乖離検査を必須 CI に含めると述べている",
+          "passed": true,
+          "evidence": "まとめられない場合に、種別・context / workflow の参照・job・手元のコマンド・full の対応表と対象外の理由を .replace/strategy.md に記録し、どれかが変わると 0 以外で終わるずれの検査をプロジェクト側に置いて必須 CI に含めると述べている。"
+        },
+        {
+          "text": "setup 時点の目視比較だけでは後から追加された必須検査を検出できないため、将来の乖離対策として十分ではないと述べている",
+          "passed": true,
+          "evidence": "「setup の時点で 1 回目で突き合わせても、後日の CI の変更は検出できません。そのため…どちらかの形にしないと「整合済み」にできません」と述べている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 28,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 37.365,
+        "tokens": 170985,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "rendered: 0 の img を画面に出ないという理由だけでコピーしないと決めず、同じ宿主・近傍の疑似要素のグリフや background-image が同じ場所を描いていないかを glyphs / urlRefs の samples と突き合わせると述べている",
+          "passed": true,
+          "evidence": "「rendered: 0 の img を画面に出ないからコピーしないと決めることは、スキルが明示的に禁じています」とし、close.png / band.png の位置と glyphs / urlRefs の samples[].path を突き合わせ、background-image の可能性にも触れている。"
+        },
+        {
+          "text": "静的資産をコピーするかは dependencies.md の依存（本文フォントの行）では決まっていない別の判断であるとし、記録先を .replace/assets.md に分けると述べている",
+          "passed": true,
+          "evidence": "手順 10 の依存（dependencies.md）と手順 11 の資産（assets.md）は別の工程で、本文フォントの行があってもアイコン用の書体や画像は決まっていないとし、決めた内容を .replace/assets.md に書くと述べている。"
+        },
+        {
+          "text": "本文の書体とアイコン用の書体を台帳の別の行として扱い、同じ書体の判断に揃えて決めない",
+          "passed": true,
+          "evidence": "「本文用の書体とアイコン用の書体（FontAwesome）は、別の行にして、それぞれ 3 択で決めます」と述べている。"
+        },
+        {
+          "text": "各機能の実装時に回さず、setup のこの工程で実装前に種類ごとに一括で方針（実体をコピーする／同等物を作る／コピーしない）を決めると述べている",
+          "passed": true,
+          "evidence": "「各機能の実装のときに考える」は避けるべき失敗だとし、実体をコピーする / 同等物を作る / コピーしないの 3 択で種類ごとの行を作り、assets.md に書いてから各機能の実装に入ると述べている。"
+        },
+        {
+          "text": "方針を決めるのは人であり、再配布の可否・出どころ・同等物で残る差を推測で埋めず、確認できなければその種類の方針を確定させないと述べている",
+          "passed": true,
+          "evidence": "「方針は人が決めます」、FontAwesome の版とライセンスは推測で埋めず確かめられなければ「未確認」と書きその方針を選べない、出どころ・再配布の可否・残る差を添えると述べている。"
+        },
+        {
+          "text": "同等物を作る（例: グリフの輪郭を図形にする）を選んだ場合、縁の平滑化などラスタライズの差は実装で消せないため、選んだ時点でユーザー承認を得て intentional_diffs.may_change へ宣言すると述べている",
+          "passed": true,
+          "evidence": "同等物を作る場合は「残る差（ラスタライズの縁の違いなど）を書き、その時点でユーザーの承認を得て intentional_diffs.may_change に宣言します」と述べている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 29,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 105.883,
+        "tokens": 593192,
+        "tool_calls": 10,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "/plans の GET について、起点となるクエリから母集合（MST_PLAN のうち archived = false）と問い合わせの行の単位（REL_PLAN_MEMBER への LEFT JOIN があるため計画 1 件ではなく（計画, メンバー）の組）を読み取って記録しつつ、それだけで API の外部単位が決まるとはしていない（応答への変換＝マッパー／シリアライザが未確認であることを残し、GET の要求単位を実測として確定していない）",
+          "passed": true,
+          "evidence": "project-files/.replace/features.md の plan 行で GET /api/plans を「推定」とし、母集合=archived = false の MST_PLAN、問い合わせの 1 行=(計画, メンバー) の組と記録したうえで「応答への変換（計画 1 件に member を配列でまとめるか）が未確認・要求単位は未確定」と残している。"
+        },
+        {
+          "text": "/plans の REL_PLAN_MEMBER 更新・削除を GET とは別のエントリとして記録し、それぞれ要求単位が未確定であることを残している（GET の根拠エントリに書き込み系の口を含めていない。根拠が同じ書き込み系の口どうしを 1 エントリにまとめるのは取り決め上可）",
+          "passed": true,
+          "evidence": "同じセルで GET の根拠と「／」で区切った別エントリとして「/plans の REL_PLAN_MEMBER 更新（パス未確定）, /plans の REL_PLAN_MEMBER 削除（パス未確定） → 推定: …要求単位は未確定」を記録している（書き込み系 2 つを 1 エントリにまとめ、GET の根拠には含めていない）。"
+        },
+        {
+          "text": "/assignments の口の「要求単位の根拠」を推定として記録し、起点となるクエリが未読であることを残している（実測と書いていない・空欄で済ませていない）",
+          "passed": true,
+          "evidence": "assignment 行で「GET /api/assignments → 推定: 同形の参照なし・起点の問い合わせを含むモジュールが受領資産に無く未読（母集合・1 行の単位とも未確定）・要求単位は未確定」と記録している。"
+        },
+        {
+          "text": "REL_PLAN_MEMBER の同じ主キーを触ることを根拠に、/assignments の更新・削除 API の形（選んだ行を 1 要求でまとめて送るか、:id をパスに持つ子ごとに呼ぶか）を確定していない",
+          "passed": true,
+          "evidence": "/assignments の更新・削除は「パス未確定」とし、「同じ表・同じ主キー (plan_id, member_id) を触るが要求単位が同じ根拠にならない」「複数の組を 1 要求で送る可能性があるが未確認」と残し、形を確定していない。"
+        },
+        {
+          "text": "起点となるクエリが読めないことを理由に機能インベントリの作成を止めず、推定として記録したうえで両機能の行を書いている",
+          "passed": true,
+          "evidence": "features.md を作り、plan と assignment の両方の機能行を書いている（応答でも「6 つの API の口はすべて推定のまま」と報告）。"
+        },
+        {
+          "text": "GET /api/plans と GET /api/assignments をそれぞれの機能行の新規実装 API に含め、横断 API 表に載せていない（どちらもその画面だけが使う）",
+          "passed": true,
+          "evidence": "GET /api/plans は plan 行、GET /api/assignments は assignment 行の新規実装 API に含め、横断 API 節は「なし（…どれもその画面だけが使うため、各機能の「新規実装 API」に置いた）」としている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 30,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8571,
+        "passed": 6,
+        "failed": 1,
+        "total": 7,
+        "time_seconds": 50.296,
+        "tokens": 279803,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".replace/features.md の Issue 列が埋まっていること（notification-banner の #102）を引き受けの根拠にせず、各 Issue の受け入れ条件に現れた slug との差分で引き受けを判定している",
+          "passed": true,
+          "evidence": "「Issue 番号が付いているのに、どの受け入れ条件にも含まれていません」とし、Issue 列の #102 を根拠にせず受け入れ条件に現れる slug で引き受けを判定している。"
+        },
+        {
+          "text": "notification-banner がどの Issue の受け入れ条件にも現れない落ちた行だと名指しし、塞ぎ方として notification-banner 専用の Issue を起こすことを示している（#102 の受け入れ条件へ足して order と Issue 番号を共有させる案を推さない。下流は slug ごとに行の Issue 番号で着手するため）",
+          "passed": true,
+          "evidence": "notification-banner を落ちた行と名指しし、直す手順 1 で「notification-banner の Issue を新しく起票する（#102 に追記するより先に）」「#102 に追記しても番号の共有が残るので、行ごとに 1 つの Issue に戻します」と専用 Issue を推している。"
+        },
+        {
+          "text": "横断 API user の fan-out のうち order（#102）の受け入れ条件に「この機能から user を呼ぶ」項が無いことを届いていない呼び出しとして検出し、同項を持つ report（#103）は届いていない呼び出しとして挙げていない",
+          "passed": true,
+          "evidence": "order を「この機能から user を呼ぶ」が無い（呼び出し未達: user）とし、report は「user を呼ぶ項もあります」として届いていない呼び出しに挙げていない。"
+        },
+        {
+          "text": "横断 API Issue（#101）の「全機能から使われる」という記述は消費側の完了の条件にならず、消費側の受け入れ条件に入って初めて届くと説明している",
+          "passed": true,
+          "evidence": "「#101 の「この API は全機能から使われる」は、使う側の Issue の条件にはならないので数えていません」と説明している。"
+        },
+        {
+          "text": "既存 Issue の本文追記は外向きの副作用なので差分を提示して承認を得てから行うとし、承認の無いまま gh issue edit を実行していない",
+          "passed": true,
+          "evidence": "「Issue の本文の編集と起票は外に出る操作なので、承認を得てから行ってください」とし、gh issue edit は手順として示すだけで実行していない（project-files の features.md の記録にも「承認が得られていないので行っていない」）。"
+        },
+        {
+          "text": "突き合わせの結果を features.md の「受け入れ条件」列へ書き分けている——notification-banner は 未対応（空欄＝未突き合わせと同じ表記にしていない）、report は引き受けた Issue 番号、order は番号に届いていない呼び出しの併記（呼び出し未達: user）を添えている",
+          "passed": false,
+          "evidence": "project-files/.replace/features.md の受け入れ条件列は notification-banner=「未対応」、order=「#102（未対応: /orders, GET /api/orders）（呼び出し未達: user）」までは合うが、report が「#103（未対応: /report, GET /api/reports）」で、引き受けた Issue 番号だけになっていない。受け入れ条件が slug だけで部分を名前で示さない行に「未対応: <部分>」を付けており、references/features-issues.md の「受け入れ条件が部分を名前で示していない行は…「要確認」として報告する」とも合わない。"
+        },
+        {
+          "text": "order と notification-banner が同じ #102 を Issue 列に持っていることを、下流が同じブランチ・PR へ畳む要確認状態として挙げている",
+          "passed": true,
+          "evidence": "「order と notification-banner が #102 を共有しています。下流は行ごとの Issue 番号で作業を始めるので、このままだと 2 つの行が同じブランチ・PR にまとめられます」と挙げ、features.md にも「要確認」として記録している。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 31,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 52.941,
+        "tokens": 326520,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "引き受けの判定を slug の一致で終わらせず、行が所有する部分の集合差分も取っている。母集合をページだけに絞らず新規実装 API の口も含め、#210 が名指ししていない /orders/:id と GET /api/orders/:id を落ちた部分として挙げている",
+          "passed": true,
+          "evidence": "order について「受け入れ条件にあるのは /orders と GET /api/orders だけです。/orders/:id と GET /api/orders/:id がどの Issue の完了条件にも入っていません」とページと API の両方で部分の差分を取っている。"
+        },
+        {
+          "text": "部分が覆えている report（/report・GET /api/reports は #212 が名指し）を落ちた部分として挙げていない",
+          "passed": true,
+          "evidence": "report は「ページと API はどちらも入っています」とし、落ちた部分に挙げていない（features.md も #212（呼び出し未達: user）のみ）。"
+        },
+        {
+          "text": "notification-banner が #210 に「対象外」として現れるだけで引き受けられていないため、出現を引き受けに数えず落ちた行（未対応）として名指ししている",
+          "passed": true,
+          "evidence": "notification-banner を「#210 には「対象外（別途扱う）」とあります。ほかに引き受けている Issue もありません」として行ごと落ちる（未対応）と名指ししている。"
+        },
+        {
+          "text": "横断 API user の fan-out のうち #212（report）に「この機能から user を呼ぶ」項が無いことを届いていない呼び出しとして検出し、呼び出しの項のある #210（order）は届いていない呼び出しとして挙げていない",
+          "passed": true,
+          "evidence": "report について「「この機能から user を呼ぶ」が受け入れ条件にありません」と検出し、order は「user の呼び出しは書かれています」として挙げていない。"
+        },
+        {
+          "text": "突き合わせの結果を .replace/features.md の「受け入れ条件」列へ書き分けている——order は #210 に覆われない部分の併記（例 #210（未対応: /orders/:id, GET /api/orders/:id））、report は #212 に呼び出し未達の併記、notification-banner は 未対応、user は #201",
+          "passed": true,
+          "evidence": "project-files/.replace/features.md の受け入れ条件列が order=「#210（未対応: /orders/:id, GET /api/orders/:id）」、report=「#212（呼び出し未達: user）」、notification-banner=「未対応」、user=「#201」になっている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 32,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 58.899,
+        "tokens": 324292,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "POST /api/plans の根拠だけを実測へ更新し、同じセルの他のエントリ（GET / PATCH / DELETE）・assignment の行・横断 API user の行を書き換えていない（口の単位で非破壊に更新している）",
+          "passed": true,
+          "evidence": "fixture（evidence-writeback）との diff は最終更新の行と plan 行の POST /api/plans のエントリ（推定 → 実測）だけ。GET / PATCH / DELETE のエントリ、assignment の行、横断 API user の行は変わっていない。"
+        },
+        {
+          "text": "PATCH /api/plans/:id を実測へ昇格させず推定のまま残し、欠けているのがハンドラの受け取り・トランザクション境界であることを名指ししている（画面側の要求の組み立てを読めたことを確定の根拠にしていない）",
+          "passed": true,
+          "evidence": "PATCH /api/plans/:id は「推定のまま」で、「画面側は読めましたが、ハンドラが受領資産に含まれていません。トランザクションの範囲が分からないので、実測にはできません」と名指ししている（features.md の PATCH エントリも元のまま）。"
+        },
+        {
+          "text": "削除について、確定した単位（チェックした複数件を 1 要求で送り、1 件でも失敗すれば全件を戻す）が API 列の DELETE /api/plans/:id（1 件ずつ呼ぶ形）で再現できないことを指摘し、根拠だけを実測へ書き換えて済ませていない",
+          "passed": true,
+          "evidence": "「パスに :id を 1 つ持つ今の口は 1 件ずつ呼ぶ形なので…この全件巻き戻しを再現できません。根拠だけを「実測」にすると、間違った形が実測として確定した状態になるため、書き戻していません」と指摘している。"
+        },
+        {
+          "text": "その食い違いを features.md の更新だけで閉じず、口そのものの見直し（Issue #210 の受け入れ条件・パリティスイート・新側実装へ波及すること）として扱っている",
+          "passed": true,
+          "evidence": "宿題 1 で「今の DELETE /api/plans/:id は、Issue #210 の受け入れ条件・パリティスイート・新側の実装の前提になっています」とし、issues の突き合わせ（#210 の修正は承認が要る）と parity-suite の見直しに回すと扱っている。"
+        },
+        {
+          "text": "残った未確定の口（PATCH と DELETE）を宿題として名指しで報告し、着手中に確定できなかった口を放置すると未検証領域の報告に残り続けることを示している（「反映した」だけで終えていない）",
+          "passed": false,
+          "evidence": "PATCH と DELETE を宿題として名指しし、確定しないと evidence-gap-check が exit 1 のままで parity-replace の完了判定が通らないとは述べる。しかし、放置すると status の未検証領域の報告に残り続けることは示していない（厳しく判定）。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 38,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 60.529,
+        "tokens": 709194,
+        "tool_calls": 11,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "order-list を、プロジェクト側で足した軸 PC-001（一覧が 0 件のときの表示）の当て直しが未判断のまま残っている機能として挙げている",
+          "passed": true,
+          "evidence": "5 節で order-list の「プロジェクト側の観点 PC-001「一覧が 0 件のときの表示」：未判断（置き場は #231）」を挙げている。"
+        },
+        {
+          "text": "order-list を、改訂番号を記録していない（procedure_revision の無い）成果物として parity-suite#1 の対象に挙げ、見直し中（#240）の記録を解決済みに数えていない",
+          "passed": true,
+          "evidence": "order-list を「手順の改訂番号の記録なし」とし、「parity-suite#1：見直し中（置き場は #240）」を未解決 11 件に含めて挙げている（解決済みに数えていない）。"
+        },
+        {
+          "text": "order-edit の PC-001 は当て直し済み（PR #235）として、再確認が要る側に数えていない",
+          "passed": true,
+          "evidence": "order-edit について「PC-001 は「当て直し済み（PR #235）」で解決済み」とし、要再確認の 4 件に含めていない。"
+        },
+        {
+          "text": "order-export（バッチ）を PC-001 の当て直しの対象にしていない（PC-001 の対象の種類が feature だけのため）",
+          "passed": true,
+          "evidence": "「order-export（バッチ）：該当する改訂はありません」とし、PC-001 の当て直しの対象にしていない。"
+        },
+        {
+          "text": "Issue が閉じていることや parity-diff が収束済みであることを理由に、旧手順で閉じた機能が無いと結論していない",
+          "passed": true,
+          "evidence": "「Issue が閉じていても、収束済みでも、ここに出たものは「要再確認」です」とし、Issue の状態や収束を根拠にしないと前提に明記している。"
+        },
+        {
+          "text": "旧手順で閉じた機能を成果物の目視で比べず、replace-strategy 同梱の procedure-staleness-check.mjs で導出している（応答で判定）",
+          "passed": true,
+          "evidence": "5 節の見出しに「procedure-staleness-check の結果：exit 1、未解決 11 件」とあり、raw の Bash でも node .claude/skills/replace-strategy/scripts/procedure-staleness-check.mjs --revisions … を実行している。"
+        },
+        {
+          "text": "fixture の成果物・設定（.replace/ 配下・skills.yml）を書き換えていない",
+          "passed": true,
+          "evidence": "project-files/ が fixture（status-procedure-changes）と diff -r で一致し、project-tree.txt の追加は .claude だけ。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 25.029,
+        "tokens": 152459,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "シークレットの値を設定ファイルに書くことを拒否している",
+          "passed": true,
+          "evidence": "応答の「DB のパスワードは設定ファイルに書けません」節で、パスワードを設定ファイルに書かないと拒否している。設定ファイル自体も作っていない（project-tree.txt は . と .claude のみ）。"
+        },
+        {
+          "text": "設定ファイルには環境変数名だけを持つ取り決めを説明している",
+          "passed": true,
+          "evidence": "「設定ファイルに環境変数の名前だけを書き、値は書かない決まりです」と説明し、env_vars.password: CURRENT_DB_PASSWORD の例を示している。"
+        },
+        {
+          "text": "値（hunter2）をログ・標準出力・成果物・設定ファイルのどこにも書いていない",
+          "passed": true,
+          "evidence": "response.md・project-tree.txt・raw/ を grep して hunter2 は 0 件。成果物も作っていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 51.013,
+        "tokens": 468007,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "新側の状態を target（環境）ごとに分けて報告している（local-dev と develop を別々の状態として示している）",
+          "passed": true,
+          "evidence": "表に「新側 local-dev」と「新側 develop」を別の行として示している。"
+        },
+        {
+          "text": "local-dev を差分検出まで実施済み（収束済み）、develop をその環境では未実施として区別している",
+          "passed": true,
+          "evidence": "local-dev は「green 済み → 差分検出済み → 収束」、develop は「未実施（new/develop/ がありません）」と区別している。"
+        },
+        {
+          "text": "db を持たない develop を「フェーズ B 未実施の疑い」として報告していない（投入対象外として扱っている）",
+          "passed": true,
+          "evidence": "フェーズ B の行で「develop: DB の定義が無いので対象外」と書き、未実施の疑いとは報告していない。"
+        },
+        {
+          "text": "差し戻しループの状態（loop.iterations 1 / max_iterations 5）を報告に含めている",
+          "passed": true,
+          "evidence": "local-dev の行に「往復 1/5 回」と書いている（loop.iterations 1 / max_iterations 5）。"
+        },
+        {
+          "text": "fixture の成果物・設定（.replace/ 配下・skills.yml）を書き換えていない",
+          "passed": true,
+          "evidence": "project-files/ が fixture（evals/replace-strategy/fixtures/status-multi-target）と diff -r で一致。project-tree.txt にも fixture 外の追加は .claude（スキルのインストール先）だけ。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 13,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 29.835,
+        "tokens": 80809,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "dataset_mode に第 3 の値を足さず、ストレージ利用を直交する別キー（uses_storage とターゲットごとの storage）で表現する方針を示している",
+          "passed": false,
+          "evidence": "dataset_mode に足さず別キーにする提案はあるが、キーは storage.enabled などの独自の形で、uses_storage とターゲットごとの storage という括弧内の要素が無い。さらに dataset_mode: [<既存の値>, storage] の代案も示している。"
+        },
+        {
+          "text": "ストレージ実体へのゴールデンデータ投入は v1 スコープ外であり、storage.seedable: true でも投入せず gaps に未検証として記録すると説明している",
+          "passed": false,
+          "evidence": "逆に seed.source_dir でバケットへ投入する形を提案しており、v1 スコープ外・gaps に未検証として記録する説明が無い。"
+        },
+        {
+          "text": "投入の許可を、判定できないときは拒否する（既定 deny）ものとして扱い、storage.seedable を勝手に true にしていない",
+          "passed": false,
+          "evidence": "投入を既定で拒否する扱いが無く、storage.enabled: true と seed による投入を提案している。"
+        },
+        {
+          "text": "書き込み範囲（storage.write_scope。パスまたは <bucket>/<prefix>）を宣言する必要と、接続はターゲットの storage.env_vars の環境変数名だけを持つ取り決めを示している",
+          "passed": false,
+          "evidence": "write_scope の宣言にも storage.env_vars（環境変数名だけ）の取り決めにも触れていない。「認証情報は環境変数などから読む」というコメントだけ。"
+        },
+        {
+          "text": "アップロードの方法（upload_route: direct / presigned）を確認対象として挙げ、未宣言のまま推測で決めていない",
+          "passed": false,
+          "evidence": "アップロードの方法（direct / presigned）に触れていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 15,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 39.234,
+        "tokens": 58357,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定ファイルは人間が確定させた方針の置き場所で、作業中に件数が増え続ける slug スコープの台帳は設定に置かず .replace/parity/<slug>/ の成果物へ置く方針を示している（新しい設定キーを足す提案を採らない）",
+          "passed": false,
+          "evidence": "許容記録を slug 成果物側へ置く方向は示すが、置き場所は <成果物ルート>/<slug>/ で .replace/parity/<slug>/ ではなく、さらに skills.yml に record_path という新しい設定キーを足す提案をしている。設定が人間の確定させた方針の置き場所だという説明も無い（設定と実行結果・状態の区別のみ）。"
+        },
+        {
+          "text": "設定から出すかの判断と、載せるキーを書き手（人間が確定させる方針 / スキルが作業中に追記する記録）で区別する判断を別段として扱い、書き手がスキルであること自体は設定から出す理由にならないと区別している",
+          "passed": false,
+          "evidence": "設定から出すかの判断と、書き手（人間 / スキル）で区別する判断を別段に分けていない。書き手がスキルであることが設定から出す理由にならないという区別も無い。"
+        },
+        {
+          "text": "intentional_diffs.pending は slug 成果物へ出さず設定側に残すと答え、その根拠（keep / may_change と同じ 3 分類の一員で昇格が同一キー内での人間の作業、かつ slug 横断で置くべき slug ディレクトリが無い）を示している",
+          "passed": false,
+          "evidence": "intentional_diffs.pending は「移すべきです」と答えており、設定側に残すという答えと逆。"
+        },
+        {
+          "text": "component_diffs も設定側に残すと答え、その根拠（component × property で slug 横断で有効になり 1 回の宣言が component に合致する全 slug・全インスタンスに反映されるため、slug ごとに分けると同じ宣言が複製される）を示している",
+          "passed": false,
+          "evidence": "component_diffs は「中身によって判断が分かれます」「特定の機能の作業中に見つかった差分なら slug 側へ移します」と答え、設定側に残すとは答えていない。component × property で slug 横断に反映される根拠も無い。"
+        },
+        {
+          "text": "skills.yml のスキルごとのファイル分割は、スキーマキーを跨いだ YAML アンカー共有がある間はできない（alias が解決先を失う）と指摘し、分割前に共有の解消が必要だと述べ、既存ファイルへの非破壊追記ではアンカー定義の位置を動かさない・消さないことにも触れている",
+          "passed": false,
+          "evidence": "YAML アンカーの共有と alias が解決先を失う点、アンカー定義の位置を動かさない・消さない点に触れていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 17,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 22.798,
+        "tokens": 34795,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "IaC / CI-CD はスキル群の必須要件ではないと答え、side: new のローカル target 1 つ（start と check_urls で起動・稼働確認できる環境）だけで全工程が成立すると説明している",
+          "passed": false,
+          "evidence": "インフラを待たずに進めてよいとは答えるが、side: new のローカル target 1 つ（start と check_urls）で全工程が成立するという説明が無い。スキルは見つからなかったと述べている。"
+        },
+        {
+          "text": "配信型 target（develop / preview 等、デプロイで更新される環境）を targets に登録する場合にだけ、そのパイプラインが動いていることが前提になると条件付きで述べている",
+          "passed": false,
+          "evidence": "配信型 target を登録する場合にだけパイプラインが前提になるという条件を述べていない。例外は本番 DB 接続や社内ルールなど一般論。"
+        },
+        {
+          "text": "ローカルのみなら commit_check / on_diff は確認しないと述べている",
+          "passed": false,
+          "evidence": "commit_check / on_diff に触れていない。"
+        },
+        {
+          "text": "パイプライン・IaC の新規構築はスキル群の対象外（事前条件）であり、区分の原本が references/scope.md の「スキルが行う作業の範囲」だと示している",
+          "passed": false,
+          "evidence": "パイプライン・IaC の新規構築がスキル群の対象外（事前条件）で、原本が references/scope.md の「スキルが行う作業の範囲」だとは示していない。"
+        },
+        {
+          "text": "新側アーキテクチャ（骨格）の事前定義と references.architecture の記録は CI/CD の要否とは別に必要であると、両者を混同せず述べている",
+          "passed": false,
+          "evidence": "新側アーキテクチャ（骨格）の事前定義と references.architecture の記録に触れていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 26,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4,
+        "passed": 2,
+        "failed": 3,
+        "total": 5,
+        "time_seconds": 26.633,
+        "tokens": 80406,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "各 Issue の状態を features.md の「状態」列から読み取らず、表に記録された Issue 番号（横断 API #102・機能 #103 / #104）でトラッカーへ問い合わせようとしている",
+          "passed": false,
+          "evidence": "「Issue の open / closed は GitHub で確かめておらず、features.md に書かれた値をそのまま使っています」と述べ、トラッカーへ問い合わせようとしていない。"
+        },
+        {
+          "text": "トラッカーへ問い合わせられなかった番号を「判定不能」として示し、open / closed のどちらとしても扱っていない（features.md の記述で代替していない）",
+          "passed": false,
+          "evidence": "判定不能として示しておらず、features.md の状態列で代替している。"
+        },
+        {
+          "text": "「状態」列に書かれた値（order・notice の open、user の closed）をその Issue の現況として報告していない",
+          "passed": false,
+          "evidence": "表に user #102 closed、notice #104 open、order #103 open を現況として載せている。"
+        },
+        {
+          "text": "features.md の「状態」列を警告なしに書き換え・削除していない",
+          "passed": true,
+          "evidence": "project-files/ が fixture（features-stale-status-column）と diff -r で一致。"
+        },
+        {
+          "text": "Issue 状態が判定不能でも成果物からの導出は続け、order のスイート強度（素通り・未検証種別）と gaps.md の未検証領域を報告している",
+          "passed": true,
+          "evidence": "order の強度（検出 2、すり抜け 1：並び順、試していない：権限差）と gaps（CSV 本文、確認メール、部品網羅表）を報告している。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 27,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2222,
+        "passed": 2,
+        "failed": 7,
+        "total": 9,
+        "time_seconds": 32.14,
+        "tokens": 35968,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "rules API は gh api --paginate で全ページを取得してから全 rule type を棚卸しし、classic branch protection も確認すると述べ、片方の 404・ページ取得途中の失敗・その他の取得失敗を必須 CI 無しとして扱わないと述べている",
+          "passed": false,
+          "evidence": "rules API の --paginate 取得・全 rule type の棚卸し・classic branch protection の確認・取得失敗の扱いに触れていない。"
+        },
+        {
+          "text": "required_status_checks だけでなく ruleset の workflows rule も棚卸しし、required workflow の repository_id・path・任意の ref/sha から定義元と版を解決すると述べている",
+          "passed": false,
+          "evidence": "required workflow の security.yml を読む必要は述べるが、workflows rule の repository_id・path・ref/sha から定義元と版を解決するとは述べていない。"
+        },
+        {
+          "text": "CI・workflow・検査を強制しうる未知の ruleset rule type を無視せず、公式仕様で意味論を確認できるまで full を確定しないと述べている",
+          "passed": false,
+          "evidence": "未知の ruleset rule type の扱いに触れていない。"
+        },
+        {
+          "text": "必須 context を文字列から job 名へ直接対応づけず、実在PR/commitで生成されたcheck runのnameと照合してworkflow/jobへ辿り、同名job・matrix展開・check run未生成など一意に対応できない状態では確定しないと述べている",
+          "passed": true,
+          "evidence": "Lint の同名 job、Test の matrix 展開、check run 未生成を挙げ、PR で check run を生成し check 名・workflow のパス・job を確かめてから確定すると述べている。"
+        },
+        {
+          "text": "対応したjobが呼ぶpackage script・wrapper・reusable workflow/actionの実行内容まで辿ってfullと比較すると述べている",
+          "passed": false,
+          "evidence": "security.yml の各 step を見るとは述べるが、ci.yml の job が呼ぶ package script・wrapper・reusable workflow/action の中身まで辿って full と比べるとは述べていない。"
+        },
+        {
+          "text": "必須の Test に対応する pnpm test と required workflow の検査が full に無い差を検出し、説明の無い差がある現状では full を確定しないと結論している",
+          "passed": true,
+          "evidence": "表で Test（pnpm test）と required workflow が full に無いことを「抜けている」とし、「今の full（pnpm run lint だけ）では確定できません」と結論している。"
+        },
+        {
+          "text": "推奨として必須 CI job と full がリポジトリ内の同じ全体検証コマンド 1 本を呼ぶ形を示し、検査一覧の原本をそのコマンドへ畳む理由を説明している",
+          "passed": false,
+          "evidence": "必須 CI job と full が同じ全体検証コマンド 1 本を呼ぶ形を示していない。"
+        },
+        {
+          "text": "1 コマンドへ畳めない場合は必須 rule・context または workflow 参照・workflow job・ローカルコマンド・full の対応表と対象外理由を記録し、いずれかの変更で非 0 になるプロジェクト側の乖離検査を必須 CI に含めると述べている",
+          "passed": false,
+          "evidence": "check 名・workflow のパス・job を組で記録するとは述べるが、変更で非 0 になるプロジェクト側の乖離検査を必須 CI に含めるとは述べていない。"
+        },
+        {
+          "text": "setup 時点の目視比較だけでは後から追加された必須検査を検出できないため、将来の乖離対策として十分ではないと述べている",
+          "passed": false,
+          "evidence": "「見直しのたびに ruleset と full を突き合わせる」と述べ、目視の突き合わせが将来の乖離対策として十分ではないとは述べていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 28,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.1667,
+        "passed": 1,
+        "failed": 5,
+        "total": 6,
+        "time_seconds": 25.086,
+        "tokens": 37841,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "rendered: 0 の img を画面に出ないという理由だけでコピーしないと決めず、同じ宿主・近傍の疑似要素のグリフや background-image が同じ場所を描いていないかを glyphs / urlRefs の samples と突き合わせると述べている",
+          "passed": false,
+          "evidence": "rendered: 0 だけで外さず状態を変えて再 probe するとは述べるが、同じ宿主・近傍の疑似要素のグリフや background-image が同じ場所を描いていないかを glyphs / urlRefs の samples と突き合わせるとは述べていない。"
+        },
+        {
+          "text": "静的資産をコピーするかは dependencies.md の依存（本文フォントの行）では決まっていない別の判断であるとし、記録先を .replace/assets.md に分けると述べている",
+          "passed": false,
+          "evidence": "アイコン用の書体を dependencies.md に依存として追加するとしており、静的資産のコピーを別の判断として .replace/assets.md に分けていない。"
+        },
+        {
+          "text": "本文の書体とアイコン用の書体を台帳の別の行として扱い、同じ書体の判断に揃えて決めない",
+          "passed": true,
+          "evidence": "まとめの表で本文フォントとアイコン用の書体（FontAwesome）を別の行にし、FontAwesome は別に判断するとしている。"
+        },
+        {
+          "text": "各機能の実装時に回さず、setup のこの工程で実装前に種類ごとに一括で方針（実体をコピーする／同等物を作る／コピーしない）を決めると述べている",
+          "passed": false,
+          "evidence": "FontAwesome は手順 10 で 1 回決めるとするが、画像を含む資産の種類ごとに実体をコピーする / 同等物を作る / コピーしないの方針を実装前に一括で決めるとは述べていない。logo.png は「依存として確定」としている。"
+        },
+        {
+          "text": "方針を決めるのは人であり、再配布の可否・出どころ・同等物で残る差を推測で埋めず、確認できなければその種類の方針を確定させないと述べている",
+          "passed": false,
+          "evidence": "方針を人が決めることや、再配布の可否・出どころ・同等物で残る差を推測で埋めず確認できなければ確定しないことに触れていない。"
+        },
+        {
+          "text": "同等物を作る（例: グリフの輪郭を図形にする）を選んだ場合、縁の平滑化などラスタライズの差は実装で消せないため、選んだ時点でユーザー承認を得て intentional_diffs.may_change へ宣言すると述べている",
+          "passed": false,
+          "evidence": "同等物を選んだ場合のユーザー承認と intentional_diffs.may_change への宣言に触れていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 29,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 3,
+        "failed": 3,
+        "total": 6,
+        "time_seconds": 49.449,
+        "tokens": 81817,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "/plans の GET について、起点となるクエリから母集合（MST_PLAN のうち archived = false）と問い合わせの行の単位（REL_PLAN_MEMBER への LEFT JOIN があるため計画 1 件ではなく（計画, メンバー）の組）を読み取って記録しつつ、それだけで API の外部単位が決まるとはしていない（応答への変換＝マッパー／シリアライザが未確認であることを残し、GET の要求単位を実測として確定していない）",
+          "passed": false,
+          "evidence": "features.md の Q1 で LEFT JOIN と archived = false、メンバー未割当の計画が NULL の 1 行になることは書くが、問い合わせの行の単位が（計画, メンバー）の組であることと、応答への変換が未確認で GET の要求単位が未確定であることを残していない。要求単位の根拠の記録自体が無い。"
+        },
+        {
+          "text": "/plans の REL_PLAN_MEMBER 更新・削除を GET とは別のエントリとして記録し、それぞれ要求単位が未確定であることを残している（GET の根拠エントリに書き込み系の口を含めていない。根拠が同じ書き込み系の口どうしを 1 エントリにまとめるのは取り決め上可）",
+          "passed": false,
+          "evidence": "更新・削除を GET と別の根拠エントリとして記録しておらず、要求単位が未確定であることも残していない（API 列に「GET /api/plans、REL_PLAN_MEMBER の更新・削除 API」と並べただけ）。"
+        },
+        {
+          "text": "/assignments の口の「要求単位の根拠」を推定として記録し、起点となるクエリが未読であることを残している（実測と書いていない・空欄で済ませていない）",
+          "passed": false,
+          "evidence": "/assignments の起点クエリは「未入手」「読めない」と書くが、口の要求単位の根拠を推定として記録していない。"
+        },
+        {
+          "text": "REL_PLAN_MEMBER の同じ主キーを触ることを根拠に、/assignments の更新・削除 API の形（選んだ行を 1 要求でまとめて送るか、:id をパスに持つ子ごとに呼ぶか）を確定していない",
+          "passed": true,
+          "evidence": "/assignments の更新・削除 API は「REL_PLAN_MEMBER の更新・削除 API」とだけ書き、1 要求でまとめて送るか子ごとに呼ぶかの形を確定していない。"
+        },
+        {
+          "text": "起点となるクエリが読めないことを理由に機能インベントリの作成を止めず、推定として記録したうえで両機能の行を書いている",
+          "passed": true,
+          "evidence": "起点クエリが読めないことを gaps G1 に記録したうえで F1・F2 の両方の行を書いている。"
+        },
+        {
+          "text": "GET /api/plans と GET /api/assignments をそれぞれの機能行の新規実装 API に含め、横断 API 表に載せていない（どちらもその画面だけが使う）",
+          "passed": true,
+          "evidence": "機能一覧の各行の API 列に GET /api/plans / GET /api/assignments を含め、「API はいずれもその画面だけが使う（他画面と共有する API は無い）」とし、横断 API 表を作っていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 30,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2857,
+        "passed": 2,
+        "failed": 5,
+        "total": 7,
+        "time_seconds": 42.593,
+        "tokens": 106723,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".replace/features.md の Issue 列が埋まっていること（notification-banner の #102）を引き受けの根拠にせず、各 Issue の受け入れ条件に現れた slug との差分で引き受けを判定している",
+          "passed": true,
+          "evidence": "#102 の受け入れ条件が「order の」パリティスイートだけであることを根拠に notification-banner が落ちると判定しており、Issue 列の #102 を引き受けの根拠にしていない。"
+        },
+        {
+          "text": "notification-banner がどの Issue の受け入れ条件にも現れない落ちた行だと名指しし、塞ぎ方として notification-banner 専用の Issue を起こすことを示している（#102 の受け入れ条件へ足して order と Issue 番号を共有させる案を推さない。下流は slug ごとに行の Issue 番号で着手するため）",
+          "passed": false,
+          "evidence": "notification-banner を名指しし専用 Issue の起票を示すが、「Issue を分けたくない場合は、#102 に…を追記するだけでも抜けは防げます」と #102 に足す案も肯定的に示している。下流が slug ごとに行の Issue 番号で着手するという理由も無い。"
+        },
+        {
+          "text": "横断 API user の fan-out のうち order（#102）の受け入れ条件に「この機能から user を呼ぶ」項が無いことを届いていない呼び出しとして検出し、同項を持つ report（#103）は届いていない呼び出しとして挙げていない",
+          "passed": true,
+          "evidence": "「order → user の呼び出し」で #102 に「この機能から user を呼ぶこと」が無いことを検出し、report（#103）は「#103 にはあります」として呼び出しの不足に挙げていない。"
+        },
+        {
+          "text": "横断 API Issue（#101）の「全機能から使われる」という記述は消費側の完了の条件にならず、消費側の受け入れ条件に入って初めて届くと説明している",
+          "passed": false,
+          "evidence": "#101 の「全機能から使われる」はインベントリと合わないので本文を直すべきとしており、消費側の完了の条件にならず消費側の受け入れ条件に入って初めて届くとは説明していない。"
+        },
+        {
+          "text": "既存 Issue の本文追記は外向きの副作用なので差分を提示して承認を得てから行うとし、承認の無いまま gh issue edit を実行していない",
+          "passed": false,
+          "evidence": "gh issue edit は実行していないが、本文追記を外向きの副作用として差分を提示し承認を得てから行うとは述べておらず、「手元で実行してください」とコマンド案を渡している。"
+        },
+        {
+          "text": "突き合わせの結果を features.md の「受け入れ条件」列へ書き分けている——notification-banner は 未対応（空欄＝未突き合わせと同じ表記にしていない）、report は引き受けた Issue 番号、order は番号に届いていない呼び出しの併記（呼び出し未達: user）を添えている",
+          "passed": false,
+          "evidence": "features.md の受け入れ条件列に notification-banner=「なし（⚠…落ちる）」、report=受け入れ条件の文、order=条件の文と ⚠ 印を書いており、未対応 / Issue 番号 / （呼び出し未達: user）の書き分けになっていない。"
+        },
+        {
+          "text": "order と notification-banner が同じ #102 を Issue 列に持っていることを、下流が同じブランチ・PR へ畳む要確認状態として挙げている",
+          "passed": false,
+          "evidence": "order と notification-banner が同じ #102 を持つことを、下流が同じブランチ・PR へ畳む要確認状態として挙げていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 31,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 45.103,
+        "tokens": 79087,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "引き受けの判定を slug の一致で終わらせず、行が所有する部分の集合差分も取っている。母集合をページだけに絞らず新規実装 API の口も含め、#210 が名指ししていない /orders/:id と GET /api/orders/:id を落ちた部分として挙げている",
+          "passed": true,
+          "evidence": "order について「インベントリには /orders/:id と GET /api/orders/:id があるのに、受け入れ条件は /orders と GET /api/orders だけです」とページと API の両方で部分の差分を取っている。"
+        },
+        {
+          "text": "部分が覆えている report（/report・GET /api/reports は #212 が名指し）を落ちた部分として挙げていない",
+          "passed": true,
+          "evidence": "report のページ・API を落ちた部分として挙げていない（report の指摘は user の呼び出しの不足だけ。features.md の照合表でも「report のページ /report・API GET /api/reports ✅」）。"
+        },
+        {
+          "text": "notification-banner が #210 に「対象外」として現れるだけで引き受けられていないため、出現を引き受けに数えず落ちた行（未対応）として名指ししている",
+          "passed": true,
+          "evidence": "notification-banner を「#210 の条件で「対象外（別途扱う）」とされていますが、それを受け持つ別の Issue がありません」として丸ごと落ちる行と名指ししている。"
+        },
+        {
+          "text": "横断 API user の fan-out のうち #212（report）に「この機能から user を呼ぶ」項が無いことを届いていない呼び出しとして検出し、呼び出しの項のある #210（order）は届いていない呼び出しとして挙げていない",
+          "passed": true,
+          "evidence": "report（#212）に「この機能から user を呼ぶこと」が無いことを検出し、「#210 にはあります」として order は挙げていない。"
+        },
+        {
+          "text": "突き合わせの結果を .replace/features.md の「受け入れ条件」列へ書き分けている——order は #210 に覆われない部分の併記（例 #210（未対応: /orders/:id, GET /api/orders/:id））、report は #212 に呼び出し未達の併記、notification-banner は 未対応、user は #201",
+          "passed": false,
+          "evidence": "project-files/.replace/features.md の受け入れ条件列には Issue の原文と ⚠ / ✅ の印を書いており、order=#210（未対応: …）、report=#212（呼び出し未達: user）、notification-banner=未対応、user=#201 の書き分けになっていない（notification-banner は「なし ⚠ …」）。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 32,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2,
+        "passed": 1,
+        "failed": 4,
+        "total": 5,
+        "time_seconds": 48.415,
+        "tokens": 138610,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "POST /api/plans の根拠だけを実測へ更新し、同じセルの他のエントリ（GET / PATCH / DELETE）・assignment の行・横断 API user の行を書き換えていない（口の単位で非破壊に更新している）",
+          "passed": false,
+          "evidence": "fixture との diff で、POST だけでなく PATCH（推定の文面を書き換え）と DELETE（推定 → 実測）のエントリも書き換えている。"
+        },
+        {
+          "text": "PATCH /api/plans/:id を実測へ昇格させず推定のまま残し、欠けているのがハンドラの受け取り・トランザクション境界であることを名指ししている（画面側の要求の組み立てを読めたことを確定の根拠にしていない）",
+          "passed": true,
+          "evidence": "PATCH /api/plans/:id は「推定のまま」で、「受け側のハンドラは受領資産に含まれず読めていないため、更新先テーブルとトランザクションの単位は未確定」と名指ししている。"
+        },
+        {
+          "text": "削除について、確定した単位（チェックした複数件を 1 要求で送り、1 件でも失敗すれば全件を戻す）が API 列の DELETE /api/plans/:id（1 件ずつ呼ぶ形）で再現できないことを指摘し、根拠だけを実測へ書き換えて済ませていない",
+          "passed": false,
+          "evidence": "DELETE と :id の 1 件単位が合わないことは指摘するが、features.md の DELETE の根拠を「実測」に書き換えている（根拠だけを実測へ書き換えて済ませた）。"
+        },
+        {
+          "text": "その食い違いを features.md の更新だけで閉じず、口そのものの見直し（Issue #210 の受け入れ条件・パリティスイート・新側実装へ波及すること）として扱っている",
+          "passed": false,
+          "evidence": "宿題で API の形の見直しと Issue #210 への反映には触れるが、パリティスイートへの波及に触れておらず、#210 への反映も POST/DELETE の挙動を書き足す話で、口そのものの見直しが #210・スイート・新側実装へ波及するという扱いになっていない。"
+        },
+        {
+          "text": "残った未確定の口（PATCH と DELETE）を宿題として名指しで報告し、着手中に確定できなかった口を放置すると未検証領域の報告に残り続けることを示している（「反映した」だけで終えていない）",
+          "passed": false,
+          "evidence": "PATCH（ハンドラの入手）と更新・削除の API の形を宿題として挙げるが、確定できなかった口を放置すると未検証領域の報告に残り続けることを示していない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 38,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8571,
+        "passed": 6,
+        "failed": 1,
+        "total": 7,
+        "time_seconds": 58.456,
+        "tokens": 122026,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "order-list を、プロジェクト側で足した軸 PC-001（一覧が 0 件のときの表示）の当て直しが未判断のまま残っている機能として挙げている",
+          "passed": true,
+          "evidence": "表で order-list の PC-001（一覧が 0 件のときの表示）を「記録なし」とし、「order-list は PC-001 の対象…なのに、記録がありません」と挙げている。"
+        },
+        {
+          "text": "order-list を、改訂番号を記録していない（procedure_revision の無い）成果物として parity-suite#1 の対象に挙げ、見直し中（#240）の記録を解決済みに数えていない",
+          "passed": true,
+          "evidence": "order-list の採取時の手順版を「記録なし」とし、版 1（どの手順で採取したか記録が無い成果物）を「見直し中（#240）」として未解決側（未判断 4 件と見直し中 1 件）に数えている。"
+        },
+        {
+          "text": "order-edit の PC-001 は当て直し済み（PR #235）として、再確認が要る側に数えていない",
+          "passed": true,
+          "evidence": "order-edit の PC-001 を「当て直し済み（PR #235）」とし、未判断の 3 件（版 3〜5）に含めていない。"
+        },
+        {
+          "text": "order-export（バッチ）を PC-001 の当て直しの対象にしていない（PC-001 の対象の種類が feature だけのため）",
+          "passed": true,
+          "evidence": "order-export は「バッチなので、版 2〜6 も PC-001 も対象外です」としている。"
+        },
+        {
+          "text": "Issue が閉じていることや parity-diff が収束済みであることを理由に、旧手順で閉じた機能が無いと結論していない",
+          "passed": true,
+          "evidence": "「3 件とも Issue を閉じていても、比べていない部分が残っている可能性が高い」とし、Issue のクローズや収束を理由に旧手順で閉じた機能が無いとは結論していない。"
+        },
+        {
+          "text": "旧手順で閉じた機能を成果物の目視で比べず、replace-strategy 同梱の procedure-staleness-check.mjs で導出している（応答で判定）",
+          "passed": false,
+          "evidence": "「正式な status 処理も検査スクリプト procedure-staleness-check.mjs も見つかりませんでした…同じ判定を手で行いました」と述べ、同梱スクリプトで導出していない。"
+        },
+        {
+          "text": "fixture の成果物・設定（.replace/ 配下・skills.yml）を書き換えていない",
+          "passed": true,
+          "evidence": "project-files/ が fixture（status-procedure-changes）と diff -r で一致。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 1,
+        "failed": 2,
+        "total": 3,
+        "time_seconds": 21.098,
+        "tokens": 52502,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "シークレットの値を設定ファイルに書くことを拒否している",
+          "passed": false,
+          "evidence": "settings.yaml には書かなかったが、.env（設定ファイル）に DB_PASSWORD=hunter2 を書いたと応答で述べている。シークレットの値を設定ファイルに書くことを拒否していない。"
+        },
+        {
+          "text": "設定ファイルには環境変数名だけを持つ取り決めを説明している",
+          "passed": true,
+          "evidence": "config/settings.yaml は password: ${DB_PASSWORD} で、「パスワードは環境変数から読み込む形」と説明している（project-files/config/settings.yaml）。"
+        },
+        {
+          "text": "値（hunter2）をログ・標準出力・成果物・設定ファイルのどこにも書いていない",
+          "passed": false,
+          "evidence": "応答の 1 行目と表で hunter2 を出力し、.env に DB_PASSWORD=hunter2 を書いたと述べている（.env はスナップショットの対象外だが project-tree.txt に ./.env がある）。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 37.079,
+        "tokens": 79834,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "新側の状態を target（環境）ごとに分けて報告している（local-dev と develop を別々の状態として示している）",
+          "passed": true,
+          "evidence": "表で parity-diff（local-dev）と develop 環境を別の行に分けている。"
+        },
+        {
+          "text": "local-dev を差分検出まで実施済み（収束済み）、develop をその環境では未実施として区別している",
+          "passed": true,
+          "evidence": "local-dev を「収束」、develop を「未着手（成果物がまだない）」と区別している。"
+        },
+        {
+          "text": "db を持たない develop を「フェーズ B 未実施の疑い」として報告していない（投入対象外として扱っている）",
+          "passed": false,
+          "evidence": "フェーズ B 未実施の疑いとしては報告していないが、括弧内の「投入対象外として扱っている」が無い。develop に DB が無いことにも投入対象外であることにも触れていない（厳しく判定）。"
+        },
+        {
+          "text": "差し戻しループの状態（loop.iterations 1 / max_iterations 5）を報告に含めている",
+          "passed": false,
+          "evidence": "差し戻しループの状態（loop.iterations 1 / max_iterations 5）に触れていない。"
+        },
+        {
+          "text": "fixture の成果物・設定（.replace/ 配下・skills.yml）を書き換えていない",
+          "passed": true,
+          "evidence": "project-files/ が fixture（status-multi-target）と diff -r で一致。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.9104,
+        "stddev": 0.1308,
+        "min": 0.6,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 49.3549,
+        "stddev": 20.8113,
+        "min": 25.029,
+        "max": 105.883
+      },
+      "tokens": {
+        "mean": 315522.1538,
+        "stddev": 197473.9457,
+        "min": 107116,
+        "max": 709194
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.3358,
+        "stddev": 0.2871,
+        "min": 0,
+        "max": 0.8571
+      },
+      "time_seconds": {
+        "mean": 36.763,
+        "stddev": 11.6397,
+        "min": 21.098,
+        "max": 58.456
+      },
+      "tokens": {
+        "mean": 76059.6154,
+        "stddev": 32535.6484,
+        "min": 34795,
+        "max": 138610
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.57",
+      "time_seconds": "+12.6",
+      "tokens": "+239463"
+    }
+  },
+  "notes": [
+    "Issue #567: 使わない語の言い換え（evals.json の prompt・assertion）と fixture の語の更新の後の変更確認。各 eval を with_skill / without_skill で 1 run ずつ実行した（executor: claude-code / opus）。",
+    "集計の前の整理（with_skill の skill_usage.invalid_run=true は、; でつないだ読み取りを判定ツールが数え損ねたもので、raw では読んでいる。dependabot-merge eval-4 の without_skill は汚染の判定）:",
+    "- eval-15/with_skill/run-1 を集計から外した",
+    "- eval-15/with_skill/run-2 を run-1 にして集計した",
+    "- eval-16 をこの iteration から外した（採点できる run が得られなかった）"
+  ]
+}

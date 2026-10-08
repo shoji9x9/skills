@@ -1264,7 +1264,7 @@ export function checkRepeatRun(metadata, ctx) {
 
   if (record.cleanup_in_suite !== true) {
     findings.push(
-      "状態を変えるスイートなのに repeat_run.cleanup_in_suite が true でない（後始末が外のツールに依存すると次の実行が壊れる）",
+      "状態を変えるスイートなのに repeat_run.cleanup_in_suite が true でない（後始末が外のツールに依存すると、回した人が忘れた時点で次の実行が失敗する）",
     );
   }
   // 分類表を持つ成果物はスペック単位で判定する（持たない成果物は従来どおりスイート全体の指紋で判定する）
@@ -1750,7 +1750,7 @@ export function checkStage(ctx) {
       );
     } else {
       notes.push(
-        `dataset_version は記録 ${v} / 現在 ${c}。区間の affects（${affects.join(", ") || "なし"}）と slug の実効参照テーブルの交差判定は golden-dataset の references/versioning.md が正本のためここでは数えない`,
+        `dataset_version は記録 ${v} / 現在 ${c}。区間の affects（${affects.join(", ") || "なし"}）と slug の実効参照テーブルの交差判定は golden-dataset の references/versioning.md で定義するため、ここでは数えない`,
       );
     }
   }

@@ -51,7 +51,8 @@
       "expect_failing": [
         "JavaScript・TypeScript 行の後ろのコメントは、前後のコメントと別の段落にする",
         "シェル 行頭と空白の後の # をコメントにする",
-        "YAML 行頭と空白の後の # をコメントにし、ブロックスカラーの中のシェルのコメントも取り出す"
+        "YAML 行頭と空白の後の # をコメントにし、ブロックスカラーの中のシェルのコメントも取り出す",
+        "textlint-disable・enable 行の後ろに書いた textlint-disable はディレクティブにしない"
       ]
     },
     {
@@ -81,7 +82,8 @@
       "occurrences": 1,
       "expect_failing": [
         "JavaScript・TypeScript 日本語を含まない段落は入れない",
-        "JavaScript・TypeScript 英語だけの JSDoc は、次の行に続く型を置き換えても入れない"
+        "JavaScript・TypeScript 英語だけの JSDoc は、次の行に続く型を置き換えても入れない",
+        "textlint-disable・enable 行の後ろに書いた textlint-disable はディレクティブにしない"
       ]
     },
     {
@@ -175,7 +177,9 @@
         "JavaScript・TypeScript 行の後ろのコメントは、前後のコメントと別の段落にする",
         "JavaScript・TypeScript 日本語を含まない段落は入れない",
         "JavaScript・TypeScript 位置: 行コメント・ブロックコメントの 1 行目・2 行目以降を元の行と桁に戻す",
-        "JavaScript・TypeScript 英語だけの JSDoc は、次の行に続く型を置き換えても入れない"
+        "JavaScript・TypeScript 英語だけの JSDoc は、次の行に続く型を置き換えても入れない",
+        "textlint-disable・enable commentDirectives は、単独の行のディレクティブだけを行（0 始まり）と種類で返す",
+        "textlint-disable・enable 行の後ろに書いた textlint-disable はディレクティブにしない"
       ]
     },
     {
@@ -422,6 +426,17 @@
       "replace": "  const key = process.env.PATH ?? \"\";",
       "occurrences": 1,
       "expect_failing": ["シェル shfmt を起動できるかは、カレントディレクトリごとに確かめ直す"]
+    },
+    {
+      "id": "CC-DIRECTIVE-TRAILING",
+      "why": "行の後ろのコメントもディレクティブとして読む",
+      "file": "scripts/lib/code-comments.js",
+      "find": "  if (piece.trailing) return undefined;\n",
+      "replace": "",
+      "expect_failing": [
+        "textlint-disable・enable 行の後ろに書いた textlint-disable はディレクティブにしない",
+        "textlint-disable・enable commentDirectives は、単独の行のディレクティブだけを行（0 始まり）と種類で返す"
+      ]
     }
   ]
 }

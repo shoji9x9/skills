@@ -1,0 +1,235 @@
+{
+  "metadata": {
+    "skill_name": "multiagent-setup",
+    "skill_path": "<repo>/skills/multiagent-setup",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-07T09:01:38Z",
+    "evals_run": [6, 7],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 28.737,
+        "tokens": 128924,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "AGENTS.md のプロジェクト概要・月次棚卸し・検証コマンドの既存記述が保持されている",
+          "passed": true,
+          "evidence": "project-files/AGENTS.md に fixture のプロジェクト概要・月次棚卸しのレビュー・`pnpm test` の記述がそのまま残っている"
+        },
+        {
+          "text": "基底ドキュメントに、用語の短い説明・不要な判断依頼の回避・必要な判断時の推奨案と判断材料・必要な安全確認・過剰な禁止や長文化の回避という5方針が追加されている",
+          "passed": true,
+          "evidence": "AGENTS.md に『## コミュニケーション』を追加し、用語の初出時の短い説明・不要な判断を委ねない・推奨案と理由・影響・代替案・必要な確認を省略しない・用語の完全な禁止や長文化をしない、の 5 項目"
+        },
+        {
+          "text": "コミュニケーション方針が基底ドキュメント内で意味的に一組だけで、同じ方針を別見出しや言い換えで重複追加していない",
+          "passed": true,
+          "evidence": "コミュニケーション方針は『## コミュニケーション』の 1 組だけ。追加したもう 1 つの節は『## コンポーネント選択基準』で別の内容"
+        },
+        {
+          "text": "CLAUDE.md と .github/copilot-instructions.md は基底ドキュメントを参照し、共通コミュニケーション方針を複製していない",
+          "passed": true,
+          "evidence": "CLAUDE.md と .github/copilot-instructions.md は fixture と同一（diff なし）で、AGENTS.md の参照だけ"
+        },
+        {
+          "text": "応答方針のための用語集・追加ガイド・文章検査 Hook を作成していない",
+          "passed": true,
+          "evidence": "project-tree.txt に AGENTS.md・CLAUDE.md・.github/copilot-instructions.md 以外の追加ファイルが無い。用語集・ガイド・Hook を作っていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 24.787,
+        "tokens": 113046,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "AGENTS.md のプロジェクト概要・月次棚卸し・検証コマンドの既存記述が保持されている",
+          "passed": true,
+          "evidence": "fixture との diff は末尾への『## コンポーネント選択基準』の追加だけで、プロジェクト概要・月次棚卸し・`pnpm test` は残っている"
+        },
+        {
+          "text": "既存の回答方針が意味的に一組のままで、コミュニケーション等の別見出しや言い換えによる同等方針を重複追加していない",
+          "passed": true,
+          "evidence": "既存の『## 回答方針』は変更せず、コミュニケーションの節や言い換えを追加していない（追加は『コンポーネント選択基準』だけ）"
+        },
+        {
+          "text": "既存方針の用語説明・不要な判断依頼の回避・推奨案と判断材料・必要な安全確認・過剰な禁止や長文化の回避という5つの意味を弱めていない",
+          "passed": true,
+          "evidence": "『## 回答方針』の 5 項目は fixture と同一で、弱めていない"
+        },
+        {
+          "text": "CLAUDE.md と .github/copilot-instructions.md は基底ドキュメントを参照し、共通コミュニケーション方針を複製していない",
+          "passed": true,
+          "evidence": "CLAUDE.md と .github/copilot-instructions.md は fixture と同一（diff なし）"
+        },
+        {
+          "text": "応答方針のための用語集・追加ガイド・文章検査 Hook を作成していない",
+          "passed": true,
+          "evidence": "project-tree.txt に新しいファイルは無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 35.135,
+        "tokens": 84639,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "AGENTS.md のプロジェクト概要・月次棚卸し・検証コマンドの既存記述が保持されている",
+          "passed": true,
+          "evidence": "project-files/AGENTS.md に既存のプロジェクト概要・月次棚卸しのレビュー・`pnpm test` が原文のまま残っている"
+        },
+        {
+          "text": "基底ドキュメントに、用語の短い説明・不要な判断依頼の回避・必要な判断時の推奨案と判断材料・必要な安全確認・過剰な禁止や長文化の回避という5方針が追加されている",
+          "passed": false,
+          "evidence": "用語の説明・推奨案と判断材料・実行前の確認はあるが、不要な判断依頼を避ける方針が無い。長文化や過剰な禁止を避ける方針も無く、逆に『専門用語はなるべく使わない』と書いている"
+        },
+        {
+          "text": "コミュニケーション方針が基底ドキュメント内で意味的に一組だけで、同じ方針を別見出しや言い換えで重複追加していない",
+          "passed": true,
+          "evidence": "コミュニケーションの方針は『## 担当者とのやり取り』の 1 つの節の下にまとまり、別見出しで重複していない"
+        },
+        {
+          "text": "CLAUDE.md と .github/copilot-instructions.md は基底ドキュメントを参照し、共通コミュニケーション方針を複製していない",
+          "passed": true,
+          "evidence": "CLAUDE.md と .github/copilot-instructions.md は fixture と同一（diff なし）"
+        },
+        {
+          "text": "応答方針のための用語集・追加ガイド・文章検査 Hook を作成していない",
+          "passed": true,
+          "evidence": "project-tree.txt に新しいファイルは無い。ひな形は AGENTS.md の中で、別の用語集・ガイド・Hook は作っていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 22.898,
+        "tokens": 53918,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "AGENTS.md のプロジェクト概要・月次棚卸し・検証コマンドの既存記述が保持されている",
+          "passed": true,
+          "evidence": "fixture との diff は『## 回答方針』の 1 行の変更と 2 行の追加だけで、プロジェクト概要・月次棚卸し・`pnpm test` は残っている"
+        },
+        {
+          "text": "既存の回答方針が意味的に一組のままで、コミュニケーション等の別見出しや言い換えによる同等方針を重複追加していない",
+          "passed": true,
+          "evidence": "追加の 2 項目は既存の『## 回答方針』の中で、確認依頼の答え方の明示と報告の書き方という既存に無い内容。別見出しや同じ方針の言い換えは追加していない"
+        },
+        {
+          "text": "既存方針の用語説明・不要な判断依頼の回避・推奨案と判断材料・必要な安全確認・過剰な禁止や長文化の回避という5つの意味を弱めていない",
+          "passed": true,
+          "evidence": "既存の 5 項目は残り、推奨案の項目に『（元に戻せるかを含む）』を足しただけで弱めていない"
+        },
+        {
+          "text": "CLAUDE.md と .github/copilot-instructions.md は基底ドキュメントを参照し、共通コミュニケーション方針を複製していない",
+          "passed": true,
+          "evidence": "CLAUDE.md と .github/copilot-instructions.md は fixture と同一（diff なし）"
+        },
+        {
+          "text": "応答方針のための用語集・追加ガイド・文章検査 Hook を作成していない",
+          "passed": true,
+          "evidence": "project-tree.txt に新しいファイルは無い"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 26.762,
+        "stddev": 2.7931,
+        "min": 24.787,
+        "max": 28.737
+      },
+      "tokens": {
+        "mean": 120985,
+        "stddev": 11227.4415,
+        "min": 113046,
+        "max": 128924
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.9,
+        "stddev": 0.1414,
+        "min": 0.8,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 29.0165,
+        "stddev": 8.6529,
+        "min": 22.898,
+        "max": 35.135
+      },
+      "tokens": {
+        "mean": 69278.5,
+        "stddev": 21723.0274,
+        "min": 53918,
+        "max": 84639
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.10",
+      "time_seconds": "-2.3",
+      "tokens": "+51707"
+    }
+  },
+  "notes": [
+    "Issue #567: 使わない語の言い換え（evals.json の prompt・assertion）と fixture の語の更新の後の変更確認。各 eval を with_skill / without_skill で 1 run ずつ実行した（executor: claude-code / opus）。"
+  ]
+}

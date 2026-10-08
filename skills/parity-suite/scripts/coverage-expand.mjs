@@ -461,7 +461,7 @@ function strongerSourceProblems(block, label) {
     // 後から読む側はその集合を弱い情報源から起こしたものと誤読する。
     if (reason !== null && reason !== undefined) {
       problems.push(
-        `${label}: ${primary} で列挙したのに stronger_source_unavailable_reason が書かれている（効いていない免除。使ったなら null にする）`,
+        `${label}: ${primary} で列挙したのに stronger_source_unavailable_reason が書かれている（機能していない免除。使ったなら null にする）`,
       );
     }
   } else if (!nonEmptyString(reason)) {
@@ -486,7 +486,7 @@ function staleIncompleteReasonProblems(block, label) {
   if (block.complete !== true) return [];
   if (block.incomplete_reason === null || block.incomplete_reason === undefined) return [];
   return [
-    `${label}: complete: true なのに incomplete_reason が書かれている（効いていない免除。読み切れたなら null にする）`,
+    `${label}: complete: true なのに incomplete_reason が書かれている（機能していない免除。読み切れたなら null にする）`,
   ];
 }
 
@@ -672,7 +672,7 @@ function gradeCellRow(row, isDuplicated, label, stateManifest, problems) {
   if (value === "present") {
     const coveredBy = Array.isArray(cell.covered_by) ? cell.covered_by.filter(nonEmptyString) : [];
     if (coveredBy.length === 0) {
-      problems.push(`${label}: value: present なのに covered_by が空（assertion に落ちていない）`);
+      problems.push(`${label}: value: present なのに covered_by が空（assertion になっていない）`);
       return true;
     }
     return false;
@@ -1894,7 +1894,7 @@ export function reconcile(coverage, profiles, metadata = null) {
             : [];
           if (coveredBy.length === 0) {
             problems.push(
-              `${label}: 候補 ${cand.id}: value: present なのに covered_by が空（assertion に落ちていない）`,
+              `${label}: 候補 ${cand.id}: value: present なのに covered_by が空（assertion になっていない）`,
             );
             countCandidateUnmeasured(cand.id);
           }

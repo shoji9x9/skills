@@ -47,7 +47,7 @@
       "assertions": [
         "gh pr list --author app/dependabot で open な PR を列挙しようとしている",
         "--limit を大きく取るか --paginate で全件取得する（30件で打ち切らない）方針を示している",
-        "各 PR を処理する直前に最新状態（head/CI/mergeable）を取り直す方針を示している",
+        "各 PR を処理する直前に最新状態（head/CI/mergeable）を再取得する方針を示している",
         "1 件マージ後は Dependabot の rebase/force-push・CI 再実行の完了を待ってから次を判断する方針である",
         "一連の処理後に open な Dependabot PR 一覧を再取得し、新規が出なくなるまで繰り返す方針を示している",
         "各 PR で安全確認・PR コメント記録・安全なものだけマージを行う"
@@ -102,11 +102,11 @@
     {
       "id": 9,
       "prompt": "dependabot-merge --all を回してたら、待ってた PR 95 が close されて『Superseded by #101』ってコメントが付いた",
-      "expected_output": "supersede/close を終了条件として検知し、close された PR を追わず、open な Dependabot PR 一覧を取り直して後継 PR を特定する。確認済みの更新内容は後継 PR で再利用する。",
+      "expected_output": "supersede/close を終了条件として検知し、close された PR を追わず、open な Dependabot PR 一覧を再取得して後継 PR を特定する。確認済みの更新内容は後継 PR で再利用する。",
       "assertions": [
         "PR が close/supersede された（state が CLOSED・Superseded by #N 等）ことを検知している",
         "headRefOid だけでなく state と直近の Dependabot コメントを待機の終了条件に含めている",
-        "close された PR を追わず、open な Dependabot PR 一覧を取り直して後継 PR を特定する方針である",
+        "close された PR を追わず、open な Dependabot PR 一覧を再取得して後継 PR を特定する方針である",
         "既に確認済みの更新内容（changelog/影響評価）を後継 PR で再利用する方針である"
       ]
     }

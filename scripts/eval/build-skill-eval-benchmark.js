@@ -182,7 +182,7 @@ function verdictsFromGrading(grading, where) {
   // **両方あるなら、どちらが原本か決められない。** `verdicts` を優先して `expectations` を
   // 警告なしに無視すると、viewer が読む `expectations` と benchmark の判定が食い違ったまま通る。
   if (grading.verdicts !== undefined && grading.expectations !== undefined) {
-    die(`${where}: verdicts と expectations の両方がある（どちらが正本か決められない）`);
+    die(`${where}: verdicts と expectations の両方がある（どちらを原本とするか決められない）`);
   }
   if (grading.verdicts !== undefined) {
     if (
@@ -255,8 +255,8 @@ function loadRun(runDir, configuration, evalDir) {
   const gradingPath = join(runDir, "grading.json");
   const timingPath = join(runDir, "timing.json");
   if (!existsSync(metaPath))
-    die(`${runDir}: eval_metadata.json が無い（assertion テキストの正本）`);
-  if (!existsSync(timingPath)) die(`${runDir}: timing.json が無い（時間・トークンの正本）`);
+    die(`${runDir}: eval_metadata.json が無い（assertion テキストの原本）`);
+  if (!existsSync(timingPath)) die(`${runDir}: timing.json が無い（時間・トークンの原本）`);
   const meta = readJson(metaPath);
   const grading = readJson(gradingPath);
   const timing = readJson(timingPath);
@@ -352,7 +352,7 @@ function loadRun(runDir, configuration, evalDir) {
   // （`total_tool_calls` は 436 件中 235 件が null）。その場合だけ 0 として記録する。
   const metricsPath = join(runDir, "outputs", "metrics.json");
   if (!existsSync(metricsPath)) {
-    die(`${runDir}: outputs/metrics.json が無い（tool_calls / errors の正本）`);
+    die(`${runDir}: outputs/metrics.json が無い（tool_calls / errors の原本）`);
   }
   const metrics = readJson(metricsPath);
   // キー無し・`null` は「この executor では測れない」（実データでは `total_tool_calls` が
@@ -410,11 +410,11 @@ function main() {
   if (badEvalEntries.length > 0) {
     die(
       `eval-* なのにディレクトリとして辿れないエントリがある（${badEvalEntries.join(", ")}）。` +
-        "壊れたリンクなら直すか、iteration から外す",
+        "指し先の無いリンクなら直すか、iteration から外す",
     );
   }
   if (evalDirs.length === 0)
-    die(`${opts.dir}: eval-* ディレクトリが無い（対象 0 件を成功に倒さない）`);
+    die(`${opts.dir}: eval-* ディレクトリが無い（対象 0 件を成功として扱わない）`);
 
   // **実在する子ディレクトリを列挙して、知らない名前を警告なしに捨てない。** 既知の 2 名だけを
   // `existsSync` で拾う形だと、`without-skill` のような 1 文字違いの成果物が誰にも告げられずに
@@ -478,7 +478,7 @@ function main() {
     for (const p of ungraded) console.error(`  ${p}`);
     if (opts.ungraded === "fail") {
       die(
-        "採点の無い run を黙って除外しない。取り直すか、除外を承知のうえで --ungraded skip を付けて、除外した件数とパスを notes に残す",
+        "採点の無い run を警告なしに除外しない。もう一度実行するか、除外を承知のうえで --ungraded skip を付けて、除外した件数とパスを notes に残す",
       );
     }
     console.error("--ungraded skip: 上記を集計から除外した（除外の経緯は notes に残す）");
@@ -502,12 +502,12 @@ function main() {
   if (missingExecutor.length > 0) {
     die(
       `timing.json に executor.name が無い run がある（${missingExecutor.length} 件。例: ${missingExecutor[0]}）。` +
-        "executor を記録した run で取り直す（記録が無いと母集団が揃っているか確かめられない）",
+        "executor を記録した run でもう一度実行する（記録が無いと母集団が揃っているか確かめられない）",
     );
   }
   if (executorKeys.size > 1) {
     die(
-      `executor / model / effort が混ざっている（iteration を分ける）: ${[...executorKeys].join(" | ")}`,
+      `executor / model / effort が混在している（iteration を分ける）: ${[...executorKeys].join(" | ")}`,
     );
   }
   console.error(`executor（timing.json 実測）: ${[...executorKeys][0]}`);
@@ -539,7 +539,7 @@ function main() {
   if (emptyPairs.length > 0) {
     die(
       `採点済みの run が 1 件も無い eval × configuration がある（${emptyPairs.join(", ")}）。` +
-        "取り直すか、その eval を iteration から外す（--ungraded skip は余分な run の除外にしか使えない）",
+        "もう一度実行するか、その eval を iteration から外す（--ungraded skip は余分な run の除外にしか使えない）",
     );
   }
   const counts = new Set(perPair.values());

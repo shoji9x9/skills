@@ -211,7 +211,7 @@ test("Markdown が 0 件なら成功として扱わない（exit 2）", () => {
   expect(main([root])).toBe(2);
 });
 
-test("陽性コントロール（CLI）: 子プロセスとして起動しても、違反は exit 1、無ければ exit 0", () => {
+test("検出の確認（CLI）: 子プロセスとして起動しても、違反は exit 1、無ければ exit 0", () => {
   const good = spawnSync(process.execPath, [script, makeRepo()], { encoding: "utf8" });
   expect(good.status, good.stderr).toBe(0);
   expect(good.stdout).toMatch(/doc-tiers: OK（7 件の Markdown）/);

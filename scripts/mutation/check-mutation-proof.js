@@ -57,6 +57,12 @@ const SPEC_SUFFIX = ".mutations.json";
 // `check-mutation-proof.test.js` が `scripts/` 直下に作る使い捨ての fixture。中の宣言はチェックの対象ではない
 // （再帰で拾うと、テスト中に実行される runner が他のテストの fixture まで測る）。
 const FIXTURE_PREFIX = "mutation-proof-fixture-";
+// 実リポジトリの文書を読むテストは、名前にこの語を含める。
+// このテストが変異を検出するかは、その時点の文書の中身で決まる。文書を書き換えるたびに検出の有無が変わり、
+// 変異と関係なくミューテーションテストが失敗した（#372 で 3 回）。
+// そこで `expect_failing` に書くことを禁じ、実行の結果でも落ちたかどうかを数えない。検出は合成した入力のテストで示す。
+const REAL_REPO_MARK = "実リポジトリ";
+const readsRealRepo = (name) => name.includes(REAL_REPO_MARK);
 
 /**
  * `dir` 配下の宣言ファイルを再帰で集める（役割ごとのサブディレクトリに置くため。Issue #514）。
@@ -136,7 +142,7 @@ function takeLock() {
       if (Number.isInteger(pid) && pid > 0 && alive(pid)) {
         die(
           `別の実行（pid ${pid}）が作業ツリーへ変異を当てている最中。` +
-            `終わるまで待つ（この検査は同時に走らせられない）。ロック: ${lockPath}`,
+            `終わるまで待つ（この検査は同時に実行できない）。ロック: ${lockPath}`,
         );
       }
       // 生きていないプロセスのロックは残骸。**奪うのは `renameSync` で行う**——`unlinkSync` だと、
@@ -211,7 +217,7 @@ function recoverFromInterrupted() {
     typeof saved?.before !== "string" ||
     typeof saved?.after !== "string"
   ) {
-    die(`前回の中断の復元情報が壊れている（${recoveryPath}）。手で作業ツリーを確かめる`);
+    die(`前回の中断の復元情報が不正である（${recoveryPath}）。手で作業ツリーを確かめる`);
   }
   // **書き戻し先はリポジトリ内に限る**（宣言の `file` と同じ扱い）。植え付けられた記録で
   // リポジトリ外のファイルを上書きしない。
@@ -377,7 +383,7 @@ function selectChangedSpecs(specs, ref) {
   const runnerPath = relative(repoRoot, fileURLToPath(import.meta.url));
   console.error(`変更ファイル: ${changed.size} 件（${ref}...HEAD）`);
   if (changed.has(runnerPath)) {
-    console.error(`実行器（${runnerPath}）が変わったので全宣言を測る`);
+    console.error(`ランナー（${runnerPath}）が変わったので全宣言を測る`);
     return specs;
   }
   const selected = [];
@@ -445,6 +451,13 @@ function loadSpec(specPath) {
       asString(name, `${at}(${id}).expect_failing[${j}]`),
     );
     if (new Set(expect).size !== expect.length) die(`${at}(${id}).expect_failing が重複`);
+    const realRepo = expect.filter(readsRealRepo);
+    if (realRepo.length) {
+      die(
+        `${at}(${id}).expect_failing に実リポジトリを読むテストがある（文書の中身で検出の有無が変わる。` +
+          `合成した入力のテストで検出を示す）: ${realRepo.join(" / ")}`,
+      );
+    }
     return { id, why: m.why, file, target, find, replace: m.replace, occurrences, expect };
   });
   return { specPath, testFile, testPath, mutations };
@@ -552,7 +565,7 @@ function runTests(testFile) {
     if (results.size === 0) {
       return {
         ran: false,
-        reason: `テストが 1 件も走らなかった: ${tail(res.stderr || res.stdout)}`,
+        reason: `テストが 1 件も実行されなかった: ${tail(res.stderr || res.stdout)}`,
       };
     }
     const failed = new Set([...results].filter(([, s]) => s === "failed").map(([n]) => n));
@@ -611,7 +624,8 @@ function proveMutation(mutation, testFile) {
   if (!run.ran) return { ok: false, reason: run.reason };
   const expected = new Set(mutation.expect);
   const missing = sorted([...expected].filter((n) => !run.failed.has(n)));
-  const extra = sorted([...run.failed].filter((n) => !expected.has(n)));
+  // 実リポジトリを読むテストは、落ちても宣言外として数えない（`REAL_REPO_MARK`）。
+  const extra = sorted([...run.failed].filter((n) => !expected.has(n) && !readsRealRepo(n)));
   if (missing.length || extra.length) {
     const parts = [];
     // 落ちなかった = その assertion はこの変異を検出できていない。
@@ -620,7 +634,9 @@ function proveMutation(mutation, testFile) {
     if (extra.length) parts.push(`宣言外で落ちた: ${extra.join(" / ")}`);
     return { ok: false, reason: parts.join("、") };
   }
-  return { ok: true, failed: sorted(run.failed) };
+  // 数えなかった失敗も出力する（ファイルや describe の名前にこの語があると、配下のテストがまとめて数えられなくなる）。
+  const ignored = sorted([...run.failed].filter((n) => !expected.has(n) && readsRealRepo(n)));
+  return { ok: true, failed: sorted([...run.failed].filter((n) => expected.has(n))), ignored };
 }
 
 function main() {
@@ -693,7 +709,7 @@ function main() {
 
     // **基準は先に測る。** 変異前が緑でなければ、落ちた原因を変異に帰属できない。
     const baseline = runTests(spec.testFile);
-    if (!baseline.ran) die(`基準 run が走らなかった: ${baseline.reason}`);
+    if (!baseline.ran) die(`基準 run を実行できなかった: ${baseline.reason}`);
     if (baseline.failed.size > 0) {
       die(`基準 run が緑でない（先に直す）: ${sorted(baseline.failed).join(" / ")}`);
     }
@@ -714,6 +730,9 @@ function main() {
         proven++;
         console.log(`PASS ${m.id}: ${m.why}`);
         console.log(`     → 落ちた: ${res.failed.join(" / ")}`);
+        if (res.ignored.length) {
+          console.log(`     → 数えなかった（実リポジトリを読む）: ${res.ignored.join(" / ")}`);
+        }
       } else {
         failures++;
         console.log(`FAIL ${m.id}: ${m.why}`);
@@ -727,7 +746,7 @@ function main() {
       (skipped ? ` / ${skipped} skipped（--only）` : ""),
   );
   if (failures > 0) process.exit(1);
-  if (proven === 0) die("実証できた変異が 0 件（対象 0 件を成功に倒さない）");
+  if (proven === 0) die("実証できた変異が 0 件（対象 0 件を成功として扱わない）");
 }
 
 main();

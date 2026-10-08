@@ -18,9 +18,8 @@
         "除外（tests/x/benchmark.json）の切れた参照は見ないが、外に同じものがあれば落とす",
         "除外（.kaizen/2026-09-03-other.md）の切れた参照は見ないが、外に同じものがあれば落とす",
         "除外（node_modules/pkg/README.md）の切れた参照は見ないが、外に同じものがあれば落とす",
-        "陰性: 実リポジトリの参照が違反 0 件で、参照を 1 件以上数える",
-        "陽性コントロール（CLI）: 子プロセスとして起動しても、切れた参照は exit 1、無ければ exit 0",
-        "陰性: rule へのシンボリックリンク（.github/instructions）は辿らず、正本の参照を 1 回だけ数える"
+        "検出の確認（CLI）: 子プロセスとして起動しても、切れた参照は exit 1、無ければ exit 0",
+        "陰性: rule へのシンボリックリンク（.github/instructions）は辿らず、原本の参照を 1 回だけ数える"
       ]
     },
     {
@@ -32,8 +31,7 @@
       "occurrences": 1,
       "expect_failing": [
         "除外（evals/x/evals.json）の切れた参照は見ないが、外に同じものがあれば落とす",
-        "除外（evals/x/fixtures/docs/a.md）の切れた参照は見ないが、外に同じものがあれば落とす",
-        "陰性: 実リポジトリの参照が違反 0 件で、参照を 1 件以上数える"
+        "除外（evals/x/fixtures/docs/a.md）の切れた参照は見ないが、外に同じものがあれば落とす"
       ]
     },
     {
@@ -54,10 +52,7 @@
       "find": "  path !== EXEMPTIONS_PATH &&\n",
       "replace": "",
       "occurrences": 1,
-      "expect_failing": [
-        "陰性: 免除の宣言ファイルに書いた参照は、実在しなくても通す",
-        "陰性: 実リポジトリの参照が違反 0 件で、参照を 1 件以上数える"
-      ]
+      "expect_failing": ["陰性: 免除の宣言ファイルに書いた参照は、実在しなくても通す"]
     },
     {
       "id": "KR-TEXT-ONLY",
@@ -291,12 +286,12 @@
         "陽性: 日付の途中で折り返した参照もつないで実在を確かめ、切れていれば落とす",
         "陽性: `.kaizen/archive/` の直後で折り返した参照もつないで実在を確かめ、切れていれば落とす",
         "陽性: `.kaizen/` の直後で折り返した参照もつないで実在を確かめ、切れていれば落とす",
-        "陰性: rule へのシンボリックリンク（.github/instructions）は辿らず、正本の参照を 1 回だけ数える",
-        "陽性: .agents/ の正本（private skill（skills/ に正本が無い））の切れた参照は落とす",
-        "陽性: .agents/ の正本（private skill のスクリプト）の切れた参照は落とす",
-        "陽性: .agents/ の正本（rule の正本）の切れた参照は落とす",
-        "陽性: .agents/ の正本（配布スキル xy の名前を前方に含む private skill x）の切れた参照は落とす",
-        "陽性: .agents/ の正本（配布スキル x の名前で始まる private skill xy）の切れた参照は落とす"
+        "陰性: rule へのシンボリックリンク（.github/instructions）は辿らず、原本の参照を 1 回だけ数える",
+        "陽性: .agents/ の原本（private skill（skills/ に原本が無い））の切れた参照は落とす",
+        "陽性: .agents/ の原本（private skill のスクリプト）の切れた参照は落とす",
+        "陽性: .agents/ の原本（rule の原本）の切れた参照は落とす",
+        "陽性: .agents/ の原本（配布スキル xy の名前を前方に含む private skill x）の切れた参照は落とす",
+        "陽性: .agents/ の原本（配布スキル x の名前で始まる private skill xy）の切れた参照は落とす"
       ]
     },
     {
@@ -337,7 +332,9 @@
       "find": "  if (!Array.isArray(list) || !list.every(ok)) {",
       "replace": "  if (false) {",
       "occurrences": 1,
-      "expect_failing": ["免除の宣言が読めない（reason が欠落）なら exit 2（免除 0 件に倒さない）"]
+      "expect_failing": [
+        "免除の宣言が読めない（reason が欠落）なら exit 2（免除 0 件として扱わない）"
+      ]
     },
     {
       "id": "KR-ZERO",
@@ -346,7 +343,7 @@
       "find": "  if (files.length === 0 || refs === 0) {",
       "replace": "  if (false) {",
       "occurrences": 1,
-      "expect_failing": ["参照 0 件は成功に倒さず exit 1"]
+      "expect_failing": ["参照 0 件は成功として扱わず exit 1"]
     },
     {
       "id": "KR-SELF",
@@ -357,8 +354,7 @@
       "occurrences": 1,
       "expect_failing": [
         "除外（scripts/gates/check-kaizen-refs.test.js）の切れた参照は見ないが、外に同じものがあれば落とす",
-        "除外（scripts/gates/check-kaizen-refs.mutations.json）の切れた参照は見ないが、外に同じものがあれば落とす",
-        "陰性: 実リポジトリの参照が違反 0 件で、参照を 1 件以上数える"
+        "除外（scripts/gates/check-kaizen-refs.mutations.json）の切れた参照は見ないが、外に同じものがあれば落とす"
       ]
     },
     {
@@ -402,10 +398,10 @@
       "replace": "  return Boolean(m);",
       "occurrences": 1,
       "expect_failing": [
-        "陽性: .agents/ の正本（private skill（skills/ に正本が無い））の切れた参照は落とす",
-        "陽性: .agents/ の正本（private skill のスクリプト）の切れた参照は落とす",
-        "陽性: .agents/ の正本（配布スキル xy の名前を前方に含む private skill x）の切れた参照は落とす",
-        "陽性: .agents/ の正本（配布スキル x の名前で始まる private skill xy）の切れた参照は落とす"
+        "陽性: .agents/ の原本（private skill（skills/ に原本が無い））の切れた参照は落とす",
+        "陽性: .agents/ の原本（private skill のスクリプト）の切れた参照は落とす",
+        "陽性: .agents/ の原本（配布スキル xy の名前を前方に含む private skill x）の切れた参照は落とす",
+        "陽性: .agents/ の原本（配布スキル x の名前で始まる private skill xy）の切れた参照は落とす"
       ]
     },
     {
@@ -416,7 +412,7 @@
       "replace": "const AGENTS_SKILL_RE = /^\\.agents\\/skills\\/([^/]+?)/;",
       "occurrences": 1,
       "expect_failing": [
-        "陽性: .agents/ の正本（配布スキル x の名前で始まる private skill xy）の切れた参照は落とす"
+        "陽性: .agents/ の原本（配布スキル x の名前で始まる private skill xy）の切れた参照は落とす"
       ]
     },
     {
@@ -427,7 +423,7 @@
       "replace": "const SKILL_RE = /^skills\\/([^/]+?)/;",
       "occurrences": 1,
       "expect_failing": [
-        "陽性: .agents/ の正本（配布スキル xy の名前を前方に含む private skill x）の切れた参照は落とす"
+        "陽性: .agents/ の原本（配布スキル xy の名前を前方に含む private skill x）の切れた参照は落とす"
       ]
     },
     {
@@ -438,7 +434,7 @@
       "replace": "      existsSync(join(root, f)),",
       "occurrences": 1,
       "expect_failing": [
-        "陰性: rule へのシンボリックリンク（.github/instructions）は辿らず、正本の参照を 1 回だけ数える"
+        "陰性: rule へのシンボリックリンク（.github/instructions）は辿らず、原本の参照を 1 回だけ数える"
       ]
     }
   ]

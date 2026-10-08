@@ -692,13 +692,13 @@ export function main(argv) {
     process.stderr.write(
       `warning: --${missingCtx.join(" / --")} not given; ` +
         `${intentionalNeedingCtx} intentional_diffs declaration(s) with match.page / match.viewport ` +
-        `cannot be matched (fail-closed)\n`,
+        `cannot be matched (treated as not matched)\n`,
     );
   }
   if (exceptionCount > 0 && missingCtx.length > 0) {
     process.stderr.write(
       `warning: --${missingCtx.join(" / --")} not given; ` +
-        `none of the ${exceptionCount} instance exception(s) can be matched (fail-closed)\n`,
+        `none of the ${exceptionCount} instance exception(s) can be matched (treated as not matched)\n`,
     );
   }
   const classified = applyNoiseBaseline(

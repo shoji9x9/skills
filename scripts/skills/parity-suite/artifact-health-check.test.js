@@ -149,7 +149,7 @@ function cli(metadataPath, extra = []) {
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }
 
-test("陽性コントロール（CLI）: 子プロセスとして起動しても、健全な成果物は exit 0 で ok を stdout に出す", () => {
+test("CLI として動くことの確認: 子プロセスとして起動しても、健全な成果物は exit 0 で ok を stdout に出す", () => {
   const { root, metadataPath } = makeProject();
   const r = cli(metadataPath);
   expect(r.stdout).toMatch(/^ok: /m);
@@ -157,7 +157,7 @@ test("陽性コントロール（CLI）: 子プロセスとして起動しても
   rmSync(root, { recursive: true, force: true });
 });
 
-test("陽性コントロール（CLI）: 子プロセスとして起動しても、使い方の誤りは exit 2 で usage を stderr に出す", () => {
+test("CLI として動くことの確認: 子プロセスとして起動しても、使い方の誤りは exit 2 で usage を stderr に出す", () => {
   const { root, metadataPath } = makeProject();
   const r = cli(metadataPath, ["--stage", "bogus"]);
   expect(r.stderr).toMatch(/--stage は diff \| suite のいずれか/);
@@ -167,7 +167,7 @@ test("陽性コントロール（CLI）: 子プロセスとして起動しても
   rmSync(root, { recursive: true, force: true });
 });
 
-test("陽性コントロール: 健全な成果物は exit 0", () => {
+test("誤検知しないことの確認: 健全な成果物は exit 0", () => {
   const { root, metadataPath } = makeProject();
   const r = run(metadataPath);
   expect(r.stdout).toMatch(/^ok: /m);
@@ -277,7 +277,7 @@ test("2 回続けて緑なら通す", () => {
   rmSync(root, { recursive: true, force: true });
 });
 
-test("2 回の started_at が同じなら落とす（1 回の記録の写しと区別が付かない）", () => {
+test("2 回の started_at が同じなら落とす（1 回の記録のコピーと区別が付かない）", () => {
   const { root, metadataPath } = makeProject((m) => {
     m.suite.state_mutating = true;
     m.suite.repeat_run = {
@@ -372,7 +372,7 @@ test("accepted でも承認記録が空なら blocking として数える", () =
   rmSync(root, { recursive: true, force: true });
 });
 
-test("語彙外の disposition は blocking として数える（fail-closed）", () => {
+test("語彙外の disposition は blocking として数える（判定できない値は失敗として扱う）", () => {
   const { root, metadataPath } = makeProject((m) => {
     m.unmeasured.entries = [
       {
@@ -459,16 +459,16 @@ test("記録後の changes[].affects に * があれば陳腐化として落と�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("版が古いだけで区間の affects に * が無ければ落とさない（交差判定は golden-dataset が正本）", () => {
+test("版が古いだけで区間の affects に * が無ければ落とさない（交差判定は golden-dataset で定義する）", () => {
   const { root, slugDir, metadataPath } = makeProject();
   writeStage(slugDir, { dataset_version: 6, converged: true });
   const r = run(metadataPath, ["--target", "local-dev"]);
-  expect(r.stdout).toMatch(/交差判定は golden-dataset の references\/versioning\.md が正本/);
+  expect(r.stdout).toMatch(/交差判定は golden-dataset の references\/versioning\.md で定義する/);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("changes 履歴が欠けていれば影響なしに倒さない", () => {
+test("changes 履歴が欠けていれば影響なしとして扱わない", () => {
   const { root, slugDir, metadataPath } = makeProject(undefined, { dataset: { version: 7 } });
   writeStage(slugDir, { dataset_version: 6, converged: true });
   const r = run(metadataPath, ["--target", "local-dev"]);
@@ -477,7 +477,7 @@ test("changes 履歴が欠けていれば影響なしに倒さない", () => {
   rmSync(root, { recursive: true, force: true });
 });
 
-test("changes に欠番があれば影響なしに倒さない", () => {
+test("changes に欠番があれば影響なしとして扱わない", () => {
   const { root, slugDir, metadataPath } = makeProject(undefined, {
     dataset: {
       version: 7,
@@ -585,7 +585,7 @@ test("declared: false で reason が空なら型崩れ（exit 2）", () => {
   rmSync(root, { recursive: true, force: true });
 });
 
-test("宣言も実体も 0 件なら合格に倒さない", () => {
+test("宣言も実体も 0 件なら合格として扱わない", () => {
   const { root, slugDir, metadataPath } = makeProject((m) => {
     m.artifact_health.entries = [];
   });
@@ -597,7 +597,7 @@ test("宣言も実体も 0 件なら合格に倒さない", () => {
   rmSync(root, { recursive: true, force: true });
 });
 
-test("--stage suite では blocking の未測定を落とさない（書いた本人のゲートを止めない）", () => {
+test("--stage suite では blocking の未測定を落とさない（書いた本人のチェックを止めない）", () => {
   const { root, metadataPath } = makeProject((m) => {
     m.unmeasured.entries = [
       {
@@ -618,7 +618,7 @@ test("--stage suite では blocking の未測定を落とさない（書いた�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("--stage suite でも記録の不備は落とす（測定待ちと壊れた記録を分ける）", () => {
+test("--stage suite でも記録の不備は落とす（測定待ちと不正な記録を分ける）", () => {
   const { root, metadataPath } = makeProject((m) => {
     m.unmeasured.entries = [
       {
@@ -644,7 +644,7 @@ test("--stage の語彙外は型崩れ（exit 2）", () => {
   rmSync(root, { recursive: true, force: true });
 });
 
-test("suite キーごと無い旧成果物は反復実行の節を判定しない（型崩れに倒さない）", () => {
+test("suite キーごと無い旧成果物は反復実行の節を判定しない（型崩れとして扱わない）", () => {
   const { root, metadataPath } = makeProject((m) => {
     delete m.suite;
     delete m.artifact_health;
@@ -656,7 +656,7 @@ test("suite キーごと無い旧成果物は反復実行の節を判定しな�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("suite キーが無くても artifact_health を宣言していれば未検証として落とす（fail-open にしない）", () => {
+test("suite キーが無くても artifact_health を宣言していれば未検証として落とす（判定できないことを合格として扱わない）", () => {
   const { root, metadataPath } = makeProject((m) => {
     delete m.suite;
   });
@@ -676,7 +676,7 @@ test("suite が配列など型崩れなら exit 2", () => {
   rmSync(root, { recursive: true, force: true });
 });
 
-test("陽性コントロール: 新側の版と反復が対応していれば工程の節を通す", () => {
+test("誤検知しないことの確認: 新側の版と反復が対応していれば工程の節を通す", () => {
   const { root, slugDir, metadataPath } = makeProject();
   writeStage(
     slugDir,
@@ -739,7 +739,7 @@ test("new.commit が none なら反復回数だけで判定する", () => {
   rmSync(root, { recursive: true, force: true });
 });
 
-test("new.dirty: true なら SHA が一致しても通さない（判定不能を合格に倒さない）", () => {
+test("new.dirty: true なら SHA が一致しても通さない（判定不能を合格として扱わない）", () => {
   const { root, slugDir, metadataPath } = makeProject();
   writeStage(
     slugDir,
@@ -785,7 +785,7 @@ function mutatingSuite(fingerprint) {
   };
 }
 
-test("陽性コントロール: スイートの指紋が記録と一致すれば通す", () => {
+test("誤検知しないことの確認: スイートの指紋が記録と一致すれば通す", () => {
   const { root, metadataPath } = makeProject((m) => {
     m.suite = mutatingSuite("placeholder");
   });
@@ -964,7 +964,7 @@ test("#457: 文字列・テンプレート・正規表現の中の // や /* は
   }
 });
 
-test("#457: 文字列の中の // の後ろを変えれば指紋が変わる（ファイル経由の陽性コントロール）", () => {
+test("#457: 文字列の中の // の後ろを変えれば指紋が変わる（ファイル経由で検出されることの確認）", () => {
   const body =
     "test.skip(true, 'https://example.test // 理由');\n// orders.default.desktop.png と orders.xlsx.json\n";
   const { root, fp, specPath } = recordedProject({ specBody: body });
@@ -1058,12 +1058,12 @@ test.each([
   expect(stripJsComments(src.replace(from, to))).not.toBe(stripJsComments(src));
 });
 
-test("#457: ) の後の / が正規表現にも読める形で同じ行に // があれば、読めないとして生バイトに倒す（null）", () => {
+test("#457: ) の後の / が正規表現にも読める形で同じ行に // があれば、読めないとして生バイトで扱う（null）", () => {
   // 除算と読むと正規表現の中の // を行コメントとして捨て、後ろのコードの変更を見逃す
   expect(stripJsComments("if (enabled) /[//]/.test(value); cleanupOld();\n")).toBeNull();
 });
 
-test("#457: ) の後の / でも同じ行に // /* が無い除算は従来どおり正規形にする（陽性コントロール）", () => {
+test("#457: ) の後の / でも同じ行に // /* が無い除算は従来どおり正規形にする（誤検知しないことの確認）", () => {
   expect(stripJsComments("const h = (a + b) / 2;\n// note\nx();\n")).toBe(
     "const h = (a + b) / 2;\nx();",
   );
@@ -1091,7 +1091,7 @@ test("#457: 字句解析が閉じない JS / TS 系のファイルは生バイ�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("宣言したスイートの実体が無ければ合格に倒さない", () => {
+test("宣言したスイートの実体が無ければ合格として扱わない", () => {
   const { root, metadataPath } = makeProject((m) => {
     m.suite = mutatingSuite("sha256:aaa");
     m.suite.specs = "e2e/parity/does-not-exist";
@@ -1120,7 +1120,7 @@ test("new.commit が none でも dirty なら落とす（コミットの比較�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("別の環境の成果物を写しただけなら落とす（new.target と --target の照合）", () => {
+test("別の環境の成果物をコピーしただけなら落とす（new.target と --target の照合）", () => {
   // 同じコミット・同じ反復は環境をまたいで一致しうるので、版だけではコピーを見分けられない。
   const { root, slugDir, metadataPath } = makeProject();
   writeStage(
@@ -1221,7 +1221,7 @@ test("baseline_dir の外を指すシンボリックリンクを落とす（実�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("baseline_dir の中を指すシンボリックリンクは落とさない（陽性コントロール）", () => {
+test("baseline_dir の中を指すシンボリックリンクは落とさない（誤検知しないことの確認）", () => {
   const { root, slugDir, metadataPath } = makeProject((m) => {
     m.artifact_health.entries.push({
       path: "linked.png",
@@ -1325,7 +1325,7 @@ test("commit が実在の SHA なら反復回数の片側欠落は従来どお�
 test.each([
   ["記録が none・現在が SHA", "none", "a".repeat(40)],
   ["記録が SHA・現在が none", "a".repeat(40), "none"],
-])("片側だけ none で反復回数が一致しても合格に倒さない: %s", (_label, recorded, now) => {
+])("片側だけ none で反復回数が一致しても合格として扱わない: %s", (_label, recorded, now) => {
   const { root, slugDir, metadataPath } = makeProject();
   writeStage(
     slugDir,
@@ -1345,7 +1345,7 @@ test.each([
 
 // 同じ loop.iterations を読む component-comparison-check.mjs は数値だけを受ける。
 // 片方だけ数字列を受けると、同じ記録に 2 つのチェックが矛盾した判定を出す。
-test("反復回数は数字列を受けない（姉妹の検査器と判定を揃える）", () => {
+test("反復回数は数字列を受けない（姉妹のチェックスクリプトと判定を揃える）", () => {
   const { root, slugDir, metadataPath } = makeProject();
   writeStage(
     slugDir,
@@ -1587,7 +1587,7 @@ function editMetadata(metadataPath, mutate) {
   writeFileSync(metadataPath, JSON.stringify(meta, null, 2));
 }
 
-test("#473 陽性コントロール: 状態を変えるスペックを 2 回続けて緑で記録すれば通す（状態を変えないスペックは 1 回で足りる）", () => {
+test("#473 誤検知しないことの確認: 状態を変えるスペックを 2 回続けて緑で記録すれば通す（状態を変えないスペックは 1 回で足りる）", () => {
   const { root, metadataPath } = perSpecProject();
   recordRuns(metadataPath, [LOCALE], "2026-09-20");
   recordRuns(metadataPath, [ORDERS], "2026-09-21", 1);
@@ -1599,7 +1599,7 @@ test("#473 陽性コントロール: 状態を変えるスペックを 2 回続�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("#473 再現: 状態を変えないスペックを変えても、そのスペックを 1 回回して足せば通る（状態を変えるスペックの 2 回は取り直さない）", () => {
+test("#473 再現: 状態を変えないスペックを変えても、そのスペックを 1 回回して足せば通る（状態を変えるスペックの 2 回の記録は再取得しない）", () => {
   const { root, metadataPath } = perSpecProject();
   recordRuns(metadataPath, [LOCALE, ORDERS], "2026-09-20");
   writeFileSync(
@@ -1650,7 +1650,7 @@ test.each([
   ["suite.specs そのもの", SPEC_DIR],
 ])("#473: current_excluded は suite.specs の下のスペックの置き場所に限る: %s", (_name, path) => {
   const { root, metadataPath } = perSpecProject((m) => {
-    m.suite.repeat_run.current_excluded.push({ path, reason: "current で走らせない" });
+    m.suite.repeat_run.current_excluded.push({ path, reason: "current では実行しない" });
   });
   recordRuns(metadataPath, [LOCALE, ORDERS], "2026-09-20");
   writeFileSync(join(root, "e2e/parity/lib/expectations.ts"), "export const changed = 2;\n");
@@ -1691,7 +1691,7 @@ test("#473: 状態を変えるスペックを変えたら落ち、そのスペ�
 test.each([
   ["suite.specs の下のスペック以外（共通の関数）", `${SPEC_DIR}/helpers.ts`],
   ["共有の宣言パス（expectations）", "e2e/parity/lib/expectations.ts"],
-])("#473: 共有の土台を変えたら状態を変えるスペックの記録が失効する: %s", (_name, file) => {
+])("#473: 共有ファイルを変えたら状態を変えるスペックの記録が失効する: %s", (_name, file) => {
   const { root, metadataPath } = perSpecProject();
   recordRuns(metadataPath, [LOCALE], "2026-09-20");
   writeFileSync(join(root, file), "export const changed = 2;\n");
@@ -1867,7 +1867,7 @@ test("#473: repeat_run.specs を持たない成果物は従来どおりスイー
   rmSync(root, { recursive: true, force: true });
 });
 
-test("#473: --fingerprint は suite_fingerprint と、分類表を反映したスペック・土台の指紋を出す", () => {
+test("#473: --fingerprint は suite_fingerprint と、分類表を反映したスペック・共有ファイルの指紋を出す", () => {
   const { root, metadataPath } = perSpecProject();
   mkdirSync(join(root, SPEC_DIR, "new-only"), { recursive: true });
   writeFileSync(
@@ -1913,7 +1913,7 @@ test("#473 再現（Codex レビュー）: 命名規則に当たらないファ�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("#473: 共通の関数・fixture は shared_files に宣言すれば土台として通る（宣言しなければ落ちる）", () => {
+test("#473: 共通の関数・fixture は shared_files に宣言すれば共有ファイルとして通る（宣言しなければ落ちる）", () => {
   const { root, metadataPath } = perSpecProject();
   writeFileSync(
     join(root, SPEC_DIR, "fixtures.ts"),
@@ -1977,7 +1977,7 @@ test("#473: suite.state_mutating: false でも repeat_run.specs の型崩れは 
   rmSync(root, { recursive: true, force: true });
 });
 
-test("#473: current_excluded の下にあっても、土台の宣言パス（interactions 等）は指紋から外さない", () => {
+test("#473: current_excluded の下にあっても、共有ファイルの宣言パス（interactions 等）は指紋から外さない", () => {
   const adapter = `${SPEC_DIR}/new-only/adapter.ts`;
   const { root, metadataPath } = perSpecProject((m) => {
     m.suite.interactions = adapter;

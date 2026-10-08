@@ -77,7 +77,7 @@ test("対象が 0 件・引数の誤り・コマンドを起動できないと�
   expect(main(["--ext", "sh", "--", "no-such-command-xyz"], root)).toBe(2);
 });
 
-test("陽性コントロール（CLI）: 子プロセスとして起動しても、private skill のファイルをコマンドに渡す", () => {
+test("陽性（CLI）: 子プロセスとして起動しても、private skill のファイルをコマンドに渡す", () => {
   const root = makeRepo({ ".agents/skills/priv/p.sh": "" });
   const r = spawnSync(process.execPath, [script, "--ext", "sh", "--", "echo"], {
     cwd: root,

@@ -10,13 +10,18 @@
 // | 行頭の特殊な行       | シバン（1 行目 / 2 行目以降）                                                           |
 // | 段落の分け方         | 続く行 / 間にコードの行 / 行の後ろのコメントの前後 / コメントの中の空行                  |
 // | 文字の種類           | 日本語を含む段落 / 英語だけの段落                                                       |
-// | ディレクティブ       | textlint-disable・enable（単独の行 / 段落の途中）                                       |
+// | ディレクティブ       | textlint-disable・enable（単独の行 / 段落の途中 / 行の後ろ）                            |
 // | 位置                 | 行番号・桁（行コメント / `/**` / ` * ` / シェル / YAML）                                  |
 import { describe, expect, test } from "vitest";
 import { execFileSync } from "node:child_process";
 import { chmodSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { COMMENT_EXTENSIONS, commentMarkdown, hasComments } from "./code-comments.js";
+import {
+  COMMENT_EXTENSIONS,
+  commentDirectives,
+  commentMarkdown,
+  hasComments,
+} from "./code-comments.js";
 import { makeTempDir } from "./test-tmpdir.js";
 
 /** Markdown の段落ごとの本文（空行で分ける）。 */
@@ -464,5 +469,22 @@ describe("textlint-disable・enable", () => {
     expect(paragraphs("a.js", "// textlint-disable を使う。\n")).toEqual([
       "textlint-disable を使う。",
     ]);
+  });
+
+  test("行の後ろに書いた textlint-disable はディレクティブにしない", () => {
+    expect(paragraphs("a.js", "const a = 1; // textlint-disable\n// 説明。\n")).toEqual(["説明。"]);
+  });
+
+  test("commentDirectives は、単独の行のディレクティブだけを行（0 始まり）と種類で返す", () => {
+    const src =
+      "// 説明。\n// textlint-disable\nconst a = 1; // textlint-enable\n// textlint-disable を使う。\n// textlint-enable\n";
+    expect(commentDirectives("a.js", src)).toEqual([
+      { line: 1, directive: "disable" },
+      { line: 4, directive: "enable" },
+    ]);
+  });
+
+  test("commentDirectives は、コメントを取り出せない拡張子を例外にする", () => {
+    expect(() => commentDirectives("a.md", "x\n")).toThrow("コメントを取り出せない拡張子");
   });
 });

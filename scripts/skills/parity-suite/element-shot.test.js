@@ -97,7 +97,7 @@ test("面積 0 の矩形は撮らずに失敗する", () => {
   );
 });
 
-test("ビューポートからはみ出す clip は失敗する（黙って切り詰めさせない）", () => {
+test("ビューポートからはみ出す clip は失敗する（警告なしに切り詰めさせない）", () => {
   expect(() => planElementClip({ x: 1900, y: 10, width: 100, height: 10 }, VIEWPORT)).toThrow(
     /not fully inside the viewport/,
   );
@@ -708,7 +708,7 @@ function shotSpy(rect = { x: 0, y: 0, width: 10, height: 10 }) {
   return { calls, locator, page };
 }
 
-test("既定でアニメーションを止めて撮る", async () => {
+test("デフォルトでアニメーションを止めて撮る", async () => {
   const { calls, locator, page } = shotSpy();
   const out = await captureElementShot(page, locator);
   expect(calls[0].animations).toBe("disabled");
@@ -779,7 +779,7 @@ test("矩形が変わらなければ従来どおり返す（何でも失敗さ�
   expect(out.clip).toEqual({ x: 10, y: 10, width: 40, height: 20 });
 });
 
-test("検査に落ちたら PNG を書かない（拒否したフレームを基準に残さない）", async () => {
+test("検査で失敗したら PNG を書かない（拒否したフレームを基準に残さない）", async () => {
   const { locator, page } = movingSpy(
     { x: 10, y: 10, width: 40, height: 20 },
     { x: 10, y: 34, width: 40, height: 20 },

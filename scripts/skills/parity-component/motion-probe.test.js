@@ -192,7 +192,7 @@ test("セレクタが複数の要素に当たるなら採らずに失敗する",
   );
 });
 
-test("前の探針が終わっていないページでは始めない", async () => {
+test("前のプローブが終わっていないページでは始めない", async () => {
   const { page } = installEnv({ model: slideIn });
   globalThis.__parityMotionProbe = { done: false };
   await expect(probeMotion(page, { selector: ".msg", trigger: async () => {} })).rejects.toThrow(
@@ -226,7 +226,7 @@ test("操作が失敗したらページ側の採取を止め、元の例外を�
   expect(timeline.timed_out).toBe(false);
 });
 
-test("採取が例外で落ちても探針を終わらせ、同じページで採り直せる（不正なセレクタ・ページ遷移）", async () => {
+test("採取が例外で落ちてもプローブを終わらせ、同じページで採り直せる（不正なセレクタ・ページ遷移）", async () => {
   const { page, trigger } = installEnv({ model: slideIn });
   const original = globalThis.document.querySelectorAll;
   globalThis.document.querySelectorAll = () => {

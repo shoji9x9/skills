@@ -1,0 +1,1773 @@
+{
+  "metadata": {
+    "skill_name": "parity-diff",
+    "skill_path": "<repo>/skills/parity-diff",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-07T09:01:38Z",
+    "evals_run": [1, 7, 10, 11, 12, 13, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 28],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 14.768,
+        "tokens": 89080,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "replace-strategy の設定と .replace/features.md が無い（setup 未完了）ことを検出している",
+          "passed": true,
+          "evidence": "表で .config/skills/shoji9x9/skills.yml と .replace/features.md が「なし」と検出"
+        },
+        {
+          "text": "diff.md / diff-metadata.json / 新側ベースラインを捏造せず停止している",
+          "passed": true,
+          "evidence": "「ファイルは何も作っていません（検出結果・ベースライン・diff.md などを含む）」。project-tree は . のみ"
+        },
+        {
+          "text": "replace-strategy setup / golden-dataset / parity-suite / parity-replace を順に案内している",
+          "passed": true,
+          "evidence": "次の手順 2〜5 で replace-strategy setup → golden-dataset → parity-suite → parity-replace の順に案内"
+        },
+        {
+          "text": "slug を自分で採番せず features.md から読む取り決めを守っている",
+          "passed": true,
+          "evidence": "slug を採番せず、features.md が無いことを確かめたうえで「replace-strategy setup … 機能の slug … を決めます」と features.md 側で決める流れを案内"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 10,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 22.63,
+        "tokens": 89196,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "手で書き起こさずスキル同梱の雛形（assets/capture-new.spec.template.ts）をコピーして埋めると答えている",
+          "passed": true,
+          "evidence": "「現側のスペックから書き起こすのはやめてください」とし、assets/capture-new.spec.template.ts をコピーすると答えている"
+        },
+        {
+          "text": "コピー先は metadata.json の suite.new_only（既定 <parity_suite_dir>/parity/<slug>/new-only/）から読み、パスを推測しないと示している",
+          "passed": true,
+          "evidence": "「metadata.json の suite.new_only に記録された場所へコピー（デフォルトは <parity_suite_dir>/parity/<slug>/new-only/…）」と記録から読む形で示している"
+        },
+        {
+          "text": "current / new の両プロジェクトからの testIgnore 除外と採取用プロジェクト（new-capture）を撮影前に確認し、無ければ撮らずに停止して parity-suite へ戻すと示している（current に含まれると現行アプリの画面が新側ベースラインとして書き出され誤って差分ゼロと判定され、new に残ると parity-replace の green 検証が収集時に失敗するため）",
+          "passed": false,
+          "evidence": "current / new の testIgnore と new-capture の存在を撮る前に確かめるとは述べているが、無ければ撮らずに停止して parity-suite へ戻すことと、new に残ると parity-replace の green 検証が収集時に失敗する理由が無い"
+        },
+        {
+          "text": "撮影条件を書き写さず metadata.json の capture_conditions から読むと示している",
+          "passed": true,
+          "evidence": "「撮影条件は、雛形が metadata.json.capture_conditions から自動で読みます。手で書き写す箇所はありません」"
+        },
+        {
+          "text": "同一条件で 2 回撮って新側の自己ノイズを測る（1 回目は baseline-new、2 回目は別ディレクトリ）と示している",
+          "passed": true,
+          "evidence": "1 回目は baseline で baseline-new/、2 回目は noise で noise-pass2/ に出し、新側の自己ノイズを測ると示している"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 11,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 21.835,
+        "tokens": 90607,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "xlsx はバイト一致で比較せず、シート × セル値と構造で比較すると説明している（zip 内に生成日時等の揮発項目が入り内容が同じでも一致しないため）",
+          "passed": true,
+          "evidence": "「xlsx の中身は ZIP で、タイムスタンプなど実行のたびに変わる項目が含まれます」「xlsx はシート × セルの値と構造で比べます」"
+        },
+        {
+          "text": "解析ツールは metadata.json の differ.file_extract の記録値を使い、自分で選び直さない（現側と新側で抽出ツールが変わると差分がツール差か実装差か切り分けられない）と説明している",
+          "passed": true,
+          "evidence": "「解析ツールは parity-suite が metadata.json.differ.file_extract に記録したものを使い、選び直さない」「抽出ツールが違うと…ツールの違いによるものか実装の違いによるものかを切り分けられません」"
+        },
+        {
+          "text": "記録が無い場合は推測でツールを導入せず parity-suite へ戻す方針を示している",
+          "passed": true,
+          "evidence": "依存を入れず、differ.file_extract を確認できないことを挙げて parity-suite（differ.file_extract の記録）へ戻る順を示し、ツールを変えるなら parity-suite に戻って採り直すとしている"
+        },
+        {
+          "text": "抽出結果の比較には同梱の json-normalize-diff.mjs を使い、揮発項目を --ignore で除外する形を示している（差分ツールを新たに書き起こしていない）",
+          "passed": true,
+          "evidence": "「同梱の scripts/json-normalize-diff.mjs で比べられます。実行のたびに変わる項目は --ignore で除きます」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 12,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 34.576,
+        "tokens": 227347,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定ファイルの skills.replace-strategy 直下に component_diff_exceptions が残っていることを旧キーとして検出している",
+          "passed": true,
+          "evidence": "「skills.yml に skills.replace-strategy.component_diff_exceptions があり…設定ファイルに古いキーが見つかったら」と旧キーとして検出"
+        },
+        {
+          "text": "旧キーをフォールバックとして読まず（値で暗黙に代替せず）差分検出へ進まずに停止している",
+          "passed": true,
+          "evidence": "「代わりに読むことも自動で移すこともせず、移行を案内して止まります」とし、差分の検出・分類をしていない"
+        },
+        {
+          "text": "移行先が .replace/parity/order-list/component-diff-exceptions.json であることと、移行手順の原本が replace-strategy の references/project-config.md「移行」であることを示している",
+          "passed": true,
+          "evidence": "移行先 .replace/parity/order-list/component-diff-exceptions.json と、「正式な移行手順は replace-strategy の references/project-config.md『移行』にあります」を示している"
+        },
+        {
+          "text": "3 インスタンスに複製されている同一原因の reason を component_diff_exception_causes の 1 件へ畳み、各インスタンスは cause で参照する形へ移すと示している",
+          "passed": true,
+          "evidence": "「原因は component_diff_exception_causes[] に 1 件だけ定義し、3 件のインスタンスは cause でそれを参照します。インスタンスからは reason を消します」"
+        },
+        {
+          "text": "インスタンスは 3 件のまま残す（件数を畳まない・ワイルドカードで 1 エントリにまとめない）と示している",
+          "passed": true,
+          "evidence": "「3 件のインスタンスは cause でそれを参照します」と 3 件を残す形を示し、件数を畳む・ワイルドカードにまとめる案は出していない"
+        },
+        {
+          "text": "設定ファイルを自動で書き換えて移行を代行していない（対応表を示して停止している）",
+          "passed": true,
+          "evidence": "「設定の移行は自動では行っていません」。移行は人が行う作業として手順を示して停止"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 13,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 23.557,
+        "tokens": 96046,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "経緯の宛先を gaps.md にしないと答えている（gaps.md は未検証領域の台帳で、そこに置くと承認済み＝説明済みのものが未検証と混在し、毎回 diff.md へ未検証として転記されることになるため）",
+          "passed": true,
+          "evidence": "「gaps.md には書かないでください」「gaps.md は未検証の領域を並べる台帳」「承認済みで説明の付いた差分と未検証の差分が同じファイルに混ざります」「毎回 diff.md に未検証として転記される」"
+        },
+        {
+          "text": "経緯の宛先は .replace/parity/<slug>/component-diff-exceptions.md の原因ごとの節であり、component_diff_exception_causes[].evidence がその節を指すと示している",
+          "passed": true,
+          "evidence": "経緯は .replace/parity/<slug>/component-diff-exceptions.md の原因ごとの節（見出しは cause の id）に書き、causes の evidence が component-diff-exceptions.md#<id> を指すと示している"
+        },
+        {
+          "text": "reason は 1〜2 行の識別ラベルに留め、経緯は evidence 側へ分けると示している（YAML / JSON のコメントに溜めない）",
+          "passed": false,
+          "evidence": "「reason: 1〜2 行のラベルだけを書きます。経緯は書きません」と evidence へ分けることは示したが、括弧内の「YAML / JSON のコメントに溜めない」に触れていない"
+        },
+        {
+          "text": "原因は component_diff_exception_causes に 1 件だけ定義し、7 箇所は cause で参照する薄いインスタンスとして残す（7 件の件数は畳まない）と示している",
+          "passed": true,
+          "evidence": "「component_diff_exception_causes[] に原因を 1 回だけ定義」「component_diff_exceptions[] には 7 件を個別に並べます」「ワイルドカードで 7 件を 1 行にまとめることはしません」"
+        },
+        {
+          "text": "例外の件数が検証の弱さのシグナルであることに触れ、行数削減のために件数を隠さないと述べている",
+          "passed": false,
+          "evidence": "例外の件数が検証の弱さのシグナルであることに触れていない（SKILL.md:95 にはある）"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 15,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8333,
+        "passed": 5,
+        "failed": 1,
+        "total": 6,
+        "time_seconds": 33.97,
+        "tokens": 182578,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "台帳のインスタンス件数を畳む案を断り、page / element / bbox にワイルドカードを置いて 1 エントリで N 箇所を吸収させないと述べている（例外の件数は検証の弱さのシグナルであり行数削減のために隠さない）",
+          "passed": true,
+          "evidence": "「page・element・bbox にワイルドカードを置いて 1 エントリで N 箇所を吸収することが禁止」「件数は検証の弱さを示す手がかりなので、隠さずに残します」"
+        },
+        {
+          "text": "承認の単位は候補ではなく原因であり、component_diff_exception_causes の 1 原因につき 1 回の承認で同一原因の N インスタンスが確定する（この例では承認は 6 回で足りる）と答えている",
+          "passed": true,
+          "evidence": "「承認: 原因ごとに 1 回取ります。6 原因が確定していれば承認は 6 回で、104 件の原因も 1 回の承認で 104 件すべてが確定」と component_diff_exception_causes を単位にしている"
+        },
+        {
+          "text": "台帳には 189 インスタンスを畳まず並べたまま、各インスタンスは cause で原因を参照し reason を複製しないと示している（承認の粒度と件数の可視性を分ける）",
+          "passed": true,
+          "evidence": "「インスタンスは 189 件をそのまま並べます」「cause の参照」「reason と evidence はここにだけ置き、インスタンスには reason を持たせません」"
+        },
+        {
+          "text": "1 回の承認 UI に、その原因が覆うインスタンス件数 N と内訳、および原因を代表するインスタンス 1 件の crop 対・特性差分を判断材料として同梱すると述べている",
+          "passed": true,
+          "evidence": "承認画面に件数 N と内訳、代表インスタンスの crop 対と特性の差分を載せ、「直前のテキストが見えていることを前提にせず、材料をその画面に載せます」"
+        },
+        {
+          "text": "crop の見た目が似ていることを統合の根拠にせず、同一原因の確認は観測条件（ページ・状態・ビューポート・要素・ウェイト等）を列挙して現行と突き合わせて行うと示している（新側の実験変種どうしの一致を結論にしない）",
+          "passed": true,
+          "evidence": "「crop の見た目が似ているだけでは、まとめられません」「差が出た条件（要素・フォントサイズ・ウェイト・状態・ビューポート）を…現行と突き合わせて測ります。新側の実験の変種どうしの一致は根拠になりません」"
+        },
+        {
+          "text": "確かめられない 2 種目を統合や暫定承認で通さず、別の承認単位のまま未承認＝未説明として残すため converged: true にはできないと答えている（収束を急ぐ要求に対して束ねる方を選ばない）",
+          "passed": false,
+          "evidence": "同じ原因と確かめられない場合は「別の原因として 2 つ立て、承認も 2 回取ります。1 回増えるだけです」と承認して通す方向で答え、「承認 6 回（または 7 回）で例外の分は片付きます」とも述べる。未承認＝未説明として残すため converged: true にできない、とは答えていない（説明できない場合だけ未説明に残すとしている）"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 16,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 24.88,
+        "tokens": 90365,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "component が照合キーであり、宣言した要素（filter-popup）の差分にしか掛からないと答えている（別要素の同値の差分は吸収されない）",
+          "passed": true,
+          "evidence": "「照合キーは component × property × 値」「component: filter-popup の宣言が当たるのは filter-popup の差分だけ」「他の要素の…は unexplained のまま」"
+        },
+        {
+          "text": "clear-button の 0px → 5.2969px は filter-popup の宣言では扱えず、clear-button を対象にした別の宣言かトリアージが要ると示している（同じ宣言でカバーされるとしていない）",
+          "passed": true,
+          "evidence": "clear-button は component が一致せず値も違うので吸収されないとし、「component: clear-button・new: 5.2969px で別の宣言」かトリアージを示している"
+        },
+        {
+          "text": "component を空にする案を断り、欠落・空は wildcard ではなく不一致として扱われ照合に使われない（stderr に警告が出て該当差分は unexplained として残る）と説明している",
+          "passed": true,
+          "evidence": "空の component は「どの要素にも合う」とは扱われず照合に使われず、warning: component_diffs[<添字>]: missing component — not used for matching が出て「filter-popup の差分まで unexplained に戻ります」と説明"
+        },
+        {
+          "text": "複数インスタンスに当てたい場合の手段として component の glob（例 filter-popup-*）を示し、対象を絞らない全要素一致の宣言を選んでいない",
+          "passed": true,
+          "evidence": "「同じ部品の複数インスタンスなら、component: \"filter-popup-*\" のように glob で書けます」"
+        },
+        {
+          "text": "要素で絞らない照合が別要素の本物の回帰を absorbed_T として吸収し、回帰を抱えたまま収束する（偽陰性）ことを危険として述べている",
+          "passed": true,
+          "evidence": "「(property, current) が偶然一致する別の要素まで吸収してしまう」「範囲の広い宣言は本物の回帰を黙って吸収してしまいます」と述べ、内訳として absorbed_T にも触れている（収束は未説明ゼロが条件と説明）"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 17,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 64.456,
+        "tokens": 344980,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "差分がゼロであることを根拠に converged: true にせず、部品網羅表の未測定も収束条件として確認すると答えている",
+          "passed": true,
+          "evidence": "「いいえ、converged: true にはできません」「部品網羅表のチェックでは未測定として数えられる」と網羅表の未測定を収束条件として確認している"
+        },
+        {
+          "text": "現側 metadata.json の component_coverage.declared が true のときだけ判定に入り、同梱の coverage-check.mjs で網羅表から数え直す（宣言された件数を信用しない）と答えている",
+          "passed": false,
+          "evidence": "「component_coverage.declared: true の場合」と coverage-check.mjs の exit 0 の確認は述べているが、網羅表から数え直し宣言された件数を信用しない、という点を述べていない"
+        },
+        {
+          "text": "数え直しの対象に value: unmeasured だけでなく、行欠落・evidence 空・present の covered_by 空・absent の kind 無し／未知・applicable_states manifest 不完全／不一致・状態証拠不完全・hidden_by の関係未検証／表示中style／正寸法との矛盾・重複行を含めると示している",
+          "passed": true,
+          "evidence": "条件の 1〜5 で value: unmeasured、行が無い、重複行、evidence 空、present の covered_by 空、absence_evidence.kind 無し／語彙外、applicable_states の complete・source 不備、expected_states 不一致、状態ごとの証拠、hidden_by の relationship_verified と computed style、矩形との矛盾を挙げている"
+        },
+        {
+          "text": "差分ツールは採取した状態しか見ないため、測っていない操作の欠落は差分ゼロとして通ることを理由に挙げている",
+          "passed": true,
+          "evidence": "「差分ツールは撮った状態しか比べません。測っていない操作が新側で欠けていても、差分ゼロとして通ります」"
+        },
+        {
+          "text": "未測定が残るなら parity-replace ではなく parity-suite へ戻して測らせると答えている",
+          "passed": true,
+          "evidence": "「parity-suite へ戻して状態ごとに測り直す必要があります」「converged: false のままにし、parity-suite へ戻します」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 18,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 27.841,
+        "tokens": 137626,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "metadata.json に component_coverage をキーごと持たない旧成果物は判定に入れず、他の条件を満たせば収束させる（後方互換）と答えている",
+          "passed": true,
+          "evidence": "「component_coverage のキー自体が無い古い成果物は、後方互換として次の2つの判定から外れます」「網羅表が無いこと自体は収束を止めません」と、他の条件を満たせば収束できると答えている"
+        },
+        {
+          "text": "判定しなかった事実と理由を diff-metadata.json の component_coverage（judged: false と reason）に記録すると答えている",
+          "passed": true,
+          "evidence": "「diff-metadata.json の component_coverage に judged: false と、判定しなかった理由」"
+        },
+        {
+          "text": "同じことを diff.md の未検証領域にも残し、警告なしに合格にしないと答えている",
+          "passed": true,
+          "evidence": "「警告なしに合格にしない」とし、「diff.md の『未検証の領域』に、網羅表が無いので…確かめていないこと」を残すと答えている"
+        },
+        {
+          "text": "キーの欠落（旧成果物）と declared: false（宣言したうえで判定に入れない）を区別して扱うと示している",
+          "passed": true,
+          "evidence": "「キーが無い」場合と、declared: false（reason 空なら exit 2）・declared: true で表が無い場合を分けて扱い、「キーが無いのか宣言はあるが表が無いのかを確かめて」と示している"
+        },
+        {
+          "text": "収束させるために網羅表を捏造したり declared: true を書き足したりせず、網羅表を作るのは parity-suite だと答えている",
+          "passed": true,
+          "evidence": "網羅表の捏造や declared: true の書き足しはせず、「現行の parity-suite で現側を採り直す。採り直すなら網羅表も一緒に作る」と parity-suite が作るとしている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 19,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 25.832,
+        "tokens": 173196,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "測定値を diff-metadata.json へ記録した直後に noise-pass2/ を削除し、コミットもしないと答えている",
+          "passed": true,
+          "evidence": "「`diff-metadata.json` に測定値を書いたら、すぐ削除するのがスキルの手順です」「コミットもしません」と答えている。"
+        },
+        {
+          "text": "再利用の判断材料は前回実行の diff-metadata.json の noise_baseline_new / noise_measurement（fingerprint を含む記録値）であって採取物ではないと述べている",
+          "passed": true,
+          "evidence": "「再利用するかの判断も、`diff-metadata.json` の `noise_baseline_new` と `noise_measurement`（指紋を含む）だけを見ます」「採取物は材料に入っていません」と述べている。"
+        },
+        {
+          "text": "採取物の不在を失効条件として扱わず、そのために全組を測り直しはしないと答えている",
+          "passed": true,
+          "evidence": "「なりません」「採取物が無いことを理由に測り直さない」と答え、全組の測り直しになる失効条件を別に列挙している。"
+        },
+        {
+          "text": "前提確認は 2 回目の採取物の実体を要求せず、不在を parity-suite への差し戻しや停止の理由にしないと述べている",
+          "passed": true,
+          "evidence": "preflight.md を引いて「2 回目の採取物…は実体を求めない。無いことを差し戻しや測り直しの理由にしない」と述べている。"
+        },
+        {
+          "text": "測り直す組は同じ noise-pass2/ へ撮り直すため、削除しても次の測定に支障が無いと述べている",
+          "passed": true,
+          "evidence": "「同じ場所の `.replace/parity/<slug>/new/<target>/noise-pass2/` です」「途中で止まって残っていた場合も、入力ではないので捨てて構いません」と、削除しても次の測定に支障が無いことを述べている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 20,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 29.514,
+        "tokens": 94762,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "保留（intentional_diffs.pending）の棚卸しを収束条件として扱い、済むまで converged: true にしないと答えている",
+          "passed": true,
+          "evidence": "応答の「結論: まだ converged: true にはできません」で、保留の棚卸しは収束条件に入っており pending-triage-check.mjs が exit 0 になる必要があると答えている。"
+        },
+        {
+          "text": "棚卸しの対象を「この機能に帰属する保留（slug 一致）・機能に帰属しない保留（cross-cutting）・帰属不明の保留（素の文字列の旧形式や slug 欠落）」の 3 群とし、別の機能に帰属する保留はその機能の収束判定が扱うとして対象外にしている",
+          "passed": true,
+          "evidence": "表で slug: order-list・cross-cutting・帰属不明（素の文字列・slug 欠落）を対象とし、別機能に紐づく分は「その機能の収束判定で扱います」として対象外にしている。"
+        },
+        {
+          "text": "差分の分類の承認待ち（pending_review）と、意図的差異として認めるかが未決の intentional_diffs.pending を別物として区別している",
+          "passed": true,
+          "evidence": "「保留が差分の分類（pending_review）と別物なのはそのとおり」と述べ、pending_review と intentional_diffs.pending を区別している。"
+        },
+        {
+          "text": "内容を見ない一括分類（残りを全部 keep として扱う）に従わず 1 件ずつ提示すると答え、keep / may_change へ移すのは人間でスキルは設定ファイルを書き換えないと断っている",
+          "passed": true,
+          "evidence": "「まとめての指示には従えない」「保留は 1 件ずつ見せて処置を決めます」「pending を keep / may_change へ移すのは人間の役割です。このスキルは設定ファイルを書き換えません」と答えている。"
+        },
+        {
+          "text": "今決められないものは持ち越しとして理由を記録すれば通過でき、恒久的に機能を止めるものではないと答えている",
+          "passed": true,
+          "evidence": "「理由が書いてあれば carried_over でチェックは通るので、機能がずっと止まることはありません」と答えている。"
+        },
+        {
+          "text": "対象内訳・確定件数・持ち越し件数を diff-metadata.json の intentional_diffs_pending に残し、数え直しは同梱の pending-triage-check.mjs が設定ファイルの pending から行う（記録された件数を信用しない）と答えている",
+          "passed": true,
+          "evidence": "進め方 3 で diff-metadata.json の intentional_diffs_pending に件数と各件の処置（keep / may_change / carried_over）を書くとし、pending-triage-check.mjs は「記録された件数を使わず、設定ファイルの pending から件数を数え直します」と述べている。内訳は diff.md にも書くとしている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 21,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 23.392,
+        "tokens": 134303,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "保留がゼロなら棚卸しを理由に停止せず、他の条件を満たすなら収束させると答えている",
+          "passed": true,
+          "evidence": "0 件の記録を書いて `pending-triage-check.mjs` が exit 0 になり残りのチェックが通れば「`converged: true` にできます」と答え、棚卸しを理由に止めていない。"
+        },
+        {
+          "text": "対象 0 件でも diff-metadata.json の intentional_diffs_pending を省略せず、entries を空の配列にしてゼロ件数を記録すると答えている",
+          "passed": true,
+          "evidence": "`intentional_diffs_pending` の各件数 0 と `\"entries\": []` を書く JSON を示し、「記録は省略できません。0 件でも残す必要があります」と答えている。"
+        },
+        {
+          "text": "キーごと記録が無い成果物は旧成果物とみなして合格にせず、未実施として扱われる（pending-triage-check.mjs が非ゼロで落ちる）と示している",
+          "passed": true,
+          "evidence": "キーが無いと `pending-triage-check.mjs` が「棚卸し未実施」として exit 1 を返し、「古い成果物として合格にする扱いもありません」と示している。"
+        },
+        {
+          "text": "0 件と無記録を同じ出力にしないこと（記録が無いと棚卸しをしていないのか対象が無かったのか区別できないこと）を理由に挙げている",
+          "passed": true,
+          "evidence": "「0 件と未実施を区別するため: 記録が無いと、『確かめて 0 件だった』のか『確かめていない』のかが後から分かりません」と理由に挙げている。"
+        },
+        {
+          "text": "収束させるために保留を設定ファイルから消したり keep へ移したことにしたりしていない",
+          "passed": true,
+          "evidence": "保留を設定ファイルから消す・keep へ移すといった操作を提案していない。0 件を記録してチェックを通す手順だけを示している。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 22,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 9,
+        "failed": 0,
+        "total": 9,
+        "time_seconds": 50.164,
+        "tokens": 190859,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "captured が states に無い行や captured と reason の両方が埋まった行があるなら、注記して進めず撮影前に停止し parity-suite へ戻すと答えている",
+          "passed": true,
+          "evidence": "表 1 で両方の行とも「撮影せずに止まり、parity-suite へ戻す」と答え、冒頭で「注記して済ませるものではなく、撮影前に止まる条件」と述べている。"
+        },
+        {
+          "text": "操作アダプタ（新側例外を含む）とスイートからポップアップを開く呼び出しを関数名 × 開く対象の論理名の単位で列挙し、関数名だけの一致で済ませず全てが opened_by に現れることを撮影前に確かめ、現れない呼び出しがあれば停止すると述べている",
+          "passed": true,
+          "evidence": "「撮影前に確かめること 1」で操作アダプタ（新側の例外も含む）とスイートから開く呼び出しをすべて挙げ、単位を親 × 関数名 × 開く対象の論理名とし、関数名だけの突き合わせを否定し、現れない呼び出しがあれば止まって parity-suite へ戻すと述べている。"
+        },
+        {
+          "text": "popup_inventory のキーごと無い旧成果物は、静止待ち導入前の採取として撮影せず停止し、parity-suite でベースラインとノイズ基準値の採り直しへ戻すと答えている",
+          "passed": true,
+          "evidence": "キーの無い旧成果物は「静止を待つ処理を入れる前の採取」として撮影せずに止まり、parity-suite でベースラインとノイズ基準値を採り直すと答えている。"
+        },
+        {
+          "text": "撮り直せない機能を続行するのは、採り直せない理由をユーザーに提示して承認を得た場合だけとし、そのときは現側ノイズ基準値による吸収を適用せず、未検証として diff.md に残すと述べている",
+          "passed": true,
+          "evidence": "撮り直せない 1 件は理由を提示して承認を得た場合に限り続行し、現側のノイズ基準値による吸収をせず、diff.md の未検証領域に残すと述べている。"
+        },
+        {
+          "text": "棚卸しの検証結果を diff-metadata.json の capture_conditions_verified.popup_inventory に記録すると述べている",
+          "passed": true,
+          "evidence": "記録先として diff-metadata.json の capture_conditions_verified.popup_inventory を挙げている。"
+        },
+        {
+          "text": "opened_by が空の行と、1 つのポップアップを 2 行に分けた行（同じ parent × 同じ name）は不整合として撮影前に停止し、複数の開き方は 1 行の opened_by（配列）に並べると述べている",
+          "passed": true,
+          "evidence": "表 3 で opened_by が空の行と同じ一覧を 2 行に分けた行は「止まる」とし、「1 行にまとめ、opened_by の配列に 2 通りの開き方を並べる」と述べている。"
+        },
+        {
+          "text": "列フィルタの吹き出しの中の 2 行が同じ openCombo(演算子) を持つ棚卸しも、その呼び出しでどちらのポップアップが開くか決まらない不整合として撮影前に停止し、開く対象の論理名をポップアップごとに分けて書くと述べている",
+          "passed": true,
+          "evidence": "演算子の一覧と値の候補一覧が同じ openCombo(page, 演算子) を持つ行を「止まる（同じ parent × 同じ呼び出しが 2 行ある）」とし、値の候補一覧の行に本当の開き方（openCombo(値)）を書くと述べている。"
+        },
+        {
+          "text": "ポップアップを開く呼び出しの列挙と opened_by の突き合わせを、親のポップアップ（1 段目は null）× 関数名 × 開く対象の論理名の単位で行い、別の親のポップアップから呼ぶ同じ openCombo(page, 演算子) を 1 つに潰さないと述べている",
+          "passed": true,
+          "evidence": "単位を「親のコンテナ（1 段目は null）× 関数名 × 開く対象の論理名」とし、「呼び出す場所を除いて突き合わせると、別の親から呼ぶ同じ呼び出しが 1 つにまとまってしまいます」と述べ、別の parent の openCombo を別要素として扱っている。"
+        },
+        {
+          "text": "回答内で、不整合な棚卸しのまま、または承認なしに旧成果物のノイズ基準値で吸収して差分検出へ進んでよいと矛盾する結論を併記していない",
+          "passed": true,
+          "evidence": "不整合のまま、または承認なしにノイズ基準値で吸収して進んでよいという結論は併記していない。表記の正規化（古い書き方を直してから突き合わせる）は重複の判定を緩めるものではないと明記している。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 23,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 29.369,
+        "tokens": 130705,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "差分ツールの未説明ゼロだけでは収束させず、反応の網羅表の未測定が残っていないことも収束条件に入れると答えている（遅れて出る・自動で消える反応は採取に記録されず差分ゼロとして通るため）",
+          "passed": true,
+          "evidence": "「反応の表のチェックは parity-diff の収束条件そのもの」「遅れて出る反応・別の文書に出る反応・自動で消える反応が抜けていても差分ゼロに見えます」と述べている。"
+        },
+        {
+          "text": "判定はインストール済みの parity-suite の reaction-check.mjs を --recorded で呼んで行い、スクリプトが見つからないなら判定を飛ばさず停止して parity-suite の導入を促すと答えている",
+          "passed": true,
+          "evidence": "インストール済みの parity-suite/scripts/reaction-check.mjs --tests <テスト一覧> --recorded で数え直すとし、スクリプトが無いときは「判定を飛ばさずに停止し、gh skill install … parity-suite を促す」と答えている。"
+        },
+        {
+          "text": "parity-suite で照合した後に表を手で直した場合は、記録された照合結果（表の指紋）と一致せず落ちるため、parity-suite で照合を通し直す必要があると述べている",
+          "passed": true,
+          "evidence": "--recorded は「表の指紋が一致すること」を確かめるので手で直した表は exit 1 になるとし、parity-suite で reaction-check.mjs --write をやり直すと述べている。"
+        },
+        {
+          "text": "判定結果を diff-metadata.json の reaction_coverage に記録し、判定しなかった場合は理由を diff.md の未検証領域にも残すと述べている",
+          "passed": false,
+          "evidence": "diff-metadata.json の reaction_coverage への記録は述べるが、判定しなかった理由の記録先を diff.md の「収束判定の節」としており、assertion が明記する diff.md の未検証領域には触れていない。"
+        },
+        {
+          "text": "回答内で「スクリプトが無いので判定を飛ばして converged: true にしてよい」と矛盾する結論を併記していない",
+          "passed": true,
+          "evidence": "「スクリプトが無いので判定を飛ばして converged: true にしてよい」という結論は併記していない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 24,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 67.424,
+        "tokens": 310422,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "朝の収束状態を、要対応が残るため「判断待ち」ではなく「未収束」と答え、未解決の保留があっても parity-replace への差し戻しは進めると述べている（応答で判定）",
+          "passed": true,
+          "evidence": "収束判定の表で「判断待ち」は要対応ゼロが条件なので該当せず「未収束」とし、「保留が残っていても差し戻しは進みます」と述べている。"
+        },
+        {
+          "text": "承認前の許容候補 15 件を results.unexplained（未説明）に数え、accepted には入れないと答えている（応答で判定）",
+          "passed": true,
+          "evidence": "results の表で accepted は 0（15 件は入らない）、unexplained は 15 以上（15 件はすべてここ）と答えている。"
+        },
+        {
+          "text": "intentional_diffs.pending の棚卸しの処置を自律実行では自分で carried_over と記録せず未記録のまま保留へ回し、pending-triage-check.mjs が未棚卸しとして落とす（exit 1）と述べている（応答で判定）",
+          "passed": true,
+          "evidence": "自律実行中に carried_over を自分で書くことは禁止とし、処置は未記録のまま pending_decisions[] に登録、pending-triage-check.mjs は exit 1（未棚卸し）で失敗すると述べている。"
+        },
+        {
+          "text": "人の判断待ちの記録先を、diff-metadata.json の pending_decisions[] と diff.md の判断待ちの節の両方として答えている（応答で判定）",
+          "passed": true,
+          "evidence": "記録先として diff-metadata.json の pending_decisions[] と diff.md の §6a 判断待ちを挙げている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 25,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 24.968,
+        "tokens": 176990,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "しきい値つきの比較が返す数は許容の内側の差を総量にも件数にも出さないため、その 1 本だけを「差の量」として報告しないと述べている",
+          "passed": true,
+          "evidence": "「threshold 0.1 は、しきい値より小さい差を画素数にも件数にも数えません。この 1 つの数値だけだと…『ほぼ一致』と読まれやすく」と述べている。"
+        },
+        {
+          "text": "しきい値なしで数えた画素数（pixel-crops.mjs の summary の strict_pixels / strict_only_pixels 等）を併記し、diff.md の比較方法別のサマリに両方の数を書くと述べている",
+          "passed": true,
+          "evidence": "pixel-crops.mjs の summary の threshold_pixels と strict_pixels / strict_only_pixels を「diff.md のサマリに並べて書きます」と述べている。"
+        },
+        {
+          "text": "しきい値の内側にだけ差がある場合は差分領域 0 件でも「一致」と読まず、ノイズ基準値と対比して分類へ回すと述べている",
+          "passed": true,
+          "evidence": "strict_only_pixels が 0 でなければ一致と読めないとし、strict_only_regions[] も候補としてトリアージへ回し、noise_baseline の pixel_diff_strict と比べると述べている。"
+        },
+        {
+          "text": "「ほぼ一致」という要約をそのままユーザーへ渡さず、判断材料には両方の数を渡すと述べている",
+          "passed": true,
+          "evidence": "「diff.md のサマリには、しきい値ありとしきい値なしの両方の数値を書く。『ほぼ一致』とは書かない」と述べている。"
+        },
+        {
+          "text": "色が 1/255 違う程度の差は特性照合（論理名の無い要素は見ない）にも手書きの aria（色を見ない）にも出ないため、画素の比較で数えないと誰も見ないことに触れている",
+          "passed": false,
+          "evidence": "1/255 の差を特性照合も aria も見ていなかった実例には触れるが、括弧の理由（特性照合は論理名の無い要素を見ない・手書きの aria は色を見ない）を述べておらず、画素の比較で数えないと誰も見ないという点も明示していない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 26,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 34.719,
+        "tokens": 165866,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "スキルの差分検出の外で撮った 2 枚には side・locale・viewport 等の撮影条件の照合が無く、別の画面から撮った 2 枚は部品が同じでも画素差を出すと述べている",
+          "passed": true,
+          "evidence": "「スキルの差分検出は、ページ・状態・ビューポート・DPR・locale・side を検出の前に照合します。使い捨てのスクリプトにはこの照合がありません」「部品が同じでも切り出しが 1 画素ずれ、画素差が出ます」と述べている。"
+        },
+        {
+          "text": "使い捨ての 2 枚をそのまま結論の根拠にせず、スキルの差分検出と同じ条件（ページ・状態・ビューポート・side）で撮り直してから判断すると述べている",
+          "passed": true,
+          "evidence": "同じページ・同じ状態・ビューポート等をそろえて撮り直し、それでも差が残れば parity-diff の正式な検出で判断すると述べている。"
+        },
+        {
+          "text": "要素の位置の小数部が違うと 1 画素ずれて切り出されることに触れ、同じ画面どうしで撮り直して差が残るかを先に確かめると述べている",
+          "passed": true,
+          "evidence": "x 座標の小数部の違いで 1 画素ずれる実例を挙げ、「同じ画面どうしで撮り直すと差は 0 になった」とし、矩形を小数まで並べて撮り直すよう述べている。"
+        },
+        {
+          "text": "スキルの差分検出の結果と食い違ったらまず自分の測り方を疑うと述べ、利用者の指摘を測り方の正しさの保証として扱っていない",
+          "passed": true,
+          "evidence": "「検出結果と食い違ったときは、まず自分の測り方を疑う」「利用者の指摘は仮説の材料で、測り方が正しいことを保証しません」と述べている。"
+        },
+        {
+          "text": "border-radius の値の違いを原因と決めつけて parity-replace へ差し戻していない",
+          "passed": true,
+          "evidence": "「まだ差し戻さないでください」とし、border-radius の 2 値は正方形ではどちらも真円になると説明している。"
+        },
+        {
+          "text": "条件をそろえた再現が取れるまで、この箇所を要対応として diff.md に書かないと述べている（未説明のまま残す、または条件不一致として差分報告の前で止める）",
+          "passed": true,
+          "evidence": "条件と矩形を並べられない比較は diff.md の根拠や差し戻しの入力にできないとし、差し戻すのは正式な検出で候補が出て要対応に分類されたときだけと述べている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 28,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 41.538,
+        "tokens": 221055,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "承認記録は非破壊追記の成果物であり、書き直すと過去の決定（なぜ許容したのか・いつ誰が承認したのか）が失われると述べている",
+          "passed": true,
+          "evidence": "component-diff-exceptions.md は追記専用で、消えたのは「なぜ許容したか・いつ・何件を・どの材料で承認したか」と述べている。"
+        },
+        {
+          "text": "収束の判定は現在の状態しか見ないため、書き直しても検査は全部通ってしまう（失われたものに気づく方法が無い）と説明している",
+          "passed": true,
+          "evidence": "「収束判定は今の状態しか見ないので、丸ごと書き直しても整合さえしていれば通ってしまいます」と説明している。"
+        },
+        {
+          "text": "replace-strategy の scripts/append-only-check.mjs で git の履歴と突き合わせ、追記専用の成果物が縮んでいないことを収束条件に入れると述べている",
+          "passed": true,
+          "evidence": "replace-strategy の append-only-check.mjs を --base 付きで git の履歴と比べ、「追記専用の成果物が縮んだ状態で converged: true にしない」を収束条件として挙げている。"
+        },
+        {
+          "text": "追記専用の成果物の一覧は replace-strategy の assets/append-only-manifest.json が原本だと述べている",
+          "passed": true,
+          "evidence": "「一覧の原本は replace-strategy の assets/append-only-manifest.json です」と述べている。"
+        },
+        {
+          "text": "対象 0 件を合格として扱わないと述べている",
+          "passed": true,
+          "evidence": "「0 件の比較は合格扱いになりません」「対象が 0 件です。これも合格ではない」と述べている。"
+        },
+        {
+          "text": "git の履歴から消した記録を復元するよう述べ、現在の内容が整合していることを根拠に converged: true にしていない",
+          "passed": true,
+          "evidence": "git show \"$BASE\":… で消えた部分を復元するよう述べ、「converged: true にはしないでください」と答えている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 4,
+        "failed": 2,
+        "total": 6,
+        "time_seconds": 40.464,
+        "tokens": 173104,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "component_diffs は特性照合（computed style の値比較）にしか機能せず、両側の値が一致し画素の比較だけで出る差には照合キーが無いため吸収されないと説明している",
+          "passed": true,
+          "evidence": "「component_diffs（系統差 T）が当たるのは、特性照合（computed style や位置・大きさの比較）だけ」「両側の値が同じなので、T が照合に使う値の差がありません」と説明"
+        },
+        {
+          "text": "置き場所は .replace/parity/<slug>/component-diff-exceptions.json（設定ファイルの skills.yml ではない）で、property に pixel を入れてインスタンス単位に書くと示している",
+          "passed": true,
+          "evidence": "「置き場所は設定ファイルではなく、.replace/parity/<slug>/component-diff-exceptions.json」とし、例で property: \"pixel\" をインスタンスごとに 1 件ずつ書いている"
+        },
+        {
+          "text": "系統的な原因でも 1 回の宣言にできないのは形式上の制約だと述べ、原因は component_diff_exception_causes に 1 回だけ定義して各インスタンスから cause で参照すると示している（reason をインスタンスへ複製しない）",
+          "passed": true,
+          "evidence": "ワイルドカードを置けずインスタンスを N 件並べる形式の制約を述べ、component_diff_exception_causes に原因を 1 回定義して cause で参照し「インスタンスごとに reason を書かず」と示している"
+        },
+        {
+          "text": "レジストリへ書くのはユーザー承認済みのものだけだと述べている",
+          "passed": false,
+          "evidence": "「承認は原因ごとに 1 回」「承認の前は、成果物に許容候補（要確認）と書き、未説明として数えます」とはあるが、レジストリへ書くのはユーザー承認済みのものだけだとは述べていない"
+        },
+        {
+          "text": "property: pixel の例外は diff-normalize.mjs では吸収されない（同スクリプトの入力は特性照合の Diff だけで画素候補は通らない）ため本スキルが画素候補へ適用すると説明し、取り違えると承認済みでも次の実行で同じ crop が unexplained として再浮上すると述べている",
+          "passed": false,
+          "evidence": "diff-normalize.mjs に触れておらず、property: pixel の例外は同スクリプトを通らず本スキルが画素候補へ適用する、という説明が無い（再浮上については述べている）"
+        },
+        {
+          "text": "しきい値で潰す・インスタンス単位の無視リストで飲み込む、といった代替を勧めていない",
+          "passed": true,
+          "evidence": "しきい値や無視リストの代替は勧めていない。まずフォントの切り分けと配信の修正を勧めている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 15.633,
+        "tokens": 75881,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "replace-strategy の設定と .replace/features.md が無い（setup 未完了）ことを検出している",
+          "passed": false,
+          "evidence": "設定と features.md の不在に触れていない。スキルが存在しないことだけを報告"
+        },
+        {
+          "text": "diff.md / diff-metadata.json / 新側ベースラインを捏造せず停止している",
+          "passed": true,
+          "evidence": "何も作らずに止まっている（project-tree は . のみ）"
+        },
+        {
+          "text": "replace-strategy setup / golden-dataset / parity-suite / parity-replace を順に案内している",
+          "passed": false,
+          "evidence": "replace-strategy setup 以下の前提スキルの案内が無い"
+        },
+        {
+          "text": "slug を自分で採番せず features.md から読む取り決めを守っている",
+          "passed": false,
+          "evidence": "slug は採番していないが、features.md から読むという取り決めへの言及が無く、守っていると判定できる根拠が無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 10,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 21.793,
+        "tokens": 37010,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "手で書き起こさずスキル同梱の雛形（assets/capture-new.spec.template.ts）をコピーして埋めると答えている",
+          "passed": false,
+          "evidence": "雛形 assets/capture-new.spec.template.ts への言及が無い。一般論で共通化を勧めている"
+        },
+        {
+          "text": "コピー先は metadata.json の suite.new_only（既定 <parity_suite_dir>/parity/<slug>/new-only/）から読み、パスを推測しないと示している",
+          "passed": false,
+          "evidence": "suite.new_only への言及が無い"
+        },
+        {
+          "text": "current / new の両プロジェクトからの testIgnore 除外と採取用プロジェクト（new-capture）を撮影前に確認し、無ければ撮らずに停止して parity-suite へ戻すと示している（current に含まれると現行アプリの画面が新側ベースラインとして書き出され誤って差分ゼロと判定され、new に残ると parity-replace の green 検証が収集時に失敗するため）",
+          "passed": false,
+          "evidence": "testIgnore と new-capture への言及が無い"
+        },
+        {
+          "text": "撮影条件を書き写さず metadata.json の capture_conditions から読むと示している",
+          "passed": false,
+          "evidence": "metadata.json の capture_conditions から読むという記述が無い"
+        },
+        {
+          "text": "同一条件で 2 回撮って新側の自己ノイズを測る（1 回目は baseline-new、2 回目は別ディレクトリ）と示している",
+          "passed": false,
+          "evidence": "「同じ側を2回採取して差分が出ないことを確認」と一般論はあるが、新側の自己ノイズとして baseline-new と別ディレクトリに 2 回撮るという内容ではない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 11,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 4,
+        "total": 4,
+        "time_seconds": 29.545,
+        "tokens": 38116,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "xlsx はバイト一致で比較せず、シート × セル値と構造で比較すると説明している（zip 内に生成日時等の揮発項目が入り内容が同じでも一致しないため）",
+          "passed": false,
+          "evidence": "ZIP の揮発項目は説明したが、シート × セル値と構造ではなく、展開後のエントリをバイト完全一致で比べる方法を勧めている"
+        },
+        {
+          "text": "解析ツールは metadata.json の differ.file_extract の記録値を使い、自分で選び直さない（現側と新側で抽出ツールが変わると差分がツール差か実装差か切り分けられない）と説明している",
+          "passed": false,
+          "evidence": "metadata.json の differ.file_extract に触れていない"
+        },
+        {
+          "text": "記録が無い場合は推測でツールを導入せず parity-suite へ戻す方針を示している",
+          "passed": false,
+          "evidence": "parity-suite へ戻す方針が無い"
+        },
+        {
+          "text": "抽出結果の比較には同梱の json-normalize-diff.mjs を使い、揮発項目を --ignore で除外する形を示している（差分ツールを新たに書き起こしていない）",
+          "passed": false,
+          "evidence": "json-normalize-diff.mjs ではなく、独自の Python の比較スクリプト parity_xlsx.py を書き起こしている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 12,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.1667,
+        "passed": 1,
+        "failed": 5,
+        "total": 6,
+        "time_seconds": 30.613,
+        "tokens": 131959,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定ファイルの skills.replace-strategy 直下に component_diff_exceptions が残っていることを旧キーとして検出している",
+          "passed": false,
+          "evidence": "component_diff_exceptions を有効な宣言として内容を検討しており、旧キーとして検出していない"
+        },
+        {
+          "text": "旧キーをフォールバックとして読まず（値で暗黙に代替せず）差分検出へ進まずに停止している",
+          "passed": false,
+          "evidence": "停止したのはベースライン・スイート・new-app の欠如が理由で、旧キーを有効な例外として読んでいる"
+        },
+        {
+          "text": "移行先が .replace/parity/order-list/component-diff-exceptions.json であることと、移行手順の原本が replace-strategy の references/project-config.md「移行」であることを示している",
+          "passed": false,
+          "evidence": "移行先の component-diff-exceptions.json と project-config.md「移行」への言及が無い"
+        },
+        {
+          "text": "3 インスタンスに複製されている同一原因の reason を component_diff_exception_causes の 1 件へ畳み、各インスタンスは cause で参照する形へ移すと示している",
+          "passed": false,
+          "evidence": "component_diff_exception_causes と cause への言及が無い"
+        },
+        {
+          "text": "インスタンスは 3 件のまま残す（件数を畳まない・ワイルドカードで 1 エントリにまとめない）と示している",
+          "passed": false,
+          "evidence": "インスタンスの件数の扱いに触れていない（例外の範囲が広すぎるという指摘だけ）"
+        },
+        {
+          "text": "設定ファイルを自動で書き換えて移行を代行していない（対応表を示して停止している）",
+          "passed": true,
+          "evidence": "設定ファイルを書き換えていない（ファイルへの書き込みなし）"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 13,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 18.525,
+        "tokens": 36882,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "経緯の宛先を gaps.md にしないと答えている（gaps.md は未検証領域の台帳で、そこに置くと承認済み＝説明済みのものが未検証と混在し、毎回 diff.md へ未検証として転記されることになるため）",
+          "passed": false,
+          "evidence": "gaps.md に書かないと答えているが、理由は未解決の数が分かりにくくなる・読み手に関係が薄いの 2 点で、diff.md へ毎回未検証として転記される点は無い"
+        },
+        {
+          "text": "経緯の宛先は .replace/parity/<slug>/component-diff-exceptions.md の原因ごとの節であり、component_diff_exception_causes[].evidence がその節を指すと示している",
+          "passed": false,
+          "evidence": "component-diff-exceptions.md と component_diff_exception_causes[].evidence への言及が無い。accepted-diffs.md や investigations/ を提案"
+        },
+        {
+          "text": "reason は 1〜2 行の識別ラベルに留め、経緯は evidence 側へ分けると示している（YAML / JSON のコメントに溜めない）",
+          "passed": false,
+          "evidence": "reason と evidence の分け方の説明が無い"
+        },
+        {
+          "text": "原因は component_diff_exception_causes に 1 件だけ定義し、7 箇所は cause で参照する薄いインスタンスとして残す（7 件の件数は畳まない）と示している",
+          "passed": false,
+          "evidence": "「7 件の別項目にはしない」と 7 箇所を 1 件にまとめる提案で、件数を畳んでいる"
+        },
+        {
+          "text": "例外の件数が検証の弱さのシグナルであることに触れ、行数削減のために件数を隠さないと述べている",
+          "passed": false,
+          "evidence": "件数が検証の弱さのシグナルであることに触れていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 15,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.1667,
+        "passed": 1,
+        "failed": 5,
+        "total": 6,
+        "time_seconds": 32.723,
+        "tokens": 38224,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "台帳のインスタンス件数を畳む案を断り、page / element / bbox にワイルドカードを置いて 1 エントリで N 箇所を吸収させないと述べている（例外の件数は検証の弱さのシグナルであり行数削減のために隠さない）",
+          "passed": false,
+          "evidence": "ワイルドカードはやめるとしたが、「1 原因 = 1 エントリ」の中にインスタンスを列挙する形を勧めており、例外の件数が検証の弱さのシグナルである点にも触れていない"
+        },
+        {
+          "text": "承認の単位は候補ではなく原因であり、component_diff_exception_causes の 1 原因につき 1 回の承認で同一原因の N インスタンスが確定する（この例では承認は 6 回で足りる）と答えている",
+          "passed": false,
+          "evidence": "承認は 6 回で済むとしたが、component_diff_exception_causes の 1 原因につき 1 回の承認で N インスタンスが確定するという仕組みの説明が無い"
+        },
+        {
+          "text": "台帳には 189 インスタンスを畳まず並べたまま、各インスタンスは cause で原因を参照し reason を複製しないと示している（承認の粒度と件数の可視性を分ける）",
+          "passed": false,
+          "evidence": "cause による参照と reason を複製しない形の説明が無い"
+        },
+        {
+          "text": "1 回の承認 UI に、その原因が覆うインスタンス件数 N と内訳、および原因を代表するインスタンス 1 件の crop 対・特性差分を判断材料として同梱すると述べている",
+          "passed": false,
+          "evidence": "件数と分布は見せるとしたが、代表 crop は「最も差が大きいもの数件と、ランダムに選んだ数件」で、代表インスタンス 1 件の crop 対と特性差分ではない"
+        },
+        {
+          "text": "crop の見た目が似ていることを統合の根拠にせず、同一原因の確認は観測条件（ページ・状態・ビューポート・要素・ウェイト等）を列挙して現行と突き合わせて行うと示している（新側の実験変種どうしの一致を結論にしない）",
+          "passed": false,
+          "evidence": "「発生の仕組みが同じだと根拠を持って言えること」とはあるが、観測条件を列挙して現行と突き合わせる方法を示していない"
+        },
+        {
+          "text": "確かめられない 2 種目を統合や暫定承認で通さず、別の承認単位のまま未承認＝未説明として残すため converged: true にはできないと答えている（収束を急ぐ要求に対して束ねる方を選ばない）",
+          "passed": true,
+          "evidence": "原因の違いを説明できなければ「承認には出さず『保留』として残し」「保留が残っているのに converged と書くのは避けてください」と、束ねずに converged にしない側を選んでいる"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 16,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4,
+        "passed": 2,
+        "failed": 3,
+        "total": 5,
+        "time_seconds": 19.064,
+        "tokens": 34605,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "component が照合キーであり、宣言した要素（filter-popup）の差分にしか掛からないと答えている（別要素の同値の差分は吸収されない）",
+          "passed": true,
+          "evidence": "「filter-popup に限定した宣言なら、他の要素の 0px → 2px は『未宣言の差分』として残り」と答えている（実装は未確認と断っている）"
+        },
+        {
+          "text": "clear-button の 0px → 5.2969px は filter-popup の宣言では扱えず、clear-button を対象にした別の宣言かトリアージが要ると示している（同じ宣言でカバーされるとしていない）",
+          "passed": true,
+          "evidence": "「カバーされません。after の値が違うので、別の差分です」「別のエントリとして宣言する」"
+        },
+        {
+          "text": "component を空にする案を断り、欠落・空は wildcard ではなく不一致として扱われ照合に使われない（stderr に警告が出て該当差分は unexplained として残る）と説明している",
+          "passed": false,
+          "evidence": "空の component は「どこにもマッチしない」か「全要素にマッチする」のどちらかになると実装依存とし、不一致として扱われ警告が出て unexplained に残ると説明していない"
+        },
+        {
+          "text": "複数インスタンスに当てたい場合の手段として component の glob（例 filter-popup-*）を示し、対象を絞らない全要素一致の宣言を選んでいない",
+          "passed": false,
+          "evidence": "component の glob を示していない。「共通の祖先やクラスがあるなら、そのセレクタで宣言」と別の手段を挙げている"
+        },
+        {
+          "text": "要素で絞らない照合が別要素の本物の回帰を absorbed_T として吸収し、回帰を抱えたまま収束する（偽陰性）ことを危険として述べている",
+          "passed": false,
+          "evidence": "「回帰が起きても、黙って通過してしまいます。収束判定の意味がなくなります」と危険は述べたが、absorbed_T として吸収されることへの言及が無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 17,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2,
+        "passed": 1,
+        "failed": 4,
+        "total": 5,
+        "time_seconds": 39.202,
+        "tokens": 38904,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "差分がゼロであることを根拠に converged: true にせず、部品網羅表の未測定も収束条件として確認すると答えている",
+          "passed": false,
+          "evidence": "converged: true にしないとは答えたが、部品網羅表の未測定を収束条件として確認するという内容ではない（台帳に起票し blocked_by に入れるとしている）"
+        },
+        {
+          "text": "現側 metadata.json の component_coverage.declared が true のときだけ判定に入り、同梱の coverage-check.mjs で網羅表から数え直す（宣言された件数を信用しない）と答えている",
+          "passed": false,
+          "evidence": "component_coverage.declared と coverage-check.mjs への言及が無い"
+        },
+        {
+          "text": "数え直しの対象に value: unmeasured だけでなく、行欠落・evidence 空・present の covered_by 空・absent の kind 無し／未知・applicable_states manifest 不完全／不一致・状態証拠不完全・hidden_by の関係未検証／表示中style／正寸法との矛盾・重複行を含めると示している",
+          "passed": false,
+          "evidence": "一般的な条件（操作の一覧・状態の網羅・記録の有効性）を挙げたが、unmeasured・covered_by・absent の kind・applicable_states manifest・hidden_by などの網羅表の項目ではない"
+        },
+        {
+          "text": "差分ツールは採取した状態しか見ないため、測っていない操作の欠落は差分ゼロとして通ることを理由に挙げている",
+          "passed": true,
+          "evidence": "「差分は測った項目どうしを比べて初めて出ます。測っていない操作は、そもそも差分が出ようがありません」"
+        },
+        {
+          "text": "未測定が残るなら parity-replace ではなく parity-suite へ戻して測らせると答えている",
+          "passed": false,
+          "evidence": "parity-suite へ戻すという記述が無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 18,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 19.731,
+        "tokens": 56163,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "metadata.json に component_coverage をキーごと持たない旧成果物は判定に入れず、他の条件を満たせば収束させる（後方互換）と答えている",
+          "passed": false,
+          "evidence": "「今まで通り『収束』とは判定しないでください」と、旧成果物を判定から外して収束させる後方互換を答えていない"
+        },
+        {
+          "text": "判定しなかった事実と理由を diff-metadata.json の component_coverage（judged: false と reason）に記録すると答えている",
+          "passed": false,
+          "evidence": "diff-metadata.json の component_coverage（judged: false と reason）への記録が無い"
+        },
+        {
+          "text": "同じことを diff.md の未検証領域にも残し、警告なしに合格にしないと答えている",
+          "passed": false,
+          "evidence": "「判定不能」として報告するとしたが、diff.md の未検証領域に残すという記述が無い"
+        },
+        {
+          "text": "キーの欠落（旧成果物）と declared: false（宣言したうえで判定に入れない）を区別して扱うと示している",
+          "passed": false,
+          "evidence": "キーの欠落と declared: false の区別に触れていない"
+        },
+        {
+          "text": "収束させるために網羅表を捏造したり declared: true を書き足したりせず、網羅表を作るのは parity-suite だと答えている",
+          "passed": false,
+          "evidence": "方法 2 で「ソースや設定から現側の部品一覧を自分で作ります」と、parity-suite 以外で網羅表を後から作る案を示している"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 19,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 43.475,
+        "tokens": 77096,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "測定値を diff-metadata.json へ記録した直後に noise-pass2/ を削除し、コミットもしないと答えている",
+          "passed": true,
+          "evidence": "「new/<target>/noise-pass2/ を削除する。コミットするのは diff-metadata.json だけにする」"
+        },
+        {
+          "text": "再利用の判断材料は前回実行の diff-metadata.json の noise_baseline_new / noise_measurement（fingerprint を含む記録値）であって採取物ではないと述べている",
+          "passed": false,
+          "evidence": "判断材料は diff-metadata.json に書いた内容だと述べたが、noise_baseline_new / noise_measurement（fingerprint を含む記録値）を挙げていない。条件の例も「対象スキルの版やハッシュ、モデル、プロンプト」と別物"
+        },
+        {
+          "text": "採取物の不在を失効条件として扱わず、そのために全組を測り直しはしないと答えている",
+          "passed": true,
+          "evidence": "「消したら全組測り直しになる？ なりません」と不在を失効条件として扱っていない"
+        },
+        {
+          "text": "前提確認は 2 回目の採取物の実体を要求せず、不在を parity-suite への差し戻しや停止の理由にしないと述べている",
+          "passed": false,
+          "evidence": "「想定どおりの作りなら弾かれません」「求められないはずです」と推測にとどまり、定義書の確認を求めている。parity-suite への差し戻しにしない点にも触れていない"
+        },
+        {
+          "text": "測り直す組は同じ noise-pass2/ へ撮り直すため、削除しても次の測定に支障が無いと述べている",
+          "passed": true,
+          "evidence": "「もう一度 new/<target>/noise-pass2/ に撮り直すのが自然です」とし、残しておくのは逆効果と述べている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 20,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.1667,
+        "passed": 1,
+        "failed": 5,
+        "total": 6,
+        "time_seconds": 25.986,
+        "tokens": 37921,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "保留（intentional_diffs.pending）の棚卸しを収束条件として扱い、済むまで converged: true にしないと答えている",
+          "passed": true,
+          "evidence": "「今回の機能で足した保留だけは収束の外に置けません」「全件決まるまで converged: false」と、保留の判断を収束条件として扱っている。"
+        },
+        {
+          "text": "棚卸しの対象を「この機能に帰属する保留（slug 一致）・機能に帰属しない保留（cross-cutting）・帰属不明の保留（素の文字列の旧形式や slug 欠落）」の 3 群とし、別の機能に帰属する保留はその機能の収束判定が扱うとして対象外にしている",
+          "passed": false,
+          "evidence": "データセット側で足した機能に紐づかない分（②）と由来不明の古い散文（③）を「対象外」としており、3 群（slug 一致・cross-cutting・帰属不明）を対象にしていない。"
+        },
+        {
+          "text": "差分の分類の承認待ち（pending_review）と、意図的差異として認めるかが未決の intentional_diffs.pending を別物として区別している",
+          "passed": false,
+          "evidence": "pending_review への言及が無く、差分の分類の承認待ちと intentional_diffs.pending の区別を述べていない。"
+        },
+        {
+          "text": "内容を見ない一括分類（残りを全部 keep として扱う）に従わず 1 件ずつ提示すると答え、keep / may_change へ移すのは人間でスキルは設定ファイルを書き換えないと断っている",
+          "passed": false,
+          "evidence": "1 件ずつ判断するとは言うが、「書き換えは、判断が付いた①の項目だけを対象にしてお見せする形にします」と自分で書き換える前提で、keep / may_change へ移すのは人間でスキルは書き換えないとは述べていない。"
+        },
+        {
+          "text": "今決められないものは持ち越しとして理由を記録すれば通過でき、恒久的に機能を止めるものではないと答えている",
+          "passed": false,
+          "evidence": "今決められない①は blocked_by に入れ「この間は converged: false のまま」と答えており、理由を記録した持ち越しで通過できるとは答えていない。"
+        },
+        {
+          "text": "対象内訳・確定件数・持ち越し件数を diff-metadata.json の intentional_diffs_pending に残し、数え直しは同梱の pending-triage-check.mjs が設定ファイルの pending から行う（記録された件数を信用しない）と答えている",
+          "passed": false,
+          "evidence": "diff-metadata.json の intentional_diffs_pending や pending-triage-check.mjs による数え直しに触れていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 21,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 15.007,
+        "tokens": 36748,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "保留がゼロなら棚卸しを理由に停止せず、他の条件を満たすなら収束させると答えている",
+          "passed": true,
+          "evidence": "「『保留 0 件』を記録として残してから converged: true にします」と、棚卸しを理由に止めず収束させると答えている。"
+        },
+        {
+          "text": "対象 0 件でも diff-metadata.json の intentional_diffs_pending を省略せず、entries を空の配列にしてゼロ件数を記録すると答えている",
+          "passed": false,
+          "evidence": "記録先として独自の YAML（intentional_diff_registry_check）を例示しており、diff-metadata.json の intentional_diffs_pending を entries: [] で残すとは答えていない。"
+        },
+        {
+          "text": "キーごと記録が無い成果物は旧成果物とみなして合格にせず、未実施として扱われる（pending-triage-check.mjs が非ゼロで落ちる）と示している",
+          "passed": false,
+          "evidence": "キーごと記録が無い成果物が未実施として扱われ pending-triage-check.mjs が非ゼロで落ちることに触れていない。"
+        },
+        {
+          "text": "0 件と無記録を同じ出力にしないこと（記録が無いと棚卸しをしていないのか対象が無かったのか区別できないこと）を理由に挙げている",
+          "passed": true,
+          "evidence": "理由 1 で「記録が無いと、0 件なのか確認していないのか区別できません」と述べている。"
+        },
+        {
+          "text": "収束させるために保留を設定ファイルから消したり keep へ移したことにしたりしていない",
+          "passed": true,
+          "evidence": "保留を設定ファイルから消す・keep へ移したことにする操作は提案しておらず、ファイルも変更していない（project-tree.txt は . のみ）。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 22,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2222,
+        "passed": 2,
+        "failed": 7,
+        "total": 9,
+        "time_seconds": 38.706,
+        "tokens": 37004,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "captured が states に無い行や captured と reason の両方が埋まった行があるなら、注記して進めず撮影前に停止し parity-suite へ戻すと答えている",
+          "passed": false,
+          "evidence": "「そのまま撮影へ進めない方がいい」とは答えるが、各行の対応は「states に追加する」「どちらか一方だけを書く」など自分で直す形で、撮影前に停止して parity-suite へ戻すとは述べていない。"
+        },
+        {
+          "text": "操作アダプタ（新側例外を含む）とスイートからポップアップを開く呼び出しを関数名 × 開く対象の論理名の単位で列挙し、関数名だけの一致で済ませず全てが opened_by に現れることを撮影前に確かめ、現れない呼び出しがあれば停止すると述べている",
+          "passed": false,
+          "evidence": "操作アダプタとスイートの呼び出しを関数名 × 開く対象の論理名で列挙し、すべてが opened_by に現れることを確かめる手順が無い（画面上のポップアップ数と行数の照合のみ）。"
+        },
+        {
+          "text": "popup_inventory のキーごと無い旧成果物は、静止待ち導入前の採取として撮影せず停止し、parity-suite でベースラインとノイズ基準値の採り直しへ戻すと答えている",
+          "passed": false,
+          "evidence": "キーの無い旧成果物は「旧側のコードや既存のキャプチャから棚卸しして、キーを作る」としており、停止してベースラインとノイズ基準値を採り直すとは答えていない。"
+        },
+        {
+          "text": "撮り直せない機能を続行するのは、採り直せない理由をユーザーに提示して承認を得た場合だけとし、そのときは現側ノイズ基準値による吸収を適用せず、未検証として diff.md に残すと述べている",
+          "passed": false,
+          "evidence": "撮り直せない機能はユーザーの承認を条件とせず、現側ノイズ基準値の吸収を適用しないことにも触れていない（比較不能として扱う、のみ）。"
+        },
+        {
+          "text": "棚卸しの検証結果を diff-metadata.json の capture_conditions_verified.popup_inventory に記録すると述べている",
+          "passed": false,
+          "evidence": "diff-metadata.json の capture_conditions_verified.popup_inventory への記録に触れていない。記録先は metadata.json と「差分結果」。"
+        },
+        {
+          "text": "opened_by が空の行と、1 つのポップアップを 2 行に分けた行（同じ parent × 同じ name）は不整合として撮影前に停止し、複数の開き方は 1 行の opened_by（配列）に並べると述べている",
+          "passed": false,
+          "evidence": "opened_by が空の行・2 行に分けた行は直すとし 1 行に両方の開き方を書くとは述べるが、opened_by を配列にすることは書かれておらず、2 行の判定単位（同じ parent × 同じ name）も無い。"
+        },
+        {
+          "text": "列フィルタの吹き出しの中の 2 行が同じ openCombo(演算子) を持つ棚卸しも、その呼び出しでどちらのポップアップが開くか決まらない不整合として撮影前に停止し、開く対象の論理名をポップアップごとに分けて書くと述べている",
+          "passed": true,
+          "evidence": "演算子の一覧と値の候補一覧が同じ openCombo の件を「値の候補一覧の行で演算子の一覧が撮られ、誤った一致になる」とし、「値の候補一覧の行は、正しい開き方に直す」と述べ、結論として撮影へ進めないとしている。"
+        },
+        {
+          "text": "ポップアップを開く呼び出しの列挙と opened_by の突き合わせを、親のポップアップ（1 段目は null）× 関数名 × 開く対象の論理名の単位で行い、別の親のポップアップから呼ぶ同じ openCombo(page, 演算子) を 1 つに潰さないと述べている",
+          "passed": false,
+          "evidence": "親のポップアップ × 関数名 × 開く対象の論理名の単位での列挙と突き合わせが無い。別の親から呼ぶ openCombo はアダプタにスコープ引数を足す対処を提案しており、突き合わせの単位としては述べていない。"
+        },
+        {
+          "text": "回答内で、不整合な棚卸しのまま、または承認なしに旧成果物のノイズ基準値で吸収して差分検出へ進んでよいと矛盾する結論を併記していない",
+          "passed": true,
+          "evidence": "不整合のまま、または旧成果物のノイズ基準値で吸収して進んでよいという結論は併記していない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 23,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2,
+        "passed": 1,
+        "failed": 4,
+        "total": 5,
+        "time_seconds": 21.913,
+        "tokens": 37348,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "差分ツールの未説明ゼロだけでは収束させず、反応の網羅表の未測定が残っていないことも収束条件に入れると答えている（遅れて出る・自動で消える反応は採取に記録されず差分ゼロとして通るため）",
+          "passed": false,
+          "evidence": "declared: true の網羅表を収束条件に入れるとは述べるが、括弧の理由（遅れて出る・自動で消える反応は採取に記録されず差分ゼロとして通る）に触れていない。"
+        },
+        {
+          "text": "判定はインストール済みの parity-suite の reaction-check.mjs を --recorded で呼んで行い、スクリプトが見つからないなら判定を飛ばさず停止して parity-suite の導入を促すと答えている",
+          "passed": false,
+          "evidence": "reaction-check.mjs --recorded の呼び出しにも、スクリプトが無いときに停止して parity-suite の導入を促すことにも触れていない（別リポジトリや CI で動かす、手作業で照合する、を提案）。"
+        },
+        {
+          "text": "parity-suite で照合した後に表を手で直した場合は、記録された照合結果（表の指紋）と一致せず落ちるため、parity-suite で照合を通し直す必要があると述べている",
+          "passed": false,
+          "evidence": "手で直した後は前回の結果が使えないとは述べるが、記録された照合結果（表の指紋）と一致せず落ちる仕組みには触れていない。"
+        },
+        {
+          "text": "判定結果を diff-metadata.json の reaction_coverage に記録し、判定しなかった場合は理由を diff.md の未検証領域にも残すと述べている",
+          "passed": false,
+          "evidence": "記録先を metadata.json と「収束レポートや判定ログ」としており、diff-metadata.json の reaction_coverage と diff.md の未検証領域を挙げていない。"
+        },
+        {
+          "text": "回答内で「スクリプトが無いので判定を飛ばして converged: true にしてよい」と矛盾する結論を併記していない",
+          "passed": true,
+          "evidence": "「判定を飛ばして converged: true にするのはやめたほうがいい」で一貫しており、矛盾する結論は併記していない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 24,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 4,
+        "total": 4,
+        "time_seconds": 82.333,
+        "tokens": 181132,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "朝の収束状態を、要対応が残るため「判断待ち」ではなく「未収束」と答え、未解決の保留があっても parity-replace への差し戻しは進めると述べている（応答で判定）",
+          "passed": false,
+          "evidence": "converged: false とは答えるが、「判断待ち」と「未収束」の状態を区別して未収束と答えておらず、差し戻しが進むかは「確かめていません」としている。"
+        },
+        {
+          "text": "承認前の許容候補 15 件を results.unexplained（未説明）に数え、accepted には入れないと答えている（応答で判定）",
+          "passed": false,
+          "evidence": "15 件は accepted に入らないとは述べるが、results.unexplained（未説明）に数えるとは答えていない。"
+        },
+        {
+          "text": "intentional_diffs.pending の棚卸しの処置を自律実行では自分で carried_over と記録せず未記録のまま保留へ回し、pending-triage-check.mjs が未棚卸しとして落とす（exit 1）と述べている（応答で判定）",
+          "passed": false,
+          "evidence": "carried_over として記録しないとは述べるが、pending-triage-check.mjs が未棚卸しとして exit 1 で落とすことに触れていない。"
+        },
+        {
+          "text": "人の判断待ちの記録先を、diff-metadata.json の pending_decisions[] と diff.md の判断待ちの節の両方として答えている（応答で判定）",
+          "passed": false,
+          "evidence": "pending_decisions[] は挙げるが、diff.md の側は「棚卸しの 1 件が未完了として載る」とするだけで、判断待ちの節を記録先として答えていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 25,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2,
+        "passed": 1,
+        "failed": 4,
+        "total": 5,
+        "time_seconds": 23.692,
+        "tokens": 37374,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "しきい値つきの比較が返す数は許容の内側の差を総量にも件数にも出さないため、その 1 本だけを「差の量」として報告しないと述べている",
+          "passed": true,
+          "evidence": "「756 は『0.1 で検出できた分の下限』です」と、しきい値つきの数を差の総量として扱わないことを述べている。"
+        },
+        {
+          "text": "しきい値なしで数えた画素数（pixel-crops.mjs の summary の strict_pixels / strict_only_pixels 等）を併記し、diff.md の比較方法別のサマリに両方の数を書くと述べている",
+          "passed": false,
+          "evidence": "threshold: 0 での再計測を勧めるが、しきい値なしの画素数を併記して diff.md の比較方法別のサマリに両方を書くとは述べていない。diff.md の例はしきい値つきの数だけ。"
+        },
+        {
+          "text": "しきい値の内側にだけ差がある場合は差分領域 0 件でも「一致」と読まず、ノイズ基準値と対比して分類へ回すと述べている",
+          "passed": false,
+          "evidence": "差分領域 0 件でもしきい値の内側の差を一致と読まずノイズ基準値と対比する、という点に触れていない。"
+        },
+        {
+          "text": "「ほぼ一致」という要約をそのままユーザーへ渡さず、判断材料には両方の数を渡すと述べている",
+          "passed": false,
+          "evidence": "「ほぼ一致」とまとめないとは述べるが、判断材料として両方の数を渡すとは述べていない。"
+        },
+        {
+          "text": "色が 1/255 違う程度の差は特性照合（論理名の無い要素は見ない）にも手書きの aria（色を見ない）にも出ないため、画素の比較で数えないと誰も見ないことに触れている",
+          "passed": false,
+          "evidence": "特性照合や aria が色の差を見ないことに触れていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 26,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 3,
+        "failed": 3,
+        "total": 6,
+        "time_seconds": 33.775,
+        "tokens": 38612,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "スキルの差分検出の外で撮った 2 枚には side・locale・viewport 等の撮影条件の照合が無く、別の画面から撮った 2 枚は部品が同じでも画素差を出すと述べている",
+          "passed": false,
+          "evidence": "別の画面どうしの比較が問題で画素差が出るとは述べるが、スキルの差分検出が持つ side・locale・viewport 等の撮影条件の照合が使い捨ての 2 枚に無いことには触れていない。"
+        },
+        {
+          "text": "使い捨ての 2 枚をそのまま結論の根拠にせず、スキルの差分検出と同じ条件（ページ・状態・ビューポート・side）で撮り直してから判断すると述べている",
+          "passed": false,
+          "evidence": "同じ画面どうしで比べ直すよう勧めるが、スキルの差分検出と同じ条件（ページ・状態・ビューポート・side）で撮り直してから判断するとは述べていない。"
+        },
+        {
+          "text": "要素の位置の小数部が違うと 1 画素ずれて切り出されることに触れ、同じ画面どうしで撮り直して差が残るかを先に確かめると述べている",
+          "passed": true,
+          "evidence": "getBoundingClientRect() の x/y の小数部分の違いで縁の差が出ることに触れ、「同じ画面どうしで比べ直す」を最初の確認に挙げている。"
+        },
+        {
+          "text": "スキルの差分検出の結果と食い違ったらまず自分の測り方を疑うと述べ、利用者の指摘を測り方の正しさの保証として扱っていない",
+          "passed": true,
+          "evidence": "116 画素は「比べ方の違いから出ている可能性が高い」とし、スキルの差分検出で候補に挙がっていないことと理屈が合うと述べ、利用者の指摘は放置しないが原因の保証としては扱っていない。"
+        },
+        {
+          "text": "border-radius の値の違いを原因と決めつけて parity-replace へ差し戻していない",
+          "passed": true,
+          "evidence": "「border-radius が原因として差し戻すのは、まだやめたほうがいい」と答えている。"
+        },
+        {
+          "text": "条件をそろえた再現が取れるまで、この箇所を要対応として diff.md に書かないと述べている（未説明のまま残す、または条件不一致として差分報告の前で止める）",
+          "passed": false,
+          "evidence": "diff.md への記載や、再現が取れるまで要対応として書かないことに触れていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 28,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 3,
+        "failed": 3,
+        "total": 6,
+        "time_seconds": 47.362,
+        "tokens": 77259,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "承認記録は非破壊追記の成果物であり、書き直すと過去の決定（なぜ許容したのか・いつ誰が承認したのか）が失われると述べている",
+          "passed": true,
+          "evidence": "承認記録は追記専用の監査ログとして扱われ、「いつ、誰が、何を、なぜ承認したか」の証跡が書き直しでなくなると述べている。"
+        },
+        {
+          "text": "収束の判定は現在の状態しか見ないため、書き直しても検査は全部通ってしまう（失われたものに気づく方法が無い）と説明している",
+          "passed": true,
+          "evidence": "「収束判定の検査が見ているのは、たいてい今の JSON と記録が整合しているかだけ」で、検査が通っても違反の可能性が残ると説明している。"
+        },
+        {
+          "text": "replace-strategy の scripts/append-only-check.mjs で git の履歴と突き合わせ、追記専用の成果物が縮んでいないことを収束条件に入れると述べている",
+          "passed": false,
+          "evidence": "replace-strategy の append-only-check.mjs にも、追記専用の成果物が縮んでいないことを収束条件に入れることにも触れていない（diff -u での手作業の比較のみ）。"
+        },
+        {
+          "text": "追記専用の成果物の一覧は replace-strategy の assets/append-only-manifest.json が原本だと述べている",
+          "passed": false,
+          "evidence": "追記専用の定義元は特定できないとして一般的な候補を挙げるだけで、replace-strategy の assets/append-only-manifest.json を原本として挙げていない。"
+        },
+        {
+          "text": "対象 0 件を合格として扱わないと述べている",
+          "passed": false,
+          "evidence": "対象 0 件を合格として扱わないことに触れていない。"
+        },
+        {
+          "text": "git の履歴から消した記録を復元するよう述べ、現在の内容が整合していることを根拠に converged: true にしていない",
+          "passed": true,
+          "evidence": "元のリポジトリの git log -p から取り出して丸ごと復元するよう述べ、「今は converged: true にしないでください」と答えている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 6,
+        "total": 6,
+        "time_seconds": 36.476,
+        "tokens": 37413,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "component_diffs は特性照合（computed style の値比較）にしか機能せず、両側の値が一致し画素の比較だけで出る差には照合キーが無いため吸収されないと説明している",
+          "passed": false,
+          "evidence": "component_diffs が特性照合にしか機能しないという説明が無い。「ツールの実装を見ないと分かりません」と一般論"
+        },
+        {
+          "text": "置き場所は .replace/parity/<slug>/component-diff-exceptions.json（設定ファイルの skills.yml ではない）で、property に pixel を入れてインスタンス単位に書くと示している",
+          "passed": false,
+          "evidence": "component-diff-exceptions.json と property: pixel に触れていない。仮の YAML で component_diffs を書く例を示している"
+        },
+        {
+          "text": "系統的な原因でも 1 回の宣言にできないのは形式上の制約だと述べ、原因は component_diff_exception_causes に 1 回だけ定義して各インスタンスから cause で参照すると示している（reason をインスタンスへ複製しない）",
+          "passed": false,
+          "evidence": "component_diff_exception_causes と cause による参照の説明が無い。例では reason を宣言に直接書いている"
+        },
+        {
+          "text": "レジストリへ書くのはユーザー承認済みのものだけだと述べている",
+          "passed": false,
+          "evidence": "ユーザー承認済みのものだけを書くという記述が無い"
+        },
+        {
+          "text": "property: pixel の例外は diff-normalize.mjs では吸収されない（同スクリプトの入力は特性照合の Diff だけで画素候補は通らない）ため本スキルが画素候補へ適用すると説明し、取り違えると承認済みでも次の実行で同じ crop が unexplained として再浮上すると述べている",
+          "passed": false,
+          "evidence": "diff-normalize.mjs と画素候補への適用の説明が無い"
+        },
+        {
+          "text": "しきい値で潰す・インスタンス単位の無視リストで飲み込む、といった代替を勧めていない",
+          "passed": false,
+          "evidence": "tolerance: max_diff_ratio: 0.02 としきい値で吸収する書き方を勧めている"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.9105,
+        "stddev": 0.1305,
+        "min": 0.6,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 33.4683,
+        "stddev": 14.1024,
+        "min": 14.768,
+        "max": 67.424
+      },
+      "tokens": {
+        "mean": 164162.4737,
+        "stddev": 73402.2364,
+        "min": 89080,
+        "max": 344980
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.2196,
+        "stddev": 0.208,
+        "min": 0,
+        "max": 0.6
+      },
+      "time_seconds": {
+        "mean": 31.3449,
+        "stddev": 15.6145,
+        "min": 15.007,
+        "max": 82.333
+      },
+      "tokens": {
+        "mean": 57139.5263,
+        "stddev": 38878.961,
+        "min": 34605,
+        "max": 181132
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.69",
+      "time_seconds": "+2.1",
+      "tokens": "+107023"
+    }
+  },
+  "notes": [
+    "Issue #567: 使わない語の言い換え（evals.json の prompt・assertion）と fixture の語の更新の後の変更確認。各 eval を with_skill / without_skill で 1 run ずつ実行した（executor: claude-code / opus）。",
+    "集計の前の整理（with_skill の skill_usage.invalid_run=true は、; でつないだ読み取りを判定ツールが数え損ねたもので、raw では読んでいる。dependabot-merge eval-4 の without_skill は汚染の判定）:",
+    "- eval-19/with_skill/run-1 を集計から外した",
+    "- eval-19/with_skill/run-2 を run-1 にして集計した",
+    "- eval-21/with_skill/run-1 を集計から外した",
+    "- eval-21/with_skill/run-2 を run-1 にして集計した",
+    "- eval-27 をこの iteration から外した（採点できる run が得られなかった）"
+  ]
+}

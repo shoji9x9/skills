@@ -1733,7 +1733,7 @@ export function check(opts) {
   const targets = [...byFile.keys()].sort();
   if (targets.length === 0) {
     throw new UsageError(
-      `追記専用の成果物が 1 件も見つからない（対象 0 件を合格に倒さない）: root=${root} 一覧=${manifestPath}`,
+      `追記専用の成果物が 1 件も見つからない（対象 0 件を合格として扱わない）: root=${root} 一覧=${manifestPath}`,
     );
   }
 

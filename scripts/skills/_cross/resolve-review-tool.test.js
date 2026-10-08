@@ -136,7 +136,7 @@ for (const script of SCRIPTS) {
     });
   });
 
-  test(`${name}: --config の値が空なら既定へ化けさせず usage エラーで落ちる`, () => {
+  test(`${name}: --config の値が空ならデフォルトとして扱わず usage エラーで落ちる`, () => {
     // 空文字を「未指定」と同じに扱うと、渡したつもりのパスが警告なしにリポジトリルートの
     // 既定へ差し替わり、source=default を正しい解決結果として報告してしまう。
     const r = run(script, { args: ["--config", ""] });
@@ -165,7 +165,7 @@ for (const script of SCRIPTS) {
     });
   });
 
-  test(`${name}: 未知値は黙って既定へ倒さず exit 2 で停止し、出所を添える`, () => {
+  test(`${name}: 未知値は警告なしにデフォルトとして扱わず exit 2 で停止し、出所を添える`, () => {
     withConfig("version: 1\nskills:\n  common:\n    review_tool: gemini\n", (path) => {
       const r = run(script, { config: path });
       expect(r.status).toBe(2);
@@ -204,7 +204,7 @@ for (const script of SCRIPTS) {
     expect(parse(r.stdout).source).toBe("config");
   });
 
-  test(`${name}: git の外では既定へ倒すが、参照したパスを stderr に残す`, () => {
+  test(`${name}: git の外ではデフォルトとして扱うが、参照したパスを stderr に残す`, () => {
     const dir = makeTempDir("review-tool-nogit-");
     try {
       const r = run(script, { cwd: dir });
@@ -216,7 +216,7 @@ for (const script of SCRIPTS) {
     }
   });
 
-  test(`${name}: 陰性コントロール（実データ）: リポジトリの実設定を解決できる`, () => {
+  test(`${name}: 誤検知しないことの確認（実データ）: リポジトリの実設定を解決できる`, () => {
     const r = run(script, { config: join(repoRoot, ".config/skills/shoji9x9/skills.yml") });
     expect(r.status).toBe(0);
     const out = parse(r.stdout);

@@ -34,7 +34,7 @@
       "occurrences": 1,
       "expect_failing": [
         "D が空（描画入力の外だけ変わった）: 持ち越す・注記を残す",
-        "D が空でも evidence-carry.json を読まない（壊れていても持ち越しの判定に使わない）"
+        "D が空でも evidence-carry.json を読まない（不正でも持ち越しの判定に使わない）"
       ]
     },
     {
@@ -73,7 +73,7 @@
       "occurrences": 1,
       "expect_failing": [
         "amend-verify の inputs のパスはプロジェクトルートから解決する（記録のディレクトリからではない）",
-        "両検査器の一致: 持ち越せる fixture では両方とも合格",
+        "両チェックの一致: 持ち越せる fixture では両方とも合格",
         "影響あり・amend-verify が全組 pass・画像の sha256 が一致: 持ち越す",
         "影響あり・判定後に画像を差し替えた（sha256 不一致）: 落とす",
         "影響あり・撮り直した新側の画像を current にも渡した記録（ハッシュは一致する）: 役割が違うので持ち越さない",
@@ -132,7 +132,7 @@
       "find": "if (carry !== null && carry.ok) {",
       "replace": "if (false) {",
       "occurrences": 1,
-      "expect_failing": ["両検査器の一致: 持ち越せる fixture では両方とも合格"]
+      "expect_failing": ["両チェックの一致: 持ち越せる fixture では両方とも合格"]
     },
     {
       "id": "kind-not-enforced",
@@ -307,7 +307,7 @@
       "expect_failing": [
         "--carry-to: 一括再検証の直後で持ち越せる: 両方とも合格し、持ち越しを判定した注記を残す",
         "--carry-to: 一括再検証の直後に evidence-carry.json が無い: 両方とも落とす（--carry-to 無しは従来どおり通る）",
-        "--carry-to: 一括再検証の直後に evidence-carry.json が壊れている: 両方とも落とす",
+        "--carry-to: 一括再検証の直後に evidence-carry.json が不正な JSON になっている: 両方とも落とす",
         "--carry-to: 宣言で説明できない差分がある: 両方とも落とし、そのファイルを挙げる",
         "--carry-to: 記録の版が none: 判定できないので両方とも落とす"
       ]
@@ -364,7 +364,7 @@
       "expect_failing": [
         "--carry-to: 一括再検証の直後で持ち越せる: 両方とも合格し、持ち越しを判定した注記を残す",
         "--carry-to: 一括再検証の直後に evidence-carry.json が無い: 両方とも落とす（--carry-to 無しは従来どおり通る）",
-        "--carry-to: 一括再検証の直後に evidence-carry.json が壊れている: 両方とも落とす",
+        "--carry-to: 一括再検証の直後に evidence-carry.json が不正な JSON になっている: 両方とも落とす",
         "--carry-to: 宣言で説明できない差分がある: 両方とも落とし、そのファイルを挙げる",
         "--carry-to: 記録の版が none: 判定できないので両方とも落とす"
       ]

@@ -79,7 +79,7 @@
         "後の区切りは前の区切りの --include を引き継ぐ（スイートを書き換えた再開を見逃さない）",
         "gated は strength.md が無ければ記録しない",
         "verify は最後に記録した区切りとしか一致しない",
-        "陽性コントロール: record が作った 3 区切りの記録はそのまま verify を通る",
+        "誤検知しないことの確認: record が作った 3 区切りの記録はそのまま verify を通る",
         "--include の根が空なら record は exit 2（スイートが消えたまま区切りを進めない。Codex レビュー）",
         "前の区切りから削除しかしていなければ record は exit 2（削除を進んだ証拠にしない。Codex レビュー）",
         "record が書かない形の記録は verify で exit 2: W1 tool が無い",
@@ -104,7 +104,7 @@
         "record が書かない形の記録は verify で exit 2: W7 スイートの根がファイルを持たない",
         "record が書かない形の記録は verify で exit 2: W8 前の区切りから追加・書き換えが無い",
         "record が書かない形の記録は verify で exit 2: W9 gated の指紋に strength.md が無い",
-        "壊れた JSON の記録は verify で exit 2、authored はそれを読まずに記録し直せる"
+        "不正な JSON の記録は verify で exit 2、authored はそれを読まずに記録し直せる"
       ]
     },
     {
@@ -449,9 +449,9 @@
       "replace": "if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
-        "別の cwd から verify すると指紋の対象が見つからず落ちる（合格に倒さない）",
-        "陽性コントロール（CLI）: 子プロセスとして起動しても、cwd を根に record・verify が通り結果を stdout に出す",
-        "陽性コントロール（CLI）: 子プロセスとして起動しても、使い方の誤りは exit 2 で usage を stderr に出す"
+        "別の cwd から verify すると指紋の対象が見つからず落ちる（合格として扱わない）",
+        "CLI として動くことの確認: 子プロセスとして起動しても、cwd を根に record・verify が通り結果を stdout に出す",
+        "CLI として動くことの確認: 子プロセスとして起動しても、使い方の誤りは exit 2 で usage を stderr に出す"
       ]
     }
   ]

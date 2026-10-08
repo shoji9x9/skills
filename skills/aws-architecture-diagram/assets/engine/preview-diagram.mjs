@@ -144,7 +144,7 @@ if (failure) {
   if (lines.length) console.error(lines.slice(-5).join("\n"));
   console.error(
     "対処: メモリ不足が疑われる場合はコンテナの --shm-size を増やす" +
-      "（共有メモリ回避の --disable-dev-shm-usage は既定で付与済み）。" +
+      "（共有メモリ回避の --disable-dev-shm-usage はデフォルトで付与済み）。" +
       (noSandbox
         ? ""
         : "サンドボックスが使えない環境では DIAGRAM_CHROME_NO_SANDBOX=1 を設定する。") +

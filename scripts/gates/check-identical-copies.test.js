@@ -142,7 +142,7 @@ test.each([
   ["files に空文字", [group("a/x.md", "")]],
   ["reason が空白だけ", [{ files: ["a/x.md", "b/x.md"], reason: " " }]],
   ["組をまたいだ重複", [group("a/x.md", "b/x.md"), group("a/x.md", "c/x.md")]],
-])("陽性: 宣言が読めない（%s）なら exit 2（組 0 件＝違反なしに倒さない）", (_, groups) => {
+])("陽性: 宣言が読めない（%s）なら exit 2（組 0 件＝違反なしとして扱わない）", (_, groups) => {
   const root = makeRepo({ "a/x.md": BODY, "b/x.md": BODY, "c/x.md": BODY }, groups);
   // 宣言の段で弾くこと（比較の段の読み取り失敗で偶然 exit 2 になる形と区別する）。
   expect(() => loadGroups(root)).toThrow();
@@ -154,7 +154,7 @@ test("陽性: 宣言が JSON でなければ exit 2", () => {
   expect(main([root])).toBe(2);
 });
 
-test("陽性コントロール（CLI）: 子プロセスとして起動しても、不一致は exit 1、一致なら exit 0", () => {
+test("検出の確認（CLI）: 子プロセスとして起動しても、不一致は exit 1、一致なら exit 0", () => {
   const ok = makeRepo({ "a/x.md": BODY, "b/x.md": BODY }, [group("a/x.md", "b/x.md")]);
   const good = spawnSync(process.execPath, [script, ok], { encoding: "utf8" });
   expect(good.status, good.stderr).toBe(0);
