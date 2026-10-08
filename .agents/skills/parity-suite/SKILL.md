@@ -448,7 +448,9 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
 - `suite.state_mutating` / `suite.repeat_run`。状態を変えるスイートは、2 回続けて緑にし、各回に `suite_fingerprint` を記録する。
   スイートを変えたら、2 回続けて実行し直す。記録を版に結びつけないと、後でスペックや後始末を変えても、古い記録で通ってしまう。
   `repeat_run.specs` でスペックごとに分類すれば、2 回を求めるのは状態を変えるスペックだけになり、変えたスペックだけを実行し直せば足りる。
-  指紋は、`artifact-health-check.mjs --fingerprint` の出力から転記する
+  指紋は、`artifact-health-check.mjs --fingerprint` の出力から転記する。
+  戻す操作はスイートの中に置き、`repeat_run.cleanup_in_suite: true` と記録する。
+  `cleanup_in_suite` が `true` でない状態を変えるスイートは、`--stage suite` でも未検証として失敗する（外のツールで後始末するなら `true` と記録しない）
 - `unmeasured`（未測定の、機械で読める宣言）
 
 視覚の採取物を持たない機能（`api-resource` など）で、`declared: false` と理由で済ませてよいのは `artifact_health` だけである。
