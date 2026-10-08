@@ -69,7 +69,9 @@ tests/<skill>/iteration-N/
 - `usage.{input_tokens,cached_input_tokens,cache_write_input_tokens,output_tokens,reasoning_output_tokens,total_tokens}`
 - `raw_trace`: run からの相対パス
 - `skill_usage`: 対象のスキルを読んだかの判定。`visible`・`invoked`・`files_read`・`content_seen`・`read`・`invalid_run`・`undeterminable` を持ち、`without_skill` では汚染を示す `unexpected_read` も持つ。
-  各項目は true・false・`null`（この executor では測れない）のどれかになる。集計から外す方法は [`skill-development.md`](skill-development.md)「対象スキルを読まなかった run を集計から外す」にある
+  `visible`・`invoked`・`read`・`invalid_run`・`unexpected_read` は true・false・`null`（この executor では測れない）のどれかになる。
+  `files_read`・`content_seen` はパスの配列か `null`、`undeterminable` は判定できなかった軸の名前の配列である。
+  集計から外す方法は [`skill-development.md`](skill-development.md)「対象スキルを読まなかった run を集計から外す」にある
 
 `timing.json` は同じ `executor` と、`total_tokens`、開始・終了時刻、ミリ秒・秒の実測時間を持つ。
 各 run の `eval-fingerprint.json` は、次の値を正規化した JSON にまとめ、SHA-256 のハッシュにしたものである。

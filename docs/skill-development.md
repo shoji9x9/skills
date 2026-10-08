@@ -353,9 +353,10 @@ fixture に書いてよいのは、下流のプロジェクトに実際にあり
   候補にするのは `SKILL.md` と、`references/`・`assets/` の Markdown だけである。スクリプトの使い方の文は、実行すれば表示され、読んだことにならない。
   外すものの照合は部分文字列で行う。JSON の文字列や表のセルに埋め込まれた文も外す。
   `run-skill-eval.sh` は、`--skills-root <repo>/skills`・`--prompt`・`--fixture` を normalize に渡す。
-  導入の時点で、手元にある 571 run（`with_skill` 367、`without_skill` 204）を同じ規則で判定し直し、`read` が true から false に変わった run と、`unexpected_read` が新たに立った baseline が無いことを確かめた。
-  `;` でつないで読むために `invalid_run` が続き、iteration から外していた 5 件（kaizen:15、parity-diff:27、parity-suite:25・28、replace-strategy:16）は、この判定ですべての run が `read: true` になり、測れるようになった。
-  kaizen:15 の 1 run は `cat -n <スキルのスクリプト>` だけで読んでいた。`cat` には値を取るオプションが無いので、フラグの次の語をファイルとして扱うように直した。
+  これで、いつも `;` やパイプでつないで読むために `invalid_run` になり続けていた eval も、採点できるようになる。
+  照合の規則を変えるときは、手元にある run をすべて判定し直し、`read` が true から false に変わる run と、`unexpected_read` が新たに立つ baseline が無いことを確かめる。
+- `cat` には値を取るオプションが無いので、`cat -n <パス>` のフラグの次の語をファイルとして扱う。
+  `--help`・`--version` は表示して終わり、オペランドを開かないので、どの読み取りのコマンドでも、その後のパスを数えない。
 - `without_skill` の側で対になるのは `unexpected_read` で、ベースラインがスキルを読んだこと、つまり汚染を表す。`contamination.txt` と合わせて見る。
   claude-code の `raw/` は目印の走査の対象から外している。
   stream-json には途中のメッセージとツールの入力が入るので、目印の語を口にしただけの baseline が CONTAMINATED（exit 4）になり、正当な測定が捨てられるからである（実際に起きた）。
