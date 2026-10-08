@@ -32,6 +32,16 @@ scratchpad へ複製して cd し、`/home/.../node_modules/.bin/oxfmt --check` 
 - なぜ 2: 複製先で確かめる形を選び、`node_modules/.bin` を絶対パスで指定すれば動くと考えた（bin のシバンが `node` の shim を通ることを見落とした）
 - なぜ 3: 規約は文章だけで、`cd <リポジトリ外>` と shim 経由のツールの組み合わせを止める仕組みが無い
 
+### 追記（2026-10-08・再発）
+
+Issue #575 の起票前に、`pnpm-transitive-update.md`「親を remove して同じ range で add し直す」を scratchpad の複製で試した。
+pnpm は `mise which pnpm` で実体パスを解決して渡したが、手順 1 の `node -e`（親の依存の種類の記録）をそのままコピーしたため、
+`mise ERROR No version is set for shim: node` で起動自体が落ちた（1 往復の手戻り）。`mise which node` を渡し直すと通った。
+
+- なぜ 1: 複製先へ cd した状態で、shim の node を裸で呼んだ
+- なぜ 2: 実体パスを解決したのは、自分が「主に使う」と意識した pnpm だけだった。手順書の断片が呼ぶ他のツール（node）を列挙しなかった
+- なぜ 3: この学びは pending のままで、`pnpm-transitive-update.md` の断片に実体パスの解決が書かれていない（注入された要約を読んでも、複製先で使う全ツールに当てるところまで届かない）
+
 ## 根本原因
 
 - なぜ落ちたか → `node` は mise の shim で、cwd がプロジェクト外だとバージョンを決められない
@@ -58,3 +68,5 @@ scratchpad へ複製して cd し、`/home/.../node_modules/.bin/oxfmt --check` 
 - 追記（2026-10-05）: 確かめたいだけならリポジトリの中で設定を一時的に変えて実行する方法を優先する（今回もその方法で確かめられた）。
   3 回目の再発なので、apply では PreToolUse で `cd` 先がリポジトリの外かつ shim 経由のツールを呼ぶ形を警告する案も検討する。
 - 追記（2026-10-05）: `pnpm-transitive-update.md` の、リリース年齢チェックで何も変わらない場合を切り分ける節は、Issue #372 で「リリース年齢の制限で何も変わらない場合を切り分ける」に改めた（手順の番号は同じ）。
+- 追記（2026-10-08）: 対象に `pnpm-transitive-update.md`「親を remove して同じ range で add し直す」手順 1 の `node -e` を加える。4 回目の再発で、うち 2 回はこのファイル。
+  複製先で実行する断片は、使うツールをすべて列挙して実体パスを先に解決する形（`pnpm_bin=$(mise which pnpm)` と `node_bin=$(mise which node)` をリポジトリ内で取得してから cd）で書く。apply を先延ばしにしない。
