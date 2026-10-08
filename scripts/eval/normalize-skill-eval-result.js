@@ -6,6 +6,7 @@ import {
   readdirSync,
   realpathSync,
   renameSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { dirname, join, posix, relative } from "node:path";
@@ -982,12 +983,16 @@ function skillContentSeen(outputs, contentIndex) {
   return [...seen].sort();
 }
 
+// A symlink is followed: `isDirectory()` on the entry reports the link itself, so a
+// linked skill directory would drop out of the lines taken out of the index without a
+// word (build-skill-eval-benchmark.js `listDirs` hit the same). A dangling link throws.
 function listFiles(root, current = root, files = []) {
   for (const entry of readdirSync(current, { withFileTypes: true })) {
     const path = join(current, entry.name);
-    if (entry.isDirectory()) {
+    const kind = entry.isSymbolicLink() ? statSync(path) : entry;
+    if (kind.isDirectory()) {
       listFiles(root, path, files);
-    } else if (entry.isFile()) {
+    } else if (kind.isFile()) {
       files.push(relative(root, path).replaceAll("\\", "/"));
     }
   }
@@ -1006,9 +1011,9 @@ export function loadSkillContentIndex({ skillsRoot, skill, fixture, prompt }) {
     )
     .map((path) => ({ path, text: readFileSync(join(skillDirectory, path), "utf8") }));
   const otherSkillTexts = [];
-  for (const entry of readdirSync(skillsRoot, { withFileTypes: true })) {
-    if (entry.isDirectory() && entry.name !== skill) {
-      const directory = join(skillsRoot, entry.name);
+  for (const name of readdirSync(skillsRoot)) {
+    const directory = join(skillsRoot, name);
+    if (name !== skill && statSync(directory).isDirectory()) {
       for (const path of listFiles(directory)) {
         otherSkillTexts.push(readFileSync(join(directory, path), "utf8"));
       }

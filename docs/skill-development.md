@@ -306,7 +306,7 @@ fixture に書いてよいのは、下流のプロジェクトに実際にあり
 | `invoked` | Skill として起動したか | 起動の仕組みが無い（codex はシェルで読む） |
 | `files_read` | 中身を返す操作で開いた、スキルの下のパス（`Read`・`Grep` の引数、`cat`・`head`・`sed` などのシェルのコマンド） | ツールの記録が無い |
 | `content_seen` | ツールの出力にスキルの文が現れた、スキルの Markdown のファイル | ツールの記録が無いか、`--skills-root` が渡されていない |
-| `read` | 起動したか、スキルの下のパスを読んだか、スキルの文が出力に現れたか | `invoked` と `files_read` がどちらも判定できない |
+| `read` | 起動したか、スキルの下のパスを読んだか、スキルの文が出力に現れたか | 読んだ根拠がどの軸にも無く、`files_read` が判定できない（`false` にできるのは、`files_read` を判定できたときだけ） |
 | `invalid_run` | `with_skill` なのに `read` が false | `read` が判定できない |
 
 - `invalid_run: true` の run は採点と集計から外す。汚染した run と同じ扱いである。

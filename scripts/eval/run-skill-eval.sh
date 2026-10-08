@@ -206,7 +206,7 @@ fi
 # matches — /3 is the stream-json switch (raw/claude-code.jsonl + per-tool records +
 # result.json `skill_usage`), so a baseline captured under /2 can no longer be paired
 # with a with_skill run that has those fields.
-harness_version="run-skill-eval/3"
+harness_version="run-skill-eval/4"
 
 metadata_eval_id="${eval_id}"
 eval_dir="$(dirname -- "$(dirname -- "${out}")")"

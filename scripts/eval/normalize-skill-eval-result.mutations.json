@@ -522,7 +522,9 @@
         "skill eval result normalization skill read detection skill text in tool output does not index a line the fixture or the prompt holds",
         "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk takes out a line the fixture holds under a dot-directory",
         "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk takes out a line the prompt holds",
-        "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk takes out a line another skill's script holds"
+        "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk takes out a line another skill's script holds",
+        "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk takes out a line held by a sibling skill that is itself a symlink",
+        "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk takes out a line held by a sibling skill whose subdirectory is a symlink"
       ]
     },
     {
@@ -535,7 +537,9 @@
       "expect_failing": [
         "skill eval result normalization skill read detection skill text in tool output indexes only the lines a run could not have been given",
         "skill eval result normalization skill read detection skill text in tool output does not index a line another skill also holds",
-        "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk takes out a line another skill's script holds"
+        "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk takes out a line another skill's script holds",
+        "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk takes out a line held by a sibling skill that is itself a symlink",
+        "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk takes out a line held by a sibling skill whose subdirectory is a symlink"
       ]
     },
     {
@@ -632,6 +636,18 @@
       "occurrences": 1,
       "expect_failing": [
         "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk fails rather than measure nothing when the skill is not under the root"
+      ]
+    },
+    {
+      "id": "content-symlink-unfollowed",
+      "why": "シンボリックリンクをたどらず、リンクの先にある他のスキルの文を照合から外さない",
+      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "find": "    const kind = entry.isSymbolicLink() ? statSync(path) : entry;\n",
+      "replace": "    const kind = entry;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk takes out a line held by a sibling skill whose subdirectory is a symlink",
+        "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk fails on a dangling symlink rather than drop what it would hold"
       ]
     }
   ]

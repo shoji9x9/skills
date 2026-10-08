@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import { describe, expect, test } from "vitest";
@@ -1063,6 +1063,30 @@ describe("skill eval result normalization", () => {
           const index = loadSkillContentIndex({ skillsRoot: join(root, "skills"), skill: "box" });
 
           expect(index.has(LINE)).toBe(false);
+        });
+
+        // A skill directory reached through a symlink must still take its lines out.
+        test.each([
+          ["a sibling skill that is itself a symlink", "linked", "linked-target"],
+          ["a sibling skill whose subdirectory is a symlink", "nested/references", "nested-target"],
+        ])("takes out a line held by %s", (_label, link, target) => {
+          const root = setup({});
+          writeTree(root, { [`${target}/a.md`]: `${LINE}\n` });
+          writeTree(join(root, "skills"), { "nested/SKILL.md": "x\n" });
+          symlinkSync(join(root, target), join(root, "skills", link));
+          const index = loadSkillContentIndex({ skillsRoot: join(root, "skills"), skill: "box" });
+
+          expect(index.has(LINE)).toBe(false);
+          expect(index.has(API_LINE)).toBe(true);
+        });
+
+        test("fails on a dangling symlink rather than drop what it would hold", () => {
+          const root = setup({});
+          writeTree(join(root, "skills"), { "other/SKILL.md": "x\n" });
+          symlinkSync(join(root, "absent"), join(root, "skills", "other", "references"));
+          expect(() =>
+            loadSkillContentIndex({ skillsRoot: join(root, "skills"), skill: "box" }),
+          ).toThrow(/ENOENT/u);
         });
 
         test("fails rather than measure nothing when the skill is not under the root", () => {
