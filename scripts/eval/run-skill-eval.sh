@@ -457,12 +457,17 @@ normalizer_args=(
 	--reasoning-effort "${reasoning_effort}"
 	--skill "${skill}"
 	--config "${config}"
+	# The skill text a run could only have seen by opening the skill: lines of every
+	# other skill, the fixture and the prompt are taken out (normalize-skill-eval-result.js
+	# `buildSkillContentIndex`).
+	--skills-root "${repo}/skills"
+	--prompt "${eval_prompt}"
 )
+[ -n "${fixture}" ] && normalizer_args+=(--fixture "${fixture}")
 if [ -n "${metadata_eval_id}" ]; then
 	normalizer_args+=(
 		--eval-id "${metadata_eval_id}"
 		--eval-name "${eval_name}"
-		--prompt "${eval_prompt}"
 		--eval-metadata "${eval_dir}/eval_metadata.json"
 		--compat-eval-metadata "${out}/eval_metadata.json"
 	)

@@ -1,8 +1,14 @@
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+
 import { describe, expect, test } from "vitest";
 
 import {
+  buildSkillContentIndex,
   buildSkillUsage,
   codexContaminationSurface,
+  loadSkillContentIndex,
   normalizeTrace,
   parseClaudeTrace,
   parseCodexTrace,
@@ -160,6 +166,7 @@ describe("skill eval result normalization", () => {
       visibleSkills: null,
       invokedSkills: null,
       toolInputTexts: null,
+      toolOutputTexts: null,
     });
   });
 
@@ -251,6 +258,8 @@ describe("skill eval result normalization", () => {
 
     test.each([
       ["cat", "cat .claude/skills/box/SKILL.md"],
+      // cat has no option that takes a value, so the path is not `-n`'s (#572).
+      ["cat with a flag", "cat -n .claude/skills/box/SKILL.md"],
       ["head", "head -n 40 .claude/skills/box/SKILL.md"],
       ["sed", "sed -n '1,20p' .claude/skills/box/SKILL.md"],
       ["grep", "grep -n description .claude/skills/box/SKILL.md"],
@@ -775,7 +784,7 @@ describe("skill eval result normalization", () => {
       });
 
       expect(usage).toMatchObject({ read: null, invalid_run: null });
-      expect(usage.undeterminable).toEqual(["visible", "invoked", "files_read"]);
+      expect(usage.undeterminable).toEqual(["visible", "invoked", "files_read", "content_seen"]);
     });
 
     test("leaves Codex's offered and invoked axes undeterminable while still reading paths", () => {
@@ -805,7 +814,7 @@ describe("skill eval result normalization", () => {
         invoked: null,
         read: true,
         invalid_run: false,
-        undeterminable: ["visible", "invoked"],
+        undeterminable: ["visible", "invoked", "content_seen"],
       });
       expect(usage.files_read).toEqual([".agents/skills/box/SKILL.md"]);
     });
@@ -820,7 +829,7 @@ describe("skill eval result normalization", () => {
       });
 
       expect(usage).toMatchObject({ read: null, invalid_run: null });
-      expect(usage.undeterminable).toEqual(["visible", "invoked", "files_read"]);
+      expect(usage.undeterminable).toEqual(["visible", "invoked", "files_read", "content_seen"]);
     });
 
     test("reports a baseline that reached the skill as an unexpected read", () => {
@@ -841,6 +850,253 @@ describe("skill eval result normalization", () => {
         read: true,
         invalid_run: false,
         unexpected_read: true,
+      });
+    });
+
+    // #572: a read the command parser cannot credit (`;`, a pipe) still shows the
+    // skill's text in the tool output, and only a run that opened the file holds it.
+    describe("skill text in tool output", () => {
+      const BODY_LINE = "Box のフォルダを一覧するときは、まず folder id を確かめる。";
+      const API_LINE = "トークンは curl の Authorization ヘッダで渡す。";
+      const DESCRIPTION_LINE = "description: Box のファイルを REST API で参照・検索・更新する";
+      const SHARED_LINE = "共通の行: このスキルの前提を確かめてから始める。";
+      const GIVEN_LINE = "フィクスチャにもある行: 設定ファイルを読んでから進める。";
+      const PATH_LINE = "references/oauth-setup-for-box.md";
+      const SHORT_LINE = "短い 行";
+      const ASCII_LINE = "const root = document.documentElement;";
+      const contentIndex = buildSkillContentIndex({
+        skillFiles: [
+          {
+            path: "SKILL.md",
+            text: [
+              "---",
+              "name: box",
+              DESCRIPTION_LINE,
+              "---",
+              "",
+              BODY_LINE,
+              SHARED_LINE,
+              GIVEN_LINE,
+              PATH_LINE,
+              ASCII_LINE,
+              SHORT_LINE,
+            ].join("\n"),
+          },
+          { path: "references/api.md", text: `${API_LINE}\n` },
+        ],
+        otherSkillTexts: [`# other\n  ${SHARED_LINE}\n`],
+        givenTexts: ["prompt", `{"note":"${GIVEN_LINE}"}`],
+      });
+
+      const usageFor = (config, events, index = contentIndex) =>
+        buildSkillUsage({
+          config,
+          skill: "box",
+          contentIndex: index,
+          evidence: evidenceFor(
+            claudeStream([
+              { type: "system", subtype: "init", skills: config === "with_skill" ? ["box"] : [] },
+              ...events,
+              RESULT_EVENT,
+            ]),
+          ),
+        });
+
+      test("indexes only the lines a run could not have been given", () => {
+        expect([...contentIndex.keys()]).toEqual([BODY_LINE, API_LINE]);
+      });
+
+      test.each([
+        ["the frontmatter, which lists the description to the agent", DESCRIPTION_LINE],
+        ["a line another skill also holds", SHARED_LINE],
+        ["a line the fixture or the prompt holds", GIVEN_LINE],
+        ["an ASCII-only line, such as a bare path", PATH_LINE],
+        ["an ASCII-only line of code a run could write itself", ASCII_LINE],
+        ["a line shorter than the minimum", SHORT_LINE],
+      ])("does not index %s", (_label, line) => {
+        expect(contentIndex.has(line)).toBe(false);
+      });
+
+      test("counts skill text printed by a ;-joined read the command parser skips", () => {
+        const usage = usageFor("with_skill", [
+          assistantToolUse(
+            "Bash",
+            { command: "cd .claude/skills/box; cat SKILL.md" },
+            { content: `# Box\n${BODY_LINE}\n` },
+          ),
+        ]);
+
+        expect(usage).toMatchObject({ read: true, invalid_run: false, files_read: [] });
+        expect(usage.content_seen).toEqual(["SKILL.md"]);
+      });
+
+      test("counts skill text in the output of a call that failed afterwards", () => {
+        const call = assistantToolUse("Bash", { command: "cat x; false" }, "no-result");
+        const id = call[0].message.content[0].id;
+        const usage = usageFor("with_skill", [
+          call,
+          {
+            type: "user",
+            message: {
+              content: [
+                {
+                  type: "tool_result",
+                  tool_use_id: id,
+                  is_error: true,
+                  content: [{ type: "text", text: `Exit code 1\n   3\t${API_LINE}` }],
+                },
+              ],
+            },
+          },
+        ]);
+
+        expect(usage).toMatchObject({ read: true, content_seen: ["references/api.md"] });
+      });
+
+      test.each([
+        ["the listed description", `${DESCRIPTION_LINE}\n`],
+        ["a find that names a skill file", `./${PATH_LINE}\n./.claude/skills/box/SKILL.md\n`],
+      ])("does not count %s as reading the skill", (_label, output) => {
+        const usage = usageFor("with_skill", [
+          assistantToolUse("Bash", { command: "find . -name '*.md'" }, { content: output }),
+        ]);
+
+        expect(usage).toMatchObject({ read: false, invalid_run: true, content_seen: [] });
+      });
+
+      test("leaves the axis undeterminable without the skill text, not a measured no", () => {
+        const usage = usageFor(
+          "with_skill",
+          [
+            assistantToolUse(
+              "Bash",
+              { command: "cd .claude/skills/box; cat SKILL.md" },
+              { content: BODY_LINE },
+            ),
+          ],
+          null,
+        );
+
+        expect(usage).toMatchObject({ content_seen: null, read: false, invalid_run: true });
+        expect(usage.undeterminable).toEqual(["content_seen"]);
+      });
+
+      test("reports a baseline whose tool output holds the skill text as an unexpected read", () => {
+        const usage = usageFor("without_skill", [
+          assistantToolUse("Bash", { command: "cat ~/notes.md | head" }, { content: BODY_LINE }),
+        ]);
+
+        expect(usage).toMatchObject({ read: true, unexpected_read: true });
+      });
+
+      describe("loading the skill text from disk", () => {
+        const LINE = "設定ファイルの場所を確かめてから、次の手順に進む。";
+        const writeTree = (root, files) => {
+          for (const [path, text] of Object.entries(files)) {
+            mkdirSync(dirname(join(root, path)), { recursive: true });
+            writeFileSync(join(root, path), text, "utf8");
+          }
+        };
+        const setup = (fixtureFiles) => {
+          const root = mkdtempSync(join(tmpdir(), "skill-content-"));
+          writeTree(join(root, "skills"), {
+            "box/SKILL.md": `---\nname: box\n---\n${LINE}\n`,
+            "box/references/api.md": `${API_LINE}\n`,
+            "box/assets/template.md": `${BODY_LINE}\n`,
+            "box/scripts/run.sh": "echo 'スクリプトの使い方: run.sh <対象のディレクトリ>'\n",
+            "box/assets/data.json": '{"k": "JSON の値は索引に入れない、長い文字列"}\n',
+          });
+          writeTree(join(root, "fixture"), fixtureFiles);
+          return root;
+        };
+
+        test("indexes SKILL.md and the Markdown under references and assets only", () => {
+          const root = setup({ "README.md": "x\n" });
+          const index = loadSkillContentIndex({
+            skillsRoot: join(root, "skills"),
+            skill: "box",
+            fixture: join(root, "fixture"),
+            prompt: "p",
+          });
+
+          expect(Object.fromEntries([...index].map(([line, paths]) => [line, [...paths]]))).toEqual(
+            {
+              [LINE]: ["SKILL.md"],
+              [API_LINE]: ["references/api.md"],
+              [BODY_LINE]: ["assets/template.md"],
+            },
+          );
+        });
+
+        // A fixture's config usually sits under a dot-directory (`.config/skills/…`).
+        test("takes out a line the fixture holds under a dot-directory", () => {
+          const root = setup({ ".config/skills/shoji9x9/skills.yml": `# ${LINE}\n` });
+          const index = loadSkillContentIndex({
+            skillsRoot: join(root, "skills"),
+            skill: "box",
+            fixture: join(root, "fixture"),
+          });
+
+          expect(index.has(LINE)).toBe(false);
+          expect(index.has(API_LINE)).toBe(true);
+        });
+
+        test("takes out a line the prompt holds", () => {
+          const root = setup({});
+          const index = loadSkillContentIndex({
+            skillsRoot: join(root, "skills"),
+            skill: "box",
+            prompt: `次の文に従う: ${API_LINE}`,
+          });
+
+          expect(index.has(API_LINE)).toBe(false);
+          expect(index.has(LINE)).toBe(true);
+        });
+
+        test("takes out a line another skill's script holds", () => {
+          const root = setup({});
+          writeTree(join(root, "skills"), {
+            "other/SKILL.md": "x\n",
+            "other/scripts/a.sh": `# ${LINE}\n${LINE}\n`,
+          });
+          const index = loadSkillContentIndex({ skillsRoot: join(root, "skills"), skill: "box" });
+
+          expect(index.has(LINE)).toBe(false);
+        });
+
+        test("fails rather than measure nothing when the skill is not under the root", () => {
+          const root = setup({});
+          expect(() =>
+            loadSkillContentIndex({ skillsRoot: join(root, "skills"), skill: "absent" }),
+          ).toThrow(/skill not found under --skills-root/u);
+        });
+      });
+
+      test("reads Codex command output whatever the command's exit code", () => {
+        const usage = buildSkillUsage({
+          config: "with_skill",
+          skill: "box",
+          contentIndex,
+          evidence: evidenceFor(
+            [
+              {
+                type: "item.completed",
+                item: {
+                  type: "command_execution",
+                  command: "/bin/bash -lc 'cat .agents/skills/box/SKILL.md; false'",
+                  aggregated_output: `${BODY_LINE}\n`,
+                  exit_code: 1,
+                },
+              },
+              { type: "item.completed", item: { type: "agent_message", text: "done" } },
+            ]
+              .map((event) => JSON.stringify(event))
+              .join("\n"),
+            "codex",
+          ),
+        });
+
+        expect(usage).toMatchObject({ read: true, files_read: [], content_seen: ["SKILL.md"] });
       });
     });
 

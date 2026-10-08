@@ -458,6 +458,181 @@
         "codex contamination surface keeps an echo run with a BASH_ENV prefix verbatim",
         "codex contamination surface keeps an echo run behind sudo verbatim"
       ]
+    },
+    {
+      "id": "cat-flag-takes-value",
+      "why": "cat のフラグの次の語をフラグの値として扱い、cat -n <パス> を読み取りから外す",
+      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "find": "const FLAG_ONLY_UTILITIES = new Set([\"cat\"]);",
+      "replace": "const FLAG_ONLY_UTILITIES = new Set([]);",
+      "occurrences": 1,
+      "expect_failing": [
+        "skill eval result normalization skill read detection counts cat with a flag as reading the skill"
+      ]
+    },
+    {
+      "id": "content-frontmatter-kept",
+      "why": "SKILL.md の frontmatter（agent に示される説明）を照合の候補に残す",
+      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "find": "const body = path === \"SKILL.md\" ? stripFrontmatter(text) : text;",
+      "replace": "const body = text;",
+      "occurrences": 1,
+      "expect_failing": [
+        "skill eval result normalization skill read detection skill text in tool output indexes only the lines a run could not have been given",
+        "skill eval result normalization skill read detection skill text in tool output does not index the frontmatter, which lists the description to the agent",
+        "skill eval result normalization skill read detection skill text in tool output does not count the listed description as reading the skill"
+      ]
+    },
+    {
+      "id": "content-short-line-kept",
+      "why": "短い行も照合の候補に残す",
+      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "find": "        line.length < MIN_CONTENT_LINE_LENGTH ||\n",
+      "replace": "        false ||\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "skill eval result normalization skill read detection skill text in tool output indexes only the lines a run could not have been given",
+        "skill eval result normalization skill read detection skill text in tool output does not index a line shorter than the minimum"
+      ]
+    },
+    {
+      "id": "content-bare-path-kept",
+      "why": "ASCII だけの行（ファイル名・コード・設定の値）を照合の候補に残す",
+      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "find": "        !/[\\u0080-\\u{10ffff}]/u.test(line) ||\n",
+      "replace": "        false ||\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "skill eval result normalization skill read detection skill text in tool output indexes only the lines a run could not have been given",
+        "skill eval result normalization skill read detection skill text in tool output does not index an ASCII-only line, such as a bare path",
+        "skill eval result normalization skill read detection skill text in tool output does not index an ASCII-only line of code a run could write itself",
+        "skill eval result normalization skill read detection skill text in tool output does not count a find that names a skill file as reading the skill"
+      ]
+    },
+    {
+      "id": "content-exclusion-off",
+      "why": "他のスキル・fixture・prompt にある文を照合の候補から外さない",
+      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "find": "        excluded.some((text) => text.includes(line))\n",
+      "replace": "        false\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "skill eval result normalization skill read detection skill text in tool output indexes only the lines a run could not have been given",
+        "skill eval result normalization skill read detection skill text in tool output does not index a line another skill also holds",
+        "skill eval result normalization skill read detection skill text in tool output does not index a line the fixture or the prompt holds",
+        "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk takes out a line the fixture holds under a dot-directory",
+        "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk takes out a line the prompt holds",
+        "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk takes out a line another skill's script holds"
+      ]
+    },
+    {
+      "id": "content-other-skills-ignored",
+      "why": "他のスキルにある文を照合の候補から外さない",
+      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "find": "  const excluded = [...otherSkillTexts, ...givenTexts];",
+      "replace": "  const excluded = [...givenTexts];",
+      "occurrences": 1,
+      "expect_failing": [
+        "skill eval result normalization skill read detection skill text in tool output indexes only the lines a run could not have been given",
+        "skill eval result normalization skill read detection skill text in tool output does not index a line another skill also holds",
+        "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk takes out a line another skill's script holds"
+      ]
+    },
+    {
+      "id": "content-given-ignored",
+      "why": "fixture と prompt にある文を照合の候補から外さない",
+      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "find": "  const excluded = [...otherSkillTexts, ...givenTexts];",
+      "replace": "  const excluded = [...otherSkillTexts];",
+      "occurrences": 1,
+      "expect_failing": [
+        "skill eval result normalization skill read detection skill text in tool output indexes only the lines a run could not have been given",
+        "skill eval result normalization skill read detection skill text in tool output does not index a line the fixture or the prompt holds",
+        "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk takes out a line the fixture holds under a dot-directory",
+        "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk takes out a line the prompt holds"
+      ]
+    },
+    {
+      "id": "content-not-read",
+      "why": "出力に現れたスキルの文を read の根拠にしない",
+      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "find": "    (contentSeen !== null && contentSeen.length > 0)\n",
+      "replace": "    false\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "skill eval result normalization skill read detection skill text in tool output counts skill text printed by a ;-joined read the command parser skips",
+        "skill eval result normalization skill read detection skill text in tool output counts skill text in the output of a call that failed afterwards",
+        "skill eval result normalization skill read detection skill text in tool output reports a baseline whose tool output holds the skill text as an unexpected read",
+        "skill eval result normalization skill read detection skill text in tool output reads Codex command output whatever the command's exit code"
+      ]
+    },
+    {
+      "id": "content-claude-output-dropped",
+      "why": "claude-code の tool_result の出力を集めない",
+      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "find": "        toolOutputTexts.push(toolResultText(block.content));\n",
+      "replace": "        void 0;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "skill eval result normalization skill read detection skill text in tool output counts skill text printed by a ;-joined read the command parser skips",
+        "skill eval result normalization skill read detection skill text in tool output counts skill text in the output of a call that failed afterwards",
+        "skill eval result normalization skill read detection skill text in tool output reports a baseline whose tool output holds the skill text as an unexpected read"
+      ]
+    },
+    {
+      "id": "content-codex-output-dropped",
+      "why": "codex の command_execution の出力を集めない",
+      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "find": "        toolOutputTexts.push(event.item.aggregated_output);\n",
+      "replace": "        void 0;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "skill eval result normalization skill read detection skill text in tool output reads Codex command output whatever the command's exit code"
+      ]
+    },
+    {
+      "id": "content-non-markdown-indexed",
+      "why": "スクリプトや JSON も照合の候補にする",
+      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "find": "        path === \"SKILL.md\" || (/^(?:references|assets)\\//u.test(path) && path.endsWith(\".md\")),\n",
+      "replace": "        true,\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk indexes SKILL.md and the Markdown under references and assets only"
+      ]
+    },
+    {
+      "id": "content-fixture-unread",
+      "why": "fixture のファイルを読まない",
+      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "find": "      givenTexts.push(readFileSync(join(fixture, path), \"utf8\"));\n",
+      "replace": "      void 0;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk takes out a line the fixture holds under a dot-directory"
+      ]
+    },
+    {
+      "id": "content-prompt-unread",
+      "why": "prompt を照合の候補から外す対象にしない",
+      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "find": "  const givenTexts = typeof prompt === \"string\" ? [prompt] : [];",
+      "replace": "  const givenTexts = [];",
+      "occurrences": 1,
+      "expect_failing": [
+        "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk takes out a line the prompt holds"
+      ]
+    },
+    {
+      "id": "content-missing-skill-accepted",
+      "why": "--skills-root の下にスキルが無くても止まらない",
+      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "find": "  if (!existsSync(join(skillDirectory, \"SKILL.md\"))) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk fails rather than measure nothing when the skill is not under the root"
+      ]
     }
   ]
 }

@@ -1,6 +1,13 @@
 #!/usr/bin/env node
 
-import { readFileSync, readdirSync, realpathSync, renameSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+  renameSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join, posix, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -50,7 +57,7 @@ function normalizeUsage(executor, usage = {}) {
 // answer that question at all — never conflate it with a measured "no" (that is
 // what made a 0-count read as "the agent did not do it"; see #377).
 function emptySkillEvidence() {
-  return { visibleSkills: null, invokedSkills: null, toolInputTexts: null };
+  return { visibleSkills: null, invokedSkills: null, toolInputTexts: null, toolOutputTexts: null };
 }
 
 // Evidence is restricted to operations that RETURN a file's contents. Naming a path
@@ -100,6 +107,10 @@ const SHELL_BINARIES = new Set(["bash", "sh", "zsh", "dash", "ksh"]);
 // a separator inside a quoted word.
 const SHELL_CONTROL_FLOW = /[|&;\n`()<>]|\$\(/u;
 
+// Utilities none of whose options takes a value, so the word after a flag is an
+// operand. Without this, `cat -n <skill path>` gave the path to `-n` (#572).
+const FLAG_ONLY_UTILITIES = new Set(["cat"]);
+
 // How many leading non-flag operands are NOT files. `grep PATTERN file` and
 // `sed SCRIPT file` name the skill path in that first operand without opening it,
 // so the evidence is the operands after it, never the whole command.
@@ -147,7 +158,12 @@ function readOperands(command) {
     }
     if (!endOfFlags && word.startsWith("-") && word !== "-") {
       const next = rest[cursor + 1];
-      if (next !== undefined && next !== "--" && !next.startsWith("-")) {
+      if (
+        !FLAG_ONLY_UTILITIES.has(utility) &&
+        next !== undefined &&
+        next !== "--" &&
+        !next.startsWith("-")
+      ) {
         cursor += 1;
         consumedOptionValue = true;
       }
@@ -549,6 +565,7 @@ export function parseClaudeTrace(rawText) {
   let visibleSkills = null;
   const invokedSkills = [];
   const toolInputTexts = [];
+  const toolOutputTexts = [];
   const toolCalls = {};
   let totalToolCalls = 0;
   // tool_use id -> evidence awaiting its result. Anything still here at the end was
@@ -586,6 +603,9 @@ export function parseClaudeTrace(rawText) {
         if (typeof block !== "object" || block === null || block.type !== "tool_result") {
           continue;
         }
+        // What a call printed counts whatever its status: `cat X; false` fails having
+        // shown X (see skillContentSeen).
+        toolOutputTexts.push(toolResultText(block.content));
         const pending = pendingEvidence.get(block.tool_use_id);
         if (pending === undefined) {
           continue;
@@ -688,7 +708,7 @@ export function parseClaudeTrace(rawText) {
     // The init event lists what was offered, so an absent list is "not stated",
     // not "nothing was offered".
     skillEvidence: sawNonResultEvent
-      ? { visibleSkills, invokedSkills, toolInputTexts }
+      ? { visibleSkills, invokedSkills, toolInputTexts, toolOutputTexts }
       : emptySkillEvidence(),
   };
 }
@@ -709,6 +729,7 @@ export function parseCodexTrace(rawText) {
   let usage = normalizeUsage("codex");
   const toolCalls = {};
   const toolInputTexts = [];
+  const toolOutputTexts = [];
   let totalToolCalls = 0;
   let totalSteps = 0;
   let errors = 0;
@@ -738,6 +759,9 @@ export function parseCodexTrace(rawText) {
     if (event.item.type === "command_execution") {
       totalToolCalls += 1;
       toolCalls.command_execution = (toolCalls.command_execution ?? 0) + 1;
+      if (typeof event.item.aggregated_output === "string") {
+        toolOutputTexts.push(event.item.aggregated_output);
+      }
       // Codex emits item.started and item.completed for the same command; only the
       // completed side is counted here, so the command text is collected once too.
       // Same rule as the claude side, plus the same success requirement: only a
@@ -772,6 +796,7 @@ export function parseCodexTrace(rawText) {
       visibleSkills: null,
       invokedSkills: null,
       toolInputTexts: events.length > 0 ? toolInputTexts : null,
+      toolOutputTexts: events.length > 0 ? toolOutputTexts : null,
     },
   };
 }
@@ -887,11 +912,122 @@ function collectSkillPaths(texts, skill) {
   return [...found].sort();
 }
 
+// A second kind of evidence, for reads the command parser cannot credit: a skill line
+// that shows up in what a tool printed. `cd <skill dir>; cat SKILL.md` and
+// `grep … SKILL.md | head` are not `&&` lists, so their commands prove nothing, but
+// their output holds the file's text, and the run cannot hold that text without
+// having opened the file — provided every other way the text could reach the run is
+// taken out of the candidate lines (#572):
+// - the frontmatter, which the executor lists to the agent as the skill's description;
+// - any text in another skill's files, which a run may legitimately read;
+// - any text in the fixture or the prompt, which the run is given.
+// Each is matched as a substring, so a line quoted inside a longer one (a JSON string,
+// a table cell) is taken out too. What is left must also be prose a run would not
+// write itself: at least MIN_CONTENT_LINE_LENGTH characters, with a non-ASCII
+// character. An ASCII-only line is a name, a command or a config value
+// (`max_pr_iterations: 5`, `if (!el) return false;`), which a run that never opened
+// the skill can write and print back (an Edit result shows the file), and a file name
+// that `find` or `ls` prints is one too. The skills here are written in Japanese, so
+// this keeps their sentences; a skill with no such line only ever loses evidence.
+// Only Markdown is indexed: a script's usage text is printed by running it, which is
+// not reading it.
+const MIN_CONTENT_LINE_LENGTH = 20;
+
+function stripFrontmatter(text) {
+  const match = /^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/u.exec(text);
+  return match === null ? text : text.slice(match[0].length);
+}
+
+// `skillFiles` are the subject skill's Markdown files as { path, text } (path relative
+// to the skill directory, SKILL.md with its frontmatter); `otherSkillTexts` every file
+// of every other skill; `givenTexts` the fixture files and the prompt. Returns the
+// candidate lines, each with the files that contain it.
+export function buildSkillContentIndex({ skillFiles, otherSkillTexts, givenTexts }) {
+  const excluded = [...otherSkillTexts, ...givenTexts];
+  const index = new Map();
+  for (const { path, text } of skillFiles) {
+    const body = path === "SKILL.md" ? stripFrontmatter(text) : text;
+    for (const raw of body.split(/\r?\n/u)) {
+      const line = raw.trim();
+      if (
+        line.length < MIN_CONTENT_LINE_LENGTH ||
+        !/[\u0080-\u{10ffff}]/u.test(line) ||
+        excluded.some((text) => text.includes(line))
+      ) {
+        continue;
+      }
+      if (!index.has(line)) {
+        index.set(line, new Set());
+      }
+      index.get(line).add(path);
+    }
+  }
+  return index;
+}
+
+// The skill files at least one of whose candidate lines appears in a tool's output.
+function skillContentSeen(outputs, contentIndex) {
+  const text = outputs.join("\n");
+  const seen = new Set();
+  for (const [line, paths] of contentIndex) {
+    if ([...paths].every((path) => seen.has(path))) {
+      continue;
+    }
+    if (text.includes(line)) {
+      for (const path of paths) {
+        seen.add(path);
+      }
+    }
+  }
+  return [...seen].sort();
+}
+
+function listFiles(root, current = root, files = []) {
+  for (const entry of readdirSync(current, { withFileTypes: true })) {
+    const path = join(current, entry.name);
+    if (entry.isDirectory()) {
+      listFiles(root, path, files);
+    } else if (entry.isFile()) {
+      files.push(relative(root, path).replaceAll("\\", "/"));
+    }
+  }
+  return files;
+}
+
+export function loadSkillContentIndex({ skillsRoot, skill, fixture, prompt }) {
+  const skillDirectory = join(skillsRoot, skill);
+  if (!existsSync(join(skillDirectory, "SKILL.md"))) {
+    throw new Error(`skill not found under --skills-root: ${skillDirectory}`);
+  }
+  const skillFiles = listFiles(skillDirectory)
+    .filter(
+      (path) =>
+        path === "SKILL.md" || (/^(?:references|assets)\//u.test(path) && path.endsWith(".md")),
+    )
+    .map((path) => ({ path, text: readFileSync(join(skillDirectory, path), "utf8") }));
+  const otherSkillTexts = [];
+  for (const entry of readdirSync(skillsRoot, { withFileTypes: true })) {
+    if (entry.isDirectory() && entry.name !== skill) {
+      const directory = join(skillsRoot, entry.name);
+      for (const path of listFiles(directory)) {
+        otherSkillTexts.push(readFileSync(join(directory, path), "utf8"));
+      }
+    }
+  }
+  const givenTexts = typeof prompt === "string" ? [prompt] : [];
+  if (fixture !== undefined) {
+    for (const path of listFiles(fixture)) {
+      givenTexts.push(readFileSync(join(fixture, path), "utf8"));
+    }
+  }
+  return buildSkillContentIndex({ skillFiles, otherSkillTexts, givenTexts });
+}
+
 // Answers "did this run actually read the subject skill?" so a with_skill run that
 // never opened it can be excluded from the comparison instead of silently scoring
 // as if the skill were weak (#377). Every axis is tri-state: true / false / null,
 // where null means this executor's trace cannot answer it.
-export function buildSkillUsage({ config, skill, evidence }) {
+export function buildSkillUsage({ config, skill, evidence, contentIndex = null }) {
   if (!skill || !config) {
     return null;
   }
@@ -918,10 +1054,21 @@ export function buildSkillUsage({ config, skill, evidence }) {
     undeterminable.push("files_read");
   }
 
+  let contentSeen = null;
+  if (contentIndex !== null && Array.isArray(evidence?.toolOutputTexts)) {
+    contentSeen = skillContentSeen(evidence.toolOutputTexts, contentIndex);
+  } else {
+    undeterminable.push("content_seen");
+  }
+
   // `invoked === false` alone never settles this: a shell-only read leaves no Skill
   // call. Only a complete tool-input list can turn the answer negative.
   let read = null;
-  if (invoked === true || (filesRead !== null && filesRead.length > 0)) {
+  if (
+    invoked === true ||
+    (filesRead !== null && filesRead.length > 0) ||
+    (contentSeen !== null && contentSeen.length > 0)
+  ) {
     read = true;
   } else if (filesRead !== null) {
     read = false;
@@ -934,6 +1081,7 @@ export function buildSkillUsage({ config, skill, evidence }) {
     visible,
     invoked,
     files_read: filesRead,
+    content_seen: contentSeen,
     read,
     undeterminable,
   };
@@ -962,6 +1110,7 @@ export function normalizeTrace({
   filesCreated,
   skill,
   config,
+  contentIndex = null,
 }) {
   let parsed;
   let normalizationError = null;
@@ -1007,7 +1156,12 @@ export function normalizeTrace({
     usage: parsed.usage,
     raw_trace: rawTrace,
   };
-  const skillUsage = buildSkillUsage({ config, skill, evidence: parsed.skillEvidence });
+  const skillUsage = buildSkillUsage({
+    config,
+    skill,
+    evidence: parsed.skillEvidence,
+    contentIndex,
+  });
   if (skillUsage !== null) {
     result.skill_usage = skillUsage;
   }
@@ -1043,18 +1197,6 @@ export function normalizeTrace({
   return { result, timing, metrics, normalizationError };
 }
 
-function listCapturedFiles(root, current = root, files = []) {
-  for (const entry of readdirSync(current, { withFileTypes: true })) {
-    const path = join(current, entry.name);
-    if (entry.isDirectory()) {
-      listCapturedFiles(root, path, files);
-    } else if (entry.isFile()) {
-      files.push(relative(root, path).replaceAll("\\", "/"));
-    }
-  }
-  return files;
-}
-
 export function determineFilesCreated(projectFiles, initialFilesRaw) {
   const initialFiles = new Set(
     initialFilesRaw
@@ -1062,7 +1204,7 @@ export function determineFilesCreated(projectFiles, initialFilesRaw) {
       .filter(Boolean)
       .map((path) => path.replaceAll("\\", "/")),
   );
-  return listCapturedFiles(projectFiles)
+  return listFiles(projectFiles)
     .filter((path) => !initialFiles.has(path))
     .sort();
 }
@@ -1146,6 +1288,21 @@ function main() {
   if (args.config !== undefined && !new Set(["with_skill", "without_skill"]).has(args.config)) {
     throw new Error(`unsupported config: ${args.config}`);
   }
+  if (args["skills-root"] !== undefined && args.skill === undefined) {
+    throw new Error("--skills-root needs --skill");
+  }
+  if (args.fixture !== undefined && args["skills-root"] === undefined) {
+    throw new Error("--fixture needs --skills-root");
+  }
+  const contentIndex =
+    args["skills-root"] === undefined
+      ? null
+      : loadSkillContentIndex({
+          skillsRoot: args["skills-root"],
+          skill: args.skill,
+          fixture: args.fixture,
+          prompt: args.prompt,
+        });
 
   const rawText = readFileSync(args.raw, "utf8");
   // Written before normalization so a trace that fails to normalize is still scanned.
@@ -1178,6 +1335,7 @@ function main() {
     filesCreated,
     skill: args.skill,
     config: args.config,
+    contentIndex,
   });
 
   atomicWrite(args.result, `${JSON.stringify(normalized.result, null, 2)}\n`);

@@ -68,7 +68,7 @@ tests/<skill>/iteration-N/
 - `result`: 最終アシスタントメッセージ
 - `usage.{input_tokens,cached_input_tokens,cache_write_input_tokens,output_tokens,reasoning_output_tokens,total_tokens}`
 - `raw_trace`: run からの相対パス
-- `skill_usage`: 対象のスキルを読んだかの判定。`visible`・`invoked`・`files_read`・`read`・`invalid_run`・`undeterminable` を持ち、`without_skill` では汚染を示す `unexpected_read` も持つ。
+- `skill_usage`: 対象のスキルを読んだかの判定。`visible`・`invoked`・`files_read`・`content_seen`・`read`・`invalid_run`・`undeterminable` を持ち、`without_skill` では汚染を示す `unexpected_read` も持つ。
   各項目は true・false・`null`（この executor では測れない）のどれかになる。集計から外す方法は [`skill-development.md`](skill-development.md)「対象スキルを読まなかった run を集計から外す」にある
 
 `timing.json` は同じ `executor` と、`total_tokens`、開始・終了時刻、ミリ秒・秒の実測時間を持つ。
