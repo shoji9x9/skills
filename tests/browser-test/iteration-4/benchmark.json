@@ -1,0 +1,147 @@
+{
+  "metadata": {
+    "skill_name": "browser-test",
+    "skill_path": "<repo>/skills/browser-test",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-08T07:48:31Z",
+    "evals_run": [8],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 30.01,
+        "tokens": 85173,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "chrome-devtools MCP 自身がデフォルトで利用統計を送るので、起動引数に --no-usage-statistics を入れると述べている",
+          "passed": true,
+          "evidence": "表の①で、利用統計はデフォルトで有効で、--no-usage-statistics で止まると述べる。"
+        },
+        {
+          "text": "性能のトレースを使うなら、--no-performance-crux も入れると述べている",
+          "passed": true,
+          "evidence": "表の②と手順 2 で、性能トレースを使うときは --no-performance-crux を入れると述べる。"
+        },
+        {
+          "text": "--no-usage-statistics などの MCP の引数では、MCP が起動する Google Chrome 本体の送信は止まらないと述べている",
+          "passed": true,
+          "evidence": "①と②の引数を足しても③（Chrome 本体の送信）は止まらないと明記している。"
+        },
+        {
+          "text": "ブラウザ本体の送信を避けるには、--executablePath に Playwright の headless shell を渡すと述べている",
+          "passed": true,
+          "evidence": "--executablePath に Playwright の headless shell を渡し、revision を browsers.json から組み立てると述べる。"
+        },
+        {
+          "text": "遮断された送信が再試行し続けることに触れ、遮断されるから問題ないとは扱っていない",
+          "passed": true,
+          "evidence": "遮断された後も間隔を広げながら再試行し続けると述べ、③への対策を示している。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 52.54,
+        "tokens": 37209,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "chrome-devtools MCP 自身がデフォルトで利用統計を送るので、起動引数に --no-usage-statistics を入れると述べている",
+          "passed": true,
+          "evidence": "表の 1 で、利用統計の送信と --no-usage-statistics での止め方を述べる。"
+        },
+        {
+          "text": "性能のトレースを使うなら、--no-performance-crux も入れると述べている",
+          "passed": true,
+          "evidence": "表の 2 で、--no-performance-crux を述べる。"
+        },
+        {
+          "text": "--no-usage-statistics などの MCP の引数では、MCP が起動する Google Chrome 本体の送信は止まらないと述べている",
+          "passed": true,
+          "evidence": "表の 3 で、Chrome 本体の通信を MCP のフラグとは別の対策（起動引数・ポリシー）の対象として分けている。"
+        },
+        {
+          "text": "ブラウザ本体の送信を避けるには、--executablePath に Playwright の headless shell を渡すと述べている",
+          "passed": false,
+          "evidence": "起動引数・企業ポリシー・既存の Chrome への接続を挙げるが、--executablePath に Playwright の headless shell を渡す方法には触れていない。"
+        },
+        {
+          "text": "遮断された送信が再試行し続けることに触れ、遮断されるから問題ないとは扱っていない",
+          "passed": true,
+          "evidence": "補足で、遮断されたリクエストがリトライやタイムアウトの原因になるので設定でも止めておくのが確実だと述べる。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 30.01,
+        "stddev": 0,
+        "min": 30.01,
+        "max": 30.01
+      },
+      "tokens": {
+        "mean": 85173,
+        "stddev": 0,
+        "min": 85173,
+        "max": 85173
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.8,
+        "stddev": 0,
+        "min": 0.8,
+        "max": 0.8
+      },
+      "time_seconds": {
+        "mean": 52.54,
+        "stddev": 0,
+        "min": 52.54,
+        "max": 52.54
+      },
+      "tokens": {
+        "mean": 37209,
+        "stddev": 0,
+        "min": 37209,
+        "max": 37209
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.20",
+      "time_seconds": "-22.5",
+      "tokens": "+47964"
+    }
+  },
+  "notes": []
+}

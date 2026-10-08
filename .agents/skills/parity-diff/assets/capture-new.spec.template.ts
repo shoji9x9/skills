@@ -325,6 +325,15 @@ async function recordIdentity(
   // beforeAll ではなく最初のテストで読むので、ワーカーごとに 1 回。書くのは並列の枠 0 のワーカーだけにし
   // （同じプロジェクトのワーカーは同じブラウザ・同じ use で撮る）、一時ファイルからの rename で書く（途中まで書いたファイルを parity-diff が読まない）
   if (testInfo.parallelIndex !== 0) return;
+  const channel = testInfo.project.use.channel ?? null;
+  const headless = testInfo.project.use.headless ?? null;
+  if (channel !== null || headless === false) {
+    // channel の指定と headless: false は、headless shell ではなく完全版の Chromium / Google Chrome を起動する。
+    // ブラウザ本体は、ページを開かなくても起動しただけで Google へ送信する（デフォルトの headless shell は送信しない）
+    console.warn(
+      `[capture-new] channel=${channel} headless=${headless}: ブラウザ本体が Google へ送信する構成で撮っている`,
+    );
+  }
   const seen = {
     userAgent: await page.evaluate(() => navigator.userAgent),
     os: await readBrowserOs(page.context().browser()),
@@ -335,8 +344,8 @@ async function recordIdentity(
     product: page.context().browser()?.version() ?? null,
     user_agent: seen.userAgent,
     // project の use に書いた値（未指定は null＝Playwright の既定）。test.use で上書きした scrollbars の起動引数は scrollbars が持つ
-    channel: testInfo.project.use.channel ?? null,
-    headless: testInfo.project.use.headless ?? null,
+    channel,
+    headless,
     browser_os: seen.os,
     runner_os: `${platform()} ${release()} ${arch()}`,
     // 撮影ページで実測したスクロールバーの幅（overflow: scroll の箱）。バーの種類・厚みが変われば描画環境も変わる

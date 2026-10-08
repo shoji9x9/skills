@@ -65,6 +65,39 @@
         "渡された forbidden_actions（データの削除）を今回の確認に適用する方針を示している",
         "chrome-devtools MCP が無く中断する際、環境が整った後に実施する確認内容（対象ページと確認観点）を残している"
       ]
+    },
+    {
+      "id": 8,
+      "prompt": "社内のネットワークは外向きの通信を許可制にしていて、許可していない宛先はプロキシで遮断される。browser-test を使いたいけど、chrome-devtools MCP は .mcp.json に chrome-devtools-mcp@latest を引数なしで登録しただけ。この構成で、確認作業中に Google へ何か送られる？ 送られるなら、どう設定すれば止められる？（コマンドの実行やファイルの変更はせず、手順だけ教えて）",
+      "assertions": [
+        "chrome-devtools MCP 自身がデフォルトで利用統計を送るので、起動引数に --no-usage-statistics を入れると述べている",
+        "性能のトレースを使うなら、--no-performance-crux も入れると述べている",
+        "--no-usage-statistics などの MCP の引数では、MCP が起動する Google Chrome 本体の送信は止まらないと述べている",
+        "ブラウザ本体の送信を避けるには、--executablePath に Playwright の headless shell を渡すと述べている",
+        "遮断された送信が再試行し続けることに触れ、遮断されるから問題ないとは扱っていない"
+      ],
+      "reachability": [
+        {
+          "assertion": "chrome-devtools MCP 自身がデフォルトで利用統計を送るので、起動引数に --no-usage-statistics を入れると述べている",
+          "prompt_quote": "chrome-devtools-mcp@latest を引数なしで登録しただけ"
+        },
+        {
+          "assertion": "性能のトレースを使うなら、--no-performance-crux も入れると述べている",
+          "prompt_quote": "確認作業中に Google へ何か送られる？"
+        },
+        {
+          "assertion": "--no-usage-statistics などの MCP の引数では、MCP が起動する Google Chrome 本体の送信は止まらないと述べている",
+          "prompt_quote": "どう設定すれば止められる？"
+        },
+        {
+          "assertion": "ブラウザ本体の送信を避けるには、--executablePath に Playwright の headless shell を渡すと述べている",
+          "prompt_quote": "どう設定すれば止められる？"
+        },
+        {
+          "assertion": "遮断された送信が再試行し続けることに触れ、遮断されるから問題ないとは扱っていない",
+          "prompt_quote": "プロキシで遮断される"
+        }
+      ]
     }
   ]
 }

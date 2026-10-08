@@ -54,6 +54,11 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
   - `projects` で、同じスイートを 2 つの baseURL（現・新）に対して実行できる。API の特性化も、`request` フィクスチャで同じ仕組みにそろえられる
 
   Playwright を使えないプロジェクトでは、このスキルの設計は成り立たない。その旨を明示して停止する（代わりのランナーでスイートを書かない）。
+- Playwright の `channel` と `headless` は、プロジェクトの Playwright の設定に従う。このスキルは変えない。
+  ブラウザ本体の送信は、この値で決まる。デフォルト（`channel` を指定しない、`headless: true`）で起動する headless shell は外部へ送信しない。
+  `channel` を指定するか `headless: false` にすると、完全版の Chromium か Google Chrome が起動し、ページを開かなくても、ブラウザ本体が起動の数秒後から Google へ送信する。
+  外部への通信を許可制にした環境では、遮断された送信が間隔を広げながら再試行し続ける。
+  使った値は記録に残す（`browser-identity` と性能の採取は `channel`・`headless` を記録し、デフォルトと違えば警告を出す）
 
 ## 厳守の制約（禁止事項）
 

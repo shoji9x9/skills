@@ -50,6 +50,17 @@ browser-test setup
 - MCP が無効か未設定のときは、ユーザーに有効にするよう促して、このスキルを中断する。
   中断するときは、環境が整った後に行う確認の内容（対象のページと確認の観点の一覧）を導いて、報告に残してから中断する。
   ローカル環境が起動していないなど、他の理由で中断するときも同じである。
+- Google への送信を止めるかは、利用者が MCP の設定で決める。このスキルは引数を求めず、追加も促さない。
+  送信について聞かれたら、次の事実と止め方を示す。
+  - MCP 自身が利用統計を Google へ送る設定は、デフォルトで有効である。起動引数 `--no-usage-statistics` で止まる。
+    性能のトレース（`performance_start_trace` など）は、トレースの URL を CrUX API へ送る。`--no-performance-crux` で止まる
+    （出典: <https://github.com/ChromeDevTools/chrome-devtools-mcp#usage-statistics>）
+  - この 2 つの引数では、ブラウザ本体の送信は止まらない。MCP がデフォルトで起動する Google Chrome は、ページを開かなくても、起動の数秒後から Google へ送信する。
+    外部への通信を許可制にした環境では、遮断された送信が間隔を広げながら再試行し続ける。
+    ブラウザ本体の送信を避けるなら、`--executablePath` に Playwright の headless shell（`chromium_headless_shell-<revision>/.../chrome-headless-shell`）を渡す
+    （出典: <https://github.com/ChromeDevTools/chrome-devtools-mcp/blob/main/docs/configuration.md>）。
+    MCP が公式に対応するのは Google Chrome と Chrome for Testing なので、headless shell で使うツールは、使う前に 1 度動くことを確かめる。
+    revision は Playwright の版ごとに変わるので、`playwright-core/browsers.json` の `chromium-headless-shell` の `revision` から組み立てる
 - WSL で実行する場合は、Chrome 本体と CJK フォント（`fonts-noto-cjk`。日本語の文字化けを防ぐ）が要る。
 - ツール: `git`（確認のスコープを導く）、`curl`（ローカル環境が動いているかを確かめる）
 

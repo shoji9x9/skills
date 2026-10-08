@@ -56,6 +56,8 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
 - 前提スキルが未インストールの場合: `gh skill install shoji9x9/skills <name>` で入れてから実行する。
   このスキルは設定のスキーマと成果物の様式を、`replace-strategy` と `parity-suite` の `references/`・`assets/` で定義しているので、単体では動かない（同時に入っていることが前提である）。
 - `issue-create`: 選択した target の `on_diff` のドキュメントが Issue の起票を指示する場合だけ要る（要対応の差分の起票を任せる）
+- Playwright の `channel` と `headless` は、プロジェクトの設定に従い、現側と同じ値にする。このスキルは変えない。
+  `channel` を指定するか `headless: false` にすると、完全版の Chromium か Google Chrome が起動し、ブラウザ本体が起動しただけで Google へ送信する（原本は `parity-suite` の `SKILL.md`「前提」）
 - このスキルは現行アプリを動かさない。ノイズ基準値と視覚ベースラインの測定は `parity-suite` が行う。このスキルが撮るのは新側だけである。
 - 判定の詳細は [`references/preflight.md`](references/preflight.md) にある。
   target の解決・起動・モードごとの要求・確かめるキーのフルパス・データセットの版の三者の整合・差分ツールの版の一致・反復の上限を扱う。
