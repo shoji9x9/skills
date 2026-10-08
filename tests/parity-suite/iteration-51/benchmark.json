@@ -1,0 +1,170 @@
+{
+  "metadata": {
+    "skill_name": "parity-suite",
+    "skill_path": "<repo>/skills/parity-suite",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-08T03:28:04Z",
+    "evals_run": [40],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 40,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 58.126,
+        "tokens": 177316,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "状態を変えるスイートは 2 回続けて回して両方緑であることを求めると述べている",
+          "passed": true,
+          "evidence": "「状態を変えるスペックは、2 回続けて緑にする必要があります」"
+        },
+        {
+          "text": "初期状態から始まる 1 回目には後始末の有無が結果に現れないため、1 回の緑は後始末が機能した証拠にならないと説明している",
+          "passed": true,
+          "evidence": "「初期状態から始まる 1 回目では、後始末が効いているかが結果に出ません。後始末が無くても 1 回目は緑になり、2 回目で初めて落ちます」"
+        },
+        {
+          "text": "戻す操作をスイートの中に置くよう述べ、外のツールに頼ると回した人が忘れた時点で次の実行が失敗すると説明している",
+          "passed": true,
+          "evidence": "戻す操作をスイートの中に置くことを求め、別のコマンドの片付けは流し忘れた時点で次の実行が失敗すると説明"
+        },
+        {
+          "text": "後始末が機能していないことによる失敗は「現行が変わった」と同じ見え方になることに触れている",
+          "passed": true,
+          "evidence": "「その失敗は『現行が変わった』ように見えるので、区別できません」"
+        },
+        {
+          "text": "scripts/artifact-health-check.mjs の反復実行の節が cleanup_in_suite: true でないこと・runs が 2 件未満であることを未検証として exit 1 にすると述べ、--stage suite でも免除されないことに触れている",
+          "passed": true,
+          "evidence": "artifact-health-check.mjs が cleanup_in_suite が true でないこと・runs が 2 件に満たないことで「exit 1 になります。--stage suite を付けても外れません」"
+        },
+        {
+          "text": "記録先が metadata.json の suite.state_mutating と suite.repeat_run（cleanup_in_suite・2 回分の runs）だと述べ、2 回の started_at は別の日時にすると説明している",
+          "passed": true,
+          "evidence": "metadata.json に suite.state_mutating: true と repeat_run.cleanup_in_suite: true、runs を記録し、2 回の started_at が同じ日時なら失敗・別の日時に 2 回回すと説明"
+        },
+        {
+          "text": "1 回の緑と強度チェックの素通り 0 件を根拠に完了にしていない",
+          "passed": true,
+          "evidence": "「まだ完了にはできません」。素通り 0 件も強さの根拠にしていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 40,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5714,
+        "passed": 4,
+        "failed": 3,
+        "total": 7,
+        "time_seconds": 25.837,
+        "tokens": 35115,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "状態を変えるスイートは 2 回続けて回して両方緑であることを求めると述べている",
+          "passed": true,
+          "evidence": "クリーンアップを挟まずに続けて 2〜3 回回して全部緑になることを確認するよう求めている"
+        },
+        {
+          "text": "初期状態から始まる 1 回目には後始末の有無が結果に現れないため、1 回の緑は後始末が機能した証拠にならないと説明している",
+          "passed": true,
+          "evidence": "「1 回目に緑」はまっさらな状態でたまたま緑だったという意味にしかならないと説明"
+        },
+        {
+          "text": "戻す操作をスイートの中に置くよう述べ、外のツールに頼ると回した人が忘れた時点で次の実行が失敗すると説明している",
+          "passed": true,
+          "evidence": "流し忘れで注文が残り 2 回目以降の結果を変えると説明し、スペック内の teardown を勧めている"
+        },
+        {
+          "text": "後始末が機能していないことによる失敗は「現行が変わった」と同じ見え方になることに触れている",
+          "passed": false,
+          "evidence": "「現行が変わった」と同じ見え方になることに触れていない"
+        },
+        {
+          "text": "scripts/artifact-health-check.mjs の反復実行の節が cleanup_in_suite: true でないこと・runs が 2 件未満であることを未検証として exit 1 にすると述べ、--stage suite でも免除されないことに触れている",
+          "passed": false,
+          "evidence": "機械的に止めるものは確認できない・無い可能性が高いと答え、artifact-health-check.mjs に触れていない"
+        },
+        {
+          "text": "記録先が metadata.json の suite.state_mutating と suite.repeat_run（cleanup_in_suite・2 回分の runs）だと述べ、2 回の started_at は別の日時にすると説明している",
+          "passed": false,
+          "evidence": "metadata.json の suite.state_mutating / repeat_run への記録に触れていない"
+        },
+        {
+          "text": "1 回の緑と強度チェックの素通り 0 件を根拠に完了にしていない",
+          "passed": true,
+          "evidence": "「まだ完了にしないほうがいいです」"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 58.126,
+        "stddev": 0,
+        "min": 58.126,
+        "max": 58.126
+      },
+      "tokens": {
+        "mean": 177316,
+        "stddev": 0,
+        "min": 177316,
+        "max": 177316
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.5714,
+        "stddev": 0,
+        "min": 0.5714,
+        "max": 0.5714
+      },
+      "time_seconds": {
+        "mean": 25.837,
+        "stddev": 0,
+        "min": 25.837,
+        "max": 25.837
+      },
+      "tokens": {
+        "mean": 35115,
+        "stddev": 0,
+        "min": 35115,
+        "max": 35115
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.43",
+      "time_seconds": "+32.3",
+      "tokens": "+142201"
+    }
+  },
+  "notes": [
+    "#571 の変更確認。eval 40 だけを with_skill / without_skill で 1 run ずつ実行した（Delta は扱わない）。",
+    "iteration-50 の without_skill は reasoning effort が未指定で --reuse-baseline の条件を満たさないため、新しく実行した。"
+  ]
+}
