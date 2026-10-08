@@ -351,6 +351,30 @@ describe("summarize", () => {
       },
     ],
     [
+      "ブラウザの版が文字列でない",
+      {
+        [CUR]: samplesDoc("current", bothPairs(), {
+          environment: { ...environment(), browser_version: { major: 153 } },
+        }),
+      },
+    ],
+    [
+      "CPU の数が整数でない",
+      {
+        [CUR]: samplesDoc("current", bothPairs(), {
+          environment: { ...environment(), runner: { ...environment().runner, cpu_count: "8" } },
+        }),
+      },
+    ],
+    [
+      "channel が空の文字列",
+      {
+        [CUR]: samplesDoc("current", bothPairs(), {
+          environment: { ...environment(), channel: "" },
+        }),
+      },
+    ],
+    [
       "置き場所が決まった値でない",
       {
         [CUR]: samplesDoc("current", bothPairs(), {

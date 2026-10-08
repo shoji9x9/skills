@@ -1061,7 +1061,10 @@ if (capturing) {
   `remote` どうしでもサーバーが違えば通信の差は入るので、両側を同じ機械の上で動かす。そろえられないなら、`declared: false` にして理由を `gaps.md` に書く。
 - コンテキストの設定（`locale`・`userAgent`・`colorScheme`・`deviceScaleFactor` など）が違うと、別の内容や描画を測る。
   採取のスペックは、渡した設定を `environment.context_options` に記録し、違えば `compare` は判定しない。
-  認証の情報を持ちうる設定（`extraHTTPHeaders`・`httpCredentials`・`storageState`・`clientCertificates`・`proxy`）は、値を残さず指定の有無だけを残す。`baseURL` は target ごとに違うので比べない
+  認証の情報を持ちうる設定は、秘密の値を残さず、違えば別の内容や通信になる部分だけを残す。
+  `extraHTTPHeaders` はヘッダーの名前、`httpCredentials` は `username`・`origin`・`send`、`proxy` は `server`・`bypass`、`clientCertificates` は `origin` である。
+  `storageState` は、ファイルのパスか、cookie の domain・path・name と localStorage の origin である。
+  ヘッダーや cookie の値だけが違う場合は区別できないので、両側で同じファイル・同じ値を使う。`baseURL` は target ごとに違うので比べない
 - `perf-samples.json` は、テキストの成果物として Git に入れる。採り直したら `summarize` も通し直す。`performance.samples_sha256` が今のファイルと違うと、`parity-diff` は古い基準として止まる。
   `capture_conditions` のページ（name・path）かビューポート（label・寸法）を変えたときも、`performance.capture` と合わなくなるので、採り直して `summarize` を通し直す。
   採取ファイルは採ったときの組の定義（`capture`）を持つので、採り直さずに `summarize` だけを通し直すと exit 2 になる。

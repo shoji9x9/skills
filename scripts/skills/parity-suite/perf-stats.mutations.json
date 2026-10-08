@@ -64,18 +64,6 @@
       ]
     },
     {
-      "id": "env-null-ok",
-      "why": "null の環境の項目を受ける",
-      "file": "skills/parity-suite/scripts/perf-stats.mjs",
-      "find": "    if (v === undefined || (v === null && !nullable)) {\n",
-      "replace": "    if (v === undefined || false) {\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "summarize 入力の形が違えば exit 2: ブラウザの版が null",
-        "summarize 入力の形が違えば exit 2: CPU の数が null"
-      ]
-    },
-    {
       "id": "workers-any",
       "why": "並列の採取を受ける",
       "file": "skills/parity-suite/scripts/perf-stats.mjs",
@@ -463,6 +451,39 @@
       "occurrences": 1,
       "expect_failing": [
         "compare 組の定義だけを書き換え、古い現側の採取を残していれば、判定せず exit 1"
+      ]
+    },
+    {
+      "id": "env-string-any",
+      "why": "文字列でない環境の項目を受ける",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "    if (!isNonEmptyString(getPath(doc.environment, key))) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "summarize 入力の形が違えば exit 2: ブラウザの版が null",
+        "summarize 入力の形が違えば exit 2: ブラウザの版が文字列でない"
+      ]
+    },
+    {
+      "id": "channel-any",
+      "why": "空の channel を受ける",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "  if (channel !== null && !isNonEmptyString(channel)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["summarize 入力の形が違えば exit 2: channel が空の文字列"]
+    },
+    {
+      "id": "cpu-count-any",
+      "why": "整数でない CPU の数を受ける",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "  if (!Number.isInteger(cpuCount) || /** @type {number} */ (cpuCount) < 1) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "summarize 入力の形が違えば exit 2: CPU の数が null",
+        "summarize 入力の形が違えば exit 2: CPU の数が整数でない"
       ]
     }
   ]

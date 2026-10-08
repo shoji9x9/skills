@@ -258,21 +258,46 @@ function contextOptionsFromUse(use: Record<string, unknown>): Record<string, unk
   return options;
 }
 
-// 認証の情報を持ちうる設定は、値を残さず「指定あり」だけを残す
-const SECRET_CONTEXT_OPTION_KEYS = [
-  "clientCertificates",
-  "extraHTTPHeaders",
-  "httpCredentials",
-  "proxy",
-  "storageState",
-];
+// 認証の情報を持ちうる設定は、秘密の値（パスワード・トークン・cookie の値・鍵）を残さず、
+// ユーザー・行き先・名前のように、違えば別の内容や通信になる部分だけを残す
+function redactedContextOption(key: string, value: unknown): unknown {
+  switch (key) {
+    case "extraHTTPHeaders":
+      return Object.keys(value as Record<string, string>)
+        .map((name) => name.toLowerCase())
+        .sort();
+    case "httpCredentials": {
+      const c = value as { username: string; origin?: string; send?: string };
+      return { username: c.username, origin: c.origin ?? null, send: c.send ?? null };
+    }
+    case "proxy": {
+      const p = value as { server: string; bypass?: string };
+      return { server: p.server, bypass: p.bypass ?? null };
+    }
+    case "clientCertificates":
+      return (value as { origin: string }[]).map((c) => c.origin).sort();
+    case "storageState": {
+      if (typeof value === "string") return { path: value };
+      const state = value as {
+        cookies?: { name: string; domain: string; path: string }[];
+        origins?: { origin: string }[];
+      };
+      return {
+        cookies: (state.cookies ?? []).map((c) => `${c.domain}${c.path} ${c.name}`).sort(),
+        origins: (state.origins ?? []).map((o) => o.origin).sort(),
+      };
+    }
+    default:
+      return value;
+  }
+}
 
 // 両側で一致を求めるコンテキストの設定。baseURL は target ごとに違うので除き、違いは target_placement で見る
 function contextFingerprint(options: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const key of Object.keys(options).sort()) {
     if (key === "baseURL" || options[key] === undefined) continue;
-    out[key] = SECRET_CONTEXT_OPTION_KEYS.includes(key) ? "set" : options[key];
+    out[key] = redactedContextOption(key, options[key]);
   }
   return out;
 }

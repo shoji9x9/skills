@@ -74,9 +74,6 @@ export const ENVIRONMENT_KEYS = [
 /** target_placement がとる値。loopback は localhost・127.0.0.0/8・::1 だけを指す。 */
 export const TARGET_PLACEMENTS = ["loopback", "remote"];
 
-/** 環境の項目のうち、null（指定なし）を値として持てるもの。他の項目の null は「確かめられない」なので受けない。 */
-export const NULLABLE_ENVIRONMENT_KEYS = ["channel"];
-
 /** 組の鍵の区切り。ページ名・ビューポートの label にこの文字は使えない。 */
 export const KEY_SEPARATOR = "|";
 
@@ -210,18 +207,29 @@ export function groupSamples(doc, expect) {
     throw new UsageError(`採取の slug が metadata.json と違う: ${JSON.stringify(doc.slug)}`);
   }
   if (!isPlainObject(doc.environment)) throw new UsageError("採取に environment が無い");
-  for (const key of ENVIRONMENT_KEYS) {
-    const v = getPath(doc.environment, key);
-    const nullable = NULLABLE_ENVIRONMENT_KEYS.includes(key);
-    if (v === undefined || (v === null && !nullable)) {
-      // 読めなかった項目を両側 null の一致として扱うと、別の機械で測った値を比べてしまう
-      throw new UsageError(
-        `採取の environment.${key} が無いか null（同じ環境であることを確かめられない）`,
-      );
-    }
-  }
   if (typeof getPath(doc.environment, "headless") !== "boolean") {
     throw new UsageError("採取の environment.headless が真偽値でない");
+  }
+  // 両側が同じ誤った形でも environmentDifferences は一致として通すので、型をここで確かめる。
+  // 読めなかった項目（無い・null）を両側の一致として扱うと、別の機械で測った値を比べてしまう
+  for (const key of [
+    "browser_name",
+    "browser_version",
+    "runner.platform",
+    "runner.arch",
+    "runner.cpu_model",
+  ]) {
+    if (!isNonEmptyString(getPath(doc.environment, key))) {
+      throw new UsageError(`採取の environment.${key} が空でない文字列でない`);
+    }
+  }
+  const channel = getPath(doc.environment, "channel");
+  if (channel !== null && !isNonEmptyString(channel)) {
+    throw new UsageError("採取の environment.channel が null か空でない文字列でない");
+  }
+  const cpuCount = getPath(doc.environment, "runner.cpu_count");
+  if (!Number.isInteger(cpuCount) || /** @type {number} */ (cpuCount) < 1) {
+    throw new UsageError("採取の environment.runner.cpu_count が 1 以上の整数でない");
   }
   if (
     !TARGET_PLACEMENTS.includes(
