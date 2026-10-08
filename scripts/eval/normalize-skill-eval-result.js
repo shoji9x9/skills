@@ -996,12 +996,21 @@ function skillContentSeen(outputs, contentIndex) {
 // A symlink is followed: `isDirectory()` on the entry reports the link itself, so a
 // linked skill directory would drop out of the lines taken out of the index without a
 // word (build-skill-eval-benchmark.js `listDirs` hit the same). A dangling link throws.
-function listFiles(root, current = root, files = []) {
+// `ancestors` holds the real paths above the current one, so a link back to itself or
+// an ancestor is not walked again (it would recurse until ELOOP). It is not a global
+// visited set: two sibling links to one directory must both be listed
+// (check-skill-checks.js `listFiles` keeps the same rule).
+function listFiles(root, current = root, files = [], ancestors = new Set()) {
+  const real = realpathSync(current);
+  if (ancestors.has(real)) {
+    return files;
+  }
+  const above = new Set(ancestors).add(real);
   for (const entry of readdirSync(current, { withFileTypes: true })) {
     const path = join(current, entry.name);
     const kind = entry.isSymbolicLink() ? statSync(path) : entry;
     if (kind.isDirectory()) {
-      listFiles(root, path, files);
+      listFiles(root, path, files, above);
     } else if (kind.isFile()) {
       files.push(relative(root, path).replaceAll("\\", "/"));
     }

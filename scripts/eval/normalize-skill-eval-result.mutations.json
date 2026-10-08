@@ -524,7 +524,8 @@
         "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk takes out a line the prompt holds",
         "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk takes out a line another skill's script holds",
         "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk takes out a line held by a sibling skill that is itself a symlink",
-        "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk takes out a line held by a sibling skill whose subdirectory is a symlink"
+        "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk takes out a line held by a sibling skill whose subdirectory is a symlink",
+        "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk does not walk a symlink back to an ancestor again"
       ]
     },
     {
@@ -539,7 +540,8 @@
         "skill eval result normalization skill read detection skill text in tool output does not index a line another skill also holds",
         "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk takes out a line another skill's script holds",
         "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk takes out a line held by a sibling skill that is itself a symlink",
-        "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk takes out a line held by a sibling skill whose subdirectory is a symlink"
+        "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk takes out a line held by a sibling skill whose subdirectory is a symlink",
+        "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk does not walk a symlink back to an ancestor again"
       ]
     },
     {
@@ -659,6 +661,17 @@
       "occurrences": 1,
       "expect_failing": [
         "skill eval result normalization skill read detection does not count cat --help before the path as reading the skill"
+      ]
+    },
+    {
+      "id": "content-symlink-cycle",
+      "why": "祖先を指すリンクをたどり直し、ELOOP まで再帰する",
+      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "find": "  if (ancestors.has(real)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk does not walk a symlink back to an ancestor again"
       ]
     }
   ]

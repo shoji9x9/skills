@@ -1083,6 +1083,22 @@ describe("skill eval result normalization", () => {
           expect(index.has(API_LINE)).toBe(true);
         });
 
+        test("does not walk a symlink back to an ancestor again", () => {
+          const root = setup({});
+          writeTree(join(root, "skills"), {
+            "other/SKILL.md": "x\n",
+            "other/references/a.md": `${LINE}\n`,
+          });
+          symlinkSync(
+            join(root, "skills", "other"),
+            join(root, "skills", "other", "references", "loop"),
+          );
+          const index = loadSkillContentIndex({ skillsRoot: join(root, "skills"), skill: "box" });
+
+          expect(index.has(LINE)).toBe(false);
+          expect(index.has(API_LINE)).toBe(true);
+        });
+
         test("fails on a dangling symlink rather than drop what it would hold", () => {
           const root = setup({});
           writeTree(join(root, "skills"), { "other/SKILL.md": "x\n" });
