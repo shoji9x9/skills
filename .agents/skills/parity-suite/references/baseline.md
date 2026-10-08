@@ -1109,6 +1109,11 @@ node <skill>/scripts/artifact-health-check.mjs --metadata .replace/parity/<slug>
   外のツール（手作業の片付け・別のコマンド）に頼ると、回した人が忘れた時点で次の実行が失敗する。しかも、その失敗は「現行が変わった」と同じ見え方になる。
 - 判断と記録は、`metadata.json` の `suite.state_mutating` / `suite.repeat_run` に書く。状態を変えないなら、`state_mutating: false` と理由を書く。
   書かないと、「状態を変えるかを決めていない」と区別できない。2 回の `started_at` は別の日時にする（同じ値は、1 回の記録のコピーと区別できない）。
+- 状態を変えるスイートでは、戻す操作をスイートの中に置いたことを `repeat_run.cleanup_in_suite: true` として記録し、2 回分の実行を `repeat_run.runs` に記録する。
+  [`../scripts/artifact-health-check.mjs`](../scripts/artifact-health-check.mjs) は、`cleanup_in_suite` が `true` でないことと、実行の記録が 2 回分に満たないことを、それぞれ未検証として exit 1 にする。
+  2 回分の数え方は、`repeat_run.specs` を書かない成果物では `runs` の件数、書いた成果物では状態を変えるスペックごとに、そのスペックを含む記録の件数である（上の「スペック単位で記録する」）。
+  この 2 つは `--stage suite` でも外れない。外のツールで後始末を流して 2 回とも緑にしたなら、`cleanup_in_suite` を `true` と記録しないので通らない。
+  チェックが読むのは記録した値だけで、戻す操作が本当にスイートの中にあるかまでは確かめない。`true` は、スペックの中に戻す操作があることを確かめてから記録する。
 - 後始末できない書き込み（hermetic でないテスト）は、`gaps.md` に残す。
   2 回続けて緑にできないと分かった時点で、それは「後始末が機能していない」という測定の結果であり、運用で守る話ではない。
 
