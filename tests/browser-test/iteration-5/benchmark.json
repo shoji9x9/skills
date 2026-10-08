@@ -4,7 +4,7 @@
     "skill_path": "<repo>/skills/browser-test",
     "executor_model": "opus",
     "analyzer_model": "claude-opus-5-5",
-    "timestamp": "2026-10-08T08:39:14Z",
+    "timestamp": "2026-10-08T11:44:11Z",
     "evals_run": [8],
     "runs_per_configuration": 1
   },
@@ -51,6 +51,49 @@
         }
       ],
       "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 26.538,
+        "tokens": 36008,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "chrome-devtools MCP 自身がデフォルトで利用統計を送るので、起動引数に --no-usage-statistics を入れると述べている",
+          "passed": true,
+          "evidence": "表の ① で、利用統計の送信と --no-usage-statistics での止め方を述べる。"
+        },
+        {
+          "text": "性能のトレースを使うなら、--no-performance-crux も入れると述べている",
+          "passed": true,
+          "evidence": "表の ② で、トレースの URL を CrUX API へ送ることと --no-performance-crux を述べる。"
+        },
+        {
+          "text": "--no-usage-statistics などの MCP の引数では、MCP が起動する Google Chrome 本体の送信は止まらないと述べている",
+          "passed": true,
+          "evidence": "③ で、Chrome 本体のバックグラウンド通信は MCP 側のフラグでは止まらないと述べる（Google への送信ではないとも書くが、宛先に *.google.com を挙げている）。"
+        },
+        {
+          "text": "ブラウザ本体の送信を避けるには、--executablePath に Playwright の headless shell を渡すと述べている",
+          "passed": false,
+          "evidence": "--executablePath には社内承認済みのブラウザを指定する方法として触れるだけで、Playwright の headless shell を渡す方法には触れていない。"
+        },
+        {
+          "text": "遮断された送信が再試行し続けることに触れ、遮断されるから問題ないとは扱っていない",
+          "passed": false,
+          "evidence": "プロキシを最後の防御線とし、Google 系の宛先を許可しなければ外へは出ないと述べる。遮断された送信が再試行し続けることには触れず、遮断されるから問題ない扱いになっている。"
+        }
+      ],
+      "notes": []
     }
   ],
   "run_summary": {
@@ -73,9 +116,34 @@
         "min": 44499,
         "max": 44499
       }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.6,
+        "stddev": 0,
+        "min": 0.6,
+        "max": 0.6
+      },
+      "time_seconds": {
+        "mean": 26.538,
+        "stddev": 0,
+        "min": 26.538,
+        "max": 26.538
+      },
+      "tokens": {
+        "mean": 36008,
+        "stddev": 0,
+        "min": 36008,
+        "max": 36008
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.40",
+      "time_seconds": "-1.2",
+      "tokens": "+8491"
     }
   },
   "notes": [
-    "前提の文面を「送信を止めるかは利用者の設定に任せる」形に直した後の、with_skill だけの再実行である。prompt と判定項目は iteration-4 から変えていない。without_skill はスキルを読まないので、基準は iteration-4 の without_skill（4/5）を使う"
+    "前提の文面を「送信を止めるかは利用者の設定に任せる」形に直した後の変更確認である。prompt と判定項目は iteration-4 から変えていない。iteration-4 の without_skill は reasoning effort を指定せずに実行したため --reuse-baseline の条件を満たさず、without_skill もこの iteration で実行し直した"
   ]
 }
