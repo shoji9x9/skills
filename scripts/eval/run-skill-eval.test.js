@@ -205,7 +205,7 @@ describe("run-skill-eval executor compatibility", () => {
         model: "model-stub",
         reasoning_effort: "low",
         cli_version: `${executor} stub-version`,
-        harness_version: "run-skill-eval/3",
+        harness_version: "run-skill-eval/4",
       },
       status: "succeeded",
       exit_code: 0,
@@ -331,7 +331,7 @@ describe("run-skill-eval executor compatibility", () => {
         executor: "codex",
         model: "model-stub",
         reasoning_effort: "low",
-        harness_version: "run-skill-eval/3",
+        harness_version: "run-skill-eval/4",
       },
     });
   });
@@ -440,7 +440,7 @@ describe("run-skill-eval executor compatibility", () => {
       executor: "codex",
       model: "model-stub",
       reasoning_effort: "low",
-      harness_version: "run-skill-eval/3",
+      harness_version: "run-skill-eval/4",
     });
     expect(readJson(join(target, "eval-fingerprint.json"))).toEqual(
       readJson(join(source, "eval-fingerprint.json")),
