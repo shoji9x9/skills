@@ -174,14 +174,16 @@
     },
     {
       "id": "samples-path-any",
-      "why": "絶対パスと外へ出るパスを記録する",
+      "why": "リポジトリの外の --samples を読む・記録する",
       "file": "skills/parity-suite/scripts/perf-stats.mjs",
-      "find": "      if (!isRepoRelative(opts.samples)) {\n",
-      "replace": "      if (false) {\n",
+      "find": "    if (!isRepoRelative(opts.samples)) {\n",
+      "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
-        "summarize --samples がルートからの相対パスでなければ exit 2: 絶対パス",
-        "summarize --samples がルートからの相対パスでなければ exit 2: 外へ出るパス"
+        "compare 新側の --samples がルートからの相対パスでなければ、読まずに exit 2: 外へ出るパス",
+        "compare 新側の --samples がルートからの相対パスでなければ、読まずに exit 2: 絶対パス",
+        "summarize --samples がルートからの相対パスでなければ exit 2: 外へ出るパス",
+        "summarize --samples がルートからの相対パスでなければ exit 2: 絶対パス"
       ]
     },
     {
@@ -546,8 +548,9 @@
       "replace": "  return !isAbsolute(path);\n",
       "occurrences": 1,
       "expect_failing": [
-        "summarize --samples がルートからの相対パスでなければ exit 2: 外へ出るパス",
-        "compare 基準の samples がリポジトリのルートからの相対パスでなければ exit 2: ../other/perf-samples.json"
+        "compare 基準の samples がリポジトリのルートからの相対パスでなければ exit 2: ../other/perf-samples.json",
+        "compare 新側の --samples がルートからの相対パスでなければ、読まずに exit 2: 外へ出るパス",
+        "summarize --samples がルートからの相対パスでなければ exit 2: 外へ出るパス"
       ]
     }
   ]

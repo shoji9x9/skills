@@ -942,6 +942,20 @@ describe("compare", () => {
     expect(perf.regressed).toEqual([]);
   });
 
+  test.each([
+    ["絶対パス", `/repo/${NEW}`],
+    ["外へ出るパス", `x/../${NEW}`],
+  ])("新側の --samples がルートからの相対パスでなければ、読まずに exit 2: %s", (_, path) => {
+    const { meta, curText } = summarized();
+    const r = run(
+      { [META]: meta, [CUR]: curText, [NEW]: samplesDoc("new", bothPairs()), [DIFF]: {} },
+      ["compare", "--metadata", META, "--samples", path, "--target", "local", "--write", DIFF],
+    );
+    expect(r.code).toBe(2);
+    expect(r.err).toContain("--samples はリポジトリのルートからの相対パスで渡す");
+    expect(r.read(DIFF)).toEqual({});
+  });
+
   test.each([["/etc/perf-samples.json"], ["../other/perf-samples.json"]])(
     "基準の samples がリポジトリのルートからの相対パスでなければ exit 2: %s",
     (path) => {

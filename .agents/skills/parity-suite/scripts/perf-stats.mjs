@@ -887,6 +887,13 @@ export function main(argv, deps = {}) {
       );
     }
     if (!isPlainObject(metadata)) throw new UsageError("metadata.json がオブジェクトでない");
+    // summarize は記録したパスを別の機械の compare がルートから読み、compare は新側のパスを diff-metadata.json に残す。
+    // どちらもリポジトリの外のファイルを採取として読まない
+    if (!isRepoRelative(opts.samples)) {
+      throw new UsageError(
+        `--samples はリポジトリのルートからの相対パスで渡す（絶対パスと .. は受けない）: ${opts.samples}`,
+      );
+    }
     let samplesText;
     try {
       samplesText = readFile(resolve(cwd, opts.samples));
@@ -905,12 +912,6 @@ export function main(argv, deps = {}) {
     }
 
     if (command === "summarize") {
-      // 記録したパスは別の機械の compare がリポジトリのルートから読む。絶対パスと外へ出るパスは残さない
-      if (!isRepoRelative(opts.samples)) {
-        throw new UsageError(
-          `--samples はリポジトリのルートからの相対パスで渡す（絶対パスと .. は受けない）: ${opts.samples}`,
-        );
-      }
       const result = summarize(metadata, samplesDoc, {
         floors: parseFloors(floorSpecs),
         relativeFloors: parseFloors(
