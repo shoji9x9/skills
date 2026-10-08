@@ -7,6 +7,9 @@
 
 import { describe, test, expect } from "vitest";
 import { createHash } from "node:crypto";
+import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { makeTempDir } from "../../lib/test-tmpdir.js";
 import {
   DEFAULT_FLOORS,
   judgeMetric,
@@ -124,6 +127,11 @@ function run(files, argv) {
       return v;
     },
     writeFile: (p, s) => fs.set(p, s),
+    // 置いたファイルとルートはそのまま実体とみなす（シンボリックリンクは実際のファイルシステムで別に確かめる）
+    realpath: (p) => {
+      if (p !== "/repo" && !fs.has(p)) throw new Error(`ENOENT ${p}`);
+      return p;
+    },
     stdout: (s) => {
       out += s;
     },
@@ -954,6 +962,39 @@ describe("compare", () => {
     expect(r.code).toBe(2);
     expect(r.err).toContain("--samples はリポジトリのルートからの相対パスで渡す");
     expect(r.read(DIFF)).toEqual({});
+  });
+
+  test.each([
+    ["現側の採取（performance.samples）", "current"],
+    ["新側の採取（--samples）", "new"],
+  ])("実体がリポジトリの外を指すシンボリックリンクなら、読まずに exit 2: %s", (_, side) => {
+    const { meta, curText } = summarized();
+    const base = makeTempDir("perf-stats-");
+    const root = join(base, "repo");
+    const put = (p, text) => {
+      mkdirSync(dirname(join(root, p)), { recursive: true });
+      writeFileSync(join(root, p), text);
+    };
+    put(META, JSON.stringify(meta));
+    put(DIFF, "{}");
+    const outside = join(base, "outside.json");
+    const linked = side === "current" ? CUR : NEW;
+    writeFileSync(
+      outside,
+      side === "current" ? curText : JSON.stringify(samplesDoc("new", bothPairs())),
+    );
+    if (side === "current") put(NEW, JSON.stringify(samplesDoc("new", bothPairs())));
+    else put(CUR, curText);
+    mkdirSync(dirname(join(root, linked)), { recursive: true });
+    symlinkSync(outside, join(root, linked));
+    let err = "";
+    const code = main(
+      ["compare", "--metadata", META, "--samples", NEW, "--target", "local", "--write", DIFF],
+      { cwd: root, stdout: () => {}, stderr: (s) => (err += s) },
+    );
+    expect(code).toBe(2);
+    expect(err).toContain("の実体がリポジトリの外にある");
+    expect(readFileSync(join(root, DIFF), "utf8")).toBe("{}");
   });
 
   test.each([["/etc/perf-samples.json"], ["../other/perf-samples.json"]])(

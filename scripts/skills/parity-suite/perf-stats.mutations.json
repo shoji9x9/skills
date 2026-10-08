@@ -552,6 +552,28 @@
         "compare 新側の --samples がルートからの相対パスでなければ、読まずに exit 2: 外へ出るパス",
         "summarize --samples がルートからの相対パスでなければ exit 2: 外へ出るパス"
       ]
+    },
+    {
+      "id": "symlink-new-ok",
+      "why": "リポジトリの外を指す新側の採取を読む",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "    if (realInsideRoot(opts.samples) === false) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare 実体がリポジトリの外を指すシンボリックリンクなら、読まずに exit 2: 新側の採取（--samples）"
+      ]
+    },
+    {
+      "id": "symlink-cur-ok",
+      "why": "リポジトリの外を指す現側の採取を読む",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "      if (realInsideRoot(perf.samples) === false) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare 実体がリポジトリの外を指すシンボリックリンクなら、読まずに exit 2: 現側の採取（performance.samples）"
+      ]
     }
   ]
 }

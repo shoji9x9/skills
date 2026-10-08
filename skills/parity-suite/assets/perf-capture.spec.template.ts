@@ -318,12 +318,14 @@ function launchFingerprint(options: Record<string, unknown> | undefined): Record
         .map(([name]) => name)
         .sort();
     else if (key === "proxy") out[key] = redactedContextOption("proxy", value);
-    // 起動引数は秘密の値（トークンなど）を持ちうるが、どのフラグが持つかは一覧にできない。
-    // `--flag=value` は値を伏せて `--flag=*` にし、値の無いフラグはそのまま残す
+    // 起動引数は秘密の値（トークンなど）を持ちうるが、どのフラグが持つかは一覧にできず、
+    // 値は `--flag=value` の形でも、次の要素（`["--flag", "value"]`）でも渡せる。
+    // `-` で始まる要素はフラグ名だけを残して `=value` を `=*` にし、それ以外の要素は値として `*` にする
     else if (key === "args")
-      out[key] = (value as string[]).map((arg) =>
-        arg.includes("=") ? `${arg.slice(0, arg.indexOf("="))}=*` : arg,
-      );
+      out[key] = (value as string[]).map((arg) => {
+        if (!arg.startsWith("-")) return "*";
+        return arg.includes("=") ? `${arg.slice(0, arg.indexOf("="))}=*` : arg;
+      });
     else out[key] = value;
   }
   return out;

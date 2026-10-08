@@ -1055,7 +1055,7 @@ if (capturing) {
 - 現側と新側の比較は、同じ機械・同じブラウザ・同じ測り方で採った値どうしでしか成り立たない。
   採取ファイルの `environment` と `settings`（ウォームアップ・待つ時間・キャッシュ・並列の数）が違えば、`compare` は判定せずに止まる。
   `environment` は、ブラウザの名前・版・`channel`・`headless`、ランナーの OS・アーキテクチャ・CPU の型番と数、target の置き場所、コンテキストの設定、ブラウザの起動の設定（`use.launchOptions`）である。
-  起動の設定は、`args` は `--flag=value` の値を伏せた形、`env` は実行したシェルと値が違う変数の名前だけ、`proxy` は `server`・`bypass` だけを残す。
+  起動の設定は、`args` は値を伏せた形（`--flag=value` は `--flag=*`、フラグでない要素は `*`）、`env` は実行したシェルと値が違う変数の名前だけ、`proxy` は `server`・`bypass` だけを残す。
   `args` の値だけが違う場合（`--window-size` の寸法など）は区別できないので、両側で同じ起動の設定を使う。
   新側を別の機械で測るなら、その機械で現側も採り直し、`summarize` を通し直す。
   採り直すのは `perf-samples.json` と `performance` だけで、特性化のやり直しではないので、`run.finished_at` と `run.procedure_revision` は書き換えない。

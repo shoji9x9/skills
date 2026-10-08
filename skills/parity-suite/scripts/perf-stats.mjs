@@ -19,7 +19,7 @@
 
 import { createHash } from "node:crypto";
 import { readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs";
-import { isAbsolute, resolve } from "node:path";
+import { isAbsolute, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
@@ -816,7 +816,7 @@ export function samplesFingerprint(text) {
 
 /**
  * @param {string[]} argv - process.argv.slice(2)
- * @param {{ readFile?: (p: string) => string, writeFile?: (p: string, s: string) => void, cwd?: string, stdout?: (s: string) => void, stderr?: (s: string) => void }} [deps]
+ * @param {{ readFile?: (p: string) => string, writeFile?: (p: string, s: string) => void, realpath?: (p: string) => string, cwd?: string, stdout?: (s: string) => void, stderr?: (s: string) => void }} [deps]
  * @returns {number}
  */
 export function main(argv, deps = {}) {
@@ -830,6 +830,22 @@ export function main(argv, deps = {}) {
       renameSync(tmp, p);
     });
   const cwd = deps.cwd ?? process.cwd();
+  const realpath = deps.realpath ?? ((p) => realpathSync(p));
+  /**
+   * パスの綴りだけでなく、シンボリックリンクを解決した実体もリポジトリの中にあるか。読めなければ null を返す。
+   * @param {string} path - リポジトリのルートからの相対パス
+   * @returns {boolean|null}
+   */
+  const realInsideRoot = (path) => {
+    let real;
+    try {
+      real = realpath(resolve(cwd, path));
+    } catch {
+      return null;
+    }
+    const root = realpath(cwd);
+    return real === root || real.startsWith(root.endsWith(sep) ? root : `${root}${sep}`);
+  };
   const stdout = deps.stdout ?? ((s) => process.stdout.write(s));
   const stderr = deps.stderr ?? ((s) => process.stderr.write(s));
   const usage = [
@@ -894,6 +910,11 @@ export function main(argv, deps = {}) {
         `--samples はリポジトリのルートからの相対パスで渡す（絶対パスと .. は受けない）: ${opts.samples}`,
       );
     }
+    if (realInsideRoot(opts.samples) === false) {
+      throw new UsageError(
+        `--samples の実体がリポジトリの外にある（シンボリックリンク）: ${opts.samples}`,
+      );
+    }
     let samplesText;
     try {
       samplesText = readFile(resolve(cwd, opts.samples));
@@ -948,6 +969,11 @@ export function main(argv, deps = {}) {
       if (!isRepoRelative(perf.samples)) {
         throw new UsageError(
           `performance.samples がリポジトリのルートからの相対パスでない（絶対パスと .. は受けない）: ${perf.samples}`,
+        );
+      }
+      if (realInsideRoot(perf.samples) === false) {
+        throw new UsageError(
+          `performance.samples の実体がリポジトリの外にある（シンボリックリンク）: ${perf.samples}`,
         );
       }
       try {
