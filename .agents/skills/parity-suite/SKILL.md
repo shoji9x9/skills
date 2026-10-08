@@ -81,6 +81,9 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
 - 待たない取得 API の検査を省かない。feature モードでスイートを書いた後は、`node <skill>/scripts/auto-wait-check.mjs <parity_suite_dir>/parity/` を実行する。
   走査対象が 1 件以上・違反が 0 件・判定不能が 0 件になるまで、先へ進まない。
   禁止する API とその理由、判定不能を解消する手順は、[`references/locator-mapping.md`](references/locator-mapping.md) で定義する
+- 3 つの比較方法が緑であることを、性能が保たれている根拠にしない。新側だけが遅い・読み込み中に揺れる回帰は、どの比較方法にも表れない。
+  feature モードでは、性能（LCP・CLS・TBT 相当・TTFB）を同じ条件で繰り返し測った分布を `metadata.json` の `performance` に残し、キーごと省かない。
+  単発の値は実行ごとにぶれるので、基準にしない（[`references/baseline.md`](references/baseline.md)「性能のベースラインとノイズ基準値」）
 - 強度の検証（故障注入）を省いて、「テストがあるから大丈夫」としない。テストがあること自体は、品質の証拠にならない
 - 強度を、手書きの assertion だけで判定しない。手書きの assertion・ベースライン・差分ツールの一式で判定する
 - 故障注入で緑になったことを、「スイートは強い」と宣言しない。
@@ -359,6 +362,11 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
   撮影のときにスクロールバーが場所を取ったかは、`capture_conditions.scrollbars` に書く（デフォルトは `shown`）。
   撮影・特性の採取・範囲の実測に使う `current` プロジェクトの `launchOptions` で、`--hide-scrollbars` を外す
   （[`references/baseline.md`](references/baseline.md)「スクロールバーが場所を取る窓のはみ出し」）
+- あわせて、性能のベースラインを採る。`perf/` の採取のスペックを `PARITY_PERF_CAPTURE=1` を付けて `current` で `--workers=1` で実行し、`perf-samples.json` を書かせる。
+  続けて、集計を exit 0 まで通し、`performance` を書かせる（手で転記しない）。
+  コマンドは `node <skill>/scripts/perf-stats.mjs summarize --metadata <metadata.json> --samples .replace/parity/<slug>/perf-samples.json --write` である。
+  `metadata.json` の `capture_conditions.pages` と `viewports` を書いた後に通す
+  （[`references/baseline.md`](references/baseline.md)「性能のベースラインとノイズ基準値」）
 - 撮影状態は、次のものから決める。導いた集合も棚卸しも、ふだんの状態の一覧を置き換えない。
   - 手順 5 で網羅表から導いた集合（`visual_state_coverage.rows` の `captured`）を基にする
   - 操作で開くコンテナを再帰的に数えた `capture_conditions.popup_inventory` のうち、撮るコンテナを足す
@@ -487,12 +495,13 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
 | 視覚ベースライン | `.replace/parity/<slug>/baseline/` | — |
 | メタデータ・ノイズの基準値 | `.replace/parity/<slug>/metadata.json` | `assets/metadata-template.json` |
 | 部品網羅表（feature モードだけ。操作と状態の有無だけを数え、見た目は見ていない） | `.replace/parity/<slug>/component-coverage.json` | `assets/component-coverage-template.json` |
+| 性能の採取値（feature モードだけ。ページ × ビューポート × 回の LCP・CLS・TBT 相当・TTFB） | `.replace/parity/<slug>/perf-samples.json` | 採取のスペックは [`assets/perf-capture.spec.template.ts`](assets/perf-capture.spec.template.ts) から起こす。集計は [`scripts/perf-stats.mjs`](scripts/perf-stats.mjs) |
 | 寸法の採取値（feature モードだけ。窓 × 論理名の矩形） | `.replace/parity/<slug>/dimension-samples.json` | 形式は [`scripts/dimension-fit.mjs`](scripts/dimension-fit.mjs) で定義する（手順は [`references/baseline.md`](references/baseline.md)） |
 | 反応の網羅表（feature モードだけ。操作 → 反応・送る前の判定・送っている間の押し直し、表への書き込み、画面ごとの状態の表示） | `.replace/parity/<slug>/reactions.json` | `assets/reactions-template.json` |
 | 現行の弱点の追記（台帳に無い弱点に気づいたときだけ） | `.replace/weaknesses.md` へ、仕分けを空欄にした行を追記する（既存の内容を変えない。無ければテンプレートから作る） | 様式は `replace-strategy` の `assets/weaknesses-template.md` で定義する |
 | 依存の決定の記録（スイートに依存を足したときだけ） | `.replace/dependencies.md` へ追記する（既存の内容を変えない。無ければテンプレートから作る） | 様式は `replace-strategy` の `assets/dependencies-template.md` で定義する |
 
-- テキストの成果物（特性の JSON・aria・`metadata.json`・`strength.md`・`gaps.md`・`component-coverage.json`・`reactions.json`・`dimension-samples.json`）は Git に入れる。
+- テキストの成果物（特性の JSON・aria・`metadata.json`・`strength.md`・`gaps.md`・`component-coverage.json`・`reactions.json`・`dimension-samples.json`・`perf-samples.json`）は Git に入れる。
   スクリーンショットなどの大きなバイナリは `artifacts` の設定に従い、デフォルトは `local`（commit しない）である
 - `metadata.json` の `run.procedure_revision` には、採取した時点の [`assets/procedure-revisions.json`](assets/procedure-revisions.json) の `revision` を整数で書く（コピーせず、スキルの中から読む）。
   確かめる軸を足した改訂より前の成果物を、`replace-strategy status` が「旧手順で閉じた機能」として挙げる材料になる。
@@ -519,6 +528,8 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
   `parity-diff` は、インストールしたこのスキルから、同じスクリプトを `--recorded` で呼ぶ。
   ページの path の解決（[`scripts/page-identity.mjs`](scripts/page-identity.mjs)）を import するので、同じディレクトリに置いたまま呼ぶ。
   `component_coverage.declared: true` なら部品網羅表も読み、撮る状態の使い回しを表をまたいで数えるので、`coverage-expand.mjs --write` の後に通す
+- [`scripts/perf-stats.mjs`](scripts/perf-stats.mjs) もコピーしない。このスキルは `summarize` で性能の基準を `metadata.json` に書く。
+  `parity-diff` は、インストールしたこのスキルから同じスクリプトを `compare` で呼んで、新側を比べる
 - [`scripts/dimension-fit.mjs`](scripts/dimension-fit.mjs) もコピーしない。このスキルは `fit` で式を `metadata.json` に書く。
   `parity-replace` は、インストールしたこのスキルから同じスクリプトを `check` で呼んで、新側を照合する
 - [`scripts/capture-scope-check.mjs`](scripts/capture-scope-check.mjs) もコピーしない。このスキルは手順 8 で撮る範囲の抜けを数える。
@@ -557,6 +568,7 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
 - `parity-diff` は、次のものを使い回す。すべて `metadata.json` を通して引き渡す。
   - 強度チェックで健全なことを確かめた差分ツール（ツール・しきい値）
   - ノイズの基準値
+  - 性能の基準（`performance`）と、`current` / `new` の両方に含めた `perf/` の採取のスペック（`suite.perf`）。`parity-diff` が新側を同じスペックで採り、このスキルの `perf-stats.mjs compare` で比べる
   - 撮影条件。撮る範囲の実測 `capture_scope` を含み、このスキルの `capture-scope-check.mjs` で数え直す。
     スクロールバーの扱い `scrollbars`・表示の軸の値 `display_axes`・撮影に使ったブラウザ `browser` は、新側の採取でも同じにする
   - 部品網羅表。`metadata.json.component_coverage` が `declared: true` のときだけ、収束の判定に入る。

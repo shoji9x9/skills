@@ -322,6 +322,11 @@
 
     `--base` には、機能に着手した時点の版を渡す。デフォルトの `HEAD` は、作業ツリーと直近の commit の比較である。
     そのため、書き直しを commit した後は差が無く、何かが失われていても通ってしまう（着手した時点の版は、`git merge-base` や、機能のブランチが分かれた点から取る）。
+  - 性能の比較に、回帰と判定できない組が残っていない。
+    `metadata.json` の `performance.declared` が `true` のときだけ判定に入り、`perf-stats.mjs compare` が exit 0 であること（手順の原本は [`detect.md`](detect.md)「性能の比較」）。
+    `regressed` は要対応として差し戻しに入り、`noisy`・`missing`・`insufficient`・`env_mismatch`・古い基準は差し戻さずに採り直す（`env_mismatch` は `parity-suite` での採り直しを利用者へ案内して停止する）。
+    `results` の件数には足さず、`performance.ok` だけで判定する。
+    `performance` が無い・`declared: false` の成果物は判定せず、`diff-metadata.json` の `performance.judged: false` と理由、`diff.md` の未検証の領域に残す。
 
 ## `intentional_diffs.pending` の棚卸し
 
@@ -455,12 +460,13 @@
 
 - `diff-metadata.json` の `converged` を `true` にする。条件は、上記「収束の定義」の収束の条件の箇条のすべてである（ここへ転記しない）。
   件数で数えない。転記した抜粋で判定すると、次のものを見落とす。
-  `blocked_by` の残り、承認の前の分類の残り、例外の台帳の不整合、網羅表の未測定、反応の未測定、保留の未棚卸し、未解決の判断待ち、採取物と工程の健全性、追記専用の成果物の縮小。
+  `blocked_by` の残り、承認の前の分類の残り、例外の台帳の不整合、網羅表の未測定、反応の未測定、性能の回帰と判定できない組、保留の未棚卸し、未解決の判断待ち、採取物と工程の健全性、追記専用の成果物の縮小。
 - 次のものを記録する。
   - `results`（total / actionable / accepted / noise / unexplained / unverified）
   - `accepted_exceptions`（原因の数 / インスタンスの数 / 不整合の数）
   - `component_coverage`（判定したか / 数え直した期待セルの数 / 未測定の数）
   - `reaction_coverage`（判定したか / 操作の数 / 未測定の操作の数）
+  - `performance`（判定したか / 状態ごとの件数 / 回帰の組。`perf-stats.mjs compare --write` が書く）
   - `intentional_diffs_pending`（棚卸しの対象の内訳 / 確定した件数 / 持ち越した件数と各件の処置）
 
 ## 対象外・未検証の明示

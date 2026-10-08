@@ -102,6 +102,44 @@
   ただし、テーブルとフォームの内容のパリティ（行・列・セル値・フィールドの並び）は、この方法が受け持つ
 - 深く確かめたい帳票のテーブルなどに限って、テーブルを基準にして代表のセル（ヘッダー・先頭の行）を相対で測る。これはオプトインで、すべてのセルに論理名を付けることはしない
 
+## 性能の比較
+
+3 つの比較方法は、新側だけが遅い・読み込み中に揺れる回帰を拾わない。そこで、性能を別に比べる。
+現側の基準（`metadata.json` の `performance`）は `parity-suite` が採り、比べる規則の原本は `parity-suite` の `scripts/perf-stats.mjs` である。
+新側の採取の手順は [`capture-new.md`](capture-new.md)「性能の採取」にある。
+
+```bash
+node <parity-suite の skill>/scripts/perf-stats.mjs compare \
+  --metadata .replace/parity/<slug>/metadata.json \
+  --samples .replace/parity/<slug>/new/<target>/perf-samples.json \
+  --write .replace/parity/<slug>/new/<target>/diff-metadata.json
+```
+
+リポジトリのルートで実行する（現側の採取ファイルを `performance.samples` のパスで読み、集計の後に採り直されていないかを sha256 で確かめる）。
+`--write` は今回の実行の `diff-metadata.json` の `performance` だけを書き換える。手順 3 でこの実行の `diff-metadata.json`（自己ノイズの測定値など）を書いた後に通す。
+前の反復のファイルに書くと、反復と版の記録が古いまま `performance` だけが新しくなる。ファイルが無ければ exit 2 になる（判定の結果は先に標準出力へ出る）。
+結果は手で転記しない。
+
+- 組 × 指標ごとに、新側の中央値と現側の中央値の差を、許容幅（現側の四分位範囲・絶対の下限 `performance.floors`・現側の中央値 × 割合の下限 `performance.relative_floors` のいちばん大きいもの）と比べる。
+  許容幅を超えた悪化（`regressed`）は要対応で、LLM のトリアージに回さない。性能の差は crop を持たず、「重要か」を見て決めるものではないからである。
+  改善（`improved`）と許容幅の中（`within_noise`）と、両側で LCP が出ない頁（`not_applicable`）は合格として数える。
+- 次のものは判定できないので、合格にせず未収束にする。差し戻さずに、原因を取り除いて採り直す。
+  - `noisy`: 新側のばらつき（四分位範囲）が許容幅を超えている。負荷の高い機械で測った・バックグラウンドの処理が動いていたなど。
+    `delta` が許容幅を超えていれば、回帰の疑いとして報告に添える（ばらつきに回帰が隠れていることがある）
+  - `missing`: 片側か一部の回だけ値が無い、新側に組が無い
+  - `insufficient`: 回数が 5 回に満たない（基準を手で書き換えたときだけ起きる）。`parity-suite` の `summarize` を通し直す
+  - `env_mismatch`: 環境か測り方が現側と違う（`environment_differences` に項目が出る）。
+    このスキルは現行アプリを動かさないので、自分で採り直さない。収束の判定で停止し、`environment_differences` を載せて利用者に報告する。
+    案内するのは、新側を測った機械で `parity-suite` の性能の採取と `summarize --write` をやり直し、その後でこのスキルを再実行する手順である
+  - `stale_baseline`: 現側の採取ファイルが集計の後に変わっている、または読めない。古い基準とは比べないので、すべての組 × 指標がこの状態になり、`regressed` は出ない。`parity-suite` の `summarize` を通し直す
+- 終了コードは、0 が合格、1 が回帰か判定できない組が残る、2 が使い方の誤りか基準の形の誤りである。
+  1 は結果であって停止の合図ではない。`diff-metadata.json` の `performance` を読み、残りの手順（正規化・トリアージ・収束の判定）へ進む。
+  その場で止まるのは 2 だけである。`env_mismatch` の停止は、残りの手順を終えた後、収束の判定で利用者へ案内して行う。
+- 性能の `regressed` は、`diff-metadata.json` の `results`（total / actionable）に足さない。収束の判定は `performance.ok` を別の条件として見る（二重に数えない）。
+  `metadata.json` に `performance` が無い成果物と、`declared: false` の成果物では、このスクリプトを呼ばない（exit 2 になる）。
+  `diff-metadata.json` の `performance` に `{"judged": false, "reason": "<理由>"}` を書き、`diff.md` の未検証の領域に残す。
+  `performance` が無いのは性能を測る手順より前に閉じた成果物で、判定に入れない（後方互換）が、測らなかった事実は残す。
+
 ## 検出結果の受け渡し
 
 3 つの比較方法の出力（crop 対・特性の差分の JSON・aria の構造の差）を、[`normalize.md`](normalize.md) の正規化に渡す。この時点では、どれも「検出された候補」であって、分類はまだしていない。

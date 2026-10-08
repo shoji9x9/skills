@@ -1003,6 +1003,62 @@ if (capturing) {
   2 回目は同じ版の一時的な作業物で、どちらの軸にも当たらない。
 - 新側も同じ扱いにする（`parity-diff` が測る自己ノイズの 2 回目。原本は `parity-diff` の `references/capture-new.md`）。
 
+## 性能のベースラインとノイズ基準値
+
+3 つの比較方法は、見た目と振る舞いしか比べない。
+新側だけが目に見えて遅い、読み込み中にレイアウトが揺れる、という回帰はどれにも表れず、差分 0 件で収束する。
+仕様を変えないリプレイスで意味があるのは、絶対値のスコアではなく「現行より悪くなっていないか」である。
+性能の値は実行ごとにぶれるので、単発の値では比べられない。画素のノイズ基準値と同じく、同じ条件で繰り返し測った分布を基準にする。
+
+- 採るもの: `capture_conditions.pages` × `viewports` の組ごとの、初期表示の読み込みである。指標は LCP・CLS・TBT 相当・TTFB の 4 つで、読み方は雛形の冒頭のコメントで定義する。
+  操作の後の性能と、表示の軸の変種は採らない。要るなら `gaps.md` に未検証として残す。
+- 採取のスペック: 同梱の雛形 [`../assets/perf-capture.spec.template.ts`](../assets/perf-capture.spec.template.ts) を `<parity_suite_dir>/parity/<slug>/perf/perf.spec.ts` にコピーし、パスを `metadata.json` の `suite.perf` に書く。
+  `current` と `new` の両方のプロジェクトに含める（寸法の `dimension/` と同じ置き方。出力先は project 名で分ける）。
+  組は `metadata.json` から読むので、ページの一覧を書き写さない。認証が要るなら、雛形の TODO をスイートの方法に合わせて埋める。
+
+  | project | 出力先 |
+  |---|---|
+  | `current` | `.replace/parity/<slug>/perf-samples.json` |
+  | `new` | `.replace/parity/<slug>/new/<PARITY_NEW_TARGET>/perf-samples.json`（`PARITY_NEW_TARGET` が無ければ例外にして書かない） |
+
+- 書き出すのは `PARITY_PERF_CAPTURE=1` を渡した実行だけで、それ以外はスキップする。強度チェック・green の確認で、記録を上書きしないためである。
+  `--workers=1` で直列に実行する（並列に読み込むと CPU を取り合い、互いの値を遅くする。雛形は 1 以外で止まる）。
+
+  ```bash
+  PARITY_PERF_CAPTURE=1 PARITY_SLUG=<slug> PARITY_CURRENT_UI_URL=<url> npx playwright test <parity_suite_dir>/parity/<slug>/perf/ --project current --workers=1
+  ```
+
+- ブラウザは、Playwright が起動したものを使う。`capture_conditions.browser` が `cdp` でも、性能は接続先で測らない（利用者の機械の負荷が値に入る）。
+  `channel` と `headless` はプロジェクトの設定に従い、現側と新側で同じ値にする（違えば `parity-diff` の比較が止まる）。
+  デフォルトでは Playwright の headless shell が起動し、外部へ送信しない。
+  `channel` を指定するか `headless: false` にすると、完全版の Chromium か Google Chrome が起動し、ブラウザ本体が起動しただけで Google へ送信する（送信の分の負荷も値に入る）。
+- 採ったら、集計を通して `metadata.json` の `performance` に書かせる。手で転記しない。スクリプトはコピーせず、スキルの中から実行する。
+
+  ```bash
+  node <skill>/scripts/perf-stats.mjs summarize \
+    --metadata .replace/parity/<slug>/metadata.json \
+    --samples .replace/parity/<slug>/perf-samples.json --write
+  ```
+
+  リポジトリのルートで実行し、`--samples` はルートからの相対パスで渡す（そのまま `performance.samples` に残り、`parity-diff` が別の機械でも同じパスで読む。絶対パスと `..` は exit 2）。
+  exit 1 は、採った組が `capture_conditions` の組と合わないことを示す（採り直す）。exit 2 は、回数が 5 未満・並列で採った・環境の項目が読めない・値の型の誤りなどである。
+- ノイズの許容幅は、組 × 指標ごとに、次の 3 つのいちばん大きいものである。新側と現側の中央値の差がこれを超えたときだけ、回帰にする。
+  - 現側の四分位範囲（現側のばらつき）
+  - 絶対の下限（`floors`）。デフォルトは LCP 100ms・CLS 0.01・TBT 50ms・TTFB 50ms で、`--floor lcp=150` のように変える
+  - 現側の中央値 × 割合の下限（`relative_floors`）。デフォルトは LCP・TBT・TTFB が 0.2、CLS が 0（0 付近に集まるスコアなので割合を使わない）で、`--relative-floor lcp=0.3` のように変える
+
+  下限は、四分位範囲が 0 に近い環境で、気にしない大きさの差まで回帰にしないための値である。
+  絶対値だけだと重いページほど厳しくなるので、割合で値の大きさに合わせる（LCP 1,000ms なら許容幅は 200ms、20ms なら 100ms）。
+  下限より小さい悪化は見逃すので、気にする差の大きさに合わせて変える。使った値は `performance.floors`・`performance.relative_floors` に残る。
+  判定の規則（許容幅を超えた悪化・新側のばらつき・値の欠け・環境の違い）の原本は [`../scripts/perf-stats.mjs`](../scripts/perf-stats.mjs) で、`parity-diff` が `compare` で使う。
+- 現側と新側の比較は、同じ機械・同じブラウザ・同じ測り方で採った値どうしでしか成り立たない。
+  採取ファイルの `environment`（ブラウザの名前・版・`channel`・`headless`、ランナーの OS・アーキテクチャ・CPU の型番と数）と `settings`（ウォームアップ・待つ時間・キャッシュ・並列の数）が違えば、`compare` は判定せずに止まる。
+  新側を別の機械で測るなら、その機械で現側も採り直し、`summarize` を通し直す。
+  採り直すのは `perf-samples.json` と `performance` だけで、特性化のやり直しではないので、`run.finished_at` と `run.procedure_revision` は書き換えない。
+- 現側と新側の target の置き場所（同じ機械の上か、遠いサーバーか）が違うと、TTFB と LCP に通信の差が入る。置き場所をそろえられないなら、その旨を `gaps.md` に書く。
+- `perf-samples.json` は、テキストの成果物として Git に入れる。採り直したら `summarize` も通し直す。`performance.samples_sha256` が今のファイルと違うと、`parity-diff` は古い基準として止まる。
+- feature モードでは、`performance` をキーごと省かない。比べられない事情（target の性能が日によって大きく揺れるなど）があるときだけ `declared: false` と `reason` を書き、`gaps.md` にも同じ文言を残す。
+
 ## 採取物の健全性
 
 採取物は工程の出力で、次の工程の入力でもある。

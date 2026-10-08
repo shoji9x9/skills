@@ -1,7 +1,7 @@
 {
   "_note": "parity-suite の手順の改訂一覧（原本）。確かめる軸（網羅表の候補・撮影条件・反応の数え方など、閉じた機能の成果物に足りない測定が出る変更）を手順に足したら、revision を 1 上げて changes へ 1 要素を追記する（既存の要素は書き換えない）。parity-suite は .replace/parity/<slug>/metadata.json の run.procedure_revision に採取時のこの revision を書き、replace-strategy の scripts/procedure-staleness-check.mjs が、成果物の改訂番号より新しい改訂の affects に当たる機能を「旧手順で特性化した機能」として列挙する。revision 1 は本機構の導入点で、それより前の成果物（run.procedure_revision が無い）は、どの軸で閉じたかを記録していないため全件が対象になる。軸を足さない変更（文言・検査の修正・誤りの訂正で、閉じた機能に測り直しが要らないもの）では上げない。",
   "skill": "parity-suite",
-  "revision": 6,
+  "revision": 7,
   "changes": [
     {
       "revision": 1,
@@ -44,6 +44,13 @@
       "axis": "横断の応答ヘッダーの一覧の原本（.replace/response-headers.json）",
       "affects": ["feature", "api-resource"],
       "summary": "横断の応答ヘッダーの一覧を .replace/survey.md の 7 節の表ではなく .replace/response-headers.json から読む（replace-strategy の assets/response-headers-template.json。references/api-batch.md「応答ヘッダー」）。scripts/header-normalize.mjs の VERSION は 2 になり、--survey に替えて --header-list を取る。parity-diff は differ.header_normalize.version が 1 の機能のヘッダーを比べず未検証に残すので、改訂 3〜5 で応答ヘッダーを録画して閉じた機能（differ.header_normalize が null でない機能）は、同梱版をコピーし直して録り直すか当てないかを機能ごとに .replace/procedure-changes.md へ記録する（header_normalize が null の機能と改訂 2 以前の機能は、それぞれ改訂 3 以前の改訂が扱う）"
+    },
+    {
+      "revision": 7,
+      "added_at": "2026-10-08",
+      "axis": "性能（LCP・CLS・TBT 相当・TTFB）のベースラインとノイズ基準値",
+      "affects": ["feature"],
+      "summary": "feature モードで、capture_conditions.pages × viewports の初期表示の読み込みを同じ条件で繰り返し測り（assets/perf-capture.spec.template.ts から起こした perf/ のスペック）、scripts/perf-stats.mjs summarize で metadata.json の performance に分布とノイズの許容幅を書く（references/baseline.md「性能のベースラインとノイズ基準値」）。parity-diff は同じスクリプトの compare で新側を比べ、performance を持たない成果物は判定せず未検証に残す。改訂 6 以前に閉じた feature 機能は performance を持たないので、採るか当てないかを機能ごとに .replace/procedure-changes.md へ記録する（採るだけなら特性化のやり直しではないので、run.finished_at と run.procedure_revision は書き換えない）"
     }
   ]
 }

@@ -10,6 +10,7 @@ license: MIT
 `replace-strategy` の姉妹スキル。現行と新側の差分を決定論的なツールで検出し、モデルには分類だけを任せる。
 
 - 検出は決定論的なツールが行い、モデルは分類だけを行う。モデルに「差分があるか」を聞かない（探させない）。ツールが検出した差分について、「この差分は重要か」だけを聞く。
+- 見た目の 3 つの比較方法とは別に、初期表示の性能（LCP・CLS・TBT 相当・TTFB）を、`parity-suite` が採った分布とノイズの許容幅で比べる。許容幅を超えた悪化だけを要対応にする。
 - `parity-replace` は、スイートが見ている範囲（新側に対して green か）を扱う。
   このスキルは、スイートでは捉えられない差分（余白・色・フォント・角丸・行間・罫線などの見た目）を扱う。
 - 1 回の実行で扱うのは 1 機能で、ページ単位で処理する（部品の改修の一括再検証は除く）。
@@ -41,7 +42,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
 
 | モード | 内容 |
 |---|---|
-| 機能（feature） | 画素・特性照合・aria の 3 つの比較方法で検出し、正規化 → トリアージ → 収束判定の順に進める |
+| 機能（feature） | 画素・特性照合・aria の 3 つの比較方法で検出し、正規化 → トリアージ → 収束判定の順に進める。性能は別に比べる（[`references/detect.md`](references/detect.md)「性能の比較」） |
 | 横断 API（api-resource） | 画面の 3 つの比較方法は使わない。現行の応答（record/replay）を正として、新側の応答を構造で比べる（[`references/api-batch.md`](references/api-batch.md)） |
 | バッチ（batch） | 視覚の比較方法は使わない。現行のベースライン（DB の状態・生成ファイル）と新側の出力を、決定論的に構造とバイトで比べる（[`references/api-batch.md`](references/api-batch.md)） |
 
@@ -141,6 +142,8 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
 - 同じページに乗る別の機能（共同居住機能）の未実装の領域を、実行時のマスクより先に `blocked_by` に分類しない。新側で root が欠けているのは通常の状態である。
   現側のベースラインで測った target に依存しない `bbox` を両方の作業画像に当て、特性と aria の同じ領域も除いてから差分を検出する。
   `blocked_by` は、マスクの外に残った差分だけに使う。
+- 性能の差を、単発の値やモデルの判断で決めない。新側を現側と同じ機械・同じブラウザ・同じ測り方で繰り返し測り、`parity-suite` の `scripts/perf-stats.mjs compare` で判定する。
+  許容幅を超えた悪化は要対応にし、ばらつき・値の欠け・環境の違いで判定できない組は、合格にせず採り直す（[`references/detect.md`](references/detect.md)「性能の比較」）。
 - 生の差分ゼロを収束の条件にしない。収束は、未説明の差分がゼロで、かつ未修正の回帰がゼロのことである。
 - 名前の付かない要素の見た目の差を、「computed style で保証済み」として扱わない（特性照合は名前付きの要素しか見ない。名前の無い要素は画素の検出が担う）。
 - セル・行・フィールドに論理名を付けて、テーブルやフォームを比べない（内容が同じかは aria の検出が担う）。
@@ -211,10 +214,12 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
    新側の自己ノイズも測り、現側の `noise_baseline` との開きが大きければ停止する。
    行き来のループでは、前回の実行の測定値を組ごとに再利用してよい（失効の条件は同じ reference にある）。
    古い成果物をユーザーの承認による例外として続けた場合は対比せず、自己ノイズが 0 でない組を未検証にする。
+   現側の `metadata.json` が `performance.declared: true` なら、`perf/` のスペックを `new` で実行して新側の性能も採る（同じ reference の「性能の採取」）。
    既存の新側のベースラインから再開する場合も、差分を検出する前に、同じ reference の「共同居住機能の実行時マスク」を必ず通す。
    ページの一覧と、同じ target の green 証跡から有効な集合を導き直し、現側に由来する `bbox` を両方の画像に当てる。新側に root が無いことを、停止の理由や `blocked_by` の根拠にしない。
    当てた詳細は `diff-metadata.json.capture_conditions_verified.cofeature_masks[]` に記録して報告する。恒久的なマスクの検証の結果である既存の `.masks` には混ぜない。
 4. 決定論的に差分を検出する（[`references/detect.md`](references/detect.md)）。画素・特性照合・aria の 3 つの比較方法で検出し、LLM は使わない。
+   性能は、インストール済みの `parity-suite` の `scripts/perf-stats.mjs compare --write <diff-metadata.json>` で比べる。許容幅を超えた悪化（`regressed`）は、トリアージを通さず要対応にする。
 5. 正規化とノイズフィルタ（[`references/normalize.md`](references/normalize.md)）。
    `intentional_diffs` → `component_diffs`（T）→ インスタンス例外 → ノイズ基準値（残りへまとめて当てる）の順に当てる。宣言できない構造の差（`gaps.md`）は、未検証として転記する。
 6. LLM でトリアージする（[`references/triage.md`](references/triage.md)）。正規化の後に残った候補だけを、1 件ずつ crop の対で見せる。
@@ -233,6 +238,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
    - 採取物と工程の健全性（採取物の読み手・加工物の新しさ・状態を変えるスイートの 2 回続けての緑・未測定の `blocking`・`suite.new_green` に対する `diff-metadata.json` の有無と新しさ）。
      インストール済みの `parity-suite` の `scripts/artifact-health-check.mjs --target <target> --stage diff` で数え直す。
      このチェックは、`diff-metadata.json` に結果を書いた後に通す。工程の節は、自分が書く成果物があるかを見るからである。`--stage suite` を渡すと、未測定の `blocking` を通してしまう。
+   - 性能の比較（現側の `metadata.json.performance.declared` が `true` のとき）。`perf-stats.mjs compare` が exit 0 であること。回帰は差し戻し、判定できない組は採り直す。
    - 追記専用の成果物が縮んでいないこと。インストール済みの `replace-strategy` の `scripts/append-only-check.mjs` で数え直す（結果は `diff-metadata.json` の `artifact_health` / `append_only` に残す）。
 
    `converged: true` にしたら、`parity-replace` が `later`（`owner` がこのスキル）で残した受け入れ条件の行を再取得するよう、報告に書く。
@@ -253,6 +259,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
 | 差分レポート | `.replace/parity/<slug>/new/<target>/diff.md` | [`assets/diff-template.md`](assets/diff-template.md) |
 | メタデータ | `.replace/parity/<slug>/new/<target>/diff-metadata.json` | [`assets/diff-metadata-template.json`](assets/diff-metadata-template.json) |
 | 新側のベースライン | `.replace/parity/<slug>/new/<target>/baseline-new/`（現側の `baseline/` と対称のレイアウト） | — |
+| 新側の性能の採取値（現側が `performance.declared: true` のときだけ） | `.replace/parity/<slug>/new/<target>/perf-samples.json`（Git に入れる。比べた結果は `diff-metadata.json` の `performance`） | 採取のスペックは `parity-suite` が置いた `perf/`（`metadata.json` の `suite.perf`） |
 | 新側の採取スペック | `metadata.json.suite.new_only` の場所（デフォルトは `<parity_suite_dir>/parity/<slug>/new-only/`。既にあれば上書きしない） | [`assets/capture-new.spec.template.ts`](assets/capture-new.spec.template.ts) |
 | インスタンス例外のレジストリ | `.replace/parity/<slug>/component-diff-exceptions.json` に、既存の内容を消さずに追記する（無ければテンプレートから作る）。ユーザーが承認したものだけを書き、設定ファイルには置かない | [`assets/component-diff-exceptions-template.json`](assets/component-diff-exceptions-template.json)（スキーマ: [`references/normalize.md`](references/normalize.md)） |
 | 承認済みの例外の根拠 | `.replace/parity/<slug>/component-diff-exceptions.md` に、既存の内容を消さずに追記する（無ければテンプレートから作る）。`component_diff_exception_causes[].evidence` が指す先で、`gaps.md` には書かない | [`assets/component-diff-exceptions-template.md`](assets/component-diff-exceptions-template.md) |
@@ -269,6 +276,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
 - このスキルに同梱した決定論的なツールは、プロジェクトへコピーせず、スキルのディレクトリの中から実行する（`gh skill update` で自動で更新されるようにするため）。
   対象は [`scripts/pixel-crops.mjs`](scripts/pixel-crops.mjs)・[`scripts/diff-normalize.mjs`](scripts/diff-normalize.mjs)・[`scripts/json-normalize-diff.mjs`](scripts/json-normalize-diff.mjs)・
   [`scripts/coverage-check.mjs`](scripts/coverage-check.mjs)・[`scripts/pending-triage-check.mjs`](scripts/pending-triage-check.mjs)・[`scripts/amend-verify.mjs`](scripts/amend-verify.mjs) である。
+  性能の比較は、インストール済みの `parity-suite` の `scripts/perf-stats.mjs` を `compare` で呼ぶ（コピーしない）。
   特性照合と応答ヘッダーの正規化は、`parity-suite` で確定した取り決めに従い、プロジェクトの側のコピー（`trait-capture.mjs`・`trait-compare.mjs`・`header-normalize.mjs`）を使う。
 
 ## 姉妹スキルとの連携
