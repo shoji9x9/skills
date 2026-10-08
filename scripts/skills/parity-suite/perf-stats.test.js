@@ -15,6 +15,7 @@ import {
   judgeMetric,
   main,
   quantile,
+  samplesFingerprint,
   summarizeValues,
 } from "../../../skills/parity-suite/scripts/perf-stats.mjs";
 
@@ -1007,6 +1008,30 @@ describe("compare", () => {
       expect(r.err).toContain("performance.samples がリポジトリのルートからの相対パスでない");
     },
   );
+
+  test("現側・新側の採取と基準から同じ組を削っていれば、判定せず exit 1", () => {
+    // 3 つをそろえて削ると統計と sha256 は合うが、capture_conditions の組（top・list）が欠けている
+    const base = summarized();
+    const onlyTop = () => [{ page: "top", viewport: "desktop", values: steady() }];
+    const curText = JSON.stringify(samplesDoc("current", onlyTop()));
+    const meta = {
+      ...base.meta,
+      performance: {
+        ...base.meta.performance,
+        pairs: base.meta.performance.pairs.filter((p) => p.page === "top"),
+        samples_sha256: samplesFingerprint(curText),
+      },
+    };
+    const r = compareRun(samplesDoc("new", onlyTop()), { base, meta, curText });
+    expect(r.code).toBe(1);
+    const perf = r.read(DIFF).performance;
+    expect(perf.stale_pairs).toBe(true);
+    expect(perf.stale_summary).toBe(false);
+    expect(perf.ok).toBe(false);
+    expect(r.err).toContain(
+      "基準の組が capture_conditions のページ × ビューポートとそろっていない",
+    );
+  });
 
   test("新側の採取の capture が今の定義と違えば exit 2", () => {
     const changed = {

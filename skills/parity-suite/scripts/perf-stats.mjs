@@ -690,8 +690,19 @@ export function compare(metadata, samplesDoc, opts) {
   // 基準を採った採取が、集計した後に採り直されていないか（集計は採取から作るので、元が変われば古い）。
   // 読めなかった（null）ときも sha256 の文字列と一致しないので、古い基準と同じく通さない。
   // 古い基準のときは、組 × 指標をすべて stale_baseline にする（regressed を出さない）
+  // 基準の組が今の定義（ページ × ビューポート）とそろっているか。現側・新側の採取と基準から同じ組を削った成果物は、
+  // 統計と sha256 が合っても欠けた組を含むので、古い基準として扱う
+  const expected = expectedPairs(metadata);
+  const baselineKeys = perf.pairs.map((p) =>
+    isPlainObject(p) && isKeyPart(p.page) && isKeyPart(p.viewport)
+      ? pairKey(p.page, p.viewport)
+      : null,
+  );
+  const stalePairs =
+    expected.some((k) => !baselineKeys.includes(k)) ||
+    baselineKeys.some((k) => k === null || !expected.includes(k));
   const staleBaseline =
-    opts.currentSamplesSha256 !== perf.samples_sha256 || staleCapture || staleSummary;
+    opts.currentSamplesSha256 !== perf.samples_sha256 || staleCapture || staleSummary || stalePairs;
 
   const differences = environmentDifferences(perf, neuDoc);
   const results = [];
@@ -782,6 +793,7 @@ export function compare(metadata, samplesDoc, opts) {
     stale_baseline: staleBaseline,
     stale_capture: staleCapture,
     stale_summary: staleSummary,
+    stale_pairs: stalePairs,
     environment_differences: differences,
     extra_pairs: extra,
     floors: perf.floors,
@@ -1026,6 +1038,10 @@ export function main(argv, deps = {}) {
     }
     if (!result.ok) {
       const reasons = [];
+      if (result.stale_pairs && !result.stale_capture)
+        reasons.push(
+          "基準の組が capture_conditions のページ × ビューポートとそろっていない（採り直して summarize を通し直す）",
+        );
       if (result.stale_summary && !result.stale_capture)
         reasons.push("基準の統計が現側の採取から計算し直した値と違う（summarize を通し直す）");
       if (result.stale_capture)

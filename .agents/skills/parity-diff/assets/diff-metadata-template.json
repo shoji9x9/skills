@@ -140,6 +140,7 @@
     "reason": "<judged: false のときの理由（現側に performance が無い〈改訂 7 より前の成果物〉、declared: false ならその reason）。judged: true では書かない>",
     "ok": "<スクリプトの ok>",
     "stale_baseline": "<現側の採取ファイルが集計の後に変わっていた・読めなかったか>",
+    "stale_pairs": "<基準の組が capture_conditions のページ × ビューポートとそろっていないか>",
     "environment_differences": ["<現側と違った環境・測り方の項目>"],
     "extra_pairs": ["<現側に無い組>"],
     "floors": "<判定に使った絶対の下限（現側 metadata.json の performance.floors）>",

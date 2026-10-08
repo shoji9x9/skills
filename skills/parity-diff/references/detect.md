@@ -132,8 +132,13 @@ node <parity-suite の skill>/scripts/perf-stats.mjs compare \
   - `env_mismatch`: 環境か測り方が現側と違う（`environment_differences` に項目が出る）。
     このスキルは現行アプリを動かさないので、自分で採り直さない。収束の判定で停止し、`environment_differences` を載せて利用者に報告する。
     案内するのは、新側を測った機械で `parity-suite` の性能の採取と `summarize --write` をやり直し、その後でこのスキルを再実行する手順である
-  - `stale_baseline`: 現側の基準が使えない。現側の採取ファイルが集計の後に変わっている、読めない、基準を採った後に `capture_conditions` のページ・ビューポートが変わった（`stale_capture`）、
-    または基準の統計が採取ファイルから計算し直した値と違う（`stale_summary`）。古い基準とは比べないので、すべての組 × 指標がこの状態になり、`regressed` は出ない。`parity-suite` の `summarize` を通し直す
+  - `stale_baseline`: 現側の基準が使えない。次のどれかに当たる。
+    - 現側の採取ファイルが集計の後に変わっている、または読めない
+    - 基準を採った後に `capture_conditions` のページ・ビューポートが変わった（`stale_capture`）
+    - 基準の統計が採取ファイルから計算し直した値と違う（`stale_summary`）
+    - 基準の組が今の `capture_conditions` のページ × ビューポートとそろっていない（`stale_pairs`）
+
+    古い基準とは比べないので、すべての組 × 指標がこの状態になり、`regressed` は出ない。`parity-suite` の `summarize` を通し直す
 - 下限は利用者が `summarize` で決める値で、採取から導けないので、`compare` は値の正しさを確かめられない。
   デフォルトより緩い下限は、判定を変えずに `loosened_floors`（指標・`floors` か `relative_floors`・値・デフォルト）に出し、stderr にも警告する。
   1 件以上あれば、`diff.md` の性能の行にそのまま載せる。緩めた下限は回帰を許容幅の中に入れうるので、収束を報告するときに利用者へ確かめる
