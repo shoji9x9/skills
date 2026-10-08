@@ -240,6 +240,8 @@
       "replace": "      const unjudged = false\n",
       "occurrences": 1,
       "expect_failing": [
+        "compare 基準の環境・測り方を新側に合わせて書き換えていれば、判定せず exit 1: ブラウザの版",
+        "compare 基準の環境・測り方を新側に合わせて書き換えていれば、判定せず exit 1: 待つ時間",
         "compare 基準の統計を手で書き換えていれば、判定せず exit 1",
         "compare 基準を採った後に組の定義が変われば、判定せず exit 1: ビューポートを足した",
         "compare 基準を採った後に組の定義が変われば、判定せず exit 1: ページの path を変えた",
@@ -389,7 +391,23 @@
       "find": "    opts.currentSamplesSha256 !== perf.samples_sha256 || staleCapture || staleSummary;\n",
       "replace": "    opts.currentSamplesSha256 !== perf.samples_sha256 || staleCapture;\n",
       "occurrences": 1,
-      "expect_failing": ["compare 基準の統計を手で書き換えていれば、判定せず exit 1"]
+      "expect_failing": [
+        "compare 基準の環境・測り方を新側に合わせて書き換えていれば、判定せず exit 1: ブラウザの版",
+        "compare 基準の環境・測り方を新側に合わせて書き換えていれば、判定せず exit 1: 待つ時間",
+        "compare 基準の統計を手で書き換えていれば、判定せず exit 1"
+      ]
+    },
+    {
+      "id": "summary-env-off",
+      "why": "書き換えた基準の環境・測り方を受ける",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "    if (JSON.stringify(perf[key]) !== JSON.stringify(doc[key])) return false;\n",
+      "replace": "    if (JSON.stringify(perf[key]) !== JSON.stringify(doc[key])) continue;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare 基準の環境・測り方を新側に合わせて書き換えていれば、判定せず exit 1: ブラウザの版",
+        "compare 基準の環境・測り方を新側に合わせて書き換えていれば、判定せず exit 1: 待つ時間"
+      ]
     }
   ]
 }

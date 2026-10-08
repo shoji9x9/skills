@@ -483,7 +483,7 @@ export function judgeMetric(cur, neu, floor, relativeFloor = 0) {
 export const PASSING_STATUSES = ["within_noise", "improved", "not_applicable"];
 
 /**
- * 基準の統計（performance.pairs の metrics）が、現側の採取ファイルから計算し直したものと一致するか。
+ * 基準の統計（performance.pairs の metrics）と環境・測り方（environment・settings）が、現側の採取ファイルから作り直したものと一致するか。
  * 採取ファイルが読めない・形が違うときも一致しないとする。
  * @param {Record<string, unknown>} perf
  * @param {unknown} currentDoc
@@ -497,6 +497,11 @@ export function summaryMatches(perf, currentDoc, slug) {
     groups = groupSamples(currentDoc, { side: "current", slug, target: null });
   } catch {
     return false;
+  }
+  // 環境と測り方も採取から転記した値なので、書き換えて新側の値に合わせれば env_mismatch を通り抜けられる
+  const doc = /** @type {Record<string, unknown>} */ (currentDoc);
+  for (const key of ["environment", "settings"]) {
+    if (JSON.stringify(perf[key]) !== JSON.stringify(doc[key])) return false;
   }
   const pairs = /** @type {Record<string, unknown>[]} */ (perf.pairs);
   if (pairs.length !== groups.size) return false;

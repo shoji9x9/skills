@@ -799,6 +799,21 @@ describe("compare", () => {
     expect(perf.regressed).toEqual([]);
   });
 
+  test.each([
+    ["ブラウザの版", { environment: { ...environment(), browser_version: "154.0" } }],
+    ["待つ時間", { settings: { ...settings(), settle_ms: 2000 } }],
+  ])("基準の環境・測り方を新側に合わせて書き換えていれば、判定せず exit 1: %s", (_, changed) => {
+    // 現側の採取と sha256 はそのままで、performance の環境・測り方だけを新側の値に書き換えて env_mismatch を避ける
+    const base = summarized();
+    const meta = { ...base.meta, performance: { ...base.meta.performance, ...changed } };
+    const slow = () => ({ ...steady(), tbt: [300, 300, 300, 300, 300] });
+    const r = compareRun(samplesDoc("new", bothPairs(slow), changed), { base, meta });
+    expect(r.code).toBe(1);
+    const perf = r.read(DIFF).performance;
+    expect(perf.stale_summary).toBe(true);
+    expect(perf.regressed).toEqual([]);
+  });
+
   test("新側の採取の capture が今の定義と違えば exit 2", () => {
     const changed = {
       ...captureOf(metadata().capture_conditions),
