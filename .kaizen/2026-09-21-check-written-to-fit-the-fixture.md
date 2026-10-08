@@ -38,6 +38,18 @@ Issue #449 の再現例 1 つ（html/body が `height: 100%`、margin 0、最小
 根本原因は同じ: 検査と fixture を「報告された 1 例」から起こし、入力の文法（レスポンシブのブレークポイント、既定の margin、複数要素）から状態空間を列挙しなかった。
 実ブラウザの検証も同じ 1 例で行ったので、green が抜けを隠した。
 
+### 2026-10-09 の再発（Issue #582、/code-review --fix が検出）
+
+`perf-stats.mjs` の `floorHistory` は、前の `performance` と下限を比べて、違うときだけ `floor_history` に追記する。
+テストの fixture は、`performance` を持たない `metadata.json` だけで組み立てた。
+しかし、利用者が実際に始める形は `metadata-template.json` のコピーで、その `floors`・`relative_floors` はデフォルトと同じ値を持つ。
+そのため、雛形から作った `metadata.json` に初めて `summarize --write` すると「変更なし」と判定され、最初の下限が履歴に残らなかった。
+文書に書いた「初めて書くときを含む」とも食い違っていた。
+実装中にこの形に気付いたが、「デフォルトは緩めていないので問題ない」と自分で打ち消し、テストにも文書にも反映しなかった。
+
+根本原因は同じ: 生成側の原本（同梱の雛形）から入力を起こさず、コードの分岐（`performance` が有る・無い）から fixture を作った。
+雛形を fixture にしたテストは、レビューの修正で足した（`perf-stats.test.js`、変異 `floor-history-template-as-summarized`）。
+
 ## 根本原因
 
 - なぜ検査が無効だったか → fixture の形（フラットな YAML）に合わせてキーパスを書いたため
