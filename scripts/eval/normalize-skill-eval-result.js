@@ -112,6 +112,10 @@ const SHELL_CONTROL_FLOW = /[|&;\n`()<>]|\$\(/u;
 // operand. Without this, `cat -n <skill path>` gave the path to `-n` (#572).
 const FLAG_ONLY_UTILITIES = new Set(["cat"]);
 
+// Options that print and exit without opening any operand: `cat --help <skill path>`
+// succeeds having read nothing.
+const TERMINAL_OPTIONS = new Set(["--help", "--version"]);
+
 // How many leading non-flag operands are NOT files. `grep PATTERN file` and
 // `sed SCRIPT file` name the skill path in that first operand without opening it,
 // so the evidence is the operands after it, never the whole command.
@@ -139,6 +143,12 @@ function readOperands(command) {
   }
   const utility = (words[index] ?? "").split("/").pop();
   if (!READ_UTILITIES.has(utility) || SHELL_CONTROL_FLOW.test(trimmed)) {
+    return [];
+  }
+  const afterUtility = words.slice(index + 1);
+  const endOfOptions = afterUtility.indexOf("--");
+  const options = endOfOptions === -1 ? afterUtility : afterUtility.slice(0, endOfOptions);
+  if (options.some((word) => TERMINAL_OPTIONS.has(word))) {
     return [];
   }
 

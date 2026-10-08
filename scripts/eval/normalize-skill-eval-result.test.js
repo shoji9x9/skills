@@ -240,6 +240,9 @@ describe("skill eval result normalization", () => {
       ["a stat", "stat .claude/skills/box/SKILL.md"],
       ["a removal", "rm -f .claude/skills/box/SKILL.md"],
       ["a find", "find .claude/skills/box -name '*.md'"],
+      // Prints and exits without opening the path that follows.
+      ["cat --help before the path", "cat --help .claude/skills/box/SKILL.md"],
+      ["head --version before the path", "head --version .claude/skills/box/SKILL.md"],
     ])("does not count %s as reading the skill", (_label, command) => {
       const usage = buildSkillUsage({
         config: "with_skill",

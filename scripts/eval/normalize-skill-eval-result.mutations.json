@@ -649,6 +649,17 @@
         "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk takes out a line held by a sibling skill whose subdirectory is a symlink",
         "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk fails on a dangling symlink rather than drop what it would hold"
       ]
+    },
+    {
+      "id": "terminal-option-reads",
+      "why": "--help・--version の後のパスを読み取りとして数える",
+      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "find": "  if (options.some((word) => TERMINAL_OPTIONS.has(word))) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "skill eval result normalization skill read detection does not count cat --help before the path as reading the skill"
+      ]
     }
   ]
 }
