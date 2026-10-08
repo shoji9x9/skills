@@ -57,6 +57,7 @@ export const MIN_RUNS = 5;
  * 現側と新側で一致を求める環境の項目。どれかが違えば、差が実装の差か環境の差かを切り分けられない。
  * target_placement は対象の置き場所（loopback か remote）で、違えばネットワークの遅れが TTFB・LCP に入る。
  * context_options はコンテキストの設定（locale・userAgent など）で、違えば別の内容や描画を測る。
+ * launch_options はブラウザの起動の設定（args・executablePath など）で、違えば描画や負荷が変わる。
  */
 export const ENVIRONMENT_KEYS = [
   "browser_name",
@@ -69,6 +70,7 @@ export const ENVIRONMENT_KEYS = [
   "runner.cpu_count",
   "target_placement",
   "context_options",
+  "launch_options",
 ];
 
 /** target_placement がとる値。loopback は localhost・127.0.0.0/8・::1 だけを指す。 */
@@ -240,8 +242,10 @@ export function groupSamples(doc, expect) {
       `採取の environment.target_placement が ${TARGET_PLACEMENTS.join(" / ")} でない`,
     );
   }
-  if (!isPlainObject(getPath(doc.environment, "context_options"))) {
-    throw new UsageError("採取の environment.context_options がオブジェクトでない");
+  for (const key of ["context_options", "launch_options"]) {
+    if (!isPlainObject(getPath(doc.environment, key))) {
+      throw new UsageError(`採取の environment.${key} がオブジェクトでない`);
+    }
   }
   const settings = doc.settings;
   if (!isPlainObject(settings)) throw new UsageError("採取に settings が無い");
@@ -258,10 +262,9 @@ export function groupSamples(doc, expect) {
     if (settings[key] === undefined) throw new UsageError(`採取の settings.${key} が無い`);
   }
   // 両側が同じ誤った値でも compare は一致として通すので、測り方の取り決めをここで確かめる
-  if (!Number.isInteger(settings.warmup) || /** @type {number} */ (settings.warmup) < 1) {
-    throw new UsageError(
-      `settings.warmup が 1 以上の整数でない: ${JSON.stringify(settings.warmup)}`,
-    );
+  // 採取のスペックはウォームアップを 1 回だけ捨てる。他の値は、測り方と記録が食い違っている
+  if (settings.warmup !== 1) {
+    throw new UsageError(`settings.warmup が 1 でない: ${JSON.stringify(settings.warmup)}`);
   }
   if (!Number.isInteger(settings.settle_ms) || /** @type {number} */ (settings.settle_ms) < 0) {
     throw new UsageError(
@@ -565,7 +568,7 @@ export function environmentDifferences(cur, neu) {
   for (const key of ENVIRONMENT_KEYS) {
     const a = getPath(/** @type {Record<string, unknown>} */ (cur.environment ?? {}), key);
     const b = getPath(/** @type {Record<string, unknown>} */ (neu.environment ?? {}), key);
-    // context_options はキーの順序が書き手で変わりうるので、並べ替えてから比べる
+    // context_options・launch_options はキーの順序が書き手で変わりうるので、並べ替えてから比べる
     if (canonicalJson(a) !== canonicalJson(b)) {
       diffs.push(`environment.${key}: ${JSON.stringify(a)} → ${JSON.stringify(b)}`);
     }

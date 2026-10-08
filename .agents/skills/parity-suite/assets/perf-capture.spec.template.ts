@@ -200,6 +200,7 @@ test("性能の採取", async ({ browser }, testInfo) => {
       headless,
       target_placement: placement,
       context_options: contextFingerprint(contextOptions),
+      launch_options: launchFingerprint(use.launchOptions as Record<string, unknown> | undefined),
       runner: {
         platform: platform(),
         arch: arch(),
@@ -298,6 +299,26 @@ function contextFingerprint(options: Record<string, unknown>): Record<string, un
   for (const key of Object.keys(options).sort()) {
     if (key === "baseURL" || options[key] === undefined) continue;
     out[key] = redactedContextOption(key, options[key]);
+  }
+  return out;
+}
+
+// project の use.launchOptions（ブラウザの起動の設定）。args・executablePath などが違えば描画や負荷が変わる。
+// 秘密を持ちうる env は、実行したシェルと値が違う変数（上書き）の名前だけを残す。
+// `env: { ...process.env }` の形でシェルの変数をすべて渡しても、側ごとに違う変数で誤った違いにしない。
+// proxy は server と bypass だけを残す
+function launchFingerprint(options: Record<string, unknown> | undefined): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const key of Object.keys(options ?? {}).sort()) {
+    const value = options?.[key];
+    if (value === undefined || typeof value === "function") continue;
+    if (key === "env")
+      out[key] = Object.entries(value as Record<string, string>)
+        .filter(([name, v]) => process.env[name] !== v)
+        .map(([name]) => name)
+        .sort();
+    else if (key === "proxy") out[key] = redactedContextOption("proxy", value);
+    else out[key] = value;
   }
   return out;
 }

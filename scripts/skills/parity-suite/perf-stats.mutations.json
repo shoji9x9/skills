@@ -60,7 +60,8 @@
         "compare 環境・測り方が違えば env_mismatch で exit 1: コンテキストの設定",
         "compare 環境・測り方が違えば env_mismatch で exit 1: ブラウザの版",
         "compare 環境・測り方が違えば env_mismatch で exit 1: 待つ時間",
-        "compare 環境・測り方が違えば env_mismatch で exit 1: 置き場所"
+        "compare 環境・測り方が違えば env_mismatch で exit 1: 置き場所",
+        "compare 環境・測り方が違えば env_mismatch で exit 1: 起動の設定"
       ]
     },
     {
@@ -241,12 +242,15 @@
     },
     {
       "id": "warmup-any",
-      "why": "ウォームアップ 0 を受ける",
+      "why": "1 以外のウォームアップを受ける",
       "file": "skills/parity-suite/scripts/perf-stats.mjs",
-      "find": "  if (!Number.isInteger(settings.warmup) || /** @type {number} */ (settings.warmup) < 1) {\n",
-      "replace": "  if (false && /** @type {number} */ (settings.warmup) < 1) {\n",
+      "find": "  if (settings.warmup !== 1) {\n",
+      "replace": "  if (false) {\n",
       "occurrences": 1,
-      "expect_failing": ["summarize 測り方の値が取り決めと違えば exit 2: ウォームアップが 0"]
+      "expect_failing": [
+        "summarize 測り方の値が取り決めと違えば exit 2: ウォームアップが 0",
+        "summarize 測り方の値が取り決めと違えば exit 2: ウォームアップが 2"
+      ]
     },
     {
       "id": "settle-any",
@@ -412,25 +416,27 @@
     },
     {
       "id": "ctxopt-any",
-      "why": "オブジェクトでないコンテキストの設定を受ける",
+      "why": "オブジェクトでないコンテキスト・起動の設定を受ける",
       "file": "skills/parity-suite/scripts/perf-stats.mjs",
-      "find": "  if (!isPlainObject(getPath(doc.environment, \"context_options\"))) {\n",
-      "replace": "  if (false) {\n",
+      "find": "    if (!isPlainObject(getPath(doc.environment, key))) {\n",
+      "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
-        "summarize 入力の形が違えば exit 2: コンテキストの設定がオブジェクトでない"
+        "summarize 入力の形が違えば exit 2: コンテキストの設定がオブジェクトでない",
+        "summarize 入力の形が違えば exit 2: 起動の設定が無い"
       ]
     },
     {
       "id": "env-keys-placement-off",
-      "why": "置き場所とコンテキストの設定の違いを env_mismatch にしない",
+      "why": "置き場所・コンテキストと起動の設定の違いを env_mismatch にしない",
       "file": "skills/parity-suite/scripts/perf-stats.mjs",
-      "find": "  \"target_placement\",\n  \"context_options\",\n];\n",
+      "find": "  \"target_placement\",\n  \"context_options\",\n  \"launch_options\",\n];\n",
       "replace": "];\n",
       "occurrences": 1,
       "expect_failing": [
+        "compare 環境・測り方が違えば env_mismatch で exit 1: コンテキストの設定",
         "compare 環境・測り方が違えば env_mismatch で exit 1: 置き場所",
-        "compare 環境・測り方が違えば env_mismatch で exit 1: コンテキストの設定"
+        "compare 環境・測り方が違えば env_mismatch で exit 1: 起動の設定"
       ]
     },
     {

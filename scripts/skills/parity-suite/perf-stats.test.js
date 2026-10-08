@@ -28,6 +28,7 @@ const environment = () => ({
   runner: { platform: "linux", arch: "x64", cpu_model: "cpu", cpu_count: 8 },
   target_placement: "loopback",
   context_options: { colorScheme: "light", locale: "ja-JP" },
+  launch_options: { ignoreDefaultArgs: ["--hide-scrollbars"] },
 });
 const settings = (runs = 5) => ({ runs, warmup: 1, settle_ms: 1000, cache: "cold", workers: 1 });
 
@@ -383,6 +384,14 @@ describe("summarize", () => {
       },
     ],
     [
+      "起動の設定が無い",
+      {
+        [CUR]: samplesDoc("current", bothPairs(), {
+          environment: { ...environment(), launch_options: undefined },
+        }),
+      },
+    ],
+    [
       "コンテキストの設定がオブジェクトでない",
       {
         [CUR]: samplesDoc("current", bothPairs(), {
@@ -482,6 +491,7 @@ describe("summarize", () => {
 
   test.each([
     ["ウォームアップが 0", { warmup: 0 }],
+    ["ウォームアップが 2", { warmup: 2 }],
     ["待つ時間が数でない", { settle_ms: "x" }],
     ["キャッシュが cold でない", { cache: "warm" }],
   ])("測り方の値が取り決めと違えば exit 2: %s", (_, override) => {
@@ -665,6 +675,10 @@ describe("compare", () => {
           context_options: { colorScheme: "light", locale: "en-US" },
         },
       },
+    ],
+    [
+      "起動の設定",
+      { environment: { ...environment(), launch_options: { args: ["--disable-gpu"] } } },
     ],
     ["待つ時間", { settings: { ...settings(), settle_ms: 2000 } }],
   ])("環境・測り方が違えば env_mismatch で exit 1: %s", (_, override) => {
