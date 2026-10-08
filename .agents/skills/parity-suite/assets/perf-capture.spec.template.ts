@@ -181,6 +181,11 @@ test("性能の採取", async ({ browser }, testInfo) => {
     slug,
     target: side === "new" ? process.env.PARITY_NEW_TARGET : null,
     measured_at: new Date().toISOString(),
+    // 採った組の定義。scripts/perf-stats.mjs が metadata.json の capture_conditions と突き合わせる
+    capture: {
+      pages: pages.map((p) => ({ name: p.name, path: p.path })),
+      viewports: viewports.map((v) => ({ label: v.label, width: v.width, height: v.height })),
+    },
     environment: {
       browser_name: browser.browserType().name(),
       browser_version: browser.version(),
@@ -204,14 +209,16 @@ test("性能の採取", async ({ browser }, testInfo) => {
   });
 });
 
-// project の use のうち、コンテキストを作るときに渡す設定（Playwright の BrowserContextOptions）。
+// project の use のうち、コンテキストを作るときに渡す設定（Playwright の BrowserContextOptions。1.63 の types.d.ts で確かめた）。
 // 出典: https://playwright.dev/docs/api/class-browser#browser-new-context
-// viewport は組ごとに上書きするので、ここには含めない
+// 含めないのは 4 つだけである。viewport は組ごとに上書きする。recordHar・recordVideo は記録の負荷が値に入る。logger は値に関わらない
 const CONTEXT_OPTION_KEYS = [
   "acceptDownloads",
   "baseURL",
   "bypassCSP",
+  "clientCertificates",
   "colorScheme",
+  "contrast",
   "deviceScaleFactor",
   "extraHTTPHeaders",
   "forcedColors",
@@ -226,8 +233,10 @@ const CONTEXT_OPTION_KEYS = [
   "permissions",
   "proxy",
   "reducedMotion",
+  "screen",
   "serviceWorkers",
   "storageState",
+  "strictSelectors",
   "timezoneId",
   "userAgent",
 ] as const;

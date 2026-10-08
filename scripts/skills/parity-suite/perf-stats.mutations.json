@@ -167,13 +167,10 @@
       "id": "stale-baseline-off",
       "why": "集計の後に採り直した基準を通す",
       "file": "skills/parity-suite/scripts/perf-stats.mjs",
-      "find": "  const staleBaseline = opts.currentSamplesSha256 !== perf.samples_sha256 || staleCapture;\n",
-      "replace": "  const staleBaseline = false || staleCapture;\n",
+      "find": "    opts.currentSamplesSha256 !== perf.samples_sha256 || staleCapture || staleSummary;\n",
+      "replace": "    false || staleCapture || staleSummary;\n",
       "occurrences": 1,
-      "expect_failing": [
-        "compare 現側の採取が集計の後に変わっていれば、組 × 指標を判定せず exit 1",
-        "compare 現側の採取を読めなければ exit 1"
-      ]
+      "expect_failing": ["compare 現側の採取が集計の後に変わっていれば、組 × 指標を判定せず exit 1"]
     },
     {
       "id": "sha-shape-any",
@@ -243,6 +240,7 @@
       "replace": "      const unjudged = false\n",
       "occurrences": 1,
       "expect_failing": [
+        "compare 基準の統計を手で書き換えていれば、判定せず exit 1",
         "compare 基準を採った後に組の定義が変われば、判定せず exit 1: ビューポートを足した",
         "compare 基準を採った後に組の定義が変われば、判定せず exit 1: ページの path を変えた",
         "compare 現側の採取が集計の後に変わっていれば、組 × 指標を判定せず exit 1"
@@ -306,8 +304,8 @@
       "id": "stale-capture-off",
       "why": "組の定義が変わった基準で判定する",
       "file": "skills/parity-suite/scripts/perf-stats.mjs",
-      "find": "  const staleBaseline = opts.currentSamplesSha256 !== perf.samples_sha256 || staleCapture;\n",
-      "replace": "  const staleBaseline = opts.currentSamplesSha256 !== perf.samples_sha256;\n",
+      "find": "    opts.currentSamplesSha256 !== perf.samples_sha256 || staleCapture || staleSummary;\n",
+      "replace": "    opts.currentSamplesSha256 !== perf.samples_sha256 || staleSummary;\n",
       "occurrences": 1,
       "expect_failing": [
         "compare 基準を採った後に組の定義が変われば、判定せず exit 1: ビューポートを足した",
@@ -362,6 +360,36 @@
         "compare 基準の median / iqr が回数と合わなければ exit 2: すべて null の組に数がある",
         "compare 基準の形が違えば exit 2: 中央値が数でない"
       ]
+    },
+    {
+      "id": "sum-capture-any",
+      "why": "定義の違う採取を集計する",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "  if (!captureMatches(samplesDoc, metadata)) {\n    throw new UsageError(\n      \"採取の capture",
+      "replace": "  if (false) {\n    throw new UsageError(\n      \"採取の capture",
+      "occurrences": 1,
+      "expect_failing": [
+        "summarize 採取の capture が今の定義と違えば書かずに exit 2: path が違う",
+        "summarize 採取の capture が今の定義と違えば書かずに exit 2: capture が無い"
+      ]
+    },
+    {
+      "id": "cmp-capture-any",
+      "why": "定義の違う新側の採取を比べる",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "  if (!captureMatches(samplesDoc, metadata)) {\n    throw new UsageError(\n      \"新側の採取の capture",
+      "replace": "  if (false) {\n    throw new UsageError(\n      \"新側の採取の capture",
+      "occurrences": 1,
+      "expect_failing": ["compare 新側の採取の capture が今の定義と違えば exit 2"]
+    },
+    {
+      "id": "stale-summary-off",
+      "why": "書き換えた基準の統計で判定する",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "    opts.currentSamplesSha256 !== perf.samples_sha256 || staleCapture || staleSummary;\n",
+      "replace": "    opts.currentSamplesSha256 !== perf.samples_sha256 || staleCapture;\n",
+      "occurrences": 1,
+      "expect_failing": ["compare 基準の統計を手で書き換えていれば、判定せず exit 1"]
     }
   ]
 }

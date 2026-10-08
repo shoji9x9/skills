@@ -65,8 +65,18 @@ function samplesDoc(side, pairs, overrides = {}) {
     measured_at: "2026-10-08T00:00:00.000Z",
     environment: environment(),
     settings: settings(runs),
+    // 雛形が書く形と同じく、採ったときの組の定義を持たせる
+    capture: captureOf(metadata().capture_conditions),
     samples: pairs.flatMap((p) => pairSamples(p.page, p.viewport, p.values)),
     ...overrides,
+  };
+}
+
+/** capture_conditions から、採取ファイルの capture を作る。 */
+function captureOf(cc) {
+  return {
+    pages: cc.pages.map((p) => ({ name: p.name, path: p.path })),
+    viewports: cc.viewports.map((v) => ({ label: v.label, width: v.width, height: v.height })),
   };
 }
 
@@ -378,10 +388,12 @@ describe("summarize", () => {
       },
     ],
   ])("入力の形が違えば exit 2: %s", (_, override) => {
-    const r = run(
-      { [META]: metadata(), [CUR]: samplesDoc("current", bothPairs()), ...override },
-      summarizeArgs,
-    );
+    // metadata.json だけを変えた入力では、採取の capture をその定義に合わせ、狙った検査より前の capture の照合で止めない
+    const meta = override[META] ?? metadata();
+    const cur =
+      override[CUR] ??
+      samplesDoc("current", bothPairs(), { capture: captureOf(meta.capture_conditions) });
+    const r = run({ ...override, [META]: meta, [CUR]: cur }, summarizeArgs);
     expect(r.code).toBe(2);
   });
 
@@ -397,6 +409,17 @@ describe("summarize", () => {
       path,
       "--write",
     ]);
+    expect(r.code).toBe(2);
+    expect(r.read(META).performance).toBeUndefined();
+  });
+
+  test.each([
+    ["path が違う", (c) => ({ ...c, pages: [{ name: "top", path: "old" }, c.pages[1]] })],
+    ["capture が無い", () => undefined],
+  ])("採取の capture が今の定義と違えば書かずに exit 2: %s", (_, change) => {
+    const doc = samplesDoc("current", bothPairs());
+    doc.capture = change(doc.capture);
+    const r = run({ [META]: metadata(), [CUR]: doc }, summarizeArgs);
     expect(r.code).toBe(2);
     expect(r.read(META).performance).toBeUndefined();
   });
@@ -693,9 +716,14 @@ describe("compare", () => {
     ],
   ])("基準を採った後に組の定義が変われば、判定せず exit 1: %s", (_, change) => {
     const base = summarized();
-    const meta = { ...base.meta, capture_conditions: change(base.meta.capture_conditions) };
+    const cc = change(base.meta.capture_conditions);
+    const meta = { ...base.meta, capture_conditions: cc };
     const slow = () => ({ ...steady(), tbt: [300, 300, 300, 300, 300] });
-    const r = compareRun(samplesDoc("new", bothPairs(slow)), { base, meta });
+    // 新側は変えた後の定義で採っている（雛形が採るときの metadata.json を読む）
+    const r = compareRun(samplesDoc("new", bothPairs(slow), { capture: captureOf(cc) }), {
+      base,
+      meta,
+    });
     expect(r.code).toBe(1);
     const perf = r.read(DIFF).performance;
     expect(perf.stale_capture).toBe(true);
@@ -755,6 +783,30 @@ describe("compare", () => {
     const r = compareRun(samplesDoc("new", bothPairs()), { base, meta });
     expect(r.code).toBe(2);
     expect(r.err).toContain("median / iqr が回数と合わない");
+  });
+
+  test("基準の統計を手で書き換えていれば、判定せず exit 1", () => {
+    // 採取ファイルと sha256 はそのままで、現側の TBT の中央値だけを大きくして新側の遅れを隠す
+    const base = summarized();
+    const pairs = structuredClone(base.meta.performance.pairs);
+    pairs[0].metrics.tbt = { ...pairs[0].metrics.tbt, median: 300 };
+    const meta = { ...base.meta, performance: { ...base.meta.performance, pairs } };
+    const slow = () => ({ ...steady(), tbt: [300, 300, 300, 300, 300] });
+    const r = compareRun(samplesDoc("new", bothPairs(slow)), { base, meta });
+    expect(r.code).toBe(1);
+    const perf = r.read(DIFF).performance;
+    expect(perf.stale_summary).toBe(true);
+    expect(perf.regressed).toEqual([]);
+  });
+
+  test("新側の採取の capture が今の定義と違えば exit 2", () => {
+    const changed = {
+      ...captureOf(metadata().capture_conditions),
+      viewports: [{ label: "desktop", width: 1024, height: 768 }],
+    };
+    const r = compareRun(samplesDoc("new", bothPairs(), { capture: changed }));
+    expect(r.code).toBe(2);
+    expect(r.err).toContain("新側の採取の capture");
   });
 
   test("新側の採取の side が current なら exit 2", () => {

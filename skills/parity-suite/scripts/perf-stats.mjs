@@ -354,6 +354,21 @@ export function captureDefinition(metadata) {
 }
 
 /**
+ * 採取ファイルが記録した組の定義が、metadata.json の今の定義と一致するか。
+ * @param {unknown} samplesDoc
+ * @param {Record<string, unknown>} metadata
+ * @returns {boolean}
+ */
+export function captureMatches(samplesDoc, metadata) {
+  const doc = /** @type {Record<string, unknown>} */ (samplesDoc);
+  return (
+    isPlainObject(doc.capture) &&
+    JSON.stringify(captureDefinition({ capture_conditions: doc.capture })) ===
+      JSON.stringify(captureDefinition(metadata))
+  );
+}
+
+/**
  * `--floor lcp=150` / `--relative-floor lcp=0.3` の列を下限の表にする。
  * @param {string[]} specs
  * @param {Record<string, number>} defaults
@@ -394,6 +409,12 @@ export function summarize(metadata, samplesDoc, opts) {
     target: null,
   });
   const expected = expectedPairs(metadata);
+  // 採った後に path や寸法を変えた定義で集計し直すと、古い値に新しい組の名前を付けることになる
+  if (!captureMatches(samplesDoc, metadata)) {
+    throw new UsageError(
+      "採取の capture が metadata.json の capture_conditions と違う（今の定義で採り直してから summarize を通す）",
+    );
+  }
   const missing = expected.filter((k) => !groups.has(k));
   const extra = [...groups.keys()].filter((k) => !expected.includes(k));
   const doc = /** @type {Record<string, unknown>} */ (samplesDoc);
@@ -462,6 +483,36 @@ export function judgeMetric(cur, neu, floor, relativeFloor = 0) {
 export const PASSING_STATUSES = ["within_noise", "improved", "not_applicable"];
 
 /**
+ * 基準の統計（performance.pairs の metrics）が、現側の採取ファイルから計算し直したものと一致するか。
+ * 採取ファイルが読めない・形が違うときも一致しないとする。
+ * @param {Record<string, unknown>} perf
+ * @param {unknown} currentDoc
+ * @param {string} slug
+ * @returns {boolean}
+ */
+export function summaryMatches(perf, currentDoc, slug) {
+  /** @type {Map<string, { values: Record<string, (number|null)[]> }>} */
+  let groups;
+  try {
+    groups = groupSamples(currentDoc, { side: "current", slug, target: null });
+  } catch {
+    return false;
+  }
+  const pairs = /** @type {Record<string, unknown>[]} */ (perf.pairs);
+  if (pairs.length !== groups.size) return false;
+  return pairs.every((p) => {
+    const g = groups.get(
+      pairKey(/** @type {string} */ (p.page), /** @type {string} */ (p.viewport)),
+    );
+    if (!g) return false;
+    /** @type {Record<string, unknown>} */
+    const recomputed = {};
+    for (const m of METRICS) recomputed[m] = summarizeValues(g.values[m]);
+    return JSON.stringify(recomputed) === JSON.stringify(p.metrics);
+  });
+}
+
+/**
  * 現側の環境・測り方と、新側のものの違いを挙げる。
  * @param {Record<string, unknown>} cur
  * @param {Record<string, unknown>} neu
@@ -490,7 +541,7 @@ export function environmentDifferences(cur, neu) {
  * 新側の採取を、metadata.json の performance と比べる。
  * @param {Record<string, unknown>} metadata
  * @param {unknown} samplesDoc
- * @param {{ currentSamplesSha256: (string|null), target: string }} opts - 現側の採取ファイルを今読んだ sha256（読めなければ null）
+ * @param {{ currentSamplesSha256: (string|null), currentSamplesDoc?: unknown, target: string }} opts - 現側の採取ファイルを今読んだ sha256（読めなければ null）
  * @returns {Record<string, unknown>}
  */
 export function compare(metadata, samplesDoc, opts) {
@@ -542,11 +593,20 @@ export function compare(metadata, samplesDoc, opts) {
   const neuDoc = /** @type {Record<string, unknown>} */ (samplesDoc);
   // 基準を採った後にページ・ビューポートが増減したか、path や寸法が変わったら、基準は今の組を表さない
   const staleCapture = JSON.stringify(perf.capture) !== JSON.stringify(captureDefinition(metadata));
+  if (!captureMatches(samplesDoc, metadata)) {
+    throw new UsageError(
+      "新側の採取の capture が metadata.json の capture_conditions と違う（今の定義で採り直す）",
+    );
+  }
+  // 基準の統計は採取ファイルから計算し直したものと一致しなければ使わない（手で書き換えた中央値で回帰を隠さない）
+  const staleSummary =
+    opts.currentSamplesDoc == null || !summaryMatches(perf, opts.currentSamplesDoc, metadata.slug);
 
   // 基準を採った採取が、集計した後に採り直されていないか（集計は採取から作るので、元が変われば古い）。
   // 読めなかった（null）ときも sha256 の文字列と一致しないので、古い基準と同じく通さない。
   // 古い基準のときは、組 × 指標をすべて stale_baseline にする（regressed を出さない）
-  const staleBaseline = opts.currentSamplesSha256 !== perf.samples_sha256 || staleCapture;
+  const staleBaseline =
+    opts.currentSamplesSha256 !== perf.samples_sha256 || staleCapture || staleSummary;
 
   const differences = environmentDifferences(perf, neuDoc);
   const results = [];
@@ -636,6 +696,7 @@ export function compare(metadata, samplesDoc, opts) {
     ok,
     stale_baseline: staleBaseline,
     stale_capture: staleCapture,
+    stale_summary: staleSummary,
     environment_differences: differences,
     extra_pairs: extra,
     counts,
@@ -782,15 +843,21 @@ export function main(argv, deps = {}) {
     const perf = metadata.performance;
     /** @type {string|null} */
     let currentSha = null;
+    /** @type {unknown} */
+    let currentDoc = null;
     if (isPlainObject(perf) && isNonEmptyString(perf.samples)) {
       try {
-        currentSha = samplesFingerprint(readFile(resolve(cwd, perf.samples)));
+        const text = readFile(resolve(cwd, perf.samples));
+        currentSha = samplesFingerprint(text);
+        currentDoc = JSON.parse(text);
       } catch {
         currentSha = null; // 読めない基準を、今の基準として扱わない
+        currentDoc = null;
       }
     }
     const result = compare(metadata, samplesDoc, {
       currentSamplesSha256: currentSha,
+      currentSamplesDoc: currentDoc,
       target: opts.target ?? "",
     });
     // 書き込みに失敗しても判定の結果が残るよう、先に出力する
@@ -817,6 +884,8 @@ export function main(argv, deps = {}) {
     }
     if (!result.ok) {
       const reasons = [];
+      if (result.stale_summary && !result.stale_capture)
+        reasons.push("基準の統計が現側の採取から計算し直した値と違う（summarize を通し直す）");
       if (result.stale_capture)
         reasons.push(
           "基準を採った後に capture_conditions の組が変わった（採り直して summarize を通し直す）",
