@@ -167,8 +167,8 @@
       "id": "stale-baseline-off",
       "why": "集計の後に採り直した基準を通す",
       "file": "skills/parity-suite/scripts/perf-stats.mjs",
-      "find": "  const staleBaseline = opts.currentSamplesSha256 !== perf.samples_sha256;\n",
-      "replace": "  const staleBaseline = false;\n",
+      "find": "  const staleBaseline = opts.currentSamplesSha256 !== perf.samples_sha256 || staleCapture;\n",
+      "replace": "  const staleBaseline = false || staleCapture;\n",
       "occurrences": 1,
       "expect_failing": [
         "compare 現側の採取が集計の後に変わっていれば、組 × 指標を判定せず exit 1",
@@ -242,7 +242,77 @@
       "find": "      const unjudged = staleBaseline\n",
       "replace": "      const unjudged = false\n",
       "occurrences": 1,
-      "expect_failing": ["compare 現側の採取が集計の後に変わっていれば、組 × 指標を判定せず exit 1"]
+      "expect_failing": [
+        "compare 基準を採った後に組の定義が変われば、判定せず exit 1: ビューポートを足した",
+        "compare 基準を採った後に組の定義が変われば、判定せず exit 1: ページの path を変えた",
+        "compare 現側の採取が集計の後に変わっていれば、組 × 指標を判定せず exit 1"
+      ]
+    },
+    {
+      "id": "warmup-any",
+      "why": "ウォームアップ 0 を受ける",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "  if (!Number.isInteger(settings.warmup) || /** @type {number} */ (settings.warmup) < 1) {\n",
+      "replace": "  if (false && /** @type {number} */ (settings.warmup) < 1) {\n",
+      "occurrences": 1,
+      "expect_failing": ["summarize 測り方の値が取り決めと違えば exit 2: ウォームアップが 0"]
+    },
+    {
+      "id": "settle-any",
+      "why": "数でない待つ時間を受ける",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "  if (!Number.isInteger(settings.settle_ms) || /** @type {number} */ (settings.settle_ms) < 0) {\n",
+      "replace": "  if (false && /** @type {number} */ (settings.settle_ms) < 0) {\n",
+      "occurrences": 1,
+      "expect_failing": ["summarize 測り方の値が取り決めと違えば exit 2: 待つ時間が数でない"]
+    },
+    {
+      "id": "cache-any",
+      "why": "cold でないキャッシュを受ける",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "  if (settings.cache !== \"cold\") {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["summarize 測り方の値が取り決めと違えば exit 2: キャッシュが cold でない"]
+    },
+    {
+      "id": "run-upper-off",
+      "why": "settings.runs を超える run を受ける",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "      /** @type {number} */ (s.run) > /** @type {number} */ (settings.runs)\n",
+      "replace": "      /** @type {number} */ (s.run) > Infinity\n",
+      "occurrences": 1,
+      "expect_failing": ["summarize run が 1 から settings.runs までの連番でなければ exit 2"]
+    },
+    {
+      "id": "tool-version-any",
+      "why": "版の違う基準を読む",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "  if (perf.tool_version !== VERSION) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["compare 基準の tool_version が今の版と違えば exit 2"]
+    },
+    {
+      "id": "capture-missing-ok",
+      "why": "組の定義の無い基準を受ける",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "  if (!isPlainObject(perf.capture)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["compare 基準に組の定義が無ければ exit 2"]
+    },
+    {
+      "id": "stale-capture-off",
+      "why": "組の定義が変わった基準で判定する",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "  const staleBaseline = opts.currentSamplesSha256 !== perf.samples_sha256 || staleCapture;\n",
+      "replace": "  const staleBaseline = opts.currentSamplesSha256 !== perf.samples_sha256;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare 基準を採った後に組の定義が変われば、判定せず exit 1: ビューポートを足した",
+        "compare 基準を採った後に組の定義が変われば、判定せず exit 1: ページの path を変えた"
+      ]
     }
   ]
 }

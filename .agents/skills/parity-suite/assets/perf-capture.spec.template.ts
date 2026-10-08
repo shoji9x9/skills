@@ -9,7 +9,8 @@
  * 何を採るか: capture_conditions.pages × viewports の組ごとに、ウォームアップの 1 回を捨ててから
  * PARITY_PERF_RUNS 回（デフォルト 10）読み込み、次の 4 つを読む。読み込むたびに新しいコンテキストを作る（キャッシュの無い状態）。
  *   lcp  … 最後の largest-contentful-paint の startTime（ms）。候補が出ない頁は null。
- *   cls  … layout-shift の value の合計（入力の直後のものを除く。セッションウィンドウにはまとめない）。
+ *   cls  … layout-shift をセッションウィンドウ（直前のずれから 1 秒以内・最初のずれから 5 秒以内）にまとめた合計の最大値。
+ *          入力の直後のずれは除く（https://web.dev/articles/cls の定義）。
  *   tbt  … longtask の (duration − 50ms) の合計（ms。TBT 相当。FCP から TTI までに限らない）。
  *   ttfb … navigation の responseStart（ms）。
  * 値は読み込みから PARITY_PERF_SETTLE_MS（デフォルト 3000）の間に出たエントリを、PerformanceObserver の buffered で読む。
@@ -89,15 +90,10 @@ test("性能の採取", async ({ browser }, testInfo) => {
   for (const viewport of viewports) {
     for (const pageDef of pages) {
       for (let run = 0; run <= runs; run += 1) {
-        // TODO: 認証が要るなら、プロジェクトの現側スペックと同じ方法でここに入れる（storageState を使うなら下の指定で足りる）。
-        // browser.newContext は project の use を引き継がない。現側のスイートが extraHTTPHeaders・userAgent・
-        // colorScheme・httpCredentials なども使っているなら、ここへ足す（現側と新側で同じ指定にする）
+        // TODO: 認証を storageState 以外の方法で入れているなら、プロジェクトの現側スペックと同じ方法でここに入れる。
+        // browser.newContext は project の use を引き継がないので、スイートと同じ指定になるよう、コンテキストの設定を移す
         const context = await browser.newContext({
-          baseURL: use.baseURL,
-          storageState: use.storageState,
-          ignoreHTTPSErrors: use.ignoreHTTPSErrors,
-          locale: use.locale,
-          timezoneId: use.timezoneId,
+          ...contextOptionsFromUse(use),
           viewport: { width: viewport.width, height: viewport.height },
         });
         try {
@@ -118,13 +114,31 @@ test("性能の採取", async ({ browser }, testInfo) => {
                     const last = entries.at(-1);
                     if (last) out.lcp = last.startTime;
                   };
+                  const shifts: { at: number; value: number }[] = [];
                   const onShift = (entries: PerformanceEntryList) => {
                     for (const e of entries as (PerformanceEntry & {
                       value: number;
                       hadRecentInput: boolean;
                     })[]) {
-                      if (!e.hadRecentInput) out.cls += e.value;
+                      if (!e.hadRecentInput) shifts.push({ at: e.startTime, value: e.value });
                     }
+                  };
+                  // セッションウィンドウ: 直前のずれから 1 秒を超えるか、最初のずれから 5 秒を超えたら次の窓にする
+                  const sessionWindowCls = () => {
+                    let max = 0;
+                    let sum = 0;
+                    let first = -Infinity;
+                    let prev = -Infinity;
+                    for (const s of [...shifts].sort((a, b) => a.at - b.at)) {
+                      if (s.at - prev > 1000 || s.at - first > 5000) {
+                        sum = 0;
+                        first = s.at;
+                      }
+                      sum += s.value;
+                      prev = s.at;
+                      max = Math.max(max, sum);
+                    }
+                    return max;
                   };
                   const onLongTask = (entries: PerformanceEntryList) => {
                     for (const e of entries) out.tbt += Math.max(0, e.duration - 50);
@@ -143,6 +157,7 @@ test("性能の採取", async ({ browser }, testInfo) => {
                       handle(observer.takeRecords());
                       observer.disconnect();
                     }
+                    out.cls = sessionWindowCls();
                     resolve(out);
                   }, settle);
                 },
@@ -188,6 +203,42 @@ test("性能の採取", async ({ browser }, testInfo) => {
     samples,
   });
 });
+
+// project の use のうち、コンテキストを作るときに渡す設定（Playwright の BrowserContextOptions）。
+// 出典: https://playwright.dev/docs/api/class-browser#browser-new-context
+// viewport は組ごとに上書きするので、ここには含めない
+const CONTEXT_OPTION_KEYS = [
+  "acceptDownloads",
+  "baseURL",
+  "bypassCSP",
+  "colorScheme",
+  "deviceScaleFactor",
+  "extraHTTPHeaders",
+  "forcedColors",
+  "geolocation",
+  "hasTouch",
+  "httpCredentials",
+  "ignoreHTTPSErrors",
+  "isMobile",
+  "javaScriptEnabled",
+  "locale",
+  "offline",
+  "permissions",
+  "proxy",
+  "reducedMotion",
+  "serviceWorkers",
+  "storageState",
+  "timezoneId",
+  "userAgent",
+] as const;
+
+function contextOptionsFromUse(use: Record<string, unknown>): Record<string, unknown> {
+  const options: Record<string, unknown> = { ...(use.contextOptions as object | undefined) };
+  for (const key of CONTEXT_OPTION_KEYS) {
+    if (use[key] !== undefined) options[key] = use[key];
+  }
+  return options;
+}
 
 function requireName(name: string): string {
   const v = process.env[name];

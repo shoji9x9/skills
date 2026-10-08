@@ -1057,6 +1057,8 @@ if (capturing) {
   採り直すのは `perf-samples.json` と `performance` だけで、特性化のやり直しではないので、`run.finished_at` と `run.procedure_revision` は書き換えない。
 - 現側と新側の target の置き場所（同じ機械の上か、遠いサーバーか）が違うと、TTFB と LCP に通信の差が入る。置き場所をそろえられないなら、その旨を `gaps.md` に書く。
 - `perf-samples.json` は、テキストの成果物として Git に入れる。採り直したら `summarize` も通し直す。`performance.samples_sha256` が今のファイルと違うと、`parity-diff` は古い基準として止まる。
+  `capture_conditions` のページ（name・path）かビューポート（label・寸法）を変えたときも、`performance.capture` と合わなくなるので、採り直して `summarize` を通し直す。
+  `perf-stats.mjs` の版（`performance.tool_version`）が変わったときも、`compare` は基準を読まずに exit 2 になる
 - feature モードでは、`performance` をキーごと省かない。比べられない事情（target の性能が日によって大きく揺れるなど）があるときだけ `declared: false` と `reason` を書き、`gaps.md` にも同じ文言を残す。
 
 ## 採取物の健全性

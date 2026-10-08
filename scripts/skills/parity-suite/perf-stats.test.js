@@ -401,6 +401,30 @@ describe("summarize", () => {
     expect(r.code).toBe(2);
   });
 
+  test.each([
+    ["ウォームアップが 0", { warmup: 0 }],
+    ["待つ時間が数でない", { settle_ms: "x" }],
+    ["キャッシュが cold でない", { cache: "warm" }],
+  ])("測り方の値が取り決めと違えば exit 2: %s", (_, override) => {
+    const r = run(
+      {
+        [META]: metadata(),
+        [CUR]: samplesDoc("current", bothPairs(), { settings: { ...settings(), ...override } }),
+      },
+      summarizeArgs,
+    );
+    expect(r.code).toBe(2);
+  });
+
+  test("run が 1 から settings.runs までの連番でなければ exit 2", () => {
+    // 回数と重複だけでは、欠けた回を別の番号で埋めた採取（1〜4 と 6）を通してしまう
+    const doc = samplesDoc("current", bothPairs());
+    doc.samples[4].run = 6;
+    const r = run({ [META]: metadata(), [CUR]: doc }, summarizeArgs);
+    expect(r.code).toBe(2);
+    expect(r.err).toContain("settings.runs までの整数でない");
+  });
+
   test("組の回数が settings.runs と違えば exit 2", () => {
     const r = run(
       { [META]: metadata(), [CUR]: samplesDoc("current", bothPairs(), { settings: settings(6) }) },
@@ -629,6 +653,45 @@ describe("compare", () => {
     const r = compareRun(samplesDoc("new", bothPairs()), { base, meta });
     expect(r.code).toBe(2);
     expect(r.err).toContain("performance.relative_floors が無い");
+  });
+
+  test("基準の tool_version が今の版と違えば exit 2", () => {
+    const base = summarized();
+    const meta = { ...base.meta, performance: { ...base.meta.performance, tool_version: "0" } };
+    const r = compareRun(samplesDoc("new", bothPairs()), { base, meta });
+    expect(r.code).toBe(2);
+    expect(r.err).toContain("tool_version");
+  });
+
+  test.each([
+    [
+      "ビューポートを足した",
+      (cc) => ({
+        ...cc,
+        viewports: [...cc.viewports, { label: "mobile", width: 390, height: 844 }],
+      }),
+    ],
+    [
+      "ページの path を変えた",
+      (cc) => ({ ...cc, pages: [{ name: "top", path: "home" }, cc.pages[1]] }),
+    ],
+  ])("基準を採った後に組の定義が変われば、判定せず exit 1: %s", (_, change) => {
+    const base = summarized();
+    const meta = { ...base.meta, capture_conditions: change(base.meta.capture_conditions) };
+    const slow = () => ({ ...steady(), tbt: [300, 300, 300, 300, 300] });
+    const r = compareRun(samplesDoc("new", bothPairs(slow)), { base, meta });
+    expect(r.code).toBe(1);
+    const perf = r.read(DIFF).performance;
+    expect(perf.stale_capture).toBe(true);
+    expect(perf.regressed).toEqual([]);
+  });
+
+  test("基準に組の定義が無ければ exit 2", () => {
+    const base = summarized();
+    const meta = { ...base.meta, performance: { ...base.meta.performance, capture: undefined } };
+    const r = compareRun(samplesDoc("new", bothPairs()), { base, meta });
+    expect(r.code).toBe(2);
+    expect(r.err).toContain("performance.capture が無い");
   });
 
   test("新側の採取の side が current なら exit 2", () => {

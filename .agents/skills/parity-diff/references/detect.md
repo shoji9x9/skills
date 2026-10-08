@@ -131,7 +131,7 @@ node <parity-suite の skill>/scripts/perf-stats.mjs compare \
   - `env_mismatch`: 環境か測り方が現側と違う（`environment_differences` に項目が出る）。
     このスキルは現行アプリを動かさないので、自分で採り直さない。収束の判定で停止し、`environment_differences` を載せて利用者に報告する。
     案内するのは、新側を測った機械で `parity-suite` の性能の採取と `summarize --write` をやり直し、その後でこのスキルを再実行する手順である
-  - `stale_baseline`: 現側の採取ファイルが集計の後に変わっている、または読めない。古い基準とは比べないので、すべての組 × 指標がこの状態になり、`regressed` は出ない。`parity-suite` の `summarize` を通し直す
+  - `stale_baseline`: 現側の採取ファイルが集計の後に変わっている、読めない、または基準を採った後に `capture_conditions` のページ・ビューポートが変わった（`stale_capture`）。古い基準とは比べないので、すべての組 × 指標がこの状態になり、`regressed` は出ない。`parity-suite` の `summarize` を通し直す
 - 終了コードは、0 が合格、1 が回帰か判定できない組が残る、2 が使い方の誤りか基準の形の誤りである。
   1 は結果であって停止の合図ではない。`diff-metadata.json` の `performance` を読み、残りの手順（正規化・トリアージ・収束の判定）へ進む。
   その場で止まるのは 2 だけである。`env_mismatch` の停止は、残りの手順を終えた後、収束の判定で利用者へ案内して行う。

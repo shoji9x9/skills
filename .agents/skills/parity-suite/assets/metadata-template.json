@@ -419,6 +419,10 @@
       "tbt": 0.2,
       "ttfb": 0.2
     },
+    "capture": {
+      "pages": [{ "name": "<capture_conditions.pages[].name>", "path": "<同 path>" }],
+      "viewports": [{ "label": "<capture_conditions.viewports[].label>", "width": 0, "height": 0 }]
+    },
     "pairs": [
       {
         "page": "<capture_conditions.pages[].name>",

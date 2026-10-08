@@ -222,6 +222,20 @@ export function groupSamples(doc, expect) {
   for (const key of SETTINGS_KEYS) {
     if (settings[key] === undefined) throw new UsageError(`採取の settings.${key} が無い`);
   }
+  // 両側が同じ誤った値でも compare は一致として通すので、測り方の取り決めをここで確かめる
+  if (!Number.isInteger(settings.warmup) || /** @type {number} */ (settings.warmup) < 1) {
+    throw new UsageError(
+      `settings.warmup が 1 以上の整数でない: ${JSON.stringify(settings.warmup)}`,
+    );
+  }
+  if (!Number.isInteger(settings.settle_ms) || /** @type {number} */ (settings.settle_ms) < 0) {
+    throw new UsageError(
+      `settings.settle_ms が 0 以上の整数でない: ${JSON.stringify(settings.settle_ms)}`,
+    );
+  }
+  if (settings.cache !== "cold") {
+    throw new UsageError(`settings.cache が "cold" でない: ${JSON.stringify(settings.cache)}`);
+  }
   if (!Array.isArray(doc.samples) || doc.samples.length === 0) {
     throw new UsageError("採取の samples が空か配列でない");
   }
@@ -232,8 +246,13 @@ export function groupSamples(doc, expect) {
     if (!isKeyPart(s.page) || !isKeyPart(s.viewport)) {
       throw new UsageError(`samples[${i}] の page / viewport が空か "${KEY_SEPARATOR}" を含む`);
     }
-    if (!Number.isInteger(s.run) || /** @type {number} */ (s.run) < 1) {
-      throw new UsageError(`samples[${i}] の run が 1 以上の整数でない`);
+    if (
+      !Number.isInteger(s.run) ||
+      /** @type {number} */ (s.run) < 1 ||
+      /** @type {number} */ (s.run) > /** @type {number} */ (settings.runs)
+    ) {
+      // 重複が無く件数も合えば、run の集合は 1..settings.runs と一致する
+      throw new UsageError(`samples[${i}] の run が 1 から settings.runs までの整数でない`);
     }
     const key = pairKey(s.page, s.viewport);
     let g = groups.get(key);
@@ -309,6 +328,26 @@ export function expectedPairs(metadata) {
 }
 
 /**
+ * 基準を採ったときの組の定義（ページの name・path と、ビューポートの label・寸法）。
+ * compare は今の capture_conditions と比べ、違えば古い基準として判定しない。
+ * @param {Record<string, unknown>} metadata
+ * @returns {{ pages: unknown[], viewports: unknown[] }}
+ */
+export function captureDefinition(metadata) {
+  const cc = /** @type {Record<string, unknown>} */ (metadata.capture_conditions ?? {});
+  const pages = Array.isArray(cc.pages) ? cc.pages : [];
+  const viewports = Array.isArray(cc.viewports) ? cc.viewports : [];
+  return {
+    pages: pages.map((p) => ({ name: p?.name ?? null, path: p?.path ?? null })),
+    viewports: viewports.map((v) => ({
+      label: v?.label ?? null,
+      width: v?.width ?? null,
+      height: v?.height ?? null,
+    })),
+  };
+}
+
+/**
  * `--floor lcp=150` / `--relative-floor lcp=0.3` の列を下限の表にする。
  * @param {string[]} specs
  * @param {Record<string, number>} defaults
@@ -374,6 +413,7 @@ export function summarize(metadata, samplesDoc, opts) {
       settings: doc.settings,
       floors: opts.floors,
       relative_floors: opts.relativeFloors,
+      capture: captureDefinition(metadata),
       pairs,
       reason: null,
     },
@@ -475,13 +515,24 @@ export function compare(metadata, samplesDoc, opts) {
       }
     }
   }
+  if (perf.tool_version !== VERSION) {
+    // 判定の規則が変わった版で、古い版が書いた基準を読まない
+    throw new UsageError(
+      `performance.tool_version ${JSON.stringify(perf.tool_version)} が ${VERSION} でない（summarize を通し直す）`,
+    );
+  }
+  if (!isPlainObject(perf.capture)) {
+    throw new UsageError("performance.capture が無い（summarize を通し直す）");
+  }
   const groups = groupSamples(samplesDoc, { side: "new", slug: metadata.slug });
   const neuDoc = /** @type {Record<string, unknown>} */ (samplesDoc);
+  // 基準を採った後にページ・ビューポートが増減したか、path や寸法が変わったら、基準は今の組を表さない
+  const staleCapture = JSON.stringify(perf.capture) !== JSON.stringify(captureDefinition(metadata));
 
   // 基準を採った採取が、集計した後に採り直されていないか（集計は採取から作るので、元が変われば古い）。
   // 読めなかった（null）ときも sha256 の文字列と一致しないので、古い基準と同じく通さない。
   // 古い基準のときは、組 × 指標をすべて stale_baseline にする（regressed を出さない）
-  const staleBaseline = opts.currentSamplesSha256 !== perf.samples_sha256;
+  const staleBaseline = opts.currentSamplesSha256 !== perf.samples_sha256 || staleCapture;
 
   const differences = environmentDifferences(perf, neuDoc);
   const results = [];
@@ -555,6 +606,7 @@ export function compare(metadata, samplesDoc, opts) {
     judged: true,
     ok,
     stale_baseline: staleBaseline,
+    stale_capture: staleCapture,
     environment_differences: differences,
     extra_pairs: extra,
     counts,
@@ -733,7 +785,11 @@ export function main(argv, deps = {}) {
     }
     if (!result.ok) {
       const reasons = [];
-      if (result.stale_baseline)
+      if (result.stale_capture)
+        reasons.push(
+          "基準を採った後に capture_conditions の組が変わった（採り直して summarize を通し直す）",
+        );
+      else if (result.stale_baseline)
         reasons.push("現側の基準が古いか、採取ファイルを読めない（summarize を通し直す）");
       if (/** @type {string[]} */ (result.environment_differences).length > 0) {
         reasons.push(
