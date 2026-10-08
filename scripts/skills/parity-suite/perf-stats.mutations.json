@@ -176,7 +176,7 @@
       "id": "samples-path-any",
       "why": "絶対パスと外へ出るパスを記録する",
       "file": "skills/parity-suite/scripts/perf-stats.mjs",
-      "find": "      if (isAbsolute(opts.samples) || opts.samples.split(/[\\\\/]/).includes(\"..\")) {\n",
+      "find": "      if (!isRepoRelative(opts.samples)) {\n",
       "replace": "      if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
@@ -524,6 +524,30 @@
       "occurrences": 1,
       "expect_failing": [
         "compare デフォルトより緩い下限は、判定を変えずに loosened_floors と警告に出す"
+      ]
+    },
+    {
+      "id": "cmp-samples-path-any",
+      "why": "リポジトリの外を指す基準の samples を読む",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "      if (!isRepoRelative(perf.samples)) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare 基準の samples がリポジトリのルートからの相対パスでなければ exit 2: /etc/perf-samples.json",
+        "compare 基準の samples がリポジトリのルートからの相対パスでなければ exit 2: ../other/perf-samples.json"
+      ]
+    },
+    {
+      "id": "repo-relative-dotdot-ok",
+      "why": ".. を含むパスをリポジトリの中として扱う",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "  return !isAbsolute(path) && !path.split(/[\\\\/]/).includes(\"..\");\n",
+      "replace": "  return !isAbsolute(path);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "summarize --samples がルートからの相対パスでなければ exit 2: 外へ出るパス",
+        "compare 基準の samples がリポジトリのルートからの相対パスでなければ exit 2: ../other/perf-samples.json"
       ]
     }
   ]

@@ -795,6 +795,15 @@ export function compare(metadata, samplesDoc, opts) {
 }
 
 /**
+ * リポジトリのルートからの相対パスか。summarize の --samples と、compare が読む performance.samples の両方に当てる。
+ * @param {string} path
+ * @returns {boolean}
+ */
+function isRepoRelative(path) {
+  return !isAbsolute(path) && !path.split(/[\\/]/).includes("..");
+}
+
+/**
  * 採取ファイルの指紋。整形・改行コードの違いで変わらないよう、パースし直した JSON の sha256 を取る。
  * @param {string} text
  * @returns {string}
@@ -897,7 +906,7 @@ export function main(argv, deps = {}) {
 
     if (command === "summarize") {
       // 記録したパスは別の機械の compare がリポジトリのルートから読む。絶対パスと外へ出るパスは残さない
-      if (isAbsolute(opts.samples) || opts.samples.split(/[\\/]/).includes("..")) {
+      if (!isRepoRelative(opts.samples)) {
         throw new UsageError(
           `--samples はリポジトリのルートからの相対パスで渡す（絶対パスと .. は受けない）: ${opts.samples}`,
         );
@@ -934,6 +943,12 @@ export function main(argv, deps = {}) {
     /** @type {unknown} */
     let currentDoc = null;
     if (isPlainObject(perf) && isNonEmptyString(perf.samples)) {
+      // 手で書き換えた metadata.json で、リポジトリの外の JSON を現側の基準として読まない
+      if (!isRepoRelative(perf.samples)) {
+        throw new UsageError(
+          `performance.samples がリポジトリのルートからの相対パスでない（絶対パスと .. は受けない）: ${perf.samples}`,
+        );
+      }
       try {
         const text = readFile(resolve(cwd, perf.samples));
         currentSha = samplesFingerprint(text);

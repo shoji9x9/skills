@@ -395,7 +395,7 @@
       "headless": "<project の use.headless。指定なしは true>",
       "target_placement": "<対象の置き場所。すべての頁が localhost・127.0.0.0/8・::1 を指せば loopback、それ以外は remote>",
       "context_options": "<コンテキストに渡した設定（baseURL を除く）。認証の情報を持ちうるもの（extraHTTPHeaders・httpCredentials・storageState・clientCertificates・proxy）は秘密の値を残さず、ヘッダーの名前・username・proxy の server・cookie の domain と name などだけを残す>",
-      "launch_options": "<project の use.launchOptions（args・ignoreDefaultArgs・executablePath など）。env は実行したシェルと値が違う変数の名前だけ、proxy は server と bypass だけを残す>",
+      "launch_options": "<project の use.launchOptions（args・ignoreDefaultArgs・executablePath など）。args は --flag=value の値を伏せた形、env は実行したシェルと値が違う変数の名前だけ、proxy は server と bypass だけを残す>",
       "runner": {
         "platform": "<os.platform()>",
         "arch": "<os.arch()>",

@@ -304,7 +304,7 @@ function contextFingerprint(options: Record<string, unknown>): Record<string, un
 }
 
 // project の use.launchOptions（ブラウザの起動の設定）。args・executablePath などが違えば描画や負荷が変わる。
-// 秘密を持ちうる env は、実行したシェルと値が違う変数（上書き）の名前だけを残す。
+// args は値を伏せる。秘密を持ちうる env は、実行したシェルと値が違う変数（上書き）の名前だけを残す。
 // `env: { ...process.env }` の形でシェルの変数をすべて渡しても、側ごとに違う変数で誤った違いにしない。
 // proxy は server と bypass だけを残す
 function launchFingerprint(options: Record<string, unknown> | undefined): Record<string, unknown> {
@@ -318,6 +318,12 @@ function launchFingerprint(options: Record<string, unknown> | undefined): Record
         .map(([name]) => name)
         .sort();
     else if (key === "proxy") out[key] = redactedContextOption("proxy", value);
+    // 起動引数は秘密の値（トークンなど）を持ちうるが、どのフラグが持つかは一覧にできない。
+    // `--flag=value` は値を伏せて `--flag=*` にし、値の無いフラグはそのまま残す
+    else if (key === "args")
+      out[key] = (value as string[]).map((arg) =>
+        arg.includes("=") ? `${arg.slice(0, arg.indexOf("="))}=*` : arg,
+      );
     else out[key] = value;
   }
   return out;

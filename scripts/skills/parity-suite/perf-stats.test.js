@@ -942,6 +942,17 @@ describe("compare", () => {
     expect(perf.regressed).toEqual([]);
   });
 
+  test.each([["/etc/perf-samples.json"], ["../other/perf-samples.json"]])(
+    "基準の samples がリポジトリのルートからの相対パスでなければ exit 2: %s",
+    (path) => {
+      const base = summarized();
+      const meta = { ...base.meta, performance: { ...base.meta.performance, samples: path } };
+      const r = compareRun(samplesDoc("new", bothPairs()), { base, meta });
+      expect(r.code).toBe(2);
+      expect(r.err).toContain("performance.samples がリポジトリのルートからの相対パスでない");
+    },
+  );
+
   test("新側の採取の capture が今の定義と違えば exit 2", () => {
     const changed = {
       ...captureOf(metadata().capture_conditions),
