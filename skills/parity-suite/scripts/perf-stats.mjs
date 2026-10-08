@@ -598,6 +598,28 @@ function canonicalJson(v) {
 }
 
 /**
+ * デフォルトより緩い下限を挙げる。下限は採取から導けない利用者の決定なので、compare は値を検証できない。
+ * 判定は変えず、緩めた下限を結果に載せて、報告で人が気付けるようにする。
+ * @param {Record<string, unknown>} perf
+ * @returns {{ metric: string, kind: string, value: number, default: number }[]}
+ */
+export function loosenedFloors(perf) {
+  const out = [];
+  for (const [kind, defaults] of [
+    ["floors", DEFAULT_FLOORS],
+    ["relative_floors", DEFAULT_RELATIVE_FLOORS],
+  ]) {
+    const table = /** @type {Record<string, number>} */ (perf[/** @type {string} */ (kind)]);
+    for (const m of METRICS) {
+      const d = /** @type {Record<string, number>} */ (defaults)[m];
+      if (table[m] > d)
+        out.push({ metric: m, kind: /** @type {string} */ (kind), value: table[m], default: d });
+    }
+  }
+  return out;
+}
+
+/**
  * 新側の採取を、metadata.json の performance と比べる。
  * @param {Record<string, unknown>} metadata
  * @param {unknown} samplesDoc
@@ -759,6 +781,9 @@ export function compare(metadata, samplesDoc, opts) {
     stale_summary: staleSummary,
     environment_differences: differences,
     extra_pairs: extra,
+    floors: perf.floors,
+    relative_floors: perf.relative_floors,
+    loosened_floors: loosenedFloors(perf),
     counts,
     regressed: results.filter((r) => r.status === "regressed"),
     results,
@@ -941,6 +966,18 @@ export function main(argv, deps = {}) {
         new_samples_sha256: samplesFingerprint(samplesText),
       };
       writeFile(diffPath, `${JSON.stringify(diffMetadata, null, 2)}\n`);
+    }
+    const loosened =
+      /** @type {{ metric: string, kind: string, value: number, default: number }[]} */ (
+        result.loosened_floors
+      );
+    if (loosened.length > 0) {
+      // 合否に関わらず出す。緩めた下限は回帰を許容幅の中に入れうるので、報告に載せて人が確かめる
+      stderr(
+        `warning: デフォルトより緩い下限で判定した（報告に載せる）: ${loosened
+          .map((l) => `${l.kind}.${l.metric}=${l.value}（デフォルト ${l.default}）`)
+          .join(", ")}\n`,
+      );
     }
     if (!result.ok) {
       const reasons = [];

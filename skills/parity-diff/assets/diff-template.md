@@ -41,7 +41,7 @@
 | 画素 | （基準値。strict は同じ軸の基準値と対比したか） | （件数。しきい値つきの領域＋ strict_only_regions） | （例: 756 画素 0.0569% ／ 4,120 画素 0.3102%〈うちしきい値の内側 3,364・最大チャンネル差 1・候補 3 件〉） | 名前無し要素の見た目差 |
 | 特性照合 | （基準値） | （件数） | — | 論理名付き要素の computed style・相対幾何 |
 | aria | — | （件数） | — | テーブル/フォームの内容パリティ（補助の方法） |
-| 性能 | （組 × 指標の許容幅＝現側の四分位範囲・floors・現側の中央値 × relative_floors のいちばん大きいもの） | （regressed の件数） | — | 初期表示の LCP・CLS・TBT 相当・TTFB。diff-metadata.json の performance から転記する。判定しなかったとき〈performance が無い・declared: false〉は「未検証」と理由。noisy / missing / env_mismatch / 古い基準は件数と「採り直し」 |
+| 性能 | （組 × 指標の許容幅＝現側の四分位範囲・floors・現側の中央値 × relative_floors のいちばん大きいもの） | （regressed の件数） | — | 初期表示の LCP・CLS・TBT 相当・TTFB。diff-metadata.json の performance から転記する。判定しなかったとき〈performance が無い・declared: false〉は「未検証」と理由。noisy / missing / env_mismatch / 古い基準は件数と「採り直し」。loosened_floors が 1 件以上なら、緩めた下限とデフォルトを並べる |
 
 <!-- しきい値の内側の差（strict_only_pixels）が 0 でなければ、差分の領域が 0 件でも「一致」と書かない。 -->
 <!-- 対比する相手は同じ軸の基準値（noise_baseline[].pixel_diff_strict / pixel_diff_strict_only）。strict の基準値が無い組はノイズと断定せず要確認で残す。 -->

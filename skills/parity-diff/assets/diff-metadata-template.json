@@ -142,6 +142,11 @@
     "stale_baseline": "<現側の採取ファイルが集計の後に変わっていた・読めなかったか>",
     "environment_differences": ["<現側と違った環境・測り方の項目>"],
     "extra_pairs": ["<現側に無い組>"],
+    "floors": "<判定に使った絶対の下限（現側 metadata.json の performance.floors）>",
+    "relative_floors": "<判定に使った割合の下限（performance.relative_floors）>",
+    "loosened_floors": [
+      "<デフォルトより緩い下限（metric・kind・value・default）。1 件以上なら diff.md の性能の行に載せ、収束の報告で利用者に確かめる>"
+    ],
     "counts": {
       "within_noise": 0,
       "improved": 0,

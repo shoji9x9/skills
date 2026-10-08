@@ -560,6 +560,35 @@ describe("compare", () => {
     expect(perf.regressed.map((x) => `${x.page}:${x.metric}`)).toEqual(["top:tbt", "list:tbt"]);
   });
 
+  test("デフォルトの下限なら loosened_floors は空で、警告を出さない", () => {
+    const r = compareRun(samplesDoc("new", bothPairs()));
+    expect(r.code).toBe(0);
+    const perf = r.read(DIFF).performance;
+    expect(perf.loosened_floors).toEqual([]);
+    expect(perf.floors).toEqual({ lcp: 100, cls: 0.01, tbt: 50, ttfb: 50 });
+    expect(r.err).not.toContain("warning");
+  });
+
+  test("デフォルトより緩い下限は、判定を変えずに loosened_floors と警告に出す", () => {
+    const base = summarized(samplesDoc("current", bothPairs()), [
+      "--floor",
+      "lcp=300",
+      "--floor",
+      "cls=0.005",
+      "--relative-floor",
+      "tbt=0.5",
+    ]);
+    const r = compareRun(samplesDoc("new", bothPairs()), { base });
+    expect(r.code).toBe(0);
+    // 厳しくした CLS は挙げない
+    expect(r.read(DIFF).performance.loosened_floors).toEqual([
+      { metric: "lcp", kind: "floors", value: 300, default: 100 },
+      { metric: "tbt", kind: "relative_floors", value: 0.5, default: 0.2 },
+    ]);
+    expect(r.err).toContain("warning: デフォルトより緩い下限で判定した");
+    expect(r.err).toContain("floors.lcp=300（デフォルト 100）");
+  });
+
   test("compare は記録した割合の下限で判定する", () => {
     // 現側 LCP の中央値 520ms。割合 0.5 なら許容幅 260ms で、+250ms は許容幅の中
     const r0 = run({ [META]: metadata(), [CUR]: samplesDoc("current", bothPairs()) }, [

@@ -485,6 +485,40 @@
         "summarize 入力の形が違えば exit 2: CPU の数が null",
         "summarize 入力の形が違えば exit 2: CPU の数が整数でない"
       ]
+    },
+    {
+      "id": "loosened-off",
+      "why": "緩めた下限を挙げない",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "      if (table[m] > d)\n",
+      "replace": "      if (false)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare デフォルトより緩い下限は、判定を変えずに loosened_floors と警告に出す"
+      ]
+    },
+    {
+      "id": "loosened-ge",
+      "why": "デフォルトと同じ下限も緩めたものとして挙げる",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "      if (table[m] > d)\n",
+      "replace": "      if (table[m] >= d)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare デフォルトの下限なら loosened_floors は空で、警告を出さない",
+        "compare デフォルトより緩い下限は、判定を変えずに loosened_floors と警告に出す"
+      ]
+    },
+    {
+      "id": "loosened-warn-off",
+      "why": "緩めた下限を警告しない",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "    if (loosened.length > 0) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare デフォルトより緩い下限は、判定を変えずに loosened_floors と警告に出す"
+      ]
     }
   ]
 }
