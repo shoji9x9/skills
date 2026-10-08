@@ -185,6 +185,7 @@ Locator・Page なら束縛に型注釈（`loc: Locator`）を付け、Playwrigh
 | **現側専用のスペック**（ベースラインの採取・ノイズの基準値の測定・強度チェック） | `<parity_suite_dir>/parity/<slug>/current-only/` |
 | **新側専用のスペック**（新側のベースラインの採取・新側の自己ノイズの測定。置くのは `parity-diff`。このスキルは、場所・除外・`new-capture` プロジェクトだけを用意する） | `<parity_suite_dir>/parity/<slug>/new-only/` |
 | **寸法の決まり方の測定スペック**（side に依存しない。`current`・`new` の両方で実行し、project の名前で出力先を分ける。原本は [`baseline.md`](baseline.md)「寸法の決まり方（窓への追従）」） | `<parity_suite_dir>/parity/<slug>/dimension/` |
+| **性能の採取スペック**（side に依存しない。`current`・`new` の両方で実行し、project の名前で出力先を分ける。原本は [`baseline.md`](baseline.md)「性能のベースラインとノイズ基準値」） | `<parity_suite_dir>/parity/<slug>/perf/` |
 | 現側のマッピング | `<parity_suite_dir>/parity/lib/locator-map/<slug>.ts` |
 | 期待値解決層 | `<parity_suite_dir>/parity/lib/expectations/<slug>.ts` |
 | 操作アダプタ | `<parity_suite_dir>/parity/lib/interactions/` |
@@ -245,6 +246,7 @@ projects: [
     use: { baseURL: process.env.PARITY_NEW_UI_URL, launchOptions: { ignoreDefaultArgs: ['--hide-scrollbars'] } },
     // parity-replace の green 検証用。採取スペックは実行しない（収集時に採取用の環境変数を要求するため）
     // dimension/ は除外しない（PARITY_DIMENSION_CAPTURE=1 のときだけ新側の寸法を new/<PARITY_NEW_TARGET>/ へ採る）
+    // perf/ も除外しない（PARITY_PERF_CAPTURE=1 のときだけ新側の性能を new/<PARITY_NEW_TARGET>/ へ採る）
     testIgnore: ['**/current-only/**', '**/new-only/**'],
   },
   {
@@ -272,6 +274,7 @@ PARITY_CURRENT_UI_URL=<url> PARITY_CURRENT_API_URL=<url> npx playwright test --p
 `new` では、さらに `PARITY_NEW_TARGET`（選んだ新側の target の名前）で出力先の `new/<target>/` を決める。
 設定していなければ、書き出さずに失敗する。別の target の samples を上書きしないためである。
 通常の green の検証と強度チェックでは、`PARITY_DIMENSION_CAPTURE` を渡さない（測定スペックはスキップされる）。
+性能の採取スペック（`perf/`）も同じ扱いで、`PARITY_PERF_CAPTURE=1` を渡した実行でだけ書き出す（[`baseline.md`](baseline.md)「性能のベースラインとノイズ基準値」）。
 
 ### 利用者環境のブラウザへ接続する（`browser.cdp_url`）
 

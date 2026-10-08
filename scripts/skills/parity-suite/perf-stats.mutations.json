@@ -1,0 +1,587 @@
+{
+  "$comment": [
+    "perf-stats.test.js の検出能力を示す変異の一覧（Issue #569）。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/skills/parity-suite/perf-stats.test.js",
+  "mutations": [
+    {
+      "id": "regressed-off",
+      "why": "許容幅を超えた悪化を回帰にしない",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "  if (delta > tolerance) return { status: \"regressed\", delta, tolerance };\n",
+      "replace": "  if (delta > tolerance * 1000) return { status: \"regressed\", delta, tolerance };\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare compare は記録した割合の下限で判定する",
+        "compare 許容幅を超えた悪化は regressed で exit 1",
+        "集計の部品 許容幅は四分位範囲と下限の大きい方で、ちょうどは回帰にしない",
+        "集計の部品 重いページでは、現側の中央値に対する割合が許容幅を広げる"
+      ]
+    },
+    {
+      "id": "tolerance-floor-only",
+      "why": "許容幅に四分位範囲を使わない",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "    /** @type {number} */ (cur.iqr),\n",
+      "replace": "    /** @type {number} */ (0),\n",
+      "occurrences": 1,
+      "expect_failing": ["集計の部品 許容幅は四分位範囲と下限の大きい方で、ちょうどは回帰にしない"]
+    },
+    {
+      "id": "noisy-off",
+      "why": "新側のばらつきを判定しない",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "  if (/** @type {number} */ (neu.iqr) > tolerance) return { status: \"noisy\", delta, tolerance };\n",
+      "replace": "  if (/** @type {number} */ (neu.iqr) > Infinity) return { status: \"noisy\", delta, tolerance };\n",
+      "occurrences": 1,
+      "expect_failing": ["compare 新側のばらつきが許容幅を超えれば noisy で exit 1"]
+    },
+    {
+      "id": "missing-one-side",
+      "why": "新側だけの値の欠けを通す",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "  if (cur.nulls > 0 || neu.nulls > 0) return { status: \"missing\", delta: null, tolerance: null };\n",
+      "replace": "  if (cur.nulls > 0) return { status: \"missing\", delta: null, tolerance: null };\n",
+      "occurrences": 1,
+      "expect_failing": ["compare 片側だけ LCP が無ければ missing で exit 1"]
+    },
+    {
+      "id": "env-mismatch-off",
+      "why": "環境の違いを判定に入れない",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "        (differences.length > 0\n",
+      "replace": "        (false\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare 環境・測り方が違えば env_mismatch で exit 1: CPU",
+        "compare 環境・測り方が違えば env_mismatch で exit 1: channel",
+        "compare 環境・測り方が違えば env_mismatch で exit 1: コンテキストの設定",
+        "compare 環境・測り方が違えば env_mismatch で exit 1: ブラウザの版",
+        "compare 環境・測り方が違えば env_mismatch で exit 1: 待つ時間",
+        "compare 環境・測り方が違えば env_mismatch で exit 1: 置き場所",
+        "compare 環境・測り方が違えば env_mismatch で exit 1: 起動の設定"
+      ]
+    },
+    {
+      "id": "workers-any",
+      "why": "並列の採取を受ける",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "  if (settings.workers !== 1) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["summarize 入力の形が違えば exit 2: 並列で採った"]
+    },
+    {
+      "id": "summarize-missing-ok",
+      "why": "採っていない組を通す",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "    ok: missing.length === 0 && extra.length === 0,\n",
+      "replace": "    ok: extra.length === 0,\n",
+      "occurrences": 1,
+      "expect_failing": ["summarize 採っていない組があれば書かずに exit 1"]
+    },
+    {
+      "id": "compare-extra-ok",
+      "why": "現側に無い組を通す",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "    extra.length === 0 &&\n",
+      "replace": "    true &&\n",
+      "occurrences": 1,
+      "expect_failing": ["compare 現側に無い組があれば exit 1"]
+    },
+    {
+      "id": "passing-noisy",
+      "why": "ばらつきを合格として数える",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "export const PASSING_STATUSES = [\"within_noise\", \"improved\", \"not_applicable\"];\n",
+      "replace": "export const PASSING_STATUSES = [\"within_noise\", \"improved\", \"not_applicable\", \"noisy\"];\n",
+      "occurrences": 1,
+      "expect_failing": ["compare 新側のばらつきが許容幅を超えれば noisy で exit 1"]
+    },
+    {
+      "id": "page-dup-ok",
+      "why": "ページ名の重複を受ける",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "  if (new Set(pages).size !== pages.length)\n",
+      "replace": "  if (false)\n",
+      "occurrences": 1,
+      "expect_failing": ["summarize 入力の形が違えば exit 2: metadata.json の pages の name が重複"]
+    },
+    {
+      "id": "separator-ok",
+      "why": "区切り文字を含む名前を受ける",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "  return isNonEmptyString(v) && !v.includes(KEY_SEPARATOR);\n",
+      "replace": "  return isNonEmptyString(v);\n",
+      "occurrences": 1,
+      "expect_failing": ["summarize 入力の形が違えば exit 2: metadata.json の page に区切り文字"]
+    },
+    {
+      "id": "run-dup-ok",
+      "why": "同じ回の重複を受ける",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "    if (g.runs.has(/** @type {number} */ (s.run))) {\n",
+      "replace": "    if (false && g.runs.has(/** @type {number} */ (s.run))) {\n",
+      "occurrences": 1,
+      "expect_failing": ["summarize 同じ組で run が重複すれば exit 2"]
+    },
+    {
+      "id": "run-count-ok",
+      "why": "回数の食い違いを受ける",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "    if (g.runs.size !== settings.runs) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["summarize 組の回数が settings.runs と違えば exit 2"]
+    },
+    {
+      "id": "headless-any",
+      "why": "真偽値でない headless を受ける",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "  if (typeof getPath(doc.environment, \"headless\") !== \"boolean\") {\n",
+      "replace": "  if (typeof getPath(doc.environment, \"headless\") === \"never\") {\n",
+      "occurrences": 1,
+      "expect_failing": ["summarize 入力の形が違えば exit 2: headless が真偽値でない"]
+    },
+    {
+      "id": "nullable-all",
+      "why": "LCP 以外の null を受ける",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "      const nullable = m === \"lcp\";\n",
+      "replace": "      const nullable = true;\n",
+      "occurrences": 1,
+      "expect_failing": ["summarize LCP の null は受け、他の指標の null は exit 2"]
+    },
+    {
+      "id": "stale-baseline-off",
+      "why": "集計の後に採り直した基準を通す",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "    opts.currentSamplesSha256 !== perf.samples_sha256 || staleCapture || staleSummary || stalePairs;\n",
+      "replace": "    false || staleCapture || staleSummary || stalePairs;\n",
+      "occurrences": 1,
+      "expect_failing": ["compare 現側の採取が集計の後に変わっていれば、組 × 指標を判定せず exit 1"]
+    },
+    {
+      "id": "sha-shape-any",
+      "why": "形の違う sha256 を受ける",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "  if (typeof perf.samples_sha256 !== \"string\" || !/^[0-9a-f]{64}$/.test(perf.samples_sha256)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["compare 基準の形が違えば exit 2: 採取の sha256 が無い"]
+    },
+    {
+      "id": "samples-path-any",
+      "why": "リポジトリの外の --samples を読む・記録する",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "    if (!isRepoRelative(opts.samples)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare 新側の --samples がルートからの相対パスでなければ、読まずに exit 2: 外へ出るパス",
+        "compare 新側の --samples がルートからの相対パスでなければ、読まずに exit 2: 絶対パス",
+        "summarize --samples がルートからの相対パスでなければ exit 2: 外へ出るパス",
+        "summarize --samples がルートからの相対パスでなければ exit 2: 絶対パス"
+      ]
+    },
+    {
+      "id": "stdout-after-write",
+      "why": "書き込みの失敗で判定の結果を失う",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "    stdout(`${JSON.stringify(result, null, 2)}\\n`);\n",
+      "replace": "    void (`${JSON.stringify(result, null, 2)}\\n`);\n",
+      "occurrences": 1,
+      "expect_failing": ["compare diff-metadata.json が無くても、比べた結果を出力してから exit 2"]
+    },
+    {
+      "id": "relative-floor-off",
+      "why": "割合の下限を許容幅に入れない",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "    relativeFloor * /** @type {number} */ (cur.median),\n",
+      "replace": "    0 * /** @type {number} */ (cur.median),\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "集計の部品 重いページでは、現側の中央値に対する割合が許容幅を広げる",
+        "compare compare は記録した割合の下限で判定する"
+      ]
+    },
+    {
+      "id": "relative-floor-not-passed",
+      "why": "compare が記録した割合を使わない",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "          : judgeMetric(cur, neu, floor, relativeFloor));\n",
+      "replace": "          : judgeMetric(cur, neu, floor));\n",
+      "occurrences": 1,
+      "expect_failing": ["compare compare は記録した割合の下限で判定する"]
+    },
+    {
+      "id": "relative-floors-missing-ok",
+      "why": "割合の下限が無い基準を受ける",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "  if (!isPlainObject(perf.relative_floors)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["compare 割合の下限が無い基準は、summarize の通し直しを求めて exit 2"]
+    },
+    {
+      "id": "stale-verdict-off",
+      "why": "古い基準と比べた組 × 指標を判定して regressed を出す",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "      const unjudged = staleBaseline\n",
+      "replace": "      const unjudged = false\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare 基準の環境・測り方を新側に合わせて書き換えていれば、判定せず exit 1: ブラウザの版",
+        "compare 基準の環境・測り方を新側に合わせて書き換えていれば、判定せず exit 1: 待つ時間",
+        "compare 基準の統計を手で書き換えていれば、判定せず exit 1",
+        "compare 基準を採った後に組の定義が変われば、判定せず exit 1: ビューポートを足した",
+        "compare 基準を採った後に組の定義が変われば、判定せず exit 1: ページの path を変えた",
+        "compare 現側の採取が集計の後に変わっていれば、組 × 指標を判定せず exit 1",
+        "compare 組の定義だけを書き換え、古い現側の採取を残していれば、判定せず exit 1"
+      ]
+    },
+    {
+      "id": "warmup-any",
+      "why": "1 以外のウォームアップを受ける",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "  if (settings.warmup !== 1) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "summarize 測り方の値が取り決めと違えば exit 2: ウォームアップが 0",
+        "summarize 測り方の値が取り決めと違えば exit 2: ウォームアップが 2"
+      ]
+    },
+    {
+      "id": "settle-any",
+      "why": "数でない待つ時間を受ける",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "  if (!Number.isInteger(settings.settle_ms) || /** @type {number} */ (settings.settle_ms) < 0) {\n",
+      "replace": "  if (false && /** @type {number} */ (settings.settle_ms) < 0) {\n",
+      "occurrences": 1,
+      "expect_failing": ["summarize 測り方の値が取り決めと違えば exit 2: 待つ時間が数でない"]
+    },
+    {
+      "id": "cache-any",
+      "why": "cold でないキャッシュを受ける",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "  if (settings.cache !== \"cold\") {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["summarize 測り方の値が取り決めと違えば exit 2: キャッシュが cold でない"]
+    },
+    {
+      "id": "run-upper-off",
+      "why": "settings.runs を超える run を受ける",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "      /** @type {number} */ (s.run) > /** @type {number} */ (settings.runs)\n",
+      "replace": "      /** @type {number} */ (s.run) > Infinity\n",
+      "occurrences": 1,
+      "expect_failing": ["summarize run が 1 から settings.runs までの連番でなければ exit 2"]
+    },
+    {
+      "id": "tool-version-any",
+      "why": "版の違う基準を読む",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "  if (perf.tool_version !== VERSION) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["compare 基準の tool_version が今の版と違えば exit 2"]
+    },
+    {
+      "id": "capture-missing-ok",
+      "why": "組の定義の無い基準を受ける",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "  if (!isPlainObject(perf.capture)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["compare 基準に組の定義が無ければ exit 2"]
+    },
+    {
+      "id": "stale-capture-off",
+      "why": "組の定義が変わった基準で判定する",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "    opts.currentSamplesSha256 !== perf.samples_sha256 || staleCapture || staleSummary || stalePairs;\n",
+      "replace": "    opts.currentSamplesSha256 !== perf.samples_sha256 || staleSummary || stalePairs;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare 基準を採った後に組の定義が変われば、判定せず exit 1: ページの path を変えた"
+      ]
+    },
+    {
+      "id": "target-any",
+      "why": "別の target の採取を受ける",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "  if (doc.target !== expect.target) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare 新側の採取の target が --target と違えば exit 2: 別の target の採取",
+        "compare 新側の採取の target が --target と違えば exit 2: target が無い採取",
+        "summarize 入力の形が違えば exit 2: 現側の採取に target がある"
+      ]
+    },
+    {
+      "id": "target-arg-optional",
+      "why": "--target 無しで比べる",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "  if (!isNonEmptyString(opts.target))\n",
+      "replace": "  if (false)\n",
+      "occurrences": 1,
+      "expect_failing": ["compare --target を渡さなければ exit 2"]
+    },
+    {
+      "id": "counts-any",
+      "why": "範囲外の回数の基準を受ける",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "      if (cur.n < MIN_RUNS || cur.nulls < 0 || cur.nulls > cur.n) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare 基準の回数が範囲外なら exit 2: 回数が下限より少ない",
+        "compare 基準の回数が範囲外なら exit 2: nulls が負",
+        "compare 基準の回数が範囲外なら exit 2: nulls が n を超える"
+      ]
+    },
+    {
+      "id": "stats-any",
+      "why": "回数と合わない median / iqr の基準を受ける",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "      if (!statsValid) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare 基準の median / iqr が回数と合わなければ exit 2: 中央値が負",
+        "compare 基準の median / iqr が回数と合わなければ exit 2: 四分位範囲が負",
+        "compare 基準の median / iqr が回数と合わなければ exit 2: すべて null の組に数がある",
+        "compare 基準の形が違えば exit 2: 中央値が数でない"
+      ]
+    },
+    {
+      "id": "sum-capture-any",
+      "why": "定義の違う採取を集計する",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "  if (!captureMatches(samplesDoc, metadata)) {\n    throw new UsageError(\n      \"採取の capture",
+      "replace": "  if (false) {\n    throw new UsageError(\n      \"採取の capture",
+      "occurrences": 1,
+      "expect_failing": [
+        "summarize 採取の capture が今の定義と違えば書かずに exit 2: path が違う",
+        "summarize 採取の capture が今の定義と違えば書かずに exit 2: capture が無い"
+      ]
+    },
+    {
+      "id": "cmp-capture-any",
+      "why": "定義の違う新側の採取を比べる",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "  if (!captureMatches(samplesDoc, metadata)) {\n    throw new UsageError(\n      \"新側の採取の capture",
+      "replace": "  if (false) {\n    throw new UsageError(\n      \"新側の採取の capture",
+      "occurrences": 1,
+      "expect_failing": ["compare 新側の採取の capture が今の定義と違えば exit 2"]
+    },
+    {
+      "id": "stale-summary-off",
+      "why": "書き換えた基準の統計で判定する",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "    opts.currentSamplesSha256 !== perf.samples_sha256 || staleCapture || staleSummary || stalePairs;\n",
+      "replace": "    opts.currentSamplesSha256 !== perf.samples_sha256 || staleCapture || stalePairs;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare 基準の環境・測り方を新側に合わせて書き換えていれば、判定せず exit 1: ブラウザの版",
+        "compare 基準の環境・測り方を新側に合わせて書き換えていれば、判定せず exit 1: 待つ時間",
+        "compare 基準の統計を手で書き換えていれば、判定せず exit 1",
+        "compare 組の定義だけを書き換え、古い現側の採取を残していれば、判定せず exit 1"
+      ]
+    },
+    {
+      "id": "summary-env-off",
+      "why": "書き換えた基準の環境・測り方を受ける",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "    if (JSON.stringify(perf[key]) !== JSON.stringify(doc[key])) return false;\n",
+      "replace": "    if (JSON.stringify(perf[key]) !== JSON.stringify(doc[key])) continue;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare 基準の環境・測り方を新側に合わせて書き換えていれば、判定せず exit 1: ブラウザの版",
+        "compare 基準の環境・測り方を新側に合わせて書き換えていれば、判定せず exit 1: 待つ時間"
+      ]
+    },
+    {
+      "id": "placement-any",
+      "why": "決まった値でない置き場所を受ける",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "    !TARGET_PLACEMENTS.includes(\n",
+      "replace": "    false &&\n    !TARGET_PLACEMENTS.includes(\n",
+      "occurrences": 1,
+      "expect_failing": ["summarize 入力の形が違えば exit 2: 置き場所が決まった値でない"]
+    },
+    {
+      "id": "ctxopt-any",
+      "why": "オブジェクトでないコンテキスト・起動の設定を受ける",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "    if (!isPlainObject(getPath(doc.environment, key))) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "summarize 入力の形が違えば exit 2: コンテキストの設定がオブジェクトでない",
+        "summarize 入力の形が違えば exit 2: 起動の設定が無い"
+      ]
+    },
+    {
+      "id": "env-keys-placement-off",
+      "why": "置き場所・コンテキストと起動の設定の違いを env_mismatch にしない",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "  \"target_placement\",\n  \"context_options\",\n  \"launch_options\",\n];\n",
+      "replace": "];\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare 環境・測り方が違えば env_mismatch で exit 1: コンテキストの設定",
+        "compare 環境・測り方が違えば env_mismatch で exit 1: 置き場所",
+        "compare 環境・測り方が違えば env_mismatch で exit 1: 起動の設定"
+      ]
+    },
+    {
+      "id": "canonical-off",
+      "why": "キーの順序だけが違うコンテキストの設定を env_mismatch にする",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "    if (canonicalJson(a) !== canonicalJson(b)) {\n",
+      "replace": "    if (JSON.stringify(a) !== JSON.stringify(b)) {\n",
+      "occurrences": 1,
+      "expect_failing": ["compare コンテキストの設定はキーの順序だけが違っても一致として扱う"]
+    },
+    {
+      "id": "summary-capture-off",
+      "why": "組の定義を書き換えた基準を、古い現側の採取のまま受ける",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "      JSON.stringify(perf.capture)\n  ) {\n    return false;\n",
+      "replace": "      JSON.stringify(perf.capture)\n  ) {\n    void 0;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare 組の定義だけを書き換え、古い現側の採取を残していれば、判定せず exit 1"
+      ]
+    },
+    {
+      "id": "env-string-any",
+      "why": "文字列でない環境の項目を受ける",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "    if (!isNonEmptyString(getPath(doc.environment, key))) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "summarize 入力の形が違えば exit 2: ブラウザの版が null",
+        "summarize 入力の形が違えば exit 2: ブラウザの版が文字列でない"
+      ]
+    },
+    {
+      "id": "channel-any",
+      "why": "空の channel を受ける",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "  if (channel !== null && !isNonEmptyString(channel)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["summarize 入力の形が違えば exit 2: channel が空の文字列"]
+    },
+    {
+      "id": "cpu-count-any",
+      "why": "整数でない CPU の数を受ける",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "  if (!Number.isInteger(cpuCount) || /** @type {number} */ (cpuCount) < 1) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "summarize 入力の形が違えば exit 2: CPU の数が null",
+        "summarize 入力の形が違えば exit 2: CPU の数が整数でない"
+      ]
+    },
+    {
+      "id": "loosened-off",
+      "why": "緩めた下限を挙げない",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "      if (table[m] > d)\n",
+      "replace": "      if (false)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare デフォルトより緩い下限は、判定を変えずに loosened_floors と警告に出す"
+      ]
+    },
+    {
+      "id": "loosened-ge",
+      "why": "デフォルトと同じ下限も緩めたものとして挙げる",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "      if (table[m] > d)\n",
+      "replace": "      if (table[m] >= d)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare デフォルトの下限なら loosened_floors は空で、警告を出さない",
+        "compare デフォルトより緩い下限は、判定を変えずに loosened_floors と警告に出す"
+      ]
+    },
+    {
+      "id": "loosened-warn-off",
+      "why": "緩めた下限を警告しない",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "    if (loosened.length > 0) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare デフォルトより緩い下限は、判定を変えずに loosened_floors と警告に出す"
+      ]
+    },
+    {
+      "id": "cmp-samples-path-any",
+      "why": "リポジトリの外を指す基準の samples を読む",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "      if (!isRepoRelative(perf.samples)) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare 基準の samples がリポジトリのルートからの相対パスでなければ exit 2: /etc/perf-samples.json",
+        "compare 基準の samples がリポジトリのルートからの相対パスでなければ exit 2: ../other/perf-samples.json"
+      ]
+    },
+    {
+      "id": "repo-relative-dotdot-ok",
+      "why": ".. を含むパスをリポジトリの中として扱う",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "  return !isAbsolute(path) && !path.split(/[\\\\/]/).includes(\"..\");\n",
+      "replace": "  return !isAbsolute(path);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare 基準の samples がリポジトリのルートからの相対パスでなければ exit 2: ../other/perf-samples.json",
+        "compare 新側の --samples がルートからの相対パスでなければ、読まずに exit 2: 外へ出るパス",
+        "summarize --samples がルートからの相対パスでなければ exit 2: 外へ出るパス"
+      ]
+    },
+    {
+      "id": "symlink-new-ok",
+      "why": "リポジトリの外を指す新側の採取を読む",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "    if (realInsideRoot(opts.samples) === false) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare 実体がリポジトリの外を指すシンボリックリンクなら、読まずに exit 2: 新側の採取（--samples）"
+      ]
+    },
+    {
+      "id": "symlink-cur-ok",
+      "why": "リポジトリの外を指す現側の採取を読む",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "      if (realInsideRoot(perf.samples) === false) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare 実体がリポジトリの外を指すシンボリックリンクなら、読まずに exit 2: 現側の採取（performance.samples）"
+      ]
+    },
+    {
+      "id": "stale-pairs-off",
+      "why": "組を削った基準を今の基準として判定する",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "    opts.currentSamplesSha256 !== perf.samples_sha256 || staleCapture || staleSummary || stalePairs;\n",
+      "replace": "    opts.currentSamplesSha256 !== perf.samples_sha256 || staleCapture || staleSummary;\n",
+      "occurrences": 1,
+      "expect_failing": ["compare 現側・新側の採取と基準から同じ組を削っていれば、判定せず exit 1"]
+    }
+  ]
+}

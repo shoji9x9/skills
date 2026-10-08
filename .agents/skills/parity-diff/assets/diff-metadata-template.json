@@ -134,6 +134,35 @@
     "unmeasured_operations": 0,
     "state_displays_unmeasured": "<judged: true のときスクリプト出力の state_displays.unmeasured（画面ごとの状態表示の未測定）。1 以上なら ok は true にならない。judged: false では null>"
   },
+  "performance": {
+    "_note": "性能の比較の結果。現側 metadata.json の performance.declared が true のときだけ、インストール済み parity-suite の scripts/perf-stats.mjs compare --write <このファイル> が書く（手で転記しない）。performance をキーごと持たない旧成果物と declared: false はスクリプトを呼ばず、judged: false と reason だけを書いて diff.md の未検証領域にも残す。ok が true でなければ converged を true にしない（regressed は要対応、noisy / missing / env_mismatch / stale_baseline は採り直し）。原本は parity-diff の references/detect.md「性能の比較」。api-resource / batch モードでは省略する。",
+    "judged": "<true | false>",
+    "reason": "<judged: false のときの理由（現側に performance が無い〈改訂 7 より前の成果物〉、declared: false ならその reason）。judged: true では書かない>",
+    "ok": "<スクリプトの ok>",
+    "stale_baseline": "<現側の採取ファイルが集計の後に変わっていた・読めなかったか>",
+    "stale_pairs": "<基準の組が capture_conditions のページ × ビューポートとそろっていないか>",
+    "environment_differences": ["<現側と違った環境・測り方の項目>"],
+    "extra_pairs": ["<現側に無い組>"],
+    "floors": "<判定に使った絶対の下限（現側 metadata.json の performance.floors）>",
+    "relative_floors": "<判定に使った割合の下限（performance.relative_floors）>",
+    "loosened_floors": [
+      "<デフォルトより緩い下限（metric・kind・value・default）。1 件以上なら diff.md の性能の行に載せ、収束の報告で利用者に確かめる>"
+    ],
+    "counts": {
+      "within_noise": 0,
+      "improved": 0,
+      "not_applicable": 0,
+      "regressed": 0,
+      "noisy": 0,
+      "missing": 0,
+      "env_mismatch": 0,
+      "stale_baseline": 0
+    },
+    "regressed": ["<許容幅を超えて悪化した組 × 指標（results の要素と同じ形）>"],
+    "results": ["<組 × 指標ごとの status・delta・tolerance と、現側・新側の median・iqr・n>"],
+    "new_samples": "<新側の採取ファイルのパス（.replace/parity/<slug>/new/<target>/perf-samples.json）>",
+    "new_samples_sha256": "<その sha256>"
+  },
   "artifact_health": {
     "_note": "採取物と工程の健全性の判定結果。インストール済み parity-suite の scripts/artifact-health-check.mjs を --metadata <現側 metadata.json> --target <target> --stage diff で呼んで判定する（--stage は既定 diff。suite を渡すと未測定の blocking を素通りさせるので収束判定では渡さない）。値はスクリプトの出力から転記し、現側の記録を目視で数えない。findings が 1 件でも残れば converged を true にしない。現側が artifact_health / unmeasured / suite.state_mutating をキーごと持たない旧成果物は当該の節を判定しない（後方互換）——その事実と理由を judged: false ＋ reason に残し、diff.md の未検証領域にも残す（黙って合格にしない）。artifact_health.declared: false が免除するのは採取物の節だけで、反復実行の節（suite.state_mutating）は免除されない。スクリプトが exit 2（型崩れ・無根拠の免除）なら収束判定へ進まず現側の成果物を直す。契約の原本は parity-suite の references/baseline.md「採取物の健全性」「状態を変えるスイートは 2 回続けて緑にする」と references/coverage.md「未測定を機械可読にする」。",
     "judged": false,

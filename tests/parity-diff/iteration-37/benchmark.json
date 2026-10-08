@@ -1,0 +1,147 @@
+{
+  "metadata": {
+    "skill_name": "parity-diff",
+    "skill_path": "<repo>/skills/parity-diff",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-08T08:47:21Z",
+    "evals_run": [29],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 29,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 33.314,
+        "tokens": 100114,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "画素・特性照合・aria の差分が 0 件であることを、性能の回帰が無い根拠にせず、converged: true にしない",
+          "passed": true,
+          "evidence": "結論で converged: true にできないとし、理由 3 で差分 0 件は性能の合否を決めないと述べる。"
+        },
+        {
+          "text": "単発の値（1 回目・2 回目）で判定せず、同じ条件で繰り返し測った分布と、現側のノイズの許容幅（現側の四分位範囲と、絶対値・現側の中央値に対する割合の下限のいちばん大きいもの）で比べると述べている",
+          "passed": true,
+          "evidence": "単発の値では判定できないとし、許容幅を現側の四分位範囲・floors・現側の中央値 × relative_floors の最大と述べる。"
+        },
+        {
+          "text": "現側（ノート PC）と新側（CI のランナー）で機械が違うので比較が成り立たない（環境の不一致で判定しない）と述べ、新側を測る機械で現側の性能も採り直すと述べている",
+          "passed": true,
+          "evidence": "機械が違えば env_mismatch とし、CI ランナー上で parity-suite の性能の採取と summarize --write をやり直す案を示す。"
+        },
+        {
+          "text": "parity-suite の scripts/perf-stats.mjs を compare で呼んで判定し、結果を diff-metadata.json の performance に書かせると述べている",
+          "passed": true,
+          "evidence": "perf-stats.mjs compare を --write diff-metadata.json 付きで実行し、手で書き写さないと述べる。"
+        },
+        {
+          "text": "許容幅を超えた悪化は、LLM のトリアージを通さず要対応として parity-replace へ差し戻し、改善は合格として扱うと述べている",
+          "passed": true,
+          "evidence": "表で regressed は要対応で LLM を通さず parity-replace へ差し戻し、improved は合格と述べる。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 29,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4,
+        "passed": 2,
+        "failed": 3,
+        "total": 5,
+        "time_seconds": 19.523,
+        "tokens": 18003,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "画素・特性照合・aria の差分が 0 件であることを、性能の回帰が無い根拠にせず、converged: true にしない",
+          "passed": true,
+          "evidence": "converged: true にしないとし、差分 0 件は性能の結論にならないと述べる。"
+        },
+        {
+          "text": "単発の値（1 回目・2 回目）で判定せず、同じ条件で繰り返し測った分布と、現側のノイズの許容幅（現側の四分位範囲と、絶対値・現側の中央値に対する割合の下限のいちばん大きいもの）で比べると述べている",
+          "passed": false,
+          "evidence": "許容範囲を事前に決めるとし 100ms・5% を例に挙げるが、現側の四分位範囲と絶対値・割合の下限の最大で決める仕組みには触れない。"
+        },
+        {
+          "text": "現側（ノート PC）と新側（CI のランナー）で機械が違うので比較が成り立たない（環境の不一致で判定しない）と述べ、新側を測る機械で現側の性能も採り直すと述べている",
+          "passed": true,
+          "evidence": "同じマシンで両側を測り、ノート PC の現側の値を基準に使わないと述べる。"
+        },
+        {
+          "text": "parity-suite の scripts/perf-stats.mjs を compare で呼んで判定し、結果を diff-metadata.json の performance に書かせると述べている",
+          "passed": false,
+          "evidence": "perf-stats.mjs compare と diff-metadata.json の performance に触れていない。"
+        },
+        {
+          "text": "許容幅を超えた悪化は、LLM のトリアージを通さず要対応として parity-replace へ差し戻し、改善は合格として扱うと述べている",
+          "passed": false,
+          "evidence": "許容範囲外は性能の差分として扱うとするが、LLM のトリアージを通さず parity-replace へ差し戻すことと改善を合格にすることに触れない。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 33.314,
+        "stddev": 0,
+        "min": 33.314,
+        "max": 33.314
+      },
+      "tokens": {
+        "mean": 100114,
+        "stddev": 0,
+        "min": 100114,
+        "max": 100114
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.4,
+        "stddev": 0,
+        "min": 0.4,
+        "max": 0.4
+      },
+      "time_seconds": {
+        "mean": 19.523,
+        "stddev": 0,
+        "min": 19.523,
+        "max": 19.523
+      },
+      "tokens": {
+        "mean": 18003,
+        "stddev": 0,
+        "min": 18003,
+        "max": 18003
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.60",
+      "time_seconds": "+13.8",
+      "tokens": "+82111"
+    }
+  },
+  "notes": []
+}

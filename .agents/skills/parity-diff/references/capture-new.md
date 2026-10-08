@@ -171,6 +171,22 @@
 - 実際の保存先を `diff-metadata.json.paths.baseline_new` に記録する（スクリーンショットは作業のためのもので、切り替えた後に残っている必要はない）
 - `noise-pass2/` は、保存先を選ぶ対象にしない（測った後に消すため。下の「2 回目の採取物は測定後に削除する」）
 
+## 性能の採取
+
+性能は、画面の採取と別のスペックで採る。`parity-suite` が `current` と `new` の両方のプロジェクトに置いた `perf/` のスペック（`metadata.json` の `suite.perf`）を、`new` で実行する。
+雛形のコピーを新しく作らない。現側と同じスペックで採らないと、比べる値の読み方が揃わない。
+
+```bash
+PARITY_PERF_CAPTURE=1 PARITY_SLUG=<slug> PARITY_NEW_TARGET=<target> PARITY_NEW_UI_URL=<url> \
+  npx playwright test <parity_suite_dir>/parity/<slug>/perf/ --project new --workers=1
+```
+
+- 出力は `.replace/parity/<slug>/new/<target>/perf-samples.json` で、テキストの成果物として Git に入れる。
+- 現側を採った機械・ブラウザ・測り方（`performance.environment` と `performance.settings`）と同じ条件で採る。違えば比較は `env_mismatch` で止まる。
+  `channel` と `headless` も現側と同じにする（`channel` の指定と `headless: false` では、ブラウザ本体が Google へ送信する。原本は `parity-suite` の `SKILL.md`「前提」）。
+- 自己ノイズの再利用（下の「測定値の再利用」）は、性能には当てない。性能は毎回採る。新側のばらつきは、`perf-stats.mjs compare` が採った分布から毎回判定する。
+- `metadata.json` に `performance` が無いか `declared: false` なら、採らない（[`detect.md`](detect.md)「性能の比較」）。
+
 ## 新側の自己ノイズ測定（差分検出へ進む前のチェック）
 
 ノイズの基準値（`metadata.json.noise_baseline`）は、現側の 1 つの環境で測った値である。新側の target にそのまま使えるとは限らない（CDN やフォントの読み込みなどで、環境のノイズは変わる）。

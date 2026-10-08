@@ -1,5 +1,5 @@
 {
-  "_note": "parity-suite が .replace/parity/<slug>/metadata.json として生成する。形式の原本は parity-suite が定義する。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す）。api-resource / batch モードでは視覚系フィールド（capture_conditions・traits・differ の画素/特性項目・noise_baseline・artifacts_storage.baseline_pointer）と component_coverage を持たない（省略する）。capture_conditions.masks は恒久マスク、cofeature_masks は同一ページの別機能が同 target で未実装の間だけ parity-diff が作業コピーへ対称適用する候補であり、用途を混ぜない。capture_conditions.popup_inventory は操作で開くコンテナの棚卸しで、撮るコンテナも撮らないコンテナも 1 要素ずつ書き、コンテナが無い機能は空配列にする（キーを省かない。原本は parity-suite の references/baseline.md「撮影状態の決め方（2）コンテナの棚卸し」）。 自律実行の保留はこのファイルに書かず assets/pending-decisions-template.json の形で同じディレクトリの pending-decisions.json に書く（下流がこのファイルの存在を完了の証拠に使うため）。",
+  "_note": "parity-suite が .replace/parity/<slug>/metadata.json として生成する。形式の原本は parity-suite が定義する。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す）。api-resource / batch モードでは視覚系フィールド（capture_conditions・traits・differ の画素/特性項目・noise_baseline・performance・artifacts_storage.baseline_pointer）と component_coverage を持たない（省略する）。capture_conditions.masks は恒久マスク、cofeature_masks は同一ページの別機能が同 target で未実装の間だけ parity-diff が作業コピーへ対称適用する候補であり、用途を混ぜない。capture_conditions.popup_inventory は操作で開くコンテナの棚卸しで、撮るコンテナも撮らないコンテナも 1 要素ずつ書き、コンテナが無い機能は空配列にする（キーを省かない。原本は parity-suite の references/baseline.md「撮影状態の決め方（2）コンテナの棚卸し」）。 自律実行の保留はこのファイルに書かず assets/pending-decisions-template.json の形で同じディレクトリの pending-decisions.json に書く（下流がこのファイルの存在を完了の証拠に使うため）。",
   "slug": "<features.md が採番した slug（自分で採番しない）>",
   "mode": "<feature | api-resource | batch>",
   "target": {
@@ -28,6 +28,7 @@
     "expectations": "<期待値解決層（論理名 → side 別期待値）のパス。現側の値だけを埋めた状態で引き渡し、新側の値は parity-replace が充填する>",
     "interactions": "<操作アダプタのパス>",
     "dimension": "<寸法の決まり方の測定スペックのパス（既定 <parity_suite_dir>/parity/<slug>/dimension/）。current / new の両プロジェクトに含め、PARITY_DIMENSION_CAPTURE=1 の実行でだけ書く（強度チェック等で上書きさせない）。current は .replace/parity/<slug>/dimension-samples.json、new は .replace/parity/<slug>/new/<PARITY_NEW_TARGET>/dimension-samples.json へ書く>",
+    "perf": "<性能の採取スペックのパス（既定 <parity_suite_dir>/parity/<slug>/perf/perf.spec.ts。parity-suite の assets/perf-capture.spec.template.ts から起こす）。current / new の両プロジェクトに含め、PARITY_PERF_CAPTURE=1 の実行でだけ書く。current は .replace/parity/<slug>/perf-samples.json、new は .replace/parity/<slug>/new/<PARITY_NEW_TARGET>/perf-samples.json へ書く。performance.declared: false なら null>",
     "tools": "<決定論的ツール（trait-capture / trait-compare / 応答ヘッダーを録画するなら header-normalize のコピー）のパス（ディレクトリかファイルのパスだけを書く。版は traits.tool・differ.* の側に書く）。コピー専用サブディレクトリ（既定 <parity_suite_dir>/parity/lib/tools/vendor/）に置き、プロジェクト自作ツールと同居させない>",
     "auth_roles": [
       "<特性化に使ったロール名（設定 targets[].auth.roles のキー。認証不要なら空配列）>"
@@ -380,6 +381,101 @@
       "trait_diffs": 0
     }
   ],
+  "performance": {
+    "_note": "性能のベースラインとノイズ基準値（feature モードではキーごと省かない）。declared: true の値は parity-suite の scripts/perf-stats.mjs summarize --write が書く（手で転記しない）。parity-diff は同じスクリプトの compare で新側を比べ、許容幅（四分位範囲・floors・現側の中央値 × relative_floors のいちばん大きいもの）を超えた悪化を要対応にする。キーごと無い成果物は parity-diff が判定せず未検証に残す（後方互換）。原本は parity-suite の references/baseline.md「性能のベースラインとノイズ基準値」。",
+    "declared": "<true | false。false は性能を比べられない事情があるときだけ（reason と gaps.md の同じ文言が要る）>",
+    "tool_version": "<perf-stats.mjs の VERSION>",
+    "samples": "<現側の採取ファイルのパス（リポジトリのルートからの相対。既定 .replace/parity/<slug>/perf-samples.json）>",
+    "samples_sha256": "<集計した採取ファイルの sha256。parity-diff の compare は今のファイルと照合し、違えば古い基準として止める>",
+    "measured_at": "<採取した日時（採取ファイルの measured_at）>",
+    "environment": {
+      "browser_name": "<browser.browserType().name()>",
+      "browser_version": "<browser.version()>",
+      "channel": "<project の use.channel。指定なしは null（Playwright の headless shell）>",
+      "headless": "<project の use.headless。指定なしは true>",
+      "target_placement": "<対象の置き場所。すべての頁が localhost・127.0.0.0/8・::1 を指せば loopback、それ以外は remote>",
+      "context_options": "<コンテキストに渡した設定（baseURL を除く）。認証の情報を持ちうるもの（extraHTTPHeaders・httpCredentials・storageState・clientCertificates・proxy）は秘密の値を残さず、ヘッダーの名前・username・proxy の server・cookie の domain と name などだけを残す>",
+      "launch_options": "<project の use.launchOptions（args・ignoreDefaultArgs・executablePath など）。args は値を伏せた形（--flag=value は --flag=*、フラグでない要素は *）、env は実行したシェルと値が違う変数の名前だけ、proxy は server と bypass だけを残す>",
+      "runner": {
+        "platform": "<os.platform()>",
+        "arch": "<os.arch()>",
+        "cpu_model": "<os.cpus()[0].model>",
+        "cpu_count": "<os.cpus().length>"
+      }
+    },
+    "settings": {
+      "runs": "<1 組あたりの回数（ウォームアップを除く。5 以上）>",
+      "warmup": 1,
+      "settle_ms": "<読み込みの後、値を読むまでの ms>",
+      "cache": "cold",
+      "workers": 1
+    },
+    "floors": {
+      "lcp": 100,
+      "cls": 0.01,
+      "tbt": 50,
+      "ttfb": 50
+    },
+    "relative_floors": {
+      "lcp": 0.2,
+      "cls": 0,
+      "tbt": 0.2,
+      "ttfb": 0.2
+    },
+    "capture": {
+      "pages": [{ "name": "<capture_conditions.pages[].name>", "path": "<同 path>" }],
+      "viewports": [{ "label": "<capture_conditions.viewports[].label>", "width": 0, "height": 0 }]
+    },
+    "pairs": [
+      {
+        "page": "<capture_conditions.pages[].name>",
+        "viewport": "<capture_conditions.viewports[].label>",
+        "metrics": {
+          "lcp": {
+            "n": 0,
+            "nulls": 0,
+            "median": 0,
+            "p25": 0,
+            "p75": 0,
+            "iqr": 0,
+            "min": 0,
+            "max": 0
+          },
+          "cls": {
+            "n": 0,
+            "nulls": 0,
+            "median": 0,
+            "p25": 0,
+            "p75": 0,
+            "iqr": 0,
+            "min": 0,
+            "max": 0
+          },
+          "tbt": {
+            "n": 0,
+            "nulls": 0,
+            "median": 0,
+            "p25": 0,
+            "p75": 0,
+            "iqr": 0,
+            "min": 0,
+            "max": 0
+          },
+          "ttfb": {
+            "n": 0,
+            "nulls": 0,
+            "median": 0,
+            "p25": 0,
+            "p75": 0,
+            "iqr": 0,
+            "min": 0,
+            "max": 0
+          }
+        }
+      }
+    ],
+    "reason": "<declared: false のときだけ、比べない理由（gaps.md の該当行と同じ文言）。declared: true では null>"
+  },
   "artifacts_storage": {
     "selected": "<local | git | git-lfs。既定は設定の storage、overrides.<slug> で上書き>",
     "size_threshold_mb": 0,

@@ -17,13 +17,13 @@ Issue の状態とリポジトリの中の成果物から、今の状況を導�
 | `.replace/components/<slug>/new/<target>/build-metadata.json` | 部品の実装・照合の記録（`parity.unexplained`・`parity.missing_stories`・`parity.unbaselined_stories`・`behavior`・`acceptance`・`verification`・`loop`）。作るスキルとスキーマの原本は上と同じ。新側の成果物は環境ごとなので、target ごとに存在することがある |
 | `.replace/parity/<slug>/strength.md` | パリティスイートの強度（捕捉した故障の種別・素通りした種別＝弱点・未検証の種別）。`parity-suite` が作る |
 | `.replace/parity/<slug>/gaps.md` | 未検証の領域（特性化できなかった箇所・hermetic でないテスト・スコープ外の副作用）。`parity-suite` が作る |
-| `.replace/parity/<slug>/metadata.json` | 取得したときのゴールデンデータセットのバージョン・対象のコミット・部品網羅表の宣言（`component_coverage`）・反応の網羅表の宣言（`reaction_coverage`）・未測定の宣言（`unmeasured`）。宣言のキーごと無ければ旧版の成果物である。`parity-suite` が作る |
+| `.replace/parity/<slug>/metadata.json` | 取得したときのゴールデンデータセットのバージョン・対象のコミット・部品網羅表の宣言（`component_coverage`）・反応の網羅表の宣言（`reaction_coverage`）・性能の基準（`performance`）・未測定の宣言（`unmeasured`）。宣言のキーごと無ければ旧版の成果物である。`parity-suite` が作る |
 | `.replace/parity/<slug>/component-coverage.json` | 部品網羅表（項目 × 部品インスタンス〈ページ〉の 3 値）。網羅プロファイルを宣言した部品では、インスタンスごとの候補が期待するセルになる。`parity-suite` が作り、スキーマとプロファイルの原本は `parity-suite` にある。現側の測定の結果なので、slug の直下に 1 つだけある |
 | `.replace/parity/<slug>/new/<target>/component-comparison.json` | 部品網羅表の `present` を新側で突き合わせた記録（`cells[].compared` と、起点・当たり判定・完了の観測）。`parity-replace` が作り、様式とチェックの原本は `parity-suite` にある。網羅表の 3 値は移行元の側の測定なので、突き合わせていないものが残る機能は「新側で操作を完了できる」と報告しない。新側の成果物は環境ごとなので、target ごとに存在することがある |
 | `.replace/parity/<slug>/component-diff-exceptions.json` | 承認済みのインスタンス例外の規模（`component_diff_exception_causes[]` の原因の数と、`component_diff_exceptions[]` のインスタンスの数）。`parity-diff` が作り、スキーマの原本は `parity-diff` にある。環境に依存しないので、slug の直下に 1 つだけある |
 | `.replace/parity/<slug>/new/<target>/replace-metadata.json` | 新側の green の記録（`suite.new_green`・`verification.passed_at`）と、差し戻しの往復の状態（`loop.iterations` / `loop.max_iterations` / `loop.last_diff_report`）。`parity-replace` が作り、スキーマの原本は `parity-replace` にある。新側の成果物は環境ごとなので、target ごとに存在することがある |
 | `.replace/parity/<slug>/new/<target>/diff.md` | 検出した差分と分類（要対応／許容／環境ノイズ）・根拠。`parity-diff` が作り、スキーマの原本は `parity-diff` にある。新側の成果物は環境ごとなので、target ごとに存在することがある |
-| `.replace/parity/<slug>/new/<target>/diff-metadata.json` | 収束の判定の機械可読な値（`converged`・`results`・`component_coverage`・`reaction_coverage`・`intentional_diffs_pending`）と、他の機能を待っている差分の帰属（`blocked_by[]`）。`parity-diff` が作り、スキーマの原本は `parity-diff` にある。target ごとに存在することがある |
+| `.replace/parity/<slug>/new/<target>/diff-metadata.json` | 収束の判定の機械可読な値（`converged`・`results`・`component_coverage`・`reaction_coverage`・`performance`・`intentional_diffs_pending`）と、他の機能を待っている差分の帰属（`blocked_by[]`）。`parity-diff` が作り、スキーマの原本は `parity-diff` にある。target ごとに存在することがある |
 | `.replace/dataset/metadata.json` | 今のデータセットのバージョン（`version`）、版ごとの影響範囲（`changes[].affects`。テーブル名で、`dataset_mode: static` では静的データの単位）、新側への投入の記録（`phase_b.<slug>.<target>`。target ごと）。`golden-dataset` が作る |
 | `.replace/dataset/verification.md` | 「意味論が未確定の機能」。`current.origin: received-assets` のときだけある。`golden-dataset` が作り、スキーマの原本は `golden-dataset` にある |
 | `.replace/bootstrap/metadata.json` | 現行の環境を作り直す作業の状態（`status` / `blocked_on` / `semantics.pending_features`）。`current-environment-bootstrap` が作り、スキーマの原本は `current-environment-bootstrap` にある。`received-assets` のときだけある |
@@ -113,6 +113,8 @@ open とも closed とも仮定せず、features.md の記述で代わりにし�
    - 反応の網羅表も同じ形で示す。
      未測定の操作の数は `diff-metadata.json.reaction_coverage.unmeasured_operations` から、画面ごとの状態表示の未測定の数は同じく `state_displays_unmeasured` から取る（`reactions.json` を目で数えない）。
      `parity-diff` を実行していなければ未算出、`declared: false` ならその理由、キーごと無ければ旧版の成果物として区別する
+   - 性能の比較も同じ形で示す。回帰と判定できない組の件数は `diff-metadata.json.performance.counts` から取る（`perf-samples.json` を自分で集計しない）。
+     `performance.judged: false` ならその理由を示し、現側の `metadata.json` に `performance` が無ければ旧版の成果物として区別する
    - `component-diff-exceptions.json` の原因の数とインスタンスの数を、slug ごとに示す。承認済みで説明もついているが、インスタンスの件数は検証の弱さを示す。
      件数をまとめて隠さない取り決めなので、原因の数だけでなく、インスタンスの数もそのまま数えて報告する
    - 意図的差異の保留（`intentional_diffs.pending`）がたまっている状況を示す。

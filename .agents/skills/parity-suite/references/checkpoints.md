@@ -14,7 +14,7 @@
 | 区切り | 位置 | そろっている成果物 | 次の手順 | 次の手順が読む参照 |
 |---|---|---|---|---|
 | `authored` | 手順 5 の後 | スイート（マッピング層・期待値解決層・操作アダプタ・手書きの aria・API の特性化）、`auto-wait-check.mjs` を通したこと。feature モードでは `component-coverage.json`（`coverage-expand.mjs --write` を通し、`visual_state_coverage.rows` の撮る／撮らないを決めたもの）と `reactions.json`（観測の記録） | 6 | [`baseline.md`](baseline.md)、[`locator-mapping.md`](locator-mapping.md)「side 専用スペックは相手側の project から `testIgnore` で除外する（両向き）」 |
-| `captured` | 手順 6 の後 | 視覚ベースライン、`metadata.json` の `noise_baseline`・`capture_conditions`（`states`・`popup_inventory`・`overflow`・`scrollbars`・`display_axes`・`viewer_environment`・`browser`・`capture_scope`）、`dimension-samples.json`。`noise-pass2/` は削除済み | 7 | [`strength-gate.md`](strength-gate.md) |
+| `captured` | 手順 6 の後 | 視覚ベースライン、`metadata.json` の `noise_baseline`・`capture_conditions`（`states`・`popup_inventory`・`overflow`・`scrollbars`・`display_axes`・`viewer_environment`・`browser`・`capture_scope`）・`performance`（feature モードだけ）、`dimension-samples.json`・`perf-samples.json`（feature モードだけ）。`noise-pass2/` は削除済み | 7 | [`strength-gate.md`](strength-gate.md) |
 | `gated` | 手順 7 の後 | `strength.md`（ポジティブコントロールの結果・故障カタログ・注入ごとの結果・素通りした故障の扱い）。手順 7 の中で書く。手順 8 まで持ち越すと、新しい文脈へ強度チェックの結果が渡らない | 8 | [`coverage.md`](coverage.md)「照合と宣言」「未測定を機械可読にする」、[`baseline.md`](baseline.md)「採取物の健全性」「状態を変えるスイートは 2 回続けて緑にする」 |
 
 - 前の手順の参照を読み直さない。次の手順が読むのは、`SKILL.md`・このファイル・上の表の参照と、上の表の成果物だけである。前の手順で読んだ参照の中身は、成果物の形で引き継がれている
@@ -83,5 +83,6 @@ JSON
   `reactions.json` は、期待値か `covered_by` を変えると、監査の記録（`assertion_audit`）の指紋も合わなくなる。そのときは `--audit-sheet` から監査し直す。`covered_by` のスペックのファイルを書き換えた場合も同じである
 - 鍵が欠けた行・空の行・重複した行があると、書き込まずに exit 2 で止まる（別の行を上書きしない）。表を直してから使う
 - 機械的に作れる値は、ツールかスペックに書かせ、手で転記しない。
-  寸法の採取値（`dimension-samples.json`）とスクロールバーの記録（`capture_conditions.overflow`）は測定のスペックが書く。
-  網羅表の候補と撮影状態の行は `coverage-expand.mjs --write` が、寸法の式は `dimension-fit.mjs --write` が、照合の結果（`conformance`）は各照合スクリプトが書く
+  寸法の採取値（`dimension-samples.json`）・性能の採取値（`perf-samples.json`）とスクロールバーの記録（`capture_conditions.overflow`）は測定のスペックが書く。
+  網羅表の候補と撮影状態の行は `coverage-expand.mjs --write` が、寸法の式は `dimension-fit.mjs --write` が、照合の結果（`conformance`）は各照合スクリプトが書く。
+  性能の基準は `perf-stats.mjs summarize --write` が書く
