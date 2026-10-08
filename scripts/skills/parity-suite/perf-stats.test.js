@@ -743,6 +743,20 @@ describe("compare", () => {
     expect(r.err).toContain("回数が範囲外");
   });
 
+  test.each([
+    ["中央値が負", { median: -1 }],
+    ["四分位範囲が負", { iqr: -1 }],
+    ["すべて null の組に数がある", { nulls: 5, median: 520, iqr: 20 }],
+  ])("基準の median / iqr が回数と合わなければ exit 2: %s", (_, override) => {
+    const base = summarized();
+    const pairs = structuredClone(base.meta.performance.pairs);
+    pairs[0].metrics.lcp = { ...pairs[0].metrics.lcp, ...override };
+    const meta = { ...base.meta, performance: { ...base.meta.performance, pairs } };
+    const r = compareRun(samplesDoc("new", bothPairs()), { base, meta });
+    expect(r.code).toBe(2);
+    expect(r.err).toContain("median / iqr が回数と合わない");
+  });
+
   test("新側の採取の side が current なら exit 2", () => {
     const r = compareRun(samplesDoc("current", bothPairs()));
     expect(r.code).toBe(2);

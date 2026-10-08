@@ -348,6 +348,20 @@
         "compare 基準の回数が範囲外なら exit 2: nulls が負",
         "compare 基準の回数が範囲外なら exit 2: nulls が n を超える"
       ]
+    },
+    {
+      "id": "stats-any",
+      "why": "回数と合わない median / iqr の基準を受ける",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "      if (!statsValid) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare 基準の median / iqr が回数と合わなければ exit 2: 中央値が負",
+        "compare 基準の median / iqr が回数と合わなければ exit 2: 四分位範囲が負",
+        "compare 基準の median / iqr が回数と合わなければ exit 2: すべて null の組に数がある",
+        "compare 基準の形が違えば exit 2: 中央値が数でない"
+      ]
     }
   ]
 }

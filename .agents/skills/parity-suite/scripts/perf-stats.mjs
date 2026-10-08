@@ -575,8 +575,17 @@ export function compare(metadata, samplesDoc, opts) {
           `performance.pairs の ${key} の ${m} の回数が範囲外（n は ${MIN_RUNS} 以上、nulls は 0 から n まで）`,
         );
       }
-      if (cur.nulls < cur.n && !(Number.isFinite(cur.median) && Number.isFinite(cur.iqr))) {
-        throw new UsageError(`performance.pairs の ${key} の ${m} の median / iqr が数でない`);
+      // 値のある組は 0 以上の数、すべて null の組は null（summarizeValues が書く形）でなければ、基準として読まない
+      const statsValid =
+        cur.nulls < cur.n
+          ? [cur.median, cur.iqr].every(
+              (v) => typeof v === "number" && Number.isFinite(v) && v >= 0,
+            )
+          : cur.median === null && cur.iqr === null;
+      if (!statsValid) {
+        throw new UsageError(
+          `performance.pairs の ${key} の ${m} の median / iqr が回数と合わない（値のある組は 0 以上の数、すべて null の組は null）`,
+        );
       }
       if (!g) {
         results.push({
