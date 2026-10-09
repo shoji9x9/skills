@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Bash 呼び出しを PreToolUse で止めるチェック（このリポジトリのセッション用。配布物ではない）。
 #
-# 常時ロードの文章規約で防げず再発した 3 クラスを、決定論的に止める。
+# 常時ロードの文章規約で防げず再発した 2 クラスを、決定論的に止める。
 #
 #   1. `gh api ... --body-file <path>`
 #      `gh api` に `--body-file` は無く unknown flag で落ちる（`-F body=@<path>` か `--input <path>`）。
@@ -12,23 +12,6 @@
 #      照合対象は full command line なので、そのコマンドを実行している自分のシェルにも一致し、
 #      シェルごと落ちる（3 回踏んだ。症状は非 0 終了だけで、対象が死んだのか自分が死んだのか読めない）。
 #      自分に一致しない形（`[d]ump-dom` のような文字クラス）と、PID 指定（`kill "$PID"`）は通す。
-#
-#   3. 書き込む整形ツール（`oxfmt`、`markdownlint-cli2 --fix`）へのディレクトリ引数
-#      整形ツールは渡された範囲を自分の判断で整形する。そのため、目的外の種類のファイルが警告なしに書き換わる
-#      （oxfmt が `.md` の表を桁揃えし、markdownlint-cli2 が `.mjs` / `.png` / `.yml` を書き換えた）。
-#      AGENTS.md は oxfmt についてだけ書いていて、対の markdownlint-cli2 で再発した。
-#      ディレクトリは「末尾が `/`」「`.` / `..`」「hook の cwd から見て実在するディレクトリ」で判定する。
-#      対象を渡さない呼び出しもデフォルトの探索範囲（リポジトリ全体）を書き換えるので同じ扱いにする。
-#      ファイルの列挙・glob・書き込まない呼び出し（`oxfmt --check` / `--list-different` / `--version` / `--help`、
-#      `--fix` の無い markdownlint-cli2）は通す。
-#      近似で見逃す形: 同じ呼び出しの `cd` の後の相対パス（hook の cwd で解決する）、ディレクトリに展開される glob
-#      （`oxfmt docs/*`）と変数（`oxfmt "$dir"`）、ラッパーのオプションの値の後の起動（`pnpm -C dir exec oxfmt .`）、
-#      セグメントの途中のコマンド置換（`echo $(oxfmt .)`）、値を取るオプションの値（`oxfmt --threads 4` の `4` を対象と数える）。
-#      `ssh host oxfmt .` はリモートの作業ツリーを整形するので、意図して止めない。
-#      ラッパーの位置引数の後（`mise exec node@20 -- oxfmt .`）と、`case` の分岐の本体も見逃す。
-#      ラッパーのオプションの直後の語は、その値として読み飛ばす（`sudo -u me`・`timeout -s KILL 60`・`pnpm --filter foo exec`）。
-#      誤検知する形: `\ ` でエスケープした空白を含むパス（`oxfmt docs\ dir/a.js`）。split_segments が先に `\` を外すので、
-#      前半（`docs`）がディレクトリなら止める。引用した形（`oxfmt "docs dir/a.js"`）は 1 つの語として読む。
 #
 # 判定はセグメント単位で行う。`&&` / `||` / `;` / `|` / 改行で切り、セグメントごとに評価する
 # （`gh pr create --body-file a && gh api x --body-file b` の後段だけを落とすため）。
@@ -81,8 +64,6 @@ case "${input}" in
 *--body-file*) ;;
 *pkill*) ;;
 *killall*) ;;
-*oxfmt*) ;;
-*markdownlint-cli2*) ;;
 *) exit 0 ;;
 esac
 
@@ -359,175 +340,6 @@ class_escape_re='\[[^][[:space:]]\]'
 delegate_re='(^|[[:space:]])(ba|z|k|da|a)?sh[[:space:]]+-[A-Za-z]*c([[:space:]]|$)|(^|[[:space:]])(ssh|eval)([[:space:]]|$)'
 add_violation() { violations="${violations}${violations:+$'\n'}  - $1"; }
 
-# 書き込む整形ツールに渡したディレクトリ引数を返す（1 行に 1 つ。対象を渡していなければ `(対象なし)`）。
-# 引数は引用符を外して空白で切る（引用したパスもディレクトリなら止めるため。コード部分ではなく全文で見る）。
-# 整形ツールの名前は**コマンドの位置**にあるときだけ数える。引数の位置（`mise which oxfmt`・`grep -rn oxfmt docs`）は
-# 起動ではないので止めない。コマンドの位置は、先頭の代入とラッパー（`pnpm exec`・`npx`・`timeout 60` など）を読み飛ばした最初の語である。
-# 制御構文の語（`then`・`do` など）、グループとサブシェルの括弧、シェルへの委譲（`bash -c`）もラッパーとして読み飛ばす。
-# ラッパーの後のオプション（`npx --yes`・`xargs -0`）と数値（`timeout 60`・`nice -n 5`）も読み飛ばす。
-# `xargs` 越しの起動は対象が stdin から来るので、ディレクトリの引数だけを見る（対象を省いた扱いにしない）。
-# リダイレクト（`2>&1`・`> log`）は対象に数えない（数えると、対象を省いた `oxfmt 2>&1` を通す）。
-# 整形ツールのディレクトリ引数を返す。第 2 引数が 1 なら、シェルへの委譲（`bash -c` / `eval`）の中身として読む。
-#   委譲のとき: 引用の中もコードなので、引用符を外した本文を `;`・`&&`・`||`・`|`・`&` で区切り、区切りごとに判定する
-#     （`bash -c "git status; oxfmt ."` の引用の中は split_segments が区切らないため）。
-#   委譲でないとき: 引用の中はデータなので区切らない（`rg -e "x; oxfmt ."` を止めない）。引用の中の空白と
-#     `\ ` は語の区切りにせず、`"docs dir/a.js"` を 1 つの語として読む。
-formatter_dir_args() {
-	local text="$1" delegated="${2:-0}" chunk
-	if [ "${delegated}" = 1 ]; then
-		text="${text//\"/}"
-		text="${text//\'/}"
-	else
-		# コマンド置換（`$( )`・バッククォート）の中身は別のセグメントとして判定済みなので、1 つの語に置き換える。
-		# 中身の最後の語が整形ツールの名前（`$(mise which oxfmt)`）なら、その名前に置き換えてコマンドの位置で拾う。
-		# それ以外は \036 にし、対象を 1 件として数え、ディレクトリとは判定しない。
-		# 引用の外の `(` / `)`（サブシェル）は空白にし、引用の中の括弧はパスの一部として残す。
-		# `\` の分岐に届くのは二重引用符の中だけである（引用の外の `\` は split_segments が先に外す）。
-		text="$(printf '%s' "${text}" | awk '{
-			out = ""; q = ""; n = length($0)
-			for (i = 1; i <= n; i++) {
-				c = substr($0, i, 1)
-				if (q != "\047" && c == "\\") { i++; c = substr($0, i, 1); if (c == " ") c = "\037"; out = out c; continue }
-				if (q != "\047" && c == "$" && substr($0, i + 1, 1) == "(") {
-					d = 0; st = i + 2
-					for (; i <= n; i++) { ch = substr($0, i, 1); if (ch == "(") d++; else if (ch == ")" && --d == 0) break }
-					out = out sub_word(substr($0, st, i - st)); continue
-				}
-				if (q != "\047" && c == "`") {
-					st = i + 1
-					for (i++; i <= n && substr($0, i, 1) != "`"; i++) ;
-					out = out sub_word(substr($0, st, i - st)); continue
-				}
-				if (q == "" && (c == "(" || c == ")")) c = " "
-				if (q == "" && (c == "\"" || c == "\047")) { q = c; continue }
-				if (q != "" && c == q) { q = ""; continue }
-				if (q != "" && c == " ") c = "\037"
-				out = out c
-			}
-			print out
-		}
-		function sub_word(inner,    m, t) {
-			gsub(/["\047]/, "", inner)
-			m = split(inner, t, /[[:space:]]+/)
-			while (m > 0 && t[m] == "") m--
-			sub(/.*\//, "", t[m])
-			if (t[m] == "oxfmt" || t[m] == "markdownlint-cli2") return t[m]
-			return "\036"
-		}')"
-	fi
-	if [ "${delegated}" = 1 ]; then
-		text="${text//\$(/ }"
-		text="${text//[()\`]/ }"
-	fi
-	if [ "${delegated}" = 1 ]; then
-		text="${text//&&/$'\n'}"
-		text="${text//||/$'\n'}"
-		text="${text//;/$'\n'}"
-		text="${text//|/$'\n'}"
-	fi
-	text="${text// & /$'\n'}"
-	text="${text% &}"
-	while IFS= read -r chunk; do
-		formatter_dir_args_one "${chunk}"
-	done <<<"${text}"
-	return 0
-}
-
-formatter_dir_args_one() {
-	local text="$1" words w name="" i n write=0 info=0 skip=0 positional=0 found="" via_xargs=0 prev="" opt=0
-	read -r -a words <<<"${text}"
-	n=${#words[@]}
-	for ((i = 0; i < n; i++)); do
-		w="${words[i]//$'\037'/ }"
-		if [ -z "${name}" ]; then
-			case "${w##*/}" in
-			oxfmt | oxfmt@*)
-				name=oxfmt
-				write=1
-				continue
-				;;
-			markdownlint-cli2 | markdownlint-cli2@*)
-				name=markdownlint-cli2
-				continue
-				;;
-			esac
-			if [[ ${w} =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
-				prev="${w}"
-				continue
-			fi
-			case "${w}" in
-			pnpm | exec | dlx | npx | pnpx | mise | x | -- | env | command | time | nice | nohup | stdbuf | sudo | timeout | eval | \
-				then | do | else | elif | if | while | until | '!' | '{' | bash | sh | zsh | dash | ksh)
-				prev="${w}"
-				opt=0
-				continue
-				;;
-			xargs)
-				via_xargs=1
-				prev="${w}"
-				opt=0
-				continue
-				;;
-			esac
-			# `command -v` / `command -V` は存在の確認で、後ろの名前を起動しない。
-			if [ "${prev}" = command ] && [[ ${w} == -v || ${w} == -V ]]; then
-				return 0
-			fi
-			# ラッパーの後のオプション（`npx --yes`・`bash -c`・`xargs -0`）と数値（`timeout 60`・`nice -n 5`）は読み飛ばす。
-			if [ -n "${prev}" ] && [[ ${w} == -* ]]; then
-				# シェルのオプション（`bash -c`・`sh -lc`）の後は、値ではなくコマンドが来る。
-				case "${prev}" in
-				bash | sh | zsh | dash | ksh) opt=0 ;;
-				*) opt=1 ;;
-				esac
-				continue
-			fi
-			if [ -n "${prev}" ] && [[ ${w} =~ ^[0-9.]+[smhd]?$ ]]; then
-				opt=0
-				continue
-			fi
-			# オプションの直後の語は、その値として読み飛ばす（`timeout -s KILL`・`xargs -a list.txt`・`pnpm --filter foo`）。
-			if [ "${opt}" = 1 ]; then
-				opt=0
-				continue
-			fi
-			return 0 # コマンドの位置に整形ツールが無い
-		fi
-		if [ "${skip}" = 1 ]; then
-			skip=0
-			continue
-		fi
-		case "${w}" in
-		[0-9]*'>' | [0-9]*'<' | '>' | '>>' | '<' | '&>' | '&>>' | '>|') skip=1 ;;
-		[0-9]*'>'* | [0-9]*'<'* | '>'* | '<'* | '&>'*) ;;
-		--check | --list-different) [ "${name}" = oxfmt ] && write=0 ;;
-		# 版・使い方の表示と、ファイルを書かないモード（stdin・LSP・設定の雛形）は、後に --fix があっても書き込まない。
-		--version | -V | --help | -h | --lsp | --init | --stdin-filepath | --stdin-filepath=* | --migrate | --migrate=*) info=1 ;;
-		--fix) [ "${name}" = markdownlint-cli2 ] && write=1 ;;
-		-c | --config | --ignore-path) skip=1 ;;
-		-*) ;;
-		'!'* | '#'*) ;;
-		*)
-			positional=$((positional + 1))
-			# ホームから書いたパス（`~/x`）は、展開してからディレクトリかを見る。
-			case "${w}" in
-			\~ | \~/*) w="${HOME}${w:1}" ;;
-			esac
-			if [[ ${w} == */ || ${w} == . || ${w} == .. ]] || [ -d "${w}" ]; then
-				found="${found}${found:+$'\n'}${w}"
-			fi
-			;;
-		esac
-	done
-	[ -n "${name}" ] && [ "${write}" = 1 ] && [ "${info}" = 0 ] || return 0
-	if [ -n "${found}" ]; then
-		printf '%s\n' "${found}"
-	elif [ "${positional}" = 0 ] && [ "${via_xargs}" = 0 ]; then
-		printf '%s\n' "(対象なし)"
-	fi
-	return 0
-}
-
 # 分割は split_segments に委ねる（区切りの解釈と引用状態の解釈を 1 箇所にまとめる）。
 segments="$(printf '%s\n' "${command_text}" | split_segments)"
 
@@ -553,9 +365,7 @@ while IFS= read -r line; do
 	# リテラル "sh -c" の部分一致では、短オプションを束ねた `bash -lc` / `sh -xc` を取りこぼす。
 	# 委譲したら**コメントを除いた全文**をコードとして扱う（`${segment}` にするとコメント本文が
 	# 検査対象へ戻り、同じ commit で入れた「行コメントはデータ」を取り消してしまう）。
-	delegated=0
 	if [[ ${seg_code} =~ ${delegate_re} ]]; then
-		delegated=1
 		seg_code="${seg_nocomment}"
 	fi
 
@@ -589,24 +399,6 @@ while IFS= read -r line; do
 			fi
 			;;
 		esac
-		;;
-	esac
-
-	# 3. 書き込む整形ツールにディレクトリを渡している（または対象を渡していない）。
-	#    発動はコード部分で見る（コミットメッセージや echo で話題にしているだけの呼び出しを止めない）。
-	#    ssh はリモートの作業ツリーを整形するので対象にしない（委譲として全文がコードになっても止めない）。
-	#    候補は引用を含む全文で拾う（`'oxfmt' .` もシェルは oxfmt として起動する）。話題にしているだけの呼び出しは、
-	#    formatter_dir_args がコマンドの位置かを見て外す。
-	case "${seg_nocomment}" in
-	*oxfmt* | *markdownlint-cli2*)
-		if [[ ${seg_code} =~ (^|[[:space:]])ssh([[:space:]]|$) ]]; then
-			dirs=""
-		else
-			dirs="$(formatter_dir_args "${seg_nocomment}" "${delegated}")"
-		fi
-		if [ -n "${dirs}" ]; then
-			add_violation "整形ツールにディレクトリを渡すか対象を省くと、目的外の種類のファイルまで書き換わる（${dirs//$'\n'/, }）。対象のファイルを並べて渡す: ${segment}"
-		fi
 		;;
 	esac
 done <<<"${segments}"

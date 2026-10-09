@@ -104,15 +104,10 @@ pre-commit には入れない。実行中に対象のファイルを書き換え
 
 ### その他のチェックと整形
 
-Bash の実行前のチェック（PreToolUse）として、`scripts/hooks/bash-command-guard.sh` が次の 3 つの形を止める。どれも、文章の規約では防げずに再発した形である。
+Bash の実行前のチェック（PreToolUse）として、`scripts/hooks/bash-command-guard.sh` が次の 2 つの形を止める。どちらも、文章の規約では防げずに再発した形である。
 
 - `gh api` と同じセグメントにある `--body-file`。`gh api` にこのフラグは無い。`gh pr` と `gh issue` の `--body-file` は通す。
 - 文字クラスで自分を避けていない `pkill -f` と `killall -f`。照合するのがコマンドライン全体なので、自分のシェルにも一致する。
-- 書き込む整形ツール（`oxfmt`、`markdownlint-cli2 --fix`）へのディレクトリ引数と、対象を省いた呼び出し。
-  ファイルの列挙・glob と、書き込まない呼び出し（`oxfmt --check`・`--list-different`・`--version`、`--fix` の無い `markdownlint-cli2`）は通す。
-  制御構文の中・サブシェル・`bash -c` への委譲の中の起動も止め、リダイレクトは対象に数えない。
-  ディレクトリに展開される glob（`oxfmt docs/*`）と変数（`oxfmt "$dir"`）は hook から見えないので止まらない。
-  見逃す形の一覧は、チェック本体の冒頭コメントにある。
 
 このチェックは、3 つのエージェントに設定してある（`.claude/settings.json`・`.codex/hooks.json`・`.github/hooks/kaizen-session.json`）。
 
@@ -122,10 +117,16 @@ Bash の実行前のチェック（PreToolUse）として、`scripts/hooks/bash-
 フォーマッタを当てる前に、そのファイルの種類がそのフォーマッタに割り当てられているかを、`lefthook.yml` と `package.json` で確かめる。
 割り当てられていないファイルに `--check` を当てて失敗しても、誰も強制していないチェックなので指摘にはならない。直すと無関係な差分になる。
 
-`oxfmt` には Markdown を渡さない。oxfmt は渡されたファイルを種類で判定して整形するので、`.md` を渡すと表の桁もそろえる。Markdown の整形は `markdownlint-cli2 --fix` で行う。
-整形ツール（`oxfmt`・`markdownlint-cli2 --fix`）にはディレクトリを渡さず、対象のファイルを並べて渡す。
-整形ツールは渡された範囲を自分の判断で整形するので、目的外の種類のファイルが警告なしに書き換えられる。
-oxfmt は `.md` の表の桁をそろえ、markdownlint-cli2 は `.mjs`・`.png`・`.yml` まで書き換えて、構文エラーや fixture の破損を起こした。
+整形ツールが書き換える種類は、ツールの設定で割り当てた種類に閉じている。
+整形ツールは渡された範囲を自分の判断で整形するので、閉じていないと、ディレクトリ・glob・引数なしの呼び出しで目的外の種類が警告なしに書き換わる。
+markdownlint-cli2 は `.mjs`・`.png`・`.yml` まで書き換えて構文エラーや fixture の破損を起こし、oxfmt は `.md` の表の桁をそろえた。
+
+- `markdownlint-cli2`: `.markdownlint-cli2.yaml` の `ignores` で `.md` 以外を外す。`ignores` は引数で渡したファイルにも当たる。
+- `oxfmt`: `oxfmt.config.ts` の `ignorePatterns` を、lefthook の `oxfmt-*` のジョブと同じ種類（JS・TS・JSON・YAML）の許可リストにする。
+  oxfmt は `.md`・`.css`・`.html`・`.toml` も整形するので、外す種類を挙げる形にはしない。
+
+どの渡し方でも割り当て外の種類が変わらないことは、`scripts/gates/formatter-scope.test.js` が実物のツールで確かめ、許可リストと lefthook の一致は `scripts/gates/lint-scope.test.js` が確かめる。
+Markdown の整形は `markdownlint-cli2 --fix` で行う。
 生成物は、生成スクリプト自身が出力ファイルを並べて整形する。手順書で人に oxfmt を当てさせない。
 
 `markdownlint-cli2` の行長のルール（MD013）は strict にせずに使う（`line_length: 200`。`code_blocks`・`tables`・`headings` は除く）。

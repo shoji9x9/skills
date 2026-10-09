@@ -14,22 +14,15 @@
 // 止める入力だけのテストでは、「全部落とす実装」と区別が付かない。
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { makeTempDir } from "../lib/test-tmpdir.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const script = join(repoRoot, "scripts/hooks/bash-command-guard.sh");
 
-// HOME はリポジトリの根に固定する（`~/scripts` の結果が、実行する人のホームの中身で変わらないように）。
 const run = (payload) =>
-  spawnSync("bash", [script], {
-    input: payload,
-    encoding: "utf8",
-    cwd: repoRoot,
-    env: { ...process.env, HOME: repoRoot },
-  });
+  spawnSync("bash", [script], { input: payload, encoding: "utf8", cwd: repoRoot });
 
 const hook = (command) => JSON.stringify({ tool_name: "Bash", tool_input: { command } });
 
@@ -565,180 +558,4 @@ test.each([
   expect(r.error, "jq が必要（この検証は jq を使う処理の回帰テスト）").toBeUndefined();
   expect(r.status).toBe(0);
   expect(r.stdout.trim()).toBe(OFFENDING);
-});
-
-// --- ルール 3: 書き込む整形ツールへのディレクトリ引数 ---
-// 止める形と同じ数以上、通す形（ファイルの列挙・glob・書き込まない呼び出し・引数の位置の名前）を置く。
-// 実在するディレクトリの判定は hook の cwd（このテストではリポジトリの根）で解決する。
-
-test.each([
-  [
-    "markdownlint-cli2 --fix に末尾 / のディレクトリ",
-    "pnpm exec markdownlint-cli2 --fix skills/parity-component/ skills/parity-suite/",
-  ],
-  ["oxfmt に実在するディレクトリ", "pnpm exec oxfmt scripts"],
-  ["oxfmt に .", "oxfmt ."],
-  ["oxfmt に対象を渡さない（リポジトリ全体を書き換える）", "pnpm exec oxfmt"],
-  ["markdownlint-cli2 --fix に対象を渡さない", "pnpm exec markdownlint-cli2 --fix"],
-  ["引用したディレクトリ", 'pnpm exec oxfmt "scripts/hooks"'],
-  ["代入とラッパーの後", "FOO=1 timeout 60 pnpm exec oxfmt scripts/"],
-  ["パス付きの起動", "node_modules/.bin/oxfmt scripts"],
-  ["xargs 越しでもディレクトリの引数", "git diff --name-only | xargs -0 pnpm exec oxfmt scripts/"],
-  ["区切りの後のセグメント", "git status --short && pnpm exec oxfmt scripts/hooks/"],
-  ["リダイレクトだけで対象を省く", "pnpm exec oxfmt >/dev/null 2>&1"],
-  ["制御構文の後", "for f in a; do pnpm exec oxfmt .; done"],
-  ["サブシェルの中", "(pnpm exec oxfmt scripts/)"],
-  ["シェルへの委譲", 'bash -c "pnpm exec oxfmt ."'],
-  ["ラッパーのオプションの後", "npx --yes oxfmt ."],
-])("整形ツールのディレクトリ引数を止める: %s", (_name, command) => {
-  const r = guard(command);
-  expect(r.status, r.stderr).toBe(2);
-  expect(r.stderr).toMatch(/整形ツールにディレクトリを渡すか対象を省くと/);
-});
-
-test.each([
-  [
-    "oxfmt にファイルを並べる",
-    "pnpm exec oxfmt scripts/hooks/bash-command-guard.test.js package.json",
-  ],
-  ["oxfmt に glob を渡す", 'pnpm exec oxfmt "**/*.{js,mjs}"'],
-  ["oxfmt --check はディレクトリでも書き込まない", "pnpm exec oxfmt --check scripts"],
-  ["oxfmt --list-different も書き込まない", "pnpm exec oxfmt --list-different ."],
-  ["--fix の無い markdownlint-cli2 は書き込まない", "pnpm exec markdownlint-cli2 skills/"],
-  [
-    "markdownlint-cli2 --fix にファイルを渡す",
-    "pnpm exec markdownlint-cli2 --fix AGENTS.md docs/tooling.md",
-  ],
-  [
-    "--config の値は対象に数えない",
-    "pnpm exec markdownlint-cli2 --fix --config .markdownlint-cli2.yaml AGENTS.md",
-  ],
-  ["否定の glob は対象に数えない", "pnpm exec markdownlint-cli2 --fix AGENTS.md '!node_modules'"],
-  ["xargs 越しで対象が stdin から来る", "git diff --name-only | xargs pnpm exec oxfmt"],
-  ["版の確認は書き込まない", "pnpm exec oxfmt --version"],
-  ["使い方の表示は書き込まない", "pnpm exec oxfmt -h"],
-  ["名前が引数の位置にある（mise which）", "mise which oxfmt"],
-  ["名前が引数の位置にある（grep）", "grep -rn oxfmt docs"],
-  ["ファイルを渡してリダイレクトする", "pnpm exec oxfmt package.json > /dev/null 2>&1"],
-  ["委譲したシェルで言及するだけ", 'bash -c "echo oxfmt ."'],
-  ["コミットメッセージで言及するだけ", 'git commit -m "docs: oxfmt scripts/ を使わない"'],
-])("整形ツールの誤検知しないことの確認: %s", (_name, command) => {
-  const r = guard(command);
-  expect(r.status, r.stderr).toBe(0);
-  expect(r.stderr).not.toMatch(/実行前に止めた/);
-});
-
-// PR #585 のレビューで見つかった形（委譲の中の区切り・版付きの名前・eval・nohup・`~`・`#` の否定・`command -v`）。
-// ssh はリモートの作業ツリーを整形するので、このリポジトリを書き換えない。止める対象にしない。
-test.each([
-  ["bash -c の中の ; の後", 'bash -c "git status; pnpm exec oxfmt ."'],
-  ["bash -c の中の && の後", 'bash -c "cd x && pnpm exec oxfmt ."'],
-  ["版を付けた名前", "npx oxfmt@latest ."],
-  ["版を付けた名前（dlx）", "pnpm dlx oxfmt@0.9 scripts"],
-  ["eval の中", 'eval "pnpm exec oxfmt ."'],
-  ["nohup とバックグラウンド", "nohup oxfmt . &"],
-  ["stdbuf の後", "stdbuf -oL pnpm exec oxfmt ."],
-  ["~ から書いたディレクトリ", "pnpm exec oxfmt ~/scripts"],
-  ["# の否定 glob だけ", 'pnpm exec markdownlint-cli2 --fix "#node_modules"'],
-])("整形ツールのディレクトリ引数を止める（レビュー）: %s", (_name, command) => {
-  const r = guard(command);
-  expect(r.status, r.stderr).toBe(2);
-  expect(r.stderr).toMatch(/整形ツールにディレクトリを渡すか対象を省くと/);
-});
-
-test.each([
-  ["command -v は存在の確認", "command -v oxfmt"],
-  ["command -V も存在の確認", "command -V oxfmt"],
-  ["# の否定 glob とファイル", 'pnpm exec markdownlint-cli2 --fix AGENTS.md "#node_modules"'],
-  ["~ から書いたファイル", "pnpm exec oxfmt ~/a.js"],
-  ["ssh はリモートを整形する", "ssh host oxfmt ."],
-  ["パイプの後のコマンドは整形ツールでない", "pnpm exec oxfmt a.js 2>&1 | tail -n 3"],
-])("整形ツールの誤検知しないことの確認（レビュー）: %s", (_name, command) => {
-  const r = guard(command);
-  expect(r.status, r.stderr).toBe(0);
-  expect(r.stderr).not.toMatch(/実行前に止めた/);
-});
-
-// PR #585 の 2 回目のレビュー。委譲でない引用の中は区切らない・ssh は委譲でも止めない・書き込まないモード・引用の中の空白。
-test.each([
-  ["委譲でない引用の中の ; は区切らない", 'rg -n oxfmt -e "x; oxfmt ."'],
-  ["ssh の引用の中の && の後も止めない", 'ssh host "cd repo && oxfmt ."'],
-  ["--stdin-filepath は書き込まない", "cat a.js | pnpm exec oxfmt --stdin-filepath=a.js"],
-  ["--lsp は書き込まない", "pnpm exec oxfmt --lsp"],
-  ["--help は後の --fix に関わらず書き込まない", "pnpm exec markdownlint-cli2 --help --fix"],
-  ["引用した空白を含むパスは 1 つの語", 'pnpm exec oxfmt "scripts hooks/a.js"'],
-])("整形ツールの誤検知しないことの確認（2 回目のレビュー）: %s", (_name, command) => {
-  const r = guard(command);
-  expect(r.status, r.stderr).toBe(0);
-  expect(r.stderr).not.toMatch(/実行前に止めた/);
-});
-
-test.each([
-  ["引用したディレクトリは引き続き止める", 'pnpm exec oxfmt "scripts"'],
-  ["--fix の後の書き込みはそのまま止める", "pnpm exec markdownlint-cli2 --fix"],
-])("整形ツールのディレクトリ引数を止める（2 回目のレビュー）: %s", (_name, command) => {
-  const r = guard(command);
-  expect(r.status, r.stderr).toBe(2);
-  expect(r.stderr).toMatch(/整形ツールにディレクトリを渡すか対象を省くと/);
-});
-
-// PR #585 の 3 回目のレビュー。コマンド置換の中身・二重引用の中の \" ・書き込まない --migrate・ラッパーのオプションの値。
-test.each([
-  ["$( ) の中の語は対象に数えない", "pnpm exec oxfmt $(git diff --name-only -- scripts)"],
-  ["バッククォートの中の語も数えない", "pnpm exec oxfmt `git ls-files scripts`"],
-  ["--migrate は書き込まない", "pnpm exec oxfmt --migrate=prettier"],
-  ["xargs -I の値の後の起動", "xargs -I {} oxfmt {}"],
-])("整形ツールの誤検知しないことの確認（3 回目のレビュー）: %s", (_name, command) => {
-  const r = guard(command);
-  expect(r.status, r.stderr).toBe(0);
-  expect(r.stderr).not.toMatch(/実行前に止めた/);
-});
-
-test.each([
-  ['二重引用の中の \\" の後のディレクトリ', 'pnpm exec oxfmt "a\\"b.js" scripts'],
-  ["timeout のオプションの値の後", "timeout -s KILL 60 oxfmt ."],
-  ["xargs -a の値の後", "xargs -a list.txt oxfmt scripts"],
-  ["pnpm --filter の値の後", "pnpm --filter foo exec oxfmt ."],
-])("整形ツールのディレクトリ引数を止める（3 回目のレビュー）: %s", (_name, command) => {
-  const r = guard(command);
-  expect(r.status, r.stderr).toBe(2);
-  expect(r.stderr).toMatch(/整形ツールにディレクトリを渡すか対象を省くと/);
-});
-
-// PR #585 の 4 回目のレビュー。コマンドの位置の置換・引用したコマンド名・引用の中の括弧。
-test.each([
-  ["コマンドの位置の $(mise which oxfmt)", '"$(mise which oxfmt)" scripts'],
-  [
-    "コマンドの位置の $(mise which markdownlint-cli2) --fix",
-    "$(mise which markdownlint-cli2) --fix scripts",
-  ],
-  ["単引用したコマンド名", "'oxfmt' ."],
-  ["二重引用したコマンド名", '"oxfmt" scripts'],
-])("整形ツールのディレクトリ引数を止める（4 回目のレビュー）: %s", (_name, command) => {
-  const r = guard(command);
-  expect(r.status, r.stderr).toBe(2);
-  expect(r.stderr).toMatch(/整形ツールにディレクトリを渡すか対象を省くと/);
-});
-
-test.each([
-  ["引数の位置の置換の最後の語が整形ツールの名前", "pnpm exec oxfmt $(git ls-files | grep oxfmt)"],
-  ["引用したコマンド名でも echo の引数なら止めない", "echo 'oxfmt' ."],
-])("整形ツールの誤検知しないことの確認（4 回目のレビュー）: %s", (_name, command) => {
-  const r = guard(command);
-  expect(r.status, r.stderr).toBe(0);
-  expect(r.stderr).not.toMatch(/実行前に止めた/);
-});
-
-// 引用の中の括弧はパスの一部として残す。括弧を含むディレクトリを使い捨ての cwd に作って測る。
-test("整形ツールのディレクトリ引数を止める（4 回目のレビュー）: 引用の中に括弧を含むディレクトリ", () => {
-  const cwd = makeTempDir("guard-paren-");
-  mkdirSync(join(cwd, "docs (old)"));
-  const r = spawnSync("bash", [script], {
-    input: hook('pnpm exec oxfmt "docs (old)"'),
-    encoding: "utf8",
-    cwd,
-    env: { ...process.env, HOME: repoRoot },
-  });
-  expect(r.status, r.stderr).toBe(2);
-  expect(r.stderr).toContain("docs (old)");
 });

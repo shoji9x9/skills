@@ -15,8 +15,8 @@ Claude Code・Codex・GitHub Copilot に対応した、マルチエージェン�
 - mise の shim はリポジトリの外のディレクトリでは解決できない。リポジトリの外で動かすときは、使うツールをすべてリポジトリの中で `mise which <tool>` によって実体のパスに解決してから使う。
   `node_modules/.bin` の bin は中で `node` を PATH から名前で呼ぶので、`node` の実体のディレクトリを PATH の先頭に足す（`PATH="$(dirname "$(mise which node)"):$PATH"`）。
   新しいパスの worktree は trust を引き継がないので、依存を入れる前に `mise trust` を実行する。
-- `oxfmt` には Markdown を渡さない。Markdown の整形は `markdownlint-cli2 --fix` で行う。prettier は使わない。
-- 整形ツール（`oxfmt`・`markdownlint-cli2 --fix`）にはディレクトリを渡さず、ファイルを並べて渡す。渡された範囲の目的外の種類のファイルまで書き換わる。
+- Markdown の整形は `markdownlint-cli2 --fix` で行う。prettier は使わない。
+- 整形ツールが書き換える種類は、ツールの設定（`.markdownlint-cli2.yaml` の `ignores`・`oxfmt.config.ts` の許可リスト）で割り当てた種類に閉じている。割り当てる種類を変えるときは、設定と `lefthook.yml` を同時に変える。
 
 | 対象 | リント | 整形 |
 | --- | --- | --- |

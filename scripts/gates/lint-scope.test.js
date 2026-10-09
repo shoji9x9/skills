@@ -57,11 +57,20 @@ test("含め直しは除外より後に書く（前に書くと除外に打ち�
 
 // ---- oxlint・oxfmt ----
 
-test.each([
-  ["oxlint", oxlintConfig],
-  ["oxfmt", oxfmtConfig],
-])("%s の ignorePatterns は、エージェント用のコピーとリンクだけを除く", (_, config) => {
-  expect(config.ignorePatterns).toEqual(expected);
+test("oxlint の ignorePatterns は、エージェント用のコピーとリンクだけを除く", () => {
+  expect(oxlintConfig.ignorePatterns).toEqual(expected);
+});
+
+// oxfmt は、割り当てた種類の許可リスト（先頭の 3 行）の後に、エージェント用のコピーとリンクを除く。
+// 許可リストの種類は、lefthook の oxfmt-* のジョブが渡す種類と一致させる（どちらかだけ広げると、
+// pre-commit が渡したファイルを oxfmt が対象外として扱うか、割り当て外の種類を整形する）。
+const oxfmtHead = oxfmtConfig.ignorePatterns.slice(0, 3);
+
+test("oxfmt の ignorePatterns は、許可リストの後にエージェント用のコピーとリンクだけを除く", () => {
+  expect(oxfmtHead[0]).toBe("**/*.*");
+  expect(oxfmtHead[1]).toBe("!**/*/");
+  expect(oxfmtHead[2]).toMatch(/^!\*\*\/\*\.\{[a-z,]+\}$/);
+  expect(oxfmtConfig.ignorePatterns.slice(3)).toEqual(expected);
 });
 
 // ---- lefthook ----
@@ -111,4 +120,21 @@ test("CI の Shell lint と JSON lint は、run-on-sources.js で対象を選ぶ
     /run: node scripts\/gates\/run-on-sources\.js --ext json -- pnpm exec jsonlint/,
   );
   expect(ci).not.toContain('-path "./.agents"');
+});
+
+// ---- oxfmt の割り当てと lefthook ----
+
+/** `*.{a,b}` / `*.a` / `!**\/*.{a,b}` から拡張子の一覧を取り出す。 */
+function extsOf(glob) {
+  const m = /\*\.(?:\{([a-z,]+)\}|([a-z]+))$/.exec(glob);
+  expect(m, glob).not.toBeNull();
+  return (m[1] ?? m[2]).split(",");
+}
+
+test("oxfmt の許可リストの種類は、lefthook の oxfmt-* のジョブが渡す種類と一致する", () => {
+  const lefthookExts = ["oxfmt-js", "oxfmt-json", "oxfmt-yaml"].flatMap((name) => {
+    expect(byName[name], name).toBeDefined();
+    return extsOf(byName[name].glob);
+  });
+  expect(extsOf(oxfmtHead[2]).sort()).toEqual(lefthookExts.sort());
 });
