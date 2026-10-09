@@ -160,6 +160,21 @@ test("手で書き換えた下限に、同じ値で summarize --write を通し�
   expect(r.status).toBe(0);
 });
 
+test("commit 済みの表が履歴と食い違っていても、summarize --write の出力はチェックを通る", () => {
+  // 新規のファイルとして commit すると append-only チェックは比べないので、この状態になりうる
+  const root = makeRepo();
+  const doc = JSON.parse(readFileSync(join(root, META), "utf8"));
+  doc.performance.floors.lcp = 300;
+  writeFileSync(join(root, META), `${JSON.stringify(doc, null, 2)}\n`);
+  git(root, ["commit", "-qam", "mismatch"]);
+  summarize(root);
+  const perf = JSON.parse(readFileSync(join(root, META), "utf8")).performance;
+  expect(perf.floors.lcp).toBe(100);
+  const r = appendOnlyCheck(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+});
+
 test("--floor を省いて採り直しても、前に決めた下限は変わらない", () => {
   const root = makeRepo();
   summarize(root, ["--floor", "lcp=50"]);

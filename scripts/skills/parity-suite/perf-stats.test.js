@@ -376,6 +376,16 @@ describe("summarize", () => {
       expect(history[1].floors.lcp).toBe(150);
     });
 
+    test("手で書き換えた割合の下限に同じ値で summarize を通すと、履歴の最後の要素と比べて追記する", () => {
+      const first = summarized(curDoc).meta.performance;
+      const edited = { ...first, relative_floors: { ...first.relative_floors, lcp: 0.3 } };
+      const r = resummarize(edited, ["--relative-floor", "lcp=0.3"]);
+      expect(r.code).toBe(0);
+      const history = r.read(META).performance.floor_history;
+      expect(history).toHaveLength(2);
+      expect(history[1].relative_floors.lcp).toBe(0.3);
+    });
+
     test("--floor を省いた指標は、前の集計の下限を引き継ぐ", () => {
       const first = summarized(curDoc, ["--floor", "lcp=50", "--relative-floor", "tbt=0.1"]).meta
         .performance;
@@ -442,7 +452,20 @@ describe("summarize", () => {
       expect(r.code).toBe(0);
       const perf = r.read(META).performance;
       expect(perf.floors).toEqual(DEFAULT_FLOORS);
-      expect(perf.floor_history).toEqual(first.floor_history);
+      // 書き換える前の表（1000）と違うので、戻した値を 1 件記録する（commit 済みの表が食い違っていてもチェックを通る）
+      expect(perf.floor_history).toHaveLength(2);
+      expect(perf.floor_history[0]).toEqual(first.floor_history[0]);
+      expect(perf.floor_history[1].floors).toEqual(DEFAULT_FLOORS);
+    });
+
+    test("すべての指標をフラグで渡せば、読めない履歴の末尾があっても通る", () => {
+      const first = summarized(curDoc).meta.performance;
+      const all = (flag, table) => Object.entries(table).flatMap(([m, v]) => [flag, `${m}=${v}`]);
+      const r = resummarize({ ...first, floor_history: [...first.floor_history, "読めない要素"] }, [
+        ...all("--floor", DEFAULT_FLOORS),
+        ...all("--relative-floor", { lcp: 0.2, cls: 0, tbt: 0.2, ttfb: 0.2 }),
+      ]);
+      expect(r.code).toBe(0);
     });
 
     test("declared: false にした基準でも、履歴があれば記録した下限を引き継ぐ", () => {
@@ -455,7 +478,9 @@ describe("summarize", () => {
       expect(r.code).toBe(0);
       const perf = r.read(META).performance;
       expect(perf.floors.lcp).toBe(50);
-      expect(perf.floor_history).toEqual(first.floor_history);
+      // 表が無かったところへ書くので、append-only チェックが求める追記を 1 件行う
+      expect(perf.floor_history).toHaveLength(2);
+      expect(perf.floor_history[1].floors.lcp).toBe(50);
     });
 
     test("履歴の最後の要素がオブジェクトでなければ、今の表から引き継がずに exit 2", () => {

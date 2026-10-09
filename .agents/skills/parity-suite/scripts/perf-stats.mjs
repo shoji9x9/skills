@@ -487,7 +487,7 @@ export function summarize(metadata, samplesDoc, opts) {
 }
 
 /**
- * 下限の変更の履歴を作る。履歴が空か、最後の要素の下限が今回の下限と違えば、1 件追記する。
+ * 下限の変更の履歴を作る。履歴が空か、最後の要素か書き換える前の表の下限が今回の下限と違えば、1 件追記する。
  * 下限は採取から導けない利用者の決定なので、compare は値の正しさを確かめられない。
  * 変えた記録を残し、replace-strategy の append-only-check.mjs が、履歴を追記せずに下限を変えた変更を落とす。
  * 比べる相手は、前の performance.floors ではなく履歴の最後の要素である。append-only-check.mjs も最後の要素と今の値を突き合わせる。
@@ -512,7 +512,13 @@ export function floorHistory(previous, samplesDoc, opts) {
     isPlainObject(last) &&
     canonicalJson(last.floors ?? null) === canonicalJson(opts.floors) &&
     canonicalJson(last.relative_floors ?? null) === canonicalJson(opts.relativeFloors);
-  if (unchanged) return history;
+  // 書き換える前の表とも比べる。append-only-check.mjs は commit 済みの表と今の表が違えば追記を求めるので、
+  // 表が履歴の最後の要素と食い違っている（新規のファイルとして commit された等）ときに追記しないと、
+  // 下限を履歴の値へ戻した正規の出力がチェックを通らない。表が無い（declared: false 等）ときも、書くので追記する。
+  const tableUnchanged =
+    canonicalJson(prev.floors ?? null) === canonicalJson(opts.floors) &&
+    canonicalJson(prev.relative_floors ?? null) === canonicalJson(opts.relativeFloors);
+  if (unchanged && tableUnchanged) return history;
   const doc = /** @type {Record<string, unknown>} */ (samplesDoc);
   return [
     ...history,
@@ -543,7 +549,9 @@ export function floorHistory(previous, samplesDoc, opts) {
  * @returns {Record<string, number>}
  */
 export function baseFloors(previous, key, defaults, overridden = []) {
-  if (!isPlainObject(previous)) return { ...defaults };
+  // すべての指標をフラグで渡したときは何も引き継がないので、前の記録が読めなくても止めない（フラグだけで復旧できる）
+  if (!isPlainObject(previous) || METRICS.every((m) => overridden.includes(m)))
+    return { ...defaults };
   const history = Array.isArray(previous.floor_history) ? previous.floor_history : [];
   /** @type {unknown} */
   let table;
