@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Bash 呼び出しを PreToolUse で止めるチェック（このリポジトリのセッション用。配布物ではない）。
 #
-# 常時ロードの文章規約で防げず再発した 2 クラスを、決定論的に止める。
+# 常時ロードの文章規約で防げず再発した 3 クラスを、決定論的に止める。
 #
 #   1. `gh api ... --body-file <path>`
 #      `gh api` に `--body-file` は無く unknown flag で落ちる（`-F body=@<path>` か `--input <path>`）。
@@ -12,6 +12,17 @@
 #      照合対象は full command line なので、そのコマンドを実行している自分のシェルにも一致し、
 #      シェルごと落ちる（3 回踏んだ。症状は非 0 終了だけで、対象が死んだのか自分が死んだのか読めない）。
 #      自分に一致しない形（`[d]ump-dom` のような文字クラス）と、PID 指定（`kill "$PID"`）は通す。
+#
+#   3. 書き込む整形ツール（`oxfmt`、`markdownlint-cli2 --fix`）へのディレクトリ引数
+#      整形ツールは渡された範囲を自分の判断で整形する。そのため、目的外の種類のファイルが警告なしに書き換わる
+#      （oxfmt が `.md` の表を桁揃えし、markdownlint-cli2 が `.mjs` / `.png` / `.yml` を書き換えた）。
+#      AGENTS.md は oxfmt についてだけ書いていて、対の markdownlint-cli2 で再発した。
+#      ディレクトリは「末尾が `/`」「`.` / `..`」「hook の cwd から見て実在するディレクトリ」で判定する。
+#      対象を渡さない呼び出しもデフォルトの探索範囲（リポジトリ全体）を書き換えるので同じ扱いにする。
+#      ファイルの列挙・glob・書き込まない呼び出し（`oxfmt --check` / `--list-different` / `--version` / `--help`、
+#      `--fix` の無い markdownlint-cli2）は通す。
+#      近似で見逃す形: 同じ呼び出しの `cd` の後の相対パス（hook の cwd で解決する）、ディレクトリに展開される glob
+#      （`oxfmt docs/*`）と変数（`oxfmt "$dir"`）、一覧に無いラッパーのオプションの後の起動（`pnpm --filter x exec oxfmt .`）。
 #
 # 判定はセグメント単位で行う。`&&` / `||` / `;` / `|` / 改行で切り、セグメントごとに評価する
 # （`gh pr create --body-file a && gh api x --body-file b` の後段だけを落とすため）。
@@ -64,6 +75,8 @@ case "${input}" in
 *--body-file*) ;;
 *pkill*) ;;
 *killall*) ;;
+*oxfmt*) ;;
+*markdownlint-cli2*) ;;
 *) exit 0 ;;
 esac
 
@@ -340,6 +353,80 @@ class_escape_re='\[[^][[:space:]]\]'
 delegate_re='(^|[[:space:]])(ba|z|k|da|a)?sh[[:space:]]+-[A-Za-z]*c([[:space:]]|$)|(^|[[:space:]])(ssh|eval)([[:space:]]|$)'
 add_violation() { violations="${violations}${violations:+$'\n'}  - $1"; }
 
+# 書き込む整形ツールに渡したディレクトリ引数を返す（1 行に 1 つ。対象を渡していなければ `(対象なし)`）。
+# 引数は引用符を外して空白で切る（引用したパスもディレクトリなら止めるため。コード部分ではなく全文で見る）。
+# 整形ツールの名前は**コマンドの位置**にあるときだけ数える。引数の位置（`mise which oxfmt`・`grep -rn oxfmt docs`）は
+# 起動ではないので止めない。コマンドの位置は、先頭の代入とラッパー（`pnpm exec`・`npx`・`timeout 60` など）を読み飛ばした最初の語である。
+# `xargs` 越しの起動は対象が stdin から来るので、ディレクトリの引数だけを見る（対象を省いた扱いにしない）。
+formatter_dir_args() {
+	local text="$1" words w name="" i n write=0 skip=0 positional=0 found="" via_xargs=0 prev=""
+	text="${text//\"/}"
+	text="${text//\'/}"
+	read -r -a words <<<"${text}"
+	n=${#words[@]}
+	for ((i = 0; i < n; i++)); do
+		w="${words[i]}"
+		if [ -z "${name}" ]; then
+			case "${w##*/}" in
+			oxfmt)
+				name=oxfmt
+				write=1
+				continue
+				;;
+			markdownlint-cli2)
+				name=markdownlint-cli2
+				continue
+				;;
+			esac
+			if [[ ${w} =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
+				prev="${w}"
+				continue
+			fi
+			case "${w}" in
+			pnpm | exec | dlx | npx | pnpx | mise | x | -- | env | command | time | nice | sudo | timeout)
+				prev="${w}"
+				continue
+				;;
+			xargs)
+				via_xargs=1
+				prev="${w}"
+				continue
+				;;
+			esac
+			# `timeout 60` の時間と、`xargs -0` のようなラッパーのオプションは読み飛ばす。
+			if { [ "${prev}" = timeout ] && [[ ${w} =~ ^[0-9.]+[smhd]?$ ]]; } || { [ "${via_xargs}" = 1 ] && [[ ${w} == -* ]]; }; then
+				continue
+			fi
+			return 0 # コマンドの位置に整形ツールが無い
+		fi
+		if [ "${skip}" = 1 ]; then
+			skip=0
+			continue
+		fi
+		case "${w}" in
+		--check | --list-different) [ "${name}" = oxfmt ] && write=0 ;;
+		--version | -V | --help | -h) write=0 ;;
+		--fix) [ "${name}" = markdownlint-cli2 ] && write=1 ;;
+		-c | --config | --ignore-path) skip=1 ;;
+		-*) ;;
+		'!'*) ;;
+		*)
+			positional=$((positional + 1))
+			if [[ ${w} == */ || ${w} == . || ${w} == .. ]] || [ -d "${w}" ]; then
+				found="${found}${found:+$'\n'}${w}"
+			fi
+			;;
+		esac
+	done
+	[ -n "${name}" ] && [ "${write}" = 1 ] || return 0
+	if [ -n "${found}" ]; then
+		printf '%s\n' "${found}"
+	elif [ "${positional}" = 0 ] && [ "${via_xargs}" = 0 ]; then
+		printf '%s\n' "(対象なし)"
+	fi
+	return 0
+}
+
 # 分割は split_segments に委ねる（区切りの解釈と引用状態の解釈を 1 箇所にまとめる）。
 segments="$(printf '%s\n' "${command_text}" | split_segments)"
 
@@ -399,6 +486,17 @@ while IFS= read -r line; do
 			fi
 			;;
 		esac
+		;;
+	esac
+
+	# 3. 書き込む整形ツールにディレクトリを渡している（または対象を渡していない）。
+	#    発動はコード部分で見る（コミットメッセージや echo で話題にしているだけの呼び出しを止めない）。
+	case "${seg_code}" in
+	*oxfmt* | *markdownlint-cli2*)
+		dirs="$(formatter_dir_args "${seg_nocomment}")"
+		if [ -n "${dirs}" ]; then
+			add_violation "整形ツールにディレクトリを渡すか対象を省くと、目的外の種類のファイルまで書き換わる（${dirs//$'\n'/, }）。対象のファイルを並べて渡す: ${segment}"
+		fi
 		;;
 	esac
 done <<<"${segments}"

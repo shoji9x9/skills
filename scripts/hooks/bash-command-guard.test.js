@@ -559,3 +559,57 @@ test.each([
   expect(r.status).toBe(0);
   expect(r.stdout.trim()).toBe(OFFENDING);
 });
+
+// --- ルール 3: 書き込む整形ツールへのディレクトリ引数 ---
+// 止める形と同じ数以上、通す形（ファイルの列挙・glob・書き込まない呼び出し・引数の位置の名前）を置く。
+// 実在するディレクトリの判定は hook の cwd（このテストではリポジトリの根）で解決する。
+
+test.each([
+  [
+    "markdownlint-cli2 --fix に末尾 / のディレクトリ",
+    "pnpm exec markdownlint-cli2 --fix skills/parity-component/ skills/parity-suite/",
+  ],
+  ["oxfmt に実在するディレクトリ", "pnpm exec oxfmt scripts"],
+  ["oxfmt に .", "oxfmt ."],
+  ["oxfmt に対象を渡さない（リポジトリ全体を書き換える）", "pnpm exec oxfmt"],
+  ["markdownlint-cli2 --fix に対象を渡さない", "pnpm exec markdownlint-cli2 --fix"],
+  ["引用したディレクトリ", 'pnpm exec oxfmt "scripts/hooks"'],
+  ["代入とラッパーの後", "FOO=1 timeout 60 pnpm exec oxfmt scripts/"],
+  ["パス付きの起動", "node_modules/.bin/oxfmt scripts"],
+  ["xargs 越しでもディレクトリの引数", "git diff --name-only | xargs -0 pnpm exec oxfmt scripts/"],
+  ["区切りの後のセグメント", "git status --short && pnpm exec oxfmt scripts/hooks/"],
+])("整形ツールのディレクトリ引数を止める: %s", (_name, command) => {
+  const r = guard(command);
+  expect(r.status, r.stderr).toBe(2);
+  expect(r.stderr).toMatch(/整形ツールにディレクトリを渡すか対象を省くと/);
+});
+
+test.each([
+  [
+    "oxfmt にファイルを並べる",
+    "pnpm exec oxfmt scripts/hooks/bash-command-guard.test.js package.json",
+  ],
+  ["oxfmt に glob を渡す", 'pnpm exec oxfmt "**/*.{js,mjs}"'],
+  ["oxfmt --check はディレクトリでも書き込まない", "pnpm exec oxfmt --check scripts"],
+  ["oxfmt --list-different も書き込まない", "pnpm exec oxfmt --list-different ."],
+  ["--fix の無い markdownlint-cli2 は書き込まない", "pnpm exec markdownlint-cli2 skills/"],
+  [
+    "markdownlint-cli2 --fix にファイルを渡す",
+    "pnpm exec markdownlint-cli2 --fix AGENTS.md docs/tooling.md",
+  ],
+  [
+    "--config の値は対象に数えない",
+    "pnpm exec markdownlint-cli2 --fix --config .markdownlint-cli2.yaml AGENTS.md",
+  ],
+  ["否定の glob は対象に数えない", "pnpm exec markdownlint-cli2 --fix AGENTS.md '!node_modules'"],
+  ["xargs 越しで対象が stdin から来る", "git diff --name-only | xargs pnpm exec oxfmt"],
+  ["版の確認は書き込まない", "pnpm exec oxfmt --version"],
+  ["使い方の表示は書き込まない", "pnpm exec oxfmt -h"],
+  ["名前が引数の位置にある（mise which）", "mise which oxfmt"],
+  ["名前が引数の位置にある（grep）", "grep -rn oxfmt docs"],
+  ["コミットメッセージで言及するだけ", 'git commit -m "docs: oxfmt scripts/ を使わない"'],
+])("整形ツールの誤検知しないことの確認: %s", (_name, command) => {
+  const r = guard(command);
+  expect(r.status, r.stderr).toBe(0);
+  expect(r.stderr).not.toMatch(/実行前に止めた/);
+});

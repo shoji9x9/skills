@@ -382,6 +382,81 @@
         "許可リスト外の読み手の本文はコードとして読む: 許可リストの読み手から許可リスト外へのパイプ",
         "許可リスト外の読み手の本文はコードとして読む: 関数として定義し直した読み手"
       ]
+    },
+    {
+      "id": "fmt-dir",
+      "why": "整形ツールの引数がディレクトリかを見ない",
+      "file": "scripts/hooks/bash-command-guard.sh",
+      "find": "if [[ ${w} == */ || ${w} == . || ${w} == .. ]] || [ -d \"${w}\" ]; then",
+      "replace": "if false; then",
+      "occurrences": 1,
+      "expect_failing": [
+        "整形ツールのディレクトリ引数を止める: markdownlint-cli2 --fix に末尾 / のディレクトリ",
+        "整形ツールのディレクトリ引数を止める: oxfmt に実在するディレクトリ",
+        "整形ツールのディレクトリ引数を止める: oxfmt に .",
+        "整形ツールのディレクトリ引数を止める: 引用したディレクトリ",
+        "整形ツールのディレクトリ引数を止める: 代入とラッパーの後",
+        "整形ツールのディレクトリ引数を止める: パス付きの起動",
+        "整形ツールのディレクトリ引数を止める: xargs 越しでもディレクトリの引数",
+        "整形ツールのディレクトリ引数を止める: 区切りの後のセグメント"
+      ]
+    },
+    {
+      "id": "fmt-notarget",
+      "why": "対象を省いた（リポジトリ全体を書き換える）呼び出しを通す",
+      "file": "scripts/hooks/bash-command-guard.sh",
+      "find": "elif [ \"${positional}\" = 0 ] && [ \"${via_xargs}\" = 0 ]; then",
+      "replace": "elif false; then",
+      "occurrences": 1,
+      "expect_failing": [
+        "整形ツールのディレクトリ引数を止める: oxfmt に対象を渡さない（リポジトリ全体を書き換える）",
+        "整形ツールのディレクトリ引数を止める: markdownlint-cli2 --fix に対象を渡さない"
+      ]
+    },
+    {
+      "id": "fmt-cmdpos",
+      "why": "引数の位置にある整形ツールの名前も起動として数える",
+      "file": "scripts/hooks/bash-command-guard.sh",
+      "find": "return 0 # コマンドの位置に整形ツールが無い",
+      "replace": "continue",
+      "occurrences": 1,
+      "expect_failing": [
+        "整形ツールの誤検知しないことの確認: 名前が引数の位置にある（mise which）",
+        "整形ツールの誤検知しないことの確認: 名前が引数の位置にある（grep）"
+      ]
+    },
+    {
+      "id": "fmt-write",
+      "why": "oxfmt --check / --list-different を書き込む呼び出しとして扱う",
+      "file": "scripts/hooks/bash-command-guard.sh",
+      "find": "--check | --list-different) [ \"${name}\" = oxfmt ] && write=0 ;;",
+      "replace": "--check | --list-different) [ \"${name}\" = oxfmt ] && write=1 ;;",
+      "occurrences": 1,
+      "expect_failing": [
+        "整形ツールの誤検知しないことの確認: oxfmt --check はディレクトリでも書き込まない",
+        "整形ツールの誤検知しないことの確認: oxfmt --list-different も書き込まない"
+      ]
+    },
+    {
+      "id": "fmt-xargs",
+      "why": "xargs 越しで対象が stdin から来る呼び出しを、対象を省いたものとして止める",
+      "file": "scripts/hooks/bash-command-guard.sh",
+      "find": " && [ \"${via_xargs}\" = 0 ]; then",
+      "replace": "; then",
+      "occurrences": 1,
+      "expect_failing": ["整形ツールの誤検知しないことの確認: xargs 越しで対象が stdin から来る"]
+    },
+    {
+      "id": "fmt-version",
+      "why": "版の確認・使い方の表示を、対象を省いた書き込みとして止める",
+      "file": "scripts/hooks/bash-command-guard.sh",
+      "find": "--version | -V | --help | -h) write=0 ;;",
+      "replace": "--version | -V | --help | -h) ;;",
+      "occurrences": 1,
+      "expect_failing": [
+        "整形ツールの誤検知しないことの確認: 版の確認は書き込まない",
+        "整形ツールの誤検知しないことの確認: 使い方の表示は書き込まない"
+      ]
     }
   ]
 }
