@@ -1,0 +1,137 @@
+{
+  "metadata": {
+    "skill_name": "current-environment-bootstrap",
+    "skill_path": "<repo>/skills/current-environment-bootstrap",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-09T04:19:28Z",
+    "evals_run": [6],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 102.31,
+        "tokens": 275310,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現行 UI が市販データグリッドを使っている事実と対象版を受領資料から特定し、ベンダーの機能一覧・非互換検証用の試験仕様書・公式サンプルの所在と版を「不足」として個別に分類している",
+          "passed": false,
+          "evidence": "KendoReact Grid 9.0.0 の使用は package.json・Orders.tsx・software-assets.md から特定した（assets-inventory.md 13〜15 行・31 行）。しかし不足の分類は 31 行の 1 行で、機能一覧・非互換検証用の試験仕様書・公式サンプルを括弧の中にまとめており、個別には分類していない（50 行・questionnaire.md R-4 も 1 項目）"
+        },
+        {
+          "text": "追加資産依頼に対象版のベンダー資料を挙げ、依頼先として CoE またはベンダー窓口を明記している",
+          "passed": true,
+          "evidence": "questionnaire.md 76 行の R-4 で KendoReact Grid 9.0.0 の機能一覧・試験仕様書・公式サンプルの所在を依頼し、依頼先を『Platform CoE（台帳上のライセンス保有者）→ 必要に応じ Progress ベンダー窓口』と明記"
+        },
+        {
+          "text": "資料が無い影響を parity-suite の状態網羅（網羅表の項目集合）を規範的な資料から完成できないこととして記録している",
+          "passed": true,
+          "evidence": "assets-inventory.md 55 行: 『parity-suite の状態網羅（網羅表の項目集合）は、規範資料（対象版 9.0.0 の機能一覧・試験仕様書）から完成させられない』"
+        },
+        {
+          "text": "実 UI 由来の app-ui は現行が使っていない部品操作を列挙できないため代替資産とみなさず、app-ui に切り替えた場合に何が測れないかを不足資産一覧または質問票に明記している",
+          "passed": true,
+          "evidence": "assets-inventory.md 56〜61 行: app-ui は代替資産にならないと判断し、実 UI は現行が有効にしている操作しか列挙できないため、未使用機能・版既定の挙動・未出現の状態が測れないことを列挙し、gaps に残すと記録"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 55.286,
+        "tokens": 95898,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現行 UI が市販データグリッドを使っている事実と対象版を受領資料から特定し、ベンダーの機能一覧・非互換検証用の試験仕様書・公式サンプルの所在と版を「不足」として個別に分類している",
+          "passed": false,
+          "evidence": "KendoReact Grid 9.0.0 の使用は特定したが、不足は『ベンダー資料（Kendo の仕様・API ドキュメント）: なし』の 1 行で、機能一覧・非互換検証用の試験仕様書・公式サンプルの所在と版を個別に分類していない"
+        },
+        {
+          "text": "追加資産依頼に対象版のベンダー資料を挙げ、依頼先として CoE またはベンダー窓口を明記している",
+          "passed": false,
+          "evidence": "追加資産の依頼の項目 5 で Grid 9.0.0 のベンダー資料を挙げたが、依頼先を書いていない。Platform CoE の名前は項目 2（ライセンスキー）の確認先としてだけ出てくる"
+        },
+        {
+          "text": "資料が無い影響を parity-suite の状態網羅（網羅表の項目集合）を規範的な資料から完成できないこととして記録している",
+          "passed": true,
+          "evidence": "4 節で『足りません』とし、ソート状態・フィルタ演算子などの状態の軸ごとに『ベンダー仕様（項目5）』が無いため不足と表にしており、規範的な資料から網羅表を完成できないことを記録している"
+        },
+        {
+          "text": "実 UI 由来の app-ui は現行が使っていない部品操作を列挙できないため代替資産とみなさず、app-ui に切り替えた場合に何が測れないかを不足資産一覧または質問票に明記している",
+          "passed": false,
+          "evidence": "5 節で app-ui を『部分的な代替資産としてのみ扱える』と位置づけており、代替資産とみなさない判断になっていない。測れないものの列挙はあるが、現行が使っていない部品操作を列挙できないことは書いていない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.75,
+        "stddev": 0,
+        "min": 0.75,
+        "max": 0.75
+      },
+      "time_seconds": {
+        "mean": 102.31,
+        "stddev": 0,
+        "min": 102.31,
+        "max": 102.31
+      },
+      "tokens": {
+        "mean": 275310,
+        "stddev": 0,
+        "min": 275310,
+        "max": 275310
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.25,
+        "stddev": 0,
+        "min": 0.25,
+        "max": 0.25
+      },
+      "time_seconds": {
+        "mean": 55.286,
+        "stddev": 0,
+        "min": 55.286,
+        "max": 55.286
+      },
+      "tokens": {
+        "mean": 95898,
+        "stddev": 0,
+        "min": 95898,
+        "max": 95898
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.50",
+      "time_seconds": "+47.0",
+      "tokens": "+179412"
+    }
+  },
+  "notes": []
+}
