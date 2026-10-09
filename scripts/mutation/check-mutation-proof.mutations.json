@@ -137,7 +137,8 @@
       "expect_failing": [
         "宣言と前提の検証（実行する前に落とす） テスト名が重複していたら exit 2",
         "宣言と前提の検証（実行する前に落とす） 実行中の編集の後に die しても、exit ハンドラが編集を上書きしない",
-        "宣言と前提の検証（実行する前に落とす） 元の内容へ戻された後に die しても、exit ハンドラは警告せず内容を変えない"
+        "宣言と前提の検証（実行する前に落とす） 元の内容へ戻された後に die しても、exit ハンドラは警告せず内容を変えない",
+        "宣言と前提の検証（実行する前に落とす） die の後の書き戻しが途中で失敗したら、次回の起動に任せると案内し、次回の起動が戻す"
       ]
     },
     {
@@ -152,7 +153,10 @@
         "宣言と前提の検証（実行する前に落とす） 復元情報が不正なら exit 2（警告なしに続けない）",
         "宣言と前提の検証（実行する前に落とす） 復元情報と作業ツリーが食い違えば自動で戻さず exit 2",
         "宣言と前提の検証（実行する前に落とす） 復元情報の書き戻し先がリポジトリ外なら exit 2",
-        "宣言と前提の検証（実行する前に落とす） 中断の後に対象が消えていたら、次回の起動は作り直さずに exit 2"
+        "宣言と前提の検証（実行する前に落とす） 中断の後に対象が消えていたら、次回の起動は作り直さずに exit 2",
+        "宣言と前提の検証（実行する前に落とす） 後始末の書き戻しが途中で失敗したら、変異のまま止め、次回の起動が自分の変異として戻す",
+        "宣言と前提の検証（実行する前に落とす） die の後の書き戻しが途中で失敗したら、次回の起動に任せると案内し、次回の起動が戻す",
+        "宣言と前提の検証（実行する前に落とす） 前回の中断で残った一時ファイルを、次回の起動が消す"
       ]
     },
     {
@@ -341,8 +345,8 @@
       "id": "RESTORE-FOREIGN-EDIT",
       "why": "実行中に変異の外から書き換えられた対象を、照合せずに変異前の内容で上書きする",
       "file": "scripts/mutation/check-mutation-proof.js",
-      "find": "    const stop = state !== \"mutated\" && (wroteMutation || state in UNSETTLED);",
-      "replace": "    const stop = false;",
+      "find": "      if (state !== \"mutated\" && (wroteMutation || state in UNSETTLED)) {",
+      "replace": "      if (false) {",
       "occurrences": 1,
       "expect_failing": [
         "宣言と前提の検証（実行する前に落とす） 実行中に対象が変異の外から書き換えられたら上書きせず exit 2",
@@ -359,19 +363,19 @@
       "replace": "    writeFileSync(path, content);\n    const state = \"mutated\";",
       "occurrences": 1,
       "expect_failing": [
-        "宣言と前提の検証（実行する前に落とす） 実行中の編集の後に die しても、exit ハンドラが編集を上書きしない"
+        "宣言と前提の検証（実行する前に落とす） 実行中の編集の後に die しても、exit ハンドラが編集を上書きしない",
+        "宣言と前提の検証（実行する前に落とす） die の後の書き戻しが途中で失敗したら、次回の起動に任せると案内し、次回の起動が戻す"
       ]
     },
     {
       "id": "KEEP-THROWN",
-      "why": "外からの編集で止めるとき、テストの実行中の例外を出さない",
+      "why": "止めるとき、テストの実行中の例外を出さない",
       "file": "scripts/mutation/check-mutation-proof.js",
       "find": "      if (thrown) console.error(",
       "replace": "      if (false) console.error(",
-      "occurrences": 2,
+      "occurrences": 1,
       "expect_failing": [
-        "宣言と前提の検証（実行する前に落とす） 実行中の編集の後に例外が投げられても、元の例外を出力に残す",
-        "宣言と前提の検証（実行する前に落とす） 変異の書き込みの失敗の後に読み込みも失敗しても、元の例外を出力に残す"
+        "宣言と前提の検証（実行する前に落とす） 実行中の編集の後に例外が投げられても、元の例外を出力に残す"
       ]
     },
     {
@@ -385,7 +389,7 @@
         "宣言と前提の検証（実行する前に落とす） 元の内容へ戻された後に die しても、exit ハンドラは警告せず内容を変えない",
         "宣言と前提の検証（実行する前に落とす） 変異を書く前に失敗したら、外からの編集として報告しない",
         "宣言と前提の検証（実行する前に落とす） 実行中に対象が元の内容へ戻されたら、結果を出さずに exit 2",
-        "宣言と前提の検証（実行する前に落とす） 変異の書き込みが途中で失敗したら、元の内容へ戻して元の例外を返す"
+        "宣言と前提の検証（実行する前に落とす） 変異の書き込みが途中で失敗しても、対象を変えずに元の例外を返し、外からの編集として案内しない"
       ]
     },
     {
@@ -397,7 +401,7 @@
       "occurrences": 1,
       "expect_failing": [
         "宣言と前提の検証（実行する前に落とす） 変異を書く前に失敗したら、外からの編集として報告しない",
-        "宣言と前提の検証（実行する前に落とす） 変異の書き込みが途中で失敗したら、元の内容へ戻して元の例外を返す"
+        "宣言と前提の検証（実行する前に落とす） 変異の書き込みが途中で失敗しても、対象を変えずに元の例外を返し、外からの編集として案内しない"
       ]
     },
     {
@@ -413,37 +417,14 @@
       ]
     },
     {
-      "id": "PARTIAL-WRITE-RESTORE",
-      "why": "変異の書き込みが途中で失敗したとき、切り詰められた内容を元に戻さない（外からの編集として止める）",
-      "file": "scripts/mutation/check-mutation-proof.js",
-      "find": "        if (readFileSync(mutation.target, \"utf8\") !== original) {",
-      "replace": "        if (false) {",
-      "occurrences": 1,
-      "expect_failing": [
-        "宣言と前提の検証（実行する前に落とす） 変異の書き込みが途中で失敗したら、元の内容へ戻して元の例外を返す",
-        "宣言と前提の検証（実行する前に落とす） 変異の書き込みの失敗の後に読み込みも失敗しても、元の例外を出力に残す"
-      ]
-    },
-    {
-      "id": "RESTORE-ERR-REPLACES",
-      "why": "変異の書き込みの失敗を戻す処理の失敗で、元の例外を置き換える（失敗の理由が出力から消える）",
-      "file": "scripts/mutation/check-mutation-proof.js",
-      "find": "        console.error(`mutation-proof: ${mutation.target} を元に戻せない: ${restoreErr.message}`);",
-      "replace": "        throw restoreErr;",
-      "occurrences": 1,
-      "expect_failing": [
-        "宣言と前提の検証（実行する前に落とす） 変異の書き込みの失敗の後に読み込みも失敗しても、元の例外を出力に残す"
-      ]
-    },
-    {
       "id": "SETTLE-FAIL-KEEPS-PENDING",
-      "why": "後始末の失敗で止めるとき pending を残し、exit ハンドラが同じ後始末を繰り返して誤ったメッセージを重ねる",
+      "why": "止めるときに pending を外さず、exit ハンドラが同じ後始末を繰り返す",
       "file": "scripts/mutation/check-mutation-proof.js",
-      "find": "      pending = null;\n      console.error(`mutation-proof: ${mutation.target} を後始末できない",
-      "replace": "      console.error(`mutation-proof: ${mutation.target} を後始末できない",
+      "find": "    pending = null;\n    if (stopMessage !== null) {",
+      "replace": "    if (stopMessage !== null) {",
       "occurrences": 1,
       "expect_failing": [
-        "宣言と前提の検証（実行する前に落とす） 後始末の書き戻しが失敗したら、exit ハンドラで同じ後始末を繰り返さない"
+        "宣言と前提の検証（実行する前に落とす） 後始末の書き戻しが途中で失敗したら、変異のまま止め、次回の起動が自分の変異として戻す"
       ]
     },
     {
@@ -456,6 +437,112 @@
       "expect_failing": [
         "宣言と前提の検証（実行する前に落とす） 実行中に対象が消されたら、作り直さずに exit 2 で止め、復元情報を残す",
         "宣言と前提の検証（実行する前に落とす） 中断の後に対象が消えていたら、次回の起動は作り直さずに exit 2"
+      ]
+    },
+    {
+      "id": "ATOMIC-WRITE",
+      "why": "一時ファイルと rename をやめ、対象に直接書く（途中の失敗で対象が切り詰められる）",
+      "file": "scripts/mutation/check-mutation-proof.js",
+      "find": "    writeFileSync(tmp, data);\n    chmodSync(tmp, statSync(real).mode & 0o7777);\n    renameSync(tmp, real);\n",
+      "replace": "    writeFileSync(real, data);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（実行する前に落とす） 変異の書き込みが途中で失敗しても、対象を変えずに元の例外を返し、外からの編集として案内しない",
+        "宣言と前提の検証（実行する前に落とす） 後始末の書き戻しが途中で失敗したら、変異のまま止め、次回の起動が自分の変異として戻す",
+        "宣言と前提の検証（実行する前に落とす） 変異を書く前に失敗したら、外からの編集として報告しない",
+        "宣言と前提の検証（実行する前に落とす） die の後の書き戻しが途中で失敗したら、次回の起動に任せると案内し、次回の起動が戻す"
+      ]
+    },
+    {
+      "id": "KEEP-MODE",
+      "why": "差し替えた対象に元のモードをコピーしない（実行ビットが外れる）",
+      "file": "scripts/mutation/check-mutation-proof.js",
+      "find": "    chmodSync(tmp, statSync(real).mode & 0o7777);\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（実行する前に落とす） 実行ビットを持つ対象は、変異を戻した後もモードを保つ",
+        "宣言と前提の検証（実行する前に落とす） ランナーが変わったら全宣言を測る"
+      ]
+    },
+    {
+      "id": "FOLLOW-SYMLINK",
+      "why": "リンク先へ書かず、シンボリックリンクを通常のファイルに差し替える",
+      "file": "scripts/mutation/check-mutation-proof.js",
+      "find": "  const real = realpathSync(path);",
+      "replace": "  const real = path;",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（実行する前に落とす） 対象がシンボリックリンクなら、リンクを差し替えずにリンク先を変異させて戻す"
+      ]
+    },
+    {
+      "id": "TMP-CLEANUP",
+      "why": "書き込みに失敗した一時ファイルを作業ツリーに残す",
+      "file": "scripts/mutation/check-mutation-proof.js",
+      "find": "    rmSync(tmp, { force: true });\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（実行する前に落とす） 変異の書き込みが途中で失敗しても、対象を変えずに元の例外を返し、外からの編集として案内しない",
+        "宣言と前提の検証（実行する前に落とす） 後始末の書き戻しが途中で失敗したら、変異のまま止め、次回の起動が自分の変異として戻す"
+      ]
+    },
+    {
+      "id": "EXIT-SETTLE-FAIL-MSG",
+      "why": "exit ハンドラの書き戻しの失敗で、次回の起動が戻すのに手で戻すよう案内する",
+      "file": "scripts/mutation/check-mutation-proof.js",
+      "find": "。次回の起動が復元情報（${recoveryPath}）で照合する",
+      "replace": "（手で戻す）",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（実行する前に落とす） die の後の書き戻しが途中で失敗したら、次回の起動に任せると案内し、次回の起動が戻す"
+      ]
+    },
+    {
+      "id": "HARDLINK-GUARD",
+      "why": "ハードリンクを持つ対象を差し替え、リンクを切る",
+      "file": "scripts/mutation/check-mutation-proof.js",
+      "find": "  if (statSync(real).nlink > 1) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（実行する前に落とす） 対象がハードリンクを持つなら、変異させずに exit 2 で止める"
+      ]
+    },
+    {
+      "id": "STRAY-TMP",
+      "why": "中断で残った一時ファイルを、次回の起動が消さない",
+      "file": "scripts/mutation/check-mutation-proof.js",
+      "find": "  removeStrayTmp(target);\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（実行する前に落とす） 前回の中断で残った一時ファイルを、次回の起動が消す"
+      ]
+    },
+    {
+      "id": "STRAY-TMP-SHAPE",
+      "why": "一時ファイルの形を確かめず、名前の似た無関係なファイルまで消す",
+      "file": "scripts/mutation/check-mutation-proof.js",
+      "find": "/^\\d+\\.tmp$/.test(n.slice(prefix.length))",
+      "replace": "true",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（実行する前に落とす） 前回の中断で残った一時ファイルを、次回の起動が消す"
+      ]
+    },
+    {
+      "id": "WRITE-FAIL-EXIT2",
+      "why": "変異を当てられない失敗を捕捉せず、exit 1（実証できない変異がある）で終わる",
+      "file": "scripts/mutation/check-mutation-proof.js",
+      "find": "        die(`${m.id} の変異を当てられない: ${err.message}`);",
+      "replace": "        throw err;",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（実行する前に落とす） 変異の書き込みが途中で失敗しても、対象を変えずに元の例外を返し、外からの編集として案内しない",
+        "宣言と前提の検証（実行する前に落とす） 変異を書く前に失敗したら、外からの編集として報告しない",
+        "宣言と前提の検証（実行する前に落とす） 対象がハードリンクを持つなら、変異させずに exit 2 で止める"
       ]
     }
   ]

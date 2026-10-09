@@ -35,20 +35,23 @@
 // 終了コード: 0 = 全変異が実証できた / 1 = 実証できない変異がある / 2 = 使い方・宣言・前提の誤り
 import { spawnSync } from "node:child_process";
 import {
+  chmodSync,
   existsSync,
   linkSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   renameSync,
   rmSync,
+  statSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -224,12 +227,74 @@ function readOrNull(path) {
   }
 }
 
+/** replaceContent が対象の隣に作る一時ファイルのパス。次回の起動が、中断で残ったものを同じ形で探す。 */
+function tmpPathOf(real, pid) {
+  return `${real}.mutation-proof-${pid}.tmp`;
+}
+
+/**
+ * 中断（SIGKILL など）で残った一時ファイルを消す。一時ファイルは復元情報があるときにだけ作るので、
+ * 復元情報の対象の隣だけを探す。ロックを取った後に呼ぶので、他の実行が書き込み中のものは無い。
+ */
+function removeStrayTmp(target) {
+  let real;
+  try {
+    real = realpathSync(target);
+  } catch {
+    real = target; // 対象が消されていても、隣の一時ファイルは消す
+  }
+  const dir = dirname(real);
+  const prefix = `${basename(real)}.mutation-proof-`;
+  const isStray = (n) => n.startsWith(prefix) && /^\d+\.tmp$/.test(n.slice(prefix.length));
+  let names;
+  try {
+    names = readdirSync(dir);
+  } catch {
+    return;
+  }
+  for (const name of names.filter(isStray)) {
+    rmSync(join(dir, name), { force: true });
+    console.error(`mutation-proof: 前回の中断で残った一時ファイルを消した（${join(dir, name)}）`);
+  }
+}
+
+/**
+ * 対象の内容を置き換える。同じディレクトリの一時ファイルに書いてから rename するので、対象は書く前か書いた後の
+ * 内容のどちらかになり、途中の内容にはならない。
+ * writeFileSync で直接書くと、先に切り詰めるので、途中で失敗する（ENOSPC など）と元でも変異でもない内容が残る。
+ * その内容は settleTarget から見ると外からの編集と区別できず、自分の書き込みの失敗を「変異の外から書き換えられた」
+ * と案内していた（PR #585 のレビュー、Issue #586）。呼び出し側で失敗を見分けるのではなく、その状態を作らない。
+ *
+ * rename は対象を新しいファイルに差し替えるので、writeFileSync が保っていたものを、ここで保つ。
+ * モードは元のファイルからコピーする（実行ビットを持つ `.sh` を変異させる宣言がある）。シンボリックリンクは、
+ * リンクを差し替えずにリンク先へ書く。ハードリンクを持つ対象は、差し替えるとリンクが切れるので変異させない。
+ * 所有者と拡張属性は保たない。対象のディレクトリに書き込めなければ、一時ファイルを作れずに失敗する。
+ * 読み取り専用の対象も、ディレクトリに書き込めれば差し替えられる（直接書いていたときは EACCES で失敗した）。
+ */
+function replaceContent(path, data) {
+  const real = realpathSync(path);
+  if (statSync(real).nlink > 1) {
+    throw new Error(`${real} はハードリンクを持つ（差し替えるとリンクが切れるので、変異させない）`);
+  }
+  const tmp = tmpPathOf(real, process.pid);
+  try {
+    writeFileSync(tmp, data);
+    chmodSync(tmp, statSync(real).mode & 0o7777);
+    renameSync(tmp, real);
+  } catch (err) {
+    // 書きかけの一時ファイルを作業ツリーに残さない（消せなくても、元の例外を返す）。
+    rmSync(tmp, { force: true });
+    throw err;
+  }
+}
+
 function settleTarget(path, before, after) {
   const current = readOrNull(path);
   if (current === after) {
     // **変異後の内容と一致したときだけ戻す。** 「変異が残っている」と「人が直してさらに編集した」を
     // 区別せず上書きすると、無関係な編集を消して「変異を戻した」と事実でないログを出す（実測）。
-    writeFileSync(path, before);
+    // 書き戻しが失敗しても対象は変異のまま残るので、次回の起動が自分の変異として戻せる。
+    replaceContent(path, before);
     // **検証を通ってから復元情報を消す**——先に消すと、記録が要るまさにその場合
     //（書き戻したのに内容が一致しない）に次回起動が回収できない。
     if (readFileSync(path, "utf8") !== before) return "unrestored";
@@ -276,6 +341,7 @@ function recoverFromInterrupted() {
   if (!target.startsWith(repoRoot + "/")) {
     die(`復元情報の書き戻し先がリポジトリ外（${target}）。植え付けを疑い、記録を消して調べる`);
   }
+  removeStrayTmp(target);
   const state = settleTarget(target, saved.before, saved.after);
   if (state === "original") {
     console.error(`mutation-proof: 前回の中断で残った変異は無かった（${target}）`);
@@ -316,7 +382,10 @@ function restorePending() {
     const state = settleTarget(path, content, mutated);
     if (state in UNSETTLED) console.error(`mutation-proof: 実行中に ${path} ${UNSETTLED[state]}`);
   } catch (err) {
-    console.error(`mutation-proof: ${path} を復元できなかった（手で戻す）: ${err.message}`);
+    // 書き戻しの失敗では対象は書く前の内容（変異）のまま残り、復元情報も消していないので、次回の起動が照合して戻す。
+    console.error(
+      `mutation-proof: ${path} を後始末できない: ${err.message}。次回の起動が復元情報（${recoveryPath}）で照合する`,
+    );
   }
 }
 
@@ -658,21 +727,8 @@ function proveMutation(mutation, testFile) {
   try {
     pending = { path: mutation.target, content: original, mutated };
     writeRecovery(mutation.target, original, mutated);
-    try {
-      writeFileSync(mutation.target, mutated);
-    } catch (err) {
-      // writeFileSync は先に切り詰めるので、途中で失敗する（ENOSPC など）と元でも変異でもない内容が残る。
-      // その内容は自分が書いたものなので、元の内容へ戻してから例外を返す（外からの編集として止めない）。
-      // 戻す処理の失敗（読み込みを含む）で、元の例外を置き換えない。
-      try {
-        if (readFileSync(mutation.target, "utf8") !== original) {
-          writeFileSync(mutation.target, original);
-        }
-      } catch (restoreErr) {
-        console.error(`mutation-proof: ${mutation.target} を元に戻せない: ${restoreErr.message}`);
-      }
-      throw err;
-    }
+    // 失敗しても対象は元の内容のままなので、finally の照合は original になり、元の例外を返す。
+    replaceContent(mutation.target, mutated);
     wroteMutation = true;
     run = runTests(testFile);
   } catch (err) {
@@ -686,22 +742,25 @@ function proveMutation(mutation, testFile) {
     // 元の内容に戻されていた・消されていた場合も、テストは変異を最後まで測れていないので、その結果を
     // PASS / FAIL として出すと誤った実証になる（PR #585 のレビューで 3 回議論し、止める側に決めた）。
     // 変異を書く前に失敗したとき（対象は元の内容のまま）は、何も書かずに元の例外を返す。
-    let state;
+    //
+    // 止める理由を先に決め、出力と exit は最後の 1 か所で行う。
+    let stopMessage = null;
     try {
-      state = settleTarget(mutation.target, original, mutated);
+      const state = settleTarget(mutation.target, original, mutated);
+      if (state !== "mutated" && (wroteMutation || state in UNSETTLED)) {
+        const why =
+          UNSETTLED[state] ?? "が元の内容へ戻された。測定が無効なので結果を出さずに止める";
+        stopMessage = `実行中に ${mutation.target} ${why}`;
+      }
     } catch (err) {
-      // 後始末の失敗で、テストの実行中の元の例外を置き換えない（両方を出して止める）。
-      // exit ハンドラで同じ後始末を繰り返さない。復元情報は残るので、次回の起動が照合する。
-      pending = null;
-      console.error(`mutation-proof: ${mutation.target} を後始末できない: ${err.message}`);
-      if (thrown) console.error(`mutation-proof: テストの実行中の例外: ${thrown.stack ?? thrown}`);
-      process.exit(2);
+      // 後始末の失敗も止める。対象は変異のまま残り、復元情報も残るので、次回の起動が戻す。
+      stopMessage = `${mutation.target} を後始末できない: ${err.message}`;
     }
+    // 止めるときも、exit ハンドラで同じ後始末を繰り返さない（この照合で済んでいる）。
     pending = null;
-    const stop = state !== "mutated" && (wroteMutation || state in UNSETTLED);
-    if (stop) {
-      const why = UNSETTLED[state] ?? "が元の内容へ戻された。測定が無効なので結果を出さずに止める";
-      console.error(`mutation-proof: 実行中に ${mutation.target} ${why}`);
+    if (stopMessage !== null) {
+      console.error(`mutation-proof: ${stopMessage}`);
+      // 後始末の結果で、テストの実行中の元の例外を置き換えない（両方を出して止める）。
       if (thrown) console.error(`mutation-proof: テストの実行中の例外: ${thrown.stack ?? thrown}`);
       process.exit(2);
     }
@@ -810,7 +869,14 @@ function main() {
     }
 
     for (const m of targeted) {
-      const res = proveMutation(m, spec.testFile);
+      let res;
+      try {
+        res = proveMutation(m, spec.testFile);
+      } catch (err) {
+        // 変異を当てられない（ENOSPC・EACCES・ハードリンクなど）のは環境や前提の誤りで、変異の判定ではない。
+        // 捕捉しないと node が exit 1（実証できない変異がある）で終わり、呼び出し側が判定を取り違える。
+        die(`${m.id} の変異を当てられない: ${err.message}`);
+      }
       if (res.ok) {
         proven++;
         console.log(`PASS ${m.id}: ${m.why}`);

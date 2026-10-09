@@ -4,10 +4,15 @@ import {
   chmodSync,
   copyFileSync,
   existsSync,
+  linkSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
+  statSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -97,7 +102,7 @@ if (editing) {
   // restore: 元の内容（unless）に戻す / remove: 消す / それ以外: 末尾に追記する。
   if (def.editDuringRun.restore) writeFileSync(targetPath, def.editDuringRun.unless);
   else if (def.editDuringRun.remove) unlinkSync(targetPath);
-  else writeFileSync(targetPath, content + def.editDuringRun.append);
+  else if (def.editDuringRun.append) writeFileSync(targetPath, content + def.editDuringRun.append);
 }
 const assertionResults = def.tests.map((t) => {
   const ok = content.includes(t.contains);
@@ -689,36 +694,29 @@ describe("宣言と前提の検証（実行する前に落とす）", () => {
 
   /**
    * 対象への書き込みを途中で失敗させる preload を置き、ランナーに渡す env を返す。
-   * writeAt 回目の書き込み（1 回目は変異、2 回目は後始末の書き戻し）を、途中まで書いて ENOSPC で失敗させる。
-   * readFails なら、その後の対象の読み込みも EIO で失敗させる。
+   * ランナーは対象の隣の一時ファイルに書いてから rename するので、その一時ファイルへの書き込みを数える。
+   * writeAt 回目（1 回目は変異、2 回目は後始末の書き戻し）の書き込みを、途中まで書いて ENOSPC で失敗させる。
    */
-  function faultEnv(fx, lock, { writeAt, readFails = false }) {
+  function faultEnv(fx, lock, { writeAt }) {
     const preload = join(fx.dir, "fault.cjs");
     writeFileSync(
       preload,
       `const fs = require("node:fs");
 const realWrite = fs.writeFileSync;
-const realRead = fs.readFileSync;
-const target = process.env.FAULT_TARGET;
+const prefix = process.env.FAULT_TARGET + ".mutation-proof-";
+const at = Number(process.env.FAULT_WRITE_AT);
 let writes = 0;
-let failed = false;
 fs.writeFileSync = function (path, data, ...rest) {
-  if (path === target && ++writes === Number(process.env.FAULT_WRITE_AT)) {
-    failed = true;
-    realWrite.call(fs, path, String(data).slice(0, 5));
-    const err = new Error("ENOSPC: no space left on device, write");
-    err.code = "ENOSPC";
-    throw err;
+  if (typeof path === "string" && path.startsWith(prefix)) {
+    writes += 1;
+    if (writes === at) {
+      realWrite.call(fs, path, String(data).slice(0, 5));
+      const err = new Error("ENOSPC: no space left on device, write");
+      err.code = "ENOSPC";
+      throw err;
+    }
   }
   return realWrite.call(fs, path, data, ...rest);
-};
-fs.readFileSync = function (path, ...rest) {
-  if (failed && path === target && process.env.FAULT_READ === "1") {
-    const err = new Error("EIO: i/o error, read");
-    err.code = "EIO";
-    throw err;
-  }
-  return realRead.call(fs, path, ...rest);
 };
 require("node:module").syncBuiltinESMExports();
 `,
@@ -728,71 +726,156 @@ require("node:module").syncBuiltinESMExports();
       NODE_OPTIONS: `--require ${preload}`,
       FAULT_TARGET: fx.target,
       FAULT_WRITE_AT: String(writeAt),
-      FAULT_READ: readFails ? "1" : "0",
     };
   }
 
-  // writeFileSync は先に切り詰めるので、途中で失敗すると元でも変異でもない内容が残る。
-  test("変異の書き込みが途中で失敗したら、元の内容へ戻して元の例外を返す", () => {
+  /** ランナーが対象の隣に残した一時ファイル。 */
+  const leftovers = (fx) => readdirSync(fx.dir).filter((n) => n.includes(".mutation-proof-"));
+
+  // 書き込みが途中で失敗しても、対象は書く前の内容のままになる（一時ファイルに書いてから rename する）。
+  // 途中の内容が対象に残ると、自分の書き込みの失敗を「変異の外から書き換えられた」と案内してしまう。
+  // 変異の書き込みが失敗したら後始末の書き戻しは起きない（対象は元の内容のまま）ので、書き戻しの失敗は別のテストで作る。
+  test("変異の書き込みが途中で失敗しても、対象を変えずに元の例外を返し、外からの編集として案内しない", () => {
     const fx = makeFixture();
     const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
     const lock = join(lockDir, "partial-write.lock");
     const res = runRunner(spec, faultEnv(fx, lock, { writeAt: 1 }));
-    expect(res.status, res.out).not.toBe(0);
-    expect(res.out).toContain("ENOSPC");
+    // 環境の誤りなので exit 2（exit 1 は「実証できない変異がある」の意味）。
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toContain("G の変異を当てられない: ENOSPC");
+    expect(res.out).not.toContain("変異の外から書き換えられた");
     expect(res.out).not.toContain("mutation-proof: 実行中に");
     expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
-    expect(existsSync(`${lock}.recovery.json`), "戻したのに復元情報を残した").toBe(false);
+    expect(leftovers(fx), "書きかけの一時ファイルを残した").toEqual([]);
+    expect(existsSync(`${lock}.recovery.json`), "元の内容のままなのに復元情報を残した").toBe(false);
   });
 
-  test("変異の書き込みの失敗の後に読み込みも失敗しても、元の例外を出力に残す", () => {
-    const fx = makeFixture();
+  // die（finally を通らない終わり方）の後の exit ハンドラで書き戻しが失敗した場合も、手で戻すようには案内しない。
+  test("die の後の書き戻しが途中で失敗したら、次回の起動に任せると案内し、次回の起動が戻す", () => {
+    // 対象を編集せずに、テスト名を重複させて die させる。
+    const fx = editingFixture({ duplicate: true });
     const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
-    const lock = join(lockDir, "partial-write-read-fails.lock");
-    const res = runRunner(spec, faultEnv(fx, lock, { writeAt: 1, readFails: true }));
+    const lock = join(lockDir, "exit-restore-fails.lock");
+    const res = runRunner(spec, faultEnv(fx, lock, { writeAt: 2 }));
     expect(res.status, res.out).toBe(2);
-    expect(res.out).toContain("ENOSPC");
-    expect(res.out).toContain("を元に戻せない: EIO");
-    rmSync(`${lock}.recovery.json`, { force: true });
+    expect(res.out).toContain("テスト名が重複している");
+    expect(res.out).toContain("を後始末できない: ENOSPC");
+    expect(res.out).toContain("次回の起動が復元情報");
+    expect(res.out).not.toContain("手で戻す");
+    expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET.replace(GUARD, ""));
+    expect(existsSync(`${lock}.recovery.json`), "復元情報を消してしまった").toBe(true);
+
+    const next = runRunner(spec, { MUTATION_PROOF_LOCK: lock });
+    expect(next.out).toContain("前回の中断で残っていた変異を戻した");
+    expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
   });
 
-  // 後始末の失敗で止めるときは、exit ハンドラで同じ後始末を繰り返さない（切り詰められた内容を
-  // 「外からの編集」として重ねて報告しない）。復元情報は残し、次回の起動に任せる。
-  test("後始末の書き戻しが失敗したら、exit ハンドラで同じ後始末を繰り返さない", () => {
+  // 書き戻しが失敗したら、対象は自分の書いた変異のまま残る。次回の起動は、それを自分の変異として戻す。
+  // 止めるときは、exit ハンドラで同じ後始末を繰り返さない。
+  test("後始末の書き戻しが途中で失敗したら、変異のまま止め、次回の起動が自分の変異として戻す", () => {
     const fx = makeFixture();
     const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
     const lock = join(lockDir, "restore-fails.lock");
     const res = runRunner(spec, faultEnv(fx, lock, { writeAt: 2 }));
     expect(res.status, res.out).toBe(2);
-    expect(res.out.split("を後始末できない").length - 1, res.out).toBe(1);
+    expect(res.out.split("を後始末できない: ENOSPC").length - 1, res.out).toBe(1);
     expect(res.out).not.toContain("変異の外から書き換えられた");
+    expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET.replace(GUARD, ""));
+    expect(leftovers(fx), "書きかけの一時ファイルを残した").toEqual([]);
     expect(existsSync(`${lock}.recovery.json`), "復元情報を消してしまった").toBe(true);
-    rmSync(`${lock}.recovery.json`, { force: true });
+
+    const next = runRunner(spec, { MUTATION_PROOF_LOCK: lock });
+    expect(next.status, next.out).toBe(0);
+    expect(next.out).toContain("前回の中断で残っていた変異を戻した");
+    expect(next.out).not.toContain("復元情報と作業ツリーが食い違う");
+    expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
   });
 
   // 変異を書く前に失敗したら照合しない（照合すると、元の失敗を「外からの編集」として報告する）。
-  // root は読み取り専用のファイルにも書けるので、書き込みの失敗を作れない。
+  // 一時ファイルを作れないように、対象のディレクトリを読み取り専用にする。
+  // root は読み取り専用のディレクトリにも書けるので、書き込みの失敗を作れない。
   test.skipIf(process.getuid?.() === 0)(
     "変異を書く前に失敗したら、外からの編集として報告しない",
     () => {
       const fx = makeFixture();
       const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
-      chmodSync(fx.target, 0o444);
       const lock = join(lockDir, "write-fails.lock");
       let res;
+      chmodSync(fx.dir, 0o555);
       try {
         res = runRunner(spec, { MUTATION_PROOF_LOCK: lock });
       } finally {
-        chmodSync(fx.target, 0o644);
+        chmodSync(fx.dir, 0o755);
       }
-      expect(res.status, res.out).not.toBe(0);
-      expect(res.out).toContain("EACCES");
+      expect(res.status, res.out).toBe(2);
+      expect(res.out).toContain("G の変異を当てられない: EACCES");
       expect(res.out).not.toContain("変異の外から書き換えられた");
       expect(res.out).not.toContain("mutation-proof: 実行中に");
       expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
       rmSync(`${lock}.recovery.json`, { force: true });
     },
   );
+
+  // rename は対象を新しいファイルに差し替えるので、直接書いていたときに保たれていたものを確かめる。
+  test("対象がハードリンクを持つなら、変異させずに exit 2 で止める", () => {
+    const fx = makeFixture();
+    const other = join(fx.dir, "hard.sh");
+    linkSync(fx.target, other);
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    const res = runRunner(spec, { MUTATION_PROOF_LOCK: join(lockDir, "hardlink.lock") });
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toContain("ハードリンクを持つ");
+    expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
+    expect(statSync(fx.target).ino, "リンクが切れた").toBe(statSync(other).ino);
+  });
+
+  // 一時ファイルへの書き込みから rename までの間に SIGKILL されると、一時ファイルが作業ツリーに残る。
+  test("前回の中断で残った一時ファイルを、次回の起動が消す", () => {
+    const fx = makeFixture();
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    const lock = join(lockDir, "stray-tmp.lock");
+    const mutated = FIXTURE_TARGET.replace(GUARD, "");
+    writeFileSync(
+      `${lock}.recovery.json`,
+      JSON.stringify({ file: fx.target, before: FIXTURE_TARGET, after: mutated }),
+    );
+    // 書き戻しの途中で殺された状態: 対象は変異のまま、隣に書きかけの一時ファイルがある。
+    writeFileSync(fx.target, mutated);
+    const stray = `${fx.target}.mutation-proof-99999.tmp`;
+    writeFileSync(stray, FIXTURE_TARGET.slice(0, 5));
+    // 名前が似ていても、形の違うファイルは消さない。
+    const unrelated = `${fx.target}.mutation-proof-notes.tmp`;
+    writeFileSync(unrelated, "x");
+    const res = runRunner(spec, { MUTATION_PROOF_LOCK: lock });
+    expect(res.status, res.out).toBe(0);
+    expect(res.out).toContain("前回の中断で残った一時ファイルを消した");
+    expect(existsSync(stray), "一時ファイルを残した").toBe(false);
+    expect(existsSync(unrelated), "形の違うファイルまで消した").toBe(true);
+    expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
+  });
+
+  test("実行ビットを持つ対象は、変異を戻した後もモードを保つ", () => {
+    const fx = makeFixture();
+    chmodSync(fx.target, 0o755);
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    const res = runRunner(spec, { MUTATION_PROOF_LOCK: join(lockDir, "mode.lock") });
+    expect(res.status, res.out).toBe(0);
+    expect(res.out).toContain("PASS G");
+    expect(statSync(fx.target).mode & 0o777).toBe(0o755);
+  });
+
+  test("対象がシンボリックリンクなら、リンクを差し替えずにリンク先を変異させて戻す", () => {
+    const fx = makeFixture();
+    const link = join(fx.dir, "link.sh");
+    symlinkSync("target.sh", link);
+    const spec = fx.spec([mutation({ file: relative(repoRoot, link) })]);
+    const res = runRunner(spec, { MUTATION_PROOF_LOCK: join(lockDir, "symlink.lock") });
+    expect(res.status, res.out).toBe(0);
+    // スタブは target.sh を読むので、リンク先が変異していなければ PASS にならない。
+    expect(res.out).toContain("PASS G");
+    expect(lstatSync(link).isSymbolicLink(), "リンクを通常のファイルに差し替えた").toBe(true);
+    expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
+  });
 
   // 復元情報は他ユーザーが置けるパスに在りうる（`/tmp` を避けたが env で上書きもできる）。
   // 書き戻し先がリポジトリ外なら植え付けを疑って落とす。
@@ -857,11 +940,23 @@ require("node:module").syncBuiltinESMExports();
   test("ランナーが変わったら全宣言を測る", () => {
     // `--only D`（tracking の宣言にだけ在る id）で測る量を 1 変異に抑える。全宣言へ広がったことは
     // 「飛ばす:」が出ないことで判定する（選択の結果を見るのに、全件を実行する必要はない）。
-    const res = runRunner("--changed-since", "origin/main", "--only", "D", {
-      ...REAL,
-      MUTATION_PROOF_CHANGED_FILES: "scripts/mutation/check-mutation-proof.js",
-    });
+    // D は実リポジトリの実行ビットを持つファイルを変異させる。ランナー自身のミューテーションテストでは、
+    // 変異させたランナーがこのファイルを書き換えるので、モードを外す変異でも作業ツリーに残さないよう戻してから確かめる。
+    const realTarget = join(repoRoot, "skills/kaizen/scripts/tracking-issue-lib.sh");
+    const mode = statSync(realTarget).mode & 0o7777;
+    let res;
+    let after;
+    try {
+      res = runRunner("--changed-since", "origin/main", "--only", "D", {
+        ...REAL,
+        MUTATION_PROOF_CHANGED_FILES: "scripts/mutation/check-mutation-proof.js",
+      });
+    } finally {
+      after = statSync(realTarget).mode & 0o7777;
+      chmodSync(realTarget, mode);
+    }
     expect(res.status, res.out).toBe(0);
+    expect(after.toString(8), "変異を戻した対象のモードが変わった").toBe(mode.toString(8));
     expect(res.out).toContain(
       "ランナー（scripts/mutation/check-mutation-proof.js）が変わったので全宣言を測る",
     );
