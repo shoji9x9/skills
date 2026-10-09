@@ -145,7 +145,9 @@ mise・pnpm・GitHub・各エージェントの設定は、形式をツールが
 
 ### 型の検査
 
-`pnpm run typecheck`（`tsc -b --force`）が `.ts`・`.tsx` の型を検査する。lefthook の pre-commit は `.ts`・`.tsx`・`.js`・`.mjs` か tsconfig か依存が staged のときに、CI は `Lint` ジョブで実行する。
+`pnpm run typecheck`（`tsc -b --force`）が `.ts`・`.tsx` の型を検査する。CI は `Lint` ジョブで実行する。
+lefthook の pre-commit は、TypeScript か JavaScript（`ts`・`tsx`・`mts`・`cts`・`js`・`mjs`）か、tsconfig か依存が staged のときに実行する。
+対象の拡張子は `lefthook.yml` の glob で決める。
 `--force` を付けるのは、`tsc -b` が up to date かを include の対象と tsbuildinfo の時刻だけで判定し、依存の型（`node_modules`）が変わってもプロジェクトを飛ばすからである。
 1 つのファイルの変更が import する側の型を変えるので、staged のファイルだけでなく全体を検査する。
 
@@ -154,8 +156,8 @@ mise・pnpm・GitHub・各エージェントの設定は、形式をツールが
 | 設定 | 対象 | 解決の規則 |
 | --- | --- | --- |
 | `tsconfig.repo.json` | Node が直接実行する `.ts`（設定ファイル・`scripts/`） | `nodenext` |
-| `tsconfig.templates.json` | 配布スキルの雛形（`skills/*/assets/**/*.ts` と、インストール済みのコピーの `.agents/skills/*/assets/**/*.ts`） | `bundler` |
-| `tsconfig.templates-links.json` | Claude Code 用のリンクから見た雛形（`.claude/skills/*/assets/**/*.ts`） | `bundler`（`tsconfig.templates.json` を継承する） |
+| `tsconfig.templates.json` | 配布スキルの `.ts`・`.mts`・`.cts`（`skills/*/**` と、インストール済みのコピーの `.agents/skills/*/**`）。今あるのは `assets/` の雛形だけで、`assets/` の外に足した `.ts` も対象になる | `bundler` |
+| `tsconfig.templates-links.json` | Claude Code 用のリンクから見た同じファイル（`.claude/skills/*/**`） | `bundler`（`tsconfig.templates.json` を継承する） |
 | `tsconfig.fixtures.json` | eval の fixture（`evals/*/fixtures/**/*.{ts,tsx}`） | `bundler`、`jsx: react-jsx` |
 
 インストール済みのコピーとリンクも対象にするのは、対象の外のファイルをエディタで開くと推論プロジェクトとして扱われ、Node の型のエラーが出るからである。

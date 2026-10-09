@@ -6,8 +6,12 @@
     "tsBuildInfoFile": "./node_modules/.cache/tsc/templates.tsbuildinfo"
   },
   "include": [
-    "skills/*/assets/**/*.ts",
-    ".agents/skills/*/assets/**/*.ts",
+    "skills/*/**/*.ts",
+    "skills/*/**/*.mts",
+    "skills/*/**/*.cts",
+    ".agents/skills/*/**/*.ts",
+    ".agents/skills/*/**/*.mts",
+    ".agents/skills/*/**/*.cts",
     "types/parity-templates.d.ts"
   ]
 }

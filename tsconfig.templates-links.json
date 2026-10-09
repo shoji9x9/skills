@@ -3,5 +3,10 @@
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.cache/tsc/templates-links.tsbuildinfo"
   },
-  "include": [".claude/skills/*/assets/**/*.ts", "types/parity-templates.d.ts"]
+  "include": [
+    ".claude/skills/*/**/*.ts",
+    ".claude/skills/*/**/*.mts",
+    ".claude/skills/*/**/*.cts",
+    "types/parity-templates.d.ts"
+  ]
 }
