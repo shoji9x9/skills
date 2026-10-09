@@ -1304,6 +1304,13 @@ export function comparePinnedValues(beforeText, afterText, groups, labels) {
       continue;
     }
     if (!appended) continue;
+    // 値の中身が正しい決定かは見ないが、追記した要素は記録として読める形（オブジェクト）でなければならない。
+    // 最後の要素だけを見ると、同じ変更で読めない要素を並べて足しても通る。
+    for (let k = baseHistory.length; k < nowHistory.length - 1; k += 1) {
+      if (!isPlainObject(nowHistory[k])) {
+        findings.push(`${group.history} に追記した ${k} 番目の要素がオブジェクトでない`);
+      }
+    }
     // 追記した最後の要素が今の値と合わなければ、記録と実体が食い違う（記録だけ足して値を別に書き換える形を通さない）。
     const last = nowHistory[nowHistory.length - 1];
     if (!isPlainObject(last)) {
@@ -1379,23 +1386,25 @@ function git(root, args) {
  *
  * 履歴の最後の要素は、パスの最後のセグメントを項目名にして値を記録するので、グループの中で最後のセグメントが重なると
  * どちらの値の記録かを区別できない。固定するパスと履歴が重なる・入れ子になると、履歴への追記がそのまま値の変更になる。
- * どちらも、使い方の誤りとして落とす。
+ * 同じ項目の arrays と重なると、同じ値に配列の規則（fill_only など）と固定の規則が両方当たり、結果が食い違う。
+ * どれも、使い方の誤りとして落とす。
  * @param {unknown} raw
  * @param {number} i
+ * @param {string[]} arrays 同じ項目の arrays（重なりの検査に使う）
  * @returns {{ paths: string[], history: string }[]}
  */
-function readPinnedValues(raw, i) {
+function readPinnedValues(raw, i, arrays) {
   if (!Array.isArray(raw) || raw.length === 0) {
     throw new UsageError(`artifacts[${i}].pinned_values が空でない配列でない`);
   }
-  /** @type {string[]} すべてのグループのパスと履歴（重なりの検査に使う） */
-  const seen = [];
+  /** @type {string[]} 同じ項目の arrays と、すべてのグループのパスと履歴（重なりの検査に使う） */
+  const seen = [...arrays];
   /** @param {string} path */
   const claim = (path) => {
     for (const prev of seen) {
       if (prev === path || path.startsWith(`${prev}.`) || prev.startsWith(`${path}.`)) {
         throw new UsageError(
-          `artifacts[${i}].pinned_values のパスが重なっている（同じか入れ子）: ${prev} / ${path}`,
+          `artifacts[${i}].pinned_values のパスが arrays か他のパスと重なっている（同じか入れ子）: ${prev} / ${path}`,
         );
       }
     }
@@ -1544,7 +1553,7 @@ export function readManifest(manifestPath) {
         }
       }
       if (a.pinned_values !== undefined && a.pinned_values !== null) {
-        pinnedValues = readPinnedValues(a.pinned_values, i);
+        pinnedValues = readPinnedValues(a.pinned_values, i, arrays);
       }
       if (
         a.mutable_columns !== undefined ||

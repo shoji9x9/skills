@@ -3405,6 +3405,20 @@ test("履歴の最後の要素がオブジェクトでなければ落ちる", ()
   rmSync(root, { recursive: true, force: true });
 });
 
+test("同じ変更で追記した途中の要素がオブジェクトでなければ落ちる", () => {
+  const { root, edit } = makePerfRepo(seededPerformance());
+  edit((perf) => {
+    perf.floors.lcp = 150;
+    perf.floor_history.push("junk", historyEntry(perf.floors, perf.relative_floors));
+  });
+  const r = run(root);
+  expect(r.stdout).toMatch(
+    /performance\.floor_history に追記した 1 番目の要素がオブジェクトでない/,
+  );
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
 test("履歴の既存の要素を消すと落ちる（下限を変えないときも）", () => {
   const perf = seededPerformance();
   perf.floor_history.push(historyEntry(FLOORS, RELATIVE_FLOORS, "b".repeat(64)));
@@ -3496,6 +3510,8 @@ test.each([
     ],
   ],
   ["同じグループで最後のセグメントが重なる", [{ paths: ["x.floors", "y.floors"], history: "h" }]],
+  ["history が arrays と同じ", [{ paths: ["a"], history: "unmeasured.entries" }]],
+  ["paths が arrays の祖先", [{ paths: ["unmeasured"], history: "h" }]],
 ])("pinned_values の書き方が誤っていれば合格として扱わない（exit 2）: %s", (_, pinned) => {
   const root = makeRepo();
   const manifest = writeManifest(root, [pinnedArtifact(pinned)]);
