@@ -12,6 +12,6 @@
     ".agents/skills/*/**/*.ts",
     ".agents/skills/*/**/*.mts",
     ".agents/skills/*/**/*.cts",
-    "types/parity-templates.d.ts"
+    "types/parity-templates.ts"
   ]
 }

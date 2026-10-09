@@ -7,6 +7,6 @@
     ".claude/skills/*/**/*.ts",
     ".claude/skills/*/**/*.mts",
     ".claude/skills/*/**/*.cts",
-    "types/parity-templates.d.ts"
+    "types/parity-templates.ts"
   ]
 }

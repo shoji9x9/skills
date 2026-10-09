@@ -165,12 +165,13 @@ lefthook の pre-commit は、TypeScript か JavaScript（`ts`・`tsx`・`mts`�
 リンクを別のプロジェクトにするのは、tsc が同じプロジェクトの中で実体を読み込み済みのシンボリックリンクを辿らず、`tsconfig.templates.json` の `include` に足しても対象にならないからである。
 
 雛形は、利用者のプロジェクトへコピーした後に Playwright が読み込む。Playwright は拡張子なしの相対 import も解決するので、`bundler` で検査する。
-雛形が import する、コピー先にだけ在るモジュール（`../../lib/interactions` など）は、`types/parity-templates.d.ts` で `*` を含む名前の ambient 宣言にする。
+雛形が import する、コピー先にだけ在るモジュール（`../../lib/interactions` など）は、`types/parity-templates.ts` で `*` を含む名前の ambient 宣言にする。
 `*` を含む名前は相対の import にも一致するので、雛形に `// @ts-nocheck` などを足さずに済む。利用者のコピーには何も入らない。
-雛形に新しい import を足したら、`types/parity-templates.d.ts` にも足す。`@playwright/test` の型は devDependencies から読む。
+雛形に新しい import を足したら、`types/parity-templates.ts` にも足す。`@playwright/test` の型は devDependencies から読む。
+`types/` の宣言は `.d.ts` にしない。`skipLibCheck` は `node_modules` の型だけでなく、すべての `.d.ts` を検査から外すので、宣言の誤りが警告なしに通る。
 
 eval の fixture は、エージェントに渡す下流のプロジェクトの断片で、依存のパッケージ（架空のものを含む）や同じ階層のファイルを置いていない。
-それらは `types/eval-fixtures.d.ts` で、fixture が使う範囲の型を書いて宣言する。fixture に import を足したら、この宣言にも足す。
+それらは `types/eval-fixtures.ts` で、fixture が使う範囲の型を書いて宣言する。fixture に import を足したら、この宣言にも足す。
 雛形の宣言と同じファイルにしないのは、ambient 宣言がプロジェクトの全体に適用され、互いの検査で一致してしまうからである。
 fixture の検査も strict のままにする。型が足りない fixture は、fixture に型を書いて直す。fixture は eval の入力なので、直したら `docs/skill-development.md` に従ってその eval を実行し直す。
 

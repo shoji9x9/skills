@@ -1,7 +1,7 @@
 // eval の fixture（evals/*/fixtures/**）が import する、このリポジトリに無いモジュール。
 // fixture はエージェントに渡す下流のプロジェクトの断片で、依存のパッケージと同じ階層のファイルを置いていない。
 // 型は fixture が使う範囲だけを書く。fixture に import を足したら、ここにも足す。
-// 雛形の宣言（types/parity-templates.d.ts）とは分ける。同じプロジェクトに入れると、互いの検査で一致してしまう。
+// 雛形の宣言（types/parity-templates.ts）とは分ける。同じプロジェクトに入れると、互いの検査で一致してしまう。
 
 // 市販のデータグリッド（current-environment-bootstrap の fixture。版は fixture の package.json にある）
 declare module "@progress/kendo-react-grid" {

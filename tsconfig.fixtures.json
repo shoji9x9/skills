@@ -7,5 +7,5 @@
     "types": ["node", "react", "react-dom"],
     "tsBuildInfoFile": "./node_modules/.cache/tsc/fixtures.tsbuildinfo"
   },
-  "include": ["evals/*/fixtures/**/*.ts", "evals/*/fixtures/**/*.tsx", "types/eval-fixtures.d.ts"]
+  "include": ["evals/*/fixtures/**/*.ts", "evals/*/fixtures/**/*.tsx", "types/eval-fixtures.ts"]
 }
