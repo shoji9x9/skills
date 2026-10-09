@@ -83,6 +83,8 @@ PR では、差分に関係する定義だけを測る（`--changed-since origin
 すべての定義を測ると、PR ごとには払えない時間がかかる。実測値は `.github/workflows/mutation-proof.yml` のコメントにある。
 1 つの変異につき対象のテストファイルを 1 回実行するので、対象のテストは子プロセスを起動せず `main` を直接呼ぶ。CLI として起動するテストは、変異を検出できることを確かめる数本に絞る。
 CI では、選んだ変異を matrix で 6 つに分けて並列に実行する（`--shard i/N`）。必須チェックの `Mutation proof (PR)` は、全シャードの成功を確かめる集約ジョブが持つ。
+文書を含む変更は、push の前に手元でも `--changed-since origin/main` を実行する。文書を読むテストを持つ定義も選ばれるので、文書の書き換えで落ちる定義を CI の前に見つけられる。
+`--changed-since` は commit の差分（`origin/main...HEAD`）だけを見るので、commit した後に実行する。commit する前は「変更ファイル: 0 件」になり、何も測らない。
 ランナーのテストのうち本物の vitest を使うのは e2e の 3 本だけで、残りはスタブで実行する（`MUTATION_PROOF_TEST_COMMAND`）。
 
 すべての定義は、週に 1 回の定期実行（`.github/workflows/mutation-proof.yml`）で測る。
@@ -91,15 +93,24 @@ CI では、選んだ変異を matrix で 6 つに分けて並列に実行する
 pre-commit には入れない。実行中に対象のファイルを書き換えて戻すので、staged の変更と混在すると取り違える。
 並列にも実行しない。同時の実行はロックで止めるが、無関係な `pnpm test` と重なると、変異を入れた途中の状態を読んで無関係なテストが失敗する（実測）。
 
+実行中は、その作業ツリーの変異の対象を編集しない。原本を読んでコピーする処理（`scripts/tools/reinstall-skill.sh`・成果物の生成）も実行しない。
+ランナーは変異 1 件ごとに元の内容を書き戻すので、実行中の編集は消え、コピーには実行中の変異が入る（どちらも実測）。
+ランナーは書き戻す直前に、対象が自分の書いた変異のままかを照合する。違えば上書きせずに exit 2 で止まり、復元情報を残す。
+実行しながら同じファイルを編集したいとき（変更前の所要時間の計測など）は、基点の commit の別の worktree（`git worktree add --detach`）で実行する。
+バックグラウンドで実行したときの完了は、完了の通知ではなく、プロセスが無いこと（`/proc/<pid>`）と、ログの最終行（`mutation-proof: N proven / M failed`）で判断する。
+
 ランナー自身を変異させる定義があるときは、`--changed-since` を測るテストを `--only` で絞る。
 選ぶ判定を常に真にする変異が入ると、入れ子のランナーが指数的に増える。実測では 30 分以上かかって 21 以上のプロセスが起動し、止めた後の作業ツリーに変異が残った。
 
 ### その他のチェックと整形
 
-Bash の実行前のチェック（PreToolUse）として、`scripts/hooks/bash-command-guard.sh` が次の 2 つの形を止める。どちらも、文章の規約では防げずに再発した形である。
+Bash の実行前のチェック（PreToolUse）として、`scripts/hooks/bash-command-guard.sh` が次の 3 つの形を止める。どれも、文章の規約では防げずに再発した形である。
 
 - `gh api` と同じセグメントにある `--body-file`。`gh api` にこのフラグは無い。`gh pr` と `gh issue` の `--body-file` は通す。
 - 文字クラスで自分を避けていない `pkill -f` と `killall -f`。照合するのがコマンドライン全体なので、自分のシェルにも一致する。
+- 書き込む整形ツール（`oxfmt`、`markdownlint-cli2 --fix`）へのディレクトリ引数と、対象を省いた呼び出し。
+  ファイルの列挙・glob と、書き込まない呼び出し（`oxfmt --check`・`--list-different`・`--version`、`--fix` の無い `markdownlint-cli2`）は通す。
+  ディレクトリに展開される glob（`oxfmt docs/*`）と変数（`oxfmt "$dir"`）は hook から見えないので止まらない。
 
 このチェックは、3 つのエージェントに設定してある（`.claude/settings.json`・`.codex/hooks.json`・`.github/hooks/kaizen-session.json`）。
 
@@ -110,7 +121,9 @@ Bash の実行前のチェック（PreToolUse）として、`scripts/hooks/bash-
 割り当てられていないファイルに `--check` を当てて失敗しても、誰も強制していないチェックなので指摘にはならない。直すと無関係な差分になる。
 
 `oxfmt` には Markdown を渡さない。oxfmt は渡されたファイルを種類で判定して整形するので、`.md` を渡すと表の桁もそろえる。Markdown の整形は `markdownlint-cli2 --fix` で行う。
-`oxfmt` にはディレクトリを渡さず、対象のファイルを並べて渡す。ディレクトリを渡すと、目的外のファイルが警告なしに書き換えられる。
+整形ツール（`oxfmt`・`markdownlint-cli2 --fix`）にはディレクトリを渡さず、対象のファイルを並べて渡す。
+整形ツールは渡された範囲を自分の判断で整形するので、目的外の種類のファイルが警告なしに書き換えられる。
+oxfmt は `.md` の表の桁をそろえ、markdownlint-cli2 は `.mjs`・`.png`・`.yml` まで書き換えて、構文エラーや fixture の破損を起こした。
 生成物は、生成スクリプト自身が出力ファイルを並べて整形する。手順書で人に oxfmt を当てさせない。
 
 `markdownlint-cli2` の行長のルール（MD013）は strict にせずに使う（`line_length: 200`。`code_blocks`・`tables`・`headings` は除く）。

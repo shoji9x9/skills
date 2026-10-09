@@ -50,6 +50,8 @@ update が上げない理由（lockfile にある transitive の解決を残す�
    `pnpm-workspace.yaml` と、レジストリ・認証に要る `.npmrc` は、リポジトリにある場合だけコピーする。
    `.npmrc` に秘密の値があるときは、一時ディレクトリの権限を絞り、調べ終えたら消す
 3. リポジトリと同じ pnpm の実体を使い、元の有効な値を作った global config・環境変数・CLI の上書きも同じ条件にする。
+   コピー先へ cd する前に、コピー先で使うツールをすべて（`pnpm` だけでなく `node` も）リポジトリの中で実体のパスに解決しておく（mise なら `pnpm_bin=$(mise which pnpm)`・`node_bin=$(mise which node)`）。
+   バージョンマネージャの shim は cwd の設定で版を決めるので、コピー先で `pnpm` や `node` を名前で呼ぶと起動自体が失敗する。
    コピー先のそれぞれで `pnpm config get minimumReleaseAge` をもう一度実行し、元と同じ有効な値であることを確かめる。
    pnpm 11 では、`minimumReleaseAge` などのプロジェクトの設定は `pnpm-workspace.yaml` から、レジストリと認証の設定は `.npmrc` から読まれる
 4. コピー先で `pnpm update <pkg> --depth Infinity --lockfile-only` を実行し、lockfile の対象の version を確かめる
@@ -65,6 +67,8 @@ update が上げない理由（lockfile にある transitive の解決を残す�
 同じ range で入れ直すと、その下の依存だけが解決し直される。上がるのはその下の依存に限られ、作り直しのように全体が上がることはない。
 
 先に、親の依存の宣言が range か、版を固定した exact pin かを確かめる。exact pin（`1.2.3` に固定）なら、この手順でも上がらず、上流を待つことになる。
+
+この手順を一時ディレクトリのコピーで試すときも、手順 1 の `node` を含めて使うツールをすべて、cd する前に実体のパスへ解決しておく（「リリース年齢の制限で何も変わらない場合を切り分ける」の手順 3 と同じ）。
 
 1. 親がどの種類の依存として宣言されているか（`dependencies` / `devDependencies` / `optionalDependencies`）を記録する。
    `remove` すると宣言そのものが消えるので、先に確かめておく。
