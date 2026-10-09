@@ -607,8 +607,19 @@ function proveMutation(mutation, testFile) {
     writeFileSync(mutation.target, mutated);
     run = runTests(testFile);
   } finally {
-    writeFileSync(mutation.target, original);
     pending = null;
+    // **自分が書いた変異のままのときだけ戻す**（`recoverFromInterrupted` と同じ照合）。
+    // 実行中に同じファイルを編集されていたら、無条件に書き戻すとその編集を警告なしに消す（実測）。
+    // 復元情報は残し、次回起動も同じ食い違いで止まるようにする。
+    const current = existsSync(mutation.target) ? readFileSync(mutation.target, "utf8") : null;
+    if (current !== mutated) {
+      console.error(
+        `mutation-proof: 実行中に ${mutation.target} が変異の外から書き換えられた。` +
+          `上書きせずに止める。内容を確かめ、変異（復元情報: ${recoveryPath} の after）が残っていれば手で戻す`,
+      );
+      process.exit(2);
+    }
+    writeFileSync(mutation.target, original);
     // 復元を実測する（ここが崩れると、以降の変異も本来の版で測れていない）。
     // **検証を通ってから復元情報を消す**——先に消すと、記録が要るまさにその場合
     //（書き戻したのに内容が一致しない）に次回起動が回収できない。

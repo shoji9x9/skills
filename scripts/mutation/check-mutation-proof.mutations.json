@@ -328,6 +328,17 @@
       "expect_failing": [
         "文書の中身で結果が変わるテストの扱い そのテストが変異で落ちる場合も、宣言外として数えず PASS"
       ]
+    },
+    {
+      "id": "RESTORE-FOREIGN-EDIT",
+      "why": "実行中に変異の外から書き換えられた対象を、照合せずに変異前の内容で上書きする",
+      "file": "scripts/mutation/check-mutation-proof.js",
+      "find": "    if (current !== mutated) {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（実行する前に落とす） 実行中に対象が変異の外から書き換えられたら上書きせず exit 2"
+      ]
     }
   ]
 }

@@ -90,6 +90,10 @@ const testFile = resolve(args[1]);
 const out = args.find((a) => a.startsWith("--outputFile=")).slice("--outputFile=".length);
 const def = JSON.parse(readFileSync(testFile, "utf8"));
 const content = readFileSync(join(dirname(testFile), def.target), "utf8");
+// 実行中に対象を外から編集する状態を作る（\`editDuringRun\` を持つ fixture だけ）。
+if (def.editDuringRun && content !== def.editDuringRun.unless) {
+  writeFileSync(join(dirname(testFile), def.target), content + def.editDuringRun.append);
+}
 const assertionResults = def.tests.map((t) => {
   const ok = content.includes(t.contains);
   return {
@@ -523,6 +527,31 @@ describe("宣言と前提の検証（実行する前に落とす）", () => {
     // **編集を消していないこと**（この検査の主目的）。
     expect(readFileSync(fx.target, "utf8")).toBe(edited);
     expect(existsSync(`${lock}.recovery.json`), "記録を消してしまった").toBe(true);
+  });
+
+  // 実行中に同じファイルを編集されたら、変異前の内容で上書きしてその編集を消さない。
+  test("実行中に対象が変異の外から書き換えられたら上書きせず exit 2", () => {
+    const fx = makeFixture();
+    // 基準 run（変異前の内容）では編集せず、変異を当てた run でだけ追記する。
+    writeFileSync(
+      join(fx.dir, "fixture.stub.json"),
+      JSON.stringify({
+        target: "target.sh",
+        tests: STUB_TESTS,
+        editDuringRun: { unless: FIXTURE_TARGET, append: "# 実行中に足した行\n" },
+      }),
+    );
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    const lock = join(lockDir, "edited-during-run.lock");
+    const res = runRunner(spec, { MUTATION_PROOF_LOCK: lock });
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toContain("変異の外から書き換えられた");
+    // **編集を消していないこと**（この検査の主目的）。
+    expect(readFileSync(fx.target, "utf8")).toBe(
+      `${FIXTURE_TARGET.replace(GUARD, "")}# 実行中に足した行\n`,
+    );
+    expect(existsSync(`${lock}.recovery.json`), "記録を消してしまった").toBe(true);
+    rmSync(`${lock}.recovery.json`, { force: true });
   });
 
   // 復元情報は他ユーザーが置けるパスに在りうる（`/tmp` を避けたが env で上書きもできる）。
