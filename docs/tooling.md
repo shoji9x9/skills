@@ -30,7 +30,7 @@ mise の shim は、cwd の設定の階層からツールの版を決める。
 | 対象 | リント | 整形 | 補助のチェック |
 | --- | --- | --- | --- |
 | Markdown（`*.md`） | `markdownlint-cli2` | `markdownlint-cli2` | `scripts/gates/lint-pagination.js` が shell のコードブロックの `gh api` のページネーションを、`scripts/gates/lint-prose.js` が人が読む文章を textlint でチェックする |
-| JavaScript・TypeScript（`*.js`、`*.mjs`、`*.ts` など） | `oxlint` | `oxfmt` | `scripts/gates/lint-prose.js` がコメントの文章を textlint で、文字列（テスト名・メッセージ）を使わない語の規則でチェックする |
+| JavaScript・TypeScript（`*.js`、`*.mjs`、`*.ts` など） | `oxlint` | `oxfmt` | `tsc`（`pnpm run typecheck`）が `.ts`・`.tsx` の型を検査する（下の「型の検査」）。`scripts/gates/lint-prose.js` がコメントの文章を textlint で、文字列（テスト名・メッセージ）を使わない語の規則でチェックする |
 | JSON（`*.json`） | `jsonlint` | `oxfmt` | 重複したキーもチェックする。`scripts/gates/lint-prose.js` が `evals/<name>/evals.json` の文字列を使わない語の規則でチェックする |
 | YAML（`*.yml`、`*.yaml`） | `js-yaml`（`scripts/gates/lint-yaml.js` が API で 1 つのプロセスにまとめて読む） | `oxfmt` | `scripts/gates/lint-prose.js` がコメントの文章を textlint でチェックする |
 | シェル（`*.sh`） | `shellcheck` | `shfmt` | `scripts/gates/lint-pagination.js` が `gh api` のページネーションを、`scripts/gates/lint-prose.js` がコメントの文章をチェックする |
@@ -156,7 +156,7 @@ lefthook の pre-commit は、TypeScript か JavaScript（`ts`・`tsx`・`mts`�
 | 設定 | 対象 | 解決の規則 |
 | --- | --- | --- |
 | `tsconfig.repo.json` | Node が直接実行する `.ts`（設定ファイル・`scripts/`） | `nodenext` |
-| `tsconfig.templates.json` | 配布スキルの `.ts`・`.mts`・`.cts`（`skills/*/**` と、インストール済みのコピーの `.agents/skills/*/**`）。今あるのは `assets/` の雛形だけで、`assets/` の外に足した `.ts` も対象になる | `bundler` |
+| `tsconfig.templates.json` | 配布スキルの `.ts`・`.mts`・`.cts`（`skills/*/**` と、インストール済みのコピーの `.agents/skills/*/**`）。今あるのは `assets/` の雛形だけで、`assets/` の外に足した `.ts` も対象になる。Node が直接実行する `.ts` を配布スキルに足すなら、`nodenext` のプロジェクトへ分ける | `bundler` |
 | `tsconfig.templates-links.json` | Claude Code 用のリンクから見た同じファイル（`.claude/skills/*/**`） | `bundler`（`tsconfig.templates.json` を継承する） |
 | `tsconfig.fixtures.json` | eval の fixture（`evals/*/fixtures/**/*.{ts,tsx}`） | `bundler`、`jsx: react-jsx` |
 

@@ -18,7 +18,7 @@ Claude Code・Codex・GitHub Copilot に対応した、マルチエージェン�
 | 対象 | リント | 整形 |
 | --- | --- | --- |
 | Markdown | `markdownlint-cli2`、文章は textlint（`scripts/gates/lint-prose.js`） | `markdownlint-cli2` |
-| JavaScript・TypeScript | `oxlint` | `oxfmt` |
+| JavaScript・TypeScript | `oxlint`、型は `tsc`（`pnpm run typecheck`） | `oxfmt` |
 | JSON | `jsonlint` | `oxfmt` |
 | YAML | `js-yaml`（`scripts/gates/lint-yaml.js`） | `oxfmt` |
 | シェル | `shellcheck` | `shfmt` |
