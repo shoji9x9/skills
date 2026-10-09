@@ -106,6 +106,13 @@ pre-commit:
             glob: "*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}"
             exclude: *agent-copies
             run: pnpm exec oxlint {staged_files}
+          - name: typecheck
+            # tsconfig.json が束ねる .ts・.tsx 全体（設定ファイル・scripts・eval の fixture・配布スキルの雛形とインストール済みのコピー）の型。
+            # 1 つのファイルの変更が import する側の型を変えるので、渡されたファイルではなく全体を検査する。
+            # .js・.mjs も含める。型は検査しない（checkJs なし）が、.ts が import する型（oxlint.config.ts など）を変える。
+            # インストール済みのコピーも検査の対象なので、他のジョブと違って *agent-copies を除かない。
+            glob: "{*.{ts,tsx,mts,cts,js,mjs},tsconfig*.json,package.json,pnpm-lock.yaml}"
+            run: pnpm run typecheck
           - name: jsonlint
             glob: "*.json"
             exclude: *agent-copies

@@ -30,7 +30,7 @@ mise の shim は、cwd の設定の階層からツールの版を決める。
 | 対象 | リント | 整形 | 補助のチェック |
 | --- | --- | --- | --- |
 | Markdown（`*.md`） | `markdownlint-cli2` | `markdownlint-cli2` | `scripts/gates/lint-pagination.js` が shell のコードブロックの `gh api` のページネーションを、`scripts/gates/lint-prose.js` が人が読む文章を textlint でチェックする |
-| JavaScript・TypeScript（`*.js`、`*.mjs`、`*.ts` など） | `oxlint` | `oxfmt` | `scripts/gates/lint-prose.js` がコメントの文章を textlint で、文字列（テスト名・メッセージ）を使わない語の規則でチェックする |
+| JavaScript・TypeScript（`*.js`、`*.mjs`、`*.ts` など） | `oxlint` | `oxfmt` | `tsc`（`pnpm run typecheck`）が `.ts`・`.tsx` の型を検査する（下の「型の検査」）。`scripts/gates/lint-prose.js` がコメントの文章を textlint で、文字列（テスト名・メッセージ）を使わない語の規則でチェックする |
 | JSON（`*.json`） | `jsonlint` | `oxfmt` | 重複したキーもチェックする。`scripts/gates/lint-prose.js` が `evals/<name>/evals.json` の文字列を使わない語の規則でチェックする |
 | YAML（`*.yml`、`*.yaml`） | `js-yaml`（`scripts/gates/lint-yaml.js` が API で 1 つのプロセスにまとめて読む） | `oxfmt` | `scripts/gates/lint-prose.js` がコメントの文章を textlint でチェックする |
 | シェル（`*.sh`） | `shellcheck` | `shfmt` | `scripts/gates/lint-pagination.js` が `gh api` のページネーションを、`scripts/gates/lint-prose.js` がコメントの文章をチェックする |
@@ -143,7 +143,43 @@ mise・pnpm・GitHub・各エージェントの設定は、形式をツールが
 
 `scripts/gates/check-js-extensions.js` が、この規約を lefthook の pre-commit と CI（`Lint` ジョブ）でチェックする。`skills/**` の `.js` と、`scripts/**` の `.mjs` を失敗にする。
 
+### 型の検査
+
+`pnpm run typecheck`（`tsc -b --force`）が `.ts`・`.tsx` の型を検査する。CI は `Lint` ジョブで実行する。
+lefthook の pre-commit は、TypeScript か JavaScript（`ts`・`tsx`・`mts`・`cts`・`js`・`mjs`）か、tsconfig か依存が staged のときに実行する。
+対象の拡張子は `lefthook.yml` の glob で決める。
+`--force` を付けるのは、`tsc -b` が up to date かを include の対象と tsbuildinfo の時刻だけで判定し、依存の型（`node_modules`）が変わってもプロジェクトを飛ばすからである。
+1 つのファイルの変更が import する側の型を変えるので、staged のファイルだけでなく全体を検査する。
+
+`tsconfig.json` は参照を束ねるだけで、対象と設定は次の 4 つで決める。共通の設定は `tsconfig.base.json` に置く。
+
+| 設定 | 対象 | 解決の規則 |
+| --- | --- | --- |
+| `tsconfig.repo.json` | Node が直接実行する `.ts`（設定ファイル・`scripts/`） | `nodenext` |
+| `tsconfig.templates.json` | 配布スキルの `.ts`・`.mts`・`.cts`（`skills/*/**` と、インストール済みのコピーの `.agents/skills/*/**`）。今あるのは `assets/` の雛形だけで、`assets/` の外に足した `.ts` も対象になる。Node が直接実行する `.ts` を配布スキルに足すなら、`nodenext` のプロジェクトへ分ける | `bundler` |
+| `tsconfig.templates-links.json` | Claude Code 用のリンクから見た同じファイル（`.claude/skills/*/**`） | `bundler`（`tsconfig.templates.json` を継承する） |
+| `tsconfig.fixtures.json` | eval の fixture（`evals/*/fixtures/**/*.{ts,tsx}`） | `bundler`、`jsx: react-jsx` |
+
+インストール済みのコピーとリンクも対象にするのは、対象の外のファイルをエディタで開くと推論プロジェクトとして扱われ、Node の型のエラーが出るからである。
+エディタは、開いたパスのままでプロジェクトを探す。
+リンクを別のプロジェクトにするのは、tsc が同じプロジェクトの中で実体を読み込み済みのシンボリックリンクを辿らず、`tsconfig.templates.json` の `include` に足しても対象にならないからである。
+
+雛形は、利用者のプロジェクトへコピーした後に Playwright が読み込む。Playwright は拡張子なしの相対 import も解決するので、`bundler` で検査する。
+雛形が import する、コピー先にだけ在るモジュール（`../../lib/interactions` など）は、`types/parity-templates.ts` で `*` を含む名前の ambient 宣言にする。
+`*` を含む名前は相対の import にも一致するので、雛形に `// @ts-nocheck` などを足さずに済む。利用者のコピーには何も入らない。
+雛形に新しい import を足したら、`types/parity-templates.ts` にも足す。`@playwright/test` の型は devDependencies から読む。
+`types/` の宣言は `.d.ts` にしない。`skipLibCheck` は `node_modules` の型だけでなく、すべての `.d.ts` を検査から外すので、宣言の誤りが警告なしに通る。
+
+eval の fixture は、エージェントに渡す下流のプロジェクトの断片で、依存のパッケージ（架空のものを含む）や同じ階層のファイルを置いていない。
+それらは `types/eval-fixtures.ts` で、fixture が使う範囲の型を書いて宣言する。fixture に import を足したら、この宣言にも足す。
+雛形の宣言と同じファイルにしないのは、ambient 宣言がプロジェクトの全体に適用され、互いの検査で一致してしまうからである。
+fixture の検査も strict のままにする。型が足りない fixture は、fixture に型を書いて直す。fixture は eval の入力なので、直したら `docs/skill-development.md` に従ってその eval を実行し直す。
+
+`composite` のプロジェクトは、import した `.js` も `include` に挙げる必要がある。
+そのため `tsconfig.repo.json` は `scripts/**/*.js` と `skills/*/scripts/**/*.mjs` を含める。`checkJs` は付けないので、JavaScript の型は検査しない。
+
 ### チェックの対象から外すもの
 
 `tests/**` は、リントと整形の対象に含める。`.agents/skills/**` と `.claude/**` は、インストール済みのコピーとエージェント用のシンボリックリンクなので、対象から外す。
+型の検査は、エディタで開く雛形のコピーとリンクを対象にする（上の「型の検査」）。
 ただし、`.agents/rules/`（rule の実体）と private skill（`.private-skill` を持つ `.agents/skills/<name>/`）は対象にする。rule へのリンクを置く `.github/instructions/` は対象から外す。

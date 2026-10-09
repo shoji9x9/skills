@@ -327,7 +327,7 @@ async function readBrowserOs(browser: Browser): Promise<Record<string, string>> 
       route.fulfill({ status: 200, contentType: "text/html", body: "<!doctype html><title>os</title>" }),
     );
     await probe.goto(BROWSER_OS_PROBE_URL); // 安全なコンテキスト
-    return await probe.evaluate(async () => {
+    return await probe.evaluate(async (): Promise<Record<string, string>> => {
       const data = (navigator as Navigator & {
         userAgentData?: { getHighEntropyValues(hints: string[]): Promise<Record<string, string>> };
       }).userAgentData;

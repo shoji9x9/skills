@@ -253,7 +253,7 @@ async function readBrowserOs(
       }),
     );
     await probe.goto(BROWSER_OS_PROBE_URL);
-    browserOs = await probe.evaluate(async () => {
+    browserOs = await probe.evaluate(async (): Promise<Record<string, string>> => {
       const data = (
         navigator as Navigator & {
           userAgentData?: {
@@ -269,10 +269,10 @@ async function readBrowserOs(
         architecture: v.architecture,
       };
     });
+    return browserOs;
   } finally {
     await context.close();
   }
-  return browserOs;
 }
 // 現新の OS をキーの集合ごと完全一致で照合する（片側だけ navigator.platform に代替した形・キーの過不足は食い違いとして扱う）
 function sameBrowserOs(a: unknown, b: Record<string, string>): boolean {

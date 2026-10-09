@@ -18,7 +18,7 @@ Claude Code・Codex・GitHub Copilot に対応した、マルチエージェン�
 | 対象 | リント | 整形 |
 | --- | --- | --- |
 | Markdown | `markdownlint-cli2`、文章は textlint（`scripts/gates/lint-prose.js`） | `markdownlint-cli2` |
-| JavaScript・TypeScript | `oxlint` | `oxfmt` |
+| JavaScript・TypeScript | `oxlint`、型は `tsc`（`pnpm run typecheck`） | `oxfmt` |
 | JSON | `jsonlint` | `oxfmt` |
 | YAML | `js-yaml`（`scripts/gates/lint-yaml.js`） | `oxfmt` |
 | シェル | `shellcheck` | `shfmt` |
@@ -43,6 +43,7 @@ evals/<name>/           回帰テスト（配布しないので skills/<name>/ �
 tests/<name>/           テスト結果（git にはサマリーだけを入れる）
   iteration-N/
     benchmark.json      結果のサマリー
+types/                  型の検査だけで使う宣言（配布スキルの雛形と eval の fixture が import する、このリポジトリに無いモジュール）
 .agents/skills/<name>/  インストール済みのスキル（Codex が直接読む）
 .claude/skills/<name>   → ../../.agents/skills/<name>（Claude Code 用のシンボリックリンク）
 scripts/                リポジトリ内のツールとテスト（配布しない）。直下にファイルを置かない
