@@ -8,7 +8,7 @@
       "id": "ML-IGNORES",
       "why": "markdownlint-cli2 の ignores で .md 以外を外さない",
       "file": ".markdownlint-cli2.yaml",
-      "find": "  - \"**/*.!(md)\"",
+      "find": "  - \"**/!(*.md)\"",
       "replace": "  - \"**/*.nomatch\"",
       "occurrences": 1,
       "expect_failing": [
@@ -27,7 +27,7 @@
       "expect_failing": [
         "oxfmt にディレクトリを渡しても、書き換えるのは割り当てた種類（JS・TS・JSON・YAML）だけ",
         "oxfmt にカレントディレクトリを渡しても、書き換えるのは割り当てた種類（JS・TS・JSON・YAML）だけ",
-        "oxfmt に Markdown を直接渡しても書き換えない"
+        "oxfmt に Markdown を直接渡しても書き換えない（並べた JS だけを書き換える）"
       ]
     },
     {
@@ -40,6 +40,19 @@
       "expect_failing": [
         "oxfmt にディレクトリを渡しても、書き換えるのは割り当てた種類（JS・TS・JSON・YAML）だけ",
         "oxfmt にカレントディレクトリを渡しても、書き換えるのは割り当てた種類（JS・TS・JSON・YAML）だけ"
+      ]
+    },
+    {
+      "id": "ML-IGNORES-MULTIDOT",
+      "why": "名前にドットを 2 つ以上含む Markdown を、markdownlint-cli2 の対象から外す",
+      "file": ".markdownlint-cli2.yaml",
+      "find": "  - \"**/!(*.md)\"",
+      "replace": "  - \"**/*.!(md)\"",
+      "occurrences": 1,
+      "expect_failing": [
+        "markdownlint-cli2 --fix にディレクトリを渡しても、書き換えるのは .md だけ",
+        "markdownlint-cli2 --fix にglobを渡しても、書き換えるのは .md だけ",
+        "markdownlint-cli2 --fix にMarkdown 以外のファイルの列挙を渡しても、書き換えるのは .md だけ"
       ]
     }
   ]

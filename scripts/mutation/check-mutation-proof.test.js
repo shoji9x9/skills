@@ -633,7 +633,7 @@ describe("宣言と前提の検証（実行する前に落とす）", () => {
     const lock = join(lockDir, "restored-during-run.lock");
     const res = runRunner(spec, { MUTATION_PROOF_LOCK: lock });
     expect(res.status, res.out).toBe(2);
-    expect(res.out).toContain("変異の外から書き換えられた");
+    expect(res.out).toContain("元の内容へ戻された");
     expect(res.out).not.toContain("PASS G");
     expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
     rmSync(`${lock}.recovery.json`, { force: true });
@@ -665,19 +665,24 @@ describe("宣言と前提の検証（実行する前に落とす）", () => {
   });
 
   // 変異を書く前に失敗したら照合しない（照合すると、元の失敗を「外からの編集」として報告する）。
-  test("変異を書く前に失敗したら、外からの編集として報告しない", () => {
-    const fx = makeFixture();
-    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
-    chmodSync(fx.target, 0o444);
-    const lock = join(lockDir, "write-fails.lock");
-    const res = runRunner(spec, { MUTATION_PROOF_LOCK: lock });
-    chmodSync(fx.target, 0o644);
-    expect(res.status, res.out).not.toBe(0);
-    expect(res.out).toContain("EACCES");
-    expect(res.out).not.toContain("変異の外から書き換えられた");
-    expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
-    rmSync(`${lock}.recovery.json`, { force: true });
-  });
+  // root は読み取り専用のファイルにも書けるので、書き込みの失敗を作れない。
+  test.skipIf(process.getuid?.() === 0)(
+    "変異を書く前に失敗したら、外からの編集として報告しない",
+    () => {
+      const fx = makeFixture();
+      const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+      chmodSync(fx.target, 0o444);
+      const lock = join(lockDir, "write-fails.lock");
+      const res = runRunner(spec, { MUTATION_PROOF_LOCK: lock });
+      chmodSync(fx.target, 0o644);
+      expect(res.status, res.out).not.toBe(0);
+      expect(res.out).toContain("EACCES");
+      expect(res.out).not.toContain("変異の外から書き換えられた");
+      expect(res.out).not.toContain("mutation-proof: 実行中に");
+      expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
+      rmSync(`${lock}.recovery.json`, { force: true });
+    },
+  );
 
   // 復元情報は他ユーザーが置けるパスに在りうる（`/tmp` を避けたが env で上書きもできる）。
   // 書き戻し先がリポジトリ外なら植え付けを疑って落とす。

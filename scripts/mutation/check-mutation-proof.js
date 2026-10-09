@@ -201,6 +201,44 @@ function clearRecovery() {
   }
 }
 
+/**
+ * 変異を当てた（または当てようとした）対象を、今の内容で分類して後始末する。
+ * 実行の後（proveMutation の finally）・exit ハンドラ（restorePending）・次回起動（recoverFromInterrupted）の 3 か所で使う。
+ * 分類ごとの扱いをここ 1 か所で決め、呼び出し側は結果をどう報告するか（止めるか・続けるか）だけを決める。
+ *
+ * | 分類       | 今の内容                     | 扱い                                         |
+ * | ---------- | ---------------------------- | -------------------------------------------- |
+ * | mutated    | 自分が書いた変異のまま       | 元の内容を書き戻し、確かめてから復元情報を消す |
+ * | original   | 元の内容（書く前の失敗・外で戻された） | 書き込まず、復元情報を消す            |
+ * | removed    | 消されている                 | 元の内容で作り直し、復元情報を消す           |
+ * | foreign    | どちらでもない（外からの編集） | 書き込まず、復元情報を残す（次回起動も止まる） |
+ * | unrestored | 書き戻したのに一致しない     | 復元情報を残す                               |
+ */
+function settleTarget(path, before, after) {
+  const current = existsSync(path) ? readFileSync(path, "utf8") : null;
+  if (current === after) {
+    // **変異後の内容と一致したときだけ戻す。** 「変異が残っている」と「人が直してさらに編集した」を
+    // 区別せず上書きすると、無関係な編集を消して「変異を戻した」と事実でないログを出す（実測）。
+    writeFileSync(path, before);
+    // **検証を通ってから復元情報を消す**——先に消すと、記録が要るまさにその場合
+    //（書き戻したのに内容が一致しない）に次回起動が回収できない。
+    if (readFileSync(path, "utf8") !== before) return "unrestored";
+    clearRecovery();
+    return "mutated";
+  }
+  if (current === before) {
+    clearRecovery();
+    return "original";
+  }
+  if (current === null) {
+    // 追跡しているファイルを消えたまま残さない。
+    writeFileSync(path, before);
+    clearRecovery();
+    return "removed";
+  }
+  return "foreign";
+}
+
 /** 前回の中断で変異が残っていれば戻す（ロックを取った後・宣言を読む前に呼ぶ）。 */
 function recoverFromInterrupted() {
   if (!existsSync(recoveryPath)) return;
@@ -225,21 +263,21 @@ function recoverFromInterrupted() {
   if (!target.startsWith(repoRoot + "/")) {
     die(`復元情報の書き戻し先がリポジトリ外（${target}）。植え付けを疑い、記録を消して調べる`);
   }
-  const current = existsSync(target) ? readFileSync(target, "utf8") : null;
-  if (current === saved.before) {
+  const state = settleTarget(target, saved.before, saved.after);
+  if (state === "original") {
     console.error(`mutation-proof: 前回の中断で残った変異は無かった（${target}）`);
-  } else if (current === saved.after) {
-    // **変異後の内容と一致したときだけ戻す。** 「変異が残っている」と「人が直してさらに編集した」を
-    // 区別せず上書きすると、無関係な編集を消して「変異を戻した」と事実でないログを出す（実測）。
-    writeFileSync(target, saved.before);
+  } else if (state === "mutated") {
     console.error(`mutation-proof: 前回の中断で残っていた変異を戻した（${target}）`);
+  } else if (state === "removed") {
+    console.error(`mutation-proof: 前回の中断で消えていた ${target} を元の内容で作り直した`);
+  } else if (state === "unrestored") {
+    die(`前回の中断で残った変異を戻せなかった（${target}）。手で戻してから ${recoveryPath} を消す`);
   } else {
     die(
       `復元情報と作業ツリーが食い違う（${target}）。中断後に編集された可能性があるので自動で戻さない。` +
         `内容を確かめてから ${recoveryPath} を消す`,
     );
   }
-  clearRecovery();
 }
 
 // 変異を当てている最中のファイル。中断（Ctrl-C・SIGTERM）でも必ず戻す
@@ -259,24 +297,25 @@ function cleanupTempDirs() {
 
 /**
  * 終了の途中（`die()` など finally を通らない終わり方）で、当てた変異を戻す。
- * **自分が書いた変異のままのときだけ戻す**（finally の照合と同じ）。外から編集されていたら上書きせず、
- * 復元情報を残して次回起動の `recoverFromInterrupted` に任せる。
+ * 扱いは settleTarget で決める。ここでは結果を出さずに終わるので、元の内容に戻っていれば何も言わない。
  */
 function restorePending() {
   if (!pending) return;
   const { path, content, mutated } = pending;
   pending = null;
   try {
-    const current = existsSync(path) ? readFileSync(path, "utf8") : null;
-    if (current === content) return;
-    // 消されていたら元の内容で作り直す（追跡しているファイルを消えたまま残さない）。
-    if (current !== mutated && current !== null) {
+    const state = settleTarget(path, content, mutated);
+    if (state === "foreign") {
       console.error(
         `mutation-proof: 実行中に ${path} が変異の外から書き換えられた。上書きせずに終える（復元情報: ${recoveryPath}）`,
       );
-      return;
+    } else if (state === "removed") {
+      console.error(`mutation-proof: 実行中に ${path} が消されていたので、元の内容で作り直した`);
+    } else if (state === "unrestored") {
+      console.error(
+        `mutation-proof: ${path} を復元できなかった（手で戻す。復元情報: ${recoveryPath}）`,
+      );
     }
-    writeFileSync(path, content);
   } catch (err) {
     console.error(`mutation-proof: ${path} を復元できなかった（手で戻す）: ${err.message}`);
   }
@@ -628,59 +667,36 @@ function proveMutation(mutation, testFile) {
     thrown = err;
     throw err;
   } finally {
-    // `pending` は照合を終えるまで外さない。ここで例外や exit になっても、exit ハンドラの
-    // `restorePending` が同じ照合をして戻す（先に外すと、読み取りの失敗で変異が残る）。
-    // **自分が書いた変異のままのときだけ戻す**（`recoverFromInterrupted` と同じ照合）。
-    // 実行中に同じファイルを編集されていたら、無条件に書き戻すとその編集を警告なしに消す（実測）。
-    // 復元情報は残し、次回起動も同じ食い違いで止まるようにする。
-    // 変異を書き終える前に失敗したときは照合しない（照合すると、元の例外を「外からの編集」の exit 2 で隠す）。
-    // 元の内容に戻っていた場合（`git checkout -- <file>` など）も止める。テストは変異を最後まで測れていないので、
-    // その結果を PASS / FAIL として出すと誤った実証になる。exit ハンドラの restorePending が元の内容なら何もしないのは、
-    // そこでは結果を出さずに終わるからで、目的が違う。残った復元情報は、次回起動の recoverFromInterrupted が
-    // `current === saved.before` の分岐で消して続行する（PR #585 のレビューで 3 回議論し、止める側に決めた）。
-    let current;
+    // 扱いは settleTarget で決める（exit ハンドラ・次回起動と同じ）。`pending` は後始末を終えるまで外さない。
+    // ここで例外や exit になっても、exit ハンドラの restorePending が同じ後始末をする。
+    //
+    // 変異を書いた後で、対象が自分の書いた変異のままでなかったら、結果を出さずに止める。
+    // 元の内容に戻されていた・消されていた場合も、テストは変異を最後まで測れていないので、その結果を
+    // PASS / FAIL として出すと誤った実証になる（PR #585 のレビューで 3 回議論し、止める側に決めた）。
+    // 変異を書く前に失敗したとき（対象は元の内容のまま）は、何も書かずに元の例外を返す。
+    let state;
     try {
-      current = existsSync(mutation.target) ? readFileSync(mutation.target, "utf8") : null;
+      state = settleTarget(mutation.target, original, mutated);
     } catch (err) {
-      // 照合の読み取りの失敗で、テストの実行中の元の例外を置き換えない（両方を出して止める）。
-      // pending は残すので、exit ハンドラの restorePending がもう一度照合して戻す。
-      console.error(`mutation-proof: ${mutation.target} を照合のために読めない: ${err.message}`);
+      // 後始末の失敗で、テストの実行中の元の例外を置き換えない（両方を出して止める）。
+      console.error(`mutation-proof: ${mutation.target} を後始末できない: ${err.message}`);
       if (thrown) console.error(`mutation-proof: テストの実行中の例外: ${thrown.stack ?? thrown}`);
       process.exit(2);
     }
-    if (wroteMutation && current === null) {
-      // 実行中に消された。元の内容で作り直してから止める（測定は無効なので結果を出さない）。
-      writeFileSync(mutation.target, original);
-      pending = null;
-      clearRecovery();
-      console.error(
-        `mutation-proof: 実行中に ${mutation.target} が消された。元の内容で作り直して止める`,
-      );
-      if (thrown) console.error(`mutation-proof: テストの実行中の例外: ${thrown.stack ?? thrown}`);
-      process.exit(2);
-    }
-    if (wroteMutation && current !== mutated) {
-      console.error(
-        `mutation-proof: 実行中に ${mutation.target} が変異の外から書き換えられた。` +
-          `上書きせずに止める。内容を確かめ、変異（復元情報: ${recoveryPath} の after）が残っていれば手で戻す`,
-      );
-      if (thrown) console.error(`mutation-proof: テストの実行中の例外: ${thrown.stack ?? thrown}`);
-      pending = null;
-      process.exit(2);
-    }
-    writeFileSync(mutation.target, original);
     pending = null;
-    // 復元を実測する（ここが崩れると、以降の変異も本来の版で測れていない）。
-    // **検証を通ってから復元情報を消す**——先に消すと、記録が要るまさにその場合
-    //（書き戻したのに内容が一致しない）に次回起動が回収できない。
-    const restored = readFileSync(mutation.target, "utf8");
-    if (restored !== original) {
-      console.error(
-        `mutation-proof: ${mutation.target} を復元できなかった。手で戻す（復元情報: ${recoveryPath}）`,
-      );
+    const STOP = {
+      original: "が元の内容へ戻された。測定が無効なので結果を出さずに止める",
+      removed: "が消された。元の内容で作り直し、測定が無効なので結果を出さずに止める",
+      foreign: `が変異の外から書き換えられた。上書きせずに止める。内容を確かめ、変異（復元情報: ${recoveryPath} の after）が残っていれば手で戻す`,
+      unrestored: `を復元できなかった。手で戻す（復元情報: ${recoveryPath}）`,
+    };
+    const stop =
+      state !== "mutated" && (wroteMutation || state === "foreign" || state === "unrestored");
+    if (stop) {
+      console.error(`mutation-proof: 実行中に ${mutation.target} ${STOP[state]}`);
+      if (thrown) console.error(`mutation-proof: テストの実行中の例外: ${thrown.stack ?? thrown}`);
       process.exit(2);
     }
-    clearRecovery();
   }
   if (!run.ran) return { ok: false, reason: run.reason };
   const expected = new Set(mutation.expect);

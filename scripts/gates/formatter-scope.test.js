@@ -39,6 +39,8 @@ function binOf(pkg, name) {
 // どの種類も、そのツールが整形すれば必ず変わる内容にする。
 const FILES = {
   "a.md": "#title\n\ntext   \n",
+  // 名前にドットを 2 つ以上含む Markdown も、markdownlint-cli2 の対象から外さない（`**/*.!(md)` だと外れた）。
+  "x.ja.md": "#title\n\ntext   \n",
   "b.mjs": "export const x = 1  *  2\n",
   "c.yml": "a:   1\n",
   "e.json": '{"a":1,\n"b":   2}\n',
@@ -66,9 +68,17 @@ function changed(root) {
     .sort();
 }
 
+// どのテストにも、ツールが動けば必ず書き換わるファイルを入れて、変わったファイルの集合で判定する。
+// 起動に失敗して何も変えずに終わった実行を、「書き換えなかった」として合格にしないため。
+// spawnSync は同期の呼び出しで vitest のタイムアウトが発火しないので、呼び出しごとにタイムアウトを付ける。
 function run(root, bin, args) {
-  const r = spawnSync(process.execPath, [bin, ...args], { cwd: root, encoding: "utf8" });
+  const r = spawnSync(process.execPath, [bin, ...args], {
+    cwd: root,
+    encoding: "utf8",
+    timeout: 60_000,
+  });
   if (r.error) throw r.error;
+  if (r.signal) throw new Error(`${bin} が ${r.signal} で終わった: ${r.stderr}`);
   return r;
 }
 
@@ -90,7 +100,7 @@ test.each([
 ])("markdownlint-cli2 --fix に%sを渡しても、書き換えるのは .md だけ", (_name, args) => {
   const root = markdownlintFixture();
   run(root, MARKDOWNLINT, args);
-  expect(changed(root)).toEqual(["a.md"]);
+  expect(changed(root)).toEqual(["a.md", "x.ja.md"]);
 });
 
 // ---- oxfmt ----
@@ -118,8 +128,8 @@ test.each([
   },
 );
 
-test("oxfmt に Markdown を直接渡しても書き換えない", () => {
+test("oxfmt に Markdown を直接渡しても書き換えない（並べた JS だけを書き換える）", () => {
   const root = oxfmtFixture();
-  run(root, OXFMT, ["d/a.md", "d/x.css"]);
-  expect(changed(root)).toEqual([]);
+  run(root, OXFMT, ["d/a.md", "d/x.ja.md", "d/x.css", "d/b.mjs"]);
+  expect(changed(root)).toEqual(["b.mjs"]);
 });
