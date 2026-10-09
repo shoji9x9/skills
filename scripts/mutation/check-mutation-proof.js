@@ -615,12 +615,17 @@ function proveMutation(mutation, testFile) {
   }
   let run;
   let wroteMutation = false;
+  let thrown = null;
   try {
     pending = { path: mutation.target, content: original, mutated };
     writeRecovery(mutation.target, original, mutated);
     writeFileSync(mutation.target, mutated);
     wroteMutation = true;
     run = runTests(testFile);
+  } catch (err) {
+    // finally の exit(2) が元の例外を隠さないよう、照合の前に覚えておく。
+    thrown = err;
+    throw err;
   } finally {
     // `pending` は照合を終えるまで外さない。ここで例外や exit になっても、exit ハンドラの
     // `restorePending` が同じ照合をして戻す（先に外すと、読み取りの失敗で変異が残る）。
@@ -634,6 +639,7 @@ function proveMutation(mutation, testFile) {
         `mutation-proof: 実行中に ${mutation.target} が変異の外から書き換えられた。` +
           `上書きせずに止める。内容を確かめ、変異（復元情報: ${recoveryPath} の after）が残っていれば手で戻す`,
       );
+      if (thrown) console.error(`mutation-proof: テストの実行中の例外: ${thrown.stack ?? thrown}`);
       pending = null;
       process.exit(2);
     }

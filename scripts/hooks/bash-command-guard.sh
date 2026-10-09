@@ -25,7 +25,8 @@
 #      （`oxfmt docs/*`）と変数（`oxfmt "$dir"`）、ラッパーのオプションの値の後の起動（`pnpm -C dir exec oxfmt .`）、
 #      セグメントの途中のコマンド置換（`echo $(oxfmt .)`）、値を取るオプションの値（`oxfmt --threads 4` の `4` を対象と数える）。
 #      `ssh host oxfmt .` はリモートの作業ツリーを整形するので、意図して止めない。
-#      値を取るラッパーのオプションの後（`sudo -u me oxfmt .`・`mise exec node@20 -- oxfmt .`）と、`case` の分岐の本体も見逃す。
+#      ラッパーの位置引数の後（`mise exec node@20 -- oxfmt .`）と、`case` の分岐の本体も見逃す。
+#      ラッパーのオプションの直後の語は、その値として読み飛ばす（`sudo -u me`・`timeout -s KILL 60`・`pnpm --filter foo exec`）。
 #      誤検知する形: `\ ` でエスケープした空白を含むパス（`oxfmt docs\ dir/a.js`）。split_segments が先に `\` を外すので、
 #      前半（`docs`）がディレクトリなら止める。引用した形（`oxfmt "docs dir/a.js"`）は 1 つの語として読む。
 #
@@ -377,11 +378,22 @@ formatter_dir_args() {
 		text="${text//\"/}"
 		text="${text//\'/}"
 	else
+		# コマンド置換（`$( )`・バッククォート）の中身は別のセグメントとして判定済みなので、1 つの語（\036）に置き換える。
+		# 置換の結果は引数として渡るので、対象を 1 件として数え、ディレクトリとは判定しない。
 		text="$(printf '%s' "${text}" | awk '{
-			out = ""; q = ""
-			for (i = 1; i <= length($0); i++) {
+			out = ""; q = ""; n = length($0)
+			for (i = 1; i <= n; i++) {
 				c = substr($0, i, 1)
-				if (q == "" && c == "\\") { i++; c = substr($0, i, 1); if (c == " ") c = "\037"; out = out c; continue }
+				if (q != "\047" && c == "\\") { i++; c = substr($0, i, 1); if (c == " ") c = "\037"; out = out c; continue }
+				if (q != "\047" && c == "$" && substr($0, i + 1, 1) == "(") {
+					d = 0
+					for (; i <= n; i++) { ch = substr($0, i, 1); if (ch == "(") d++; else if (ch == ")" && --d == 0) break }
+					out = out "\036"; continue
+				}
+				if (q != "\047" && c == "`") {
+					for (i++; i <= n && substr($0, i, 1) != "`"; i++) ;
+					out = out "\036"; continue
+				}
 				if (q == "" && (c == "\"" || c == "\047")) { q = c; continue }
 				if (q != "" && c == q) { q = ""; continue }
 				if (q != "" && c == " ") c = "\037"
@@ -407,7 +419,7 @@ formatter_dir_args() {
 }
 
 formatter_dir_args_one() {
-	local text="$1" words w name="" i n write=0 info=0 skip=0 positional=0 found="" via_xargs=0 prev=""
+	local text="$1" words w name="" i n write=0 info=0 skip=0 positional=0 found="" via_xargs=0 prev="" opt=0
 	read -r -a words <<<"${text}"
 	n=${#words[@]}
 	for ((i = 0; i < n; i++)); do
@@ -432,11 +444,13 @@ formatter_dir_args_one() {
 			pnpm | exec | dlx | npx | pnpx | mise | x | -- | env | command | time | nice | nohup | stdbuf | sudo | timeout | eval | \
 				then | do | else | elif | if | while | until | '!' | '{' | bash | sh | zsh | dash | ksh)
 				prev="${w}"
+				opt=0
 				continue
 				;;
 			xargs)
 				via_xargs=1
 				prev="${w}"
+				opt=0
 				continue
 				;;
 			esac
@@ -445,7 +459,21 @@ formatter_dir_args_one() {
 				return 0
 			fi
 			# ラッパーの後のオプション（`npx --yes`・`bash -c`・`xargs -0`）と数値（`timeout 60`・`nice -n 5`）は読み飛ばす。
-			if [ -n "${prev}" ] && [[ ${w} == -* || ${w} =~ ^[0-9.]+[smhd]?$ ]]; then
+			if [ -n "${prev}" ] && [[ ${w} == -* ]]; then
+				# シェルのオプション（`bash -c`・`sh -lc`）の後は、値ではなくコマンドが来る。
+				case "${prev}" in
+				bash | sh | zsh | dash | ksh) opt=0 ;;
+				*) opt=1 ;;
+				esac
+				continue
+			fi
+			if [ -n "${prev}" ] && [[ ${w} =~ ^[0-9.]+[smhd]?$ ]]; then
+				opt=0
+				continue
+			fi
+			# オプションの直後の語は、その値として読み飛ばす（`timeout -s KILL`・`xargs -a list.txt`・`pnpm --filter foo`）。
+			if [ "${opt}" = 1 ]; then
+				opt=0
 				continue
 			fi
 			return 0 # コマンドの位置に整形ツールが無い
@@ -459,7 +487,7 @@ formatter_dir_args_one() {
 		[0-9]*'>'* | [0-9]*'<'* | '>'* | '<'* | '&>'*) ;;
 		--check | --list-different) [ "${name}" = oxfmt ] && write=0 ;;
 		# 版・使い方の表示と、ファイルを書かないモード（stdin・LSP・設定の雛形）は、後に --fix があっても書き込まない。
-		--version | -V | --help | -h | --lsp | --init | --stdin-filepath | --stdin-filepath=*) info=1 ;;
+		--version | -V | --help | -h | --lsp | --init | --stdin-filepath | --stdin-filepath=* | --migrate | --migrate=*) info=1 ;;
 		--fix) [ "${name}" = markdownlint-cli2 ] && write=1 ;;
 		-c | --config | --ignore-path) skip=1 ;;
 		-*) ;;

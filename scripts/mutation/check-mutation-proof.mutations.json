@@ -340,7 +340,8 @@
       "replace": "    if (false) {",
       "occurrences": 1,
       "expect_failing": [
-        "宣言と前提の検証（実行する前に落とす） 実行中に対象が変異の外から書き換えられたら上書きせず exit 2"
+        "宣言と前提の検証（実行する前に落とす） 実行中に対象が変異の外から書き換えられたら上書きせず exit 2",
+        "宣言と前提の検証（実行する前に落とす） 実行中の編集の後に例外が投げられても、元の例外を出力に残す"
       ]
     },
     {
@@ -352,6 +353,17 @@
       "occurrences": 1,
       "expect_failing": [
         "宣言と前提の検証（実行する前に落とす） 実行中の編集の後に die しても、exit ハンドラが編集を上書きしない"
+      ]
+    },
+    {
+      "id": "KEEP-THROWN",
+      "why": "外からの編集で止めるとき、テストの実行中の例外を出さない",
+      "file": "scripts/mutation/check-mutation-proof.js",
+      "find": "      if (thrown) console.error(",
+      "replace": "      if (false) console.error(",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（実行する前に落とす） 実行中の編集の後に例外が投げられても、元の例外を出力に残す"
       ]
     }
   ]

@@ -680,3 +680,26 @@ test.each([
   expect(r.status, r.stderr).toBe(2);
   expect(r.stderr).toMatch(/整形ツールにディレクトリを渡すか対象を省くと/);
 });
+
+// PR #585 の 3 回目のレビュー。コマンド置換の中身・二重引用の中の \" ・書き込まない --migrate・ラッパーのオプションの値。
+test.each([
+  ["$( ) の中の語は対象に数えない", "pnpm exec oxfmt $(git diff --name-only -- scripts)"],
+  ["バッククォートの中の語も数えない", "pnpm exec oxfmt `git ls-files scripts`"],
+  ["--migrate は書き込まない", "pnpm exec oxfmt --migrate=prettier"],
+  ["xargs -I の値の後の起動", "xargs -I {} oxfmt {}"],
+])("整形ツールの誤検知しないことの確認（3 回目のレビュー）: %s", (_name, command) => {
+  const r = guard(command);
+  expect(r.status, r.stderr).toBe(0);
+  expect(r.stderr).not.toMatch(/実行前に止めた/);
+});
+
+test.each([
+  ['二重引用の中の \\" の後のディレクトリ', 'pnpm exec oxfmt "a\\"b.js" scripts'],
+  ["timeout のオプションの値の後", "timeout -s KILL 60 oxfmt ."],
+  ["xargs -a の値の後", "xargs -a list.txt oxfmt scripts"],
+  ["pnpm --filter の値の後", "pnpm --filter foo exec oxfmt ."],
+])("整形ツールのディレクトリ引数を止める（3 回目のレビュー）: %s", (_name, command) => {
+  const r = guard(command);
+  expect(r.status, r.stderr).toBe(2);
+  expect(r.stderr).toMatch(/整形ツールにディレクトリを渡すか対象を省くと/);
+});

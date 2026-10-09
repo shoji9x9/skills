@@ -114,7 +114,11 @@ writeFileSync(
     numTotalTests: assertionResults.length,
     numFailedTests: failed,
     success: failed === 0,
-    testResults: [{ name: testFile, status: failed ? "failed" : "passed", assertionResults }],
+    // 編集した run でだけ反復できない testResults を返し、ランナーの読み取りに例外を投げさせる。
+    testResults:
+      editing && def.editDuringRun.badReport
+        ? 5
+        : [{ name: testFile, status: failed ? "failed" : "passed", assertionResults }],
   }),
 );
 process.exit(failed ? 1 : 0);
@@ -578,6 +582,29 @@ describe("宣言と前提の検証（実行する前に落とす）", () => {
       `${FIXTURE_TARGET.replace(GUARD, "")}# 実行中に足した行\n`,
     );
     expect(existsSync(`${lock}.recovery.json`), "記録を消してしまった").toBe(true);
+    rmSync(`${lock}.recovery.json`, { force: true });
+  });
+
+  // 外からの編集で止めるときも、テストの実行中に投げられた元の例外を隠さない。
+  test("実行中の編集の後に例外が投げられても、元の例外を出力に残す", () => {
+    const fx = makeFixture();
+    writeFileSync(
+      join(fx.dir, "fixture.stub.json"),
+      JSON.stringify({
+        target: "target.sh",
+        tests: STUB_TESTS,
+        editDuringRun: { unless: FIXTURE_TARGET, append: "# 実行中に足した行\n", badReport: true },
+      }),
+    );
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    const lock = join(lockDir, "edited-then-throw.lock");
+    const res = runRunner(spec, { MUTATION_PROOF_LOCK: lock });
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toContain("変異の外から書き換えられた");
+    expect(res.out).toContain("テストの実行中の例外: TypeError");
+    expect(readFileSync(fx.target, "utf8")).toBe(
+      `${FIXTURE_TARGET.replace(GUARD, "")}# 実行中に足した行\n`,
+    );
     rmSync(`${lock}.recovery.json`, { force: true });
   });
 
