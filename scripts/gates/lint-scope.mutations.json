@@ -57,10 +57,12 @@
       "id": "LS-OXFMT",
       "why": "oxfmt が .agents/ を丸ごと除く",
       "file": "oxfmt.config.ts",
-      "find": "ignorePatterns: agentCopyGlobs(import.meta.dirname),",
-      "replace": "ignorePatterns: [\".agents/**\", \".claude/**\"],",
+      "find": "    ...agentCopyGlobs(import.meta.dirname),\n",
+      "replace": "    \".agents/**\",\n    \".claude/**\",\n",
       "occurrences": 1,
-      "expect_failing": ["oxfmt の ignorePatterns は、エージェント用のコピーとリンクだけを除く"]
+      "expect_failing": [
+        "oxfmt の ignorePatterns は、許可リストの後にエージェント用のコピーとリンクだけを除く"
+      ]
     },
     {
       "id": "LS-LH-AGENTS",
@@ -109,6 +111,28 @@
       "occurrences": 1,
       "expect_failing": [
         "CI の Shell lint と JSON lint は、run-on-sources.js で対象を選ぶ（find で .agents を丸ごと除かない）"
+      ]
+    },
+    {
+      "id": "LS-OXFMT-ASSIGNED",
+      "why": "oxfmt の許可リストが lefthook の割り当てとずれる（.yaml を外す）",
+      "file": "oxfmt.config.ts",
+      "find": "const assigned = \"js,mjs,cjs,jsx,ts,tsx,mts,cts,json,yml,yaml\";",
+      "replace": "const assigned = \"js,mjs,cjs,jsx,ts,tsx,mts,cts,json,yml\";",
+      "occurrences": 1,
+      "expect_failing": [
+        "oxfmt の許可リストの種類は、lefthook の oxfmt-* のジョブが渡す種類と一致する"
+      ]
+    },
+    {
+      "id": "LS-OXFMT-NEWJOB",
+      "why": "lefthook に oxfmt-* のジョブを足し、許可リストを変え忘れる（.toml を渡しても oxfmt は整形しない）",
+      "file": "lefthook.yml",
+      "find": "          - name: formatter-scope\n",
+      "replace": "          - name: oxfmt-toml\n            glob: \"*.toml\"\n            run: pnpm exec oxfmt {staged_files}\n          - name: formatter-scope\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "oxfmt の許可リストの種類は、lefthook の oxfmt-* のジョブが渡す種類と一致する"
       ]
     }
   ]

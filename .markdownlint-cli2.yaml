@@ -14,5 +14,12 @@ globs:
   # CI にも存在しないため、lint スコープを git 管理対象に揃えて pre-commit のブロックを防ぐ。
   - "!tests/*/iteration-*/eval-*/**"
 
+# `.md` 以外は、引数でディレクトリや glob を渡されても見ない（`--fix` で書き換えない）。
+# markdownlint-cli2 は渡された範囲のファイルを拡張子を問わず読むので、ディレクトリを渡すと .mjs・.png・.yml まで
+# 書き換えた（実測）。ignores は引数で渡したファイルにも当たる。
+# `**/*.!(md)` にしない。名前にドットを 2 つ以上含む Markdown（`README.ja.md`）まで外れる（実測）。
+ignores:
+  - "**/!(*.md)"
+
 config:
   extends: .markdownlint.yaml

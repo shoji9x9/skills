@@ -2,7 +2,8 @@
 date: 2026-09-30
 type: skill
 priority: high
-status: pending
+status: applied
+applied-to: [skills/issue-start/references/acceptance.md, skills/dependabot-alert-issue/references/pnpm-transitive-update.md, AGENTS.md]
 session: claude-code
 ---
 

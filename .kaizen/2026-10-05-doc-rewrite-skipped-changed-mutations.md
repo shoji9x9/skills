@@ -2,7 +2,8 @@
 date: 2026-10-05
 type: doc
 priority: medium
-status: pending
+status: applied
+applied-to: [docs/tooling.md]
 session: claude-code
 ---
 
