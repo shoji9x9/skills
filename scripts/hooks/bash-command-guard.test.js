@@ -14,9 +14,10 @@
 // 止める入力だけのテストでは、「全部落とす実装」と区別が付かない。
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { makeTempDir } from "../lib/test-tmpdir.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const script = join(repoRoot, "scripts/hooks/bash-command-guard.sh");
@@ -702,4 +703,42 @@ test.each([
   const r = guard(command);
   expect(r.status, r.stderr).toBe(2);
   expect(r.stderr).toMatch(/整形ツールにディレクトリを渡すか対象を省くと/);
+});
+
+// PR #585 の 4 回目のレビュー。コマンドの位置の置換・引用したコマンド名・引用の中の括弧。
+test.each([
+  ["コマンドの位置の $(mise which oxfmt)", '"$(mise which oxfmt)" scripts'],
+  [
+    "コマンドの位置の $(mise which markdownlint-cli2) --fix",
+    "$(mise which markdownlint-cli2) --fix scripts",
+  ],
+  ["単引用したコマンド名", "'oxfmt' ."],
+  ["二重引用したコマンド名", '"oxfmt" scripts'],
+])("整形ツールのディレクトリ引数を止める（4 回目のレビュー）: %s", (_name, command) => {
+  const r = guard(command);
+  expect(r.status, r.stderr).toBe(2);
+  expect(r.stderr).toMatch(/整形ツールにディレクトリを渡すか対象を省くと/);
+});
+
+test.each([
+  ["引数の位置の置換の最後の語が整形ツールの名前", "pnpm exec oxfmt $(git ls-files | grep oxfmt)"],
+  ["引用したコマンド名でも echo の引数なら止めない", "echo 'oxfmt' ."],
+])("整形ツールの誤検知しないことの確認（4 回目のレビュー）: %s", (_name, command) => {
+  const r = guard(command);
+  expect(r.status, r.stderr).toBe(0);
+  expect(r.stderr).not.toMatch(/実行前に止めた/);
+});
+
+// 引用の中の括弧はパスの一部として残す。括弧を含むディレクトリを使い捨ての cwd に作って測る。
+test("整形ツールのディレクトリ引数を止める（4 回目のレビュー）: 引用の中に括弧を含むディレクトリ", () => {
+  const cwd = makeTempDir("guard-paren-");
+  mkdirSync(join(cwd, "docs (old)"));
+  const r = spawnSync("bash", [script], {
+    input: hook('pnpm exec oxfmt "docs (old)"'),
+    encoding: "utf8",
+    cwd,
+    env: { ...process.env, HOME: repoRoot },
+  });
+  expect(r.status, r.stderr).toBe(2);
+  expect(r.stderr).toContain("docs (old)");
 });

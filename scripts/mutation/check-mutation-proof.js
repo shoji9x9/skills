@@ -633,6 +633,10 @@ function proveMutation(mutation, testFile) {
     // 実行中に同じファイルを編集されていたら、無条件に書き戻すとその編集を警告なしに消す（実測）。
     // 復元情報は残し、次回起動も同じ食い違いで止まるようにする。
     // 変異を書き終える前に失敗したときは照合しない（照合すると、元の例外を「外からの編集」の exit 2 で隠す）。
+    // 元の内容に戻っていた場合（`git checkout -- <file>` など）も止める。テストは変異を最後まで測れていないので、
+    // その結果を PASS / FAIL として出すと誤った実証になる。exit ハンドラの restorePending が元の内容なら何もしないのは、
+    // そこでは結果を出さずに終わるからで、目的が違う。残った復元情報は、次回起動の recoverFromInterrupted が
+    // `current === saved.before` の分岐で消して続行する（PR #585 のレビューで 3 回議論し、止める側に決めた）。
     const current = existsSync(mutation.target) ? readFileSync(mutation.target, "utf8") : null;
     if (wroteMutation && current !== mutated) {
       console.error(

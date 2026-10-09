@@ -378,32 +378,47 @@ formatter_dir_args() {
 		text="${text//\"/}"
 		text="${text//\'/}"
 	else
-		# コマンド置換（`$( )`・バッククォート）の中身は別のセグメントとして判定済みなので、1 つの語（\036）に置き換える。
-		# 置換の結果は引数として渡るので、対象を 1 件として数え、ディレクトリとは判定しない。
+		# コマンド置換（`$( )`・バッククォート）の中身は別のセグメントとして判定済みなので、1 つの語に置き換える。
+		# 中身の最後の語が整形ツールの名前（`$(mise which oxfmt)`）なら、その名前に置き換えてコマンドの位置で拾う。
+		# それ以外は \036 にし、対象を 1 件として数え、ディレクトリとは判定しない。
+		# 引用の外の `(` / `)`（サブシェル）は空白にし、引用の中の括弧はパスの一部として残す。
+		# `\` の分岐に届くのは二重引用符の中だけである（引用の外の `\` は split_segments が先に外す）。
 		text="$(printf '%s' "${text}" | awk '{
 			out = ""; q = ""; n = length($0)
 			for (i = 1; i <= n; i++) {
 				c = substr($0, i, 1)
 				if (q != "\047" && c == "\\") { i++; c = substr($0, i, 1); if (c == " ") c = "\037"; out = out c; continue }
 				if (q != "\047" && c == "$" && substr($0, i + 1, 1) == "(") {
-					d = 0
+					d = 0; st = i + 2
 					for (; i <= n; i++) { ch = substr($0, i, 1); if (ch == "(") d++; else if (ch == ")" && --d == 0) break }
-					out = out "\036"; continue
+					out = out sub_word(substr($0, st, i - st)); continue
 				}
 				if (q != "\047" && c == "`") {
+					st = i + 1
 					for (i++; i <= n && substr($0, i, 1) != "`"; i++) ;
-					out = out "\036"; continue
+					out = out sub_word(substr($0, st, i - st)); continue
 				}
+				if (q == "" && (c == "(" || c == ")")) c = " "
 				if (q == "" && (c == "\"" || c == "\047")) { q = c; continue }
 				if (q != "" && c == q) { q = ""; continue }
 				if (q != "" && c == " ") c = "\037"
 				out = out c
 			}
 			print out
+		}
+		function sub_word(inner,    m, t) {
+			gsub(/["\047]/, "", inner)
+			m = split(inner, t, /[[:space:]]+/)
+			while (m > 0 && t[m] == "") m--
+			sub(/.*\//, "", t[m])
+			if (t[m] == "oxfmt" || t[m] == "markdownlint-cli2") return t[m]
+			return "\036"
 		}')"
 	fi
-	text="${text//\$(/ }"
-	text="${text//[()\`]/ }"
+	if [ "${delegated}" = 1 ]; then
+		text="${text//\$(/ }"
+		text="${text//[()\`]/ }"
+	fi
 	if [ "${delegated}" = 1 ]; then
 		text="${text//&&/$'\n'}"
 		text="${text//||/$'\n'}"
@@ -580,7 +595,9 @@ while IFS= read -r line; do
 	# 3. 書き込む整形ツールにディレクトリを渡している（または対象を渡していない）。
 	#    発動はコード部分で見る（コミットメッセージや echo で話題にしているだけの呼び出しを止めない）。
 	#    ssh はリモートの作業ツリーを整形するので対象にしない（委譲として全文がコードになっても止めない）。
-	case "${seg_code}" in
+	#    候補は引用を含む全文で拾う（`'oxfmt' .` もシェルは oxfmt として起動する）。話題にしているだけの呼び出しは、
+	#    formatter_dir_args がコマンドの位置かを見て外す。
+	case "${seg_nocomment}" in
 	*oxfmt* | *markdownlint-cli2*)
 		if [[ ${seg_code} =~ (^|[[:space:]])ssh([[:space:]]|$) ]]; then
 			dirs=""
