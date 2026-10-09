@@ -13,6 +13,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import yaml from "js-yaml";
 import { makeTempDir } from "../lib/test-tmpdir.js";
 import oxfmtConfig from "../../oxfmt.config.ts";
 
@@ -86,22 +87,35 @@ function run(root, bin, args) {
 
 const MARKDOWNLINT = binOf("markdownlint-cli2", "markdownlint-cli2");
 
+// 設定の globs（`**/*.md`）は引数に足されるので、残すと引数に関わらず .md が整形され、
+// 引数で渡した範囲の扱いを測れない。ignores などは実際の設定のまま、globs だけを外す。
 function markdownlintFixture() {
   const root = makeFixture();
-  copyFileSync(join(repoRoot, ".markdownlint-cli2.yaml"), join(root, ".markdownlint-cli2.yaml"));
+  const config = yaml.load(readFileSync(join(repoRoot, ".markdownlint-cli2.yaml"), "utf8"));
+  if (!Array.isArray(config.ignores)) throw new Error(".markdownlint-cli2.yaml に ignores が無い");
+  delete config.globs;
+  writeFileSync(join(root, ".markdownlint-cli2.yaml"), yaml.dump(config));
   copyFileSync(join(repoRoot, ".markdownlint.yaml"), join(root, ".markdownlint.yaml"));
   return root;
 }
 
 test.each([
-  ["ディレクトリ", ["--fix", "d/"]],
-  ["glob", ["--fix", "d/**"]],
-  ["Markdown 以外のファイルの列挙", ["--fix", "d/b.mjs", "d/x.png", "d/c.yml"]],
-])("markdownlint-cli2 --fix に%sを渡しても、書き換えるのは .md だけ", (_name, args) => {
-  const root = markdownlintFixture();
-  run(root, MARKDOWNLINT, args);
-  expect(changed(root)).toEqual(["a.md", "x.ja.md"]);
-});
+  ["ディレクトリ", ["--fix", "d/"], ["a.md", "x.ja.md"]],
+  ["glob", ["--fix", "d/**"], ["a.md", "x.ja.md"]],
+  // 渡さなかった a.md は変わらないこと（globs を外したので、整形されるのは引数の範囲だけ）も確かめる。
+  [
+    "Markdown と他の種類を並べたファイルの列挙",
+    ["--fix", "d/x.ja.md", "d/b.mjs", "d/x.png", "d/c.yml"],
+    ["x.ja.md"],
+  ],
+])(
+  "markdownlint-cli2 --fix に%sを渡しても、書き換えるのは渡した範囲の .md だけ",
+  (_name, args, expected) => {
+    const root = markdownlintFixture();
+    run(root, MARKDOWNLINT, args);
+    expect(changed(root)).toEqual(expected);
+  },
+);
 
 // ---- oxfmt ----
 

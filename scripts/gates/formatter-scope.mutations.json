@@ -12,9 +12,9 @@
       "replace": "  - \"**/*.nomatch\"",
       "occurrences": 1,
       "expect_failing": [
-        "markdownlint-cli2 --fix にディレクトリを渡しても、書き換えるのは .md だけ",
-        "markdownlint-cli2 --fix にglobを渡しても、書き換えるのは .md だけ",
-        "markdownlint-cli2 --fix にMarkdown 以外のファイルの列挙を渡しても、書き換えるのは .md だけ"
+        "markdownlint-cli2 --fix にディレクトリを渡しても、書き換えるのは渡した範囲の .md だけ",
+        "markdownlint-cli2 --fix にglobを渡しても、書き換えるのは渡した範囲の .md だけ",
+        "markdownlint-cli2 --fix にMarkdown と他の種類を並べたファイルの列挙を渡しても、書き換えるのは渡した範囲の .md だけ"
       ]
     },
     {
@@ -50,9 +50,9 @@
       "replace": "  - \"**/*.!(md)\"",
       "occurrences": 1,
       "expect_failing": [
-        "markdownlint-cli2 --fix にディレクトリを渡しても、書き換えるのは .md だけ",
-        "markdownlint-cli2 --fix にglobを渡しても、書き換えるのは .md だけ",
-        "markdownlint-cli2 --fix にMarkdown 以外のファイルの列挙を渡しても、書き換えるのは .md だけ"
+        "markdownlint-cli2 --fix にディレクトリを渡しても、書き換えるのは渡した範囲の .md だけ",
+        "markdownlint-cli2 --fix にglobを渡しても、書き換えるのは渡した範囲の .md だけ",
+        "markdownlint-cli2 --fix にMarkdown と他の種類を並べたファイルの列挙を渡しても、書き換えるのは渡した範囲の .md だけ"
       ]
     }
   ]

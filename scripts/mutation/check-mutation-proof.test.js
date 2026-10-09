@@ -652,16 +652,76 @@ describe("宣言と前提の検証（実行する前に落とす）", () => {
     rmSync(`${lock}.recovery.json`, { force: true });
   });
 
-  // 消されたファイルを消えたまま残さない（追跡しているファイルが欠けた作業ツリーにしない）。
-  test("実行中に対象が消されたら、元の内容で作り直して exit 2", () => {
+  // 消されたファイルは作り直さない（意図した削除を戻さない。作り直すとモードや親ディレクトリも戻らない）。
+  test("実行中に対象が消されたら、作り直さずに exit 2 で止め、復元情報を残す", () => {
     const fx = editingFixture({ remove: true });
     const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
     const lock = join(lockDir, "removed-during-run.lock");
     const res = runRunner(spec, { MUTATION_PROOF_LOCK: lock });
     expect(res.status, res.out).toBe(2);
-    expect(res.out).toContain("が消された");
+    expect(res.out).toContain("が消された。作り直さずに止める");
+    expect(res.out).not.toContain("PASS G");
+    expect(existsSync(fx.target), "消された対象を作り直した").toBe(false);
+    expect(existsSync(`${lock}.recovery.json`), "復元情報を消してしまった").toBe(true);
+    rmSync(`${lock}.recovery.json`, { force: true });
+  });
+
+  test("中断の後に対象が消えていたら、次回の起動は作り直さずに exit 2", () => {
+    const fx = makeFixture();
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    const lock = join(lockDir, "removed-after-interrupt.lock");
+    writeFileSync(
+      `${lock}.recovery.json`,
+      JSON.stringify({
+        file: fx.target,
+        before: FIXTURE_TARGET,
+        after: FIXTURE_TARGET.replace(GUARD, ""),
+      }),
+    );
+    rmSync(fx.target);
+    const res = runRunner(spec, { MUTATION_PROOF_LOCK: lock });
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toContain("が消された。作り直さずに止める");
+    expect(existsSync(fx.target), "消された対象を作り直した").toBe(false);
+    expect(existsSync(`${lock}.recovery.json`), "記録を消してしまった").toBe(true);
+    rmSync(`${lock}.recovery.json`, { force: true });
+  });
+
+  // writeFileSync は先に切り詰めるので、途中で失敗すると元でも変異でもない内容が残る。
+  // preload で、対象への最初の書き込み（変異）を途中まで書いて ENOSPC で失敗させる。
+  test("変異の書き込みが途中で失敗したら、元の内容へ戻して元の例外を返す", () => {
+    const fx = makeFixture();
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    const preload = join(fx.dir, "partial-write.cjs");
+    writeFileSync(
+      preload,
+      `const fs = require("node:fs");
+const real = fs.writeFileSync;
+let failed = false;
+fs.writeFileSync = function (path, data, ...rest) {
+  if (!failed && path === process.env.PARTIAL_WRITE_TARGET) {
+    failed = true;
+    real.call(fs, path, String(data).slice(0, 5));
+    const err = new Error("ENOSPC: no space left on device, write");
+    err.code = "ENOSPC";
+    throw err;
+  }
+  return real.call(fs, path, data, ...rest);
+};
+require("node:module").syncBuiltinESMExports();
+`,
+    );
+    const lock = join(lockDir, "partial-write.lock");
+    const res = runRunner(spec, {
+      MUTATION_PROOF_LOCK: lock,
+      NODE_OPTIONS: `--require ${preload}`,
+      PARTIAL_WRITE_TARGET: fx.target,
+    });
+    expect(res.status, res.out).not.toBe(0);
+    expect(res.out).toContain("ENOSPC");
+    expect(res.out).not.toContain("mutation-proof: 実行中に");
     expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
-    expect(existsSync(`${lock}.recovery.json`), "作り直したのに復元情報を残した").toBe(false);
+    expect(existsSync(`${lock}.recovery.json`), "戻したのに復元情報を残した").toBe(false);
   });
 
   // 変異を書く前に失敗したら照合しない（照合すると、元の失敗を「外からの編集」として報告する）。

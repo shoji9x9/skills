@@ -210,7 +210,7 @@ function clearRecovery() {
  * | ---------- | ---------------------------- | -------------------------------------------- |
  * | mutated    | 自分が書いた変異のまま       | 元の内容を書き戻し、確かめてから復元情報を消す |
  * | original   | 元の内容（書く前の失敗・外で戻された） | 書き込まず、復元情報を消す            |
- * | removed    | 消されている                 | 元の内容で作り直し、復元情報を消す           |
+ * | removed    | 消されている                 | 作り直さず、復元情報を残す（次回起動も止まる） |
  * | foreign    | どちらでもない（外からの編集） | 書き込まず、復元情報を残す（次回起動も止まる） |
  * | unrestored | 書き戻したのに一致しない     | 復元情報を残す                               |
  */
@@ -230,14 +230,17 @@ function settleTarget(path, before, after) {
     clearRecovery();
     return "original";
   }
-  if (current === null) {
-    // 追跡しているファイルを消えたまま残さない。
-    writeFileSync(path, before);
-    clearRecovery();
-    return "removed";
-  }
-  return "foreign";
+  // 消されていても作り直さない。意図した削除（git rm・ブランチの切り替え）を警告なしに戻すことになり、
+  // 作り直すとファイルのモードや親ディレクトリも元に戻らない（PR #585 のレビュー）。
+  return current === null ? "removed" : "foreign";
 }
+
+/** 書き戻さずに止める分類のメッセージ。3 か所（finally・exit ハンドラ・次回起動）で同じものを使う。 */
+const UNSETTLED = {
+  removed: `が消された。作り直さずに止める。元の内容は復元情報（${recoveryPath}）の before にある`,
+  foreign: `が変異の外から書き換えられた。上書きせずに止める。内容を確かめ、変異（復元情報: ${recoveryPath} の after）が残っていれば手で戻す`,
+  unrestored: `を復元できなかった。手で戻す（復元情報: ${recoveryPath}）`,
+};
 
 /** 前回の中断で変異が残っていれば戻す（ロックを取った後・宣言を読む前に呼ぶ）。 */
 function recoverFromInterrupted() {
@@ -268,14 +271,10 @@ function recoverFromInterrupted() {
     console.error(`mutation-proof: 前回の中断で残った変異は無かった（${target}）`);
   } else if (state === "mutated") {
     console.error(`mutation-proof: 前回の中断で残っていた変異を戻した（${target}）`);
-  } else if (state === "removed") {
-    console.error(`mutation-proof: 前回の中断で消えていた ${target} を元の内容で作り直した`);
-  } else if (state === "unrestored") {
-    die(`前回の中断で残った変異を戻せなかった（${target}）。手で戻してから ${recoveryPath} を消す`);
   } else {
     die(
-      `復元情報と作業ツリーが食い違う（${target}）。中断後に編集された可能性があるので自動で戻さない。` +
-        `内容を確かめてから ${recoveryPath} を消す`,
+      `復元情報と作業ツリーが食い違う: 前回の中断の後に ${target} ${UNSETTLED[state]}。` +
+        `自動では戻さないので、内容を確かめてから ${recoveryPath} を消す`,
     );
   }
 }
@@ -305,17 +304,7 @@ function restorePending() {
   pending = null;
   try {
     const state = settleTarget(path, content, mutated);
-    if (state === "foreign") {
-      console.error(
-        `mutation-proof: 実行中に ${path} が変異の外から書き換えられた。上書きせずに終える（復元情報: ${recoveryPath}）`,
-      );
-    } else if (state === "removed") {
-      console.error(`mutation-proof: 実行中に ${path} が消されていたので、元の内容で作り直した`);
-    } else if (state === "unrestored") {
-      console.error(
-        `mutation-proof: ${path} を復元できなかった（手で戻す。復元情報: ${recoveryPath}）`,
-      );
-    }
+    if (state in UNSETTLED) console.error(`mutation-proof: 実行中に ${path} ${UNSETTLED[state]}`);
   } catch (err) {
     console.error(`mutation-proof: ${path} を復元できなかった（手で戻す）: ${err.message}`);
   }
@@ -659,7 +648,20 @@ function proveMutation(mutation, testFile) {
   try {
     pending = { path: mutation.target, content: original, mutated };
     writeRecovery(mutation.target, original, mutated);
-    writeFileSync(mutation.target, mutated);
+    try {
+      writeFileSync(mutation.target, mutated);
+    } catch (err) {
+      // writeFileSync は先に切り詰めるので、途中で失敗する（ENOSPC など）と元でも変異でもない内容が残る。
+      // その内容は自分が書いたものなので、元の内容へ戻してから例外を返す（外からの編集として止めない）。
+      if (readFileSync(mutation.target, "utf8") !== original) {
+        try {
+          writeFileSync(mutation.target, original);
+        } catch (restoreErr) {
+          console.error(`mutation-proof: ${mutation.target} を元に戻せない: ${restoreErr.message}`);
+        }
+      }
+      throw err;
+    }
     wroteMutation = true;
     run = runTests(testFile);
   } catch (err) {
@@ -684,16 +686,10 @@ function proveMutation(mutation, testFile) {
       process.exit(2);
     }
     pending = null;
-    const STOP = {
-      original: "が元の内容へ戻された。測定が無効なので結果を出さずに止める",
-      removed: "が消された。元の内容で作り直し、測定が無効なので結果を出さずに止める",
-      foreign: `が変異の外から書き換えられた。上書きせずに止める。内容を確かめ、変異（復元情報: ${recoveryPath} の after）が残っていれば手で戻す`,
-      unrestored: `を復元できなかった。手で戻す（復元情報: ${recoveryPath}）`,
-    };
-    const stop =
-      state !== "mutated" && (wroteMutation || state === "foreign" || state === "unrestored");
+    const stop = state !== "mutated" && (wroteMutation || state in UNSETTLED);
     if (stop) {
-      console.error(`mutation-proof: 実行中に ${mutation.target} ${STOP[state]}`);
+      const why = UNSETTLED[state] ?? "が元の内容へ戻された。測定が無効なので結果を出さずに止める";
+      console.error(`mutation-proof: 実行中に ${mutation.target} ${why}`);
       if (thrown) console.error(`mutation-proof: テストの実行中の例外: ${thrown.stack ?? thrown}`);
       process.exit(2);
     }
