@@ -132,9 +132,9 @@ function extsOf(glob) {
 }
 
 test("oxfmt の許可リストの種類は、lefthook の oxfmt-* のジョブが渡す種類と一致する", () => {
-  const lefthookExts = ["oxfmt-js", "oxfmt-json", "oxfmt-yaml"].flatMap((name) => {
-    expect(byName[name], name).toBeDefined();
-    return extsOf(byName[name].glob);
-  });
+  // ジョブ名を固定せず oxfmt-* をすべて集める（ジョブを足して許可リストを変え忘れたら検出する）。
+  const oxfmtJobs = Object.keys(byName).filter((name) => name.startsWith("oxfmt-"));
+  expect(oxfmtJobs).toEqual(expect.arrayContaining(["oxfmt-js", "oxfmt-json", "oxfmt-yaml"]));
+  const lefthookExts = oxfmtJobs.flatMap((name) => extsOf(byName[name].glob));
   expect(extsOf(oxfmtHead[2]).sort()).toEqual(lefthookExts.sort());
 });

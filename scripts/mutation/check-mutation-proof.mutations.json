@@ -370,7 +370,8 @@
       "replace": "      if (false) console.error(",
       "occurrences": 2,
       "expect_failing": [
-        "宣言と前提の検証（実行する前に落とす） 実行中の編集の後に例外が投げられても、元の例外を出力に残す"
+        "宣言と前提の検証（実行する前に落とす） 実行中の編集の後に例外が投げられても、元の例外を出力に残す",
+        "宣言と前提の検証（実行する前に落とす） 変異の書き込みの失敗の後に読み込みも失敗しても、元の例外を出力に残す"
       ]
     },
     {
@@ -415,11 +416,46 @@
       "id": "PARTIAL-WRITE-RESTORE",
       "why": "変異の書き込みが途中で失敗したとき、切り詰められた内容を元に戻さない（外からの編集として止める）",
       "file": "scripts/mutation/check-mutation-proof.js",
-      "find": "      if (readFileSync(mutation.target, \"utf8\") !== original) {",
-      "replace": "      if (false) {",
+      "find": "        if (readFileSync(mutation.target, \"utf8\") !== original) {",
+      "replace": "        if (false) {",
       "occurrences": 1,
       "expect_failing": [
-        "宣言と前提の検証（実行する前に落とす） 変異の書き込みが途中で失敗したら、元の内容へ戻して元の例外を返す"
+        "宣言と前提の検証（実行する前に落とす） 変異の書き込みが途中で失敗したら、元の内容へ戻して元の例外を返す",
+        "宣言と前提の検証（実行する前に落とす） 変異の書き込みの失敗の後に読み込みも失敗しても、元の例外を出力に残す"
+      ]
+    },
+    {
+      "id": "RESTORE-ERR-REPLACES",
+      "why": "変異の書き込みの失敗を戻す処理の失敗で、元の例外を置き換える（失敗の理由が出力から消える）",
+      "file": "scripts/mutation/check-mutation-proof.js",
+      "find": "        console.error(`mutation-proof: ${mutation.target} を元に戻せない: ${restoreErr.message}`);",
+      "replace": "        throw restoreErr;",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（実行する前に落とす） 変異の書き込みの失敗の後に読み込みも失敗しても、元の例外を出力に残す"
+      ]
+    },
+    {
+      "id": "SETTLE-FAIL-KEEPS-PENDING",
+      "why": "後始末の失敗で止めるとき pending を残し、exit ハンドラが同じ後始末を繰り返して誤ったメッセージを重ねる",
+      "file": "scripts/mutation/check-mutation-proof.js",
+      "find": "      pending = null;\n      console.error(`mutation-proof: ${mutation.target} を後始末できない",
+      "replace": "      console.error(`mutation-proof: ${mutation.target} を後始末できない",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（実行する前に落とす） 後始末の書き戻しが失敗したら、exit ハンドラで同じ後始末を繰り返さない"
+      ]
+    },
+    {
+      "id": "READ-ENOENT",
+      "why": "消された対象の読み込みを null にせず、例外のまま返す（消された場合を扱えない）",
+      "file": "scripts/mutation/check-mutation-proof.js",
+      "find": "    if (err.code === \"ENOENT\") return null;",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（実行する前に落とす） 実行中に対象が消されたら、作り直さずに exit 2 で止め、復元情報を残す",
+        "宣言と前提の検証（実行する前に落とす） 中断の後に対象が消えていたら、次回の起動は作り直さずに exit 2"
       ]
     }
   ]

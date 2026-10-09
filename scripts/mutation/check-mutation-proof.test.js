@@ -687,41 +687,87 @@ describe("宣言と前提の検証（実行する前に落とす）", () => {
     rmSync(`${lock}.recovery.json`, { force: true });
   });
 
-  // writeFileSync は先に切り詰めるので、途中で失敗すると元でも変異でもない内容が残る。
-  // preload で、対象への最初の書き込み（変異）を途中まで書いて ENOSPC で失敗させる。
-  test("変異の書き込みが途中で失敗したら、元の内容へ戻して元の例外を返す", () => {
-    const fx = makeFixture();
-    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
-    const preload = join(fx.dir, "partial-write.cjs");
+  /**
+   * 対象への書き込みを途中で失敗させる preload を置き、ランナーに渡す env を返す。
+   * writeAt 回目の書き込み（1 回目は変異、2 回目は後始末の書き戻し）を、途中まで書いて ENOSPC で失敗させる。
+   * readFails なら、その後の対象の読み込みも EIO で失敗させる。
+   */
+  function faultEnv(fx, lock, { writeAt, readFails = false }) {
+    const preload = join(fx.dir, "fault.cjs");
     writeFileSync(
       preload,
       `const fs = require("node:fs");
-const real = fs.writeFileSync;
+const realWrite = fs.writeFileSync;
+const realRead = fs.readFileSync;
+const target = process.env.FAULT_TARGET;
+let writes = 0;
 let failed = false;
 fs.writeFileSync = function (path, data, ...rest) {
-  if (!failed && path === process.env.PARTIAL_WRITE_TARGET) {
+  if (path === target && ++writes === Number(process.env.FAULT_WRITE_AT)) {
     failed = true;
-    real.call(fs, path, String(data).slice(0, 5));
+    realWrite.call(fs, path, String(data).slice(0, 5));
     const err = new Error("ENOSPC: no space left on device, write");
     err.code = "ENOSPC";
     throw err;
   }
-  return real.call(fs, path, data, ...rest);
+  return realWrite.call(fs, path, data, ...rest);
+};
+fs.readFileSync = function (path, ...rest) {
+  if (failed && path === target && process.env.FAULT_READ === "1") {
+    const err = new Error("EIO: i/o error, read");
+    err.code = "EIO";
+    throw err;
+  }
+  return realRead.call(fs, path, ...rest);
 };
 require("node:module").syncBuiltinESMExports();
 `,
     );
-    const lock = join(lockDir, "partial-write.lock");
-    const res = runRunner(spec, {
+    return {
       MUTATION_PROOF_LOCK: lock,
       NODE_OPTIONS: `--require ${preload}`,
-      PARTIAL_WRITE_TARGET: fx.target,
-    });
+      FAULT_TARGET: fx.target,
+      FAULT_WRITE_AT: String(writeAt),
+      FAULT_READ: readFails ? "1" : "0",
+    };
+  }
+
+  // writeFileSync は先に切り詰めるので、途中で失敗すると元でも変異でもない内容が残る。
+  test("変異の書き込みが途中で失敗したら、元の内容へ戻して元の例外を返す", () => {
+    const fx = makeFixture();
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    const lock = join(lockDir, "partial-write.lock");
+    const res = runRunner(spec, faultEnv(fx, lock, { writeAt: 1 }));
     expect(res.status, res.out).not.toBe(0);
     expect(res.out).toContain("ENOSPC");
     expect(res.out).not.toContain("mutation-proof: 実行中に");
     expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
     expect(existsSync(`${lock}.recovery.json`), "戻したのに復元情報を残した").toBe(false);
+  });
+
+  test("変異の書き込みの失敗の後に読み込みも失敗しても、元の例外を出力に残す", () => {
+    const fx = makeFixture();
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    const lock = join(lockDir, "partial-write-read-fails.lock");
+    const res = runRunner(spec, faultEnv(fx, lock, { writeAt: 1, readFails: true }));
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toContain("ENOSPC");
+    expect(res.out).toContain("を元に戻せない: EIO");
+    rmSync(`${lock}.recovery.json`, { force: true });
+  });
+
+  // 後始末の失敗で止めるときは、exit ハンドラで同じ後始末を繰り返さない（切り詰められた内容を
+  // 「外からの編集」として重ねて報告しない）。復元情報は残し、次回の起動に任せる。
+  test("後始末の書き戻しが失敗したら、exit ハンドラで同じ後始末を繰り返さない", () => {
+    const fx = makeFixture();
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    const lock = join(lockDir, "restore-fails.lock");
+    const res = runRunner(spec, faultEnv(fx, lock, { writeAt: 2 }));
+    expect(res.status, res.out).toBe(2);
+    expect(res.out.split("を後始末できない").length - 1, res.out).toBe(1);
+    expect(res.out).not.toContain("変異の外から書き換えられた");
+    expect(existsSync(`${lock}.recovery.json`), "復元情報を消してしまった").toBe(true);
+    rmSync(`${lock}.recovery.json`, { force: true });
   });
 
   // 変異を書く前に失敗したら照合しない（照合すると、元の失敗を「外からの編集」として報告する）。
@@ -733,8 +779,12 @@ require("node:module").syncBuiltinESMExports();
       const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
       chmodSync(fx.target, 0o444);
       const lock = join(lockDir, "write-fails.lock");
-      const res = runRunner(spec, { MUTATION_PROOF_LOCK: lock });
-      chmodSync(fx.target, 0o644);
+      let res;
+      try {
+        res = runRunner(spec, { MUTATION_PROOF_LOCK: lock });
+      } finally {
+        chmodSync(fx.target, 0o644);
+      }
       expect(res.status, res.out).not.toBe(0);
       expect(res.out).toContain("EACCES");
       expect(res.out).not.toContain("変異の外から書き換えられた");

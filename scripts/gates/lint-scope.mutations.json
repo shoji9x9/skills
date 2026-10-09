@@ -123,6 +123,17 @@
       "expect_failing": [
         "oxfmt の許可リストの種類は、lefthook の oxfmt-* のジョブが渡す種類と一致する"
       ]
+    },
+    {
+      "id": "LS-OXFMT-NEWJOB",
+      "why": "lefthook に oxfmt-* のジョブを足し、許可リストを変え忘れる（.toml を渡しても oxfmt は整形しない）",
+      "file": "lefthook.yml",
+      "find": "          - name: formatter-scope\n",
+      "replace": "          - name: oxfmt-toml\n            glob: \"*.toml\"\n            run: pnpm exec oxfmt {staged_files}\n          - name: formatter-scope\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "oxfmt の許可リストの種類は、lefthook の oxfmt-* のジョブが渡す種類と一致する"
+      ]
     }
   ]
 }

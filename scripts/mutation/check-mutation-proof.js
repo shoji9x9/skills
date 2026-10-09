@@ -214,8 +214,18 @@ function clearRecovery() {
  * | foreign    | どちらでもない（外からの編集） | 書き込まず、復元情報を残す（次回起動も止まる） |
  * | unrestored | 書き戻したのに一致しない     | 復元情報を残す                               |
  */
+/** 対象の今の内容。消されていれば null（存在の確認と読み込みを分けると、その間に消されたときに例外になる）。 */
+function readOrNull(path) {
+  try {
+    return readFileSync(path, "utf8");
+  } catch (err) {
+    if (err.code === "ENOENT") return null;
+    throw err;
+  }
+}
+
 function settleTarget(path, before, after) {
-  const current = existsSync(path) ? readFileSync(path, "utf8") : null;
+  const current = readOrNull(path);
   if (current === after) {
     // **変異後の内容と一致したときだけ戻す。** 「変異が残っている」と「人が直してさらに編集した」を
     // 区別せず上書きすると、無関係な編集を消して「変異を戻した」と事実でないログを出す（実測）。
@@ -653,12 +663,13 @@ function proveMutation(mutation, testFile) {
     } catch (err) {
       // writeFileSync は先に切り詰めるので、途中で失敗する（ENOSPC など）と元でも変異でもない内容が残る。
       // その内容は自分が書いたものなので、元の内容へ戻してから例外を返す（外からの編集として止めない）。
-      if (readFileSync(mutation.target, "utf8") !== original) {
-        try {
+      // 戻す処理の失敗（読み込みを含む）で、元の例外を置き換えない。
+      try {
+        if (readFileSync(mutation.target, "utf8") !== original) {
           writeFileSync(mutation.target, original);
-        } catch (restoreErr) {
-          console.error(`mutation-proof: ${mutation.target} を元に戻せない: ${restoreErr.message}`);
         }
+      } catch (restoreErr) {
+        console.error(`mutation-proof: ${mutation.target} を元に戻せない: ${restoreErr.message}`);
       }
       throw err;
     }
@@ -669,8 +680,7 @@ function proveMutation(mutation, testFile) {
     thrown = err;
     throw err;
   } finally {
-    // 扱いは settleTarget で決める（exit ハンドラ・次回起動と同じ）。`pending` は後始末を終えるまで外さない。
-    // ここで例外や exit になっても、exit ハンドラの restorePending が同じ後始末をする。
+    // 扱いは settleTarget で決める（exit ハンドラ・次回起動と同じ）。
     //
     // 変異を書いた後で、対象が自分の書いた変異のままでなかったら、結果を出さずに止める。
     // 元の内容に戻されていた・消されていた場合も、テストは変異を最後まで測れていないので、その結果を
@@ -681,6 +691,8 @@ function proveMutation(mutation, testFile) {
       state = settleTarget(mutation.target, original, mutated);
     } catch (err) {
       // 後始末の失敗で、テストの実行中の元の例外を置き換えない（両方を出して止める）。
+      // exit ハンドラで同じ後始末を繰り返さない。復元情報は残るので、次回の起動が照合する。
+      pending = null;
       console.error(`mutation-proof: ${mutation.target} を後始末できない: ${err.message}`);
       if (thrown) console.error(`mutation-proof: テストの実行中の例外: ${thrown.stack ?? thrown}`);
       process.exit(2);

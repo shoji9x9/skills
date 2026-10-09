@@ -18,7 +18,7 @@
 //
 // 前提: ローカルに Chrome（既定 /usr/bin/google-chrome。CHROME で上書き）があること。
 // CI では実行しない（ブラウザが無い）。書き出した JSON の整形はこのスクリプトが自分で行う
-// （対象ファイルを列挙して oxfmt へ渡す。ディレクトリを渡すと Markdown まで整形されるため）。
+// （書いたファイルを列挙して oxfmt へ渡し、同じディレクトリの既存の JSON を書き換えないため）。
 //
 // 使い方: node scripts/eval/generate-parity-component-fixtures.js
 
@@ -383,8 +383,9 @@ async function captureOnce(cdp, pages, instance, state) {
   return { traits, rules, png, shotRecord, platformFonts };
 }
 
-// 整形は「このスクリプトが書いた JSON」だけに当てる。手順書で人に `oxfmt <ディレクトリ>` を
-// 実行させると、oxfmt は渡された Markdown も整形するので fixture の表が巻き込まれる（4 回踏んだ）。
+// 整形は「このスクリプトが書いた JSON」だけに当てる。以前は手順書で人に `oxfmt <ディレクトリ>` を
+// 実行させ、渡された Markdown まで整形されて fixture の表が巻き込まれた（4 回踏んだ）。
+// 今は oxfmt.config.ts の許可リストで Markdown を外しているが、書いていない JSON を書き換えないよう列挙は残す。
 const writtenJson = [];
 
 const writeJson = (path, value) => {
