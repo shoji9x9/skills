@@ -1053,7 +1053,8 @@ if (capturing) {
   デフォルトより緩い下限は、`parity-diff` の `compare` が結果と報告に載せる（判定は変えない）。
   下限を変えるときは、`summarize --write` に `--floor`・`--relative-floor` を渡して通し直す。`metadata.json` を手で書き換えない。
   渡さなかった指標は、前の集計（`declared: true` の `performance`）で記録した下限を引き継ぐ。デフォルトを使うのは初めての集計だけで、デフォルトに戻すときも値を渡す。
-  引き継ぐのは `floor_history` の最後の要素で、履歴が無い前の版の基準だけ `floors`・`relative_floors` から引き継ぐ。手で書き換えた下限は引き継がない。
+  引き継ぐのは `floor_history` の最後の要素で、履歴が無い前の版の基準だけ `floors`・`relative_floors` から引き継ぐ。
+  そのため、履歴を追記せずに手で書き換えた下限は引き継がない。履歴の要素の中身が正しい決定かは、どのツールも確かめない（`append-only-check.mjs` が確かめるのは、変更が履歴に残ることだけ）。
   `summarize` は、履歴が空か、履歴の最後の要素と下限が違えば、`performance.floor_history` に 1 件追記する。
   下限は採取から導けないので、`compare` は値の正しさを確かめられない。
   そのため、`replace-strategy` の `append-only-check.mjs` が、履歴を追記せずに下限を変えた変更と、履歴の既存の要素を消した・書き換えた変更を exit 1 にする。

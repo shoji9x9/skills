@@ -424,15 +424,6 @@ export function parseFloors(specs, defaults = DEFAULT_FLOORS, flag = "--floor") 
 }
 
 /**
- * `--floor lcp=150` の列から、渡した指標の名前を取り出す（形の検査は parseFloors が行う）。
- * @param {string[]} specs
- * @returns {string[]}
- */
-function specMetrics(specs) {
-  return specs.map((spec) => spec.split("=")[0]);
-}
-
-/**
  * 現側の採取を集計する。
  * @param {Record<string, unknown>} metadata
  * @param {unknown} samplesDoc
@@ -536,11 +527,13 @@ export function floorHistory(previous, samplesDoc, opts) {
 
 /**
  * `--floor` / `--relative-floor` を省いた指標に使う下限を決める。
- * 前の performance が集計済み（declared: true）なら、記録した下限を引き継ぐ。省いただけで決めた下限がデフォルトへ戻ると、
+ * 記録した下限を引き継ぐ。省いただけで決めた下限がデフォルトへ戻ると、
  * 採り直しのときにフラグを付け忘れただけで下限が変わり、デフォルトより緩くなければ compare の loosened_floors にも出ない。
- * 引き継ぐのは floor_history の最後の要素（記録した決定）で、履歴が無いときだけ前の performance の表を使う。
+ * 引き継ぐのは floor_history の最後の要素（記録した決定）である。declared に関わらず、履歴があれば履歴から引き継ぐ。
+ * 履歴が無いときだけ、集計済み（declared: true）の前の performance の表を使う（履歴を持たない前の版の基準）。
  * 今の表から引き継ぐと、手で緩めた下限にフラグなしで summarize を通しただけで、その値が正規の記録として履歴に残る。
- * 集計済みでなければ（performance が無い・雛形のまま・declared: false）、デフォルトを使う。
+ * 同じ理由で、履歴の最後の要素がオブジェクトでなければ、今の表へ戻らずに使い方の誤りにする。
+ * 履歴も無く集計済みでもなければ（performance が無い・雛形のまま）、デフォルトを使う。
  * 引き継ぐ表や指標が無ければ、その分はデフォルトを使う（前の版の基準でも summarize で通し直せるようにする）。
  * 値が在るのに 0 以上の数でなければ、デフォルトへ戻さずに使い方の誤りにする。ただし、その指標をフラグで渡したときは上書きするので止めない。
  * @param {unknown} previous - 書き換える前の metadata.json の performance
@@ -550,14 +543,26 @@ export function floorHistory(previous, samplesDoc, opts) {
  * @returns {Record<string, number>}
  */
 export function baseFloors(previous, key, defaults, overridden = []) {
-  if (!isPlainObject(previous) || previous.declared !== true) return { ...defaults };
+  if (!isPlainObject(previous)) return { ...defaults };
   const history = Array.isArray(previous.floor_history) ? previous.floor_history : [];
-  const last = history.length === 0 ? null : history[history.length - 1];
-  const fromHistory = isPlainObject(last);
-  const label = fromHistory
-    ? `performance.floor_history の最後の要素の ${key}`
-    : `performance.${key}`;
-  const table = fromHistory ? last[key] : previous[key];
+  /** @type {unknown} */
+  let table;
+  let label;
+  if (history.length > 0) {
+    const tail = history[history.length - 1];
+    if (!isPlainObject(tail)) {
+      throw new UsageError(
+        "前の performance.floor_history の最後の要素がオブジェクトでない（履歴を直してから通す）",
+      );
+    }
+    table = tail[key];
+    label = `performance.floor_history の最後の要素の ${key}`;
+  } else if (previous.declared === true) {
+    table = previous[key];
+    label = `performance.${key}`;
+  } else {
+    return { ...defaults };
+  }
   if (table === undefined || table === null) return { ...defaults };
   if (!isPlainObject(table)) throw new UsageError(`前の ${label} がオブジェクトでない`);
   /** @type {Record<string, number>} */
@@ -573,6 +578,18 @@ export function baseFloors(previous, key, defaults, overridden = []) {
     out[m] = v;
   }
   return out;
+}
+
+/**
+ * フラグで渡した下限（parseFloors が検査した表）を、引き継ぐ下限に重ねる。
+ * @param {Record<string, number>} given - フラグで渡した指標だけの表
+ * @param {unknown} previous
+ * @param {string} key
+ * @param {Record<string, number>} defaults
+ * @returns {Record<string, number>}
+ */
+function withBase(given, previous, key, defaults) {
+  return { ...baseFloors(previous, key, defaults, Object.keys(given)), ...given };
 }
 
 /**
@@ -1038,19 +1055,17 @@ export function main(argv, deps = {}) {
 
     if (command === "summarize") {
       const result = summarize(metadata, samplesDoc, {
-        floors: parseFloors(
-          floorSpecs,
-          baseFloors(metadata.performance, "floors", DEFAULT_FLOORS, specMetrics(floorSpecs)),
+        floors: withBase(
+          parseFloors(floorSpecs, {}),
+          metadata.performance,
+          "floors",
+          DEFAULT_FLOORS,
         ),
-        relativeFloors: parseFloors(
-          relativeFloorSpecs,
-          baseFloors(
-            metadata.performance,
-            "relative_floors",
-            DEFAULT_RELATIVE_FLOORS,
-            specMetrics(relativeFloorSpecs),
-          ),
-          "--relative-floor",
+        relativeFloors: withBase(
+          parseFloors(relativeFloorSpecs, {}, "--relative-floor"),
+          metadata.performance,
+          "relative_floors",
+          DEFAULT_RELATIVE_FLOORS,
         ),
         samplesPath: opts.samples,
         samplesSha256: samplesFingerprint(samplesText),

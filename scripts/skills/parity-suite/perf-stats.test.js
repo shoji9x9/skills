@@ -445,6 +445,30 @@ describe("summarize", () => {
       expect(perf.floor_history).toEqual(first.floor_history);
     });
 
+    test("declared: false にした基準でも、履歴があれば記録した下限を引き継ぐ", () => {
+      const first = summarized(curDoc, ["--floor", "lcp=50"]).meta.performance;
+      const r = resummarize({
+        declared: false,
+        reason: "一時的に外した",
+        floor_history: first.floor_history,
+      });
+      expect(r.code).toBe(0);
+      const perf = r.read(META).performance;
+      expect(perf.floors.lcp).toBe(50);
+      expect(perf.floor_history).toEqual(first.floor_history);
+    });
+
+    test("履歴の最後の要素がオブジェクトでなければ、今の表から引き継がずに exit 2", () => {
+      const first = summarized(curDoc).meta.performance;
+      const r = resummarize({
+        ...first,
+        floors: { ...DEFAULT_FLOORS, lcp: 1000 },
+        floor_history: [...first.floor_history, "lcp を緩めた"],
+      });
+      expect(r.code).toBe(2);
+      expect(r.err).toContain("floor_history の最後の要素がオブジェクトでない");
+    });
+
     test("floor_history が配列でなければ書かずに exit 2", () => {
       const first = summarized(curDoc).meta.performance;
       const r = resummarize({ ...first, floor_history: {} }, ["--floor", "lcp=150"]);
