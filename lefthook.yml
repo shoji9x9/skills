@@ -186,7 +186,9 @@ pre-commit:
             run: pnpm exec vitest run scripts/gates/lint-scope.test.js
           - name: formatter-scope
             # 整形ツールが書き換える種類を設定で閉じていること（実物のツールで確かめる）。設定を変えた commit で実行する。
-            glob: "{.markdownlint-cli2.yaml,.markdownlint.yaml,oxfmt.config.ts,scripts/gates/formatter-scope.test.js}"
+            # oxfmt の設定が import するファイルと、ツールの版を決めるファイルも、整形の範囲を変えるので含める
+            # （含めることは scripts/gates/lint-scope.test.js が確かめる）。
+            glob: "{.markdownlint-cli2.yaml,.markdownlint.yaml,oxfmt.config.ts,scripts/lib/source-scope.js,package.json,pnpm-lock.yaml,scripts/gates/formatter-scope.test.js}"
             run: pnpm exec vitest run scripts/gates/formatter-scope.test.js
           - name: control-chars
             # テキスト拡張子のステージ差分に NUL 等の制御バイトが混入していないか。

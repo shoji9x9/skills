@@ -134,6 +134,46 @@
       "expect_failing": [
         "oxfmt の許可リストの種類は、lefthook の oxfmt-* のジョブが渡す種類と一致する"
       ]
+    },
+    {
+      "id": "LS-FS-IMPORT",
+      "why": "formatter-scope のジョブが、oxfmt の設定が import するファイルの変更で実行されない",
+      "file": "lefthook.yml",
+      "find": "oxfmt.config.ts,scripts/lib/source-scope.js,package.json,",
+      "replace": "oxfmt.config.ts,package.json,",
+      "occurrences": 1,
+      "expect_failing": [
+        "lefthook の formatter-scope は、整形の範囲を変えるファイルの変更で実行する"
+      ]
+    },
+    {
+      "id": "LS-FS-VERSION",
+      "why": "formatter-scope のジョブが、ツールの版を決めるファイルの変更で実行されない",
+      "file": "lefthook.yml",
+      "find": "package.json,pnpm-lock.yaml,scripts/gates/formatter-scope.test.js}",
+      "replace": "package.json,scripts/gates/formatter-scope.test.js}",
+      "occurrences": 1,
+      "expect_failing": [
+        "lefthook の formatter-scope は、整形の範囲を変えるファイルの変更で実行する"
+      ]
+    },
+    {
+      "id": "LS-IMPORT-SIDE",
+      "why": "副作用だけの import と単引用符を拾わない",
+      "file": "scripts/gates/lint-scope.test.js",
+      "find": "/\\b(?:from|import)\\s*[\"'](\\.{1,2}\\/[^\"']+)[\"']/g",
+      "replace": "/\\bfrom \"(\\.{1,2}\\/[^\"]+)\"/g",
+      "occurrences": 1,
+      "expect_failing": ["repoImports は、import の書き方の違いと、import 先の import を拾う"]
+    },
+    {
+      "id": "LS-IMPORT-TRANSITIVE",
+      "why": "import 先がさらに import するファイルをたどらない",
+      "file": "scripts/gates/lint-scope.test.js",
+      "find": "    repoImports(dep, readFile, found);\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["repoImports は、import の書き方の違いと、import 先の import を拾う"]
     }
   ]
 }
