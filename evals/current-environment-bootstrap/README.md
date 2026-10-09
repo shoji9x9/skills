@@ -64,9 +64,6 @@ scripts/eval/run-skill-eval.sh \
 | `parity-suite` の網羅表に対する影響を記録 | 「後続の parity-suite が状態網羅に使う資料が足りるかも報告に含めてください」 |
 | `app-ui` だけで代替したときに測れない操作を記録 | 「app-ui を代替資産として扱えるか、何が測れないかも明記してください」 |
 
-下の表は、1 行目の assertion を直す前（3 資料を個別に分類することを求めていた版）の測定である。
-直した後の 1 行目は 3 資料と対象版を名指ししたかを見るので、束ねて書いても名指ししていれば合格になる（`tests/current-environment-bootstrap/iteration-9/benchmark.md`）。
-
 **上 2 行の引用は上位概念だが、この 2 件は現行の prompt で到達している（`with_skill` 3/3）。** prompt を「3 資料を 1 件ずつ
 受領済み／導出可能／不足／該当なしで判定して」と直接問う形へ強めると、**差が出なくなる**ことを実測した。
 
@@ -75,6 +72,9 @@ scripts/eval/run-skill-eval.sh \
 | iteration-5（現行 prompt） | codex | `with_skill` 3/3 pass・`without_skill` は 1 行目 0/3 pass・2 行目 2/3 pass |
 | 対照 run（現行 prompt） | claude-code | `with_skill` pass・`without_skill` fail（ベースラインは 3 資料を 1 項目に束ね、依頼先も付けない） |
 | 対照 run（直接問う prompt） | claude-code | `without_skill` **pass**（ベースラインが 4 区分語彙をそのまま埋める） |
+
+この測定の表は、1 行目の assertion を直す前（3 資料を個別に分類することを求めていた版）のものである。
+直した後の 1 行目は 3 資料と対象版を名指ししたかを見るので、束ねて書いても名指ししていれば合格になる（`tests/current-environment-bootstrap/iteration-9/benchmark.md`）。
 
 - prompt を直接問う形にできないのは、「3 資料をそれぞれ名指しして不足に分類する」という結論そのものがスキル固有の取り決めだからである。
   prompt でその分類軸と語彙を渡すと、渡した時点でベースラインが満たす。到達できることは、

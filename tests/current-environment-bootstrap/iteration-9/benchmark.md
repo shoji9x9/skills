@@ -8,7 +8,7 @@
 
 Issue #564 で、eval 6 の fixture の `received/app/src/Orders.tsx` に引数の型（`{ rows }: { rows: OrderRow[] }`）を書いた。
 fixture を型の検査（`tsconfig.fixtures.json`、strict）の対象にしたためで、assertion が見る市販グリッドの使用と版には触れていない。
-スキル本文・prompt・assertion は変えていない。
+この iteration の run は、スキル本文・prompt・assertion を変えずに実行した。assertion 1 は run の後に直した（下の「assertion 1 を直した」）。
 
 ## Summary
 

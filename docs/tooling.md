@@ -145,7 +145,8 @@ mise・pnpm・GitHub・各エージェントの設定は、形式をツールが
 
 ### 型の検査
 
-`pnpm run typecheck`（`tsc -b`）が `.ts`・`.tsx` の型を検査する。lefthook の pre-commit は `.ts`・`.tsx`・`.js`・`.mjs` か tsconfig か依存が staged のときに、CI は `Lint` ジョブで実行する。
+`pnpm run typecheck`（`tsc -b --force`）が `.ts`・`.tsx` の型を検査する。lefthook の pre-commit は `.ts`・`.tsx`・`.js`・`.mjs` か tsconfig か依存が staged のときに、CI は `Lint` ジョブで実行する。
+`--force` を付けるのは、`tsc -b` が up to date かを include の対象と tsbuildinfo の時刻だけで判定し、依存の型（`node_modules`）が変わってもプロジェクトを飛ばすからである。
 1 つのファイルの変更が import する側の型を変えるので、staged のファイルだけでなく全体を検査する。
 
 `tsconfig.json` は参照を束ねるだけで、対象と設定は次の 4 つで決める。共通の設定は `tsconfig.base.json` に置く。
