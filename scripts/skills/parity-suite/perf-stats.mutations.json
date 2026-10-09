@@ -598,7 +598,8 @@
         "summarize 下限の履歴（floor_history） 雛形のデフォルトと同じ下限を持つ未集計の performance に初めて書くときも、1 件記録する",
         "summarize 下限の履歴（floor_history） --floor を省いた指標は、前の集計の下限を引き継ぐ",
         "summarize 下限の履歴（floor_history） 履歴を持たない前の版の基準は、同じ下限で採り直しても今の下限を 1 件記録する",
-        "summarize 下限の履歴（floor_history） 手で書き換えた下限に summarize を通し直すと、履歴の最後の要素と比べて追記する"
+        "summarize 下限の履歴（floor_history） 手で書き換えた下限に summarize を通し直すと、履歴の最後の要素と比べて追記する",
+        "summarize 下限の履歴（floor_history） 手で緩めた下限にフラグなしで summarize を通すと、履歴に記録した下限へ戻る"
       ]
     },
     {
@@ -639,21 +640,22 @@
       "id": "floor-history-compare-prev",
       "why": "履歴の最後の要素ではなく前の performance の下限と比べる",
       "file": "skills/parity-suite/scripts/perf-stats.mjs",
-      "find": "  const last = history.length === 0 ? null : history[history.length - 1];",
-      "replace": "  const last = prev;",
+      "find": "  const last = history.length === 0 ? null : history[history.length - 1];\n  const unchanged =",
+      "replace": "  const last = prev;\n  const unchanged =",
       "occurrences": 1,
       "expect_failing": [
         "summarize 下限の履歴（floor_history） 雛形のデフォルトと同じ下限を持つ未集計の performance に初めて書くときも、1 件記録する",
         "summarize 下限の履歴（floor_history） 履歴を持たない前の版の基準は、同じ下限で採り直しても今の下限を 1 件記録する",
-        "summarize 下限の履歴（floor_history） 手で書き換えた下限に summarize を通し直すと、履歴の最後の要素と比べて追記する"
+        "summarize 下限の履歴（floor_history） 手で書き換えた下限に summarize を通し直すと、履歴の最後の要素と比べて追記する",
+        "summarize 下限の履歴（floor_history） 手で緩めた下限にフラグなしで summarize を通すと、履歴に記録した下限へ戻る"
       ]
     },
     {
       "id": "floor-history-empty-uses-prev",
       "why": "履歴が空のとき前の performance の下限と比べて、最初の記録を飛ばす",
       "file": "skills/parity-suite/scripts/perf-stats.mjs",
-      "find": "  const last = history.length === 0 ? null : history[history.length - 1];",
-      "replace": "  const last = history.length === 0 ? prev : history[history.length - 1];",
+      "find": "  const last = history.length === 0 ? null : history[history.length - 1];\n  const unchanged =",
+      "replace": "  const last = history.length === 0 ? prev : history[history.length - 1];\n  const unchanged =",
       "occurrences": 1,
       "expect_failing": [
         "summarize 下限の履歴（floor_history） 雛形のデフォルトと同じ下限を持つ未集計の performance に初めて書くときも、1 件記録する",
@@ -692,6 +694,39 @@
       "occurrences": 1,
       "expect_failing": [
         "summarize 下限の履歴（floor_history） 集計済みの前の下限が読めなければ、デフォルトへ戻さずに exit 2"
+      ]
+    },
+    {
+      "id": "base-floors-from-table",
+      "why": "履歴があっても今の表から下限を引き継ぎ、手で緩めた値を記録する",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "  const fromHistory = isPlainObject(last);",
+      "replace": "  const fromHistory = false;",
+      "occurrences": 1,
+      "expect_failing": [
+        "summarize 下限の履歴（floor_history） 手で緩めた下限にフラグなしで summarize を通すと、履歴に記録した下限へ戻る"
+      ]
+    },
+    {
+      "id": "base-floors-missing-table-throws",
+      "why": "引き継ぐ表が無いときにデフォルトを使わず止まる",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "  if (table === undefined || table === null) return { ...defaults };",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "summarize 下限の履歴（floor_history） 前の版の基準に割合の下限が無ければ、デフォルトを使って通し直せる"
+      ]
+    },
+    {
+      "id": "base-floors-override-ignored",
+      "why": "フラグで渡した指標でも、読めない前の値で止まる",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "    if (v === undefined || v === null || overridden.includes(m)) continue;",
+      "replace": "    if (v === undefined || v === null) continue;",
+      "occurrences": 1,
+      "expect_failing": [
+        "summarize 下限の履歴（floor_history） 読めない前の下限も、その指標をフラグで渡せば上書きして通る"
       ]
     }
   ]

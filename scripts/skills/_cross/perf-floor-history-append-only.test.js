@@ -105,6 +105,30 @@ function makeRepo() {
   return root;
 }
 
+test("同梱の一覧の pinned_values は、parity-suite の metadata の雛形に実在するパスを指す", () => {
+  // 一覧のパスを綴り違えると、比較元も現在も undefined になって固定が警告なしに無効になる。
+  // 書き手の原本（雛形）の形に当たることを確かめる
+  const manifest = JSON.parse(
+    readFileSync(
+      join(repoRoot, "skills/replace-strategy/assets/append-only-manifest.json"),
+      "utf8",
+    ),
+  );
+  const template = JSON.parse(
+    readFileSync(join(repoRoot, "skills/parity-suite/assets/metadata-template.json"), "utf8"),
+  );
+  const at = (doc, path) =>
+    path.split(".").reduce((v, k) => (v !== null && typeof v === "object" ? v[k] : undefined), doc);
+  const groups = manifest.artifacts
+    .filter((a) => a.pattern === ".replace/parity/*/metadata.json")
+    .flatMap((a) => a.pinned_values ?? []);
+  expect(groups.length).toBeGreaterThan(0);
+  for (const group of groups) {
+    for (const path of group.paths) expect(at(template, path), path).toBeDefined();
+    expect(Array.isArray(at(template, group.history)), group.history).toBe(true);
+  }
+});
+
 test("summarize --write で下限を変えた採り直しは、append-only チェックを通る", () => {
   const root = makeRepo();
   summarize(root, ["--floor", "lcp=150", "--relative-floor", "ttfb=0.3"]);

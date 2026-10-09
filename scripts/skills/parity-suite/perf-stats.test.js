@@ -402,10 +402,47 @@ describe("summarize", () => {
     });
 
     test("集計済みの前の下限が読めなければ、デフォルトへ戻さずに exit 2", () => {
-      const first = summarized(curDoc).meta.performance;
-      const r = resummarize({ ...first, floors: { ...DEFAULT_FLOORS, lcp: "100" } });
+      const { floor_history: _, ...legacy } = summarized(curDoc).meta.performance;
+      const r = resummarize({ ...legacy, floors: { ...DEFAULT_FLOORS, lcp: "100" } });
       expect(r.code).toBe(2);
       expect(r.err).toContain("performance.floors.lcp");
+    });
+
+    test("読めない前の下限も、その指標をフラグで渡せば上書きして通る", () => {
+      const { floor_history: _, ...legacy } = summarized(curDoc).meta.performance;
+      const r = resummarize({ ...legacy, floors: { ...DEFAULT_FLOORS, lcp: "100" } }, [
+        "--floor",
+        "lcp=120",
+      ]);
+      expect(r.code).toBe(0);
+      expect(r.read(META).performance.floors.lcp).toBe(120);
+    });
+
+    test("前の版の基準に割合の下限が無ければ、デフォルトを使って通し直せる", () => {
+      // compare は「summarize を通し直す」と案内するので、summarize がここで止まると復旧できない
+      const {
+        floor_history: _h,
+        relative_floors: _r,
+        ...legacy
+      } = summarized(curDoc).meta.performance;
+      const r = resummarize(legacy);
+      expect(r.code).toBe(0);
+      expect(r.read(META).performance.relative_floors).toEqual({
+        lcp: 0.2,
+        cls: 0,
+        tbt: 0.2,
+        ttfb: 0.2,
+      });
+    });
+
+    test("手で緩めた下限にフラグなしで summarize を通すと、履歴に記録した下限へ戻る", () => {
+      // 今の表から引き継ぐと、手で緩めた値が正規の記録として履歴に残る
+      const first = summarized(curDoc).meta.performance;
+      const r = resummarize({ ...first, floors: { ...DEFAULT_FLOORS, lcp: 1000 } });
+      expect(r.code).toBe(0);
+      const perf = r.read(META).performance;
+      expect(perf.floors).toEqual(DEFAULT_FLOORS);
+      expect(perf.floor_history).toEqual(first.floor_history);
     });
 
     test("floor_history が配列でなければ書かずに exit 2", () => {
