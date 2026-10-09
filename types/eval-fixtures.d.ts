@@ -33,7 +33,8 @@ declare module "@vendor/keyboard" {
 }
 
 // parity-component の fixture の main.tsx が import する、fixture に置いていないアプリの本体。
-// `*` を含む名前なので、fixture のどこかに App.tsx を置いても、末尾が /App の import はこの宣言の型のままになる
+// ファイルとして解決できる import には使われない（fixture に App.tsx を置くと、その型で検査される）。
+// 末尾が /App で、ファイルが無い import は、どの fixture のものでもこの宣言に一致する
 declare module "*/App" {
   import type { ComponentType } from "react";
   export const App: ComponentType;
