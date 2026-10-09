@@ -52,6 +52,7 @@ update が上げない理由（lockfile にある transitive の解決を残す�
 3. リポジトリと同じ pnpm の実体を使い、元の有効な値を作った global config・環境変数・CLI の上書きも同じ条件にする。
    コピー先へ cd する前に、コピー先で使うツールをすべて（`pnpm` だけでなく `node` も）リポジトリの中で実体のパスに解決しておく（mise なら `pnpm_bin=$(mise which pnpm)`・`node_bin=$(mise which node)`）。
    バージョンマネージャの shim は cwd の設定で版を決めるので、コピー先で `pnpm` や `node` を名前で呼ぶと起動自体が失敗する。
+   `node_modules/.bin` の bin は中で `node` を PATH から名前で呼ぶので、`node` の実体のディレクトリを PATH の先頭に足す（`PATH="$(dirname "$node_bin"):$PATH"`）。
    コピー先のそれぞれで `pnpm config get minimumReleaseAge` をもう一度実行し、元と同じ有効な値であることを確かめる。
    pnpm 11 では、`minimumReleaseAge` などのプロジェクトの設定は `pnpm-workspace.yaml` から、レジストリと認証の設定は `.npmrc` から読まれる
 4. コピー先で `pnpm update <pkg> --depth Infinity --lockfile-only` を実行し、lockfile の対象の version を確かめる

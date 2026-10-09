@@ -12,8 +12,9 @@ Claude Code・Codex・GitHub Copilot に対応した、マルチエージェン�
 - スキルは GitHub CLI（`gh skill`、v2.90.0 以上）と Agent Skills 仕様で管理する。
 - パッケージマネージャは pnpm で、版は mise で管理する。npm は使わず、`package-lock.json` を作らない。版を変える手順は [`docs/package-manager.md`](docs/package-manager.md) にある。
 - ツールは `pnpm exec <tool>` か mise の shim で起動する。`./node_modules/.bin/<tool>` を直接指定しない。
-- mise の shim はリポジトリの外のディレクトリでは解決できない。リポジトリの外で動かすときは、使うツールをすべて（`node_modules/.bin` の bin が通る `node` を含む）
-  リポジトリの中で `mise which <tool>` によって実体のパスに解決してから使う。新しいパスの worktree は trust を引き継がないので、依存を入れる前に `mise trust` を実行する。
+- mise の shim はリポジトリの外のディレクトリでは解決できない。リポジトリの外で動かすときは、使うツールをすべてリポジトリの中で `mise which <tool>` によって実体のパスに解決してから使う。
+  `node_modules/.bin` の bin は中で `node` を PATH から名前で呼ぶので、`node` の実体のディレクトリを PATH の先頭に足す（`PATH="$(dirname "$(mise which node)"):$PATH"`）。
+  新しいパスの worktree は trust を引き継がないので、依存を入れる前に `mise trust` を実行する。
 - `oxfmt` には Markdown を渡さない。Markdown の整形は `markdownlint-cli2 --fix` で行う。prettier は使わない。
 - 整形ツール（`oxfmt`・`markdownlint-cli2 --fix`）にはディレクトリを渡さず、ファイルを並べて渡す。渡された範囲の目的外の種類のファイルまで書き換わる。
 

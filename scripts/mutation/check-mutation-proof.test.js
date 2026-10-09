@@ -91,7 +91,8 @@ const out = args.find((a) => a.startsWith("--outputFile=")).slice("--outputFile=
 const def = JSON.parse(readFileSync(testFile, "utf8"));
 const content = readFileSync(join(dirname(testFile), def.target), "utf8");
 // 実行中に対象を外から編集する状態を作る（\`editDuringRun\` を持つ fixture だけ）。
-if (def.editDuringRun && content !== def.editDuringRun.unless) {
+const editing = Boolean(def.editDuringRun && content !== def.editDuringRun.unless);
+if (editing) {
   writeFileSync(join(dirname(testFile), def.target), content + def.editDuringRun.append);
 }
 const assertionResults = def.tests.map((t) => {
@@ -104,6 +105,8 @@ const assertionResults = def.tests.map((t) => {
     failureMessages: ok ? [] : ["expected target to contain " + JSON.stringify(t.contains)],
   };
 });
+// 編集した run でだけテスト名を重複させ、ランナーを die（finally を通らない終わり方）させる。
+if (editing && def.editDuringRun.duplicate) assertionResults.push({ ...assertionResults[0] });
 const failed = assertionResults.filter((a) => a.status === "failed").length;
 writeFileSync(
   out,
@@ -547,6 +550,30 @@ describe("宣言と前提の検証（実行する前に落とす）", () => {
     expect(res.status, res.out).toBe(2);
     expect(res.out).toContain("変異の外から書き換えられた");
     // **編集を消していないこと**（この検査の主目的）。
+    expect(readFileSync(fx.target, "utf8")).toBe(
+      `${FIXTURE_TARGET.replace(GUARD, "")}# 実行中に足した行\n`,
+    );
+    expect(existsSync(`${lock}.recovery.json`), "記録を消してしまった").toBe(true);
+    rmSync(`${lock}.recovery.json`, { force: true });
+  });
+
+  // finally を通らない終わり方（die → exit ハンドラ）でも、照合せずに上書きしない。
+  test("実行中の編集の後に die しても、exit ハンドラが編集を上書きしない", () => {
+    const fx = makeFixture();
+    writeFileSync(
+      join(fx.dir, "fixture.stub.json"),
+      JSON.stringify({
+        target: "target.sh",
+        tests: STUB_TESTS,
+        editDuringRun: { unless: FIXTURE_TARGET, append: "# 実行中に足した行\n", duplicate: true },
+      }),
+    );
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    const lock = join(lockDir, "edited-then-die.lock");
+    const res = runRunner(spec, { MUTATION_PROOF_LOCK: lock });
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toContain("テスト名が重複している");
+    expect(res.out).toContain("変異の外から書き換えられた");
     expect(readFileSync(fx.target, "utf8")).toBe(
       `${FIXTURE_TARGET.replace(GUARD, "")}# 実行中に足した行\n`,
     );

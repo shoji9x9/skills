@@ -657,3 +657,26 @@ test.each([
   expect(r.status, r.stderr).toBe(0);
   expect(r.stderr).not.toMatch(/実行前に止めた/);
 });
+
+// PR #585 の 2 回目のレビュー。委譲でない引用の中は区切らない・ssh は委譲でも止めない・書き込まないモード・引用の中の空白。
+test.each([
+  ["委譲でない引用の中の ; は区切らない", 'rg -n oxfmt -e "x; oxfmt ."'],
+  ["ssh の引用の中の && の後も止めない", 'ssh host "cd repo && oxfmt ."'],
+  ["--stdin-filepath は書き込まない", "cat a.js | pnpm exec oxfmt --stdin-filepath=a.js"],
+  ["--lsp は書き込まない", "pnpm exec oxfmt --lsp"],
+  ["--help は後の --fix に関わらず書き込まない", "pnpm exec markdownlint-cli2 --help --fix"],
+  ["引用した空白を含むパスは 1 つの語", 'pnpm exec oxfmt "scripts hooks/a.js"'],
+])("整形ツールの誤検知しないことの確認（2 回目のレビュー）: %s", (_name, command) => {
+  const r = guard(command);
+  expect(r.status, r.stderr).toBe(0);
+  expect(r.stderr).not.toMatch(/実行前に止めた/);
+});
+
+test.each([
+  ["引用したディレクトリは引き続き止める", 'pnpm exec oxfmt "scripts"'],
+  ["--fix の後の書き込みはそのまま止める", "pnpm exec markdownlint-cli2 --fix"],
+])("整形ツールのディレクトリ引数を止める（2 回目のレビュー）: %s", (_name, command) => {
+  const r = guard(command);
+  expect(r.status, r.stderr).toBe(2);
+  expect(r.stderr).toMatch(/整形ツールにディレクトリを渡すか対象を省くと/);
+});

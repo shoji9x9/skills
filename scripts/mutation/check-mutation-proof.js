@@ -257,11 +257,24 @@ function cleanupTempDirs() {
   tempDirs.clear();
 }
 
+/**
+ * 終了の途中（`die()` など finally を通らない終わり方）で、当てた変異を戻す。
+ * **自分が書いた変異のままのときだけ戻す**（finally の照合と同じ）。外から編集されていたら上書きせず、
+ * 復元情報を残して次回起動の `recoverFromInterrupted` に任せる。
+ */
 function restorePending() {
   if (!pending) return;
-  const { path, content } = pending;
+  const { path, content, mutated } = pending;
   pending = null;
   try {
+    const current = existsSync(path) ? readFileSync(path, "utf8") : null;
+    if (current === content) return;
+    if (current !== mutated) {
+      console.error(
+        `mutation-proof: 実行中に ${path} が変異の外から書き換えられた。上書きせずに終える（復元情報: ${recoveryPath}）`,
+      );
+      return;
+    }
     writeFileSync(path, content);
   } catch (err) {
     console.error(`mutation-proof: ${path} を復元できなかった（手で戻す）: ${err.message}`);
@@ -603,13 +616,14 @@ function proveMutation(mutation, testFile) {
   let run;
   let wroteMutation = false;
   try {
-    pending = { path: mutation.target, content: original };
+    pending = { path: mutation.target, content: original, mutated };
     writeRecovery(mutation.target, original, mutated);
     writeFileSync(mutation.target, mutated);
     wroteMutation = true;
     run = runTests(testFile);
   } finally {
-    pending = null;
+    // `pending` は照合を終えるまで外さない。ここで例外や exit になっても、exit ハンドラの
+    // `restorePending` が同じ照合をして戻す（先に外すと、読み取りの失敗で変異が残る）。
     // **自分が書いた変異のままのときだけ戻す**（`recoverFromInterrupted` と同じ照合）。
     // 実行中に同じファイルを編集されていたら、無条件に書き戻すとその編集を警告なしに消す（実測）。
     // 復元情報は残し、次回起動も同じ食い違いで止まるようにする。
@@ -620,9 +634,11 @@ function proveMutation(mutation, testFile) {
         `mutation-proof: 実行中に ${mutation.target} が変異の外から書き換えられた。` +
           `上書きせずに止める。内容を確かめ、変異（復元情報: ${recoveryPath} の after）が残っていれば手で戻す`,
       );
+      pending = null;
       process.exit(2);
     }
     writeFileSync(mutation.target, original);
+    pending = null;
     // 復元を実測する（ここが崩れると、以降の変異も本来の版で測れていない）。
     // **検証を通ってから復元情報を消す**——先に消すと、記録が要るまさにその場合
     //（書き戻したのに内容が一致しない）に次回起動が回収できない。
