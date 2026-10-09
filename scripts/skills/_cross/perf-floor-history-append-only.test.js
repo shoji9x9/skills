@@ -123,6 +123,29 @@ test("summarize --write で下限を変えない採り直しも通る", () => {
   expect(r.status).toBe(0);
 });
 
+test("手で書き換えた下限に、同じ値で summarize --write を通し直せば通る", () => {
+  // 書き手が作業ツリーの前の値と比べると追記されず、正規の書き手でチェックを通せない状態が残る
+  const root = makeRepo();
+  const doc = JSON.parse(readFileSync(join(root, META), "utf8"));
+  doc.performance.floors.lcp = 150;
+  writeFileSync(join(root, META), `${JSON.stringify(doc, null, 2)}\n`);
+  expect(appendOnlyCheck(root).status).toBe(1);
+  summarize(root, ["--floor", "lcp=150"]);
+  const r = appendOnlyCheck(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+});
+
+test("--floor を省いて採り直しても、前に決めた下限は変わらない", () => {
+  const root = makeRepo();
+  summarize(root, ["--floor", "lcp=50"]);
+  git(root, ["commit", "-qam", "tighten"]);
+  summarize(root);
+  const perf = JSON.parse(readFileSync(join(root, META), "utf8")).performance;
+  expect(perf.floors.lcp).toBe(50);
+  expect(appendOnlyCheck(root).status).toBe(0);
+});
+
 test("summarize を通さずに下限を手で緩めた変更は、append-only チェックが exit 1 にする", () => {
   const root = makeRepo();
   const doc = JSON.parse(readFileSync(join(root, META), "utf8"));

@@ -1052,7 +1052,8 @@ if (capturing) {
   下限より小さい悪化は見逃すので、気にする差の大きさに合わせて変える。使った値は `performance.floors`・`performance.relative_floors` に残る。
   デフォルトより緩い下限は、`parity-diff` の `compare` が結果と報告に載せる（判定は変えない）。
   下限を変えるときは、`summarize --write` に `--floor`・`--relative-floor` を渡して通し直す。`metadata.json` を手で書き換えない。
-  `summarize` は、下限が前と違えば（初めて書くときを含む）、`performance.floor_history` に 1 件追記する。
+  渡さなかった指標は、前の集計（`declared: true` の `performance`）の値を引き継ぐ。デフォルトを使うのは初めての集計だけで、デフォルトに戻すときも値を渡す。
+  `summarize` は、履歴が空か、履歴の最後の要素と下限が違えば、`performance.floor_history` に 1 件追記する。
   下限は採取から導けないので、`compare` は値の正しさを確かめられない。
   そのため、`replace-strategy` の `append-only-check.mjs` が、履歴を追記せずに下限を変えた変更と、履歴の既存の要素を消した・書き換えた変更を exit 1 にする。
   判定の規則（許容幅を超えた悪化・新側のばらつき・値の欠け・環境の違い）の原本は [`../scripts/perf-stats.mjs`](../scripts/perf-stats.mjs) で、`parity-diff` が `compare` で使う。

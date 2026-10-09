@@ -37,6 +37,7 @@ export const METRICS = ["lcp", "cls", "tbt", "ttfb"];
 /**
  * 指標ごとの許容幅の絶対の下限（デフォルト）。四分位範囲が 0 に近い環境で、1ms の差まで回帰にしないための値である。
  * summarize の `--floor <指標>=<値>` で上書きでき、使った値は metadata.json の performance.floors に残る。
+ * `--floor` を省いた指標は、前の集計の値を引き継ぐ（初めての集計だけデフォルト。baseFloors を参照）。
  * 下限を変えた summarize は performance.floor_history に追記する（floorHistory を参照）。
  * @type {Record<string, number>}
  */
@@ -486,10 +487,12 @@ export function summarize(metadata, samplesDoc, opts) {
 }
 
 /**
- * 下限の変更の履歴を作る。下限が前の performance と違えば（初めて書くときを含む）、1 件追記する。
- * 前の performance が集計済み（declared: true）でなければ、初めて書くときとして扱う。
+ * 下限の変更の履歴を作る。履歴が空か、最後の要素の下限が今回の下限と違えば、1 件追記する。
  * 下限は採取から導けない利用者の決定なので、compare は値の正しさを確かめられない。
  * 変えた記録を残し、replace-strategy の append-only-check.mjs が、履歴を追記せずに下限を変えた変更を落とす。
+ * 比べる相手は、前の performance.floors ではなく履歴の最後の要素である。append-only-check.mjs も最後の要素と今の値を突き合わせる。
+ * 前の floors と比べると、手で書き換えた下限に summarize を通し直しても追記されず、チェックが通らないまま残る。
+ * 履歴が空なら（雛形のまま・履歴を持たない前の版の基準）、今の下限を最初の記録として追記する。
  * 既存の要素は変えずにそのまま残す。
  * @param {unknown} previous - 書き換える前の metadata.json の performance
  * @param {unknown} samplesDoc
@@ -504,11 +507,11 @@ export function floorHistory(previous, samplesDoc, opts) {
       "performance.floor_history が配列でない（手で書き換えていないか確かめる）",
     );
   }
-  // 雛形から作った metadata.json はデフォルトと同じ下限を持つので、集計済み（declared: true）の前の値とだけ比べる
+  const last = history.length === 0 ? null : history[history.length - 1];
   const unchanged =
-    prev.declared === true &&
-    canonicalJson(prev.floors ?? null) === canonicalJson(opts.floors) &&
-    canonicalJson(prev.relative_floors ?? null) === canonicalJson(opts.relativeFloors);
+    isPlainObject(last) &&
+    canonicalJson(last.floors ?? null) === canonicalJson(opts.floors) &&
+    canonicalJson(last.relative_floors ?? null) === canonicalJson(opts.relativeFloors);
   if (unchanged) return history;
   const doc = /** @type {Record<string, unknown>} */ (samplesDoc);
   return [
@@ -520,6 +523,35 @@ export function floorHistory(previous, samplesDoc, opts) {
       measured_at: doc.measured_at ?? null,
     },
   ];
+}
+
+/**
+ * `--floor` / `--relative-floor` を省いた指標に使う下限を決める。
+ * 前の performance が集計済み（declared: true）なら、その値を引き継ぐ。省いただけで決めた下限がデフォルトへ戻ると、
+ * 採り直しのときにフラグを付け忘れただけで下限が変わり、デフォルトより緩くなければ compare の loosened_floors にも出ない。
+ * 集計済みでなければ（performance が無い・雛形のまま・declared: false）、デフォルトを使う。
+ * 集計済みなのに表が読めなければ、デフォルトへ戻さずに使い方の誤りにする。
+ * @param {unknown} previous - 書き換える前の metadata.json の performance
+ * @param {string} key - `floors` か `relative_floors`
+ * @param {Record<string, number>} defaults
+ * @returns {Record<string, number>}
+ */
+export function baseFloors(previous, key, defaults) {
+  if (!isPlainObject(previous) || previous.declared !== true) return { ...defaults };
+  const table = previous[key];
+  if (!isPlainObject(table)) {
+    throw new UsageError(`前の performance.${key} が無い（手で書き換えていないか確かめる）`);
+  }
+  /** @type {Record<string, number>} */
+  const out = {};
+  for (const m of METRICS) {
+    const v = table[m];
+    if (typeof v !== "number" || !Number.isFinite(v) || v < 0) {
+      throw new UsageError(`前の performance.${key}.${m} が 0 以上の数でない`);
+    }
+    out[m] = v;
+  }
+  return out;
 }
 
 /**
@@ -985,10 +1017,10 @@ export function main(argv, deps = {}) {
 
     if (command === "summarize") {
       const result = summarize(metadata, samplesDoc, {
-        floors: parseFloors(floorSpecs),
+        floors: parseFloors(floorSpecs, baseFloors(metadata.performance, "floors", DEFAULT_FLOORS)),
         relativeFloors: parseFloors(
           relativeFloorSpecs,
-          DEFAULT_RELATIVE_FLOORS,
+          baseFloors(metadata.performance, "relative_floors", DEFAULT_RELATIVE_FLOORS),
           "--relative-floor",
         ),
         samplesPath: opts.samples,

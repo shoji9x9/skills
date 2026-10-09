@@ -356,6 +356,58 @@ describe("summarize", () => {
       expect(history[0].floors.tbt).toBe(80);
     });
 
+    test("履歴を持たない前の版の基準は、同じ下限で採り直しても今の下限を 1 件記録する", () => {
+      const { floor_history: _, ...legacy } = summarized(curDoc).meta.performance;
+      const r = resummarize(legacy);
+      expect(r.code).toBe(0);
+      const history = r.read(META).performance.floor_history;
+      expect(history).toHaveLength(1);
+      expect(history[0].floors).toEqual(DEFAULT_FLOORS);
+    });
+
+    test("手で書き換えた下限に summarize を通し直すと、履歴の最後の要素と比べて追記する", () => {
+      // append-only-check.mjs は commit 済みの値と比べるので、前の floors と比べると追記されず、チェックが通らないまま残る
+      const first = summarized(curDoc).meta.performance;
+      const edited = { ...first, floors: { ...DEFAULT_FLOORS, lcp: 150 } };
+      const r = resummarize(edited, ["--floor", "lcp=150"]);
+      expect(r.code).toBe(0);
+      const history = r.read(META).performance.floor_history;
+      expect(history).toHaveLength(2);
+      expect(history[1].floors.lcp).toBe(150);
+    });
+
+    test("--floor を省いた指標は、前の集計の下限を引き継ぐ", () => {
+      const first = summarized(curDoc, ["--floor", "lcp=50", "--relative-floor", "tbt=0.1"]).meta
+        .performance;
+      const kept = resummarize(first);
+      expect(kept.code).toBe(0);
+      const perf = kept.read(META).performance;
+      expect(perf.floors.lcp).toBe(50);
+      expect(perf.relative_floors.tbt).toBe(0.1);
+      expect(perf.floor_history).toEqual(first.floor_history);
+      // 渡した指標だけが変わり、残りは引き継ぐ
+      const changed = resummarize(first, ["--floor", "ttfb=80"]).read(META).performance;
+      expect(changed.floors).toEqual({ ...DEFAULT_FLOORS, lcp: 50, ttfb: 80 });
+      expect(changed.floor_history).toHaveLength(2);
+    });
+
+    test("集計済みでない前の performance からは、下限を引き継がずデフォルトを使う", () => {
+      const r = resummarize({
+        declared: false,
+        reason: "揺れが大きい",
+        floors: { ...DEFAULT_FLOORS, lcp: 999 },
+      });
+      expect(r.code).toBe(0);
+      expect(r.read(META).performance.floors).toEqual(DEFAULT_FLOORS);
+    });
+
+    test("集計済みの前の下限が読めなければ、デフォルトへ戻さずに exit 2", () => {
+      const first = summarized(curDoc).meta.performance;
+      const r = resummarize({ ...first, floors: { ...DEFAULT_FLOORS, lcp: "100" } });
+      expect(r.code).toBe(2);
+      expect(r.err).toContain("performance.floors.lcp");
+    });
+
     test("floor_history が配列でなければ書かずに exit 2", () => {
       const first = summarized(curDoc).meta.performance;
       const r = resummarize({ ...first, floor_history: {} }, ["--floor", "lcp=150"]);
