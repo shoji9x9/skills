@@ -136,7 +136,8 @@
       "occurrences": 1,
       "expect_failing": [
         "宣言と前提の検証（実行する前に落とす） テスト名が重複していたら exit 2",
-        "宣言と前提の検証（実行する前に落とす） 実行中の編集の後に die しても、exit ハンドラが編集を上書きしない"
+        "宣言と前提の検証（実行する前に落とす） 実行中の編集の後に die しても、exit ハンドラが編集を上書きしない",
+        "宣言と前提の検証（実行する前に落とす） 元の内容へ戻された後に die しても、exit ハンドラは警告せず内容を変えない"
       ]
     },
     {
@@ -341,14 +342,15 @@
       "occurrences": 1,
       "expect_failing": [
         "宣言と前提の検証（実行する前に落とす） 実行中に対象が変異の外から書き換えられたら上書きせず exit 2",
-        "宣言と前提の検証（実行する前に落とす） 実行中の編集の後に例外が投げられても、元の例外を出力に残す"
+        "宣言と前提の検証（実行する前に落とす） 実行中の編集の後に例外が投げられても、元の例外を出力に残す",
+        "宣言と前提の検証（実行する前に落とす） 実行中に対象が元の内容へ戻されたら、結果を出さずに exit 2"
       ]
     },
     {
       "id": "EXIT-RESTORE-FOREIGN-EDIT",
       "why": "die で終わったとき、exit ハンドラが外からの編集を照合せずに上書きする",
       "file": "scripts/mutation/check-mutation-proof.js",
-      "find": "    if (current !== mutated) {",
+      "find": "    if (current !== mutated && current !== null) {",
       "replace": "    if (false) {",
       "occurrences": 1,
       "expect_failing": [
@@ -361,9 +363,43 @@
       "file": "scripts/mutation/check-mutation-proof.js",
       "find": "      if (thrown) console.error(",
       "replace": "      if (false) console.error(",
-      "occurrences": 1,
+      "occurrences": 3,
       "expect_failing": [
         "宣言と前提の検証（実行する前に落とす） 実行中の編集の後に例外が投げられても、元の例外を出力に残す"
+      ]
+    },
+    {
+      "id": "RESTORE-EARLY-RETURN",
+      "why": "exit ハンドラが、元の内容に戻っている対象も外からの編集として警告する",
+      "file": "scripts/mutation/check-mutation-proof.js",
+      "find": "    if (current === content) return;",
+      "replace": "    if (false) return;",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（実行する前に落とす） 元の内容へ戻された後に die しても、exit ハンドラは警告せず内容を変えない",
+        "宣言と前提の検証（実行する前に落とす） 変異を書く前に失敗したら、外からの編集として報告しない"
+      ]
+    },
+    {
+      "id": "WROTE-GUARD",
+      "why": "変異を書く前の失敗も、外からの編集として報告する",
+      "file": "scripts/mutation/check-mutation-proof.js",
+      "find": "    if (wroteMutation && current !== mutated) {",
+      "replace": "    if (current !== mutated) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（実行する前に落とす） 変異を書く前に失敗したら、外からの編集として報告しない"
+      ]
+    },
+    {
+      "id": "REMOVED-RECREATE",
+      "why": "実行中に消された対象を作り直さない",
+      "file": "scripts/mutation/check-mutation-proof.js",
+      "find": "    if (wroteMutation && current === null) {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（実行する前に落とす） 実行中に対象が消されたら、元の内容で作り直して exit 2"
       ]
     }
   ]

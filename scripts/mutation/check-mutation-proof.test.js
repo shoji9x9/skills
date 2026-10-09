@@ -83,7 +83,7 @@ const STUB_COMMAND = join(lockDir, "stub-vitest.js");
 writeFileSync(
   STUB_COMMAND,
   `#!${process.execPath}
-const { readFileSync, writeFileSync } = require("node:fs");
+const { readFileSync, unlinkSync, writeFileSync } = require("node:fs");
 const { dirname, join, resolve } = require("node:path");
 const args = process.argv.slice(2);
 const testFile = resolve(args[1]);
@@ -93,7 +93,11 @@ const content = readFileSync(join(dirname(testFile), def.target), "utf8");
 // 実行中に対象を外から編集する状態を作る（\`editDuringRun\` を持つ fixture だけ）。
 const editing = Boolean(def.editDuringRun && content !== def.editDuringRun.unless);
 if (editing) {
-  writeFileSync(join(dirname(testFile), def.target), content + def.editDuringRun.append);
+  const targetPath = join(dirname(testFile), def.target);
+  // restore: 元の内容（unless）に戻す / remove: 消す / それ以外: 末尾に追記する。
+  if (def.editDuringRun.restore) writeFileSync(targetPath, def.editDuringRun.unless);
+  else if (def.editDuringRun.remove) unlinkSync(targetPath);
+  else writeFileSync(targetPath, content + def.editDuringRun.append);
 }
 const assertionResults = def.tests.map((t) => {
   const ok = content.includes(t.contains);
@@ -605,6 +609,73 @@ describe("宣言と前提の検証（実行する前に落とす）", () => {
     expect(readFileSync(fx.target, "utf8")).toBe(
       `${FIXTURE_TARGET.replace(GUARD, "")}# 実行中に足した行\n`,
     );
+    rmSync(`${lock}.recovery.json`, { force: true });
+  });
+
+  /** 変異を当てた run でだけ対象を触るスタブの fixture（editDuringRun に渡す内容を追加で指定する）。 */
+  function editingFixture(edit) {
+    const fx = makeFixture();
+    writeFileSync(
+      join(fx.dir, "fixture.stub.json"),
+      JSON.stringify({
+        target: "target.sh",
+        tests: STUB_TESTS,
+        editDuringRun: { unless: FIXTURE_TARGET, ...edit },
+      }),
+    );
+    return fx;
+  }
+
+  // 元の内容に戻されていても、テストは変異を最後まで測れていないので結果を出さずに止める。
+  test("実行中に対象が元の内容へ戻されたら、結果を出さずに exit 2", () => {
+    const fx = editingFixture({ restore: true });
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    const lock = join(lockDir, "restored-during-run.lock");
+    const res = runRunner(spec, { MUTATION_PROOF_LOCK: lock });
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toContain("変異の外から書き換えられた");
+    expect(res.out).not.toContain("PASS G");
+    expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
+    rmSync(`${lock}.recovery.json`, { force: true });
+  });
+
+  // die で終わる途中では結果を出さないので、元の内容に戻っていれば exit ハンドラは何もしない（警告も出さない）。
+  test("元の内容へ戻された後に die しても、exit ハンドラは警告せず内容を変えない", () => {
+    const fx = editingFixture({ restore: true, duplicate: true });
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    const lock = join(lockDir, "restored-then-die.lock");
+    const res = runRunner(spec, { MUTATION_PROOF_LOCK: lock });
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toContain("テスト名が重複している");
+    expect(res.out).not.toContain("変異の外から書き換えられた");
+    expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
+    rmSync(`${lock}.recovery.json`, { force: true });
+  });
+
+  // 消されたファイルを消えたまま残さない（追跡しているファイルが欠けた作業ツリーにしない）。
+  test("実行中に対象が消されたら、元の内容で作り直して exit 2", () => {
+    const fx = editingFixture({ remove: true });
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    const lock = join(lockDir, "removed-during-run.lock");
+    const res = runRunner(spec, { MUTATION_PROOF_LOCK: lock });
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toContain("が消された");
+    expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
+    expect(existsSync(`${lock}.recovery.json`), "作り直したのに復元情報を残した").toBe(false);
+  });
+
+  // 変異を書く前に失敗したら照合しない（照合すると、元の失敗を「外からの編集」として報告する）。
+  test("変異を書く前に失敗したら、外からの編集として報告しない", () => {
+    const fx = makeFixture();
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    chmodSync(fx.target, 0o444);
+    const lock = join(lockDir, "write-fails.lock");
+    const res = runRunner(spec, { MUTATION_PROOF_LOCK: lock });
+    chmodSync(fx.target, 0o644);
+    expect(res.status, res.out).not.toBe(0);
+    expect(res.out).toContain("EACCES");
+    expect(res.out).not.toContain("変異の外から書き換えられた");
+    expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
     rmSync(`${lock}.recovery.json`, { force: true });
   });
 

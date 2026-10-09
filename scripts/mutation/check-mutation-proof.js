@@ -269,7 +269,8 @@ function restorePending() {
   try {
     const current = existsSync(path) ? readFileSync(path, "utf8") : null;
     if (current === content) return;
-    if (current !== mutated) {
+    // 消されていたら元の内容で作り直す（追跡しているファイルを消えたまま残さない）。
+    if (current !== mutated && current !== null) {
       console.error(
         `mutation-proof: 実行中に ${path} が変異の外から書き換えられた。上書きせずに終える（復元情報: ${recoveryPath}）`,
       );
@@ -637,7 +638,27 @@ function proveMutation(mutation, testFile) {
     // その結果を PASS / FAIL として出すと誤った実証になる。exit ハンドラの restorePending が元の内容なら何もしないのは、
     // そこでは結果を出さずに終わるからで、目的が違う。残った復元情報は、次回起動の recoverFromInterrupted が
     // `current === saved.before` の分岐で消して続行する（PR #585 のレビューで 3 回議論し、止める側に決めた）。
-    const current = existsSync(mutation.target) ? readFileSync(mutation.target, "utf8") : null;
+    let current;
+    try {
+      current = existsSync(mutation.target) ? readFileSync(mutation.target, "utf8") : null;
+    } catch (err) {
+      // 照合の読み取りの失敗で、テストの実行中の元の例外を置き換えない（両方を出して止める）。
+      // pending は残すので、exit ハンドラの restorePending がもう一度照合して戻す。
+      console.error(`mutation-proof: ${mutation.target} を照合のために読めない: ${err.message}`);
+      if (thrown) console.error(`mutation-proof: テストの実行中の例外: ${thrown.stack ?? thrown}`);
+      process.exit(2);
+    }
+    if (wroteMutation && current === null) {
+      // 実行中に消された。元の内容で作り直してから止める（測定は無効なので結果を出さない）。
+      writeFileSync(mutation.target, original);
+      pending = null;
+      clearRecovery();
+      console.error(
+        `mutation-proof: 実行中に ${mutation.target} が消された。元の内容で作り直して止める`,
+      );
+      if (thrown) console.error(`mutation-proof: テストの実行中の例外: ${thrown.stack ?? thrown}`);
+      process.exit(2);
+    }
     if (wroteMutation && current !== mutated) {
       console.error(
         `mutation-proof: 実行中に ${mutation.target} が変異の外から書き換えられた。` +
