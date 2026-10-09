@@ -2,8 +2,8 @@
 date: 2026-09-16
 type: rule
 priority: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [AGENTS.md, docs/agent-workflow.md, docs/tooling.md, scripts/hooks/bash-command-guard.sh]
 session: claude-code
 ---
 

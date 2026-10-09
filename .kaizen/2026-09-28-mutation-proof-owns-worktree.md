@@ -2,8 +2,8 @@
 date: 2026-09-28
 type: other
 priority: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [scripts/mutation/check-mutation-proof.js, docs/tooling.md]
 session: claude-code
 ---
 
