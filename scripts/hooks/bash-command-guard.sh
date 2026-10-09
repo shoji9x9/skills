@@ -24,6 +24,7 @@
 #      近似で見逃す形: 同じ呼び出しの `cd` の後の相対パス（hook の cwd で解決する）、ディレクトリに展開される glob
 #      （`oxfmt docs/*`）と変数（`oxfmt "$dir"`）、ラッパーのオプションの値の後の起動（`pnpm -C dir exec oxfmt .`）、
 #      セグメントの途中のコマンド置換（`echo $(oxfmt .)`）、値を取るオプションの値（`oxfmt --threads 4` の `4` を対象と数える）。
+#      `ssh host oxfmt .` はリモートの作業ツリーを整形するので、意図して止めない。
 #
 # 判定はセグメント単位で行う。`&&` / `||` / `;` / `|` / 改行で切り、セグメントごとに評価する
 # （`gh pr create --body-file a && gh api x --body-file b` の後段だけを落とすため）。
@@ -362,24 +363,40 @@ add_violation() { violations="${violations}${violations:+$'\n'}  - $1"; }
 # ラッパーの後のオプション（`npx --yes`・`xargs -0`）と数値（`timeout 60`・`nice -n 5`）も読み飛ばす。
 # `xargs` 越しの起動は対象が stdin から来るので、ディレクトリの引数だけを見る（対象を省いた扱いにしない）。
 # リダイレクト（`2>&1`・`> log`）は対象に数えない（数えると、対象を省いた `oxfmt 2>&1` を通す）。
+# 引用符を外した後の本文を `;`・`&&`・`||`・`|`・`&` で区切り、区切りごとに判定する
+# （`bash -c "git status; oxfmt ."` の引用の中は split_segments が区切らないため）。
 formatter_dir_args() {
-	local text="$1" words w name="" i n write=0 skip=0 positional=0 found="" via_xargs=0 prev=""
+	local text="$1" chunk
 	text="${text//\"/}"
 	text="${text//\'/}"
 	text="${text//\$(/ }"
 	text="${text//[()\`]/ }"
+	text="${text//&&/$'\n'}"
+	text="${text//||/$'\n'}"
+	text="${text//;/$'\n'}"
+	text="${text//|/$'\n'}"
+	text="${text// & /$'\n'}"
+	text="${text% &}"
+	while IFS= read -r chunk; do
+		formatter_dir_args_one "${chunk}"
+	done <<<"${text}"
+	return 0
+}
+
+formatter_dir_args_one() {
+	local text="$1" words w name="" i n write=0 skip=0 positional=0 found="" via_xargs=0 prev=""
 	read -r -a words <<<"${text}"
 	n=${#words[@]}
 	for ((i = 0; i < n; i++)); do
 		w="${words[i]}"
 		if [ -z "${name}" ]; then
 			case "${w##*/}" in
-			oxfmt)
+			oxfmt | oxfmt@*)
 				name=oxfmt
 				write=1
 				continue
 				;;
-			markdownlint-cli2)
+			markdownlint-cli2 | markdownlint-cli2@*)
 				name=markdownlint-cli2
 				continue
 				;;
@@ -389,7 +406,7 @@ formatter_dir_args() {
 				continue
 			fi
 			case "${w}" in
-			pnpm | exec | dlx | npx | pnpx | mise | x | -- | env | command | time | nice | sudo | timeout | \
+			pnpm | exec | dlx | npx | pnpx | mise | x | -- | env | command | time | nice | nohup | stdbuf | sudo | timeout | eval | \
 				then | do | else | elif | if | while | until | '!' | '{' | bash | sh | zsh | dash | ksh)
 				prev="${w}"
 				continue
@@ -400,6 +417,10 @@ formatter_dir_args() {
 				continue
 				;;
 			esac
+			# `command -v` / `command -V` は存在の確認で、後ろの名前を起動しない。
+			if [ "${prev}" = command ] && [[ ${w} == -v || ${w} == -V ]]; then
+				return 0
+			fi
 			# ラッパーの後のオプション（`npx --yes`・`bash -c`・`xargs -0`）と数値（`timeout 60`・`nice -n 5`）は読み飛ばす。
 			if [ -n "${prev}" ] && [[ ${w} == -* || ${w} =~ ^[0-9.]+[smhd]?$ ]]; then
 				continue
@@ -418,9 +439,13 @@ formatter_dir_args() {
 		--fix) [ "${name}" = markdownlint-cli2 ] && write=1 ;;
 		-c | --config | --ignore-path) skip=1 ;;
 		-*) ;;
-		'!'*) ;;
+		'!'* | '#'*) ;;
 		*)
 			positional=$((positional + 1))
+			# ホームから書いたパス（`~/x`）は、展開してからディレクトリかを見る。
+			case "${w}" in
+			\~ | \~/*) w="${HOME}${w:1}" ;;
+			esac
 			if [[ ${w} == */ || ${w} == . || ${w} == .. ]] || [ -d "${w}" ]; then
 				found="${found}${found:+$'\n'}${w}"
 			fi

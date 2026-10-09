@@ -620,3 +620,34 @@ test.each([
   expect(r.status, r.stderr).toBe(0);
   expect(r.stderr).not.toMatch(/実行前に止めた/);
 });
+
+// PR #585 のレビューで見つかった形（委譲の中の区切り・版付きの名前・eval・nohup・`~`・`#` の否定・`command -v`）。
+// ssh はリモートの作業ツリーを整形するので、このリポジトリを書き換えない。止める対象にしない。
+test.each([
+  ["bash -c の中の ; の後", 'bash -c "git status; pnpm exec oxfmt ."'],
+  ["bash -c の中の && の後", 'bash -c "cd x && pnpm exec oxfmt ."'],
+  ["版を付けた名前", "npx oxfmt@latest ."],
+  ["版を付けた名前（dlx）", "pnpm dlx oxfmt@0.9 scripts"],
+  ["eval の中", 'eval "pnpm exec oxfmt ."'],
+  ["nohup とバックグラウンド", "nohup oxfmt . &"],
+  ["stdbuf の後", "stdbuf -oL pnpm exec oxfmt ."],
+  ["~ から書いたディレクトリ", "pnpm exec oxfmt ~/projects/skills/scripts"],
+  ["# の否定 glob だけ", 'pnpm exec markdownlint-cli2 --fix "#node_modules"'],
+])("整形ツールのディレクトリ引数を止める（レビュー）: %s", (_name, command) => {
+  const r = guard(command);
+  expect(r.status, r.stderr).toBe(2);
+  expect(r.stderr).toMatch(/整形ツールにディレクトリを渡すか対象を省くと/);
+});
+
+test.each([
+  ["command -v は存在の確認", "command -v oxfmt"],
+  ["command -V も存在の確認", "command -V oxfmt"],
+  ["# の否定 glob とファイル", 'pnpm exec markdownlint-cli2 --fix AGENTS.md "#node_modules"'],
+  ["~ から書いたファイル", "pnpm exec oxfmt ~/a.js"],
+  ["ssh はリモートを整形する", "ssh host oxfmt ."],
+  ["パイプの後のコマンドは整形ツールでない", "pnpm exec oxfmt a.js 2>&1 | tail -n 3"],
+])("整形ツールの誤検知しないことの確認（レビュー）: %s", (_name, command) => {
+  const r = guard(command);
+  expect(r.status, r.stderr).toBe(0);
+  expect(r.stderr).not.toMatch(/実行前に止めた/);
+});
