@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "types": ["node", "react", "react-dom"],
+    "tsBuildInfoFile": "./node_modules/.cache/tsc/fixtures.tsbuildinfo"
+  },
+  "include": ["evals/*/fixtures/**/*.ts", "evals/*/fixtures/**/*.tsx", "types/eval-fixtures.d.ts"]
+}

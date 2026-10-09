@@ -59,6 +59,9 @@ jobs:
         run: pnpm run lint:js
       - name: JavaScript format check
         run: pnpm run format:js:check
+      # 対象は tsconfig.json が束ねる 4 つのプロジェクト（Node で実行する .ts、配布スキルの雛形とインストール済みのコピー、Claude Code 用のリンクから見た雛形、eval の fixture）。
+      - name: TypeScript type check
+        run: pnpm run typecheck
       - name: JSON lint
         run: node scripts/gates/run-on-sources.js --ext json -- pnpm exec jsonlint --quiet --continue --no-duplicate-keys
       # js-yaml の API で全ファイルを 1 プロセスで読む（ファイルごとに `pnpm exec js-yaml` を起動すると

@@ -43,6 +43,7 @@ evals/<name>/           回帰テスト（配布しないので skills/<name>/ �
 tests/<name>/           テスト結果（git にはサマリーだけを入れる）
   iteration-N/
     benchmark.json      結果のサマリー
+types/                  型の検査だけで使う宣言（配布スキルの雛形と eval の fixture が import する、このリポジトリに無いモジュール）
 .agents/skills/<name>/  インストール済みのスキル（Codex が直接読む）
 .claude/skills/<name>   → ../../.agents/skills/<name>（Claude Code 用のシンボリックリンク）
 scripts/                リポジトリ内のツールとテスト（配布しない）。直下にファイルを置かない

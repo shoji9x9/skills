@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "tsBuildInfoFile": "./node_modules/.cache/tsc/templates.tsbuildinfo"
+  },
+  "include": [
+    "skills/*/assets/**/*.ts",
+    ".agents/skills/*/assets/**/*.ts",
+    "types/parity-templates.d.ts"
+  ]
+}

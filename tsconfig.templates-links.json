@@ -1,0 +1,7 @@
+{
+  "extends": "./tsconfig.templates.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.cache/tsc/templates-links.tsbuildinfo"
+  },
+  "include": [".claude/skills/*/assets/**/*.ts", "types/parity-templates.d.ts"]
+}

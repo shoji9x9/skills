@@ -143,7 +143,39 @@ mise・pnpm・GitHub・各エージェントの設定は、形式をツールが
 
 `scripts/gates/check-js-extensions.js` が、この規約を lefthook の pre-commit と CI（`Lint` ジョブ）でチェックする。`skills/**` の `.js` と、`scripts/**` の `.mjs` を失敗にする。
 
+### 型の検査
+
+`pnpm run typecheck`（`tsc -b`）が `.ts`・`.tsx` の型を検査する。lefthook の pre-commit は `.ts`・`.tsx`・`.js`・`.mjs` か tsconfig か依存が staged のときに、CI は `Lint` ジョブで実行する。
+1 つのファイルの変更が import する側の型を変えるので、staged のファイルだけでなく全体を検査する。
+
+`tsconfig.json` は参照を束ねるだけで、対象と設定は次の 4 つで決める。共通の設定は `tsconfig.base.json` に置く。
+
+| 設定 | 対象 | 解決の規則 |
+| --- | --- | --- |
+| `tsconfig.repo.json` | Node が直接実行する `.ts`（設定ファイル・`scripts/`） | `nodenext` |
+| `tsconfig.templates.json` | 配布スキルの雛形（`skills/*/assets/**/*.ts` と、インストール済みのコピーの `.agents/skills/*/assets/**/*.ts`） | `bundler` |
+| `tsconfig.templates-links.json` | Claude Code 用のリンクから見た雛形（`.claude/skills/*/assets/**/*.ts`） | `bundler`（`tsconfig.templates.json` を継承する） |
+| `tsconfig.fixtures.json` | eval の fixture（`evals/*/fixtures/**/*.{ts,tsx}`） | `bundler`、`jsx: react-jsx` |
+
+インストール済みのコピーとリンクも対象にするのは、対象の外のファイルをエディタで開くと推論プロジェクトとして扱われ、Node の型のエラーが出るからである。
+エディタは、開いたパスのままでプロジェクトを探す。
+リンクを別のプロジェクトにするのは、tsc が同じプロジェクトの中で実体を読み込み済みのシンボリックリンクを辿らず、`tsconfig.templates.json` の `include` に足しても対象にならないからである。
+
+雛形は、利用者のプロジェクトへコピーした後に Playwright が読み込む。Playwright は拡張子なしの相対 import も解決するので、`bundler` で検査する。
+雛形が import する、コピー先にだけ在るモジュール（`../../lib/interactions` など）は、`types/parity-templates.d.ts` で `*` を含む名前の ambient 宣言にする。
+`*` を含む名前は相対の import にも一致するので、雛形に `// @ts-nocheck` などを足さずに済む。利用者のコピーには何も入らない。
+雛形に新しい import を足したら、`types/parity-templates.d.ts` にも足す。`@playwright/test` の型は devDependencies から読む。
+
+eval の fixture は、エージェントに渡す下流のプロジェクトの断片で、依存のパッケージ（架空のものを含む）や同じ階層のファイルを置いていない。
+それらは `types/eval-fixtures.d.ts` で、fixture が使う範囲の型を書いて宣言する。fixture に import を足したら、この宣言にも足す。
+雛形の宣言と同じファイルにしないのは、ambient 宣言がプロジェクトの全体に適用され、互いの検査で一致してしまうからである。
+fixture の検査も strict のままにする。型が足りない fixture は、fixture に型を書いて直す。fixture は eval の入力なので、直したら `docs/skill-development.md` に従ってその eval を実行し直す。
+
+`composite` のプロジェクトは、import した `.js` も `include` に挙げる必要がある。
+そのため `tsconfig.repo.json` は `scripts/**/*.js` と `skills/*/scripts/**/*.mjs` を含める。`checkJs` は付けないので、JavaScript の型は検査しない。
+
 ### チェックの対象から外すもの
 
 `tests/**` は、リントと整形の対象に含める。`.agents/skills/**` と `.claude/**` は、インストール済みのコピーとエージェント用のシンボリックリンクなので、対象から外す。
+型の検査は、エディタで開く雛形のコピーとリンクを対象にする（上の「型の検査」）。
 ただし、`.agents/rules/`（rule の実体）と private skill（`.private-skill` を持つ `.agents/skills/<name>/`）は対象にする。rule へのリンクを置く `.github/instructions/` は対象から外す。

@@ -1,0 +1,17 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "./tsconfig.repo.json"
+    },
+    {
+      "path": "./tsconfig.templates.json"
+    },
+    {
+      "path": "./tsconfig.templates-links.json"
+    },
+    {
+      "path": "./tsconfig.fixtures.json"
+    }
+  ]
+}
