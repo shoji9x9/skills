@@ -110,7 +110,9 @@ Bash の実行前のチェック（PreToolUse）として、`scripts/hooks/bash-
 - 文字クラスで自分を避けていない `pkill -f` と `killall -f`。照合するのがコマンドライン全体なので、自分のシェルにも一致する。
 - 書き込む整形ツール（`oxfmt`、`markdownlint-cli2 --fix`）へのディレクトリ引数と、対象を省いた呼び出し。
   ファイルの列挙・glob と、書き込まない呼び出し（`oxfmt --check`・`--list-different`・`--version`、`--fix` の無い `markdownlint-cli2`）は通す。
+  制御構文の中・サブシェル・`bash -c` への委譲の中の起動も止め、リダイレクトは対象に数えない。
   ディレクトリに展開される glob（`oxfmt docs/*`）と変数（`oxfmt "$dir"`）は hook から見えないので止まらない。
+  見逃す形の一覧は、チェック本体の冒頭コメントにある。
 
 このチェックは、3 つのエージェントに設定してある（`.claude/settings.json`・`.codex/hooks.json`・`.github/hooks/kaizen-session.json`）。
 

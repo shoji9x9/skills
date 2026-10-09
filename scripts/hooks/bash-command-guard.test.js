@@ -578,6 +578,11 @@ test.each([
   ["パス付きの起動", "node_modules/.bin/oxfmt scripts"],
   ["xargs 越しでもディレクトリの引数", "git diff --name-only | xargs -0 pnpm exec oxfmt scripts/"],
   ["区切りの後のセグメント", "git status --short && pnpm exec oxfmt scripts/hooks/"],
+  ["リダイレクトだけで対象を省く", "pnpm exec oxfmt >/dev/null 2>&1"],
+  ["制御構文の後", "for f in a; do pnpm exec oxfmt .; done"],
+  ["サブシェルの中", "(pnpm exec oxfmt scripts/)"],
+  ["シェルへの委譲", 'bash -c "pnpm exec oxfmt ."'],
+  ["ラッパーのオプションの後", "npx --yes oxfmt ."],
 ])("整形ツールのディレクトリ引数を止める: %s", (_name, command) => {
   const r = guard(command);
   expect(r.status, r.stderr).toBe(2);
@@ -607,6 +612,8 @@ test.each([
   ["使い方の表示は書き込まない", "pnpm exec oxfmt -h"],
   ["名前が引数の位置にある（mise which）", "mise which oxfmt"],
   ["名前が引数の位置にある（grep）", "grep -rn oxfmt docs"],
+  ["ファイルを渡してリダイレクトする", "pnpm exec oxfmt package.json > /dev/null 2>&1"],
+  ["委譲したシェルで言及するだけ", 'bash -c "echo oxfmt ."'],
   ["コミットメッセージで言及するだけ", 'git commit -m "docs: oxfmt scripts/ を使わない"'],
 ])("整形ツールの誤検知しないことの確認: %s", (_name, command) => {
   const r = guard(command);

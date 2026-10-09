@@ -333,7 +333,7 @@
       "id": "RESTORE-FOREIGN-EDIT",
       "why": "実行中に変異の外から書き換えられた対象を、照合せずに変異前の内容で上書きする",
       "file": "scripts/mutation/check-mutation-proof.js",
-      "find": "    if (current !== mutated) {",
+      "find": "    if (wroteMutation && current !== mutated) {",
       "replace": "    if (false) {",
       "occurrences": 1,
       "expect_failing": [

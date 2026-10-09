@@ -601,18 +601,21 @@ function proveMutation(mutation, testFile) {
     return { ok: false, reason: `置換しても内容が変わらない: ${mutation.file}` };
   }
   let run;
+  let wroteMutation = false;
   try {
     pending = { path: mutation.target, content: original };
     writeRecovery(mutation.target, original, mutated);
     writeFileSync(mutation.target, mutated);
+    wroteMutation = true;
     run = runTests(testFile);
   } finally {
     pending = null;
     // **自分が書いた変異のままのときだけ戻す**（`recoverFromInterrupted` と同じ照合）。
     // 実行中に同じファイルを編集されていたら、無条件に書き戻すとその編集を警告なしに消す（実測）。
     // 復元情報は残し、次回起動も同じ食い違いで止まるようにする。
+    // 変異を書き終える前に失敗したときは照合しない（照合すると、元の例外を「外からの編集」の exit 2 で隠す）。
     const current = existsSync(mutation.target) ? readFileSync(mutation.target, "utf8") : null;
-    if (current !== mutated) {
+    if (wroteMutation && current !== mutated) {
       console.error(
         `mutation-proof: 実行中に ${mutation.target} が変異の外から書き換えられた。` +
           `上書きせずに止める。内容を確かめ、変異（復元情報: ${recoveryPath} の after）が残っていれば手で戻す`,

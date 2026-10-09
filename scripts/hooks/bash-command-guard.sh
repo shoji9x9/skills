@@ -22,7 +22,8 @@
 #      ファイルの列挙・glob・書き込まない呼び出し（`oxfmt --check` / `--list-different` / `--version` / `--help`、
 #      `--fix` の無い markdownlint-cli2）は通す。
 #      近似で見逃す形: 同じ呼び出しの `cd` の後の相対パス（hook の cwd で解決する）、ディレクトリに展開される glob
-#      （`oxfmt docs/*`）と変数（`oxfmt "$dir"`）、一覧に無いラッパーのオプションの後の起動（`pnpm --filter x exec oxfmt .`）。
+#      （`oxfmt docs/*`）と変数（`oxfmt "$dir"`）、ラッパーのオプションの値の後の起動（`pnpm -C dir exec oxfmt .`）、
+#      セグメントの途中のコマンド置換（`echo $(oxfmt .)`）、値を取るオプションの値（`oxfmt --threads 4` の `4` を対象と数える）。
 #
 # 判定はセグメント単位で行う。`&&` / `||` / `;` / `|` / 改行で切り、セグメントごとに評価する
 # （`gh pr create --body-file a && gh api x --body-file b` の後段だけを落とすため）。
@@ -357,11 +358,16 @@ add_violation() { violations="${violations}${violations:+$'\n'}  - $1"; }
 # 引数は引用符を外して空白で切る（引用したパスもディレクトリなら止めるため。コード部分ではなく全文で見る）。
 # 整形ツールの名前は**コマンドの位置**にあるときだけ数える。引数の位置（`mise which oxfmt`・`grep -rn oxfmt docs`）は
 # 起動ではないので止めない。コマンドの位置は、先頭の代入とラッパー（`pnpm exec`・`npx`・`timeout 60` など）を読み飛ばした最初の語である。
+# 制御構文の語（`then`・`do` など）、グループとサブシェルの括弧、シェルへの委譲（`bash -c`）もラッパーとして読み飛ばす。
+# ラッパーの後のオプション（`npx --yes`・`xargs -0`）と数値（`timeout 60`・`nice -n 5`）も読み飛ばす。
 # `xargs` 越しの起動は対象が stdin から来るので、ディレクトリの引数だけを見る（対象を省いた扱いにしない）。
+# リダイレクト（`2>&1`・`> log`）は対象に数えない（数えると、対象を省いた `oxfmt 2>&1` を通す）。
 formatter_dir_args() {
 	local text="$1" words w name="" i n write=0 skip=0 positional=0 found="" via_xargs=0 prev=""
 	text="${text//\"/}"
 	text="${text//\'/}"
+	text="${text//\$(/ }"
+	text="${text//[()\`]/ }"
 	read -r -a words <<<"${text}"
 	n=${#words[@]}
 	for ((i = 0; i < n; i++)); do
@@ -383,7 +389,8 @@ formatter_dir_args() {
 				continue
 			fi
 			case "${w}" in
-			pnpm | exec | dlx | npx | pnpx | mise | x | -- | env | command | time | nice | sudo | timeout)
+			pnpm | exec | dlx | npx | pnpx | mise | x | -- | env | command | time | nice | sudo | timeout | \
+				then | do | else | elif | if | while | until | '!' | '{' | bash | sh | zsh | dash | ksh)
 				prev="${w}"
 				continue
 				;;
@@ -393,8 +400,8 @@ formatter_dir_args() {
 				continue
 				;;
 			esac
-			# `timeout 60` の時間と、`xargs -0` のようなラッパーのオプションは読み飛ばす。
-			if { [ "${prev}" = timeout ] && [[ ${w} =~ ^[0-9.]+[smhd]?$ ]]; } || { [ "${via_xargs}" = 1 ] && [[ ${w} == -* ]]; }; then
+			# ラッパーの後のオプション（`npx --yes`・`bash -c`・`xargs -0`）と数値（`timeout 60`・`nice -n 5`）は読み飛ばす。
+			if [ -n "${prev}" ] && [[ ${w} == -* || ${w} =~ ^[0-9.]+[smhd]?$ ]]; then
 				continue
 			fi
 			return 0 # コマンドの位置に整形ツールが無い
@@ -404,6 +411,8 @@ formatter_dir_args() {
 			continue
 		fi
 		case "${w}" in
+		[0-9]*'>' | [0-9]*'<' | '>' | '>>' | '<' | '&>' | '&>>' | '>|') skip=1 ;;
+		[0-9]*'>'* | [0-9]*'<'* | '>'* | '<'* | '&>'*) ;;
 		--check | --list-different) [ "${name}" = oxfmt ] && write=0 ;;
 		--version | -V | --help | -h) write=0 ;;
 		--fix) [ "${name}" = markdownlint-cli2 ] && write=1 ;;
