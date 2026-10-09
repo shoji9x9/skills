@@ -1491,21 +1491,28 @@ describe("チェック全体の締め切り", () => {
     expect(existsSync(join(cwd, ".kaizen", `.pending-extract.${OWN}`))).toBe(true);
   }, 15000);
 
+  // bash の SECONDS は秒の境界をまたぐと 1 ms でも 1 になる（実測）。締め切り 2 秒では残りが 0 秒になる回があり、
+  // 検査を起動せずに同じメッセージで exit 2 になるので、timeout を外す変異（GATE-STATUS-UNBOUNDED）を
+  // CI で検出できなかった。締め切りを 3 秒にし、検査が起動されたことも確かめる。
   test("lifecycle 検査が締め切りに当たったら、締め切りの内側で exit 2 にする", () => {
-    const scripts = stubScripts({ "kaizen-status-check.sh": "exec sleep 30" });
     const cwd = makeProject();
+    const started = join(cwd, "status-check-started");
+    const scripts = stubScripts({
+      "kaizen-status-check.sh": `: > '${started}'\nexec sleep 30`,
+    });
 
     const { gate, elapsed } = timedGate({
       cwd,
       sessionId: OWN,
       scripts,
-      env: { KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "2" },
+      env: { KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "3" },
     });
     expect(gate.status, gate.stderr).toBe(2);
     expect(gate.stderr).toMatch(
-      /lifecycle 検査がチェックの締め切り（2 秒）までに終わりませんでした/,
+      /lifecycle 検査がチェックの締め切り（3 秒）までに終わりませんでした/,
     );
-    expect(elapsed).toBeLessThan(2000 + 1500);
+    expect(existsSync(started)).toBe(true);
+    expect(elapsed).toBeLessThan(3000 + 1500);
   }, 15000);
 
   // bash は環境変数 SECONDS を起動時の初期値として引き継ぐ。フックの親環境に export されていると、
