@@ -21,8 +21,14 @@ import { fileURLToPath } from "node:url";
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const script = join(repoRoot, "scripts/hooks/bash-command-guard.sh");
 
+// HOME はリポジトリの根に固定する（`~/scripts` の結果が、実行する人のホームの中身で変わらないように）。
 const run = (payload) =>
-  spawnSync("bash", [script], { input: payload, encoding: "utf8", cwd: repoRoot });
+  spawnSync("bash", [script], {
+    input: payload,
+    encoding: "utf8",
+    cwd: repoRoot,
+    env: { ...process.env, HOME: repoRoot },
+  });
 
 const hook = (command) => JSON.stringify({ tool_name: "Bash", tool_input: { command } });
 
@@ -631,7 +637,7 @@ test.each([
   ["eval の中", 'eval "pnpm exec oxfmt ."'],
   ["nohup とバックグラウンド", "nohup oxfmt . &"],
   ["stdbuf の後", "stdbuf -oL pnpm exec oxfmt ."],
-  ["~ から書いたディレクトリ", "pnpm exec oxfmt ~/projects/skills/scripts"],
+  ["~ から書いたディレクトリ", "pnpm exec oxfmt ~/scripts"],
   ["# の否定 glob だけ", 'pnpm exec markdownlint-cli2 --fix "#node_modules"'],
 ])("整形ツールのディレクトリ引数を止める（レビュー）: %s", (_name, command) => {
   const r = guard(command);
