@@ -382,7 +382,7 @@
     }
   ],
   "performance": {
-    "_note": "性能のベースラインとノイズ基準値（feature モードではキーごと省かない）。declared: true の値は parity-suite の scripts/perf-stats.mjs summarize --write が書く（手で転記しない）。parity-diff は同じスクリプトの compare で新側を比べ、許容幅（四分位範囲・floors・現側の中央値 × relative_floors のいちばん大きいもの）を超えた悪化を要対応にする。floor_history は floors・relative_floors の変更の履歴で、summarize --write が、履歴が空か、最後の要素か書き換える前の floors・relative_floors と下限が違うときに 1 件追記する（floors・relative_floors・samples_sha256・measured_at）。--floor・--relative-floor を渡さなかった指標は、floor_history の最後の要素の値を declared に関わらず引き継ぐ（履歴が無ければ、declared: true のときだけ前の floors・relative_floors から引き継ぎ、それ以外はデフォルト）。履歴を追記せずに下限を変えた変更と、既存の要素の削除・書き換えは、replace-strategy の append-only-check.mjs が落とす。キーごと無い成果物は parity-diff が判定せず未検証に残す（後方互換）。原本は parity-suite の references/baseline.md「性能のベースラインとノイズ基準値」。",
+    "_note": "性能のベースラインとノイズ基準値（feature モードではキーごと省かない）。declared: true の値は parity-suite の scripts/perf-stats.mjs summarize --write が書く（手で転記しない）。parity-diff は同じスクリプトの compare で新側を比べ、許容幅（四分位範囲・floors・現側の中央値 × relative_floors のいちばん大きいもの）を超えた悪化を要対応にする。floor_history は floors・relative_floors の変更の履歴で、summarize --write が、履歴が空か、最後の要素か書き換える前の floors・relative_floors と下限が違うときに 1 件追記する（floors・relative_floors・samples_sha256・measured_at）。--floor・--relative-floor を渡さなかった指標は、floor_history の最後の要素の値を declared に関わらず引き継ぐ（履歴が無ければ、declared: true のときだけ前の floors・relative_floors から引き継ぎ、それ以外はデフォルト）。履歴を追記せずに下限を変えた変更と、既存の要素の削除・書き換えは、replace-strategy の append-only-check.mjs が落とす。雛形の floor_history の 1 件は、雛形の floors・relative_floors（デフォルト）の記録である。雛形のまま performance を足しても append-only-check.mjs を通るように、表と記録を組みで置く（表を書き換えるなら、同じ値の要素を足すか summarize を通す）。キーごと無い成果物は parity-diff が判定せず未検証に残す（後方互換）。原本は parity-suite の references/baseline.md「性能のベースラインとノイズ基準値」。",
     "declared": "<true | false。false は性能を比べられない事情があるときだけ（reason と gaps.md の同じ文言が要る）>",
     "tool_version": "<perf-stats.mjs の VERSION>",
     "samples": "<現側の採取ファイルのパス（リポジトリのルートからの相対。既定 .replace/parity/<slug>/perf-samples.json）>",
@@ -422,7 +422,14 @@
       "tbt": 0.2,
       "ttfb": 0.2
     },
-    "floor_history": [],
+    "floor_history": [
+      {
+        "floors": { "lcp": 100, "cls": 0.01, "tbt": 50, "ttfb": 50 },
+        "relative_floors": { "lcp": 0.2, "cls": 0, "tbt": 0.2, "ttfb": 0.2 },
+        "samples_sha256": null,
+        "measured_at": null
+      }
+    ],
     "capture": {
       "pages": [{ "name": "<capture_conditions.pages[].name>", "path": "<同 path>" }],
       "viewports": [{ "label": "<capture_conditions.viewports[].label>", "width": 0, "height": 0 }]

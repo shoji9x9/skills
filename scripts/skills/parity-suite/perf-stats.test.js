@@ -494,6 +494,17 @@ describe("summarize", () => {
       expect(r.err).toContain("floor_history の最後の要素がオブジェクトでない");
     });
 
+    test("floor_history が配列でなければ、フラグなしでも今の表から引き継がずに exit 2", () => {
+      const first = summarized(curDoc).meta.performance;
+      const r = resummarize({
+        ...first,
+        floors: { ...DEFAULT_FLOORS, lcp: 1000 },
+        floor_history: {},
+      });
+      expect(r.code).toBe(2);
+      expect(r.err).toContain("floor_history が配列でない");
+    });
+
     test("floor_history が配列でなければ書かずに exit 2", () => {
       const first = summarized(curDoc).meta.performance;
       const r = resummarize({ ...first, floor_history: {} }, ["--floor", "lcp=150"]);

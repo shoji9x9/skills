@@ -629,7 +629,8 @@
       "replace": "  if (false) {",
       "occurrences": 1,
       "expect_failing": [
-        "summarize 下限の履歴（floor_history） floor_history が配列でなければ書かずに exit 2"
+        "summarize 下限の履歴（floor_history） floor_history が配列でなければ書かずに exit 2",
+        "summarize 下限の履歴（floor_history） floor_history が配列でなければ、フラグなしでも今の表から引き継がずに exit 2"
       ]
     },
     {

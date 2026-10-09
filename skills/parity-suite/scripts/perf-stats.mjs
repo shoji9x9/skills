@@ -549,7 +549,8 @@ export function floorHistory(previous, samplesDoc, opts) {
  * @returns {Record<string, number>}
  */
 export function baseFloors(previous, key, defaults, overridden = []) {
-  // すべての指標をフラグで渡したときは何も引き継がないので、前の記録が読めなくても止めない（フラグだけで復旧できる）
+  // すべての指標をフラグで渡したときは何も引き継がないので、履歴の末尾や表が読めなくても止めない（フラグだけで復旧できる）。
+  // 履歴そのものが配列でないときは、ここでは空として扱うが、続く floorHistory がフラグに関わらず止める（フラグでは復旧できない）。
   if (!isPlainObject(previous) || METRICS.every((m) => overridden.includes(m)))
     return { ...defaults };
   const history = Array.isArray(previous.floor_history) ? previous.floor_history : [];

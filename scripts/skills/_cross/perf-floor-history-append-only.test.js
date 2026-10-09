@@ -91,7 +91,7 @@ function appendOnlyCheck(root) {
 }
 
 /** 集計済みの基準を commit したリポジトリを作る。 */
-function makeRepo() {
+function makeRepo({ summarized = true } = {}) {
   const root = makeTempDir("perf-floor-history-");
   mkdirSync(join(root, ".replace/parity/demo"), { recursive: true });
   writeFileSync(join(root, META), `${JSON.stringify(metadata, null, 2)}\n`);
@@ -99,7 +99,7 @@ function makeRepo() {
   git(root, ["init", "-q", "."]);
   git(root, ["config", "user.email", "test@example.com"]);
   git(root, ["config", "user.name", "test"]);
-  summarize(root);
+  if (summarized) summarize(root);
   git(root, ["add", "-A"]);
   git(root, ["commit", "-qm", "baseline"]);
   return root;
@@ -127,6 +127,24 @@ test("同梱の一覧の pinned_values は、parity-suite の metadata の雛形
     for (const path of group.paths) expect(at(template, path), path).toBeDefined();
     expect(Array.isArray(at(template, group.history)), group.history).toBe(true);
   }
+});
+
+test("雛形の performance をそのまま足しても、その後に summarize を通しても、チェックを通る", () => {
+  // 雛形の floors は値を持つので、記録の無い空の floor_history と組むと「追記なしの書き換え」で落ちる
+  const root = makeRepo({ summarized: false });
+  const template = JSON.parse(
+    readFileSync(join(repoRoot, "skills/parity-suite/assets/metadata-template.json"), "utf8"),
+  );
+  const doc = JSON.parse(readFileSync(join(root, META), "utf8"));
+  doc.performance = { ...template.performance, declared: false, reason: "まだ採っていない" };
+  writeFileSync(join(root, META), `${JSON.stringify(doc, null, 2)}\n`);
+  const added = appendOnlyCheck(root);
+  expect(added.stdout).toMatch(/^ok: /m);
+  expect(added.status).toBe(0);
+  summarize(root);
+  const r = appendOnlyCheck(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
 });
 
 test("summarize --write で下限を変えた採り直しは、append-only チェックを通る", () => {
