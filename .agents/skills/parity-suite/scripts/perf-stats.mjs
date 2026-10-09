@@ -26,7 +26,7 @@ import { fileURLToPath } from "node:url";
  * ツールのバージョン（原本）。判定規則・出力の形を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "1";
+export const VERSION = "2";
 
 /** 採取の形式の版。雛形の `PERF_SAMPLES_VERSION` と同じ値にする。 */
 export const SAMPLES_VERSION = "1";
@@ -37,6 +37,8 @@ export const METRICS = ["lcp", "cls", "tbt", "ttfb"];
 /**
  * 指標ごとの許容幅の絶対の下限（デフォルト）。四分位範囲が 0 に近い環境で、1ms の差まで回帰にしないための値である。
  * summarize の `--floor <指標>=<値>` で上書きでき、使った値は metadata.json の performance.floors に残る。
+ * `--floor` を省いた指標は、記録した前の下限を引き継ぐ（初めての集計だけデフォルト。baseFloors を参照）。
+ * 下限を変えた summarize は performance.floor_history に追記する（floorHistory を参照）。
  * @type {Record<string, number>}
  */
 export const DEFAULT_FLOORS = { lcp: 100, cls: 0.01, tbt: 50, ttfb: 50 };
@@ -476,11 +478,127 @@ export function summarize(metadata, samplesDoc, opts) {
       settings: doc.settings,
       floors: opts.floors,
       relative_floors: opts.relativeFloors,
+      floor_history: floorHistory(metadata.performance, samplesDoc, opts),
       capture: captureDefinition(metadata),
       pairs,
       reason: null,
     },
   };
+}
+
+/**
+ * 下限の変更の履歴を作る。履歴が空か、最後の要素か書き換える前の表の下限が今回の下限と違えば、1 件追記する。
+ * 下限は採取から導けない利用者の決定なので、compare は値の正しさを確かめられない。
+ * 変えた記録を残し、replace-strategy の append-only-check.mjs が、履歴を追記せずに下限を変えた変更を落とす。
+ * 比べる相手は、前の performance.floors ではなく履歴の最後の要素である。append-only-check.mjs も最後の要素と今の値を突き合わせる。
+ * 前の floors と比べると、手で書き換えた下限に summarize を通し直しても追記されず、チェックが通らないまま残る。
+ * 履歴が空なら（雛形のまま・履歴を持たない前の版の基準）、今の下限を最初の記録として追記する。
+ * 既存の要素は変えずにそのまま残す。
+ * @param {unknown} previous - 書き換える前の metadata.json の performance
+ * @param {unknown} samplesDoc
+ * @param {{ floors: Record<string, number>, relativeFloors: Record<string, number>, samplesSha256: string }} opts
+ * @returns {unknown[]}
+ */
+export function floorHistory(previous, samplesDoc, opts) {
+  const prev = isPlainObject(previous) ? previous : {};
+  const history = prev.floor_history ?? [];
+  if (!Array.isArray(history)) {
+    throw new UsageError(
+      "performance.floor_history が配列でない（手で書き換えていないか確かめる）",
+    );
+  }
+  const last = history.length === 0 ? null : history[history.length - 1];
+  const unchanged =
+    isPlainObject(last) &&
+    canonicalJson(last.floors ?? null) === canonicalJson(opts.floors) &&
+    canonicalJson(last.relative_floors ?? null) === canonicalJson(opts.relativeFloors);
+  // 書き換える前の表とも比べる。append-only-check.mjs は commit 済みの表と今の表が違えば追記を求めるので、
+  // 表が履歴の最後の要素と食い違っている（新規のファイルとして commit された等）ときに追記しないと、
+  // 下限を履歴の値へ戻した正規の出力がチェックを通らない。表が無い（declared: false 等）ときも、書くので追記する。
+  const tableUnchanged =
+    canonicalJson(prev.floors ?? null) === canonicalJson(opts.floors) &&
+    canonicalJson(prev.relative_floors ?? null) === canonicalJson(opts.relativeFloors);
+  if (unchanged && tableUnchanged) return history;
+  const doc = /** @type {Record<string, unknown>} */ (samplesDoc);
+  return [
+    ...history,
+    {
+      floors: opts.floors,
+      relative_floors: opts.relativeFloors,
+      samples_sha256: opts.samplesSha256,
+      measured_at: doc.measured_at ?? null,
+    },
+  ];
+}
+
+/**
+ * `--floor` / `--relative-floor` を省いた指標に使う下限を決める。
+ * 記録した下限を引き継ぐ。省いただけで決めた下限がデフォルトへ戻ると、
+ * 採り直しのときにフラグを付け忘れただけで下限が変わり、デフォルトより緩くなければ compare の loosened_floors にも出ない。
+ * 引き継ぐのは floor_history の最後の要素（記録した決定）である。declared に関わらず、履歴があれば履歴から引き継ぐ。
+ * 履歴が無いときだけ、集計済み（declared: true）の前の performance の表を使う（履歴を持たない前の版の基準）。
+ * 今の表から引き継ぐと、手で緩めた下限にフラグなしで summarize を通しただけで、その値が正規の記録として履歴に残る。
+ * 同じ理由で、履歴の最後の要素がオブジェクトでなければ、今の表へ戻らずに使い方の誤りにする。
+ * 履歴も無く集計済みでもなければ（performance が無い・雛形のまま）、デフォルトを使う。
+ * 引き継ぐ表や指標が無ければ、その分はデフォルトを使う（前の版の基準でも summarize で通し直せるようにする）。
+ * 値が在るのに 0 以上の数でなければ、デフォルトへ戻さずに使い方の誤りにする。ただし、その指標をフラグで渡したときは上書きするので止めない。
+ * @param {unknown} previous - 書き換える前の metadata.json の performance
+ * @param {string} key - `floors` か `relative_floors`
+ * @param {Record<string, number>} defaults
+ * @param {string[]} [overridden] - フラグで渡した指標
+ * @returns {Record<string, number>}
+ */
+export function baseFloors(previous, key, defaults, overridden = []) {
+  // すべての指標をフラグで渡したときは何も引き継がないので、履歴の末尾や表が読めなくても止めない（フラグだけで復旧できる）。
+  // 履歴そのものが配列でないときは、ここでは空として扱うが、続く floorHistory がフラグに関わらず止める（フラグでは復旧できない）。
+  if (!isPlainObject(previous) || METRICS.every((m) => overridden.includes(m)))
+    return { ...defaults };
+  const history = Array.isArray(previous.floor_history) ? previous.floor_history : [];
+  /** @type {unknown} */
+  let table;
+  let label;
+  if (history.length > 0) {
+    const tail = history[history.length - 1];
+    if (!isPlainObject(tail)) {
+      throw new UsageError(
+        "前の performance.floor_history の最後の要素がオブジェクトでない（履歴を直してから通す）",
+      );
+    }
+    table = tail[key];
+    label = `performance.floor_history の最後の要素の ${key}`;
+  } else if (previous.declared === true) {
+    table = previous[key];
+    label = `performance.${key}`;
+  } else {
+    return { ...defaults };
+  }
+  if (table === undefined || table === null) return { ...defaults };
+  if (!isPlainObject(table)) throw new UsageError(`前の ${label} がオブジェクトでない`);
+  /** @type {Record<string, number>} */
+  const out = { ...defaults };
+  for (const m of METRICS) {
+    const v = table[m];
+    if (v === undefined || v === null || overridden.includes(m)) continue;
+    if (typeof v !== "number" || !Number.isFinite(v) || v < 0) {
+      throw new UsageError(
+        `前の ${label}.${m} が 0 以上の数でない（フラグでこの指標の値を渡せば上書きできる）`,
+      );
+    }
+    out[m] = v;
+  }
+  return out;
+}
+
+/**
+ * フラグで渡した下限（parseFloors が検査した表）を、引き継ぐ下限に重ねる。
+ * @param {Record<string, number>} given - フラグで渡した指標だけの表
+ * @param {unknown} previous
+ * @param {string} key
+ * @param {Record<string, number>} defaults
+ * @returns {Record<string, number>}
+ */
+function withBase(given, previous, key, defaults) {
+  return { ...baseFloors(previous, key, defaults, Object.keys(given)), ...given };
 }
 
 /**
@@ -946,11 +1064,17 @@ export function main(argv, deps = {}) {
 
     if (command === "summarize") {
       const result = summarize(metadata, samplesDoc, {
-        floors: parseFloors(floorSpecs),
-        relativeFloors: parseFloors(
-          relativeFloorSpecs,
+        floors: withBase(
+          parseFloors(floorSpecs, {}),
+          metadata.performance,
+          "floors",
+          DEFAULT_FLOORS,
+        ),
+        relativeFloors: withBase(
+          parseFloors(relativeFloorSpecs, {}, "--relative-floor"),
+          metadata.performance,
+          "relative_floors",
           DEFAULT_RELATIVE_FLOORS,
-          "--relative-floor",
         ),
         samplesPath: opts.samples,
         samplesSha256: samplesFingerprint(samplesText),

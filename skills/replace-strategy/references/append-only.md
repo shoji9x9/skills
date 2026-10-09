@@ -37,6 +37,32 @@
   - 要素がオブジェクトのときは、`item_key` で照合する。移動先に無い付随のフィールド（`slug` / `added_by` など）は、単位から外す。
 - `fill_only`: 空から非空への変更だけを許す。
 - `transitions`: 明示した `<変更前>-><変更後>` の変更だけを許す。
+- `pinned_values`（`json-arrays` 専用）: 配列でない単独の値を固定し、変更を履歴の追記と組みにする（下の節）。
+
+## 単独の値を固定する（`pinned_values`）
+
+`json-arrays` は配列の要素しか数えないので、単独の値（スカラー・オブジェクト）は何に書き換えても通る。
+しかし、単独の値にも、採取から導けない利用者の決定がある。
+例えば parity の `metadata.json` の `performance.floors`・`relative_floors`（性能の許容幅の下限）を手で緩めると、本物の回帰が許容幅の中に入る。
+そこで、`pinned_values` に挙げた値は、変更の履歴（配列）への追記を伴うときだけ変えてよいことにする。
+
+```json
+"pinned_values": [
+  {
+    "paths": ["performance.floors", "performance.relative_floors"],
+    "history": "performance.floor_history"
+  }
+]
+```
+
+- `paths` の値を変えるときは、同じ変更で `history` に要素を追記する。
+  追記しないで変えると、チェックは exit 1 にする。値を消す変更と、初めて値を書く変更も同じに扱う。
+- 追記した最後の要素は、`paths` の最後のセグメントを項目名にして、すべての `paths` の今の値を持つ（`performance.floors` なら `floors`）。
+  今の値と合わない要素を追記しても、exit 1 にする。値を消した変更は、その項目を持たない要素で記録する。
+- `history` の既存の要素は、値を変えないときも、消すことも書き換えることもできない。
+- `paths` と `history` が同じか入れ子になる一覧と、同じグループで最後のセグメントが重なる一覧は、exit 2 にする。
+- 履歴の要素が正しい決定かは見ない。値の変更が履歴に残ることだけを確かめる。
+  正規の書き手（parity の下限なら `parity-suite` の `perf-stats.mjs summarize --write`）は、値を変えたときに自分で追記する。
 
 ## 空欄で追記して後で埋める列（`fill_only_columns`）
 

@@ -236,6 +236,157 @@
       "replace": "        indent,\n        [],\n        // **接頭辞は渡さない**",
       "occurrences": 1,
       "expect_failing": ["mutable_blocks: 鍵と同じインデントの要素行が失われたときだけ案内が出る"]
+    },
+    {
+      "id": "AO-PIN-NOAPPEND",
+      "why": "履歴を追記せずに固定した値を変えた変更を落とさない",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "    if (changed.length > 0 && !appended) {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "履歴を追記せずに floors を緩めると落ちる",
+        "履歴を追記せずに relative_floors を緩めると落ちる",
+        "履歴を持たない前の版の基準で floors を変えても、追記しなければ落ちる",
+        "floors を消しても、追記しなければ落ちる",
+        "初めて書く performance でも、履歴が無ければ落ちる",
+        "key を持たない json-arrays でも pinned_values で単独の値を固定できる"
+      ]
+    },
+    {
+      "id": "AO-PIN-LAST-MATCH",
+      "why": "履歴の最後の要素が今の値と合うかを見ない",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "      if (canonicalJson(last[field]) === canonicalJson(atPath(after, p))) continue;",
+      "replace": "      if (true) continue;",
+      "occurrences": 1,
+      "expect_failing": ["履歴だけを追記して、最後の要素が今の値と合わなければ落ちる"]
+    },
+    {
+      "id": "AO-PIN-LAST-OBJ",
+      "why": "履歴の最後の要素がオブジェクトでなくても区別しない",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "    if (!isPlainObject(last)) {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["履歴の最後の要素がオブジェクトでなければ落ちる"]
+    },
+    {
+      "id": "AO-PIN-HIST-LOST",
+      "why": "履歴の既存の要素が減ったことを区別しない",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "      if (i >= nowHistory.length) {",
+      "replace": "      if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["履歴の既存の要素を消すと落ちる（下限を変えないときも）"]
+    },
+    {
+      "id": "AO-PIN-HIST-REWRITE",
+      "why": "履歴の既存の要素の書き換えを落とさない",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "      if (canonicalJson(element) !== canonicalJson(nowHistory[i])) {",
+      "replace": "      if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["履歴の既存の要素を書き換えると落ちる"]
+    },
+    {
+      "id": "AO-PIN-HIST-TYPE",
+      "why": "配列でない履歴を判定不能にしない",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "  if (!Array.isArray(value)) {\n    throw new UsageError(`一覧が履歴と宣言した",
+      "replace": "  if (false) {\n    throw new UsageError(`一覧が履歴と宣言した",
+      "occurrences": 1,
+      "expect_failing": ["履歴が配列でなければ合格として扱わない（exit 2）"]
+    },
+    {
+      "id": "AO-PIN-CHECK-CALL",
+      "why": "check が pinned_values の検出を findings に入れない",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "      for (const finding of pinned) findings.push(`${finding}: ${file}`);",
+      "replace": "      void pinned;",
+      "occurrences": 1,
+      "expect_failing": [
+        "履歴を追記せずに floors を緩めると落ちる",
+        "履歴を追記せずに relative_floors を緩めると落ちる",
+        "履歴を持たない前の版の基準で floors を変えても、追記しなければ落ちる",
+        "floors を消しても、追記しなければ落ちる",
+        "初めて書く performance でも、履歴が無ければ落ちる",
+        "履歴だけを追記して、最後の要素が今の値と合わなければ落ちる",
+        "履歴の最後の要素がオブジェクトでなければ落ちる",
+        "履歴の既存の要素を消すと落ちる（下限を変えないときも）",
+        "履歴の既存の要素を書き換えると落ちる",
+        "key を持たない json-arrays でも pinned_values で単独の値を固定できる",
+        "同じ変更で追記した途中の要素がオブジェクトでなければ落ちる"
+      ]
+    },
+    {
+      "id": "AO-PIN-OVERLAP",
+      "why": "pinned_values のパスと履歴の重なり・入れ子を使い方の誤りにしない",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "      if (prev === path || path.startsWith(`${prev}.`) || prev.startsWith(`${path}.`)) {",
+      "replace": "      if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "pinned_values の書き方が誤っていれば合格として扱わない（exit 2）: paths と history が同じ",
+        "pinned_values の書き方が誤っていれば合格として扱わない（exit 2）: history が paths の子孫",
+        "pinned_values の書き方が誤っていれば合格として扱わない（exit 2）: paths が別のグループの paths と重なる",
+        "pinned_values の書き方が誤っていれば合格として扱わない（exit 2）: history が arrays と同じ",
+        "pinned_values の書き方が誤っていれば合格として扱わない（exit 2）: paths が arrays の祖先"
+      ]
+    },
+    {
+      "id": "AO-PIN-LASTSEG-DUP",
+      "why": "同じグループで最後のセグメントが重なる一覧を使い方の誤りにしない",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "      if (fields.has(field)) {",
+      "replace": "      if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "pinned_values の書き方が誤っていれば合格として扱わない（exit 2）: 同じグループで最後のセグメントが重なる"
+      ]
+    },
+    {
+      "id": "AO-PIN-UNIT-REJECT",
+      "why": "json-arrays 以外の unit の pinned_values を受け付けてしまう",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "      if (a.pinned_values !== undefined) {",
+      "replace": "      if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "unit が json-arrays でないのに pinned_values があれば合格として扱わない（exit 2）"
+      ]
+    },
+    {
+      "id": "AO-PIN-ASSIGN",
+      "why": "同じファイルに当たる 2 項目の pinned_values の食い違いを見ない",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "      canonicalJson(prev.pinnedValues) !== canonicalJson(artifact.pinnedValues)",
+      "replace": "      false",
+      "occurrences": 1,
+      "expect_failing": [
+        "同じファイルに当たる 2 項目で pinned_values だけ違えば合格として扱わない（exit 2）"
+      ]
+    },
+    {
+      "id": "AO-PIN-APPENDED-OBJ",
+      "why": "同じ変更で追記した途中の要素の形を見ない",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "      if (!isPlainObject(nowHistory[k])) {",
+      "replace": "      if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["同じ変更で追記した途中の要素がオブジェクトでなければ落ちる"]
+    },
+    {
+      "id": "AO-PIN-ARRAYS-OVERLAP",
+      "why": "pinned_values と同じ項目の arrays との重なりを使い方の誤りにしない",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "  const seen = [...arrays];",
+      "replace": "  const seen = [];",
+      "occurrences": 1,
+      "expect_failing": [
+        "pinned_values の書き方が誤っていれば合格として扱わない（exit 2）: history が arrays と同じ",
+        "pinned_values の書き方が誤っていれば合格として扱わない（exit 2）: paths が arrays の祖先"
+      ]
     }
   ]
 }

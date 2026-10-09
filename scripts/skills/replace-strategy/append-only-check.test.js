@@ -3236,3 +3236,315 @@ test("同じファイルに fill_only_columns の違う項目が当たれば合�
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
 });
+
+// pinned_values（Issue #582）。性能の許容幅の下限は利用者の決定で、採取から導けない。
+// 手で緩めると本物の回帰が許容幅の中に入るので、履歴（floor_history）を追記しない変更を落とす。
+// 落とす入力（追記なしの変更・記録と合わない追記・履歴の削除と書き換え）と同じ数だけ、通る入力
+// （履歴を追記した変更・初めて書く・下限を変えない採り直し・他の項目だけの変更）を置く。
+
+const FLOORS = { lcp: 100, cls: 0.01, tbt: 50, ttfb: 50 };
+const RELATIVE_FLOORS = { lcp: 0.2, cls: 0, tbt: 0.2, ttfb: 0.2 };
+
+/** 履歴の 1 件（perf-stats.mjs summarize --write が書く形）。 */
+const historyEntry = (floors = FLOORS, relativeFloors = RELATIVE_FLOORS, sha = "a".repeat(64)) => ({
+  floors,
+  relative_floors: relativeFloors,
+  samples_sha256: sha,
+  measured_at: "2026-10-08T00:00:00.000Z",
+});
+
+/**
+ * performance を持つ parity の metadata.json を commit したプロジェクトを作る。
+ * @param {Record<string, unknown> | undefined} performance
+ */
+function makePerfRepo(performance) {
+  const root = makeRepo();
+  const path = join(root, ".replace/parity/order-list/metadata.json");
+  const doc = JSON.parse(readFileSync(path, "utf8"));
+  if (performance !== undefined) doc.performance = performance;
+  writeFileSync(path, `${JSON.stringify(doc, null, 2)}\n`);
+  const r = spawnSync("git", ["-C", root, "commit", "-qam", "perf"], { encoding: "utf8" });
+  if (r.status !== 0 && performance !== undefined) throw new Error(r.stderr);
+  /** @param {(perf: Record<string, unknown>, doc: Record<string, unknown>) => void} edit */
+  const edit = (edit) => {
+    const now = JSON.parse(readFileSync(path, "utf8"));
+    edit(now.performance, now);
+    writeFileSync(path, `${JSON.stringify(now, null, 2)}\n`);
+  };
+  return { root, edit };
+}
+
+const seededPerformance = () => ({
+  declared: true,
+  floors: { ...FLOORS },
+  relative_floors: { ...RELATIVE_FLOORS },
+  floor_history: [historyEntry()],
+});
+
+test("履歴を追記せずに floors を緩めると落ちる", () => {
+  const { root, edit } = makePerfRepo(seededPerformance());
+  edit((perf) => {
+    perf.floors.lcp = 1000;
+  });
+  const r = run(root);
+  expect(r.stdout).toMatch(
+    /performance\.floors が performance\.floor_history への追記なしに書き換えられている/,
+  );
+  expect(r.stdout).not.toMatch(/relative_floors が/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("履歴を追記せずに relative_floors を緩めると落ちる", () => {
+  const { root, edit } = makePerfRepo(seededPerformance());
+  edit((perf) => {
+    perf.relative_floors.lcp = 0.9;
+  });
+  const r = run(root);
+  expect(r.stdout).toMatch(
+    /performance\.relative_floors が performance\.floor_history への追記なしに/,
+  );
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("履歴を持たない前の版の基準で floors を変えても、追記しなければ落ちる", () => {
+  const { floor_history: _, ...legacy } = seededPerformance();
+  const { root, edit } = makePerfRepo(legacy);
+  edit((perf) => {
+    perf.floors.tbt = 500;
+  });
+  const r = run(root);
+  expect(r.stdout).toMatch(/performance\.floors が performance\.floor_history への追記なしに/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("floors を消しても、追記しなければ落ちる", () => {
+  const { root, edit } = makePerfRepo(seededPerformance());
+  edit((perf) => {
+    delete perf.floors;
+  });
+  const r = run(root);
+  expect(r.stdout).toMatch(/performance\.floors が performance\.floor_history への追記なしに/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("誤検知しないことの確認: 履歴に今の値を追記して floors を変えれば通る", () => {
+  const { root, edit } = makePerfRepo(seededPerformance());
+  edit((perf) => {
+    perf.floors.lcp = 150;
+    perf.floor_history.push(historyEntry(perf.floors, perf.relative_floors, "b".repeat(64)));
+  });
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("誤検知しないことの確認: 初めて書く performance は、履歴を 1 件持てば通る", () => {
+  const { root, edit } = makePerfRepo(undefined);
+  edit((_, doc) => {
+    doc.performance = seededPerformance();
+  });
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("初めて書く performance でも、履歴が無ければ落ちる", () => {
+  const { root, edit } = makePerfRepo(undefined);
+  edit((_, doc) => {
+    const { floor_history: _h, ...perf } = seededPerformance();
+    doc.performance = perf;
+  });
+  const r = run(root);
+  expect(r.stdout).toMatch(/performance\.floors が performance\.floor_history への追記なしに/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("誤検知しないことの確認: 下限を変えない採り直し（他の項目だけの変更）は通る", () => {
+  const { root, edit } = makePerfRepo(seededPerformance());
+  edit((perf) => {
+    perf.samples_sha256 = "c".repeat(64);
+    perf.pairs = [{ page: "top", viewport: "desktop", metrics: {} }];
+  });
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("履歴だけを追記して、最後の要素が今の値と合わなければ落ちる", () => {
+  const { root, edit } = makePerfRepo(seededPerformance());
+  edit((perf) => {
+    perf.floors.lcp = 1000;
+    perf.floor_history.push(historyEntry({ ...FLOORS, lcp: 150 }));
+  });
+  const r = run(root);
+  expect(r.stdout).toMatch(
+    /performance\.floor_history の最後の要素の floors が performance\.floors の今の値と合わない/,
+  );
+  expect(r.stdout).not.toMatch(/最後の要素の relative_floors/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("履歴の最後の要素がオブジェクトでなければ落ちる", () => {
+  const { root, edit } = makePerfRepo(seededPerformance());
+  edit((perf) => {
+    perf.floors.lcp = 150;
+    perf.floor_history.push("lcp を 150 にした");
+  });
+  const r = run(root);
+  expect(r.stdout).toMatch(/performance\.floor_history の最後の要素がオブジェクトでない/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("同じ変更で追記した途中の要素がオブジェクトでなければ落ちる", () => {
+  const { root, edit } = makePerfRepo(seededPerformance());
+  edit((perf) => {
+    perf.floors.lcp = 150;
+    perf.floor_history.push("junk", historyEntry(perf.floors, perf.relative_floors));
+  });
+  const r = run(root);
+  expect(r.stdout).toMatch(
+    /performance\.floor_history に追記した 1 番目の要素がオブジェクトでない/,
+  );
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("履歴の既存の要素を消すと落ちる（下限を変えないときも）", () => {
+  const perf = seededPerformance();
+  perf.floor_history.push(historyEntry(FLOORS, RELATIVE_FLOORS, "b".repeat(64)));
+  const { root, edit } = makePerfRepo(perf);
+  edit((now) => {
+    now.floor_history.shift();
+  });
+  const r = run(root);
+  expect(r.stdout).toMatch(
+    /performance\.floor_history の要素が失われている（比較元 2 件 → 現在 1 件）/,
+  );
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("履歴の既存の要素を書き換えると落ちる", () => {
+  const { root, edit } = makePerfRepo(seededPerformance());
+  edit((perf) => {
+    perf.floor_history[0].floors.lcp = 999;
+  });
+  const r = run(root);
+  expect(r.stdout).toMatch(/performance\.floor_history の 0 番目の要素が書き換えられている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("履歴が配列でなければ合格として扱わない（exit 2）", () => {
+  const { root, edit } = makePerfRepo(seededPerformance());
+  edit((perf) => {
+    perf.floor_history = { 0: historyEntry() };
+  });
+  const r = run(root);
+  expect(r.stderr).toMatch(/履歴と宣言した performance\.floor_history が配列でない/);
+  expect(r.status).toBe(2);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("key を持たない json-arrays でも pinned_values で単独の値を固定できる", () => {
+  const root = makeRepo();
+  const manifest = writeManifest(root, [
+    {
+      id: "dataset-metadata",
+      pattern: ".replace/dataset/metadata.json",
+      unit: "json-arrays",
+      arrays: ["changes"],
+      pinned_values: [{ paths: ["version"], history: "version_history" }],
+    },
+  ]);
+  const path = join(root, ".replace/dataset/metadata.json");
+  const doc = JSON.parse(readFileSync(path, "utf8"));
+  doc.version = 2;
+  writeFileSync(path, `${JSON.stringify(doc, null, 2)}\n`);
+  const lost = run(root, ["--manifest", manifest]);
+  expect(lost.stdout).toMatch(
+    /version が version_history への追記なしに書き換えられている（1 → 2）/,
+  );
+  expect(lost.status).toBe(1);
+  doc.version_history = [{ version: 2 }];
+  writeFileSync(path, `${JSON.stringify(doc, null, 2)}\n`);
+  const ok = run(root, ["--manifest", manifest]);
+  expect(ok.stdout).toMatch(/^ok: /m);
+  expect(ok.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+/** parity の metadata.json に当てる一覧の項目（pinned_values だけを差し替える）。 */
+const pinnedArtifact = (pinned) => ({
+  id: "parity-unmeasured",
+  pattern: ".replace/parity/*/metadata.json",
+  unit: "json-arrays",
+  arrays: ["unmeasured.entries"],
+  key: "item",
+  pinned_values: pinned,
+});
+
+test.each([
+  ["空の配列", []],
+  ["配列でない", { paths: ["a"], history: "h" }],
+  ["paths が空", [{ paths: [], history: "h" }]],
+  ["history が無い", [{ paths: ["a"] }]],
+  ["paths の要素がキーパスの形でない", [{ paths: ["a..b"], history: "h" }]],
+  ["paths と history が同じ", [{ paths: ["a"], history: "a" }]],
+  ["history が paths の子孫", [{ paths: ["a"], history: "a.history" }]],
+  [
+    "paths が別のグループの paths と重なる",
+    [
+      { paths: ["a"], history: "h" },
+      { paths: ["a.b"], history: "i" },
+    ],
+  ],
+  ["同じグループで最後のセグメントが重なる", [{ paths: ["x.floors", "y.floors"], history: "h" }]],
+  ["history が arrays と同じ", [{ paths: ["a"], history: "unmeasured.entries" }]],
+  ["paths が arrays の祖先", [{ paths: ["unmeasured"], history: "h" }]],
+])("pinned_values の書き方が誤っていれば合格として扱わない（exit 2）: %s", (_, pinned) => {
+  const root = makeRepo();
+  const manifest = writeManifest(root, [pinnedArtifact(pinned)]);
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.stderr).toMatch(/pinned_values/);
+  expect(r.status).toBe(2);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("unit が json-arrays でないのに pinned_values があれば合格として扱わない（exit 2）", () => {
+  const root = makeRepo();
+  const manifest = writeManifest(root, [
+    {
+      id: "features",
+      pattern: ".replace/features.md",
+      unit: "markdown-structure",
+      pinned_values: [{ paths: ["a"], history: "h" }],
+    },
+  ]);
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.stderr).toMatch(/unit が markdown-structure なのに pinned_values がある/);
+  expect(r.status).toBe(2);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("同じファイルに当たる 2 項目で pinned_values だけ違えば合格として扱わない（exit 2）", () => {
+  const root = makeRepo();
+  const manifest = writeManifest(root, [
+    pinnedArtifact([{ paths: ["performance.floors"], history: "performance.floor_history" }]),
+    { ...pinnedArtifact([{ paths: ["performance.relative_floors"], history: "h" }]), id: "other" },
+  ]);
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.stderr).toMatch(/突き合わせ方の違う一覧の項目が当たっている/);
+  expect(r.status).toBe(2);
+  rmSync(root, { recursive: true, force: true });
+});

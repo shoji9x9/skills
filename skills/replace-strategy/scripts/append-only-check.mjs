@@ -37,6 +37,12 @@
 //   mutable_columns に置くと、決めた値の書き換えまで通ってしまう。
 //   どちらにも置かないと、空欄を埋めるだけの正規の編集が縮小と誤って判定される。
 //   同じ鍵の行は、出現した順で区別する（区別しないと、同じ鍵の 2 行の間でセルを入れ替えても単位が変わらない）。
+//   json-arrays は、pinned_values で単独の値（スカラーやオブジェクト）も固定できる。
+//   単独の値は配列の要素と違って積み上がらないので、多重集合では「消えた」を数えられず、何に書き換えても通っていた。
+//   例えば parity の性能の許容幅の下限（performance.floors）は利用者の決定で、採取から導けないので、
+//   手で緩めると本物の回帰が許容幅の中に入る。そこで、値を変えてよいのは、同じ commit で履歴の配列（history）に
+//   要素を追記し、その最後の要素が変えた後の値を記録しているときだけにする。
+//   履歴の既存の要素は、消すことも書き換えることもできない（先頭からの並びが比較元と一致することを求める）。
 //
 // 行の突き合わせは、空白を畳んでから（連続する空白を 1 つにし、前後を除いてから）行う。
 // Markdown の表は、フォーマッタが桁を詰め直すので、素の文字列で比べると整形だけで失敗する。
@@ -66,7 +72,7 @@ import { fileURLToPath } from "node:url";
  * ツールのバージョン（このファイルで定義する）。判定のロジックや出力の形を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "13";
+export const VERSION = "14";
 
 /** 走査で辿らないディレクトリ名。 */
 const SKIP_DIRS = new Set([".git", "node_modules"]);
@@ -1080,14 +1086,7 @@ function canonicalJson(value) {
  * @returns {Map<string, number>} 単位 → 出現回数
  */
 export function jsonArrayUnits(text, paths, label, key = null) {
-  let parsed;
-  try {
-    parsed = JSON.parse(text);
-  } catch (e) {
-    throw new UsageError(
-      `JSON として読めないため追記であることを確かめられない: ${label}（${e instanceof Error ? e.message : String(e)}）`,
-    );
-  }
+  const parsed = parseJson(text, label);
   /** @type {Map<string, number>} */
   const counts = new Map();
   for (const path of paths) {
@@ -1205,14 +1204,7 @@ function nonEmptyValue(v) {
  * @returns {Map<string, Record<string, unknown>[]>}
  */
 function keyedElements(text, path, key, label) {
-  let parsed;
-  try {
-    parsed = JSON.parse(text);
-  } catch (e) {
-    throw new UsageError(
-      `JSON として読めないため追記であることを確かめられない: ${label}（${e instanceof Error ? e.message : String(e)}）`,
-    );
-  }
+  const parsed = parseJson(text, label);
   /** @type {Map<string, Record<string, unknown>[]>} */
   const out = new Map();
   const value = atPath(parsed, path);
@@ -1231,6 +1223,117 @@ function keyedElements(text, path, key, label) {
     else list.push(element);
   }
   return out;
+}
+
+/**
+ * JSON として読む（読めなければ判定不能）。
+ * @param {string} text
+ * @param {string} label
+ * @returns {unknown}
+ */
+function parseJson(text, label) {
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    throw new UsageError(
+      `JSON として読めないため追記であることを確かめられない: ${label}（${e instanceof Error ? e.message : String(e)}）`,
+    );
+  }
+}
+
+/**
+ * 履歴の配列を読む。まだ無ければ空とみなす（最初の変更で作られる）。
+ * @param {unknown} doc
+ * @param {string} path
+ * @param {string} label
+ * @returns {unknown[]}
+ */
+function historyAt(doc, path, label) {
+  const value = atPath(doc, path);
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) {
+    throw new UsageError(`一覧が履歴と宣言した ${path} が配列でない: ${label}`);
+  }
+  return value;
+}
+
+/**
+ * pinned_values で固定した単独の値を突き合わせる。
+ *
+ * 値を変えてよいのは、履歴（history）に要素を追記し、最後の要素が今の値を記録しているときだけである。
+ * 最後の要素は、グループの全パスについて、パスの最後のセグメントを名前にした項目に今の値を持つ
+ * （`performance.floors` なら `floors`）。値を消した変更は、その項目を持たない要素で記録する。
+ * 履歴の既存の要素は、値を変えないときも、先頭からの並びが比較元と一致しなければならない。
+ * 値が無い（undefined）ことと null は、同じ値として扱う。
+ * @param {string} beforeText
+ * @param {string} afterText
+ * @param {{ paths: string[], history: string }[]} groups
+ * @param {{ before: string, after: string }} labels
+ * @returns {string[]} findings
+ */
+export function comparePinnedValues(beforeText, afterText, groups, labels) {
+  /** @type {string[]} */
+  const findings = [];
+  if (groups.length === 0) return findings;
+  const before = parseJson(beforeText, labels.before);
+  const after = parseJson(afterText, labels.after);
+  for (const group of groups) {
+    const baseHistory = historyAt(before, group.history, labels.before);
+    const nowHistory = historyAt(after, group.history, labels.after);
+    for (const [i, element] of baseHistory.entries()) {
+      if (i >= nowHistory.length) {
+        findings.push(
+          `${group.history} の要素が失われている（比較元 ${baseHistory.length} 件 → 現在 ${nowHistory.length} 件）`,
+        );
+        break;
+      }
+      if (canonicalJson(element) !== canonicalJson(nowHistory[i])) {
+        findings.push(`${group.history} の ${i} 番目の要素が書き換えられている`);
+      }
+    }
+    const changed = group.paths.filter(
+      (p) => canonicalJson(atPath(before, p)) !== canonicalJson(atPath(after, p)),
+    );
+    const appended = nowHistory.length > baseHistory.length;
+    if (changed.length > 0 && !appended) {
+      for (const p of changed) {
+        findings.push(
+          `${p} が ${group.history} への追記なしに書き換えられている（${stringify(atPath(before, p))} → ${stringify(atPath(after, p))}）`,
+        );
+      }
+      continue;
+    }
+    if (!appended) continue;
+    // 値の中身が正しい決定かは見ないが、追記した要素は記録として読める形（オブジェクト）でなければならない。
+    // 最後の要素だけを見ると、同じ変更で読めない要素を並べて足しても通る。
+    for (let k = baseHistory.length; k < nowHistory.length - 1; k += 1) {
+      if (!isPlainObject(nowHistory[k])) {
+        findings.push(`${group.history} に追記した ${k} 番目の要素がオブジェクトでない`);
+      }
+    }
+    // 追記した最後の要素が今の値と合わなければ、記録と実体が食い違う（記録だけ足して値を別に書き換える形を通さない）。
+    const last = nowHistory[nowHistory.length - 1];
+    if (!isPlainObject(last)) {
+      findings.push(`${group.history} の最後の要素がオブジェクトでない`);
+      continue;
+    }
+    for (const p of group.paths) {
+      const field = lastSegment(p);
+      if (canonicalJson(last[field]) === canonicalJson(atPath(after, p))) continue;
+      findings.push(
+        `${group.history} の最後の要素の ${field} が ${p} の今の値と合わない（履歴 ${stringify(last[field])} / 今 ${stringify(atPath(after, p))}）`,
+      );
+    }
+  }
+  return findings;
+}
+
+/**
+ * @param {string} path
+ * @returns {string}
+ */
+function lastSegment(path) {
+  return path.slice(path.lastIndexOf(".") + 1);
 }
 
 /**
@@ -1279,9 +1382,72 @@ function git(root, args) {
 }
 
 /**
+ * 一覧の pinned_values を読む。
+ *
+ * 履歴の最後の要素は、パスの最後のセグメントを項目名にして値を記録するので、グループの中で最後のセグメントが重なると
+ * どちらの値の記録かを区別できない。固定するパスと履歴が重なる・入れ子になると、履歴への追記がそのまま値の変更になる。
+ * 同じ項目の arrays と重なると、同じ値に配列の規則（fill_only など）と固定の規則が両方当たり、結果が食い違う。
+ * どれも、使い方の誤りとして落とす。
+ * @param {unknown} raw
+ * @param {number} i
+ * @param {string[]} arrays 同じ項目の arrays（重なりの検査に使う）
+ * @returns {{ paths: string[], history: string }[]}
+ */
+function readPinnedValues(raw, i, arrays) {
+  if (!Array.isArray(raw) || raw.length === 0) {
+    throw new UsageError(`artifacts[${i}].pinned_values が空でない配列でない`);
+  }
+  /** @type {string[]} 同じ項目の arrays と、すべてのグループのパスと履歴（重なりの検査に使う） */
+  const seen = [...arrays];
+  /** @param {string} path */
+  const claim = (path) => {
+    for (const prev of seen) {
+      if (prev === path || path.startsWith(`${prev}.`) || prev.startsWith(`${path}.`)) {
+        throw new UsageError(
+          `artifacts[${i}].pinned_values のパスが arrays か他のパスと重なっている（同じか入れ子）: ${prev} / ${path}`,
+        );
+      }
+    }
+    seen.push(path);
+  };
+  return raw.map((group) => {
+    if (!isPlainObject(group) || !Array.isArray(group.paths) || group.paths.length === 0) {
+      throw new UsageError(`artifacts[${i}].pinned_values の要素に空でない paths が無い`);
+    }
+    if (!nonEmptyString(group.history) || !KEY_PATH.test(String(group.history).trim())) {
+      throw new UsageError(
+        `artifacts[${i}].pinned_values の history がキーパスの形でない: ${JSON.stringify(group.history)}`,
+      );
+    }
+    /** @type {Set<string>} */
+    const fields = new Set();
+    const paths = group.paths.map((path) => {
+      if (!nonEmptyString(path) || !KEY_PATH.test(String(path).trim())) {
+        throw new UsageError(
+          `artifacts[${i}].pinned_values の paths の要素がキーパスの形でない: ${JSON.stringify(path)}`,
+        );
+      }
+      const p = String(path).trim();
+      const field = lastSegment(p);
+      if (fields.has(field)) {
+        throw new UsageError(
+          `artifacts[${i}].pinned_values の同じグループで、paths の最後のセグメントが重なっている: ${field}`,
+        );
+      }
+      fields.add(field);
+      claim(p);
+      return p;
+    });
+    const history = String(group.history).trim();
+    claim(history);
+    return { paths, history };
+  });
+}
+
+/**
  * 一覧を読む。
  * @param {string} manifestPath
- * @returns {{ id: string, pattern: string, unit: string, arrays: string[], key: string | null, fillOnly: string[], transitions: Record<string, string[]>, mutableColumns: string[], fillOnlyColumns: string[], mutableBullets: string[], mutableBlocks: string[], growableContainers: string[], registryGroups: { id: string, itemKey: string, paths: string[] }[], requirement: string, source: string }[]}
+ * @returns {{ id: string, pattern: string, unit: string, arrays: string[], key: string | null, fillOnly: string[], transitions: Record<string, string[]>, mutableColumns: string[], fillOnlyColumns: string[], mutableBullets: string[], mutableBlocks: string[], growableContainers: string[], registryGroups: { id: string, itemKey: string, paths: string[] }[], pinnedValues: { paths: string[], history: string }[], requirement: string, source: string }[]}
  */
 export function readManifest(manifestPath) {
   if (!existsSync(manifestPath)) throw new UsageError(`一覧が無い: ${manifestPath}`);
@@ -1340,6 +1506,8 @@ export function readManifest(manifestPath) {
     let growableContainers = [];
     /** @type {{ id: string, itemKey: string, paths: string[] }[]} */
     let registryGroups = [];
+    /** @type {{ paths: string[], history: string }[]} */
+    let pinnedValues = [];
     if (unit === "json-arrays") {
       if (!Array.isArray(a.arrays) || a.arrays.length === 0) {
         throw new UsageError(`artifacts[${i}] の unit が json-arrays なのに arrays が空`);
@@ -1384,6 +1552,9 @@ export function readManifest(manifestPath) {
           transitions[field] = list.map((x) => String(x).trim());
         }
       }
+      if (a.pinned_values !== undefined && a.pinned_values !== null) {
+        pinnedValues = readPinnedValues(a.pinned_values, i, arrays);
+      }
       if (
         a.mutable_columns !== undefined ||
         a.fill_only_columns !== undefined ||
@@ -1407,6 +1578,9 @@ export function readManifest(manifestPath) {
         throw new UsageError(
           `artifacts[${i}] の unit が ${unit} なのに fill_only / transitions がある`,
         );
+      }
+      if (a.pinned_values !== undefined) {
+        throw new UsageError(`artifacts[${i}] の unit が ${unit} なのに pinned_values がある`);
       }
       if (a.mutable_columns !== undefined && a.mutable_columns !== null) {
         if (unit !== "markdown-structure") {
@@ -1599,6 +1773,7 @@ export function readManifest(manifestPath) {
       mutableBlocks,
       growableContainers,
       registryGroups,
+      pinnedValues,
       requirement: nonEmptyString(a.requirement) ? String(a.requirement).trim() : "",
       source: nonEmptyString(a.source) ? String(a.source).trim() : "",
     };
@@ -1686,11 +1861,11 @@ export function check(opts) {
     return files;
   };
 
-  /** @type {Map<string, { id: string, pattern: string, unit: string, arrays: string[], key: string | null, fillOnly: string[], transitions: Record<string, string[]>, mutableColumns: string[], fillOnlyColumns: string[], mutableBullets: string[], mutableBlocks: string[], growableContainers: string[], registryGroups: { id: string, itemKey: string, paths: string[] }[] }>} */
+  /** @type {Map<string, { id: string, pattern: string, unit: string, arrays: string[], key: string | null, fillOnly: string[], transitions: Record<string, string[]>, mutableColumns: string[], fillOnlyColumns: string[], mutableBullets: string[], mutableBlocks: string[], growableContainers: string[], registryGroups: { id: string, itemKey: string, paths: string[] }[], pinnedValues: { paths: string[], history: string }[] }>} */
   const byFile = new Map();
   /**
    * @param {string} file
-   * @param {{ id: string, pattern: string, unit: string, arrays: string[], key: string | null, fillOnly: string[], transitions: Record<string, string[]>, mutableColumns: string[], fillOnlyColumns: string[], mutableBullets: string[], mutableBlocks: string[], growableContainers: string[], registryGroups: { id: string, itemKey: string, paths: string[] }[] }} artifact
+   * @param {{ id: string, pattern: string, unit: string, arrays: string[], key: string | null, fillOnly: string[], transitions: Record<string, string[]>, mutableColumns: string[], fillOnlyColumns: string[], mutableBullets: string[], mutableBlocks: string[], growableContainers: string[], registryGroups: { id: string, itemKey: string, paths: string[] }[], pinnedValues: { paths: string[], history: string }[] }} artifact
    */
   const assign = (file, artifact) => {
     const prev = byFile.get(file);
@@ -1712,7 +1887,8 @@ export function check(opts) {
       prev.mutableBullets.join(",") !== artifact.mutableBullets.join(",") ||
       prev.mutableBlocks.join(",") !== artifact.mutableBlocks.join(",") ||
       prev.growableContainers.join(",") !== artifact.growableContainers.join(",") ||
-      canonicalJson(prev.registryGroups) !== canonicalJson(artifact.registryGroups)
+      canonicalJson(prev.registryGroups) !== canonicalJson(artifact.registryGroups) ||
+      canonicalJson(prev.pinnedValues) !== canonicalJson(artifact.pinnedValues)
     ) {
       // 先勝ちにすると一覧の並び替えで判定が変わる。突き合わせ方が割れたら止める。
       throw new UsageError(
@@ -1740,7 +1916,7 @@ export function check(opts) {
   let checked = 0;
   for (const file of targets) {
     const artifact =
-      /** @type {{ id: string, pattern: string, unit: string, arrays: string[], key: string | null, fillOnly: string[], transitions: Record<string, string[]>, mutableColumns: string[], fillOnlyColumns: string[], mutableBullets: string[], mutableBlocks: string[], growableContainers: string[], registryGroups: { id: string, itemKey: string, paths: string[] }[] }} */ (
+      /** @type {{ id: string, pattern: string, unit: string, arrays: string[], key: string | null, fillOnly: string[], transitions: Record<string, string[]>, mutableColumns: string[], fillOnlyColumns: string[], mutableBullets: string[], mutableBlocks: string[], growableContainers: string[], registryGroups: { id: string, itemKey: string, paths: string[] }[], pinnedValues: { paths: string[], history: string }[] }} */ (
         byFile.get(file)
       );
     const inBase = trackedSet.has(file);
@@ -1762,6 +1938,13 @@ export function check(opts) {
       continue;
     }
     const afterText = readFileSync(abs, "utf8");
+    if (artifact.unit === "json-arrays") {
+      const pinned = comparePinnedValues(before.stdout, afterText, artifact.pinnedValues, {
+        before: `${file}@${base}`,
+        after: file,
+      });
+      for (const finding of pinned) findings.push(`${finding}: ${file}`);
+    }
     if (artifact.unit === "json-arrays" && artifact.key !== null) {
       // 鍵で対応づけてフィールドごとに見る（多重集合では「鍵以外の書き換え」を表現できない）。
       const keyed = compareKeyedArrays(
