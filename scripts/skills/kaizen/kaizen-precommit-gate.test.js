@@ -21,45 +21,52 @@ import {
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { makeSharedTempDir, makeTempDir } from "../../lib/test-tmpdir.js";
+import { makeSharedTempDir, makeTempDirFactory } from "../../lib/test-tmpdir.js";
+import { spawnAsync } from "../../lib/spawn-async.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const scriptsDir = join(repoRoot, "skills", "kaizen", "scripts");
 const fixturesDir = join(repoRoot, "evals", "kaizen", "fixtures", "candidate-scan");
 
+// **テストは `describe.concurrent` で並べて実行する**（Issue #590）。どのテストもチェックの子プロセスの終了を待つだけなので、
+// 並べた分だけ 1 回の実行が縮み、ミューテーションテストでは変異の数だけ反映される。
+// そのため、テストの間で状態を共有しない。プロジェクトとスクリプトの複製は、テストごとに別の一時ディレクトリに作る（`tempDir`）。
+const tempDir = makeTempDirFactory("kaizen-gate-");
+
 /** .kaizen/ を持つ空プロジェクトを作る。CLAUDE_PROJECT_DIR を渡すので git 管理下でなくてよい。 */
 function makeProject() {
-  const dir = makeTempDir("kaizen-gate-");
+  const dir = tempDir("kaizen-gate-");
   mkdirSync(join(dir, ".kaizen"));
   return dir;
 }
 
-function runScript(script, args, { cwd, scripts = scriptsDir, env = {} } = {}) {
-  return spawnSync("bash", [join(scripts, script), ...args], {
+async function runScript(script, args, { cwd, scripts = scriptsDir, env = {} } = {}) {
+  return await spawnAsync("bash", [join(scripts, script), ...args], {
     cwd,
-    encoding: "utf8",
     env: { ...process.env, CLAUDE_PROJECT_DIR: cwd, ...env },
   });
 }
 
 /** PreToolUse Hook の入力を模して、チェックに 1 コマンドを判定させる。 */
-function runGate(command, { cwd, transcriptPath, sessionId, scripts = scriptsDir, env = {} } = {}) {
+async function runGate(
+  command,
+  { cwd, transcriptPath, sessionId, scripts = scriptsDir, env = {} } = {},
+) {
   const input = JSON.stringify({
     tool_input: { command },
     ...(transcriptPath ? { transcript_path: transcriptPath } : {}),
     ...(sessionId ? { session_id: sessionId } : {}),
   });
-  return spawnSync("bash", [join(scripts, "kaizen-precommit-gate.sh")], {
+  return await spawnAsync("bash", [join(scripts, "kaizen-precommit-gate.sh")], {
     cwd,
     input,
-    encoding: "utf8",
     env: { ...process.env, CLAUDE_PROJECT_DIR: cwd, ...env },
   });
 }
 
 /** スクリプト一式を一時ディレクトリへ複製する（1 本だけスタブに差し替えるため）。 */
 function cloneScripts() {
-  const dir = makeTempDir("kaizen-scripts-");
+  const dir = tempDir("kaizen-scripts-");
   for (const name of readdirSync(scriptsDir)) copyFileSync(join(scriptsDir, name), join(dir, name));
   return dir;
 }
@@ -70,7 +77,140 @@ function scannedPosition(stdout) {
   return { bytes: bytes?.[1], lines: lines?.[1] };
 }
 
-describe("Claude Code の atis-latch 補助レコード", () => {
+// 候補が残っている他セッションのセンチネルは解消されないので、そのままだと commit のたびに同じ範囲を
+// 走査し直し、締め切りの残りを同じ結論に使い切る（Issue #492 の提案 2）。
+// 「他セッション分の走査結果の再利用」の 2 つの describe（並べるものと、ファイルの最後で並べないもの）が使う。
+const FOREIGN_SCAN_OWN = "own-session-1";
+const FOREIGN_SCAN_FOREIGN = "foreign-session-1";
+
+function setupForeignScan(scannerBody) {
+  const scripts = cloneScripts();
+  const cwd = makeProject();
+  const counter = join(cwd, "scan-count");
+  writeFileSync(
+    join(scripts, "kaizen-candidate-scan.sh"),
+    `#!/usr/bin/env bash\necho x >>"$SCAN_COUNTER"\n${scannerBody}\n`,
+  );
+  const transcript = join(cwd, "foreign.jsonl");
+  writeFileSync(transcript, "{}\n");
+  writeFileSync(
+    join(cwd, ".kaizen", `.pending-extract.${FOREIGN_SCAN_FOREIGN}`),
+    `2099-01-01T00:00:00Z\n${transcript}\nclaude-code\n${FOREIGN_SCAN_FOREIGN}\n`,
+  );
+  const cache = join(cwd, ".kaizen", `.extract-checkpoint.${FOREIGN_SCAN_FOREIGN}.foreign-scan`);
+  const gate = async (env = {}) =>
+    await runGate("git commit -m x", {
+      cwd,
+      sessionId: FOREIGN_SCAN_OWN,
+      scripts,
+      env: { SCAN_COUNTER: counter, ...env },
+    });
+  const scans = () =>
+    existsSync(counter) ? readFileSync(counter, "utf8").split("\n").filter(Boolean).length : 0;
+  return { scripts, cwd, transcript, cache, gate, scans };
+}
+
+describe.concurrent("他セッション分の走査結果の再利用", () => {
+  const FOREIGN = FOREIGN_SCAN_FOREIGN;
+  const setup = setupForeignScan;
+
+  test.each([["候補あり", "exit 0"]])(
+    "%s は入力が変わらなければ走査し直さない",
+    async (_label, body) => {
+      const { gate, scans, cache } = setup(body);
+      const first = await gate();
+      expect(first.status, first.stderr).toBe(1);
+      expect(scans()).toBe(1);
+      expect(existsSync(cache)).toBe(true);
+
+      const second = await gate();
+      expect(second.status, second.stderr).toBe(1);
+      expect(scans()).toBe(1);
+      expect(second.stderr).toMatch(/skipped re-scanning .*unchanged since the last scan/);
+      // 省いても他セッションの警告は従来どおり出る。
+      expect(second.stderr).toMatch(/他セッションの未抽出センチネルが残っています/);
+    },
+  );
+
+  // スキャナは一時ファイルの作成・読み取りの失敗といった一過性の理由でも 2 を返す。残すと、持ち主が
+  // 戻らないセンチネルを保持期間まで再試行しなくなる（PR #545 のレビュー指摘）。
+  test("判定不能はキャッシュに残さず、毎回走査し直す", async () => {
+    const { gate, scans, cache } = setup("exit 2");
+    await gate();
+    expect(existsSync(cache)).toBe(false);
+    await gate();
+    expect(scans()).toBe(2);
+  });
+
+  test("残っていた判定不能のキャッシュも使わない", async () => {
+    const { gate, scans, cache } = setup("exit 0");
+    await gate();
+    const content = readFileSync(cache, "utf8");
+    const inconclusive = content.replace(/\n0\n(\d+)\n$/, "\n2\n$1\n");
+    expect(inconclusive).not.toBe(content);
+    writeFileSync(cache, inconclusive);
+    await gate();
+    expect(scans()).toBe(2);
+  });
+
+  test("transcript が伸びたら走査し直す", async () => {
+    const { gate, scans, transcript } = setup("exit 0");
+    await gate();
+    appendFileSync(transcript, "{}\n");
+    await gate();
+    expect(scans()).toBe(2);
+  });
+
+  test("checkpoint が変わったら走査し直す", async () => {
+    const { gate, scans, cwd, transcript } = setup("exit 0");
+    await gate();
+    writeFileSync(
+      join(cwd, ".kaizen", `.extract-checkpoint.${FOREIGN}`),
+      `${transcript}\n3\nclaude-code\n1\n`,
+    );
+    await gate();
+    expect(scans()).toBe(2);
+  });
+
+  test("スキャナが変わったら走査し直す", async () => {
+    const { gate, scans, scripts } = setup("exit 0");
+    await gate();
+    appendFileSync(join(scripts, "kaizen-candidate-scan.sh"), "# updated\n");
+    await gate();
+    expect(scans()).toBe(2);
+  });
+
+  test.each([
+    [
+      "見出しが違う",
+      (c) => c.replace("kaizen-foreign-scan-cache v1", "kaizen-foreign-scan-cache v0"),
+    ],
+    ["結論が未知の値", (c) => c.replace(/\n0\n(\d+)\n$/, "\n7\n$1\n")],
+    ["秒数が欠けている", (c) => c.replace(/\n(\d+)\n$/, "\n")],
+  ])("キャッシュの形が違えば（%s）走査し直す", async (_label, mutate) => {
+    const { gate, scans, cache } = setup("exit 0");
+    await gate();
+    const mutated = mutate(readFileSync(cache, "utf8"));
+    expect(mutated).not.toBe(readFileSync(cache, "utf8"));
+    writeFileSync(cache, mutated);
+    await gate();
+    expect(scans()).toBe(2);
+  });
+
+  test("保持期間で回収したセンチネルのキャッシュも消す", async () => {
+    const { cwd, cache, gate, transcript } = setup("exit 0");
+    writeFileSync(
+      join(cwd, ".kaizen", `.pending-extract.${FOREIGN}`),
+      `2000-01-01T00:00:00Z\n${transcript}\nclaude-code\n${FOREIGN}\n`,
+    );
+    writeFileSync(cache, "kaizen-foreign-scan-cache v1\n");
+    const result = await gate();
+    expect(result.status, result.stderr).toBe(0);
+    expect(existsSync(cache)).toBe(false);
+  });
+});
+
+describe.concurrent("Claude Code の atis-latch 補助レコード", () => {
   test.each([
     ["atis-latch だけなら候補ゼロ", "claude-atis-latch-no-candidate.jsonl", 1],
     ["atis-latch は候補を隠さない", "claude-atis-latch-candidate.jsonl", 0],
@@ -79,27 +219,31 @@ describe("Claude Code の atis-latch 補助レコード", () => {
     ["不正な JSON は判定不能", "malformed-json.jsonl", 2],
     ["event_msg の subtype 欠落は判定不能", "malformed-event-msg.jsonl", 2],
     ["response_item の未知 subtype は判定不能", "unknown-response-item-subtype.jsonl", 2],
-  ])("%s", (_label, fixture, expectedStatus) => {
+  ])("%s", async (_label, fixture, expectedStatus) => {
     const cwd = makeProject();
     const transcript = join(fixturesDir, fixture);
-    const scan = runScript("kaizen-candidate-scan.sh", [transcript, join(cwd, "no-checkpoint")], {
-      cwd,
-    });
+    const scan = await runScript(
+      "kaizen-candidate-scan.sh",
+      [transcript, join(cwd, "no-checkpoint")],
+      {
+        cwd,
+      },
+    );
 
     expect(scan.status).toBe(expectedStatus);
   });
 
-  test("atis-latch だけでは commit をブロックしない", () => {
+  test("atis-latch だけでは commit をブロックしない", async () => {
     const cwd = makeProject();
     const transcript = join(fixturesDir, "claude-atis-latch-no-candidate.jsonl");
     writeFileSync(join(cwd, ".kaizen", ".pending-extract"), "");
 
-    const gate = runGate("git commit -m x", { cwd, transcriptPath: transcript });
+    const gate = await runGate("git commit -m x", { cwd, transcriptPath: transcript });
 
     expect(gate.status).toBe(0);
   });
 
-  test("checkpoint 後の差分が atis-latch だけでも検証済みゼロ", () => {
+  test("checkpoint 後の差分が atis-latch だけでも検証済みゼロ", async () => {
     const cwd = makeProject();
     const transcript = join(cwd, "t.jsonl");
     const checkpoint = join(cwd, ".kaizen", ".extract-checkpoint");
@@ -111,23 +255,27 @@ describe("Claude Code の atis-latch 補助レコード", () => {
     );
     appendFileSync(transcript, '{"type":"atis-latch","atis":{},"sessionId":"test-session"}\n');
 
-    const scan = runScript("kaizen-candidate-scan.sh", [transcript, checkpoint], { cwd });
+    const scan = await runScript("kaizen-candidate-scan.sh", [transcript, checkpoint], { cwd });
 
     expect(scan.status).toBe(1);
     expect(scan.stdout).toMatch(/^kaizen-candidate-scan: agent=claude-code$/m);
   });
 });
 
-describe("Codex の token usage / review mode 補助レコード", () => {
+describe.concurrent("Codex の token usage / review mode 補助レコード", () => {
   test.each([
     ["補助レコードだけなら候補ゼロ", "codex-review-metadata-no-candidate.jsonl", 1],
     ["補助レコードはツール失敗候補を隠さない", "codex-review-metadata-candidate.jsonl", 0],
-  ])("%s", (_label, fixture, expectedStatus) => {
+  ])("%s", async (_label, fixture, expectedStatus) => {
     const cwd = makeProject();
     const transcript = join(fixturesDir, fixture);
-    const scan = runScript("kaizen-candidate-scan.sh", [transcript, join(cwd, "no-checkpoint")], {
-      cwd,
-    });
+    const scan = await runScript(
+      "kaizen-candidate-scan.sh",
+      [transcript, join(cwd, "no-checkpoint")],
+      {
+        cwd,
+      },
+    );
 
     expect(scan.status).toBe(expectedStatus);
     expect(scan.stdout).toMatch(/^kaizen-candidate-scan: agent=codex$/m);
@@ -137,7 +285,7 @@ describe("Codex の token usage / review mode 補助レコード", () => {
     ["token_usage_record", '\n\telif $j.type == "token_usage_record" then "D", "R"'],
     ["EnteredReviewMode", '$item.type == "EnteredReviewMode" or\n\t\t       '],
     ["ExitedReviewMode", '$item.type == "ExitedReviewMode" or '],
-  ])("%s の認識分岐を除くと fixture は判定不能になる", (_label, branch) => {
+  ])("%s の認識分岐を除くと fixture は判定不能になる", async (_label, branch) => {
     const scripts = cloneScripts();
     const scanner = join(scripts, "kaizen-candidate-scan.sh");
     const original = readFileSync(scanner, "utf8");
@@ -147,24 +295,28 @@ describe("Codex の token usage / review mode 補助レコード", () => {
 
     const cwd = makeProject();
     const transcript = join(fixturesDir, "codex-review-metadata-no-candidate.jsonl");
-    const scan = runScript("kaizen-candidate-scan.sh", [transcript, join(cwd, "no-checkpoint")], {
-      cwd,
-      scripts,
-    });
+    const scan = await runScript(
+      "kaizen-candidate-scan.sh",
+      [transcript, join(cwd, "no-checkpoint")],
+      {
+        cwd,
+        scripts,
+      },
+    );
 
     expect(scan.status).toBe(2);
     expect(scan.stderr).toMatch(/unsupported or malformed record/);
   });
 });
 
-describe("checkpoint はスキャナが検査した範囲までしか進めない", () => {
-  test("走査後に追記されたレコードは処理済みにならず、次の走査で検出される", () => {
+describe.concurrent("checkpoint はスキャナが検査した範囲までしか進めない", () => {
+  test("走査後に追記されたレコードは処理済みにならず、次の走査で検出される", async () => {
     const cwd = makeProject();
     const transcript = join(cwd, "t.jsonl");
     copyFileSync(join(fixturesDir, "claude-no-candidate.jsonl"), transcript);
     writeFileSync(join(cwd, ".kaizen", ".pending-extract"), "");
 
-    const scan = runScript(
+    const scan = await runScript(
       "kaizen-candidate-scan.sh",
       [transcript, ".kaizen/.extract-checkpoint"],
       { cwd },
@@ -177,7 +329,7 @@ describe("checkpoint はスキャナが検査した範囲までしか進めな�
     // 走査と checkpoint 記録の間に候補（user correction）が追記される。
     appendFileSync(transcript, readFileSync(join(fixturesDir, "claude-candidate.jsonl")));
 
-    const done = runScript(
+    const done = await runScript(
       "kaizen-extract-done.sh",
       [
         "--checkpoint-only",
@@ -195,7 +347,7 @@ describe("checkpoint はスキャナが検査した範囲までしか進めな�
     );
     expect(done.status).toBe(0);
 
-    const rescan = runScript(
+    const rescan = await runScript(
       "kaizen-candidate-scan.sh",
       [transcript, ".kaizen/.extract-checkpoint"],
       { cwd },
@@ -208,13 +360,13 @@ describe("checkpoint はスキャナが検査した範囲までしか進めな�
   // 走査時点で transcript が改行で終わっていない（レコードは書けたが改行が未着）ケース。
   // 走査済み行数を「改行の数」以外の定義で数えると、後から改行だけが届いたときにその行を
   // 二重に数え、以降の根拠行番号が恒久的にずれる。
-  test("改行未着のレコードがあっても根拠の行番号がずれない", () => {
+  test("改行未着のレコードがあっても根拠の行番号がずれない", async () => {
     const cwd = makeProject();
     const transcript = join(cwd, "t.jsonl");
     const noCandidate = readFileSync(join(fixturesDir, "claude-no-candidate.jsonl"), "utf8");
     writeFileSync(transcript, noCandidate.replace(/\n$/, "")); // 末尾の改行がまだ届いていない
 
-    const scan = runScript(
+    const scan = await runScript(
       "kaizen-candidate-scan.sh",
       [transcript, ".kaizen/.extract-checkpoint"],
       { cwd },
@@ -222,7 +374,7 @@ describe("checkpoint はスキャナが検査した範囲までしか進めな�
     expect(scan.status).toBe(1);
     const { bytes, lines } = scannedPosition(scan.stdout);
 
-    const done = runScript(
+    const done = await runScript(
       "kaizen-extract-done.sh",
       [
         "--checkpoint-only",
@@ -246,7 +398,7 @@ describe("checkpoint はスキャナが検査した範囲までしか進めな�
     const total = readFileSync(transcript, "utf8").split("\n").filter(Boolean).length;
     expect(total).toBe(11);
 
-    const rescan = runScript(
+    const rescan = await runScript(
       "kaizen-candidate-scan.sh",
       [transcript, ".kaizen/.extract-checkpoint"],
       { cwd },
@@ -255,13 +407,13 @@ describe("checkpoint はスキャナが検査した範囲までしか進めな�
     expect(rescan.stdout).toMatch(/user correction: transcript line 11$/m);
   });
 
-  test("--checkpoint-only は走査済み位置なしでは checkpoint を進めない", () => {
+  test("--checkpoint-only は走査済み位置なしでは checkpoint を進めない", async () => {
     const cwd = makeProject();
     const transcript = join(cwd, "t.jsonl");
     copyFileSync(join(fixturesDir, "claude-no-candidate.jsonl"), transcript);
     writeFileSync(join(cwd, ".kaizen", ".pending-extract"), "");
 
-    const done = runScript(
+    const done = await runScript(
       "kaizen-extract-done.sh",
       ["--checkpoint-only", "--sentinel-suffix", "", "--agent", "claude-code", transcript],
       { cwd },
@@ -275,26 +427,26 @@ describe("checkpoint はスキャナが検査した範囲までしか進めな�
   test.each([
     ["--scanned-bytes だけ", ["--scanned-bytes", "10"]],
     ["--scanned-lines だけ", ["--scanned-lines", "1"]],
-  ])("走査済み位置は対で渡す: %s は拒否する", (_label, partial) => {
+  ])("走査済み位置は対で渡す: %s は拒否する", async (_label, partial) => {
     const cwd = makeProject();
     const transcript = join(cwd, "t.jsonl");
     copyFileSync(join(fixturesDir, "claude-no-candidate.jsonl"), transcript);
 
     // 片方だけ渡すと checkpoint の 2 行目と 4 行目が別地点を指す。警告なしに、機能を減らした wc での計数にしない。
-    const done = runScript("kaizen-extract-done.sh", [...partial, transcript], { cwd });
+    const done = await runScript("kaizen-extract-done.sh", [...partial, transcript], { cwd });
     expect(done.status).toBe(2);
     expect(done.stderr).toMatch(/must be given together/);
     expect(readdirSync(join(cwd, ".kaizen"))).not.toContain(".extract-checkpoint");
   });
 
-  test("走査済み位置は --checkpoint-only 専用で、抽出完了モードでは受け付けない", () => {
+  test("走査済み位置は --checkpoint-only 専用で、抽出完了モードでは受け付けない", async () => {
     const cwd = makeProject();
     const transcript = join(cwd, "t.jsonl");
     copyFileSync(join(fixturesDir, "claude-no-candidate.jsonl"), transcript);
 
     // 抽出完了は transcript 全体を読んだ後の記録。ここで終端を受け付けると checkpoint を
     // 任意の位置へ進められ、未走査範囲を飛ばせてしまう（checkpoint はセッションをまたいで残る）。
-    const done = runScript(
+    const done = await runScript(
       "kaizen-extract-done.sh",
       ["--sentinel-suffix", "", "--scanned-bytes", "999999", "--scanned-lines", "999", transcript],
       { cwd },
@@ -305,7 +457,7 @@ describe("checkpoint はスキャナが検査した範囲までしか進めな�
     expect(readdirSync(join(cwd, ".kaizen"))).not.toContain(".extract-done");
   });
 
-  test("スキャナが走査済み位置を報告しないとき、チェックはブロックする", () => {
+  test("スキャナが走査済み位置を報告しないとき、チェックはブロックする", async () => {
     const scripts = cloneScripts();
     writeFileSync(
       join(scripts, "kaizen-candidate-scan.sh"),
@@ -316,7 +468,7 @@ describe("checkpoint はスキャナが検査した範囲までしか進めな�
     copyFileSync(join(fixturesDir, "claude-no-candidate.jsonl"), transcript);
     writeFileSync(join(cwd, ".kaizen", ".pending-extract"), "");
 
-    const gate = runGate("git commit -m x", { cwd, transcriptPath: transcript, scripts });
+    const gate = await runGate("git commit -m x", { cwd, transcriptPath: transcript, scripts });
     expect(gate.status).toBe(2);
     expect(gate.stderr).toMatch(/did not report its scanned position/);
     expect(readdirSync(join(cwd, ".kaizen"))).toContain(".pending-extract");
@@ -327,7 +479,7 @@ describe("checkpoint はスキャナが検査した範囲までしか進めな�
 // ならない（Issue #244）。抽出完了マーカー `.extract-done.<key>` はセッション全体を抽出済みにする
 // 印なので、checkpoint がある限りチェックに尊重させない。ここが緩むと 2 回目以降の commit が
 // エラーにならずに素通りし、「チェックが動いている」ように見えたまま学びを取りこぼす。
-describe("同一セッションの後続 commit も未処理範囲を再走査する", () => {
+describe.concurrent("同一セッションの後続 commit も未処理範囲を再走査する", () => {
   const SESSION = "sess-244";
   const sentinelName = `.pending-extract.${SESSION}`;
 
@@ -339,8 +491,8 @@ describe("同一セッションの後続 commit も未処理範囲を再走査�
     );
   }
 
-  function completeExtraction(cwd, args) {
-    const done = runScript(
+  async function completeExtraction(cwd, args) {
+    const done = await runScript(
       "kaizen-extract-done.sh",
       ["--sentinel-suffix", "", "--agent", "claude-code", "--session-id", SESSION, ...args],
       { cwd },
@@ -349,13 +501,13 @@ describe("同一セッションの後続 commit も未処理範囲を再走査�
     return done;
   }
 
-  test("checkpoint を記録できた抽出完了は .extract-done を書かない", () => {
+  test("checkpoint を記録できた抽出完了は .extract-done を書かない", async () => {
     const cwd = makeProject();
     const transcript = join(cwd, "t.jsonl");
     copyFileSync(join(fixturesDir, "claude-no-candidate.jsonl"), transcript);
     armSentinel(cwd, transcript);
 
-    completeExtraction(cwd, [transcript]);
+    await completeExtraction(cwd, [transcript]);
 
     const files = readdirSync(join(cwd, ".kaizen"));
     expect(files).toContain(`.extract-checkpoint.${SESSION}`);
@@ -363,18 +515,18 @@ describe("同一セッションの後続 commit も未処理範囲を再走査�
     expect(files).not.toContain(sentinelName);
   });
 
-  test("抽出後に積まれた候補は次の commit でブロックされる", () => {
+  test("抽出後に積まれた候補は次の commit でブロックされる", async () => {
     const cwd = makeProject();
     const transcript = join(cwd, "t.jsonl");
     copyFileSync(join(fixturesDir, "claude-no-candidate.jsonl"), transcript);
     armSentinel(cwd, transcript);
-    completeExtraction(cwd, [transcript]);
+    await completeExtraction(cwd, [transcript]);
 
     // 1 回目の commit の後に積まれた活動（ユーザーの訂正を含む）。
     appendFileSync(transcript, readFileSync(join(fixturesDir, "claude-candidate.jsonl"), "utf8"));
     armSentinel(cwd, transcript);
 
-    const gate = runGate("git commit -m second", {
+    const gate = await runGate("git commit -m second", {
       cwd,
       transcriptPath: transcript,
       sessionId: SESSION,
@@ -384,15 +536,15 @@ describe("同一セッションの後続 commit も未処理範囲を再走査�
     expect(readdirSync(join(cwd, ".kaizen"))).toContain(sentinelName);
   });
 
-  test("抽出後に新しい活動が無ければ次の commit は通る", () => {
+  test("抽出後に新しい活動が無ければ次の commit は通る", async () => {
     const cwd = makeProject();
     const transcript = join(cwd, "t.jsonl");
     copyFileSync(join(fixturesDir, "claude-no-candidate.jsonl"), transcript);
     armSentinel(cwd, transcript);
-    completeExtraction(cwd, [transcript]);
+    await completeExtraction(cwd, [transcript]);
     armSentinel(cwd, transcript);
 
-    const gate = runGate("git commit -m second", {
+    const gate = await runGate("git commit -m second", {
       cwd,
       transcriptPath: transcript,
       sessionId: SESSION,
@@ -401,19 +553,19 @@ describe("同一セッションの後続 commit も未処理範囲を再走査�
     expect(readdirSync(join(cwd, ".kaizen"))).not.toContain(sentinelName);
   });
 
-  test("修正前に書かれた .extract-done が残っていても再走査する", () => {
+  test("修正前に書かれた .extract-done が残っていても再走査する", async () => {
     const cwd = makeProject();
     const transcript = join(cwd, "t.jsonl");
     copyFileSync(join(fixturesDir, "claude-no-candidate.jsonl"), transcript);
     armSentinel(cwd, transcript);
-    completeExtraction(cwd, [transcript]);
+    await completeExtraction(cwd, [transcript]);
     // 旧版が書いたマーカー（アップグレード直後にセッション内で残っている状態）。
     writeFileSync(join(cwd, ".kaizen", `.extract-done.${SESSION}`), "2026-01-01T00:00:00Z\n");
 
     appendFileSync(transcript, readFileSync(join(fixturesDir, "claude-candidate.jsonl"), "utf8"));
     armSentinel(cwd, transcript);
 
-    const gate = runGate("git commit -m second", {
+    const gate = await runGate("git commit -m second", {
       cwd,
       transcriptPath: transcript,
       sessionId: SESSION,
@@ -422,7 +574,7 @@ describe("同一セッションの後続 commit も未処理範囲を再走査�
     expect(gate.stderr).toMatch(/candidate\(s\) found/);
   });
 
-  test("checkpoint を記録できない抽出完了は .extract-done でチェックを解除する", () => {
+  test("checkpoint を記録できない抽出完了は .extract-done でチェックを解除する", async () => {
     const cwd = makeProject();
     const transcript = join(cwd, "t.jsonl");
     copyFileSync(join(fixturesDir, "claude-no-candidate.jsonl"), transcript);
@@ -430,7 +582,7 @@ describe("同一セッションの後続 commit も未処理範囲を再走査�
 
     // transcript を渡さない呼び出しでは差分走査の起点が作れない。ここでマーカーまで
     // 書かないと、以降の commit が全走査で毎回ブロックされる恒久ブロッカーになる。
-    completeExtraction(cwd, []);
+    await completeExtraction(cwd, []);
     const files = readdirSync(join(cwd, ".kaizen"));
     expect(files).toContain(`.extract-done.${SESSION}`);
     expect(files).not.toContain(`.extract-checkpoint.${SESSION}`);
@@ -438,7 +590,7 @@ describe("同一セッションの後続 commit も未処理範囲を再走査�
     appendFileSync(transcript, readFileSync(join(fixturesDir, "claude-candidate.jsonl"), "utf8"));
     armSentinel(cwd, transcript);
 
-    const gate = runGate("git commit -m second", {
+    const gate = await runGate("git commit -m second", {
       cwd,
       transcriptPath: transcript,
       sessionId: SESSION,
@@ -446,24 +598,24 @@ describe("同一セッションの後続 commit も未処理範囲を再走査�
     expect(gate.status).toBe(0);
   });
 
-  test("checkpoint を後から記録できたら、先に書かれた .extract-done を失効させる", () => {
+  test("checkpoint を後から記録できたら、先に書かれた .extract-done を失効させる", async () => {
     const cwd = makeProject();
     const transcript = join(cwd, "t.jsonl");
     copyFileSync(join(fixturesDir, "claude-no-candidate.jsonl"), transcript);
     armSentinel(cwd, transcript);
-    completeExtraction(cwd, []);
+    await completeExtraction(cwd, []);
     armSentinel(cwd, transcript);
-    completeExtraction(cwd, [transcript]);
+    await completeExtraction(cwd, [transcript]);
 
     const files = readdirSync(join(cwd, ".kaizen"));
     expect(files).toContain(`.extract-checkpoint.${SESSION}`);
     expect(files).not.toContain(`.extract-done.${SESSION}`);
   });
 
-  test("古い .extract-done を削除できなくても checkpoint 後のセンチネル解除を続ける", () => {
+  test("古い .extract-done を削除できなくても checkpoint 後のセンチネル解除を続ける", async () => {
     const scripts = cloneScripts();
-    const shimDir = makeTempDir("kaizen-rm-shim-");
-    const realRm = spawnSync("bash", ["-c", "command -v rm"], { encoding: "utf8" }).stdout.trim();
+    const shimDir = tempDir("kaizen-rm-shim-");
+    const realRm = (await spawnAsync("bash", ["-c", "command -v rm"])).stdout.trim();
     writeFileSync(
       join(shimDir, "rm"),
       `#!/usr/bin/env bash
@@ -481,7 +633,7 @@ exec "${realRm}" "$@"
     armSentinel(cwd, transcript);
     writeFileSync(join(cwd, ".kaizen", `.extract-done.${SESSION}`), "old\n");
 
-    const done = runScript(
+    const done = await runScript(
       "kaizen-extract-done.sh",
       ["--sentinel-suffix", "", "--agent", "claude-code", "--session-id", SESSION, transcript],
       { cwd, scripts, env: { PATH: `${shimDir}:${process.env.PATH}` } },
@@ -498,7 +650,7 @@ exec "${realRm}" "$@"
   // 残したままマーカーだけ書くと、チェックはマーカーを尊重せず古い起点から再走査し、いま抽出
   // したばかりの候補で再びブロックする。抽出をやり直しても同じ状態に戻るため、安全側の扱いが
   // 機能せず commit が止まり続ける。
-  test("先に checkpoint がある状態でも、.extract-done による通過は機能する", () => {
+  test("先に checkpoint がある状態でも、.extract-done による通過は機能する", async () => {
     const cwd = makeProject();
     const transcript = join(cwd, "t.jsonl");
     copyFileSync(join(fixturesDir, "claude-no-candidate.jsonl"), transcript);
@@ -506,22 +658,27 @@ exec "${realRm}" "$@"
     // 1 回目の commit: 候補ゼロでチェックが自動通過し、checkpoint が書かれる。
     armSentinel(cwd, transcript);
     expect(
-      runGate("git commit -m first", { cwd, transcriptPath: transcript, sessionId: SESSION })
-        .status,
+      (
+        await runGate("git commit -m first", {
+          cwd,
+          transcriptPath: transcript,
+          sessionId: SESSION,
+        })
+      ).status,
     ).toBe(0);
     expect(readdirSync(join(cwd, ".kaizen"))).toContain(`.extract-checkpoint.${SESSION}`);
 
     // 候補が積まれ、抽出は済んだが transcript を渡せず checkpoint を記録できなかった。
     appendFileSync(transcript, readFileSync(join(fixturesDir, "claude-candidate.jsonl"), "utf8"));
     armSentinel(cwd, transcript);
-    completeExtraction(cwd, []);
+    await completeExtraction(cwd, []);
     const files = readdirSync(join(cwd, ".kaizen"));
     expect(files).toContain(`.extract-done.${SESSION}`);
     // 起点を残すと、安全側の扱いがチェックに無視される。全走査として扱うため、起点を消す。
     expect(files).not.toContain(`.extract-checkpoint.${SESSION}`);
 
     armSentinel(cwd, transcript);
-    const gate = runGate("git commit -m second", {
+    const gate = await runGate("git commit -m second", {
       cwd,
       transcriptPath: transcript,
       sessionId: SESSION,
@@ -529,7 +686,7 @@ exec "${realRm}" "$@"
     expect(gate.status).toBe(0);
   });
 
-  test("key を持たない旧形式のセンチネルは従来どおりマーカーが覆う", () => {
+  test("key を持たない旧形式のセンチネルは従来どおりマーカーが覆う", async () => {
     const cwd = makeProject();
     const transcript = join(cwd, "t.jsonl");
     copyFileSync(join(fixturesDir, "claude-no-candidate.jsonl"), transcript);
@@ -543,12 +700,12 @@ exec "${realRm}" "$@"
     );
     appendFileSync(transcript, readFileSync(join(fixturesDir, "claude-candidate.jsonl"), "utf8"));
 
-    const gate = runGate("git commit -m x", { cwd, transcriptPath: transcript });
+    const gate = await runGate("git commit -m x", { cwd, transcriptPath: transcript });
     expect(gate.status).toBe(0);
   });
 });
 
-describe("スキャナの判定はチェックの外部コマンド方言に依存しない", () => {
+describe.concurrent("スキャナの判定はチェックの外部コマンド方言に依存しない", () => {
   test("チェックは sed の GNU 拡張（BRE の \\|）で agent を取り出さない", () => {
     const gnuAlternation = /sed[^\n]*\\\|/;
     // 検出されることの確認: 修正前の書き方を検出できることを先に示す（「該当なし」を根拠にするため）。
@@ -565,43 +722,49 @@ describe("スキャナの判定はチェックの外部コマンド方言に依�
 
   // GNU sed の --posix を BSD sed（POSIX BRE のみ）の代理にする。--posix を持たない sed の
   // 環境では代理を作れないので skip する（誤検出させない）。
+  // 収集のときに 1 回だけ判定する（skipIf に渡すので同期で起動する）。
   const realSed = spawnSync("bash", ["-c", "command -v sed"], { encoding: "utf8" }).stdout.trim();
   const posixSedAvailable =
     realSed !== "" &&
     spawnSync("bash", ["-c", `"${realSed}" --posix -n p </dev/null`]).status === 0;
 
-  test.skipIf(!posixSedAvailable)("POSIX BRE しか持たない sed でも候補ゼロは自動通過する", () => {
-    const shimDir = makeTempDir("kaizen-shim-");
-    const callLog = join(shimDir, "calls.log");
-    // 実体は絶対パスで呼ぶ（PATH 経由にすると自分自身を呼び戻して無限再帰する）。
-    writeFileSync(
-      join(shimDir, "sed"),
-      `#!/usr/bin/env bash\necho called >>"${callLog}"\nexec "${realSed}" --posix "$@"\n`,
-      { mode: 0o755 },
-    );
+  test.skipIf(!posixSedAvailable)(
+    "POSIX BRE しか持たない sed でも候補ゼロは自動通過する",
+    async () => {
+      const shimDir = tempDir("kaizen-shim-");
+      const callLog = join(shimDir, "calls.log");
+      // 実体は絶対パスで呼ぶ（PATH 経由にすると自分自身を呼び戻して無限再帰する）。
+      writeFileSync(
+        join(shimDir, "sed"),
+        `#!/usr/bin/env bash\necho called >>"${callLog}"\nexec "${realSed}" --posix "$@"\n`,
+        { mode: 0o755 },
+      );
 
-    const cwd = makeProject();
-    const transcript = join(cwd, "t.jsonl");
-    copyFileSync(join(fixturesDir, "claude-no-candidate.jsonl"), transcript);
-    writeFileSync(join(cwd, ".kaizen", ".pending-extract"), "");
+      const cwd = makeProject();
+      const transcript = join(cwd, "t.jsonl");
+      copyFileSync(join(fixturesDir, "claude-no-candidate.jsonl"), transcript);
+      writeFileSync(join(cwd, ".kaizen", ".pending-extract"), "");
 
-    // 1 回目で checkpoint を作る（スキャナはここで初めて sed で checkpoint を読むようになる）。
-    expect(runGate("git commit -m x", { cwd, transcriptPath: transcript }).status).toBe(0);
-    writeFileSync(join(cwd, ".kaizen", ".pending-extract"), ""); // Stop フックによる再装填
+      // 1 回目で checkpoint を作る（スキャナはここで初めて sed で checkpoint を読むようになる）。
+      expect((await runGate("git commit -m x", { cwd, transcriptPath: transcript })).status).toBe(
+        0,
+      );
+      writeFileSync(join(cwd, ".kaizen", ".pending-extract"), ""); // Stop フックによる再装填
 
-    const gate = runGate("git commit -m x", {
-      cwd,
-      transcriptPath: transcript,
-      env: { PATH: `${shimDir}:${process.env.PATH}` },
-    });
-    // 代理 sed が実際に処理の流れの中で使われたこと（この確認が無いと「sed を一切呼ばなかった」でも通る）。
-    expect(readFileSync(callLog, "utf8")).toMatch(/called/);
-    expect(gate.stderr).not.toMatch(/did not identify its agent/);
-    expect(gate.status).toBe(0);
-  });
+      const gate = await runGate("git commit -m x", {
+        cwd,
+        transcriptPath: transcript,
+        env: { PATH: `${shimDir}:${process.env.PATH}` },
+      });
+      // 代理 sed が実際に処理の流れの中で使われたこと（この確認が無いと「sed を一切呼ばなかった」でも通る）。
+      expect(readFileSync(callLog, "utf8")).toMatch(/called/);
+      expect(gate.stderr).not.toMatch(/did not identify its agent/);
+      expect(gate.status).toBe(0);
+    },
+  );
 });
 
-describe("チェックの commit 検出", () => {
+describe.concurrent("チェックの commit 検出", () => {
   // 未抽出センチネルがある状態では、commit と判定されれば exit 2（ブロック）になる。
   // `{P}` は実行時にプロジェクトルートへ置換する。`-C` / `--git-dir` / `--work-tree` で
   // コミット先を指定する形は、**プロジェクト内**を指していないとチェックの対象外（exit 0）に
@@ -805,10 +968,10 @@ describe("チェックの commit 検出", () => {
     ['echo "$(for i in 1 2; do echo $i; done)"', 0],
   ];
 
-  test.each(cases)("%s => exit %i", (command, expected) => {
+  test.each(cases)("%s => exit %i", async (command, expected) => {
     const cwd = makeProject();
     writeFileSync(join(cwd, ".kaizen", ".pending-extract"), "");
-    expect(runGate(command.replaceAll("{P}", cwd), { cwd }).status).toBe(expected);
+    expect((await runGate(command.replaceAll("{P}", cwd), { cwd })).status).toBe(expected);
   });
 });
 
@@ -819,7 +982,7 @@ describe("チェックの commit 検出", () => {
 // 外部宛てのケースはいずれも「プロジェクト内を指す同形のケース」を下の blocked 側に持つ。
 // 同形の対（同じオプション・同じ引用形で、違うのはコミット先だけ）が両方あって初めて、
 // exit 0 が「スコープ判定で外した」のか「commit として検出できていない」のかを区別できる。
-describe("コミット先のスコープ判定", () => {
+describe.concurrent("コミット先のスコープ判定", () => {
   // プロジェクト（`makeProject()` の mkdtemp）の外側にある一意なパス。`/tmp` 直書きだと
   // 既存ディレクトリ・リポジトリと衝突してスコープ判定が変わり得る（`tmpdir()` は環境で異なる）。
   const FIXTURE = join(tmpdir(), `kaizen-gate-external-221-${process.pid}`);
@@ -862,10 +1025,10 @@ describe("コミット先のスコープ判定", () => {
     `{ git -C ${FIXTURE} commit -m x; }`,
   ];
 
-  test.each(external)("外部宛て: %s => exit 0", (command) => {
+  test.each(external)("外部宛て: %s => exit 0", async (command) => {
     const cwd = makeProject();
     writeFileSync(join(cwd, ".kaizen", ".pending-extract"), "");
-    expect(runGate(command, { cwd }).status).toBe(0);
+    expect((await runGate(command, { cwd })).status).toBe(0);
   });
 
   const blocked = [
@@ -914,7 +1077,7 @@ describe("コミット先のスコープ判定", () => {
     `git -c user.name=A[b]B -C ${FIXTURE} commit -m a && git commit -m b`,
   ];
 
-  test.each(blocked)("プロジェクト宛て・判定不能: %s => exit 2", (command) => {
+  test.each(blocked)("プロジェクト宛て・判定不能: %s => exit 2", async (command) => {
     const cwd = makeProject();
     writeFileSync(join(cwd, ".kaizen", ".pending-extract"), "");
     const resolved = command
@@ -923,22 +1086,21 @@ describe("コミット先のスコープ判定", () => {
       .replaceAll("{BASE}", basename(cwd))
       .replaceAll("{ESCAPED_SPACE}", ESCAPED_SPACE_NAME)
       .replaceAll("{SPACE}", SPACE_NAME);
-    expect(runGate(resolved, { cwd }).status).toBe(2);
+    expect((await runGate(resolved, { cwd })).status).toBe(2);
   });
 
   // 同じリポジトリの別 worktree はプロジェクトルートの外に置かれる。パスの包含だけで判定すると
   // 外部宛てに見えるが、コミット先はこのプロジェクトそのものなのでブロックしなければならない。
-  test("同一リポジトリの別 worktree 宛ては外部扱いにしない", () => {
-    const root = makeTempDir("kaizen-wt-");
+  test("同一リポジトリの別 worktree 宛ては外部扱いにしない", async () => {
+    const root = tempDir("kaizen-wt-");
     const main = join(root, "main");
     const linked = join(root, "linked");
     mkdirSync(main);
     mkdirSync(join(main, ".kaizen"));
     writeFileSync(join(main, ".kaizen", ".pending-extract"), "");
-    const git = (args, cwd) =>
-      spawnSync("git", args, {
+    const git = async (args, cwd) =>
+      await spawnAsync("git", args, {
         cwd,
-        encoding: "utf8",
         env: {
           ...process.env,
           GIT_AUTHOR_NAME: "t",
@@ -947,25 +1109,32 @@ describe("コミット先のスコープ判定", () => {
           GIT_COMMITTER_EMAIL: "t@e",
         },
       });
-    expect(git(["init", "-q", "."], main).status).toBe(0);
-    expect(git(["commit", "-q", "--allow-empty", "-m", "init"], main).status).toBe(0);
-    expect(git(["worktree", "add", "-q", linked, "-b", "wt"], main).status).toBe(0);
+    expect((await git(["init", "-q", "."], main)).status).toBe(0);
+    expect((await git(["commit", "-q", "--allow-empty", "-m", "init"], main)).status).toBe(0);
+    expect((await git(["worktree", "add", "-q", linked, "-b", "wt"], main)).status).toBe(0);
 
-    expect(runGate(`git -C ${linked} commit -m x`, { cwd: main }).status).toBe(2);
+    expect((await runGate(`git -C ${linked} commit -m x`, { cwd: main })).status).toBe(2);
     // linked worktree の `.git` は**ファイル**（`gitdir: <path>`）。`-d` 前提で共有 git ディレクトリを
     // 探すと解決できず、同一リポジトリ判定が抜けて外部宛て扱いで素通りする（合格として扱われる。実測）。
     expect(statSync(join(linked, ".git")).isFile()).toBe(true);
-    expect(runGate(`git --git-dir=${linked}/.git commit -m x`, { cwd: main }).status).toBe(2);
+    expect((await runGate(`git --git-dir=${linked}/.git commit -m x`, { cwd: main })).status).toBe(
+      2,
+    );
     expect(
-      runGate(`git --git-dir=${linked}/.git --work-tree=${linked} commit -m x`, { cwd: main })
-        .status,
+      (
+        await runGate(`git --git-dir=${linked}/.git --work-tree=${linked} commit -m x`, {
+          cwd: main,
+        })
+      ).status,
     ).toBe(2);
     // 別リポジトリなら同じ形でも素通りする（この対がないと「常にブロック」でも pass してしまう）。
     const other = join(root, "other");
     mkdirSync(other);
-    expect(git(["init", "-q", "."], other).status).toBe(0);
-    expect(runGate(`git -C ${other} commit -m x`, { cwd: main }).status).toBe(0);
-    expect(runGate(`git --git-dir=${other}/.git commit -m x`, { cwd: main }).status).toBe(0);
+    expect((await git(["init", "-q", "."], other)).status).toBe(0);
+    expect((await runGate(`git -C ${other} commit -m x`, { cwd: main })).status).toBe(0);
+    expect((await runGate(`git --git-dir=${other}/.git commit -m x`, { cwd: main })).status).toBe(
+      0,
+    );
   });
 });
 
@@ -974,7 +1143,7 @@ describe("コミット先のスコープ判定", () => {
 // commit 判定は jq を使う処理と同じ結論でなければならない（ここが緩むと合格として扱われ、きつくなると誤ブロックになる）。
 // ただしコミット先のスコープ判定（Issue #221）だけは**意図的に差がある**。この処理はコマンド行を
 // 構造として取り出せていないため外部宛てを確定できず、`git -C <外部> commit` も従来どおりブロックする。
-describe("生 JSON だけで判定するときの commit 検出", () => {
+describe.concurrent("生 JSON だけで判定するときの commit 検出", () => {
   /** jq / python3 だけを解決できない PATH を作る（他のコマンドは実体へ通す）。 */
   function makeJqlessPathDir() {
     const dir = makeSharedTempDir("kaizen-nojq-");
@@ -1006,11 +1175,10 @@ describe("生 JSON だけで判定するときの commit 検出", () => {
 
   // この処理を本当に通したことの確認。jq か python3 が解決できてしまうと、
   // チェックは構造化した入力を読む処理を通り、以下のケースは機能を減らした処理を一切検証しないまま全て pass する。
-  test("PATH から jq / python3 が解決できないこと", () => {
+  test("PATH から jq / python3 が解決できないこと", async () => {
     for (const tool of ["jq", "python3", "python"]) {
-      const probe = spawnSync("bash", ["-c", `command -v ${tool}`], {
+      const probe = await spawnAsync("bash", ["-c", `command -v ${tool}`], {
         env: { ...process.env, PATH: jqlessPath },
-        encoding: "utf8",
       });
       expect(probe.status).not.toBe(0);
     }
@@ -1052,10 +1220,10 @@ describe("生 JSON だけで判定するときの commit 検出", () => {
     ["git help commit", 0],
   ];
 
-  test.each(cases)("生 JSON: %s => exit %i", (command, expected) => {
+  test.each(cases)("生 JSON: %s => exit %i", async (command, expected) => {
     const cwd = makeProject();
     writeFileSync(join(cwd, ".kaizen", ".pending-extract"), "");
-    const result = runGate(command, { cwd, env: { PATH: jqlessPath } });
+    const result = await runGate(command, { cwd, env: { PATH: jqlessPath } });
     expect(result.status).toBe(expected);
     if (expected === 2) {
       // 機能を減らす PATH に必要なコマンドが欠けると、commit 判定より手前の環境エラーでも exit 2 に
@@ -1067,7 +1235,7 @@ describe("生 JSON だけで判定するときの commit 検出", () => {
   });
 });
 
-describe("lifecycle 検査", () => {
+describe.concurrent("lifecycle 検査", () => {
   function writeNote(cwd, name, body) {
     writeFileSync(join(cwd, ".kaizen", name), body);
   }
@@ -1077,13 +1245,13 @@ describe("lifecycle 検査", () => {
 
   test.skipIf(process.getuid?.() === 0)(
     "読めないノートがあっても残りのノートを検査し、原因を名指しする",
-    () => {
+    async () => {
       const cwd = makeProject();
       writeNote(cwd, "2026-08-10-a-unreadable.md", note("applied", ' ["AGENTS.md"]'));
       chmodSync(join(cwd, ".kaizen", "2026-08-10-a-unreadable.md"), 0o000);
       writeNote(cwd, "2026-08-10-b-broken.md", note("applied", " []"));
 
-      const check = runScript("kaizen-status-check.sh", [], { cwd });
+      const check = await runScript("kaizen-status-check.sh", [], { cwd });
       expect(check.status).toBe(2);
       expect(check.stderr).toMatch(/2026-08-10-a-unreadable\.md: could not read the frontmatter/);
       // 失敗理由は権限とは限らないので、awk の診断を捨てずに添える（原因の切り分けに要る）。
@@ -1120,10 +1288,10 @@ describe("lifecycle 検査", () => {
 
   test.each(appliedToCases)(
     "applied-to: %s",
-    (_label, status, appliedTo, expected, stderrPattern) => {
+    async (_label, status, appliedTo, expected, stderrPattern) => {
       const cwd = makeProject();
       writeNote(cwd, "2026-08-10-note.md", note(status, appliedTo));
-      const check = runScript("kaizen-status-check.sh", [], { cwd });
+      const check = await runScript("kaizen-status-check.sh", [], { cwd });
       expect(check.status).toBe(expected);
       if (stderrPattern) expect(check.stderr).toMatch(stderrPattern);
     },
@@ -1138,7 +1306,7 @@ describe("lifecycle 検査", () => {
   //   - rc 0 × 出力あり × 素通り   → 出す・exit 1（表示される非 0）  ← ここ
   //   - rc 0 × 出力なし × 素通り   → 何も足さない・exit 0            ← ここ
   //   - rc 0 × 出力あり × -copilot → 出す・exit 0（非 0 は誤って deny として扱われるため）← ここ
-  test("lifecycle 検査の警告は commit を止めずに出る", () => {
+  test("lifecycle 検査の警告は commit を止めずに出る", async () => {
     const cwd = makeProject();
     // type は機構（hook）なのに applied-to がドキュメントだけ = Issue #341 の警告。
     writeNote(
@@ -1147,19 +1315,19 @@ describe("lifecycle 検査", () => {
       '---\ndate: 2026-08-10\ntype: hook\nstatus: applied\npriority: high\napplied-to: ["AGENTS.md"]\n---\n\n# note\n',
     );
 
-    const check = runScript("kaizen-status-check.sh", [], { cwd });
+    const check = await runScript("kaizen-status-check.sh", [], { cwd });
     expect(check.status).toBe(0);
     expect(check.stderr).toMatch(/warning: type is hook/);
 
     // exit 1 = 「ブロックしない失敗」。これでフックランナーが stderr を表示する。
     // 0 のままだと、この assertion が見ている stderr は子プロセスから直接読めても
     // 利用者には届かない。
-    const gate = runGate("git commit -m x", { cwd });
+    const gate = await runGate("git commit -m x", { cwd });
     expect(gate.status).toBe(1);
     expect(gate.stderr).toMatch(/warning: type is hook/);
   });
 
-  test("検査と無関係な stderr は警告として扱わない", () => {
+  test("検査と無関係な stderr は警告として扱わない", async () => {
     // status_output は 2>&1 なので子プロセスの無関係な stderr も入る。非空で判定すると
     // 警告 0 件でも非 0 になり、ロケールが不正な環境では毎コミットが恒久的に非 0 になる。
     const cwd = makeProject();
@@ -1167,18 +1335,17 @@ describe("lifecycle 検査", () => {
 
     // 検出されることの確認: この環境変数で bash が実際に stderr へ警告を出すことを確かめる。
     // 出ていなければ、この後の exit 0 は「雑音を無視できた」の証拠にならない。
-    const noise = spawnSync("bash", ["-c", "true"], {
-      encoding: "utf8",
+    const noise = await spawnAsync("bash", ["-c", "true"], {
       env: { ...process.env, LC_ALL: "xx_YY.UTF-8" },
     });
     expect(noise.stderr).toMatch(/setlocale/);
 
-    const gate = runGate("git commit -m x", { cwd, env: { LC_ALL: "xx_YY.UTF-8" } });
+    const gate = await runGate("git commit -m x", { cwd, env: { LC_ALL: "xx_YY.UTF-8" } });
     expect(gate.status).toBe(0);
     expect(gate.stderr).not.toMatch(/kaizen-status-check:/);
   });
 
-  test("雑音に紛れていても警告は拾う", () => {
+  test("雑音に紛れていても警告は拾う", async () => {
     // 上の裏返し。雑音を落とす実装が、警告まで落としていないことを確かめる。
     const cwd = makeProject();
     writeNote(
@@ -1187,12 +1354,12 @@ describe("lifecycle 検査", () => {
       '---\ndate: 2026-08-10\ntype: hook\nstatus: applied\npriority: high\napplied-to: ["AGENTS.md"]\n---\n\n# note\n',
     );
 
-    const gate = runGate("git commit -m x", { cwd, env: { LC_ALL: "xx_YY.UTF-8" } });
+    const gate = await runGate("git commit -m x", { cwd, env: { LC_ALL: "xx_YY.UTF-8" } });
     expect(gate.status).toBe(1);
     expect(gate.stderr).toMatch(/warning: type is hook/);
   });
 
-  test("Copilot では警告でも exit 0 にする", () => {
+  test("Copilot では警告でも exit 0 にする", async () => {
     // Copilot の preToolUse は exit 2 以外の非 0 をすべて deny にするため、警告の
     // 終了コードを 1 にすると commit そのものが拒否される（しかも理由が hook errored）。
     const cwd = makeProject();
@@ -1203,25 +1370,28 @@ describe("lifecycle 検査", () => {
     );
 
     const input = JSON.stringify({ tool_input: { command: "git commit -m x" } });
-    const gate = spawnSync("bash", [join(scriptsDir, "kaizen-precommit-gate.sh"), "-copilot"], {
-      cwd,
-      input,
-      encoding: "utf8",
-      env: { ...process.env, CLAUDE_PROJECT_DIR: cwd },
-    });
+    const gate = await spawnAsync(
+      "bash",
+      [join(scriptsDir, "kaizen-precommit-gate.sh"), "-copilot"],
+      {
+        cwd,
+        input,
+        env: { ...process.env, CLAUDE_PROJECT_DIR: cwd },
+      },
+    );
     expect(gate.status).toBe(0);
     expect(gate.stderr).toMatch(/warning: type is hook/);
   });
 
-  test("警告が無ければチェックは検査の出力を足さない", () => {
+  test("警告が無ければチェックは検査の出力を足さない", async () => {
     const cwd = makeProject();
     writeNote(cwd, "2026-08-10-note.md", note("applied", ' ["AGENTS.md"]'));
 
-    const check = runScript("kaizen-status-check.sh", [], { cwd });
+    const check = await runScript("kaizen-status-check.sh", [], { cwd });
     expect(check.status).toBe(0);
     expect(check.stderr).toBe("");
 
-    const gate = runGate("git commit -m x", { cwd });
+    const gate = await runGate("git commit -m x", { cwd });
     expect(gate.status).toBe(0);
     expect(gate.stderr).toBe("");
   });
@@ -1231,7 +1401,7 @@ describe("lifecycle 検査", () => {
 // transcript を一度も作らないまま Stop が実行された場合。Issue #240）は、案内どおりに探しても
 // 見つからない。「記録はあるが今は読めない」（移動・削除済み）とは対処が違うので、案内が
 // 両者を混同していないことを固定する。
-describe("未抽出センチネルの復旧案内は「記録なし」と「記録はあるが読めない」を区別する", () => {
+describe.concurrent("未抽出センチネルの復旧案内は「記録なし」と「記録はあるが読めない」を区別する", () => {
   function writeSentinel(cwd, key, transcriptLine) {
     writeFileSync(
       join(cwd, ".kaizen", `.pending-extract.${key}`),
@@ -1239,10 +1409,10 @@ describe("未抽出センチネルの復旧案内は「記録なし」と「記�
     );
   }
 
-  test("transcript の記録が無い場合は、transcript 無しで解消するコマンドも提示する", () => {
+  test("transcript の記録が無い場合は、transcript 無しで解消するコマンドも提示する", async () => {
     const cwd = makeProject();
     writeSentinel(cwd, "other-session-1", "");
-    const gate = runGate("git commit -m x", { cwd });
+    const gate = await runGate("git commit -m x", { cwd });
     expect(gate.status).toBe(2);
     expect(gate.stderr).toMatch(/transcript の記録がありません/);
     expect(gate.stderr).not.toMatch(/センチネルが記録した transcript を読めません/);
@@ -1255,14 +1425,14 @@ describe("未抽出センチネルの復旧案内は「記録なし」と「記�
     expect(gate.stderr).not.toMatch(/<transcript> だけを.*置き換えてください/);
   });
 
-  test("transcript が実在するのに読めない場合は、探して抽出する案内だけを出す", () => {
+  test("transcript が実在するのに読めない場合は、探して抽出する案内だけを出す", async () => {
     const cwd = makeProject();
     const unreadable = join(cwd, "unreadable.jsonl");
     writeFileSync(unreadable, "{}\n");
     chmodSync(unreadable, 0o000);
     writeSentinel(cwd, "other-session-2", unreadable);
     try {
-      const gate = runGate("git commit -m x", { cwd });
+      const gate = await runGate("git commit -m x", { cwd });
       expect(gate.status).toBe(2);
       expect(gate.stderr).toMatch(/センチネルが記録した transcript を読めません/);
       expect(gate.stderr).not.toMatch(/transcript の記録がありません/);
@@ -1278,11 +1448,11 @@ describe("未抽出センチネルの復旧案内は「記録なし」と「記�
   // 「実在するが読めない」と同じ案内として扱うと、解消手段が無い恒久的なブロッカーになる。
   // Issue #244 で抽出済みセッションのセンチネルもマーカーに覆われなくなったため、
   // transcript が剪定された旧セッションの残骸としてこの状態に到達しやすくなった。
-  test("transcript の記録が実在しない場合は、transcript 無しで解消するコマンドも提示する", () => {
+  test("transcript の記録が実在しない場合は、transcript 無しで解消するコマンドも提示する", async () => {
     const cwd = makeProject();
     const pruned = join(cwd, "pruned.jsonl"); // 作らない
     writeSentinel(cwd, "other-session-3", pruned);
-    const gate = runGate("git commit -m x", { cwd });
+    const gate = await runGate("git commit -m x", { cwd });
     expect(gate.status).toBe(2);
     expect(gate.stderr).toMatch(/センチネルが記録した transcript が実在しません/);
     expect(gate.stderr).not.toMatch(/センチネルが記録した transcript を読めません/);
@@ -1293,13 +1463,13 @@ describe("未抽出センチネルの復旧案内は「記録なし」と「記�
     expect(gate.stderr).not.toMatch(/<transcript> だけを.*置き換えてください/);
   });
 
-  test("unsafe な transcript 値と同名のパスが実在しても権限・FS 問題に誤分類しない", () => {
+  test("unsafe な transcript 値と同名のパスが実在しても権限・FS 問題に誤分類しない", async () => {
     const cwd = makeProject();
     const unsafe = join(cwd, "unsafe$path.jsonl");
     writeFileSync(unsafe, "{}\n");
     writeSentinel(cwd, "other-session-4", unsafe);
 
-    const gate = runGate("git commit -m x", { cwd });
+    const gate = await runGate("git commit -m x", { cwd });
     expect(gate.status).toBe(2);
     expect(gate.stderr).toMatch(/値が不正/);
     expect(gate.stderr).not.toMatch(/センチネルが記録した transcript を読めません/);
@@ -1312,28 +1482,28 @@ describe("未抽出センチネルの復旧案内は「記録なし」と「記�
 // セッションが共有ツリーで始まって git worktree で続くと、センチネルを立てたツリーと `git commit`
 // を実行するツリーが分かれ、自分のツリーの `.kaizen/` しか見ない形では **worktree の commit が
 // 素通りする**（Issue #344）。素通りは出力にも終了コードにも現れないので、決定論的に押さえる。
-describe("チェックはリポジトリの全作業ツリーの .kaizen/ を見る", () => {
+describe.concurrent("チェックはリポジトリの全作業ツリーの .kaizen/ を見る", () => {
   const SESSION = "00000000-1111-2222-3333-444444444444";
 
   /** 本体 ＋ worktree を 1 つ持つリポジトリを作る。*/
-  function makeRepoWithWorktree() {
-    const root = makeTempDir("kaizen-wt-");
+  async function makeRepoWithWorktree() {
+    const root = tempDir("kaizen-wt-");
     const main = join(root, "main");
     mkdirSync(main);
-    const git = (args, cwd = main) => {
-      const r = spawnSync("git", args, { cwd, encoding: "utf8" });
+    const git = async (args, cwd = main) => {
+      const r = await spawnAsync("git", args, { cwd });
       expect(r.status, r.stderr).toBe(0);
       return r;
     };
-    git(["init", "-q", "."]);
-    git(["config", "user.email", "r@example.com"]);
-    git(["config", "user.name", "repro"]);
+    await git(["init", "-q", "."]);
+    await git(["config", "user.email", "r@example.com"]);
+    await git(["config", "user.name", "repro"]);
     writeFileSync(join(main, "seed"), "");
-    git(["add", "seed"]);
-    git(["-c", "commit.gpgsign=false", "commit", "-q", "-m", "seed"]);
+    await git(["add", "seed"]);
+    await git(["-c", "commit.gpgsign=false", "commit", "-q", "-m", "seed"]);
     mkdirSync(join(main, ".kaizen"));
     const worktree = join(root, "wt");
-    git(["worktree", "add", "-q", "-b", "wtbranch", worktree]);
+    await git(["worktree", "add", "-q", "-b", "wtbranch", worktree]);
     return { main, worktree };
   }
 
@@ -1347,96 +1517,93 @@ describe("チェックはリポジトリの全作業ツリーの .kaizen/ を見
 
   // CLAUDE_PROJECT_DIR は共有ツリーのまま（セッションの起点）にし、payload の cwd だけを
   // worktree にする＝Issue #344 が報告した実際の並びを作る。
-  function runGateAt(cwd, projectDir) {
+  async function runGateAt(cwd, projectDir) {
     const input = JSON.stringify({
       session_id: SESSION,
       cwd,
       tool_input: { command: "git commit -m x" },
     });
-    return spawnSync("bash", [join(scriptsDir, "kaizen-precommit-gate.sh")], {
+    return await spawnAsync("bash", [join(scriptsDir, "kaizen-precommit-gate.sh")], {
       cwd,
       input,
-      encoding: "utf8",
       env: { ...process.env, CLAUDE_PROJECT_DIR: projectDir },
     });
   }
 
-  test("共有ツリーに立ったセンチネルは worktree からの commit も止める", () => {
-    const { main, worktree } = makeRepoWithWorktree();
+  test("共有ツリーに立ったセンチネルは worktree からの commit も止める", async () => {
+    const { main, worktree } = await makeRepoWithWorktree();
     writeSentinel(main);
-    expect(runGateAt(main, main).status).toBe(2);
-    expect(runGateAt(worktree, main).status).toBe(2);
+    expect((await runGateAt(main, main)).status).toBe(2);
+    expect((await runGateAt(worktree, main)).status).toBe(2);
   });
 
-  test("worktree に立ったセンチネルは共有ツリーからの commit も止める", () => {
-    const { main, worktree } = makeRepoWithWorktree();
+  test("worktree に立ったセンチネルは共有ツリーからの commit も止める", async () => {
+    const { main, worktree } = await makeRepoWithWorktree();
     writeSentinel(worktree);
-    expect(runGateAt(worktree, main).status).toBe(2);
-    expect(runGateAt(main, main).status).toBe(2);
+    expect((await runGateAt(worktree, main)).status).toBe(2);
+    expect((await runGateAt(main, main)).status).toBe(2);
   });
 
-  test("センチネルがどのツリーにも無ければ従来どおり通す（全ツリー走査で常にブロックするようにならない）", () => {
-    const { main, worktree } = makeRepoWithWorktree();
-    expect(runGateAt(worktree, main).status).toBe(0);
-    expect(runGateAt(main, main).status).toBe(0);
+  test("センチネルがどのツリーにも無ければ従来どおり通す（全ツリー走査で常にブロックするようにならない）", async () => {
+    const { main, worktree } = await makeRepoWithWorktree();
+    expect((await runGateAt(worktree, main)).status).toBe(0);
+    expect((await runGateAt(main, main)).status).toBe(0);
   });
 
-  test("別ツリーの抽出完了マーカーはセンチネルを覆う（探索だけ広げてマーカーを取り残さない）", () => {
-    const { main, worktree } = makeRepoWithWorktree();
+  test("別ツリーの抽出完了マーカーはセンチネルを覆う（探索だけ広げてマーカーを取り残さない）", async () => {
+    const { main, worktree } = await makeRepoWithWorktree();
     writeSentinel(main);
     mkdirSync(join(worktree, ".kaizen"), { recursive: true });
     writeFileSync(join(worktree, ".kaizen", `.extract-done.${SESSION}`), "2026-09-11T12:30:00Z\n");
-    expect(runGateAt(worktree, main).status).toBe(0);
-    expect(runGateAt(main, main).status).toBe(0);
+    expect((await runGateAt(worktree, main)).status).toBe(0);
+    expect((await runGateAt(main, main)).status).toBe(0);
   });
 
   // マーカーを全ツリーから探して覆わせる以上、**失効も全ツリーで**行わないと、別ツリーに
   // 残ったマーカーがセッション境界を越えて生き残り、このセッションの commit が素通りする。
   // 素通りは出力にも終了コードにも現れないので、SessionStart を挟んだ形で押さえる。
-  test("SessionStart は別ツリーの抽出完了マーカーも失効させる", () => {
-    const { main, worktree } = makeRepoWithWorktree();
+  test("SessionStart は別ツリーの抽出完了マーカーも失効させる", async () => {
+    const { main, worktree } = await makeRepoWithWorktree();
     writeSentinel(worktree);
     mkdirSync(join(main, ".kaizen"), { recursive: true });
     const stale = join(main, ".kaizen", `.extract-done.${SESSION}`);
     writeFileSync(stale, "2026-09-11T12:30:00Z\n");
     // 覆っていることを先に確かめる（この後の 0 → 2 の変化が SessionStart によるものだと区別する）。
-    expect(runGateAt(worktree, main).status).toBe(0);
-    const inject = spawnSync("bash", [join(scriptsDir, "kaizen-context-inject.sh")], {
+    expect((await runGateAt(worktree, main)).status).toBe(0);
+    const inject = await spawnAsync("bash", [join(scriptsDir, "kaizen-context-inject.sh")], {
       cwd: worktree,
       input: JSON.stringify({ session_id: SESSION, cwd: worktree, source: "resume" }),
-      encoding: "utf8",
       env: { ...process.env, CLAUDE_PROJECT_DIR: main },
     });
     expect(inject.status, inject.stderr).toBe(0);
     expect(existsSync(stale)).toBe(false);
-    expect(runGateAt(worktree, main).status).toBe(2);
+    expect((await runGateAt(worktree, main)).status).toBe(2);
   });
 
   // `git worktree list` は解決済み（物理）のパスを返す。base をシンボリックリンク越しに受け取ると
   // 文字列比較では一致せず、**同じ `.kaizen/` を 2 回**返す——同一のセンチネルが二重に数えられ、
   // 案内も他セッションの走査予算も二重に消費される。件数で押さえる。
-  test("シンボリックリンク越しの project root でも .kaizen/ を重複して数えない", () => {
-    const { main } = makeRepoWithWorktree();
+  test("シンボリックリンク越しの project root でも .kaizen/ を重複して数えない", async () => {
+    const { main } = await makeRepoWithWorktree();
     writeSentinel(main);
     const link = join(dirname(main), "link-main");
     symlinkSync(main, link);
-    const gate = runGateAt(link, link);
+    const gate = await runGateAt(link, link);
     expect(gate.status).toBe(2);
     const listed = gate.stderr.split("\n").filter((l) => l.includes(".pending-extract"));
     expect(listed).toHaveLength(1);
   });
 
   // `source: compact` は同一セッションの継続なので、そのときだけマーカーを残す（広げた範囲でも同じ）。
-  test("source: compact では別ツリーのマーカーも残す", () => {
-    const { main, worktree } = makeRepoWithWorktree();
+  test("source: compact では別ツリーのマーカーも残す", async () => {
+    const { main, worktree } = await makeRepoWithWorktree();
     writeSentinel(worktree);
     mkdirSync(join(main, ".kaizen"), { recursive: true });
     const marker = join(main, ".kaizen", `.extract-done.${SESSION}`);
     writeFileSync(marker, "2026-09-11T12:30:00Z\n");
-    const inject = spawnSync("bash", [join(scriptsDir, "kaizen-context-inject.sh")], {
+    const inject = await spawnAsync("bash", [join(scriptsDir, "kaizen-context-inject.sh")], {
       cwd: worktree,
       input: JSON.stringify({ session_id: SESSION, cwd: worktree, source: "compact" }),
-      encoding: "utf8",
       env: { ...process.env, CLAUDE_PROJECT_DIR: main },
     });
     expect(inject.status, inject.stderr).toBe(0);
@@ -1444,6 +1611,11 @@ describe("チェックはリポジトリの全作業ツリーの .kaizen/ を見
   });
 });
 
+// **経過時間や使える秒数で判定するテストは並べず、ファイルの最後に置く**（Issue #590）。
+// 並べると他のテストの子で CPU が混み、親が子の終了に気づくのも遅れるので、チェックが正しくても上限を超える。
+// 子の側で測ると、孫プロセスがパイプを開いたままにする回帰（エージェントが待たされる）を見逃す。
+// 最初に実行すると、温まっていない状態で lifecycle 検査が遅れ、走査に回す秒数が残らずに別の理由で止まることがある
+// （先頭に置いた版で、CI の基準 run が 1 回失敗した）。変更前と同じく、他のテストの後に実行する。
 // エージェントは timeout に達したフックをブロックとして扱わない（Claude Code / Copilot とも、合格として扱う）。
 // チェック全体の所要時間に上限が無いと、exit 2 で止めるはずの commit が遅いときほど素通りする（Issue #492）。
 // チェックは 1 つの締め切りの内側で最後まで実行し、自セッション分までは締め切りに当たったら失敗として扱う。
@@ -1465,20 +1637,20 @@ describe("チェック全体の締め切り", () => {
     );
   }
 
-  function timedGate(options) {
+  async function timedGate(options) {
     const started = Date.now();
-    const gate = runGate("git commit -m x", options);
+    const gate = await runGate("git commit -m x", options);
     return { gate, elapsed: Date.now() - started };
   }
 
-  test("自セッション分の走査が締め切りに当たったら、締め切りの内側で exit 2 にする", () => {
+  test("自セッション分の走査が締め切りに当たったら、締め切りの内側で exit 2 にする", async () => {
     const scripts = stubScripts({ "kaizen-candidate-scan.sh": "exec sleep 30" });
     const cwd = makeProject();
     const transcript = join(cwd, "t.jsonl");
     writeFileSync(transcript, "{}\n");
     writeSentinel(cwd, OWN, transcript);
 
-    const { gate, elapsed } = timedGate({
+    const { gate, elapsed } = await timedGate({
       cwd,
       transcriptPath: transcript,
       sessionId: OWN,
@@ -1494,14 +1666,14 @@ describe("チェック全体の締め切り", () => {
   // bash の SECONDS は秒の境界をまたぐと 1 ms でも 1 になる（実測）。締め切り 2 秒では残りが 0 秒になる回があり、
   // 検査を起動せずに同じメッセージで exit 2 になるので、timeout を外す変異（GATE-STATUS-UNBOUNDED）を
   // CI で検出できなかった。締め切りを 3 秒にし、検査が起動されたことも確かめる。
-  test("lifecycle 検査が締め切りに当たったら、締め切りの内側で exit 2 にする", () => {
+  test("lifecycle 検査が締め切りに当たったら、締め切りの内側で exit 2 にする", async () => {
     const cwd = makeProject();
     const started = join(cwd, "status-check-started");
     const scripts = stubScripts({
       "kaizen-status-check.sh": `: > '${started}'\nexec sleep 30`,
     });
 
-    const { gate, elapsed } = timedGate({
+    const { gate, elapsed } = await timedGate({
       cwd,
       sessionId: OWN,
       scripts,
@@ -1517,18 +1689,18 @@ describe("チェック全体の締め切り", () => {
 
   // bash は環境変数 SECONDS を起動時の初期値として引き継ぐ。フックの親環境に export されていると、
   // 経過時間が最初から大きくなり、毎回失敗として扱われる（PR #545 のレビュー指摘・実測）。
-  test("環境変数 SECONDS を引き継いでも経過時間は 0 から数える", () => {
+  test("環境変数 SECONDS を引き継いでも経過時間は 0 から数える", async () => {
     const cwd = makeProject();
-    const gate = runGate("git commit -m x", { cwd, sessionId: OWN, env: { SECONDS: "100" } });
+    const gate = await runGate("git commit -m x", { cwd, sessionId: OWN, env: { SECONDS: "100" } });
     expect(gate.stderr).not.toMatch(/締め切り/);
     expect(gate.status, gate.stderr).toBe(0);
   });
 
   test.each([["abc"], ["0"], ["1"], ["3601"], ["-5"], ["8.5"]])(
     "不正な締め切り %s はデフォルト値に戻して知らせる",
-    (raw) => {
+    async (raw) => {
       const cwd = makeProject();
-      const gate = runGate("git commit -m x", {
+      const gate = await runGate("git commit -m x", {
         cwd,
         sessionId: OWN,
         env: { KAIZEN_PRECOMMIT_DEADLINE_SECONDS: raw },
@@ -1542,9 +1714,9 @@ describe("チェック全体の締め切り", () => {
 
   test.each([["2"], ["20"], ["3600"], ["08"]])(
     "正しい締め切り %s は警告なしに受け付ける",
-    (raw) => {
+    async (raw) => {
       const cwd = makeProject();
-      const gate = runGate("git commit -m x", {
+      const gate = await runGate("git commit -m x", {
         cwd,
         sessionId: OWN,
         env: { KAIZEN_PRECOMMIT_DEADLINE_SECONDS: raw },
@@ -1557,141 +1729,19 @@ describe("チェック全体の締め切り", () => {
   );
 });
 
-// 候補が残っている他セッションのセンチネルは解消されないので、そのままだと commit のたびに同じ範囲を
-// 走査し直し、締め切りの残りを同じ結論に使い切る（Issue #492 の提案 2）。
-describe("他セッション分の走査結果の再利用", () => {
-  const OWN = "own-session-1";
-  const FOREIGN = "foreign-session-1";
-
-  function setup(scannerBody) {
-    const scripts = cloneScripts();
-    const cwd = makeProject();
-    const counter = join(cwd, "scan-count");
-    writeFileSync(
-      join(scripts, "kaizen-candidate-scan.sh"),
-      `#!/usr/bin/env bash\necho x >>"$SCAN_COUNTER"\n${scannerBody}\n`,
-    );
-    const transcript = join(cwd, "foreign.jsonl");
-    writeFileSync(transcript, "{}\n");
-    writeFileSync(
-      join(cwd, ".kaizen", `.pending-extract.${FOREIGN}`),
-      `2099-01-01T00:00:00Z\n${transcript}\nclaude-code\n${FOREIGN}\n`,
-    );
-    const cache = join(cwd, ".kaizen", `.extract-checkpoint.${FOREIGN}.foreign-scan`);
-    const gate = (env = {}) =>
-      runGate("git commit -m x", {
-        cwd,
-        sessionId: OWN,
-        scripts,
-        env: { SCAN_COUNTER: counter, ...env },
-      });
-    const scans = () =>
-      existsSync(counter) ? readFileSync(counter, "utf8").split("\n").filter(Boolean).length : 0;
-    return { scripts, cwd, transcript, cache, gate, scans };
-  }
-
-  test.each([["候補あり", "exit 0"]])("%s は入力が変わらなければ走査し直さない", (_label, body) => {
-    const { gate, scans, cache } = setup(body);
-    const first = gate();
-    expect(first.status, first.stderr).toBe(1);
-    expect(scans()).toBe(1);
-    expect(existsSync(cache)).toBe(true);
-
-    const second = gate();
-    expect(second.status, second.stderr).toBe(1);
-    expect(scans()).toBe(1);
-    expect(second.stderr).toMatch(/skipped re-scanning .*unchanged since the last scan/);
-    // 省いても他セッションの警告は従来どおり出る。
-    expect(second.stderr).toMatch(/他セッションの未抽出センチネルが残っています/);
-  });
-
-  // スキャナは一時ファイルの作成・読み取りの失敗といった一過性の理由でも 2 を返す。残すと、持ち主が
-  // 戻らないセンチネルを保持期間まで再試行しなくなる（PR #545 のレビュー指摘）。
-  test("判定不能はキャッシュに残さず、毎回走査し直す", () => {
-    const { gate, scans, cache } = setup("exit 2");
-    gate();
-    expect(existsSync(cache)).toBe(false);
-    gate();
-    expect(scans()).toBe(2);
-  });
-
-  test("残っていた判定不能のキャッシュも使わない", () => {
-    const { gate, scans, cache } = setup("exit 0");
-    gate();
-    const content = readFileSync(cache, "utf8");
-    const inconclusive = content.replace(/\n0\n(\d+)\n$/, "\n2\n$1\n");
-    expect(inconclusive).not.toBe(content);
-    writeFileSync(cache, inconclusive);
-    gate();
-    expect(scans()).toBe(2);
-  });
-
-  test("transcript が伸びたら走査し直す", () => {
-    const { gate, scans, transcript } = setup("exit 0");
-    gate();
-    appendFileSync(transcript, "{}\n");
-    gate();
-    expect(scans()).toBe(2);
-  });
-
-  test("checkpoint が変わったら走査し直す", () => {
-    const { gate, scans, cwd, transcript } = setup("exit 0");
-    gate();
-    writeFileSync(
-      join(cwd, ".kaizen", `.extract-checkpoint.${FOREIGN}`),
-      `${transcript}\n3\nclaude-code\n1\n`,
-    );
-    gate();
-    expect(scans()).toBe(2);
-  });
-
-  test("スキャナが変わったら走査し直す", () => {
-    const { gate, scans, scripts } = setup("exit 0");
-    gate();
-    appendFileSync(join(scripts, "kaizen-candidate-scan.sh"), "# updated\n");
-    gate();
-    expect(scans()).toBe(2);
-  });
-
-  test.each([
-    [
-      "見出しが違う",
-      (c) => c.replace("kaizen-foreign-scan-cache v1", "kaizen-foreign-scan-cache v0"),
-    ],
-    ["結論が未知の値", (c) => c.replace(/\n0\n(\d+)\n$/, "\n7\n$1\n")],
-    ["秒数が欠けている", (c) => c.replace(/\n(\d+)\n$/, "\n")],
-  ])("キャッシュの形が違えば（%s）走査し直す", (_label, mutate) => {
-    const { gate, scans, cache } = setup("exit 0");
-    gate();
-    const mutated = mutate(readFileSync(cache, "utf8"));
-    expect(mutated).not.toBe(readFileSync(cache, "utf8"));
-    writeFileSync(cache, mutated);
-    gate();
-    expect(scans()).toBe(2);
-  });
-
-  test("打ち切りは、前回より長く使えるときだけ走査し直す", () => {
-    const { gate, scans } = setup("exec sleep 30");
+// 使える秒数を前回と比べるので、締め切りの describe と同じく並べずに、ファイルの最後で実行する。
+// `test.sequential` は自分の describe の中でしか直列にならず、隣の concurrent な suite のテストとは並んで始まる（実測）。
+describe("他セッション分の走査結果の再利用（使える秒数を比べる）", () => {
+  test("打ち切りは、前回より長く使えるときだけ走査し直す", async () => {
+    const { gate, scans } = setupForeignScan("exec sleep 30");
     // 使える秒数は SECONDS の境界で 1 秒揺れる。同じ締め切りの 2 回目は許容内（+1 秒）に、
     // 3 回目は確実に許容の外に収まる値を選ぶ。
-    gate({ KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "3" });
+    await gate({ KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "3" });
     expect(scans()).toBe(1);
-    const same = gate({ KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "3" });
+    const same = await gate({ KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "3" });
     expect(scans()).toBe(1);
     expect(same.stderr).toMatch(/skipped re-scanning .*\(exit 124 after up to [12]s\)/);
-    gate({ KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "7" });
+    await gate({ KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "7" });
     expect(scans()).toBe(2);
   }, 30000);
-
-  test("保持期間で回収したセンチネルのキャッシュも消す", () => {
-    const { cwd, cache, gate, transcript } = setup("exit 0");
-    writeFileSync(
-      join(cwd, ".kaizen", `.pending-extract.${FOREIGN}`),
-      `2000-01-01T00:00:00Z\n${transcript}\nclaude-code\n${FOREIGN}\n`,
-    );
-    writeFileSync(cache, "kaizen-foreign-scan-cache v1\n");
-    const result = gate();
-    expect(result.status, result.stderr).toBe(0);
-    expect(existsSync(cache)).toBe(false);
-  });
 });
