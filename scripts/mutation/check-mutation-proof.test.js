@@ -830,6 +830,48 @@ require("node:module").syncBuiltinESMExports();
   });
 
   // 一時ファイルへの書き込みから rename までの間に SIGKILL されると、一時ファイルが作業ツリーに残る。
+  // 次回の起動の書き戻しの失敗も、環境の誤りとして exit 2 にする（捕捉しないと exit 1 になる）。
+  test.skipIf(process.getuid?.() === 0)(
+    "前回の中断で残った変異を戻せなければ、exit 2 で止めて復元情報を残す",
+    () => {
+      const fx = makeFixture();
+      const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+      const lock = join(lockDir, "recover-fails.lock");
+      const mutated = FIXTURE_TARGET.replace(GUARD, "");
+      writeFileSync(
+        `${lock}.recovery.json`,
+        JSON.stringify({ file: fx.target, before: FIXTURE_TARGET, after: mutated }),
+      );
+      writeFileSync(fx.target, mutated);
+      let res;
+      chmodSync(fx.dir, 0o555);
+      try {
+        res = runRunner(spec, { MUTATION_PROOF_LOCK: lock });
+      } finally {
+        chmodSync(fx.dir, 0o755);
+      }
+      expect(res.status, res.out).toBe(2);
+      expect(res.out).toContain("前回の中断で残った変異を戻せない");
+      expect(res.out).toContain("EACCES");
+      expect(readFileSync(fx.target, "utf8")).toBe(mutated);
+      expect(existsSync(`${lock}.recovery.json`), "復元情報を消してしまった").toBe(true);
+      rmSync(`${lock}.recovery.json`, { force: true });
+    },
+  );
+
+  // 変異を書けなかった失敗だけを「変異を当てられない」として exit 2 にし、他の例外はスタックごと返す。
+  test("変異を書いた後の例外は、変異を当てられない失敗として報告しない", () => {
+    // 対象を編集せずに、反復できない testResults を返してランナーの読み取りに例外を投げさせる。
+    const fx = editingFixture({ badReport: true });
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    const res = runRunner(spec, { MUTATION_PROOF_LOCK: join(lockDir, "after-write-throw.lock") });
+    expect(res.status, res.out).not.toBe(0);
+    expect(res.out).not.toContain("変異を当てられない");
+    expect(res.out).toContain("TypeError");
+    expect(res.out).toContain("at ");
+    expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
+  });
+
   test("前回の中断で残った一時ファイルを、次回の起動が消す", () => {
     const fx = makeFixture();
     const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);

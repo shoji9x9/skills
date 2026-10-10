@@ -228,8 +228,10 @@ function readOrNull(path) {
 }
 
 /** replaceContent が対象の隣に作る一時ファイルのパス。次回の起動が、中断で残ったものを同じ形で探す。 */
+const TMP_INFIX = ".mutation-proof-";
+const TMP_SUFFIX = ".tmp";
 function tmpPathOf(real, pid) {
-  return `${real}.mutation-proof-${pid}.tmp`;
+  return `${real}${TMP_INFIX}${pid}${TMP_SUFFIX}`;
 }
 
 /**
@@ -244,8 +246,11 @@ function removeStrayTmp(target) {
     real = target; // 対象が消されていても、隣の一時ファイルは消す
   }
   const dir = dirname(real);
-  const prefix = `${basename(real)}.mutation-proof-`;
-  const isStray = (n) => n.startsWith(prefix) && /^\d+\.tmp$/.test(n.slice(prefix.length));
+  const prefix = `${basename(real)}${TMP_INFIX}`;
+  const isStray = (n) =>
+    n.startsWith(prefix) &&
+    n.endsWith(TMP_SUFFIX) &&
+    /^\d+$/.test(n.slice(prefix.length, -TMP_SUFFIX.length));
   let names;
   try {
     names = readdirSync(dir);
@@ -273,13 +278,14 @@ function removeStrayTmp(target) {
  */
 function replaceContent(path, data) {
   const real = realpathSync(path);
-  if (statSync(real).nlink > 1) {
+  const stat = statSync(real);
+  if (stat.nlink > 1) {
     throw new Error(`${real} はハードリンクを持つ（差し替えるとリンクが切れるので、変異させない）`);
   }
   const tmp = tmpPathOf(real, process.pid);
   try {
     writeFileSync(tmp, data);
-    chmodSync(tmp, statSync(real).mode & 0o7777);
+    chmodSync(tmp, stat.mode & 0o7777);
     renameSync(tmp, real);
   } catch (err) {
     // 書きかけの一時ファイルを作業ツリーに残さない（消せなくても、元の例外を返す）。
@@ -341,8 +347,17 @@ function recoverFromInterrupted() {
   if (!target.startsWith(repoRoot + "/")) {
     die(`復元情報の書き戻し先がリポジトリ外（${target}）。植え付けを疑い、記録を消して調べる`);
   }
-  removeStrayTmp(target);
-  const state = settleTarget(target, saved.before, saved.after);
+  let state;
+  try {
+    removeStrayTmp(target);
+    state = settleTarget(target, saved.before, saved.after);
+  } catch (err) {
+    // 書き戻しの失敗（ENOSPC・EACCES・ハードリンクなど）も環境の誤りとして exit 2 にする（捕捉しないと exit 1）。
+    // 復元情報は消していないので、原因を取り除いて起動し直せば、同じ照合からやり直せる。
+    die(
+      `前回の中断で残った変異を戻せない（${target}）: ${err.message}。原因を取り除いてから起動し直す`,
+    );
+  }
   if (state === "original") {
     console.error(`mutation-proof: 前回の中断で残った変異は無かった（${target}）`);
   } else if (state === "mutated") {
@@ -705,6 +720,13 @@ function sorted(values) {
   return [...values].sort();
 }
 
+/** 変異を対象に書けなかった失敗。main が、他の例外と分けて exit 2 で報告する。 */
+class MutationWriteError extends Error {
+  constructor(cause) {
+    super(`変異を当てられない: ${cause.message}`, { cause });
+  }
+}
+
 /** 変異を当てて実行し、元に戻す。戻し忘れを残さないため、復元まで必ず通る。 */
 function proveMutation(mutation, testFile) {
   const original = readFileSync(mutation.target, "utf8");
@@ -727,8 +749,12 @@ function proveMutation(mutation, testFile) {
   try {
     pending = { path: mutation.target, content: original, mutated };
     writeRecovery(mutation.target, original, mutated);
-    // 失敗しても対象は元の内容のままなので、finally の照合は original になり、元の例外を返す。
-    replaceContent(mutation.target, mutated);
+    // 失敗しても対象は元の内容のままなので、finally の照合は original になり、この例外を返す。
+    try {
+      replaceContent(mutation.target, mutated);
+    } catch (err) {
+      throw new MutationWriteError(err);
+    }
     wroteMutation = true;
     run = runTests(testFile);
   } catch (err) {
@@ -875,7 +901,9 @@ function main() {
       } catch (err) {
         // 変異を当てられない（ENOSPC・EACCES・ハードリンクなど）のは環境や前提の誤りで、変異の判定ではない。
         // 捕捉しないと node が exit 1（実証できない変異がある）で終わり、呼び出し側が判定を取り違える。
-        die(`${m.id} の変異を当てられない: ${err.message}`);
+        // それ以外の例外は、スタックを残すためにそのまま投げる。
+        if (!(err instanceof MutationWriteError)) throw err;
+        die(`${m.id} の変異を当てられない: ${err.cause.message}`);
       }
       if (res.ok) {
         proven++;

@@ -156,7 +156,8 @@
         "宣言と前提の検証（実行する前に落とす） 中断の後に対象が消えていたら、次回の起動は作り直さずに exit 2",
         "宣言と前提の検証（実行する前に落とす） 後始末の書き戻しが途中で失敗したら、変異のまま止め、次回の起動が自分の変異として戻す",
         "宣言と前提の検証（実行する前に落とす） die の後の書き戻しが途中で失敗したら、次回の起動に任せると案内し、次回の起動が戻す",
-        "宣言と前提の検証（実行する前に落とす） 前回の中断で残った一時ファイルを、次回の起動が消す"
+        "宣言と前提の検証（実行する前に落とす） 前回の中断で残った一時ファイルを、次回の起動が消す",
+        "宣言と前提の検証（実行する前に落とす） 前回の中断で残った変異を戻せなければ、exit 2 で止めて復元情報を残す"
       ]
     },
     {
@@ -443,21 +444,22 @@
       "id": "ATOMIC-WRITE",
       "why": "一時ファイルと rename をやめ、対象に直接書く（途中の失敗で対象が切り詰められる）",
       "file": "scripts/mutation/check-mutation-proof.js",
-      "find": "    writeFileSync(tmp, data);\n    chmodSync(tmp, statSync(real).mode & 0o7777);\n    renameSync(tmp, real);\n",
+      "find": "    writeFileSync(tmp, data);\n    chmodSync(tmp, stat.mode & 0o7777);\n    renameSync(tmp, real);\n",
       "replace": "    writeFileSync(real, data);\n",
       "occurrences": 1,
       "expect_failing": [
         "宣言と前提の検証（実行する前に落とす） 変異の書き込みが途中で失敗しても、対象を変えずに元の例外を返し、外からの編集として案内しない",
         "宣言と前提の検証（実行する前に落とす） 後始末の書き戻しが途中で失敗したら、変異のまま止め、次回の起動が自分の変異として戻す",
         "宣言と前提の検証（実行する前に落とす） 変異を書く前に失敗したら、外からの編集として報告しない",
-        "宣言と前提の検証（実行する前に落とす） die の後の書き戻しが途中で失敗したら、次回の起動に任せると案内し、次回の起動が戻す"
+        "宣言と前提の検証（実行する前に落とす） die の後の書き戻しが途中で失敗したら、次回の起動に任せると案内し、次回の起動が戻す",
+        "宣言と前提の検証（実行する前に落とす） 前回の中断で残った変異を戻せなければ、exit 2 で止めて復元情報を残す"
       ]
     },
     {
       "id": "KEEP-MODE",
       "why": "差し替えた対象に元のモードをコピーしない（実行ビットが外れる）",
       "file": "scripts/mutation/check-mutation-proof.js",
-      "find": "    chmodSync(tmp, statSync(real).mode & 0o7777);\n",
+      "find": "    chmodSync(tmp, stat.mode & 0o7777);\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
@@ -503,7 +505,7 @@
       "id": "HARDLINK-GUARD",
       "why": "ハードリンクを持つ対象を差し替え、リンクを切る",
       "file": "scripts/mutation/check-mutation-proof.js",
-      "find": "  if (statSync(real).nlink > 1) {",
+      "find": "  if (stat.nlink > 1) {",
       "replace": "  if (false) {",
       "occurrences": 1,
       "expect_failing": [
@@ -514,7 +516,7 @@
       "id": "STRAY-TMP",
       "why": "中断で残った一時ファイルを、次回の起動が消さない",
       "file": "scripts/mutation/check-mutation-proof.js",
-      "find": "  removeStrayTmp(target);\n",
+      "find": "    removeStrayTmp(target);\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
@@ -525,7 +527,7 @@
       "id": "STRAY-TMP-SHAPE",
       "why": "一時ファイルの形を確かめず、名前の似た無関係なファイルまで消す",
       "file": "scripts/mutation/check-mutation-proof.js",
-      "find": "/^\\d+\\.tmp$/.test(n.slice(prefix.length))",
+      "find": "/^\\d+$/.test(n.slice(prefix.length, -TMP_SUFFIX.length))",
       "replace": "true",
       "occurrences": 1,
       "expect_failing": [
@@ -536,13 +538,35 @@
       "id": "WRITE-FAIL-EXIT2",
       "why": "変異を当てられない失敗を捕捉せず、exit 1（実証できない変異がある）で終わる",
       "file": "scripts/mutation/check-mutation-proof.js",
-      "find": "        die(`${m.id} の変異を当てられない: ${err.message}`);",
+      "find": "        die(`${m.id} の変異を当てられない: ${err.cause.message}`);",
       "replace": "        throw err;",
       "occurrences": 1,
       "expect_failing": [
         "宣言と前提の検証（実行する前に落とす） 変異の書き込みが途中で失敗しても、対象を変えずに元の例外を返し、外からの編集として案内しない",
         "宣言と前提の検証（実行する前に落とす） 変異を書く前に失敗したら、外からの編集として報告しない",
         "宣言と前提の検証（実行する前に落とす） 対象がハードリンクを持つなら、変異させずに exit 2 で止める"
+      ]
+    },
+    {
+      "id": "RECOVER-EXIT2",
+      "why": "次回の起動の書き戻しの失敗を捕捉せず、exit 1（実証できない変異がある）で終わる",
+      "file": "scripts/mutation/check-mutation-proof.js",
+      "find": "    die(\n      `前回の中断で残った変異を戻せない（${target}）: ${err.message}。原因を取り除いてから起動し直す`,\n    );\n",
+      "replace": "    throw err;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（実行する前に落とす） 前回の中断で残った変異を戻せなければ、exit 2 で止めて復元情報を残す"
+      ]
+    },
+    {
+      "id": "WRITE-ERROR-ONLY",
+      "why": "変異を書いた後の例外まで、変異を当てられない失敗として報告する",
+      "file": "scripts/mutation/check-mutation-proof.js",
+      "find": "        if (!(err instanceof MutationWriteError)) throw err;\n        die(`${m.id} の変異を当てられない: ${err.cause.message}`);",
+      "replace": "        die(`${m.id} の変異を当てられない: ${(err.cause ?? err).message}`);",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（実行する前に落とす） 変異を書いた後の例外は、変異を当てられない失敗として報告しない"
       ]
     }
   ]

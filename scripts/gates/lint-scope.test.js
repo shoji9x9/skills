@@ -81,6 +81,9 @@ test("oxfmt の ignorePatterns は、許可リストの後にエージェント�
   const deny = oxfmtHead.indexOf("**/*.*");
   expect(deny).toBeGreaterThanOrEqual(0);
   expect(oxfmtHead.indexOf("!**/*/")).toBeGreaterThan(deny);
+  // 種類を戻すのは許可リストの行だけにする。前に行を足すこと自体は許すが、ファイルを戻す行（`!` で始まり
+  // ディレクトリでないもの）は許さない（fixture に無い種類を戻しても、formatter-scope の実測では検出できない）。
+  expect(oxfmtHead.filter((p) => p.startsWith("!") && !p.endsWith("/"))).toEqual([]);
 });
 
 // ---- lefthook ----
@@ -154,11 +157,13 @@ test("oxfmt の許可リストの種類は、lefthook の oxfmt-* のジョブ�
 
 /**
  * rel が相対パスで import するリポジトリ内のファイルを、import 先がさらに import するものまでたどって集める。
- * `from "./x"`・副作用だけの `import "./x"`・単引用符を拾う。パッケージ名や `node:` の import はたどらない。
+ * `from "./x"`・副作用だけの `import "./x"`・`import("./x")`・`require("./x")`・単引用符を拾う。
+ * パッケージ名や `node:` の import はたどらない。コメントの中の一致もたどるが、無いファイルなら読めずに失敗するので、
+ * 警告なしに見落とすことはない。
  */
 function repoImports(rel, readFile = read, found = new Set()) {
   const source = readFile(rel);
-  for (const m of source.matchAll(/\b(?:from|import)\s*["'](\.{1,2}\/[^"']+)["']/g)) {
+  for (const m of source.matchAll(/\b(?:from|import|require)\s*\(?\s*["'](\.{1,2}\/[^"']+)["']/g)) {
     const dep = posix.normalize(posix.join(posix.dirname(rel), m[1]));
     if (found.has(dep)) continue;
     found.add(dep);
@@ -171,14 +176,22 @@ test("repoImports は、import の書き方の違いと、import 先の import �
   const fixture = {
     "a.ts": `import x from "./lib/b.js";\nimport './c.js';\nimport fs from "node:fs";\nimport y from "pkg";\n`,
     "lib/b.js": `export { z } from "../d.js";\n`,
-    "c.js": "",
+    "c.js": `const e = await import("./e.js");\nconst f = require('./f.cjs');\n`,
+    "e.js": "",
+    "f.cjs": "",
     "d.js": `import "./lib/b.js";\n`,
   };
   const readFixture = (rel) => {
     if (!(rel in fixture)) throw new Error(`fixture に無い: ${rel}`);
     return fixture[rel];
   };
-  expect([...repoImports("a.ts", readFixture)].sort()).toEqual(["c.js", "d.js", "lib/b.js"]);
+  expect([...repoImports("a.ts", readFixture)].sort()).toEqual([
+    "c.js",
+    "d.js",
+    "e.js",
+    "f.cjs",
+    "lib/b.js",
+  ]);
 });
 
 test("lefthook の formatter-scope は、整形の範囲を変えるファイルの変更で実行する", () => {

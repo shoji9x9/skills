@@ -159,9 +159,9 @@
     },
     {
       "id": "LS-IMPORT-SIDE",
-      "why": "副作用だけの import と単引用符を拾わない",
+      "why": "副作用だけの import・動的 import・require・単引用符を拾わない",
       "file": "scripts/gates/lint-scope.test.js",
-      "find": "/\\b(?:from|import)\\s*[\"'](\\.{1,2}\\/[^\"']+)[\"']/g",
+      "find": "/\\b(?:from|import|require)\\s*\\(?\\s*[\"'](\\.{1,2}\\/[^\"']+)[\"']/g",
       "replace": "/\\bfrom \"(\\.{1,2}\\/[^\"]+)\"/g",
       "occurrences": 1,
       "expect_failing": ["repoImports は、import の書き方の違いと、import 先の import を拾う"]
@@ -174,6 +174,17 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": ["repoImports は、import の書き方の違いと、import 先の import を拾う"]
+    },
+    {
+      "id": "LS-OXFMT-REINCLUDE",
+      "why": "許可リストの前に、別の種類を戻す行を足す（fixture に無い種類は formatter-scope でも検出できない）",
+      "file": "oxfmt.config.ts",
+      "find": "    \"!**/*/\",\n",
+      "replace": "    \"!**/*/\",\n    \"!**/*.vue\",\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "oxfmt の ignorePatterns は、許可リストの後にエージェント用のコピーとリンクだけを除く"
+      ]
     }
   ]
 }
