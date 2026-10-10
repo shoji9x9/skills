@@ -75,7 +75,8 @@ const cliRuns = (() => {
 // CLI のテストを選ばない実行（`-t` など）でも、子の終了を待ってからリポジトリを消す。
 // after 系のフックは登録の逆順に実行される（vitest の sequence.hooks のデフォルト `stack`）ので、
 // `makeSharedTempDir` の後片付けより後に登録したこのフックが先に実行される。
-afterAll(() => cliRuns);
+// 子は CPU が混むと時間がかかるので、フックのデフォルトの 10 秒ではなく、CLI のテストと同じ 60 秒まで待つ。
+afterAll(() => cliRuns, 60_000);
 
 // ---- 単語帳（検出されることの確認）----
 

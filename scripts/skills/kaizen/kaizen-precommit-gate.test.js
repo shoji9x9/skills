@@ -77,43 +77,42 @@ function scannedPosition(stdout) {
   return { bytes: bytes?.[1], lines: lines?.[1] };
 }
 
-// **使える秒数を比べるテストを持つ describe を、ファイルの先頭に置く**（Issue #590）。
-// 並べたテストは書いた順に始まるので、末尾に置くと最後に始まり、1 回の実行の律速になる（実測で 1 本 8.5 秒）。
-// 経過時間や使える秒数で判定するテストは並べない。並べると他のテストの子で CPU が混み、親が子の終了に気づくのも遅れるので、
-// チェックが正しくても上限を超える。子の側で測ると、孫プロセスがパイプを開いたままにする回帰（エージェントが待たされる）を見逃す。
-
 // 候補が残っている他セッションのセンチネルは解消されないので、そのままだと commit のたびに同じ範囲を
 // 走査し直し、締め切りの残りを同じ結論に使い切る（Issue #492 の提案 2）。
-describe.concurrent("他セッション分の走査結果の再利用", () => {
-  const OWN = "own-session-1";
-  const FOREIGN = "foreign-session-1";
+// 「他セッション分の走査結果の再利用」の 2 つの describe（並べるものと、ファイルの最後で並べないもの）が使う。
+const FOREIGN_SCAN_OWN = "own-session-1";
+const FOREIGN_SCAN_FOREIGN = "foreign-session-1";
 
-  function setup(scannerBody) {
-    const scripts = cloneScripts();
-    const cwd = makeProject();
-    const counter = join(cwd, "scan-count");
-    writeFileSync(
-      join(scripts, "kaizen-candidate-scan.sh"),
-      `#!/usr/bin/env bash\necho x >>"$SCAN_COUNTER"\n${scannerBody}\n`,
-    );
-    const transcript = join(cwd, "foreign.jsonl");
-    writeFileSync(transcript, "{}\n");
-    writeFileSync(
-      join(cwd, ".kaizen", `.pending-extract.${FOREIGN}`),
-      `2099-01-01T00:00:00Z\n${transcript}\nclaude-code\n${FOREIGN}\n`,
-    );
-    const cache = join(cwd, ".kaizen", `.extract-checkpoint.${FOREIGN}.foreign-scan`);
-    const gate = async (env = {}) =>
-      await runGate("git commit -m x", {
-        cwd,
-        sessionId: OWN,
-        scripts,
-        env: { SCAN_COUNTER: counter, ...env },
-      });
-    const scans = () =>
-      existsSync(counter) ? readFileSync(counter, "utf8").split("\n").filter(Boolean).length : 0;
-    return { scripts, cwd, transcript, cache, gate, scans };
-  }
+function setupForeignScan(scannerBody) {
+  const scripts = cloneScripts();
+  const cwd = makeProject();
+  const counter = join(cwd, "scan-count");
+  writeFileSync(
+    join(scripts, "kaizen-candidate-scan.sh"),
+    `#!/usr/bin/env bash\necho x >>"$SCAN_COUNTER"\n${scannerBody}\n`,
+  );
+  const transcript = join(cwd, "foreign.jsonl");
+  writeFileSync(transcript, "{}\n");
+  writeFileSync(
+    join(cwd, ".kaizen", `.pending-extract.${FOREIGN_SCAN_FOREIGN}`),
+    `2099-01-01T00:00:00Z\n${transcript}\nclaude-code\n${FOREIGN_SCAN_FOREIGN}\n`,
+  );
+  const cache = join(cwd, ".kaizen", `.extract-checkpoint.${FOREIGN_SCAN_FOREIGN}.foreign-scan`);
+  const gate = async (env = {}) =>
+    await runGate("git commit -m x", {
+      cwd,
+      sessionId: FOREIGN_SCAN_OWN,
+      scripts,
+      env: { SCAN_COUNTER: counter, ...env },
+    });
+  const scans = () =>
+    existsSync(counter) ? readFileSync(counter, "utf8").split("\n").filter(Boolean).length : 0;
+  return { scripts, cwd, transcript, cache, gate, scans };
+}
+
+describe.concurrent("他セッション分の走査結果の再利用", () => {
+  const FOREIGN = FOREIGN_SCAN_FOREIGN;
+  const setup = setupForeignScan;
 
   test.each([["候補あり", "exit 0"]])(
     "%s は入力が変わらなければ走査し直さない",
@@ -197,20 +196,6 @@ describe.concurrent("他セッション分の走査結果の再利用", () => {
     await gate();
     expect(scans()).toBe(2);
   });
-
-  // 使える秒数を前回と比べるので並べない（「他セッション分の走査結果の再利用」の describe の前のコメント）。
-  test.sequential("打ち切りは、前回より長く使えるときだけ走査し直す", async () => {
-    const { gate, scans } = setup("exec sleep 30");
-    // 使える秒数は SECONDS の境界で 1 秒揺れる。同じ締め切りの 2 回目は許容内（+1 秒）に、
-    // 3 回目は確実に許容の外に収まる値を選ぶ。
-    await gate({ KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "3" });
-    expect(scans()).toBe(1);
-    const same = await gate({ KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "3" });
-    expect(scans()).toBe(1);
-    expect(same.stderr).toMatch(/skipped re-scanning .*\(exit 124 after up to [12]s\)/);
-    await gate({ KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "7" });
-    expect(scans()).toBe(2);
-  }, 30000);
 
   test("保持期間で回収したセンチネルのキャッシュも消す", async () => {
     const { cwd, cache, gate, transcript } = setup("exit 0");
@@ -1626,7 +1611,9 @@ describe.concurrent("チェックはリポジトリの全作業ツリーの .kai
   });
 });
 
-// **締め切りの describe は並べず、ファイルの最後に置く**（Issue #590）。並べない理由は「他セッション分の走査結果の再利用」の describe の前のコメントにある。
+// **経過時間や使える秒数で判定するテストは並べず、ファイルの最後に置く**（Issue #590）。
+// 並べると他のテストの子で CPU が混み、親が子の終了に気づくのも遅れるので、チェックが正しくても上限を超える。
+// 子の側で測ると、孫プロセスがパイプを開いたままにする回帰（エージェントが待たされる）を見逃す。
 // 最初に実行すると、温まっていない状態で lifecycle 検査が遅れ、走査に回す秒数が残らずに別の理由で止まることがある
 // （先頭に置いた版で、CI の基準 run が 1 回失敗した）。変更前と同じく、他のテストの後に実行する。
 // エージェントは timeout に達したフックをブロックとして扱わない（Claude Code / Copilot とも、合格として扱う）。
@@ -1740,4 +1727,21 @@ describe("チェック全体の締め切り", () => {
       expect([0, 2]).toContain(gate.status);
     },
   );
+});
+
+// 使える秒数を前回と比べるので、締め切りの describe と同じく並べずに、ファイルの最後で実行する。
+// `test.sequential` は自分の describe の中でしか直列にならず、隣の concurrent な suite のテストとは並んで始まる（実測）。
+describe("他セッション分の走査結果の再利用（使える秒数を比べる）", () => {
+  test("打ち切りは、前回より長く使えるときだけ走査し直す", async () => {
+    const { gate, scans } = setupForeignScan("exec sleep 30");
+    // 使える秒数は SECONDS の境界で 1 秒揺れる。同じ締め切りの 2 回目は許容内（+1 秒）に、
+    // 3 回目は確実に許容の外に収まる値を選ぶ。
+    await gate({ KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "3" });
+    expect(scans()).toBe(1);
+    const same = await gate({ KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "3" });
+    expect(scans()).toBe(1);
+    expect(same.stderr).toMatch(/skipped re-scanning .*\(exit 124 after up to [12]s\)/);
+    await gate({ KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "7" });
+    expect(scans()).toBe(2);
+  }, 30000);
 });
