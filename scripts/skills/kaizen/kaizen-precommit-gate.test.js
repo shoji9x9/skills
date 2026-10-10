@@ -48,25 +48,16 @@ async function runScript(script, args, { cwd, scripts = scriptsDir, env = {} } =
 }
 
 /** PreToolUse Hook の入力を模して、チェックに 1 コマンドを判定させる。 */
-// `elapsedFile` を渡すと、チェックを包む bash がチェック自身の開始と終了の時刻（`EPOCHREALTIME`）をそこへ書く。
-// テストを並べて実行すると、親が子の終了に気づくまでのイベントループの遅れが入るので、経過時間は子の側で測る。
-const TIMED_GATE =
-  'start=$EPOCHREALTIME; bash "$1"; rc=$?; printf "%s %s\\n" "$start" "$EPOCHREALTIME" >"$2"; exit "$rc"';
-
 async function runGate(
   command,
-  { cwd, transcriptPath, sessionId, scripts = scriptsDir, env = {}, elapsedFile } = {},
+  { cwd, transcriptPath, sessionId, scripts = scriptsDir, env = {} } = {},
 ) {
   const input = JSON.stringify({
     tool_input: { command },
     ...(transcriptPath ? { transcript_path: transcriptPath } : {}),
     ...(sessionId ? { session_id: sessionId } : {}),
   });
-  const gateScript = join(scripts, "kaizen-precommit-gate.sh");
-  const args = elapsedFile
-    ? ["-c", TIMED_GATE, "timed-gate", gateScript, elapsedFile]
-    : [gateScript];
-  return await spawnAsync("bash", args, {
+  return await spawnAsync("bash", [join(scripts, "kaizen-precommit-gate.sh")], {
     cwd,
     input,
     env: { ...process.env, CLAUDE_PROJECT_DIR: cwd, ...env },
@@ -88,11 +79,13 @@ function scannedPosition(stdout) {
 
 // **締め切りまで待つテストを持つ 2 つの describe を、ファイルの先頭に置く**（Issue #590）。
 // 並べたテストは書いた順に始まるので、末尾に置くと最後に始まり、1 回の実行の律速になる（実測で 1 本 8.5 秒）。
+// 経過時間や使える秒数で判定するテストは並べない。並べると他のテストの子で CPU が混み、親が子の終了に気づくのも遅れるので、
+// チェックが正しくても上限を超える。子の側で測ると、孫プロセスがパイプを開いたままにする回帰（エージェントが待たされる）を見逃す。
 
 // エージェントは timeout に達したフックをブロックとして扱わない（Claude Code / Copilot とも、合格として扱う）。
 // チェック全体の所要時間に上限が無いと、exit 2 で止めるはずの commit が遅いときほど素通りする（Issue #492）。
 // チェックは 1 つの締め切りの内側で最後まで実行し、自セッション分までは締め切りに当たったら失敗として扱う。
-describe.concurrent("チェック全体の締め切り", () => {
+describe("チェック全体の締め切り", () => {
   const OWN = "own-session-1";
 
   function stubScripts(files) {
@@ -111,19 +104,9 @@ describe.concurrent("チェック全体の締め切り", () => {
   }
 
   async function timedGate(options) {
-    const elapsedFile = join(tempDir("kaizen-elapsed-"), "elapsed");
     const started = Date.now();
-    const gate = await runGate("git commit -m x", { ...options, elapsedFile });
-    const parentElapsed = Date.now() - started;
-    const recorded = readFileSync(elapsedFile, "utf8").trim();
-    // bash 5 未満は EPOCHREALTIME を持たず、時刻が空になる。そのときだけ親の側で測った値を使う（遅れを含むので厳しい側）。
-    if (recorded === "") return { gate, elapsed: parentElapsed };
-    const times = recorded.split(" ").map(Number);
-    // 空でないのに読めない形なら、経過時間の判定を通さない。
-    expect(times, `経過時間を読めない: ${recorded}`).toSatisfy(
-      (t) => t.length === 2 && t.every((v) => Number.isFinite(v) && v > 0),
-    );
-    return { gate, elapsed: (times[1] - times[0]) * 1000 };
+    const gate = await runGate("git commit -m x", options);
+    return { gate, elapsed: Date.now() - started };
   }
 
   test("自セッション分の走査が締め切りに当たったら、締め切りの内側で exit 2 にする", async () => {
@@ -328,7 +311,8 @@ describe.concurrent("他セッション分の走査結果の再利用", () => {
     expect(scans()).toBe(2);
   });
 
-  test("打ち切りは、前回より長く使えるときだけ走査し直す", async () => {
+  // 使える秒数を前回と比べるので並べない（ファイルの先頭のコメント）。
+  test.sequential("打ち切りは、前回より長く使えるときだけ走査し直す", async () => {
     const { gate, scans } = setup("exec sleep 30");
     // 使える秒数は SECONDS の境界で 1 秒揺れる。同じ締め切りの 2 回目は許容内（+1 秒）に、
     // 3 回目は確実に許容の外に収まる値を選ぶ。

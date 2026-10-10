@@ -360,8 +360,8 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
     const { directory, stub } = makeStub();
     const output = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");
 
-    const run = async () =>
-      await runEval({
+    const run = () =>
+      runEval({
         executor: "codex",
         config: "without_skill",
         prompt: `EXPECT_WITHOUT_SKILL ${marker}`,
@@ -390,14 +390,13 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
     const output = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");
 
     await expect(
-      async () =>
-        await runEval({
-          executor: "codex",
-          config: "without_skill",
-          prompt: "EXPECT_WITHOUT_SKILL EXPECT_CODEX_SURFACE_EMPTY",
-          output,
-          stub,
-        }),
+      runEval({
+        executor: "codex",
+        config: "without_skill",
+        prompt: "EXPECT_WITHOUT_SKILL EXPECT_CODEX_SURFACE_EMPTY",
+        output,
+        stub,
+      }),
     ).rejects.toThrow(expect.objectContaining({ status: 4 }));
 
     const contamination = readFileSync(join(output, "contamination.txt"), "utf8");
@@ -525,15 +524,14 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
     });
     rmSync(join(source, "result.json"));
     await expect(
-      async () =>
-        await runEval({
-          executor: "codex",
-          config: "without_skill",
-          prompt: "EXPECT_WITHOUT_SKILL",
-          output: target,
-          reuseBaseline: source,
-          stub,
-        }),
+      runEval({
+        executor: "codex",
+        config: "without_skill",
+        prompt: "EXPECT_WITHOUT_SKILL",
+        output: target,
+        reuseBaseline: source,
+        stub,
+      }),
     ).rejects.toThrow();
     expect(existsSync(target)).toBe(false);
   });
@@ -552,15 +550,14 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
     writeFileSync(join(source, "isolation.txt"), "isolation: UNISOLATED (bwrap missing)\n", "utf8");
 
     await expect(
-      async () =>
-        await runEval({
-          executor: "codex",
-          config: "without_skill",
-          prompt: "EXPECT_WITHOUT_SKILL",
-          output: target,
-          reuseBaseline: source,
-          stub,
-        }),
+      runEval({
+        executor: "codex",
+        config: "without_skill",
+        prompt: "EXPECT_WITHOUT_SKILL",
+        output: target,
+        reuseBaseline: source,
+        stub,
+      }),
     ).rejects.toThrow();
     expect(existsSync(target)).toBe(false);
   });
@@ -583,8 +580,8 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
     });
     writeFileSync(join(source, "isolation.txt"), `${label}\n`, "utf8");
 
-    const reuse = async () =>
-      await runEval({
+    const reuse = () =>
+      runEval({
         executor: "codex",
         config: "without_skill",
         prompt: "EXPECT_WITHOUT_SKILL",
@@ -614,15 +611,14 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
     });
 
     await expect(
-      async () =>
-        await runEval({
-          executor: "codex",
-          config: "without_skill",
-          prompt: "EXPECT_WITHOUT_SKILL",
-          output: target,
-          reuseBaseline: source,
-          stub,
-        }),
+      runEval({
+        executor: "codex",
+        config: "without_skill",
+        prompt: "EXPECT_WITHOUT_SKILL",
+        output: target,
+        reuseBaseline: source,
+        stub,
+      }),
     ).rejects.toThrow();
     expect(existsSync(target)).toBe(false);
   });
@@ -811,15 +807,14 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
     mutate(source);
 
     await expect(
-      async () =>
-        await runEval({
-          executor: "codex",
-          config: "without_skill",
-          prompt: "EXPECT_WITHOUT_SKILL",
-          output: target,
-          reuseBaseline: source,
-          stub,
-        }),
+      runEval({
+        executor: "codex",
+        config: "without_skill",
+        prompt: "EXPECT_WITHOUT_SKILL",
+        output: target,
+        reuseBaseline: source,
+        stub,
+      }),
     ).rejects.toThrow();
     expect(existsSync(target)).toBe(false);
     const result = await spawnAsync("node", [
@@ -865,15 +860,14 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
     replaceWithSymlink(source, external);
 
     await expect(
-      async () =>
-        await runEval({
-          executor: "codex",
-          config: "without_skill",
-          prompt: "EXPECT_WITHOUT_SKILL",
-          output: target,
-          reuseBaseline: source,
-          stub,
-        }),
+      runEval({
+        executor: "codex",
+        config: "without_skill",
+        prompt: "EXPECT_WITHOUT_SKILL",
+        output: target,
+        reuseBaseline: source,
+        stub,
+      }),
     ).rejects.toThrow();
     expect(existsSync(target)).toBe(false);
   });
@@ -948,8 +942,7 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
     chmodSync(setup, 0o755);
 
     await expect(
-      async () =>
-        await runEval({ config: "with_skill", prompt: "EXPECT_WITH_SKILL", output, stub, fixture }),
+      runEval({ config: "with_skill", prompt: "EXPECT_WITH_SKILL", output, stub, fixture }),
     ).rejects.toThrow();
     expect(existsSync(output)).toBe(false);
   });

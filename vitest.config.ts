@@ -24,6 +24,10 @@ export default defineConfig({
           // テストはスクリプトのユニットテストのみ（node_modules はデフォルトで除外）。
           include: ["scripts/**/*.test.js"],
           exclude: [...configDefaults.exclude, ...ISOLATED],
+          // 子プロセスを待つテストを並べて実行するファイルがあり（Issue #590）、ファイルの並列とも重なって CPU が混む。
+          // run-skill-eval.sh のように、同じロックを並べたテストどうしで待つものもある。
+          // デフォルトの 5 秒で、変異と関係なく落とさない（isolated と同じ理由）。
+          testTimeout: 30_000,
           sequence: { groupOrder: 0 },
         },
       },
