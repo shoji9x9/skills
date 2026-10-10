@@ -613,7 +613,7 @@ describe("宣言と前提の検証（実行する前に落とす）", () => {
     const res = runRunner(spec, { MUTATION_PROOF_LOCK: lock });
     expect(res.status, res.out).toBe(2);
     expect(res.out).toContain("変異の外から書き換えられた");
-    expect(res.out).toContain("テストの実行中の例外: TypeError");
+    expect(res.out).toContain("元の例外: TypeError");
     expect(readFileSync(fx.target, "utf8")).toBe(
       `${FIXTURE_TARGET.replace(GUARD, "")}# 実行中に足した行\n`,
     );
@@ -995,6 +995,34 @@ require("node:module").syncBuiltinESMExports();
     expect(res.out).toContain("G の変異を当てられない: ENOSPC");
     // 消せなかった一時ファイルは、次回の起動も消さない（照合が復元情報を消す）ので、手で消すよう出す。
     expect(res.out).toContain("一時ファイルを消せない");
+    expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
+  });
+
+  // 一時ファイルの名前にシンボリックリンクが置かれていても、リンク先（リポジトリ外を含む）へ書かない。
+  test("一時ファイルの名前にリポジトリ外を指すシンボリックリンクがあれば、リンク先へ書かずに exit 2", () => {
+    const fx = makeFixture();
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    const outside = join(lockDir, "tmp-link-outside.txt");
+    writeFileSync(outside, "外のファイル\n");
+    // ランナーのプロセスの中で、そのランナーの pid の一時ファイルの名前にリンクを置く（pid は起動するまで分からない）。
+    const preload = join(fx.dir, "plant-tmp-link.cjs");
+    writeFileSync(
+      preload,
+      `const fs = require("node:fs");
+if (process.argv[1]?.endsWith("check-mutation-proof.js")) {
+  fs.symlinkSync(process.env.PLANT_OUTSIDE, process.env.FAULT_TARGET + ".mutation-proof-" + process.pid + ".tmp");
+}
+`,
+    );
+    const res = runRunner(spec, {
+      MUTATION_PROOF_LOCK: join(lockDir, "tmp-link.lock"),
+      NODE_OPTIONS: `--require ${preload}`,
+      FAULT_TARGET: fx.target,
+      PLANT_OUTSIDE: outside,
+    });
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toContain("G の変異を当てられない: EEXIST");
+    expect(readFileSync(outside, "utf8")).toBe("外のファイル\n");
     expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
   });
 

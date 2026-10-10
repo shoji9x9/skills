@@ -319,7 +319,8 @@ function replaceContent(path, data) {
   }
   const tmp = tmpPathOf(real, process.pid);
   try {
-    writeFileSync(tmp, data);
+    // 一時ファイルは新しく作る（"wx"）。同じ名前のシンボリックリンクが置かれていても、リンク先へ書かない。
+    writeFileSync(tmp, data, { flag: "wx" });
     chmodSync(tmp, stat.mode & 0o7777);
     renameSync(tmp, real);
   } catch (err) {
@@ -828,7 +829,8 @@ function proveMutation(mutation, testFile) {
     if (stopMessage !== null) {
       console.error(`mutation-proof: ${stopMessage}`);
       // 後始末の結果で、テストの実行中の元の例外を置き換えない（両方を出して止める）。
-      if (thrown) console.error(`mutation-proof: テストの実行中の例外: ${thrown.stack ?? thrown}`);
+      // 元の例外は、テストの実行中のものとは限らない（変異の書き込みの失敗もここに来る）。
+      if (thrown) console.error(`mutation-proof: 元の例外: ${thrown.stack ?? thrown}`);
       process.exit(2);
     }
   }
