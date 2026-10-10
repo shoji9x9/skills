@@ -4,7 +4,8 @@ import { agentCopyGlobs } from "./scripts/lib/source-scope.js";
 // oxfmt に割り当てた種類（lefthook.yml の oxfmt-* の glob と同じ）。これ以外は、引数でディレクトリや
 // glob を渡されても整形しない。oxfmt は .md・.css・.html・.toml も整形するので、ディレクトリを渡すと
 // Markdown の表の桁までそろえた（実測）。許可リストにするのは、対応する種類が増えても外れたままにするため。
-const assigned = "js,mjs,cjs,jsx,ts,tsx,mts,cts,json,yml,yaml";
+// テスト（scripts/gates/lint-scope.test.js・formatter-scope.test.js）が、許可リストの行を探さずにこの値を読む。
+export const assigned = "js,mjs,cjs,jsx,ts,tsx,mts,cts,json,yml,yaml";
 
 export default defineConfig({
   ignorePatterns: [

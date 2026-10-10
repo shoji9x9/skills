@@ -13,12 +13,12 @@
 // | CI の Shell lint・JSON lint    | run-on-sources.js が source-scope.js で選ぶ          |
 import { expect, test } from "vitest";
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, posix } from "node:path";
 import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
 import { agentCopyGlobs, copySkillNames, sourceSkillNames } from "../lib/source-scope.js";
 import oxlintConfig from "../../oxlint.config.ts";
-import oxfmtConfig from "../../oxfmt.config.ts";
+import oxfmtConfig, { assigned as oxfmtAssigned } from "../../oxfmt.config.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const read = (rel) => readFileSync(join(repoRoot, rel), "utf8");
@@ -61,16 +61,31 @@ test("oxlint の ignorePatterns は、エージェント用のコピーとリン
   expect(oxlintConfig.ignorePatterns).toEqual(expected);
 });
 
-// oxfmt は、割り当てた種類の許可リスト（先頭の 3 行）の後に、エージェント用のコピーとリンクを除く。
+// oxfmt は、割り当てた種類の許可リストの後に、エージェント用のコピーとリンクを除く。
 // 許可リストの種類は、lefthook の oxfmt-* のジョブが渡す種類と一致させる（どちらかだけ広げると、
 // pre-commit が渡したファイルを oxfmt が対象外として扱うか、割り当て外の種類を整形する）。
-const oxfmtHead = oxfmtConfig.ignorePatterns.slice(0, 3);
+// 許可リストは位置ではなく形で探す（行を足しても、無関係な assertion が落ちないように）。
+// 許可リストの行で前後に分ける（除外の数で分けると、除外が変わったときに許可リストの側の確認まで成り立たなくなる）。
+const oxfmtPatterns = oxfmtConfig.ignorePatterns;
+// 行の形を正規表現で探さず、設定が書き出す値と同じ文字列で探す（数字を含む拡張子でも同じに扱う）。
+const oxfmtAllowLine = `!**/*.{${oxfmtAssigned}}`;
+const oxfmtAllowed = oxfmtPatterns.filter((p) => p === oxfmtAllowLine);
+const oxfmtAllowIndex = oxfmtPatterns.indexOf(oxfmtAllowLine);
+// 行が無ければ前後に分けられない（下のテストが行の数で失敗する）。
+const oxfmtHead = oxfmtAllowIndex < 0 ? [] : oxfmtPatterns.slice(0, oxfmtAllowIndex);
+const oxfmtCopies = oxfmtAllowIndex < 0 ? [] : oxfmtPatterns.slice(oxfmtAllowIndex + 1);
 
 test("oxfmt の ignorePatterns は、許可リストの後にエージェント用のコピーとリンクだけを除く", () => {
-  expect(oxfmtHead[0]).toBe("**/*.*");
-  expect(oxfmtHead[1]).toBe("!**/*/");
-  expect(oxfmtHead[2]).toMatch(/^!\*\*\/\*\.\{[a-z,]+\}$/);
-  expect(oxfmtConfig.ignorePatterns.slice(3)).toEqual(expected);
+  // 後の行が優先されるので、コピーの除外を最後に置く（割り当てた種類でもコピーの中は除いたままにする）。
+  expect(oxfmtAllowed).toHaveLength(1);
+  expect(oxfmtCopies).toEqual(expected);
+  // すべてを除いてから、ディレクトリと割り当てた種類を戻す。
+  const deny = oxfmtHead.indexOf("**/*.*");
+  expect(deny).toBeGreaterThanOrEqual(0);
+  expect(oxfmtHead.indexOf("!**/*/")).toBeGreaterThan(deny);
+  // 種類を戻すのは許可リストの行だけにする。前に行を足すこと自体は許すが、ファイルを戻す行（`!` で始まり
+  // ディレクトリでないもの）は許さない（fixture に無い種類を戻しても、formatter-scope の実測では検出できない）。
+  expect(oxfmtHead.filter((p) => p.startsWith("!") && !p.endsWith("/"))).toEqual([]);
 });
 
 // ---- lefthook ----
@@ -126,7 +141,7 @@ test("CI の Shell lint と JSON lint は、run-on-sources.js で対象を選ぶ
 
 /** `*.{a,b}` / `*.a` / `!**\/*.{a,b}` から拡張子の一覧を取り出す。 */
 function extsOf(glob) {
-  const m = /\*\.(?:\{([a-z,]+)\}|([a-z]+))$/.exec(glob);
+  const m = /\*\.(?:\{([a-z0-9,]+)\}|([a-z0-9]+))$/.exec(glob);
   expect(m, glob).not.toBeNull();
   return (m[1] ?? m[2]).split(",");
 }
@@ -136,5 +151,87 @@ test("oxfmt の許可リストの種類は、lefthook の oxfmt-* のジョブ�
   const oxfmtJobs = Object.keys(byName).filter((name) => name.startsWith("oxfmt-"));
   expect(oxfmtJobs).toEqual(expect.arrayContaining(["oxfmt-js", "oxfmt-json", "oxfmt-yaml"]));
   const lefthookExts = oxfmtJobs.flatMap((name) => extsOf(byName[name].glob));
-  expect(extsOf(oxfmtHead[2]).sort()).toEqual(lefthookExts.sort());
+  expect(oxfmtAllowed).toHaveLength(1);
+  expect(oxfmtAssigned.split(",").sort()).toEqual(lefthookExts.sort());
+});
+
+// ---- formatter-scope のジョブ ----
+
+/**
+ * rel が相対パスで import するリポジトリ内のファイルを、import 先がさらに import するものまでたどって集める。
+ * `from "./x"`・副作用だけの `import "./x"`・`import("./x")`・`require("./x")`・単引用符を拾う。
+ * パッケージ名や `node:` の import はたどらない。コメントの中の一致もたどるが、無いファイルなら、どこから来たかを示す
+ * 例外になる。テンプレートリテラルや、計算したパス（`import.meta.dirname` を基にした読み込みなど）はたどらないので、
+ * oxfmt.config.ts でその形を使うときは、glob と inputs に手で足す。
+ */
+function repoImports(rel, readFile = read, found = new Set(), from = null) {
+  let source;
+  try {
+    source = readFile(rel);
+  } catch (err) {
+    if (from === null) throw err;
+    throw new Error(
+      `${from} の import 先 ${rel} を読めない（コメントの中の一致か、拡張子を省いた import を疑う）: ${err.message}`,
+    );
+  }
+  for (const m of source.matchAll(/\b(?:from|import|require)\s*\(?\s*["'](\.{1,2}\/[^"']+)["']/g)) {
+    const dep = posix.normalize(posix.join(posix.dirname(rel), m[1]));
+    if (found.has(dep)) continue;
+    found.add(dep);
+    repoImports(dep, readFile, found, rel);
+  }
+  return found;
+}
+
+test("repoImports は、import の書き方の違いと、import 先の import を拾う", () => {
+  const fixture = {
+    "a.ts": `import x from "./lib/b.js";\nimport './c.js';\nimport fs from "node:fs";\nimport y from "pkg";\n`,
+    "lib/b.js": `export { z } from "../d.js";\n`,
+    "c.js": `const e = await import("./e.js");\nconst f = require('./f.cjs');\n`,
+    "e.js": "",
+    "f.cjs": "",
+    "d.js": `import "./lib/b.js";\n`,
+  };
+  const readFixture = (rel) => {
+    if (!(rel in fixture)) throw new Error(`fixture に無い: ${rel}`);
+    return fixture[rel];
+  };
+  expect([...repoImports("a.ts", readFixture)].sort()).toEqual([
+    "c.js",
+    "d.js",
+    "e.js",
+    "f.cjs",
+    "lib/b.js",
+  ]);
+  // 無いファイルを指す import は、どこから来たかを示す例外にする（readFile の例外のまま失敗しない）。
+  const withMissing = { ...fixture, "g.ts": `// from "./old.js"\n` };
+  expect(() =>
+    repoImports("g.ts", (rel) => {
+      if (!(rel in withMissing)) throw new Error(`ENOENT: ${rel}`);
+      return withMissing[rel];
+    }),
+  ).toThrow("g.ts の import 先 old.js を読めない");
+});
+
+test("lefthook の formatter-scope は、整形の範囲を変えるファイルの変更で実行する", () => {
+  const glob = byName["formatter-scope"]?.glob;
+  expect(glob, "formatter-scope のジョブが無い").toMatch(/^\{[^{}]+\}$/);
+  const listed = glob.slice(1, -1).split(",");
+  // oxfmt の設定が import するリポジトリ内のファイルは、名前を挙げずに設定から集める（import を足したら検出する）。
+  const imported = [...repoImports("oxfmt.config.ts")];
+  expect(imported).toContain("scripts/lib/source-scope.js");
+  const inputs = [
+    ".markdownlint-cli2.yaml",
+    ".markdownlint.yaml",
+    "oxfmt.config.ts",
+    ...imported,
+    // ツールの版を決めるファイル（版が変わると整形する種類も変わりうる）。
+    "package.json",
+    "pnpm-lock.yaml",
+    // pnpm の overrides・catalog も版を変える。
+    "pnpm-workspace.yaml",
+    "scripts/gates/formatter-scope.test.js",
+  ];
+  // 両方向で比べる（glob の側にだけ足したファイルも、ここに挙げ忘れとして検出する）。
+  expect([...listed].sort()).toEqual([...inputs].sort());
 });

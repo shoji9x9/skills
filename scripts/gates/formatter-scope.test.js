@@ -15,7 +15,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
 import { makeTempDir } from "../lib/test-tmpdir.js";
-import oxfmtConfig from "../../oxfmt.config.ts";
+import oxfmtConfig, { assigned } from "../../oxfmt.config.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const req = createRequire(join(repoRoot, "package.json"));
@@ -37,6 +37,40 @@ function binOf(pkg, name) {
   }
 }
 
+// oxfmt に割り当てた種類（oxfmt.config.ts の許可リスト）。fixture をここから作るので、許可リストに種類を足すと、
+// その種類も実物の oxfmt で整形されることを確かめる対象に入る。
+// 行の形を正規表現で探さず、設定が書き出す値を読む（行が設定に無ければ、ここで失敗する）。
+const OXFMT_EXTS = (() => {
+  if (!oxfmtConfig.ignorePatterns.includes(`!**/*.{${assigned}}`)) {
+    throw new Error("oxfmt.config.ts の ignorePatterns に、許可リストの行が無い");
+  }
+  return assigned.split(",");
+})();
+
+// 割り当てた種類ごとの、oxfmt が整形すれば必ず変わる内容。無い種類があれば、fixture を作る前に失敗する。
+const OXFMT_BODY = {
+  script: "const x = 1  *  2\n",
+  json: '{"a":1,\n"b":   2}\n',
+  yaml: "a:   1\n",
+};
+/** 拡張子から内容の種類を導く（拡張子の一覧を assigned と別に持たない）。導けない種類は undefined。 */
+function kindOf(ext) {
+  if (/^[cm]?[jt]sx?$/.test(ext)) return "script";
+  if (ext === "json") return "json";
+  if (ext === "yml" || ext === "yaml") return "yaml";
+  return undefined;
+}
+const OXFMT_FILES = Object.fromEntries(
+  OXFMT_EXTS.map((ext) => {
+    const kind = kindOf(ext);
+    if (!kind)
+      throw new Error(
+        `許可リストの .${ext} に fixture の内容が無い（kindOf と OXFMT_BODY に足す）`,
+      );
+    return [`o.${ext}`, OXFMT_BODY[kind]];
+  }),
+);
+
 // どの種類も、そのツールが整形すれば必ず変わる内容にする。
 const FILES = {
   "a.md": "#title\n\ntext   \n",
@@ -45,6 +79,7 @@ const FILES = {
   "b.mjs": "export const x = 1  *  2\n",
   "c.yml": "a:   1\n",
   "e.json": '{"a":1,\n"b":   2}\n',
+  ...OXFMT_FILES,
   "x.css": "a  {color:red}\n",
   "x.toml": "a  =   1\n",
   "x.html": "<div  ><p >x</p></div>\n",
@@ -128,7 +163,13 @@ function oxfmtFixture() {
   return root;
 }
 
-const OXFMT_ASSIGNED = [".hidden/h.mjs", "b.mjs", "c.yml", "e.json"];
+const OXFMT_ASSIGNED = [
+  ".hidden/h.mjs",
+  "b.mjs",
+  "c.yml",
+  "e.json",
+  ...Object.keys(OXFMT_FILES),
+].sort();
 
 test.each([
   ["ディレクトリ", ["d/"]],

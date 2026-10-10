@@ -54,6 +54,18 @@
         "markdownlint-cli2 --fix にglobを渡しても、書き換えるのは渡した範囲の .md だけ",
         "markdownlint-cli2 --fix にMarkdown と他の種類を並べたファイルの列挙を渡しても、書き換えるのは渡した範囲の .md だけ"
       ]
+    },
+    {
+      "id": "OX-ALLOW-SUBSET",
+      "why": "許可リストの一部の種類（.yaml・.cts・.mts）を整形しない",
+      "file": "oxfmt.config.ts",
+      "find": "    `!**/*.{${assigned}}`,\n",
+      "replace": "    `!**/*.{${assigned}}`,\n    \"**/*.{yaml,cts,mts}\",\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "oxfmt にディレクトリを渡しても、書き換えるのは割り当てた種類（JS・TS・JSON・YAML）だけ",
+        "oxfmt にカレントディレクトリを渡しても、書き換えるのは割り当てた種類（JS・TS・JSON・YAML）だけ"
+      ]
     }
   ]
 }
