@@ -696,6 +696,17 @@
       "expect_failing": [
         "宣言ごとの時間 宣言ごとに時間を出し、最後に長い順の一覧を出してから集計の行で終わる"
       ]
+    },
+    {
+      "id": "TIMING-ORDER",
+      "why": "一覧を短い順に並べる（重い宣言が一覧の下に埋もれる）",
+      "file": "scripts/mutation/check-mutation-proof.js",
+      "find": "[...timings].sort((a, b) => b.seconds - a.seconds)",
+      "replace": "[...timings].sort((a, b) => a.seconds - b.seconds)",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言ごとの時間 宣言ごとに時間を出し、最後に長い順の一覧を出してから集計の行で終わる"
+      ]
     }
   ]
 }

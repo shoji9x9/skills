@@ -142,7 +142,9 @@ console.log("changed=" + (process.env.MUTATION_PROOF_CHANGED_FILES ?? "(unset)")
 console.log("mutation-proof: 1 proven / 0 failed");
 `,
   );
-  git(fx.repo, "add", "scripts");
+  // 引数に渡す宣言ファイル（中身は偽のランナーが読まない）。commit していないと、スクリプトが起動の前に止める。
+  writeFileSync(join(fx.repo, "x.mutations.json"), "{}\n");
+  git(fx.repo, "add", "scripts", "x.mutations.json");
   git(
     fx.repo,
     "-c",
@@ -185,4 +187,14 @@ test("シャードには、ランナー用の環境変数を渡さず、リポ�
   }
   expect(res.out).toContain("shard 1/2: exit 0 mutation-proof: 1 proven / 0 failed");
   expect(worktrees(fx.repo), "worktree を消していない").toBe(1);
+});
+
+// 宣言ファイルの引数が commit されていなければ worktree に無いので、依存を入れる前に止める。
+test("commit していない宣言ファイルを渡したら、worktree を作らずに exit 2", () => {
+  const fx = makeRepo();
+  writeFileSync(join(fx.repo, "new.mutations.json"), "{}\n");
+  const res = run(fx, "2", "new.mutations.json");
+  expect(res.status, res.out).toBe(2);
+  expect(res.out).toContain("new.mutations.json は commit されていない");
+  expect(existsSync(fx.shards), "worktree の置き場所を作った").toBe(false);
 });

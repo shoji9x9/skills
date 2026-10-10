@@ -32,6 +32,9 @@ export default defineConfig({
         test: {
           name: "isolated",
           include: ISOLATED,
+          // テストを並べて実行するので、CPU が混むと 1 本が延びる（ミューテーションテストのシャードや CI の少ないコア）。
+          // デフォルトの 5 秒で、変異と関係なく落とさない。
+          testTimeout: 30_000,
           sequence: { groupOrder: 1 },
         },
       },

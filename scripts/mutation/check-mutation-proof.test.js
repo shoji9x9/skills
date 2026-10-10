@@ -107,6 +107,8 @@ const testFile = resolve(args[1]);
 const out = args.find((a) => a.startsWith("--outputFile=")).slice("--outputFile=".length);
 const def = JSON.parse(readFileSync(testFile, "utf8"));
 const content = readFileSync(join(dirname(testFile), def.target), "utf8");
+// 所要時間の差を作る（\`sleepMs\` を持つ fixture だけ。宣言ごとの時間の並びを確かめるため）。
+if (def.sleepMs) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, def.sleepMs);
 // 実行中に対象を外から編集する状態を作る（\`editDuringRun\` を持つ fixture だけ）。
 const editing = Boolean(def.editDuringRun && content !== def.editDuringRun.unless);
 if (editing) {
@@ -154,7 +156,7 @@ const REAL = { MUTATION_PROOF_TEST_COMMAND: undefined };
  * fixture 一式を `scripts/` 配下の使い捨てディレクトリに作る。
  * デフォルトはスタブ用（`fixture.stub.json`）。`real: true` なら、本物の vitest が実行する `fixture.test.js` を置く。
  */
-function makeFixture({ real = false, stubTests = STUB_TESTS } = {}) {
+function makeFixture({ real = false, stubTests = STUB_TESTS, sleepMs } = {}) {
   const dir = mkdtempSync(join(repoRoot, "scripts", "mutation-proof-fixture-")); // tmpdir-ok: scripts/ 配下・afterEach で消す
   dirs.push(dir);
   mkdirSync(dir, { recursive: true });
@@ -162,7 +164,7 @@ function makeFixture({ real = false, stubTests = STUB_TESTS } = {}) {
   const testName = real ? "fixture.test.js" : "fixture.stub.json";
   writeFileSync(
     join(dir, testName),
-    real ? FIXTURE_TEST : JSON.stringify({ target: "target.sh", tests: stubTests }),
+    real ? FIXTURE_TEST : JSON.stringify({ target: "target.sh", tests: stubTests, sleepMs }),
   );
   return {
     dir,
@@ -1236,7 +1238,8 @@ describe.concurrent("宣言ごとの時間", () => {
   const escapeRe = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   test("宣言ごとに時間を出し、最後に長い順の一覧を出してから集計の行で終わる", async () => {
     const a = makeFixture();
-    const b = makeFixture();
+    // 後に渡す B を遅くする。並べ替えなければ、渡した順（A が先）のままになって区別できる。
+    const b = makeFixture({ sleepMs: 500 });
     const specA = a.spec([
       mutation({ id: "A1", file: relative(repoRoot, a.target) }),
       mutation({
@@ -1254,6 +1257,9 @@ describe.concurrent("宣言ごとの時間", () => {
     expect(res.stdout).toMatch(/時間: \d+\.\d 秒（2 変異、基準 run を含む）/);
     expect(res.stdout).toMatch(/時間: \d+\.\d 秒（1 変異、基準 run を含む）/);
     const summary = res.stdout.split("宣言ごとの時間（長い順）:")[1] ?? "";
+    const at = (spec) => summary.indexOf(relative(repoRoot, spec));
+    expect(at(specB), res.stdout).toBeGreaterThanOrEqual(0);
+    expect(at(specB), "長い順に並んでいない").toBeLessThan(at(specA));
     expect(summary, res.stdout).toMatch(
       new RegExp(`\\d+\\.\\d 秒  ${escapeRe(relative(repoRoot, specA))}（2 変異）`),
     );

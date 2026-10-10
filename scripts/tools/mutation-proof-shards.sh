@@ -53,6 +53,17 @@ for arg in "$@"; do
 	*) args+=("${arg}") ;;
 	esac
 done
+# 宣言ファイルの引数は、HEAD に commit されていなければ worktree に無い。依存を入れる前に止める。
+for arg in ${args[@]+"${args[@]}"}; do
+	case "${arg}" in
+	*.mutations.json)
+		if ! git ls-files --error-unmatch -- "${arg}" >/dev/null 2>&1; then
+			echo "mutation-proof-shards: ${arg} は commit されていない（worktree は HEAD から作るので読めない）。commit してから実行する" >&2
+			exit 2
+		fi
+		;;
+	esac
+done
 if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
 	echo "mutation-proof-shards: tracked のファイルに commit していない変更がある。worktree は HEAD から作るので測られない。commit してから実行する" >&2
 	git status --short --untracked-files=no >&2
@@ -93,7 +104,9 @@ cleanup() {
 		[ "${rc}" -eq 0 ] || rc=2
 		# 子の vitest まで止めるため、setsid で起動したシャードはプロセスグループごと止める。
 		for pid in ${pids[@]+"${pids[@]}"}; do
-			if [ "${group_kill}" -eq 1 ]; then kill -- "-${pid}" 2>/dev/null || true; else kill "${pid}" 2>/dev/null || true; fi
+			# 起動の直後で setsid がまだ exec されていなければグループが無いので、pid そのものを止める（exec の前に止まる）。
+			if [ "${group_kill}" -eq 1 ] && kill -- "-${pid}" 2>/dev/null; then continue; fi
+			kill "${pid}" 2>/dev/null || true
 		done
 		for pid in ${pids[@]+"${pids[@]}"}; do wait "${pid}" 2>/dev/null || true; done
 	fi
