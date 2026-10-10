@@ -68,10 +68,12 @@ test("oxlint の ignorePatterns は、エージェント用のコピーとリン
 // 許可リストの行で前後に分ける（除外の数で分けると、除外が変わったときに許可リストの側の確認まで成り立たなくなる）。
 const oxfmtPatterns = oxfmtConfig.ignorePatterns;
 // 行の形を正規表現で探さず、設定が書き出す値と同じ文字列で探す（数字を含む拡張子でも同じに扱う）。
-const oxfmtAllowed = oxfmtPatterns.filter((p) => p === `!**/*.{${oxfmtAssigned}}`);
-const oxfmtAllowIndex = oxfmtPatterns.indexOf(oxfmtAllowed[0]);
-const oxfmtHead = oxfmtPatterns.slice(0, oxfmtAllowIndex);
-const oxfmtCopies = oxfmtPatterns.slice(oxfmtAllowIndex + 1);
+const oxfmtAllowLine = `!**/*.{${oxfmtAssigned}}`;
+const oxfmtAllowed = oxfmtPatterns.filter((p) => p === oxfmtAllowLine);
+const oxfmtAllowIndex = oxfmtPatterns.indexOf(oxfmtAllowLine);
+// 行が無ければ前後に分けられない（下のテストが行の数で失敗する）。
+const oxfmtHead = oxfmtAllowIndex < 0 ? [] : oxfmtPatterns.slice(0, oxfmtAllowIndex);
+const oxfmtCopies = oxfmtAllowIndex < 0 ? [] : oxfmtPatterns.slice(oxfmtAllowIndex + 1);
 
 test("oxfmt の ignorePatterns は、許可リストの後にエージェント用のコピーとリンクだけを除く", () => {
   // 後の行が優先されるので、コピーの除外を最後に置く（割り当てた種類でもコピーの中は除いたままにする）。
@@ -158,8 +160,9 @@ test("oxfmt の許可リストの種類は、lefthook の oxfmt-* のジョブ�
 /**
  * rel が相対パスで import するリポジトリ内のファイルを、import 先がさらに import するものまでたどって集める。
  * `from "./x"`・副作用だけの `import "./x"`・`import("./x")`・`require("./x")`・単引用符を拾う。
- * パッケージ名や `node:` の import はたどらない。コメントの中の一致もたどるが、無いファイルなら読めずに失敗するので、
- * 警告なしに見落とすことはなく、どこから来たかを示す例外になる。
+ * パッケージ名や `node:` の import はたどらない。コメントの中の一致もたどるが、無いファイルなら、どこから来たかを示す
+ * 例外になる。テンプレートリテラルや、計算したパス（`import.meta.dirname` を基にした読み込みなど）はたどらないので、
+ * oxfmt.config.ts でその形を使うときは、glob と inputs に手で足す。
  */
 function repoImports(rel, readFile = read, found = new Set(), from = null) {
   let source;
@@ -225,6 +228,8 @@ test("lefthook の formatter-scope は、整形の範囲を変えるファイル
     // ツールの版を決めるファイル（版が変わると整形する種類も変わりうる）。
     "package.json",
     "pnpm-lock.yaml",
+    // pnpm の overrides・catalog も版を変える。
+    "pnpm-workspace.yaml",
     "scripts/gates/formatter-scope.test.js",
   ];
   expect(inputs.filter((f) => !listed.includes(f))).toEqual([]);

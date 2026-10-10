@@ -53,23 +53,21 @@ const OXFMT_BODY = {
   json: '{"a":1,\n"b":   2}\n',
   yaml: "a:   1\n",
 };
-const KIND = {
-  js: "script",
-  mjs: "script",
-  cjs: "script",
-  jsx: "script",
-  ts: "script",
-  tsx: "script",
-  mts: "script",
-  cts: "script",
-  json: "json",
-  yml: "yaml",
-  yaml: "yaml",
-};
+/** 拡張子から内容の種類を導く（拡張子の一覧を assigned と別に持たない）。導けない種類は undefined。 */
+function kindOf(ext) {
+  if (/^[cm]?[jt]sx?$/.test(ext)) return "script";
+  if (ext === "json") return "json";
+  if (ext === "yml" || ext === "yaml") return "yaml";
+  return undefined;
+}
 const OXFMT_FILES = Object.fromEntries(
   OXFMT_EXTS.map((ext) => {
-    if (!KIND[ext]) throw new Error(`許可リストの .${ext} に fixture の内容が無い（KIND に足す）`);
-    return [`o.${ext}`, OXFMT_BODY[KIND[ext]]];
+    const kind = kindOf(ext);
+    if (!kind)
+      throw new Error(
+        `許可リストの .${ext} に fixture の内容が無い（kindOf と OXFMT_BODY に足す）`,
+      );
+    return [`o.${ext}`, OXFMT_BODY[kind]];
   }),
 );
 

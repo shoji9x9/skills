@@ -228,8 +228,10 @@ function readOrNull(path) {
 }
 
 /** シンボリックリンクを解決したパス real が、リポジトリ（これも解決した）の中にあるか。 */
+let realRepoRoot = null;
 function insideRepo(real) {
-  return real.startsWith(`${realpathSync(repoRoot)}/`);
+  realRepoRoot ??= realpathSync(repoRoot);
+  return real.startsWith(`${realRepoRoot}/`);
 }
 
 /** replaceContent が対象の隣に作る一時ファイルのパス。次回の起動が、中断で残ったものを同じ形で探す。 */
@@ -248,7 +250,12 @@ function removeStrayTmp(target) {
   try {
     real = realpathSync(target);
   } catch {
-    real = target; // 対象が消されていても、隣の一時ファイルは消す
+    // 対象が消されていても、隣の一時ファイルは消す。境界を正しく判定するため、親のディレクトリは解決する。
+    try {
+      real = join(realpathSync(dirname(target)), basename(target));
+    } catch {
+      return; // 親のディレクトリも無ければ、一時ファイルも無い
+    }
   }
   // シンボリックリンクを解決した先がリポジトリ外なら、そのディレクトリのファイルは消さない（植え付けた復元情報を疑う）。
   if (!insideRepo(real)) {
@@ -315,7 +322,11 @@ function replaceContent(path, data) {
     renameSync(tmp, real);
   } catch (err) {
     // 書きかけの一時ファイルを作業ツリーに残さない（消せなくても、元の例外を返す）。
-    rmSync(tmp, { force: true });
+    try {
+      rmSync(tmp, { force: true });
+    } catch {
+      /* 残った一時ファイルは、復元情報があれば次回の起動が消す */
+    }
     throw err;
   }
 }

@@ -914,15 +914,84 @@ require("node:module").syncBuiltinESMExports();
     writeFileSync(outside, "変異後\n");
     const link = join(fx.dir, "outside-link.sh");
     symlinkSync(outside, link);
+    // リンク先の隣の一時ファイルの形のファイルも消さない。
+    const outsideStray = `${outside}.mutation-proof-99999.tmp`;
+    writeFileSync(outsideStray, "x");
     writeFileSync(
       `${lock}.recovery.json`,
       JSON.stringify({ file: link, before: "植え付けた内容\n", after: "変異後\n" }),
     );
     const res = runRunner(spec, { MUTATION_PROOF_LOCK: lock });
     expect(res.status, res.out).toBe(2);
-    expect(res.out).toContain("がリポジトリ外");
+    expect(res.out).toContain("一時ファイルを探す先がリポジトリ外なので探さない");
+    expect(res.out).toContain("がリポジトリ外（シンボリックリンクの先を疑う）");
     expect(readFileSync(outside, "utf8")).toBe("変異後\n");
+    expect(existsSync(outsideStray), "リポジトリ外のファイルを消した").toBe(true);
     rmSync(`${lock}.recovery.json`, { force: true });
+  });
+
+  // 対象が消されていても、親のディレクトリを解決してから境界を判定する（解決しないと、外を指すディレクトリの
+  // リンクの下で、リポジトリ外のファイルを消しうる）。
+  test("消された対象の親がリポジトリ外を指すリンクなら、外の一時ファイルを消さない", () => {
+    const fx = makeFixture();
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    const lock = join(lockDir, "symlink-dir-outside.lock");
+    const outsideDir = join(lockDir, "outside-dir");
+    mkdirSync(outsideDir, { recursive: true });
+    const outsideStray = join(outsideDir, "gone.sh.mutation-proof-99999.tmp");
+    writeFileSync(outsideStray, "x");
+    const linkDir = join(fx.dir, "outside-dir-link");
+    symlinkSync(outsideDir, linkDir);
+    writeFileSync(
+      `${lock}.recovery.json`,
+      JSON.stringify({ file: join(linkDir, "gone.sh"), before: "a\n", after: "b\n" }),
+    );
+    const res = runRunner(spec, { MUTATION_PROOF_LOCK: lock });
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toContain("一時ファイルを探す先がリポジトリ外なので探さない");
+    expect(existsSync(outsideStray), "リポジトリ外のファイルを消した").toBe(true);
+    rmSync(`${lock}.recovery.json`, { force: true });
+  });
+
+  // 書きかけの一時ファイルを消せなくても、元の書き込みの失敗を報告する（後始末の例外で置き換えない）。
+  test("一時ファイルへの書き込みも、その後始末も失敗したら、書き込みの失敗を報告する", () => {
+    const fx = makeFixture();
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    const preload = join(fx.dir, "fault-rm.cjs");
+    writeFileSync(
+      preload,
+      `const fs = require("node:fs");
+const realWrite = fs.writeFileSync;
+const realRm = fs.rmSync;
+const prefix = process.env.FAULT_TARGET + ".mutation-proof-";
+fs.writeFileSync = function (path, ...rest) {
+  if (typeof path === "string" && path.startsWith(prefix)) {
+    const err = new Error("ENOSPC: no space left on device, write");
+    err.code = "ENOSPC";
+    throw err;
+  }
+  return realWrite.call(fs, path, ...rest);
+};
+fs.rmSync = function (path, ...rest) {
+  if (typeof path === "string" && path.startsWith(prefix)) {
+    const err = new Error("EBUSY: resource busy, unlink");
+    err.code = "EBUSY";
+    throw err;
+  }
+  return realRm.call(fs, path, ...rest);
+};
+require("node:module").syncBuiltinESMExports();
+`,
+    );
+    const res = runRunner(spec, {
+      MUTATION_PROOF_LOCK: join(lockDir, "tmp-rm-fails.lock"),
+      NODE_OPTIONS: `--require ${preload}`,
+      FAULT_TARGET: fx.target,
+    });
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toContain("G の変異を当てられない: ENOSPC");
+    expect(res.out).not.toContain("EBUSY");
+    expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
   });
 
   // 復元情報を書けないのも、変異を当てられない環境の誤りとして exit 2 にする（捕捉しないと exit 1）。

@@ -150,7 +150,7 @@
       "id": "LS-FS-VERSION",
       "why": "formatter-scope のジョブが、ツールの版を決めるファイルの変更で実行されない",
       "file": "lefthook.yml",
-      "find": "package.json,pnpm-lock.yaml,scripts/gates/formatter-scope.test.js}",
+      "find": "package.json,pnpm-lock.yaml,pnpm-workspace.yaml,scripts/gates/formatter-scope.test.js}",
       "replace": "package.json,scripts/gates/formatter-scope.test.js}",
       "occurrences": 1,
       "expect_failing": [
