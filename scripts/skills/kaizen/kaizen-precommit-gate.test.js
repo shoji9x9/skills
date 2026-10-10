@@ -77,123 +77,10 @@ function scannedPosition(stdout) {
   return { bytes: bytes?.[1], lines: lines?.[1] };
 }
 
-// **締め切りまで待つテストを持つ 2 つの describe を、ファイルの先頭に置く**（Issue #590）。
+// **使える秒数を比べるテストを持つ describe を、ファイルの先頭に置く**（Issue #590）。
 // 並べたテストは書いた順に始まるので、末尾に置くと最後に始まり、1 回の実行の律速になる（実測で 1 本 8.5 秒）。
 // 経過時間や使える秒数で判定するテストは並べない。並べると他のテストの子で CPU が混み、親が子の終了に気づくのも遅れるので、
 // チェックが正しくても上限を超える。子の側で測ると、孫プロセスがパイプを開いたままにする回帰（エージェントが待たされる）を見逃す。
-
-// エージェントは timeout に達したフックをブロックとして扱わない（Claude Code / Copilot とも、合格として扱う）。
-// チェック全体の所要時間に上限が無いと、exit 2 で止めるはずの commit が遅いときほど素通りする（Issue #492）。
-// チェックは 1 つの締め切りの内側で最後まで実行し、自セッション分までは締め切りに当たったら失敗として扱う。
-describe("チェック全体の締め切り", () => {
-  const OWN = "own-session-1";
-
-  function stubScripts(files) {
-    const scripts = cloneScripts();
-    for (const [name, body] of Object.entries(files)) {
-      writeFileSync(join(scripts, name), `#!/usr/bin/env bash\n${body}\n`);
-    }
-    return scripts;
-  }
-
-  function writeSentinel(cwd, key, transcript, stamp = "2026-09-27T06:00:00Z") {
-    writeFileSync(
-      join(cwd, ".kaizen", `.pending-extract.${key}`),
-      `${stamp}\n${transcript}\nclaude-code\n${key}\n`,
-    );
-  }
-
-  async function timedGate(options) {
-    const started = Date.now();
-    const gate = await runGate("git commit -m x", options);
-    return { gate, elapsed: Date.now() - started };
-  }
-
-  test("自セッション分の走査が締め切りに当たったら、締め切りの内側で exit 2 にする", async () => {
-    const scripts = stubScripts({ "kaizen-candidate-scan.sh": "exec sleep 30" });
-    const cwd = makeProject();
-    const transcript = join(cwd, "t.jsonl");
-    writeFileSync(transcript, "{}\n");
-    writeSentinel(cwd, OWN, transcript);
-
-    const { gate, elapsed } = await timedGate({
-      cwd,
-      transcriptPath: transcript,
-      sessionId: OWN,
-      scripts,
-      env: { KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "3" },
-    });
-    expect(gate.status, gate.stderr).toBe(2);
-    expect(gate.stderr).toMatch(/the transcript scan hit the gate deadline \(3s/);
-    expect(elapsed).toBeLessThan(3000 + 1500);
-    expect(existsSync(join(cwd, ".kaizen", `.pending-extract.${OWN}`))).toBe(true);
-  }, 15000);
-
-  // bash の SECONDS は秒の境界をまたぐと 1 ms でも 1 になる（実測）。締め切り 2 秒では残りが 0 秒になる回があり、
-  // 検査を起動せずに同じメッセージで exit 2 になるので、timeout を外す変異（GATE-STATUS-UNBOUNDED）を
-  // CI で検出できなかった。締め切りを 3 秒にし、検査が起動されたことも確かめる。
-  test("lifecycle 検査が締め切りに当たったら、締め切りの内側で exit 2 にする", async () => {
-    const cwd = makeProject();
-    const started = join(cwd, "status-check-started");
-    const scripts = stubScripts({
-      "kaizen-status-check.sh": `: > '${started}'\nexec sleep 30`,
-    });
-
-    const { gate, elapsed } = await timedGate({
-      cwd,
-      sessionId: OWN,
-      scripts,
-      env: { KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "3" },
-    });
-    expect(gate.status, gate.stderr).toBe(2);
-    expect(gate.stderr).toMatch(
-      /lifecycle 検査がチェックの締め切り（3 秒）までに終わりませんでした/,
-    );
-    expect(existsSync(started)).toBe(true);
-    expect(elapsed).toBeLessThan(3000 + 1500);
-  }, 15000);
-
-  // bash は環境変数 SECONDS を起動時の初期値として引き継ぐ。フックの親環境に export されていると、
-  // 経過時間が最初から大きくなり、毎回失敗として扱われる（PR #545 のレビュー指摘・実測）。
-  test("環境変数 SECONDS を引き継いでも経過時間は 0 から数える", async () => {
-    const cwd = makeProject();
-    const gate = await runGate("git commit -m x", { cwd, sessionId: OWN, env: { SECONDS: "100" } });
-    expect(gate.stderr).not.toMatch(/締め切り/);
-    expect(gate.status, gate.stderr).toBe(0);
-  });
-
-  test.each([["abc"], ["0"], ["1"], ["3601"], ["-5"], ["8.5"]])(
-    "不正な締め切り %s はデフォルト値に戻して知らせる",
-    async (raw) => {
-      const cwd = makeProject();
-      const gate = await runGate("git commit -m x", {
-        cwd,
-        sessionId: OWN,
-        env: { KAIZEN_PRECOMMIT_DEADLINE_SECONDS: raw },
-      });
-      expect(gate.status, gate.stderr).toBe(0);
-      expect(gate.stderr).toMatch(
-        /KAIZEN_PRECOMMIT_DEADLINE_SECONDS が不正です.*既定の 8 秒を使います/,
-      );
-    },
-  );
-
-  test.each([["2"], ["20"], ["3600"], ["08"]])(
-    "正しい締め切り %s は警告なしに受け付ける",
-    async (raw) => {
-      const cwd = makeProject();
-      const gate = await runGate("git commit -m x", {
-        cwd,
-        sessionId: OWN,
-        env: { KAIZEN_PRECOMMIT_DEADLINE_SECONDS: raw },
-      });
-      // 受け付けたかだけを見る。最小の 2 秒では lifecycle 検査の持ち時間が 1 秒しかなく、負荷の高い
-      // 並列実行では、締め切りで失敗として扱われうる（それ自体は仕様どおり）。
-      expect(gate.stderr).not.toMatch(/不正です/);
-      expect([0, 2]).toContain(gate.status);
-    },
-  );
-});
 
 // 候補が残っている他セッションのセンチネルは解消されないので、そのままだと commit のたびに同じ範囲を
 // 走査し直し、締め切りの残りを同じ結論に使い切る（Issue #492 の提案 2）。
@@ -311,7 +198,7 @@ describe.concurrent("他セッション分の走査結果の再利用", () => {
     expect(scans()).toBe(2);
   });
 
-  // 使える秒数を前回と比べるので並べない（ファイルの先頭のコメント）。
+  // 使える秒数を前回と比べるので並べない（「他セッション分の走査結果の再利用」の describe の前のコメント）。
   test.sequential("打ち切りは、前回より長く使えるときだけ走査し直す", async () => {
     const { gate, scans } = setup("exec sleep 30");
     // 使える秒数は SECONDS の境界で 1 秒揺れる。同じ締め切りの 2 回目は許容内（+1 秒）に、
@@ -1737,4 +1624,120 @@ describe.concurrent("チェックはリポジトリの全作業ツリーの .kai
     expect(inject.status, inject.stderr).toBe(0);
     expect(existsSync(marker)).toBe(true);
   });
+});
+
+// **締め切りの describe は並べず、ファイルの最後に置く**（Issue #590）。並べない理由は「他セッション分の走査結果の再利用」の describe の前のコメントにある。
+// 最初に実行すると、温まっていない状態で lifecycle 検査が遅れ、走査に回す秒数が残らずに別の理由で止まることがある
+// （先頭に置いた版で、CI の基準 run が 1 回失敗した）。変更前と同じく、他のテストの後に実行する。
+// エージェントは timeout に達したフックをブロックとして扱わない（Claude Code / Copilot とも、合格として扱う）。
+// チェック全体の所要時間に上限が無いと、exit 2 で止めるはずの commit が遅いときほど素通りする（Issue #492）。
+// チェックは 1 つの締め切りの内側で最後まで実行し、自セッション分までは締め切りに当たったら失敗として扱う。
+describe("チェック全体の締め切り", () => {
+  const OWN = "own-session-1";
+
+  function stubScripts(files) {
+    const scripts = cloneScripts();
+    for (const [name, body] of Object.entries(files)) {
+      writeFileSync(join(scripts, name), `#!/usr/bin/env bash\n${body}\n`);
+    }
+    return scripts;
+  }
+
+  function writeSentinel(cwd, key, transcript, stamp = "2026-09-27T06:00:00Z") {
+    writeFileSync(
+      join(cwd, ".kaizen", `.pending-extract.${key}`),
+      `${stamp}\n${transcript}\nclaude-code\n${key}\n`,
+    );
+  }
+
+  async function timedGate(options) {
+    const started = Date.now();
+    const gate = await runGate("git commit -m x", options);
+    return { gate, elapsed: Date.now() - started };
+  }
+
+  test("自セッション分の走査が締め切りに当たったら、締め切りの内側で exit 2 にする", async () => {
+    const scripts = stubScripts({ "kaizen-candidate-scan.sh": "exec sleep 30" });
+    const cwd = makeProject();
+    const transcript = join(cwd, "t.jsonl");
+    writeFileSync(transcript, "{}\n");
+    writeSentinel(cwd, OWN, transcript);
+
+    const { gate, elapsed } = await timedGate({
+      cwd,
+      transcriptPath: transcript,
+      sessionId: OWN,
+      scripts,
+      env: { KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "3" },
+    });
+    expect(gate.status, gate.stderr).toBe(2);
+    expect(gate.stderr).toMatch(/the transcript scan hit the gate deadline \(3s/);
+    expect(elapsed).toBeLessThan(3000 + 1500);
+    expect(existsSync(join(cwd, ".kaizen", `.pending-extract.${OWN}`))).toBe(true);
+  }, 15000);
+
+  // bash の SECONDS は秒の境界をまたぐと 1 ms でも 1 になる（実測）。締め切り 2 秒では残りが 0 秒になる回があり、
+  // 検査を起動せずに同じメッセージで exit 2 になるので、timeout を外す変異（GATE-STATUS-UNBOUNDED）を
+  // CI で検出できなかった。締め切りを 3 秒にし、検査が起動されたことも確かめる。
+  test("lifecycle 検査が締め切りに当たったら、締め切りの内側で exit 2 にする", async () => {
+    const cwd = makeProject();
+    const started = join(cwd, "status-check-started");
+    const scripts = stubScripts({
+      "kaizen-status-check.sh": `: > '${started}'\nexec sleep 30`,
+    });
+
+    const { gate, elapsed } = await timedGate({
+      cwd,
+      sessionId: OWN,
+      scripts,
+      env: { KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "3" },
+    });
+    expect(gate.status, gate.stderr).toBe(2);
+    expect(gate.stderr).toMatch(
+      /lifecycle 検査がチェックの締め切り（3 秒）までに終わりませんでした/,
+    );
+    expect(existsSync(started)).toBe(true);
+    expect(elapsed).toBeLessThan(3000 + 1500);
+  }, 15000);
+
+  // bash は環境変数 SECONDS を起動時の初期値として引き継ぐ。フックの親環境に export されていると、
+  // 経過時間が最初から大きくなり、毎回失敗として扱われる（PR #545 のレビュー指摘・実測）。
+  test("環境変数 SECONDS を引き継いでも経過時間は 0 から数える", async () => {
+    const cwd = makeProject();
+    const gate = await runGate("git commit -m x", { cwd, sessionId: OWN, env: { SECONDS: "100" } });
+    expect(gate.stderr).not.toMatch(/締め切り/);
+    expect(gate.status, gate.stderr).toBe(0);
+  });
+
+  test.each([["abc"], ["0"], ["1"], ["3601"], ["-5"], ["8.5"]])(
+    "不正な締め切り %s はデフォルト値に戻して知らせる",
+    async (raw) => {
+      const cwd = makeProject();
+      const gate = await runGate("git commit -m x", {
+        cwd,
+        sessionId: OWN,
+        env: { KAIZEN_PRECOMMIT_DEADLINE_SECONDS: raw },
+      });
+      expect(gate.status, gate.stderr).toBe(0);
+      expect(gate.stderr).toMatch(
+        /KAIZEN_PRECOMMIT_DEADLINE_SECONDS が不正です.*既定の 8 秒を使います/,
+      );
+    },
+  );
+
+  test.each([["2"], ["20"], ["3600"], ["08"]])(
+    "正しい締め切り %s は警告なしに受け付ける",
+    async (raw) => {
+      const cwd = makeProject();
+      const gate = await runGate("git commit -m x", {
+        cwd,
+        sessionId: OWN,
+        env: { KAIZEN_PRECOMMIT_DEADLINE_SECONDS: raw },
+      });
+      // 受け付けたかだけを見る。最小の 2 秒では lifecycle 検査の持ち時間が 1 秒しかなく、負荷の高い
+      // 並列実行では、締め切りで失敗として扱われうる（それ自体は仕様どおり）。
+      expect(gate.stderr).not.toMatch(/不正です/);
+      expect([0, 2]).toContain(gate.status);
+    },
+  );
 });
