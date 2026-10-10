@@ -10,7 +10,6 @@
 // 決定を 1 つも守らない。
 
 import { test, expect } from "vitest";
-import { spawnSync } from "node:child_process";
 import {
   flowItems,
   stripYamlBlocks,
@@ -18,10 +17,16 @@ import {
 import { appendFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { makeTempDir } from "../../lib/test-tmpdir.js";
+import { makeTempDirFactory } from "../../lib/test-tmpdir.js";
+import { spawnAsync } from "../../lib/spawn-async.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "skills/replace-strategy/scripts/append-only-check.mjs");
+
+// **テストは `test.concurrent` で並べて実行する**（Issue #590）。どのテストも git とチェックの子プロセスの終了を待つだけなので、
+// 並べた分だけ 1 回の実行が縮み、ミューテーションテストでは変異の数だけ反映される。
+// そのため、テストの間で状態を共有しない。fixture はテストごとに別の一時ディレクトリに作る（`tempDir`）。
+const tempDir = makeTempDirFactory("append-only-check-");
 
 const FEATURES = [
   "# 機能一覧",
@@ -148,8 +153,8 @@ const EMPTY_EXCEPTIONS = `${JSON.stringify(
  * git が使えるコミット済みのプロジェクトを作る。
  * @param {{ emptyExceptions?: boolean }} [opts]
  */
-function makeRepo(opts = {}) {
-  const root = makeTempDir("append-only-");
+async function makeRepo(opts = {}) {
+  const root = tempDir("append-only-");
   mkdirSync(join(root, ".replace/parity/order-list"), { recursive: true });
   mkdirSync(join(root, ".replace/dataset"), { recursive: true });
   writeFileSync(join(root, ".replace/features.md"), FEATURES);
@@ -169,7 +174,7 @@ function makeRepo(opts = {}) {
     ["add", "-A"],
     ["commit", "-qm", "seed"],
   ]) {
-    const r = spawnSync("git", ["-C", root, ...args], { encoding: "utf8" });
+    const r = await spawnAsync("git", ["-C", root, ...args]);
     if (r.status !== 0) throw new Error(`git ${args.join(" ")} failed: ${r.stderr}`);
   }
   return root;
@@ -179,8 +184,8 @@ function makeRepo(opts = {}) {
  * @param {string} root
  * @param {string[]} [extra]
  */
-function run(root, extra = []) {
-  const r = spawnSync(process.execPath, [script, "--root", root, ...extra], { encoding: "utf8" });
+async function run(root, extra = []) {
+  const r = await spawnAsync(process.execPath, [script, "--root", root, ...extra]);
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }
 
@@ -196,39 +201,39 @@ function writeManifest(root, artifacts) {
   return path;
 }
 
-test("誤検知しないことの確認: 追記だけなら exit 0", () => {
-  const root = makeRepo();
+test.concurrent("誤検知しないことの確認: 追記だけなら exit 0", async () => {
+  const root = await makeRepo();
   appendFileSync(join(root, ".replace/features.md"), "| order-detail | 注文詳細 | 未 | 未起票 |\n");
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("行を消して書き直すと落ちる", () => {
-  const root = makeRepo();
+test.concurrent("行を消して書き直すと落ちる", async () => {
+  const root = await makeRepo();
   writeFileSync(
     join(root, ".replace/features.md"),
     FEATURES.replace("| order-edit | 注文編集 | 未 | 未起票 |\n", ""),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/1 件（unit: markdown-structure）が失われている/);
   expect(r.stdout).toMatch(/order-edit/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("台帳ごと消すと落ちる", () => {
-  const root = makeRepo();
+test.concurrent("台帳ごと消すと落ちる", async () => {
+  const root = await makeRepo();
   rmSync(join(root, ".replace/parity/order-list/gaps.md"));
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/追記専用の成果物が消えている.*gaps\.md/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("表の桁を詰め直しただけでは落ちない（空白を畳んで突き合わせる）", () => {
-  const root = makeRepo();
+test.concurrent("表の桁を詰め直しただけでは落ちない（空白を畳んで突き合わせる）", async () => {
+  const root = await makeRepo();
   writeFileSync(
     join(root, ".replace/features.md"),
     FEATURES.replace(
@@ -236,25 +241,25 @@ test("表の桁を詰め直しただけでは落ちない（空白を畳んで�
       "|   order-list |  注文一覧  |  済 |  #11   |",
     ),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("同じ行が 2 回在ったのが 1 回に減っても落ちる（多重度を見る）", () => {
-  const root = makeRepo();
+test.concurrent("同じ行が 2 回在ったのが 1 回に減っても落ちる（多重度を見る）", async () => {
+  const root = await makeRepo();
   const path = join(root, ".replace/features.md");
   appendFileSync(path, "| order-list | 注文一覧（別ページ） | 済 | #12 |\n");
-  spawnSync("git", ["-C", root, "commit", "-qam", "dup"], { encoding: "utf8" });
+  await spawnAsync("git", ["-C", root, "commit", "-qam", "dup"]);
   writeFileSync(path, FEATURES);
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/1 件（unit: markdown-structure）が失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("追記専用の成果物が 1 件も無ければ合格として扱わない（exit 2）", () => {
-  const root = makeTempDir("append-only-empty-");
+test.concurrent("追記専用の成果物が 1 件も無ければ合格として扱わない（exit 2）", async () => {
+  const root = tempDir("append-only-empty-");
   writeFileSync(join(root, "README.md"), "x\n");
   for (const args of [
     ["init", "-q", "."],
@@ -263,35 +268,35 @@ test("追記専用の成果物が 1 件も無ければ合格として扱わな�
     ["add", "-A"],
     ["commit", "-qm", "init"],
   ]) {
-    spawnSync("git", ["-C", root, ...args], { encoding: "utf8" });
+    await spawnAsync("git", ["-C", root, ...args]);
   }
-  const r = run(root);
+  const r = await run(root);
   expect(r.stderr).toMatch(/対象 0 件を合格として扱わない/);
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("git リポジトリでなければ合格として扱わない（exit 2）", () => {
-  const root = makeTempDir("append-only-nogit-");
-  const r = run(root);
+test.concurrent("git リポジトリでなければ合格として扱わない（exit 2）", async () => {
+  const root = tempDir("append-only-nogit-");
+  const r = await run(root);
   expect(r.stderr).toMatch(/git リポジトリではない/);
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("比較元に無い新規ファイルは縮んでいないものとして扱う", () => {
-  const root = makeRepo();
+test.concurrent("比較元に無い新規ファイルは縮んでいないものとして扱う", async () => {
+  const root = await makeRepo();
   writeFileSync(join(root, ".replace/components.md"), "# 共通部品\n\n| slug | 部品 |\n|---|---|\n");
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/新規（比較元 HEAD に無い）: \.replace\/components\.md/);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("リポジトリの一階層下を --root に渡しても突き合わせが成立する", () => {
+test.concurrent("リポジトリの一階層下を --root に渡しても突き合わせが成立する", async () => {
   // ls-tree の既定は cwd 相対、`git show <rev>:<path>` はトップレベル起点。揃えないと全件が
   // 誤って「比較元に無い＝新規」と判定され、行を消しても「比較元に在る成果物が 0 件」で落ちる（原因が別物に見える）。
-  const repo = makeTempDir("append-only-subdir-");
+  const repo = tempDir("append-only-subdir-");
   mkdirSync(join(repo, "app/.replace/parity/order-list"), { recursive: true });
   writeFileSync(join(repo, "README.md"), "x\n");
   writeFileSync(join(repo, "app/.replace/features.md"), FEATURES);
@@ -303,14 +308,14 @@ test("リポジトリの一階層下を --root に渡しても突き合わせが
     ["add", "-A"],
     ["commit", "-qm", "seed"],
   ]) {
-    const r = spawnSync("git", ["-C", repo, ...args], { encoding: "utf8" });
+    const r = await spawnAsync("git", ["-C", repo, ...args]);
     if (r.status !== 0) throw new Error(`git ${args.join(" ")} failed: ${r.stderr}`);
   }
   const root = join(repo, "app");
 
   // 誤検知しないことの確認: 追記だけなら通る（「常に落とす」実装と区別する）。
   appendFileSync(join(root, ".replace/features.md"), "| order-detail | 注文詳細 | 未 | 未起票 |\n");
-  const ok = run(root);
+  const ok = await run(root);
   expect(ok.stdout).toMatch(/比較元にも在る 2 件を突き合わせた/);
   expect(ok.status).toBe(0);
 
@@ -319,15 +324,15 @@ test("リポジトリの一階層下を --root に渡しても突き合わせが
     join(root, ".replace/features.md"),
     FEATURES.replace("| order-edit | 注文編集 | 未 | 未起票 |\n", ""),
   );
-  const ng = run(root);
+  const ng = await run(root);
   expect(ng.stdout).toMatch(/1 件（unit: markdown-structure）が失われている/);
   expect(ng.stdout).toMatch(/order-edit/);
   expect(ng.status).toBe(1);
   rmSync(repo, { recursive: true, force: true });
 });
 
-test("比較元に在る追記専用の成果物が 0 件なら合格として扱わない（突き合わせが成立していない）", () => {
-  const root = makeTempDir("append-only-uncommitted-");
+test.concurrent("比較元に在る追記専用の成果物が 0 件なら合格として扱わない（突き合わせが成立していない）", async () => {
+  const root = tempDir("append-only-uncommitted-");
   writeFileSync(join(root, "README.md"), "x\n");
   for (const args of [
     ["init", "-q", "."],
@@ -336,19 +341,19 @@ test("比較元に在る追記専用の成果物が 0 件なら合格として�
     ["add", "README.md"],
     ["commit", "-qm", "init"],
   ]) {
-    spawnSync("git", ["-C", root, ...args], { encoding: "utf8" });
+    await spawnAsync("git", ["-C", root, ...args]);
   }
   // 成果物は作業ツリーにあるが 1 度もコミットされていない（比較元 HEAD に無い）。
   mkdirSync(join(root, ".replace"), { recursive: true });
   writeFileSync(join(root, ".replace/features.md"), FEATURES);
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/比較元 HEAD に在る追記専用の成果物が 0 件/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("原本が求めるその場の更新（状態列 未→済・Issue 列 未起票→番号・最終更新）は縮小にしない", () => {
-  const root = makeRepo();
+test.concurrent("原本が求めるその場の更新（状態列 未→済・Issue 列 未起票→番号・最終更新）は縮小にしない", async () => {
+  const root = await makeRepo();
   writeFileSync(
     join(root, ".replace/features.md"),
     FEATURES.replace(
@@ -356,14 +361,14 @@ test("原本が求めるその場の更新（状態列 未→済・Issue 列 未
       "| order-edit | 注文編集 | 済 | #42 |",
     ).replace("- 最終更新: 2026-09-01T00:00:00Z", "- 最終更新: 2026-09-17T00:00:00Z"),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("列を足す非破壊更新は縮小にしない（区切り行の桁も変わる）", () => {
-  const root = makeRepo();
+test.concurrent("列を足す非破壊更新は縮小にしない（区切り行の桁も変わる）", async () => {
+  const root = await makeRepo();
   writeFileSync(
     join(root, ".replace/features.md"),
     FEATURES.replace(
@@ -377,35 +382,35 @@ test("列を足す非破壊更新は縮小にしない（区切り行の桁も�
         "| order-edit | 注文編集 | 未 | 未起票 | |",
       ),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("列を消すと落ちる（markdown-structure でも列は守る）", () => {
-  const root = makeRepo();
+test.concurrent("列を消すと落ちる（markdown-structure でも列は守る）", async () => {
+  const root = await makeRepo();
   writeFileSync(
     join(root, ".replace/features.md"),
     FEATURES.replace("| slug | 名前 | 状態 | Issue |", "| slug | 名前 | 状態 |"),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/Issue/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("見出しを消すと落ちる（節に属する単位もまとめて失われる）", () => {
-  const root = makeRepo();
+test.concurrent("見出しを消すと落ちる（節に属する単位もまとめて失われる）", async () => {
+  const root = await makeRepo();
   writeFileSync(join(root, ".replace/features.md"), FEATURES.replace("# 機能一覧\n", ""));
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/H:機能一覧/);
   expect(r.stdout).toMatch(/（unit: markdown-structure）が失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("dataset の version を上げて changes を追記しても縮小にしない（json-arrays）", () => {
-  const root = makeRepo();
+test.concurrent("dataset の version を上げて changes を追記しても縮小にしない（json-arrays）", async () => {
+  const root = await makeRepo();
   writeFileSync(
     join(root, ".replace/dataset/metadata.json"),
     `${JSON.stringify(
@@ -420,27 +425,27 @@ test("dataset の version を上げて changes を追記しても縮小にしな
       2,
     )}\n`,
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("dataset の過去の changes 要素を書き換えると落ちる（json-arrays で検出されることの確認）", () => {
-  const root = makeRepo();
+test.concurrent("dataset の過去の changes 要素を書き換えると落ちる（json-arrays で検出されることの確認）", async () => {
+  const root = await makeRepo();
   writeFileSync(
     join(root, ".replace/dataset/metadata.json"),
     `${JSON.stringify({ version: 2, changes: [{ version: 2, affects: ["invoices"] }] }, null, 2)}\n`,
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/1 件（unit: json-arrays）が失われている/);
   expect(r.stdout).toMatch(/changes\|/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("空の例外台帳へ最初の承認を追記しても縮小にしない", () => {
-  const root = makeRepo({ emptyExceptions: true });
+test.concurrent("空の例外台帳へ最初の承認を追記しても縮小にしない", async () => {
+  const root = await makeRepo({ emptyExceptions: true });
   writeFileSync(
     join(root, ".replace/parity/order-list/component-diff-exceptions.json"),
     `${JSON.stringify(
@@ -468,57 +473,57 @@ test("空の例外台帳へ最初の承認を追記しても縮小にしない",
       2,
     )}\n`,
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("一覧の unit が語彙外なら合格として扱わない（exit 2）", () => {
-  const root = makeRepo();
+test.concurrent("一覧の unit が語彙外なら合格として扱わない（exit 2）", async () => {
+  const root = await makeRepo();
   const manifest = writeManifest(root, [
     { id: "features", pattern: ".replace/features.md", unit: "diff" },
   ]);
-  const r = run(root, ["--manifest", manifest]);
+  const r = await run(root, ["--manifest", manifest]);
   expect(r.stderr).toMatch(/unit が語彙外/);
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("unit が json-arrays なのに arrays が空なら合格として扱わない（exit 2）", () => {
-  const root = makeRepo();
+test.concurrent("unit が json-arrays なのに arrays が空なら合格として扱わない（exit 2）", async () => {
+  const root = await makeRepo();
   const manifest = writeManifest(root, [
     { id: "dataset", pattern: ".replace/dataset/metadata.json", unit: "json-arrays", arrays: [] },
   ]);
-  const r = run(root, ["--manifest", manifest]);
+  const r = await run(root, ["--manifest", manifest]);
   expect(r.stderr).toMatch(/json-arrays なのに arrays が空/);
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("同じファイルに突き合わせ方の違う項目が当たれば合格として扱わない（exit 2）", () => {
-  const root = makeRepo();
+test.concurrent("同じファイルに突き合わせ方の違う項目が当たれば合格として扱わない（exit 2）", async () => {
+  const root = await makeRepo();
   const manifest = writeManifest(root, [
     { id: "features-lines", pattern: ".replace/features.md", unit: "lines" },
     { id: "features-structure", pattern: ".replace/*.md", unit: "markdown-structure" },
   ]);
-  const r = run(root, ["--manifest", manifest]);
+  const r = await run(root, ["--manifest", manifest]);
   expect(r.stderr).toMatch(/突き合わせ方の違う一覧の項目が当たっている/);
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("json-arrays の対象が JSON として不正なら合格として扱わない（exit 2）", () => {
-  const root = makeRepo();
+test.concurrent("json-arrays の対象が JSON として不正なら合格として扱わない（exit 2）", async () => {
+  const root = await makeRepo();
   writeFileSync(join(root, ".replace/dataset/metadata.json"), "{ broken\n");
-  const r = run(root);
+  const r = await run(root);
   expect(r.stderr).toMatch(/JSON として読めない/);
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("unit を持たない旧い一覧は lines として読む（後方互換）", () => {
-  const root = makeRepo();
+test.concurrent("unit を持たない旧い一覧は lines として読む（後方互換）", async () => {
+  const root = await makeRepo();
   const manifest = writeManifest(root, [{ id: "features", pattern: ".replace/features.md" }]);
   // 状態列のその場の更新は lines では縮小になる（unit 既定が lines であることの証拠）。
   writeFileSync(
@@ -528,56 +533,56 @@ test("unit を持たない旧い一覧は lines として読む（後方互換�
       "| order-edit | 注文編集 | 済 | #42 |",
     ),
   );
-  const r = run(root, ["--manifest", manifest]);
+  const r = await run(root, ["--manifest", manifest]);
   expect(r.stdout).toMatch(/1 件（unit: lines）が失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("比較元の木に在るのに内容を取り出せなければ合格として扱わない（exit 2）", () => {
+test.concurrent("比較元の木に在るのに内容を取り出せなければ合格として扱わない（exit 2）", async () => {
   // gitlink（サブモジュール相当）は ls-tree に名前が出るのに `git show <rev>:<path>` が失敗する。
   // これを「比較元に無い＝新規」として扱うと、一部だけ取り出せないときに縮小が数えられないまま素通りする。
-  const root = makeRepo();
+  const root = await makeRepo();
   /** @param {string[]} args */
-  const g = (args) => spawnSync("git", ["-C", root, ...args], { encoding: "utf8" });
-  g([
+  const g = async (args) => await spawnAsync("git", ["-C", root, ...args]);
+  await g([
     "update-index",
     "--add",
     "--cacheinfo",
     "160000,0000000000000000000000000000000000000001,.replace/parity/sub/gaps.md",
   ]);
-  const tree = g(["write-tree"]).stdout.trim();
-  const head = g(["rev-parse", "HEAD"]).stdout.trim();
-  const commit = g(["commit-tree", tree, "-p", head, "-m", "link"]).stdout.trim();
+  const tree = (await g(["write-tree"])).stdout.trim();
+  const head = (await g(["rev-parse", "HEAD"])).stdout.trim();
+  const commit = (await g(["commit-tree", tree, "-p", head, "-m", "link"])).stdout.trim();
   expect(commit).toMatch(/^[0-9a-f]{40}$/);
-  g(["update-ref", "HEAD", commit]);
-  const r = run(root);
+  await g(["update-ref", "HEAD", commit]);
+  const r = await run(root);
   expect(r.stderr).toMatch(/木に在るのに内容を取り出せない/);
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("例外の間で承認記録を入れ替えると落ちる（要素の同一性は深い等価で取る）", () => {
+test.concurrent("例外の間で承認記録を入れ替えると落ちる（要素の同一性は深い等価で取る）", async () => {
   // 行の多重集合では approved_at の 2 行が保たれて素通りする。どの例外を誰がいつ承認したかが入れ替わる。
-  const root = makeRepo();
+  const root = await makeRepo();
   const path = join(root, ".replace/parity/order-list/component-diff-exceptions.json");
   const doc = JSON.parse(readFileSync(path, "utf8"));
   const [a, b] = doc.component_diff_exceptions;
   [a.approved_at, b.approved_at] = [b.approved_at, a.approved_at];
   writeFileSync(path, `${JSON.stringify(doc, null, 2)}\n`);
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/2 件（unit: json-arrays）が失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("未測定の項目を消すと落ちる（gaps.md を触らなくても捕まる）", () => {
-  const root = makeRepo();
+test.concurrent("未測定の項目を消すと落ちる（gaps.md を触らなくても捕まる）", async () => {
+  const root = await makeRepo();
   const path = join(root, ".replace/parity/order-list/metadata.json");
   const doc = JSON.parse(readFileSync(path, "utf8"));
   doc.unmeasured.entries = doc.unmeasured.entries.filter((e) => e.item !== "モバイル幅");
   writeFileSync(path, `${JSON.stringify(doc, null, 2)}\n`);
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(
     /unmeasured\.entries の要素が失われている（item=モバイル幅: 比較元 1 件 → 現在 0 件）/,
   );
@@ -585,8 +590,8 @@ test("未測定の項目を消すと落ちる（gaps.md を触らなくても捕
   rmSync(root, { recursive: true, force: true });
 });
 
-test("未測定の blocking → accepted（承認の追記）は正規の遷移なので通す", () => {
-  const root = makeRepo();
+test.concurrent("未測定の blocking → accepted（承認の追記）は正規の遷移なので通す", async () => {
+  const root = await makeRepo();
   const path = join(root, ".replace/parity/order-list/metadata.json");
   const doc = JSON.parse(readFileSync(path, "utf8"));
   const entry = doc.unmeasured.entries[1];
@@ -594,37 +599,37 @@ test("未測定の blocking → accepted（承認の追記）は正規の遷移�
   entry.approved_by = "user";
   entry.approved_at = "2026-09-17T00:00:00Z";
   writeFileSync(path, `${JSON.stringify(doc, null, 2)}\n`);
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("key を宣言した配列の要素に鍵が無ければ合格として扱わない（exit 2）", () => {
-  const root = makeRepo();
+test.concurrent("key を宣言した配列の要素に鍵が無ければ合格として扱わない（exit 2）", async () => {
+  const root = await makeRepo();
   const path = join(root, ".replace/parity/order-list/metadata.json");
   const doc = JSON.parse(readFileSync(path, "utf8"));
   doc.unmeasured.entries[0].item = "";
   writeFileSync(path, `${JSON.stringify(doc, null, 2)}\n`);
-  const r = run(root);
+  const r = await run(root);
   expect(r.stderr).toMatch(/空でない文字列の item が無い/);
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("unit が json-arrays でないのに key があれば合格として扱わない（exit 2）", () => {
-  const root = makeRepo();
+test.concurrent("unit が json-arrays でないのに key があれば合格として扱わない（exit 2）", async () => {
+  const root = await makeRepo();
   const manifest = writeManifest(root, [
     { id: "features", pattern: ".replace/features.md", unit: "markdown-structure", key: "item" },
   ]);
-  const r = run(root, ["--manifest", manifest]);
+  const r = await run(root, ["--manifest", manifest]);
   expect(r.stderr).toMatch(/unit が markdown-structure なのに key がある/);
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("決定行の非鍵セルを書き換えると落ちる（鍵だけを残す書き換えを通さない）", () => {
-  const root = makeRepo();
+test.concurrent("決定行の非鍵セルを書き換えると落ちる（鍵だけを残す書き換えを通さない）", async () => {
+  const root = await makeRepo();
   writeFileSync(
     join(root, ".replace/assets.md"),
     ASSETS.replace(
@@ -632,15 +637,15 @@ test("決定行の非鍵セルを書き換えると落ちる（鍵だけを残�
       "| ロゴ | `logo.svg` | 同等物を作る | - | 有効 | 2026-09-17・order | 再配布不可のため |",
     ),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/（unit: markdown-structure）が失われている/);
   expect(r.stdout).toMatch(/ロゴ@0\|/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("assets.md の 状態 列は原本が更新を定めているので通す（mutable_columns）", () => {
-  const root = makeRepo();
+test.concurrent("assets.md の 状態 列は原本が更新を定めているので通す（mutable_columns）", async () => {
+  const root = await makeRepo();
   writeFileSync(
     join(root, ".replace/assets.md"),
     ASSETS.replace(
@@ -648,14 +653,14 @@ test("assets.md の 状態 列は原本が更新を定めているので通す�
       "| ロゴ | `logo.png` | 実体をコピーする | 取り消し済み（2026-09-17 → 下の行） |",
     ),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("承認済みの未測定項目の承認日時を差し替えると落ちる（fill_only は空 → 非空だけ）", () => {
-  const root = makeRepo();
+test.concurrent("承認済みの未測定項目の承認日時を差し替えると落ちる（fill_only は空 → 非空だけ）", async () => {
+  const root = await makeRepo();
   const path = join(root, ".replace/parity/order-list/metadata.json");
   const doc = JSON.parse(readFileSync(path, "utf8"));
   const entry = doc.unmeasured.entries[1];
@@ -663,45 +668,45 @@ test("承認済みの未測定項目の承認日時を差し替えると落ち�
   entry.approved_by = "user";
   entry.approved_at = "2026-09-17T00:00:00Z";
   writeFileSync(path, `${JSON.stringify(doc, null, 2)}\n`);
-  const g = (args) => spawnSync("git", ["-C", root, ...args], { encoding: "utf8" });
-  g(["commit", "-qam", "approve"]);
+  const g = async (args) => await spawnAsync("git", ["-C", root, ...args]);
+  await g(["commit", "-qam", "approve"]);
   // ここまでが正規の遷移。以降は承認記録の差し替え。
   entry.approved_by = "someone-else";
   entry.approved_at = "2026-01-01T00:00:00Z";
   writeFileSync(path, `${JSON.stringify(doc, null, 2)}\n`);
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/approved_by が空でない値から書き換えられている/);
   expect(r.stdout).toMatch(/approved_at が空でない値から書き換えられている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("未測定項目の理由を書き換えると落ちる（鍵以外はデフォルトで不変）", () => {
-  const root = makeRepo();
+test.concurrent("未測定項目の理由を書き換えると落ちる（鍵以外はデフォルトで不変）", async () => {
+  const root = await makeRepo();
   const path = join(root, ".replace/parity/order-list/metadata.json");
   const doc = JSON.parse(readFileSync(path, "utf8"));
   doc.unmeasured.entries[0].reason = "別の理由に差し替えた";
   writeFileSync(path, `${JSON.stringify(doc, null, 2)}\n`);
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/reason が書き換えられている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("宣言に無い disposition の遷移は落ちる", () => {
-  const root = makeRepo();
+test.concurrent("宣言に無い disposition の遷移は落ちる", async () => {
+  const root = await makeRepo();
   const path = join(root, ".replace/parity/order-list/metadata.json");
   const doc = JSON.parse(readFileSync(path, "utf8"));
   doc.unmeasured.entries[0].disposition = "measured";
   writeFileSync(path, `${JSON.stringify(doc, null, 2)}\n`);
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/disposition が宣言に無い遷移で書き換えられている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("transitions の表記が <変更前>-><変更後> でなければ合格として扱わない（exit 2）", () => {
-  const root = makeRepo();
+test.concurrent("transitions の表記が <変更前>-><変更後> でなければ合格として扱わない（exit 2）", async () => {
+  const root = await makeRepo();
   const manifest = writeManifest(root, [
     {
       id: "parity-unmeasured",
@@ -712,14 +717,14 @@ test("transitions の表記が <変更前>-><変更後> でなければ合格と
       transitions: { disposition: ["blocking accepted"] },
     },
   ]);
-  const r = run(root, ["--manifest", manifest]);
+  const r = await run(root, ["--manifest", manifest]);
   expect(r.stderr).toMatch(/<変更前>-><変更後> の形でない/);
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("key が無いのに fill_only を宣言したら合格として扱わない（exit 2）", () => {
-  const root = makeRepo();
+test.concurrent("key が無いのに fill_only を宣言したら合格として扱わない（exit 2）", async () => {
+  const root = await makeRepo();
   const manifest = writeManifest(root, [
     {
       id: "dataset",
@@ -729,15 +734,15 @@ test("key が無いのに fill_only を宣言したら合格として扱わな�
       fill_only: ["affects"],
     },
   ]);
-  const r = run(root, ["--manifest", manifest]);
+  const r = await run(root, ["--manifest", manifest]);
   expect(r.stderr).toMatch(/key が無いのに fill_only がある/);
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("同じ鍵の 2 行の間でセルを入れ替えると落ちる（重複鍵で対応を失わない）", () => {
+test.concurrent("同じ鍵の 2 行の間でセルを入れ替えると落ちる（重複鍵で対応を失わない）", async () => {
   // assets.md は方針を覆した行と現在の行が同じ「種類」で 2 行並ぶ（原本が想定する形）。
-  const root = makeRepo();
+  const root = await makeRepo();
   const rowA =
     "| ロゴ | `logo.png` | 実体をコピーする | - | 有効 | 2026-09-01・setup | 再配布可を確認済み |";
   const rowB =
@@ -747,7 +752,7 @@ test("同じ鍵の 2 行の間でセルを入れ替えると落ちる（重複�
     rowB,
   );
   writeFileSync(join(root, ".replace/assets.md"), base);
-  spawnSync("git", ["-C", root, "commit", "-qam", "two-logo-rows"], { encoding: "utf8" });
+  await spawnAsync("git", ["-C", root, "commit", "-qam", "two-logo-rows"]);
   // 行の中身だけを入れ替える（どちらの行も「ロゴ」のまま＝鍵は不変、決定の帰属だけが変わる）。
   const swapped = base.split("\n");
   const a = swapped.indexOf(rowA);
@@ -757,15 +762,15 @@ test("同じ鍵の 2 行の間でセルを入れ替えると落ちる（重複�
   swapped[a] = rowB;
   swapped[b] = rowA;
   writeFileSync(join(root, ".replace/assets.md"), swapped.join("\n"));
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/（unit: markdown-structure）が失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("方針を覆す正規の手順（状態・宣言・理由を更新して新しい行を追記）は通す", () => {
+test.concurrent("方針を覆す正規の手順（状態・宣言・理由を更新して新しい行を追記）は通す", async () => {
   // 原本: replace-strategy の references/static-assets.md「覆したときの手順」。
-  const root = makeRepo();
+  const root = await makeRepo();
   const old =
     "| ロゴ | `logo.png` | 実体をコピーする | - | 有効 | 2026-09-01・setup | 再配布可を確認済み |";
   const revoked =
@@ -773,27 +778,27 @@ test("方針を覆す正規の手順（状態・宣言・理由を更新して�
   const appended =
     "| ロゴ | `logo.svg` | 同等物を作る | ロゴを図形で描き直す（縁と曲線の差は残る） | 有効 | 2026-09-18・order | 再配布不可のため |";
   writeFileSync(join(root, ".replace/assets.md"), ASSETS.replace(old, `${revoked}\n${appended}`));
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("決定の中身にあたる箇条書きの値を書き換えると落ちる", () => {
-  const root = makeRepo();
+test.concurrent("決定の中身にあたる箇条書きの値を書き換えると落ちる", async () => {
+  const root = await makeRepo();
   writeFileSync(
     join(root, ".replace/dependencies.md"),
     DEPENDENCIES.replace("- ライセンス: MIT", "- ライセンス: GPL"),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/（unit: markdown-structure）が失われている/);
   expect(r.stdout).toMatch(/ライセンス/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("原本が更新を定めている箇条書き（最終更新・方針の所在）は通す", () => {
-  const root = makeRepo();
+test.concurrent("原本が更新を定めている箇条書き（最終更新・方針の所在）は通す", async () => {
+  const root = await makeRepo();
   writeFileSync(
     join(root, ".replace/dependencies.md"),
     DEPENDENCIES.replace(
@@ -801,14 +806,14 @@ test("原本が更新を定めている箇条書き（最終更新・方針の�
       "- 最終更新: 2026-09-18T00:00:00Z",
     ).replace("- 方針の所在: 未確認", "- 方針の所在: 無し（ユーザー確認済み・2026-09-18）"),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("unit が json-arrays なのに mutable_bullets があれば合格として扱わない（exit 2）", () => {
-  const root = makeRepo();
+test.concurrent("unit が json-arrays なのに mutable_bullets があれば合格として扱わない（exit 2）", async () => {
+  const root = await makeRepo();
   const manifest = writeManifest(root, [
     {
       id: "dataset",
@@ -818,7 +823,7 @@ test("unit が json-arrays なのに mutable_bullets があれば合格として
       mutable_bullets: ["最終更新"],
     },
   ]);
-  const r = run(root, ["--manifest", manifest]);
+  const r = await run(root, ["--manifest", manifest]);
   expect(r.stderr).toMatch(
     /json-arrays なのに mutable_columns \/ fill_only_columns \/ mutable_bullets \/ mutable_blocks \/ growable_containers \/ registry_groups がある/,
   );
@@ -826,8 +831,8 @@ test("unit が json-arrays なのに mutable_bullets があれば合格として
   rmSync(root, { recursive: true, force: true });
 });
 
-test("unit が lines なのに mutable_bullets があれば合格として扱わない（exit 2）", () => {
-  const root = makeRepo();
+test.concurrent("unit が lines なのに mutable_bullets があれば合格として扱わない（exit 2）", async () => {
+  const root = await makeRepo();
   const manifest = writeManifest(root, [
     {
       id: "project-config",
@@ -836,7 +841,7 @@ test("unit が lines なのに mutable_bullets があれば合格として扱わ
       mutable_bullets: ["最終更新"],
     },
   ]);
-  const r = run(root, ["--manifest", manifest]);
+  const r = await run(root, ["--manifest", manifest]);
   expect(r.stderr).toMatch(/unit が lines なのに mutable_bullets がある/);
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
@@ -844,8 +849,8 @@ test("unit が lines なのに mutable_bullets があれば合格として扱わ
 
 // Issue #404: 同じ id を持つ項目が同じファイルに当たると、突き合わせ方が割れていても
 // 先勝ちで無音に決まっていた（`assign` の id 一致による早期 return が整合性検査を飛ばしていた）。
-test("一覧の id が重複していれば合格として扱わない（exit 2）", () => {
-  const root = makeRepo();
+test.concurrent("一覧の id が重複していれば合格として扱わない（exit 2）", async () => {
+  const root = await makeRepo();
   const manifest = writeManifest(root, [
     // 緩い方（Issue 列を書き換えてよい）を先に置く。先勝ちだとこちらが無音で採られる。
     {
@@ -861,14 +866,14 @@ test("一覧の id が重複していれば合格として扱わない（exit 2�
       mutable_columns: [],
     },
   ]);
-  const r = run(root, ["--manifest", manifest]);
+  const r = await run(root, ["--manifest", manifest]);
   expect(r.stderr).toMatch(/artifacts\[1\] の id が一覧の中で重複している: shared/);
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("id が違えば突き合わせ方の食い違いは従来どおり落ちる（対照）", () => {
-  const root = makeRepo();
+test.concurrent("id が違えば突き合わせ方の食い違いは従来どおり落ちる（対照）", async () => {
+  const root = await makeRepo();
   const manifest = writeManifest(root, [
     {
       id: "weak-rule",
@@ -883,14 +888,14 @@ test("id が違えば突き合わせ方の食い違いは従来どおり落ち�
       mutable_columns: [],
     },
   ]);
-  const r = run(root, ["--manifest", manifest]);
+  const r = await run(root, ["--manifest", manifest]);
   expect(r.stderr).toMatch(/同じファイルに突き合わせ方の違う一覧の項目が当たっている/);
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("id が一意で突き合わせ方も同じなら、同じファイルに 2 項目が当たっても通る（誤検知しないことの確認）", () => {
-  const root = makeRepo();
+test.concurrent("id が一意で突き合わせ方も同じなら、同じファイルに 2 項目が当たっても通る（誤検知しないことの確認）", async () => {
+  const root = await makeRepo();
   const manifest = writeManifest(root, [
     {
       id: "features-a",
@@ -906,7 +911,7 @@ test("id が一意で突き合わせ方も同じなら、同じファイルに 2
     },
   ]);
   appendFileSync(join(root, ".replace/features.md"), "| order-detail | 注文詳細 | 未 | 未起票 |\n");
-  const r = run(root, ["--manifest", manifest]);
+  const r = await run(root, ["--manifest", manifest]);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
@@ -954,12 +959,12 @@ const PENDING_BLOCK = [
  * @param {string} root
  * @param {string} message
  */
-function commit(root, message) {
+async function commit(root, message) {
   for (const args of [
     ["add", "-A"],
     ["commit", "-qm", message],
   ]) {
-    const r = spawnSync("git", ["-C", root, ...args], { encoding: "utf8" });
+    const r = await spawnAsync("git", ["-C", root, ...args]);
     if (r.status !== 0) throw new Error(`git ${args.join(" ")} failed: ${r.stderr}`);
   }
 }
@@ -986,39 +991,39 @@ function writeConfig(root, text) {
  * 設定ファイルを持つプロジェクトを作る（比較元にも在る状態で commit 済み）。
  * @param {string} [text]
  */
-function makeConfigRepo(text = CONFIG) {
-  const root = makeRepo();
+async function makeConfigRepo(text = CONFIG) {
+  const root = await makeRepo();
   mkdirSync(join(root, ".config/skills/acme"), { recursive: true });
   writeConfig(root, text);
-  commit(root, "config");
+  await commit(root, "config");
   return root;
 }
 
 /** pending に 1 件積んだ状態を比較元にする。 */
-function makeConfigRepoWithPending() {
-  const root = makeConfigRepo();
+async function makeConfigRepoWithPending() {
+  const root = await makeConfigRepo();
   writeConfig(
     root,
     readConfig(root).replace("      pending: [] # 保留（測定結果で決める）\n", PENDING_BLOCK),
   );
-  commit(root, "pending に 1 件");
+  await commit(root, "pending に 1 件");
   return root;
 }
 
-test("空リストのキーへ最初の要素をブロック形式で足しても縮小に数えない（Issue #426）", () => {
-  const root = makeConfigRepo();
+test.concurrent("空リストのキーへ最初の要素をブロック形式で足しても縮小に数えない（Issue #426）", async () => {
+  const root = await makeConfigRepo();
   writeConfig(
     root,
     readConfig(root).replace("      pending: [] # 保留（測定結果で決める）\n", PENDING_BLOCK),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("フロー形式のコンテナへ要素を足した行の書き換えは縮小に数えない（Issue #426）", () => {
-  const root = makeConfigRepo();
+test.concurrent("フロー形式のコンテナへ要素を足した行の書き換えは縮小に数えない（Issue #426）", async () => {
+  const root = await makeConfigRepo();
   writeConfig(
     root,
     readConfig(root).replace(
@@ -1026,14 +1031,14 @@ test("フロー形式のコンテナへ要素を足した行の書き換えは�
       '      may_change: ["新しい宣言"] # 変えてよい（例: ディレクトリ・ファイル名）',
     ),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("棚卸しで pending の要素を keep へ移しても縮小に数えない（Issue #426）", () => {
-  const root = makeConfigRepoWithPending();
+test.concurrent("棚卸しで pending の要素を keep へ移しても縮小に数えない（Issue #426）", async () => {
+  const root = await makeConfigRepoWithPending();
   writeConfig(
     root,
     readConfig(root)
@@ -1043,42 +1048,42 @@ test("棚卸しで pending の要素を keep へ移しても縮小に数えな�
       )
       .replace(PENDING_BLOCK, "      pending: [] # 保留（測定結果で決める）\n"),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("pending の要素の中身を書き換えても通る（配下は単位から外れている）", () => {
-  const root = makeConfigRepoWithPending();
+test.concurrent("pending の要素の中身を書き換えても通る（配下は単位から外れている）", async () => {
+  const root = await makeConfigRepoWithPending();
   writeConfig(
     root,
     readConfig(root).replace("added_by: replace-strategy", "added_by: parity-suite"),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("pending をキーごと消せば落ちる（鍵の存在は別の単位で守る）", () => {
-  const root = makeConfigRepoWithPending();
+test.concurrent("pending をキーごと消せば落ちる（鍵の存在は別の単位で守る）", async () => {
+  const root = await makeConfigRepoWithPending();
   writeConfig(root, readConfig(root).replace(PENDING_BLOCK, ""));
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/<registry: skills\.replace-strategy\.intentional_diffs\.pending>/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("棚卸しを経ずに pending の要素を消せば落ちる（削除の検出主体を検査が持つ）", () => {
+test.concurrent("棚卸しを経ずに pending の要素を消せば落ちる（削除の検出主体を検査が持つ）", async () => {
   // 配下を単位から外すだけだと、keep へ移さず丸ごと消した編集が通る。
   // pending-triage-check.mjs は「現在の pending」を母集合にするので、消えた要素は対象にならない。
-  const root = makeConfigRepoWithPending();
+  const root = await makeConfigRepoWithPending();
   writeConfig(
     root,
     readConfig(root).replace(PENDING_BLOCK, "      pending: [] # 保留（測定結果で決める）\n"),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/<registry-item: intentional-diffs> 一覧の並び順が変わる/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -1100,13 +1105,13 @@ const MATCH_PENDING_BLOCK = [
   "",
 ].join("\n");
 
-test("match を持つ pending の要素を match ごと may_change へ移しても縮小に数えない", () => {
-  const root = makeConfigRepo();
+test.concurrent("match を持つ pending の要素を match ごと may_change へ移しても縮小に数えない", async () => {
+  const root = await makeConfigRepo();
   writeConfig(
     root,
     readConfig(root).replace("      pending: [] # 保留（測定結果で決める）\n", MATCH_PENDING_BLOCK),
   );
-  commit(root, "match 付きの pending");
+  await commit(root, "match 付きの pending");
   writeConfig(
     root,
     readConfig(root)
@@ -1121,14 +1126,14 @@ test("match を持つ pending の要素を match ごと may_change へ移して�
       )
       .replace(MATCH_PENDING_BLOCK, "      pending: [] # 保留（測定結果で決める）\n"),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("散文だけの keep の要素に match を書き足しても縮小に数えない（単位は item）", () => {
-  const root = makeConfigRepo();
+test.concurrent("散文だけの keep の要素に match を書き足しても縮小に数えない（単位は item）", async () => {
+  const root = await makeConfigRepo();
   writeConfig(
     root,
     readConfig(root).replace(
@@ -1141,19 +1146,19 @@ test("散文だけの keep の要素に match を書き足しても縮小に数�
       ].join("\n"),
     ),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("警告に従って match の値を書き直しても縮小に数えない（ブロック形式の複数行）", () => {
-  const root = makeConfigRepo();
+test.concurrent("警告に従って match の値を書き直しても縮小に数えない（ブロック形式の複数行）", async () => {
+  const root = await makeConfigRepo();
   writeConfig(
     root,
     readConfig(root).replace("      pending: [] # 保留（測定結果で決める）\n", MATCH_PENDING_BLOCK),
   );
-  commit(root, "match 付きの pending");
+  await commit(root, "match 付きの pending");
   writeConfig(
     root,
     readConfig(root).replace(
@@ -1161,24 +1166,24 @@ test("警告に従って match の値を書き直しても縮小に数えない�
       "            property: border-top-style\n            page: order-list\n",
     ),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("match を持つ要素を棚卸しを経ずに消せば落ちる", () => {
-  const root = makeConfigRepo();
+test.concurrent("match を持つ要素を棚卸しを経ずに消せば落ちる", async () => {
+  const root = await makeConfigRepo();
   writeConfig(
     root,
     readConfig(root).replace("      pending: [] # 保留（測定結果で決める）\n", MATCH_PENDING_BLOCK),
   );
-  commit(root, "match 付きの pending");
+  await commit(root, "match 付きの pending");
   writeConfig(
     root,
     readConfig(root).replace(MATCH_PENDING_BLOCK, "      pending: [] # 保留（測定結果で決める）\n"),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(
     /<registry-item: intentional-diffs> 見出しの border-style が現行 none・新側 solid。幅は両側 0px/,
   );
@@ -1186,8 +1191,8 @@ test("match を持つ要素を棚卸しを経ずに消せば落ちる", () => {
   rmSync(root, { recursive: true, force: true });
 });
 
-test("keep の既存要素を消せば落ちる（コンテナが育ったときだけ緩める）", () => {
-  const root = makeConfigRepo();
+test.concurrent("keep の既存要素を消せば落ちる（コンテナが育ったときだけ緩める）", async () => {
+  const root = await makeConfigRepo();
   writeConfig(
     root,
     readConfig(root).replace(
@@ -1195,14 +1200,14 @@ test("keep の既存要素を消せば落ちる（コンテナが育ったとき
       "      keep: [] # 変えない（例: テーブル名、項目名）",
     ),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("keep の要素を別物へ差し替えれば落ちる", () => {
-  const root = makeConfigRepo();
+test.concurrent("keep の要素を別物へ差し替えれば落ちる", async () => {
+  const root = await makeConfigRepo();
   writeConfig(
     root,
     readConfig(root).replace(
@@ -1210,14 +1215,14 @@ test("keep の要素を別物へ差し替えれば落ちる", () => {
       '      keep: ["別の宣言"] # 変えない（例: テーブル名、項目名）',
     ),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("外した領域の後ろに続くコメントを消せば落ちる（守るのはキーと注記）", () => {
-  const root = makeConfigRepo();
+test.concurrent("外した領域の後ろに続くコメントを消せば落ちる（守るのはキーと注記）", async () => {
+  const root = await makeConfigRepo();
   writeConfig(
     root,
     readConfig(root).replace(
@@ -1225,7 +1230,7 @@ test("外した領域の後ろに続くコメントを消せば落ちる（守�
       "",
     ),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -1248,8 +1253,8 @@ const TWO_TARGETS = [
   "",
 ].join("\n");
 
-test("同じ鍵のコンテナが片方だけ育っても、もう片方の要素の削除は落ちる", () => {
-  const root = makeConfigRepo(TWO_TARGETS);
+test.concurrent("同じ鍵のコンテナが片方だけ育っても、もう片方の要素の削除は落ちる", async () => {
+  const root = await makeConfigRepo(TWO_TARGETS);
   writeConfig(
     root,
     readConfig(root)
@@ -1262,16 +1267,16 @@ test("同じ鍵のコンテナが片方だけ育っても、もう片方の要�
         "      - name: new-dev\n        forbidden_actions: []",
       ),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("名指ししていない鍵は、同名の兄弟が両方とも育っても落ちる", () => {
+test.concurrent("名指ししていない鍵は、同名の兄弟が両方とも育っても落ちる", async () => {
   // 緩和は growable_containers に挙げた鍵だけに適用される。行の多重集合は同名の兄弟を 1 つの鍵へ畳むので、
   // 名指しせずに「育った」を判定すると、兄弟の間で要素が移動しただけの編集まで通ってしまう。
-  const root = makeConfigRepo(TWO_TARGETS);
+  const root = await makeConfigRepo(TWO_TARGETS);
   writeConfig(
     root,
     readConfig(root).replaceAll(
@@ -1279,14 +1284,14 @@ test("名指ししていない鍵は、同名の兄弟が両方とも育って�
       "forbidden_actions: [delete, update]",
     ),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("mutable_blocks がキーパスの形でなければ合格として扱わない（exit 2）", () => {
-  const root = makeConfigRepo();
+test.concurrent("mutable_blocks がキーパスの形でなければ合格として扱わない（exit 2）", async () => {
+  const root = await makeConfigRepo();
   const manifest = writeManifest(root, [
     {
       id: "project-config",
@@ -1295,14 +1300,14 @@ test("mutable_blocks がキーパスの形でなければ合格として扱わ�
       mutable_blocks: ["intentional_diffs."],
     },
   ]);
-  const r = run(root, ["--manifest", manifest]);
+  const r = await run(root, ["--manifest", manifest]);
   expect(r.stderr).toMatch(/mutable_blocks の要素がキーパスの形でない/);
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("unit が markdown-structure なのに mutable_blocks があれば合格として扱わない（exit 2）", () => {
-  const root = makeConfigRepo();
+test.concurrent("unit が markdown-structure なのに mutable_blocks があれば合格として扱わない（exit 2）", async () => {
+  const root = await makeConfigRepo();
   const manifest = writeManifest(root, [
     {
       id: "features",
@@ -1311,7 +1316,7 @@ test("unit が markdown-structure なのに mutable_blocks があれば合格と
       mutable_blocks: ["intentional_diffs.pending"],
     },
   ]);
-  const r = run(root, ["--manifest", manifest]);
+  const r = await run(root, ["--manifest", manifest]);
   expect(r.stderr).toMatch(/markdown-structure なのに mutable_blocks がある/);
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
@@ -1343,10 +1348,10 @@ const OVERTURNED_ROW =
   "| 確認ダイアログ | 未確認 | — | — | 取り消し済み（2026-09-21 → 下の行） | setup | 削除ボタンでしか出せず現行 target で削除が禁止されている |";
 
 /** 依存台帳（表つき）を比較元に持つプロジェクトを作る。 */
-function makeDependencyRepo() {
-  const root = makeRepo();
+async function makeDependencyRepo() {
+  const root = await makeRepo();
   writeFileSync(join(root, ".replace/dependencies.md"), DEPENDENCY_TABLE);
-  commit(root, "dependencies 台帳");
+  await commit(root, "dependencies 台帳");
   return root;
 }
 
@@ -1363,8 +1368,8 @@ function writeDependencies(root, text) {
   writeFileSync(join(root, ".replace/dependencies.md"), text);
 }
 
-test("決定を覆すとき状態列の更新 ＋ 新しい行の追記なら通る（Issue #428）", () => {
-  const root = makeDependencyRepo();
+test.concurrent("決定を覆すとき状態列の更新 ＋ 新しい行の追記なら通る（Issue #428）", async () => {
+  const root = await makeDependencyRepo();
   writeDependencies(
     root,
     readDependencies(root).replace(
@@ -1372,14 +1377,14 @@ test("決定を覆すとき状態列の更新 ＋ 新しい行の追記なら通
       `${OVERTURNED_ROW}\n| 確認ダイアログ | 自前実装 | — | 全機能 | 有効 | order-list の実装前 | 承認を得て現行で確かめ在ることを確認した |`,
     ),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("覆った行を消せば落ちる（状態列を取り消し済みにして残す取り決め）", () => {
-  const root = makeDependencyRepo();
+test.concurrent("覆った行を消せば落ちる（状態列を取り消し済みにして残す取り決め）", async () => {
+  const root = await makeDependencyRepo();
   writeDependencies(
     root,
     readDependencies(root).replace(
@@ -1387,26 +1392,26 @@ test("覆った行を消せば落ちる（状態列を取り消し済みにし�
       "",
     ),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("決定列をその場で書き換えれば落ちる（mutable なのは状態列だけ）", () => {
-  const root = makeDependencyRepo();
+test.concurrent("決定列をその場で書き換えれば落ちる（mutable なのは状態列だけ）", async () => {
+  const root = await makeDependencyRepo();
   writeDependencies(
     root,
     readDependencies(root).replace("| 確認ダイアログ | 未確認 |", "| 確認ダイアログ | 自前実装 |"),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/決定=未確認/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("理由・引き取り手列をその場で書き換えれば落ちる", () => {
-  const root = makeDependencyRepo();
+test.concurrent("理由・引き取り手列をその場で書き換えれば落ちる", async () => {
+  const root = await makeDependencyRepo();
   writeDependencies(
     root,
     readDependencies(root).replace(
@@ -1414,7 +1419,7 @@ test("理由・引き取り手列をその場で書き換えれば落ちる", ()
       "別の理由に差し替えた",
     ),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -1430,8 +1435,8 @@ test("理由・引き取り手列をその場で書き換えれば落ちる", ()
 // 同じ 1 件の育ったコンテナを複数の兄弟が根拠にできる。
 // ---------------------------------------------------------------------------
 
-test("行末コメント付きの空コンテナへ最初の要素を足しても縮小に数えない", () => {
-  const root = makeConfigRepo();
+test.concurrent("行末コメント付きの空コンテナへ最初の要素を足しても縮小に数えない", async () => {
+  const root = await makeConfigRepo();
   writeConfig(
     root,
     readConfig(root).replace(
@@ -1439,25 +1444,25 @@ test("行末コメント付きの空コンテナへ最初の要素を足して�
       '      may_change: ["HTML の id"] # 変えてよい（例: ディレクトリ・ファイル名）',
     ),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("growable_containers に挙げていないキーは、要素を足しただけでも落ちる", () => {
+test.concurrent("growable_containers に挙げていないキーは、要素を足しただけでも落ちる", async () => {
   // 緩和は鍵を名指ししたものだけに適用される（名指ししないと、同名の兄弟の間で要素が移動しただけの
   // 編集まで通る）。名指ししていないキーは一覧の requirement どおり「値を変更しない」が掛かる。
-  const root = makeConfigRepo();
+  const root = await makeConfigRepo();
   writeConfig(root, readConfig(root).replace("    bare_list: []", '    bare_list: ["x"]'));
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("要素を足すついでに行末コメントを消せば落ちる（コメントも単位）", () => {
-  const root = makeConfigRepo();
+test.concurrent("要素を足すついでに行末コメントを消せば落ちる（コメントも単位）", async () => {
+  const root = await makeConfigRepo();
   writeConfig(
     root,
     readConfig(root).replace(
@@ -1465,19 +1470,19 @@ test("要素を足すついでに行末コメントを消せば落ちる（コ�
       '      may_change: ["HTML の id"]',
     ),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("mutable_blocks で外したキー行の行末コメントを消せば落ちる", () => {
-  const root = makeConfigRepo();
+test.concurrent("mutable_blocks で外したキー行の行末コメントを消せば落ちる", async () => {
+  const root = await makeConfigRepo();
   writeConfig(
     root,
     readConfig(root).replace("      pending: [] # 保留（測定結果で決める）", "      pending: []"),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -1498,8 +1503,8 @@ const TWO_TARGETS_DIFFERENT = [
   "",
 ].join("\n");
 
-test("中身の違う兄弟でも、育った側を根拠に別の兄弟から要素を消せない", () => {
-  const root = makeConfigRepo(TWO_TARGETS_DIFFERENT);
+test.concurrent("中身の違う兄弟でも、育った側を根拠に別の兄弟から要素を消せない", async () => {
+  const root = await makeConfigRepo(TWO_TARGETS_DIFFERENT);
   // current-test が [delete, update] へ育ち、current-staging から delete が消える。
   writeConfig(
     root,
@@ -1510,16 +1515,16 @@ test("中身の違う兄弟でも、育った側を根拠に別の兄弟から�
         "        forbidden_actions: [update]\n    intentional_diffs:",
       ),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("兄弟の間で要素が移動しただけの編集も落ちる（PR #429 の退行の回帰）", () => {
+test.concurrent("兄弟の間で要素が移動しただけの編集も落ちる（PR #429 の退行の回帰）", async () => {
   // current-test を空にして new-dev へ移す。鍵ごとの多重集合で判定すると、その鍵の下には
   // 要素が残っているので通ってしまう（現行環境の禁止操作の宣言を、警告なしに空にできる）。
-  const root = makeConfigRepo(TWO_TARGETS_DIFFERENT);
+  const root = await makeConfigRepo(TWO_TARGETS_DIFFERENT);
   writeConfig(
     root,
     readConfig(root)
@@ -1529,14 +1534,14 @@ test("兄弟の間で要素が移動しただけの編集も落ちる（PR #429 
         "        forbidden_actions: [delete, update, create]\n    intentional_diffs:",
       ),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("同じ鍵の空コンテナが 2 つあり片方を消せば落ちる（件数も見る）", () => {
-  const root = makeConfigRepo(
+test.concurrent("同じ鍵の空コンテナが 2 つあり片方を消せば落ちる（件数も見る）", async () => {
+  const root = await makeConfigRepo(
     [
       "skills:",
       "  replace-strategy:",
@@ -1561,7 +1566,7 @@ test("同じ鍵の空コンテナが 2 つあり片方を消せば落ちる（�
       "      - name: current-staging\n        side: current\n",
     ),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -1571,9 +1576,9 @@ test("同じ鍵の空コンテナが 2 つあり片方を消せば落ちる（�
 // 一覧の突き合わせ方の食い違い・パス解決の抜け（PR #429 のレビュー指摘・2 巡目）
 // ---------------------------------------------------------------------------
 
-test("同じファイルに当たる 2 項目で mutable_blocks だけ違えば合格として扱わない（exit 2）", () => {
+test.concurrent("同じファイルに当たる 2 項目で mutable_blocks だけ違えば合格として扱わない（exit 2）", async () => {
   // 比較に入っていないと、一覧の並び順で外す範囲が変わる。判定できないときに失敗するはずのチェックが、並び順次第で合格を返す。
-  const root = makeConfigRepo();
+  const root = await makeConfigRepo();
   const manifest = writeManifest(root, [
     {
       id: "project-config-a",
@@ -1588,14 +1593,14 @@ test("同じファイルに当たる 2 項目で mutable_blocks だけ違えば�
       mutable_blocks: ["skills.replace-strategy.intentional_diffs.keep"],
     },
   ]);
-  const r = run(root, ["--manifest", manifest]);
+  const r = await run(root, ["--manifest", manifest]);
   expect(r.stderr).toMatch(/突き合わせ方の違う一覧の項目が当たっている/);
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("同じファイルに当たる 2 項目で growable_containers だけ違えば合格として扱わない（exit 2）", () => {
-  const root = makeConfigRepo();
+test.concurrent("同じファイルに当たる 2 項目で growable_containers だけ違えば合格として扱わない（exit 2）", async () => {
+  const root = await makeConfigRepo();
   const manifest = writeManifest(root, [
     {
       id: "project-config-a",
@@ -1610,14 +1615,14 @@ test("同じファイルに当たる 2 項目で growable_containers だけ違�
       growable_containers: ["skills.replace-strategy.intentional_diffs.may_change"],
     },
   ]);
-  const r = run(root, ["--manifest", manifest]);
+  const r = await run(root, ["--manifest", manifest]);
   expect(r.stderr).toMatch(/突き合わせ方の違う一覧の項目が当たっている/);
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("growable_containers がキーパスの形でなければ合格として扱わない（exit 2）", () => {
-  const root = makeConfigRepo();
+test.concurrent("growable_containers がキーパスの形でなければ合格として扱わない（exit 2）", async () => {
+  const root = await makeConfigRepo();
   const manifest = writeManifest(root, [
     {
       id: "project-config",
@@ -1626,14 +1631,14 @@ test("growable_containers がキーパスの形でなければ合格として扱
       growable_containers: ["intentional_diffs..keep"],
     },
   ]);
-  const r = run(root, ["--manifest", manifest]);
+  const r = await run(root, ["--manifest", manifest]);
   expect(r.stderr).toMatch(/growable_containers の要素がキーパスの形でない/);
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("リスト要素の配下にある同名キーは外れない（パスが親を継がない）", () => {
-  const root = makeConfigRepo(
+test.concurrent("リスト要素の配下にある同名キーは外れない（パスが親を継がない）", async () => {
+  const root = await makeConfigRepo(
     [
       "skills:",
       "  replace-strategy:",
@@ -1652,7 +1657,7 @@ test("リスト要素の配下にある同名キーは外れない（パスが�
       "        pending:\n",
     ),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -1673,10 +1678,10 @@ const PLAIN_APOSTROPHE = [
   "",
 ].join("\n");
 
-test("プレーンスカラーのアポストロフィがあっても要素を足せる（引用符として読まない）", () => {
+test.concurrent("プレーンスカラーのアポストロフィがあっても要素を足せる（引用符として読まない）", async () => {
   // YAML では `[don't rename]` のアポストロフィは引用符ではない。開き引用符として読むと行末まで
   // 閉じず、コメントも値も読めないまま緩和が無音で外れ、正しい追記が「決定が失われている」になる。
-  const root = makeConfigRepo(PLAIN_APOSTROPHE);
+  const root = await makeConfigRepo(PLAIN_APOSTROPHE);
   writeConfig(
     root,
     readConfig(root).replace(
@@ -1684,26 +1689,26 @@ test("プレーンスカラーのアポストロフィがあっても要素を�
       "      keep: [don't rename tables, keep api paths] #",
     ),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("アポストロフィ入りの要素を消せば落ちる（緩めすぎていない）", () => {
-  const root = makeConfigRepo(PLAIN_APOSTROPHE);
+test.concurrent("アポストロフィ入りの要素を消せば落ちる（緩めすぎていない）", async () => {
+  const root = await makeConfigRepo(PLAIN_APOSTROPHE);
   writeConfig(
     root,
     readConfig(root).replace("      keep: [don't rename tables] #", "      keep: [] #"),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("引用符つきの値の中のカンマで要素を分割しない", () => {
-  const root = makeConfigRepo(PLAIN_APOSTROPHE);
+test.concurrent("引用符つきの値の中のカンマで要素を分割しない", async () => {
+  const root = await makeConfigRepo(PLAIN_APOSTROPHE);
   writeConfig(
     root,
     readConfig(root).replace(
@@ -1711,14 +1716,14 @@ test("引用符つきの値の中のカンマで要素を分割しない", () =>
       '      keep: [don\'t rename tables, "a, b"] #',
     ),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("growable の鍵の注記を上の行へ移しても通る（mutable_blocks 側と対称）", () => {
-  const root = makeConfigRepo(PLAIN_APOSTROPHE);
+test.concurrent("growable の鍵の注記を上の行へ移しても通る（mutable_blocks 側と対称）", async () => {
+  const root = await makeConfigRepo(PLAIN_APOSTROPHE);
   writeConfig(
     root,
     readConfig(root).replace(
@@ -1726,14 +1731,14 @@ test("growable の鍵の注記を上の行へ移しても通る（mutable_blocks
       "    # コンポーネント系統差レジストリ\n    component_diffs: []\n",
     ),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("growable の鍵の注記を消せば落ちる", () => {
-  const root = makeConfigRepo(PLAIN_APOSTROPHE);
+test.concurrent("growable の鍵の注記を消せば落ちる", async () => {
+  const root = await makeConfigRepo(PLAIN_APOSTROPHE);
   writeConfig(
     root,
     readConfig(root).replace(
@@ -1741,16 +1746,16 @@ test("growable の鍵の注記を消せば落ちる", () => {
       "    component_diffs: []\n",
     ),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("キーパスに `-` だけのセグメントを書けば合格として扱わない（exit 2）", () => {
+test.concurrent("キーパスに `-` だけのセグメントを書けば合格として扱わない（exit 2）", async () => {
   // `-` は stripYamlBlocks がリスト要素へ積むマーカーと同じ綴り。名指しできると全リスト要素が
   // 同じ鍵を共有し、兄弟を区別できなくなる（片方から要素を消しても通る抜けが、設定次第で戻る）。
-  const root = makeConfigRepo();
+  const root = await makeConfigRepo();
   const manifest = writeManifest(root, [
     {
       id: "project-config",
@@ -1759,16 +1764,16 @@ test("キーパスに `-` だけのセグメントを書けば合格として扱
       growable_containers: ["skills.replace-strategy.targets.-.forbidden_actions"],
     },
   ]);
-  const r = run(root, ["--manifest", manifest]);
+  const r = await run(root, ["--manifest", manifest]);
   expect(r.stderr).toMatch(/growable_containers の要素がキーパスの形でない/);
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("引用符つきの要素がある行へ、引用符の無い要素を足しても通る", () => {
+test.concurrent("引用符つきの要素がある行へ、引用符の無い要素を足しても通る", async () => {
   // 引用符を「閉じなければ無視して読み直す」形にすると、同じ値でも同じ行の別の要素次第で
   // 読み方が変わり、比較元と現在で別モードが選ばれる（要素を足しただけで縮小に見える）。
-  const root = makeConfigRepo(
+  const root = await makeConfigRepo(
     [
       "skills:",
       "  replace-strategy:",
@@ -1783,7 +1788,7 @@ test("引用符つきの要素がある行へ、引用符の無い要素を足�
     root,
     readConfig(root).replace('      keep: ["a, b"] #', '      keep: ["a, b", don\'t] #'),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
@@ -1816,22 +1821,22 @@ const KEY_ORDER_ITEM = [
   "",
 ].join("\n");
 
-test("照合キーが 1 行目に無い要素も棚卸しで移せる（要素の全行から探す）", () => {
-  const root = makeConfigRepo(KEY_ORDER_PENDING);
+test.concurrent("照合キーが 1 行目に無い要素も棚卸しで移せる（要素の全行から探す）", async () => {
+  const root = await makeConfigRepo(KEY_ORDER_PENDING);
   writeConfig(
     root,
     readConfig(root)
       .replace(KEY_ORDER_ITEM, "")
       .replace("keep: [] #", 'keep: ["キー順が違う要素"] #'),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("照合キーが 1 行目に無い要素の文言を差し替えれば落ちる", () => {
-  const root = makeConfigRepo(KEY_ORDER_PENDING);
+test.concurrent("照合キーが 1 行目に無い要素の文言を差し替えれば落ちる", async () => {
+  const root = await makeConfigRepo(KEY_ORDER_PENDING);
   writeConfig(
     root,
     readConfig(root).replace(
@@ -1839,14 +1844,14 @@ test("照合キーが 1 行目に無い要素の文言を差し替えれば落�
       "          item: 別物へ差し替えた",
     ),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("registry の鍵の配下がリストでなければ行のまま守る（解釈できないものを捨てない）", () => {
-  const root = makeConfigRepo(
+test.concurrent("registry の鍵の配下がリストでなければ行のまま守る（解釈できないものを捨てない）", async () => {
+  const root = await makeConfigRepo(
     [
       "skills:",
       "  replace-strategy:",
@@ -1860,7 +1865,7 @@ test("registry の鍵の配下がリストでなければ行のまま守る（�
     ].join("\n"),
   );
   writeConfig(root, readConfig(root).replace("        a: 1\n        b: 2\n", "        a: 1\n"));
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -1874,46 +1879,46 @@ const FLOW_PENDING =
   "      pending: [{item: 合計の丸め, slug: cross-cutting, added_by: replace-strategy}] # 保留（測定結果で決める）\n";
 
 /** pending にフロー形式のマッピング要素を 1 件積んだ状態を比較元にする。 */
-function makeConfigRepoWithFlowPending() {
-  const root = makeConfigRepo();
+async function makeConfigRepoWithFlowPending() {
+  const root = await makeConfigRepo();
   writeConfig(
     root,
     readConfig(root).replace("      pending: [] # 保留（測定結果で決める）\n", FLOW_PENDING),
   );
-  commit(root, "pending にフロー形式で 1 件");
+  await commit(root, "pending にフロー形式で 1 件");
   return root;
 }
 
-test("フロー形式のマッピング要素も照合キーで棚卸しできる（追随フィールドを単位にしない）", () => {
-  const root = makeConfigRepoWithFlowPending();
+test.concurrent("フロー形式のマッピング要素も照合キーで棚卸しできる（追随フィールドを単位にしない）", async () => {
+  const root = await makeConfigRepoWithFlowPending();
   writeConfig(
     root,
     readConfig(root)
       .replace(FLOW_PENDING, "      pending: [] # 保留（測定結果で決める）\n")
       .replace("      may_change: [] #", "      may_change: [合計の丸め] #"),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("フロー形式のマッピング要素を棚卸しせず消せば落ちる", () => {
-  const root = makeConfigRepoWithFlowPending();
+test.concurrent("フロー形式のマッピング要素を棚卸しせず消せば落ちる", async () => {
+  const root = await makeConfigRepoWithFlowPending();
   writeConfig(
     root,
     readConfig(root).replace(FLOW_PENDING, "      pending: [] # 保留（測定結果で決める）\n"),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/<registry-item: intentional-diffs> 合計の丸め/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("フロー形式で照合キーの値を差し替えれば落ちる", () => {
-  const root = makeConfigRepoWithFlowPending();
+test.concurrent("フロー形式で照合キーの値を差し替えれば落ちる", async () => {
+  const root = await makeConfigRepoWithFlowPending();
   writeConfig(root, readConfig(root).replace("item: 合計の丸め", "item: 別物へ差し替えた"));
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -1936,18 +1941,18 @@ const MULTILINE_PENDING = [
 ].join("\n");
 
 /** 照合キーの値が 1 行に収まらない要素（プレーン多行スカラー・ブロックスカラー）を比較元にする。 */
-function makeConfigRepoWithMultilinePending() {
-  const root = makeConfigRepo();
+async function makeConfigRepoWithMultilinePending() {
+  const root = await makeConfigRepo();
   writeConfig(
     root,
     readConfig(root).replace("      pending: [] # 保留（測定結果で決める）\n", MULTILINE_PENDING),
   );
-  commit(root, "pending に 1 行に収まらない値の要素");
+  await commit(root, "pending に 1 行に収まらない値の要素");
   return root;
 }
 
-test("プレーン多行スカラーの要素を丸ごと消せば落ちる（畳んで単位ゼロにしない）", () => {
-  const root = makeConfigRepoWithMultilinePending();
+test.concurrent("プレーン多行スカラーの要素を丸ごと消せば落ちる（畳んで単位ゼロにしない）", async () => {
+  const root = await makeConfigRepoWithMultilinePending();
   writeConfig(
     root,
     readConfig(root).replace(
@@ -1961,26 +1966,26 @@ test("プレーン多行スカラーの要素を丸ごと消せば落ちる（�
       "",
     ),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("ブロックスカラーの本文を差し替えれば落ちる（本文を単位から落とさない）", () => {
-  const root = makeConfigRepoWithMultilinePending();
+test.concurrent("ブロックスカラーの本文を差し替えれば落ちる（本文を単位から落とさない）", async () => {
+  const root = await makeConfigRepoWithMultilinePending();
   writeConfig(
     root,
     readConfig(root).replace("確認ダイアログを出さない", "確認ダイアログを必ず出す"),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("閉じない引用符の値の続きの行も単位から落とさない", () => {
-  const root = makeConfigRepo();
+test.concurrent("閉じない引用符の値の続きの行も単位から落とさない", async () => {
+  const root = await makeConfigRepo();
   writeConfig(
     root,
     readConfig(root).replace(
@@ -1994,10 +1999,10 @@ test("閉じない引用符の値の続きの行も単位から落とさない",
       ].join("\n"),
     ),
   );
-  commit(root, "pending に閉じない引用符");
+  await commit(root, "pending に閉じない引用符");
   // 畳むと単位は `"閉じていない` だけになり、続きの行は kept へ戻らないので差し替えが無音で通る。
   writeConfig(root, readConfig(root).replace("引用符の続きの行", "別物へ差し替えた"));
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -2008,8 +2013,8 @@ const QUOTED_COMMA_PENDING =
   '      pending: [{item: "順序は id, 名前の順", slug: cross-cutting}] # 保留（測定結果で決める）\n';
 
 /** 引用符の中にカンマを持つフロー形式のマッピング要素を比較元にする。 */
-function makeConfigRepoWithQuotedFlowPending() {
-  const root = makeConfigRepo();
+async function makeConfigRepoWithQuotedFlowPending() {
+  const root = await makeConfigRepo();
   writeConfig(
     root,
     readConfig(root).replace(
@@ -2017,12 +2022,12 @@ function makeConfigRepoWithQuotedFlowPending() {
       QUOTED_COMMA_PENDING,
     ),
   );
-  commit(root, "pending に引用符つきカンマを含む要素");
+  await commit(root, "pending に引用符つきカンマを含む要素");
   return root;
 }
 
-test("マッピングの値の引用符も開く（値の中のカンマでペアを割らない）", () => {
-  const root = makeConfigRepoWithQuotedFlowPending();
+test.concurrent("マッピングの値の引用符も開く（値の中のカンマでペアを割らない）", async () => {
+  const root = await makeConfigRepoWithQuotedFlowPending();
   writeConfig(
     root,
     readConfig(root)
@@ -2032,23 +2037,23 @@ test("マッピングの値の引用符も開く（値の中のカンマでペ�
         'keep: ["テーブル名を保つ", "順序は id, 名前の順"] #',
       ),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("引用符の中にカンマを持つ文言の差し替えは無音で通らない", () => {
-  const root = makeConfigRepoWithQuotedFlowPending();
+test.concurrent("引用符の中にカンマを持つ文言の差し替えは無音で通らない", async () => {
+  const root = await makeConfigRepoWithQuotedFlowPending();
   writeConfig(root, readConfig(root).replace("名前の順", "逆順に変更"));
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/<registry-item: intentional-diffs> 順序は id, 名前の順/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("入れ子になったキーパスを 2 つのオプションに書けば合格として扱わない（祖先が配下を丸ごと外す）", () => {
-  const root = makeConfigRepo();
+test.concurrent("入れ子になったキーパスを 2 つのオプションに書けば合格として扱わない（祖先が配下を丸ごと外す）", async () => {
+  const root = await makeConfigRepo();
   const manifest = writeManifest(root, [
     {
       id: "project-config",
@@ -2058,14 +2063,14 @@ test("入れ子になったキーパスを 2 つのオプションに書けば�
       growable_containers: ["skills.replace-strategy.intentional_diffs.keep"],
     },
   ]);
-  const r = run(root, ["--manifest", manifest]);
+  const r = await run(root, ["--manifest", manifest]);
   expect(r.stderr).toMatch(/入れ子になったキーパスが .+ と .+ の両方にある/);
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("接頭辞が重なるだけの兄弟キーは入れ子と数えない（a.b と a.bc）", () => {
-  const root = makeConfigRepo();
+test.concurrent("接頭辞が重なるだけの兄弟キーは入れ子と数えない（a.b と a.bc）", async () => {
+  const root = await makeConfigRepo();
   const manifest = writeManifest(root, [
     {
       id: "project-config",
@@ -2075,14 +2080,14 @@ test("接頭辞が重なるだけの兄弟キーは入れ子と数えない（a.
       growable_containers: ["skills.replace-strategy.bare_listing"],
     },
   ]);
-  const r = run(root, ["--manifest", manifest]);
+  const r = await run(root, ["--manifest", manifest]);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("同じキーパスを 2 つのオプションに書けば合格として扱わない（exit 2）", () => {
-  const root = makeConfigRepo();
+test.concurrent("同じキーパスを 2 つのオプションに書けば合格として扱わない（exit 2）", async () => {
+  const root = await makeConfigRepo();
   const manifest = writeManifest(root, [
     {
       id: "project-config",
@@ -2098,7 +2103,7 @@ test("同じキーパスを 2 つのオプションに書けば合格として�
       ],
     },
   ]);
-  const r = run(root, ["--manifest", manifest]);
+  const r = await run(root, ["--manifest", manifest]);
   expect(r.stderr).toMatch(/同じキーパスが .+ と .+ の両方にある/);
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
@@ -2110,7 +2115,7 @@ test("同じキーパスを 2 つのオプションに書けば合格として�
 // コンテナを「読めた」ことにしていた（`[` は空、`[ "a",` は要素 1 件）。読めたことにすると
 // 折り返しの中身が空に見え、要素を足しただけの編集が誤って縮小と判定される。
 
-test("1 行で閉じないフロー形式のコンテナは読めたことにしない（null）", () => {
+test.concurrent("1 行で閉じないフロー形式のコンテナは読めたことにしない（null）", () => {
   // 折り返しの各形。`[` を空コンテナ（`[]`）、`[ "a",` を要素 1 件と読んだのが #430 の直接の原因。
   expect(flowItems("[")).toBeNull();
   expect(flowItems("{")).toBeNull();
@@ -2123,7 +2128,7 @@ test("1 行で閉じないフロー形式のコンテナは読めたことにし
   expect(flowItems('["a"] trailing')).toBeNull();
 });
 
-test("誤検知しないことの確認: 1 行で閉じるコンテナは今までどおり読める", () => {
+test.concurrent("誤検知しないことの確認: 1 行で閉じるコンテナは今までどおり読める", () => {
   expect(flowItems("[]")).toEqual([]);
   expect(flowItems("[ ]")).toEqual([]);
   expect(flowItems("{}")).toEqual([]);
@@ -2142,8 +2147,8 @@ const WRAPPED_KEEP = [
 ].join("\n");
 
 /** @param {string} root */
-function makeWrappedConfigRepo() {
-  return makeConfigRepo(
+async function makeWrappedConfigRepo() {
+  return await makeConfigRepo(
     CONFIG.replace(
       '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
       WRAPPED_KEEP,
@@ -2151,8 +2156,8 @@ function makeWrappedConfigRepo() {
   );
 }
 
-test("折り返したコンテナへ追記しただけなら通る（#430 の再現手順）", () => {
-  const root = makeWrappedConfigRepo();
+test.concurrent("折り返したコンテナへ追記しただけなら通る（#430 の再現手順）", async () => {
+  const root = await makeWrappedConfigRepo();
   writeConfig(
     root,
     readConfig(root).replace(
@@ -2160,14 +2165,14 @@ test("折り返したコンテナへ追記しただけなら通る（#430 の再
       '        "項目名を保つ",\n        "並び順を保つ"\n',
     ),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("折り返したコンテナを 1 行へ書き直せば、要素を足していても通る", () => {
-  const root = makeWrappedConfigRepo();
+test.concurrent("折り返したコンテナを 1 行へ書き直せば、要素を足していても通る", async () => {
+  const root = await makeWrappedConfigRepo();
   writeConfig(
     root,
     readConfig(root).replace(
@@ -2175,14 +2180,14 @@ test("折り返したコンテナを 1 行へ書き直せば、要素を足し�
       '      keep: ["テーブル名を保つ", "項目名を保つ", "並び順を保つ"] # 変えない（例: テーブル名、項目名）',
     ),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("折り返したコンテナから要素を消せば、1 行へ書き直しても落ちる", () => {
-  const root = makeWrappedConfigRepo();
+test.concurrent("折り返したコンテナから要素を消せば、1 行へ書き直しても落ちる", async () => {
+  const root = await makeWrappedConfigRepo();
   writeConfig(
     root,
     readConfig(root).replace(
@@ -2190,14 +2195,14 @@ test("折り返したコンテナから要素を消せば、1 行へ書き直し
       '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
     ),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/項目名を保つ/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("1 行のコンテナを折り返しても通る（折り返し ⇄ 1 行の相互変換）", () => {
-  const root = makeConfigRepo();
+test.concurrent("1 行のコンテナを折り返しても通る（折り返し ⇄ 1 行の相互変換）", async () => {
+  const root = await makeConfigRepo();
   writeConfig(
     root,
     readConfig(root).replace(
@@ -2209,14 +2214,14 @@ test("1 行のコンテナを折り返しても通る（折り返し ⇄ 1 行�
       ].join("\n"),
     ),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("連結しても閉じないコンテナは読めたことにせず、表記を直すよう案内する", () => {
-  const root = makeConfigRepo();
+test.concurrent("連結しても閉じないコンテナは読めたことにせず、表記を直すよう案内する", async () => {
+  const root = await makeConfigRepo();
   // 閉じ括弧が無いまま次の鍵へ出る。連結は鍵のブロックを抜けた時点で打ち切り、読めなかったものとして扱う。
   writeConfig(
     root,
@@ -2225,7 +2230,7 @@ test("連結しても閉じないコンテナは読めたことにせず、表�
       "      keep: [",
     ),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.status).toBe(1);
   expect(r.stdout).toMatch(
     /閉じていないフロー形式のコンテナがある: skills\.replace-strategy\.intentional_diffs\.keep/,
@@ -2233,11 +2238,11 @@ test("連結しても閉じないコンテナは読めたことにせず、表�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("区別: 折り返しが無ければ案内を出さない", () => {
-  const root = makeConfigRepo();
+test.concurrent("区別: 折り返しが無ければ案内を出さない", async () => {
+  const root = await makeConfigRepo();
   // 1 行のコンテナから要素を消す（同じ「縮小」でも折り返しは関係しない）。
   writeConfig(root, readConfig(root).replace('"テーブル名を保つ"', ""));
-  const r = run(root);
+  const r = await run(root);
   expect(r.status).toBe(1);
   // 実際に出る文言と同じ綴りで照合する（別の綴りにすると常に不一致になり、案内が出ていても通る）。
   expect(r.stdout).not.toMatch(/閉じていないフロー形式のコンテナがある/);
@@ -2253,7 +2258,7 @@ function keepUnits(src) {
     .filter((l) => l.trim() !== "");
 }
 
-test("折り返しの連結: 鍵のブロック内で閉じていれば読む（閉じ括弧のインデントは問わない）", () => {
+test.concurrent("折り返しの連結: 鍵のブロック内で閉じていれば読む（閉じ括弧のインデントは問わない）", () => {
   expect(keepUnits('a:\n  keep: [\n    "x"\n  ] # c\n')).toEqual([
     "a:",
     "<container: a.keep>",
@@ -2277,7 +2282,7 @@ test("折り返しの連結: 鍵のブロック内で閉じていれば読む（
   );
 });
 
-test("折り返しの連結: 開き括弧が次の行にあっても読む（フォーマッタが畳む形）", () => {
+test.concurrent("折り返しの連結: 開き括弧が次の行にあっても読む（フォーマッタが畳む形）", () => {
   // YAML のフォーマッタは 1 行に収まらないコンテナを `key:` と `[` に分けて畳む。ブロック形式として
   // 扱うと中身が行のまま単位になり、要素を足しただけの編集が誤って縮小と判定される（#430 と同じ害）。
   expect(keepUnits('a:\n  keep:\n    [\n      "x",\n      "y"\n    ] # c\n')).toEqual([
@@ -2297,7 +2302,7 @@ test("折り返しの連結: 開き括弧が次の行にあっても読む（フ
   expect(keepUnits('a:\n  keep:\n    - "x"\n')).toEqual(["a:", "<container: a.keep>", '    - "x"']);
 });
 
-test("折り返しの連結: 途中の空行・コメント行を挟んでも読む（同じ軸の内側）", () => {
+test.concurrent("折り返しの連結: 途中の空行・コメント行を挟んでも読む（同じ軸の内側）", () => {
   // ここで打ち切ると、比較元の折り返し行がそのまま単位になり、案内どおり 1 行へ書き直しても落ちる。
   expect(keepUnits('a:\n  keep: [\n\n    "x"\n  ] # c\n')).toEqual([
     "a:",
@@ -2315,21 +2320,21 @@ test("折り返しの連結: 途中の空行・コメント行を挟んでも読
   ]);
 });
 
-test("折り返しの連結: 読めない形は行のまま突き合わせる（読めない形を連結の対象にしない）", () => {
+test.concurrent("折り返しの連結: 読めない形は行のまま突き合わせる（読めない形を連結の対象にしない）", () => {
   // 閉じないまま文書が終わる。
   expect(keepUnits('a:\n  keep: [\n    "x"\n')).toEqual(["a:", "  keep: [", '    "x"']);
   // 閉じないまま鍵のブロックを抜ける（続きの行を飲み込まない）。
   expect(keepUnits("a:\n  keep: [\n  other: 1\n")).toEqual(["a:", "  keep: [", "  other: 1"]);
 });
 
-test("空行を挟んだ折り返しでも、追記と 1 行への書き直しが通る", () => {
+test.concurrent("空行を挟んだ折り返しでも、追記と 1 行への書き直しが通る", async () => {
   const wrapped = [
     "      keep: [",
     "",
     '        "テーブル名を保つ"',
     "      ] # 変えない（例: テーブル名、項目名）",
   ].join("\n");
-  const root = makeConfigRepo(
+  const root = await makeConfigRepo(
     CONFIG.replace(
       '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
       wrapped,
@@ -2343,7 +2348,7 @@ test("空行を挟んだ折り返しでも、追記と 1 行への書き直し�
       '        "テーブル名を保つ",\n        "項目名を保つ"\n',
     ),
   );
-  const added = run(root);
+  const added = await run(root);
   expect(added.stdout).toMatch(/^ok: /m);
   expect(added.status).toBe(0);
   // 1 行へ書き直す（keep は要素行の注記を単位にしないので、畳んでも単位は減らない）。
@@ -2354,7 +2359,7 @@ test("空行を挟んだ折り返しでも、追記と 1 行への書き直し�
       '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
     ),
   );
-  const rewritten = run(root);
+  const rewritten = await run(root);
   expect(rewritten.stdout).toMatch(/^ok: /m);
   expect(rewritten.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
@@ -2368,8 +2373,8 @@ const UNREADABLE_CONFIG = CONFIG.replace(
   "    component_diffs: [{component: grid, property: color}]",
 ).replace('      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）', "      keep: [");
 
-test("読めないコンテナがあっても、無関係な鍵の削除には案内を出さない", () => {
-  const root = makeConfigRepo(UNREADABLE_CONFIG);
+test.concurrent("読めないコンテナがあっても、無関係な鍵の削除には案内を出さない", async () => {
+  const root = await makeConfigRepo(UNREADABLE_CONFIG);
   writeConfig(
     root,
     readConfig(root).replace(
@@ -2377,17 +2382,17 @@ test("読めないコンテナがあっても、無関係な鍵の削除には�
       "    component_diffs: []",
     ),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.status).toBe(1);
   expect(r.stdout).toMatch(/component_diffs/);
   expect(r.stdout).not.toMatch(/閉じていないフロー形式のコンテナがある/);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("検出されることの確認: 読めないコンテナ由来の消失には案内を出す", () => {
-  const root = makeConfigRepo(UNREADABLE_CONFIG);
+test.concurrent("検出されることの確認: 読めないコンテナ由来の消失には案内を出す", async () => {
+  const root = await makeConfigRepo(UNREADABLE_CONFIG);
   writeConfig(root, readConfig(root).replace("      keep: [\n", ""));
-  const r = run(root);
+  const r = await run(root);
   expect(r.status).toBe(1);
   expect(r.stdout).toMatch(
     /閉じていないフロー形式のコンテナがある: skills\.replace-strategy\.intentional_diffs\.keep/,
@@ -2395,36 +2400,36 @@ test("検出されることの確認: 読めないコンテナ由来の消失に
   rmSync(root, { recursive: true, force: true });
 });
 
-test("連結を打ち切らせた行（コンテナの外）の削除には案内を出さない", () => {
+test.concurrent("連結を打ち切らせた行（コンテナの外）の削除には案内を出さない", async () => {
   // 打ち切らせた行を帰属材料に入れると、コンテナの外にある行を消しただけで案内が付く。
-  const root = makeConfigRepo(
+  const root = await makeConfigRepo(
     UNREADABLE_CONFIG.replace("      keep: [\n", "      keep: [\n      note_line: 無関係なメモ\n"),
   );
   writeConfig(root, readConfig(root).replace("      note_line: 無関係なメモ\n", ""));
-  const r = run(root);
+  const r = await run(root);
   expect(r.status).toBe(1);
   expect(r.stdout).toMatch(/note_line/);
   expect(r.stdout).not.toMatch(/閉じていないフロー形式のコンテナがある/);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("registry のグループ共通の単位が消えても、別の鍵の読めないコンテナに帰属させない", () => {
+test.concurrent("registry のグループ共通の単位が消えても、別の鍵の読めないコンテナに帰属させない", async () => {
   // <registry-item: <グループ id>> は鍵をまたぐ移動を許すためグループ共通で、鍵を区別できない。
-  const root = makeConfigRepo(
+  const root = await makeConfigRepo(
     UNREADABLE_CONFIG.replace("      pending: [] # 保留（測定結果で決める）\n", PENDING_BLOCK),
   );
   writeConfig(
     root,
     readConfig(root).replace(PENDING_BLOCK, "      pending: [] # 保留（測定結果で決める）\n"),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.status).toBe(1);
   expect(r.stdout).toMatch(/一覧の並び順が変わる/);
   expect(r.stdout).not.toMatch(/閉じていないフロー形式のコンテナがある/);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("鍵と開き括弧の間に空行・コメント行があっても読む（joinWrappedFlow と対称）", () => {
+test.concurrent("鍵と開き括弧の間に空行・コメント行があっても読む（joinWrappedFlow と対称）", async () => {
   const wrapped = [
     "      keep:",
     "        # 注記",
@@ -2432,7 +2437,7 @@ test("鍵と開き括弧の間に空行・コメント行があっても読む�
     '          "テーブル名を保つ"',
     "        ] # 変えない（例: テーブル名、項目名）",
   ].join("\n");
-  const root = makeConfigRepo(
+  const root = await makeConfigRepo(
     CONFIG.replace(
       '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
       wrapped,
@@ -2445,19 +2450,19 @@ test("鍵と開き括弧の間に空行・コメント行があっても読む�
       '          "テーブル名を保つ",\n          "項目名を保つ"\n',
     ),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("読めないコンテナの後ろにあるコメント行の削除には案内を出さない", () => {
+test.concurrent("読めないコンテナの後ろにあるコメント行の削除には案内を出さない", async () => {
   // 連結が失敗したときは閉じ括弧が無く、その注記が内にあったか外にあったかを区別できない。
-  const root = makeConfigRepo(
+  const root = await makeConfigRepo(
     UNREADABLE_CONFIG.replace("      keep: [\n", "      keep: [\n      # 無関係な注記\n"),
   );
   writeConfig(root, readConfig(root).replace("      # 無関係な注記\n", ""));
-  const r = run(root);
+  const r = await run(root);
   expect(r.status).toBe(1);
   expect(r.stdout).toMatch(/無関係な注記/);
   expect(r.stdout).not.toMatch(/閉じていないフロー形式のコンテナがある/);
@@ -2472,8 +2477,8 @@ const WRAPPED_PENDING = [
   "      ] # 保留（測定結果で決める）",
 ].join("\n");
 
-test("折り返した registry の要素行の注記は単位にしない（棚卸しが表記で割れない）", () => {
-  const root = makeConfigRepo(
+test.concurrent("折り返した registry の要素行の注記は単位にしない（棚卸しが表記で割れない）", async () => {
+  const root = await makeConfigRepo(
     CONFIG.replace("      pending: [] # 保留（測定結果で決める）", WRAPPED_PENDING),
   );
   // 正規の棚卸し: pending の文言を keep へ移す。
@@ -2486,38 +2491,38 @@ test("折り返した registry の要素行の注記は単位にしない（棚�
         '      keep: ["テーブル名を保つ", "一覧の並び順が変わる"] #',
       ),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("折り返した registry でも、閉じる行の注記（鍵の注記）を消せば落ちる", () => {
-  const root = makeConfigRepo(
+test.concurrent("折り返した registry でも、閉じる行の注記（鍵の注記）を消せば落ちる", async () => {
+  const root = await makeConfigRepo(
     CONFIG.replace("      pending: [] # 保留（測定結果で決める）", WRAPPED_PENDING),
   );
   writeConfig(root, readConfig(root).replace("      ] # 保留（測定結果で決める）", "      ]"));
-  const r = run(root);
+  const r = await run(root);
   expect(r.status).toBe(1);
   expect(r.stdout).toMatch(/保留（測定結果で決める）/);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("区別: 育つコンテナは折り返した要素行の注記も単位に残す（行末コメントの削除を落とす要求）", () => {
+test.concurrent("区別: 育つコンテナは折り返した要素行の注記も単位に残す（行末コメントの削除を落とす要求）", async () => {
   const wrapped = [
     "    component_diffs: [",
     "      {component: grid, property: color}, # 注記",
     "    ]",
   ].join("\n");
-  const root = makeConfigRepo(CONFIG.replace("    component_diffs: []", wrapped));
+  const root = await makeConfigRepo(CONFIG.replace("    component_diffs: []", wrapped));
   writeConfig(root, readConfig(root).replace(", property: color}, # 注記", ", property: color},"));
-  const r = run(root);
+  const r = await run(root);
   expect(r.status).toBe(1);
   expect(r.stdout).toMatch(/注記/);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("折り返したコンテナの中の独立したコメント行は、registry でも単位に残す", () => {
+test.concurrent("折り返したコンテナの中の独立したコメント行は、registry でも単位に残す", async () => {
   // 要素に付いた注記と違って移動先の問題が無い。落とすと中の注記だけ警告なしに消せる（main では落ちていた）。
   const wrapped = [
     "      pending: [",
@@ -2525,23 +2530,23 @@ test("折り返したコンテナの中の独立したコメント行は、regis
     "        {item: 一覧の並び順が変わる, slug: cross-cutting},",
     "      ] # 保留（測定結果で決める）",
   ].join("\n");
-  const root = makeConfigRepo(
+  const root = await makeConfigRepo(
     CONFIG.replace("      pending: [] # 保留（測定結果で決める）", wrapped),
   );
   writeConfig(root, readConfig(root).replace("        # 大事な注記\n", ""));
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/大事な注記/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("要素が鍵と同じインデントに並ぶ折り返しも読む（js-yaml で妥当な YAML）", () => {
+test.concurrent("要素が鍵と同じインデントに並ぶ折り返しも読む（js-yaml で妥当な YAML）", async () => {
   const wrapped = [
     "      keep: [",
     '      "テーブル名を保つ"',
     "      ] # 変えない（例: テーブル名、項目名）",
   ].join("\n");
-  const root = makeConfigRepo(
+  const root = await makeConfigRepo(
     CONFIG.replace(
       '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
       wrapped,
@@ -2554,20 +2559,20 @@ test("要素が鍵と同じインデントに並ぶ折り返しも読む（js-ya
       '      "テーブル名を保つ",\n      "項目名を保つ"\n',
     ),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("比較元に読めないコンテナがあるときは「直せば通る」と案内しない", () => {
+test.concurrent("比較元に読めないコンテナがあるときは「直せば通る」と案内しない", async () => {
   // 比較元の行がそのまま単位なので、どの編集でも exit 0 に到達しない。実行できない指示を出さない。
-  const root = makeConfigRepo(UNREADABLE_CONFIG);
+  const root = await makeConfigRepo(UNREADABLE_CONFIG);
   writeConfig(
     root,
     readConfig(root).replace("      keep: [\n", '      keep: ["テーブル名を保つ"] # 変えない\n'),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.status).toBe(1);
   expect(r.stdout).toMatch(/比較元 .+ に閉じていないフロー形式のコンテナがある/);
   expect(r.stdout).toMatch(/判定できない/);
@@ -2575,8 +2580,8 @@ test("比較元に読めないコンテナがあるときは「直せば通る�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("現在側だけが読めないときは閉じ括弧を補うよう案内する", () => {
-  const root = makeConfigRepo();
+test.concurrent("現在側だけが読めないときは閉じ括弧を補うよう案内する", async () => {
+  const root = await makeConfigRepo();
   writeConfig(
     root,
     readConfig(root).replace(
@@ -2584,7 +2589,7 @@ test("現在側だけが読めないときは閉じ括弧を補うよう案内�
       "      keep: [",
     ),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.status).toBe(1);
   expect(r.stdout).toMatch(/復元せず閉じ括弧を補う/);
   // 1 行へ畳むは示さない（growable_containers では要素行の注記の単位が消えて落ちる）。
@@ -2617,8 +2622,8 @@ const HINT_FOLDED = 'a:\n  keep: ["x", "y", "z"] # 鍵\n  next: 1\n';
  * @param {Record<string, unknown>} option
  * @param {string} before
  */
-function makeHintRepo(option, before) {
-  const root = makeConfigRepo(before);
+async function makeHintRepo(option, before) {
+  const root = await makeConfigRepo(before);
   const manifest = writeManifest(root, [
     { id: "c", pattern: ".config/skills/*/skills.yml", unit: "lines", ...option },
   ]);
@@ -2629,81 +2634,81 @@ for (const [kind, option] of [
   ["growable_containers", { growable_containers: ["a.keep"] }],
   ["registry_groups", { registry_groups: [{ id: "g", item_key: "item", paths: ["a.keep"] }] }],
 ]) {
-  test(`${kind}: 閉じ忘れには閉じ括弧を補う案内が出て、そのとおり直せば exit 0`, () => {
-    const { root, manifest } = makeHintRepo(option, HINT_BASE);
+  test.concurrent(`${kind}: 閉じ忘れには閉じ括弧を補う案内が出て、そのとおり直せば exit 0`, async () => {
+    const { root, manifest } = await makeHintRepo(option, HINT_BASE);
     writeConfig(root, HINT_UNCLOSED);
-    const r = run(root, ["--manifest", manifest]);
+    const r = await run(root, ["--manifest", manifest]);
     expect(r.status).toBe(1);
     expect(r.stdout).toMatch(
       /閉じていないフロー形式のコンテナがある: a\.keep — 復元せず閉じ括弧を補う/,
     );
     writeConfig(root, HINT_CLOSED);
-    const fixed = run(root, ["--manifest", manifest]);
+    const fixed = await run(root, ["--manifest", manifest]);
     expect(fixed.stdout).toMatch(/^ok: /m);
     expect(fixed.status).toBe(0);
     rmSync(root, { recursive: true, force: true });
   });
 }
 
-test("growable_containers: 1 行へ畳むと要素行の注記が失われて落ちる（だから案内に出さない）", () => {
-  const { root, manifest } = makeHintRepo({ growable_containers: ["a.keep"] }, HINT_BASE);
+test.concurrent("growable_containers: 1 行へ畳むと要素行の注記が失われて落ちる（だから案内に出さない）", async () => {
+  const { root, manifest } = await makeHintRepo({ growable_containers: ["a.keep"] }, HINT_BASE);
   writeConfig(root, HINT_FOLDED);
-  const r = run(root, ["--manifest", manifest]);
+  const r = await run(root, ["--manifest", manifest]);
   expect(r.status).toBe(1);
   expect(r.stdout).toMatch(/1 件.*# なぜ x か/);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("mutable_blocks: 閉じ忘れで鍵の注記が失われても案内は出さず、注記を戻せば exit 0", () => {
-  const { root, manifest } = makeHintRepo({ mutable_blocks: ["a.keep"] }, HINT_BASE);
+test.concurrent("mutable_blocks: 閉じ忘れで鍵の注記が失われても案内は出さず、注記を戻せば exit 0", async () => {
+  const { root, manifest } = await makeHintRepo({ mutable_blocks: ["a.keep"] }, HINT_BASE);
   writeConfig(root, HINT_UNCLOSED);
-  const r = run(root, ["--manifest", manifest]);
+  const r = await run(root, ["--manifest", manifest]);
   expect(r.status).toBe(1);
   expect(r.stdout).toMatch(/1 件.*# 鍵/);
   expect(r.stdout).not.toMatch(/閉じていないフロー形式のコンテナがある/);
   // 配下は単位から外れるので、閉じなくても注記を独立した行で戻せば届く。
   writeConfig(root, HINT_UNCLOSED.replace("  next: 1\n", "  # 鍵\n  next: 1\n"));
-  const fixed = run(root, ["--manifest", manifest]);
+  const fixed = await run(root, ["--manifest", manifest]);
   expect(fixed.stdout).toMatch(/^ok: /m);
   expect(fixed.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("mutable_blocks: 比較元が閉じていなくても判定は成り立ち、案内を出さない（注記を戻せば exit 0）", () => {
+test.concurrent("mutable_blocks: 比較元が閉じていなくても判定は成り立ち、案内を出さない（注記を戻せば exit 0）", async () => {
   // growable_containers では同じ編集に「判定できない」が出る（読めない鍵の行がそのまま単位になる）。
   // mutable_blocks は鍵の行を鍵だけの単位へ畳み注記を独立させるので、比較元が読めなくても直せる。
   const before = 'a:\n  keep: [ # 鍵\n    "x"\n  next: 1\n';
-  const { root, manifest } = makeHintRepo({ mutable_blocks: ["a.keep"] }, before);
+  const { root, manifest } = await makeHintRepo({ mutable_blocks: ["a.keep"] }, before);
   writeConfig(root, 'a:\n  keep: [\n    "x"\n  next: 1\n');
-  const r = run(root, ["--manifest", manifest]);
+  const r = await run(root, ["--manifest", manifest]);
   expect(r.status).toBe(1);
   expect(r.stdout).toMatch(/1 件.*# 鍵/);
   expect(r.stdout).not.toMatch(/閉じていないフロー形式のコンテナがある/);
   writeConfig(root, 'a:\n  keep: [ # 鍵\n    "x",\n    "y"\n  ]\n  next: 1\n');
-  const fixed = run(root, ["--manifest", manifest]);
+  const fixed = await run(root, ["--manifest", manifest]);
   expect(fixed.stdout).toMatch(/^ok: /m);
   expect(fixed.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("mutable_blocks: 鍵と同じインデントの要素行が失われたときだけ案内が出る", () => {
+test.concurrent("mutable_blocks: 鍵と同じインデントの要素行が失われたときだけ案内が出る", async () => {
   // 除外は鍵と同じインデントの行で閉じるので、その要素行は行のまま単位になり、読みに行った行として帰属できる。
   const before = 'a:\n  keep: [ # 鍵\n  "x",\n  "y"\n  next: 1\n';
-  const { root, manifest } = makeHintRepo({ mutable_blocks: ["a.keep"] }, before);
+  const { root, manifest } = await makeHintRepo({ mutable_blocks: ["a.keep"] }, before);
   writeConfig(root, 'a:\n  keep: [ # 鍵\n  "x",\n  "y",\n  "z"\n  next: 1\n');
-  const r = run(root, ["--manifest", manifest]);
+  const r = await run(root, ["--manifest", manifest]);
   expect(r.status).toBe(1);
   expect(r.stdout).toMatch(/比較元 .+ に閉じていないフロー形式のコンテナがある: a\.keep/);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("比較元側と現在側の両方に読めないコンテナがあると、現在側のキーパスも名指しする", () => {
+test.concurrent("比較元側と現在側の両方に読めないコンテナがあると、現在側のキーパスも名指しする", async () => {
   // 比較元側の案内で現在側を抑止すると、閉じ直せば通る a.comp が一度も案内されない。
   const option = { growable_containers: ["a.keep", "a.comp"] };
   const before = 'a:\n  keep: [\n    "x"\n  comp: ["p"] # c\n  next: 1\n';
-  const { root, manifest } = makeHintRepo(option, before);
+  const { root, manifest } = await makeHintRepo(option, before);
   writeConfig(root, 'a:\n  keep: [\n    "x",\n    "y"\n  comp: [\n    "p", "q"\n  next: 1\n');
-  const r = run(root, ["--manifest", manifest]);
+  const r = await run(root, ["--manifest", manifest]);
   expect(r.status).toBe(1);
   expect(r.stdout).toMatch(
     /閉じていないフロー形式のコンテナがある: a\.comp — 復元せず閉じ括弧を補う/,
@@ -2714,19 +2719,19 @@ test("比較元側と現在側の両方に読めないコンテナがあると�
     root,
     'a:\n  keep: [\n    "x",\n    "y"\n  comp: [\n    "p", "q"\n  ] # c\n  next: 1\n',
   );
-  const partly = run(root, ["--manifest", manifest]);
+  const partly = await run(root, ["--manifest", manifest]);
   expect(partly.status).toBe(1);
   expect(partly.stdout).not.toMatch(/a\.comp/);
   expect(partly.stdout).toMatch(/比較元 .+ に閉じていないフロー形式のコンテナがある: a\.keep/);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("同じ鍵が比較元側と現在側の両方に帰属したら、比較元側の案内だけを出す", () => {
+test.concurrent("同じ鍵が比較元側と現在側の両方に帰属したら、比較元側の案内だけを出す", async () => {
   // 閉じ直しても比較元の行は戻らないので、「閉じ括弧を補う」は実行できない指示になる。
   const before = 'a:\n  keep: [\n    "x",\n    "x",\n  next: 1\n';
-  const { root, manifest } = makeHintRepo({ growable_containers: ["a.keep"] }, before);
+  const { root, manifest } = await makeHintRepo({ growable_containers: ["a.keep"] }, before);
   writeConfig(root, 'a:\n  keep: [\n    "x",\n  next: 1\n');
-  const r = run(root, ["--manifest", manifest]);
+  const r = await run(root, ["--manifest", manifest]);
   expect(r.status).toBe(1);
   expect(r.stdout).toMatch(/比較元 .+ に閉じていないフロー形式のコンテナがある: a\.keep/);
   expect(r.stdout).not.toMatch(/閉じ括弧を補う/);
@@ -2741,16 +2746,16 @@ function wrappedPathsOf(src) {
   return out.map((w) => w.path);
 }
 
-test("閉じた後に余りがある形は「閉じていない」と案内しない", () => {
+test.concurrent("閉じた後に余りがある形は「閉じていない」と案内しない", () => {
   // `[a] b` は**閉じてはいる**。1 行へ畳んでも同じく読めないので、その案内は指示にならない。
   expect(wrappedPathsOf('a:\n  keep: [\n    "x"\n  ],\n')).toEqual([]);
   // 検出できることの確認: 閉じないまま兄弟のキーへ出る形は記録する。
   expect(wrappedPathsOf("a:\n  keep: [\n  other: 1\n")).toEqual(["a.keep"]);
 });
 
-test("mutable_blocks の折り返しも配下ごと消費する（1 行への畳み込みで単位が消えない）", () => {
+test.concurrent("mutable_blocks の折り返しも配下ごと消費する（1 行への畳み込みで単位が消えない）", async () => {
   const wrapped = ["      keep: [", '        "テーブル名を保つ"', "      ] # 変えない"].join("\n");
-  const root = makeConfigRepo(
+  const root = await makeConfigRepo(
     CONFIG.replace(
       '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
       wrapped,
@@ -2771,15 +2776,15 @@ test("mutable_blocks の折り返しも配下ごと消費する（1 行への畳
       '      keep: ["テーブル名を保つ", "項目名を保つ"] # 変えない',
     ),
   );
-  const r = run(root, ["--manifest", manifest]);
+  const r = await run(root, ["--manifest", manifest]);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("mutable_blocks の折り返しでも、キーごと消せば落ちる（外しすぎていない）", () => {
+test.concurrent("mutable_blocks の折り返しでも、キーごと消せば落ちる（外しすぎていない）", async () => {
   const wrapped = ["      keep: [", '        "テーブル名を保つ"', "      ] # 変えない"].join("\n");
-  const root = makeConfigRepo(
+  const root = await makeConfigRepo(
     CONFIG.replace(
       '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
       wrapped,
@@ -2794,20 +2799,20 @@ test("mutable_blocks の折り返しでも、キーごと消せば落ちる（�
     },
   ]);
   writeConfig(root, readConfig(root).replace(`${wrapped}\n`, ""));
-  const r = run(root, ["--manifest", manifest]);
+  const r = await run(root, ["--manifest", manifest]);
   expect(r.stdout).toMatch(/mutable-block/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("mutable_blocks でも、開き括弧が次の行にある形を消費する（値の形で門番しない）", () => {
+test.concurrent("mutable_blocks でも、開き括弧が次の行にある形を消費する（値の形で門番しない）", async () => {
   const wrapped = [
     "      keep:",
     "      [",
     '        "テーブル名を保つ"',
     "      ] # 変えない",
   ].join("\n");
-  const root = makeConfigRepo(
+  const root = await makeConfigRepo(
     CONFIG.replace(
       '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
       wrapped,
@@ -2828,14 +2833,14 @@ test("mutable_blocks でも、開き括弧が次の行にある形を消費す�
       '      keep: ["テーブル名を保つ", "項目名を保つ"] # 変えない',
     ),
   );
-  const r = run(root, ["--manifest", manifest]);
+  const r = await run(root, ["--manifest", manifest]);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("mutable_blocks のブロック形式は今までどおり配下を外す（消費として扱われていない）", () => {
-  const root = makeConfigRepo(
+test.concurrent("mutable_blocks のブロック形式は今までどおり配下を外す（消費として扱われていない）", async () => {
+  const root = await makeConfigRepo(
     CONFIG.replace("      pending: [] # 保留（測定結果で決める）\n", PENDING_BLOCK),
   );
   const manifest = writeManifest(root, [
@@ -2851,15 +2856,15 @@ test("mutable_blocks のブロック形式は今までどおり配下を外す�
     root,
     readConfig(root).replace(PENDING_BLOCK, "      pending: # 保留（測定結果で決める）\n"),
   );
-  const r = run(root, ["--manifest", manifest]);
+  const r = await run(root, ["--manifest", manifest]);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("入れ子の要素自身を折り返しても単位は変わらない（整形だけでは落ちない）", () => {
+test.concurrent("入れ子の要素自身を折り返しても単位は変わらない（整形だけでは落ちない）", async () => {
   // 要素の折り返しで末尾カンマ・余分な空白が入っても、正規形へ組み直すので 1 行の形と同じ単位になる。
-  const root = makeConfigRepo(
+  const root = await makeConfigRepo(
     CONFIG.replace(
       "    component_diffs: []",
       '    component_diffs: [{component: "grid", property: "color"}]',
@@ -2879,29 +2884,29 @@ test("入れ子の要素自身を折り返しても単位は変わらない（�
       ].join("\n"),
     ),
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("区別: 入れ子の要素の中身を差し替えれば落ちる", () => {
-  const root = makeConfigRepo(
+test.concurrent("区別: 入れ子の要素の中身を差し替えれば落ちる", async () => {
+  const root = await makeConfigRepo(
     CONFIG.replace(
       "    component_diffs: []",
       '    component_diffs: [{component: "grid", property: "color"}]',
     ),
   );
   writeConfig(root, readConfig(root).replace('property: "color"', 'property: "font"'));
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/grid/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("mutable_blocks で鍵を丸ごと消しても「人が確認して通す」とは案内しない", () => {
+test.concurrent("mutable_blocks で鍵を丸ごと消しても「人が確認して通す」とは案内しない", async () => {
   // mutable_blocks は配下を外すので、鍵の単位が失われるのは鍵ごと消したときだけ。破壊に案内を付けない。
-  const root = makeConfigRepo(UNREADABLE_CONFIG);
+  const root = await makeConfigRepo(UNREADABLE_CONFIG);
   const manifest = writeManifest(root, [
     {
       id: "project-config",
@@ -2911,7 +2916,7 @@ test("mutable_blocks で鍵を丸ごと消しても「人が確認して通す�
     },
   ]);
   writeConfig(root, readConfig(root).replace("      keep: [\n", ""));
-  const r = run(root, ["--manifest", manifest]);
+  const r = await run(root, ["--manifest", manifest]);
   expect(r.status).toBe(1);
   expect(r.stdout).toMatch(/mutable-block/);
   expect(r.stdout).not.toMatch(/内容を人が確認して通す/);
@@ -2921,68 +2926,68 @@ test("mutable_blocks で鍵を丸ごと消しても「人が確認して通す�
 // ---- --exclude（利用者の pre-commit・CI へ組み込むとき、設定ファイルを外す。#540）----
 
 /** 設定ファイルの既存の値を書き換えた作業ツリー（他スキルの設定を直す正当な編集に当たる）。 */
-function makeConfigRepoWithEditedValue() {
-  const root = makeConfigRepo();
+async function makeConfigRepoWithEditedValue() {
+  const root = await makeConfigRepo();
   writeConfig(root, readConfig(root).replace("stack: [typescript]", "stack: [javascript]"));
   return root;
 }
 
-test("対照: --exclude なしでは設定ファイルの既存の値の書き換えを縮小として落とす", () => {
-  const root = makeConfigRepoWithEditedValue();
-  const r = run(root);
+test.concurrent("対照: --exclude なしでは設定ファイルの既存の値の書き換えを縮小として落とす", async () => {
+  const root = await makeConfigRepoWithEditedValue();
+  const r = await run(root);
   expect(r.stdout).toMatch(/skills\.yml/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("--exclude project-config なら設定ファイルの書き換えを通し、外した id を出力に出す", () => {
-  const root = makeConfigRepoWithEditedValue();
-  const r = run(root, ["--exclude", "project-config"]);
+test.concurrent("--exclude project-config なら設定ファイルの書き換えを通し、外した id を出力に出す", async () => {
+  const root = await makeConfigRepoWithEditedValue();
+  const r = await run(root, ["--exclude", "project-config"]);
   expect(r.stdout).toMatch(/^note: 一覧から外した項目（突き合わせない）: project-config$/m);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("--exclude project-config でも残りの項目（features.md の行の削除）は落とす", () => {
-  const root = makeConfigRepoWithEditedValue();
+test.concurrent("--exclude project-config でも残りの項目（features.md の行の削除）は落とす", async () => {
+  const root = await makeConfigRepoWithEditedValue();
   writeFileSync(
     join(root, ".replace/features.md"),
     FEATURES.replace("| order-edit | 注文編集 | 未 | 未起票 |\n", ""),
   );
-  const r = run(root, ["--exclude", "project-config"]);
+  const r = await run(root, ["--exclude", "project-config"]);
   expect(r.stdout).toMatch(/order-edit/);
   expect(r.stdout).not.toMatch(/skills\.yml/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("--exclude に一覧に無い id を渡したら合格として扱わない（exit 2。綴りを誤ったまま、警告なしに何も外さずに進まない）", () => {
-  const root = makeConfigRepoWithEditedValue();
-  const r = run(root, ["--exclude", "project-cofig"]);
+test.concurrent("--exclude に一覧に無い id を渡したら合格として扱わない（exit 2。綴りを誤ったまま、警告なしに何も外さずに進まない）", async () => {
+  const root = await makeConfigRepoWithEditedValue();
+  const r = await run(root, ["--exclude", "project-cofig"]);
   expect(r.stderr).toMatch(/--exclude の id が一覧に無い: project-cofig/);
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("--exclude で一覧の項目がすべて外れたら合格として扱わない（exit 2）", () => {
-  const root = makeRepo();
+test.concurrent("--exclude で一覧の項目がすべて外れたら合格として扱わない（exit 2）", async () => {
+  const root = await makeRepo();
   const manifest = writeManifest(root, [
     { id: "features", pattern: ".replace/features.md", unit: "markdown-structure" },
   ]);
-  const r = run(root, ["--manifest", manifest, "--exclude", "features"]);
+  const r = await run(root, ["--manifest", manifest, "--exclude", "features"]);
   expect(r.stderr).toMatch(/すべて外れた/);
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
 });
 
-test.each([
+test.concurrent.each([
   ["値が無い", ["--exclude"], /--exclude に値が無い/],
   ["値が空", ["--exclude", " "], /--exclude に値が無い/],
   ["重複", ["--exclude", "gaps", "--exclude", "gaps"], /--exclude の id が重複している: gaps/],
-])("--exclude の使い方の誤り（%s）は exit 2", (_name, extra, message) => {
-  const root = makeRepo();
-  const r = run(root, extra);
+])("--exclude の使い方の誤り（%s）は exit 2", async (_name, extra, message) => {
+  const root = await makeRepo();
+  const r = await run(root, extra);
   expect(r.stderr).toMatch(message);
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
@@ -3009,8 +3014,8 @@ const WEAKNESS_NONE =
   "| 該当なし（A04） | A04 | - | - | 該当なし | - | - | - | 有効 | 2026-09-01・setup | 探した場所 |";
 
 /** 弱点台帳と方針空欄の行を持つ資産台帳を比較元に持つプロジェクトを作る。 */
-function makeFillOnlyRepo() {
-  const root = makeRepo();
+async function makeFillOnlyRepo() {
+  const root = await makeRepo();
   writeFileSync(
     join(root, ".replace/weaknesses.md"),
     [
@@ -3045,7 +3050,7 @@ function makeFillOnlyRepo() {
       "",
     ].join("\n"),
   );
-  commit(root, "fill-only 台帳");
+  await commit(root, "fill-only 台帳");
   return root;
 }
 
@@ -3062,99 +3067,99 @@ function replaceIn(root, file, from, to) {
   writeFileSync(path, text.replace(from, to));
 }
 
-test("weaknesses.md の仕分け空欄の行の決定の列（空セル）をその場で埋めると通る（fill_only_columns）", () => {
-  const root = makeFillOnlyRepo();
+test.concurrent("weaknesses.md の仕分け空欄の行の決定の列（空セル）をその場で埋めると通る（fill_only_columns）", async () => {
+  const root = await makeFillOnlyRepo();
   replaceIn(
     root,
     ".replace/weaknesses.md",
     WEAKNESS_BLANK,
     "| IDOR | A01 | `GET /api/orders/:id` | 満 / 満 / 満 | 直す | 注文の詳細 API は所有者以外に 404 を返す | #200 | - | 有効 | 2026-09-20・order-detail | 現行ソースのハンドラ |",
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("weaknesses.md の決めた仕分けを書き換えると落ちる（引き継ぐ → 直す）", () => {
-  const root = makeFillOnlyRepo();
+test.concurrent("weaknesses.md の決めた仕分けを書き換えると落ちる（引き継ぐ → 直す）", async () => {
+  const root = await makeFillOnlyRepo();
   replaceIn(root, ".replace/weaknesses.md", "/ 否 | 引き継ぐ |", "/ 否 | 直す |");
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/CSRF@0\|仕分け=引き継ぐ/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("weaknesses.md の入っている値を未記入（-）へ戻すと落ちる", () => {
-  const root = makeFillOnlyRepo();
+test.concurrent("weaknesses.md の入っている値を未記入（-）へ戻すと落ちる", async () => {
+  const root = await makeFillOnlyRepo();
   replaceIn(root, ".replace/weaknesses.md", "| #123 |", "| - |");
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/CSRF@0\|扱う設計作業=#123/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("weaknesses.md の基準の 未確認 は未記入とみなさない（書き換えると落ちる）", () => {
-  const root = makeFillOnlyRepo();
+test.concurrent("weaknesses.md の基準の 未確認 は未記入とみなさない（書き換えると落ちる）", async () => {
+  const root = await makeFillOnlyRepo();
   replaceIn(root, ".replace/weaknesses.md", "| 満 / 未確認 / 満 |", "| 満 / 満 / 満 |");
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/XSS@0\|基準（1 \/ 2 \/ 3）=満 \/ 未確認 \/ 満/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("weaknesses.md の決めた「該当なし」（-）を値へ書き換えると落ちる（- は未記入ではない）", () => {
-  const root = makeFillOnlyRepo();
+test.concurrent("weaknesses.md の決めた「該当なし」（-）を値へ書き換えると落ちる（- は未記入ではない）", async () => {
+  const root = await makeFillOnlyRepo();
   replaceIn(
     root,
     ".replace/weaknesses.md",
     WEAKNESS_NONE,
     "| 該当なし（A04） | A04 | - | - | 該当なし | パスワードは平文で保存する | - | - | 有効 | 2026-09-01・setup | 探した場所 |",
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/該当なし（A04）@0\|宣言=-/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("assets.md の決めた行の同等物で残る差（-）を値へ書き換えると落ちる（- は未記入ではない）", () => {
-  const root = makeFillOnlyRepo();
+test.concurrent("assets.md の決めた行の同等物で残る差（-）を値へ書き換えると落ちる（- は未記入ではない）", async () => {
+  const root = await makeFillOnlyRepo();
   replaceIn(
     root,
     ".replace/assets.md",
     "| 可（ライセンス・2026-09-01） | - |",
     "| 可（ライセンス・2026-09-01） | 字形が違う |",
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/ロゴ@0\|同等物で残る差=-/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("assets.md の方針空欄の行を後から埋めると通る（fill_only_columns）", () => {
-  const root = makeFillOnlyRepo();
+test.concurrent("assets.md の方針空欄の行を後から埋めると通る（fill_only_columns）", async () => {
+  const root = await makeFillOnlyRepo();
   replaceIn(
     root,
     ".replace/assets.md",
     "| 状態アイコン | `close.png` | `::before` のグリフ、/orders |  | 未確認 |  |  | 有効 |  | 再配布の可否を確認中 |",
     "| 状態アイコン | `close.png` | `::before` のグリフ、/orders | コピーしない | 未確認 | - | - | 有効 | 2026-09-20・order-list | 描いているのは書体のグリフ |",
   );
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("assets.md の入っている方針を差し替えると落ちる", () => {
-  const root = makeFillOnlyRepo();
+test.concurrent("assets.md の入っている方針を差し替えると落ちる", async () => {
+  const root = await makeFillOnlyRepo();
   replaceIn(root, ".replace/assets.md", "| 実体をコピーする | 可", "| 同等物を作る | 可");
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/ロゴ@0\|方針=実体をコピーする/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test.each([
+test.concurrent.each([
   [
     "同じ列が両方にある",
     { mutable_columns: ["状態"], fill_only_columns: ["状態"] },
@@ -3176,19 +3181,19 @@ test.each([
     { fill_only_columns: [" "] },
     /fill_only_columns に空の要素がある/,
   ],
-])("fill_only_columns の宣言の誤り（%s）は exit 2", (_name, extra, message) => {
-  const root = makeRepo();
+])("fill_only_columns の宣言の誤り（%s）は exit 2", async (_name, extra, message) => {
+  const root = await makeRepo();
   const manifest = writeManifest(root, [
     { id: "features", pattern: ".replace/features.md", unit: "markdown-structure", ...extra },
   ]);
-  const r = run(root, ["--manifest", manifest]);
+  const r = await run(root, ["--manifest", manifest]);
   expect(r.stderr).toMatch(message);
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("unit が lines なのに fill_only_columns があれば合格として扱わない（exit 2）", () => {
-  const root = makeRepo();
+test.concurrent("unit が lines なのに fill_only_columns があれば合格として扱わない（exit 2）", async () => {
+  const root = await makeRepo();
   const manifest = writeManifest(root, [
     {
       id: "features",
@@ -3197,14 +3202,14 @@ test("unit が lines なのに fill_only_columns があれば合格として扱�
       fill_only_columns: ["Issue"],
     },
   ]);
-  const r = run(root, ["--manifest", manifest]);
+  const r = await run(root, ["--manifest", manifest]);
   expect(r.stderr).toMatch(/unit が lines なのに fill_only_columns がある/);
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("unit が json-arrays なのに fill_only_columns があれば合格として扱わない（exit 2）", () => {
-  const root = makeRepo();
+test.concurrent("unit が json-arrays なのに fill_only_columns があれば合格として扱わない（exit 2）", async () => {
+  const root = await makeRepo();
   const manifest = writeManifest(root, [
     {
       id: "dataset",
@@ -3214,14 +3219,14 @@ test("unit が json-arrays なのに fill_only_columns があれば合格とし�
       fill_only_columns: ["Issue"],
     },
   ]);
-  const r = run(root, ["--manifest", manifest]);
+  const r = await run(root, ["--manifest", manifest]);
   expect(r.stderr).toMatch(/json-arrays なのに mutable_columns \/ fill_only_columns \//);
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("同じファイルに fill_only_columns の違う項目が当たれば合格として扱わない（exit 2）", () => {
-  const root = makeRepo();
+test.concurrent("同じファイルに fill_only_columns の違う項目が当たれば合格として扱わない（exit 2）", async () => {
+  const root = await makeRepo();
   const manifest = writeManifest(root, [
     {
       id: "a",
@@ -3231,7 +3236,7 @@ test("同じファイルに fill_only_columns の違う項目が当たれば合�
     },
     { id: "b", pattern: ".replace/features.md", unit: "markdown-structure" },
   ]);
-  const r = run(root, ["--manifest", manifest]);
+  const r = await run(root, ["--manifest", manifest]);
   expect(r.stderr).toMatch(/同じファイルに突き合わせ方の違う一覧の項目が当たっている/);
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
@@ -3257,13 +3262,13 @@ const historyEntry = (floors = FLOORS, relativeFloors = RELATIVE_FLOORS, sha = "
  * performance を持つ parity の metadata.json を commit したプロジェクトを作る。
  * @param {Record<string, unknown> | undefined} performance
  */
-function makePerfRepo(performance) {
-  const root = makeRepo();
+async function makePerfRepo(performance) {
+  const root = await makeRepo();
   const path = join(root, ".replace/parity/order-list/metadata.json");
   const doc = JSON.parse(readFileSync(path, "utf8"));
   if (performance !== undefined) doc.performance = performance;
   writeFileSync(path, `${JSON.stringify(doc, null, 2)}\n`);
-  const r = spawnSync("git", ["-C", root, "commit", "-qam", "perf"], { encoding: "utf8" });
+  const r = await spawnAsync("git", ["-C", root, "commit", "-qam", "perf"]);
   if (r.status !== 0 && performance !== undefined) throw new Error(r.stderr);
   /** @param {(perf: Record<string, unknown>, doc: Record<string, unknown>) => void} edit */
   const edit = (edit) => {
@@ -3281,12 +3286,12 @@ const seededPerformance = () => ({
   floor_history: [historyEntry()],
 });
 
-test("履歴を追記せずに floors を緩めると落ちる", () => {
-  const { root, edit } = makePerfRepo(seededPerformance());
+test.concurrent("履歴を追記せずに floors を緩めると落ちる", async () => {
+  const { root, edit } = await makePerfRepo(seededPerformance());
   edit((perf) => {
     perf.floors.lcp = 1000;
   });
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(
     /performance\.floors が performance\.floor_history への追記なしに書き換えられている/,
   );
@@ -3295,12 +3300,12 @@ test("履歴を追記せずに floors を緩めると落ちる", () => {
   rmSync(root, { recursive: true, force: true });
 });
 
-test("履歴を追記せずに relative_floors を緩めると落ちる", () => {
-  const { root, edit } = makePerfRepo(seededPerformance());
+test.concurrent("履歴を追記せずに relative_floors を緩めると落ちる", async () => {
+  const { root, edit } = await makePerfRepo(seededPerformance());
   edit((perf) => {
     perf.relative_floors.lcp = 0.9;
   });
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(
     /performance\.relative_floors が performance\.floor_history への追記なしに/,
   );
@@ -3308,83 +3313,83 @@ test("履歴を追記せずに relative_floors を緩めると落ちる", () => 
   rmSync(root, { recursive: true, force: true });
 });
 
-test("履歴を持たない前の版の基準で floors を変えても、追記しなければ落ちる", () => {
+test.concurrent("履歴を持たない前の版の基準で floors を変えても、追記しなければ落ちる", async () => {
   const { floor_history: _, ...legacy } = seededPerformance();
-  const { root, edit } = makePerfRepo(legacy);
+  const { root, edit } = await makePerfRepo(legacy);
   edit((perf) => {
     perf.floors.tbt = 500;
   });
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/performance\.floors が performance\.floor_history への追記なしに/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("floors を消しても、追記しなければ落ちる", () => {
-  const { root, edit } = makePerfRepo(seededPerformance());
+test.concurrent("floors を消しても、追記しなければ落ちる", async () => {
+  const { root, edit } = await makePerfRepo(seededPerformance());
   edit((perf) => {
     delete perf.floors;
   });
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/performance\.floors が performance\.floor_history への追記なしに/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("誤検知しないことの確認: 履歴に今の値を追記して floors を変えれば通る", () => {
-  const { root, edit } = makePerfRepo(seededPerformance());
+test.concurrent("誤検知しないことの確認: 履歴に今の値を追記して floors を変えれば通る", async () => {
+  const { root, edit } = await makePerfRepo(seededPerformance());
   edit((perf) => {
     perf.floors.lcp = 150;
     perf.floor_history.push(historyEntry(perf.floors, perf.relative_floors, "b".repeat(64)));
   });
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("誤検知しないことの確認: 初めて書く performance は、履歴を 1 件持てば通る", () => {
-  const { root, edit } = makePerfRepo(undefined);
+test.concurrent("誤検知しないことの確認: 初めて書く performance は、履歴を 1 件持てば通る", async () => {
+  const { root, edit } = await makePerfRepo(undefined);
   edit((_, doc) => {
     doc.performance = seededPerformance();
   });
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("初めて書く performance でも、履歴が無ければ落ちる", () => {
-  const { root, edit } = makePerfRepo(undefined);
+test.concurrent("初めて書く performance でも、履歴が無ければ落ちる", async () => {
+  const { root, edit } = await makePerfRepo(undefined);
   edit((_, doc) => {
     const { floor_history: _h, ...perf } = seededPerformance();
     doc.performance = perf;
   });
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/performance\.floors が performance\.floor_history への追記なしに/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("誤検知しないことの確認: 下限を変えない採り直し（他の項目だけの変更）は通る", () => {
-  const { root, edit } = makePerfRepo(seededPerformance());
+test.concurrent("誤検知しないことの確認: 下限を変えない採り直し（他の項目だけの変更）は通る", async () => {
+  const { root, edit } = await makePerfRepo(seededPerformance());
   edit((perf) => {
     perf.samples_sha256 = "c".repeat(64);
     perf.pairs = [{ page: "top", viewport: "desktop", metrics: {} }];
   });
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("履歴だけを追記して、最後の要素が今の値と合わなければ落ちる", () => {
-  const { root, edit } = makePerfRepo(seededPerformance());
+test.concurrent("履歴だけを追記して、最後の要素が今の値と合わなければ落ちる", async () => {
+  const { root, edit } = await makePerfRepo(seededPerformance());
   edit((perf) => {
     perf.floors.lcp = 1000;
     perf.floor_history.push(historyEntry({ ...FLOORS, lcp: 150 }));
   });
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(
     /performance\.floor_history の最後の要素の floors が performance\.floors の今の値と合わない/,
   );
@@ -3393,25 +3398,25 @@ test("履歴だけを追記して、最後の要素が今の値と合わなけ�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("履歴の最後の要素がオブジェクトでなければ落ちる", () => {
-  const { root, edit } = makePerfRepo(seededPerformance());
+test.concurrent("履歴の最後の要素がオブジェクトでなければ落ちる", async () => {
+  const { root, edit } = await makePerfRepo(seededPerformance());
   edit((perf) => {
     perf.floors.lcp = 150;
     perf.floor_history.push("lcp を 150 にした");
   });
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/performance\.floor_history の最後の要素がオブジェクトでない/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("同じ変更で追記した途中の要素がオブジェクトでなければ落ちる", () => {
-  const { root, edit } = makePerfRepo(seededPerformance());
+test.concurrent("同じ変更で追記した途中の要素がオブジェクトでなければ落ちる", async () => {
+  const { root, edit } = await makePerfRepo(seededPerformance());
   edit((perf) => {
     perf.floors.lcp = 150;
     perf.floor_history.push("junk", historyEntry(perf.floors, perf.relative_floors));
   });
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(
     /performance\.floor_history に追記した 1 番目の要素がオブジェクトでない/,
   );
@@ -3419,14 +3424,14 @@ test("同じ変更で追記した途中の要素がオブジェクトでなけ�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("履歴の既存の要素を消すと落ちる（下限を変えないときも）", () => {
+test.concurrent("履歴の既存の要素を消すと落ちる（下限を変えないときも）", async () => {
   const perf = seededPerformance();
   perf.floor_history.push(historyEntry(FLOORS, RELATIVE_FLOORS, "b".repeat(64)));
-  const { root, edit } = makePerfRepo(perf);
+  const { root, edit } = await makePerfRepo(perf);
   edit((now) => {
     now.floor_history.shift();
   });
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(
     /performance\.floor_history の要素が失われている（比較元 2 件 → 現在 1 件）/,
   );
@@ -3434,30 +3439,30 @@ test("履歴の既存の要素を消すと落ちる（下限を変えないと�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("履歴の既存の要素を書き換えると落ちる", () => {
-  const { root, edit } = makePerfRepo(seededPerformance());
+test.concurrent("履歴の既存の要素を書き換えると落ちる", async () => {
+  const { root, edit } = await makePerfRepo(seededPerformance());
   edit((perf) => {
     perf.floor_history[0].floors.lcp = 999;
   });
-  const r = run(root);
+  const r = await run(root);
   expect(r.stdout).toMatch(/performance\.floor_history の 0 番目の要素が書き換えられている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("履歴が配列でなければ合格として扱わない（exit 2）", () => {
-  const { root, edit } = makePerfRepo(seededPerformance());
+test.concurrent("履歴が配列でなければ合格として扱わない（exit 2）", async () => {
+  const { root, edit } = await makePerfRepo(seededPerformance());
   edit((perf) => {
     perf.floor_history = { 0: historyEntry() };
   });
-  const r = run(root);
+  const r = await run(root);
   expect(r.stderr).toMatch(/履歴と宣言した performance\.floor_history が配列でない/);
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("key を持たない json-arrays でも pinned_values で単独の値を固定できる", () => {
-  const root = makeRepo();
+test.concurrent("key を持たない json-arrays でも pinned_values で単独の値を固定できる", async () => {
+  const root = await makeRepo();
   const manifest = writeManifest(root, [
     {
       id: "dataset-metadata",
@@ -3471,14 +3476,14 @@ test("key を持たない json-arrays でも pinned_values で単独の値を固
   const doc = JSON.parse(readFileSync(path, "utf8"));
   doc.version = 2;
   writeFileSync(path, `${JSON.stringify(doc, null, 2)}\n`);
-  const lost = run(root, ["--manifest", manifest]);
+  const lost = await run(root, ["--manifest", manifest]);
   expect(lost.stdout).toMatch(
     /version が version_history への追記なしに書き換えられている（1 → 2）/,
   );
   expect(lost.status).toBe(1);
   doc.version_history = [{ version: 2 }];
   writeFileSync(path, `${JSON.stringify(doc, null, 2)}\n`);
-  const ok = run(root, ["--manifest", manifest]);
+  const ok = await run(root, ["--manifest", manifest]);
   expect(ok.stdout).toMatch(/^ok: /m);
   expect(ok.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
@@ -3494,7 +3499,7 @@ const pinnedArtifact = (pinned) => ({
   pinned_values: pinned,
 });
 
-test.each([
+test.concurrent.each([
   ["空の配列", []],
   ["配列でない", { paths: ["a"], history: "h" }],
   ["paths が空", [{ paths: [], history: "h" }]],
@@ -3512,17 +3517,17 @@ test.each([
   ["同じグループで最後のセグメントが重なる", [{ paths: ["x.floors", "y.floors"], history: "h" }]],
   ["history が arrays と同じ", [{ paths: ["a"], history: "unmeasured.entries" }]],
   ["paths が arrays の祖先", [{ paths: ["unmeasured"], history: "h" }]],
-])("pinned_values の書き方が誤っていれば合格として扱わない（exit 2）: %s", (_, pinned) => {
-  const root = makeRepo();
+])("pinned_values の書き方が誤っていれば合格として扱わない（exit 2）: %s", async (_, pinned) => {
+  const root = await makeRepo();
   const manifest = writeManifest(root, [pinnedArtifact(pinned)]);
-  const r = run(root, ["--manifest", manifest]);
+  const r = await run(root, ["--manifest", manifest]);
   expect(r.stderr).toMatch(/pinned_values/);
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("unit が json-arrays でないのに pinned_values があれば合格として扱わない（exit 2）", () => {
-  const root = makeRepo();
+test.concurrent("unit が json-arrays でないのに pinned_values があれば合格として扱わない（exit 2）", async () => {
+  const root = await makeRepo();
   const manifest = writeManifest(root, [
     {
       id: "features",
@@ -3531,19 +3536,19 @@ test("unit が json-arrays でないのに pinned_values があれば合格と�
       pinned_values: [{ paths: ["a"], history: "h" }],
     },
   ]);
-  const r = run(root, ["--manifest", manifest]);
+  const r = await run(root, ["--manifest", manifest]);
   expect(r.stderr).toMatch(/unit が markdown-structure なのに pinned_values がある/);
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("同じファイルに当たる 2 項目で pinned_values だけ違えば合格として扱わない（exit 2）", () => {
-  const root = makeRepo();
+test.concurrent("同じファイルに当たる 2 項目で pinned_values だけ違えば合格として扱わない（exit 2）", async () => {
+  const root = await makeRepo();
   const manifest = writeManifest(root, [
     pinnedArtifact([{ paths: ["performance.floors"], history: "performance.floor_history" }]),
     { ...pinnedArtifact([{ paths: ["performance.relative_floors"], history: "h" }]), id: "other" },
   ]);
-  const r = run(root, ["--manifest", manifest]);
+  const r = await run(root, ["--manifest", manifest]);
   expect(r.stderr).toMatch(/突き合わせ方の違う一覧の項目が当たっている/);
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });

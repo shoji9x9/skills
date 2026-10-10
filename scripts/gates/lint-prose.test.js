@@ -23,6 +23,7 @@ import yaml from "js-yaml";
 import { PENDING_PATH, lintProse, loadPending, main } from "./lint-prose.js";
 import { COMMENT_EXTENSIONS } from "../lib/code-comments.js";
 import { makeSharedTempDir, makeTempDir } from "../lib/test-tmpdir.js";
+import { spawnAsync } from "../lib/spawn-async.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const script = join(repoRoot, "scripts/gates/lint-prose.js");
@@ -41,14 +42,36 @@ function write(root, path, text) {
 /** `files` を置いて git に登録し、`pending` を保留の一覧として書いた一時リポジトリ。 */
 function makeRepo(files, pending = []) {
   const root = makeTempDir("lint-prose-");
+  fillRepo(root, files, pending);
+  return root;
+}
+
+/** `makeRepo` の中身を、作ったディレクトリ `root` に置く。 */
+function fillRepo(root, files, pending = []) {
   spawnSync("git", ["init", "-q"], { cwd: root });
   for (const [p, t] of Object.entries(files)) write(root, p, t);
   if (pending !== null) {
     write(root, PENDING_PATH, JSON.stringify({ reason: "書き換え前", files: pending }));
   }
   spawnSync("git", ["add", "-A"], { cwd: root });
-  return root;
 }
+
+// **CLI の子プロセスは、収集のときに起動しておき、最後のテストで終了を待つ**（Issue #590）。
+// 子は textlint の読み込みで約 3 秒かかり、ミューテーションテストは変異 1 件ごとにこのファイルを丸ごと実行する。
+// 起動しておけば、その間に他のテストが進むので、1 回の実行が縮み、変異の数だけ反映される。
+// 他のテストは並べない。`process.chdir` と `process.env.PATH` を書き換えるテストがあるためである。
+// 子は起動した時点の cwd と env を受け取るので、後のテストの書き換えは子に及ばない。
+// リポジトリはファイルの終わりまで残すので、テストの終わりに消す `makeTempDir` ではなく `makeSharedTempDir` に作る。
+const cliRuns = (() => {
+  const run = (files) => {
+    const root = makeSharedTempDir("lint-prose-cli-");
+    fillRepo(root, files);
+    return spawnAsync(process.execPath, [script], { cwd: root });
+  };
+  const dirty = run({ "a.md": DIRTY });
+  const clean = run({ "a.md": CLEAN });
+  return Promise.all([dirty, clean]).then(([d, c]) => ({ dirty: d, clean: c }));
+})();
 
 // ---- 単語帳（検出されることの確認）----
 
@@ -468,12 +491,11 @@ test("main: 指摘があれば 1、無ければ 0、一覧が読めなければ 
   }
 });
 
-test("検出の確認（CLI）: 子プロセスとして起動しても、指摘は exit 1、無ければ exit 0", () => {
-  const run = (root) => spawnSync(process.execPath, [script], { cwd: root, encoding: "utf8" });
-  const dirty = run(makeRepo({ "a.md": DIRTY }));
-  expect(dirty.status).toBe(1);
+test("検出の確認（CLI）: 子プロセスとして起動しても、指摘は exit 1、無ければ exit 0", async () => {
+  const { dirty, clean } = await cliRuns;
+  expect(dirty.status, dirty.stderr).toBe(1);
   // textlint-disable
   expect(dirty.stderr).toContain("「正本」は使わない");
   // textlint-enable
-  expect(run(makeRepo({ "a.md": CLEAN })).status).toBe(0);
+  expect(clean.status, clean.stderr).toBe(0);
 }, 60_000);

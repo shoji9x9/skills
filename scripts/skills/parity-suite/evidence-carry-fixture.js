@@ -207,10 +207,12 @@ export function amendVerifyPair(root, pair, options = {}) {
  * 変更宣言 hover-shadow は base → component。記録の版 base・今の版 component が既定。
  * `root` を渡すと既存のプロジェクト（artifact-health-check.test.js の makeProject 等）へ足し、
  * 機能の metadata.json は書かない（呼び出し側が featureMetadata の capture_conditions をコピーする）。
- * @param {{ scope?: [string, string, string][], root?: string }} [options]
+ * `makeDir` は `root` を渡さないときにプロジェクトを作る関数で、デフォルトは `makeTempDir`。
+ * 並べて実行するテストは `makeTempDirFactory` で作った関数を渡す（`makeTempDir` は並べたテストの中では例外になる）。
+ * @param {{ scope?: [string, string, string][], root?: string, makeDir?: (prefix: string) => string }} [options]
  */
 export function makeCarryProject(options = {}) {
-  const root = options.root ?? makeTempDir("evidence-carry-");
+  const root = options.root ?? (options.makeDir ?? makeTempDir)("evidence-carry-");
   const repo = join(root, "app");
   mkdirSync(repo, { recursive: true });
   git(repo, ["init", "-q"]);
