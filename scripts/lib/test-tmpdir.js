@@ -9,12 +9,23 @@
 //   assertion が落ちても実行される）。収集時に呼ぶと `onTestFinished` が例外を投げるので、取り違えは警告なしには通らない。
 // - `makeSharedTempDir`: 収集時（モジュールの最上位・`describe` の本体）に作り、複数のテストで共有する。
 //   その階層の `afterAll` で消す。
+// - `makeTempDirFactory`: 並べて実行するテスト（`test.concurrent`・`describe.concurrent`）用。収集時に呼んで作る関数を受け取り、
+//   テストの中ではそれで作る。作ったものは共有の 1 つのディレクトリの下に置き、その階層の `afterAll` でまとめて消す。
+//   並べたテストの中では、vitest が「いま実行中のテスト」を正しく追えない（実測で、テスト a の中で b を返し、
+//   `await` の後は undefined を返した）。そこで `makeTempDir` を呼ぶと、別のテストの終わりに消える予約になり、
+//   まだ使っているディレクトリが消える。それを避けるため、`makeTempDir` は並べたテストの中では例外にする（Issue #590）。
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, onTestFinished } from "vitest";
+import { getCurrentTest } from "vitest/suite";
 
 export function makeTempDir(prefix) {
+  if (getCurrentTest()?.concurrent) {
+    throw new Error(
+      "並べて実行するテストの中では makeTempDir を使わない（消す予約が別のテストに付く）。makeTempDirFactory を使う",
+    );
+  }
   const dir = mkdtempSync(join(tmpdir(), prefix));
   try {
     onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
@@ -29,4 +40,9 @@ export function makeSharedTempDir(prefix) {
   const dir = mkdtempSync(join(tmpdir(), prefix));
   afterAll(() => rmSync(dir, { recursive: true, force: true }));
   return dir;
+}
+
+export function makeTempDirFactory(prefix) {
+  const root = makeSharedTempDir(prefix);
+  return (name) => mkdtempSync(join(root, name)); // tmpdir-ok: makeSharedTempDir の下・afterAll で消す
 }

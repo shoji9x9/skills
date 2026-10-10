@@ -29,12 +29,35 @@
     },
     {
       "id": "shared-no-cleanup",
-      "why": "makeSharedTempDir が afterAll で消さない",
+      "why": "makeSharedTempDir が afterAll で消さない（makeTempDirFactory も同じ共有のディレクトリに作るので、それも消えない）",
       "file": "scripts/lib/test-tmpdir.js",
       "find": "afterAll(() => rmSync(dir, { recursive: true, force: true }));",
       "replace": "afterAll(() => {});",
       "occurrences": 1,
-      "expect_failing": ["makeSharedTempDir で作ったものは describe を抜けると消える"]
+      "expect_failing": [
+        "makeSharedTempDir で作ったものは describe を抜けると消える",
+        "makeTempDirFactory で作ったものは describe を抜けると消える"
+      ]
+    },
+    {
+      "id": "concurrent-guard-removed",
+      "why": "並べたテストの中の makeTempDir を例外にせず、別のテストに消す予約を付ける（Issue #590）",
+      "file": "scripts/lib/test-tmpdir.js",
+      "find": "if (getCurrentTest()?.concurrent) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "makeTempDirFactory 並べて実行するテスト 並べたテストの中で makeTempDir を呼ぶと例外になる"
+      ]
+    },
+    {
+      "id": "factory-outside-shared-root",
+      "why": "makeTempDirFactory が共有のディレクトリの外に作り、afterAll で消えない",
+      "file": "scripts/lib/test-tmpdir.js",
+      "find": "return (name) => mkdtempSync(join(root, name));",
+      "replace": "return (name) => mkdtempSync(join(tmpdir(), name));",
+      "occurrences": 1,
+      "expect_failing": ["makeTempDirFactory で作ったものは describe を抜けると消える"]
     },
     {
       "id": "exempt-without-reason",
