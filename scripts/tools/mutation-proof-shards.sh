@@ -41,10 +41,15 @@ repo=$(git rev-parse --show-toplevel)
 cd "${repo}"
 # ランナーは相対パスをリポジトリのルートから解決する。このリポジトリの中を指す絶対パスは、worktree の中ではなく
 # この作業ツリーのファイル（commit していない内容を含む）を読ませるので、リポジトリのルートからの相対パスに直す。
+# シンボリックリンク越しの論理パスも同じファイルを指すので、物理パスに解決してから比べる（repo は物理パスである）。
 args=()
 for arg in "$@"; do
+	real="${arg}"
 	case "${arg}" in
-	"${repo}"/*) args+=("${arg#"${repo}"/}") ;;
+	/*) real=$(realpath -m -- "${arg}" 2>/dev/null || printf '%s' "${arg}") ;;
+	esac
+	case "${real}" in
+	"${repo}"/*) args+=("${real#"${repo}"/}") ;;
 	*) args+=("${arg}") ;;
 	esac
 done
@@ -68,6 +73,14 @@ done
 
 created=()
 pids=()
+# setsid があれば、シャードを新しいプロセスグループで起動する（中断のときに、子の vitest までまとめて止めるため）。
+# setsid は、プロセスグループのリーダーでなければ fork せずに exec するので、バックグラウンドで起動したプロセスの pid がそのままグループの id になる。
+launcher=()
+group_kill=0
+if command -v setsid >/dev/null 2>&1; then
+	launcher=(setsid)
+	group_kill=1
+fi
 waited=0
 # 途中で止まっても（依存の導入の失敗・中断）、作った worktree を残さない。残すと次の実行が「既にある」で止まる。
 # 実行中のシャードは先に止めて待つ。対象が戻っていない worktree は --force を付けずに消すので、消せずに残る。
@@ -78,10 +91,13 @@ cleanup() {
 	if [ "${waited}" -eq 0 ]; then
 		# 全シャードを待つ前に終わったのは前提の誤りか中断で、exit 1（実証できない変異がある）と取り違えさせない。
 		[ "${rc}" -eq 0 ] || rc=2
-		for pid in "${pids[@]}"; do kill "${pid}" 2>/dev/null || true; done
-		for pid in "${pids[@]}"; do wait "${pid}" 2>/dev/null || true; done
+		# 子の vitest まで止めるため、setsid で起動したシャードはプロセスグループごと止める。
+		for pid in ${pids[@]+"${pids[@]}"}; do
+			if [ "${group_kill}" -eq 1 ]; then kill -- "-${pid}" 2>/dev/null || true; else kill "${pid}" 2>/dev/null || true; fi
+		done
+		for pid in ${pids[@]+"${pids[@]}"}; do wait "${pid}" 2>/dev/null || true; done
 	fi
-	for wt in "${created[@]}"; do
+	for wt in ${created[@]+"${created[@]}"}; do
 		if ! out=$(git worktree remove "${wt}" 2>&1); then
 			echo "mutation-proof-shards: ${wt} を消さずに残す（git -C ${wt} status で確かめる）: ${out}" >&2
 			rc=2
@@ -100,7 +116,9 @@ done
 
 for i in $(seq 1 "${total}"); do
 	wt="${base}/shard-${i}"
-	(cd "${wt}" && exec node scripts/mutation/check-mutation-proof.js "${args[@]}" --shard "${i}/${total}") \
+	# 呼び出し元のシェルのランナー用の環境変数（ロック・テスト用の注入）を引き継がない。引き継ぐと、全シャードが同じロックを取り合う。
+	(cd "${wt}" && exec ${launcher[@]+"${launcher[@]}"} env -u MUTATION_PROOF_LOCK -u MUTATION_PROOF_TEST_COMMAND -u MUTATION_PROOF_CHANGED_FILES \
+		node scripts/mutation/check-mutation-proof.js ${args[@]+"${args[@]}"} --shard "${i}/${total}") \
 		</dev/null >"${base}/shard-${i}.log" 2>&1 &
 	pids+=("$!")
 done

@@ -1352,7 +1352,7 @@ describe("本物の vitest を通す end-to-end", () => {
     // fixture が run の途中で消えていないこと（消えると上の run 自体が成立しない）。
     expect(existsSync(fx.target), "fixture が掃かれた").toBe(true);
     expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
-  });
+  }, 60_000);
 
   // 選択から測定までを、本物の vitest で通す。測る変異は、対象をそのテストだけが読み、テストファイルが軽い宣言から選ぶ。
   // 集計スクリプトの宣言（STDEV）で測っていたときは、子の vitest の 2 回の実行で 5 秒かかった（Issue #588）。

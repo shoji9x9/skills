@@ -1,10 +1,17 @@
 // mutation-proof-shards.sh が、worktree を作る前に使い方と前提の誤りで止まること（Issue #588）。
 //
 // fixture は使い捨ての git リポジトリで、スクリプトはそこを cwd にして起動する。
-// worktree を作って依存を入れ、ランナーを実行するところは、実行に数分かかるのでここでは測らない（PR で実測を記録する）。
+// worktree を作ってシャードを起動するところは、偽の mise・pnpm・ランナーで確かめる。本物のランナーでの実行は数分かかるので、PR で実測を記録する。
 import { expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../lib/test-tmpdir.js";
@@ -118,4 +125,64 @@ test("依存の導入が失敗したら、作った worktree を消して exit 2
   expect(res.out).toContain("mise: 失敗させる");
   expect(worktrees(fx.repo), res.out).toBe(1);
   expect(existsSync(join(fx.shards, "shard-1")), "worktree を残した").toBe(false);
+});
+
+/** worktree を作ってシャードを起動するまでを、偽の mise・pnpm・ランナーで通す fixture。 */
+function makeLaunchRepo() {
+  const fx = makeRepo();
+  const runner = join(fx.repo, "scripts", "mutation", "check-mutation-proof.js");
+  mkdirSync(dirname(runner), { recursive: true });
+  // 受け取った引数と、ランナー用の環境変数を出し、集計の行で終わる偽のランナー。
+  writeFileSync(
+    runner,
+    `console.log("args=" + JSON.stringify(process.argv.slice(2)));
+console.log("lock=" + (process.env.MUTATION_PROOF_LOCK ?? "(unset)"));
+console.log("command=" + (process.env.MUTATION_PROOF_TEST_COMMAND ?? "(unset)"));
+console.log("changed=" + (process.env.MUTATION_PROOF_CHANGED_FILES ?? "(unset)"));
+console.log("mutation-proof: 1 proven / 0 failed");
+`,
+  );
+  git(fx.repo, "add", "scripts");
+  git(
+    fx.repo,
+    "-c",
+    "user.name=t",
+    "-c",
+    "user.email=t@example.com",
+    "commit",
+    "--quiet",
+    "-m",
+    "runner",
+  );
+  const bin = join(dirname(fx.repo), "bin");
+  mkdirSync(bin);
+  for (const tool of ["mise", "pnpm"]) {
+    writeFileSync(join(bin, tool), "#!/bin/sh\nexit 0\n");
+    chmodSync(join(bin, tool), 0o755);
+  }
+  return { ...fx, bin };
+}
+
+// 呼び出し元のシェルに残ったランナー用の環境変数を引き継ぐと、全シャードが同じロックを取り合う。
+// シンボリックリンク越しの絶対パスは、元の作業ツリー（commit していない内容を含む）を読ませるので、相対パスに直す。
+test("シャードには、ランナー用の環境変数を渡さず、リポジトリの中の絶対パスを相対パスに直して渡す", () => {
+  const fx = makeLaunchRepo();
+  const link = join(dirname(fx.repo), "link");
+  symlinkSync(fx.repo, link);
+  const res = run(fx, "2", join(link, "x.mutations.json"), {
+    PATH: `${fx.bin}:${process.env.PATH}`,
+    MUTATION_PROOF_LOCK: join(dirname(fx.repo), "shared.lock"),
+    MUTATION_PROOF_TEST_COMMAND: "/bin/false",
+    MUTATION_PROOF_CHANGED_FILES: "a.txt",
+  });
+  expect(res.status, res.out).toBe(0);
+  for (const i of [1, 2]) {
+    const log = readFileSync(join(fx.shards, `shard-${i}.log`), "utf8");
+    expect(log).toContain(`args=${JSON.stringify(["x.mutations.json", "--shard", `${i}/2`])}`);
+    expect(log).toContain("lock=(unset)");
+    expect(log).toContain("command=(unset)");
+    expect(log).toContain("changed=(unset)");
+  }
+  expect(res.out).toContain("shard 1/2: exit 0 mutation-proof: 1 proven / 0 failed");
+  expect(worktrees(fx.repo), "worktree を消していない").toBe(1);
 });
