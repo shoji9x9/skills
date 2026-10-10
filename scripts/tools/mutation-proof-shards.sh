@@ -46,12 +46,16 @@ case "${base}" in
 *) base="$(pwd -P)/${base}" ;;
 esac
 base=$(realpath -m -- "${base}" 2>/dev/null || printf '%s' "${base}")
-case "${base}" in
-"${repo}" | "${repo}"/*)
-	echo "mutation-proof-shards: worktree の置き場所（${base}）がリポジトリの中にある。リポジトリの外を指す" >&2
-	exit 2
-	;;
-esac
+# リンクされた worktree から起動したときは、元の作業ツリー（共通の .git の親）の中も指させない。
+main=$(dirname "$(realpath -m -- "$(git rev-parse --git-common-dir)" 2>/dev/null || git rev-parse --git-common-dir)")
+for root in "${repo}" "${main}"; do
+	case "${base}" in
+	"${root}" | "${root}"/*)
+		echo "mutation-proof-shards: worktree の置き場所（${base}）がリポジトリの中にある（${root}）。リポジトリの外を指す" >&2
+		exit 2
+		;;
+	esac
+done
 cd "${repo}"
 # ランナーは相対パスをリポジトリのルートから解決する。このリポジトリの中を指す絶対パスは、worktree の中ではなく
 # この作業ツリーのファイル（commit していない内容を含む）を読ませるので、リポジトリのルートからの相対パスに直す。
@@ -67,12 +71,22 @@ for arg in "$@"; do
 	*) args+=("${arg}") ;;
 	esac
 done
-# リポジトリの中の宣言ファイル（相対パスに直したもの）は、HEAD に commit されていなければ worktree に無い。依存を入れる前に止める。
+# リポジトリの中の宣言ファイル（位置引数を相対パスに直したもの）は、HEAD に commit されていなければ worktree に無い。依存を入れる前に止める。
+# ランナーは名前を問わず位置引数を宣言ファイルとして読むので、名前では絞らない。値を取るオプションの値は飛ばす。
 # リポジトリの外を指す絶対パスは、どの worktree からも同じファイルを読めるので確かめない。
+positional=0
+skip_value=0
 for arg in ${args[@]+"${args[@]}"}; do
+	if [ "${skip_value}" -eq 1 ]; then
+		skip_value=0
+		continue
+	fi
 	case "${arg}" in
-	/*) ;;
-	*.mutations.json)
+	--only | --changed-since) skip_value=1 ;;
+	-*) ;;
+	/*) positional=1 ;;
+	*)
+		positional=1
 		if ! git ls-files --error-unmatch -- "${arg}" >/dev/null 2>&1; then
 			echo "mutation-proof-shards: ${arg} は commit されていない（worktree は HEAD から作るので読めない）。commit してから実行する" >&2
 			exit 2
@@ -80,6 +94,15 @@ for arg in ${args[@]+"${args[@]}"}; do
 		;;
 	esac
 done
+# 宣言ファイルを渡さないと、ランナーは scripts/ の下を探す。untracked の宣言は worktree に無いので、警告なしに測られない。
+if [ "${positional}" -eq 0 ]; then
+	untracked=$(git ls-files --others --exclude-standard -- 'scripts/*.mutations.json' 'scripts/**/*.mutations.json')
+	if [ -n "${untracked}" ]; then
+		echo "mutation-proof-shards: commit していない宣言ファイルがある。worktree は HEAD から作るので測られない。commit してから実行する" >&2
+		printf '%s\n' "${untracked}" >&2
+		exit 2
+	fi
+fi
 if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
 	echo "mutation-proof-shards: tracked のファイルに commit していない変更がある。worktree は HEAD から作るので測られない。commit してから実行する" >&2
 	git status --short --untracked-files=no >&2
@@ -90,9 +113,10 @@ mkdir -p "${base}"
 echo "mutation-proof-shards: HEAD ${head} を ${total} 個の worktree（${base}/shard-*）で測る"
 
 # 前回の worktree が残っていれば、内容を確かめずに消さない（対象が戻っていない可能性がある）。
-for i in $(seq 1 "${total}"); do
-	if [ -e "${base}/shard-${i}" ]; then
-		echo "mutation-proof-shards: ${base}/shard-${i} が既にある。中を確かめてから git worktree remove で消す" >&2
+# 前回のシャードの数は今回と違いうるので、番号を問わずすべての shard-* を確かめる。
+for wt in "${base}"/shard-*; do
+	if [ -d "${wt}" ]; then
+		echo "mutation-proof-shards: ${wt} が既にある。中を確かめてから git worktree remove で消す" >&2
 		exit 2
 	fi
 done
@@ -144,9 +168,11 @@ for i in $(seq 1 "${total}"); do
 	git worktree add --quiet --detach "${wt}" "${head}"
 	created+=("${wt}")
 	# 新しいパスの worktree は mise の trust を引き継がない。依存はロックファイルどおりに入れる。
+	# install スクリプトは実行しない。ビルドを許した依存は lefthook だけで、その postinstall は共有の .git/hooks を
+	# 消す予定の worktree の lefthook を指すように書き換える。ランナーと vitest は install スクリプトを要らない。
 	# 導入は順に実行する（PR #589 のレビューで 3 回議論した）。1 回は store からのリンクだけで 2 秒ほどで、
 	# 並べると同じ store への同時の書き込みと、どのシャードの導入が失敗したかの集め方の扱いが増える。
-	(cd "${wt}" && mise trust --quiet && pnpm install --frozen-lockfile --prefer-offline --silent) </dev/null
+	(cd "${wt}" && mise trust --quiet && pnpm install --frozen-lockfile --prefer-offline --silent --ignore-scripts) </dev/null
 done
 
 for i in $(seq 1 "${total}"); do

@@ -257,3 +257,58 @@ test("リポジトリの外を指す絶対パスの宣言ファイルは、そ�
     `args=${JSON.stringify([outside, "--shard", "1/2"])}`,
   );
 });
+
+// 宣言ファイルを渡さないとランナーは scripts/ の下を探すが、untracked の宣言は worktree に無いので警告なしに測られない。
+test("宣言ファイルを渡さずに実行するとき、untracked の宣言があれば、worktree を作らずに exit 2", () => {
+  const fx = makeLaunchRepo();
+  mkdirSync(join(fx.repo, "scripts", "new"), { recursive: true });
+  writeFileSync(join(fx.repo, "scripts", "new", "foo.mutations.json"), "{}\n");
+  const res = run(fx, "2", launchEnv(fx));
+  expect(res.status, res.out).toBe(2);
+  expect(res.out).toContain("commit していない宣言ファイルがある");
+  expect(res.out).toContain("scripts/new/foo.mutations.json");
+  expect(existsSync(fx.shards)).toBe(false);
+});
+
+// ランナーは名前を問わず位置引数を宣言ファイルとして読む。値を取るオプションの値は宣言ファイルとして確かめない。
+test("名前に関わらず commit していない位置引数は止め、--only の値は宣言ファイルとして扱わない", () => {
+  const fx = makeLaunchRepo();
+  writeFileSync(join(fx.repo, "spec.json"), "{}\n");
+  const stopped = run(fx, "2", "spec.json", launchEnv(fx));
+  expect(stopped.status, stopped.out).toBe(2);
+  expect(stopped.out).toContain("spec.json は commit されていない");
+  const passed = run(fx, "2", "--only", "NOT-A-FILE", launchEnv(fx));
+  expect(passed.status, passed.out).toBe(0);
+  expect(readFileSync(join(fx.shards, "shard-1.log"), "utf8")).toContain(
+    `args=${JSON.stringify(["--only", "NOT-A-FILE", "--shard", "1/2"])}`,
+  );
+});
+
+// 前回のシャードの数は今回と違いうる。番号が今回の N を超える worktree も確かめる。
+test("前回の N が今回より大きく、その番号の worktree が残っていても、確かめずに進まない", () => {
+  const fx = makeRepo();
+  mkdirSync(join(fx.shards, "shard-5"), { recursive: true });
+  const res = run(fx, "2");
+  expect(res.status, res.out).toBe(2);
+  expect(res.out).toContain("shard-5 が既にある");
+  expect(existsSync(join(fx.shards, "shard-1")), "確かめる前に worktree を作った").toBe(false);
+});
+
+// リンクされた worktree から起動すると、デフォルトの置き場所はその worktree の隣になる。元の作業ツリーの中なら止める。
+test("リンクされた worktree から起動して、置き場所が元の作業ツリーの中になるなら exit 2", () => {
+  const fx = makeLaunchRepo();
+  const linked = join(fx.repo, "wt", "x");
+  git(fx.repo, "worktree", "add", "--quiet", "--detach", linked);
+  try {
+    // デフォルトの置き場所を使わせる（キーを消す。undefined を渡すと、文字列の "undefined" になりうる）。
+    const env = { ...process.env, ...launchEnv(fx) };
+    delete env.MUTATION_PROOF_SHARDS_DIR;
+    const res = spawnSync("bash", [script, "2"], { cwd: linked, encoding: "utf8", env });
+    const out = `${res.stdout}${res.stderr}`;
+    expect(res.status, out).toBe(2);
+    expect(out).toContain("がリポジトリの中にある");
+    expect(existsSync(join(fx.repo, "wt", "x-mutation-shards")), "置き場所を作った").toBe(false);
+  } finally {
+    git(fx.repo, "worktree", "remove", "--force", linked);
+  }
+});
