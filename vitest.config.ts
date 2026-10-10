@@ -2,9 +2,9 @@ import { configDefaults, defineConfig } from "vitest/config";
 
 // **リポジトリの tracked ファイルを書き換えて戻すテスト。** 兄弟テストと並べない。
 // `check-mutation-proof.test.js` の差分選択テストはミューテーションテストの実行を含む。
-// その実行は tracked ファイル（`scripts/eval/build-skill-eval-benchmark.js` / `skills/kaizen/scripts/tracking-issue-lib.sh`）を書き換えて戻す。
-// それらを読む兄弟テスト（`tracking-issue-title.test.js` / `build-skill-eval-benchmark.test.js` /
-// `mutations-declaration.test.js`）と並ぶと、変異中の中間状態を読んで**無関係に赤くなる**。
+// その実行は tracked ファイル（`scripts/gates/check-word-list.js`）を書き換えて戻す。
+// それを読む兄弟テスト（`check-word-list.test.js` / `mutations-declaration.test.js`）と並ぶと、
+// 変異中の中間状態を読んで**無関係に赤くなる**。
 // `MUTATION_PROOF_LOCK` は別のミューテーションテストを排除するだけで、兄弟テストには機能しない。
 const ISOLATED: string[] = ["scripts/mutation/check-mutation-proof.test.js"];
 
@@ -32,6 +32,9 @@ export default defineConfig({
         test: {
           name: "isolated",
           include: ISOLATED,
+          // テストを並べて実行するので、CPU が混むと 1 本が延びる（ミューテーションテストのシャードや CI の少ないコア）。
+          // デフォルトの 5 秒で、変異と関係なく落とさない。
+          testTimeout: 30_000,
           sequence: { groupOrder: 1 },
         },
       },

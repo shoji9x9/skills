@@ -918,8 +918,11 @@ function main() {
     }
   }
 
+  // 宣言ごとの所要時間（基準 run を含む）。全件の実行で、次に縮める宣言を数字で選ぶために出す（Issue #588）。
+  const timings = [];
   for (const { spec, targeted } of plans) {
     if (targeted.length === 0) continue;
+    const specStart = performance.now();
     console.log(`\n=== ${relative(repoRoot, spec.specPath)} → ${spec.testFile}`);
 
     // **基準は先に測る。** 変異前が緑でなければ、落ちた原因を変異に帰属できない。
@@ -966,6 +969,15 @@ function main() {
         console.log(`     → ${res.reason}`);
       }
     }
+    const seconds = (performance.now() - specStart) / 1000;
+    timings.push({ spec: relative(repoRoot, spec.specPath), count: targeted.length, seconds });
+    console.log(`時間: ${seconds.toFixed(1)} 秒（${targeted.length} 変異、基準 run を含む）`);
+  }
+
+  // 集計の行（mutation-proof: ...）を最後の行に保つため、その前に出す。
+  console.log("\n宣言ごとの時間（長い順）:");
+  for (const t of [...timings].sort((a, b) => b.seconds - a.seconds)) {
+    console.log(`  ${t.seconds.toFixed(1).padStart(8)} 秒  ${t.spec}（${t.count} 変異）`);
   }
 
   console.log(

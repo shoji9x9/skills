@@ -66,7 +66,6 @@
       "occurrences": 1,
       "expect_failing": [
         "宣言と前提の検証（実行する前に落とす） --only は選ばれなかった宣言を飛ばす（宣言が複数あっても実行する）",
-        "宣言と前提の検証（実行する前に落とす） ランナーが変わったら全宣言を測る",
         "--shard 宣言をまたいだ通し番号で分け、N 本を合わせるとちょうど全件になる"
       ]
     },
@@ -111,7 +110,7 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "変異の判定 本物の vitest でも PASS し、子の掃引で使用中の fixture が消えない"
+        "本物の vitest を通す end-to-end 本物の vitest でも PASS し、子の掃引で使用中の fixture が消えない"
       ]
     },
     {
@@ -225,7 +224,7 @@
       "replace": "    if (true) {",
       "occurrences": 1,
       "expect_failing": [
-        "宣言と前提の検証（実行する前に落とす） 対象ファイルが変わった宣言だけを選ぶ",
+        "本物の vitest を通す end-to-end 対象ファイルが変わった宣言だけを選ぶ",
         "宣言と前提の検証（実行する前に落とす） 差分に当たらない宣言は飛ばし、理由を印字する"
       ]
     },
@@ -280,7 +279,8 @@
       "occurrences": 1,
       "expect_failing": [
         "--shard 宣言をまたいだ通し番号で分け、N 本を合わせるとちょうど全件になる",
-        "--shard 変異がシャード数より少なく割り当てが 0 件なら、理由を出して exit 0"
+        "--shard 変異がシャード数より少なく割り当てが 0 件なら、理由を出して exit 0",
+        "宣言と前提の検証（実行する前に落とす） ランナーが変わったら全宣言を測る"
       ]
     },
     {
@@ -292,7 +292,8 @@
       "occurrences": 1,
       "expect_failing": [
         "--shard 宣言をまたいだ通し番号で分け、N 本を合わせるとちょうど全件になる",
-        "--shard 変異がシャード数より少なく割り当てが 0 件なら、理由を出して exit 0"
+        "--shard 変異がシャード数より少なく割り当てが 0 件なら、理由を出して exit 0",
+        "宣言と前提の検証（実行する前に落とす） ランナーが変わったら全宣言を測る"
       ]
     },
     {
@@ -471,8 +472,7 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "宣言と前提の検証（実行する前に落とす） 実行ビットを持つ対象は、変異を戻した後もモードを保つ",
-        "宣言と前提の検証（実行する前に落とす） ランナーが変わったら全宣言を測る"
+        "宣言と前提の検証（実行する前に落とす） 実行ビットを持つ対象は、変異を戻した後もモードを保つ"
       ]
     },
     {
@@ -673,6 +673,39 @@
       "occurrences": 1,
       "expect_failing": [
         "宣言と前提の検証（実行する前に落とす） 一時ファイルの名前にリポジトリ外を指すシンボリックリンクがあっても、リンク先へ書かずに測る"
+      ]
+    },
+    {
+      "id": "TIMING-SPEC",
+      "why": "宣言ごとの時間を出さない（全件の実行で、どの宣言が重いかが分からない）",
+      "file": "scripts/mutation/check-mutation-proof.js",
+      "find": "    console.log(`時間: ${seconds.toFixed(1)} 秒（${targeted.length} 変異、基準 run を含む）`);\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言ごとの時間 宣言ごとに時間を出し、最後に長い順の一覧を出してから集計の行で終わる"
+      ]
+    },
+    {
+      "id": "TIMING-SUMMARY",
+      "why": "長い順の一覧に宣言を出さない（次に縮める宣言を一覧から選べない）",
+      "file": "scripts/mutation/check-mutation-proof.js",
+      "find": "  for (const t of [...timings].sort((a, b) => b.seconds - a.seconds)) {",
+      "replace": "  for (const t of [].sort((a, b) => b.seconds - a.seconds)) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言ごとの時間 宣言ごとに時間を出し、最後に長い順の一覧を出してから集計の行で終わる"
+      ]
+    },
+    {
+      "id": "TIMING-ORDER",
+      "why": "一覧を短い順に並べる（重い宣言が一覧の下に埋もれる）",
+      "file": "scripts/mutation/check-mutation-proof.js",
+      "find": "[...timings].sort((a, b) => b.seconds - a.seconds)",
+      "replace": "[...timings].sort((a, b) => a.seconds - b.seconds)",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言ごとの時間 宣言ごとに時間を出し、最後に長い順の一覧を出してから集計の行で終わる"
       ]
     }
   ]
