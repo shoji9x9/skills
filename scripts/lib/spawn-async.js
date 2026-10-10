@@ -31,10 +31,11 @@ export function spawnAsync(command, args = [], options = {}) {
     // 起動できなかったときは `error` の後に `close` が来る（`spawnSync` の `error` と同じ形で返す）。
     child.on("error", (err) => (error = err));
     // 起動できなかったときの `close` は負の errno を終了コードとして渡すので、`spawnSync` と同じく null にする。
+    // 起動できたかは `pid` で判定する。起動した後の `error`（kill の失敗など）で、子の終了コードを消さない。
     child.on("close", (status, signal) =>
       resolve({
         pid: child.pid,
-        status: error ? null : status,
+        status: child.pid === undefined ? null : status,
         signal,
         stdout,
         stderr,

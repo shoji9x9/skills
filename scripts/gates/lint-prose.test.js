@@ -14,7 +14,7 @@
 // | 保留の一覧         | 在る / 無い / JSON でない / reason が空 / files が配列でない / 重複            |
 // | 保留したファイル   | 指摘あり / 指摘 0 件 / ファイルが無い                                         |
 // | 実行のしかた       | 全体（引数なし）/ ファイル指定（lefthook）/ 対象 0 件                          |
-import { beforeAll, describe, expect, test, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -72,6 +72,10 @@ const cliRuns = (() => {
   const clean = run({ "a.md": CLEAN });
   return Promise.all([dirty, clean]).then(([d, c]) => ({ dirty: d, clean: c }));
 })();
+// CLI のテストを選ばない実行（`-t` など）でも、子の終了を待ってからリポジトリを消す。
+// after 系のフックは登録の逆順に実行される（vitest の sequence.hooks のデフォルト `stack`）ので、
+// `makeSharedTempDir` の後片付けより後に登録したこのフックが先に実行される。
+afterAll(() => cliRuns);
 
 // ---- 単語帳（検出されることの確認）----
 

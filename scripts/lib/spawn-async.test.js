@@ -34,7 +34,8 @@ describe.concurrent("spawnAsync", () => {
     expect(r.status).toBeNull();
   });
 
-  test("stdin を読まずに終わる子へ大きな input を渡しても失敗にしない（EPIPE を数えない）", async () => {
+  // プロセス全体の uncaughtException を受けるので、並んだ他のテストの例外を数えないよう、このテストだけ並べない。
+  test.sequential("stdin を読まずに終わる子へ大きな input を渡しても失敗にしない（EPIPE を数えない）", async () => {
     // 握りつぶさないと、EPIPE は例外として投げられ、vitest は「Unhandled Errors」を出すだけでテストを通す（実測）。
     // テストごとの結果を読むミューテーションテストにも見えないので、ここで受けて数える。
     const uncaught = [];

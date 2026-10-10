@@ -40,7 +40,7 @@
       "id": "status-dropped",
       "why": "終了コードを返さない",
       "file": "scripts/lib/spawn-async.js",
-      "find": "status: error ? null : status,",
+      "find": "status: child.pid === undefined ? null : status,",
       "replace": "status: 0,",
       "occurrences": 1,
       "expect_failing": [
@@ -52,7 +52,7 @@
       "id": "spawn-error-status-not-null",
       "why": "起動できなかったときの終了コードを、spawnSync の null ではなく負の errno のまま返す",
       "file": "scripts/lib/spawn-async.js",
-      "find": "status: error ? null : status,",
+      "find": "status: child.pid === undefined ? null : status,",
       "replace": "status,",
       "occurrences": 1,
       "expect_failing": [

@@ -112,10 +112,15 @@ describe.concurrent("チェック全体の締め切り", () => {
 
   async function timedGate(options) {
     const elapsedFile = join(tempDir("kaizen-elapsed-"), "elapsed");
+    const started = Date.now();
     const gate = await runGate("git commit -m x", { ...options, elapsedFile });
-    const times = readFileSync(elapsedFile, "utf8").trim().split(" ").map(Number);
-    // 時刻を読めなければ、経過時間の判定を通さない（bash 5 未満は EPOCHREALTIME を持たない）。
-    expect(times, `経過時間を測れない: ${times}`).toSatisfy(
+    const parentElapsed = Date.now() - started;
+    const recorded = readFileSync(elapsedFile, "utf8").trim();
+    // bash 5 未満は EPOCHREALTIME を持たず、時刻が空になる。そのときだけ親の側で測った値を使う（遅れを含むので厳しい側）。
+    if (recorded === "") return { gate, elapsed: parentElapsed };
+    const times = recorded.split(" ").map(Number);
+    // 空でないのに読めない形なら、経過時間の判定を通さない。
+    expect(times, `経過時間を読めない: ${recorded}`).toSatisfy(
       (t) => t.length === 2 && t.every((v) => Number.isFinite(v) && v > 0),
     );
     return { gate, elapsed: (times[1] - times[0]) * 1000 };
