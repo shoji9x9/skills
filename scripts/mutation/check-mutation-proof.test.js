@@ -157,7 +157,7 @@ const REAL = { MUTATION_PROOF_TEST_COMMAND: undefined };
  * デフォルトはスタブ用（`fixture.stub.json`）。`real: true` なら、本物の vitest が実行する `fixture.test.js` を置く。
  */
 function makeFixture({ real = false, stubTests = STUB_TESTS, sleepMs } = {}) {
-  const dir = mkdtempSync(join(repoRoot, "scripts", "mutation-proof-fixture-")); // tmpdir-ok: scripts/ 配下・afterEach で消す
+  const dir = mkdtempSync(join(repoRoot, "scripts", "mutation-proof-fixture-")); // tmpdir-ok: scripts/ 配下・afterAll で消す
   dirs.push(dir);
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "target.sh"), FIXTURE_TARGET);
@@ -207,6 +207,11 @@ function runnerEnv(env) {
 
 /**
  * node を起動して終了を待つ。テストを並べて実行するので、`spawnSync` でイベントループを止めない。
+ *
+ * **テストがタイムアウトしても、子のランナーは止めない**（PR #589 のレビューで 3 回議論した）。
+ * ランナーには signal handler が無く、止めると変異を当てたまま終わる。復元情報はこのファイルの使い捨ての
+ * `lockDir` にあり、`afterAll` で消えるので、次回の起動でも戻せない。止めなければ最後まで実行して `finally` で戻し、
+ * 親が先に終わってパイプが切れても、`exit` ハンドラが照合してから戻す。
  * 返す形は `spawnSync` の結果の使う部分（`pid`・`status`・`stdout`・`stderr`）と、出力をつないだ `out` である。
  */
 function runNode(args, options) {
@@ -1238,20 +1243,21 @@ describe.concurrent("宣言ごとの時間", () => {
   const escapeRe = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   test("宣言ごとに時間を出し、最後に長い順の一覧を出してから集計の行で終わる", async () => {
     const a = makeFixture();
-    // 後に渡す B を遅くする。並べ替えなければ、渡した順（A が先）のままになって区別できる。
-    const b = makeFixture({ sleepMs: 500 });
-    const specA = a.spec([
-      mutation({ id: "A1", file: relative(repoRoot, a.target) }),
+    // 後に渡す B を長くする。並べ替えなければ、渡した順（A が先）のままになって区別できる。
+    // B は A より起動の回数が多い（3 回と 2 回）うえに、1 回ごとに待つ。起動が混んで遅くなっても、B が A より短くならない。
+    const b = makeFixture({ sleepMs: 300 });
+    const specA = a.spec([mutation({ id: "A1", file: relative(repoRoot, a.target) })]);
+    const specB = b.spec([
+      mutation({ id: "B1", file: relative(repoRoot, b.target) }),
       mutation({
-        id: "A2",
+        id: "B2",
         why: "上限を変える",
-        file: relative(repoRoot, a.target),
+        file: relative(repoRoot, b.target),
         find: "limit=100",
         replace: "limit=1",
         expect_failing: ["limit"],
       }),
     ]);
-    const specB = b.spec([mutation({ id: "B1", file: relative(repoRoot, b.target) })]);
     const res = await runRunner(specA, specB);
     expect(res.status, res.out).toBe(0);
     expect(res.stdout).toMatch(/時間: \d+\.\d 秒（2 変異、基準 run を含む）/);
@@ -1261,10 +1267,10 @@ describe.concurrent("宣言ごとの時間", () => {
     expect(at(specB), res.stdout).toBeGreaterThanOrEqual(0);
     expect(at(specB), "長い順に並んでいない").toBeLessThan(at(specA));
     expect(summary, res.stdout).toMatch(
-      new RegExp(`\\d+\\.\\d 秒  ${escapeRe(relative(repoRoot, specA))}（2 変異）`),
+      new RegExp(`\\d+\\.\\d 秒  ${escapeRe(relative(repoRoot, specA))}（1 変異）`),
     );
     expect(summary, res.stdout).toMatch(
-      new RegExp(`\\d+\\.\\d 秒  ${escapeRe(relative(repoRoot, specB))}（1 変異）`),
+      new RegExp(`\\d+\\.\\d 秒  ${escapeRe(relative(repoRoot, specB))}（2 変異）`),
     );
     expect(res.stdout.trimEnd().split("\n").at(-1)).toBe("mutation-proof: 3 proven / 0 failed");
   });

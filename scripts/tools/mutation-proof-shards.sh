@@ -104,11 +104,16 @@ cleanup() {
 		[ "${rc}" -eq 0 ] || rc=2
 		# 子の vitest まで止めるため、setsid で起動したシャードはプロセスグループごと止める。
 		for pid in ${pids[@]+"${pids[@]}"}; do
+			# 待ち終えたシャードの pid は空にしてある（回収済みの pid は再利用されうるので、送らない）。
+			[ -n "${pid}" ] || continue
 			# 起動の直後で setsid がまだ exec されていなければグループが無いので、pid そのものを止める（exec の前に止まる）。
 			if [ "${group_kill}" -eq 1 ] && kill -- "-${pid}" 2>/dev/null; then continue; fi
 			kill "${pid}" 2>/dev/null || true
 		done
-		for pid in ${pids[@]+"${pids[@]}"}; do wait "${pid}" 2>/dev/null || true; done
+		for pid in ${pids[@]+"${pids[@]}"}; do
+			[ -n "${pid}" ] || continue
+			wait "${pid}" 2>/dev/null || true
+		done
 	fi
 	for wt in ${created[@]+"${created[@]}"}; do
 		if ! out=$(git worktree remove "${wt}" 2>&1); then
@@ -124,6 +129,8 @@ for i in $(seq 1 "${total}"); do
 	git worktree add --quiet --detach "${wt}" "${head}"
 	created+=("${wt}")
 	# 新しいパスの worktree は mise の trust を引き継がない。依存はロックファイルどおりに入れる。
+	# 導入は順に実行する（PR #589 のレビューで 3 回議論した）。1 回は store からのリンクだけで 2 秒ほどで、
+	# 並べると同じ store への同時の書き込みと、どのシャードの導入が失敗したかの集め方の扱いが増える。
 	(cd "${wt}" && mise trust --quiet && pnpm install --frozen-lockfile --prefer-offline --silent) </dev/null
 done
 
@@ -141,6 +148,7 @@ worst=0
 for i in $(seq 1 "${total}"); do
 	rc=0
 	wait "${pids[$((i - 1))]}" || rc=$?
+	pids[i - 1]=""
 	last=$(grep -E '^mutation-proof: ' "${base}/shard-${i}.log" | tail -n 1 || true)
 	echo "shard ${i}/${total}: exit ${rc} ${last:-（集計の行が無い。ログを見る）}"
 	if [ "${rc}" -ge 2 ]; then
