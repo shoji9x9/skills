@@ -843,6 +843,8 @@ require("node:module").syncBuiltinESMExports();
         JSON.stringify({ file: fx.target, before: FIXTURE_TARGET, after: mutated }),
       );
       writeFileSync(fx.target, mutated);
+      // 一時ファイルを消せなくても、書き戻しへ進む（掃除の失敗で書き戻しの失敗と案内しない）。
+      writeFileSync(`${fx.target}.mutation-proof-99999.tmp`, "x");
       let res;
       chmodSync(fx.dir, 0o555);
       try {
@@ -851,6 +853,7 @@ require("node:module").syncBuiltinESMExports();
         chmodSync(fx.dir, 0o755);
       }
       expect(res.status, res.out).toBe(2);
+      expect(res.out).toContain("一時ファイルを消せない");
       expect(res.out).toContain("前回の中断で残った変異を戻せない");
       expect(res.out).toContain("EACCES");
       expect(readFileSync(fx.target, "utf8")).toBe(mutated);
@@ -860,15 +863,95 @@ require("node:module").syncBuiltinESMExports();
   );
 
   // 変異を書けなかった失敗だけを「変異を当てられない」として exit 2 にし、他の例外はスタックごと返す。
-  test("変異を書いた後の例外は、変異を当てられない失敗として報告しない", () => {
+  test("変異を書いた後の例外は、変異を当てられない失敗として報告せず、スタックを残して exit 2", () => {
     // 対象を編集せずに、反復できない testResults を返してランナーの読み取りに例外を投げさせる。
     const fx = editingFixture({ badReport: true });
     const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
     const res = runRunner(spec, { MUTATION_PROOF_LOCK: join(lockDir, "after-write-throw.lock") });
-    expect(res.status, res.out).not.toBe(0);
+    // exit 1 は「実証できない変異がある」の意味なので、判定でない例外には使わない。
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toContain("G の測定中に予期しない例外が起きた");
     expect(res.out).not.toContain("変異を当てられない");
     expect(res.out).toContain("TypeError");
     expect(res.out).toContain("at ");
+    expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
+  });
+
+  // 一時ファイルを探せなくても、書き戻しへ進む。探せなかったことは出力に残す。
+  test.skipIf(process.getuid?.() === 0)(
+    "一時ファイルを探せなくても、前回の中断で残った変異を戻し、探せなかったことを出す",
+    () => {
+      const fx = makeFixture();
+      const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+      const lock = join(lockDir, "stray-unreadable.lock");
+      const mutated = FIXTURE_TARGET.replace(GUARD, "");
+      writeFileSync(
+        `${lock}.recovery.json`,
+        JSON.stringify({ file: fx.target, before: FIXTURE_TARGET, after: mutated }),
+      );
+      writeFileSync(fx.target, mutated);
+      let res;
+      // 一覧だけを読めなくする（書き込みと名前での参照はできる）。
+      chmodSync(fx.dir, 0o333);
+      try {
+        res = runRunner(spec, { MUTATION_PROOF_LOCK: lock });
+      } finally {
+        chmodSync(fx.dir, 0o755);
+      }
+      expect(res.out).toContain("一時ファイルを探せない");
+      expect(res.out).toContain("前回の中断で残っていた変異を戻した");
+      expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
+      rmSync(`${lock}.recovery.json`, { force: true });
+    },
+  );
+
+  // 植え付けた復元情報が、リポジトリ外を指すリポジトリ内のシンボリックリンクを指していても、外の実体を書き換えない。
+  test("復元情報の対象がリポジトリ外を指すシンボリックリンクなら、外の実体を書き換えずに exit 2", () => {
+    const fx = makeFixture();
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    const lock = join(lockDir, "symlink-outside.lock");
+    const outside = join(lockDir, "outside-target.txt");
+    writeFileSync(outside, "変異後\n");
+    const link = join(fx.dir, "outside-link.sh");
+    symlinkSync(outside, link);
+    writeFileSync(
+      `${lock}.recovery.json`,
+      JSON.stringify({ file: link, before: "植え付けた内容\n", after: "変異後\n" }),
+    );
+    const res = runRunner(spec, { MUTATION_PROOF_LOCK: lock });
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toContain("がリポジトリ外");
+    expect(readFileSync(outside, "utf8")).toBe("変異後\n");
+    rmSync(`${lock}.recovery.json`, { force: true });
+  });
+
+  // 復元情報を書けないのも、変異を当てられない環境の誤りとして exit 2 にする（捕捉しないと exit 1）。
+  test("復元情報を書けなければ、変異を当てずに exit 2", () => {
+    const fx = makeFixture();
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    const lock = join(lockDir, "recovery-write-fails.lock");
+    const preload = join(fx.dir, "fault-recovery.cjs");
+    writeFileSync(
+      preload,
+      `const fs = require("node:fs");
+const realWrite = fs.writeFileSync;
+fs.writeFileSync = function (path, ...rest) {
+  if (typeof path === "string" && path.endsWith(".recovery.json")) {
+    const err = new Error("ENOSPC: no space left on device, write");
+    err.code = "ENOSPC";
+    throw err;
+  }
+  return realWrite.call(fs, path, ...rest);
+};
+require("node:module").syncBuiltinESMExports();
+`,
+    );
+    const res = runRunner(spec, {
+      MUTATION_PROOF_LOCK: lock,
+      NODE_OPTIONS: `--require ${preload}`,
+    });
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toContain("G の変異を当てられない: ENOSPC");
     expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
   });
 
@@ -933,7 +1016,7 @@ require("node:module").syncBuiltinESMExports();
     );
     const res = runRunner(spec, { MUTATION_PROOF_LOCK: lock });
     expect(res.status, res.out).toBe(2);
-    expect(res.out).toContain("リポジトリ外");
+    expect(res.out).toContain("復元情報の書き戻し先がリポジトリ外");
     // 書き換えていないこと。
     expect(readFileSync(outside, "utf8")).toBe("元の内容\n");
   });

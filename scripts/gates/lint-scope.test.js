@@ -159,15 +159,23 @@ test("oxfmt の許可リストの種類は、lefthook の oxfmt-* のジョブ�
  * rel が相対パスで import するリポジトリ内のファイルを、import 先がさらに import するものまでたどって集める。
  * `from "./x"`・副作用だけの `import "./x"`・`import("./x")`・`require("./x")`・単引用符を拾う。
  * パッケージ名や `node:` の import はたどらない。コメントの中の一致もたどるが、無いファイルなら読めずに失敗するので、
- * 警告なしに見落とすことはない。
+ * 警告なしに見落とすことはなく、どこから来たかを示す例外になる。
  */
-function repoImports(rel, readFile = read, found = new Set()) {
-  const source = readFile(rel);
+function repoImports(rel, readFile = read, found = new Set(), from = null) {
+  let source;
+  try {
+    source = readFile(rel);
+  } catch (err) {
+    if (from === null) throw err;
+    throw new Error(
+      `${from} の import 先 ${rel} を読めない（コメントの中の一致か、拡張子を省いた import を疑う）: ${err.message}`,
+    );
+  }
   for (const m of source.matchAll(/\b(?:from|import|require)\s*\(?\s*["'](\.{1,2}\/[^"']+)["']/g)) {
     const dep = posix.normalize(posix.join(posix.dirname(rel), m[1]));
     if (found.has(dep)) continue;
     found.add(dep);
-    repoImports(dep, readFile, found);
+    repoImports(dep, readFile, found, rel);
   }
   return found;
 }
@@ -192,6 +200,14 @@ test("repoImports は、import の書き方の違いと、import 先の import �
     "f.cjs",
     "lib/b.js",
   ]);
+  // 無いファイルを指す import は、どこから来たかを示す例外にする（readFile の例外のまま失敗しない）。
+  const withMissing = { ...fixture, "g.ts": `// from "./old.js"\n` };
+  expect(() =>
+    repoImports("g.ts", (rel) => {
+      if (!(rel in withMissing)) throw new Error(`ENOENT: ${rel}`);
+      return withMissing[rel];
+    }),
+  ).toThrow("g.ts の import 先 old.js を読めない");
 });
 
 test("lefthook の formatter-scope は、整形の範囲を変えるファイルの変更で実行する", () => {

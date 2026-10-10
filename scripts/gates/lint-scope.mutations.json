@@ -170,7 +170,7 @@
       "id": "LS-IMPORT-TRANSITIVE",
       "why": "import 先がさらに import するファイルをたどらない",
       "file": "scripts/gates/lint-scope.test.js",
-      "find": "    repoImports(dep, readFile, found);\n",
+      "find": "    repoImports(dep, readFile, found, rel);\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": ["repoImports は、import の書き方の違いと、import 先の import を拾う"]

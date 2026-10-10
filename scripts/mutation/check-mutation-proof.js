@@ -227,6 +227,11 @@ function readOrNull(path) {
   }
 }
 
+/** シンボリックリンクを解決したパス real が、リポジトリ（これも解決した）の中にあるか。 */
+function insideRepo(real) {
+  return real.startsWith(`${realpathSync(repoRoot)}/`);
+}
+
 /** replaceContent が対象の隣に作る一時ファイルのパス。次回の起動が、中断で残ったものを同じ形で探す。 */
 const TMP_INFIX = ".mutation-proof-";
 const TMP_SUFFIX = ".tmp";
@@ -245,6 +250,13 @@ function removeStrayTmp(target) {
   } catch {
     real = target; // 対象が消されていても、隣の一時ファイルは消す
   }
+  // シンボリックリンクを解決した先がリポジトリ外なら、そのディレクトリのファイルは消さない（植え付けた復元情報を疑う）。
+  if (!insideRepo(real)) {
+    console.error(
+      `mutation-proof: 一時ファイルを探す先がリポジトリ外なので探さない（${dirname(real)}）`,
+    );
+    return;
+  }
   const dir = dirname(real);
   const prefix = `${basename(real)}${TMP_INFIX}`;
   const isStray = (n) =>
@@ -252,14 +264,24 @@ function removeStrayTmp(target) {
     n.endsWith(TMP_SUFFIX) &&
     /^\d+$/.test(n.slice(prefix.length, -TMP_SUFFIX.length));
   let names;
+  // 一時ファイルの掃除は書き戻しの前提ではないので、失敗しても書き戻しへ進む。残ったことは出力に残す。
   try {
     names = readdirSync(dir);
-  } catch {
+  } catch (err) {
+    console.error(
+      `mutation-proof: 一時ファイルを探せない（${dir}）: ${err.message}。残っていれば手で消す`,
+    );
     return;
   }
   for (const name of names.filter(isStray)) {
-    rmSync(join(dir, name), { force: true });
-    console.error(`mutation-proof: 前回の中断で残った一時ファイルを消した（${join(dir, name)}）`);
+    try {
+      rmSync(join(dir, name), { force: true });
+      console.error(`mutation-proof: 前回の中断で残った一時ファイルを消した（${join(dir, name)}）`);
+    } catch (err) {
+      console.error(
+        `mutation-proof: 一時ファイルを消せない（${join(dir, name)}）: ${err.message}。手で消す`,
+      );
+    }
   }
 }
 
@@ -278,6 +300,10 @@ function removeStrayTmp(target) {
  */
 function replaceContent(path, data) {
   const real = realpathSync(path);
+  // 書き換え先の境界は、シンボリックリンクを解決した後のパスで確かめる（解決前だけを見ると、リポジトリ内のリンクを
+  // 通してリポジトリ外の実体を書き換えられる）。
+  if (!insideRepo(real))
+    throw new Error(`書き換え先 ${real} がリポジトリ外（シンボリックリンクの先を疑う）`);
   const stat = statSync(real);
   if (stat.nlink > 1) {
     throw new Error(`${real} はハードリンクを持つ（差し替えるとリンクが切れるので、変異させない）`);
@@ -748,9 +774,10 @@ function proveMutation(mutation, testFile) {
   let thrown = null;
   try {
     pending = { path: mutation.target, content: original, mutated };
-    writeRecovery(mutation.target, original, mutated);
-    // 失敗しても対象は元の内容のままなので、finally の照合は original になり、この例外を返す。
+    // 失敗しても対象は元の内容のままなので、finally の照合は original になり（復元情報も消す）、この例外を返す。
+    // 復元情報を書けない失敗も、変異を当てられない環境の誤りとして扱う。
     try {
+      writeRecovery(mutation.target, original, mutated);
       replaceContent(mutation.target, mutated);
     } catch (err) {
       throw new MutationWriteError(err);
@@ -901,8 +928,11 @@ function main() {
       } catch (err) {
         // 変異を当てられない（ENOSPC・EACCES・ハードリンクなど）のは環境や前提の誤りで、変異の判定ではない。
         // 捕捉しないと node が exit 1（実証できない変異がある）で終わり、呼び出し側が判定を取り違える。
-        // それ以外の例外は、スタックを残すためにそのまま投げる。
-        if (!(err instanceof MutationWriteError)) throw err;
+        // それ以外の例外（ランナーの不具合や、テストの結果の形の変化）も判定ではないので exit 2 にし、スタックを残す。
+        if (!(err instanceof MutationWriteError)) {
+          console.error(err?.stack ?? String(err));
+          die(`${m.id} の測定中に予期しない例外が起きた（上のスタックを見る）`);
+        }
         die(`${m.id} の変異を当てられない: ${err.cause.message}`);
       }
       if (res.ok) {
