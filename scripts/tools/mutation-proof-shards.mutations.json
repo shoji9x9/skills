@@ -1,0 +1,102 @@
+{
+  "$comment": [
+    "mutation-proof-shards.test.js の検出能力を示す変異の一覧（Issue #588）。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。"
+  ],
+  "test_file": "scripts/tools/mutation-proof-shards.test.js",
+  "mutations": [
+    {
+      "id": "WORST-1",
+      "why": "シャードの exit 1 を全体の終了コードに反映しない（実証できない変異があっても成功で終わる）",
+      "file": "scripts/tools/mutation-proof-shards.sh",
+      "find": "\telif [ \"${rc}\" -eq 1 ] && [ \"${worst}\" -lt 1 ]; then\n\t\tworst=1\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "シャードの終了コードが 1,0 なら、全体は exit 1",
+        "シャードの終了コードが 0,1 なら、全体は exit 1"
+      ]
+    },
+    {
+      "id": "WORST-2",
+      "why": "シャードの exit 2 を前提の誤りとして扱わない（exit 1 と取り違える）",
+      "file": "scripts/tools/mutation-proof-shards.sh",
+      "find": "if [ \"${rc}\" -ge 2 ]; then",
+      "replace": "if [ \"${rc}\" -gt 2 ]; then",
+      "occurrences": 1,
+      "expect_failing": [
+        "シャードの終了コードが 2,1 なら、全体は exit 2",
+        "シャードの終了コードが 1,2 なら、全体は exit 2"
+      ]
+    },
+    {
+      "id": "KEEP-DIRTY-RC",
+      "why": "変更の残った worktree を消せなかったことを終了コードに反映しない",
+      "file": "scripts/tools/mutation-proof-shards.sh",
+      "find": "\t\t\techo \"mutation-proof-shards: ${wt} を消さずに残す（git -C ${wt} status で確かめる）: ${out}\" >&2\n\t\t\trc=2\n",
+      "replace": "\t\t\techo \"mutation-proof-shards: ${wt} を消さずに残す（git -C ${wt} status で確かめる）: ${out}\" >&2\n",
+      "occurrences": 1,
+      "expect_failing": ["tracked のファイルが変わったまま終わった worktree は消さずに残し、exit 2"]
+    },
+    {
+      "id": "ENV-UNSET",
+      "why": "ランナー用の環境変数をシャードに引き継ぐ（全シャードが同じロックを取り合う）",
+      "file": "scripts/tools/mutation-proof-shards.sh",
+      "find": " env -u MUTATION_PROOF_LOCK -u MUTATION_PROOF_TEST_COMMAND -u MUTATION_PROOF_CHANGED_FILES \\\n",
+      "replace": " env \\\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "シャードには、ランナー用の環境変数を渡さず、リポジトリの中の絶対パスを相対パスに直して渡す"
+      ]
+    },
+    {
+      "id": "REPO-RELATIVE",
+      "why": "リポジトリの中の絶対パスを相対パスに直さない（元の作業ツリーのファイルを読ませる）",
+      "file": "scripts/tools/mutation-proof-shards.sh",
+      "find": "\t\"${repo}\"/*) args+=(\"${real#\"${repo}\"/}\") ;;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "シャードには、ランナー用の環境変数を渡さず、リポジトリの中の絶対パスを相対パスに直して渡す"
+      ]
+    },
+    {
+      "id": "UNTRACKED-SPEC",
+      "why": "commit していない宣言ファイルの引数を止めない（依存を入れた後に全シャードが失敗する）",
+      "file": "scripts/tools/mutation-proof-shards.sh",
+      "find": "if ! git ls-files --error-unmatch -- \"${arg}\" >/dev/null 2>&1; then",
+      "replace": "if false; then",
+      "occurrences": 1,
+      "expect_failing": ["commit していない宣言ファイルを渡したら、worktree を作らずに exit 2"]
+    },
+    {
+      "id": "OUTSIDE-SPEC",
+      "why": "リポジトリの外の宣言ファイルにも commit を求める（どの worktree からも読めるのに止める）",
+      "file": "scripts/tools/mutation-proof-shards.sh",
+      "find": "\t/*) ;;\n\t*.mutations.json)",
+      "replace": "\t*.mutations.json)",
+      "occurrences": 1,
+      "expect_failing": ["リポジトリの外を指す絶対パスの宣言ファイルは、そのままシャードに渡す"]
+    },
+    {
+      "id": "INSIDE-REPO",
+      "why": "worktree の置き場所がリポジトリの中でも止めない",
+      "file": "scripts/tools/mutation-proof-shards.sh",
+      "find": "\"${repo}\" | \"${repo}\"/*)",
+      "replace": "\"/nonexistent-${repo}\")",
+      "occurrences": 1,
+      "expect_failing": ["worktree の置き場所がリポジトリの中なら、何も作らずに exit 2"]
+    },
+    {
+      "id": "DIRTY-TREE",
+      "why": "tracked のファイルの commit していない変更を止めない（測ったつもりで HEAD を測る）",
+      "file": "scripts/tools/mutation-proof-shards.sh",
+      "find": "if [ -n \"$(git status --porcelain --untracked-files=no)\" ]; then",
+      "replace": "if false; then",
+      "occurrences": 1,
+      "expect_failing": [
+        "tracked のファイルに commit していない変更があれば、worktree を作らずに exit 2"
+      ]
+    }
+  ]
+}

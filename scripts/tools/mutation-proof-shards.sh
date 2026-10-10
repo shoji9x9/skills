@@ -38,6 +38,20 @@ for arg in "$@"; do
 done
 
 repo=$(git rev-parse --show-toplevel)
+# 置き場所の相対パスは、呼び出し元の cwd から解決する（cd の前に絶対パスにする）。
+# リポジトリの中は指させない。node_modules を含む worktree が untracked として、テストやリントの走査に入るため。
+base="${MUTATION_PROOF_SHARDS_DIR:-$(dirname "${repo}")/$(basename "${repo}")-mutation-shards}"
+case "${base}" in
+/*) ;;
+*) base="$(pwd -P)/${base}" ;;
+esac
+base=$(realpath -m -- "${base}" 2>/dev/null || printf '%s' "${base}")
+case "${base}" in
+"${repo}" | "${repo}"/*)
+	echo "mutation-proof-shards: worktree の置き場所（${base}）がリポジトリの中にある。リポジトリの外を指す" >&2
+	exit 2
+	;;
+esac
 cd "${repo}"
 # ランナーは相対パスをリポジトリのルートから解決する。このリポジトリの中を指す絶対パスは、worktree の中ではなく
 # この作業ツリーのファイル（commit していない内容を含む）を読ませるので、リポジトリのルートからの相対パスに直す。
@@ -53,9 +67,11 @@ for arg in "$@"; do
 	*) args+=("${arg}") ;;
 	esac
 done
-# 宣言ファイルの引数は、HEAD に commit されていなければ worktree に無い。依存を入れる前に止める。
+# リポジトリの中の宣言ファイル（相対パスに直したもの）は、HEAD に commit されていなければ worktree に無い。依存を入れる前に止める。
+# リポジトリの外を指す絶対パスは、どの worktree からも同じファイルを読めるので確かめない。
 for arg in ${args[@]+"${args[@]}"}; do
 	case "${arg}" in
+	/*) ;;
 	*.mutations.json)
 		if ! git ls-files --error-unmatch -- "${arg}" >/dev/null 2>&1; then
 			echo "mutation-proof-shards: ${arg} は commit されていない（worktree は HEAD から作るので読めない）。commit してから実行する" >&2
@@ -70,7 +86,6 @@ if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
 	exit 2
 fi
 head=$(git rev-parse --verify HEAD)
-base="${MUTATION_PROOF_SHARDS_DIR:-$(dirname "${repo}")/$(basename "${repo}")-mutation-shards}"
 mkdir -p "${base}"
 echo "mutation-proof-shards: HEAD ${head} を ${total} 個の worktree（${base}/shard-*）で測る"
 

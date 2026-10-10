@@ -95,6 +95,7 @@ test("untracked のファイルだけなら、変更があるとして止めな�
   // 置き場所に前回の worktree があるとして止め、worktree を作る前で終わらせる。
   mkdirSync(join(fx.shards, "shard-1"), { recursive: true });
   const res = run(fx, "2");
+  expect(res.status, res.out).toBe(2);
   expect(res.out).not.toContain("commit していない変更がある");
   expect(res.out).toContain("shard-1 が既にある");
 });
@@ -139,7 +140,12 @@ function makeLaunchRepo() {
 console.log("lock=" + (process.env.MUTATION_PROOF_LOCK ?? "(unset)"));
 console.log("command=" + (process.env.MUTATION_PROOF_TEST_COMMAND ?? "(unset)"));
 console.log("changed=" + (process.env.MUTATION_PROOF_CHANGED_FILES ?? "(unset)"));
-console.log("mutation-proof: 1 proven / 0 failed");
+// FAKE_EXITS（シャードごとの終了コードをカンマ区切り）と FAKE_DIRTY_SHARD（その番号のシャードが tracked のファイルを書き換えて残す）。
+const shard = Number(process.argv[process.argv.indexOf("--shard") + 1].split("/")[0]);
+if (process.env.FAKE_DIRTY_SHARD === String(shard)) require("node:fs").writeFileSync("a.txt", "変異が残った\\n");
+const code = Number((process.env.FAKE_EXITS ?? "").split(",")[shard - 1] ?? 0) || 0;
+console.log(code === 0 ? "mutation-proof: 1 proven / 0 failed" : "mutation-proof: 0 proven / 1 failed");
+process.exit(code);
 `,
   );
   // 引数に渡す宣言ファイル（中身は偽のランナーが読まない）。commit していないと、スクリプトが起動の前に止める。
@@ -197,4 +203,57 @@ test("commit していない宣言ファイルを渡したら、worktree を作�
   expect(res.status, res.out).toBe(2);
   expect(res.out).toContain("new.mutations.json は commit されていない");
   expect(existsSync(fx.shards), "worktree の置き場所を作った").toBe(false);
+});
+
+const launchEnv = (fx, env = {}) => ({ PATH: `${fx.bin}:${process.env.PATH}`, ...env });
+
+// 全体の終了コードは、シャードの中で最も重いもの（2 > 1 > 0）にする。1 は「実証できない変異がある」、2 は前提の誤りである。
+test.each([
+  ["1,0", 1],
+  ["0,1", 1],
+  ["2,1", 2],
+  ["1,2", 2],
+])("シャードの終了コードが %s なら、全体は exit %i", (exits, expected) => {
+  const fx = makeLaunchRepo();
+  const res = run(fx, "2", launchEnv(fx, { FAKE_EXITS: exits }));
+  expect(res.status, res.out).toBe(expected);
+  expect(worktrees(fx.repo), "worktree を消していない").toBe(1);
+});
+
+// 対象が戻っていない worktree は、--force を付けずに消そうとして失敗するので残し、exit 2 にする。
+test("tracked のファイルが変わったまま終わった worktree は消さずに残し、exit 2", () => {
+  const fx = makeLaunchRepo();
+  const res = run(fx, "2", launchEnv(fx, { FAKE_DIRTY_SHARD: "1" }));
+  try {
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toContain("shard-1 を消さずに残す");
+    expect(existsSync(join(fx.shards, "shard-1", "a.txt")), "変更の残った worktree を消した").toBe(
+      true,
+    );
+    expect(existsSync(join(fx.shards, "shard-2")), "clean な worktree を消していない").toBe(false);
+  } finally {
+    git(fx.repo, "worktree", "remove", "--force", join(fx.shards, "shard-1"));
+  }
+});
+
+// 相対パスは呼び出し元の cwd から解決する。リポジトリの中の worktree は、untracked としてテストやリントの走査に入る。
+test("worktree の置き場所がリポジトリの中なら、何も作らずに exit 2", () => {
+  const fx = makeLaunchRepo();
+  const res = run({ ...fx, shards: "tmp/shards" }, "2", launchEnv(fx));
+  expect(res.status, res.out).toBe(2);
+  expect(res.out).toContain("がリポジトリの中にある");
+  expect(existsSync(join(fx.repo, "tmp")), "リポジトリの中に置き場所を作った").toBe(false);
+  expect(worktrees(fx.repo)).toBe(1);
+});
+
+// リポジトリの外の宣言ファイルは、どの worktree からも同じファイルを読めるので、commit を求めずにそのまま渡す。
+test("リポジトリの外を指す絶対パスの宣言ファイルは、そのままシャードに渡す", () => {
+  const fx = makeLaunchRepo();
+  const outside = join(dirname(fx.repo), "outside.mutations.json");
+  writeFileSync(outside, "{}\n");
+  const res = run(fx, "2", outside, launchEnv(fx));
+  expect(res.status, res.out).toBe(0);
+  expect(readFileSync(join(fx.shards, "shard-1.log"), "utf8")).toContain(
+    `args=${JSON.stringify([outside, "--shard", "1/2"])}`,
+  );
 });
