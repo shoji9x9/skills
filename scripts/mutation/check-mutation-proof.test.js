@@ -85,6 +85,9 @@ const lockDir = makeSharedTempDir("mutation-proof-lock-");
 // 単位は `testResults[].assertionResults[]` の `fullName` / `status` / `title` / `ancestorTitles` / `failureMessages` である。
 // 形は、fixture を本物の vitest 4 で実行した出力から作った。
 const STUB_COMMAND = join(lockDir, "stub-vitest.js");
+
+// 存在しえない pid（Linux の pid_max の上限より大きい）。中断で残った一時ファイルの名前に使う。
+const DEAD_PID = 2147483646;
 writeFileSync(
   STUB_COMMAND,
   `#!${process.execPath}
@@ -844,7 +847,7 @@ require("node:module").syncBuiltinESMExports();
       );
       writeFileSync(fx.target, mutated);
       // 一時ファイルを消せなくても、書き戻しへ進む（掃除の失敗で書き戻しの失敗と案内しない）。
-      writeFileSync(`${fx.target}.mutation-proof-99999.tmp`, "x");
+      writeFileSync(`${fx.target}.mutation-proof-${DEAD_PID}.tmp`, "x");
       let res;
       chmodSync(fx.dir, 0o555);
       try {
@@ -915,7 +918,7 @@ require("node:module").syncBuiltinESMExports();
     const link = join(fx.dir, "outside-link.sh");
     symlinkSync(outside, link);
     // リンク先の隣の一時ファイルの形のファイルも消さない。
-    const outsideStray = `${outside}.mutation-proof-99999.tmp`;
+    const outsideStray = `${outside}.mutation-proof-${DEAD_PID}.tmp`;
     writeFileSync(outsideStray, "x");
     writeFileSync(
       `${lock}.recovery.json`,
@@ -938,7 +941,7 @@ require("node:module").syncBuiltinESMExports();
     const lock = join(lockDir, "symlink-dir-outside.lock");
     const outsideDir = join(lockDir, "outside-dir");
     mkdirSync(outsideDir, { recursive: true });
-    const outsideStray = join(outsideDir, "gone.sh.mutation-proof-99999.tmp");
+    const outsideStray = join(outsideDir, `gone.sh.mutation-proof-${DEAD_PID}.tmp`);
     writeFileSync(outsideStray, "x");
     const linkDir = join(fx.dir, "outside-dir-link");
     symlinkSync(outsideDir, linkDir);
@@ -990,7 +993,8 @@ require("node:module").syncBuiltinESMExports();
     });
     expect(res.status, res.out).toBe(2);
     expect(res.out).toContain("G の変異を当てられない: ENOSPC");
-    expect(res.out).not.toContain("EBUSY");
+    // 消せなかった一時ファイルは、次回の起動も消さない（照合が復元情報を消す）ので、手で消すよう出す。
+    expect(res.out).toContain("一時ファイルを消せない");
     expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
   });
 
@@ -1035,16 +1039,20 @@ require("node:module").syncBuiltinESMExports();
     );
     // 書き戻しの途中で殺された状態: 対象は変異のまま、隣に書きかけの一時ファイルがある。
     writeFileSync(fx.target, mutated);
-    const stray = `${fx.target}.mutation-proof-99999.tmp`;
+    const stray = `${fx.target}.mutation-proof-${DEAD_PID}.tmp`;
     writeFileSync(stray, FIXTURE_TARGET.slice(0, 5));
     // 名前が似ていても、形の違うファイルは消さない。
     const unrelated = `${fx.target}.mutation-proof-notes.tmp`;
     writeFileSync(unrelated, "x");
+    // 名前の pid が生きているもの（別の実行が書き込み中）も消さない。
+    const live = `${fx.target}.mutation-proof-${process.pid}.tmp`;
+    writeFileSync(live, "x");
     const res = runRunner(spec, { MUTATION_PROOF_LOCK: lock });
     expect(res.status, res.out).toBe(0);
     expect(res.out).toContain("前回の中断で残った一時ファイルを消した");
     expect(existsSync(stray), "一時ファイルを残した").toBe(false);
     expect(existsSync(unrelated), "形の違うファイルまで消した").toBe(true);
+    expect(existsSync(live), "生きている実行の一時ファイルを消した").toBe(true);
     expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
   });
 

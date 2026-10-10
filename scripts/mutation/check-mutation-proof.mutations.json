@@ -496,7 +496,8 @@
       "occurrences": 1,
       "expect_failing": [
         "宣言と前提の検証（実行する前に落とす） 変異の書き込みが途中で失敗しても、対象を変えずに元の例外を返し、外からの編集として案内しない",
-        "宣言と前提の検証（実行する前に落とす） 後始末の書き戻しが途中で失敗したら、変異のまま止め、次回の起動が自分の変異として戻す"
+        "宣言と前提の検証（実行する前に落とす） 後始末の書き戻しが途中で失敗したら、変異のまま止め、次回の起動が自分の変異として戻す",
+        "宣言と前提の検証（実行する前に落とす） 一時ファイルへの書き込みも、その後始末も失敗したら、書き込みの失敗を報告する"
       ]
     },
     {
@@ -540,8 +541,8 @@
       "id": "STRAY-TMP-SHAPE",
       "why": "一時ファイルの形を確かめず、名前の似た無関係なファイルまで消す",
       "file": "scripts/mutation/check-mutation-proof.js",
-      "find": "/^\\d+$/.test(n.slice(prefix.length, -TMP_SUFFIX.length))",
-      "replace": "true",
+      "find": "    return /^\\d+$/.test(pid) && !alive(Number(pid));",
+      "replace": "    return true;",
       "occurrences": 1,
       "expect_failing": [
         "宣言と前提の検証（実行する前に落とす） 前回の中断で残った一時ファイルを、次回の起動が消す"
@@ -645,11 +646,22 @@
       "id": "TMP-RM-GUARD",
       "why": "一時ファイルの後始末の例外で、元の書き込みの失敗を置き換える",
       "file": "scripts/mutation/check-mutation-proof.js",
-      "find": "    try {\n      rmSync(tmp, { force: true });\n    } catch {\n",
-      "replace": "    try {\n      rmSync(tmp, { force: true });\n    } finally {\n    }\n    try {\n    } catch {\n",
+      "find": "    try {\n      rmSync(tmp, { force: true });\n    } catch (rmErr) {\n",
+      "replace": "    try {\n      rmSync(tmp, { force: true });\n    } finally {\n    }\n    try {\n    } catch (rmErr) {\n",
       "occurrences": 1,
       "expect_failing": [
         "宣言と前提の検証（実行する前に落とす） 一時ファイルへの書き込みも、その後始末も失敗したら、書き込みの失敗を報告する"
+      ]
+    },
+    {
+      "id": "STRAY-TMP-LIVE",
+      "why": "名前の pid が生きている（別の実行が書き込み中の）一時ファイルまで消す",
+      "file": "scripts/mutation/check-mutation-proof.js",
+      "find": " && !alive(Number(pid));",
+      "replace": ";",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（実行する前に落とす） 前回の中断で残った一時ファイルを、次回の起動が消す"
       ]
     }
   ]

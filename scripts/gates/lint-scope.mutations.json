@@ -185,6 +185,17 @@
       "expect_failing": [
         "oxfmt の ignorePatterns は、許可リストの後にエージェント用のコピーとリンクだけを除く"
       ]
+    },
+    {
+      "id": "LS-FS-EXTRA",
+      "why": "formatter-scope の glob にだけファイルを足し、テストの inputs に挙げ忘れる",
+      "file": "lefthook.yml",
+      "find": "package.json,pnpm-lock.yaml,pnpm-workspace.yaml,scripts/gates/formatter-scope.test.js}",
+      "replace": "package.json,pnpm-lock.yaml,pnpm-workspace.yaml,mise.toml,scripts/gates/formatter-scope.test.js}",
+      "occurrences": 1,
+      "expect_failing": [
+        "lefthook の formatter-scope は、整形の範囲を変えるファイルの変更で実行する"
+      ]
     }
   ]
 }

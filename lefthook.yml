@@ -182,7 +182,7 @@ pre-commit:
           - name: lint-scope
             # 各 lint と整形の除外が scripts/lib/source-scope.js と一致するか。スキルを足してインストールすると
             # lefthook.yml のコピーの一覧が古くなるので、コピーや除外の設定を変えた commit で確かめる。
-            glob: "{.agents/skills/*/SKILL.md,skills/*/SKILL.md,lefthook.yml,oxlint.config.ts,oxfmt.config.ts,.markdownlint-cli2.yaml,.github/workflows/ci.yml,scripts/lib/source-scope.js}"
+            glob: "{.agents/skills/*/SKILL.md,skills/*/SKILL.md,lefthook.yml,oxlint.config.ts,oxfmt.config.ts,.markdownlint-cli2.yaml,.github/workflows/ci.yml,scripts/lib/source-scope.js,scripts/gates/lint-scope.test.js}"
             run: pnpm exec vitest run scripts/gates/lint-scope.test.js
           - name: formatter-scope
             # 整形ツールが書き換える種類を設定で閉じていること（実物のツールで確かめる）。設定を変えた commit で実行する。

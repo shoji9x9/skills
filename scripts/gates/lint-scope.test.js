@@ -232,5 +232,6 @@ test("lefthook の formatter-scope は、整形の範囲を変えるファイル
     "pnpm-workspace.yaml",
     "scripts/gates/formatter-scope.test.js",
   ];
-  expect(inputs.filter((f) => !listed.includes(f))).toEqual([]);
+  // 両方向で比べる（glob の側にだけ足したファイルも、ここに挙げ忘れとして検出する）。
+  expect([...listed].sort()).toEqual([...inputs].sort());
 });

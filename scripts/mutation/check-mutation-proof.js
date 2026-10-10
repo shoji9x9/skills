@@ -266,10 +266,12 @@ function removeStrayTmp(target) {
   }
   const dir = dirname(real);
   const prefix = `${basename(real)}${TMP_INFIX}`;
-  const isStray = (n) =>
-    n.startsWith(prefix) &&
-    n.endsWith(TMP_SUFFIX) &&
-    /^\d+$/.test(n.slice(prefix.length, -TMP_SUFFIX.length));
+  // 名前の pid が生きていれば、別の実行（別のロックを指定したもの）が書き込み中なので消さない。
+  const isStray = (n) => {
+    if (!n.startsWith(prefix) || !n.endsWith(TMP_SUFFIX)) return false;
+    const pid = n.slice(prefix.length, -TMP_SUFFIX.length);
+    return /^\d+$/.test(pid) && !alive(Number(pid));
+  };
   let names;
   // 一時ファイルの掃除は書き戻しの前提ではないので、失敗しても書き戻しへ進む。残ったことは出力に残す。
   try {
@@ -324,8 +326,9 @@ function replaceContent(path, data) {
     // 書きかけの一時ファイルを作業ツリーに残さない（消せなくても、元の例外を返す）。
     try {
       rmSync(tmp, { force: true });
-    } catch {
-      /* 残った一時ファイルは、復元情報があれば次回の起動が消す */
+    } catch (rmErr) {
+      // 変異の書き込みの失敗では、この後の照合が復元情報を消すので、次回の起動も消さない。消せないことを出す。
+      console.error(`mutation-proof: 一時ファイルを消せない（${tmp}）: ${rmErr.message}。手で消す`);
     }
     throw err;
   }
