@@ -319,7 +319,9 @@ function replaceContent(path, data) {
   }
   const tmp = tmpPathOf(real, process.pid);
   try {
-    // 一時ファイルは新しく作る（"wx"）。同じ名前のシンボリックリンクが置かれていても、リンク先へ書かない。
+    // 自分の pid の一時ファイルは、同じ pid だった前の実行の残骸か、置かれたものである（自分は作ってすぐ rename する）。
+    // 先に消してから新しく作る（"wx"）。シンボリックリンクなら、リンクそのものを消し、リンク先へは書かない。
+    rmSync(tmp, { force: true });
     writeFileSync(tmp, data, { flag: "wx" });
     chmodSync(tmp, stat.mode & 0o7777);
     renameSync(tmp, real);

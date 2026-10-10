@@ -967,8 +967,11 @@ require("node:module").syncBuiltinESMExports();
 const realWrite = fs.writeFileSync;
 const realRm = fs.rmSync;
 const prefix = process.env.FAULT_TARGET + ".mutation-proof-";
+// 書き込みが失敗した後の後始末の rmSync だけを失敗させる（書く前の残骸の削除は通す）。
+let writeFailed = false;
 fs.writeFileSync = function (path, ...rest) {
   if (typeof path === "string" && path.startsWith(prefix)) {
+    writeFailed = true;
     const err = new Error("ENOSPC: no space left on device, write");
     err.code = "ENOSPC";
     throw err;
@@ -976,7 +979,7 @@ fs.writeFileSync = function (path, ...rest) {
   return realWrite.call(fs, path, ...rest);
 };
 fs.rmSync = function (path, ...rest) {
-  if (typeof path === "string" && path.startsWith(prefix)) {
+  if (writeFailed && typeof path === "string" && path.startsWith(prefix)) {
     const err = new Error("EBUSY: resource busy, unlink");
     err.code = "EBUSY";
     throw err;
@@ -998,8 +1001,8 @@ require("node:module").syncBuiltinESMExports();
     expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
   });
 
-  // 一時ファイルの名前にシンボリックリンクが置かれていても、リンク先（リポジトリ外を含む）へ書かない。
-  test("一時ファイルの名前にリポジトリ外を指すシンボリックリンクがあれば、リンク先へ書かずに exit 2", () => {
+  // 一時ファイルの名前にシンボリックリンクや前の実行の残骸があっても、リンク先（リポジトリ外を含む）へ書かずに測る。
+  test("一時ファイルの名前にリポジトリ外を指すシンボリックリンクがあっても、リンク先へ書かずに測る", () => {
     const fx = makeFixture();
     const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
     const outside = join(lockDir, "tmp-link-outside.txt");
@@ -1020,9 +1023,11 @@ if (process.argv[1]?.endsWith("check-mutation-proof.js")) {
       FAULT_TARGET: fx.target,
       PLANT_OUTSIDE: outside,
     });
-    expect(res.status, res.out).toBe(2);
-    expect(res.out).toContain("G の変異を当てられない: EEXIST");
+    expect(res.status, res.out).toBe(0);
     expect(readFileSync(outside, "utf8")).toBe("外のファイル\n");
+    // リンクそのものは消えている（同じ pid の残骸を残したまま EEXIST で止まらない）。
+    const link = `${fx.target}.mutation-proof-${res.pid}.tmp`;
+    expect(() => lstatSync(link), "一時ファイルの名前のリンクが残った").toThrow();
     expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
   });
 
