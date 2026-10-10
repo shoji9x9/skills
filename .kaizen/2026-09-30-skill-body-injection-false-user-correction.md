@@ -1,7 +1,7 @@
 ---
 date: 2026-09-30
 type: hook
-priority: medium
+priority: high
 status: pending
 applied-to: []
 session: claude-code
@@ -14,6 +14,10 @@ session: claude-code
 Issue #525 の lockfile 更新を commit しようとしたところ、kaizen のコミット前チェックが `user correction: transcript line 52` でブロックした。
 line 52 は `git-worktree` スキルの起動で Claude Code が注入したスキル本文で、`type: "user"` だが `isMeta: true`・`sourceToolUseID` 付きのレコードだった。
 本文に含まれる「ではなく」等の語が修正語の正規表現に当たった。ユーザーの発話は Issue 指定と「PR作成して下さい」だけで、修正指示は無かった。
+
+2026-10-10、Issue #588 の PR #589 のレビュー対応を commit しようとしたところ、同じチェックが `user correction: transcript line 860` で止めた。
+line 860 は `pr-finalize-loop` スキルの起動で注入されたスキル本文（`type: "user"`・`isMeta: true`）で、ユーザーの発話ではなかった。
+同じセッションで 2 回目の commit の停止で、スキルを起動するたびに再発する。
 
 ## 根本原因
 
