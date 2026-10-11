@@ -2,8 +2,8 @@
 date: 2026-10-11
 type: doc
 priority: medium
-status: pending
-applied-to: []
+status: applied
+applied-to: ["oxlint.config.ts", "docs/tooling.md"]
 session: claude-code
 ---
 
