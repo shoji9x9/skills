@@ -1,0 +1,63 @@
+{
+  "$comment": [
+    "spawn-async.test.js の検出能力を示す変異の一覧（Issue #590）。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/lib/spawn-async.test.js",
+  "mutations": [
+    {
+      "id": "input-not-written",
+      "why": "input を stdin に渡さない",
+      "file": "scripts/lib/spawn-async.js",
+      "find": "child.stdin.end(input);",
+      "replace": "child.stdin.end();",
+      "occurrences": 1,
+      "expect_failing": ["spawnAsync input を stdin に渡し、渡さなければ stdin はすぐ閉じる"]
+    },
+    {
+      "id": "epipe-not-ignored",
+      "why": "stdin を読まない子へ書いたときの EPIPE を握りつぶさない",
+      "file": "scripts/lib/spawn-async.js",
+      "find": "child.stdin.on(\"error\", () => {});",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "spawnAsync stdin を読まずに終わる子へ大きな input を渡しても失敗にしない（EPIPE を数えない）"
+      ]
+    },
+    {
+      "id": "error-dropped",
+      "why": "起動できなかったときの error を結果に入れない",
+      "file": "scripts/lib/spawn-async.js",
+      "find": "...(error ? { error } : {})",
+      "replace": "...{}",
+      "occurrences": 1,
+      "expect_failing": [
+        "spawnAsync 起動できなければ reject せず、error を持つ結果を返す（spawnSync と同じ）"
+      ]
+    },
+    {
+      "id": "status-dropped",
+      "why": "終了コードを返さない",
+      "file": "scripts/lib/spawn-async.js",
+      "find": "status: child.pid === undefined ? null : status,",
+      "replace": "status: 0,",
+      "occurrences": 1,
+      "expect_failing": [
+        "spawnAsync 終了コード・stdout・stderr を文字列で返す",
+        "spawnAsync 起動できなければ reject せず、error を持つ結果を返す（spawnSync と同じ）"
+      ]
+    },
+    {
+      "id": "spawn-error-status-not-null",
+      "why": "起動できなかったときの終了コードを、spawnSync の null ではなく負の errno のまま返す",
+      "file": "scripts/lib/spawn-async.js",
+      "find": "status: child.pid === undefined ? null : status,",
+      "replace": "status,",
+      "occurrences": 1,
+      "expect_failing": [
+        "spawnAsync 起動できなければ reject せず、error を持つ結果を返す（spawnSync と同じ）"
+      ]
+    }
+  ]
+}

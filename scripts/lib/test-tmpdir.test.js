@@ -6,7 +6,7 @@ import { describe, expect, test } from "vitest";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { makeSharedTempDir, makeTempDir } from "./test-tmpdir.js";
+import { makeSharedTempDir, makeTempDir, makeTempDirFactory } from "./test-tmpdir.js";
 
 // 走査の起点は `scripts/` 全体（このファイルは `scripts/lib/` にある）。
 const scriptsDir = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -65,6 +65,32 @@ describe("makeSharedTempDir", () => {
 test("makeSharedTempDir で作ったものは describe を抜けると消える", () => {
   expect(shared).toBeTruthy();
   expect(existsSync(shared)).toBe(false);
+});
+
+// 並べたテストの中では、消す予約が別のテストに付くので、makeTempDir を例外にする（Issue #590）。
+let factoryDirs = [];
+describe("makeTempDirFactory", () => {
+  const make = makeTempDirFactory("test-tmpdir-factory-");
+
+  describe.concurrent("並べて実行するテスト", () => {
+    test("並べたテストの中で makeTempDir を呼ぶと例外になる", () => {
+      expect(() => makeTempDir("test-tmpdir-concurrent-")).toThrow(/makeTempDirFactory/);
+    });
+
+    test("await の後でも作れ、テストごとに別のディレクトリになる", async () => {
+      const first = make("a-");
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      const second = make("a-");
+      factoryDirs = [first, second];
+      expect(first).not.toBe(second);
+      expect(existsSync(first) && existsSync(second)).toBe(true);
+    });
+  });
+});
+
+test("makeTempDirFactory で作ったものは describe を抜けると消える", () => {
+  expect(factoryDirs).toHaveLength(2);
+  for (const dir of factoryDirs) expect(existsSync(dir)).toBe(false);
 });
 
 // --- 直呼びの検査 -------------------------------------------------------------

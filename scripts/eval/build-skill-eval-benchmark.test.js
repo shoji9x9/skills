@@ -1,9 +1,9 @@
 import { describe, expect, test } from "vitest";
-import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { makeTempDir } from "../lib/test-tmpdir.js";
+import { makeTempDirFactory } from "../lib/test-tmpdir.js";
+import { spawnAsync } from "../lib/spawn-async.js";
 
 // `build-skill-eval-benchmark.js` は、**assertion テキストをキーにした入力だけを受理する**
 // 集計スクリプト（Issue #421）。位置で対応づけると、assertion の追加・削除・並べ替えで判定がずれ、
@@ -14,12 +14,13 @@ const SCRIPT = "scripts/eval/build-skill-eval-benchmark.js";
 
 const ASSERTIONS = ["最初の assertion", "2 番目の assertion", "3 番目の assertion"];
 
-const dirs = [];
+// **テストは `describe.concurrent` で並べて実行する**（Issue #590）。どのテストも集計スクリプトの子プロセスの終了を
+// 待つだけなので、並べた分だけ 1 回の実行が縮み、ミューテーションテストでは変異の数だけ反映される。
+// そのため、テストの間で状態を共有しない。iteration はテストごとに別の一時ディレクトリに作る（`tempDir`）。
+const tempDir = makeTempDirFactory("benchmark-build-");
 
 function makeIteration() {
-  const root = makeTempDir("benchmark-build-");
-  dirs.push(root);
-  return root;
+  return tempDir("benchmark-build-");
 }
 
 /** run 1 件ぶんの成果物を書く（既定は eval_metadata と整合する採点）。 */
@@ -82,8 +83,8 @@ function writeRun(
   return dir;
 }
 
-function run(root, extra = []) {
-  const res = spawnSync(
+async function run(root, extra = []) {
+  const res = await spawnAsync(
     "node",
     [
       SCRIPT,
@@ -99,7 +100,7 @@ function run(root, extra = []) {
       "--stdout",
       ...extra,
     ],
-    { cwd: repoRoot, encoding: "utf8" },
+    { cwd: repoRoot },
   );
   return { ...res, out: `${res.stdout}${res.stderr}` };
 }
@@ -138,9 +139,9 @@ function completeIteration() {
   return root;
 }
 
-describe("集計（揃った iteration）", () => {
-  test("run の並び・evals_run・統計・Delta を固定する", () => {
-    const res = run(completeIteration(), ["--timestamp", "2026-09-22T00:00:00Z"]);
+describe.concurrent("集計（揃った iteration）", () => {
+  test("run の並び・evals_run・統計・Delta を固定する", async () => {
+    const res = await run(completeIteration(), ["--timestamp", "2026-09-22T00:00:00Z"]);
     expect(res.status, res.out).toBe(0);
     const b = JSON.parse(res.stdout);
 
@@ -200,7 +201,7 @@ describe("集計（揃った iteration）", () => {
 
   // **位置ではなくテキストで対応づける**ことの直接の検査。判定を並べ替えても、
   // 出力は eval_metadata（run 時点の原本）の順に並び、テキストごとの判定が保たれる。
-  test("判定が並べ替わっていてもテキストで対応づける", () => {
+  test("判定が並べ替わっていてもテキストで対応づける", async () => {
     const root = makeIteration();
     const shuffled = [
       { text: ASSERTIONS[2], passed: false, evidence: "3 番目の根拠" },
@@ -216,7 +217,7 @@ describe("集計（揃った iteration）", () => {
         expectations: shuffled,
       },
     });
-    const res = run(root);
+    const res = await run(root);
     expect(res.status, res.out).toBe(0);
     const b = JSON.parse(res.stdout);
     expect(b.runs[0].expectations).toStrictEqual([
@@ -228,7 +229,7 @@ describe("集計（揃った iteration）", () => {
     expect(b.run_summary.delta).toBeUndefined();
   });
 
-  test("テキストをキーにした verdicts オブジェクトも受理する", () => {
+  test("テキストをキーにした verdicts オブジェクトも受理する", async () => {
     const root = makeIteration();
     writeRun(root, {
       evalDir: "eval-1",
@@ -243,14 +244,14 @@ describe("集計（揃った iteration）", () => {
         },
       },
     });
-    const res = run(root);
+    const res = await run(root);
     expect(res.status, res.out).toBe(0);
     const b = JSON.parse(res.stdout);
     expect(b.runs[0].result.passed).toBe(2);
     expect(b.runs[0].expectations.map((e) => e.text)).toStrictEqual(ASSERTIONS);
   });
 
-  test("tool_calls / errors は metrics.json の実測を読む", () => {
+  test("tool_calls / errors は metrics.json の実測を読む", async () => {
     const root = makeIteration();
     writeRun(root, {
       evalDir: "eval-1",
@@ -258,34 +259,34 @@ describe("集計（揃った iteration）", () => {
       configuration: "with_skill",
       metrics: { total_tool_calls: 7, errors_encountered: 2 },
     });
-    const b = JSON.parse(run(root).stdout);
+    const b = JSON.parse((await run(root)).stdout);
     expect(b.runs[0].result.tool_calls).toBe(7);
     expect(b.runs[0].result.errors).toBe(2);
   });
 
-  test("notes はファイルから受け取る（集計ツールは文章を作らない）", () => {
+  test("notes はファイルから受け取る（集計ツールは文章を作らない）", async () => {
     const root = completeIteration();
     const notes = join(root, "notes.txt");
     writeFileSync(notes, "1 行目の備考\n\n2 行目の備考\n");
-    const b = JSON.parse(run(root, ["--notes-file", notes]).stdout);
+    const b = JSON.parse((await run(root, ["--notes-file", notes])).stdout);
     expect(b.notes).toStrictEqual(["1 行目の備考", "2 行目の備考"]);
   });
 
   // notes は**文字列配列**。成果物の JSON（plain object を要求する）と同じ読み方をすると、
   // 配列が「JSON オブジェクトでない」で落ちる（実際に一度そう壊した）。
-  test("notes は JSON の文字列配列でも受け取れる", () => {
+  test("notes は JSON の文字列配列でも受け取れる", async () => {
     const root = completeIteration();
     const notes = join(root, "notes.json");
     writeFileSync(notes, JSON.stringify(["1 件目の備考", "2 件目の備考"]));
-    const res = run(root, ["--notes-file", notes]);
+    const res = await run(root, ["--notes-file", notes]);
     expect(res.status, res.out).toBe(0);
     expect(JSON.parse(res.stdout).notes).toStrictEqual(["1 件目の備考", "2 件目の備考"]);
   });
 
-  test("既定の出力先は iteration 直下で、既存ファイルは --force なしに上書きしない", () => {
+  test("既定の出力先は iteration 直下で、既存ファイルは --force なしに上書きしない", async () => {
     const root = completeIteration();
     const out = join(root, "benchmark.json");
-    const first = spawnSync(
+    const first = await spawnAsync(
       "node",
       [
         SCRIPT,
@@ -299,13 +300,13 @@ describe("集計（揃った iteration）", () => {
         "--analyzer-model",
         "manual",
       ],
-      { cwd: repoRoot, encoding: "utf8" },
+      { cwd: repoRoot },
     );
     expect(first.status, first.stderr).toBe(0);
     expect(existsSync(out)).toBe(true);
-    const again = run(root, []); // --stdout 付きなので書かない
+    const again = await run(root, []); // --stdout 付きなので書かない
     expect(again.status, again.out).toBe(0);
-    const overwrite = spawnSync(
+    const overwrite = await spawnAsync(
       "node",
       [
         SCRIPT,
@@ -319,7 +320,7 @@ describe("集計（揃った iteration）", () => {
         "--analyzer-model",
         "manual",
       ],
-      { cwd: repoRoot, encoding: "utf8" },
+      { cwd: repoRoot },
     );
     expect(overwrite.status, overwrite.stderr).toBe(2);
     expect(overwrite.stderr).toContain("--force");
@@ -329,8 +330,8 @@ describe("集計（揃った iteration）", () => {
   });
 });
 
-describe("受理しない入力（exit 2）", () => {
-  function reject(grading, message, extra = {}) {
+describe.concurrent("受理しない入力（exit 2）", () => {
+  async function reject(grading, message, extra = {}) {
     const root = makeIteration();
     writeRun(root, {
       evalDir: "eval-1",
@@ -339,7 +340,7 @@ describe("受理しない入力（exit 2）", () => {
       grading,
       ...extra,
     });
-    const res = run(root);
+    const res = await run(root);
     expect(res.status, res.out).toBe(2);
     expect(res.out).toContain(message);
   }
@@ -349,15 +350,15 @@ describe("受理しない入力（exit 2）", () => {
   // **どのガードが落としたかまで見る。** 受理しない入力はどのガードでも exit 2 になるので、
   // 終了コードと総称メッセージだけを見ると、ガードを 1 つ外す変異が生き残る（実測）。
 
-  test("判定の位置配列（真偽値の並び）を受理しない", () => {
-    reject(
+  test("判定の位置配列（真偽値の並び）を受理しない", async () => {
+    await reject(
       { summary, expectations: [true, true, false] },
       "expectations[0] が {text, passed, evidence} のオブジェクトでない（位置配列は受理しない）",
     );
   });
 
-  test("判定の位置配列（[passed, evidence] の組）を受理しない", () => {
-    reject(
+  test("判定の位置配列（[passed, evidence] の組）を受理しない", async () => {
+    await reject(
       {
         summary,
         expectations: [
@@ -370,19 +371,19 @@ describe("受理しない入力（exit 2）", () => {
     );
   });
 
-  test("text を持たない判定を受理しない", () => {
-    reject(
+  test("text を持たない判定を受理しない", async () => {
+    await reject(
       { summary, expectations: ASSERTIONS.map(() => ({ passed: true, evidence: "e" })) },
       "の assertion テキストが非空の文字列でない（位置配列は受理しない）",
     );
   });
 
-  test("verdicts が配列なら受理しない", () => {
-    reject({ summary, verdicts: [{ passed: true, evidence: "e" }] }, "配列は受理しない");
+  test("verdicts が配列なら受理しない", async () => {
+    await reject({ summary, verdicts: [{ passed: true, evidence: "e" }] }, "配列は受理しない");
   });
 
-  test("キー集合が eval_metadata と違えば落とす（判定の無い assertion）", () => {
-    reject(
+  test("キー集合が eval_metadata と違えば落とす（判定の無い assertion）", async () => {
+    await reject(
       {
         summary: { pass_rate: 1, passed: 2, failed: 0, total: 2 },
         expectations: ASSERTIONS.slice(0, 2).map((text) => ({ text, passed: true, evidence: "e" })),
@@ -391,8 +392,8 @@ describe("受理しない入力（exit 2）", () => {
     );
   });
 
-  test("キー集合が eval_metadata と違えば落とす（宣言に無い判定）", () => {
-    reject(
+  test("キー集合が eval_metadata と違えば落とす（宣言に無い判定）", async () => {
+    await reject(
       {
         summary: { pass_rate: 1, passed: 4, failed: 0, total: 4 },
         expectations: [...ASSERTIONS, "宣言に無い assertion"].map((text) => ({
@@ -405,8 +406,8 @@ describe("受理しない入力（exit 2）", () => {
     );
   });
 
-  test("同じテキストの判定が 2 件あれば落とす（テキストでキーにできない）", () => {
-    reject(
+  test("同じテキストの判定が 2 件あれば落とす（テキストでキーにできない）", async () => {
+    await reject(
       {
         summary: { pass_rate: 1, passed: 3, failed: 0, total: 3 },
         expectations: [ASSERTIONS[0], ASSERTIONS[0], ASSERTIONS[1]].map((text) => ({
@@ -419,8 +420,8 @@ describe("受理しない入力（exit 2）", () => {
     );
   });
 
-  test("summary の件数が採点内訳と食い違えば落とす", () => {
-    reject(
+  test("summary の件数が採点内訳と食い違えば落とす", async () => {
+    await reject(
       {
         summary: { pass_rate: 1, passed: 3, failed: 0, total: 3 },
         expectations: ASSERTIONS.map((text, i) => ({ text, passed: i !== 0, evidence: "e" })),
@@ -429,8 +430,8 @@ describe("受理しない入力（exit 2）", () => {
     );
   });
 
-  test("summary の pass_rate が採点内訳と食い違えば落とす", () => {
-    reject(
+  test("summary の pass_rate が採点内訳と食い違えば落とす", async () => {
+    await reject(
       {
         summary: { pass_rate: 0.5, passed: 3, failed: 0, total: 3 },
         expectations: ASSERTIONS.map((text) => ({ text, passed: true, evidence: "e" })),
@@ -439,8 +440,8 @@ describe("受理しない入力（exit 2）", () => {
     );
   });
 
-  test("evidence が空なら落とす（根拠の無い判定を集計しない）", () => {
-    reject(
+  test("evidence が空なら落とす（根拠の無い判定を集計しない）", async () => {
+    await reject(
       {
         summary: { pass_rate: 1, passed: 3, failed: 0, total: 3 },
         expectations: ASSERTIONS.map((text) => ({ text, passed: true, evidence: "" })),
@@ -451,7 +452,7 @@ describe("受理しない入力（exit 2）", () => {
 
   // `pass_rate` の小数桁は規約が定めていない。採点者が 0.56（= 5/9）のように丸めて保存した
   // grading は内訳が正しいので受理する（本リポの既存成果物に 10 件ある）。
-  test("保存された pass_rate の桁が粗くても内訳が合っていれば受理する", () => {
+  test("保存された pass_rate の桁が粗くても内訳が合っていれば受理する", async () => {
     const root = makeIteration();
     const nine = Array.from({ length: 9 }, (_, i) => `assertion ${i + 1}`);
     writeRun(root, {
@@ -465,7 +466,7 @@ describe("受理しない入力（exit 2）", () => {
         expectations: nine.map((text, i) => ({ text, passed: i < 5, evidence: "e" })),
       },
     });
-    const res = run(root);
+    const res = await run(root);
     expect(res.status, res.out).toBe(0);
     // **出力は採点内訳から導いた値**（保存値を載せると benchmark が採点と違う数字を報告する）。
     expect(JSON.parse(res.stdout).runs[0].result.pass_rate).toBe(0.5556);
@@ -473,7 +474,7 @@ describe("受理しない入力（exit 2）", () => {
 
   // 桁の下限クランプ（1 桁）の範囲では保存値と内訳がずれたまま受理されるので、
   // **そのずれを出力・統計へ持ち込まない**ことを固定する（0.7 と保存された 2/3）。
-  test("保存値と内訳がずれていても統計は内訳から作る", () => {
+  test("保存値と内訳がずれていても統計は内訳から作る", async () => {
     const root = makeIteration();
     const three = ["a1", "a2", "a3"];
     for (const configuration of ["with_skill", "without_skill"]) {
@@ -488,7 +489,7 @@ describe("受理しない入力（exit 2）", () => {
         },
       });
     }
-    const res = run(root);
+    const res = await run(root);
     expect(res.status, res.out).toBe(0);
     const b = JSON.parse(res.stdout);
     expect(b.runs[0].result.pass_rate).toBe(0.6667);
@@ -497,19 +498,19 @@ describe("受理しない入力（exit 2）", () => {
 
   test.each(["null", "[]", '"文字列"'])(
     "成果物の JSON が %s なら exit 2（stack trace にしない）",
-    (json) => {
+    async (json) => {
       const root = makeIteration();
       const dir = writeRun(root, { evalDir: "eval-1", evalId: 1, configuration: "with_skill" });
       writeFileSync(join(dir, "timing.json"), json);
-      const res = run(root);
+      const res = await run(root);
       expect(res.status, res.out).toBe(2);
       expect(res.out).toContain("JSON オブジェクトでない");
       expect(res.out).not.toContain("TypeError");
     },
   );
 
-  test("桁を丸めても説明できない pass_rate は落とす", () => {
-    reject(
+  test("桁を丸めても説明できない pass_rate は落とす", async () => {
+    await reject(
       {
         summary: { pass_rate: 0.5, passed: 3, failed: 0, total: 3 },
         expectations: ASSERTIONS.map((text) => ({ text, passed: true, evidence: "e" })),
@@ -519,7 +520,7 @@ describe("受理しない入力（exit 2）", () => {
   });
 
   // 「記録が無い」を「揃っている」として扱わない（全 run で executor が欠けると混在検査が空振りする）。
-  test("timing.json に executor.name が無ければ落とす", () => {
+  test("timing.json に executor.name が無ければ落とす", async () => {
     const root = makeIteration();
     writeRun(root, {
       evalDir: "eval-1",
@@ -533,27 +534,27 @@ describe("受理しない入力（exit 2）", () => {
       configuration: "without_skill",
       executor: { name: null, model: null, reasoning_effort: null },
     });
-    const res = run(root);
+    const res = await run(root);
     expect(res.status, res.out).toBe(2);
     expect(res.out).toContain("executor.name が無い run がある");
   });
 
-  test("total_tokens が数値でなければ落とす（0 で埋めない）", () => {
+  test("total_tokens が数値でなければ落とす（0 で埋めない）", async () => {
     const root = makeIteration();
     const dir = writeRun(root, { evalDir: "eval-1", evalId: 1, configuration: "with_skill" });
     const timing = JSON.parse(readFileSync(join(dir, "timing.json"), "utf8"));
     timing.total_tokens = null;
     writeFileSync(join(dir, "timing.json"), JSON.stringify(timing));
-    const res = run(root);
+    const res = await run(root);
     expect(res.status, res.out).toBe(2);
     expect(res.out).toContain("total_tokens が数値でない");
   });
 
-  test("metrics.json が無ければ落とし、null のキーは測れなかったとして 0 で記録する", () => {
+  test("metrics.json が無ければ落とし、null のキーは測れなかったとして 0 で記録する", async () => {
     const root = makeIteration();
     const dir = writeRun(root, { evalDir: "eval-1", evalId: 1, configuration: "with_skill" });
     rmSync(join(dir, "outputs", "metrics.json"));
-    const missing = run(root);
+    const missing = await run(root);
     expect(missing.status, missing.out).toBe(2);
     expect(missing.out).toContain("outputs/metrics.json が無い");
 
@@ -562,18 +563,18 @@ describe("受理しない入力（exit 2）", () => {
       join(dir, "outputs", "metrics.json"),
       JSON.stringify({ total_tool_calls: null, errors_encountered: 0 }),
     );
-    const ok = run(root);
+    const ok = await run(root);
     expect(ok.status, ok.out).toBe(0);
     expect(JSON.parse(ok.stdout).runs[0].result.tool_calls).toBe(0);
   });
 
   // キー無し・null は「この executor では測れない」（実データの `total_tool_calls` は 145 件が
   // キー無し）。0 として記録する。**型が違う値だけ**落とす。
-  test("metrics.json のキーが無ければ 0 として記録し、型違いは落とす", () => {
+  test("metrics.json のキーが無ければ 0 として記録し、型違いは落とす", async () => {
     const root = makeIteration();
     const dir = writeRun(root, { evalDir: "eval-1", evalId: 1, configuration: "with_skill" });
     writeFileSync(join(dir, "outputs", "metrics.json"), JSON.stringify({ total_steps: 3 }));
-    const ok = run(root);
+    const ok = await run(root);
     expect(ok.status, ok.out).toBe(0);
     expect(JSON.parse(ok.stdout).runs[0].result.tool_calls).toBe(0);
 
@@ -581,17 +582,17 @@ describe("受理しない入力（exit 2）", () => {
       join(dir, "outputs", "metrics.json"),
       JSON.stringify({ total_tool_calls: "7", errors_encountered: 0 }),
     );
-    const bad = run(root);
+    const bad = await run(root);
     expect(bad.status, bad.out).toBe(2);
     expect(bad.out).toContain("total_tool_calls が数値でも null でもない");
   });
 
   // 取り込みは `eval-` の前方一致なので、形に合わない名前を突き合わせから外すと
   // `eval-1-retry` のコピーが同じ eval_id で 2 重に数えられる（実測）。
-  test("eval ディレクトリ名が形に合わなければ落とす", () => {
+  test("eval ディレクトリ名が形に合わなければ落とす", async () => {
     const root = makeIteration();
     writeRun(root, { evalDir: "eval-27b", evalId: 27, configuration: "with_skill" });
-    const res = run(root);
+    const res = await run(root);
     expect(res.status, res.out).toBe(2);
     expect(res.out).toContain("eval ディレクトリ名が eval-<番号>");
 
@@ -602,23 +603,23 @@ describe("受理しない入力（exit 2）", () => {
       evalId: 31,
       configuration: "with_skill",
     });
-    const passed = run(ok);
+    const passed = await run(ok);
     expect(passed.status, passed.out).toBe(0);
     expect(JSON.parse(passed.stdout).metadata.evals_run).toStrictEqual([31]);
   });
 
-  test("同じ run が 2 つのディレクトリから来ていれば落とす", () => {
+  test("同じ run が 2 つのディレクトリから来ていれば落とす", async () => {
     const root = makeIteration();
     for (const evalDir of ["eval-1", "eval-1-retry"]) {
       writeRun(root, { evalDir, evalId: 1, configuration: "with_skill" });
       writeRun(root, { evalDir, evalId: 1, configuration: "without_skill" });
     }
-    const res = run(root);
+    const res = await run(root);
     expect(res.status, res.out).toBe(2);
     expect(res.out).toContain("同じ run（1/with_skill/run-1）が 2 つのディレクトリから来ている");
   });
 
-  test("timing.json が無ければ落とす（時間・トークンを 0 で埋めない）", () => {
+  test("timing.json が無ければ落とす（時間・トークンを 0 で埋めない）", async () => {
     const root = makeIteration();
     writeRun(root, {
       evalDir: "eval-1",
@@ -626,14 +627,14 @@ describe("受理しない入力（exit 2）", () => {
       configuration: "with_skill",
       omitTiming: true,
     });
-    const res = run(root);
+    const res = await run(root);
     expect(res.status, res.out).toBe(2);
     expect(res.out).toContain("timing.json が無い");
   });
 
   // 採点の無い run（汚染・invalid_run）は警告なしに落とさない。既定は落として、
   // 除外を承知したときだけ --ungraded skip で進む。
-  test("採点の無い run はデフォルトで落とし、--ungraded skip で除外する", () => {
+  test("採点の無い run はデフォルトで落とし、--ungraded skip で除外する", async () => {
     const root = completeIteration();
     writeRun(root, {
       evalDir: "eval-2",
@@ -642,12 +643,12 @@ describe("受理しない入力（exit 2）", () => {
       runNumber: 2,
       omitGrading: true,
     });
-    const failed = run(root);
+    const failed = await run(root);
     expect(failed.status, failed.out).toBe(2);
     expect(failed.out).toContain("採点の無い run が 1 件ある");
     expect(failed.out).toContain("--ungraded skip");
 
-    const skipped = run(root, ["--ungraded", "skip"]);
+    const skipped = await run(root, ["--ungraded", "skip"]);
     expect(skipped.status, skipped.out).toBe(0);
     const b = JSON.parse(skipped.stdout);
     expect(b.runs).toHaveLength(4);
@@ -657,7 +658,7 @@ describe("受理しない入力（exit 2）", () => {
   // **`--ungraded skip` で検出できない範囲**: ある eval × configuration の run が**全部**未採点だと、
   // 採点済みが 0 件になる。0 を突き合わせから外すと「揃っている」と判定されてしまい、
   // Delta が別の母集団の比較になる（実測）。
-  test("採点済み 0 件の eval × configuration は --ungraded skip でも落とす", () => {
+  test("採点済み 0 件の eval × configuration は --ungraded skip でも落とす", async () => {
     const root = makeIteration();
     writeRun(root, { evalDir: "eval-1", evalId: 1, configuration: "with_skill" });
     writeRun(root, { evalDir: "eval-1", evalId: 1, configuration: "without_skill" });
@@ -668,7 +669,7 @@ describe("受理しない入力（exit 2）", () => {
       configuration: "without_skill",
       omitGrading: true,
     });
-    const res = run(root, ["--ungraded", "skip"]);
+    const res = await run(root, ["--ungraded", "skip"]);
     expect(res.status, res.out).toBe(2);
     expect(res.out).toContain("採点済みの run が 1 件も無い eval × configuration がある");
     expect(res.out).toContain("eval-2/without_skill");
@@ -684,14 +685,14 @@ describe("受理しない入力（exit 2）", () => {
       runNumber: 2,
       omitGrading: true,
     });
-    const passed = run(ok, ["--ungraded", "skip"]);
+    const passed = await run(ok, ["--ungraded", "skip"]);
     expect(passed.status, passed.out).toBe(0);
     expect(JSON.parse(passed.stdout).runs).toHaveLength(2);
   });
 
   // run の合間に assertion を変えると、各 run は自分の宣言と整合したまま分母が変わり、
   // mean / stddev / delta が別の採点基準の混合平均になる。
-  test("同じ eval の run が違う assertion 集合を採点していれば落とす", () => {
+  test("同じ eval の run が違う assertion 集合を採点していれば落とす", async () => {
     const root = makeIteration();
     writeRun(root, { evalDir: "eval-1", evalId: 1, configuration: "with_skill" });
     writeRun(root, {
@@ -709,7 +710,7 @@ describe("受理しない入力（exit 2）", () => {
       configuration: "without_skill",
       runNumber: 2,
     });
-    const res = run(root);
+    const res = await run(root);
     expect(res.status, res.out).toBe(2);
     expect(res.out).toContain("違う assertion 集合を採点している");
     expect(res.out).toContain("with_skill/run-2");
@@ -725,12 +726,12 @@ describe("受理しない入力（exit 2）", () => {
       assertions: [...ASSERTIONS].reverse(),
       passed: [true, true, true],
     });
-    const passed = run(ok);
+    const passed = await run(ok);
     expect(passed.status, passed.out).toBe(0);
     expect(JSON.parse(passed.stdout).runs).toHaveLength(2);
   });
 
-  test("executor / model が混在していれば落とす（母集団を分ける）", () => {
+  test("executor / model が混在していれば落とす（母集団を分ける）", async () => {
     const root = completeIteration();
     writeRun(root, {
       evalDir: "eval-3",
@@ -739,12 +740,12 @@ describe("受理しない入力（exit 2）", () => {
       executor: { name: "codex", model: "gpt-5", reasoning_effort: "high" },
     });
     writeRun(root, { evalDir: "eval-3", evalId: 3, configuration: "without_skill" });
-    const res = run(root);
+    const res = await run(root);
     expect(res.status, res.out).toBe(2);
     expect(res.out).toContain("executor / model / effort が混在している");
   });
 
-  test("eval × configuration の run 数が揃っていなければ落とす", () => {
+  test("eval × configuration の run 数が揃っていなければ落とす", async () => {
     const root = completeIteration();
     writeRun(root, {
       evalDir: "eval-2",
@@ -752,17 +753,17 @@ describe("受理しない入力（exit 2）", () => {
       configuration: "with_skill",
       runNumber: 2,
     });
-    const res = run(root);
+    const res = await run(root);
     expect(res.status, res.out).toBe(2);
     expect(res.out).toContain("run 数が揃っていない");
   });
 
   // 片側の configuration しか無い eval を警告なしに含めると、Delta は **eval 集合の違う母集団**
   // 同士の比較になる（with は 2 eval・without は 1 eval でも runs_per_configuration は 1）。
-  test("configuration が eval ごとに違えば落とす（Delta の母集団がずれる）", () => {
+  test("configuration が eval ごとに違えば落とす（Delta の母集団がずれる）", async () => {
     const root = completeIteration();
     writeRun(root, { evalDir: "eval-3", evalId: 3, configuration: "with_skill" });
-    const res = run(root);
+    const res = await run(root);
     expect(res.status, res.out).toBe(2);
     expect(res.out).toContain("eval ごとに揃っている configuration が違う");
 
@@ -770,43 +771,43 @@ describe("受理しない入力（exit 2）", () => {
     const single = makeIteration();
     writeRun(single, { evalDir: "eval-1", evalId: 1, configuration: "with_skill" });
     writeRun(single, { evalDir: "eval-2", evalId: 2, configuration: "with_skill" });
-    const ok = run(single);
+    const ok = await run(single);
     expect(ok.status, ok.out).toBe(0);
     expect(JSON.parse(ok.stdout).run_summary.delta).toBeUndefined();
   });
 
   // run 数の突き合わせはディレクトリ単位、集計のキーは eval_id。食い違うと
   // 「eval-1 の run が 2 として数えられる」取り違えが警告なしに通る。
-  test("eval_id がディレクトリ名と食い違えば落とす", () => {
+  test("eval_id がディレクトリ名と食い違えば落とす", async () => {
     const root = makeIteration();
     writeRun(root, { evalDir: "eval-1", evalId: 2, configuration: "with_skill" });
-    const res = run(root);
+    const res = await run(root);
     expect(res.status, res.out).toBe(2);
     expect(res.out).toContain("eval_id=2 がディレクトリ名（eval-1）と違う");
   });
 
   // **知らない名前のディレクトリを警告なしに捨てない。** 既知の 2 名だけを拾う形だと、1 文字違いの
   // 成果物が集計から消えて「片側だけの iteration」として通る。
-  test("configuration に使えないディレクトリがあれば落とす", () => {
+  test("configuration に使えないディレクトリがあれば落とす", async () => {
     const root = completeIteration();
     writeRun(root, { evalDir: "eval-2", evalId: 2, configuration: "without-skill" });
-    const res = run(root);
+    const res = await run(root);
     expect(res.status, res.out).toBe(2);
     expect(res.out).toContain("configuration に使えないディレクトリがある");
     expect(res.out).toContain("eval-2/without-skill");
   });
 
-  test("run-<番号> でないディレクトリがあれば落とす", () => {
+  test("run-<番号> でないディレクトリがあれば落とす", async () => {
     const root = completeIteration();
     mkdirSync(join(root, "eval-2", "with_skill", "retry-run-2"), { recursive: true });
-    const res = run(root);
+    const res = await run(root);
     expect(res.status, res.out).toBe(2);
     expect(res.out).toContain("run ディレクトリの名前が run-<番号> でない");
     expect(res.out).toContain("eval-2/with_skill/retry-run-2");
   });
 
-  test("verdicts と expectations が両方あれば落とす（原本を決められない）", () => {
-    reject(
+  test("verdicts と expectations が両方あれば落とす（原本を決められない）", async () => {
+    await reject(
       {
         summary: { pass_rate: 1, passed: 3, failed: 0, total: 3 },
         expectations: ASSERTIONS.map((text) => ({ text, passed: true, evidence: "e" })),
@@ -820,17 +821,16 @@ describe("受理しない入力（exit 2）", () => {
 
   // `withFileTypes` の `isDirectory()` はリンク自体の型を見るので、リンクの eval が
   // 不明エントリとしても報告されずに消えていた（実測）。`statSync` で辿る。
-  test("シンボリックリンクの eval ディレクトリも集計に入る", () => {
+  test("シンボリックリンクの eval ディレクトリも集計に入る", async () => {
     const root = makeIteration();
     writeRun(root, { evalDir: "eval-1", evalId: 1, configuration: "with_skill" });
     writeRun(root, { evalDir: "eval-1", evalId: 1, configuration: "without_skill" });
-    const real = makeTempDir("benchmark-linked-");
-    dirs.push(real);
+    const real = tempDir("benchmark-linked-");
     for (const configuration of ["with_skill", "without_skill"]) {
       writeRun(real, { evalDir: "eval-2", evalId: 2, configuration });
     }
     symlinkSync(join(real, "eval-2"), join(root, "eval-2"), "dir");
-    const res = run(root);
+    const res = await run(root);
     expect(res.status, res.out).toBe(0);
     const b = JSON.parse(res.stdout);
     expect(b.metadata.evals_run, "リンクの eval が警告なしに除外された").toStrictEqual([1, 2]);
@@ -839,29 +839,29 @@ describe("受理しない入力（exit 2）", () => {
 
   // 辿れないエントリは `listDirs` が落とすだけなので、**呼び出し側で報告しないと警告なしに消える**
   // （実測: リンク先が無い eval が無警告で集計から外れ、exit 0 になった）。
-  test("指し先の無いリンクの eval があれば落とす", () => {
+  test("指し先の無いリンクの eval があれば落とす", async () => {
     const root = makeIteration();
     writeRun(root, { evalDir: "eval-1", evalId: 1, configuration: "with_skill" });
     writeRun(root, { evalDir: "eval-1", evalId: 1, configuration: "without_skill" });
     symlinkSync(join(root, "no-such-target"), join(root, "eval-9"), "dir");
-    const res = run(root);
+    const res = await run(root);
     expect(res.status, res.out).toBe(2);
     expect(res.out).toContain("eval-* なのにディレクトリとして辿れないエントリがある");
     expect(res.out).toContain("eval-9");
   });
 
-  test("指し先の無いリンクの configuration があれば落とす", () => {
+  test("指し先の無いリンクの configuration があれば落とす", async () => {
     const root = makeIteration();
     writeRun(root, { evalDir: "eval-1", evalId: 1, configuration: "with_skill" });
     symlinkSync(join(root, "no-such-target"), join(root, "eval-1", "without_skill"), "dir");
-    const res = run(root);
+    const res = await run(root);
     expect(res.status, res.out).toBe(2);
     expect(res.out).toContain("configuration に使えないディレクトリがある");
     expect(res.out).toContain("eval-1/without_skill");
   });
 
-  test("eval ディレクトリが無ければ落とす（対象 0 件を成功として扱わない）", () => {
-    const res = run(makeIteration());
+  test("eval ディレクトリが無ければ落とす（対象 0 件を成功として扱わない）", async () => {
+    const res = await run(makeIteration());
     expect(res.status, res.out).toBe(2);
     expect(res.out).toContain("eval-* ディレクトリが無い");
   });
@@ -870,7 +870,7 @@ describe("受理しない入力（exit 2）", () => {
     [["--skill-name"], "--skill-name は必須"],
     [["--ungraded", "maybe"], "--ungraded は fail | skip"],
     [["--nope"], "不明な引数: --nope"],
-  ])("使い方の誤りは実行する前に exit 2: %o", (args, message) => {
+  ])("使い方の誤りは実行する前に exit 2: %o", async (args, message) => {
     const root = completeIteration();
     const base = [
       SCRIPT,
@@ -885,14 +885,8 @@ describe("受理しない入力（exit 2）", () => {
     ];
     // `--skill-name` を落とすケースは base に入れない（他は base に足す）。
     const argv = args[0] === "--skill-name" ? base : [...base, "--skill-name", "demo", ...args];
-    const res = spawnSync("node", argv, { cwd: repoRoot, encoding: "utf8" });
+    const res = await spawnAsync("node", argv, { cwd: repoRoot });
     expect(res.status, res.stderr).toBe(2);
     expect(res.stderr).toContain(message);
   });
-});
-
-// 使い捨てディレクトリの後始末（残すと次の run の入力になりうる）。
-test.sequential("片付け", () => {
-  for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
-  expect(dirs.every((d) => !existsSync(d))).toBe(true);
 });

@@ -1,4 +1,3 @@
-import { execFileSync, spawnSync } from "node:child_process";
 import {
   chmodSync,
   existsSync,
@@ -10,21 +9,19 @@ import {
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterEach, describe, expect, test } from "vitest";
-import { makeTempDir } from "../lib/test-tmpdir.js";
+import { describe, expect, test } from "vitest";
+import { makeTempDirFactory } from "../lib/test-tmpdir.js";
+import { spawnAsync } from "../lib/spawn-async.js";
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const temporaryDirectories = [];
-
-afterEach(() => {
-  for (const directory of temporaryDirectories.splice(0)) {
-    rmSync(directory, { recursive: true, force: true });
-  }
-});
+// **テストは `describe.concurrent` で並べて実行する**（Issue #590）。どのテストも run-skill-eval.sh の子プロセスの終了を
+// 待つだけなので、並べた分だけ 1 回の実行が縮み、ミューテーションテストでは変異の数だけ反映される。
+// そのため、テストの間で状態を共有しない。スタブと出力はテストごとに別の一時ディレクトリに作る（`tempDir`）。
+// 子に渡す環境変数は `process.env` を書き換えず、`runEval` の `env` で渡す（書き換えると並んだテストの子にも渡る）。
+const tempDir = makeTempDirFactory("skill-eval-");
 
 function makeStub() {
-  const directory = makeTempDir("skill-eval-stub-");
-  temporaryDirectories.push(directory);
+  const directory = tempDir("skill-eval-stub-");
   const stub = join(directory, "executor-stub.sh");
   const claudeMarker = join(directory, "claude-was-invoked");
   const invocationLog = join(directory, "executor-invocations");
@@ -111,13 +108,26 @@ exit 91
   return { claudeMarker, directory, invocationLog, stub };
 }
 
-function runEval({ executor, config, prompt, output, stub, fixture, reuseBaseline, evalId = "1" }) {
+/**
+ * run-skill-eval.sh を実行する。`execFileSync` と同じく、0 以外で終わったら `status` を持つ例外にする。
+ */
+async function runEval({
+  executor,
+  config,
+  prompt,
+  output,
+  stub,
+  fixture,
+  reuseBaseline,
+  evalId = "1",
+  env = {},
+}) {
   const effectiveExecutor = executor ?? "claude-code";
   const executorArgs = executor ? ["--executor", executor] : [];
   const fixtureArgs = fixture ? ["--fixture", fixture] : [];
   const reuseArgs = reuseBaseline ? ["--reuse-baseline", reuseBaseline] : [];
   const evalArgs = evalId === null ? [] : ["--eval-id", evalId];
-  execFileSync(
+  const res = await spawnAsync(
     join(repository, "scripts", "eval", "run-skill-eval.sh"),
     [
       "--skill",
@@ -145,10 +155,18 @@ function runEval({ executor, config, prompt, output, stub, fixture, reuseBaselin
         PATH: `${dirname(stub)}:${process.env.PATH}`,
         SKILL_EVAL_RUNNER: stub,
         SKILL_EVAL_CLI_VERSION: `${effectiveExecutor} stub-version`,
+        ...env,
       },
-      stdio: "pipe",
     },
   );
+  if (res.error) throw res.error;
+  if (res.status !== 0) {
+    throw Object.assign(new Error(`run-skill-eval.sh exited ${res.status}: ${res.stderr}`), {
+      status: res.status,
+      stdout: res.stdout,
+      stderr: res.stderr,
+    });
+  }
   if (config === "without_skill" && !reuseBaseline) {
     const isolationPath = join(output, "isolation.txt");
     const isolation = readFileSync(isolationPath, "utf8").replace(
@@ -163,36 +181,30 @@ function readJson(path) {
   return JSON.parse(readFileSync(path, "utf8"));
 }
 
-describe("run-skill-eval executor compatibility", () => {
-  test("does not leak an operator-local reviewer override into eval runs", () => {
+describe.concurrent("run-skill-eval executor compatibility", () => {
+  test("does not leak an operator-local reviewer override into eval runs", async () => {
     const { directory, stub } = makeStub();
     const output = join(directory, "iteration-1", "eval-1", "with_skill", "run-1");
-    const previous = process.env.SKILLS_REVIEW_TOOL;
-    process.env.SKILLS_REVIEW_TOOL = "codex";
-    try {
-      runEval({
-        executor: "codex",
-        config: "with_skill",
-        prompt: "EXPECT_WITH_SKILL EXPECT_REVIEW_ENV_CLEARED",
-        output,
-        stub,
-      });
-    } finally {
-      if (previous === undefined) delete process.env.SKILLS_REVIEW_TOOL;
-      else process.env.SKILLS_REVIEW_TOOL = previous;
-    }
+    await runEval({
+      executor: "codex",
+      config: "with_skill",
+      prompt: "EXPECT_WITH_SKILL EXPECT_REVIEW_ENV_CLEARED",
+      output,
+      stub,
+      env: { SKILLS_REVIEW_TOOL: "codex" },
+    });
     expect(readJson(join(output, "result.json")).status).toBe("succeeded");
   });
 
   test.each([
     ["claude-code", "claude-code.jsonl", "claude stub response", 17],
     ["codex", "codex.jsonl", "codex stub response", 20],
-  ])("emits the common run contract for %s", (executor, rawName, response, totalTokens) => {
+  ])("emits the common run contract for %s", async (executor, rawName, response, totalTokens) => {
     const { claudeMarker, directory, stub } = makeStub();
     const iteration = join(directory, "iteration-1");
     const output = join(iteration, "eval-1", "with_skill", "run-1");
 
-    runEval({ executor, config: "with_skill", prompt: "EXPECT_WITH_SKILL", output, stub });
+    await runEval({ executor, config: "with_skill", prompt: "EXPECT_WITH_SKILL", output, stub });
 
     const result = readJson(join(output, "result.json"));
     const timing = readJson(join(output, "timing.json"));
@@ -257,11 +269,11 @@ describe("run-skill-eval executor compatibility", () => {
     ["EXPECT_WITH_SKILL", true, true, [], false],
     ["EXPECT_WITH_SKILL EXPECT_SKILL_SHELL_READ", false, true, ["SKILL.md"], false],
     ["EXPECT_WITH_SKILL EXPECT_SKILL_UNREAD", false, false, [], true],
-  ])("records skill reads for %s", (prompt, invoked, read, expectedPaths, invalidRun) => {
+  ])("records skill reads for %s", async (prompt, invoked, read, expectedPaths, invalidRun) => {
     const { directory, stub } = makeStub();
     const output = join(directory, "iteration-1", "eval-1", "with_skill", "run-1");
 
-    runEval({ executor: "claude-code", config: "with_skill", prompt, output, stub });
+    await runEval({ executor: "claude-code", config: "with_skill", prompt, output, stub });
 
     const usage = readJson(join(output, "result.json")).skill_usage;
     expect(usage).toMatchObject({ visible: true, invoked, read, invalid_run: invalidRun });
@@ -271,11 +283,11 @@ describe("run-skill-eval executor compatibility", () => {
   // stream-json put intermediate messages and tool inputs into raw/. Scanning that for
   // contamination markers turns a mention into a discarded baseline, so claude-code's
   // raw is out of the scan and the read evidence in skill_usage carries the signal.
-  test("does not call a claude baseline contaminated for merely naming a marker", () => {
+  test("does not call a claude baseline contaminated for merely naming a marker", async () => {
     const { directory, stub } = makeStub();
     const output = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");
 
-    runEval({
+    await runEval({
       executor: "claude-code",
       config: "without_skill",
       prompt: "EXPECT_WITHOUT_SKILL EXPECT_MARKER_MENTION",
@@ -290,11 +302,11 @@ describe("run-skill-eval executor compatibility", () => {
     });
   });
 
-  test("a baseline that reached the skill is reported as an unexpected read", () => {
+  test("a baseline that reached the skill is reported as an unexpected read", async () => {
     const { directory, stub } = makeStub();
     const output = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");
 
-    runEval({
+    await runEval({
       executor: "claude-code",
       config: "without_skill",
       prompt: "EXPECT_WITHOUT_SKILL",
@@ -311,11 +323,11 @@ describe("run-skill-eval executor compatibility", () => {
     });
   });
 
-  test("Codex baseline stays uninstalled and writes a contamination verdict that treats an unverifiable check as failure", () => {
+  test("Codex baseline stays uninstalled and writes a contamination verdict that treats an unverifiable check as failure", async () => {
     const { directory, stub } = makeStub();
     const output = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");
 
-    runEval({
+    await runEval({
       executor: "codex",
       config: "without_skill",
       prompt: "EXPECT_WITHOUT_SKILL",
@@ -344,7 +356,7 @@ describe("run-skill-eval executor compatibility", () => {
     ["EXPECT_MARKER_MENTION", "clean"],
     ["EXPECT_MARKER_READ", "CONTAMINATED"],
     ["EXPECT_MARKER_IN_OUTPUT", "CONTAMINATED"],
-  ])("judges a codex baseline with %s as %s", (marker, verdict) => {
+  ])("judges a codex baseline with %s as %s", async (marker, verdict) => {
     const { directory, stub } = makeStub();
     const output = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");
 
@@ -357,9 +369,9 @@ describe("run-skill-eval executor compatibility", () => {
         stub,
       });
     if (verdict === "clean") {
-      run();
+      await run();
     } else {
-      expect(run).toThrow(expect.objectContaining({ status: 4 }));
+      await expect(run()).rejects.toThrow(expect.objectContaining({ status: 4 }));
     }
 
     const contamination = readFileSync(join(output, "contamination.txt"), "utf8");
@@ -373,11 +385,11 @@ describe("run-skill-eval executor compatibility", () => {
     }
   });
 
-  test("calls a codex baseline CHECK-BROKEN when its contamination surface is empty", () => {
+  test("calls a codex baseline CHECK-BROKEN when its contamination surface is empty", async () => {
     const { directory, stub } = makeStub();
     const output = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");
 
-    expect(() =>
+    await expect(
       runEval({
         executor: "codex",
         config: "without_skill",
@@ -385,18 +397,18 @@ describe("run-skill-eval executor compatibility", () => {
         output,
         stub,
       }),
-    ).toThrow(expect.objectContaining({ status: 4 }));
+    ).rejects.toThrow(expect.objectContaining({ status: 4 }));
 
     const contamination = readFileSync(join(output, "contamination.txt"), "utf8");
     expect(contamination).toMatch(/^verdict: CHECK-BROKEN$/mu);
     expect(contamination).toMatch(/^codex contamination surface is empty or unreadable;/mu);
   });
 
-  test("infers the eval id before fingerprinting so ordinary runs include assertions", () => {
+  test("infers the eval id before fingerprinting so ordinary runs include assertions", async () => {
     const { directory, stub } = makeStub();
     const output = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");
 
-    runEval({
+    await runEval({
       executor: "codex",
       config: "without_skill",
       prompt: "EXPECT_WITHOUT_SKILL",
@@ -412,11 +424,11 @@ describe("run-skill-eval executor compatibility", () => {
     expect(fingerprint.inputs.assertions.length).toBeGreaterThan(0);
   });
 
-  test("reuses only a matching successful clean baseline and records its provenance", () => {
+  test("reuses only a matching successful clean baseline and records its provenance", async () => {
     const { directory, invocationLog, stub } = makeStub();
     const source = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");
     const target = join(directory, "iteration-2", "eval-1", "without_skill", "run-1");
-    runEval({
+    await runEval({
       executor: "codex",
       config: "without_skill",
       prompt: "EXPECT_WITHOUT_SKILL",
@@ -424,7 +436,7 @@ describe("run-skill-eval executor compatibility", () => {
       stub,
     });
 
-    runEval({
+    await runEval({
       executor: "codex",
       config: "without_skill",
       prompt: "EXPECT_WITHOUT_SKILL",
@@ -451,18 +463,18 @@ describe("run-skill-eval executor compatibility", () => {
   test.each([
     ["changed prompt", { prompt: "CHANGED EXPECT_WITHOUT_SKILL" }],
     ["changed model", { model: "different-model" }],
-  ])("rejects baseline reuse with %s", (_label, mutation) => {
+  ])("rejects baseline reuse with %s", async (_label, mutation) => {
     const { directory, stub } = makeStub();
     const source = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");
     const target = join(directory, "iteration-2", "eval-1", "without_skill", "run-1");
-    runEval({
+    await runEval({
       executor: "codex",
       config: "without_skill",
       prompt: "EXPECT_WITHOUT_SKILL",
       output: source,
       stub,
     });
-    const result = spawnSync(
+    const result = await spawnAsync(
       join(repository, "scripts", "eval", "run-skill-eval.sh"),
       [
         "--skill",
@@ -487,7 +499,6 @@ describe("run-skill-eval executor compatibility", () => {
         repository,
       ],
       {
-        encoding: "utf8",
         env: {
           ...process.env,
           SKILL_EVAL_CLI_VERSION: "codex stub-version",
@@ -500,11 +511,11 @@ describe("run-skill-eval executor compatibility", () => {
     expect(existsSync(target)).toBe(false);
   });
 
-  test("rejects reuse when a required source artifact is missing", () => {
+  test("rejects reuse when a required source artifact is missing", async () => {
     const { directory, stub } = makeStub();
     const source = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");
     const target = join(directory, "iteration-2", "eval-1", "without_skill", "run-1");
-    runEval({
+    await runEval({
       executor: "codex",
       config: "without_skill",
       prompt: "EXPECT_WITHOUT_SKILL",
@@ -512,7 +523,7 @@ describe("run-skill-eval executor compatibility", () => {
       stub,
     });
     rmSync(join(source, "result.json"));
-    expect(() =>
+    await expect(
       runEval({
         executor: "codex",
         config: "without_skill",
@@ -521,15 +532,15 @@ describe("run-skill-eval executor compatibility", () => {
         reuseBaseline: source,
         stub,
       }),
-    ).toThrow();
+    ).rejects.toThrow();
     expect(existsSync(target)).toBe(false);
   });
 
-  test("rejects a baseline whose read isolation is not trusted", () => {
+  test("rejects a baseline whose read isolation is not trusted", async () => {
     const { directory, stub } = makeStub();
     const source = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");
     const target = join(directory, "iteration-2", "eval-1", "without_skill", "run-1");
-    runEval({
+    await runEval({
       executor: "codex",
       config: "without_skill",
       prompt: "EXPECT_WITHOUT_SKILL",
@@ -538,7 +549,7 @@ describe("run-skill-eval executor compatibility", () => {
     });
     writeFileSync(join(source, "isolation.txt"), "isolation: UNISOLATED (bwrap missing)\n", "utf8");
 
-    expect(() =>
+    await expect(
       runEval({
         executor: "codex",
         config: "without_skill",
@@ -547,7 +558,7 @@ describe("run-skill-eval executor compatibility", () => {
         reuseBaseline: source,
         stub,
       }),
-    ).toThrow();
+    ).rejects.toThrow();
     expect(existsSync(target)).toBe(false);
   });
 
@@ -556,11 +567,11 @@ describe("run-skill-eval executor compatibility", () => {
   test.each([
     ["the pre-move sandbox path", "isolation: sandboxed (scripts/eval-sandbox.sh)", true],
     ["an unknown sandbox path", "isolation: sandboxed (scripts/other/eval-sandbox.sh)", false],
-  ])("isolation label with %s", (_, label, reusable) => {
+  ])("isolation label with %s", async (_, label, reusable) => {
     const { directory, stub } = makeStub();
     const source = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");
     const target = join(directory, "iteration-2", "eval-1", "without_skill", "run-1");
-    runEval({
+    await runEval({
       executor: "codex",
       config: "without_skill",
       prompt: "EXPECT_WITHOUT_SKILL",
@@ -579,19 +590,19 @@ describe("run-skill-eval executor compatibility", () => {
         stub,
       });
     if (reusable) {
-      reuse();
+      await reuse();
       expect(readJson(join(target, "baseline-reuse.json"))).toMatchObject({ reused_from: source });
     } else {
-      expect(reuse).toThrow();
+      await expect(reuse()).rejects.toThrow();
       expect(existsSync(target)).toBe(false);
     }
   });
 
-  test("rejects a complete baseline artifact stored outside without_skill/run-N", () => {
+  test("rejects a complete baseline artifact stored outside without_skill/run-N", async () => {
     const { directory, stub } = makeStub();
     const source = join(directory, "iteration-1", "eval-1", "with_skill", "run-1");
     const target = join(directory, "iteration-2", "eval-1", "without_skill", "run-1");
-    runEval({
+    await runEval({
       executor: "codex",
       config: "without_skill",
       prompt: "EXPECT_WITHOUT_SKILL",
@@ -599,7 +610,7 @@ describe("run-skill-eval executor compatibility", () => {
       stub,
     });
 
-    expect(() =>
+    await expect(
       runEval({
         executor: "codex",
         config: "without_skill",
@@ -608,15 +619,15 @@ describe("run-skill-eval executor compatibility", () => {
         reuseBaseline: source,
         stub,
       }),
-    ).toThrow();
+    ).rejects.toThrow();
     expect(existsSync(target)).toBe(false);
   });
 
-  test("rejects baseline reuse without an explicit eval id before fingerprinting", () => {
+  test("rejects baseline reuse without an explicit eval id before fingerprinting", async () => {
     const { directory, stub } = makeStub();
     const source = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");
     const target = join(directory, "iteration-2", "eval-1", "without_skill", "run-1");
-    runEval({
+    await runEval({
       executor: "codex",
       config: "without_skill",
       prompt: "EXPECT_WITHOUT_SKILL",
@@ -624,7 +635,7 @@ describe("run-skill-eval executor compatibility", () => {
       stub,
     });
 
-    const result = spawnSync(
+    const result = await spawnAsync(
       join(repository, "scripts", "eval", "run-skill-eval.sh"),
       [
         "--skill",
@@ -647,7 +658,6 @@ describe("run-skill-eval executor compatibility", () => {
         repository,
       ],
       {
-        encoding: "utf8",
         env: {
           ...process.env,
           SKILL_EVAL_CLI_VERSION: "codex stub-version",
@@ -661,11 +671,11 @@ describe("run-skill-eval executor compatibility", () => {
     expect(existsSync(target)).toBe(false);
   });
 
-  test("rejects baseline reuse when the executor CLI version is unknown", () => {
+  test("rejects baseline reuse when the executor CLI version is unknown", async () => {
     const { directory, stub } = makeStub();
     const source = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");
     const target = join(directory, "iteration-2", "eval-1", "without_skill", "run-1");
-    runEval({
+    await runEval({
       executor: "codex",
       config: "without_skill",
       prompt: "EXPECT_WITHOUT_SKILL",
@@ -682,7 +692,7 @@ describe("run-skill-eval executor compatibility", () => {
       SKILL_EVAL_RUNNER: stub,
     };
     delete env.SKILL_EVAL_CLI_VERSION;
-    const result = spawnSync(
+    const result = await spawnAsync(
       join(repository, "scripts", "eval", "run-skill-eval.sh"),
       [
         "--skill",
@@ -706,7 +716,7 @@ describe("run-skill-eval executor compatibility", () => {
         "--repo",
         repository,
       ],
-      { encoding: "utf8", env },
+      { env },
     );
 
     expect(result.status).toBe(6);
@@ -717,11 +727,11 @@ describe("run-skill-eval executor compatibility", () => {
   test.each([
     ["model", ["--reasoning-effort", "low"]],
     ["reasoning effort", ["--model", "model-stub"]],
-  ])("rejects baseline reuse without an explicit %s", (_label, executionArgs) => {
+  ])("rejects baseline reuse without an explicit %s", async (_label, executionArgs) => {
     const { directory, stub } = makeStub();
     const source = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");
     const target = join(directory, "iteration-2", "eval-1", "without_skill", "run-1");
-    runEval({
+    await runEval({
       executor: "codex",
       config: "without_skill",
       prompt: "EXPECT_WITHOUT_SKILL",
@@ -729,7 +739,7 @@ describe("run-skill-eval executor compatibility", () => {
       stub,
     });
 
-    const result = spawnSync(
+    const result = await spawnAsync(
       join(repository, "scripts", "eval", "run-skill-eval.sh"),
       [
         "--skill",
@@ -751,7 +761,6 @@ describe("run-skill-eval executor compatibility", () => {
         repository,
       ],
       {
-        encoding: "utf8",
         env: {
           ...process.env,
           SKILL_EVAL_CLI_VERSION: "codex stub-version",
@@ -784,11 +793,11 @@ describe("run-skill-eval executor compatibility", () => {
       },
       /raw trace missing or empty/u,
     ],
-  ])("rejects reuse with invalid %s", (_label, mutate, errorPattern) => {
+  ])("rejects reuse with invalid %s", async (_label, mutate, errorPattern) => {
     const { directory, stub } = makeStub();
     const source = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");
     const target = join(directory, "iteration-2", "eval-1", "without_skill", "run-1");
-    runEval({
+    await runEval({
       executor: "codex",
       config: "without_skill",
       prompt: "EXPECT_WITHOUT_SKILL",
@@ -797,7 +806,7 @@ describe("run-skill-eval executor compatibility", () => {
     });
     mutate(source);
 
-    expect(() =>
+    await expect(
       runEval({
         executor: "codex",
         config: "without_skill",
@@ -806,18 +815,14 @@ describe("run-skill-eval executor compatibility", () => {
         reuseBaseline: source,
         stub,
       }),
-    ).toThrow();
+    ).rejects.toThrow();
     expect(existsSync(target)).toBe(false);
-    const result = spawnSync(
-      "node",
-      [
-        join(repository, "scripts", "eval", "reuse-skill-eval-baseline.js"),
-        source,
-        target,
-        join(source, "eval-fingerprint.json"),
-      ],
-      { encoding: "utf8" },
-    );
+    const result = await spawnAsync("node", [
+      join(repository, "scripts", "eval", "reuse-skill-eval-baseline.js"),
+      source,
+      target,
+      join(source, "eval-fingerprint.json"),
+    ]);
     expect(result.stderr).toMatch(errorPattern);
   });
 
@@ -839,13 +844,13 @@ describe("run-skill-eval executor compatibility", () => {
         symlinkSync(external, rawTrace);
       },
     ],
-  ])("rejects a symlinked %s", (_label, replaceWithSymlink) => {
+  ])("rejects a symlinked %s", async (_label, replaceWithSymlink) => {
     const { directory, stub } = makeStub();
     const source = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");
     const target = join(directory, "iteration-2", "eval-1", "without_skill", "run-1");
     const external = join(directory, "external-artifact");
     writeFileSync(external, "external\n", "utf8");
-    runEval({
+    await runEval({
       executor: "codex",
       config: "without_skill",
       prompt: "EXPECT_WITHOUT_SKILL",
@@ -854,7 +859,7 @@ describe("run-skill-eval executor compatibility", () => {
     });
     replaceWithSymlink(source, external);
 
-    expect(() =>
+    await expect(
       runEval({
         executor: "codex",
         config: "without_skill",
@@ -863,15 +868,15 @@ describe("run-skill-eval executor compatibility", () => {
         reuseBaseline: source,
         stub,
       }),
-    ).toThrow();
+    ).rejects.toThrow();
     expect(existsSync(target)).toBe(false);
   });
 
-  test("keeps Claude Code as the default executor for existing callers", () => {
+  test("keeps Claude Code as the default executor for existing callers", async () => {
     const { directory, stub } = makeStub();
     const output = join(directory, "iteration-1", "eval-1", "with_skill", "run-1");
 
-    runEval({ config: "with_skill", prompt: "EXPECT_WITH_SKILL", output, stub });
+    await runEval({ config: "with_skill", prompt: "EXPECT_WITH_SKILL", output, stub });
 
     expect(readJson(join(output, "result.json"))).toMatchObject({
       executor: { name: "claude-code", cli_version: "claude-code stub-version" },
@@ -879,14 +884,14 @@ describe("run-skill-eval executor compatibility", () => {
     });
   });
 
-  test("reports only captured files created after fixture seeding", () => {
+  test("reports only captured files created after fixture seeding", async () => {
     const { directory, stub } = makeStub();
     const fixture = join(directory, "fixture");
     const output = join(directory, "iteration-1", "eval-1", "with_skill", "run-1");
     mkdirSync(fixture);
     writeFileSync(join(fixture, "existing.txt"), "fixture\n", "utf8");
 
-    runEval({
+    await runEval({
       config: "with_skill",
       prompt: "EXPECT_WITH_SKILL EXPECT_CREATE_FILE",
       output,
@@ -900,7 +905,7 @@ describe("run-skill-eval executor compatibility", () => {
     expect(readFileSync(join(output, "project-files", "existing.txt"), "utf8")).toBe("fixture\n");
   });
 
-  test("runs an executable fixture setup before the executor and initial manifest", () => {
+  test("runs an executable fixture setup before the executor and initial manifest", async () => {
     const { directory, stub } = makeStub();
     const fixture = join(directory, "fixture");
     const output = join(directory, "iteration-1", "eval-1", "with_skill", "run-1");
@@ -913,7 +918,7 @@ describe("run-skill-eval executor compatibility", () => {
     );
     chmodSync(setup, 0o755);
 
-    runEval({
+    await runEval({
       config: "with_skill",
       prompt: "EXPECT_WITH_SKILL EXPECT_CREATE_FILE",
       output,
@@ -927,7 +932,7 @@ describe("run-skill-eval executor compatibility", () => {
     ]);
   });
 
-  test("fails before starting the executor when fixture setup fails", () => {
+  test("fails before starting the executor when fixture setup fails", async () => {
     const { directory, stub } = makeStub();
     const fixture = join(directory, "fixture");
     const output = join(directory, "iteration-1", "eval-1", "with_skill", "run-1");
@@ -936,27 +941,27 @@ describe("run-skill-eval executor compatibility", () => {
     writeFileSync(setup, "#!/usr/bin/env bash\nexit 23\n", "utf8");
     chmodSync(setup, 0o755);
 
-    expect(() =>
+    await expect(
       runEval({ config: "with_skill", prompt: "EXPECT_WITH_SKILL", output, stub, fixture }),
-    ).toThrow();
+    ).rejects.toThrow();
     expect(existsSync(output)).toBe(false);
   });
 
-  test("does not execute a fixture setup.sh directory", () => {
+  test("does not execute a fixture setup.sh directory", async () => {
     const { directory, stub } = makeStub();
     const fixture = join(directory, "fixture");
     const output = join(directory, "iteration-1", "eval-1", "with_skill", "run-1");
     mkdirSync(join(fixture, "setup.sh"), { recursive: true });
 
-    runEval({ config: "with_skill", prompt: "EXPECT_WITH_SKILL", output, stub, fixture });
+    await runEval({ config: "with_skill", prompt: "EXPECT_WITH_SKILL", output, stub, fixture });
 
     expect(readJson(join(output, "result.json")).status).toBe("succeeded");
   });
 
-  test("returns exit 5 when normalization and the executor both fail", () => {
+  test("returns exit 5 when normalization and the executor both fail", async () => {
     const { directory, stub } = makeStub();
     const output = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");
-    const result = spawnSync(
+    const result = await spawnAsync(
       join(repository, "scripts", "eval", "run-skill-eval.sh"),
       [
         "--skill",
@@ -975,7 +980,6 @@ describe("run-skill-eval executor compatibility", () => {
         repository,
       ],
       {
-        encoding: "utf8",
         env: {
           ...process.env,
           SKILL_EVAL_CLI_VERSION: "codex stub-version",
@@ -993,10 +997,10 @@ describe("run-skill-eval executor compatibility", () => {
     });
   });
 
-  test("rejects unsafe reasoning effort before starting the executor", () => {
+  test("rejects unsafe reasoning effort before starting the executor", async () => {
     const { directory, stub } = makeStub();
     const output = join(directory, "iteration-1", "eval-1", "with_skill", "run-1");
-    const result = spawnSync(
+    const result = await spawnAsync(
       join(repository, "scripts", "eval", "run-skill-eval.sh"),
       [
         "--skill",
@@ -1015,7 +1019,6 @@ describe("run-skill-eval executor compatibility", () => {
         repository,
       ],
       {
-        encoding: "utf8",
         env: {
           ...process.env,
           SKILL_EVAL_CLI_VERSION: "codex stub-version",
@@ -1030,14 +1033,13 @@ describe("run-skill-eval executor compatibility", () => {
   });
 });
 
-describe("run-skill-eval required sibling skills", () => {
+describe.concurrent("run-skill-eval required sibling skills", () => {
   // A throwaway repository with a subject skill and a sibling, so the harness can be
   // driven with a requires_skills declaration no real skill needs to carry. Scripts
   // are copied, not symlinked: the helpers compare argv[1] with import.meta.url to
   // decide whether to run main(), and a symlinked path makes them silently no-op.
   function makeRepository(evalDefinition) {
-    const root = makeTempDir("skill-eval-required-");
-    temporaryDirectories.push(root);
+    const root = tempDir("skill-eval-required-");
     mkdirSync(join(root, "scripts", "eval"), { recursive: true });
     for (const name of [
       "run-skill-eval.sh",
@@ -1096,9 +1098,9 @@ printf '{"result":"%s","is_error":false,"num_turns":1,"usage":{"input_tokens":1,
     return { installedLog, root, sibling, stub };
   }
 
-  function run({ root, stub }, config, prompt = "PROMPT") {
+  async function run({ root, stub }, config, prompt = "PROMPT") {
     const output = join(root, "iteration-1", "eval-1", config, "run-1");
-    const result = spawnSync(
+    const result = await spawnAsync(
       join(root, "scripts", "eval", "run-skill-eval.sh"),
       [
         "--skill",
@@ -1119,18 +1121,17 @@ printf '{"result":"%s","is_error":false,"num_turns":1,"usage":{"input_tokens":1,
         root,
       ],
       {
-        encoding: "utf8",
         env: { ...process.env, SKILL_EVAL_RUNNER: stub, SKILL_EVAL_CLI_VERSION: "stub-version" },
       },
     );
     return { output, result };
   }
 
-  test("installs declared siblings in both configurations and the subject for with_skill only", () => {
+  test("installs declared siblings in both configurations and the subject for with_skill only", async () => {
     // The comparison must differ only by the subject skill: a sibling installed for
     // with_skill alone would credit the sibling's instructions to the subject.
     const fixture = makeRepository({ requires_skills: ["sibling-skill"] });
-    const { output, result } = run(fixture, "with_skill");
+    const { output, result } = await run(fixture, "with_skill");
 
     expect(result.status, result.stderr).toBe(0);
     expect(readFileSync(fixture.installedLog, "utf8")).toBe(
@@ -1143,7 +1144,7 @@ printf '{"result":"%s","is_error":false,"num_turns":1,"usage":{"input_tokens":1,
     expect(recorded).toMatchObject({ name: "sibling-skill" });
     expect(recorded.sha256).toMatch(/^[0-9a-f]{64}$/u);
 
-    const baseline = run(fixture, "without_skill");
+    const baseline = await run(fixture, "without_skill");
     expect(baseline.result.status, baseline.result.stderr).toBe(0);
     expect(readFileSync(fixture.installedLog, "utf8")).toBe(
       ".claude/skills/sibling-skill/SKILL.md\n",
@@ -1153,10 +1154,10 @@ printf '{"result":"%s","is_error":false,"num_turns":1,"usage":{"input_tokens":1,
     );
   });
 
-  test("changes the fingerprint when an installed sibling changes", () => {
+  test("changes the fingerprint when an installed sibling changes", async () => {
     // A reused baseline ran with the sibling's content; a changed sibling is a changed input.
     const fixture = makeRepository({ requires_skills: ["sibling-skill"] });
-    const before = run(fixture, "without_skill");
+    const before = await run(fixture, "without_skill");
     const beforeFingerprint = readJson(join(before.output, "eval-fingerprint.json")).fingerprint;
     rmSync(before.output, { recursive: true, force: true });
     writeFileSync(
@@ -1164,7 +1165,7 @@ printf '{"result":"%s","is_error":false,"num_turns":1,"usage":{"input_tokens":1,
       "export const v = 2;\n",
       "utf8",
     );
-    const after = run(fixture, "without_skill");
+    const after = await run(fixture, "without_skill");
 
     expect(after.result.status, after.result.stderr).toBe(0);
     expect(readJson(join(after.output, "eval-fingerprint.json")).fingerprint).not.toBe(
@@ -1172,9 +1173,9 @@ printf '{"result":"%s","is_error":false,"num_turns":1,"usage":{"input_tokens":1,
     );
   });
 
-  test("installs only the subject and leaves the fingerprint unchanged without a declaration", () => {
+  test("installs only the subject and leaves the fingerprint unchanged without a declaration", async () => {
     const fixture = makeRepository({});
-    const { output, result } = run(fixture, "with_skill");
+    const { output, result } = await run(fixture, "with_skill");
 
     expect(result.status, result.stderr).toBe(0);
     expect(readFileSync(fixture.installedLog, "utf8")).toBe(
@@ -1185,9 +1186,9 @@ printf '{"result":"%s","is_error":false,"num_turns":1,"usage":{"input_tokens":1,
     );
   });
 
-  test("does not flag a baseline that cites the installed sibling, including a path both skills ship", () => {
+  test("does not flag a baseline that cites the installed sibling, including a path both skills ship", async () => {
     const fixture = makeRepository({ requires_skills: ["sibling-skill"] });
-    const { output, result } = run(fixture, "without_skill", "CITE_SIBLING");
+    const { output, result } = await run(fixture, "without_skill", "CITE_SIBLING");
 
     expect(result.status, readFileSync(join(output, "stderr.log"), "utf8")).toBe(0);
     const verdict = readFileSync(join(output, "contamination.txt"), "utf8");
@@ -1198,9 +1199,9 @@ printf '{"result":"%s","is_error":false,"num_turns":1,"usage":{"input_tokens":1,
     expect(markers).not.toContain("references/handoff.md");
   });
 
-  test("still flags a baseline that cites the subject's bundle when siblings are installed", () => {
+  test("still flags a baseline that cites the subject's bundle when siblings are installed", async () => {
     const fixture = makeRepository({ requires_skills: ["sibling-skill"] });
-    const { output, result } = run(fixture, "without_skill", "CITE_SUBJECT");
+    const { output, result } = await run(fixture, "without_skill", "CITE_SUBJECT");
 
     expect(result.status).toBe(4);
     const verdict = readFileSync(join(output, "contamination.txt"), "utf8");
@@ -1221,9 +1222,9 @@ printf '{"result":"%s","is_error":false,"num_turns":1,"usage":{"input_tokens":1,
       1,
       /required skill source not found/u,
     ],
-  ])("fails before the executor on %s", (_label, definition, status, message) => {
+  ])("fails before the executor on %s", async (_label, definition, status, message) => {
     const fixture = makeRepository(definition);
-    const { output, result } = run(fixture, "with_skill");
+    const { output, result } = await run(fixture, "with_skill");
 
     expect(result.status).toBe(status);
     expect(result.stderr).toMatch(message);
