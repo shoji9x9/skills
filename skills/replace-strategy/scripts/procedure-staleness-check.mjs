@@ -271,7 +271,13 @@ export function readRevisions(doc) {
   }
   if (errors.length > 0) return { ok: false, errors };
   // errors が空なら skill は REVISIONS_SKILL、revision は 1 以上の整数なので、次の行は型を絞るためだけにある（到達しない）。
-  if (typeof skill !== "string" || revision === null) return { ok: false, errors };
+  if (typeof skill !== "string" || revision === null)
+    return {
+      ok: false,
+      errors: [
+        "検査を通ったのに skill か revision が決まっていない（このツールの不具合。到達しない分岐に到達した）",
+      ],
+    };
   return {
     ok: true,
     skill,
@@ -433,7 +439,11 @@ export function readLedger(text, skillChangeIds) {
   if (markers.unclosed) errors.push("HTML コメントが閉じていない（以降の表が読まれない）");
   if (errors.length > 0) return { ok: false, errors };
   // 表が無ければ上で errors に積んで返しているので、次の行は型を絞るためだけにある（到達しない）。
-  if (changeTable.table === null || recordTable.table === null) return { ok: false, errors };
+  if (changeTable.table === null || recordTable.table === null)
+    return {
+      ok: false,
+      errors: ["検査を通ったのに表が読めていない（このツールの不具合。到達しない分岐に到達した）"],
+    };
 
   /** @type {Array<{ id: string, added_at: string, axis: string, origin: string, affects: string[], placement: string }>} */
   const changes = [];

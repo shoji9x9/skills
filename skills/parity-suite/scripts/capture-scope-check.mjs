@@ -117,11 +117,11 @@ function nonEmptyString(value) {
 }
 
 /**
- * null でないオブジェクトか（配列も含む）。プロパティを読む前の型の絞り込みに使う。
+ * null でないオブジェクトか（配列も含む）。プロパティを読む前の型の絞り込みに使う。配列を除く isRecord とは別の名前にする。
  * @param {unknown} value
  * @returns {value is Record<string, unknown>}
  */
-function isRecord(value) {
+function isObjectLike(value) {
   return typeof value === "object" && value !== null;
 }
 
@@ -169,7 +169,7 @@ function isInteger(value) {
  * @returns {{width:number, height:number} | null}
  */
 function readSize(value) {
-  if (!isRecord(value)) return null;
+  if (!isObjectLike(value)) return null;
   const size = value;
   if (!positiveNumber(size.width) || !positiveNumber(size.height)) return null;
   return { width: size.width, height: size.height };
@@ -243,7 +243,7 @@ export function deriveHoles(entry, context = {}) {
     const seen = new Set();
     for (const raw of containers) {
       /** @type {Record<string, unknown>} */
-      const container = isRecord(raw) ? raw : {};
+      const container = isObjectLike(raw) ? raw : {};
       const name = container.name;
       if (!nonEmptyString(name)) {
         findings.push({
@@ -295,7 +295,7 @@ export function deriveHoles(entry, context = {}) {
       }
       const bar = container.bar;
       if (
-        !isRecord(bar) ||
+        !isObjectLike(bar) ||
         !nonNegativeNumber(bar.vertical) ||
         !nonNegativeNumber(bar.horizontal)
       ) {
@@ -433,11 +433,11 @@ export function declaredCombinations(conditions, displayAxes) {
     return names;
   };
   const pages = axisValues(conditions.pages, "pages", (element) =>
-    isRecord(element) ? element.name : undefined,
+    isObjectLike(element) ? element.name : undefined,
   );
   const states = axisValues(conditions.states, "states", (element) => element);
   const viewports = axisValues(conditions.viewports, "viewports", (element) =>
-    isRecord(element) ? element.label : undefined,
+    isObjectLike(element) ? element.label : undefined,
   );
   /** @type {string[]} */
   const keys = [];
@@ -560,7 +560,7 @@ export function checkDisplayAxes(conditions) {
     return result();
   }
   const raw = conditions.display_axes;
-  if (!isRecord(raw) || Array.isArray(raw)) {
+  if (!isObjectLike(raw) || Array.isArray(raw)) {
     add("display-axes-malformed", "capture_conditions.display_axes がオブジェクトではない");
     return result();
   }
@@ -575,7 +575,7 @@ export function checkDisplayAxes(conditions) {
   const { axes: axisList, absent: absentList, pairs: pairList, variants: variantList } = lists;
   const declaredPages = Array.isArray(conditions.pages)
     ? conditions.pages
-        .map((p) => (isRecord(p) ? p.name : undefined))
+        .map((p) => (isObjectLike(p) ? p.name : undefined))
         .filter((name) => typeof name === "string")
     : [];
   const candidateIds = AXIS_CANDIDATES.map((c) => c.id);
@@ -609,7 +609,7 @@ export function checkDisplayAxes(conditions) {
   axisList.forEach((rawAxis, i) => {
     const at = `display_axes.axes[${i}]`;
     /** @type {Record<string, unknown>} */
-    const axis = isRecord(rawAxis) ? rawAxis : {};
+    const axis = isObjectLike(rawAxis) ? rawAxis : {};
     const name = axis.name;
     if (!axisPartIsSafe(name) || name === VIEWPORT_AXIS) {
       add(
@@ -686,7 +686,7 @@ export function checkDisplayAxes(conditions) {
     } else {
       naList.forEach((rawNa, j) => {
         /** @type {Record<string, unknown>} */
-        const na = isRecord(rawNa) ? rawNa : {};
+        const na = isObjectLike(rawNa) ? rawNa : {};
         const page = na.page;
         if (typeof page !== "string" || !declaredPages.includes(page)) {
           add(
@@ -729,7 +729,7 @@ export function checkDisplayAxes(conditions) {
   absentList.forEach((rawAbsent, i) => {
     const at = `display_axes.absent[${i}]`;
     /** @type {Record<string, unknown>} */
-    const absent = isRecord(rawAbsent) ? rawAbsent : {};
+    const absent = isObjectLike(rawAbsent) ? rawAbsent : {};
     if (absent.candidate === OTHER_CANDIDATE) {
       add(
         "display-axis-candidate-unknown",
@@ -757,7 +757,7 @@ export function checkDisplayAxes(conditions) {
 
   const baseViewports = Array.isArray(conditions.viewports)
     ? conditions.viewports
-        .map((v) => (isRecord(v) ? v.label : undefined))
+        .map((v) => (isObjectLike(v) ? v.label : undefined))
         .filter((label) => typeof label === "string")
     : [];
   /** @type {Set<string>} */
@@ -769,7 +769,7 @@ export function checkDisplayAxes(conditions) {
   variantList.forEach((rawVariant, i) => {
     const at = `display_axes.variants[${i}]`;
     /** @type {Record<string, unknown>} */
-    const variant = isRecord(rawVariant) ? rawVariant : {};
+    const variant = isObjectLike(rawVariant) ? rawVariant : {};
     const label = variant.label;
     // label は書き出し先のディレクトリ名にもなる（page/state/label）。`.` / `..` やパスの区切りを通すと、
     // 採取の noise パスの削除が別の組のディレクトリを指す
@@ -893,7 +893,7 @@ export function checkDisplayAxes(conditions) {
   pairList.forEach((rawPair, i) => {
     const at = `display_axes.pairs[${i}]`;
     /** @type {Record<string, unknown>} */
-    const pair = isRecord(rawPair) ? rawPair : {};
+    const pair = isObjectLike(rawPair) ? rawPair : {};
     const names = pair.axes;
     if (
       !Array.isArray(names) ||
@@ -1069,7 +1069,7 @@ export function checkBrowser(conditions) {
   if (conditions.browser === "cdp") {
     const identity = conditions.browser_identity;
     if (
-      !isRecord(identity) ||
+      !isObjectLike(identity) ||
       !evidenceText(identity.product) ||
       !evidenceText(identity.user_agent)
     ) {
@@ -1095,7 +1095,7 @@ export function checkBrowser(conditions) {
  * @returns {{code:string, message:string}[]}
  */
 function checkBrowserOs(os) {
-  if (!isRecord(os) || Array.isArray(os)) {
+  if (!isObjectLike(os) || Array.isArray(os)) {
     return [
       {
         code: "browser-os-missing",
@@ -1183,7 +1183,7 @@ export function checkOverflow(conditions) {
   }
   const overflow = conditions.overflow;
   if (
-    !isRecord(overflow) ||
+    !isObjectLike(overflow) ||
     Array.isArray(overflow) ||
     !isOneOf(OVERFLOW_STATUSES, overflow.status)
   ) {
@@ -1223,7 +1223,7 @@ export function checkOverflow(conditions) {
   }
   // 期待集合は撮影条件の pages（宣言）から作る。記録された頁だけを見ると、頁ごと測り忘れても通る
   const declaredPages = Array.isArray(conditions.pages)
-    ? conditions.pages.map((p) => (isRecord(p) ? p.name : undefined)).filter(nonEmptyString)
+    ? conditions.pages.map((p) => (isObjectLike(p) ? p.name : undefined)).filter(nonEmptyString)
     : [];
   if (!Array.isArray(o.pages)) {
     add("overflow-pages-missing", "capture_conditions.overflow.pages が配列でない");
@@ -1234,7 +1234,7 @@ export function checkOverflow(conditions) {
   o.pages.forEach((raw, i) => {
     const at = `capture_conditions.overflow.pages[${i}]`;
     /** @type {Record<string, unknown>} */
-    const entry = isRecord(raw) ? raw : {};
+    const entry = isObjectLike(raw) ? raw : {};
     if (!nonEmptyString(entry.page)) {
       add("overflow-page-unkeyed", `${at}.page が空（どの頁の実測か決まらない）`);
       return;
@@ -1272,7 +1272,7 @@ export function checkOverflow(conditions) {
     // 最小幅の探索の範囲。刻みだけの探索は狭い帯でだけ有効になる最小幅を見落とすので、メディアクエリの境界も探す。
     // 読めないスタイルシートの境界は探索できていないので、未検証として gaps.md への参照を要求する
     /** @type {Record<string, unknown>} */
-    const probe = isRecord(entry.probe) ? entry.probe : {};
+    const probe = isObjectLike(entry.probe) ? entry.probe : {};
     if (
       !entry.probe ||
       typeof entry.probe !== "object" ||
@@ -1309,7 +1309,7 @@ export function checkOverflow(conditions) {
     entry.windows.forEach((rawWindow, j) => {
       const wat = `${at}.windows[${j}]`;
       /** @type {Record<string, unknown>} */
-      const w = isRecord(rawWindow) ? rawWindow : {};
+      const w = isObjectLike(rawWindow) ? rawWindow : {};
       if (!isInteger(w.width) || !isInteger(w.height) || w.width <= 0 || w.height <= 0) {
         add("overflow-window-malformed", `${wat} の width / height が正の整数でない`);
         return;
@@ -1415,7 +1415,7 @@ export function checkCaptureScope(metadata) {
   const findings = [];
   /** @type {{id:string, kind:string, detail:string}[]} */
   const holes = [];
-  if (!isRecord(metadata)) {
+  if (!isObjectLike(metadata)) {
     return {
       findings: [
         { code: "metadata-unreadable", message: "metadata.json が JSON オブジェクトではない" },
@@ -1456,7 +1456,7 @@ export function checkCaptureScope(metadata) {
     };
   }
   const conditions = meta.capture_conditions;
-  if (!isRecord(conditions)) {
+  if (!isObjectLike(conditions)) {
     return {
       findings: [
         {
@@ -1472,7 +1472,7 @@ export function checkCaptureScope(metadata) {
   }
   const conditionsRecord = conditions;
   // 特性照合する論理名（スクロール領域ごとの untraced の判定に使う）。読めなければ判定を飛ばさず、スクロール領域があるときに落とす
-  const traitElements = isRecord(meta.traits) ? meta.traits.elements : undefined;
+  const traitElements = isObjectLike(meta.traits) ? meta.traits.elements : undefined;
   const elements =
     Array.isArray(traitElements) && traitElements.every((name) => nonEmptyString(name))
       ? new Set(traitElements)
@@ -1515,7 +1515,7 @@ export function checkCaptureScope(metadata) {
   const scopeByKey = new Map();
   for (const raw of scope) {
     /** @type {Record<string, unknown>} */
-    const entry = isRecord(raw) ? raw : {};
+    const entry = isObjectLike(raw) ? raw : {};
     if (
       !nonEmptyString(entry.page) ||
       !nonEmptyString(entry.state) ||
@@ -1556,7 +1556,7 @@ export function checkCaptureScope(metadata) {
   if (Array.isArray(noiseBaseline)) {
     for (const raw of noiseBaseline) {
       /** @type {Record<string, unknown>} */
-      const entry = isRecord(raw) ? raw : {};
+      const entry = isObjectLike(raw) ? raw : {};
       if (
         !nonEmptyString(entry.page) ||
         !nonEmptyString(entry.state) ||
@@ -1663,7 +1663,7 @@ export function checkCaptureScope(metadata) {
   const exemptionById = new Map();
   for (const raw of exemptions) {
     /** @type {Record<string, unknown>} */
-    const exemption = isRecord(raw) ? raw : {};
+    const exemption = isObjectLike(raw) ? raw : {};
     if (!nonEmptyString(exemption.id)) {
       findings.push({
         code: "exemption-id-missing",
@@ -1778,7 +1778,7 @@ export function main(argv, deps = {}) {
     metadata = JSON.parse(readFile(resolve(cwd, metadataPath)));
   } catch (error) {
     // 元の `error && error.message` と同じ表示にする（偽値はそのまま、オブジェクトでない真の値は undefined）
-    const reason = isRecord(error) ? error.message : error && undefined;
+    const reason = isObjectLike(error) ? error.message : error && undefined;
     return fail(`${metadataPath} を読めない: ${reason}`);
   }
   const result = checkCaptureScope(metadata);

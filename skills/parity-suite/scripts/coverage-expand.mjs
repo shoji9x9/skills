@@ -978,7 +978,12 @@ export function loadProfiles(dir, deps = {}) {
       continue;
     }
     // validateProfile が問題 0 件を返すのは JSON オブジェクトのときだけなので、ここへは到達しない。
-    if (!isPlainObject(parsed)) continue;
+    if (!isPlainObject(parsed)) {
+      problems.push(
+        `${name}: 検査を通ったのに JSON オブジェクトでない（このツールの不具合。到達しない分岐に到達した）`,
+      );
+      continue;
+    }
     const p = parsed;
     const id = String(p.id);
     if (id !== name.slice(0, -".json".length)) {

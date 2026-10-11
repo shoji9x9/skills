@@ -8,6 +8,6 @@
 /** JSON の文字列を、`T` の形として読む（形は検証しない）。 */
 export function parseJsonAs<T>(text: string): T {
   const value: unknown = JSON.parse(text);
-  // oxlint-disable-next-line typescript/consistent-type-assertions -- 外部の入力の形を宣言する。検証は呼び出し側が行う
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- 外部の入力の形を、確かめずに宣言する（形を確かめない読み方だけに使う）
   return value as T;
 }

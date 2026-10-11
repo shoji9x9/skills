@@ -12,7 +12,6 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { isRecord } from "./guards.ts";
-import { parseJsonAs } from "./parse-as.ts";
 import { TEXT_EXTENSIONS } from "../gates/check-control-chars.ts";
 import { loadDocTiers, tierOf } from "../gates/check-doc-tiers.ts";
 import { listSources } from "../gates/run-on-sources.ts";
@@ -175,7 +174,8 @@ export function applyPending(
 export function prunePending(root: string, stale: readonly EntryKey[]): number {
   if (stale.length === 0) return 0;
   const path = join(root, PENDING_PATH);
-  const data = parseJsonAs<PendingList>(readFileSync(path, "utf8"));
+  // 形を確かめてから書き戻す（読み直した一覧が不正なら、理由付きの例外にする）。
+  const data = loadPending(root);
   const drop = new Set(stale.map(key));
   data.pending = data.pending.filter((e) => !drop.has(key(e)));
   writeFileSync(path, `${JSON.stringify(data, null, 2)}\n`);

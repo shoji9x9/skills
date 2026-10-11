@@ -894,7 +894,11 @@ function decide(entry, wildcard = []) {
     break;
   }
   // applying が空でないので、どれかの段で勝者が決まるか、上で返している（型の絞り込みのため）。
-  if (winner === null || winningTier === null) return out;
+  if (winner === null || winningTier === null) {
+    throw new Error(
+      "cascade-resolve: 適用される宣言があるのに勝者が決まらない（このツールの不具合）",
+    );
+  }
   const won = winner;
 
   // 条件付きの候補が、決まった勝者より強い段にいるなら結論を出せない。
