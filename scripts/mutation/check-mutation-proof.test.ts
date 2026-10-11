@@ -150,13 +150,13 @@ chmodSync(STUB_COMMAND, 0o755);
 // 本物の vitest を通す run に渡す env（スタブの注入を外す）。
 const REAL = { MUTATION_PROOF_TEST_COMMAND: undefined };
 
+/** ランナーに渡す env。`undefined` を渡したキーは継承しない（`runnerEnv`）。 */
+type Env = Record<string, string | undefined>;
+
 /**
  * fixture 一式を `scripts/` 配下の使い捨てディレクトリに作る。
  * デフォルトはスタブ用（`fixture.stub.json`）。`real: true` なら、本物の vitest が実行する `fixture.test.ts` を置く。
  */
-/** ランナーに渡す env。`undefined` を渡したキーは継承しない（`runnerEnv`）。 */
-type Env = Record<string, string | undefined>;
-
 function makeFixture({
   real = false,
   stubTests = STUB_TESTS,

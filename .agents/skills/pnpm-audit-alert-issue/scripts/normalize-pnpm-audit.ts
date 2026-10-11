@@ -61,7 +61,7 @@ function loadJson(path: string): AuditJson {
 }
 
 /** null でないオブジェクト（配列を含む）。欄は使うところで確かめる。 */
-function isRecord(value: unknown): value is AuditRecord {
+function isObjectLike(value: unknown): value is AuditRecord {
   return typeof value === "object" && value !== null;
 }
 
@@ -73,7 +73,7 @@ function findingFields(finding: unknown): AuditRecord {
   if (finding === null || finding === undefined) {
     throw new TypeError(`advisory.findings の要素が ${finding} で、欄を読めない`);
   }
-  return isRecord(finding) ? finding : {};
+  return isObjectLike(finding) ? finding : {};
 }
 
 function asArray(value: unknown): unknown[] {
@@ -146,7 +146,7 @@ function mergeFinding(target: Finding, source: Finding): void {
 }
 
 function advisoryFromVia(via: unknown): AuditRecord {
-  if (isRecord(via)) return via;
+  if (isObjectLike(via)) return via;
   if (typeof via !== "string") return {};
 
   const ghsa = ghsaFrom(via);
@@ -224,7 +224,9 @@ function fromVulnerability(
   packages: Packages | undefined,
 ): Finding {
   const advisory = advisoryFromVia(via);
-  const fix: AuditRecord = isRecord(vulnerability.fixAvailable) ? vulnerability.fixAvailable : {};
+  const fix: AuditRecord = isObjectLike(vulnerability.fixAvailable)
+    ? vulnerability.fixAvailable
+    : {};
   const ghsa = firstString(
     normalizeGhsa(advisory.ghsa),
     normalizeGhsa(advisory.ghsa_id),

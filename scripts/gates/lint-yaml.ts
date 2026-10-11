@@ -107,7 +107,7 @@ export function main(
     try {
       targets = findYamlFiles(root);
     } catch (e) {
-      err(`lint-yaml: YAML を列挙できない（${root}）: ${e instanceof Error ? e.message : e}\n`);
+      err(`lint-yaml: YAML を列挙できない（${root}）: ${errorMessage(e)}\n`);
       return 2;
     }
   }
