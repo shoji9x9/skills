@@ -9,6 +9,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseJsonAs } from "../../lib/parse-as.ts";
 import { makeTempDir } from "../../lib/test-tmpdir.ts";
 import {
   CHANGE_EPSILON,
@@ -552,14 +553,14 @@ test("変化の判定の閾値はプローブと同じ値（片側だけ変え�
 });
 
 test("同梱テンプレートをそのまま渡しても合格にしない", () => {
-  const asset = (name: string) =>
-    JSON.parse(readFileSync(join(repoRoot, "skills/parity-component/assets", name), "utf8"));
-  const metadata = asset("metadata-template.json");
+  const asset = <T>(name: string) =>
+    parseJsonAs<T>(readFileSync(join(repoRoot, "skills/parity-component/assets", name), "utf8"));
+  const metadata = asset<{ instances: { id: string }[] }>("metadata-template.json");
   const id = metadata.instances[0].id;
   const result = compareMotions({
     metadata,
-    motions: { [id]: { ...asset("motions-template.json"), instance: id } },
-    comparison: asset("motion-comparison-template.json"),
+    motions: { [id]: { ...asset<Record<string, unknown>>("motions-template.json"), instance: id } },
+    comparison: asset<unknown>("motion-comparison-template.json"),
     target: "preview",
   });
   expect(result.structural).toBe(true);

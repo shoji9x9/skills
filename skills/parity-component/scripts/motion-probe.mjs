@@ -58,6 +58,29 @@ export function sampleLimit(timeoutMs) {
  */
 
 /**
+ * 1 フレームで読んだ要素の状態（時刻を付ける前の MotionSample）。error は読めなかったときだけ持つ。
+ * @typedef {{ present: false, error?: undefined }
+ *   | { present: true, x: number, y: number, width: number, height: number, opacity: number, error?: undefined }} MotionReading
+ */
+
+/**
+ * ページ側の採取の状態（`globalThis.__parityMotionProbe` に置く）。
+ * @typedef {{
+ *   done: boolean,
+ *   timed_out: boolean,
+ *   error: string | null,
+ *   samples: MotionSample[],
+ *   startedAt: number,
+ *   lastChangeAt: number | null,
+ * }} MotionProbeState
+ */
+
+/**
+ * 採取の状態を置くページのグローバル。
+ * @typedef {typeof globalThis & { __parityMotionProbe?: MotionProbeState }} MotionProbeGlobal
+ */
+
+/**
  * 動きの時系列（probeMotion の返り値。motion-compare.mjs が読む）。
  * @typedef {{
  *   probe_version: string,
@@ -76,14 +99,20 @@ export function sampleLimit(timeoutMs) {
  * @returns {{ ok: true } | { ok: false, error: string }}
  */
 export function installSampler({ selector, settleMs, timeoutMs, epsilon, maxSamples }) {
+  /** @type {MotionProbeGlobal} */
   const g = globalThis;
   if (g.__parityMotionProbe && !g.__parityMotionProbe.done) {
     return { ok: false, error: "another motion probe is still running on this page" };
   }
+  /**
+   * @param {number} value
+   * @param {number} digits
+   */
   const round = (value, digits) => {
     const p = 10 ** digits;
     return Math.round(value * p) / p;
   };
+  /** @returns {MotionReading | { error: string }} */
   const read = () => {
     const found = g.document.querySelectorAll(selector);
     if (found.length > 1) return { error: `selector matched ${found.length} elements` };
@@ -99,7 +128,9 @@ export function installSampler({ selector, settleMs, timeoutMs, epsilon, maxSamp
       return { present: false };
     }
     let opacity = 1;
-    for (let node = el; node && node.nodeType === 1; node = node.parentElement) {
+    /** @type {Element | null} */
+    let node = el;
+    for (; node && node.nodeType === 1; node = node.parentElement) {
       opacity *= Number(g.getComputedStyle(node).opacity);
     }
     return {
@@ -111,9 +142,14 @@ export function installSampler({ selector, settleMs, timeoutMs, epsilon, maxSamp
       opacity: round(opacity, 3),
     };
   };
+  /**
+   * @param {MotionReading} a
+   * @param {MotionReading} b
+   */
   const differs = (a, b) => {
     if (a.present !== b.present) return true;
-    if (!a.present) return false;
+    // ここでは a.present と b.present が等しいので、b の判定は a の判定と同じ結果になる（型の絞り込みのため）。
+    if (!a.present || !b.present) return false;
     return (
       Math.abs(a.x - b.x) > epsilon.px ||
       Math.abs(a.y - b.y) > epsilon.px ||
@@ -123,15 +159,12 @@ export function installSampler({ selector, settleMs, timeoutMs, epsilon, maxSamp
     );
   };
   /**
-   * @type {{
-   *   done: boolean,
-   *   timed_out: boolean,
-   *   error: string | null,
-   *   samples: MotionSample[],
-   *   startedAt: number,
-   *   lastChangeAt: number | null,
-   * }}
+   * 読めなかったフレームか（error が真の値か）。
+   * @param {MotionReading | { error: string }} reading
+   * @returns {reading is { error: string }}
    */
+  const failed = (reading) => Boolean(reading.error);
+  /** @type {MotionProbeState} */
   const state = {
     done: false,
     timed_out: false,
@@ -145,17 +178,23 @@ export function installSampler({ selector, settleMs, timeoutMs, epsilon, maxSamp
     if (state.done) return;
     const now = g.performance.now();
     const t = round(now - state.startedAt, 1);
+    /** @type {MotionReading | { error: string }} */
     let sample;
     try {
       sample = read();
     } catch (error) {
       // 不正なセレクタ等で投げたまま抜けると done が偽のまま残り、同じページの採り直しが
       // 「another motion probe is still running」で永久に弾かれる（rAF の中なら待つ側も上限まで待つ）。
+      // message の読み方は `error && error.message` と同じ（オブジェクトでなければ undefined）。
+      const message =
+        typeof error === "object" && error !== null && "message" in error
+          ? error.message
+          : undefined;
       sample = {
-        error: `sampler failed: ${error && error.message ? error.message : String(error)}`,
+        error: `sampler failed: ${message ? message : String(error)}`,
       };
     }
-    if (sample.error) {
+    if (failed(sample)) {
       state.error = sample.error;
       state.done = true;
       return;
@@ -189,7 +228,9 @@ export function installSampler({ selector, settleMs, timeoutMs, epsilon, maxSamp
  * @returns {boolean}
  */
 export function samplerDone() {
-  const state = globalThis.__parityMotionProbe;
+  /** @type {MotionProbeGlobal} */
+  const g = globalThis;
+  const state = g.__parityMotionProbe;
   // 状態が消えた（ページが遷移した）ら待ち続けず終わらせ、readSampler の null で理由を報告する。
   return !state || Boolean(state.done);
 }
@@ -199,7 +240,9 @@ export function samplerDone() {
  * @returns {{ timed_out: boolean, error: string | null, samples: MotionSample[] } | null}
  */
 export function readSampler() {
-  const state = globalThis.__parityMotionProbe;
+  /** @type {MotionProbeGlobal} */
+  const g = globalThis;
+  const state = g.__parityMotionProbe;
   if (!state) return null;
   return { timed_out: state.timed_out, error: state.error, samples: state.samples };
 }
@@ -228,10 +271,12 @@ export async function probeMotion(page, options) {
     throw new Error("motion probe: selector is required");
   }
   if (typeof trigger !== "function") throw new Error("motion probe: trigger must be a function");
-  for (const [name, value] of [
+  /** @type {[string, number][]} */
+  const limits = [
     ["settleMs", settleMs],
     ["timeoutMs", timeoutMs],
-  ]) {
+  ];
+  for (const [name, value] of limits) {
     if (!Number.isFinite(value) || value <= 0) {
       throw new Error(`motion probe: ${name} must be a positive number (got ${String(value)})`);
     }
@@ -256,7 +301,9 @@ export async function probeMotion(page, options) {
     // 「another motion probe is still running」で弾かれる。
     await page
       .evaluate(() => {
-        const state = globalThis.__parityMotionProbe;
+        /** @type {MotionProbeGlobal} */
+        const g = globalThis;
+        const state = g.__parityMotionProbe;
         if (state) state.done = true;
       })
       .catch(() => {});

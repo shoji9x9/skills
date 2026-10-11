@@ -71,11 +71,54 @@ function isPlainObject(v) {
 
 /**
  * @param {unknown} v
- * @returns {boolean}
+ * @returns {v is number}
  */
 function finite(v) {
   return typeof v === "number" && Number.isFinite(v);
 }
+
+/**
+ * x / y / width / height がすべて有限数の矩形か。読むのは PROPERTIES の軸だけなので、値は数として扱う。
+ * @param {unknown} v
+ * @returns {v is Record<string, number>}
+ */
+function isRect(v) {
+  return isPlainObject(v) && PROPERTIES.every((p) => finite(v[p]));
+}
+
+/**
+ * dimension_model.fits の 1 件。
+ * @typedef {{ page: string, element: string, property: string, ratio: { width: number, height: number }, offset: number }} FitRecord
+ */
+
+/**
+ * fits の 1 件の形か。
+ * @param {unknown} f
+ * @returns {f is FitRecord}
+ */
+function isFitRecord(f) {
+  return (
+    isPlainObject(f) &&
+    nonEmptyString(f.page) &&
+    nonEmptyString(f.element) &&
+    typeof f.property === "string" &&
+    PROPERTIES.includes(f.property) &&
+    isPlainObject(f.ratio) &&
+    finite(f.ratio.width) &&
+    finite(f.ratio.height) &&
+    finite(f.offset)
+  );
+}
+
+/**
+ * check の照合で外れた 1 件。
+ * @typedef {{ page: string, element: string, property: string, window: { width: number, height: number } | null, reason: string, expected?: number, actual?: number, deviation?: number }} CheckFailure
+ */
+
+/**
+ * check が判定を飛ばした軸（unfit）。
+ * @typedef {{ page: string, element: string, property: string, reason: string }} UnfitNote
+ */
 
 /**
  * @param {number} v
@@ -105,14 +148,16 @@ function windowKey(w) {
 function validateWindow(w, at) {
   if (
     !isPlainObject(w) ||
+    typeof w.width !== "number" ||
+    typeof w.height !== "number" ||
     !Number.isInteger(w.width) ||
     !Number.isInteger(w.height) ||
-    /** @type {number} */ (w.width) <= 0 ||
-    /** @type {number} */ (w.height) <= 0
+    w.width <= 0 ||
+    w.height <= 0
   ) {
     throw new UsageError(`${at} の width / height が正の整数でない`);
   }
-  return { width: /** @type {number} */ (w.width), height: /** @type {number} */ (w.height) };
+  return { width: w.width, height: w.height };
 }
 
 /**
@@ -222,16 +267,17 @@ function indexElements(elements, windows, label) {
       if (!windowKeys.has(wk))
         throw new UsageError(`${at}.rects[${j}] の窓 ${wk} が windows に無い`);
       if (rects.has(wk)) throw new UsageError(`${at}.rects に窓 ${wk} が重複している`);
-      if (r.rect === null) {
+      const rect = r.rect;
+      if (rect === null) {
         rects.set(wk, null);
         return;
       }
-      if (!isPlainObject(r.rect) || !PROPERTIES.every((p) => finite(r.rect[p]))) {
+      if (!isRect(rect)) {
         throw new UsageError(
           `${at}.rects[${j}].rect が x / y / width / height の有限数を持たない（表示されない窓は null と書く）`,
         );
       }
-      rects.set(wk, /** @type {Record<string, number>} */ (r.rect));
+      rects.set(wk, rect);
     });
     const missing = windows.filter((w) => !rects.has(windowKey(w))).map(windowKey);
     if (missing.length > 0) {
@@ -292,11 +338,13 @@ export function fitModel(samples, opts) {
         });
         continue;
       }
-      const points = windows.map((w) => ({
-        W: w.width,
-        H: w.height,
-        v: /** @type {Record<string, number>} */ (rects.get(windowKey(w)))[property],
-      }));
+      const points = windows.map((w) => {
+        const rect = rects.get(windowKey(w));
+        // hidden が空なので、どの窓の矩形も null でない（indexElements が全窓の矩形を求める）。
+        // 元の書き方でも null の矩形を読むと TypeError になる
+        if (!rect) throw new TypeError(`窓 ${windowKey(w)} の矩形が無い`);
+        return { W: w.width, H: w.height, v: rect[property] };
+      });
       const f = fitPlane(points);
       const residual = round(f.residual, 4);
       if (f.residual > opts.tolerance) {
@@ -367,10 +415,10 @@ function readTargets(metadata) {
       "metadata.json の traits.elements が空でない文字列の配列でない（特性を採る論理名を確定してから通す）",
     );
   }
-  const cc = /** @type {Record<string, unknown>} */ (
-    /** @type {Record<string, unknown>} */ (metadata).capture_conditions
-  );
+  // capture_conditions が JSON オブジェクトであることは、先に呼ぶ readViewports が確かめている
+  const cc = isPlainObject(metadata) ? metadata.capture_conditions : undefined;
   if (
+    !isPlainObject(cc) ||
     !Array.isArray(cc.pages) ||
     cc.pages.length === 0 ||
     !cc.pages.every((p) => isPlainObject(p) && nonEmptyString(p.name))
@@ -378,7 +426,7 @@ function readTargets(metadata) {
     throw new UsageError("metadata.json の capture_conditions.pages[].name が空でない配列でない");
   }
   // 同じ論理名の重複を 1 つの集合要素へ潰さない（上書きされた論理名の分だけ測る対象が警告なしに減る）
-  const elementNames = /** @type {string[]} */ (traits.elements);
+  const elementNames = traits.elements;
   const duplicatedElements = elementNames.filter((n, i) => elementNames.indexOf(n) !== i);
   if (duplicatedElements.length > 0) {
     throw new UsageError(
@@ -386,7 +434,8 @@ function readTargets(metadata) {
     );
   }
   // 同名のページを 1 つの集合キーへ潰さない（1 つ目のページを測っただけで、2 つ目を測り忘れても通る）
-  const names = cc.pages.map((p) => /** @type {string} */ (p.name));
+  /** @type {string[]} */
+  const names = cc.pages.map((p) => p.name);
   const duplicated = names.filter((n, i) => names.indexOf(n) !== i);
   if (duplicated.length > 0) {
     throw new UsageError(
@@ -394,8 +443,8 @@ function readTargets(metadata) {
     );
   }
   return {
-    traitElements: /** @type {string[]} */ (traits.elements),
-    pages: cc.pages.map((p) => /** @type {string} */ (p.name)),
+    traitElements: elementNames,
+    pages: names,
   };
 }
 
@@ -434,12 +483,15 @@ function assertCoverage(entries, targets, label) {
  * @param {unknown} metadata - 現側 metadata.json
  * @param {() => unknown} loadSamples - 新側 samples（measured のときだけ読む）
  * @param {() => string} [loadCurrentSamplesText] - 現側 dimension-samples.json の本文（measured のときだけ読み、式の出所と照合する）
+ * @returns {{ judged: false, reason: string, unfit_to_note?: UnfitNote[] } | { judged: true, reason: null, ok: boolean, checked: number, failures: CheckFailure[], unfit_to_note: UnfitNote[] }}
  */
 export function checkModel(metadata, loadSamples, loadCurrentSamplesText) {
   const viewports = readViewports(metadata);
-  const cc = /** @type {Record<string, unknown>} */ (
-    /** @type {Record<string, unknown>} */ (metadata).capture_conditions
-  );
+  // readViewports が capture_conditions を JSON オブジェクトだと確かめているので、この分岐には到達しない
+  const cc = isPlainObject(metadata) ? metadata.capture_conditions : undefined;
+  if (!isPlainObject(cc)) {
+    throw new UsageError("metadata.json の capture_conditions.viewports が空でない配列でない");
+  }
   // キーの欠落は免除にしない（判定しない場合は、理由付きの not_measured / not_required だけに限る）
   if (!Object.hasOwn(cc, "dimension_model")) {
     throw new UsageError(
@@ -447,7 +499,7 @@ export function checkModel(metadata, loadSamples, loadCurrentSamplesText) {
     );
   }
   const dm = cc.dimension_model;
-  if (!isPlainObject(dm) || !STATUSES.includes(/** @type {string} */ (dm.status))) {
+  if (!isPlainObject(dm) || typeof dm.status !== "string" || !STATUSES.includes(dm.status)) {
     throw new UsageError(`dimension_model.status が ${STATUSES.join(" / ")} のいずれでもない`);
   }
   // 判定しない場合は閉じた集合（not_measured / not_required）に限り、理由を必須にする
@@ -467,7 +519,7 @@ export function checkModel(metadata, loadSamples, loadCurrentSamplesText) {
       `dimension_model.tool_version が ${String(dm.tool_version)}（ツールは ${VERSION}）。parity-suite で現側を採り直す`,
     );
   }
-  if (!finite(dm.tolerance) || /** @type {number} */ (dm.tolerance) < 0) {
+  if (!finite(dm.tolerance) || dm.tolerance < 0) {
     throw new UsageError("dimension_model.tolerance が 0 以上の数でない");
   }
   const windows = validateWindows(dm.measured_at, "dimension_model.measured_at");
@@ -486,24 +538,13 @@ export function checkModel(metadata, loadSamples, loadCurrentSamplesText) {
   }
   const seenFit = new Set();
   const fits = dm.fits.map((f, i) => {
-    if (
-      !isPlainObject(f) ||
-      !nonEmptyString(f.page) ||
-      !nonEmptyString(f.element) ||
-      !PROPERTIES.includes(/** @type {string} */ (f.property)) ||
-      !isPlainObject(f.ratio) ||
-      !finite(f.ratio.width) ||
-      !finite(f.ratio.height) ||
-      !finite(f.offset)
-    ) {
+    if (!isFitRecord(f)) {
       throw new UsageError(`dimension_model.fits[${i}] の形が不正`);
     }
     const key = JSON.stringify([f.page, f.element, f.property]);
     if (seenFit.has(key)) throw new UsageError(`dimension_model.fits[${i}] が重複している`);
     seenFit.add(key);
-    return /** @type {{ page: string, element: string, property: string, ratio: { width: number, height: number }, offset: number }} */ (
-      f
-    );
+    return f;
   });
   // unfit も fits と同じくキーの材料を検証する（不正な記録を、中身の無い note として扱わない）
   const seenUnfit = new Set();
@@ -512,7 +553,8 @@ export function checkModel(metadata, loadSamples, loadCurrentSamplesText) {
       !isPlainObject(u) ||
       !nonEmptyString(u.page) ||
       !nonEmptyString(u.element) ||
-      !PROPERTIES.includes(/** @type {string} */ (u.property)) ||
+      typeof u.property !== "string" ||
+      !PROPERTIES.includes(u.property) ||
       !nonEmptyString(u.reason)
     ) {
       throw new UsageError(`dimension_model.unfit[${i}] の形が不正`);
@@ -572,7 +614,7 @@ export function checkModel(metadata, loadSamples, loadCurrentSamplesText) {
     recomputed = fitModel(JSON.parse(currentSamplesText), {
       viewports,
       targets,
-      tolerance: /** @type {number} */ (dm.tolerance),
+      tolerance: dm.tolerance,
       samplesText: currentSamplesText,
     });
   } catch (e) {
@@ -580,6 +622,9 @@ export function checkModel(metadata, loadSamples, loadCurrentSamplesText) {
       `現側 dimension-samples.json から式を当てはめ直せない: ${e instanceof Error ? e.message : e}`,
     );
   }
+  /**
+   * @param {{ measured_at?: unknown, fits?: unknown, unfit?: unknown }} m
+   */
   const derived = (m) =>
     JSON.stringify({ measured_at: m.measured_at, fits: m.fits, unfit: m.unfit });
   if (derived(recomputed) !== derived(dm)) {
@@ -598,6 +643,7 @@ export function checkModel(metadata, loadSamples, loadCurrentSamplesText) {
     );
   }
   const index = indexElements(samples.elements, sampleWindows, "新側 samples");
+  /** @type {CheckFailure[]} */
   const failures = [];
   let checked = 0;
   for (const f of fits) {
@@ -628,7 +674,7 @@ export function checkModel(metadata, loadSamples, loadCurrentSamplesText) {
       const expected = f.ratio.width * w.width + f.ratio.height * w.height + f.offset;
       const deviation = Math.abs(rect[f.property] - expected);
       // 記録した係数の丸め（1e-6 px 未満）だけを飲む。fits の残差は tolerance 以下なので、現側と同一の矩形は通る
-      if (deviation > /** @type {number} */ (dm.tolerance) + ROUNDING_SLACK) {
+      if (deviation > dm.tolerance + ROUNDING_SLACK) {
         failures.push({
           page: f.page,
           element: f.element,
@@ -674,6 +720,9 @@ export function main(argv, deps = {}) {
     "usage: dimension-fit.mjs fit --samples <現側 samples.json> --metadata <metadata.json> [--tolerance <px>] [--write]",
     "       dimension-fit.mjs check --metadata <現側 metadata.json> --current-samples <現側 samples.json> --samples <新側 samples.json> [--write <replace-metadata.json>]",
   ].join("\n");
+  /**
+   * @param {Record<string, unknown>} obj
+   */
   const out = (obj) =>
     process.stdout.write(
       `${JSON.stringify({ tool: "dimension-fit", version: VERSION, ...obj }, null, 2)}\n`,
@@ -697,7 +746,10 @@ export function main(argv, deps = {}) {
   let newSamplesText = null;
   /** @type {string | null} */
   let modelFingerprint = null;
-  /** @param {Record<string, unknown>} record */
+  /**
+   * @param {Record<string, unknown>} record
+   * @param {string} path
+   */
   const writeCheck = (record, path) => {
     const replaceMetadata = JSON.parse(readFile(path));
     if (!isPlainObject(replaceMetadata)) {
@@ -761,7 +813,14 @@ export function main(argv, deps = {}) {
         samplesText,
       });
       if (opts.write === true) {
-        metadata.capture_conditions.dimension_model = model;
+        // readViewports が capture_conditions を JSON オブジェクトだと確かめているので、この分岐には到達しない
+        const cc = isPlainObject(metadata) ? metadata.capture_conditions : undefined;
+        if (!isPlainObject(cc)) {
+          throw new UsageError(
+            "metadata.json の capture_conditions.viewports が空でない配列でない",
+          );
+        }
+        cc.dimension_model = model;
         writeFile(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`);
       }
       out({ mode, fits: model.fits.length, unfit: model.unfit.length, dimension_model: model });

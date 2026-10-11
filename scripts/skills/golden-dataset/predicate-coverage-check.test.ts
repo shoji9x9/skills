@@ -7,6 +7,7 @@
 // 欠陥は 1 件ずつ独立に注入し、注入した欠陥の code が出ることまで確かめる（件数が非ゼロなだけでは検出能力の証拠にならない）。
 
 import { assert, test, expect } from "vitest";
+import { parseJsonAs } from "../../lib/parse-as.ts";
 import {
   main,
   parseTables,
@@ -134,6 +135,13 @@ const VERIFICATION = `# 検証レポート（verification）
 | roles-admin | 1 | 2 | 踏める | count(*) |
 `;
 
+/** main が出す JSON の、テストで確かめる欄。 */
+type CheckOutput = {
+  ok: boolean;
+  structural?: boolean;
+  findings: { code: string; message: string }[];
+};
+
 /**
  * main をメモリ上のファイルで回す。
  * @param {string[]} argv
@@ -155,7 +163,11 @@ function run(argv: string[], files: Record<string, string>) {
       errorOutput += s;
     },
   });
-  return { code, stderr: errorOutput, result: output === "" ? null : JSON.parse(output) };
+  return {
+    code,
+    stderr: errorOutput,
+    result: output === "" ? null : parseJsonAs<CheckOutput>(output),
+  };
 }
 
 /**
@@ -264,6 +276,7 @@ test("誤検知しないことの確認: 欠陥の無い設計は exit 0（常�
     "/w/f.md": FEATURES,
     "/w/d.md": designOf(),
   });
+  assert(result, "出力が無い");
   expect(result.findings).toEqual([]);
   expect(result.ok).toBe(true);
   expect(code).toBe(0);
@@ -274,6 +287,7 @@ test("誤検知しないことの確認: 実測が設計と一致する verifica
     ["--features", "f.md", "--design", "d.md", "--verification", "v.md"],
     { "/w/f.md": FEATURES, "/w/d.md": designOf(), "/w/v.md": VERIFICATION },
   );
+  assert(result, "出力が無い");
   expect(result.findings).toEqual([]);
   expect(code).toBe(0);
 });
@@ -700,6 +714,7 @@ test("表そのものが無ければ型崩れとして exit 2（合格として�
     "/w/f.md": FEATURES,
     "/w/d.md": "# データ設計（design）\n",
   });
+  assert(result, "出力が無い");
   expect(code).toBe(2);
   expect(result.structural).toBe(true);
   expect(result.findings.map((f: { code: string }) => f.code)).toContain(
@@ -743,6 +758,7 @@ test("「消費側パラメータ」表が無ければ落ちる（絞り込み�
     "/w/f.md": FEATURES,
     "/w/d.md": withoutParams,
   });
+  assert(result, "出力が無い");
   expect(code).toBe(1);
   expect(result.findings.map((f: { code: string }) => f.code)).toContain(
     "design-param-table-missing",
@@ -924,6 +940,7 @@ test("「値の出どころ」列が無い設計は、表が読めない（exit 
     "/w/f.md": FEATURES,
     "/w/d.md": design,
   });
+  assert(result, "出力が無い");
   expect(code).toBe(1);
   expect(result.structural).toBeUndefined();
   expect(result.findings.map((f: { code: string }) => f.code)).toEqual([

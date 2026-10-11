@@ -29,6 +29,16 @@ export const VERSION = "1";
 export const ABSENT = "(absent)";
 
 /**
+ * 配列でないオブジェクトかを返す（型の絞り込みに使う）。
+ *
+ * @param {unknown} v
+ * @returns {v is Record<string, unknown>}
+ */
+function isRecord(v) {
+  return v !== null && typeof v === "object" && !Array.isArray(v);
+}
+
+/**
  * ドット記法パスのセグメント配列を返す。"data.*.updated_at" → ["data","*","updated_at"]。
  *
  * @param {string} path
@@ -64,6 +74,9 @@ export function removePath(node, segs) {
       })
       .filter((el) => !(head === "*" && rest.length === 0 && el === undefined));
   }
+  // 先頭の検査で null と非オブジェクトを、直前の分岐で配列を返しているので、ここには到達しない。
+  if (!isRecord(node)) return node;
+  /** @type {Record<string, unknown>} */
   const out = {};
   for (const key of Object.keys(node)) {
     if (head === "*") {
@@ -89,7 +102,8 @@ export function removePath(node, segs) {
  */
 function canonicalize(v) {
   if (Array.isArray(v)) return v.map(canonicalize);
-  if (v !== null && typeof v === "object") {
+  if (isRecord(v)) {
+    /** @type {Record<string, unknown>} */
     const out = {};
     for (const key of Object.keys(v).sort()) out[key] = canonicalize(v[key]);
     return out;
@@ -126,6 +140,9 @@ export function sortArrayAtPath(node, segs) {
       return el;
     });
   }
+  // 先頭の検査で null と非オブジェクトを、直前の分岐で配列を返しているので、ここには到達しない。
+  if (!isRecord(node)) return node;
+  /** @type {Record<string, unknown>} */
   const out = {};
   for (const key of Object.keys(node)) {
     out[key] = key === head || head === "*" ? sortArrayAtPath(node[key], rest) : node[key];
@@ -145,7 +162,8 @@ export function deepDiff(a, b, path, out) {
   const aObj = a !== null && typeof a === "object";
   const bObj = b !== null && typeof b === "object";
   if (aObj && bObj && Array.isArray(a) === Array.isArray(b)) {
-    if (Array.isArray(a)) {
+    // 外側の条件で a と b の配列かどうかは揃っている。
+    if (Array.isArray(a) && Array.isArray(b)) {
       const len = Math.max(a.length, b.length);
       for (let i = 0; i < len; i += 1) {
         const childPath = path ? `${path}.${i}` : String(i);
@@ -153,12 +171,14 @@ export function deepDiff(a, b, path, out) {
       }
       return;
     }
-    const keys = [...new Set([...Object.keys(a), ...Object.keys(b)])].sort();
-    for (const key of keys) {
-      const childPath = path ? `${path}.${key}` : key;
-      const av = Object.prototype.hasOwnProperty.call(a, key) ? a[key] : ABSENT;
-      const bv = Object.prototype.hasOwnProperty.call(b, key) ? b[key] : ABSENT;
-      deepDiff(av, bv, childPath, out);
+    if (isRecord(a) && isRecord(b)) {
+      const keys = [...new Set([...Object.keys(a), ...Object.keys(b)])].sort();
+      for (const key of keys) {
+        const childPath = path ? `${path}.${key}` : key;
+        const av = Object.prototype.hasOwnProperty.call(a, key) ? a[key] : ABSENT;
+        const bv = Object.prototype.hasOwnProperty.call(b, key) ? b[key] : ABSENT;
+        deepDiff(av, bv, childPath, out);
+      }
     }
     return;
   }
@@ -217,6 +237,7 @@ export function main(argv) {
     current = sortArrayAtPath(current, segments(p));
     next = sortArrayAtPath(next, segments(p));
   }
+  /** @type {Array<{ path:string, current:unknown, new:unknown }>} */
   const out = [];
   deepDiff(current, next, "", out);
   process.stdout.write(JSON.stringify(out, null, 2) + "\n");

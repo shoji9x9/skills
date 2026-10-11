@@ -9,6 +9,11 @@
 // アクセシブルネームの算出は仕様（accname）の近似であり、値は目安として扱う
 //（references/measurement.md を参照）。決定論的: 乱数・時刻に依存せず、document 順に走査する。
 
+/**
+ * 走査する要素。labels・type・value は、それを持つ要素（input・select など）でだけ値がある。
+ * @typedef {Element & { labels?: NodeListOf<HTMLLabelElement> | null, type?: unknown, value?: unknown }} ProbedElement
+ */
+
 export const roleProbe = () => {
   const IMPLICIT_ROLES = [
     ["a[href]", "link"],
@@ -31,6 +36,7 @@ export const roleProbe = () => {
     ["img[alt]:not([alt=''])", "img"],
   ];
 
+  /** @param {Element} el */
   const isVisible = (el) => {
     if (el.closest("[aria-hidden=true]")) return false;
     const style = getComputedStyle(el);
@@ -39,10 +45,12 @@ export const roleProbe = () => {
     return rect.width > 0 && rect.height > 0;
   };
 
+  /** @param {Element | null} el */
   const text = (el) => (el ? (el.textContent || "").replace(/\s+/g, " ").trim() : "");
 
   // accname の近似: aria-label > aria-labelledby > label 関連付け > alt > value(button 系) >
   // 内容テキスト > title > placeholder。空文字は「名前なし」。
+  /** @param {ProbedElement} el */
   const accessibleName = (el) => {
     const ariaLabel = (el.getAttribute("aria-label") || "").trim();
     if (ariaLabel) return ariaLabel;
@@ -62,7 +70,13 @@ export const roleProbe = () => {
     const alt = el.getAttribute("alt");
     if (alt && alt.trim()) return alt.trim();
     const tag = el.tagName.toLowerCase();
-    if (tag === "input" && ["button", "submit", "reset"].includes(el.type) && el.value.trim()) {
+    if (
+      tag === "input" &&
+      typeof el.type === "string" &&
+      ["button", "submit", "reset"].includes(el.type) &&
+      typeof el.value === "string" &&
+      el.value.trim()
+    ) {
       return el.value.trim();
     }
     const content = text(el);
@@ -74,10 +88,13 @@ export const roleProbe = () => {
     return "";
   };
 
+  /** @param {Element} el */
   const cssPath = (el) => {
     const parts = [];
+    /** @type {Element | null} */
     let cur = el;
     while (cur && cur !== document.body && parts.length < 5) {
+      /** @type {HTMLElement | null} */
       const parent = cur.parentElement;
       const idx = parent ? Array.from(parent.children).indexOf(cur) + 1 : 1;
       parts.unshift(cur.tagName.toLowerCase() + ":nth-child(" + idx + ")");
@@ -86,6 +103,7 @@ export const roleProbe = () => {
     return parts.join(" > ");
   };
 
+  /** @param {Element} el */
   const roleOf = (el) => {
     const explicit = (el.getAttribute("role") || "").trim().split(/\s+/)[0];
     if (explicit) return explicit;
@@ -101,7 +119,9 @@ export const roleProbe = () => {
     ),
   ).filter(isVisible);
 
+  /** @type {Record<string, { total: number, named: number }>} */
   const byRole = {};
+  /** @type {Record<string, Record<string, number>>} */
   const nameCountByRole = {};
   const unnamedSamples = [];
   let named = 0;

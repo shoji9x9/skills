@@ -43,6 +43,18 @@ function nonEmptyString(value) {
 }
 
 /**
+ * 例外の message を読む。`error && error.message` と同じ値を返す（偽の値はそのまま、プリミティブは undefined）。
+ * @param {unknown} error
+ * @returns {unknown}
+ */
+function errorMessage(error) {
+  if (!error) return error;
+  return typeof error === "object" || typeof error === "function"
+    ? Reflect.get(error, "message")
+    : undefined;
+}
+
+/**
  * プレーンなオブジェクトか。
  * @param {unknown} value
  * @returns {value is Record<string, unknown>}
@@ -103,11 +115,18 @@ function settledOrDecided(resolution, missingReason) {
   }
   const followUp = resolution.follow_up;
   // 置き場は残作業（what）と追跡先（tracked_in）の両方を要る。追跡先だけでは何を追っているか分からない。
-  if (isObject(followUp) && nonEmptyString(followUp.what) && nonEmptyString(followUp.tracked_in)) {
+  const trackedIn = isObject(followUp) ? followUp.tracked_in : undefined;
+  // nonEmptyString が真なら文字列なので、typeof は型を絞るためだけにある（判定は変わらない）。
+  if (
+    isObject(followUp) &&
+    nonEmptyString(followUp.what) &&
+    typeof trackedIn === "string" &&
+    nonEmptyString(trackedIn)
+  ) {
     return {
       state: "settled",
       reason: "残作業を別の置き場で追跡している",
-      tracked_in: /** @type {string} */ (followUp.tracked_in),
+      tracked_in: trackedIn,
     };
   }
   return { state: "decided", reason: missingReason };
@@ -115,7 +134,7 @@ function settledOrDecided(resolution, missingReason) {
 
 /**
  * 範囲の絞り込み。材料が欠けた要素は範囲に入れる（判定できないときは失敗として扱う）。
- * @param {Record<string, unknown>} element
+ * @param {unknown} element
  * @param {{ mode?: string, phase?: string, slug?: string, target?: string }} scope
  * @returns {boolean}
  */
@@ -164,7 +183,7 @@ export function checkPendingDecisions(doc, scope = {}) {
   /** @type {Array<{ id: unknown, tracked_in: string }>} */
   const tracked = [];
   for (const element of list) {
-    if (!inScope(/** @type {Record<string, unknown>} */ (element), scope)) continue;
+    if (!inScope(element, scope)) continue;
     counts.in_scope += 1;
     const result = classifyDecision(element);
     counts[result.state] += 1;
@@ -233,7 +252,7 @@ export function main(argv, deps = {}) {
   try {
     doc = JSON.parse(readFileSync(path, "utf8"));
   } catch (error) {
-    return fail(`${path} を読めない: ${error && /** @type {Error} */ (error).message}`);
+    return fail(`${path} を読めない: ${errorMessage(error)}`);
   }
   /** @type {{ mode?: string, phase?: string, slug?: string, target?: string }} */
   const scope = {};

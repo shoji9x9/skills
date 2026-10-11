@@ -2,6 +2,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { cpSync, readFileSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { afterEach, expect, test } from "vitest";
+import { parseJsonAs } from "../lib/parse-as.ts";
 import { makeTempDir } from "../lib/test-tmpdir.ts";
 
 const repository = resolve(import.meta.dirname, "..", "..");
@@ -60,9 +61,9 @@ test("fetch-failure fixture has no usable remote PR base and fetch fails", () =>
 });
 
 test("all pre-push evals map to a fixture and do not state the expected outcome", () => {
-  const evals: { id: number; fixture: string; prompt: string }[] = JSON.parse(
+  const evals = parseJsonAs<{ evals: { id: number; fixture: string; prompt: string }[] }>(
     readFileSync(join(repository, "evals", "issue-start", "evals.json"), "utf8"),
-  ).evals.filter(({ id }: { id: number }) => [2, 9, 10, 11].includes(id));
+  ).evals.filter(({ id }) => [2, 9, 10, 11].includes(id));
 
   expect(evals).toHaveLength(4);
   expect(evals.map(({ fixture }) => fixture)).toEqual([

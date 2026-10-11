@@ -133,6 +133,7 @@ const OBJECT_BRACE_AFTER_KEYWORDS = new Set([
   "await",
 ]);
 
+/** @param {MaskToken | null} lastToken */
 function regexAllowedAfter(lastToken) {
   if (lastToken === null) return true;
   if (lastToken.type === "punct") {
@@ -155,7 +156,10 @@ function regexAllowedAfter(lastToken) {
   return false;
 }
 
-/** `{` がブロックを開くか（＝閉じ波括弧が値で終わらないか）を直前のトークンから判定する。 */
+/**
+ * `{` がブロックを開くか（＝閉じ波括弧が値で終わらないか）を直前のトークンから判定する。
+ * @param {MaskToken | null} lastToken
+ */
 function braceOpensBlock(lastToken) {
   if (lastToken === null) return true;
   if (lastToken.type === "punct") return BLOCK_BRACE_AFTER_PUNCTUATORS.has(lastToken.value);
@@ -165,7 +169,10 @@ function braceOpensBlock(lastToken) {
   return false;
 }
 
-/** 直前のトークンが値で終わるか（＝続く `!` が後置の非 null 演算子か）。 */
+/**
+ * 直前のトークンが値で終わるか（＝続く `!` が後置の非 null 演算子か）。
+ * @param {MaskToken | null} lastToken
+ */
 function endsWithValue(lastToken) {
   if (lastToken === null) return false;
   // 値を待つキーワード（`return` / `throw` / `typeof` …）は値で終わらない。ここを一律 true にすると
@@ -180,7 +187,10 @@ function endsWithValue(lastToken) {
   return lastToken.value === "}" && lastToken.blockClose !== true;
 }
 
-/** 直前のトークンが、プロパティ名でない素の制御構文キーワードか。 */
+/**
+ * 直前のトークンが、プロパティ名でない素の制御構文キーワードか。
+ * @param {MaskToken | null} lastToken
+ */
 function isControlHeadKeyword(lastToken) {
   return (
     lastToken !== null &&
@@ -193,6 +203,8 @@ function isControlHeadKeyword(lastToken) {
 /**
  * `start` の `/` から始まる正規表現リテラルの終端（フラグの直後）を返す。
  * 終端を確定できなければ -1 を返し、呼び出し側は除算として扱う。
+ * @param {string} source
+ * @param {number} start
  */
 function regexLiteralEnd(source, start) {
   let i = start + 1;
@@ -272,12 +284,16 @@ function startsAmbiguousSlash(source, from) {
 /**
  * コメント・文字列・テンプレート文字列・正規表現リテラルを空白へ置換し、行・桁位置を保つ。
  * 判定不能な終端はエラーにする（走査できなかったファイルを違反 0 件として扱わない）。
+ * @param {string} source
  */
 export function maskNonCode(source) {
   // source.length / source[i] と同じ UTF-16 code unit 単位にする。スプレッドは code point 単位なので、
   // 非 BMP 文字の後で添字がずれ、マスク位置・違反位置が誤った値になる。
   const out = source.split("");
-  /** テンプレートと補間の入れ子を積む。`${}` の中のテンプレートを閉じるために深さが要る。 */
+  /**
+   * テンプレートと補間の入れ子を積む。`${}` の中のテンプレートを閉じるために深さが要る。
+   * @type {Array<{ kind: "template" } | { kind: "interpolation", braces: number }>}
+   */
   const stack = [];
   /** 開き括弧ごとに「制御構文の頭か」を積む。閉じ括弧の後で正規表現を許すかの判定に使う。 */
   /** @type {boolean[]} */
@@ -290,6 +306,10 @@ export function maskNonCode(source) {
   /** @type {MaskToken | null} */
   let lastToken = null;
   let i = 0;
+  /**
+   * @param {number} from
+   * @param {number} to
+   */
   const blankRange = (from, to) => {
     for (let k = from; k < to; k += 1) if (source[k] !== "\n") out[k] = " ";
   };
@@ -379,6 +399,7 @@ export function maskNonCode(source) {
         let end = i + 1;
         while (end < source.length && /[\w$]/.test(source[end])) end += 1;
         // `.` の直後ならプロパティ名。キーワードとしての意味を持たない。
+        /** @type {boolean} */
         const member = lastToken !== null && lastToken.type === "punct" && lastToken.value === ".";
         lastToken = { type: "word", value: source.slice(i, end), member };
         i = end;
@@ -558,8 +579,12 @@ const VALUE_KEYWORDS = new Set([
 /** 直後の括弧が束縛の並び（引数・catch・for の頭）ではない制御構文。 */
 const CONDITION_HEADS = new Set(["if", "while", "switch", "with"]);
 
-/** プロパティ名（`.` の直後）とオブジェクトリテラルのキーを除いた、式の起点になる名前を返す。 */
+/**
+ * プロパティ名（`.` の直後）とオブジェクトリテラルのキーを除いた、式の起点になる名前を返す。
+ * @param {string} text
+ */
 function rootNames(text) {
+  /** @type {Set<string>} */
   const names = new Set();
   for (const match of text.matchAll(/(?<![\w$])(?<!\.\s*)[A-Za-z_$][\w$]*/g)) {
     const before = text.slice(0, match.index);
@@ -570,8 +595,13 @@ function rootNames(text) {
   return names;
 }
 
-/** `open` の開き括弧に対応する閉じ括弧の位置。対応が取れなければ -1。 */
+/**
+ * `open` の開き括弧に対応する閉じ括弧の位置。対応が取れなければ -1。
+ * @param {string} code
+ * @param {number} open
+ */
 function matchingClose(code, open) {
+  /** @type {Record<string, string>} */
   const pairs = { "(": ")", "[": "]", "{": "}" };
   const stack = [];
   for (let k = open; k < code.length; k += 1) {
@@ -585,8 +615,13 @@ function matchingClose(code, open) {
   return -1;
 }
 
-/** `close` の閉じ括弧に対応する開き括弧の位置。対応が取れなければ -1。 */
+/**
+ * `close` の閉じ括弧に対応する開き括弧の位置。対応が取れなければ -1。
+ * @param {string} code
+ * @param {number} close
+ */
 function matchingOpen(code, close) {
+  /** @type {Record<string, string>} */
   const pairs = { ")": "(", "]": "[", "}": "{" };
   const stack = [];
   for (let k = close; k >= 0; k -= 1) {
@@ -600,7 +635,10 @@ function matchingOpen(code, close) {
   return -1;
 }
 
-/** 括弧の外側の `,` で分ける。 */
+/**
+ * 括弧の外側の `,` で分ける。
+ * @param {string} text
+ */
 function splitTopLevel(text) {
   const parts = [];
   let depth = 0;
@@ -622,6 +660,8 @@ function splitTopLevel(text) {
  * 呼び出し直前の式を逆向きにたどり、プロパティチェーンの各区間を root 側から並べて返す。
  * 区間ごとに「直後が呼び出しだったか」「添字アクセスだったか」を持つ——どちらも名前で解決できない形なので、
  * 判定不能として扱うために区別が要る（添字アクセスはプロパティ名そのものが読めない）。
+ * @param {string} code
+ * @param {number} dotIndex
  */
 function receiverChain(code, dotIndex) {
   let i = dotIndex - 1;
@@ -688,6 +728,8 @@ function receiverChain(code, dotIndex) {
 /**
  * Page / Locator と確認できる名前を、型注釈・代入チェーン・戻り値注釈から閉包として導出する。
  * 識別子（`page` / `this.page` の `page`）と、Page / Locator を返す同一ファイル内の関数名を分けて持つ。
+ * @param {string} code
+ * @param {string} [file]
  */
 function playwrightReceivers(code, file = "<source>") {
   const pages = new Set(["page"]);
@@ -695,7 +737,9 @@ function playwrightReceivers(code, file = "<source>") {
   // 角括弧の型アサーション（`<Locator>x`）は JSX を持ちうる拡張子では書けない（TypeScript が禁じる）。
   // 区別せずに読むと `const el = <div>…</div>` を型アサーションとして扱い、無関係な別名を判定不能にする。
   const angleAssertionAllowed = /\.(?:ts|mts|cts)$/.test(file);
+  /** @type {Set<string>} */
   const pageCallables = new Set();
+  /** @type {Set<string>} */
   const locatorCallables = new Set();
   for (const match of code.matchAll(/\b([A-Za-z_$][\w$]*)\s*:\s*(Page|Locator)\b/g)) {
     (match[2] === "Page" ? pages : locators).add(match[1]);
@@ -737,6 +781,7 @@ function playwrightReceivers(code, file = "<source>") {
   // 末尾の区間が呼ばれているか（直後が `(`）も返す。戻り値注釈で解決した名前は呼ばれている
   // 区間にだけ当てる。`const snapshot = model.rows` の未呼び出しプロパティに当てると、
   // 同名の関数宣言 1 つで無関係な変数が誤って Locator と判定され、誤検出でスイートを止める。
+  /** @param {string} rhs */
   const leadingChain = (rhs) => {
     const head = rhs.match(/^\s*(?:await\s+)?([A-Za-z_$][\w$]*(?:\s*\??\.\s*[A-Za-z_$][\w$]*)*)/);
     if (head === null) return null;
@@ -777,6 +822,7 @@ function playwrightReceivers(code, file = "<source>") {
     /^[^([{<>,=]*\b(?:as|satisfies)\s+(?:Promise\s*<\s*)?([A-Za-z_$][\w$.]*)/;
   /**
    * @param {string} statement 右辺の最初の文
+   * @param {string} rawRhs 右辺の先頭からソースの終端まで
    * @returns {"page" | "locator" | "other" | null}
    */
   // 角括弧のアサーションは右辺の先頭に付くので、1 行目で切らず右辺全体の先頭で見る。
@@ -791,7 +837,10 @@ function playwrightReceivers(code, file = "<source>") {
     return "other";
   };
   const assignments = [...code.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*/g)];
-  /** 右辺が member / call 式なのに何にも解決しなかった別名。使われたら判定不能にする。 */
+  /**
+   * 右辺が member / call 式なのに何にも解決しなかった別名。使われたら判定不能にする。
+   * @type {Set<string>}
+   */
   const opaqueAliases = new Set();
   let changed = true;
   while (changed) {
@@ -923,6 +972,7 @@ function playwrightReceivers(code, file = "<source>") {
  * 代入の右辺のうち、その宣言子に属する範囲（括弧の外の `;` / `,`、または文を終える改行まで）。
  * 行を折った右辺の続きを読み落とすと、後ろの行に現れる名前が「確定」の判定から外れ、確かめずに通してしまう。
  * そのため、迷ったら長く取る。前の行が演算子で終わるか、次の行が演算子で始まるなら、続きとして読む。
+ * @param {string} rawRhs
  */
 function declaratorRhs(rawRhs) {
   let depth = 0;
@@ -968,13 +1018,26 @@ function declaratorRhs(rawRhs) {
  * **名前はファイル全体で 1 つとして扱う**（スコープを見ない）。そのため、同じ名前が根拠の無い形でも
  * 束縛されていれば（引数・分割代入・再代入・import・2 つ目の宣言）、どの根拠があっても確定にしない。
  * 迷ったら判定不能として扱う。
+ * @param {string} code
+ * @param {{
+ *   assignments: RegExpExecArray[],
+ *   pages: Set<string>,
+ *   locators: Set<string>,
+ *   opaqueAliases: Set<string>,
+ *   angleAssertionAllowed: boolean,
+ *   assertionKind: (statement: string, rawRhs: string) => "page" | "locator" | "other" | null,
+ * }} context
  */
 function nonPlaywrightNames(
   code,
   { assignments, pages, locators, opaqueAliases, angleAssertionAllowed, assertionKind },
 ) {
-  /** 根拠の無い形で束縛されている名前。確定の候補から外す。 */
+  /**
+   * 根拠の無い形で束縛されている名前。確定の候補から外す。
+   * @type {Set<string>}
+   */
   const unknown = new Set();
+  /** @param {string} text */
   const markUnknown = (text) => {
     for (const name of rootNames(text)) unknown.add(name);
   };
@@ -1024,7 +1087,10 @@ function nonPlaywrightNames(
     unknown.add(match[1]);
   }
 
-  /** 宣言ごとの右辺。2 つ以上ある名前は、全部が確定したときだけ確定にする。 */
+  /**
+   * 宣言ごとの右辺。2 つ以上ある名前は、全部が確定したときだけ確定にする。
+   * @type {Map<string, string[]>}
+   */
   const declarations = new Map();
   for (const match of assignments) {
     const rawRhs = code.slice(match.index + match[0].length);
@@ -1034,9 +1100,13 @@ function nonPlaywrightNames(
   }
   // 2 つ目の宣言は別スコープの別の束縛でありうる。どれか 1 つでも根拠が無ければ候補から外す（下の every）。
 
+  /** @param {string} name */
   const settled = (name) => pages.has(name) || locators.has(name) || opaqueAliases.has(name);
+  /** @param {string} name */
   const candidate = (name) => !settled(name) && !unknown.has(name);
+  /** @type {Set<string>} */
   const nonReceivers = new Set();
+  /** @param {string} text */
   const pathNames = (text) => text.trim().split(/\s*\??\.\s*/);
   const PURE_PATH = /^\s*[A-Za-z_$][\w$]*(?:\s*\??\.\s*[A-Za-z_$][\w$]*)*\s*$/;
   /** 同じファイルで代入された Page API の名前（`page.clock = …`）。 */
@@ -1045,6 +1115,7 @@ function nonPlaywrightNames(
       .map((match) => match[1])
       .filter((name) => PAGE_NON_RECEIVER_PROPERTIES.has(name)),
   );
+  /** @param {string} rawRhs */
   const siteIsNonValue = (rawRhs) => {
     const statement = declaratorRhs(rawRhs);
     const asserted = assertionKind(statement.split("\n", 1)[0], rawRhs);
@@ -1123,8 +1194,12 @@ function nonPlaywrightNames(
  * 呼び出しは起点に限らずチェーン途中も見る（`helpers.rows(view).count()` / `this.rows().count()` は
  * 起点が識別子でも戻り値が読めない。起点だけを見ると、この形が警告なしに違反 0 件として扱われる）。
  * どれか 1 区間でも解決すれば（`kind !== null`）判定不能にはしない。
+ * @param {Array<{ name: string, called: boolean, computed: boolean }>} segments
+ * @param {ReturnType<typeof playwrightReceivers>} receivers
+ * @returns {{ kind: "locator" | "page" | null, undecidable: boolean, reason: "call" | "alias" | "computed" }}
  */
 function resolveReceiver(segments, receivers) {
+  /** @type {"locator" | "page" | null} */
   let kind = null;
   let hasUnknownCall = false;
   let hasComputedAccess = false;
@@ -1166,17 +1241,29 @@ function resolveReceiver(segments, receivers) {
   };
 }
 
+/** @param {string} file */
 function isCaptureSpec(file) {
   return file.split(/[/\\]/).includes(CAPTURE_ONLY_SEGMENT);
 }
 
+/**
+ * 走査の結果 1 件。rule は RULES の id か UNRESOLVED_RULE。
+ * @typedef {{ line: number, column: number, file: string, rule: string, message: string }} Finding
+ */
+
+/**
+ * @param {string} source
+ * @param {string} [file]
+ */
 export function scanSourceWithStats(source, file = "<source>") {
   const code = maskNonCode(source);
   const receivers = playwrightReceivers(code, file);
   const captureSpec = isCaptureSpec(file);
+  /** @type {Finding[]} */
   const findings = [];
   // exempted は resolved の内数（解決してから免除する）。内訳は callSites = resolved + undecidable + excluded。
   const stats = { callSites: 0, resolved: 0, undecidable: 0, excluded: 0, exempted: 0 };
+  /** @param {number} index */
   const position = (index) => {
     const before = code.slice(0, index);
     return { line: before.split("\n").length, column: index - before.lastIndexOf("\n") };
@@ -1257,6 +1344,7 @@ export function scanSourceWithStats(source, file = "<source>") {
  * 走査の内訳が呼び出し数と合わなければ、その説明を返す（合えば null）。
  * 各呼び出しは「解決」「判定不能」「Playwright 以外と確定」のどれか 1 つに必ず数える。
  * 合わないのはスキャナが呼び出しをどこにも数えずに捨てた＝違反 0 件と「見えていない」が同じ見え方になる状態。
+ * @param {{ callSites: number, resolved: number, undecidable: number, excluded: number, exempted?: number }} stats
  */
 export function breakdownMismatch(stats) {
   const { callSites, resolved, undecidable, excluded } = stats;
@@ -1267,6 +1355,10 @@ export function breakdownMismatch(stats) {
   );
 }
 
+/**
+ * @param {string} source
+ * @param {string} [file]
+ */
 export function scanSource(source, file = "<source>") {
   return scanSourceWithStats(source, file).findings.map((finding) => ({
     file: finding.file,
@@ -1277,6 +1369,12 @@ export function scanSource(source, file = "<source>") {
   }));
 }
 
+/**
+ * @param {string} path
+ * @param {string[]} files
+ * @param {string[]} problems
+ * @param {boolean} [explicit]
+ */
 function collect(path, files, problems, explicit = true) {
   let stat;
   try {
@@ -1302,21 +1400,28 @@ function collect(path, files, problems, explicit = true) {
   }
 }
 
+/** @param {string[]} args */
 export function main(args) {
   if (args.length === 0) {
     process.stderr.write("usage: auto-wait-check.mjs <suite-file-or-directory> [...]\n");
     return 2;
   }
+  /** @type {string[]} */
   const files = [];
+  /** @type {string[]} */
   const problems = [];
   for (const arg of args) collect(resolve(arg), files, problems);
   if (files.length === 0) problems.push("走査対象の JavaScript / TypeScript ファイルが 0 件");
   for (const problem of problems) process.stderr.write(`error: ${problem}\n`);
   if (problems.length > 0) return 2;
 
+  /** @type {Finding[]} */
   const violations = [];
+  /** @type {Finding[]} */
   const unresolved = [];
   const total = { callSites: 0, resolved: 0, undecidable: 0, excluded: 0, exempted: 0 };
+  /** @type {Array<keyof typeof total>} */
+  const statKeys = ["callSites", "resolved", "undecidable", "excluded", "exempted"];
   // 走査は重複を除いた集合に対して 1 回ずつ行う。報告する件数も同じ集合から採る
   // （引数が重なった `parity/ parity/a.spec.ts` で件数だけ水増しすると、
   // 「走査ファイル数がスイートの実ファイル数と合っているか」の確認が通ってしまう）。
@@ -1334,7 +1439,7 @@ export function main(args) {
       process.stderr.write(`error: ${file}: 走査の内訳が合わない: ${mismatch}\n`);
       return 2;
     }
-    for (const key of Object.keys(total)) total[key] += result.stats[key];
+    for (const key of statKeys) total[key] += result.stats[key];
     for (const finding of result.findings) {
       (finding.rule === UNRESOLVED_RULE ? unresolved : violations).push(finding);
     }

@@ -160,6 +160,18 @@ function isObject(value) {
 }
 
 /**
+ * 例外の message を読む。`error && error.message` と同じ値を返す（偽の値はそのまま、プリミティブは undefined）。
+ * @param {unknown} error
+ * @returns {unknown}
+ */
+function errorMessage(error) {
+  if (!error) return error;
+  return typeof error === "object" || typeof error === "function"
+    ? Reflect.get(error, "message")
+    : undefined;
+}
+
+/**
  * `YYYY-MM-DD` として実在する日付か。
  * @param {string} value
  * @returns {boolean}
@@ -204,8 +216,10 @@ export function readRevisions(doc) {
   // 渡すと、番号が偶然合うだけで無関係な改訂を「当て済み」と認める。
   else if (skill !== REVISIONS_SKILL)
     errors.push(`skill が ${REVISIONS_SKILL} でない（別のスキルの改訂一覧）: ${skill}`);
-  const revision = doc.revision;
-  if (!Number.isInteger(revision) || /** @type {number} */ (revision) < 1) {
+  // Number.isInteger が真なら数なので、typeof は型を絞るためだけにある（判定は変わらない）。
+  const revision =
+    typeof doc.revision === "number" && Number.isInteger(doc.revision) ? doc.revision : null;
+  if (revision === null || revision < 1) {
     errors.push("revision が 1 以上の整数でない");
   }
   if (!Array.isArray(doc.changes)) {
@@ -222,14 +236,11 @@ export function readRevisions(doc) {
       return;
     }
     const rev = change.revision;
-    if (!Number.isInteger(rev) || /** @type {number} */ (rev) < 1) {
+    if (typeof rev !== "number" || !Number.isInteger(rev) || rev < 1) {
       errors.push(`${where}.revision が 1 以上の整数でない`);
       return;
     }
-    if (
-      Number.isInteger(revision) &&
-      /** @type {number} */ (rev) > /** @type {number} */ (revision)
-    ) {
+    if (revision !== null && rev > revision) {
       errors.push(`${where}.revision が一覧の revision より大きい`);
     }
     if (seen.has(rev)) errors.push(`${where}.revision が重複している: ${rev}`);
@@ -240,29 +251,31 @@ export function readRevisions(doc) {
       errors.push(`${where}.affects が空`);
       return;
     }
-    const unknown = affects.filter((mode) => !MODES.includes(/** @type {string} */ (mode)));
+    const unknown = affects.filter((mode) => !MODES.includes(mode));
     if (unknown.length > 0) errors.push(`${where}.affects に語彙外の mode: ${unknown.join(", ")}`);
     changes.push({
       id: `${skill}#${rev}`,
-      revision: /** @type {number} */ (rev),
+      revision: rev,
       axis: String(change.axis),
-      affects: /** @type {string[]} */ (affects),
+      affects,
     });
   });
   // 一覧の revision は最新の改訂番号。改訂の無い番号を名乗ると、成果物がその番号を書いた時点で
   // 「最新の手順で作った」と読まれ、実在しない改訂との比較になる。
   // 1 から revision までのどの番号にも要素が要る。抜けた番号の改訂は対象の判定から消え、
   // その軸を一度も求めないまま exit 0 になる（最新の番号だけ確かめても抜けは見えない）。
-  if (Number.isInteger(revision)) {
-    for (let rev = 1; rev <= /** @type {number} */ (revision); rev += 1) {
+  if (revision !== null) {
+    for (let rev = 1; rev <= revision; rev += 1) {
       if (!seen.has(rev)) errors.push(`revision ${rev} に対応する changes の要素が無い`);
     }
   }
   if (errors.length > 0) return { ok: false, errors };
+  // errors が空なら skill は REVISIONS_SKILL、revision は 1 以上の整数なので、次の行は型を絞るためだけにある（到達しない）。
+  if (typeof skill !== "string" || revision === null) return { ok: false, errors };
   return {
     ok: true,
-    skill: /** @type {string} */ (skill),
-    revision: /** @type {number} */ (revision),
+    skill,
+    revision,
     changes,
   };
 }
@@ -303,6 +316,7 @@ function looksLikeTableRow(line) {
  * @returns {number}
  */
 export function countRowLikeLines(text, consumed = new Set()) {
+  /** @type {string | null} */
   let fence = null;
   let comment = false;
   let count = 0;
@@ -334,6 +348,7 @@ export function countRowLikeLines(text, consumed = new Set()) {
 export function strayCommentMarkers(text) {
   /** @type {number[]} */
   const lines = [];
+  /** @type {string | null} */
   let fence = null;
   let comment = false;
   text.split(/\r?\n/u).forEach((line, index) => {
@@ -417,76 +432,74 @@ export function readLedger(text, skillChangeIds) {
   }
   if (markers.unclosed) errors.push("HTML コメントが閉じていない（以降の表が読まれない）");
   if (errors.length > 0) return { ok: false, errors };
+  // 表が無ければ上で errors に積んで返しているので、次の行は型を絞るためだけにある（到達しない）。
+  if (changeTable.table === null || recordTable.table === null) return { ok: false, errors };
 
   /** @type {Array<{ id: string, added_at: string, axis: string, origin: string, affects: string[], placement: string }>} */
   const changes = [];
   const changeIds = new Set();
-  /** @type {{ headers: string[], rows: string[][] }} */ (changeTable.table).rows.forEach(
-    (raw, index) => {
-      const where = `観点の追加 ${index + 1} 行目`;
-      const row = raw.map(collapse);
-      if (row.length !== CHANGE_HEADERS.length) {
-        errors.push(`${where}: 列数が ${CHANGE_HEADERS.length} でない`);
-        return;
-      }
-      const [id, addedAt, axis, origin, modesCell, placement] = row;
-      if (id === "") errors.push(`${where}: ID が空`);
-      // `<スキル名>#<改訂>` はスキルの改訂の変更 ID に予約する（記録の参照先が 2 つに割れないように）。
-      else if (id.includes("#"))
-        errors.push(`${where}: ID に # を使わない（スキルの改訂の ID と衝突する）: ${id}`);
-      else if (changeIds.has(id)) errors.push(`${where}: ID が重複している: ${id}`);
-      changeIds.add(id);
-      if (!isDate(addedAt)) errors.push(`${where}: 追加日が YYYY-MM-DD でない: ${addedAt}`);
-      if (axis === "") errors.push(`${where}: 足した軸が空`);
-      if (origin === "") errors.push(`${where}: 由来が空`);
-      const affects = parseModes(modesCell);
-      if (affects === null) {
-        errors.push(`${where}: 対象の種類が * か ${MODES.join(" / ")} の列挙でない: ${modesCell}`);
-      }
-      // 置き場の無い変更は、当て直しを誰が完了条件に持つのかが決まらない（見つけた機能にだけ直しが入る形に戻る）。
-      if (placement !== PLACEMENT_IN_CHANGE && !/^#\d+$/u.test(placement)) {
-        errors.push(
-          `${where}: 見直しの置き場が「${PLACEMENT_IN_CHANGE}」か #<Issue 番号> でない: ${placement}`,
-        );
-      }
-      changes.push({ id, added_at: addedAt, axis, origin, affects: affects ?? [], placement });
-    },
-  );
+  changeTable.table.rows.forEach((raw, index) => {
+    const where = `観点の追加 ${index + 1} 行目`;
+    const row = raw.map(collapse);
+    if (row.length !== CHANGE_HEADERS.length) {
+      errors.push(`${where}: 列数が ${CHANGE_HEADERS.length} でない`);
+      return;
+    }
+    const [id, addedAt, axis, origin, modesCell, placement] = row;
+    if (id === "") errors.push(`${where}: ID が空`);
+    // `<スキル名>#<改訂>` はスキルの改訂の変更 ID に予約する（記録の参照先が 2 つに割れないように）。
+    else if (id.includes("#"))
+      errors.push(`${where}: ID に # を使わない（スキルの改訂の ID と衝突する）: ${id}`);
+    else if (changeIds.has(id)) errors.push(`${where}: ID が重複している: ${id}`);
+    changeIds.add(id);
+    if (!isDate(addedAt)) errors.push(`${where}: 追加日が YYYY-MM-DD でない: ${addedAt}`);
+    if (axis === "") errors.push(`${where}: 足した軸が空`);
+    if (origin === "") errors.push(`${where}: 由来が空`);
+    const affects = parseModes(modesCell);
+    if (affects === null) {
+      errors.push(`${where}: 対象の種類が * か ${MODES.join(" / ")} の列挙でない: ${modesCell}`);
+    }
+    // 置き場の無い変更は、当て直しを誰が完了条件に持つのかが決まらない（見つけた機能にだけ直しが入る形に戻る）。
+    if (placement !== PLACEMENT_IN_CHANGE && !/^#\d+$/u.test(placement)) {
+      errors.push(
+        `${where}: 見直しの置き場が「${PLACEMENT_IN_CHANGE}」か #<Issue 番号> でない: ${placement}`,
+      );
+    }
+    changes.push({ id, added_at: addedAt, axis, origin, affects: affects ?? [], placement });
+  });
 
   /** @type {Array<{ id: string, change: string, slug: string, decision: string, recorded_at: string, basis: string }>} */
   const records = [];
   const recordIds = new Set();
   const decisions = Object.values(DECISIONS);
-  /** @type {{ headers: string[], rows: string[][] }} */ (recordTable.table).rows.forEach(
-    (raw, index) => {
-      const where = `当て直し ${index + 1} 行目`;
-      const row = raw.map(collapse);
-      if (row.length !== RECORD_HEADERS.length) {
-        errors.push(`${where}: 列数が ${RECORD_HEADERS.length} でない`);
-        return;
-      }
-      const [id, change, slug, decision, recordedAt, basis] = row;
-      if (id === "") errors.push(`${where}: 記録 ID が空`);
-      else if (recordIds.has(id)) errors.push(`${where}: 記録 ID が重複している: ${id}`);
-      recordIds.add(id);
-      // 綴り違いの変更 ID は、どの変更も解決しないまま「記録した」つもりになる。
-      if (!changeIds.has(change) && !skillChangeIds.has(change)) {
-        errors.push(`${where}: 変更 ID が台帳にも改訂一覧にも無い: ${change}`);
-      }
-      if (slug === "") errors.push(`${where}: slug が空`);
-      if (!decisions.includes(decision)) {
-        errors.push(`${where}: 判断が ${decisions.join(" / ")} のどれでもない: ${decision}`);
-      }
-      if (!isDate(recordedAt)) errors.push(`${where}: 記録日が YYYY-MM-DD でない: ${recordedAt}`);
-      // 当て直しは根拠（PR・commit・成果物）、当てないは理由、見直し中は置き場が要る。どれも空では判断が読めない。
-      if (basis === "" || basis === "-" || basis === "—") errors.push(`${where}: 根拠・理由が空`);
-      // 見直し中は置き場で追っていることが要る。散文だけでは、どこで当て直すのかが読めない。
-      else if (decision === DECISIONS.inProgress && !/^#\d+/u.test(basis)) {
-        errors.push(`${where}: 見直し中の根拠・理由が #<Issue 番号> で始まらない: ${basis}`);
-      }
-      records.push({ id, change, slug, decision, recorded_at: recordedAt, basis });
-    },
-  );
+  recordTable.table.rows.forEach((raw, index) => {
+    const where = `当て直し ${index + 1} 行目`;
+    const row = raw.map(collapse);
+    if (row.length !== RECORD_HEADERS.length) {
+      errors.push(`${where}: 列数が ${RECORD_HEADERS.length} でない`);
+      return;
+    }
+    const [id, change, slug, decision, recordedAt, basis] = row;
+    if (id === "") errors.push(`${where}: 記録 ID が空`);
+    else if (recordIds.has(id)) errors.push(`${where}: 記録 ID が重複している: ${id}`);
+    recordIds.add(id);
+    // 綴り違いの変更 ID は、どの変更も解決しないまま「記録した」つもりになる。
+    if (!changeIds.has(change) && !skillChangeIds.has(change)) {
+      errors.push(`${where}: 変更 ID が台帳にも改訂一覧にも無い: ${change}`);
+    }
+    if (slug === "") errors.push(`${where}: slug が空`);
+    if (!decisions.includes(decision)) {
+      errors.push(`${where}: 判断が ${decisions.join(" / ")} のどれでもない: ${decision}`);
+    }
+    if (!isDate(recordedAt)) errors.push(`${where}: 記録日が YYYY-MM-DD でない: ${recordedAt}`);
+    // 当て直しは根拠（PR・commit・成果物）、当てないは理由、見直し中は置き場が要る。どれも空では判断が読めない。
+    if (basis === "" || basis === "-" || basis === "—") errors.push(`${where}: 根拠・理由が空`);
+    // 見直し中は置き場で追っていることが要る。散文だけでは、どこで当て直すのかが読めない。
+    else if (decision === DECISIONS.inProgress && !/^#\d+/u.test(basis)) {
+      errors.push(`${where}: 見直し中の根拠・理由が #<Issue 番号> で始まらない: ${basis}`);
+    }
+    records.push({ id, change, slug, decision, recorded_at: recordedAt, basis });
+  });
   if (errors.length > 0) return { ok: false, errors };
   return { ok: true, changes, records };
 }
@@ -513,9 +526,7 @@ export function readArtifacts(parityDir, latestRevision) {
         mode: null,
         procedure_revision: null,
         finished_on: null,
-        problems: [
-          `成果物のディレクトリを読めない: ${error && /** @type {Error} */ (error).message}`,
-        ],
+        problems: [`成果物のディレクトリを読めない: ${errorMessage(error)}`],
       });
       continue;
     }
@@ -571,7 +582,7 @@ export function readArtifacts(parityDir, latestRevision) {
         mode: null,
         procedure_revision: null,
         finished_on: null,
-        problems: [`metadata.json を読めない: ${error && /** @type {Error} */ (error).message}`],
+        problems: [`metadata.json を読めない: ${errorMessage(error)}`],
       });
       continue;
     }
@@ -583,9 +594,8 @@ export function readArtifacts(parityDir, latestRevision) {
         `metadata.json の slug (${JSON.stringify(meta.slug)}) が置き場の slug (${name}) と一致しない`,
       );
     }
-    const mode = MODES.includes(/** @type {string} */ (meta.mode))
-      ? /** @type {string} */ (meta.mode)
-      : null;
+    // MODES は文字列だけなので、typeof は型を絞るためだけにある（判定は変わらない）。
+    const mode = typeof meta.mode === "string" && MODES.includes(meta.mode) ? meta.mode : null;
     if (mode === null) problems.push(`mode が ${MODES.join(" / ")} のどれでもない`);
     const run = isObject(meta.run) ? meta.run : {};
     /** @type {number | null} */
@@ -594,17 +604,18 @@ export function readArtifacts(parityDir, latestRevision) {
       // キーが無いのは本機構の導入前の成果物。どの改訂も当たっていないとして 0 で比べる（合格として扱わない）。
       procedureRevision = 0;
     } else if (
+      typeof run.procedure_revision !== "number" ||
       !Number.isInteger(run.procedure_revision) ||
-      /** @type {number} */ (run.procedure_revision) < 0
+      run.procedure_revision < 0
     ) {
       problems.push("run.procedure_revision が 0 以上の整数でない");
-    } else if (/** @type {number} */ (run.procedure_revision) > latestRevision) {
+    } else if (run.procedure_revision > latestRevision) {
       // 渡された改訂一覧より新しい手順で作られた成果物。一覧（インストール済みの parity-suite）が古い。
       problems.push(
         `run.procedure_revision (${run.procedure_revision}) が改訂一覧の最新 (${latestRevision}) より大きい（渡した改訂一覧が古い）`,
       );
     } else {
-      procedureRevision = /** @type {number} */ (run.procedure_revision);
+      procedureRevision = run.procedure_revision;
     }
     slugs.push({
       slug: name,
@@ -745,7 +756,7 @@ export function main(argv, deps = {}) {
   try {
     revisionsDoc = JSON.parse(readFileSync(revisionsPath, "utf8"));
   } catch (error) {
-    return fail(`${revisionsPath} を読めない: ${error && /** @type {Error} */ (error).message}`);
+    return fail(`${revisionsPath} を読めない: ${errorMessage(error)}`);
   }
   const revisions = readRevisions(revisionsDoc);
   if (!revisions.ok) {
@@ -777,7 +788,7 @@ export function main(argv, deps = {}) {
     try {
       text = readFileSync(ledgerPath, "utf8");
     } catch (error) {
-      return fail(`${ledgerPath} を読めない: ${error && /** @type {Error} */ (error).message}`);
+      return fail(`${ledgerPath} を読めない: ${errorMessage(error)}`);
     }
     const read = readLedger(text, skillChangeIds);
     if (!read.ok) {
@@ -795,7 +806,7 @@ export function main(argv, deps = {}) {
     if (!statSync(parityDir).isDirectory()) return fail(`${parityDir} がディレクトリでない`);
     artifacts = readArtifacts(parityDir, revisions.revision);
   } catch (error) {
-    return fail(`${parityDir} を読めない: ${error && /** @type {Error} */ (error).message}`);
+    return fail(`${parityDir} を読めない: ${errorMessage(error)}`);
   }
   const { slugs } = artifacts;
   const all = check({ revisions, ledger, slugs });

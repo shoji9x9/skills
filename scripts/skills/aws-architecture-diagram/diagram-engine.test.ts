@@ -12,6 +12,10 @@ import { assert, test, expect } from "vitest";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { renderDiagram } from "../../../skills/aws-architecture-diagram/assets/engine/diagram-engine.mjs";
+import type {
+  DiagramSpec as EngineSpec,
+  Point,
+} from "../../../skills/aws-architecture-diagram/assets/engine/diagram-engine.mjs";
 import {
   environments,
   baseSpec,
@@ -21,13 +25,13 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..")
 const skillDir = join(repoRoot, "skills/aws-architecture-diagram");
 const iconDir = join(skillDir, "assets/starter/icons");
 
-// 描画エンジンの .mjs は JSDoc を持たず、spec の引数の型が推論されない。テストが触るフィールドだけを型にする。
-type DiagramNode = { id: string; x: number; y: number; [key: string]: unknown };
-type DiagramEdge = { from: string; to: string; [key: string]: unknown };
-type DiagramSpec = { nodes: DiagramNode[]; edges: DiagramEdge[]; [key: string]: unknown };
-type Point = { x: number; y: number };
+// spec の型は描画エンジンの JSDoc（@typedef）から取る。テストは nodes と edges を必ず持つ spec だけを使う。
+type DiagramSpec = EngineSpec & {
+  nodes: NonNullable<EngineSpec["nodes"]>;
+  edges: NonNullable<EngineSpec["edges"]>;
+};
 /** 環境レジストリの 1 環境。transform を省略した環境は base をそのまま描く。 */
-type Environment = { title?: string; transform?: (base: DiagramSpec) => DiagramSpec };
+type Environment = { title?: string; transform?: (base: typeof baseSpec) => DiagramSpec };
 const registry: Record<string, Environment> = environments;
 
 const render = (spec: DiagramSpec): string => renderDiagram(spec, { iconDir });

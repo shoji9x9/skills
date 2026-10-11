@@ -24,6 +24,7 @@ const ICONS_PAGE = "https://aws.amazon.com/architecture/icons/";
 
 // フラグが在ることと値を区別する。値が無いときや、次が別のフラグ（--）のときは、エラーにする。
 // 警告なしに次のフラグを値として扱ったり、全件の取得として扱ったりしない。
+/** @param {string} name */
 function arg(name) {
   const argv = process.argv.slice(2);
   const eq = argv.find((a) => a.startsWith(`${name}=`));
@@ -53,19 +54,26 @@ if (only && !only.length) {
 }
 
 const manifest = JSON.parse(readFileSync(join(DIAGRAM_DIR, "icon-manifest.json"), "utf8"));
-if (!manifest.aws || typeof manifest.aws !== "object") {
+// null の manifest は、aws を読む前に TypeError で止める（元の `manifest.aws` の読み取りと同じ振る舞い）。
+if (manifest === null) throw new TypeError("Cannot read properties of null (reading 'aws')");
+const awsMap = typeof manifest === "object" && "aws" in manifest ? manifest.aws : undefined;
+if (!awsMap || typeof awsMap !== "object") {
   throw new Error(
     'icon-manifest.json に aws マッピングがありません（{ "aws": { id: "AWSサービス名" } }）',
   );
 }
-const wanted = Object.entries(manifest.aws).filter(([id]) => !only || only.includes(id));
+const wanted = Object.entries(awsMap).filter(([id]) => !only || only.includes(id));
 if (only) {
-  const unknown = only.filter((id) => !(id in manifest.aws));
+  const unknown = only.filter((id) => !(id in awsMap));
   if (unknown.length)
     console.error(`警告: マニフェストに無い id を無視します: ${unknown.join(", ")}`);
 }
 
 // HTTP ステータスを確かめてから本文を返す（200 以外の応答が、後の処理で原因の分からないエラーにならないように）。
+/**
+ * @param {string} url
+ * @param {string} what
+ */
 async function fetchOk(url, what) {
   const res = await fetch(url);
   if (!res.ok)
@@ -85,6 +93,14 @@ async function resolvePackageUrl() {
 }
 
 // --- 標準 ZIP の展開（必要ファイルだけ、central directory から解決） ---
+/**
+ * @typedef {{ name: string, method: number, compSize: number, localOffset: number }} ZipEntry
+ */
+
+/**
+ * @param {Buffer} buf
+ * @returns {Map<string | undefined, ZipEntry>}
+ */
 function readZipEntries(buf) {
   // End Of Central Directory を末尾から探す。
   let eocd = -1;
@@ -115,6 +131,10 @@ function readZipEntries(buf) {
   return entries;
 }
 
+/**
+ * @param {Buffer} buf
+ * @param {ZipEntry} entry
+ */
 function extract(buf, entry) {
   // ローカルヘッダから実データ開始位置を求める（name/extra 長は central と別値のことがある）。
   const lo = entry.localOffset;

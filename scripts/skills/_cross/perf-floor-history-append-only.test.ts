@@ -18,6 +18,10 @@ const perfStats = join(repoRoot, "skills/parity-suite/scripts/perf-stats.mjs");
 const appendOnly = join(repoRoot, "skills/replace-strategy/scripts/append-only-check.mjs");
 
 const META = ".replace/parity/demo/metadata.json";
+
+/** metadata.json の performance。テストが触る floors だけを型にする（形の検証は expect が行う）。 */
+type PerformanceDoc = { floors: Record<string, number>; [key: string]: unknown };
+type MetadataDoc = { performance: PerformanceDoc; [key: string]: unknown };
 const SAMPLES = ".replace/parity/demo/perf-samples.json";
 
 const capture = {
@@ -141,10 +145,10 @@ test("同梱の一覧の pinned_values は、parity-suite の metadata の雛形
 test("雛形の performance をそのまま足しても、その後に summarize を通しても、チェックを通る", () => {
   // 雛形の floors は値を持つので、記録の無い空の floor_history と組むと「追記なしの書き換え」で落ちる
   const root = makeRepo({ summarized: false });
-  const template = JSON.parse(
+  const template = parseJsonAs<MetadataDoc>(
     readFileSync(join(repoRoot, "skills/parity-suite/assets/metadata-template.json"), "utf8"),
   );
-  const doc = JSON.parse(readFileSync(join(root, META), "utf8"));
+  const doc = parseJsonAs<MetadataDoc>(readFileSync(join(root, META), "utf8"));
   doc.performance = { ...template.performance, declared: false, reason: "まだ採っていない" };
   writeFileSync(join(root, META), `${JSON.stringify(doc, null, 2)}\n`);
   const added = appendOnlyCheck(root);
@@ -162,7 +166,7 @@ test("summarize --write で下限を変えた採り直しは、append-only チ�
   const r = appendOnlyCheck(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
-  const perf = JSON.parse(readFileSync(join(root, META), "utf8")).performance;
+  const perf = parseJsonAs<MetadataDoc>(readFileSync(join(root, META), "utf8")).performance;
   expect(perf.floor_history).toHaveLength(2);
 });
 
@@ -177,7 +181,7 @@ test("summarize --write で下限を変えない採り直しも通る", () => {
 test("手で書き換えた下限に、同じ値で summarize --write を通し直せば通る", () => {
   // 書き手が作業ツリーの前の値と比べると追記されず、正規の書き手でチェックを通せない状態が残る
   const root = makeRepo();
-  const doc = JSON.parse(readFileSync(join(root, META), "utf8"));
+  const doc = parseJsonAs<MetadataDoc>(readFileSync(join(root, META), "utf8"));
   doc.performance.floors.lcp = 150;
   writeFileSync(join(root, META), `${JSON.stringify(doc, null, 2)}\n`);
   expect(appendOnlyCheck(root).status).toBe(1);
@@ -190,12 +194,12 @@ test("手で書き換えた下限に、同じ値で summarize --write を通し�
 test("commit 済みの表が履歴と食い違っていても、summarize --write の出力はチェックを通る", () => {
   // 新規のファイルとして commit すると append-only チェックは比べないので、この状態になりうる
   const root = makeRepo();
-  const doc = JSON.parse(readFileSync(join(root, META), "utf8"));
+  const doc = parseJsonAs<MetadataDoc>(readFileSync(join(root, META), "utf8"));
   doc.performance.floors.lcp = 300;
   writeFileSync(join(root, META), `${JSON.stringify(doc, null, 2)}\n`);
   git(root, ["commit", "-qam", "mismatch"]);
   summarize(root);
-  const perf = JSON.parse(readFileSync(join(root, META), "utf8")).performance;
+  const perf = parseJsonAs<MetadataDoc>(readFileSync(join(root, META), "utf8")).performance;
   expect(perf.floors.lcp).toBe(100);
   const r = appendOnlyCheck(root);
   expect(r.stdout).toMatch(/^ok: /m);
@@ -207,14 +211,14 @@ test("--floor を省いて採り直しても、前に決めた下限は変わら
   summarize(root, ["--floor", "lcp=50"]);
   git(root, ["commit", "-qam", "tighten"]);
   summarize(root);
-  const perf = JSON.parse(readFileSync(join(root, META), "utf8")).performance;
+  const perf = parseJsonAs<MetadataDoc>(readFileSync(join(root, META), "utf8")).performance;
   expect(perf.floors.lcp).toBe(50);
   expect(appendOnlyCheck(root).status).toBe(0);
 });
 
 test("summarize を通さずに下限を手で緩めた変更は、append-only チェックが exit 1 にする", () => {
   const root = makeRepo();
-  const doc = JSON.parse(readFileSync(join(root, META), "utf8"));
+  const doc = parseJsonAs<MetadataDoc>(readFileSync(join(root, META), "utf8"));
   doc.performance.floors.lcp = 1000;
   writeFileSync(join(root, META), `${JSON.stringify(doc, null, 2)}\n`);
   const r = appendOnlyCheck(root);

@@ -137,7 +137,7 @@
       "id": "SC-REASON",
       "why": "理由の無い「配線しない」を受理する",
       "file": "scripts/gates/check-skill-checks.ts",
-      "find": "    if (!isText(u?.reason))\n      throw",
+      "find": "    if (!isText(entry.reason))\n      throw",
       "replace": "    if (false)\n      throw",
       "occurrences": 1,
       "expect_failing": ["陽性: 組み込まない一覧が読めない（reason が空白だけ）なら exit 2"]

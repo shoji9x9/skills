@@ -26,7 +26,6 @@ import { basename, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { errorMessage } from "../lib/errors.ts";
 import { isRecord } from "../lib/guards.ts";
-import { parseJsonAs } from "../lib/parse-as.ts";
 
 export const UNWIRED_PATH = "scripts/gates/skill-checks-unwired.json";
 export const DECLARATION_NAME = "checks.json";
@@ -140,13 +139,15 @@ export function findCheckScripts(root: string): string[] {
 export function loadUnwired(root: string): string[] {
   const path = join(root, UNWIRED_PATH);
   if (!existsSync(path)) throw new Error(`${UNWIRED_PATH} が無い`);
-  const data = parseJsonAs<{ unwired?: unknown } | null>(readFileSync(path, "utf8"));
-  if (!Array.isArray(data?.unwired)) throw new Error("unwired は配列にする");
-  return data.unwired.map((u, i) => {
-    if (!isText(u?.script)) throw new Error(`unwired[${i}].script が無い`);
-    if (!isText(u?.reason))
+  const data: unknown = JSON.parse(readFileSync(path, "utf8"));
+  const unwired = isRecord(data) ? data.unwired : undefined;
+  if (!Array.isArray(unwired)) throw new Error("unwired は配列にする");
+  return unwired.map((u: unknown, i) => {
+    const entry: Record<string, unknown> = isRecord(u) ? u : {};
+    if (!isText(entry.script)) throw new Error(`unwired[${i}].script が無い`);
+    if (!isText(entry.reason))
       throw new Error(`unwired[${i}].reason が無い（組み込まない理由を書く）`);
-    return u.script;
+    return entry.script;
   });
 }
 

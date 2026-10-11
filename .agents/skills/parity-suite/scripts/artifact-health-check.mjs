@@ -49,10 +49,13 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 // 同じディレクトリの evidence-carry.mjs は、このファイルの実パスから解決して読み込む。
 // 静的な "./evidence-carry.mjs" は、--preserve-symlinks-main でファイル単位のシンボリックリンクから起動されると、
 // リンクの置き場所から解決して見つからない。持ち越しを使わない実行（引数不足の usage 表示を含む）まで、起動時に失敗する。
-const { EVIDENCE_CARRY_FILE, judgeCarry } = await import(
+// 型は同じファイルの宣言から取る（動的な import の戻り値は型を持たない）。
+/** @type {typeof import("./evidence-carry.mjs")} */
+const evidenceCarry = await import(
   pathToFileURL(join(dirname(realpathSync(fileURLToPath(import.meta.url))), "evidence-carry.mjs"))
     .href
 );
+const { EVIDENCE_CARRY_FILE, judgeCarry } = evidenceCarry;
 
 /**
  * ツールのバージョン（原本）。判定ロジック・出力形状を変えたら上げる。
@@ -101,10 +104,23 @@ export class UsageError extends Error {}
 
 /**
  * @param {unknown} v
- * @returns {boolean}
+ * @returns {v is string}
  */
 function nonEmptyString(v) {
   return typeof v === "string" && v.trim() !== "";
+}
+
+/**
+ * 記録の spec_fingerprints から、正規化するとスペック spec になるキーの指紋を文字列で返す。
+ * 呼び出し側は、spec_fingerprints がオブジェクトで、そのキーを持つ記録だけを渡す。
+ * @param {unknown} prints
+ * @param {string} spec
+ * @returns {string}
+ */
+function specFingerprint(prints, spec) {
+  if (!isPlainObject(prints)) throw new TypeError("spec_fingerprints がオブジェクトでない");
+  const key = Object.keys(prints).find((k) => normalizeRel(k) === spec);
+  return String(prints[String(key)]).trim();
 }
 
 /**
@@ -134,7 +150,8 @@ function realPathOf(p) {
       const real = realpathSync(current);
       return tail.length === 0 ? real : join(real, ...tail);
     } catch (e) {
-      if (/** @type {NodeJS.ErrnoException} */ (e).code !== "ENOENT") return null;
+      const code = e instanceof Error && "code" in e ? e.code : undefined;
+      if (code !== "ENOENT") return null;
     }
     const parent = dirname(current);
     // ルートまで遡っても解けない（存在しないドライブ等）。文字列のまま通さない。
@@ -300,13 +317,17 @@ export function stripJsComments(src) {
   const braces = [];
   let i = 0;
   const n = src.length;
+  /** @param {string} c */
   const isWs = (c) => /\s/.test(c);
+  /** @param {string} c */
   const isIdent = (c) => /[\w$\\]/.test(c) || c.charCodeAt(0) > 0x7f;
+  /** @param {string} s */
   const emit = (s) => {
     if (pendingWs !== "" && out !== "") out += pendingWs;
     pendingWs = "";
     out += s;
   };
+  /** @param {boolean} hasNewline */
   const ws = (hasNewline) => {
     if (hasNewline) pendingWs = "\n";
     else if (pendingWs === "") pendingWs = " ";
@@ -502,6 +523,7 @@ export function checkArtifacts(metadata, ctx) {
     );
   if (!Array.isArray(health.entries)) throw new UsageError("artifact_health.entries が配列でない");
 
+  /** @type {string[]} */
   let present = [];
   if (!existsSync(baselineDir) || !statSync(baselineDir).isDirectory()) {
     findings.push(`artifact_health.declared: true なのに baseline_dir が無い: ${baselineDir}`);
@@ -549,7 +571,7 @@ export function checkArtifacts(metadata, ctx) {
     }
 
     const kind = entry.kind;
-    if (!ARTIFACT_KINDS.includes(/** @type {string} */ (kind))) {
+    if (typeof kind !== "string" || !ARTIFACT_KINDS.includes(kind)) {
       findings.push(`採取物の kind が語彙外（${ARTIFACT_KINDS.join(" / ")}）: ${p}`);
     }
 
@@ -1126,11 +1148,7 @@ function checkRepeatRunPerSpec(suiteObj, record, root) {
     }
     const tail = hits.slice(-2);
     findings.push(...pairFindings(tail, `スペック ${spec}: `));
-    const recorded = tail.map((run) => {
-      const prints = /** @type {Record<string, unknown>} */ (run.spec_fingerprints);
-      const key = Object.keys(prints).find((k) => normalizeRel(k) === spec);
-      return String(prints[/** @type {string} */ (key)]).trim();
-    });
+    const recorded = tail.map((run) => specFingerprint(run.spec_fingerprints, spec));
     if (recorded.some((fp) => fp !== current.specs[spec])) {
       findings.push(
         `状態を変えるスペック ${spec} の 2 回の記録は現在のスペックのものでない（記録 ${recorded.join(" / ")} ≠ 実測 ${current.specs[spec]}）。このスペックを 2 回続けて回し直す`,
@@ -1167,9 +1185,7 @@ function checkRepeatRunPerSpec(suiteObj, record, root) {
       );
       continue;
     }
-    const prints = /** @type {Record<string, unknown>} */ (last.spec_fingerprints);
-    const key = /** @type {string} */ (Object.keys(prints).find((k) => normalizeRel(k) === spec));
-    const recorded = String(prints[key]).trim();
+    const recorded = specFingerprint(last.spec_fingerprints, spec);
     const shared = nonEmptyString(last.shared_fingerprint)
       ? String(last.shared_fingerprint).trim()
       : null;
@@ -1407,7 +1423,7 @@ export function checkUnmeasured(metadata, ctx) {
       continue;
     }
     const disposition = entry.disposition;
-    if (!DISPOSITIONS.includes(/** @type {string} */ (disposition))) {
+    if (typeof disposition !== "string" || !DISPOSITIONS.includes(disposition)) {
       findings.push(
         `未測定の disposition が語彙外（${DISPOSITIONS.join(" / ")}）のため blocking として数える: ${item}`,
       );
@@ -1478,7 +1494,8 @@ export function affectsBetween(changes, v, c) {
   for (let i = 1; i <= c; i += 1) if (!byVersion.has(i)) return null;
   /** @type {string[]} */
   const out = [];
-  for (let i = v + 1; i <= c; i += 1) out.push(.../** @type {string[]} */ (byVersion.get(i)));
+  // 1 から c までの版がすべて在ることは、直前で確かめている
+  for (let i = v + 1; i <= c; i += 1) out.push(...(byVersion.get(i) ?? []));
   return [...new Set(out)];
 }
 
@@ -1551,10 +1568,12 @@ export function checkStage(ctx) {
   // 環境の対応づけ。同じコミット・同じ反復は環境をまたいで一致しうるので、
   // 両成果物が記録している target 名を --target と突き合わせる
   // （別 target のディレクトリへコピーしただけの成果物が、その環境で差分を採らずに通るのを防ぐ）。
-  for (const [label, value] of /** @type {[string, unknown][]} */ ([
+  /** @type {Array<[string, unknown]>} */
+  const recordedTargets = [
     ["replace-metadata.json", replaceNew === null ? undefined : replaceNew.target],
     ["diff-metadata.json", diffNew === null ? undefined : diffNew.target],
-  ])) {
+  ];
+  for (const [label, value] of recordedTargets) {
     if (!nonEmptyString(value)) {
       notes.push(`${label} が new.target を持たないため環境の対応を判定しない（旧成果物）`);
       continue;
@@ -1577,7 +1596,10 @@ export function checkStage(ctx) {
 
   const replaceCommit = replaceNew === null ? undefined : replaceNew.commit;
   const diffCommit = diffNew === null ? undefined : diffNew.commit;
-  /** @param {string} recordedCommit @param {string} wantedCommit */
+  /**
+   * @param {string} recordedCommit
+   * @param {string} wantedCommit
+   */
   const carryFrom = (recordedCommit, wantedCommit) =>
     judgeCarry({
       recordedCommit,

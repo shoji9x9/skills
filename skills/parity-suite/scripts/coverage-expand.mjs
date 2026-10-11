@@ -74,7 +74,7 @@ function nonEmptyString(v) {
 /**
  * JSON オブジェクト（配列でない）か。配列は typeof で "object" を通るため明示的に弾く。
  * @param {unknown} v
- * @returns {boolean}
+ * @returns {v is Record<string, unknown>}
  */
 function isPlainObject(v) {
   return Boolean(v) && typeof v === "object" && !Array.isArray(v);
@@ -102,6 +102,7 @@ export function coverageFingerprint(table) {
  * @returns {string}
  */
 export function captureFingerprint(capture) {
+  /** @param {unknown} v */
   const sorted = (v) => [...(Array.isArray(v) ? v : [])].map(String).sort();
   return createHash("sha256")
     .update(
@@ -174,7 +175,7 @@ function firedEvidenceProblem(evidence, label) {
   if (!isPlainObject(evidence.action)) {
     return `${label}: fired-without-response なのに action が JSON オブジェクトではない`;
   }
-  const action = /** @type {Record<string, unknown>} */ (evidence.action);
+  const action = evidence.action;
   if (!nonEmptyString(action.locator) || !nonEmptyString(action.detail)) {
     return `${label}: fired-without-response の action.locator / action.detail が空`;
   }
@@ -186,7 +187,7 @@ function firedEvidenceProblem(evidence, label) {
   if (!isPlainObject(action.bounding_box)) {
     return `${label}: fired-without-response なのに action.bounding_box が JSON オブジェクトではない`;
   }
-  const box = /** @type {Record<string, unknown>} */ (action.bounding_box);
+  const box = action.bounding_box;
   if (![box.x, box.y, box.width, box.height].every((v) => Number.isFinite(v))) {
     return `${label}: action.bounding_box の x / y / width / height が有限の数値ではない`;
   }
@@ -211,7 +212,7 @@ function firedEvidenceProblem(evidence, label) {
   if (!isPlainObject(evidence.fired)) {
     return `${label}: fired-without-response なのに fired が JSON オブジェクトではない`;
   }
-  const fired = /** @type {Record<string, unknown>} */ (evidence.fired);
+  const fired = evidence.fired;
   if (!inAllowlist(fired.signal, FIRED_SIGNALS)) {
     return `${label}: fired-without-response の fired.signal が ${FIRED_SIGNALS.join(" / ")} のいずれでもない`;
   }
@@ -236,7 +237,7 @@ function absentEvidenceProblem(row, label, stateManifest) {
   if (!isPlainObject(row.absence_evidence)) {
     return `${label}: value: absent なのに absence_evidence が JSON オブジェクトではない`;
   }
-  const evidence = /** @type {Record<string, unknown>} */ (row.absence_evidence);
+  const evidence = row.absence_evidence;
   if (evidence.kind === "fired-without-response") return firedEvidenceProblem(evidence, label);
   if (evidence.kind !== "non-renderable") {
     return `${label}: absence_evidence.kind が fired-without-response / non-renderable のいずれでもない`;
@@ -256,10 +257,8 @@ function absentEvidenceProblem(row, label, stateManifest) {
   if (!isPlainObject(stateManifest)) {
     return `${label}: non-renderable なのにインスタンスの applicable_states が無い`;
   }
-  const manifest = /** @type {Record<string, unknown>} */ (stateManifest);
-  const source = isPlainObject(manifest.source)
-    ? /** @type {Record<string, unknown>} */ (manifest.source)
-    : null;
+  const manifest = stateManifest;
+  const source = isPlainObject(manifest.source) ? manifest.source : null;
   if (
     manifest.complete !== true ||
     source === null ||
@@ -277,7 +276,7 @@ function absentEvidenceProblem(row, label, stateManifest) {
   const manifestStates = new Map();
   for (const [index, rawItem] of manifest.items.entries()) {
     if (!isPlainObject(rawItem)) return `${label}: applicable_states.items[${index}] が不正`;
-    const item = /** @type {Record<string, unknown>} */ (rawItem);
+    const item = rawItem;
     if (!nonEmptyString(item.id) || !nonEmptyString(item.transition)) {
       return `${label}: applicable_states.items[${index}] の id / transition が空`;
     }
@@ -306,7 +305,7 @@ function absentEvidenceProblem(row, label, stateManifest) {
   for (const [index, rawState] of evidence.states.entries()) {
     const stateLabel = `${label}: non-renderable.states[${index}]`;
     if (!isPlainObject(rawState)) return `${stateLabel} が JSON オブジェクトではない`;
-    const state = /** @type {Record<string, unknown>} */ (rawState);
+    const state = rawState;
     if (!nonEmptyString(state.name) || !nonEmptyString(state.transition)) {
       return `${stateLabel} の name / transition が空`;
     }
@@ -344,7 +343,7 @@ function absentEvidenceProblem(row, label, stateManifest) {
       if (!isPlainObject(state.bounding_box)) {
         return `${stateLabel}.bounding_box が null または JSON オブジェクトではない`;
       }
-      const box = /** @type {Record<string, unknown>} */ (state.bounding_box);
+      const box = state.bounding_box;
       if (![box.x, box.y, box.width, box.height].every((v) => Number.isFinite(v))) {
         return `${stateLabel}.bounding_box の x / y / width / height が有限の数値ではない`;
       }
@@ -359,10 +358,8 @@ function absentEvidenceProblem(row, label, stateManifest) {
       if (!isPlainObject(state.hidden_by)) {
         return `${stateLabel}.hidden_by が null または JSON オブジェクトではない`;
       }
-      const hidden = /** @type {Record<string, unknown>} */ (state.hidden_by);
-      const style = isPlainObject(hidden.computed_style)
-        ? /** @type {Record<string, unknown>} */ (hidden.computed_style)
-        : null;
+      const hidden = state.hidden_by;
+      const style = isPlainObject(hidden.computed_style) ? hidden.computed_style : null;
       hiddenCause =
         nonEmptyString(hidden.locator) &&
         hidden.relationship_verified === true &&
@@ -449,9 +446,7 @@ function showKind(v) {
 function strongerSourceProblems(block, label) {
   /** @type {string[]} */
   const problems = [];
-  const source = isPlainObject(block.source)
-    ? /** @type {Record<string, unknown>} */ (block.source)
-    : null;
+  const source = isPlainObject(block.source) ? block.source : null;
   // 語彙の外・source ごとの欠落は呼び出し側が報告する（ここで二重に出さない）。
   if (source === null || !inAllowlist(source.kind, SET_SOURCE_KINDS)) return problems;
   const primary = SET_SOURCE_KINDS[0];
@@ -508,10 +503,8 @@ function setInventoryProblems(raw, label) {
     );
     return problems;
   }
-  const block = /** @type {Record<string, unknown>} */ (raw);
-  const source = isPlainObject(block.source)
-    ? /** @type {Record<string, unknown>} */ (block.source)
-    : null;
+  const block = raw;
+  const source = isPlainObject(block.source) ? block.source : null;
   if (source === null) {
     problems.push(`${label}.source が無い（どの版のどこから何を条件に列挙したか残らない）`);
   } else {
@@ -561,7 +554,7 @@ function itemSourceProblems(raw, label) {
     problems.push(`${label}.source が無い（項目集合をどこから起こしたか残らない）`);
     return problems;
   }
-  const source = /** @type {Record<string, unknown>} */ (raw);
+  const source = raw;
   for (const key of ["kind", "ref", "retrieved_at"]) {
     if (!nonEmptyString(source[key])) problems.push(`${label}.source.${key} が空`);
   }
@@ -584,9 +577,7 @@ function itemSourceProblems(raw, label) {
 function enumerationSourceProblems(en, label) {
   /** @type {string[]} */
   const problems = [];
-  const source = isPlainObject(en.source)
-    ? /** @type {Record<string, unknown>} */ (en.source)
-    : null;
+  const source = isPlainObject(en.source) ? en.source : null;
   // source ごとの欠落は呼び出し側が報告する（それぞれ別の未測定の数え方を持つ）。
   if (source === null) return problems;
   if (!inAllowlist(source.kind, SET_SOURCE_KINDS)) {
@@ -617,9 +608,7 @@ function collectGenericIds(entries, label, problems) {
   const seen = new Set();
   let rejected = 0;
   entries.forEach((entry, index) => {
-    const raw = isPlainObject(entry)
-      ? /** @type {Record<string, unknown>} */ (entry).id
-      : undefined;
+    const raw = isPlainObject(entry) ? entry.id : undefined;
     if (!nonEmptyString(raw)) {
       problems.push(`${label}[${index}]: id が空（識別できないので未測定として数える）`);
       rejected += 1;
@@ -658,7 +647,7 @@ function gradeCellRow(row, isDuplicated, label, stateManifest, problems) {
     problems.push(`${label}: セルが無い（行の無い組み合わせは未測定）`);
     return true;
   }
-  const cell = /** @type {Record<string, unknown>} */ (row);
+  const cell = row;
   const value = cell.value;
   if (typeof value !== "string" || !VALUES.includes(value)) {
     problems.push(`${label}: value が ${VALUES.join(" / ")} のいずれでもない`);
@@ -695,12 +684,13 @@ function gradeCellRow(row, isDuplicated, label, stateManifest, problems) {
 export function validateProfile(profile, source) {
   /** @type {string[]} */
   const problems = [];
+  /** @param {string} msg */
   const at = (msg) => problems.push(`${source}: ${msg}`);
   if (!isPlainObject(profile)) {
     at("プロファイルが JSON オブジェクトではない");
     return problems;
   }
-  const p = /** @type {Record<string, unknown>} */ (profile);
+  const p = profile;
   if (!nonEmptyString(p.id)) at("id が空");
   if (!nonEmptyString(p.version)) at("version が空");
   if (!nonEmptyString(p.applies_to)) at("applies_to が空（プロファイル選択の判断材料が残らない）");
@@ -714,7 +704,7 @@ export function validateProfile(profile, source) {
       at(`axes[${i}]: JSON オブジェクトではない`);
       return;
     }
-    const a = /** @type {Record<string, unknown>} */ (axis);
+    const a = axis;
     if (!nonEmptyString(a.id)) {
       at(`axes[${i}]: id が空`);
       return;
@@ -748,7 +738,7 @@ export function validateProfile(profile, source) {
       at(`candidate_rules[${i}]: JSON オブジェクトではない`);
       return;
     }
-    const r = /** @type {Record<string, unknown>} */ (rule);
+    const r = rule;
     if (!nonEmptyString(r.id)) {
       at(`candidate_rules[${i}]: id が空`);
       return;
@@ -794,9 +784,7 @@ export function validateProfile(profile, source) {
       if (!isPlainObject(r.guard)) {
         at(`ルール ${rid}: guard が JSON オブジェクトではない`);
       } else {
-        for (const [key, value] of Object.entries(
-          /** @type {Record<string, unknown>} */ (r.guard),
-        )) {
+        for (const [key, value] of Object.entries(r.guard)) {
           const dot = key.indexOf(".");
           const axisId = dot === -1 ? "" : key.slice(0, dot);
           const flag = dot === -1 ? "" : key.slice(dot + 1);
@@ -830,12 +818,9 @@ export function validateProfile(profile, source) {
   const requirementOfRule = new Map();
   for (const rule of rules) {
     if (!isPlainObject(rule) || !nonEmptyString(rule.id)) continue;
-    const r = /** @type {Record<string, unknown>} */ (rule);
+    const r = rule;
     axesOfRule.set(String(r.id), JSON.stringify(Array.isArray(r.axes) ? r.axes.map(String) : []));
-    guardOfRule.set(
-      String(r.id),
-      isPlainObject(r.guard) ? /** @type {Record<string, unknown>} */ (r.guard) : {},
-    );
+    guardOfRule.set(String(r.id), isPlainObject(r.guard) ? r.guard : {});
     if (nonEmptyString(r.requirement)) requirementOfRule.set(String(r.id), String(r.requirement));
   }
   // 2 つのルールの guard が排他か（同じフラグに逆の値を要求する条件が 1 つ以上ある）。
@@ -894,9 +879,7 @@ export function validateProfile(profile, source) {
   // とくに sources が空だと、readEnumeration の source.kind 検査が「候補ゼロ」として警告なしに通り、
   // どの列挙元でも通ってしまう。procedure / fail_closed / pitfalls が空のプロファイルは、
   // 列挙手順・落としやすい箇所・ソースを読めない場合の扱いを持たないまま配布されるため、ここで落とす。
-  const enumeration = isPlainObject(p.enumeration)
-    ? /** @type {Record<string, unknown>} */ (p.enumeration)
-    : null;
+  const enumeration = isPlainObject(p.enumeration) ? p.enumeration : null;
   if (!enumeration) {
     at("enumeration が無い（列挙元・手順・読めない場合の扱いが宣言されていない）");
   } else {
@@ -944,9 +927,7 @@ export function validateProfile(profile, source) {
     }
   }
 
-  const equivalence = isPlainObject(p.equivalence)
-    ? /** @type {Record<string, unknown>} */ (p.equivalence)
-    : null;
+  const equivalence = isPlainObject(p.equivalence) ? p.equivalence : null;
   if (equivalence) {
     const reducible = Array.isArray(equivalence.reducible_axes) ? equivalence.reducible_axes : [];
     for (const axisId of reducible) {
@@ -996,7 +977,9 @@ export function loadProfiles(dir, deps = {}) {
       problems.push(...found);
       continue;
     }
-    const p = /** @type {Record<string, unknown>} */ (parsed);
+    // validateProfile が問題 0 件を返すのは JSON オブジェクトのときだけなので、ここへは到達しない。
+    if (!isPlainObject(parsed)) continue;
+    const p = parsed;
     const id = String(p.id);
     if (id !== name.slice(0, -".json".length)) {
       problems.push(`${name}: id（${id}）がファイル名と一致しない`);
@@ -1029,20 +1012,16 @@ export function readEnumeration(enumeration, profile, label) {
     problems.push(`${label}: enumeration が無い（候補を展開できない。未列挙として扱う）`);
     return { elements, problems, usable: false };
   }
-  const en = /** @type {Record<string, unknown>} */ (enumeration);
+  const en = enumeration;
 
-  const source = isPlainObject(en.source)
-    ? /** @type {Record<string, unknown>} */ (en.source)
-    : null;
+  const source = isPlainObject(en.source) ? en.source : null;
   if (!source) {
     problems.push(`${label}: enumeration.source が無い（出所が残らない）`);
   } else {
     for (const key of ["kind", "ref", "version", "extracted_at", "condition"]) {
       if (!nonEmptyString(source[key])) problems.push(`${label}: enumeration.source.${key} が空`);
     }
-    const allowed = isPlainObject(profile.enumeration)
-      ? /** @type {Record<string, unknown>} */ (profile.enumeration).sources
-      : null;
+    const allowed = isPlainObject(profile.enumeration) ? profile.enumeration.sources : null;
     const kinds = Array.isArray(allowed) ? allowed.map(String) : [];
     if (kinds.length > 0 && nonEmptyString(source.kind) && !kinds.includes(String(source.kind))) {
       problems.push(
@@ -1080,17 +1059,16 @@ export function readEnumeration(enumeration, profile, label) {
   problems.push(...staleIncompleteReasonProblems(en, label));
 
   const axes = Array.isArray(profile.axes) ? profile.axes : [];
-  const raw = isPlainObject(en.elements)
-    ? /** @type {Record<string, unknown>} */ (en.elements)
-    : {};
+  const raw = isPlainObject(en.elements) ? en.elements : {};
   if (!isPlainObject(en.elements))
     problems.push(`${label}: enumeration.elements が JSON オブジェクトではない`);
   for (const axis of axes) {
-    const a = /** @type {Record<string, unknown>} */ (axis);
+    const a = axis;
     if (a.kind !== "element") continue;
     const axisId = String(a.id);
     const declaredFlags = Array.isArray(a.flags) ? a.flags.map(String) : [];
-    const list = Array.isArray(raw[axisId]) ? /** @type {unknown[]} */ (raw[axisId]) : null;
+    const rawList = raw[axisId];
+    const list = Array.isArray(rawList) ? rawList : null;
     if (list === null) {
       // 軸ごと欠けているのは「その軸の要素が無い」ではなく「列挙していない」。空配列と区別する。
       problems.push(`${label}: 軸 ${axisId} の列挙が無い（要素が無いなら空配列と根拠を残す）`);
@@ -1106,7 +1084,7 @@ export function readEnumeration(enumeration, profile, label) {
         problems.push(`${label}: 軸 ${axisId}[${i}] が JSON オブジェクトではない`);
         return;
       }
-      const e = /** @type {Record<string, unknown>} */ (el);
+      const e = el;
       if (!nonEmptyString(e.id)) {
         problems.push(`${label}: 軸 ${axisId}[${i}]: id が空（候補 id を組めない）`);
         return;
@@ -1125,9 +1103,7 @@ export function readEnumeration(enumeration, profile, label) {
       seen.add(id);
       /** @type {Record<string, boolean>} */
       const flags = {};
-      const rawFlags = isPlainObject(e.flags)
-        ? /** @type {Record<string, unknown>} */ (e.flags)
-        : {};
+      const rawFlags = isPlainObject(e.flags) ? e.flags : {};
       for (const flag of declaredFlags) {
         const v = rawFlags[flag];
         if (typeof v !== "boolean") {
@@ -1187,7 +1163,7 @@ export function readJustifiedAbsences(raw, elements, label) {
       problems.push(`${label}: justified_absences[${i}] が JSON オブジェクトではない`);
       return;
     }
-    const e = /** @type {Record<string, unknown>} */ (entry);
+    const e = entry;
     if (!nonEmptyString(e.scope)) {
       problems.push(`${label}: justified_absences[${i}]: scope が空`);
       return;
@@ -1244,7 +1220,7 @@ export function expandCandidates(profile, elements) {
   /** @type {Map<string, {kind: string, values: string[]}>} */
   const axisById = new Map();
   for (const axis of axes) {
-    const a = /** @type {Record<string, unknown>} */ (axis);
+    const a = axis;
     axisById.set(String(a.id), {
       kind: String(a.kind),
       values: Array.isArray(a.values) ? a.values.map(String) : [],
@@ -1254,10 +1230,12 @@ export function expandCandidates(profile, elements) {
   /** @type {Array<{id: string, rule: string, axes: Record<string, string>}>} */
   const candidates = [];
   for (const rule of rules) {
-    const r = /** @type {Record<string, unknown>} */ (rule);
+    const r = rule;
     const ruleId = String(r.id);
+    /** @type {string[]} */
     const ruleAxes = (Array.isArray(r.axes) ? r.axes : []).map(String);
-    const guard = isPlainObject(r.guard) ? /** @type {Record<string, boolean>} */ (r.guard) : {};
+    /** @type {Record<string, unknown>} */
+    const guard = isPlainObject(r.guard) ? r.guard : {};
     /** @type {Array<Array<{value: string, flags: Record<string, boolean>}>>} */
     const columns = [];
     let expandable = true;
@@ -1316,15 +1294,9 @@ export function expandCandidates(profile, elements) {
  */
 export function justifiedEmptyAxis(profile, ruleId, elements, absences) {
   const rules = Array.isArray(profile.candidate_rules) ? profile.candidate_rules : [];
-  const rule = rules.find(
-    (r) => isPlainObject(r) && String(/** @type {Record<string, unknown>} */ (r).id) === ruleId,
-  );
+  const rule = rules.find((r) => isPlainObject(r) && String(r.id) === ruleId);
   if (!rule) return null;
-  const ruleAxes = (
-    Array.isArray(/** @type {Record<string, unknown>} */ (rule).axes)
-      ? /** @type {unknown[]} */ (/** @type {Record<string, unknown>} */ (rule).axes)
-      : []
-  ).map(String);
+  const ruleAxes = (Array.isArray(rule.axes) ? rule.axes : []).map(String);
   for (const axisId of ruleAxes) {
     const list = elements.get(axisId);
     if (list === undefined) continue; // enum 軸は列挙を持たないので免除の対象外
@@ -1352,9 +1324,7 @@ export function checkEquivalenceClasses(classes, profile, candidateIndex, label)
   const problems = [];
   const list = Array.isArray(classes) ? classes : [];
   if (list.length === 0) return problems;
-  const equivalence = isPlainObject(profile.equivalence)
-    ? /** @type {Record<string, unknown>} */ (profile.equivalence)
-    : {};
+  const equivalence = isPlainObject(profile.equivalence) ? profile.equivalence : {};
   const reducible = Array.isArray(equivalence.reducible_axes)
     ? equivalence.reducible_axes.map(String)
     : [];
@@ -1368,7 +1338,7 @@ export function checkEquivalenceClasses(classes, profile, candidateIndex, label)
       problems.push(`${label}: equivalence_classes[${i}] が JSON オブジェクトではない`);
       return;
     }
-    const c = /** @type {Record<string, unknown>} */ (cls);
+    const c = cls;
     const cid = nonEmptyString(c.id) ? String(c.id) : `#${i}`;
     if (!nonEmptyString(c.id)) problems.push(`${label}: equivalence_classes[${i}]: id が空`);
     else if (classIds.has(cid)) problems.push(`${label}: 同値クラス ${cid} の id が重複している`);
@@ -1460,7 +1430,7 @@ export function checkEquivalenceClasses(classes, profile, candidateIndex, label)
  * @returns {number}
  */
 function declaredCellCount(component) {
-  const c = isPlainObject(component) ? /** @type {Record<string, unknown>} */ (component) : {};
+  const c = isPlainObject(component) ? component : {};
   const items = Array.isArray(c.items) ? c.items.length : 0;
   const instances = Array.isArray(c.instances) ? c.instances.length : 0;
   return Math.max(items * instances, 1);
@@ -1479,14 +1449,13 @@ function unscoredProfiledCellCount(c) {
   const instances = Array.isArray(c.instances) ? c.instances : [];
   let recordedBound = 0;
   for (const instance of instances) {
-    const inst = isPlainObject(instance) ? /** @type {Record<string, unknown>} */ (instance) : {};
+    const inst = isPlainObject(instance) ? instance : {};
     const recorded = (Array.isArray(inst.candidates) ? inst.candidates : []).filter(nonEmptyString);
     const unique = new Set(recorded.map(String)).size;
-    const enumeration = isPlainObject(inst.enumeration)
-      ? /** @type {Record<string, unknown>} */ (inst.enumeration)
-      : {};
+    const enumeration = isPlainObject(inst.enumeration) ? inst.enumeration : {};
     const elements = isPlainObject(enumeration.elements)
-      ? Object.values(/** @type {Record<string, unknown>} */ (enumeration.elements)).reduce(
+      ? Object.values(enumeration.elements).reduce(
+          /** @param {number} n @param {unknown} list */
           (n, list) => n + (Array.isArray(list) ? list.length : 0),
           0,
         )
@@ -1521,7 +1490,7 @@ export function reconcile(coverage, profiles, metadata = null) {
       visualStates: { checked: false, rows: 0, undecided: 1, missing_states: [] },
     };
   }
-  const cov = /** @type {Record<string, unknown>} */ (coverage);
+  const cov = coverage;
   const components = Array.isArray(cov.components) ? cov.components : [];
   if (components.length === 0) problems.push("components が空");
 
@@ -1539,10 +1508,11 @@ export function reconcile(coverage, profiles, metadata = null) {
   const byKey = new Map();
   /** @type {Set<string>} */
   const duplicated = new Set();
+  /** @param {string} c @param {string} i @param {string} n */
   const keyOf = (c, i, n) => JSON.stringify([c, i, n]);
   for (const row of rows) {
     if (!isPlainObject(row)) continue;
-    const r = /** @type {Record<string, unknown>} */ (row);
+    const r = row;
     if (!nonEmptyString(r.component) || !nonEmptyString(r.item) || !nonEmptyString(r.instance))
       continue;
     const key = keyOf(String(r.component), String(r.item), String(r.instance));
@@ -1562,7 +1532,7 @@ export function reconcile(coverage, profiles, metadata = null) {
       unmeasured += declaredCellCount(component);
       continue;
     }
-    const c = /** @type {Record<string, unknown>} */ (component);
+    const c = component;
     const cid = nonEmptyString(c.id) ? String(c.id) : `#${index}`;
     // 部品 id が空・重複の部品は採点しない（重複は同じ部品を 2 回採点して ok を出せる）。
     // 判定側（parity-diff の coverage-check.mjs）は宣言セル数を未測定として数える。
@@ -1635,7 +1605,7 @@ export function reconcile(coverage, profiles, metadata = null) {
       const instanceById = new Map();
       for (const rawInst of genericInstances) {
         if (!isPlainObject(rawInst)) continue;
-        const inst = /** @type {Record<string, unknown>} */ (rawInst);
+        const inst = rawInst;
         if (!nonEmptyString(inst.id)) continue;
         const id = String(inst.id);
         if (!instanceById.has(id)) instanceById.set(id, inst);
@@ -1699,7 +1669,7 @@ export function reconcile(coverage, profiles, metadata = null) {
         problems.push(`部品 ${cid}: items[${i}] が JSON オブジェクトではない`);
         continue;
       }
-      const it = /** @type {Record<string, unknown>} */ (item);
+      const it = item;
       if (!nonEmptyString(it.id)) {
         problems.push(`部品 ${cid}: items[${i}]: id が空`);
         continue;
@@ -1724,7 +1694,7 @@ export function reconcile(coverage, profiles, metadata = null) {
         unmeasured += 1;
         continue;
       }
-      const inst = /** @type {Record<string, unknown>} */ (instance);
+      const inst = instance;
       const iid = nonEmptyString(inst.id) ? String(inst.id) : `#${i}`;
       if (!nonEmptyString(inst.id)) {
         problems.push(`部品 ${cid}: instances[${i}]: id が空`);
@@ -1819,10 +1789,7 @@ export function reconcile(coverage, profiles, metadata = null) {
       for (const cand of candidates) {
         candidateIndex.set(`${iid}${ID_SEPARATOR}${cand.id}`, { rule: cand.rule, axes: cand.axes });
         const item = itemById.get(cand.id);
-        const recorded =
-          item && isPlainObject(item.candidate)
-            ? /** @type {Record<string, unknown>} */ (item.candidate)
-            : null;
+        const recorded = item && isPlainObject(item.candidate) ? item.candidate : null;
         // 判定側はプロファイルを読まず、この candidate.axes から軸ごとの要素集合を作って数え直す。
         // 項目が無い・記録が無い・展開結果と違う候補は判定側の数え直しを成立させないので、セルの値に依らず 1 件を未測定に数える。
         let recordMatches = recorded !== null;
@@ -1843,9 +1810,7 @@ export function reconcile(coverage, profiles, metadata = null) {
           // axes が無い形は判定側も 1 件数える。軸値が展開結果と違う形は判定側の要素照合を狂わせ、
           // 候補に現れない要素を数えさせうる（記録側は展開結果で照合するので数えない）ため、記録側で 1 件数えて下回らないようにする。
           if (!isPlainObject(recorded.axes)) recordMatches = false;
-          const recordedAxes = isPlainObject(recorded.axes)
-            ? /** @type {Record<string, unknown>} */ (recorded.axes)
-            : {};
+          const recordedAxes = isPlainObject(recorded.axes) ? recorded.axes : {};
           for (const [axisId, value] of Object.entries(cand.axes)) {
             if (String(recordedAxes[axisId]) !== value) {
               recordMatches = false;
@@ -2037,7 +2002,7 @@ export function deriveVisualStateRows(cov) {
   const representativeOf = new Map();
   for (const component of components) {
     if (!isPlainObject(component)) continue;
-    const c = /** @type {Record<string, unknown>} */ (component);
+    const c = component;
     if (!nonEmptyString(c.id) || !nonEmptyString(c.profile)) continue;
     const cid = String(c.id);
     if (representativeOf.has(cid)) continue;
@@ -2045,7 +2010,7 @@ export function deriveVisualStateRows(cov) {
     const byMember = new Map();
     for (const klass of Array.isArray(c.equivalence_classes) ? c.equivalence_classes : []) {
       if (!isPlainObject(klass)) continue;
-      const k = /** @type {Record<string, unknown>} */ (klass);
+      const k = klass;
       if (!nonEmptyString(k.representative)) continue;
       const representative = String(k.representative);
       for (const member of Array.isArray(k.members) ? k.members : []) {
@@ -2064,7 +2029,7 @@ export function deriveVisualStateRows(cov) {
   const itemsByComponent = new Map();
   for (const component of components) {
     if (!isPlainObject(component)) continue;
-    const c = /** @type {Record<string, unknown>} */ (component);
+    const c = component;
     if (!nonEmptyString(c.id)) continue;
     const cid = String(c.id);
     if (itemsByComponent.has(cid)) continue;
@@ -2072,7 +2037,7 @@ export function deriveVisualStateRows(cov) {
     const byItem = new Map();
     for (const item of Array.isArray(c.items) ? c.items : []) {
       if (!isPlainObject(item)) continue;
-      const it = /** @type {Record<string, unknown>} */ (item);
+      const it = item;
       if (!nonEmptyString(it.id)) continue;
       const iid = String(it.id);
       if (byItem.has(iid)) continue;
@@ -2121,7 +2086,7 @@ export function deriveVisualStateRows(cov) {
 
   for (const cell of cells) {
     if (!isPlainObject(cell)) continue;
-    const r = /** @type {Record<string, unknown>} */ (cell);
+    const r = cell;
     // 撮る必要が生まれるのは操作が在ると測れたときだけ。absent / unmeasured は状態を要求しない。
     if (r.value !== "present") continue;
     if (!nonEmptyString(r.component) || !nonEmptyString(r.item) || !nonEmptyString(r.instance))
@@ -2186,14 +2151,12 @@ export function deriveVisualStateRows(cov) {
  */
 export function fillVisualStateRows(cov) {
   const { rows } = deriveVisualStateRows(cov);
-  const previous = isPlainObject(cov.visual_state_coverage)
-    ? /** @type {Record<string, unknown>} */ (cov.visual_state_coverage)
-    : {};
+  const previous = isPlainObject(cov.visual_state_coverage) ? cov.visual_state_coverage : {};
   /** @type {Map<string, Record<string, unknown>>} */
   const prevByKey = new Map();
   for (const row of Array.isArray(previous.rows) ? previous.rows : []) {
     if (!isPlainObject(row)) continue;
-    const r = /** @type {Record<string, unknown>} */ (row);
+    const r = row;
     if (
       !nonEmptyString(r.component) ||
       !nonEmptyString(r.instance) ||
@@ -2228,9 +2191,7 @@ export function fillVisualStateRows(cov) {
  */
 export function checkVisualStates(cov, metadata) {
   const { rows: derivedRows, problems } = deriveVisualStateRows(cov);
-  const recordedBlock = isPlainObject(cov.visual_state_coverage)
-    ? /** @type {Record<string, unknown>} */ (cov.visual_state_coverage)
-    : null;
+  const recordedBlock = isPlainObject(cov.visual_state_coverage) ? cov.visual_state_coverage : null;
   /** @type {Map<string, Record<string, unknown>>} */
   const recorded = new Map();
   if (!recordedBlock || !Array.isArray(recordedBlock.rows)) {
@@ -2244,7 +2205,7 @@ export function checkVisualStates(cov, metadata) {
         problems.push("visual_state_coverage.rows に JSON オブジェクトでない行がある");
         continue;
       }
-      const r = /** @type {Record<string, unknown>} */ (row);
+      const r = row;
       if (
         !nonEmptyString(r.component) ||
         !nonEmptyString(r.instance) ||
@@ -2291,11 +2252,11 @@ export function checkVisualStates(cov, metadata) {
   const scopeByInstance = new Map();
   for (const component of Array.isArray(cov.components) ? cov.components : []) {
     if (!isPlainObject(component)) continue;
-    const c = /** @type {Record<string, unknown>} */ (component);
+    const c = component;
     if (!nonEmptyString(c.id)) continue;
     for (const instance of Array.isArray(c.instances) ? c.instances : []) {
       if (!isPlainObject(instance)) continue;
-      const inst = /** @type {Record<string, unknown>} */ (instance);
+      const inst = instance;
       if (!nonEmptyString(inst.id)) continue;
       const key = JSON.stringify([String(c.id), String(inst.id)]);
       if (scopeByInstance.has(key)) continue;
@@ -2429,7 +2390,7 @@ export function fillVisualStates(coverage, profiles) {
   const components = Array.isArray(coverage.components) ? coverage.components : [];
   for (const component of components) {
     if (!isPlainObject(component)) continue;
-    const c = /** @type {Record<string, unknown>} */ (component);
+    const c = component;
     if (!nonEmptyString(c.profile)) continue;
     const profile = profiles.get(String(c.profile));
     if (!profile) continue;
@@ -2437,7 +2398,7 @@ export function fillVisualStates(coverage, profiles) {
     const byRule = new Map();
     for (const rule of Array.isArray(profile.candidate_rules) ? profile.candidate_rules : []) {
       if (!isPlainObject(rule)) continue;
-      const r = /** @type {Record<string, unknown>} */ (rule);
+      const r = rule;
       if (!nonEmptyString(r.id) || !Array.isArray(r.visual_states)) continue;
       byRule.set(String(r.id), {
         kinds: r.visual_states.map(String),
@@ -2446,10 +2407,8 @@ export function fillVisualStates(coverage, profiles) {
     }
     for (const item of Array.isArray(c.items) ? c.items : []) {
       if (!isPlainObject(item)) continue;
-      const it = /** @type {Record<string, unknown>} */ (item);
-      const candidate = isPlainObject(it.candidate)
-        ? /** @type {Record<string, unknown>} */ (it.candidate)
-        : null;
+      const it = item;
+      const candidate = isPlainObject(it.candidate) ? it.candidate : null;
       // ルールを名乗らない項目は推測で埋めない（id の前半からの推測は、別ルールの状態を取り込みうる）。
       // 対応付けの欠落は reconcile が候補との突き合わせで落とす。
       if (!candidate || !nonEmptyString(candidate.rule)) continue;
@@ -2475,7 +2434,7 @@ export function fillCandidates(coverage, profiles) {
   const components = Array.isArray(coverage.components) ? coverage.components : [];
   for (const component of components) {
     if (!isPlainObject(component)) continue;
-    const c = /** @type {Record<string, unknown>} */ (component);
+    const c = component;
     if (!nonEmptyString(c.profile)) continue;
     const profile = profiles.get(String(c.profile));
     if (!profile) continue;
@@ -2483,7 +2442,7 @@ export function fillCandidates(coverage, profiles) {
     const instances = Array.isArray(c.instances) ? c.instances : [];
     for (const instance of instances) {
       if (!isPlainObject(instance)) continue;
-      const inst = /** @type {Record<string, unknown>} */ (instance);
+      const inst = instance;
       const label = `部品 ${String(c.id)} / インスタンス ${String(inst.id)}`;
       const { elements, usable } = readEnumeration(inst.enumeration, profile, label);
       inst.candidates = usable ? expandCandidates(profile, elements).map((cand) => cand.id) : [];
@@ -2524,11 +2483,11 @@ export function recordConformance(coverage, result) {
  */
 export function readCaptureConditions(parsed) {
   if (!isPlainObject(parsed)) return null;
-  const meta = /** @type {Record<string, unknown>} */ (parsed);
+  const meta = parsed;
   // slug の欠落は「照合しない」として扱わない（照合できない metadata を通すと、上の抜けがそのまま残る）。
   if (!nonEmptyString(meta.slug)) return null;
   if (!isPlainObject(meta.capture_conditions)) return null;
-  const cc = /** @type {Record<string, unknown>} */ (meta.capture_conditions);
+  const cc = meta.capture_conditions;
   if (!Array.isArray(cc.states)) return null;
   // pages は撮影の外側のループ（parity-diff の採取スペックは pages × states × viewports で回す）。
   // 宣言されたページ名の集合を返さないと、網羅表の instances[].page が実在するかを照合できない。
@@ -2539,14 +2498,14 @@ export function readCaptureConditions(parsed) {
   const popupStates = [];
   for (const row of cc.popup_inventory) {
     if (!isPlainObject(row)) continue;
-    const r = /** @type {Record<string, unknown>} */ (row);
+    const r = row;
     if (nonEmptyString(r.captured)) popupStates.push(String(r.captured));
   }
   /** @type {string[]} */
   const pageNames = [];
   for (const row of cc.pages) {
     if (!isPlainObject(row)) continue;
-    const r = /** @type {Record<string, unknown>} */ (row);
+    const r = row;
     if (nonEmptyString(r.name)) pageNames.push(String(r.name));
   }
   return {
@@ -2679,7 +2638,7 @@ export function main(argv, deps = {}) {
     if (metadata !== null && isPlainObject(coverage)) {
       // 別機能の metadata を警告なしに受理しない。状態名が汎用なら突き合わせも通ってしまい、
       // parity-diff はこの conformance を信頼して比較をやり直さない。
-      const coverageSlug = /** @type {Record<string, unknown>} */ (coverage).slug;
+      const coverageSlug = coverage.slug;
       if (!nonEmptyString(coverageSlug)) {
         process.stderr.write(
           `error: 網羅表に slug が無いので metadata と同じ機能か照合できない: ${opts.coverage}\n`,
@@ -2703,15 +2662,15 @@ export function main(argv, deps = {}) {
     }
   }
 
-  if (write) {
-    fillCandidates(/** @type {Record<string, unknown>} */ (coverage), profiles);
+  if (write && isPlainObject(coverage)) {
+    fillCandidates(coverage, profiles);
     // 項目の状態種別をプロファイルから埋めてから行を導く（埋める前に導くと未宣言として落ちる）。
-    fillVisualStates(/** @type {Record<string, unknown>} */ (coverage), profiles);
-    fillVisualStateRows(/** @type {Record<string, unknown>} */ (coverage));
+    fillVisualStates(coverage, profiles);
+    fillVisualStateRows(coverage);
   }
   const result = reconcile(coverage, profiles, metadata);
-  if (write) {
-    recordConformance(/** @type {Record<string, unknown>} */ (coverage), result);
+  if (write && isPlainObject(coverage)) {
+    recordConformance(coverage, result);
     try {
       writeFile(opts.coverage, `${JSON.stringify(coverage, null, 2)}\n`);
     } catch (e) {

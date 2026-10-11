@@ -22,7 +22,7 @@ import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { errorMessage } from "../lib/errors.ts";
-import { parseJsonAs } from "../lib/parse-as.ts";
+import { isRecord } from "../lib/guards.ts";
 
 export const CONFIG_PATH = "scripts/gates/agents-md-size.json";
 export const TARGET_PATH = "AGENTS.md";
@@ -37,10 +37,10 @@ export function loadConfig(root: string) {
   const path = join(root, CONFIG_PATH);
   if (!existsSync(path)) throw new Error(`${CONFIG_PATH} が無い`);
   // 形は直後の整数の検査で確かめ、誤りは例外にする。
-  const { limit_bytes: limit, target_bytes: target } =
-    parseJsonAs<{ limit_bytes?: unknown; target_bytes?: unknown } | null>(
-      readFileSync(path, "utf8"),
-    ) ?? {};
+  const data: unknown = JSON.parse(readFileSync(path, "utf8"));
+  const { limit_bytes: limit, target_bytes: target }: Record<string, unknown> = isRecord(data)
+    ? data
+    : {};
   if (!isInteger(limit) || !isInteger(target) || target <= 0 || target >= limit) {
     throw new Error("limit_bytes と target_bytes は 0 < target_bytes < limit_bytes の整数にする");
   }

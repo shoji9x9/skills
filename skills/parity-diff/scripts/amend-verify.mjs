@@ -41,6 +41,16 @@ export const VERSION = "1";
 /** @typedef {{ x:number, y:number, width:number, height:number }} Rect */
 
 /**
+ * null でも配列でもないオブジェクトかを返す（型の絞り込みに使う）。
+ *
+ * @param {unknown} value
+ * @returns {value is Record<string, unknown>}
+ */
+function isRecord(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+/**
  * `x,y,w,h` を矩形にする。数でない・幅か高さが 0 以下なら null（空の領域は「変更が反映された場所」を示さない）。
  *
  * @param {string} text
@@ -64,8 +74,9 @@ export function parseRegion(text) {
  */
 export function regionFromJson(value) {
   if (Array.isArray(value)) return parseRegion(value.join(","));
-  if (value && typeof value === "object") {
-    const r = /** @type {Record<string, unknown>} */ (value);
+  // 配列は直前で返しているので、isRecord は元の「truthy なオブジェクト」の判定と同じ範囲を通す。
+  if (isRecord(value)) {
+    const r = value;
     if ([r.x, r.y, r.width, r.height].some((v) => typeof v !== "number")) return null;
     return parseRegion(`${r.x},${r.y},${r.width},${r.height}`);
   }
@@ -136,6 +147,10 @@ function strictDiffers(a, b, o) {
  *             regions: Rect[], reasons: string[] }}
  */
 export function judgePair({ prevNew, next, current, regions, margin = 0 }) {
+  /**
+   * @param {string} reason
+   * @param {Rect[]} [clamped]
+   */
   const failed = (reason, clamped = []) => ({
     pass: false,
     outside_identical: false,
@@ -213,25 +228,26 @@ export function sha256File(path) {
 /**
  * 既存の記録へ組を追記する。同じ pair id の組は置き換える（順序は既存の位置を保ち、新しい組は末尾）。
  *
+ * 既存の記録の欄（pairs の要素・change_id）は読んだまま保つので、型は unknown のままにする。
+ *
  * @template {{ pair:string }} T - 組の記録（pair 以外の欄はそのまま保つ）
- * @param {{ pairs?: T[], change_id?: string } | null} existing
+ * @param {{ pairs?: unknown, change_id?: unknown } | null} existing
  * @param {T[]} entries
  * @param {string | undefined} changeId
- * @returns {{ tool:string, version:string, change_id?:string, pairs:T[] }}
+ * @returns {{ tool:string, version:string, change_id?:unknown, pairs:unknown[] }}
  */
 export function mergeRecord(existing, entries, changeId) {
+  /** @type {unknown[]} */
   const pairs = Array.isArray(existing?.pairs) ? [...existing.pairs] : [];
   for (const entry of entries) {
-    const at = pairs.findIndex((p) => p && p.pair === entry.pair);
+    const at = pairs.findIndex((p) => isRecord(p) && p.pair === entry.pair);
     if (at === -1) pairs.push(entry);
     else pairs[at] = entry;
   }
-  /** @type {{ tool:string, version:string, change_id?:string, pairs?:T[] }} */
-  const record = { tool: "amend-verify", version: VERSION };
   const id = changeId ?? existing?.change_id;
-  if (id !== undefined) record.change_id = id;
-  record.pairs = pairs;
-  return record;
+  // 欄の順（tool, version, change_id, pairs）を保って組み立てる。
+  if (id !== undefined) return { tool: "amend-verify", version: VERSION, change_id: id, pairs };
+  return { tool: "amend-verify", version: VERSION, pairs };
 }
 
 /**
@@ -270,6 +286,7 @@ export function parseArgs(argv) {
   let marginGiven = false;
   let changeId;
   let out;
+  /** @param {number} i */
   const valueOf = (i) => {
     const v = argv[i + 1];
     return v === undefined || v.trim() === "" || v.startsWith("--") ? undefined : v;
@@ -319,12 +336,15 @@ export function parseArgs(argv) {
     return { error: "--pairs cannot be combined with --pair/--prev-new/--new/--current/--region" };
   }
   if (pairsPath === undefined) {
-    for (const key of ["pair", "prev_new", "new", "current"]) {
-      if (single[key] === undefined) return { error: `--${key.replace("_", "-")} is required` };
-    }
+    // 欠けた欄を pair, prev_new, new, current の順に調べる（型を絞るため 1 欄ずつ書く）。
+    const { pair, prev_new, new: next, current, regions } = single;
+    if (pair === undefined) return { error: "--pair is required" };
+    if (prev_new === undefined) return { error: "--prev-new is required" };
+    if (next === undefined) return { error: "--new is required" };
+    if (current === undefined) return { error: "--current is required" };
     // 領域が無いと「外」が画像全体になり、変更がどこにも反映されていないことになる。宣言の欠落として弾く。
-    if (single.regions.length === 0) return { error: "at least one --region is required" };
-    return { specs: [{ ...single, margin }], changeId, out };
+    if (regions.length === 0) return { error: "at least one --region is required" };
+    return { specs: [{ pair, prev_new, new: next, current, regions, margin }], changeId, out };
   }
   let list;
   try {
@@ -392,19 +412,24 @@ export async function main(argv) {
     return 2;
   }
   const { specs, changeId, out } = parsed;
+  /** @type {Record<string, unknown> | null} */
   let existing = null;
   if (out !== undefined && existsSync(out)) {
+    /** @type {unknown} */
+    let read;
     try {
-      existing = JSON.parse(readFileSync(out, "utf8"));
+      read = JSON.parse(readFileSync(out, "utf8"));
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       process.stderr.write(`error: cannot read existing --out record: ${message}\n`);
       return 2;
     }
-    if (!existing || typeof existing !== "object" || !Array.isArray(existing.pairs)) {
+    // 配列は pairs を持たないので、isRecord で弾いても元の判定と同じ範囲を弾く。
+    if (!isRecord(read) || !Array.isArray(read.pairs)) {
       process.stderr.write("error: existing --out record has no pairs array\n");
       return 2;
     }
+    existing = read;
     // 別の変更宣言の記録へ混ぜない（どの変更で持ち越したかが読めなくなる）。
     if (
       changeId !== undefined &&
@@ -431,7 +456,9 @@ export async function main(argv) {
     /** @type {Record<string, { path:string, sha256:string }>} */
     const inputs = {};
     try {
-      for (const key of ["prev_new", "new", "current"]) {
+      /** @type {Array<"prev_new" | "new" | "current">} */
+      const imageKeys = ["prev_new", "new", "current"];
+      for (const key of imageKeys) {
         const buf = readFileSync(spec[key]);
         images[key] = PNG.sync.read(buf);
         inputs[key] = {

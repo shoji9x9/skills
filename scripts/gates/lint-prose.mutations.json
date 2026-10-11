@@ -100,7 +100,7 @@
       "id": "LP-REASON",
       "why": "保留の理由が空でも受け付ける",
       "file": "scripts/gates/lint-prose.ts",
-      "find": "  if (typeof data?.reason !== \"string\" || !data.reason.trim()) {",
+      "find": "  if (!isRecord(data) || typeof data.reason !== \"string\" || !data.reason.trim()) {",
       "replace": "  if (false) {",
       "occurrences": 1,
       "expect_failing": ["保留の一覧がreason が空なら例外にする"]

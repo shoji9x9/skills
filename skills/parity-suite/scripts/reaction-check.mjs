@@ -165,8 +165,37 @@ function isPlainObject(v) {
 }
 
 /**
+ * 整数か（Number.isInteger と同じ判定。数でない値は false）。
+ * @param {unknown} v
+ * @returns {v is number}
+ */
+function isInteger(v) {
+  return typeof v === "number" && Number.isInteger(v);
+}
+
+/**
+ * 集合が値を持つか（Set#has と同じ照合。値の型を絞る前の値をそのまま照合に使う）。
+ * @param {ReadonlySet<unknown>} set
  * @param {unknown} v
  * @returns {boolean}
+ */
+function setHas(set, v) {
+  return set.has(v);
+}
+
+/**
+ * 配列が値を含むか（Array#includes と同じ照合。値の型を絞る前の値をそのまま照合に使う）。
+ * @param {readonly unknown[]} list
+ * @param {unknown} v
+ * @returns {boolean}
+ */
+function listIncludes(list, v) {
+  return list.includes(v);
+}
+
+/**
+ * @param {unknown} v
+ * @returns {v is number}
  */
 function positiveNumber(v) {
   return typeof v === "number" && Number.isFinite(v) && v > 0;
@@ -174,7 +203,7 @@ function positiveNumber(v) {
 
 /**
  * @param {unknown} v
- * @returns {boolean}
+ * @returns {v is number}
  */
 function nonNegativeNumber(v) {
   return typeof v === "number" && Number.isFinite(v) && v >= 0;
@@ -201,10 +230,10 @@ function procedureRevisionOf(metadata) {
   const run = metadata.run;
   if (!Object.hasOwn(run, "procedure_revision")) return 0;
   const rev = run.procedure_revision;
-  if (!Number.isInteger(rev) || /** @type {number} */ (rev) < 0) {
+  if (typeof rev !== "number" || !Number.isInteger(rev) || rev < 0) {
     throw new UsageError("run.procedure_revision が 0 以上の整数でない");
   }
-  return /** @type {number} */ (rev);
+  return rev;
 }
 
 /**
@@ -318,7 +347,7 @@ const REQUIRED_PROJECTS = ["current", "new"];
 const AUDIT_VERDICTS = ["reaches", "short"];
 
 /** @param {unknown} v @returns {v is number} */
-const positiveInteger = (v) => Number.isInteger(v) && /** @type {number} */ (v) >= 1;
+const positiveInteger = (v) => typeof v === "number" && Number.isInteger(v) && v >= 1;
 
 /** 位置の文字列で . の後にそのまま書けるキー（区切りを含まない）。それ以外は $["…"] で書く。 */
 const SAFE_KEY = /^[A-Za-z_$][A-Za-z0-9_$-]*$/;
@@ -341,7 +370,7 @@ export function coveredByOwners(table) {
  * coveredByOwners の走査本体。形の不正な covered_by（配列でない・空文字や文字列以外の要素を持つ）の位置も返す。
  * 欄の位置を列挙しない走査なので、未知の欄で形が不正だと、解決・共有・監査のどれにも入らず警告なしに消える。
  * 空配列と null は「名乗らない」として通す（撮る状態だけで押さえる行・source-only の書き込み等）。
- * @param {Record<string, unknown>} table
+ * @param {unknown} table - 表（オブジェクトでなくても走査だけはする。表の形は checkReactions が落とす）
  */
 function scanCoveredBy(table) {
   /** @type {{ path: string, owner: Record<string, unknown>, names: string[], ancestors: { path: string, obj: Record<string, unknown> }[] }[]} */
@@ -571,7 +600,7 @@ export function assertionAuditProblems(audit, owners, fingerprint, specs = null)
     if (!expected.has(e.path)) {
       problems.push(`${at}: ${e.path} は covered_by を持つ行でない（表と監査の記録がずれている）`);
     }
-    if (!AUDIT_VERDICTS.includes(/** @type {string} */ (e.verdict))) {
+    if (!listIncludes(AUDIT_VERDICTS, e.verdict)) {
       problems.push(`${at}: verdict が ${AUDIT_VERDICTS.join(" / ")} でない`);
     } else if (e.verdict === "short") {
       problems.push(
@@ -726,7 +755,7 @@ function observedProblem(r, captureStates, documents) {
   if (!isPlainObject(dest) || !nonEmptyString(dest.document) || !nonEmptyString(dest.locator)) {
     return "destination の document / locator が空（出る先の文書と論理名を記録していない）";
   }
-  if (documents && !documents.has(/** @type {string} */ (dest.document))) {
+  if (documents && !documents.has(dest.document)) {
     return `destination.document "${dest.document}" が表の documents に無い`;
   }
   const app = r.appearance;
@@ -760,7 +789,7 @@ function observedProblem(r, captureStates, documents) {
   // 同じ状態名の使い回しの照合は checkReactions が全操作を見た後に行う（残る見た目の captured と合わせて数える）
   const hasReason = nonEmptyString(cap.reason);
   if (hasState === hasReason) return "capture は state と reason のどちらか一方だけを埋める";
-  if (hasState && captureStates && !captureStates.has(/** @type {string} */ (cap.state))) {
+  if (hasState && captureStates && !setHas(captureStates, cap.state)) {
     return `capture.state "${cap.state}" が capture_conditions.states に無い`;
   }
   return null;
@@ -805,7 +834,7 @@ function noneProblem(r, windowMs, documents) {
   if (!nonEmptyString(obs.source_document)) {
     return "observation.source_document が空（どの文書で操作したかを記録していない。オリジンの照合に使う）";
   }
-  if (documents && !documents.has(/** @type {string} */ (obs.source_document))) {
+  if (documents && !documents.has(obs.source_document)) {
     return `observation.source_document "${obs.source_document}" が表の documents に無い`;
   }
   if (!nonEmptyString(obs.method)) return "observation.method が空";
@@ -854,11 +883,28 @@ function layoutMeasureProblem(m) {
     ) {
       return `rects["${name}"] が { x, y, width, height } の数値でも null でもない`;
     }
-    if (/** @type {number} */ (r.width) < 0 || /** @type {number} */ (r.height) < 0) {
+    if (
+      (typeof r.width === "number" && r.width < 0) ||
+      (typeof r.height === "number" && r.height < 0)
+    ) {
       return `rects["${name}"] の width / height が負`;
     }
   }
   return null;
+}
+
+/**
+ * 頁の組み方の 1 回の測定のうち、layoutMeasureProblem が欠けを見つけなかったもの。
+ * @typedef {{ scroll_height: number, client_height: number, rects: Record<string, Record<string, number> | null> }} LayoutMeasure
+ */
+
+/**
+ * layoutMeasureProblem が欠けを見つけないか（型を絞るための述語）。
+ * @param {unknown} m
+ * @returns {m is LayoutMeasure}
+ */
+function isLayoutMeasure(m) {
+  return layoutMeasureProblem(m) === null;
 }
 
 /**
@@ -910,8 +956,10 @@ function layoutProblem(layout) {
     }
     return { problem: null, unmeasured: false };
   }
-  const beforeProblem = layoutMeasureProblem(layout.before);
-  if (beforeProblem) return { problem: `layout.before: ${beforeProblem}`, unmeasured: true };
+  const before = layout.before;
+  // 欠けの理由は、述語が偽のときだけもう一度求める（同じ検査を 2 つの条件に分けると、片方だけが真のとき理由が null になる）
+  if (!isLayoutMeasure(before))
+    return { problem: `layout.before: ${layoutMeasureProblem(before)}`, unmeasured: true };
   const samples = layout.samples;
   if (!Array.isArray(samples) || samples.length < 2) {
     return {
@@ -925,7 +973,7 @@ function layoutProblem(layout) {
     if (p) return { problem: `layout.samples[${i}]: ${p}`, unmeasured: true };
   }
   // repeat は 1 から始まる連番（何回目の操作の後か）。欠番・重複は繰り返しの記録として読めない
-  const repeats = samples.map((m) => /** @type {Record<string, unknown>} */ (m).repeat);
+  const repeats = samples.map((m) => m.repeat);
   if (!repeats.every((r, i) => r === i + 1)) {
     return {
       problem: "layout.samples の repeat が 1 から始まる連番でない（何回目の操作の後かを読めない）",
@@ -933,8 +981,9 @@ function layoutProblem(layout) {
     };
   }
   // 測った論理名の集合は前後で揃える（ある回だけ測った要素は、回を跨いだ変わり方を読めない）
+  /** @param {LayoutMeasure} m */
   const keysOf = (m) => JSON.stringify(Object.keys(m.rects).sort());
-  const beforeKeys = keysOf(layout.before);
+  const beforeKeys = keysOf(before);
   if (!samples.every((m) => keysOf(m) === beforeKeys)) {
     return {
       problem:
@@ -943,17 +992,22 @@ function layoutProblem(layout) {
     };
   }
   // 矩形は軸の順に正規化して比べる（`{ width, height, x, y }` と `{ x, y, width, height }` を別物にしない）
+  /** @param {LayoutMeasure} m */
   const rectsText = (m) =>
     JSON.stringify(
       Object.keys(m.rects)
         .sort()
-        .map((k) => [k, m.rects[k] === null ? null : RECT_AXES.map((ax) => m.rects[k][ax])]),
+        .map((k) => {
+          const rect = m.rects[k];
+          return [k, rect === null ? null : RECT_AXES.map((ax) => rect[ax])];
+        }),
     );
+  /** @param {LayoutMeasure} a @param {LayoutMeasure} b */
   const same = (a, b) =>
     a.scroll_height === b.scroll_height &&
     a.client_height === b.client_height &&
     rectsText(a) === rectsText(b);
-  if (samples.every((m) => same(m, layout.before))) {
+  if (samples.every((m) => same(m, before))) {
     return {
       problem:
         "layout.changes: true なのに before と全ての samples が同じ（変わらないなら changes: false と確かめ方を書く）",
@@ -982,7 +1036,7 @@ function filledStrings(v) {
 /**
  * 空でなく、テンプレートの説明文のままでもない文字列か。
  * @param {unknown} v
- * @returns {boolean}
+ * @returns {v is string}
  */
 function filled(v) {
   return nonEmptyString(v) && !isPlaceholder(v);
@@ -1072,7 +1126,7 @@ function aftermathLookProblems(look, captureStates) {
   /** @type {{ problem: string, unmeasured: boolean }[]} */
   const out = idProblems.map((problem) => ({ problem, unmeasured: true }));
   for (const item of items) {
-    if (!isPlainObject(item) || !ids.has(/** @type {string} */ (item.id))) continue;
+    if (!isPlainObject(item) || !setHas(ids, item.id)) continue;
     const at = `aftermath.look.items["${item.id}"]`;
     if (!filled(item.target) || !filled(item.description)) {
       out.push({ problem: `${at}: target（論理名）/ description が空`, unmeasured: true });
@@ -1103,7 +1157,7 @@ function aftermathLookProblems(look, captureStates) {
       });
       continue;
     }
-    if (hasState && captureStates && !captureStates.has(/** @type {string} */ (item.captured))) {
+    if (hasState && captureStates && !setHas(captureStates, item.captured)) {
       out.push({
         problem: `${at}: captured "${item.captured}" が capture_conditions.states に無い`,
         unmeasured: true,
@@ -1160,6 +1214,7 @@ function aftermathReturnsProblems(ret, screenStates) {
   }
   const probed = ret.probed;
   const reset = ret.reset;
+  /** @param {unknown} v @returns {v is string[]} */
   const stringsOk = (v) => Array.isArray(v) && v.every(filled) && new Set(v).size === v.length;
   if (!stringsOk(probed) || !stringsOk(reset)) {
     out.push({
@@ -1168,8 +1223,8 @@ function aftermathReturnsProblems(ret, screenStates) {
       unmeasured: true,
     });
   } else {
-    const probedSet = new Set(/** @type {string[]} */ (probed));
-    const stray = /** @type {string[]} */ (reset).filter((x) => !probedSet.has(x));
+    const probedSet = new Set(probed);
+    const stray = reset.filter((x) => !probedSet.has(x));
     if (stray.length > 0) {
       out.push({
         problem: `aftermath.returns_to.reset に probed に無い状態がある: ${stray.join(", ")}（動かしていない状態が戻ったかは測れない）`,
@@ -1185,7 +1240,7 @@ function aftermathReturnsProblems(ret, screenStates) {
       });
     } else if (screenStates !== null) {
       const declared = new Set(screenStates);
-      const unknown = /** @type {string[]} */ (probed).filter((x) => !declared.has(x));
+      const unknown = probed.filter((x) => !declared.has(x));
       if (unknown.length > 0) {
         out.push({
           problem: `aftermath.returns_to.probed に表の screen_states に無い状態がある: ${unknown.join(", ")}（棚卸しに足すか名前を合わせる）`,
@@ -1274,8 +1329,9 @@ function stateDisplayProblems(entry, candidate, captureStates) {
   }
   /** @type {{ problem: string, unmeasured: boolean }[]} */
   const out = [];
-  const setup = entry.setup;
-  const method = isPlainObject(setup) ? setup.method : undefined;
+  /** @type {Record<string, unknown>} */
+  const setup = isPlainObject(entry.setup) ? entry.setup : {};
+  const method = setup.method;
   const allowed =
     entry.status === "present"
       ? STATE_SETUP_METHODS.filter((m) => !ABSENT_WITHOUT_ASSERTION.includes(m))
@@ -1289,17 +1345,14 @@ function stateDisplayProblems(entry, candidate, captureStates) {
       unmeasured: true,
     });
   } else {
-    if (!filled(/** @type {Record<string, unknown>} */ (setup).detail)) {
+    if (!filled(setup.detail)) {
       out.push({
         problem: `${candidate}: setup.detail（状態の作り方〈検索条件・横取りした応答の中身・保留した時間〉）が空`,
         unmeasured: true,
       });
     }
     // 横取りした要求を書かせないと、どの要求を止めたか（画面の本体の取得か、無関係な要求か）を読めない
-    if (
-      INTERCEPT_METHODS.includes(method) &&
-      !originFreePattern(/** @type {Record<string, unknown>} */ (setup).request)
-    ) {
+    if (INTERCEPT_METHODS.includes(method) && !originFreePattern(setup.request)) {
       out.push({
         problem: `${candidate}: setup.method: ${method} なのに setup.request（横取りした要求の URL のパターン。オリジンは書かない）が空・オリジン付き`,
         unmeasured: true,
@@ -1329,7 +1382,7 @@ function stateDisplayProblems(entry, candidate, captureStates) {
         unmeasured: true,
       });
     }
-    if (hasState && captureStates && !captureStates.has(/** @type {string} */ (entry.captured))) {
+    if (hasState && captureStates && !setHas(captureStates, entry.captured)) {
       out.push({
         problem: `${candidate}: captured "${entry.captured}" が capture_conditions.states に無い`,
         unmeasured: true,
@@ -1344,7 +1397,7 @@ function stateDisplayProblems(entry, candidate, captureStates) {
       unmeasured: false,
     });
   }
-  if (!ABSENT_WITHOUT_ASSERTION.includes(/** @type {string} */ (method)) && !hasAssertion) {
+  if (!listIncludes(ABSENT_WITHOUT_ASSERTION, method) && !hasAssertion) {
     out.push({
       problem: `${candidate}: absent なのに covered_by が空（その状態で何も出ないことをスイートの assertion にしていない。新側が出しても検出されない）`,
       unmeasured: true,
@@ -1388,7 +1441,7 @@ function checkStateDisplays(sd, ctx) {
       summary.unmeasured += 1;
       continue;
     }
-    seen.set(/** @type {string} */ (page), (seen.get(/** @type {string} */ (page)) ?? 0) + 1);
+    seen.set(page, (seen.get(page) ?? 0) + 1);
   }
   for (const [page, n] of seen) {
     if (n > 1)
@@ -1411,12 +1464,7 @@ function checkStateDisplays(sd, ctx) {
   }
   summary.pages = seen.size;
   for (const row of sd.pages) {
-    if (
-      !isPlainObject(row) ||
-      !filled(row.page) ||
-      seen.get(/** @type {string} */ (row.page)) !== 1
-    )
-      continue;
+    if (!isPlainObject(row) || !filled(row.page) || seen.get(row.page) !== 1) continue;
     const at = `state_displays["${row.page}"]`;
     const candidates = row.candidates;
     if (!isPlainObject(candidates)) {
@@ -1535,7 +1583,7 @@ function resubmitProblems(rs, writes) {
       unmeasured: true,
     });
   }
-  if (!Number.isInteger(rs.presses) || /** @type {number} */ (rs.presses) < 2) {
+  if (!isInteger(rs.presses) || rs.presses < 2) {
     out.push({
       problem:
         "resubmit.presses（応答を保留している間に押した回数。最初の 1 回を含む）が 2 以上の整数でない",
@@ -1545,10 +1593,10 @@ function resubmitProblems(rs, writes) {
   const obs = rs.observed;
   if (
     !isPlainObject(obs) ||
-    !Number.isInteger(obs.requests_sent) ||
-    /** @type {number} */ (obs.requests_sent) < 1 ||
-    !Number.isInteger(obs.confirms_shown) ||
-    /** @type {number} */ (obs.confirms_shown) < 0 ||
+    !isInteger(obs.requests_sent) ||
+    obs.requests_sent < 1 ||
+    !isInteger(obs.confirms_shown) ||
+    obs.confirms_shown < 0 ||
     !filled(obs.overlay)
   ) {
     out.push({
@@ -1560,12 +1608,7 @@ function resubmitProblems(rs, writes) {
   const w = rs.writes;
   if (writes) {
     // 書き込みの回数は送った回数と別に数える（1 回の送信が 2 行書く・2 回送っても 1 行に畳む処理がある）
-    if (
-      !isPlainObject(w) ||
-      !Number.isInteger(w.count) ||
-      /** @type {number} */ (w.count) < 0 ||
-      !filled(w.evidence)
-    ) {
+    if (!isPlainObject(w) || !isInteger(w.count) || w.count < 0 || !filled(w.evidence)) {
       out.push({
         problem:
           "resubmit.writes が { count: <押し直しで表に書かれた行の数>, evidence: <数え方> } でない（この操作は side_effect_writes.sites に書き込みがあるので、送った回数を書き込みの回数と突き合わせる）",
@@ -1691,7 +1734,7 @@ function preSendProblems(ps) {
   const ids = collectIds(checks, "pre_send.items", idProblems);
   for (const problem of idProblems) out.push({ problem, unmeasured: true });
   for (const item of checks) {
-    if (!isPlainObject(item) || !ids.has(/** @type {string} */ (item.id))) continue;
+    if (!isPlainObject(item) || !setHas(ids, item.id)) continue;
     const at = `pre_send.items["${item.id}"]`;
     if (typeof item.kind !== "string" || !PRE_SEND_KINDS.includes(item.kind)) {
       out.push({
@@ -1724,7 +1767,7 @@ function preSendProblems(ps) {
       order.length < 2 ||
       !order.every(filled) ||
       new Set(order).size !== order.length ||
-      !order.includes(item.id)
+      !listIncludes(order, item.id)
     ) {
       out.push({
         problem: `${at}: order が、この判定の id を 1 回含む 2 つ以上の重複の無い工程の並びでない（確認・記録・送信のどれより前かが残らない）`,
@@ -1796,7 +1839,7 @@ function compilePatterns(patterns, patIds, label, problems) {
   /** @type {{ id: string, re: RegExp, pattern: Record<string, unknown> }[]} */
   const compiled = [];
   for (const p of patterns) {
-    if (!isPlainObject(p) || !patIds.has(/** @type {string} */ (p.id))) continue;
+    if (!isPlainObject(p) || !nonEmptyString(p.id) || !patIds.has(p.id)) continue;
     if (!nonEmptyString(p.regex)) {
       problems.push(`${label}["${p.id}"]: regex が空`);
       continue;
@@ -1805,7 +1848,7 @@ function compilePatterns(patterns, patIds, label, problems) {
     let re;
     try {
       // ファイル全体に照合するので、^ / $ が行頭・行末に一致するよう複数行モードにする（行ごとに照合していたときの意味を保つ）
-      re = new RegExp(/** @type {string} */ (p.regex), "gm");
+      re = new RegExp(p.regex, "gm");
     } catch (e) {
       throw new UsageError(
         `${label}["${p.id}"]: regex が不正（${e instanceof Error ? e.message : e}）`,
@@ -1817,14 +1860,14 @@ function compilePatterns(patterns, patIds, label, problems) {
       continue;
     }
     re.lastIndex = 0;
-    if (!re.test(/** @type {string} */ (p.example))) {
+    if (!re.test(p.example)) {
       problems.push(
         `${label}["${p.id}"]: regex が example に一致しない（検出ツールが呼び出しを認識できない）`,
       );
       continue;
     }
     re.lastIndex = 0;
-    compiled.push({ id: /** @type {string} */ (p.id), re, pattern: p });
+    compiled.push({ id: p.id, re, pattern: p });
   }
   return compiled;
 }
@@ -1911,7 +1954,7 @@ function checkSideEffectWrites(sew, ctx) {
       "side_effect_writes.tables が重複の無い空でない文字列の配列でない（features.md の副作用出力にある書き込み先の表を列挙する）",
     );
   } else {
-    tableSet = new Set(/** @type {string[]} */ (tables));
+    tableSet = new Set(tables);
   }
   const patterns = Array.isArray(sew.patterns) ? sew.patterns : [];
   if (patterns.length === 0)
@@ -1922,13 +1965,13 @@ function checkSideEffectWrites(sew, ctx) {
   const tableOfPattern = new Map();
   for (const c of compiled) {
     const t = c.pattern.table;
-    if (!filled(t) || !tableSet.has(/** @type {string} */ (t))) {
+    if (!filled(t) || !tableSet.has(t)) {
       problems.push(
         `side_effect_writes.patterns["${c.id}"]: table "${String(t)}" が side_effect_writes.tables に無い`,
       );
       continue;
     }
-    tableOfPattern.set(c.id, /** @type {string} */ (t));
+    tableOfPattern.set(c.id, t);
   }
   const patternless = [...tableSet].filter((t) => ![...tableOfPattern.values()].includes(t));
   if (patternless.length > 0) {
@@ -1938,6 +1981,7 @@ function checkSideEffectWrites(sew, ctx) {
   }
   const sites = Array.isArray(sew.sites) ? sew.sites : null;
   if (sites === null) throw new UsageError("side_effect_writes.sites が配列でない");
+  /** @param {Record<string, unknown>} s */
   const keyOf = (s) => JSON.stringify([s.file, s.line, s.column, s.pattern]);
   /** @type {Map<string, number>} */
   const recordedCount = new Map();
@@ -1947,8 +1991,8 @@ function checkSideEffectWrites(sew, ctx) {
     if (
       !isPlainObject(s) ||
       !nonEmptyString(s.file) ||
-      !Number.isInteger(s.line) ||
-      !Number.isInteger(s.column) ||
+      !isInteger(s.line) ||
+      !isInteger(s.column) ||
       s.column < 1 ||
       !nonEmptyString(s.pattern)
     ) {
@@ -1958,18 +2002,17 @@ function checkSideEffectWrites(sew, ctx) {
     const key = keyOf(s);
     recordedCount.set(key, (recordedCount.get(key) ?? 0) + 1);
     const at = `side_effect_writes.sites ${key}`;
-    if (!patIds.has(/** @type {string} */ (s.pattern))) {
+    if (!patIds.has(s.pattern)) {
       problems.push(`${at}: pattern "${s.pattern}" が side_effect_writes.patterns に無い`);
       continue;
     }
     if (filled(s.excluded_reason)) continue; // この機能の書き込みではない（別 slug の操作の呼び出し等）
-    const table = tableOfPattern.get(/** @type {string} */ (s.pattern));
+    const table = tableOfPattern.get(s.pattern);
     if (table !== undefined) writtenTables.add(table);
     // 送っている間の押し直し（resubmit）で書き込みの回数を突き合わせる操作
-    if (opIds.has(/** @type {string} */ (s.operation)))
-      writeOps.add(/** @type {string} */ (s.operation));
+    if (typeof s.operation === "string" && opIds.has(s.operation)) writeOps.add(s.operation);
     // 画面を開いたときの書き込みのように操作に結び付かない書き込みは operation: null（occasion で時機を書く）
-    if (s.operation !== null && !opIds.has(/** @type {string} */ (s.operation))) {
+    if (s.operation !== null && !setHas(opIds, s.operation)) {
       problems.push(
         `${at}: operation "${String(s.operation)}" が網羅表の操作に無い（操作に結び付かない書き込みは null にして occasion に時機を書く。この機能の書き込みでなければ excluded_reason）`,
       );
@@ -2018,12 +2061,7 @@ function checkSideEffectWrites(sew, ctx) {
   const src = sew.source;
   const paths = isPlainObject(src) && Array.isArray(src.paths) ? src.paths : [];
   if (!recorded && paths.length > 0 && paths.every(nonEmptyString) && compiled.length > 0) {
-    const scan = scanSources(
-      root,
-      /** @type {string[]} */ (paths),
-      compiled,
-      "side_effect_writes.source.paths",
-    );
+    const scan = scanSources(root, paths, compiled, "side_effect_writes.source.paths");
     summary.checked = true;
     summary.files = scan.files;
     summary.found = scan.sites.length;
@@ -2112,6 +2150,7 @@ export function scanSources(root, paths, patterns, label = "feedback_calls.sourc
   const absRoot = resolve(root);
   /** @type {string[]} */
   const files = [];
+  /** @param {string} abs */
   const visit = (abs) => {
     const st = statSync(abs);
     if (st.isDirectory()) {
@@ -2220,7 +2259,7 @@ export function checkReactions(table, opts = {}) {
   } else if (!docs.includes("top")) {
     problems.push("documents に top（最上位の文書）が無い");
   } else {
-    documents = new Set(/** @type {string[]} */ (docs));
+    documents = new Set(docs);
   }
   // 文書ごとのオリジン（対象 URL と同じか）。
   // 移行元が絶対 URL で組み立てるフレームの読み込み先と targets[].url のオリジンが違うと、フレームの中の処理が親の文書に届かず、
@@ -2237,7 +2276,7 @@ export function checkReactions(table, opts = {}) {
     const lacking = [...documents].filter((d) => !Object.hasOwn(origins, d));
     const unknown = keys.filter((k) => !documents.has(k));
     const invalid = keys.filter(
-      (k) => documents.has(k) && !ORIGIN_RELATIONS.includes(/** @type {string} */ (origins[k])),
+      (k) => documents.has(k) && !listIncludes(ORIGIN_RELATIONS, origins[k]),
     );
     if (lacking.length > 0) problems.push(`document_origins に無い文書: ${lacking.join(", ")}`);
     if (unknown.length > 0)
@@ -2272,9 +2311,7 @@ export function checkReactions(table, opts = {}) {
       );
     }
   }
-  const windowMs = positiveNumber(table.observation_window_ms)
-    ? /** @type {number} */ (table.observation_window_ms)
-    : null;
+  const windowMs = positiveNumber(table.observation_window_ms) ? table.observation_window_ms : null;
   // 操作の無い表には none の反応が無いので、観測時間の下限は null でよい（測っていない値を書かせない）。
   // 正の数を書いた表も通す——照合する none が無いので値は判定に使われず、落とす理由が無い
   const noOperations = Array.isArray(table.operations) && table.operations.length === 0;
@@ -2301,7 +2338,7 @@ export function checkReactions(table, opts = {}) {
       "screen_states.source が空（状態の棚卸しをどこから列挙したか〈移行元ソースの状態を持つ変数・URL のクエリ・実 UI〉が残らない）",
     );
   } else {
-    screenStates = /** @type {string[]} */ (ss.states);
+    screenStates = ss.states;
   }
 
   const operations = Array.isArray(table.operations) ? table.operations : null;
@@ -2352,11 +2389,13 @@ export function checkReactions(table, opts = {}) {
   /** @type {Map<string, { file: string, symbol: string, label: string }[]>} 操作 id → 送る前の判定の到達点と判定の場所 */
   const preSendRefsByOp = new Map();
   for (const op of operations) {
-    if (!isPlainObject(op) || !opIds.has(/** @type {string} */ (op.id))) continue;
+    if (!isPlainObject(op) || !nonEmptyString(op.id) || !opIds.has(op.id)) continue;
+    const opId = op.id;
     const label = `operations["${op.id}"]`;
+    /** @param {string} msg */
     const fail = (msg) => {
       problems.push(`${label}: ${msg}`);
-      unmeasuredOps.add(/** @type {string} */ (op.id));
+      unmeasuredOps.add(opId);
     };
     if (!nonEmptyString(op.trigger)) fail("trigger（操作アダプタの呼び出し）が空");
     if (!nonEmptyString(op.immediate_state)) fail("immediate_state（直後の状態）が空");
@@ -2389,7 +2428,7 @@ export function checkReactions(table, opts = {}) {
       if (pp.unmeasured) fail(pp.problem);
       else problems.push(`${label}: ${pp.problem}`);
     }
-    preSendRefsByOp.set(/** @type {string} */ (op.id), ps.refs);
+    preSendRefsByOp.set(op.id, ps.refs);
     // 撮影の単位はページ × 状態名 × ビューポートなので、別のページの同じ状態名は別の 1 枚（baseline.md）。
     // 割る単位は操作が載るページではなく、押した後に撮ったページ（capture_page。遷移する操作は遷移先）。
     // 載るページで割ると、別のページから同じ遷移先へ移る 2 操作が 1 枚を共有しても通ってしまう（Codex レビュー）。
@@ -2405,11 +2444,11 @@ export function checkReactions(table, opts = {}) {
         fail(
           `capture_page "${op.capture_page}" を照合できない（metadata.json の capture_conditions.pages を読めない）`,
         );
-      else if (pageNames !== null && !pageNames.has(/** @type {string} */ (op.capture_page)))
+      else if (pageNames !== null && !pageNames.has(op.capture_page))
         fail(
           `capture_page "${op.capture_page}" が metadata.json の capture_conditions.pages に無い`,
         );
-      else page = /** @type {string} */ (op.capture_page);
+      else page = op.capture_page;
     }
     // ページが 2 つ以上ある機能で capture_page を省くと、撮った状態がどのページの 1 枚かを決められない
     // （別のページの同名の 1 枚でも行が満たされる）。ページが 1 つだけならそのページとみなす
@@ -2442,7 +2481,7 @@ export function checkReactions(table, opts = {}) {
       const named = pageResolution?.pages.get(page);
       if (pageResolution !== null && pageResolution.resolvable && named && filled(urlAfter)) {
         capturePageUrls.operations += 1;
-        const got = pageForUrl(/** @type {string} */ (urlAfter), pageResolution);
+        const got = pageForUrl(urlAfter, pageResolution);
         if (got.problem !== null) {
           fail(
             `aftermath.returns_to.url_after ${got.problem}（押した後に撮ったページ "${page}" と照合できない）`,
@@ -2470,10 +2509,10 @@ export function checkReactions(table, opts = {}) {
     for (const r of Array.isArray(op.reactions) ? op.reactions : []) {
       if (!isPlainObject(r) || r.kind !== "observed" || !isPlainObject(r.capture)) continue;
       if (!filled(r.capture.state) || !nonEmptyString(r.id)) continue;
-      const key = captureKey(/** @type {string} */ (r.capture.state));
+      const key = captureKey(r.capture.state);
       const uses = aftermathCaptureUses.get(key) ?? [];
       uses.push({
-        opId: /** @type {string} */ (op.id),
+        opId: op.id,
         label: `${label}: reactions["${r.id}"].capture`,
         shared: filled(r.capture.shared_capture_reason),
         source: "reactions",
@@ -2483,10 +2522,10 @@ export function checkReactions(table, opts = {}) {
     }
     for (const item of lookItems) {
       if (!isPlainObject(item) || !filled(item.captured) || !nonEmptyString(item.id)) continue;
-      const key = captureKey(/** @type {string} */ (item.captured));
+      const key = captureKey(item.captured);
       const uses = aftermathCaptureUses.get(key) ?? [];
       uses.push({
-        opId: /** @type {string} */ (op.id),
+        opId: op.id,
         label: `${label}: aftermath.look.items["${item.id}"]`,
         shared: filled(item.shared_capture_reason),
         source: "reactions",
@@ -2494,19 +2533,19 @@ export function checkReactions(table, opts = {}) {
       });
       aftermathCaptureUses.set(key, uses);
     }
-    handlersByOp.set(/** @type {string} */ (op.id), op.handlers);
+    handlersByOp.set(op.id, op.handlers);
     const reactions = Array.isArray(op.reactions) ? op.reactions : [];
     if (reactions.length === 0) {
       fail("reactions が空（反応の欄が無い＝見ていない。無いなら kind: none を実測で書く）");
       continue;
     }
     const rIds = collectIds(reactions, `${label}.reactions`, problems);
-    if (rIds.size !== reactions.length) unmeasuredOps.add(/** @type {string} */ (op.id));
+    if (rIds.size !== reactions.length) unmeasuredOps.add(op.id);
     const kinds = reactions.map((r) => (isPlainObject(r) ? r.kind : undefined));
     if (kinds.includes("none") && reactions.length > 1)
       fail("kind: none と他の反応が同居している（無いと在るが同時に成立する）");
     for (const r of reactions) {
-      if (!isPlainObject(r) || !rIds.has(/** @type {string} */ (r.id))) continue;
+      if (!isPlainObject(r) || !nonEmptyString(r.id) || !rIds.has(r.id)) continue;
       reactionCount += 1;
       const rLabel = `reactions["${r.id}"]`;
       if (typeof r.kind !== "string" || !REACTION_KINDS.includes(r.kind)) {
@@ -2573,6 +2612,7 @@ export function checkReactions(table, opts = {}) {
     const recordedSites = Array.isArray(fc.call_sites) ? fc.call_sites : null;
     if (recordedSites === null) throw new UsageError("feedback_calls.call_sites が配列でない");
     // 区切り文字の連結はファイル名・パターン id に ":" があると別の箇所が同じキーに潰れるため、組を JSON で符号化する
+    /** @param {Record<string, unknown>} s */
     const keyOf = (s) => JSON.stringify([s.file, s.line, s.column, s.pattern]);
     /** @type {Map<string, number>} */
     const recordedCount = new Map();
@@ -2580,8 +2620,8 @@ export function checkReactions(table, opts = {}) {
       if (
         !isPlainObject(s) ||
         !nonEmptyString(s.file) ||
-        !Number.isInteger(s.line) ||
-        !Number.isInteger(s.column) ||
+        !isInteger(s.line) ||
+        !isInteger(s.column) ||
         s.column < 1 ||
         !nonEmptyString(s.pattern)
       ) {
@@ -2595,7 +2635,7 @@ export function checkReactions(table, opts = {}) {
       if (hasReaction === hasExcluded) {
         problems.push(`call_sites ${key}: reaction と excluded_reason のどちらか一方だけを埋める`);
       } else if (hasReaction) {
-        const kind = reactionKinds.get(/** @type {string} */ (s.reaction));
+        const kind = reactionKinds.get(s.reaction);
         if (kind === undefined)
           problems.push(`call_sites ${key}: reaction "${s.reaction}" が網羅表の反応に無い`);
         else if (kind !== "observed") {
@@ -2645,7 +2685,7 @@ export function checkReactions(table, opts = {}) {
       );
     }
     if (!recorded && paths.length > 0 && paths.every(nonEmptyString) && compiled.length > 0) {
-      const scan = scanSources(root, /** @type {string[]} */ (paths), compiled);
+      const scan = scanSources(root, paths, compiled);
       callSummary.checked = true;
       callSummary.files = scan.files;
       callSummary.found = scan.sites.length;
@@ -2706,10 +2746,10 @@ export function checkReactions(table, opts = {}) {
   // --- 送っている間の押し直し ---
   // 書き込みを持つ操作は表への書き込みの突き合わせが済んでから分かるので、操作の走査とは別に回す
   for (const op of operations) {
-    if (!isPlainObject(op) || !opIds.has(/** @type {string} */ (op.id))) continue;
-    for (const rp of resubmitProblems(op.resubmit, writeOps.has(/** @type {string} */ (op.id)))) {
+    if (!isPlainObject(op) || !nonEmptyString(op.id) || !opIds.has(op.id)) continue;
+    for (const rp of resubmitProblems(op.resubmit, writeOps.has(op.id))) {
       problems.push(`operations["${op.id}"]: ${rp.problem}`);
-      if (rp.unmeasured) unmeasuredOps.add(/** @type {string} */ (op.id));
+      if (rp.unmeasured) unmeasuredOps.add(op.id);
     }
   }
 
@@ -2735,7 +2775,7 @@ export function checkReactions(table, opts = {}) {
       for (const entry of Object.values(candidates)) {
         if (!isPlainObject(entry) || entry.status !== "present" || !filled(entry.captured))
           continue;
-        displayed.add(/** @type {string} */ (entry.captured));
+        displayed.add(entry.captured);
       }
     }
     const unexplained = [...captureStates].filter((st) => st !== "default" && !displayed.has(st));
@@ -2902,7 +2942,7 @@ export function readCoverageCaptures(metadata, pageNames, readFile, cwd) {
   }
   /** @type {Map<string, string>} */
   const pageByInstance = new Map();
-  for (const c of Array.isArray(cov.components) ? cov.components : []) {
+  for (const c of isPlainObject(cov) && Array.isArray(cov.components) ? cov.components : []) {
     if (!isPlainObject(c) || !nonEmptyString(c.id)) continue;
     for (const inst of Array.isArray(c.instances) ? c.instances : []) {
       if (!isPlainObject(inst) || !nonEmptyString(inst.id) || !nonEmptyString(inst.page)) continue;
@@ -2922,7 +2962,7 @@ export function readCoverageCaptures(metadata, pageNames, readFile, cwd) {
     }
     captures.push({
       page,
-      captured: /** @type {string} */ (row.captured),
+      captured: row.captured,
       label: `${decl.path}: visual_state_coverage.rows[${i}]（${String(row.component)} / ${String(row.instance)} / ${String(row.required_by)} / ${String(row.kind)}）`,
       shared: filled(row.shared_capture_reason),
     });
@@ -3001,14 +3041,18 @@ export function main(argv, deps = {}) {
       : [write, recorded, sheet].filter(Boolean).length > 1
         ? "--write・--recorded・--audit-sheet は同時に使えない"
         : null;
-  if (argError !== null) {
+  // metadataPath === null なら argError も null でない（型を絞るために並べて書く）
+  if (argError !== null || metadataPath === null) {
     stderr(`error: ${argError}\n${usage}\n`);
     return 2;
   }
+  /** @param {Record<string, unknown>} obj */
   const out = (obj) =>
     stdout(`${JSON.stringify({ tool: "reaction-check", version: VERSION, ...obj }, null, 2)}\n`);
   try {
     const metadata = JSON.parse(readFile(resolve(cwd, metadataPath)));
+    // readDeclaration の最初の検査と同じ（型を絞るために先に書く）
+    if (!isPlainObject(metadata)) throw new UsageError("metadata.json がオブジェクトでない");
     const decl = readDeclaration(metadata);
     if (!decl.judged) {
       out({ judged: false, reason: decl.reason });
@@ -3021,9 +3065,10 @@ export function main(argv, deps = {}) {
         "--tests が無い（covered_by をテストへ解決するため、playwright test --list --reporter=json の出力を渡す）",
       );
     }
+    /** @type {ReturnType<typeof indexTestList> | null} */
     let testIndex = null;
-    /** @type {unknown} */
-    let testsRoot;
+    /** @type {string | null} */
+    let testsRoot = null;
     if (testsPath !== null) {
       let report;
       try {
@@ -3034,13 +3079,22 @@ export function main(argv, deps = {}) {
         );
       }
       testIndex = indexTestList(report);
-      testsRoot = isPlainObject(report.config) ? report.config.rootDir : undefined;
-      if (!nonEmptyString(testsRoot) || !isAbsolute(testsRoot)) {
+      // indexTestList がオブジェクトでない report を落とすので、isPlainObject(report) は常に成り立つ（型を絞るために書く）
+      const rootDir =
+        isPlainObject(report) && isPlainObject(report.config) ? report.config.rootDir : undefined;
+      if (!nonEmptyString(rootDir) || !isAbsolute(rootDir)) {
         throw new UsageError(
           "--tests の config.rootDir が絶対パスでない（スペックの中身を読む起点が無い。playwright test --list --reporter=json の出力をそのまま渡す）",
         );
       }
+      testsRoot = rootDir;
     }
+    // 上で --tests を必須にしたので、ここでは testIndex と testsRoot が揃っている（型を絞るための分岐）
+    /** @param {ReturnType<typeof coveredByOwners>} owners */
+    const specsOf = (owners) =>
+      testIndex === null || testsRoot === null
+        ? { fingerprint: null, problems: [] }
+        : specsFingerprint(owners, testIndex, testsRoot, readFile);
     const tablePath = resolve(cwd, decl.path);
     let table;
     try {
@@ -3076,6 +3130,7 @@ export function main(argv, deps = {}) {
     }
     if (sheet) {
       // 監査役に渡す入力だけを出す。解決できない名前が残るうちは監査の入力にならないので落とす
+      if (!isPlainObject(table)) throw new UsageError("反応の網羅表がオブジェクトでない");
       const scanned = scanCoveredBy(table);
       const owners = scanned.owners;
       // 形の不正な covered_by は owners に入らないので、警告なしに欠けた監査入力を ok として出さない
@@ -3086,12 +3141,7 @@ export function main(argv, deps = {}) {
         ),
         ...coveredByProblems(owners, testIndex).problems,
       ];
-      const specs = specsFingerprint(
-        owners,
-        /** @type {NonNullable<typeof testIndex>} */ (testIndex),
-        /** @type {string} */ (testsRoot),
-        readFile,
-      );
+      const specs = specsOf(owners);
       problems.push(...specs.problems);
       out({
         judged: true,
@@ -3100,7 +3150,7 @@ export function main(argv, deps = {}) {
         path: decl.path,
         table_fingerprint: tableFingerprint(table),
         specs_fingerprint: specs.fingerprint,
-        entries: auditSheet(owners, /** @type {NonNullable<typeof testIndex>} */ (testIndex)),
+        entries: testIndex === null ? [] : auditSheet(owners, testIndex),
         problems,
       });
       for (const p of problems) stderr(`warn: ${p}\n`);
@@ -3124,18 +3174,14 @@ export function main(argv, deps = {}) {
       target: metadata.target.name,
       targetCommit: metadata.target.commit,
       testIndex,
-      specs: specsFingerprint(
-        scanCoveredBy(table).owners,
-        /** @type {NonNullable<typeof testIndex>} */ (testIndex),
-        /** @type {string} */ (testsRoot),
-        readFile,
-      ),
+      specs: specsOf(scanCoveredBy(table).owners),
     });
     const ok =
       result.unmeasured_operations === 0 &&
       result.state_displays.unmeasured === 0 &&
       result.problems.length === 0;
-    if (write) {
+    // checkReactions がオブジェクトでない表を落とすので、isPlainObject(table) は常に成り立つ（型を絞るために書く）
+    if (write && isPlainObject(table)) {
       table.conformance = {
         tool: "reaction-check",
         tool_version: VERSION,

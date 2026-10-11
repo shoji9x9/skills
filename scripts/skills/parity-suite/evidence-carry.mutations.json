@@ -68,8 +68,8 @@
       "id": "path-from-project-root",
       "why": "amend-verify の inputs のパスを記録のディレクトリ（new/<target>/）から解決する",
       "file": "skills/parity-suite/scripts/evidence-carry.mjs",
-      "find": "nonEmptyString(inputs[key]?.path) ? where.fromProject(inputs[key].path) : null",
-      "replace": "nonEmptyString(inputs[key]?.path) ? resolve(where.stageDir, inputs[key].path) : null",
+      "find": "nonEmptyString(path) ? where.fromProject(path) : null",
+      "replace": "nonEmptyString(path) ? resolve(where.stageDir, path) : null",
       "occurrences": 1,
       "expect_failing": [
         "amend-verify の inputs のパスはプロジェクトルートから解決する（記録のディレクトリからではない）",

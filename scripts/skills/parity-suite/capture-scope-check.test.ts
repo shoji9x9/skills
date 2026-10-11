@@ -1232,7 +1232,7 @@ test("中身が収まる高さの狭い窓が無い記録は落とす（Codex �
 
 test("同梱テンプレートのプレースホルダのままの overflow は落とす", async () => {
   const { readFileSync } = await import("node:fs");
-  const template = JSON.parse(
+  const template = parseJsonAs<{ capture_conditions: Record<string, unknown> }>(
     readFileSync(
       new URL("../../../skills/parity-suite/assets/metadata-template.json", import.meta.url),
       "utf8",
@@ -1622,7 +1622,7 @@ test("browser の欠落・語彙外は落とす（新側を同じ扱いで撮れ
 
 test("同梱テンプレートのプレースホルダのまま書いた表示の軸・利用者環境・ブラウザは落ちる", async () => {
   const { readFileSync } = await import("node:fs");
-  const template = JSON.parse(
+  const template = parseJsonAs<{ capture_conditions: Record<string, unknown> }>(
     readFileSync(
       new URL("../../../skills/parity-suite/assets/metadata-template.json", import.meta.url),
       "utf8",

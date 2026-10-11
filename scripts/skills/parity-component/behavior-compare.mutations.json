@@ -135,7 +135,7 @@
       "id": "operation-source",
       "why": "操作の導出源を検査しない",
       "file": "skills/parity-component/scripts/behavior-compare.mjs",
-      "find": "if (!OPERATION_SOURCES.includes(capture.operation_source)) {",
+      "find": "if (!OPERATION_SOURCES.some((source) => source === capture.operation_source)) {",
       "replace": "if (false) {",
       "occurrences": 1,
       "expect_failing": ["操作の導出源が無い・プレースホルダ・語彙外なら型崩れ"]

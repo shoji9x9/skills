@@ -55,6 +55,7 @@ GitHub Actions は、`actionlint` で構文を、`ghalint` で `permissions`・`
 | `check-eval-reachability.ts` | eval の assertion と prompt の対応 |
 | `check-skills-sync.ts` | `skills/<name>/` とインストール済みのコピー `.agents/skills/<name>/` の一致 |
 | `check-js-extensions.ts` | JavaScript の拡張子（「JavaScript の拡張子」の節） |
+| `check-jsdoc-types.ts` | 配布スキルの `.mjs` で、型の検査を外す JSDoc の書き方（「JavaScript の拡張子」の節） |
 | `check-skill-frontmatter.ts` | `SKILL.md` の frontmatter |
 | `lint-pagination.ts` | `gh api` などの一覧の取得のページネーション |
 | `check-kaizen-refs.ts` | `.kaizen/` の学びへの参照の実在。意図して実在しないものは `scripts/gates/kaizen-refs-exemptions.json` に書く |
@@ -199,20 +200,24 @@ mise・pnpm・GitHub・各エージェントの設定は、形式をツールが
 - `skills/**`: `.js`・`.cjs`・`.mts`・`.cts`・`.tsx`・`.jsx`。`skills/<name>/assets/`（利用者のプロジェクトへ置く雛形）の外の `.ts` も失敗にする。
 - `scripts/**` と private skill: `.js`・`.mjs`・`.cjs`・`.mts`・`.cts`・`.tsx`・`.jsx`。private skill の `.ts` は `scripts/` の下だけに置く（型の検査の対象がそこだけのため）。
   `.mts`・`.cts` は Node が実行できるのに `tsconfig.repo.json` の include（`*.ts`）に入らない。`.tsx`・`.jsx` は Node が実行できない。拡張子は大文字と小文字を区別せずに照合する。
+- 許す拡張子（`skills/**` の `.mjs` と雛形の `.ts`、`scripts/**` と private skill の `.ts`）は、小文字だけを許す。
+  tsconfig の include と Node は大文字と小文字を区別するので、`a.TS` は禁止リストに当たらないのに型の検査に入らない。
+  private skill の `scripts/` のディレクトリ名も、同じ理由で小文字だけを許す。private skill の `scripts/` の外の `.d.ts` も失敗にする（型の検査に入らない）。
 
 ### 型の検査
 
-`pnpm run typecheck`（`tsc -b --force`）が `.ts`・`.tsx` の型を検査する。CI は `Lint` ジョブで実行する。
+`pnpm run typecheck`（`tsc -b --force`）が `.ts`・`.tsx` と配布スキルの `.mjs` の型を検査する。CI は `Lint` ジョブで実行する。
 lefthook の pre-commit は、TypeScript か JavaScript（`ts`・`tsx`・`mts`・`cts`・`js`・`mjs`）か、tsconfig か依存が staged のときに実行する。
 対象の拡張子は `lefthook.yml` の glob で決める。
 `--force` を付けるのは、`tsc -b` が up to date かを include の対象と tsbuildinfo の時刻だけで判定し、依存の型（`node_modules`）が変わってもプロジェクトを飛ばすからである。
 1 つのファイルの変更が import する側の型を変えるので、staged のファイルだけでなく全体を検査する。
 
-`tsconfig.json` は参照を束ねるだけで、対象と設定は次の 4 つで決める。共通の設定は `tsconfig.base.json` に置く。
+`tsconfig.json` は参照を束ねるだけで、対象と設定は次の 5 つで決める。共通の設定は `tsconfig.base.json` に置く。
 
 | 設定 | 対象 | 解決の規則 |
 | --- | --- | --- |
 | `tsconfig.repo.json` | Node が直接実行する `.ts`（設定ファイル・`scripts/`・private skill の `scripts/`） | `nodenext` |
+| `tsconfig.skills.json` | 配布スキルの `.mjs`（`skills/*/scripts/**` と `skills/*/assets/**`）を `checkJs` で検査する。lib に `dom` を含める（ブラウザの中で評価する関数を持つため） | `nodenext` |
 | `tsconfig.templates.json` | 配布スキルの `.ts`・`.mts`・`.cts`（`skills/*/**` と、インストール済みのコピーの `.agents/skills/*/**`）。今あるのは `assets/` の雛形だけで、`assets/` の外に足した `.ts` も対象になる。Node が直接実行する `.ts` を配布スキルに足すなら、`nodenext` のプロジェクトへ分ける | `bundler` |
 | `tsconfig.templates-links.json` | Claude Code 用のリンクから見た同じファイル（`.claude/skills/*/**`） | `bundler`（`tsconfig.templates.json` を継承する） |
 | `tsconfig.fixtures.json` | eval の fixture（`evals/*/fixtures/**/*.{ts,tsx}`） | `bundler`、`jsx: react-jsx` |
@@ -227,13 +232,24 @@ lefthook の pre-commit は、TypeScript か JavaScript（`ts`・`tsx`・`mts`�
 雛形に新しい import を足したら、`types/parity-templates.ts` にも足す。`@playwright/test` の型は devDependencies から読む。
 `types/` の宣言は `.d.ts` にしない。`skipLibCheck` は `node_modules` の型だけでなく、すべての `.d.ts` を検査から外すので、宣言の誤りが警告なしに通る。
 
+`JSON.parse` と `Response.json()` の戻り値は、`types/strict-json.ts` で `unknown` にしている（`tsconfig.repo.json` と `tsconfig.skills.json` が読む）。
+`any` を経由すると、型の注釈も型の表明も無いまま検査が外れるためである。
+受け取った後に形を検証するコードは、`unknown` で受けて型ガード（`scripts/lib/guards.ts` の `isRecord` など）で絞る。
+`parseJsonAs<T>` は検証していない値に完全な型を付けるので、検証が抜けても `tsc` が警告しない。形を確かめない読み方（テストが出力を `expect` で確かめる場合など）にだけ使う。
+
+配布スキルの `.mjs` では、型の検査を外す JSDoc の書き方を `scripts/gates/check-jsdoc-types.ts` が失敗にする。
+型の表明 `/** @type {X} */ (v)`（TypeScript の `as` と同じ）、JSDoc の型の `any`・`*`・`?`・型引数の無い `Object`、`@ts-ignore`・`@ts-expect-error`・`@ts-nocheck` である。
+宣言の注釈（`/** @type {X} */ const v = ...`）と `@satisfies` は、型を外さないので使ってよい。
+配布スキルが利用者のプロジェクトから読み込むモジュール（`pngjs` など）の型は、使う欄だけを `types/skill-runtime-modules.ts` に書く。
+
 eval の fixture は、エージェントに渡す下流のプロジェクトの断片で、依存のパッケージ（架空のものを含む）や同じ階層のファイルを置いていない。
 それらは `types/eval-fixtures.ts` で、fixture が使う範囲の型を書いて宣言する。fixture に import を足したら、この宣言にも足す。
 雛形の宣言と同じファイルにしないのは、ambient 宣言がプロジェクトの全体に適用され、互いの検査で一致してしまうからである。
 fixture の検査も strict のままにする。型が足りない fixture は、fixture に型を書いて直す。fixture は eval の入力なので、直したら `docs/skill-development.md` に従ってその eval を実行し直す。
 
 `composite` のプロジェクトは、import した `.mjs` も `include` に挙げる必要がある。
-そのため `tsconfig.repo.json` は、`scripts/` のテストが import する `skills/*/scripts/**/*.mjs` と `skills/*/assets/**/*.mjs` を含める。`checkJs` は付けないので、配布スキルの JavaScript の型は検査しない。
+そのため `tsconfig.repo.json` は、`scripts/` のテストが import する `skills/*/scripts/**/*.mjs` と `skills/*/assets/**/*.mjs` を含める。
+`tsconfig.repo.json` では `checkJs` を付けず、配布スキルの JavaScript の型は `tsconfig.skills.json` で検査する（lib と型の宣言が違うため）。
 インストール済みのコピーの `scripts/`（`.agents/skills/*/scripts/**` と `.claude/skills/*/scripts/**`）は、`tsconfig.templates.json` と `tsconfig.templates-links.json` から外す。
 そこに在る `.ts` は private skill のもので、Node が直接実行するので `tsconfig.repo.json` で検査する。
 

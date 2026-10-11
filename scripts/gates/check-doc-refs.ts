@@ -32,6 +32,7 @@ import {
   scannedFiles,
 } from "../lib/doc-scan.ts";
 import { errorMessage } from "../lib/errors.ts";
+import { isRecord } from "../lib/guards.ts";
 
 export const CONFIG_PATH = "scripts/gates/doc-refs.json";
 export const RULES = [
@@ -59,21 +60,23 @@ type SectionKind = "skill" | "link" | "code";
 export function loadConfig(root: string): DocRefsConfig {
   const path = join(root, CONFIG_PATH);
   if (!existsSync(path)) throw new Error(`${CONFIG_PATH} が無い`);
-  const data = JSON.parse(readFileSync(path, "utf8"));
-  if (typeof data?.repo !== "string" || !/^[\w.-]+\/[\w.-]+$/.test(data.repo))
+  const data: unknown = JSON.parse(readFileSync(path, "utf8"));
+  if (!isRecord(data) || typeof data.repo !== "string" || !/^[\w.-]+\/[\w.-]+$/.test(data.repo))
     throw new Error(`${CONFIG_PATH}: repo は "<owner>/<name>" の形にする`);
-  const ok = (e: { ref?: unknown; template?: unknown; skills?: unknown } | null) =>
-    typeof e?.ref === "string" &&
-    typeof e?.template === "string" &&
+  const ok = (e: unknown): e is GeneratedEntry =>
+    isRecord(e) &&
+    typeof e.ref === "string" &&
+    typeof e.template === "string" &&
     (e.skills === undefined ||
       (Array.isArray(e.skills) && e.skills.every((s: unknown) => typeof s === "string")));
-  if (!Array.isArray(data.generated) || !data.generated.every(ok))
+  const { generated } = data;
+  if (!Array.isArray(generated) || !generated.every(ok))
     throw new Error(`${CONFIG_PATH}: generated は { ref, template, skills? } の配列にする`);
-  for (const g of data.generated) {
+  for (const g of generated) {
     if (!existsSync(join(root, g.template)))
       throw new Error(`${CONFIG_PATH}: ${g.ref} のテンプレート ${g.template} が無い`);
   }
-  return data;
+  return { ...data, repo: data.repo, generated };
 }
 
 // ---- 参照先の節名 ----

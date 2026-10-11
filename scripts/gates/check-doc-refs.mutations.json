@@ -383,8 +383,8 @@
       "id": "DR-REPO",
       "why": "repo の形を確かめない",
       "file": "scripts/gates/check-doc-refs.ts",
-      "find": "if (typeof data?.repo !== \"string\" || !/^[\\w.-]+\\/[\\w.-]+$/.test(data.repo))",
-      "replace": "if (typeof data?.repo !== \"string\")",
+      "find": "if (!isRecord(data) || typeof data.repo !== \"string\" || !/^[\\w.-]+\\/[\\w.-]+$/.test(data.repo))",
+      "replace": "if (!isRecord(data) || typeof data.repo !== \"string\")",
       "occurrences": 1,
       "expect_failing": ["repo の形の誤り はチェックできない（exit 2）"]
     },

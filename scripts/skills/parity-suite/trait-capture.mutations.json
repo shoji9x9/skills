@@ -53,7 +53,7 @@
       "id": "slot-ignored",
       "why": "<slot> に割り当てられたノードを辿らない（ライト DOM の文字を落とす）",
       "file": "skills/parity-suite/scripts/trait-capture.mjs",
-      "find": "      } else if (typeof node.assignedNodes === \"function\" && node.assignedNodes().length > 0) {",
+      "find": "      } else if (isSlot(node) && node.assignedNodes().length > 0) {",
       "replace": "      } else if (false) {",
       "occurrences": 1,
       "expect_failing": [
@@ -96,8 +96,8 @@
       "id": "trim-per-node",
       "why": "テキストノードごとに trim して空白で繋ぐ（分割されたノードで \"3 件\" になる）",
       "file": "skills/parity-suite/scripts/trait-capture.mjs",
-      "find": "      rawText.set(known, rawText.get(known) + raw);\n      segments.get(known).push(segment);\n",
-      "replace": "      rawText.set(known, rawText.get(known) + \" \" + raw.trim());\n      segments.get(known).push(segment);\n",
+      "find": "      rawText.set(known, rawText.get(known) + raw);\n      present(segments.get(known)).push(segment);\n",
+      "replace": "      rawText.set(known, rawText.get(known) + \" \" + raw.trim());\n      present(segments.get(known)).push(segment);\n",
       "occurrences": 1,
       "expect_failing": [
         "同じ持ち主の文字が複数のテキストノードに分かれていても、1 ノードと同じ文字列・行数になる"
@@ -182,7 +182,7 @@
       "id": "blank-node-unmeasured",
       "why": "空白だけのノードの幅を数えない（分割されたノードが 1 ノードより狭くなる）",
       "file": "skills/parity-suite/scripts/trait-capture.mjs",
-      "find": "        segments.get(known).push({ full, lead: full, trail: full, blank: true });\n",
+      "find": "        present(segments.get(known)).push({ full, lead: full, trail: full, blank: true });\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
@@ -224,7 +224,7 @@
       "id": "js-trim-edges",
       "why": "端の空白の幅を JavaScript の trim で測る（全角スペースの字下げの幅を外す）",
       "file": "skills/parity-suite/scripts/trait-capture.mjs",
-      "find": "    const leadLength = /^[ \\t\\n\\r\\f]*/.exec(raw)[0].length;\n",
+      "find": "    const leadLength = present(/^[ \\t\\n\\r\\f]*/.exec(raw))[0].length;\n",
       "replace": "    const leadLength = raw.length - raw.trimStart().length;\n",
       "occurrences": 1,
       "expect_failing": ["NBSP と全角スペースは空白として畳まず、端の幅からも外さない"]
@@ -233,7 +233,7 @@
       "id": "scroll-never-container",
       "why": "器かどうかを判定せず scroll を常に null にする（Issue #495）",
       "file": "skills/parity-suite/scripts/trait-capture.mjs",
-      "find": "    typeof el.offsetWidth === \"number\" &&\n",
+      "find": "    hasOffsetBox(el) &&\n",
       "replace": "    false &&\n",
       "occurrences": 1,
       "expect_failing": [

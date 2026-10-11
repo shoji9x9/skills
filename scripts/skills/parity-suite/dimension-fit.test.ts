@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 import { main, fitPlane } from "../../../skills/parity-suite/scripts/dimension-fit.mjs";
 import { makeTempDir } from "../../lib/test-tmpdir.ts";
 import { invalidInput, removeField } from "../../lib/test-input.ts";
+import { parseJsonAs } from "../../lib/parse-as.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/dimension-fit.mjs");
@@ -51,7 +52,13 @@ type Fit = {
   residual: number;
   ratio: { width: number; height: number };
 };
-type DimensionModel = { tool_version?: string; fits: Fit[]; unfit: unknown[] };
+type DimensionModel = {
+  status?: string;
+  measured_at?: unknown;
+  tool_version?: string;
+  fits: Fit[];
+  unfit: unknown[];
+};
 type FittedMetadata = {
   capture_conditions: { viewports: unknown[]; dimension_model: DimensionModel };
 };
@@ -62,6 +69,20 @@ type Failure = {
   window?: Win;
   deviation: number;
 };
+/** CLI が stdout に出す JSON のうち、テストが読む欄（fit と check の両方）。 */
+type CliOutput = {
+  judged?: boolean;
+  ok?: boolean;
+  checked?: number;
+  reason?: string | null;
+  failures: Failure[];
+  unfit_to_note?: unknown[];
+  dimension_model: { unfit: Unfit[] };
+};
+/** fit が unfit に残す 1 件のうち、テストが読む欄。 */
+type Unfit = { element: string; property: string; reason: string };
+/** check --write が書く replace-metadata.json のうち、テストが読む欄。 */
+type WrittenCheck = { dimension_check: Record<string, unknown> };
 
 /** 幅と高さを独立に動かした 4 窓（撮影ビューポート 1366×768 を含む）。 */
 const WINDOWS = [
@@ -134,12 +155,13 @@ function run(argv: string[], files: Record<string, unknown>) {
     code,
     stdout,
     stderr,
-    json: stdout ? JSON.parse(stdout) : null,
+    // stdout が空なら null（JSON.parse("null") と同じ値）。形は各テストの expect が確かめる
+    json: parseJsonAs<CliOutput>(stdout || "null"),
     // 無いパスなら、テストを失敗させる
-    file: (p: string) => {
+    file: <T = WrittenCheck>(p: string): T => {
       const text = fs.get(p);
       assert.exists(text, `${p} が書かれていない`);
-      return JSON.parse(text);
+      return parseJsonAs<T>(text);
     },
   };
 }
@@ -155,7 +177,7 @@ function fittedMetadata(layout: Layout = formula) {
     "/w/m.json": metadataOf(),
   });
   expect(r.code).toBe(0);
-  return r.file("/w/m.json");
+  return r.file<FittedMetadata>("/w/m.json");
 }
 
 test("fitPlane は幅と高さへの追従を分けて読む", () => {
@@ -173,11 +195,11 @@ test("fit: 式で決まる要素は fits に割合と定数を残す（検出さ
   expect(dm.status).toBe("measured");
   expect(dm.measured_at).toEqual(WINDOWS);
   const buttonX = dm.fits.find((f: Fit) => f.element === "button" && f.property === "x");
-  expect(buttonX.ratio).toEqual({ width: 0.5, height: 0 });
-  expect(buttonX.offset).toBe(-8);
+  expect(buttonX?.ratio).toEqual({ width: 0.5, height: 0 });
+  expect(buttonX?.offset).toBe(-8);
   const gridH = dm.fits.find((f: Fit) => f.element === "grid" && f.property === "height");
-  expect(gridH.ratio).toEqual({ width: 0, height: 1 });
-  expect(gridH.offset).toBe(-132);
+  expect(gridH?.ratio).toEqual({ width: 0, height: 1 });
+  expect(gridH?.offset).toBe(-132);
   expect(dm.unfit).toEqual([]);
 });
 
@@ -199,8 +221,8 @@ test("fit: ブレークポイントをまたぐ・一部の窓で表示されな
       reason: "residual_exceeds_tolerance",
     }),
   );
-  expect(unfit.filter((u: Failure) => u.element === "grid")).toHaveLength(4);
-  expect(unfit.find((u: Failure) => u.element === "grid").reason).toBe(
+  expect(unfit.filter((u: Unfit) => u.element === "grid")).toHaveLength(4);
+  expect(unfit.find((u: Unfit) => u.element === "grid")?.reason).toBe(
     "hidden_in_windows: 1280x1024",
   );
 });
@@ -285,7 +307,7 @@ test("check: 1 点の px を並べた新側は、撮影ビューポートでは�
   const at1600 = r.json.failures.find(
     (f: Failure) => f.element === "grid" && f.property === "height" && f.window?.width === 1600,
   );
-  expect(at1600.deviation).toBe(132);
+  expect(at1600?.deviation).toBe(132);
 });
 
 test("check: 式どおりに作った新側は exit 0（誤検知しないことの確認）", () => {
@@ -363,7 +385,7 @@ test("check: 残差が許容ぎりぎりの軸でも、現側と同一の新側�
     (f: Fit) => f.element === "button" && f.property === "width",
   );
   expect(fit).toBeDefined();
-  expect(fit.residual).toBeGreaterThan(0.499);
+  expect(fit?.residual).toBeGreaterThan(0.499);
   const r = run(
     ["check", "--metadata", "m.json", "--current-samples", "s.json", "--samples", "n.json"],
     {
@@ -849,6 +871,7 @@ test("CLI: シンボリックリンクでなく実パスで起動して exit コ
   );
   expect(check.status).toBe(1);
   expect(
-    JSON.parse(readFileSync(join(dir, "m.json"), "utf8")).capture_conditions.dimension_model.status,
+    parseJsonAs<FittedMetadata>(readFileSync(join(dir, "m.json"), "utf8")).capture_conditions
+      .dimension_model.status,
   ).toBe("measured");
 });

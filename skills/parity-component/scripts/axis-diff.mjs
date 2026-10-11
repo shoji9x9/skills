@@ -41,6 +41,26 @@ export const VERSION = "2";
 const SEPARATOR = String.fromCharCode(31);
 
 /**
+ * null でないオブジェクト（配列を含む）か。JSON 由来の値の欄を読む前の絞り込みに使う。
+ * @param {unknown} value
+ * @returns {value is Record<string, unknown>}
+ */
+function isObject(value) {
+  return value !== null && typeof value === "object";
+}
+
+/**
+ * `value && value[key]` と同じ値を返す（オブジェクトなら欄の値、偽の値ならその値、それ以外は undefined）。
+ * @param {unknown} value
+ * @param {string} key
+ * @returns {unknown}
+ */
+function field(value, key) {
+  if (isObject(value)) return value[key];
+  return value && undefined;
+}
+
+/**
  * 1 つの採取物（trait-capture.mjs の返り値の形）を「軸名 → 値」の平坦な表にまとめる。
  * まとめるのは computed / before / after / rect だけである。
  * `child_inline_styles`（trait-capture.mjs VERSION 3 以降）は照合に使わない診断用の情報なので、**意図して読まない**。
@@ -73,7 +93,7 @@ export function flattenTraits(traits) {
   for (const pseudo of ["before", "after"]) {
     const prefix = `::${pseudo}/`;
     if (!Object.hasOwn(traits, pseudo)) continue; // 測っていないので、固定として扱わず軸を出さない
-    const captured = traits[pseudo];
+    const captured = pseudo === "before" ? traits.before : traits.after;
     if (captured == null) {
       flat[`${prefix}<present>`] = "false";
       continue;
@@ -121,16 +141,21 @@ export function flattenTraits(traits) {
  */
 export function assembleFromBaseline(dir) {
   const meta = JSON.parse(readFileSync(join(dir, "metadata.json"), "utf8"));
-  const states = Array.isArray(meta && meta.capture && meta.capture.states)
-    ? meta.capture.states
-    : [];
+  const declaredStates = field(field(meta, "capture"), "states");
+  const states = Array.isArray(declaredStates) ? declaredStates : [];
   if (states.length === 0) throw new Error("metadata.json の capture.states が空");
-  const instances = Array.isArray(meta && meta.instances) ? meta.instances : [];
+  const declaredInstances = field(meta, "instances");
+  const instances = Array.isArray(declaredInstances) ? declaredInstances : [];
   if (instances.length === 0) throw new Error("metadata.json の instances が空");
   // id と状態名はそのままパスの 1 セグメントになる。検証しないと `id: "../../outside"` や
   // `state: "../secret"` が baseline の外のファイルを読み、その値が axes.json に入る。
   // 区切り文字・`.`・`..`・空名を弾いたうえで、解決後のパスが baseline 配下にあることも確かめる。
   const baselineRoot = resolve(dir, "baseline");
+  /**
+   * @param {unknown} value
+   * @param {string} what
+   * @returns {string}
+   */
   const segment = (value, what) => {
     if (
       typeof value !== "string" ||
@@ -146,10 +171,9 @@ export function assembleFromBaseline(dir) {
   for (const st of states) segment(st, "capture.states[]");
   // 採取ツールのプロパティ集合（記録されていれば）。計算後スタイルのキーと突き合わせて、
   // 集合の外の軸名（空文字・typo）や採り忘れを diffAxes の problems に入れる。
-  const propertySet =
-    meta && meta.capture && meta.capture.tools && meta.capture.tools.traits_property_set;
+  const propertySet = field(field(field(meta, "capture"), "tools"), "traits_property_set");
   return {
-    component: (meta && meta.component) || null,
+    component: field(meta, "component") || null,
     ...(propertySet === undefined ? {} : { property_set: propertySet }),
     instances: instances.map((inst) => {
       const id = inst && inst.id;
@@ -157,8 +181,8 @@ export function assembleFromBaseline(dir) {
       segment(id, "instances[].id");
       const unreachable = new Set(
         (Array.isArray(inst.unreachable_states) ? inst.unreachable_states : [])
-          .map((u) => u && u.state)
-          .filter((st) => typeof st === "string" && st !== ""),
+          .map((/** @type {unknown} */ u) => field(u, "state"))
+          .filter((/** @type {unknown} */ st) => typeof st === "string" && st !== ""),
       );
       return {
         id,
@@ -189,15 +213,17 @@ export function assembleFromBaseline(dir) {
 
 /**
  * マニフェストから固定軸・可変軸を割り出す。
- * @param {AxisManifest | null} manifest
+ * @param {unknown} manifest AxisManifest の形を期待する（形はここで検査する）
  * @returns {{component: unknown, tool_version: string, instances: number, states: string[],
  *            fixed: FixedAxis[], variable: VariableAxis[], measured: number,
  *            not_compared: { instance: string, state: string }[], problems: string[], ok: boolean}}
  *   component はマニフェストの値のまま（無ければ null）。
  */
 export function diffAxes(manifest) {
+  /** @type {string[]} */
   const problems = [];
-  const instances = Array.isArray(manifest && manifest.instances) ? manifest.instances : [];
+  const declaredInstances = field(manifest, "instances");
+  const instances = Array.isArray(declaredInstances) ? declaredInstances : [];
 
   if (instances.length < 2) {
     problems.push(
@@ -242,7 +268,9 @@ export function diffAxes(manifest) {
   });
   // 宣言された到達不能な状態（そのインスタンスでは作れない状態）は、欠落ではなく既知の除外として扱う。
   // 宣言が無い欠落は採り忘れと区別できないので、従来どおり問題にする（判定できない入力を失敗とする扱いは変えない）。
+  /** @type {{ instance: number, value: unknown }[]} */
   const invalidUnreachable = [];
+  /** @type {Set<string>[]} */
   const declaredUnreachable = instances.map((instance, i) => {
     const declared = instance && instance.unreachable_states;
     if (!Array.isArray(declared)) return new Set();
@@ -250,6 +278,7 @@ export function diffAxes(manifest) {
     // **欠落を比較対象から外す緩和は、ここにしか無い**。そのため、通す入力を閉じた集合として列挙する。
     // `reason` を持つオブジェクトだけを受け付け、裸の文字列や理由の無い宣言は問題にする。
     // 広く受けると、typo や理由なしの宣言でも、欠落が `not_compared` として扱われ、誤って ok: true と判定される。
+    /** @type {Set<string>} */
     const names = new Set();
     for (const d of declared) {
       if (
@@ -304,6 +333,7 @@ export function diffAxes(manifest) {
       );
     }
   });
+  /** @type {{ instance: string, state: string }[]} */
   const notCompared = [];
   instances.forEach((instance, i) => {
     const missing = states.filter((s) => !stateSets[i].includes(s));
@@ -327,7 +357,7 @@ export function diffAxes(manifest) {
   // 渡されたときだけ、計算後スタイルと擬似要素のキーがこの集合と一致することを求める。
   // 集合そのものが不正なら突き合わせの根拠にならないので、照合を警告なしに飛ばさず問題にする。
   let propertySet = null;
-  if (manifest && manifest.property_set !== undefined) {
+  if (isObject(manifest) && manifest.property_set !== undefined) {
     const declared = manifest.property_set;
     if (
       !Array.isArray(declared) ||
@@ -357,16 +387,24 @@ export function diffAxes(manifest) {
       const missing = [];
       // `typeof [] === "object"` なので、配列を明示的に弾く。`computed: ["x"]` は数値のキーを
       // 軸として通してしまい、不正な採取物でも ok: true になりうる（どちらもレコードの形が仕様である）。
+      /** @param {unknown} v */
       const isRecord = (v) => Boolean(v) && typeof v === "object" && !Array.isArray(v);
       // 値の型まで見る。trait-capture.mjs は計算後スタイルを**非空の文字列**で返すので、
       // `{}` や `""` は採取物ではない。ここを通すと flattenTraits がそのまま軸の値にし、
       // オブジェクトは同一性比較で必ず「割れている」と判定されて**偽の可変軸**になる
       // （引数として実装へ渡るところまで行く）。キーの有無だけを見る検証では止まらない。
+      /** @param {unknown} v */
       const nonEmptyString = (v) => typeof v === "string" && v !== "";
+      /** @param {Record<string, unknown>} record */
       const badValues = (record) => Object.values(record).filter((v) => !nonEmptyString(v)).length;
       // 値だけでなく**キー（軸名）**も見る。`{ "": "x" }` は値の検証を通り、空の軸名が
       // 可変軸として ok: true の axes.json に載る。CSS のプロパティ名は空白を含まないので、
       // 空文字と空白を含む名前を弾く。集合が渡されていれば、その集合との一致まで求める。
+      /**
+       * @param {Record<string, unknown>} record
+       * @param {string} label
+       * @returns {string[]}
+       */
       const keyProblems = (record, label) => {
         const keys = Object.keys(record);
         const out = [];
@@ -396,6 +434,7 @@ export function diffAxes(manifest) {
       // trait-capture.mjs は x / y / width / height を常に数値で返す。キーの有無だけを見ると
       // `{ width: null }` のような不正な採取が通り、軸を作って、誤って ok: true と判定される。
       const rect = entry.traits.rect;
+      /** @param {unknown} v */
       const isFiniteNumber = (v) => typeof v === "number" && Number.isFinite(v);
       if (!isRecord(rect) || !isFiniteNumber(rect.width) || !isFiniteNumber(rect.height)) {
         missing.push("rect");
@@ -449,14 +488,16 @@ export function diffAxes(manifest) {
     }
   });
 
+  /** @type {FixedAxis[]} */
   const fixed = [];
+  /** @type {VariableAxis[]} */
   const variable = [];
   // インスタンスが 1 件だと、全軸が「割れていない」＝固定として並ぶ。`ok: false` は付くが、
   // 読み手が problems を見ずに fixed だけを引くと「この部品に可変軸は無い」と読める——
   // 本ツールが防ごうとしている取りこぼしそのものなので、割り出し自体を行わない。
   if (instances.length < 2) {
     return {
-      component: (manifest && manifest.component) || null,
+      component: field(manifest, "component") || null,
       tool_version: VERSION,
       instances: instances.length,
       states,
@@ -506,7 +547,7 @@ export function diffAxes(manifest) {
   }
 
   return {
-    component: (manifest && manifest.component) || null,
+    component: field(manifest, "component") || null,
     tool_version: VERSION,
     instances: instances.length,
     states,
@@ -519,6 +560,11 @@ export function diffAxes(manifest) {
   };
 }
 
+/**
+ * CLI 本体。
+ * @param {string[]} argv
+ * @returns {number} 終了コード
+ */
 export function main(argv) {
   const args = argv.filter((a) => a !== "");
   // 受け付けるオプションは `--out <path>` だけである。`--` で始まるトークンをまとめて読み飛ばすと、
@@ -586,7 +632,8 @@ export function main(argv) {
       baseline === null ? JSON.parse(readFileSync(input, "utf8")) : assembleFromBaseline(baseline);
   } catch (e) {
     const what = baseline === null ? "マニフェスト" : "採取物";
-    process.stderr.write(`error: ${what}を読めない: ${e && e.message ? e.message : e}\n`);
+    const message = field(e, "message");
+    process.stderr.write(`error: ${what}を読めない: ${message ? message : e}\n`);
     return 2;
   }
 

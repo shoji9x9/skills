@@ -18,6 +18,7 @@
 // 誤検知しないことの確認に使う実データ: 削除後の AGENTS.md に残した行（単位の定義・暴走時の記述）。
 // ワークフローで検出されることの確認に使う実データ: 実測値を mutation-proof.yml へ移す前の ci.yml のコメント。
 import { expect, test } from "vitest";
+import { parseJsonAs } from "../lib/parse-as.ts";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -366,7 +367,7 @@ test("--prune は古い保留だけを消し、一致する保留と許可は残
     { pending: { pending: [keep, stale, other], allowed: [] } },
   );
   expect(main([root, "--prune"])).toBe(0);
-  const after = JSON.parse(readFileSync(join(root, PENDING_PATH), "utf8"));
+  const after = parseJsonAs<{ pending: unknown[] }>(readFileSync(join(root, PENDING_PATH), "utf8"));
   expect(after.pending).toEqual([keep, other]);
 });
 

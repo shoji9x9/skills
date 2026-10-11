@@ -65,15 +65,23 @@ export function parseArrayPath(spec) {
     /** @type {string | undefined} */
     let value = m[4];
     if (m[3] !== undefined) {
+      /** @type {unknown} */
+      let parsed;
       try {
-        value = JSON.parse(m[3]);
+        parsed = JSON.parse(m[3]);
       } catch {
         throw new UsageError(`--array の選ぶ値が JSON 文字列として読めない: ${m[3]}`);
       }
+      // 正規表現が JSON の文字列リテラルだけを取り出すので、読めたら必ず文字列になる（到達しない分岐）
+      if (typeof parsed !== "string") {
+        throw new UsageError(`--array の選ぶ値が JSON 文字列として読めない: ${m[3]}`);
+      }
+      value = parsed;
     }
+    // 選ぶ欄（m[2]）があれば、値（m[3] か m[4]）も必ずある
     segments.push({
       name: m[1],
-      select: m[2] === undefined ? null : { field: m[2], value: /** @type {string} */ (value) },
+      select: m[2] === undefined || value === undefined ? null : { field: m[2], value },
     });
     rest = rest.slice(m[0].length);
     if (rest === "") break;
@@ -131,7 +139,11 @@ export function resolveArray(table, spec, create) {
         `${spec}: ${seg.name}[${field}=${value}] に一致する要素が ${hits.length} 件（1 件でなければ選ばない）`,
       );
     }
-    node = /** @type {Record<string, unknown>} */ (hits[0]);
+    const hit = hits[0];
+    // hits は isPlainObject で絞った要素だけを持つ（到達しない分岐）
+    if (!isPlainObject(hit))
+      throw new UsageError(`${spec}: ${seg.name} の要素がオブジェクトでない`);
+    node = hit;
   }
   throw new UsageError(`--array が空: ${spec}`);
 }
@@ -252,7 +264,7 @@ export function main(argv, deps = {}) {
       return 0;
     }
 
-    /** @type {Record<string, unknown>} */
+    /** @type {unknown} */
     let probe;
     if (command === "upsert") {
       const text = opts.from === "-" ? readStdin() : readFile(resolve(cwd, opts.from));

@@ -661,7 +661,7 @@ test("CLI: --out に書き、stdout には出さない", () => {
   const { code, result, written } = run([...baseArgs, "--out", "impact.json"], filesOf());
   expect(code).toBe(0);
   expect(result).toBeNull();
-  expect(JSON.parse(written["/w/impact.json"]).features).toHaveLength(2);
+  expect(parseJsonAs<ImpactResult>(written["/w/impact.json"]).features).toHaveLength(2);
 });
 
 test.each([

@@ -2,6 +2,7 @@ import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { parseJsonAs } from "../../lib/parse-as.ts";
 
 // git-worktree-branch-guard.sh は「worktree の作成手段が branch を作る呼び出し方」だけを通知する。
 // 通知のみでブロックしないため、取りこぼしは警告なしに起き、誤検知は通知の信頼を
@@ -118,7 +119,9 @@ const SILENT = [
 test.each(NOTIFIED)("通知する: $name", ({ payload }) => {
   const { status, stdout } = runGuard(payload);
   expect(status).toBe(0);
-  const parsed = JSON.parse(stdout);
+  const parsed = parseJsonAs<{
+    hookSpecificOutput: { hookEventName: string; additionalContext: string };
+  }>(stdout);
   expect(parsed.hookSpecificOutput.hookEventName).toBe("PreToolUse");
   expect(parsed.hookSpecificOutput.additionalContext).toContain("gh issue develop");
 });
@@ -200,7 +203,11 @@ test("Copilot の camelCase payload には ask で通知する", () => {
     toolArgs: { command: "git worktree add -b feature/x /tmp/wt" },
   });
   expect(status).toBe(0);
-  const parsed = JSON.parse(stdout);
+  const parsed = parseJsonAs<{
+    permissionDecision: string;
+    permissionDecisionReason: string;
+    hookSpecificOutput?: unknown;
+  }>(stdout);
   expect(parsed.permissionDecision).toBe("ask");
   expect(parsed.permissionDecisionReason).toContain("gh issue develop");
   expect(parsed.hookSpecificOutput).toBeUndefined();

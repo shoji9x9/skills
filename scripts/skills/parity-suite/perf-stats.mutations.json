@@ -24,8 +24,8 @@
       "id": "tolerance-floor-only",
       "why": "許容幅に四分位範囲を使わない",
       "file": "skills/parity-suite/scripts/perf-stats.mjs",
-      "find": "    /** @type {number} */ (cur.iqr),\n",
-      "replace": "    /** @type {number} */ (0),\n",
+      "find": "  const tolerance = Math.max(Number(cur.iqr), floor, relativeFloor * Number(cur.median));\n",
+      "replace": "  const tolerance = Math.max(0, floor, relativeFloor * Number(cur.median));\n",
       "occurrences": 1,
       "expect_failing": ["集計の部品 許容幅は四分位範囲と下限の大きい方で、ちょうどは回帰にしない"]
     },
@@ -33,8 +33,8 @@
       "id": "noisy-off",
       "why": "新側のばらつきを判定しない",
       "file": "skills/parity-suite/scripts/perf-stats.mjs",
-      "find": "  if (/** @type {number} */ (neu.iqr) > tolerance) return { status: \"noisy\", delta, tolerance };\n",
-      "replace": "  if (/** @type {number} */ (neu.iqr) > Infinity) return { status: \"noisy\", delta, tolerance };\n",
+      "find": "  if (Number(neu.iqr) > tolerance) return { status: \"noisy\", delta, tolerance };\n",
+      "replace": "  if (Number(neu.iqr) > Infinity) return { status: \"noisy\", delta, tolerance };\n",
       "occurrences": 1,
       "expect_failing": ["compare 新側のばらつきが許容幅を超えれば noisy で exit 1"]
     },
@@ -122,8 +122,8 @@
       "id": "run-dup-ok",
       "why": "同じ回の重複を受ける",
       "file": "skills/parity-suite/scripts/perf-stats.mjs",
-      "find": "    if (g.runs.has(/** @type {number} */ (s.run))) {\n",
-      "replace": "    if (false && g.runs.has(/** @type {number} */ (s.run))) {\n",
+      "find": "    if (g.runs.has(run)) {\n",
+      "replace": "    if (false && g.runs.has(run)) {\n",
       "occurrences": 1,
       "expect_failing": ["summarize 同じ組で run が重複すれば exit 2"]
     },
@@ -199,8 +199,8 @@
       "id": "relative-floor-off",
       "why": "割合の下限を許容幅に入れない",
       "file": "skills/parity-suite/scripts/perf-stats.mjs",
-      "find": "    relativeFloor * /** @type {number} */ (cur.median),\n",
-      "replace": "    0 * /** @type {number} */ (cur.median),\n",
+      "find": "  const tolerance = Math.max(Number(cur.iqr), floor, relativeFloor * Number(cur.median));\n",
+      "replace": "  const tolerance = Math.max(Number(cur.iqr), floor, 0 * Number(cur.median));\n",
       "occurrences": 1,
       "expect_failing": [
         "集計の部品 重いページでは、現側の中央値に対する割合が許容幅を広げる",
@@ -211,8 +211,8 @@
       "id": "relative-floor-not-passed",
       "why": "compare が記録した割合を使わない",
       "file": "skills/parity-suite/scripts/perf-stats.mjs",
-      "find": "          : judgeMetric(cur, neu, floor, relativeFloor));\n",
-      "replace": "          : judgeMetric(cur, neu, floor));\n",
+      "find": "          : judgeMetric(curStats, neu, floor, relativeFloor));\n",
+      "replace": "          : judgeMetric(curStats, neu, floor));\n",
       "occurrences": 1,
       "expect_failing": ["compare compare は記録した割合の下限で判定する"]
     },
@@ -258,8 +258,8 @@
       "id": "settle-any",
       "why": "数でない待つ時間を受ける",
       "file": "skills/parity-suite/scripts/perf-stats.mjs",
-      "find": "  if (!Number.isInteger(settings.settle_ms) || /** @type {number} */ (settings.settle_ms) < 0) {\n",
-      "replace": "  if (false && /** @type {number} */ (settings.settle_ms) < 0) {\n",
+      "find": "  if (\n    typeof settings.settle_ms !== \"number\" ||\n    !Number.isInteger(settings.settle_ms) ||\n    settings.settle_ms < 0\n  ) {\n",
+      "replace": "  if (false) {\n",
       "occurrences": 1,
       "expect_failing": ["summarize 測り方の値が取り決めと違えば exit 2: 待つ時間が数でない"]
     },
@@ -276,8 +276,8 @@
       "id": "run-upper-off",
       "why": "settings.runs を超える run を受ける",
       "file": "skills/parity-suite/scripts/perf-stats.mjs",
-      "find": "      /** @type {number} */ (s.run) > /** @type {number} */ (settings.runs)\n",
-      "replace": "      /** @type {number} */ (s.run) > Infinity\n",
+      "find": "    if (typeof run !== \"number\" || !Number.isInteger(run) || run < 1 || run > runs) {\n",
+      "replace": "    if (typeof run !== \"number\" || !Number.isInteger(run) || run < 1 || run > Infinity) {\n",
       "occurrences": 1,
       "expect_failing": ["summarize run が 1 から settings.runs までの連番でなければ exit 2"]
     },
@@ -349,7 +349,7 @@
       "id": "stats-any",
       "why": "回数と合わない median / iqr の基準を受ける",
       "file": "skills/parity-suite/scripts/perf-stats.mjs",
-      "find": "      if (!statsValid) {\n",
+      "find": "      if (!statsValid || !isNumberOrNull(cur.median) || !isNumberOrNull(cur.iqr)) {\n",
       "replace": "      if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
@@ -410,8 +410,8 @@
       "id": "placement-any",
       "why": "決まった値でない置き場所を受ける",
       "file": "skills/parity-suite/scripts/perf-stats.mjs",
-      "find": "    !TARGET_PLACEMENTS.includes(\n",
-      "replace": "    false &&\n    !TARGET_PLACEMENTS.includes(\n",
+      "find": "  if (typeof placement !== \"string\" || !TARGET_PLACEMENTS.includes(placement)) {\n",
+      "replace": "  if (false) {\n",
       "occurrences": 1,
       "expect_failing": ["summarize 入力の形が違えば exit 2: 置き場所が決まった値でない"]
     },
@@ -485,7 +485,7 @@
       "id": "cpu-count-any",
       "why": "整数でない CPU の数を受ける",
       "file": "skills/parity-suite/scripts/perf-stats.mjs",
-      "find": "  if (!Number.isInteger(cpuCount) || /** @type {number} */ (cpuCount) < 1) {\n",
+      "find": "  if (typeof cpuCount !== \"number\" || !Number.isInteger(cpuCount) || cpuCount < 1) {\n",
       "replace": "  if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
@@ -497,8 +497,8 @@
       "id": "loosened-off",
       "why": "緩めた下限を挙げない",
       "file": "skills/parity-suite/scripts/perf-stats.mjs",
-      "find": "      if (table[m] > d)\n",
-      "replace": "      if (false)\n",
+      "find": "      if (value > d) out.push({ metric: m, kind, value, default: d });\n",
+      "replace": "      if (false) out.push({ metric: m, kind, value, default: d });\n",
       "occurrences": 1,
       "expect_failing": [
         "compare デフォルトより緩い下限は、判定を変えずに loosened_floors と警告に出す"
@@ -508,8 +508,8 @@
       "id": "loosened-ge",
       "why": "デフォルトと同じ下限も緩めたものとして挙げる",
       "file": "skills/parity-suite/scripts/perf-stats.mjs",
-      "find": "      if (table[m] > d)\n",
-      "replace": "      if (table[m] >= d)\n",
+      "find": "      if (value > d) out.push({ metric: m, kind, value, default: d });\n",
+      "replace": "      if (value >= d) out.push({ metric: m, kind, value, default: d });\n",
       "occurrences": 1,
       "expect_failing": [
         "compare デフォルトの下限なら loosened_floors は空で、警告を出さない",

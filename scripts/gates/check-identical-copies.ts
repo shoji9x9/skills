@@ -20,6 +20,7 @@ import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { errorMessage } from "../lib/errors.ts";
+import { isRecord } from "../lib/guards.ts";
 
 export const DECLARATION_PATH = "scripts/gates/identical-copies.json";
 
@@ -29,8 +30,8 @@ type CopyGroup = { files: string[]; reason: string };
 export function loadGroups(root: string): CopyGroup[] {
   const path = join(root, DECLARATION_PATH);
   if (!existsSync(path)) throw new Error(`${DECLARATION_PATH} が無い`);
-  const data = JSON.parse(readFileSync(path, "utf8"));
-  const groups = data?.groups;
+  const data: unknown = JSON.parse(readFileSync(path, "utf8"));
+  const groups = isRecord(data) ? data.groups : undefined;
   if (!Array.isArray(groups) || groups.length === 0) {
     throw new Error("groups は 1 件以上の配列にする");
   }

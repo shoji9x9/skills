@@ -185,6 +185,66 @@ export const STATE_PSEUDO_CLASSES = [
  */
 
 /**
+ * 宣言を読む相手（CSSStyleDeclaration と同じ読み方ができるもの）。
+ * @typedef {{
+ *   length: number,
+ *   [index: number]: string,
+ *   getPropertyValue(property: string): string,
+ *   getPropertyPriority(property: string): string,
+ * }} CssStyleLike
+ */
+
+/**
+ * 走査する規則 1 件。CSSRule の種類ごとに持つ欄が違うので、欄の有無で種類を見分ける（どの欄も無いことがある）。
+ * cssText は CSSRule と共通の欄で、CSSRule をこの形として受け取るために置く（判定には使わない）。
+ * @typedef {{
+ *   cssText?: string,
+ *   styleSheet?: CssSheetLike | null,
+ *   href?: unknown,
+ *   media?: { mediaText?: string } | null,
+ *   supportsText?: unknown,
+ *   layerName?: unknown,
+ *   selectorText?: string,
+ *   style?: CssStyleLike,
+ *   cssRules?: ArrayLike<CssRuleLike> | null,
+ *   conditionText?: unknown,
+ *   name?: unknown,
+ *   keyText?: unknown,
+ *   start?: unknown,
+ *   end?: unknown,
+ * }} CssRuleLike
+ */
+
+/**
+ * 走査するスタイルシート 1 件（CSSStyleSheet と同じ読み方ができるもの）。
+ * @typedef {{ href?: string | null, cssRules: ArrayLike<CssRuleLike> }} CssSheetLike
+ */
+
+/**
+ * スタイルシートを持つ根（document かシャドウルート）。
+ * @typedef {{ styleSheets?: ArrayLike<CssSheetLike> | null, adoptedStyleSheets?: ArrayLike<CssSheetLike> | null }} SheetRoot
+ */
+
+/**
+ * 規則を走査するときの文脈（どの条件・レイヤ・スコープの中か）。
+ * @typedef {{
+ *   conditions: string[],
+ *   layers: string[],
+ *   parentSelector: string | null,
+ *   href: string | null,
+ *   outerScope: boolean,
+ *   hostScope: boolean,
+ *   slottedScope: boolean,
+ *   scope?: unknown,
+ * }} WalkContext
+ */
+
+/**
+ * セレクタのトップレベルで見つけた擬似クラス・擬似要素 1 件。
+ * @typedef {{ start: number, end: number, name: string, doubled: boolean, args: string | null }} PseudoToken
+ */
+
+/**
  * 要素に当たりうる CSS 規則を採る（ブラウザ内で実行される）。
  *
  * @param {Element} el 対象の要素。
@@ -196,8 +256,37 @@ export function collectMatchedRules(el, options) {
   const stateNames = new Set(options.statePseudoClasses);
   const structuralNames = new Set(options.structuralPseudoClasses || []);
 
+  // 次の補助は、ページ側へ直列化されて実行されるこの関数の中に置く（外側の名前を参照できない）。
+  /**
+   * 例外の名前（`e && e.name ? e.name : "Error"` と同じ。名前は文字列として返す）。
+   * @param {unknown} e
+   * @returns {string}
+   */
+  const errorName = (e) => {
+    const name = typeof e === "object" && e !== null && "name" in e ? e.name : undefined;
+    return name ? String(name) : "Error";
+  };
+  /**
+   * スタイルシートを持つ根か（`node.styleSheets` が真の値か）。
+   * @param {unknown} node
+   * @returns {node is SheetRoot}
+   */
+  const hasStyleSheets = (node) =>
+    typeof node === "object" && node !== null && "styleSheets" in node && Boolean(node.styleSheets);
+  /**
+   * style 属性の宣言を持つ要素か（`node.style` が真の値か）。
+   * @param {Element} node
+   * @returns {node is Element & { style: CssStyleLike }}
+   */
+  const hasStyle = (node) => "style" in node && Boolean(node.style);
+
   // セレクタリストをトップレベルのカンマで割る（括弧・文字列の中のカンマは区切りにしない）。
+  /**
+   * @param {string} text
+   * @returns {string[]}
+   */
   function splitSelectorList(text) {
+    /** @type {string[]} */
     const parts = [];
     let depth = 0;
     let quote = null;
@@ -230,6 +319,11 @@ export function collectMatchedRules(el, options) {
   // 入れ子の `&` を親セレクタで解決する。
   // 実測どおり Chrome は入れ子の selectorText に `&` を残すが、`&` が無い形で返る実装に備えて
   // その場合は子孫結合（CSS 入れ子の既定）として親を前置する。
+  /**
+   * @param {string} selectorText
+   * @param {string | null} parentSelector
+   * @returns {string}
+   */
   function resolveSelector(selectorText, parentSelector) {
     if (!parentSelector) return selectorText;
     const parent = `:is(${parentSelector})`;
@@ -237,6 +331,7 @@ export function collectMatchedRules(el, options) {
     // split("&").join(...) はその `&` まで置換し、属性値の中に `:is(...)` が入った不正な
     // セレクタになる。matches() は throw せず false を返すので、当たるはずの規則が警告なしに消える。
     // 置換するのは引用符・角括弧の外にある `&` だけにする。
+    /** @param {string} part */
     const replaceNestingTokens = (part) => {
       let out = "";
       let depth = 0;
@@ -286,6 +381,11 @@ export function collectMatchedRules(el, options) {
   // matches() へ渡る。すると、hover していない要素では規則が警告なしに消える。scanPseudos の
   // トップレベルの走査と同じ規則で数える。閉じないまま終端に達したら末尾を返す（呼び出し側の
   // slice が不正な引数を返し、未知の擬似クラスとして unresolved に入る）。
+  /**
+   * @param {string} selector
+   * @param {number} open
+   * @returns {number}
+   */
   function skipBalanced(selector, open) {
     let depth = 0;
     let quote = null;
@@ -314,7 +414,12 @@ export function collectMatchedRules(el, options) {
   }
 
   // トップレベル（括弧の外）の擬似クラス・擬似要素を切り出す。
+  /**
+   * @param {string} selector
+   * @returns {PseudoToken[]}
+   */
   function scanPseudos(selector) {
+    /** @type {PseudoToken[]} */
     const found = [];
     let depth = 0;
     let quote = null;
@@ -360,6 +465,11 @@ export function collectMatchedRules(el, options) {
   // セレクタ（関数型擬似クラスの引数の中も含む）に条件を満たす擬似クラス・擬似要素があるか。
   // 文字列の部分一致（`includes(":host")`）で判定すると、名前の大文字小文字を区別してしまい、
   // 属性値の中の `"::part(x)"` にも当たる。名前は scanPseudos が正規化したものを見る。
+  /**
+   * @param {string} selector
+   * @param {(p: PseudoToken) => boolean} predicate
+   * @returns {boolean}
+   */
   function hasPseudo(selector, predicate) {
     for (const p of scanPseudos(selector)) {
       if (predicate(p)) return true;
@@ -367,11 +477,15 @@ export function collectMatchedRules(el, options) {
     }
     return false;
   }
+  /** @param {PseudoToken} p */
   const isSlotted = (p) => p.doubled && p.name === "slotted" && p.args !== null;
+  /** @param {PseudoToken} p */
   const isPart = (p) => p.doubled && p.name === "part" && p.args !== null;
+  /** @param {PseudoToken} p */
   const isHost = (p) => !p.doubled && (p.name === "host" || p.name === "host-context");
 
   // 状態擬似クラスと擬似要素を剥がし、残り（base）と剥がしたものを返す。
+  /** @param {string} selector */
   function analyzeSelector(selector) {
     const pseudos = scanPseudos(selector);
     const states = [];
@@ -401,6 +515,10 @@ export function collectMatchedRules(el, options) {
     // 直下だけを見る実装では「状態は無い」と判定され、hover していない要素に対して
     // matches() が false を返して、規則が警告なしに消える。段数を決め打ちせずに降りる。
     // `:not()` は状態を否定する側なので降りない（否定の中の状態は、その状態でないときに当たる）。
+    /**
+     * @param {string} selector
+     * @returns {boolean}
+     */
     const hasStateInsideFunctional = (selector) => {
       for (const p of scanPseudos(selector)) {
         if (!p.args || p.doubled) continue;
@@ -422,7 +540,9 @@ export function collectMatchedRules(el, options) {
     // （`.card:is(.item:popover-open)`）、外側は構造擬似クラスとして許容され、内側は
     // 状態集合にも構造集合にも無いまま matches() へ渡る。その状態でない要素では false が
     // 返り、規則が matched にも unresolved にも残らずに消える。
+    /** @type {string[]} */
     const unknownPseudos = [];
+    /** @param {string} selector */
     const collectUnknown = (selector) => {
       for (const p of scanPseudos(selector)) {
         if (!p.doubled && !stateNames.has(p.name) && !structuralNames.has(p.name)) {
@@ -435,7 +555,15 @@ export function collectMatchedRules(el, options) {
     return { base, states, pseudoElement, stateInsideFunctional, unknownPseudos };
   }
 
+  /**
+   * @param {CssStyleLike | undefined} style
+   * @returns {CssDeclaration[]}
+   */
   function readDeclarations(style) {
+    // style の無い規則を渡したときは、元と同じく style.length の読み取りで TypeError になる。
+    if (style === undefined)
+      throw new TypeError("Cannot read properties of undefined (reading 'length')");
+    /** @type {CssDeclaration[]} */
     const declarations = [];
     for (let i = 0; i < style.length; i++) {
       const property = style[i];
@@ -448,8 +576,11 @@ export function collectMatchedRules(el, options) {
     return declarations;
   }
 
+  /** @type {MatchedRule[]} */
   const matched = [];
+  /** @type {UnresolvedRule[]} */
   const unresolved = [];
+  /** @type {InaccessibleSheet[]} */
   const inaccessible = [];
   const counts = {
     sheets: 0,
@@ -465,6 +596,12 @@ export function collectMatchedRules(el, options) {
 
   // 解決済みセレクタリストを 1 件ずつ判定し、当たったものを matched へ、判定できないものを
   // unresolved へ落とす。通常の規則と CSSNestedDeclarations の両方から使う。
+  /**
+   * @param {string} resolved
+   * @param {string} originalSelector
+   * @param {CssDeclaration[]} declarations
+   * @param {WalkContext} ctx
+   */
   function matchAndRecord(resolved, originalSelector, declarations, ctx) {
     const index = order++;
     for (const part of splitSelectorList(resolved)) {
@@ -563,7 +700,7 @@ export function collectMatchedRules(el, options) {
           selector: part,
           original_selector: originalSelector,
           href: ctx.href,
-          reason: `matches-threw:${e && e.name ? e.name : "Error"}`,
+          reason: `matches-threw:${errorName(e)}`,
         });
         continue;
       }
@@ -582,6 +719,10 @@ export function collectMatchedRules(el, options) {
     }
   }
 
+  /**
+   * @param {CssRuleLike[]} rules
+   * @param {WalkContext} ctx
+   */
   function walkRules(rules, ctx) {
     for (const rule of rules) {
       // (1) @import。cssRules を持たないので styleSheet から辿る。ここを飛ばすと
@@ -674,6 +815,10 @@ export function collectMatchedRules(el, options) {
     }
   }
 
+  /**
+   * @param {CssSheetLike | null | undefined} sheet
+   * @param {Partial<WalkContext> | null} ctx
+   */
   function walkSheet(sheet, ctx) {
     if (!sheet) return;
     // 重複の排除は、スコープを含めて行う。シート単位にすると、同じ CSSStyleSheet を
@@ -700,7 +845,7 @@ export function collectMatchedRules(el, options) {
     } catch (e) {
       // クロスオリジンのスタイルシートは cssRules の参照で SecurityError を投げる。
       // 握り潰すと「規則が無い」と区別できないので、必ず出力に残す。
-      inaccessible.push({ href, error: e && e.name ? e.name : "Error" });
+      inaccessible.push({ href, error: errorName(e) });
       return;
     }
     // @import から来た場合は呼び出し元の条件・レイヤを引き継ぐ（ここで [] に戻すと
@@ -721,8 +866,11 @@ export function collectMatchedRules(el, options) {
   // カプセル化で当たらない規則を「当たっている」として記録し、部品の基準が偽になる。
   // 外側から中へ届くのは `::part()` だけなので、それを警告なしに捨てず unresolved に残す。
   const root = el.getRootNode();
-  const inShadow = Boolean(root && root !== el.ownerDocument && root.styleSheets);
-  const ownRoot = inShadow ? root : el.ownerDocument;
+  // `Boolean(root && root !== el.ownerDocument && root.styleSheets)` と同じ判定（根を型で絞るため分けて書く）。
+  const shadowRoot = root && root !== el.ownerDocument && hasStyleSheets(root) ? root : null;
+  const inShadow = shadowRoot !== null;
+  /** @type {SheetRoot} */
+  const ownRoot = shadowRoot !== null ? shadowRoot : el.ownerDocument;
   for (const sheet of Array.from(ownRoot.styleSheets || [])) walkSheet(sheet, null);
   for (const sheet of Array.from(ownRoot.adoptedStyleSheets || [])) walkSheet(sheet, null);
   if (inShadow) {
@@ -741,7 +889,7 @@ export function collectMatchedRules(el, options) {
   // 返すのでここまで辿らないと見えず、規則を 1 件も採らないまま基準が出る。
   const slotRoot =
     el.assignedSlot && el.assignedSlot.getRootNode ? el.assignedSlot.getRootNode() : null;
-  if (slotRoot && slotRoot !== el.ownerDocument && slotRoot.styleSheets) {
+  if (slotRoot && slotRoot !== el.ownerDocument && hasStyleSheets(slotRoot)) {
     for (const sheet of Array.from(slotRoot.styleSheets || [])) {
       walkSheet(sheet, { slottedScope: true });
     }
@@ -763,7 +911,7 @@ export function collectMatchedRules(el, options) {
   // インライン指定で来ている」ことも `!important` の優先度も実装時に復元できない
   // （インスタンス固有の幅を style で当てている現行部品が典型）。
   // 規則ではないので matched へ混ぜず、別の出所として並べる。
-  const inlineDeclarations = el.style ? readDeclarations(el.style) : [];
+  const inlineDeclarations = hasStyle(el) ? readDeclarations(el.style) : [];
 
   return {
     matched,
@@ -771,7 +919,7 @@ export function collectMatchedRules(el, options) {
     inaccessible,
     inline_declarations: inlineDeclarations,
     shadow_host: Boolean(el.shadowRoot && el.shadowRoot.styleSheets),
-    slotted: Boolean(slotRoot && slotRoot !== el.ownerDocument && slotRoot.styleSheets),
+    slotted: Boolean(slotRoot && slotRoot !== el.ownerDocument && hasStyleSheets(slotRoot)),
     counts: { ...counts, matched: matched.length, inline_declarations: inlineDeclarations.length },
     shadow_root: inShadow,
   };
@@ -793,6 +941,22 @@ export function collectMatchedRules(el, options) {
  * @returns {Promise<({ name: string, tool_version: string } & MatchedRulesCapture)[]>} 論理名ごとの採取の結果。
  */
 export async function captureMatchedRules(entries, options = {}) {
+  /**
+   * 採取の結果の形か（collectMatchedRules は常にこの形を返す）。
+   * @param {unknown} value
+   * @returns {value is MatchedRulesCapture}
+   */
+  const isCapture = (value) =>
+    typeof value === "object" &&
+    value !== null &&
+    "matched" in value &&
+    Array.isArray(value.matched) &&
+    "unresolved" in value &&
+    Array.isArray(value.unresolved) &&
+    "inaccessible" in value &&
+    Array.isArray(value.inaccessible) &&
+    "inline_declarations" in value &&
+    Array.isArray(value.inline_declarations);
   const resolved = {
     statePseudoClasses: options.statePseudoClasses || STATE_PSEUDO_CLASSES,
     structuralPseudoClasses: options.structuralPseudoClasses || STRUCTURAL_PSEUDO_CLASSES,
@@ -800,6 +964,9 @@ export async function captureMatchedRules(entries, options = {}) {
   const results = [];
   for (const entry of entries) {
     const captured = await entry.locator.evaluate(collectMatchedRules, resolved);
+    // collectMatchedRules は常にこの形を返すので、ここで投げることは起きない（型の絞り込みのため）。
+    if (!isCapture(captured))
+      throw new Error(`css rules capture returned an unexpected shape: ${entry.name}`);
     results.push({ name: entry.name, tool_version: VERSION, ...captured });
   }
   return results;

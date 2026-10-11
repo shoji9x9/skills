@@ -37,7 +37,7 @@ import {
 import { hasStrings, stringMarkdown } from "../lib/code-strings.ts";
 import { isAgentCopy } from "../lib/source-scope.ts";
 import { errorMessage } from "../lib/errors.ts";
-import { parseJsonAs } from "../lib/parse-as.ts";
+import { isRecord } from "../lib/guards.ts";
 
 export const PENDING_PATH = "scripts/gates/prose-lint-pending.json";
 /** コメントを取り出せなかったファイルの指摘に付ける ruleId。 */
@@ -55,10 +55,8 @@ type Linter = ReturnType<typeof createLinter>;
 export function loadPending(root: string): Set<string> {
   const path = join(root, PENDING_PATH);
   if (!existsSync(path)) throw new Error(`${PENDING_PATH} が無い`);
-  const data = parseJsonAs<{ reason?: unknown; files?: unknown } | null>(
-    readFileSync(path, "utf8"),
-  );
-  if (typeof data?.reason !== "string" || !data.reason.trim()) {
+  const data: unknown = JSON.parse(readFileSync(path, "utf8"));
+  if (!isRecord(data) || typeof data.reason !== "string" || !data.reason.trim()) {
     throw new Error("reason が無い（なぜ保留しているかを書く）");
   }
   const files = data.files;

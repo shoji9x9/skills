@@ -1481,7 +1481,8 @@ export function readManifest(manifestPath) {
     seenIds.add(id);
     // unit を持たない旧い一覧は lines（このツールの初版の突き合わせ方）として読む。
     const unit = a.unit === undefined || a.unit === null ? "lines" : a.unit;
-    if (!UNITS.includes(/** @type {string} */ (unit))) {
+    // UNITS は文字列だけなので、typeof は型を絞るためだけにある（判定は変わらない）。
+    if (typeof unit !== "string" || !UNITS.includes(unit)) {
       throw new UsageError(
         `artifacts[${i}] の unit が語彙外（${UNITS.join(" / ")}）: ${JSON.stringify(a.unit)}`,
       );
@@ -1672,7 +1673,7 @@ export function readManifest(manifestPath) {
         registryGroups = a.registry_groups.map((g) => ({
           id: String(g.id).trim(),
           itemKey: String(g.item_key).trim(),
-          paths: g.paths.map((x) => String(x).trim()),
+          paths: g.paths.map((/** @type {unknown} */ x) => String(x).trim()),
         }));
       }
       if (a.growable_containers !== undefined && a.growable_containers !== null) {
@@ -1738,12 +1739,14 @@ export function readManifest(manifestPath) {
     // グループ内・グループ間の重複を exit 2 にしているのと同じ理由。
     /** @type {{ path: string, option: string }[]} 既に見たパスと由来のオプション名 */
     const pathOwners = [];
-    for (const [option, paths] of [
+    /** @type {[string, string[]][]} */
+    const optionPaths = [
       ["mutable_blocks", mutableBlocks],
       ["growable_containers", growableContainers],
       ["registry_groups", registryGroups.flatMap((g) => g.paths)],
-    ]) {
-      for (const path of /** @type {string[]} */ (paths)) {
+    ];
+    for (const [option, paths] of optionPaths) {
+      for (const path of paths) {
         for (const prev of pathOwners) {
           // 祖先・子孫は「一方がもう一方 + `.` で始まる」で判定する（`a.b` と `a.bc` は重ならない）。
           const overlaps =
@@ -1756,7 +1759,7 @@ export function readManifest(manifestPath) {
             `artifacts[${i}] の${how}が ${prev.option} と ${option} の両方にある: ${prev.path} / ${path}`,
           );
         }
-        pathOwners.push({ path, option: /** @type {string} */ (option) });
+        pathOwners.push({ path, option });
       }
     }
     return {
@@ -1915,10 +1918,9 @@ export function check(opts) {
 
   let checked = 0;
   for (const file of targets) {
-    const artifact =
-      /** @type {{ id: string, pattern: string, unit: string, arrays: string[], key: string | null, fillOnly: string[], transitions: Record<string, string[]>, mutableColumns: string[], fillOnlyColumns: string[], mutableBullets: string[], mutableBlocks: string[], growableContainers: string[], registryGroups: { id: string, itemKey: string, paths: string[] }[], pinnedValues: { paths: string[], history: string }[] }} */ (
-        byFile.get(file)
-      );
+    const artifact = byFile.get(file);
+    // targets は byFile のキーなので必ず見つかる（型を絞るためだけの分岐で、到達しない）。
+    if (artifact === undefined) throw new Error(`byFile に無いファイル: ${file}`);
     const inBase = trackedSet.has(file);
     const before = git(root, ["show", `${base}:${prefix}${file}`]);
     if (before.status !== 0) {
@@ -1986,13 +1988,12 @@ export function check(opts) {
       if (lost.length < 3) lost.push(unit.length > 120 ? `${unit.slice(0, 117)}...` : unit);
       // その消失が読めなかったコンテナ由来か（読みに行った行そのもの、またはそのコンテナの
       // 要素が作る単位）を見る。ファイル単位で案内を出すと無関係な鍵の削除にまで付く。
-      for (const [
-        list,
-        blamed,
-      ] of /** @type {[{ path: string, prefixes: string[], lines: string[] }[], Set<string>][]} */ ([
+      /** @type {[{ path: string, prefixes: string[], lines: string[] }[], Set<string>][]} */
+      const blameSides = [
         [wrappedBefore, blamedBefore],
         [wrappedAfter, blamedAfter],
-      ])) {
+      ];
+      for (const [list, blamed] of blameSides) {
         for (const w of list) {
           if (w.lines.includes(unit) || w.prefixes.some((prefix) => unit.startsWith(prefix))) {
             blamed.add(w.path);

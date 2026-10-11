@@ -397,14 +397,22 @@ export function referencedUrls(probe, label) {
       // 絶対 URL でない値（プローブは解決済みの URL を返すので通常は来ない）は参照に数えない
     }
   };
-  for (const row of /** @type {unknown[]} */ (probe.images)) if (isPlainObject(row)) add(row.src);
-  for (const row of /** @type {unknown[]} */ (probe.urlRefs)) if (isPlainObject(row)) add(row.url);
-  for (const row of /** @type {unknown[]} */ (probe.fontFaces)) {
+  // 上の検査で各キーが配列だと確かめてあるので、`[]` は型を絞るためだけにある（到達しない）。
+  /**
+   * @param {string} key
+   * @returns {unknown[]}
+   */
+  const rowsOf = (key) => {
+    const rows = probe[key];
+    return Array.isArray(rows) ? rows : [];
+  };
+  for (const row of rowsOf("images")) if (isPlainObject(row)) add(row.src);
+  for (const row of rowsOf("urlRefs")) if (isPlainObject(row)) add(row.url);
+  for (const row of rowsOf("fontFaces")) {
     if (isPlainObject(row) && Array.isArray(row.src)) for (const u of row.src) add(u);
   }
-  for (const row of /** @type {unknown[]} */ (probe.icons)) if (isPlainObject(row)) add(row.href);
-  for (const row of /** @type {unknown[]} */ (probe.resources))
-    if (isPlainObject(row)) add(row.url);
+  for (const row of rowsOf("icons")) if (isPlainObject(row)) add(row.href);
+  for (const row of rowsOf("resources")) if (isPlainObject(row)) add(row.url);
   return out;
 }
 
@@ -578,10 +586,12 @@ export async function check(input) {
         new_sha256: neu.ok && neu.bytes !== null ? sha256(neu.bytes) : null,
       };
       const fetchFindingsBefore = findings.length;
-      for (const [side, res, url] of /** @type {const} */ ([
+      /** @type {[string, Awaited<ReturnType<Fetcher>>, string][]} */
+      const sides = [
         ["移行元", cur, currentUrl],
         ["新側", neu, newUrl],
-      ])) {
+      ];
+      for (const [side, res, url] of sides) {
         if (!res.ok || res.bytes === null) {
           findings.push(
             `「${row.kind}」の${side}の配信物を取得できない（${url}: ${res.error ?? `HTTP ${res.status}`}）`,
@@ -823,7 +833,7 @@ export async function main(argv, deps = {}) {
     const message =
       e instanceof UsageError
         ? e.message
-        : e instanceof Error && typeof (/** @type {NodeJS.ErrnoException} */ (e).code) === "string"
+        : e instanceof Error && "code" in e && typeof e.code === "string"
           ? e.message
           : `判定できない例外で終了した: ${e instanceof Error ? (e.stack ?? e.message) : String(e)}`;
     process.stderr.write(`error: ${message}\n${usage}\n`);

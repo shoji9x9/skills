@@ -351,13 +351,21 @@ function isObjectLike(value: unknown): value is Record<string, unknown> {
 }
 
 function objectOf(value: unknown, name: string): Record<string, unknown> {
-  if (!isObjectLike(value)) throw new TypeError(`${name} が object でない: ${String(value)}`);
+  if (!isObjectLike(value)) throw new TypeError(`${name} が object でない: ${shapeOf(value)}`);
   return value;
 }
 
 function arrayOf(value: unknown, name: string): unknown[] {
-  if (!Array.isArray(value)) throw new TypeError(`${name} が配列でない: ${String(value)}`);
+  if (!Array.isArray(value)) throw new TypeError(`${name} が配列でない: ${shapeOf(value)}`);
   return value;
+}
+
+// エラーメッセージに出す値の形。object を String で文字列にすると `[object Object]` になり、何が来たかが分からない。
+function shapeOf(value: unknown): string {
+  if (value === null) return "null";
+  if (Array.isArray(value)) return `配列（${value.length} 件）`;
+  if (typeof value === "object") return `object（欄: ${Object.keys(value).join(", ") || "なし"}）`;
+  return `${typeof value} ${String(value)}`;
 }
 
 // すべての頁が localhost・127.0.0.0/8・::1 を指せば loopback、1 つでも他を指せば remote

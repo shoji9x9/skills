@@ -96,6 +96,14 @@ function isPlainObject(v) {
 
 /**
  * @param {unknown} v
+ * @returns {v is number | null}
+ */
+function isNumberOrNull(v) {
+  return typeof v === "number" || v === null;
+}
+
+/**
+ * @param {unknown} v
  * @returns {v is string}
  */
 function isNonEmptyString(v) {
@@ -104,7 +112,7 @@ function isNonEmptyString(v) {
 
 /**
  * ドット区切りのパスで値を取る。
- * @param {Record<string, unknown>} obj
+ * @param {unknown} obj
  * @param {string} path
  * @returns {unknown}
  */
@@ -232,14 +240,11 @@ export function groupSamples(doc, expect) {
     throw new UsageError("採取の environment.channel が null か空でない文字列でない");
   }
   const cpuCount = getPath(doc.environment, "runner.cpu_count");
-  if (!Number.isInteger(cpuCount) || /** @type {number} */ (cpuCount) < 1) {
+  if (typeof cpuCount !== "number" || !Number.isInteger(cpuCount) || cpuCount < 1) {
     throw new UsageError("採取の environment.runner.cpu_count が 1 以上の整数でない");
   }
-  if (
-    !TARGET_PLACEMENTS.includes(
-      /** @type {string} */ (getPath(doc.environment, "target_placement")),
-    )
-  ) {
+  const placement = getPath(doc.environment, "target_placement");
+  if (typeof placement !== "string" || !TARGET_PLACEMENTS.includes(placement)) {
     throw new UsageError(
       `採取の environment.target_placement が ${TARGET_PLACEMENTS.join(" / ")} でない`,
     );
@@ -251,7 +256,8 @@ export function groupSamples(doc, expect) {
   }
   const settings = doc.settings;
   if (!isPlainObject(settings)) throw new UsageError("採取に settings が無い");
-  if (!Number.isInteger(settings.runs) || /** @type {number} */ (settings.runs) < MIN_RUNS) {
+  const runs = settings.runs;
+  if (typeof runs !== "number" || !Number.isInteger(runs) || runs < MIN_RUNS) {
     throw new UsageError(
       `settings.runs が ${MIN_RUNS} 以上の整数でない: ${JSON.stringify(settings.runs)}`,
     );
@@ -268,7 +274,11 @@ export function groupSamples(doc, expect) {
   if (settings.warmup !== 1) {
     throw new UsageError(`settings.warmup が 1 でない: ${JSON.stringify(settings.warmup)}`);
   }
-  if (!Number.isInteger(settings.settle_ms) || /** @type {number} */ (settings.settle_ms) < 0) {
+  if (
+    typeof settings.settle_ms !== "number" ||
+    !Number.isInteger(settings.settle_ms) ||
+    settings.settle_ms < 0
+  ) {
     throw new UsageError(
       `settings.settle_ms が 0 以上の整数でない: ${JSON.stringify(settings.settle_ms)}`,
     );
@@ -286,11 +296,8 @@ export function groupSamples(doc, expect) {
     if (!isKeyPart(s.page) || !isKeyPart(s.viewport)) {
       throw new UsageError(`samples[${i}] の page / viewport が空か "${KEY_SEPARATOR}" を含む`);
     }
-    if (
-      !Number.isInteger(s.run) ||
-      /** @type {number} */ (s.run) < 1 ||
-      /** @type {number} */ (s.run) > /** @type {number} */ (settings.runs)
-    ) {
+    const run = s.run;
+    if (typeof run !== "number" || !Number.isInteger(run) || run < 1 || run > runs) {
       // 重複が無く件数も合えば、run の集合は 1..settings.runs と一致する
       throw new UsageError(`samples[${i}] の run が 1 から settings.runs までの整数でない`);
     }
@@ -301,10 +308,10 @@ export function groupSamples(doc, expect) {
       for (const m of METRICS) g.values[m] = [];
       groups.set(key, g);
     }
-    if (g.runs.has(/** @type {number} */ (s.run))) {
+    if (g.runs.has(run)) {
       throw new UsageError(`samples[${i}] の run が組 ${key} の中で重複する: ${s.run}`);
     }
-    g.runs.add(/** @type {number} */ (s.run));
+    g.runs.add(run);
     for (const m of METRICS) {
       const v = s[m];
       // LCP だけは候補が出ない回がある（描画する内容が無い頁）。他の指標は必ず値がある
@@ -374,7 +381,9 @@ export function expectedPairs(metadata) {
  * @returns {{ pages: unknown[], viewports: unknown[] }}
  */
 export function captureDefinition(metadata) {
-  const cc = /** @type {Record<string, unknown>} */ (metadata.capture_conditions ?? {});
+  const rawCc = metadata.capture_conditions ?? {};
+  // オブジェクトでない値は pages・viewports を持たないので、空のオブジェクトと同じ結果になる
+  const cc = isPlainObject(rawCc) ? rawCc : {};
   const pages = Array.isArray(cc.pages) ? cc.pages : [];
   const viewports = Array.isArray(cc.viewports) ? cc.viewports : [];
   return {
@@ -394,10 +403,10 @@ export function captureDefinition(metadata) {
  * @returns {boolean}
  */
 export function captureMatches(samplesDoc, metadata) {
-  const doc = /** @type {Record<string, unknown>} */ (samplesDoc);
   return (
-    isPlainObject(doc.capture) &&
-    JSON.stringify(captureDefinition({ capture_conditions: doc.capture })) ===
+    isPlainObject(samplesDoc) &&
+    isPlainObject(samplesDoc.capture) &&
+    JSON.stringify(captureDefinition({ capture_conditions: samplesDoc.capture })) ===
       JSON.stringify(captureDefinition(metadata))
   );
 }
@@ -451,19 +460,17 @@ export function summarize(metadata, samplesDoc, opts) {
   }
   const missing = expected.filter((k) => !groups.has(k));
   const extra = [...groups.keys()].filter((k) => !expected.includes(k));
-  const doc = /** @type {Record<string, unknown>} */ (samplesDoc);
-  const pairs = expected
-    .filter((k) => groups.has(k))
-    .map((k) => {
-      const g =
-        /** @type {{ page:string, viewport:string, values: Record<string, (number|null)[]> }} */ (
-          groups.get(k)
-        );
-      /** @type {Record<string, ReturnType<typeof summarizeValues>>} */
-      const metrics = {};
-      for (const m of METRICS) metrics[m] = summarizeValues(g.values[m]);
-      return { page: g.page, viewport: g.viewport, metrics };
-    });
+  // groupSamples がオブジェクトでない採取を先に拒否しているので、ここには到達しない
+  if (!isPlainObject(samplesDoc)) throw new UsageError("採取がオブジェクトでない");
+  const doc = samplesDoc;
+  const pairs = expected.flatMap((k) => {
+    const g = groups.get(k);
+    if (!g) return [];
+    /** @type {Record<string, ReturnType<typeof summarizeValues>>} */
+    const metrics = {};
+    for (const m of METRICS) metrics[m] = summarizeValues(g.values[m]);
+    return [{ page: g.page, viewport: g.viewport, metrics }];
+  });
   return {
     ok: missing.length === 0 && extra.length === 0,
     missing,
@@ -519,14 +526,13 @@ export function floorHistory(previous, samplesDoc, opts) {
     canonicalJson(prev.floors ?? null) === canonicalJson(opts.floors) &&
     canonicalJson(prev.relative_floors ?? null) === canonicalJson(opts.relativeFloors);
   if (unchanged && tableUnchanged) return history;
-  const doc = /** @type {Record<string, unknown>} */ (samplesDoc);
   return [
     ...history,
     {
       floors: opts.floors,
       relative_floors: opts.relativeFloors,
       samples_sha256: opts.samplesSha256,
-      measured_at: doc.measured_at ?? null,
+      measured_at: isPlainObject(samplesDoc) ? (samplesDoc.measured_at ?? null) : null,
     },
   ];
 }
@@ -602,9 +608,14 @@ function withBase(given, previous, key, defaults) {
 }
 
 /**
+ * 1 つの指標の集計のうち、判定に使う欄。summarizeValues の戻り値もこの形を満たす。
+ * @typedef {{ n: number, nulls: number, median: (number|null), iqr: (number|null) }} MetricStats
+ */
+
+/**
  * 1 つの指標を判定する。
- * @param {ReturnType<typeof summarizeValues>} cur
- * @param {ReturnType<typeof summarizeValues>} neu
+ * @param {MetricStats} cur
+ * @param {MetricStats} neu
  * @param {number} floor - 絶対の下限
  * @param {number} [relativeFloor] - 現側の中央値に対する割合の下限
  * @returns {{ status: string, delta: (number|null), tolerance: (number|null) }}
@@ -616,14 +627,11 @@ export function judgeMetric(cur, neu, floor, relativeFloor = 0) {
   // 片側だけ・一部の回だけ値が無いのは、描画が安定していないか、片側で候補が出ていない
   if (cur.nulls > 0 || neu.nulls > 0) return { status: "missing", delta: null, tolerance: null };
   // 許容幅は、現側のばらつき・絶対の下限・現側の中央値に対する割合の、いちばん大きいもの
-  const tolerance = Math.max(
-    /** @type {number} */ (cur.iqr),
-    floor,
-    relativeFloor * /** @type {number} */ (cur.median),
-  );
-  const delta = /** @type {number} */ (neu.median) - /** @type {number} */ (cur.median);
+  // nulls が 0 なら値はすべて数である。Number() は演算子が null に当てる変換（0）と同じ値を返す
+  const tolerance = Math.max(Number(cur.iqr), floor, relativeFloor * Number(cur.median));
+  const delta = Number(neu.median) - Number(cur.median);
   // 新側のばらつきが許容幅を超えると、中央値の差がノイズか回帰かを決められない
-  if (/** @type {number} */ (neu.iqr) > tolerance) return { status: "noisy", delta, tolerance };
+  if (Number(neu.iqr) > tolerance) return { status: "noisy", delta, tolerance };
   if (delta > tolerance) return { status: "regressed", delta, tolerance };
   if (delta < -tolerance) return { status: "improved", delta, tolerance };
   return { status: "within_noise", delta, tolerance };
@@ -649,7 +657,9 @@ export function summaryMatches(perf, currentDoc, slug) {
     return false;
   }
   // 環境と測り方も採取から転記した値なので、書き換えて新側の値に合わせれば env_mismatch を通り抜けられる
-  const doc = /** @type {Record<string, unknown>} */ (currentDoc);
+  // groupSamples がオブジェクトでない採取を先に拒否しているので、ここには到達しない
+  if (!isPlainObject(currentDoc)) return false;
+  const doc = currentDoc;
   for (const key of ["environment", "settings"]) {
     if (JSON.stringify(perf[key]) !== JSON.stringify(doc[key])) return false;
   }
@@ -661,12 +671,10 @@ export function summaryMatches(perf, currentDoc, slug) {
   ) {
     return false;
   }
-  const pairs = /** @type {Record<string, unknown>[]} */ (perf.pairs);
-  if (pairs.length !== groups.size) return false;
+  const pairs = perf.pairs;
+  if (!Array.isArray(pairs) || pairs.length !== groups.size) return false;
   return pairs.every((p) => {
-    const g = groups.get(
-      pairKey(/** @type {string} */ (p.page), /** @type {string} */ (p.viewport)),
-    );
+    const g = groups.get(pairKey(p.page, p.viewport));
     if (!g) return false;
     /** @type {Record<string, unknown>} */
     const recomputed = {};
@@ -684,16 +692,16 @@ export function summaryMatches(perf, currentDoc, slug) {
 export function environmentDifferences(cur, neu) {
   const diffs = [];
   for (const key of ENVIRONMENT_KEYS) {
-    const a = getPath(/** @type {Record<string, unknown>} */ (cur.environment ?? {}), key);
-    const b = getPath(/** @type {Record<string, unknown>} */ (neu.environment ?? {}), key);
+    const a = getPath(cur.environment ?? {}, key);
+    const b = getPath(neu.environment ?? {}, key);
     // context_options・launch_options はキーの順序が書き手で変わりうるので、並べ替えてから比べる
     if (canonicalJson(a) !== canonicalJson(b)) {
       diffs.push(`environment.${key}: ${JSON.stringify(a)} → ${JSON.stringify(b)}`);
     }
   }
   for (const key of SETTINGS_KEYS) {
-    const a = getPath(/** @type {Record<string, unknown>} */ (cur.settings ?? {}), key);
-    const b = getPath(/** @type {Record<string, unknown>} */ (neu.settings ?? {}), key);
+    const a = getPath(cur.settings ?? {}, key);
+    const b = getPath(neu.settings ?? {}, key);
     if (JSON.stringify(a) !== JSON.stringify(b)) {
       diffs.push(`settings.${key}: ${JSON.stringify(a)} → ${JSON.stringify(b)}`);
     }
@@ -709,10 +717,9 @@ export function environmentDifferences(cur, neu) {
 function canonicalJson(v) {
   if (Array.isArray(v)) return `[${v.map(canonicalJson).join(",")}]`;
   if (isPlainObject(v)) {
-    const o = /** @type {Record<string, unknown>} */ (v);
-    return `{${Object.keys(o)
+    return `{${Object.keys(v)
       .sort()
-      .map((k) => `${JSON.stringify(k)}:${canonicalJson(o[k])}`)
+      .map((k) => `${JSON.stringify(k)}:${canonicalJson(v[k])}`)
       .join(",")}}`;
   }
   return JSON.stringify(v) ?? "null";
@@ -726,15 +733,20 @@ function canonicalJson(v) {
  */
 export function loosenedFloors(perf) {
   const out = [];
-  for (const [kind, defaults] of [
+  /** @type {[string, Record<string, number>][]} */
+  const kinds = [
     ["floors", DEFAULT_FLOORS],
     ["relative_floors", DEFAULT_RELATIVE_FLOORS],
-  ]) {
-    const table = /** @type {Record<string, number>} */ (perf[/** @type {string} */ (kind)]);
+  ];
+  for (const [kind, defaults] of kinds) {
+    // compare が表と各指標の値を先に確かめているので、次の 2 つの throw には到達しない
+    const table = perf[kind];
+    if (!isPlainObject(table)) throw new UsageError(`performance.${kind} が無い`);
     for (const m of METRICS) {
-      const d = /** @type {Record<string, number>} */ (defaults)[m];
-      if (table[m] > d)
-        out.push({ metric: m, kind: /** @type {string} */ (kind), value: table[m], default: d });
+      const d = defaults[m];
+      const value = table[m];
+      if (typeof value !== "number") throw new UsageError(`performance.${kind}.${m} が数でない`);
+      if (value > d) out.push({ metric: m, kind, value, default: d });
     }
   }
   return out;
@@ -745,7 +757,6 @@ export function loosenedFloors(perf) {
  * @param {Record<string, unknown>} metadata
  * @param {unknown} samplesDoc
  * @param {{ currentSamplesSha256: (string|null), currentSamplesDoc?: unknown, target: string }} opts - 現側の採取ファイルを今読んだ sha256（読めなければ null）
- * @returns {Record<string, unknown>}
  */
 export function compare(metadata, samplesDoc, opts) {
   if (!isNonEmptyString(opts.target))
@@ -771,7 +782,10 @@ export function compare(metadata, samplesDoc, opts) {
     throw new UsageError("performance.relative_floors が無い（summarize を通し直す）");
   }
   for (const key of ["floors", "relative_floors"]) {
-    const table = /** @type {Record<string, unknown>} */ (perf[key]);
+    const table = perf[key];
+    // 直前で floors・relative_floors がオブジェクトであることを確かめているので、ここには到達しない。
+    // 元の実装と同じく欄を読めない誤りにする（UsageError にすると、直前の確かめを外しても同じ出口で通ってしまう）
+    if (!isPlainObject(table)) throw new TypeError(`performance.${key} の欄を読めない`);
     for (const m of METRICS) {
       const f = table[m];
       if (typeof f !== "number" || !Number.isFinite(f) || f < 0) {
@@ -793,7 +807,9 @@ export function compare(metadata, samplesDoc, opts) {
     slug: metadata.slug,
     target: opts.target,
   });
-  const neuDoc = /** @type {Record<string, unknown>} */ (samplesDoc);
+  // groupSamples がオブジェクトでない採取を先に拒否しているので、ここには到達しない
+  if (!isPlainObject(samplesDoc)) throw new UsageError("採取がオブジェクトでない");
+  const neuDoc = samplesDoc;
   // 基準を採った後にページ・ビューポートが増減したか、path や寸法が変わったら、基準は今の組を表さない
   const staleCapture = JSON.stringify(perf.capture) !== JSON.stringify(captureDefinition(metadata));
   if (!captureMatches(samplesDoc, metadata)) {
@@ -839,8 +855,14 @@ export function compare(metadata, samplesDoc, opts) {
     seen.add(key);
     const g = groups.get(key);
     for (const m of METRICS) {
-      const cur = /** @type {ReturnType<typeof summarizeValues>} */ (p.metrics[m]);
-      if (!isPlainObject(cur) || !Number.isInteger(cur.n) || !Number.isInteger(cur.nulls)) {
+      const cur = p.metrics[m];
+      if (
+        !isPlainObject(cur) ||
+        typeof cur.n !== "number" ||
+        !Number.isInteger(cur.n) ||
+        typeof cur.nulls !== "number" ||
+        !Number.isInteger(cur.nulls)
+      ) {
         throw new UsageError(`performance.pairs の ${key} の ${m} の形が違う`);
       }
       // 手で書き換えた基準で、回数の足りない組や値の無い組を not_applicable として通さない
@@ -856,7 +878,8 @@ export function compare(metadata, samplesDoc, opts) {
               (v) => typeof v === "number" && Number.isFinite(v) && v >= 0,
             )
           : cur.median === null && cur.iqr === null;
-      if (!statsValid) {
+      // statsValid が真なら median と iqr は数か null なので、後ろの 2 つの条件は判定を変えない
+      if (!statsValid || !isNumberOrNull(cur.median) || !isNumberOrNull(cur.iqr)) {
         throw new UsageError(
           `performance.pairs の ${key} の ${m} の median / iqr が回数と合わない（値のある組は 0 以上の数、すべて null の組は null）`,
         );
@@ -871,9 +894,14 @@ export function compare(metadata, samplesDoc, opts) {
         });
         continue;
       }
+      const curStats = { n: cur.n, nulls: cur.nulls, median: cur.median, iqr: cur.iqr };
       const neu = summarizeValues(g.values[m]);
-      const floor = /** @type {number} */ (perf.floors[m]);
-      const relativeFloor = /** @type {number} */ (perf.relative_floors[m]);
+      const floor = perf.floors[m];
+      const relativeFloor = perf.relative_floors[m];
+      // 冒頭で floors・relative_floors の各指標が 0 以上の数であることを確かめているので、ここには到達しない
+      if (typeof floor !== "number" || typeof relativeFloor !== "number") {
+        throw new UsageError(`performance.floors / relative_floors の ${m} が数でない`);
+      }
       // 古い基準と比べた regressed を出すと、parity-diff が判定に使えない値で差し戻す。環境の違いと同じく判定しない
       const unjudged = staleBaseline
         ? { status: "stale_baseline", delta: null, tolerance: null }
@@ -882,7 +910,7 @@ export function compare(metadata, samplesDoc, opts) {
         unjudged ??
         (differences.length > 0
           ? { status: "env_mismatch", delta: null, tolerance: null }
-          : judgeMetric(cur, neu, floor, relativeFloor));
+          : judgeMetric(curStats, neu, floor, relativeFloor));
       results.push({
         page: p.page,
         viewport: p.viewport,
@@ -1023,7 +1051,7 @@ export function main(argv, deps = {}) {
     }
     if (!opts.metadata || !opts.samples) throw new UsageError("--metadata と --samples が要る");
     const metadataPath = resolve(cwd, opts.metadata);
-    /** @type {Record<string, unknown>} */
+    /** @type {unknown} */
     let metadata;
     try {
       metadata = JSON.parse(readFile(metadataPath));
@@ -1130,7 +1158,7 @@ export function main(argv, deps = {}) {
     stdout(`${JSON.stringify(result, null, 2)}\n`);
     if (opts.write) {
       const diffPath = resolve(cwd, opts.write);
-      /** @type {Record<string, unknown>} */
+      /** @type {unknown} */
       let diffMetadata;
       try {
         diffMetadata = JSON.parse(readFile(diffPath));
@@ -1148,10 +1176,7 @@ export function main(argv, deps = {}) {
       };
       writeFile(diffPath, `${JSON.stringify(diffMetadata, null, 2)}\n`);
     }
-    const loosened =
-      /** @type {{ metric: string, kind: string, value: number, default: number }[]} */ (
-        result.loosened_floors
-      );
+    const loosened = result.loosened_floors;
     if (loosened.length > 0) {
       // 合否に関わらず出す。緩めた下限は回帰を許容幅の中に入れうるので、報告に載せて人が確かめる
       stderr(
@@ -1174,12 +1199,10 @@ export function main(argv, deps = {}) {
         );
       else if (result.stale_baseline)
         reasons.push("現側の基準が古いか、採取ファイルを読めない（summarize を通し直す）");
-      if (/** @type {string[]} */ (result.environment_differences).length > 0) {
-        reasons.push(
-          `環境・測り方が現側と違う: ${/** @type {string[]} */ (result.environment_differences).join(", ")}`,
-        );
+      if (result.environment_differences.length > 0) {
+        reasons.push(`環境・測り方が現側と違う: ${result.environment_differences.join(", ")}`);
       }
-      if (/** @type {string[]} */ (result.extra_pairs).length > 0) {
+      if (result.extra_pairs.length > 0) {
         reasons.push(`現側に無い組: ${JSON.stringify(result.extra_pairs)}`);
       }
       reasons.push(`状態の件数: ${JSON.stringify(result.counts)}`);

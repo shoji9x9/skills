@@ -114,8 +114,8 @@ export function resolvePages(pages, uiUrl) {
   const unresolved = new Map();
   for (const pg of list) {
     if (typeof pg !== "object" || pg === null || Array.isArray(pg)) continue;
-    const name = /** @type {Record<string, unknown>} */ (pg).name;
-    const path = /** @type {Record<string, unknown>} */ (pg).path;
+    const name = "name" in pg ? pg.name : undefined;
+    const path = "path" in pg ? pg.path : undefined;
     if (!nonEmptyString(name)) continue;
     if (typeof path !== "string") {
       problems.push(

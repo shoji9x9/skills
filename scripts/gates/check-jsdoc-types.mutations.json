@@ -1,0 +1,182 @@
+{
+  "$comment": [
+    "check-jsdoc-types.test.ts の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/gates/check-jsdoc-types.test.ts",
+  "mutations": [
+    {
+      "id": "NO-CAST",
+      "why": "JSDoc の型の表明を検出しない",
+      "file": "scripts/gates/check-jsdoc-types.ts",
+      "find": "if (ts.isParenthesizedExpression(node) && isCast(ts.getJSDocTypeTag(node))) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "JSDoc の型の表明を検出する: 1 行の表明",
+        "JSDoc の型の表明を検出する: 複数行の JSDoc の表明",
+        "JSDoc の型の表明を検出する: 入れ子の波括弧の表明",
+        "JSDoc の型の表明を検出する: 式の途中の表明",
+        "行番号は違反の位置を指す",
+        "CLI: 対象の違反を、パスと行番号の付いた一覧で報告して exit 1"
+      ]
+    },
+    {
+      "id": "CAST-ANY-JSDOC",
+      "why": "括弧に付いた JSDoc を、@type でなくても表明として扱う（@satisfies・@param を誤検知する）",
+      "file": "scripts/gates/check-jsdoc-types.ts",
+      "find": "ts.isParenthesizedExpression(node) && isCast(ts.getJSDocTypeTag(node))",
+      "replace": "ts.isParenthesizedExpression(node) && ts.getJSDocTags(node).length > 0",
+      "occurrences": 1,
+      "expect_failing": [
+        "型を外さない書き方は検出しない: @satisfies",
+        "型を外さない書き方は検出しない: const の表明"
+      ]
+    },
+    {
+      "id": "CAST-ANY-PAREN",
+      "why": "JSDoc の無い括弧も表明として扱う",
+      "file": "scripts/gates/check-jsdoc-types.ts",
+      "find": "ts.isParenthesizedExpression(node) && isCast(ts.getJSDocTypeTag(node))",
+      "replace": "ts.isParenthesizedExpression(node)",
+      "occurrences": 1,
+      "expect_failing": [
+        "型を外さない書き方は検出しない: @param の付いた関数",
+        "型を外さない書き方は検出しない: @satisfies",
+        "型を外さない書き方は検出しない: const の表明",
+        "型を外さない書き方は検出しない: 括弧だけ"
+      ]
+    },
+    {
+      "id": "NO-ANY",
+      "why": "JSDoc の any を検出しない",
+      "file": "scripts/gates/check-jsdoc-types.ts",
+      "find": "if (node.kind === ts.SyntaxKind.AnyKeyword) return \"any\";",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "JSDoc の型の any 相当を検出する: any",
+        "JSDoc の型の any 相当を検出する: 入れ子の any",
+        "JSDoc の型の any 相当を検出する: @typedef の any"
+      ]
+    },
+    {
+      "id": "NO-STAR",
+      "why": "JSDoc の * を検出しない",
+      "file": "scripts/gates/check-jsdoc-types.ts",
+      "find": "if (node.kind === ts.SyntaxKind.JSDocAllType) return \"*\";",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["JSDoc の型の any 相当を検出する: *"]
+    },
+    {
+      "id": "NO-QUESTION",
+      "why": "JSDoc の ? を検出しない",
+      "file": "scripts/gates/check-jsdoc-types.ts",
+      "find": "if (node.kind === ts.SyntaxKind.JSDocUnknownType) return \"?\";",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["JSDoc の型の any 相当を検出する: ?"]
+    },
+    {
+      "id": "OBJECT-WITH-ARGS",
+      "why": "型引数の付いた Object.<K, V> も any として扱う",
+      "file": "scripts/gates/check-jsdoc-types.ts",
+      "find": "    node.typeArguments === undefined\n",
+      "replace": "    true\n",
+      "occurrences": 1,
+      "expect_failing": ["any でない型は検出しない: Object.<K, V>"]
+    },
+    {
+      "id": "NO-OBJECT",
+      "why": "型引数の無い Object を検出しない",
+      "file": "scripts/gates/check-jsdoc-types.ts",
+      "find": "    node.typeName.text === \"Object\" &&\n",
+      "replace": "    false &&\n",
+      "occurrences": 1,
+      "expect_failing": ["JSDoc の型の any 相当を検出する: 型引数の無い Object"]
+    },
+    {
+      "id": "NO-FUNCTION",
+      "why": "JSDoc の型の Function を検出しない（呼び出しの戻り値が any になる）",
+      "file": "scripts/gates/check-jsdoc-types.ts",
+      "find": "    node.typeName.text === \"Function\"\n",
+      "replace": "    false\n",
+      "occurrences": 1,
+      "expect_failing": ["JSDoc の型の any 相当を検出する: Function"]
+    },
+    {
+      "id": "NO-TRAILING",
+      "why": "後ろに付くコメントを見ない（ファイルの末尾などの @ts-* を見逃す）",
+      "file": "scripts/gates/check-jsdoc-types.ts",
+      "find": "      ...(ts.getTrailingCommentRanges(text, node.end) ?? []),\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["ts のコメントを検出する: ブロックの @ts-expect-error"]
+    },
+    {
+      "id": "NO-TS-COMMENT",
+      "why": "@ts-* のコメントを検出しない",
+      "file": "scripts/gates/check-jsdoc-types.ts",
+      "find": "      if (m) out.push(",
+      "replace": "      if (false) out.push(",
+      "occurrences": 1,
+      "expect_failing": [
+        "ts のコメントを検出する: 行コメントの @ts-ignore",
+        "ts のコメントを検出する: ブロックの @ts-expect-error",
+        "ts のコメントを検出する: @ts-nocheck",
+        "ts のコメントを検出する: 空のブロックの中",
+        "ts のコメントを検出する: ファイルの末尾"
+      ]
+    },
+    {
+      "id": "NO-CHILD-TOKENS",
+      "why": "トークンと JSDoc を含む子ではなく構文の子だけを辿る（JSDoc の型と、空のブロックの中のコメントを見逃す）",
+      "file": "scripts/gates/check-jsdoc-types.ts",
+      "find": "    for (const child of node.getChildren(sf)) visit(child);",
+      "replace": "    ts.forEachChild(node, visit);",
+      "occurrences": 1,
+      "expect_failing": [
+        "ts のコメントを検出する: 空のブロックの中",
+        "JSDoc の型の any 相当を検出する: any",
+        "JSDoc の型の any 相当を検出する: *",
+        "JSDoc の型の any 相当を検出する: ?",
+        "JSDoc の型の any 相当を検出する: 型引数の無い Object",
+        "JSDoc の型の any 相当を検出する: 入れ子の any",
+        "JSDoc の型の any 相当を検出する: @typedef の any",
+        "JSDoc の型の any 相当を検出する: Function"
+      ]
+    },
+    {
+      "id": "ZERO-PASSES",
+      "why": "対象が 0 件でも合格として扱う",
+      "file": "scripts/gates/check-jsdoc-types.ts",
+      "find": "  if (files.length === 0) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["CLI: 対象が 0 件なら、判定できないとして exit 2"]
+    },
+    {
+      "id": "TARGET-ANY-DIR",
+      "why": "skills/ の下のすべての .mjs を対象にする（references/ などは型の検査に入らない）",
+      "file": "scripts/gates/check-jsdoc-types.ts",
+      "find": "const TARGET_RE = /^skills\\/[^/]+\\/(?:scripts|assets)\\/.*\\.mjs$/;",
+      "replace": "const TARGET_RE = /^skills\\/[^/]+\\/.*\\.mjs$/;",
+      "occurrences": 1,
+      "expect_failing": [
+        "対象の判定: skills/demo/references/a.mjs → false",
+        "CLI: 対象の違反を、パスと行番号の付いた一覧で報告して exit 1"
+      ]
+    },
+    {
+      "id": "CONST-IS-CAST",
+      "why": "@type {const} も表明として扱う（as const と同じで型を外さないのに禁じる）",
+      "file": "scripts/gates/check-jsdoc-types.ts",
+      "find": "type.typeName.text === \"const\"",
+      "replace": "type.typeName.text === \"__never__\"",
+      "occurrences": 1,
+      "expect_failing": ["型を外さない書き方は検出しない: const の表明"]
+    }
+  ]
+}

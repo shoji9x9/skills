@@ -8,6 +8,7 @@
 // fixture はリポジトリの外の一時ディレクトリに置き、設定をそこへコピーする（scripts/ の下に置くと、他のテストの走査に入る）。
 // リポジトリの外では mise の shim の node が版を決められないので、ツールの本体を process.execPath で起動する。
 import { expect, test } from "vitest";
+import { parseJsonAs } from "../lib/parse-as.ts";
 import { spawnSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -29,7 +30,9 @@ function binOf(pkg: string, name: string) {
   for (;;) {
     const manifest = join(dir, "package.json");
     if (existsSync(manifest)) {
-      const json = JSON.parse(readFileSync(manifest, "utf8"));
+      const json = parseJsonAs<{ name?: string; bin: string | Record<string, string> }>(
+        readFileSync(manifest, "utf8"),
+      );
       if (json.name === pkg) {
         return join(dir, typeof json.bin === "string" ? json.bin : json.bin[name]);
       }

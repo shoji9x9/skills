@@ -74,6 +74,8 @@ jobs:
         run: node scripts/gates/check-skills-sync.ts
       - name: JS extensions (skills/ => .mjs, scripts/ => .ts)
         run: node scripts/gates/check-js-extensions.ts
+      - name: JSDoc types in distributed .mjs (no casts, any, @ts-ignore)
+        run: node scripts/gates/check-jsdoc-types.ts
       - name: Rule symlinks (.agents/rules vs .claude/rules / .github/instructions)
         run: node scripts/gates/check-rule-symlinks.ts
       - name: Control characters in tracked text files

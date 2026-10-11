@@ -24,6 +24,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSy
 import { dirname, join, resolve } from "node:path";
 import { errorMessage } from "../lib/errors.ts";
 import { isRecord } from "../lib/guards.ts";
+import { parseJsonAs } from "../lib/parse-as.ts";
 
 const CONFIGURATIONS = ["with_skill", "without_skill"] as const;
 
@@ -642,7 +643,7 @@ function main() {
       die(
         `eval ${evalId} の run が違う assertion 集合を採点している（` +
           [...byShape]
-            .map(([set, runs]) => `${runs.join(" ")}: ${JSON.parse(set).length} 件`)
+            .map(([set, runs]) => `${runs.join(" ")}: ${parseJsonAs<unknown[]>(set).length} 件`)
             .join(" / ") +
           "）。run の合間に assertion を変えた iteration は分ける",
       );

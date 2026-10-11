@@ -640,7 +640,7 @@ test("同梱の改訂一覧と台帳テンプレートは検査がそのまま�
   );
   expect(template).toEqual({ ok: true, changes: [], records: [] });
   // 成果物のテンプレートが改訂番号の置き場を持つ（無いと parity-suite が書かず、全成果物が導入前として出続ける）。
-  const metadata = JSON.parse(
+  const metadata = parseJsonAs<{ run: Record<string, unknown> }>(
     readFileSync("skills/parity-suite/assets/metadata-template.json", "utf8"),
   );
   expect(Object.hasOwn(metadata.run, "procedure_revision")).toBe(true);

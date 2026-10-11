@@ -40,9 +40,7 @@ const chrome = [
   "/usr/bin/chromium-browser",
   "/snap/bin/chromium",
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-]
-  .filter(Boolean)
-  .find((p) => existsSync(p));
+].find((p) => typeof p === "string" && p !== "" && existsSync(p));
 
 if (!chrome) {
   console.error(
@@ -58,6 +56,7 @@ if (!head) throw new Error(`SVG が不正（<svg> がありません）: ${svgPa
 // width/height が無ければ viewBox の幅・高さにフォールバックする（NaN で誤サイズにしない）。
 // 値の直後がクォート／空白／`>` で終わるものだけ採用する。これで `100%` のような
 // 単位付き（px 以外）は不一致となり viewBox へフォールバックできる（px は明示的に許容）。
+/** @param {string} name */
 const dimAttr = (name) =>
   head[0].match(
     new RegExp(`(?:^|\\s)${name}\\s*=\\s*["']?\\s*([\\d.]+)(?:px)?\\s*["'\\s>]`, "i"),
@@ -86,7 +85,18 @@ const safeSvg = svg
   // クォート無しの on* も除去（値内の `/` は許すが、自己終端 `/>` の `/` は食わない）。
   .replace(/\son[a-z]+\s*=\s*(?:[^\s"'>/]|\/(?!>))*/gi, "");
 
+/** @type {unknown} */
 let failure = null;
+// 投げられた値の欄を読む（オブジェクトでなければ undefined。プリミティブの欄の読み取りと同じ結果）。
+/**
+ * @param {unknown} value
+ * @param {string} key
+ * @returns {unknown}
+ */
+const field = (value, key) =>
+  (typeof value === "object" && value !== null) || typeof value === "function"
+    ? Reflect.get(value, key)
+    : undefined;
 try {
   const html = join(work, "preview.html");
   writeFileSync(
@@ -125,20 +135,21 @@ try {
 
 if (failure) {
   // Chrome の実行以外の失敗（HTML の書き出し等）は握り潰さずそのまま投げる。
-  if (failure.status === undefined && failure.signal === undefined) throw failure;
+  if (field(failure, "status") === undefined && field(failure, "signal") === undefined)
+    throw failure;
   // execFileSync の例外をそのまま投げると stdout/stderr の Buffer ダンプが数十行続き、
   // 切り分けに要る signal / status が埋もれる。要点と対処だけを出す。
   // タイムアウトで kill されたときは code === "ETIMEDOUT"（signal は killSignal に指定した
   // SIGKILL が入るだけで、他の signal 終了と区別が付かない）。実測で確認した形状に合わせて分岐する。
   const reason =
-    failure.code === "ETIMEDOUT"
+    field(failure, "code") === "ETIMEDOUT"
       ? `${timeoutMs}ms 応答なしで中断`
-      : failure.signal
-        ? `signal ${failure.signal}`
-        : `exit ${failure.status ?? failure.code}`;
+      : field(failure, "signal")
+        ? `signal ${field(failure, "signal")}`
+        : `exit ${field(failure, "status") ?? field(failure, "code")}`;
   console.error(`Chrome での PNG 化に失敗しました（${reason}）: ${chrome}`);
   // dbus 関連の警告は成功時にも出るノイズなので落とし、残りの末尾だけ見せる。
-  const lines = String(failure.stderr ?? "")
+  const lines = String(field(failure, "stderr") ?? "")
     .split("\n")
     .filter((l) => l.trim() && !/dbus|Failed to connect to the bus/i.test(l));
   if (lines.length) console.error(lines.slice(-5).join("\n"));

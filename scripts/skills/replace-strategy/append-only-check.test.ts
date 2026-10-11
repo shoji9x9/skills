@@ -3312,7 +3312,7 @@ async function makePerfRepo(performance: Record<string, unknown> | undefined) {
   if (r.status !== 0 && performance !== undefined) throw new Error(r.stderr);
   /** @param {(perf: Record<string, unknown>, doc: Record<string, unknown>) => void} edit */
   const edit = (edit: (perf: Performance, doc: Record<string, unknown>) => void) => {
-    const now: { performance: Performance; [key: string]: unknown } = JSON.parse(
+    const now = parseJsonAs<{ performance: Performance; [key: string]: unknown }>(
       readFileSync(path, "utf8"),
     );
     edit(now.performance, now);

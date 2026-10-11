@@ -76,6 +76,34 @@ function isPlaceholder(value) {
 }
 
 /**
+ * 配列でない JSON オブジェクトか。
+ * @param {unknown} value
+ * @returns {value is Record<string, unknown>}
+ */
+function isRecord(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+/**
+ * 文字列の配列を取り出す。validateChange を通った宣言では配列で、要素はすべて文字列なので、元の配列と同じ要素になる。
+ * @param {unknown} value
+ * @returns {string[]}
+ */
+function stringList(value) {
+  return Array.isArray(value) ? value.filter((element) => typeof element === "string") : [];
+}
+
+/**
+ * catch した値の message（`error && error.message` と同じ値）。
+ * @param {unknown} error
+ * @returns {unknown}
+ */
+function errorMessage(error) {
+  if (!error) return error;
+  return typeof error === "object" && "message" in error ? error.message : undefined;
+}
+
+/**
  * 変更宣言の型を検証する。問題が無ければ空配列。
  *
  * 型の誤り・キーの欠落は「影響なし」として扱わず、使い方の誤り（exit 2）にする。読み違えた宣言から導いた
@@ -86,10 +114,10 @@ function isPlaceholder(value) {
 export function validateChange(change) {
   /** @type {string[]} */
   const errors = [];
-  if (!change || typeof change !== "object" || Array.isArray(change)) {
+  if (!isRecord(change)) {
     return ["変更宣言が JSON オブジェクトでない"];
   }
-  const c = /** @type {Record<string, unknown>} */ (change);
+  const c = change;
   /**
    * @param {string} key
    * @param {unknown} value
@@ -147,10 +175,10 @@ export function validateChange(change) {
       );
     }
   }
-  if (!c.commits || typeof c.commits !== "object" || Array.isArray(c.commits)) {
+  if (!isRecord(c.commits)) {
     errors.push("commits がオブジェクトでない");
   } else {
-    const commits = /** @type {Record<string, unknown>} */ (c.commits);
+    const commits = c.commits;
     for (const side of ["before", "after"]) {
       const sha = commits[side];
       if (typeof sha !== "string" || !/^[0-9a-f]{7,64}$/.test(sha)) {
@@ -163,14 +191,10 @@ export function validateChange(change) {
   if (typeof c.margin_px !== "number" || !Number.isFinite(c.margin_px) || c.margin_px < 0) {
     errors.push(`margin_px が 0 以上の数でない: ${JSON.stringify(c.margin_px)}`);
   }
-  if (
-    !c.cross_measurement ||
-    typeof c.cross_measurement !== "object" ||
-    Array.isArray(c.cross_measurement)
-  ) {
+  if (!isRecord(c.cross_measurement)) {
     errors.push("cross_measurement がオブジェクトでない");
   } else {
-    const m = /** @type {Record<string, unknown>} */ (c.cross_measurement);
+    const m = c.cross_measurement;
     text("cross_measurement.record", m.record);
     if (typeof m.instances !== "number" || !Number.isInteger(m.instances) || m.instances < 0) {
       errors.push(
@@ -179,14 +203,10 @@ export function validateChange(change) {
     }
     textList("cross_measurement.states", m.states, { nonEmpty: true });
   }
-  if (
-    !c.catalog_verification ||
-    typeof c.catalog_verification !== "object" ||
-    Array.isArray(c.catalog_verification)
-  ) {
+  if (!isRecord(c.catalog_verification)) {
     errors.push("catalog_verification がオブジェクトでない");
   } else {
-    const v = /** @type {Record<string, unknown>} */ (c.catalog_verification);
+    const v = c.catalog_verification;
     text("catalog_verification.record", v.record);
     for (const key of ["outside_scope_identical", "inside_matches_current"]) {
       if (typeof v[key] !== "boolean") {
@@ -203,10 +223,10 @@ export function validateChange(change) {
  * @returns {string[]}
  */
 export function validateComponentMetadata(metadata) {
-  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+  if (!isRecord(metadata)) {
     return ["部品 metadata が JSON オブジェクトでない"];
   }
-  const m = /** @type {Record<string, unknown>} */ (metadata);
+  const m = metadata;
   if (!Array.isArray(m.instances)) {
     return ["部品 metadata の instances が配列でない"];
   }
@@ -255,10 +275,11 @@ function resolveInstances(change, componentMetadata) {
   /** @type {{id:string, page:string, locator:unknown}[]} */
   const resolved = [];
   const metadataErrors = validateComponentMetadata(componentMetadata);
-  if (metadataErrors.length > 0) {
+  // isRecord の否定は validateComponentMetadata が誤りを返す場合に含まれる（型の絞り込みのためだけに並べる）
+  if (metadataErrors.length > 0 || !isRecord(componentMetadata)) {
     return { resolved, problems: metadataErrors };
   }
-  const m = /** @type {Record<string, unknown>} */ (componentMetadata);
+  const m = componentMetadata;
   if (m.slug !== undefined && m.slug !== change.slug) {
     problems.push(
       `部品 metadata の slug（${JSON.stringify(m.slug)}）が変更宣言の slug（${JSON.stringify(change.slug)}）と違う`,
@@ -267,16 +288,14 @@ function resolveInstances(change, componentMetadata) {
   }
   // 宣言した状態は部品が採った状態（capture.states）の語彙で書く。綴り違いの状態はどの撮影組にも当たらず、
   // 「その状態を撮っていない＝影響なし」と誤って判定される。そのため、語彙に無い状態は判定不能にする
-  const captureStates = /** @type {{ states?: unknown } | null | undefined} */ (m.capture)?.states;
+  const captureStates = isRecord(m.capture) ? m.capture.states : undefined;
   if (!Array.isArray(captureStates) || !captureStates.every((st) => nonEmptyString(st))) {
     problems.push(
       "部品 metadata の capture.states が状態名の配列でない（宣言した状態を部品の語彙と突き合わせられない）",
     );
     return { resolved, problems };
   }
-  const unknownStates = /** @type {string[]} */ (change.states).filter(
-    (st) => !captureStates.includes(st),
-  );
+  const unknownStates = stringList(change.states).filter((st) => !captureStates.includes(st));
   if (unknownStates.length > 0) {
     problems.push(
       `変更宣言の states に部品 metadata の capture.states（${captureStates.join(", ")}）に無い状態がある: ${unknownStates.join(", ")}`,
@@ -285,13 +304,13 @@ function resolveInstances(change, componentMetadata) {
   }
   /** @type {Map<string, Record<string, unknown>[]>} */
   const byId = new Map();
-  for (const instance of /** @type {unknown[]} */ (m.instances)) {
-    if (!instance || typeof instance !== "object") continue;
-    const record = /** @type {Record<string, unknown>} */ (instance);
+  for (const record of Array.isArray(m.instances) ? m.instances : []) {
+    // 配列の要素は id を持たないので、下の id の判定で飛ばす場合と同じになる
+    if (!isRecord(record)) continue;
     if (typeof record.id !== "string") continue;
     byId.set(record.id, [...(byId.get(record.id) ?? []), record]);
   }
-  for (const id of new Set(/** @type {string[]} */ (change.instances))) {
+  for (const id of new Set(stringList(change.instances))) {
     const found = byId.get(id) ?? [];
     if (found.length === 0) {
       problems.push(
@@ -337,10 +356,11 @@ function resolveInstances(change, componentMetadata) {
 function judgeFeature(slug, metadata, change, instances) {
   /**
    * @param {string[]} reasons
+   * @returns {FeatureImpact}
    */
   const undeterminable = (reasons) => ({
     feature: slug,
-    verdict: /** @type {const} */ ("undeterminable"),
+    verdict: "undeterminable",
     pairs: [],
     reasons,
   });
@@ -349,10 +369,10 @@ function judgeFeature(slug, metadata, change, instances) {
       "metadata.json が無い（どの組を撮ったか分からない。「影響なし」として扱わない）",
     ]);
   }
-  if (typeof metadata !== "object" || Array.isArray(metadata)) {
+  if (!isRecord(metadata)) {
     return undeterminable(["metadata.json が JSON オブジェクトでない"]);
   }
-  const m = /** @type {Record<string, unknown>} */ (metadata);
+  const m = metadata;
   if (m.mode === "api-resource" || m.mode === "batch") {
     return {
       feature: slug,
@@ -367,10 +387,10 @@ function judgeFeature(slug, metadata, change, instances) {
     return undeterminable([`mode が読めない: ${JSON.stringify(m.mode)}`]);
   }
   const conditions = m.capture_conditions;
-  if (!conditions || typeof conditions !== "object" || Array.isArray(conditions)) {
+  if (!isRecord(conditions)) {
     return undeterminable(["capture_conditions が無い（どのページ × 状態を撮ったか分からない）"]);
   }
-  const cc = /** @type {Record<string, unknown>} */ (conditions);
+  const cc = conditions;
   if (!Array.isArray(cc.capture_scope)) {
     return undeterminable([
       "capture_conditions.capture_scope が無い・配列でない（どの組を撮ったか分からない。「影響なし」として扱わない）",
@@ -384,7 +404,9 @@ function judgeFeature(slug, metadata, change, instances) {
   /** @type {Map<string, string>} */
   const pathByName = new Map();
   for (const page of cc.pages) {
-    const p = page && typeof page === "object" ? /** @type {Record<string, unknown>} */ (page) : {};
+    // 配列の要素は name を持たないので、{} と同じく下の判定で判定不能になる
+    /** @type {Record<string, unknown>} */
+    const p = isRecord(page) ? page : {};
     if (
       !nonEmptyString(p.name) ||
       typeof p.path !== "string" ||
@@ -405,8 +427,8 @@ function judgeFeature(slug, metadata, change, instances) {
   /** @type {Map<string, {page:string, state:string, viewport:string}[]>} */
   const scopeByPage = new Map();
   for (const entry of cc.capture_scope) {
-    const e =
-      entry && typeof entry === "object" ? /** @type {Record<string, unknown>} */ (entry) : {};
+    /** @type {Record<string, unknown>} */
+    const e = isRecord(entry) ? entry : {};
     if (!nonEmptyString(e.page) || !nonEmptyString(e.state) || !nonEmptyString(e.viewport)) {
       return undeterminable([
         `capture_scope に page / state / viewport の読めない要素がある: ${JSON.stringify({ page: e.page, state: e.state, viewport: e.viewport })}`,
@@ -429,8 +451,8 @@ function judgeFeature(slug, metadata, change, instances) {
     list.push({ page: e.page, state: e.state, viewport: e.viewport });
     scopeByPage.set(e.page, list);
   }
-  const states = new Set(/** @type {string[]} */ (change.states));
-  const usages = new Set(/** @type {string[]} */ (change.usages));
+  const states = new Set(stringList(change.states));
+  const usages = new Set(stringList(change.usages));
   /** @type {ImpactPair[]} */
   const pairs = [];
   /** @type {string[]} */
@@ -498,19 +520,21 @@ function judgeFeature(slug, metadata, change, instances) {
  */
 export function computeImpact({ change, componentMetadata, features, pageUniverse }) {
   const errors = validateChange(change);
-  if (errors.length > 0) {
+  // isRecord の否定は validateChange が誤りを返す場合に含まれる（型の絞り込みのためだけに並べる）
+  if (errors.length > 0 || !isRecord(change)) {
     const error = new Error(`変更宣言が不正: ${errors.join(" / ")}`);
     Object.assign(error, { code: "invalid-change", errors });
     throw error;
   }
-  const c = /** @type {Record<string, unknown>} */ (change);
+  const c = change;
   const { resolved, problems } = resolveInstances(c, componentMetadata);
   const sorted = [...features].sort((a, b) => (a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0));
+  /** @type {FeatureImpact[]} */
   const results = sorted.map(({ slug, metadata }) =>
     problems.length > 0
       ? {
           feature: slug,
-          verdict: /** @type {const} */ ("undeterminable"),
+          verdict: "undeterminable",
           pairs: [],
           reasons: problems.map((problem) => `影響インスタンスを引けない: ${problem}`),
         }
@@ -523,9 +547,8 @@ export function computeImpact({ change, componentMetadata, features, pageUnivers
   const capturedPaths = new Set();
   const universe = Array.isArray(pageUniverse) ? pageUniverse : sorted.map((f) => f.metadata);
   for (const metadata of universe) {
-    const pages = /** @type {{ capture_conditions?: { pages?: unknown } } | null | undefined} */ (
-      metadata
-    )?.capture_conditions?.pages;
+    const conditions = isRecord(metadata) ? metadata.capture_conditions : undefined;
+    const pages = isRecord(conditions) ? conditions.pages : undefined;
     if (!Array.isArray(pages)) continue;
     for (const page of pages) {
       if (page && typeof page.path === "string") capturedPaths.add(page.path);
@@ -535,14 +558,12 @@ export function computeImpact({ change, componentMetadata, features, pageUnivers
     .filter((instance) => !capturedPaths.has(instance.page))
     .map((instance) => ({ id: instance.id, page: instance.page }));
   // usages も同じ扱い。綴り違いの usages はどの機能とも一致せず、usages だけに頼る宣言では全機能が警告なしに影響なしになる
-  const unmatchedUsages = /** @type {string[]} */ (c.usages).filter(
-    (usage) => !capturedPaths.has(usage),
-  );
+  const unmatchedUsages = stringList(c.usages).filter((usage) => !capturedPaths.has(usage));
   return {
     tool: TOOL,
     version: VERSION,
-    change_id: /** @type {string} */ (c.id),
-    slug: /** @type {string} */ (c.slug),
+    change_id: String(c.id),
+    slug: String(c.slug),
     features: results,
     findings: [
       ...problems,
@@ -623,7 +644,7 @@ export function main(argv, deps = {}) {
     try {
       return { ok: true, value: JSON.parse(readFile(resolve(cwd, path))) };
     } catch (error) {
-      return { ok: false, message: `${path} を読めない: ${error && error.message}` };
+      return { ok: false, message: `${path} を読めない: ${errorMessage(error)}` };
     }
   };
   const change = readJson(args["--change"]);
@@ -638,8 +659,9 @@ export function main(argv, deps = {}) {
   if (componentErrors.length > 0) {
     return fail(`${args["--component-metadata"]}: ${componentErrors.join(" / ")}`);
   }
-  const componentSlug = /** @type {Record<string, unknown>} */ (component.value).slug;
-  const changeSlug = /** @type {Record<string, unknown>} */ (change.value).slug;
+  // どちらも直前の検証で JSON オブジェクトだと確かめてある
+  const componentSlug = isRecord(component.value) ? component.value.slug : undefined;
+  const changeSlug = isRecord(change.value) ? change.value.slug : undefined;
   if (componentSlug !== undefined && componentSlug !== changeSlug) {
     return fail(
       `${args["--component-metadata"]} の slug（${JSON.stringify(componentSlug)}）が変更宣言の slug（${JSON.stringify(changeSlug)}）と違う（別の部品の metadata を渡している）`,
@@ -706,7 +728,7 @@ export function main(argv, deps = {}) {
     try {
       writeFile(resolve(cwd, args["--out"]), text);
     } catch (error) {
-      return fail(`${args["--out"]} へ書けない: ${error && error.message}`);
+      return fail(`${args["--out"]} へ書けない: ${errorMessage(error)}`);
     }
   } else {
     write(text);
