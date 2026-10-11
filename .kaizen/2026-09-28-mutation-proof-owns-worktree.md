@@ -3,7 +3,7 @@ date: 2026-09-28
 type: other
 priority: high
 status: applied
-applied-to: [scripts/mutation/check-mutation-proof.js, docs/tooling.md]
+applied-to: [scripts/mutation/check-mutation-proof.ts, docs/tooling.md]
 session: claude-code
 ---
 
@@ -13,11 +13,11 @@ session: claude-code
 
 作業ツリーのファイルを書き換えて戻す長時間処理（ミューテーションテストなど）の実行中は、同じツリーの対象を編集しない。読んでコピーする処理（reinstall-skill.sh・コピー・成果物生成）も実行しない。バックグラウンドで実行するなら別 worktree に置く。ランナー側は、復元の直前に対象が「自分が書いた変異後の内容」のままかを確かめ、外部の編集を警告なしに上書きしない。
 
-- ランナー（`scripts/mutation/check-mutation-proof.js` の `proveMutation`）: 復元前に現在の内容が `mutated` と一致するかを確かめる。一致しなければ上書きせず exit 2 で止める。
+- ランナー（`scripts/mutation/check-mutation-proof.ts` の `proveMutation`）: 復元前に現在の内容が `mutated` と一致するかを確かめる。一致しなければ上書きせず exit 2 で止める。
   `recoverFromInterrupted` は既に同じ照合をしており、通常の処理の流れにだけ無い
 - 手順（`AGENTS.md`「ミューテーションテスト」）: 「並行して実行しない」に、**実行中に同じツリーの対象ファイルを編集しない**ことと、変更前の計測は基点 commit の別 worktree（`git worktree add --detach`）で取ることを足す
 - 手順: 完了は通知ではなくプロセスの実在（`/proc/<pid>`）と実ログの最終行（`N proven / M failed`）で判定してから、原本を読む処理へ進む
-- 横断: 同じく作業ツリーを書き換えて戻す処理（`check-mutation-proof.test.js` の差分選択テストの実走）も同じ前提
+- 横断: 同じく作業ツリーを書き換えて戻す処理（`check-mutation-proof.test.ts` の差分選択テストの実走）も同じ前提
 
 ## 事象
 

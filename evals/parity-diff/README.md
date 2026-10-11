@@ -81,7 +81,7 @@ fixture 付きの eval（`evals.json` に `fixture` があるもの）は、`--f
   プロンプトには状態名・スクリプト名・節名を書かない
 - eval 25 は、画素の量の報告（Issue #384）の回帰である。しきい値つきの数だけを見て「ほぼ一致」と要約し、収束扱いにする案を押し戻せるかを見る。
   しきい値の内側に差が隠れること・しきい値なしの数の併記・`diff.md` への両方の記載・ノイズ基準値との対比・他の 2 つの比較方法が色の微差を見ないことを対象にする。
-  しきい値つき／なしの計数そのものは、`scripts/skills/parity-diff/pixel-crops.test.js` が確かめる
+  しきい値つき／なしの計数そのものは、`scripts/skills/parity-diff/pixel-crops.test.ts` が確かめる
 - eval 26 は、通常の撮影手順の外で撮った 2 枚の扱い（Issue #384）の回帰である。別々の画面から切り出した 2 枚の画素差を根拠に差し戻す案を押し戻せるかを見る。
   **差が出るのは 1 件（条件が揃うまで要対応として `diff.md` に書かない）だけで、主に後退の検知のためのもの**である。
   `without_skill` も、CSS のクランプ規則と撮影条件の不一致から、同じ結論へ自力で到達する（iteration-28）。
@@ -105,10 +105,10 @@ fixture 付きの eval（`evals.json` に `fixture` があるもの）は、`--f
   初版（iteration-29）では、`with_skill` が一覧の所在（`append-only-manifest.json` で定義する）に到達しなかった。
   そのため prompt に、どのファイルが追記専用なのかをどこで決めているかを問う一文を足した（iteration-30 で `with_skill` 6/6）。
   検査そのもの（単位の喪失・消失・整形だけでは落ちない・多重度・サブディレクトリ root・`unit` 別の突き合わせ）は、
-  `scripts/skills/replace-strategy/append-only-check.test.js` が確かめる。
+  `scripts/skills/replace-strategy/append-only-check.test.ts` が確かめる。
   **PR #398 のレビューで、行の多重集合で比べると、原本が求めるその場の更新が「失われた行」と誤って判定されることを実測した**。
   その場の更新とは、版の +1・状態列の `未`→`済`・Issue 列の `未起票`→番号・空配列への最初の追記である。
   一覧の `unit`（`lines` / `markdown-structure` / `json-arrays`）で突き合わせの単位を分け、誤検出で収束が止まらないようにした。
   回帰は、テスト側で検出されることの確認と、誤検知しないことの確認の両方で押さえている
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
-- 集計（`benchmark.json`）は `node scripts/eval/build-skill-eval-benchmark.js` で生成する（判定は assertion テキストで突き合わせる。`benchmark.md` は人が書く。詳細は `docs/skill-development.md`）
+- 集計（`benchmark.json`）は `node scripts/eval/build-skill-eval-benchmark.ts` で生成する（判定は assertion テキストで突き合わせる。`benchmark.md` は人が書く。詳細は `docs/skill-development.md`）

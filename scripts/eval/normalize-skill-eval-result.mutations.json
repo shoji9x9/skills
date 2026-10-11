@@ -1,15 +1,15 @@
 {
   "$comment": [
-    "normalize-skill-eval-result.test.js のうち、cd した後の相対パスでの読み取りと && リストの読み取り（Issue #455）の検出能力を示す変異の一覧。",
-    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。",
+    "normalize-skill-eval-result.test.ts のうち、cd した後の相対パスでの読み取りと && リストの読み取り（Issue #455）の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。",
     "テスト名を変えたら expect_failing も直す。"
   ],
-  "test_file": "scripts/eval/normalize-skill-eval-result.test.js",
+  "test_file": "scripts/eval/normalize-skill-eval-result.test.ts",
   "mutations": [
     {
       "id": "failed-cd-keeps-cwd",
       "why": "失敗した呼び出しの cd を成功扱いにし、cwd を不明に倒さない",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "cwd = block.is_error === true || pending.concurrentMove ? null : pending.cwdAfter;",
       "replace": "cwd = pending.concurrentMove ? null : pending.cwdAfter;",
       "occurrences": 1,
@@ -21,7 +21,7 @@
     {
       "id": "reset-ignored",
       "why": "Bash ツールが報告した cwd のリセットを読まない",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "        if (/^Shell cwd was reset to /mu.test(",
       "replace": "        if (false && /^Shell cwd was reset to /mu.test(",
       "occurrences": 1,
@@ -32,7 +32,7 @@
     {
       "id": "parallel-uses-cwd",
       "why": "同じメッセージで並行に出た cd の結果を待たずに cwd を使う",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "movePending ? null : cwd",
       "replace": "cwd",
       "occurrences": 1,
@@ -43,7 +43,7 @@
     {
       "id": "semicolon-splits-nothing",
       "why": "トップレベルの ; と改行を && リストの一部として受け入れる",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "\";\\n(){}\".includes(char)",
       "replace": "\"(){}\".includes(char)",
       "occurrences": 1,
@@ -56,7 +56,7 @@
     {
       "id": "or-accepted",
       "why": "トップレベルの || を && リストの一部として受け入れる",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "(char === \"|\" && next === \"|\") ||",
       "replace": "false ||",
       "occurrences": 1,
@@ -67,7 +67,7 @@
     {
       "id": "background-accepted",
       "why": "トップレベルの単独 & を && リストの一部として受け入れる",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "(char === \"&\" && !redirect) ||",
       "replace": "false ||",
       "occurrences": 1,
@@ -78,7 +78,7 @@
     {
       "id": "element-move-ignored",
       "why": "&& リストの要素にある素の cd 以外の移動（pushd・展開を伴う cd・eval・コマンド語の展開）を見逃す",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "    if (movesCwd(element)) {\n",
       "replace": "    if (false) {\n",
       "occurrences": 1,
@@ -109,7 +109,7 @@
     {
       "id": "rejected-list-move-ignored",
       "why": "リストとして読めないコマンドの cd を cwd を動かさないものとして扱う",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "cwdAfter: movesCwd(trimmed) ? null : undefined",
       "replace": "cwdAfter: undefined",
       "occurrences": 1,
@@ -123,7 +123,7 @@
     {
       "id": "child-shell-moves-caller",
       "why": "bash -c の子シェルの cd を呼び出し側の cwd に持ち越す",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "    return { reads: analyzeShellCommand(inner, cwd, depth + 1).reads, cwdAfter: undefined };\n",
       "replace": "    return analyzeShellCommand(inner, cwd, depth + 1);\n",
       "occurrences": 1,
@@ -134,7 +134,7 @@
     {
       "id": "background-call-moves-cwd",
       "why": "run_in_background の cd をフォアグラウンドのシェルの cwd に反映する",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "input.run_in_background === true ? null : cwdAfter",
       "replace": "false ? null : cwdAfter",
       "occurrences": 1,
@@ -145,7 +145,7 @@
     {
       "id": "init-cwd-ignored",
       "why": "init が示す開始ディレクトリを使わない",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "        cwd = event.cwd;\n",
       "replace": "        cwd = null;\n",
       "occurrences": 1,
@@ -156,7 +156,7 @@
     {
       "id": "expanded-cd-accepted",
       "why": "シェルが展開する cd の行き先（グロブ・$VAR・引用符）を字面のまま解決する。~ と - は CDPATH の判定（./ ../ / で始まらない）でも落ちるため、ここではグロブで測る",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "  if (target === \"\" || /^[-~]|[$`*?[\\\\'\"]/u.test(target)) {\n",
       "replace": "  if (target === \"\") {\n",
       "occurrences": 1,
@@ -167,7 +167,7 @@
     {
       "id": "concurrent-moves-settle-last",
       "why": "並行に出た 2 つの移動のうち、後から結果が返った方を cwd にする",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "cwd = block.is_error === true || pending.concurrentMove ? null : pending.cwdAfter;",
       "replace": "cwd = block.is_error === true ? null : pending.cwdAfter;",
       "occurrences": 1,
@@ -178,7 +178,7 @@
     {
       "id": "earlier-read-keeps-cwd",
       "why": "移動より先に発行され結果待ちの読み取りを、移動前の cwd で解決したまま残す",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "          pending.texts = unresolved;\n",
       "replace": "",
       "occurrences": 1,
@@ -189,7 +189,7 @@
     {
       "id": "relative-cd-from-unknown",
       "why": "開始が不明なまま相対 cd を解決する",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "        direct && (target.startsWith(\"/\") || current !== null)\n",
       "replace": "        direct\n",
       "occurrences": 1,
@@ -200,7 +200,7 @@
     {
       "id": "cdpath-ignored",
       "why": "CDPATH を経由しうる素の相対 cd（./ ../ で始まらない）を解決する",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "      const direct = target.startsWith(\"/\") || /^\\.\\.?(?:\\/|$)/u.test(target);\n",
       "replace": "      const direct = true;\n",
       "occurrences": 1,
@@ -211,7 +211,7 @@
     {
       "id": "non-literal-word-kept",
       "why": "素の字面でないコマンド語（展開・引用符・グロブ・エスケープ）を移動しないものとして扱う",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "(!LITERAL_WORD.test(word) || CWD_WORDS.has(word))",
       "replace": "CWD_WORDS.has(word)",
       "occurrences": 1,
@@ -229,7 +229,7 @@
     {
       "id": "cwd-words-kept",
       "why": "cd 以外の移動語・予約語を移動しないものとして扱う",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "(!LITERAL_WORD.test(word) || CWD_WORDS.has(word))",
       "replace": "!LITERAL_WORD.test(word)",
       "occurrences": 1,
@@ -256,7 +256,7 @@
     {
       "id": "escaped-quote-opens",
       "why": "バックスラッシュでエスケープした引用符を引用の開始と読む",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "    if (char === \"\\\\\") {\n      out += text.slice(index, index + 2);\n",
       "replace": "    if (false) {\n      out += text.slice(index, index + 2);\n",
       "occurrences": 1,
@@ -267,7 +267,7 @@
     {
       "id": "quote-blanking-off",
       "why": "引用符の中の区切りをコマンド語の境界として扱う",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "const blanked = blankQuoted(text);",
       "replace": "const blanked = text;",
       "occurrences": 1,
@@ -278,7 +278,7 @@
     {
       "id": "redirect-word-taken-as-command",
       "why": "リダイレクト（2>/dev/null）をコマンド語と読む",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": " || REDIRECT_WORD.test(words[index])",
       "replace": "",
       "occurrences": 1,
@@ -291,7 +291,7 @@
     {
       "id": "redirect-target-taken-as-command",
       "why": "対象が離れたリダイレクト（2> /dev/null）の対象をコマンド語と読む",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "      index += /^\\d*(?:[<>]{1,2}|&>)$/u.test(words[index]) ? 2 : 1;\n",
       "replace": "      index += 1;\n",
       "occurrences": 1,
@@ -302,7 +302,7 @@
     {
       "id": "list-continues-after-divert",
       "why": "許可リストを通らない要素の後も && リストの読み取りを採る（exit / eval の後の cat を読んだと数える）",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "      cwdAfter = null;\n      break;\n",
       "replace": "      cwdAfter = null;\n      continue;\n",
       "occurrences": 1,
@@ -316,7 +316,7 @@
     {
       "id": "end-words-kept",
       "why": "シェルを終える語（exit / return 等）を素の字面として許可する",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "  \"exit\",\n  \"logout\",\n  \"return\",\n  \"suspend\",\n",
       "replace": "",
       "occurrences": 1,
@@ -328,7 +328,7 @@
     {
       "id": "read-climb-resolved",
       "why": "`..` を含む読み取りを cwd で字面どおり解決する（symlink を経た物理的な親と食い違う）",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "/(?:^|\\/)\\.\\.(?:\\/|$)/u.test(path) ? path : resolveAgainst(cwd, path)",
       "replace": "resolveAgainst(cwd, path)",
       "occurrences": 1,
@@ -339,7 +339,7 @@
     {
       "id": "skill-path-climb-kept",
       "why": "スキル名の後に `..` が続くパスを、そのスキルの読み取りに数える",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "      if (!/\\/\\.\\.(?:\\/|$)/u.test(match[0])) {\n",
       "replace": "      if (true) {\n",
       "occurrences": 1,
@@ -350,7 +350,7 @@
     {
       "id": "shellc-script-anywhere",
       "why": "-c の直後でなく行内の後ろにある引用語を script と読む",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "((?:\\s+-{1,2}[A-Za-z-]+)+)\\s+(['\"])/u",
       "replace": "((?:\\s+-{1,2}[A-Za-z-]+)+)\\s+(?:\\S+\\s+)*(['\"])/u",
       "occurrences": 1,
@@ -363,7 +363,7 @@
     {
       "id": "shellc-closes-early-ignored",
       "why": "script の引用語が途中で閉じて後ろに引数が続く形を、1 つの script と読む",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "  return closesEarly ? null : body;\n",
       "replace": "  return body;\n",
       "occurrences": 1,
@@ -375,7 +375,7 @@
     {
       "id": "shellc-unterminated-accepted",
       "why": "閉じていない -c script の末尾 1 文字を落として script と読む",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "    command.at(-1) !== match[3]\n",
       "replace": "    false\n",
       "occurrences": 1,
@@ -386,7 +386,7 @@
     {
       "id": "surface-keeps-mention-items",
       "why": "エージェントが書いたテキストの item（agent_message 等）を走査面から落とさない",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "      if (MENTION_ITEM_TYPES.has(item.type)) {\n",
       "replace": "      if (false) {\n",
       "occurrences": 1,
@@ -401,7 +401,7 @@
     {
       "id": "surface-keeps-echo",
       "why": "単独の echo / printf を言及として落とさない",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "  return MENTION_UTILITIES.has(blanked.split(/\\s+/u)[0]);\n",
       "replace": "  return false;\n",
       "occurrences": 1,
@@ -416,7 +416,7 @@
     {
       "id": "surface-echo-ignores-control-flow",
       "why": "glob・リダイレクト・後続コマンドを持つ echo も言及として落とす",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "  if (blanked === null || /[|&;\\n(){}<>*?[]/u.test(blanked)) {\n",
       "replace": "  if (blanked === null) {\n",
       "occurrences": 1,
@@ -429,7 +429,7 @@
     {
       "id": "surface-echo-ignores-substitution",
       "why": "コマンド置換を含む echo も言及として落とす",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "  if (trimmed.includes(\"`\") || trimmed.includes(\"$(\")) {\n",
       "replace": "  if (false) {\n",
       "occurrences": 1,
@@ -441,7 +441,7 @@
     {
       "id": "surface-drops-unparsable",
       "why": "JSON として読めない行を走査面から落とす",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "    } catch {\n      kept.push(line);\n      continue;\n    }\n",
       "replace": "    } catch {\n      continue;\n    }\n",
       "occurrences": 1,
@@ -450,7 +450,7 @@
     {
       "id": "surface-prefix-ignored",
       "why": "bash -c の前の代入・sudo を読み飛ばして単独の echo と判定する",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "  if (/^(?:[A-Za-z_]\\w*=|sudo(?:\\s|$))/u.test(trimmed)) {\n",
       "replace": "  if (false) {\n",
       "occurrences": 1,
@@ -462,7 +462,7 @@
     {
       "id": "cat-flag-takes-value",
       "why": "cat のフラグの次の語をフラグの値として扱い、cat -n <パス> を読み取りから外す",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "const FLAG_ONLY_UTILITIES = new Set([\"cat\"]);",
       "replace": "const FLAG_ONLY_UTILITIES = new Set([]);",
       "occurrences": 1,
@@ -473,7 +473,7 @@
     {
       "id": "content-frontmatter-kept",
       "why": "SKILL.md の frontmatter（agent に示される説明）を照合の候補に残す",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "const body = path === \"SKILL.md\" ? stripFrontmatter(text) : text;",
       "replace": "const body = text;",
       "occurrences": 1,
@@ -486,7 +486,7 @@
     {
       "id": "content-short-line-kept",
       "why": "短い行も照合の候補に残す",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "        line.length < MIN_CONTENT_LINE_LENGTH ||\n",
       "replace": "        false ||\n",
       "occurrences": 1,
@@ -498,7 +498,7 @@
     {
       "id": "content-bare-path-kept",
       "why": "ASCII だけの行（ファイル名・コード・設定の値）を照合の候補に残す",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "        !/[\\u0080-\\u{10ffff}]/u.test(line) ||\n",
       "replace": "        false ||\n",
       "occurrences": 1,
@@ -512,7 +512,7 @@
     {
       "id": "content-exclusion-off",
       "why": "他のスキル・fixture・prompt にある文を照合の候補から外さない",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "        excluded.some((text) => text.includes(line))\n",
       "replace": "        false\n",
       "occurrences": 1,
@@ -531,7 +531,7 @@
     {
       "id": "content-other-skills-ignored",
       "why": "他のスキルにある文を照合の候補から外さない",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "  const excluded = [...otherSkillTexts, ...givenTexts];",
       "replace": "  const excluded = [...givenTexts];",
       "occurrences": 1,
@@ -547,7 +547,7 @@
     {
       "id": "content-given-ignored",
       "why": "fixture と prompt にある文を照合の候補から外さない",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "  const excluded = [...otherSkillTexts, ...givenTexts];",
       "replace": "  const excluded = [...otherSkillTexts];",
       "occurrences": 1,
@@ -561,7 +561,7 @@
     {
       "id": "content-not-read",
       "why": "出力に現れたスキルの文を read の根拠にしない",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "    (contentSeen !== null && contentSeen.length > 0)\n",
       "replace": "    false\n",
       "occurrences": 1,
@@ -575,7 +575,7 @@
     {
       "id": "content-claude-output-dropped",
       "why": "claude-code の tool_result の出力を集めない",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "        toolOutputTexts.push(toolResultText(block.content));\n",
       "replace": "        void 0;\n",
       "occurrences": 1,
@@ -588,7 +588,7 @@
     {
       "id": "content-codex-output-dropped",
       "why": "codex の command_execution の出力を集めない",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "        toolOutputTexts.push(event.item.aggregated_output);\n",
       "replace": "        void 0;\n",
       "occurrences": 1,
@@ -599,7 +599,7 @@
     {
       "id": "content-non-markdown-indexed",
       "why": "スクリプトや JSON も照合の候補にする",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "        path === \"SKILL.md\" || (/^(?:references|assets)\\//u.test(path) && path.endsWith(\".md\")),\n",
       "replace": "        true,\n",
       "occurrences": 1,
@@ -610,7 +610,7 @@
     {
       "id": "content-fixture-unread",
       "why": "fixture のファイルを読まない",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "      givenTexts.push(readFileSync(join(fixture, path), \"utf8\"));\n",
       "replace": "      void 0;\n",
       "occurrences": 1,
@@ -621,7 +621,7 @@
     {
       "id": "content-prompt-unread",
       "why": "prompt を照合の候補から外す対象にしない",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "  const givenTexts = typeof prompt === \"string\" ? [prompt] : [];",
       "replace": "  const givenTexts = [];",
       "occurrences": 1,
@@ -632,7 +632,7 @@
     {
       "id": "content-missing-skill-accepted",
       "why": "--skills-root の下にスキルが無くても止まらない",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "  if (!existsSync(join(skillDirectory, \"SKILL.md\"))) {",
       "replace": "  if (false) {",
       "occurrences": 1,
@@ -643,7 +643,7 @@
     {
       "id": "content-symlink-unfollowed",
       "why": "シンボリックリンクをたどらず、リンクの先にある他のスキルの文を照合から外さない",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "    const kind = entry.isSymbolicLink() ? statSync(path) : entry;\n",
       "replace": "    const kind = entry;\n",
       "occurrences": 1,
@@ -655,7 +655,7 @@
     {
       "id": "terminal-option-reads",
       "why": "--help・--version の後のパスを読み取りとして数える",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "  if (options.some((word) => TERMINAL_OPTIONS.has(word))) {\n",
       "replace": "  if (false) {\n",
       "occurrences": 1,
@@ -666,7 +666,7 @@
     {
       "id": "content-symlink-cycle",
       "why": "祖先を指すリンクをたどり直し、ELOOP まで再帰する",
-      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "file": "scripts/eval/normalize-skill-eval-result.ts",
       "find": "  if (ancestors.has(real)) {\n",
       "replace": "  if (false) {\n",
       "occurrences": 1,

@@ -6,7 +6,7 @@ node_modules/
 # テスト実行結果の詳細は除外、サマリーは保持
 tests/*/iteration-*/eval-*/
 
-# check-mutation-proof.test.js の使い捨て fixture（異常終了時の残骸）。
+# check-mutation-proof.test.ts の使い捨て fixture（異常終了時の残骸）。
 # ロックと復元情報は node_modules/.cache/mutation-proof/ 配下（node_modules ごと除外済み）。
 scripts/mutation-proof-fixture-*/
 # ランナーが書き込みに失敗して消せなかった一時ファイル（ランナーが手で消すよう出す）。

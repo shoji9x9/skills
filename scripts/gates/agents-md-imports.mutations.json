@@ -1,9 +1,9 @@
 {
   "$comment": [
-    "agents-md-imports.test.js の検出能力を示す変異の一覧。",
-    "散文コメントで持つと古くなるため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。"
+    "agents-md-imports.test.ts の検出能力を示す変異の一覧。",
+    "散文コメントで持つと古くなるため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。"
   ],
-  "test_file": "scripts/gates/agents-md-imports.test.js",
+  "test_file": "scripts/gates/agents-md-imports.test.ts",
   "mutations": [
     {
       "id": "AI-WORKFLOW",

@@ -1,15 +1,15 @@
 {
   "$comment": [
-    "check-kaizen-refs.test.js の検出能力を示す変異の一覧。",
-    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。",
+    "check-kaizen-refs.test.ts の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。",
     "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
   ],
-  "test_file": "scripts/gates/check-kaizen-refs.test.js",
+  "test_file": "scripts/gates/check-kaizen-refs.test.ts",
   "mutations": [
     {
       "id": "KR-EXCLUDE-NONE",
       "why": "リンク・テスト結果・学び自身などの除外を効かせない（二重報告・学び同士の参照で赤くなる。走査件数も変わる）",
-      "file": "scripts/gates/check-kaizen-refs.js",
+      "file": "scripts/gates/check-kaizen-refs.ts",
       "find": "  !EXCLUDED_PREFIXES.some((p) => path.startsWith(p)) &&",
       "replace": "  true &&",
       "occurrences": 1,
@@ -25,7 +25,7 @@
     {
       "id": "KR-EVAL-INPUT-NONE",
       "why": "eval の入力（prompt に書いた仮のパス）を除外しない（実リポジトリの evals/kaizen/evals.json の仮パスで赤くなる）",
-      "file": "scripts/gates/check-kaizen-refs.js",
+      "file": "scripts/gates/check-kaizen-refs.ts",
       "find": "  !EVAL_INPUT_RE.test(path);",
       "replace": "  true;",
       "occurrences": 1,
@@ -37,7 +37,7 @@
     {
       "id": "KR-EVAL-ALL",
       "why": "eval 配下を丸ごと除外する（eval の文書の切れた参照を見落とす）",
-      "file": "scripts/gates/check-kaizen-refs.js",
+      "file": "scripts/gates/check-kaizen-refs.ts",
       "find": "const EVAL_INPUT_RE = /^evals\\/[^/]+\\/(?:evals\\.json$|fixtures\\/)/;",
       "replace": "const EVAL_INPUT_RE = /^evals\\//;",
       "occurrences": 1,
@@ -48,7 +48,7 @@
     {
       "id": "KR-EXEMPTIONS-FILE-SCANNED",
       "why": "免除の宣言ファイル自身を走査する（免除した参照がそこで切れた参照として報告される）",
-      "file": "scripts/gates/check-kaizen-refs.js",
+      "file": "scripts/gates/check-kaizen-refs.ts",
       "find": "  path !== EXEMPTIONS_PATH &&\n",
       "replace": "",
       "occurrences": 1,
@@ -57,7 +57,7 @@
     {
       "id": "KR-TEXT-ONLY",
       "why": "テキスト拡張子以外も読む",
-      "file": "scripts/gates/check-kaizen-refs.js",
+      "file": "scripts/gates/check-kaizen-refs.ts",
       "find": "  isTextPath(path) &&\n",
       "replace": "",
       "occurrences": 1,
@@ -66,7 +66,7 @@
     {
       "id": "KR-DELETED",
       "why": "作業ツリーで消した追跡ファイルも読みに行く（ENOENT で赤くなる）",
-      "file": "scripts/gates/check-kaizen-refs.js",
+      "file": "scripts/gates/check-kaizen-refs.ts",
       "find": "      isScanned(f, distributed) &&\n      existsSync(join(root, f)) &&\n",
       "replace": "      isScanned(f, distributed) &&\n",
       "occurrences": 1,
@@ -75,7 +75,7 @@
     {
       "id": "KR-LEAD",
       "why": "参照の前の境界を見ない（`foo.kaizen/…` を参照として拾う）",
-      "file": "scripts/gates/check-kaizen-refs.js",
+      "file": "scripts/gates/check-kaizen-refs.ts",
       "find": "const LEAD = \"(?<![A-Za-z0-9_.-])\";",
       "replace": "const LEAD = \"\";",
       "occurrences": 1,
@@ -84,7 +84,7 @@
     {
       "id": "KR-TAIL",
       "why": "`.md` の後ろに続くパス（`.md.bak` `.mdx` 等）を見ず、`.md` までを参照として拾う（実在する学びを指せば合格になる）",
-      "file": "scripts/gates/check-kaizen-refs.js",
+      "file": "scripts/gates/check-kaizen-refs.ts",
       "find": "    if (tail) malformed.push",
       "replace": "    if (false) malformed.push",
       "occurrences": 1,
@@ -108,7 +108,7 @@
     {
       "id": "KR-TAIL-REPORT",
       "why": "形の崩れた参照を検出しても違反として報告しない",
-      "file": "scripts/gates/check-kaizen-refs.js",
+      "file": "scripts/gates/check-kaizen-refs.ts",
       "find": "of found.malformed) {",
       "replace": "of []) {",
       "occurrences": 1,
@@ -132,7 +132,7 @@
     {
       "id": "KR-TAIL-DOT",
       "why": "`.` の後ろに続くパス（`.md.bak` `.md.gz`）を続きと見なさない",
-      "file": "scripts/gates/check-kaizen-refs.js",
+      "file": "scripts/gates/check-kaizen-refs.ts",
       "find": "|\\.(?=[A-Za-z0-9_]))*/;",
       "replace": ")*/;",
       "occurrences": 1,
@@ -148,7 +148,7 @@
     {
       "id": "KR-TAIL-DOT-ANY",
       "why": "文末の `.` までパスの続きと見なす（`.md.` で終わる文を落とす）",
-      "file": "scripts/gates/check-kaizen-refs.js",
+      "file": "scripts/gates/check-kaizen-refs.ts",
       "find": "|\\.(?=[A-Za-z0-9_]))*/;",
       "replace": "|\\.)*/;",
       "occurrences": 1,
@@ -162,7 +162,7 @@
     {
       "id": "KR-TAIL-HYPHEN",
       "why": "`-` をパスの続きと見なさない（`.md-old` を通す）",
-      "file": "scripts/gates/check-kaizen-refs.js",
+      "file": "scripts/gates/check-kaizen-refs.ts",
       "find": "const PATH_TAIL_RE = /^(?:[A-Za-z0-9_-]|",
       "replace": "const PATH_TAIL_RE = /^(?:[A-Za-z0-9_]|",
       "occurrences": 1,
@@ -173,7 +173,7 @@
     {
       "id": "KR-TAIL-SLASH",
       "why": "`/` をパスの続きと見なさない（`.md/subpath` `.md/` を `.md` までの参照として通す）",
-      "file": "scripts/gates/check-kaizen-refs.js",
+      "file": "scripts/gates/check-kaizen-refs.ts",
       "find": "|\\/|\\.(?=[A-Za-z0-9_]))*/;",
       "replace": "|\\.(?=[A-Za-z0-9_]))*/;",
       "occurrences": 1,
@@ -187,7 +187,7 @@
     {
       "id": "KR-TAIL-HASH",
       "why": "URL のアンカー `#` までパスの続きと見なす（指すファイルが変わらない `.md#L10` を落とす）",
-      "file": "scripts/gates/check-kaizen-refs.js",
+      "file": "scripts/gates/check-kaizen-refs.ts",
       "find": "|\\/|\\.(?=[A-Za-z0-9_]))*/;",
       "replace": "|[/#]|\\.(?=[A-Za-z0-9_]))*/;",
       "occurrences": 1,
@@ -199,7 +199,7 @@
     {
       "id": "KR-TAIL-ONE-LINE",
       "why": "1 行の参照で `.md` の後ろを見ない",
-      "file": "scripts/gates/check-kaizen-refs.js",
+      "file": "scripts/gates/check-kaizen-refs.ts",
       "find": "take(m[0], line.slice(m.index + m[0].length), ",
       "replace": "take(m[0], \"\", ",
       "occurrences": 1,
@@ -220,7 +220,7 @@
     {
       "id": "KR-TAIL-WRAPPED",
       "why": "折り返した参照をつないだ後に `.md` の後ろを見ない",
-      "file": "scripts/gates/check-kaizen-refs.js",
+      "file": "scripts/gates/check-kaizen-refs.ts",
       "find": "take(joined, lines[i + 1].slice(next[0].length), ",
       "replace": "take(joined, \"\", ",
       "occurrences": 1,
@@ -233,8 +233,8 @@
     {
       "id": "KR-WRAP-JOIN",
       "why": "折り返した参照をつながない（切れた参照を見落とす・正しい折り返しを判定不能にする）",
-      "file": "scripts/gates/check-kaizen-refs.js",
-      "find": "    if (joined && FULL_RE.test(joined)) {",
+      "file": "scripts/gates/check-kaizen-refs.ts",
+      "find": "    if (next && FULL_RE.test(joined)) {",
       "replace": "    if (false) {",
       "occurrences": 1,
       "expect_failing": [
@@ -255,7 +255,7 @@
     {
       "id": "KR-WRAP-BROKEN",
       "why": "つないでも参照にならない折り返しを黙って捨てる",
-      "file": "scripts/gates/check-kaizen-refs.js",
+      "file": "scripts/gates/check-kaizen-refs.ts",
       "find": "    else broken.push({ fragment: cut[1], line: i + 1 });",
       "replace": "    else void cut;",
       "occurrences": 1,
@@ -264,7 +264,7 @@
     {
       "id": "KR-WRAP-DIR",
       "why": "名前を持たない切れ目（行末の .kaizen/ ・ .kaizen/archive/）をディレクトリへの言及として通さず、判定不能で落とす",
-      "file": "scripts/gates/check-kaizen-refs.js",
+      "file": "scripts/gates/check-kaizen-refs.ts",
       "find": "    } else if (DIR_ONLY_RE.test(cut[1])) return;",
       "replace": "    } else if (false) return;",
       "occurrences": 1,
@@ -275,7 +275,7 @@
     {
       "id": "KR-EXISTS",
       "why": "参照先の実在を確かめない（後段の未追跡判定が拾うので、文言まで見るテストだけが落ちる）",
-      "file": "scripts/gates/check-kaizen-refs.js",
+      "file": "scripts/gates/check-kaizen-refs.ts",
       "find": "      if (!existsSync(join(root, ref))) {",
       "replace": "      if (false) {",
       "occurrences": 1,
@@ -297,7 +297,7 @@
     {
       "id": "KR-TRACKED",
       "why": "参照先が追跡されているかを確かめない（手元にだけ在る学びを通す）",
-      "file": "scripts/gates/check-kaizen-refs.js",
+      "file": "scripts/gates/check-kaizen-refs.ts",
       "find": "      } else if (!trackedSet.has(ref)) {",
       "replace": "      } else if (false) {",
       "occurrences": 1,
@@ -308,7 +308,7 @@
     {
       "id": "KR-UNUSED-EXEMPTION",
       "why": "使われていない免除を報告しない",
-      "file": "scripts/gates/check-kaizen-refs.js",
+      "file": "scripts/gates/check-kaizen-refs.ts",
       "find": "    if (!usedExemptions.has(e)) {",
       "replace": "    if (false) {",
       "occurrences": 1,
@@ -319,7 +319,7 @@
     {
       "id": "KR-EXEMPTION-REASON",
       "why": "理由の無い免除を通す",
-      "file": "scripts/gates/check-kaizen-refs.js",
+      "file": "scripts/gates/check-kaizen-refs.ts",
       "find": "    if (!e.reason?.trim()) violations.push",
       "replace": "    if (false) violations.push",
       "occurrences": 1,
@@ -328,7 +328,7 @@
     {
       "id": "KR-EXEMPTION-SHAPE",
       "why": "形の崩れた免除の宣言を受理する",
-      "file": "scripts/gates/check-kaizen-refs.js",
+      "file": "scripts/gates/check-kaizen-refs.ts",
       "find": "  if (!Array.isArray(list) || !list.every(ok)) {",
       "replace": "  if (false) {",
       "occurrences": 1,
@@ -339,7 +339,7 @@
     {
       "id": "KR-ZERO",
       "why": "ファイル 0 件・参照 0 件を成功に倒す",
-      "file": "scripts/gates/check-kaizen-refs.js",
+      "file": "scripts/gates/check-kaizen-refs.ts",
       "find": "  if (files.length === 0 || refs === 0) {",
       "replace": "  if (false) {",
       "occurrences": 1,
@@ -348,19 +348,19 @@
     {
       "id": "KR-SELF",
       "why": "この検査自身のテスト・変異宣言（切れた参照の fixture）を走査する",
-      "file": "scripts/gates/check-kaizen-refs.js",
+      "file": "scripts/gates/check-kaizen-refs.ts",
       "find": "  !SELF_FIXTURES.includes(path) &&\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "除外（scripts/gates/check-kaizen-refs.test.js）の切れた参照は見ないが、外に同じものがあれば落とす",
+        "除外（scripts/gates/check-kaizen-refs.test.ts）の切れた参照は見ないが、外に同じものがあれば落とす",
         "除外（scripts/gates/check-kaizen-refs.mutations.json）の切れた参照は見ないが、外に同じものがあれば落とす"
       ]
     },
     {
       "id": "KR-OTHERS",
       "why": "未追跡のファイルを走査しない（add 前の新規ファイルを手元で見落とす）",
-      "file": "scripts/gates/check-kaizen-refs.js",
+      "file": "scripts/gates/check-kaizen-refs.ts",
       "find": "const listed = [...tracked, ...gitFiles(root, \"--others\", \"--exclude-standard\")];",
       "replace": "const listed = [...tracked];",
       "occurrences": 1,
@@ -371,7 +371,7 @@
     {
       "id": "KR-EXCLUDE-STANDARD",
       "why": "gitignore を効かせない（手元の生成物で CI と食い違って赤くなる）",
-      "file": "scripts/gates/check-kaizen-refs.js",
+      "file": "scripts/gates/check-kaizen-refs.ts",
       "find": "gitFiles(root, \"--others\", \"--exclude-standard\")",
       "replace": "gitFiles(root, \"--others\")",
       "occurrences": 1,
@@ -382,7 +382,7 @@
     {
       "id": "KR-INSTALLED-NONE",
       "why": "配布スキルのインストール済みコピーを除外しない（正本と二重に報告する）",
-      "file": "scripts/gates/check-kaizen-refs.js",
+      "file": "scripts/gates/check-kaizen-refs.ts",
       "find": "  !isInstalledCopy(path, distributed) &&\n",
       "replace": "",
       "occurrences": 1,
@@ -393,9 +393,9 @@
     {
       "id": "KR-INSTALLED-ALL",
       "why": ".agents/skills/ を丸ごと除外する（skills/ に正本の無い private skill の参照を見逃す）",
-      "file": "scripts/gates/check-kaizen-refs.js",
-      "find": "  return Boolean(m) && distributed.has(m[1]);",
-      "replace": "  return Boolean(m);",
+      "file": "scripts/gates/check-kaizen-refs.ts",
+      "find": "  return m !== null && distributed.has(m[1]);",
+      "replace": "  return m !== null;",
       "occurrences": 1,
       "expect_failing": [
         "陽性: .agents/ の原本（private skill（skills/ に原本が無い））の切れた参照は落とす",
@@ -407,7 +407,7 @@
     {
       "id": "KR-AGENTS-NAME-PREFIX",
       "why": ".agents/skills/ 側の名前を前方一致で取る（xy を x のコピーと読む）",
-      "file": "scripts/gates/check-kaizen-refs.js",
+      "file": "scripts/gates/check-kaizen-refs.ts",
       "find": "const AGENTS_SKILL_RE = /^\\.agents\\/skills\\/([^/]+)\\//;",
       "replace": "const AGENTS_SKILL_RE = /^\\.agents\\/skills\\/([^/]+?)/;",
       "occurrences": 1,
@@ -418,7 +418,7 @@
     {
       "id": "KR-SKILLS-NAME-PREFIX",
       "why": "skills/ 側の名前を前方一致で取る（skills/xy/ を x の正本と読む）",
-      "file": "scripts/gates/check-kaizen-refs.js",
+      "file": "scripts/gates/check-kaizen-refs.ts",
       "find": "const SKILL_RE = /^skills\\/([^/]+)\\//;",
       "replace": "const SKILL_RE = /^skills\\/([^/]+?)/;",
       "occurrences": 1,
@@ -429,7 +429,7 @@
     {
       "id": "KR-SYMLINK",
       "why": "シンボリックリンクを辿って読む（.github/instructions → .agents/rules の本文を二重に数える）",
-      "file": "scripts/gates/check-kaizen-refs.js",
+      "file": "scripts/gates/check-kaizen-refs.ts",
       "find": "      existsSync(join(root, f)) &&\n      !lstatSync(join(root, f)).isSymbolicLink(),",
       "replace": "      existsSync(join(root, f)),",
       "occurrences": 1,

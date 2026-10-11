@@ -1,10 +1,10 @@
 {
   "$comment": [
-    "bash-command-guard.test.js のうち、判定行（ヒアドキュメントの本文・シェル委譲・文字クラスの免除・行コメント・引用内のコマンド置換）の検出能力を示す変異の一覧（Issue #423）。",
-    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。",
+    "bash-command-guard.test.ts のうち、判定行（ヒアドキュメントの本文・シェル委譲・文字クラスの免除・行コメント・引用内のコマンド置換）の検出能力を示す変異の一覧（Issue #423）。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。",
     "テスト名を変えたら expect_failing も直す。"
   ],
-  "test_file": "scripts/hooks/bash-command-guard.test.js",
+  "test_file": "scripts/hooks/bash-command-guard.test.ts",
   "mutations": [
     {
       "id": "heredoc-open",

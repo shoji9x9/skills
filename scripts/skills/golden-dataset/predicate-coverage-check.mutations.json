@@ -1,11 +1,11 @@
 {
   "$comment": [
-    "predicate-coverage-check.test.js のうち、識別子の値（採番帯）が消費側の変換を通るかの検査（Issue #498）の検出能力を示す変異の一覧。",
-    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。",
+    "predicate-coverage-check.test.ts のうち、識別子の値（採番帯）が消費側の変換を通るかの検査（Issue #498）の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。",
     "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
     "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
   ],
-  "test_file": "scripts/skills/golden-dataset/predicate-coverage-check.test.js",
+  "test_file": "scripts/skills/golden-dataset/predicate-coverage-check.test.ts",
   "mutations": [
     {
       "id": "origin-column-missing-ignored",

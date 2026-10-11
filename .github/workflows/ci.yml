@@ -51,10 +51,10 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Markdown lint
         run: pnpm exec markdownlint-cli2
-      # 対象はエージェント用のコピーとリンクを除いた実体（scripts/lib/source-scope.js）。.agents を丸ごと除くと、
+      # 対象はエージェント用のコピーとリンクを除いた実体（scripts/lib/source-scope.ts）。.agents を丸ごと除くと、
       # rule と private skill の実体が lint されない。
       - name: Shell lint
-        run: node scripts/gates/run-on-sources.js --ext sh -- shellcheck
+        run: node scripts/gates/run-on-sources.ts --ext sh -- shellcheck
       - name: JavaScript lint
         run: pnpm run lint:js
       - name: JavaScript format check
@@ -63,50 +63,50 @@ jobs:
       - name: TypeScript type check
         run: pnpm run typecheck
       - name: JSON lint
-        run: node scripts/gates/run-on-sources.js --ext json -- pnpm exec jsonlint --quiet --continue --no-duplicate-keys
+        run: node scripts/gates/run-on-sources.ts --ext json -- pnpm exec jsonlint --quiet --continue --no-duplicate-keys
       # js-yaml の API で全ファイルを 1 プロセスで読む（ファイルごとに `pnpm exec js-yaml` を起動すると
       # 66 件で 44 秒かかっていた。Issue #507）。対象 0 件は成功として扱わない（スクリプト側で exit 1）。
       - name: YAML lint
-        run: node scripts/gates/lint-yaml.js
+        run: node scripts/gates/lint-yaml.ts
       - name: Pagination lint
-        run: node scripts/gates/lint-pagination.js
+        run: node scripts/gates/lint-pagination.ts
       - name: Skills sync (skills/ vs .agents/skills/)
-        run: node scripts/gates/check-skills-sync.js
-      - name: JS extensions (skills/ => .mjs, scripts/ => .js)
-        run: node scripts/gates/check-js-extensions.js
+        run: node scripts/gates/check-skills-sync.ts
+      - name: JS extensions (skills/ => .mjs, scripts/ => .ts)
+        run: node scripts/gates/check-js-extensions.ts
       - name: Rule symlinks (.agents/rules vs .claude/rules / .github/instructions)
-        run: node scripts/gates/check-rule-symlinks.js
+        run: node scripts/gates/check-rule-symlinks.ts
       - name: Control characters in tracked text files
-        run: node scripts/gates/check-control-chars.js
+        run: node scripts/gates/check-control-chars.ts
       - name: Eval assertion reachability
-        run: node scripts/gates/check-eval-reachability.js
+        run: node scripts/gates/check-eval-reachability.ts
       - name: SKILL.md frontmatter (YAML valid, description <=1024B, name format)
-        run: node scripts/gates/check-skill-frontmatter.js
+        run: node scripts/gates/check-skill-frontmatter.ts
       - name: Kaizen learning references exist
-        run: node scripts/gates/check-kaizen-refs.js
+        run: node scripts/gates/check-kaizen-refs.ts
       - name: Identical copies (scripts/gates/identical-copies.json)
-        run: node scripts/gates/check-identical-copies.js
+        run: node scripts/gates/check-identical-copies.ts
       - name: Skill checks wiring declarations (checks.json / scripts/gates/skill-checks-unwired.json)
-        run: node scripts/gates/check-skill-checks.js
+        run: node scripts/gates/check-skill-checks.ts
       - name: Time-sensitive prose (mutation counts, dates, 現状は / 当面)
-        run: node scripts/gates/check-time-sensitive-prose.js
+        run: node scripts/gates/check-time-sensitive-prose.ts
       - name: Document tiers (scripts/gates/doc-tiers.json)
-        run: node scripts/gates/check-doc-tiers.js
+        run: node scripts/gates/check-doc-tiers.ts
       - name: Document references (links, section names, tier direction)
-        run: node scripts/gates/check-doc-refs.js
+        run: node scripts/gates/check-doc-refs.ts
       - name: Skill index (AGENTS.md / README.md vs skills/)
-        run: node scripts/gates/check-skill-index.js
+        run: node scripts/gates/check-skill-index.ts
       - name: Prose lint (textlint; .textlintrc.json / .textlint/words.json)
-        run: node scripts/gates/lint-prose.js
+        run: node scripts/gates/lint-prose.ts
       # PR では base との分岐点より後の履歴で「30 KiB を超えたか」を判定する。push（main）では範囲が空になり、上限だけを見る。
       - name: AGENTS.md size (scripts/gates/agents-md-size.json)
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
           if [ -n "$BASE_REF" ]; then base="origin/$BASE_REF"; else base=HEAD; fi
-          node scripts/gates/check-agents-md-size.js --base "$base"
+          node scripts/gates/check-agents-md-size.ts --base "$base"
       - name: Word list (.textlint/word-list.md) matches .textlint/words.json
-        run: node scripts/gates/check-word-list.js
+        run: node scripts/gates/check-word-list.ts
 
   # ユニットテストは Lint から独立したジョブにして並べて実行する（Lint の所要の大半を占めていたため）。
   # ファイル並列と、tracked ファイルを書き換えるテストの単独実行の分け方は `vitest.config.ts` が持つ。
@@ -168,7 +168,7 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
           JOB_INDEX: ${{ strategy.job-index }}
           JOB_TOTAL: ${{ strategy.job-total }}
-        run: node scripts/mutation/check-mutation-proof.js --changed-since "origin/${BASE_REF}" --shard "$((JOB_INDEX + 1))/${JOB_TOTAL}"
+        run: node scripts/mutation/check-mutation-proof.ts --changed-since "origin/${BASE_REF}" --shard "$((JOB_INDEX + 1))/${JOB_TOTAL}"
 
   # 必須チェックの名前（`Mutation proof (PR)`）は集約ジョブで維持する。ルールセットはこの名前を要求し、
   # シャードの名前（分割数で変わる）を要求しない。**シャードが 1 本でも成功以外（失敗・中止・スキップ）なら落とす**

@@ -5,8 +5,8 @@ priority: high
 status: applied
 applied-to:
   [
-    scripts/mutation/check-mutation-proof.js,
-    scripts/mutation/check-mutation-proof.test.js,
+    scripts/mutation/check-mutation-proof.ts,
+    scripts/mutation/check-mutation-proof.test.ts,
     .agents/rules/state-space-and-mutation-proof.md,
   ]
 session: claude-code
@@ -38,7 +38,7 @@ session: claude-code
 
 文書を読むチェックのミューテーションテストでは、合成した入力のテストで検出を示し、実リポジトリを読むテストは `expect_failing` に入れない。
 
-- 仕組みにするなら、ランナー（`scripts/mutation/check-mutation-proof.js`）が「実リポジトリ」を名前に持つテストを `expect_failing` の照合から外す（期待にあっても無くても、落ちても通っても数えない）。
+- 仕組みにするなら、ランナー（`scripts/mutation/check-mutation-proof.ts`）が「実リポジトリ」を名前に持つテストを `expect_failing` の照合から外す（期待にあっても無くても、落ちても通っても数えない）。
 - 段階 ④-c と ⑤ でも文書を書き換えるので、同じ失敗が続く見込みである。
 - 3 回再発したので、規約ではなく、ランナー側の仕組み（1 つ目の箇条）で止める。
 - 反映済み（#567）: ランナーが、名前に「実リポジトリ」を含むテストを `expect_failing` に書くと exit 2 にし、

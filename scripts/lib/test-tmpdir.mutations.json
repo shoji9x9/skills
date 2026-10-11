@@ -1,15 +1,15 @@
 {
   "$comment": [
-    "test-tmpdir.test.js の検出能力を示す変異の一覧（Issue #479）。",
-    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。",
+    "test-tmpdir.test.ts の検出能力を示す変異の一覧（Issue #479）。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。",
     "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
   ],
-  "test_file": "scripts/lib/test-tmpdir.test.js",
+  "test_file": "scripts/lib/test-tmpdir.test.ts",
   "mutations": [
     {
       "id": "per-test-no-cleanup",
       "why": "makeTempDir がテストの終わりに消す予約をしない",
-      "file": "scripts/lib/test-tmpdir.js",
+      "file": "scripts/lib/test-tmpdir.ts",
       "find": "onTestFinished(() => rmSync(dir, { recursive: true, force: true }));",
       "replace": "onTestFinished(() => {});",
       "occurrences": 1,
@@ -21,7 +21,7 @@
     {
       "id": "collection-swallowed",
       "why": "収集時の makeTempDir を例外にせず、消す予約の無いディレクトリを返す",
-      "file": "scripts/lib/test-tmpdir.js",
+      "file": "scripts/lib/test-tmpdir.ts",
       "find": "    rmSync(dir, { recursive: true, force: true });\n    throw error;",
       "replace": "    rmSync(dir, { recursive: true, force: true });",
       "occurrences": 1,
@@ -30,7 +30,7 @@
     {
       "id": "shared-no-cleanup",
       "why": "makeSharedTempDir が afterAll で消さない（makeTempDirFactory も同じ共有のディレクトリに作るので、それも消えない）",
-      "file": "scripts/lib/test-tmpdir.js",
+      "file": "scripts/lib/test-tmpdir.ts",
       "find": "afterAll(() => rmSync(dir, { recursive: true, force: true }));",
       "replace": "afterAll(() => {});",
       "occurrences": 1,
@@ -42,7 +42,7 @@
     {
       "id": "concurrent-guard-removed",
       "why": "並べたテストの中の makeTempDir を例外にせず、別のテストに消す予約を付ける（Issue #590）",
-      "file": "scripts/lib/test-tmpdir.js",
+      "file": "scripts/lib/test-tmpdir.ts",
       "find": "if (getCurrentTest()?.concurrent) {",
       "replace": "if (false) {",
       "occurrences": 1,
@@ -53,7 +53,7 @@
     {
       "id": "factory-outside-shared-root",
       "why": "makeTempDirFactory が共有のディレクトリの外に作り、afterAll で消えない",
-      "file": "scripts/lib/test-tmpdir.js",
+      "file": "scripts/lib/test-tmpdir.ts",
       "find": "return (name) => mkdtempSync(join(root, name));",
       "replace": "return (name) => mkdtempSync(join(tmpdir(), name));",
       "occurrences": 1,
@@ -62,7 +62,7 @@
     {
       "id": "exempt-without-reason",
       "why": "免除の印に理由を要求しない",
-      "file": "scripts/lib/test-tmpdir.test.js",
+      "file": "scripts/lib/test-tmpdir.test.ts",
       "find": "const EXEMPT = /\\/\\/ tmpdir-ok: \\S/;",
       "replace": "const EXEMPT = /\\/\\/ tmpdir-ok:/;",
       "occurrences": 1,

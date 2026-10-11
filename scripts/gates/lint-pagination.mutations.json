@@ -1,14 +1,14 @@
 {
   "$comment": [
-    "lint-pagination.test.js の検出能力を示す変異のうち、走査対象の決め方にかかわるもの。",
-    "散文コメントで持つと古くなるため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。"
+    "lint-pagination.test.ts の検出能力を示す変異のうち、走査対象の決め方にかかわるもの。",
+    "散文コメントで持つと古くなるため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。"
   ],
-  "test_file": "scripts/gates/lint-pagination.test.js",
+  "test_file": "scripts/gates/lint-pagination.test.ts",
   "mutations": [
     {
       "id": "PG-GIT-COPIES",
       "why": "git の列挙でエージェント用のコピーとリンクを外さない",
-      "file": "scripts/gates/lint-pagination.js",
+      "file": "scripts/gates/lint-pagination.ts",
       "find": "    if (isAgentCopy(base, entry)) continue;\n",
       "replace": "",
       "occurrences": 1,
@@ -19,7 +19,7 @@
     {
       "id": "PG-WALK-COPIES",
       "why": "素朴な走査でエージェント用のコピーとリンクを外さない",
-      "file": "scripts/gates/lint-pagination.js",
+      "file": "scripts/gates/lint-pagination.ts",
       "find": "    if (isAgentCopy(root, `${relative(root, p)}/`)) continue;\n",
       "replace": "",
       "occurrences": 1,
@@ -30,7 +30,7 @@
     {
       "id": "PG-AGENTS",
       "why": ".agents を丸ごと外す（rule と private skill の実体を見ない）",
-      "file": "scripts/gates/lint-pagination.js",
+      "file": "scripts/gates/lint-pagination.ts",
       "find": "const SKIP_DIRS = new Set([\"node_modules\", \".git\"]);",
       "replace": "const SKIP_DIRS = new Set([\"node_modules\", \".git\", \".agents\"]);",
       "occurrences": 1,

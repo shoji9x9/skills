@@ -1,15 +1,15 @@
 {
   "$comment": [
-    "check-identical-copies.test.js の検出能力を示す変異の一覧。",
-    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。",
+    "check-identical-copies.test.ts の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。",
     "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
   ],
-  "test_file": "scripts/gates/check-identical-copies.test.js",
+  "test_file": "scripts/gates/check-identical-copies.test.ts",
   "mutations": [
     {
       "id": "IC-EQUALS",
       "why": "内容を比べない（片方だけ直したコピーを通す）",
-      "file": "scripts/gates/check-identical-copies.js",
+      "file": "scripts/gates/check-identical-copies.ts",
       "find": "      if (!baseBuf.equals(buf)) {",
       "replace": "      if (false) {",
       "occurrences": 1,
@@ -23,7 +23,7 @@
     {
       "id": "IC-REST",
       "why": "3 件以上の組で 2 件目までしか比べない",
-      "file": "scripts/gates/check-identical-copies.js",
+      "file": "scripts/gates/check-identical-copies.ts",
       "find": "    for (const p of rest) {",
       "replace": "    for (const p of rest.slice(0, 1)) {",
       "occurrences": 1,
@@ -32,7 +32,7 @@
     {
       "id": "IC-MISSING",
       "why": "宣言したファイルの不在を違反にしない（読み取りの例外で落ちる）",
-      "file": "scripts/gates/check-identical-copies.js",
+      "file": "scripts/gates/check-identical-copies.ts",
       "find": "    const missing = paths.filter((p) => !existsSync(join(root, p)));",
       "replace": "    const missing = [];",
       "occurrences": 1,
@@ -41,7 +41,7 @@
     {
       "id": "IC-FIRST-LINE",
       "why": "最初に食い違う行を求めない（常に最終行を報告する）",
-      "file": "scripts/gates/check-identical-copies.js",
+      "file": "scripts/gates/check-identical-copies.ts",
       "find": "if (la[i] !== lb[i]) return i + 1;",
       "replace": "if (false) return i + 1;",
       "occurrences": 1,
@@ -50,7 +50,7 @@
     {
       "id": "IC-GROUPS-EMPTY",
       "why": "組 0 件の宣言を受理する（何も比べずに OK）",
-      "file": "scripts/gates/check-identical-copies.js",
+      "file": "scripts/gates/check-identical-copies.ts",
       "find": "  if (!Array.isArray(groups) || groups.length === 0) {",
       "replace": "  if (!Array.isArray(groups)) {",
       "occurrences": 1,
@@ -61,7 +61,7 @@
     {
       "id": "IC-FILES-MIN",
       "why": "1 件だけの組を受理する（比べる相手が無いまま OK）",
-      "file": "scripts/gates/check-identical-copies.js",
+      "file": "scripts/gates/check-identical-copies.ts",
       "find": "      files.length < 2 ||",
       "replace": "      files.length < 1 ||",
       "occurrences": 1,
@@ -72,7 +72,7 @@
     {
       "id": "IC-FILES-EMPTY",
       "why": "空文字のパスを受理する",
-      "file": "scripts/gates/check-identical-copies.js",
+      "file": "scripts/gates/check-identical-copies.ts",
       "find": "!files.every((f) => typeof f === \"string\" && f)",
       "replace": "!files.every((f) => typeof f === \"string\")",
       "occurrences": 1,
@@ -83,7 +83,7 @@
     {
       "id": "IC-REASON",
       "why": "理由の無い組を受理する",
-      "file": "scripts/gates/check-identical-copies.js",
+      "file": "scripts/gates/check-identical-copies.ts",
       "find": "    if (typeof g.reason !== \"string\" || !g.reason.trim()) {",
       "replace": "    if (false) {",
       "occurrences": 1,
@@ -94,7 +94,7 @@
     {
       "id": "IC-DUP",
       "why": "同じファイルを複数の組に宣言できる",
-      "file": "scripts/gates/check-identical-copies.js",
+      "file": "scripts/gates/check-identical-copies.ts",
       "find": "      if (seen.has(f))",
       "replace": "      if (false)",
       "occurrences": 1,

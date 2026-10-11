@@ -1,15 +1,15 @@
 {
   "$comment": [
-    "code-comments.test.js の検出能力を示す変異の一覧。",
-    "データとして持ち、scripts/mutation/check-mutation-proof.js が再実行する。",
+    "code-comments.test.ts の検出能力を示す変異の一覧。",
+    "データとして持ち、scripts/mutation/check-mutation-proof.ts が再実行する。",
     "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
   ],
-  "test_file": "scripts/lib/code-comments.test.js",
+  "test_file": "scripts/lib/code-comments.test.ts",
   "mutations": [
     {
       "id": "CC-STARTS",
       "why": "YAML の語の途中の # もコメントの始まりにする",
-      "file": "scripts/lib/code-comments.js",
+      "file": "scripts/lib/code-comments.ts",
       "find": "  return i === 0 || /\\s/.test(line[i - 1]);",
       "replace": "  return true;",
       "occurrences": 1,
@@ -18,7 +18,7 @@
     {
       "id": "CC-YAML-QUOTE",
       "why": "YAML の引用符の中の # をコメントとして取り出す",
-      "file": "scripts/lib/code-comments.js",
+      "file": "scripts/lib/code-comments.ts",
       "find": "      if ((c === \"'\" || c === '\"') && (i === 0 || /[\\s[{,]/.test(line[i - 1]))) {",
       "replace": "      if (false) {",
       "occurrences": 1,
@@ -35,7 +35,7 @@
     {
       "id": "CC-YAML-QUOTE-START",
       "why": "YAML の語の中の ' を引用の始まりにする",
-      "file": "scripts/lib/code-comments.js",
+      "file": "scripts/lib/code-comments.ts",
       "find": "      if ((c === \"'\" || c === '\"') && (i === 0 || /[\\s[{,]/.test(line[i - 1]))) {",
       "replace": "      if (c === \"'\" || c === '\"') {",
       "occurrences": 1,
@@ -44,7 +44,7 @@
     {
       "id": "CC-TRAILING-JOIN",
       "why": "行の後ろのコメントを前後のコメントと 1 段落にする",
-      "file": "scripts/lib/code-comments.js",
+      "file": "scripts/lib/code-comments.ts",
       "find": "      !previous.trailing &&\n      !piece.trailing &&\n",
       "replace": "",
       "occurrences": 1,
@@ -58,7 +58,7 @@
     {
       "id": "CC-JOIN-LINE",
       "why": "間にコードの行があっても 1 段落にする",
-      "file": "scripts/lib/code-comments.js",
+      "file": "scripts/lib/code-comments.ts",
       "find": "      piece.line === previous.line + 1;",
       "replace": "      true;",
       "occurrences": 1,
@@ -76,7 +76,7 @@
     {
       "id": "CC-JAPANESE",
       "why": "日本語を含まない段落も入れる",
-      "file": "scripts/lib/code-comments.js",
+      "file": "scripts/lib/code-comments.ts",
       "find": "    if (!directive && !block.some((p) => JAPANESE.test(p.original ?? p.text))) continue;",
       "replace": "",
       "occurrences": 1,
@@ -89,7 +89,7 @@
     {
       "id": "CC-DIRECTIVE-JOIN",
       "why": "ディレクティブの行を前後のコメントと 1 段落にする",
-      "file": "scripts/lib/code-comments.js",
+      "file": "scripts/lib/code-comments.ts",
       "find": "      !directiveOf(previous) &&\n      !directiveOf(piece) &&\n",
       "replace": "",
       "occurrences": 1,
@@ -100,7 +100,7 @@
     {
       "id": "CC-DIRECTIVE",
       "why": "ディレクティブを Markdown のコメントにしない",
-      "file": "scripts/lib/code-comments.js",
+      "file": "scripts/lib/code-comments.ts",
       "find": "    if (directive) emit(`<!-- textlint-${directive} -->`, block[0].line, 0);\n    else for",
       "replace": "    for",
       "occurrences": 1,
@@ -112,7 +112,7 @@
     {
       "id": "CC-JSDOC",
       "why": "JSDoc のタグと型をインラインコードにしない",
-      "file": "scripts/lib/code-comments.js",
+      "file": "scripts/lib/code-comments.ts",
       "find": "  if (!tag) return { text, column, depth: 0 };",
       "replace": "  return { text, column, depth: 0 };",
       "occurrences": 1,
@@ -125,7 +125,7 @@
     {
       "id": "CC-JSDOC-BRACE",
       "why": "JSDoc の型の閉じ括弧を探さない（型を行の終わりまで読む）",
-      "file": "scripts/lib/code-comments.js",
+      "file": "scripts/lib/code-comments.ts",
       "find": "    else if (text[i] === \"}\" && --depth === 0) return { end: i + 1, depth: 0 };",
       "replace": "",
       "occurrences": 1,
@@ -140,7 +140,7 @@
     {
       "id": "CC-OPEN-COL",
       "why": "/** の後の桁を 1 文字ずらす",
-      "file": "scripts/lib/code-comments.js",
+      "file": "scripts/lib/code-comments.ts",
       "find": "    const body = \" \".repeat(open.length) +",
       "replace": "    const body = \"  \" +",
       "occurrences": 1,
@@ -151,7 +151,7 @@
     {
       "id": "CC-BLOCK-LEAD",
       "why": "ブロックコメントの 2 行目以降の * を外さない",
-      "file": "scripts/lib/code-comments.js",
+      "file": "scripts/lib/code-comments.ts",
       "find": "part.match(/^\\s*(?:\\*(?!\\*) ?)?/)",
       "replace": "part.match(/^\\s*/)",
       "occurrences": 1,
@@ -166,7 +166,7 @@
     {
       "id": "CC-JS-VISIT",
       "why": "JavaScript の子のノードをたどらない（ファイルの先頭のコメントしか取り出さない）",
-      "file": "scripts/lib/code-comments.js",
+      "file": "scripts/lib/code-comments.ts",
       "find": "    for (const child of node.getChildren(sf)) visit(child);\n",
       "replace": "",
       "occurrences": 1,
@@ -185,7 +185,7 @@
     {
       "id": "CC-JS-TRAILING",
       "why": "JavaScript のノードの後ろのコメントを取り出さない",
-      "file": "scripts/lib/code-comments.js",
+      "file": "scripts/lib/code-comments.ts",
       "find": "    add(ts.getTrailingCommentRanges(source, node.getEnd()));\n",
       "replace": "",
       "occurrences": 1,
@@ -197,7 +197,7 @@
     {
       "id": "CC-JSDOC-COLUMN",
       "why": "JSDoc の型を置き換えた分の桁を戻さない",
-      "file": "scripts/lib/code-comments.js",
+      "file": "scripts/lib/code-comments.ts",
       "find": "  return { text: replaced, column: column - (replaced.length - text.length), start: column + 1 };",
       "replace": "  return { text: replaced, column, start: column + 1 };",
       "occurrences": 1,
@@ -209,7 +209,7 @@
     {
       "id": "CC-BOLD",
       "why": "行の先頭の ** の * をブロックコメントの記号として外す",
-      "file": "scripts/lib/code-comments.js",
+      "file": "scripts/lib/code-comments.ts",
       "find": "part.match(/^\\s*(?:\\*(?!\\*) ?)?/)",
       "replace": "part.match(/^\\s*\\*? ?/)",
       "occurrences": 1,
@@ -220,7 +220,7 @@
     {
       "id": "CC-EMPTY-BLOCK",
       "why": "/**/ の /** を開始として読む",
-      "file": "scripts/lib/code-comments.js",
+      "file": "scripts/lib/code-comments.ts",
       "find": "raw.match(/^\\/\\*(?:\\*(?!\\/))?/)",
       "replace": "raw.match(/^\\/\\*\\*?/)",
       "occurrences": 1,
@@ -229,7 +229,7 @@
     {
       "id": "CC-YAML-FLOW",
       "why": "YAML のフローの [ { , の後の引用符を引用の始まりにしない",
-      "file": "scripts/lib/code-comments.js",
+      "file": "scripts/lib/code-comments.ts",
       "find": "/[\\s[{,]/.test(line[i - 1])",
       "replace": "/\\s/.test(line[i - 1])",
       "occurrences": 1,
@@ -241,7 +241,7 @@
     {
       "id": "CC-TAG-PARAGRAPH",
       "why": "JSDoc のタグの行を前の行と 1 段落にする",
-      "file": "scripts/lib/code-comments.js",
+      "file": "scripts/lib/code-comments.ts",
       "find": "      !piece.tag &&\n",
       "replace": "",
       "occurrences": 1,
@@ -253,7 +253,7 @@
     {
       "id": "CC-JSDOC-SCOPE",
       "why": "/** 以外のコメントの行頭の @ もタグとして扱う",
-      "file": "scripts/lib/code-comments.js",
+      "file": "scripts/lib/code-comments.ts",
       "find": "      if (open === \"/**\") {",
       "replace": "      if (true) {",
       "occurrences": 1,
@@ -262,7 +262,7 @@
     {
       "id": "CC-TYPE-CONTINUATION",
       "why": "次の行に続く型を文章として読む",
-      "file": "scripts/lib/code-comments.js",
+      "file": "scripts/lib/code-comments.ts",
       "find": "          typeDepth > 0\n",
       "replace": "          false\n",
       "occurrences": 1,
@@ -273,7 +273,7 @@
     {
       "id": "CC-SEPARATOR",
       "why": "区切りの行を前後の行と 1 段落にする",
-      "file": "scripts/lib/code-comments.js",
+      "file": "scripts/lib/code-comments.ts",
       "find": "      !isSeparator(previous) &&\n      !isSeparator(piece) &&\n",
       "replace": "",
       "occurrences": 1,
@@ -286,7 +286,7 @@
     {
       "id": "CC-JS-NESTED",
       "why": "JSDoc の中から読んだ範囲を別のコメントとして二重に取り出す",
-      "file": "scripts/lib/code-comments.js",
+      "file": "scripts/lib/code-comments.ts",
       "find": "    if (r.pos < coveredUntil) continue;\n",
       "replace": "",
       "occurrences": 1,
@@ -297,7 +297,7 @@
     {
       "id": "CC-JAPANESE-ORIGINAL",
       "why": "置き換えた `型` を日本語として数え、英語だけの JSDoc を入れる",
-      "file": "scripts/lib/code-comments.js",
+      "file": "scripts/lib/code-comments.ts",
       "find": "JAPANESE.test(p.original ?? p.text)",
       "replace": "JAPANESE.test(p.text)",
       "occurrences": 1,
@@ -308,7 +308,7 @@
     {
       "id": "CC-YAML-ESCAPE",
       "why": "YAML の一重引用符の中の '' を引用の終わりとして読む",
-      "file": "scripts/lib/code-comments.js",
+      "file": "scripts/lib/code-comments.ts",
       "find": "        if (c === \"'\" && line[i + 1] === \"'\") i++;\n        else if",
       "replace": "        if",
       "occurrences": 1,
@@ -317,7 +317,7 @@
     {
       "id": "CC-SHEBANG",
       "why": "シェルの 1 行目のシバンをコメントとして取り出す",
-      "file": "scripts/lib/code-comments.js",
+      "file": "scripts/lib/code-comments.ts",
       "find": "    if (c.Hash.Offset === 0 && c.Text.startsWith(\"!\")) continue;\n",
       "replace": "",
       "occurrences": 1,
@@ -326,7 +326,7 @@
     {
       "id": "CC-SH-EMPTY",
       "why": "# だけの空のコメント（Text が省かれる）を取りこぼす",
-      "file": "scripts/lib/code-comments.js",
+      "file": "scripts/lib/code-comments.ts",
       "find": "      if (node.Hash) comments.set(node.Hash.Offset, { ...node, Text: node.Text ?? \"\" });",
       "replace": "      if (node.Hash && typeof node.Text === \"string\") comments.set(node.Hash.Offset, node);",
       "occurrences": 1,
@@ -337,7 +337,7 @@
     {
       "id": "CC-SH-LAST",
       "why": "Comments のキーにあるコメントだけを集める（末尾の Last を取りこぼす）",
-      "file": "scripts/lib/code-comments.js",
+      "file": "scripts/lib/code-comments.ts",
       "find": "      if (node.Hash) comments.set(node.Hash.Offset, { ...node, Text: node.Text ?? \"\" });",
       "replace": "      for (const c of node.Comments ?? []) comments.set(c.Hash.Offset, { ...c, Text: c.Text ?? \"\" });",
       "occurrences": 1,
@@ -374,7 +374,7 @@
     {
       "id": "CC-SH-BYTES",
       "why": "shfmt のバイト単位の位置を、文字の位置に直さない",
-      "file": "scripts/lib/code-comments.js",
+      "file": "scripts/lib/code-comments.ts",
       "find": "    const index = bytes.subarray(0, c.Hash.Offset).toString(\"utf8\").length;",
       "replace": "    const index = c.Hash.Offset;",
       "occurrences": 1,
@@ -386,7 +386,7 @@
     {
       "id": "CC-SH-PARSE",
       "why": "shfmt で解析できないシェルを、コメント 0 件として通す",
-      "file": "scripts/lib/code-comments.js",
+      "file": "scripts/lib/code-comments.ts",
       "find": "    throw new Error(\n      `シェルを解析できないので、コメントを判定できない（shfmt --to-json: ${detail}）`,\n    );",
       "replace": "    return [];",
       "occurrences": 1,
@@ -399,7 +399,7 @@
     {
       "id": "CC-TRAILING-SH",
       "why": "シェルの行の後ろのコメントを、行頭のコメントとして扱う",
-      "file": "scripts/lib/code-comments.js",
+      "file": "scripts/lib/code-comments.ts",
       "find": "      trailing: source.slice(starts[line], index).trim() !== \"\",",
       "replace": "      trailing: false,",
       "occurrences": 1,
@@ -408,7 +408,7 @@
     {
       "id": "CC-SH-TOOL",
       "why": "shfmt を起動できないことを、ファイルの解析の失敗と同じに扱う",
-      "file": "scripts/lib/code-comments.js",
+      "file": "scripts/lib/code-comments.ts",
       "find": "  if (problem) throw Object.assign(new Error(problem), { missingTool: true });",
       "replace": "",
       "occurrences": 1,
@@ -421,7 +421,7 @@
     {
       "id": "CC-SH-TOOL-CWD",
       "why": "shfmt を起動できるかの結果を PATH だけで使い回す（カレントディレクトリが変わっても確かめ直さない）",
-      "file": "scripts/lib/code-comments.js",
+      "file": "scripts/lib/code-comments.ts",
       "find": "  const key = `${process.env.PATH ?? \"\"}\\0${process.cwd()}`;",
       "replace": "  const key = process.env.PATH ?? \"\";",
       "occurrences": 1,
@@ -430,7 +430,7 @@
     {
       "id": "CC-DIRECTIVE-TRAILING",
       "why": "行の後ろのコメントもディレクティブとして読む",
-      "file": "scripts/lib/code-comments.js",
+      "file": "scripts/lib/code-comments.ts",
       "find": "  if (piece.trailing) return undefined;\n",
       "replace": "",
       "expect_failing": [

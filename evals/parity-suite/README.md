@@ -98,7 +98,7 @@ scripts/eval/run-skill-eval.sh \
 - eval 35 は、寸法の決まり方（Issue #367）の回帰である。
   撮影条件を 1 ビューポートにし、他の窓は `gaps.md` に一行書いて済ませ、その 1 点の px で新側を組ませる案を押し戻せるかを見る。
   3 つの比較方法が宣言した 1 点でしか比べないこと・未測定を `gaps.md` で免除しないこと・画素比較を増やさず式を測ること・窓の選び方・同梱ツールでの当てはめと新側の照合を対象にする。
-  式の当てはめと照合の判定（窓の数・一直線上の配置・測り忘れ・予測値との偏差・exit 2 の記録）は、ユニットテスト `scripts/skills/parity-suite/dimension-fit.test.js` が確かめる
+  式の当てはめと照合の判定（窓の数・一直線上の配置・測り忘れ・予測値との偏差・exit 2 の記録）は、ユニットテスト `scripts/skills/parity-suite/dimension-fit.test.ts` が確かめる
 - eval 36 は、撮影状態の導出（Issue #389）の回帰である。
   網羅表が全て `present` なことを根拠に、思い付きで決めた 2 状態で足りるとし、不活性のメニュー項目を何も書かずに飛ばす案を押し戻せるかを見る。
   対象は、網羅表の `present` から機械的に導くこと、6 種の語彙（操作の途中の 5 種と、終えた後に残る見た目。Issue #471）、`capture_conditions.states` との差の報告、
@@ -106,7 +106,7 @@ scripts/eval/run-skill-eval.sh \
   「思い付きをやめて網羅表から導く」までは `without_skill` も到達する（プロンプトが網羅表を手がかりとして含むため）。
   そのため差を出すのは、2（6 種の語彙）・3（同梱ツールでの差の報告）・4（行の理由と `gaps.md` の種別）・5（現新 2 side の採り直し）・6（導出は下限）である。
   行の粒度（要求元の操作ごとに分かれ、同じ種別を束ねない）と、未決・未照合を失敗として扱う判定は、次の 2 つのテストが確かめる。
-  `scripts/skills/parity-suite/coverage-expand.test.js` と `scripts/skills/parity-diff/coverage-check.test.js` である。
+  `scripts/skills/parity-suite/coverage-expand.test.ts` と `scripts/skills/parity-diff/coverage-check.test.ts` である。
   プロンプトにはツール名・キー名・種別の語彙を書かない
 - eval 37 は、部品とインスタンスの集合の出所（Issue #392 / #393）の回帰である。受領ソースが読めるのに画面を歩いて部品とページを洗い出し、
   列数が一致したことと未検証領域の一行を根拠に引き渡す案を押し戻せるかを見る。
@@ -117,15 +117,15 @@ scripts/eval/run-skill-eval.sh \
   症状（洗い出しが画面由来）から導けるので、これらは**後退の検知**のためのもので、Delta には寄与しない。差を出すのは次の 4 つである。
   2（受領ソースから先に静的に列挙し、画面は期待値の確定に使う）・3（周辺の部品が本体の軸に現れないので、集合の側で落ちる仕組み）・
   5（一次情報源を使わなかった理由の申告）・7（現行側のベースラインとノイズ基準値まで採り直しになる）。
-  宣言の欠落・語彙外・完全性の未宣言・理由の欠落を未測定として数える判定は、`scripts/skills/parity-diff/coverage-check.test.js` と `scripts/skills/parity-suite/coverage-expand.test.js` が確かめる
+  宣言の欠落・語彙外・完全性の未宣言・理由の欠落を未測定として数える判定は、`scripts/skills/parity-diff/coverage-check.test.ts` と `scripts/skills/parity-suite/coverage-expand.test.ts` が確かめる
 - 網羅プロファイルの機械的な照合（候補の展開・欠落・同値クラス・新しい仮想部品の追加・根拠付きの不在）は、会話の eval では区別できない。
-  そのため、リポジトリ側のユニットテスト `scripts/skills/parity-suite/coverage-expand.test.js` と `scripts/skills/parity-diff/coverage-check.test.js` が確かめる。
-  反応の網羅表の照合（空欄・証拠の欠け・呼び出しの記録の抜け・表の指紋）は、`scripts/skills/parity-suite/reaction-check.test.js` が確かめる
+  そのため、リポジトリ側のユニットテスト `scripts/skills/parity-suite/coverage-expand.test.ts` と `scripts/skills/parity-diff/coverage-check.test.ts` が確かめる。
+  反応の網羅表の照合（空欄・証拠の欠け・呼び出しの記録の抜け・表の指紋）は、`scripts/skills/parity-suite/reaction-check.test.ts` が確かめる
 - eval 38 は、採取対象が「画面に描かれているもの」かの回帰（Issue #386）である。
   固定プロパティ集合が全一致で緑なのに画素だけ差が出る状況から、書体の版・ヒンティングの切り分けへ進む案を押し戻せるかを見る。
   対象は、採取した要素の矩形の確認、画面の外へ置かれたコピー、論理名の付け直し、同梱ツールが文書の外の要素で採取を失敗させること（欠落へ変換しない）、`child_inline_styles`、マッピング修正後の採り直しである。
   プロンプトには固定プロパティ集合の件数を書かない（初版で書いたところ、件数が現行と合わないことを手がかりに、「採取が古い」という別の筋へ寄った。iteration-36）。
-  矩形の判定そのもの（文書の外で落ちる・折り返し下やスクロール外は通る・面積 0 は判定から外す）と、子の inline style の記録は、`scripts/skills/parity-suite/trait-capture.test.js` が確かめる
+  矩形の判定そのもの（文書の外で落ちる・折り返し下やスクロール外は通る・面積 0 は判定から外す）と、子の inline style の記録は、`scripts/skills/parity-suite/trait-capture.test.ts` が確かめる
 - eval 39 は、採取物の健全性（Issue #382）の回帰である。実体だけ採り直して展開結果が古いまま、読み手のいない採取物がある状態から、
   差分ツールのすべての比較方法が緑であることを根拠に完了とする案を押し戻せるかを見る。
   対象は、`artifact_health` の読み手の宣言・字面の照合・`unread_reason` の宣言の口・`derived_from` による鮮度・`freshness_unverified_reason`・`artifact-health-check.mjs` の通過である。
@@ -134,7 +134,7 @@ scripts/eval/run-skill-eval.sh \
   `with_skill` は「字面で足ります」「assertion に使っているかまでは見ません」と答え、依存の実在は強度チェックが持つと段を分けた（7/7 対 1/7）。
   初版（iteration-38）は、skill 固有の宣言と汎用の grep の発想を 1 本の assertion に同居させていた。
   `without_skill` のほうが先に「ファイル名を spec 全体に grep」へ到達していたので、2 本へ分けた。
-  検査そのもの（未宣言・sha256 の不一致・字面の不一致・0 件の扱い・名前の境界で一致を取ること）は、`scripts/skills/parity-suite/artifact-health-check.test.js` が確かめる。
+  検査そのもの（未宣言・sha256 の不一致・字面の不一致・0 件の扱い・名前の境界で一致を取ること）は、`scripts/skills/parity-suite/artifact-health-check.test.ts` が確かめる。
   名前の境界とは、`orders.xlsx` が `orders.xlsx.json` に一致しないことである（PR #398 のレビューで実測）
 - eval 40 は、状態を変えるスイートの反復実行（Issue #382）の回帰である。後始末を外のコマンドで流し、1 回の緑と強度チェックの素通り 0 件で
   完了とする案を押し戻せるかを見る。対象は、2 回続けての緑・1 回目に後始末の有無が現れないこと・戻す操作をスイートの中に置くこと・
@@ -162,4 +162,4 @@ scripts/eval/run-skill-eval.sh \
   ヘッドレス Chromium がスクロールバーを隠すことと、スクロールバーを表示した最小幅以下の窓で両側に当てる検査を足すことに到達するかを見る。
   プロンプトには撮影条件のキー名・起動引数を書かない
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
-- 集計（`benchmark.json`）は `node scripts/eval/build-skill-eval-benchmark.js` で生成する（判定は assertion テキストで突き合わせる。`benchmark.md` は人が書く。詳細は `docs/skill-development.md`）
+- 集計（`benchmark.json`）は `node scripts/eval/build-skill-eval-benchmark.ts` で生成する（判定は assertion テキストで突き合わせる。`benchmark.md` は人が書く。詳細は `docs/skill-development.md`）

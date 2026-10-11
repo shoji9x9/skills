@@ -20,7 +20,7 @@ session: claude-code
 eval の assertion 差し替えで、未作成であるはずのディレクトリの存在確認を末尾に置いた。
 
 ```bash
-...; node check-eval-reachability.js >/dev/null && echo reach-ok; [ -e tests/.../iteration-12 ] && echo EXISTS
+...; node check-eval-reachability.ts >/dev/null && echo reach-ok; [ -e tests/.../iteration-12 ] && echo EXISTS
 ```
 
 無いのが正常なので `[ -e ]` が偽で exit 1 になり、

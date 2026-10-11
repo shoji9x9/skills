@@ -1,10 +1,10 @@
 {
   "$comment": [
-    "reinstall-skill.test.js の検出能力を示す変異の一覧（Issue #547）。",
-    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。",
+    "reinstall-skill.test.ts の検出能力を示す変異の一覧（Issue #547）。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。",
     "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
   ],
-  "test_file": "scripts/tools/reinstall-skill.test.js",
+  "test_file": "scripts/tools/reinstall-skill.test.ts",
   "mutations": [
     {
       "id": "no-cd-to-root",
@@ -26,7 +26,7 @@
       "id": "no-gates-marker",
       "why": "frontmatter 検査の実在を root の条件にしない",
       "file": "scripts/tools/reinstall-skill.sh",
-      "find": "\t[ ! -f \"${repo_root}/scripts/gates/check-skill-frontmatter.js\" ] ||\n",
+      "find": "\t[ ! -f \"${repo_root}/scripts/gates/check-skill-frontmatter.ts\" ] ||\n",
       "replace": "\tfalse ||\n",
       "occurrences": 1,
       "expect_failing": [

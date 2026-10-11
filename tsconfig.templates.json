@@ -13,5 +13,6 @@
     ".agents/skills/*/**/*.mts",
     ".agents/skills/*/**/*.cts",
     "types/parity-templates.ts"
-  ]
+  ],
+  "exclude": [".agents/skills/*/scripts/**"]
 }

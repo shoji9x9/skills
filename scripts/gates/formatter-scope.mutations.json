@@ -1,8 +1,8 @@
 {
   "$comment": [
-    "formatter-scope.test.js の検出能力を示す変異の一覧。整形ツールの設定（書き換える種類を閉じる行）を外す。"
+    "formatter-scope.test.ts の検出能力を示す変異の一覧。整形ツールの設定（書き換える種類を閉じる行）を外す。"
   ],
-  "test_file": "scripts/gates/formatter-scope.test.js",
+  "test_file": "scripts/gates/formatter-scope.test.ts",
   "mutations": [
     {
       "id": "ML-IGNORES",

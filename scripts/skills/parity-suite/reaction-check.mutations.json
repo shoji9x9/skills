@@ -1,11 +1,11 @@
 {
   "$comment": [
-    "reaction-check.test.js のうち、文書のオリジン（Issue #450）・操作で変わる頁の組み方（Issue #460）・押した後に残るもの（Issue #471）・送る前の判定（Issue #483）・表への書き込み（Issue #466）・状態表示と送っている間の押し直し（Issue #500）・押した後に撮ったページと URL の照合（Issue #484）・表をまたいだ撮る状態の使い回し（Issue #485）・操作を持たない画面駆動の機能の表（Issue #503）の検出能力を示す変異の一覧。",
-    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。",
+    "reaction-check.test.ts のうち、文書のオリジン（Issue #450）・操作で変わる頁の組み方（Issue #460）・押した後に残るもの（Issue #471）・送る前の判定（Issue #483）・表への書き込み（Issue #466）・状態表示と送っている間の押し直し（Issue #500）・押した後に撮ったページと URL の照合（Issue #484）・表をまたいだ撮る状態の使い回し（Issue #485）・操作を持たない画面駆動の機能の表（Issue #503）の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。",
     "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
     "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
   ],
-  "test_file": "scripts/skills/parity-suite/reaction-check.test.js",
+  "test_file": "scripts/skills/parity-suite/reaction-check.test.ts",
   "mutations": [
     {
       "id": "source-document-missing",

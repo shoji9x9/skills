@@ -1,9 +1,9 @@
 {
   "$comment": [
-    "run-skill-eval.test.js のうち、codex baseline の汚染判定（Issue #401）の検出能力を示す変異の一覧。",
-    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。"
+    "run-skill-eval.test.ts のうち、codex baseline の汚染判定（Issue #401）の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。"
   ],
-  "test_file": "scripts/eval/run-skill-eval.test.js",
+  "test_file": "scripts/eval/run-skill-eval.test.ts",
   "mutations": [
     {
       "id": "codex-scans-raw",

@@ -11,8 +11,8 @@ session: claude-code
 
 ## 事象
 
-段階 ③ で `docs/tooling.md` などを書き換えた後、手元では lint-prose の定義だけを `check-mutation-proof.js` で実行して push した。
-`check-time-sensitive-prose.test.js` には実リポジトリの文書を読むテストがあり、書き換えで「1 変異 = 対象テストファイル 1 回の実行」の表記がなくなった。
+段階 ③ で `docs/tooling.md` などを書き換えた後、手元では lint-prose の定義だけを `check-mutation-proof.ts` で実行して push した。
+`check-time-sensitive-prose.test.ts` には実リポジトリの文書を読むテストがあり、書き換えで「1 変異 = 対象テストファイル 1 回の実行」の表記がなくなった。
 そのため CI の Mutation proof (PR) で、MC-ONE の変異をこのテストが検出しなくなり、失敗した。
 
 ## 根本原因
@@ -23,7 +23,7 @@ session: claude-code
 
 ## 提案
 
-文書を含む変更を push する前に、`node scripts/mutation/check-mutation-proof.js --changed-since origin/main` を実行する。
+文書を含む変更を push する前に、`node scripts/mutation/check-mutation-proof.ts --changed-since origin/main` を実行する。
 
 - CI の Mutation proof (PR) と同じ選び方なので、文書を読むテストを持つ定義も選ばれる。
 - 時間がかかるときは、バックグラウンドで実行して push の前に結果を確かめる。

@@ -1,15 +1,15 @@
 {
   "$comment": [
-    "scripts/gates/check-doc-tiers.test.js の検出能力を示す変異の一覧（階層の表と分類）。",
-    "散文コメントで持つと古くなるため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。",
+    "scripts/gates/check-doc-tiers.test.ts の検出能力を示す変異の一覧（階層の表と分類）。",
+    "散文コメントで持つと古くなるため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。",
     "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
   ],
-  "test_file": "scripts/gates/check-doc-tiers.test.js",
+  "test_file": "scripts/gates/check-doc-tiers.test.ts",
   "mutations": [
     {
       "id": "DT-DOUBLESTAR",
       "why": "** を 1 階層にしか当てない",
-      "file": "scripts/gates/check-doc-tiers.js",
+      "file": "scripts/gates/check-doc-tiers.ts",
       "find": "      } else re += \".*\";",
       "replace": "      } else re += \"[^/]*\";",
       "occurrences": 1,
@@ -30,7 +30,7 @@
     {
       "id": "DT-STAR",
       "why": "* を / をまたいで当てる",
-      "file": "scripts/gates/check-doc-tiers.js",
+      "file": "scripts/gates/check-doc-tiers.ts",
       "find": "    } else if (c === \"*\") re += \"[^/]*\";",
       "replace": "    } else if (c === \"*\") re += \".*\";",
       "occurrences": 1,
@@ -39,7 +39,7 @@
     {
       "id": "DT-ESCAPE",
       "why": "正規表現の記号をエスケープしない",
-      "file": "scripts/gates/check-doc-tiers.js",
+      "file": "scripts/gates/check-doc-tiers.ts",
       "find": "    else re += c.replace(",
       "replace": "    else re += c; void c.replace(",
       "occurrences": 1,
@@ -48,7 +48,7 @@
     {
       "id": "DT-ZERO",
       "why": "どの階層にも属さない Markdown を報告しない",
-      "file": "scripts/gates/check-doc-tiers.js",
+      "file": "scripts/gates/check-doc-tiers.ts",
       "find": "if (hits.length === 0) violations.push(",
       "replace": "if (false) violations.push(",
       "occurrences": 1,
@@ -61,7 +61,7 @@
     {
       "id": "DT-MULTI",
       "why": "複数の項目に当たる Markdown を報告しない",
-      "file": "scripts/gates/check-doc-tiers.js",
+      "file": "scripts/gates/check-doc-tiers.ts",
       "find": "else if (hits.length > 1)",
       "replace": "else if (false)",
       "occurrences": 1,
@@ -70,7 +70,7 @@
     {
       "id": "DT-UNUSED",
       "why": "当たらない glob を報告しない",
-      "file": "scripts/gates/check-doc-tiers.js",
+      "file": "scripts/gates/check-doc-tiers.ts",
       "find": "    if (!used.has(x.glob))",
       "replace": "    if (false)",
       "occurrences": 1,
@@ -79,7 +79,7 @@
     {
       "id": "DT-TABLE",
       "why": "表の食い違いを見ない",
-      "file": "scripts/gates/check-doc-tiers.js",
+      "file": "scripts/gates/check-doc-tiers.ts",
       "find": "let tableOk = expected === text;",
       "replace": "let tableOk = true;",
       "occurrences": 1,
@@ -88,7 +88,7 @@
     {
       "id": "DT-FIX",
       "why": "--fix で書き換えない",
-      "file": "scripts/gates/check-doc-tiers.js",
+      "file": "scripts/gates/check-doc-tiers.ts",
       "find": "if (!tableOk && fix) {",
       "replace": "if (false) {",
       "occurrences": 1,
@@ -97,7 +97,7 @@
     {
       "id": "DT-TIER-ORDER",
       "why": "Tier の順を確かめない",
-      "file": "scripts/gates/check-doc-tiers.js",
+      "file": "scripts/gates/check-doc-tiers.ts",
       "find": "if (tiers.map((t) => t?.tier).join(\",\") !== \"1,2,3,4\")",
       "replace": "if (false)",
       "occurrences": 1,
@@ -108,7 +108,7 @@
     {
       "id": "DT-EMPTY-ENTRY",
       "why": "glob も label も無い項目を通す",
-      "file": "scripts/gates/check-doc-tiers.js",
+      "file": "scripts/gates/check-doc-tiers.ts",
       "find": "if (!isText(e?.glob) && !isText(e?.label))",
       "replace": "if (false)",
       "occurrences": 1,
@@ -119,7 +119,7 @@
     {
       "id": "DT-PIPE",
       "why": "「|」を通す",
-      "file": "scripts/gates/check-doc-tiers.js",
+      "file": "scripts/gates/check-doc-tiers.ts",
       "find": "if (e[k]?.includes(\"|\")) throw",
       "replace": "if (false) throw",
       "occurrences": 1,
@@ -128,7 +128,7 @@
     {
       "id": "DT-DUP",
       "why": "glob の重複を通す",
-      "file": "scripts/gates/check-doc-tiers.js",
+      "file": "scripts/gates/check-doc-tiers.ts",
       "find": "if (globs.has(e.glob)) throw",
       "replace": "if (false) throw",
       "occurrences": 1,
@@ -137,7 +137,7 @@
     {
       "id": "DT-OUTSIDE-GLOB",
       "why": "glob の無い outside を通す",
-      "file": "scripts/gates/check-doc-tiers.js",
+      "file": "scripts/gates/check-doc-tiers.ts",
       "find": "if (!isText(e.glob)) throw new Error(`outside",
       "replace": "if (false) throw new Error(`outside",
       "occurrences": 1,
@@ -148,7 +148,7 @@
     {
       "id": "DT-ZERO-FILES",
       "why": "Markdown 0 件を成功として扱う",
-      "file": "scripts/gates/check-doc-tiers.js",
+      "file": "scripts/gates/check-doc-tiers.ts",
       "find": "if (files.length === 0) throw",
       "replace": "if (false) throw",
       "occurrences": 1,
@@ -157,7 +157,7 @@
     {
       "id": "DT-MARKER-ORDER",
       "why": "印の順が逆でも読む",
-      "file": "scripts/gates/check-doc-tiers.js",
+      "file": "scripts/gates/check-doc-tiers.ts",
       "find": "if (b < 0 || e < b) throw",
       "replace": "if (b < 0 || e < 0) throw",
       "occurrences": 1,
@@ -166,7 +166,7 @@
     {
       "id": "DT-TIEROF",
       "why": "複数の項目に当たるときも最初の tier を返す",
-      "file": "scripts/gates/check-doc-tiers.js",
+      "file": "scripts/gates/check-doc-tiers.ts",
       "find": "return hits.length === 1 ? hits[0].tier : undefined;",
       "replace": "return hits.length ? hits[0].tier : undefined;",
       "occurrences": 1,

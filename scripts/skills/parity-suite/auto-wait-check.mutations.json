@@ -1,10 +1,10 @@
 {
   "$comment": [
-    "auto-wait-check.test.js のうち、受け側の束縛を読めない呼び出しを黙って読み飛ばさない検査（Issue #412）の検出能力を示す変異の一覧。",
-    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。",
+    "auto-wait-check.test.ts のうち、受け側の束縛を読めない呼び出しを黙って読み飛ばさない検査（Issue #412）の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。",
     "テスト名を変えたら expect_failing も直す。"
   ],
-  "test_file": "scripts/skills/parity-suite/auto-wait-check.test.js",
+  "test_file": "scripts/skills/parity-suite/auto-wait-check.test.ts",
   "mutations": [
     {
       "id": "excluded-never",

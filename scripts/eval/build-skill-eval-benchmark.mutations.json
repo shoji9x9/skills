@@ -1,14 +1,14 @@
 {
   "$comment": [
-    "build-skill-eval-benchmark.test.js の検出能力を示す変異の一覧（Issue #421）。",
-    "判定行を無効化する変異で狙ったテストが落ちることを scripts/mutation/check-mutation-proof.js が再実行する。"
+    "build-skill-eval-benchmark.test.ts の検出能力を示す変異の一覧（Issue #421）。",
+    "判定行を無効化する変異で狙ったテストが落ちることを scripts/mutation/check-mutation-proof.ts が再実行する。"
   ],
-  "test_file": "scripts/eval/build-skill-eval-benchmark.test.js",
+  "test_file": "scripts/eval/build-skill-eval-benchmark.test.ts",
   "mutations": [
     {
       "id": "TEXT-KEY",
       "why": "判定をテキストではなく位置（index）で対応づける",
-      "file": "scripts/eval/build-skill-eval-benchmark.js",
+      "file": "scripts/eval/build-skill-eval-benchmark.ts",
       "find": "  const expectations = assertions.map((text) => ({ text, ...verdicts.get(text) }));",
       "replace": "  const ordered = [...verdicts.values()];\n  const expectations = assertions.map((text, i) => ({ text, ...ordered[i] }));",
       "occurrences": 1,
@@ -17,7 +17,7 @@
     {
       "id": "POSITIONAL",
       "why": "位置配列（オブジェクトでない判定）を受理する",
-      "file": "scripts/eval/build-skill-eval-benchmark.js",
+      "file": "scripts/eval/build-skill-eval-benchmark.ts",
       "find": "    if (typeof item !== \"object\" || item === null || Array.isArray(item)) {\n      die(\n        `${where}: expectations[${i}] が {text, passed, evidence} のオブジェクトでない（位置配列は受理しない）`,\n      );\n    }\n",
       "replace": "",
       "occurrences": 1,
@@ -29,7 +29,7 @@
     {
       "id": "TEXT-GUARD",
       "why": "判定側の assertion テキスト検査を外す（オブジェクト判定とは別のガード）",
-      "file": "scripts/eval/build-skill-eval-benchmark.js",
+      "file": "scripts/eval/build-skill-eval-benchmark.ts",
       "find": "    if (typeof text !== \"string\" || text.length === 0) {\n      die(`${where}: ${at} の assertion テキストが非空の文字列でない（位置配列は受理しない）`);\n    }\n",
       "replace": "",
       "occurrences": 1,
@@ -38,7 +38,7 @@
     {
       "id": "KEYSET",
       "why": "キー集合の突き合わせを外す（件数だけ見る）",
-      "file": "scripts/eval/build-skill-eval-benchmark.js",
+      "file": "scripts/eval/build-skill-eval-benchmark.ts",
       "find": "  const missing = assertions.filter((t) => !verdicts.has(t));\n  const extra = [...verdicts.keys()].filter((t) => !assertions.includes(t));\n  if (missing.length || extra.length) {\n    const parts = [];\n    if (missing.length)\n      parts.push(`判定の無い assertion ${missing.length} 件: ${missing.join(\" / \")}`);\n    if (extra.length) parts.push(`宣言に無い判定 ${extra.length} 件: ${extra.join(\" / \")}`);\n    die(`${gradingPath}: ${metaPath} とキー集合が一致しない。${parts.join(\"、\")}`);\n  }\n",
       "replace": "",
       "occurrences": 1,
@@ -50,7 +50,7 @@
     {
       "id": "SUMMARY",
       "why": "採点内訳と summary の突き合わせを外す",
-      "file": "scripts/eval/build-skill-eval-benchmark.js",
+      "file": "scripts/eval/build-skill-eval-benchmark.ts",
       "find": "    if (summary[key] !== want) {\n      die(`${gradingPath}: summary.${key}=${summary[key]} が採点内訳（${want}）と違う`);\n    }\n",
       "replace": "",
       "occurrences": 1,
@@ -59,7 +59,7 @@
     {
       "id": "RATE",
       "why": "pass_rate の突き合わせを外す（内訳と食い違う採点を通す）",
-      "file": "scripts/eval/build-skill-eval-benchmark.js",
+      "file": "scripts/eval/build-skill-eval-benchmark.ts",
       "find": "  if (round(computedRate, digits) !== round(summary.pass_rate, digits)) {\n",
       "replace": "  if (false) {\n",
       "occurrences": 1,
@@ -71,7 +71,7 @@
     {
       "id": "STDEV",
       "why": "母集団標準偏差（n で割る）へ変える",
-      "file": "scripts/eval/build-skill-eval-benchmark.js",
+      "file": "scripts/eval/build-skill-eval-benchmark.ts",
       "find": "  const variance = values.reduce((a, v) => a + (v - m) ** 2, 0) / (values.length - 1);",
       "replace": "  const variance = values.reduce((a, v) => a + (v - m) ** 2, 0) / values.length;",
       "occurrences": 1,
@@ -80,7 +80,7 @@
     {
       "id": "ROUND",
       "why": "Python 互換の丸めを素朴な Math.round へ変える",
-      "file": "scripts/eval/build-skill-eval-benchmark.js",
+      "file": "scripts/eval/build-skill-eval-benchmark.ts",
       "find": "  return Number(result.toFixed(digits));",
       "replace": "  return Math.round(value * 10 ** digits) / 10 ** digits;",
       "occurrences": 1,
@@ -89,7 +89,7 @@
     {
       "id": "RPC",
       "why": "runs_per_configuration を 3 に決め打ちする",
-      "file": "scripts/eval/build-skill-eval-benchmark.js",
+      "file": "scripts/eval/build-skill-eval-benchmark.ts",
       "find": "  const runsPerConfiguration = [...counts][0];",
       "replace": "  const runsPerConfiguration = 3;",
       "occurrences": 1,
@@ -101,7 +101,7 @@
     {
       "id": "ORDER",
       "why": "eval の並びをディレクトリ名順から番号順へ変える",
-      "file": "scripts/eval/build-skill-eval-benchmark.js",
+      "file": "scripts/eval/build-skill-eval-benchmark.ts",
       "find": "  const evalDirs = listDirs(opts.dir, \"eval-\");",
       "replace": "  const evalDirs = listDirs(opts.dir, \"eval-\").sort(\n    (a, b) => Number(a.slice(5)) - Number(b.slice(5)),\n  );",
       "occurrences": 1,
@@ -110,9 +110,9 @@
     {
       "id": "UNGRADED",
       "why": "採点の無い run を既定で黙って除外する",
-      "file": "scripts/eval/build-skill-eval-benchmark.js",
-      "find": "  const opts = { ungraded: \"fail\", force: false, stdout: false };",
-      "replace": "  const opts = { ungraded: \"skip\", force: false, stdout: false };",
+      "file": "scripts/eval/build-skill-eval-benchmark.ts",
+      "find": "  const opts: CliOptions = { ungraded: \"fail\", force: false, stdout: false };",
+      "replace": "  const opts: CliOptions = { ungraded: \"skip\", force: false, stdout: false };",
       "occurrences": 1,
       "expect_failing": [
         "受理しない入力（exit 2） 採点の無い run はデフォルトで落とし、--ungraded skip で除外する"
@@ -121,7 +121,7 @@
     {
       "id": "EXECUTOR",
       "why": "executor が混ざった run の検査を外す",
-      "file": "scripts/eval/build-skill-eval-benchmark.js",
+      "file": "scripts/eval/build-skill-eval-benchmark.ts",
       "find": "  if (executorKeys.size > 1) {",
       "replace": "  if (false) {",
       "occurrences": 1,
@@ -132,7 +132,7 @@
     {
       "id": "DELTA",
       "why": "Delta の桁を pass_rate も 1 桁にする",
-      "file": "scripts/eval/build-skill-eval-benchmark.js",
+      "file": "scripts/eval/build-skill-eval-benchmark.ts",
       "find": "      pass_rate: signed(runSummary[a].pass_rate.mean - runSummary[b].pass_rate.mean, 2),",
       "replace": "      pass_rate: signed(runSummary[a].pass_rate.mean - runSummary[b].pass_rate.mean, 1),",
       "occurrences": 1,
@@ -141,7 +141,7 @@
     {
       "id": "EVIDENCE",
       "why": "根拠（evidence）の空を受理する",
-      "file": "scripts/eval/build-skill-eval-benchmark.js",
+      "file": "scripts/eval/build-skill-eval-benchmark.ts",
       "find": "    if (typeof evidence !== \"string\" || evidence.length === 0) {\n      die(`${where}: ${at} の evidence が非空の文字列でない`);\n    }\n",
       "replace": "",
       "occurrences": 1,
@@ -152,7 +152,7 @@
     {
       "id": "TIMING",
       "why": "timing.json が無い run を 0 秒 / 0 トークンで埋める",
-      "file": "scripts/eval/build-skill-eval-benchmark.js",
+      "file": "scripts/eval/build-skill-eval-benchmark.ts",
       "find": "  if (!existsSync(timingPath)) die(`${runDir}: timing.json が無い（時間・トークンの原本）`);",
       "replace": "  const timingMissing = !existsSync(timingPath);",
       "occurrences": 1,
@@ -163,7 +163,7 @@
     {
       "id": "CONFIG-SHAPE",
       "why": "片側の configuration しか無い eval を混ぜて集計する（Delta の母集団がずれる）",
-      "file": "scripts/eval/build-skill-eval-benchmark.js",
+      "file": "scripts/eval/build-skill-eval-benchmark.ts",
       "find": "  if (shapes.size > 1) {",
       "replace": "  if (false) {",
       "occurrences": 1,
@@ -174,7 +174,7 @@
     {
       "id": "EVAL-ID-DIR",
       "why": "eval_id とディレクトリ名の食い違いを見ない（別の eval として数える）",
-      "file": "scripts/eval/build-skill-eval-benchmark.js",
+      "file": "scripts/eval/build-skill-eval-benchmark.ts",
       "find": "  if (Number(named[1]) !== evalId) {",
       "replace": "  if (false) {",
       "occurrences": 1,
@@ -183,7 +183,7 @@
     {
       "id": "EMPTY-PAIR",
       "why": "採点済み 0 件の eval × configuration を突き合わせから外す（--ungraded skip の穴）",
-      "file": "scripts/eval/build-skill-eval-benchmark.js",
+      "file": "scripts/eval/build-skill-eval-benchmark.ts",
       "find": "  const emptyPairs = [...perPair].filter(([, n]) => n === 0).map(([k]) => k);",
       "replace": "  const emptyPairs = [];",
       "occurrences": 1,
@@ -194,7 +194,7 @@
     {
       "id": "ASSERTION-SET",
       "why": "run 間の assertion 集合の突き合わせを外す（分母の違う混合平均を通す）",
-      "file": "scripts/eval/build-skill-eval-benchmark.js",
+      "file": "scripts/eval/build-skill-eval-benchmark.ts",
       "find": "    if (byShape.size > 1) {",
       "replace": "    if (false) {",
       "occurrences": 1,
@@ -205,7 +205,7 @@
     {
       "id": "RATE-DIGITS",
       "why": "pass_rate の比較桁を保存値に合わせず 4 桁固定へ戻す（丸めた採点を誤って落とす）",
-      "file": "scripts/eval/build-skill-eval-benchmark.js",
+      "file": "scripts/eval/build-skill-eval-benchmark.ts",
       "find": "  const digits = Math.min(Math.max(storedDigits, 1), 4);",
       "replace": "  const digits = 4;",
       "occurrences": 1,
@@ -217,7 +217,7 @@
     {
       "id": "EXECUTOR-NAME",
       "why": "executor.name の必須検査を外す（記録が無い run を「揃っている」に倒す）",
-      "file": "scripts/eval/build-skill-eval-benchmark.js",
+      "file": "scripts/eval/build-skill-eval-benchmark.ts",
       "find": "  if (missingExecutor.length > 0) {",
       "replace": "  if (false) {",
       "occurrences": 1,
@@ -226,7 +226,7 @@
     {
       "id": "DERIVED-RATE",
       "why": "出力・統計へ採点内訳の導出値でなく保存値を載せる（集計が採点と食い違う）",
-      "file": "scripts/eval/build-skill-eval-benchmark.js",
+      "file": "scripts/eval/build-skill-eval-benchmark.ts",
       "find": "        pass_rate: computedRate,",
       "replace": "        pass_rate: summary.pass_rate,",
       "occurrences": 1,
@@ -238,8 +238,8 @@
     {
       "id": "JSON-SHAPE",
       "why": "成果物の JSON の形を検査しない（切り詰めた成果物が exit 1 の stack trace になる）",
-      "file": "scripts/eval/build-skill-eval-benchmark.js",
-      "find": "  if (typeof value !== \"object\" || value === null || Array.isArray(value)) {",
+      "file": "scripts/eval/build-skill-eval-benchmark.ts",
+      "find": "  if (!isRecord(value)) {",
       "replace": "  if (false) {",
       "occurrences": 1,
       "expect_failing": [
@@ -251,7 +251,7 @@
     {
       "id": "NOTES-JSON",
       "why": "notes の JSON を成果物と同じ読み方（plain object 要求）に戻す（文字列配列が落ちる）",
-      "file": "scripts/eval/build-skill-eval-benchmark.js",
+      "file": "scripts/eval/build-skill-eval-benchmark.ts",
       "find": "      ? parseNotesJson(path, raw)",
       "replace": "      ? readJson(path)",
       "occurrences": 1,
@@ -260,7 +260,7 @@
     {
       "id": "UNKNOWN-CONFIG",
       "why": "未知の configuration ディレクトリの検査を外す（1 文字違いの成果物を黙って捨てる）",
-      "file": "scripts/eval/build-skill-eval-benchmark.js",
+      "file": "scripts/eval/build-skill-eval-benchmark.ts",
       "find": "  if (unknownDirs.length > 0) {",
       "replace": "  if (false) {",
       "occurrences": 1,
@@ -272,7 +272,7 @@
     {
       "id": "STRAY-RUN",
       "why": "run-<番号> でないディレクトリの検査を外す（run を黙って捨てる）",
-      "file": "scripts/eval/build-skill-eval-benchmark.js",
+      "file": "scripts/eval/build-skill-eval-benchmark.ts",
       "find": "      if (strayRuns.length > 0) {",
       "replace": "      if (false) {",
       "occurrences": 1,
@@ -281,7 +281,7 @@
     {
       "id": "BOTH-FORMS",
       "why": "verdicts と expectations の併存を落とさない（expectations を黙って無視する）",
-      "file": "scripts/eval/build-skill-eval-benchmark.js",
+      "file": "scripts/eval/build-skill-eval-benchmark.ts",
       "find": "  if (grading.verdicts !== undefined && grading.expectations !== undefined) {",
       "replace": "  if (false) {",
       "occurrences": 1,
@@ -292,7 +292,7 @@
     {
       "id": "TOKENS-NUMBER",
       "why": "total_tokens を 0 で埋める（計測できていない run をトークン 0 として混ぜる）",
-      "file": "scripts/eval/build-skill-eval-benchmark.js",
+      "file": "scripts/eval/build-skill-eval-benchmark.ts",
       "find": "  const tokens = timing.total_tokens;\n",
       "replace": "  const tokens = timing.total_tokens ?? 0;\n",
       "occurrences": 1,
@@ -303,7 +303,7 @@
     {
       "id": "METRICS-FILE",
       "why": "metrics.json の不在を黙って 0 で埋める",
-      "file": "scripts/eval/build-skill-eval-benchmark.js",
+      "file": "scripts/eval/build-skill-eval-benchmark.ts",
       "find": "  if (!existsSync(metricsPath)) {",
       "replace": "  if (false) {",
       "occurrences": 1,
@@ -314,7 +314,7 @@
     {
       "id": "METRICS-KEYS",
       "why": "metrics の値の型検査を外す（文字列の件数をそのまま集計へ流す）",
-      "file": "scripts/eval/build-skill-eval-benchmark.js",
+      "file": "scripts/eval/build-skill-eval-benchmark.ts",
       "find": "    if (value !== undefined && value !== null && typeof value !== \"number\") {",
       "replace": "    if (false) {",
       "occurrences": 1,
@@ -325,7 +325,7 @@
     {
       "id": "EVAL-DIR-SHAPE",
       "why": "eval ディレクトリ名の形の検査を外す（突き合わせを飛ばして重複に気づけない）",
-      "file": "scripts/eval/build-skill-eval-benchmark.js",
+      "file": "scripts/eval/build-skill-eval-benchmark.ts",
       "find": "  if (!named) {",
       "replace": "  if (false && !named) {",
       "occurrences": 1,
@@ -334,7 +334,7 @@
     {
       "id": "DUP-RUNS",
       "why": "同じ run が 2 つのディレクトリから来ても落とさない（片方の eval が 2 倍の重みになる）",
-      "file": "scripts/eval/build-skill-eval-benchmark.js",
+      "file": "scripts/eval/build-skill-eval-benchmark.ts",
       "find": "    if (seenRuns.has(key)) {",
       "replace": "    if (false) {",
       "occurrences": 1,
@@ -345,7 +345,7 @@
     {
       "id": "SYMLINK-DIRS",
       "why": "listDirs をリンクを辿らない判定へ戻す（リンクの eval が黙って落ちる）",
-      "file": "scripts/eval/build-skill-eval-benchmark.js",
+      "file": "scripts/eval/build-skill-eval-benchmark.ts",
       "find": "        return statSync(join(parent, name)).isDirectory();",
       "replace": "        return readdirSync(parent, { withFileTypes: true }).some((e) => e.name === name && e.isDirectory());",
       "occurrences": 1,
@@ -356,7 +356,7 @@
     {
       "id": "BROKEN-EVAL-LINK",
       "why": "iteration 直下の辿れない eval-* を報告しない（黙って集計から消える）",
-      "file": "scripts/eval/build-skill-eval-benchmark.js",
+      "file": "scripts/eval/build-skill-eval-benchmark.ts",
       "find": "  if (badEvalEntries.length > 0) {",
       "replace": "  if (false) {",
       "occurrences": 1,
@@ -365,7 +365,7 @@
     {
       "id": "BROKEN-CONFIG-LINK",
       "why": "eval 直下の辿れないエントリを不明扱いにしない（片側 iteration として通る）",
-      "file": "scripts/eval/build-skill-eval-benchmark.js",
+      "file": "scripts/eval/build-skill-eval-benchmark.ts",
       "find": "    for (const name of undirNamed(join(opts.dir, evalDir), CONFIGURATIONS)) {\n      unknownDirs.push(`${evalDir}/${name}`);\n    }\n",
       "replace": "",
       "occurrences": 1,

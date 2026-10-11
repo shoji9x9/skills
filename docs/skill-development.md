@@ -12,7 +12,7 @@
      確かめる項目の候補・撮影条件・反応の数え方など、収束した機能の成果物で測定が足りなくなる変更が当たる。
      下流の `replace-strategy status` は、この一覧を見て古い手順で収束した機能を挙げる。上げ忘れると、前に収束した機能が古い手順のまま収束した扱いで残る。
      軸を足したかどうかは差分から機械的に決められないので、これはチェックの無い規約である。
-     一覧の形は `scripts/skills/replace-strategy/procedure-staleness-check.test.js` がチェックする。
+     一覧の形は `scripts/skills/replace-strategy/procedure-staleness-check.test.ts` がチェックする。
 3. `scripts/tools/reinstall-skill.sh <name>` で、インストール済みのスキルを更新する。
 4. スキルにセットアップ手順があれば実行する。既存のファイルや Hook があるときは上書きせず、更新するかを確認する。
 5. skill-creator で回帰テストを実行し、結果を `tests/<name>/iteration-N/` に保存する。
@@ -31,7 +31,7 @@
    文字数・バイト数・書式のように数えれば分かる規約は、その規約をチェックする実装をそのまま実行して確かめる。自分で近似のスクリプトを書かない。
    単位（バイト・文字・表示幅）はチェックする実装ごとに違うので、近似は誤検知と見逃しを出す。
    commit message は `pnpm exec commitlint --edit <file>`、Markdown は `pnpm exec markdownlint-cli2 <path>`、
-   `SKILL.md` の frontmatter は `node scripts/gates/check-skill-frontmatter.js <path>` で確かめる。
+   `SKILL.md` の frontmatter は `node scripts/gates/check-skill-frontmatter.ts <path>` で確かめる。
 2. スキルの間でコピーしたファイルに、同じ修正を当てる。
    `evals/<name>/README.md` のようにスキルごとにコピーしたファイルは、直す文字列で `grep -rn <キーワード> skills/ evals/` を実行し、すべてのコピーに同じ修正を当てる。
 3. ルールに書いた規律を、チェックが実際に強制しているかを確かめる。
@@ -128,7 +128,7 @@ scripts/tools/reinstall-skill.sh <name>
 
 新しく作った eval と変えた eval には `reachability` を書く。
 各 assertion を引き出す prompt の文を、`{ "assertion": "<assertions に実在するテキスト>", "prompt_quote": "<prompt 内の部分文字列>" }` の形で並べる。
-`scripts/gates/check-eval-reachability.js` が pre-commit と CI で次のものをエラーにする。
+`scripts/gates/check-eval-reachability.ts` が pre-commit と CI で次のものをエラーにする。
 対応する要素が無いもの、引用が空のもの、prompt に無い引用、assertions に無い assertion である。対応はテキストで付け、位置では付けない。
 既存の eval は `scripts/gates/eval-reachability-backlog.json` に載せて、順に適用している。
 この一覧の各項目は eval の指紋（prompt と assertions のハッシュ）を持つ。その eval を書き換えると一覧から外れたものとして扱われ、`reachability` が必要になる。
@@ -289,7 +289,7 @@ fixture に書いてよいのは、下流のプロジェクトに実際にあり
 `grading.json` は、集計スクリプトやビューアが実際に読むスキーマで作る。スキーマが違うと、後の集計が 0.0% や「No runs found」になる。
 必須のフィールドは `summary.{pass_rate,passed,failed,total}` と、各 expectation の `text`・`passed`・`evidence` である。
 判定は assertion のテキストで対応を付けるので、`text` は `eval_metadata.json` の宣言と一字一句同じにする。
-位置で並べた配列や `text` の無い要素は、集計スクリプト（`scripts/eval/build-skill-eval-benchmark.js`）が受け付けない。
+位置で並べた配列や `text` の無い要素は、集計スクリプト（`scripts/eval/build-skill-eval-benchmark.ts`）が受け付けない。
 ビューアを使うときは、run の下の構成（`outputs/` と `eval_metadata.json`）も揃える。
 スキーマは skill-creator の `references/schemas.md`（インストール先の skill-creator の下）で定義している。無ければ skill-creator のドキュメントを見る。
 
@@ -435,7 +435,7 @@ eval はスキルの欠陥を見つけるためのものである。
 集計はリポジトリのスクリプトで行う。使い捨てのスクリプトで組み立てると、判定を配列の位置で対応させて、件数を誤る。
 
 ```bash
-node scripts/eval/build-skill-eval-benchmark.js tests/<name>/iteration-N \
+node scripts/eval/build-skill-eval-benchmark.ts tests/<name>/iteration-N \
   --skill-name <name> \
   --skill-path '<repo>/skills/<name>' \
   --executor-model <model-id> \

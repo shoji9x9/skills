@@ -8,5 +8,6 @@
     ".claude/skills/*/**/*.mts",
     ".claude/skills/*/**/*.cts",
     "types/parity-templates.ts"
-  ]
+  ],
+  "exclude": [".claude/skills/*/scripts/**"]
 }

@@ -4,7 +4,15 @@
     "module": "nodenext",
     "moduleResolution": "nodenext",
     "lib": ["es2024"],
-    "tsBuildInfoFile": "./node_modules/.cache/tsc/repo.tsbuildinfo"
+    "tsBuildInfoFile": "./node_modules/.cache/tsc/repo.tsbuildinfo",
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true
   },
-  "include": ["*.ts", "scripts/**/*.ts", "scripts/**/*.js", "skills/*/scripts/**/*.mjs"]
+  "include": [
+    "*.ts",
+    "scripts/**/*.ts",
+    ".agents/skills/*/scripts/**/*.ts",
+    "skills/*/scripts/**/*.mjs",
+    "skills/*/assets/**/*.mjs"
+  ]
 }

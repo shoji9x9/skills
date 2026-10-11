@@ -1,14 +1,14 @@
 {
   "$comment": [
-    "check-mutation-proof.test.js の検出能力を示す変異の一覧（Issue #420）。",
+    "check-mutation-proof.test.ts の検出能力を示す変異の一覧（Issue #420）。",
     "変異実行器が自分自身を変異させる: 親は読み込み済みのコードで走り、テストが起動する子プロセスが変異版を使う。"
   ],
-  "test_file": "scripts/mutation/check-mutation-proof.test.js",
+  "test_file": "scripts/mutation/check-mutation-proof.test.ts",
   "mutations": [
     {
       "id": "NOT-APPLIED",
       "why": "当たらなかった変異（出現数の不一致）を成功に倒す",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "  if (hits !== mutation.occurrences) {",
       "replace": "  if (false) {",
       "occurrences": 1,
@@ -20,7 +20,7 @@
     {
       "id": "EXTRA",
       "why": "宣言外で落ちたテストを見ない（帰属のずれを通す）",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "  const extra = sorted([...run.failed].filter((n) => !expected.has(n) && !readsRealRepo(n)));",
       "replace": "  const extra = [];",
       "occurrences": 1,
@@ -29,7 +29,7 @@
     {
       "id": "NAME-CHECK",
       "why": "expect_failing のテスト名が実在するかを見ない",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "      const unknown = m.expect.filter((name) => !baseline.results.has(name));",
       "replace": "      const unknown = [];",
       "occurrences": 1,
@@ -40,7 +40,7 @@
     {
       "id": "BASELINE",
       "why": "基準 run が緑であることを確かめない",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "    if (baseline.failed.size > 0) {",
       "replace": "    if (false) {",
       "occurrences": 1,
@@ -49,7 +49,7 @@
     {
       "id": "LIVE-LOCK",
       "why": "生きている実行のロックも残骸として奪う",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "      if (Number.isInteger(pid) && pid > 0 && alive(pid)) {",
       "replace": "      if (false) {",
       "occurrences": 1,
@@ -60,7 +60,7 @@
     {
       "id": "ONLY-SPAN",
       "why": "--only で選ばれなかった宣言を飛ばさず落とす（宣言が 2 件以上あると常に exit 2）",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "    if (targeted.length === 0) continue;",
       "replace": "    if (targeted.length === 0) die(\"--only で 1 件も選ばれなかった\");",
       "occurrences": 1,
@@ -72,7 +72,7 @@
     {
       "id": "ONLY-UNMATCHED",
       "why": "どの宣言にも無い --only の id を黙って無視する（実証していない変異を実証済みと読む）",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "    if (unmatched.length) die(",
       "replace": "    if (false) die(",
       "occurrences": 1,
@@ -83,8 +83,8 @@
     {
       "id": "LOCK-READ",
       "why": "ロックの読み取りを try/catch から外す（一過性の失敗が未処理例外になる）",
-      "file": "scripts/mutation/check-mutation-proof.js",
-      "find": "      let pid = NaN;\n      try {\n        pid = Number(readFileSync(lockPath, \"utf8\").trim());\n      } catch (readErr) {\n        if (readErr.code !== \"ENOENT\") {\n          die(`ロック（${lockPath}）を読めない: ${readErr.message}`);\n        }\n      }\n",
+      "file": "scripts/mutation/check-mutation-proof.ts",
+      "find": "      let pid = NaN;\n      try {\n        pid = Number(readFileSync(lockPath, \"utf8\").trim());\n      } catch (readErr) {\n        if (errnoCode(readErr) !== \"ENOENT\") {\n          die(`ロック（${lockPath}）を読めない: ${errorMessage(readErr)}`);\n        }\n      }\n",
       "replace": "      const pid = Number(readFileSync(lockPath, \"utf8\").trim());\n",
       "occurrences": 1,
       "expect_failing": [
@@ -94,7 +94,7 @@
     {
       "id": "SPAWN-ERROR",
       "why": "spawn 自体の失敗を exit 2 に倒さない（環境起因の失敗を実証の失敗に混ぜる）",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "    if (res.error) {\n      die(`テストを起動できない（${command.file}）: ${res.error.message}`);\n    }\n",
       "replace": "",
       "occurrences": 1,
@@ -105,7 +105,7 @@
     {
       "id": "CHILD-GUARD",
       "why": "子 vitest へ MUTATION_PROOF_CHILD を渡さない（globalSetup が使用中の fixture を消す）",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "        env: { ...process.env, MUTATION_PROOF_CHILD: \"1\" },\n",
       "replace": "",
       "occurrences": 1,
@@ -116,7 +116,7 @@
     {
       "id": "SPEC-SHAPE",
       "why": "宣言ファイルの形を検査しない（壊れた宣言が exit 1 =実証失敗に化ける）",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "  if (typeof raw !== \"object\" || raw === null || Array.isArray(raw)) {",
       "replace": "  if (false) {",
       "occurrences": 1,
@@ -129,7 +129,7 @@
     {
       "id": "DUP-NAMES",
       "why": "テスト名の重複を検出しない（名前で合否を判定する前提が黙って破れる）",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "    if (duplicated.length > 0) {",
       "replace": "    if (false) {",
       "occurrences": 1,
@@ -143,7 +143,7 @@
     {
       "id": "RECOVERY",
       "why": "前回の中断で残った変異を戻さない（残った変異を基準 run が測る）",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "  recoverFromInterrupted();",
       "replace": "  // recoverFromInterrupted();",
       "occurrences": 1,
@@ -165,7 +165,7 @@
     {
       "id": "RECOVERY-SHAPE",
       "why": "復元情報の形を検査しない（壊れた記録で黙って続ける）",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "    typeof saved?.file !== \"string\" ||\n    typeof saved?.before !== \"string\" ||\n    typeof saved?.after !== \"string\"\n",
       "replace": "    false\n",
       "occurrences": 1,
@@ -176,7 +176,7 @@
     {
       "id": "RECOVERY-MATCH",
       "why": "変異後の内容と一致しなくても戻す（中断後の編集を上書きする）",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "  return current === null ? \"removed\" : \"foreign\";",
       "replace": "  if (current === null) return \"removed\";\n  writeFileSync(path, before);\n  clearRecovery();\n  return \"mutated\";",
       "occurrences": 1,
@@ -190,7 +190,7 @@
     {
       "id": "RECOVERY-BOUNDARY",
       "why": "書き戻し先の repoRoot 境界検査を外す（植え付けた記録で任意のファイルを上書き）",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "  if (!target.startsWith(repoRoot + \"/\")) {",
       "replace": "  if (false) {",
       "occurrences": 1,
@@ -201,7 +201,7 @@
     {
       "id": "CHANGED-FAILCLOSED",
       "why": "差分が取れない失敗を「変更なし」に倒す（当たる宣言を 1 件も測らず緑になる）",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "  if (res.status !== 0) {",
       "replace": "  if (false) {",
       "occurrences": 1,
@@ -210,7 +210,7 @@
     {
       "id": "CHANGED-RUNNER",
       "why": "実行器が変わっても全宣言へ広げない（判定の仕組みが変わったのに旧実証で通す）",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "  if (changed.has(runnerPath)) {",
       "replace": "  if (false) {",
       "occurrences": 1,
@@ -219,7 +219,7 @@
     {
       "id": "CHANGED-HITS",
       "why": "当たり判定を常に真にする（差分の外の宣言まで測って PR のコストが戻る）",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "    if (hits.length > 0) {",
       "replace": "    if (true) {",
       "occurrences": 1,
@@ -231,7 +231,7 @@
     {
       "id": "CHANGED-EXCLUSIVE",
       "why": "--changed-since と宣言指定の併用を許す（選び方が二重になる）",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "    if (files.length > 0) {",
       "replace": "    if (false) {",
       "occurrences": 1,
@@ -242,7 +242,7 @@
     {
       "id": "TEST-COMMAND-NOTICE",
       "why": "テストコマンドの注入を黙って使う（スタブで測っていることに気づけない）",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "    console.error(\n      `テストコマンド: MUTATION_PROOF_TEST_COMMAND=${injected}（テスト用の注入。vitest は起動しない）`,\n    );\n",
       "replace": "",
       "occurrences": 1,
@@ -253,7 +253,7 @@
     {
       "id": "TEST-COMMAND-EMPTY",
       "why": "空の MUTATION_PROOF_TEST_COMMAND を弾かない（前提の誤りが exit 2 にならない）",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "    if (injected === \"\") die(",
       "replace": "    if (false) die(",
       "occurrences": 1,
@@ -264,8 +264,8 @@
     {
       "id": "VITEST-RESOLVE",
       "why": "vitest を解決できない失敗を exit 2 に倒さない（前提の誤りが実証の失敗や stack trace に化ける）",
-      "file": "scripts/mutation/check-mutation-proof.js",
-      "find": "    die(`vitest を解決できない（pnpm install 済みか確かめる）: ${err.message}`);\n",
+      "file": "scripts/mutation/check-mutation-proof.ts",
+      "find": "    die(`vitest を解決できない（pnpm install 済みか確かめる）: ${errorMessage(err)}`);\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": ["宣言と前提の検証（実行する前に落とす） vitest を解決できなければ exit 2"]
@@ -273,7 +273,7 @@
     {
       "id": "SHARD-PARTITION",
       "why": "--shard で絞らず、どのシャードも全件を測る（分割が効かず速くならない・重複して測る）",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "      p.targeted = p.targeted.filter(() => k++ % shard.total === shard.index - 1);",
       "replace": "      p.targeted = p.targeted.filter(() => (k++, true));",
       "occurrences": 1,
@@ -286,7 +286,7 @@
     {
       "id": "SHARD-OFFSET",
       "why": "シャード番号を 0 始まりと取り違える（1/N と N/N で同じ変異を測り、別の変異をどのシャードも測らない）",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "k++ % shard.total === shard.index - 1",
       "replace": "k++ % shard.total === shard.index % shard.total",
       "occurrences": 1,
@@ -299,7 +299,7 @@
     {
       "id": "SHARD-RANGE",
       "why": "N を超える i を受け付ける（どの変異も割り当たらない 0 件のシャードが黙って緑になる）",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "  if (index > total) die(",
       "replace": "  if (false) die(",
       "occurrences": 1,
@@ -308,7 +308,7 @@
     {
       "id": "SHARD-SAFE",
       "why": "安全な整数の範囲外の --shard を受け付ける（丸めで i > N が比較を通り、0 件のシャードが黙って緑になる）",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "  if (!Number.isSafeInteger(index) || !Number.isSafeInteger(total)) {\n",
       "replace": "  if (false) {\n",
       "occurrences": 1,
@@ -319,7 +319,7 @@
     {
       "id": "REAL-REPO-EXTRA",
       "why": "実リポジトリを読むテストが落ちたら宣言外として数える（文書の書き換えで変異と関係なく失敗する）",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": " && !readsRealRepo(n)",
       "replace": "",
       "expect_failing": [
@@ -329,7 +329,7 @@
     {
       "id": "REAL-REPO-DECL",
       "why": "expect_failing に実リポジトリを読むテストを書くことを許す",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "    if (realRepo.length) {",
       "replace": "    if (false) {",
       "expect_failing": [
@@ -339,7 +339,7 @@
     {
       "id": "REAL-REPO-REPORT",
       "why": "数えなかった実リポジトリのテストの失敗を出力しない",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "        if (res.ignored.length) {",
       "replace": "        if (false) {",
       "expect_failing": [
@@ -349,7 +349,7 @@
     {
       "id": "RESTORE-FOREIGN-EDIT",
       "why": "実行中に変異の外から書き換えられた対象を、照合せずに変異前の内容で上書きする",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "      if (state !== \"mutated\" && (wroteMutation || state in UNSETTLED)) {",
       "replace": "      if (false) {",
       "occurrences": 1,
@@ -363,7 +363,7 @@
     {
       "id": "EXIT-RESTORE-FOREIGN-EDIT",
       "why": "die で終わったとき、exit ハンドラが外からの編集を照合せずに上書きする",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "    const state = settleTarget(path, content, mutated);",
       "replace": "    writeFileSync(path, content);\n    const state = \"mutated\";",
       "occurrences": 1,
@@ -375,9 +375,9 @@
     {
       "id": "KEEP-THROWN",
       "why": "止めるとき、テストの実行中の例外を出さない",
-      "file": "scripts/mutation/check-mutation-proof.js",
-      "find": "      if (thrown) console.error(",
-      "replace": "      if (false) console.error(",
+      "file": "scripts/mutation/check-mutation-proof.ts",
+      "find": "      if (thrown)\n        console.error(",
+      "replace": "      if (false)\n        console.error(",
       "occurrences": 1,
       "expect_failing": [
         "宣言と前提の検証（実行する前に落とす） 実行中の編集の後に例外が投げられても、元の例外を出力に残す"
@@ -386,7 +386,7 @@
     {
       "id": "RESTORE-EARLY-RETURN",
       "why": "exit ハンドラが、元の内容に戻っている対象も外からの編集として警告する",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "  if (current === before) {",
       "replace": "  if (false) {",
       "occurrences": 1,
@@ -402,7 +402,7 @@
     {
       "id": "WROTE-GUARD",
       "why": "変異を書く前の失敗も、外からの編集として報告する",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "(wroteMutation || state in UNSETTLED)",
       "replace": "(true || state in UNSETTLED)",
       "occurrences": 1,
@@ -416,7 +416,7 @@
     {
       "id": "REMOVED-RECREATE",
       "why": "実行中や中断の後に消された対象を、元の内容で作り直す（意図した削除を戻し、モードも戻らない）",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "  return current === null ? \"removed\" : \"foreign\";",
       "replace": "  if (current === null) writeFileSync(path, before);\n  return current === null ? \"removed\" : \"foreign\";",
       "occurrences": 1,
@@ -428,7 +428,7 @@
     {
       "id": "SETTLE-FAIL-KEEPS-PENDING",
       "why": "止めるときに pending を外さず、exit ハンドラが同じ後始末を繰り返す",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "    pending = null;\n    if (stopMessage !== null) {",
       "replace": "    if (stopMessage !== null) {",
       "occurrences": 1,
@@ -439,8 +439,8 @@
     {
       "id": "READ-ENOENT",
       "why": "消された対象の読み込みを null にせず、例外のまま返す（消された場合を扱えない）",
-      "file": "scripts/mutation/check-mutation-proof.js",
-      "find": "    if (err.code === \"ENOENT\") return null;",
+      "file": "scripts/mutation/check-mutation-proof.ts",
+      "find": "    if (errnoCode(err) === \"ENOENT\") return null;",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
@@ -451,7 +451,7 @@
     {
       "id": "ATOMIC-WRITE",
       "why": "一時ファイルと rename をやめ、対象に直接書く（途中の失敗で対象が切り詰められる）",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "    writeFileSync(tmp, data, { flag: \"wx\" });\n    chmodSync(tmp, stat.mode & 0o7777);\n    renameSync(tmp, real);\n",
       "replace": "    writeFileSync(real, data);\n",
       "occurrences": 1,
@@ -467,7 +467,7 @@
     {
       "id": "KEEP-MODE",
       "why": "差し替えた対象に元のモードをコピーしない（実行ビットが外れる）",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "    chmodSync(tmp, stat.mode & 0o7777);\n",
       "replace": "",
       "occurrences": 1,
@@ -478,7 +478,7 @@
     {
       "id": "FOLLOW-SYMLINK",
       "why": "リンク先へ書かず、シンボリックリンクを通常のファイルに差し替える",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "  const real = realpathSync(path);",
       "replace": "  const real = path;",
       "occurrences": 1,
@@ -490,7 +490,7 @@
     {
       "id": "TMP-CLEANUP",
       "why": "書き込みに失敗した一時ファイルを作業ツリーに残す",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "      rmSync(tmp, { force: true });\n    } catch (rmErr) {\n",
       "replace": "    } catch (rmErr) {\n",
       "occurrences": 1,
@@ -503,7 +503,7 @@
     {
       "id": "EXIT-SETTLE-FAIL-MSG",
       "why": "exit ハンドラの書き戻しの失敗で、次回の起動が戻すのに手で戻すよう案内する",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "。次回の起動が復元情報（${recoveryPath}）で照合する",
       "replace": "（手で戻す）",
       "occurrences": 1,
@@ -514,7 +514,7 @@
     {
       "id": "HARDLINK-GUARD",
       "why": "ハードリンクを持つ対象を差し替え、リンクを切る",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "  if (stat.nlink > 1) {",
       "replace": "  if (false) {",
       "occurrences": 1,
@@ -525,7 +525,7 @@
     {
       "id": "STRAY-TMP",
       "why": "中断で残った一時ファイルを、次回の起動が消さない",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "    removeStrayTmp(target);\n",
       "replace": "",
       "occurrences": 1,
@@ -540,7 +540,7 @@
     {
       "id": "STRAY-TMP-SHAPE",
       "why": "一時ファイルの形を確かめず、名前の似た無関係なファイルまで消す",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "    return /^\\d+$/.test(pid) && !alive(Number(pid));",
       "replace": "    return true;",
       "occurrences": 1,
@@ -551,7 +551,7 @@
     {
       "id": "WRITE-FAIL-EXIT2",
       "why": "変異を当てられない失敗を捕捉せず、exit 1（実証できない変異がある）で終わる",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "        die(`${m.id} の変異を当てられない: ${err.cause.message}`);",
       "replace": "        throw err;",
       "occurrences": 1,
@@ -566,8 +566,8 @@
     {
       "id": "RECOVER-EXIT2",
       "why": "次回の起動の書き戻しの失敗を捕捉せず、exit 1（実証できない変異がある）で終わる",
-      "file": "scripts/mutation/check-mutation-proof.js",
-      "find": "    die(\n      `前回の中断で残った変異を戻せない（${target}）: ${err.message}。原因を取り除いてから起動し直す`,\n    );\n",
+      "file": "scripts/mutation/check-mutation-proof.ts",
+      "find": "    die(\n      `前回の中断で残った変異を戻せない（${target}）: ${errorMessage(err)}。原因を取り除いてから起動し直す`,\n    );\n",
       "replace": "    throw err;\n",
       "occurrences": 1,
       "expect_failing": [
@@ -578,8 +578,8 @@
     {
       "id": "WRITE-ERROR-ONLY",
       "why": "変異を書いた後の例外まで、変異を当てられない失敗として報告する（スタックも捨てる）",
-      "file": "scripts/mutation/check-mutation-proof.js",
-      "find": "        if (!(err instanceof MutationWriteError)) {\n          console.error(err?.stack ?? String(err));\n          die(`${m.id} の測定中に予期しない例外が起きた（上のスタックを見る）`);\n        }\n",
+      "file": "scripts/mutation/check-mutation-proof.ts",
+      "find": "        if (!(err instanceof MutationWriteError)) {\n          console.error((err instanceof Error ? err.stack : undefined) ?? String(err));\n          die(`${m.id} の測定中に予期しない例外が起きた（上のスタックを見る）`);\n        }\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
@@ -589,7 +589,7 @@
     {
       "id": "RECOVERY-WRITE-WRAP",
       "why": "復元情報を書けない失敗を包まず、exit 1 で終わる",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "    try {\n      writeRecovery(mutation.target, original, mutated);\n      replaceContent(mutation.target, mutated);\n",
       "replace": "    writeRecovery(mutation.target, original, mutated);\n    try {\n      replaceContent(mutation.target, mutated);\n",
       "occurrences": 1,
@@ -600,7 +600,7 @@
     {
       "id": "REAL-BOUNDARY",
       "why": "シンボリックリンクを解決した後の書き換え先がリポジトリ内かを確かめない",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "  if (!insideRepo(real))\n    throw new Error(",
       "replace": "  if (false)\n    throw new Error(",
       "occurrences": 1,
@@ -611,7 +611,7 @@
     {
       "id": "STRAY-BEST-EFFORT",
       "why": "一時ファイルを消せない失敗で、書き戻しを試さずに止まる",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "    } catch (err) {\n      console.error(\n        `mutation-proof: 一時ファイルを消せない（",
       "replace": "    } catch (err) {\n      throw err;\n      console.error(\n        `mutation-proof: 一時ファイルを消せない（",
       "occurrences": 1,
@@ -622,7 +622,7 @@
     {
       "id": "STRAY-BOUNDARY",
       "why": "一時ファイルを探す先がリポジトリ外でも探して消す",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "  if (!insideRepo(real)) {\n",
       "replace": "  if (false) {\n",
       "occurrences": 1,
@@ -634,7 +634,7 @@
     {
       "id": "STRAY-PARENT-REALPATH",
       "why": "消された対象の親を解決せずに境界を判定する",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "      real = join(realpathSync(dirname(target)), basename(target));\n",
       "replace": "      real = target;\n",
       "occurrences": 1,
@@ -645,7 +645,7 @@
     {
       "id": "TMP-RM-GUARD",
       "why": "一時ファイルの後始末の例外で、元の書き込みの失敗を置き換える",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "    try {\n      rmSync(tmp, { force: true });\n    } catch (rmErr) {\n",
       "replace": "    try {\n      rmSync(tmp, { force: true });\n    } finally {\n    }\n    try {\n    } catch (rmErr) {\n",
       "occurrences": 1,
@@ -656,7 +656,7 @@
     {
       "id": "STRAY-TMP-LIVE",
       "why": "名前の pid が生きている（別の実行が書き込み中の）一時ファイルまで消す",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": " && !alive(Number(pid));",
       "replace": ";",
       "occurrences": 1,
@@ -667,7 +667,7 @@
     {
       "id": "TMP-STALE-RM",
       "why": "自分の pid の一時ファイルの残骸を消さずに作り、EEXIST で止まる",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "    rmSync(tmp, { force: true });\n    writeFileSync(tmp, data, { flag: \"wx\" });\n",
       "replace": "    writeFileSync(tmp, data, { flag: \"wx\" });\n",
       "occurrences": 1,
@@ -678,7 +678,7 @@
     {
       "id": "TIMING-SPEC",
       "why": "宣言ごとの時間を出さない（全件の実行で、どの宣言が重いかが分からない）",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "    console.log(`時間: ${seconds.toFixed(1)} 秒（${targeted.length} 変異、基準 run を含む）`);\n",
       "replace": "",
       "occurrences": 1,
@@ -689,7 +689,7 @@
     {
       "id": "TIMING-SUMMARY",
       "why": "長い順の一覧に宣言を出さない（次に縮める宣言を一覧から選べない）",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "  for (const t of [...timings].sort((a, b) => b.seconds - a.seconds)) {",
       "replace": "  for (const t of [].sort((a, b) => b.seconds - a.seconds)) {",
       "occurrences": 1,
@@ -700,7 +700,7 @@
     {
       "id": "TIMING-ORDER",
       "why": "一覧を短い順に並べる（重い宣言が一覧の下に埋もれる）",
-      "file": "scripts/mutation/check-mutation-proof.js",
+      "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "[...timings].sort((a, b) => b.seconds - a.seconds)",
       "replace": "[...timings].sort((a, b) => a.seconds - b.seconds)",
       "occurrences": 1,

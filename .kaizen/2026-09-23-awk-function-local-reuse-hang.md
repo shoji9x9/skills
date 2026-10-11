@@ -26,5 +26,5 @@ session: claude-code
 
 awk の関数に処理を足すときは新しい変数を仮引数列へ追加して既存のローカル名を使い回さず、シェルのチェックを検証するコマンドには必ず timeout を付ける。
 
-- 決定論的な対策: `scripts/hooks/bash-command-guard.test.js` の `run` に `spawnSync` の `timeout` を入れ、ハングを失敗として捕まえる
-- 適用先候補: `scripts/hooks/bash-command-guard.test.js`
+- 決定論的な対策: `scripts/hooks/bash-command-guard.test.ts` の `run` に `spawnSync` の `timeout` を入れ、ハングを失敗として捕まえる
+- 適用先候補: `scripts/hooks/bash-command-guard.test.ts`

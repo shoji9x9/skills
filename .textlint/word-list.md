@@ -1,6 +1,6 @@
 # 使わない語
 
-<!-- .textlint/words.json から scripts/gates/check-word-list.js --fix で生成する。手で直さない。 -->
+<!-- .textlint/words.json から scripts/gates/check-word-list.ts --fix で生成する。手で直さない。 -->
 
 人が読む文章と人への応答では、次の語を使わず言い換えて書く。
 
