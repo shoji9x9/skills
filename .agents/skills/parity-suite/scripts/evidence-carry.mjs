@@ -126,12 +126,25 @@ function rectKey(r) {
 }
 
 /**
+ * validateChange（component-impact.mjs）を通った変更宣言のうち、この判定が読む欄。
+ * @typedef {{
+ *   id: string,
+ *   slug: string,
+ *   kind: "align-to-current" | "new-appearance",
+ *   files: string[],
+ *   commits: { before: string, after: string },
+ *   margin_px: number,
+ *   catalog_verification: Record<string, unknown>,
+ * }} CarryChange
+ */
+
+/**
  * amend-verify の組の判定に使った幾何（margin と領域）が、変更宣言と新側の採取物に結びついているか。
  * 画像の sha256 は画像を認証するだけで、判定を弱める margin・領域（画面全体など）を認証しない。
  * margin は宣言の margin_px と一致し、領域（広げる前の declared_regions）は撮り直した新側の組の
  * traits.json（inputs.new と同じディレクトリ）にある影響インスタンスの論理名の rect と一致することを求める。
- * @param {Record<string, any>} entry
- * @param {Record<string, any>} change
+ * @param {Record<string, unknown>} entry amend-verify の記録の組 1 件
+ * @param {CarryChange} change
  * @param {{id:string, locator:string}[]} instances
  * @param {(p: string) => string} fromProject
  * @param {(p: string) => Buffer} readBytes
@@ -178,7 +191,7 @@ function checkGeometry(entry, change, instances, fromProject, readBytes) {
  * amend-verify の組の判定（pass）が、同じ記録の計数と食い違っていないか。記録の書き換え・部分的なマージ・
  * 別の書き手の記録で pass だけが true になっていても、合格の条件（領域の外は完全一致・領域の中の不一致は増えていない）を
  * 満たさない計数なら持ち越さない。
- * @param {Record<string, any>} entry
+ * @param {Record<string, unknown>} entry amend-verify の記録の組 1 件
  * @returns {string | null} 不合格の理由（合格なら null）
  */
 function checkVerdict(entry) {
@@ -203,7 +216,7 @@ function checkVerdict(entry) {
  * - prev_new: `<stage>/pre-change/<change-id>/<page>/<state>/<viewport>/screenshot.png`（撮り直す前に撮った改修前の新側）
  * - current: `<replaceRoot>/parity/<slug>/baseline/` の下（現側の基準。その下の並びは採取スペックが決める）
  * `<stage>` は evidence-carry.json のあるディレクトリ（new/<target>/）。
- * @param {Record<string, any>} entry
+ * @param {Record<string, unknown>} entry amend-verify の記録の組 1 件
  * @param {string} pair
  * @param {string} changeId
  * @param {{ stageDir: string, currentRoot: string, fromProject: (p: string) => string }} where
@@ -510,7 +523,7 @@ export function judgeCarry(input) {
     }
   }
 
-  /** @type {{ path: string, amendVerify: string | null, change: Record<string, any> }[]} */
+  /** @type {{ path: string, amendVerify: string | null, change: CarryChange }[]} */
   const declared = [];
   for (const carry of carries) {
     const path = fromProject(carry.change);
@@ -523,7 +536,7 @@ export function judgeCarry(input) {
     declared.push({
       path,
       amendVerify: carry.amend_verify,
-      change: /** @type {Record<string, any>} */ (read.value),
+      change: /** @type {CarryChange} */ (read.value),
     });
   }
 
@@ -744,7 +757,7 @@ export function judgeCarry(input) {
         );
         continue;
       }
-      const entry = /** @type {Record<string, any>} */ (entries[0]);
+      const entry = /** @type {Record<string, unknown>} */ (entries[0]);
       if (entry.pass !== true) {
         findings.push(
           `amend-verify の組 ${pair} が pass でない（${Array.isArray(entry.reasons) ? entry.reasons.join("; ") : "理由なし"}）: ${recordPath}`,

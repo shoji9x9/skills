@@ -155,17 +155,43 @@ function observationShape(observed, expected) {
 }
 
 /**
+ * 突き合わせの指摘 1 件。code は必ずあり、ほかの欄は code ごとに付く。
+ * instance と operation は入力の値をそのまま載せるので、文字列とは限らない（読めなければ null）。
+ * @typedef {{
+ *   code: string,
+ *   detail?: string,
+ *   instance?: unknown,
+ *   operation?: unknown,
+ *   missing?: string[],
+ *   extra?: string[],
+ *   differing?: { observation: string, current: unknown, new: unknown }[],
+ * }} BehaviorFinding
+ */
+
+/**
+ * 突き合わせの件数。
+ * @typedef {{
+ *   cells: number,
+ *   not_compared: number,
+ *   matched: number,
+ *   mismatched: number,
+ *   uncompared: number,
+ *   accepted: number,
+ * }} BehaviorCounts
+ */
+
+/**
  * 操作の結果を突き合わせる（純関数）。
  *
- * @param {{ metadata: any, behaviors: Record<string, any>, comparison: any, target: string }} input 突き合わせの入力。
+ * @param {{ metadata: unknown, behaviors: Record<string, unknown>, comparison: unknown, target: string }} input 突き合わせの入力（形はここで検査する）。
  *   - metadata: capture の `metadata.json`
  *   - behaviors: インスタンス id → `baseline/<id>/behaviors.json` の中身（読めなければ null）
  *   - comparison: `new/<target>/behavior-comparison.json` の中身（読めなければ null）
  *   - target: 判定の対象の new target 名
- * @returns {{ structural: boolean, judged: boolean, findings: object[], counts: Record<string, number> }}
+ * @returns {{ structural: boolean, judged: boolean, findings: BehaviorFinding[], counts: BehaviorCounts }}
  */
 export function compareBehaviors({ metadata, behaviors, comparison, target }) {
-  /** @type {object[]} */
+  /** @type {BehaviorFinding[]} */
   const findings = [];
   const counts = {
     cells: 0,
@@ -508,11 +534,11 @@ export function safeSegment(value) {
  * 部品の成果物ディレクトリから metadata.json と各インスタンスの behaviors.json を読む。
  * behaviors.json が無い・読めないインスタンスは null（未採取として判定側が数える）。
  * @param {string} dir
- * @returns {{ metadata: any, behaviors: Record<string, any> }}
+ * @returns {{ metadata: unknown, behaviors: Record<string, unknown> }} 中身の形は検査しない（compareBehaviors が検査する）。
  */
 export function loadBaseline(dir) {
   const metadata = JSON.parse(readFileSync(join(dir, "metadata.json"), "utf8"));
-  /** @type {Record<string, any>} */
+  /** @type {Record<string, unknown>} */
   const behaviors = {};
   const instances = Array.isArray(metadata && metadata.instances) ? metadata.instances : [];
   const baselineRoot = resolve(dir, "baseline");
@@ -546,7 +572,7 @@ export function loadBaseline(dir) {
 /**
  * CLI 本体。
  * @param {string[]} argv
- * @param {{ cwd?: string, write?: (s: string) => void }} [io]
+ * @param {{ cwd?: string, write?: (s: string) => void, writeErr?: (s: string) => void }} [io]
  * @returns {number} 終了コード
  */
 export function main(

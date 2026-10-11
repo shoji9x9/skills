@@ -35,6 +35,45 @@ import { fileURLToPath } from "node:url";
 export const VERSION = "5";
 
 /**
+ * trait-compare の Diff のうち、分類が読む欄。ほかの欄は読まずに出力へ持ち越す。
+ *
+ * @typedef {{ name?:string, prop?:string, expected?:string, actual?:string }} TraitDiff
+ */
+/**
+ * コンポーネント系統差 T の 1 件（registries.component_diffs の要素）。
+ *
+ * @typedef {{ component:string, property:string, current:string, new:string, reason?:string }} ComponentDiff
+ */
+/**
+ * インスタンス例外の 1 件（registries.component_diff_exceptions の要素）。照合キーの欠落は不一致として扱う。
+ *
+ * @typedef {{ slug?:string, page?:string, state?:string, viewport?:string, element?:string,
+ *   property?:string, current?:string, new?:string, cause?:string }} InstanceException
+ */
+/**
+ * インスタンス例外の原因（registries.component_diff_exception_causes の要素）。
+ *
+ * @typedef {{ id?:string, reason?:string, evidence?:string }} ExceptionCause
+ */
+/**
+ * 合致したインスタンス例外に、解決した原因の文言を添えたもの。
+ *
+ * @typedef {InstanceException & { cause_reason:string, cause_evidence:string }} MatchedException
+ */
+/**
+ * 意図的差異のレジストリ（registries.intentional_diffs）。要素の形は読む側で確かめる。
+ *
+ * @typedef {{ keep?:unknown[], may_change?:unknown[], pending?:unknown[] }} IntentionalRegistry
+ */
+/**
+ * registries.json の、分類が読む欄。
+ *
+ * @typedef {{ intentional_diffs?:IntentionalRegistry, component_diffs?:ComponentDiff[],
+ *   component_diff_exceptions?:InstanceException[],
+ *   component_diff_exception_causes?:ExceptionCause[] }} Registries
+ */
+
+/**
  * CSS 値・ラベルの表記ゆれを吸収した正規化文字列を返す（単位そのものは残す）。
  *
  * @param {unknown} v
@@ -345,7 +384,7 @@ export function matchesComponentPattern(pattern, name) {
  * 警告が無いと「警告なしに無効になった宣言」になり、宣言した側からは、吸収されたのか
  * 当たらなかったのかが見えない。照合に使わないだけでなく、そのことが見えるようにする。
  *
- * @param {Array<object>} componentDiffs
+ * @param {unknown} componentDiffs - registries.component_diffs（読んだままの値。形はここで確かめる）
  * @returns {string[]} 問題の説明（空配列なら全件が照合に使える）
  */
 export function validateComponentDiffs(componentDiffs) {
@@ -372,13 +411,13 @@ export function validateComponentDiffs(componentDiffs) {
  * `component` は Diff の論理名に対する完全一致 / glob であり、
  * 一致しない要素の差分には掛からない（別要素の回帰を吸収せず、別要素の差分を deviates_T へ格上げしない）。
  *
- * @param {{ name?:string, prop?:string, expected?:string, actual?:string }} diff
- * @param {Array<{ component:string, property:string, current:string, new:string, reason?:string }>} componentDiffs
- * @returns {{ status:'absorbed_T'|'deviates_T', rule:object } | null}
+ * @param {TraitDiff} diff
+ * @param {ComponentDiff[] | undefined} componentDiffs
+ * @returns {{ status:'absorbed_T'|'deviates_T', rule:ComponentDiff } | null}
  */
 export function matchComponentT(diff, componentDiffs) {
   const list = Array.isArray(componentDiffs) ? componentDiffs : [];
-  /** @type {{ status:'deviates_T', rule:object } | null} */
+  /** @type {{ status:'deviates_T', rule:ComponentDiff } | null} */
   let deviation = null;
   for (const t of list) {
     if (!t || typeof t !== "object") continue;
@@ -399,8 +438,8 @@ export function matchComponentT(diff, componentDiffs) {
  * 解決できない原因と、根拠（evidence）が空の原因は null を返し、呼び出し側は照合に使わない。
  * 原因の文言をインスタンスへ複製させないための参照解決であり、照合キーには一切関与しない。
  *
- * @param {object} ex - インスタンス例外
- * @param {Array<{ id?:string, reason?:string, evidence?:string }>} causes
+ * @param {InstanceException | null | undefined} ex - インスタンス例外
+ * @param {ExceptionCause[] | undefined} causes
  * @returns {{ id:string, reason:string, evidence:string } | null}
  */
 export function resolveExceptionCause(ex, causes) {
@@ -424,8 +463,8 @@ export function resolveExceptionCause(ex, causes) {
  * 検査するのは、照合に使わない各条件である（条件の一覧は references/normalize.md で定義する）。
  * これが diff-metadata.json の accepted_exceptions.unresolved の件数になる。
  *
- * @param {Array<object>} exceptions
- * @param {Array<object>} causes
+ * @param {unknown} exceptions - registries.component_diff_exceptions（読んだままの値。形はここで確かめる）
+ * @param {ExceptionCause[] | undefined} causes - registries.component_diff_exception_causes
  * @param {string} [slug] - 対象 slug（ctx.slug）。渡すと slug 不一致も検出する
  * @returns {string[]} 問題の説明（空配列なら全件が照合に使える）
  */
@@ -488,11 +527,11 @@ export function validateExceptions(exceptions, causes, slug) {
  *
  * 合致したら解決済みの原因を cause_reason / cause_evidence として添えて返す。
  *
- * @param {{ name?:string, prop?:string, expected?:string, actual?:string }} diff
- * @param {Array<object>} exceptions
+ * @param {TraitDiff} diff
+ * @param {InstanceException[] | undefined} exceptions
  * @param {{ slug:string, page?:string, state?:string, viewport?:string }} ctx
- * @param {Array<object>} causes - registries.component_diff_exception_causes
- * @returns {object | null}
+ * @param {ExceptionCause[] | undefined} causes - registries.component_diff_exception_causes
+ * @returns {MatchedException | null}
  */
 export function matchException(diff, exceptions, ctx, causes) {
   const list = Array.isArray(exceptions) ? exceptions : [];
@@ -549,10 +588,11 @@ export function matchNoise(noiseBaseline, ctx) {
  * 全件を noise_candidate にする。超えていれば 1 件も吸収しない（本物の回帰を警告なしに
  * 吸収しないためである）。基準値の行が無い組は吸収しない。
  *
- * @param {Array<{ classification:string, matched_rule:(object|string|null) }>} classified
- * @param {Array<object>} noiseBaseline
+ * @template {{ classification:string, matched_rule?:unknown }} D
+ * @param {D[]} classified - 分類済みの Diff（classification と matched_rule 以外の欄はそのまま返す）
+ * @param {Array<{ page?:string, state?:string, viewport?:string, trait_diffs?:number }>} noiseBaseline
  * @param {{ page?:string, state?:string, viewport?:string }} ctx
- * @returns {Array<{ classification:string, matched_rule:(object|string|null) }>}
+ * @returns {D[]}
  */
 export function applyNoiseBaseline(classified, noiseBaseline, ctx) {
   const noise = matchNoise(noiseBaseline, ctx);
@@ -574,10 +614,10 @@ export function applyNoiseBaseline(classified, noiseBaseline, ctx) {
  * 1 件の Diff を分類する。順序は intentional → T → exception → unexplained。
  * ノイズ基準値は個々の Diff ではなく残余へ集計で適用する（applyNoiseBaseline）。
  *
- * @param {object} diff
- * @param {object} registries - { intentional_diffs, component_diffs, component_diff_exceptions, component_diff_exception_causes }
+ * @param {TraitDiff} diff
+ * @param {Registries} registries
  * @param {{ slug:string, page?:string, state?:string, viewport?:string }} ctx
- * @returns {{ classification:string, matched_rule: (object|string|null) }}
+ * @returns {{ classification:string, matched_rule:(ComponentDiff|MatchedException|string|null) }}
  */
 export function classifyDiff(diff, registries, ctx) {
   const intentional = matchIntentional(diff, registries.intentional_diffs || {}, ctx);
@@ -619,6 +659,7 @@ export function main(argv) {
   const usage =
     "usage: node diff-normalize.mjs <trait-diffs.json> --registries <registries.json> --slug <slug> [--page <p> --state <s> --viewport <v>] [--noise <metadata.json>]\n";
   const positionals = [];
+  /** @type {Record<string, string | undefined>} */
   const opts = {};
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];

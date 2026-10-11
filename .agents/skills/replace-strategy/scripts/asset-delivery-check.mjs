@@ -451,9 +451,17 @@ function sha256(bytes) {
 }
 
 /**
+ * 突き合わせた 1 組の記録。current_redirected・new_redirected・bytes_match は、組を作った後に必ず埋める。
+ * @typedef {{ kind: string, current: string, new: string, referenced: boolean,
+ *             current_status: number, new_status: number,
+ *             current_sha256: string | null, new_sha256: string | null,
+ *             current_redirected?: boolean, new_redirected?: boolean, bytes_match?: boolean }} CheckedFile
+ */
+
+/**
  * 突き合わせる。
  * @param {{ ledgerText: string, record: unknown, probes: { label: string, doc: unknown }[], currentBase: string, newBase: string, fetcher: Fetcher }} input
- * @returns {Promise<{ findings: string[], notes: string[], files: object[], counts: { rows: number, checkedRows: number, files: number } }>}
+ * @returns {Promise<{ findings: string[], notes: string[], files: CheckedFile[], counts: { rows: number, checkedRows: number, files: number } }>}
  */
 export async function check(input) {
   const { copyRows } = readLedger(input.ledgerText);
@@ -462,7 +470,7 @@ export async function check(input) {
   const findings = [];
   /** @type {string[]} */
   const notes = [];
-  /** @type {object[]} */
+  /** @type {CheckedFile[]} */
   const files = [];
 
   const byKind = new Map(entries.map((e) => [e.kind, e]));
@@ -558,7 +566,7 @@ export async function check(input) {
         );
       }
       const [cur, neu] = await Promise.all([input.fetcher(currentUrl), input.fetcher(newUrl)]);
-      /** @type {Record<string, unknown>} */
+      /** @type {CheckedFile} */
       const result = {
         kind: row.kind,
         current: file.current,

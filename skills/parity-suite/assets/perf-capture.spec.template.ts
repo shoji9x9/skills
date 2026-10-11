@@ -90,7 +90,7 @@ test("性能の採取", async ({ browser }, testInfo) => {
   // 置き場所が両側で違うと、ネットワークの遅れが TTFB・LCP の差に入る。perf-stats.mjs が違いを env_mismatch にする
   const placement = targetPlacement(
     pages.map((p) => p.path),
-    contextOptions.baseURL as string | undefined,
+    typeof contextOptions.baseURL === "string" ? contextOptions.baseURL : undefined,
   );
 
   const samples: Record<string, unknown>[] = [];
@@ -112,22 +112,28 @@ test("性能の採取", async ({ browser }, testInfo) => {
             (settle) =>
               new Promise<{ lcp: number | null; cls: number; tbt: number; ttfb: number }>(
                 (resolve) => {
-                  const out = { lcp: null as number | null, cls: 0, tbt: 0, ttfb: 0 };
-                  const nav = performance.getEntriesByType("navigation")[0] as
-                    | PerformanceNavigationTiming
-                    | undefined;
-                  out.ttfb = nav ? nav.responseStart : 0;
+                  const out: { lcp: number | null; cls: number; tbt: number; ttfb: number } = {
+                    lcp: null,
+                    cls: 0,
+                    tbt: 0,
+                    ttfb: 0,
+                  };
+                  const nav = performance.getEntriesByType("navigation")[0];
+                  out.ttfb = nav instanceof PerformanceNavigationTiming ? nav.responseStart : 0;
                   const onLcp = (entries: PerformanceEntryList) => {
                     const last = entries.at(-1);
                     if (last) out.lcp = last.startTime;
                   };
                   const shifts: { at: number; value: number }[] = [];
+                  // LayoutShift は TypeScript の DOM の型に無いので、使う欄を持つかで確かめる
+                  const isLayoutShift = (
+                    e: PerformanceEntry,
+                  ): e is PerformanceEntry & { value: number; hadRecentInput: boolean } =>
+                    "value" in e && "hadRecentInput" in e;
                   const onShift = (entries: PerformanceEntryList) => {
-                    for (const e of entries as (PerformanceEntry & {
-                      value: number;
-                      hadRecentInput: boolean;
-                    })[]) {
-                      if (!e.hadRecentInput) shifts.push({ at: e.startTime, value: e.value });
+                    for (const e of entries) {
+                      if (isLayoutShift(e) && !e.hadRecentInput)
+                        shifts.push({ at: e.startTime, value: e.value });
                     }
                   };
                   // セッションウィンドウ: 直前のずれから 1 秒を超えるか、最初のずれから 5 秒を超えたら次の窓にする
@@ -200,7 +206,7 @@ test("性能の採取", async ({ browser }, testInfo) => {
       headless,
       target_placement: placement,
       context_options: contextFingerprint(contextOptions),
-      launch_options: launchFingerprint(use.launchOptions as Record<string, unknown> | undefined),
+      launch_options: launchFingerprint(use.launchOptions),
       runner: {
         platform: platform(),
         arch: arch(),
@@ -251,8 +257,10 @@ const CONTEXT_OPTION_KEYS = [
   "userAgent",
 ] as const;
 
-function contextOptionsFromUse(use: Record<string, unknown>): Record<string, unknown> {
-  const options: Record<string, unknown> = { ...(use.contextOptions as object | undefined) };
+function contextOptionsFromUse(
+  use: Record<string, unknown> & { contextOptions?: object },
+): Record<string, unknown> {
+  const options: Record<string, unknown> = { ...use.contextOptions };
   for (const key of CONTEXT_OPTION_KEYS) {
     if (use[key] !== undefined) options[key] = use[key];
   }
@@ -264,28 +272,32 @@ function contextOptionsFromUse(use: Record<string, unknown>): Record<string, unk
 function redactedContextOption(key: string, value: unknown): unknown {
   switch (key) {
     case "extraHTTPHeaders":
-      return Object.keys(value as Record<string, string>)
+      return Object.keys(objectOf(value, key))
         .map((name) => name.toLowerCase())
         .sort();
     case "httpCredentials": {
-      const c = value as { username: string; origin?: string; send?: string };
+      const c = objectOf(value, key);
       return { username: c.username, origin: c.origin ?? null, send: c.send ?? null };
     }
     case "proxy": {
-      const p = value as { server: string; bypass?: string };
+      const p = objectOf(value, key);
       return { server: p.server, bypass: p.bypass ?? null };
     }
     case "clientCertificates":
-      return (value as { origin: string }[]).map((c) => c.origin).sort();
+      return arrayOf(value, key)
+        .map((c) => objectOf(c, key).origin)
+        .sort();
     case "storageState": {
       if (typeof value === "string") return { path: value };
-      const state = value as {
-        cookies?: { name: string; domain: string; path: string }[];
-        origins?: { origin: string }[];
-      };
+      const state = objectOf(value, key);
       return {
-        cookies: (state.cookies ?? []).map((c) => `${c.domain}${c.path} ${c.name}`).sort(),
-        origins: (state.origins ?? []).map((o) => o.origin).sort(),
+        cookies: arrayOf(state.cookies ?? [], "storageState.cookies")
+          .map((c) => objectOf(c, "storageState.cookies"))
+          .map((c) => `${c.domain}${c.path} ${c.name}`)
+          .sort(),
+        origins: arrayOf(state.origins ?? [], "storageState.origins")
+          .map((o) => objectOf(o, "storageState.origins").origin)
+          .sort(),
       };
     }
     default:
@@ -313,7 +325,7 @@ function launchFingerprint(options: Record<string, unknown> | undefined): Record
     const value = options?.[key];
     if (value === undefined || typeof value === "function") continue;
     if (key === "env")
-      out[key] = Object.entries(value as Record<string, string>)
+      out[key] = Object.entries(objectOf(value, "launchOptions.env"))
         .filter(([name, v]) => process.env[name] !== v)
         .map(([name]) => name)
         .sort();
@@ -322,13 +334,30 @@ function launchFingerprint(options: Record<string, unknown> | undefined): Record
     // 値は `--flag=value` の形でも、次の要素（`["--flag", "value"]`）でも渡せる。
     // `-` で始まる要素はフラグ名だけを残して `=value` を `=*` にし、それ以外の要素は値として `*` にする
     else if (key === "args")
-      out[key] = (value as string[]).map((arg) => {
+      out[key] = arrayOf(value, "launchOptions.args").map((arg) => {
+        if (typeof arg !== "string")
+          throw new TypeError(`launchOptions.args の要素が文字列でない: ${arg}`);
         if (!arg.startsWith("-")) return "*";
         return arg.includes("=") ? `${arg.slice(0, arg.indexOf("="))}=*` : arg;
       });
     else out[key] = value;
   }
   return out;
+}
+
+// 設定の値は Playwright の型が形を決めている。ここでは読む前に、object か配列であることだけを確かめる
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function objectOf(value: unknown, name: string): Record<string, unknown> {
+  if (!isRecord(value)) throw new TypeError(`${name} が object でない: ${value}`);
+  return value;
+}
+
+function arrayOf(value: unknown, name: string): unknown[] {
+  if (!Array.isArray(value)) throw new TypeError(`${name} が配列でない: ${value}`);
+  return value;
 }
 
 // すべての頁が localhost・127.0.0.0/8・::1 を指せば loopback、1 つでも他を指せば remote

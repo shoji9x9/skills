@@ -55,7 +55,7 @@ class UsageError extends Error {}
 
 /**
  * @param {unknown} v
- * @returns {boolean}
+ * @returns {v is string}
  */
 function nonEmptyString(v) {
   return typeof v === "string" && v.trim() !== "";

@@ -213,10 +213,11 @@ export function sha256File(path) {
 /**
  * 既存の記録へ組を追記する。同じ pair id の組は置き換える（順序は既存の位置を保ち、新しい組は末尾）。
  *
- * @param {{ pairs?: Array<{ pair:string }> } | null} existing
- * @param {Array<{ pair:string }>} entries
+ * @template {{ pair:string }} T - 組の記録（pair 以外の欄はそのまま保つ）
+ * @param {{ pairs?: T[], change_id?: string } | null} existing
+ * @param {T[]} entries
  * @param {string | undefined} changeId
- * @returns {object}
+ * @returns {{ tool:string, version:string, change_id?:string, pairs:T[] }}
  */
 export function mergeRecord(existing, entries, changeId) {
   const pairs = Array.isArray(existing?.pairs) ? [...existing.pairs] : [];
@@ -225,6 +226,7 @@ export function mergeRecord(existing, entries, changeId) {
     if (at === -1) pairs.push(entry);
     else pairs[at] = entry;
   }
+  /** @type {{ tool:string, version:string, change_id?:string, pairs?:T[] }} */
   const record = { tool: "amend-verify", version: VERSION };
   const id = changeId ?? existing?.change_id;
   if (id !== undefined) record.change_id = id;
@@ -235,7 +237,7 @@ export function mergeRecord(existing, entries, changeId) {
 /**
  * pngjs を動的 import する（未導入なら null）。
  *
- * @returns {Promise<any|null>}
+ * @returns {Promise<{ sync: { read(buf: Uint8Array): Image } } | null>}
  */
 async function loadPng() {
   try {
@@ -261,6 +263,7 @@ const USAGE =
  *   regions: Rect[], margin:number }>, changeId?: string, out?: string }}
  */
 export function parseArgs(argv) {
+  /** @type {{ pair?:string, prev_new?:string, new?:string, current?:string, regions: Rect[] }} */
   const single = { regions: [] };
   let pairsPath;
   let margin = 0;
@@ -423,7 +426,9 @@ export async function main(argv) {
   }
   const entries = [];
   for (const spec of specs) {
+    /** @type {Record<string, Image>} */
     const images = {};
+    /** @type {Record<string, { path:string, sha256:string }>} */
     const inputs = {};
     try {
       for (const key of ["prev_new", "new", "current"]) {

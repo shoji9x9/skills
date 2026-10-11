@@ -62,6 +62,17 @@ export const VERSION = "4";
  */
 export const DEFAULT_COLOR_TOLERANCE = 96;
 
+/** @typedef {{ x:number, y:number, width:number, height:number }} Rect */
+/** @typedef {{ width:number, height:number, data:Uint8Array }} PngImage */
+/**
+ * summarizePixels の戻り値。
+ *
+ * @typedef {{ total_pixels:number, threshold_pixels:number, strict_pixels:number,
+ *             strict_only_pixels:number, strict_max_channel_delta:number,
+ *             strict_only_max_channel_delta:(number|null),
+ *             threshold_ratio:number, strict_ratio:number }} PixelSummary
+ */
+
 /**
  * 16 進カラー文字列（"ff0000" / "#ff0000"）を RGB に変換する。
  *
@@ -179,10 +190,7 @@ export function buildStrictMask(currentData, nextData, pixels, thresholdMask = n
  * @param {number|null} [maxStrictOnlyChannelDelta] - **しきい値の内側だけ**の最大チャンネル差
  *   （`buildStrictMask` に `thresholdMask` を渡した呼び出しでのみ定まる。渡していなければ null）
  *
- * @returns {{ total_pixels:number, threshold_pixels:number, strict_pixels:number,
- *             strict_only_pixels:number, strict_max_channel_delta:number,
- *             strict_only_max_channel_delta:(number|null),
- *             threshold_ratio:number, strict_ratio:number }}
+ * @returns {PixelSummary}
  */
 export function summarizePixels(
   thresholdMask,
@@ -595,7 +603,8 @@ function cropImage(img, bbox, margin, PngCtor) {
 /**
  * pngjs を動的 import する（未導入なら null）。
  *
- * @returns {Promise<any|null>}
+ * @returns {Promise<{ new (opts:{ width:number, height:number }): PngImage,
+ *   sync: { read(buf: Uint8Array): PngImage, write(png: PngImage): Uint8Array } } | null>}
  */
 async function loadPng() {
   try {
@@ -722,6 +731,14 @@ export async function main(argv) {
   }
   const mask = buildDiffMask(diff.data, diff.width, diff.height, target, DEFAULT_COLOR_TOLERANCE);
   const strict = buildStrictMask(current.data, next.data, current.width * current.height, mask);
+  /**
+   * 候補を作った後に、strict-only の件数を書き足す。
+   *
+   * @type {PixelSummary & { strict_only_regions_total?:number, strict_only_regions_emitted?:number,
+   *   strict_only_dropped_clusters?:number, strict_only_dropped_pixels?:number,
+   *   strict_min_cluster?:number, strict_only_absorbed_pixels?:number,
+   *   strict_only_overlapping_regions?:number }}
+   */
   const summary = summarizePixels(
     mask,
     strict.mask,
@@ -787,6 +804,12 @@ export async function main(argv) {
   }
   const strictClusters = strictClustered.kept;
   const strictSelected = selectStrictRegions(strictClusters, strictMaxRegions);
+  /**
+   * overlaps_regions は全件を作った後に書き足す。
+   *
+   * @type {Array<{ id:string, bbox:Rect, strict_pixels:number, crop_current:string, crop_new:string,
+   *   overlaps_regions?:number[] }>}
+   */
   const strictResult = [];
   for (let i = 0; i < strictSelected.length; i += 1) {
     const id = strictSelected[i].id;

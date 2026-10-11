@@ -115,8 +115,8 @@ export function countStrictDiff(aData, bData, pixels, markedMask = null) {
 }
 
 /**
- * pngjs を動的 import する（未導入なら null）。
- * @returns {Promise<any|null>}
+ * pngjs を動的 import する（未導入なら null）。ここで使う `PNG.sync.read` の形だけを書く。
+ * @returns {Promise<{ sync: { read(buf: Uint8Array): { width: number, height: number, data: Uint8Array } } } | null>}
  */
 async function loadPng() {
   try {

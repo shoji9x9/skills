@@ -131,11 +131,66 @@ export const STATE_PSEUDO_CLASSES = [
 ];
 
 /**
+ * 宣言 1 件（規則の中の宣言と、style 属性の宣言の両方）。
+ * @typedef {{ property: string, value: string, important: boolean }} CssDeclaration
+ */
+
+/**
+ * 要素に当たった規則 1 件（セレクタリストは 1 件ずつに分けて記録する）。
+ * @typedef {{
+ *   order: number,
+ *   selector: string,
+ *   original_selector: string,
+ *   states: string[],
+ *   pseudo_element: string | null,
+ *   conditions: string[],
+ *   layers: string[],
+ *   href: string | null,
+ *   declarations: CssDeclaration[],
+ * }} MatchedRule
+ */
+
+/**
+ * 当たるかを判定しなかった規則 1 件。reason に判定しなかった理由を書く。
+ * @typedef {{ selector: string, original_selector: string, href: string | null, reason: string }} UnresolvedRule
+ */
+
+/**
+ * 規則を読めなかったスタイルシート 1 件。
+ * @typedef {{ href: string | null, error: string }} InaccessibleSheet
+ */
+
+/**
+ * 1 つの要素の採取の結果。
+ * @typedef {{
+ *   matched: MatchedRule[],
+ *   unresolved: UnresolvedRule[],
+ *   inaccessible: InaccessibleSheet[],
+ *   inline_declarations: CssDeclaration[],
+ *   shadow_host: boolean,
+ *   slotted: boolean,
+ *   counts: {
+ *     sheets: number,
+ *     style_rules: number,
+ *     import_rules: number,
+ *     nested_declaration_rules: number,
+ *     outer_scope_skipped: number,
+ *     host_scope_skipped: number,
+ *     slotted_scope_skipped: number,
+ *     matched: number,
+ *     inline_declarations: number,
+ *   },
+ *   shadow_root: boolean,
+ * }} MatchedRulesCapture
+ */
+
+/**
  * 要素に当たりうる CSS 規則を採る（ブラウザ内で実行される）。
  *
  * @param {Element} el 対象の要素。
- * @param {{ statePseudoClasses: readonly string[] }} options 状態擬似クラスの集合。
- * @returns {object} 採取の結果（matched / unresolved / inaccessible / counts）。
+ * @param {{ statePseudoClasses: readonly string[], structuralPseudoClasses?: readonly string[] }} options
+ *   状態擬似クラスと構造擬似クラスの集合。
+ * @returns {MatchedRulesCapture} 採取の結果。
  */
 export function collectMatchedRules(el, options) {
   const stateNames = new Set(options.statePseudoClasses);
@@ -725,9 +780,17 @@ export function collectMatchedRules(el, options) {
 /**
  * 論理名を付けた要素ごとに、当たっている CSS 規則を採る。
  *
- * @param {{ name: string, locator: { evaluate: Function } }[]} entries 論理名と Playwright Locator の組。
- * @param {{ statePseudoClasses?: readonly string[] }} [options]
- * @returns {Promise<object[]>} 論理名ごとの採取の結果。
+ * @param {{
+ *   name: string,
+ *   locator: {
+ *     evaluate(
+ *       fn: (el: Element, arg: { statePseudoClasses: readonly string[], structuralPseudoClasses: readonly string[] }) => unknown,
+ *       arg: { statePseudoClasses: readonly string[], structuralPseudoClasses: readonly string[] },
+ *     ): Promise<unknown>,
+ *   },
+ * }[]} entries 論理名と Playwright Locator の組。
+ * @param {{ statePseudoClasses?: readonly string[], structuralPseudoClasses?: readonly string[] }} [options]
+ * @returns {Promise<({ name: string, tool_version: string } & MatchedRulesCapture)[]>} 論理名ごとの採取の結果。
  */
 export async function captureMatchedRules(entries, options = {}) {
   const resolved = {

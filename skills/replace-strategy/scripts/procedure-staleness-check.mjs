@@ -768,7 +768,7 @@ export function main(argv, deps = {}) {
     // 明示したパスが無いのは綴り・cwd の誤り。「台帳なし」として読むと台帳の未判断が警告なしに消える（--parity-dir と同じ扱い）。
     if (args["--ledger"] !== undefined) return fail(`--ledger に渡した ${ledgerPath} が無い`);
   }
-  /** @type {{ changes: any[], records: any[] }} */
+  /** @type {{ changes: Array<{ id: string, added_at: string, axis: string, origin: string, affects: string[], placement: string }>, records: Array<{ id: string, change: string, slug: string, decision: string, recorded_at: string, basis: string }> }} 台帳が無ければ空（readLedger が読めた形と同じ） */
   let ledger = { changes: [], records: [] };
   if (ledgerExists) {
     const skillChangeIds = new Set(revisions.changes.map((change) => change.id));

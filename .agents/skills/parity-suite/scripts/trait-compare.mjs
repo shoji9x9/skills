@@ -294,10 +294,10 @@ export function compareTraits(baselineEntries, captureEntries, options = {}) {
 
   // 0. 論理名の重複は authoring ミス（Map が後勝ちで潰れ、先勝ち分の退行が隠れる）。
   //    警告なしに比較を続けず、診断として差分に出す。
-  for (const [label, entries] of [
+  for (const [label, entries] of /** @type {[string, Trait[]][]} */ ([
     ["baseline", baselineEntries],
     ["capture", captureEntries],
-  ]) {
+  ])) {
     const counts = new Map();
     for (const e of entries) counts.set(e.name, (counts.get(e.name) ?? 0) + 1);
     for (const [name, count] of counts) {

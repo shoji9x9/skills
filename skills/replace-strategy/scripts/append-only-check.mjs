@@ -1339,7 +1339,7 @@ function lastSegment(path) {
 /**
  * 一覧の unit に従って単位を数える。
  * @param {string} text
- * @param {{ unit: string, arrays: string[], key?: string | null, mutableColumns?: string[], fillOnlyColumns?: string[], mutableBullets?: string[], mutableBlocks?: string[] }} artifact
+ * @param {{ unit: string, arrays: string[], key?: string | null, mutableColumns?: string[], fillOnlyColumns?: string[], mutableBullets?: string[], mutableBlocks?: string[], growableContainers?: string[], registryGroups?: { id: string, itemKey: string, paths: string[] }[] }} artifact
  * @param {string} label
  * @param {{ path: string, prefixes: string[], lines: string[] }[]} [wrappedOut] 連結しても閉じない
  *   フロー形式のコンテナを積む先（診断用。帰属判定の材料を伴う）
@@ -1986,10 +1986,13 @@ export function check(opts) {
       if (lost.length < 3) lost.push(unit.length > 120 ? `${unit.slice(0, 117)}...` : unit);
       // その消失が読めなかったコンテナ由来か（読みに行った行そのもの、またはそのコンテナの
       // 要素が作る単位）を見る。ファイル単位で案内を出すと無関係な鍵の削除にまで付く。
-      for (const [list, blamed] of [
+      for (const [
+        list,
+        blamed,
+      ] of /** @type {[{ path: string, prefixes: string[], lines: string[] }[], Set<string>][]} */ ([
         [wrappedBefore, blamedBefore],
         [wrappedAfter, blamedAfter],
-      ]) {
+      ])) {
         for (const w of list) {
           if (w.lines.includes(unit) || w.prefixes.some((prefix) => unit.startsWith(prefix))) {
             blamed.add(w.path);

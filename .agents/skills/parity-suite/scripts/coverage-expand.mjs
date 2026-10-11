@@ -1016,7 +1016,9 @@ export function loadProfiles(dir, deps = {}) {
  * @param {unknown} enumeration
  * @param {Record<string, unknown>} profile
  * @param {string} label - エラーメッセージ用のラベル
- * @returns {{elements: Map<string, Array<{id: string, flags: Record<string, boolean>}>>, problems: string[], usable: boolean}}
+ * @returns {{elements: Map<string, Array<{id: string, flags: Record<string, boolean>}>>, absences?: undefined, problems: string[], usable: false}
+ *   | {elements: Map<string, Array<{id: string, flags: Record<string, boolean>}>>, absences: {axes: Set<string>, elements: Set<string>}, problems: string[], usable: boolean}}
+ *   列挙の形が読めないときは absences を持たず usable: false を返す
  */
 export function readEnumeration(enumeration, profile, label) {
   /** @type {string[]} */
@@ -1500,7 +1502,7 @@ function unscoredProfiledCellCount(c) {
  * @param {Map<string, Record<string, unknown>>} profiles
  * @param {{pageNames: string[], states: string[], popupStates: string[]} | null} [metadata] - metadata.json の撮影条件。
  *   渡さない実行では撮影状態の照合を checked: false にする（照合していない記録を照合済みとして扱わない）。
- * @returns {{ok: boolean, components: Array<Record<string, unknown>>, problems: string[], candidates: number, unmeasured: number, visualStates: {checked: boolean, rows: number, undecided: number, missing_states: string[]}}}
+ * @returns {{ok: boolean, components: Array<Record<string, unknown>>, problems: string[], candidates: number, unmeasured: number, visualStates: {checked: boolean, table_fingerprint?: string, capture_fingerprint?: string | null, rows: number, undecided: number, missing_states: string[]}}}
  */
 export function reconcile(coverage, profiles, metadata = null) {
   /** @type {string[]} */
@@ -2020,7 +2022,7 @@ function visualRowKey(row) {
 export function deriveVisualStateRows(cov) {
   /** @type {string[]} */
   const problems = [];
-  /** @type {Map<string, {component: string, instance: string, kind: string, requiredBy: Set<string>}>} */
+  /** @type {Map<string, {component: string, instance: string, required_by: string, kind: string}>} */
   const derived = new Map();
   const components = Array.isArray(cov.components) ? cov.components : [];
   const cells = Array.isArray(cov.cells) ? cov.cells : [];
@@ -2222,7 +2224,7 @@ export function fillVisualStateRows(cov) {
  * （照合していない記録を「照合済み」として扱わない。parity-diff は checked: true を要求する）。
  * @param {Record<string, unknown>} cov
  * @param {{pageNames: string[], states: string[], popupStates: string[]} | null} metadata
- * @returns {{problems: string[], summary: {checked: boolean, rows: number, undecided: number, missing_states: string[]}}}
+ * @returns {{problems: string[], summary: {checked: boolean, table_fingerprint: string, capture_fingerprint: string | null, rows: number, undecided: number, missing_states: string[]}}}
  */
 export function checkVisualStates(cov, metadata) {
   const { rows: derivedRows, problems } = deriveVisualStateRows(cov);
@@ -2494,7 +2496,7 @@ export function fillCandidates(coverage, profiles) {
  * 照合結果を conformance として網羅表へ記録する。parity-diff はプロファイルを読まないため、
  * ここに残った ok が「展開ルールまで含めて適合したか」の唯一の記録になる。
  * @param {Record<string, unknown>} coverage
- * @param {{ok: boolean, problems: string[], candidates: number, unmeasured: number, visualStates: {checked: boolean, rows: number, undecided: number, missing_states: string[]}}} result
+ * @param {{ok: boolean, problems: string[], candidates: number, unmeasured: number, visualStates: {checked: boolean, table_fingerprint?: string, capture_fingerprint?: string | null, rows: number, undecided: number, missing_states: string[]}}} result
  * @returns {Record<string, unknown>}
  */
 export function recordConformance(coverage, result) {
@@ -2662,7 +2664,7 @@ export function main(argv, deps = {}) {
   }
   // 書き戻しは照合の前に行う。候補の記録忘れを書き戻しで埋めたうえで、
   // 埋めても直らない欠落（項目・セルが無い、証拠が無い）だけを問題として残す。
-  /** @type {{states: string[], popupStates: string[]} | null} */
+  /** @type {{slug: string, pageNames: string[], states: string[], popupStates: string[]} | null} */
   let metadata = null;
   if (opts.metadata !== undefined) {
     /** @type {unknown} */
