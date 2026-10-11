@@ -13,7 +13,7 @@
 // private skill かは `skills/<name>/` が無いことで決める（scripts/lib/source-scope.ts と同じ判定）。
 // `.private-skill` の印で決めると、印を付け忘れた private skill がこの検査から外れる。
 import { spawnSync } from "node:child_process";
-import { existsSync, realpathSync } from "node:fs";
+import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { errorMessage } from "../lib/errors.ts";
 import { sourceSkillNames } from "../lib/source-scope.ts";
@@ -61,8 +61,10 @@ export function findViolations(
  * `.gitignore` のものを除くのは、テストが `scripts/` の下に一時的に作る fixture（`.cjs` など）を数えないため。
  * 未追跡のファイルを含めるのは、`git add` の前に置いた違反も検出するため。
  * 1 回の `git ls-files` で全体を取り、規則はパスの接頭辞で振り分ける。
+ * 作業ツリーに在るかでは絞らない。stage した違反を作業ツリーから消しても、commit には入るため。
+ * `root` はリポジトリのルート（pathspec と返るパスは、起動した場所ではなくルートからの相対パスになる）。
  */
-export function listFiles(cwd: string): string[] {
+export function listFiles(root: string): string[] {
   const res = spawnSync(
     "git",
     [
@@ -76,23 +78,41 @@ export function listFiles(cwd: string): string[] {
       "scripts",
       ".agents/skills",
     ],
-    { cwd, encoding: "utf8" },
+    { cwd: root, encoding: "utf8" },
   );
   if (res.status !== 0) {
     throw new Error(`git ls-files に失敗した（exit ${res.status}）: ${res.stderr}`);
   }
-  return res.stdout.split("\0").filter((p) => p !== "" && existsSync(`${cwd}/${p}`));
+  return res.stdout.split("\0").filter((p) => p !== "");
+}
+
+/** `cwd` を含むリポジトリのルート。どの場所から起動しても、同じ範囲を走査するため。 */
+export function repoRoot(cwd: string): string {
+  const res = spawnSync("git", ["rev-parse", "--show-toplevel"], { cwd, encoding: "utf8" });
+  if (res.status !== 0) {
+    throw new Error(
+      `git のリポジトリのルートを特定できない（git rev-parse exit ${res.status}）: ${res.stderr}`,
+    );
+  }
+  return res.stdout.trim();
 }
 
 export function main(cwd = "."): number {
+  let root: string;
   let files: string[];
   try {
-    files = listFiles(cwd);
+    root = repoRoot(cwd);
+    files = listFiles(root);
   } catch (error) {
     console.error(`js-extensions: ${errorMessage(error)}`);
     return 2;
   }
-  const violations = findViolations(files, sourceSkillNames(cwd));
+  // 走査したファイルが 0 件なのは、対象が無いのではなく走査の範囲を取り違えている（判定できない）。
+  if (files.length === 0) {
+    console.error(`js-extensions: 走査したファイルが 0 件（${root}）。判定できないので失敗にする`);
+    return 2;
+  }
+  const violations = findViolations(files, sourceSkillNames(root));
   if (violations.length) {
     console.error("js-extensions: 拡張子ポリシー違反:");
     for (const v of violations) console.error(`  - ${v}`);

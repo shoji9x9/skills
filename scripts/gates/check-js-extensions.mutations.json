@@ -89,10 +89,31 @@
       "id": "GIT-FAIL-PASSES",
       "why": "git ls-files の失敗を合格として扱う",
       "file": "scripts/gates/check-js-extensions.ts",
-      "find": "    return 2;\n",
-      "replace": "    return 0;\n",
+      "find": "    console.error(`js-extensions: ${errorMessage(error)}`);\n    return 2;\n",
+      "replace": "    console.error(`js-extensions: ${errorMessage(error)}`);\n    return 0;\n",
       "occurrences": 1,
       "expect_failing": ["CLI: git のリポジトリでなければ判定できないとして exit 2"]
+    },
+    {
+      "id": "NO-REPO-ROOT",
+      "why": "起動した場所をそのまま走査の起点にする",
+      "file": "scripts/gates/check-js-extensions.ts",
+      "find": "    root = repoRoot(cwd);\n",
+      "replace": "    root = cwd;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI: リポジトリのサブディレクトリから起動しても、ルートから同じ範囲を走査する",
+        "CLI: git のリポジトリでなければ判定できないとして exit 2"
+      ]
+    },
+    {
+      "id": "ZERO-PASSES",
+      "why": "走査したファイルが 0 件でも合格として扱う",
+      "file": "scripts/gates/check-js-extensions.ts",
+      "find": "  if (files.length === 0) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["CLI: 走査したファイルが 0 件なら、判定できないとして exit 2"]
     }
   ]
 }

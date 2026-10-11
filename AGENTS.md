@@ -29,7 +29,8 @@ Claude Code・Codex・GitHub Copilot に対応した、マルチエージェン�
 
 JavaScript の拡張子は、配布する `skills/**` では `.mjs` にする。配布しない `scripts/**` と private skill は TypeScript（`.ts`）で書く。
 `.ts` は Node が型を消して直接実行するので、型を消すだけでは実行できない構文（`enum` など）は使わない。
-ツールが読む設定ファイル（`vitest.config.ts` など）は `.ts` にする。`scripts/gates/check-js-extensions.ts` がこれをチェックする。
+ツールが読む設定ファイル（`vitest.config.ts` など）は `.ts` にする。
+`skills/**`・`scripts/**`・private skill の拡張子は、`scripts/gates/check-js-extensions.ts` がチェックする。
 
 pre-commit と CI で実行するチェックの一覧、ミューテーションテスト、Markdown の行長などの詳細は [`docs/tooling.md`](docs/tooling.md) にある。
 

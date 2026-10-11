@@ -9,7 +9,7 @@
 // | git での状態 | 追跡 / 無視されていない未追跡 / .gitignore で無視                      |
 import { expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { findViolations, violationOf } from "./check-js-extensions.ts";
@@ -148,5 +148,34 @@ test("CLI: git のリポジトリでなければ判定できないとして exit
     env: { ...process.env, GIT_CEILING_DIRECTORIES: dirname(root) },
   });
   expect(r.status).toBe(2);
-  expect(r.stderr).toContain("git ls-files に失敗した");
+  expect(r.stderr).toContain("git のリポジトリのルートを特定できない");
+});
+
+test("CLI: リポジトリのサブディレクトリから起動しても、ルートから同じ範囲を走査する", () => {
+  const root = makeRepo({
+    "scripts/bad.js": "tracked",
+    "scripts/skills/demo/a.test.ts": "tracked",
+    "docs/readme.md": "tracked",
+  });
+  for (const sub of ["docs", "scripts"]) {
+    const r = runCli(join(root, sub));
+    expect(r.status).toBe(1);
+    expect(r.out).toContain("scripts/bad.js: scripts/ では .js を使わない");
+    expect(r.out).not.toContain("a.test.ts");
+  }
+});
+
+test("CLI: stage した違反は、作業ツリーから消しても検出する", () => {
+  const root = makeRepo({ "scripts/ok.ts": "tracked", "scripts/staged.js": "tracked" });
+  rmSync(join(root, "scripts/staged.js"));
+  const r = runCli(root);
+  expect(r.status).toBe(1);
+  expect(r.out).toContain("scripts/staged.js: scripts/ では .js を使わない");
+});
+
+test("CLI: 走査したファイルが 0 件なら、判定できないとして exit 2", () => {
+  const root = makeRepo({ "docs/readme.md": "tracked" });
+  const r = runCli(root);
+  expect(r.status).toBe(2);
+  expect(r.out).toContain("走査したファイルが 0 件");
 });
