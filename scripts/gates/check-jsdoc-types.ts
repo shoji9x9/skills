@@ -10,7 +10,7 @@
 //   - `@ts-ignore`・`@ts-expect-error`・`@ts-nocheck` のコメント。
 // 対象は `tsconfig.skills.json` の include と同じ、`skills/*/**/*.mjs`。
 // 構文は TypeScript のパーサで読む。文字列・正規表現・テンプレートの中の `/**` や `@ts-ignore` を、コメントとして扱わない。
-import { readFileSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
@@ -18,7 +18,8 @@ import { listFiles, repoRoot } from "./check-js-extensions.ts";
 import { errorMessage } from "../lib/errors.ts";
 
 const TARGET_RE = /^skills\/[^/]+\/.*\.mjs$/;
-const TS_COMMENT_RE = /@ts-(?:ignore|expect-error|nocheck)\b/;
+// TypeScript が指示として読む位置（コメントの行の先頭）の @ts-*。説明の文章の途中に書いた語は指示ではないので数えない。
+const TS_COMMENT_RE = /^\s*(?:\/\/\/?|\/\*+|\*+)?\s*(@ts-(?:ignore|expect-error|nocheck))\b/m;
 // 型引数を省くと型引数が any になる、よく使う組み込みのジェネリック型。
 const GENERIC_NAMES = new Set([
   "Array",
@@ -58,7 +59,7 @@ function anyLike(node: ts.Node): string | null {
   if (
     ts.isTypeReferenceNode(node) &&
     ts.isIdentifier(node.typeName) &&
-    node.typeName.text === "Function"
+    (node.typeName.text === "Function" || node.typeName.text === "function")
   )
     return "Function";
   // JavaScript では、型引数を省いたジェネリック型の型引数は `any` になる（`Array` は `Array<any>`）。
@@ -86,6 +87,16 @@ function isCast(tag: ts.JSDocTypeTag | undefined): boolean {
   );
 }
 
+/**
+ * 括弧そのものに付いた `@type`。`getJSDocTypeTag` は親の宣言の JSDoc までさかのぼるので、
+ * `/** @type {X} *\/ const v = (w);` の宣言の注釈まで表明として数えてしまう。TypeScript が表明として読むのは、
+ * 括弧の直前に置いた JSDoc だけである。
+ */
+function ownTypeTag(node: ts.ParenthesizedExpression): ts.JSDocTypeTag | undefined {
+  const tag = ts.getJSDocTypeTag(node);
+  return tag?.parent.parent === node ? tag : undefined;
+}
+
 /** 1 ファイルの違反（`行: 理由`）。 */
 export function findEscapes(path: string, text: string): string[] {
   const sf = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
@@ -101,9 +112,9 @@ export function findEscapes(path: string, text: string): string[] {
       if (seenComments.has(range.pos)) continue;
       seenComments.add(range.pos);
       const m = TS_COMMENT_RE.exec(text.slice(range.pos, range.end));
-      if (m) out.push(`${lineOf(range.pos)}: ${m[0]} で型の検査を外さない`);
+      if (m) out.push(`${lineOf(range.pos)}: ${m[1]} で型の検査を外さない`);
     }
-    if (ts.isParenthesizedExpression(node) && isCast(ts.getJSDocTypeTag(node))) {
+    if (ts.isParenthesizedExpression(node) && isCast(ownTypeTag(node))) {
       out.push(
         `${lineOf(node.getStart(sf))}: JSDoc の型の表明（/** @type {X} */ (v)）を使わない。型ガードで絞る`,
       );
@@ -133,6 +144,8 @@ export function main(cwd = "."): number {
   }
   const violations: string[] = [];
   for (const file of files) {
+    // 作業ツリーから消して、まだ index に残っているファイルは、消す途中なので読まない。
+    if (!existsSync(join(root, file))) continue;
     let text: string;
     try {
       text = readFileSync(join(root, file), "utf8");

@@ -126,6 +126,21 @@ function isRecord(value) {
 }
 
 /**
+ * display_axes の 4 つの一覧を取り出す。どれかが配列でなければ、最初に見つけたキーの名前を返す
+ * （axes・absent・pairs・variants の順。キーの名前と検査を 1 か所にまとめる）。
+ * @param {Record<string, unknown>} da
+ * @returns {{ axes: unknown[], absent: unknown[], pairs: unknown[], variants: unknown[] } | string}
+ */
+function displayAxisLists(da) {
+  const { axes, absent, pairs, variants } = da;
+  if (!Array.isArray(axes)) return "axes";
+  if (!Array.isArray(absent)) return "absent";
+  if (!Array.isArray(pairs)) return "pairs";
+  if (!Array.isArray(variants)) return "variants";
+  return { axes, absent, pairs, variants };
+}
+
+/**
  * 語彙（文字列の一覧）のどれかと一致する文字列か。
  * @param {readonly string[]} list
  * @param {unknown} value
@@ -549,29 +564,15 @@ export function checkDisplayAxes(conditions) {
     add("display-axes-malformed", "capture_conditions.display_axes がオブジェクトではない");
     return result();
   }
-  const da = raw;
-  for (const key of ["axes", "absent", "pairs", "variants"]) {
-    if (!Array.isArray(da[key])) {
-      add(
-        "display-axes-malformed",
-        `capture_conditions.display_axes.${key} が配列ではない（空でもキーごと書く。欠落は「数えていない」と区別できない）`,
-      );
-      return result();
-    }
-  }
-  const axisList = da.axes;
-  const absentList = da.absent;
-  const pairList = da.pairs;
-  const variantList = da.variants;
-  // 上のループで 4 つとも配列であることを確かめてある。ここは型を絞るための再確認で、到達しない
-  if (
-    !Array.isArray(axisList) ||
-    !Array.isArray(absentList) ||
-    !Array.isArray(pairList) ||
-    !Array.isArray(variantList)
-  ) {
+  const lists = displayAxisLists(raw);
+  if (typeof lists === "string") {
+    add(
+      "display-axes-malformed",
+      `capture_conditions.display_axes.${lists} が配列ではない（空でもキーごと書く。欠落は「数えていない」と区別できない）`,
+    );
     return result();
   }
+  const { axes: axisList, absent: absentList, pairs: pairList, variants: variantList } = lists;
   const declaredPages = Array.isArray(conditions.pages)
     ? conditions.pages
         .map((p) => (isRecord(p) ? p.name : undefined))

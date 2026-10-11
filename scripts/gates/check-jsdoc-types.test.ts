@@ -10,7 +10,7 @@
 // | 置き場所       | skills/<name>/scripts・assets / その他のディレクトリ / .mjs でない          |
 import { expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { findEscapes, isTarget } from "./check-jsdoc-types.ts";
@@ -39,6 +39,10 @@ test.each([
   ["const の表明", "const a = /** @type {const} */ ([1, 2]);\n"],
   ["括弧だけ", "const a = (v);\n"],
   ["@param の付いた関数", "/** @param {unknown} v */\nfunction f(v) { return (v); }\n"],
+  // 括弧で始まる初期化子・値・戻り値。JSDoc は宣言や文に付いていて、括弧には付いていない。
+  ["括弧で始まる初期化子の宣言の注釈", "/** @type {string} */ const v = (String(1));\n"],
+  ["括弧で始まる値の欄の注釈", "const o = { /** @type {string} */ a: (x) };\n"],
+  ["括弧で始まる return の注釈", "function f() { /** @type {string} */ return (x); }\n"],
 ])("型を外さない書き方は検出しない: %s", (_name, text) => {
   expect(find(text)).toEqual([]);
 });
@@ -49,6 +53,7 @@ test.each([
   ["?", "/** @returns {?} */\nfunction f() {}\n", "?"],
   ["型引数の無い Object", "/** @type {Object} */\nconst a = {};\n", "Object"],
   ["Function", "/** @param {Function} g */\nfunction f(g) {}\n", "Function"],
+  ["小文字の function", "/** @param {function} g */\nfunction f(g) {}\n", "Function"],
   ["入れ子の any", "/** @type {Array<{ x: any }>} */\nconst a = [];\n", "any"],
   ["@typedef の any", "/** @typedef {{ x: any }} T */\n", "any"],
   ["型引数の無い Array", "/** @param {Array} a */\nfunction f(a) {}\n", "型引数の無い Array"],
@@ -76,6 +81,7 @@ test.each([
   ["ブロックの @ts-expect-error", "const a = 1; /* @ts-expect-error */\n", "@ts-expect-error"],
   ["@ts-nocheck", "// @ts-nocheck\nexport {};\n", "@ts-nocheck"],
   ["空のブロックの中", "if (x) {\n  // @ts-ignore\n}\n", "@ts-ignore"],
+  ["JSDoc の行の先頭", "/**\n * @ts-ignore\n */\nexport {};\n", "@ts-ignore"],
   ["ファイルの末尾", "export {};\n// @ts-ignore\n", "@ts-ignore"],
 ])("ts のコメントを検出する: %s", (_name, text, kind) => {
   const v = find(text);
@@ -88,6 +94,8 @@ test.each([
   ["テンプレートの中", "const a = `/** @type {any} */ (v)`;\n"],
   ["正規表現の中", "const a = /@ts-ignore/;\n"],
   ["@ts-check", "// @ts-check\nexport {};\n"],
+  // TypeScript が指示として読むのはコメントの行の先頭だけで、説明の文章の途中の語は指示ではない。
+  ["説明の文章の途中", "// このファイルでは @ts-ignore を使わない\nexport {};\n"],
 ])("コメントでない文字列は検出しない: %s", (_name, text) => {
   expect(find(text)).toEqual([]);
 });
@@ -145,6 +153,17 @@ test("CLI: 対象の違反を、パスと行番号の付いた一覧で報告し
   expect(r.out).toContain("skills/demo/scripts/bad.mjs:1: JSDoc の型の表明");
   expect(r.out).not.toContain("ok.mjs");
   expect(r.out).not.toContain("out.mjs");
+});
+
+test("CLI: 作業ツリーから消して index に残るファイルは読まずに通す", () => {
+  const root = makeRepo({
+    "skills/demo/scripts/ok.mjs": "export {};\n",
+    "skills/demo/scripts/removed.mjs": "export {};\n",
+  });
+  rmSync(join(root, "skills/demo/scripts/removed.mjs"));
+  const r = runCli(root);
+  expect(r.status).toBe(0);
+  expect(r.out).toContain("jsdoc-types: OK");
 });
 
 test("CLI: 違反が無ければ件数を出して exit 0", () => {

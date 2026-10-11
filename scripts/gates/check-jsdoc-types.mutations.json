@@ -10,7 +10,7 @@
       "id": "NO-CAST",
       "why": "JSDoc の型の表明を検出しない",
       "file": "scripts/gates/check-jsdoc-types.ts",
-      "find": "if (ts.isParenthesizedExpression(node) && isCast(ts.getJSDocTypeTag(node))) {",
+      "find": "if (ts.isParenthesizedExpression(node) && isCast(ownTypeTag(node))) {",
       "replace": "if (false) {",
       "occurrences": 1,
       "expect_failing": [
@@ -26,26 +26,30 @@
       "id": "CAST-ANY-JSDOC",
       "why": "括弧に付いた JSDoc を、@type でなくても表明として扱う（@satisfies・@param を誤検知する）",
       "file": "scripts/gates/check-jsdoc-types.ts",
-      "find": "ts.isParenthesizedExpression(node) && isCast(ts.getJSDocTypeTag(node))",
+      "find": "ts.isParenthesizedExpression(node) && isCast(ownTypeTag(node))",
       "replace": "ts.isParenthesizedExpression(node) && ts.getJSDocTags(node).length > 0",
       "occurrences": 1,
       "expect_failing": [
         "型を外さない書き方は検出しない: @satisfies",
-        "型を外さない書き方は検出しない: const の表明"
+        "型を外さない書き方は検出しない: const の表明",
+        "型を外さない書き方は検出しない: 括弧で始まる初期化子の宣言の注釈"
       ]
     },
     {
       "id": "CAST-ANY-PAREN",
       "why": "JSDoc の無い括弧も表明として扱う",
       "file": "scripts/gates/check-jsdoc-types.ts",
-      "find": "ts.isParenthesizedExpression(node) && isCast(ts.getJSDocTypeTag(node))",
+      "find": "ts.isParenthesizedExpression(node) && isCast(ownTypeTag(node))",
       "replace": "ts.isParenthesizedExpression(node)",
       "occurrences": 1,
       "expect_failing": [
         "型を外さない書き方は検出しない: @param の付いた関数",
         "型を外さない書き方は検出しない: @satisfies",
         "型を外さない書き方は検出しない: const の表明",
-        "型を外さない書き方は検出しない: 括弧だけ"
+        "型を外さない書き方は検出しない: 括弧だけ",
+        "型を外さない書き方は検出しない: 括弧で始まる初期化子の宣言の注釈",
+        "型を外さない書き方は検出しない: 括弧で始まる値の欄の注釈",
+        "型を外さない書き方は検出しない: 括弧で始まる return の注釈"
       ]
     },
     {
@@ -101,10 +105,13 @@
       "id": "NO-FUNCTION",
       "why": "JSDoc の型の Function を検出しない（呼び出しの戻り値が any になる）",
       "file": "scripts/gates/check-jsdoc-types.ts",
-      "find": "    node.typeName.text === \"Function\"\n",
+      "find": "    (node.typeName.text === \"Function\" || node.typeName.text === \"function\")\n",
       "replace": "    false\n",
       "occurrences": 1,
-      "expect_failing": ["JSDoc の型の any 相当を検出する: Function"]
+      "expect_failing": [
+        "JSDoc の型の any 相当を検出する: Function",
+        "JSDoc の型の any 相当を検出する: 小文字の function"
+      ]
     },
     {
       "id": "NO-TRAILING",
@@ -127,7 +134,8 @@
         "ts のコメントを検出する: ブロックの @ts-expect-error",
         "ts のコメントを検出する: @ts-nocheck",
         "ts のコメントを検出する: 空のブロックの中",
-        "ts のコメントを検出する: ファイルの末尾"
+        "ts のコメントを検出する: ファイルの末尾",
+        "ts のコメントを検出する: JSDoc の行の先頭"
       ]
     },
     {
@@ -148,7 +156,8 @@
         "JSDoc の型の any 相当を検出する: Function",
         "JSDoc の型の any 相当を検出する: 型引数の無い Array",
         "JSDoc の型の any 相当を検出する: 型引数の無い Promise",
-        "JSDoc の型の any 相当を検出する: 型引数の無い Map"
+        "JSDoc の型の any 相当を検出する: 型引数の無い Map",
+        "JSDoc の型の any 相当を検出する: 小文字の function"
       ]
     },
     {
@@ -210,6 +219,42 @@
         "型を外さない書き方は検出しない: 1 行の宣言の注釈",
         "JSDoc の型の any 相当を検出する: 入れ子の any"
       ]
+    },
+    {
+      "id": "PARENT-JSDOC-IS-CAST",
+      "why": "親の宣言に付いた @type も表明として数える（括弧で始まる初期化子の宣言の注釈を誤検知する）",
+      "file": "scripts/gates/check-jsdoc-types.ts",
+      "find": "  return tag?.parent.parent === node ? tag : undefined;",
+      "replace": "  return tag;",
+      "occurrences": 1,
+      "expect_failing": ["型を外さない書き方は検出しない: 括弧で始まる初期化子の宣言の注釈"]
+    },
+    {
+      "id": "TS-COMMENT-ANYWHERE",
+      "why": "コメントのどこにある @ts-* も指示として数える（説明の文章を誤検知する）",
+      "file": "scripts/gates/check-jsdoc-types.ts",
+      "find": "const TS_COMMENT_RE = /^\\s*(?:\\/\\/\\/?|\\/\\*+|\\*+)?\\s*(@ts-(?:ignore|expect-error|nocheck))\\b/m;",
+      "replace": "const TS_COMMENT_RE = /(@ts-(?:ignore|expect-error|nocheck))\\b/m;",
+      "occurrences": 1,
+      "expect_failing": ["コメントでない文字列は検出しない: 説明の文章の途中"]
+    },
+    {
+      "id": "NO-LOWER-FUNCTION",
+      "why": "小文字の {function} を検出しない（Function と同じく戻り値が any になる）",
+      "file": "scripts/gates/check-jsdoc-types.ts",
+      "find": " || node.typeName.text === \"function\"",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["JSDoc の型の any 相当を検出する: 小文字の function"]
+    },
+    {
+      "id": "READ-REMOVED",
+      "why": "作業ツリーから消したファイルも読もうとする（ENOENT で無関係な commit を止める）",
+      "file": "scripts/gates/check-jsdoc-types.ts",
+      "find": "    if (!existsSync(join(root, file))) continue;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["CLI: 作業ツリーから消して index に残るファイルは読まずに通す"]
     }
   ]
 }
