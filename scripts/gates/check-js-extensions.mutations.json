@@ -9,8 +9,8 @@
       "id": "DIST-MTS",
       "why": "配布スキルの .mts を禁じる拡張子から外す",
       "file": "scripts/gates/check-js-extensions.ts",
-      "find": "const DISTRIBUTED_BANNED = [\".js\", \".cjs\", \".mts\", \".cts\", \".tsx\"];",
-      "replace": "const DISTRIBUTED_BANNED = [\".js\", \".cjs\", \".cts\", \".tsx\"];",
+      "find": "const DISTRIBUTED_BANNED = [\".js\", \".cjs\", \".mts\", \".cts\", \".tsx\", \".jsx\"];",
+      "replace": "const DISTRIBUTED_BANNED = [\".js\", \".cjs\", \".cts\", \".tsx\", \".jsx\"];",
       "occurrences": 1,
       "expect_failing": ["配布スキルの skills/demo/references/a.mts を違反にする"]
     },
@@ -18,8 +18,8 @@
       "id": "NONDIST-MTS",
       "why": "scripts/ と private skill の .mts を禁じる拡張子から外す",
       "file": "scripts/gates/check-js-extensions.ts",
-      "find": "const NON_DISTRIBUTED_BANNED = [\".js\", \".mjs\", \".cjs\", \".mts\", \".cts\", \".tsx\"];",
-      "replace": "const NON_DISTRIBUTED_BANNED = [\".js\", \".mjs\", \".cjs\", \".cts\", \".tsx\"];",
+      "find": "const NON_DISTRIBUTED_BANNED = [\".js\", \".mjs\", \".cjs\", \".mts\", \".cts\", \".tsx\", \".jsx\"];",
+      "replace": "const NON_DISTRIBUTED_BANNED = [\".js\", \".mjs\", \".cjs\", \".cts\", \".tsx\", \".jsx\"];",
       "occurrences": 1,
       "expect_failing": [
         "scripts/ の scripts/gates/a.mts を違反にする",
@@ -50,7 +50,9 @@
         "private skill の .agents/skills/private-one/scripts/a.js を違反にする",
         "private skill の .agents/skills/private-one/scripts/a.mjs を違反にする",
         "private skill の .agents/skills/private-one/a.mts を違反にする",
-        "CLI: private skill は skills/<name>/ が無いことで決め、公開スキルのコピーは対象にしない"
+        "CLI: private skill は skills/<name>/ が無いことで決め、公開スキルのコピーは対象にしない",
+        "CLI: stage した private skill の違反は、作業ツリーからスキルごと消しても検出する",
+        "CLI: 中身の無い skills/<name>/ のディレクトリがあっても、private skill として検査する"
       ]
     },
     {
@@ -114,6 +116,39 @@
       "replace": "  if (false) {\n",
       "occurrences": 1,
       "expect_failing": ["CLI: 走査したファイルが 0 件なら、判定できないとして exit 2"]
+    },
+    {
+      "id": "NO-JSX",
+      "why": "scripts/ と private skill の .jsx を禁じる拡張子から外す",
+      "file": "scripts/gates/check-js-extensions.ts",
+      "find": "const NON_DISTRIBUTED_BANNED = [\".js\", \".mjs\", \".cjs\", \".mts\", \".cts\", \".tsx\", \".jsx\"];",
+      "replace": "const NON_DISTRIBUTED_BANNED = [\".js\", \".mjs\", \".cjs\", \".mts\", \".cts\", \".tsx\"];",
+      "occurrences": 1,
+      "expect_failing": ["scripts/ の scripts/gates/a.jsx を違反にする"]
+    },
+    {
+      "id": "CASE-SENSITIVE",
+      "why": "拡張子を大文字と小文字を区別して照合する",
+      "file": "scripts/gates/check-js-extensions.ts",
+      "find": "  const lower = path.toLowerCase();\n",
+      "replace": "  const lower = path;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "配布スキルの skills/demo/scripts/a.JS を違反にする",
+        "scripts/ の scripts/gates/a.MJS を違反にする"
+      ]
+    },
+    {
+      "id": "PUBLISHED-IGNORED",
+      "why": "skills/<name>/ があっても private skill として扱う",
+      "file": "scripts/gates/check-js-extensions.ts",
+      "find": "!published.has(name)",
+      "replace": "true",
+      "occurrences": 1,
+      "expect_failing": [
+        "private skill は、一覧の中で .agents/skills/<name>/ にあって skills/<name>/ に無いものにする",
+        "CLI: private skill は skills/<name>/ が無いことで決め、公開スキルのコピーは対象にしない"
+      ]
     }
   ]
 }

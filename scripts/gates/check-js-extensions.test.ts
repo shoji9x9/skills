@@ -12,7 +12,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { findViolations, violationOf } from "./check-js-extensions.ts";
+import { findViolations, privateSkillNames, violationOf } from "./check-js-extensions.ts";
 import { makeTempDir } from "../lib/test-tmpdir.ts";
 
 const script = join(dirname(fileURLToPath(import.meta.url)), "check-js-extensions.ts");
@@ -39,6 +39,8 @@ test.each([
   ["skills/demo/references/a.mts", ".mts"],
   ["skills/demo/assets/a.cts", ".cts"],
   ["skills/demo/assets/a.tsx", ".tsx"],
+  ["skills/demo/assets/a.jsx", ".jsx"],
+  ["skills/demo/scripts/a.JS", ".js"],
 ])("配布スキルの %s を違反にする", (path, ext) => {
   expect(violationOf(path, PRIVATE)).toContain(`skills/ では ${ext} を使わない`);
 });
@@ -57,6 +59,8 @@ test.each([
   ["scripts/gates/a.mts", ".mts"],
   ["scripts/gates/a.cts", ".cts"],
   ["scripts/gates/a.tsx", ".tsx"],
+  ["scripts/gates/a.jsx", ".jsx"],
+  ["scripts/gates/a.MJS", ".mjs"],
 ])("scripts/ の %s を違反にする", (path, ext) => {
   expect(violationOf(path, PRIVATE)).toContain(`scripts/ では ${ext} を使わない`);
 });
@@ -67,6 +71,18 @@ test.each([
   [".agents/skills/private-one/a.mts", ".mts"],
 ])("private skill の %s を違反にする", (path, ext) => {
   expect(violationOf(path, PRIVATE)).toContain(`private skill では ${ext} を使わない`);
+});
+
+test("private skill は、一覧の中で .agents/skills/<name>/ にあって skills/<name>/ に無いものにする", () => {
+  expect(
+    privateSkillNames([
+      "skills/demo/SKILL.md",
+      ".agents/skills/demo/SKILL.md",
+      ".agents/skills/private-one/SKILL.md",
+      ".agents/skills/private-one/scripts/a.ts",
+      ".agents/skills/README.md",
+    ]),
+  ).toEqual(["private-one"]);
 });
 
 test("違反だけを、パスと理由の組で返す", () => {
@@ -178,4 +194,30 @@ test("CLI: 走査したファイルが 0 件なら、判定できないとして
   const r = runCli(root);
   expect(r.status).toBe(2);
   expect(r.out).toContain("走査したファイルが 0 件");
+});
+
+test("CLI: stage した private skill の違反は、作業ツリーからスキルごと消しても検出する", () => {
+  const root = makeRepo({
+    "scripts/ok.ts": "tracked",
+    ".agents/skills/private-one/scripts/a.js": "tracked",
+  });
+  rmSync(join(root, ".agents"), { recursive: true });
+  const r = runCli(root);
+  expect(r.status).toBe(1);
+  expect(r.out).toContain(
+    ".agents/skills/private-one/scripts/a.js: private skill では .js を使わない",
+  );
+});
+
+test("CLI: 中身の無い skills/<name>/ のディレクトリがあっても、private skill として検査する", () => {
+  const root = makeRepo({
+    "scripts/ok.ts": "tracked",
+    ".agents/skills/private-one/scripts/a.js": "tracked",
+  });
+  mkdirSync(join(root, "skills/private-one"), { recursive: true });
+  const r = runCli(root);
+  expect(r.status).toBe(1);
+  expect(r.out).toContain(
+    ".agents/skills/private-one/scripts/a.js: private skill では .js を使わない",
+  );
 });

@@ -171,12 +171,15 @@ private skill は、`.private-skill` を持ち、`.agents/skills/<name>/` にだ
 型だけの import は `import type` で書き、相対 import は `.ts` の拡張子まで書く（`verbatimModuleSyntax` と `allowImportingTsExtensions`）。
 型の検査を警告なしに外す書き方（non-null の表明 `!`・`any`・`@ts-ignore` など）は、`oxlint.config.ts` の `overrides` で失敗にする。
 対象はリポジトリの TypeScript 全体で、eval の fixture だけは non-null の表明を外す（下流のプロジェクトの書き方をそのまま持つため）。
+禁じるのは、名前を挙げた書き方だけではない。型の検査を警告なしに外す書き方は、同じ理由ですべて禁じる。
 null や undefined になりうる値は、表明せずに確かめて型を絞る。テストでは vitest の `assert`（`assert.exists` など）を使う。
 型の表明（`as T`）も同じ設定で失敗にする（`as const` と `satisfies` は使ってよい）。型ガード・`instanceof`・型の注釈で書き換える。
 表明が避けられない箇所は、その行に `// oxlint-disable-next-line typescript/consistent-type-assertions -- <理由>` を書く。
 何も抑えていない disable のコメントは、`reportUnusedDisableDirectives` が失敗にする。
 よく使う形は `scripts/lib/` の helper にまとめ、表明をそこだけに置く。
 catch の値は `errors.ts`、わざと不正な入力と欄の削除は `test-input.ts`、外部の JSON は `parse-as.ts`、YAML は `yaml-as.ts` を使う。
+例外は、ミューテーションテストのランナーと private skill である。どちらも `scripts/lib/` を import せず、同じ helper をファイルの中に持つ。
+ランナーは、テストがランナーのファイルだけをリポジトリの外にコピーして起動する。private skill は、スキルのディレクトリの中だけで完結させる。
 配布スキルは `.mjs` のままにする。利用者の Node で動くので、`.ts` にすると利用者に求める Node の版が上がる。
 
 ツールが読む `.ts` の設定は次のとおりである。

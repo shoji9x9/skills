@@ -11,24 +11,28 @@
 //     `.tsx` は Node が型を消して実行できないので、これらも違反。
 // 配布しない private skill も非配布なので、`scripts/**` と同じく `.ts`。
 // private skill かは `skills/<name>/` が無いことで決める（scripts/lib/source-scope.ts と同じ判定）。
+// ただし作業ツリーではなく、走査したファイルの一覧（index と未追跡のファイル）から決める。
+// 対象のファイルと出所をそろえるため（作業ツリーだけを消した stage 済みの違反や、空の `skills/<name>/` で判定がずれない）。
 // `.private-skill` の印で決めると、印を付け忘れた private skill がこの検査から外れる。
 import { spawnSync } from "node:child_process";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { errorMessage } from "../lib/errors.ts";
-import { sourceSkillNames } from "../lib/source-scope.ts";
 
-const DISTRIBUTED_BANNED = [".js", ".cjs", ".mts", ".cts", ".tsx"];
-const NON_DISTRIBUTED_BANNED = [".js", ".mjs", ".cjs", ".mts", ".cts", ".tsx"];
+// `.jsx` は `.tsx` と同じく、Node が実行できず `tsconfig.repo.json` の include にも入らない。
+const DISTRIBUTED_BANNED = [".js", ".cjs", ".mts", ".cts", ".tsx", ".jsx"];
+const NON_DISTRIBUTED_BANNED = [".js", ".mjs", ".cjs", ".mts", ".cts", ".tsx", ".jsx"];
 
 /** パス（リポジトリのルートからの `/` 区切り）が拡張子の規約に反していれば、その理由を返す。 */
 export function violationOf(path: string, privateSkills: readonly string[]): string | null {
   const parts = path.split("/");
-  const ext = (banned: readonly string[]) => banned.find((b) => path.endsWith(b));
+  // 拡張子は大文字と小文字を区別せずに照合する（区別しないファイルシステムでは `a.JS` も `.js` として読まれる）。
+  const lower = path.toLowerCase();
+  const ext = (banned: readonly string[]) => banned.find((b) => lower.endsWith(b));
   if (parts[0] === "skills") {
     const bad = ext(DISTRIBUTED_BANNED);
     if (bad) return `skills/ では ${bad} を使わない（配布物 → .mjs にする）`;
-    if (path.endsWith(".ts") && parts[2] !== "assets") {
+    if (lower.endsWith(".ts") && parts[2] !== "assets") {
       return "skills/ では assets/ の雛形の外で .ts を使わない（配布スキルのスクリプトは利用者の Node で動く → .mjs にする）";
     }
     return null;
@@ -97,6 +101,19 @@ export function repoRoot(cwd: string): string {
   return res.stdout.trim();
 }
 
+/** 走査したファイルの一覧のうち、`.agents/skills/<name>/` にあって `skills/<name>/` に無いスキルの名前。 */
+export function privateSkillNames(files: readonly string[]): string[] {
+  const installed = new Set<string>();
+  const published = new Set<string>();
+  for (const path of files) {
+    const parts = path.split("/");
+    if (parts[0] === ".agents" && parts[1] === "skills" && parts.length > 3)
+      installed.add(parts[2]);
+    if (parts[0] === "skills" && parts.length > 2) published.add(parts[1]);
+  }
+  return [...installed].filter((name) => !published.has(name)).sort();
+}
+
 export function main(cwd = "."): number {
   let root: string;
   let files: string[];
@@ -112,7 +129,7 @@ export function main(cwd = "."): number {
     console.error(`js-extensions: 走査したファイルが 0 件（${root}）。判定できないので失敗にする`);
     return 2;
   }
-  const violations = findViolations(files, sourceSkillNames(root));
+  const violations = findViolations(files, privateSkillNames(files));
   if (violations.length) {
     console.error("js-extensions: 拡張子ポリシー違反:");
     for (const v of violations) console.error(`  - ${v}`);
