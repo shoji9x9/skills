@@ -34,7 +34,7 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve, sep } from "node:path";
-import { computeImpact, validateChange } from "./component-impact.mjs";
+import { computeImpact, isChangeKind, validateChange } from "./component-impact.mjs";
 
 /**
  * ツールのバージョン（原本）。判定規則を変えたら上げる。
@@ -113,7 +113,7 @@ function isCarryChange(v) {
     isPlainObject(v) &&
     typeof v.id === "string" &&
     typeof v.slug === "string" &&
-    (v.kind === "align-to-current" || v.kind === "new-appearance") &&
+    isChangeKind(v.kind) &&
     Array.isArray(v.files) &&
     v.files.every((f) => typeof f === "string") &&
     isPlainObject(v.commits) &&
@@ -152,7 +152,7 @@ function rectKey(r) {
  * @typedef {{
  *   id: string,
  *   slug: string,
- *   kind: "align-to-current" | "new-appearance",
+ *   kind: import("./component-impact.mjs").ChangeKind,
  *   files: string[],
  *   commits: { before: string, after: string },
  *   margin_px: number,

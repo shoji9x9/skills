@@ -49,7 +49,18 @@ export const TOOL = "component-impact";
  * 変更宣言の `kind` の語彙。`align-to-current` は現行に合わせ直す修正、`new-appearance` は利用側の要求で足す新しい見た目。
  * 原本は parity-component の references/amend.md。
  */
-export const KINDS = ["align-to-current", "new-appearance"];
+export const KINDS = /** @type {const} */ (["align-to-current", "new-appearance"]);
+
+/** 変更宣言の `kind`。KINDS から導く（語彙を二重に持たない）。 @typedef {(typeof KINDS)[number]} ChangeKind */
+
+/**
+ * 変更宣言の `kind` の語彙に入っているか。
+ * @param {unknown} value
+ * @returns {value is ChangeKind}
+ */
+export function isChangeKind(value) {
+  return KINDS.some((k) => k === value);
+}
 
 /** 組 id の区切り（capture_scope / noise_baseline と同じ `<page>|<state>|<viewport>`）。 */
 export const PAIR_SEPARATOR = "|";
@@ -149,7 +160,7 @@ export function validateChange(change) {
 
   text("id", c.id);
   text("slug", c.slug);
-  if (typeof c.kind !== "string" || !KINDS.includes(c.kind)) {
+  if (typeof c.kind !== "string" || !isChangeKind(c.kind)) {
     errors.push(`kind が ${KINDS.join(" / ")} のどれでもない: ${JSON.stringify(c.kind)}`);
   }
   text("reason", c.reason);

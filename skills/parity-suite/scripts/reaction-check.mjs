@@ -370,7 +370,7 @@ export function coveredByOwners(table) {
  * coveredByOwners の走査本体。形の不正な covered_by（配列でない・空文字や文字列以外の要素を持つ）の位置も返す。
  * 欄の位置を列挙しない走査なので、未知の欄で形が不正だと、解決・共有・監査のどれにも入らず警告なしに消える。
  * 空配列と null は「名乗らない」として通す（撮る状態だけで押さえる行・source-only の書き込み等）。
- * @param {unknown} table - 表（オブジェクトでなくても走査だけはする。表の形は checkReactions が落とす）
+ * @param {unknown} table - 表（オブジェクトでなくても走査だけはする。表の形は、通常の判定では checkReactions が、`--audit-sheet` では main が落とす）
  */
 function scanCoveredBy(table) {
   /** @type {{ path: string, owner: Record<string, unknown>, names: string[], ancestors: { path: string, obj: Record<string, unknown> }[] }[]} */

@@ -5,7 +5,7 @@
 // | 軸             | 値                                                                          |
 // | -------------- | --------------------------------------------------------------------------- |
 // | JSDoc の @type | 表明（1 行・複数行・入れ子の波括弧・const）/ 宣言の注釈 / @satisfies       |
-// | 型の書き方     | `any` / `*` / `?` / 型引数の無い Object / 入れ子の any / Object.<K, V> / unknown |
+// | 型の書き方     | `any` / `*` / `?` / 型引数の無い Object・ジェネリック型 / 入れ子の any / Object.<K, V> / Array<T> / unknown |
 // | ts コメント    | @ts-ignore（行）/ @ts-expect-error（ブロック）/ @ts-nocheck / 文字列の中    |
 // | 置き場所       | skills/<name>/scripts・assets / その他のディレクトリ / .mjs でない          |
 import { expect, test } from "vitest";
@@ -51,6 +51,9 @@ test.each([
   ["Function", "/** @param {Function} g */\nfunction f(g) {}\n", "Function"],
   ["入れ子の any", "/** @type {Array<{ x: any }>} */\nconst a = [];\n", "any"],
   ["@typedef の any", "/** @typedef {{ x: any }} T */\n", "any"],
+  ["型引数の無い Array", "/** @param {Array} a */\nfunction f(a) {}\n", "型引数の無い Array"],
+  ["型引数の無い Promise", "/** @returns {Promise} */\nfunction f() {}\n", "型引数の無い Promise"],
+  ["型引数の無い Map", "/** @type {Map} */\nconst m = new Map();\n", "型引数の無い Map"],
 ])("JSDoc の型の any 相当を検出する: %s", (_name, text, kind) => {
   expect(find(text)).toEqual([`1: JSDoc の型に ${kind} を書かない`]);
 });
@@ -60,6 +63,10 @@ test.each([
   ["Object.<K, V>", "/** @type {Object.<string, number>} */\nconst a = {};\n"],
   ["Record", "/** @type {Record<string, unknown>} */\nconst a = {};\n"],
   ["object", "/** @param {object} v */\nfunction f(v) {}\n"],
+  ["Array<T>", "/** @param {Array<string>} a */\nfunction f(a) {}\n"],
+  ["Array.<T>", "/** @param {Array.<string>} a */\nfunction f(a) {}\n"],
+  ["T[]", "/** @param {string[]} a */\nfunction f(a) {}\n"],
+  ["Promise<T>", "/** @returns {Promise<void>} */\nfunction f() {}\n"],
 ])("any でない型は検出しない: %s", (_name, text) => {
   expect(find(text)).toEqual([]);
 });
@@ -95,7 +102,9 @@ test.each([
   ["skills/demo/scripts/a.mjs", true],
   ["skills/demo/scripts/nested/a.mjs", true],
   ["skills/demo/assets/engine/a.mjs", true],
-  ["skills/demo/references/a.mjs", false],
+  ["skills/demo/references/a.mjs", true],
+  ["skills/demo/hooks/a.mjs", true],
+  ["skills/a.mjs", false],
   ["skills/demo/scripts/a.ts", false],
   ["scripts/gates/a.mjs", false],
   [".agents/skills/demo/scripts/a.mjs", false],
@@ -128,7 +137,8 @@ test("CLI: 対象の違反を、パスと行番号の付いた一覧で報告し
   const root = makeRepo({
     "skills/demo/scripts/bad.mjs": "const a = /** @type {string} */ (v);\n",
     "skills/demo/scripts/ok.mjs": "/** @type {string[]} */\nconst a = [];\n",
-    "skills/demo/references/out.mjs": "// @ts-ignore\n",
+    // 走査の範囲（skills/・scripts/・.agents/skills/）にあるが、skills/ の外なので対象にしない。
+    "scripts/out.mjs": "// @ts-ignore\n",
   });
   const r = runCli(root);
   expect(r.status).toBe(1);

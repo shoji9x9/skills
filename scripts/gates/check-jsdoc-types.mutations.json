@@ -83,8 +83,8 @@
       "id": "OBJECT-WITH-ARGS",
       "why": "型引数の付いた Object.<K, V> も any として扱う",
       "file": "scripts/gates/check-jsdoc-types.ts",
-      "find": "    node.typeArguments === undefined\n",
-      "replace": "    true\n",
+      "find": "    node.typeName.text === \"Object\" &&\n    node.typeArguments === undefined\n",
+      "replace": "    node.typeName.text === \"Object\" &&\n    true\n",
       "occurrences": 1,
       "expect_failing": ["any でない型は検出しない: Object.<K, V>"]
     },
@@ -145,7 +145,10 @@
         "JSDoc の型の any 相当を検出する: 型引数の無い Object",
         "JSDoc の型の any 相当を検出する: 入れ子の any",
         "JSDoc の型の any 相当を検出する: @typedef の any",
-        "JSDoc の型の any 相当を検出する: Function"
+        "JSDoc の型の any 相当を検出する: Function",
+        "JSDoc の型の any 相当を検出する: 型引数の無い Array",
+        "JSDoc の型の any 相当を検出する: 型引数の無い Promise",
+        "JSDoc の型の any 相当を検出する: 型引数の無い Map"
       ]
     },
     {
@@ -159,13 +162,15 @@
     },
     {
       "id": "TARGET-ANY-DIR",
-      "why": "skills/ の下のすべての .mjs を対象にする（references/ などは型の検査に入らない）",
+      "why": "skills/ の外の .mjs も対象にする（evals の fixture などは型の検査に入らない）",
       "file": "scripts/gates/check-jsdoc-types.ts",
-      "find": "const TARGET_RE = /^skills\\/[^/]+\\/(?:scripts|assets)\\/.*\\.mjs$/;",
-      "replace": "const TARGET_RE = /^skills\\/[^/]+\\/.*\\.mjs$/;",
+      "find": "const TARGET_RE = /^skills\\/[^/]+\\/.*\\.mjs$/;",
+      "replace": "const TARGET_RE = /\\.mjs$/;",
       "occurrences": 1,
       "expect_failing": [
-        "対象の判定: skills/demo/references/a.mjs → false",
+        "対象の判定: skills/a.mjs → false",
+        "対象の判定: scripts/gates/a.mjs → false",
+        "対象の判定: .agents/skills/demo/scripts/a.mjs → false",
         "CLI: 対象の違反を、パスと行番号の付いた一覧で報告して exit 1"
       ]
     },
@@ -177,6 +182,34 @@
       "replace": "type.typeName.text === \"__never__\"",
       "occurrences": 1,
       "expect_failing": ["型を外さない書き方は検出しない: const の表明"]
+    },
+    {
+      "id": "NO-GENERIC",
+      "why": "型引数の無いジェネリック型を検出しない（Array が Array<any> になる）",
+      "file": "scripts/gates/check-jsdoc-types.ts",
+      "find": "    GENERIC_NAMES.has(node.typeName.text) &&\n",
+      "replace": "    false &&\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "JSDoc の型の any 相当を検出する: 型引数の無い Array",
+        "JSDoc の型の any 相当を検出する: 型引数の無い Promise",
+        "JSDoc の型の any 相当を検出する: 型引数の無い Map"
+      ]
+    },
+    {
+      "id": "GENERIC-WITH-ARGS",
+      "why": "型引数の付いたジェネリック型も検出する（Array<string> を誤検知する）",
+      "file": "scripts/gates/check-jsdoc-types.ts",
+      "find": "    GENERIC_NAMES.has(node.typeName.text) &&\n    node.typeArguments === undefined\n",
+      "replace": "    GENERIC_NAMES.has(node.typeName.text)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "any でない型は検出しない: Array<T>",
+        "any でない型は検出しない: Array.<T>",
+        "any でない型は検出しない: Promise<T>",
+        "型を外さない書き方は検出しない: 1 行の宣言の注釈",
+        "JSDoc の型の any 相当を検出する: 入れ子の any"
+      ]
     }
   ]
 }

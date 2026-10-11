@@ -217,7 +217,7 @@ lefthook の pre-commit は、TypeScript か JavaScript（`ts`・`tsx`・`mts`�
 | 設定 | 対象 | 解決の規則 |
 | --- | --- | --- |
 | `tsconfig.repo.json` | Node が直接実行する `.ts`（設定ファイル・`scripts/`・private skill の `scripts/`） | `nodenext` |
-| `tsconfig.skills.json` | 配布スキルの `.mjs`（`skills/*/scripts/**` と `skills/*/assets/**`）を `checkJs` で検査する。lib に `dom` を含める（ブラウザの中で評価する関数を持つため） | `nodenext` |
+| `tsconfig.skills.json` | 配布スキルの `.mjs`（`skills/*/**`）を `checkJs` で検査する。lib に `dom` を含める（ブラウザの中で評価する関数を持つため） | `nodenext` |
 | `tsconfig.templates.json` | 配布スキルの `.ts`・`.mts`・`.cts`（`skills/*/**` と、インストール済みのコピーの `.agents/skills/*/**`）。今あるのは `assets/` の雛形だけで、`assets/` の外に足した `.ts` も対象になる。Node が直接実行する `.ts` を配布スキルに足すなら、`nodenext` のプロジェクトへ分ける | `bundler` |
 | `tsconfig.templates-links.json` | Claude Code 用のリンクから見た同じファイル（`.claude/skills/*/**`） | `bundler`（`tsconfig.templates.json` を継承する） |
 | `tsconfig.fixtures.json` | eval の fixture（`evals/*/fixtures/**/*.{ts,tsx}`） | `bundler`、`jsx: react-jsx` |
@@ -238,9 +238,11 @@ lefthook の pre-commit は、TypeScript か JavaScript（`ts`・`tsx`・`mts`�
 `parseJsonAs<T>` は検証していない値に完全な型を付けるので、検証が抜けても `tsc` が警告しない。形を確かめない読み方（テストが出力を `expect` で確かめる場合など）にだけ使う。
 
 配布スキルの `.mjs` では、型の検査を外す JSDoc の書き方を `scripts/gates/check-jsdoc-types.ts` が失敗にする。
-型の表明 `/** @type {X} */ (v)`（TypeScript の `as` と同じ）、JSDoc の型の `any`・`*`・`?`・型引数の無い `Object`、`@ts-ignore`・`@ts-expect-error`・`@ts-nocheck` である。
-宣言の注釈（`/** @type {X} */ const v = ...`）と `@satisfies` は、型を外さないので使ってよい。
-配布スキルが利用者のプロジェクトから読み込むモジュール（`pngjs` など）の型は、使う欄だけを `types/skill-runtime-modules.ts` に書く。
+失敗にするのは、型の表明 `/** @type {X} */ (v)`（TypeScript の `as` と同じ）と、`@ts-ignore`・`@ts-expect-error`・`@ts-nocheck` である。
+JSDoc の型の `any`・`*`・`?`・`Function`・型引数の無い `Object` とジェネリック型（`Array`・`Promise`・`Map` など）も失敗にする。
+宣言の注釈（`/** @type {X} */ const v = ...`）・`@satisfies`・`/** @type {const} */ (v)` は、型を外さないので使ってよい。
+配布スキルが利用者のプロジェクトから読み込むモジュール（`pngjs` など）の型は、使う欄だけを `types/skill-runtime/<モジュール名>.ts` に書き、`tsconfig.skills.json` の `paths` でそこへ解決する。
+大域の `declare module` にしないのは、`.mjs` をモジュールとして読む判定（`moduleDetection`）を変えずに済ませるためである。
 
 eval の fixture は、エージェントに渡す下流のプロジェクトの断片で、依存のパッケージ（架空のものを含む）や同じ階層のファイルを置いていない。
 それらは `types/eval-fixtures.ts` で、fixture が使う範囲の型を書いて宣言する。fixture に import を足したら、この宣言にも足す。

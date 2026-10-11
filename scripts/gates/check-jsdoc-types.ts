@@ -4,10 +4,11 @@
 // TypeScript の側で同じ書き方を禁じている `oxlint.config.ts` の規則は、JavaScript の JSDoc を読まないので、ここで検査する。
 //   - JSDoc の型の表明 `/** @type {X} */ (v)`。TypeScript の `as X` と同じで、絞り込みを確かめずに型を付ける。
 //     宣言の注釈（`/** @type {X} */ const v = ...`）・`@satisfies`・`/** @type {const} */ (v)` は、型を外さないので許す。
-//   - JSDoc の型の `any`・`*`・`?` と、型引数の無い `Object`。どれも `any` として扱われる。
+//   - JSDoc の型の `any`・`*`・`?` と、型引数の無い `Object`・`Function`・ジェネリック型（`Array`・`Promise` など）。
+//     どれも `any` として扱われるか、型引数が `any` になる。
 //     `Function` も、呼び出しの戻り値が `any` になるので同じ扱いにする。
 //   - `@ts-ignore`・`@ts-expect-error`・`@ts-nocheck` のコメント。
-// 対象は `tsconfig.skills.json` の include と同じ、`skills/*/scripts/**/*.mjs` と `skills/*/assets/**/*.mjs`。
+// 対象は `tsconfig.skills.json` の include と同じ、`skills/*/**/*.mjs`。
 // 構文は TypeScript のパーサで読む。文字列・正規表現・テンプレートの中の `/**` や `@ts-ignore` を、コメントとして扱わない。
 import { readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
@@ -16,8 +17,27 @@ import ts from "typescript";
 import { listFiles, repoRoot } from "./check-js-extensions.ts";
 import { errorMessage } from "../lib/errors.ts";
 
-const TARGET_RE = /^skills\/[^/]+\/(?:scripts|assets)\/.*\.mjs$/;
+const TARGET_RE = /^skills\/[^/]+\/.*\.mjs$/;
 const TS_COMMENT_RE = /@ts-(?:ignore|expect-error|nocheck)\b/;
+// 型引数を省くと型引数が any になる、よく使う組み込みのジェネリック型。
+const GENERIC_NAMES = new Set([
+  "Array",
+  "ReadonlyArray",
+  "Promise",
+  "PromiseLike",
+  "Map",
+  "ReadonlyMap",
+  "Set",
+  "ReadonlySet",
+  "WeakMap",
+  "WeakSet",
+  "Iterable",
+  "Iterator",
+  "IterableIterator",
+  "AsyncIterable",
+  "Generator",
+  "AsyncGenerator",
+]);
 
 /** 検査の対象のパス（リポジトリのルートからの `/` 区切り）か。 */
 export const isTarget = (path: string): boolean => TARGET_RE.test(path);
@@ -41,6 +61,14 @@ function anyLike(node: ts.Node): string | null {
     node.typeName.text === "Function"
   )
     return "Function";
+  // JavaScript では、型引数を省いたジェネリック型の型引数は `any` になる（`Array` は `Array<any>`）。
+  if (
+    ts.isTypeReferenceNode(node) &&
+    ts.isIdentifier(node.typeName) &&
+    GENERIC_NAMES.has(node.typeName.text) &&
+    node.typeArguments === undefined
+  )
+    return `型引数の無い ${node.typeName.text}`;
   return null;
 }
 
