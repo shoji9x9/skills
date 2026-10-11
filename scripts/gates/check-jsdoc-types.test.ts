@@ -56,9 +56,16 @@ test.each([
   ["小文字の function", "/** @param {function} g */\nfunction f(g) {}\n", "Function"],
   ["入れ子の any", "/** @type {Array<{ x: any }>} */\nconst a = [];\n", "any"],
   ["@typedef の any", "/** @typedef {{ x: any }} T */\n", "any"],
-  ["型引数の無い Array", "/** @param {Array} a */\nfunction f(a) {}\n", "型引数の無い Array"],
-  ["型引数の無い Promise", "/** @returns {Promise} */\nfunction f() {}\n", "型引数の無い Promise"],
-  ["型引数の無い Map", "/** @type {Map} */\nconst m = new Map();\n", "型引数の無い Map"],
+  [
+    "型引数の無い Generator",
+    "/** @param {Generator} g */\nfunction f(g) {}\n",
+    "型引数の無い Generator",
+  ],
+  [
+    "型引数の無い AsyncGenerator",
+    "/** @param {AsyncGenerator} g */\nfunction f(g) {}\n",
+    "型引数の無い AsyncGenerator",
+  ],
 ])("JSDoc の型の any 相当を検出する: %s", (_name, text, kind) => {
   expect(find(text)).toEqual([`1: JSDoc の型に ${kind} を書かない`]);
 });
@@ -68,7 +75,10 @@ test.each([
   ["Object.<K, V>", "/** @type {Object.<string, number>} */\nconst a = {};\n"],
   ["Record", "/** @type {Record<string, unknown>} */\nconst a = {};\n"],
   ["object", "/** @param {object} v */\nfunction f(v) {}\n"],
+  // 型引数の無い Array は、tsc が TS2314 で失敗にするので、このチェックでは数えない。
+  ["型引数の無い Array", "/** @param {Array} a */\nfunction f(a) {}\n"],
   ["Array<T>", "/** @param {Array<string>} a */\nfunction f(a) {}\n"],
+  ["Generator<T, R, N>", "/** @param {Generator<number, void, unknown>} g */\nfunction f(g) {}\n"],
   ["Array.<T>", "/** @param {Array.<string>} a */\nfunction f(a) {}\n"],
   ["T[]", "/** @param {string[]} a */\nfunction f(a) {}\n"],
   ["Promise<T>", "/** @returns {Promise<void>} */\nfunction f() {}\n"],
@@ -81,7 +91,7 @@ test.each([
   ["ブロックの @ts-expect-error", "const a = 1; /* @ts-expect-error */\n", "@ts-expect-error"],
   ["@ts-nocheck", "// @ts-nocheck\nexport {};\n", "@ts-nocheck"],
   ["空のブロックの中", "if (x) {\n  // @ts-ignore\n}\n", "@ts-ignore"],
-  ["JSDoc の行の先頭", "/**\n * @ts-ignore\n */\nexport {};\n", "@ts-ignore"],
+  ["複数行のブロックコメントの最後の行", "/*\n @ts-ignore */\nexport {};\n", "@ts-ignore"],
   ["ファイルの末尾", "export {};\n// @ts-ignore\n", "@ts-ignore"],
 ])("ts のコメントを検出する: %s", (_name, text, kind) => {
   const v = find(text);
@@ -96,8 +106,16 @@ test.each([
   ["@ts-check", "// @ts-check\nexport {};\n"],
   // TypeScript が指示として読むのはコメントの行の先頭だけで、説明の文章の途中の語は指示ではない。
   ["説明の文章の途中", "// このファイルでは @ts-ignore を使わない\nexport {};\n"],
+  // 複数行のブロックコメントは、最後の行だけが指示になる（tsc で確かめた）。
+  ["複数行のブロックコメントの途中の行", "/**\n * @ts-ignore\n */\nexport {};\n"],
+  // ts-nocheck の指示は、行コメントでだけ有効になる。
+  ["ブロックの @ts-nocheck", "/* @ts-nocheck */\nexport {};\n"],
 ])("コメントでない文字列は検出しない: %s", (_name, text) => {
   expect(find(text)).toEqual([]);
+});
+
+test("@ts-* の行番号は、コメントの先頭ではなく指示のある行を指す", () => {
+  expect(find("export {};\n/*\n @ts-ignore */\n")).toEqual(["3: @ts-ignore で型の検査を外さない"]);
 });
 
 test("行番号は違反の位置を指す", () => {

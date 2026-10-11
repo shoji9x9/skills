@@ -27,10 +27,13 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 // 記入済みかの判定は behavior-compare.mjs と同じものを使う（実パスに解決したディレクトリから読む。
 // シンボリックリンク経由で --preserve-symlinks-main 起動されても兄弟ファイルを見つけられるように）。
-const { filled, nonEmptyString } = await import(
+// 動的な import の戻り値は型を持たないので、同じファイルの宣言から型を付ける。
+/** @type {typeof import("./behavior-compare.mjs")} */
+const behaviorCompare = await import(
   pathToFileURL(join(dirname(realpathSync(fileURLToPath(import.meta.url))), "behavior-compare.mjs"))
     .href
 );
+const { filled, nonEmptyString } = behaviorCompare;
 
 /** ツールのバージョン（このスクリプトで定義する）。判定の規則・出力の形を変えたら上げる。 */
 export const VERSION = "1";

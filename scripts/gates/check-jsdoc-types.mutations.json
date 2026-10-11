@@ -126,7 +126,7 @@
       "id": "NO-TS-COMMENT",
       "why": "@ts-* のコメントを検出しない",
       "file": "scripts/gates/check-jsdoc-types.ts",
-      "find": "      if (m) out.push(",
+      "find": "      if (d) out.push(",
       "replace": "      if (false) out.push(",
       "occurrences": 1,
       "expect_failing": [
@@ -135,7 +135,8 @@
         "ts のコメントを検出する: @ts-nocheck",
         "ts のコメントを検出する: 空のブロックの中",
         "ts のコメントを検出する: ファイルの末尾",
-        "ts のコメントを検出する: JSDoc の行の先頭"
+        "ts のコメントを検出する: 複数行のブロックコメントの最後の行",
+        "@ts-* の行番号は、コメントの先頭ではなく指示のある行を指す"
       ]
     },
     {
@@ -154,10 +155,9 @@
         "JSDoc の型の any 相当を検出する: 入れ子の any",
         "JSDoc の型の any 相当を検出する: @typedef の any",
         "JSDoc の型の any 相当を検出する: Function",
-        "JSDoc の型の any 相当を検出する: 型引数の無い Array",
-        "JSDoc の型の any 相当を検出する: 型引数の無い Promise",
-        "JSDoc の型の any 相当を検出する: 型引数の無い Map",
-        "JSDoc の型の any 相当を検出する: 小文字の function"
+        "JSDoc の型の any 相当を検出する: 小文字の function",
+        "JSDoc の型の any 相当を検出する: 型引数の無い Generator",
+        "JSDoc の型の any 相当を検出する: 型引数の無い AsyncGenerator"
       ]
     },
     {
@@ -200,25 +200,18 @@
       "replace": "    false &&\n",
       "occurrences": 1,
       "expect_failing": [
-        "JSDoc の型の any 相当を検出する: 型引数の無い Array",
-        "JSDoc の型の any 相当を検出する: 型引数の無い Promise",
-        "JSDoc の型の any 相当を検出する: 型引数の無い Map"
+        "JSDoc の型の any 相当を検出する: 型引数の無い Generator",
+        "JSDoc の型の any 相当を検出する: 型引数の無い AsyncGenerator"
       ]
     },
     {
       "id": "GENERIC-WITH-ARGS",
-      "why": "型引数の付いたジェネリック型も検出する（Array<string> を誤検知する）",
+      "why": "型引数の付いた Generator も検出する（Generator<T, R, N> を誤検知する）",
       "file": "scripts/gates/check-jsdoc-types.ts",
       "find": "    GENERIC_NAMES.has(node.typeName.text) &&\n    node.typeArguments === undefined\n",
       "replace": "    GENERIC_NAMES.has(node.typeName.text)\n",
       "occurrences": 1,
-      "expect_failing": [
-        "any でない型は検出しない: Array<T>",
-        "any でない型は検出しない: Array.<T>",
-        "any でない型は検出しない: Promise<T>",
-        "型を外さない書き方は検出しない: 1 行の宣言の注釈",
-        "JSDoc の型の any 相当を検出する: 入れ子の any"
-      ]
+      "expect_failing": ["any でない型は検出しない: Generator<T, R, N>"]
     },
     {
       "id": "PARENT-JSDOC-IS-CAST",
@@ -231,10 +224,10 @@
     },
     {
       "id": "TS-COMMENT-ANYWHERE",
-      "why": "コメントのどこにある @ts-* も指示として数える（説明の文章を誤検知する）",
+      "why": "行コメントのどこにある @ts-* も指示として数える（説明の文章を誤検知する）",
       "file": "scripts/gates/check-jsdoc-types.ts",
-      "find": "const TS_COMMENT_RE = /^\\s*(?:\\/\\/\\/?|\\/\\*+|\\*+)?\\s*(@ts-(?:ignore|expect-error|nocheck))\\b/m;",
-      "replace": "const TS_COMMENT_RE = /(@ts-(?:ignore|expect-error|nocheck))\\b/m;",
+      "find": "const LINE_DIRECTIVE_RE = /^\\/\\/\\/?\\s*(@ts-(?:ignore|expect-error|nocheck))\\b/;",
+      "replace": "const LINE_DIRECTIVE_RE = /(@ts-(?:ignore|expect-error|nocheck))\\b/;",
       "occurrences": 1,
       "expect_failing": ["コメントでない文字列は検出しない: 説明の文章の途中"]
     },
@@ -255,6 +248,24 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": ["CLI: 作業ツリーから消して index に残るファイルは読まずに通す"]
+    },
+    {
+      "id": "BLOCK-WHOLE",
+      "why": "ブロックコメントの最後の行ではなく全体を見る（指示のある行を報告できない）",
+      "file": "scripts/gates/check-jsdoc-types.ts",
+      "find": "  const lastLineStart = comment.lastIndexOf(\"\\n\") + 1;",
+      "replace": "  const lastLineStart = 0;",
+      "occurrences": 1,
+      "expect_failing": ["@ts-* の行番号は、コメントの先頭ではなく指示のある行を指す"]
+    },
+    {
+      "id": "NOCHECK-IN-BLOCK",
+      "why": "ブロックコメントの @ts-nocheck も指示として数える（tsc は行コメントだけを読む）",
+      "file": "scripts/gates/check-jsdoc-types.ts",
+      "find": "const BLOCK_DIRECTIVE_RE = /^(?:\\/|\\*)*\\s*(@ts-(?:ignore|expect-error))\\b/;",
+      "replace": "const BLOCK_DIRECTIVE_RE = /^(?:\\/|\\*)*\\s*(@ts-(?:ignore|expect-error|nocheck))\\b/;",
+      "occurrences": 1,
+      "expect_failing": ["コメントでない文字列は検出しない: ブロックの @ts-nocheck"]
     }
   ]
 }

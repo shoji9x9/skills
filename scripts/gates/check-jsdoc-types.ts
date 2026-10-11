@@ -4,7 +4,7 @@
 // TypeScript の側で同じ書き方を禁じている `oxlint.config.ts` の規則は、JavaScript の JSDoc を読まないので、ここで検査する。
 //   - JSDoc の型の表明 `/** @type {X} */ (v)`。TypeScript の `as X` と同じで、絞り込みを確かめずに型を付ける。
 //     宣言の注釈（`/** @type {X} */ const v = ...`）・`@satisfies`・`/** @type {const} */ (v)` は、型を外さないので許す。
-//   - JSDoc の型の `any`・`*`・`?` と、型引数の無い `Object`・`Function`・ジェネリック型（`Array`・`Promise` など）。
+//   - JSDoc の型の `any`・`*`・`?` と、`Function`・型引数の無い `Object`・`Generator`。
 //     どれも `any` として扱われるか、型引数が `any` になる。
 //     `Function` も、呼び出しの戻り値が `any` になるので同じ扱いにする。
 //   - `@ts-ignore`・`@ts-expect-error`・`@ts-nocheck` のコメント。
@@ -18,27 +18,25 @@ import { listFiles, repoRoot } from "./check-js-extensions.ts";
 import { errorMessage } from "../lib/errors.ts";
 
 const TARGET_RE = /^skills\/[^/]+\/.*\.mjs$/;
-// TypeScript が指示として読む位置（コメントの行の先頭）の @ts-*。説明の文章の途中に書いた語は指示ではないので数えない。
-const TS_COMMENT_RE = /^\s*(?:\/\/\/?|\/\*+|\*+)?\s*(@ts-(?:ignore|expect-error|nocheck))\b/m;
-// 型引数を省くと型引数が any になる、よく使う組み込みのジェネリック型。
-const GENERIC_NAMES = new Set([
-  "Array",
-  "ReadonlyArray",
-  "Promise",
-  "PromiseLike",
-  "Map",
-  "ReadonlyMap",
-  "Set",
-  "ReadonlySet",
-  "WeakMap",
-  "WeakSet",
-  "Iterable",
-  "Iterator",
-  "IterableIterator",
-  "AsyncIterable",
-  "Generator",
-  "AsyncGenerator",
-]);
+// TypeScript が指示として読む位置の @ts-*。行コメントは先頭、ブロックコメントは最後の行の先頭だけを読む
+// （TypeScript の scanner の commentDirectiveRegExSingleLine / MultiLine と同じ）。説明の文章の途中の語や、
+// 複数行のブロックコメントの途中の行は指示ではないので数えない。@ts-nocheck は行コメントでだけ有効になる。
+const LINE_DIRECTIVE_RE = /^\/\/\/?\s*(@ts-(?:ignore|expect-error|nocheck))\b/;
+const BLOCK_DIRECTIVE_RE = /^(?:\/|\*)*\s*(@ts-(?:ignore|expect-error))\b/;
+
+/** コメント 1 つの中の @ts-* の指示と、その位置（コメントの先頭からの文字数）。指示でなければ null。 */
+function directiveOf(comment: string): { name: string; offset: number } | null {
+  if (comment.startsWith("//")) {
+    const m = LINE_DIRECTIVE_RE.exec(comment);
+    return m ? { name: m[1], offset: 0 } : null;
+  }
+  const lastLineStart = comment.lastIndexOf("\n") + 1;
+  const m = BLOCK_DIRECTIVE_RE.exec(comment.slice(lastLineStart));
+  return m ? { name: m[1], offset: lastLineStart } : null;
+}
+// 型引数を省いても tsc がエラーにせず、型引数のデフォルトが any になるジェネリック型（`Generator<T = unknown, TReturn = any, TNext = any>`）。
+// `Array`・`Promise`・`Map` などデフォルトの無いものは、型引数を省くと tsc が TS2314 で失敗にするので、ここでは数えない。
+const GENERIC_NAMES = new Set(["Generator", "AsyncGenerator"]);
 
 /** 検査の対象のパス（リポジトリのルートからの `/` 区切り）か。 */
 export const isTarget = (path: string): boolean => TARGET_RE.test(path);
@@ -62,7 +60,7 @@ function anyLike(node: ts.Node): string | null {
     (node.typeName.text === "Function" || node.typeName.text === "function")
   )
     return "Function";
-  // JavaScript では、型引数を省いたジェネリック型の型引数は `any` になる（`Array` は `Array<any>`）。
+  // 型引数を省くと、デフォルトの any が入るジェネリック型（`Generator` は `Generator<unknown, any, any>`）。
   if (
     ts.isTypeReferenceNode(node) &&
     ts.isIdentifier(node.typeName) &&
@@ -111,8 +109,8 @@ export function findEscapes(path: string, text: string): string[] {
     ]) {
       if (seenComments.has(range.pos)) continue;
       seenComments.add(range.pos);
-      const m = TS_COMMENT_RE.exec(text.slice(range.pos, range.end));
-      if (m) out.push(`${lineOf(range.pos)}: ${m[1]} で型の検査を外さない`);
+      const d = directiveOf(text.slice(range.pos, range.end));
+      if (d) out.push(`${lineOf(range.pos + d.offset)}: ${d.name} で型の検査を外さない`);
     }
     if (ts.isParenthesizedExpression(node) && isCast(ownTypeTag(node))) {
       out.push(

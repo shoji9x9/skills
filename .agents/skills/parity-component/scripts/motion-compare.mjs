@@ -44,10 +44,13 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 // 静的な `./behavior-compare.mjs` の import は、このファイルへのシンボリックリンクを
 // `--preserve-symlinks-main` で起動するとリンク側のディレクトリで解決されて見つからない（実測）。
 // 実パスに解決したディレクトリから読む。
-const { cellKey, filled, isoDateTime, nonEmptyString, safeSegment } = await import(
+// 動的な import の戻り値は型を持たないので、同じファイルの宣言から型を付ける。
+/** @type {typeof import("./behavior-compare.mjs")} */
+const behaviorCompare = await import(
   pathToFileURL(join(dirname(realpathSync(fileURLToPath(import.meta.url))), "behavior-compare.mjs"))
     .href
 );
+const { cellKey, filled, isoDateTime, nonEmptyString, safeSegment } = behaviorCompare;
 
 /** ツールのバージョン（このスクリプトで定義する）。判定の規則・許容差・出力の形を変えたら上げる。 */
 export const VERSION = "1";

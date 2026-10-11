@@ -43,11 +43,12 @@ export function violationOf(path: string, privateSkills: readonly string[]): str
   if (parts[0] === "skills") {
     const bad = ext(DISTRIBUTED_BANNED);
     if (bad) return `skills/ では ${bad} を使わない（配布物 → .mjs にする）`;
-    const notLower = upper(DISTRIBUTED_ALLOWED);
-    if (notLower) return `skills/ では拡張子を小文字の ${notLower} にする（${CASE_REASON}）`;
+    // 置き場所の規約を先に見る。大文字の拡張子を小文字に直すよう案内しても、置けない場所なら直した後に別の違反になる。
     if (lower.endsWith(".ts") && parts[2] !== "assets") {
       return "skills/ では assets/ の雛形の外で .ts を使わない（配布スキルのスクリプトは利用者の Node で動く → .mjs にする）";
     }
+    const notLower = upper(DISTRIBUTED_ALLOWED);
+    if (notLower) return `skills/ では拡張子を小文字の ${notLower} にする（${CASE_REASON}）`;
     return null;
   }
   const isPrivateSkill =
@@ -56,8 +57,6 @@ export function violationOf(path: string, privateSkills: readonly string[]): str
     const bad = ext(NON_DISTRIBUTED_BANNED);
     const where = isPrivateSkill ? "private skill" : "scripts/";
     if (bad) return `${where} では ${bad} を使わない（非配布物 → .ts にする）`;
-    const notLower = upper([".ts"]);
-    if (notLower) return `${where} では拡張子を小文字の ${notLower} にする（${CASE_REASON}）`;
     // private skill の `.ts` は `scripts/` の下に置く。`tsconfig.repo.json` の include（`.agents/skills/*/scripts/**/*.ts`）は
     // そこだけを `erasableSyntaxOnly` で検査するので、外に置くと、Node が実行できない構文（`enum` など）を検出できない。
     // `.d.ts` も同じく外では型の検査に入らないので、許さない（`skills/**` の assets/ の `.d.ts` は、
@@ -65,6 +64,8 @@ export function violationOf(path: string, privateSkills: readonly string[]): str
     if (isPrivateSkill && lower.endsWith(".ts") && parts[3] !== "scripts") {
       return "private skill では scripts/ の外で .ts を使わない（tsconfig.repo.json の型の検査に入らない）";
     }
+    const notLower = upper([".ts"]);
+    if (notLower) return `${where} では拡張子を小文字の ${notLower} にする（${CASE_REASON}）`;
   }
   return null;
 }

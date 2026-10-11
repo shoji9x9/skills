@@ -233,6 +233,14 @@ test.each([
 });
 
 test.each([
+  // 置けない場所の大文字の拡張子は、小文字に直すよう案内せず、置き場所の違反として返す。
+  ["skills/demo/scripts/x.TS", "skills/ では assets/ の雛形の外で .ts を使わない"],
+  [".agents/skills/private-one/lib/x.TS", "private skill では scripts/ の外で .ts を使わない"],
+])("置けない場所の大文字の .ts（%s）は、置き場所の違反として返す", (path, message) => {
+  expect(violationOf(path, PRIVATE)).toContain(message);
+});
+
+test.each([
   ["scripts/gates/a.TS", "scripts/"],
   ["scripts/lib/types.d.Ts", "scripts/"],
   [".agents/skills/private-one/scripts/a.TS", "private skill"],

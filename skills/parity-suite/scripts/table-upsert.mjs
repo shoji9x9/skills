@@ -78,7 +78,10 @@ export function parseArrayPath(spec) {
       }
       value = parsed;
     }
-    // 選ぶ欄（m[2]）があれば、値（m[3] か m[4]）も必ずある
+    // 選ぶ欄（m[2]）があれば、値（m[3] か m[4]）も必ずある。無ければ、条件を外して別の要素へ書かないよう止める
+    if (m[2] !== undefined && value === undefined) {
+      throw new UsageError(`--array の選ぶ欄 ${m[2]} に値が無い: ${spec}`);
+    }
     segments.push({
       name: m[1],
       select: m[2] === undefined || value === undefined ? null : { field: m[2], value },

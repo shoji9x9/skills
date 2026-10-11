@@ -36,7 +36,9 @@
       "occurrences": 1,
       "expect_failing": [
         "規約どおりの skills/demo/assets/spec.template.ts は違反にしない",
-        "規約どおりの skills/demo/assets/nested/types.d.ts は違反にしない"
+        "規約どおりの skills/demo/assets/nested/types.d.ts は違反にしない",
+        "配布スキルの小文字でない拡張子（skills/demo/assets/spec.template.TS）を違反にする",
+        "配布スキルの小文字でない拡張子（skills/demo/assets/types.d.TS）を違反にする"
       ]
     },
     {
@@ -57,7 +59,8 @@
         "private skill の scripts/ の外の .ts（.agents/skills/private-one/x.ts）を違反にする",
         "private skill の scripts/ の外の .ts（.agents/skills/private-one/Scripts/x.ts）を違反にする",
         "private skill の scripts/ の外の .ts（.agents/skills/private-one/types.d.ts）を違反にする",
-        "小文字でない .ts（.agents/skills/private-one/scripts/a.TS）を違反にする"
+        "小文字でない .ts（.agents/skills/private-one/scripts/a.TS）を違反にする",
+        "置けない場所の大文字の .ts（.agents/skills/private-one/lib/x.TS）は、置き場所の違反として返す"
       ]
     },
     {
@@ -146,7 +149,9 @@
         "配布スキルの小文字でない拡張子（skills/demo/assets/types.d.TS）を違反にする",
         "小文字でない .ts（scripts/gates/a.TS）を違反にする",
         "小文字でない .ts（scripts/lib/types.d.Ts）を違反にする",
-        "小文字でない .ts（.agents/skills/private-one/scripts/a.TS）を違反にする"
+        "小文字でない .ts（.agents/skills/private-one/scripts/a.TS）を違反にする",
+        "置けない場所の大文字の .ts（.agents/skills/private-one/lib/x.TS）は、置き場所の違反として返す",
+        "置けない場所の大文字の .ts（skills/demo/scripts/x.TS）は、置き場所の違反として返す"
       ]
     },
     {
@@ -172,7 +177,8 @@
         "private skill の scripts/ の外の .ts（.agents/skills/private-one/tools/x.ts）を違反にする",
         "private skill の scripts/ の外の .ts（.agents/skills/private-one/x.ts）を違反にする",
         "private skill の scripts/ の外の .ts（.agents/skills/private-one/Scripts/x.ts）を違反にする",
-        "private skill の scripts/ の外の .ts（.agents/skills/private-one/types.d.ts）を違反にする"
+        "private skill の scripts/ の外の .ts（.agents/skills/private-one/types.d.ts）を違反にする",
+        "置けない場所の大文字の .ts（.agents/skills/private-one/lib/x.TS）は、置き場所の違反として返す"
       ]
     },
     {

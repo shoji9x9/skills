@@ -50,10 +50,13 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 // 同じディレクトリの page-identity.mjs は、このファイルの実パスから解決して読み込む。
 // 静的な "./page-identity.mjs" は、--preserve-symlinks-main でファイル単位のシンボリックリンクから起動されると、
 // リンクの置き場所から解決して見つからない。引数不足の usage 表示まで、起動時に失敗する（artifact-health-check.mjs と同じ理由）。
-const { pageForUrl, pageKey, resolvePages } = await import(
+// 動的な import の戻り値は型を持たないので、同じファイルの宣言から型を付ける。
+/** @type {typeof import("./page-identity.mjs")} */
+const pageIdentity = await import(
   pathToFileURL(join(dirname(realpathSync(fileURLToPath(import.meta.url))), "page-identity.mjs"))
     .href
 );
+const { pageForUrl, pageKey, resolvePages } = pageIdentity;
 
 /**
  * ツールのバージョン（原本）。判定ロジック・出力形状を変えたら上げる。
