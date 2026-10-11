@@ -12,7 +12,7 @@ session: claude-code
 ## 事象
 
 Issue #567 で、evals.json の prompt と assertion の旧称（367 件）を Agent 5 本に分けて書き換えた。
-書き換えた後で、Agent が `check-eval-reachability.js` の失敗を報告した。
+書き換えた後で、Agent が `check-eval-reachability.ts` の失敗を報告した。
 `eval-reachability-backlog.json` は免除を eval の指紋（prompt と assertions のハッシュ）で持つので、130 件の免除が外れていた。
 指紋を更新するか reachability を書くかを、書き換えの途中で利用者に確認することになった。
 eval の再実行の対象も、Issue の見積もり（24 件・約 50 か所）から 152 件に増えた。この見積もりは、チェックするツールを実行せずに出したものだった。

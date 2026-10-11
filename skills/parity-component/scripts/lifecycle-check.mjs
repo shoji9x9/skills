@@ -39,15 +39,28 @@ export const VERSION = "1";
 export const PATHS = ["strict-rebind", "prop-identity", "remount", "prop-change-after-init"];
 
 /**
+ * 検査の指摘 1 件。code は必ずあり、ほかの欄は code ごとに付く。
+ * @typedef {{
+ *   code: string,
+ *   detail?: string,
+ *   where?: string,
+ *   path?: unknown,
+ *   missing?: string[],
+ *   story?: string,
+ *   count?: number,
+ * }} LifecycleFinding
+ */
+
+/**
  * build-metadata.json の lifecycle の記録を検査する（純関数）。lifecycle だけでなく catalog.stories も読む——
  * 順番の見本が見た目の照合の対応表にも載っていると、見た目の見本がすり替わっても検査が通るため。
- * @param {any} metadata build-metadata.json の中身
- * @returns {{ structural: boolean, applies: boolean | null, findings: object[] }}
+ * @param {unknown} metadata build-metadata.json の中身（形はここで検査する）
+ * @returns {{ structural: boolean, applies: boolean | null, findings: LifecycleFinding[] }}
  */
 export function checkLifecycle(metadata) {
   const lifecycle = metadata && metadata.lifecycle;
   const catalogStories = metadata && metadata.catalog && metadata.catalog.stories;
-  /** @type {object[]} */
+  /** @type {LifecycleFinding[]} */
   const findings = [];
   const structural = (detail) => ({
     structural: true,

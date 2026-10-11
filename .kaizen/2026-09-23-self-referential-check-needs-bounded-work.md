@@ -7,8 +7,8 @@ applied-to:
   [
     AGENTS.md,
     .agents/rules/state-space-and-mutation-proof.md,
-    scripts/mutation/check-mutation-proof.test.js,
-    vitest.config.js,
+    scripts/mutation/check-mutation-proof.test.ts,
+    vitest.config.ts,
   ]
 session: claude-code
 ---
@@ -17,13 +17,13 @@ session: claude-code
 
 ## 事象
 
-PR #437 で、ミューテーションテストのランナー（`scripts/mutation/check-mutation-proof.js`）に「差分に当たる宣言だけを測る」選択を足し、
+PR #437 で、ミューテーションテストのランナー（`scripts/mutation/check-mutation-proof.ts`）に「差分に当たる宣言だけを測る」選択を足し、
 その選択ロジックへ変異を当てた（`CHANGED-HITS`: 当たり判定を常に真にする）。
 
 この変異を実証する run が **30 分以上終わらず、runner のプロセスが 21 本以上に膨らんだ**。
 機序は自己参照:
 
-1. ランナーの自己テスト（`check-mutation-proof.test.js`）は、テストごとに runner を起動する
+1. ランナーの自己テスト（`check-mutation-proof.test.ts`）は、テストごとに runner を起動する
 2. その runner は対象テストファイル（＝自己テスト）を vitest で実行する
 3. 自己テストの中に `--changed-since` を `--only` 無しで呼ぶテストがあり、変異後は**全宣言**が選ばれる
 4. 選ばれた宣言には自分自身の宣言が含まれるので、(1) へ戻る
@@ -57,5 +57,5 @@ PR #437 で、ミューテーションテストのランナー（`scripts/mutati
 - 自己テストからランナーを呼ぶときは、測る対象を明示して 1 件に絞る（選択の結果に比例させない）
 - 変異を足すとき「この変異は判定を変えるか、仕事の量を変えるか」を 1 行で確かめる
 - 反映済み: `AGENTS.md`・`.agents/rules/state-space-and-mutation-proof.md` に規約として追記し、
-  `check-mutation-proof.test.js` の該当テストを `--only` 有界化（理由をコメントに明記）。
-  あわせて `vitest.config.js` で `fileParallelism: false`（tracked ファイルを変異させるテストと兄弟テストの競合を消す）
+  `check-mutation-proof.test.ts` の該当テストを `--only` 有界化（理由をコメントに明記）。
+  あわせて `vitest.config.ts` で `fileParallelism: false`（tracked ファイルを変異させるテストと兄弟テストの競合を消す）

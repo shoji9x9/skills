@@ -1,0 +1,213 @@
+import { createHash } from "node:crypto";
+import { existsSync, lstatSync, readFileSync, readdirSync } from "node:fs";
+import { relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { parseJsonAs } from "../lib/parse-as.ts";
+
+// One entry of evals.json, as far as this reads it.
+type EvalDefinition = { id?: unknown; assertions?: unknown; requires_skills?: unknown };
+
+// [path, kind, sha256]
+type HashEntry = [string, string, string];
+
+function stable(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stable);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+        .map(([key, item]) => [key, stable(item)]),
+    );
+  }
+  return value;
+}
+
+function digest(value: string | Buffer): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+export function formatError(error: unknown): string {
+  return error && typeof error === "object" && "message" in error
+    ? String(error.message)
+    : String(error);
+}
+
+export function hashFixture(directory?: string): string {
+  if (!directory) return digest("no-fixture\n");
+  const root = resolve(directory);
+  const entries: HashEntry[] = [];
+  function visit(path: string) {
+    for (const name of readdirSync(path).sort()) {
+      const child = resolve(path, name);
+      const rel = relative(root, child).split("\\").join("/");
+      const stat = lstatSync(child);
+      if (stat.isSymbolicLink()) {
+        throw new Error(`fixture symlink is not fingerprintable: ${rel}`);
+      }
+      if (stat.isDirectory()) visit(child);
+      else if (stat.isFile())
+        entries.push([rel, stat.mode & 0o111 ? "executable" : "file", digest(readFileSync(child))]);
+      else throw new Error(`unsupported fixture entry: ${rel}`);
+    }
+  }
+  visit(root);
+  return digest(`${JSON.stringify(entries)}\n`);
+}
+
+// The parts run-skill-eval.sh copies into the disposable project. A required sibling
+// is installed in BOTH configurations, so a baseline's behavior depends on this
+// content: fingerprint exactly what is installed, not the sibling's evals/.
+const INSTALLED_SKILL_PARTS = ["SKILL.md", "references", "assets", "scripts"];
+export function hashInstalledSkill(skillDirectory: string): string {
+  const root = resolve(skillDirectory);
+  if (!existsSync(resolve(root, "SKILL.md"))) {
+    throw new Error(`required skill source not found: ${root}/SKILL.md`);
+  }
+  const entries: HashEntry[] = [];
+  for (const part of INSTALLED_SKILL_PARTS) {
+    const path = resolve(root, part);
+    if (!existsSync(path)) continue;
+    const stat = lstatSync(path);
+    if (stat.isDirectory()) entries.push([part, "directory", hashFixture(path)]);
+    else if (stat.isFile()) entries.push([part, "file", digest(readFileSync(path))]);
+    else throw new Error(`unsupported skill entry: ${part}`);
+  }
+  return digest(`${JSON.stringify(entries)}\n`);
+}
+
+function findEval(evalsPath: string | undefined, evalId: string | undefined): EvalDefinition {
+  if (!evalsPath || !existsSync(evalsPath)) {
+    throw new Error(`eval definition unavailable for eval ${evalId}`);
+  }
+  const parsed = parseJsonAs<{ evals?: EvalDefinition[] }>(readFileSync(evalsPath, "utf8"));
+  const evaluation = parsed.evals?.find(({ id }) => String(id) === String(evalId));
+  if (!evaluation) throw new Error(`eval ${evalId} not found in ${evalsPath}`);
+  return evaluation;
+}
+
+export function assertionsForEval(evalsPath?: string, evalId?: string): unknown[] {
+  if (!evalId) return [];
+  const evaluation = findEval(evalsPath, evalId);
+  if (!Array.isArray(evaluation.assertions)) {
+    throw new Error(`eval ${evalId} has no assertions array`);
+  }
+  return evaluation.assertions;
+}
+
+// Sibling skills a with_skill run installs next to the subject skill. A skill whose
+// steps call a sibling's bundled tool (parity-component → parity-suite) cannot reach
+// the branch an eval targets when the disposable project holds only the subject, so
+// the eval declares the dependency instead of the fixture faking the sibling's files.
+// Every malformed shape fails: a dropped name would silently reintroduce that gap.
+const SKILL_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
+export function requiredSkillsForEval(
+  evalsPath?: string,
+  evalId?: string,
+  subjectSkill?: string,
+): string[] {
+  if (!evalId) return [];
+  const evaluation = findEval(evalsPath, evalId);
+  if (!Object.hasOwn(evaluation, "requires_skills")) return [];
+  const names = evaluation.requires_skills;
+  if (!Array.isArray(names) || names.length === 0) {
+    throw new Error(`eval ${evalId} requires_skills must be a non-empty array`);
+  }
+  const seen = new Set<string>();
+  for (const name of names) {
+    if (typeof name !== "string" || !SKILL_NAME.test(name)) {
+      throw new Error(
+        `eval ${evalId} requires_skills has an invalid skill name: ${JSON.stringify(name)}`,
+      );
+    }
+    if (name === subjectSkill) {
+      throw new Error(`eval ${evalId} requires_skills lists the subject skill itself: ${name}`);
+    }
+    if (seen.has(name)) throw new Error(`eval ${evalId} requires_skills lists ${name} twice`);
+    seen.add(name);
+  }
+  return names;
+}
+
+export function createFingerprint<T extends Record<string, unknown>>(input: T) {
+  // stable() only reorders object keys.
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- stable はキーの順序だけを並べ替えて値の形を変えないが、再帰で組み立て直した値が T の形であることを型の検査では表せない
+  const inputs = stable(input) as T;
+  return {
+    schema_version: 1,
+    algorithm: "sha256",
+    fingerprint: digest(`${JSON.stringify(inputs)}\n`),
+    inputs,
+  };
+}
+
+function parseArgs(argv: string[]): Record<string, string> {
+  const values: Record<string, string> = {};
+  for (let index = 0; index < argv.length; index += 2) {
+    const flag = argv[index];
+    const value = argv[index + 1];
+    if (!flag?.startsWith("--") || value === undefined)
+      throw new Error("arguments must be --name value pairs");
+    values[flag.slice(2)] = value;
+  }
+  return values;
+}
+
+function main() {
+  const args = parseArgs(process.argv.slice(2));
+  const required = [
+    "prompt",
+    "executor",
+    "model",
+    "reasoning-effort",
+    "cli-version",
+    "harness-version",
+  ];
+  if (args["required-skills-of"] !== undefined) {
+    // Print mode for the harness: one required skill per line, from the same parser
+    // the fingerprint uses, so installation and fingerprint cannot disagree.
+    for (const name of requiredSkillsForEval(
+      args.evals,
+      args["eval-id"],
+      args["required-skills-of"],
+    ))
+      process.stdout.write(`${name}\n`);
+    return;
+  }
+  for (const name of required) if (!(name in args)) throw new Error(`missing --${name}`);
+  const requiredSkills = requiredSkillsForEval(args.evals, args["eval-id"], args.skill);
+  if (requiredSkills.length > 0 && !args["skills-root"]) {
+    throw new Error("requires_skills needs --skills-root to fingerprint the installed siblings");
+  }
+  const fingerprint = createFingerprint({
+    assertions: assertionsForEval(args.evals, args["eval-id"]),
+    eval_id: args["eval-id"] || null,
+    executor: args.executor,
+    fixture_sha256: hashFixture(args.fixture),
+    harness_version: args["harness-version"],
+    model: args.model,
+    prompt: args.prompt,
+    reasoning_effort: args["reasoning-effort"],
+    cli_version: args["cli-version"],
+    // Only when declared, so fingerprints of evals without dependencies stay unchanged
+    // and their recorded baselines remain reusable. Siblings are installed in both
+    // configurations, so a changed sibling must invalidate a reused baseline.
+    ...(requiredSkills.length > 0
+      ? {
+          required_skills: requiredSkills.map((name) => ({
+            name,
+            sha256: hashInstalledSkill(resolve(args["skills-root"], name)),
+          })),
+        }
+      : {}),
+  });
+  process.stdout.write(`${JSON.stringify(fingerprint, null, 2)}\n`);
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
+  try {
+    main();
+  } catch (error) {
+    console.error(`skill-eval-fingerprint: ${formatError(error)}`);
+    process.exitCode = 1;
+  }
+}

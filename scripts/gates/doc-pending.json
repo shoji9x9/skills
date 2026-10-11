@@ -1,7 +1,7 @@
 {
   "$comment": [
-    "文書のチェック（check-doc-refs.js・check-time-sensitive-prose.js）の保留と許可。形は scripts/lib/doc-scan.js の冒頭を参照する。",
-    "pending: 後の段階で直す違反。直したら消す（node scripts/gates/check-doc-refs.js --prune などで消せる）。足すのは、直す段階が決まっているものだけにする。",
+    "文書のチェック（check-doc-refs.ts・check-time-sensitive-prose.ts）の保留と許可。形は scripts/lib/doc-scan.ts の冒頭を参照する。",
+    "pending: 後の段階で直す違反。直したら消す（node scripts/gates/check-doc-refs.ts --prune などで消せる）。足すのは、直す段階が決まっているものだけにする。",
     "allowed: 違反の形だが正しい記述。reason を必ず書く。"
   ],
   "pending": [],
@@ -19,7 +19,7 @@
       "reason": "暦に無い日付の例（Date.parse が繰り上げて受理する値の説明）"
     },
     {
-      "file": "scripts/gates/check-kaizen-refs.test.js",
+      "file": "scripts/gates/check-kaizen-refs.test.ts",
       "rule": "date",
       "text": "2026-09-19",
       "reason": "テストの入力にする .kaizen の学びのファイル名（日付で始まる名前の形を確かめる）"

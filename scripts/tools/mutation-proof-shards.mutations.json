@@ -1,9 +1,9 @@
 {
   "$comment": [
-    "mutation-proof-shards.test.js の検出能力を示す変異の一覧（Issue #588）。",
-    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。"
+    "mutation-proof-shards.test.ts の検出能力を示す変異の一覧（Issue #588）。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。"
   ],
-  "test_file": "scripts/tools/mutation-proof-shards.test.js",
+  "test_file": "scripts/tools/mutation-proof-shards.test.ts",
   "mutations": [
     {
       "id": "WORST-1",

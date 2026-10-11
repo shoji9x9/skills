@@ -267,7 +267,7 @@ function resolveInstances(change, componentMetadata) {
   }
   // 宣言した状態は部品が採った状態（capture.states）の語彙で書く。綴り違いの状態はどの撮影組にも当たらず、
   // 「その状態を撮っていない＝影響なし」と誤って判定される。そのため、語彙に無い状態は判定不能にする
-  const captureStates = /** @type {any} */ (m.capture)?.states;
+  const captureStates = /** @type {{ states?: unknown } | null | undefined} */ (m.capture)?.states;
   if (!Array.isArray(captureStates) || !captureStates.every((st) => nonEmptyString(st))) {
     problems.push(
       "部品 metadata の capture.states が状態名の配列でない（宣言した状態を部品の語彙と突き合わせられない）",
@@ -316,12 +316,23 @@ function resolveInstances(change, componentMetadata) {
 }
 
 /**
+ * 撮り直す組（ページ × 状態 × ビューポート）。region_known は影響インスタンスで領域が分かるか（usages だけなら false）。
+ * @typedef {{ pair: string, page: string, state: string, viewport: string,
+ *             instances: { id: string, locator: unknown }[], region_known: boolean }} ImpactPair
+ */
+
+/**
+ * 1 機能の判定結果。
+ * @typedef {{ feature: string, verdict: "affected"|"unaffected"|"undeterminable", pairs: ImpactPair[], reasons: string[] }} FeatureImpact
+ */
+
+/**
  * 1 機能の影響を導く。
  * @param {string} slug
  * @param {unknown} metadata
  * @param {Record<string, unknown>} change
  * @param {{id:string, page:string, locator:unknown}[]} instances
- * @returns {{ feature: string, verdict: "affected"|"unaffected"|"undeterminable", pairs: object[], reasons: string[] }}
+ * @returns {FeatureImpact}
  */
 function judgeFeature(slug, metadata, change, instances) {
   /**
@@ -420,7 +431,7 @@ function judgeFeature(slug, metadata, change, instances) {
   }
   const states = new Set(/** @type {string[]} */ (change.states));
   const usages = new Set(/** @type {string[]} */ (change.usages));
-  /** @type {object[]} */
+  /** @type {ImpactPair[]} */
   const pairs = [];
   /** @type {string[]} */
   const reasons = [];
@@ -483,7 +494,7 @@ function judgeFeature(slug, metadata, change, instances) {
  * `pageUniverse`（任意）は unmatched_instances の判定にだけ使う機能 metadata の一覧。`--feature` で 1 機能に
  * 絞った実行でも、他の機能のページにあるインスタンスを「一致しない」に数えないために渡す。省略時は features。
  * @param {{ change: unknown, componentMetadata: unknown, features: {slug: string, metadata: unknown}[], pageUniverse?: unknown[] }} input
- * @returns {{ tool: string, version: string, change_id: string, slug: string, features: {feature:string, verdict:string, pairs:object[], reasons:string[]}[], findings: string[], unmatched_instances: {id:string, page:string}[], unmatched_usages: string[] }}
+ * @returns {{ tool: string, version: string, change_id: string, slug: string, features: FeatureImpact[], findings: string[], unmatched_instances: {id:string, page:string}[], unmatched_usages: string[] }}
  */
 export function computeImpact({ change, componentMetadata, features, pageUniverse }) {
   const errors = validateChange(change);
@@ -512,7 +523,9 @@ export function computeImpact({ change, componentMetadata, features, pageUnivers
   const capturedPaths = new Set();
   const universe = Array.isArray(pageUniverse) ? pageUniverse : sorted.map((f) => f.metadata);
   for (const metadata of universe) {
-    const pages = /** @type {any} */ (metadata)?.capture_conditions?.pages;
+    const pages = /** @type {{ capture_conditions?: { pages?: unknown } } | null | undefined} */ (
+      metadata
+    )?.capture_conditions?.pages;
     if (!Array.isArray(pages)) continue;
     for (const page of pages) {
       if (page && typeof page.path === "string") capturedPaths.add(page.path);

@@ -22,4 +22,4 @@ Issue #372 の段階 ⑤-a で、parity-suite eval 38 の #3（「VERSION が上
 ## 提案
 
 - docs/skill-development.md の採点の節に書く: assertion が明記する要素（括弧の中を含む）が答えに無ければ不合格にする。要素が厳しすぎるなら、assertion を直す。
-- 仕組みにするなら、build-skill-eval-benchmark.js が passed: true の evidence に「触れていない」「趣旨は合う」などを見つけたら警告を出す。
+- 仕組みにするなら、build-skill-eval-benchmark.ts が passed: true の evidence に「触れていない」「趣旨は合う」などを見つけたら警告を出す。

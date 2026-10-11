@@ -65,7 +65,7 @@ Issue #433 が報告した実際の失敗（`feedback-message` / `pagination` / 
 **基礎 → テーマ層 → 個別テーマの 3 層に散った再宣言のうち、最初の 1 件を採る**形だった。
 規則の数が多く、争点が一覧で見えない状態が failure mode だった。合成した fixture で再現するには、実アプリ規模のスタイルシートが要る。
 そのためこの eval は **Delta に寄与しない、後退の検知のためだけのもの**として維持する。
-手順の効果は、`scripts/skills/parity-component/cascade-resolve.test.js`（実測の 3 件を回帰のケースにしてある）で確かめる。
+手順の効果は、`scripts/skills/parity-component/cascade-resolve.test.ts`（実測の 3 件を回帰のケースにしてある）で確かめる。
 詳細は [`tests/parity-component/iteration-8/benchmark.md`](../../tests/parity-component/iteration-8/benchmark.md)。
 
 ## eval 3 は Delta ではなく後退の検知のためのもの
@@ -108,11 +108,11 @@ fixture をさらに削っても、差は戻らない。items と evidence は�
 
 **採取物（`baseline/`・`axes.json`・`metadata.json` のツール版とプロパティ集合・軸の件数）は、手で書かない。** 手で作った採取物は、次の形で不正になっていた（Issue #354）。
 `traits_property_set` が実物の `FIXED_PROPERTIES` と違う、`css-rules.json` の宣言が `traits.json` の計算値と食い違う、`element.png` がプレースホルダ、の 3 つである。
-`catalog-unset` / `breaking-change-request` の `button` は、リポジトリの `scripts/eval/generate-parity-component-fixtures.js` で生成した。
+`catalog-unset` / `breaking-change-request` の `button` は、リポジトリの `scripts/eval/generate-parity-component-fixtures.ts` で生成した。
 このスクリプトは、headless Chrome で最小のページに trait-capture.mjs・css-rules-capture.mjs・要素のスクリーンショットを当てる（2 回採って一致を確かめている）。
 ツールや採取条件を変えたら、同じスクリプトで採り直す。
 書き出した JSON の整形は同じスクリプトが対象のファイルを列挙して行うので、手で `oxfmt` を当てない（`oxfmt` に `.md` やディレクトリを渡すと、fixture の Markdown の表が桁揃えされる）。
-生成物どうしの整合（プロパティ集合・ツール版・計算値と規則の宣言・PNG の寸法・`axes.json` の再導出）は、`scripts/eval/parity-component-fixtures.test.js` が CI で検査する。
+生成物どうしの整合（プロパティ集合・ツール版・計算値と規則の宣言・PNG の寸法・`axes.json` の再導出）は、`scripts/eval/parity-component-fixtures.test.ts` が CI で検査する。
 `component-api.md` / `parity.md` などエージェントが書く成果物は、生成物の値（幅・ツール版）に合わせて手で揃える。
 
 **`build` の前段には、姉妹スキル `parity-suite` もある。** 陳腐化の判定（`traits_version` / `traits_property_set` の突き合わせ）は、インストール済みの `parity-suite` の同梱ツールを読む。
@@ -178,4 +178,4 @@ eval 5 の `without_skill` は停止せず実装まで進んだので、fixture 
 - `element.png` が実際のボタンの画像ではなくプレースホルダなので、画素比較の入力にならない
 
 **入力（prompt・fixture・assertion）を変えたら、その eval の過去の結果は使えない。**
-`scripts/eval/skill-eval-fingerprint.js` が assertions を含めて指紋を取るので、baseline の再利用も拒否される。
+`scripts/eval/skill-eval-fingerprint.ts` が assertions を含めて指紋を取るので、baseline の再利用も拒否される。

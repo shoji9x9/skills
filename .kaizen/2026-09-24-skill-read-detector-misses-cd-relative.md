@@ -12,7 +12,7 @@ session: claude-code
 ## 事象
 
 parity-suite の eval 44 で with_skill の 2 run がどちらも `invalid_run: true` になり、
-`build-skill-eval-benchmark.js` が「採点済みの run が無い」で exit 2 になった。
+`build-skill-eval-benchmark.ts` が「採点済みの run が無い」で exit 2 になった。
 raw では `cd <スキル配下>` の後に相対パスで SKILL.md を読んでおり、回答も行番号を引いていた。
 手順書どおり測り直したが、同じ読み方で再び除外された。
 

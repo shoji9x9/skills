@@ -175,13 +175,13 @@ src="${repo}/skills/${skill}"
 # Eval definitions live outside skills/<name>/ so `gh skill install` does not ship
 # them to downstream repositories (it copies every file under the skill directory).
 evals_file="${repo}/evals/${skill}/evals.json"
-normalizer="${repo}/scripts/eval/normalize-skill-eval-result.js"
+normalizer="${repo}/scripts/eval/normalize-skill-eval-result.ts"
 [ -f "${normalizer}" ] || {
 	echo "normalizer not found: ${normalizer}" >&2
 	exit 1
 }
-fingerprinter="${repo}/scripts/eval/skill-eval-fingerprint.js"
-reuse_helper="${repo}/scripts/eval/reuse-skill-eval-baseline.js"
+fingerprinter="${repo}/scripts/eval/skill-eval-fingerprint.ts"
+reuse_helper="${repo}/scripts/eval/reuse-skill-eval-baseline.ts"
 [ -f "${fingerprinter}" ] && [ -f "${reuse_helper}" ] || {
 	echo "baseline fingerprint helpers not found under ${repo}/scripts/eval" >&2
 	exit 1
@@ -458,7 +458,7 @@ normalizer_args=(
 	--skill "${skill}"
 	--config "${config}"
 	# The skill text a run could only have seen by opening the skill: lines of every
-	# other skill, the fixture and the prompt are taken out (normalize-skill-eval-result.js
+	# other skill, the fixture and the prompt are taken out (normalize-skill-eval-result.ts
 	# `buildSkillContentIndex`).
 	--skills-root "${repo}/skills"
 	--prompt "${eval_prompt}"
@@ -631,7 +631,7 @@ if [ "${config}" = "without_skill" ]; then
 	# through the normalizer's contamination surface instead: the trace minus a closed
 	# set of mention-only events (agent text, file_change paths, one plain echo/printf),
 	# with every other line — command strings, command output, unparsable lines — kept
-	# verbatim (normalize-skill-eval-result.js `codexContaminationSurface`).
+	# verbatim (normalize-skill-eval-result.ts `codexContaminationSurface`).
 	case "${executor}" in
 	codex) [ -d "${contamination_surface_dir}" ] && scan_directories+=("${contamination_surface_dir}") ;;
 	esac

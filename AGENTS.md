@@ -20,15 +20,17 @@ Claude Code・Codex・GitHub Copilot に対応した、マルチエージェン�
 
 | 対象 | リント | 整形 |
 | --- | --- | --- |
-| Markdown | `markdownlint-cli2`、文章は textlint（`scripts/gates/lint-prose.js`） | `markdownlint-cli2` |
+| Markdown | `markdownlint-cli2`、文章は textlint（`scripts/gates/lint-prose.ts`） | `markdownlint-cli2` |
 | JavaScript・TypeScript | `oxlint`、型は `tsc`（`pnpm run typecheck`） | `oxfmt` |
 | JSON | `jsonlint` | `oxfmt` |
-| YAML | `js-yaml`（`scripts/gates/lint-yaml.js`） | `oxfmt` |
+| YAML | `js-yaml`（`scripts/gates/lint-yaml.ts`） | `oxfmt` |
 | シェル | `shellcheck` | `shfmt` |
 | GitHub Actions | `actionlint` と `ghalint`、SHA の固定は `pinact` | `oxfmt` |
 
-JavaScript の拡張子は、配布する `skills/**` では `.mjs`、配布しない `scripts/**` と private skill では `.js` にする。
-ツールが読む設定ファイル（`vitest.config.ts` など）は `.ts` にする。`scripts/gates/check-js-extensions.js` がこれをチェックする。
+JavaScript の拡張子は、配布する `skills/**` では `.mjs` にする。配布しない `scripts/**` と private skill は TypeScript（`.ts`）で書く。
+`.ts` は Node が型を消して直接実行するので、型を消すだけでは実行できない構文（`enum` など）は使わない。
+ツールが読む設定ファイル（`vitest.config.ts` など）は `.ts` にする。
+`skills/**`・`scripts/**`・private skill の拡張子は、`scripts/gates/check-js-extensions.ts` がチェックする。
 
 pre-commit と CI で実行するチェックの一覧、ミューテーションテスト、Markdown の行長などの詳細は [`docs/tooling.md`](docs/tooling.md) にある。
 
@@ -60,7 +62,7 @@ scripts/                リポジトリ内のツールとテスト（配布し�
   skills/_cross/        複数のスキルにまたがる取り決めのテスト
 ```
 
-`scripts/` のテスト（`*.test.js`）とミューテーションテストの定義ファイル（`*.mutations.json`）は、テスト対象の隣に置く。
+`scripts/` のテスト（`*.test.ts`）とミューテーションテストの定義ファイル（`*.mutations.json`）は、テスト対象の隣に置く。
 `scripts/` のツールのテストはそのツールと同じディレクトリに置く。
 配布スキルのスクリプトのテストは `scripts/skills/<name>/` に置き、複数のスキルにまたがるものは `scripts/skills/_cross/` に置く。
 
@@ -139,7 +141,7 @@ scripts/                リポジトリ内のツールとテスト（配布し�
 
 - conventional commits（`feat:`・`fix:`・`docs:` など）で書く。commitlint と lefthook の commit-msg フックがチェックする。
 - 種別は `commit-types.ts` で定義し、commitlint・semantic-release・`.github/dependabot.yml` が同じ種別を使う。
-  `build` と `style` は使わず、依存の更新は `chore` にする。dependabot.yml との一致は `scripts/gates/commit-types-consistency.test.js` が CI で確かめる。
+  `build` と `style` は使わず、依存の更新は `chore` にする。dependabot.yml との一致は `scripts/gates/commit-types-consistency.test.ts` が CI で確かめる。
 - 本文は 1 行 100 文字以内にする。長い本文は `git commit -F <file>` で渡す。
 - `git commit` を含む呼び出しに、`git add` や message ファイルの作成を入れない。
   PreToolUse のチェック（kaizen など）は呼び出し全体を止めるので、準備も実行されず、後で `could not read log file` で失敗する。

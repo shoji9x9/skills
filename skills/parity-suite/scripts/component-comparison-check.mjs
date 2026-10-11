@@ -116,7 +116,7 @@ export function checkComponentComparison(input) {
   /** @type {string[]} */
   const notes = [];
   const counts = { present: 0, compared: 0, blocking: 0, accepted: 0 };
-  const coverage = /** @type {Record<string, any>} */ (input.coverage);
+  const coverage = /** @type {Record<string, unknown>} */ (input.coverage);
   if (!coverage || typeof coverage !== "object" || !Array.isArray(coverage.cells)) {
     return {
       findings: [
@@ -160,7 +160,7 @@ export function checkComponentComparison(input) {
   }
   counts.present = presentKeys.length;
 
-  const comparison = /** @type {Record<string, any>} */ (input.comparison);
+  const comparison = /** @type {Record<string, unknown>} */ (input.comparison);
   if (!comparison || typeof comparison !== "object" || !Array.isArray(comparison.cells)) {
     findings.push({
       code: "comparison-missing",
@@ -181,7 +181,7 @@ export function checkComponentComparison(input) {
   const observed = comparison.new_implementation;
   const observedCommit =
     observed && typeof observed === "object"
-      ? /** @type {Record<string, any>} */ (observed).commit
+      ? /** @type {Record<string, unknown>} */ (observed).commit
       : undefined;
   if (!nonEmptyString(observedCommit)) {
     findings.push({
@@ -195,7 +195,7 @@ export function checkComponentComparison(input) {
   // 欠落・非真偽値は「調べていない」ので、false 以外を不合格にする。
   const observedDirty =
     observed && typeof observed === "object"
-      ? /** @type {Record<string, any>} */ (observed).dirty
+      ? /** @type {Record<string, unknown>} */ (observed).dirty
       : undefined;
   if (observedDirty !== false) {
     findings.push({
@@ -206,7 +206,9 @@ export function checkComponentComparison(input) {
   // **`--replace-metadata` は省略を許さない。** 照合相手が無いと鮮度の検査そのものが飛び、
   // 「記録の後に実装が変わっていない」ことを一度も確かめないまま収束する
   // （`comparison-implementation-stale` は相手が渡されたときにしか機能しない）。
-  const replaceMetadata = /** @type {Record<string, any> | undefined} */ (input.replaceMetadata);
+  const replaceMetadata = /** @type {Record<string, unknown> | undefined} */ (
+    input.replaceMetadata
+  );
   const replaceNew =
     replaceMetadata &&
     typeof replaceMetadata === "object" &&
@@ -214,7 +216,7 @@ export function checkComponentComparison(input) {
     replaceMetadata.new &&
     typeof replaceMetadata.new === "object" &&
     !Array.isArray(replaceMetadata.new)
-      ? /** @type {Record<string, any>} */ (replaceMetadata.new)
+      ? /** @type {Record<string, unknown>} */ (replaceMetadata.new)
       : null;
   // 食い違いの判定で judgeCarry に掛けうる「今の版」。--carry-to が同じ版なら二重に判定しない。
   /** @type {string | null} */
@@ -256,7 +258,7 @@ export function checkComponentComparison(input) {
           // 両側とも `none`。文字列の比較は常に一致するので、鮮度は反復回数だけが担う。
           const recordedIteration = toInteger(
             observed && typeof observed === "object"
-              ? /** @type {Record<string, any>} */ (observed).iteration
+              ? /** @type {Record<string, unknown>} */ (observed).iteration
               : undefined,
           );
           const loop =
@@ -265,7 +267,7 @@ export function checkComponentComparison(input) {
             replaceMetadata.loop &&
             typeof replaceMetadata.loop === "object" &&
             !Array.isArray(replaceMetadata.loop)
-              ? /** @type {Record<string, any>} */ (replaceMetadata.loop)
+              ? /** @type {Record<string, unknown>} */ (replaceMetadata.loop)
               : null;
           const wantedIteration = toInteger(loop === null ? undefined : loop.iterations);
           if (recordedIteration === null || wantedIteration === null) {
@@ -377,7 +379,7 @@ export function checkComponentComparison(input) {
       message: `突き合わせ表の slug「${String(comparison.slug)}」が網羅表の slug「${String(coverage.slug)}」と違う（別機能の記録で収束させない）`,
     });
   }
-  const metadata = /** @type {Record<string, any> | undefined} */ (input.metadata);
+  const metadata = /** @type {Record<string, unknown> | undefined} */ (input.metadata);
   if (metadata && typeof metadata === "object" && nonEmptyString(metadata.slug)) {
     if (comparison.slug !== metadata.slug) {
       findings.push({

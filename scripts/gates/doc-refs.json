@@ -1,6 +1,6 @@
 {
   "$comment": [
-    "scripts/gates/check-doc-refs.js の設定。",
+    "scripts/gates/check-doc-refs.ts の設定。",
     "repo: このリポジトリ（Issue と PR の URL を見分ける）。",
     "generated: 導入先で生成するファイルの名前と、節名を確かめるテンプレート。参照のパスが ref と同じか、/ref で終わると当てる（上から順に探す）。skills を書くと、そのスキルの文書からの参照だけに当てる。"
   ],

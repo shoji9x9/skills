@@ -1,10 +1,10 @@
 {
   "$comment": [
-    "header-normalize.test.js のうち、応答ヘッダーの正規化の各規則（Issue #531）と一覧（.replace/response-headers.json）の形の検査（Issue #534）の検出能力を示す変異の一覧。",
-    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。",
+    "header-normalize.test.ts のうち、応答ヘッダーの正規化の各規則（Issue #531）と一覧（.replace/response-headers.json）の形の検査（Issue #534）の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。",
     "テスト名を変えたら expect_failing も直す。"
   ],
-  "test_file": "scripts/skills/parity-suite/header-normalize.test.js",
+  "test_file": "scripts/skills/parity-suite/header-normalize.test.ts",
   "mutations": [
     {
       "id": "filter-off",

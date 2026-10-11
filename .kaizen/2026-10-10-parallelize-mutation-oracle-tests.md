@@ -11,7 +11,7 @@ session: claude-code
 
 ## 事象
 
-check-mutation-proof.test.js を describe.concurrent にした後、ランナーの宣言の全件で CHILD-GUARD が 2 回続けて「宣言外で落ちた」になった。
+check-mutation-proof.test.ts を describe.concurrent にした後、ランナーの宣言の全件で CHILD-GUARD が 2 回続けて「宣言外で落ちた」になった。
 変異が子の vitest の globalSetup の掃除を有効にし、並んで実行中の他のテストの fixture を消した。
 1 回目の対策では e2e を最後の describe.concurrent に移したが、concurrent な suite は隣の suite とも並ぶので直らなかった。全件の再実行（約 4 分）を 2 回失った。
 

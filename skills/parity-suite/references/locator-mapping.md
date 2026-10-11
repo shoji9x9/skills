@@ -328,10 +328,14 @@ async function readBrowserOs(browser: Browser): Promise<Record<string, string>> 
     );
     await probe.goto(BROWSER_OS_PROBE_URL); // 安全なコンテキスト
     return await probe.evaluate(async (): Promise<Record<string, string>> => {
-      const data = (navigator as Navigator & {
-        userAgentData?: { getHighEntropyValues(hints: string[]): Promise<Record<string, string>> };
-      }).userAgentData;
+      // navigator.userAgentData は TypeScript の DOM の型に無いので、使うメソッドを持つかで確かめる
+      type UserAgentData = { getHighEntropyValues(hints: string[]): Promise<Record<string, string>> };
+      const isUserAgentData = (value: unknown): value is UserAgentData =>
+        typeof value === "object" && value !== null &&
+        "getHighEntropyValues" in value && typeof value.getHighEntropyValues === "function";
+      const data = "userAgentData" in navigator ? navigator.userAgentData : undefined;
       if (!data) return { platform: navigator.platform }; // Firefox / WebKit（launched だけ。cdp では検査が失敗にする）
+      if (!isUserAgentData(data)) throw new TypeError("navigator.userAgentData に getHighEntropyValues が無い");
       const v = await data.getHighEntropyValues(["platform", "platformVersion", "architecture"]);
       return { platform: v.platform, platformVersion: v.platformVersion, architecture: v.architecture };
     });

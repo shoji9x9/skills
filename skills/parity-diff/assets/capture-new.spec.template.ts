@@ -89,14 +89,16 @@ if (!displayAxes || !Array.isArray(displayAxes.axes) || !Array.isArray(displayAx
 }
 const axes: Axis[] = displayAxes.axes;
 const defaults: Record<string, string> = Object.fromEntries(axes.map((a) => [a.name, a.default]));
+type Shot = { label: string; width: number; height: number; values: Record<string, string> };
+const variants: Variant[] = displayAxes.variants;
 const shots = [
-  ...viewports.map((v: { label: string; width: number; height: number }) => ({
+  ...viewports.map((v: { label: string; width: number; height: number }): Shot => ({
     label: v.label,
     width: v.width,
     height: v.height,
-    values: {} as Record<string, string>,
+    values: {},
   })),
-  ...(displayAxes.variants as Variant[]).map((variant) => {
+  ...variants.map((variant): Shot => {
     const base = viewports.find((v: { label: string }) => v.label === variant.viewport);
     if (!base)
       throw new Error(
@@ -254,14 +256,20 @@ async function readBrowserOs(
     );
     await probe.goto(BROWSER_OS_PROBE_URL);
     browserOs = await probe.evaluate(async (): Promise<Record<string, string>> => {
-      const data = (
-        navigator as Navigator & {
-          userAgentData?: {
-            getHighEntropyValues(hints: string[]): Promise<Record<string, string>>;
-          };
-        }
-      ).userAgentData;
+      // navigator.userAgentData は TypeScript の DOM の型に無いので、使うメソッドを持つかで確かめる
+      type UserAgentData = {
+        getHighEntropyValues(hints: string[]): Promise<Record<string, string>>;
+      };
+      const isUserAgentData = (value: unknown): value is UserAgentData =>
+        typeof value === "object" &&
+        value !== null &&
+        "getHighEntropyValues" in value &&
+        typeof value.getHighEntropyValues === "function";
+      const data = "userAgentData" in navigator ? navigator.userAgentData : undefined;
       if (!data) return { platform: navigator.platform };
+      if (!isUserAgentData(data)) {
+        throw new TypeError("navigator.userAgentData に getHighEntropyValues が無い");
+      }
       const v = await data.getHighEntropyValues(["platform", "platformVersion", "architecture"]);
       return {
         platform: v.platform,
@@ -277,7 +285,7 @@ async function readBrowserOs(
 // 現新の OS をキーの集合ごと完全一致で照合する（片側だけ navigator.platform に代替した形・キーの過不足は食い違いとして扱う）
 function sameBrowserOs(a: unknown, b: Record<string, string>): boolean {
   if (!a || typeof a !== "object" || Array.isArray(a)) return false;
-  const left = a as Record<string, unknown>;
+  const left: Record<string, unknown> = { ...a };
   const keys = Object.keys(left).sort();
   const want = Object.keys(b).sort();
   return keys.length === want.length && keys.every((k, i) => k === want[i] && left[k] === b[k]);

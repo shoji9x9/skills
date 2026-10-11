@@ -1,7 +1,7 @@
 {
   "_note": [
     "reachability（assertion を引き出す prompt の文の対応表）を未記入のまま残っている既存 eval の宣言。",
-    "scripts/gates/check-eval-reachability.js はここに載る eval だけ reachability の欠落を許す。",
+    "scripts/gates/check-eval-reachability.ts はここに載る eval だけ reachability の欠落を許す。",
     "値は eval の指紋（prompt + assertions のハッシュ）で、eval を書き換えると外れて reachability が必須になる。",
     "新規 eval はここへ足さず reachability を書く。既存 eval に reachability を足したら、この項目を消す。"
   ],

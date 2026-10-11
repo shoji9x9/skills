@@ -3,7 +3,7 @@ date: 2026-10-05
 type: hook
 priority: medium
 status: applied
-applied-to: [scripts/lib/source-scope.js, scripts/gates/lint-scope.test.js]
+applied-to: [scripts/lib/source-scope.ts, scripts/gates/lint-scope.test.ts]
 session: claude-code
 ---
 
@@ -16,7 +16,7 @@ session: claude-code
 - 同じ除外は既存の設定にもあった。markdownlint-cli2 は rule をリンクの `.github/instructions/` でしか見ず、
   private skill は一度も見ていなかった（直したら違反が 4 件出た）。lefthook の markdownlint は rule だけの commit で実行されなかった。
 - 横断で確かめると、oxlint と oxfmt の `ignorePatterns`、CI の Shell lint と JSON lint の `find` も `.agents` を丸ごと除いている。
-  private skill の `normalize-pnpm-audit.js` は lint も整形もされていない。
+  private skill の `normalize-pnpm-audit.ts` は lint も整形もされていない。
 
 ## 根本原因
 
@@ -32,6 +32,6 @@ session: claude-code
 各 lint と整形の対象範囲が、実体（`.agents/rules/` と `.private-skill` を持つ `.agents/skills/<name>/`）を含み、コピーと `.claude/` を除くことを、ツールごとにテストで確かめる。
 
 - 対象: oxlint と oxfmt の `ignorePatterns`、CI の Shell lint と JSON lint の `find`、lefthook の `*agent-copies` を使うジョブ、
-  `lint-yaml.js` と `check-control-chars.js` などスクリプトの対象の決め方
+  `lint-yaml.ts` と `check-control-chars.ts` などスクリプトの対象の決め方
 - 除外は `.agents/**` ではなく `.agents/skills/**` と書き、private skill を含め直す（markdownlint で確かめた形）
 - 実体とコピーの一覧を 1 か所で計算し、各ツールの設定がそれと一致するかをテストする

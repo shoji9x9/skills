@@ -260,6 +260,16 @@ function startsAmbiguousSlash(source, from) {
 }
 
 /**
+ * maskNonCode が直前のトークンとして持つ形。word の member はプロパティ名（直前が `.`）か。
+ * punct の blockClose は `}` がブロックの閉じか、controlHead は `)` が制御構文の頭の閉じか、
+ * postfix は `!` が後置の非 null 演算子か。
+ * @typedef {{ type: "word", value: string, member: boolean }
+ *   | { type: "punct", value: string, blockClose?: boolean, controlHead?: boolean, postfix?: boolean }
+ *   | { type: "literal" }
+ *   | { type: "number" }} MaskToken
+ */
+
+/**
  * コメント・文字列・テンプレート文字列・正規表現リテラルを空白へ置換し、行・桁位置を保つ。
  * 判定不能な終端はエラーにする（走査できなかったファイルを違反 0 件として扱わない）。
  */
@@ -270,16 +280,20 @@ export function maskNonCode(source) {
   /** テンプレートと補間の入れ子を積む。`${}` の中のテンプレートを閉じるために深さが要る。 */
   const stack = [];
   /** 開き括弧ごとに「制御構文の頭か」を積む。閉じ括弧の後で正規表現を許すかの判定に使う。 */
+  /** @type {boolean[]} */
   const parenHeads = [];
   /** 開き波括弧ごとに「ブロックか」を積む。閉じ波括弧の後で正規表現を許すかの判定に使う。 */
+  /** @type {boolean[]} */
   const braceBlocks = [];
   let state = "code";
   let quote = "";
+  /** @type {MaskToken | null} */
   let lastToken = null;
   let i = 0;
   const blankRange = (from, to) => {
     for (let k = from; k < to; k += 1) if (source[k] !== "\n") out[k] = " ";
   };
+  /** @returns {MaskToken} */
   const closeBrace = () => {
     const blockClose = braceBlocks.length > 0 ? braceBlocks.pop() : false;
     return { type: "punct", value: "}", blockClose };

@@ -74,13 +74,87 @@ export const MAX_NOISE = { ms: 100, ratio: 0.25, px: 20, opacity: 0.2 };
 /** 軌跡を比べる点の数（最初の変化から、長い方の長さまでを等分する）。 */
 export const TRAJECTORY_POINTS = 20;
 
-/** 軌跡で比べる量。dx / dy / dw / dh は基準の矩形からのずれ（px）、opacity は実効の不透明度。 */
+/**
+ * 軌跡で比べる量の名前。
+ * @typedef {"dx" | "dy" | "dw" | "dh" | "opacity"} TrajectoryMetric
+ */
+
+/**
+ * 軌跡の 1 点。t は最初の変化の直前の標本からの時刻（ms）、dx / dy / dw / dh は基準の矩形からのずれ（px）。
+ * 要素が無い点では、時刻以外の量が null になる。
+ * @typedef {{
+ *   t: number,
+ *   present: boolean,
+ *   dx: number | null,
+ *   dy: number | null,
+ *   dw: number | null,
+ *   dh: number | null,
+ *   opacity: number | null,
+ * }} MotionPoint
+ */
+
+/**
+ * 比較に使う時系列の要約（summarizeTimeline が標本から組み立てる）。
+ * probe_version は時系列の記録の値のまま（無ければ null）。
+ * @typedef {{
+ *   probe_version: unknown,
+ *   present_start: boolean,
+ *   present_end: boolean,
+ *   changed: boolean,
+ *   delay_ms: number | null,
+ *   duration_ms: number,
+ *   series: MotionPoint[],
+ * }} MotionSummary
+ */
+
+/**
+ * 検査を通った標本 1 件（summarizeTimeline が present と各量を確かめた後の形）。
+ * 在る標本だけが位置・大きさ・不透明度を持つ。
+ * @typedef {{ t: number, present: true, x: number, y: number, width: number, height: number, opacity: number }
+ *   | { t: number, present: false }} MotionSample
+ */
+
+/**
+ * 許容差を超えた量 1 件。在る／無い・遅れ・長さは current / new を、軌跡は gap を持つ。
+ * @typedef {{ measure: string, current?: unknown, new?: unknown, gap?: number, tolerance: number }} MotionDiffering
+ */
+
+/**
+ * 突き合わせの指摘 1 件。code は必ずあり、ほかの欄は code ごとに付く。
+ * instance と transition は入力の値をそのまま載せるので、文字列とは限らない（読めなければ null）。
+ * @typedef {{
+ *   code: string,
+ *   detail?: string,
+ *   instance?: unknown,
+ *   transition?: unknown,
+ *   side?: "current" | "new",
+ *   run?: number,
+ *   differing?: MotionDiffering[],
+ * }} MotionFinding
+ */
+
+/**
+ * 突き合わせの件数。
+ * @typedef {{
+ *   cells: number,
+ *   not_compared: number,
+ *   matched: number,
+ *   mismatched: number,
+ *   uncompared: number,
+ *   accepted: number,
+ * }} MotionCounts
+ */
+
+/**
+ * 軌跡で比べる量。dx / dy / dw / dh は基準の矩形からのずれ（px）、opacity は実効の不透明度。
+ * @type {readonly TrajectoryMetric[]}
+ */
 const TRAJECTORY_METRICS = ["dx", "dy", "dw", "dh", "opacity"];
 
 /**
  * 2 つの標本が違うか（motion-probe.mjs のページ側の判定と同じ）。
- * @param {any} a
- * @param {any} b
+ * @param {MotionSample} a
+ * @param {MotionSample} b
  * @returns {boolean}
  */
 function differs(a, b) {
@@ -98,8 +172,8 @@ function differs(a, b) {
 /**
  * 時系列を読み、比較に使う要約を返す（読めなければ理由）。
  * 記録された要約値は信用せず、標本から組み立て直す（書き手の不変条件を読み手で検査する）。
- * @param {any} timeline motion-probe.mjs の出力
- * @returns {{ ok: true, summary: object } | { ok: false, reason: string }}
+ * @param {unknown} timeline motion-probe.mjs の出力（形はここで検査する）
+ * @returns {{ ok: true, summary: MotionSummary } | { ok: false, reason: string }}
  */
 export function summarizeTimeline(timeline) {
   if (timeline === null || typeof timeline !== "object" || Array.isArray(timeline)) {
@@ -174,9 +248,9 @@ export function summarizeTimeline(timeline) {
 
 /**
  * 系列のある時刻の値（前後の標本の線形補間。どちらかが無ければ null）。終わりより後は最後の値を保つ。
- * @param {object[]} series
+ * @param {MotionPoint[]} series
  * @param {number} t
- * @param {string} metric
+ * @param {TrajectoryMetric} metric
  * @returns {number | null}
  */
 function valueAt(series, t, metric) {
@@ -197,8 +271,8 @@ function valueAt(series, t, metric) {
 
 /**
  * 2 つの要約の軌跡の差（量ごとの最大の差）。両方が在る点だけで比べる。
- * @param {any} a
- * @param {any} b
+ * @param {MotionSummary} a
+ * @param {MotionSummary} b
  * @returns {Record<string, number>}
  */
 export function trajectoryGap(a, b) {
@@ -238,8 +312,8 @@ function timeGap(a, b) {
  * 在る／無い・動いた／動かないの割れと、遅れ・長さ・軌跡の揺れが上限（MAX_NOISE）を超えたもの。
  * 新側の記録に依らず現行の 2 回だけで決まるので、基準を登録する時点で判定する
  * （突き合わせの行の中で判定すると、突き合わせ表の無い capture の前提判定や、比較まで届かない行で素通りする）。
- * @param {any} base 現行の 1 回目の要約
- * @param {any} noise 現行の 2 回目の要約
+ * @param {MotionSummary} base 現行の 1 回目の要約
+ * @param {MotionSummary} noise 現行の 2 回目の要約
  * @returns {string[]}
  */
 export function baselineInstability(base, noise) {
@@ -262,10 +336,10 @@ export function baselineInstability(base, noise) {
 /**
  * 現行の 2 回（基準・揺れ）と新側 1 回を比べ、許容差を超えた量を返す。
  * 現行の 2 回が割れていないこと（baselineInstability が空）は、基準を登録する時点で確かめ済みの前提。
- * @param {any} base 現行の 1 回目の要約
- * @param {any} noise 現行の 2 回目の要約
- * @param {any} candidate 新側の要約
- * @returns {{ differing: object[] }}
+ * @param {MotionSummary} base 現行の 1 回目の要約
+ * @param {MotionSummary} noise 現行の 2 回目の要約
+ * @param {MotionSummary} candidate 新側の要約
+ * @returns {{ differing: MotionDiffering[] }}
  */
 export function judgeMotion(base, noise, candidate) {
   const noiseGapForLimit = trajectoryGap(base, noise);
@@ -298,15 +372,15 @@ export function judgeMotion(base, noise, candidate) {
 /**
  * 動きを突き合わせる（純関数）。
  *
- * @param {{ metadata: any, motions: Record<string, any>, comparison: any, target: string }} input
+ * @param {{ metadata: unknown, motions: Record<string, unknown>, comparison: unknown, target: string }} input 突き合わせの入力（形はここで検査する）。
  *   - metadata: capture の `metadata.json`
  *   - motions: インスタンス id → `baseline/<id>/motions.json` の中身（読めなければ null）
  *   - comparison: `new/<target>/motion-comparison.json` の中身（読めなければ null）
  *   - target: 判定対象の new target 名
- * @returns {{ structural: boolean, judged: boolean, findings: object[], counts: Record<string, number> }}
+ * @returns {{ structural: boolean, judged: boolean, findings: MotionFinding[], counts: MotionCounts }}
  */
 export function compareMotions({ metadata, motions, comparison, target }) {
-  /** @type {object[]} */
+  /** @type {MotionFinding[]} */
   const findings = [];
   const counts = {
     cells: 0,
@@ -442,7 +516,7 @@ export function compareMotions({ metadata, motions, comparison, target }) {
   counts.cells = population.size;
 
   // 現行側: 各組み合わせに、比較に使える時系列の要約を 2 つ（基準と揺れ）。
-  /** @type {Map<string, [object, object] | undefined>} */
+  /** @type {Map<string, [MotionSummary, MotionSummary] | undefined>} */
   const baseline = new Map();
   for (const id of instanceIds) {
     const doc = motions[id];
@@ -698,11 +772,11 @@ export function compareMotions({ metadata, motions, comparison, target }) {
  * 部品の成果物ディレクトリから metadata.json と各インスタンスの motions.json を読む。
  * motions.json が無い・読めないインスタンスは null（未採取として判定側が数える）。
  * @param {string} dir
- * @returns {{ metadata: any, motions: Record<string, any> }}
+ * @returns {{ metadata: unknown, motions: Record<string, unknown> }} 中身の形は検査しない（compareMotions が検査する）。
  */
 export function loadBaseline(dir) {
   const metadata = JSON.parse(readFileSync(join(dir, "metadata.json"), "utf8"));
-  /** @type {Record<string, any>} */
+  /** @type {Record<string, unknown>} */
   const motions = {};
   const instances = Array.isArray(metadata && metadata.instances) ? metadata.instances : [];
   const baselineRoot = resolve(dir, "baseline");

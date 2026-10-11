@@ -10,7 +10,7 @@
   npm は使わず、`package-lock.json` を作らない。誤って別のパッケージマネージャを使うと、`devEngines` が警告する。
   4 か所をそろえて版を上げる手順と、不具合のある版を避ける方法は [`docs/package-manager.md`](package-manager.md) にある。
 - フォーマッタとリンタは「リントと整形」の表のとおりである。prettier は使わない。
-- テストは skill-creator で行う。eval viewer には Python 3.8 以上が要る。結果の集計は `scripts/eval/build-skill-eval-benchmark.js`（Node）で行う。
+- テストは skill-creator で行う。eval viewer には Python 3.8 以上が要る。結果の集計は `scripts/eval/build-skill-eval-benchmark.ts`（Node）で行う。
 - 実行環境は mise で管理する。
 
 ### ツールの起動
@@ -19,7 +19,7 @@
 
 1 回の実行で同じツールを多数回（数十以上）起動するスクリプトは例外とする。`pnpm exec` の起動にかかる時間（実測で 1 回約 0.6 秒）が、実行時間の大半を占めるためである。
 この場合は、Node のモジュール解決（`createRequire(...).resolve("<pkg>/package.json")` の `bin`）でエントリを求め、`node` で起動してよい。
-`scripts/mutation/check-mutation-proof.js` は、子プロセスの vitest をこの方法で起動する。この場合も `.bin` のパスは直接書かない。
+`scripts/mutation/check-mutation-proof.ts` は、子プロセスの vitest をこの方法で起動する。この場合も `.bin` のパスは直接書かない。
 
 mise の shim は、cwd の設定の階層からツールの版を決める。
 リポジトリの外の cwd（`/tmp` など）からコマンド名だけで起動すると、`No version is set for shim` で失敗する。グローバルのデフォルトが無いためで、untrusted とは別の失敗である。
@@ -29,11 +29,11 @@ mise の shim は、cwd の設定の階層からツールの版を決める。
 
 | 対象 | リント | 整形 | 補助のチェック |
 | --- | --- | --- | --- |
-| Markdown（`*.md`） | `markdownlint-cli2` | `markdownlint-cli2` | `scripts/gates/lint-pagination.js` が shell のコードブロックの `gh api` のページネーションを、`scripts/gates/lint-prose.js` が人が読む文章を textlint でチェックする |
-| JavaScript・TypeScript（`*.js`、`*.mjs`、`*.ts` など） | `oxlint` | `oxfmt` | `tsc`（`pnpm run typecheck`）が `.ts`・`.tsx` の型を検査する（下の「型の検査」）。`scripts/gates/lint-prose.js` がコメントの文章を textlint で、文字列（テスト名・メッセージ）を使わない語の規則でチェックする |
-| JSON（`*.json`） | `jsonlint` | `oxfmt` | 重複したキーもチェックする。`scripts/gates/lint-prose.js` が `evals/<name>/evals.json` の文字列を使わない語の規則でチェックする |
-| YAML（`*.yml`、`*.yaml`） | `js-yaml`（`scripts/gates/lint-yaml.js` が API で 1 つのプロセスにまとめて読む） | `oxfmt` | `scripts/gates/lint-prose.js` がコメントの文章を textlint でチェックする |
-| シェル（`*.sh`） | `shellcheck` | `shfmt` | `scripts/gates/lint-pagination.js` が `gh api` のページネーションを、`scripts/gates/lint-prose.js` がコメントの文章をチェックする |
+| Markdown（`*.md`） | `markdownlint-cli2` | `markdownlint-cli2` | `scripts/gates/lint-pagination.ts` が shell のコードブロックの `gh api` のページネーションを、`scripts/gates/lint-prose.ts` が人が読む文章を textlint でチェックする |
+| JavaScript・TypeScript（`*.js`、`*.mjs`、`*.ts` など） | `oxlint` | `oxfmt` | `tsc`（`pnpm run typecheck`）が `.ts`・`.tsx` の型を検査する（下の「型の検査」）。`scripts/gates/lint-prose.ts` がコメントの文章を textlint で、文字列（テスト名・メッセージ）を使わない語の規則でチェックする |
+| JSON（`*.json`） | `jsonlint` | `oxfmt` | 重複したキーもチェックする。`scripts/gates/lint-prose.ts` が `evals/<name>/evals.json` の文字列を使わない語の規則でチェックする |
+| YAML（`*.yml`、`*.yaml`） | `js-yaml`（`scripts/gates/lint-yaml.ts` が API で 1 つのプロセスにまとめて読む） | `oxfmt` | `scripts/gates/lint-prose.ts` がコメントの文章を textlint でチェックする |
+| シェル（`*.sh`） | `shellcheck` | `shfmt` | `scripts/gates/lint-pagination.ts` が `gh api` のページネーションを、`scripts/gates/lint-prose.ts` がコメントの文章をチェックする |
 | GitHub Actions（`.github/workflows/*.{yml,yaml}`） | `actionlint` と `ghalint` | `oxfmt` | `pinact` が SHA の固定を確かめる |
 
 表のうち `shellcheck`・`shfmt`・`actionlint`・`pinact`・`ghalint`・`gitleaks` は、mise でインストールし（`mise.toml`）、コマンド名だけで起動する。
@@ -50,27 +50,27 @@ GitHub Actions は、`actionlint` で構文を、`ghalint` で `permissions`・`
 
 | スクリプト（`scripts/gates/`） | チェックする内容 |
 | --- | --- |
-| `check-rule-symlinks.js` | rule を各エージェントから読むためのシンボリックリンク |
-| `check-control-chars.js` | テキストの拡張子のファイルに入った制御文字 |
-| `check-eval-reachability.js` | eval の assertion と prompt の対応 |
-| `check-skills-sync.js` | `skills/<name>/` とインストール済みのコピー `.agents/skills/<name>/` の一致 |
-| `check-js-extensions.js` | JavaScript の拡張子（「JavaScript の拡張子」の節） |
-| `check-skill-frontmatter.js` | `SKILL.md` の frontmatter |
-| `lint-pagination.js` | `gh api` などの一覧の取得のページネーション |
-| `check-kaizen-refs.js` | `.kaizen/` の学びへの参照の実在。意図して実在しないものは `scripts/gates/kaizen-refs-exemptions.json` に書く |
-| `check-identical-copies.js` | 同じ内容であるべきコピー。組は `scripts/gates/identical-copies.json` に書く |
-| `check-skill-checks.js` | 配布スキルのチェック（`*-check.*`）の分類。利用者の pre-commit・CI に組み込むもの（`skills/<name>/checks.json`）か、組み込まないもの（理由を付けて `scripts/gates/skill-checks-unwired.json`）のどちらかにする |
-| `check-time-sensitive-prose.js` | 日付・「現状は」「当面」を Tier 1〜3 の文書とコメントに書いていないか。変異の件数や全件の実測値は `mutation-proof.yml` だけに書く |
-| `check-doc-tiers.js` | 文書の階層。原本は `scripts/gates/doc-tiers.json` で、`.agents/rules/doc-altitude.md` の表は `--fix` で生成する |
-| `check-doc-refs.js` | リンクと節名の実在、参照の向き。節名は、パス（バッククォート・リンク・スキル名付き）の後に「」で書いたものを照合する。間に「の」や空白を挟んでもよく、節名でない語句を引用するときは名詞を挟む。導入先で生成するファイルは `scripts/gates/doc-refs.json`、保留は `scripts/gates/doc-pending.json` に書く |
-| `check-skill-index.js` | スキルガイド・README とスキルの実体の対応 |
-| `lint-prose.js` | 人が読む Markdown の文章と、JavaScript・TypeScript・シェル・YAML のコメントの文章。JavaScript・TypeScript の文字列と `evals/<name>/evals.json` の prompt・expected_output・assertions には、使わない語の規則だけを当てる（取り出し方は `scripts/lib/code-strings.js`）。シェルのコメントは `shfmt --to-json` の構文木から取り出すので、shfmt（`mise.toml` で版を固定）が要る。書き換え前のファイルは `scripts/gates/prose-lint-pending.json` に書く |
-| `check-word-list.js` | `.textlint/word-list.md` と `.textlint/words.json` の一致 |
-| `check-agents-md-size.js` | `AGENTS.md` のサイズ。ブランチで 30 KiB を超えたら、24 KiB 以下まで縮めさせる。超えたかは履歴で判定し、上限は `scripts/gates/agents-md-size.json` に書く |
+| `check-rule-symlinks.ts` | rule を各エージェントから読むためのシンボリックリンク |
+| `check-control-chars.ts` | テキストの拡張子のファイルに入った制御文字 |
+| `check-eval-reachability.ts` | eval の assertion と prompt の対応 |
+| `check-skills-sync.ts` | `skills/<name>/` とインストール済みのコピー `.agents/skills/<name>/` の一致 |
+| `check-js-extensions.ts` | JavaScript の拡張子（「JavaScript の拡張子」の節） |
+| `check-skill-frontmatter.ts` | `SKILL.md` の frontmatter |
+| `lint-pagination.ts` | `gh api` などの一覧の取得のページネーション |
+| `check-kaizen-refs.ts` | `.kaizen/` の学びへの参照の実在。意図して実在しないものは `scripts/gates/kaizen-refs-exemptions.json` に書く |
+| `check-identical-copies.ts` | 同じ内容であるべきコピー。組は `scripts/gates/identical-copies.json` に書く |
+| `check-skill-checks.ts` | 配布スキルのチェック（`*-check.*`）の分類。利用者の pre-commit・CI に組み込むもの（`skills/<name>/checks.json`）か、組み込まないもの（理由を付けて `scripts/gates/skill-checks-unwired.json`）のどちらかにする |
+| `check-time-sensitive-prose.ts` | 日付・「現状は」「当面」を Tier 1〜3 の文書とコメントに書いていないか。変異の件数や全件の実測値は `mutation-proof.yml` だけに書く |
+| `check-doc-tiers.ts` | 文書の階層。原本は `scripts/gates/doc-tiers.json` で、`.agents/rules/doc-altitude.md` の表は `--fix` で生成する |
+| `check-doc-refs.ts` | リンクと節名の実在、参照の向き。節名は、パス（バッククォート・リンク・スキル名付き）の後に「」で書いたものを照合する。間に「の」や空白を挟んでもよく、節名でない語句を引用するときは名詞を挟む。導入先で生成するファイルは `scripts/gates/doc-refs.json`、保留は `scripts/gates/doc-pending.json` に書く |
+| `check-skill-index.ts` | スキルガイド・README とスキルの実体の対応 |
+| `lint-prose.ts` | 人が読む Markdown の文章と、JavaScript・TypeScript・シェル・YAML のコメントの文章。JavaScript・TypeScript の文字列と `evals/<name>/evals.json` の prompt・expected_output・assertions には、使わない語の規則だけを当てる（取り出し方は `scripts/lib/code-strings.ts`）。シェルのコメントは `shfmt --to-json` の構文木から取り出すので、shfmt（`mise.toml` で版を固定）が要る。書き換え前のファイルは `scripts/gates/prose-lint-pending.json` に書く |
+| `check-word-list.ts` | `.textlint/word-list.md` と `.textlint/words.json` の一致 |
+| `check-agents-md-size.ts` | `AGENTS.md` のサイズ。ブランチで 30 KiB を超えたら、24 KiB 以下まで縮めさせる。超えたかは履歴で判定し、上限は `scripts/gates/agents-md-size.json` に書く |
 
 ### ミューテーションテスト（CI だけで実行）
 
-`scripts/mutation/check-mutation-proof.js` は、`scripts/**/*.mutations.json` の定義をもう一度実行する。
+`scripts/mutation/check-mutation-proof.ts` は、`scripts/**/*.mutations.json` の定義をもう一度実行する。
 各変異について、置換が当たったことと、定義したテストだけが失敗したことを確かめる。
 チェックが違反を検出できることをコメントの文章で記録すると、コードが変わったときに古くなる。そこでデータとして持ち、このランナーで機械的に測り直す。
 
@@ -115,7 +115,7 @@ worktree は commit した内容から作るので、tracked のファイルに 
 実行しながら同じファイルを編集したいとき（変更前の所要時間の計測など）は、基点の commit の別の worktree（`git worktree add --detach`）で実行する。
 ランナーは宣言ごとの所要時間（基準 run を含む）を出し、最後の集計の行の前に長い順の一覧を出す。全件の実行で、次に縮める宣言をこの一覧から選ぶ。
 変異 1 件ごとにテストファイルを丸ごと実行するので、子プロセスの終了を待つテストは `test.concurrent` で並べると、変異の数だけ縮む。
-子は `scripts/lib/spawn-async.js` の `spawnAsync` で起動し（`spawnSync` はイベントループを止めるので並ばない）、一時ディレクトリは `makeTempDirFactory` で作る。
+子は `scripts/lib/spawn-async.ts` の `spawnAsync` で起動し（`spawnSync` はイベントループを止めるので並ばない）、一時ディレクトリは `makeTempDirFactory` で作る。
 並べたテストの中の `makeTempDir` は、消す予約が別のテストに付くので例外になる。
 バックグラウンドで実行したときの完了は、完了の通知ではなく、プロセスが無いこと（`/proc/<pid>`）と、ログの最終行（`mutation-proof: N proven / M failed`）で判断する。
 
@@ -145,7 +145,7 @@ markdownlint-cli2 は `.mjs`・`.png`・`.yml` まで書き換えて構文エラ
 - `oxfmt`: `oxfmt.config.ts` の `ignorePatterns` を、lefthook の `oxfmt-*` のジョブと同じ種類（JS・TS・JSON・YAML）の許可リストにする。
   oxfmt は `.md`・`.css`・`.html`・`.toml` も整形するので、外す種類を挙げる形にはしない。
 
-どの渡し方でも割り当て外の種類が変わらないことは、`scripts/gates/formatter-scope.test.js` が実物のツールで確かめ、許可リストと lefthook の一致は `scripts/gates/lint-scope.test.js` が確かめる。
+どの渡し方でも割り当て外の種類が変わらないことは、`scripts/gates/formatter-scope.test.ts` が実物のツールで確かめ、許可リストと lefthook の一致は `scripts/gates/lint-scope.test.ts` が確かめる。
 Markdown の整形は `markdownlint-cli2 --fix` で行う。
 生成物は、生成スクリプト自身が出力ファイルを並べて整形する。手順書で人に oxfmt を当てさせない。
 
@@ -161,10 +161,26 @@ JavaScript の拡張子は、配布するかどうかで使い分ける。新し
 | 種類 | 拡張子 | 理由 |
 | --- | --- | --- |
 | 配布スキル（`skills/**`）の JavaScript | `.mjs` | インストール先の `package.json` の `type` に依らず、Node が常に ESM として読むため |
-| リポジトリ内のツールとテスト（`scripts/**/*.js`）、配布しない private skill のスクリプト | `.js` | `package.json` の `"type": "module"` の下で ESM として動くので、拡張子で ESM を示す必要がないため |
+| リポジトリ内のツールとテスト（`scripts/**/*.ts`）、配布しない private skill のスクリプト | `.ts` | `pnpm run typecheck` で型を検査するため。Node（`mise.toml` の版）が型を消して直接実行するので、ビルドは要らない |
 | ツールが読む設定 | `.ts` | 各ツールが `.ts` を自動で探して読むため |
 
 private skill は、`.private-skill` を持ち、`.agents/skills/<name>/` にだけ在るスキルである。
+
+`scripts/**` と private skill の `.ts` は、Node が型を消すだけで実行できる構文で書く。`enum`・`namespace`・constructor の parameter properties は使わない。
+`tsconfig.repo.json` の `erasableSyntaxOnly` が、これを型の検査で失敗にする。
+型だけの import は `import type` で書き、相対 import は `.ts` の拡張子まで書く（`verbatimModuleSyntax` と `allowImportingTsExtensions`）。
+型の検査を警告なしに外す書き方（non-null の表明 `!`・`any`・`@ts-ignore` など）は、`oxlint.config.ts` の `overrides` で失敗にする。
+対象はリポジトリの TypeScript 全体で、eval の fixture だけは non-null の表明を外す（下流のプロジェクトの書き方をそのまま持つため）。
+禁じるのは、名前を挙げた書き方だけではない。型の検査を警告なしに外す書き方は、同じ理由ですべて禁じる。
+null や undefined になりうる値は、表明せずに確かめて型を絞る。テストでは vitest の `assert`（`assert.exists` など）を使う。
+型の表明（`as T`）も同じ設定で失敗にする（`as const` と `satisfies` は使ってよい）。型ガード・`instanceof`・型の注釈で書き換える。
+表明が避けられない箇所は、その行に `// oxlint-disable-next-line typescript/consistent-type-assertions -- <理由>` を書く。
+何も抑えていない disable のコメントは、`reportUnusedDisableDirectives` が失敗にする。
+よく使う形は `scripts/lib/` の helper にまとめ、表明をそこだけに置く。
+catch の値は `errors.ts`、わざと不正な入力と欄の削除は `test-input.ts`、外部の JSON は `parse-as.ts`、YAML は `yaml-as.ts` を使う。
+例外は、ミューテーションテストのランナーと private skill である。どちらも `scripts/lib/` を import せず、同じ helper をファイルの中に持つ。
+ランナーは、テストがランナーのファイルだけをリポジトリの外にコピーして起動する。private skill は、スキルのディレクトリの中だけで完結させる。
+配布スキルは `.mjs` のままにする。利用者の Node で動くので、`.ts` にすると利用者に求める Node の版が上がる。
 
 ツールが読む `.ts` の設定は次のとおりである。
 
@@ -177,7 +193,12 @@ oxlint の `.ts` の設定は Node.js から起動することが前提なので
 `.ts` を読まないツールの設定は、元の形式のままにする。markdownlint-cli2 は `.mjs`・`.cjs`・JSON・YAML を、lefthook は YAML・JSON・TOML を読む。
 mise・pnpm・GitHub・各エージェントの設定は、形式をツールが決めている。
 
-`scripts/gates/check-js-extensions.js` が、この規約を lefthook の pre-commit と CI（`Lint` ジョブ）でチェックする。`skills/**` の `.js` と、`scripts/**` の `.mjs` を失敗にする。
+`scripts/gates/check-js-extensions.ts` が、この規約を lefthook の pre-commit と CI（`Lint` ジョブ）でチェックする。
+失敗にするのは、次の拡張子である。走査するのは、追跡しているファイルと、`.gitignore` に当たらない未追跡のファイルである。
+
+- `skills/**`: `.js`・`.cjs`・`.mts`・`.cts`・`.tsx`・`.jsx`。`skills/<name>/assets/`（利用者のプロジェクトへ置く雛形）の外の `.ts` も失敗にする。
+- `scripts/**` と private skill: `.js`・`.mjs`・`.cjs`・`.mts`・`.cts`・`.tsx`・`.jsx`。private skill の `.ts` は `scripts/` の下だけに置く（型の検査の対象がそこだけのため）。
+  `.mts`・`.cts` は Node が実行できるのに `tsconfig.repo.json` の include（`*.ts`）に入らない。`.tsx`・`.jsx` は Node が実行できない。拡張子は大文字と小文字を区別せずに照合する。
 
 ### 型の検査
 
@@ -191,7 +212,7 @@ lefthook の pre-commit は、TypeScript か JavaScript（`ts`・`tsx`・`mts`�
 
 | 設定 | 対象 | 解決の規則 |
 | --- | --- | --- |
-| `tsconfig.repo.json` | Node が直接実行する `.ts`（設定ファイル・`scripts/`） | `nodenext` |
+| `tsconfig.repo.json` | Node が直接実行する `.ts`（設定ファイル・`scripts/`・private skill の `scripts/`） | `nodenext` |
 | `tsconfig.templates.json` | 配布スキルの `.ts`・`.mts`・`.cts`（`skills/*/**` と、インストール済みのコピーの `.agents/skills/*/**`）。今あるのは `assets/` の雛形だけで、`assets/` の外に足した `.ts` も対象になる。Node が直接実行する `.ts` を配布スキルに足すなら、`nodenext` のプロジェクトへ分ける | `bundler` |
 | `tsconfig.templates-links.json` | Claude Code 用のリンクから見た同じファイル（`.claude/skills/*/**`） | `bundler`（`tsconfig.templates.json` を継承する） |
 | `tsconfig.fixtures.json` | eval の fixture（`evals/*/fixtures/**/*.{ts,tsx}`） | `bundler`、`jsx: react-jsx` |
@@ -211,8 +232,10 @@ eval の fixture は、エージェントに渡す下流のプロジェクトの
 雛形の宣言と同じファイルにしないのは、ambient 宣言がプロジェクトの全体に適用され、互いの検査で一致してしまうからである。
 fixture の検査も strict のままにする。型が足りない fixture は、fixture に型を書いて直す。fixture は eval の入力なので、直したら `docs/skill-development.md` に従ってその eval を実行し直す。
 
-`composite` のプロジェクトは、import した `.js` も `include` に挙げる必要がある。
-そのため `tsconfig.repo.json` は `scripts/**/*.js` と `skills/*/scripts/**/*.mjs` を含める。`checkJs` は付けないので、JavaScript の型は検査しない。
+`composite` のプロジェクトは、import した `.mjs` も `include` に挙げる必要がある。
+そのため `tsconfig.repo.json` は、`scripts/` のテストが import する `skills/*/scripts/**/*.mjs` と `skills/*/assets/**/*.mjs` を含める。`checkJs` は付けないので、配布スキルの JavaScript の型は検査しない。
+インストール済みのコピーの `scripts/`（`.agents/skills/*/scripts/**` と `.claude/skills/*/scripts/**`）は、`tsconfig.templates.json` と `tsconfig.templates-links.json` から外す。
+そこに在る `.ts` は private skill のもので、Node が直接実行するので `tsconfig.repo.json` で検査する。
 
 ### チェックの対象から外すもの
 

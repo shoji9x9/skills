@@ -3,7 +3,7 @@ date: 2026-09-16
 type: rule
 priority: high
 status: applied
-applied-to: [AGENTS.md, docs/agent-workflow.md, docs/tooling.md, .markdownlint-cli2.yaml, oxfmt.config.ts, scripts/gates/formatter-scope.test.js]
+applied-to: [AGENTS.md, docs/agent-workflow.md, docs/tooling.md, .markdownlint-cli2.yaml, oxfmt.config.ts, scripts/gates/formatter-scope.test.ts]
 session: claude-code
 ---
 

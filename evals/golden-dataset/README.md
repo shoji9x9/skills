@@ -81,4 +81,4 @@ fixture 付きの eval（`evals.json` に `fixture` があるもの）は、`--f
   **空を正解として緑で通る**形は説明しない。
   冪等性と同時実行の区別（assertion 1）と、読み手との衝突（assertion 6）は baseline も自力で到達するので、後退の検知の項目として残す
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
-- 集計（`benchmark.json`）は `node scripts/eval/build-skill-eval-benchmark.js` で生成する（判定は assertion テキストで突き合わせる。`benchmark.md` は人が書く。詳細は `docs/skill-development.md`）
+- 集計（`benchmark.json`）は `node scripts/eval/build-skill-eval-benchmark.ts` で生成する（判定は assertion テキストで突き合わせる。`benchmark.md` は人が書く。詳細は `docs/skill-development.md`）

@@ -1,10 +1,10 @@
 {
   "$comment": [
-    "append-only-check.test.js の検出能力を示す変異の一覧（--exclude の分岐と fill_only_columns）。",
-    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。",
+    "append-only-check.test.ts の検出能力を示す変異の一覧（--exclude の分岐と fill_only_columns）。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。",
     "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
   ],
-  "test_file": "scripts/skills/replace-strategy/append-only-check.test.js",
+  "test_file": "scripts/skills/replace-strategy/append-only-check.test.ts",
   "mutations": [
     {
       "id": "AO-EXCL-FILTER",

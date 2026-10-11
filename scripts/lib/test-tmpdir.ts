@@ -1,0 +1,51 @@
+// テストが使う一時ディレクトリの作成と後片付けを 1 か所にまとめる（Issue #479）。
+//
+// `mkdtempSync(join(tmpdir(), ...))` を各テストが直に呼ぶと、後片付けを書き忘れたファイルが
+// `pnpm test` のたびに `/tmp` へ数百個ずつ残す。ミューテーションテストは変異 1 件ごとにテストファイルを丸ごと
+// 実行するのでさらに数十倍になり、tmpfs の inode を使い切った。作成と登録を分けると書き忘れが
+// 再発するので、作った時点で消す予約まで済ませる（直呼びは `test-tmpdir.test.ts` が落とす）。
+//
+// - `makeTempDir`: テストの中（`beforeEach` を含む）で作り、そのテストの終わりに消す（`onTestFinished`。
+//   assertion が落ちても実行される）。収集時に呼ぶと `onTestFinished` が例外を投げるので、取り違えは警告なしには通らない。
+// - `makeSharedTempDir`: 収集時（モジュールの最上位・`describe` の本体）に作り、複数のテストで共有する。
+//   その階層の `afterAll` で消す。`base` を渡すと `tmpdir()` の代わりにその下に作る（vitest が収集する `scripts/` 配下の fixture など）。
+// - `makeTempDirFactory`: 並べて実行するテスト（`test.concurrent`・`describe.concurrent`）用。収集時に呼んで作る関数を受け取り、
+//   テストの中ではそれで作る。作ったものは共有の 1 つのディレクトリの下に置き、その階層の `afterAll` でまとめて消す。
+//   並べたテストの中では、vitest が「いま実行中のテスト」を正しく追えない（実測で、テスト a の中で b を返し、
+//   `await` の後は undefined を返した）。そこで `makeTempDir` を呼ぶと、別のテストの終わりに消える予約になり、
+//   まだ使っているディレクトリが消える。それを避けるため、`makeTempDir` は並べたテストの中では例外にする（Issue #590）。
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterAll, onTestFinished } from "vitest";
+import { getCurrentTest } from "vitest/suite";
+
+export function makeTempDir(prefix: string): string {
+  if (getCurrentTest()?.concurrent) {
+    throw new Error(
+      "並べて実行するテストの中では makeTempDir を使わない（消す予約が別のテストに付く）。makeTempDirFactory を使う",
+    );
+  }
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  try {
+    onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
+  } catch (error) {
+    rmSync(dir, { recursive: true, force: true });
+    throw error;
+  }
+  return dir;
+}
+
+export function makeSharedTempDir(prefix: string, base: string = tmpdir()): string {
+  const dir = mkdtempSync(join(base, prefix));
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+  return dir;
+}
+
+export function makeTempDirFactory(
+  prefix: string,
+  base: string = tmpdir(),
+): (name: string) => string {
+  const root = makeSharedTempDir(prefix, base);
+  return (name) => mkdtempSync(join(root, name)); // tmpdir-ok: makeSharedTempDir の下・afterAll で消す
+}

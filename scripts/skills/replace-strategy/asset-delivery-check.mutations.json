@@ -1,10 +1,10 @@
 {
   "$comment": [
-    "asset-delivery-check.test.js のうち、静的資産の新側突き合わせ（Issue #458）の各判定の検出能力を示す変異の一覧。",
-    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。",
+    "asset-delivery-check.test.ts のうち、静的資産の新側突き合わせ（Issue #458）の各判定の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。",
     "テスト名を変えたら expect_failing も直す。"
   ],
-  "test_file": "scripts/skills/replace-strategy/asset-delivery-check.test.js",
+  "test_file": "scripts/skills/replace-strategy/asset-delivery-check.test.ts",
   "mutations": [
     {
       "id": "reference-off",

@@ -585,7 +585,7 @@ export function countTriage(registries, record, slug, knownSlugs = null) {
  * CLI 本体。
  *
  * @param {string[]} argv
- * @param {{ readFile?: (p:string)=>string }} deps
+ * @param {{ readFile?: (p:string)=>string }} [deps]
  * @returns {number} 終了コード
  */
 export function main(argv, deps = {}) {

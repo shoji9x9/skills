@@ -1,12 +1,12 @@
 import { configDefaults, defineConfig } from "vitest/config";
 
 // **リポジトリの tracked ファイルを書き換えて戻すテスト。** 兄弟テストと並べない。
-// `check-mutation-proof.test.js` の差分選択テストはミューテーションテストの実行を含む。
-// その実行は tracked ファイル（`scripts/gates/check-word-list.js`）を書き換えて戻す。
-// それを読む兄弟テスト（`check-word-list.test.js` / `mutations-declaration.test.js`）と並ぶと、
+// `check-mutation-proof.test.ts` の差分選択テストはミューテーションテストの実行を含む。
+// その実行は tracked ファイル（`scripts/gates/check-word-list.ts`）を書き換えて戻す。
+// それを読む兄弟テスト（`check-word-list.test.ts` / `mutations-declaration.test.ts`）と並ぶと、
 // 変異中の中間状態を読んで**無関係に赤くなる**。
 // `MUTATION_PROOF_LOCK` は別のミューテーションテストを排除するだけで、兄弟テストには機能しない。
-const ISOLATED: string[] = ["scripts/mutation/check-mutation-proof.test.js"];
+const ISOLATED: string[] = ["scripts/mutation/check-mutation-proof.test.ts"];
 
 export default defineConfig({
   test: {
@@ -22,7 +22,7 @@ export default defineConfig({
         test: {
           name: "parallel",
           // テストはスクリプトのユニットテストのみ（node_modules はデフォルトで除外）。
-          include: ["scripts/**/*.test.js"],
+          include: ["scripts/**/*.test.ts"],
           exclude: [...configDefaults.exclude, ...ISOLATED],
           // 子プロセスを待つテストを並べて実行するファイルがあり（Issue #590）、ファイルの並列とも重なって CPU が混む。
           // run-skill-eval.sh のように、同じロックを並べたテストどうしで待つものもある。

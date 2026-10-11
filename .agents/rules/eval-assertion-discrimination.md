@@ -95,7 +95,7 @@ assertion を弱めるのではなく、プロンプトで問う形にする。
 プロンプトを 1 語でも変えたら、追加・変更した assertion だけでなく、すべての assertion の対応表を作り直す。過去の run が pass したことは、到達できる証拠にならない。
 
 対応表は eval の `reachability`（`{ assertion, prompt_quote }` の配列）として残す。
-`scripts/gates/check-eval-reachability.js` が pre-commit と CI で、`prompt_quote` が prompt の部分文字列であることと、`assertion` がその eval の assertions に実在することを確かめる。
+`scripts/gates/check-eval-reachability.ts` が pre-commit と CI で、`prompt_quote` が prompt の部分文字列であることと、`assertion` がその eval の assertions に実在することを確かめる。
 機械のチェックが見るのは部分文字列が実在するかまでなので、次の 4 点はレビューで確かめる。どれも、実行してからやり直した実例がある。
 
 - 1 つの assertion で 1 つのことを主張する。複数の主張を束ねた assertion は、1 つの主張の引用だけでチェックを通り、引き出す文の無い主張だけが落ち続ける。

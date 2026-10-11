@@ -297,7 +297,16 @@ export function shotRecordPath(path) {
 /**
  * `element.shot.json` の中身（原本の形）。captureElementShot 以外で撮った PNG に記録を添える場合も
  * この関数で組み立て、キーの集合と `tool_version` を揃える。
- * @param {{ clip: object, png: object, rect: object, page_rect: object, frame_depth: number, animations: string }} fields
+ * @param {{ clip: { x:number, y:number, width:number, height:number },
+ *           png: { width:number, height:number },
+ *           rect: { x:number, y:number, width:number, height:number },
+ *           page_rect: { x:number, y:number, width:number, height:number },
+ *           frame_depth: number, animations: string }} fields
+ * @returns {{ clip: { x:number, y:number, width:number, height:number },
+ *             png: { width:number, height:number },
+ *             rect: { x:number, y:number, width:number, height:number },
+ *             page_rect: { x:number, y:number, width:number, height:number },
+ *             frame_depth: number, animations: string, tool_version: string }}
  */
 export function buildShotRecord({ clip, png, rect, page_rect, frame_depth, animations }) {
   return { clip, png, rect, page_rect, frame_depth, animations, tool_version: VERSION };

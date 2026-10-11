@@ -1,19 +1,19 @@
 // vitest の globalSetup。**テストの収集より前**に 1 度だけ実行される。
 //
-// `check-mutation-proof.test.js` の fixture は `scripts/` 配下に作る。
-// vitest の `include: ["scripts/**/*.test.js"]` に入っていないと、runner が起動する子 vitest が
+// `check-mutation-proof.test.ts` の fixture は `scripts/` 配下に作る。
+// vitest の `include: ["scripts/**/*.test.ts"]` に入っていないと、runner が起動する子 vitest が
 // 1 件も実行せず、検査ではなく置き場所を測ることになるためである。SIGKILL・timeout・ジョブ打ち切りで
-// `afterEach` が実行されないと `fixture.test.js` が残り、次の run で収集されてしまう。
+// `afterEach` が実行されないと `fixture.test.ts` が残り、次の run で収集されてしまう。
 //
 // **掃き取りをテストファイルの import 時に置かない。** import は収集の**後**なので、
 // vitest が残骸を先に列挙してから削除することになり、実行順次第で
-// `Failed to load .../fixture.test.js` と無関係に赤くなる（収集より前に消すのが正しい位置）。
+// `Failed to load .../fixture.test.ts` と無関係に赤くなる（収集より前に消すのが正しい位置）。
 import { readdirSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
-// ロックと復元情報は `node_modules/.cache/mutation-proof/` に置く（`check-mutation-proof.js` が
+// ロックと復元情報は `node_modules/.cache/mutation-proof/` に置く（`check-mutation-proof.ts` が
 // 「状態ファイルは `/tmp` に置かない」理由つきでそう決めている）。`scripts/` 配下に残るのは fixture だけ。
 const STALE_PREFIXES = ["mutation-proof-fixture-"];
 

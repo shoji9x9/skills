@@ -105,6 +105,55 @@ class UsageError extends Error {}
 export class UndecidableSelector extends Error {}
 
 /**
+ * 勝者を決める候補の 1 件（規則の宣言かインラインの宣言）。
+ * `selector`・`origin`・`value`・`layers`・`conditions` は css-rules.json の値をそのまま持つ（形を検査しない）。
+ * @typedef {{
+ *   source: "rule" | "inline",
+ *   selector: unknown,
+ *   origin: unknown,
+ *   value: unknown,
+ *   important: boolean,
+ *   specificity: [number, number, number] | null,
+ *   specificity_error: string | null,
+ *   order: number | null,
+ *   declaration_index: number,
+ *   layers: unknown[],
+ *   conditions: unknown[],
+ *   unknown_states?: unknown[],
+ * }} CascadeCandidate
+ */
+
+/**
+ * プロパティ × 擬似要素ごとの候補の集まり。
+ * @typedef {{
+ *   property: string,
+ *   pseudo_element: unknown,
+ *   applying: CascadeCandidate[],
+ *   conditional: CascadeCandidate[],
+ *   state_unknown: CascadeCandidate[],
+ *   state_gated: number,
+ *   reasons: string[],
+ * }} CascadeBucket
+ */
+
+/**
+ * 1 プロパティ × 擬似要素の解決の結果。`winner` は `status` が `resolved` のときだけ値を持ち、それ以外は null。
+ * 要求したプロパティに宣言が 1 件も無い結果は、`state_unknown` を持たない（`all` も無ければ `wildcard` も持たない）。
+ * @typedef {{
+ *   property: string,
+ *   pseudo_element: unknown,
+ *   status: "resolved" | "undecidable" | "absent",
+ *   winner: (CascadeCandidate & { tier: string }) | null,
+ *   losers: CascadeCandidate[],
+ *   conditional: CascadeCandidate[],
+ *   state_unknown?: CascadeCandidate[],
+ *   wildcard?: CascadeCandidate[],
+ *   state_gated: number,
+ *   reasons: string[],
+ * }} CascadeResult
+ */
+
+/**
  * セレクタ文字列の詳細度 [id, class, type] を数える。
  * 決められない形は `UndecidableSelector` を投げる（推測で数えない）。
  * @param {string} selector
@@ -380,8 +429,8 @@ export function compareSpecificity(a, b) {
 
 /**
  * 候補を 1 件に畳む（同じ段・同じレイヤの中での勝者）。詳細度 → order の後勝ち。
- * @param {any[]} candidates
- * @returns {any}
+ * @param {CascadeCandidate[]} candidates
+ * @returns {CascadeCandidate}
  */
 function strongest(candidates) {
   let best = candidates[0];
@@ -414,14 +463,15 @@ function strongest(candidates) {
 /**
  * `css-rules.json` の内容を読み、プロパティ × 擬似要素ごとに勝者を確定する。
  *
- * @param {any} document - css-rules.json をパースしたもの。
+ * @param {unknown} document - css-rules.json をパースしたもの（形はここで検査する）。
  * @param {{ states: string[], properties?: string[]|null, source?: string, allowIncomplete?: boolean }} options 次のオプション。
  * states: いま採っている状態で成立している状態擬似クラスの集合（`default` は空集合と同じ意味）。
  * properties: 解決するプロパティ名（省略時は候補に現れるすべてのプロパティ）。
  * allowIncomplete: `inaccessible` / `unresolved` が 0 でなくても解決する（デフォルトは止まる）。
- * @returns {{ source:(string|null), tool_version:(string|null), active_states:string[],
- *             results:any[], counts:{resolved:number, undecidable:number, absent:number} }}
-
+ * @returns {{ source:(string|null), tool_version:(string|null), cascade_resolve_version:string,
+ *             capture_completeness:{inaccessible:number, unresolved:number, waived:boolean},
+ *             active_states:string[],
+ *             results:CascadeResult[], counts:{resolved:number, undecidable:number, absent:number} }}
  */
 export function resolveCascade(document, options) {
   if (document === null || typeof document !== "object" || Array.isArray(document)) {
@@ -473,14 +523,14 @@ export function resolveCascade(document, options) {
       if (!active.has(other)) coOccurring.add(other);
     }
   }
-  /** @type {Map<string, any>} key = `${pseudo}\u0000${property}` */
+  /** @type {Map<string, CascadeBucket>} key = `${pseudo}\u0000${property}` */
   const buckets = new Map();
   /**
    * `all` の宣言（擬似要素ごと）。**ブラウザは `all` を longhand へ展開しない**
    * （Chrome 149 で実測: `margin` / `background` / `font` は展開されるが `all: unset` は `all` のまま）。
    * そのためプロパティ名で振り分けるだけでは、`all` が勝つ場面でも個別プロパティの宣言を勝者にしてしまう。
    * どのプロパティにも当たりうる候補として別に持ち、勝ちうるなら undecidable にする。
-   * @type {Map<string, any[]>}
+   * @type {Map<string, CascadeCandidate[]>}
    */
   const wildcards = new Map();
   const bucket = (pseudo, property) => {
@@ -666,7 +716,9 @@ export function resolveCascade(document, options) {
 
 /**
  * 1 バケット（プロパティ × 擬似要素）の勝者を決める。
- * @param {any} entry
+ * @param {CascadeBucket} entry
+ * @param {CascadeCandidate[]} [wildcard] 同じ擬似要素の `all` の候補。
+ * @returns {CascadeResult}
  */
 function decide(entry, wildcard = []) {
   const reasons = [...entry.reasons];

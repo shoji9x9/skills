@@ -30,4 +30,4 @@ applyTo: "skills/**"
 - 回帰 eval（`evals.json`・`README.md`・fixture）は `evals/<name>/` に置く。
   配布先では eval を実行せず、手順もこのリポジトリのハーネス（`scripts/eval/run-skill-eval.sh` など）を前提にしているので、配っても使えない。
   配布スキルの文書から `evals/` を参照しない。配布先には存在しないからである。
-- `scripts/gates/check-eval-reachability.js` が、CI の `Lint` ジョブですべてのスキルを調べ、`skills/<name>/evals/` が残っていたら違反にする。
+- `scripts/gates/check-eval-reachability.ts` が、CI の `Lint` ジョブですべてのスキルを調べ、`skills/<name>/evals/` が残っていたら違反にする。

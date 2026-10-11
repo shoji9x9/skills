@@ -48,7 +48,7 @@ Issue #449 の再現例 1 つ（html/body が `height: 100%`、margin 0、最小
 実装中にこの形に気付いたが、「デフォルトは緩めていないので問題ない」と自分で打ち消し、テストにも文書にも反映しなかった。
 
 根本原因は同じ: 生成側の原本（同梱の雛形）から入力を起こさず、コードの分岐（`performance` が有る・無い）から fixture を作った。
-雛形を fixture にしたテストは、レビューの修正で足した（`perf-stats.test.js`、変異 `floor-history-template-as-summarized`）。
+雛形を fixture にしたテストは、レビューの修正で足した（`perf-stats.test.ts`、変異 `floor-history-template-as-summarized`）。
 
 ## 根本原因
 

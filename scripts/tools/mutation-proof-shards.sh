@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ミューテーションテストを、手元で N 個のシャードに分けて並列に実行する（Issue #588）。
 #
-# ランナー（scripts/mutation/check-mutation-proof.js）は作業ツリーの対象を書き換えて戻し、
+# ランナー（scripts/mutation/check-mutation-proof.ts）は作業ツリーの対象を書き換えて戻し、
 # 同時の実行をロック（node_modules/.cache/mutation-proof/）で止める。
 # そのため、同じ作業ツリーでは並列にできない。ロックを外しても、互いの変異を読んで無関係なテストが落ちる。
 # そこで、シャードごとに HEAD の別の worktree を作り、それぞれに依存を入れてから --shard i/N で実行する。
@@ -179,7 +179,7 @@ for i in $(seq 1 "${total}"); do
 	wt="${base}/shard-${i}"
 	# 呼び出し元のシェルのランナー用の環境変数（ロック・テスト用の注入）を引き継がない。引き継ぐと、全シャードが同じロックを取り合う。
 	(cd "${wt}" && exec ${launcher[@]+"${launcher[@]}"} env -u MUTATION_PROOF_LOCK -u MUTATION_PROOF_TEST_COMMAND -u MUTATION_PROOF_CHANGED_FILES \
-		node scripts/mutation/check-mutation-proof.js ${args[@]+"${args[@]}"} --shard "${i}/${total}") \
+		node scripts/mutation/check-mutation-proof.ts ${args[@]+"${args[@]}"} --shard "${i}/${total}") \
 		</dev/null >"${base}/shard-${i}.log" 2>&1 &
 	pids+=("$!")
 done

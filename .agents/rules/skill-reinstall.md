@@ -26,6 +26,6 @@ scripts/tools/reinstall-skill.sh <name>
 ```
 
 - 編集したスキルごとに実行する。複数のスキルを直したら、それぞれについて実行する。全スキルを同期するなら `--all` を付ける。
-- 同期を忘れると、lefthook の pre-commit と CI の `skills-sync`（`scripts/gates/check-skills-sync.js`）が commit を止める。
+- 同期を忘れると、lefthook の pre-commit と CI の `skills-sync`（`scripts/gates/check-skills-sync.ts`）が commit を止める。
   それでも、手元で使うスキルを最新に保つため、編集の直後に再インストールする。
 - 詳しい手順は `docs/skill-development.md` の「スキル修正後の再インストール」にある。

@@ -1,11 +1,11 @@
 {
   "$comment": [
-    "behavior-compare.test.js のうち、操作の結果の突き合わせ（Issue #446）の検出能力を示す変異の一覧。",
-    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。",
+    "behavior-compare.test.ts のうち、操作の結果の突き合わせ（Issue #446）の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。",
     "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
     "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
   ],
-  "test_file": "scripts/skills/parity-component/behavior-compare.test.js",
+  "test_file": "scripts/skills/parity-component/behavior-compare.test.ts",
   "mutations": [
     {
       "id": "observation-shape",

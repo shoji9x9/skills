@@ -110,7 +110,7 @@ function positiveNumber(value) {
 /**
  * 空でない文字列か。
  * @param {unknown} value
- * @returns {boolean}
+ * @returns {value is string}
  */
 function nonEmptyString(value) {
   return typeof value === "string" && value.trim() !== "";
@@ -1151,7 +1151,9 @@ export function checkOverflow(conditions) {
     !overflow ||
     typeof overflow !== "object" ||
     Array.isArray(overflow) ||
-    !OVERFLOW_STATUSES.includes(/** @type {string} */ (/** @type {any} */ (overflow).status))
+    !OVERFLOW_STATUSES.includes(
+      /** @type {string} */ (/** @type {{ status?: unknown }} */ (overflow).status),
+    )
   ) {
     add(
       "overflow-status-unknown",
@@ -1190,7 +1192,9 @@ export function checkOverflow(conditions) {
   // 期待集合は撮影条件の pages（宣言）から作る。記録された頁だけを見ると、頁ごと測り忘れても通る
   const declaredPages = Array.isArray(conditions.pages)
     ? conditions.pages
-        .map((p) => (p && typeof p === "object" ? /** @type {any} */ (p).name : undefined))
+        .map((p) =>
+          p && typeof p === "object" ? /** @type {{ name?: unknown }} */ (p).name : undefined,
+        )
         .filter(nonEmptyString)
     : [];
   if (!Array.isArray(o.pages)) {
@@ -1403,7 +1407,7 @@ export function checkCaptureScope(metadata) {
       judged: true,
     };
   }
-  const meta = /** @type {Record<string, any>} */ (metadata);
+  const meta = /** @type {Record<string, unknown>} */ (metadata);
   // 視覚採取物を持たないモード（api-resource / batch）は撮影条件そのものを持たないので判定に入れない。
   // **通すのはこの閉じた集合だけ**で、mode が読めない・知らない値のときは判定を飛ばさず落とす
   // （緩和を「不正な入力」全部に広げない）。

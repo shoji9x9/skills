@@ -1,9 +1,9 @@
 {
   "$comment": [
-    "lint-scope.test.js の検出能力を示す変異の一覧。",
-    "散文コメントで持つと古くなるため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。"
+    "lint-scope.test.ts の検出能力を示す変異の一覧。",
+    "散文コメントで持つと古くなるため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。"
   ],
-  "test_file": "scripts/gates/lint-scope.test.js",
+  "test_file": "scripts/gates/lint-scope.test.ts",
   "mutations": [
     {
       "id": "MS-PRIVATE",
@@ -106,11 +106,11 @@
       "id": "LS-CI",
       "why": "CI の Shell lint を find で .agents を丸ごと除く形に戻す",
       "file": ".github/workflows/ci.yml",
-      "find": "        run: node scripts/gates/run-on-sources.js --ext sh -- shellcheck\n",
+      "find": "        run: node scripts/gates/run-on-sources.ts --ext sh -- shellcheck\n",
       "replace": "        run: find . \\( -path \"./node_modules\" -o -path \"./.git\" -o -path \"./.agents\" -o -path \"./.claude\" \\) -prune -o -name \"*.sh\" -type f -exec shellcheck {} +\n",
       "occurrences": 1,
       "expect_failing": [
-        "CI の Shell lint と JSON lint は、run-on-sources.js で対象を選ぶ（find で .agents を丸ごと除かない）"
+        "CI の Shell lint と JSON lint は、run-on-sources.ts で対象を選ぶ（find で .agents を丸ごと除かない）"
       ]
     },
     {
@@ -139,7 +139,7 @@
       "id": "LS-FS-IMPORT",
       "why": "formatter-scope のジョブが、oxfmt の設定が import するファイルの変更で実行されない",
       "file": "lefthook.yml",
-      "find": "oxfmt.config.ts,scripts/lib/source-scope.js,package.json,",
+      "find": "oxfmt.config.ts,scripts/lib/source-scope.ts,package.json,",
       "replace": "oxfmt.config.ts,package.json,",
       "occurrences": 1,
       "expect_failing": [
@@ -150,8 +150,8 @@
       "id": "LS-FS-VERSION",
       "why": "formatter-scope のジョブが、ツールの版を決めるファイルの変更で実行されない",
       "file": "lefthook.yml",
-      "find": "package.json,pnpm-lock.yaml,pnpm-workspace.yaml,scripts/gates/formatter-scope.test.js}",
-      "replace": "package.json,scripts/gates/formatter-scope.test.js}",
+      "find": "package.json,pnpm-lock.yaml,pnpm-workspace.yaml,scripts/gates/formatter-scope.test.ts}",
+      "replace": "package.json,scripts/gates/formatter-scope.test.ts}",
       "occurrences": 1,
       "expect_failing": [
         "lefthook の formatter-scope は、整形の範囲を変えるファイルの変更で実行する"
@@ -160,7 +160,7 @@
     {
       "id": "LS-IMPORT-SIDE",
       "why": "副作用だけの import・動的 import・require・単引用符を拾わない",
-      "file": "scripts/gates/lint-scope.test.js",
+      "file": "scripts/gates/lint-scope.test.ts",
       "find": "/\\b(?:from|import|require)\\s*\\(?\\s*[\"'](\\.{1,2}\\/[^\"']+)[\"']/g",
       "replace": "/\\bfrom \"(\\.{1,2}\\/[^\"]+)\"/g",
       "occurrences": 1,
@@ -169,7 +169,7 @@
     {
       "id": "LS-IMPORT-TRANSITIVE",
       "why": "import 先がさらに import するファイルをたどらない",
-      "file": "scripts/gates/lint-scope.test.js",
+      "file": "scripts/gates/lint-scope.test.ts",
       "find": "    repoImports(dep, readFile, found, rel);\n",
       "replace": "",
       "occurrences": 1,
@@ -190,8 +190,8 @@
       "id": "LS-FS-EXTRA",
       "why": "formatter-scope の glob にだけファイルを足し、テストの inputs に挙げ忘れる",
       "file": "lefthook.yml",
-      "find": "package.json,pnpm-lock.yaml,pnpm-workspace.yaml,scripts/gates/formatter-scope.test.js}",
-      "replace": "package.json,pnpm-lock.yaml,pnpm-workspace.yaml,mise.toml,scripts/gates/formatter-scope.test.js}",
+      "find": "package.json,pnpm-lock.yaml,pnpm-workspace.yaml,scripts/gates/formatter-scope.test.ts}",
+      "replace": "package.json,pnpm-lock.yaml,pnpm-workspace.yaml,mise.toml,scripts/gates/formatter-scope.test.ts}",
       "occurrences": 1,
       "expect_failing": [
         "lefthook の formatter-scope は、整形の範囲を変えるファイルの変更で実行する"

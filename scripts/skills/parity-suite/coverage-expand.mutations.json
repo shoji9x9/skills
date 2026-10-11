@@ -1,10 +1,10 @@
 {
   "$comment": [
-    "coverage-expand.test.js の検出能力を示す変異の一覧（Issue #471 の required_rules の代替の組）。",
-    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。",
+    "coverage-expand.test.ts の検出能力を示す変異の一覧（Issue #471 の required_rules の代替の組）。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。",
     "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
   ],
-  "test_file": "scripts/skills/parity-suite/coverage-expand.test.js",
+  "test_file": "scripts/skills/parity-suite/coverage-expand.test.ts",
   "mutations": [
     {
       "id": "required-group-first-only",

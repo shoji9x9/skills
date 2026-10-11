@@ -150,7 +150,7 @@ const SKIP_DIRS = new Set([".git", "node_modules"]);
 
 /**
  * @param {unknown} v
- * @returns {boolean}
+ * @returns {v is string}
  */
 function nonEmptyString(v) {
   return typeof v === "string" && v.trim() !== "";
@@ -1364,6 +1364,7 @@ function stateDisplayProblems(entry, candidate, captureStates) {
  */
 function checkStateDisplays(sd, ctx) {
   const { pageNames, captureStates, problems, captureUses, captureLabel, pageResolution } = ctx;
+  /** @type {{ pages: number | null, entries: number, unmeasured: number }} */
   const summary = { pages: null, entries: 0, unmeasured: 0 };
   if (!isPlainObject(sd) || !Array.isArray(sd.pages)) {
     problems.push(
@@ -1871,11 +1872,13 @@ function sourceProblems(src, targetCommit, label) {
  * 差分ツールの 3 つの比較方法（画素・特性・aria）も DB を見ない。書き込みがまるごと無い新側でもスイートと差分検出が緑になる。
  * 書き込みのパターンで移行元ソースを走査して全件（例外処理の中を含む）と突き合わせ、1 か所ずつ値・時機・回数と確かめ方を残させる。
  * @param {unknown} sew
- * @param {{ opIds: Set<string>, root: string, recorded: boolean, targetCommit: unknown, problems: string[] }} ctx
+ * @param {{ opIds: Set<string>, root: string, recorded: boolean, targetCommit: unknown, problems: string[], writeOps: Set<string> }} ctx
+ *   writeOps には、表への書き込みを持つ操作の id を足す（呼び出し側が送っている間の押し直しの判定に使う）。
  * @returns {{ declared: boolean | null, checked: boolean, found: number | null, recorded: number | null, files: number | null }}
  */
 function checkSideEffectWrites(sew, ctx) {
   const { opIds, root, recorded, targetCommit, problems, writeOps } = ctx;
+  /** @type {{ declared: boolean | null, checked: boolean, found: number | null, recorded: number | null, files: number | null }} */
   const summary = { declared: null, checked: false, found: null, recorded: null, files: null };
   if (!isPlainObject(sew) || typeof sew.declared !== "boolean") {
     problems.push(
@@ -2172,7 +2175,7 @@ export function scanSources(root, paths, patterns, label = "feedback_calls.sourc
 /**
  * 網羅表を検査する。
  * @param {unknown} table
- * @param {{ root?: string, recorded?: boolean, captureStates?: Set<string> | null, pageNames?: Set<string> | null, slug?: string | null, target?: string | null, targetCommit?: unknown, testIndex?: ReturnType<typeof indexTestList> | null, specs?: ReturnType<typeof specsFingerprint> | null }} [opts]
+ * @param {{ root?: string, recorded?: boolean, captureStates?: Set<string> | null, pageNames?: Set<string> | null, slug?: string | null, target?: string | null, targetCommit?: unknown, testIndex?: ReturnType<typeof indexTestList> | null, specs?: ReturnType<typeof specsFingerprint> | null, pageResolution?: import("./page-identity.mjs").PageResolution | null, coverageCaptures?: { page: string, captured: string, label: string, shared: boolean }[] | null, coverageProblem?: string | null, coverageSkipped?: number, operationTraces?: string[] | null }} [opts]
  *   targetCommit は metadata.json の target.commit（undefined なら照合しない。null / none は照合不能として扱う）。
  */
 export function checkReactions(table, opts = {}) {

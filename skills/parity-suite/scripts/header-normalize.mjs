@@ -292,7 +292,10 @@ function collect(headers) {
     for (const h of headers) {
       if (h === null || typeof h !== "object")
         throw new Error("headersArray の要素は { name, value } で渡す");
-      add(/** @type {any} */ (h).name, /** @type {any} */ (h).value);
+      add(
+        /** @type {{ name?: unknown, value?: unknown }} */ (h).name,
+        /** @type {{ name?: unknown, value?: unknown }} */ (h).value,
+      );
     }
   } else if (headers !== null && typeof headers === "object") {
     for (const [name, value] of Object.entries(headers)) {
@@ -405,6 +408,12 @@ export function normalizeHeaders(headers, list) {
   return out;
 }
 
+/**
+ * CLI の本体。終了コード（0: 成功、2: 使い方か入力の誤り、3: 一覧が無い）を返す。
+ * @param {string[]} argv
+ * @param {{ stdout: { write(s: string): unknown }, stderr: { write(s: string): unknown } }} [io] 出力先（write だけを使う）
+ * @returns {number}
+ */
 export function main(argv, io = { stdout: process.stdout, stderr: process.stderr }) {
   const usage =
     "usage: node header-normalize.mjs --header-list <.replace/response-headers.json> <headers.json>\n" +

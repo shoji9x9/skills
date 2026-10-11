@@ -52,6 +52,24 @@ export function sampleLimit(timeoutMs) {
 }
 
 /**
+ * 1 フレームの標本。t は採取を始めてからの時刻（ms）。要素が無いフレームは present: false だけを持つ。
+ * @typedef {{ t: number, present: false }
+ *   | { t: number, present: true, x: number, y: number, width: number, height: number, opacity: number }} MotionSample
+ */
+
+/**
+ * 動きの時系列（probeMotion の返り値。motion-compare.mjs が読む）。
+ * @typedef {{
+ *   probe_version: string,
+ *   selector: string,
+ *   settle_ms: number,
+ *   timeout_ms: number,
+ *   timed_out: boolean,
+ *   samples: MotionSample[],
+ * }} MotionTimeline
+ */
+
+/**
  * ページ側で採取を始める（`page.evaluate` に渡す関数。直列化されるので外側の名前を参照しない）。
  * 既に採取中のものがあれば、上書きせずに失敗させる（前の採取が終わっていない）。
  * @param {{ selector: string, settleMs: number, timeoutMs: number, epsilon: { px: number, opacity: number }, maxSamples: number }} arg 採取の条件。
@@ -104,6 +122,16 @@ export function installSampler({ selector, settleMs, timeoutMs, epsilon, maxSamp
       Math.abs(a.opacity - b.opacity) > epsilon.opacity
     );
   };
+  /**
+   * @type {{
+   *   done: boolean,
+   *   timed_out: boolean,
+   *   error: string | null,
+   *   samples: MotionSample[],
+   *   startedAt: number,
+   *   lastChangeAt: number | null,
+   * }}
+   */
   const state = {
     done: false,
     timed_out: false,
@@ -168,7 +196,7 @@ export function samplerDone() {
 
 /**
  * ページ側の採取結果を取り出す（`page.evaluate` に渡す関数）。
- * @returns {{ timed_out: boolean, error: string | null, samples: object[] } | null}
+ * @returns {{ timed_out: boolean, error: string | null, samples: MotionSample[] } | null}
  */
 export function readSampler() {
   const state = globalThis.__parityMotionProbe;
@@ -179,13 +207,20 @@ export function readSampler() {
 /**
  * 動きを 1 回採る。
  *
- * @param {{ evaluate: Function, waitForFunction: Function }} page Playwright の Page か Frame（要素がある文書）。
+ * @param {{
+ *   evaluate<R, A>(fn: (arg: A) => R, arg?: A): Promise<R>,
+ *   waitForFunction(
+ *     fn: () => unknown,
+ *     arg: undefined,
+ *     options: { timeout: number, polling: number },
+ *   ): Promise<unknown>,
+ * }} page Playwright の Page か Frame（要素がある文書）。
  * @param {{ selector: string, trigger: () => Promise<unknown>, settleMs?: number, timeoutMs?: number }} options 採取の条件。
  *   - selector: 動く要素を探す CSS セレクタ（その文書で高々 1 件に当たること）
  *   - trigger: 動きを起こす操作。採取を始めた直後に呼ぶ（論理名の手順で書く）
  *   - settleMs: 最後の変化からこの時間なにも変わらなければ終わりとみなす（デフォルトは 500ms）
  *   - timeoutMs: 採取の上限（デフォルトは 10000ms。自動で閉じるまでの時間を測るなら、その時間より長くする）
- * @returns {Promise<{ probe_version: string, selector: string, settle_ms: number, timeout_ms: number, timed_out: boolean, samples: object[] }>}
+ * @returns {Promise<MotionTimeline>}
  */
 export async function probeMotion(page, options) {
   const { selector, trigger, settleMs = 500, timeoutMs = 10000 } = options ?? {};

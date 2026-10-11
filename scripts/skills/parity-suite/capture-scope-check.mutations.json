@@ -1,11 +1,11 @@
 {
   "$comment": [
-    "capture-scope-check.test.js のうち、スクロールバーが場所を取る窓のはみ出し（Issue #449）・表示を切り替える軸（Issue #489）・採取環境と利用者環境（Issue #476）と、撮影時のスクロールバーの扱いと内部スクロール器の記録（Issue #495）の検出能力を示す変異の一覧。",
-    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。",
+    "capture-scope-check.test.ts のうち、スクロールバーが場所を取る窓のはみ出し（Issue #449）・表示を切り替える軸（Issue #489）・採取環境と利用者環境（Issue #476）と、撮影時のスクロールバーの扱いと内部スクロール器の記録（Issue #495）の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。",
     "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
     "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
   ],
-  "test_file": "scripts/skills/parity-suite/capture-scope-check.test.js",
+  "test_file": "scripts/skills/parity-suite/capture-scope-check.test.ts",
   "mutations": [
     {
       "id": "scrollbars-missing",

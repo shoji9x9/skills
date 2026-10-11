@@ -57,7 +57,12 @@ const SEPARATOR = String.fromCharCode(31);
  * これは、このツールが防ごうとしている「未測定が誤って固定軸と判定される」ことそのものである。
  * 欠落した軸は出さず、突き合わせの段で「一部のインスタンスでしか採れていない軸」として problems に入れる。
  * 全インスタンスで欠落していれば、軸が存在しないだけなので、固定とは主張しない。
- * @param {{computed?: object, before?: object|null, after?: object|null, rect?: object}} traits
+ * @param {{
+ *   computed?: Record<string, string>,
+ *   before?: Record<string, string> | null,
+ *   after?: Record<string, string> | null,
+ *   rect?: Record<string, number>,
+ * }} traits
  * @returns {Record<string, string>}
  */
 export function flattenTraits(traits) {
@@ -84,11 +89,21 @@ export function flattenTraits(traits) {
 }
 
 /**
- * マニフェストから固定軸・可変軸を割り出す。
- * @param {object} manifest
- * @returns {{component: string|null, tool_version: string, instances: number, states: string[],
- *            fixed: object[], variable: object[], problems: string[], ok: boolean}}
+ * diffAxes に渡すマニフェスト。各欄は diffAxes が形を検査してから読むので、形の決まらない値も受け取る。
+ * 仕様の形は、ファイルの先頭のコメントと assembleFromBaseline の返り値にある。
+ * @typedef {{ component?: unknown, property_set?: unknown, instances?: unknown }} AxisManifest
  */
+
+/**
+ * 固定軸 1 件（全インスタンスで値が割れない軸）。
+ * @typedef {{ state: string, axis: string, value: string }} FixedAxis
+ */
+
+/**
+ * 可変軸 1 件（インスタンス間で値が割れた軸）。
+ * @typedef {{ state: string, axis: string, values: { instance: string, value: string }[] }} VariableAxis
+ */
+
 /**
  * 採取物のディレクトリ（`.replace/components/<slug>/`）からマニフェストを組み立てる。
  *
@@ -98,7 +113,11 @@ export function flattenTraits(traits) {
  * `baseline/<instance>/<state>/traits.json` だけを入力にし、決定論的に行う。
  *
  * @param {string} dir 部品の成果物ディレクトリ
- * @returns {object} diffAxes に渡すマニフェスト
+ * @returns {{
+ *   component: unknown,
+ *   property_set?: unknown,
+ *   instances: { id: string, unreachable_states: unknown, states: { state: string, traits: unknown }[] }[],
+ * }} diffAxes に渡すマニフェスト（component・property_set・unreachable_states は metadata.json の値のまま）
  */
 export function assembleFromBaseline(dir) {
   const meta = JSON.parse(readFileSync(join(dir, "metadata.json"), "utf8"));
@@ -168,6 +187,14 @@ export function assembleFromBaseline(dir) {
   };
 }
 
+/**
+ * マニフェストから固定軸・可変軸を割り出す。
+ * @param {AxisManifest | null} manifest
+ * @returns {{component: unknown, tool_version: string, instances: number, states: string[],
+ *            fixed: FixedAxis[], variable: VariableAxis[], measured: number,
+ *            not_compared: { instance: string, state: string }[], problems: string[], ok: boolean}}
+ *   component はマニフェストの値のまま（無ければ null）。
+ */
 export function diffAxes(manifest) {
   const problems = [];
   const instances = Array.isArray(manifest && manifest.instances) ? manifest.instances : [];

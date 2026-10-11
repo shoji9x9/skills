@@ -41,4 +41,4 @@ jobs:
       - run: pnpm install --frozen-lockfile
       # 引数なし = `scripts/**/*.mutations.json` の全件。宣言 0 件は成功として扱わない（スクリプト側で exit 2）。
       - name: Mutation proof (all specs)
-        run: node scripts/mutation/check-mutation-proof.js
+        run: node scripts/mutation/check-mutation-proof.ts
