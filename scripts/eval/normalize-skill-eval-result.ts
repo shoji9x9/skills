@@ -1341,7 +1341,7 @@ export function normalizeTrace({
   try {
     parsed = executor === "codex" ? parseCodexTrace(rawText) : parseClaudeTrace(rawText);
   } catch (error) {
-    normalizationError = error instanceof Error ? error.message : String(error);
+    normalizationError = errorMessage(error);
     parsed = {
       finalResponse: "",
       usage: normalizeUsage(executor),
@@ -1589,7 +1589,7 @@ if (isMain) {
   try {
     main();
   } catch (error) {
-    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+    process.stderr.write(`${errorMessage(error)}\n`);
     process.exitCode = 1;
   }
 }

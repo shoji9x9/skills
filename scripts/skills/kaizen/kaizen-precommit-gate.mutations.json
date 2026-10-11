@@ -1,6 +1,6 @@
 {
   "$comment": [
-    "kaizen-precommit-gate.test.ts のうち、ゲート全体の締め切りと他セッション分の走査結果の再利用（Issue #492）を守るテストの検出能力を示す変異の一覧。",
+    "kaizen-precommit-gate.test.ts のうち、チェック全体の締め切りと他セッション分の走査結果の再利用（Issue #492）を守るテストの検出能力を示す変異の一覧。",
     "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。",
     "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
   ],

@@ -122,8 +122,6 @@ function parseNotesJson(path: string, raw: string): unknown {
   }
 }
 
-/** null でないオブジェクト（配列を含む）。欄の型はまだ確かめていない。 */
-
 function isConfiguration(name: string): name is (typeof CONFIGURATIONS)[number] {
   return CONFIGURATIONS.some((c) => c === name);
 }

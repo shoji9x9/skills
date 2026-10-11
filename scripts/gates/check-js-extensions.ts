@@ -10,13 +10,16 @@
 // 配布しない private skill も非配布なので、`scripts/**` と同じく `.ts`。
 // private skill かは `skills/<name>/` が無いことで決める（scripts/lib/source-scope.ts と同じ判定）。
 // `.private-skill` の印で決めると、印を付け忘れた private skill がこの検査から外れる。
+import { spawnSync } from "node:child_process";
 import { readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { sourceSkillNames } from "../lib/source-scope.ts";
 
 type Rule = { root: string; banned: string[]; expected: string; reason: string };
 
-const NON_DISTRIBUTED_BANNED = [".js", ".mjs", ".cjs"];
+// `.mts`・`.cts`・`.tsx` も禁じる。`.mts`・`.cts` は Node が実行できるのに `tsconfig.repo.json` の include（`*.ts`）に入らず、
+// `.tsx` は Node が型を消して実行できない。
+const NON_DISTRIBUTED_BANNED = [".js", ".mjs", ".cjs", ".mts", ".cts", ".tsx"];
 
 // (ルート, 違反拡張子, あるべき拡張子) の検査対象。
 const RULES: Rule[] = [
@@ -44,14 +47,24 @@ function distributedScriptRoots(): string[] {
     .map((e) => join("skills", e.name, "scripts"));
 }
 
+/**
+ * `dir` の下の、追跡しているファイルと、無視されていない未追跡のファイル。
+ * `.gitignore` のものを除くのは、テストが `scripts/` の下に一時的に作る fixture（`.cjs` など）を数えないため。
+ * 未追跡のファイルを含めるのは、`git add` の前に置いた違反も検出するため。
+ */
 function listFiles(dir: string): string[] {
-  const out: string[] = [];
-  for (const e of readdirSync(dir, { withFileTypes: true })) {
-    const p = join(dir, e.name);
-    if (e.isDirectory()) out.push(...listFiles(p));
-    else out.push(p);
+  const res = spawnSync(
+    "git",
+    ["ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", dir],
+    {
+      encoding: "utf8",
+    },
+  );
+  if (res.status !== 0) {
+    console.error(`js-extensions: git ls-files に失敗した（exit ${res.status}）: ${res.stderr}`);
+    process.exit(2);
   }
-  return out;
+  return res.stdout.split("\0").filter((p) => p !== "" && existsSync(p));
 }
 
 const violations: string[] = [];

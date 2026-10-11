@@ -1,6 +1,6 @@
 {
   "$comment": [
-    "parity-component-fixtures.test.ts のうち、element.shot.json の契約検査（PR #445）の検出能力を示す変異の一覧。",
+    "parity-component-fixtures.test.ts のうち、element.shot.json の形の検査（PR #445）の検出能力を示す変異の一覧。",
     "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。",
     "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
     "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"

@@ -17,6 +17,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
+import { errorMessage } from "../lib/errors.ts";
 import { isAgentCopy } from "../lib/source-scope.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -56,7 +57,7 @@ export function lintFile(path: string): string | null {
   try {
     text = readFileSync(path, "utf8");
   } catch (err) {
-    return err instanceof Error ? err.message : String(err);
+    return errorMessage(err);
   }
   try {
     JSON.parse(text);
@@ -68,7 +69,7 @@ export function lintFile(path: string): string | null {
     yaml.loadAll(text, () => {});
     return null;
   } catch (err) {
-    return err instanceof Error ? err.message : String(err);
+    return errorMessage(err);
   }
 }
 
