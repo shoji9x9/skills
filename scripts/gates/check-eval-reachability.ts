@@ -24,7 +24,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { errorMessage, isErrnoException } from "../lib/errors.ts";
+import { errorCodeOrMessage, errorMessage } from "../lib/errors.ts";
 import { parseJsonAs } from "../lib/parse-as.ts";
 
 export const BACKLOG_PATH = "scripts/gates/eval-reachability-backlog.json";
@@ -265,9 +265,7 @@ export function checkAll(
     try {
       source = readFileSync(file, "utf8");
     } catch (error) {
-      violations.push(
-        `${label}: 読めないため検査できていない: ${(isErrnoException(error) ? error.code : undefined) ?? errorMessage(error)}`,
-      );
+      violations.push(`${label}: 読めないため検査できていない: ${errorCodeOrMessage(error)}`);
       continue;
     }
     const r = checkEvalFile(file, source, exempt, label);

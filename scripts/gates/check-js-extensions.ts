@@ -43,6 +43,11 @@ export function violationOf(path: string, privateSkills: readonly string[]): str
     const bad = ext(NON_DISTRIBUTED_BANNED);
     const where = isPrivateSkill ? "private skill" : "scripts/";
     if (bad) return `${where} では ${bad} を使わない（非配布物 → .ts にする）`;
+    // private skill の `.ts` は `scripts/` の下に置く。`tsconfig.repo.json` の include（`.agents/skills/*/scripts/**/*.ts`）は
+    // そこだけを `erasableSyntaxOnly` で検査するので、外に置くと、Node が実行できない構文（`enum` など）を検出できない。
+    if (isPrivateSkill && lower.endsWith(".ts") && parts[3] !== "scripts") {
+      return "private skill では scripts/ の外で .ts を使わない（tsconfig.repo.json の型の検査に入らない）";
+    }
   }
   return null;
 }

@@ -5,7 +5,7 @@
 // | 軸           | 値                                                                     |
 // | ------------ | ---------------------------------------------------------------------- |
 // | 置き場所     | skills/<name>/scripts・assets・その他 / scripts/ / private skill / 公開スキルのコピー / 対象外 |
-// | 拡張子       | .mjs / .ts / .js / .cjs / .mts / .cts / .tsx / .d.ts                   |
+// | 拡張子       | .mjs / .ts / .js / .cjs / .mts / .cts / .tsx / .jsx / .d.ts（大文字を含む） |
 // | git での状態 | 追跡 / 無視されていない未追跡 / .gitignore で無視                      |
 import { expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
@@ -221,3 +221,12 @@ test("CLI: 中身の無い skills/<name>/ のディレクトリがあっても�
     ".agents/skills/private-one/scripts/a.js: private skill では .js を使わない",
   );
 });
+
+test.each([[".agents/skills/private-one/tools/x.ts"], [".agents/skills/private-one/x.ts"]])(
+  "private skill の scripts/ の外の .ts（%s）を違反にする",
+  (path) => {
+    expect(violationOf(path, PRIVATE)).toContain(
+      "private skill では scripts/ の外で .ts を使わない",
+    );
+  },
+);

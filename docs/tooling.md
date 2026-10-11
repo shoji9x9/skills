@@ -196,9 +196,9 @@ mise・pnpm・GitHub・各エージェントの設定は、形式をツールが
 `scripts/gates/check-js-extensions.ts` が、この規約を lefthook の pre-commit と CI（`Lint` ジョブ）でチェックする。
 失敗にするのは、次の拡張子である。走査するのは、追跡しているファイルと、`.gitignore` に当たらない未追跡のファイルである。
 
-- `skills/**`: `.js`・`.cjs`・`.mts`・`.cts`・`.tsx`。`skills/<name>/assets/`（利用者のプロジェクトへ置く雛形）の外の `.ts` も失敗にする。
-- `scripts/**` と private skill: `.js`・`.mjs`・`.cjs`・`.mts`・`.cts`・`.tsx`。
-  `.mts`・`.cts` は Node が実行できるのに `tsconfig.repo.json` の include（`*.ts`）に入らない。`.tsx` は Node が型を消して実行できない。
+- `skills/**`: `.js`・`.cjs`・`.mts`・`.cts`・`.tsx`・`.jsx`。`skills/<name>/assets/`（利用者のプロジェクトへ置く雛形）の外の `.ts` も失敗にする。
+- `scripts/**` と private skill: `.js`・`.mjs`・`.cjs`・`.mts`・`.cts`・`.tsx`・`.jsx`。private skill の `.ts` は `scripts/` の下だけに置く（型の検査の対象がそこだけのため）。
+  `.mts`・`.cts` は Node が実行できるのに `tsconfig.repo.json` の include（`*.ts`）に入らない。`.tsx`・`.jsx` は Node が実行できない。拡張子は大文字と小文字を区別せずに照合する。
 
 ### 型の検査
 

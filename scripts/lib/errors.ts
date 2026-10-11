@@ -7,6 +7,11 @@ export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** 読めなかった理由。Node のシステムエラーなら `code`（`ENOENT` など）、それ以外はメッセージ。 */
+export function errorCodeOrMessage(error: unknown): string {
+  return (isErrnoException(error) ? error.code : undefined) ?? errorMessage(error);
+}
+
 /** Node のシステムエラー（`code` を持つ Error）か。`error.code === "ENOENT"` などを読む前に確かめる。 */
 export function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && "code" in error;

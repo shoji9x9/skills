@@ -52,7 +52,9 @@
         "private skill の .agents/skills/private-one/a.mts を違反にする",
         "CLI: private skill は skills/<name>/ が無いことで決め、公開スキルのコピーは対象にしない",
         "CLI: stage した private skill の違反は、作業ツリーからスキルごと消しても検出する",
-        "CLI: 中身の無い skills/<name>/ のディレクトリがあっても、private skill として検査する"
+        "CLI: 中身の無い skills/<name>/ のディレクトリがあっても、private skill として検査する",
+        "private skill の scripts/ の外の .ts（.agents/skills/private-one/tools/x.ts）を違反にする",
+        "private skill の scripts/ の外の .ts（.agents/skills/private-one/x.ts）を違反にする"
       ]
     },
     {
@@ -148,6 +150,18 @@
       "expect_failing": [
         "private skill は、一覧の中で .agents/skills/<name>/ にあって skills/<name>/ に無いものにする",
         "CLI: private skill は skills/<name>/ が無いことで決め、公開スキルのコピーは対象にしない"
+      ]
+    },
+    {
+      "id": "PRIVATE-TS-ANYWHERE",
+      "why": "private skill の scripts/ の外の .ts を許す",
+      "file": "scripts/gates/check-js-extensions.ts",
+      "find": "parts[3] !== \"scripts\"",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": [
+        "private skill の scripts/ の外の .ts（.agents/skills/private-one/tools/x.ts）を違反にする",
+        "private skill の scripts/ の外の .ts（.agents/skills/private-one/x.ts）を違反にする"
       ]
     }
   ]

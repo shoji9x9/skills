@@ -51,7 +51,7 @@ import { existsSync, lstatSync, readFileSync, realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isTextPath } from "./check-control-chars.ts";
-import { errorMessage, isErrnoException } from "../lib/errors.ts";
+import { errorCodeOrMessage, errorMessage } from "../lib/errors.ts";
 
 const EXCLUDED_PREFIXES = [".claude/", "tests/", ".kaizen/", "node_modules/"];
 const AGENTS_SKILL_RE = /^\.agents\/skills\/([^/]+)\//;
@@ -204,9 +204,7 @@ export function checkKaizenRefs(
     try {
       text = readFileSync(join(root, file), "utf8");
     } catch (error) {
-      violations.push(
-        `${file}: 読めないため走査できていない: ${(isErrnoException(error) ? error.code : undefined) ?? errorMessage(error)}`,
-      );
+      violations.push(`${file}: 読めないため走査できていない: ${errorCodeOrMessage(error)}`);
       continue;
     }
     const found = findRefs(text);

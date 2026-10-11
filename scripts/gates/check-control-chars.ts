@@ -17,7 +17,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { errorMessage, isErrnoException } from "../lib/errors.ts";
+import { errorCodeOrMessage, errorMessage } from "../lib/errors.ts";
 
 // テキストとして扱う拡張子（lefthook の glob と同じ集合）。
 export const TEXT_EXTENSIONS = [
@@ -79,9 +79,7 @@ export function checkFiles(files: string[], cwd = process.cwd()) {
     try {
       buffer = readFileSync(join(cwd, file));
     } catch (error) {
-      violations.push(
-        `${file}: 読めないため走査できていない: ${(isErrnoException(error) ? error.code : undefined) ?? errorMessage(error)}`,
-      );
+      violations.push(`${file}: 読めないため走査できていない: ${errorCodeOrMessage(error)}`);
       continue;
     }
     const hits = findControlBytes(buffer);

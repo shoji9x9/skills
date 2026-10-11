@@ -346,17 +346,17 @@ function launchFingerprint(options: Record<string, unknown> | undefined): Record
 }
 
 // 設定の値は Playwright の型が形を決めている。ここでは読む前に、object か配列であることだけを確かめる
-function isRecord(value: unknown): value is Record<string, unknown> {
+function isObjectLike(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
 function objectOf(value: unknown, name: string): Record<string, unknown> {
-  if (!isRecord(value)) throw new TypeError(`${name} が object でない: ${value}`);
+  if (!isObjectLike(value)) throw new TypeError(`${name} が object でない: ${String(value)}`);
   return value;
 }
 
 function arrayOf(value: unknown, name: string): unknown[] {
-  if (!Array.isArray(value)) throw new TypeError(`${name} が配列でない: ${value}`);
+  if (!Array.isArray(value)) throw new TypeError(`${name} が配列でない: ${String(value)}`);
   return value;
 }
 
