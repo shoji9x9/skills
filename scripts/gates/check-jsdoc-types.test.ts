@@ -118,6 +118,22 @@ test.each([
     "/** @param {globalThis.Generator<string>} g */\nfunction f(g) {}\n",
     "globalThis.Generator（3",
   ],
+  // 継承と実装を宣言するタグの型も、省いた型引数に any が入る。
+  [
+    "@extends の型引数の無い ReadableStream",
+    "/** @extends {ReadableStream} */\nclass S extends ReadableStream {}\n",
+    "ReadableStream（1",
+  ],
+  [
+    "@augments の型引数の無い ReadableStream",
+    "/** @augments {ReadableStream} */\nclass S extends ReadableStream {}\n",
+    "ReadableStream（1",
+  ],
+  [
+    "@implements の型引数が 1 つの AsyncIterator",
+    "/** @implements {AsyncIterator<string>} */\nclass I {\n  async next() {\n    return { done: true, value: undefined };\n  }\n}\n",
+    "AsyncIterator（3",
+  ],
 ])("JSDoc の型の any 相当を検出する: %s", (_name, text, kind) => {
   const v = find(text);
   expect(v).toHaveLength(1);
@@ -157,6 +173,10 @@ test.each([
   [
     "型引数 1 つの自作の Generator",
     "/**\n * @template T\n * @typedef {{ v: T }} Generator\n */\n/** @param {Generator<string>} g */\nfunction f(g) {}\n",
+  ],
+  [
+    "@extends で型引数を書いた ReadableStream",
+    "/** @extends {ReadableStream<string>} */\nclass S extends ReadableStream {}\n",
   ],
   [
     "修飾した名前で型引数をすべて書いた Generator",

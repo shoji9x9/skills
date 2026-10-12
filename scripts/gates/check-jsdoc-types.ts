@@ -54,7 +54,7 @@ function declaresTypeParameters(d: ts.Node): d is ts.DeclarationWithTypeParamete
 }
 
 /** 型参照が指す宣言で、any を避けるのに書く必要のある型引数の数（デフォルトが any の最後の位置 + 1）。 */
-function anyDefaultArity(name: ts.EntityName, checker: ts.TypeChecker): number {
+function anyDefaultArity(name: ts.Node, checker: ts.TypeChecker): number {
   let symbol = checker.getSymbolAtLocation(name);
   if (symbol !== undefined && symbol.flags & ts.SymbolFlags.Alias) {
     symbol = checker.getAliasedSymbol(symbol);
@@ -105,7 +105,11 @@ function anyLike(node: ts.Node, sf: ts.SourceFile, checker: () => ts.TypeChecker
     ? { ref: node.typeName, typeArguments: node.typeArguments }
     : ts.isImportTypeNode(node) && !node.isTypeOf && node.qualifier !== undefined
       ? { ref: node.qualifier, typeArguments: node.typeArguments }
-      : undefined;
+      : // `@extends {X}`・`@augments {X}`・`@implements {X}` の X も、省いた型引数に any が入る。
+        ts.isExpressionWithTypeArguments(node) &&
+          (ts.isJSDocAugmentsTag(node.parent) || ts.isJSDocImplementsTag(node.parent))
+        ? { ref: node.expression, typeArguments: node.typeArguments }
+        : undefined;
   if (target !== undefined) {
     const { ref, typeArguments } = target;
     const arity = anyDefaultArity(ref, checker());

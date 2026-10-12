@@ -1103,9 +1103,12 @@ function checkRepeatRunPerSpec(suiteObj, record, root) {
     throw new UsageError("suite.repeat_run.runs が配列でない");
   const list = isArray(runs) ? runs : [];
   let withoutSpecPrints = 0;
+  /** @type {Record<string, unknown>[]} */
+  const runRecords = [];
   for (const [i, run] of list.entries()) {
     if (!isPlainObject(run))
       throw new UsageError(`suite.repeat_run.runs[${i}] がオブジェクトでない`);
+    runRecords.push(run);
     const prints = run.spec_fingerprints;
     if (prints === undefined || prints === null) {
       withoutSpecPrints += 1;
@@ -1125,8 +1128,6 @@ function checkRepeatRunPerSpec(suiteObj, record, root) {
       );
     }
   }
-  // 上のループで全件がオブジェクトだと確かめた。filter は要素の型を絞るためだけにある
-  const runRecords = list.filter(isPlainObject);
   for (const spec of mutating) {
     const hits = runRecords.filter(
       (run) =>
@@ -1292,19 +1293,19 @@ export function checkRepeatRun(metadata, ctx) {
     );
     return { judged: true, findings, notes: [] };
   }
-  const tail = list.slice(-2);
-  for (const [i, run] of tail.entries()) {
+  /** @type {Record<string, unknown>[]} */
+  const tailRecords = [];
+  for (const [i, run] of list.slice(-2).entries()) {
     if (!isPlainObject(run))
       throw new UsageError(`suite.repeat_run.runs の末尾 ${i + 1} 件目がオブジェクトでない`);
+    tailRecords.push(run);
   }
-  // 上のループで 2 件ともオブジェクトだと確かめた。filter は要素の型を絞るためだけにある
-  const tailRecords = tail.filter(isPlainObject);
   findings.push(...pairFindings(tailRecords, ""));
   /** @type {string[]} */
   const notes = [`状態を変えるスイートの実行記録 ${list.length} 件のうち末尾 2 件を判定`];
 
   // 記録を「いまのスイート」に結びつける。指紋が無い旧成果物はこの軸を判定しない（理由は残す）。
-  const prints = tail.map((run) => (isPlainObject(run) ? run.suite_fingerprint : undefined));
+  const prints = tailRecords.map((run) => run.suite_fingerprint);
   if (prints.every((p) => p === undefined || p === null)) {
     notes.push(
       "runs[].suite_fingerprint を持たない旧成果物のため、記録が現在のスイートのものかは判定しない",

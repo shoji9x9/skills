@@ -13,6 +13,7 @@ import type {
   TextOwner,
   Trait as ComparedTrait,
 } from "../../../skills/parity-suite/scripts/trait-compare.mjs";
+import { invalidInput } from "../../lib/test-input.ts";
 import { makeTempDir } from "../../lib/test-tmpdir.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
@@ -367,6 +368,28 @@ test("CLI は文字の寸法が null（採れなかった NaN）の要素を受�
   expect(JSON.parse(r.stdout)).toEqual([
     expect.objectContaining({ kind: "text", expected: "15", actual: "null" }),
   ]);
+});
+
+test("CLI は文字の高さが両側とも null なら、比べられないとして差分に出して exit 1", () => {
+  const unmeasured = { ...trait([]), text_owners: [owner("設定", font(), { glyph_height: null })] };
+  const r = runCli([unmeasured], [unmeasured]);
+  expect(r.status).toBe(1);
+  expect(JSON.parse(r.stdout)).toEqual([
+    expect.objectContaining({ kind: "text", expected: "null", actual: "null" }),
+  ]);
+});
+
+test.each([
+  ["advance", { advance: null }],
+  ["lines", { lines: null }],
+])("CLI は文字の %s の null（採取が出さない形）を、比較せず exit 2", (_key, dims) => {
+  const broken = {
+    ...trait([]),
+    text_owners: [owner("設定", font(), invalidInput<Partial<TextOwner>>(dims))],
+  };
+  const r = runCli([broken], [trait([])]);
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain("error: baseline[0] is not a trait entry");
 });
 
 test("CLI は rect の欠けた要素（旧スキーマ・手編集）を受け、欠けを差分に出して exit 1", () => {

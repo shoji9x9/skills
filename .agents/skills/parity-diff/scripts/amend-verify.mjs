@@ -360,10 +360,8 @@ export function parseArgs(argv) {
   const seen = new Set();
   for (const [n, item] of list.entries()) {
     const where = `--pairs[${n}]`;
-    if (!item || typeof item !== "object") return { error: `${where} must be an object` };
-    // 配列の要素は欄を持たないので、空のオブジェクトとして読み、元と同じく pair の欠落で弾く。
-    /** @type {Record<string, unknown>} */
-    const rec = isRecord(item) ? item : {};
+    if (!isRecord(item)) return { error: `${where} must be an object` };
+    const rec = item;
     /** @type {Record<string, string>} */
     const text = {};
     for (const key of ["pair", "prev_new", "new", "current"]) {

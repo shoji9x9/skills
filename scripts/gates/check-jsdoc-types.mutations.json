@@ -169,7 +169,10 @@
         "JSDoc の型の any 相当を検出する: 型引数の無い ReadableStream",
         "JSDoc の型の any 相当を検出する: 修飾した名前の Generator",
         "自作の @typedef の型引数も、デフォルトが any に解決されるなら書く数を求める",
-        "CLI: import した型（import(\"x\").T）も、デフォルトが any の型引数を省けば検出する"
+        "CLI: import した型（import(\"x\").T）も、デフォルトが any の型引数を省けば検出する",
+        "JSDoc の型の any 相当を検出する: @augments の型引数の無い ReadableStream",
+        "JSDoc の型の any 相当を検出する: @extends の型引数の無い ReadableStream",
+        "JSDoc の型の any 相当を検出する: @implements の型引数が 1 つの AsyncIterator"
       ]
     },
     {
@@ -279,7 +282,10 @@
         "JSDoc の型の any 相当を検出する: 型引数の無い ReadableStream",
         "JSDoc の型の any 相当を検出する: 修飾した名前の Generator",
         "自作の @typedef の型引数も、デフォルトが any に解決されるなら書く数を求める",
-        "CLI: import した型（import(\"x\").T）も、デフォルトが any の型引数を省けば検出する"
+        "CLI: import した型（import(\"x\").T）も、デフォルトが any の型引数を省けば検出する",
+        "JSDoc の型の any 相当を検出する: @augments の型引数の無い ReadableStream",
+        "JSDoc の型の any 相当を検出する: @extends の型引数の無い ReadableStream",
+        "JSDoc の型の any 相当を検出する: @implements の型引数が 1 つの AsyncIterator"
       ]
     },
     {
@@ -308,7 +314,8 @@
         "型を外さない書き方は検出しない: 1 行の宣言の注釈",
         "型を外さない書き方は検出しない: @satisfies",
         "型を外さない書き方は検出しない: const の表明",
-        "CLI: import した型（import(\"x\").T）も、デフォルトが any の型引数を省けば検出する"
+        "CLI: import した型（import(\"x\").T）も、デフォルトが any の型引数を省けば検出する",
+        "any でない型は検出しない: @extends で型引数を書いた ReadableStream"
       ]
     },
     {
@@ -332,7 +339,8 @@
         "any でない型は検出しない: 型引数が 3 つの Iterable",
         "any でない型は検出しない: 型引数の無い Array",
         "any でない型は検出しない: 自作の Iterator（@typedef）",
-        "型を外さない書き方は検出しない: const の表明"
+        "型を外さない書き方は検出しない: const の表明",
+        "JSDoc の型の any 相当を検出する: @implements の型引数が 1 つの AsyncIterator"
       ]
     },
     {
@@ -347,7 +355,9 @@
         "JSDoc の型の any 相当を検出する: 型引数が 1 つの IteratorResult",
         "JSDoc の型の any 相当を検出する: 型引数の無い ReadableStream",
         "自作の @typedef の型引数も、デフォルトが any に解決されるなら書く数を求める",
-        "CLI: import した型（import(\"x\").T）も、デフォルトが any の型引数を省けば検出する"
+        "CLI: import した型（import(\"x\").T）も、デフォルトが any の型引数を省けば検出する",
+        "JSDoc の型の any 相当を検出する: @augments の型引数の無い ReadableStream",
+        "JSDoc の型の any 相当を検出する: @extends の型引数の無い ReadableStream"
       ]
     },
     {
@@ -367,7 +377,8 @@
         "JSDoc の型の any 相当を検出する: 型引数が 1 つの Iterator",
         "JSDoc の型の any 相当を検出する: 型引数の無い AsyncGenerator",
         "JSDoc の型の any 相当を検出する: 型引数の無い Generator",
-        "JSDoc の型の any 相当を検出する: 修飾した名前の Generator"
+        "JSDoc の型の any 相当を検出する: 修飾した名前の Generator",
+        "JSDoc の型の any 相当を検出する: @implements の型引数が 1 つの AsyncIterator"
       ]
     },
     {
@@ -396,8 +407,8 @@
       "id": "IMPORT-TYPE-SKIPPED",
       "why": "import(\"x\").T の形の型参照を調べない（import した先のデフォルトが any の型を見逃す）",
       "file": "scripts/gates/check-jsdoc-types.ts",
-      "find": "    : ts.isImportTypeNode(node) && !node.isTypeOf && node.qualifier !== undefined\n      ? { ref: node.qualifier, typeArguments: node.typeArguments }\n      : undefined;",
-      "replace": "    : undefined;",
+      "find": "    : ts.isImportTypeNode(node) && !node.isTypeOf && node.qualifier !== undefined\n",
+      "replace": "    : false && ts.isImportTypeNode(node) && !node.isTypeOf && node.qualifier !== undefined\n",
       "occurrences": 1,
       "expect_failing": [
         "CLI: import した型（import(\"x\").T）も、デフォルトが any の型引数を省けば検出する"
@@ -412,6 +423,19 @@
       "occurrences": 1,
       "expect_failing": [
         "CLI: import した型（import(\"x\").T）も、デフォルトが any の型引数を省けば検出する"
+      ]
+    },
+    {
+      "id": "HERITAGE-TAG-SKIPPED",
+      "why": "@extends・@augments・@implements の型を調べない（省いた型引数の any を見逃す）",
+      "file": "scripts/gates/check-jsdoc-types.ts",
+      "find": "(ts.isJSDocAugmentsTag(node.parent) || ts.isJSDocImplementsTag(node.parent))",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": [
+        "JSDoc の型の any 相当を検出する: @extends の型引数の無い ReadableStream",
+        "JSDoc の型の any 相当を検出する: @augments の型引数の無い ReadableStream",
+        "JSDoc の型の any 相当を検出する: @implements の型引数が 1 つの AsyncIterator"
       ]
     }
   ]
