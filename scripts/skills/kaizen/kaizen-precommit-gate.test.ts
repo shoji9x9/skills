@@ -1631,6 +1631,8 @@ describe.concurrent("チェックはリポジトリの全作業ツリーの .kai
 // 子の側で測ると、孫プロセスがパイプを開いたままにする回帰（エージェントが待たされる）を見逃す。
 // 最初に実行すると、温まっていない状態で lifecycle 検査が遅れ、走査に回す秒数が残らずに別の理由で止まることがある
 // （先頭に置いた版で、CI の基準 run が 1 回失敗した）。変更前と同じく、他のテストの後に実行する。
+// 締め切りに当てる 2 本は、互いにだけ並べる（Issue #607）。どちらも子が sleep で待つだけなので CPU を取り合わず、
+// 直列なら 2 本で 6 秒かかる待ち時間が 3 秒になる。このファイルはミューテーションテストで変異ごとに丸ごと実行される。
 // エージェントは timeout に達したフックをブロックとして扱わない（Claude Code / Copilot とも、合格として扱う）。
 // チェック全体の所要時間に上限が無いと、exit 2 で止めるはずの commit が遅いときほど素通りする（Issue #492）。
 // チェックは 1 つの締め切りの内側で最後まで実行し、自セッション分までは締め切りに当たったら失敗として扱う。
@@ -1663,7 +1665,7 @@ describe("チェック全体の締め切り", () => {
     return { gate, elapsed: Date.now() - started };
   }
 
-  test("自セッション分の走査が締め切りに当たったら、締め切りの内側で exit 2 にする", async () => {
+  test.concurrent("自セッション分の走査が締め切りに当たったら、締め切りの内側で exit 2 にする", async () => {
     const scripts = stubScripts({ "kaizen-candidate-scan.sh": "exec sleep 30" });
     const cwd = makeProject();
     const transcript = join(cwd, "t.jsonl");
@@ -1686,7 +1688,7 @@ describe("チェック全体の締め切り", () => {
   // bash の SECONDS は秒の境界をまたぐと 1 ms でも 1 になる（実測）。締め切り 2 秒では残りが 0 秒になる回があり、
   // 検査を起動せずに同じメッセージで exit 2 になるので、timeout を外す変異（GATE-STATUS-UNBOUNDED）を
   // CI で検出できなかった。締め切りを 3 秒にし、検査が起動されたことも確かめる。
-  test("lifecycle 検査が締め切りに当たったら、締め切りの内側で exit 2 にする", async () => {
+  test.concurrent("lifecycle 検査が締め切りに当たったら、締め切りの内側で exit 2 にする", async () => {
     const cwd = makeProject();
     const started = join(cwd, "status-check-started");
     const scripts = stubScripts({
@@ -1716,7 +1718,8 @@ describe("チェック全体の締め切り", () => {
     expect(gate.status, gate.stderr).toBe(0);
   });
 
-  test.each([["abc"], ["0"], ["1"], ["3601"], ["-5"], ["8.5"]])(
+  // 締め切りの値を読むだけのテストは、時間で判定しないので互いに並べる（締め切りに当てる 2 本とは並べない）。
+  test.concurrent.each([["abc"], ["0"], ["1"], ["3601"], ["-5"], ["8.5"]])(
     "不正な締め切り %s はデフォルト値に戻して知らせる",
     async (raw) => {
       const cwd = makeProject();
@@ -1732,7 +1735,7 @@ describe("チェック全体の締め切り", () => {
     },
   );
 
-  test.each([["2"], ["20"], ["3600"], ["08"]])(
+  test.concurrent.each([["2"], ["20"], ["3600"], ["08"]])(
     "正しい締め切り %s は警告なしに受け付ける",
     async (raw) => {
       const cwd = makeProject();
@@ -1753,7 +1756,10 @@ describe("チェック全体の締め切り", () => {
 // `test.sequential` は自分の describe の中でしか直列にならず、隣の concurrent な suite のテストとは並んで始まる（実測）。
 describe("他セッション分の走査結果の再利用（使える秒数を比べる）", () => {
   test("打ち切りは、前回より長く使えるときだけ走査し直す", async () => {
-    const { gate, scans } = setupForeignScan("exec sleep 30");
+    // 3 回目は、走査し直したか（スキャナが起動されたか）だけを数える。起動されたらすぐ終わらせ、締め切りまで待たない（Issue #607）。
+    const { gate, scans } = setupForeignScan(
+      'if [ -n "${SCAN_NO_WAIT:-}" ]; then exit 2; fi\nexec sleep 30',
+    );
     // 使える秒数は SECONDS の境界で 1 秒揺れる。同じ締め切りの 2 回目は許容内（+1 秒）に、
     // 3 回目は確実に許容の外に収まる値を選ぶ。
     await gate({ KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "3" });
@@ -1761,7 +1767,7 @@ describe("他セッション分の走査結果の再利用（使える秒数を�
     const same = await gate({ KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "3" });
     expect(scans()).toBe(1);
     expect(same.stderr).toMatch(/skipped re-scanning .*\(exit 124 after up to [12]s\)/);
-    await gate({ KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "7" });
+    await gate({ KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "7", SCAN_NO_WAIT: "1" });
     expect(scans()).toBe(2);
   }, 30000);
 });
