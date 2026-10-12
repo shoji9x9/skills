@@ -6,7 +6,9 @@
 // | -------------- | --------------------------------------------------------------------------- |
 // | JSDoc の @type | 表明（1 行・複数行・入れ子の波括弧・const）/ 宣言の注釈 / @satisfies       |
 // | 型の書き方     | `any` / `*` / `?` / Function / 型引数の無い Object / 入れ子の any / Object.<K, V> / Array<T> / unknown |
-// | 型引数の数     | デフォルトが any の型（lib から求める）で 0・1・2・すべて / 型引数 2 つの型（IteratorResult）で 1・2 |
+// | 型引数の数     | デフォルトが any の型（型チェッカーで解決する）で 0・1・2・すべて / 型引数 2 つの型（IteratorResult）で 1・2 |
+// | 型の名前の解決 | lib の型 / 同じ名前の自作の型（@typedef・@template 付き）/ 修飾した名前（globalThis.Generator） |
+// | Program        | tsconfig.skills.json が在る / 無い / 対象が include の外                    |
 // | ts コメント    | @ts-ignore（行）/ @ts-expect-error（ブロック）/ @ts-nocheck / 文字列の中    |
 // | 置き場所       | skills/<name>/scripts・assets / その他のディレクトリ / .mjs でない          |
 import { expect, test } from "vitest";
@@ -110,6 +112,12 @@ test.each([
     "/** @param {ReadableStream} s */\nfunction f(s) {}\n",
     "ReadableStream（1",
   ],
+  // 修飾した名前も、解決すれば lib の Generator である。
+  [
+    "修飾した名前の Generator",
+    "/** @param {globalThis.Generator<string>} g */\nfunction f(g) {}\n",
+    "globalThis.Generator（3",
+  ],
 ])("JSDoc の型の any 相当を検出する: %s", (_name, text, kind) => {
   const v = find(text);
   expect(v).toHaveLength(1);
@@ -141,6 +149,19 @@ test.each([
   ["Array.<T>", "/** @param {Array.<string>} a */\nfunction f(a) {}\n"],
   ["T[]", "/** @param {string[]} a */\nfunction f(a) {}\n"],
   ["Promise<T>", "/** @returns {Promise<void>} */\nfunction f() {}\n"],
+  // 名前ではなく、解決した宣言の型引数で判定する。同じ名前の自作の型は、lib の型として扱わない。
+  [
+    "自作の Iterator（@typedef）",
+    "/** @typedef {{ a: string }} Iterator */\n/** @param {Iterator} i */\nfunction f(i) {}\n",
+  ],
+  [
+    "型引数 1 つの自作の Generator",
+    "/**\n * @template T\n * @typedef {{ v: T }} Generator\n */\n/** @param {Generator<string>} g */\nfunction f(g) {}\n",
+  ],
+  [
+    "修飾した名前で型引数をすべて書いた Generator",
+    "/** @param {globalThis.Generator<string, void, unknown>} g */\nfunction f(g) {}\n",
+  ],
 ])("any でない型は検出しない: %s", (_name, text) => {
   expect(find(text)).toEqual([]);
 });
@@ -197,14 +218,30 @@ test.each([
   expect(isTarget(path)).toBe(expected);
 });
 
-/** 一時的な git リポジトリを作り、ファイルを追跡する。 */
-function makeRepo(files: Record<string, string>): string {
+// CLI が型を解決するのに読む設定（実リポジトリの tsconfig.skills.json と同じ include と、型の検査の設定）。
+const TSCONFIG = JSON.stringify({
+  compilerOptions: {
+    allowJs: true,
+    checkJs: true,
+    noEmit: true,
+    target: "es2024",
+    lib: ["es2024", "dom"],
+    module: "nodenext",
+    moduleResolution: "nodenext",
+    types: [],
+  },
+  include: ["skills/*/**/*.mjs"],
+});
+
+/** 一時的な git リポジトリを作り、ファイルを追跡する。tsconfig.skills.json は、null を渡さなければ置く。 */
+function makeRepo(files: Record<string, string>, tsconfig: string | null = TSCONFIG): string {
   const root = makeTempDir("jsdoc-types-");
   const git = (...args: string[]) => {
     const r = spawnSync("git", args, { cwd: root, encoding: "utf8" });
     if (r.status !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
   };
   git("init", "-q");
+  if (tsconfig !== null) writeFileSync(join(root, "tsconfig.skills.json"), tsconfig);
   for (const [path, text] of Object.entries(files)) {
     mkdirSync(dirname(join(root, path)), { recursive: true });
     writeFileSync(join(root, path), text);
@@ -255,4 +292,46 @@ test("CLI: 対象が 0 件なら、判定できないとして exit 2", () => {
   const r = runCli(root);
   expect(r.status).toBe(2);
   expect(r.out).toContain("対象のファイルが 0 件");
+});
+
+test("CLI: 型の名前を、実リポジトリと同じく tsconfig.skills.json の Program で解決する", () => {
+  const root = makeRepo({
+    "skills/demo/scripts/gen.mjs": "/** @returns {Generator<string>} */\nexport function* f() {}\n",
+    "skills/demo/scripts/own.mjs":
+      "/** @typedef {{ a: string }} Iterator */\n/** @param {Iterator} i */\nexport function g(i) {}\n",
+  });
+  const r = runCli(root);
+  expect(r.status).toBe(1);
+  expect(r.out).toContain(
+    "skills/demo/scripts/gen.mjs:1: JSDoc の型に 型引数の足りない Generator（3 つ書く）",
+  );
+  expect(r.out).not.toContain("own.mjs");
+});
+
+test("CLI: tsconfig.skills.json が無ければ、型を解決できないとして exit 2", () => {
+  const root = makeRepo({ "skills/demo/scripts/ok.mjs": "export {};\n" }, null);
+  const r = runCli(root);
+  expect(r.status).toBe(2);
+  expect(r.out).toContain("tsconfig.skills.json が無い");
+});
+
+test("CLI: 対象が tsconfig.skills.json の include の外なら、判定できないとして exit 2", () => {
+  const root = makeRepo(
+    { "skills/demo/scripts/a.mjs": "export {};\n", "skills/demo/scripts/b.mjs": "export {};\n" },
+    JSON.stringify({
+      compilerOptions: { allowJs: true, noEmit: true },
+      include: ["skills/demo/scripts/a.mjs"],
+    }),
+  );
+  const r = runCli(root);
+  expect(r.status).toBe(2);
+  expect(r.out).toContain("tsconfig.skills.json の対象に無い");
+});
+
+test("自作の @typedef の型引数も、デフォルトが any に解決されるなら書く数を求める", () => {
+  // デフォルトに any を直接書くと、その any を上の判定が検出する。別名を挟むと、解決しないと分からない。
+  const v = find(
+    "/** @typedef {any} Loose */\n/**\n * @template [T=Loose]\n * @typedef {{ x: T }} Box\n */\n/** @param {Box} b */\nfunction f(b) {}\n",
+  );
+  expect(v).toContain("6: JSDoc の型に 型引数の足りない Box（1 つ書く） を書かない");
 });

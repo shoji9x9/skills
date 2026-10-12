@@ -241,8 +241,8 @@ lefthook の pre-commit は、TypeScript か JavaScript（`ts`・`tsx`・`mts`�
 失敗にするのは、型の表明 `/** @type {X} */ (v)`（TypeScript の `as` と同じ）と、`@ts-ignore`・`@ts-expect-error`・`@ts-nocheck` である。
 JSDoc の型の `any`・`*`・`?`・`Function` と、型引数の無い `Object` も失敗にする。
 型引数を省くとデフォルトの `any` が入る型（`Generator`・`Iterable`・`IteratorResult`・`ReadableStream` など）は、`any` が入らない数まで型引数を書かせる。
-対象の型と書く数は、TypeScript に同梱の lib の宣言から求めるので、手で一覧を持たない。
-名前で照合するので、同じ名前の別の型と修飾した名前は区別できない。
+対象の型と書く数は、`tsconfig.skills.json` から作った Program の型チェッカーで名前を解決し、宣言の型引数のデフォルトから求める。
+名前では照合しないので、同じ名前の自作の型は対象にせず、修飾した名前（`globalThis.Generator`）も検出する。
 型引数の無い `Array`・`Promise`・`Map` は、tsc が TS2314 で失敗にする。
 宣言の注釈（`/** @type {X} */ const v = ...`）・`@satisfies`・`/** @type {const} */ (v)` は、型を外さないので使ってよい。
 配布スキルが利用者のプロジェクトから読み込むモジュール（`pngjs` など）の型は、使う欄だけを `types/skill-runtime/<モジュール名>.ts` に書き、`tsconfig.skills.json` の `paths` でそこへ解決する。
