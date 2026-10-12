@@ -5,7 +5,9 @@
 // 配列でない側は入力から配列の部分を除いた型にする。配列を含みうる型（`object`・`{}`・`Iterable<string>`）は、
 // その型と `unknown[]` の交差にする。
 // このファイルは、同じ内容を複数の配布スキルが持つ。スキルの中で完結させるため、共有せずにコピーする。
+// 印の間は、利用者のプロジェクトへ 1 ファイルだけコピーして使うスクリプト（`trait-compare.mjs` など）も同じ内容で持つ。
 
+// is-array-js:begin
 /**
  * `T` のうち配列の部分。`unknown` と `any` は `unknown[]`、配列を含みうる型は `unknown[]` との交差にする。
  * @template T
@@ -24,7 +26,10 @@
  * @param {T} value
  * @returns {value is ArrayNarrowed<T>}
  */
-export function isArray(value) {
+function isArray(value) {
   // oxlint-disable-next-line no-restricted-properties -- 組み込みの判定を呼ぶのは、この関数の中だけにする
   return Array.isArray(value);
 }
+// is-array-js:end
+
+export { isArray };

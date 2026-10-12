@@ -29,14 +29,40 @@
 
 import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { isArray } from "./lib/is-array.mjs";
+
+// 利用者のプロジェクトへ 1 ファイルだけコピーして使うので、隣のファイルを import せず、
+// 配列の型ガードを `scripts/lib/is-array.mjs` と同じ内容でここに持つ（一致は identical-copies の組で確かめる）。
+// is-array-js:begin
+/**
+ * `T` のうち配列の部分。`unknown` と `any` は `unknown[]`、配列を含みうる型は `unknown[]` との交差にする。
+ * @template T
+ * @typedef {0 extends 1 & T ? unknown[] : unknown extends T ? unknown[] : T extends readonly unknown[] ? T : never[] extends T ? T & unknown[] : never} ArrayPart
+ */
+
+/**
+ * 型ガードの述語に使う形。述語の型は引数の型に代入できる必要があるので、代入できる場合だけ `ArrayPart<T>` にする。
+ * @template T
+ * @typedef {ArrayPart<T> extends T ? ArrayPart<T> : never} ArrayNarrowed
+ */
+
+/**
+ * 配列か。配列なら、入力の型の配列の部分に絞る。
+ * @template T
+ * @param {T} value
+ * @returns {value is ArrayNarrowed<T>}
+ */
+function isArray(value) {
+  // oxlint-disable-next-line no-restricted-properties -- 組み込みの判定を呼ぶのは、この関数の中だけにする
+  return Array.isArray(value);
+}
+// is-array-js:end
 
 /**
  * ツールのバージョン（原本）。比較ロジック・差分形状を変えたら上げる。
  * metadata.json の differ.trait_compare に記録する「バージョン」はこの値を使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "3";
+export const VERSION = "4";
 
 /**
  * @typedef {object} Trait
@@ -554,13 +580,18 @@ export function main(argv) {
     process.stderr.write(`error: cannot read inputs: ${message}\n`);
     return 2;
   }
-  if (
-    !isArray(baseline) ||
-    !isArray(capture) ||
-    !baseline.every(isTrait) ||
-    !capture.every(isTrait)
-  ) {
+  if (!isArray(baseline) || !isArray(capture)) {
     process.stderr.write("error: both inputs must be JSON arrays of trait entries\n");
+    return 2;
+  }
+  if (!baseline.every(isTrait) || !capture.every(isTrait)) {
+    // どの入力の何番目かを出す（直す箇所を利用者が探さずに済むように）。
+    const [side, entries] = baseline.every(isTrait) ? ["capture", capture] : ["baseline", baseline];
+    const at = entries.findIndex((e) => !isTrait(e));
+    process.stderr.write(
+      `error: ${side}[${at}] is not a trait entry ` +
+        "(name, computed, before, after, rect, text_owners or scroll does not match the trait schema)\n",
+    );
     return 2;
   }
   const diffs = compareTraits(baseline, capture, { alignTolerance });

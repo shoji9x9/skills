@@ -244,7 +244,9 @@ lefthook の pre-commit は、TypeScript か JavaScript（`ts`・`tsx`・`mts`�
 直接の呼び出しは、`oxlint.config.ts` の `no-restricted-properties` が失敗にする。
 ユーティリティの中の 1 行だけを、その行の disable コメントで外す。
 import できない雛形（`skills/*/assets/*.template.ts`）とミューテーションテストのランナーは、同じ関数をファイルの中に持つ。
+利用者のプロジェクトへ 1 ファイルだけコピーして使う配布スキルのツール（`trait-compare.mjs` など）も同じである。
 コピーとの一致は `check-identical-copies.ts` が確かめる。
+1 ファイルだけコピーして使うツールが単独で読み込めることは、`scripts/skills/_cross/vendored-tool-standalone.test.ts` が確かめる。
 
 配布スキルの `.mjs` では、型の検査を外す JSDoc の書き方を `scripts/gates/check-jsdoc-types.ts` が失敗にする。
 失敗にするのは、型の表明 `/** @type {X} */ (v)`（TypeScript の `as` と同じ）と、`@ts-ignore`・`@ts-expect-error`・`@ts-nocheck` である。

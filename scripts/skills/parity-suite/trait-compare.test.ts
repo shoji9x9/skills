@@ -62,8 +62,8 @@ const trait = (textOwners: TextOwner[] | undefined, name = "toolbar.settings"): 
   ...(textOwners === undefined ? {} : { text_owners: textOwners }),
 });
 
-test("VERSION は 3（scroll の照合を足した）", () => {
-  expect(VERSION).toBe("3");
+test("VERSION は 4（CLI が入れ子の欄まで型どおりでない要素を exit 2 にする）", () => {
+  expect(VERSION).toBe("4");
 });
 
 // 実測（Chrome 149）: 現行 <button><div><span>設定</span></div></button> と新側 <button>設定</button>。
@@ -305,10 +305,20 @@ function runCli(baseline: unknown, capture: unknown) {
 }
 
 test.each([
-  ["baseline", [null], [trait([])]],
-  ["capture", [trait([])], [null]],
-])("CLI は %s の要素が採取結果の形でなければ、比較せず exit 2", (_side, baseline, capture) => {
-  const r = runCli(baseline, capture);
+  ["baseline", [null], [trait([])], "baseline[0]"],
+  ["capture", [trait([])], [null], "capture[0]"],
+  ["capture の 2 件目", [trait([])], [trait([]), null], "capture[1]"],
+])(
+  "CLI は %s の要素が採取結果の形でなければ、その位置を出して比較せず exit 2",
+  (_side, baseline, capture, at) => {
+    const r = runCli(baseline, capture);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain(`error: ${at} is not a trait entry`);
+  },
+);
+
+test("CLI は入力が配列でなければ、配列にするよう求めて exit 2", () => {
+  const r = runCli({}, [trait([])]);
   expect(r.status).toBe(2);
   expect(r.stderr).toContain("both inputs must be JSON arrays of trait entries");
 });
@@ -333,7 +343,7 @@ test.each([
 ])("CLI は入れ子の欄が型と違う要素（%s）を、比較せず exit 2", (_name, broken) => {
   const r = runCli([broken], [trait([])]);
   expect(r.status).toBe(2);
-  expect(r.stderr).toContain("both inputs must be JSON arrays of trait entries");
+  expect(r.stderr).toContain("error: baseline[0] is not a trait entry");
 });
 
 test("CLI は入れ子まで型どおりの要素（文字の持ち主・スクロール・webkit が unsupported）を比較する", () => {

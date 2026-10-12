@@ -1,0 +1,31 @@
+{
+  "$comment": [
+    "vendored-tool-standalone.test.ts の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。"
+  ],
+  "test_file": "scripts/skills/_cross/vendored-tool-standalone.test.ts",
+  "mutations": [
+    {
+      "id": "vendored-sibling-import",
+      "why": "1 ファイルだけコピーして使うツールが、隣のファイルを import する（コピーした先で ERR_MODULE_NOT_FOUND になる）",
+      "file": "skills/parity-suite/scripts/trait-compare.mjs",
+      "find": "import { fileURLToPath } from \"node:url\";\n",
+      "replace": "import { fileURLToPath } from \"node:url\";\nimport \"./lib/is-array.mjs\";\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "skills/parity-suite/scripts/trait-compare.mjs は 1 ファイルだけコピーした先で import できる"
+      ]
+    },
+    {
+      "id": "vendored-header-sibling-import",
+      "why": "header-normalize.mjs が隣のファイルを import する",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "import { fileURLToPath } from \"node:url\";\n",
+      "replace": "import { fileURLToPath } from \"node:url\";\nimport \"./lib/is-array.mjs\";\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "skills/parity-suite/scripts/header-normalize.mjs は 1 ファイルだけコピーした先で import できる"
+      ]
+    }
+  ]
+}
