@@ -1419,7 +1419,6 @@ export function main(args) {
   const violations = [];
   /** @type {Finding[]} */
   const unresolved = [];
-  const total = { callSites: 0, resolved: 0, undecidable: 0, excluded: 0, exempted: 0 };
   const statKeys = /** @type {const} */ ([
     "callSites",
     "resolved",
@@ -1427,10 +1426,9 @@ export function main(args) {
     "excluded",
     "exempted",
   ]);
-  // statKeys が total のキーをすべて持つことを型で確かめる（total に欄を足して statKeys に足し忘れると tsc が失敗する）
-  /** @type {[Exclude<keyof typeof total, (typeof statKeys)[number]>] extends [never] ? true : never} */
-  const statKeysCoverTotal = true;
-  void statKeysCoverTotal;
+  // total の欄を statKeys から型で決める（欄が足りなくても、statKeys に無い欄を足しても tsc が失敗する）
+  /** @type {Record<(typeof statKeys)[number], number>} */
+  const total = { callSites: 0, resolved: 0, undecidable: 0, excluded: 0, exempted: 0 };
   // 走査は重複を除いた集合に対して 1 回ずつ行う。報告する件数も同じ集合から採る
   // （引数が重なった `parity/ parity/a.spec.ts` で件数だけ水増しすると、
   // 「走査ファイル数がスイートの実ファイル数と合っているか」の確認が通ってしまう）。

@@ -157,9 +157,16 @@
         "JSDoc の型の any 相当を検出する: Function",
         "JSDoc の型の any 相当を検出する: 小文字の function",
         "JSDoc の型の any 相当を検出する: 型引数の無い Generator",
-        "JSDoc の型の any 相当を検出する: 型引数の無い AsyncGenerator",
         "JSDoc の型の any 相当を検出する: 型引数が 1 つの Generator",
-        "JSDoc の型の any 相当を検出する: 型引数が 1 つの Iterator"
+        "JSDoc の型の any 相当を検出する: 型引数が 2 つの Generator",
+        "JSDoc の型の any 相当を検出する: 型引数が 1 つの Iterator",
+        "JSDoc の型の any 相当を検出する: 型引数が 1 つの Iterable",
+        "JSDoc の型の any 相当を検出する: 型引数が 1 つの AsyncIterator",
+        "JSDoc の型の any 相当を検出する: 型引数が 1 つの IterableIterator",
+        "JSDoc の型の any 相当を検出する: 型引数が 1 つの AsyncIterableIterator",
+        "JSDoc の型の any 相当を検出する: 型引数の無い AsyncGenerator",
+        "JSDoc の型の any 相当を検出する: 型引数が 1 つの IteratorResult",
+        "JSDoc の型の any 相当を検出する: 型引数の無い ReadableStream"
       ]
     },
     {
@@ -193,29 +200,6 @@
       "replace": "type.typeName.text === \"__never__\"",
       "occurrences": 1,
       "expect_failing": ["型を外さない書き方は検出しない: const の表明"]
-    },
-    {
-      "id": "NO-GENERIC",
-      "why": "型引数を省くと any が入るジェネリック型を検出しない（Generator が Generator<unknown, any, any> になる）",
-      "file": "scripts/gates/check-jsdoc-types.ts",
-      "find": "    ANY_DEFAULT_GENERICS.has(node.typeName.text) &&\n",
-      "replace": "    false &&\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "JSDoc の型の any 相当を検出する: 型引数の無い Generator",
-        "JSDoc の型の any 相当を検出する: 型引数の無い AsyncGenerator",
-        "JSDoc の型の any 相当を検出する: 型引数が 1 つの Generator",
-        "JSDoc の型の any 相当を検出する: 型引数が 1 つの Iterator"
-      ]
-    },
-    {
-      "id": "GENERIC-WITH-ARGS",
-      "why": "型引数の付いた Generator も検出する（Generator<T, R, N> を誤検知する）",
-      "file": "scripts/gates/check-jsdoc-types.ts",
-      "find": "    (node.typeArguments?.length ?? 0) < ANY_DEFAULT_ARITY\n",
-      "replace": "    true\n",
-      "occurrences": 1,
-      "expect_failing": ["any でない型は検出しない: Generator<T, R, N>"]
     },
     {
       "id": "PARENT-JSDOC-IS-CAST",
@@ -272,15 +256,88 @@
       "expect_failing": ["コメントでない文字列は検出しない: ブロックの @ts-nocheck"]
     },
     {
+      "id": "NO-GENERIC",
+      "why": "型引数を省くと any が入るジェネリック型を検出しない",
+      "file": "scripts/gates/check-jsdoc-types.ts",
+      "find": "    const arity = libAnyDefaultArities().get(node.typeName.text);\n",
+      "replace": "    const arity = undefined;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "JSDoc の型の any 相当を検出する: 型引数の無い Generator",
+        "JSDoc の型の any 相当を検出する: 型引数が 1 つの Generator",
+        "JSDoc の型の any 相当を検出する: 型引数が 2 つの Generator",
+        "JSDoc の型の any 相当を検出する: 型引数が 1 つの Iterator",
+        "JSDoc の型の any 相当を検出する: 型引数が 1 つの Iterable",
+        "JSDoc の型の any 相当を検出する: 型引数が 1 つの AsyncIterator",
+        "JSDoc の型の any 相当を検出する: 型引数が 1 つの IterableIterator",
+        "JSDoc の型の any 相当を検出する: 型引数が 1 つの AsyncIterableIterator",
+        "JSDoc の型の any 相当を検出する: 型引数の無い AsyncGenerator",
+        "JSDoc の型の any 相当を検出する: 型引数が 1 つの IteratorResult",
+        "JSDoc の型の any 相当を検出する: 型引数の無い ReadableStream"
+      ]
+    },
+    {
+      "id": "GENERIC-WITH-ARGS",
+      "why": "型引数をすべて書いた型も検出する（Generator<T, R, N> を誤検知する）",
+      "file": "scripts/gates/check-jsdoc-types.ts",
+      "find": "(node.typeArguments?.length ?? 0) < arity",
+      "replace": "true",
+      "occurrences": 1,
+      "expect_failing": [
+        "any でない型は検出しない: Generator<T, R, N>",
+        "any でない型は検出しない: 型引数が 2 つの IteratorResult",
+        "any でない型は検出しない: 型引数が 3 つの Iterator",
+        "any でない型は検出しない: 型引数が 3 つの Iterable"
+      ]
+    },
+    {
       "id": "PARTIAL-ARGS-PASS",
       "why": "型引数が 1 つでもあれば通す（Generator<string> の TReturn・TNext が any になる）",
       "file": "scripts/gates/check-jsdoc-types.ts",
-      "find": "    (node.typeArguments?.length ?? 0) < ANY_DEFAULT_ARITY\n",
-      "replace": "    node.typeArguments === undefined\n",
+      "find": "(node.typeArguments?.length ?? 0) < arity",
+      "replace": "node.typeArguments === undefined",
       "occurrences": 1,
       "expect_failing": [
         "JSDoc の型の any 相当を検出する: 型引数が 1 つの Generator",
-        "JSDoc の型の any 相当を検出する: 型引数が 1 つの Iterator"
+        "JSDoc の型の any 相当を検出する: 型引数が 2 つの Generator",
+        "JSDoc の型の any 相当を検出する: 型引数が 1 つの Iterator",
+        "JSDoc の型の any 相当を検出する: 型引数が 1 つの Iterable",
+        "JSDoc の型の any 相当を検出する: 型引数が 1 つの AsyncIterator",
+        "JSDoc の型の any 相当を検出する: 型引数が 1 つの IterableIterator",
+        "JSDoc の型の any 相当を検出する: 型引数が 1 つの AsyncIterableIterator",
+        "JSDoc の型の any 相当を検出する: 型引数が 1 つの IteratorResult"
+      ]
+    },
+    {
+      "id": "ARITY-ONE-SHORT",
+      "why": "書く必要のある数を 1 つ少なく数える（Generator<string, void> の TNext が any になる）",
+      "file": "scripts/gates/check-jsdoc-types.ts",
+      "find": "(node.typeArguments?.length ?? 0) < arity",
+      "replace": "(node.typeArguments?.length ?? 0) < arity - 1",
+      "occurrences": 1,
+      "expect_failing": [
+        "JSDoc の型の any 相当を検出する: 型引数が 2 つの Generator",
+        "JSDoc の型の any 相当を検出する: 型引数が 1 つの IteratorResult",
+        "JSDoc の型の any 相当を検出する: 型引数の無い ReadableStream"
+      ]
+    },
+    {
+      "id": "ARITY-FIRST-ANY",
+      "why": "最初に見つけたデフォルトが any の型引数までしか数えない（Generator は TReturn までになり、TNext の any を見逃す）",
+      "file": "scripts/gates/check-jsdoc-types.ts",
+      "find": "          if (p.default?.kind === ts.SyntaxKind.AnyKeyword) last = i;\n",
+      "replace": "          if (p.default?.kind === ts.SyntaxKind.AnyKeyword && last < 0) last = i;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "JSDoc の型の any 相当を検出する: 型引数が 2 つの Generator",
+        "JSDoc の型の any 相当を検出する: 型引数が 1 つの AsyncIterableIterator",
+        "JSDoc の型の any 相当を検出する: 型引数が 1 つの AsyncIterator",
+        "JSDoc の型の any 相当を検出する: 型引数が 1 つの Generator",
+        "JSDoc の型の any 相当を検出する: 型引数が 1 つの Iterable",
+        "JSDoc の型の any 相当を検出する: 型引数が 1 つの IterableIterator",
+        "JSDoc の型の any 相当を検出する: 型引数が 1 つの Iterator",
+        "JSDoc の型の any 相当を検出する: 型引数の無い AsyncGenerator",
+        "JSDoc の型の any 相当を検出する: 型引数の無い Generator"
       ]
     }
   ]

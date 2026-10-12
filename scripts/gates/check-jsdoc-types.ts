@@ -4,14 +4,14 @@
 // TypeScript の側で同じ書き方を禁じている `oxlint.config.ts` の規則は、JavaScript の JSDoc を読まないので、ここで検査する。
 //   - JSDoc の型の表明 `/** @type {X} */ (v)`。TypeScript の `as X` と同じで、絞り込みを確かめずに型を付ける。
 //     宣言の注釈（`/** @type {X} */ const v = ...`）・`@satisfies`・`/** @type {const} */ (v)` は、型を外さないので許す。
-//   - JSDoc の型の `any`・`*`・`?` と、`Function`・型引数の無い `Object`・型引数の足りない `Generator` など。
+//   - JSDoc の型の `any`・`*`・`?` と、`Function`・型引数の無い `Object`・型引数の足りない `Generator`・`Iterable` など。
 //     どれも `any` として扱われるか、型引数が `any` になる。
 //     `Function` も、呼び出しの戻り値が `any` になるので同じ扱いにする。
 //   - `@ts-ignore`・`@ts-expect-error`・`@ts-nocheck` のコメント。
 // 対象は `tsconfig.skills.json` の include と同じ、`skills/*/**/*.mjs`。
 // 構文は TypeScript のパーサで読む。文字列・正規表現・テンプレートの中の `/**` や `@ts-ignore` を、コメントとして扱わない。
-import { existsSync, readFileSync, realpathSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readdirSync, readFileSync, realpathSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { listFiles, repoRoot } from "./check-js-extensions.ts";
@@ -34,18 +34,51 @@ function directiveOf(comment: string): { name: string; offset: number } | null {
   const m = BLOCK_DIRECTIVE_RE.exec(comment.slice(lastLineStart));
   return m ? { name: m[1], offset: lastLineStart } : null;
 }
-// 型引数の一部を省いても tsc がエラーにせず、省いた型引数のデフォルトが any になるジェネリック型
-// （`Generator<T = unknown, TReturn = any, TNext = any>`・`Iterator<T, TReturn = any, TNext = any>` など）。
-// 3 つすべてを書かせる。`Array`・`Promise`・`Map` などデフォルトの無いものは、型引数を省くと tsc が TS2314 で失敗にするので、ここでは数えない。
-const ANY_DEFAULT_GENERICS = new Set([
-  "Generator",
-  "AsyncGenerator",
-  "Iterator",
-  "AsyncIterator",
-  "IterableIterator",
-  "AsyncIterableIterator",
-]);
-const ANY_DEFAULT_ARITY = 3;
+// 型引数の一部を省いても tsc がエラーにせず、省いた型引数のデフォルトが any になるジェネリック型がある。
+// その型の名前と、any を避けるのに書く必要のある型引数の数を持つ（`Generator<T = unknown, TReturn = any, TNext = any>` は 3、
+// `IteratorResult<T, TReturn = any>` は 2）。
+// 名前を手で並べると、TypeScript の版で lib のデフォルトが変わったときに古くなる。
+// そこで、TypeScript に同梱の lib の宣言（`lib.*.d.ts`）から、デフォルトが `any` の型引数を持つ型を毎回求める。
+// `Array`・`Promise`・`Map` などデフォルトの無いものは、型引数を省くと tsc が TS2314 で失敗にするので、ここには入らない。
+// 名前で照合するので、同じ名前の別の型（自分で @typedef した Iterator など）と、修飾した名前（globalThis.Generator）は
+// 区別できない。区別するには、型を解決して調べる必要がある。
+let anyDefaultArities: Map<string, number> | null = null;
+
+/** lib の宣言から、デフォルトが `any` の型引数を持つ型の名前と、書く必要のある型引数の数を求める。 */
+export function libAnyDefaultArities(): Map<string, number> {
+  if (anyDefaultArities !== null) return anyDefaultArities;
+  const dir = dirname(ts.getDefaultLibFilePath({}));
+  const out = new Map<string, number>();
+  for (const name of readdirSync(dir).filter((n) => /^lib\..*\.d\.ts$/.test(n))) {
+    const sf = ts.createSourceFile(
+      name,
+      readFileSync(join(dir, name), "utf8"),
+      ts.ScriptTarget.Latest,
+    );
+    const visit = (node: ts.Node) => {
+      if (
+        (ts.isInterfaceDeclaration(node) ||
+          ts.isTypeAliasDeclaration(node) ||
+          ts.isClassDeclaration(node)) &&
+        node.name !== undefined &&
+        node.typeParameters !== undefined
+      ) {
+        let last = -1;
+        node.typeParameters.forEach((p, i) => {
+          if (p.default?.kind === ts.SyntaxKind.AnyKeyword) last = i;
+        });
+        // 同じ名前の宣言が複数の lib にあれば（版ごとの Iterator など）、多いほうに合わせる。
+        if (last >= 0) out.set(node.name.text, Math.max(out.get(node.name.text) ?? 0, last + 1));
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sf);
+  }
+  // 0 件なのは lib を読めていない（判定できない）。何も検出しないまま通さない。
+  if (out.size === 0) throw new Error(`TypeScript の lib（${dir}）から型を 1 件も読めない`);
+  anyDefaultArities = out;
+  return out;
+}
 
 /** 検査の対象のパス（リポジトリのルートからの `/` 区切り）か。 */
 export const isTarget = (path: string): boolean => TARGET_RE.test(path);
@@ -70,13 +103,11 @@ function anyLike(node: ts.Node): string | null {
   )
     return "Function";
   // 型引数を省くと、デフォルトの any が入るジェネリック型（`Generator<string>` は `Generator<string, any, any>`）。
-  if (
-    ts.isTypeReferenceNode(node) &&
-    ts.isIdentifier(node.typeName) &&
-    ANY_DEFAULT_GENERICS.has(node.typeName.text) &&
-    (node.typeArguments?.length ?? 0) < ANY_DEFAULT_ARITY
-  )
-    return `型引数の足りない ${node.typeName.text}`;
+  if (ts.isTypeReferenceNode(node) && ts.isIdentifier(node.typeName)) {
+    const arity = libAnyDefaultArities().get(node.typeName.text);
+    if (arity !== undefined && (node.typeArguments?.length ?? 0) < arity)
+      return `型引数の足りない ${node.typeName.text}（${arity} つ書く）`;
+  }
   return null;
 }
 

@@ -592,7 +592,7 @@ function captureElement(
     textOwners.push(entry);
   };
   /**
-   * @param {Iterable<Node>} nodes
+   * @param {Iterable<Node, unknown, unknown>} nodes
    * @param {string} path
    * @param {Element} flatParent
    */

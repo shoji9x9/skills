@@ -5,7 +5,8 @@
 // | 軸             | 値                                                                          |
 // | -------------- | --------------------------------------------------------------------------- |
 // | JSDoc の @type | 表明（1 行・複数行・入れ子の波括弧・const）/ 宣言の注釈 / @satisfies       |
-// | 型の書き方     | `any` / `*` / `?` / 型引数の無い Object・ジェネリック型 / 入れ子の any / Object.<K, V> / Array<T> / unknown |
+// | 型の書き方     | `any` / `*` / `?` / Function / 型引数の無い Object / 入れ子の any / Object.<K, V> / Array<T> / unknown |
+// | 型引数の数     | デフォルトが any の型（lib から求める）で 0・1・2・すべて / 型引数 2 つの型（IteratorResult）で 1・2 |
 // | ts コメント    | @ts-ignore（行）/ @ts-expect-error（ブロック）/ @ts-nocheck / 文字列の中    |
 // | 置き場所       | skills/<name>/scripts・assets / その他のディレクトリ / .mjs でない          |
 import { expect, test } from "vitest";
@@ -56,28 +57,64 @@ test.each([
   ["小文字の function", "/** @param {function} g */\nfunction f(g) {}\n", "Function"],
   ["入れ子の any", "/** @type {Array<{ x: any }>} */\nconst a = [];\n", "any"],
   ["@typedef の any", "/** @typedef {{ x: any }} T */\n", "any"],
-  [
-    "型引数の無い Generator",
-    "/** @param {Generator} g */\nfunction f(g) {}\n",
-    "型引数の足りない Generator",
-  ],
+  ["型引数の無い Generator", "/** @param {Generator} g */\nfunction f(g) {}\n", "Generator（3"],
   [
     "型引数が 1 つの Generator",
     "/** @returns {Generator<string>} */\nfunction* f() {}\n",
-    "型引数の足りない Generator",
+    "Generator（3",
+  ],
+  [
+    "型引数が 2 つの Generator",
+    "/** @returns {Generator<string, void>} */\nfunction* f() {}\n",
+    "Generator（3",
   ],
   [
     "型引数が 1 つの Iterator",
     "/** @param {Iterator<string>} i */\nfunction f(i) {}\n",
-    "型引数の足りない Iterator",
+    "Iterator（3",
+  ],
+  [
+    "型引数が 1 つの Iterable",
+    "/** @param {Iterable<string>} i */\nfunction f(i) {}\n",
+    "Iterable（3",
+  ],
+  [
+    "型引数が 1 つの AsyncIterator",
+    "/** @param {AsyncIterator<string>} i */\nfunction f(i) {}\n",
+    "AsyncIterator（3",
+  ],
+  [
+    "型引数が 1 つの IterableIterator",
+    "/** @param {IterableIterator<string>} i */\nfunction f(i) {}\n",
+    "IterableIterator（3",
+  ],
+  [
+    "型引数が 1 つの AsyncIterableIterator",
+    "/** @param {AsyncIterableIterator<string>} i */\nfunction f(i) {}\n",
+    "AsyncIterableIterator（3",
   ],
   [
     "型引数の無い AsyncGenerator",
     "/** @param {AsyncGenerator} g */\nfunction f(g) {}\n",
-    "型引数の足りない AsyncGenerator",
+    "AsyncGenerator（3",
+  ],
+  // 型引数が 2 つの型（IteratorResult<T, TReturn = any>）は、型ごとの数で判定する。
+  [
+    "型引数が 1 つの IteratorResult",
+    "/** @param {IteratorResult<string>} r */\nfunction f(r) {}\n",
+    "IteratorResult（2",
+  ],
+  // DOM の型も lib から求める。
+  [
+    "型引数の無い ReadableStream",
+    "/** @param {ReadableStream} s */\nfunction f(s) {}\n",
+    "ReadableStream（1",
   ],
 ])("JSDoc の型の any 相当を検出する: %s", (_name, text, kind) => {
-  expect(find(text)).toEqual([`1: JSDoc の型に ${kind} を書かない`]);
+  const v = find(text);
+  expect(v).toHaveLength(1);
+  expect(v[0]).toMatch(/^1: JSDoc の型に /);
+  expect(v[0]).toContain(kind);
 });
 
 test.each([
@@ -88,6 +125,18 @@ test.each([
   // 型引数の無い Array は、tsc が TS2314 で失敗にするので、このチェックでは数えない。
   ["型引数の無い Array", "/** @param {Array} a */\nfunction f(a) {}\n"],
   ["Array<T>", "/** @param {Array<string>} a */\nfunction f(a) {}\n"],
+  [
+    "型引数が 2 つの IteratorResult",
+    "/** @param {IteratorResult<string, void>} r */\nfunction f(r) {}\n",
+  ],
+  [
+    "型引数が 3 つの Iterator",
+    "/** @param {Iterator<string, void, unknown>} i */\nfunction f(i) {}\n",
+  ],
+  [
+    "型引数が 3 つの Iterable",
+    "/** @param {Iterable<Node, unknown, unknown>} i */\nfunction f(i) {}\n",
+  ],
   ["Generator<T, R, N>", "/** @param {Generator<number, void, unknown>} g */\nfunction f(g) {}\n"],
   ["Array.<T>", "/** @param {Array.<string>} a */\nfunction f(a) {}\n"],
   ["T[]", "/** @param {string[]} a */\nfunction f(a) {}\n"],
