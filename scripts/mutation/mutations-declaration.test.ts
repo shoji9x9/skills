@@ -62,3 +62,14 @@ test.each(SPECS)("宣言が形を満たす: %s", (specPath) => {
     expect(m.expect_failing.length, `${m.id}: expect_failing`).toBeGreaterThan(0);
   }
 });
+
+// `--shard` の割り当てに使う所要時間の見積もり（`mutation-durations.json`）。宣言を移したときに古いキーだけが残ると、
+// 移した先の宣言は見積もりが無いまま default_seconds で配られ、シャードの釣り合いが警告なしに悪くなる。
+test("所要時間の見積もりのキーは、実在する宣言を指す", () => {
+  const durations = parseJsonAs<{ seconds_per_run: Record<string, unknown> }>(
+    readFileSync(join(repoRoot, "scripts/mutation/mutation-durations.json"), "utf8"),
+  );
+  const keys = Object.keys(durations.seconds_per_run);
+  expect(keys.length).toBeGreaterThan(0);
+  expect(keys.filter((key) => !SPECS.includes(key))).toEqual([]);
+});

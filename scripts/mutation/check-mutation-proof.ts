@@ -23,7 +23,8 @@
 //   node scripts/mutation/check-mutation-proof.ts --only A,B          # id で絞る（開発中の 1 本だけを回す）。
 //   node scripts/mutation/check-mutation-proof.ts --changed-since origin/main  # 差分に当たる宣言だけを見る（PR 用）。
 //   node scripts/mutation/check-mutation-proof.ts --shard 2/4         # 選んだ変異を 4 分割した 2 番目だけを見る。
-//                                                                     # CI の並列実行に使う。
+//                                                                     # CI の並列実行に使う。分け方は `assignShard` にある。
+//   node scripts/mutation/check-mutation-proof.ts --list --shard 2/4  # 測る変異を出して、測らずに終わる（割り当ての確認用）。
 //
 // **全件の実行は重い。** 1 変異ごとに、対象のテストファイルを 1 回実行する。
 // ランナー自身を変異させる宣言（テストが入れ子で runner を起動する）が、全体の時間の 3 分の 2 を占める。
@@ -144,6 +145,10 @@ type RawMutation = {
   occurrences?: unknown;
   expect_failing?: unknown;
 };
+/** 宣言と、そのうち測る変異（`--only` と `--shard` で絞った後）。 */
+type Plan = { spec: Spec; targeted: Mutation[] };
+/** `--shard` で割り当てる単位。宣言 1 件か、重い宣言を変異で分けた一部。 */
+type Piece = { plan: Plan; part: number; mutations: Mutation[]; cost: number };
 /** `settleTarget` の分類。 */
 type SettleState = "mutated" | "original" | "removed" | "foreign" | "unrestored";
 /** テストファイルを 1 回実行した結果（`runTests`）。 */
@@ -557,6 +562,7 @@ function parseArgs(argv: string[]) {
   let only: Set<string> | null = null;
   let changedSince: string | null = null;
   let shard: { index: number; total: number } | null = null;
+  let list = false;
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === "--only") {
@@ -567,11 +573,13 @@ function parseArgs(argv: string[]) {
     } else if (arg === "--changed-since") {
       changedSince = argv[++i];
       if (!changedSince) die("--changed-since に ref がない");
+    } else if (arg === "--list") {
+      list = true;
     } else if (arg === "--shard") {
       shard = parseShard(argv[++i]);
     } else if (arg === "--help" || arg === "-h") {
       console.log(
-        "usage: node scripts/mutation/check-mutation-proof.ts [<spec.json>...] [--only <id,...>] [--changed-since <ref>] [--shard <i>/<N>]",
+        "usage: node scripts/mutation/check-mutation-proof.ts [<spec.json>...] [--only <id,...>] [--changed-since <ref>] [--shard <i>/<N>] [--list]",
       );
       process.exit(0);
     } else if (arg.startsWith("-")) {
@@ -580,7 +588,7 @@ function parseArgs(argv: string[]) {
       files.push(arg);
     }
   }
-  return { files, only, changedSince, shard };
+  return { files, only, changedSince, shard, list };
 }
 
 /**
@@ -598,6 +606,115 @@ function parseShard(value: string | undefined): { index: number; total: number }
   }
   if (index > total) die(`--shard の i が N を超えている: ${value}`);
   return { index, total };
+}
+
+/**
+ * 宣言ごとの、テストファイルを 1 回実行する秒数の見積もり（`--shard` の割り当てにだけ使う）。
+ * `scripts/mutation/mutation-durations.json` が持つ。見積もりが古くても、シャードの所要時間の釣り合いが悪くなるだけで、
+ * 測る変異の集合は変わらない（どの変異も、ちょうど 1 つのシャードに入る）。
+ * どのシャードも同じ見積もりから同じ割り当てを計算するので、読めない・不正な見積もりは前提の誤り（exit 2）にする。
+ * `MUTATION_PROOF_DURATIONS` で差し替えられる（**テスト用の seam**。使ったら必ず出力する）。
+ */
+const DURATIONS_FILE = "scripts/mutation/mutation-durations.json";
+function loadDurations(): { defaultSeconds: number; seconds: Map<string, number> } {
+  const injected = process.env.MUTATION_PROOF_DURATIONS;
+  if (injected !== undefined) {
+    console.error(`所要時間の見積もり: MUTATION_PROOF_DURATIONS=${injected}（テスト用の注入）`);
+  }
+  const path = injected ?? join(repoRoot, DURATIONS_FILE);
+  let parsed: { default_seconds?: unknown; seconds_per_run?: unknown };
+  try {
+    parsed = parseJsonAs<typeof parsed>(readFileSync(path, "utf8"));
+  } catch (err) {
+    die(`所要時間の見積もり（${path}）を読めない: ${errorMessage(err)}`);
+  }
+  const positive = (value: unknown): value is number =>
+    typeof value === "number" && Number.isFinite(value) && value > 0;
+  if (typeof parsed !== "object" || parsed === null || isArray(parsed)) {
+    die(`所要時間の見積もり（${path}）が JSON オブジェクトでない`);
+  }
+  if (!positive(parsed.default_seconds)) {
+    die(`所要時間の見積もり（${path}）の default_seconds が正の数でない`);
+  }
+  const perRun = parsed.seconds_per_run;
+  if (typeof perRun !== "object" || perRun === null || isArray(perRun)) {
+    die(`所要時間の見積もり（${path}）の seconds_per_run がオブジェクトでない`);
+  }
+  const seconds = new Map<string, number>();
+  const entries: [string, unknown][] = Object.entries(perRun);
+  for (const [spec, value] of entries) {
+    if (!positive(value)) die(`所要時間の見積もり（${path}）の ${spec} が正の数でない`);
+    seconds.set(spec, value);
+  }
+  return { defaultSeconds: parsed.default_seconds, seconds };
+}
+
+/**
+ * `--shard i/N` の割り当て。i 番目のシャードが測る変異を、宣言ごとに返す（`plans` と同じ並び）。
+ *
+ * **宣言を単位に割り当てる**（Issue #607）。基準 run（変異を入れずにテストを 1 回実行する分）は、宣言を受け持つ
+ * シャードごとに実行される。変異を通し番号で配ると、どのシャードもほぼすべての宣言を受け持ち、基準 run を
+ * シャードの数だけ繰り返していた（Issue #607 の時点の全件の run で、6 シャードの合計の約 2 割）。
+ *
+ * 宣言の所要時間は、テストファイルを 1 回実行する秒数 t の (変異の数 + 1) 倍と見積もる（基準 run を含む）。
+ * 1 シャードの目安（全体の見積もり ÷ N）を超える宣言だけを、目安に収まる数に変異で分ける。分けた一部ごとに基準 run を測る。
+ * そのうえで、見積もりの大きい順に、その時点で見積もりの合計が最も小さいシャードへ割り当てる（同じなら番号の小さいほう）。
+ * どのシャードも同じ入力から同じ割り当てを計算するので、N 本を合わせるとちょうど全件になる。
+ */
+function assignShard(
+  plans: Plan[],
+  shard: { index: number; total: number },
+  durations: { defaultSeconds: number; seconds: Map<string, number> },
+): Mutation[][] {
+  let estimated = 0;
+  const unknown: string[] = [];
+  const whole = plans
+    .filter((plan) => plan.targeted.length > 0)
+    .map((plan) => {
+      const specRel = relative(repoRoot, plan.spec.specPath);
+      let perRun = durations.seconds.get(specRel);
+      if (perRun === undefined) {
+        unknown.push(specRel);
+        perRun = durations.defaultSeconds;
+      }
+      const cost = (plan.targeted.length + 1) * perRun;
+      estimated += cost;
+      return { plan, specRel, perRun, cost };
+    });
+  if (unknown.length) {
+    console.log(
+      `所要時間の見積もりが無い宣言 ${unknown.length} 件は、1 回 ${durations.defaultSeconds} 秒と見積もる: ${unknown.join(", ")}`,
+    );
+  }
+  const budget = estimated / shard.total;
+  const pieces: Piece[] = [];
+  for (const { plan, specRel, perRun, cost } of whole) {
+    const n = plan.targeted.length;
+    const parts = cost > budget ? Math.min(n, Math.ceil(cost / budget)) : 1;
+    if (parts > 1) console.log(`分割: ${specRel}（${n} 変異）を ${parts} 個に分ける`);
+    for (let part = 0, start = 0; part < parts; part++) {
+      // 先頭の (n % parts) 個に 1 件ずつ多く持たせる。
+      const size = Math.floor(n / parts) + (part < n % parts ? 1 : 0);
+      const mutations = plan.targeted.slice(start, start + size);
+      start += size;
+      pieces.push({ plan, part, mutations, cost: (size + 1) * perRun });
+    }
+  }
+  const order = (a: Piece, b: Piece) =>
+    b.cost - a.cost || a.plan.spec.specPath.localeCompare(b.plan.spec.specPath) || a.part - b.part;
+  const loads: number[] = Array.from({ length: shard.total }, () => 0);
+  const mine = new Set<Mutation>();
+  for (const piece of [...pieces].sort(order)) {
+    let target = 0;
+    for (let i = 1; i < loads.length; i++) if (loads[i] < loads[target]) target = i;
+    loads[target] += piece.cost;
+    if (target === shard.index - 1) for (const m of piece.mutations) mine.add(m);
+  }
+  console.log(
+    `見積もり: 全体 ${estimated.toFixed(0)} 秒、このシャード ${loads[shard.index - 1].toFixed(0)} 秒` +
+      `（最大のシャード ${Math.max(...loads).toFixed(0)} 秒）`,
+  );
+  return plans.map((plan) => plan.targeted.filter((m) => mine.has(m)));
 }
 
 /** 宣言ファイルの一覧。**0 件は成功として扱わない**（チェックが何も見なかっただけの成功を根拠にしない）。 */
@@ -966,7 +1083,7 @@ function proveMutation(mutation: Mutation, testFile: string): ProveResult {
 }
 
 function main() {
-  const { files, only, changedSince, shard } = parseArgs(process.argv.slice(2));
+  const { files, only, changedSince, shard, list } = parseArgs(process.argv.slice(2));
   // 宣言の検証より先にロックを取る（並行実行が互いのファイルを読むのを防ぐ）。
   takeLock();
   // 前回が中断されて変異が残っていれば、測る前に戻す（残った変異を基準 run が測らないため）。
@@ -993,7 +1110,7 @@ function main() {
   // `--only` は**宣言をまたいで** id で絞る指定。選ばれなかった宣言は飛ばす
   // ——宣言ごとに「1 件も選ばれなかった」で落とすと、宣言が 2 件以上ある時点で
   // `--only <id>` が常に exit 2 になる（実測。宣言は今 3 件ある）。
-  const plans = specs.map((spec) => ({
+  const plans: Plan[] = specs.map((spec) => ({
     spec,
     targeted: spec.mutations.filter((m) => !only || only.has(m.id)),
   }));
@@ -1006,16 +1123,12 @@ function main() {
     if (unmatched.length) die(`--only で 1 件も選ばれなかった: ${unmatched.join(" / ")}`);
   }
 
-  // `--shard i/N` は、選んだ変異を**宣言をまたいだ通し番号**で N 分割し i 番目だけを測る。
-  // 通し番号の剰余で配るので、どの変異もちょうど 1 つのシャードに入り（N 本を合わせると全件）、
-  // 1 つの宣言に変異が偏っていても（reaction-check の 100 件超等）各シャードへ均等に散る。
-  // 基準 run は変異を受け持つ宣言ごとに各シャードで測る（シャードは別ジョブで作業ツリーを共有しない）。
+  // `--shard i/N` は、選んだ変異を N 個のシャードに分け、i 番目だけを測る（分け方は `assignShard`）。
+  // どの変異もちょうど 1 つのシャードに入る（N 本を合わせると全件）。選び方（`--changed-since`・`--only`）は変えない。
   if (shard) {
     const total = plans.reduce((n, p) => n + p.targeted.length, 0);
-    let k = 0;
-    for (const p of plans) {
-      p.targeted = p.targeted.filter(() => k++ % shard.total === shard.index - 1);
-    }
+    const assigned = assignShard(plans, shard, loadDurations());
+    plans.forEach((p, i) => (p.targeted = assigned[i]));
     const mine = plans.reduce((n, p) => n + p.targeted.length, 0);
     console.log(
       `シャード ${shard.index}/${shard.total}: 選んだ変異 ${total} 件のうち ${mine} 件を測る`,
@@ -1027,6 +1140,14 @@ function main() {
       );
       return;
     }
+  }
+
+  if (list) {
+    // 測る変異を 1 行に 1 件ずつ出して終わる（基準 run も変異も実行しない）。
+    for (const { spec, targeted } of plans) {
+      for (const m of targeted) console.log(`LIST ${relative(repoRoot, spec.specPath)} ${m.id}`);
+    }
+    return;
   }
 
   // 宣言ごとの所要時間（基準 run を含む）。全件の実行で、次に縮める宣言を数字で選ぶために出す（Issue #588）。

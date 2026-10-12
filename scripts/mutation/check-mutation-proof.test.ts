@@ -1303,43 +1303,142 @@ describe.concurrent("宣言ごとの時間", () => {
 });
 
 describe.concurrent("--shard", () => {
-  /** 宣言 2 件・変異 3 件（A1, A2 / B1）。通し番号は A1=0, A2=1, B1=2。 */
-  function twoSpecs() {
-    const a = makeFixture();
-    const b = makeFixture();
-    const specA = a.spec([
-      mutation({ id: "A1", file: relative(repoRoot, a.target) }),
-      mutation({
-        id: "A2",
-        why: "上限を変える",
-        file: relative(repoRoot, a.target),
-        find: "limit=100",
-        replace: "limit=1",
-        expect_failing: ["limit"],
-      }),
-    ]);
-    const specB = b.spec([mutation({ id: "B1", file: relative(repoRoot, b.target) })]);
-    return [specA, specB];
+  /** 変異 G（guard を外す）と L（上限を変える）から、id を `<prefix>1`, `<prefix>2`, ... とした宣言を作る。 */
+  function specOf(prefix: string, count: number) {
+    const fx = makeFixture();
+    const file = relative(repoRoot, fx.target);
+    const kinds = [
+      { find: GUARD, replace: "", expect_failing: ["guard"] },
+      { find: "limit=100", replace: "limit=1", expect_failing: ["limit"] },
+    ];
+    return fx.spec(
+      Array.from({ length: count }, (_, i) =>
+        mutation({ id: `${prefix}${i + 1}`, file, ...kinds[i] }),
+      ),
+    );
   }
 
-  test("宣言をまたいだ通し番号で分け、N 本を合わせるとちょうど全件になる", async () => {
-    const specs = twoSpecs();
-    const first = await runRunner(...specs, "--shard", "1/2");
-    expect(first.status, first.out).toBe(0);
-    expect(first.out).toContain("シャード 1/2: 選んだ変異 3 件のうち 2 件を測る");
-    expect(first.out).toContain("PASS A1");
-    expect(first.out).toContain("PASS B1");
-    expect(first.out, "他のシャードの変異まで測った").not.toContain("PASS A2");
-    expect(first.out).toContain("mutation-proof: 2 proven / 0 failed");
+  /** 所要時間の見積もり（`MUTATION_PROOF_DURATIONS`）を書く。`seconds` のキーは宣言のパス。 */
+  let durationsSeq = 0;
+  function durations(seconds: Record<string, number> = {}, defaultSeconds: unknown = 1) {
+    const path = join(lockDir, `durations-${++durationsSeq}.json`);
+    const perRun = Object.fromEntries(
+      Object.entries(seconds).map(([spec, value]) => [relative(repoRoot, spec), value]),
+    );
+    writeFileSync(
+      path,
+      JSON.stringify({ default_seconds: defaultSeconds, seconds_per_run: perRun }),
+    );
+    return { MUTATION_PROOF_DURATIONS: path };
+  }
 
-    const second = await runRunner(...specs, "--shard", "2/2");
-    expect(second.status, second.out).toBe(0);
-    expect(second.out).toContain("シャード 2/2: 選んだ変異 3 件のうち 1 件を測る");
-    expect(second.out).toContain("PASS A2");
-    expect(second.out, "他のシャードの変異まで測った").not.toMatch(/PASS (A1|B1)/);
-    expect(second.out).toContain("mutation-proof: 1 proven / 0 failed");
-    // 変異を受け持たない宣言は基準 run も測らない（B はこのシャードに変異が無い）。
-    expect(second.out).not.toContain(relative(repoRoot, specs[1]));
+  /** 全シャードを実行し、シャードごとに測った宣言と PASS した変異を返す。 */
+  async function runShards(specs: string[], total: number, env: Env) {
+    const shards = [];
+    for (let i = 1; i <= total; i++) {
+      const res = await runRunner(...specs, "--shard", `${i}/${total}`, env);
+      expect(res.status, res.out).toBe(0);
+      shards.push({
+        out: res.out,
+        specs: specs.filter((spec) => res.stdout.includes(`=== ${relative(repoRoot, spec)} `)),
+        passed: [...res.stdout.matchAll(/^PASS (\S+):/gm)].map((m) => m[1]),
+      });
+    }
+    return shards;
+  }
+
+  // N 本を合わせてちょうど全件で、どの変異も 1 つのシャードでだけ測る。
+  function expectPartition(shards: { passed: string[] }[], all: string[]) {
+    const passed = shards.flatMap((s) => s.passed);
+    expect(passed.toSorted(), "N 本を合わせて全件にならない").toEqual(all.toSorted());
+  }
+
+  test("宣言を単位に割り当て、基準 run は宣言ごとに 1 つのシャードでだけ測る", async () => {
+    const specs = [specOf("A", 2), specOf("B", 2)];
+    const shards = await runShards(specs, 2, durations());
+    expect(shards[0].out).toContain("テスト用の注入");
+    expect(shards[0].out).toContain("シャード 1/2: 選んだ変異 4 件のうち 2 件を測る");
+    expectPartition(shards, ["A1", "A2", "B1", "B2"]);
+    // 宣言を分けていれば、どちらのシャードも両方の宣言の基準 run を測る。
+    for (const shard of shards) expect(shard.specs, shard.out).toHaveLength(1);
+  });
+
+  test("1 シャードの目安を超える宣言だけを、変異で分ける", async () => {
+    // A は 1 回 10 秒で 2 変異（見積もり 30 秒）、B は 1 回 1 秒で 3 変異（4 秒）。目安は 34 ÷ 2 = 17 秒。
+    // A を 2 つ（20 秒ずつ）に分け、A1 と A2 を別のシャードに、B を合計が小さい側（同じなら 1 番）に入れる。
+    // 見積もりを使わず 1 回 1 秒とみなすと、A は 3 秒・B は 4 秒（目安 3.5 秒）になり、分けるのが B に変わる。
+    const [a, b] = [specOf("A", 2), specOf("B", 3)];
+    const shards = await runShards([a, b], 2, durations({ [a]: 10, [b]: 1 }));
+    expect(shards[0].out).toContain(`分割: ${relative(repoRoot, a)}（2 変異）を 2 個に分ける`);
+    expect(shards[0].out).not.toContain(`分割: ${relative(repoRoot, b)}`);
+    expect(shards[0].passed).toEqual(["A1", "B1", "B2", "B3"]);
+    expect(shards[1].passed).toEqual(["A2"]);
+  });
+
+  test("見積もりの大きい順に、合計が最も小さいシャードへ割り当てる", async () => {
+    // A は 1 変異で 1 回 10 秒（見積もり 20 秒。1 変異なので分けない）、B と C は 2 変異で 1 回 1 秒（3 秒ずつ）。
+    // 渡した順（B, C, A）のまま配ると B と A が同じシャードに入り、見積もりを使わなければ A が軽く見えて同じく並ぶ。
+    const [a, b, c] = [specOf("A", 1), specOf("B", 2), specOf("C", 2)];
+    const shards = await runShards([b, c, a], 2, durations({ [a]: 10, [b]: 1, [c]: 1 }));
+    expectPartition(shards, ["A1", "B1", "B2", "C1", "C2"]);
+    expect(shards[0].specs, shards[0].out).toEqual([a]);
+    expect(shards[1].specs.toSorted(), shards[1].out).toEqual([b, c].toSorted());
+  });
+
+  test("--list は測る変異を出し、測らずに終わる", async () => {
+    const [a, b] = [specOf("A", 2), specOf("B", 1)];
+    const env = durations({ [a]: 10, [b]: 1 });
+    const lines = async (shard: string) => {
+      const res = await runRunner(a, b, "--list", "--shard", shard, env);
+      expect(res.status, res.out).toBe(0);
+      expect(res.out, "--list なのに測った").not.toMatch(/^(PASS|FAIL|baseline:)/m);
+      return [...res.stdout.matchAll(/^LIST (\S+) (\S+)$/gm)].map((m) => `${m[1]} ${m[2]}`);
+    };
+    const [rel, relB] = [relative(repoRoot, a), relative(repoRoot, b)];
+    // A は 30 秒、B は 2 秒（目安 16 秒）。A を 20 秒ずつに分け、1 番が A1 と B1、2 番が A2 を測る。
+    expect(await lines("1/2")).toEqual([`${rel} A1`, `${relB} B1`]);
+    expect(await lines("2/2")).toEqual([`${rel} A2`]);
+  });
+
+  test("見積もりの無い宣言は default_seconds で見積もり、宣言を出力する", async () => {
+    const [a, b] = [specOf("A", 1), specOf("B", 1)];
+    const res = await runRunner(a, b, "--shard", "1/2", durations({ [a]: 1 }));
+    expect(res.status, res.out).toBe(0);
+    expect(res.out).toContain(
+      `所要時間の見積もりが無い宣言 1 件は、1 回 1 秒と見積もる: ${relative(repoRoot, b)}`,
+    );
+  });
+
+  test.each([
+    ["JSON でない", "{"],
+    ["配列", "[]"],
+    ["null", "null"],
+    ["default_seconds が無い", JSON.stringify({ seconds_per_run: {} })],
+    ["default_seconds が 0", JSON.stringify({ default_seconds: 0, seconds_per_run: {} })],
+    ["default_seconds が文字列", JSON.stringify({ default_seconds: "1", seconds_per_run: {} })],
+    ["seconds_per_run が無い", JSON.stringify({ default_seconds: 1 })],
+    ["seconds_per_run が配列", JSON.stringify({ default_seconds: 1, seconds_per_run: [] })],
+    ["値が負", JSON.stringify({ default_seconds: 1, seconds_per_run: { x: -1 } })],
+    ["値が null", JSON.stringify({ default_seconds: 1, seconds_per_run: { x: null } })],
+  ])("所要時間の見積もりが不正（%s）なら exit 2", async (_label, content) => {
+    const path = join(lockDir, `durations-${++durationsSeq}.json`);
+    writeFileSync(path, content);
+    const res = await runRunner(specOf("A", 1), "--shard", "1/2", {
+      MUTATION_PROOF_DURATIONS: path,
+    });
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toMatch(
+      /所要時間の見積もり（.*）(を読めない|が JSON オブジェクトでない|の .* が)/,
+    );
+    expect(res.out).not.toContain("PASS A1");
+  });
+
+  test("所要時間の見積もりのファイルが無ければ exit 2", async () => {
+    const res = await runRunner(specOf("A", 1), "--shard", "1/2", {
+      MUTATION_PROOF_DURATIONS: join(lockDir, "no-such-durations.json"),
+    });
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toContain("を読めない");
   });
 
   test("変異がシャード数より少なく割り当てが 0 件なら、理由を出して exit 0", async () => {
