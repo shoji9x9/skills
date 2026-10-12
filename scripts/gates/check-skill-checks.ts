@@ -25,7 +25,7 @@ import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from "n
 import { basename, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { errorMessage } from "../lib/errors.ts";
-import { isRecord } from "../lib/guards.ts";
+import { isNonBlankString as isText, isRecord } from "../lib/guards.ts";
 import { isArray } from "../lib/is-array.ts";
 
 export const UNWIRED_PATH = "scripts/gates/skill-checks-unwired.json";
@@ -52,7 +52,6 @@ const ENTRY_KEYS = new Set([
   "notes",
 ]);
 
-const isText = (v: unknown): v is string => typeof v === "string" && v.trim() !== "";
 const isTextArray = (v: unknown): v is string[] => isArray(v) && v.length > 0 && v.every(isText);
 
 /** real が base（実パス）の中か。 */

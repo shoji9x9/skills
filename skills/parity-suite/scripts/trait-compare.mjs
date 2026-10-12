@@ -222,7 +222,7 @@ function diffTextOwners(name, expectedOwners, actualOwners, tol, out) {
     }
     /** @type {Diff[]} */
     const styleDiffs = [];
-    diffStyleMap(name, "property", "", expected.style || {}, actual.style || {}, styleDiffs);
+    diffStyleMap(name, "property", "", expected.style, actual.style, styleDiffs);
     for (const d of styleDiffs) {
       out.push({ ...d, kind: "text", prop: `${prefix}/${d.prop}`, text: expected.text });
     }
@@ -296,7 +296,7 @@ function diffScroll(name, expected, actual, tol, out) {
   }
   /** @type {Diff[]} */
   const styleDiffs = [];
-  diffStyleMap(name, "property", "", expected.style || {}, actual.style || {}, styleDiffs);
+  diffStyleMap(name, "property", "", expected.style, actual.style, styleDiffs);
   for (const d of styleDiffs) out.push({ ...d, kind: "scroll", prop: `scroll/${d.prop}` });
   const ew = expected.webkit;
   const aw = actual.webkit;
@@ -541,6 +541,34 @@ function isTrait(v) {
 }
 
 /**
+ * 要素がすべて採取結果の形なら、その配列を返す。形の違う要素があれば、最初の位置を返す（入力を 1 回だけ走査する）。
+ * @param {unknown[]} entries
+ * @returns {Trait[] | number}
+ */
+function asTraits(entries) {
+  /** @type {Trait[]} */
+  const traits = [];
+  for (const [i, e] of entries.entries()) {
+    if (!isTrait(e)) return i;
+    traits.push(e);
+  }
+  return traits;
+}
+
+/**
+ * 形の違う要素を、どの入力の何番目かとともに報告する（直す箇所を利用者が探さずに済むように）。
+ * @param {"baseline" | "capture"} side
+ * @param {number} at
+ */
+function invalidEntry(side, at) {
+  process.stderr.write(
+    `error: ${side}[${at}] is not a trait entry ` +
+      "(name, computed, before, after, rect, text_owners or scroll does not match the trait schema)\n",
+  );
+  return 2;
+}
+
+/**
  * CLI エントリ。
  * `node trait-compare.mjs <baseline.json> <capture.json> [--align-tolerance <px>]` で差分を
  * JSON 出力し、差分があれば exit 1、無ければ exit 0、入力エラーは exit 2。
@@ -584,17 +612,11 @@ export function main(argv) {
     process.stderr.write("error: both inputs must be JSON arrays of trait entries\n");
     return 2;
   }
-  if (!baseline.every(isTrait) || !capture.every(isTrait)) {
-    // どの入力の何番目かを出す（直す箇所を利用者が探さずに済むように）。
-    const [side, entries] = baseline.every(isTrait) ? ["capture", capture] : ["baseline", baseline];
-    const at = entries.findIndex((e) => !isTrait(e));
-    process.stderr.write(
-      `error: ${side}[${at}] is not a trait entry ` +
-        "(name, computed, before, after, rect, text_owners or scroll does not match the trait schema)\n",
-    );
-    return 2;
-  }
-  const diffs = compareTraits(baseline, capture, { alignTolerance });
+  const baseTraits = asTraits(baseline);
+  if (typeof baseTraits === "number") return invalidEntry("baseline", baseTraits);
+  const capTraits = asTraits(capture);
+  if (typeof capTraits === "number") return invalidEntry("capture", capTraits);
+  const diffs = compareTraits(baseTraits, capTraits, { alignTolerance });
   process.stdout.write(JSON.stringify(diffs, null, 2) + "\n");
   return diffs.length > 0 ? 1 : 0;
 }

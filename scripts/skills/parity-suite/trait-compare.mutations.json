@@ -116,10 +116,10 @@
     },
     {
       "id": "cli-baseline-shape-unchecked",
-      "why": "baseline の要素の形を確かめずに比較へ渡す（null の要素で例外になり exit 1）",
+      "why": "baseline の要素の形を確かめずに比較へ渡す（形の違う要素で例外になり exit 1）",
       "file": "skills/parity-suite/scripts/trait-compare.mjs",
-      "find": "  if (!baseline.every(isTrait) || !capture.every(isTrait)) {\n",
-      "replace": "  if (!capture.every(isTrait)) {\n",
+      "find": "  if (typeof baseTraits === \"number\") return invalidEntry(\"baseline\", baseTraits);\n",
+      "replace": "",
       "occurrences": 1,
       "expect_failing": [
         "CLI は baseline の要素が採取結果の形でなければ、その位置を出して比較せず exit 2",
@@ -128,15 +128,18 @@
         "CLI は入れ子の欄が型と違う要素（text_owners の要素に text が無い）を、比較せず exit 2",
         "CLI は入れ子の欄が型と違う要素（text_owners の要素の lines が文字列）を、比較せず exit 2",
         "CLI は入れ子の欄が型と違う要素（scroll の webkit が unsupported でない文字列）を、比較せず exit 2",
-        "CLI は入れ子の欄が型と違う要素（scroll の vertical_bar_px が文字列）を、比較せず exit 2"
+        "CLI は入れ子の欄が型と違う要素（scroll の vertical_bar_px が文字列）を、比較せず exit 2",
+        "CLI は入れ子の欄が型と違う要素（text_owners が null）を、比較せず exit 2",
+        "CLI は入れ子の欄が型と違う要素（text_owners の要素に style が無い）を、比較せず exit 2",
+        "CLI は入れ子の欄が型と違う要素（scroll に style が無い）を、比較せず exit 2"
       ]
     },
     {
       "id": "cli-capture-shape-unchecked",
-      "why": "capture の要素の形を確かめずに比較へ渡す（null の要素で例外になり exit 1）",
+      "why": "capture の要素の形を確かめずに比較へ渡す（形の違う要素で例外になり exit 1）",
       "file": "skills/parity-suite/scripts/trait-compare.mjs",
-      "find": "  if (!baseline.every(isTrait) || !capture.every(isTrait)) {\n",
-      "replace": "  if (!baseline.every(isTrait)) {\n",
+      "find": "  if (typeof capTraits === \"number\") return invalidEntry(\"capture\", capTraits);\n",
+      "replace": "",
       "occurrences": 1,
       "expect_failing": [
         "CLI は capture の要素が採取結果の形でなければ、その位置を出して比較せず exit 2",
@@ -147,31 +150,41 @@
       "id": "cli-shape-wrong-side",
       "why": "不正な要素がどちらの入力にあるかを取り違えて報告する",
       "file": "skills/parity-suite/scripts/trait-compare.mjs",
-      "find": "baseline.every(isTrait) ? [\"capture\", capture] : [\"baseline\", baseline]",
-      "replace": "baseline.every(isTrait) ? [\"baseline\", baseline] : [\"capture\", capture]",
+      "find": "return invalidEntry(\"baseline\", baseTraits);",
+      "replace": "return invalidEntry(\"capture\", baseTraits);",
       "occurrences": 1,
       "expect_failing": [
         "CLI は baseline の要素が採取結果の形でなければ、その位置を出して比較せず exit 2",
-        "CLI は capture の要素が採取結果の形でなければ、その位置を出して比較せず exit 2",
-        "CLI は capture の 2 件目 の要素が採取結果の形でなければ、その位置を出して比較せず exit 2",
         "CLI は入れ子の欄が型と違う要素（computed の値が数）を、比較せず exit 2",
         "CLI は入れ子の欄が型と違う要素（rect の x が文字列）を、比較せず exit 2",
         "CLI は入れ子の欄が型と違う要素（text_owners の要素に text が無い）を、比較せず exit 2",
         "CLI は入れ子の欄が型と違う要素（text_owners の要素の lines が文字列）を、比較せず exit 2",
         "CLI は入れ子の欄が型と違う要素（scroll の webkit が unsupported でない文字列）を、比較せず exit 2",
-        "CLI は入れ子の欄が型と違う要素（scroll の vertical_bar_px が文字列）を、比較せず exit 2"
+        "CLI は入れ子の欄が型と違う要素（scroll の vertical_bar_px が文字列）を、比較せず exit 2",
+        "CLI は入れ子の欄が型と違う要素（text_owners が null）を、比較せず exit 2",
+        "CLI は入れ子の欄が型と違う要素（text_owners の要素に style が無い）を、比較せず exit 2",
+        "CLI は入れ子の欄が型と違う要素（scroll に style が無い）を、比較せず exit 2"
       ]
     },
     {
       "id": "cli-shape-wrong-index",
       "why": "不正な要素の位置を出さず、常に先頭を指す",
       "file": "skills/parity-suite/scripts/trait-compare.mjs",
-      "find": "const at = entries.findIndex((e) => !isTrait(e));",
-      "replace": "const at = 0;",
+      "find": "    if (!isTrait(e)) return i;\n",
+      "replace": "    if (!isTrait(e)) return 0;\n",
       "occurrences": 1,
       "expect_failing": [
         "CLI は capture の 2 件目 の要素が採取結果の形でなければ、その位置を出して比較せず exit 2"
       ]
+    },
+    {
+      "id": "cli-owners-null-accepted",
+      "why": "text_owners の null を、持たないものとして受け入れる（比較は null を欠けとして扱わない）",
+      "file": "skills/parity-suite/scripts/trait-compare.mjs",
+      "find": "absentOr(v.text_owners, (x) => isArray(x)",
+      "replace": "absentOr(v.text_owners, (x) => x === null || isArray(x)",
+      "occurrences": 1,
+      "expect_failing": ["CLI は入れ子の欄が型と違う要素（text_owners が null）を、比較せず exit 2"]
     },
     {
       "id": "cli-rect-required",

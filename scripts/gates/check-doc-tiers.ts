@@ -17,7 +17,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { listSources } from "./run-on-sources.ts";
 import { errorMessage } from "../lib/errors.ts";
-import { isRecord } from "../lib/guards.ts";
+import { isNonBlankString as isText, isRecord } from "../lib/guards.ts";
 import { isArray } from "../lib/is-array.ts";
 
 export const TIERS_PATH = "scripts/gates/doc-tiers.json";
@@ -28,8 +28,6 @@ export const END = "<!-- doc-tiers:end -->";
 type DocEntry = { glob?: string; label?: string; note?: string };
 type TierEntry = { tier: number; contents: string; docs: DocEntry[] };
 export type DocTiers = { tiers: TierEntry[]; outside: (DocEntry & { glob: string })[] };
-
-const isText = (v: unknown): v is string => typeof v === "string" && v.trim() !== "";
 
 /**
  * glob を正規表現にする。`**` は 0 個以上のディレクトリ、`*` は `/` を含まない 0 文字以上。

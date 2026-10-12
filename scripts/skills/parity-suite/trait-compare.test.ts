@@ -340,6 +340,10 @@ test.each([
     "scroll の vertical_bar_px が文字列",
     { ...grid(null), scroll: { ...scrollOf(), vertical_bar_px: "15" } },
   ],
+  // 採取は text_owners を必ず配列で、style を必ず書く。比較はこれらの欠けを許さない。
+  ["text_owners が null", { ...trait([]), text_owners: null }],
+  ["text_owners の要素に style が無い", { ...trait([]), text_owners: [{ text: "設定" }] }],
+  ["scroll に style が無い", { ...grid(null), scroll: { ...scrollOf(), style: undefined } }],
 ])("CLI は入れ子の欄が型と違う要素（%s）を、比較せず exit 2", (_name, broken) => {
   const r = runCli([broken], [trait([])]);
   expect(r.status).toBe(2);
