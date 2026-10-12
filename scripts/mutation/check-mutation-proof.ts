@@ -148,7 +148,7 @@ type RawMutation = {
 /** 宣言と、そのうち測る変異（`--only` と `--shard` で絞った後）。 */
 type Plan = { spec: Spec; targeted: Mutation[] };
 /** `--shard` で割り当てる単位。宣言 1 件か、重い宣言を変異で分けた一部。 */
-type Piece = { plan: Plan; part: number; mutations: Mutation[]; cost: number };
+type Piece = { plan: Plan; specRel: string; part: number; mutations: Mutation[]; cost: number };
 /** `settleTarget` の分類。 */
 type SettleState = "mutated" | "original" | "removed" | "foreign" | "unrestored";
 /** テストファイルを 1 回実行した結果（`runTests`）。 */
@@ -621,7 +621,8 @@ function loadDurations(): { defaultSeconds: number; seconds: Map<string, number>
   if (injected !== undefined) {
     console.error(`所要時間の見積もり: MUTATION_PROOF_DURATIONS=${injected}（テスト用の注入）`);
   }
-  const path = injected ?? join(repoRoot, DURATIONS_FILE);
+  // 相対パスは、宣言のパスと同じくリポジトリのルートから解決する（cwd に依らない）。
+  const path = resolve(repoRoot, injected ?? DURATIONS_FILE);
   let parsed: { default_seconds?: unknown; seconds_per_run?: unknown };
   try {
     parsed = parseJsonAs<typeof parsed>(readFileSync(path, "utf8"));
@@ -697,13 +698,14 @@ function assignShard(
       const size = Math.floor(n / parts) + (part < n % parts ? 1 : 0);
       const mutations = plan.targeted.slice(start, start + size);
       start += size;
-      pieces.push({ plan, part, mutations, cost: (size + 1) * perRun });
+      pieces.push({ plan, specRel, part, mutations, cost: (size + 1) * perRun });
     }
   }
-  // 同じ見積もりの順は、ロケールに依らない比較で決める（`localeCompare` は LANG で順が変わり、手元の `--list` と CI がずれる）。
+  // 同じ見積もりの順は、リポジトリのルートからの相対パスを、ロケールに依らない比較で決める。
+  // `localeCompare` は LANG で順が変わり、絶対パスは worktree ごとに変わるので、シャードの間で割り当てがずれる。
   const byCodeUnit = (x: string, y: string) => (x < y ? -1 : x > y ? 1 : 0);
   const order = (a: Piece, b: Piece) =>
-    b.cost - a.cost || byCodeUnit(a.plan.spec.specPath, b.plan.spec.specPath) || a.part - b.part;
+    b.cost - a.cost || byCodeUnit(a.specRel, b.specRel) || a.part - b.part;
   const loads: number[] = Array.from({ length: shard.total }, () => 0);
   const mine = new Set<Mutation>();
   for (const piece of [...pieces].sort(order)) {
