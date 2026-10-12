@@ -339,26 +339,37 @@
       "id": "SHARD-NO-SPLIT",
       "why": "重い宣言を分けない（1 つの宣言が 1 シャードの目安を超えて、そのシャードだけが長くなる）",
       "file": "scripts/mutation/check-mutation-proof.ts",
-      "find": "    const parts = cost > budget ? Math.min(n, Math.ceil(cost / budget)) : 1;",
+      "find": "    const parts = cost > budget ? Math.min(n, Math.ceil(n / perPart)) : 1;",
       "replace": "    const parts = 1;",
       "occurrences": 1,
       "expect_failing": [
         "--shard 1 シャードの目安を超える宣言だけを、変異で分ける",
-        "--shard --list は測る変異を出し、測らずに終わる"
+        "--shard --list は測る変異を出し、測らずに終わる",
+        "--shard 分けた一部が、基準 run を含めて目安に収まる数に分ける"
       ]
     },
     {
       "id": "SHARD-SPLIT-ALL",
       "why": "すべての宣言を変異ごとに分ける（どのシャードも同じ宣言の基準 run を繰り返す）",
       "file": "scripts/mutation/check-mutation-proof.ts",
-      "find": "    const parts = cost > budget ? Math.min(n, Math.ceil(cost / budget)) : 1;",
+      "find": "    const parts = cost > budget ? Math.min(n, Math.ceil(n / perPart)) : 1;",
       "replace": "    const parts = n;",
       "occurrences": 1,
       "expect_failing": [
         "--shard 宣言を単位に割り当て、基準 run は宣言ごとに 1 つのシャードでだけ測る",
         "--shard 1 シャードの目安を超える宣言だけを、変異で分ける",
-        "--shard --list は測る変異を出し、測らずに終わる"
+        "--shard --list は測る変異を出し、測らずに終わる",
+        "--shard 分けた一部が、基準 run を含めて目安に収まる数に分ける"
       ]
+    },
+    {
+      "id": "SHARD-SPLIT-IGNORES-BASELINE",
+      "why": "分ける数を見積もり ÷ 目安で決める（一部ごとに足す基準 run を数えず、一部が目安を超える）",
+      "file": "scripts/mutation/check-mutation-proof.ts",
+      "find": "Math.min(n, Math.ceil(n / perPart))",
+      "replace": "Math.min(n, Math.ceil(cost / budget))",
+      "occurrences": 1,
+      "expect_failing": ["--shard 分けた一部が、基準 run を含めて目安に収まる数に分ける"]
     },
     {
       "id": "SHARD-NO-SORT",
@@ -394,7 +405,8 @@
         "--shard 1 シャードの目安を超える宣言だけを、変異で分ける",
         "--shard 見積もりの大きい順に、合計が最も小さいシャードへ割り当てる",
         "--shard 見積もりの無い宣言は default_seconds で見積もり、宣言を出力する",
-        "--shard --list は測る変異を出し、測らずに終わる"
+        "--shard --list は測る変異を出し、測らずに終わる",
+        "--shard 分けた一部が、基準 run を含めて目安に収まる数に分ける"
       ]
     },
     {
@@ -404,7 +416,21 @@
       "find": "  if (list) {",
       "replace": "  if (false) {",
       "occurrences": 1,
-      "expect_failing": ["--shard --list は測る変異を出し、測らずに終わる"]
+      "expect_failing": [
+        "--shard --list は測る変異を出し、測らずに終わる",
+        "--shard --list はロックを取らない（測定の実行中でも割り当てを確かめられる）"
+      ]
+    },
+    {
+      "id": "LIST-TAKES-LOCK",
+      "why": "--list でもロックを取る（測定の実行中に割り当てを確かめられず、前回の中断で残った変異まで書き戻す）",
+      "file": "scripts/mutation/check-mutation-proof.ts",
+      "find": "  if (!list) {\n    // 宣言の検証より先にロックを取る",
+      "replace": "  if (true) {\n    // 宣言の検証より先にロックを取る",
+      "occurrences": 1,
+      "expect_failing": [
+        "--shard --list はロックを取らない（測定の実行中でも割り当てを確かめられる）"
+      ]
     },
     {
       "id": "DURATIONS-ROOT-UNCHECKED",

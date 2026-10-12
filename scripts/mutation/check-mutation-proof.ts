@@ -658,7 +658,8 @@ function loadDurations(): { defaultSeconds: number; seconds: Map<string, number>
  * シャードの数だけ繰り返していた（Issue #607 の時点の全件の run で、6 シャードの合計の約 2 割）。
  *
  * 宣言の所要時間は、テストファイルを 1 回実行する秒数 t の (変異の数 + 1) 倍と見積もる（基準 run を含む）。
- * 1 シャードの目安（全体の見積もり ÷ N）を超える宣言だけを、目安に収まる数に変異で分ける。分けた一部ごとに基準 run を測る。
+ * 1 シャードの目安（全体の見積もり ÷ N）を超える宣言だけを、変異で分ける。分けた一部ごとに基準 run を測るので、
+ * 一部の見積もり（一部の変異の数 + 1）× t が目安に収まる数に分ける。
  * そのうえで、見積もりの大きい順に、その時点で見積もりの合計が最も小さいシャードへ割り当てる（同じなら番号の小さいほう）。
  * どのシャードも同じ入力から同じ割り当てを計算するので、N 本を合わせるとちょうど全件になる。
  */
@@ -691,7 +692,9 @@ function assignShard(
   const pieces: Piece[] = [];
   for (const { plan, specRel, perRun, cost } of whole) {
     const n = plan.targeted.length;
-    const parts = cost > budget ? Math.min(n, Math.ceil(cost / budget)) : 1;
+    // 一部に入れられる変異の数（基準 run の 1 回分を除く）。t が目安の半分を超えるときも、1 件ずつには分ける。
+    const perPart = Math.max(1, Math.floor(budget / perRun) - 1);
+    const parts = cost > budget ? Math.min(n, Math.ceil(n / perPart)) : 1;
     if (parts > 1) console.log(`分割: ${specRel}（${n} 変異）を ${parts} 個に分ける`);
     for (let part = 0, start = 0; part < parts; part++) {
       // 先頭の (n % parts) 個に 1 件ずつ多く持たせる。
@@ -1088,10 +1091,13 @@ function proveMutation(mutation: Mutation, testFile: string): ProveResult {
 
 function main() {
   const { files, only, changedSince, shard, list } = parseArgs(process.argv.slice(2));
-  // 宣言の検証より先にロックを取る（並行実行が互いのファイルを読むのを防ぐ）。
-  takeLock();
-  // 前回が中断されて変異が残っていれば、測る前に戻す（残った変異を基準 run が測らないため）。
-  recoverFromInterrupted();
+  // `--list` は作業ツリーに触れない（ロックを取らず、前回の中断で残った変異も戻さない）。測定の実行中でも割り当てを確かめられる。
+  if (!list) {
+    // 宣言の検証より先にロックを取る（並行実行が互いのファイルを読むのを防ぐ）。
+    takeLock();
+    // 前回が中断されて変異が残っていれば、測る前に戻す（残った変異を基準 run が測らないため）。
+    recoverFromInterrupted();
+  }
   let specs = specPaths(files).map(loadSpec);
   if (changedSince) {
     if (files.length > 0) {

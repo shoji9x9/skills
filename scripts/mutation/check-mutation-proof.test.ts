@@ -1401,6 +1401,31 @@ describe.concurrent("--shard", () => {
     expect(await lines("2/2")).toEqual([`${rel} A2`]);
   });
 
+  test("分けた一部が、基準 run を含めて目安に収まる数に分ける", async () => {
+    // A は 1 回 10 秒で 9 変異（100 秒）、B は 1 回 1 秒で 1 変異（2 秒）。目安は 102 ÷ 3 = 34 秒。
+    // 一部に入れられる変異は 34 ÷ 10 − 1 = 2 件なので 5 個に分ける（一部は 30 秒以下）。
+    // 基準 run を数えずに 100 ÷ 34 で 3 個に分けると、一部が 40 秒になり目安を超える。
+    const [a, b] = [specOf("A", 9), specOf("B", 1)];
+    const res = await runRunner(a, b, "--list", "--shard", "1/3", durations({ [a]: 10, [b]: 1 }));
+    expect(res.status, res.out).toBe(0);
+    expect(res.out).toContain(`分割: ${relative(repoRoot, a)}（9 変異）を 5 個に分ける`);
+  });
+
+  test("--list はロックを取らない（測定の実行中でも割り当てを確かめられる）", async () => {
+    // 生きているプロセス（このテストの親）が持つロックを置く。測る実行なら「別の実行」で止まる。
+    const lock = join(lockDir, `held-${++durationsSeq}.lock`);
+    writeFileSync(lock, `${process.pid}\n`);
+    const res = await runRunner(specOf("A", 1), "--list", "--shard", "1/1", {
+      ...durations(),
+      MUTATION_PROOF_LOCK: lock,
+    });
+    expect(res.status, res.out).toBe(0);
+    expect(res.stdout).toMatch(/^LIST \S+ A1$/m);
+    expect(readFileSync(lock, "utf8"), "--list が他の実行のロックを変えた").toBe(
+      `${process.pid}\n`,
+    );
+  });
+
   test("見積もりの無い宣言は default_seconds で見積もり、宣言を出力する", async () => {
     const [a, b] = [specOf("A", 1), specOf("B", 1)];
     const res = await runRunner(a, b, "--shard", "1/2", durations({ [a]: 1 }));
