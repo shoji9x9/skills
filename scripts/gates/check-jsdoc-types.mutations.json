@@ -157,7 +157,9 @@
         "JSDoc の型の any 相当を検出する: Function",
         "JSDoc の型の any 相当を検出する: 小文字の function",
         "JSDoc の型の any 相当を検出する: 型引数の無い Generator",
-        "JSDoc の型の any 相当を検出する: 型引数の無い AsyncGenerator"
+        "JSDoc の型の any 相当を検出する: 型引数の無い AsyncGenerator",
+        "JSDoc の型の any 相当を検出する: 型引数が 1 つの Generator",
+        "JSDoc の型の any 相当を検出する: 型引数が 1 つの Iterator"
       ]
     },
     {
@@ -194,22 +196,24 @@
     },
     {
       "id": "NO-GENERIC",
-      "why": "型引数の無いジェネリック型を検出しない（Array が Array<any> になる）",
+      "why": "型引数を省くと any が入るジェネリック型を検出しない（Generator が Generator<unknown, any, any> になる）",
       "file": "scripts/gates/check-jsdoc-types.ts",
-      "find": "    GENERIC_NAMES.has(node.typeName.text) &&\n",
+      "find": "    ANY_DEFAULT_GENERICS.has(node.typeName.text) &&\n",
       "replace": "    false &&\n",
       "occurrences": 1,
       "expect_failing": [
         "JSDoc の型の any 相当を検出する: 型引数の無い Generator",
-        "JSDoc の型の any 相当を検出する: 型引数の無い AsyncGenerator"
+        "JSDoc の型の any 相当を検出する: 型引数の無い AsyncGenerator",
+        "JSDoc の型の any 相当を検出する: 型引数が 1 つの Generator",
+        "JSDoc の型の any 相当を検出する: 型引数が 1 つの Iterator"
       ]
     },
     {
       "id": "GENERIC-WITH-ARGS",
       "why": "型引数の付いた Generator も検出する（Generator<T, R, N> を誤検知する）",
       "file": "scripts/gates/check-jsdoc-types.ts",
-      "find": "    GENERIC_NAMES.has(node.typeName.text) &&\n    node.typeArguments === undefined\n",
-      "replace": "    GENERIC_NAMES.has(node.typeName.text)\n",
+      "find": "    (node.typeArguments?.length ?? 0) < ANY_DEFAULT_ARITY\n",
+      "replace": "    true\n",
       "occurrences": 1,
       "expect_failing": ["any でない型は検出しない: Generator<T, R, N>"]
     },
@@ -266,6 +270,18 @@
       "replace": "const BLOCK_DIRECTIVE_RE = /^(?:\\/|\\*)*\\s*(@ts-(?:ignore|expect-error|nocheck))\\b/;",
       "occurrences": 1,
       "expect_failing": ["コメントでない文字列は検出しない: ブロックの @ts-nocheck"]
+    },
+    {
+      "id": "PARTIAL-ARGS-PASS",
+      "why": "型引数が 1 つでもあれば通す（Generator<string> の TReturn・TNext が any になる）",
+      "file": "scripts/gates/check-jsdoc-types.ts",
+      "find": "    (node.typeArguments?.length ?? 0) < ANY_DEFAULT_ARITY\n",
+      "replace": "    node.typeArguments === undefined\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "JSDoc の型の any 相当を検出する: 型引数が 1 つの Generator",
+        "JSDoc の型の any 相当を検出する: 型引数が 1 つの Iterator"
+      ]
     }
   ]
 }

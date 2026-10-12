@@ -239,7 +239,7 @@ lefthook の pre-commit は、TypeScript か JavaScript（`ts`・`tsx`・`mts`�
 
 配布スキルの `.mjs` では、型の検査を外す JSDoc の書き方を `scripts/gates/check-jsdoc-types.ts` が失敗にする。
 失敗にするのは、型の表明 `/** @type {X} */ (v)`（TypeScript の `as` と同じ）と、`@ts-ignore`・`@ts-expect-error`・`@ts-nocheck` である。
-JSDoc の型の `any`・`*`・`?`・`Function` と、型引数の無い `Object`・`Generator`（型引数のデフォルトが `any`）も失敗にする。
+JSDoc の型の `any`・`*`・`?`・`Function`、型引数の無い `Object`、型引数を 3 つ書いていない `Generator`・`Iterator` など（省いた型引数のデフォルトが `any`）も失敗にする。
 型引数の無い `Array`・`Promise`・`Map` は、tsc が TS2314 で失敗にする。
 宣言の注釈（`/** @type {X} */ const v = ...`）・`@satisfies`・`/** @type {const} */ (v)` は、型を外さないので使ってよい。
 配布スキルが利用者のプロジェクトから読み込むモジュール（`pngjs` など）の型は、使う欄だけを `types/skill-runtime/<モジュール名>.ts` に書き、`tsconfig.skills.json` の `paths` でそこへ解決する。

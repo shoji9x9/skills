@@ -154,8 +154,8 @@ pre-commit:
             run: node scripts/gates/check-js-extensions.ts
           - name: jsdoc-types
             # 配布スキルの .mjs で、型の検査を外す JSDoc の書き方（型の表明・any・@ts-ignore など）を禁じる。
-            # 読むのは .mjs だけなので、.mjs が staged のときだけ実行する（TypeScript のパーサの読み込みに約 1 秒かかる）。
-            glob: "*.mjs"
+            # 読むのは .mjs だけなので、.mjs かチェック自身が staged のときだけ実行する（TypeScript のパーサの読み込みに約 1 秒かかる）。
+            glob: "{*.mjs,*check-jsdoc-types.ts}"
             run: node scripts/gates/check-jsdoc-types.ts
           - name: kaizen-refs
             # .kaizen/ の学びへの参照の実在。参照される側（.kaizen/ の archive への移動）で

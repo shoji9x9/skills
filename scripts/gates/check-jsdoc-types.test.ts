@@ -59,12 +59,22 @@ test.each([
   [
     "型引数の無い Generator",
     "/** @param {Generator} g */\nfunction f(g) {}\n",
-    "型引数の無い Generator",
+    "型引数の足りない Generator",
+  ],
+  [
+    "型引数が 1 つの Generator",
+    "/** @returns {Generator<string>} */\nfunction* f() {}\n",
+    "型引数の足りない Generator",
+  ],
+  [
+    "型引数が 1 つの Iterator",
+    "/** @param {Iterator<string>} i */\nfunction f(i) {}\n",
+    "型引数の足りない Iterator",
   ],
   [
     "型引数の無い AsyncGenerator",
     "/** @param {AsyncGenerator} g */\nfunction f(g) {}\n",
-    "型引数の無い AsyncGenerator",
+    "型引数の足りない AsyncGenerator",
   ],
 ])("JSDoc の型の any 相当を検出する: %s", (_name, text, kind) => {
   expect(find(text)).toEqual([`1: JSDoc の型に ${kind} を書かない`]);

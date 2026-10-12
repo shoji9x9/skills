@@ -4,7 +4,7 @@
 // TypeScript の側で同じ書き方を禁じている `oxlint.config.ts` の規則は、JavaScript の JSDoc を読まないので、ここで検査する。
 //   - JSDoc の型の表明 `/** @type {X} */ (v)`。TypeScript の `as X` と同じで、絞り込みを確かめずに型を付ける。
 //     宣言の注釈（`/** @type {X} */ const v = ...`）・`@satisfies`・`/** @type {const} */ (v)` は、型を外さないので許す。
-//   - JSDoc の型の `any`・`*`・`?` と、`Function`・型引数の無い `Object`・`Generator`。
+//   - JSDoc の型の `any`・`*`・`?` と、`Function`・型引数の無い `Object`・型引数の足りない `Generator` など。
 //     どれも `any` として扱われるか、型引数が `any` になる。
 //     `Function` も、呼び出しの戻り値が `any` になるので同じ扱いにする。
 //   - `@ts-ignore`・`@ts-expect-error`・`@ts-nocheck` のコメント。
@@ -34,9 +34,18 @@ function directiveOf(comment: string): { name: string; offset: number } | null {
   const m = BLOCK_DIRECTIVE_RE.exec(comment.slice(lastLineStart));
   return m ? { name: m[1], offset: lastLineStart } : null;
 }
-// 型引数を省いても tsc がエラーにせず、型引数のデフォルトが any になるジェネリック型（`Generator<T = unknown, TReturn = any, TNext = any>`）。
-// `Array`・`Promise`・`Map` などデフォルトの無いものは、型引数を省くと tsc が TS2314 で失敗にするので、ここでは数えない。
-const GENERIC_NAMES = new Set(["Generator", "AsyncGenerator"]);
+// 型引数の一部を省いても tsc がエラーにせず、省いた型引数のデフォルトが any になるジェネリック型
+// （`Generator<T = unknown, TReturn = any, TNext = any>`・`Iterator<T, TReturn = any, TNext = any>` など）。
+// 3 つすべてを書かせる。`Array`・`Promise`・`Map` などデフォルトの無いものは、型引数を省くと tsc が TS2314 で失敗にするので、ここでは数えない。
+const ANY_DEFAULT_GENERICS = new Set([
+  "Generator",
+  "AsyncGenerator",
+  "Iterator",
+  "AsyncIterator",
+  "IterableIterator",
+  "AsyncIterableIterator",
+]);
+const ANY_DEFAULT_ARITY = 3;
 
 /** 検査の対象のパス（リポジトリのルートからの `/` 区切り）か。 */
 export const isTarget = (path: string): boolean => TARGET_RE.test(path);
@@ -60,14 +69,14 @@ function anyLike(node: ts.Node): string | null {
     (node.typeName.text === "Function" || node.typeName.text === "function")
   )
     return "Function";
-  // 型引数を省くと、デフォルトの any が入るジェネリック型（`Generator` は `Generator<unknown, any, any>`）。
+  // 型引数を省くと、デフォルトの any が入るジェネリック型（`Generator<string>` は `Generator<string, any, any>`）。
   if (
     ts.isTypeReferenceNode(node) &&
     ts.isIdentifier(node.typeName) &&
-    GENERIC_NAMES.has(node.typeName.text) &&
-    node.typeArguments === undefined
+    ANY_DEFAULT_GENERICS.has(node.typeName.text) &&
+    (node.typeArguments?.length ?? 0) < ANY_DEFAULT_ARITY
   )
-    return `型引数の無い ${node.typeName.text}`;
+    return `型引数の足りない ${node.typeName.text}`;
   return null;
 }
 
