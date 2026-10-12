@@ -1359,7 +1359,7 @@ describe.concurrent("--shard", () => {
     expect(shards[0].out).toContain("テスト用の注入");
     expect(shards[0].out).toContain("シャード 1/2: 選んだ変異 4 件のうち 2 件を測る");
     expectPartition(shards, ["A1", "A2", "B1", "B2"]);
-    // 宣言を分けていれば、どちらのシャードも両方の宣言の基準 run を測る。
+    // 変異を通し番号で配る（宣言を分ける）と、どちらのシャードも両方の宣言の基準 run を測る。
     for (const shard of shards) expect(shard.specs, shard.out).toHaveLength(1);
   });
 
@@ -1386,7 +1386,7 @@ describe.concurrent("--shard", () => {
   });
 
   test("--list は測る変異を出し、測らずに終わる", async () => {
-    const [a, b] = [specOf("A", 2), specOf("B", 1)];
+    const [a, b] = [specOf("A", 2), specOf("B", 3)];
     const env = durations({ [a]: 10, [b]: 1 });
     const lines = async (shard: string) => {
       const res = await runRunner(a, b, "--list", "--shard", shard, env);
@@ -1395,8 +1395,9 @@ describe.concurrent("--shard", () => {
       return [...res.stdout.matchAll(/^LIST (\S+) (\S+)$/gm)].map((m) => `${m[1]} ${m[2]}`);
     };
     const [rel, relB] = [relative(repoRoot, a), relative(repoRoot, b)];
-    // A は 30 秒、B は 2 秒（目安 16 秒）。A を 20 秒ずつに分け、1 番が A1 と B1、2 番が A2 を測る。
-    expect(await lines("1/2")).toEqual([`${rel} A1`, `${relB} B1`]);
+    // 「1 シャードの目安を超える宣言だけを、変異で分ける」と同じ入力（A は 30 秒、B は 4 秒、目安 17 秒）。
+    // A を 20 秒ずつに分け、1 番が A1 と B の 3 件、2 番が A2 を測る。見積もりの同じものが無いので、宣言のパスの順に依らない。
+    expect(await lines("1/2")).toEqual([`${rel} A1`, `${relB} B1`, `${relB} B2`, `${relB} B3`]);
     expect(await lines("2/2")).toEqual([`${rel} A2`]);
   });
 

@@ -700,8 +700,10 @@ function assignShard(
       pieces.push({ plan, part, mutations, cost: (size + 1) * perRun });
     }
   }
+  // 同じ見積もりの順は、ロケールに依らない比較で決める（`localeCompare` は LANG で順が変わり、手元の `--list` と CI がずれる）。
+  const byCodeUnit = (x: string, y: string) => (x < y ? -1 : x > y ? 1 : 0);
   const order = (a: Piece, b: Piece) =>
-    b.cost - a.cost || a.plan.spec.specPath.localeCompare(b.plan.spec.specPath) || a.part - b.part;
+    b.cost - a.cost || byCodeUnit(a.plan.spec.specPath, b.plan.spec.specPath) || a.part - b.part;
   const loads: number[] = Array.from({ length: shard.total }, () => 0);
   const mine = new Set<Mutation>();
   for (const piece of [...pieces].sort(order)) {
@@ -1134,7 +1136,8 @@ function main() {
       `シャード ${shard.index}/${shard.total}: 選んだ変異 ${total} 件のうち ${mine} 件を測る`,
     );
     if (mine === 0) {
-      // 変異がシャード数より少ないときに起きる。残りは他のシャードが測る（選んだ変異 0 件はここへ来る前に扱う）。
+      // 割り当ての単位（宣言か、重い宣言を分けた一部）がシャード数より少ないときに起きる。残りは他のシャードが測る
+      // （選んだ変異 0 件はここへ来る前に扱う）。
       console.log(
         `mutation-proof: このシャードに割り当てられた変異は無い（選んだ ${total} 件を ${shard.total} 分割）`,
       );
