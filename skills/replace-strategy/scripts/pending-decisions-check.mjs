@@ -23,6 +23,7 @@
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isArray } from "./lib/is-array.mjs";
 
 /**
  * ツールのバージョン（このファイルで定義する）。判定の規則や出力の形を変えたら上げる。
@@ -60,7 +61,7 @@ function errorMessage(error) {
  * @returns {value is Record<string, unknown>}
  */
 function isObject(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+  return typeof value === "object" && value !== null && !isArray(value);
 }
 
 /**
@@ -86,7 +87,7 @@ export function classifyDecision(element) {
   }
   const blocks = element.blocks;
   // blocks の欠落・型崩れは「止めた工程が無い」ではなく「分からない」なので、工程があるものとして扱う。
-  if (!Array.isArray(blocks)) {
+  if (!isArray(blocks)) {
     return settledOrDecided(resolution, "blocks が配列でない（止めた工程を読めない）");
   }
   if (blocks.length === 0) return { state: "settled", reason: "止めた工程が無い" };
@@ -108,7 +109,7 @@ function settledOrDecided(resolution, missingReason) {
   if (
     isObject(resumed) &&
     nonEmptyString(resumed.at) &&
-    Array.isArray(resumed.evidence) &&
+    isArray(resumed.evidence) &&
     resumed.evidence.some(nonEmptyString)
   ) {
     return { state: "settled", reason: "blocks の工程を実施した記録がある" };
@@ -156,7 +157,7 @@ export function inScope(element, scope) {
   if (scope.slug !== undefined) {
     // slugs が欠落・空の要素は範囲を決められないので、同じ target のすべての slug を止める。
     const slugs = element.slugs;
-    if (Array.isArray(slugs) && slugs.length > 0 && !slugs.includes(scope.slug)) return false;
+    if (isArray(slugs) && slugs.length > 0 && !slugs.includes(scope.slug)) return false;
   }
   return true;
 }
@@ -176,7 +177,7 @@ export function checkPendingDecisions(doc, scope = {}) {
   if (!isObject(doc)) return { structural: true, error: "成果物がオブジェクトでない" };
   const list = doc.pending_decisions;
   // 配列が無いのは「保留なし」ではない（保留が無ければ空配列を書く規約。references/autonomy.md「記録の形」）。
-  if (!Array.isArray(list)) return { structural: true, error: "pending_decisions が配列でない" };
+  if (!isArray(list)) return { structural: true, error: "pending_decisions が配列でない" };
   const counts = { total: list.length, in_scope: 0, open: 0, decided: 0, settled: 0 };
   /** @type {Array<{ id: unknown, state: string, reason: string, blocks: unknown }>} */
   const unsettled = [];

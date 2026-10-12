@@ -11,8 +11,8 @@
       "id": "observation-shape",
       "why": "観測項目の欠落・余分を見ない（空の観測同士が一致する）",
       "file": "skills/parity-component/scripts/behavior-compare.mjs",
-      "find": "ok: missing.length === 0 && extra.length === 0",
-      "replace": "ok: true",
+      "find": "if (missing.length === 0 && extra.length === 0) return",
+      "replace": "if (true) return",
       "occurrences": 1,
       "expect_failing": [
         "観測項目が欠けた行は一致扱いにしない（空の観測同士を一致させない）",
@@ -38,7 +38,7 @@
       "id": "mismatch",
       "why": "観測値を比べない（操作の結果が違っても一致とする）",
       "file": "skills/parity-component/scripts/behavior-compare.mjs",
-      "find": "canonical(row.observed[name]) !== canonical(expected[name])",
+      "find": "canonical(shape.observed[name]) !== canonical(expected[name])",
       "replace": "false",
       "occurrences": 1,
       "expect_failing": ["見た目が同じでも操作の結果が違えば behavior-mismatch で落とす"]
@@ -47,7 +47,7 @@
       "id": "unreachable-reason",
       "why": "理由の無い到達不能の宣言を除外として受ける",
       "file": "skills/parity-component/scripts/behavior-compare.mjs",
-      "find": "if (!filled(u.reason)) {",
+      "find": "if (!filled(field(u, \"reason\"))) {",
       "replace": "if (false) {",
       "occurrences": 1,
       "expect_failing": [
@@ -59,7 +59,7 @@
       "id": "approval",
       "why": "承認者の無い accepted を通す",
       "file": "skills/parity-component/scripts/behavior-compare.mjs",
-      "find": "!filled(row.approved_by) ||",
+      "find": "!filled(field(row, \"approved_by\")) ||",
       "replace": "false ||",
       "occurrences": 1,
       "expect_failing": [
@@ -95,7 +95,7 @@
       "id": "steps",
       "why": "手順・説明の無い操作を受ける",
       "file": "skills/parity-component/scripts/behavior-compare.mjs",
-      "find": "if (!filled(op.description) || !filled(op.steps)) {",
+      "find": "if (!filled(field(op, \"description\")) || !filled(field(op, \"steps\"))) {",
       "replace": "if (false) {",
       "occurrences": 1,
       "expect_failing": ["手順（steps）・説明の無い操作は型崩れ（両側で同じ操作を再生できない）"]
@@ -104,8 +104,8 @@
       "id": "approved-at-iso",
       "why": "承認日時を ISO 8601 として検査しない",
       "file": "skills/parity-component/scripts/behavior-compare.mjs",
-      "find": "!isoDateTime(row.approved_at)",
-      "replace": "!filled(row.approved_at)",
+      "find": "!isoDateTime(field(row, \"approved_at\"))",
+      "replace": "!filled(field(row, \"approved_at\"))",
       "occurrences": 1,
       "expect_failing": [
         "テンプレートのプレースホルダのままの承認は承認として数えない（承認日時も ISO 8601 を要求する）"
@@ -115,7 +115,7 @@
       "id": "story",
       "why": "見本の識別子の無い行を突き合わせとして数える",
       "file": "skills/parity-component/scripts/behavior-compare.mjs",
-      "find": "if (!filled(row.story)) {",
+      "find": "if (!filled(field(row, \"story\"))) {",
       "replace": "if (false) {",
       "occurrences": 1,
       "expect_failing": ["見本の識別子（story）が空・プレースホルダの行は突き合わせとして数えない"]

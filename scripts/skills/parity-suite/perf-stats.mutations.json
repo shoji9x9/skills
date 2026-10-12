@@ -625,7 +625,7 @@
       "id": "floor-history-type",
       "why": "配列でない履歴を検出しない",
       "file": "skills/parity-suite/scripts/perf-stats.mjs",
-      "find": "  if (!Array.isArray(history)) {",
+      "find": "  if (!isArray(history)) {",
       "replace": "  if (false) {",
       "occurrences": 1,
       "expect_failing": [
@@ -773,6 +773,17 @@
       "occurrences": 1,
       "expect_failing": [
         "summarize 下限の履歴（floor_history） すべての指標をフラグで渡せば、読めない履歴の末尾があっても通る"
+      ]
+    },
+    {
+      "id": "summary-pair-shape-unchecked",
+      "why": "基準の統計の作り直しで、オブジェクトでない組の欄を読んで例外にする（要素の形の誤りとして報告しない）",
+      "file": "skills/parity-suite/scripts/perf-stats.mjs",
+      "find": "    if (!isPlainObject(p)) return false;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "compare 基準の組にオブジェクトでない要素があれば、要素の形の誤りとして exit 2"
       ]
     }
   ]

@@ -44,18 +44,10 @@ import {
   resolve,
   sep,
 } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
+import { isArray } from "./lib/is-array.mjs";
 
-// 同じディレクトリの evidence-carry.mjs は、このファイルの実パスから解決して読み込む。
-// 静的な "./evidence-carry.mjs" は、--preserve-symlinks-main でファイル単位のシンボリックリンクから起動されると、
-// リンクの置き場所から解決して見つからない。持ち越しを使わない実行（引数不足の usage 表示を含む）まで、起動時に失敗する。
-// 型は同じファイルの宣言から取る（動的な import の戻り値は型を持たない）。
-/** @type {typeof import("./evidence-carry.mjs")} */
-const evidenceCarry = await import(
-  pathToFileURL(join(dirname(realpathSync(fileURLToPath(import.meta.url))), "evidence-carry.mjs"))
-    .href
-);
-const { EVIDENCE_CARRY_FILE, judgeCarry } = evidenceCarry;
+import { EVIDENCE_CARRY_FILE, judgeCarry } from "./evidence-carry.mjs";
 
 /**
  * ツールのバージョン（原本）。判定ロジック・出力形状を変えたら上げる。
@@ -128,7 +120,7 @@ function specFingerprint(prints, spec) {
  * @returns {v is Record<string, unknown>}
  */
 function isPlainObject(v) {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
+  return typeof v === "object" && v !== null && !isArray(v);
 }
 
 /**
@@ -521,7 +513,7 @@ export function checkArtifacts(metadata, ctx) {
     throw new UsageError(
       `artifact_health.baseline_dir がルートの外を指しているか実パスを解決できない: ${String(health.baseline_dir)}`,
     );
-  if (!Array.isArray(health.entries)) throw new UsageError("artifact_health.entries が配列でない");
+  if (!isArray(health.entries)) throw new UsageError("artifact_health.entries が配列でない");
 
   /** @type {string[]} */
   let present = [];
@@ -577,10 +569,10 @@ export function checkArtifacts(metadata, ctx) {
 
     // 読み手（字面の照合）
     const readBy = entry.read_by;
-    if (readBy !== undefined && readBy !== null && !Array.isArray(readBy)) {
+    if (readBy !== undefined && readBy !== null && !isArray(readBy)) {
       throw new UsageError(`artifact_health.entries[${p}].read_by が配列でない`);
     }
-    const readers = Array.isArray(readBy) ? readBy : [];
+    const readers = isArray(readBy) ? readBy : [];
     if (readers.length === 0) {
       if (!nonEmptyString(entry.unread_reason)) {
         findings.push(
@@ -949,8 +941,7 @@ function readSpecClassification(record, root, specsDecl) {
   /** @type {string[]} */
   const findings = [];
   const rawExcluded = record.current_excluded ?? [];
-  if (!Array.isArray(rawExcluded))
-    throw new UsageError("suite.repeat_run.current_excluded が配列でない");
+  if (!isArray(rawExcluded)) throw new UsageError("suite.repeat_run.current_excluded が配列でない");
   /** @type {string[]} */
   const excluded = [];
   for (const [i, e] of rawExcluded.entries()) {
@@ -984,7 +975,7 @@ function readSpecClassification(record, root, specsDecl) {
     excluded.push(normalizeRel(rel));
   }
   const specs = record.specs;
-  if (!Array.isArray(specs)) throw new UsageError("suite.repeat_run.specs が配列でない");
+  if (!isArray(specs)) throw new UsageError("suite.repeat_run.specs が配列でない");
   /** @type {Map<string, boolean>} */
   const declared = new Map();
   for (const [i, e] of specs.entries()) {
@@ -1009,7 +1000,7 @@ function readSpecClassification(record, root, specsDecl) {
     declared.set(rel, e.state_mutating);
   }
   const rawShared = record.shared_files ?? [];
-  if (!Array.isArray(rawShared)) throw new UsageError("suite.repeat_run.shared_files が配列でない");
+  if (!isArray(rawShared)) throw new UsageError("suite.repeat_run.shared_files が配列でない");
   /** @type {Set<string>} */
   const sharedDeclared = new Set();
   for (const [i, e] of rawShared.entries()) {
@@ -1108,9 +1099,9 @@ function checkRepeatRunPerSpec(suiteObj, record, root) {
   }
 
   const runs = record.runs;
-  if (runs !== undefined && runs !== null && !Array.isArray(runs))
+  if (runs !== undefined && runs !== null && !isArray(runs))
     throw new UsageError("suite.repeat_run.runs が配列でない");
-  const list = Array.isArray(runs) ? runs : [];
+  const list = isArray(runs) ? runs : [];
   let withoutSpecPrints = 0;
   for (const [i, run] of list.entries()) {
     if (!isPlainObject(run))
@@ -1134,8 +1125,10 @@ function checkRepeatRunPerSpec(suiteObj, record, root) {
       );
     }
   }
+  // 上のループで全件がオブジェクトだと確かめた。filter は要素の型を絞るためだけにある
+  const runRecords = list.filter(isPlainObject);
   for (const spec of mutating) {
-    const hits = list.filter(
+    const hits = runRecords.filter(
       (run) =>
         isPlainObject(run.spec_fingerprints) &&
         Object.keys(run.spec_fingerprints).some((k) => normalizeRel(k) === spec),
@@ -1172,7 +1165,7 @@ function checkRepeatRunPerSpec(suiteObj, record, root) {
   // 結びつけないと、状態を変えないスペックを書き換えた（壊した）後も、状態を変えるスペックの記録だけで通る
   const readOnly = current.specFiles.filter((f) => declared.get(f) === false);
   for (const spec of readOnly) {
-    const last = list
+    const last = runRecords
       .filter(
         (run) =>
           isPlainObject(run.spec_fingerprints) &&
@@ -1256,10 +1249,10 @@ export function checkRepeatRun(metadata, ctx) {
   const record = isPlainObject(repeat) ? repeat : {};
 
   if (!suiteObj.state_mutating) {
-    if (record.specs !== undefined && record.specs !== null && !Array.isArray(record.specs))
+    if (record.specs !== undefined && record.specs !== null && !isArray(record.specs))
       throw new UsageError("suite.repeat_run.specs が配列でない");
     if (
-      Array.isArray(record.specs) &&
+      isArray(record.specs) &&
       record.specs.some((e) => isPlainObject(e) && e.state_mutating === true)
     ) {
       findings.push(
@@ -1290,9 +1283,9 @@ export function checkRepeatRun(metadata, ctx) {
     return { judged: true, findings, notes: perSpec.notes };
   }
   const runs = record.runs;
-  if (runs !== undefined && runs !== null && !Array.isArray(runs))
+  if (runs !== undefined && runs !== null && !isArray(runs))
     throw new UsageError("suite.repeat_run.runs が配列でない");
-  const list = Array.isArray(runs) ? runs : [];
+  const list = isArray(runs) ? runs : [];
   if (list.length < 2) {
     findings.push(
       `状態を変えるスイートの実行記録が ${list.length} 件（2 回続けて回さないと後始末の有無が結果に現れない）`,
@@ -1304,7 +1297,9 @@ export function checkRepeatRun(metadata, ctx) {
     if (!isPlainObject(run))
       throw new UsageError(`suite.repeat_run.runs の末尾 ${i + 1} 件目がオブジェクトでない`);
   }
-  findings.push(...pairFindings(tail, ""));
+  // 上のループで 2 件ともオブジェクトだと確かめた。filter は要素の型を絞るためだけにある
+  const tailRecords = tail.filter(isPlainObject);
+  findings.push(...pairFindings(tailRecords, ""));
   /** @type {string[]} */
   const notes = [`状態を変えるスイートの実行記録 ${list.length} 件のうち末尾 2 件を判定`];
 
@@ -1398,7 +1393,7 @@ export function checkUnmeasured(metadata, ctx) {
       blocking: 0,
     };
   }
-  if (!Array.isArray(decl.entries)) throw new UsageError("unmeasured.entries が配列でない");
+  if (!isArray(decl.entries)) throw new UsageError("unmeasured.entries が配列でない");
 
   let blocking = 0;
   const seen = new Set();
@@ -1476,7 +1471,7 @@ function toInteger(v) {
  * @returns {string[] | null}
  */
 export function affectsBetween(changes, v, c) {
-  if (!Array.isArray(changes)) return null;
+  if (!isArray(changes)) return null;
   /** @type {Map<number, string[]>} */
   const byVersion = new Map();
   for (const change of changes) {
@@ -1484,7 +1479,7 @@ export function affectsBetween(changes, v, c) {
     const ver = toInteger(change.version);
     if (ver === null || ver < 1) return null;
     if (byVersion.has(ver)) return null;
-    if (!Array.isArray(change.affects)) return null;
+    if (!isArray(change.affects)) return null;
     for (const a of change.affects) if (!nonEmptyString(a)) return null;
     byVersion.set(
       ver,

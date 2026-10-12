@@ -53,6 +53,7 @@ import { fileURLToPath } from "node:url";
 import { isTextPath } from "./check-control-chars.ts";
 import { errorCodeOrMessage, errorMessage } from "../lib/errors.ts";
 import { isRecord } from "../lib/guards.ts";
+import { isArray } from "../lib/is-array.ts";
 
 const EXCLUDED_PREFIXES = [".claude/", "tests/", ".kaizen/", "node_modules/"];
 const AGENTS_SKILL_RE = /^\.agents\/skills\/([^/]+)\//;
@@ -97,7 +98,7 @@ export function loadExemptions(root: string): Exemption[] {
   const list = isRecord(data) ? data.exemptions : undefined;
   const ok = (e: unknown): e is Exemption =>
     isRecord(e) && ["file", "ref", "reason"].every((k) => typeof e[k] === "string");
-  if (!Array.isArray(list) || !list.every(ok)) {
+  if (!isArray(list) || !list.every(ok)) {
     throw new Error(
       `${EXEMPTIONS_PATH}: exemptions は { file, ref, reason }（すべて文字列）の配列にする`,
     );

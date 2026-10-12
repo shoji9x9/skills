@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 import { readFileSync, writeFileSync } from "node:fs";
+import { errorMessage } from "../../../../scripts/lib/errors.ts";
+import { isArray } from "../../../../scripts/lib/is-array.ts";
+import { parseJsonAs } from "../../../../scripts/lib/parse-as.ts";
 
 const [, , inputPath, outputPath] = process.argv;
 
@@ -34,24 +37,12 @@ if (!inputPath || !outputPath) {
   process.exit(2);
 }
 
-/**
- * JSON の文字列を、`T` の形として読む（形は検証しない）。private skill はスキルの中で完結させるので、
- * `scripts/lib/parse-as.ts` を import せず、同じ helper をここに持つ。
- */
-function parseJsonAs<T>(text: string): T {
-  const value: unknown = JSON.parse(text);
-  // oxlint-disable-next-line typescript/consistent-type-assertions -- 外部の入力の形を宣言する。欄は使うところで確かめる
-  return value as T;
-}
-
 function loadJson(path: string): AuditJson {
   let text: string;
   try {
     text = readFileSync(path, "utf8");
   } catch (err) {
-    console.error(
-      `Failed to read pnpm audit JSON: ${path}: ${err instanceof Error ? err.message : String(err)}`,
-    );
+    console.error(`Failed to read pnpm audit JSON: ${path}: ${errorMessage(err)}`);
     process.exit(1);
   }
 
@@ -63,9 +54,7 @@ function loadJson(path: string): AuditJson {
   try {
     return parseJsonAs<AuditJson>(text);
   } catch (err) {
-    console.error(
-      `Failed to parse pnpm audit JSON: ${path}: ${err instanceof Error ? err.message : String(err)}`,
-    );
+    console.error(`Failed to parse pnpm audit JSON: ${path}: ${errorMessage(err)}`);
     process.exit(1);
   }
 }
@@ -88,7 +77,7 @@ function findingFields(finding: unknown): AuditRecord {
 
 function asArray(value: unknown): unknown[] {
   if (!value) return [];
-  return Array.isArray(value) ? value : [value];
+  return isArray(value) ? value : [value];
 }
 
 function uniq<T>(values: T[]): T[] {

@@ -113,6 +113,116 @@
       "replace": "    if (false) {",
       "occurrences": 1,
       "expect_failing": ["::-webkit-scrollbar を読めない側がある（片側だけ unsupported）"]
+    },
+    {
+      "id": "cli-baseline-shape-unchecked",
+      "why": "baseline の要素の形を確かめずに比較へ渡す（null の要素で例外になり exit 1）",
+      "file": "skills/parity-suite/scripts/trait-compare.mjs",
+      "find": "    !baseline.every(isTrait) ||\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI は baseline の要素が採取結果の形でなければ、比較せず exit 2",
+        "CLI は入れ子の欄が型と違う要素（computed の値が数）を、比較せず exit 2",
+        "CLI は入れ子の欄が型と違う要素（rect の x が文字列）を、比較せず exit 2",
+        "CLI は入れ子の欄が型と違う要素（text_owners の要素に text が無い）を、比較せず exit 2",
+        "CLI は入れ子の欄が型と違う要素（text_owners の要素の lines が文字列）を、比較せず exit 2",
+        "CLI は入れ子の欄が型と違う要素（scroll の webkit が unsupported でない文字列）を、比較せず exit 2",
+        "CLI は入れ子の欄が型と違う要素（scroll の vertical_bar_px が文字列）を、比較せず exit 2"
+      ]
+    },
+    {
+      "id": "cli-capture-shape-unchecked",
+      "why": "capture の要素の形を確かめずに比較へ渡す（null の要素で例外になり exit 1）",
+      "file": "skills/parity-suite/scripts/trait-compare.mjs",
+      "find": "    !baseline.every(isTrait) ||\n    !capture.every(isTrait)\n",
+      "replace": "    !baseline.every(isTrait)\n",
+      "occurrences": 1,
+      "expect_failing": ["CLI は capture の要素が採取結果の形でなければ、比較せず exit 2"]
+    },
+    {
+      "id": "cli-rect-required",
+      "why": "rect の欠けた要素（比較が欠けを診断にする旧スキーマ）を CLI が拒む",
+      "file": "skills/parity-suite/scripts/trait-compare.mjs",
+      "find": "    absentOr(v.rect, nullableOr(isRect)) &&\n",
+      "replace": "    isRect(v.rect) &&\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI は rect の欠けた要素（旧スキーマ・手編集）を受け、欠けを差分に出して exit 1"
+      ]
+    },
+    {
+      "id": "cli-computed-values-unchecked",
+      "why": "computed の値が文字列かを確かめない",
+      "file": "skills/parity-suite/scripts/trait-compare.mjs",
+      "find": "    absentOr(v.computed, nullableOr(isStringRecord)) &&\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["CLI は入れ子の欄が型と違う要素（computed の値が数）を、比較せず exit 2"]
+    },
+    {
+      "id": "cli-rect-numbers-unchecked",
+      "why": "rect の x が数かを確かめない",
+      "file": "skills/parity-suite/scripts/trait-compare.mjs",
+      "find": "    typeof v.x === \"number\" &&\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["CLI は入れ子の欄が型と違う要素（rect の x が文字列）を、比較せず exit 2"]
+    },
+    {
+      "id": "cli-owner-text-unchecked",
+      "why": "文字の持ち主の text が文字列かを確かめない",
+      "file": "skills/parity-suite/scripts/trait-compare.mjs",
+      "find": "typeof v.text !== \"string\" || ",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI は入れ子の欄が型と違う要素（text_owners の要素に text が無い）を、比較せず exit 2"
+      ]
+    },
+    {
+      "id": "cli-owner-lines-unchecked",
+      "why": "文字の持ち主の lines が数かを確かめない",
+      "file": "skills/parity-suite/scripts/trait-compare.mjs",
+      "find": "    absentOr(v.lines, isNumber) &&\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI は入れ子の欄が型と違う要素（text_owners の要素の lines が文字列）を、比較せず exit 2"
+      ]
+    },
+    {
+      "id": "cli-webkit-unchecked",
+      "why": "scroll の webkit が unsupported でない文字列でも通す",
+      "file": "skills/parity-suite/scripts/trait-compare.mjs",
+      "find": "(webkit === \"unsupported\" ||",
+      "replace": "(typeof webkit === \"string\" ||",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI は入れ子の欄が型と違う要素（scroll の webkit が unsupported でない文字列）を、比較せず exit 2"
+      ]
+    },
+    {
+      "id": "cli-bar-px-unchecked",
+      "why": "scroll の vertical_bar_px が数かを確かめない",
+      "file": "skills/parity-suite/scripts/trait-compare.mjs",
+      "find": "    typeof v.vertical_bar_px === \"number\" &&\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI は入れ子の欄が型と違う要素（scroll の vertical_bar_px が文字列）を、比較せず exit 2"
+      ]
+    },
+    {
+      "id": "cli-unsupported-rejected",
+      "why": "scroll の webkit の unsupported（読めないブラウザの印）を拒む",
+      "file": "skills/parity-suite/scripts/trait-compare.mjs",
+      "find": "(webkit === \"unsupported\" ||",
+      "replace": "(false ||",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI は入れ子まで型どおりの要素（文字の持ち主・スクロール・webkit が unsupported）を比較する"
+      ]
     }
   ]
 }

@@ -293,7 +293,7 @@
       "id": "AO-PIN-HIST-TYPE",
       "why": "配列でない履歴を判定不能にしない",
       "file": "skills/replace-strategy/scripts/append-only-check.mjs",
-      "find": "  if (!Array.isArray(value)) {\n    throw new UsageError(`一覧が履歴と宣言した",
+      "find": "  if (!isArray(value)) {\n    throw new UsageError(`一覧が履歴と宣言した",
       "replace": "  if (false) {\n    throw new UsageError(`一覧が履歴と宣言した",
       "occurrences": 1,
       "expect_failing": ["履歴が配列でなければ合格として扱わない（exit 2）"]

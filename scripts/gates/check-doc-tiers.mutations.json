@@ -98,18 +98,44 @@
       "id": "DT-TIER-ORDER",
       "why": "Tier の順を確かめない",
       "file": "scripts/gates/check-doc-tiers.ts",
-      "find": "if (tiers.map((t) => t?.tier).join(\",\") !== \"1,2,3,4\")",
+      "find": "if (!tiers.every(isRecord) || tierNumbers.some((n, i) => n !== i + 1) || tiers.length !== 4)",
       "replace": "if (false)",
       "occurrences": 1,
       "expect_failing": [
-        "原本の形の誤り（Tier の順が違う）はチェックできない（exit 2、理由を出す）"
+        "原本の形の誤り（Tier の順が違う）はチェックできない（exit 2、理由を出す）",
+        "原本の形の誤り（Tier が 5 つある）はチェックできない（exit 2、理由を出す）",
+        "原本の形の誤り（Tier が 3 つしかない）はチェックできない（exit 2、理由を出す）",
+        "原本の形の誤り（Tier の番号が文字列）はチェックできない（exit 2、理由を出す）"
+      ]
+    },
+    {
+      "id": "DT-TIER-COUNT",
+      "why": "Tier の数を確かめない（3 つや 5 つの Tier を通す）",
+      "file": "scripts/gates/check-doc-tiers.ts",
+      "find": " || tiers.length !== 4)",
+      "replace": ")",
+      "occurrences": 1,
+      "expect_failing": [
+        "原本の形の誤り（Tier が 5 つある）はチェックできない（exit 2、理由を出す）",
+        "原本の形の誤り（Tier が 3 つしかない）はチェックできない（exit 2、理由を出す）"
+      ]
+    },
+    {
+      "id": "DT-TIER-NUMBER-LOOSE",
+      "why": "Tier の番号を文字列でも通す",
+      "file": "scripts/gates/check-doc-tiers.ts",
+      "find": "tierNumbers.some((n, i) => n !== i + 1)",
+      "replace": "tierNumbers.some((n, i) => String(n) !== String(i + 1))",
+      "occurrences": 1,
+      "expect_failing": [
+        "原本の形の誤り（Tier の番号が文字列）はチェックできない（exit 2、理由を出す）"
       ]
     },
     {
       "id": "DT-EMPTY-ENTRY",
       "why": "glob も label も無い項目を通す",
       "file": "scripts/gates/check-doc-tiers.ts",
-      "find": "if (!isText(e?.glob) && !isText(e?.label))",
+      "find": "if (!isText(record.glob) && !isText(record.label))",
       "replace": "if (false)",
       "occurrences": 1,
       "expect_failing": [
@@ -120,7 +146,7 @@
       "id": "DT-PIPE",
       "why": "「|」を通す",
       "file": "scripts/gates/check-doc-tiers.ts",
-      "find": "if (e[k]?.includes(\"|\")) throw",
+      "find": "if (v?.includes(\"|\")) throw",
       "replace": "if (false) throw",
       "occurrences": 1,
       "expect_failing": ["原本の形の誤り（「|」を含む）はチェックできない（exit 2、理由を出す）"]
@@ -129,7 +155,7 @@
       "id": "DT-DUP",
       "why": "glob の重複を通す",
       "file": "scripts/gates/check-doc-tiers.ts",
-      "find": "if (globs.has(e.glob)) throw",
+      "find": "if (globs.has(glob)) throw",
       "replace": "if (false) throw",
       "occurrences": 1,
       "expect_failing": ["原本の形の誤り（glob の重複）はチェックできない（exit 2、理由を出す）"]
@@ -138,7 +164,7 @@
       "id": "DT-OUTSIDE-GLOB",
       "why": "glob の無い outside を通す",
       "file": "scripts/gates/check-doc-tiers.ts",
-      "find": "if (!isText(e.glob)) throw new Error(`outside",
+      "find": "if (!isText(glob)) throw new Error(`outside",
       "replace": "if (false) throw new Error(`outside",
       "occurrences": 1,
       "expect_failing": [

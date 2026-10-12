@@ -35,6 +35,7 @@ import {
 } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isArray } from "./lib/is-array.mjs";
 
 /**
  * ツールのバージョン（原本）。判定規則・出力形状を変えたら上げる。
@@ -92,7 +93,7 @@ function isPlaceholder(value) {
  * @returns {value is Record<string, unknown>}
  */
 function isRecord(value) {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+  return Boolean(value) && typeof value === "object" && !isArray(value);
 }
 
 /**
@@ -101,7 +102,7 @@ function isRecord(value) {
  * @returns {string[]}
  */
 function stringList(value) {
-  return Array.isArray(value) ? value.filter((element) => typeof element === "string") : [];
+  return isArray(value) ? value.filter((element) => typeof element === "string") : [];
 }
 
 /**
@@ -147,7 +148,7 @@ export function validateChange(change) {
    * @returns {string[]}
    */
   const textList = (key, value, options = {}) => {
-    if (!Array.isArray(value)) {
+    if (!isArray(value)) {
       errors.push(`${key} が配列でない`);
       return [];
     }
@@ -169,7 +170,7 @@ export function validateChange(change) {
   textList("states", c.states, { nonEmpty: true });
   textList("properties", c.properties, { nonEmpty: true });
   textList("usages", c.usages);
-  if (Array.isArray(c.usages)) {
+  if (isArray(c.usages)) {
     const absolute = c.usages.filter((u) => typeof u === "string" && isAbsoluteUrl(u));
     if (absolute.length > 0) {
       errors.push(
@@ -179,7 +180,7 @@ export function validateChange(change) {
   }
   text("usages_source", c.usages_source);
   textList("files", c.files, { nonEmpty: true });
-  if (Array.isArray(c.instances) && Array.isArray(c.usages)) {
+  if (isArray(c.instances) && isArray(c.usages)) {
     if (c.instances.length === 0 && c.usages.length === 0) {
       errors.push(
         "instances も usages も空（どのページにも影響しない改修は宣言できない。影響先を数え損ねた宣言と区別できない）",
@@ -238,12 +239,12 @@ export function validateComponentMetadata(metadata) {
     return ["部品 metadata が JSON オブジェクトでない"];
   }
   const m = metadata;
-  if (!Array.isArray(m.instances)) {
+  if (!isArray(m.instances)) {
     return ["部品 metadata の instances が配列でない"];
   }
-  const absolute = m.instances.filter(
-    (i) => i && typeof i === "object" && typeof i.page === "string" && isAbsoluteUrl(i.page),
-  );
+  const absolute = m.instances
+    .filter(isRecord)
+    .filter((i) => typeof i.page === "string" && isAbsoluteUrl(i.page));
   if (absolute.length > 0) {
     return [
       `部品 metadata の instances[].page は target の baseURL からの相対パスで書く（capture_conditions.pages[].path と同じ語彙）。絶対 URL: ${absolute
@@ -300,7 +301,7 @@ function resolveInstances(change, componentMetadata) {
   // 宣言した状態は部品が採った状態（capture.states）の語彙で書く。綴り違いの状態はどの撮影組にも当たらず、
   // 「その状態を撮っていない＝影響なし」と誤って判定される。そのため、語彙に無い状態は判定不能にする
   const captureStates = isRecord(m.capture) ? m.capture.states : undefined;
-  if (!Array.isArray(captureStates) || !captureStates.every((st) => nonEmptyString(st))) {
+  if (!isArray(captureStates) || !captureStates.every((st) => nonEmptyString(st))) {
     problems.push(
       "部品 metadata の capture.states が状態名の配列でない（宣言した状態を部品の語彙と突き合わせられない）",
     );
@@ -315,7 +316,7 @@ function resolveInstances(change, componentMetadata) {
   }
   /** @type {Map<string, Record<string, unknown>[]>} */
   const byId = new Map();
-  for (const record of Array.isArray(m.instances) ? m.instances : []) {
+  for (const record of isArray(m.instances) ? m.instances : []) {
     // 配列の要素は id を持たないので、下の id の判定で飛ばす場合と同じになる
     if (!isRecord(record)) continue;
     if (typeof record.id !== "string") continue;
@@ -402,12 +403,12 @@ function judgeFeature(slug, metadata, change, instances) {
     return undeterminable(["capture_conditions が無い（どのページ × 状態を撮ったか分からない）"]);
   }
   const cc = conditions;
-  if (!Array.isArray(cc.capture_scope)) {
+  if (!isArray(cc.capture_scope)) {
     return undeterminable([
       "capture_conditions.capture_scope が無い・配列でない（どの組を撮ったか分からない。「影響なし」として扱わない）",
     ]);
   }
-  if (!Array.isArray(cc.pages)) {
+  if (!isArray(cc.pages)) {
     return undeterminable([
       "capture_conditions.pages が無い・配列でない（ページの path が分からない）",
     ]);
@@ -556,13 +557,13 @@ export function computeImpact({ change, componentMetadata, features, pageUnivers
   // 全機能が警告なしに影響なしになる。区別できないので findings に載せて実行全体を判定不能にする
   // （各機能の verdict は変えない）。
   const capturedPaths = new Set();
-  const universe = Array.isArray(pageUniverse) ? pageUniverse : sorted.map((f) => f.metadata);
+  const universe = isArray(pageUniverse) ? pageUniverse : sorted.map((f) => f.metadata);
   for (const metadata of universe) {
     const conditions = isRecord(metadata) ? metadata.capture_conditions : undefined;
     const pages = isRecord(conditions) ? conditions.pages : undefined;
-    if (!Array.isArray(pages)) continue;
+    if (!isArray(pages)) continue;
     for (const page of pages) {
-      if (page && typeof page.path === "string") capturedPaths.add(page.path);
+      if (isRecord(page) && typeof page.path === "string") capturedPaths.add(page.path);
     }
   }
   const unmatched = resolved

@@ -25,7 +25,8 @@ import { existsSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { errorCodeOrMessage, errorMessage } from "../lib/errors.ts";
-import { isRecord } from "../lib/guards.ts";
+import { isNonBlankString, isRecord } from "../lib/guards.ts";
+import { isArray } from "../lib/is-array.ts";
 
 export const BACKLOG_PATH = "scripts/gates/eval-reachability-backlog.json";
 
@@ -100,15 +101,15 @@ export function checkEvalFile(
   }
 
   const evals = parsed.evals;
-  if (!Array.isArray(evals)) {
+  if (!isArray(evals)) {
     violations.push(`${label}: evals が配列でない`);
     return { evals: 0, violations, keys };
   }
 
   const seenIds = new Set();
   for (const [index, ev] of evals.entries()) {
-    const where = `${label} #${ev?.id ?? `(index ${index})`}`;
-    if (ev === null || typeof ev !== "object" || Array.isArray(ev)) {
+    const where = `${label} #${(isRecord(ev) ? ev.id : undefined) ?? `(index ${index})`}`;
+    if (!isRecord(ev)) {
       violations.push(`${where}: eval がオブジェクトでない`);
       continue;
     }
@@ -133,11 +134,11 @@ export function checkEvalFile(
       continue;
     }
     const assertions = ev.assertions;
-    if (!Array.isArray(assertions) || assertions.length === 0) {
+    if (!isArray(assertions) || assertions.length === 0) {
       violations.push(`${where}: assertions が空`);
       continue;
     }
-    if (assertions.some((a) => typeof a !== "string" || a.trim() === "")) {
+    if (!assertions.every(isNonBlankString)) {
       violations.push(`${where}: assertions に空・非文字列の要素がある`);
       continue;
     }
@@ -176,14 +177,14 @@ export function checkEvalFile(
     }
 
     const reach = ev.reachability;
-    if (!Array.isArray(reach)) {
+    if (!isArray(reach)) {
       violations.push(`${where}: reachability が配列でない`);
       continue;
     }
     const covered = new Set();
     for (const [i, item] of reach.entries()) {
       const at = `${where} reachability[${i}]`;
-      if (item === null || typeof item !== "object" || Array.isArray(item)) {
+      if (!isRecord(item)) {
         violations.push(`${at}: 要素がオブジェクトでない`);
         continue;
       }

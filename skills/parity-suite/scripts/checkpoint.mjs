@@ -34,6 +34,7 @@ import {
 } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isArray } from "./lib/is-array.mjs";
 
 /**
  * ツールのバージョン（原本）。指紋の取り方・記録の形を変えたら上げる。版が違う記録は verify で落ちる。
@@ -64,7 +65,7 @@ class UsageError extends Error {}
  * @returns {v is Record<string, unknown>}
  */
 function isPlainObject(v) {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
+  return typeof v === "object" && v !== null && !isArray(v);
 }
 
 /**
@@ -281,7 +282,7 @@ const ENTRY_KEYS = ["at", "next_step", "roots", "files"];
  */
 export function recordProblem(rec, slugDir, opts) {
   // W1
-  if (!isPlainObject(rec) || rec.tool !== "checkpoint" || !Array.isArray(rec.checkpoints)) {
+  if (!isPlainObject(rec) || rec.tool !== "checkpoint" || !isArray(rec.checkpoints)) {
     return '最上位が { tool: "checkpoint", version, checkpoints: [] } の形でない';
   }
   if (rec.version !== VERSION) {
@@ -308,7 +309,7 @@ export function recordProblem(rec, slugDir, opts) {
     }
     // W4
     const roots = c.roots;
-    if (!Array.isArray(roots) || !roots.every(isNonEmptyString)) {
+    if (!isArray(roots) || !roots.every(isNonEmptyString)) {
       return `${c.at} の roots が空でない文字列の配列でない`;
     }
     if (new Set(roots).size !== roots.length) return `${c.at} の roots に重複がある`;

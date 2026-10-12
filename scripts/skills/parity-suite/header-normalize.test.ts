@@ -17,6 +17,7 @@ import {
 import { invalidInput } from "../../lib/test-input.ts";
 import { errorMessage } from "../../lib/errors.ts";
 import { parseJsonAs } from "../../lib/parse-as.ts";
+import { isArray } from "../../lib/is-array.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/header-normalize.mjs");
@@ -25,7 +26,7 @@ const diffScript = join(repoRoot, "skills/parity-diff/scripts/json-normalize-dif
 /** 正規化した set-cookie の cookie 名を、並んだ順に取り出す。配列でなければテストを落とす。 */
 function cookieNames(normalized: Record<string, unknown>): string[] {
   const cookies = normalized["set-cookie"];
-  assert(Array.isArray(cookies), "set-cookie が配列でない");
+  assert(isArray(cookies), "set-cookie が配列でない");
   return cookies.map((c: unknown) => {
     assert(typeof c === "object" && c !== null && "name" in c, "cookie に name が無い");
     assert(typeof c.name === "string", "cookie の name が文字列でない");

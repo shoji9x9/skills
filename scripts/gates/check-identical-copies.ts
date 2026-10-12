@@ -13,6 +13,10 @@
 //   全文が姉妹スキルで共通（本文は「このスキル」「姉妹スキル（A / B）」と書いて両方から読める形）なので、
 //   節の境界を解析する分だけ、検出できない範囲（見出しの表記ゆれ・節の追加）が増える。スキル固有の差分が要るなら、
 //   その部分を共有ファイルから SKILL.md 側へ移してから組に入れる。
+// - 例外は、ファイルの一部だけが共通な組（`region` を持つ組）。種類の違うファイル（ユーティリティの原本と、
+//   利用者のプロジェクトへ 1 ファイルだけコピーする雛形）が、同じ関数を持つ場合に使う。比べるのは、
+//   印の行 `// <region>:begin` と `// <region>:end` の間だけである。範囲は見出しの解析ではなく明示した印で決め、
+//   印が 1 組だけ無い（無い・重複・逆順）ファイルは違反にする。印が崩れたまま比べずに通さないためである。
 // - 組の最初のファイルを基準にし、違うファイルは最初に食い違う行番号を報告する。
 // - 宣言が読めない（JSON でない・形が違う・組が 0 件・同じファイルの重複）は exit 2、
 //   ファイルが無い・一致しないは exit 1。
@@ -21,10 +25,13 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { errorMessage } from "../lib/errors.ts";
 import { isRecord } from "../lib/guards.ts";
+import { isArray } from "../lib/is-array.ts";
 
 export const DECLARATION_PATH = "scripts/gates/identical-copies.json";
 
-type CopyGroup = { files: string[]; reason: string };
+type CopyGroup = { files: string[]; reason: string; region?: string };
+
+const REGION_NAME_RE = /^[a-z][a-z0-9-]*$/;
 
 /** 宣言を読み、形の誤りは例外にする（読めない宣言を「組 0 件＝違反なし」として扱わない）。 */
 export function loadGroups(root: string): CopyGroup[] {
@@ -32,35 +39,56 @@ export function loadGroups(root: string): CopyGroup[] {
   if (!existsSync(path)) throw new Error(`${DECLARATION_PATH} が無い`);
   const data: unknown = JSON.parse(readFileSync(path, "utf8"));
   const groups = isRecord(data) ? data.groups : undefined;
-  if (!Array.isArray(groups) || groups.length === 0) {
+  if (!isArray(groups) || groups.length === 0) {
     throw new Error("groups は 1 件以上の配列にする");
   }
   const seen = new Set<string>();
-  groups.forEach((g, i) => {
-    const files = g?.files;
+  return groups.map((group, i): CopyGroup => {
+    const g = isRecord(group) ? group : {};
+    const files = g.files;
     if (
-      !Array.isArray(files) ||
+      !isArray(files) ||
       files.length < 2 ||
-      !files.every((f) => typeof f === "string" && f)
+      !files.every((f): f is string => typeof f === "string" && f !== "")
     ) {
       throw new Error(`groups[${i}].files は 2 件以上の空でない文字列の配列にする`);
     }
     if (typeof g.reason !== "string" || !g.reason.trim()) {
       throw new Error(`groups[${i}].reason が無い（なぜ同一であるべきかを書く）`);
     }
+    const region = g.region;
+    if (region !== undefined && (typeof region !== "string" || !REGION_NAME_RE.test(region))) {
+      throw new Error(`groups[${i}].region は英小文字で始まる英小文字・数字・ハイフンの名前にする`);
+    }
     for (const f of files) {
       if (seen.has(f))
         throw new Error(`${f} が複数回宣言されている（1 ファイルは 1 組にだけ属する）`);
       seen.add(f);
     }
+    return { ...g, files, reason: g.reason, region };
   });
-  return groups;
 }
 
-/** 2 つのバッファで最初に食い違う行（1 始まり）。 */
-function firstDifferentLine(a: Buffer, b: Buffer) {
-  const la = a.toString("utf8").split("\n");
-  const lb = b.toString("utf8").split("\n");
+/** 印の行 `// <region>:begin` と `// <region>:end` の間（印の行を含まない）。印が 1 組だけ無ければ、理由を返す。 */
+export function extractRegion(text: string, region: string): { body: string } | { error: string } {
+  const lines = text.split("\n");
+  const begin = `// ${region}:begin`;
+  const end = `// ${region}:end`;
+  const at = (marker: string) => lines.flatMap((l, i) => (l.trim() === marker ? [i] : []));
+  const [b, e] = [at(begin), at(end)];
+  if (b.length !== 1 || e.length !== 1) {
+    return {
+      error: `印「${begin}」と「${end}」が 1 つずつでない（${b.length} 件・${e.length} 件）`,
+    };
+  }
+  if (e[0] < b[0]) return { error: `印「${end}」が「${begin}」より前にある` };
+  return { body: lines.slice(b[0] + 1, e[0]).join("\n") };
+}
+
+/** 2 つのテキストで最初に食い違う行（1 始まり）。 */
+function firstDifferentLine(a: string, b: string) {
+  const la = a.split("\n");
+  const lb = b.split("\n");
   const n = Math.max(la.length, lb.length);
   for (let i = 0; i < n; i++) if (la[i] !== lb[i]) return i + 1;
   return n;
@@ -74,19 +102,36 @@ export function checkIdenticalCopies(root: string) {
   const groups = loadGroups(root);
   const violations: string[] = [];
   let files = 0;
-  for (const { files: paths } of groups) {
+  for (const { files: paths, region } of groups) {
     const missing = paths.filter((p) => !existsSync(join(root, p)));
     for (const p of missing) violations.push(`${p}: 宣言したファイルが無い`);
     const present = paths.filter((p) => !missing.includes(p));
     files += present.length;
     if (present.length < 2) continue;
     const [base, ...rest] = present;
-    const baseBuf = readFileSync(join(root, base));
-    for (const p of rest) {
-      const buf = readFileSync(join(root, p));
-      if (!baseBuf.equals(buf)) {
+    if (region === undefined) {
+      const baseBuf = readFileSync(join(root, base));
+      for (const p of rest) {
+        const buf = readFileSync(join(root, p));
+        if (!baseBuf.equals(buf)) {
+          const line = firstDifferentLine(baseBuf.toString("utf8"), buf.toString("utf8"));
+          violations.push(`${p}: ${base} と一致しない（最初の差分は ${line} 行目）`);
+        }
+      }
+      continue;
+    }
+    const bodies = present.map((p) => ({
+      p,
+      r: extractRegion(readFileSync(join(root, p), "utf8"), region),
+    }));
+    for (const { p, r } of bodies) if ("error" in r) violations.push(`${p}: ${r.error}`);
+    const baseRegion = bodies[0].r;
+    if ("error" in baseRegion) continue;
+    for (const { p, r } of bodies.slice(1)) {
+      if ("body" in r && r.body !== baseRegion.body) {
+        const line = firstDifferentLine(baseRegion.body, r.body);
         violations.push(
-          `${p}: ${base} と一致しない（最初の差分は ${firstDifferentLine(baseBuf, buf)} 行目）`,
+          `${p}: ${base} と範囲「${region}」が一致しない（範囲の中の最初の差分は ${line} 行目）`,
         );
       }
     }

@@ -29,6 +29,7 @@ import { createHash } from "node:crypto";
 import { readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isArray } from "./lib/is-array.mjs";
 
 /**
  * ツールのバージョン（原本）。当てはめ・判定ロジック・出力形状を変えたら上げる。
@@ -66,7 +67,7 @@ function nonEmptyString(v) {
  * @returns {v is Record<string, unknown>}
  */
 function isPlainObject(v) {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
+  return typeof v === "object" && v !== null && !isArray(v);
 }
 
 /**
@@ -167,7 +168,7 @@ function validateWindow(w, at) {
  * @returns {{ width: number, height: number }[]}
  */
 export function validateWindows(windows, label) {
-  if (!Array.isArray(windows)) throw new UsageError(`${label} が配列でない`);
+  if (!isArray(windows)) throw new UsageError(`${label} が配列でない`);
   const seen = new Set();
   const out = windows.map((raw, i) => {
     const w = validateWindow(raw, `${label}[${i}]`);
@@ -242,7 +243,7 @@ export function fitPlane(points) {
  * @returns {Map<string, { page: string, element: string, rects: Map<string, Record<string, number> | null> }>}
  */
 function indexElements(elements, windows, label) {
-  if (!Array.isArray(elements)) throw new UsageError(`${label}.elements が配列でない`);
+  if (!isArray(elements)) throw new UsageError(`${label}.elements が配列でない`);
   const windowKeys = new Set(windows.map(windowKey));
   /** @type {Map<string, { page: string, element: string, rects: Map<string, Record<string, number> | null> }>} */
   const index = new Map();
@@ -256,7 +257,7 @@ function indexElements(elements, windows, label) {
     if (index.has(key)) {
       throw new UsageError(`${at} の (page, element) = (${e.page}, ${e.element}) が重複している`);
     }
-    if (!Array.isArray(e.rects)) throw new UsageError(`${at}.rects が配列でない`);
+    if (!isArray(e.rects)) throw new UsageError(`${at}.rects が配列でない`);
     /** @type {Map<string, Record<string, number> | null>} */
     const rects = new Map();
     e.rects.forEach((r, j) => {
@@ -383,7 +384,7 @@ export function fitModel(samples, opts) {
  */
 function readViewports(metadata) {
   const cc = isPlainObject(metadata) ? metadata.capture_conditions : undefined;
-  if (!isPlainObject(cc) || !Array.isArray(cc.viewports) || cc.viewports.length === 0) {
+  if (!isPlainObject(cc) || !isArray(cc.viewports) || cc.viewports.length === 0) {
     throw new UsageError("metadata.json の capture_conditions.viewports が空でない配列でない");
   }
   const seen = new Set();
@@ -407,7 +408,7 @@ function readTargets(metadata) {
   const traits = isPlainObject(metadata) ? metadata.traits : undefined;
   if (
     !isPlainObject(traits) ||
-    !Array.isArray(traits.elements) ||
+    !isArray(traits.elements) ||
     traits.elements.length === 0 ||
     !traits.elements.every(nonEmptyString)
   ) {
@@ -417,12 +418,12 @@ function readTargets(metadata) {
   }
   // capture_conditions が JSON オブジェクトであることは、先に呼ぶ readViewports が確かめている
   const cc = isPlainObject(metadata) ? metadata.capture_conditions : undefined;
-  if (
-    !isPlainObject(cc) ||
-    !Array.isArray(cc.pages) ||
-    cc.pages.length === 0 ||
-    !cc.pages.every((p) => isPlainObject(p) && nonEmptyString(p.name))
-  ) {
+  // オブジェクトでない要素は name を undefined にして、空でない文字列の判定で落とす
+  const pageNames =
+    isPlainObject(cc) && isArray(cc.pages)
+      ? cc.pages.map((p) => (isPlainObject(p) ? p.name : undefined))
+      : [];
+  if (pageNames.length === 0 || !pageNames.every(nonEmptyString)) {
     throw new UsageError("metadata.json の capture_conditions.pages[].name が空でない配列でない");
   }
   // 同じ論理名の重複を 1 つの集合要素へ潰さない（上書きされた論理名の分だけ測る対象が警告なしに減る）
@@ -434,9 +435,7 @@ function readTargets(metadata) {
     );
   }
   // 同名のページを 1 つの集合キーへ潰さない（1 つ目のページを測っただけで、2 つ目を測り忘れても通る）
-  /** @type {string[]} */
-  const names = cc.pages.map((p) => p.name);
-  const duplicated = names.filter((n, i) => names.indexOf(n) !== i);
+  const duplicated = pageNames.filter((n, i) => pageNames.indexOf(n) !== i);
   if (duplicated.length > 0) {
     throw new UsageError(
       `capture_conditions.pages[].name が重複している: ${[...new Set(duplicated)].join(", ")}`,
@@ -444,7 +443,7 @@ function readTargets(metadata) {
   }
   return {
     traitElements: elementNames,
-    pages: names,
+    pages: pageNames,
   };
 }
 
@@ -530,7 +529,7 @@ export function checkModel(metadata, loadSamples, loadCurrentSamplesText) {
     );
   }
   const targets = readTargets(metadata);
-  if (!Array.isArray(dm.fits) || !Array.isArray(dm.unfit)) {
+  if (!isArray(dm.fits) || !isArray(dm.unfit)) {
     throw new UsageError("dimension_model.fits / unfit が配列でない");
   }
   if (dm.fits.length + dm.unfit.length === 0) {

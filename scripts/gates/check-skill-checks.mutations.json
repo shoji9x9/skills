@@ -224,7 +224,7 @@
       "why": "applies_when の空配列を受理する",
       "file": "scripts/gates/check-skill-checks.ts",
       "find": "        if (k in aw && !isTextArray(aw[k]))",
-      "replace": "        if (k in aw && !Array.isArray(aw[k]))",
+      "replace": "        if (k in aw && !isArray(aw[k]))",
       "occurrences": 1,
       "expect_failing": [
         "陽性: wire の項目の誤り（applies_when.exists が空）を落とす",

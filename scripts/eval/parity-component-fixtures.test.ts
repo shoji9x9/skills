@@ -19,6 +19,7 @@ import * as cssRules from "../../skills/parity-component/scripts/css-rules-captu
 import * as axisDiff from "../../skills/parity-component/scripts/axis-diff.mjs";
 import * as behaviorCompare from "../../skills/parity-component/scripts/behavior-compare.mjs";
 import * as elementShot from "../../skills/parity-suite/scripts/element-shot.mjs";
+import { isArray } from "../lib/is-array.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const fixturesRoot = join(repoRoot, "evals/parity-component/fixtures");
@@ -269,7 +270,7 @@ function checkComponent(dir: string): string[] {
   // null のまま（プレースホルダ）だと、比較へ進む前提が欠けたまま完了を名乗る。
   const conditions = meta.capture_conditions;
   const viewportLabels =
-    conditions && Array.isArray(conditions.viewports)
+    conditions && isArray(conditions.viewports)
       ? conditions.viewports.map((v) => v && v.label)
       : [];
   // キーの集合はスキーマの原本（assets/metadata-template.json）から取る。検査する項目を手で選ぶと、
@@ -277,15 +278,15 @@ function checkComponent(dir: string): string[] {
   const sameKeys = (value: unknown, template: object) =>
     typeof value === "object" &&
     value !== null &&
-    !Array.isArray(value) &&
+    !isArray(value) &&
     JSON.stringify(Object.keys(value).sort()) === JSON.stringify(Object.keys(template).sort());
   if (
     !sameKeys(conditions, TEMPLATE.capture_conditions) ||
     typeof conditions.viewer_environment !== "string" ||
     !/^(一致|未確認|乖離: .+)$/.test(conditions.viewer_environment) ||
-    !Array.isArray(conditions.masks) ||
+    !isArray(conditions.masks) ||
     conditions.masks.some((m) => typeof m !== "string" || m === "") ||
-    !Array.isArray(conditions.viewports) ||
+    !isArray(conditions.viewports) ||
     !conditions.viewports.every((v) => sameKeys(v, TEMPLATE.capture_conditions.viewports[0])) ||
     typeof conditions.environment !== "string" ||
     conditions.environment === "" ||
@@ -317,7 +318,7 @@ function checkComponent(dir: string): string[] {
     .sort();
   // 形が不正な行は捨てずに問題にする。除外してから突き合わせると、期待する行が揃っている限り、
   // 不正な余分な行が metadata.json に残ったまま合格する。
-  const noiseRows = Array.isArray(meta.noise_baseline) ? meta.noise_baseline : [];
+  const noiseRows = isArray(meta.noise_baseline) ? meta.noise_baseline : [];
   const malformedNoise = noiseRows.filter(
     (n) =>
       !sameKeys(n, TEMPLATE.noise_baseline[0]) ||

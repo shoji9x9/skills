@@ -67,6 +67,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isArray } from "./lib/is-array.mjs";
 
 /**
  * ツールのバージョン（このファイルで定義する）。判定のロジックや出力の形を変えたら上げる。
@@ -118,7 +119,7 @@ function nonEmptyString(v) {
  * @returns {v is Record<string, unknown>}
  */
 function isPlainObject(v) {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
+  return typeof v === "object" && v !== null && !isArray(v);
 }
 
 /**
@@ -1067,7 +1068,7 @@ function atPath(value, path) {
  * @returns {string}
  */
 function canonicalJson(value) {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
   if (isPlainObject(value)) {
     return `{${Object.keys(value)
       .sort()
@@ -1092,7 +1093,7 @@ export function jsonArrayUnits(text, paths, label, key = null) {
   for (const path of paths) {
     const value = atPath(parsed, path);
     if (value === undefined || value === null) continue; // まだ無い＝積み上げた要素も無い
-    if (!Array.isArray(value)) {
+    if (!isArray(value)) {
       throw new UsageError(`一覧が配列と宣言した ${path} が配列でない: ${label}`);
     }
     for (const element of value) {
@@ -1191,7 +1192,7 @@ function stringify(v) {
 function nonEmptyValue(v) {
   if (v === undefined || v === null) return false;
   if (typeof v === "string") return v.trim() !== "";
-  if (Array.isArray(v)) return v.length > 0;
+  if (isArray(v)) return v.length > 0;
   return true;
 }
 
@@ -1209,8 +1210,7 @@ function keyedElements(text, path, key, label) {
   const out = new Map();
   const value = atPath(parsed, path);
   if (value === undefined || value === null) return out;
-  if (!Array.isArray(value))
-    throw new UsageError(`一覧が配列と宣言した ${path} が配列でない: ${label}`);
+  if (!isArray(value)) throw new UsageError(`一覧が配列と宣言した ${path} が配列でない: ${label}`);
   for (const element of value) {
     if (!isPlainObject(element) || !nonEmptyString(element[key])) {
       throw new UsageError(
@@ -1251,7 +1251,7 @@ function parseJson(text, label) {
 function historyAt(doc, path, label) {
   const value = atPath(doc, path);
   if (value === undefined || value === null) return [];
-  if (!Array.isArray(value)) {
+  if (!isArray(value)) {
     throw new UsageError(`一覧が履歴と宣言した ${path} が配列でない: ${label}`);
   }
   return value;
@@ -1394,7 +1394,7 @@ function git(root, args) {
  * @returns {{ paths: string[], history: string }[]}
  */
 function readPinnedValues(raw, i, arrays) {
-  if (!Array.isArray(raw) || raw.length === 0) {
+  if (!isArray(raw) || raw.length === 0) {
     throw new UsageError(`artifacts[${i}].pinned_values が空でない配列でない`);
   }
   /** @type {string[]} 同じ項目の arrays と、すべてのグループのパスと履歴（重なりの検査に使う） */
@@ -1411,7 +1411,7 @@ function readPinnedValues(raw, i, arrays) {
     seen.push(path);
   };
   return raw.map((group) => {
-    if (!isPlainObject(group) || !Array.isArray(group.paths) || group.paths.length === 0) {
+    if (!isPlainObject(group) || !isArray(group.paths) || group.paths.length === 0) {
       throw new UsageError(`artifacts[${i}].pinned_values の要素に空でない paths が無い`);
     }
     if (!nonEmptyString(group.history) || !KEY_PATH.test(String(group.history).trim())) {
@@ -1459,7 +1459,7 @@ export function readManifest(manifestPath) {
       `一覧を JSON として読めない: ${manifestPath}（${e instanceof Error ? e.message : String(e)}）`,
     );
   }
-  if (!isPlainObject(parsed) || !Array.isArray(parsed.artifacts)) {
+  if (!isPlainObject(parsed) || !isArray(parsed.artifacts)) {
     throw new UsageError(`一覧に artifacts 配列が無い: ${manifestPath}`);
   }
   /** @type {Set<string>} */
@@ -1510,7 +1510,7 @@ export function readManifest(manifestPath) {
     /** @type {{ paths: string[], history: string }[]} */
     let pinnedValues = [];
     if (unit === "json-arrays") {
-      if (!Array.isArray(a.arrays) || a.arrays.length === 0) {
+      if (!isArray(a.arrays) || a.arrays.length === 0) {
         throw new UsageError(`artifacts[${i}] の unit が json-arrays なのに arrays が空`);
       }
       for (const path of a.arrays) {
@@ -1524,8 +1524,7 @@ export function readManifest(manifestPath) {
       if (a.fill_only !== undefined && a.fill_only !== null) {
         if (key === null)
           throw new UsageError(`artifacts[${i}] は key が無いのに fill_only がある`);
-        if (!Array.isArray(a.fill_only))
-          throw new UsageError(`artifacts[${i}].fill_only が配列でない`);
+        if (!isArray(a.fill_only)) throw new UsageError(`artifacts[${i}].fill_only が配列でない`);
         for (const f of a.fill_only) {
           if (!nonEmptyString(f))
             throw new UsageError(`artifacts[${i}].fill_only に空の要素がある`);
@@ -1539,7 +1538,7 @@ export function readManifest(manifestPath) {
           throw new UsageError(`artifacts[${i}].transitions がオブジェクトでない`);
         }
         for (const [field, list] of Object.entries(a.transitions)) {
-          if (!Array.isArray(list) || list.length === 0) {
+          if (!isArray(list) || list.length === 0) {
             throw new UsageError(`artifacts[${i}].transitions.${field} が空の配列`);
           }
           for (const t of list) {
@@ -1587,7 +1586,7 @@ export function readManifest(manifestPath) {
         if (unit !== "markdown-structure") {
           throw new UsageError(`artifacts[${i}] の unit が ${unit} なのに mutable_columns がある`);
         }
-        if (!Array.isArray(a.mutable_columns)) {
+        if (!isArray(a.mutable_columns)) {
           throw new UsageError(`artifacts[${i}].mutable_columns が配列でない`);
         }
         for (const c of a.mutable_columns) {
@@ -1602,7 +1601,7 @@ export function readManifest(manifestPath) {
             `artifacts[${i}] の unit が ${unit} なのに fill_only_columns がある`,
           );
         }
-        if (!Array.isArray(a.fill_only_columns)) {
+        if (!isArray(a.fill_only_columns)) {
           throw new UsageError(`artifacts[${i}].fill_only_columns が配列でない`);
         }
         for (const c of a.fill_only_columns) {
@@ -1630,13 +1629,15 @@ export function readManifest(manifestPath) {
         if (unit !== "lines") {
           throw new UsageError(`artifacts[${i}] の unit が ${unit} なのに registry_groups がある`);
         }
-        if (!Array.isArray(a.registry_groups)) {
+        if (!isArray(a.registry_groups)) {
           throw new UsageError(`artifacts[${i}].registry_groups が配列でない`);
         }
         /** @type {Set<string>} */
         const seenGroupIds = new Set();
         /** @type {Set<string>} */
         const seenPaths = new Set();
+        /** @type {{ id: string, itemKey: string, paths: string[] }[]} */
+        const groups = [];
         for (const group of a.registry_groups) {
           if (
             !isPlainObject(group) ||
@@ -1651,9 +1652,11 @@ export function readManifest(manifestPath) {
             throw new UsageError(`artifacts[${i}].registry_groups の id が重複している: ${id}`);
           }
           seenGroupIds.add(id);
-          if (!Array.isArray(group.paths) || group.paths.length === 0) {
+          if (!isArray(group.paths) || group.paths.length === 0) {
             throw new UsageError(`artifacts[${i}].registry_groups[${id}].paths が空`);
           }
+          /** @type {string[]} */
+          const paths = [];
           for (const path of group.paths) {
             if (!nonEmptyString(path) || !KEY_PATH.test(String(path).trim())) {
               throw new UsageError(
@@ -1668,13 +1671,11 @@ export function readManifest(manifestPath) {
               );
             }
             seenPaths.add(p);
+            paths.push(p);
           }
+          groups.push({ id, itemKey: String(group.item_key).trim(), paths });
         }
-        registryGroups = a.registry_groups.map((g) => ({
-          id: String(g.id).trim(),
-          itemKey: String(g.item_key).trim(),
-          paths: g.paths.map((/** @type {unknown} */ x) => String(x).trim()),
-        }));
+        registryGroups = groups;
       }
       if (a.growable_containers !== undefined && a.growable_containers !== null) {
         if (unit !== "lines") {
@@ -1682,7 +1683,7 @@ export function readManifest(manifestPath) {
             `artifacts[${i}] の unit が ${unit} なのに growable_containers がある`,
           );
         }
-        if (!Array.isArray(a.growable_containers)) {
+        if (!isArray(a.growable_containers)) {
           throw new UsageError(`artifacts[${i}].growable_containers が配列でない`);
         }
         for (const b of a.growable_containers) {
@@ -1700,7 +1701,7 @@ export function readManifest(manifestPath) {
         if (unit !== "lines") {
           throw new UsageError(`artifacts[${i}] の unit が ${unit} なのに mutable_blocks がある`);
         }
-        if (!Array.isArray(a.mutable_blocks)) {
+        if (!isArray(a.mutable_blocks)) {
           throw new UsageError(`artifacts[${i}].mutable_blocks が配列でない`);
         }
         for (const b of a.mutable_blocks) {
@@ -1720,7 +1721,7 @@ export function readManifest(manifestPath) {
         if (unit !== "markdown-structure") {
           throw new UsageError(`artifacts[${i}] の unit が ${unit} なのに mutable_bullets がある`);
         }
-        if (!Array.isArray(a.mutable_bullets)) {
+        if (!isArray(a.mutable_bullets)) {
           throw new UsageError(`artifacts[${i}].mutable_bullets が配列でない`);
         }
         for (const c of a.mutable_bullets) {

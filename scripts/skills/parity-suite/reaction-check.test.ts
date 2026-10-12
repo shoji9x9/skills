@@ -15,6 +15,7 @@ import { makeTempDir } from "../../lib/test-tmpdir.ts";
 import { invalidInput, removeField } from "../../lib/test-input.ts";
 import { isRecord } from "../../lib/guards.ts";
 import { parseJsonAs } from "../../lib/parse-as.ts";
+import { isArray } from "../../lib/is-array.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/reaction-check.mjs");
@@ -1028,13 +1029,15 @@ function run(table: Record<string, unknown>, opts: RunOptions = {}) {
     final.assertion_audit = passingAudit(final);
   }
   const tests = opts.tests ?? coveredByOwners(final).flatMap((o) => o.names);
-  const list = Array.isArray(tests) ? testList([...new Set(tests)]) : tests;
+  const list = isArray(tests) ? testList([...new Set(tests)]) : tests;
   // スペックの起点（config.rootDir）は一時プロジェクト。名指しされたスペックを実ファイルとして置く
   if (isRecord(list) && isRecord(list.config) && !Object.hasOwn(list.config, "rootDir")) {
     list.config.rootDir = dir;
   }
-  for (const suite of isRecord(list) && Array.isArray(list.suites) ? list.suites : []) {
-    writeSpec(dir, suite.file);
+  for (const suite of isRecord(list) && isArray(list.suites) ? list.suites : []) {
+    const file = isRecord(suite) ? suite.file : undefined;
+    if (typeof file !== "string") throw new Error("tests の suites[].file が文字列でない");
+    writeSpec(dir, file);
   }
   writeFileSync(join(dir, "tests.json"), JSON.stringify(list));
   // 監査の記録にはスペックの指紋をコピーする（--audit-sheet の出力をコピーするのと同じ値。指紋を変えるテストは自分で書く）

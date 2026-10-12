@@ -12,6 +12,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseJsonAs } from "../../lib/parse-as.ts";
 import { makeTempDir } from "../../lib/test-tmpdir.ts";
+import { isArray } from "../../lib/is-array.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const perfStats = join(repoRoot, "skills/parity-suite/scripts/perf-stats.mjs");
@@ -138,7 +139,7 @@ test("同梱の一覧の pinned_values は、parity-suite の metadata の雛形
   expect(groups.length).toBeGreaterThan(0);
   for (const group of groups) {
     for (const path of group.paths) expect(at(template, path), path).toBeDefined();
-    expect(Array.isArray(at(template, group.history)), group.history).toBe(true);
+    expect(isArray(at(template, group.history)), group.history).toBe(true);
   }
 });
 

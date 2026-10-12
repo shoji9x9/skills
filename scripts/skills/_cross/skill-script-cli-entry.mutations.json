@@ -1,0 +1,21 @@
+{
+  "$comment": [
+    "skill-script-cli-entry.test.ts の検出能力を示す変異の一覧。",
+    "リンクをスキルのディレクトリに張っても、CLI の判定を片側だけ実パスに直す誤り（サイレント no-op）を検出できることを示す。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/skills/_cross/skill-script-cli-entry.test.ts",
+  "mutations": [
+    {
+      "id": "cli-entry-one-sided",
+      "why": "CLI の判定で起動パスを実パスに直さない（リンク経由の起動で main が呼ばれず、無出力・exit 0 で終わる）",
+      "file": "skills/parity-suite/scripts/checkpoint.mjs",
+      "find": "    return realpathSync(entry) === realpathSync(self);",
+      "replace": "    return entry === self;",
+      "occurrences": 1,
+      "expect_failing": [
+        "skills/parity-suite/scripts/checkpoint.mjs: シンボリックリンク経由でも引数不足を usage と exit 2 で知らせる"
+      ]
+    }
+  ]
+}

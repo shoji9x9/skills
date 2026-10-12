@@ -44,19 +44,11 @@
 
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
+import { isArray } from "./lib/is-array.mjs";
 
-// 同じディレクトリの page-identity.mjs は、このファイルの実パスから解決して読み込む。
-// 静的な "./page-identity.mjs" は、--preserve-symlinks-main でファイル単位のシンボリックリンクから起動されると、
-// リンクの置き場所から解決して見つからない。引数不足の usage 表示まで、起動時に失敗する（artifact-health-check.mjs と同じ理由）。
-// 動的な import の戻り値は型を持たないので、同じファイルの宣言から型を付ける。
-/** @type {typeof import("./page-identity.mjs")} */
-const pageIdentity = await import(
-  pathToFileURL(join(dirname(realpathSync(fileURLToPath(import.meta.url))), "page-identity.mjs"))
-    .href
-);
-const { pageForUrl, pageKey, resolvePages } = pageIdentity;
+import { pageForUrl, pageKey, resolvePages } from "./page-identity.mjs";
 
 /**
  * ツールのバージョン（原本）。判定ロジック・出力形状を変えたら上げる。
@@ -164,7 +156,7 @@ function nonEmptyString(v) {
  * @returns {v is Record<string, unknown>}
  */
 function isPlainObject(v) {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
+  return typeof v === "object" && v !== null && !isArray(v);
 }
 
 /**
@@ -250,10 +242,10 @@ export function operationTraces(metadata, { withStates }) {
   const cc = isPlainObject(metadata.capture_conditions) ? metadata.capture_conditions : {};
   /** @type {string[]} */
   const traces = [];
-  if (withStates && Array.isArray(cc.states) && cc.states.some((st) => st !== "default")) {
+  if (withStates && isArray(cc.states) && cc.states.some((st) => st !== "default")) {
     traces.push("capture_conditions.states に default 以外の状態がある");
   }
-  if (Array.isArray(cc.popup_inventory) && cc.popup_inventory.length > 0) {
+  if (isArray(cc.popup_inventory) && cc.popup_inventory.length > 0) {
     traces.push("capture_conditions.popup_inventory が空でない");
   }
   if (isPlainObject(metadata.component_coverage) && metadata.component_coverage.declared === true) {
@@ -323,7 +315,7 @@ export function readDeclaration(metadata) {
 export function tableFingerprint(table) {
   /** @param {unknown} v @returns {unknown} */
   const canon = (v) => {
-    if (Array.isArray(v)) return v.map(canon);
+    if (isArray(v)) return v.map(canon);
     if (isPlainObject(v)) {
       return Object.fromEntries(
         Object.keys(v)
@@ -383,13 +375,13 @@ function scanCoveredBy(table) {
   /** @param {unknown} v @param {string} path */
   /** @param {unknown} v @param {string} path @param {{ path: string, obj: Record<string, unknown> }[]} chain 外側から並べた祖先（表そのものを除く） */
   const walk = (v, path, chain) => {
-    if (Array.isArray(v)) {
+    if (isArray(v)) {
       v.forEach((x, i) => walk(x, `${path}[${i}]`, chain));
       return;
     }
     if (!isPlainObject(v)) return;
     if (Object.hasOwn(v, "covered_by") && v.covered_by !== null) {
-      if (!Array.isArray(v.covered_by) || !v.covered_by.every(nonEmptyString)) malformed.push(path);
+      if (!isArray(v.covered_by) || !v.covered_by.every(nonEmptyString)) malformed.push(path);
       else if (v.covered_by.length > 0) {
         found.push({ path, owner: v, names: v.covered_by, ancestors: chain });
       }
@@ -423,12 +415,12 @@ function scanCoveredBy(table) {
  * @returns {Map<string, { keys: Set<string>, projects: Set<string>, file: string, line: number | null }>}
  */
 export function indexTestList(report) {
-  if (!isPlainObject(report) || !Array.isArray(report.suites)) {
+  if (!isPlainObject(report) || !isArray(report.suites)) {
     throw new UsageError(
       "--tests が playwright test --list --reporter=json の出力でない（suites が無い）",
     );
   }
-  if (!Array.isArray(report.errors)) {
+  if (!isArray(report.errors)) {
     throw new UsageError("--tests の errors が配列でない（一覧の取得が成功したか確かめられない）");
   }
   if (report.errors.length > 0) {
@@ -444,7 +436,7 @@ export function indexTestList(report) {
     if (!isPlainObject(suite)) throw new UsageError("--tests の suites に不正な要素がある");
     // ファイル自体の suite の題はファイルパスなので題の列に入れない。空の題の describe も入れない（一覧表示と同じ）
     const here = top || !nonEmptyString(suite.title) ? titles : [...titles, suite.title];
-    for (const spec of Array.isArray(suite.specs) ? suite.specs : []) {
+    for (const spec of isArray(suite.specs) ? suite.specs : []) {
       if (!isPlainObject(spec) || !nonEmptyString(spec.file) || typeof spec.title !== "string") {
         throw new UsageError("--tests の specs に file / title の無い要素がある");
       }
@@ -467,7 +459,7 @@ export function indexTestList(report) {
         line: typeof spec.line === "number" ? spec.line : null,
       };
       entry.keys.add(key);
-      for (const t of Array.isArray(spec.tests) ? spec.tests : []) {
+      for (const t of isArray(spec.tests) ? spec.tests : []) {
         // 実行して通ることを期待する（expectedStatus: passed）project だけを数える。静的に飛ばす test.skip / test.fixme は skipped で残る。
         // 失敗を期待する形（failed）や欠けた値も、その project で assertion が通ることを示さない
         if (isPlainObject(t) && nonEmptyString(t.projectName) && t.expectedStatus === "passed") {
@@ -476,7 +468,7 @@ export function indexTestList(report) {
       }
       index.set(name, entry);
     }
-    for (const child of Array.isArray(suite.suites) ? suite.suites : []) walk(child, here, false);
+    for (const child of isArray(suite.suites) ? suite.suites : []) walk(child, here, false);
   };
   for (const s of report.suites) walk(s, [], true);
   if (index.size === 0) {
@@ -586,7 +578,7 @@ export function assertionAuditProblems(audit, owners, fingerprint, specs = null)
       "assertion_audit.specs_fingerprint が今のスペックの中身と一致しない（監査の後に covered_by のスペックを書き換えた。assertion を弱めていないかを --audit-sheet から監査し直す）",
     );
   }
-  if (!Array.isArray(audit.entries)) {
+  if (!isArray(audit.entries)) {
     problems.push("assertion_audit.entries が配列でない");
     return problems;
   }
@@ -742,11 +734,7 @@ function collectIds(entries, label, problems) {
 function observedProblem(r, captureStates, documents) {
   if (!nonEmptyString(r.description)) return "description が空";
   if (typeof r.visible !== "boolean") return "visible が真偽値でない";
-  if (
-    !Array.isArray(r.covered_by) ||
-    r.covered_by.length === 0 ||
-    !r.covered_by.every(nonEmptyString)
-  ) {
+  if (!isArray(r.covered_by) || r.covered_by.length === 0 || !r.covered_by.every(nonEmptyString)) {
     return "covered_by が空（スイートの assertion に落としていない）";
   }
   if (!r.visible) {
@@ -765,7 +753,7 @@ function observedProblem(r, captureStates, documents) {
   if (!isPlainObject(app) || !positiveNumber(app.wait_limit_ms))
     return "appearance.wait_limit_ms が正の数でない";
   const delays = app.delay_ms_samples;
-  if (!Array.isArray(delays) || delays.length === 0 || !delays.every(nonNegativeNumber)) {
+  if (!isArray(delays) || delays.length === 0 || !delays.every(nonNegativeNumber)) {
     return "appearance.delay_ms_samples が空・非数を含む";
   }
   if (Math.max(...delays) > app.wait_limit_ms)
@@ -776,7 +764,7 @@ function observedProblem(r, captureStates, documents) {
   }
   if (dis.mode === "auto") {
     const d = dis.duration_ms_samples;
-    if (!Array.isArray(d) || d.length < 2 || !d.every(positiveNumber)) {
+    if (!isArray(d) || d.length < 2 || !d.every(positiveNumber)) {
       return "dismissal.mode: auto なのに duration_ms_samples が 2 標本未満・非正数を含む（1 回の観測で消える時間を決めない）";
     }
     if (!nonNegativeNumber(dis.tolerance_ms)) return "dismissal.tolerance_ms が 0 以上の数でない";
@@ -814,7 +802,7 @@ function noneProblem(r, windowMs, documents) {
     return `observation.window_ms が表の observation_window_ms（${windowMs}）より短い`;
   }
   if (
-    !Array.isArray(obs.documents) ||
+    !isArray(obs.documents) ||
     obs.documents.length === 0 ||
     !obs.documents.every(nonEmptyString)
   ) {
@@ -842,11 +830,7 @@ function noneProblem(r, windowMs, documents) {
   }
   if (!nonEmptyString(obs.method)) return "observation.method が空";
   // 新側が反応を足しても（遅れて出て消えるトースト等）静止画・特性照合には表れないので、不在もスイートで確かめる
-  if (
-    !Array.isArray(r.covered_by) ||
-    r.covered_by.length === 0 ||
-    !r.covered_by.every(nonEmptyString)
-  ) {
+  if (!isArray(r.covered_by) || r.covered_by.length === 0 || !r.covered_by.every(nonEmptyString)) {
     return "kind: none なのに covered_by が空（観測時間・文書にわたる不在をスイートの assertion に落としていない）";
   }
   return null;
@@ -898,7 +882,8 @@ function layoutMeasureProblem(m) {
 
 /**
  * 頁の組み方の 1 回の測定のうち、layoutMeasureProblem が欠けを見つけなかったもの。
- * @typedef {{ scroll_height: number, client_height: number, rects: Record<string, Record<string, number> | null> }} LayoutMeasure
+ * repeat は layoutMeasureProblem では確かめず、samples の連番の検査で確かめる。
+ * @typedef {{ scroll_height: number, client_height: number, rects: Record<string, Record<string, number> | null>, repeat?: unknown }} LayoutMeasure
  */
 
 /**
@@ -929,7 +914,7 @@ function layoutProblem(layout) {
   }
   const coveredBy = layout.covered_by;
   const covered =
-    Array.isArray(coveredBy) &&
+    isArray(coveredBy) &&
     coveredBy.length > 0 &&
     coveredBy.every((c) => nonEmptyString(c) && !isPlaceholder(c));
   if (layout.changes === null) {
@@ -964,19 +949,22 @@ function layoutProblem(layout) {
   if (!isLayoutMeasure(before))
     return { problem: `layout.before: ${layoutMeasureProblem(before)}`, unmeasured: true };
   const samples = layout.samples;
-  if (!Array.isArray(samples) || samples.length < 2) {
+  if (!isArray(samples) || samples.length < 2) {
     return {
       problem:
         "layout.changes: true なのに samples が 2 回未満（1 回の操作の差分では、窓から書き直す絶対値か前の値からの相対かを区別できない）",
       unmeasured: true,
     };
   }
+  /** @type {LayoutMeasure[]} */
+  const measures = [];
   for (const [i, m] of samples.entries()) {
-    const p = layoutMeasureProblem(m);
-    if (p) return { problem: `layout.samples[${i}]: ${p}`, unmeasured: true };
+    if (!isLayoutMeasure(m))
+      return { problem: `layout.samples[${i}]: ${layoutMeasureProblem(m)}`, unmeasured: true };
+    measures.push(m);
   }
   // repeat は 1 から始まる連番（何回目の操作の後か）。欠番・重複は繰り返しの記録として読めない
-  const repeats = samples.map((m) => m.repeat);
+  const repeats = measures.map((m) => m.repeat);
   if (!repeats.every((r, i) => r === i + 1)) {
     return {
       problem: "layout.samples の repeat が 1 から始まる連番でない（何回目の操作の後かを読めない）",
@@ -987,7 +975,7 @@ function layoutProblem(layout) {
   /** @param {LayoutMeasure} m */
   const keysOf = (m) => JSON.stringify(Object.keys(m.rects).sort());
   const beforeKeys = keysOf(before);
-  if (!samples.every((m) => keysOf(m) === beforeKeys)) {
+  if (!measures.every((m) => keysOf(m) === beforeKeys)) {
     return {
       problem:
         "layout の before と samples で測った論理名が揃っていない（表示されない回は null で書く）",
@@ -1010,7 +998,7 @@ function layoutProblem(layout) {
     a.scroll_height === b.scroll_height &&
     a.client_height === b.client_height &&
     rectsText(a) === rectsText(b);
-  if (samples.every((m) => same(m, before))) {
+  if (measures.every((m) => same(m, before))) {
     return {
       problem:
         "layout.changes: true なのに before と全ての samples が同じ（変わらないなら changes: false と確かめ方を書く）",
@@ -1033,7 +1021,7 @@ function layoutProblem(layout) {
  * @returns {boolean}
  */
 function filledStrings(v) {
-  return Array.isArray(v) && v.length > 0 && v.every((c) => nonEmptyString(c) && !isPlaceholder(c));
+  return isArray(v) && v.length > 0 && v.every((c) => nonEmptyString(c) && !isPlaceholder(c));
 }
 
 /**
@@ -1105,7 +1093,7 @@ function aftermathLookProblems(look, captureStates) {
         unmeasured: true,
       });
     }
-    if (Array.isArray(items) && items.length > 0) {
+    if (isArray(items) && items.length > 0) {
       out.push({
         problem:
           "aftermath.look.changes: false なのに items がある（残らないと残るが同時に成立する）",
@@ -1114,7 +1102,7 @@ function aftermathLookProblems(look, captureStates) {
     }
     return out;
   }
-  if (!Array.isArray(items) || items.length === 0) {
+  if (!isArray(items) || items.length === 0) {
     return [
       {
         problem:
@@ -1218,7 +1206,7 @@ function aftermathReturnsProblems(ret, screenStates) {
   const probed = ret.probed;
   const reset = ret.reset;
   /** @param {unknown} v @returns {v is string[]} */
-  const stringsOk = (v) => Array.isArray(v) && v.every(filled) && new Set(v).size === v.length;
+  const stringsOk = (v) => isArray(v) && v.every(filled) && new Set(v).size === v.length;
   if (!stringsOk(probed) || !stringsOk(reset)) {
     out.push({
       problem:
@@ -1422,7 +1410,7 @@ function checkStateDisplays(sd, ctx) {
   const { pageNames, captureStates, problems, captureUses, captureLabel, pageResolution } = ctx;
   /** @type {{ pages: number | null, entries: number, unmeasured: number }} */
   const summary = { pages: null, entries: 0, unmeasured: 0 };
-  if (!isPlainObject(sd) || !Array.isArray(sd.pages)) {
+  if (!isPlainObject(sd) || !isArray(sd.pages)) {
     problems.push(
       "state_displays.pages が配列でない（画面ごとに状態表示の候補〈空データ・取得の失敗・読み込み中・トースト・ダイアログ〉を ある／ない へ振り分ける。キーごと省略しない）",
     );
@@ -1645,6 +1633,15 @@ function isSourceRef(ref) {
 }
 
 /**
+ * 操作のハンドラ（file と symbol が空でない文字列）か。isSourceRef と違い、テンプレートの説明文のままの値を弾かない。
+ * @param {unknown} h
+ * @returns {h is { file: string, symbol: string }}
+ */
+function isHandlerRef(h) {
+  return isPlainObject(h) && nonEmptyString(h.file) && nonEmptyString(h.symbol);
+}
+
+/**
  * シンボルが本文に語として現れるか（前後が識別子の文字でない）。
  * @param {string} text
  * @param {string} symbol
@@ -1691,7 +1688,7 @@ function preSendProblems(ps) {
   }
   // 到達点。画面の処理で読むのを止めると、部品の内側の判定は読まれない（実例は送信の関数の中の上限）
   const traced = ps.traced_to;
-  if (!Array.isArray(traced) || traced.length === 0 || !traced.every(isSourceRef)) {
+  if (!isArray(traced) || traced.length === 0 || !traced.every(isSourceRef)) {
     out.push({
       problem:
         "pre_send.traced_to（追った到達点〈送信・実行の直前の関数〉のファイルとシンボル）が空・欠けている（どこまで読んだかが残らない）",
@@ -1717,7 +1714,7 @@ function preSendProblems(ps) {
         unmeasured: true,
       });
     }
-    if (Array.isArray(checks) && checks.length > 0) {
+    if (isArray(checks) && checks.length > 0) {
       out.push({
         problem: "pre_send.found: false なのに items がある（無いと在るが同時に成立する）",
         unmeasured: false,
@@ -1725,7 +1722,7 @@ function preSendProblems(ps) {
     }
     return { problems: out, refs };
   }
-  if (!Array.isArray(checks) || checks.length === 0) {
+  if (!isArray(checks) || checks.length === 0) {
     out.push({
       problem: "pre_send.found: true なのに items が空（判定を 1 つずつ列挙していない）",
       unmeasured: true,
@@ -1766,7 +1763,7 @@ function preSendProblems(ps) {
     // 判定の順序。確認・記録・送信と並べて、この判定がどこに入るかを残す（自分だけの 1 要素では前後を語れない）
     const order = item.order;
     if (
-      !Array.isArray(order) ||
+      !isArray(order) ||
       order.length < 2 ||
       !order.every(filled) ||
       new Set(order).size !== order.length ||
@@ -1778,7 +1775,7 @@ function preSendProblems(ps) {
       });
     }
     const sides = item.sides;
-    if (!Array.isArray(sides) || sides.length === 0) {
+    if (!isArray(sides) || sides.length === 0) {
       out.push({
         problem: `${at}: sides が空（境界の両側〈通る側 inside と止まる側 outside〉を現行で測っていない）`,
         unmeasured: true,
@@ -1883,7 +1880,7 @@ function compilePatterns(patterns, patIds, label, problems) {
  * @returns {string[]}
  */
 function sourceProblems(src, targetCommit, label) {
-  const paths = isPlainObject(src) && Array.isArray(src.paths) ? src.paths : [];
+  const paths = isPlainObject(src) && isArray(src.paths) ? src.paths : [];
   if (!isPlainObject(src) || paths.length === 0 || !paths.every(nonEmptyString)) {
     return [`${label}.paths が空（走査範囲が無い）`];
   }
@@ -1937,7 +1934,7 @@ function checkSideEffectWrites(sew, ctx) {
     if (!filled(sew.reason)) problems.push("side_effect_writes.declared: false なのに reason が空");
     for (const key of ["tables", "patterns", "sites"]) {
       const value = sew[key];
-      if (value !== undefined && !(Array.isArray(value) && value.length === 0))
+      if (value !== undefined && !(isArray(value) && value.length === 0))
         problems.push(
           `side_effect_writes.declared: false なのに ${key} がある（書き込みが無いと在るが同時に成立する。記録したなら declared: true で走査させる）`,
         );
@@ -1948,7 +1945,7 @@ function checkSideEffectWrites(sew, ctx) {
   /** @type {Set<string>} */
   let tableSet = new Set();
   if (
-    !Array.isArray(tables) ||
+    !isArray(tables) ||
     tables.length === 0 ||
     !tables.every(filled) ||
     new Set(tables).size !== tables.length
@@ -1959,7 +1956,7 @@ function checkSideEffectWrites(sew, ctx) {
   } else {
     tableSet = new Set(tables);
   }
-  const patterns = Array.isArray(sew.patterns) ? sew.patterns : [];
+  const patterns = isArray(sew.patterns) ? sew.patterns : [];
   if (patterns.length === 0)
     problems.push("side_effect_writes.patterns が空（書き込みの呼び出しを探すパターンが無い）");
   const patIds = collectIds(patterns, "side_effect_writes.patterns", problems);
@@ -1982,7 +1979,7 @@ function checkSideEffectWrites(sew, ctx) {
       `side_effect_writes: 表 ${patternless.join(", ")} への書き込みを探すパターンが無い（走査しない表は全件を突き合わせられない）`,
     );
   }
-  const sites = Array.isArray(sew.sites) ? sew.sites : null;
+  const sites = isArray(sew.sites) ? sew.sites : null;
   if (sites === null) throw new UsageError("side_effect_writes.sites が配列でない");
   /** @param {Record<string, unknown>} s */
   const keyOf = (s) => JSON.stringify([s.file, s.line, s.column, s.pattern]);
@@ -2040,7 +2037,7 @@ function checkSideEffectWrites(sew, ctx) {
         );
       }
       // 読解のみと assertion が同時に成立する記録は、どちらで確かめたかを読めない
-      if (Array.isArray(s.covered_by) && s.covered_by.length > 0) {
+      if (isArray(s.covered_by) && s.covered_by.length > 0) {
         problems.push(
           `${at}: verification: source-only なのに covered_by がある（assertion で確かめたなら verification: assertion にする）`,
         );
@@ -2062,7 +2059,7 @@ function checkSideEffectWrites(sew, ctx) {
   const srcProblems = sourceProblems(sew.source, targetCommit, "side_effect_writes.source");
   problems.push(...srcProblems);
   const src = sew.source;
-  const paths = isPlainObject(src) && Array.isArray(src.paths) ? src.paths : [];
+  const paths = isPlainObject(src) && isArray(src.paths) ? src.paths : [];
   if (!recorded && paths.length > 0 && paths.every(nonEmptyString) && compiled.length > 0) {
     const scan = scanSources(root, paths, compiled, "side_effect_writes.source.paths");
     summary.checked = true;
@@ -2255,7 +2252,7 @@ export function checkReactions(table, opts = {}) {
   const docs = table.documents;
   /** @type {Set<string> | null} */
   let documents = null;
-  if (!Array.isArray(docs) || docs.length === 0 || !docs.every(nonEmptyString)) {
+  if (!isArray(docs) || docs.length === 0 || !docs.every(nonEmptyString)) {
     problems.push("documents が空でない文字列の配列でない（top と全フレームを棚卸ししていない）");
   } else if (new Set(docs).size !== docs.length) {
     problems.push("documents に重複がある");
@@ -2317,7 +2314,7 @@ export function checkReactions(table, opts = {}) {
   const windowMs = positiveNumber(table.observation_window_ms) ? table.observation_window_ms : null;
   // 操作の無い表には none の反応が無いので、観測時間の下限は null でよい（測っていない値を書かせない）。
   // 正の数を書いた表も通す——照合する none が無いので値は判定に使われず、落とす理由が無い
-  const noOperations = Array.isArray(table.operations) && table.operations.length === 0;
+  const noOperations = isArray(table.operations) && table.operations.length === 0;
   if (windowMs === null && !(noOperations && table.observation_window_ms === null))
     problems.push(
       `observation_window_ms が正の数でない（none の観測時間の下限が無い${noOperations ? "。操作の無い表では null と書く" : ""}）`,
@@ -2329,7 +2326,7 @@ export function checkReactions(table, opts = {}) {
   let screenStates = null;
   if (
     !isPlainObject(ss) ||
-    !Array.isArray(ss.states) ||
+    !isArray(ss.states) ||
     !ss.states.every(filled) ||
     new Set(ss.states).size !== ss.states.length
   ) {
@@ -2344,7 +2341,7 @@ export function checkReactions(table, opts = {}) {
     screenStates = ss.states;
   }
 
-  const operations = Array.isArray(table.operations) ? table.operations : null;
+  const operations = isArray(table.operations) ? table.operations : null;
   if (operations === null) throw new UsageError("operations が配列でない");
   // 操作の無い表は、理由を書いたときだけ正規の記録として通す（理由の無い 0 件は採り忘れと区別できない）。
   // 画面の状態表示の振り分けは操作の有無に依らず下で数える
@@ -2456,7 +2453,7 @@ export function checkReactions(table, opts = {}) {
     // ページが 2 つ以上ある機能で capture_page を省くと、撮った状態がどのページの 1 枚かを決められない
     // （別のページの同名の 1 枚でも行が満たされる）。ページが 1 つだけならそのページとみなす
     const consumesCapture =
-      (Array.isArray(op.reactions) ? op.reactions : []).some(
+      (isArray(op.reactions) ? op.reactions : []).some(
         (r) =>
           isPlainObject(r) &&
           r.kind === "observed" &&
@@ -2465,7 +2462,7 @@ export function checkReactions(table, opts = {}) {
       ) ||
       (isPlainObject(op.aftermath) &&
         isPlainObject(op.aftermath.look) &&
-        Array.isArray(op.aftermath.look.items) &&
+        isArray(op.aftermath.look.items) &&
         op.aftermath.look.items.some((it) => isPlainObject(it) && filled(it.captured)));
     if (page === null && op.capture_page == null && consumesCapture && pageNames !== null) {
       if (pageNames.size === 1) page = [...pageNames][0];
@@ -2505,11 +2502,9 @@ export function checkReactions(table, opts = {}) {
     };
     // 撮る状態へ割り当てた残る見た目を、ページ × 状態名ごとに集める（使い回しの照合は全操作を見た後）
     const lookItems =
-      isPlainObject(am) && isPlainObject(am.look) && Array.isArray(am.look.items)
-        ? am.look.items
-        : [];
+      isPlainObject(am) && isPlainObject(am.look) && isArray(am.look.items) ? am.look.items : [];
     // 観測した反応の capture.state も同じ状態名の集合に入れる（別の操作の残る見た目と 1 枚を共有しても通さない）
-    for (const r of Array.isArray(op.reactions) ? op.reactions : []) {
+    for (const r of isArray(op.reactions) ? op.reactions : []) {
       if (!isPlainObject(r) || r.kind !== "observed" || !isPlainObject(r.capture)) continue;
       if (!filled(r.capture.state) || !nonEmptyString(r.id)) continue;
       const key = captureKey(r.capture.state);
@@ -2537,7 +2532,7 @@ export function checkReactions(table, opts = {}) {
       aftermathCaptureUses.set(key, uses);
     }
     handlersByOp.set(op.id, op.handlers);
-    const reactions = Array.isArray(op.reactions) ? op.reactions : [];
+    const reactions = isArray(op.reactions) ? op.reactions : [];
     if (reactions.length === 0) {
       fail("reactions が空（反応の欄が無い＝見ていない。無いなら kind: none を実測で書く）");
       continue;
@@ -2569,7 +2564,7 @@ export function checkReactions(table, opts = {}) {
       if (p) fail(`${rLabel}: ${p}`);
       if (r.kind === "observed" && isPlainObject(r.appearance)) {
         const d = r.appearance.delay_ms_samples;
-        if (Array.isArray(d) && d.length > 0 && d.every(nonNegativeNumber)) {
+        if (isArray(d) && d.length > 0 && d.every(nonNegativeNumber)) {
           maxObservedDelay = Math.max(maxObservedDelay ?? 0, ...d);
         }
       }
@@ -2606,13 +2601,13 @@ export function checkReactions(table, opts = {}) {
       }
     }
   } else {
-    const patterns = Array.isArray(fc.patterns) ? fc.patterns : [];
+    const patterns = isArray(fc.patterns) ? fc.patterns : [];
     if (patterns.length === 0)
       problems.push("feedback_calls.patterns が空（突き合わせる呼び出しが無い）");
     const patIds = collectIds(patterns, "feedback_calls.patterns", problems);
     const compiled = compilePatterns(patterns, patIds, "feedback_calls.patterns", problems);
     const zeroReason = nonEmptyString(fc.zero_calls_reason);
-    const recordedSites = Array.isArray(fc.call_sites) ? fc.call_sites : null;
+    const recordedSites = isArray(fc.call_sites) ? fc.call_sites : null;
     if (recordedSites === null) throw new UsageError("feedback_calls.call_sites が配列でない");
     // 区切り文字の連結はファイル名・パターン id に ":" があると別の箇所が同じキーに潰れるため、組を JSON で符号化する
     /** @param {Record<string, unknown>} s */
@@ -2654,20 +2649,14 @@ export function checkReactions(table, opts = {}) {
       if (n > 1) problems.push(`call_sites ${key}: ${n} 回重複している`);
     }
     const src = fc.source;
-    const paths = isPlainObject(src) && Array.isArray(src.paths) ? src.paths : [];
+    const paths = isPlainObject(src) && isArray(src.paths) ? src.paths : [];
     problems.push(...sourceProblems(src, targetCommit, "feedback_calls.source"));
     callSummary.recorded = recordedSites.length;
     // ハンドラの出所: 走査範囲がどの操作のハンドラを覆っているかを表に残させる（範囲の書き忘れを操作単位で見えるようにする）
     /** @type {{ opId: string, file: string, symbol: string }[]} */
     const handlerRefs = [];
     for (const [opId, handlers] of handlersByOp) {
-      if (
-        !Array.isArray(handlers) ||
-        handlers.length === 0 ||
-        !handlers.every(
-          (h) => isPlainObject(h) && nonEmptyString(h.file) && nonEmptyString(h.symbol),
-        )
-      ) {
+      if (!isArray(handlers) || handlers.length === 0 || !handlers.every(isHandlerRef)) {
         problems.push(
           `operations["${opId}"]: handlers（file と symbol）が空・欠けている（走査範囲が操作のハンドラを覆うか照合できない）`,
         );
@@ -2772,7 +2761,7 @@ export function checkReactions(table, opts = {}) {
     /** @type {Set<string>} */
     const displayed = new Set();
     const sdPages = isPlainObject(table.state_displays) ? table.state_displays.pages : null;
-    for (const row of Array.isArray(sdPages) ? sdPages : []) {
+    for (const row of isArray(sdPages) ? sdPages : []) {
       const candidates = isPlainObject(row) ? row.candidates : null;
       if (!isPlainObject(candidates)) continue;
       for (const entry of Object.values(candidates)) {
@@ -2936,7 +2925,7 @@ export function readCoverageCaptures(metadata, pageNames, readFile, cwd) {
     isPlainObject(cov) && isPlainObject(cov.visual_state_coverage)
       ? cov.visual_state_coverage.rows
       : undefined;
-  if (!Array.isArray(rows)) {
+  if (!isArray(rows)) {
     return {
       captures: [],
       skipped: 0,
@@ -2945,9 +2934,9 @@ export function readCoverageCaptures(metadata, pageNames, readFile, cwd) {
   }
   /** @type {Map<string, string>} */
   const pageByInstance = new Map();
-  for (const c of isPlainObject(cov) && Array.isArray(cov.components) ? cov.components : []) {
+  for (const c of isPlainObject(cov) && isArray(cov.components) ? cov.components : []) {
     if (!isPlainObject(c) || !nonEmptyString(c.id)) continue;
-    for (const inst of Array.isArray(c.instances) ? c.instances : []) {
+    for (const inst of isArray(c.instances) ? c.instances : []) {
       if (!isPlainObject(inst) || !nonEmptyString(inst.id) || !nonEmptyString(inst.page)) continue;
       const k = JSON.stringify([c.id, inst.id]);
       if (!pageByInstance.has(k)) pageByInstance.set(k, inst.page);
@@ -3113,7 +3102,7 @@ export function main(argv, deps = {}) {
     const cc = metadata.capture_conditions;
     if (
       !isPlainObject(cc) ||
-      !Array.isArray(cc.states) ||
+      !isArray(cc.states) ||
       cc.states.length === 0 ||
       !cc.states.every(nonEmptyString)
     ) {
@@ -3159,16 +3148,14 @@ export function main(argv, deps = {}) {
       for (const p of problems) stderr(`warn: ${p}\n`);
       return problems.length === 0 ? 0 : 1;
     }
-    const pageNames = Array.isArray(cc.pages) ? pageNameSet(cc.pages) : null;
+    const pageNames = isArray(cc.pages) ? pageNameSet(cc.pages) : null;
     const coverage = readCoverageCaptures(metadata, pageNames, readFile, cwd);
     const result = checkReactions(table, {
       root,
       recorded,
       captureStates: new Set(cc.states),
       pageNames,
-      pageResolution: Array.isArray(cc.pages)
-        ? resolvePages(cc.pages, metadata.target.ui_url)
-        : null,
+      pageResolution: isArray(cc.pages) ? resolvePages(cc.pages, metadata.target.ui_url) : null,
       coverageCaptures: coverage.captures,
       coverageProblem: coverage.problem,
       coverageSkipped: coverage.skipped,

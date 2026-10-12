@@ -1,0 +1,54 @@
+{
+  "$comment": [
+    "diff-normalize-component-match.test.ts のうち、読んだままの値の要素の形を確かめる判定（Issue #597）の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。"
+  ],
+  "test_file": "scripts/skills/parity-diff/diff-normalize-component-match.test.ts",
+  "mutations": [
+    {
+      "id": "diffs-elements-not-checked",
+      "why": "Diff の配列の要素が object かを確かめない（null の要素で分類が例外を投げる）",
+      "file": "skills/parity-diff/scripts/diff-normalize.mjs",
+      "find": "if (!isArray(diffs) || !diffs.every(isObjectLike)) {",
+      "replace": "if (!isArray(diffs)) {",
+      "occurrences": 1,
+      "expect_failing": ["CLI: object でない要素を含む Diff の配列は入力エラー（exit 2）にする"]
+    },
+    {
+      "id": "exceptions-not-filtered",
+      "why": "インスタンス例外の object でない要素を照合の前に除かない（null の要素で例外を投げる）",
+      "file": "skills/parity-diff/scripts/diff-normalize.mjs",
+      "find": "const list = isArray(exceptions) ? exceptions.filter(isObjectLike) : [];",
+      "replace": "const list = isArray(exceptions) ? exceptions : [];",
+      "occurrences": 1,
+      "expect_failing": [
+        "インスタンス例外の object でない要素は照合に使わず、後ろの例外で照合を続ける"
+      ]
+    },
+    {
+      "id": "noise-row-not-checked",
+      "why": "ノイズ基準値の object でない行を、欄の無い行として照合に使う（後ろの正しい行を隠す）",
+      "file": "skills/parity-diff/scripts/diff-normalize.mjs",
+      "find": "    if (!isRecord(row)) continue;\n",
+      "replace": "    if (row === null) continue;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "ノイズ基準値の object でない行（文字列）は照合に使わず、後ろの行で照合を続ける",
+        "ノイズ基準値の object でない行（配列）は照合に使わず、後ろの行で照合を続ける"
+      ]
+    },
+    {
+      "id": "noise-row-not-warned",
+      "why": "ノイズ基準値の object でない行を警告せずに読み飛ばす",
+      "file": "skills/parity-diff/scripts/diff-normalize.mjs",
+      "find": "    if (!isRecord(row))\n      problems.push(",
+      "replace": "    if (false)\n      problems.push(",
+      "occurrences": 1,
+      "expect_failing": [
+        "ノイズ基準値の object でない行（null）は照合に使わず、後ろの行で照合を続ける",
+        "ノイズ基準値の object でない行（文字列）は照合に使わず、後ろの行で照合を続ける",
+        "ノイズ基準値の object でない行（配列）は照合に使わず、後ろの行で照合を続ける"
+      ]
+    }
+  ]
+}

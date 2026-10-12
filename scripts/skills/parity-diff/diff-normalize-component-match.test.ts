@@ -19,8 +19,11 @@ import { invalidInput } from "../../lib/test-input.ts";
 import { makeTempDir } from "../../lib/test-tmpdir.ts";
 import {
   matchComponentT,
+  matchException,
+  matchNoise,
   matchesComponentPattern,
   validateComponentDiffs,
+  validateNoiseBaseline,
 } from "../../../skills/parity-diff/scripts/diff-normalize.mjs";
 import type { ComponentDiff } from "../../../skills/parity-diff/scripts/diff-normalize.mjs";
 
@@ -175,4 +178,56 @@ test("CLI: component を欠いた宣言は警告なしに無効化せず stderr 
 test("CLI: 宣言が健全なら component_diffs の警告は出ない", () => {
   const r = runCli([popupT], [diff("filter-popup", "2px")]);
   expect(r.stderr).not.toContain("component_diffs[");
+});
+
+test("インスタンス例外の object でない要素は照合に使わず、後ろの例外で照合を続ける", () => {
+  const ex = {
+    slug: "demo",
+    page: "main",
+    viewport: "1280x800",
+    element: "filter-popup",
+    property: "margin-top",
+    current: "0px",
+    new: "2px",
+    cause: "c1",
+  };
+  const causes = [{ id: "c1", reason: "popup only", evidence: "ticket-1" }];
+  const ctx = { slug: "demo", page: "main", viewport: "1280x800" };
+  expect(matchException(diff("filter-popup", "2px"), [null, "x", ex], ctx, causes)).toEqual({
+    ...ex,
+    cause_reason: "popup only",
+    cause_evidence: "ticket-1",
+  });
+});
+
+test.each([
+  ["null", null],
+  ["文字列", "x"],
+  ["配列", []],
+])("ノイズ基準値の object でない行（%s）は照合に使わず、後ろの行で照合を続ける", (_name, bad) => {
+  expect(matchNoise([bad, { page: "main", trait_diffs: 3 }], { page: "main" })).toEqual({
+    trait_diffs: 3,
+  });
+  // 軸を指定しない実行でも、object でない行を最初の行として当てない（後ろの正しい行を隠さない）。
+  expect(matchNoise([bad, { trait_diffs: 3 }], {})).toEqual({ trait_diffs: 3 });
+  expect(validateNoiseBaseline([{ trait_diffs: 3 }, bad])).toEqual([
+    "noise_baseline[1]: not an object — not used for matching",
+  ]);
+});
+
+test("CLI: object でない要素を含む Diff の配列は入力エラー（exit 2）にする", () => {
+  const dir = makeTempDir("diff-normalize-");
+  const registries = join(dir, "registries.json");
+  const input = join(dir, "diffs.json");
+  writeFileSync(registries, JSON.stringify({ component_diffs: [popupT] }));
+  writeFileSync(input, JSON.stringify([diff("filter-popup", "2px"), null]));
+  const r = spawnSync(
+    process.execPath,
+    [script, input, "--registries", registries, "--slug", "demo"],
+    {
+      encoding: "utf8",
+    },
+  );
+  expect(r.stderr).toContain("<trait-diffs.json> must be a JSON array of trait diffs");
+  expect(r.status).toBe(2);
 });

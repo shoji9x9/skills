@@ -33,8 +33,8 @@
       "id": "blocks-missing-as-empty",
       "why": "blocks の欠落を「止めた工程が無い」とみなして済んだと数える",
       "file": "skills/replace-strategy/scripts/pending-decisions-check.mjs",
-      "find": "  if (!Array.isArray(blocks)) {\n",
-      "replace": "  if (!Array.isArray(blocks)) return { state: \"settled\", reason: \"\" };\n  if (false) {\n",
+      "find": "  if (!isArray(blocks)) {\n",
+      "replace": "  if (!isArray(blocks)) return { state: \"settled\", reason: \"\" };\n  if (false) {\n",
       "occurrences": 1,
       "expect_failing": ["blocks が欠落した保留は工程があるものとして扱う（空とみなさない）"]
     },
@@ -42,8 +42,8 @@
       "id": "slugs-missing-out-of-scope",
       "why": "slugs の無いフェーズ B の保留を範囲外にして、同じ target の slug を止めない",
       "file": "skills/replace-strategy/scripts/pending-decisions-check.mjs",
-      "find": "    if (Array.isArray(slugs) && slugs.length > 0 && !slugs.includes(scope.slug)) return false;\n",
-      "replace": "    if (!Array.isArray(slugs) || !slugs.includes(scope.slug)) return false;\n",
+      "find": "    if (isArray(slugs) && slugs.length > 0 && !slugs.includes(scope.slug)) return false;\n",
+      "replace": "    if (!isArray(slugs) || !slugs.includes(scope.slug)) return false;\n",
       "occurrences": 1,
       "expect_failing": [
         "フェーズ B は slug × target で絞り、slugs の無い要素は同じ target の全 slug を止める"

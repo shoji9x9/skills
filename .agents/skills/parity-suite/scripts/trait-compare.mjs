@@ -29,6 +29,7 @@
 
 import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { isArray } from "./lib/is-array.mjs";
 
 /**
  * ツールのバージョン（原本）。比較ロジック・差分形状を変えたら上げる。
@@ -40,10 +41,10 @@ export const VERSION = "3";
 /**
  * @typedef {object} Trait
  * @property {string} name
- * @property {Record<string,string>} computed
+ * @property {Record<string,string> | null} [computed]  - 採取は必ず書く。比較は欠けを空として扱う
  * @property {Record<string,string> | null} [before]
  * @property {Record<string,string> | null} [after]
- * @property {{ x:number, y:number, width:number, height:number }} rect
+ * @property {{ x:number, y:number, width:number, height:number } | null} [rect]  - 採取は必ず書く。旧スキーマ・手編集では欠け、比較は欠けを診断にする
  * @property {TextOwner[]} [text_owners]
  * @property {Scroll | null} [scroll]
  */
@@ -337,8 +338,8 @@ export function compareTraits(baselineEntries, captureEntries, options = {}) {
     diffPseudo(base.name, "::after", base.after, cap.after, out);
     const baseOwners = base.text_owners;
     const capOwners = cap.text_owners;
-    const baseHas = Array.isArray(baseOwners);
-    const capHas = Array.isArray(capOwners);
+    const baseHas = isArray(baseOwners);
+    const capHas = isArray(capOwners);
     if (baseHas && capHas) {
       diffTextOwners(base.name, baseOwners, capOwners, tol, out);
     } else if (baseHas !== capHas) {
@@ -418,6 +419,102 @@ export function compareTraits(baselineEntries, captureEntries, options = {}) {
 }
 
 /**
+ * @param {unknown} v
+ * @returns {v is Record<string, unknown>}
+ */
+function isPlainObject(v) {
+  return typeof v === "object" && v !== null && !isArray(v);
+}
+
+/**
+ * @param {unknown} v
+ * @returns {v is Record<string, string>}
+ */
+function isStringRecord(v) {
+  return isPlainObject(v) && Object.values(v).every((x) => typeof x === "string");
+}
+
+/**
+ * @param {unknown} v
+ * @returns {v is { x:number, y:number, width:number, height:number }}
+ */
+function isRect(v) {
+  return (
+    isPlainObject(v) &&
+    typeof v.x === "number" &&
+    typeof v.y === "number" &&
+    typeof v.width === "number" &&
+    typeof v.height === "number"
+  );
+}
+
+/**
+ * 省いてよい欄が、無いか、指定の形か。
+ * @param {unknown} v
+ * @param {(x: unknown) => boolean} check
+ */
+const absentOr = (v, check) => v === undefined || check(v);
+
+/**
+ * @param {unknown} v
+ * @returns {v is TextOwner}
+ */
+function isTextOwner(v) {
+  if (!isPlainObject(v) || typeof v.text !== "string" || !isStringRecord(v.style)) return false;
+  /** @param {unknown} x */
+  const isString = (x) => typeof x === "string";
+  /** @param {unknown} x */
+  const isNumber = (x) => typeof x === "number";
+  return (
+    absentOr(v.path, isString) &&
+    absentOr(v.tag, isString) &&
+    absentOr(v.advance, isNumber) &&
+    absentOr(v.glyph_height, isNumber) &&
+    absentOr(v.lines, isNumber) &&
+    absentOr(v.rect, isRect)
+  );
+}
+
+/**
+ * @param {unknown} v
+ * @returns {v is Scroll}
+ */
+function isScroll(v) {
+  if (!isPlainObject(v)) return false;
+  const { webkit } = v;
+  return (
+    typeof v.overflowing_x === "boolean" &&
+    typeof v.overflowing_y === "boolean" &&
+    typeof v.vertical_bar_px === "number" &&
+    typeof v.horizontal_bar_px === "number" &&
+    isStringRecord(v.style) &&
+    (webkit === "unsupported" ||
+      (isPlainObject(webkit) && Object.values(webkit).every(isStringRecord)))
+  );
+}
+
+/**
+ * 採取結果の 1 件として compareTraits に渡せるか。比較が読む欄を、Trait の型どおりにすべて確かめる。
+ * 比較が欠けを許す欄（computed・before・after・rect・scroll の null や欠け、text_owners の欠け）は、
+ * 欠けていてもよい（旧スキーマ・手編集の入力。rect の欠けは比較が差分として報告する）。
+ * @param {unknown} v
+ * @returns {v is Trait}
+ */
+function isTrait(v) {
+  if (!isPlainObject(v) || typeof v.name !== "string") return false;
+  /** @param {(x: unknown) => boolean} check */
+  const nullableOr = (check) => (/** @type {unknown} */ x) => x === null || check(x);
+  return (
+    absentOr(v.computed, nullableOr(isStringRecord)) &&
+    absentOr(v.before, nullableOr(isStringRecord)) &&
+    absentOr(v.after, nullableOr(isStringRecord)) &&
+    absentOr(v.rect, nullableOr(isRect)) &&
+    absentOr(v.scroll, nullableOr(isScroll)) &&
+    absentOr(v.text_owners, (x) => isArray(x) && x.every(isTextOwner))
+  );
+}
+
+/**
  * CLI エントリ。
  * `node trait-compare.mjs <baseline.json> <capture.json> [--align-tolerance <px>]` で差分を
  * JSON 出力し、差分があれば exit 1、無ければ exit 0、入力エラーは exit 2。
@@ -457,7 +554,12 @@ export function main(argv) {
     process.stderr.write(`error: cannot read inputs: ${message}\n`);
     return 2;
   }
-  if (!Array.isArray(baseline) || !Array.isArray(capture)) {
+  if (
+    !isArray(baseline) ||
+    !isArray(capture) ||
+    !baseline.every(isTrait) ||
+    !capture.every(isTrait)
+  ) {
     process.stderr.write("error: both inputs must be JSON arrays of trait entries\n");
     return 2;
   }

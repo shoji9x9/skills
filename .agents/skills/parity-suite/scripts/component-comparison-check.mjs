@@ -21,18 +21,10 @@
 import { createHash } from "node:crypto";
 import { readFileSync, realpathSync } from "node:fs";
 import { dirname, join, resolve, sep } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
+import { isArray } from "./lib/is-array.mjs";
 
-// 同じディレクトリの evidence-carry.mjs は、このファイルの実パスから解決して読み込む。
-// 静的な "./evidence-carry.mjs" は、--preserve-symlinks-main でファイル単位のシンボリックリンクから起動されると、
-// リンクの置き場所から解決して見つからない。持ち越しを使わない実行（引数不足の usage 表示を含む）まで、起動時に失敗する。
-// 動的な import の戻り値は型を持たないので、同じファイルの宣言から型を付ける。
-/** @type {typeof import("./evidence-carry.mjs")} */
-const evidenceCarry = await import(
-  pathToFileURL(join(dirname(realpathSync(fileURLToPath(import.meta.url))), "evidence-carry.mjs"))
-    .href
-);
-const { EVIDENCE_CARRY_FILE, judgeCarry } = evidenceCarry;
+import { EVIDENCE_CARRY_FILE, judgeCarry } from "./evidence-carry.mjs";
 
 /**
  * ツールのバージョン（原本）。判定規則・出力形状を変えたら上げる。
@@ -140,7 +132,7 @@ export function checkComponentComparison(input) {
   const notes = [];
   const counts = { present: 0, compared: 0, blocking: 0, accepted: 0 };
   const coverage = input.coverage;
-  if (!isObject(coverage) || !Array.isArray(coverage.cells)) {
+  if (!isObject(coverage) || !isArray(coverage.cells)) {
     return {
       findings: [
         {
@@ -186,7 +178,7 @@ export function checkComponentComparison(input) {
   counts.present = presentKeys.length;
 
   const comparison = input.comparison;
-  if (!isObject(comparison) || !Array.isArray(comparison.cells)) {
+  if (!isObject(comparison) || !isArray(comparison.cells)) {
     findings.push({
       code: "comparison-missing",
       message:
@@ -228,9 +220,9 @@ export function checkComponentComparison(input) {
   const replaceMetadata = input.replaceMetadata;
   const replaceNew =
     isObject(replaceMetadata) &&
-    !Array.isArray(replaceMetadata) &&
+    !isArray(replaceMetadata) &&
     isObject(replaceMetadata.new) &&
-    !Array.isArray(replaceMetadata.new)
+    !isArray(replaceMetadata.new)
       ? replaceMetadata.new
       : null;
   // 食い違いの判定で judgeCarry に掛けうる「今の版」。--carry-to が同じ版なら二重に判定しない。
@@ -275,7 +267,7 @@ export function checkComponentComparison(input) {
           const loop =
             isObject(replaceMetadata) &&
             isObject(replaceMetadata.loop) &&
-            !Array.isArray(replaceMetadata.loop)
+            !isArray(replaceMetadata.loop)
               ? replaceMetadata.loop
               : null;
           const wantedIteration = toInteger(loop === null ? undefined : loop.iterations);

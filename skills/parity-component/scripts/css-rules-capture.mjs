@@ -43,6 +43,8 @@
 // collectMatchedRules は locator.evaluate に文字列化して渡るため、モジュール側のヘルパを参照できない。
 // 補助関数はすべて関数内に閉じてある（分割して見通しを良くするとブラウザ側で ReferenceError になる）。
 
+import { isArray } from "./lib/is-array.mjs";
+
 /**
  * ツールのバージョン（このスクリプトで定義する）。採取スキーマ（出力の形・状態擬似クラスの集合）を変えたら上げる。
  * 2: `inline_declarations`（style 属性の宣言）と `counts.outer_scope_skipped` を足した。
@@ -950,13 +952,13 @@ export async function captureMatchedRules(entries, options = {}) {
     typeof value === "object" &&
     value !== null &&
     "matched" in value &&
-    Array.isArray(value.matched) &&
+    isArray(value.matched) &&
     "unresolved" in value &&
-    Array.isArray(value.unresolved) &&
+    isArray(value.unresolved) &&
     "inaccessible" in value &&
-    Array.isArray(value.inaccessible) &&
+    isArray(value.inaccessible) &&
     "inline_declarations" in value &&
-    Array.isArray(value.inline_declarations);
+    isArray(value.inline_declarations);
   const resolved = {
     statePseudoClasses: options.statePseudoClasses || STATE_PSEUDO_CLASSES,
     structuralPseudoClasses: options.structuralPseudoClasses || STRUCTURAL_PSEUDO_CLASSES,

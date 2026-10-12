@@ -19,6 +19,7 @@ import { execFileSync } from "node:child_process";
 import ts from "typescript";
 import { errorMessage } from "./errors.ts";
 import { parseJsonAs } from "./parse-as.ts";
+import { isArray } from "./is-array.ts";
 
 /**
  * コメントの 1 つの部分（1 行分の文章）。line は 0 始まりの行、column は文章の前の桁。
@@ -392,7 +393,7 @@ function shellComments(source: string, path: string): Piece[] {
   // 空のコメント（`#` だけの行）は `Text` が省かれるので、`Text` の有無では判定しない。
   const comments = new Map<number, ShComment>();
   const walk = (node: ShValue | undefined): void => {
-    if (Array.isArray(node)) node.forEach(walk);
+    if (isArray(node)) node.forEach(walk);
     else if (node && typeof node === "object") {
       if (node.Hash) comments.set(node.Hash.Offset, { ...node, Text: node.Text ?? "" });
       Object.values(node).forEach(walk);

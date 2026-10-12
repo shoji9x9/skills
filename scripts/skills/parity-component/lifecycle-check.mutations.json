@@ -43,7 +43,7 @@
       "id": "not-entered",
       "why": "経路に入っていない検査を通す",
       "file": "skills/parity-component/scripts/lifecycle-check.mjs",
-      "find": "if (!Number.isInteger(row.entered) || row.entered < 1) {",
+      "find": "if (typeof row.entered !== \"number\" || !Number.isInteger(row.entered) || row.entered < 1) {",
       "replace": "if (false) {",
       "occurrences": 1,
       "expect_failing": [

@@ -38,6 +38,7 @@ import { hasStrings, stringMarkdown } from "../lib/code-strings.ts";
 import { isAgentCopy } from "../lib/source-scope.ts";
 import { errorMessage } from "../lib/errors.ts";
 import { isRecord } from "../lib/guards.ts";
+import { isArray } from "../lib/is-array.ts";
 
 export const PENDING_PATH = "scripts/gates/prose-lint-pending.json";
 /** コメントを取り出せなかったファイルの指摘に付ける ruleId。 */
@@ -51,6 +52,11 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 type LintMessage = { line: number; column: number; message: string; ruleId: string };
 type Linter = ReturnType<typeof createLinter>;
 
+/** 空でない文字列か。 */
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value !== "";
+}
+
 /** 一覧を読み、形の誤りは例外にする（読めない一覧を「保留 0 件」として扱わない）。 */
 export function loadPending(root: string): Set<string> {
   const path = join(root, PENDING_PATH);
@@ -60,7 +66,7 @@ export function loadPending(root: string): Set<string> {
     throw new Error("reason が無い（なぜ保留しているかを書く）");
   }
   const files = data.files;
-  if (!Array.isArray(files) || !files.every((f) => typeof f === "string" && f)) {
+  if (!isArray(files) || !files.every(isNonEmptyString)) {
     throw new Error("files は空でない文字列の配列にする");
   }
   const set = new Set(files);

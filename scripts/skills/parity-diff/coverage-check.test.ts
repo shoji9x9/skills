@@ -30,6 +30,7 @@ import {
   readCaptureForFingerprint,
   readDeclaration,
 } from "../../../skills/parity-diff/scripts/coverage-check.mjs";
+import { isArray } from "../../lib/is-array.ts";
 
 // fixture の型。基準の fixture（full()・profiled() など）が置く正規の形を宣言する。
 // テストは fixture を書き換えて不正な入力を作る。型に合わない値を書く箇所は invalidInput を通し、
@@ -207,7 +208,7 @@ function countCoverage(
   // 集合の出所（component_inventory / instance_inventory / components[].source）は
   // 宣言が無い fixture にだけ補う。宣言そのものを見るテストは countCoverageRaw を直接呼ぶ。
   fillSetProvenance(coverage);
-  if (coverage && typeof coverage === "object" && !Array.isArray(coverage)) {
+  if (coverage && typeof coverage === "object" && !isArray(coverage)) {
     const conf = coverage.conformance;
     if (conf && typeof conf === "object" && conf.visual_states) {
       conf.visual_states = {

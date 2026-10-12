@@ -36,6 +36,7 @@
 import { readFileSync, realpathSync } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isArray } from "./lib/is-array.mjs";
 
 /** ツールのバージョン（このスクリプトで定義する）。判定の規則・出力の形を変えたら上げる。 */
 export const VERSION = "1";
@@ -54,7 +55,7 @@ export const OPERATION_SOURCES = [
 /**
  * 空でない文字列か。
  * @param {unknown} value
- * @returns {boolean}
+ * @returns {value is string}
  */
 export function nonEmptyString(value) {
   return typeof value === "string" && value.trim() !== "";
@@ -73,7 +74,7 @@ function isPlaceholder(value) {
 /**
  * 人が記入すべき欄が記入済みか（空でなく、テンプレートのプレースホルダのままでもない）。
  * @param {unknown} value
- * @returns {boolean}
+ * @returns {value is string}
  */
 export function filled(value) {
   return nonEmptyString(value) && !isPlaceholder(value);
@@ -150,7 +151,7 @@ export function cellKey(operation, instance) {
  * @returns {string}
  */
 export function canonical(value) {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  if (isArray(value)) return `[${value.map(canonical).join(",")}]`;
   if (isObject(value)) {
     const keys = Object.keys(value).sort();
     return `{${keys.map((k) => `${JSON.stringify(k)}:${canonical(value[k])}`).join(",")}}`;
@@ -163,10 +164,11 @@ export function canonical(value) {
  * 観測値のキーが期待集合とちょうど一致するか。一致しなければ欠落と余分を返す。
  * @param {unknown} observed
  * @param {string[]} expected
- * @returns {{ ok: boolean, missing: string[], extra: string[] }}
+ * @returns {{ ok: true, observed: Record<string, unknown> } | { ok: false, missing: string[], extra: string[] }}
+ *   一致したときは、観測値をオブジェクトとして読める形で返す。
  */
 function observationShape(observed, expected) {
-  if (observed === null || typeof observed !== "object" || Array.isArray(observed)) {
+  if (!isObject(observed) || isArray(observed)) {
     return { ok: false, missing: [...expected], extra: [] };
   }
   const keys = Object.keys(observed);
@@ -175,7 +177,8 @@ function observationShape(observed, expected) {
   // 観測値そのものはプレースホルダ判定をしない——部品の出力として `<button>` や `<none>` は正当な値で、
   // 弾くと一致していても永久に通らない。テンプレートの行は観測項目名がプレースホルダなので、
   // observe の集合と食い違って missing / extra で落ちる。
-  return { ok: missing.length === 0 && extra.length === 0, missing, extra };
+  if (missing.length === 0 && extra.length === 0) return { ok: true, observed };
+  return { ok: false, missing, extra };
 }
 
 /**
@@ -236,7 +239,7 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
   const capture = field(metadata, "capture");
   const operations = field(capture, "operations");
   // operations が配列なら metadata と capture はオブジェクトなので、絞り込みを足しても判定は変わらない。
-  if (!isObject(metadata) || !isObject(capture) || !Array.isArray(operations)) {
+  if (!isObject(metadata) || !isObject(capture) || !isArray(operations)) {
     return structural("metadata.json の capture.operations が配列でない（操作の列挙が無い）");
   }
   if (operations.length === 0) {
@@ -267,12 +270,12 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
     return observe;
   };
   for (const op of operations) {
-    const id = op && op.id;
+    const id = field(op, "id");
     if (!filled(id)) return structural("capture.operations[].id が空かプレースホルダのまま");
     if (observeOf.has(id)) return structural(`capture.operations[].id が重複: ${id}`);
-    const observe = op.observe;
+    const observe = field(op, "observe");
     if (
-      !Array.isArray(observe) ||
+      !isArray(observe) ||
       observe.length === 0 ||
       !observe.every(filled) ||
       new Set(observe).size !== observe.length
@@ -282,7 +285,7 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
       );
     }
     // 手順が無いと、capture と build が同じ id で別の操作をしても観測が一致すれば通る（一致が挙動の一致を示さない）。
-    if (!filled(op.description) || !filled(op.steps)) {
+    if (!filled(field(op, "description")) || !filled(field(op, "steps"))) {
       return structural(
         `capture.operations[${JSON.stringify(id)}] の description / steps が空かプレースホルダのまま（両側で同じ操作を再生できない）`,
       );
@@ -290,16 +293,20 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
     observeOf.set(id, observe);
   }
   const instances = metadata.instances;
-  if (!Array.isArray(instances) || instances.length === 0) {
+  if (!isArray(instances) || instances.length === 0) {
     return structural("metadata.json の instances が空");
   }
   /** @type {string[]} */
   const instanceIds = [];
+  /** @type {{ id: string, record: Record<string, unknown> }[]} id を確かめたインスタンス（並びは instances のまま） */
+  const instanceRecords = [];
   for (const inst of instances) {
-    const id = inst && inst.id;
+    const id = field(inst, "id");
     if (!filled(id)) return structural("instances[].id が空かプレースホルダのまま");
     if (instanceIds.includes(id)) return structural(`instances[].id が重複: ${id}`);
     instanceIds.push(id);
+    // id が文字列なら inst はオブジェクトなので、isObject は型を絞るためだけにある（判定は変わらない）。
+    if (isObject(inst)) instanceRecords.push({ id, record: inst });
   }
   if (!nonEmptyString(target)) return structural("--target が空");
   // 部品の照合を省ける形にしない——slug が無いと、別の部品の突き合わせ表がそのまま通る。
@@ -310,45 +317,45 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
   const population = new Map();
   /** @type {Set<string>} */
   const unreachable = new Set();
-  for (const inst of instances) {
-    const declared = Array.isArray(inst.unreachable_operations) ? inst.unreachable_operations : [];
-    if (inst.unreachable_operations !== undefined && !Array.isArray(inst.unreachable_operations)) {
+  for (const { id: instanceId, record: inst } of instanceRecords) {
+    const declared = isArray(inst.unreachable_operations) ? inst.unreachable_operations : [];
+    if (inst.unreachable_operations !== undefined && !isArray(inst.unreachable_operations)) {
       findings.push({
         code: "unreachable-declaration-invalid",
-        instance: inst.id,
+        instance: instanceId,
         detail: "unreachable_operations が配列でない",
       });
     }
     for (const u of declared) {
-      const op = u && u.operation;
+      const op = field(u, "operation");
       if (!nonEmptyString(op) || !observeOf.has(op)) {
         findings.push({
           code: "unreachable-declaration-invalid",
-          instance: inst.id,
+          instance: instanceId,
           operation: op ?? null,
           detail: "列挙に無い操作を到達できないと宣言している",
         });
         continue;
       }
-      if (!filled(u.reason)) {
+      if (!filled(field(u, "reason"))) {
         // 理由の無い宣言は除外にしない（採り忘れを誤って除外として扱わない）。母集合に残す。
         findings.push({
           code: "unreachable-declaration-invalid",
-          instance: inst.id,
+          instance: instanceId,
           operation: op,
           detail: "到達できない理由が無いかプレースホルダのまま（除外として扱わない）",
         });
         continue;
       }
-      unreachable.add(cellKey(op, inst.id));
+      unreachable.add(cellKey(op, instanceId));
     }
     for (const op of observeOf.keys()) {
-      const key = cellKey(op, inst.id);
+      const key = cellKey(op, instanceId);
       if (unreachable.has(key)) {
         counts.not_compared += 1;
         continue;
       }
-      population.set(key, { operation: op, instance: inst.id });
+      population.set(key, { operation: op, instance: instanceId });
     }
   }
   counts.cells = population.size;
@@ -370,11 +377,12 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
       });
       continue;
     }
-    const results = Array.isArray(doc.results) ? doc.results : [];
+    const results = isArray(doc.results) ? doc.results : [];
     for (const r of results) {
-      const op = r && r.operation;
+      const op = field(r, "operation");
       const key = nonEmptyString(op) ? cellKey(op, id) : null;
-      if (key === null || !population.has(key)) {
+      const cell = key === null ? undefined : population.get(key);
+      if (key === null || cell === undefined) {
         findings.push({
           code: "behavior-baseline-unknown",
           instance: id,
@@ -390,7 +398,7 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
         findings.push({ code: "behavior-baseline-duplicate", instance: id, operation: op });
         continue;
       }
-      const shape = observationShape(r.observed, observeFor(op));
+      const shape = observationShape(field(r, "observed"), observeFor(cell.operation));
       if (!shape.ok) {
         findings.push({
           code: "behavior-baseline-incomplete",
@@ -403,7 +411,7 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
         baseline.set(key, undefined);
         continue;
       }
-      baseline.set(key, r.observed);
+      baseline.set(key, shape.observed);
     }
   }
   for (const [key, cell] of population) {
@@ -442,17 +450,18 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
       detail: `突き合わせ表の component が ${JSON.stringify(table.component)}（採取は ${JSON.stringify(metadata.slug)}）`,
     });
   }
-  const rows = Array.isArray(table.rows) ? table.rows : [];
-  if (!Array.isArray(table.rows)) {
+  const rows = isArray(table.rows) ? table.rows : [];
+  if (!isArray(table.rows)) {
     findings.push({ code: "comparison-rows-invalid", detail: "rows が配列でない" });
   }
   /** @type {Set<string>} */
   const seen = new Set();
   for (const row of rows) {
-    const op = row && row.operation;
-    const inst = row && row.instance;
+    const op = field(row, "operation");
+    const inst = field(row, "instance");
     const key = nonEmptyString(op) && nonEmptyString(inst) ? cellKey(op, inst) : null;
-    if (key === null || !population.has(key)) {
+    const cell = key === null ? undefined : population.get(key);
+    if (key === null || cell === undefined) {
       findings.push({
         code: "behavior-unbaselined",
         operation: op ?? null,
@@ -466,9 +475,10 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
       continue;
     }
     seen.add(key);
-    const disposition = row.disposition ?? null;
+    const disposition = field(row, "disposition") ?? null;
     if (disposition !== null) {
-      if (!DISPOSITIONS.includes(disposition)) {
+      // DISPOSITIONS は文字列だけなので、typeof は型を絞るためだけにある（判定は変わらない）。
+      if (typeof disposition !== "string" || !DISPOSITIONS.includes(disposition)) {
         findings.push({
           code: "behavior-disposition-invalid",
           operation: op,
@@ -478,7 +488,11 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
         counts.uncompared += 1;
         continue;
       }
-      if (!filled(row.reason) || !filled(row.approved_by) || !isoDateTime(row.approved_at)) {
+      if (
+        !filled(field(row, "reason")) ||
+        !filled(field(row, "approved_by")) ||
+        !isoDateTime(field(row, "approved_at"))
+      ) {
         findings.push({
           code: "behavior-acceptance-unapproved",
           operation: op,
@@ -493,7 +507,7 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
       continue;
     }
     // 検査はカタログを駆動しないので、見本の識別子が観測と見本を結ぶ唯一の証拠になる。
-    if (!filled(row.story)) {
+    if (!filled(field(row, "story"))) {
       findings.push({
         code: "behavior-story-missing",
         operation: op,
@@ -503,7 +517,7 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
       counts.uncompared += 1;
       continue;
     }
-    const shape = observationShape(row.observed, observeFor(op));
+    const shape = observationShape(field(row, "observed"), observeFor(cell.operation));
     if (!shape.ok) {
       findings.push({
         code: "behavior-observation-incomplete",
@@ -521,8 +535,8 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
       counts.uncompared += 1;
       continue;
     }
-    const differing = observeFor(op).filter(
-      (name) => canonical(row.observed[name]) !== canonical(expected[name]),
+    const differing = observeFor(cell.operation).filter(
+      (name) => canonical(shape.observed[name]) !== canonical(expected[name]),
     );
     if (differing.length > 0) {
       counts.mismatched += 1;
@@ -533,7 +547,7 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
         differing: differing.map((name) => ({
           observation: name,
           current: expected[name],
-          new: row.observed[name],
+          new: shape.observed[name],
         })),
       });
       continue;
@@ -562,7 +576,7 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
 /**
  * パスの 1 セグメントとして安全か（`../` で baseline の外を読ませない）。
  * @param {unknown} value
- * @returns {boolean}
+ * @returns {value is string}
  */
 export function safeSegment(value) {
   return (
@@ -585,10 +599,10 @@ export function loadBaseline(dir) {
   /** @type {Record<string, unknown>} */
   const behaviors = {};
   const declared = field(metadata, "instances");
-  const instances = Array.isArray(declared) ? declared : [];
+  const instances = isArray(declared) ? declared : [];
   const baselineRoot = resolve(dir, "baseline");
   for (const inst of instances) {
-    const id = inst && inst.id;
+    const id = field(inst, "id");
     if (!safeSegment(id)) {
       throw new Error(`instances[].id がパスの 1 セグメントとして不正: ${JSON.stringify(id)}`);
     }

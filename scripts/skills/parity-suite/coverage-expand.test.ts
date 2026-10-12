@@ -27,6 +27,7 @@ import {
   validateProfile,
 } from "../../../skills/parity-suite/scripts/coverage-expand.mjs";
 import { invalidInput, removeField } from "../../lib/test-input.ts";
+import { isArray } from "../../lib/is-array.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/coverage-expand.mjs");
@@ -226,7 +227,7 @@ function rowsOf(coverage: {
 }
 
 function isNonRenderable(evidence: AbsenceEvidence): evidence is NonRenderableEvidence {
-  return Array.isArray(evidence.states);
+  return isArray(evidence.states);
 }
 
 function isFired(evidence: AbsenceEvidence): evidence is FiredEvidence {
@@ -360,9 +361,9 @@ type Profiles = Parameters<typeof reconcileRaw>[1];
 function isProfile(value: Record<string, unknown>): value is Profile {
   return (
     typeof value.id === "string" &&
-    Array.isArray(value.axes) &&
-    Array.isArray(value.candidate_rules) &&
-    Array.isArray(value.required_rules)
+    isArray(value.axes) &&
+    isArray(value.candidate_rules) &&
+    isArray(value.required_rules)
   );
 }
 

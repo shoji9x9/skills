@@ -13,6 +13,8 @@ import { dirname, join, posix, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { errorMessage } from "../lib/errors.ts";
 import { parseJsonAs } from "../lib/parse-as.ts";
+import { isRecord } from "../lib/guards.ts";
+import { isArray } from "../lib/is-array.ts";
 
 const SCHEMA_VERSION = 1;
 
@@ -659,10 +661,12 @@ function toolResultText(content: unknown): string {
   if (typeof content === "string") {
     return content;
   }
-  if (!Array.isArray(content)) {
+  if (!isArray(content)) {
     return "";
   }
-  return content.map((part) => (typeof part?.text === "string" ? part.text : "")).join("\n");
+  return content
+    .map((part) => (isRecord(part) && typeof part.text === "string" ? part.text : ""))
+    .join("\n");
 }
 
 // `--output-format json` writes one object; `--output-format stream-json --verbose`
@@ -683,7 +687,7 @@ export function parseClaudeTrace(rawText: string): ParsedTrace {
       // and "Unexpected token" alone cannot be traced back to one.
       throw new Error(`Claude trace line ${index + 1} is not JSON: ${errorMessage(error)}`);
     }
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    if (typeof parsed !== "object" || parsed === null || isArray(parsed)) {
       throw new Error(`Claude trace line ${index + 1} must be a JSON object`);
     }
     return parsed;
@@ -719,7 +723,7 @@ export function parseClaudeTrace(rawText: string): ParsedTrace {
     }
     sawNonResultEvent = true;
     if (event.type === "system" && event.subtype === "init") {
-      if (Array.isArray(event.skills)) {
+      if (isArray(event.skills)) {
         visibleSkills = event.skills.filter((name) => typeof name === "string");
       }
       if (typeof event.cwd === "string" && event.cwd.startsWith("/")) {
@@ -731,7 +735,7 @@ export function parseClaudeTrace(rawText: string): ParsedTrace {
     // `cat <absent path>` and `false && cat <path>` both name the path in a reading
     // segment but never return its contents, and crediting them marks a clean
     // baseline contaminated.
-    if (event.type === "user" && Array.isArray(event.message?.content)) {
+    if (event.type === "user" && isArray(event.message?.content)) {
       for (const block of event.message.content) {
         if (typeof block !== "object" || block === null || block.type !== "tool_result") {
           continue;
@@ -761,7 +765,7 @@ export function parseClaudeTrace(rawText: string): ParsedTrace {
       }
       continue;
     }
-    if (event.type !== "assistant" || !Array.isArray(event.message?.content)) {
+    if (event.type !== "assistant" || !isArray(event.message?.content)) {
       continue;
     }
     for (const block of event.message.content) {
@@ -1218,28 +1222,28 @@ export function buildSkillUsage({
 
   const undeterminable = [];
   let visible = null;
-  if (Array.isArray(evidence?.visibleSkills)) {
+  if (isArray(evidence?.visibleSkills)) {
     visible = evidence.visibleSkills.some((entry) => matchesSkillName(entry, skill));
   } else {
     undeterminable.push("visible");
   }
 
   let invoked = null;
-  if (Array.isArray(evidence?.invokedSkills)) {
+  if (isArray(evidence?.invokedSkills)) {
     invoked = evidence.invokedSkills.some((entry) => matchesSkillName(entry, skill));
   } else {
     undeterminable.push("invoked");
   }
 
   let filesRead = null;
-  if (Array.isArray(evidence?.toolInputTexts)) {
+  if (isArray(evidence?.toolInputTexts)) {
     filesRead = collectSkillPaths(evidence.toolInputTexts, skill);
   } else {
     undeterminable.push("files_read");
   }
 
   let contentSeen = null;
-  if (contentIndex !== null && Array.isArray(evidence?.toolOutputTexts)) {
+  if (contentIndex !== null && isArray(evidence?.toolOutputTexts)) {
     contentSeen = skillContentSeen(evidence.toolOutputTexts, contentIndex);
   } else {
     undeterminable.push("content_seen");
@@ -1414,7 +1418,7 @@ export function normalizeTrace({
     metrics.tool_calls = parsed.toolCalls;
     metrics.total_tool_calls = parsed.totalToolCalls;
   }
-  if (Array.isArray(filesCreated)) {
+  if (isArray(filesCreated)) {
     metrics.files_created = filesCreated;
   }
 

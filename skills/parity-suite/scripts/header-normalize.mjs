@@ -21,6 +21,7 @@
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isArray } from "./lib/is-array.mjs";
 
 /**
  * ツールのバージョン（原本）。正規化の規則・出力形状を変えたら上げる。
@@ -95,7 +96,7 @@ export class NoHeaderListError extends Error {}
  * @returns {v is Record<string, unknown>}
  */
 function isObject(v) {
-  return v !== null && typeof v === "object" && !Array.isArray(v);
+  return v !== null && typeof v === "object" && !isArray(v);
 }
 
 /**
@@ -128,7 +129,7 @@ function rejectPlaceholders(v, where) {
   if (typeof v === "string") {
     if (/^<[\s\S]*>$/.test(v.trim()))
       throw new Error(`${where} にテンプレートのプレースホルダが残っている: ${JSON.stringify(v)}`);
-  } else if (Array.isArray(v)) {
+  } else if (isArray(v)) {
     v.forEach((x, i) => rejectPlaceholders(x, `${where}[${i}]`));
   } else if (isObject(v)) {
     for (const [k, x] of Object.entries(v)) {
@@ -162,7 +163,7 @@ function checkRow(row, i, captured) {
     throw new Error(`${at}.value は defense なら空でない文字列`);
   if (row.class === "exposure" && value !== null)
     throw new Error(`${at}.value は exposure なら null（付かない）`);
-  if (!Array.isArray(responses) || responses.length === 0)
+  if (!isArray(responses) || responses.length === 0)
     throw new Error(`${at}.responses は応答の種類の空でない配列`);
   /** @type {string[]} 文字列と確かめた responses（並びも中身も responses と同じ） */
   const kinds = [];
@@ -227,7 +228,7 @@ export function parseHeaderList(text) {
   rejectUnknownKeys(doc, MEASURED_KEYS, "測定済みの一覧");
   if (!isNonEmptyString(doc.captured_at)) throw new Error("captured_at（採った日時）が無い");
   if (!isNonEmptyString(doc.target)) throw new Error("target（採った target 名）が無い");
-  if (!Array.isArray(doc.captured_responses) || doc.captured_responses.length === 0)
+  if (!isArray(doc.captured_responses) || doc.captured_responses.length === 0)
     throw new Error("captured_responses（採った応答）は空でない配列");
   /** @type {Set<string>} */
   const captured = new Set();
@@ -246,7 +247,7 @@ export function parseHeaderList(text) {
     throw new Error("server_config_slug は空でない文字列か null（未確定なら null）");
   // 防御ヘッダーも露出の抑止の候補も 1 つも無い応答はありうるので、空の配列は「比べるヘッダーが無い」として通す
   // （status: measured と明示した一覧なので、書き忘れの表と違い空であることが測定結果）。
-  if (!Array.isArray(doc.headers)) throw new Error("headers は配列");
+  if (!isArray(doc.headers)) throw new Error("headers は配列");
 
   /** @type {Map<string, boolean>} 名前 → その名前の行がすべて付け手の決まった行か */
   const known = new Map();
@@ -291,7 +292,7 @@ function collect(headers) {
     const parts = key === "set-cookie" ? value.split("\n") : [value];
     out.set(key, [...(out.get(key) ?? []), ...parts]);
   };
-  if (Array.isArray(headers)) {
+  if (isArray(headers)) {
     for (const h of headers) {
       if (h === null || typeof h !== "object")
         throw new Error("headersArray の要素は { name, value } で渡す");
@@ -299,7 +300,7 @@ function collect(headers) {
     }
   } else if (headers !== null && typeof headers === "object") {
     for (const [name, value] of Object.entries(headers)) {
-      for (const v of Array.isArray(value) ? value : [value]) add(name, v);
+      for (const v of isArray(value) ? value : [value]) add(name, v);
     }
   } else {
     throw new Error("ヘッダーはオブジェクトか { name, value } の配列で渡す");

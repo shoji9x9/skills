@@ -425,6 +425,18 @@ describe.concurrent("宣言と前提の検証（実行する前に落とす）",
     expect(res.out).toContain("mutations が空");
   });
 
+  test.each([null, "文字列"])(
+    "mutations の要素が %j なら exit 2（stack trace にしない）",
+    async (entry) => {
+      const fx = makeFixture();
+      const spec = fx.spec([entry]);
+      const res = await runRunner(spec);
+      expect(res.status, res.out).toBe(2);
+      expect(res.out).toContain("mutations[0].id が非空の文字列でない");
+      expect(res.out).not.toContain("TypeError");
+    },
+  );
+
   // **この検査は作業ツリーを書き換えて戻す。** 並行実行は互いに変異中のファイルを読ませ、
   // 無関係なテストを赤くする（実測で踏んだ）。単一実行をロックで担保する。
   test("別の実行が変異を当てている間は落ちる", async () => {

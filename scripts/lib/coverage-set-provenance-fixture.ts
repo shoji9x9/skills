@@ -11,6 +11,7 @@
 // 意図して不正にした宣言が警告なしに直り、その入力クラスのテストが常に緑になる）。
 
 import { isRecord } from "./guards.ts";
+import { isArray } from "./is-array.ts";
 
 /** 集合の出所＋完全性の宣言（`component_inventory` / `instance_inventory` の形）。 */
 export function setInventory(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -46,7 +47,7 @@ export function fillSetProvenance<T>(coverage: T): T {
   // 同じオブジェクトを、欄を読み書きできる型で持つ（返すのは元の coverage）。
   const cov: Record<string, unknown> = coverage;
   if (cov.component_inventory === undefined) cov.component_inventory = setInventory();
-  if (!Array.isArray(cov.components)) return coverage;
+  if (!isArray(cov.components)) return coverage;
   for (const component of cov.components) {
     if (!isRecord(component)) continue;
     if (component.instance_inventory === undefined) component.instance_inventory = setInventory();

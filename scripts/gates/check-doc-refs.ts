@@ -33,6 +33,7 @@ import {
 } from "../lib/doc-scan.ts";
 import { errorMessage } from "../lib/errors.ts";
 import { isRecord } from "../lib/guards.ts";
+import { isArray } from "../lib/is-array.ts";
 
 export const CONFIG_PATH = "scripts/gates/doc-refs.json";
 export const RULES = [
@@ -68,9 +69,9 @@ export function loadConfig(root: string): DocRefsConfig {
     typeof e.ref === "string" &&
     typeof e.template === "string" &&
     (e.skills === undefined ||
-      (Array.isArray(e.skills) && e.skills.every((s: unknown) => typeof s === "string")));
+      (isArray(e.skills) && e.skills.every((s: unknown) => typeof s === "string")));
   const { generated } = data;
-  if (!Array.isArray(generated) || !generated.every(ok))
+  if (!isArray(generated) || !generated.every(ok))
     throw new Error(`${CONFIG_PATH}: generated は { ref, template, skills? } の配列にする`);
   for (const g of generated) {
     if (!existsSync(join(root, g.template)))

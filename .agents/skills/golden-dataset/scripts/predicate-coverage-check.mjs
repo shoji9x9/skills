@@ -28,6 +28,7 @@
 import { readFileSync, realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isArray } from "./lib/is-array.mjs";
 
 /**
  * ツールのバージョン（原本）。判定の規則や出力の形を変えたら上げる。
@@ -164,7 +165,7 @@ export function parseTables(markdown) {
  * @returns {{ heading: string, headers: string[], rows: string[][], line: number } | null}
  */
 export function findTable(tables, heading, requiredHeaders) {
-  const headings = Array.isArray(heading) ? heading : [heading];
+  const headings = isArray(heading) ? heading : [heading];
   return (
     tables.find(
       (t) =>

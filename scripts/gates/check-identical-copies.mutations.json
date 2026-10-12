@@ -51,8 +51,8 @@
       "id": "IC-GROUPS-EMPTY",
       "why": "組 0 件の宣言を受理する（何も比べずに OK）",
       "file": "scripts/gates/check-identical-copies.ts",
-      "find": "  if (!Array.isArray(groups) || groups.length === 0) {",
-      "replace": "  if (!Array.isArray(groups)) {",
+      "find": "  if (!isArray(groups) || groups.length === 0) {",
+      "replace": "  if (!isArray(groups)) {",
       "occurrences": 1,
       "expect_failing": [
         "陽性: 宣言が読めない（groups が 0 件）なら exit 2（組 0 件＝違反なしとして扱わない）"
@@ -73,8 +73,8 @@
       "id": "IC-FILES-EMPTY",
       "why": "空文字のパスを受理する",
       "file": "scripts/gates/check-identical-copies.ts",
-      "find": "!files.every((f) => typeof f === \"string\" && f)",
-      "replace": "!files.every((f) => typeof f === \"string\")",
+      "find": "!files.every((f): f is string => typeof f === \"string\" && f !== \"\")",
+      "replace": "!files.every((f): f is string => typeof f === \"string\")",
       "occurrences": 1,
       "expect_failing": [
         "陽性: 宣言が読めない（files に空文字）なら exit 2（組 0 件＝違反なしとして扱わない）"
@@ -101,6 +101,62 @@
       "expect_failing": [
         "陽性: 宣言が読めない（組をまたいだ重複）なら exit 2（組 0 件＝違反なしとして扱わない）"
       ]
+    },
+    {
+      "id": "IC-REGION-NAME",
+      "why": "region の名前を確かめない（印の行と照合できない名前を通す）",
+      "file": "scripts/gates/check-identical-copies.ts",
+      "find": "(typeof region !== \"string\" || !REGION_NAME_RE.test(region))",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: 宣言が読めない（region が空）なら exit 2（組 0 件＝違反なしとして扱わない）",
+        "陽性: 宣言が読めない（region に大文字）なら exit 2（組 0 件＝違反なしとして扱わない）",
+        "陽性: 宣言が読めない（region が文字列でない）なら exit 2（組 0 件＝違反なしとして扱わない）"
+      ]
+    },
+    {
+      "id": "IC-REGION-WHOLE",
+      "why": "region を持つ組もファイル全体で比べる（範囲の外の差で落とす）",
+      "file": "scripts/gates/check-identical-copies.ts",
+      "find": "    if (region === undefined) {",
+      "replace": "    if (true) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: 範囲の中が一致すれば、範囲の外が違っても通す",
+        "陽性: 範囲の中が違えば、範囲の中の行番号を付けて落とす",
+        "陽性: 印が 1 組だけ無い（印が無い）なら、比べずに落とす",
+        "陽性: 印が 1 組だけ無い（begin が重複）なら、比べずに落とす",
+        "陽性: 印が 1 組だけ無い（end が begin より前）なら、比べずに落とす",
+        "陽性: 基準のファイルの印が崩れていれば、その理由だけを報告する"
+      ]
+    },
+    {
+      "id": "IC-REGION-COUNT",
+      "why": "印の数を確かめない（重複した印の最初の 1 組で比べて通す）",
+      "file": "scripts/gates/check-identical-copies.ts",
+      "find": "  if (b.length !== 1 || e.length !== 1) {",
+      "replace": "  if (b.length === 0 || e.length === 0) {",
+      "occurrences": 1,
+      "expect_failing": ["陽性: 印が 1 組だけ無い（begin が重複）なら、比べずに落とす"]
+    },
+    {
+      "id": "IC-REGION-ORDER",
+      "why": "印の順を確かめない（end が begin より前でも比べる）",
+      "file": "scripts/gates/check-identical-copies.ts",
+      "find": "  if (e[0] < b[0]) return",
+      "replace": "  if (false) return",
+      "occurrences": 1,
+      "expect_failing": ["陽性: 印が 1 組だけ無い（end が begin より前）なら、比べずに落とす"]
+    },
+    {
+      "id": "IC-REGION-EQUALS",
+      "why": "範囲の中身を比べない",
+      "file": "scripts/gates/check-identical-copies.ts",
+      "find": "if (\"body\" in r && r.body !== baseRegion.body) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["陽性: 範囲の中が違えば、範囲の中の行番号を付けて落とす"]
     }
   ]
 }

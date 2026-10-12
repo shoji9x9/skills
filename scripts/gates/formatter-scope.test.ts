@@ -19,6 +19,7 @@ import { makeTempDir } from "../lib/test-tmpdir.ts";
 import { loadYamlAs } from "../lib/yaml-as.ts";
 import { removeField } from "../lib/test-input.ts";
 import oxfmtConfig, { assigned } from "../../oxfmt.config.ts";
+import { isArray } from "../lib/is-array.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const req = createRequire(join(repoRoot, "package.json"));
@@ -134,7 +135,7 @@ function markdownlintFixture() {
   const config = loadYamlAs<{ ignores?: unknown; globs?: unknown }>(
     readFileSync(join(repoRoot, ".markdownlint-cli2.yaml"), "utf8"),
   );
-  if (!Array.isArray(config.ignores)) throw new Error(".markdownlint-cli2.yaml に ignores が無い");
+  if (!isArray(config.ignores)) throw new Error(".markdownlint-cli2.yaml に ignores が無い");
   removeField(config, "globs");
   writeFileSync(join(root, ".markdownlint-cli2.yaml"), yaml.dump(config));
   copyFileSync(join(repoRoot, ".markdownlint.yaml"), join(root, ".markdownlint.yaml"));

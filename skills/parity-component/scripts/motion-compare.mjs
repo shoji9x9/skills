@@ -37,20 +37,11 @@
 // 終了コード: 0 ＝ 条件を満たす（判定しない場合を含む）、1 ＝ 未突合・不一致・記録の不備が残る、2 ＝ 使い方の誤り・型崩れ。
 
 import { readFileSync, realpathSync } from "node:fs";
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
+import { isArray } from "./lib/is-array.mjs";
 
-// 共通の判定（記入済みか・承認日時・鍵・パスの 1 セグメント）は behavior-compare.mjs と同じものを使う。
-// 静的な `./behavior-compare.mjs` の import は、このファイルへのシンボリックリンクを
-// `--preserve-symlinks-main` で起動するとリンク側のディレクトリで解決されて見つからない（実測）。
-// 実パスに解決したディレクトリから読む。
-// 動的な import の戻り値は型を持たないので、同じファイルの宣言から型を付ける。
-/** @type {typeof import("./behavior-compare.mjs")} */
-const behaviorCompare = await import(
-  pathToFileURL(join(dirname(realpathSync(fileURLToPath(import.meta.url))), "behavior-compare.mjs"))
-    .href
-);
-const { cellKey, filled, isoDateTime, nonEmptyString, safeSegment } = behaviorCompare;
+import { cellKey, filled, isoDateTime, nonEmptyString, safeSegment } from "./behavior-compare.mjs";
 
 /** ツールのバージョン（このスクリプトで定義する）。判定の規則・許容差・出力の形を変えたら上げる。 */
 export const VERSION = "1";
@@ -200,7 +191,7 @@ function differs(a, b) {
  * @returns {{ ok: true, summary: MotionSummary } | { ok: false, reason: string }}
  */
 export function summarizeTimeline(timeline) {
-  if (!isObject(timeline) || Array.isArray(timeline)) {
+  if (!isObject(timeline) || isArray(timeline)) {
     return { ok: false, reason: "時系列がオブジェクトでない" };
   }
   if (timeline.timed_out !== false) {
@@ -210,44 +201,62 @@ export function summarizeTimeline(timeline) {
     };
   }
   const samples = timeline.samples;
-  if (!Array.isArray(samples) || samples.length === 0) {
+  if (!isArray(samples) || samples.length === 0) {
     return { ok: false, reason: "samples が空" };
   }
+  /**
+   * 有限の数か（Number.isFinite は数でない値に false を返すので、typeof は型を絞るためだけにある）。
+   * @param {unknown} v
+   * @returns {v is number}
+   */
+  const finite = (v) => typeof v === "number" && Number.isFinite(v);
+  /**
+   * @param {string} key
+   * @returns {{ ok: false, reason: string }}
+   */
+  const notFinite = (key) => ({ ok: false, reason: `在る標本の ${key} が有限の数でない` });
+  /** @type {MotionSample[]} 検査を通った標本（並びは samples のまま） */
+  const checked = [];
   let previousT = -Infinity;
-  for (const s of samples) {
-    if (s === null || typeof s !== "object" || typeof s.present !== "boolean") {
+  for (const raw of samples) {
+    if (!isObject(raw) || typeof raw.present !== "boolean") {
       return { ok: false, reason: "標本の present が真偽値でない" };
     }
-    if (!Number.isFinite(s.t) || s.t < previousT) {
+    const t = raw.t;
+    if (!finite(t) || t < previousT) {
       return { ok: false, reason: "標本の t が有限の非減少列でない" };
     }
-    previousT = s.t;
-    if (s.present) {
-      for (const key of ["x", "y", "width", "height", "opacity"]) {
-        if (!Number.isFinite(s[key])) {
-          return { ok: false, reason: `在る標本の ${key} が有限の数でない` };
-        }
-      }
+    previousT = t;
+    if (!raw.present) {
+      checked.push({ t, present: false });
+      continue;
     }
+    const { x, y, width, height, opacity } = raw;
+    if (!finite(x)) return notFinite("x");
+    if (!finite(y)) return notFinite("y");
+    if (!finite(width)) return notFinite("width");
+    if (!finite(height)) return notFinite("height");
+    if (!finite(opacity)) return notFinite("opacity");
+    checked.push({ t, present: true, x, y, width, height, opacity });
   }
-  const first = samples[0];
-  const last = samples[samples.length - 1];
-  const reference = last.present ? last : first.present ? first : samples.find((s) => s.present);
+  const first = checked[0];
+  const last = checked[checked.length - 1];
+  const reference = last.present ? last : first.present ? first : checked.find((s) => s.present);
   if (!reference) {
     return { ok: false, reason: "要素が一度も在らなかった（セレクタが対象を引けていない疑い）" };
   }
   let firstChange = null;
   let lastChange = null;
-  for (let i = 1; i < samples.length; i += 1) {
-    if (differs(samples[i - 1], samples[i])) {
+  for (let i = 1; i < checked.length; i += 1) {
+    if (differs(checked[i - 1], checked[i])) {
       if (firstChange === null) firstChange = i;
       lastChange = i;
     }
   }
   // 最初の変化の直前の標本を起点にする（変化はその次のフレームで初めて見えるため）。
   const originIndex = firstChange === null ? 0 : firstChange - 1;
-  const origin = samples[originIndex].t;
-  const series = samples.slice(originIndex).map((s) => ({
+  const origin = checked[originIndex].t;
+  const series = checked.slice(originIndex).map((s) => ({
     t: s.t - origin,
     present: s.present,
     dx: s.present ? s.x - reference.x : null,
@@ -263,9 +272,9 @@ export function summarizeTimeline(timeline) {
       present_start: first.present,
       present_end: last.present,
       changed: firstChange !== null,
-      delay_ms: firstChange === null ? null : samples[originIndex].t - first.t,
+      delay_ms: firstChange === null ? null : checked[originIndex].t - first.t,
       // firstChange と lastChange は同時に決まるので、lastChange の null の判定は型の絞り込みのため。
-      duration_ms: firstChange === null || lastChange === null ? 0 : samples[lastChange].t - origin,
+      duration_ms: firstChange === null || lastChange === null ? 0 : checked[lastChange].t - origin,
       series,
     },
   };
@@ -436,18 +445,18 @@ export function compareMotions({ metadata, motions, comparison, target }) {
   const capture = field(metadata, "capture");
   const declared = field(capture, "motions");
   // declared がオブジェクトなら metadata と capture もオブジェクトなので、絞り込みを足しても判定は変わらない。
-  if (!isObject(metadata) || !isObject(capture) || !isObject(declared) || Array.isArray(declared)) {
+  if (!isObject(metadata) || !isObject(capture) || !isObject(declared) || isArray(declared)) {
     return structural(
       "metadata.json の capture.motions が無い（動きが無いのか数えていないのか区別できない）",
     );
   }
-  if (!Array.isArray(declared.source_scan)) {
+  if (!isArray(declared.source_scan)) {
     return structural(
       "capture.motions.source_scan が配列でない（現行のソースで動きを数えた記録が無い）",
     );
   }
   const transitions = declared.transitions;
-  if (!Array.isArray(transitions)) {
+  if (!isArray(transitions)) {
     return structural("capture.motions.transitions が配列でない");
   }
   if (transitions.length === 0) {
@@ -460,26 +469,24 @@ export function compareMotions({ metadata, motions, comparison, target }) {
     return structural("capture.motions は transitions と none_reason を同時に持てない");
   }
   const operationIds = new Set(
-    (Array.isArray(capture.operations) ? capture.operations : []).map((op) => op && op.id),
+    (isArray(capture.operations) ? capture.operations : []).map((op) => field(op, "id")),
   );
   /** @type {Set<string>} */
   const transitionIds = new Set();
   for (const tr of transitions) {
-    const id = tr && tr.id;
+    const id = field(tr, "id");
     if (!filled(id))
       return structural("capture.motions.transitions[].id が空かプレースホルダのまま");
     if (transitionIds.has(id)) return structural(`capture.motions.transitions[].id が重複: ${id}`);
     // 手順が無いと、capture と build が同じ id で別の操作から動きを起こしても通る。
-    if (!filled(tr.description) || !filled(tr.trigger)) {
+    if (!filled(field(tr, "description")) || !filled(field(tr, "trigger"))) {
       return structural(
         `capture.motions.transitions[${JSON.stringify(id)}] の description / trigger が空かプレースホルダのまま（両側で同じ操作を再生できない）`,
       );
     }
-    if (tr.on_complete !== undefined) {
-      if (
-        !Array.isArray(tr.on_complete) ||
-        !tr.on_complete.every((/** @type {unknown} */ op) => operationIds.has(op))
-      ) {
+    const onComplete = field(tr, "on_complete");
+    if (onComplete !== undefined) {
+      if (!isArray(onComplete) || !onComplete.every((op) => operationIds.has(op))) {
         return structural(
           `capture.motions.transitions[${JSON.stringify(id)}].on_complete は capture.operations の id の配列（動きの完了で始まる処理は操作として列挙する）`,
         );
@@ -488,16 +495,20 @@ export function compareMotions({ metadata, motions, comparison, target }) {
     transitionIds.add(id);
   }
   const instances = metadata.instances;
-  if (!Array.isArray(instances) || instances.length === 0) {
+  if (!isArray(instances) || instances.length === 0) {
     return structural("metadata.json の instances が空");
   }
   /** @type {string[]} */
   const instanceIds = [];
+  /** @type {{ id: string, record: Record<string, unknown> }[]} id を確かめたインスタンス（並びは instances のまま） */
+  const instanceRecords = [];
   for (const inst of instances) {
-    const id = inst && inst.id;
+    const id = field(inst, "id");
     if (!filled(id)) return structural("instances[].id が空かプレースホルダのまま");
     if (instanceIds.includes(id)) return structural(`instances[].id が重複: ${id}`);
     instanceIds.push(id);
+    // id が文字列なら inst はオブジェクトなので、isObject は型を絞るためだけにある（判定は変わらない）。
+    if (isObject(inst)) instanceRecords.push({ id, record: inst });
   }
   if (!nonEmptyString(target)) return structural("--target が空");
   if (!filled(metadata.slug)) return structural("metadata.json の slug が空かプレースホルダのまま");
@@ -513,44 +524,44 @@ export function compareMotions({ metadata, motions, comparison, target }) {
   const population = new Map();
   /** @type {Set<string>} */
   const unreachable = new Set();
-  for (const inst of instances) {
-    if (inst.unreachable_motions !== undefined && !Array.isArray(inst.unreachable_motions)) {
+  for (const { id: instanceId, record: inst } of instanceRecords) {
+    if (inst.unreachable_motions !== undefined && !isArray(inst.unreachable_motions)) {
       findings.push({
         code: "unreachable-declaration-invalid",
-        instance: inst.id,
+        instance: instanceId,
         detail: "unreachable_motions が配列でない",
       });
     }
-    const list = Array.isArray(inst.unreachable_motions) ? inst.unreachable_motions : [];
+    const list = isArray(inst.unreachable_motions) ? inst.unreachable_motions : [];
     for (const u of list) {
-      const tr = u && u.transition;
+      const tr = field(u, "transition");
       if (!nonEmptyString(tr) || !transitionIds.has(tr)) {
         findings.push({
           code: "unreachable-declaration-invalid",
-          instance: inst.id,
+          instance: instanceId,
           transition: tr ?? null,
           detail: "列挙に無い遷移を到達できないと宣言している",
         });
         continue;
       }
-      if (!filled(u.reason)) {
+      if (!filled(field(u, "reason"))) {
         findings.push({
           code: "unreachable-declaration-invalid",
-          instance: inst.id,
+          instance: instanceId,
           transition: tr,
           detail: "到達できない理由が無いかプレースホルダのまま（除外として扱わない）",
         });
         continue;
       }
-      unreachable.add(cellKey(tr, inst.id));
+      unreachable.add(cellKey(tr, instanceId));
     }
     for (const tr of transitionIds) {
-      const key = cellKey(tr, inst.id);
+      const key = cellKey(tr, instanceId);
       if (unreachable.has(key)) {
         counts.not_compared += 1;
         continue;
       }
-      population.set(key, { transition: tr, instance: inst.id });
+      population.set(key, { transition: tr, instance: instanceId });
     }
   }
   counts.cells = population.size;
@@ -572,9 +583,9 @@ export function compareMotions({ metadata, motions, comparison, target }) {
       });
       continue;
     }
-    const results = Array.isArray(doc.results) ? doc.results : [];
+    const results = isArray(doc.results) ? doc.results : [];
     for (const r of results) {
-      const tr = r && r.transition;
+      const tr = field(r, "transition");
       const key = nonEmptyString(tr) ? cellKey(tr, id) : null;
       if (key === null || !population.has(key)) {
         findings.push({
@@ -592,7 +603,8 @@ export function compareMotions({ metadata, motions, comparison, target }) {
         findings.push({ code: "motion-baseline-duplicate", instance: id, transition: tr });
         continue;
       }
-      const runs = Array.isArray(r.runs) ? r.runs : [];
+      const declaredRuns = field(r, "runs");
+      const runs = isArray(declaredRuns) ? declaredRuns : [];
       /** @type {MotionSummary[]} */
       const summaries = [];
       for (const [index, run] of runs.entries()) {
@@ -696,15 +708,15 @@ export function compareMotions({ metadata, motions, comparison, target }) {
       detail: `突き合わせ表の component が ${JSON.stringify(table.component)}（採取は ${JSON.stringify(metadata.slug)}）`,
     });
   }
-  const rows = Array.isArray(table.rows) ? table.rows : [];
-  if (!Array.isArray(table.rows)) {
+  const rows = isArray(table.rows) ? table.rows : [];
+  if (!isArray(table.rows)) {
     findings.push({ code: "comparison-rows-invalid", detail: "rows が配列でない" });
   }
   /** @type {Set<string>} */
   const seen = new Set();
   for (const row of rows) {
-    const tr = row && row.transition;
-    const inst = row && row.instance;
+    const tr = field(row, "transition");
+    const inst = field(row, "instance");
     const key = nonEmptyString(tr) && nonEmptyString(inst) ? cellKey(tr, inst) : null;
     if (key === null || !population.has(key)) {
       findings.push({
@@ -720,9 +732,10 @@ export function compareMotions({ metadata, motions, comparison, target }) {
       continue;
     }
     seen.add(key);
-    const disposition = row.disposition ?? null;
+    const disposition = field(row, "disposition") ?? null;
     if (disposition !== null) {
-      if (!DISPOSITIONS.includes(disposition)) {
+      // DISPOSITIONS は文字列だけなので、typeof は型を絞るためだけにある（判定は変わらない）。
+      if (typeof disposition !== "string" || !DISPOSITIONS.includes(disposition)) {
         findings.push({
           code: "motion-disposition-invalid",
           transition: tr,
@@ -732,7 +745,11 @@ export function compareMotions({ metadata, motions, comparison, target }) {
         counts.uncompared += 1;
         continue;
       }
-      if (!filled(row.reason) || !filled(row.approved_by) || !isoDateTime(row.approved_at)) {
+      if (
+        !filled(field(row, "reason")) ||
+        !filled(field(row, "approved_by")) ||
+        !isoDateTime(field(row, "approved_at"))
+      ) {
         findings.push({
           code: "motion-acceptance-unapproved",
           transition: tr,
@@ -746,7 +763,7 @@ export function compareMotions({ metadata, motions, comparison, target }) {
       counts.accepted += 1;
       continue;
     }
-    if (!filled(row.story)) {
+    if (!filled(field(row, "story"))) {
       findings.push({
         code: "motion-story-missing",
         transition: tr,
@@ -756,7 +773,7 @@ export function compareMotions({ metadata, motions, comparison, target }) {
       counts.uncompared += 1;
       continue;
     }
-    const read = summarizeTimeline(row.timeline);
+    const read = summarizeTimeline(field(row, "timeline"));
     if (!read.ok) {
       findings.push({
         code: "motion-timeline-invalid",
@@ -827,10 +844,10 @@ export function loadBaseline(dir) {
   /** @type {Record<string, unknown>} */
   const motions = {};
   const declared = field(metadata, "instances");
-  const instances = Array.isArray(declared) ? declared : [];
+  const instances = isArray(declared) ? declared : [];
   const baselineRoot = resolve(dir, "baseline");
   for (const inst of instances) {
-    const id = inst && inst.id;
+    const id = field(inst, "id");
     if (!safeSegment(id)) {
       throw new Error(`instances[].id がパスの 1 セグメントとして不正: ${JSON.stringify(id)}`);
     }

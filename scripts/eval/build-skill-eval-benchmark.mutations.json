@@ -18,7 +18,7 @@
       "id": "POSITIONAL",
       "why": "位置配列（オブジェクトでない判定）を受理する",
       "file": "scripts/eval/build-skill-eval-benchmark.ts",
-      "find": "    if (typeof item !== \"object\" || item === null || Array.isArray(item)) {\n      die(\n        `${where}: expectations[${i}] が {text, passed, evidence} のオブジェクトでない（位置配列は受理しない）`,\n      );\n    }\n",
+      "find": "    if (!isRecord(item)) {\n      die(\n        `${where}: expectations[${i}] が {text, passed, evidence} のオブジェクトでない（位置配列は受理しない）`,\n      );\n    }\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [

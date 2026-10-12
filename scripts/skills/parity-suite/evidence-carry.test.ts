@@ -46,6 +46,7 @@ import { makeTempDirFactory } from "../../lib/test-tmpdir.ts";
 import { spawnAsync } from "../../lib/spawn-async.ts";
 import { removeField } from "../../lib/test-input.ts";
 import { parseJsonAs } from "../../lib/parse-as.ts";
+import { isArray } from "../../lib/is-array.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 
@@ -125,7 +126,7 @@ test.concurrent.each([
 );
 
 test.concurrent("render_inputs が同梱テンプレートのプレースホルダのまま: legacy ではなく読めない入力として落とす", () => {
-  expect(Array.isArray(templateRenderInputs)).toBe(true);
+  expect(isArray(templateRenderInputs)).toBe(true);
   const p = project();
   const result = judge(p, { renderInputs: templateRenderInputs });
   expect(result.ok).toBe(false);

@@ -30,10 +30,10 @@
 import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isArray } from "./lib/is-array.mjs";
 
 // 表の読み方は evidence-gap-check.mjs と同じ（コードフェンスの中は読まない・外側の `|` は省略可）。
-// import せずに持つのは、CLI を単体のシンボリックリンク経由・--preserve-symlinks-main で起動すると
-// 相対 import がリンクの置き場から解決されて落ちるため（配布元のリポジトリのテストで確かめている）。
+// 同じスキルの中の重複は、まとめるまで両方を保つ。片方を直したら、もう片方も直す。
 
 /**
  * 空白を 1 つに畳み、前後を除く。
@@ -156,7 +156,7 @@ function nonEmptyString(value) {
  * @returns {value is Record<string, unknown>}
  */
 function isObject(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+  return typeof value === "object" && value !== null && !isArray(value);
 }
 
 /**
@@ -222,7 +222,7 @@ export function readRevisions(doc) {
   if (revision === null || revision < 1) {
     errors.push("revision が 1 以上の整数でない");
   }
-  if (!Array.isArray(doc.changes)) {
+  if (!isArray(doc.changes)) {
     errors.push("changes が配列でない");
     return { ok: false, errors };
   }
@@ -247,17 +247,21 @@ export function readRevisions(doc) {
     seen.add(rev);
     if (!nonEmptyString(change.axis)) errors.push(`${where}.axis が空`);
     const affects = change.affects;
-    if (!Array.isArray(affects) || affects.length === 0) {
+    if (!isArray(affects) || affects.length === 0) {
       errors.push(`${where}.affects が空`);
       return;
     }
-    const unknown = affects.filter((mode) => !MODES.includes(mode));
+    // MODES は文字列だけなので、typeof は型を絞るためだけにある（判定は変わらない）。
+    /** @type {(mode: unknown) => mode is string} */
+    const isMode = (mode) => typeof mode === "string" && MODES.includes(mode);
+    const modes = affects.filter(isMode);
+    const unknown = affects.filter((mode) => !isMode(mode));
     if (unknown.length > 0) errors.push(`${where}.affects に語彙外の mode: ${unknown.join(", ")}`);
     changes.push({
       id: `${skill}#${rev}`,
       revision: rev,
       axis: String(change.axis),
-      affects,
+      affects: modes,
     });
   });
   // 一覧の revision は最新の改訂番号。改訂の無い番号を名乗ると、成果物がその番号を書いた時点で

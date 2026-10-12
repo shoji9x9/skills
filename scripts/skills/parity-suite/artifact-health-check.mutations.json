@@ -350,7 +350,7 @@
       "id": "per-spec-false-type-unchecked",
       "why": "state_mutating: false のとき repeat_run.specs の型崩れを通す",
       "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
-      "find": "    if (record.specs !== undefined && record.specs !== null && !Array.isArray(record.specs))\n      throw new UsageError",
+      "find": "    if (record.specs !== undefined && record.specs !== null && !isArray(record.specs))\n      throw new UsageError",
       "replace": "    if (false)\n      throw new UsageError",
       "occurrences": 1,
       "expect_failing": [

@@ -22,18 +22,11 @@
 // 終了コード: 0 ＝ 条件を満たす（対象でない場合を含む）、1 ＝ 不足が残る、2 ＝ 使い方の誤り・型崩れ。
 
 import { readFileSync, realpathSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { isArray } from "./lib/is-array.mjs";
 
-// 記入済みかの判定は behavior-compare.mjs と同じものを使う（実パスに解決したディレクトリから読む。
-// シンボリックリンク経由で --preserve-symlinks-main 起動されても兄弟ファイルを見つけられるように）。
-// 動的な import の戻り値は型を持たないので、同じファイルの宣言から型を付ける。
-/** @type {typeof import("./behavior-compare.mjs")} */
-const behaviorCompare = await import(
-  pathToFileURL(join(dirname(realpathSync(fileURLToPath(import.meta.url))), "behavior-compare.mjs"))
-    .href
-);
-const { filled, nonEmptyString } = behaviorCompare;
+import { filled, nonEmptyString } from "./behavior-compare.mjs";
 
 /** ツールのバージョン（このスクリプトで定義する）。判定の規則・出力の形を変えたら上げる。 */
 export const VERSION = "1";
@@ -91,7 +84,7 @@ export function checkLifecycle(metadata) {
     applies: null,
     findings: [{ code: "structural", detail }],
   });
-  if (!isObject(lifecycle) || Array.isArray(lifecycle)) {
+  if (!isObject(lifecycle) || isArray(lifecycle)) {
     return structural("build-metadata.json の lifecycle が無い（対象かどうかを判定していない）");
   }
   if (typeof lifecycle.applies !== "boolean") {
@@ -102,16 +95,16 @@ export function checkLifecycle(metadata) {
   }
   const paths = lifecycle.paths;
   const notApplicable = lifecycle.not_applicable_paths;
-  if (!Array.isArray(paths) || !Array.isArray(notApplicable)) {
+  if (!isArray(paths) || !isArray(notApplicable)) {
     return structural("lifecycle.paths / not_applicable_paths が配列でない");
   }
-  if (!Array.isArray(catalogStories)) {
+  if (!isArray(catalogStories)) {
     return structural(
       "catalog.stories が配列でない（順番の見本と見た目の見本の対応表を突き合わせられない）",
     );
   }
   const visualStories = new Set(
-    catalogStories.map((row) => row && row.story).filter(nonEmptyString),
+    catalogStories.map((row) => field(row, "story")).filter(nonEmptyString),
   );
   if (!lifecycle.applies) {
     if (paths.length > 0) {
@@ -150,8 +143,9 @@ export function checkLifecycle(metadata) {
     return true;
   };
   for (const row of paths) {
-    const name = row && row.path;
-    if (!count(name, "paths")) continue;
+    const name = field(row, "path");
+    // count を通れば path は語彙の文字列なので row はオブジェクトである。isObject は型を絞るためだけにある（判定は変わらない）。
+    if (!count(name, "paths") || !isObject(row)) continue;
     const missing = ["breaking_process", "story", "entry_attribute", "check"].filter(
       (key) => !filled(row[key]),
     );
@@ -165,7 +159,8 @@ export function checkLifecycle(metadata) {
         detail: `result が pass でない: ${JSON.stringify(row.result)}`,
       });
     }
-    if (!Number.isInteger(row.entered) || row.entered < 1) {
+    // Number.isInteger が真なら数なので、typeof は型を絞るためだけにある（判定は変わらない）。
+    if (typeof row.entered !== "number" || !Number.isInteger(row.entered) || row.entered < 1) {
       findings.push({
         code: "lifecycle-path-not-entered",
         path: name,
@@ -189,8 +184,8 @@ export function checkLifecycle(metadata) {
     }
   }
   for (const row of notApplicable) {
-    const name = row && row.path;
-    if (!count(name, "not_applicable_paths")) continue;
+    const name = field(row, "path");
+    if (!count(name, "not_applicable_paths") || !isObject(row)) continue;
     if (!filled(row.reason)) {
       findings.push({
         code: "lifecycle-na-reason-missing",

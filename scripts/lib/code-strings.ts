@@ -30,6 +30,7 @@ import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { type CommentMarkdown, commentDirectives } from "./code-comments.ts";
 import { isRecord } from "./guards.ts";
+import { isArray } from "./is-array.ts";
 
 /**
  * パーサが作った SourceFile。`parseDiagnostics`（構文エラー）は TypeScript の公開の型に無い内部のプロパティだが、
@@ -71,7 +72,7 @@ export function englishTerms(
   words: unknown = JSON.parse(readFileSync(WORDS_PATH, "utf8")),
 ): string[] {
   const entries = (isRecord(words) ? words.entries : undefined) ?? [];
-  if (!Array.isArray(entries)) throw new Error(`${WORDS_PATH}: entries が配列でない`);
+  if (!isArray(entries)) throw new Error(`${WORDS_PATH}: entries が配列でない`);
   return entries
     .flatMap((e: unknown) => (isRecord(e) && typeof e.term === "string" ? e.term.split("・") : []))
     .map((t) => t.trim())
