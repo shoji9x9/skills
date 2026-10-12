@@ -11,7 +11,7 @@
 // pending の stage は、直す段階（Issue #372 の ③ 文書・④ スキル・⑤ コメント）。段階の完了条件は、その stage の保留が 0 件であること。
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { parseJsonAs } from "./parse-as.ts";
+import { isRecord } from "./guards.ts";
 import { TEXT_EXTENSIONS } from "../gates/check-control-chars.ts";
 import { loadDocTiers, tierOf } from "../gates/check-doc-tiers.ts";
 import { listSources } from "../gates/run-on-sources.ts";
@@ -93,23 +93,43 @@ export const blankInlineCode = (line: string): string =>
 export function loadPending(root: string): PendingList {
   const path = join(root, PENDING_PATH);
   if (!existsSync(path)) return { pending: [], allowed: [] };
-  // 形はこの後で確かめる（確かめるまでは PendingList として使わない）。
-  const data = parseJsonAs<PendingList>(readFileSync(path, "utf8"));
-  const ok = (keys: string[]) => (e: Record<string, unknown> | undefined) =>
-    keys.every((k) => typeof e?.[k] === "string" && e[k].trim() !== "");
-  if (!Array.isArray(data?.pending) || !data.pending.every(ok(["file", "rule", "text", "stage"])))
+  // 形はこの後で確かめるので、型を付けずに受けて型ガードで絞る。
+  const data: unknown = JSON.parse(readFileSync(path, "utf8"));
+  const record: Record<string, unknown> = isRecord(data) ? data : {};
+  const { pending, allowed } = record;
+  if (
+    !Array.isArray(pending) ||
+    !pending.every((e) => hasNonEmptyStrings(e, ["file", "rule", "text", "stage"]))
+  )
     throw new Error(`${PENDING_PATH}: pending は { file, rule, text, stage } の配列にする`);
-  if (!Array.isArray(data?.allowed) || !data.allowed.every(ok(["file", "rule", "text", "reason"])))
+  if (
+    !Array.isArray(allowed) ||
+    !allowed.every((e) => hasNonEmptyStrings(e, ["file", "rule", "text", "reason"]))
+  )
     throw new Error(`${PENDING_PATH}: allowed は { file, rule, text, reason } の配列にする`);
-  for (const e of [...data.pending, ...data.allowed]) {
+  for (const e of [...pending, ...allowed]) {
     if (!KNOWN_RULES.includes(e.rule))
       throw new Error(`${PENDING_PATH}: 知らない規則「${e.rule}」`);
   }
-  for (const e of data.pending) {
+  for (const e of pending) {
     if (!STAGES.includes(e.stage))
       throw new Error(`${PENDING_PATH}: stage は ${STAGES.join("・")} のどれか（${e.stage}）`);
   }
-  return data;
+  return { ...record, pending, allowed };
+}
+
+/** keys の欄がすべて空でない文字列の object か。 */
+function hasNonEmptyStrings<K extends string>(
+  e: unknown,
+  keys: readonly K[],
+): e is Record<K, string> {
+  return (
+    isRecord(e) &&
+    keys.every((k) => {
+      const v = e[k];
+      return typeof v === "string" && v.trim() !== "";
+    })
+  );
 }
 
 const key = (e: EntryKey) => `${e.file}\u0000${e.rule}\u0000${e.text}`;
@@ -154,7 +174,8 @@ export function applyPending(
 export function prunePending(root: string, stale: readonly EntryKey[]): number {
   if (stale.length === 0) return 0;
   const path = join(root, PENDING_PATH);
-  const data = parseJsonAs<PendingList>(readFileSync(path, "utf8"));
+  // 形を確かめてから書き戻す（読み直した一覧が不正なら、理由付きの例外にする）。
+  const data = loadPending(root);
   const drop = new Set(stale.map(key));
   data.pending = data.pending.filter((e) => !drop.has(key(e)));
   writeFileSync(path, `${JSON.stringify(data, null, 2)}\n`);

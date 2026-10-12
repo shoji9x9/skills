@@ -11,7 +11,7 @@
       "id": "no-text-compare",
       "why": "両側が text_owners を持っても突き合わせない（要素自身の計算値だけを見る修正前の形）",
       "file": "skills/parity-suite/scripts/trait-compare.mjs",
-      "find": "      diffTextOwners(base.name, base.text_owners, cap.text_owners, tol, out);\n",
+      "find": "      diffTextOwners(base.name, baseOwners, capOwners, tol, out);\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [

@@ -99,6 +99,7 @@ export function parseTables(markdown) {
   const tables = [];
   let heading = "";
   let i = 0;
+  /** @param {string} line */
   const splitRow = (line) => {
     // **エスケープされたパイプ（`\|`）はセルの区切りではない**——境界として割ると列がずれ、
     // 正当な設計が「件数が読めない」等の無関係な finding で落ちる。
@@ -126,6 +127,7 @@ export function parseTables(markdown) {
     cells.push(current);
     return cells.map((c) => normalizeCell(c));
   };
+  /** @param {string} line */
   const isSeparator = (line) => /^\s*\|?[\s:|-]+\|[\s:|-]*$/.test(line) && line.includes("-");
   while (i < lines.length) {
     const line = lines[i];
@@ -306,6 +308,11 @@ export function filterColumn(filter) {
 export function matchColumnsToRows(columns, predicateTexts) {
   /** @type {number[]} */
   const rowToColumn = Array.from({ length: predicateTexts.length }, () => -1);
+  /**
+   * @param {number} columnIndex
+   * @param {Set<number>} visited
+   * @returns {boolean}
+   */
   const tryAssign = (columnIndex, visited) => {
     for (let rowIndex = 0; rowIndex < predicateTexts.length; rowIndex += 1) {
       if (visited.has(rowIndex)) continue;
@@ -394,8 +401,12 @@ export function collectConsumers(featuresMarkdown) {
         continue;
       }
       for (const tableName of list.items) {
-        if (!consumers.has(tableName)) consumers.set(tableName, new Set());
-        consumers.get(tableName).add(slug);
+        let tableConsumers = consumers.get(tableName);
+        if (!tableConsumers) {
+          tableConsumers = new Set();
+          consumers.set(tableName, tableConsumers);
+        }
+        tableConsumers.add(slug);
       }
     }
   }
@@ -557,8 +568,12 @@ export function checkPredicateCoverage(input) {
   const predicatesByTable = new Map();
   for (const row of predicateRows) {
     const name = normalizeCell(row["テーブル"]);
-    if (!predicatesByTable.has(name)) predicatesByTable.set(name, []);
-    predicatesByTable.get(name).push(row);
+    let tablePredicates = predicatesByTable.get(name);
+    if (!tablePredicates) {
+      tablePredicates = [];
+      predicatesByTable.set(name, tablePredicates);
+    }
+    tablePredicates.push(row);
   }
   for (const [tableName, entry] of declared) {
     if (entry.role !== "投入する") continue;
@@ -1127,6 +1142,7 @@ export function main(argv, deps = {}) {
     writeErr(`error: ${message}\n${usage}\n`);
     return 2;
   };
+  /** @param {Record<string, unknown>} obj */
   const out = (obj) =>
     write(
       `${JSON.stringify({ tool: "predicate-coverage-check", version: VERSION, ...obj }, null, 2)}\n`,
@@ -1178,7 +1194,9 @@ export function main(argv, deps = {}) {
     try {
       sources[key] = readFile(resolve(cwd, path));
     } catch (error) {
-      return fail(`${path} を読めない: ${error && error.message}`);
+      return fail(
+        `${path} を読めない: ${error && (typeof error === "object" && "message" in error ? error.message : undefined)}`,
+      );
     }
   }
   const result = checkPredicateCoverage({

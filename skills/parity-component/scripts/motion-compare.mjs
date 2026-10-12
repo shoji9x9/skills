@@ -44,10 +44,13 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 // 静的な `./behavior-compare.mjs` の import は、このファイルへのシンボリックリンクを
 // `--preserve-symlinks-main` で起動するとリンク側のディレクトリで解決されて見つからない（実測）。
 // 実パスに解決したディレクトリから読む。
-const { cellKey, filled, isoDateTime, nonEmptyString, safeSegment } = await import(
+// 動的な import の戻り値は型を持たないので、同じファイルの宣言から型を付ける。
+/** @type {typeof import("./behavior-compare.mjs")} */
+const behaviorCompare = await import(
   pathToFileURL(join(dirname(realpathSync(fileURLToPath(import.meta.url))), "behavior-compare.mjs"))
     .href
 );
+const { cellKey, filled, isoDateTime, nonEmptyString, safeSegment } = behaviorCompare;
 
 /** ツールのバージョン（このスクリプトで定義する）。判定の規則・許容差・出力の形を変えたら上げる。 */
 export const VERSION = "1";
@@ -152,6 +155,26 @@ export const TRAJECTORY_POINTS = 20;
 const TRAJECTORY_METRICS = ["dx", "dy", "dw", "dh", "opacity"];
 
 /**
+ * null でないオブジェクト（配列を含む）か。JSON 由来の値の欄を読む前の絞り込みに使う。
+ * @param {unknown} value
+ * @returns {value is Record<string, unknown>}
+ */
+function isObject(value) {
+  return value !== null && typeof value === "object";
+}
+
+/**
+ * `value && value[key]` と同じ値を返す（オブジェクトなら欄の値、偽の値ならその値、それ以外は undefined）。
+ * @param {unknown} value
+ * @param {string} key
+ * @returns {unknown}
+ */
+function field(value, key) {
+  if (isObject(value)) return value[key];
+  return value && undefined;
+}
+
+/**
  * 2 つの標本が違うか（motion-probe.mjs のページ側の判定と同じ）。
  * @param {MotionSample} a
  * @param {MotionSample} b
@@ -159,7 +182,8 @@ const TRAJECTORY_METRICS = ["dx", "dy", "dw", "dh", "opacity"];
  */
 function differs(a, b) {
   if (a.present !== b.present) return true;
-  if (!a.present) return false;
+  // ここでは a.present と b.present が等しいので、b の判定は a の判定と同じ結果になる（型の絞り込みのため）。
+  if (!a.present || !b.present) return false;
   return (
     Math.abs(a.x - b.x) > CHANGE_EPSILON.px ||
     Math.abs(a.y - b.y) > CHANGE_EPSILON.px ||
@@ -176,7 +200,7 @@ function differs(a, b) {
  * @returns {{ ok: true, summary: MotionSummary } | { ok: false, reason: string }}
  */
 export function summarizeTimeline(timeline) {
-  if (timeline === null || typeof timeline !== "object" || Array.isArray(timeline)) {
+  if (!isObject(timeline) || Array.isArray(timeline)) {
     return { ok: false, reason: "時系列がオブジェクトでない" };
   }
   if (timeline.timed_out !== false) {
@@ -240,7 +264,8 @@ export function summarizeTimeline(timeline) {
       present_end: last.present,
       changed: firstChange !== null,
       delay_ms: firstChange === null ? null : samples[originIndex].t - first.t,
-      duration_ms: firstChange === null ? 0 : samples[lastChange].t - origin,
+      // firstChange と lastChange は同時に決まるので、lastChange の null の判定は型の絞り込みのため。
+      duration_ms: firstChange === null || lastChange === null ? 0 : samples[lastChange].t - origin,
       series,
     },
   };
@@ -317,11 +342,16 @@ function timeGap(a, b) {
  * @returns {string[]}
  */
 export function baselineInstability(base, noise) {
+  /** @type {string[]} */
   const unstable = [];
-  for (const key of ["present_start", "present_end", "changed"]) {
+  /** @type {readonly ("present_start" | "present_end" | "changed")[]} */
+  const presenceKeys = ["present_start", "present_end", "changed"];
+  for (const key of presenceKeys) {
     if (base[key] !== noise[key]) unstable.push(key);
   }
-  for (const key of ["delay_ms", "duration_ms"]) {
+  /** @type {readonly ("delay_ms" | "duration_ms")[]} */
+  const timeKeys = ["delay_ms", "duration_ms"];
+  for (const key of timeKeys) {
     const limit = Math.max(MAX_NOISE.ms, MAX_NOISE.ratio * (base[key] ?? 0));
     if (timeGap(base[key], noise[key]) > limit) unstable.push(key);
   }
@@ -343,16 +373,21 @@ export function baselineInstability(base, noise) {
  */
 export function judgeMotion(base, noise, candidate) {
   const noiseGapForLimit = trajectoryGap(base, noise);
+  /** @type {MotionDiffering[]} */
   const differing = [];
-  for (const key of ["present_start", "present_end"]) {
+  /** @type {readonly ("present_start" | "present_end")[]} */
+  const presenceKeys = ["present_start", "present_end"];
+  for (const key of presenceKeys) {
     if (base[key] !== candidate[key]) {
       differing.push({ measure: key, current: base[key], new: candidate[key], tolerance: 0 });
     }
   }
-  for (const [key, floor] of [
+  /** @type {readonly ["delay_ms" | "duration_ms", number][]} */
+  const timeMeasures = [
     ["delay_ms", FLOORS.delay_ms],
     ["duration_ms", FLOORS.duration_ms],
-  ]) {
+  ];
+  for (const [key, floor] of timeMeasures) {
     const tolerance = Math.max(floor, NOISE_FACTOR * timeGap(base[key], noise[key]));
     if (timeGap(base[key], candidate[key]) > tolerance) {
       differing.push({ measure: key, current: base[key], new: candidate[key], tolerance });
@@ -390,6 +425,7 @@ export function compareMotions({ metadata, motions, comparison, target }) {
     uncompared: 0,
     accepted: 0,
   };
+  /** @param {string} detail */
   const structural = (detail) => ({
     structural: true,
     judged: false,
@@ -397,8 +433,10 @@ export function compareMotions({ metadata, motions, comparison, target }) {
     counts,
   });
 
-  const declared = metadata && metadata.capture && metadata.capture.motions;
-  if (declared === null || typeof declared !== "object" || Array.isArray(declared)) {
+  const capture = field(metadata, "capture");
+  const declared = field(capture, "motions");
+  // declared がオブジェクトなら metadata と capture もオブジェクトなので、絞り込みを足しても判定は変わらない。
+  if (!isObject(metadata) || !isObject(capture) || !isObject(declared) || Array.isArray(declared)) {
     return structural(
       "metadata.json の capture.motions が無い（動きが無いのか数えていないのか区別できない）",
     );
@@ -422,9 +460,7 @@ export function compareMotions({ metadata, motions, comparison, target }) {
     return structural("capture.motions は transitions と none_reason を同時に持てない");
   }
   const operationIds = new Set(
-    (Array.isArray(metadata.capture.operations) ? metadata.capture.operations : []).map(
-      (op) => op && op.id,
-    ),
+    (Array.isArray(capture.operations) ? capture.operations : []).map((op) => op && op.id),
   );
   /** @type {Set<string>} */
   const transitionIds = new Set();
@@ -440,7 +476,10 @@ export function compareMotions({ metadata, motions, comparison, target }) {
       );
     }
     if (tr.on_complete !== undefined) {
-      if (!Array.isArray(tr.on_complete) || !tr.on_complete.every((op) => operationIds.has(op))) {
+      if (
+        !Array.isArray(tr.on_complete) ||
+        !tr.on_complete.every((/** @type {unknown} */ op) => operationIds.has(op))
+      ) {
         return structural(
           `capture.motions.transitions[${JSON.stringify(id)}].on_complete は capture.operations の id の配列（動きの完了で始まる処理は操作として列挙する）`,
         );
@@ -452,6 +491,7 @@ export function compareMotions({ metadata, motions, comparison, target }) {
   if (!Array.isArray(instances) || instances.length === 0) {
     return structural("metadata.json の instances が空");
   }
+  /** @type {string[]} */
   const instanceIds = [];
   for (const inst of instances) {
     const id = inst && inst.id;
@@ -461,7 +501,7 @@ export function compareMotions({ metadata, motions, comparison, target }) {
   }
   if (!nonEmptyString(target)) return structural("--target が空");
   if (!filled(metadata.slug)) return structural("metadata.json の slug が空かプレースホルダのまま");
-  const probeVersion = metadata.capture.tools && metadata.capture.tools.motion_probe_version;
+  const probeVersion = field(capture.tools, "motion_probe_version");
   if (!filled(probeVersion)) {
     return structural(
       "capture.tools.motion_probe_version が空（どの版のプローブで採った時系列かを照合できない）",
@@ -519,8 +559,11 @@ export function compareMotions({ metadata, motions, comparison, target }) {
   /** @type {Map<string, [MotionSummary, MotionSummary] | undefined>} */
   const baseline = new Map();
   for (const id of instanceIds) {
-    const doc = motions[id];
-    if (doc === null || doc === undefined) continue;
+    const raw = motions[id];
+    if (raw === null || raw === undefined) continue;
+    // オブジェクトでない値の欄は undefined として読む（プロパティアクセスと同じ）。
+    /** @type {Record<string, unknown>} */
+    const doc = isObject(raw) ? raw : {};
     if (doc.instance !== id) {
       findings.push({
         code: "motion-baseline-instance-mismatch",
@@ -538,9 +581,10 @@ export function compareMotions({ metadata, motions, comparison, target }) {
           code: "motion-baseline-unknown",
           instance: id,
           transition: tr ?? null,
-          detail: unreachable.has(key)
-            ? "到達できないと宣言した遷移に時系列がある"
-            : "列挙に無い遷移の時系列",
+          detail:
+            key !== null && unreachable.has(key)
+              ? "到達できないと宣言した遷移に時系列がある"
+              : "列挙に無い遷移の時系列",
         });
         continue;
       }
@@ -549,6 +593,7 @@ export function compareMotions({ metadata, motions, comparison, target }) {
         continue;
       }
       const runs = Array.isArray(r.runs) ? r.runs : [];
+      /** @type {MotionSummary[]} */
       const summaries = [];
       for (const [index, run] of runs.entries()) {
         const read = summarizeTimeline(run);
@@ -636,20 +681,23 @@ export function compareMotions({ metadata, motions, comparison, target }) {
     counts.uncompared = population.size;
     return { structural: false, judged: true, findings, counts };
   }
-  if (comparison.target !== target) {
+  // オブジェクトでない値の欄は undefined として読む（プロパティアクセスと同じ）。
+  /** @type {Record<string, unknown>} */
+  const table = isObject(comparison) ? comparison : {};
+  if (table.target !== target) {
     findings.push({
       code: "comparison-target-mismatch",
-      detail: `突き合わせ表の target が ${JSON.stringify(comparison.target)}（判定対象は ${JSON.stringify(target)}）`,
+      detail: `突き合わせ表の target が ${JSON.stringify(table.target)}（判定対象は ${JSON.stringify(target)}）`,
     });
   }
-  if (comparison.component !== metadata.slug) {
+  if (table.component !== metadata.slug) {
     findings.push({
       code: "comparison-component-mismatch",
-      detail: `突き合わせ表の component が ${JSON.stringify(comparison.component)}（採取は ${JSON.stringify(metadata.slug)}）`,
+      detail: `突き合わせ表の component が ${JSON.stringify(table.component)}（採取は ${JSON.stringify(metadata.slug)}）`,
     });
   }
-  const rows = Array.isArray(comparison.rows) ? comparison.rows : [];
-  if (!Array.isArray(comparison.rows)) {
+  const rows = Array.isArray(table.rows) ? table.rows : [];
+  if (!Array.isArray(table.rows)) {
     findings.push({ code: "comparison-rows-invalid", detail: "rows が配列でない" });
   }
   /** @type {Set<string>} */
@@ -778,7 +826,8 @@ export function loadBaseline(dir) {
   const metadata = JSON.parse(readFileSync(join(dir, "metadata.json"), "utf8"));
   /** @type {Record<string, unknown>} */
   const motions = {};
-  const instances = Array.isArray(metadata && metadata.instances) ? metadata.instances : [];
+  const declared = field(metadata, "instances");
+  const instances = Array.isArray(declared) ? declared : [];
   const baselineRoot = resolve(dir, "baseline");
   for (const inst of instances) {
     const id = inst && inst.id;
@@ -820,10 +869,12 @@ export function main(
     writeErr = (s) => process.stderr.write(s),
   } = {},
 ) {
+  /** @param {Record<string, unknown>} obj */
   const out = (obj) =>
     write(`${JSON.stringify({ tool: "motion-compare", version: VERSION, ...obj }, null, 2)}\n`);
   const usage =
     "usage: motion-compare.mjs --baseline <部品の成果物ディレクトリ> --comparison <new/<target>/motion-comparison.json> --target <name>";
+  /** @param {string} message */
   const fail = (message) => {
     writeErr(`error: ${message}\n${usage}\n`);
     return 2;
@@ -849,7 +900,7 @@ export function main(
   try {
     loaded = loadBaseline(resolve(cwd, args["--baseline"]));
   } catch (error) {
-    return fail(`採取物を読めない: ${error && error.message}`);
+    return fail(`採取物を読めない: ${field(error, "message")}`);
   }
   let comparison = null;
   try {

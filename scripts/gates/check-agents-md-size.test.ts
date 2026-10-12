@@ -11,6 +11,7 @@
 // | 設定のファイル           | 在る / 無い / JSON でない / limit・target が不正                          |
 // | AGENTS.md                | 在る / 測る版に無い                                                    |
 import { expect, test } from "vitest";
+import { parseJsonAs } from "../lib/parse-as.ts";
 import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -190,7 +191,9 @@ test("検出の確認（CLI）: 子プロセスとして起動しても、超え
 });
 
 test("実リポジトリ: limit は Codex のデフォルトの上限（32 KiB）より小さく、target は limit より小さい", () => {
-  const config = JSON.parse(readFileSync(join(repoRoot, CONFIG_PATH), "utf8"));
+  const config = parseJsonAs<{ limit_bytes: number; target_bytes: number }>(
+    readFileSync(join(repoRoot, CONFIG_PATH), "utf8"),
+  );
   expect(config.limit_bytes).toBeLessThan(32 * 1024);
   expect(config.target_bytes).toBeLessThan(config.limit_bytes);
 });

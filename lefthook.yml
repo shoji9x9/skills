@@ -107,10 +107,11 @@ pre-commit:
             exclude: *agent-copies
             run: pnpm exec oxlint {staged_files}
           - name: typecheck
-            # tsconfig.json が束ねる .ts・.tsx 全体の型。設定ファイル・scripts・private skill・eval の fixture・配布スキルの雛形（インストール済みのコピーを含む）を検査する。
+            # tsconfig.json が束ねる .ts・.tsx 全体と、配布スキルの .mjs（tsconfig.skills.json の checkJs）の型。
+            # 設定ファイル・scripts・private skill・eval の fixture・配布スキルの雛形（インストール済みのコピーを含む）を検査する。
             # インストール済みのコピーの scripts/ は、private skill のものを tsconfig.repo.json が検査するので、雛形の側からは外す。
             # 1 つのファイルの変更が import する側の型を変えるので、渡されたファイルではなく全体を検査する。
-            # .js・.mjs も含める。型は検査しない（checkJs なし）が、.ts が import する型（oxlint.config.ts など）を変える。
+            # 配布スキルの外の .js・.mjs も含める。型は検査しない（checkJs なし）が、.ts が import する型（oxlint.config.ts など）を変える。
             # インストール済みのコピーも検査の対象なので、他のジョブと違って *agent-copies を除かない。
             glob: "{*.{ts,tsx,mts,cts,js,mjs},tsconfig*.json,package.json,pnpm-lock.yaml}"
             run: pnpm run typecheck
@@ -151,6 +152,11 @@ pre-commit:
           - name: js-extensions
             # Enforce the JS extension policy (skills/ => .mjs, scripts/ and private skills => .ts).
             run: node scripts/gates/check-js-extensions.ts
+          - name: jsdoc-types
+            # 配布スキルの .mjs で、型の検査を外す JSDoc の書き方（型の表明・any・@ts-ignore など）を禁じる。
+            # 読むのは .mjs だけなので、.mjs かチェック自身が staged のときだけ実行する（TypeScript のパーサの読み込みに約 1 秒かかる）。
+            glob: "{*.mjs,*check-jsdoc-types.ts}"
+            run: node scripts/gates/check-jsdoc-types.ts
           - name: kaizen-refs
             # .kaizen/ の学びへの参照の実在。参照される側（.kaizen/ の archive への移動）で
             # 参照する側のリンクが切れるので、path glob で絞らず毎コミット全走査する。

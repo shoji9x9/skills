@@ -15,6 +15,7 @@ import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { errorMessage } from "../lib/errors.ts";
+import { isRecord } from "../lib/guards.ts";
 
 export const WORDS_PATH = ".textlint/words.json";
 export const LIST_PATH = ".textlint/word-list.md";
@@ -23,7 +24,8 @@ export const LIST_PATH = ".textlint/word-list.md";
 export function renderWordList(root: string) {
   const path = join(root, WORDS_PATH);
   if (!existsSync(path)) throw new Error(`${WORDS_PATH} が無い`);
-  const entries = JSON.parse(readFileSync(path, "utf8"))?.entries;
+  const data: unknown = JSON.parse(readFileSync(path, "utf8"));
+  const entries = isRecord(data) ? data.entries : undefined;
   if (!Array.isArray(entries)) throw new Error("entries が配列でない");
   const rows: string[] = [];
   const seen = new Set();

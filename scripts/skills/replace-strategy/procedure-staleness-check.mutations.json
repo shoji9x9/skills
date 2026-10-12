@@ -119,8 +119,8 @@
       "id": "in-progress-without-placement",
       "why": "置き場を持たない見直し中の記録を通し、どこで当て直すのか読めないまま追っていることにする",
       "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
-      "find": "      else if (decision === DECISIONS.inProgress && !/^#\\d+/u.test(basis)) {\n",
-      "replace": "      else if (false) {\n",
+      "find": "    else if (decision === DECISIONS.inProgress && !/^#\\d+/u.test(basis)) {\n",
+      "replace": "    else if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
         "台帳の表の欠落・語彙外の値・実在しない変更 ID・空の根拠・重複 ID は exit 2 で落とす"
@@ -130,7 +130,7 @@
       "id": "parity-dir-missing-passes",
       "why": "成果物の置き場を読めない実行（無い・綴り違い）を空として通し、cwd の誤りで合格を出す",
       "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
-      "find": "    return fail(`${parityDir} を読めない: ${error && /** @type {Error} */ (error).message}`);\n",
+      "find": "    return fail(`${parityDir} を読めない: ${errorMessage(error)}`);\n",
       "replace": "    artifacts = { slugs: [] };\n",
       "occurrences": 1,
       "expect_failing": [

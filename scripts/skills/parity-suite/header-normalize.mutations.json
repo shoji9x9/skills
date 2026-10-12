@@ -197,8 +197,8 @@
       "id": "missing-list-input-error",
       "why": "一覧のファイルが無いときを入力の誤りにし、一覧が無い経路（未検証に残す）へ送らない",
       "file": "skills/parity-suite/scripts/header-normalize.mjs",
-      "find": "(err).code === \"ENOENT\" &&",
-      "replace": "(err).code === \"__never__\" &&",
+      "find": "err.code === \"ENOENT\" &&",
+      "replace": "err.code === \"__never__\" &&",
       "occurrences": 1,
       "expect_failing": [
         "CLI: 一覧のファイル自体が無ければ exit 3（一覧が無い）で、表の survey.md からの移行を案内する",
@@ -477,8 +477,8 @@
       "id": "owner-on-feature-row",
       "why": "機能の応答だけの行に書いた所有者 slug を通す",
       "file": "skills/parity-suite/scripts/header-normalize.mjs",
-      "find": "if (!responses.some((r) => UNOWNED_KINDS.has(",
-      "replace": "if (false && !responses.some((r) => UNOWNED_KINDS.has(",
+      "find": "if (!kinds.some((r) => UNOWNED_KINDS.has(",
+      "replace": "if (false && !kinds.some((r) => UNOWNED_KINDS.has(",
       "occurrences": 1,
       "expect_failing": ["一覧: 行が「機能の応答だけの行の owner_slug」なら入力の誤りにする"]
     },

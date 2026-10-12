@@ -29,7 +29,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { type CommentMarkdown, commentDirectives } from "./code-comments.ts";
-import { parseJsonAs } from "./parse-as.ts";
+import { isRecord } from "./guards.ts";
 
 /**
  * パーサが作った SourceFile。`parseDiagnostics`（構文エラー）は TypeScript の公開の型に無い内部のプロパティだが、
@@ -68,12 +68,12 @@ const WORDS_PATH = join(
  * `term` は「・」で複数の語を並べることがあるので、分けてから選ぶ。
  */
 export function englishTerms(
-  words = parseJsonAs<{ entries?: ({ term?: unknown } | null | undefined)[] }>(
-    readFileSync(WORDS_PATH, "utf8"),
-  ),
+  words: unknown = JSON.parse(readFileSync(WORDS_PATH, "utf8")),
 ): string[] {
-  return (words.entries ?? [])
-    .flatMap((e) => (typeof e?.term === "string" ? e.term.split("・") : []))
+  const entries = (isRecord(words) ? words.entries : undefined) ?? [];
+  if (!Array.isArray(entries)) throw new Error(`${WORDS_PATH}: entries が配列でない`);
+  return entries
+    .flatMap((e: unknown) => (isRecord(e) && typeof e.term === "string" ? e.term.split("・") : []))
     .map((t) => t.trim())
     .filter((t) => t && !JAPANESE.test(t) && /[A-Za-z]/.test(t));
 }

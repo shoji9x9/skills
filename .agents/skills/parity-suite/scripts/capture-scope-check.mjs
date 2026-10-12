@@ -64,7 +64,7 @@ export const ID_SEPARATOR = "#";
  * 例えば、ビューポート `v#scroll:x` の below-fold と、ビューポート `v` のスクロール領域 `x#below-fold` は、
  * どちらも `p|s|v#scroll:x#below-fold` になる。
  * @param {unknown} value
- * @returns {boolean}
+ * @returns {value is string}
  */
 export function idPartIsSafe(value) {
   return (
@@ -101,7 +101,7 @@ export function keyPartsAreSafe(entry) {
 /**
  * 正の有限数か（寸法の実測値はここを通す）。
  * @param {unknown} value
- * @returns {boolean}
+ * @returns {value is number}
  */
 function positiveNumber(value) {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
@@ -117,6 +117,49 @@ function nonEmptyString(value) {
 }
 
 /**
+ * null でないオブジェクトか（配列も含む）。プロパティを読む前の型の絞り込みに使う。配列を除く isRecord とは別の名前にする。
+ * @param {unknown} value
+ * @returns {value is Record<string, unknown>}
+ */
+function isObjectLike(value) {
+  return typeof value === "object" && value !== null;
+}
+
+/**
+ * display_axes の 4 つの一覧を取り出す。どれかが配列でなければ、最初に見つけたキーの名前を返す
+ * （axes・absent・pairs・variants の順。キーの名前と検査を 1 か所にまとめる）。
+ * @param {Record<string, unknown>} da
+ * @returns {{ axes: unknown[], absent: unknown[], pairs: unknown[], variants: unknown[] } | string}
+ */
+function displayAxisLists(da) {
+  const { axes, absent, pairs, variants } = da;
+  if (!Array.isArray(axes)) return "axes";
+  if (!Array.isArray(absent)) return "absent";
+  if (!Array.isArray(pairs)) return "pairs";
+  if (!Array.isArray(variants)) return "variants";
+  return { axes, absent, pairs, variants };
+}
+
+/**
+ * 語彙（文字列の一覧）のどれかと一致する文字列か。
+ * @param {readonly string[]} list
+ * @param {unknown} value
+ * @returns {value is string}
+ */
+function isOneOf(list, value) {
+  return typeof value === "string" && list.includes(value);
+}
+
+/**
+ * 整数か（`Number.isInteger` を、型を絞れる形にしたもの）。
+ * @param {unknown} value
+ * @returns {value is number}
+ */
+function isInteger(value) {
+  return Number.isInteger(value);
+}
+
+/**
  * 寸法（`{width, height}`）を検証して返す。型崩れ・0 以下なら null。
  *
  * **0 を通さない**——同梱テンプレートは寸法を `0` で置いてあるので、
@@ -126,10 +169,10 @@ function nonEmptyString(value) {
  * @returns {{width:number, height:number} | null}
  */
 function readSize(value) {
-  if (!value || typeof value !== "object") return null;
-  const size = /** @type {{width?: unknown, height?: unknown}} */ (value);
+  if (!isObjectLike(value)) return null;
+  const size = value;
   if (!positiveNumber(size.width) || !positiveNumber(size.height)) return null;
-  return { width: /** @type {number} */ (size.width), height: /** @type {number} */ (size.height) };
+  return { width: size.width, height: size.height };
 }
 
 /** CSS の `overflow-x` / `overflow-y` の計算値の語彙。 */
@@ -141,7 +184,7 @@ const SCROLLBAR_OVERFLOW = ["scroll", "auto"];
 /**
  * 0 以上の有限数か（スクロールバーの厚みの実測値はここを通す。0 はバーが場所を取らない正規の値）。
  * @param {unknown} value
- * @returns {boolean}
+ * @returns {value is number}
  */
 function nonNegativeNumber(value) {
   return typeof value === "number" && Number.isFinite(value) && value >= 0;
@@ -199,7 +242,8 @@ export function deriveHoles(entry, context = {}) {
   } else {
     const seen = new Set();
     for (const raw of containers) {
-      const container = /** @type {Record<string, unknown>} */ (raw ?? {});
+      /** @type {Record<string, unknown>} */
+      const container = isObjectLike(raw) ? raw : {};
       const name = container.name;
       if (!nonEmptyString(name)) {
         findings.push({
@@ -242,20 +286,16 @@ export function deriveHoles(entry, context = {}) {
       // 新側が overflow-x: hidden で右端を切る差が見えない（バーを隠して撮ると client と scroll が両側とも揃う）
       const overflowX = container.overflow_x;
       const overflowY = container.overflow_y;
-      if (
-        !OVERFLOW_VALUES.includes(/** @type {string} */ (overflowX)) ||
-        !OVERFLOW_VALUES.includes(/** @type {string} */ (overflowY))
-      ) {
+      if (!isOneOf(OVERFLOW_VALUES, overflowX) || !isOneOf(OVERFLOW_VALUES, overflowY)) {
         findings.push({
           code: "scroll-container-overflow-unreadable",
           message: `${key} の scroll_containers[${String(name)}] の overflow_x / overflow_y が計算値の語彙（${OVERFLOW_VALUES.join(" / ")}）で書かれていない`,
         });
         continue;
       }
-      const bar = /** @type {Record<string, unknown> | null | undefined} */ (container.bar);
+      const bar = container.bar;
       if (
-        !bar ||
-        typeof bar !== "object" ||
+        !isObjectLike(bar) ||
         !nonNegativeNumber(bar.vertical) ||
         !nonNegativeNumber(bar.horizontal)
       ) {
@@ -275,11 +315,11 @@ export function deriveHoles(entry, context = {}) {
       // バーを描く overflow ではみ出しているのに厚みが 0 なら、バーが場所を取っていない（隠したまま撮ったことを検出する）
       const hiddenVertical =
         scroll.height > client.height &&
-        SCROLLBAR_OVERFLOW.includes(/** @type {string} */ (overflowY)) &&
+        SCROLLBAR_OVERFLOW.includes(overflowY) &&
         bar.vertical === 0;
       const hiddenHorizontal =
         scroll.width > client.width &&
-        SCROLLBAR_OVERFLOW.includes(/** @type {string} */ (overflowX)) &&
+        SCROLLBAR_OVERFLOW.includes(overflowX) &&
         bar.horizontal === 0;
       if (context.scrollbars === "shown" && (hiddenVertical || hiddenHorizontal)) {
         holes.push({
@@ -379,7 +419,7 @@ export function declaredCombinations(conditions, displayAxes) {
         });
         continue;
       }
-      const text = /** @type {string} */ (name);
+      const text = name;
       if (seen.has(text)) {
         findings.push({
           code: "declared-axis-value-duplicated",
@@ -393,15 +433,11 @@ export function declaredCombinations(conditions, displayAxes) {
     return names;
   };
   const pages = axisValues(conditions.pages, "pages", (element) =>
-    element && typeof element === "object"
-      ? /** @type {{name?: unknown}} */ (element).name
-      : undefined,
+    isObjectLike(element) ? element.name : undefined,
   );
   const states = axisValues(conditions.states, "states", (element) => element);
   const viewports = axisValues(conditions.viewports, "viewports", (element) =>
-    element && typeof element === "object"
-      ? /** @type {{label?: unknown}} */ (element).label
-      : undefined,
+    isObjectLike(element) ? element.label : undefined,
   );
   /** @type {string[]} */
   const keys = [];
@@ -459,7 +495,7 @@ export const VIEWPORT_AXIS = "viewport";
  * 軸の名前・値として使えるか。組の鍵と抜けの id に入る label の材料にはしないが、
  * 宣言の突き合わせで `名前=値` の形に並べるので、`=` と `,` も弾く。
  * @param {unknown} value
- * @returns {boolean}
+ * @returns {value is string}
  */
 function axisPartIsSafe(value) {
   return idPartIsSafe(value) && !String(value).includes("=") && !String(value).includes(",");
@@ -505,6 +541,10 @@ function variantSignature(values) {
 export function checkDisplayAxes(conditions) {
   /** @type {{code:string, message:string}[]} */
   const findings = [];
+  /**
+   * @param {string} code
+   * @param {string} message
+   */
   const add = (code, message) => findings.push({ code, message });
   /** @type {{label:string, axes:string[]}[]} */
   const variantsOut = [];
@@ -520,33 +560,34 @@ export function checkDisplayAxes(conditions) {
     return result();
   }
   const raw = conditions.display_axes;
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+  if (!isObjectLike(raw) || Array.isArray(raw)) {
     add("display-axes-malformed", "capture_conditions.display_axes がオブジェクトではない");
     return result();
   }
-  const da = /** @type {Record<string, unknown>} */ (raw);
-  for (const key of ["axes", "absent", "pairs", "variants"]) {
-    if (!Array.isArray(da[key])) {
-      add(
-        "display-axes-malformed",
-        `capture_conditions.display_axes.${key} が配列ではない（空でもキーごと書く。欠落は「数えていない」と区別できない）`,
-      );
-      return result();
-    }
+  const lists = displayAxisLists(raw);
+  if (typeof lists === "string") {
+    add(
+      "display-axes-malformed",
+      `capture_conditions.display_axes.${lists} が配列ではない（空でもキーごと書く。欠落は「数えていない」と区別できない）`,
+    );
+    return result();
   }
+  const { axes: axisList, absent: absentList, pairs: pairList, variants: variantList } = lists;
   const declaredPages = Array.isArray(conditions.pages)
     ? conditions.pages
-        .map((p) =>
-          p && typeof p === "object" ? /** @type {{name?: unknown}} */ (p).name : undefined,
-        )
+        .map((p) => (isObjectLike(p) ? p.name : undefined))
         .filter((name) => typeof name === "string")
     : [];
   const candidateIds = AXIS_CANDIDATES.map((c) => c.id);
   /** @type {Map<string, string>} 候補 id → 振り分け先（どこに書いたか） */
   const surveyed = new Map();
+  /**
+   * @param {unknown} candidate
+   * @param {string} where
+   */
   const survey = (candidate, where) => {
     if (candidate === OTHER_CANDIDATE) return;
-    if (!candidateIds.includes(candidate)) {
+    if (!isOneOf(candidateIds, candidate)) {
       add(
         "display-axis-candidate-unknown",
         `${where} の candidate「${String(candidate)}」が候補の一覧に無い（一覧に無い軸は "${OTHER_CANDIDATE}" で書く。候補: ${candidateIds.join(" / ")}）`,
@@ -565,11 +606,10 @@ export function checkDisplayAxes(conditions) {
 
   /** @type {Map<string, {values:string[], default:string}>} */
   const axes = new Map();
-  /** @type {unknown[]} */ (da.axes).forEach((rawAxis, i) => {
+  axisList.forEach((rawAxis, i) => {
     const at = `display_axes.axes[${i}]`;
-    const axis = /** @type {Record<string, unknown>} */ (
-      rawAxis && typeof rawAxis === "object" ? rawAxis : {}
-    );
+    /** @type {Record<string, unknown>} */
+    const axis = isObjectLike(rawAxis) ? rawAxis : {};
     const name = axis.name;
     if (!axisPartIsSafe(name) || name === VIEWPORT_AXIS) {
       add(
@@ -578,7 +618,7 @@ export function checkDisplayAxes(conditions) {
       );
       return;
     }
-    const axisName = /** @type {string} */ (name);
+    const axisName = name;
     if (axes.has(axisName)) {
       add("display-axis-duplicated", `display_axes.axes に ${axisName} が 2 つ以上ある`);
       return;
@@ -599,13 +639,13 @@ export function checkDisplayAxes(conditions) {
             "display-axis-values-unusable",
             `${at}（${axisName}）の values に使えない値がある（空・区切り文字 | # = , を含む）: ${JSON.stringify(value)}`,
           );
-        } else if (valueList.includes(/** @type {string} */ (value))) {
+        } else if (valueList.includes(value)) {
           add(
             "display-axis-values-unusable",
             `${at}（${axisName}）の values に ${value} が 2 つ以上ある`,
           );
         } else {
-          valueList.push(/** @type {string} */ (value));
+          valueList.push(value);
         }
       }
     }
@@ -645,9 +685,8 @@ export function checkDisplayAxes(conditions) {
       );
     } else {
       naList.forEach((rawNa, j) => {
-        const na = /** @type {Record<string, unknown>} */ (
-          rawNa && typeof rawNa === "object" ? rawNa : {}
-        );
+        /** @type {Record<string, unknown>} */
+        const na = isObjectLike(rawNa) ? rawNa : {};
         const page = na.page;
         if (typeof page !== "string" || !declaredPages.includes(page)) {
           add(
@@ -687,11 +726,10 @@ export function checkDisplayAxes(conditions) {
     });
   });
 
-  /** @type {unknown[]} */ (da.absent).forEach((rawAbsent, i) => {
+  absentList.forEach((rawAbsent, i) => {
     const at = `display_axes.absent[${i}]`;
-    const absent = /** @type {Record<string, unknown>} */ (
-      rawAbsent && typeof rawAbsent === "object" ? rawAbsent : {}
-    );
+    /** @type {Record<string, unknown>} */
+    const absent = isObjectLike(rawAbsent) ? rawAbsent : {};
     if (absent.candidate === OTHER_CANDIDATE) {
       add(
         "display-axis-candidate-unknown",
@@ -719,9 +757,7 @@ export function checkDisplayAxes(conditions) {
 
   const baseViewports = Array.isArray(conditions.viewports)
     ? conditions.viewports
-        .map((v) =>
-          v && typeof v === "object" ? /** @type {{label?: unknown}} */ (v).label : undefined,
-        )
+        .map((v) => (isObjectLike(v) ? v.label : undefined))
         .filter((label) => typeof label === "string")
     : [];
   /** @type {Set<string>} */
@@ -730,27 +766,21 @@ export function checkDisplayAxes(conditions) {
   const variantKeys = new Set();
   /** @type {Set<string>} 軸=値 の組み合わせ（窓を問わない） */
   const signatures = new Set();
-  /** @type {unknown[]} */ (da.variants).forEach((rawVariant, i) => {
+  variantList.forEach((rawVariant, i) => {
     const at = `display_axes.variants[${i}]`;
-    const variant = /** @type {Record<string, unknown>} */ (
-      rawVariant && typeof rawVariant === "object" ? rawVariant : {}
-    );
+    /** @type {Record<string, unknown>} */
+    const variant = isObjectLike(rawVariant) ? rawVariant : {};
     const label = variant.label;
     // label は書き出し先のディレクトリ名にもなる（page/state/label）。`.` / `..` やパスの区切りを通すと、
     // 採取の noise パスの削除が別の組のディレクトリを指す
-    if (
-      !idPartIsSafe(label) ||
-      label === "." ||
-      label === ".." ||
-      /[\\/,]/.test(/** @type {string} */ (label))
-    ) {
+    if (!idPartIsSafe(label) || label === "." || label === ".." || /[\\/,]/.test(label)) {
       add(
         "display-axis-variant-label-unusable",
         `${at} の label が使えない（空、区切り文字 ${KEY_SEPARATOR} / ${ID_SEPARATOR} を含む、または . / .. / パスの区切り・カンマを含む。カンマは PARITY_NOISE_PAIRS 等の区切りでもある）: ${JSON.stringify(label)}`,
       );
       return;
     }
-    const labelText = /** @type {string} */ (label);
+    const labelText = label;
     if (labels.has(labelText) || baseViewports.includes(labelText)) {
       add(
         "display-axis-variant-label-duplicated",
@@ -855,12 +885,15 @@ export function checkDisplayAxes(conditions) {
   const members = [...axes.keys()];
   /** @type {Map<string, boolean>} */
   const decided = new Map();
+  /**
+   * @param {string} a
+   * @param {string} b
+   */
   const pairKey = (a, b) => [a, b].sort().join(",");
-  /** @type {unknown[]} */ (da.pairs).forEach((rawPair, i) => {
+  pairList.forEach((rawPair, i) => {
     const at = `display_axes.pairs[${i}]`;
-    const pair = /** @type {Record<string, unknown>} */ (
-      rawPair && typeof rawPair === "object" ? rawPair : {}
-    );
+    /** @type {Record<string, unknown>} */
+    const pair = isObjectLike(rawPair) ? rawPair : {};
     const names = pair.axes;
     if (
       !Array.isArray(names) ||
@@ -906,6 +939,7 @@ export function checkDisplayAxes(conditions) {
         continue;
       }
       if (!decided.get(key)) continue;
+      /** @param {string} name */
       const nonDefault = (name) => {
         const axis = axes.get(name);
         return axis ? axis.values.filter((v) => v !== axis.default) : [];
@@ -1023,7 +1057,7 @@ export function checkBrowser(conditions) {
       },
     ];
   }
-  if (!BROWSER_MODES.includes(/** @type {string} */ (conditions.browser))) {
+  if (!isOneOf(BROWSER_MODES, conditions.browser)) {
     return [
       {
         code: "browser-unknown",
@@ -1033,12 +1067,9 @@ export function checkBrowser(conditions) {
   }
   // cdp では接続先の同一性（Browser.version・userAgent・描画するブラウザ側の OS）も残す。モードだけでは、現・新が別の機械へ接続しても揃ったことになる
   if (conditions.browser === "cdp") {
-    const identity = /** @type {Record<string, unknown> | null | undefined} */ (
-      conditions.browser_identity
-    );
+    const identity = conditions.browser_identity;
     if (
-      !identity ||
-      typeof identity !== "object" ||
+      !isObjectLike(identity) ||
       !evidenceText(identity.product) ||
       !evidenceText(identity.user_agent)
     ) {
@@ -1064,7 +1095,7 @@ export function checkBrowser(conditions) {
  * @returns {{code:string, message:string}[]}
  */
 function checkBrowserOs(os) {
-  if (!os || typeof os !== "object" || Array.isArray(os)) {
+  if (!isObjectLike(os) || Array.isArray(os)) {
     return [
       {
         code: "browser-os-missing",
@@ -1072,7 +1103,7 @@ function checkBrowserOs(os) {
       },
     ];
   }
-  const record = /** @type {Record<string, unknown>} */ (os);
+  const record = os;
   const keys = Object.keys(record).sort();
   const sameKeys =
     keys.length === BROWSER_OS_KEYS.length &&
@@ -1115,13 +1146,17 @@ export const OVERFLOW_STATUSES = ["measured", "not_measured"];
 export function checkOverflow(conditions) {
   /** @type {{code:string, message:string}[]} */
   const findings = [];
+  /**
+   * @param {string} code
+   * @param {string} message
+   */
   const add = (code, message) => findings.push({ code, message });
   if (!Object.hasOwn(conditions, "scrollbars")) {
     add(
       "scrollbars-missing",
       `capture_conditions.scrollbars が無い（撮影時にスクロールバーが場所を取ったか。${SCROLLBAR_MODES.join(" / ")} で書く。新側を同じ扱いで撮れない）`,
     );
-  } else if (!SCROLLBAR_MODES.includes(/** @type {string} */ (conditions.scrollbars))) {
+  } else if (!isOneOf(SCROLLBAR_MODES, conditions.scrollbars)) {
     add(
       "scrollbars-unknown",
       `capture_conditions.scrollbars「${String(conditions.scrollbars)}」が語彙外（${SCROLLBAR_MODES.join(" / ")}）`,
@@ -1148,12 +1183,9 @@ export function checkOverflow(conditions) {
   }
   const overflow = conditions.overflow;
   if (
-    !overflow ||
-    typeof overflow !== "object" ||
+    !isObjectLike(overflow) ||
     Array.isArray(overflow) ||
-    !OVERFLOW_STATUSES.includes(
-      /** @type {string} */ (/** @type {{ status?: unknown }} */ (overflow).status),
-    )
+    !isOneOf(OVERFLOW_STATUSES, overflow.status)
   ) {
     add(
       "overflow-status-unknown",
@@ -1161,7 +1193,7 @@ export function checkOverflow(conditions) {
     );
     return findings;
   }
-  const o = /** @type {Record<string, unknown>} */ (overflow);
+  const o = overflow;
   if (o.status === "not_measured") {
     if (!nonEmptyString(o.reason)) {
       add(
@@ -1191,11 +1223,7 @@ export function checkOverflow(conditions) {
   }
   // 期待集合は撮影条件の pages（宣言）から作る。記録された頁だけを見ると、頁ごと測り忘れても通る
   const declaredPages = Array.isArray(conditions.pages)
-    ? conditions.pages
-        .map((p) =>
-          p && typeof p === "object" ? /** @type {{ name?: unknown }} */ (p).name : undefined,
-        )
-        .filter(nonEmptyString)
+    ? conditions.pages.map((p) => (isObjectLike(p) ? p.name : undefined)).filter(nonEmptyString)
     : [];
   if (!Array.isArray(o.pages)) {
     add("overflow-pages-missing", "capture_conditions.overflow.pages が配列でない");
@@ -1205,12 +1233,13 @@ export function checkOverflow(conditions) {
   const seenPages = new Set();
   o.pages.forEach((raw, i) => {
     const at = `capture_conditions.overflow.pages[${i}]`;
-    const entry = /** @type {Record<string, unknown>} */ (raw ?? {});
+    /** @type {Record<string, unknown>} */
+    const entry = isObjectLike(raw) ? raw : {};
     if (!nonEmptyString(entry.page)) {
       add("overflow-page-unkeyed", `${at}.page が空（どの頁の実測か決まらない）`);
       return;
     }
-    const page = /** @type {string} */ (entry.page);
+    const page = entry.page;
     if (seenPages.has(page)) {
       add(
         "overflow-page-duplicated",
@@ -1223,8 +1252,7 @@ export function checkOverflow(conditions) {
       add("overflow-page-unknown", `${at} の頁 ${page} が capture_conditions.pages に無い`);
     }
     const minWidth = entry.min_width;
-    const minWidthOk =
-      minWidth === null || (Number.isInteger(minWidth) && /** @type {number} */ (minWidth) > 0);
+    const minWidthOk = minWidth === null || (isInteger(minWidth) && minWidth > 0);
     if (!minWidthOk) {
       add(
         "overflow-min-width-malformed",
@@ -1234,9 +1262,7 @@ export function checkOverflow(conditions) {
     // 狭い窓で読んだ中身の高さ。最小幅を持つ頁では、これより高い狭い窓（縦のはみ出しが頁の高さの決め方だけで決まる窓）を要求する。
     // 「縦にはみ出さないこと」は要求しない——body { height: 100% } と既定の margin のように、どの高さでもはみ出す正当な頁がある
     const contentHeight = entry.content_height;
-    const contentHeightOk =
-      minWidth === null ||
-      (Number.isInteger(contentHeight) && /** @type {number} */ (contentHeight) > 0);
+    const contentHeightOk = minWidth === null || (isInteger(contentHeight) && contentHeight > 0);
     if (minWidthOk && !contentHeightOk) {
       add(
         "overflow-content-height-malformed",
@@ -1245,25 +1271,23 @@ export function checkOverflow(conditions) {
     }
     // 最小幅の探索の範囲。刻みだけの探索は狭い帯でだけ有効になる最小幅を見落とすので、メディアクエリの境界も探す。
     // 読めないスタイルシートの境界は探索できていないので、未検証として gaps.md への参照を要求する
-    const probe = /** @type {Record<string, unknown>} */ (entry.probe ?? {});
+    /** @type {Record<string, unknown>} */
+    const probe = isObjectLike(entry.probe) ? entry.probe : {};
     if (
       !entry.probe ||
       typeof entry.probe !== "object" ||
-      !Number.isInteger(probe.step) ||
-      /** @type {number} */ (probe.step) <= 0 ||
+      !isInteger(probe.step) ||
+      probe.step <= 0 ||
       !Array.isArray(probe.breakpoints) ||
       !probe.breakpoints.every((v) => typeof v === "number" && Number.isFinite(v) && v > 0) ||
-      !Number.isInteger(probe.unreadable_stylesheets) ||
-      /** @type {number} */ (probe.unreadable_stylesheets) < 0
+      !isInteger(probe.unreadable_stylesheets) ||
+      probe.unreadable_stylesheets < 0
     ) {
       add(
         "overflow-probe-malformed",
         `${at}.probe が無いか型が不正（step: 正の整数、breakpoints: 正の数の配列、unreadable_stylesheets: 0 以上の整数）`,
       );
-    } else if (
-      /** @type {number} */ (probe.unreadable_stylesheets) > 0 &&
-      !nonEmptyString(probe.gaps_ref)
-    ) {
+    } else if (probe.unreadable_stylesheets > 0 && !nonEmptyString(probe.gaps_ref)) {
       add(
         "overflow-probe-unreadable-unrecorded",
         `${at} に読めないスタイルシートが ${probe.unreadable_stylesheets} 件あるのに probe.gaps_ref が空（その境界は探索できていない。gaps.md に未検証として残して該当箇所を書く）`,
@@ -1284,13 +1308,9 @@ export function checkOverflow(conditions) {
     let fitting = 0;
     entry.windows.forEach((rawWindow, j) => {
       const wat = `${at}.windows[${j}]`;
-      const w = /** @type {Record<string, unknown>} */ (rawWindow ?? {});
-      if (
-        !Number.isInteger(w.width) ||
-        !Number.isInteger(w.height) ||
-        /** @type {number} */ (w.width) <= 0 ||
-        /** @type {number} */ (w.height) <= 0
-      ) {
+      /** @type {Record<string, unknown>} */
+      const w = isObjectLike(rawWindow) ? rawWindow : {};
+      if (!isInteger(w.width) || !isInteger(w.height) || w.width <= 0 || w.height <= 0) {
         add("overflow-window-malformed", `${wat} の width / height が正の整数でない`);
         return;
       }
@@ -1314,7 +1334,11 @@ export function checkOverflow(conditions) {
       }
       // はみ出し量。真偽値だけだと、どの高さでも縦にはみ出す頁（body の height: 100% と既定の margin）で
       // 100% と 100vh が両側とも vertical: true になり見分けられない。スイートは量を比べる
-      const extentOk = (v) => Number.isInteger(v) && /** @type {number} */ (v) >= 0;
+      /**
+       * @param {unknown} v
+       * @returns {v is number}
+       */
+      const extentOk = (v) => isInteger(v) && v >= 0;
       if (!extentOk(w.overflow_x_px) || !extentOk(w.overflow_y_px)) {
         add(
           "overflow-window-malformed",
@@ -1322,10 +1346,7 @@ export function checkOverflow(conditions) {
         );
         return;
       }
-      if (
-        w.horizontal !== /** @type {number} */ (w.overflow_x_px) > 0 ||
-        w.vertical !== /** @type {number} */ (w.overflow_y_px) > 0
-      ) {
+      if (w.horizontal !== w.overflow_x_px > 0 || w.vertical !== w.overflow_y_px > 0) {
         add(
           "overflow-extent-inconsistent",
           `${wat} のはみ出しの真偽値とはみ出し量が矛盾している（horizontal は overflow_x_px > 0、vertical は overflow_y_px > 0 と一致させる）`,
@@ -1350,12 +1371,10 @@ export function checkOverflow(conditions) {
       }
       // 最小幅より狭い窓が全て横にはみ出すとは限らない（最小幅が中間のブレークポイントでだけ有効になるレスポンシブな頁は、
       // モバイル幅ではみ出さない）。数えるのは「最小幅より狭く、横にはみ出した窓」
-      if (/** @type {number} */ (w.width) < /** @type {number} */ (minWidth) && w.horizontal) {
+      if (w.width < minWidth && w.horizontal) {
         narrow += 1;
-        if (
-          contentHeightOk &&
-          /** @type {number} */ (w.height) > /** @type {number} */ (contentHeight)
-        ) {
+        // contentHeightOk かつ minWidth が null でないので contentHeight は数（typeof は型を絞るための再確認）
+        if (contentHeightOk && typeof contentHeight === "number" && w.height > contentHeight) {
           fitting += 1;
         }
       }
@@ -1396,7 +1415,7 @@ export function checkCaptureScope(metadata) {
   const findings = [];
   /** @type {{id:string, kind:string, detail:string}[]} */
   const holes = [];
-  if (!metadata || typeof metadata !== "object") {
+  if (!isObjectLike(metadata)) {
     return {
       findings: [
         { code: "metadata-unreadable", message: "metadata.json が JSON オブジェクトではない" },
@@ -1407,7 +1426,7 @@ export function checkCaptureScope(metadata) {
       judged: true,
     };
   }
-  const meta = /** @type {Record<string, unknown>} */ (metadata);
+  const meta = metadata;
   // 視覚採取物を持たないモード（api-resource / batch）は撮影条件そのものを持たないので判定に入れない。
   // **通すのはこの閉じた集合だけ**で、mode が読めない・知らない値のときは判定を飛ばさず落とす
   // （緩和を「不正な入力」全部に広げない）。
@@ -1437,7 +1456,7 @@ export function checkCaptureScope(metadata) {
     };
   }
   const conditions = meta.capture_conditions;
-  if (!conditions || typeof conditions !== "object") {
+  if (!isObjectLike(conditions)) {
     return {
       findings: [
         {
@@ -1451,14 +1470,12 @@ export function checkCaptureScope(metadata) {
       judged: true,
     };
   }
-  const conditionsRecord = /** @type {Record<string, unknown>} */ (
-    /** @type {unknown} */ (conditions)
-  );
+  const conditionsRecord = conditions;
   // 特性照合する論理名（スクロール領域ごとの untraced の判定に使う）。読めなければ判定を飛ばさず、スクロール領域があるときに落とす
-  const traitElements = meta.traits && meta.traits.elements;
+  const traitElements = isObjectLike(meta.traits) ? meta.traits.elements : undefined;
   const elements =
     Array.isArray(traitElements) && traitElements.every((name) => nonEmptyString(name))
-      ? new Set(/** @type {string[]} */ (traitElements))
+      ? new Set(traitElements)
       : null;
   const displayAxes = checkDisplayAxes(conditionsRecord);
   const declared = declaredCombinations(conditionsRecord, displayAxes);
@@ -1466,9 +1483,7 @@ export function checkCaptureScope(metadata) {
   findings.push(...displayAxes.findings);
   findings.push(...checkViewerEnvironment(conditionsRecord));
   findings.push(...checkBrowser(conditionsRecord));
-  findings.push(
-    ...checkOverflow(/** @type {Record<string, unknown>} */ (/** @type {unknown} */ (conditions))),
-  );
+  findings.push(...checkOverflow(conditionsRecord));
   const noiseBaseline = meta.noise_baseline;
   if (!Array.isArray(noiseBaseline) || noiseBaseline.length === 0) {
     findings.push({
@@ -1499,7 +1514,8 @@ export function checkCaptureScope(metadata) {
   /** @type {Map<string, Record<string, unknown>>} */
   const scopeByKey = new Map();
   for (const raw of scope) {
-    const entry = /** @type {Record<string, unknown>} */ (raw ?? {});
+    /** @type {Record<string, unknown>} */
+    const entry = isObjectLike(raw) ? raw : {};
     if (
       !nonEmptyString(entry.page) ||
       !nonEmptyString(entry.state) ||
@@ -1539,7 +1555,8 @@ export function checkCaptureScope(metadata) {
   const shot = new Set();
   if (Array.isArray(noiseBaseline)) {
     for (const raw of noiseBaseline) {
-      const entry = /** @type {Record<string, unknown>} */ (raw ?? {});
+      /** @type {Record<string, unknown>} */
+      const entry = isObjectLike(raw) ? raw : {};
       if (
         !nonEmptyString(entry.page) ||
         !nonEmptyString(entry.state) ||
@@ -1645,7 +1662,8 @@ export function checkCaptureScope(metadata) {
   /** @type {Map<string, Record<string, unknown>>} */
   const exemptionById = new Map();
   for (const raw of exemptions) {
-    const exemption = /** @type {Record<string, unknown>} */ (raw ?? {});
+    /** @type {Record<string, unknown>} */
+    const exemption = isObjectLike(raw) ? raw : {};
     if (!nonEmptyString(exemption.id)) {
       findings.push({
         code: "exemption-id-missing",
@@ -1725,6 +1743,7 @@ export function main(argv, deps = {}) {
     writeErr(`error: ${message}\n${usage}\n`);
     return 2;
   };
+  /** @param {Record<string, unknown>} obj */
   const out = (obj) =>
     write(
       `${JSON.stringify({ tool: "capture-scope-check", version: VERSION, ...obj }, null, 2)}\n`,
@@ -1758,7 +1777,9 @@ export function main(argv, deps = {}) {
   try {
     metadata = JSON.parse(readFile(resolve(cwd, metadataPath)));
   } catch (error) {
-    return fail(`${metadataPath} を読めない: ${error && error.message}`);
+    // 元の `error && error.message` と同じ表示にする（偽値はそのまま、オブジェクトでない真の値は undefined）
+    const reason = isObjectLike(error) ? error.message : error && undefined;
+    return fail(`${metadataPath} を読めない: ${reason}`);
   }
   const result = checkCaptureScope(metadata);
   if (result.structural) {

@@ -80,6 +80,26 @@ export function filled(value) {
 }
 
 /**
+ * null でないオブジェクト（配列を含む）か。JSON 由来の値の欄を読む前の絞り込みに使う。
+ * @param {unknown} value
+ * @returns {value is Record<string, unknown>}
+ */
+function isObject(value) {
+  return value !== null && typeof value === "object";
+}
+
+/**
+ * `value && value[key]` と同じ値を返す（オブジェクトなら欄の値、偽の値ならその値、それ以外は undefined）。
+ * @param {unknown} value
+ * @param {string} key
+ * @returns {unknown}
+ */
+function field(value, key) {
+  if (isObject(value)) return value[key];
+  return value && undefined;
+}
+
+/**
  * ISO 8601 の日付・日時として読めるか（承認日時の検査。プレースホルダや自由記述を通さない）。
  * **暦の上で実在する値だけを通す。** `Date.parse("2026-02-30")` は 3 月 2 日へ繰り上げて成功するので、
  * 解析の成否ではなく各欄の範囲と、年月日を UTC で組み直して同じ日に戻ることを確かめる。
@@ -102,7 +122,11 @@ export function isoDateTime(value) {
   ) {
     return false;
   }
-  const within = (field, max) => field === undefined || Number(field) <= max;
+  /**
+   * @param {string | undefined} part
+   * @param {number} max
+   */
+  const within = (part, max) => part === undefined || Number(part) <= max;
   return (
     within(m[4], 23) && within(m[5], 59) && within(m[6], 59) && within(m[8], 23) && within(m[9], 59)
   );
@@ -127,7 +151,7 @@ export function cellKey(operation, instance) {
  */
 export function canonical(value) {
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-  if (value !== null && typeof value === "object") {
+  if (isObject(value)) {
     const keys = Object.keys(value).sort();
     return `{${keys.map((k) => `${JSON.stringify(k)}:${canonical(value[k])}`).join(",")}}`;
   }
@@ -201,6 +225,7 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
     uncompared: 0,
     accepted: 0,
   };
+  /** @param {string} detail */
   const structural = (detail) => ({
     structural: true,
     judged: false,
@@ -208,9 +233,10 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
     counts,
   });
 
-  const capture = metadata && metadata.capture;
-  const operations = capture && capture.operations;
-  if (!Array.isArray(operations)) {
+  const capture = field(metadata, "capture");
+  const operations = field(capture, "operations");
+  // operations が配列なら metadata と capture はオブジェクトなので、絞り込みを足しても判定は変わらない。
+  if (!isObject(metadata) || !isObject(capture) || !Array.isArray(operations)) {
     return structural("metadata.json の capture.operations が配列でない（操作の列挙が無い）");
   }
   if (operations.length === 0) {
@@ -223,13 +249,23 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
     );
   }
   // 導出源が無いと、任意の一部だけを列挙した操作の集合が「部品の操作」として完了を示してしまう。
-  if (!OPERATION_SOURCES.includes(capture.operation_source)) {
+  if (!OPERATION_SOURCES.some((source) => source === capture.operation_source)) {
     return structural(
       `capture.operation_source は ${OPERATION_SOURCES.join(" / ")} のいずれか: ${JSON.stringify(capture.operation_source)}`,
     );
   }
   /** @type {Map<string, string[]>} */
   const observeOf = new Map();
+  /**
+   * 母集合に入った操作の観測項目。母集合の鍵は observeOf の操作からだけ作るので、無いことは起きない。
+   * @param {string} op
+   * @returns {string[]}
+   */
+  const observeFor = (op) => {
+    const observe = observeOf.get(op);
+    if (observe === undefined) throw new Error(`観測項目の無い操作: ${op}`);
+    return observe;
+  };
   for (const op of operations) {
     const id = op && op.id;
     if (!filled(id)) return structural("capture.operations[].id が空かプレースホルダのまま");
@@ -257,6 +293,7 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
   if (!Array.isArray(instances) || instances.length === 0) {
     return structural("metadata.json の instances が空");
   }
+  /** @type {string[]} */
   const instanceIds = [];
   for (const inst of instances) {
     const id = inst && inst.id;
@@ -317,11 +354,14 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
   counts.cells = population.size;
 
   // 現行側の採取結果。
-  /** @type {Map<string, unknown>} */
+  /** @type {Map<string, Record<string, unknown> | undefined>} */
   const baseline = new Map();
   for (const id of instanceIds) {
-    const doc = behaviors[id];
-    if (doc === null || doc === undefined) continue; // 欠落は下の未採取で数える
+    const raw = behaviors[id];
+    if (raw === null || raw === undefined) continue; // 欠落は下の未採取で数える
+    // オブジェクトでない値の欄は undefined として読む（プロパティアクセスと同じ）。
+    /** @type {Record<string, unknown>} */
+    const doc = isObject(raw) ? raw : {};
     if (doc.instance !== id) {
       findings.push({
         code: "behavior-baseline-instance-mismatch",
@@ -339,9 +379,10 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
           code: "behavior-baseline-unknown",
           instance: id,
           operation: op ?? null,
-          detail: unreachable.has(key)
-            ? "到達できないと宣言した操作に結果がある"
-            : "列挙に無い操作の結果",
+          detail:
+            key !== null && unreachable.has(key)
+              ? "到達できないと宣言した操作に結果がある"
+              : "列挙に無い操作の結果",
         });
         continue;
       }
@@ -349,7 +390,7 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
         findings.push({ code: "behavior-baseline-duplicate", instance: id, operation: op });
         continue;
       }
-      const shape = observationShape(r.observed, observeOf.get(op));
+      const shape = observationShape(r.observed, observeFor(op));
       if (!shape.ok) {
         findings.push({
           code: "behavior-baseline-incomplete",
@@ -386,20 +427,23 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
     counts.uncompared = population.size;
     return { structural: false, judged: true, findings, counts };
   }
-  if (comparison.target !== target) {
+  // オブジェクトでない値の欄は undefined として読む（プロパティアクセスと同じ）。
+  /** @type {Record<string, unknown>} */
+  const table = isObject(comparison) ? comparison : {};
+  if (table.target !== target) {
     findings.push({
       code: "comparison-target-mismatch",
-      detail: `突き合わせ表の target が ${JSON.stringify(comparison.target)}（判定対象は ${JSON.stringify(target)}）`,
+      detail: `突き合わせ表の target が ${JSON.stringify(table.target)}（判定対象は ${JSON.stringify(target)}）`,
     });
   }
-  if (comparison.component !== metadata.slug) {
+  if (table.component !== metadata.slug) {
     findings.push({
       code: "comparison-component-mismatch",
-      detail: `突き合わせ表の component が ${JSON.stringify(comparison.component)}（採取は ${JSON.stringify(metadata.slug)}）`,
+      detail: `突き合わせ表の component が ${JSON.stringify(table.component)}（採取は ${JSON.stringify(metadata.slug)}）`,
     });
   }
-  const rows = Array.isArray(comparison.rows) ? comparison.rows : [];
-  if (!Array.isArray(comparison.rows)) {
+  const rows = Array.isArray(table.rows) ? table.rows : [];
+  if (!Array.isArray(table.rows)) {
     findings.push({ code: "comparison-rows-invalid", detail: "rows が配列でない" });
   }
   /** @type {Set<string>} */
@@ -459,7 +503,7 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
       counts.uncompared += 1;
       continue;
     }
-    const shape = observationShape(row.observed, observeOf.get(op));
+    const shape = observationShape(row.observed, observeFor(op));
     if (!shape.ok) {
       findings.push({
         code: "behavior-observation-incomplete",
@@ -477,9 +521,9 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
       counts.uncompared += 1;
       continue;
     }
-    const differing = observeOf
-      .get(op)
-      .filter((name) => canonical(row.observed[name]) !== canonical(expected[name]));
+    const differing = observeFor(op).filter(
+      (name) => canonical(row.observed[name]) !== canonical(expected[name]),
+    );
     if (differing.length > 0) {
       counts.mismatched += 1;
       findings.push({
@@ -540,7 +584,8 @@ export function loadBaseline(dir) {
   const metadata = JSON.parse(readFileSync(join(dir, "metadata.json"), "utf8"));
   /** @type {Record<string, unknown>} */
   const behaviors = {};
-  const instances = Array.isArray(metadata && metadata.instances) ? metadata.instances : [];
+  const declared = field(metadata, "instances");
+  const instances = Array.isArray(declared) ? declared : [];
   const baselineRoot = resolve(dir, "baseline");
   for (const inst of instances) {
     const id = inst && inst.id;
@@ -583,11 +628,13 @@ export function main(
     writeErr = (s) => process.stderr.write(s),
   } = {},
 ) {
+  /** @param {Record<string, unknown>} obj */
   const out = (obj) =>
     write(`${JSON.stringify({ tool: "behavior-compare", version: VERSION, ...obj }, null, 2)}\n`);
   const usage =
     "usage: behavior-compare.mjs --baseline <部品の成果物ディレクトリ> --comparison <new/<target>/behavior-comparison.json> --target <name>";
   // 引数・入力の誤りは判定結果ではないので stdout の JSON に混ぜず stderr へ知らせる（同梱スクリプト共通の CLI 規約）。
+  /** @param {string} message */
   const fail = (message) => {
     writeErr(`error: ${message}\n${usage}\n`);
     return 2;
@@ -614,7 +661,7 @@ export function main(
   try {
     loaded = loadBaseline(resolve(cwd, args["--baseline"]));
   } catch (error) {
-    return fail(`採取物を読めない: ${error && error.message}`);
+    return fail(`採取物を読めない: ${field(error, "message")}`);
   }
   let comparison = null;
   try {

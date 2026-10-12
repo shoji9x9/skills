@@ -24,16 +24,37 @@ const HOP = 5; // 交差の飛び越し（line jump）半径
 const FONT =
   '-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Sans","Noto Sans JP",sans-serif';
 
+/**
+ * @typedef {{ id: string, icon?: string | null, label?: string[], x: number, y: number, lp?: string, dim?: boolean }} DiagramNode
+ * @typedef {{ from: string, to: string, label?: string, labelAt?: number[], dashed?: boolean, waypoints?: number[][], dim?: boolean }} DiagramEdge
+ * @typedef {{ label: string, x: number, y: number, w: number, h: number, color: string }} DiagramGroup
+ * @typedef {{ x: number, y: number, w: number, title: string, lines: string[] }} DiagramNote
+ * @typedef {{ W: number, H: number, title: string, nodes?: DiagramNode[], edges?: DiagramEdge[], groups?: DiagramGroup[], notes?: DiagramNote[] }} DiagramSpec
+ * @typedef {{ x: number, y: number }} Point
+ */
+
+/**
+ * @param {number} v
+ * @param {number} lo
+ * @param {number} hi
+ */
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 // ラベルなどを SVG のテキストに埋め込むときの XML エスケープ（`&`・`<`・`>` で SVG が不正にならないように）。
+/** @param {unknown} s */
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+/**
+ * @param {DiagramSpec} spec
+ * @param {{ iconDir?: string }} [options]
+ * @returns {string}
+ */
 export function renderDiagram(spec, options = {}) {
   const { W, H, title, nodes = [], edges = [], groups = [], notes = [] } = spec;
   const { iconDir } = options;
   if (!iconDir) throw new Error("renderDiagram: options.iconDir が必要です");
 
   // ノード間の矢印は最大 1 本。重複した from→to はここで弾く（配置ミスの早期検出）。
+  /** @type {Set<string>} */
   const seenEdge = new Set();
   for (const e of edges) {
     const key = `${e.from}->${e.to}`;
@@ -42,6 +63,7 @@ export function renderDiagram(spec, options = {}) {
   }
 
   const byId = new Map(nodes.map((n) => [n.id, n]));
+  /** @param {string} id */
   const node = (id) => {
     const n = byId.get(id);
     if (!n) throw new Error(`未知のノード: ${id}`);
@@ -50,9 +72,16 @@ export function renderDiagram(spec, options = {}) {
 
   // アイコン SVG を <svg> ネストとして取り込み、元の viewBox を引き継ぐ。
   // iconDir の外（.. や絶対パス）は読み込ませない。
+  /** @type {Map<string, { viewBox: string, body: string }>} */
   const iconCache = new Map();
+  /** @type {string | undefined} */
   let iconDirReal; // iconDir の実体パス（symlink 解決後）。初回に一度だけ解決する。
   let iconSeq = 0; // 埋め込みごとに内部 id を名前空間化するための連番。
+  /**
+   * @param {string} name
+   * @param {number} x
+   * @param {number} y
+   */
   const embedIcon = (name, x, y) => {
     let inner = iconCache.get(name);
     if (inner === undefined) {
@@ -105,6 +134,7 @@ export function renderDiagram(spec, options = {}) {
     return `<svg x="${x}" y="${y}" width="${ICON}" height="${ICON}" viewBox="${inner.viewBox}" overflow="visible">${body}</svg>`;
   };
 
+  /** @param {DiagramNode} n */
   const box = (n) => {
     const h = ICON / 2;
     return { left: n.x - h, right: n.x + h, top: n.y - h, bottom: n.y + h };
@@ -112,6 +142,12 @@ export function renderDiagram(spec, options = {}) {
 
   // ノード境界上の接続点。最も近い辺を選び、辺に平行な座標は接近点(px,py)へ合わせる。
   // これにより waypoint を動かすと辺上の進入位置を制御できる（複数線の進入をずらす）。
+  /**
+   * @param {DiagramNode} n
+   * @param {number} px
+   * @param {number} py
+   * @returns {Point}
+   */
   const anchor = (n, px, py) => {
     const b = box(n);
     const PAD = 12;
@@ -122,6 +158,12 @@ export function renderDiagram(spec, options = {}) {
   };
 
   // 線の座標の列。waypoints があればそこを経由し、無ければ直交する L 字の線を自動で作る。
+  /**
+   * @param {DiagramNode} a
+   * @param {DiagramNode} b
+   * @param {DiagramEdge} e
+   * @returns {Point[]}
+   */
   const route = (a, b, e) => {
     if (e.waypoints?.length) {
       const first = e.waypoints[0];
@@ -143,6 +185,7 @@ export function renderDiagram(spec, options = {}) {
   };
 
   // ラベルを線の出ていない辺へ配置。
+  /** @param {DiagramNode} n */
   const label = (n) => {
     const b = box(n);
     const lines = n.label ?? [];
@@ -196,6 +239,7 @@ export function renderDiagram(spec, options = {}) {
     }
   }
 
+  /** @type {{ ei: number, x: number, lo: number, hi: number }[]} */
   const verticals = [];
   routed.forEach(({ pts }, ei) => {
     for (let i = 0; i < pts.length - 1; i++) {
@@ -210,6 +254,11 @@ export function renderDiagram(spec, options = {}) {
   // そこが屈曲点だとラベルの白背景が角を覆い「線が折れていること」を隠す（自動 L 字は
   // 常に 4 点なので中央インデックスは必ず屈曲点になる）。屈曲点・端点に当たったら、
   // 隣接する直線区間の長い方の中点へ寄せる（線の形は変えずラベルだけ動かす）。
+  /**
+   * @param {Point[]} pts
+   * @param {DiagramEdge} e
+   * @returns {Point}
+   */
   const labelPoint = (pts, e) => {
     if (e.labelAt) return { x: e.labelAt[0], y: e.labelAt[1] };
     const i = Math.floor(pts.length / 2);
@@ -221,12 +270,17 @@ export function renderDiagram(spec, options = {}) {
     if (straight) return p;
     const segs = [prev && [prev, p], next && [p, next]].filter(Boolean);
     if (!segs.length) return p;
+    /** @param {Point[]} seg */
     const len = ([a, b]) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
     const [a, b] = segs.reduce((best, s) => (len(s) > len(best) ? s : best));
     return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
   };
 
   // 水平セグメントが他エッジの垂直セグメントと交わる点で半円アーチ（∩）を描く。
+  /**
+   * @param {Point[]} pts
+   * @param {number} ei
+   */
   const pathD = (pts, ei) => {
     let d = `M ${pts[0].x} ${pts[0].y}`;
     for (let i = 0; i < pts.length - 1; i++) {

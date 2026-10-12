@@ -11,6 +11,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseJsonAs } from "../../lib/parse-as.ts";
 import { makeTempDir } from "../../lib/test-tmpdir.ts";
 import {
   VERSION,
@@ -24,6 +25,8 @@ const script = join(repoRoot, "skills/parity-component/scripts/axis-diff.mjs");
 type PseudoTraits = Record<string, string> | null;
 type TraitsOptions = { before?: PseudoTraits; after?: PseudoTraits; rect?: Record<string, number> };
 type AxisEntry = { axis: string; state: string };
+// CLI の出力のうち、テストが読む欄（形は expect で確かめる）。
+type AxisOutput = { variable: unknown[]; measured: number };
 
 const traits = <Computed extends Record<string, unknown>>(
   computed: Computed,
@@ -233,7 +236,7 @@ test("CLI: 問題が無ければ 0、あれば 1 で終わる", () => {
     ],
   });
   expect(ok.status).toBe(0);
-  expect(JSON.parse(ok.stdout).variable).toHaveLength(1);
+  expect(parseJsonAs<AxisOutput>(ok.stdout).variable).toHaveLength(1);
 
   const ng = runCli({
     component: "button",
@@ -303,7 +306,7 @@ test("CLI: --out は出力先パスを要求し、実際に書く", () => {
   const ok = runCli(manifest, ["--out", out]);
   expect(ok.status).toBe(0);
   expect(ok.stdout).toBe("");
-  expect(JSON.parse(readFileSync(out, "utf8")).variable).toHaveLength(1);
+  expect(parseJsonAs<AxisOutput>(readFileSync(out, "utf8")).variable).toHaveLength(1);
 });
 
 test("CLI: 読めないマニフェストを成功として扱わない", () => {
@@ -733,7 +736,7 @@ test("--baseline は採取物から決定論的にマニフェストを組み立
   );
   const r = spawnSync(process.execPath, [script, "--baseline", repoFixture], { encoding: "utf8" });
   expect(r.status).toBe(0);
-  const generated = JSON.parse(r.stdout);
+  const generated = parseJsonAs<AxisOutput>(r.stdout);
   // 同梱の axes.json はこのコマンドの出力そのもの（手書きしない）。
   const recorded = JSON.parse(readFileSync(join(repoFixture, "axes.json"), "utf8"));
   expect(generated).toEqual(recorded);
@@ -1028,8 +1031,8 @@ test("プロパティ集合の欠落はプロトタイプ上の名前でも自�
 
 test("JSON 由来の自前のキーとして在る __proto__ は欠落にしない", () => {
   // 過剰修正の検知: 採取物は JSON.parse で読むので、`__proto__` も自前のキーとして在りうる。
-  const computed = (color: string): Record<string, unknown> =>
-    JSON.parse(`{"color": "${color}", "__proto__": "x"}`);
+  const computed = (color: string) =>
+    parseJsonAs<Record<string, unknown>>(`{"color": "${color}", "__proto__": "x"}`);
   const result = diffAxes({
     property_set: ["color", "__proto__"],
     instances: [

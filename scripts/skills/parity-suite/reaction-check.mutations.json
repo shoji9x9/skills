@@ -20,7 +20,7 @@
       "id": "source-document-unknown",
       "why": "none の操作した文書が棚卸しに無くても通す",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "  if (documents && !documents.has(/** @type {string} */ (obs.source_document))) {\n",
+      "find": "  if (documents && !documents.has(obs.source_document)) {\n",
       "replace": "  if (false) {\n",
       "occurrences": 1,
       "expect_failing": ["未測定として落とす: none の操作した文書が棚卸しに無い"]
@@ -173,8 +173,8 @@
       "id": "layout-before",
       "why": "操作の前の測定を検査しない",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "  if (beforeProblem) return",
-      "replace": "  if (false) return",
+      "find": "  if (!isLayoutMeasure(before))\n",
+      "replace": "  if (false)\n",
       "occurrences": 1,
       "expect_failing": [
         "頁の組み方の記録の欠けを落とす: changes: true に操作の前の測定が無い（Issue #460）"
@@ -236,7 +236,7 @@
       "id": "layout-rect-negative",
       "why": "負の幅・高さを通す",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "    if (/** @type {number} */ (r.width) < 0 || /** @type {number} */ (r.height) < 0) {\n",
+      "find": "    if (\n      (typeof r.width === \"number\" && r.width < 0) ||\n      (typeof r.height === \"number\" && r.height < 0)\n    ) {\n",
       "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": ["頁の組み方の記録の欠けを落とす: 矩形の幅が負（Issue #460）"]
@@ -256,7 +256,7 @@
       "id": "layout-all-same",
       "why": "変わると書いたのに全ての標本が操作の前と同じでも通す",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "  if (samples.every((m) => same(m, layout.before))) {\n",
+      "find": "  if (samples.every((m) => same(m, before))) {\n",
       "replace": "  if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
@@ -391,7 +391,7 @@
       "id": "aftermath-look-captured-unknown",
       "why": "撮影条件に無い状態名へ割り当てても通す",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "    if (hasState && captureStates && !captureStates.has(/** @type {string} */ (item.captured))) {\n",
+      "find": "    if (hasState && captureStates && !setHas(captureStates, item.captured)) {\n",
       "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
@@ -558,7 +558,7 @@
       "id": "page-unknown",
       "why": "撮影条件に無いページ名を通す",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "      else if (pageNames !== null && !pageNames.has(/** @type {string} */ (op.capture_page)))\n",
+      "find": "      else if (pageNames !== null && !pageNames.has(op.capture_page))\n",
       "replace": "      else if (false)\n",
       "occurrences": 1,
       "expect_failing": [
@@ -623,7 +623,7 @@
       "id": "pre-send-order-includes",
       "why": "順序にこの判定の id が無くても通す（どこに入る判定かが残らない）",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "      !order.includes(item.id)\n",
+      "find": "      !listIncludes(order, item.id)\n",
       "replace": "      false\n",
       "occurrences": 1,
       "expect_failing": [
@@ -733,7 +733,7 @@
       "id": "side-effects-pattern-table",
       "why": "パターンの書く表が表の一覧に無くても通す",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "    if (!filled(t) || !tableSet.has(/** @type {string} */ (t))) {\n",
+      "find": "    if (!filled(t) || !tableSet.has(t)) {\n",
       "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": ["表への書き込みの欠けは落とす: パターンの表が表の一覧に無い（Issue #466）"]
@@ -764,7 +764,7 @@
       "id": "side-effects-operation",
       "why": "被覆表に無い操作へ結び付けた書き込みを通す",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "    if (s.operation !== null && !opIds.has(/** @type {string} */ (s.operation))) {\n",
+      "find": "    if (s.operation !== null && !setHas(opIds, s.operation)) {\n",
       "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
@@ -896,7 +896,7 @@
       "id": "state-display-detail",
       "why": "作り方が空でも通す",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "    if (!filled(/** @type {Record<string, unknown>} */ (setup).detail)) {\n",
+      "find": "    if (!filled(setup.detail)) {\n",
       "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": ["状態表示の振り分けの欠けは落とす: 作り方が空（Issue #500）"]
@@ -905,7 +905,7 @@
       "id": "state-display-request",
       "why": "横取りした要求が空でも通す",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "    if (\n      INTERCEPT_METHODS.includes(method) &&\n      !originFreePattern(/** @type {Record<string, unknown>} */ (setup).request)\n    ) {\n",
+      "find": "    if (INTERCEPT_METHODS.includes(method) && !originFreePattern(setup.request)) {\n",
       "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
@@ -942,7 +942,7 @@
       "id": "state-display-captured-unknown",
       "why": "撮影状態に無い captured を通す",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "    if (hasState && captureStates && !captureStates.has(/** @type {string} */ (entry.captured))) {\n",
+      "find": "    if (hasState && captureStates && !setHas(captureStates, entry.captured)) {\n",
       "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
@@ -962,7 +962,7 @@
       "id": "state-display-absent-assertion",
       "why": "absent の不在を assertion にしなくても通す",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "  if (!ABSENT_WITHOUT_ASSERTION.includes(/** @type {string} */ (method)) && !hasAssertion) {\n",
+      "find": "  if (!listIncludes(ABSENT_WITHOUT_ASSERTION, method) && !hasAssertion) {\n",
       "replace": "  if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
@@ -1157,7 +1157,7 @@
       "id": "resubmit-presses",
       "why": "押し直していない記録を通す",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "  if (!Number.isInteger(rs.presses) || /** @type {number} */ (rs.presses) < 2) {\n",
+      "find": "  if (!isInteger(rs.presses) || rs.presses < 2) {\n",
       "replace": "  if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
@@ -1169,7 +1169,7 @@
       "id": "resubmit-observed",
       "why": "送った回数・確認の回数・覆いの欠けを通す",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "  if (\n    !isPlainObject(obs) ||\n    !Number.isInteger(obs.requests_sent) ||\n    /** @type {number} */ (obs.requests_sent) < 1 ||\n    !Number.isInteger(obs.confirms_shown) ||\n    /** @type {number} */ (obs.confirms_shown) < 0 ||\n    !filled(obs.overlay)\n  ) {\n",
+      "find": "  if (\n    !isPlainObject(obs) ||\n    !isInteger(obs.requests_sent) ||\n    obs.requests_sent < 1 ||\n    !isInteger(obs.confirms_shown) ||\n    obs.confirms_shown < 0 ||\n    !filled(obs.overlay)\n  ) {\n",
       "replace": "  if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
@@ -1182,7 +1182,7 @@
       "id": "resubmit-writes",
       "why": "書き込む操作で書き込みの回数を数えなくても通す",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "    if (\n      !isPlainObject(w) ||\n      !Number.isInteger(w.count) ||\n      /** @type {number} */ (w.count) < 0 ||\n      !filled(w.evidence)\n    ) {\n",
+      "find": "    if (!isPlainObject(w) || !isInteger(w.count) || w.count < 0 || !filled(w.evidence)) {\n",
       "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
@@ -1496,7 +1496,7 @@
       "id": "tests-root-dir-unchecked",
       "why": "一覧の config.rootDir を確かめない（スペックを読む起点が無いまま進む。Issue #506）",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "      if (!nonEmptyString(testsRoot) || !isAbsolute(testsRoot)) {\n",
+      "find": "      if (!nonEmptyString(rootDir) || !isAbsolute(rootDir)) {\n",
       "replace": "      if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
@@ -1880,7 +1880,7 @@
       "id": "operationless-revision-invalid",
       "why": "読めない run.procedure_revision を旧成果物か新しい成果物のどちらかへ黙って倒す",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "  if (!Number.isInteger(rev) || /** @type {number} */ (rev) < 0) {\n",
+      "find": "  if (typeof rev !== \"number\" || !Number.isInteger(rev) || rev < 0) {\n",
       "replace": "  if (false) {\n",
       "occurrences": 1,
       "expect_failing": [

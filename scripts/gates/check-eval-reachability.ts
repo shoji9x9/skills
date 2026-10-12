@@ -25,7 +25,7 @@ import { existsSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { errorCodeOrMessage, errorMessage } from "../lib/errors.ts";
-import { parseJsonAs } from "../lib/parse-as.ts";
+import { isRecord } from "../lib/guards.ts";
 
 export const BACKLOG_PATH = "scripts/gates/eval-reachability-backlog.json";
 
@@ -74,9 +74,9 @@ export function checkEvalFile(
   const violations: string[] = [];
   const keys: string[] = [];
   // 形はこの後の検査で確かめる。
-  let parsed: { skill_name?: unknown; evals?: unknown } | null;
+  let parsed: unknown;
   try {
-    parsed = parseJsonAs<{ skill_name?: unknown; evals?: unknown } | null>(source);
+    parsed = JSON.parse(source);
   } catch (error) {
     return {
       evals: 0,
@@ -88,7 +88,7 @@ export function checkEvalFile(
   // トップレベルの形を先に確かめる。`null` や配列を素通りさせると `parsed.skill_name` が
   // TypeError で落ち、違反として報告されずに検査そのものが停止する（免除の鍵に skill_name が
   // 要るので、配列形式はそもそも受理できない）。
-  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+  if (!isRecord(parsed)) {
     violations.push(`${label}: トップレベルが { "skill_name", "evals" } のオブジェクトでない`);
     return { evals: 0, violations, keys };
   }
@@ -233,16 +233,25 @@ export function loadBacklog(root: string): {
   // 不在を違反として扱う以上、形式が不正な場合も違反にする。素の JSON.parse だと、
   // （merge 衝突の残骸などで）スタックトレースを出してチェックが止まる。すると pre-commit / CI が、
   // 「チェックした結果」ではなくクラッシュで落ちる。
-  let parsed: { exempt?: Record<string, string> } | null;
+  let parsed: unknown;
   try {
-    parsed = parseJsonAs<{ exempt?: Record<string, string> } | null>(readFileSync(path, "utf8"));
+    parsed = JSON.parse(readFileSync(path, "utf8"));
   } catch (error) {
     return { exempt: {}, missing: false, error: errorMessage(error) };
   }
-  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+  if (!isRecord(parsed)) {
     return { exempt: {}, missing: false, error: "トップレベルがオブジェクトでない" };
   }
-  return { exempt: parsed.exempt ?? {}, missing: false };
+  const exempt = parsed.exempt ?? {};
+  if (!isStringRecord(exempt)) {
+    return { exempt: {}, missing: false, error: "exempt が、値が文字列のオブジェクトでない" };
+  }
+  return { exempt, missing: false };
+}
+
+/** 値がすべて文字列の object か。 */
+function isStringRecord(value: unknown): value is Record<string, string> {
+  return isRecord(value) && Object.values(value).every((v) => typeof v === "string");
 }
 
 export function checkAll(

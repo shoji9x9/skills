@@ -13,6 +13,7 @@ import { spawnSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseJsonAs } from "../../lib/parse-as.ts";
 import { makeTempDir } from "../../lib/test-tmpdir.ts";
 import {
   VERSION,
@@ -28,6 +29,8 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..")
 const script = join(repoRoot, "skills/parity-component/scripts/cascade-resolve.mjs");
 
 type Decl = { property: string; value: string; important: boolean };
+// CLI の出力のうち、テストが読む欄（形は expect で確かめる）。
+type CliReport = { results: { winner: { value: unknown } }[]; counts: { undecidable: number } };
 type RuleInput = {
   order?: number;
   selector: string;
@@ -389,7 +392,7 @@ test("--property は CSS カスタムプロパティも受け取る", () => {
     { encoding: "utf8" },
   );
   expect(out.status, out.stderr).toBe(0);
-  expect(JSON.parse(out.stdout).results[0].winner.value).toBe("red");
+  expect(parseJsonAs<CliReport>(out.stdout).results[0].winner.value).toBe("red");
 
   // 検出できることの確認: 既知のフラグ名は値として受け取らない（取り違えを警告なしに受け入れない）。
   const swallowed = spawnSync(
@@ -477,7 +480,7 @@ test("CLI: undecidable が残れば exit 1、全て決まれば exit 0", () => {
     }),
   });
   expect(ok.status).toBe(0);
-  expect(JSON.parse(ok.stdout).results[0].winner.value).toBe("red");
+  expect(parseJsonAs<CliReport>(ok.stdout).results[0].winner.value).toBe("red");
 
   const bad = runCli(["--css-rules", "in.json", "--state", "default", "--property", "color"], {
     "in.json": doc({
@@ -485,7 +488,7 @@ test("CLI: undecidable が残れば exit 1、全て決まれば exit 0", () => {
     }),
   });
   expect(bad.status).toBe(1);
-  expect(JSON.parse(bad.stdout).counts.undecidable).toBe(1);
+  expect(parseJsonAs<CliReport>(bad.stdout).counts.undecidable).toBe(1);
 });
 
 test("CLI: 読めないファイルは exit 2", () => {

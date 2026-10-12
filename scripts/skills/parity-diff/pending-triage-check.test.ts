@@ -64,6 +64,17 @@ import { writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../lib/test-tmpdir.ts";
+import { parseJsonAs } from "../../lib/parse-as.ts";
+
+/** pending-triage-check.mjs が stdout に出す要約のうち、テストが読む欄。 */
+type TriageSummary = {
+  in_scope: number;
+  untriaged: number;
+  unattributed: number;
+  registry_problems: string[];
+  record_problems: string[];
+  out_of_scope_problems: string[];
+};
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "skills/parity-diff/scripts/pending-triage-check.mjs");
@@ -244,7 +255,7 @@ test("対象 0 件で不備も無ければ、ゼロ件の記録とともに合�
   expect(status).toBe(0);
   expect(stderr).not.toContain("error:");
   expect(stderr).not.toContain("warn:");
-  const parsed = JSON.parse(stdout);
+  const parsed = parseJsonAs<TriageSummary>(stdout);
   expect(parsed.in_scope).toBe(0);
   expect(parsed.untriaged).toBe(0);
   expect(parsed.registry_problems).toEqual([]);
@@ -271,7 +282,7 @@ test("parity-component が部品 slug を書いた要素は帰属不明として
   expect(stderr).toContain("added_by が parity-component なのに slug が cross-cutting でない");
   expect(stderr).toContain("error: 未棚卸し 1 件");
   expect(stderr).toContain("error: 設定ファイルの登録簿の不整合");
-  const parsed = JSON.parse(stdout);
+  const parsed = parseJsonAs<TriageSummary>(stdout);
   expect(parsed.in_scope).toBe(1);
   expect(parsed.untriaged).toBe(1);
   expect(parsed.out_of_scope_problems).toEqual([]);
@@ -363,7 +374,7 @@ test("replace-strategy が機能 slug を書いた要素は帰属不明として
   expect(status).toBe(1);
   expect(stderr).toContain("added_by が replace-strategy なのに slug が cross-cutting でない");
   expect(stderr).toContain("error: 未棚卸し 1 件");
-  const parsed = JSON.parse(stdout);
+  const parsed = parseJsonAs<TriageSummary>(stdout);
   expect(parsed.in_scope).toBe(1);
   expect(parsed.out_of_scope_problems).toEqual([]);
 });
@@ -373,7 +384,7 @@ test("他のスキルが別機能の slug を書いた要素は、この検査�
     pending: [{ ...otherFeature, added_at: "2026-09-01" }],
   });
   expect(status).toBe(0);
-  const parsed = JSON.parse(stdout);
+  const parsed = parseJsonAs<TriageSummary>(stdout);
   expect(parsed.in_scope).toBe(0);
   expect(parsed.unattributed).toBe(0);
 });
@@ -402,7 +413,7 @@ test.each([
   expect(status).toBe(1);
   expect(stderr).toContain("slug の名前空間を確認できない");
   expect(stderr).toContain("error: 未棚卸し 1 件");
-  const parsed = JSON.parse(stdout);
+  const parsed = parseJsonAs<TriageSummary>(stdout);
   expect(parsed.in_scope).toBe(1);
   expect(parsed.out_of_scope_problems).toEqual([]);
 });
@@ -424,7 +435,7 @@ test("実在しない slug は、書き手が正規でも帰属不明として�
   expect(status).toBe(1);
   expect(stderr).toContain("slug が機能インベントリに無い");
   expect(stderr).toContain("error: 未棚卸し 1 件");
-  const parsed = JSON.parse(stdout);
+  const parsed = parseJsonAs<TriageSummary>(stdout);
   expect(parsed.in_scope).toBe(1);
   expect(parsed.out_of_scope_problems).toEqual([]);
 });
@@ -437,11 +448,11 @@ test("--features を渡さないと別機能への緩和を適用しない（渡
   // 同じ入力でも --features 付きなら対象 0 件・exit 0（下の、検出できることの確認）。
   expect(status).toBe(1);
   expect(stderr).toContain("--features を渡していないので");
-  expect(JSON.parse(stdout).in_scope).toBe(1);
+  expect(parseJsonAs<TriageSummary>(stdout).in_scope).toBe(1);
 
   const withInventory = run({ pending: [{ ...otherFeature, added_at: "2026-09-01" }] });
   expect(withInventory.status).toBe(0);
-  expect(JSON.parse(withInventory.stdout).in_scope).toBe(0);
+  expect(parseJsonAs<TriageSummary>(withInventory.stdout).in_scope).toBe(0);
 });
 
 test("slug 表の無い features.md は読めないものとして exit 2 で落ちる", () => {

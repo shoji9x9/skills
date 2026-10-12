@@ -123,8 +123,8 @@
       "id": "unclassified-counted",
       "why": "資産以外の取得も混ざる unclassifiedResources を参照として数える",
       "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "    if (isPlainObject(row)) add(row.url);\n  return out;\n",
-      "replace": "    if (isPlainObject(row)) add(row.url);\n  for (const row of /** @type {unknown[]} */ (probe.unclassifiedResources ?? []))\n    if (isPlainObject(row)) add(row.url);\n  return out;\n",
+      "find": "  for (const row of rowsOf(\"resources\")) if (isPlainObject(row)) add(row.url);\n  return out;\n",
+      "replace": "  for (const row of rowsOf(\"resources\")) if (isPlainObject(row)) add(row.url);\n  for (const row of rowsOf(\"unclassifiedResources\")) if (isPlainObject(row)) add(row.url);\n  return out;\n",
       "occurrences": 1,
       "expect_failing": [
         "落とす: プローブの unclassifiedResources にしか現れない URL は参照に数えない"

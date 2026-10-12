@@ -209,6 +209,7 @@ export function summarizePixels(
       if (thresholdMask[i] === 0) strictOnly += 1;
     }
   }
+  /** @param {number} n */
   const ratio = (n) => (total === 0 ? 0 : Number(((n / total) * 100).toFixed(4)));
   return {
     total_pixels: total,
@@ -304,6 +305,8 @@ export function clusterComponents(mask, width, height) {
     visited[start] = 1;
     while (stack.length > 0) {
       const idx = stack.pop();
+      // 直前の条件で stack は空でないので、undefined にはならない（型の絞り込みのため）。
+      if (idx === undefined) break;
       const x = idx % width;
       const y = (idx - x) / width;
       pixels += 1;
@@ -432,6 +435,10 @@ export function absorbStrictIntoRegions(regions, strictOnlyMask, width, height, 
       absorbed_strict_only_pixels: count,
     };
   });
+  /**
+   * @param {Rect[]} xs
+   * @param {Rect[]} ys
+   */
   const near = (xs, ys) => xs.some((a) => ys.some((b) => bboxOverlap(a, b, pad)));
   let merged = true;
   while (merged) {
@@ -847,7 +854,9 @@ export async function main(argv) {
   strictResult.forEach((s, i) => {
     s.overlaps_regions = adjacency[i];
   });
-  const splitCount = strictResult.filter((s) => s.overlaps_regions.length > 0).length;
+  const splitCount = strictResult.filter(
+    (s) => s.overlaps_regions !== undefined && s.overlaps_regions.length > 0,
+  ).length;
   summary.strict_only_overlapping_regions = splitCount;
 
   // しきい値の内側に差が隠れていることは、差分領域が 0 件でも起きる。stdout の summary だけでなく

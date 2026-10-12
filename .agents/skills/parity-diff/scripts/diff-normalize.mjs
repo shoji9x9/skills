@@ -74,6 +74,40 @@ export const VERSION = "5";
  */
 
 /**
+ * null でも配列でもないオブジェクトかを返す（型の絞り込みに使う）。
+ *
+ * @param {unknown} v
+ * @returns {v is Record<string, unknown>}
+ */
+function isRecord(v) {
+  return v !== null && typeof v === "object" && !Array.isArray(v);
+}
+
+/**
+ * null でないオブジェクト（配列を含む）かを返す（型の絞り込みに使う）。
+ * 配列の名前付きの欄は読むと undefined なので、Record として読んでよい。
+ *
+ * @param {unknown} v
+ * @returns {v is Record<string, unknown>}
+ */
+function isObjectLike(v) {
+  return v !== null && typeof v === "object";
+}
+
+/**
+ * 意図的差異レジストリの 1 群の要素を返す。レジストリか群が配列でなければ空配列。
+ * レジストリがオブジェクトでなければ、元の `registry?.[group]` と同じく群は無いものとして扱う。
+ *
+ * @param {unknown} registry
+ * @param {"keep" | "may_change" | "pending"} group
+ * @returns {unknown[]}
+ */
+function intentionalGroupEntries(registry, group) {
+  const entries = isObjectLike(registry) ? registry[group] : undefined;
+  return Array.isArray(entries) ? entries : [];
+}
+
+/**
  * CSS 値・ラベルの表記ゆれを吸収した正規化文字列を返す（単位そのものは残す）。
  *
  * @param {unknown} v
@@ -104,15 +138,16 @@ export function normalizeValue(v) {
  */
 export function intentionalEntryText(entry) {
   if (typeof entry === "string") return entry;
-  if (entry && typeof entry === "object" && !Array.isArray(entry)) {
-    const item = /** @type {{ item?: unknown }} */ (entry).item;
+  if (isRecord(entry)) {
+    const item = entry.item;
     return typeof item === "string" ? item : "";
   }
   return "";
 }
 
 /** 意図的差異レジストリの分類 3 群（照合の優先順）。 */
-const INTENTIONAL_GROUPS = /** @type {const} */ (["keep", "may_change", "pending"]);
+/** @type {readonly ["keep", "may_change", "pending"]} */
+const INTENTIONAL_GROUPS = ["keep", "may_change", "pending"];
 
 /** `match` が持てるキー（照合に使うもの）。 */
 const INTENTIONAL_MATCH_KEYS = ["element", "property", "page", "state", "viewport"];
@@ -132,18 +167,18 @@ const INTENTIONAL_MATCH_KEYS = ["element", "property", "page", "state", "viewpor
  * @returns {{ element:string, property:string, page?:string, state?:string, viewport?:string } | { invalid:string } | null}
  */
 export function intentionalEntryMatch(entry) {
-  if (!entry || typeof entry !== "object" || Array.isArray(entry)) return null;
+  if (!isRecord(entry)) return null;
   if (!Object.prototype.hasOwnProperty.call(entry, "match")) return null;
-  const match = /** @type {{ match?: unknown }} */ (entry).match;
+  const match = entry.match;
   // item（散文）は必須。棚卸し・追記専用の検査は item で要素を突き合わせ、matched_rule にも item が入るため、
   // item の無い宣言は照合に使うと「どの宣言で許容したか」を追えない。
   if (normalizeValue(intentionalEntryText(entry)).length === 0) {
     return { invalid: "missing item (the prose declaration is required alongside match)" };
   }
-  if (!match || typeof match !== "object" || Array.isArray(match)) {
+  if (!isRecord(match)) {
     return { invalid: "match is not an object" };
   }
-  const m = /** @type {Record<string, unknown>} */ (match);
+  const m = match;
   const unknownKeys = Object.keys(m).filter((k) => !INTENTIONAL_MATCH_KEYS.includes(k));
   if (unknownKeys.length > 0) {
     return { invalid: `unknown match key(s) ${unknownKeys.join(", ")}` };
@@ -162,8 +197,11 @@ export function intentionalEntryMatch(entry) {
   }
   /** @type {{ element:string, property:string, page?:string, state?:string, viewport?:string }} */
   const out = { element: String(m.element), property: String(m.property) };
-  for (const k of ["page", "state", "viewport"]) {
-    if (typeof m[k] === "string") out[k] = m[k];
+  /** @type {Array<"page" | "state" | "viewport">} */
+  const optionalKeys = ["page", "state", "viewport"];
+  for (const k of optionalKeys) {
+    const v = m[k];
+    if (typeof v === "string") out[k] = v;
   }
   return out;
 }
@@ -218,14 +256,14 @@ export function matchesIntentionalKey(match, diff, ctx) {
  * 最終判断は triage が担う（ここは機械的な粗フィルタ）。
  *
  * @param {{ name?:string, prop?:string }} diff
- * @param {{ keep?:unknown[], may_change?:unknown[], pending?:unknown[] }} registry
+ * @param {unknown} registry - registries.intentional_diffs（読んだままの値。形はここで確かめる）
  * @param {{ page?:string, state?:string, viewport?:string }} [ctx]
  * @returns {{ group:'keep'|'may_change'|'pending', entry:string, index:number, by:'match'|'text' } | null}
  */
 export function matchIntentional(diff, registry, ctx = {}) {
   const hay = normalizeValue(`${diff.name ?? ""} ${diff.prop ?? ""}`);
   for (const group of INTENTIONAL_GROUPS) {
-    const entries = Array.isArray(registry?.[group]) ? registry[group] : [];
+    const entries = intentionalGroupEntries(registry, group);
     for (let index = 0; index < entries.length; index += 1) {
       const entry = entries[index];
       const text = intentionalEntryText(entry);
@@ -250,13 +288,14 @@ export function matchIntentional(diff, registry, ctx = {}) {
  * 意図的差異レジストリの要素のうち、`match` が不正で照合に使えないものの理由を列挙する。
  * 警告なしに無効にすると、宣言した側からは、吸収されたのか当たらなかったのかが見えない。
  *
- * @param {{ keep?:unknown[], may_change?:unknown[], pending?:unknown[] }} registry
+ * @param {unknown} registry - registries.intentional_diffs（読んだままの値。形はここで確かめる）
  * @returns {string[]}
  */
 export function validateIntentionalDiffs(registry) {
+  /** @type {string[]} */
   const problems = [];
   for (const group of INTENTIONAL_GROUPS) {
-    const entries = Array.isArray(registry?.[group]) ? registry[group] : [];
+    const entries = intentionalGroupEntries(registry, group);
     entries.forEach((entry, i) => {
       const match = intentionalEntryMatch(entry);
       if (match !== null && "invalid" in match) {
@@ -275,14 +314,14 @@ export function validateIntentionalDiffs(registry) {
  * 照合では、実行側に軸が無ければ当てない。そのため警告なしに 0 件にすると、宣言の書き方の誤りと
  * 本物の未説明の差を区別できない。インスタンス例外で `--page` / `--viewport` を省いたときの警告と同じように扱う。
  *
- * @param {{ keep?:unknown[], may_change?:unknown[], pending?:unknown[] }} registry
+ * @param {unknown} registry - registries.intentional_diffs（読んだままの値。形はここで確かめる）
  * @param {{ page?:string, viewport?:string }} ctx
  * @returns {number}
  */
 export function countMatchesMissingCtx(registry, ctx) {
   let count = 0;
   for (const group of INTENTIONAL_GROUPS) {
-    const entries = Array.isArray(registry?.[group]) ? registry[group] : [];
+    const entries = intentionalGroupEntries(registry, group);
     for (const entry of entries) {
       const match = intentionalEntryMatch(entry);
       if (match === null || "invalid" in match) continue;
@@ -303,7 +342,7 @@ export function countMatchesMissingCtx(registry, ctx) {
  * 宣言の書き方の誤りと本物の未説明の差を区別できるよう、件数を呼び出し側（CLI）が stderr に出す。
  * 「当たった」は分類に使われた宣言（同じ差分に先に当たる宣言があれば、後ろの宣言は使われていない）。
  *
- * @param {{ keep?:unknown[], may_change?:unknown[], pending?:unknown[] }} registry
+ * @param {unknown} registry - registries.intentional_diffs（読んだままの値。形はここで確かめる）
  * @param {Array<{ name?:string, prop?:string }>} diffs
  * @param {{ page?:string, state?:string, viewport?:string }} ctx
  * @returns {{ unused:number, total:number }}
@@ -317,7 +356,7 @@ export function countUnmatchedProseDeclarations(registry, diffs, ctx) {
   let total = 0;
   let unused = 0;
   for (const group of INTENTIONAL_GROUPS) {
-    const entries = Array.isArray(registry?.[group]) ? registry[group] : [];
+    const entries = intentionalGroupEntries(registry, group);
     entries.forEach((entry, i) => {
       if (intentionalEntryMatch(entry) !== null) return;
       if (normalizeValue(intentionalEntryText(entry)).length === 0) return;
@@ -389,6 +428,7 @@ export function matchesComponentPattern(pattern, name) {
  */
 export function validateComponentDiffs(componentDiffs) {
   const list = Array.isArray(componentDiffs) ? componentDiffs : [];
+  /** @type {string[]} */
   const problems = [];
   list.forEach((t, i) => {
     const at = `component_diffs[${i}]`;
@@ -412,7 +452,7 @@ export function validateComponentDiffs(componentDiffs) {
  * 一致しない要素の差分には掛からない（別要素の回帰を吸収せず、別要素の差分を deviates_T へ格上げしない）。
  *
  * @param {TraitDiff} diff
- * @param {ComponentDiff[] | undefined} componentDiffs
+ * @param {unknown} componentDiffs - registries.component_diffs（読んだままの値。要素の形はここで確かめる）
  * @returns {{ status:'absorbed_T'|'deviates_T', rule:ComponentDiff } | null}
  */
 export function matchComponentT(diff, componentDiffs) {
@@ -439,7 +479,7 @@ export function matchComponentT(diff, componentDiffs) {
  * 原因の文言をインスタンスへ複製させないための参照解決であり、照合キーには一切関与しない。
  *
  * @param {InstanceException | null | undefined} ex - インスタンス例外
- * @param {ExceptionCause[] | undefined} causes
+ * @param {unknown} causes - registries.component_diff_exception_causes（読んだままの値）
  * @returns {{ id:string, reason:string, evidence:string } | null}
  */
 export function resolveExceptionCause(ex, causes) {
@@ -464,12 +504,13 @@ export function resolveExceptionCause(ex, causes) {
  * これが diff-metadata.json の accepted_exceptions.unresolved の件数になる。
  *
  * @param {unknown} exceptions - registries.component_diff_exceptions（読んだままの値。形はここで確かめる）
- * @param {ExceptionCause[] | undefined} causes - registries.component_diff_exception_causes
+ * @param {unknown} causes - registries.component_diff_exception_causes（読んだままの値）
  * @param {string} [slug] - 対象 slug（ctx.slug）。渡すと slug 不一致も検出する
  * @returns {string[]} 問題の説明（空配列なら全件が照合に使える）
  */
 export function validateExceptions(exceptions, causes, slug) {
   const list = Array.isArray(exceptions) ? exceptions : [];
+  /** @type {string[]} */
   const problems = [];
   list.forEach((ex, i) => {
     const at = `component_diff_exceptions[${i}]`;
@@ -528,9 +569,9 @@ export function validateExceptions(exceptions, causes, slug) {
  * 合致したら解決済みの原因を cause_reason / cause_evidence として添えて返す。
  *
  * @param {TraitDiff} diff
- * @param {InstanceException[] | undefined} exceptions
+ * @param {unknown} exceptions - registries.component_diff_exceptions（読んだままの値）
  * @param {{ slug:string, page?:string, state?:string, viewport?:string }} ctx
- * @param {ExceptionCause[] | undefined} causes - registries.component_diff_exception_causes
+ * @param {unknown} causes - registries.component_diff_exception_causes（読んだままの値）
  * @returns {MatchedException | null}
  */
 export function matchException(diff, exceptions, ctx, causes) {
@@ -615,7 +656,7 @@ export function applyNoiseBaseline(classified, noiseBaseline, ctx) {
  * ノイズ基準値は個々の Diff ではなく残余へ集計で適用する（applyNoiseBaseline）。
  *
  * @param {TraitDiff} diff
- * @param {Registries} registries
+ * @param {Record<string, unknown>} registries - registries.json（分類が読む欄は Registries。各欄の形は照合する側で確かめる）
  * @param {{ slug:string, page?:string, state?:string, viewport?:string }} ctx
  * @returns {{ classification:string, matched_rule:(ComponentDiff|MatchedException|string|null) }}
  */
@@ -689,7 +730,13 @@ export function main(argv) {
     registries = JSON.parse(readFileSync(opts.registries, "utf8"));
     if (opts.noise) {
       const meta = JSON.parse(readFileSync(opts.noise, "utf8"));
-      noiseBaseline = Array.isArray(meta.noise_baseline) ? meta.noise_baseline : [];
+      // 元の `meta.noise_baseline` は、meta が null のとき TypeError を投げ、下の catch で入力エラーになる。
+      // 型を絞るために欄を読む前に分岐するので、同じ例外を投げて同じ扱いを保つ。
+      if (meta === null) {
+        throw new TypeError("Cannot read properties of null (reading 'noise_baseline')");
+      }
+      const declared = isObjectLike(meta) ? meta.noise_baseline : undefined;
+      noiseBaseline = Array.isArray(declared) ? declared : [];
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -700,7 +747,7 @@ export function main(argv) {
     process.stderr.write("error: <trait-diffs.json> must be a JSON array of trait diffs\n");
     return 2;
   }
-  if (!registries || typeof registries !== "object") {
+  if (!isObjectLike(registries)) {
     process.stderr.write("error: --registries must be a JSON object\n");
     return 2;
   }
@@ -727,7 +774,9 @@ export function main(argv) {
   const exceptionCount = Array.isArray(registries.component_diff_exceptions)
     ? registries.component_diff_exceptions.length
     : 0;
-  const missingCtx = ["page", "viewport"].filter((k) => !ctx[k]);
+  /** @type {Array<"page" | "viewport">} */
+  const ctxKeys = ["page", "viewport"];
+  const missingCtx = ctxKeys.filter((k) => !ctx[k]);
   const intentionalNeedingCtx = countMatchesMissingCtx(registries.intentional_diffs, ctx);
   if (intentionalNeedingCtx > 0 && missingCtx.length > 0) {
     process.stderr.write(

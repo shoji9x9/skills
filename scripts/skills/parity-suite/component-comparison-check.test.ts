@@ -689,7 +689,7 @@ test("持ち越し: 宣言外のファイルが変わっていれば stale ＋ e
   const p = carryFiles([["list", "default", "desktop"]]);
   const theme = commitFiles(p.repo, { "src/theme.css": ":root { --accent: red; }\n" }, "theme");
   const replacePath = join(p.stageDir, "replace-metadata.json");
-  const replace = JSON.parse(readFileSync(replacePath, "utf8"));
+  const replace = parseJsonAs<{ new: Record<string, unknown> }>(readFileSync(replacePath, "utf8"));
   replace.new.commit = theme;
   writeFileSync(replacePath, JSON.stringify(replace));
   const { code, result } = runCarry(p);

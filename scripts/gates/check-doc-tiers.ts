@@ -17,6 +17,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { listSources } from "./run-on-sources.ts";
 import { errorMessage } from "../lib/errors.ts";
+import { isRecord } from "../lib/guards.ts";
 
 export const TIERS_PATH = "scripts/gates/doc-tiers.json";
 export const TABLE_PATH = ".agents/rules/doc-altitude.md";
@@ -56,8 +57,8 @@ const matchesGlob = (rel: string, glob: string) => globToRegExp(glob).test(rel);
 export function loadDocTiers(root: string): DocTiers {
   const path = join(root, TIERS_PATH);
   if (!existsSync(path)) throw new Error(`${TIERS_PATH} が無い`);
-  const data = JSON.parse(readFileSync(path, "utf8"));
-  const { tiers, outside } = data ?? {};
+  const data: unknown = JSON.parse(readFileSync(path, "utf8"));
+  const { tiers, outside }: Record<string, unknown> = isRecord(data) ? data : {};
   if (!Array.isArray(tiers) || !Array.isArray(outside))
     throw new Error("tiers と outside は配列にする");
   if (tiers.map((t) => t?.tier).join(",") !== "1,2,3,4")

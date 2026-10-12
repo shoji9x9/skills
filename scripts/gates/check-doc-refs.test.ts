@@ -18,6 +18,7 @@
 // | 保留               | 一致 / 古い / 許可 / 他のチェックの規則                                          |
 // | 設定               | 正しい / 無い / repo の形の誤り / テンプレートが無い                             |
 import { expect, test } from "vitest";
+import { parseJsonAs } from "../lib/parse-as.ts";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -359,7 +360,9 @@ test("--prune は古い保留を消して exit 0 にする", () => {
   const root = makeRepo({}, { pending: { pending: [stale], allowed: [] } });
   expect(main([root])).toBe(1);
   expect(main([root, "--prune"])).toBe(0);
-  expect(JSON.parse(readFileSync(join(root, PENDING_PATH), "utf8")).pending).toEqual([]);
+  expect(
+    parseJsonAs<{ pending: unknown[] }>(readFileSync(join(root, PENDING_PATH), "utf8")).pending,
+  ).toEqual([]);
 });
 
 // ---- 設定と件数 ----

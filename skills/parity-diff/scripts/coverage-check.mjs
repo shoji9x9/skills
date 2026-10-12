@@ -122,7 +122,7 @@ function firedEvidenceProblem(evidence, label) {
   if (!isPlainObject(evidence.action)) {
     return `${label}: fired-without-response なのに action が JSON オブジェクトではない`;
   }
-  const action = /** @type {Record<string, unknown>} */ (evidence.action);
+  const action = evidence.action;
   if (!nonEmptyString(action.locator) || !nonEmptyString(action.detail)) {
     return `${label}: fired-without-response の action.locator / action.detail が空`;
   }
@@ -134,7 +134,7 @@ function firedEvidenceProblem(evidence, label) {
   if (!isPlainObject(action.bounding_box)) {
     return `${label}: fired-without-response なのに action.bounding_box が JSON オブジェクトではない`;
   }
-  const box = /** @type {Record<string, unknown>} */ (action.bounding_box);
+  const box = action.bounding_box;
   if (![box.x, box.y, box.width, box.height].every((v) => Number.isFinite(v))) {
     return `${label}: action.bounding_box の x / y / width / height が有限の数値ではない`;
   }
@@ -159,7 +159,7 @@ function firedEvidenceProblem(evidence, label) {
   if (!isPlainObject(evidence.fired)) {
     return `${label}: fired-without-response なのに fired が JSON オブジェクトではない`;
   }
-  const fired = /** @type {Record<string, unknown>} */ (evidence.fired);
+  const fired = evidence.fired;
   if (!inAllowlist(fired.signal, FIRED_SIGNALS)) {
     return `${label}: fired-without-response の fired.signal が ${FIRED_SIGNALS.join(" / ")} のいずれでもない`;
   }
@@ -184,7 +184,7 @@ function absentEvidenceProblem(row, label, stateManifest) {
   if (!isPlainObject(row.absence_evidence)) {
     return `${label}: value: absent なのに absence_evidence が JSON オブジェクトではない`;
   }
-  const evidence = /** @type {Record<string, unknown>} */ (row.absence_evidence);
+  const evidence = row.absence_evidence;
   if (evidence.kind === "fired-without-response") return firedEvidenceProblem(evidence, label);
   if (evidence.kind !== "non-renderable") {
     return `${label}: absence_evidence.kind が fired-without-response / non-renderable のいずれでもない`;
@@ -204,10 +204,8 @@ function absentEvidenceProblem(row, label, stateManifest) {
   if (!isPlainObject(stateManifest)) {
     return `${label}: non-renderable なのにインスタンスの applicable_states が無い`;
   }
-  const manifest = /** @type {Record<string, unknown>} */ (stateManifest);
-  const source = isPlainObject(manifest.source)
-    ? /** @type {Record<string, unknown>} */ (manifest.source)
-    : null;
+  const manifest = stateManifest;
+  const source = isPlainObject(manifest.source) ? manifest.source : null;
   if (
     manifest.complete !== true ||
     source === null ||
@@ -225,7 +223,7 @@ function absentEvidenceProblem(row, label, stateManifest) {
   const manifestStates = new Map();
   for (const [index, rawItem] of manifest.items.entries()) {
     if (!isPlainObject(rawItem)) return `${label}: applicable_states.items[${index}] が不正`;
-    const item = /** @type {Record<string, unknown>} */ (rawItem);
+    const item = rawItem;
     if (!nonEmptyString(item.id) || !nonEmptyString(item.transition)) {
       return `${label}: applicable_states.items[${index}] の id / transition が空`;
     }
@@ -254,7 +252,7 @@ function absentEvidenceProblem(row, label, stateManifest) {
   for (const [index, rawState] of evidence.states.entries()) {
     const stateLabel = `${label}: non-renderable.states[${index}]`;
     if (!isPlainObject(rawState)) return `${stateLabel} が JSON オブジェクトではない`;
-    const state = /** @type {Record<string, unknown>} */ (rawState);
+    const state = rawState;
     if (!nonEmptyString(state.name) || !nonEmptyString(state.transition)) {
       return `${stateLabel} の name / transition が空`;
     }
@@ -292,7 +290,7 @@ function absentEvidenceProblem(row, label, stateManifest) {
       if (!isPlainObject(state.bounding_box)) {
         return `${stateLabel}.bounding_box が null または JSON オブジェクトではない`;
       }
-      const box = /** @type {Record<string, unknown>} */ (state.bounding_box);
+      const box = state.bounding_box;
       if (![box.x, box.y, box.width, box.height].every((v) => Number.isFinite(v))) {
         return `${stateLabel}.bounding_box の x / y / width / height が有限の数値ではない`;
       }
@@ -307,10 +305,8 @@ function absentEvidenceProblem(row, label, stateManifest) {
       if (!isPlainObject(state.hidden_by)) {
         return `${stateLabel}.hidden_by が null または JSON オブジェクトではない`;
       }
-      const hidden = /** @type {Record<string, unknown>} */ (state.hidden_by);
-      const style = isPlainObject(hidden.computed_style)
-        ? /** @type {Record<string, unknown>} */ (hidden.computed_style)
-        : null;
+      const hidden = state.hidden_by;
+      const style = isPlainObject(hidden.computed_style) ? hidden.computed_style : null;
       hiddenCause =
         nonEmptyString(hidden.locator) &&
         hidden.relationship_verified === true &&
@@ -397,9 +393,7 @@ function showKind(v) {
 function strongerSourceProblems(block, label) {
   /** @type {string[]} */
   const problems = [];
-  const source = isPlainObject(block.source)
-    ? /** @type {Record<string, unknown>} */ (block.source)
-    : null;
+  const source = isPlainObject(block.source) ? block.source : null;
   // 語彙の外・source ごとの欠落は呼び出し側が報告する（ここで二重に出さない）。
   if (source === null || !inAllowlist(source.kind, SET_SOURCE_KINDS)) return problems;
   const primary = SET_SOURCE_KINDS[0];
@@ -456,10 +450,8 @@ function setInventoryProblems(raw, label) {
     );
     return problems;
   }
-  const block = /** @type {Record<string, unknown>} */ (raw);
-  const source = isPlainObject(block.source)
-    ? /** @type {Record<string, unknown>} */ (block.source)
-    : null;
+  const block = raw;
+  const source = isPlainObject(block.source) ? block.source : null;
   if (source === null) {
     problems.push(`${label}.source が無い（どの版のどこから何を条件に列挙したか残らない）`);
   } else {
@@ -509,7 +501,7 @@ function itemSourceProblems(raw, label) {
     problems.push(`${label}.source が無い（項目集合をどこから起こしたか残らない）`);
     return problems;
   }
-  const source = /** @type {Record<string, unknown>} */ (raw);
+  const source = raw;
   for (const key of ["kind", "ref", "retrieved_at"]) {
     if (!nonEmptyString(source[key])) problems.push(`${label}.source.${key} が空`);
   }
@@ -532,9 +524,7 @@ function itemSourceProblems(raw, label) {
 function enumerationSourceProblems(en, label) {
   /** @type {string[]} */
   const problems = [];
-  const source = isPlainObject(en.source)
-    ? /** @type {Record<string, unknown>} */ (en.source)
-    : null;
+  const source = isPlainObject(en.source) ? en.source : null;
   // source ごとの欠落は呼び出し側が報告する（それぞれ別の未測定の数え方を持つ）。
   if (source === null) return problems;
   if (!inAllowlist(source.kind, SET_SOURCE_KINDS)) {
@@ -558,22 +548,20 @@ function enumerationSourceProblems(en, label) {
  */
 export function readCaptureForFingerprint(metadata) {
   if (!isPlainObject(metadata)) return null;
-  const meta = /** @type {Record<string, unknown>} */ (metadata);
+  const meta = metadata;
   if (!isPlainObject(meta.capture_conditions)) return null;
-  const cc = /** @type {Record<string, unknown>} */ (meta.capture_conditions);
+  const cc = meta.capture_conditions;
   if (!Array.isArray(cc.states) || !Array.isArray(cc.pages) || !Array.isArray(cc.popup_inventory))
     return null;
   /** @type {string[]} */
   const pageNames = [];
   for (const row of cc.pages) {
-    if (isPlainObject(row) && nonEmptyString(/** @type {Record<string, unknown>} */ (row).name))
-      pageNames.push(String(/** @type {Record<string, unknown>} */ (row).name));
+    if (isPlainObject(row) && nonEmptyString(row.name)) pageNames.push(String(row.name));
   }
   /** @type {string[]} */
   const popupStates = [];
   for (const row of cc.popup_inventory) {
-    if (isPlainObject(row) && nonEmptyString(/** @type {Record<string, unknown>} */ (row).captured))
-      popupStates.push(String(/** @type {Record<string, unknown>} */ (row).captured));
+    if (isPlainObject(row) && nonEmptyString(row.captured)) popupStates.push(String(row.captured));
   }
   return captureFingerprint({
     slug: nonEmptyString(meta.slug) ? String(meta.slug) : undefined,
@@ -596,19 +584,22 @@ export function readCaptureForFingerprint(metadata) {
  * @returns {{judged: boolean, malformed: boolean, reason: string|null, path: string|null}}
  */
 export function readDeclaration(metadata) {
+  /** @param {string} reason */
   const bad = (reason) => ({ judged: false, malformed: true, reason, path: null });
+  /** @param {string} reason */
   const skip = (reason) => ({ judged: false, malformed: false, reason, path: null });
-  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+  if (!isPlainObject(metadata)) {
     return bad("metadata.json が JSON オブジェクトではない（型崩れ）");
   }
-  const decl = /** @type {Record<string, unknown>} */ (metadata).component_coverage;
+  const decl = metadata.component_coverage;
   if (decl === undefined || decl === null) {
     return skip("旧成果物: metadata.json に component_coverage キーが無い（判定に入れない）");
   }
-  if (typeof decl !== "object" || Array.isArray(decl)) {
+  // 直前で undefined と null を返しているので、isPlainObject は元の判定と同じ範囲を弾く。
+  if (!isPlainObject(decl)) {
     return bad("component_coverage が JSON オブジェクトではない（型崩れ）");
   }
-  const d = /** @type {Record<string, unknown>} */ (decl);
+  const d = decl;
   if (d.declared === false) {
     // 免除は、理由の記録と組みになっているときだけ成り立つ。理由が無い declared: false を通すと、
     // 「測らなかった事実」がどの成果物にも残らないまま、収束の条件を外せてしまう（緩和の抜け道になる）。
@@ -647,10 +638,7 @@ function collectIds(entries, label, problems) {
   const seen = new Set();
   let rejected = 0;
   entries.forEach((entry, index) => {
-    const raw =
-      entry && typeof entry === "object" && !Array.isArray(entry)
-        ? /** @type {Record<string, unknown>} */ (entry).id
-        : undefined;
+    const raw = isPlainObject(entry) ? entry.id : undefined;
     if (!nonEmptyString(raw)) {
       problems.push(`${label}[${index}]: id が空（識別できないので未測定として数える）`);
       rejected += 1;
@@ -672,7 +660,7 @@ function collectIds(entries, label, problems) {
  * JSON オブジェクト（配列でない）か。配列は typeof で "object" を通るため明示的に弾く。
  *
  * @param {unknown} v
- * @returns {boolean}
+ * @returns {v is Record<string, unknown>}
  */
 function isPlainObject(v) {
   return Boolean(v) && typeof v === "object" && !Array.isArray(v);
@@ -702,6 +690,7 @@ export function coverageFingerprint(table) {
  * @returns {string}
  */
 export function captureFingerprint(capture) {
+  /** @param {unknown} v */
   const sorted = (v) => [...(Array.isArray(v) ? v : [])].map(String).sort();
   return createHash("sha256")
     .update(
@@ -748,15 +737,13 @@ function readItemAxes(items) {
   const byId = new Map();
   for (const item of Array.isArray(items) ? items : []) {
     if (!isPlainObject(item)) continue;
-    const it = /** @type {Record<string, unknown>} */ (item);
+    const it = item;
     if (!nonEmptyString(it.id) || !isPlainObject(it.candidate)) continue;
-    const candidate = /** @type {Record<string, unknown>} */ (it.candidate);
+    const candidate = it.candidate;
     if (!isPlainObject(candidate.axes)) continue;
     /** @type {Record<string, string>} */
     const axes = {};
-    for (const [axisId, value] of Object.entries(
-      /** @type {Record<string, unknown>} */ (candidate.axes),
-    )) {
+    for (const [axisId, value] of Object.entries(candidate.axes)) {
       if (typeof value === "string") axes[axisId] = value;
     }
     byId.set(String(it.id), axes);
@@ -778,7 +765,7 @@ function readJustifiedElementAbsences(raw) {
   const scopes = new Set();
   for (const entry of Array.isArray(raw) ? raw : []) {
     if (!isPlainObject(entry)) continue;
-    const e = /** @type {Record<string, unknown>} */ (entry);
+    const e = entry;
     if (!nonEmptyString(e.scope) || !nonEmptyString(e.reason)) continue;
     if (!String(e.scope).includes(ID_SEPARATOR)) continue;
     scopes.add(String(e.scope));
@@ -851,7 +838,7 @@ function checkEquivalenceMembership(classes, candidateKeys, cid, problems) {
       problems.push(`部品 ${cid}: equivalence_classes[${i}] が JSON オブジェクトではない`);
       return;
     }
-    const klass = /** @type {Record<string, unknown>} */ (cls);
+    const klass = cls;
     const kid = nonEmptyString(klass.id) ? String(klass.id) : `#${i}`;
     if (!nonEmptyString(klass.rationale)) {
       problems.push(`部品 ${cid}: 同値クラス ${kid}: rationale が空（分類根拠が残らない）`);
@@ -937,7 +924,7 @@ function countProfiledComponent(c, cid, byKey, duplicated, keyOf, expected, prob
       unmeasured += 1;
       continue;
     }
-    const inst = /** @type {Record<string, unknown>} */ (instance);
+    const inst = instance;
     if (!nonEmptyString(inst.id)) {
       problems.push(
         `部品 ${cid}: instances[${index}]: id が空（識別できないので未測定として数える）`,
@@ -967,9 +954,7 @@ function countProfiledComponent(c, cid, byKey, duplicated, keyOf, expected, prob
     const label = `部品 ${cid} / インスタンス ${iid}`;
 
     // 列挙が未完了なら候補は信用できない。候補ゼロで素通りさせず 1 件の未測定として数える。
-    const enumeration = isPlainObject(inst.enumeration)
-      ? /** @type {Record<string, unknown>} */ (inst.enumeration)
-      : null;
+    const enumeration = isPlainObject(inst.enumeration) ? inst.enumeration : null;
     if (!enumeration) {
       problems.push(`${label}: enumeration が無い（候補の出所が残らない）`);
       cells += 1;
@@ -1039,13 +1024,15 @@ function countProfiledComponent(c, cid, byKey, duplicated, keyOf, expected, prob
         continue;
       }
       for (const [axisId, value] of Object.entries(axes)) {
-        if (!valuesByAxis.has(axisId)) valuesByAxis.set(axisId, new Set());
-        /** @type {Set<string>} */ (valuesByAxis.get(axisId)).add(value);
+        let values = valuesByAxis.get(axisId);
+        if (values === undefined) {
+          values = new Set();
+          valuesByAxis.set(axisId, values);
+        }
+        values.add(value);
       }
     }
-    const elements = isPlainObject(enumeration.elements)
-      ? /** @type {Record<string, unknown>} */ (enumeration.elements)
-      : {};
+    const elements = isPlainObject(enumeration.elements) ? enumeration.elements : {};
     const justified = readJustifiedElementAbsences(enumeration.justified_absences);
     for (const [axisId, list] of Object.entries(elements)) {
       if (!Array.isArray(list)) {
@@ -1055,9 +1042,8 @@ function countProfiledComponent(c, cid, byKey, duplicated, keyOf, expected, prob
       if (!axesResolvable) continue; // 軸値が欠けている状態での判定は誤検出になる（上で未測定に数えている）
       const seen = valuesByAxis.get(axisId) ?? new Set();
       for (const el of list) {
-        if (!isPlainObject(el) || !nonEmptyString(/** @type {Record<string, unknown>} */ (el).id))
-          continue;
-        const elementId = String(/** @type {Record<string, unknown>} */ (el).id);
+        if (!isPlainObject(el) || !nonEmptyString(el.id)) continue;
+        const elementId = String(el.id);
         if (seen.has(elementId)) continue;
         // 「その要素はどの候補にもならない」と主張するには、根拠が要る（根拠を書けば先へ進めるようにする）。
         if (justified.has(`${axisId}${ID_SEPARATOR}${elementId}`)) continue;
@@ -1114,7 +1100,7 @@ export function countCoverage(coverage, slug, captureFingerprintNow = null) {
   const problems = [];
   // 配列は typeof で "object" を通るため明示的に弾く。通すと slug 不一致・components 空といった
   // 別の問題文にすり替わり、原因の切り分けを誤らせる（JSON オブジェクト判定はこのファイル内で同じ形に揃える）。
-  if (!coverage || typeof coverage !== "object" || Array.isArray(coverage)) {
+  if (!isPlainObject(coverage)) {
     return {
       cells: 0,
       present: 0,
@@ -1123,7 +1109,7 @@ export function countCoverage(coverage, slug, captureFingerprintNow = null) {
       problems: ["網羅表が JSON オブジェクトではない"],
     };
   }
-  const cov = /** @type {Record<string, unknown>} */ (coverage);
+  const cov = coverage;
   if (slug !== null && cov.slug !== slug) {
     problems.push(`網羅表の slug（${String(cov.slug)}）が metadata.json の slug（${slug}）と違う`);
   }
@@ -1140,7 +1126,7 @@ export function countCoverage(coverage, slug, captureFingerprintNow = null) {
       "conformance が無い（parity-suite の coverage-expand.mjs を実行してプロファイル適合を記録する）",
     );
   } else {
-    const conf = /** @type {Record<string, unknown>} */ (cov.conformance);
+    const conf = cov.conformance;
     if (conf.ok !== true) {
       problems.push(
         `conformance.ok が true ではない（プロファイル適合が未達のまま。${nonEmptyString(conf.tool) ? String(conf.tool) : "coverage-expand"} の問題を解消する）`,
@@ -1149,9 +1135,7 @@ export function countCoverage(coverage, slug, captureFingerprintNow = null) {
     // 撮影状態の導出は --metadata を渡した実行でしか capture_conditions.states と突き合わせられない。
     // 照合していない記録（checked: false・キーの欠落）を合格として扱うと、撮る状態が足りない機能が
     // 「差 0 件」のまま収束する。差分ツールは撮った 2 枚しか比べないので、撮っていない状態は差 0 件と同じに見える。
-    const visual = isPlainObject(conf.visual_states)
-      ? /** @type {Record<string, unknown>} */ (conf.visual_states)
-      : null;
+    const visual = isPlainObject(conf.visual_states) ? conf.visual_states : null;
     if (!visual) {
       problems.push(
         "conformance.visual_states が無い（parity-suite の coverage-expand.mjs を --metadata 付きで実行し、網羅表から導いた撮影状態を capture_conditions.states と突き合わせる）",
@@ -1228,13 +1212,18 @@ export function countCoverage(coverage, slug, captureFingerprintNow = null) {
   const byKey = new Map();
   /** @type {Set<string>} */
   const duplicated = new Set();
+  /**
+   * @param {string} c
+   * @param {string} i
+   * @param {string} n
+   */
   const keyOf = (c, i, n) => JSON.stringify([c, i, n]);
   rows.forEach((row, index) => {
-    if (!row || typeof row !== "object" || Array.isArray(row)) {
+    if (!isPlainObject(row)) {
       problems.push(`cells[${index}]: JSON オブジェクトでない要素がある`);
       return;
     }
-    const r = /** @type {Record<string, unknown>} */ (row);
+    const r = row;
     if (!nonEmptyString(r.component) || !nonEmptyString(r.item) || !nonEmptyString(r.instance)) {
       // どのセルの行か決まらない行は、索引に入れない（空欄がすべてのセルに当たる事故を防ぐ）。
       problems.push(`cells[${index}]: component / item / instance のいずれかが空`);
@@ -1265,7 +1254,8 @@ export function countCoverage(coverage, slug, captureFingerprintNow = null) {
   const seenComponents = new Set();
 
   for (const [componentIndex, component] of components.entries()) {
-    const c = /** @type {Record<string, unknown>} */ (component || {});
+    /** @type {Record<string, unknown>} */
+    const c = component || {};
     const items = Array.isArray(c.items) ? c.items : [];
     const instances = Array.isArray(c.instances) ? c.instances : [];
     // 期待セル数は部品を識別できるかに依らず「項目数 × インスタンス数」で数える。部品側の id が
@@ -1362,12 +1352,12 @@ export function countCoverage(coverage, slug, captureFingerprintNow = null) {
     const instanceById = new Map();
     for (const entry of instances) {
       if (!isPlainObject(entry)) continue;
-      const raw = /** @type {Record<string, unknown>} */ (entry).id;
+      const raw = entry.id;
       if (!nonEmptyString(raw)) continue;
       const id = String(raw);
       // collectIds は重複 id の 2 件目以降を弾き 1 件目を残すため、索引も先勝ちで揃える。
       if (!instanceById.has(id)) {
-        instanceById.set(id, /** @type {Record<string, unknown>} */ (entry));
+        instanceById.set(id, entry);
       }
     }
     cells += itemTotal * instanceTotal;
@@ -1451,12 +1441,7 @@ export function main(argv, deps = {}) {
     return 2;
   }
   const slug =
-    metadata &&
-    typeof metadata === "object" &&
-    !Array.isArray(metadata) &&
-    nonEmptyString(/** @type {Record<string, unknown>} */ (metadata).slug)
-      ? String(/** @type {Record<string, unknown>} */ (metadata).slug)
-      : null;
+    isPlainObject(metadata) && nonEmptyString(metadata.slug) ? String(metadata.slug) : null;
 
   const decl = readDeclaration(metadata);
   if (decl.malformed) {

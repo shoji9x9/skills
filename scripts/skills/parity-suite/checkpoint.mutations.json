@@ -72,7 +72,7 @@
       "id": "no-inherit",
       "why": "前の区切りの --include を引き継がない（引き継がない記録はスイートの根を欠くので、以降の照合がすべて落ちる）",
       "file": "skills/parity-suite/scripts/checkpoint.mjs",
-      "find": "      inherited = /** @type {string[]} */ (record.checkpoints[prevIndex].roots).slice(1);\n",
+      "find": "      inherited = record.checkpoints[prevIndex].roots.slice(1);\n",
       "replace": "      inherited = [];\n",
       "occurrences": 1,
       "expect_failing": [
@@ -248,7 +248,7 @@
       "id": "w4-array",
       "why": "書き手の不変条件 W4 を読み手で検査しない",
       "file": "skills/parity-suite/scripts/checkpoint.mjs",
-      "find": "    if (!Array.isArray(roots) || !roots.every((r) => typeof r === \"string\" && r !== \"\")) {\n",
+      "find": "    if (!Array.isArray(roots) || !roots.every(isNonEmptyString)) {\n",
       "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": ["record が書かない形の記録は verify で exit 2: W4 roots が配列でない"]

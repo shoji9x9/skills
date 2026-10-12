@@ -71,7 +71,7 @@
       "id": "sampler-exception",
       "why": "採取中の例外で探針を終わらせない（採り直しが still running で永久に弾かれる）",
       "file": "skills/parity-component/scripts/motion-probe.mjs",
-      "find": "error: `sampler failed: ${error && error.message ? error.message : String(error)}`,",
+      "find": "error: `sampler failed: ${message ? message : String(error)}`,",
       "replace": "error: null,",
       "occurrences": 1,
       "expect_failing": [

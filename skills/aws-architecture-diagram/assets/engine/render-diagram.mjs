@@ -51,6 +51,7 @@ const { environments, baseSpec } = await import(pathToFileURL(registryPath).href
 
 // 環境名 → spec（transform があれば base に適用、無ければ base に title だけ差し替え）。
 // title 未設定の環境は base の title を既定に使う（"undefined" が図に出るのを防ぐ）。
+/** @param {string} name */
 function specFor(name) {
   const env = environments[name];
   if (!env) {

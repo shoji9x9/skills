@@ -101,6 +101,15 @@ const CO_OCCURRING_STATES = {
 
 class UsageError extends Error {}
 
+/**
+ * null でないオブジェクト（配列を含む）か。JSON 由来の値の欄を読む前の絞り込みに使う。
+ * @param {unknown} value
+ * @returns {value is Record<string, unknown>}
+ */
+function isObject(value) {
+  return value !== null && typeof value === "object";
+}
+
 /** 詳細度を機械的に決められないときに投げる。 */
 export class UndecidableSelector extends Error {}
 
@@ -163,6 +172,7 @@ export function specificity(selector) {
   if (typeof selector !== "string" || selector.trim() === "") {
     throw new UndecidableSelector("selector is empty");
   }
+  /** @type {[number, number, number]} */
   const counts = [0, 0, 0];
   let i = 0;
   const s = selector;
@@ -170,6 +180,7 @@ export function specificity(selector) {
   // CSS のエスケープは `\` ＋ 1 文字とは限らない。16 進エスケープは `\` ＋ 16 進数 1〜6 桁で、
   // 直後の空白 1 つが終端記号として消費される（`.\31 23` は「123」というクラス 1 つ）。
   // 2 文字固定で進めると残りの桁を型セレクタとして数え、詳細度が狂う（`.\31 23` が [0,1,1] になる）。
+  /** @param {number} start */
   const skipEscape = (start) => {
     let j = start + 1;
     if (j >= s.length) throw new UndecidableSelector(`dangling escape at ${start}`);
@@ -183,6 +194,7 @@ export function specificity(selector) {
     return j;
   };
 
+  /** @param {number} start */
   const skipIdent = (start) => {
     let j = start;
     if (j >= s.length) throw new UndecidableSelector(`identifier expected at ${start}`);
@@ -202,7 +214,13 @@ export function specificity(selector) {
     return j;
   };
 
-  /** 対応する閉じ括弧の位置（開き括弧を含む入れ子・文字列を飛ばす）。 */
+  /**
+   * 対応する閉じ括弧の位置（開き括弧を含む入れ子・文字列を飛ばす）。
+   * @param {number} start
+   * @param {string} open
+   * @param {string} close
+   * @returns {number}
+   */
   const matchClose = (start, open, close) => {
     let depth = 0;
     let j = start;
@@ -226,6 +244,7 @@ export function specificity(selector) {
     throw new UndecidableSelector(`unbalanced ${open} in selector`);
   };
 
+  /** @param {number} start */
   const skipString = (start) => {
     const quote = s[start];
     let j = start + 1;
@@ -240,8 +259,13 @@ export function specificity(selector) {
     throw new UndecidableSelector("unterminated string in selector");
   };
 
-  /** トップレベルのカンマで分割する（入れ子の括弧・文字列の中は分割しない）。 */
+  /**
+   * トップレベルのカンマで分割する（入れ子の括弧・文字列の中は分割しない）。
+   * @param {string} text
+   * @returns {string[]}
+   */
   const splitTopLevel = (text) => {
+    /** @type {string[]} */
     const parts = [];
     let depth = 0;
     let start = 0;
@@ -271,6 +295,7 @@ export function specificity(selector) {
     return parts;
   };
 
+  /** @param {[number, number, number]} other */
   const add = (other) => {
     counts[0] += other[0];
     counts[1] += other[1];
@@ -347,12 +372,15 @@ export function specificity(selector) {
         if (argument === null || argument.trim() === "") {
           throw new UndecidableSelector(`:${name}() has no argument`);
         }
+        /** @type {[number, number, number] | null} */
         let best = null;
         for (const branch of splitTopLevel(argument)) {
           if (branch.trim() === "") throw new UndecidableSelector(`:${name}() has an empty branch`);
           const value = specificity(branch.trim());
           if (best === null || compareSpecificity(value, best) > 0) best = value;
         }
+        // splitTopLevel は 1 件以上を返し、各枝は値を決めるか投げるので、ここで null にはならない（型の絞り込みのため）。
+        if (best === null) throw new UndecidableSelector(`:${name}() has no branch`);
         add(best);
         i = next;
         continue;
@@ -372,7 +400,7 @@ export function specificity(selector) {
     }
     throw new UndecidableSelector(`unreadable token ${JSON.stringify(ch)} at ${i}`);
   }
-  return /** @type {[number, number, number]}*/ (counts);
+  return counts;
 }
 
 /**
@@ -448,7 +476,8 @@ function strongest(candidates) {
       continue;
     }
     if (bySpec < 0) continue;
-    if (c.order > best.order) {
+    // null は数値の比較で 0 として扱われる（`?? 0` は元の `c.order > best.order` と同じ結果）。
+    if ((c.order ?? 0) > (best.order ?? 0)) {
       best = c;
       continue;
     }
@@ -474,7 +503,7 @@ function strongest(candidates) {
  *             results:CascadeResult[], counts:{resolved:number, undecidable:number, absent:number} }}
  */
 export function resolveCascade(document, options) {
-  if (document === null || typeof document !== "object" || Array.isArray(document)) {
+  if (!isObject(document) || Array.isArray(document)) {
     throw new UsageError("css-rules.json must be a JSON object");
   }
   if (!Array.isArray(document.matched)) {
@@ -530,9 +559,15 @@ export function resolveCascade(document, options) {
    * （Chrome 149 で実測: `margin` / `background` / `font` は展開されるが `all: unset` は `all` のまま）。
    * そのためプロパティ名で振り分けるだけでは、`all` が勝つ場面でも個別プロパティの宣言を勝者にしてしまう。
    * どのプロパティにも当たりうる候補として別に持ち、勝ちうるなら undecidable にする。
-   * @type {Map<string, CascadeCandidate[]>}
+   * キーは擬似要素の値（css-rules.json の値のまま。要素自身は ""）。
+   * @type {Map<unknown, CascadeCandidate[]>}
    */
   const wildcards = new Map();
+  /**
+   * @param {unknown} pseudo
+   * @param {string} property
+   * @returns {CascadeBucket}
+   */
   const bucket = (pseudo, property) => {
     const key = `${pseudo === null ? "" : pseudo}\u0000${property}`;
     let entry = buckets.get(key);
@@ -552,6 +587,8 @@ export function resolveCascade(document, options) {
   };
 
   for (const rule of document.matched) {
+    // 状態の名前は css-rules-capture.mjs が文字列で記録する（形はここでは検査しない）。
+    /** @type {string[]} */
     const states = Array.isArray(rule.states) ? rule.states : [];
     const conditions = Array.isArray(rule.conditions) ? rule.conditions : [];
     const layers = Array.isArray(rule.layers) ? rule.layers : [];
@@ -590,6 +627,7 @@ export function resolveCascade(document, options) {
         if (entry !== null) entry.state_gated += 1;
         continue;
       }
+      /** @type {CascadeCandidate} */
       const candidate = {
         source: "rule",
         selector: rule.selector,
@@ -605,10 +643,15 @@ export function resolveCascade(document, options) {
         layers,
         conditions,
       };
-      if (wildcard) {
+      // entry が null になるのは wildcard のときだけなので、entry の判定は型の絞り込みのため。
+      if (wildcard || entry === null) {
         const key = rule.pseudo_element ?? "";
-        if (!wildcards.has(key)) wildcards.set(key, []);
-        wildcards.get(key).push({ ...candidate, unknown_states: unknownStates });
+        let list = wildcards.get(key);
+        if (list === undefined) {
+          list = [];
+          wildcards.set(key, list);
+        }
+        list.push({ ...candidate, unknown_states: unknownStates });
         continue;
       }
       if (conditions.length > 0) entry.conditional.push(candidate);
@@ -621,6 +664,7 @@ export function resolveCascade(document, options) {
   for (let i = 0; i < inline.length; i += 1) {
     const decl = inline[i];
     if (decl === null || typeof decl !== "object" || typeof decl.property !== "string") continue;
+    /** @type {CascadeCandidate} */
     const candidate = {
       source: "inline",
       selector: null,
@@ -639,8 +683,12 @@ export function resolveCascade(document, options) {
     // インラインの `all` も規則側と同じくワイルドカードとして扱う
     // （プロパティ名で振り分けると、後続の `all` が個別宣言を reset するのを見落とす）。
     if (decl.property === "all") {
-      if (!wildcards.has("")) wildcards.set("", []);
-      wildcards.get("").push({ ...candidate, unknown_states: [] });
+      let list = wildcards.get("");
+      if (list === undefined) {
+        list = [];
+        wildcards.set("", list);
+      }
+      list.push({ ...candidate, unknown_states: [] });
       continue;
     }
     // インラインは擬似要素に当たらないので、要素自身のバケットにだけ入れる。
@@ -648,6 +696,7 @@ export function resolveCascade(document, options) {
   }
 
   const requested = options.properties ?? null;
+  /** @type {CascadeResult[]} */
   const results = [];
   // `all` しか宣言が無い採取物では buckets が空になる。keys を buckets だけから作ると
   // `--all` が「候補 0 件」で exit 0 になり、ほぼ全プロパティを reset する宣言を見落とす。
@@ -660,6 +709,7 @@ export function resolveCascade(document, options) {
   const keys = [...buckets.keys()].sort();
   for (const key of keys) {
     const entry = buckets.get(key);
+    if (entry === undefined) continue; // keys は buckets から作るので起きない（型の絞り込みのため）
     if (requested !== null && !requested.includes(entry.property)) continue;
     results.push(decide(entry, wildcards.get(entry.pseudo_element ?? "") ?? []));
   }
@@ -722,6 +772,7 @@ export function resolveCascade(document, options) {
  */
 function decide(entry, wildcard = []) {
   const reasons = [...entry.reasons];
+  /** @type {CascadeResult} */
   const out = {
     property: entry.property,
     pseudo_element: entry.pseudo_element,
@@ -785,7 +836,10 @@ function decide(entry, wildcard = []) {
   const inlineNormal = entry.applying.filter((c) => c.source === "inline" && !c.important);
   const ruleNormal = entry.applying.filter((c) => c.source === "rule" && !c.important);
 
-  /** レイヤをまたぐ競合はここでは決められない（レイヤの宣言順が入力に無い）。 */
+  /**
+   * レイヤをまたぐ競合はここでは決められない（レイヤの宣言順が入力に無い）。
+   * @param {CascadeCandidate[]} candidates
+   */
   const layerSpread = (candidates) => {
     const paths = new Set(candidates.map((c) => JSON.stringify(c.layers)));
     return paths.size > 1;
@@ -794,6 +848,7 @@ function decide(entry, wildcard = []) {
    * 無名レイヤ（`@layer { … }`）の名前は `css-rules-capture.mjs` で空文字になる。
    * 別々の無名レイヤが同じ `[""]` として記録されるため、**同じパスに見えても同一レイヤとは限らない**。
    * レイヤの順序は詳細度より強く `!important` で逆転するので、同一視すると、警告なしに誤った勝者になる。
+   * @param {CascadeCandidate} c
    */
   const isAnonymous = (c) => c.layers.some((name) => name === "");
   // 判定は `applying` に閉じない。条件付き・状態不明・`all` の候補も同じレイヤ順の曖昧さを持ち、
@@ -838,9 +893,17 @@ function decide(entry, wildcard = []) {
     winningTier = tier.name;
     break;
   }
+  // applying が空でないので、どれかの段で勝者が決まるか、上で返している（型の絞り込みのため）。
+  if (winner === null || winningTier === null) {
+    throw new Error(
+      "cascade-resolve: 適用される宣言があるのに勝者が決まらない（このツールの不具合）",
+    );
+  }
+  const won = winner;
 
   // 条件付きの候補が、決まった勝者より強い段にいるなら結論を出せない。
   const tierRank = tiers.findIndex((t) => t.name === winningTier);
+  /** @param {CascadeCandidate} c */
   const couldOutrank = (c) => {
     // 段（tiers）の並びに合わせて候補の段を決める。候補が規則である前提で書くと、
     // インラインの候補（インラインの `all` 等）が常に下の段と判定されて追い越しを見落とす。
@@ -848,18 +911,21 @@ function decide(entry, wildcard = []) {
     if (rank < tierRank) return true;
     if (rank > tierRank) return false;
     // 同じ段でインライン同士なら、`style` 属性の中の並び順で決まる（詳細度もレイヤも無い）。
-    if (c.source === "inline" && winner.source === "inline") {
-      return (c.declaration_index ?? 0) > (winner.declaration_index ?? 0);
+    if (c.source === "inline" && won.source === "inline") {
+      return (c.declaration_index ?? 0) > (won.declaration_index ?? 0);
     }
-    if (winner.source === "inline" || c.source === "inline") return true;
-    if (JSON.stringify(c.layers) !== JSON.stringify(winner.layers)) return true;
+    if (won.source === "inline" || c.source === "inline") return true;
+    if (JSON.stringify(c.layers) !== JSON.stringify(won.layers)) return true;
     if (c.specificity === null) return true;
-    const bySpec = compareSpecificity(c.specificity, winner.specificity);
+    // 勝者は規則で、詳細度を読めない規則は上で返しているので、ここで null にはならない
+    // （元は compareSpecificity が null を読んで TypeError になる）。
+    if (won.specificity === null) throw new TypeError("winner has no specificity");
+    const bySpec = compareSpecificity(c.specificity, won.specificity);
     if (bySpec !== 0) return bySpec > 0;
-    const byOrder = (c.order ?? 0) - (winner.order ?? 0);
+    const byOrder = (c.order ?? 0) - (won.order ?? 0);
     if (byOrder !== 0) return byOrder > 0;
     // 同じ規則の中では後に書いた宣言が勝つ（`.x { color: red; all: unset }` の形）。
-    return (c.declaration_index ?? 0) > (winner.declaration_index ?? 0);
+    return (c.declaration_index ?? 0) > (won.declaration_index ?? 0);
   };
   if (entry.conditional.some(couldOutrank)) {
     reasons.push(
@@ -886,8 +952,8 @@ function decide(entry, wildcard = []) {
   }
 
   out.status = "resolved";
-  out.winner = { ...winner, tier: winningTier };
-  out.losers = entry.applying.filter((c) => c !== winner);
+  out.winner = { ...won, tier: winningTier };
+  out.losers = entry.applying.filter((c) => c !== won);
   return out;
 }
 
@@ -925,6 +991,10 @@ export function main(argv) {
     let allowIncomplete = false;
     for (let i = 0; i < argv.length; i += 1) {
       const arg = argv[i];
+      /**
+       * @param {string} name
+       * @returns {string}
+       */
       const need = (name) => {
         const value = argv[i + 1];
         // CSS カスタムプロパティ（`--brand-color`）は `--property` の値として正当なので、

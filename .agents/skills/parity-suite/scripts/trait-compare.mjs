@@ -99,6 +99,7 @@ function order(p, q, tol) {
  * @param {{ x:number, y:number, width:number, height:number }} a
  * @param {{ x:number, y:number, width:number, height:number }} b
  * @param {number} tol
+ * @returns {Record<string, string>}
  */
 function relate(a, b, tol) {
   const ax2 = a.x + a.width;
@@ -150,6 +151,7 @@ function diffStyleMap(name, kind, prefix, expectedMap, actualMap, out) {
  * @param {Diff[]} out
  */
 function diffPseudo(name, pseudo, expected, actual, out) {
+  /** @param {unknown} v */
   const exists = (v) => (v ? "present" : "absent");
   if (Boolean(expected) !== Boolean(actual)) {
     out.push({
@@ -191,6 +193,7 @@ function diffTextOwners(name, expectedOwners, actualOwners, tol, out) {
       });
       continue;
     }
+    /** @type {Diff[]} */
     const styleDiffs = [];
     diffStyleMap(name, "property", "", expected.style || {}, actual.style || {}, styleDiffs);
     for (const d of styleDiffs) {
@@ -209,7 +212,9 @@ function diffTextOwners(name, expectedOwners, actualOwners, tol, out) {
       });
       continue;
     }
-    for (const key of ["advance", "glyph_height"]) {
+    /** @type {Array<"advance" | "glyph_height">} */
+    const sizeKeys = ["advance", "glyph_height"];
+    for (const key of sizeKeys) {
       const e = expected[key];
       const a = actual[key];
       if (typeof e !== "number" || typeof a !== "number" || Math.abs(e - a) > tol) {
@@ -235,6 +240,11 @@ function diffTextOwners(name, expectedOwners, actualOwners, tol, out) {
  * @param {Diff[]} out
  */
 function diffScroll(name, expected, actual, tol, out) {
+  /**
+   * @param {string} prop
+   * @param {unknown} e
+   * @param {unknown} a
+   */
   const push = (prop, e, a) =>
     out.push({ name, kind: "scroll", prop, expected: String(e), actual: String(a) });
   if (!expected || !actual) {
@@ -243,16 +253,21 @@ function diffScroll(name, expected, actual, tol, out) {
     }
     return;
   }
-  for (const key of ["overflowing_x", "overflowing_y"]) {
+  /** @type {Array<"overflowing_x" | "overflowing_y">} */
+  const overflowKeys = ["overflowing_x", "overflowing_y"];
+  for (const key of overflowKeys) {
     if (expected[key] !== actual[key]) push(`scroll/${key}`, expected[key], actual[key]);
   }
-  for (const key of ["vertical_bar_px", "horizontal_bar_px"]) {
+  /** @type {Array<"vertical_bar_px" | "horizontal_bar_px">} */
+  const barKeys = ["vertical_bar_px", "horizontal_bar_px"];
+  for (const key of barKeys) {
     const e = expected[key];
     const a = actual[key];
     if (typeof e !== "number" || typeof a !== "number" || Math.abs(e - a) > tol) {
       push(`scroll/${key}`, e, a);
     }
   }
+  /** @type {Diff[]} */
   const styleDiffs = [];
   diffStyleMap(name, "property", "", expected.style || {}, actual.style || {}, styleDiffs);
   for (const d of styleDiffs) out.push({ ...d, kind: "scroll", prop: `scroll/${d.prop}` });
@@ -270,6 +285,7 @@ function diffScroll(name, expected, actual, tol, out) {
     return;
   }
   for (const pseudo of [...new Set([...Object.keys(ew), ...Object.keys(aw)])].sort()) {
+    /** @type {Diff[]} */
     const pseudoDiffs = [];
     diffStyleMap(name, "property", "", ew[pseudo] || {}, aw[pseudo] || {}, pseudoDiffs);
     for (const d of pseudoDiffs) {
@@ -294,10 +310,12 @@ export function compareTraits(baselineEntries, captureEntries, options = {}) {
 
   // 0. 論理名の重複は authoring ミス（Map が後勝ちで潰れ、先勝ち分の退行が隠れる）。
   //    警告なしに比較を続けず、診断として差分に出す。
-  for (const [label, entries] of /** @type {[string, Trait[]][]} */ ([
+  /** @type {Array<[string, Trait[]]>} */
+  const sides = [
     ["baseline", baselineEntries],
     ["capture", captureEntries],
-  ])) {
+  ];
+  for (const [label, entries] of sides) {
     const counts = new Map();
     for (const e of entries) counts.set(e.name, (counts.get(e.name) ?? 0) + 1);
     for (const [name, count] of counts) {
@@ -317,10 +335,12 @@ export function compareTraits(baselineEntries, captureEntries, options = {}) {
     diffStyleMap(base.name, "property", "", base.computed || {}, cap.computed || {}, out);
     diffPseudo(base.name, "::before", base.before, cap.before, out);
     diffPseudo(base.name, "::after", base.after, cap.after, out);
-    const baseHas = Array.isArray(base.text_owners);
-    const capHas = Array.isArray(cap.text_owners);
+    const baseOwners = base.text_owners;
+    const capOwners = cap.text_owners;
+    const baseHas = Array.isArray(baseOwners);
+    const capHas = Array.isArray(capOwners);
     if (baseHas && capHas) {
-      diffTextOwners(base.name, base.text_owners, cap.text_owners, tol, out);
+      diffTextOwners(base.name, baseOwners, capOwners, tol, out);
     } else if (baseHas !== capHas) {
       out.push({
         name: base.name,
@@ -361,7 +381,7 @@ export function compareTraits(baselineEntries, captureEntries, options = {}) {
     if (seen.has(e.name) || !capByName.has(e.name)) continue;
     seen.add(e.name);
     const baseRect = e.rect;
-    const capRect = capByName.get(e.name).rect;
+    const capRect = capByName.get(e.name)?.rect;
     if (!baseRect || !capRect) {
       out.push({
         name: e.name,

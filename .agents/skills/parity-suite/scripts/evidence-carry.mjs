@@ -34,7 +34,7 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve, sep } from "node:path";
-import { computeImpact, validateChange } from "./component-impact.mjs";
+import { computeImpact, isChangeKind, validateChange } from "./component-impact.mjs";
 
 /**
  * ツールのバージョン（原本）。判定規則を変えたら上げる。
@@ -91,7 +91,8 @@ function defaultRunGit(repo, args) {
  * @returns {string}
  */
 function reasonOf(e) {
-  const err = /** @type {{ stderr?: unknown, message?: unknown }} */ (e ?? {});
+  /** @type {Record<string, unknown>} */
+  const err = isPlainObject(e) ? e : {};
   const stderr =
     typeof err.stderr === "string"
       ? err.stderr
@@ -103,10 +104,31 @@ function reasonOf(e) {
 }
 
 /**
+ * validateChange が確かめた変更宣言のうち、この判定が読む欄の形を確かめる型ガード。
+ * @param {unknown} v
+ * @returns {v is CarryChange}
+ */
+function isCarryChange(v) {
+  return (
+    isPlainObject(v) &&
+    typeof v.id === "string" &&
+    typeof v.slug === "string" &&
+    isChangeKind(v.kind) &&
+    Array.isArray(v.files) &&
+    v.files.every((f) => typeof f === "string") &&
+    isPlainObject(v.commits) &&
+    typeof v.commits.before === "string" &&
+    typeof v.commits.after === "string" &&
+    typeof v.margin_px === "number" &&
+    isPlainObject(v.catalog_verification)
+  );
+}
+
+/**
  * 影響する組の影響インスタンス（論理名）。
- * @param {{pair:string, instances?: {id:string, locator:string}[]}[]} pairs
+ * @param {{pair:string, instances?: {id:string, locator:unknown}[]}[]} pairs
  * @param {string} pair
- * @returns {{id:string, locator:string}[]}
+ * @returns {{id:string, locator:unknown}[]}
  */
 function pairInstances(pairs, pair) {
   return pairs.find((p) => p.pair === pair)?.instances ?? [];
@@ -119,7 +141,7 @@ function pairInstances(pairs, pair) {
  */
 function rectKey(r) {
   if (!isPlainObject(r)) return null;
-  const v = /** @type {Record<string, unknown>} */ (r);
+  const v = r;
   const nums = [v.x, v.y, v.width, v.height];
   if (!nums.every((n) => typeof n === "number" && Number.isFinite(n))) return null;
   return nums.join(",");
@@ -130,7 +152,7 @@ function rectKey(r) {
  * @typedef {{
  *   id: string,
  *   slug: string,
- *   kind: "align-to-current" | "new-appearance",
+ *   kind: import("./component-impact.mjs").ChangeKind,
  *   files: string[],
  *   commits: { before: string, after: string },
  *   margin_px: number,
@@ -145,7 +167,7 @@ function rectKey(r) {
  * traits.json（inputs.new と同じディレクトリ）にある影響インスタンスの論理名の rect と一致することを求める。
  * @param {Record<string, unknown>} entry amend-verify の記録の組 1 件
  * @param {CarryChange} change
- * @param {{id:string, locator:string}[]} instances
+ * @param {{id:string, locator:unknown}[]} instances
  * @param {(p: string) => string} fromProject
  * @param {(p: string) => Buffer} readBytes
  * @returns {string | null} 不合格の理由（合格なら null）
@@ -155,7 +177,8 @@ function checkGeometry(entry, change, instances, fromProject, readBytes) {
     return `margin ${JSON.stringify(entry.margin)} が変更宣言の margin_px ${JSON.stringify(change.margin_px)} と違う（判定を弱めた記録で持ち越さない）`;
   }
   if (instances.length === 0) return "影響インスタンスが無く、領域を採取物と突き合わせられない";
-  const newPath = isPlainObject(entry.inputs) ? entry.inputs.new?.path : undefined;
+  const newInput = isPlainObject(entry.inputs) ? entry.inputs.new : undefined;
+  const newPath = isPlainObject(newInput) ? newInput.path : undefined;
   if (!nonEmptyString(newPath)) return "inputs.new.path が無く、traits.json を引けない";
   const traitsPath = join(dirname(fromProject(newPath)), "traits.json");
   let traits;
@@ -195,7 +218,11 @@ function checkGeometry(entry, change, instances, fromProject, readBytes) {
  * @returns {string | null} 不合格の理由（合格なら null）
  */
 function checkVerdict(entry) {
-  const count = (v) => Number.isInteger(v) && v >= 0;
+  /**
+   * @param {unknown} v
+   * @returns {v is number}
+   */
+  const count = (v) => typeof v === "number" && Number.isInteger(v) && v >= 0;
   if (entry.outside_identical !== true || entry.outside_diff_pixels !== 0) {
     return `pass なのに領域の外が一致していない（outside_identical: ${JSON.stringify(entry.outside_identical)}、outside_diff_pixels: ${JSON.stringify(entry.outside_diff_pixels)}）`;
   }
@@ -225,8 +252,12 @@ function checkVerdict(entry) {
 function checkProvenance(entry, pair, changeId, where) {
   const [page, state, viewport] = pair.split("|");
   const inputs = isPlainObject(entry.inputs) ? entry.inputs : {};
-  const at = (key) =>
-    nonEmptyString(inputs[key]?.path) ? where.fromProject(inputs[key].path) : null;
+  /** @param {string} key */
+  const at = (key) => {
+    const input = inputs[key];
+    const path = isPlainObject(input) ? input.path : undefined;
+    return nonEmptyString(path) ? where.fromProject(path) : null;
+  };
   const expectedNew = join(where.stageDir, "baseline-new", page, state, viewport, "screenshot.png");
   const expectedPrev = join(
     where.stageDir,
@@ -300,13 +331,14 @@ export function judgeCarry(input) {
   const notes = [];
   /**
    * @param {string} message
+   * @returns {{ ok: boolean, legacy: boolean, findings: string[], notes: string[], carried_by: string[] }}
    */
   const fail = (message) => ({
     ok: false,
     legacy: false,
     findings: [...findings, message],
     notes,
-    carried_by: /** @type {string[]} */ ([]),
+    carried_by: [],
   });
 
   // 1. render_inputs。無い・空だけが従来どおり（閉じた免除）。それ以外の形は読めない入力として落とす。
@@ -488,7 +520,7 @@ export function judgeCarry(input) {
   } catch (e) {
     // 無いのは「持ち越しの宣言が無い」。D が空でない以上、どのファイルも説明できずに下で落ちる。
     // 無い以外の読めなさ（権限等）は宣言の有無が分からないので落とす。
-    if (/** @type {NodeJS.ErrnoException} */ (e).code !== "ENOENT") {
+    if (!(e instanceof Error && "code" in e && e.code === "ENOENT")) {
       return fail(
         `${EVIDENCE_CARRY_FILE} を読めない: ${input.evidenceCarryPath}（${reasonOf(e)}）`,
       );
@@ -533,25 +565,24 @@ export function judgeCarry(input) {
     if (errors.length > 0) {
       return fail(`変更宣言 ${path} が不正: ${errors.join(" / ")}`);
     }
+    const change = read.value;
+    // validateChange が誤りを返さなかった宣言は、この形を必ず満たす（到達しない分岐）
+    if (!isCarryChange(change)) return fail(`変更宣言 ${path} が不正: 読む欄の形が違う`);
     declared.push({
       path,
       amendVerify: carry.amend_verify,
-      change: /** @type {CarryChange} */ (read.value),
+      change,
     });
   }
 
   // D の各ファイルが、どれかの変更宣言の files に含まれるか。
-  const uncovered = changed.filter(
-    (file) => !declared.some((d) => /** @type {string[]} */ (d.change.files).includes(file)),
-  );
+  const uncovered = changed.filter((file) => !declared.some((d) => d.change.files.includes(file)));
   if (uncovered.length > 0) {
     return fail(
       `描画入力の差分（${recorded} → ${wanted}）に、どの変更宣言の files にも無いファイルがある: ${uncovered.join(", ")}（宣言外の変更は持ち越さない）`,
     );
   }
-  const used = declared.filter((d) =>
-    /** @type {string[]} */ (d.change.files).some((file) => changed.includes(file)),
-  );
+  const used = declared.filter((d) => d.change.files.some((file) => changed.includes(file)));
   for (const d of declared) {
     if (!used.includes(d))
       notes.push(`変更宣言 ${d.change.id} はこの差分に触れないので使わない: ${d.path}`);
@@ -559,7 +590,9 @@ export function judgeCarry(input) {
 
   // 使う変更宣言のコミットが実在するか。
   for (const d of used) {
-    for (const side of ["before", "after"]) {
+    /** @type {Array<"before" | "after">} */
+    const sides = ["before", "after"];
+    for (const side of sides) {
       verifyCommit(d.change.commits[side], `変更宣言 ${d.change.id} の commits.${side}`);
     }
   }
@@ -583,7 +616,7 @@ export function judgeCarry(input) {
   // files に名前があるだけの古い宣言で、その後の宣言外の編集を持ち越さない。
   for (const file of changed) {
     const edges = used
-      .filter((d) => /** @type {string[]} */ (d.change.files).includes(file))
+      .filter((d) => d.change.files.includes(file))
       .map((d) => [blobOf(d.change.commits.before, file), blobOf(d.change.commits.after, file)]);
     const start = blobOf(recordedFull, file);
     const goal = blobOf(wantedFull, file);
@@ -650,7 +683,7 @@ export function judgeCarry(input) {
     const id = String(d.change.id);
     // 部品側の照合（宣言した範囲の外は差分ゼロ・範囲の中は現行と一致）が通っていない宣言は、
     // 範囲の外にも影響している疑いがあるので、影響の計算そのものを根拠にできない
-    const catalog = /** @type {Record<string, unknown>} */ (d.change.catalog_verification);
+    const catalog = d.change.catalog_verification;
     if (catalog.outside_scope_identical !== true || catalog.inside_matches_current !== true) {
       findings.push(
         `変更宣言 ${id} の catalog_verification が合格していない（outside_scope_identical: ${JSON.stringify(catalog.outside_scope_identical)}、inside_matches_current: ${JSON.stringify(catalog.inside_matches_current)}）。部品の照合が通ってから持ち越す（parity-component の references/amend.md）`,
@@ -705,10 +738,7 @@ export function judgeCarry(input) {
       continue;
     }
     // affected。
-    const pairs =
-      /** @type {{pair:string, region_known:boolean, instances: {id:string, locator:string}[]}[]} */ (
-        feature.pairs
-      );
+    const pairs = feature.pairs;
     // 機械判定（amend-verify）の合格条件は「現行へ近づいた」なので、現行に合わせ直す修正にしか意味を持たない。
     // new-appearance は満たすべき条件が宣言から決まらず、合格しても従来のトリアージを省く根拠にならない
     if (d.change.kind !== "align-to-current") {
@@ -757,7 +787,9 @@ export function judgeCarry(input) {
         );
         continue;
       }
-      const entry = /** @type {Record<string, unknown>} */ (entries[0]);
+      const entry = entries[0];
+      // entries は isPlainObject で絞った要素だけを持つ（到達しない分岐）
+      if (!isPlainObject(entry)) continue;
       if (entry.pass !== true) {
         findings.push(
           `amend-verify の組 ${pair} が pass でない（${Array.isArray(entry.reasons) ? entry.reasons.join("; ") : "理由なし"}）: ${recordPath}`,

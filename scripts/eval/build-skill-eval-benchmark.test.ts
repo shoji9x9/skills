@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { makeTempDirFactory } from "../lib/test-tmpdir.ts";
 import { spawnAsync } from "../lib/spawn-async.ts";
+import { parseJsonAs } from "../lib/parse-as.ts";
 
 // `build-skill-eval-benchmark.ts` は、**assertion テキストをキーにした入力だけを受理する**
 // 集計スクリプト（Issue #421）。位置で対応づけると、assertion の追加・削除・並べ替えで判定がずれ、
@@ -173,7 +174,7 @@ describe.concurrent("集計（揃った iteration）", () => {
   test("run の並び・evals_run・統計・Delta を固定する", async () => {
     const res = await run(completeIteration(), ["--timestamp", "2026-09-22T00:00:00Z"]);
     expect(res.status, res.out).toBe(0);
-    const b: Benchmark = JSON.parse(res.stdout);
+    const b = parseJsonAs<Benchmark>(res.stdout);
 
     expect(b.metadata).toStrictEqual({
       skill_name: "demo",
@@ -249,7 +250,7 @@ describe.concurrent("集計（揃った iteration）", () => {
     });
     const res = await run(root);
     expect(res.status, res.out).toBe(0);
-    const b: Benchmark = JSON.parse(res.stdout);
+    const b = parseJsonAs<Benchmark>(res.stdout);
     expect(b.runs[0].expectations).toStrictEqual([
       { text: ASSERTIONS[0], passed: true, evidence: "1 番目の根拠" },
       { text: ASSERTIONS[1], passed: false, evidence: "2 番目の根拠" },
@@ -276,7 +277,7 @@ describe.concurrent("集計（揃った iteration）", () => {
     });
     const res = await run(root);
     expect(res.status, res.out).toBe(0);
-    const b: Benchmark = JSON.parse(res.stdout);
+    const b = parseJsonAs<Benchmark>(res.stdout);
     expect(b.runs[0].result.passed).toBe(2);
     expect(b.runs[0].expectations.map((e) => e.text)).toStrictEqual(ASSERTIONS);
   });
@@ -289,7 +290,7 @@ describe.concurrent("集計（揃った iteration）", () => {
       configuration: "with_skill",
       metrics: { total_tool_calls: 7, errors_encountered: 2 },
     });
-    const b: Benchmark = JSON.parse((await run(root)).stdout);
+    const b = parseJsonAs<Benchmark>((await run(root)).stdout);
     expect(b.runs[0].result.tool_calls).toBe(7);
     expect(b.runs[0].result.errors).toBe(2);
   });
@@ -298,7 +299,7 @@ describe.concurrent("集計（揃った iteration）", () => {
     const root = completeIteration();
     const notes = join(root, "notes.txt");
     writeFileSync(notes, "1 行目の備考\n\n2 行目の備考\n");
-    const b: Benchmark = JSON.parse((await run(root, ["--notes-file", notes])).stdout);
+    const b = parseJsonAs<Benchmark>((await run(root, ["--notes-file", notes])).stdout);
     expect(b.notes).toStrictEqual(["1 行目の備考", "2 行目の備考"]);
   });
 
@@ -310,7 +311,10 @@ describe.concurrent("集計（揃った iteration）", () => {
     writeFileSync(notes, JSON.stringify(["1 件目の備考", "2 件目の備考"]));
     const res = await run(root, ["--notes-file", notes]);
     expect(res.status, res.out).toBe(0);
-    expect(JSON.parse(res.stdout).notes).toStrictEqual(["1 件目の備考", "2 件目の備考"]);
+    expect(parseJsonAs<Benchmark>(res.stdout).notes).toStrictEqual([
+      "1 件目の備考",
+      "2 件目の備考",
+    ]);
   });
 
   test("既定の出力先は iteration 直下で、既存ファイルは --force なしに上書きしない", async () => {
@@ -355,7 +359,7 @@ describe.concurrent("集計（揃った iteration）", () => {
     expect(overwrite.status, overwrite.stderr).toBe(2);
     expect(overwrite.stderr).toContain("--force");
     // 既定の timestamp は秒までの UTC。
-    const written = JSON.parse(readFileSync(out, "utf8"));
+    const written = parseJsonAs<Benchmark>(readFileSync(out, "utf8"));
     expect(written.metadata.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
   });
 });
@@ -499,7 +503,7 @@ describe.concurrent("受理しない入力（exit 2）", () => {
     const res = await run(root);
     expect(res.status, res.out).toBe(0);
     // **出力は採点内訳から導いた値**（保存値を載せると benchmark が採点と違う数字を報告する）。
-    expect(JSON.parse(res.stdout).runs[0].result.pass_rate).toBe(0.5556);
+    expect(parseJsonAs<Benchmark>(res.stdout).runs[0].result.pass_rate).toBe(0.5556);
   });
 
   // 桁の下限クランプ（1 桁）の範囲では保存値と内訳がずれたまま受理されるので、
@@ -521,7 +525,7 @@ describe.concurrent("受理しない入力（exit 2）", () => {
     }
     const res = await run(root);
     expect(res.status, res.out).toBe(0);
-    const b: Benchmark = JSON.parse(res.stdout);
+    const b = parseJsonAs<Benchmark>(res.stdout);
     expect(b.runs[0].result.pass_rate).toBe(0.6667);
     expect(b.run_summary.with_skill.pass_rate.mean).toBe(0.6667);
   });
@@ -572,7 +576,9 @@ describe.concurrent("受理しない入力（exit 2）", () => {
   test("total_tokens が数値でなければ落とす（0 で埋めない）", async () => {
     const root = makeIteration();
     const dir = writeRun(root, { evalDir: "eval-1", evalId: 1, configuration: "with_skill" });
-    const timing = JSON.parse(readFileSync(join(dir, "timing.json"), "utf8"));
+    const timing = parseJsonAs<Record<string, unknown>>(
+      readFileSync(join(dir, "timing.json"), "utf8"),
+    );
     timing.total_tokens = null;
     writeFileSync(join(dir, "timing.json"), JSON.stringify(timing));
     const res = await run(root);
@@ -595,7 +601,7 @@ describe.concurrent("受理しない入力（exit 2）", () => {
     );
     const ok = await run(root);
     expect(ok.status, ok.out).toBe(0);
-    expect(JSON.parse(ok.stdout).runs[0].result.tool_calls).toBe(0);
+    expect(parseJsonAs<Benchmark>(ok.stdout).runs[0].result.tool_calls).toBe(0);
   });
 
   // キー無し・null は「この executor では測れない」（実データの `total_tool_calls` は 145 件が
@@ -606,7 +612,7 @@ describe.concurrent("受理しない入力（exit 2）", () => {
     writeFileSync(join(dir, "outputs", "metrics.json"), JSON.stringify({ total_steps: 3 }));
     const ok = await run(root);
     expect(ok.status, ok.out).toBe(0);
-    expect(JSON.parse(ok.stdout).runs[0].result.tool_calls).toBe(0);
+    expect(parseJsonAs<Benchmark>(ok.stdout).runs[0].result.tool_calls).toBe(0);
 
     writeFileSync(
       join(dir, "outputs", "metrics.json"),
@@ -635,7 +641,7 @@ describe.concurrent("受理しない入力（exit 2）", () => {
     });
     const passed = await run(ok);
     expect(passed.status, passed.out).toBe(0);
-    expect(JSON.parse(passed.stdout).metadata.evals_run).toStrictEqual([31]);
+    expect(parseJsonAs<Benchmark>(passed.stdout).metadata.evals_run).toStrictEqual([31]);
   });
 
   test("同じ run が 2 つのディレクトリから来ていれば落とす", async () => {
@@ -680,7 +686,7 @@ describe.concurrent("受理しない入力（exit 2）", () => {
 
     const skipped = await run(root, ["--ungraded", "skip"]);
     expect(skipped.status, skipped.out).toBe(0);
-    const b: Benchmark = JSON.parse(skipped.stdout);
+    const b = parseJsonAs<Benchmark>(skipped.stdout);
     expect(b.runs).toHaveLength(4);
     expect(b.metadata.runs_per_configuration).toBe(1);
   });
@@ -717,7 +723,7 @@ describe.concurrent("受理しない入力（exit 2）", () => {
     });
     const passed = await run(ok, ["--ungraded", "skip"]);
     expect(passed.status, passed.out).toBe(0);
-    expect(JSON.parse(passed.stdout).runs).toHaveLength(2);
+    expect(parseJsonAs<Benchmark>(passed.stdout).runs).toHaveLength(2);
   });
 
   // run の合間に assertion を変えると、各 run は自分の宣言と整合したまま分母が変わり、
@@ -758,7 +764,7 @@ describe.concurrent("受理しない入力（exit 2）", () => {
     });
     const passed = await run(ok);
     expect(passed.status, passed.out).toBe(0);
-    expect(JSON.parse(passed.stdout).runs).toHaveLength(2);
+    expect(parseJsonAs<Benchmark>(passed.stdout).runs).toHaveLength(2);
   });
 
   test("executor / model が混在していれば落とす（母集団を分ける）", async () => {
@@ -803,7 +809,7 @@ describe.concurrent("受理しない入力（exit 2）", () => {
     writeRun(single, { evalDir: "eval-2", evalId: 2, configuration: "with_skill" });
     const ok = await run(single);
     expect(ok.status, ok.out).toBe(0);
-    expect(JSON.parse(ok.stdout).run_summary.delta).toBeUndefined();
+    expect(parseJsonAs<Benchmark>(ok.stdout).run_summary.delta).toBeUndefined();
   });
 
   // run 数の突き合わせはディレクトリ単位、集計のキーは eval_id。食い違うと
@@ -862,7 +868,7 @@ describe.concurrent("受理しない入力（exit 2）", () => {
     symlinkSync(join(real, "eval-2"), join(root, "eval-2"), "dir");
     const res = await run(root);
     expect(res.status, res.out).toBe(0);
-    const b: Benchmark = JSON.parse(res.stdout);
+    const b = parseJsonAs<Benchmark>(res.stdout);
     expect(b.metadata.evals_run, "リンクの eval が警告なしに除外された").toStrictEqual([1, 2]);
     expect(b.runs).toHaveLength(4);
   });

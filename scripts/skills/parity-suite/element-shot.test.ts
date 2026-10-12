@@ -11,6 +11,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../lib/test-tmpdir.ts";
 import { invalidInput } from "../../lib/test-input.ts";
+import { parseJsonAs } from "../../lib/parse-as.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/element-shot.mjs");
@@ -719,7 +720,9 @@ test("既存の組は新しい組へまとめて置き換わる（バックア�
   writeFileSync(join(dir, "element.shot.json"), "{}");
   await captureElementShot(recordingPage(), frameLocator(fakeElement()), { path: target });
   expect(readFileSync(target)).toEqual(pngHeader(25, 28));
-  expect(JSON.parse(readFileSync(join(dir, "element.shot.json"), "utf8")).png).toEqual({
+  expect(
+    parseJsonAs<{ png: unknown }>(readFileSync(join(dir, "element.shot.json"), "utf8")).png,
+  ).toEqual({
     width: 25,
     height: 28,
   });

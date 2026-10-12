@@ -10,6 +10,14 @@
 // 「出ていないから描かない」と決める前に、同じ場所を疑似要素が描いていないかを突き合わせるため。
 // 決定論的: 乱数・時刻に依存せず、document 順に走査する（resources だけは読み込み順）。
 
+/**
+ * 走査する要素。type・currentSrc・src は、それを持つ要素（img・input など）でだけ値がある。
+ * @typedef {Element & { type?: unknown, currentSrc?: unknown, src?: unknown }} ProbedElement
+ * @typedef {{ count: number, rendered: number, samples: { path: string, rendered: boolean }[] }} ProbeCounts
+ * @typedef {{ url: string, property: string, pseudo: string | null }} UrlRefInit
+ * @typedef {ArrayLike<CSSRule & { style?: CSSStyleDeclaration, styleSheet?: CSSStyleSheet | null, cssRules?: CSSRuleList }>} WalkedRules
+ */
+
 export const assetProbe = () => {
   // url() を取りうるプロパティ。allowlist なので、走査した一覧を urlPropsScanned で返して
   // 「載っていないプロパティは見ていない」を台帳側で扱えるようにする（警告なしに外さない）。
@@ -36,10 +44,13 @@ export const assetProbe = () => {
   ];
   const MAX_SAMPLES = 3;
 
+  /** @param {Element} el */
   const cssPath = (el) => {
     const parts = [];
+    /** @type {Element | null} */
     let cur = el;
     while (cur && cur !== document.body && cur !== document.documentElement && parts.length < 5) {
+      /** @type {HTMLElement | null} */
       const parent = cur.parentElement;
       const idx = parent ? Array.from(parent.children).indexOf(cur) + 1 : 1;
       parts.unshift(cur.tagName.toLowerCase() + ":nth-child(" + idx + ")");
@@ -48,9 +59,12 @@ export const assetProbe = () => {
     return parts.join(" > ");
   };
 
+  /** @param {Element} el */
   const isRendered = (el) => {
     if (!el.isConnected) return false;
-    for (let cur = el; cur; cur = cur.parentElement) {
+    /** @type {Element | null} */
+    let cur = el;
+    for (; cur; cur = cur.parentElement) {
       const style = getComputedStyle(cur);
       if (style.display === "none") return false;
     }
@@ -70,6 +84,10 @@ export const assetProbe = () => {
     u.hash = "";
     return u.href;
   })();
+  /**
+   * @param {string} raw
+   * @param {string} base
+   */
   const resolveRef = (raw, base) => {
     const u = new URL(raw, base);
     const hash = u.hash;
@@ -78,6 +96,10 @@ export const assetProbe = () => {
     if (hash && u.href === docWithoutHash) return { url: hash, localFragment: true };
     return { url: new URL(raw, base).href, localFragment: false };
   };
+  /**
+   * @param {string} value
+   * @param {string} [base]
+   */
   const urlsIn = (value, base = document.baseURI) => {
     const out = [];
     const re = /url\(\s*(['"]?)(.*?)\1\s*\)/g;
@@ -90,6 +112,7 @@ export const assetProbe = () => {
   };
 
   // content の文字列リテラルを取り出し、コードポイントに直す（"\f00d" のような私用領域のグリフを識別するため）。
+  /** @param {string} value */
   const contentText = (value) => {
     if (!value || value === "none" || value === "normal") return "";
     const re = /"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)'/g;
@@ -98,16 +121,27 @@ export const assetProbe = () => {
     while ((m = re.exec(value))) text += m[1] !== undefined ? m[1] : m[2];
     return text;
   };
+  // Array.from(text) の要素は 1 文字以上なので、codePointAt(0) は常に数を返す（`?? 0` は型のためだけにある）。
+  /** @param {string} text */
   const codepoints = (text) =>
     Array.from(text).map(
-      (ch) => "U+" + ch.codePointAt(0).toString(16).toUpperCase().padStart(4, "0"),
+      (ch) => "U+" + (ch.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, "0"),
     );
+  /** @param {string} text */
   const isPrivateUse = (text) =>
     Array.from(text).some((ch) => {
-      const cp = ch.codePointAt(0);
+      const cp = ch.codePointAt(0) ?? 0;
       return (cp >= 0xe000 && cp <= 0xf8ff) || cp >= 0xf0000;
     });
 
+  /**
+   * @template {Record<string, unknown>} T
+   * @param {Map<string, T & ProbeCounts>} map
+   * @param {string} key
+   * @param {T} init
+   * @param {Element} el
+   * @param {boolean} rendered
+   */
   const bump = (map, key, init, el, rendered) => {
     let entry = map.get(key);
     if (!entry) {
@@ -120,15 +154,21 @@ export const assetProbe = () => {
     return entry;
   };
 
+  /** @type {Map<string, { src: string, kind: string } & ProbeCounts>} */
   const images = new Map();
+  /** @type {Map<string, UrlRefInit & ProbeCounts>} */
   const urlRefs = new Map();
   // 同一文書内の断片参照（外部資産ではないが、SVG 定義の所在として棚卸しの手がかりになる）。
+  /** @type {Map<string, UrlRefInit & ProbeCounts>} */
   const localFragmentRefs = new Map();
+  /** @type {Map<string, { pseudo: string, fontFamily: string, text: string, codepoints: string[], privateUse: boolean } & ProbeCounts>} */
   const glyphs = new Map();
 
   // open な shadow root の内側も走査する（querySelectorAll は shadow 境界を越えないため、
   // Web Components が描く資産を警告なしに取りこぼす）。closed な shadow root は読めないので件数に出ない。
+  /** @type {(Document | ShadowRoot)[]} */
   const roots = [document];
+  /** @type {ProbedElement[]} */
   const allElements = [];
   for (let i = 0; i < roots.length; i += 1) {
     for (const el of Array.from(roots[i].querySelectorAll("*"))) {
@@ -142,7 +182,11 @@ export const assetProbe = () => {
     const rendered = isRendered(el);
 
     if (tag === "img" || (tag === "input" && el.type === "image")) {
-      const src = el.currentSrc || el.src || el.getAttribute("src") || "";
+      const src =
+        (typeof el.currentSrc === "string" && el.currentSrc) ||
+        (typeof el.src === "string" && el.src) ||
+        el.getAttribute("src") ||
+        "";
       if (src) bump(images, src, { src, kind: tag }, el, rendered);
     } else if (tag === "image" || tag === "use") {
       const href = el.getAttribute("href") || el.getAttribute("xlink:href") || "";
@@ -218,16 +262,26 @@ export const assetProbe = () => {
 
   // @font-face の src。クロスオリジンのスタイルシートは cssRules の参照で SecurityError を投げるため、
   // 読めなかったシートは件数とともに残す（「無い」と「読めない」を区別する）。
+  /** @type {{ family: string, weight: string | null, style: string | null, src: string[], sheet: string }[]} */
   const fontFaces = [];
+  /** @type {string[]} */
   const unreadableSheets = [];
+  /**
+   * @param {WalkedRules} rules
+   * @param {string} sheetHref
+   * @param {string} base
+   */
   const walk = (rules, sheetHref, base) => {
     for (const rule of Array.from(rules)) {
       if (rule.type === CSSRule.FONT_FACE_RULE) {
+        // @font-face の規則（CSSFontFaceRule）は必ず style を持つ。無ければ、元の `rule.style.…` の読み取りと同じく TypeError で止める。
+        const ruleStyle = rule.style;
+        if (!ruleStyle) throw new TypeError("@font-face の規則に style がありません");
         fontFaces.push({
-          family: rule.style.getPropertyValue("font-family").trim(),
-          weight: rule.style.getPropertyValue("font-weight").trim() || null,
-          style: rule.style.getPropertyValue("font-style").trim() || null,
-          src: urlsIn(rule.style.getPropertyValue("src"), base)
+          family: ruleStyle.getPropertyValue("font-family").trim(),
+          weight: ruleStyle.getPropertyValue("font-weight").trim() || null,
+          style: ruleStyle.getPropertyValue("font-style").trim() || null,
+          src: urlsIn(ruleStyle.getPropertyValue("src"), base)
             .filter((ref) => !ref.localFragment)
             .map((ref) => ref.url),
           sheet: sheetHref,
@@ -240,10 +294,13 @@ export const assetProbe = () => {
     }
   };
   // adoptedStyleSheets は document と複数の shadow root で共有されうるため、同じシートを二重に数えない。
+  /** @type {Set<CSSStyleSheet>} */
   const visitedSheets = new Set();
+  /** @param {CSSStyleSheet} sheet */
   const visit = (sheet) => {
     if (visitedSheets.has(sheet)) return;
     visitedSheets.add(sheet);
+    /** @type {CSSRuleList} */
     let rules;
     try {
       rules = sheet.cssRules;
@@ -264,11 +321,14 @@ export const assetProbe = () => {
     .map((face) => ({ family: face.family, weight: face.weight, style: face.style }));
 
   const icons = Array.from(document.querySelectorAll("link[rel]"))
+    // `link[rel]` に当たる要素で rel を持つのは HTMLLinkElement だけなので、instanceof で絞っても結果は変わらない。
+    .filter((link) => link instanceof HTMLLinkElement)
     .filter((link) => /(^|\s)(icon|apple-touch-icon|mask-icon)(\s|$)/i.test(link.rel))
     .map((link) => ({ rel: link.rel, href: link.href, sizes: link.getAttribute("sizes") || null }));
   // manifest の icons はページの描画では取得されず resources にも出ないことがある。プローブは manifest を開かないので、
   // 参照だけを返す（中身の icons は読んでいない。manifest の URL をアイコンとして数えない）。
   const manifests = Array.from(document.querySelectorAll("link[rel]"))
+    .filter((link) => link instanceof HTMLLinkElement)
     .filter((link) => /(^|\s)manifest(\s|$)/i.test(link.rel))
     .map((link) => ({ href: link.href, iconsInspected: false }));
 
@@ -287,12 +347,19 @@ export const assetProbe = () => {
   const resourceEntries = performance.getEntriesByType
     ? performance.getEntriesByType("resource")
     : [];
+  /** @type {{ url: string, initiatorType: string | undefined, matchedBy: string }[]} */
   const resources = [];
+  /** @type {{ url: string, initiatorType: string | undefined }[]} */
   const unclassifiedResources = [];
   for (const entry of resourceEntries) {
-    const row = { url: entry.name, initiatorType: entry.initiatorType };
+    // resource の項目（PerformanceResourceTiming）は initiatorType を文字列で持つ。
+    const initiatorType =
+      "initiatorType" in entry && typeof entry.initiatorType === "string"
+        ? entry.initiatorType
+        : undefined;
+    const row = { url: entry.name, initiatorType };
     if (ASSET_EXT.test(entry.name)) resources.push({ ...row, matchedBy: "extension" });
-    else if (ASSET_INITIATORS.has(entry.initiatorType))
+    else if (initiatorType !== undefined && ASSET_INITIATORS.has(initiatorType))
       resources.push({ ...row, matchedBy: "initiator" });
     else if (corroborated.has(entry.name)) resources.push({ ...row, matchedBy: "corroborated" });
     else unclassifiedResources.push(row);

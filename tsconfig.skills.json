@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "checkJs": true,
+    "tsBuildInfoFile": "./node_modules/.cache/tsc/skills.tsbuildinfo",
+    "paths": {
+      "pngjs": ["./types/skill-runtime/pngjs.ts"],
+      "playwright": ["./types/skill-runtime/playwright.ts"]
+    }
+  },
+  "include": ["skills/*/**/*.mjs", "types/strict-json.ts", "types/skill-runtime/*.ts"]
+}

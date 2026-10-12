@@ -21,6 +21,7 @@ import {
 import { invalidInput, removeField } from "../../lib/test-input.ts";
 import { isRecord } from "../../lib/guards.ts";
 import { makeTempDir } from "../../lib/test-tmpdir.ts";
+import { parseJsonAs } from "../../lib/parse-as.ts";
 import {
   captureFingerprint,
   countCoverage as countCoverageRaw,
@@ -1207,7 +1208,7 @@ test("CLI 検出されることの確認: 未測定が残れば exit 1 で理由
   cov.cells = cov.cells.slice(0, 2);
   const r = runCli(declared, cov);
   expect(r.status).toBe(1);
-  expect(JSON.parse(r.stdout).unmeasured).toBe(2);
+  expect(parseJsonAs<{ unmeasured: number | null }>(r.stdout).unmeasured).toBe(2);
   expect(r.stderr).toMatch(/parity-suite へ戻す/);
 });
 
@@ -1223,7 +1224,7 @@ test("CLI: 未測定 0 でも不整合が残れば error 行を出して exit 1 
     invalidInput<Coverage>({ slug: "order-list", components: [], cells: [] }),
   );
   expect(r.status).toBe(1);
-  expect(JSON.parse(r.stdout).unmeasured).toBe(0);
+  expect(parseJsonAs<{ unmeasured: number | null }>(r.stdout).unmeasured).toBe(0);
   expect(r.stderr).toMatch(/error: 網羅表の不整合/);
 });
 

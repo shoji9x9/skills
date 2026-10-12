@@ -17,6 +17,7 @@ import { baseSpec } from "./architecture-spec.mjs";
 const localDimIds = new Set(["s3site", "apigw", "queue", "events", "cognito"]);
 
 // local でのラベル差し替え（id → 上書きするフィールド）。
+/** @type {Record<string, { label: string[] }>} */
 const localRelabel = {
   cf: { label: ["Vite Dev Server", "（:5173）"] },
   api: { label: ["ローカル backend", "（:3001）"] },
@@ -26,6 +27,7 @@ const localRelabel = {
 };
 
 // base を「ローカル構成」に変換する。
+/** @param {typeof baseSpec} base */
 function toLocal(base) {
   const nodes = base.nodes.map((n) => ({
     ...n,
@@ -34,6 +36,7 @@ function toLocal(base) {
   }));
 
   // 端点のどちらかが淡色ノードのエッジ = local 未使用フローとして淡色化。
+  /** @type {{ from: string, to: string, label?: string, dashed?: boolean, waypoints?: number[][], dim?: boolean }[]} */
   const edges = base.edges.map((e) => ({
     ...e,
     ...(localDimIds.has(e.from) || localDimIds.has(e.to) ? { dim: true } : {}),

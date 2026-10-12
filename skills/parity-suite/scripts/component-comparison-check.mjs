@@ -26,10 +26,13 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 // 同じディレクトリの evidence-carry.mjs は、このファイルの実パスから解決して読み込む。
 // 静的な "./evidence-carry.mjs" は、--preserve-symlinks-main でファイル単位のシンボリックリンクから起動されると、
 // リンクの置き場所から解決して見つからない。持ち越しを使わない実行（引数不足の usage 表示を含む）まで、起動時に失敗する。
-const { EVIDENCE_CARRY_FILE, judgeCarry } = await import(
+// 動的な import の戻り値は型を持たないので、同じファイルの宣言から型を付ける。
+/** @type {typeof import("./evidence-carry.mjs")} */
+const evidenceCarry = await import(
   pathToFileURL(join(dirname(realpathSync(fileURLToPath(import.meta.url))), "evidence-carry.mjs"))
     .href
 );
+const { EVIDENCE_CARRY_FILE, judgeCarry } = evidenceCarry;
 
 /**
  * ツールのバージョン（原本）。判定規則・出力形状を変えたら上げる。
@@ -70,6 +73,26 @@ export function cellKey(cell) {
  */
 function nonEmptyString(value) {
   return typeof value === "string" && value.trim() !== "";
+}
+
+/**
+ * null でないオブジェクトか（`v && typeof v === "object"` と同じ判定。配列も含む）。
+ * 配列のキーを読んでも undefined になるだけなので、キーを読む側の型は Record で扱う。
+ * @param {unknown} value
+ * @returns {value is Record<string, unknown>}
+ */
+function isObject(value) {
+  return Boolean(value) && typeof value === "object";
+}
+
+/**
+ * catch した値の message（`error && error.message` と同じ値）。
+ * @param {unknown} error
+ * @returns {unknown}
+ */
+function errorMessage(error) {
+  if (!error) return error;
+  return typeof error === "object" && "message" in error ? error.message : undefined;
 }
 
 /** 新側リポジトリがコミットを持たないことを表す語彙上のセンチネル（リポジトリ共通）。 */
@@ -116,8 +139,8 @@ export function checkComponentComparison(input) {
   /** @type {string[]} */
   const notes = [];
   const counts = { present: 0, compared: 0, blocking: 0, accepted: 0 };
-  const coverage = /** @type {Record<string, unknown>} */ (input.coverage);
-  if (!coverage || typeof coverage !== "object" || !Array.isArray(coverage.cells)) {
+  const coverage = input.coverage;
+  if (!isObject(coverage) || !Array.isArray(coverage.cells)) {
     return {
       findings: [
         {
@@ -136,7 +159,9 @@ export function checkComponentComparison(input) {
   /** @type {Set<string>} */
   const seenPresent = new Set();
   for (const raw of coverage.cells) {
-    const cell = /** @type {Record<string, unknown>} */ (raw ?? {});
+    // 文字列・数のセルはキーを読むと undefined になるので、{} と同じ扱いになる
+    /** @type {Record<string, unknown>} */
+    const cell = isObject(raw) ? raw : {};
     if (cell.value !== "present") continue;
     const key = cellKey(cell);
     if (!key) {
@@ -160,8 +185,8 @@ export function checkComponentComparison(input) {
   }
   counts.present = presentKeys.length;
 
-  const comparison = /** @type {Record<string, unknown>} */ (input.comparison);
-  if (!comparison || typeof comparison !== "object" || !Array.isArray(comparison.cells)) {
+  const comparison = input.comparison;
+  if (!isObject(comparison) || !Array.isArray(comparison.cells)) {
     findings.push({
       code: "comparison-missing",
       message:
@@ -179,10 +204,7 @@ export function checkComponentComparison(input) {
   // 記録した後に新側を変えても古い証拠が通る。当たり判定・完了の退行はスイートの green に
   // 出ないので、この工程が唯一の網になる。
   const observed = comparison.new_implementation;
-  const observedCommit =
-    observed && typeof observed === "object"
-      ? /** @type {Record<string, unknown>} */ (observed).commit
-      : undefined;
+  const observedCommit = isObject(observed) ? observed.commit : undefined;
   if (!nonEmptyString(observedCommit)) {
     findings.push({
       code: "comparison-implementation-unrecorded",
@@ -193,10 +215,7 @@ export function checkComponentComparison(input) {
   // **記録した版が「汚れていない」ことまで求める。** commit だけを鍵にすると、未コミットの変更を
   // 抱えた作業ツリーで操作した記録が同じ commit の記録として通り、鍵が版を指さなくなる。
   // 欠落・非真偽値は「調べていない」ので、false 以外を不合格にする。
-  const observedDirty =
-    observed && typeof observed === "object"
-      ? /** @type {Record<string, unknown>} */ (observed).dirty
-      : undefined;
+  const observedDirty = isObject(observed) ? observed.dirty : undefined;
   if (observedDirty !== false) {
     findings.push({
       code: "comparison-implementation-dirty",
@@ -206,17 +225,13 @@ export function checkComponentComparison(input) {
   // **`--replace-metadata` は省略を許さない。** 照合相手が無いと鮮度の検査そのものが飛び、
   // 「記録の後に実装が変わっていない」ことを一度も確かめないまま収束する
   // （`comparison-implementation-stale` は相手が渡されたときにしか機能しない）。
-  const replaceMetadata = /** @type {Record<string, unknown> | undefined} */ (
-    input.replaceMetadata
-  );
+  const replaceMetadata = input.replaceMetadata;
   const replaceNew =
-    replaceMetadata &&
-    typeof replaceMetadata === "object" &&
+    isObject(replaceMetadata) &&
     !Array.isArray(replaceMetadata) &&
-    replaceMetadata.new &&
-    typeof replaceMetadata.new === "object" &&
+    isObject(replaceMetadata.new) &&
     !Array.isArray(replaceMetadata.new)
-      ? /** @type {Record<string, unknown>} */ (replaceMetadata.new)
+      ? replaceMetadata.new
       : null;
   // 食い違いの判定で judgeCarry に掛けうる「今の版」。--carry-to が同じ版なら二重に判定しない。
   /** @type {string | null} */
@@ -256,18 +271,12 @@ export function checkComponentComparison(input) {
           });
         } else {
           // 両側とも `none`。文字列の比較は常に一致するので、鮮度は反復回数だけが担う。
-          const recordedIteration = toInteger(
-            observed && typeof observed === "object"
-              ? /** @type {Record<string, unknown>} */ (observed).iteration
-              : undefined,
-          );
+          const recordedIteration = toInteger(isObject(observed) ? observed.iteration : undefined);
           const loop =
-            replaceMetadata &&
-            typeof replaceMetadata === "object" &&
-            replaceMetadata.loop &&
-            typeof replaceMetadata.loop === "object" &&
+            isObject(replaceMetadata) &&
+            isObject(replaceMetadata.loop) &&
             !Array.isArray(replaceMetadata.loop)
-              ? /** @type {Record<string, unknown>} */ (replaceMetadata.loop)
+              ? replaceMetadata.loop
               : null;
           const wantedIteration = toInteger(loop === null ? undefined : loop.iterations);
           if (recordedIteration === null || wantedIteration === null) {
@@ -379,8 +388,8 @@ export function checkComponentComparison(input) {
       message: `突き合わせ表の slug「${String(comparison.slug)}」が網羅表の slug「${String(coverage.slug)}」と違う（別機能の記録で収束させない）`,
     });
   }
-  const metadata = /** @type {Record<string, unknown> | undefined} */ (input.metadata);
-  if (metadata && typeof metadata === "object" && nonEmptyString(metadata.slug)) {
+  const metadata = input.metadata;
+  if (isObject(metadata) && nonEmptyString(metadata.slug)) {
     if (comparison.slug !== metadata.slug) {
       findings.push({
         code: "comparison-slug-mismatch",
@@ -389,7 +398,9 @@ export function checkComponentComparison(input) {
     }
   }
   const expectedFingerprint = fingerprintOf(presentKeys);
-  const recorded = comparison.source_coverage && comparison.source_coverage.fingerprint;
+  // source_coverage が falsy・プリミティブのときは、元の `x && x.fingerprint` と同じく文字列でない値になる
+  const sourceCoverage = comparison.source_coverage;
+  const recorded = isObject(sourceCoverage) ? sourceCoverage.fingerprint : undefined;
   if (!nonEmptyString(recorded)) {
     findings.push({
       code: "coverage-fingerprint-missing",
@@ -406,7 +417,9 @@ export function checkComponentComparison(input) {
   /** @type {Map<string, Record<string, unknown>>} */
   const rows = new Map();
   for (const raw of comparison.cells) {
-    const row = /** @type {Record<string, unknown>} */ (raw ?? {});
+    // 文字列・数の行はキーを読むと undefined になるので、{} と同じ扱いになる
+    /** @type {Record<string, unknown>} */
+    const row = isObject(raw) ? raw : {};
     const key = cellKey(row);
     if (!key) {
       findings.push({
@@ -443,7 +456,8 @@ export function checkComponentComparison(input) {
       continue;
     }
     if (row.compared === true) {
-      const evidence = /** @type {Record<string, unknown>} */ (row.evidence ?? {});
+      /** @type {Record<string, unknown>} */
+      const evidence = isObject(row.evidence) ? row.evidence : {};
       const missing = EVIDENCE_AXES.filter((axis) => !nonEmptyString(evidence[axis]));
       if (missing.length > 0) {
         findings.push({
@@ -527,6 +541,9 @@ export function main(argv, deps = {}) {
     writeErr(`error: ${message}\n${usage}\n`);
     return 2;
   };
+  /**
+   * @param {Record<string, unknown>} obj
+   */
   const out = (obj) =>
     write(
       `${JSON.stringify({ tool: "component-comparison-check", version: VERSION, ...obj }, null, 2)}\n`,
@@ -606,7 +623,7 @@ export function main(argv, deps = {}) {
         parsed[key] = null;
         continue;
       }
-      return fail(`${path} を読めない: ${error && error.message}`);
+      return fail(`${path} を読めない: ${errorMessage(error)}`);
     }
   }
   // 持ち越しの判定に渡す材料。パスは作業ディレクトリから解決し、--replace-root を省けば
@@ -621,7 +638,8 @@ export function main(argv, deps = {}) {
     const i = parts.lastIndexOf(".replace");
     if (i > 0) replaceRoot = parts.slice(0, i + 1).join(sep);
   }
-  const coverageSlug = /** @type {Record<string, unknown> | null} */ (parsed["--coverage"])?.slug;
+  const parsedCoverage = parsed["--coverage"];
+  const coverageSlug = isObject(parsedCoverage) ? parsedCoverage.slug : undefined;
   const result = checkComponentComparison({
     coverage: parsed["--coverage"],
     comparison: parsed["--comparison"] ?? null,

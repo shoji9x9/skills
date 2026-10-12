@@ -11,6 +11,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseJsonAs } from "../../lib/parse-as.ts";
 import { makeTempDir } from "../../lib/test-tmpdir.ts";
 import {
   VERSION,
@@ -45,6 +46,8 @@ type RunOverride = {
   target?: string;
 };
 type Finding = { code: string };
+// CLI の出力のうち、テストが読む欄（形は expect で確かめる）。
+type CliOutput = { counts: { matched: number }; findings: Finding[] };
 
 /** 操作 2 件 × インスタンス 2 件の採取。 */
 function metadataOf(override: { capture?: Record<string, unknown>; instances?: unknown[] } = {}) {
@@ -373,7 +376,7 @@ test("CLI: 揃った採取物と突き合わせ表で exit 0、行を欠くと e
   ];
   const okRun = spawnSync(process.execPath, [script, ...args], { encoding: "utf8" });
   expect(okRun.status).toBe(0);
-  const parsed = JSON.parse(okRun.stdout);
+  const parsed = parseJsonAs<CliOutput>(okRun.stdout);
   expect(parsed).toMatchObject({ tool: "behavior-compare", version: VERSION, ok: true });
   expect(parsed.counts.matched).toBe(4);
 
@@ -382,7 +385,7 @@ test("CLI: 揃った採取物と突き合わせ表で exit 0、行を欠くと e
   writeFileSync(join(dir, "new", "preview", "behavior-comparison.json"), JSON.stringify(partial));
   const ngRun = spawnSync(process.execPath, [script, ...args], { encoding: "utf8" });
   expect(ngRun.status).toBe(1);
-  expect(JSON.parse(ngRun.stdout).findings.map((f: Finding) => f.code)).toEqual([
+  expect(parseJsonAs<CliOutput>(ngRun.stdout).findings.map((f: Finding) => f.code)).toEqual([
     "behavior-uncompared",
   ]);
 });
@@ -458,15 +461,15 @@ test("rows が配列でない突き合わせ表は全組み合わせを未突合
 
 test("同梱テンプレートをそのまま渡しても合格にしない", async () => {
   const { readFileSync } = await import("node:fs");
-  const asset = (name: string) =>
-    JSON.parse(readFileSync(join(repoRoot, "skills/parity-component/assets", name), "utf8"));
-  const metadata = asset("metadata-template.json");
+  const asset = <T>(name: string) =>
+    parseJsonAs<T>(readFileSync(join(repoRoot, "skills/parity-component/assets", name), "utf8"));
+  const metadata = asset<{ instances: { id: string }[] }>("metadata-template.json");
   const id = metadata.instances[0].id;
-  const behavior = asset("behaviors-template.json");
+  const behavior = asset<Record<string, unknown>>("behaviors-template.json");
   const result = compareBehaviors({
     metadata,
     behaviors: { [id]: { ...behavior, instance: id } },
-    comparison: asset("behavior-comparison-template.json"),
+    comparison: asset<unknown>("behavior-comparison-template.json"),
     target: "preview",
   });
   // 導出源・操作 id がテンプレートの値のままなので、判定に入る前に型崩れとして落ちる。

@@ -164,6 +164,8 @@ function checkRow(row, i, captured) {
     throw new Error(`${at}.value は exposure なら null（付かない）`);
   if (!Array.isArray(responses) || responses.length === 0)
     throw new Error(`${at}.responses は応答の種類の空でない配列`);
+  /** @type {string[]} 文字列と確かめた responses（並びも中身も responses と同じ） */
+  const kinds = [];
   for (const r of responses) {
     // 採っていない種類の応答に付くとは書けない（測っていない値を仕様にする）。captured_responses の kind は
     // 語彙で検査済みなので、語彙外の種類もここで落ちる。
@@ -171,6 +173,7 @@ function checkRow(row, i, captured) {
       throw new Error(
         `${at}.responses の ${JSON.stringify(r)} は captured_responses で採った種類ではない（語彙: ${[...RESPONSE_KINDS].join(" / ")}）`,
       );
+    kinds.push(r);
   }
   if (new Set(responses).size !== responses.length)
     throw new Error(`${at}.responses に同じ種類が重複している`);
@@ -188,10 +191,10 @@ function checkRow(row, i, captured) {
     if (!isNonEmptyString(owner)) throw new Error(`${at}.owner_slug は空でない文字列か null`);
     // 所有者は機能に属さない応答（静的・404）の引き受け手。機能の応答にだけ付く行に書くと、
     // 所有者の確定（setup 手順 9）がどの応答を指したのか読めない。
-    if (!responses.some((r) => UNOWNED_KINDS.has(/** @type {string} */ (r))))
+    if (!kinds.some((r) => UNOWNED_KINDS.has(r)))
       throw new Error(`${at}.owner_slug は responses に static か not-found を含む行にだけ書く`);
   }
-  return { key: name.toLowerCase(), setter, responses: /** @type {string[]} */ (responses) };
+  return { key: name.toLowerCase(), setter, responses: kinds };
 }
 
 /**
@@ -292,10 +295,7 @@ function collect(headers) {
     for (const h of headers) {
       if (h === null || typeof h !== "object")
         throw new Error("headersArray の要素は { name, value } で渡す");
-      add(
-        /** @type {{ name?: unknown, value?: unknown }} */ (h).name,
-        /** @type {{ name?: unknown, value?: unknown }} */ (h).value,
-      );
+      add("name" in h ? h.name : undefined, "value" in h ? h.value : undefined);
     }
   } else if (headers !== null && typeof headers === "object") {
     for (const [name, value] of Object.entries(headers)) {
@@ -328,10 +328,11 @@ export function parseSetCookie(line) {
   const [pair, ...attrs] = line.split(";");
   const eq = pair.indexOf("=");
   const name = eq < 0 ? "" : pair.slice(0, eq).trim();
+  /** @type {{ HttpOnly: boolean, Secure: boolean, SameSite: string | null }} */
   const attributes = {
     HttpOnly: false,
     Secure: false,
-    SameSite: /** @type {string | null} */ (null),
+    SameSite: null,
   };
   for (const attr of attrs) {
     const i = attr.indexOf("=");
@@ -367,7 +368,7 @@ export function loadHeaderList(path) {
   } catch (err) {
     // 一覧の置き場（.replace/）はあるのにファイルが無いときだけ「一覧が無い」。置き場ごと無いのは
     // パスの誤りか作業ディレクトリの取り違えで、「一覧が無い」にするとヘッダーの比較が警告なしに外れる。
-    if (/** @type {NodeJS.ErrnoException} */ (err).code === "ENOENT" && existsSync(dirname(path)))
+    if (err instanceof Error && "code" in err && err.code === "ENOENT" && existsSync(dirname(path)))
       throw new NoHeaderListError(
         `${path} が無い（survey.md の 7 節に表で書いた一覧は読まない。replace-strategy の測定の 7 で response-headers.json へ採り直す）`,
       );
@@ -388,7 +389,7 @@ export function normalizeHeaders(headers, list) {
   const out = {};
   for (const name of [...collected.keys()].sort()) {
     if (!list.has(name)) continue;
-    const values = /** @type {string[]} */ (collected.get(name));
+    const values = collected.get(name) ?? [];
     if (name === "set-cookie") {
       const cookies = values.filter((v) => v.trim() !== "");
       // 中身の無い Set-Cookie だけなら、付いていないのと同じにする（[] と欠落を別の値にしない）。

@@ -25,6 +25,9 @@ import { makeTempDir } from "../../lib/test-tmpdir.ts";
 import { invalidInput, removeField } from "../../lib/test-input.ts";
 import { parseJsonAs } from "../../lib/parse-as.ts";
 
+/** 機能の metadata.json のうち、反復実行の記録の指紋を書き換える欄。 */
+type RepeatRunMetadata = { suite: { repeat_run: { runs: { suite_fingerprint: unknown }[] } } };
+
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/artifact-health-check.mjs");
 // 期待値はスクリプトと同じ関数から取る（テスト側で計算規則を複製すると、両方が同時に間違っても緑になる）。
@@ -911,7 +914,7 @@ test("誤検知しないことの確認: スイートの指紋が記録と一致
     { specs: "e2e/parity/order-list", expectations: "e2e/parity/lib/expectations.ts" },
     root,
   ).fingerprint;
-  const meta = JSON.parse(readFileSync(metadataPath, "utf8"));
+  const meta = parseJsonAs<RepeatRunMetadata>(readFileSync(metadataPath, "utf8"));
   for (const r of meta.suite.repeat_run.runs) r.suite_fingerprint = fp;
   writeFileSync(metadataPath, JSON.stringify(meta, null, 2));
   const r = run(metadataPath);
@@ -928,7 +931,7 @@ test("2 回緑を記録した後にスペックを変えたら落ちる（記録
     { specs: "e2e/parity/order-list", expectations: "e2e/parity/lib/expectations.ts" },
     root,
   ).fingerprint;
-  const meta = JSON.parse(readFileSync(metadataPath, "utf8"));
+  const meta = parseJsonAs<RepeatRunMetadata>(readFileSync(metadataPath, "utf8"));
   for (const r of meta.suite.repeat_run.runs) r.suite_fingerprint = fp;
   writeFileSync(metadataPath, JSON.stringify(meta, null, 2));
   // 記録した後に後始末を外す（スペックのコードが変わる。コメントだけの書き換えは #457 で指紋に反映されない）。
@@ -993,7 +996,7 @@ function recordedProject(opts: { specBody?: string; legacy?: boolean } = {}) {
     opts.specBody === undefined ? {} : { specBody: opts.specBody },
   );
   const fp = suiteFingerprint(FP_SUITE, project.root, { legacy: opts.legacy === true }).fingerprint;
-  const meta = JSON.parse(readFileSync(project.metadataPath, "utf8"));
+  const meta = parseJsonAs<RepeatRunMetadata>(readFileSync(project.metadataPath, "utf8"));
   for (const r of meta.suite.repeat_run.runs) r.suite_fingerprint = fp;
   writeFileSync(project.metadataPath, JSON.stringify(meta, null, 2));
   return { ...project, fp, specPath: join(project.root, "e2e/parity/order-list/orders.spec.ts") };
@@ -1299,7 +1302,7 @@ test("期待値解決層を書き換えても指紋が変わらなければ素�
     { specs: "e2e/parity/order-list", expectations: "e2e/parity/lib/expectations.ts" },
     root,
   ).fingerprint;
-  const meta = JSON.parse(readFileSync(metadataPath, "utf8"));
+  const meta = parseJsonAs<RepeatRunMetadata>(readFileSync(metadataPath, "utf8"));
   for (const r of meta.suite.repeat_run.runs) r.suite_fingerprint = fp;
   writeFileSync(metadataPath, JSON.stringify(meta, null, 2));
   // 記録した後に期待値だけを変える（スペックには触らない）。
@@ -1569,7 +1572,7 @@ test("持ち越し: 宣言外のファイルが変わっていれば落とす（
   const { root, slugDir, metadataPath, carry } = carryProject([["list", "default", "desktop"]]);
   const theme = commitFiles(carry.repo, { "src/theme.css": ":root { --accent: red; }\n" }, "theme");
   const replacePath = join(slugDir, "new/local-dev/replace-metadata.json");
-  const replace = JSON.parse(readFileSync(replacePath, "utf8"));
+  const replace = parseJsonAs<{ new: { commit: unknown } }>(readFileSync(replacePath, "utf8"));
   replace.new.commit = theme;
   writeFileSync(replacePath, JSON.stringify(replace));
   const r = run(metadataPath, ["--target", "local-dev", "--new-repo", carry.repo]);

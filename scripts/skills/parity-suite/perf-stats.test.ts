@@ -1039,7 +1039,7 @@ describe("compare", () => {
       DIFF,
     ]);
     expect(r.code).toBe(2);
-    expect(JSON.parse(r.out).ok).toBe(true);
+    expect(parseJsonAs<{ ok: boolean }>(r.out).ok).toBe(true);
   });
 
   test("現側の採取を読めなければ exit 1", () => {

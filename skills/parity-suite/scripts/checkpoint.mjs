@@ -68,6 +68,30 @@ function isPlainObject(v) {
 }
 
 /**
+ * @param {unknown} v
+ * @returns {v is string}
+ */
+function isNonEmptyString(v) {
+  return typeof v === "string" && v !== "";
+}
+
+/**
+ * 記録の区切り 1 つ（record が書く形）。
+ * @typedef {{ at: string, next_step: unknown, roots: string[], files: Record<string, string> }} CheckpointEntry
+ */
+
+/**
+ * recordProblem が欠けを見つけないか（型を絞るための述語）。recordProblem の W1〜W9 は、main が読む欄の形も確かめる。
+ * @param {unknown} rec
+ * @param {string} slugDir - cwd 基準の相対パス
+ * @param {{ cwd: string }} opts
+ * @returns {rec is { checkpoints: CheckpointEntry[] }}
+ */
+function isWrittenRecord(rec, slugDir, opts) {
+  return recordProblem(rec, slugDir, opts) === null;
+}
+
+/**
  * パスを cwd 基準の / 区切りの相対パスにする（記録を別の環境で読んでも同じ文字列になるように）。
  * @param {string} cwd
  * @param {string} p
@@ -93,7 +117,8 @@ function realPathOf(p) {
       const real = realpathSync(current);
       return tail.length === 0 ? real : join(real, ...tail);
     } catch (e) {
-      if (/** @type {NodeJS.ErrnoException} */ (e).code !== "ENOENT") return null;
+      const code = e instanceof Error && "code" in e ? e.code : undefined;
+      if (code !== "ENOENT") return null;
     }
     const parent = dirname(current);
     if (parent === current) return null;
@@ -267,7 +292,7 @@ export function recordProblem(rec, slugDir, opts) {
   const hash = /^[0-9a-f]{64}$/;
   /** @type {string[] | null} */
   let prevRoots = null;
-  /** @type {Record<string, string> | null} */
+  /** @type {Record<string, unknown> | null} */
   let prevFiles = null;
   for (const [i, c] of entries.entries()) {
     const label = `${i + 1} 番目の区切り`;
@@ -283,7 +308,7 @@ export function recordProblem(rec, slugDir, opts) {
     }
     // W4
     const roots = c.roots;
-    if (!Array.isArray(roots) || !roots.every((r) => typeof r === "string" && r !== "")) {
+    if (!Array.isArray(roots) || !roots.every(isNonEmptyString)) {
       return `${c.at} の roots が空でない文字列の配列でない`;
     }
     if (new Set(roots).size !== roots.length) return `${c.at} の roots に重複がある`;
@@ -334,7 +359,7 @@ export function recordProblem(rec, slugDir, opts) {
       return "gated の指紋に strength.md が無い";
     }
     prevRoots = roots;
-    prevFiles = /** @type {Record<string, string>} */ (files);
+    prevFiles = files;
   }
   return null;
 }
@@ -403,13 +428,13 @@ export function main(argv, deps = {}) {
       command === "record" && pos === 0
         ? { tool: "checkpoint", version: VERSION, checkpoints: [] }
         : readRecord(recordPath);
-    const problem = recordProblem(raw, slugDir, { cwd });
-    if (problem !== null) {
+    // 欠けの理由は、述語が偽のときだけもう一度求める
+    if (!isWrittenRecord(raw, slugDir, { cwd })) {
       throw new UsageError(
-        `${RECORD_NAME} が record の書く形でない: ${problem}（手で直さず authored から記録し直す）`,
+        `${RECORD_NAME} が record の書く形でない: ${recordProblem(raw, slugDir, { cwd })}（手で直さず authored から記録し直す）`,
       );
     }
-    const record = /** @type {{ checkpoints: Record<string, unknown>[] }} */ (raw);
+    const record = raw;
 
     if (command === "verify") {
       const last = record.checkpoints[record.checkpoints.length - 1];
@@ -423,8 +448,8 @@ export function main(argv, deps = {}) {
         );
         return 1;
       }
-      const recorded = /** @type {Record<string, string>} */ (last.files);
-      const now = fingerprintFiles(cwd, /** @type {string[]} */ (last.roots), slugDir, {
+      const recorded = last.files;
+      const now = fingerprintFiles(cwd, last.roots, slugDir, {
         allowMissing: true,
       });
       const added = Object.keys(now).filter((f) => !Object.hasOwn(recorded, f));
@@ -456,7 +481,7 @@ export function main(argv, deps = {}) {
         throw new UsageError(`前の区切り ${prevAt} が記録されていない（区切りは順に記録する）`);
       }
       record.checkpoints = record.checkpoints.slice(0, prevIndex + 1);
-      inherited = /** @type {string[]} */ (record.checkpoints[prevIndex].roots).slice(1);
+      inherited = record.checkpoints[prevIndex].roots.slice(1);
     }
     for (const inc of includes) {
       const rel = toRel(cwd, inc);
@@ -492,9 +517,7 @@ export function main(argv, deps = {}) {
     // 前の区切りから成果物が足されも書き換えられもしていないなら、その間の手順は何も作っていない（採取・強度チェックを飛ばした記録になる）。
     // 削除だけは進んだ証拠にしない——前段の成果物が消えただけでも指紋は変わる
     if (pos > 0) {
-      const prevFiles = /** @type {Record<string, string>} */ (
-        record.checkpoints[record.checkpoints.length - 1].files
-      );
+      const prevFiles = record.checkpoints[record.checkpoints.length - 1].files;
       const moved = Object.keys(files).some((f) => prevFiles[f] !== files[f]);
       if (!moved) {
         throw new UsageError(

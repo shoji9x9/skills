@@ -16,6 +16,7 @@ import {
 } from "../../../skills/parity-suite/scripts/header-normalize.mjs";
 import { invalidInput } from "../../lib/test-input.ts";
 import { errorMessage } from "../../lib/errors.ts";
+import { parseJsonAs } from "../../lib/parse-as.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/header-normalize.mjs");
@@ -51,6 +52,12 @@ type HeaderListDoc = {
   captured_responses: { kind: string; url: string }[];
   notes: string;
   headers: { value: string; setter_source: string }[];
+};
+
+/** 同梱テンプレートの文書。テストが書き換える欄のほかに、注記や status などのキーを持つ。 */
+type TemplateDoc = HeaderListDoc & {
+  [key: string]: unknown;
+  headers: (HeaderListDoc["headers"][number] & Record<string, unknown>)[];
 };
 
 /** 一覧の 1 行（replace-strategy の assets/response-headers-template.json と同じキー）。setter_source は省略と null を正規とする。 */
@@ -387,7 +394,7 @@ test("一覧: 同梱テンプレートの未測定の形（注記が説明する
     list({ schema_version: 1, status: "unmeasured", unmeasured_reason: "現行へ到達できなかった" }),
   ).toThrow(NoHeaderListError);
   // 注記が「3 キーだけにする」と書いていることを固定する（注記と検査が食い違うと、書き手が従っても落ちる）。
-  const template = JSON.parse(
+  const template = parseJsonAs<{ _note: unknown }>(
     readFileSync(
       join(repoRoot, "skills/replace-strategy/assets/response-headers-template.json"),
       "utf8",
@@ -655,7 +662,7 @@ function writeInputs(listDoc: unknown, headers: unknown) {
 }
 
 /** 同梱テンプレートそのもの（プレースホルダの値の出所）。 */
-const TEMPLATE = JSON.parse(
+const TEMPLATE = parseJsonAs<TemplateDoc>(
   readFileSync(
     join(repoRoot, "skills/replace-strategy/assets/response-headers-template.json"),
     "utf8",
@@ -664,7 +671,7 @@ const TEMPLATE = JSON.parse(
 
 /** 同梱テンプレートのプレースホルダを埋めたもの（原本の形から作る。キーは足さず値だけを書き換える）。 */
 function filledTemplate() {
-  const t = JSON.parse(
+  const t = parseJsonAs<TemplateDoc>(
     readFileSync(
       join(repoRoot, "skills/replace-strategy/assets/response-headers-template.json"),
       "utf8",

@@ -13,6 +13,7 @@
     "scripts/**/*.ts",
     ".agents/skills/*/scripts/**/*.ts",
     "skills/*/scripts/**/*.mjs",
-    "skills/*/assets/**/*.mjs"
+    "skills/*/assets/**/*.mjs",
+    "types/strict-json.ts"
   ]
 }

@@ -27,6 +27,8 @@ test.each([
   ["scripts/lib/types.d.ts"],
   [".agents/skills/private-one/scripts/a.ts"],
   [".agents/skills/demo/scripts/a.mjs"],
+  [".agents/skills/private-one/SKILL.md"],
+  [".agents/skills/private-one/references/notes.md"],
   ["evals/demo/fixtures/a.js"],
   ["vitest.config.ts"],
 ])("規約どおりの %s は違反にしない", (path) => {
@@ -222,11 +224,37 @@ test("CLI: 中身の無い skills/<name>/ のディレクトリがあっても�
   );
 });
 
-test.each([[".agents/skills/private-one/tools/x.ts"], [".agents/skills/private-one/x.ts"]])(
-  "private skill の scripts/ の外の .ts（%s）を違反にする",
-  (path) => {
-    expect(violationOf(path, PRIVATE)).toContain(
-      "private skill では scripts/ の外で .ts を使わない",
-    );
-  },
-);
+test.each([
+  ["skills/demo/scripts/a.MJS", ".mjs"],
+  ["skills/demo/assets/spec.template.TS", ".ts"],
+  ["skills/demo/assets/types.d.TS", ".ts"],
+])("配布スキルの小文字でない拡張子（%s）を違反にする", (path, ext) => {
+  expect(violationOf(path, PRIVATE)).toContain(`skills/ では拡張子を小文字の ${ext} にする`);
+});
+
+test.each([
+  // 置けない場所の大文字の拡張子は、小文字に直すよう案内せず、置き場所の違反として返す。
+  ["skills/demo/scripts/x.TS", "skills/ では assets/ の雛形の外で .ts を使わない"],
+  [".agents/skills/private-one/lib/x.TS", "private skill では scripts/ の外で .ts を使わない"],
+])("置けない場所の大文字の .ts（%s）は、置き場所の違反として返す", (path, message) => {
+  expect(violationOf(path, PRIVATE)).toContain(message);
+});
+
+test.each([
+  ["scripts/gates/a.TS", "scripts/"],
+  ["scripts/lib/types.d.Ts", "scripts/"],
+  [".agents/skills/private-one/scripts/a.TS", "private skill"],
+])("小文字でない .ts（%s）を違反にする", (path, where) => {
+  expect(violationOf(path, PRIVATE)).toContain(`${where} では拡張子を小文字の .ts にする`);
+});
+
+test.each([
+  [".agents/skills/private-one/tools/x.ts"],
+  [".agents/skills/private-one/x.ts"],
+  // scripts/ の外の宣言も型の検査に入らない。
+  [".agents/skills/private-one/types.d.ts"],
+  // include は大文字と小文字を区別するので、`Scripts/` は scripts/ として扱わない。
+  [".agents/skills/private-one/Scripts/x.ts"],
+])("private skill の scripts/ の外の .ts（%s）を違反にする", (path) => {
+  expect(violationOf(path, PRIVATE)).toContain("private skill では scripts/ の外で .ts を使わない");
+});

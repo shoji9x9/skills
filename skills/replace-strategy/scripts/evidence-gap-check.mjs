@@ -235,7 +235,7 @@ export function parseEvidenceEntries(cell) {
  * 表の種別を見出しから 1 回だけ同定する。行ごとの分岐をこの種別に閉じることで、
  * 条件の入れ子が増えるたびに非対称な抜けができるのを防ぐ。
  * @param {string[]} headers
- * @returns {{ kind: "feature" | "legacy" | "not-applicable" | "missing-endpoint-column" | "malformed-endpoint" | "malformed-evidence", headers?: string[], missingEvidence?: boolean }}
+ * @returns {{ kind: "feature" | "legacy" | "not-applicable" | "missing-endpoint-column" } | { kind: "malformed-endpoint", headers: string[], missingEvidence: boolean } | { kind: "malformed-evidence", headers: string[] }}
  */
 export function classifyTable(headers) {
   const hasEndpoint = headers.some((header) => ENDPOINT_HEADERS.includes(header));
@@ -383,7 +383,7 @@ export function readDeclaredEndpoints(text, path) {
   }
   if (typeof parsed !== "object" || parsed === null)
     throw new UsageError(`${path} が object でない`);
-  const unmeasured = /** @type {Record<string, unknown>} */ (parsed).unmeasured;
+  const unmeasured = "unmeasured" in parsed ? parsed.unmeasured : undefined;
   if (unmeasured === undefined) {
     // 宣言の置き場所そのものが無い成果物なので、未確認の口は 1 つも宣言されていない。
     // 判定不能（exit 3）として扱うと、消費する側が完了を止めず、推定の口が残ったまま通過する。
@@ -402,7 +402,7 @@ export function readDeclaredEndpoints(text, path) {
   // declared の扱いは parity-suite の artifact-health-check.mjs と揃える。向こうは
   // declared: false で節ごと判定せず entries の妥当性も見ない。ここだけが entries を
   // 宣言として数えると、「誰も確かめていない宣言」で合格と判定されてしまう。
-  const declaredFlag = /** @type {Record<string, unknown>} */ (unmeasured).declared;
+  const declaredFlag = "declared" in unmeasured ? unmeasured.declared : undefined;
   if (typeof declaredFlag !== "boolean") {
     throw new UsageError(
       `${path} の unmeasured.declared が真偽値でない（parity-suite の成果物として不備）`,
@@ -416,7 +416,7 @@ export function readDeclaredEndpoints(text, path) {
       invalidEntries: 0,
       emptyEndpoints: 0,
     };
-  const entries = /** @type {Record<string, unknown>} */ (unmeasured).entries;
+  const entries = "entries" in unmeasured ? unmeasured.entries : undefined;
   if (entries === undefined)
     return {
       declared: new Set(),
@@ -440,7 +440,7 @@ export function readDeclaredEndpoints(text, path) {
       invalidEntries += 1;
       continue;
     }
-    const endpoint = /** @type {Record<string, unknown>} */ (entry).endpoint;
+    const endpoint = "endpoint" in entry ? entry.endpoint : undefined;
     if (endpoint === undefined || endpoint === null) continue;
     if (typeof endpoint !== "string") {
       invalidEndpoints += 1;
@@ -508,11 +508,13 @@ export function check(input) {
       `${input.unmeasuredPath} に unmeasured キーが無い（列の導入前の parity-suite 成果物）——宣言ゼロとして数える`,
     );
   }
-  for (const [count, label] of /** @type {[number, string][]} */ ([
+  /** @type {[number, string][]} */
+  const discarded = [
     [declaration?.invalidEndpoints ?? 0, "endpoint が文字列でない要素"],
     [declaration?.invalidEntries ?? 0, "オブジェクトでない要素"],
     [declaration?.emptyEndpoints ?? 0, "endpoint が空文字の要素"],
-  ])) {
+  ];
+  for (const [count, label] of discarded) {
     if (count > 0) {
       notes.push(`unmeasured.entries の${label}が ${count} 件ある——宣言に数えていない`);
     }
@@ -638,7 +640,7 @@ export function main(argv) {
     }
     // 読めない入力（ENOENT だけでなく EISDIR / EACCES 等）は入力の不備。
     // 投げ直すと未捕捉例外の exit 1 になり、「宣言の無い未確認の口がある」と同じ終了コードになってしまう。
-    if (e instanceof Error && typeof (/** @type {NodeJS.ErrnoException} */ (e).code) === "string") {
+    if (e instanceof Error && "code" in e && typeof e.code === "string") {
       process.stderr.write(`error: ${e.message}\n${usage}\n`);
       return 2;
     }

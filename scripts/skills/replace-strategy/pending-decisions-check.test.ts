@@ -13,6 +13,7 @@ import {
   classifyDecision,
   checkPendingDecisions,
 } from "../../../skills/replace-strategy/scripts/pending-decisions-check.mjs";
+import { parseJsonAs } from "../../lib/parse-as.ts";
 import { makeTempDir } from "../../lib/test-tmpdir.ts";
 
 /** 構造が正しい入力の結果。各テストは直後に `expect(result.structural).toBe(false)` で確かめる。 */
@@ -46,6 +47,20 @@ function decision(override = {}) {
   };
 }
 
+/** CLI の stdout の JSON。テストが触る欄だけを型にする（形の検証は expect が行う）。 */
+type CliOutput = {
+  file_exists?: boolean;
+  unsettled: Array<{ id: unknown; state: string; reason: string; blocks: unknown }>;
+  tracked: Array<{ id: unknown; tracked_in: string }>;
+  counts: {
+    total: number;
+    in_scope: number;
+    open: number;
+    decided: number;
+    settled: number;
+  } | null;
+};
+
 /**
  * CLI を直接呼ぶ。
  * @param {string[]} argv
@@ -63,7 +78,7 @@ function run(argv: string[], cwd: string) {
       stderr += s;
     },
   });
-  return { code, stdout, stderr, json: stdout ? JSON.parse(stdout) : null };
+  return { code, stdout, stderr, json: stdout ? parseJsonAs<CliOutput>(stdout) : null };
 }
 
 test("回答が付いただけで blocks の工程を実施していない保留は未解決として落とす", () => {
@@ -75,6 +90,7 @@ test("回答が付いただけで blocks の工程を実施していない保留
   );
   const r = run(["--file", "p.json"], work);
   expect(r.code).toBe(1);
+  assert.exists(r.json);
   expect(r.json.unsettled).toHaveLength(1);
   expect(r.json.unsettled[0].state).toBe("decided");
   expect(r.json.counts).toEqual({ total: 1, in_scope: 1, open: 0, decided: 1, settled: 0 });
@@ -110,6 +126,8 @@ test("誤検知しないことの確認: 実施の記録・置き場・blocks �
   );
   const r = run(["--file", "p.json"], work);
   expect(r.code).toBe(0);
+  assert.exists(r.json);
+  assert.exists(r.json.counts);
   expect(r.json.counts.settled).toBe(3);
   // 置き場へ回した保留は見えるように残す（警告なしに済んだ側へ移さない）。
   expect(r.json.tracked).toEqual([{ id: "pd-2", tracked_in: "#500" }]);
@@ -181,6 +199,7 @@ test("記録先のファイルが無いのは保留なしで、無かったこ�
   const work = makeTempDir("pending-decisions-");
   const r = run(["--file", "absent.json"], work);
   expect(r.code).toBe(0);
+  assert.exists(r.json);
   expect(r.json.file_exists).toBe(false);
 });
 

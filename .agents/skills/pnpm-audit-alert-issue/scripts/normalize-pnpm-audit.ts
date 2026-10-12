@@ -34,6 +34,16 @@ if (!inputPath || !outputPath) {
   process.exit(2);
 }
 
+/**
+ * JSON の文字列を、`T` の形として読む（形は検証しない）。private skill はスキルの中で完結させるので、
+ * `scripts/lib/parse-as.ts` を import せず、同じ helper をここに持つ。
+ */
+function parseJsonAs<T>(text: string): T {
+  const value: unknown = JSON.parse(text);
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- 外部の入力の形を宣言する。欄は使うところで確かめる
+  return value as T;
+}
+
 function loadJson(path: string): AuditJson {
   let text: string;
   try {
@@ -51,7 +61,7 @@ function loadJson(path: string): AuditJson {
   }
 
   try {
-    return JSON.parse(text);
+    return parseJsonAs<AuditJson>(text);
   } catch (err) {
     console.error(
       `Failed to parse pnpm audit JSON: ${path}: ${err instanceof Error ? err.message : String(err)}`,

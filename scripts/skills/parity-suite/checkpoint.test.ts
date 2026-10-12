@@ -117,7 +117,7 @@ test.each([
   mutate(dir);
   const r = verify(dir, "authored");
   expect(r.status).toBe(1);
-  expect(JSON.parse(r.stdout)[field]).toHaveLength(1);
+  expect(parseJsonAs<Record<string, unknown>>(r.stdout)[field]).toHaveLength(1);
 });
 
 test.each([
@@ -168,7 +168,7 @@ test("後の区切りは前の区切りの --include を引き継ぐ（スイー
   const dir = project();
   expect(record(dir, "authored", ["--include", SUITE]).status).toBe(0);
   const rec = capture(dir);
-  expect(JSON.parse(rec.stdout).roots).toEqual([SLUG, SUITE]);
+  expect(parseJsonAs<{ roots: unknown }>(rec.stdout).roots).toEqual([SLUG, SUITE]);
   writeFileSync(join(dir, SUITE, "share.spec.ts"), "// edited\n");
   expect(verify(dir, "captured").status).toBe(1);
 });
@@ -200,7 +200,7 @@ test("gated は strength.md が無ければ記録しない", () => {
   expect(r.stderr).toContain("strength.md");
   writeFileSync(join(dir, SLUG, "strength.md"), "# 強度\n");
   expect(record(dir, "gated").status).toBe(0);
-  expect(JSON.parse(verify(dir, "gated").stdout).next_step).toBe(8);
+  expect(parseJsonAs<{ next_step: unknown }>(verify(dir, "gated").stdout).next_step).toBe(8);
 });
 
 test.each([

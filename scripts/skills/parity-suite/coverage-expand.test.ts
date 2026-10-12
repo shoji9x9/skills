@@ -15,6 +15,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { fillSetProvenance } from "../../lib/coverage-set-provenance-fixture.ts";
 import { makeTempDir } from "../../lib/test-tmpdir.ts";
+import { parseJsonAs } from "../../lib/parse-as.ts";
 import {
   expandCandidates,
   fillVisualStateRows,
@@ -1622,7 +1623,11 @@ test("CLI --write は candidates と conformance を書き戻す（測定値に�
     },
   );
   expect(r.status).toBe(0);
-  const written = JSON.parse(readFileSync(r.paths["component-coverage.json"], "utf8"));
+  const written = parseJsonAs<{
+    components: Array<{ instances: Array<{ candidates: unknown[] }> }>;
+    conformance: unknown;
+    cells: unknown[];
+  }>(readFileSync(r.paths["component-coverage.json"], "utf8"));
   expect(written.components[0].instances[0].candidates).toHaveLength(20);
   expect(written.conformance).toMatchObject({ tool: "coverage-expand", ok: true, unmeasured: 0 });
   // 測定値は書き換えない。
@@ -1644,7 +1649,9 @@ test("CLI: 引数不足・重複指定は exit 2", () => {
 test("CLI --list-profiles は同梱プロファイルを列挙する", () => {
   const r = spawnSync(process.execPath, [script, "--list-profiles"], { encoding: "utf8" });
   expect(r.status).toBe(0);
-  expect(JSON.parse(r.stdout).profiles.map((p: { id: string }) => p.id)).toContain("datagrid");
+  expect(
+    parseJsonAs<{ profiles: Array<{ id: string }> }>(r.stdout).profiles.map((p) => p.id),
+  ).toContain("datagrid");
 });
 
 // ===== 撮影状態の導出（Issue #389） =====
@@ -2003,7 +2010,10 @@ test("CLI: --metadata を渡すと撮影状態まで照合し、読めない met
     { files: { "component-coverage.json": cov, "metadata.json": metadata } },
   );
   expect(ok.status).toBe(0);
-  expect(JSON.parse(ok.stdout).visual_states).toMatchObject({ checked: true, undecided: 0 });
+  expect(parseJsonAs<{ visual_states: unknown }>(ok.stdout).visual_states).toMatchObject({
+    checked: true,
+    undecided: 0,
+  });
 
   // 落ちることの確認: 撮影条件から状態を 1 つ落とすと落ちる（常に通す実装を弾く）。
   const short = structuredClone(metadata);
@@ -2073,7 +2083,9 @@ test("CLI: --metadata を渡すと撮影状態まで照合し、読めない met
     { files: { "component-coverage.json": cov } },
   );
   expect(unchecked.status).toBe(0);
-  expect(JSON.parse(unchecked.stdout).visual_states.checked).toBe(false);
+  expect(
+    parseJsonAs<{ visual_states: { checked: unknown } }>(unchecked.stdout).visual_states.checked,
+  ).toBe(false);
   expect(unchecked.stderr).toMatch(/--metadata が無いため撮影状態を/);
 });
 

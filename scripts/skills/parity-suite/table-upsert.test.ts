@@ -13,6 +13,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../lib/test-tmpdir.ts";
 import { invalidInput } from "../../lib/test-input.ts";
+import { parseJsonAs } from "../../lib/parse-as.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/table-upsert.mjs");
@@ -34,6 +35,8 @@ type Table = {
   conformance?: { tool: string; ok: boolean };
 };
 type Keyed = { id: string };
+/** スクリプトが書き戻した表。テストによっては Table に無いキー（cells など）を持つ。 */
+type TableOut = Table & Record<string, unknown>;
 
 const baseTable = (): Table => ({
   slug: "share",
@@ -101,7 +104,7 @@ test("基本の動作: 鍵が一致する要素を差し替え、他の行と順
   expect(r.stderr).toBe("");
   expect(r.status).toBe(0);
   expect(JSON.parse(r.stdout)).toMatchObject({ action: "replaced", count: 2 });
-  const t = JSON.parse(r.after);
+  const t = parseJsonAs<TableOut>(r.after);
   expect(t.operations).toEqual([
     { id: "copy", trigger: "clickButton(複製)" },
     { id: "search", trigger: "clickButton(検索)" },
@@ -112,7 +115,7 @@ test("基本の動作: 一致が無ければ末尾に足す", () => {
   const r = run(baseTable(), upsert("operations"), { fragment: { id: "reset", trigger: "x()" } });
   expect(r.status).toBe(0);
   expect(JSON.parse(r.stdout)).toMatchObject({ action: "appended", count: 3 });
-  expect(JSON.parse(r.after).operations.map((o: Keyed) => o.id)).toEqual([
+  expect(parseJsonAs<TableOut>(r.after).operations.map((o: Keyed) => o.id)).toEqual([
     "copy",
     "search",
     "reset",
@@ -122,8 +125,8 @@ test("基本の動作: 一致が無ければ末尾に足す", () => {
 test("書き換えたら conformance を消す（照合し直していない表を照合済みに見せない）", () => {
   const r = run(baseTable(), upsert("operations"), { fragment: { id: "copy", trigger: "y()" } });
   expect(r.status).toBe(0);
-  expect(JSON.parse(r.stdout).conformance_removed).toBe(true);
-  expect(JSON.parse(r.after)).not.toHaveProperty("conformance");
+  expect(parseJsonAs<Record<string, unknown>>(r.stdout).conformance_removed).toBe(true);
+  expect(parseJsonAs<TableOut>(r.after)).not.toHaveProperty("conformance");
 });
 
 test("conformance が無い表では conformance_removed: false", () => {
@@ -131,7 +134,7 @@ test("conformance が無い表では conformance_removed: false", () => {
   delete t.conformance;
   const r = run(t, upsert("operations"), { fragment: { id: "copy", trigger: "y()" } });
   expect(r.status).toBe(0);
-  expect(JSON.parse(r.stdout).conformance_removed).toBe(false);
+  expect(parseJsonAs<Record<string, unknown>>(r.stdout).conformance_removed).toBe(false);
 });
 
 test("複合鍵（file, line, column, pattern）で call_sites の 1 行を差し替える", () => {
@@ -149,7 +152,7 @@ test("複合鍵（file, line, column, pattern）で call_sites の 1 行を差�
     },
   );
   expect(r.status).toBe(0);
-  expect(JSON.parse(r.after).feedback_calls.call_sites).toEqual([
+  expect(parseJsonAs<TableOut>(r.after).feedback_calls.call_sites).toEqual([
     { file: "src/share.js", line: 2, column: 3, pattern: "toast", reaction: "copy/toast" },
   ]);
 });
@@ -161,7 +164,7 @@ test("複合鍵の 1 つだけが違う要素は別の行として足す（鍵�
     { fragment: { file: "src/share.js", line: 2, column: 4, pattern: "toast", reaction: null } },
   );
   expect(r.status).toBe(0);
-  expect(JSON.parse(r.after).feedback_calls.call_sites).toHaveLength(2);
+  expect(parseJsonAs<TableOut>(r.after).feedback_calls.call_sites).toHaveLength(2);
 });
 
 test("入れ子の配列を name[field=value] で選んで足す", () => {
@@ -169,7 +172,7 @@ test("入れ子の配列を name[field=value] で選んで足す", () => {
     fragment: { id: "detail", page: "詳細" },
   });
   expect(r.status).toBe(0);
-  const t = JSON.parse(r.after);
+  const t = parseJsonAs<TableOut>(r.after);
   expect(t.components[0].instances.map((i: Keyed) => i.id)).toEqual(["list", "detail"]);
   expect(t.components[1].instances).toEqual([]);
 });
@@ -179,7 +182,7 @@ test("末尾の配列のキーが無ければ upsert は空配列から作る", 
     fragment: { component: "grid", item: "sort", instance: "list", value: "present" },
   });
   expect(r.status).toBe(0);
-  expect(JSON.parse(r.after).cells).toHaveLength(1);
+  expect(parseJsonAs<TableOut>(r.after).cells).toHaveLength(1);
 });
 
 test("--from - で標準入力から断片を読む", () => {
@@ -191,7 +194,7 @@ test("--from - で標準入力から断片を読む", () => {
     },
   );
   expect(r.status).toBe(0);
-  expect(JSON.parse(r.after).operations[0].trigger).toBe("z()");
+  expect(parseJsonAs<TableOut>(r.after).operations[0].trigger).toBe("z()");
 });
 
 test("get は一致する 1 要素だけを出す", () => {
@@ -225,7 +228,7 @@ test("remove は一致する要素だけを消し、conformance も消す", () =
     '{"id":"copy"}',
   ]);
   expect(r.status).toBe(0);
-  const t = JSON.parse(r.after);
+  const t = parseJsonAs<TableOut>(r.after);
   expect(t.operations.map((o: Keyed) => o.id)).toEqual(["search"]);
   expect(t).not.toHaveProperty("conformance");
 });
@@ -340,7 +343,7 @@ test('"]" を含む id は JSON 文字列の選択値で選べる（Codex レビ
   });
   expect(r.stderr).toBe("");
   expect(r.status).toBe(0);
-  const after = JSON.parse(r.after);
+  const after = parseJsonAs<TableOut>(r.after);
   expect(after.components[2].instances).toEqual([{ id: "list", page: "一覧" }]);
   expect(after.components[0].instances.map((i: Keyed) => i.id)).toEqual(["list"]);
 });
@@ -350,7 +353,7 @@ test('JSON 文字列の選択値のエスケープ（\\" を含む id）も読�
   tbl.components.push({ id: 'a"b', instances: [] });
   const r = run(tbl, upsert('components[id="a\\"b"].instances'), { fragment: { id: "x" } });
   expect(r.status).toBe(0);
-  expect(JSON.parse(r.after).components[2].instances).toEqual([{ id: "x" }]);
+  expect(parseJsonAs<TableOut>(r.after).components[2].instances).toEqual([{ id: "x" }]);
 });
 
 test.each([

@@ -46,7 +46,7 @@
       "id": "transformed",
       "why": "変形の判定を常に偽にする",
       "file": "skills/parity-suite/scripts/element-shot.mjs",
-      "find": "      Math.abs(frameBox.width - frameEl.offsetWidth) >= 1 ||\n      Math.abs(frameBox.height - frameEl.offsetHeight) >= 1\n",
+      "find": "      (Math.abs(frameBox.width - frameEl.offsetWidth) >= 1 ||\n        Math.abs(frameBox.height - frameEl.offsetHeight) >= 1)\n",
       "replace": "      false\n",
       "occurrences": 1,
       "expect_failing": ["transform で拡縮されたフレームの中の要素は撮らずに失敗する"]
@@ -55,8 +55,8 @@
       "id": "tolerance",
       "why": "変形の許容差を丸め未満に戻す（小数寸法のフレームを誤って落とす。実ブラウザで踏んだ形）",
       "file": "skills/parity-suite/scripts/element-shot.mjs",
-      "find": "      Math.abs(frameBox.width - frameEl.offsetWidth) >= 1 ||\n",
-      "replace": "      Math.abs(frameBox.width - frameEl.offsetWidth) > 0.01 ||\n",
+      "find": "      (Math.abs(frameBox.width - frameEl.offsetWidth) >= 1 ||\n",
+      "replace": "      (Math.abs(frameBox.width - frameEl.offsetWidth) > 0.01 ||\n",
       "occurrences": 1,
       "expect_failing": ["寸法が小数のフレームは変形とみなさない（offsetWidth は整数へ丸められる）"]
     },
@@ -182,7 +182,7 @@
       "id": "shadow-host",
       "why": "シャドウツリーの境界で祖先の走査を止める",
       "file": "skills/parity-suite/scripts/element-shot.mjs",
-      "find": " || (node.parentNode && node.parentNode.host)",
+      "find": " || shadowHost",
       "replace": "",
       "occurrences": 1,
       "expect_failing": ["外形を保つ変形も撮らずに失敗する: シャドウホストの向こうの祖先の変形"]
@@ -255,7 +255,7 @@
       "id": "rotate-identity",
       "why": "角度 0 の rotate も変形とみなす（リセット用のスタイルで撮れなくなる）",
       "file": "skills/parity-suite/scripts/element-shot.mjs",
-      "find": "parseFloat(tokens(cs.rotate).pop()) === 0",
+      "find": "parseFloat(tokens(cs.rotate).pop() ?? \"\") === 0",
       "replace": "false",
       "occurrences": 1,
       "expect_failing": [

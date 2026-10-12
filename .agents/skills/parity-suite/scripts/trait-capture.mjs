@@ -211,6 +211,13 @@ export const SCROLLBAR_PSEUDO_PROPERTIES = [
   "border-left-color",
 ];
 
+/** @typedef {{ x: number, y: number, width: number, height: number }} Rect */
+/** @typedef {{ top: number, bottom: number }} LineBand */
+/** @typedef {{ full: number, lead: number, trail: number, blank: boolean }} TextSegment */
+/**
+ * @typedef {{ path: string, tag: string, text: string, style: Record<string, string>, advance: number, glyph_height: number, lines: number, rect: Rect }} TextOwner
+ */
+
 /**
  * ブラウザ内で 1 要素分の特性を採る純関数（locator.evaluate に渡す）。
  * el と props を受け取り、computed / before / after / rect / child_inline_styles / text_owners / scroll を返す。
@@ -246,8 +253,25 @@ function captureElement(
   // 射程: 畳むのは URL 文字列までで、参照先の資産の中身は照合しない。現新が同じパスで
   // 別バイトの資産を配信していると、その見た目差は、この正規化にも画素にも現れない。
   // 対象要素がある機能は gaps.md へ「採取値の射程外」として残す（確認済みにしない）。
+  // 値が在ることを確かめる。採取の中で対にして作る値（持ち主ごとの区切りなど）と、必ず一致する正規表現の結果に使う。
+  // 無ければ、その値を読む行が TypeError で止まるのと同じく、ここで止める。
+  /**
+   * @template T
+   * @param {T | null | undefined} value
+   * @returns {T}
+   */
+  const present = (value) => {
+    if (value === null || value === undefined) throw new TypeError("captureElement: missing value");
+    return value;
+  };
+  /**
+   * @param {Node} node
+   * @returns {node is Element}
+   */
+  const isElementNode = (node) => node.nodeType === 1;
   const origin = location.origin;
   const foldable = /^https?:\/\//.test(origin);
+  /** @param {string} value */
   const foldOrigin = (value) => {
     if (!foldable || !value.includes("url(")) return value;
     return value.replace(/url\(\s*("[^"]*"|'[^']*'|[^)]*)\s*\)/g, (whole, raw) => {
@@ -258,10 +282,27 @@ function captureElement(
     });
   };
 
-  const pick = (pseudo, names = props) => {
+  /**
+   * @overload
+   * @param {"::before" | "::after"} pseudo
+   * @returns {Record<string, string> | null}
+   */
+  /**
+   * @overload
+   * @param {string | null} pseudo
+   * @param {readonly string[]} [names]
+   * @returns {Record<string, string>}
+   */
+  /**
+   * @param {string | null} pseudo
+   * @param {readonly string[]} [names]
+   * @returns {Record<string, string> | null}
+   */
+  function pick(pseudo, names = props) {
     const style = getComputedStyle(el, pseudo);
     // 生成コンテンツの有無で省けるのは ::before / ::after だけ（スクロールバーの擬似要素は content を持たない）
     if ((pseudo === "::before" || pseudo === "::after") && style.content === "none") return null;
+    /** @type {Record<string, string>} */
     const out = {};
     const unknown = [];
     for (const prop of names) {
@@ -278,7 +319,7 @@ function captureElement(
       );
     }
     return out;
-  };
+  }
   const box = el.getBoundingClientRect();
 
   // 描かれているかの判定は、ビューポートではなく**文書**の矩形に対して行う。ビューポートで測ると
@@ -334,19 +375,24 @@ function captureElement(
 
   // 文字の持ち主を平坦木の順に拾う（冒頭の「文字の持ち主」を参照）。path は el からの道筋で、
   // 照合には使わない診断材料（どの要素が文字を持っているかを採取物から読むため）。
+  /** @type {Map<Element, TextOwner>} */
   const owners = new Map();
+  /** @type {TextOwner[]} */
   const textOwners = [];
   // 持ち主ごとの生の文字列。空白の畳み込みと trim は、全ノードを繋いだ後に 1 回だけ当てる。
   // ノードごとに trim して " " で繋ぐと、フレームワークがテキストを分けたかどうかで文字列が変わる
   // （React の <span>{count}件</span> は "3" と "件" の 2 ノードで "3 件"、1 ノードなら "3件"）。
   // すると、見た目が同じ文字の寸法の照合が、trait-compare.mjs で警告なしに省かれる。
+  /** @type {Map<TextOwner, string>} */
   const rawText = new Map();
   // 持ち主ごとの行の断片（縦の範囲）。行の数は断片の数ではなく、行の帯の数で数える——
   // テキストノードが分かれると同じ行に断片が 2 つ出る（実測: "3" と "件" の 2 ノードで断片 2、1 ノードで 1）。
   // 帯の切れ目は「前の帯の上端から、その断片の高さの半分以上下がったか」で決める。断片の高さは行送りではなく
   // 書体の高さなので、line-height を詰めると上下の行の断片が縦に重なり、重なりで数えると折り返しを 1 行と
   // 数える（実測: 16px・3 行の折り返しが line-height: 1 / 0.8 で 1 行になった）。同じ行の断片は上端が揃う。
+  /** @type {Map<TextOwner, LineBand[]>} */
   const bands = new Map();
+  /** @param {LineBand[]} list */
   const countLines = (list) => {
     let lines = 0;
     let rowTop = -Infinity;
@@ -362,19 +408,24 @@ function captureElement(
   // JavaScript の \s と trim は NBSP や全角スペースも空白とみなすが、CSS はそれらを幅を持つ文字として描く。
   // \s で扱うと、全角スペースで字下げした「\u3000設定」が「設定」と同じ文字列になり、字下げの幅まで差し引かれて、
   // 字下げの無い文字と区別できなくなる。別の文字列として残せば寸法は比べないが、字下げは画素の比較に表れる。
+  /** @param {string} value */
   const collapse = (value) => value.replace(/[ \t\n\r\f]+/g, " ").replace(/^ | $/g, "");
   // 持ち主ごとの文字の区切り（テキストノード 1 つ分）。幅の合計 advance は全区切りの幅から、持ち主の
   // 先頭と末尾の空白の幅だけを差し引いて出す——文字列は空白を畳んで trim して比べるので、端の空白の幅を
   // 残すと、境目の空白がどちらの持ち主に付くかだけで幅が変わる（実測: <p>合計 <b>3件</b></p> と
   // <p>合計<b> 3件</b></p> で p と b の幅が 4.45px ずつ入れ替わった）。中の空白は幅に数える
   // （空白だけのノードも。数えないと "合計" " " "3" の 3 ノードが 1 ノードより 4.4px 狭くなった）。
+  /** @type {Map<TextOwner, TextSegment[]>} */
   const segments = new Map();
+  /** @param {TextSegment[]} list */
   const edgeTrimmedAdvance = (list) => {
     let total = list.reduce((sum, seg) => sum + seg.full, 0);
-    for (const [order, side] of [
+    /** @type {Array<[TextSegment[], "lead" | "trail"]>} */
+    const ends = [
       [list, "lead"],
       [[...list].reverse(), "trail"],
-    ]) {
+    ];
+    for (const [order, side] of ends) {
       for (const seg of order) {
         if (seg.blank) {
           total -= seg.full;
@@ -386,6 +437,11 @@ function captureElement(
     }
     return total;
   };
+  /**
+   * @param {Node} node
+   * @param {number} start
+   * @param {number} end
+   */
   const widthOf = (node, start, end) => {
     if (start >= end) return 0;
     const sub = (el.ownerDocument || document).createRange();
@@ -393,6 +449,11 @@ function captureElement(
     sub.setEnd(node, end);
     return Array.from(sub.getClientRects()).reduce((sum, f) => sum + f.width, 0);
   };
+  /**
+   * @param {Node} node
+   * @param {string} path
+   * @param {Element} flatParent
+   */
   const collectText = (node, path, flatParent) => {
     const raw = node.nodeValue || "";
     if (collapse(raw) === "") {
@@ -401,7 +462,7 @@ function captureElement(
       if (known) {
         rawText.set(known, rawText.get(known) + raw);
         const full = widthOf(node, 0, raw.length);
-        segments.get(known).push({ full, lead: full, trail: full, blank: true });
+        present(segments.get(known)).push({ full, lead: full, trail: full, blank: true });
       }
       return;
     }
@@ -417,8 +478,8 @@ function captureElement(
     // 最終行の右端」まで広がり、同じ持ち主の文字どうしを合わせると間に挟まる子要素の領域まで覆うため、
     // 書体と無関係な寸法の差を出す（外接矩形は診断材料として rect に残すだけ）。
     const fragments = Array.from(range.getClientRects()).filter((f) => f.width > 0 && f.height > 0);
-    const leadLength = /^[ \t\n\r\f]*/.exec(raw)[0].length;
-    const trailLength = /[ \t\n\r\f]*$/.exec(raw)[0].length;
+    const leadLength = present(/^[ \t\n\r\f]*/.exec(raw))[0].length;
+    const trailLength = present(/[ \t\n\r\f]*$/.exec(raw))[0].length;
     const segment = {
       full: fragments.reduce((sum, f) => sum + f.width, 0),
       lead: widthOf(node, 0, leadLength),
@@ -432,12 +493,23 @@ function captureElement(
   // （sr-only は 1px の箱に overflow: hidden で閉じ込め、text-indent: -9999px は箱の外へ逃がす）。そのため、
   // 切り抜いた後の幅か高さが 2px 未満なら描かれていないとみなす（実測: sr-only の「閉じる」は
   // 切り抜き後 1×1）。省略記号で切られた長い文字は大きく残るので数え続ける。
+  /**
+   * @param {ParentNode} parent
+   * @returns {parent is ShadowRoot}
+   */
+  const isShadowRoot = (parent) => "host" in parent;
+  /**
+   * @param {Element} owner
+   * @param {Rect} r
+   */
   const clippedAway = (owner, r) => {
     let left = r.x;
     let top = r.y;
     let right = r.x + r.width;
     let bottom = r.y + r.height;
-    for (let node = owner; node;) {
+    /** @type {Element | null} */
+    let node = owner;
+    while (node) {
       const style = getComputedStyle(node);
       if (style.getPropertyValue("clip") === "rect(0px, 0px, 0px, 0px)") return true;
       if (
@@ -451,11 +523,22 @@ function captureElement(
         bottom = Math.min(bottom, b.y + b.height);
       }
       if (node === el) break;
-      node = node.parentElement || (node.parentNode && node.parentNode.host) || null;
+      node =
+        node.parentElement ||
+        (node.parentNode && isShadowRoot(node.parentNode) ? node.parentNode.host : undefined) ||
+        null;
     }
     return right - left < 2 || bottom - top < 2;
   };
   // 持ち主へ 1 つ分の文字を足す。r は外接矩形（診断材料）、fragments は行の断片（寸法の照合に使う）。
+  /**
+   * @param {Element} owner
+   * @param {string} path
+   * @param {string} raw
+   * @param {Rect} r
+   * @param {Rect[]} fragments
+   * @param {TextSegment} segment
+   */
   const record = (owner, path, raw, r, fragments, segment) => {
     const glyphHeight = fragments.reduce((max, f) => Math.max(max, f.height), 0);
     const style = getComputedStyle(owner);
@@ -464,9 +547,10 @@ function captureElement(
     const known = owners.get(owner);
     if (known) {
       rawText.set(known, rawText.get(known) + raw);
-      segments.get(known).push(segment);
+      present(segments.get(known)).push(segment);
       known.glyph_height = Math.max(known.glyph_height, glyphHeight);
-      for (const f of fragments) bands.get(known).push({ top: f.y, bottom: f.y + f.height });
+      for (const f of fragments)
+        present(bands.get(known)).push({ top: f.y, bottom: f.y + f.height });
       const x2 = Math.max(known.rect.x + known.rect.width, r.x + r.width);
       const y2 = Math.max(known.rect.y + known.rect.height, r.y + r.height);
       known.rect.x = Math.min(known.rect.x, r.x);
@@ -475,6 +559,7 @@ function captureElement(
       known.rect.height = y2 - known.rect.y;
       return;
     }
+    /** @type {Record<string, string>} */
     const picked = {};
     const unknown = [];
     for (const prop of textOwnerProps) {
@@ -506,6 +591,11 @@ function captureElement(
     );
     textOwners.push(entry);
   };
+  /**
+   * @param {Iterable<Node, unknown, unknown>} nodes
+   * @param {string} path
+   * @param {Element} flatParent
+   */
   const visit = (nodes, path, flatParent) => {
     let elementIndex = 0;
     for (const node of nodes) {
@@ -513,7 +603,7 @@ function captureElement(
         collectText(node, path, flatParent);
         continue;
       }
-      if (node.nodeType !== 1) continue;
+      if (!isElementNode(node)) continue;
       const segment = `${node.tagName.toLowerCase()}[${elementIndex}]`;
       elementIndex += 1;
       const childPath = path === "" ? segment : `${path}>${segment}`;
@@ -521,7 +611,7 @@ function captureElement(
       if (node.shadowRoot) {
         // シャドウツリーが描かれ、ライト DOM の子は <slot> 経由でその位置に描かれる
         visit(Array.from(node.shadowRoot.childNodes), `${childPath}>#shadow-root`, node);
-      } else if (typeof node.assignedNodes === "function" && node.assignedNodes().length > 0) {
+      } else if (isSlot(node) && node.assignedNodes().length > 0) {
         visit(node.assignedNodes(), childPath, node);
       } else {
         visit(Array.from(node.childNodes), childPath, node);
@@ -532,14 +622,29 @@ function captureElement(
   // 数えないと <input type=submit value="検索"> を <button>検索</button> へ置き換えた組で、見た目が同じでも
   // 件数の差（text[0] の absent / present）が出る。Range で測れないので、同じ書体を canvas の measureText に
   // 当てて行の断片を 1 つ作る（実測: 同じ書体の <button> の Range と幅・高さが一致した）。
+  /**
+   * @param {Node} node
+   * @returns {node is HTMLInputElement}
+   */
   const isButtonInput = (node) =>
-    node.nodeType === 1 &&
+    isElementNode(node) &&
     node.tagName === "INPUT" &&
+    "type" in node &&
     ["submit", "button", "reset"].includes(String(node.type).toLowerCase());
+  /**
+   * @param {Element} node
+   * @returns {node is HTMLSlotElement}
+   */
+  const isSlot = (node) => "assignedNodes" in node && typeof node.assignedNodes === "function";
+  /** @type {CanvasRenderingContext2D | null} */
   let canvas = null;
   // value 属性の無い submit / reset はブラウザが既定の文言（「送信」等）を描くが、その文言は DOM から
   // 読めない。数えないと <button>送信</button> への置き換えで件数の差が出るので、文字列を空にした行として
   // 数える（書体は照合し、文字列が合わないので寸法は照合されない）。
+  /**
+   * @param {HTMLInputElement} node
+   * @param {string} path
+   */
   const collectInputValue = (node, path) => {
     const type = String(node.type).toLowerCase();
     const defaultLabel = type !== "button" && !node.hasAttribute("value");
@@ -548,7 +653,8 @@ function captureElement(
     const box = node.getBoundingClientRect();
     if (!(box.width > 0 && box.height > 0)) return;
     const style = getComputedStyle(node);
-    canvas = canvas || (el.ownerDocument || document).createElement("canvas").getContext("2d");
+    canvas =
+      canvas || present((el.ownerDocument || document).createElement("canvas").getContext("2d"));
     canvas.font = ["font-style", "font-weight", "font-size", "font-family"]
       .map((prop) => style.getPropertyValue(prop))
       .join(" ");
@@ -579,9 +685,9 @@ function captureElement(
     el,
   );
   for (const entry of textOwners) {
-    entry.text = collapse(rawText.get(entry));
-    entry.advance = edgeTrimmedAdvance(segments.get(entry));
-    entry.lines = countLines(bands.get(entry));
+    entry.text = collapse(present(rawText.get(entry)));
+    entry.advance = edgeTrimmedAdvance(present(segments.get(entry)));
+    entry.lines = countLines(present(bands.get(entry)));
   }
 
   // スクロールする領域の特性（冒頭の「スクロールする領域」を参照）。offsetWidth を持たない要素（SVG 等）は
@@ -590,23 +696,35 @@ function captureElement(
   // すると offsetWidth − clientWidth が文字の幅そのものになってしまう（実測: overflow: hidden の <a> で 122px / 17px）。
   // そのため、スクロール領域として扱わない。
   const elementStyle = getComputedStyle(el);
+  /** @param {string} value */
   const clipsNothing = (value) => value === "visible" || value === "clip";
+  /**
+   * @param {Element} element
+   * @returns {element is HTMLElement}
+   */
+  const hasOffsetBox = (element) =>
+    "offsetWidth" in element && typeof element.offsetWidth === "number";
   let scroll = null;
   if (
-    typeof el.offsetWidth === "number" &&
+    hasOffsetBox(el) &&
     elementStyle.getPropertyValue("display") !== "inline" &&
     !(
       clipsNothing(elementStyle.getPropertyValue("overflow-x")) &&
       clipsNothing(elementStyle.getPropertyValue("overflow-y"))
     )
   ) {
+    /** @param {string} side */
     const border = (side) => parseFloat(elementStyle.getPropertyValue(`border-${side}-width`)) || 0;
     // ::-webkit-scrollbar を持たないブラウザでは擬似要素の計算値が見た目を表さないので、読まずに印を残す
     const webkitSupported =
       typeof CSS !== "undefined" && CSS.supports("selector(::-webkit-scrollbar)");
-    const webkit = webkitSupported ? {} : "unsupported";
+    /** @type {Record<string, Record<string, string>>} */
+    const webkitStyles = {};
+    /** @type {Record<string, Record<string, string>> | "unsupported"} */
+    const webkit = webkitSupported ? webkitStyles : "unsupported";
     if (webkitSupported) {
-      for (const pseudo of scrollbarPseudos) webkit[pseudo] = pick(pseudo, scrollbarPseudoProps);
+      for (const pseudo of scrollbarPseudos)
+        webkitStyles[pseudo] = pick(pseudo, scrollbarPseudoProps);
     }
     scroll = {
       overflowing_x: el.scrollWidth > el.clientWidth,

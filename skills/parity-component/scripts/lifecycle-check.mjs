@@ -27,16 +27,39 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 // 記入済みかの判定は behavior-compare.mjs と同じものを使う（実パスに解決したディレクトリから読む。
 // シンボリックリンク経由で --preserve-symlinks-main 起動されても兄弟ファイルを見つけられるように）。
-const { filled, nonEmptyString } = await import(
+// 動的な import の戻り値は型を持たないので、同じファイルの宣言から型を付ける。
+/** @type {typeof import("./behavior-compare.mjs")} */
+const behaviorCompare = await import(
   pathToFileURL(join(dirname(realpathSync(fileURLToPath(import.meta.url))), "behavior-compare.mjs"))
     .href
 );
+const { filled, nonEmptyString } = behaviorCompare;
 
 /** ツールのバージョン（このスクリプトで定義する）。判定の規則・出力の形を変えたら上げる。 */
 export const VERSION = "1";
 
 /** 4 つの実行パスの語彙（このスクリプトで定義する。references/lifecycle.md「4 つの実行パス」と同じ）。 */
 export const PATHS = ["strict-rebind", "prop-identity", "remount", "prop-change-after-init"];
+
+/**
+ * null でないオブジェクト（配列を含む）か。JSON 由来の値の欄を読む前の絞り込みに使う。
+ * @param {unknown} value
+ * @returns {value is Record<string, unknown>}
+ */
+function isObject(value) {
+  return value !== null && typeof value === "object";
+}
+
+/**
+ * `value && value[key]` と同じ値を返す（オブジェクトなら欄の値、偽の値ならその値、それ以外は undefined）。
+ * @param {unknown} value
+ * @param {string} key
+ * @returns {unknown}
+ */
+function field(value, key) {
+  if (isObject(value)) return value[key];
+  return value && undefined;
+}
 
 /**
  * 検査の指摘 1 件。code は必ずあり、ほかの欄は code ごとに付く。
@@ -58,16 +81,17 @@ export const PATHS = ["strict-rebind", "prop-identity", "remount", "prop-change-
  * @returns {{ structural: boolean, applies: boolean | null, findings: LifecycleFinding[] }}
  */
 export function checkLifecycle(metadata) {
-  const lifecycle = metadata && metadata.lifecycle;
-  const catalogStories = metadata && metadata.catalog && metadata.catalog.stories;
+  const lifecycle = field(metadata, "lifecycle");
+  const catalogStories = field(field(metadata, "catalog"), "stories");
   /** @type {LifecycleFinding[]} */
   const findings = [];
+  /** @param {string} detail */
   const structural = (detail) => ({
     structural: true,
     applies: null,
     findings: [{ code: "structural", detail }],
   });
-  if (lifecycle === null || typeof lifecycle !== "object" || Array.isArray(lifecycle)) {
+  if (!isObject(lifecycle) || Array.isArray(lifecycle)) {
     return structural("build-metadata.json の lifecycle が無い（対象かどうかを判定していない）");
   }
   if (typeof lifecycle.applies !== "boolean") {
@@ -108,8 +132,12 @@ export function checkLifecycle(metadata) {
   }
   /** @type {Map<string, number>} */
   const seen = new Map();
+  /**
+   * @param {unknown} name
+   * @param {string} where
+   */
   const count = (name, where) => {
-    if (!nonEmptyString(name) || !PATHS.includes(name)) {
+    if (typeof name !== "string" || !nonEmptyString(name) || !PATHS.includes(name)) {
       findings.push({
         code: "lifecycle-path-unknown",
         where,
@@ -200,9 +228,11 @@ export function main(
     writeErr = (s) => process.stderr.write(s),
   } = {},
 ) {
+  /** @param {Record<string, unknown>} obj */
   const out = (obj) =>
     write(`${JSON.stringify({ tool: "lifecycle-check", version: VERSION, ...obj }, null, 2)}\n`);
   const usage = "usage: lifecycle-check.mjs --build-metadata <new/<target>/build-metadata.json>";
+  /** @param {string} message */
   const fail = (message) => {
     writeErr(`error: ${message}\n${usage}\n`);
     return 2;
@@ -215,7 +245,7 @@ export function main(
   try {
     metadata = JSON.parse(readFileSync(resolve(cwd, argv[1]), "utf8"));
   } catch (error) {
-    return fail(`build-metadata.json を読めない: ${error && error.message}`);
+    return fail(`build-metadata.json を読めない: ${field(error, "message")}`);
   }
   const result = checkLifecycle(metadata);
   if (result.structural) {

@@ -87,8 +87,8 @@ const DISPOSITIONS = ["keep", "may_change", "carried_over"];
  */
 export function intentionalEntryText(entry) {
   if (typeof entry === "string") return entry;
-  if (entry && typeof entry === "object" && !Array.isArray(entry)) {
-    const item = /** @type {{ item?: unknown }} */ (entry).item;
+  if (isPlainObject(entry)) {
+    const item = entry.item;
     return typeof item === "string" ? item : "";
   }
   return "";
@@ -121,7 +121,7 @@ export function matchKey(v) {
  * プレーンオブジェクトか（配列・null を除く）。
  *
  * @param {unknown} v
- * @returns {boolean}
+ * @returns {v is Record<string, unknown>}
  */
 function isPlainObject(v) {
   return typeof v === "object" && v !== null && !Array.isArray(v);
@@ -227,7 +227,7 @@ export function normalizePending(entries, knownSlugs = null) {
       });
       return;
     }
-    const rec = /** @type {Record<string, unknown>} */ (entry);
+    const rec = entry;
     const key = matchKey(intentionalEntryText(entry));
     const writer = nonEmptyString(rec.added_by) ? String(rec.added_by).trim() : null;
     const rawSlug = nonEmptyString(rec.slug) ? String(rec.slug).trim() : null;
@@ -331,9 +331,7 @@ function inScope(item, slug) {
  * @returns {Set<string>}
  */
 function targetKeys(registry, group) {
-  const list = isPlainObject(registry)
-    ? /** @type {Record<string, unknown>} */ (registry)[group]
-    : null;
+  const list = isPlainObject(registry) ? registry[group] : null;
   const set = new Set();
   if (Array.isArray(list)) {
     for (const entry of list) {
@@ -373,12 +371,8 @@ export function countTriage(registries, record, slug, knownSlugs = null) {
     problems.push(message);
     recordProblems.push(message);
   };
-  const intentional = isPlainObject(registries)
-    ? /** @type {Record<string, unknown>} */ (registries).intentional_diffs
-    : null;
-  const rawPending = isPlainObject(intentional)
-    ? /** @type {Record<string, unknown>} */ (intentional).pending
-    : undefined;
+  const intentional = isPlainObject(registries) ? registries.intentional_diffs : null;
+  const rawPending = isPlainObject(intentional) ? intentional.pending : undefined;
   if (rawPending !== undefined && !Array.isArray(rawPending)) {
     // 登録簿そのものが読めない。帰属を決められないので対象範囲に入れる。
     problems.push("intentional_diffs.pending が配列でない");
@@ -421,9 +415,7 @@ export function countTriage(registries, record, slug, knownSlugs = null) {
   const keepKeys = targetKeys(intentional, "keep");
   const mayChangeKeys = targetKeys(intentional, "may_change");
 
-  const entries = isPlainObject(record)
-    ? /** @type {Record<string, unknown>} */ (record).entries
-    : undefined;
+  const entries = isPlainObject(record) ? record.entries : undefined;
   if (!Array.isArray(entries)) {
     // CLI はこの形を exit 2 で先に落とすため、ここへは main() を経由しない呼び出しだけが来る。
     addRecordProblem("intentional_diffs_pending.entries が配列でない（棚卸しの記録が読めない）");
@@ -455,7 +447,7 @@ export function countTriage(registries, record, slug, knownSlugs = null) {
       addRecordProblem(`intentional_diffs_pending.entries[${index}]: オブジェクトでない`);
       return;
     }
-    const rec = /** @type {Record<string, unknown>} */ (entry);
+    const rec = entry;
     // 文字列以外は matchKey で "[object Object]" などに潰れ、誤って照合キーとして使われる。そのため型で弾く
     // （registries の側の intentionalEntryText と同じ扱い。潰れたキーは、pending と偶然に一致や不一致を起こす）。
     const key = typeof rec.item === "string" ? matchKey(rec.item) : "";
@@ -547,7 +539,8 @@ export function countTriage(registries, record, slug, knownSlugs = null) {
   });
 
   // 宣言された件数は信用せず、数え直した値と突き合わせる。
-  const declared = /** @type {Record<string, unknown>} */ (isPlainObject(record) ? record : {});
+  /** @type {Record<string, unknown>} */
+  const declared = isPlainObject(record) ? record : {};
   const counted = {
     attributed,
     cross_cutting: crossCutting,
@@ -655,14 +648,14 @@ export function main(argv, deps = {}) {
     process.stderr.write(`error: registries.json がオブジェクトでない: ${opts.registries}\n`);
     return 2;
   }
-  const intentionalDiffs = /** @type {Record<string, unknown>} */ (registries).intentional_diffs;
+  const intentionalDiffs = registries.intentional_diffs;
   if (!isPlainObject(intentionalDiffs)) {
     process.stderr.write(
       `error: registries.json に intentional_diffs が無い／オブジェクトでない（棚卸しの対象を決められない）: ${opts.registries}\n`,
     );
     return 2;
   }
-  if (!Array.isArray(/** @type {Record<string, unknown>} */ (intentionalDiffs).pending)) {
+  if (!Array.isArray(intentionalDiffs.pending)) {
     process.stderr.write(
       `error: registries.json の intentional_diffs.pending が無い／配列でない（設定ファイルでは空でも [] を書く）: ${opts.registries}\n`,
     );
@@ -680,7 +673,7 @@ export function main(argv, deps = {}) {
     process.stderr.write(`error: diff-metadata.json がオブジェクトでない: ${opts.metadata}\n`);
     return 2;
   }
-  const meta = /** @type {Record<string, unknown>} */ (metadata);
+  const meta = metadata;
   if (!nonEmptyString(meta.slug)) {
     // slug が無いと棚卸しの対象を決められない。空集合として扱うと、全件が警告なしに対象外になる。
     process.stderr.write(`error: diff-metadata.json に slug が無い: ${opts.metadata}\n`);
@@ -705,7 +698,7 @@ export function main(argv, deps = {}) {
     );
     return 2;
   }
-  if (!Array.isArray(/** @type {Record<string, unknown>} */ (record).entries)) {
+  if (!Array.isArray(record.entries)) {
     // 成果物の型の誤りは「未棚卸し」(exit 1) とまとめず、型の誤りや使い方の誤り (exit 2) として返す
     // （両方を 1 で返すと、自動化が「棚卸しをやり直せば直る」と「成果物が不正」を区別できない）。
     process.stderr.write(

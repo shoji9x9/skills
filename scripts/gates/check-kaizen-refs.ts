@@ -52,6 +52,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isTextPath } from "./check-control-chars.ts";
 import { errorCodeOrMessage, errorMessage } from "../lib/errors.ts";
+import { isRecord } from "../lib/guards.ts";
 
 const EXCLUDED_PREFIXES = [".claude/", "tests/", ".kaizen/", "node_modules/"];
 const AGENTS_SKILL_RE = /^\.agents\/skills\/([^/]+)\//;
@@ -92,10 +93,10 @@ export const isScanned = (path: string, distributed: Set<string> = new Set()) =>
 export function loadExemptions(root: string): Exemption[] {
   const path = join(root, EXEMPTIONS_PATH);
   if (!existsSync(path)) return [];
-  const data = JSON.parse(readFileSync(path, "utf8"));
-  const list = data?.exemptions;
-  const ok = (e: Record<string, unknown> | null) =>
-    ["file", "ref", "reason"].every((k) => typeof e?.[k] === "string");
+  const data: unknown = JSON.parse(readFileSync(path, "utf8"));
+  const list = isRecord(data) ? data.exemptions : undefined;
+  const ok = (e: unknown): e is Exemption =>
+    isRecord(e) && ["file", "ref", "reason"].every((k) => typeof e[k] === "string");
   if (!Array.isArray(list) || !list.every(ok)) {
     throw new Error(
       `${EXEMPTIONS_PATH}: exemptions は { file, ref, reason }（すべて文字列）の配列にする`,

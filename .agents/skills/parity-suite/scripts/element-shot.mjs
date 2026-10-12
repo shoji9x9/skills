@@ -98,6 +98,7 @@ export function planElementClip(rect, viewport) {
     );
   }
 
+  /** @param {number} n */
   const zero = (n) => (n === 0 ? 0 : n);
   const x = zero(Math.round(rect.x));
   const y = zero(Math.round(rect.y));
@@ -144,8 +145,13 @@ function readRectAndViewport(el) {
   // 前後の矩形が一致したまま PNG だけ別の位置で切られる。どのノードが要素を動かしうるかを列挙する代わりに文書ごと数える。
   // `document.getAnimations()` はシャドウツリーの中を含まない（実測）ので、開いたシャドウルートを再帰で辿る
   // （閉じたシャドウルートは読めない）。
+  /** @param {Animation[]} anims */
   const live = (anims) =>
     anims.filter((a) => a.playState !== "finished" && a.playState !== "idle").length;
+  /**
+   * @param {Document | ShadowRoot} root
+   * @returns {number}
+   */
   const countTree = (root) => {
     let n = live(root.getAnimations());
     for (const host of root.querySelectorAll("*")) {
@@ -159,8 +165,27 @@ function readRectAndViewport(el) {
   } catch {
     liveAnimations = null; // getAnimations を持たない環境では数えられない（判定しない）
   }
+  /**
+   * @param {ParentNode} parent
+   * @returns {parent is ShadowRoot}
+   */
+  const isShadowRoot = (parent) => "host" in parent;
+  /**
+   * @param {Element} element
+   * @returns {element is HTMLElement}
+   */
+  const isOffsetBox = (element) => "offsetWidth" in element;
+  /**
+   * @param {Window} w
+   * @returns {w is Window & { DOMMatrixReadOnly: typeof DOMMatrixReadOnly }}
+   */
+  const hasMatrix = (w) => "DOMMatrixReadOnly" in w && typeof w.DOMMatrixReadOnly === "function";
   const rect = { x: box.x, y: box.y, width: box.width, height: box.height };
-  let view = el.ownerDocument.defaultView;
+  const ownerView = el.ownerDocument.defaultView;
+  // 閲覧文脈を持たない文書。戻り値の viewport を読めないので、読む前に止める。
+  if (ownerView === null) throw new TypeError("element clip: the element's document has no window");
+  /** @type {Window} */
+  let view = ownerView;
   let x = box.x;
   let y = box.y;
   const frames = [];
@@ -197,9 +222,11 @@ function readRectAndViewport(el) {
     // offsetWidth / offsetHeight は整数へ丸められるので（枠線・padding が小数なら矩形と 1px 未満ずれる。
     // 実測: 610.5px のフレームで offsetWidth=611）、1px 以上の食い違いだけを変形とみなす。
     // それより小さい倍率ずれは、フレーム全体でも位置の誤差が 1px 未満で、clip の丸めと同じ桁に収まる。
+    // offsetWidth を持たないフレーム要素は、寸法の差を測れない（NaN の比較は偽になる）ので、ここでは変形とみなさない。
     if (
-      Math.abs(frameBox.width - frameEl.offsetWidth) >= 1 ||
-      Math.abs(frameBox.height - frameEl.offsetHeight) >= 1
+      isOffsetBox(frameEl) &&
+      (Math.abs(frameBox.width - frameEl.offsetWidth) >= 1 ||
+        Math.abs(frameBox.height - frameEl.offsetHeight) >= 1)
     ) {
       frameError = "transformed";
       break;
@@ -208,14 +235,17 @@ function readRectAndViewport(el) {
     // 中身の座標は反転している。フレーム要素と親文書内の祖先の計算後スタイルを読み、平行移動以外の変形を拒否する。
     // `transform` の計算値は行列（translate / rotate / scale の個別プロパティは含まない）なので、個別プロパティも見る。
     let transformed = false;
-    for (let node = frameEl; node && node.nodeType === 1;) {
+    /** @type {Element | null} */
+    let node = frameEl;
+    while (node && node.nodeType === 1) {
       const cs = parent.getComputedStyle(node);
       // 個別プロパティは「何も変えない値」を none ではなくその値で返す（実測: `rotate: 0deg` → "0deg"、
       // `scale: 1 1` → "1"）。transition の初期値・リセットで普通に書かれるので、角度 0 の rotate と
       // 全成分 1 の scale は通す。読めない値（NaN）は恒等とみなさず拒否する。
+      /** @param {string} v */
       const tokens = (v) => v.trim().split(/\s+/);
       const rotateIsIdentity =
-        !cs.rotate || cs.rotate === "none" || parseFloat(tokens(cs.rotate).pop()) === 0;
+        !cs.rotate || cs.rotate === "none" || parseFloat(tokens(cs.rotate).pop() ?? "") === 0;
       const scaleIsIdentity =
         !cs.scale || cs.scale === "none" || tokens(cs.scale).every((t) => parseFloat(t) === 1);
       if (!rotateIsIdentity || !scaleIsIdentity) {
@@ -223,6 +253,8 @@ function readRectAndViewport(el) {
         break;
       }
       if (cs.transform && cs.transform !== "none") {
+        if (!hasMatrix(parent))
+          throw new TypeError("parent.DOMMatrixReadOnly is not a constructor");
         const m = new parent.DOMMatrixReadOnly(cs.transform);
         const linear = [m.m11, m.m12, m.m13, m.m14, m.m21, m.m22, m.m23, m.m24];
         const rest = [m.m31, m.m32, m.m33, m.m34, m.m44];
@@ -232,7 +264,10 @@ function readRectAndViewport(el) {
         }
       }
       // シャドウツリーの中なら、ホストへ抜けて祖先を辿り続ける。
-      node = node.parentElement || (node.parentNode && node.parentNode.host) || null;
+      /** @type {Element | null} */
+      const shadowHost =
+        node.parentNode && isShadowRoot(node.parentNode) ? node.parentNode.host : null;
+      node = node.parentElement || shadowHost || null;
     }
     if (transformed) {
       frameError = "transformed";
@@ -312,7 +347,11 @@ export function buildShotRecord({ clip, png, rect, page_rect, frame_depth, anima
   return { clip, png, rect, page_rect, frame_depth, animations, tool_version: VERSION };
 }
 
-/** 2 つの矩形が同じ値か。 */
+/**
+ * 2 つの矩形が同じ値か。
+ * @param {{ x:number, y:number, width:number, height:number }} a
+ * @param {{ x:number, y:number, width:number, height:number }} b
+ */
 function sameRect(a, b) {
   return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
 }
@@ -376,7 +415,7 @@ export async function captureElementShot(page, locator, options = {}) {
       planElementClip(frame.rect, frame.viewport);
     } catch (error) {
       throw new Error(
-        `element clip: inside frame level ${depth + 1} (innermost = 1), ${error.message.replace(/^element clip: /, "")}`,
+        `element clip: inside frame level ${depth + 1} (innermost = 1), ${(error instanceof Error ? error.message : String(error)).replace(/^element clip: /, "")}`,
       );
     }
   });
@@ -429,7 +468,7 @@ export async function captureElementShot(page, locator, options = {}) {
     animations,
   });
   // 検査を通ってから書く。PNG と記録は同じ run の値で対にする（片方だけ古い組を残さない）。
-  if (path !== undefined) {
+  if (path !== undefined && recordPath !== undefined) {
     writePair([
       [path, buffer],
       [recordPath, `${JSON.stringify(result, null, 2)}\n`],

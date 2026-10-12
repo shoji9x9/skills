@@ -14,6 +14,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { makeTempDir } from "../../lib/test-tmpdir.ts";
 import { invalidInput, removeField } from "../../lib/test-input.ts";
 import { isRecord } from "../../lib/guards.ts";
+import { parseJsonAs } from "../../lib/parse-as.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/reaction-check.mjs");
@@ -615,7 +616,7 @@ type AuditEntry = { path: string; verdict: string; checked: string | null; missi
 type Audit = {
   auditor: string;
   table_fingerprint: string;
-  specs_fingerprint?: string;
+  specs_fingerprint?: string | null;
   entries: AuditEntry[];
 };
 
@@ -765,6 +766,45 @@ function resubmitWrites(t: Table): NonNullable<ResubmitHeld["writes"]> {
 
 /** 同梱テンプレートの layout の欄（テストが読む欄だけ）。 */
 type LayoutTemplate = { operations: { layout: { evidence: string; covered_by: string[] } }[] };
+
+/** --write が書き戻した網羅表（conformance はテストが読む欄だけ）。 */
+type WrittenTable = Table & {
+  conformance: {
+    ok: boolean;
+    call_sites_checked: boolean;
+    side_effects_checked: boolean;
+    covered_by_resolved: boolean;
+  };
+};
+
+/** --audit-sheet の 1 行（テストが読む欄だけ）。 */
+type SheetEntry = {
+  path: string;
+  context: { path: string; fields: Record<string, unknown> }[];
+  expected: Record<string, unknown>;
+  tests: { name: string; file: string | null; line: number | null }[];
+};
+
+/** CLI の標準出力（テストが読む欄だけ。形は expect で確かめる）。 */
+type CliOutput = {
+  judged: boolean;
+  reason: string | null;
+  ok: boolean;
+  unmeasured_operations: number | null;
+  call_sites: { checked: boolean };
+  side_effect_writes: { checked: boolean };
+  capture_page_urls: { checked: boolean; reason: string | null; operations: number };
+  coverage_captures: { counted: number; skipped: number } | null;
+  state_displays: { pages: number; entries: number; unmeasured: number };
+  specs_fingerprint: string | null;
+  entries: SheetEntry[];
+};
+
+/** 同梱の部品網羅表のテンプレート（テストが読む欄だけ）。 */
+type CoverageTemplate = {
+  components: { id: string; instances: { id: string; page?: string }[] }[];
+  visual_state_coverage: { rows: Record<string, unknown>[] };
+};
 
 /** 監査の記録。 */
 function auditOf(t: Table): Audit {
@@ -979,7 +1019,7 @@ function run(table: Record<string, unknown>, opts: RunOptions = {}) {
     writeFileSync(join(dir, "component-coverage.json"), JSON.stringify(opts.coverage));
   }
   // JSON 文字列の中へ入れるので、区切りがバックスラッシュのパス（Windows）もエスケープしてから置き換える
-  const final = JSON.parse(
+  const final = parseJsonAs<Table>(
     JSON.stringify(table)
       .replaceAll(OUTSIDE_ABS, JSON.stringify(join(outer, OUTSIDE_FILE)).slice(1, -1))
       .replaceAll(INSIDE_ABS, JSON.stringify(join(dir, "src/export.js")).slice(1, -1)),
@@ -1324,7 +1364,7 @@ test.each([
 ])("未測定として落とす: %s", (_name, mutate, message) => {
   const r = run(mutated(mutate));
   expect(r.status).toBe(1);
-  expect(JSON.parse(r.stdout).ok).toBe(false);
+  expect(parseJsonAs<CliOutput>(r.stdout).ok).toBe(false);
   expect(r.stderr).toContain(message);
 });
 
@@ -1418,7 +1458,7 @@ test.each([
   delete t.__source;
   const r = run(t, { source });
   expect(r.status).toBe(1);
-  expect(JSON.parse(r.stdout).ok).toBe(false);
+  expect(parseJsonAs<CliOutput>(r.stdout).ok).toBe(false);
   expect(r.stderr).toContain(message);
 });
 
@@ -1682,7 +1722,7 @@ test("feedback_calls.declared: false は理由付きなら突き合わせを飛�
     ),
   );
   expect(r.status).toBe(0);
-  expect(JSON.parse(r.stdout).call_sites.checked).toBe(false);
+  expect(parseJsonAs<CliOutput>(r.stdout).call_sites.checked).toBe(false);
 });
 
 test.each([
@@ -1713,7 +1753,7 @@ test("走査範囲がルートの外を指すと exit 2", () => {
 test("--write の後の --recorded は通り、表を書き換えると指紋で落ちる", () => {
   const w = run(baseTable(), { args: ["--write"] });
   expect(w.status).toBe(0);
-  const written = JSON.parse(readFileSync(join(w.dir, "reactions.json"), "utf8"));
+  const written = parseJsonAs<WrittenTable>(readFileSync(join(w.dir, "reactions.json"), "utf8"));
   expect(written.conformance).toMatchObject({
     ok: true,
     tool: "reaction-check",
@@ -1723,7 +1763,7 @@ test("--write の後の --recorded は通り、表を書き換えると指紋で
 
   expect(rerun(w.dir, ["--recorded"]).status).toBe(0);
 
-  written.operations[0].reactions[0].dismissal.duration_ms_samples = [15400, 15400];
+  copyOp(written).reactions[0].dismissal.duration_ms_samples = [15400, 15400];
   writeFileSync(join(w.dir, "reactions.json"), JSON.stringify(written));
   const edited = rerun(w.dir, ["--recorded"]);
   expect(edited.status).toBe(1);
@@ -1742,7 +1782,7 @@ test("declared: true なのに表が読めなければ exit 1（合格として�
 });
 
 test("同梱テンプレートのプレースホルダのままの文書のオリジンは落とす（Issue #450）", () => {
-  const template = JSON.parse(
+  const template = parseJsonAs<Table>(
     readFileSync(
       new URL("../../../skills/parity-suite/assets/reactions-template.json", import.meta.url),
       "utf8",
@@ -1888,7 +1928,7 @@ test.each([
 });
 
 test("同梱テンプレートのプレースホルダのままの layout は落とす（Issue #460）", () => {
-  const template = JSON.parse(
+  const template = parseJsonAs<Table>(
     readFileSync(
       new URL("../../../skills/parity-suite/assets/reactions-template.json", import.meta.url),
       "utf8",
@@ -1926,7 +1966,7 @@ test.each([
 ])(
   "layout の欄をテンプレートの説明文のまま出したら落とす: %s（Codex レビュー）",
   (_name, mk, needle) => {
-    const template = JSON.parse(
+    const template = parseJsonAs<LayoutTemplate>(
       readFileSync(
         new URL("../../../skills/parity-suite/assets/reactions-template.json", import.meta.url),
         "utf8",
@@ -2154,7 +2194,7 @@ test("撮る状態にも assertion にもしない見た目は、理由があれ
 });
 
 test("同梱テンプレートのプレースホルダのままの aftermath は落とす（Issue #471）", () => {
-  const template = JSON.parse(
+  const template = parseJsonAs<Table>(
     readFileSync(
       new URL("../../../skills/parity-suite/assets/reactions-template.json", import.meta.url),
       "utf8",
@@ -2414,7 +2454,7 @@ test.each(
   const right = run(namedAfter(c.pages, c.right, c.urlAfter), { metadata });
   expect(right.stderr).toBe("");
   expect(right.status).toBe(0);
-  expect(JSON.parse(right.stdout).capture_page_urls).toEqual({
+  expect(parseJsonAs<CliOutput>(right.stdout).capture_page_urls).toEqual({
     checked: true,
     reason: null,
     operations: 1,
@@ -2434,7 +2474,7 @@ test("target.ui_url が runtime で相対の path があれば照合せず、理
   });
   expect(r.stderr).toBe("");
   expect(r.status).toBe(0);
-  const out = JSON.parse(r.stdout).capture_page_urls;
+  const out = parseJsonAs<CliOutput>(r.stdout).capture_page_urls;
   expect(out.checked).toBe(false);
   expect(out.reason).toContain('target.ui_url が "runtime"');
   expect(out.operations).toBe(0);
@@ -2593,7 +2633,7 @@ test("ui_url が runtime で解けない相対の path も、同じ path の別�
   expect(bare.status).toBe(1);
   expect(bare.stderr).toContain('撮る状態 "共有画面の別名 の copy-toast" を');
   // URL との照合はしていない（相対の path を解けない）ことも出力に残る
-  expect(JSON.parse(bare.stdout).capture_page_urls.checked).toBe(false);
+  expect(parseJsonAs<CliOutput>(bare.stdout).capture_page_urls.checked).toBe(false);
   const both = run(
     mutated((t: Table) =>
       share(t, [
@@ -2609,7 +2649,7 @@ test("ui_url が runtime で解けない相対の path も、同じ path の別�
 
 // --- 部品網羅表と反応の網羅表をまたいだ撮る状態の使い回し（Issue #485）---
 
-const coverageTemplate = JSON.parse(
+const coverageTemplate = parseJsonAs<CoverageTemplate>(
   readFileSync(
     join(repoRoot, "skills/parity-suite/assets/component-coverage-template.json"),
     "utf8",
@@ -2696,7 +2736,7 @@ test("表をまたいで同じページ × 状態名を指す 2 行は、根拠�
   );
   expect(both.stderr).toBe("");
   expect(both.status).toBe(0);
-  expect(JSON.parse(both.stdout).coverage_captures).toEqual({ counted: 1, skipped: 0 });
+  expect(parseJsonAs<CliOutput>(both.stdout).coverage_captures).toEqual({ counted: 1, skipped: 0 });
 });
 
 test("表をまたいでも別のページなら同じ状態名で通す（Issue #485）", () => {
@@ -2706,7 +2746,7 @@ test("表をまたいでも別のページなら同じ状態名で通す（Issue
   });
   expect(r.stderr).toBe("");
   expect(r.status).toBe(0);
-  expect(JSON.parse(r.stdout).coverage_captures).toEqual({ counted: 1, skipped: 0 });
+  expect(parseJsonAs<CliOutput>(r.stdout).coverage_captures).toEqual({ counted: 1, skipped: 0 });
 });
 
 test("部品網羅表を宣言していなければ表をまたいだ照合の相手は無い（coverage_captures: null。Issue #485）", () => {
@@ -2715,7 +2755,7 @@ test("部品網羅表を宣言していなければ表をまたいだ照合の�
   });
   expect(r.stderr).toBe("");
   expect(r.status).toBe(0);
-  expect(JSON.parse(r.stdout).coverage_captures).toBe(null);
+  expect(parseJsonAs<CliOutput>(r.stdout).coverage_captures).toBe(null);
 });
 
 test.each([
@@ -2734,7 +2774,7 @@ test("部品網羅表の行のうちページを引けない行は数えず、�
   const r = run(copyOnShare(null), { metadata: coverageMeta(), coverage: cov });
   expect(r.stderr).toBe("");
   expect(r.status).toBe(0);
-  expect(JSON.parse(r.stdout).coverage_captures).toEqual({ counted: 0, skipped: 1 });
+  expect(parseJsonAs<CliOutput>(r.stdout).coverage_captures).toEqual({ counted: 0, skipped: 1 });
 });
 
 test("部品網羅表を宣言したのに path が空なら落とす（Issue #485）", () => {
@@ -2997,7 +3037,7 @@ test.each([
   const r = run(mutated(mutate));
   expect(r.status).toBe(1);
   expect(r.stderr).toContain(message);
-  expect(JSON.parse(r.stdout).unmeasured_operations).toBeGreaterThan(0);
+  expect(parseJsonAs<CliOutput>(r.stdout).unmeasured_operations).toBeGreaterThan(0);
 });
 
 test("判定が無いと書いたのに判定を列挙した操作は矛盾として落とす（Issue #483）", () => {
@@ -3011,7 +3051,7 @@ test("判定が無いと書いたのに判定を列挙した操作は矛盾と�
 });
 
 test("同梱テンプレートのプレースホルダのままの pre_send は落とす（Issue #483）", () => {
-  const template = JSON.parse(
+  const template = parseJsonAs<Table>(
     readFileSync(join(repoRoot, "skills/parity-suite/assets/reactions-template.json"), "utf8"),
   );
   const t = mutated((x: Table) => {
@@ -3036,7 +3076,7 @@ test("書き込みを持たない機能は declared: false と理由で通す（
   const r = run(t);
   expect(r.stderr).toBe("");
   expect(r.status).toBe(0);
-  expect(JSON.parse(r.stdout).side_effect_writes).toMatchObject({
+  expect(parseJsonAs<CliOutput>(r.stdout).side_effect_writes).toMatchObject({
     declared: false,
     checked: false,
   });
@@ -3083,7 +3123,7 @@ test("画面を開いたときの書き込みは operation: null と時機で、
   });
   expect(r.stderr).toBe("");
   expect(r.status).toBe(0);
-  expect(JSON.parse(r.stdout).side_effect_writes).toMatchObject({
+  expect(parseJsonAs<CliOutput>(r.stdout).side_effect_writes).toMatchObject({
     declared: true,
     checked: true,
     found: 3,
@@ -3231,7 +3271,7 @@ test.each([
 test("--recorded は表への書き込みを突き合わせていない記録を落とす（Issue #466）", () => {
   const w = run(baseTable(), { args: ["--write"] });
   expect(w.status).toBe(0);
-  const written = JSON.parse(readFileSync(join(w.dir, "reactions.json"), "utf8"));
+  const written = parseJsonAs<WrittenTable>(readFileSync(join(w.dir, "reactions.json"), "utf8"));
   written.conformance.side_effects_checked = false;
   writeFileSync(join(w.dir, "reactions.json"), JSON.stringify(written));
   const r = rerun(w.dir, ["--recorded"]);
@@ -3245,7 +3285,11 @@ test("状態表示を画面ごとに全候補で振り分けた表は通し、�
   const r = run(baseTable());
   expect(r.stderr).toBe("");
   expect(r.status).toBe(0);
-  expect(JSON.parse(r.stdout).state_displays).toEqual({ pages: 1, entries: 5, unmeasured: 0 });
+  expect(parseJsonAs<CliOutput>(r.stdout).state_displays).toEqual({
+    pages: 1,
+    entries: 5,
+    unmeasured: 0,
+  });
 });
 
 test.each([
@@ -3459,7 +3503,7 @@ test("状態表示は metadata.json の画面の宣言から期待集合を作�
   );
   expect(two.status).toBe(1);
   expect(two.stderr).toContain("画面 検索画面 の状態表示を振り分けていない");
-  expect(JSON.parse(two.stdout).state_displays.unmeasured).toBe(1);
+  expect(parseJsonAs<CliOutput>(two.stdout).state_displays.unmeasured).toBe(1);
   const noPages = run(baseTable(), {
     metadata: { ...base, capture_conditions: { states: ["default", "copy-toast"] } },
   });
@@ -3610,7 +3654,7 @@ test.each([
 });
 
 test("同梱テンプレートのプレースホルダのままの状態表示と押し直しは落とす（Issue #500）", () => {
-  const template = JSON.parse(
+  const template = parseJsonAs<Table>(
     readFileSync(
       new URL("../../../skills/parity-suite/assets/reactions-template.json", import.meta.url),
       "utf8",
@@ -3739,7 +3783,7 @@ test("誤検知しないことの確認: --write は covered_by を解決した�
   const w = run(baseTable(), { args: ["--write"] });
   expect(w.stderr).toBe("");
   expect(w.status).toBe(0);
-  const written = JSON.parse(readFileSync(join(w.dir, "reactions.json"), "utf8"));
+  const written = parseJsonAs<WrittenTable>(readFileSync(join(w.dir, "reactions.json"), "utf8"));
   expect(written.conformance.covered_by_resolved).toBe(true);
   expect(rerun(w.dir, ["--recorded"]).status).toBe(0);
 });
@@ -3933,7 +3977,7 @@ test.each([
 test("--recorded は covered_by を解決した記録が無ければ落とす（Issue #506）", () => {
   const w = run(baseTable(), { args: ["--write"] });
   const path = join(w.dir, "reactions.json");
-  const written = JSON.parse(readFileSync(path, "utf8"));
+  const written = parseJsonAs<WrittenTable>(readFileSync(path, "utf8"));
   written.conformance.covered_by_resolved = false;
   writeFileSync(path, JSON.stringify(written));
   const r = rerun(w.dir, ["--recorded"]);
@@ -3945,7 +3989,7 @@ test("--write は解決できない名前が残れば covered_by_resolved: false
   const t = baseTable();
   const w = run(t, { args: ["--write"], tests: namesOf(t).slice(1) });
   expect(w.status).toBe(1);
-  const written = JSON.parse(readFileSync(join(w.dir, "reactions.json"), "utf8"));
+  const written = parseJsonAs<WrittenTable>(readFileSync(join(w.dir, "reactions.json"), "utf8"));
   expect(written.conformance.covered_by_resolved).toBe(false);
   expect(rerun(w.dir, ["--recorded"]).status).toBe(1);
 });
@@ -3954,10 +3998,11 @@ test("--audit-sheet は監査の入力（期待値とテストの所在）を出
   const r = run(baseTable(), { args: ["--audit-sheet"], audit: false });
   expect(r.stderr).toBe("");
   expect(r.status).toBe(0);
-  const out = JSON.parse(r.stdout);
+  const out = parseJsonAs<CliOutput>(r.stdout);
   const toastEntry = out.entries.find(
     (e: { path: string }) => e.path === "$.operations[0].reactions[0]",
   );
+  assert.exists(toastEntry, "$.operations[0].reactions[0] の行が無い");
   expect(toastEntry.tests).toEqual([
     { name: "share.spec.ts › コピーで通知が出て消える", file: "share.spec.ts", line: 3 },
   ]);
@@ -3987,7 +4032,7 @@ test("--audit-sheet は形の不正な covered_by があれば exit 1（欠け�
   );
   expect(r.status).toBe(1);
   expect(r.stderr).toContain("$.operations[0].future_field.covered_by: 空でない文字列の配列でない");
-  expect(JSON.parse(r.stdout).ok).toBe(false);
+  expect(parseJsonAs<CliOutput>(r.stdout).ok).toBe(false);
 });
 
 test("--audit-sheet は --write と同時に使えない（Issue #506）", () => {
@@ -4100,7 +4145,7 @@ test("covered_by のスペックを rootDir から読めなければ落とす（
 test("--audit-sheet はスペックの指紋を出し、それを転記した監査の記録が通る（Issue #506）", () => {
   const sheet = run(baseTable(), { args: ["--audit-sheet"], audit: false });
   expect(sheet.status).toBe(0);
-  const { specs_fingerprint: fp } = JSON.parse(sheet.stdout);
+  const { specs_fingerprint: fp } = parseJsonAs<CliOutput>(sheet.stdout);
   expect(fp).toMatch(/^[0-9a-f]{64}$/);
   const t = baseTable();
   t.assertion_audit = { ...passingAudit(t), specs_fingerprint: fp };
@@ -4216,9 +4261,13 @@ test('区切りを含むキーの下の行は別の位置として監査させ�
 test("--audit-sheet は操作・画面の中の行に、それを含む操作と画面の同定を添える（Codex レビュー #510）", () => {
   const r = run(baseTable(), { args: ["--audit-sheet"], audit: false });
   expect(r.status).toBe(0);
-  const { entries } = JSON.parse(r.stdout);
+  const { entries } = parseJsonAs<CliOutput>(r.stdout);
   const byPath = (p: string) => entries.find((e: { path: string }) => e.path === p);
-  const ctx = (p: string) => byPath(p).context;
+  const ctx = (p: string) => {
+    const entry = byPath(p);
+    assert.exists(entry, `${p} の行が無い`);
+    return entry.context;
+  };
   // 操作の中の行は操作の同定を持つ
   expect(ctx("$.operations[1].layout")[0]).toMatchObject({
     path: "$.operations[1]",
@@ -4419,7 +4468,7 @@ test.each([
     });
     const r = run(displayOnlyTable(), { metadata });
     expect(r.status).toBe(0);
-    const out = JSON.parse(r.stdout);
+    const out = parseJsonAs<CliOutput>(r.stdout);
     expect(out.judged).toBe(false);
     expect(out.reason).toContain("画面ごとの状態表示を振り分けていない");
     expect(out.reason).toContain(shown);
@@ -4487,7 +4536,7 @@ test.each([
   [
     "理由がテンプレートの説明文のまま",
     (t: Table) =>
-      (t.operations_none_reason = JSON.parse(
+      (t.operations_none_reason = parseJsonAs<Table>(
         readFileSync(
           new URL("../../../skills/parity-suite/assets/reactions-template.json", import.meta.url),
           "utf8",
@@ -4556,7 +4605,7 @@ test("操作の無い表も --write の後の --recorded で通り、振り分�
   const w = run(displayOnlyTable(), { metadata: displayOnlyMeta(), args: ["--write"] });
   expect(w.status).toBe(0);
   expect(rerun(w.dir, ["--recorded"]).status).toBe(0);
-  const written = JSON.parse(readFileSync(join(w.dir, "reactions.json"), "utf8"));
+  const written = parseJsonAs<WrittenTable>(readFileSync(join(w.dir, "reactions.json"), "utf8"));
   written.state_displays.pages.pop();
   writeFileSync(join(w.dir, "reactions.json"), JSON.stringify(written));
   const edited = rerun(w.dir, ["--recorded"]);
@@ -4565,13 +4614,14 @@ test("操作の無い表も --write の後の --recorded で通り、振り分�
 });
 
 test("OPERATIONLESS_TABLE_REVISION は parity-suite の手順の改訂一覧に feature を対象として載っている（Issue #503）", () => {
-  const revisions = JSON.parse(
-    readFileSync(join(repoRoot, "skills/parity-suite/assets/procedure-revisions.json"), "utf8"),
-  );
+  const revisions = parseJsonAs<{
+    revision: number;
+    changes: { revision: number; affects: string[] }[];
+  }>(readFileSync(join(repoRoot, "skills/parity-suite/assets/procedure-revisions.json"), "utf8"));
   const change = revisions.changes.find(
     (c: { revision: number }) => c.revision === OPERATIONLESS_TABLE_REVISION,
   );
-  expect(change).toBeDefined();
+  assert.exists(change, "改訂一覧に OPERATIONLESS_TABLE_REVISION の変更が無い");
   expect(change.affects).toContain("feature");
   expect(revisions.revision).toBeGreaterThanOrEqual(OPERATIONLESS_TABLE_REVISION);
 });

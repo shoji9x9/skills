@@ -16,6 +16,17 @@ import {
 } from "../../../skills/issue-start/scripts/acceptance-check.mjs";
 import { RENDERED } from "./acceptance-check-rendered-fixture.ts";
 import { makeTempDir } from "../../lib/test-tmpdir.ts";
+import { parseJsonAs } from "../../lib/parse-as.ts";
+
+/** main が出す JSON の、テストで確かめる欄（成功時と exit 2 の時で欄が違うので、すべて省略可にする）。 */
+type CheckOutput = {
+  ok?: boolean;
+  closable?: boolean;
+  error?: string;
+  counts?: { checklist: number };
+  checklist_items?: string[];
+  findings?: { code: string }[];
+};
 
 const HEAD = "a".repeat(40);
 
@@ -161,25 +172,25 @@ function run(
       stderr += s;
     },
   });
-  const json = stdout ? JSON.parse(stdout) : null;
+  const json = stdout ? parseJsonAs<CheckOutput>(stdout) : null;
   return { code, stderr, json, codes: json?.findings?.map((f: { code: string }) => f.code) ?? [] };
 }
 
 test("誤検知しないことの確認: Issue と対応し根拠の揃った表は exit 0（deferred があれば閉じない）", () => {
   const r = run({ extra: ["--head", HEAD] });
   expect(r.code).toBe(0);
-  expect(r.json.ok).toBe(true);
-  expect(r.json.closable).toBe(false);
-  expect(r.json.counts.checklist).toBe(2);
+  expect(r.json?.ok).toBe(true);
+  expect(r.json?.closable).toBe(false);
+  expect(r.json?.counts?.checklist).toBe(2);
   // source: checklist の行の criterion の転記元として、描画後の項目の文言を出す。
-  expect(r.json.checklist_items).toEqual(["検索条件を URL で持つ", "準備の失敗時にログを書く"]);
+  expect(r.json?.checklist_items).toEqual(["検索条件を URL で持つ", "準備の失敗時にログを書く"]);
 });
 
 test("deferred が無ければ閉じてよい", () => {
   const items = table().items.slice(0, 3);
   const r = run({ tableData: table({ items }) });
   expect(r.code).toBe(0);
-  expect(r.json.closable).toBe(true);
+  expect(r.json?.closable).toBe(true);
 });
 
 test("本文のチェックリストの項目に行が無ければ落とす", () => {
@@ -239,13 +250,13 @@ test("文言の無い項目は警告なしに捨てず、Issue 側を直すよ�
   const r = run({ issueData: data, tableData: table({ issueData: data, items }) });
   expect(r.code).toBe(1);
   expect(r.codes).toEqual(["checklist-item-empty"]);
-  expect(r.json.checklist_items).toEqual(["", "文言のある項目"]);
+  expect(r.json?.checklist_items).toEqual(["", "文言のある項目"]);
 });
 
 test("本文と HTML を別の時点で取った・HTML が無い・形が違う入力は exit 2", () => {
   const edited = run({ issueHtml: htmlOf(RENDERED.bodyChecked.markdown) });
   expect(edited.code).toBe(2);
-  expect(edited.json.error).toContain("再取得する");
+  expect(edited.json?.error).toContain("再取得する");
   expect(run({ issueHtml: { body: BODY } }).code).toBe(2);
   const work = makeTempDir("acceptance-check-");
   expect(main(["--issue", "i.json", "--table", "t.json"], { cwd: work, stderr: () => {} })).toBe(2);
@@ -285,7 +296,7 @@ test("ファイル:行 の根拠はファイルの実在と行の範囲を確か
   const r = run({ tableData: table({ items }) });
   expect(r.code).toBe(1);
   expect(
-    r.json.findings.filter((f: { code: string }) => f.code === "evidence-invalid"),
+    r.json?.findings?.filter((f: { code: string }) => f.code === "evidence-invalid"),
   ).toHaveLength(2);
 });
 
@@ -370,11 +381,11 @@ test("チェックリストの無い Issue は散文からの行だけの表で�
   ];
   const r = run({ issueData: prose, tableData: table({ issueData: prose, items }) });
   expect(r.code).toBe(0);
-  expect(r.json.counts.checklist).toBe(0);
+  expect(r.json?.counts?.checklist).toBe(0);
 });
 
 test("同梱テンプレートのプレースホルダのまま提出した表は通さない", () => {
-  const template = JSON.parse(
+  const template = parseJsonAs<Record<string, unknown> & { issue: Record<string, unknown> }>(
     readFileSync(
       new URL("../../../skills/issue-start/assets/acceptance-template.json", import.meta.url),
       "utf8",
@@ -400,7 +411,7 @@ test("later は満たす後工程が無ければ落とし、あれば通すが I
     extra: ["--allow-later", "parity-diff"],
   });
   expect(owned.code).toBe(0);
-  expect(owned.json.closable).toBe(false);
+  expect(owned.json?.closable).toBe(false);
 });
 
 test("later は呼び出し元が --allow-later で許した後工程にだけ回せる", () => {

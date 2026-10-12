@@ -10,6 +10,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseJsonAs } from "../../lib/parse-as.ts";
 import { makeTempDir } from "../../lib/test-tmpdir.ts";
 import {
   PATHS,
@@ -170,7 +171,7 @@ test("CLI: 揃った記録で exit 0、実行パスの抜けで exit 1、引数�
 });
 
 test("eval fixture の完了済みの記録（対象でない部品）は通る", () => {
-  const metadata = JSON.parse(
+  const metadata = parseJsonAs<{ lifecycle: unknown }>(
     readFileSync(
       join(
         repoRoot,

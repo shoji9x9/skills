@@ -36,7 +36,22 @@ export const VERSION = "1";
  * 行の状態の語彙（原本）。met / waived / deferred / later だけが完了の側である。
  * later は同じ流れの後工程が満たす条件（例: parity-replace の完了時点での parity-diff の収束）で、Issue は閉じない。
  */
-export const STATUSES = ["met", "unmet", "pending-decision", "waived", "deferred", "later"];
+export const STATUSES = /** @type {const} */ ([
+  "met",
+  "unmet",
+  "pending-decision",
+  "waived",
+  "deferred",
+  "later",
+]);
+
+/** 行の状態。STATUSES から導く（型と値を二重に持たない）。 @typedef {(typeof STATUSES)[number]} Status */
+
+/**
+ * @param {string} value
+ * @returns {value is Status}
+ */
+const isStatus = (value) => STATUSES.some((s) => s === value);
 
 /**
  * 行の出所の語彙。checklist は本文のチェックリストの項目そのもの、title / body / comment は散文からの引用。
@@ -162,7 +177,7 @@ export function checklistItems(html) {
   };
   let last = 0;
   for (const m of html.matchAll(TOKEN)) {
-    const index = /** @type {number} */ (m.index);
+    const index = m.index ?? 0;
     if (current !== null) current += decodeEntities(html.slice(last, index));
     last = index + m[0].length;
     if (m[2] === undefined) continue; // HTML コメント
@@ -453,11 +468,11 @@ export function checkAcceptance(input) {
     }
 
     const status = raw.status;
-    if (typeof status !== "string" || !STATUSES.includes(status)) {
+    if (typeof status !== "string" || !isStatus(status)) {
       add("status-invalid", row, `status が語彙外: ${String(status)}`);
       return;
     }
-    counts[/** @type {keyof typeof counts} */ (status)] += 1;
+    counts[status] += 1;
     if (status === "met") {
       const evidence = Array.isArray(raw.evidence) ? raw.evidence : [];
       // 根拠の無い met は「満たしたつもり」と区別できない。
@@ -596,7 +611,9 @@ export function main(argv, deps = {}) {
     try {
       parsed[key] = JSON.parse(readFileSync(path, "utf8"));
     } catch (error) {
-      return fail(`${path} を読めない: ${error && /** @type {Error} */ (error).message}`);
+      return fail(
+        `${path} を読めない: ${error && (typeof error === "object" && "message" in error ? error.message : undefined)}`,
+      );
     }
   }
   /** @type {Set<string> | null} */

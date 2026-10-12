@@ -33,6 +33,9 @@ import {
   RENDER_INPUTS,
   TARGET,
   amendVerifyPair,
+  type ChangeDeclaration,
+  type ComponentMetadata,
+  type FeatureMetadata,
   changeDeclaration,
   commit,
   featureMetadata,
@@ -65,6 +68,12 @@ type Project = ReturnType<typeof project>;
 /** amend-verify の記録の 1 組。 */
 type RecordPair = ReturnType<typeof amendVerifyPair>;
 
+/** amend-verify の記録のうち、テストが書き換える欄。 */
+type AmendRecord = { tool: string; change_id: string; pairs: RecordPair[] };
+
+/** 機能の metadata.json のうち、テストが消す欄を持つ形。 */
+type FeatureMetadataFile = FeatureMetadata & { suite: Record<string, unknown> };
+
 /** component-comparison-check の CLI が stdout に書く結果のうち、テストが読む部分。 */
 type ComparisonResult = { findings: { code: string; message: string }[]; notes: string[] };
 
@@ -87,7 +96,7 @@ function judge(p: Project, override: Partial<Parameters<typeof judgeCarry>[0]> =
 }
 
 /** 同梱テンプレートの render_inputs（プレースホルダ）。 */
-const templateRenderInputs = JSON.parse(
+const templateRenderInputs = parseJsonAs<{ new: { render_inputs: unknown } }>(
   readFileSync(join(repoRoot, "skills/parity-replace/assets/metadata-template.json"), "utf8"),
 ).new.render_inputs;
 
@@ -242,7 +251,7 @@ test.concurrent("影響あり・amend-verify が全組 pass・画像の sha256 �
 test.concurrent("影響あり・kind が new-appearance: amend-verify が全組 pass でも持ち越さない", () => {
   const p = project();
   const path = join(p.root, p.changePath);
-  const change = JSON.parse(readFileSync(path, "utf8"));
+  const change = parseJsonAs<ChangeDeclaration>(readFileSync(path, "utf8"));
   writeJson(path, { ...change, kind: "new-appearance" });
   const result = judge(p);
   expect(result.ok).toBe(false);
@@ -252,7 +261,7 @@ test.concurrent("影響あり・kind が new-appearance: amend-verify が全組 
 test.concurrent("影響なし・kind が new-appearance: 影響しない機能は持ち越す（kind は影響する組の機械判定だけに使われる）", () => {
   const p = project();
   const path = join(p.root, p.changePath);
-  const change = JSON.parse(readFileSync(path, "utf8"));
+  const change = parseJsonAs<ChangeDeclaration>(readFileSync(path, "utf8"));
   writeJson(path, { ...change, kind: "new-appearance" });
   const result = judge(p, { featureMetadata: featureMetadata([["list", "default", "desktop"]]) });
   expect(result.findings).toEqual([]);
@@ -274,7 +283,7 @@ test.concurrent.each([
   (_key, verification) => {
     const p = project();
     const path = join(p.root, p.changePath);
-    const change = JSON.parse(readFileSync(path, "utf8"));
+    const change = parseJsonAs<ChangeDeclaration>(readFileSync(path, "utf8"));
     writeJson(path, {
       ...change,
       catalog_verification: { ...change.catalog_verification, ...verification },
@@ -287,7 +296,7 @@ test.concurrent.each([
 
 /** 記録の組を書き換える。 */
 function editRecordPair(p: Project, edit: (entry: RecordPair) => void) {
-  const record = JSON.parse(readFileSync(join(p.root, p.recordPath), "utf8"));
+  const record = parseJsonAs<AmendRecord>(readFileSync(join(p.root, p.recordPath), "utf8"));
   edit(record.pairs[0]);
   writeJson(join(p.root, p.recordPath), record);
 }
@@ -316,7 +325,7 @@ test.concurrent("影響あり・記録の領域が traits.json の rect と違�
 
 test.concurrent("影響あり・撮り直した組の traits.json が無い: 持ち越さない", () => {
   const p = project();
-  const record = JSON.parse(readFileSync(join(p.root, p.recordPath), "utf8"));
+  const record = parseJsonAs<AmendRecord>(readFileSync(join(p.root, p.recordPath), "utf8"));
   rmSync(join(p.root, dirname(record.pairs[0].inputs.new.path), "traits.json"));
   const result = judge(p);
   expect(result.ok).toBe(false);
@@ -435,7 +444,7 @@ test.concurrent("影響あり・影響する組が pass でない: 落とす", (
 
 test.concurrent("影響あり・判定後に画像を差し替えた（sha256 不一致）: 落とす", () => {
   const p = project();
-  const record = JSON.parse(readFileSync(join(p.root, p.recordPath), "utf8"));
+  const record = parseJsonAs<AmendRecord>(readFileSync(join(p.root, p.recordPath), "utf8"));
   writeFileSync(join(p.root, record.pairs[0].inputs.new.path), "PNG replaced\n");
   const result = judge(p);
   expect(result.ok).toBe(false);
@@ -444,7 +453,7 @@ test.concurrent("影響あり・判定後に画像を差し替えた（sha256 �
 
 test.concurrent("amend-verify の inputs のパスはプロジェクトルートから解決する（記録のディレクトリからではない）", () => {
   const p = project();
-  const record = JSON.parse(readFileSync(join(p.root, p.recordPath), "utf8"));
+  const record = parseJsonAs<AmendRecord>(readFileSync(join(p.root, p.recordPath), "utf8"));
   // 記録のディレクトリ相対に書き換える。ファイルは実在するがプロジェクトルートからは解決できない。
   // inputs.new は traits.json を引く起点にもなるので書き換えず、画像の解決規則だけを測る
   for (const key of ["prev_new", "current"]) {
@@ -473,7 +482,7 @@ test.concurrent.each([
   [
     "記録の change_id が違う",
     (p: Project) => {
-      const record = JSON.parse(readFileSync(join(p.root, p.recordPath), "utf8"));
+      const record = parseJsonAs<AmendRecord>(readFileSync(join(p.root, p.recordPath), "utf8"));
       record.change_id = "other";
       writeJson(join(p.root, p.recordPath), record);
     },
@@ -494,7 +503,7 @@ test.concurrent.each([
 
 test.concurrent("影響あり・usages だけで一致し領域が分からない組: amend-verify では持ち越さない", () => {
   const p = project();
-  const change = JSON.parse(readFileSync(join(p.root, p.changePath), "utf8"));
+  const change = parseJsonAs<ChangeDeclaration>(readFileSync(join(p.root, p.changePath), "utf8"));
   change.instances = [];
   change.usages = ["/orders"];
   writeJson(join(p.root, p.changePath), change);
@@ -535,7 +544,9 @@ test.concurrent.each([
   [
     "変更宣言が不正（states が空）",
     (p: Project) => {
-      const change = JSON.parse(readFileSync(join(p.root, p.changePath), "utf8"));
+      const change = parseJsonAs<ChangeDeclaration>(
+        readFileSync(join(p.root, p.changePath), "utf8"),
+      );
       change.states = [];
       writeJson(join(p.root, p.changePath), change);
     },
@@ -624,7 +635,9 @@ const comparisonCheck = join(
 function writeCheckerInputs(p: Project, recorded: string, wanted: string) {
   // artifact-health-check の他の節（採取物・反復実行・未測定）はキーごと持たない旧成果物として判定させない
   // （雛形のプレースホルダで落ちると、持ち越しの判定と区別できない）。
-  const metadata = JSON.parse(readFileSync(join(p.slugDir, "metadata.json"), "utf8"));
+  const metadata = parseJsonAs<FeatureMetadataFile>(
+    readFileSync(join(p.slugDir, "metadata.json"), "utf8"),
+  );
   delete metadata.artifact_health;
   delete metadata.unmeasured;
   delete metadata.suite.state_mutating;
@@ -759,13 +772,13 @@ test.concurrent("render_inputs の pathspec がどちらの版のファイルに
 
 test.concurrent("影響インスタンスのページがどの機能のページとも一致しない: この機能が影響なしでも持ち越さない", () => {
   const p = project({ scope: [["list", "default", "desktop"]] });
-  const component = JSON.parse(
+  const component = parseJsonAs<ComponentMetadata>(
     readFileSync(join(p.replaceRoot, "components/button/metadata.json"), "utf8"),
   );
   // 書き方の食い違い（末尾スラッシュ）: どの機能の capture_conditions.pages[].path とも一致しない
   component.instances[0].page = "/orders/";
   writeJson(join(p.replaceRoot, "components/button/metadata.json"), component);
-  const change = JSON.parse(readFileSync(join(p.root, p.changePath), "utf8"));
+  const change = parseJsonAs<ChangeDeclaration>(readFileSync(join(p.root, p.changePath), "utf8"));
   // usages は機能のページと一致させ、一致しないのはインスタンスだけにする（usages の検査と区別する）
   change.usages = ["/orders"];
   writeJson(join(p.root, p.changePath), change);
@@ -777,7 +790,7 @@ test.concurrent("影響インスタンスのページがどの機能のページ
 test.concurrent("変更宣言の usages がどの機能のページとも一致しない: 持ち越さない", () => {
   const p = project();
   const path = join(p.root, p.changePath);
-  const change = JSON.parse(readFileSync(path, "utf8"));
+  const change = parseJsonAs<ChangeDeclaration>(readFileSync(path, "utf8"));
   writeJson(path, { ...change, usages: [...change.usages, "/ordres"] });
   const result = judge(p);
   expect(result.ok).toBe(false);
@@ -786,7 +799,7 @@ test.concurrent("変更宣言の usages がどの機能のページとも一致�
 
 test.concurrent("影響インスタンスのページが別の機能のページにある: 一致しないに数えず持ち越す", () => {
   const p = project({ scope: [["list", "default", "desktop"]] });
-  const change = JSON.parse(readFileSync(join(p.root, p.changePath), "utf8"));
+  const change = parseJsonAs<ChangeDeclaration>(readFileSync(join(p.root, p.changePath), "utf8"));
   change.instances = ["pager-next", "search-submit"];
   writeJson(join(p.root, p.changePath), change);
   const other = featureMetadata([["search", "default", "desktop"]]);
@@ -898,7 +911,7 @@ test.concurrent("--carry-to: suite.new_green が真でない: 工程の節を飛
   const p = project();
   writeCheckerInputs(p, p.commits.base, p.commits.base);
   const replacePath = join(p.stageDir, "replace-metadata.json");
-  const replace = JSON.parse(readFileSync(replacePath, "utf8"));
+  const replace = parseJsonAs<{ suite: { new_green: unknown } }>(readFileSync(replacePath, "utf8"));
   replace.suite.new_green = false;
   writeJson(replacePath, replace);
   expect((await runBoth(p)).health.status).toBe(0);
