@@ -35,6 +35,7 @@ import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { computeImpact, isChangeKind, validateChange } from "./component-impact.mjs";
+import { isArray } from "./lib/is-array.mjs";
 
 /**
  * ツールのバージョン（原本）。判定規則を変えたら上げる。
@@ -68,7 +69,7 @@ function nonEmptyString(v) {
  * @returns {v is Record<string, unknown>}
  */
 function isPlainObject(v) {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
+  return typeof v === "object" && v !== null && !isArray(v);
 }
 
 /**
@@ -114,7 +115,7 @@ function isCarryChange(v) {
     typeof v.id === "string" &&
     typeof v.slug === "string" &&
     isChangeKind(v.kind) &&
-    Array.isArray(v.files) &&
+    isArray(v.files) &&
     v.files.every((f) => typeof f === "string") &&
     isPlainObject(v.commits) &&
     typeof v.commits.before === "string" &&
@@ -187,18 +188,19 @@ function checkGeometry(entry, change, instances, fromProject, readBytes) {
   } catch (e) {
     return `新側の traits.json を読めない（inputs.new には撮り直した組の screenshot.png を渡す）: ${traitsPath}（${reasonOf(e)}）`;
   }
-  if (!Array.isArray(traits)) return `新側の traits.json が配列でない: ${traitsPath}`;
+  if (!isArray(traits)) return `新側の traits.json が配列でない: ${traitsPath}`;
   /** @type {string[]} */
   const expected = [];
+  const traitObjects = traits.filter(isPlainObject);
   for (const { locator } of instances) {
-    const found = traits.filter((t) => isPlainObject(t) && t.name === locator);
+    const found = traitObjects.filter((t) => t.name === locator);
     const key = found.length === 1 ? rectKey(found[0].rect) : null;
     if (key === null) {
       return `新側の traits.json に影響インスタンスの論理名 ${JSON.stringify(locator)} の rect が 1 件だけある形でない（${found.length} 件）: ${traitsPath}`;
     }
     expected.push(key);
   }
-  const declared = Array.isArray(entry.declared_regions) ? entry.declared_regions.map(rectKey) : [];
+  const declared = isArray(entry.declared_regions) ? entry.declared_regions.map(rectKey) : [];
   if (declared.some((k) => k === null) || declared.length === 0) {
     return "declared_regions が矩形の配列でない";
   }
@@ -346,13 +348,14 @@ export function judgeCarry(input) {
   if (
     renderInputs === undefined ||
     renderInputs === null ||
-    (Array.isArray(renderInputs) && renderInputs.length === 0)
+    (isArray(renderInputs) && renderInputs.length === 0)
   ) {
     return { ok: false, legacy: true, findings: [], notes: [LEGACY_HINT], carried_by: [] };
   }
   if (
-    !Array.isArray(renderInputs) ||
-    !renderInputs.every((s) => nonEmptyString(s) && !/^\s*<[\s\S]*>\s*$/.test(s))
+    !isArray(renderInputs) ||
+    !renderInputs.every(nonEmptyString) ||
+    renderInputs.some((s) => /^\s*<[\s\S]*>\s*$/.test(s))
   ) {
     return fail(
       `replace-metadata.json の new.render_inputs が空でない文字列（git pathspec）の配列でない（雛形のプレースホルダを含む）: ${JSON.stringify(renderInputs)}`,
@@ -536,7 +539,7 @@ export function judgeCarry(input) {
         `${EVIDENCE_CARRY_FILE} が JSON として不正: ${input.evidenceCarryPath}（${reasonOf(e)}）`,
       );
     }
-    if (!isPlainObject(value) || !Array.isArray(value.carries)) {
+    if (!isPlainObject(value) || !isArray(value.carries)) {
       return fail(
         `${EVIDENCE_CARRY_FILE} が carries 配列を持つオブジェクトでない: ${input.evidenceCarryPath}`,
       );
@@ -767,7 +770,7 @@ export function judgeCarry(input) {
       continue;
     }
     const r = record.value;
-    if (!isPlainObject(r) || r.tool !== AMEND_VERIFY_TOOL || !Array.isArray(r.pairs)) {
+    if (!isPlainObject(r) || r.tool !== AMEND_VERIFY_TOOL || !isArray(r.pairs)) {
       findings.push(
         `amend-verify の記録の形でない（tool: ${AMEND_VERIFY_TOOL} と pairs 配列が要る）: ${recordPath}`,
       );
@@ -792,7 +795,7 @@ export function judgeCarry(input) {
       if (!isPlainObject(entry)) continue;
       if (entry.pass !== true) {
         findings.push(
-          `amend-verify の組 ${pair} が pass でない（${Array.isArray(entry.reasons) ? entry.reasons.join("; ") : "理由なし"}）: ${recordPath}`,
+          `amend-verify の組 ${pair} が pass でない（${isArray(entry.reasons) ? entry.reasons.join("; ") : "理由なし"}）: ${recordPath}`,
         );
         continue;
       }

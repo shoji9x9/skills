@@ -26,6 +26,7 @@ import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isArray } from "./lib/is-array.mjs";
 
 /**
  * ツールのバージョン（原本）。展開規則・照合規則・出力形状を変えたら上げる。
@@ -77,7 +78,7 @@ function nonEmptyString(v) {
  * @returns {v is Record<string, unknown>}
  */
 function isPlainObject(v) {
-  return Boolean(v) && typeof v === "object" && !Array.isArray(v);
+  return Boolean(v) && typeof v === "object" && !isArray(v);
 }
 
 /**
@@ -103,7 +104,7 @@ export function coverageFingerprint(table) {
  */
 export function captureFingerprint(capture) {
   /** @param {unknown} v */
-  const sorted = (v) => [...(Array.isArray(v) ? v : [])].map(String).sort();
+  const sorted = (v) => [...(isArray(v) ? v : [])].map(String).sort();
   return createHash("sha256")
     .update(
       JSON.stringify(
@@ -120,7 +121,7 @@ export function captureFingerprint(capture) {
 
 /** @param {unknown} v @returns {unknown} */
 function canonicalize(v) {
-  if (Array.isArray(v)) return v.map(canonicalize);
+  if (isArray(v)) return v.map(canonicalize);
   if (isPlainObject(v)) {
     return Object.fromEntries(
       Object.keys(v)
@@ -269,7 +270,7 @@ function absentEvidenceProblem(row, label, stateManifest) {
   if (!inAllowlist(source.kind, APPLICABLE_STATE_SOURCE_KINDS)) {
     return `${label}: applicable_states.source.kind（${String(source.kind)}）が ${APPLICABLE_STATE_SOURCE_KINDS.join(" / ")} のいずれでもない`;
   }
-  if (!Array.isArray(manifest.items) || manifest.items.length === 0) {
+  if (!isArray(manifest.items) || manifest.items.length === 0) {
     return `${label}: applicable_states.items が空`;
   }
   /** @type {Map<string, string>} */
@@ -284,11 +285,11 @@ function absentEvidenceProblem(row, label, stateManifest) {
     if (manifestStates.has(id)) return `${label}: applicable_states.items の id ${id} が重複`;
     manifestStates.set(id, String(item.transition));
   }
-  if (!Array.isArray(evidence.states) || evidence.states.length === 0) {
+  if (!isArray(evidence.states) || evidence.states.length === 0) {
     return `${label}: non-renderable の states が空`;
   }
   if (
-    !Array.isArray(evidence.expected_states) ||
+    !isArray(evidence.expected_states) ||
     evidence.expected_states.length === 0 ||
     evidence.expected_states.some((name) => !nonEmptyString(name))
   ) {
@@ -659,7 +660,7 @@ function gradeCellRow(row, isDuplicated, label, stateManifest, problems) {
     return true;
   }
   if (value === "present") {
-    const coveredBy = Array.isArray(cell.covered_by) ? cell.covered_by.filter(nonEmptyString) : [];
+    const coveredBy = isArray(cell.covered_by) ? cell.covered_by.filter(nonEmptyString) : [];
     if (coveredBy.length === 0) {
       problems.push(`${label}: value: present なのに covered_by が空（assertion になっていない）`);
       return true;
@@ -695,7 +696,7 @@ export function validateProfile(profile, source) {
   if (!nonEmptyString(p.version)) at("version が空");
   if (!nonEmptyString(p.applies_to)) at("applies_to が空（プロファイル選択の判断材料が残らない）");
 
-  const axes = Array.isArray(p.axes) ? p.axes : [];
+  const axes = isArray(p.axes) ? p.axes : [];
   if (axes.length === 0) at("axes が空");
   /** @type {Map<string, {kind: string, values: string[], flags: string[]}>} */
   const axisById = new Map();
@@ -718,8 +719,8 @@ export function validateProfile(profile, source) {
       at(`軸 ${id}: kind が element / enum のいずれでもない`);
       return;
     }
-    const values = Array.isArray(a.values) ? a.values.filter(nonEmptyString).map(String) : [];
-    const flags = Array.isArray(a.flags) ? a.flags.filter(nonEmptyString).map(String) : [];
+    const values = isArray(a.values) ? a.values.filter(nonEmptyString).map(String) : [];
+    const flags = isArray(a.flags) ? a.flags.filter(nonEmptyString).map(String) : [];
     if (a.kind === "enum" && values.length === 0) {
       at(`軸 ${id}: kind: enum なのに values が空（候補が 0 件になる）`);
     }
@@ -729,7 +730,7 @@ export function validateProfile(profile, source) {
     axisById.set(id, { kind: String(a.kind), values, flags });
   });
 
-  const rules = Array.isArray(p.candidate_rules) ? p.candidate_rules : [];
+  const rules = isArray(p.candidate_rules) ? p.candidate_rules : [];
   if (rules.length === 0) at("candidate_rules が空");
   /** @type {Set<string>} */
   const ruleIds = new Set();
@@ -751,7 +752,7 @@ export function validateProfile(profile, source) {
       return;
     }
     ruleIds.add(rid);
-    const ruleAxes = Array.isArray(r.axes) ? r.axes : [];
+    const ruleAxes = isArray(r.axes) ? r.axes : [];
     if (ruleAxes.length === 0) at(`ルール ${rid}: axes が空`);
     for (const axisId of ruleAxes) {
       if (!axisById.has(String(axisId)))
@@ -759,7 +760,7 @@ export function validateProfile(profile, source) {
     }
     // visual_states はキーごと省略させない。省略を「見た目が変わらない」として扱うと、
     // 状態を書き忘れたルールが、撮影状態の導出から警告なしに外れる（撮られない＝差 0 件と同じ見え方になる）。
-    if (!Array.isArray(r.visual_states)) {
+    if (!isArray(r.visual_states)) {
       at(
         `ルール ${rid}: visual_states が配列ではない（見た目が変わらないなら空配列と no_visual_state_reason を書く）`,
       );
@@ -809,7 +810,7 @@ export function validateProfile(profile, source) {
   // 要素は ルール id か、ルール id の配列（どれか 1 つが候補を生めばよい代替の組）。
   // 代替の組は、同じ要求を排他な guard で分けたルール（初期表示の列と、表示切替で出す列の行の選択など）に使う。
   // 別々の要素にすると、片方の guard に当たる要素しか無い正当な部品が「必須ルールの候補 0 件」で行き止まりになる。
-  const required = Array.isArray(p.required_rules) ? p.required_rules : [];
+  const required = isArray(p.required_rules) ? p.required_rules : [];
   /** @type {Map<string, string>} ルール id → 軸の並び（代替の組の同質性の照合に使う） */
   const axesOfRule = new Map();
   /** @type {Map<string, Record<string, unknown>>} ルール id → guard（代替の組の排他性の照合に使う） */
@@ -819,7 +820,7 @@ export function validateProfile(profile, source) {
   for (const rule of rules) {
     if (!isPlainObject(rule) || !nonEmptyString(rule.id)) continue;
     const r = rule;
-    axesOfRule.set(String(r.id), JSON.stringify(Array.isArray(r.axes) ? r.axes.map(String) : []));
+    axesOfRule.set(String(r.id), JSON.stringify(isArray(r.axes) ? r.axes.map(String) : []));
     guardOfRule.set(String(r.id), isPlainObject(r.guard) ? r.guard : {});
     if (nonEmptyString(r.requirement)) requirementOfRule.set(String(r.id), String(r.requirement));
   }
@@ -833,7 +834,7 @@ export function validateProfile(profile, source) {
   /** @type {Set<string>} */
   const seenRequired = new Set();
   for (const entry of required) {
-    const group = Array.isArray(entry) ? entry : [entry];
+    const group = isArray(entry) ? entry : [entry];
     if (group.length === 0 || !group.every(nonEmptyString)) {
       at("required_rules: 空の要素・空の代替の組・文字列でないルール id がある");
       continue;
@@ -885,7 +886,7 @@ export function validateProfile(profile, source) {
   } else {
     // 型の誤り（非文字列・空文字・入れ子）を filter で落としてから検査すると、残った要素だけが
     // 語彙・順序の検査を通り、不正な宣言が「適合」として配布される。先に生の要素を見る。
-    const rawSources = Array.isArray(enumeration.sources) ? enumeration.sources : null;
+    const rawSources = isArray(enumeration.sources) ? enumeration.sources : null;
     if (rawSources === null) {
       at("enumeration.sources が配列ではない（列挙元の kind を検査できず、どの値でも通る）");
     }
@@ -919,7 +920,7 @@ export function validateProfile(profile, source) {
     for (const key of ["procedure", "fail_closed"]) {
       if (!nonEmptyString(enumeration[key])) at(`enumeration.${key} が空`);
     }
-    const pitfalls = Array.isArray(enumeration.pitfalls)
+    const pitfalls = isArray(enumeration.pitfalls)
       ? enumeration.pitfalls.filter(nonEmptyString)
       : [];
     if (pitfalls.length === 0) {
@@ -929,7 +930,7 @@ export function validateProfile(profile, source) {
 
   const equivalence = isPlainObject(p.equivalence) ? p.equivalence : null;
   if (equivalence) {
-    const reducible = Array.isArray(equivalence.reducible_axes) ? equivalence.reducible_axes : [];
+    const reducible = isArray(equivalence.reducible_axes) ? equivalence.reducible_axes : [];
     for (const axisId of reducible) {
       if (!axisById.has(String(axisId)))
         at(`equivalence.reducible_axes: 未定義の軸 ${String(axisId)} を参照している`);
@@ -1027,7 +1028,7 @@ export function readEnumeration(enumeration, profile, label) {
       if (!nonEmptyString(source[key])) problems.push(`${label}: enumeration.source.${key} が空`);
     }
     const allowed = isPlainObject(profile.enumeration) ? profile.enumeration.sources : null;
-    const kinds = Array.isArray(allowed) ? allowed.map(String) : [];
+    const kinds = isArray(allowed) ? allowed.map(String) : [];
     if (kinds.length > 0 && nonEmptyString(source.kind) && !kinds.includes(String(source.kind))) {
       problems.push(
         `${label}: enumeration.source.kind（${String(source.kind)}）がプロファイルの sources にない`,
@@ -1063,7 +1064,7 @@ export function readEnumeration(enumeration, profile, label) {
   // 集合の出所（setInventoryProblems）と同じ扱いで落とす（判定側も同じ関数で見る）。
   problems.push(...staleIncompleteReasonProblems(en, label));
 
-  const axes = Array.isArray(profile.axes) ? profile.axes : [];
+  const axes = isArray(profile.axes) ? profile.axes.filter(isPlainObject) : [];
   const raw = isPlainObject(en.elements) ? en.elements : {};
   if (!isPlainObject(en.elements))
     problems.push(`${label}: enumeration.elements が JSON オブジェクトではない`);
@@ -1071,9 +1072,9 @@ export function readEnumeration(enumeration, profile, label) {
     const a = axis;
     if (a.kind !== "element") continue;
     const axisId = String(a.id);
-    const declaredFlags = Array.isArray(a.flags) ? a.flags.map(String) : [];
+    const declaredFlags = isArray(a.flags) ? a.flags.map(String) : [];
     const rawList = raw[axisId];
-    const list = Array.isArray(rawList) ? rawList : null;
+    const list = isArray(rawList) ? rawList : null;
     if (list === null) {
       // 軸ごと欠けているのは「その軸の要素が無い」ではなく「列挙していない」。空配列と区別する。
       problems.push(`${label}: 軸 ${axisId} の列挙が無い（要素が無いなら空配列と根拠を残す）`);
@@ -1159,7 +1160,7 @@ export function readJustifiedAbsences(raw, elements, label) {
   /** @type {Set<string>} */
   const elementScopes = new Set();
   if (raw === undefined) return { absences: { axes, elements: elementScopes }, problems };
-  if (!Array.isArray(raw)) {
+  if (!isArray(raw)) {
     problems.push(`${label}: justified_absences が配列ではない`);
     return { absences: { axes, elements: elementScopes }, problems };
   }
@@ -1221,24 +1222,26 @@ export function readJustifiedAbsences(raw, elements, label) {
  * @returns {Array<{id: string, rule: string, axes: Record<string, string>}>}
  */
 export function expandCandidates(profile, elements) {
-  const axes = Array.isArray(profile.axes) ? profile.axes : [];
+  const axes = isArray(profile.axes) ? profile.axes.filter(isPlainObject) : [];
   /** @type {Map<string, {kind: string, values: string[]}>} */
   const axisById = new Map();
   for (const axis of axes) {
     const a = axis;
     axisById.set(String(a.id), {
       kind: String(a.kind),
-      values: Array.isArray(a.values) ? a.values.map(String) : [],
+      values: isArray(a.values) ? a.values.map(String) : [],
     });
   }
-  const rules = Array.isArray(profile.candidate_rules) ? profile.candidate_rules : [];
+  const rules = isArray(profile.candidate_rules)
+    ? profile.candidate_rules.filter(isPlainObject)
+    : [];
   /** @type {Array<{id: string, rule: string, axes: Record<string, string>}>} */
   const candidates = [];
   for (const rule of rules) {
     const r = rule;
     const ruleId = String(r.id);
     /** @type {string[]} */
-    const ruleAxes = (Array.isArray(r.axes) ? r.axes : []).map(String);
+    const ruleAxes = (isArray(r.axes) ? r.axes : []).map(String);
     /** @type {Record<string, unknown>} */
     const guard = isPlainObject(r.guard) ? r.guard : {};
     /** @type {Array<Array<{value: string, flags: Record<string, boolean>}>>} */
@@ -1298,10 +1301,12 @@ export function expandCandidates(profile, elements) {
  * @returns {string[]|null} 根拠になった scope の一覧。説明が付かなければ null
  */
 export function justifiedEmptyAxis(profile, ruleId, elements, absences) {
-  const rules = Array.isArray(profile.candidate_rules) ? profile.candidate_rules : [];
-  const rule = rules.find((r) => isPlainObject(r) && String(r.id) === ruleId);
+  const rules = isArray(profile.candidate_rules)
+    ? profile.candidate_rules.filter(isPlainObject)
+    : [];
+  const rule = rules.find((r) => String(r.id) === ruleId);
   if (!rule) return null;
-  const ruleAxes = (Array.isArray(rule.axes) ? rule.axes : []).map(String);
+  const ruleAxes = (isArray(rule.axes) ? rule.axes : []).map(String);
   for (const axisId of ruleAxes) {
     const list = elements.get(axisId);
     if (list === undefined) continue; // enum 軸は列挙を持たないので免除の対象外
@@ -1327,10 +1332,10 @@ export function justifiedEmptyAxis(profile, ruleId, elements, absences) {
 export function checkEquivalenceClasses(classes, profile, candidateIndex, label) {
   /** @type {string[]} */
   const problems = [];
-  const list = Array.isArray(classes) ? classes : [];
+  const list = isArray(classes) ? classes : [];
   if (list.length === 0) return problems;
   const equivalence = isPlainObject(profile.equivalence) ? profile.equivalence : {};
-  const reducible = Array.isArray(equivalence.reducible_axes)
+  const reducible = isArray(equivalence.reducible_axes)
     ? equivalence.reducible_axes.map(String)
     : [];
 
@@ -1362,7 +1367,7 @@ export function checkEquivalenceClasses(classes, profile, candidateIndex, label)
       );
     }
 
-    const members = (Array.isArray(c.members) ? c.members : []).filter(nonEmptyString).map(String);
+    const members = (isArray(c.members) ? c.members : []).filter(nonEmptyString).map(String);
     if (members.length === 0) {
       problems.push(`${label}: 同値クラス ${cid}: members が空`);
       return;
@@ -1436,8 +1441,8 @@ export function checkEquivalenceClasses(classes, profile, candidateIndex, label)
  */
 function declaredCellCount(component) {
   const c = isPlainObject(component) ? component : {};
-  const items = Array.isArray(c.items) ? c.items.length : 0;
-  const instances = Array.isArray(c.instances) ? c.instances.length : 0;
+  const items = isArray(c.items) ? c.items.length : 0;
+  const instances = isArray(c.instances) ? c.instances.length : 0;
   return Math.max(items * instances, 1);
 }
 
@@ -1451,17 +1456,17 @@ function declaredCellCount(component) {
  * @returns {number}
  */
 function unscoredProfiledCellCount(c) {
-  const instances = Array.isArray(c.instances) ? c.instances : [];
+  const instances = isArray(c.instances) ? c.instances : [];
   let recordedBound = 0;
   for (const instance of instances) {
     const inst = isPlainObject(instance) ? instance : {};
-    const recorded = (Array.isArray(inst.candidates) ? inst.candidates : []).filter(nonEmptyString);
+    const recorded = (isArray(inst.candidates) ? inst.candidates : []).filter(nonEmptyString);
     const unique = new Set(recorded.map(String)).size;
     const enumeration = isPlainObject(inst.enumeration) ? inst.enumeration : {};
     const elements = isPlainObject(enumeration.elements)
       ? Object.values(enumeration.elements).reduce(
           /** @param {number} n @param {unknown} list */
-          (n, list) => n + (Array.isArray(list) ? list.length : 0),
+          (n, list) => n + (isArray(list) ? list.length : 0),
           0,
         )
       : 0;
@@ -1496,7 +1501,7 @@ export function reconcile(coverage, profiles, metadata = null) {
     };
   }
   const cov = coverage;
-  const components = Array.isArray(cov.components) ? cov.components : [];
+  const components = isArray(cov.components) ? cov.components : [];
   if (components.length === 0) problems.push("components が空");
 
   // 部品の集合の出所と完全性。列挙しなかった部品は期待セルにも現れないため、宣言が無いと
@@ -1508,7 +1513,7 @@ export function reconcile(coverage, profiles, metadata = null) {
   }
 
   // セル行を 部品／項目／インスタンス で索引する（キーは JSON 配列にして区切り文字の衝突を避ける）。
-  const rows = Array.isArray(cov.cells) ? cov.cells : [];
+  const rows = isArray(cov.cells) ? cov.cells : [];
   /** @type {Map<string, Record<string, unknown>>} */
   const byKey = new Map();
   /** @type {Set<string>} */
@@ -1583,8 +1588,8 @@ export function reconcile(coverage, profiles, metadata = null) {
       }
       // プロファイルを宣言しない部品でも期待セルは 項目 × インスタンス で存在する。
       // 候補展開はしないが、セルの判定規則は候補を展開する場合と同じものを当てる（記録側だけ通る表を作らない）。
-      const genericItems = Array.isArray(c.items) ? c.items : [];
-      const genericInstances = Array.isArray(c.instances) ? c.instances : [];
+      const genericItems = isArray(c.items) ? c.items : [];
+      const genericInstances = isArray(c.instances) ? c.instances : [];
       if (genericItems.length === 0 || genericInstances.length === 0) {
         // 空の列挙は期待セル 0 ＝ 未測定 0 と誤って判定されるので、1 件の未測定として数える
         // （判定側の coverage-check.mjs と同じ扱い）。
@@ -1659,14 +1664,14 @@ export function reconcile(coverage, profiles, metadata = null) {
       );
     }
 
-    const instances = Array.isArray(c.instances) ? c.instances : [];
+    const instances = isArray(c.instances) ? c.instances : [];
     if (instances.length === 0) {
       problems.push(`部品 ${cid}: instances が空（列挙が起きていない）`);
       unmeasured += 1;
     }
 
     // 項目 id → 記録された candidate（余剰の検出に使う）。
-    const items = Array.isArray(c.items) ? c.items : [];
+    const items = isArray(c.items) ? c.items : [];
     /** @type {Map<string, Record<string, unknown>>} */
     const itemById = new Map();
     for (const [i, item] of items.entries()) {
@@ -1738,8 +1743,8 @@ export function reconcile(coverage, profiles, metadata = null) {
 
       const candidates = expandCandidates(profile, elements);
       // 要素は ルール id か代替の組（validateProfile が形を検査済み）。組はどれか 1 つが候補を生めば満たす。
-      const required = (Array.isArray(profile.required_rules) ? profile.required_rules : []).map(
-        (entry) => (Array.isArray(entry) ? entry.map(String) : [String(entry)]),
+      const required = (isArray(profile.required_rules) ? profile.required_rules : []).map(
+        (entry) => (isArray(entry) ? entry.map(String) : [String(entry)]),
       );
       const usedAbsences = new Set();
       for (const group of required) {
@@ -1861,9 +1866,7 @@ export function reconcile(coverage, profiles, metadata = null) {
           continue;
         }
         if (value === "present") {
-          const coveredBy = Array.isArray(row.covered_by)
-            ? row.covered_by.filter(nonEmptyString)
-            : [];
+          const coveredBy = isArray(row.covered_by) ? row.covered_by.filter(nonEmptyString) : [];
           if (coveredBy.length === 0) {
             problems.push(
               `${label}: 候補 ${cand.id}: value: present なのに covered_by が空（assertion になっていない）`,
@@ -1888,7 +1891,7 @@ export function reconcile(coverage, profiles, metadata = null) {
       // 1 件の未測定にする。記録から漏れた候補は判定側で採点されないので、記録側も未測定に数える
       // （空・無いときは判定側と同じ 1 件。一部だけ漏れたときは漏れた件数で、判定側の数え直し以上になる）。
       // 候補ループで既に未測定へ数えた候補は足さない（セル行も記録も無い候補を 2 件に数えない）。
-      if (Array.isArray(inst.candidates)) {
+      if (isArray(inst.candidates)) {
         const recorded = inst.candidates.filter(nonEmptyString).map(String);
         const expected = candidates.map((cand) => cand.id);
         const missing = expected.filter((id) => !recorded.includes(id));
@@ -1994,8 +1997,8 @@ export function deriveVisualStateRows(cov) {
   const problems = [];
   /** @type {Map<string, {component: string, instance: string, required_by: string, kind: string}>} */
   const derived = new Map();
-  const components = Array.isArray(cov.components) ? cov.components : [];
-  const cells = Array.isArray(cov.cells) ? cov.cells : [];
+  const components = isArray(cov.components) ? cov.components : [];
+  const cells = isArray(cov.cells) ? cov.cells : [];
 
   // 部品 → "<インスタンス id>/<候補 id>" → 視覚採取する代表 "<インスタンス id>/<候補 id>" の対応である。
   // 縮約してよい軸かどうか・所属の全体性・根拠・代表の妥当性は、checkEquivalenceClasses が
@@ -2013,12 +2016,12 @@ export function deriveVisualStateRows(cov) {
     if (representativeOf.has(cid)) continue;
     /** @type {Map<string, string>} */
     const byMember = new Map();
-    for (const klass of Array.isArray(c.equivalence_classes) ? c.equivalence_classes : []) {
+    for (const klass of isArray(c.equivalence_classes) ? c.equivalence_classes : []) {
       if (!isPlainObject(klass)) continue;
       const k = klass;
       if (!nonEmptyString(k.representative)) continue;
       const representative = String(k.representative);
-      for (const member of Array.isArray(k.members) ? k.members : []) {
+      for (const member of isArray(k.members) ? k.members : []) {
         if (!nonEmptyString(member)) continue;
         // 同じ候補が複数クラスに属する表は checkEquivalenceClasses が落とす。先勝ちにしない。
         if (byMember.has(String(member))) byMember.set(String(member), "");
@@ -2040,7 +2043,7 @@ export function deriveVisualStateRows(cov) {
     if (itemsByComponent.has(cid)) continue;
     /** @type {Map<string, {kinds: string[], requiredBy: string}>} */
     const byItem = new Map();
-    for (const item of Array.isArray(c.items) ? c.items : []) {
+    for (const item of isArray(c.items) ? c.items : []) {
       if (!isPlainObject(item)) continue;
       const it = item;
       if (!nonEmptyString(it.id)) continue;
@@ -2051,7 +2054,7 @@ export function deriveVisualStateRows(cov) {
       // （datagrid の column-sort は sort-direction へ展開されるが、その軸は reducible_axes に無い）。
       // 縮約は宣言・検証済みの同値クラス経由でだけ行う（下の representativeOf）。
       const requiredBy = iid;
-      if (!Array.isArray(it.visual_states)) {
+      if (!isArray(it.visual_states)) {
         problems.push(
           `部品 ${cid}: 項目 ${iid}: visual_states が配列ではない（見た目が変わらないなら空配列と no_visual_state_reason を書く。プロファイル宣言済みなら --write で書き戻す）`,
         );
@@ -2159,7 +2162,7 @@ export function fillVisualStateRows(cov) {
   const previous = isPlainObject(cov.visual_state_coverage) ? cov.visual_state_coverage : {};
   /** @type {Map<string, Record<string, unknown>>} */
   const prevByKey = new Map();
-  for (const row of Array.isArray(previous.rows) ? previous.rows : []) {
+  for (const row of isArray(previous.rows) ? previous.rows : []) {
     if (!isPlainObject(row)) continue;
     const r = row;
     if (
@@ -2199,7 +2202,7 @@ export function checkVisualStates(cov, metadata) {
   const recordedBlock = isPlainObject(cov.visual_state_coverage) ? cov.visual_state_coverage : null;
   /** @type {Map<string, Record<string, unknown>>} */
   const recorded = new Map();
-  if (!recordedBlock || !Array.isArray(recordedBlock.rows)) {
+  if (!recordedBlock || !isArray(recordedBlock.rows)) {
     // キーの欠落を「行が無い＝要求が無い」として扱わない。導出を一度も実行していない表を通さないためである。
     problems.push(
       "visual_state_coverage.rows が無い（coverage-expand.mjs --write で撮影状態を導出する）",
@@ -2240,7 +2243,7 @@ export function checkVisualStates(cov, metadata) {
   const pageNames =
     metadata === null
       ? null
-      : Array.isArray(metadata.pageNames)
+      : isArray(metadata.pageNames)
         ? new Set(metadata.pageNames)
         : "unreadable";
   /** @type {Set<string>} */
@@ -2255,11 +2258,11 @@ export function checkVisualStates(cov, metadata) {
   // 落とすのは撮影状態を要求する行を持つインスタンスだけ（要求が無ければ撮影単位も無い）。
   /** @type {Map<string, string>} */
   const scopeByInstance = new Map();
-  for (const component of Array.isArray(cov.components) ? cov.components : []) {
+  for (const component of isArray(cov.components) ? cov.components : []) {
     if (!isPlainObject(component)) continue;
     const c = component;
     if (!nonEmptyString(c.id)) continue;
-    for (const instance of Array.isArray(c.instances) ? c.instances : []) {
+    for (const instance of isArray(c.instances) ? c.instances : []) {
       if (!isPlainObject(instance)) continue;
       const inst = instance;
       if (!nonEmptyString(inst.id)) continue;
@@ -2392,7 +2395,7 @@ export function checkVisualStates(cov, metadata) {
  * @returns {Record<string, unknown>}
  */
 export function fillVisualStates(coverage, profiles) {
-  const components = Array.isArray(coverage.components) ? coverage.components : [];
+  const components = isArray(coverage.components) ? coverage.components : [];
   for (const component of components) {
     if (!isPlainObject(component)) continue;
     const c = component;
@@ -2401,16 +2404,16 @@ export function fillVisualStates(coverage, profiles) {
     if (!profile) continue;
     /** @type {Map<string, {kinds: string[], reason: string | null}>} */
     const byRule = new Map();
-    for (const rule of Array.isArray(profile.candidate_rules) ? profile.candidate_rules : []) {
+    for (const rule of isArray(profile.candidate_rules) ? profile.candidate_rules : []) {
       if (!isPlainObject(rule)) continue;
       const r = rule;
-      if (!nonEmptyString(r.id) || !Array.isArray(r.visual_states)) continue;
+      if (!nonEmptyString(r.id) || !isArray(r.visual_states)) continue;
       byRule.set(String(r.id), {
         kinds: r.visual_states.map(String),
         reason: nonEmptyString(r.no_visual_state_reason) ? String(r.no_visual_state_reason) : null,
       });
     }
-    for (const item of Array.isArray(c.items) ? c.items : []) {
+    for (const item of isArray(c.items) ? c.items : []) {
       if (!isPlainObject(item)) continue;
       const it = item;
       const candidate = isPlainObject(it.candidate) ? it.candidate : null;
@@ -2436,7 +2439,7 @@ export function fillVisualStates(coverage, profiles) {
  * @returns {Record<string, unknown>}
  */
 export function fillCandidates(coverage, profiles) {
-  const components = Array.isArray(coverage.components) ? coverage.components : [];
+  const components = isArray(coverage.components) ? coverage.components : [];
   for (const component of components) {
     if (!isPlainObject(component)) continue;
     const c = component;
@@ -2444,7 +2447,7 @@ export function fillCandidates(coverage, profiles) {
     const profile = profiles.get(String(c.profile));
     if (!profile) continue;
     c.profile_version = String(profile.version);
-    const instances = Array.isArray(c.instances) ? c.instances : [];
+    const instances = isArray(c.instances) ? c.instances : [];
     for (const instance of instances) {
       if (!isPlainObject(instance)) continue;
       const inst = instance;
@@ -2493,12 +2496,12 @@ export function readCaptureConditions(parsed) {
   if (!nonEmptyString(meta.slug)) return null;
   if (!isPlainObject(meta.capture_conditions)) return null;
   const cc = meta.capture_conditions;
-  if (!Array.isArray(cc.states)) return null;
+  if (!isArray(cc.states)) return null;
   // pages は撮影の外側のループ（parity-diff の採取スペックは pages × states × viewports で回す）。
   // 宣言されたページ名の集合を返さないと、網羅表の instances[].page が実在するかを照合できない。
-  if (!Array.isArray(cc.pages)) return null;
+  if (!isArray(cc.pages)) return null;
   // popup_inventory はキーの欠落と空配列を区別する（欠落は棚卸し未実施＝照合できない）。
-  if (!Array.isArray(cc.popup_inventory)) return null;
+  if (!isArray(cc.popup_inventory)) return null;
   /** @type {string[]} */
   const popupStates = [];
   for (const row of cc.popup_inventory) {

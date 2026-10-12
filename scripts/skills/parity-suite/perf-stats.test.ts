@@ -1199,6 +1199,19 @@ describe("compare", () => {
     expect(perf.regressed).toEqual([]);
   });
 
+  test("基準の組にオブジェクトでない要素があれば、要素の形の誤りとして exit 2", () => {
+    // 基準の統計を作り直して突き合わせる処理も、この要素を読まずに不一致とする（null の欄を読んで例外にしない）。
+    // 要素を足すと組の数が合わず、作り直しの処理が要素を読む前に不一致で返るので、置き換えて数をそろえる
+    const base = summarized();
+    const [first, ...rest] = base.meta.performance.pairs;
+    expect(rest.length).toBeGreaterThan(0);
+    const pairs = [first, ...rest.slice(0, -1), null];
+    const meta = { ...base.meta, performance: { ...base.meta.performance, pairs } };
+    const r = compareRun(samplesDoc("new", bothPairs()), { base, meta });
+    expect(r.code).toBe(2);
+    expect(r.err).toContain("performance.pairs の要素の形が違う");
+  });
+
   test.each([
     ["ブラウザの版", { environment: { ...environment(), browser_version: "154.0" } }],
     ["待つ時間", { settings: { ...settings(), settle_ms: 2000 } }],

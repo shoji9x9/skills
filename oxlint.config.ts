@@ -26,6 +26,33 @@ export default defineConfig({
       },
     },
     {
+      // 配列への絞り込みは、`Array.isArray` ではなく `isArray`（scripts/lib/is-array.ts、配布スキルは各スキルの
+      // scripts/lib/is-array.mjs）で行う。組み込みの `Array.isArray` は `any[]` に絞るので、要素を読む処理で型の検査が外れる。
+      // 利用者のプロジェクトへコピーする雛形（skills/*/assets/）は import できないので、同じ関数をファイルの中に持つ。
+      // ユーティリティの中で組み込みの判定を呼ぶ 1 行は、その行の disable コメントで外す。
+      // eval の fixture は下流のプロジェクトの書き方をそのまま持つので、対象にしない。
+      // 直下の設定ファイルは `./*.ts` で指す（`*.ts` は深い階層にも当たり、eval の fixture まで含む）。
+      files: [
+        "./*.ts",
+        "types/**",
+        "scripts/**",
+        ".agents/skills/*/scripts/**",
+        "skills/*/scripts/**",
+        "skills/*/assets/**",
+      ],
+      rules: {
+        "no-restricted-properties": [
+          "error",
+          {
+            object: "Array",
+            property: "isArray",
+            message:
+              "isArray（scripts/lib/is-array.ts、配布スキルは scripts/lib/is-array.mjs）を使う。Array.isArray は any[] に絞る",
+          },
+        ],
+      },
+    },
+    {
       // eval の fixture は、エージェントに渡す下流のプロジェクトの断片で、そのプロジェクトの書き方をそのまま持つ
       // （React の雛形の `createRoot(document.getElementById("root")!)` など）。書き換えると eval の入力が変わり、
       // eval を実行し直す必要がある（docs/skill-development.md）。non-null の表明だけを外し、他のルールは残す。

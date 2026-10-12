@@ -360,6 +360,10 @@ test.each([
 
 test.each([
   ["空の配列", [], /non-empty JSON array/],
+  // object でない要素は、欠けた欄の名前ではなく、要素そのものの形の誤りとして報告する。
+  ["要素が null", [null], /--pairs\[0\] must be an object/],
+  ["要素が数", [1], /--pairs\[0\] must be an object/],
+  ["要素が配列", [["a", "b"]], /--pairs\[0\] must be an object/],
   [
     "領域が空",
     [{ pair: "p", prev_new: "a", new: "b", current: "c", regions: [] }],

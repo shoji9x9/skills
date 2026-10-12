@@ -16,6 +16,7 @@ import { join, relative } from "node:path";
 import { splitFrontmatter } from "../lib/frontmatter.ts";
 import { errorMessage, isErrnoException } from "../lib/errors.ts";
 import { loadYamlAs } from "../lib/yaml-as.ts";
+import { isArray } from "../lib/is-array.ts";
 
 const SRC_ROOT = "skills";
 const INSTALLED_ROOT = ".agents/skills";
@@ -33,7 +34,7 @@ function listFiles(dir: string): string[] {
 }
 
 function sortKeys(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(sortKeys);
+  if (isArray(value)) return value.map(sortKeys);
   if (value && typeof value === "object") {
     return Object.fromEntries(
       Object.entries(value)

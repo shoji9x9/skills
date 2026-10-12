@@ -77,6 +77,37 @@ function parseJsonAs<T>(text: string): T {
   return value as T;
 }
 
+// `scripts/lib/is-array.ts` と同じ内容を持つ（`scripts/gates/identical-copies.json` の組で一致を確かめる）。
+// is-array:begin
+// `Array.isArray` は `arg is any[]` なので、`unknown` の値を絞ると `any[]` になり、要素を読む処理で型の検査が外れる。
+// `isArray` は、入力が `unknown` か `any` なら `unknown[]` に絞る。入力の union の配列の部分（`number[] | undefined` の
+// `number[]`、`readonly` の配列、タプル）はそのまま保ち、配列でない側は入力から配列の部分を除いた型にする。
+// 配列を含みうる型（`object`・`{}`・`Iterable<string>`）は、その型と `unknown[]` の交差にする。
+
+/** `T` のうち配列の部分。`unknown` と `any` は `unknown[]`、配列を含みうる型は `unknown[]` との交差にする。 */
+type ArrayPart<T> = 0 extends 1 & T
+  ? unknown[]
+  : unknown extends T
+    ? unknown[]
+    : T extends readonly unknown[]
+      ? T
+      : never[] extends T
+        ? T & unknown[]
+        : never;
+
+/**
+ * 型ガードの述語に使う形。述語の型は引数の型に代入できる必要がある（TS2677）。条件型のままでは
+ * tsc がそれを確かめられないので、代入できる場合だけ `ArrayPart<T>` にする（具体的な型では常に代入できる）。
+ */
+type ArrayNarrowed<T> = ArrayPart<T> extends T ? ArrayPart<T> : never;
+
+/** 配列か。配列なら、入力の型の配列の部分に絞る。 */
+function isArray<T>(value: T): value is ArrayNarrowed<T> {
+  // oxlint-disable-next-line no-restricted-properties -- 組み込みの判定を呼ぶのは、この関数の中だけにする
+  return Array.isArray(value);
+}
+// is-array:end
+
 const SPEC_DIR = "scripts";
 const SPEC_SUFFIX = ".mutations.json";
 // `check-mutation-proof.test.ts` が `scripts/` 直下に作る使い捨ての fixture。中の宣言はチェックの対象ではない
@@ -656,18 +687,20 @@ function loadSpec(specPath: string): Spec {
   }
   // 不正な宣言は「実証できない変異がある」（exit 1）ではなく、前提の誤り（exit 2）にする。
   // そのまま通すと後続の参照が TypeError になり、CI では本物の実証の失敗と同じ失敗に見える。
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
-    die(`${specPath} が JSON オブジェクトでない（${Array.isArray(raw) ? "配列" : String(raw)}）`);
+  if (typeof raw !== "object" || raw === null || isArray(raw)) {
+    die(`${specPath} が JSON オブジェクトでない（${isArray(raw) ? "配列" : String(raw)}）`);
   }
   const testFile = asString(raw.test_file, `${specPath}: test_file`);
   const testPath = resolve(repoRoot, testFile);
   if (!existsSync(testPath)) die(`${specPath}: test_file が実在しない: ${testPath}`);
-  if (!Array.isArray(raw.mutations) || raw.mutations.length === 0) {
+  if (!isArray(raw.mutations) || raw.mutations.length === 0) {
     die(`${specPath}: mutations が空`);
   }
   const ids = new Set<string>();
-  const mutations = raw.mutations.map((m: RawMutation, i: number): Mutation => {
+  const mutations = raw.mutations.map((entry, i): Mutation => {
     const at = `${specPath}: mutations[${i}]`;
+    // object でない要素は、欄が無いものとして読み、次の id の検査で落とす。
+    const m: RawMutation = typeof entry === "object" && entry !== null ? entry : {};
     const id = asString(m.id, `${at}.id`);
     if (ids.has(id)) die(`${at}.id が重複: ${id}`);
     ids.add(id);
@@ -684,7 +717,7 @@ function loadSpec(specPath: string): Spec {
     if (typeof occurrences !== "number" || !Number.isInteger(occurrences) || occurrences < 1) {
       die(`${at}(${id}).occurrences が 1 以上の整数でない`);
     }
-    if (!Array.isArray(m.expect_failing) || m.expect_failing.length === 0) {
+    if (!isArray(m.expect_failing) || m.expect_failing.length === 0) {
       die(`${at}(${id}).expect_failing が空`);
     }
     const expect = m.expect_failing.map((name: unknown, j: number) =>

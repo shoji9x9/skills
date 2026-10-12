@@ -96,6 +96,15 @@
       "replace": "    else pairs.push(entry);",
       "occurrences": 1,
       "expect_failing": ["mergeRecord は同じ pair id の組を置き換え、新しい組を末尾に足す"]
+    },
+    {
+      "id": "pairs-item-not-record",
+      "why": "--pairs の object でない要素を弾かない（null で TypeError になり、配列は欠けた欄の名前で報告する）",
+      "file": "skills/parity-diff/scripts/amend-verify.mjs",
+      "find": "    if (!isRecord(item)) return { error: `${where} must be an object` };\n",
+      "replace": "    if (item === null) return { error: `${where} must be an object` };\n",
+      "occurrences": 1,
+      "expect_failing": ["--pairs が 要素が数 なら exit 2", "--pairs が 要素が配列 なら exit 2"]
     }
   ]
 }

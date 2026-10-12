@@ -25,6 +25,7 @@ import { dirname, join, resolve } from "node:path";
 import { errorMessage } from "../lib/errors.ts";
 import { isRecord } from "../lib/guards.ts";
 import { parseJsonAs } from "../lib/parse-as.ts";
+import { isArray } from "../lib/is-array.ts";
 
 const CONFIGURATIONS = ["with_skill", "without_skill"] as const;
 
@@ -143,7 +144,7 @@ function readJson(path: string): JsonObject {
   // 素通りさせると後続のプロパティ参照が TypeError（exit 1）になり、このスクリプトが
   // 宣言していない出口で落ちる（0 = 生成した / 2 = 入力・整合性の誤り）。
   if (!isRecord(value)) {
-    die(`${path} が JSON オブジェクトでない（${Array.isArray(value) ? "配列" : String(value)}）`);
+    die(`${path} が JSON オブジェクトでない（${isArray(value) ? "配列" : String(value)}）`);
   }
   return value;
 }
@@ -234,7 +235,7 @@ function verdictsFromGrading(grading: JsonObject, where: string) {
     if (
       typeof grading.verdicts !== "object" ||
       grading.verdicts === null ||
-      Array.isArray(grading.verdicts)
+      isArray(grading.verdicts)
     ) {
       die(
         `${where}: verdicts は assertion テキストをキーにしたオブジェクトで渡す（配列は受理しない）`,
@@ -245,11 +246,11 @@ function verdictsFromGrading(grading: JsonObject, where: string) {
     }
     return map;
   }
-  if (!Array.isArray(grading.expectations)) {
+  if (!isArray(grading.expectations)) {
     die(`${where}: expectations（配列）か verdicts（テキストをキーにしたオブジェクト）が要る`);
   }
   grading.expectations.forEach((item, i) => {
-    if (typeof item !== "object" || item === null || Array.isArray(item)) {
+    if (!isRecord(item)) {
       die(
         `${where}: expectations[${i}] が {text, passed, evidence} のオブジェクトでない（位置配列は受理しない）`,
       );
@@ -327,7 +328,7 @@ function loadRun(runDir: string, configuration: string, evalDir: string) {
   if (Number(named[1]) !== evalId) {
     die(`${metaPath}: eval_id=${evalId} がディレクトリ名（${evalDir}）と違う`);
   }
-  if (!Array.isArray(meta.assertions) || meta.assertions.length === 0) {
+  if (!isArray(meta.assertions) || meta.assertions.length === 0) {
     die(`${metaPath}: assertions が空`);
   }
   const assertions = meta.assertions.map((text: unknown, i: number): string => {
@@ -684,7 +685,7 @@ function main() {
           .split("\n")
           .map((l) => l.trim())
           .filter(Boolean);
-    if (!Array.isArray(notes) || notes.some((n) => typeof n !== "string")) {
+    if (!isArray(notes) || notes.some((n) => typeof n !== "string")) {
       die(`--notes-file は 1 行 1 note のテキストか、文字列配列の JSON`);
     }
   }

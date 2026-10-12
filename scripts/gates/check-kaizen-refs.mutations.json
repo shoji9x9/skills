@@ -329,7 +329,7 @@
       "id": "KR-EXEMPTION-SHAPE",
       "why": "形の崩れた免除の宣言を受理する",
       "file": "scripts/gates/check-kaizen-refs.ts",
-      "find": "  if (!Array.isArray(list) || !list.every(ok)) {",
+      "find": "  if (!isArray(list) || !list.every(ok)) {",
       "replace": "  if (false) {",
       "occurrences": 1,
       "expect_failing": [

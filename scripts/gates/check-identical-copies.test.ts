@@ -10,10 +10,13 @@
 // | ---------------- | ---------------------------------------------------------------------- |
 // | 宣言ファイル     | 在る / 無い / JSON でない                                               |
 // | groups           | 1 件 / 複数件 / 0 件 / 配列でない                                       |
-// | files            | 2 件 / 3 件以上 / 1 件 / 空文字を含む / 組をまたいで重複                |
+// | files            | 2 件 / 3 件以上 / 1 件 / 空文字を含む / 組をまたいで重複 / 全体の組と範囲の組の両方 |
 // | reason           | 在る / 空白だけ                                                         |
 // | 宣言したファイル | 在る / 無い                                                             |
 // | 内容             | 完全一致 / 途中の行の追加 / 末尾改行だけの差 / 3 件中 1 件だけ違う        |
+// | region           | 無い / 在る / 名前が不正（空・大文字・文字列でない）                    |
+// | 印（region あり） | 1 組 / 無い / begin が重複 / end が begin より前 / 字下げした印           |
+// | 範囲の内容       | 一致して範囲の外だけ違う / 範囲の中の差 / 基準のファイルの印が崩れている |
 import { expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
@@ -22,6 +25,7 @@ import { fileURLToPath } from "node:url";
 import {
   DECLARATION_PATH,
   checkIdenticalCopies,
+  extractRegion,
   loadGroups,
   main,
 } from "./check-identical-copies.ts";
@@ -143,11 +147,33 @@ test.each([
   ["files に空文字", [group("a/x.md", "")]],
   ["reason が空白だけ", [{ files: ["a/x.md", "b/x.md"], reason: " " }]],
   ["組をまたいだ重複", [group("a/x.md", "b/x.md"), group("a/x.md", "c/x.md")]],
+  [
+    "同じ範囲の組をまたいだ重複",
+    [
+      { ...group("a/x.md", "b/x.md"), region: "is-array" },
+      { ...group("a/x.md", "c/x.md"), region: "is-array" },
+    ],
+  ],
+  ["region が空", [{ ...group("a/x.md", "b/x.md"), region: "" }]],
+  ["region に大文字", [{ ...group("a/x.md", "b/x.md"), region: "Is-array" }]],
+  ["region が文字列でない", [{ ...group("a/x.md", "b/x.md"), region: 1 }]],
 ])("陽性: 宣言が読めない（%s）なら exit 2（組 0 件＝違反なしとして扱わない）", (_, groups) => {
   const root = makeRepo({ "a/x.md": BODY, "b/x.md": BODY, "c/x.md": BODY }, groups);
   // 宣言の段で弾くこと（比較の段の読み取り失敗で偶然 exit 2 になる形と区別する）。
   expect(() => loadGroups(root)).toThrow();
   expect(main([root])).toBe(2);
+});
+
+test("ファイル全体の組と範囲の組の両方に属するファイルは、両方の組で比べる", () => {
+  const groups = [group("a/x.md", "b/x.md"), { ...group("a/x.md", "c/x.md"), region: "is-array" }];
+  const files = { "a/x.md": `head\n${REGION}`, "c/x.md": `other\n${REGION}` };
+  // 範囲の中は一致し、範囲の外だけが違う。範囲の組は通り、ファイル全体の組が違いを検出する。
+  expect(
+    checkIdenticalCopies(makeRepo({ ...files, "b/x.md": `head\n${REGION}` }, groups)).violations,
+  ).toEqual([]);
+  expect(
+    checkIdenticalCopies(makeRepo({ ...files, "b/x.md": `tail\n${REGION}` }, groups)).violations,
+  ).toEqual([expect.stringContaining("b/x.md: a/x.md と一致しない")]);
 });
 
 test("陽性: 宣言が JSON でなければ exit 2", () => {
@@ -164,4 +190,54 @@ test("検出の確認（CLI）: 子プロセスとして起動しても、不一
   const bad = spawnSync(process.execPath, [script, ng], { encoding: "utf8" });
   expect(bad.status).toBe(1);
   expect(bad.stderr).toMatch(/1 件の不一致/);
+});
+
+// ---- 範囲（region）を持つ組 ----
+
+const regionGroup = (...files: string[]) => ({ ...group(...files), region: "is-array" });
+const REGION = "// is-array:begin\nfunction isArray() {}\n// is-array:end\n";
+
+test("陰性: 範囲の中が一致すれば、範囲の外が違っても通す", () => {
+  const root = makeRepo(
+    { "a/x.ts": `export { isArray };\n${REGION}`, "b/x.ts": `import "y";\n${REGION}// 末尾\n` },
+    [regionGroup("a/x.ts", "b/x.ts")],
+  );
+  expect(checkIdenticalCopies(root).violations).toEqual([]);
+});
+
+test("陰性: 字下げした印も印として読む（範囲の中身は字下げも含めて比べる）", () => {
+  expect(extractRegion("  // is-array:begin\n  x\n  // is-array:end\n", "is-array")).toEqual({
+    body: "  x",
+  });
+});
+
+test("陽性: 範囲の中が違えば、範囲の中の行番号を付けて落とす", () => {
+  const other = "// is-array:begin\nfunction isArray() { return 1; }\n// is-array:end\n";
+  const root = makeRepo({ "a/x.ts": REGION, "b/x.ts": `// 前置き\n${other}` }, [
+    regionGroup("a/x.ts", "b/x.ts"),
+  ]);
+  expect(checkIdenticalCopies(root).violations).toEqual([
+    "b/x.ts: a/x.ts と範囲「is-array」が一致しない（範囲の中の最初の差分は 1 行目）",
+  ]);
+});
+
+test.each([
+  ["印が無い", "function isArray() {}\n", /1 つずつでない（0 件・0 件）/],
+  ["begin が重複", `// is-array:begin\n${REGION}`, /1 つずつでない（2 件・1 件）/],
+  ["end が begin より前", "// is-array:end\nx\n// is-array:begin\n", /より前にある/],
+])("陽性: 印が 1 組だけ無い（%s）なら、比べずに落とす", (_, broken, reason) => {
+  const root = makeRepo({ "a/x.ts": REGION, "b/x.ts": broken }, [regionGroup("a/x.ts", "b/x.ts")]);
+  const { violations } = checkIdenticalCopies(root);
+  expect(violations).toHaveLength(1);
+  expect(violations[0]).toMatch(/^b\/x\.ts: /);
+  expect(violations[0]).toMatch(reason);
+});
+
+test("陽性: 基準のファイルの印が崩れていれば、その理由だけを報告する", () => {
+  const root = makeRepo({ "a/x.ts": "x\n", "b/x.ts": REGION, "c/x.ts": REGION }, [
+    regionGroup("a/x.ts", "b/x.ts", "c/x.ts"),
+  ]);
+  const { violations } = checkIdenticalCopies(root);
+  expect(violations).toHaveLength(1);
+  expect(violations[0]).toMatch(/^a\/x\.ts: 印/);
 });

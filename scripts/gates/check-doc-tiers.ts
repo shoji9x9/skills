@@ -17,7 +17,8 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { listSources } from "./run-on-sources.ts";
 import { errorMessage } from "../lib/errors.ts";
-import { isRecord } from "../lib/guards.ts";
+import { isNonBlankString as isText, isRecord } from "../lib/guards.ts";
+import { isArray } from "../lib/is-array.ts";
 
 export const TIERS_PATH = "scripts/gates/doc-tiers.json";
 export const TABLE_PATH = ".agents/rules/doc-altitude.md";
@@ -27,8 +28,6 @@ export const END = "<!-- doc-tiers:end -->";
 type DocEntry = { glob?: string; label?: string; note?: string };
 type TierEntry = { tier: number; contents: string; docs: DocEntry[] };
 export type DocTiers = { tiers: TierEntry[]; outside: (DocEntry & { glob: string })[] };
-
-const isText = (v: unknown) => typeof v === "string" && v.trim() !== "";
 
 /**
  * glob を正規表現にする。`**` は 0 個以上のディレクトリ、`*` は `/` を含まない 0 文字以上。
@@ -59,35 +58,50 @@ export function loadDocTiers(root: string): DocTiers {
   if (!existsSync(path)) throw new Error(`${TIERS_PATH} が無い`);
   const data: unknown = JSON.parse(readFileSync(path, "utf8"));
   const { tiers, outside }: Record<string, unknown> = isRecord(data) ? data : {};
-  if (!Array.isArray(tiers) || !Array.isArray(outside))
-    throw new Error("tiers と outside は配列にする");
-  if (tiers.map((t) => t?.tier).join(",") !== "1,2,3,4")
+  if (!isArray(tiers) || !isArray(outside)) throw new Error("tiers と outside は配列にする");
+  // tier は数の 1〜4 だけを受ける（文字列の "1" は、表の生成と tierOf の比較で数と食い違う）。
+  // `tiers.every(isRecord)` は型を絞るためにある。object でない要素は tier が undefined になり、番号の比較でも落ちる。
+  const tierNumbers = tiers.map((t) => (isRecord(t) ? t.tier : undefined));
+  if (!tiers.every(isRecord) || tierNumbers.some((n, i) => n !== i + 1) || tiers.length !== 4)
     throw new Error("tiers は tier 1〜4 をこの順に 1 つずつ持つ");
   const globs = new Set<string>();
-  const checkEntry = (e: DocEntry, where: string) => {
-    if (!isText(e?.glob) && !isText(e?.label))
+  const checkEntry = (e: unknown, where: string): DocEntry => {
+    const record = isRecord(e) ? e : {};
+    if (!isText(record.glob) && !isText(record.label))
       throw new Error(`${where}: glob か label のどちらかを持つ`);
-    for (const k of ["glob", "label", "note"] as const) {
-      if (e[k] !== undefined && !isText(e[k])) throw new Error(`${where}: ${k} は空でない文字列`);
-      if (e[k]?.includes("|")) throw new Error(`${where}: ${k} に「|」がある（表の列がずれる）`);
+    const text = (k: "glob" | "label" | "note") => {
+      const v = record[k];
+      if (v !== undefined && !isText(v)) throw new Error(`${where}: ${k} は空でない文字列`);
+      if (v?.includes("|")) throw new Error(`${where}: ${k} に「|」がある（表の列がずれる）`);
+      return v;
+    };
+    const glob = text("glob");
+    const label = text("label");
+    const note = text("note");
+    if (glob !== undefined) {
+      if (globs.has(glob)) throw new Error(`${where}: glob「${glob}」が重複している`);
+      globs.add(glob);
     }
-    if (e.glob !== undefined) {
-      if (globs.has(e.glob)) throw new Error(`${where}: glob「${e.glob}」が重複している`);
-      globs.add(e.glob);
-    }
+    return { ...record, glob, label, note };
   };
-  for (const t of tiers) {
-    if (!isText(t.contents) || t.contents.includes("|"))
-      throw new Error(`tier ${t.tier}: contents は「|」を含まない空でない文字列`);
-    if (!Array.isArray(t.docs) || t.docs.length === 0)
-      throw new Error(`tier ${t.tier}: docs は空でない配列`);
-    t.docs.forEach((e: DocEntry, i: number) => checkEntry(e, `tier ${t.tier} の docs[${i}]`));
-  }
-  outside.forEach((e, i) => {
-    checkEntry(e, `outside[${i}]`);
-    if (!isText(e.glob)) throw new Error(`outside[${i}]: glob を持つ`);
+  const checkedTiers = tiers.map((t, n): TierEntry => {
+    const { contents, docs } = t;
+    if (!isText(contents) || contents.includes("|"))
+      throw new Error(`tier ${n + 1}: contents は「|」を含まない空でない文字列`);
+    if (!isArray(docs) || docs.length === 0) throw new Error(`tier ${n + 1}: docs は空でない配列`);
+    return {
+      tier: n + 1,
+      contents,
+      docs: docs.map((e, i) => checkEntry(e, `tier ${n + 1} の docs[${i}]`)),
+    };
   });
-  return { tiers, outside };
+  const checkedOutside = outside.map((e, i) => {
+    const entry = checkEntry(e, `outside[${i}]`);
+    const { glob } = entry;
+    if (!isText(glob)) throw new Error(`outside[${i}]: glob を持つ`);
+    return { ...entry, glob };
+  });
+  return { tiers: checkedTiers, outside: checkedOutside };
 }
 
 const show = (e: DocEntry) => `${e.label ?? `\`${e.glob}\``}${e.note ? `（${e.note}）` : ""}`;

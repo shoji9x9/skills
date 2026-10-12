@@ -25,7 +25,8 @@ import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from "n
 import { basename, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { errorMessage } from "../lib/errors.ts";
-import { isRecord } from "../lib/guards.ts";
+import { isNonBlankString as isText, isRecord } from "../lib/guards.ts";
+import { isArray } from "../lib/is-array.ts";
 
 export const UNWIRED_PATH = "scripts/gates/skill-checks-unwired.json";
 export const DECLARATION_NAME = "checks.json";
@@ -51,9 +52,7 @@ const ENTRY_KEYS = new Set([
   "notes",
 ]);
 
-const isText = (v: unknown): v is string => typeof v === "string" && v.trim() !== "";
-const isTextArray = (v: unknown): v is string[] =>
-  Array.isArray(v) && v.length > 0 && v.every(isText);
+const isTextArray = (v: unknown): v is string[] => isArray(v) && v.length > 0 && v.every(isText);
 
 /** real が base（実パス）の中か。 */
 const isInside = (base: string, real: string): boolean =>
@@ -141,7 +140,7 @@ export function loadUnwired(root: string): string[] {
   if (!existsSync(path)) throw new Error(`${UNWIRED_PATH} が無い`);
   const data: unknown = JSON.parse(readFileSync(path, "utf8"));
   const unwired = isRecord(data) ? data.unwired : undefined;
-  if (!Array.isArray(unwired)) throw new Error("unwired は配列にする");
+  if (!isArray(unwired)) throw new Error("unwired は配列にする");
   return unwired.map((u: unknown, i) => {
     const entry: Record<string, unknown> = isRecord(u) ? u : {};
     if (!isText(entry.script)) throw new Error(`unwired[${i}].script が無い`);
@@ -184,7 +183,7 @@ export function checkDeclaration(
   for (const k of Object.keys(data)) if (!TOP_KEYS.has(k)) v.push(`${rel}: 未知のキー ${k}`);
   if (data.version !== 1) v.push(`${rel}: version は 1 にする`);
   if (data.skill !== skill) v.push(`${rel}: skill がディレクトリ名（${skill}）と一致しない`);
-  if (!Array.isArray(data.wire)) {
+  if (!isArray(data.wire)) {
     v.push(`${rel}: wire は配列にする（組み込む検査が無ければ []）`);
     return { scripts, violations: v };
   }
@@ -237,7 +236,7 @@ export function checkDeclaration(
       if ("by_stage" in p) {
         if (keys.length !== 1) v.push(`${pat}: by_stage は他のキーと併用しない`);
         const bs = p.by_stage;
-        const want = Array.isArray(stages) ? [...stages].sort().join(",") : "";
+        const want = isArray(stages) ? [...stages].sort().join(",") : "";
         // 実行箇所（stage）ごとの値は、そのまま置き換えられる値（value）か、実行箇所の側で求める手順（resolve）のどちらか一方。
         // 説明文を value の位置に置くと、機械的に置き換える利用者がその文をそのまま引数に渡す。
         const stageValue = (sv: unknown) =>
@@ -290,7 +289,7 @@ export function checkDeclaration(
     }
 
     if (e.optional_args !== undefined) {
-      if (!Array.isArray(e.optional_args) || e.optional_args.length === 0) {
+      if (!isArray(e.optional_args) || e.optional_args.length === 0) {
         v.push(`${at}: optional_args は空でない配列にする`);
       } else {
         e.optional_args.forEach((o, j) => {

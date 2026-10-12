@@ -25,6 +25,7 @@
 import { readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isArray } from "./lib/is-array.mjs";
 
 class UsageError extends Error {}
 
@@ -33,7 +34,7 @@ class UsageError extends Error {}
  * @returns {v is Record<string, unknown>}
  */
 function isPlainObject(v) {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
+  return typeof v === "object" && v !== null && !isArray(v);
 }
 
 /**
@@ -124,7 +125,7 @@ export function resolveArray(table, spec, create) {
         node[seg.name] = [];
       }
       const arr = node[seg.name];
-      if (!Array.isArray(arr)) throw new UsageError(`${spec}: ${seg.name} が配列でない`);
+      if (!isArray(arr)) throw new UsageError(`${spec}: ${seg.name} が配列でない`);
       return arr;
     }
     if (!Object.hasOwn(node, seg.name)) throw new UsageError(`${spec}: ${seg.name} が無い`);
@@ -134,7 +135,7 @@ export function resolveArray(table, spec, create) {
       node = child;
       continue;
     }
-    if (!Array.isArray(child)) throw new UsageError(`${spec}: ${seg.name} が配列でない`);
+    if (!isArray(child)) throw new UsageError(`${spec}: ${seg.name} が配列でない`);
     const { field, value } = seg.select;
     const hits = child.filter((e) => isPlainObject(e) && e[field] === value);
     if (hits.length !== 1) {

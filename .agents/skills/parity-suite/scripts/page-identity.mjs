@@ -18,6 +18,8 @@
 //
 // 決定論的: 乱数・現在時刻・ネットワークに依存しない。TypeScript 構文は使わない（型は JSDoc）。
 
+import { isArray } from "./lib/is-array.mjs";
+
 /** baseURL の無い（runtime の）とき、`/` で始まる path を解くためだけに当てるオリジン。照合はパス以降しか見ない。 */
 const PLACEHOLDER_ORIGIN = "http://runtime.invalid/";
 
@@ -99,7 +101,7 @@ export function resolvePages(pages, uiUrl) {
   const resolved = new Map();
   /** @type {string[]} */
   const problems = [];
-  const list = Array.isArray(pages) ? pages : [];
+  const list = isArray(pages) ? pages : [];
   const baseRead = readBaseUrl(uiUrl);
   if (baseRead.problem !== null) {
     return {
@@ -113,7 +115,7 @@ export function resolvePages(pages, uiUrl) {
   /** @type {Map<string, string>} */
   const unresolved = new Map();
   for (const pg of list) {
-    if (typeof pg !== "object" || pg === null || Array.isArray(pg)) continue;
+    if (typeof pg !== "object" || pg === null || isArray(pg)) continue;
     const name = "name" in pg ? pg.name : undefined;
     const path = "path" in pg ? pg.path : undefined;
     if (!nonEmptyString(name)) continue;

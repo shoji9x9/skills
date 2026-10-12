@@ -1,0 +1,44 @@
+{
+  "$comment": [
+    "cascade-resolve.test.ts のうち、規則の形が読めない入力の扱い（Issue #597）の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。",
+    "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/skills/parity-component/cascade-resolve.test.ts",
+  "mutations": [
+    {
+      "id": "malformed-states-unknown",
+      "why": "文字列でない状態名を持つ規則を、条件の無い規則として勝者にしない",
+      "file": "skills/parity-component/scripts/cascade-resolve.mjs",
+      "find": "        ...malformedStates,\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["文字列でない状態名を持つ規則は、勝者にせず状態が不明な候補にする"]
+    },
+    {
+      "id": "non-object-rule-accepted",
+      "why": "オブジェクトでない規則を読み飛ばして、残りの規則だけで勝者を決める",
+      "file": "skills/parity-component/scripts/cascade-resolve.mjs",
+      "find": "    if (!isObject(rule) || isArray(rule)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "オブジェクトでない規則（null）があれば、読み飛ばさずに判定できないとして止める",
+        "オブジェクトでない規則（数）があれば、読み飛ばさずに判定できないとして止める",
+        "オブジェクトでない規則（配列）があれば、読み飛ばさずに判定できないとして止める"
+      ]
+    },
+    {
+      "id": "array-rule-accepted",
+      "why": "配列の規則をオブジェクトとして通す（欄を持たないので警告なしに読み飛ばされる）",
+      "file": "skills/parity-component/scripts/cascade-resolve.mjs",
+      "find": "if (!isObject(rule) || isArray(rule)) {",
+      "replace": "if (!isObject(rule)) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "オブジェクトでない規則（配列）があれば、読み飛ばさずに判定できないとして止める"
+      ]
+    }
+  ]
+}

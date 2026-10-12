@@ -36,7 +36,7 @@
       "id": "feature-filter-universe",
       "why": "--feature で絞ったとき、他の機能のページにあるインスタンスを一致しないに数える",
       "file": "skills/parity-suite/scripts/component-impact.mjs",
-      "find": "const universe = Array.isArray(pageUniverse) ? pageUniverse : sorted.map((f) => f.metadata);",
+      "find": "const universe = isArray(pageUniverse) ? pageUniverse : sorted.map((f) => f.metadata);",
       "replace": "const universe = sorted.map((f) => f.metadata);",
       "occurrences": 1,
       "expect_failing": [

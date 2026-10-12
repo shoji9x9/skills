@@ -173,6 +173,21 @@ test.each([
   ["印の順が逆", { table: `${END}\n${BEGIN}\n` }],
   ["Tier の順が違う", { config: { ...CONFIG, tiers: [...CONFIG.tiers].reverse() } }],
   [
+    "Tier が 5 つある",
+    {
+      config: {
+        ...CONFIG,
+        tiers: [...CONFIG.tiers, { tier: 5, contents: "他", docs: [{ label: "x" }] }],
+      },
+    },
+  ],
+  ["Tier が 3 つしかない", { config: { ...CONFIG, tiers: CONFIG.tiers.slice(0, 3) } }],
+  // 文字列の "1" は、表の生成と tierOf の比較で数と食い違うので受けない。
+  [
+    "Tier の番号が文字列",
+    { config: { ...CONFIG, tiers: CONFIG.tiers.map((t) => ({ ...t, tier: String(t.tier) })) } },
+  ],
+  [
     "Tier の項目に glob も label も無い",
     {
       config: {
@@ -196,6 +211,9 @@ test.each([
     印が無い: /印/,
     印の順が逆: /印/,
     "Tier の順が違う": /tier 1〜4/,
+    "Tier が 5 つある": /tier 1〜4/,
+    "Tier が 3 つしかない": /tier 1〜4/,
+    "Tier の番号が文字列": /tier 1〜4/,
     "Tier の項目に glob も label も無い": /glob か label/,
     "「|」を含む": /「\|」/,
     "glob の重複": /重複/,

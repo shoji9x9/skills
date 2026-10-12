@@ -347,6 +347,23 @@ test("現行の時系列が 1 回分しかないと揺れを測れないので�
   expect(result.counts.uncompared).toBe(1);
 });
 
+test.each(["x", "y", "width", "height", "opacity"])(
+  "在る標本の %s が有限の数でない時系列は比較に使わない",
+  (key) => {
+    const base = timeline({ kind: "enter" });
+    const index = base.samples.findIndex((s) => s.present);
+    assert(index >= 0, "在る標本が無い");
+    // JSON では有限でない数を null で書くので、null を置く。
+    const samples: unknown[] = base.samples.map((s, i) =>
+      i === index ? { ...s, [key]: null } : s,
+    );
+    expect(summarizeTimeline({ ...base, samples })).toEqual({
+      ok: false,
+      reason: `在る標本の ${key} が有限の数でない`,
+    });
+  },
+);
+
 test("打ち切られた・要素が一度も在らなかった・t が戻る時系列は比較に使わない", () => {
   const timedOut = { ...timeline({ kind: "enter" }), timed_out: true };
   expect(summarizeTimeline(timedOut).ok).toBe(false);

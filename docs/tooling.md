@@ -59,7 +59,7 @@ GitHub Actions は、`actionlint` で構文を、`ghalint` で `permissions`・`
 | `check-skill-frontmatter.ts` | `SKILL.md` の frontmatter |
 | `lint-pagination.ts` | `gh api` などの一覧の取得のページネーション |
 | `check-kaizen-refs.ts` | `.kaizen/` の学びへの参照の実在。意図して実在しないものは `scripts/gates/kaizen-refs-exemptions.json` に書く |
-| `check-identical-copies.ts` | 同じ内容であるべきコピー。組は `scripts/gates/identical-copies.json` に書く |
+| `check-identical-copies.ts` | 同じ内容であるべきコピー。組は `scripts/gates/identical-copies.json` に書く。`region` を持つ組は、印 `// <region>:begin` と `// <region>:end` の間だけを比べる |
 | `check-skill-checks.ts` | 配布スキルのチェック（`*-check.*`）の分類。利用者の pre-commit・CI に組み込むもの（`skills/<name>/checks.json`）か、組み込まないもの（理由を付けて `scripts/gates/skill-checks-unwired.json`）のどちらかにする |
 | `check-time-sensitive-prose.ts` | 日付・「現状は」「当面」を Tier 1〜3 の文書とコメントに書いていないか。変異の件数や全件の実測値は `mutation-proof.yml` だけに書く |
 | `check-doc-tiers.ts` | 文書の階層。原本は `scripts/gates/doc-tiers.json` で、`.agents/rules/doc-altitude.md` の表は `--fix` で生成する |
@@ -179,8 +179,9 @@ null や undefined になりうる値は、表明せずに確かめて型を絞�
 何も抑えていない disable のコメントは、`reportUnusedDisableDirectives` が失敗にする。
 よく使う形は `scripts/lib/` の helper にまとめ、表明をそこだけに置く。
 catch の値は `errors.ts`、わざと不正な入力と欄の削除は `test-input.ts`、外部の JSON は `parse-as.ts`、YAML は `yaml-as.ts` を使う。
-例外は、ミューテーションテストのランナーと private skill である。どちらも `scripts/lib/` を import せず、同じ helper をファイルの中に持つ。
-ランナーは、テストがランナーのファイルだけをリポジトリの外にコピーして起動する。private skill は、スキルのディレクトリの中だけで完結させる。
+例外は、ミューテーションテストのランナーである。`scripts/lib/` を import せず、同じ helper をファイルの中に持つ。
+テストがランナーのファイルだけをリポジトリの外にコピーして起動するからである。
+private skill は配布せず、このリポジトリの中でだけ動くので、`scripts/lib/` の helper を import して使う。
 配布スキルは `.mjs` のままにする。利用者の Node で動くので、`.ts` にすると利用者に求める Node の版が上がる。
 
 ツールが読む `.ts` の設定は次のとおりである。
@@ -237,12 +238,22 @@ lefthook の pre-commit は、TypeScript か JavaScript（`ts`・`tsx`・`mts`�
 受け取った後に形を検証するコードは、`unknown` で受けて型ガード（`scripts/lib/guards.ts` の `isRecord` など）で絞る。
 `parseJsonAs<T>` は検証していない値に完全な型を付けるので、検証が抜けても `tsc` が警告しない。形を確かめない読み方（テストが出力を `expect` で確かめる場合など）にだけ使う。
 
+配列への絞り込みは、`Array.isArray` ではなく `isArray` で行う。`Array.isArray` は `any[]` に絞るので、要素を読む処理で同じように検査が外れる。
+`isArray` は入力の型の配列の部分（`unknown` なら `unknown[]`、`number[] | undefined` なら `number[]`）に絞る。
+`scripts/**` と private skill は `scripts/lib/is-array.ts` を、配布スキルは各スキルの `scripts/lib/is-array.mjs` を import する。
+直接の呼び出しは、`oxlint.config.ts` の `no-restricted-properties` が失敗にする。
+ユーティリティの中の 1 行だけを、その行の disable コメントで外す。
+import できない雛形（`skills/*/assets/*.template.ts`）とミューテーションテストのランナーは、同じ関数をファイルの中に持つ。
+利用者のプロジェクトへ 1 ファイルだけコピーして使う配布スキルのツール（`trait-compare.mjs` など）も同じである。
+コピーとの一致は `check-identical-copies.ts` が確かめる。
+1 ファイルだけコピーして使うツールが単独で読み込めることは、`scripts/skills/_cross/vendored-tool-standalone.test.ts` が確かめる。
+
 配布スキルの `.mjs` では、型の検査を外す JSDoc の書き方を `scripts/gates/check-jsdoc-types.ts` が失敗にする。
 失敗にするのは、型の表明 `/** @type {X} */ (v)`（TypeScript の `as` と同じ）と、`@ts-ignore`・`@ts-expect-error`・`@ts-nocheck` である。
 JSDoc の型の `any`・`*`・`?`・`Function` と、型引数の無い `Object` も失敗にする。
 型引数を省くとデフォルトの `any` が入る型（`Generator`・`Iterable`・`IteratorResult`・`ReadableStream` など）は、`any` が入らない数まで型引数を書かせる。
-対象の型と書く数は、TypeScript に同梱の lib の宣言から求めるので、手で一覧を持たない。
-名前で照合するので、同じ名前の別の型と修飾した名前は区別できない。
+対象の型と書く数は、`tsconfig.skills.json` から作った Program の型チェッカーで名前を解決し、宣言の型引数のデフォルトから求める。
+名前では照合しないので、同じ名前の自作の型は対象にせず、修飾した名前（`globalThis.Generator`）も検出する。
 型引数の無い `Array`・`Promise`・`Map` は、tsc が TS2314 で失敗にする。
 宣言の注釈（`/** @type {X} */ const v = ...`）・`@satisfies`・`/** @type {const} */ (v)` は、型を外さないので使ってよい。
 配布スキルが利用者のプロジェクトから読み込むモジュール（`pngjs` など）の型は、使う欄だけを `types/skill-runtime/<モジュール名>.ts` に書き、`tsconfig.skills.json` の `paths` でそこへ解決する。

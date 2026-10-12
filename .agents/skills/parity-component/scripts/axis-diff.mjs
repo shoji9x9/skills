@@ -32,6 +32,7 @@
 import { readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isArray } from "./lib/is-array.mjs";
 
 /** ツールのバージョン（このツールで定義する）。出力スキーマを変えたら上げる。 */
 export const VERSION = "2";
@@ -142,10 +143,10 @@ export function flattenTraits(traits) {
 export function assembleFromBaseline(dir) {
   const meta = JSON.parse(readFileSync(join(dir, "metadata.json"), "utf8"));
   const declaredStates = field(field(meta, "capture"), "states");
-  const states = Array.isArray(declaredStates) ? declaredStates : [];
+  const states = isArray(declaredStates) ? declaredStates : [];
   if (states.length === 0) throw new Error("metadata.json の capture.states が空");
   const declaredInstances = field(meta, "instances");
-  const instances = Array.isArray(declaredInstances) ? declaredInstances : [];
+  const instances = isArray(declaredInstances) ? declaredInstances : [];
   if (instances.length === 0) throw new Error("metadata.json の instances が空");
   // id と状態名はそのままパスの 1 セグメントになる。検証しないと `id: "../../outside"` や
   // `state: "../secret"` が baseline の外のファイルを読み、その値が axes.json に入る。
@@ -168,7 +169,7 @@ export function assembleFromBaseline(dir) {
     }
     return value;
   };
-  for (const st of states) segment(st, "capture.states[]");
+  const stateNames = states.map((st) => segment(st, "capture.states[]"));
   // 採取ツールのプロパティ集合（記録されていれば）。計算後スタイルのキーと突き合わせて、
   // 集合の外の軸名（空文字・typo）や採り忘れを diffAxes の problems に入れる。
   const propertySet = field(field(field(meta, "capture"), "tools"), "traits_property_set");
@@ -176,20 +177,21 @@ export function assembleFromBaseline(dir) {
     component: field(meta, "component") || null,
     ...(propertySet === undefined ? {} : { property_set: propertySet }),
     instances: instances.map((inst) => {
-      const id = inst && inst.id;
+      const id = field(inst, "id");
       if (typeof id !== "string" || id === "") throw new Error("instances[].id が無い");
       segment(id, "instances[].id");
+      const declaredUnreachable = field(inst, "unreachable_states");
       const unreachable = new Set(
-        (Array.isArray(inst.unreachable_states) ? inst.unreachable_states : [])
+        (isArray(declaredUnreachable) ? declaredUnreachable : [])
           .map((/** @type {unknown} */ u) => field(u, "state"))
           .filter((/** @type {unknown} */ st) => typeof st === "string" && st !== ""),
       );
       return {
         id,
-        unreachable_states: inst.unreachable_states,
+        unreachable_states: declaredUnreachable,
         // 到達不能と宣言された状態は、採取物が無いのが正しいので読みに行かない。
         // 宣言の無い欠落は読みに行って失敗させる（採り忘れを警告なしに除外しない）。
-        states: states
+        states: stateNames
           .filter((st) => !unreachable.has(st))
           .map((st) => {
             // 包含の判定は両辺を実パスに解決してから行う。字句上の resolve / relative だけだと、
@@ -223,7 +225,7 @@ export function diffAxes(manifest) {
   /** @type {string[]} */
   const problems = [];
   const declaredInstances = field(manifest, "instances");
-  const instances = Array.isArray(declaredInstances) ? declaredInstances : [];
+  const instances = isArray(declaredInstances) ? declaredInstances : [];
 
   if (instances.length < 2) {
     problems.push(
@@ -231,7 +233,7 @@ export function diffAxes(manifest) {
     );
   }
 
-  const ids = instances.map((i) => (i && typeof i.id === "string" ? i.id.trim() : ""));
+  const ids = instances.map((i) => (isObject(i) && typeof i.id === "string" ? i.id.trim() : ""));
   if (ids.some((id) => id === ""))
     problems.push("id の無いインスタンスがある（照合キーが作れない）");
   const duplicated = ids.filter((id, i) => id !== "" && ids.indexOf(id) !== i);
@@ -244,14 +246,15 @@ export function diffAxes(manifest) {
   // 突き合わせると、全インスタンスの状態名が不正な入力が「状態 0 件・軸 0 件・問題 0 件」になる。
   // すると、1 件も測っていないのに ok: true を返す（このツールが防ごうとしている、判定できない入力を合格とする振る舞いそのもの）。
   const stateSets = instances.map((instance, i) => {
-    const entries = Array.isArray(instance && instance.states) ? instance.states : [];
+    const declaredStates = field(instance, "states");
+    const entries = isArray(declaredStates) ? declaredStates : [];
     const names = [];
     let invalid = 0;
     for (const entry of entries) {
       // 空白だけの名前も不正として弾く。`" "` は `!== ""` を通り、状態の和集合に入って
       // 軸を作り、誤って ok: true と判定される（前後の空白も揺れの元なので同一視しない）。
       if (
-        entry &&
+        isObject(entry) &&
         typeof entry.state === "string" &&
         entry.state.trim() === entry.state &&
         entry.state !== ""
@@ -272,8 +275,8 @@ export function diffAxes(manifest) {
   const invalidUnreachable = [];
   /** @type {Set<string>[]} */
   const declaredUnreachable = instances.map((instance, i) => {
-    const declared = instance && instance.unreachable_states;
-    if (!Array.isArray(declared)) return new Set();
+    const declared = field(instance, "unreachable_states");
+    if (!isArray(declared)) return new Set();
     // 成果物の形（metadata.json / references/instances.md で定義する）は `{ state, reason }` のオブジェクトである。
     // **欠落を比較対象から外す緩和は、ここにしか無い**。そのため、通す入力を閉じた集合として列挙する。
     // `reason` を持つオブジェクトだけを受け付け、裸の文字列や理由の無い宣言は問題にする。
@@ -282,7 +285,7 @@ export function diffAxes(manifest) {
     const names = new Set();
     for (const d of declared) {
       if (
-        d &&
+        isObject(d) &&
         typeof d.state === "string" &&
         d.state !== "" &&
         typeof d.reason === "string" &&
@@ -357,12 +360,14 @@ export function diffAxes(manifest) {
   // 渡されたときだけ、計算後スタイルと擬似要素のキーがこの集合と一致することを求める。
   // 集合そのものが不正なら突き合わせの根拠にならないので、照合を警告なしに飛ばさず問題にする。
   let propertySet = null;
+  /** @type {(p: unknown) => p is string} 空でなく、前後に空白の無い文字列か。 */
+  const isPropertyName = (p) => typeof p === "string" && p !== "" && p.trim() === p;
   if (isObject(manifest) && manifest.property_set !== undefined) {
     const declared = manifest.property_set;
     if (
-      !Array.isArray(declared) ||
+      !isArray(declared) ||
       declared.length === 0 ||
-      declared.some((p) => typeof p !== "string" || p === "" || p.trim() !== p) ||
+      !declared.every(isPropertyName) ||
       new Set(declared).size !== declared.length
     ) {
       problems.push(
@@ -374,9 +379,11 @@ export function diffAxes(manifest) {
   // 状態 × 軸名 → インスタンスごとの値。
   const table = new Map();
   instances.forEach((instance, i) => {
-    for (const entry of Array.isArray(instance && instance.states) ? instance.states : []) {
-      if (!entry || typeof entry.state !== "string" || entry.state === "") continue;
-      if (!entry.traits || typeof entry.traits !== "object") {
+    const declaredStates = field(instance, "states");
+    for (const entry of isArray(declaredStates) ? declaredStates : []) {
+      if (!isObject(entry) || typeof entry.state !== "string" || entry.state === "") continue;
+      const traits = entry.traits;
+      if (!isObject(traits)) {
         problems.push(`${ids[i] || `#${i}`} / ${entry.state}: traits が無い`);
         continue;
       }
@@ -387,8 +394,11 @@ export function diffAxes(manifest) {
       const missing = [];
       // `typeof [] === "object"` なので、配列を明示的に弾く。`computed: ["x"]` は数値のキーを
       // 軸として通してしまい、不正な採取物でも ok: true になりうる（どちらもレコードの形が仕様である）。
-      /** @param {unknown} v */
-      const isRecord = (v) => Boolean(v) && typeof v === "object" && !Array.isArray(v);
+      /**
+       * @param {unknown} v
+       * @returns {v is Record<string, unknown>}
+       */
+      const isRecord = (v) => Boolean(v) && typeof v === "object" && !isArray(v);
       // 値の型まで見る。trait-capture.mjs は計算後スタイルを**非空の文字列**で返すので、
       // `{}` や `""` は採取物ではない。ここを通すと flattenTraits がそのまま軸の値にし、
       // オブジェクトは同一性比較で必ず「割れている」と判定されて**偽の可変軸**になる
@@ -422,7 +432,7 @@ export function diffAxes(manifest) {
         }
         return out;
       };
-      const computed = entry.traits.computed;
+      const computed = traits.computed;
       if (!isRecord(computed) || Object.keys(computed).length === 0) {
         missing.push("computed");
       } else {
@@ -433,7 +443,7 @@ export function diffAxes(manifest) {
       }
       // trait-capture.mjs は x / y / width / height を常に数値で返す。キーの有無だけを見ると
       // `{ width: null }` のような不正な採取が通り、軸を作って、誤って ok: true と判定される。
-      const rect = entry.traits.rect;
+      const rect = traits.rect;
       /** @param {unknown} v */
       const isFiniteNumber = (v) => typeof v === "number" && Number.isFinite(v);
       if (!isRecord(rect) || !isFiniteNumber(rect.width) || !isFiniteNumber(rect.height)) {
@@ -452,8 +462,8 @@ export function diffAxes(manifest) {
       // `after: []` は `::after/<present> = "true"` だけを作る。こうして不正な採取物が measured を増やし、誤って ok: true と判定される。
       // computed と rect には同じ検証があり、擬似要素の側だけが検証を通っていた。
       for (const pseudo of ["before", "after"]) {
-        if (!Object.hasOwn(entry.traits, pseudo)) continue;
-        const captured = entry.traits[pseudo];
+        if (!Object.hasOwn(traits, pseudo)) continue;
+        const captured = traits[pseudo];
         if (captured === null) continue;
         if (!isRecord(captured) || Object.keys(captured).length === 0) {
           missing.push(`::${pseudo} の形（null か非空のレコード）`);
@@ -470,7 +480,7 @@ export function diffAxes(manifest) {
         );
         continue;
       }
-      const flat = Object.entries(flattenTraits(entry.traits));
+      const flat = Object.entries(flattenTraits(traits));
       // 空の traits（`{}`・computed も rect も空）は 0 軸を返す。そのまま進めると表が空のまま
       // problems も空になり、比較対象が 1 つも無いのに ok: true を返す（`build` は axes.ok だけを
       // 前提に進むので、突き合わせていないベースラインが有効化される）。

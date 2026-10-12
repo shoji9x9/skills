@@ -3,6 +3,7 @@ import { existsSync, lstatSync, readFileSync, readdirSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseJsonAs } from "../lib/parse-as.ts";
+import { isArray } from "../lib/is-array.ts";
 
 // One entry of evals.json, as far as this reads it.
 type EvalDefinition = { id?: unknown; assertions?: unknown; requires_skills?: unknown };
@@ -11,7 +12,7 @@ type EvalDefinition = { id?: unknown; assertions?: unknown; requires_skills?: un
 type HashEntry = [string, string, string];
 
 function stable(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(stable);
+  if (isArray(value)) return value.map(stable);
   if (value && typeof value === "object") {
     return Object.fromEntries(
       Object.entries(value)
@@ -88,7 +89,7 @@ function findEval(evalsPath: string | undefined, evalId: string | undefined): Ev
 export function assertionsForEval(evalsPath?: string, evalId?: string): unknown[] {
   if (!evalId) return [];
   const evaluation = findEval(evalsPath, evalId);
-  if (!Array.isArray(evaluation.assertions)) {
+  if (!isArray(evaluation.assertions)) {
     throw new Error(`eval ${evalId} has no assertions array`);
   }
   return evaluation.assertions;
@@ -109,10 +110,11 @@ export function requiredSkillsForEval(
   const evaluation = findEval(evalsPath, evalId);
   if (!Object.hasOwn(evaluation, "requires_skills")) return [];
   const names = evaluation.requires_skills;
-  if (!Array.isArray(names) || names.length === 0) {
+  if (!isArray(names) || names.length === 0) {
     throw new Error(`eval ${evalId} requires_skills must be a non-empty array`);
   }
   const seen = new Set<string>();
+  const checked: string[] = [];
   for (const name of names) {
     if (typeof name !== "string" || !SKILL_NAME.test(name)) {
       throw new Error(
@@ -124,8 +126,9 @@ export function requiredSkillsForEval(
     }
     if (seen.has(name)) throw new Error(`eval ${evalId} requires_skills lists ${name} twice`);
     seen.add(name);
+    checked.push(name);
   }
-  return names;
+  return checked;
 }
 
 export function createFingerprint<T extends Record<string, unknown>>(input: T) {

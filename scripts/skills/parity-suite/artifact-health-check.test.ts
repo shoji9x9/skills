@@ -24,6 +24,7 @@ import {
 import { makeTempDir } from "../../lib/test-tmpdir.ts";
 import { invalidInput, removeField } from "../../lib/test-input.ts";
 import { parseJsonAs } from "../../lib/parse-as.ts";
+import { isArray } from "../../lib/is-array.ts";
 
 /** 機能の metadata.json のうち、反復実行の記録の指紋を書き換える欄。 */
 type RepeatRunMetadata = { suite: { repeat_run: { runs: { suite_fingerprint: unknown }[] } } };
@@ -129,9 +130,7 @@ function declaredHealth(m: Metadata): DeclaredArtifactHealth {
 /** suite がスペック単位の欄（specs・shared_files・current_excluded）を持つか。 */
 function isPerSpec(m: Metadata): m is PerSpecMetadata {
   const rr = m.suite.repeat_run;
-  return (
-    Array.isArray(rr.specs) && Array.isArray(rr.shared_files) && Array.isArray(rr.current_excluded)
-  );
+  return isArray(rr.specs) && isArray(rr.shared_files) && isArray(rr.current_excluded);
 }
 
 const XLSX_BODY = "row-a\nrow-b\n";

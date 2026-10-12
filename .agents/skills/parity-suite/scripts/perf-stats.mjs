@@ -21,6 +21,7 @@ import { createHash } from "node:crypto";
 import { readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs";
 import { isAbsolute, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isArray } from "./lib/is-array.mjs";
 
 /**
  * ツールのバージョン（原本）。判定規則・出力の形を変えたら上げる。
@@ -91,7 +92,7 @@ class UsageError extends Error {}
  * @returns {v is Record<string, unknown>}
  */
 function isPlainObject(v) {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
+  return typeof v === "object" && v !== null && !isArray(v);
 }
 
 /**
@@ -286,7 +287,7 @@ export function groupSamples(doc, expect) {
   if (settings.cache !== "cold") {
     throw new UsageError(`settings.cache が "cold" でない: ${JSON.stringify(settings.cache)}`);
   }
-  if (!Array.isArray(doc.samples) || doc.samples.length === 0) {
+  if (!isArray(doc.samples) || doc.samples.length === 0) {
     throw new UsageError("採取の samples が空か配列でない");
   }
   /** @type {Map<string, { page:string, viewport:string, values: Record<string, (number|null)[]>, runs: Set<number> }>} */
@@ -345,10 +346,10 @@ export function groupSamples(doc, expect) {
 export function expectedPairs(metadata) {
   const cc = metadata.capture_conditions;
   if (!isPlainObject(cc)) throw new UsageError("metadata.json に capture_conditions が無い");
-  if (!Array.isArray(cc.pages) || cc.pages.length === 0) {
+  if (!isArray(cc.pages) || cc.pages.length === 0) {
     throw new UsageError("capture_conditions.pages が空か配列でない");
   }
-  if (!Array.isArray(cc.viewports) || cc.viewports.length === 0) {
+  if (!isArray(cc.viewports) || cc.viewports.length === 0) {
     throw new UsageError("capture_conditions.viewports が空か配列でない");
   }
   const pages = cc.pages.map((p, i) => {
@@ -384,15 +385,19 @@ export function captureDefinition(metadata) {
   const rawCc = metadata.capture_conditions ?? {};
   // オブジェクトでない値は pages・viewports を持たないので、空のオブジェクトと同じ結果になる
   const cc = isPlainObject(rawCc) ? rawCc : {};
-  const pages = Array.isArray(cc.pages) ? cc.pages : [];
-  const viewports = Array.isArray(cc.viewports) ? cc.viewports : [];
+  const pages = isArray(cc.pages) ? cc.pages : [];
+  const viewports = isArray(cc.viewports) ? cc.viewports : [];
   return {
-    pages: pages.map((p) => ({ name: p?.name ?? null, path: p?.path ?? null })),
-    viewports: viewports.map((v) => ({
-      label: v?.label ?? null,
-      width: v?.width ?? null,
-      height: v?.height ?? null,
-    })),
+    pages: pages.map((p) =>
+      isPlainObject(p)
+        ? { name: p.name ?? null, path: p.path ?? null }
+        : { name: null, path: null },
+    ),
+    viewports: viewports.map((v) =>
+      isPlainObject(v)
+        ? { label: v.label ?? null, width: v.width ?? null, height: v.height ?? null }
+        : { label: null, width: null, height: null },
+    ),
   };
 }
 
@@ -509,7 +514,7 @@ export function summarize(metadata, samplesDoc, opts) {
 export function floorHistory(previous, samplesDoc, opts) {
   const prev = isPlainObject(previous) ? previous : {};
   const history = prev.floor_history ?? [];
-  if (!Array.isArray(history)) {
+  if (!isArray(history)) {
     throw new UsageError(
       "performance.floor_history が配列でない（手で書き換えていないか確かめる）",
     );
@@ -559,7 +564,7 @@ export function baseFloors(previous, key, defaults, overridden = []) {
   // 履歴そのものが配列でないときは、ここでは空として扱うが、続く floorHistory がフラグに関わらず止める（フラグでは復旧できない）。
   if (!isPlainObject(previous) || METRICS.every((m) => overridden.includes(m)))
     return { ...defaults };
-  const history = Array.isArray(previous.floor_history) ? previous.floor_history : [];
+  const history = isArray(previous.floor_history) ? previous.floor_history : [];
   /** @type {unknown} */
   let table;
   let label;
@@ -672,9 +677,11 @@ export function summaryMatches(perf, currentDoc, slug) {
     return false;
   }
   const pairs = perf.pairs;
-  if (!Array.isArray(pairs) || pairs.length !== groups.size) return false;
+  if (!isArray(pairs) || pairs.length !== groups.size) return false;
   return pairs.every((p) => {
-    const g = groups.get(pairKey(p.page, p.viewport));
+    if (!isPlainObject(p)) return false;
+    // 記録の page・viewport は文字列と限らない。鍵の連結と同じく文字列に変えてから突き合わせる
+    const g = groups.get(pairKey(String(p.page), String(p.viewport)));
     if (!g) return false;
     /** @type {Record<string, unknown>} */
     const recomputed = {};
@@ -715,7 +722,7 @@ export function environmentDifferences(cur, neu) {
  * @returns {string}
  */
 function canonicalJson(v) {
-  if (Array.isArray(v)) return `[${v.map(canonicalJson).join(",")}]`;
+  if (isArray(v)) return `[${v.map(canonicalJson).join(",")}]`;
   if (isPlainObject(v)) {
     return `{${Object.keys(v)
       .sort()
@@ -771,7 +778,7 @@ export function compare(metadata, samplesDoc, opts) {
     );
   }
   if (!isNonEmptyString(metadata.slug)) throw new UsageError("metadata.json に slug が無い");
-  if (!Array.isArray(perf.pairs) || perf.pairs.length === 0) {
+  if (!isArray(perf.pairs) || perf.pairs.length === 0) {
     throw new UsageError("performance.pairs が空か配列でない");
   }
   if (!isPlainObject(perf.floors)) throw new UsageError("performance.floors が無い");

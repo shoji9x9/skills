@@ -32,6 +32,7 @@
 import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
+import { isArray } from "./lib/is-array.mjs";
 
 /** ツールのバージョン（このファイルで定義する）。判定のロジックや出力の形を変えたら上げる。 */
 export const VERSION = "1";
@@ -396,7 +397,7 @@ export function readDeclaredEndpoints(text, path) {
       emptyEndpoints: 0,
     };
   }
-  if (typeof unmeasured !== "object" || unmeasured === null || Array.isArray(unmeasured)) {
+  if (typeof unmeasured !== "object" || unmeasured === null || isArray(unmeasured)) {
     throw new UsageError(`${path} の unmeasured が object でない`);
   }
   // declared の扱いは parity-suite の artifact-health-check.mjs と揃える。向こうは
@@ -425,7 +426,7 @@ export function readDeclaredEndpoints(text, path) {
       invalidEntries: 0,
       emptyEndpoints: 0,
     };
-  if (!Array.isArray(entries)) throw new UsageError(`${path} の unmeasured.entries が配列でない`);
+  if (!isArray(entries)) throw new UsageError(`${path} の unmeasured.entries が配列でない`);
   /** @type {Set<string>} */
   const declared = new Set();
   // 型が違う endpoint は宣言に数えないが、警告なしに捨てない。`artifact-health-check.mjs` は
@@ -436,7 +437,7 @@ export function readDeclaredEndpoints(text, path) {
   let invalidEntries = 0;
   let emptyEndpoints = 0;
   for (const entry of entries) {
-    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+    if (typeof entry !== "object" || entry === null || isArray(entry)) {
       invalidEntries += 1;
       continue;
     }

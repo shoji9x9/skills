@@ -29,6 +29,7 @@
 
 import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { isArray } from "./lib/is-array.mjs";
 
 /**
  * ツールのバージョン（原本）。判定の処理や出力の形を変えたら上げる。
@@ -77,10 +78,8 @@ const DISPOSITIONS = ["keep", "may_change", "carried_over"];
  * references/project-config.md「`pending` 要素の形」で定義する）。ただの文字列の要素も読む（旧形式）。
  * `item` が文字列でないオブジェクトは照合に使わない。
  *
- * diff-normalize.mjs にも同じ関数がある。**同梱スクリプトは互いを import しない**。
- * シンボリックリンクから起動する（`--preserve-symlinks-main`）と、相対 import が
- * リンク先ではなくリンクの置き場所を基準に解決され、ERR_MODULE_NOT_FOUND で失敗する
- * （SKILL.md が案内する実行パスは、常にリンクを通る）。片方を直したら、もう片方も直す。
+ * diff-normalize.mjs にも同じ関数がある（同じスキルの中の重複は、まとめるまで両方を保つ）。
+ * 片方を直したら、もう片方も直す。
  *
  * @param {unknown} entry
  * @returns {string} 照合に使うテキスト（取り出せなければ空文字列）
@@ -124,7 +123,7 @@ export function matchKey(v) {
  * @returns {v is Record<string, unknown>}
  */
 function isPlainObject(v) {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
+  return typeof v === "object" && v !== null && !isArray(v);
 }
 
 /**
@@ -333,7 +332,7 @@ function inScope(item, slug) {
 function targetKeys(registry, group) {
   const list = isPlainObject(registry) ? registry[group] : null;
   const set = new Set();
-  if (Array.isArray(list)) {
+  if (isArray(list)) {
     for (const entry of list) {
       const key = matchKey(intentionalEntryText(entry));
       if (key !== "") set.add(key);
@@ -373,13 +372,13 @@ export function countTriage(registries, record, slug, knownSlugs = null) {
   };
   const intentional = isPlainObject(registries) ? registries.intentional_diffs : null;
   const rawPending = isPlainObject(intentional) ? intentional.pending : undefined;
-  if (rawPending !== undefined && !Array.isArray(rawPending)) {
+  if (rawPending !== undefined && !isArray(rawPending)) {
     // 登録簿そのものが読めない。帰属を決められないので対象範囲に入れる。
     problems.push("intentional_diffs.pending が配列でない");
     registryProblems.push("intentional_diffs.pending が配列でない");
   }
   const { items, issues: shapeIssues } = normalizePending(
-    Array.isArray(rawPending) ? rawPending : [],
+    isArray(rawPending) ? rawPending : [],
     knownSlugs,
   );
   for (const issue of shapeIssues) {
@@ -416,7 +415,7 @@ export function countTriage(registries, record, slug, knownSlugs = null) {
   const mayChangeKeys = targetKeys(intentional, "may_change");
 
   const entries = isPlainObject(record) ? record.entries : undefined;
-  if (!Array.isArray(entries)) {
+  if (!isArray(entries)) {
     // CLI はこの形を exit 2 で先に落とすため、ここへは main() を経由しない呼び出しだけが来る。
     addRecordProblem("intentional_diffs_pending.entries が配列でない（棚卸しの記録が読めない）");
     return {
@@ -655,7 +654,7 @@ export function main(argv, deps = {}) {
     );
     return 2;
   }
-  if (!Array.isArray(intentionalDiffs.pending)) {
+  if (!isArray(intentionalDiffs.pending)) {
     process.stderr.write(
       `error: registries.json の intentional_diffs.pending が無い／配列でない（設定ファイルでは空でも [] を書く）: ${opts.registries}\n`,
     );
@@ -698,7 +697,7 @@ export function main(argv, deps = {}) {
     );
     return 2;
   }
-  if (!Array.isArray(record.entries)) {
+  if (!isArray(record.entries)) {
     // 成果物の型の誤りは「未棚卸し」(exit 1) とまとめず、型の誤りや使い方の誤り (exit 2) として返す
     // （両方を 1 で返すと、自動化が「棚卸しをやり直せば直る」と「成果物が不正」を区別できない）。
     process.stderr.write(

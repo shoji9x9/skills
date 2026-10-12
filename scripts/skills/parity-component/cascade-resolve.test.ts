@@ -111,7 +111,7 @@ function winnerOf(result: CascadeResult) {
 }
 
 test("VERSION を持つ", () => {
-  expect(VERSION).toBe("1");
+  expect(VERSION).toBe("2");
 });
 
 test("button: !important 付き規則がインラインの非 !important に勝つ", () => {
@@ -958,3 +958,46 @@ test("statesOutsideSubject は主語の内外を区別する", () => {
   expect(statesOutsideSubject(".a .b:hover", ["hover"])).toEqual([]);
   expect(statesOutsideSubject(".a .b", [])).toEqual([]);
 });
+
+test("文字列でない状態名を持つ規則は、勝者にせず状態が不明な候補にする", () => {
+  // 状態名が読めない規則は成否を決められない。名前の判定から外すだけだと、条件の無い規則として勝者になる。
+  const input = doc({
+    matched: [{ order: 1, selector: ".btn", declarations: [decl("color", "blue")] }],
+  });
+  input.matched = [
+    ...input.matched,
+    {
+      order: 2,
+      selector: ".btn",
+      original_selector: ".btn",
+      states: [42],
+      pseudo_element: null,
+      conditions: [],
+      layers: [],
+      href: null,
+      declarations: [decl("color", "green")],
+    },
+  ];
+  const result = resolve(input, "color");
+  expect(result.status).toBe("undecidable");
+  expect(result.winner).toBeNull();
+  expect(result.state_unknown?.map((c) => c.unknown_states)).toEqual([[42]]);
+});
+
+test.each([
+  ["null", null],
+  ["数", 3],
+  ["配列", []],
+])(
+  "オブジェクトでない規則（%s）があれば、読み飛ばさずに判定できないとして止める",
+  (_name, rule) => {
+    // 読めない規則は、残りの規則より強い宣言を隠しうるので、残りだけで勝者を決めない。
+    const input = doc({
+      matched: [{ order: 1, selector: ".btn", declarations: [decl("color", "blue")] }],
+    });
+    input.matched = [...input.matched, rule];
+    expect(() => resolveCascade(input, { states: ["default"], properties: ["color"] })).toThrow(
+      /`matched\[1\]` is not an object/,
+    );
+  },
+);

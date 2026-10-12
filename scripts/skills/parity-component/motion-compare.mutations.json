@@ -88,7 +88,7 @@
       "id": "unreachable-reason",
       "why": "理由の無い到達不能の宣言を除外として扱う",
       "file": "skills/parity-component/scripts/motion-compare.mjs",
-      "find": "if (!filled(u.reason)) {",
+      "find": "if (!filled(field(u, \"reason\"))) {",
       "replace": "if (false) {",
       "occurrences": 1,
       "expect_failing": [
@@ -99,8 +99,8 @@
       "id": "acceptance-approval",
       "why": "承認の無い accepted を承認として数える",
       "file": "skills/parity-component/scripts/motion-compare.mjs",
-      "find": "if (!filled(row.reason) || !filled(row.approved_by) || !isoDateTime(row.approved_at)) {",
-      "replace": "if (false) {",
+      "find": "      if (\n        !filled(field(row, \"reason\")) ||\n        !filled(field(row, \"approved_by\")) ||\n        !isoDateTime(field(row, \"approved_at\"))\n      ) {",
+      "replace": "      if (false) {",
       "occurrences": 1,
       "expect_failing": ["比べないことを選ぶには承認が要る（プレースホルダは承認ではない）"]
     },
@@ -179,6 +179,51 @@
         "現行の 2 回で動く／動かないが割れたら基準にしない",
         "現行の 2 回の揺れが上限を超えたら許容差を広げず基準にしない（600ms と即時の組で欠落を通さない）"
       ]
+    },
+    {
+      "id": "sample-x-finite",
+      "why": "在る標本の x が有限の数でない時系列を、比較に使える要約にしない",
+      "file": "skills/parity-component/scripts/motion-compare.mjs",
+      "find": "if (!finite(x)) return notFinite(\"x\");",
+      "replace": "if (false) return notFinite(\"x\");",
+      "occurrences": 1,
+      "expect_failing": ["在る標本の x が有限の数でない時系列は比較に使わない"]
+    },
+    {
+      "id": "sample-y-finite",
+      "why": "在る標本の y が有限の数でない時系列を、比較に使える要約にしない",
+      "file": "skills/parity-component/scripts/motion-compare.mjs",
+      "find": "if (!finite(y)) return notFinite(\"y\");",
+      "replace": "if (false) return notFinite(\"y\");",
+      "occurrences": 1,
+      "expect_failing": ["在る標本の y が有限の数でない時系列は比較に使わない"]
+    },
+    {
+      "id": "sample-width-finite",
+      "why": "在る標本の width が有限の数でない時系列を、比較に使える要約にしない",
+      "file": "skills/parity-component/scripts/motion-compare.mjs",
+      "find": "if (!finite(width)) return notFinite(\"width\");",
+      "replace": "if (false) return notFinite(\"width\");",
+      "occurrences": 1,
+      "expect_failing": ["在る標本の width が有限の数でない時系列は比較に使わない"]
+    },
+    {
+      "id": "sample-height-finite",
+      "why": "在る標本の height が有限の数でない時系列を、比較に使える要約にしない",
+      "file": "skills/parity-component/scripts/motion-compare.mjs",
+      "find": "if (!finite(height)) return notFinite(\"height\");",
+      "replace": "if (false) return notFinite(\"height\");",
+      "occurrences": 1,
+      "expect_failing": ["在る標本の height が有限の数でない時系列は比較に使わない"]
+    },
+    {
+      "id": "sample-opacity-finite",
+      "why": "在る標本の opacity が有限の数でない時系列を、比較に使える要約にしない",
+      "file": "skills/parity-component/scripts/motion-compare.mjs",
+      "find": "if (!finite(opacity)) return notFinite(\"opacity\");",
+      "replace": "if (false) return notFinite(\"opacity\");",
+      "occurrences": 1,
+      "expect_failing": ["在る標本の opacity が有限の数でない時系列は比較に使わない"]
     }
   ]
 }

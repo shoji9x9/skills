@@ -37,7 +37,8 @@ import {
 import { hasStrings, stringMarkdown } from "../lib/code-strings.ts";
 import { isAgentCopy } from "../lib/source-scope.ts";
 import { errorMessage } from "../lib/errors.ts";
-import { isRecord } from "../lib/guards.ts";
+import { isNonEmptyString, isRecord } from "../lib/guards.ts";
+import { isArray } from "../lib/is-array.ts";
 
 export const PENDING_PATH = "scripts/gates/prose-lint-pending.json";
 /** コメントを取り出せなかったファイルの指摘に付ける ruleId。 */
@@ -60,7 +61,7 @@ export function loadPending(root: string): Set<string> {
     throw new Error("reason が無い（なぜ保留しているかを書く）");
   }
   const files = data.files;
-  if (!Array.isArray(files) || !files.every((f) => typeof f === "string" && f)) {
+  if (!isArray(files) || !files.every(isNonEmptyString)) {
     throw new Error("files は空でない文字列の配列にする");
   }
   const set = new Set(files);

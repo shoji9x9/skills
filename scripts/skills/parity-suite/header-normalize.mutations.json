@@ -355,8 +355,8 @@
       "id": "headers-not-array",
       "why": "headers が配列でない一覧を通す",
       "file": "skills/parity-suite/scripts/header-normalize.mjs",
-      "find": "if (!Array.isArray(doc.headers)) throw new Error(\"headers は配列\");",
-      "replace": "if (!Array.isArray(doc.headers)) return new Set();",
+      "find": "if (!isArray(doc.headers)) throw new Error(\"headers は配列\");",
+      "replace": "if (!isArray(doc.headers)) return new Set();",
       "occurrences": 1,
       "expect_failing": [
         "一覧: headers がオブジェクト は入力の誤りにする",
@@ -412,8 +412,8 @@
       "id": "responses-empty",
       "why": "付く応答が空の行を通す",
       "file": "skills/parity-suite/scripts/header-normalize.mjs",
-      "find": "if (!Array.isArray(responses) || responses.length === 0)",
-      "replace": "if (!Array.isArray(responses))",
+      "find": "if (!isArray(responses) || responses.length === 0)",
+      "replace": "if (!isArray(responses))",
       "occurrences": 1,
       "expect_failing": ["一覧: 行が「responses が空」なら入力の誤りにする"]
     },

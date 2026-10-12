@@ -29,6 +29,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isArray } from "./lib/is-array.mjs";
 
 /**
  * ツールのバージョン（原本）。判定の規則や記録の形を変えたら上げる。
@@ -47,7 +48,7 @@ export const VERSION = "1";
  * @returns {value is Record<string, unknown>}
  */
 function isRecord(value) {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
+  return value !== null && typeof value === "object" && !isArray(value);
 }
 
 /**
@@ -73,7 +74,7 @@ export function parseRegion(text) {
  * @returns {Rect | null}
  */
 export function regionFromJson(value) {
-  if (Array.isArray(value)) return parseRegion(value.join(","));
+  if (isArray(value)) return parseRegion(value.join(","));
   // 配列は直前で返しているので、isRecord は元の「truthy なオブジェクト」の判定と同じ範囲を通す。
   if (isRecord(value)) {
     const r = value;
@@ -238,7 +239,7 @@ export function sha256File(path) {
  */
 export function mergeRecord(existing, entries, changeId) {
   /** @type {unknown[]} */
-  const pairs = Array.isArray(existing?.pairs) ? [...existing.pairs] : [];
+  const pairs = isArray(existing?.pairs) ? [...existing.pairs] : [];
   for (const entry of entries) {
     const at = pairs.findIndex((p) => isRecord(p) && p.pair === entry.pair);
     if (at === -1) pairs.push(entry);
@@ -352,46 +353,53 @@ export function parseArgs(argv) {
   } catch (err) {
     return { error: `cannot read --pairs: ${err instanceof Error ? err.message : String(err)}` };
   }
-  if (!Array.isArray(list) || list.length === 0) {
+  if (!isArray(list) || list.length === 0) {
     return { error: "--pairs must be a non-empty JSON array" };
   }
   const specs = [];
   const seen = new Set();
   for (const [n, item] of list.entries()) {
     const where = `--pairs[${n}]`;
-    if (!item || typeof item !== "object") return { error: `${where} must be an object` };
+    if (!isRecord(item)) return { error: `${where} must be an object` };
+    const rec = item;
+    /** @type {Record<string, string>} */
+    const text = {};
     for (const key of ["pair", "prev_new", "new", "current"]) {
-      if (typeof item[key] !== "string" || item[key].trim() === "") {
+      const v = rec[key];
+      if (typeof v !== "string" || v.trim() === "") {
         return { error: `${where}.${key} must be a non-empty string` };
       }
+      text[key] = v;
     }
-    if (seen.has(item.pair)) return { error: `${where}.pair is duplicated: ${item.pair}` };
-    seen.add(item.pair);
-    if (!Array.isArray(item.regions) || item.regions.length === 0) {
+    const { pair, prev_new, new: next, current } = text;
+    if (seen.has(pair)) return { error: `${where}.pair is duplicated: ${pair}` };
+    seen.add(pair);
+    const { regions: rawRegions, margin: rawMargin } = rec;
+    if (!isArray(rawRegions) || rawRegions.length === 0) {
       return { error: `${where}.regions must be a non-empty array` };
     }
     const regions = [];
-    for (const raw of item.regions) {
+    for (const raw of rawRegions) {
       const r = regionFromJson(raw);
       if (!r) return { error: `${where}.regions has an unreadable region: ${JSON.stringify(raw)}` };
       regions.push(r);
     }
     let m = margin;
-    if (item.margin !== undefined) {
-      if (typeof item.margin !== "number" || !Number.isFinite(item.margin) || item.margin < 0) {
+    if (rawMargin !== undefined) {
+      if (typeof rawMargin !== "number" || !Number.isFinite(rawMargin) || rawMargin < 0) {
         return { error: `${where}.margin must be a non-negative number` };
       }
       // 組ごとの margin と --margin が食い違うなら、どちらを使ったか曖昧になるので弾く。
-      if (marginGiven && item.margin !== margin) {
-        return { error: `${where}.margin (${item.margin}) conflicts with --margin (${margin})` };
+      if (marginGiven && rawMargin !== margin) {
+        return { error: `${where}.margin (${rawMargin}) conflicts with --margin (${margin})` };
       }
-      m = item.margin;
+      m = rawMargin;
     }
     specs.push({
-      pair: item.pair,
-      prev_new: item.prev_new,
-      new: item.new,
-      current: item.current,
+      pair,
+      prev_new,
+      new: next,
+      current,
       regions,
       margin: m,
     });
@@ -425,7 +433,7 @@ export async function main(argv) {
       return 2;
     }
     // 配列は pairs を持たないので、isRecord で弾いても元の判定と同じ範囲を弾く。
-    if (!isRecord(read) || !Array.isArray(read.pairs)) {
+    if (!isRecord(read) || !isArray(read.pairs)) {
       process.stderr.write("error: existing --out record has no pairs array\n");
       return 2;
     }

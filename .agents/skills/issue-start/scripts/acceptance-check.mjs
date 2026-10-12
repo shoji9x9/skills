@@ -25,6 +25,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isArray } from "./lib/is-array.mjs";
 
 /**
  * ツールのバージョン（原本）。判定の規則や出力の形を変えたら上げる。
@@ -83,7 +84,7 @@ function nonEmptyString(value) {
  * @returns {value is Record<string, unknown>}
  */
 function isObject(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+  return typeof value === "object" && value !== null && !isArray(value);
 }
 
 /**
@@ -232,7 +233,7 @@ function bodyForFingerprint(body) {
  */
 function commentBodies(comments) {
   if (comments === undefined) return [];
-  if (!Array.isArray(comments)) return null;
+  if (!isArray(comments)) return null;
   /** @type {string[]} */
   const bodies = [];
   for (const c of comments) {
@@ -367,7 +368,7 @@ export function checkAcceptance(input) {
       error: `表の issue.number（${isObject(table.issue) ? String(table.issue.number) : "無し"}）が Issue #${issue.number} と一致しない`,
     };
   }
-  if (!Array.isArray(table.items)) return { structural: true, error: "表の items が配列でない" };
+  if (!isArray(table.items)) return { structural: true, error: "表の items が配列でない" };
 
   /** @type {Array<{ code: string, row: number | null, message: string }>} */
   const findings = [];
@@ -474,7 +475,7 @@ export function checkAcceptance(input) {
     }
     counts[status] += 1;
     if (status === "met") {
-      const evidence = Array.isArray(raw.evidence) ? raw.evidence : [];
+      const evidence = isArray(raw.evidence) ? raw.evidence : [];
       // 根拠の無い met は「満たしたつもり」と区別できない。
       if (evidence.length === 0) add("evidence-missing", row, "met なのに根拠（evidence）が無い");
       let hasCommand = false;
@@ -620,7 +621,7 @@ export function main(argv, deps = {}) {
   let decisionIds = null;
   if (parsed["--decisions"] !== undefined) {
     const doc = parsed["--decisions"];
-    if (!isObject(doc) || !Array.isArray(doc.pending_decisions)) {
+    if (!isObject(doc) || !isArray(doc.pending_decisions)) {
       return fail("--decisions に pending_decisions 配列が無い");
     }
     decisionIds = new Set(

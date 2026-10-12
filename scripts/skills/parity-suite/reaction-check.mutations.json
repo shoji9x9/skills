@@ -162,8 +162,8 @@
       "id": "layout-samples-min",
       "why": "変える操作を 1 回の標本で通す",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "  if (!Array.isArray(samples) || samples.length < 2) {\n",
-      "replace": "  if (!Array.isArray(samples) || samples.length < 1) {\n",
+      "find": "  if (!isArray(samples) || samples.length < 2) {\n",
+      "replace": "  if (!isArray(samples) || samples.length < 1) {\n",
       "occurrences": 1,
       "expect_failing": [
         "頁の組み方の記録の欠けを落とす: changes: true の標本が 1 回（Issue #460）"
@@ -245,7 +245,7 @@
       "id": "layout-keys",
       "why": "回によって測った論理名が違っても通す",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "  if (!samples.every((m) => keysOf(m) === beforeKeys)) {\n",
+      "find": "  if (!measures.every((m) => keysOf(m) === beforeKeys)) {\n",
       "replace": "  if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
@@ -256,7 +256,7 @@
       "id": "layout-all-same",
       "why": "変わると書いたのに全ての標本が操作の前と同じでも通す",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "  if (samples.every((m) => same(m, before))) {\n",
+      "find": "  if (measures.every((m) => same(m, before))) {\n",
       "replace": "  if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
@@ -358,8 +358,8 @@
       "id": "aftermath-look-items-empty",
       "why": "残ると書いたのに見た目を 1 つも列挙しなくても通す",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "  if (!Array.isArray(items) || items.length === 0) {\n",
-      "replace": "  if (!Array.isArray(items)) {\n",
+      "find": "  if (!isArray(items) || items.length === 0) {\n",
+      "replace": "  if (!isArray(items)) {\n",
       "occurrences": 1,
       "expect_failing": [
         "押した後に残るものの記録の欠けを落とす: look.changes: true に items が無い（Issue #471）"
@@ -589,7 +589,7 @@
       "id": "pre-send-traced-to",
       "why": "追った到達点が空でも通す（画面の処理で読むのを止めた記録が通る）",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "  if (!Array.isArray(traced) || traced.length === 0 || !traced.every(isSourceRef)) {\n",
+      "find": "  if (!isArray(traced) || traced.length === 0 || !traced.every(isSourceRef)) {\n",
       "replace": "  if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
@@ -722,7 +722,7 @@
       "id": "side-effects-declared-false-records",
       "why": "declared: false のまま記録を持つ表を走査せずに通す",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "      if (value !== undefined && !(Array.isArray(value) && value.length === 0))\n",
+      "find": "      if (value !== undefined && !(isArray(value) && value.length === 0))\n",
       "replace": "      if (false)\n",
       "occurrences": 1,
       "expect_failing": [
@@ -816,7 +816,7 @@
       "id": "side-effects-source-only-covered",
       "why": "読解のみと assertion が同時に書かれた記録を通す",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "      if (Array.isArray(s.covered_by) && s.covered_by.length > 0) {\n",
+      "find": "      if (isArray(s.covered_by) && s.covered_by.length > 0) {\n",
       "replace": "      if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
@@ -973,7 +973,7 @@
       "id": "state-display-key-missing",
       "why": "state_displays をキーごと省略しても通す",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "  if (!isPlainObject(sd) || !Array.isArray(sd.pages)) {\n",
+      "find": "  if (!isPlainObject(sd) || !isArray(sd.pages)) {\n",
       "replace": "  if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
@@ -1430,7 +1430,7 @@
       "id": "covered-by-malformed-dropped",
       "why": "形の壊れた covered_by を黙って捨てる（未知の欄で解決・共有・監査のどれにも入らない。Issue #506）",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "      if (!Array.isArray(v.covered_by) || !v.covered_by.every(nonEmptyString)) malformed.push(path);\n",
+      "find": "      if (!isArray(v.covered_by) || !v.covered_by.every(nonEmptyString)) malformed.push(path);\n",
       "replace": "      if (false) malformed.push(path);\n",
       "occurrences": 1,
       "expect_failing": [

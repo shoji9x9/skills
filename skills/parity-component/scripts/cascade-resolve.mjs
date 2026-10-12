@@ -45,12 +45,13 @@
 
 import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { isArray } from "./lib/is-array.mjs";
 
 /**
  * ツールのバージョン（このスクリプトで定義する）。優先順位の規則・出力の形・判定できないとする条件を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "1";
+export const VERSION = "2";
 
 /** 入力として受け付ける css-rules-capture.mjs の `tool_version`（採取スキーマが違う入力は読まない）。 */
 export const SUPPORTED_CSS_RULES_VERSIONS = ["4"];
@@ -503,10 +504,10 @@ function strongest(candidates) {
  *             results:CascadeResult[], counts:{resolved:number, undecidable:number, absent:number} }}
  */
 export function resolveCascade(document, options) {
-  if (!isObject(document) || Array.isArray(document)) {
+  if (!isObject(document) || isArray(document)) {
     throw new UsageError("css-rules.json must be a JSON object");
   }
-  if (!Array.isArray(document.matched)) {
+  if (!isArray(document.matched)) {
     throw new UsageError("css-rules.json has no `matched` array (is it css-rules-capture output?)");
   }
   const toolVersion = typeof document.tool_version === "string" ? document.tool_version : null;
@@ -520,8 +521,8 @@ export function resolveCascade(document, options) {
   // `inaccessible` は「そのスタイルシートの規則が 1 件も見えていない」、
   // `unresolved` は「そのセレクタが当たるかを判定していない」の実測で、
   // どちらも matched の全候補より強い宣言を隠しうる（0 件を「関係する規則が無い」と読まない規律と同じ）。
-  const inaccessible = Array.isArray(document.inaccessible) ? document.inaccessible.length : null;
-  const unresolved = Array.isArray(document.unresolved) ? document.unresolved.length : null;
+  const inaccessible = isArray(document.inaccessible) ? document.inaccessible.length : null;
+  const unresolved = isArray(document.unresolved) ? document.unresolved.length : null;
   if (inaccessible === null || unresolved === null) {
     throw new UsageError(
       "css-rules.json must carry `inaccessible` and `unresolved` arrays; re-capture with the bundled css-rules-capture.mjs",
@@ -537,7 +538,7 @@ export function resolveCascade(document, options) {
     );
   }
 
-  const inline = Array.isArray(document.inline_declarations) ? document.inline_declarations : null;
+  const inline = isArray(document.inline_declarations) ? document.inline_declarations : null;
   if (inline === null) {
     throw new UsageError(
       "css-rules.json has no `inline_declarations` (captured with tool_version 1); re-capture",
@@ -586,13 +587,27 @@ export function resolveCascade(document, options) {
     return entry;
   };
 
-  for (const rule of document.matched) {
+  // 規則は css-rules-capture.mjs がオブジェクトで記録する。オブジェクトでない要素は、より強い宣言を隠しうるのに
+  // 中身を読めないので、読み飛ばさずに判定できないとして止める（inaccessible・unresolved と同じ規律）。
+  /** @type {Record<string, unknown>[]} */
+  const rules = [];
+  for (const [i, rule] of document.matched.entries()) {
+    if (!isObject(rule) || isArray(rule)) {
+      throw new UsageError(
+        `css-rules.json \`matched[${i}]\` is not an object; re-capture with the bundled css-rules-capture.mjs`,
+      );
+    }
+    rules.push(rule);
+  }
+  for (const rule of rules) {
     // 状態の名前は css-rules-capture.mjs が文字列で記録する（形はここでは検査しない）。
-    /** @type {string[]} */
-    const states = Array.isArray(rule.states) ? rule.states : [];
-    const conditions = Array.isArray(rule.conditions) ? rule.conditions : [];
-    const layers = Array.isArray(rule.layers) ? rule.layers : [];
-    const declarations = Array.isArray(rule.declarations) ? rule.declarations : [];
+    // 文字列でない要素は成否を決められないので、名前の判定には入れず「不明」として持つ。
+    const declaredStates = isArray(rule.states) ? rule.states : [];
+    const states = declaredStates.filter((state) => typeof state === "string");
+    const malformedStates = declaredStates.filter((state) => typeof state !== "string");
+    const conditions = isArray(rule.conditions) ? rule.conditions : [];
+    const layers = isArray(rule.layers) ? rule.layers : [];
+    const declarations = isArray(rule.declarations) ? rule.declarations : [];
     // 一時的な状態は「作っていないなら不成立」と言い切れる。恒常状態（`:enabled` 等）は
     // ディレクトリ名から成否が決まらないので、不成立と判定せず「不明」として持つ。
     const inactive = states.filter((state) => !active.has(state));
@@ -607,6 +622,7 @@ export function resolveCascade(document, options) {
       ...new Set([
         ...inactive.filter((state) => !TRANSIENT_STATES.has(state) || coOccurring.has(state)),
         ...foreign,
+        ...malformedStates,
       ]),
     ];
     let spec = null;
@@ -619,7 +635,7 @@ export function resolveCascade(document, options) {
     }
     for (let declIndex = 0; declIndex < declarations.length; declIndex += 1) {
       const decl = declarations[declIndex];
-      if (decl === null || typeof decl !== "object" || typeof decl.property !== "string") continue;
+      if (!isObject(decl) || typeof decl.property !== "string") continue;
       // `all` はプロパティ名の振り分けに入れない（どのプロパティにも当たりうるので別に持つ）。
       const wildcard = decl.property === "all";
       const entry = wildcard ? null : bucket(rule.pseudo_element ?? null, decl.property);
@@ -663,7 +679,7 @@ export function resolveCascade(document, options) {
 
   for (let i = 0; i < inline.length; i += 1) {
     const decl = inline[i];
-    if (decl === null || typeof decl !== "object" || typeof decl.property !== "string") continue;
+    if (!isObject(decl) || typeof decl.property !== "string") continue;
     /** @type {CascadeCandidate} */
     const candidate = {
       source: "inline",

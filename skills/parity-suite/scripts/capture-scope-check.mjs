@@ -40,6 +40,7 @@
 import { readFileSync, realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isArray } from "./lib/is-array.mjs";
 
 /**
  * ツールのバージョン（原本）。判定規則・出力形状を変えたら上げる。
@@ -133,10 +134,10 @@ function isObjectLike(value) {
  */
 function displayAxisLists(da) {
   const { axes, absent, pairs, variants } = da;
-  if (!Array.isArray(axes)) return "axes";
-  if (!Array.isArray(absent)) return "absent";
-  if (!Array.isArray(pairs)) return "pairs";
-  if (!Array.isArray(variants)) return "variants";
+  if (!isArray(axes)) return "axes";
+  if (!isArray(absent)) return "absent";
+  if (!isArray(pairs)) return "pairs";
+  if (!isArray(variants)) return "variants";
   return { axes, absent, pairs, variants };
 }
 
@@ -234,7 +235,7 @@ export function deriveHoles(entry, context = {}) {
     });
   }
   const containers = entry.scroll_containers;
-  if (!Array.isArray(containers)) {
+  if (!isArray(containers)) {
     findings.push({
       code: "scroll-containers-missing",
       message: `${key} に scroll_containers が無い（内部のスクロール領域を数えていないことと、スクロール領域が無いことを書き分ける。無ければ空配列を書く）`,
@@ -331,7 +332,7 @@ export function deriveHoles(entry, context = {}) {
     }
   }
   const outside = entry.named_elements_outside;
-  if (!Array.isArray(outside)) {
+  if (!isArray(outside)) {
     findings.push({
       code: "named-elements-outside-missing",
       message: `${key} に named_elements_outside が無い（撮影領域の外に出た論理名を数えていない。無ければ空配列を書く）`,
@@ -400,7 +401,7 @@ export function declaredCombinations(conditions, displayAxes) {
    * @returns {string[]}
    */
   const axisValues = (value, axis, pick) => {
-    if (!Array.isArray(value) || value.length === 0) {
+    if (!isArray(value) || value.length === 0) {
       findings.push({
         code: "declared-axis-missing",
         message: `capture_conditions.${axis} が空（撮るはずの組を列挙できない。採った組の一覧を期待値にすると、採らなかった組が期待値からも消える）`,
@@ -560,7 +561,7 @@ export function checkDisplayAxes(conditions) {
     return result();
   }
   const raw = conditions.display_axes;
-  if (!isObjectLike(raw) || Array.isArray(raw)) {
+  if (!isObjectLike(raw) || isArray(raw)) {
     add("display-axes-malformed", "capture_conditions.display_axes がオブジェクトではない");
     return result();
   }
@@ -573,7 +574,7 @@ export function checkDisplayAxes(conditions) {
     return result();
   }
   const { axes: axisList, absent: absentList, pairs: pairList, variants: variantList } = lists;
-  const declaredPages = Array.isArray(conditions.pages)
+  const declaredPages = isArray(conditions.pages)
     ? conditions.pages
         .map((p) => (isObjectLike(p) ? p.name : undefined))
         .filter((name) => typeof name === "string")
@@ -627,7 +628,7 @@ export function checkDisplayAxes(conditions) {
     const values = axis.values;
     /** @type {string[]} */
     const valueList = [];
-    if (!Array.isArray(values) || values.length < 2) {
+    if (!isArray(values) || values.length < 2) {
       add(
         "display-axis-values-unusable",
         `${at}（${axisName}）の values が 2 つ以上の値の配列ではない（値が 1 つなら切り替えの軸ではないので absent に書く）`,
@@ -678,7 +679,7 @@ export function checkDisplayAxes(conditions) {
     /** @type {Set<string>} */
     const excludedPages = new Set();
     const naList = axis.not_applicable ?? [];
-    if (!Array.isArray(naList)) {
+    if (!isArray(naList)) {
       add(
         "display-axis-not-applicable-malformed",
         `${at}（${axisName}）の not_applicable が配列ではない`,
@@ -755,7 +756,7 @@ export function checkDisplayAxes(conditions) {
     }
   }
 
-  const baseViewports = Array.isArray(conditions.viewports)
+  const baseViewports = isArray(conditions.viewports)
     ? conditions.viewports
         .map((v) => (isObjectLike(v) ? v.label : undefined))
         .filter((label) => typeof label === "string")
@@ -800,7 +801,7 @@ export function checkDisplayAxes(conditions) {
     if (
       !values ||
       typeof values !== "object" ||
-      Array.isArray(values) ||
+      isArray(values) ||
       Object.keys(values).length === 0
     ) {
       add(
@@ -895,11 +896,13 @@ export function checkDisplayAxes(conditions) {
     /** @type {Record<string, unknown>} */
     const pair = isObjectLike(rawPair) ? rawPair : {};
     const names = pair.axes;
+    // `names.every(nonEmptyString)` は要素の型を絞るためにある。文字列でない名前は、宣言した軸の判定でも落ちる
     if (
-      !Array.isArray(names) ||
+      !isArray(names) ||
       names.length !== 2 ||
       names[0] === names[1] ||
-      !names.every((n) => typeof n === "string" && (n === VIEWPORT_AXIS || axes.has(n))) ||
+      !names.every(nonEmptyString) ||
+      !names.every((n) => n === VIEWPORT_AXIS || axes.has(n)) ||
       names.every((n) => n === VIEWPORT_AXIS)
     ) {
       add(
@@ -1095,7 +1098,7 @@ export function checkBrowser(conditions) {
  * @returns {{code:string, message:string}[]}
  */
 function checkBrowserOs(os) {
-  if (!isObjectLike(os) || Array.isArray(os)) {
+  if (!isObjectLike(os) || isArray(os)) {
     return [
       {
         code: "browser-os-missing",
@@ -1184,7 +1187,7 @@ export function checkOverflow(conditions) {
   const overflow = conditions.overflow;
   if (
     !isObjectLike(overflow) ||
-    Array.isArray(overflow) ||
+    isArray(overflow) ||
     !isOneOf(OVERFLOW_STATUSES, overflow.status)
   ) {
     add(
@@ -1222,10 +1225,10 @@ export function checkOverflow(conditions) {
     );
   }
   // 期待集合は撮影条件の pages（宣言）から作る。記録された頁だけを見ると、頁ごと測り忘れても通る
-  const declaredPages = Array.isArray(conditions.pages)
+  const declaredPages = isArray(conditions.pages)
     ? conditions.pages.map((p) => (isObjectLike(p) ? p.name : undefined)).filter(nonEmptyString)
     : [];
-  if (!Array.isArray(o.pages)) {
+  if (!isArray(o.pages)) {
     add("overflow-pages-missing", "capture_conditions.overflow.pages が配列でない");
     return findings;
   }
@@ -1278,7 +1281,7 @@ export function checkOverflow(conditions) {
       typeof entry.probe !== "object" ||
       !isInteger(probe.step) ||
       probe.step <= 0 ||
-      !Array.isArray(probe.breakpoints) ||
+      !isArray(probe.breakpoints) ||
       !probe.breakpoints.every((v) => typeof v === "number" && Number.isFinite(v) && v > 0) ||
       !isInteger(probe.unreadable_stylesheets) ||
       probe.unreadable_stylesheets < 0
@@ -1298,7 +1301,7 @@ export function checkOverflow(conditions) {
         `${at} に読めないスタイルシートが無いのに probe.gaps_ref が null でない（古い記録）`,
       );
     }
-    if (!Array.isArray(entry.windows) || entry.windows.length === 0) {
+    if (!isArray(entry.windows) || entry.windows.length === 0) {
       add("overflow-windows-missing", `${at}.windows が空（測った窓が無い）`);
       return;
     }
@@ -1474,7 +1477,7 @@ export function checkCaptureScope(metadata) {
   // 特性照合する論理名（スクロール領域ごとの untraced の判定に使う）。読めなければ判定を飛ばさず、スクロール領域があるときに落とす
   const traitElements = isObjectLike(meta.traits) ? meta.traits.elements : undefined;
   const elements =
-    Array.isArray(traitElements) && traitElements.every((name) => nonEmptyString(name))
+    isArray(traitElements) && traitElements.every((name) => nonEmptyString(name))
       ? new Set(traitElements)
       : null;
   const displayAxes = checkDisplayAxes(conditionsRecord);
@@ -1485,7 +1488,7 @@ export function checkCaptureScope(metadata) {
   findings.push(...checkBrowser(conditionsRecord));
   findings.push(...checkOverflow(conditionsRecord));
   const noiseBaseline = meta.noise_baseline;
-  if (!Array.isArray(noiseBaseline) || noiseBaseline.length === 0) {
+  if (!isArray(noiseBaseline) || noiseBaseline.length === 0) {
     findings.push({
       code: "noise-baseline-missing",
       message:
@@ -1493,7 +1496,7 @@ export function checkCaptureScope(metadata) {
     });
   }
   const scope = conditions.capture_scope;
-  if (!Array.isArray(scope)) {
+  if (!isArray(scope)) {
     findings.push({
       code: "capture-scope-missing",
       message:
@@ -1504,7 +1507,7 @@ export function checkCaptureScope(metadata) {
       holes,
       counts: {
         declared: declared.keys.length,
-        combinations: Array.isArray(noiseBaseline) ? noiseBaseline.length : 0,
+        combinations: isArray(noiseBaseline) ? noiseBaseline.length : 0,
         holes: 0,
       },
       structural: false,
@@ -1553,7 +1556,7 @@ export function checkCaptureScope(metadata) {
   }
   /** @type {Set<string>} */
   const shot = new Set();
-  if (Array.isArray(noiseBaseline)) {
+  if (isArray(noiseBaseline)) {
     for (const raw of noiseBaseline) {
       /** @type {Record<string, unknown>} */
       const entry = isObjectLike(raw) ? raw : {};
@@ -1635,7 +1638,7 @@ export function checkCaptureScope(metadata) {
     findings.push(...derived.findings);
   }
   const hasContainer = [...scopeByKey.values()].some(
-    (entry) => Array.isArray(entry.scroll_containers) && entry.scroll_containers.length > 0,
+    (entry) => isArray(entry.scroll_containers) && entry.scroll_containers.length > 0,
   );
   if (hasContainer && !elements) {
     findings.push({
@@ -1646,7 +1649,7 @@ export function checkCaptureScope(metadata) {
   }
 
   const exemptions = conditions.capture_scope_exemptions ?? [];
-  if (!Array.isArray(exemptions)) {
+  if (!isArray(exemptions)) {
     findings.push({
       code: "exemptions-malformed",
       message: "capture_conditions.capture_scope_exemptions が配列ではない",

@@ -15,6 +15,7 @@ import { isRecord } from "./guards.ts";
 import { TEXT_EXTENSIONS } from "../gates/check-control-chars.ts";
 import { loadDocTiers, tierOf } from "../gates/check-doc-tiers.ts";
 import { listSources } from "../gates/run-on-sources.ts";
+import { isArray } from "./is-array.ts";
 
 export const PENDING_PATH = "scripts/gates/doc-pending.json";
 // 保留と許可に書ける規則と段階。誤記した規則はどのチェックにも拾われず、古い保留にもならずに残るので、ここで弾く。
@@ -98,12 +99,12 @@ export function loadPending(root: string): PendingList {
   const record: Record<string, unknown> = isRecord(data) ? data : {};
   const { pending, allowed } = record;
   if (
-    !Array.isArray(pending) ||
+    !isArray(pending) ||
     !pending.every((e) => hasNonEmptyStrings(e, ["file", "rule", "text", "stage"]))
   )
     throw new Error(`${PENDING_PATH}: pending は { file, rule, text, stage } の配列にする`);
   if (
-    !Array.isArray(allowed) ||
+    !isArray(allowed) ||
     !allowed.every((e) => hasNonEmptyStrings(e, ["file", "rule", "text", "reason"]))
   )
     throw new Error(`${PENDING_PATH}: allowed は { file, rule, text, reason } の配列にする`);

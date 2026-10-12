@@ -38,6 +38,7 @@ import { createHash } from "node:crypto";
 import { readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isArray } from "./lib/is-array.mjs";
 
 /** ツールのバージョン（このファイルで定義する）。判定の規則や出力の形を変えたら上げる。 */
 export const VERSION = "1";
@@ -274,7 +275,7 @@ export function readLedger(text) {
  * @returns {v is Record<string, unknown>}
  */
 function isPlainObject(v) {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
+  return typeof v === "object" && v !== null && !isArray(v);
 }
 
 /**
@@ -311,7 +312,7 @@ export function resolveAssetUrl(value, base, label) {
  */
 export function readRecord(doc) {
   if (!isPlainObject(doc)) throw new UsageError("記録が JSON オブジェクトでない");
-  if (!Array.isArray(doc.entries)) throw new UsageError("記録の entries が配列でない");
+  if (!isArray(doc.entries)) throw new UsageError("記録の entries が配列でない");
   /** @type {Set<string>} */
   const seen = new Set();
   return doc.entries.map((raw, i) => {
@@ -350,7 +351,7 @@ export function readRecord(doc) {
     /** @type {{ current: string, new: string }[]} */
     const files = [];
     if (!accepted) {
-      if (!Array.isArray(raw.files) || raw.files.length === 0) {
+      if (!isArray(raw.files) || raw.files.length === 0) {
         throw new UsageError(`${at}.files が空（${kind}。移行元と新側の URL の組を 1 件以上書く）`);
       }
       raw.files.forEach((f, j) => {
@@ -382,7 +383,7 @@ export function readRecord(doc) {
 export function referencedUrls(probe, label) {
   if (!isPlainObject(probe)) throw new UsageError(`${label} が JSON オブジェクトでない`);
   for (const key of ["images", "urlRefs", "fontFaces", "icons", "resources", "urlPropsScanned"]) {
-    if (!Array.isArray(probe[key])) {
+    if (!isArray(probe[key])) {
       throw new UsageError(`${label} が asset-probe.mjs の出力でない（${key} が配列でない）`);
     }
   }
@@ -404,12 +405,12 @@ export function referencedUrls(probe, label) {
    */
   const rowsOf = (key) => {
     const rows = probe[key];
-    return Array.isArray(rows) ? rows : [];
+    return isArray(rows) ? rows : [];
   };
   for (const row of rowsOf("images")) if (isPlainObject(row)) add(row.src);
   for (const row of rowsOf("urlRefs")) if (isPlainObject(row)) add(row.url);
   for (const row of rowsOf("fontFaces")) {
-    if (isPlainObject(row) && Array.isArray(row.src)) for (const u of row.src) add(u);
+    if (isPlainObject(row) && isArray(row.src)) for (const u of row.src) add(u);
   }
   for (const row of rowsOf("icons")) if (isPlainObject(row)) add(row.href);
   for (const row of rowsOf("resources")) if (isPlainObject(row)) add(row.url);

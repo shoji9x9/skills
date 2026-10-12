@@ -5,11 +5,13 @@
 // CLI エントリ判定を `import.meta.url === pathToFileURL(process.argv[1]).href` で書くと、
 // 左辺だけがリンク解決済みのため条件が偽になり、main() が呼ばれず無出力・exit 0 で終わる
 // （サイレント no-op）。両辺を実パスに揃えていればここで検出できる。
+// リンクは実際の配置と同じく、スキルのディレクトリに張る。スクリプトのファイルだけを指すリンクは実際には作られず、
+// それを --preserve-symlinks-main で起動すると、隣のファイル（scripts/lib/ など）の静的な import をリンク側で探して失敗する。
 
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
 import { readFileSync, readdirSync, symlinkSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
+import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../lib/test-tmpdir.ts";
 
@@ -45,9 +47,10 @@ test("CLI エントリを持つ同梱スクリプトを検出できている", (
 test.each(cliScripts.map((p) => [p.slice(repoRoot.length + 1), p]))(
   "%s: シンボリックリンク経由でも引数不足を usage と exit 2 で知らせる",
   (_label, scriptPath) => {
+    const skillName = relative(skillsDir, scriptPath).split(sep)[0];
     const linkDir = makeTempDir("cli-entry-");
-    const link = join(linkDir, basename(scriptPath));
-    symlinkSync(scriptPath, link);
+    symlinkSync(join(skillsDir, skillName), join(linkDir, skillName));
+    const link = join(linkDir, skillName, relative(join(skillsDir, skillName), scriptPath));
 
     const viaLink = spawnSync(process.execPath, [link], { encoding: "utf8" });
     const viaReal = spawnSync(process.execPath, [scriptPath], { encoding: "utf8" });

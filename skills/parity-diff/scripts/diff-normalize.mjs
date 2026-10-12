@@ -25,6 +25,7 @@
 
 import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { isArray } from "./lib/is-array.mjs";
 
 /**
  * ツールのバージョン（原本）。分類の処理や出力の形を変えたら上げる。
@@ -32,7 +33,7 @@ import { fileURLToPath } from "node:url";
  *
  * @type {string}
  */
-export const VERSION = "5";
+export const VERSION = "6";
 
 /**
  * trait-compare の Diff のうち、分類が読む欄。ほかの欄は読まずに出力へ持ち越す。
@@ -80,7 +81,7 @@ export const VERSION = "5";
  * @returns {v is Record<string, unknown>}
  */
 function isRecord(v) {
-  return v !== null && typeof v === "object" && !Array.isArray(v);
+  return v !== null && typeof v === "object" && !isArray(v);
 }
 
 /**
@@ -104,7 +105,7 @@ function isObjectLike(v) {
  */
 function intentionalGroupEntries(registry, group) {
   const entries = isObjectLike(registry) ? registry[group] : undefined;
-  return Array.isArray(entries) ? entries : [];
+  return isArray(entries) ? entries : [];
 }
 
 /**
@@ -129,9 +130,8 @@ export function normalizeValue(v) {
  * `item` が文字列でないオブジェクトは照合に使わない。`[object Object]` を
  * needle にすると、意図しない一致や不一致が含まれる。
  *
- * pending-triage-check.mjs にも同じ関数がある。**同梱スクリプトは互いを import しない**——
- * シンボリックリンク経由の起動（`--preserve-symlinks-main`）では相対 import が
- * リンクの置き場所を基準に解決され ERR_MODULE_NOT_FOUND で落ちるため。片方を直したらもう片方も直す。
+ * pending-triage-check.mjs にも同じ関数がある（同じスキルの中の重複は、まとめるまで両方を保つ）。
+ * 片方を直したらもう片方も直す。
  *
  * @param {unknown} entry
  * @returns {string} 照合に使うテキスト（取り出せなければ空文字列）
@@ -427,12 +427,12 @@ export function matchesComponentPattern(pattern, name) {
  * @returns {string[]} 問題の説明（空配列なら全件が照合に使える）
  */
 export function validateComponentDiffs(componentDiffs) {
-  const list = Array.isArray(componentDiffs) ? componentDiffs : [];
+  const list = isArray(componentDiffs) ? componentDiffs : [];
   /** @type {string[]} */
   const problems = [];
   list.forEach((t, i) => {
     const at = `component_diffs[${i}]`;
-    if (!t || typeof t !== "object") {
+    if (!isObjectLike(t)) {
       problems.push(`${at}: not an object`);
       return;
     }
@@ -453,14 +453,14 @@ export function validateComponentDiffs(componentDiffs) {
  *
  * @param {TraitDiff} diff
  * @param {unknown} componentDiffs - registries.component_diffs（読んだままの値。要素の形はここで確かめる）
- * @returns {{ status:'absorbed_T'|'deviates_T', rule:ComponentDiff } | null}
+ * @returns {{ status:'absorbed_T'|'deviates_T', rule:Record<string, unknown> } | null} rule は合致した宣言（読んだままの値）
  */
 export function matchComponentT(diff, componentDiffs) {
-  const list = Array.isArray(componentDiffs) ? componentDiffs : [];
-  /** @type {{ status:'deviates_T', rule:ComponentDiff } | null} */
+  const list = isArray(componentDiffs) ? componentDiffs : [];
+  /** @type {{ status:'deviates_T', rule:Record<string, unknown> } | null} */
   let deviation = null;
   for (const t of list) {
-    if (!t || typeof t !== "object") continue;
+    if (!isObjectLike(t)) continue;
     if (!matchesComponentPattern(t.component, diff.name)) continue;
     if (normalizeValue(t.property) !== normalizeValue(diff.prop)) continue;
     const baselineMatches = normalizeValue(diff.expected) === normalizeValue(t.current);
@@ -478,19 +478,22 @@ export function matchComponentT(diff, componentDiffs) {
  * 解決できない原因と、根拠（evidence）が空の原因は null を返し、呼び出し側は照合に使わない。
  * 原因の文言をインスタンスへ複製させないための参照解決であり、照合キーには一切関与しない。
  *
- * @param {InstanceException | null | undefined} ex - インスタンス例外
+ * @param {{ cause?: unknown } | null | undefined} ex - インスタンス例外（cause だけを読む）
  * @param {unknown} causes - registries.component_diff_exception_causes（読んだままの値）
  * @returns {{ id:string, reason:string, evidence:string } | null}
  */
 export function resolveExceptionCause(ex, causes) {
-  const list = Array.isArray(causes) ? causes : [];
-  if (!ex || typeof ex.cause !== "string" || ex.cause.length === 0) return null;
-  const found = list.find((c) => c && c.id === ex.cause);
+  const list = isArray(causes) ? causes : [];
+  if (!ex) return null;
+  const { cause } = ex;
+  if (typeof cause !== "string" || cause.length === 0) return null;
+  // object でない要素は id を持たないので、元の `c && c.id === cause` と同じく当たらない。
+  const found = list.filter(isObjectLike).find((c) => c.id === cause);
   if (!found) return null;
   const evidence = typeof found.evidence === "string" ? found.evidence.trim() : "";
   if (evidence.length === 0) return null;
   return {
-    id: found.id,
+    id: cause,
     reason: typeof found.reason === "string" ? found.reason : "",
     evidence,
   };
@@ -509,12 +512,12 @@ export function resolveExceptionCause(ex, causes) {
  * @returns {string[]} 問題の説明（空配列なら全件が照合に使える）
  */
 export function validateExceptions(exceptions, causes, slug) {
-  const list = Array.isArray(exceptions) ? exceptions : [];
+  const list = isArray(exceptions) ? exceptions : [];
   /** @type {string[]} */
   const problems = [];
   list.forEach((ex, i) => {
     const at = `component_diff_exceptions[${i}]`;
-    if (!ex || typeof ex !== "object") {
+    if (!isObjectLike(ex)) {
       problems.push(`${at}: not an object`);
       return;
     }
@@ -575,7 +578,8 @@ export function validateExceptions(exceptions, causes, slug) {
  * @returns {MatchedException | null}
  */
 export function matchException(diff, exceptions, ctx, causes) {
-  const list = Array.isArray(exceptions) ? exceptions : [];
+  // object でない要素は validateExceptions が「not an object」として警告し、照合に使わない。
+  const list = isArray(exceptions) ? exceptions.filter(isObjectLike) : [];
   for (const ex of list) {
     if (!ex.slug || ex.slug !== ctx.slug) continue;
     // ctx 側の欠落も不一致にする。Diff は page / viewport を持たないので、ctx に無ければ
@@ -602,18 +606,38 @@ export function matchException(diff, exceptions, ctx, causes) {
 }
 
 /**
+ * ノイズ基準値の行の形の問題を挙げる（入力エラーにせず警告に留め、その行は照合に使わない）。
+ *
+ * @param {unknown} noiseBaseline - 行の配列（読んだままの値）
+ * @returns {string[]}
+ */
+export function validateNoiseBaseline(noiseBaseline) {
+  const list = isArray(noiseBaseline) ? noiseBaseline : [];
+  /** @type {string[]} */
+  const problems = [];
+  list.forEach((row, i) => {
+    if (!isRecord(row))
+      problems.push(`noise_baseline[${i}]: not an object — not used for matching`);
+  });
+  return problems;
+}
+
+/**
  * ノイズ基準値から該当 page/state/viewport の行を引く（最初に合致した行）。
  * 吸収の判定はここでは行わない（applyNoiseBaseline が残余の件数と集計で比較する）。
  * noise_baseline は page × state × viewport の組で記録する取り決めなので、ctx で指定した軸は
  * 行側の値と厳密に比較し、行側の欠落は不一致として扱う（別の組の基準値を誤適用しない）。
  *
- * @param {Array<{ page?:string, state?:string, viewport?:string, trait_diffs?:number }>} noiseBaseline
+ * @param {unknown} noiseBaseline - 行の配列（読んだままの値。行の形はここで確かめる）
  * @param {{ page?:string, state?:string, viewport?:string }} ctx
  * @returns {{ trait_diffs:number } | null}
  */
 export function matchNoise(noiseBaseline, ctx) {
-  const list = Array.isArray(noiseBaseline) ? noiseBaseline : [];
+  const list = isArray(noiseBaseline) ? noiseBaseline : [];
   for (const row of list) {
+    // object でない行は照合に使わない（validateNoiseBaseline が警告する）。欄の無い行として読むと、
+    // 軸を指定しない実行で最初の行として当たり、後ろの正しい行を隠す。
+    if (!isRecord(row)) continue;
     if (ctx.page && row.page !== ctx.page) continue;
     if (ctx.state && row.state !== ctx.state) continue;
     if (ctx.viewport && row.viewport !== ctx.viewport) continue;
@@ -631,7 +655,7 @@ export function matchNoise(noiseBaseline, ctx) {
  *
  * @template {{ classification:string, matched_rule?:unknown }} D
  * @param {D[]} classified - 分類済みの Diff（classification と matched_rule 以外の欄はそのまま返す）
- * @param {Array<{ page?:string, state?:string, viewport?:string, trait_diffs?:number }>} noiseBaseline
+ * @param {unknown} noiseBaseline - 行の配列（読んだままの値。形は matchNoise が確かめる）
  * @param {{ page?:string, state?:string, viewport?:string }} ctx
  * @returns {D[]}
  */
@@ -658,7 +682,7 @@ export function applyNoiseBaseline(classified, noiseBaseline, ctx) {
  * @param {TraitDiff} diff
  * @param {Record<string, unknown>} registries - registries.json（分類が読む欄は Registries。各欄の形は照合する側で確かめる）
  * @param {{ slug:string, page?:string, state?:string, viewport?:string }} ctx
- * @returns {{ classification:string, matched_rule:(ComponentDiff|MatchedException|string|null) }}
+ * @returns {{ classification:string, matched_rule:(Record<string, unknown>|MatchedException|string|null) }}
  */
 export function classifyDiff(diff, registries, ctx) {
   const intentional = matchIntentional(diff, registries.intentional_diffs || {}, ctx);
@@ -724,6 +748,7 @@ export function main(argv) {
   }
   let diffs;
   let registries;
+  /** @type {unknown[]} */
   let noiseBaseline = [];
   try {
     diffs = JSON.parse(readFileSync(positionals[0], "utf8"));
@@ -736,14 +761,15 @@ export function main(argv) {
         throw new TypeError("Cannot read properties of null (reading 'noise_baseline')");
       }
       const declared = isObjectLike(meta) ? meta.noise_baseline : undefined;
-      noiseBaseline = Array.isArray(declared) ? declared : [];
+      noiseBaseline = isArray(declared) ? declared : [];
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     process.stderr.write(`error: cannot read inputs: ${message}\n`);
     return 2;
   }
-  if (!Array.isArray(diffs)) {
+  // 要素が object でない Diff は分類する欄を持たないので、配列でない入力と同じ入力エラーにする。
+  if (!isArray(diffs) || !diffs.every(isObjectLike)) {
     process.stderr.write("error: <trait-diffs.json> must be a JSON array of trait diffs\n");
     return 2;
   }
@@ -769,9 +795,12 @@ export function main(argv) {
   )) {
     process.stderr.write(`warning: ${problem}\n`);
   }
+  for (const problem of validateNoiseBaseline(noiseBaseline)) {
+    process.stderr.write(`warning: ${problem}\n`);
+  }
   // 照合に使わないだけでなく、そのことが見えるようにする。--page / --viewport を省くと
   // 照合キーを確かめられず、例外は 1 件も当たらない。警告なしに 0 件にせず、理由を出す。
-  const exceptionCount = Array.isArray(registries.component_diff_exceptions)
+  const exceptionCount = isArray(registries.component_diff_exceptions)
     ? registries.component_diff_exceptions.length
     : 0;
   /** @type {Array<"page" | "viewport">} */

@@ -19,6 +19,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import yaml from "js-yaml";
 import { splitFrontmatter } from "../lib/frontmatter.ts";
+import { isArray } from "../lib/is-array.ts";
 
 const DESCRIPTION_MAX_BYTES = 1024;
 const NAME_MAX_LENGTH = 64;
@@ -51,7 +52,7 @@ export function checkFrontmatter(path: string, content: string) {
     violations.push(`frontmatter が YAML としてパースできない: ${reason}`);
     return violations; // パース不能なら以降のフィールド検査は無意味。
   }
-  if (data === null || typeof data !== "object" || Array.isArray(data)) {
+  if (data === null || typeof data !== "object" || isArray(data)) {
     violations.push("frontmatter が YAML マッピングになっていない");
     return violations;
   }

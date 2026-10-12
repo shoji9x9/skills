@@ -30,20 +30,47 @@
 import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
+// 利用者のプロジェクトへ 1 ファイルだけコピーして使うので、隣のファイルを import せず、
+// 配列の型ガードを `scripts/lib/is-array.mjs` と同じ内容でここに持つ（一致は identical-copies の組で確かめる）。
+// is-array-js:begin
+/**
+ * `T` のうち配列の部分。`unknown` と `any` は `unknown[]`、配列を含みうる型は `unknown[]` との交差にする。
+ * @template T
+ * @typedef {0 extends 1 & T ? unknown[] : unknown extends T ? unknown[] : T extends readonly unknown[] ? T : never[] extends T ? T & unknown[] : never} ArrayPart
+ */
+
+/**
+ * 型ガードの述語に使う形。述語の型は引数の型に代入できる必要があるので、代入できる場合だけ `ArrayPart<T>` にする。
+ * @template T
+ * @typedef {ArrayPart<T> extends T ? ArrayPart<T> : never} ArrayNarrowed
+ */
+
+/**
+ * 配列か。配列なら、入力の型の配列の部分に絞る。
+ * @template T
+ * @param {T} value
+ * @returns {value is ArrayNarrowed<T>}
+ */
+function isArray(value) {
+  // oxlint-disable-next-line no-restricted-properties -- 組み込みの判定を呼ぶのは、この関数の中だけにする
+  return Array.isArray(value);
+}
+// is-array-js:end
+
 /**
  * ツールのバージョン（原本）。比較ロジック・差分形状を変えたら上げる。
  * metadata.json の differ.trait_compare に記録する「バージョン」はこの値を使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "3";
+export const VERSION = "4";
 
 /**
  * @typedef {object} Trait
  * @property {string} name
- * @property {Record<string,string>} computed
+ * @property {Record<string,string> | null} [computed]  - 採取は必ず書く。比較は欠けを空として扱う
  * @property {Record<string,string> | null} [before]
  * @property {Record<string,string> | null} [after]
- * @property {{ x:number, y:number, width:number, height:number }} rect
+ * @property {{ x:number, y:number, width:number, height:number } | null} [rect]  - 採取は必ず書く。旧スキーマ・手編集では欠け、比較は欠けを診断にする
  * @property {TextOwner[]} [text_owners]
  * @property {Scroll | null} [scroll]
  */
@@ -65,7 +92,7 @@ export const VERSION = "3";
  * @property {string} text
  * @property {Record<string,string>} style
  * @property {number} [advance]
- * @property {number} [glyph_height]
+ * @property {number | null} [glyph_height]
  * @property {number} [lines]
  * @property {{ x:number, y:number, width:number, height:number }} [rect]
  */
@@ -195,7 +222,7 @@ function diffTextOwners(name, expectedOwners, actualOwners, tol, out) {
     }
     /** @type {Diff[]} */
     const styleDiffs = [];
-    diffStyleMap(name, "property", "", expected.style || {}, actual.style || {}, styleDiffs);
+    diffStyleMap(name, "property", "", expected.style, actual.style, styleDiffs);
     for (const d of styleDiffs) {
       out.push({ ...d, kind: "text", prop: `${prefix}/${d.prop}`, text: expected.text });
     }
@@ -269,7 +296,7 @@ function diffScroll(name, expected, actual, tol, out) {
   }
   /** @type {Diff[]} */
   const styleDiffs = [];
-  diffStyleMap(name, "property", "", expected.style || {}, actual.style || {}, styleDiffs);
+  diffStyleMap(name, "property", "", expected.style, actual.style, styleDiffs);
   for (const d of styleDiffs) out.push({ ...d, kind: "scroll", prop: `scroll/${d.prop}` });
   const ew = expected.webkit;
   const aw = actual.webkit;
@@ -337,8 +364,8 @@ export function compareTraits(baselineEntries, captureEntries, options = {}) {
     diffPseudo(base.name, "::after", base.after, cap.after, out);
     const baseOwners = base.text_owners;
     const capOwners = cap.text_owners;
-    const baseHas = Array.isArray(baseOwners);
-    const capHas = Array.isArray(capOwners);
+    const baseHas = isArray(baseOwners);
+    const capHas = isArray(capOwners);
     if (baseHas && capHas) {
       diffTextOwners(base.name, baseOwners, capOwners, tol, out);
     } else if (baseHas !== capHas) {
@@ -418,6 +445,136 @@ export function compareTraits(baselineEntries, captureEntries, options = {}) {
 }
 
 /**
+ * @param {unknown} v
+ * @returns {v is Record<string, unknown>}
+ */
+function isPlainObject(v) {
+  return typeof v === "object" && v !== null && !isArray(v);
+}
+
+/**
+ * @param {unknown} v
+ * @returns {v is Record<string, string>}
+ */
+function isStringRecord(v) {
+  return isPlainObject(v) && Object.values(v).every((x) => typeof x === "string");
+}
+
+/**
+ * @param {unknown} v
+ * @returns {v is { x:number, y:number, width:number, height:number }}
+ */
+function isRect(v) {
+  return (
+    isPlainObject(v) &&
+    typeof v.x === "number" &&
+    typeof v.y === "number" &&
+    typeof v.width === "number" &&
+    typeof v.height === "number"
+  );
+}
+
+/**
+ * 省いてよい欄が、無いか、指定の形か。
+ * @param {unknown} v
+ * @param {(x: unknown) => boolean} check
+ */
+const absentOr = (v, check) => v === undefined || check(v);
+
+/**
+ * @param {unknown} v
+ * @returns {v is TextOwner}
+ */
+function isTextOwner(v) {
+  if (!isPlainObject(v) || typeof v.text !== "string" || !isStringRecord(v.style)) return false;
+  /** @param {unknown} x */
+  const isString = (x) => typeof x === "string";
+  /** @param {unknown} x */
+  const isNumber = (x) => typeof x === "number";
+  // 文字の高さは、採れなかった値（canvas の fontBoundingBoxAscent を持たないブラウザの NaN）が JSON で null になる。
+  // 比較は数でない値を差分として出す（両側とも null でも、比べられないとして差分にする）ので、null も受け付ける。
+  // 幅の合計と行の数は、採取が必ず数で記録するので数だけを受け付ける。ただし、文字の高さが NaN のブラウザでは、
+  // 行の数が 0 に数えられる（行の判定に高さを使う）。そのため、片側だけがそのブラウザだと、行の数の差が先に出る。
+  /** @param {unknown} x */
+  const isNumberOrNull = (x) => x === null || typeof x === "number";
+  return (
+    absentOr(v.path, isString) &&
+    absentOr(v.tag, isString) &&
+    absentOr(v.advance, isNumber) &&
+    absentOr(v.glyph_height, isNumberOrNull) &&
+    absentOr(v.lines, isNumber) &&
+    absentOr(v.rect, isRect)
+  );
+}
+
+/**
+ * @param {unknown} v
+ * @returns {v is Scroll}
+ */
+function isScroll(v) {
+  if (!isPlainObject(v)) return false;
+  const { webkit } = v;
+  return (
+    typeof v.overflowing_x === "boolean" &&
+    typeof v.overflowing_y === "boolean" &&
+    typeof v.vertical_bar_px === "number" &&
+    typeof v.horizontal_bar_px === "number" &&
+    isStringRecord(v.style) &&
+    (webkit === "unsupported" ||
+      (isPlainObject(webkit) && Object.values(webkit).every(isStringRecord)))
+  );
+}
+
+/**
+ * 採取結果の 1 件として compareTraits に渡せるか。比較が読む欄を、Trait の型どおりにすべて確かめる。
+ * 比較が欠けを許す欄（computed・before・after・rect・scroll の null や欠け、text_owners の欠け）は、
+ * 欠けていてもよい（旧スキーマ・手編集の入力。rect の欠けは比較が差分として報告する）。
+ * @param {unknown} v
+ * @returns {v is Trait}
+ */
+function isTrait(v) {
+  if (!isPlainObject(v) || typeof v.name !== "string") return false;
+  /** @param {(x: unknown) => boolean} check */
+  const nullableOr = (check) => (/** @type {unknown} */ x) => x === null || check(x);
+  return (
+    absentOr(v.computed, nullableOr(isStringRecord)) &&
+    absentOr(v.before, nullableOr(isStringRecord)) &&
+    absentOr(v.after, nullableOr(isStringRecord)) &&
+    absentOr(v.rect, nullableOr(isRect)) &&
+    absentOr(v.scroll, nullableOr(isScroll)) &&
+    absentOr(v.text_owners, (x) => isArray(x) && x.every(isTextOwner))
+  );
+}
+
+/**
+ * 要素がすべて採取結果の形なら、その配列を返す。形の違う要素があれば、最初の位置を返す（入力を 1 回だけ走査する）。
+ * @param {unknown[]} entries
+ * @returns {Trait[] | number}
+ */
+function asTraits(entries) {
+  /** @type {Trait[]} */
+  const traits = [];
+  for (const [i, e] of entries.entries()) {
+    if (!isTrait(e)) return i;
+    traits.push(e);
+  }
+  return traits;
+}
+
+/**
+ * 形の違う要素を、どの入力の何番目かとともに報告する（直す箇所を利用者が探さずに済むように）。
+ * @param {"baseline" | "capture"} side
+ * @param {number} at
+ */
+function invalidEntry(side, at) {
+  process.stderr.write(
+    `error: ${side}[${at}] is not a trait entry ` +
+      "(name, computed, before, after, rect, text_owners or scroll does not match the trait schema)\n",
+  );
+  return 2;
+}
+
+/**
  * CLI エントリ。
  * `node trait-compare.mjs <baseline.json> <capture.json> [--align-tolerance <px>]` で差分を
  * JSON 出力し、差分があれば exit 1、無ければ exit 0、入力エラーは exit 2。
@@ -457,11 +614,15 @@ export function main(argv) {
     process.stderr.write(`error: cannot read inputs: ${message}\n`);
     return 2;
   }
-  if (!Array.isArray(baseline) || !Array.isArray(capture)) {
+  if (!isArray(baseline) || !isArray(capture)) {
     process.stderr.write("error: both inputs must be JSON arrays of trait entries\n");
     return 2;
   }
-  const diffs = compareTraits(baseline, capture, { alignTolerance });
+  const baseTraits = asTraits(baseline);
+  if (typeof baseTraits === "number") return invalidEntry("baseline", baseTraits);
+  const capTraits = asTraits(capture);
+  if (typeof capTraits === "number") return invalidEntry("capture", capTraits);
+  const diffs = compareTraits(baseTraits, capTraits, { alignTolerance });
   process.stdout.write(JSON.stringify(diffs, null, 2) + "\n");
   return diffs.length > 0 ? 1 : 0;
 }

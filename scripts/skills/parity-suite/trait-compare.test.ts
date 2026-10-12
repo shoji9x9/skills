@@ -3,6 +3,8 @@
 // スクロールするコンテナの特性（scroll）の照合（Issue #495）。
 
 import { expect, test } from "vitest";
+import { spawnSync } from "node:child_process";
+import { writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type {
@@ -11,6 +13,8 @@ import type {
   TextOwner,
   Trait as ComparedTrait,
 } from "../../../skills/parity-suite/scripts/trait-compare.mjs";
+import { invalidInput } from "../../lib/test-input.ts";
+import { makeTempDir } from "../../lib/test-tmpdir.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const {
@@ -59,8 +63,8 @@ const trait = (textOwners: TextOwner[] | undefined, name = "toolbar.settings"): 
   ...(textOwners === undefined ? {} : { text_owners: textOwners }),
 });
 
-test("VERSION は 3（scroll の照合を足した）", () => {
-  expect(VERSION).toBe("3");
+test("VERSION は 4（CLI が入れ子の欄まで型どおりでない要素を exit 2 にする）", () => {
+  expect(VERSION).toBe("4");
 });
 
 // 実測（Chrome 149）: 現行 <button><div><span>設定</span></div></button> と新側 <button>設定</button>。
@@ -289,4 +293,116 @@ test("片側だけが scroll のキーを持つ（採取ツールの版違い）
     { name: "dialog.grid", kind: "missing", prop: "scroll", expected: "present", actual: "absent" },
   ]);
   expect(compareTraits([legacy], [legacy])).toEqual([]);
+});
+
+/** CLI に 2 つの採取結果を渡して起動する。 */
+function runCli(baseline: unknown, capture: unknown) {
+  const dir = makeTempDir("trait-compare-");
+  const files = [join(dir, "baseline.json"), join(dir, "capture.json")];
+  writeFileSync(files[0], JSON.stringify(baseline));
+  writeFileSync(files[1], JSON.stringify(capture));
+  const script = join(repoRoot, "skills/parity-suite/scripts/trait-compare.mjs");
+  return spawnSync(process.execPath, [script, ...files], { encoding: "utf8" });
+}
+
+test.each([
+  ["baseline", [null], [trait([])], "baseline[0]"],
+  ["capture", [trait([])], [null], "capture[0]"],
+  ["capture の 2 件目", [trait([])], [trait([]), null], "capture[1]"],
+])(
+  "CLI は %s の要素が採取結果の形でなければ、その位置を出して比較せず exit 2",
+  (_side, baseline, capture, at) => {
+    const r = runCli(baseline, capture);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain(`error: ${at} is not a trait entry`);
+  },
+);
+
+test("CLI は入力が配列でなければ、配列にするよう求めて exit 2", () => {
+  const r = runCli({}, [trait([])]);
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain("both inputs must be JSON arrays of trait entries");
+});
+
+// 比較が読む入れ子の欄も、型どおりかを確かめる（確かめずに Trait として渡すと、誤った値のまま計算が進む）。
+test.each([
+  ["computed の値が数", { ...trait([]), computed: { "font-size": 13 } }],
+  ["rect の x が文字列", { ...trait([]), rect: { x: "10", y: 10, width: 40, height: 24 } }],
+  ["text_owners の要素に text が無い", { ...trait([]), text_owners: [{ style: font() }] }],
+  [
+    "text_owners の要素の lines が文字列",
+    { ...trait([]), text_owners: [{ ...owner("設定", font()), lines: "1" }] },
+  ],
+  [
+    "scroll の webkit が unsupported でない文字列",
+    { ...grid(null), scroll: { ...scrollOf(), webkit: "x" } },
+  ],
+  [
+    "scroll の vertical_bar_px が文字列",
+    { ...grid(null), scroll: { ...scrollOf(), vertical_bar_px: "15" } },
+  ],
+  // 採取は text_owners を必ず配列で、style を必ず書く。比較はこれらの欠けを許さない。
+  ["text_owners が null", { ...trait([]), text_owners: null }],
+  ["text_owners の要素に style が無い", { ...trait([]), text_owners: [{ text: "設定" }] }],
+  ["scroll に style が無い", { ...grid(null), scroll: { ...scrollOf(), style: undefined } }],
+])("CLI は入れ子の欄が型と違う要素（%s）を、比較せず exit 2", (_name, broken) => {
+  const r = runCli([broken], [trait([])]);
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain("error: baseline[0] is not a trait entry");
+});
+
+test("CLI は入れ子まで型どおりの要素（文字の持ち主・スクロール・webkit が unsupported）を比較する", () => {
+  const full = {
+    ...grid(scrollOf({ webkit: "unsupported" })),
+    text_owners: [owner("設定", font())],
+  };
+  const r = runCli([full], [full]);
+  expect(r.status).toBe(0);
+});
+
+test("CLI は文字の寸法が null（採れなかった NaN）の要素を受け、差分に出して exit 1", () => {
+  const measured = { ...trait([]), text_owners: [owner("設定", font())] };
+  const unmeasured = { ...trait([]), text_owners: [owner("設定", font(), { glyph_height: null })] };
+  const r = runCli([measured], [unmeasured]);
+  expect(r.status).toBe(1);
+  expect(JSON.parse(r.stdout)).toEqual([
+    expect.objectContaining({ kind: "text", expected: "15", actual: "null" }),
+  ]);
+});
+
+test("CLI は文字の高さが両側とも null なら、比べられないとして差分に出して exit 1", () => {
+  const unmeasured = { ...trait([]), text_owners: [owner("設定", font(), { glyph_height: null })] };
+  const r = runCli([unmeasured], [unmeasured]);
+  expect(r.status).toBe(1);
+  expect(JSON.parse(r.stdout)).toEqual([
+    expect.objectContaining({ kind: "text", expected: "null", actual: "null" }),
+  ]);
+});
+
+test.each([
+  ["advance", { advance: null }],
+  ["lines", { lines: null }],
+])("CLI は文字の %s の null（採取が出さない形）を、比較せず exit 2", (_key, dims) => {
+  const broken = {
+    ...trait([]),
+    text_owners: [owner("設定", font(), invalidInput<Partial<TextOwner>>(dims))],
+  };
+  const r = runCli([broken], [trait([])]);
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain("error: baseline[0] is not a trait entry");
+});
+
+test("CLI は rect の欠けた要素（旧スキーマ・手編集）を受け、欠けを差分に出して exit 1", () => {
+  const { rect: _rect, ...legacy } = trait([]);
+  const r = runCli([legacy], [trait([])]);
+  expect(r.status).toBe(1);
+  expect(JSON.parse(r.stdout)).toEqual([
+    {
+      name: "toolbar.settings",
+      kind: "missing",
+      prop: "rect",
+      expected: "absent",
+      actual: "present",
+    },
+  ]);
 });

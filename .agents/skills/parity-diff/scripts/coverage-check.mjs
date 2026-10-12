@@ -35,6 +35,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { isArray } from "./lib/is-array.mjs";
 
 /**
  * ツールのバージョン（原本）。判定の処理や出力の形を変えたら上げる。
@@ -216,7 +217,7 @@ function absentEvidenceProblem(row, label, stateManifest) {
   if (!inAllowlist(source.kind, APPLICABLE_STATE_SOURCE_KINDS)) {
     return `${label}: applicable_states.source.kind（${String(source.kind)}）が ${APPLICABLE_STATE_SOURCE_KINDS.join(" / ")} のいずれでもない`;
   }
-  if (!Array.isArray(manifest.items) || manifest.items.length === 0) {
+  if (!isArray(manifest.items) || manifest.items.length === 0) {
     return `${label}: applicable_states.items が空`;
   }
   /** @type {Map<string, string>} */
@@ -231,11 +232,11 @@ function absentEvidenceProblem(row, label, stateManifest) {
     if (manifestStates.has(id)) return `${label}: applicable_states.items の id ${id} が重複`;
     manifestStates.set(id, String(item.transition));
   }
-  if (!Array.isArray(evidence.states) || evidence.states.length === 0) {
+  if (!isArray(evidence.states) || evidence.states.length === 0) {
     return `${label}: non-renderable の states が空`;
   }
   if (
-    !Array.isArray(evidence.expected_states) ||
+    !isArray(evidence.expected_states) ||
     evidence.expected_states.length === 0 ||
     evidence.expected_states.some((name) => !nonEmptyString(name))
   ) {
@@ -551,8 +552,7 @@ export function readCaptureForFingerprint(metadata) {
   const meta = metadata;
   if (!isPlainObject(meta.capture_conditions)) return null;
   const cc = meta.capture_conditions;
-  if (!Array.isArray(cc.states) || !Array.isArray(cc.pages) || !Array.isArray(cc.popup_inventory))
-    return null;
+  if (!isArray(cc.states) || !isArray(cc.pages) || !isArray(cc.popup_inventory)) return null;
   /** @type {string[]} */
   const pageNames = [];
   for (const row of cc.pages) {
@@ -663,7 +663,7 @@ function collectIds(entries, label, problems) {
  * @returns {v is Record<string, unknown>}
  */
 function isPlainObject(v) {
-  return Boolean(v) && typeof v === "object" && !Array.isArray(v);
+  return Boolean(v) && typeof v === "object" && !isArray(v);
 }
 
 /**
@@ -691,7 +691,7 @@ export function coverageFingerprint(table) {
  */
 export function captureFingerprint(capture) {
   /** @param {unknown} v */
-  const sorted = (v) => [...(Array.isArray(v) ? v : [])].map(String).sort();
+  const sorted = (v) => [...(isArray(v) ? v : [])].map(String).sort();
   return createHash("sha256")
     .update(
       JSON.stringify(
@@ -708,7 +708,7 @@ export function captureFingerprint(capture) {
 
 /** @param {unknown} v @returns {unknown} */
 function canonicalize(v) {
-  if (Array.isArray(v)) return v.map(canonicalize);
+  if (isArray(v)) return v.map(canonicalize);
   if (isPlainObject(v)) {
     return Object.fromEntries(
       Object.keys(v)
@@ -735,7 +735,7 @@ function canonicalize(v) {
 function readItemAxes(items) {
   /** @type {Map<string, Record<string, string>>} */
   const byId = new Map();
-  for (const item of Array.isArray(items) ? items : []) {
+  for (const item of isArray(items) ? items : []) {
     if (!isPlainObject(item)) continue;
     const it = item;
     if (!nonEmptyString(it.id) || !isPlainObject(it.candidate)) continue;
@@ -763,7 +763,7 @@ function readItemAxes(items) {
 function readJustifiedElementAbsences(raw) {
   /** @type {Set<string>} */
   const scopes = new Set();
-  for (const entry of Array.isArray(raw) ? raw : []) {
+  for (const entry of isArray(raw) ? raw : []) {
     if (!isPlainObject(entry)) continue;
     const e = entry;
     if (!nonEmptyString(e.scope) || !nonEmptyString(e.reason)) continue;
@@ -800,7 +800,7 @@ function gradeCell(row, duplicated, label, problems, stateManifest) {
     return "unmeasured";
   }
   if (value === "present") {
-    const coveredBy = Array.isArray(row.covered_by) ? row.covered_by : [];
+    const coveredBy = isArray(row.covered_by) ? row.covered_by : [];
     if (coveredBy.filter(nonEmptyString).length === 0) {
       problems.push(
         `セル ${label}: value: present なのに covered_by が空（採取状態にも assertion にも反映されていない）`,
@@ -828,7 +828,7 @@ function gradeCell(row, duplicated, label, problems, stateManifest) {
  * @param {string[]} problems
  */
 function checkEquivalenceMembership(classes, candidateKeys, cid, problems) {
-  const list = Array.isArray(classes) ? classes : [];
+  const list = isArray(classes) ? classes : [];
   // 宣言が空なら削減していない（全候補を個別に採取した）とみなす。1 つでも宣言されたら全候補の所属が要る。
   if (list.length === 0) return;
   /** @type {Map<string, string>} */
@@ -843,7 +843,7 @@ function checkEquivalenceMembership(classes, candidateKeys, cid, problems) {
     if (!nonEmptyString(klass.rationale)) {
       problems.push(`部品 ${cid}: 同値クラス ${kid}: rationale が空（分類根拠が残らない）`);
     }
-    const members = (Array.isArray(klass.members) ? klass.members : [])
+    const members = (isArray(klass.members) ? klass.members : [])
       .filter(nonEmptyString)
       .map(String);
     if (members.length === 0) {
@@ -906,7 +906,7 @@ function countProfiledComponent(c, cid, byKey, duplicated, keyOf, expected, prob
   let present = 0;
   let absent = 0;
   let unmeasured = 0;
-  const instances = Array.isArray(c.instances) ? c.instances : [];
+  const instances = isArray(c.instances) ? c.instances : [];
   if (instances.length === 0) {
     problems.push(`部品 ${cid}: instances が空（列挙が起きていない）`);
     return { cells: 1, present: 0, absent: 0, unmeasured: 1 };
@@ -996,7 +996,7 @@ function countProfiledComponent(c, cid, byKey, duplicated, keyOf, expected, prob
       continue;
     }
 
-    const candidates = (Array.isArray(inst.candidates) ? inst.candidates : [])
+    const candidates = (isArray(inst.candidates) ? inst.candidates : [])
       .filter(nonEmptyString)
       .map(String);
     if (candidates.length === 0) {
@@ -1035,7 +1035,7 @@ function countProfiledComponent(c, cid, byKey, duplicated, keyOf, expected, prob
     const elements = isPlainObject(enumeration.elements) ? enumeration.elements : {};
     const justified = readJustifiedElementAbsences(enumeration.justified_absences);
     for (const [axisId, list] of Object.entries(elements)) {
-      if (!Array.isArray(list)) {
+      if (!isArray(list)) {
         problems.push(`${label}: enumeration.elements.${axisId} が配列ではない`);
         continue;
       }
@@ -1113,7 +1113,7 @@ export function countCoverage(coverage, slug, captureFingerprintNow = null) {
   if (slug !== null && cov.slug !== slug) {
     problems.push(`網羅表の slug（${String(cov.slug)}）が metadata.json の slug（${slug}）と違う`);
   }
-  const components = Array.isArray(cov.components) ? cov.components : [];
+  const components = isArray(cov.components) ? cov.components : [];
   if (components.length === 0) {
     problems.push("components が空（declared: true なら 1 つ以上の部品が要る）");
   }
@@ -1166,7 +1166,7 @@ export function countCoverage(coverage, slug, captureFingerprintNow = null) {
           `conformance.visual_states.undecided が 0 ではない（撮る／撮れない理由が未決の撮影状態が残っている: ${String(visual.undecided)}）`,
         );
       }
-      const missing = Array.isArray(visual.missing_states) ? visual.missing_states : null;
+      const missing = isArray(visual.missing_states) ? visual.missing_states : null;
       if (missing === null) {
         problems.push("conformance.visual_states.missing_states が配列ではない");
       } else if (missing.length > 0) {
@@ -1207,7 +1207,7 @@ export function countCoverage(coverage, slug, captureFingerprintNow = null) {
 
   // セル行を 部品／項目／インスタンス で索引する。重複は先勝ちにせず記録する。
   // キーは JSON 配列にして区切り文字を含む id でも衝突しないようにする。
-  const rows = Array.isArray(cov.cells) ? cov.cells : [];
+  const rows = isArray(cov.cells) ? cov.cells : [];
   /** @type {Map<string, Record<string, unknown>>} */
   const byKey = new Map();
   /** @type {Set<string>} */
@@ -1254,10 +1254,10 @@ export function countCoverage(coverage, slug, captureFingerprintNow = null) {
   const seenComponents = new Set();
 
   for (const [componentIndex, component] of components.entries()) {
-    /** @type {Record<string, unknown>} */
-    const c = component || {};
-    const items = Array.isArray(c.items) ? c.items : [];
-    const instances = Array.isArray(c.instances) ? c.instances : [];
+    // object でない要素は欄を持たないので、空のオブジェクトと同じに読む（id が空として未測定に数える）。
+    const c = isPlainObject(component) ? component : {};
+    const items = isArray(c.items) ? c.items : [];
+    const instances = isArray(c.instances) ? c.instances : [];
     // 期待セル数は部品を識別できるかに依らず「項目数 × インスタンス数」で数える。部品側の id が
     // 空・重複でもセルは実在するので、1 セルに丸めるとレポート値が定義より小さく出る（列挙が
     // 空のときだけ 0 になってしまうので、未測定を数えるための下限として 1 を取る）。

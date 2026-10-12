@@ -91,7 +91,7 @@
       "id": "legacy-empty-render-inputs",
       "why": "render_inputs が空配列でも持ち越しの判定へ進む",
       "file": "skills/parity-suite/scripts/evidence-carry.mjs",
-      "find": "(Array.isArray(renderInputs) && renderInputs.length === 0)",
+      "find": "(isArray(renderInputs) && renderInputs.length === 0)",
       "replace": "false",
       "occurrences": 1,
       "expect_failing": ["render_inputs が空配列: 判定せず legacy（呼び出し側が従来どおり落とす）"]

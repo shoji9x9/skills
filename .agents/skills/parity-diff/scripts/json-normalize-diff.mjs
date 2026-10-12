@@ -17,6 +17,7 @@
 
 import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { isArray } from "./lib/is-array.mjs";
 
 /**
  * ツールのバージョン（原本）。比較の処理や出力の形を変えたら上げる。
@@ -35,7 +36,7 @@ export const ABSENT = "(absent)";
  * @returns {v is Record<string, unknown>}
  */
 function isRecord(v) {
-  return v !== null && typeof v === "object" && !Array.isArray(v);
+  return v !== null && typeof v === "object" && !isArray(v);
 }
 
 /**
@@ -60,7 +61,7 @@ function segments(path) {
 export function removePath(node, segs) {
   if (segs.length === 0 || node === null || typeof node !== "object") return node;
   const [head, ...rest] = segs;
-  if (Array.isArray(node)) {
+  if (isArray(node)) {
     return node
       .map((el, i) => {
         if (head === "*") return rest.length === 0 ? undefined : removePath(el, rest);
@@ -101,7 +102,7 @@ export function removePath(node, segs) {
  * @returns {unknown}
  */
 function canonicalize(v) {
-  if (Array.isArray(v)) return v.map(canonicalize);
+  if (isArray(v)) return v.map(canonicalize);
   if (isRecord(v)) {
     /** @type {Record<string, unknown>} */
     const out = {};
@@ -124,7 +125,7 @@ function canonicalize(v) {
 export function sortArrayAtPath(node, segs) {
   if (node === null || typeof node !== "object") return node;
   if (segs.length === 0) {
-    if (Array.isArray(node)) {
+    if (isArray(node)) {
       return [...node].sort((a, b) => {
         const ka = JSON.stringify(canonicalize(a));
         const kb = JSON.stringify(canonicalize(b));
@@ -134,7 +135,7 @@ export function sortArrayAtPath(node, segs) {
     return node;
   }
   const [head, ...rest] = segs;
-  if (Array.isArray(node)) {
+  if (isArray(node)) {
     return node.map((el, idx) => {
       if (head === "*" || Number(head) === idx) return sortArrayAtPath(el, rest);
       return el;
@@ -161,9 +162,9 @@ export function sortArrayAtPath(node, segs) {
 export function deepDiff(a, b, path, out) {
   const aObj = a !== null && typeof a === "object";
   const bObj = b !== null && typeof b === "object";
-  if (aObj && bObj && Array.isArray(a) === Array.isArray(b)) {
+  if (aObj && bObj && isArray(a) === isArray(b)) {
     // 外側の条件で a と b の配列かどうかは揃っている。
-    if (Array.isArray(a) && Array.isArray(b)) {
+    if (isArray(a) && isArray(b)) {
       const len = Math.max(a.length, b.length);
       for (let i = 0; i < len; i += 1) {
         const childPath = path ? `${path}.${i}` : String(i);
