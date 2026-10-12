@@ -148,7 +148,7 @@ type RawMutation = {
 /** 宣言と、そのうち測る変異（`--only` と `--shard` で絞った後）。 */
 type Plan = { spec: Spec; targeted: Mutation[] };
 /** `--shard` で割り当てる単位。宣言 1 件か、重い宣言を変異で分けた一部。 */
-type Piece = { plan: Plan; specRel: string; part: number; mutations: Mutation[]; cost: number };
+type Piece = { plan: Plan; part: number; mutations: Mutation[]; cost: number };
 /** `settleTarget` の分類。 */
 type SettleState = "mutated" | "original" | "removed" | "foreign" | "unrestored";
 /** テストファイルを 1 回実行した結果（`runTests`）。 */
@@ -693,22 +693,22 @@ function assignShard(
   for (const { plan, specRel, perRun, cost } of whole) {
     const n = plan.targeted.length;
     // 一部に入れられる変異の数（基準 run の 1 回分を除く）。t が目安の半分を超えるときも、1 件ずつには分ける。
+    // シャードの数より多くは分けない。余った一部は同じシャードに入り、基準 run が増えるだけになる
+    // （宣言が 1 件だけ選ばれた PR では、目安がその宣言の 1/N になり、上限が無いと変異の数まで分けてしまう）。
     const perPart = Math.max(1, Math.floor(budget / perRun) - 1);
-    const parts = cost > budget ? Math.min(n, Math.ceil(n / perPart)) : 1;
+    const parts = cost > budget ? Math.min(n, shard.total, Math.ceil(n / perPart)) : 1;
     if (parts > 1) console.log(`分割: ${specRel}（${n} 変異）を ${parts} 個に分ける`);
     for (let part = 0, start = 0; part < parts; part++) {
       // 先頭の (n % parts) 個に 1 件ずつ多く持たせる。
       const size = Math.floor(n / parts) + (part < n % parts ? 1 : 0);
       const mutations = plan.targeted.slice(start, start + size);
       start += size;
-      pieces.push({ plan, specRel, part, mutations, cost: (size + 1) * perRun });
+      pieces.push({ plan, part, mutations, cost: (size + 1) * perRun });
     }
   }
-  // 同じ見積もりの順は、リポジトリのルートからの相対パスを、ロケールに依らない比較で決める。
-  // `localeCompare` は LANG で順が変わり、絶対パスは worktree ごとに変わるので、シャードの間で割り当てがずれる。
-  const byCodeUnit = (x: string, y: string) => (x < y ? -1 : x > y ? 1 : 0);
-  const order = (a: Piece, b: Piece) =>
-    b.cost - a.cost || byCodeUnit(a.specRel, b.specRel) || a.part - b.part;
+  // 見積もりが同じものは、作った順（宣言の並びと、分けた一部の順）を保つ（sort は安定）。宣言の並びはどのシャードも同じなので、
+  // パスやロケールで比べ直さない（`localeCompare` は LANG で、絶対パスは worktree ごとに変わる）。
+  const order = (a: Piece, b: Piece) => b.cost - a.cost;
   const loads: number[] = Array.from({ length: shard.total }, () => 0);
   const mine = new Set<Mutation>();
   for (const piece of [...pieces].sort(order)) {

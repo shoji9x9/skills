@@ -63,13 +63,15 @@ test.each(SPECS)("宣言が形を満たす: %s", (specPath) => {
   }
 });
 
-// `--shard` の割り当てに使う所要時間の見積もり（`mutation-durations.json`）。宣言を移したときに古いキーだけが残ると、
+// `--shard` の割り当てに使う所要時間の見積もり（`mutation-durations.json`）。
+const DURATIONS = parseJsonAs<{ seconds_per_run: Record<string, unknown> }>(
+  readFileSync(join(repoRoot, "scripts/mutation/mutation-durations.json"), "utf8"),
+).seconds_per_run;
+
+// 宣言を移したときに古いキーだけが残ると、
 // 移した先の宣言は見積もりが無いまま default_seconds で配られ、シャードの釣り合いが警告なしに悪くなる。
 test("所要時間の見積もりのキーは、実在する宣言を指す", () => {
-  const durations = parseJsonAs<{ seconds_per_run: Record<string, unknown> }>(
-    readFileSync(join(repoRoot, "scripts/mutation/mutation-durations.json"), "utf8"),
-  );
-  const keys = Object.keys(durations.seconds_per_run);
+  const keys = Object.keys(DURATIONS);
   expect(keys.length).toBeGreaterThan(0);
   expect(keys.filter((key) => !SPECS.includes(key))).toEqual([]);
 });
@@ -77,8 +79,5 @@ test("所要時間の見積もりのキーは、実在する宣言を指す", ()
 // 見積もりの無い宣言は default_seconds で配られ、重い宣言だと 1 つのシャードに寄る（ログに 1 行出るだけで CI は落ちない）。
 // 宣言を足したら、見積もりも足す。最初は手元の実行の `時間: X 秒（N 変異、基準 run を含む）` から X ÷ (N + 1) で書く。
 test("どの宣言にも所要時間の見積もりがある", () => {
-  const durations = parseJsonAs<{ seconds_per_run: Record<string, unknown> }>(
-    readFileSync(join(repoRoot, "scripts/mutation/mutation-durations.json"), "utf8"),
-  );
-  expect(SPECS.filter((spec) => !(spec in durations.seconds_per_run))).toEqual([]);
+  expect(SPECS.filter((spec) => !(spec in DURATIONS))).toEqual([]);
 });

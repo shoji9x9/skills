@@ -339,37 +339,48 @@
       "id": "SHARD-NO-SPLIT",
       "why": "重い宣言を分けない（1 つの宣言が 1 シャードの目安を超えて、そのシャードだけが長くなる）",
       "file": "scripts/mutation/check-mutation-proof.ts",
-      "find": "    const parts = cost > budget ? Math.min(n, Math.ceil(n / perPart)) : 1;",
+      "find": "    const parts = cost > budget ? Math.min(n, shard.total, Math.ceil(n / perPart)) : 1;",
       "replace": "    const parts = 1;",
       "occurrences": 1,
       "expect_failing": [
         "--shard 1 シャードの目安を超える宣言だけを、変異で分ける",
         "--shard --list は測る変異を出し、測らずに終わる",
-        "--shard 分けた一部が、基準 run を含めて目安に収まる数に分ける"
+        "--shard 分けた一部が、基準 run を含めて目安に収まる数に分ける",
+        "--shard 宣言が 1 件だけでも、シャードの数より多くは分けない"
       ]
     },
     {
       "id": "SHARD-SPLIT-ALL",
       "why": "すべての宣言を変異ごとに分ける（どのシャードも同じ宣言の基準 run を繰り返す）",
       "file": "scripts/mutation/check-mutation-proof.ts",
-      "find": "    const parts = cost > budget ? Math.min(n, Math.ceil(n / perPart)) : 1;",
+      "find": "    const parts = cost > budget ? Math.min(n, shard.total, Math.ceil(n / perPart)) : 1;",
       "replace": "    const parts = n;",
       "occurrences": 1,
       "expect_failing": [
         "--shard 宣言を単位に割り当て、基準 run は宣言ごとに 1 つのシャードでだけ測る",
         "--shard 1 シャードの目安を超える宣言だけを、変異で分ける",
         "--shard --list は測る変異を出し、測らずに終わる",
-        "--shard 分けた一部が、基準 run を含めて目安に収まる数に分ける"
+        "--shard 分けた一部が、基準 run を含めて目安に収まる数に分ける",
+        "--shard 宣言が 1 件だけでも、シャードの数より多くは分けない"
       ]
     },
     {
       "id": "SHARD-SPLIT-IGNORES-BASELINE",
       "why": "分ける数を見積もり ÷ 目安で決める（一部ごとに足す基準 run を数えず、一部が目安を超える）",
       "file": "scripts/mutation/check-mutation-proof.ts",
-      "find": "Math.min(n, Math.ceil(n / perPart))",
-      "replace": "Math.min(n, Math.ceil(cost / budget))",
+      "find": "Math.min(n, shard.total, Math.ceil(n / perPart))",
+      "replace": "Math.min(n, shard.total, Math.ceil(cost / budget))",
       "occurrences": 1,
       "expect_failing": ["--shard 分けた一部が、基準 run を含めて目安に収まる数に分ける"]
+    },
+    {
+      "id": "SHARD-PARTS-UNCAPPED",
+      "why": "分ける数をシャードの数で抑えない（宣言が 1 件だけ選ばれた PR で変異の数まで分け、同じシャードに入った一部の基準 run が増える）",
+      "file": "scripts/mutation/check-mutation-proof.ts",
+      "find": "Math.min(n, shard.total, Math.ceil(n / perPart))",
+      "replace": "Math.min(n, Math.ceil(n / perPart))",
+      "occurrences": 1,
+      "expect_failing": ["--shard 宣言が 1 件だけでも、シャードの数より多くは分けない"]
     },
     {
       "id": "SHARD-NO-SORT",

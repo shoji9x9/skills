@@ -1402,13 +1402,22 @@ describe.concurrent("--shard", () => {
   });
 
   test("分けた一部が、基準 run を含めて目安に収まる数に分ける", async () => {
-    // A は 1 回 10 秒で 9 変異（100 秒）、B は 1 回 1 秒で 1 変異（2 秒）。目安は 102 ÷ 3 = 34 秒。
-    // 一部に入れられる変異は 34 ÷ 10 − 1 = 2 件なので 5 個に分ける（一部は 30 秒以下）。
+    // A は 1 回 10 秒で 9 変異（100 秒）、B は 1 回 1 秒で 103 変異（104 秒）。目安は 204 ÷ 6 = 34 秒。
+    // A の一部に入れられる変異は 34 ÷ 10 − 1 = 2 件なので 5 個に分ける（一部は 30 秒以下。シャードの数 6 より少ない）。
     // 基準 run を数えずに 100 ÷ 34 で 3 個に分けると、一部が 40 秒になり目安を超える。
-    const [a, b] = [specOf("A", 9), specOf("B", 1)];
-    const res = await runRunner(a, b, "--list", "--shard", "1/3", durations({ [a]: 10, [b]: 1 }));
+    const [a, b] = [specOf("A", 9), specOf("B", 103)];
+    const res = await runRunner(a, b, "--list", "--shard", "1/6", durations({ [a]: 10, [b]: 1 }));
     expect(res.status, res.out).toBe(0);
     expect(res.out).toContain(`分割: ${relative(repoRoot, a)}（9 変異）を 5 個に分ける`);
+  });
+
+  test("宣言が 1 件だけでも、シャードの数より多くは分けない", async () => {
+    // A だけを選ぶ。1 回 10 秒で 13 変異（140 秒）、目安は 140 ÷ 4 = 35 秒で、一部に入れられる変異は 2 件。
+    // 上限が無いと 7 個に分け、4 シャードのうち 3 つが一部を 2 つ持って基準 run を重ねる。
+    const a = specOf("A", 13);
+    const res = await runRunner(a, "--list", "--shard", "1/4", durations({ [a]: 10 }));
+    expect(res.status, res.out).toBe(0);
+    expect(res.out).toContain(`分割: ${relative(repoRoot, a)}（13 変異）を 4 個に分ける`);
   });
 
   test("--list はロックを取らない（測定の実行中でも割り当てを確かめられる）", async () => {
