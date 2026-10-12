@@ -106,6 +106,8 @@ function anyLike(node: ts.Node, sf: ts.SourceFile, checker: () => ts.TypeChecker
     : ts.isImportTypeNode(node) && !node.isTypeOf && node.qualifier !== undefined
       ? { ref: node.qualifier, typeArguments: node.typeArguments }
       : // `@extends {X}`・`@augments {X}`・`@implements {X}` の X も、省いた型引数に any が入る。
+        // タグの無い `class S extends X {}` は対象にしない。このチェックが調べるのは JSDoc に書いた型で、
+        // 型を書いていない継承（X の型引数はデフォルトになる）は、書き方の誤りとして検出する対象の外にある。
         ts.isExpressionWithTypeArguments(node) &&
           (ts.isJSDocAugmentsTag(node.parent) || ts.isJSDocImplementsTag(node.parent))
         ? { ref: node.expression, typeArguments: node.typeArguments }

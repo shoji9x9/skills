@@ -493,7 +493,8 @@ function isTextOwner(v) {
   const isNumber = (x) => typeof x === "number";
   // 文字の高さは、採れなかった値（canvas の fontBoundingBoxAscent を持たないブラウザの NaN）が JSON で null になる。
   // 比較は数でない値を差分として出す（両側とも null でも、比べられないとして差分にする）ので、null も受け付ける。
-  // 幅の合計と行の数は、採取が NaN を出さないので数だけを受け付ける。
+  // 幅の合計と行の数は、採取が必ず数で記録するので数だけを受け付ける。ただし、文字の高さが NaN のブラウザでは、
+  // 行の数が 0 に数えられる（行の判定に高さを使う）。そのため、片側だけがそのブラウザだと、行の数の差が先に出る。
   /** @param {unknown} x */
   const isNumberOrNull = (x) => x === null || typeof x === "number";
   return (
