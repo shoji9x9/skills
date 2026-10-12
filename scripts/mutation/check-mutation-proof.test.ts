@@ -1392,6 +1392,9 @@ describe.concurrent("--shard", () => {
       const res = await runRunner(a, b, "--list", "--shard", shard, env);
       expect(res.status, res.out).toBe(0);
       expect(res.out, "--list なのに測った").not.toMatch(/^(PASS|FAIL|baseline:)/m);
+      expect(res.stderr, "ロックが無いのに知らせた").not.toContain(
+        "割り当てを計算している可能性がある",
+      );
       return [...res.stdout.matchAll(/^LIST (\S+) (\S+)$/gm)].map((m) => `${m[1]} ${m[2]}`);
     };
     const [rel, relB] = [relative(repoRoot, a), relative(repoRoot, b)];
@@ -1413,7 +1416,7 @@ describe.concurrent("--shard", () => {
 
   test("宣言が 1 件だけでも、シャードの数より多くは分けない", async () => {
     // A だけを選ぶ。1 回 10 秒で 13 変異（140 秒）、目安は 140 ÷ 4 = 35 秒で、一部に入れられる変異は 2 件。
-    // 上限が無いと 7 個に分け、4 シャードのうち 3 つが一部を 2 つ持って基準 run を重ねる。
+    // 上限が無いと 7 個に分け、4 シャードのうち 3 つが一部を 2 つ持つ。基準 run は 1 回にまとまり、見積もりだけが重ねて数えて偏る。
     const a = specOf("A", 13);
     const res = await runRunner(a, "--list", "--shard", "1/4", durations({ [a]: 10 }));
     expect(res.status, res.out).toBe(0);
@@ -1430,6 +1433,8 @@ describe.concurrent("--shard", () => {
     });
     expect(res.status, res.out).toBe(0);
     expect(res.stdout).toMatch(/^LIST \S+ A1$/m);
+    // 変異が入ったままのファイルを読んでいる可能性を知らせる。
+    expect(res.stderr).toContain("割り当てを計算している可能性がある");
     expect(readFileSync(lock, "utf8"), "--list が他の実行のロックを変えた").toBe(
       `${process.pid}\n`,
     );

@@ -375,7 +375,7 @@
     },
     {
       "id": "SHARD-PARTS-UNCAPPED",
-      "why": "分ける数をシャードの数で抑えない（宣言が 1 件だけ選ばれた PR で変異の数まで分け、同じシャードに入った一部の基準 run が増える）",
+      "why": "分ける数をシャードの数で抑えない（宣言が 1 件だけ選ばれた PR で変異の数まで分け、同じシャードに入った一部の基準 run を見積もりが重ねて数えて偏る）",
       "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "Math.min(n, shard.total, Math.ceil(n / perPart))",
       "replace": "Math.min(n, Math.ceil(n / perPart))",
@@ -438,6 +438,17 @@
       "file": "scripts/mutation/check-mutation-proof.ts",
       "find": "  if (!list) {\n    // 宣言の検証より先にロックを取る",
       "replace": "  if (true) {\n    // 宣言の検証より先にロックを取る",
+      "occurrences": 1,
+      "expect_failing": [
+        "--shard --list はロックを取らない（測定の実行中でも割り当てを確かめられる）"
+      ]
+    },
+    {
+      "id": "LIST-NO-WARNING",
+      "why": "--list が、測定の実行中や中断の後でも知らせない（変異が入ったランナーで計算した割り当てを、警告なしに出す）",
+      "file": "scripts/mutation/check-mutation-proof.ts",
+      "find": "  } else if (existsSync(lockPath) || existsSync(recoveryPath)) {",
+      "replace": "  } else if (false) {",
       "occurrences": 1,
       "expect_failing": [
         "--shard --list はロックを取らない（測定の実行中でも割り当てを確かめられる）"

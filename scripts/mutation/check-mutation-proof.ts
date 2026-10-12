@@ -148,7 +148,7 @@ type RawMutation = {
 /** 宣言と、そのうち測る変異（`--only` と `--shard` で絞った後）。 */
 type Plan = { spec: Spec; targeted: Mutation[] };
 /** `--shard` で割り当てる単位。宣言 1 件か、重い宣言を変異で分けた一部。 */
-type Piece = { plan: Plan; part: number; mutations: Mutation[]; cost: number };
+type Piece = { plan: Plan; mutations: Mutation[]; cost: number };
 /** `settleTarget` の分類。 */
 type SettleState = "mutated" | "original" | "removed" | "foreign" | "unrestored";
 /** テストファイルを 1 回実行した結果（`runTests`）。 */
@@ -693,7 +693,8 @@ function assignShard(
   for (const { plan, specRel, perRun, cost } of whole) {
     const n = plan.targeted.length;
     // 一部に入れられる変異の数（基準 run の 1 回分を除く）。t が目安の半分を超えるときも、1 件ずつには分ける。
-    // シャードの数より多くは分けない。余った一部は同じシャードに入り、基準 run が増えるだけになる
+    // シャードの数より多くは分けない。余った一部は同じシャードに入って 1 回の基準 run にまとまるので速くならず、
+    // 見積もり（loads）だけが基準 run を一部の数だけ数えて偏る
     // （宣言が 1 件だけ選ばれた PR では、目安がその宣言の 1/N になり、上限が無いと変異の数まで分けてしまう）。
     const perPart = Math.max(1, Math.floor(budget / perRun) - 1);
     const parts = cost > budget ? Math.min(n, shard.total, Math.ceil(n / perPart)) : 1;
@@ -703,7 +704,7 @@ function assignShard(
       const size = Math.floor(n / parts) + (part < n % parts ? 1 : 0);
       const mutations = plan.targeted.slice(start, start + size);
       start += size;
-      pieces.push({ plan, part, mutations, cost: (size + 1) * perRun });
+      pieces.push({ plan, mutations, cost: (size + 1) * perRun });
     }
   }
   // 見積もりが同じものは、作った順（宣言の並びと、分けた一部の順）を保つ（sort は安定）。宣言の並びはどのシャードも同じなので、
@@ -718,7 +719,8 @@ function assignShard(
     if (target === shard.index - 1) for (const m of piece.mutations) mine.add(m);
   }
   console.log(
-    `見積もり: 全体 ${estimated.toFixed(0)} 秒、このシャード ${loads[shard.index - 1].toFixed(0)} 秒` +
+    // 全体は、分けた一部の基準 run を含めた合計（シャードの見積もりの合計と一致する）。
+    `見積もり: 全体 ${loads.reduce((sum, load) => sum + load, 0).toFixed(0)} 秒、このシャード ${loads[shard.index - 1].toFixed(0)} 秒` +
       `（最大のシャード ${Math.max(...loads).toFixed(0)} 秒）`,
   );
   return plans.map((plan) => plan.targeted.filter((m) => mine.has(m)));
@@ -1092,11 +1094,17 @@ function proveMutation(mutation: Mutation, testFile: string): ProveResult {
 function main() {
   const { files, only, changedSince, shard, list } = parseArgs(process.argv.slice(2));
   // `--list` は作業ツリーに触れない（ロックを取らず、前回の中断で残った変異も戻さない）。測定の実行中でも割り当てを確かめられる。
+  // ただし、そのときは変異が入ったままのファイル（このランナー自身を含む）を読んでいる可能性があるので、知らせる。
   if (!list) {
     // 宣言の検証より先にロックを取る（並行実行が互いのファイルを読むのを防ぐ）。
     takeLock();
     // 前回が中断されて変異が残っていれば、測る前に戻す（残った変異を基準 run が測らないため）。
     recoverFromInterrupted();
+  } else if (existsSync(lockPath) || existsSync(recoveryPath)) {
+    console.error(
+      `mutation-proof: 測定の実行中か、前回の中断の後である（${lockPath}）。変異が入ったままのファイル（このランナー自身を含む）で` +
+        "割り当てを計算している可能性がある。測定の後か、別の worktree で確かめ直す",
+    );
   }
   let specs = specPaths(files).map(loadSpec);
   if (changedSince) {
