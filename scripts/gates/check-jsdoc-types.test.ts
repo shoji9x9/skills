@@ -312,7 +312,11 @@ test("CLI: 型の名前を、実リポジトリと同じく tsconfig.skills.json
 
 test('CLI: import した型（import("x").T）も、デフォルトが any の型引数を省けば検出する', () => {
   const root = makeRepo({
-    "skills/demo/scripts/lib.d.mts": "export interface Stream<R = any> { r: R }\n",
+    "skills/demo/scripts/lib.d.mts":
+      "export interface Stream<R = any> { r: R }\nexport declare class Box<T = any> { t: T }\n",
+    // typeof は値（クラスそのもの）の型で、型引数で具体化しないので検出しない。
+    "skills/demo/scripts/ctor.mjs":
+      '/** @param {typeof import("./lib.mjs").Box} C */\nexport function h(C) {}\n',
     "skills/demo/scripts/bare.mjs":
       '/** @param {import("./lib.mjs").Stream} s */\nexport function f(s) {}\n',
     "skills/demo/scripts/full.mjs":
@@ -324,6 +328,7 @@ test('CLI: import した型（import("x").T）も、デフォルトが any の�
     "skills/demo/scripts/bare.mjs:1: JSDoc の型に 型引数の足りない Stream（1 つ書く）",
   );
   expect(r.out).not.toContain("full.mjs");
+  expect(r.out).not.toContain("ctor.mjs");
 });
 
 test("CLI: tsconfig.skills.json が無ければ、型を解決できないとして exit 2", () => {

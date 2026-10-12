@@ -687,7 +687,7 @@ export function parseClaudeTrace(rawText: string): ParsedTrace {
       // and "Unexpected token" alone cannot be traced back to one.
       throw new Error(`Claude trace line ${index + 1} is not JSON: ${errorMessage(error)}`);
     }
-    if (typeof parsed !== "object" || parsed === null || isArray(parsed)) {
+    if (!isRecord(parsed)) {
       throw new Error(`Claude trace line ${index + 1} must be a JSON object`);
     }
     return parsed;

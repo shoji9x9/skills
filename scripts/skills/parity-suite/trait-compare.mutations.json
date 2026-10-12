@@ -21,7 +21,8 @@
         "文字列が違う組は寸法を比べず、書体の差だけを出す",
         "文字の持ち主の件数が違えば、はみ出した行を出す（新側に足りない）",
         "文字の持ち主の件数が違えば、はみ出した行を出す（新側に余分）",
-        "折り返しの行数が違えば行数の差だけを出し、幅の合計は比べない"
+        "折り返しの行数が違えば行数の差だけを出し、幅の合計は比べない",
+        "CLI は文字の寸法が null（採れなかった NaN）の要素を受け、差分に出して exit 1"
       ]
     },
     {
@@ -230,7 +231,7 @@
       "id": "cli-owner-lines-unchecked",
       "why": "文字の持ち主の lines が数かを確かめない",
       "file": "skills/parity-suite/scripts/trait-compare.mjs",
-      "find": "    absentOr(v.lines, isNumber) &&\n",
+      "find": "    absentOr(v.lines, isNumberOrNull) &&\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
@@ -268,6 +269,17 @@
       "occurrences": 1,
       "expect_failing": [
         "CLI は入れ子まで型どおりの要素（文字の持ち主・スクロール・webkit が unsupported）を比較する"
+      ]
+    },
+    {
+      "id": "cli-owner-size-null-rejected",
+      "why": "文字の寸法の null（採れなかった NaN）を拒み、その機能の照合を止める",
+      "file": "skills/parity-suite/scripts/trait-compare.mjs",
+      "find": "const isNumberOrNull = (x) => x === null || typeof x === \"number\";",
+      "replace": "const isNumberOrNull = (x) => typeof x === \"number\";",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI は文字の寸法が null（採れなかった NaN）の要素を受け、差分に出して exit 1"
       ]
     }
   ]

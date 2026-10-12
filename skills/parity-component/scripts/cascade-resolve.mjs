@@ -589,13 +589,17 @@ export function resolveCascade(document, options) {
 
   // 規則は css-rules-capture.mjs がオブジェクトで記録する。オブジェクトでない要素は、より強い宣言を隠しうるのに
   // 中身を読めないので、読み飛ばさずに判定できないとして止める（inaccessible・unresolved と同じ規律）。
-  const malformedRule = document.matched.findIndex((rule) => !isObject(rule) || isArray(rule));
-  if (malformedRule >= 0) {
-    throw new UsageError(
-      `css-rules.json \`matched[${malformedRule}]\` is not an object; re-capture with the bundled css-rules-capture.mjs`,
-    );
+  /** @type {Record<string, unknown>[]} */
+  const rules = [];
+  for (const [i, rule] of document.matched.entries()) {
+    if (!isObject(rule) || isArray(rule)) {
+      throw new UsageError(
+        `css-rules.json \`matched[${i}]\` is not an object; re-capture with the bundled css-rules-capture.mjs`,
+      );
+    }
+    rules.push(rule);
   }
-  for (const rule of document.matched.filter(isObject)) {
+  for (const rule of rules) {
     // 状態の名前は css-rules-capture.mjs が文字列で記録する（形はここでは検査しない）。
     // 文字列でない要素は成否を決められないので、名前の判定には入れず「不明」として持つ。
     const declaredStates = isArray(rule.states) ? rule.states : [];

@@ -91,9 +91,9 @@ export const VERSION = "4";
  * @property {string} [tag]
  * @property {string} text
  * @property {Record<string,string>} style
- * @property {number} [advance]
- * @property {number} [glyph_height]
- * @property {number} [lines]
+ * @property {number | null} [advance]
+ * @property {number | null} [glyph_height]
+ * @property {number | null} [lines]
  * @property {{ x:number, y:number, width:number, height:number }} [rect]
  */
 
@@ -489,14 +489,16 @@ function isTextOwner(v) {
   if (!isPlainObject(v) || typeof v.text !== "string" || !isStringRecord(v.style)) return false;
   /** @param {unknown} x */
   const isString = (x) => typeof x === "string";
+  // 文字の寸法は、採れなかった値（canvas の fontBoundingBoxAscent を持たないブラウザの NaN）が JSON で null になる。
+  // 比較は数でない値を差分として出すので、null も受け付ける。
   /** @param {unknown} x */
-  const isNumber = (x) => typeof x === "number";
+  const isNumberOrNull = (x) => x === null || typeof x === "number";
   return (
     absentOr(v.path, isString) &&
     absentOr(v.tag, isString) &&
-    absentOr(v.advance, isNumber) &&
-    absentOr(v.glyph_height, isNumber) &&
-    absentOr(v.lines, isNumber) &&
+    absentOr(v.advance, isNumberOrNull) &&
+    absentOr(v.glyph_height, isNumberOrNull) &&
+    absentOr(v.lines, isNumberOrNull) &&
     absentOr(v.rect, isRect)
   );
 }

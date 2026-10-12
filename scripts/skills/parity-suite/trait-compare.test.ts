@@ -359,6 +359,16 @@ test("CLI は入れ子まで型どおりの要素（文字の持ち主・スク�
   expect(r.status).toBe(0);
 });
 
+test("CLI は文字の寸法が null（採れなかった NaN）の要素を受け、差分に出して exit 1", () => {
+  const measured = { ...trait([]), text_owners: [owner("設定", font())] };
+  const unmeasured = { ...trait([]), text_owners: [owner("設定", font(), { glyph_height: null })] };
+  const r = runCli([measured], [unmeasured]);
+  expect(r.status).toBe(1);
+  expect(JSON.parse(r.stdout)).toEqual([
+    expect.objectContaining({ kind: "text", expected: "15", actual: "null" }),
+  ]);
+});
+
 test("CLI は rect の欠けた要素（旧スキーマ・手編集）を受け、欠けを差分に出して exit 1", () => {
   const { rect: _rect, ...legacy } = trait([]);
   const r = runCli([legacy], [trait([])]);

@@ -396,8 +396,19 @@
       "id": "IMPORT-TYPE-SKIPPED",
       "why": "import(\"x\").T の形の型参照を調べない（import した先のデフォルトが any の型を見逃す）",
       "file": "scripts/gates/check-jsdoc-types.ts",
-      "find": "    : ts.isImportTypeNode(node)\n      ? node.qualifier\n      : undefined;",
+      "find": "    : ts.isImportTypeNode(node) && !node.isTypeOf && node.qualifier !== undefined\n      ? { ref: node.qualifier, typeArguments: node.typeArguments }\n      : undefined;",
       "replace": "    : undefined;",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI: import した型（import(\"x\").T）も、デフォルトが any の型引数を省けば検出する"
+      ]
+    },
+    {
+      "id": "IMPORT-TYPEOF-CHECKED",
+      "why": "typeof import(\"x\").C（値の型）も型引数の数で判定する（具体化しない書き方を誤検知する）",
+      "file": "scripts/gates/check-jsdoc-types.ts",
+      "find": "ts.isImportTypeNode(node) && !node.isTypeOf && node.qualifier !== undefined",
+      "replace": "ts.isImportTypeNode(node) && node.qualifier !== undefined",
       "occurrences": 1,
       "expect_failing": [
         "CLI: import した型（import(\"x\").T）も、デフォルトが any の型引数を省けば検出する"

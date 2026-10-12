@@ -100,14 +100,14 @@ function anyLike(node: ts.Node, sf: ts.SourceFile, checker: () => ts.TypeChecker
   // 型引数を省くと、デフォルトの any が入るジェネリック型（`Generator<string>` は `Generator<string, any, any>`）。
   // `import("x").T` の形（ImportTypeNode）も同じく調べる。`@types/node` の `ReadableStream<R = any>` のように、
   // import した先の型もデフォルトが any でありうる。
-  const ref = ts.isTypeReferenceNode(node)
-    ? node.typeName
-    : ts.isImportTypeNode(node)
-      ? node.qualifier
+  // `typeof import("x").C` は値（クラスそのもの）の型で、型引数で具体化しないので対象にしない。
+  const target = ts.isTypeReferenceNode(node)
+    ? { ref: node.typeName, typeArguments: node.typeArguments }
+    : ts.isImportTypeNode(node) && !node.isTypeOf && node.qualifier !== undefined
+      ? { ref: node.qualifier, typeArguments: node.typeArguments }
       : undefined;
-  if (ref !== undefined) {
-    const typeArguments =
-      ts.isTypeReferenceNode(node) || ts.isImportTypeNode(node) ? node.typeArguments : undefined;
+  if (target !== undefined) {
+    const { ref, typeArguments } = target;
     const arity = anyDefaultArity(ref, checker());
     if ((typeArguments?.length ?? 0) < arity)
       return `型引数の足りない ${ref.getText(sf)}（${arity} つ書く）`;
