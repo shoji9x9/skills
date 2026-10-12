@@ -218,11 +218,13 @@ test.each([
   expect(isTarget(path)).toBe(expected);
 });
 
-// CLI が型を解決するのに読む設定（実リポジトリの tsconfig.skills.json と同じ include と、型の検査の設定）。
+// CLI が型を解決するのに読む設定。include と言語の設定は実リポジトリの tsconfig.skills.json に揃え、
+// 型の宣言（types）と paths は読まない（一時リポジトリには node_modules が無い）。
 const TSCONFIG = JSON.stringify({
   compilerOptions: {
     allowJs: true,
     checkJs: true,
+    strict: true,
     noEmit: true,
     target: "es2024",
     lib: ["es2024", "dom"],
@@ -306,6 +308,22 @@ test("CLI: 型の名前を、実リポジトリと同じく tsconfig.skills.json
     "skills/demo/scripts/gen.mjs:1: JSDoc の型に 型引数の足りない Generator（3 つ書く）",
   );
   expect(r.out).not.toContain("own.mjs");
+});
+
+test('CLI: import した型（import("x").T）も、デフォルトが any の型引数を省けば検出する', () => {
+  const root = makeRepo({
+    "skills/demo/scripts/lib.d.mts": "export interface Stream<R = any> { r: R }\n",
+    "skills/demo/scripts/bare.mjs":
+      '/** @param {import("./lib.mjs").Stream} s */\nexport function f(s) {}\n',
+    "skills/demo/scripts/full.mjs":
+      '/** @param {import("./lib.mjs").Stream<string>} s */\nexport function g(s) {}\n',
+  });
+  const r = runCli(root);
+  expect(r.status).toBe(1);
+  expect(r.out).toContain(
+    "skills/demo/scripts/bare.mjs:1: JSDoc の型に 型引数の足りない Stream（1 つ書く）",
+  );
+  expect(r.out).not.toContain("full.mjs");
 });
 
 test("CLI: tsconfig.skills.json が無ければ、型を解決できないとして exit 2", () => {

@@ -30,8 +30,8 @@ export function renderWordList(root: string) {
   if (!isArray(entries)) throw new Error("entries が配列でない");
   const rows: string[] = [];
   const seen = new Set();
-  entries.forEach((entry, i) => {
-    const e: Record<string, unknown> = isRecord(entry) ? entry : {};
+  entries.forEach((e, i) => {
+    if (!isRecord(e)) throw new Error(`entries[${i}] が object でない`);
     const hasTerm = typeof e.term === "string" && e.term.trim() !== "";
     const hasInstead = typeof e.instead === "string" && e.instead.trim() !== "";
     if (hasTerm !== hasInstead)

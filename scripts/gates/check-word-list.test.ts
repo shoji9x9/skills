@@ -101,6 +101,9 @@ test.each<[string, RepoOptions, string]>([
   ["term だけを持つ", { entries: [{ term: "旧語" }] }, "両方持つ"],
   ["instead だけを持つ", { entries: [{ instead: "新語" }] }, "両方持つ"],
   ["term が重複", { entries: [ENTRIES[0], ENTRIES[0]] }, "重複"],
+  // 他のエントリが 1 件以上あっても、object でない要素を読み飛ばさない（語が一覧に載らないまま通さない）。
+  ["要素が null", { entries: [ENTRIES[0], null] }, "entries[1] が object でない"],
+  ["要素が文字列", { entries: [ENTRIES[0], "旧語"] }, "entries[1] が object でない"],
   ["「|」を含む", { entries: [{ term: "a|b", instead: "c" }] }, "「|」"],
   ["一覧に出す行が 0 件", { entries: [ENTRIES[1]] }, "0 件"],
 ])("%s なら例外にする", (_, options, message) => {

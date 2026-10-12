@@ -18,7 +18,8 @@
 //   印の行 `// <region>:begin` と `// <region>:end` の間だけである。範囲は見出しの解析ではなく明示した印で決め、
 //   印が 1 組だけ無い（無い・重複・逆順）ファイルは違反にする。印が崩れたまま比べずに通さないためである。
 // - 組の最初のファイルを基準にし、違うファイルは最初に食い違う行番号を報告する。
-// - 宣言が読めない（JSON でない・形が違う・組が 0 件・同じファイルの重複）は exit 2、
+// - 1 ファイルは、ファイル全体の組と、範囲の名前ごとの組に 1 つずつ属せる。
+// - 宣言が読めない（JSON でない・形が違う・組が 0 件・同じ種類の組をまたいだ同じファイルの重複）は exit 2、
 //   ファイルが無い・一致しないは exit 1。
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -60,10 +61,15 @@ export function loadGroups(root: string): CopyGroup[] {
     if (region !== undefined && (typeof region !== "string" || !REGION_NAME_RE.test(region))) {
       throw new Error(`groups[${i}].region は英小文字で始まる英小文字・数字・ハイフンの名前にする`);
     }
+    // 1 ファイルが属せるのは、ファイル全体を比べる組 1 つと、範囲の名前ごとの組 1 つずつである。
+    // 同じ関数のコピーどうしはファイル全体で比べ、種類の違うファイルとは範囲で比べる。
     for (const f of files) {
-      if (seen.has(f))
-        throw new Error(`${f} が複数回宣言されている（1 ファイルは 1 組にだけ属する）`);
-      seen.add(f);
+      const key = region === undefined ? f : `${f}#${region}`;
+      if (seen.has(key))
+        throw new Error(
+          `${f} が${region === undefined ? "" : `範囲「${region}」の`}組に複数回宣言されている`,
+        );
+      seen.add(key);
     }
     return { ...g, files, reason: g.reason, region };
   });

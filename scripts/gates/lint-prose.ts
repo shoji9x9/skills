@@ -37,7 +37,7 @@ import {
 import { hasStrings, stringMarkdown } from "../lib/code-strings.ts";
 import { isAgentCopy } from "../lib/source-scope.ts";
 import { errorMessage } from "../lib/errors.ts";
-import { isRecord } from "../lib/guards.ts";
+import { isNonEmptyString, isRecord } from "../lib/guards.ts";
 import { isArray } from "../lib/is-array.ts";
 
 export const PENDING_PATH = "scripts/gates/prose-lint-pending.json";
@@ -51,11 +51,6 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 /** 指摘のうち、このスクリプトが読むフィールド。 */
 type LintMessage = { line: number; column: number; message: string; ruleId: string };
 type Linter = ReturnType<typeof createLinter>;
-
-/** 空でない文字列か。 */
-function isNonEmptyString(value: unknown): value is string {
-  return typeof value === "string" && value !== "";
-}
 
 /** 一覧を読み、形の誤りは例外にする（読めない一覧を「保留 0 件」として扱わない）。 */
 export function loadPending(root: string): Set<string> {

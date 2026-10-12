@@ -24,6 +24,7 @@ import {
   matchesComponentPattern,
   validateComponentDiffs,
   validateNoiseBaseline,
+  VERSION,
 } from "../../../skills/parity-diff/scripts/diff-normalize.mjs";
 import type { ComponentDiff } from "../../../skills/parity-diff/scripts/diff-normalize.mjs";
 
@@ -213,6 +214,10 @@ test.each([
   expect(validateNoiseBaseline([{ trait_diffs: 3 }, bad])).toEqual([
     "noise_baseline[1]: not an object — not used for matching",
   ]);
+});
+
+test("VERSION は 6（object でない要素を含む Diff の配列を exit 2 にし、ノイズ基準値の行の形を警告する）", () => {
+  expect(VERSION).toBe("6");
 });
 
 test("CLI: object でない要素を含む Diff の配列は入力エラー（exit 2）にする", () => {

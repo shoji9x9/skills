@@ -10,7 +10,7 @@
 // | ---------------- | ---------------------------------------------------------------------- |
 // | 宣言ファイル     | 在る / 無い / JSON でない                                               |
 // | groups           | 1 件 / 複数件 / 0 件 / 配列でない                                       |
-// | files            | 2 件 / 3 件以上 / 1 件 / 空文字を含む / 組をまたいで重複                |
+// | files            | 2 件 / 3 件以上 / 1 件 / 空文字を含む / 組をまたいで重複 / 全体の組と範囲の組の両方 |
 // | reason           | 在る / 空白だけ                                                         |
 // | 宣言したファイル | 在る / 無い                                                             |
 // | 内容             | 完全一致 / 途中の行の追加 / 末尾改行だけの差 / 3 件中 1 件だけ違う        |
@@ -147,6 +147,13 @@ test.each([
   ["files に空文字", [group("a/x.md", "")]],
   ["reason が空白だけ", [{ files: ["a/x.md", "b/x.md"], reason: " " }]],
   ["組をまたいだ重複", [group("a/x.md", "b/x.md"), group("a/x.md", "c/x.md")]],
+  [
+    "同じ範囲の組をまたいだ重複",
+    [
+      { ...group("a/x.md", "b/x.md"), region: "is-array" },
+      { ...group("a/x.md", "c/x.md"), region: "is-array" },
+    ],
+  ],
   ["region が空", [{ ...group("a/x.md", "b/x.md"), region: "" }]],
   ["region に大文字", [{ ...group("a/x.md", "b/x.md"), region: "Is-array" }]],
   ["region が文字列でない", [{ ...group("a/x.md", "b/x.md"), region: 1 }]],
@@ -155,6 +162,18 @@ test.each([
   // 宣言の段で弾くこと（比較の段の読み取り失敗で偶然 exit 2 になる形と区別する）。
   expect(() => loadGroups(root)).toThrow();
   expect(main([root])).toBe(2);
+});
+
+test("ファイル全体の組と範囲の組の両方に属するファイルは、両方の組で比べる", () => {
+  const groups = [group("a/x.md", "b/x.md"), { ...group("a/x.md", "c/x.md"), region: "is-array" }];
+  const files = { "a/x.md": `head\n${REGION}`, "c/x.md": `other\n${REGION}` };
+  // 範囲の中は一致し、範囲の外だけが違う。範囲の組は通り、ファイル全体の組が違いを検出する。
+  expect(
+    checkIdenticalCopies(makeRepo({ ...files, "b/x.md": `head\n${REGION}` }, groups)).violations,
+  ).toEqual([]);
+  expect(
+    checkIdenticalCopies(makeRepo({ ...files, "b/x.md": `tail\n${REGION}` }, groups)).violations,
+  ).toEqual([expect.stringContaining("b/x.md: a/x.md と一致しない")]);
 });
 
 test("陽性: 宣言が JSON でなければ exit 2", () => {

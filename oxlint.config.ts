@@ -31,7 +31,10 @@ export default defineConfig({
       // 利用者のプロジェクトへコピーする雛形（skills/*/assets/）は import できないので、同じ関数をファイルの中に持つ。
       // ユーティリティの中で組み込みの判定を呼ぶ 1 行は、その行の disable コメントで外す。
       // eval の fixture は下流のプロジェクトの書き方をそのまま持つので、対象にしない。
+      // 直下の設定ファイルは `./*.ts` で指す（`*.ts` は深い階層にも当たり、eval の fixture まで含む）。
       files: [
+        "./*.ts",
+        "types/**",
         "scripts/**",
         ".agents/skills/*/scripts/**",
         "skills/*/scripts/**",

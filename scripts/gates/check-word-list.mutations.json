@@ -73,6 +73,15 @@
         "一覧に出す行が 0 件 なら例外にする",
         "main: 一致なら 0、食い違いは 1、作れなければ 2 を返す"
       ]
+    },
+    {
+      "id": "WL-ENTRY-NOT-RECORD",
+      "why": "object でない要素を、term も instead も持たないエントリとして読み飛ばす",
+      "file": "scripts/gates/check-word-list.ts",
+      "find": "    if (!isRecord(e)) throw new Error(`entries[${i}] が object でない`);\n",
+      "replace": "    if (!isRecord(e)) return;\n",
+      "occurrences": 1,
+      "expect_failing": ["要素が null なら例外にする", "要素が文字列 なら例外にする"]
     }
   ]
 }

@@ -98,12 +98,19 @@ function anyLike(node: ts.Node, sf: ts.SourceFile, checker: () => ts.TypeChecker
   )
     return "Function";
   // 型引数を省くと、デフォルトの any が入るジェネリック型（`Generator<string>` は `Generator<string, any, any>`）。
-  // `import("x").T` の形（ImportTypeNode）は対象にしない。配布スキルの `.mjs` で自作の型にデフォルトの any を書くと、
-  // その `any` の書き方そのものを上の判定が検出する。
-  if (ts.isTypeReferenceNode(node)) {
-    const arity = anyDefaultArity(node.typeName, checker());
-    if ((node.typeArguments?.length ?? 0) < arity)
-      return `型引数の足りない ${node.typeName.getText(sf)}（${arity} つ書く）`;
+  // `import("x").T` の形（ImportTypeNode）も同じく調べる。`@types/node` の `ReadableStream<R = any>` のように、
+  // import した先の型もデフォルトが any でありうる。
+  const ref = ts.isTypeReferenceNode(node)
+    ? node.typeName
+    : ts.isImportTypeNode(node)
+      ? node.qualifier
+      : undefined;
+  if (ref !== undefined) {
+    const typeArguments =
+      ts.isTypeReferenceNode(node) || ts.isImportTypeNode(node) ? node.typeArguments : undefined;
+    const arity = anyDefaultArity(ref, checker());
+    if ((typeArguments?.length ?? 0) < arity)
+      return `型引数の足りない ${ref.getText(sf)}（${arity} つ書く）`;
   }
   return null;
 }
@@ -132,10 +139,14 @@ function ownTypeTag(node: ts.ParenthesizedExpression): ts.JSDocTypeTag | undefin
   return tag?.parent.parent === node ? tag : undefined;
 }
 
-// 配布スキルの `.mjs` を読む型の検査と同じ設定（`tsconfig.skills.json`）。テストのメモリの上の Program だけが使う。
+// テストのメモリの上の Program だけが使う設定。言語の設定（target・lib・module・strict）は `tsconfig.skills.json` に
+// 揃える。型の宣言（`types: ["node"]`）と `paths` は読まない。テストの結果を、リポジトリの node_modules と
+// `types/skill-runtime/` の中身に依存させないためである。import した先の型の判定は、宣言のファイルを置いた
+// 一時リポジトリで CLI を実行して確かめる（`check-jsdoc-types.test.ts`）。
 const MEMORY_OPTIONS: ts.CompilerOptions = {
   allowJs: true,
   checkJs: true,
+  strict: true,
   noEmit: true,
   target: ts.ScriptTarget.ES2024,
   lib: ["lib.es2024.d.ts", "lib.dom.d.ts"],

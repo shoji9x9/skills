@@ -33,7 +33,7 @@ import { isArray } from "./lib/is-array.mjs";
  *
  * @type {string}
  */
-export const VERSION = "5";
+export const VERSION = "6";
 
 /**
  * trait-compare の Diff のうち、分類が読む欄。ほかの欄は読まずに出力へ持ち越す。
