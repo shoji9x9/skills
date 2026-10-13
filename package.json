@@ -11,7 +11,7 @@
     "format:js": "oxfmt \"**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}\"",
     "format:js:check": "oxfmt --check \"**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}\"",
     "lint:js": "oxlint",
-    "lint:prose": "node scripts/gates/lint-prose.ts",
+    "lint:prose": "node scripts/gates/prose/lint-prose.ts",
     "test": "vitest run",
     "typecheck": "tsc -b --force"
   },

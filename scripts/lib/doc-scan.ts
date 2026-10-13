@@ -1,10 +1,10 @@
 // 文書のチェック（check-doc-refs.ts・check-time-sensitive-prose.ts）が共有する、走査対象と保留の一覧。
 //
 // 走査対象は、テキストの実体のファイル（コピーとリンクを除く。scripts/lib/source-scope.ts）のうち、
-// Tier 4（経過の記録）と階層の外（eval の入力）を除いたもの。階層は scripts/gates/doc-tiers.json で決める。
+// Tier 4（経過の記録）と階層の外（eval の入力）を除いたもの。階層は scripts/gates/docs/doc-tiers.json で決める。
 // Markdown は表の階層、それ以外のファイルはコードコメントとして Tier 3 に数える。
 //
-// 保留の一覧（scripts/gates/doc-pending.json）には、次の 2 種類がある。
+// 保留の一覧（scripts/gates/docs/doc-pending.json）には、次の 2 種類がある。
 // - pending: 今ある違反のうち、後の段階で直すもの。直したのに一覧に残ったもの（古い保留）は失敗にする。
 // - allowed: 違反の形だが正しい記述（導入先の例など）。理由を必須にし、使われなくなったものは失敗にする。
 // 違反は「ファイル・規則・一致した文字列」の組で一覧と突き合わせる。行番号は編集でずれるので使わない。
@@ -12,12 +12,12 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { isRecord } from "./guards.ts";
-import { TEXT_EXTENSIONS } from "../gates/check-control-chars.ts";
-import { loadDocTiers, tierOf } from "../gates/check-doc-tiers.ts";
-import { listSources } from "../gates/run-on-sources.ts";
+import { TEXT_EXTENSIONS } from "../gates/code/check-control-chars.ts";
+import { loadDocTiers, tierOf } from "../gates/docs/check-doc-tiers.ts";
+import { listSources } from "../gates/tooling/run-on-sources.ts";
 import { isArray } from "./is-array.ts";
 
-export const PENDING_PATH = "scripts/gates/doc-pending.json";
+export const PENDING_PATH = "scripts/gates/docs/doc-pending.json";
 // 保留と許可に書ける規則と段階。誤記した規則はどのチェックにも拾われず、古い保留にもならずに残るので、ここで弾く。
 export const KNOWN_RULES = [
   "link",

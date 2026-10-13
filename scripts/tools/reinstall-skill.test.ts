@@ -52,7 +52,10 @@ function createRepo(
   mkdirSync(join(root, "scripts", "tools"), { recursive: true });
   copyFileSync(script, join(root, "scripts", "tools", "reinstall-skill.sh"));
   if (!omit.includes("gates")) {
-    writeFile(join(root, "scripts", "gates", "check-skill-frontmatter.ts"), "process.exit(0);\n");
+    writeFile(
+      join(root, "scripts", "gates", "packaging", "check-skill-frontmatter.ts"),
+      "process.exit(0);\n",
+    );
   }
   if (!omit.includes("skills")) {
     writeFile(join(root, "skills", "demo", "SKILL.md"), `---\nname: demo\n---\n\n${body}\n`);

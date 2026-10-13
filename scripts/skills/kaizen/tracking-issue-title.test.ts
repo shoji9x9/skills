@@ -186,7 +186,7 @@ function declaredEnv(wfPath: string, key: string) {
  * ここで解決した先は**インストール済みコピー**になりうる。それを source して測ると、
  * 再インストール前の週に原本ではない別のファイルを測ることになり、原本へ入れた退行が
  * 緑のまま通る（ミューテーションテストで実際に起きた）。実行は原本（`libPath`）で測り、
- * コピーとの一致は `scripts/gates/check-skills-sync.ts` が別に見る。
+ * コピーとの一致は `scripts/gates/packaging/check-skills-sync.ts` が別に見る。
  */
 function resolveLib(wfPath: string) {
   const declared = declaredEnv(wfPath, "TRACKING_LIB");

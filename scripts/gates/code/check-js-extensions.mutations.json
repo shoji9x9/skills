@@ -1,0 +1,224 @@
+{
+  "$comment": [
+    "check-js-extensions.test.ts の検出能力を示す変異の一覧。",
+    "散文コメントで持つと古くなるため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。"
+  ],
+  "test_file": "scripts/gates/code/check-js-extensions.test.ts",
+  "mutations": [
+    {
+      "id": "DIST-MTS",
+      "why": "配布スキルの .mts を禁じる拡張子から外す",
+      "file": "scripts/gates/code/check-js-extensions.ts",
+      "find": "const DISTRIBUTED_BANNED = [\".js\", \".cjs\", \".mts\", \".cts\", \".tsx\", \".jsx\"];",
+      "replace": "const DISTRIBUTED_BANNED = [\".js\", \".cjs\", \".cts\", \".tsx\", \".jsx\"];",
+      "occurrences": 1,
+      "expect_failing": ["配布スキルの skills/demo/references/a.mts を違反にする"]
+    },
+    {
+      "id": "NONDIST-MTS",
+      "why": "scripts/ と private skill の .mts を禁じる拡張子から外す",
+      "file": "scripts/gates/code/check-js-extensions.ts",
+      "find": "const NON_DISTRIBUTED_BANNED = [\".js\", \".mjs\", \".cjs\", \".mts\", \".cts\", \".tsx\", \".jsx\"];",
+      "replace": "const NON_DISTRIBUTED_BANNED = [\".js\", \".mjs\", \".cjs\", \".cts\", \".tsx\", \".jsx\"];",
+      "occurrences": 1,
+      "expect_failing": [
+        "scripts/ の scripts/gates/a.mts を違反にする",
+        "private skill の .agents/skills/private-one/a.mts を違反にする",
+        "CLI: 追跡しているファイルと、無視されていない未追跡のファイルの違反を検出する"
+      ]
+    },
+    {
+      "id": "ASSETS-EXEMPT",
+      "why": "assets/ の雛形の .ts を免除しない",
+      "file": "scripts/gates/code/check-js-extensions.ts",
+      "find": "parts[2] !== \"assets\"",
+      "replace": "true",
+      "occurrences": 1,
+      "expect_failing": [
+        "規約どおりの skills/demo/assets/spec.template.ts は違反にしない",
+        "規約どおりの skills/demo/assets/nested/types.d.ts は違反にしない",
+        "配布スキルの小文字でない拡張子（skills/demo/assets/spec.template.TS）を違反にする",
+        "配布スキルの小文字でない拡張子（skills/demo/assets/types.d.TS）を違反にする"
+      ]
+    },
+    {
+      "id": "PRIVATE-NONE",
+      "why": "private skill を 1 つも対象にしない",
+      "file": "scripts/gates/code/check-js-extensions.ts",
+      "find": "privateSkills.includes(parts[2] ?? \"\")",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": [
+        "private skill の .agents/skills/private-one/scripts/a.js を違反にする",
+        "private skill の .agents/skills/private-one/scripts/a.mjs を違反にする",
+        "private skill の .agents/skills/private-one/a.mts を違反にする",
+        "CLI: private skill は skills/<name>/ が無いことで決め、公開スキルのコピーは対象にしない",
+        "CLI: stage した private skill の違反は、作業ツリーからスキルごと消しても検出する",
+        "CLI: 中身の無い skills/<name>/ のディレクトリがあっても、private skill として検査する",
+        "private skill の scripts/ の外の .ts（.agents/skills/private-one/tools/x.ts）を違反にする",
+        "private skill の scripts/ の外の .ts（.agents/skills/private-one/x.ts）を違反にする",
+        "private skill の scripts/ の外の .ts（.agents/skills/private-one/Scripts/x.ts）を違反にする",
+        "private skill の scripts/ の外の .ts（.agents/skills/private-one/types.d.ts）を違反にする",
+        "小文字でない .ts（.agents/skills/private-one/scripts/a.TS）を違反にする",
+        "置けない場所の大文字の .ts（.agents/skills/private-one/lib/x.TS）は、置き場所の違反として返す"
+      ]
+    },
+    {
+      "id": "PRIVATE-ALL",
+      "why": "公開スキルのインストール済みのコピーも private skill として扱う",
+      "file": "scripts/gates/code/check-js-extensions.ts",
+      "find": "privateSkills.includes(parts[2] ?? \"\")",
+      "replace": "true",
+      "occurrences": 1,
+      "expect_failing": [
+        "規約どおりの .agents/skills/demo/scripts/a.mjs は違反にしない",
+        "CLI: private skill は skills/<name>/ が無いことで決め、公開スキルのコピーは対象にしない"
+      ]
+    },
+    {
+      "id": "NO-UNTRACKED",
+      "why": "無視されていない未追跡のファイルを走査しない",
+      "file": "scripts/gates/code/check-js-extensions.ts",
+      "find": "      \"--others\",\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI: 追跡しているファイルと、無視されていない未追跡のファイルの違反を検出する"
+      ]
+    },
+    {
+      "id": "NO-GITIGNORE",
+      "why": ".gitignore で無視したファイルも数える",
+      "file": "scripts/gates/code/check-js-extensions.ts",
+      "find": "      \"--exclude-standard\",\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["CLI: .gitignore で無視したファイルは数えない"]
+    },
+    {
+      "id": "GIT-FAIL-PASSES",
+      "why": "git ls-files の失敗を合格として扱う",
+      "file": "scripts/gates/code/check-js-extensions.ts",
+      "find": "    console.error(`js-extensions: ${errorMessage(error)}`);\n    return 2;\n",
+      "replace": "    console.error(`js-extensions: ${errorMessage(error)}`);\n    return 0;\n",
+      "occurrences": 1,
+      "expect_failing": ["CLI: git のリポジトリでなければ判定できないとして exit 2"]
+    },
+    {
+      "id": "NO-REPO-ROOT",
+      "why": "起動した場所をそのまま走査の起点にする",
+      "file": "scripts/gates/code/check-js-extensions.ts",
+      "find": "    root = repoRoot(cwd);\n",
+      "replace": "    root = cwd;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI: リポジトリのサブディレクトリから起動しても、ルートから同じ範囲を走査する",
+        "CLI: git のリポジトリでなければ判定できないとして exit 2"
+      ]
+    },
+    {
+      "id": "ZERO-PASSES",
+      "why": "走査したファイルが 0 件でも合格として扱う",
+      "file": "scripts/gates/code/check-js-extensions.ts",
+      "find": "  if (files.length === 0) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["CLI: 走査したファイルが 0 件なら、判定できないとして exit 2"]
+    },
+    {
+      "id": "NO-JSX",
+      "why": "scripts/ と private skill の .jsx を禁じる拡張子から外す",
+      "file": "scripts/gates/code/check-js-extensions.ts",
+      "find": "const NON_DISTRIBUTED_BANNED = [\".js\", \".mjs\", \".cjs\", \".mts\", \".cts\", \".tsx\", \".jsx\"];",
+      "replace": "const NON_DISTRIBUTED_BANNED = [\".js\", \".mjs\", \".cjs\", \".mts\", \".cts\", \".tsx\"];",
+      "occurrences": 1,
+      "expect_failing": ["scripts/ の scripts/gates/a.jsx を違反にする"]
+    },
+    {
+      "id": "CASE-SENSITIVE",
+      "why": "拡張子を大文字と小文字を区別して照合する",
+      "file": "scripts/gates/code/check-js-extensions.ts",
+      "find": "  const lower = path.toLowerCase();\n",
+      "replace": "  const lower = path;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "配布スキルの skills/demo/scripts/a.JS を違反にする",
+        "scripts/ の scripts/gates/a.MJS を違反にする",
+        "配布スキルの小文字でない拡張子（skills/demo/scripts/a.MJS）を違反にする",
+        "配布スキルの小文字でない拡張子（skills/demo/assets/spec.template.TS）を違反にする",
+        "配布スキルの小文字でない拡張子（skills/demo/assets/types.d.TS）を違反にする",
+        "小文字でない .ts（scripts/gates/a.TS）を違反にする",
+        "小文字でない .ts（scripts/lib/types.d.Ts）を違反にする",
+        "小文字でない .ts（.agents/skills/private-one/scripts/a.TS）を違反にする",
+        "置けない場所の大文字の .ts（.agents/skills/private-one/lib/x.TS）は、置き場所の違反として返す",
+        "置けない場所の大文字の .ts（skills/demo/scripts/x.TS）は、置き場所の違反として返す"
+      ]
+    },
+    {
+      "id": "PUBLISHED-IGNORED",
+      "why": "skills/<name>/ があっても private skill として扱う",
+      "file": "scripts/gates/code/check-js-extensions.ts",
+      "find": "!published.has(name)",
+      "replace": "true",
+      "occurrences": 1,
+      "expect_failing": [
+        "private skill は、一覧の中で .agents/skills/<name>/ にあって skills/<name>/ に無いものにする",
+        "CLI: private skill は skills/<name>/ が無いことで決め、公開スキルのコピーは対象にしない"
+      ]
+    },
+    {
+      "id": "PRIVATE-TS-ANYWHERE",
+      "why": "private skill の scripts/ の外の .ts を許す",
+      "file": "scripts/gates/code/check-js-extensions.ts",
+      "find": "parts[3] !== \"scripts\"",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": [
+        "private skill の scripts/ の外の .ts（.agents/skills/private-one/tools/x.ts）を違反にする",
+        "private skill の scripts/ の外の .ts（.agents/skills/private-one/x.ts）を違反にする",
+        "private skill の scripts/ の外の .ts（.agents/skills/private-one/Scripts/x.ts）を違反にする",
+        "private skill の scripts/ の外の .ts（.agents/skills/private-one/types.d.ts）を違反にする",
+        "置けない場所の大文字の .ts（.agents/skills/private-one/lib/x.TS）は、置き場所の違反として返す"
+      ]
+    },
+    {
+      "id": "UPPER-PASSES",
+      "why": "許す拡張子が小文字でないものを通す（`a.TS` が型の検査に入らないまま通る）",
+      "file": "scripts/gates/code/check-js-extensions.ts",
+      "find": "lower.endsWith(a) && !path.endsWith(a)",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": [
+        "配布スキルの小文字でない拡張子（skills/demo/scripts/a.MJS）を違反にする",
+        "配布スキルの小文字でない拡張子（skills/demo/assets/spec.template.TS）を違反にする",
+        "配布スキルの小文字でない拡張子（skills/demo/assets/types.d.TS）を違反にする",
+        "小文字でない .ts（scripts/gates/a.TS）を違反にする",
+        "小文字でない .ts（scripts/lib/types.d.Ts）を違反にする",
+        "小文字でない .ts（.agents/skills/private-one/scripts/a.TS）を違反にする"
+      ]
+    },
+    {
+      "id": "PRIVATE-NON-TS-OUTSIDE",
+      "why": "private skill の scripts/ の外のファイルを、拡張子に依らず違反にする（SKILL.md などを落とす）",
+      "file": "scripts/gates/code/check-js-extensions.ts",
+      "find": "isPrivateSkill && lower.endsWith(\".ts\") && parts[3] !== \"scripts\"",
+      "replace": "isPrivateSkill && true && parts[3] !== \"scripts\"",
+      "occurrences": 1,
+      "expect_failing": [
+        "規約どおりの .agents/skills/private-one/SKILL.md は違反にしない",
+        "規約どおりの .agents/skills/private-one/references/notes.md は違反にしない"
+      ]
+    },
+    {
+      "id": "PRIVATE-SCRIPTS-CASE",
+      "why": "private skill の scripts/ のディレクトリ名を大文字と小文字を区別せずに照合する（`Scripts/` の .ts が型の検査に入らないまま通る）",
+      "file": "scripts/gates/code/check-js-extensions.ts",
+      "find": "parts[3] !== \"scripts\"",
+      "replace": "parts[3]?.toLowerCase() !== \"scripts\"",
+      "occurrences": 1,
+      "expect_failing": [
+        "private skill の scripts/ の外の .ts（.agents/skills/private-one/Scripts/x.ts）を違反にする"
+      ]
+    }
+  ]
+}

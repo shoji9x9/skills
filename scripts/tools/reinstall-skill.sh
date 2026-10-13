@@ -36,7 +36,7 @@ reinstall_one() {
 	# 1. Input validity. check-skill-frontmatter.ts otherwise only runs in pre-commit/CI,
 	#    but reinstall is what you hit first after editing a skill, and `gh skill install`
 	#    rejects invalid frontmatter *after* the removal.
-	if ! node scripts/gates/check-skill-frontmatter.ts "${source_dir}/SKILL.md"; then
+	if ! node scripts/gates/packaging/check-skill-frontmatter.ts "${source_dir}/SKILL.md"; then
 		echo "Preflight failed: ${source_dir}/SKILL.md の frontmatter が不正（既存のインストールは触っていない）" >&2
 		return 1
 	fi
@@ -127,9 +127,9 @@ if [ -n "${script_path}" ] && [ -f "${script_path}" ]; then
 	repo_root="$(CDPATH='' cd -P -- "$(dirname -- "${script_path}")/../.." 2>/dev/null && pwd)" || repo_root=""
 fi
 if [ -z "${repo_root}" ] ||
-	[ ! -f "${repo_root}/scripts/gates/check-skill-frontmatter.ts" ] ||
+	[ ! -f "${repo_root}/scripts/gates/packaging/check-skill-frontmatter.ts" ] ||
 	[ ! -d "${repo_root}/skills" ]; then
-	echo "Repository root not found from the script location: ${BASH_SOURCE[0]:-<stdin>}（scripts/gates/check-skill-frontmatter.ts と skills/ を持つツリーを特定できない。既存のインストールは触っていない）" >&2
+	echo "Repository root not found from the script location: ${BASH_SOURCE[0]:-<stdin>}（scripts/gates/packaging/check-skill-frontmatter.ts と skills/ を持つツリーを特定できない。既存のインストールは触っていない）" >&2
 	exit 2
 fi
 cd "${repo_root}"
