@@ -2,7 +2,7 @@
 date: 2026-09-13
 type: rule
 priority: medium
-status: pending
+status: forgotten
 applied-to: []
 session: codex
 ---
