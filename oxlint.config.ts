@@ -1,15 +1,9 @@
 import { defineConfig } from "oxlint";
-import { IS_ARRAY_HOLDERS } from "./scripts/lib/is-array-holders.ts";
+import { IS_ARRAY_HOLDERS, IS_ARRAY_RESTRICTION } from "./scripts/lib/is-array-holders.ts";
 import { agentCopyGlobs } from "./scripts/lib/source-scope.ts";
 
 // 禁じるプロパティ。型ガード isArray を持つファイル（IS_ARRAY_HOLDERS）では、`Array.isArray` だけを除いた一覧を当てる。
 // 規則ごと "off" にしないのは、ここに足した他の禁止まで、そのファイルで外れてしまうからである。
-const IS_ARRAY_RESTRICTION = {
-  object: "Array",
-  property: "isArray",
-  message:
-    "isArray（scripts/lib/is-array.ts、配布スキルは scripts/lib/is-array.mjs）を使う。Array.isArray は any[] に絞る",
-};
 const RESTRICTED_PROPERTIES = [IS_ARRAY_RESTRICTION];
 
 export default defineConfig({

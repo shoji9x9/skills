@@ -5,7 +5,15 @@
 // 利用者のプロジェクトでは、このリポジトリの lint の設定を前提にしたコメントは何も抑えず、
 // 使われない disable を error にする設定では lint が失敗する（`.agents/rules/distributed-skill-stack-independence.md`）。
 // ファイル単位で外すと、関数の外の呼び出しも検出されなくなる。その分は
-// `scripts/gates/code/check-skill-lint-directives.ts` が、関数宣言 `isArray` の外の呼び出しと、中の 2 回目以降の呼び出しとして検出する。
+// `scripts/gates/code/check-skill-lint-directives.ts` が、同じ規則の oxlint をそのファイルに当て、関数宣言 `isArray` の中の 1 件の他を違反にする。
+/** `no-restricted-properties` で禁じる `Array.isArray`（`oxlint.config.ts` と、持ち主のファイルの検査が同じものを使う）。 */
+export const IS_ARRAY_RESTRICTION = {
+  object: "Array",
+  property: "isArray",
+  message:
+    "isArray（scripts/lib/is-array.ts、配布スキルは scripts/lib/is-array.mjs）を使う。Array.isArray は any[] に絞る",
+};
+
 export const IS_ARRAY_HOLDERS = [
   "scripts/lib/is-array.ts",
   "scripts/mutation/check-mutation-proof.ts",

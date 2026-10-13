@@ -9,16 +9,17 @@
       "id": "DIRECTIVE-ESLINT",
       "why": "eslint-disable を指示の一覧から外す",
       "file": "scripts/gates/code/check-skill-lint-directives.ts",
-      "find": "  \"eslint-disable\",\n",
+      "find": "  \"eslint-disable\": [\"\", \"-line\", \"-next-line\"],\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
+        "CLI: 未追跡のファイルの指示を検出して exit 1 にする",
+        "JSDoc の 2 行目以降の指示は、その行の番号で報告する",
+        "staged の中身を読む（作業ツリーから消したファイル・作業ツリーで直したファイル）",
         "抑止の指示（/* */）を違反にする",
         "抑止の指示（/** */）を違反にする",
         "抑止の指示（JSDoc の行頭の *）を違反にする",
-        "JSDoc の 2 行目以降の指示は、その行の番号で報告する",
-        "staged の中身を読む（作業ツリーから消したファイル・作業ツリーで直したファイル）",
-        "CLI: 未追跡のファイルの指示を検出して exit 1 にする"
+        "抑止の指示（閉じの */ の直前）を違反にする"
       ]
     },
     {
@@ -37,10 +38,13 @@
         "抑止の指示（// の -next-line）を違反にする",
         "抑止の指示（@ts-expect-error）を違反にする",
         "抑止の指示（JSDoc の行頭の *）を違反にする",
+        "抑止の指示（biome-ignore-all）を違反にする",
         "抑止の指示（biome-ignore）を違反にする",
+        "抑止の指示（deno-lint-ignore-file）を違反にする",
         "抑止の指示（deno-lint-ignore）を違反にする",
         "抑止の指示（コードの後ろの //）を違反にする",
         "抑止の指示（空白の無いコードの後ろの //）を違反にする",
+        "抑止の指示（閉じの */ の直前）を違反にする",
         "配布スキルの .mjs と .ts の指示を検出し、.md は見ない"
       ]
     },
@@ -52,8 +56,33 @@
       "replace": "/^\\s*/",
       "occurrences": 1,
       "expect_failing": [
-        "抑止の指示（JSDoc の行頭の *）を違反にする",
-        "JSDoc の 2 行目以降の指示は、その行の番号で報告する"
+        "JSDoc の 2 行目以降の指示は、その行の番号で報告する",
+        "抑止の指示（JSDoc の行頭の *）を違反にする"
+      ]
+    },
+    {
+      "id": "SUFFIX-PER-DIRECTIVE",
+      "why": "接尾辞を、指示ごとに受け付けるものに限らない",
+      "file": "scripts/gates/code/check-skill-lint-directives.ts",
+      "find": "return (DIRECTIVES[m[1]] ?? []).includes(m[2] ?? \"\") ? m[1] : undefined;",
+      "replace": "return m[1];",
+      "occurrences": 1,
+      "expect_failing": ["指示として読まれない // biome-ignore-file は違反にしない"]
+    },
+    {
+      "id": "DIRECTIVE-BOUNDARY",
+      "why": "指示の後ろの区切りを確かめない（前に含むだけの語も数える）",
+      "file": "scripts/gates/code/check-skill-lint-directives.ts",
+      "find": "(?=$|[\\\\s:])",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "指示として読まれない // @ts-expect-erroring は違反にしない",
+        "指示として読まれない // biome-ignored は違反にしない",
+        "指示として読まれない // deno-lint-ignores は違反にしない",
+        "指示として読まれない // eslint-disable-foo は違反にしない",
+        "指示として読まれない // eslint-disablement の話 は違反にしない",
+        "指示として読まれない // oxlint-disabled のとき は違反にしない"
       ]
     },
     {
@@ -66,73 +95,45 @@
       "expect_failing": ["配布スキルの .mjs と .ts の指示を検出し、.md は見ない"]
     },
     {
-      "id": "PROP-ACCESS",
-      "why": "プロパティの参照の Array.isArray を数えない",
+      "id": "GUARD-RANGE",
+      "why": "型ガードの外の使用を違反にしない",
       "file": "scripts/gates/code/check-skill-lint-directives.ts",
-      "find": "    return isArrayIdent(node.expression) && node.name.text === \"isArray\";",
-      "replace": "    return false;",
+      "find": "    if (line < guard.from || line > guard.to) {",
+      "replace": "    if (false) {",
       "occurrences": 1,
       "expect_failing": [
-        "CLI: 違反が無ければ exit 0 にする",
-        "型ガードの中の 1 回と、コメント・文字列の中の名前は違反にしない",
-        "型ガードの中の 2 回目の Array.isArray を違反にする",
+        "同じ分割代入で 2 回束縛した Array.isArray を、2 件の違反にする",
         "型ガードの外の Array.isArray（オプショナルチェーン）を違反にする",
         "型ガードの外の Array.isArray（プロパティの参照）を違反にする",
+        "型ガードの外の Array.isArray（代入の分割）を違反にする",
         "型ガードの外の Array.isArray（分割代入）を違反にする",
         "型ガードの外の Array.isArray（改行を挟んだ参照）を違反にする",
         "型ガードの外の Array.isArray（文字列の // の後ろ）を違反にする",
+        "型ガードの外の Array.isArray（文字列のキーの分割代入）を違反にする",
         "型ガードの外の Array.isArray（空白の無い行コメントの前）を違反にする",
-        "型ガードの外の Array.isArray（要素の参照）を違反にする",
-        "空白の無い行コメントの中の Array.isArray は違反にしない"
-      ]
-    },
-    {
-      "id": "ELEMENT-ACCESS",
-      "why": "要素の参照の Array[\"isArray\"] を数えない",
-      "file": "scripts/gates/code/check-skill-lint-directives.ts",
-      "find": "      isArrayIdent(node.expression) &&\n      (ts.isStringLiteral(arg)",
-      "replace": "      false &&\n      (ts.isStringLiteral(arg)",
-      "occurrences": 1,
-      "expect_failing": ["型ガードの外の Array.isArray（要素の参照）を違反にする"]
-    },
-    {
-      "id": "BINDING",
-      "why": "分割代入の isArray を数えない",
-      "file": "scripts/gates/code/check-skill-lint-directives.ts",
-      "find": "      isArrayIdent(node.initializer) &&",
-      "replace": "      false &&",
-      "occurrences": 1,
-      "expect_failing": ["型ガードの外の Array.isArray（分割代入）を違反にする"]
-    },
-    {
-      "id": "GUARD-SCOPE",
-      "why": "型ガードの中を、型ガードの中として扱わない",
-      "file": "scripts/gates/code/check-skill-lint-directives.ts",
-      "find": "      inside = true;",
-      "replace": "      inside = inGuard;",
-      "occurrences": 1,
-      "expect_failing": [
-        "CLI: 違反が無ければ exit 0 にする",
-        "型ガードの中の 1 回と、コメント・文字列の中の名前は違反にしない",
-        "型ガードの中の 2 回目の Array.isArray を違反にする",
-        "型ガードの外の Array.isArray（オプショナルチェーン）を違反にする",
-        "型ガードの外の Array.isArray（プロパティの参照）を違反にする",
-        "型ガードの外の Array.isArray（分割代入）を違反にする",
-        "型ガードの外の Array.isArray（改行を挟んだ参照）を違反にする",
-        "型ガードの外の Array.isArray（文字列の // の後ろ）を違反にする",
-        "型ガードの外の Array.isArray（空白の無い行コメントの前）を違反にする",
-        "型ガードの外の Array.isArray（要素の参照）を違反にする",
-        "空白の無い行コメントの中の Array.isArray は違反にしない"
+        "型ガードの外の Array.isArray（要素の参照）を違反にする"
       ]
     },
     {
       "id": "INSIDE-COUNT",
       "why": "型ガードの中の回数を確かめない",
       "file": "scripts/gates/code/check-skill-lint-directives.ts",
-      "find": "  if (inside !== 1) {",
+      "find": "  if (inside.length !== 1) {",
       "replace": "  if (false) {",
       "occurrences": 1,
       "expect_failing": ["型ガードの中の 2 回目の Array.isArray を違反にする"]
+    },
+    {
+      "id": "GUARD-COUNT",
+      "why": "関数宣言 isArray の数を確かめない",
+      "file": "scripts/gates/code/check-skill-lint-directives.ts",
+      "find": "  if (typeof guard === \"number\") return [",
+      "replace": "  if (false) return [",
+      "occurrences": 1,
+      "expect_failing": [
+        "関数宣言 isArray が 1 つだけでない（2 つ）ものを違反にする",
+        "関数宣言 isArray が 1 つだけでない（無い）ものを違反にする"
+      ]
     },
     {
       "id": "STAGED-BLOB",
@@ -158,21 +159,20 @@
       "id": "HOLDER-MISSING",
       "why": "一覧のファイルが無いことを違反にしない",
       "file": "scripts/gates/code/check-skill-lint-directives.ts",
-      "find": "      out.push(`${path}: scripts/lib/is-array-holders.ts に挙げたファイルが無い`);\n",
-      "replace": "",
+      "find": "      out.push(`${path}: scripts/lib/is-array-holders.ts に挙げたファイルが無い`);",
+      "replace": "      void path;",
       "occurrences": 1,
       "expect_failing": ["一覧のファイルが無ければ違反にする"]
     },
     {
-      "id": "GUARD-COUNT",
-      "why": "関数宣言 isArray の数を確かめない",
+      "id": "REGISTRY-MISMATCH",
+      "why": "一覧のファイルの作業ツリーと staged の食い違いを見逃す",
       "file": "scripts/gates/code/check-skill-lint-directives.ts",
-      "find": "  if (guards.length !== 1) {",
+      "find": "  if (res.status === 1) {",
       "replace": "  if (false) {",
       "occurrences": 1,
       "expect_failing": [
-        "関数宣言 isArray が 1 つだけでない（2 つ）ものを違反にする",
-        "関数宣言 isArray が 1 つだけでない（無い）ものを違反にする"
+        "一覧のファイルの作業ツリーと staged が食い違えば例外にし、そろっていれば通す"
       ]
     },
     {

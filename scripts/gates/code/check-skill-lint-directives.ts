@@ -25,24 +25,54 @@
 // stage したままのファイルも、index から読む。
 // 走査したファイルが 0 件・git が失敗した・中身を読めないときは、判定できないので exit 2 にする。
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, realpathSync } from "node:fs";
-import { join } from "node:path";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { jsCommentRanges } from "../../lib/code-comments.ts";
 import { errorMessage } from "../../lib/errors.ts";
-import { IS_ARRAY_HOLDERS } from "../../lib/is-array-holders.ts";
+import { isRecord } from "../../lib/guards.ts";
+import { IS_ARRAY_HOLDERS, IS_ARRAY_RESTRICTION } from "../../lib/is-array-holders.ts";
+import { isArray } from "../../lib/is-array.ts";
 
 const CODE_EXT_RE = /\.(?:mjs|cjs|js|jsx|ts|mts|cts|tsx)$/i;
 
-/** 使われない抑止を報告されうる指示。 */
-const DIRECTIVES = [
-  "oxlint-disable",
-  "eslint-disable",
-  "biome-ignore",
-  "@ts-expect-error",
-  "deno-lint-ignore",
-];
+/**
+ * 使われない抑止を報告されうる指示と、ツールが受け付ける接尾辞。
+ * 指示の後ろは、行末・空白・`:`（`biome-ignore lint/x: 理由` など）のどれかに限る。
+ * `eslint-disablement` のように指示を前に含むだけの語は、ツールが指示として読まないので数えない。
+ */
+const DIRECTIVES: Record<string, string[]> = {
+  "oxlint-disable": ["", "-line", "-next-line"],
+  "eslint-disable": ["", "-line", "-next-line"],
+  "biome-ignore": ["", "-all", "-start", "-end"],
+  "@ts-expect-error": [""],
+  "deno-lint-ignore": ["", "-file"],
+};
+
+// 指示と接尾辞は英小文字・`-`・`@` だけなので、文字クラスの外ではそのまま正規表現に置ける。
+// 接尾辞は長いものから並べ、`-next-line` を `-line` より先に試す。
+const SUFFIXES = [...new Set(Object.values(DIRECTIVES).flat())]
+  .filter((x) => x !== "")
+  .sort((a, b) => b.length - a.length);
+const DIRECTIVE_RE = new RegExp(
+  `^(${Object.keys(DIRECTIVES).join("|")})(${SUFFIXES.join("|")})?(?=$|[\\s:])`,
+);
+
+/** コメントの 1 行の先頭が、受け付ける接尾辞を付けた指示なら、その指示の名前。 */
+function directiveAt(head: string): string | undefined {
+  const m = DIRECTIVE_RE.exec(head);
+  if (!m) return undefined;
+  return (DIRECTIVES[m[1]] ?? []).includes(m[2] ?? "") ? m[1] : undefined;
+}
 
 function lineOf(source: string, pos: number): number {
   let line = 1;
@@ -62,70 +92,100 @@ export function findDirectives(source: string, path = "a.ts"): string[] {
     const first = lineOf(source, r.pos);
     body.split("\n").forEach((part, i) => {
       const head = part.replace(/^\s*(?:\*+(?!\/))?\s*/, "");
-      const hit = DIRECTIVES.find((d) => head.startsWith(d));
+      const hit = directiveAt(head);
       if (hit) out.push(`${first + i}: ${hit}`);
     });
   }
   return out;
 }
 
-/** 組み込みの `Array.isArray` を読む式か（プロパティの参照・要素の参照・分割代入）。 */
-function isBuiltinIsArray(node: ts.Node): boolean {
-  const isArrayIdent = (e: ts.Expression) => ts.isIdentifier(e) && e.text === "Array";
-  if (ts.isPropertyAccessExpression(node)) {
-    return isArrayIdent(node.expression) && node.name.text === "isArray";
-  }
-  if (ts.isElementAccessExpression(node)) {
-    const arg = node.argumentExpression;
-    return (
-      isArrayIdent(node.expression) &&
-      (ts.isStringLiteral(arg) || ts.isNoSubstitutionTemplateLiteral(arg)) &&
-      arg.text === "isArray"
-    );
-  }
-  if (ts.isVariableDeclaration(node) && node.initializer && ts.isObjectBindingPattern(node.name)) {
-    return (
-      isArrayIdent(node.initializer) &&
-      node.name.elements.some((el) => (el.propertyName ?? el.name).getText() === "isArray")
-    );
-  }
-  return false;
-}
-
-/** `isArray` を持つファイルの違反。組み込みの `Array.isArray` は、関数宣言 `isArray` の中で 1 回だけ使ってよい。 */
-export function findOutsideGuard(source: string, path = "a.ts"): string[] {
+/** 関数宣言 `isArray` の行の範囲（1 始まり）。1 つだけでなければ、その件数。 */
+function guardLines(source: string, path: string): { from: number; to: number } | number {
   const kind = path.endsWith(".ts") ? ts.ScriptKind.TS : ts.ScriptKind.JS;
   const sf = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, kind);
   const guards: ts.FunctionDeclaration[] = [];
-  const uses: { node: ts.Node; inGuard: boolean }[] = [];
-  const visit = (node: ts.Node, inGuard: boolean) => {
-    let inside = inGuard;
-    if (ts.isFunctionDeclaration(node) && node.name?.text === "isArray") {
-      guards.push(node);
-      inside = true;
-    }
-    if (isBuiltinIsArray(node)) uses.push({ node, inGuard: inside });
-    ts.forEachChild(node, (child) => visit(child, inside));
+  const visit = (node: ts.Node) => {
+    if (ts.isFunctionDeclaration(node) && node.name?.text === "isArray") guards.push(node);
+    ts.forEachChild(node, visit);
   };
-  visit(sf, false);
-  if (guards.length !== 1) {
-    return [`関数宣言 isArray が 1 つだけ無い（${guards.length} 件）`];
+  visit(sf);
+  if (guards.length !== 1) return guards.length;
+  return { from: lineOf(source, guards[0].getStart(sf)), to: lineOf(source, guards[0].getEnd()) };
+}
+
+const REPO_DIR = join(dirname(fileURLToPath(import.meta.url)), "../../..");
+const RULE = "no-restricted-properties";
+
+/**
+ * 組み込みの `Array.isArray` を使う行（1 始まり）を、ファイルごとに返す。
+ * 判定は、`oxlint.config.ts` と同じ禁止（IS_ARRAY_RESTRICTION）だけを有効にした oxlint に任せる。
+ * 書き方（改行を挟んだ参照・`?.`・`["isArray"]`・分割代入・代入の分割）を自前で数えると、書き方の数だけ抜けが出るからである。
+ * 中身は一時ディレクトリに書いて渡す（staged の中身を読むため）。oxlint が失敗したら例外にする。
+ */
+export function isArrayUseLines(entries: readonly { path: string; source: string }[]): number[][] {
+  const dir = mkdtempSync(join(tmpdir(), "skill-lint-directives-"));
+  try {
+    const config = join(dir, "oxlintrc.json");
+    writeFileSync(
+      config,
+      JSON.stringify({ categories: {}, rules: { [RULE]: ["error", IS_ARRAY_RESTRICTION] } }),
+    );
+    const files = entries.map((e, i) => {
+      const file = join(dir, `${i}-${basename(e.path)}`);
+      writeFileSync(file, e.source);
+      return file;
+    });
+    const res = spawnSync("pnpm", ["exec", "oxlint", "-c", config, "--format", "json", ...files], {
+      cwd: REPO_DIR,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    if (res.status !== 0 && res.status !== 1) {
+      throw new Error(`oxlint を実行できない（exit ${res.status}）: ${res.stderr}`);
+    }
+    const parsed: unknown = JSON.parse(res.stdout);
+    const diagnostics = isRecord(parsed) ? parsed.diagnostics : undefined;
+    if (!isArray(diagnostics)) throw new Error("oxlint の出力に diagnostics が無い");
+    const lines = entries.map((): number[] => []);
+    for (const d of diagnostics) {
+      if (!isRecord(d) || typeof d.code !== "string" || !d.code.endsWith(`(${RULE})`)) continue;
+      const label = isArray(d.labels) ? d.labels[0] : undefined;
+      const span = isRecord(label) ? label.span : undefined;
+      const index = files.indexOf(typeof d.filename === "string" ? d.filename : "");
+      if (!isRecord(span) || typeof span.line !== "number" || index === -1) {
+        throw new Error("oxlint の診断の形を読めない");
+      }
+      lines[index].push(span.line);
+    }
+    return lines;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
+}
+
+/** `isArray` を持つファイルの違反。組み込みの `Array.isArray` は、関数宣言 `isArray` の中で 1 回だけ使ってよい。 */
+export function guardViolations(source: string, path: string, uses: readonly number[]): string[] {
+  const guard = guardLines(source, path);
+  if (typeof guard === "number") return [`関数宣言 isArray が 1 つだけ無い（${guard} 件）`];
   const out: string[] = [];
-  for (const u of uses) {
-    if (!u.inGuard) {
-      out.push(
-        `${lineOf(source, u.node.getStart(sf))}: 型ガード isArray の外で Array.isArray を使っている`,
-      );
+  const inside = uses.filter((line) => line >= guard.from && line <= guard.to);
+  for (const line of uses) {
+    if (line < guard.from || line > guard.to) {
+      out.push(`${line}: 型ガード isArray の外で Array.isArray を使っている`);
     }
   }
-  const inside = uses.filter((u) => u.inGuard).length;
-  if (inside !== 1) {
+  if (inside.length !== 1) {
     out.push(
-      `${lineOf(source, guards[0].getStart(sf))}: 型ガード isArray の中の Array.isArray が 1 回だけでない（${inside} 回）`,
+      `${guard.from}: 型ガード isArray の中の Array.isArray が 1 回だけでない（${inside.length} 回）`,
     );
   }
   return out;
+}
+
+/** 1 ファイルの `guardViolations`（テスト用。oxlint を 1 回起動する）。 */
+export function findOutsideGuard(source: string, path = "a.ts"): string[] {
+  const [uses] = isArrayUseLines([{ path, source }]);
+  return guardViolations(source, path, uses ?? []);
 }
 
 /** `skills/` の下の、追跡しているファイルと無視されていない未追跡のファイル（ルートからのパス）。 */
@@ -190,14 +250,17 @@ export function findViolations(
       out.push(`${path}:${v}（このリポジトリの設定を前提にした抑止。設定の overrides で外す）`);
     }
   }
+  const present: { path: string; source: string }[] = [];
   for (const path of holders) {
     const source = readSource(root, path, blobs);
-    if (source === null) {
+    if (source === null)
       out.push(`${path}: scripts/lib/is-array-holders.ts に挙げたファイルが無い`);
-      continue;
-    }
-    for (const v of findOutsideGuard(source, path)) out.push(`${path}:${v}`);
+    else present.push({ path, source });
   }
+  const uses = present.length ? isArrayUseLines(present) : [];
+  present.forEach((e, i) => {
+    for (const v of guardViolations(e.source, e.path, uses[i] ?? [])) out.push(`${e.path}:${v}`);
+  });
   return out;
 }
 
@@ -209,11 +272,33 @@ function repoRoot(cwd: string): string {
   return res.stdout.trim();
 }
 
+/** 一覧のファイル（このチェックが import する）。中身は作業ツリーの版で、staged の版ではない。 */
+export const HOLDERS_REGISTRY = "scripts/lib/is-array-holders.ts";
+
+/**
+ * 一覧のファイルが、作業ツリーと index で食い違っていれば例外にする。
+ * このチェックは一覧を import する（作業ツリーの版）が、ファイルの中身は staged の版を読む。
+ * 一部だけを stage すると、commit に入る一覧と、検査に使う一覧がずれる。
+ */
+export function assertRegistryStaged(root: string): void {
+  const res = spawnSync("git", ["diff", "--quiet", "--no-ext-diff", "--", HOLDERS_REGISTRY], {
+    cwd: root,
+    encoding: "utf8",
+  });
+  if (res.status === 1) {
+    throw new Error(
+      `${HOLDERS_REGISTRY} の作業ツリーと staged の中身が違う。全体を stage するか、変更を戻してから実行する`,
+    );
+  }
+  if (res.status !== 0) throw new Error(`git diff に失敗した（exit ${res.status}）: ${res.stderr}`);
+}
+
 export function main(cwd = "."): number {
   let root: string;
   let files: string[];
   try {
     root = repoRoot(cwd);
+    assertRegistryStaged(root);
     files = listSkillFiles(root);
   } catch (error) {
     console.error(`skill-lint-directives: ${errorMessage(error)}`);

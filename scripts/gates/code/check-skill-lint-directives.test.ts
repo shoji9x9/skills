@@ -8,16 +8,24 @@
 // | コメントの形             | `//` / `/*` / `/**` / JSDoc の 2 行目以降の `*` / コードの後ろの `//`（空白あり・なし） |
 // | コメント以外の出現       | 文章の途中の名前 / 文字列 / テンプレート / 正規表現（どれも `//` を含む形も）  |
 // | 拡張子                   | .mjs / .ts / .md（対象外）                                                   |
-// | Array.isArray の書き方   | `.isArray` / 改行を挟んだ `.isArray` / `?.isArray` / `["isArray"]` / 分割代入 / コメント・文字列の中（数えない） |
+// | Array.isArray の書き方   | `.isArray` / 改行を挟んだ `.isArray` / `?.isArray` / `["isArray"]` / 分割代入（文字列のキー・2 回の束縛）/ 代入の分割 / コメント・文字列の中（数えない）。判定は oxlint の同じ規則 |
 // | Array.isArray の位置     | 型ガードの中の 1 回 / 型ガードの中の 2 回目 / 型ガードの外 / 文字列の `//` の後ろ |
 // | 型ガードの関数宣言       | 1 つ / 無い / 2 つ                                                           |
 // | 中身の出所               | 未追跡（作業ツリー）/ staged（作業ツリーから消した・作業ツリーで直した）/ どちらにも無い |
+// | 指示の後ろ               | 行末 / 空白 / `:` / 受け付ける接尾辞 / 指示を前に含むだけの語（数えない） |
+// | 一覧のファイル           | 作業ツリーと staged が同じ / 食い違う                                       |
 import { expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { findDirectives, findOutsideGuard, findViolations } from "./check-skill-lint-directives.ts";
+import {
+  assertRegistryStaged,
+  findDirectives,
+  findOutsideGuard,
+  findViolations,
+  HOLDERS_REGISTRY,
+} from "./check-skill-lint-directives.ts";
 import { IS_ARRAY_HOLDERS } from "../../lib/is-array-holders.ts";
 import { makeTempDir } from "../../lib/test-tmpdir.ts";
 
@@ -41,6 +49,9 @@ test.each([
   ["biome-ignore", "// biome-ignore lint/style: 理由", "biome-ignore"],
   ["@ts-expect-error", "  // @ts-expect-error 型が合わない", "@ts-expect-error"],
   ["deno-lint-ignore", "// deno-lint-ignore no-explicit-any", "deno-lint-ignore"],
+  ["biome-ignore-all", "// biome-ignore-all lint: 理由", "biome-ignore"],
+  ["deno-lint-ignore-file", "// deno-lint-ignore-file", "deno-lint-ignore"],
+  ["閉じの */ の直前", "/* eslint-disable*/", "eslint-disable"],
 ])("抑止の指示（%s）を違反にする", (_label, comment, directive) => {
   const found = findDirectives(`export const a = 1;\n${comment}\n`);
   expect(found).toHaveLength(1);
@@ -62,6 +73,13 @@ test.each([
   ["const s = `/* oxlint-disable */`;"],
   ["const re = /\\/\\/ eslint-disable/;"],
   ["const re = /^(eslint|oxlint-)/;"],
+  ["// eslint-disablement の話"],
+  ["// oxlint-disabled のとき"],
+  ["// @ts-expect-erroring"],
+  ["// biome-ignored"],
+  ["// deno-lint-ignores"],
+  ["// eslint-disable-foo"],
+  ["// biome-ignore-file"],
 ])("指示として読まれない %s は違反にしない", (line) => {
   expect(findDirectives(`${line}\n`)).toEqual([]);
 });
@@ -92,8 +110,18 @@ test.each([
   ["分割代入", "const { isArray: builtin } = Array;"],
   ["文字列の // の後ろ", 'export const ng = ["https://x", Array.isArray([])];'],
   ["空白の無い行コメントの前", "export const ng = Array.isArray([]);// 説明"],
+  ["文字列のキーの分割代入", 'const { ["isArray"]: builtin } = Array;'],
+  ["代入の分割", "let f;\n({ isArray: f } = Array);"],
 ])("型ガードの外の Array.isArray（%s）を違反にする", (_label, line) => {
+  const found = findOutsideGuard([...GUARD, line].join("\n"));
+  expect(found).toHaveLength(1);
+  expect(found[0]).toMatch(/^1[23]: 型ガード isArray の外で Array.isArray を使っている$/);
+});
+
+test("同じ分割代入で 2 回束縛した Array.isArray を、2 件の違反にする", () => {
+  const line = "const { isArray: first, isArray: second } = Array;";
   expect(findOutsideGuard([...GUARD, line].join("\n"))).toEqual([
+    "12: 型ガード isArray の外で Array.isArray を使っている",
     "12: 型ガード isArray の外で Array.isArray を使っている",
   ]);
 });
@@ -184,6 +212,18 @@ test("index にも作業ツリーにも無い走査対象は、判定できな�
     expect(() => findViolations(root, ["skills/demo/missing.mjs"], [])).toThrow(
       "index にも作業ツリーにも無い",
     );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("一覧のファイルの作業ツリーと staged が食い違えば例外にし、そろっていれば通す", () => {
+  const root = makeRepo({ [HOLDERS_REGISTRY]: "export const A = 1;\n" });
+  try {
+    git(root, "add", HOLDERS_REGISTRY);
+    expect(() => assertRegistryStaged(root)).not.toThrow();
+    writeFileSync(join(root, HOLDERS_REGISTRY), "export const A = 2;\n");
+    expect(() => assertRegistryStaged(root)).toThrow("作業ツリーと staged の中身が違う");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
