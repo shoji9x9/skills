@@ -2,6 +2,7 @@ import { expect, test } from "vitest";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, relative } from "node:path";
+import { isArray } from "../lib/is-array.ts";
 import { parseJsonAs } from "../lib/parse-as.ts";
 
 // 変異の宣言（`scripts/**/*.mutations.json`）の**形**を速くチェックする。
@@ -61,4 +62,43 @@ test.each(SPECS)("宣言が形を満たす: %s", (specPath) => {
     );
     expect(m.expect_failing.length, `${m.id}: expect_failing`).toBeGreaterThan(0);
   }
+});
+
+// `--shard` の割り当てに使う所要時間の見積もり（`mutation-durations.json`）。
+const DURATIONS_FILE = parseJsonAs<{ default_seconds?: unknown; seconds_per_run?: unknown }>(
+  readFileSync(join(repoRoot, "scripts/mutation/mutation-durations.json"), "utf8"),
+);
+const DURATIONS: Record<string, unknown> =
+  typeof DURATIONS_FILE.seconds_per_run === "object" && DURATIONS_FILE.seconds_per_run !== null
+    ? { ...DURATIONS_FILE.seconds_per_run }
+    : {};
+
+// ランナーは見積もりを `--shard` で宣言が選ばれた実行でだけ読む（`loadDurations`）。このファイルだけを変える PR は
+// どの宣言にも当たらないので、不正な値が CI を通って main に入り、その後に宣言を触るすべての PR のシャードが exit 2 になる。
+// ランナーと同じ条件（正の有限の数）を、ここで常に確かめる。
+test("所要時間の見積もりの値は正の数である", () => {
+  const positive = (value: unknown) =>
+    typeof value === "number" && Number.isFinite(value) && value > 0;
+  expect(positive(DURATIONS_FILE.default_seconds), "default_seconds").toBe(true);
+  expect(
+    typeof DURATIONS_FILE.seconds_per_run === "object" &&
+      DURATIONS_FILE.seconds_per_run !== null &&
+      !isArray(DURATIONS_FILE.seconds_per_run),
+    "seconds_per_run がオブジェクトでない",
+  ).toBe(true);
+  expect(Object.entries(DURATIONS).filter(([, value]) => !positive(value))).toEqual([]);
+});
+
+// 宣言を移したときに古いキーだけが残ると、
+// 移した先の宣言は見積もりが無いまま default_seconds で配られ、シャードの釣り合いが警告なしに悪くなる。
+test("所要時間の見積もりのキーは、実在する宣言を指す", () => {
+  const keys = Object.keys(DURATIONS);
+  expect(keys.length).toBeGreaterThan(0);
+  expect(keys.filter((key) => !SPECS.includes(key))).toEqual([]);
+});
+
+// 見積もりの無い宣言は default_seconds で配られ、重い宣言だと 1 つのシャードに寄る（ログに 1 行出るだけで CI は落ちない）。
+// 宣言を足したら、見積もりも足す。最初は手元の実行の `時間: X 秒（N 変異、基準 run を含む）` から X ÷ (N + 1) で書く。
+test("どの宣言にも所要時間の見積もりがある", () => {
+  expect(SPECS.filter((spec) => !(spec in DURATIONS))).toEqual([]);
 });

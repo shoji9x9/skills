@@ -66,7 +66,10 @@
       "occurrences": 1,
       "expect_failing": [
         "宣言と前提の検証（実行する前に落とす） --only は選ばれなかった宣言を飛ばす（宣言が複数あっても実行する）",
-        "--shard 宣言をまたいだ通し番号で分け、N 本を合わせるとちょうど全件になる"
+        "--shard 1 シャードの目安を超える宣言だけを、変異で分ける",
+        "--shard 宣言を単位に割り当て、基準 run は宣言ごとに 1 つのシャードでだけ測る",
+        "--shard 見積もりの大きい順に、合計が最も小さいシャードへ割り当てる",
+        "--shard 見積もりの無い宣言は default_seconds で見積もり、宣言を出力する"
       ]
     },
     {
@@ -283,28 +286,33 @@
     },
     {
       "id": "SHARD-PARTITION",
-      "why": "--shard で絞らず、どのシャードも全件を測る（分割が効かず速くならない・重複して測る）",
+      "why": "--shard で絞らず、どのシャードも全件を測る（分割が機能せず速くならない・重複して測る）",
       "file": "scripts/mutation/check-mutation-proof.ts",
-      "find": "      p.targeted = p.targeted.filter(() => k++ % shard.total === shard.index - 1);",
-      "replace": "      p.targeted = p.targeted.filter(() => (k++, true));",
+      "find": "    if (target === shard.index - 1) for (const m of piece.mutations) mine.add(m);",
+      "replace": "    for (const m of piece.mutations) mine.add(m);",
       "occurrences": 1,
       "expect_failing": [
-        "--shard 宣言をまたいだ通し番号で分け、N 本を合わせるとちょうど全件になる",
+        "--shard 宣言を単位に割り当て、基準 run は宣言ごとに 1 つのシャードでだけ測る",
+        "--shard 1 シャードの目安を超える宣言だけを、変異で分ける",
+        "--shard 見積もりの大きい順に、合計が最も小さいシャードへ割り当てる",
         "--shard 変異がシャード数より少なく割り当てが 0 件なら、理由を出して exit 0",
-        "宣言と前提の検証（実行する前に落とす） ランナーが変わったら全宣言を測る"
+        "宣言と前提の検証（実行する前に落とす） ランナーが変わったら全宣言を測る",
+        "--shard --list は測る変異を出し、測らずに終わる"
       ]
     },
     {
       "id": "SHARD-OFFSET",
-      "why": "シャード番号を 0 始まりと取り違える（1/N と N/N で同じ変異を測り、別の変異をどのシャードも測らない）",
+      "why": "シャード番号を取り違える（1/N が別のシャードの割り当てを測る。全体は入れ替わるだけなので、割り当ての中身を確かめるテストで検出する）",
       "file": "scripts/mutation/check-mutation-proof.ts",
-      "find": "k++ % shard.total === shard.index - 1",
-      "replace": "k++ % shard.total === shard.index % shard.total",
+      "find": "if (target === shard.index - 1) for",
+      "replace": "if (target === shard.index % shard.total) for",
       "occurrences": 1,
       "expect_failing": [
-        "--shard 宣言をまたいだ通し番号で分け、N 本を合わせるとちょうど全件になる",
+        "--shard 1 シャードの目安を超える宣言だけを、変異で分ける",
+        "--shard 見積もりの大きい順に、合計が最も小さいシャードへ割り当てる",
         "--shard 変異がシャード数より少なく割り当てが 0 件なら、理由を出して exit 0",
-        "宣言と前提の検証（実行する前に落とす） ランナーが変わったら全宣言を測る"
+        "宣言と前提の検証（実行する前に落とす） ランナーが変わったら全宣言を測る",
+        "--shard --list は測る変異を出し、測らずに終わる"
       ]
     },
     {
@@ -325,6 +333,192 @@
       "occurrences": 1,
       "expect_failing": [
         "--shard --shard 9007199254740993/9007199254740992 は exit 2（警告なしに 0 件のシャードにしない）"
+      ]
+    },
+    {
+      "id": "SHARD-NO-SPLIT",
+      "why": "重い宣言を分けない（1 つの宣言が 1 シャードの目安を超えて、そのシャードだけが長くなる）",
+      "file": "scripts/mutation/check-mutation-proof.ts",
+      "find": "    const parts = cost > budget ? Math.min(n, shard.total, Math.ceil(n / perPart)) : 1;",
+      "replace": "    const parts = 1;",
+      "occurrences": 1,
+      "expect_failing": [
+        "--shard 1 シャードの目安を超える宣言だけを、変異で分ける",
+        "--shard --list は測る変異を出し、測らずに終わる",
+        "--shard 分けた一部が、基準 run を含めて目安に収まる数に分ける",
+        "--shard 宣言が 1 件だけでも、シャードの数より多くは分けない"
+      ]
+    },
+    {
+      "id": "SHARD-SPLIT-ALL",
+      "why": "すべての宣言を変異ごとに分ける（どのシャードも同じ宣言の基準 run を繰り返す）",
+      "file": "scripts/mutation/check-mutation-proof.ts",
+      "find": "    const parts = cost > budget ? Math.min(n, shard.total, Math.ceil(n / perPart)) : 1;",
+      "replace": "    const parts = n;",
+      "occurrences": 1,
+      "expect_failing": [
+        "--shard 宣言を単位に割り当て、基準 run は宣言ごとに 1 つのシャードでだけ測る",
+        "--shard 1 シャードの目安を超える宣言だけを、変異で分ける",
+        "--shard --list は測る変異を出し、測らずに終わる",
+        "--shard 分けた一部が、基準 run を含めて目安に収まる数に分ける",
+        "--shard 宣言が 1 件だけでも、シャードの数より多くは分けない"
+      ]
+    },
+    {
+      "id": "SHARD-SPLIT-IGNORES-BASELINE",
+      "why": "分ける数を見積もり ÷ 目安で決める（一部ごとに足す基準 run を数えず、一部が目安を超える）",
+      "file": "scripts/mutation/check-mutation-proof.ts",
+      "find": "Math.min(n, shard.total, Math.ceil(n / perPart))",
+      "replace": "Math.min(n, shard.total, Math.ceil(cost / budget))",
+      "occurrences": 1,
+      "expect_failing": ["--shard 分けた一部が、基準 run を含めて目安に収まる数に分ける"]
+    },
+    {
+      "id": "SHARD-PARTS-UNCAPPED",
+      "why": "分ける数をシャードの数で抑えない（宣言が 1 件だけ選ばれた PR で変異の数まで分け、同じシャードに入った一部の基準 run を見積もりが重ねて数えて偏る）",
+      "file": "scripts/mutation/check-mutation-proof.ts",
+      "find": "Math.min(n, shard.total, Math.ceil(n / perPart))",
+      "replace": "Math.min(n, Math.ceil(n / perPart))",
+      "occurrences": 1,
+      "expect_failing": ["--shard 宣言が 1 件だけでも、シャードの数より多くは分けない"]
+    },
+    {
+      "id": "SHARD-NO-SORT",
+      "why": "見積もりの大きい順に並べずに割り当てる（後から来た重い宣言が、既に埋まったシャードに入る）",
+      "file": "scripts/mutation/check-mutation-proof.ts",
+      "find": "  for (const piece of [...pieces].sort(order)) {",
+      "replace": "  for (const piece of pieces) {",
+      "occurrences": 1,
+      "expect_failing": ["--shard 見積もりの大きい順に、合計が最も小さいシャードへ割り当てる"]
+    },
+    {
+      "id": "SHARD-MAX-LOAD",
+      "why": "合計が最も大きいシャードへ割り当てる（1 つのシャードにすべてが寄る）",
+      "file": "scripts/mutation/check-mutation-proof.ts",
+      "find": "if (loads[i] < loads[target]) target = i;",
+      "replace": "if (loads[i] > loads[target]) target = i;",
+      "occurrences": 1,
+      "expect_failing": [
+        "--shard 宣言を単位に割り当て、基準 run は宣言ごとに 1 つのシャードでだけ測る",
+        "--shard 1 シャードの目安を超える宣言だけを、変異で分ける",
+        "--shard 見積もりの大きい順に、合計が最も小さいシャードへ割り当てる",
+        "--shard --list は測る変異を出し、測らずに終わる"
+      ]
+    },
+    {
+      "id": "SHARD-DURATION-IGNORED",
+      "why": "宣言ごとの見積もりを使わず、すべてを default_seconds で見積もる（重い宣言が軽く見えて偏る）",
+      "file": "scripts/mutation/check-mutation-proof.ts",
+      "find": "      let perRun = durations.seconds.get(specRel);",
+      "replace": "      let perRun: number | undefined = undefined;",
+      "occurrences": 1,
+      "expect_failing": [
+        "--shard 1 シャードの目安を超える宣言だけを、変異で分ける",
+        "--shard 見積もりの大きい順に、合計が最も小さいシャードへ割り当てる",
+        "--shard 見積もりの無い宣言は default_seconds で見積もり、宣言を出力する",
+        "--shard --list は測る変異を出し、測らずに終わる",
+        "--shard 分けた一部が、基準 run を含めて目安に収まる数に分ける"
+      ]
+    },
+    {
+      "id": "LIST-RUNS",
+      "why": "--list でも測る（割り当てを確かめるだけのつもりで、作業ツリーに変異を当てる）",
+      "file": "scripts/mutation/check-mutation-proof.ts",
+      "find": "  if (list) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "--shard --list は測る変異を出し、測らずに終わる",
+        "--shard --list はロックを取らない（測定の実行中でも割り当てを確かめられる）",
+        "--shard --list は、前回の中断の復元情報が残っていれば知らせる"
+      ]
+    },
+    {
+      "id": "LIST-TAKES-LOCK",
+      "why": "--list でもロックを取る（測定の実行中に割り当てを確かめられず、前回の中断で残った変異まで書き戻す）",
+      "file": "scripts/mutation/check-mutation-proof.ts",
+      "find": "  if (!list) {\n    // 宣言の検証より先にロックを取る",
+      "replace": "  if (true) {\n    // 宣言の検証より先にロックを取る",
+      "occurrences": 1,
+      "expect_failing": [
+        "--shard --list はロックを取らない（測定の実行中でも割り当てを確かめられる）",
+        "--shard --list は、前回の中断の復元情報が残っていれば知らせる"
+      ]
+    },
+    {
+      "id": "LIST-NO-WARNING",
+      "why": "--list が、測定の実行中や中断の後でも知らせない（変異が入ったランナーで計算した割り当てを、警告なしに出す）",
+      "file": "scripts/mutation/check-mutation-proof.ts",
+      "find": "  } else if (lockOwnerAlive() || existsSync(recoveryPath)) {",
+      "replace": "  } else if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "--shard --list はロックを取らない（測定の実行中でも割り当てを確かめられる）",
+        "--shard --list は、前回の中断の復元情報が残っていれば知らせる"
+      ]
+    },
+    {
+      "id": "LIST-WARNS-STALE-LOCK",
+      "why": "--list が、持ち主の死んだ残骸のロックでも知らせる（前回が SIGKILL で終わると、毎回誤って知らせる）",
+      "file": "scripts/mutation/check-mutation-proof.ts",
+      "find": "  return Number.isInteger(pid) && pid > 0 && alive(pid);\n}\n\nfunction releaseLock() {",
+      "replace": "  return Number.isInteger(pid) && pid > 0;\n}\n\nfunction releaseLock() {",
+      "occurrences": 1,
+      "expect_failing": ["--shard --list は、持ち主の死んだ残骸のロックでは知らせない"]
+    },
+    {
+      "id": "LIST-IGNORES-RECOVERY",
+      "why": "--list が、前回の中断の復元情報が残っていても知らせない（変異が残ったままのランナーで計算した割り当てを、警告なしに出す）",
+      "file": "scripts/mutation/check-mutation-proof.ts",
+      "find": "  } else if (lockOwnerAlive() || existsSync(recoveryPath)) {",
+      "replace": "  } else if (lockOwnerAlive()) {",
+      "occurrences": 1,
+      "expect_failing": ["--shard --list は、前回の中断の復元情報が残っていれば知らせる"]
+    },
+    {
+      "id": "DURATIONS-ROOT-UNCHECKED",
+      "why": "見積もりがオブジェクトかを確かめない（null の見積もりで TypeError になり、exit 1 =実証失敗と判定される）",
+      "file": "scripts/mutation/check-mutation-proof.ts",
+      "find": "  if (typeof parsed !== \"object\" || parsed === null || isArray(parsed)) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["--shard 所要時間の見積もりが不正（null）なら exit 2"]
+    },
+    {
+      "id": "DURATIONS-DEFAULT-UNCHECKED",
+      "why": "default_seconds を確かめない（0 や文字列の見積もりで、割り当てが警告なしに偏る）",
+      "file": "scripts/mutation/check-mutation-proof.ts",
+      "find": "  if (!positive(parsed.default_seconds)) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "--shard 所要時間の見積もりが不正（default_seconds が無い）なら exit 2",
+        "--shard 所要時間の見積もりが不正（default_seconds が 0）なら exit 2",
+        "--shard 所要時間の見積もりが不正（default_seconds が文字列）なら exit 2"
+      ]
+    },
+    {
+      "id": "DURATIONS-TABLE-UNCHECKED",
+      "why": "seconds_per_run がオブジェクトかを確かめない",
+      "file": "scripts/mutation/check-mutation-proof.ts",
+      "find": "  if (typeof perRun !== \"object\" || perRun === null || isArray(perRun)) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "--shard 所要時間の見積もりが不正（seconds_per_run が無い）なら exit 2",
+        "--shard 所要時間の見積もりが不正（seconds_per_run が配列）なら exit 2"
+      ]
+    },
+    {
+      "id": "DURATIONS-VALUE-UNCHECKED",
+      "why": "宣言ごとの見積もりの値を確かめない（負や null の見積もりで、割り当てが警告なしに偏る）",
+      "file": "scripts/mutation/check-mutation-proof.ts",
+      "find": "    if (!positive(value)) die(",
+      "replace": "    if (false) die(",
+      "occurrences": 1,
+      "expect_failing": [
+        "--shard 所要時間の見積もりが不正（値が負）なら exit 2",
+        "--shard 所要時間の見積もりが不正（値が null）なら exit 2"
       ]
     },
     {
