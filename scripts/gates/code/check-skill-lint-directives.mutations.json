@@ -224,6 +224,15 @@
       "replace": "  if (false) {",
       "occurrences": 1,
       "expect_failing": ["一覧のファイルが index に無ければ（未追跡・index から外した）例外にする"]
+    },
+    {
+      "id": "HOLDER-NOT-STAGED",
+      "why": "一覧に挙げたファイルが作業ツリーにだけあることを見逃す",
+      "file": "scripts/gates/code/check-skill-lint-directives.ts",
+      "find": "else if (!blobs.has(path))",
+      "replace": "else if (false)",
+      "occurrences": 1,
+      "expect_failing": ["一覧に挙げたファイルが作業ツリーにだけあり、index に無ければ違反にする"]
     }
   ]
 }

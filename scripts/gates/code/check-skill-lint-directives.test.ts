@@ -274,6 +274,22 @@ test("一覧のファイルが index に無ければ（未追跡・index から�
   }
 });
 
+test("一覧に挙げたファイルが作業ツリーにだけあり、index に無ければ違反にする", () => {
+  const holder = "skills/demo/scripts/lib/is-array.mjs";
+  const guard =
+    "function isArray(value) {\n  return Array.isArray(value);\n}\nexport { isArray };\n";
+  const root = makeRepo({ [holder]: guard });
+  try {
+    expect(findViolations(root, [], [holder])).toEqual([
+      `${holder}: 一覧に挙げたファイルが index に無い（stage する）`,
+    ]);
+    git(root, "add", holder);
+    expect(findViolations(root, [], [holder])).toEqual([]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("一覧のファイルが無ければ違反にする", () => {
   const root = makeRepo({ "skills/demo/a.mjs": "export {};\n" });
   try {
@@ -292,7 +308,7 @@ const HOLDER_FILES = Object.fromEntries(IS_ARRAY_HOLDERS.map((p) => [p, `${GUARD
 
 function makeCliRepo(files: Record<string, string>): string {
   const root = makeRepo({ ...HOLDER_FILES, [HOLDERS_REGISTRY]: "export {};\n", ...files });
-  git(root, "add", HOLDERS_REGISTRY);
+  git(root, "add", HOLDERS_REGISTRY, ...Object.keys(HOLDER_FILES));
   return root;
 }
 

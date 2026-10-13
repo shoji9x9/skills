@@ -276,6 +276,10 @@ export function findViolations(
     const source = readSource(root, path, blobs);
     if (source === null)
       out.push(`${path}: scripts/lib/is-array-holders.ts に挙げたファイルが無い`);
+    // 一覧に挙げたファイルは index に置く。作業ツリーにだけあると pre-commit は通るのに、commit には入らず
+    // oxlint.config.ts の overrides が指す先が無くなる（CI で初めて失敗する）。
+    else if (!blobs.has(path))
+      out.push(`${path}: 一覧に挙げたファイルが index に無い（stage する）`);
     else present.push({ path, source });
   }
   const uses = present.length ? isArrayUses(present) : [];
