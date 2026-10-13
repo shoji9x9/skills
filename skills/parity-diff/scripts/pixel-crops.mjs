@@ -41,9 +41,10 @@
 // 無ければ、導入してよいかを利用者に確認する。このスクリプトは勝手にインストールしない。
 // TypeScript の構文は使わない（型は JSDoc で書く）。
 
-import { readFileSync, writeFileSync, mkdirSync, realpathSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { isCliEntry } from "./lib/cli.mjs";
+import { loadPng } from "./lib/png.mjs";
 
 /**
  * ツールのバージョン（原本）。まとめ方や出力の形を変えたら上げる。
@@ -608,21 +609,6 @@ function cropImage(img, bbox, margin, PngCtor) {
 }
 
 /**
- * pngjs を動的 import する（未導入なら null）。
- *
- * @returns {Promise<{ new (opts:{ width:number, height:number }): PngImage,
- *   sync: { read(buf: Uint8Array): PngImage, write(png: PngImage): Uint8Array } } | null>}
- */
-async function loadPng() {
-  try {
-    const mod = await import("pngjs");
-    return mod.PNG;
-  } catch {
-    return null;
-  }
-}
-
-/**
  * CLI エントリ。
  * `node pixel-crops.mjs <current.png> <new.png> <diff.png> --out <dir> [--min-cluster <count>] [--pad <px>] [--crop-margin <px>] [--diff-color <hex>]`
  *
@@ -903,24 +889,7 @@ export async function main(argv) {
   return hasCandidate || strictClustered.droppedClusters > 0 ? 1 : 0;
 }
 
-// CLI として起動されたかは、両辺を実パスに解決してから比べる。
-// process.argv[1] は起動したときのパスのままである。--preserve-symlinks(-main) を付けると
-// （NODE_OPTIONS で付けた場合も）import.meta.url も解決されない。片側だけ解決すると、
-// シンボリックリンク（.claude/skills/<name> → .agents/skills/<name>）から起動したときに条件が偽になる。
-// すると main() が呼ばれず、何も出力せずに exit 0 で終わる。
-const invokedAsCli = (() => {
-  const entry = process.argv[1];
-  if (!entry) return false;
-  const self = fileURLToPath(import.meta.url);
-  try {
-    return realpathSync(entry) === realpathSync(self);
-  } catch {
-    // 実パスに解決できなければ、そのままのパスで比べる（何もせずに終わるより、誤って起動するほうを選ぶ）。
-    return entry === self;
-  }
-})();
-
-if (invokedAsCli) {
+if (isCliEntry(import.meta.url)) {
   // 想定外の reject を握らないと未処理 rejection で exit 1 になり、
   // 「差分あり」（exit 1）と区別が付かないまま呼び出し側に伝わる。入力エラーと同じ exit 2 に寄せる。
   main(process.argv.slice(2))

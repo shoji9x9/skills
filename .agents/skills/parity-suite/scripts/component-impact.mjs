@@ -25,17 +25,12 @@
 //
 // 終了コード: 0 ＝ 全機能を判定できた、1 ＝ 判定不能が 1 件以上（どの機能のページとも一致しない影響インスタンスを含む）、2 ＝ 使い方の誤り・入力が読めない・変更宣言の型崩れ。
 
-import {
-  existsSync,
-  readdirSync,
-  readFileSync,
-  realpathSync,
-  statSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { isArray } from "./lib/is-array.mjs";
+import { isCliEntry } from "./lib/cli.mjs";
+import { errorMessage } from "./lib/errors.mjs";
+import { isPlaceholder, isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 
 /**
  * ツールのバージョン（原本）。判定規則・出力形状を変えたら上げる。
@@ -67,52 +62,12 @@ export function isChangeKind(value) {
 export const PAIR_SEPARATOR = "|";
 
 /**
- * 空でない文字列か。
- * @param {unknown} value
- * @returns {value is string}
- */
-function nonEmptyString(value) {
-  return typeof value === "string" && value.trim() !== "";
-}
-
-/**
- * 雛形のプレースホルダ（`<...>`）のまま残った文字列か。
- *
- * **プレースホルダを値として受けない**——usages に `<...>` が残ると、どのページの path とも一致せず
- * 「その部品を使うページが無い」と同じ見え方になり、影響なしと判定されてしまう。
- * @param {unknown} value
- * @returns {boolean}
- */
-function isPlaceholder(value) {
-  return typeof value === "string" && /^\s*<[\s\S]*>\s*$/.test(value);
-}
-
-/**
- * 配列でない JSON オブジェクトか。
- * @param {unknown} value
- * @returns {value is Record<string, unknown>}
- */
-function isRecord(value) {
-  return Boolean(value) && typeof value === "object" && !isArray(value);
-}
-
-/**
  * 文字列の配列を取り出す。validateChange を通った宣言では配列で、要素はすべて文字列なので、元の配列と同じ要素になる。
  * @param {unknown} value
  * @returns {string[]}
  */
 function stringList(value) {
   return isArray(value) ? value.filter((element) => typeof element === "string") : [];
-}
-
-/**
- * catch した値の message（`error && error.message` と同じ値）。
- * @param {unknown} error
- * @returns {unknown}
- */
-function errorMessage(error) {
-  if (!error) return error;
-  return typeof error === "object" && "message" in error ? error.message : undefined;
 }
 
 /**
@@ -126,7 +81,7 @@ function errorMessage(error) {
 export function validateChange(change) {
   /** @type {string[]} */
   const errors = [];
-  if (!isRecord(change)) {
+  if (!isPlainObject(change)) {
     return ["変更宣言が JSON オブジェクトでない"];
   }
   const c = change;
@@ -187,7 +142,7 @@ export function validateChange(change) {
       );
     }
   }
-  if (!isRecord(c.commits)) {
+  if (!isPlainObject(c.commits)) {
     errors.push("commits がオブジェクトでない");
   } else {
     const commits = c.commits;
@@ -203,7 +158,7 @@ export function validateChange(change) {
   if (typeof c.margin_px !== "number" || !Number.isFinite(c.margin_px) || c.margin_px < 0) {
     errors.push(`margin_px が 0 以上の数でない: ${JSON.stringify(c.margin_px)}`);
   }
-  if (!isRecord(c.cross_measurement)) {
+  if (!isPlainObject(c.cross_measurement)) {
     errors.push("cross_measurement がオブジェクトでない");
   } else {
     const m = c.cross_measurement;
@@ -215,7 +170,7 @@ export function validateChange(change) {
     }
     textList("cross_measurement.states", m.states, { nonEmpty: true });
   }
-  if (!isRecord(c.catalog_verification)) {
+  if (!isPlainObject(c.catalog_verification)) {
     errors.push("catalog_verification がオブジェクトでない");
   } else {
     const v = c.catalog_verification;
@@ -235,7 +190,7 @@ export function validateChange(change) {
  * @returns {string[]}
  */
 export function validateComponentMetadata(metadata) {
-  if (!isRecord(metadata)) {
+  if (!isPlainObject(metadata)) {
     return ["部品 metadata が JSON オブジェクトでない"];
   }
   const m = metadata;
@@ -243,7 +198,7 @@ export function validateComponentMetadata(metadata) {
     return ["部品 metadata の instances が配列でない"];
   }
   const absolute = m.instances
-    .filter(isRecord)
+    .filter(isPlainObject)
     .filter((i) => typeof i.page === "string" && isAbsoluteUrl(i.page));
   if (absolute.length > 0) {
     return [
@@ -287,8 +242,8 @@ function resolveInstances(change, componentMetadata) {
   /** @type {{id:string, page:string, locator:unknown}[]} */
   const resolved = [];
   const metadataErrors = validateComponentMetadata(componentMetadata);
-  // isRecord の否定は validateComponentMetadata が誤りを返す場合に含まれる（型の絞り込みのためだけに並べる）
-  if (metadataErrors.length > 0 || !isRecord(componentMetadata)) {
+  // isPlainObject の否定は validateComponentMetadata が誤りを返す場合に含まれる（型の絞り込みのためだけに並べる）
+  if (metadataErrors.length > 0 || !isPlainObject(componentMetadata)) {
     return { resolved, problems: metadataErrors };
   }
   const m = componentMetadata;
@@ -300,7 +255,7 @@ function resolveInstances(change, componentMetadata) {
   }
   // 宣言した状態は部品が採った状態（capture.states）の語彙で書く。綴り違いの状態はどの撮影組にも当たらず、
   // 「その状態を撮っていない＝影響なし」と誤って判定される。そのため、語彙に無い状態は判定不能にする
-  const captureStates = isRecord(m.capture) ? m.capture.states : undefined;
+  const captureStates = isPlainObject(m.capture) ? m.capture.states : undefined;
   if (!isArray(captureStates) || !captureStates.every((st) => nonEmptyString(st))) {
     problems.push(
       "部品 metadata の capture.states が状態名の配列でない（宣言した状態を部品の語彙と突き合わせられない）",
@@ -318,7 +273,7 @@ function resolveInstances(change, componentMetadata) {
   const byId = new Map();
   for (const record of isArray(m.instances) ? m.instances : []) {
     // 配列の要素は id を持たないので、下の id の判定で飛ばす場合と同じになる
-    if (!isRecord(record)) continue;
+    if (!isPlainObject(record)) continue;
     if (typeof record.id !== "string") continue;
     byId.set(record.id, [...(byId.get(record.id) ?? []), record]);
   }
@@ -381,7 +336,7 @@ function judgeFeature(slug, metadata, change, instances) {
       "metadata.json が無い（どの組を撮ったか分からない。「影響なし」として扱わない）",
     ]);
   }
-  if (!isRecord(metadata)) {
+  if (!isPlainObject(metadata)) {
     return undeterminable(["metadata.json が JSON オブジェクトでない"]);
   }
   const m = metadata;
@@ -399,7 +354,7 @@ function judgeFeature(slug, metadata, change, instances) {
     return undeterminable([`mode が読めない: ${JSON.stringify(m.mode)}`]);
   }
   const conditions = m.capture_conditions;
-  if (!isRecord(conditions)) {
+  if (!isPlainObject(conditions)) {
     return undeterminable(["capture_conditions が無い（どのページ × 状態を撮ったか分からない）"]);
   }
   const cc = conditions;
@@ -418,7 +373,7 @@ function judgeFeature(slug, metadata, change, instances) {
   for (const page of cc.pages) {
     // 配列の要素は name を持たないので、{} と同じく下の判定で判定不能になる
     /** @type {Record<string, unknown>} */
-    const p = isRecord(page) ? page : {};
+    const p = isPlainObject(page) ? page : {};
     if (
       !nonEmptyString(p.name) ||
       typeof p.path !== "string" ||
@@ -440,7 +395,7 @@ function judgeFeature(slug, metadata, change, instances) {
   const scopeByPage = new Map();
   for (const entry of cc.capture_scope) {
     /** @type {Record<string, unknown>} */
-    const e = isRecord(entry) ? entry : {};
+    const e = isPlainObject(entry) ? entry : {};
     if (!nonEmptyString(e.page) || !nonEmptyString(e.state) || !nonEmptyString(e.viewport)) {
       return undeterminable([
         `capture_scope に page / state / viewport の読めない要素がある: ${JSON.stringify({ page: e.page, state: e.state, viewport: e.viewport })}`,
@@ -532,8 +487,8 @@ function judgeFeature(slug, metadata, change, instances) {
  */
 export function computeImpact({ change, componentMetadata, features, pageUniverse }) {
   const errors = validateChange(change);
-  // isRecord の否定は validateChange が誤りを返す場合に含まれる（型の絞り込みのためだけに並べる）
-  if (errors.length > 0 || !isRecord(change)) {
+  // isPlainObject の否定は validateChange が誤りを返す場合に含まれる（型の絞り込みのためだけに並べる）
+  if (errors.length > 0 || !isPlainObject(change)) {
     const error = new Error(`変更宣言が不正: ${errors.join(" / ")}`);
     Object.assign(error, { code: "invalid-change", errors });
     throw error;
@@ -559,11 +514,11 @@ export function computeImpact({ change, componentMetadata, features, pageUnivers
   const capturedPaths = new Set();
   const universe = isArray(pageUniverse) ? pageUniverse : sorted.map((f) => f.metadata);
   for (const metadata of universe) {
-    const conditions = isRecord(metadata) ? metadata.capture_conditions : undefined;
-    const pages = isRecord(conditions) ? conditions.pages : undefined;
+    const conditions = isPlainObject(metadata) ? metadata.capture_conditions : undefined;
+    const pages = isPlainObject(conditions) ? conditions.pages : undefined;
     if (!isArray(pages)) continue;
     for (const page of pages) {
-      if (isRecord(page) && typeof page.path === "string") capturedPaths.add(page.path);
+      if (isPlainObject(page) && typeof page.path === "string") capturedPaths.add(page.path);
     }
   }
   const unmatched = resolved
@@ -672,8 +627,8 @@ export function main(argv, deps = {}) {
     return fail(`${args["--component-metadata"]}: ${componentErrors.join(" / ")}`);
   }
   // どちらも直前の検証で JSON オブジェクトだと確かめてある
-  const componentSlug = isRecord(component.value) ? component.value.slug : undefined;
-  const changeSlug = isRecord(change.value) ? change.value.slug : undefined;
+  const componentSlug = isPlainObject(component.value) ? component.value.slug : undefined;
+  const changeSlug = isPlainObject(change.value) ? change.value.slug : undefined;
   if (componentSlug !== undefined && componentSlug !== changeSlug) {
     return fail(
       `${args["--component-metadata"]} の slug（${JSON.stringify(componentSlug)}）が変更宣言の slug（${JSON.stringify(changeSlug)}）と違う（別の部品の metadata を渡している）`,
@@ -752,19 +707,7 @@ export function main(argv, deps = {}) {
     : 0;
 }
 
-// CLI エントリ判定は両辺を実パスに解決してから突き合わせる（シンボリックリンク経由の起動でサイレント no-op にしない）。
-const invokedAsCli = (() => {
-  const entry = process.argv[1];
-  if (!entry) return false;
-  const self = fileURLToPath(import.meta.url);
-  try {
-    return realpathSync(entry) === realpathSync(self);
-  } catch {
-    return entry === self;
-  }
-})();
-
-if (invokedAsCli) {
+if (isCliEntry(import.meta.url)) {
   // process.exit は書き込み中の stdout を捨てるため、終了コードだけ設定して自然終了させる。
   process.exitCode = main(process.argv.slice(2));
 }

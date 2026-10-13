@@ -23,7 +23,7 @@ import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // 利用者のプロジェクトへ 1 ファイルだけコピーして使うので、隣のファイルを import せず、
-// 配列の型ガードを `scripts/lib/is-array.mjs` と同じ内容でここに持つ（一致は identical-copies の組で確かめる）。
+// `scripts/lib/` の helper（配列・オブジェクト・空でない文字列の型ガードと、CLI の起動の判定）を同じ内容でここに持つ（一致は identical-copies の組で確かめる）。
 // is-array-js:begin
 /**
  * `T` のうち配列の部分。`unknown` と `any` は `unknown[]`、配列を含みうる型は `unknown[]` との交差にする。
@@ -117,21 +117,27 @@ const HEADER_NAME = /^[0-9A-Za-z][0-9A-Za-z._-]*$/;
 /** 一覧を読めないときの例外。CLI は終了コード 3 にする（入力の誤りの 2 と分ける）。 */
 export class NoHeaderListError extends Error {}
 
+// is-plain-object-js:begin
 /**
+ * JSON オブジェクト（null と配列を除く）か。配列は typeof で "object" を通るため明示的に弾く。
  * @param {unknown} v
  * @returns {v is Record<string, unknown>}
  */
-function isObject(v) {
-  return v !== null && typeof v === "object" && !isArray(v);
+function isPlainObject(v) {
+  return typeof v === "object" && v !== null && !isArray(v);
 }
+// is-plain-object-js:end
 
+// non-empty-string-js:begin
 /**
+ * 空でない文字列か（空白だけの文字列は空として扱う）。
  * @param {unknown} v
  * @returns {v is string}
  */
-function isNonEmptyString(v) {
+function nonEmptyString(v) {
   return typeof v === "string" && v.trim() !== "";
 }
+// non-empty-string-js:end
 
 /**
  * 語彙に無いキー（`_` で始まる注記を除く）があれば投げる。打ち間違えたキーは読まれず、デフォルトの値として扱われてしまうためである。
@@ -157,7 +163,7 @@ function rejectPlaceholders(v, where) {
       throw new Error(`${where} にテンプレートのプレースホルダが残っている: ${JSON.stringify(v)}`);
   } else if (isArray(v)) {
     v.forEach((x, i) => rejectPlaceholders(x, `${where}[${i}]`));
-  } else if (isObject(v)) {
+  } else if (isPlainObject(v)) {
     for (const [k, x] of Object.entries(v)) {
       if (!k.startsWith("_")) rejectPlaceholders(x, where === "" ? k : `${where}.${k}`);
     }
@@ -174,7 +180,7 @@ function rejectPlaceholders(v, where) {
  */
 function checkRow(row, i, captured) {
   const where = `headers[${i}]`;
-  if (!isObject(row)) throw new Error(`${where} はオブジェクトで書く`);
+  if (!isPlainObject(row)) throw new Error(`${where} はオブジェクトで書く`);
   rejectUnknownKeys(row, ROW_KEYS, where);
   const { name, value, responses, setter, owner_slug: owner } = row;
   if (typeof name !== "string" || !HEADER_NAME.test(name))
@@ -185,7 +191,7 @@ function checkRow(row, i, captured) {
       `${at}.class は ${[...CLASSES].join(" / ")} のどれか: ${JSON.stringify(row.class)}`,
     );
   // 防御は値を、露出の抑止は付かないこと（null）を assertion にする。逆の組み合わせは分類か値のどちらかの誤り。
-  if (row.class === "defense" && !isNonEmptyString(value))
+  if (row.class === "defense" && !nonEmptyString(value))
     throw new Error(`${at}.value は defense なら空でない文字列`);
   if (row.class === "exposure" && value !== null)
     throw new Error(`${at}.value は exposure なら null（付かない）`);
@@ -211,11 +217,11 @@ function checkRow(row, i, captured) {
   if (
     Object.hasOwn(row, "setter_source") &&
     row.setter_source !== null &&
-    !isNonEmptyString(row.setter_source)
+    !nonEmptyString(row.setter_source)
   )
     throw new Error(`${at}.setter_source は空でない文字列か null`);
   if (owner !== null) {
-    if (!isNonEmptyString(owner)) throw new Error(`${at}.owner_slug は空でない文字列か null`);
+    if (!nonEmptyString(owner)) throw new Error(`${at}.owner_slug は空でない文字列か null`);
     // 所有者は機能に属さない応答（静的・404）の引き受け手。機能の応答にだけ付く行に書くと、
     // 所有者の確定（setup 手順 9）がどの応答を指したのか読めない。
     if (!kinds.some((r) => UNOWNED_KINDS.has(r)))
@@ -238,38 +244,38 @@ export function parseHeaderList(text) {
   } catch {
     throw new Error("一覧を JSON として読めない");
   }
-  if (!isObject(doc)) throw new Error("一覧はオブジェクトで書く");
+  if (!isPlainObject(doc)) throw new Error("一覧はオブジェクトで書く");
   rejectPlaceholders(doc, "");
   if (doc.schema_version !== 1)
     throw new Error(`schema_version は 1: ${JSON.stringify(doc.schema_version)}`);
   if (doc.status === "unmeasured") {
     // 未測定と行の併存は、どちらが正しいかを決められない（退避した旧一覧か、status の書き忘れか）。
     rejectUnknownKeys(doc, UNMEASURED_KEYS, "未測定の一覧");
-    if (!isNonEmptyString(doc.unmeasured_reason))
+    if (!nonEmptyString(doc.unmeasured_reason))
       throw new Error("status: unmeasured には unmeasured_reason（理由）を書く");
     throw new NoHeaderListError(`一覧が未測定（${doc.unmeasured_reason}）`);
   }
   if (doc.status !== "measured")
     throw new Error(`status は measured / unmeasured のどれか: ${JSON.stringify(doc.status)}`);
   rejectUnknownKeys(doc, MEASURED_KEYS, "測定済みの一覧");
-  if (!isNonEmptyString(doc.captured_at)) throw new Error("captured_at（採った日時）が無い");
-  if (!isNonEmptyString(doc.target)) throw new Error("target（採った target 名）が無い");
+  if (!nonEmptyString(doc.captured_at)) throw new Error("captured_at（採った日時）が無い");
+  if (!nonEmptyString(doc.target)) throw new Error("target（採った target 名）が無い");
   if (!isArray(doc.captured_responses) || doc.captured_responses.length === 0)
     throw new Error("captured_responses（採った応答）は空でない配列");
   /** @type {Set<string>} */
   const captured = new Set();
   doc.captured_responses.forEach((c, i) => {
-    if (!isObject(c)) throw new Error(`captured_responses[${i}] はオブジェクトで書く`);
+    if (!isPlainObject(c)) throw new Error(`captured_responses[${i}] はオブジェクトで書く`);
     rejectUnknownKeys(c, new Set(["kind", "url"]), `captured_responses[${i}]`);
     if (typeof c.kind !== "string" || !RESPONSE_KINDS.has(c.kind))
       throw new Error(`captured_responses[${i}].kind は語彙外: ${JSON.stringify(c.kind)}`);
-    if (!isNonEmptyString(c.url)) throw new Error(`captured_responses[${i}].url が無い`);
+    if (!nonEmptyString(c.url)) throw new Error(`captured_responses[${i}].url が無い`);
     captured.add(c.kind);
   });
   if (Object.hasOwn(doc, "notes") && typeof doc.notes !== "string")
     throw new Error("notes は文字列");
   // 欠落（undefined）も落とす。未確定は null と明示させ、欄の書き忘れと区別する。
-  if (doc.server_config_slug !== null && !isNonEmptyString(doc.server_config_slug))
+  if (doc.server_config_slug !== null && !nonEmptyString(doc.server_config_slug))
     throw new Error("server_config_slug は空でない文字列か null（未確定なら null）");
   // 防御ヘッダーも露出の抑止の候補も 1 つも無い応答はありうるので、空の配列は「比べるヘッダーが無い」として通す
   // （status: measured と明示した一覧なので、書き忘れの表と違い空であることが測定結果）。
@@ -303,7 +309,7 @@ export function parseHeaderList(text) {
  * @param {unknown} headers
  * @returns {Map<string, string[]>}
  */
-function collect(headers) {
+function collectHeaders(headers) {
   /** @type {Map<string, string[]>} */
   const out = new Map();
   const add = (/** @type {unknown} */ name, /** @type {unknown} */ value) => {
@@ -411,7 +417,7 @@ export function loadHeaderList(path) {
  * @returns {Record<string, unknown>}
  */
 export function normalizeHeaders(headers, list) {
-  const collected = collect(headers);
+  const collected = collectHeaders(headers);
   /** @type {Record<string, unknown>} */
   const out = {};
   for (const name of [...collected.keys()].sort()) {
@@ -492,19 +498,29 @@ export function main(argv, io = { stdout: process.stdout, stderr: process.stderr
   return 0;
 }
 
-// CLI エントリ判定は両辺を実パスに解決してから突き合わせる（json-normalize-diff.mjs と同じ理由。
-// シンボリックリンク経由の起動で main() が呼ばれず何も出力せず exit 0 になるのを防ぐ）。
-const invokedAsCli = (() => {
+// CLI として起動されたかは、両辺を実パスに解決してから突き合わせて判定する。起動時のパス（process.argv[1]）は
+// シンボリックリンクを解決せず、--preserve-symlinks-main では import.meta.url も解決しない。片側だけを解決すると、
+// シンボリックリンクから起動したときに main() が呼ばれず、何も出力せずに exit 0 で終わる。
+// 1 ファイルだけコピーして使うので import せず、parity-suite スキルの `scripts/lib/cli.mjs` の印の間と同じ関数をここに持つ。
+// cli-entry-js:begin
+/**
+ * CLI として起動されたか。
+ * @param {string} moduleUrl 呼び出し元のモジュールの URL
+ * @returns {boolean}
+ */
+function isCliEntry(moduleUrl) {
   const entry = process.argv[1];
   if (!entry) return false;
-  const self = fileURLToPath(import.meta.url);
+  const self = fileURLToPath(moduleUrl);
   try {
     return realpathSync(entry) === realpathSync(self);
   } catch {
+    // 実パスへの解決に失敗したら、起動時のパスのまま突き合わせる（何もせずに終わるより、誤って起動する方を選ぶ）。
     return entry === self;
   }
-})();
+}
+// cli-entry-js:end
 
-if (invokedAsCli) {
+if (isCliEntry(import.meta.url)) {
   process.exit(main(process.argv.slice(2)));
 }

@@ -29,7 +29,7 @@
       "id": "noise-row-not-checked",
       "why": "ノイズ基準値の object でない行を、欄の無い行として照合に使う（後ろの正しい行を隠す）",
       "file": "skills/parity-diff/scripts/diff-normalize.mjs",
-      "find": "    if (!isRecord(row)) continue;\n",
+      "find": "    if (!isPlainObject(row)) continue;\n",
       "replace": "    if (row === null) continue;\n",
       "occurrences": 1,
       "expect_failing": [
@@ -41,7 +41,7 @@
       "id": "noise-row-not-warned",
       "why": "ノイズ基準値の object でない行を警告せずに読み飛ばす",
       "file": "skills/parity-diff/scripts/diff-normalize.mjs",
-      "find": "    if (!isRecord(row))\n      problems.push(",
+      "find": "    if (!isPlainObject(row))\n      problems.push(",
       "replace": "    if (false)\n      problems.push(",
       "occurrences": 1,
       "expect_failing": [

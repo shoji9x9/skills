@@ -29,13 +29,14 @@
 //
 // 決定論的に動く（乱数・現在時刻・ネットワークに依存しない）。TypeScript の構文は使わない（型は JSDoc で書く）。
 
-import { readFileSync, realpathSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
+import { isCliEntry } from "./lib/cli.mjs";
+import { collapse, parseTables } from "./lib/markdown.mjs";
 
 /** ツールのバージョン（このファイルで定義する）。判定のロジックや出力の形を変えたら上げる。 */
-export const VERSION = "1";
+export const VERSION = "2";
 
 /** 使い方の誤り・入力の不備（exit 2）。 */
 export class UsageError extends Error {}
@@ -124,83 +125,6 @@ export function looksLikeEndpointHeader(header) {
 }
 
 /**
- * 空白を 1 つに畳み、前後を除く（Markdown の表はフォーマッタが桁を詰め直すため素の比較では揺れる）。
- * @param {string} value
- * @returns {string}
- */
-export function collapse(value) {
-  return String(value).replace(/\s+/gu, " ").trim();
-}
-
-/**
- * Markdown の表を全て取り出す。
- * @param {string} text
- * @returns {{ headers: string[], rows: string[][] }[]}
- */
-export function parseTables(text) {
-  const lines = text.split(/\r?\n/u);
-  /** @type {{ headers: string[], rows: string[][] }[]} */
-  const tables = [];
-  // コードフェンスの中は例示であって台帳ではない。読むと、例の表が本物の行と並んで
-  // 「slug が 2 件ある」（exit 2）と誤って判定されたり、例の列で判定可能に見えたりする。
-  let fence = null;
-  for (let i = 0; i < lines.length; i += 1) {
-    const fenceMark = fenceOf(lines[i]);
-    if (fenceMark !== null) {
-      if (fence === null) fence = fenceMark;
-      else if (fenceMark[0] === fence[0] && fenceMark.length >= fence.length) fence = null;
-      continue;
-    }
-    if (fence !== null) continue;
-    const header = splitRow(lines[i]);
-    if (header === null) continue;
-    const delimiter = splitRow(lines[i + 1]);
-    // 区切り行のハイフンは GFM では 1 個以上。3 個以上を要求すると `|-|-|` の表を読み落とす。
-    if (delimiter === null || !delimiter.every((cell) => /^:?-+:?$/u.test(cell.trim()))) continue;
-    if (delimiter.length !== header.length) continue;
-    /** @type {string[][]} */
-    const rows = [];
-    let j = i + 2;
-    for (; j < lines.length; j += 1) {
-      const row = splitRow(lines[j]);
-      if (row === null) break;
-      rows.push(row);
-    }
-    tables.push({ headers: header.map(collapse), rows });
-    i = j - 1;
-  }
-  return tables;
-}
-
-/**
- * コードフェンスの開始／終了記号を返す（フェンス行でなければ null）。
- * @param {string | undefined} line
- * @returns {string | null}
- */
-function fenceOf(line) {
-  if (line === undefined) return null;
-  const match = /^ {0,3}(`{3,}|~{3,})/u.exec(line);
-  return match === null ? null : match[1];
-}
-
-/**
- * `| a | b |` を配列にする（表の行でなければ null）。
- * @param {string | undefined} line
- * @returns {string[] | null}
- */
-function splitRow(line) {
-  if (line === undefined) return null;
-  let trimmed = line.trim();
-  if (!trimmed.includes("|")) return null;
-  // GFM は行頭・行末の `|` を必須にしない。必須にすると、外側の `|` を省いた正当な
-  // インベントリが「表が無い」と読まれ、exit 3（列の導入前）と誤って判定される。
-  // parity-replace 手順 8 は exit 3 で完了を止めないので、推定の口が残る台帳が警告なしに通る。
-  if (trimmed.startsWith("|")) trimmed = trimmed.slice(1);
-  if (trimmed.endsWith("|")) trimmed = trimmed.slice(0, -1);
-  return trimmed.split("|");
-}
-
-/**
  * 口の一覧を列のセルから取り出す。
  * @param {string} cell
  * @returns {string[]}
@@ -281,7 +205,7 @@ export function classifyTable(headers) {
  * @returns {{ endpointCell: string, endpoints: string[], entries: { endpoints: string[], verdict: string, raw: string }[] }}
  */
 export function readRow(text, slug) {
-  const tables = parseTables(text);
+  const { tables } = parseTables(text);
   /** @type {{ endpointCell: string, endpoints: string[], entries: ReturnType<typeof parseEvidenceEntries> }[]} */
   const matched = [];
   // 判定できない行は理由の別で数える。同じ終了コードへ畳むと、呼び出し側が
@@ -654,19 +578,7 @@ export function main(argv) {
   }
 }
 
-// CLI エントリ判定は両辺を実パスに解決してから突き合わせる（シンボリックリンク経由の起動でサイレント no-op にしない）。
-const invokedAsCli = (() => {
-  const entry = process.argv[1];
-  if (!entry) return false;
-  const self = fileURLToPath(import.meta.url);
-  try {
-    return realpathSync(entry) === realpathSync(self);
-  } catch {
-    return entry === self;
-  }
-})();
-
-if (invokedAsCli) {
+if (isCliEntry(import.meta.url)) {
   // process.exit は書き込み中の stdout を捨てるため、終了コードだけ設定して自然終了させる
   // （判定の根拠は measured: 行なので、パイプ出力で欠けると判定そのものが読めなくなる）。
   process.exitCode = main(process.argv.slice(2));

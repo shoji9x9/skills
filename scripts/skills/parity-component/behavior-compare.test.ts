@@ -19,9 +19,9 @@ import {
   canonical,
   cellKey,
   isoDateTime,
-  loadBaseline,
   main,
 } from "../../../skills/parity-component/scripts/behavior-compare.mjs";
+import { loadBaseline } from "../../../skills/parity-component/scripts/lib/baseline.mjs";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "skills/parity-component/scripts/behavior-compare.mjs");
@@ -413,13 +413,13 @@ test("baseline の外を指す behaviors.json は読まない", () => {
   const meta = metadataOf({ instances: [{ id: "orders" }, { id: "evil" }] });
   writeFileSync(join(dir, "metadata.json"), JSON.stringify(meta));
   symlinkSync(join(outside, "x"), join(dir, "baseline", "evil"));
-  expect(() => loadBaseline(dir)).toThrow(/baseline の外/);
+  expect(() => loadBaseline(dir, "behaviors.json")).toThrow(/baseline の外/);
   expect(() => {
     writeFileSync(
       join(dir, "metadata.json"),
       JSON.stringify(metadataOf({ instances: [{ id: "../x" }] })),
     );
-    loadBaseline(dir);
+    loadBaseline(dir, "behaviors.json");
   }).toThrow(/セグメント/);
 });
 

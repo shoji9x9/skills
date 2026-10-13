@@ -439,7 +439,7 @@
       "id": "health-check-cli-entry-skipped",
       "why": "CLI として起動されても main を呼ばない（テストは main を直接呼ぶので、子プロセスで起動する陽性コントロールだけが検出する。Issue #478）",
       "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
-      "find": "if (invokedAsCli) {\n",
+      "find": "if (isCliEntry(import.meta.url)) {\n",
       "replace": "if (false) {\n",
       "occurrences": 1,
       "expect_failing": [

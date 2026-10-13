@@ -18,6 +18,7 @@ import * as traitCapture from "../../skills/parity-suite/scripts/trait-capture.m
 import * as cssRules from "../../skills/parity-component/scripts/css-rules-capture.mjs";
 import * as axisDiff from "../../skills/parity-component/scripts/axis-diff.mjs";
 import * as behaviorCompare from "../../skills/parity-component/scripts/behavior-compare.mjs";
+import { loadBaseline } from "../../skills/parity-component/scripts/lib/baseline.mjs";
 import * as elementShot from "../../skills/parity-suite/scripts/element-shot.mjs";
 import { isArray } from "../lib/is-array.ts";
 
@@ -393,7 +394,7 @@ test("baseline を持つ fixture を見つけている（検査対象が 0 件�
 test.each(componentDirs.map((d) => [d.slice(fixturesRoot.length + 1), d]))(
   "操作の結果の基準が behavior-compare.mjs の基準側の検査を通る: %s",
   (_, dir) => {
-    const { metadata, behaviors } = behaviorCompare.loadBaseline(dir);
+    const { metadata, byInstance: behaviors } = loadBaseline(dir, "behaviors.json");
     const result = behaviorCompare.compareBehaviors({
       metadata,
       behaviors,

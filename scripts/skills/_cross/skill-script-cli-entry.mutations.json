@@ -8,13 +8,17 @@
   "mutations": [
     {
       "id": "cli-entry-one-sided",
-      "why": "CLI の判定で起動パスを実パスに直さない（リンク経由の起動で main が呼ばれず、無出力・exit 0 で終わる）",
-      "file": "skills/parity-suite/scripts/checkpoint.mjs",
+      "why": "CLI の判定（スキルの scripts/lib/cli.mjs）で起動パスを実パスに直さない（リンク経由の起動で main が呼ばれず、無出力・exit 0 で終わる）",
+      "file": "skills/parity-component/scripts/lib/cli.mjs",
       "find": "    return realpathSync(entry) === realpathSync(self);",
       "replace": "    return entry === self;",
       "occurrences": 1,
       "expect_failing": [
-        "skills/parity-suite/scripts/checkpoint.mjs: シンボリックリンク経由でも引数不足を usage と exit 2 で知らせる"
+        "skills/parity-component/scripts/axis-diff.mjs: シンボリックリンク経由でも引数不足を usage と exit 2 で知らせる",
+        "skills/parity-component/scripts/behavior-compare.mjs: シンボリックリンク経由でも引数不足を usage と exit 2 で知らせる",
+        "skills/parity-component/scripts/cascade-resolve.mjs: シンボリックリンク経由でも引数不足を usage と exit 2 で知らせる",
+        "skills/parity-component/scripts/lifecycle-check.mjs: シンボリックリンク経由でも引数不足を usage と exit 2 で知らせる",
+        "skills/parity-component/scripts/motion-compare.mjs: シンボリックリンク経由でも引数不足を usage と exit 2 で知らせる"
       ]
     }
   ]

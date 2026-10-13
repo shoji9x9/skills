@@ -37,10 +37,18 @@
 //
 // 終了コード: 0 ＝ 条件を満たす、1 ＝ 抜け・不整合が残る（採取へ戻す）、2 ＝ 使い方の誤り・型崩れ。
 
-import { readFileSync, realpathSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { isArray } from "./lib/is-array.mjs";
+import { isCliEntry } from "./lib/cli.mjs";
+import {
+  isInteger,
+  isObjectLike,
+  isPlainObject,
+  nonEmptyString,
+  nonNegativeNumber,
+  positiveNumber,
+} from "./lib/guards.mjs";
 
 /**
  * ツールのバージョン（原本）。判定規則・出力形状を変えたら上げる。
@@ -100,33 +108,6 @@ export function keyPartsAreSafe(entry) {
 }
 
 /**
- * 正の有限数か（寸法の実測値はここを通す）。
- * @param {unknown} value
- * @returns {value is number}
- */
-function positiveNumber(value) {
-  return typeof value === "number" && Number.isFinite(value) && value > 0;
-}
-
-/**
- * 空でない文字列か。
- * @param {unknown} value
- * @returns {value is string}
- */
-function nonEmptyString(value) {
-  return typeof value === "string" && value.trim() !== "";
-}
-
-/**
- * null でないオブジェクトか（配列も含む）。プロパティを読む前の型の絞り込みに使う。配列を除く isRecord とは別の名前にする。
- * @param {unknown} value
- * @returns {value is Record<string, unknown>}
- */
-function isObjectLike(value) {
-  return typeof value === "object" && value !== null;
-}
-
-/**
  * display_axes の 4 つの一覧を取り出す。どれかが配列でなければ、最初に見つけたキーの名前を返す
  * （axes・absent・pairs・variants の順。キーの名前と検査を 1 か所にまとめる）。
  * @param {Record<string, unknown>} da
@@ -152,15 +133,6 @@ function isOneOf(list, value) {
 }
 
 /**
- * 整数か（`Number.isInteger` を、型を絞れる形にしたもの）。
- * @param {unknown} value
- * @returns {value is number}
- */
-function isInteger(value) {
-  return Number.isInteger(value);
-}
-
-/**
  * 寸法（`{width, height}`）を検証して返す。型崩れ・0 以下なら null。
  *
  * **0 を通さない**——同梱テンプレートは寸法を `0` で置いてあるので、
@@ -181,15 +153,6 @@ export const OVERFLOW_VALUES = ["visible", "hidden", "clip", "scroll", "auto"];
 
 /** スクロールバーを描く `overflow` の値（`hidden` / `clip` は切るだけでバーを描かない）。 */
 const SCROLLBAR_OVERFLOW = ["scroll", "auto"];
-
-/**
- * 0 以上の有限数か（スクロールバーの厚みの実測値はここを通す。0 はバーが場所を取らない正規の値）。
- * @param {unknown} value
- * @returns {value is number}
- */
-function nonNegativeNumber(value) {
-  return typeof value === "number" && Number.isFinite(value) && value >= 0;
-}
 
 /**
  * 1 つの撮影組の実測から抜けを導く。
@@ -561,7 +524,7 @@ export function checkDisplayAxes(conditions) {
     return result();
   }
   const raw = conditions.display_axes;
-  if (!isObjectLike(raw) || isArray(raw)) {
+  if (!isPlainObject(raw)) {
     add("display-axes-malformed", "capture_conditions.display_axes がオブジェクトではない");
     return result();
   }
@@ -1098,7 +1061,7 @@ export function checkBrowser(conditions) {
  * @returns {{code:string, message:string}[]}
  */
 function checkBrowserOs(os) {
-  if (!isObjectLike(os) || isArray(os)) {
+  if (!isPlainObject(os)) {
     return [
       {
         code: "browser-os-missing",
@@ -1282,7 +1245,7 @@ export function checkOverflow(conditions) {
       !isInteger(probe.step) ||
       probe.step <= 0 ||
       !isArray(probe.breakpoints) ||
-      !probe.breakpoints.every((v) => typeof v === "number" && Number.isFinite(v) && v > 0) ||
+      !probe.breakpoints.every(positiveNumber) ||
       !isInteger(probe.unreadable_stylesheets) ||
       probe.unreadable_stylesheets < 0
     ) {
@@ -1799,19 +1762,7 @@ export function main(argv, deps = {}) {
   return result.findings.length === 0 ? 0 : 1;
 }
 
-// CLI エントリ判定は両辺を実パスに解決してから突き合わせる（シンボリックリンク経由の起動でサイレント no-op にしない）。
-const invokedAsCli = (() => {
-  const entry = process.argv[1];
-  if (!entry) return false;
-  const self = fileURLToPath(import.meta.url);
-  try {
-    return realpathSync(entry) === realpathSync(self);
-  } catch {
-    return entry === self;
-  }
-})();
-
-if (invokedAsCli) {
+if (isCliEntry(import.meta.url)) {
   // process.exit は書き込み中の stdout を捨てるため、終了コードだけ設定して自然終了させる。
   process.exitCode = main(process.argv.slice(2));
 }

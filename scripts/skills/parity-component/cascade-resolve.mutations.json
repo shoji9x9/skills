@@ -20,7 +20,7 @@
       "id": "non-object-rule-accepted",
       "why": "オブジェクトでない規則を読み飛ばして、残りの規則だけで勝者を決める",
       "file": "skills/parity-component/scripts/cascade-resolve.mjs",
-      "find": "    if (!isObject(rule) || isArray(rule)) {\n",
+      "find": "    if (!isPlainObject(rule)) {\n",
       "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
@@ -33,8 +33,8 @@
       "id": "array-rule-accepted",
       "why": "配列の規則をオブジェクトとして通す（欄を持たないので警告なしに読み飛ばされる）",
       "file": "skills/parity-component/scripts/cascade-resolve.mjs",
-      "find": "if (!isObject(rule) || isArray(rule)) {",
-      "replace": "if (!isObject(rule)) {",
+      "find": "if (!isPlainObject(rule)) {",
+      "replace": "if (!isObjectLike(rule)) {",
       "occurrences": 1,
       "expect_failing": [
         "オブジェクトでない規則（配列）があれば、読み飛ばさずに判定できないとして止める"

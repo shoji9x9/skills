@@ -20,10 +20,12 @@
 // 決定論的: 乱数・現在時刻に依存しない。入力順を保って数える。
 // TypeScript 構文は使わない（型は JSDoc）。
 
-import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { isArray } from "./lib/is-array.mjs";
+import { isCliEntry } from "./lib/cli.mjs";
+import { errorMessage } from "./lib/errors.mjs";
+import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 
 /**
  * ツールのバージョン（このファイルで定義する）。判定の規則や出力の形を変えたら上げる。
@@ -35,36 +37,6 @@ export const VERSION = "1";
 export const STATES = ["open", "decided", "settled"];
 
 /**
- * 空でない文字列か。
- * @param {unknown} value
- * @returns {boolean}
- */
-function nonEmptyString(value) {
-  return typeof value === "string" && value.trim() !== "";
-}
-
-/**
- * 例外の message を読む。`error && error.message` と同じ値を返す（偽の値はそのまま、プリミティブは undefined）。
- * @param {unknown} error
- * @returns {unknown}
- */
-function errorMessage(error) {
-  if (!error) return error;
-  return typeof error === "object" || typeof error === "function"
-    ? Reflect.get(error, "message")
-    : undefined;
-}
-
-/**
- * プレーンなオブジェクトか。
- * @param {unknown} value
- * @returns {value is Record<string, unknown>}
- */
-function isObject(value) {
-  return typeof value === "object" && value !== null && !isArray(value);
-}
-
-/**
  * 保留 1 件の状態を決める。
  *   - open: resolution が無い（null・欠落）か、回答として読めない
  *   - decided: 回答はあるが、blocks の工程を実施した記録も残作業の置き場も無い
@@ -73,13 +45,13 @@ function isObject(value) {
  * @returns {{ state: "open" | "decided" | "settled", reason: string, tracked_in?: string }}
  */
 export function classifyDecision(element) {
-  if (!isObject(element)) return { state: "open", reason: "要素がオブジェクトでない" };
+  if (!isPlainObject(element)) return { state: "open", reason: "要素がオブジェクトでない" };
   const resolution = element.resolution;
   if (resolution === null || resolution === undefined) {
     return { state: "open", reason: "resolution が無い" };
   }
   // 回答として読めない resolution を「解決済み」として扱わない（`true` や空オブジェクトで通さない）。
-  if (!isObject(resolution) || !nonEmptyString(resolution.answer)) {
+  if (!isPlainObject(resolution) || !nonEmptyString(resolution.answer)) {
     return { state: "open", reason: "resolution に answer が無い" };
   }
   if (!nonEmptyString(resolution.answered_at)) {
@@ -107,7 +79,7 @@ function settledOrDecided(resolution, missingReason) {
   const resumed = resolution.resumed;
   // 実施の記録は日時と証拠の両方を要る。日時だけだと「再開した」と書けば通る。
   if (
-    isObject(resumed) &&
+    isPlainObject(resumed) &&
     nonEmptyString(resumed.at) &&
     isArray(resumed.evidence) &&
     resumed.evidence.some(nonEmptyString)
@@ -116,10 +88,10 @@ function settledOrDecided(resolution, missingReason) {
   }
   const followUp = resolution.follow_up;
   // 置き場は残作業（what）と追跡先（tracked_in）の両方を要る。追跡先だけでは何を追っているか分からない。
-  const trackedIn = isObject(followUp) ? followUp.tracked_in : undefined;
+  const trackedIn = isPlainObject(followUp) ? followUp.tracked_in : undefined;
   // nonEmptyString が真なら文字列なので、typeof は型を絞るためだけにある（判定は変わらない）。
   if (
-    isObject(followUp) &&
+    isPlainObject(followUp) &&
     nonEmptyString(followUp.what) &&
     typeof trackedIn === "string" &&
     nonEmptyString(trackedIn)
@@ -140,7 +112,7 @@ function settledOrDecided(resolution, missingReason) {
  * @returns {boolean}
  */
 export function inScope(element, scope) {
-  if (!isObject(element)) return true;
+  if (!isPlainObject(element)) return true;
   if (scope.mode !== undefined) {
     // 要素の mode が欠落していれば setup のものとして止める（references/autonomy.md「下流の前提判定」）。
     const mode = element.mode;
@@ -174,7 +146,7 @@ export function inScope(element, scope) {
  * }}
  */
 export function checkPendingDecisions(doc, scope = {}) {
-  if (!isObject(doc)) return { structural: true, error: "成果物がオブジェクトでない" };
+  if (!isPlainObject(doc)) return { structural: true, error: "成果物がオブジェクトでない" };
   const list = doc.pending_decisions;
   // 配列が無いのは「保留なし」ではない（保留が無ければ空配列を書く規約。references/autonomy.md「記録の形」）。
   if (!isArray(list)) return { structural: true, error: "pending_decisions が配列でない" };
@@ -188,7 +160,7 @@ export function checkPendingDecisions(doc, scope = {}) {
     counts.in_scope += 1;
     const result = classifyDecision(element);
     counts[result.state] += 1;
-    const id = isObject(element) ? element.id : undefined;
+    const id = isPlainObject(element) ? element.id : undefined;
     if (result.state === "settled") {
       if (result.tracked_in !== undefined) tracked.push({ id, tracked_in: result.tracked_in });
       continue;
@@ -197,7 +169,7 @@ export function checkPendingDecisions(doc, scope = {}) {
       id,
       state: result.state,
       reason: result.reason,
-      blocks: isObject(element) ? element.blocks : undefined,
+      blocks: isPlainObject(element) ? element.blocks : undefined,
     });
   }
   return { structural: false, unsettled, tracked, counts };
@@ -277,19 +249,7 @@ export function main(argv, deps = {}) {
   return result.unsettled.length === 0 ? 0 : 1;
 }
 
-// CLI エントリ判定は両辺を実パスに解決してから突き合わせる（シンボリックリンク経由の起動でサイレント no-op にしない）。
-const invokedAsCli = (() => {
-  const entry = process.argv[1];
-  if (!entry) return false;
-  const self = fileURLToPath(import.meta.url);
-  try {
-    return realpathSync(entry) === realpathSync(self);
-  } catch {
-    return entry === self;
-  }
-})();
-
-if (invokedAsCli) {
+if (isCliEntry(import.meta.url)) {
   // process.exit は書き込み中の stdout を捨てるため、終了コードだけ設定して自然終了させる。
   process.exitCode = main(process.argv.slice(2));
 }

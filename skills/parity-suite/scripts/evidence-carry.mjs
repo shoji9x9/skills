@@ -36,6 +36,7 @@ import { readdirSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { computeImpact, isChangeKind, validateChange } from "./component-impact.mjs";
 import { isArray } from "./lib/is-array.mjs";
+import { isFiniteNumber, isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 
 /**
  * ツールのバージョン（原本）。判定規則を変えたら上げる。
@@ -55,22 +56,6 @@ const AMEND_VERIFY_TOOL = "amend-verify";
  */
 export const LEGACY_HINT =
   "replace-metadata.json に new.render_inputs（ページの描画に影響するファイルの git pathspec）が無いので、証跡を描画入力の差分で持ち越せない（部品の改修で持ち越すなら parity-replace で render_inputs を記録する）";
-
-/**
- * @param {unknown} v
- * @returns {v is string}
- */
-function nonEmptyString(v) {
-  return typeof v === "string" && v.trim() !== "";
-}
-
-/**
- * @param {unknown} v
- * @returns {v is Record<string, unknown>}
- */
-function isPlainObject(v) {
-  return typeof v === "object" && v !== null && !isArray(v);
-}
 
 /**
  * デフォルトの git の起動。stdin は閉じ、stdout を文字列で返す。失敗は例外にする（呼び出し側で、持ち越さないものとして扱う）。
@@ -144,7 +129,7 @@ function rectKey(r) {
   if (!isPlainObject(r)) return null;
   const v = r;
   const nums = [v.x, v.y, v.width, v.height];
-  if (!nums.every((n) => typeof n === "number" && Number.isFinite(n))) return null;
+  if (!nums.every(isFiniteNumber)) return null;
   return nums.join(",");
 }
 

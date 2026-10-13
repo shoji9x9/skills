@@ -21,38 +21,18 @@
 // 使い方: node lifecycle-check.mjs --build-metadata <new/<target>/build-metadata.json>
 // 終了コード: 0 ＝ 条件を満たす（対象でない場合を含む）、1 ＝ 不足が残る、2 ＝ 使い方の誤り・型崩れ。
 
-import { readFileSync, realpathSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { isArray } from "./lib/is-array.mjs";
 
-import { filled, nonEmptyString } from "./behavior-compare.mjs";
+import { isCliEntry } from "./lib/cli.mjs";
+import { field, filled, isObjectLike, isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 
 /** ツールのバージョン（このスクリプトで定義する）。判定の規則・出力の形を変えたら上げる。 */
 export const VERSION = "1";
 
 /** 4 つの実行パスの語彙（このスクリプトで定義する。references/lifecycle.md「4 つの実行パス」と同じ）。 */
 export const PATHS = ["strict-rebind", "prop-identity", "remount", "prop-change-after-init"];
-
-/**
- * null でないオブジェクト（配列を含む）か。JSON 由来の値の欄を読む前の絞り込みに使う。
- * @param {unknown} value
- * @returns {value is Record<string, unknown>}
- */
-function isObject(value) {
-  return value !== null && typeof value === "object";
-}
-
-/**
- * `value && value[key]` と同じ値を返す（オブジェクトなら欄の値、偽の値ならその値、それ以外は undefined）。
- * @param {unknown} value
- * @param {string} key
- * @returns {unknown}
- */
-function field(value, key) {
-  if (isObject(value)) return value[key];
-  return value && undefined;
-}
 
 /**
  * 検査の指摘 1 件。code は必ずあり、ほかの欄は code ごとに付く。
@@ -84,7 +64,7 @@ export function checkLifecycle(metadata) {
     applies: null,
     findings: [{ code: "structural", detail }],
   });
-  if (!isObject(lifecycle) || isArray(lifecycle)) {
+  if (!isPlainObject(lifecycle)) {
     return structural("build-metadata.json の lifecycle が無い（対象かどうかを判定していない）");
   }
   if (typeof lifecycle.applies !== "boolean") {
@@ -144,8 +124,8 @@ export function checkLifecycle(metadata) {
   };
   for (const row of paths) {
     const name = field(row, "path");
-    // count を通れば path は語彙の文字列なので row はオブジェクトである。isObject は型を絞るためだけにある（判定は変わらない）。
-    if (!count(name, "paths") || !isObject(row)) continue;
+    // count を通れば path は語彙の文字列なので row はオブジェクトである。isObjectLike は型を絞るためだけにある（判定は変わらない）。
+    if (!count(name, "paths") || !isObjectLike(row)) continue;
     const missing = ["breaking_process", "story", "entry_attribute", "check"].filter(
       (key) => !filled(row[key]),
     );
@@ -185,7 +165,7 @@ export function checkLifecycle(metadata) {
   }
   for (const row of notApplicable) {
     const name = field(row, "path");
-    if (!count(name, "not_applicable_paths") || !isObject(row)) continue;
+    if (!count(name, "not_applicable_paths") || !isObjectLike(row)) continue;
     if (!filled(row.reason)) {
       findings.push({
         code: "lifecycle-na-reason-missing",
@@ -251,18 +231,6 @@ export function main(
   return result.findings.length === 0 ? 0 : 1;
 }
 
-// CLI エントリ判定は両辺を実パスに解決してから突き合わせる（シンボリックリンク経由の起動でサイレント no-op にしない）。
-const invokedAsCli = (() => {
-  const entry = process.argv[1];
-  if (!entry) return false;
-  const self = fileURLToPath(import.meta.url);
-  try {
-    return realpathSync(entry) === realpathSync(self);
-  } catch {
-    return entry === self;
-  }
-})();
-
-if (invokedAsCli) {
+if (isCliEntry(import.meta.url)) {
   process.exitCode = main(process.argv.slice(2));
 }

@@ -1,9 +1,9 @@
 // パリティスイートから Playwright の待たない取得 API を検出する。
 // TypeScript の構文変換は行わず、コメント・文字列・正規表現リテラルを除外したソースを決定論的に走査する。
 
-import { readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { extname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { isCliEntry } from "./lib/cli.mjs";
 
 const SOURCE_EXTENSIONS = new Set([".js", ".mjs", ".cjs", ".jsx", ".ts", ".mts", ".cts", ".tsx"]);
 
@@ -1375,7 +1375,7 @@ export function scanSource(source, file = "<source>") {
  * @param {string[]} problems
  * @param {boolean} [explicit]
  */
-function collect(path, files, problems, explicit = true) {
+function collectSourceFiles(path, files, problems, explicit = true) {
   let stat;
   try {
     stat = statSync(path);
@@ -1396,7 +1396,7 @@ function collect(path, files, problems, explicit = true) {
     a.name.localeCompare(b.name),
   )) {
     if (entry.name === "node_modules" || entry.name === ".git") continue;
-    collect(resolve(path, entry.name), files, problems, false);
+    collectSourceFiles(resolve(path, entry.name), files, problems, false);
   }
 }
 
@@ -1410,7 +1410,7 @@ export function main(args) {
   const files = [];
   /** @type {string[]} */
   const problems = [];
-  for (const arg of args) collect(resolve(arg), files, problems);
+  for (const arg of args) collectSourceFiles(resolve(arg), files, problems);
   if (files.length === 0) problems.push("走査対象の JavaScript / TypeScript ファイルが 0 件");
   for (const problem of problems) process.stderr.write(`error: ${problem}\n`);
   if (problems.length > 0) return 2;
@@ -1473,15 +1473,4 @@ export function main(args) {
   return 0;
 }
 
-const invokedAsCli = (() => {
-  const entry = process.argv[1];
-  if (!entry) return false;
-  const self = fileURLToPath(import.meta.url);
-  try {
-    return realpathSync(entry) === realpathSync(self);
-  } catch {
-    return entry === self;
-  }
-})();
-
-if (invokedAsCli) process.exit(main(process.argv.slice(2)));
+if (isCliEntry(import.meta.url)) process.exit(main(process.argv.slice(2)));

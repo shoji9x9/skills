@@ -31,7 +31,7 @@ import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 // 利用者のプロジェクトへ 1 ファイルだけコピーして使うので、隣のファイルを import せず、
-// 配列の型ガードを `scripts/lib/is-array.mjs` と同じ内容でここに持つ（一致は identical-copies の組で確かめる）。
+// `scripts/lib/` の helper（配列とオブジェクトの型ガードと、CLI の起動の判定）を同じ内容でここに持つ（一致は identical-copies の組で確かめる）。
 // is-array-js:begin
 /**
  * `T` のうち配列の部分。`unknown` と `any` は `unknown[]`、配列を含みうる型は `unknown[]` との交差にする。
@@ -444,13 +444,16 @@ export function compareTraits(baselineEntries, captureEntries, options = {}) {
   return out;
 }
 
+// is-plain-object-js:begin
 /**
+ * JSON オブジェクト（null と配列を除く）か。配列は typeof で "object" を通るため明示的に弾く。
  * @param {unknown} v
  * @returns {v is Record<string, unknown>}
  */
 function isPlainObject(v) {
   return typeof v === "object" && v !== null && !isArray(v);
 }
+// is-plain-object-js:end
 
 /**
  * @param {unknown} v
@@ -627,23 +630,29 @@ export function main(argv) {
   return diffs.length > 0 ? 1 : 0;
 }
 
-// CLI として起動されたかは、両辺を実パスに解決してから突き合わせて判定する。
-// process.argv[1] は起動時のパスのままである。--preserve-symlinks(-main) を付けると（NODE_OPTIONS 経由でも付く）、
-// import.meta.url もシンボリックリンクを解決しない。
-// 片側だけを解決すると、シンボリックリンク経由（.claude/skills/<name> → .agents/skills/<name>）の起動で条件が偽になる。
-// そのときは main() が呼ばれず、何も出力せずに exit 0 で終わる。
-const invokedAsCli = (() => {
+// CLI として起動されたかは、両辺を実パスに解決してから突き合わせて判定する。起動時のパス（process.argv[1]）は
+// シンボリックリンクを解決せず、--preserve-symlinks-main では import.meta.url も解決しない。片側だけを解決すると、
+// シンボリックリンクから起動したときに main() が呼ばれず、何も出力せずに exit 0 で終わる。
+// 1 ファイルだけコピーして使うので import せず、parity-suite スキルの `scripts/lib/cli.mjs` の印の間と同じ関数をここに持つ。
+// cli-entry-js:begin
+/**
+ * CLI として起動されたか。
+ * @param {string} moduleUrl 呼び出し元のモジュールの URL
+ * @returns {boolean}
+ */
+function isCliEntry(moduleUrl) {
   const entry = process.argv[1];
   if (!entry) return false;
-  const self = fileURLToPath(import.meta.url);
+  const self = fileURLToPath(moduleUrl);
   try {
     return realpathSync(entry) === realpathSync(self);
   } catch {
-    // 実パス解決に失敗したら生パスで突き合わせる（サイレント no-op より誤検出を選ぶ）。
+    // 実パスへの解決に失敗したら、起動時のパスのまま突き合わせる（何もせずに終わるより、誤って起動する方を選ぶ）。
     return entry === self;
   }
-})();
+}
+// cli-entry-js:end
 
-if (invokedAsCli) {
+if (isCliEntry(import.meta.url)) {
   process.exit(main(process.argv.slice(2)));
 }

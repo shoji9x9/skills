@@ -19,12 +19,14 @@
 // 終了コード: 0 ＝ 条件を満たす（判定しない場合を含む）、1 ＝ 未突合・不整合が残る、2 ＝ 使い方の誤り・型崩れ。
 
 import { createHash } from "node:crypto";
-import { readFileSync, realpathSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { dirname, join, resolve, sep } from "node:path";
-import { fileURLToPath } from "node:url";
 import { isArray } from "./lib/is-array.mjs";
 
 import { EVIDENCE_CARRY_FILE, judgeCarry } from "./evidence-carry.mjs";
+import { isCliEntry } from "./lib/cli.mjs";
+import { errorMessage } from "./lib/errors.mjs";
+import { isObjectLike, isPlainObject, nonEmptyString, toIterationCount } from "./lib/guards.mjs";
 
 /**
  * ツールのバージョン（原本）。判定規則・出力形状を変えたら上げる。
@@ -52,52 +54,14 @@ export function cellKey(cell) {
   // **区切り文字を含む材料も鍵を作らない**——`("a|b","c","d")` と `("a","b|c","d")` は
   // どちらも `a|b|c|d` になり、別の操作の記録が別のセルの証拠として通る
   // （指紋も同じ潰れた鍵を数えるので一致してしまう）。
-  if (!parts.every((p) => typeof p === "string" && p.trim() !== "" && !p.includes(KEY_SEPARATOR))) {
+  if (!parts.every((p) => nonEmptyString(p) && !p.includes(KEY_SEPARATOR))) {
     return null;
   }
   return parts.map((p) => String(p)).join(KEY_SEPARATOR);
 }
 
-/**
- * 空でない文字列か。
- * @param {unknown} value
- * @returns {boolean}
- */
-function nonEmptyString(value) {
-  return typeof value === "string" && value.trim() !== "";
-}
-
-/**
- * null でないオブジェクトか（`v && typeof v === "object"` と同じ判定。配列も含む）。
- * 配列のキーを読んでも undefined になるだけなので、キーを読む側の型は Record で扱う。
- * @param {unknown} value
- * @returns {value is Record<string, unknown>}
- */
-function isObject(value) {
-  return Boolean(value) && typeof value === "object";
-}
-
-/**
- * catch した値の message（`error && error.message` と同じ値）。
- * @param {unknown} error
- * @returns {unknown}
- */
-function errorMessage(error) {
-  if (!error) return error;
-  return typeof error === "object" && "message" in error ? error.message : undefined;
-}
-
 /** 新側リポジトリがコミットを持たないことを表す語彙上のセンチネル（リポジトリ共通）。 */
 const NO_COMMIT = "none";
-
-/**
- * 整数として読む。読めなければ null（「記録が無い」と「0 回」を混ぜない）。
- * @param {unknown} value
- * @returns {number | null}
- */
-function toInteger(value) {
-  return typeof value === "number" && Number.isInteger(value) ? value : null;
-}
 
 /**
  * 網羅表の `present` セルの鍵から指紋を作る。
@@ -132,7 +96,7 @@ export function checkComponentComparison(input) {
   const notes = [];
   const counts = { present: 0, compared: 0, blocking: 0, accepted: 0 };
   const coverage = input.coverage;
-  if (!isObject(coverage) || !isArray(coverage.cells)) {
+  if (!isObjectLike(coverage) || !isArray(coverage.cells)) {
     return {
       findings: [
         {
@@ -153,7 +117,7 @@ export function checkComponentComparison(input) {
   for (const raw of coverage.cells) {
     // 文字列・数のセルはキーを読むと undefined になるので、{} と同じ扱いになる
     /** @type {Record<string, unknown>} */
-    const cell = isObject(raw) ? raw : {};
+    const cell = isObjectLike(raw) ? raw : {};
     if (cell.value !== "present") continue;
     const key = cellKey(cell);
     if (!key) {
@@ -178,7 +142,7 @@ export function checkComponentComparison(input) {
   counts.present = presentKeys.length;
 
   const comparison = input.comparison;
-  if (!isObject(comparison) || !isArray(comparison.cells)) {
+  if (!isObjectLike(comparison) || !isArray(comparison.cells)) {
     findings.push({
       code: "comparison-missing",
       message:
@@ -196,7 +160,7 @@ export function checkComponentComparison(input) {
   // 記録した後に新側を変えても古い証拠が通る。当たり判定・完了の退行はスイートの green に
   // 出ないので、この工程が唯一の網になる。
   const observed = comparison.new_implementation;
-  const observedCommit = isObject(observed) ? observed.commit : undefined;
+  const observedCommit = isObjectLike(observed) ? observed.commit : undefined;
   if (!nonEmptyString(observedCommit)) {
     findings.push({
       code: "comparison-implementation-unrecorded",
@@ -207,7 +171,7 @@ export function checkComponentComparison(input) {
   // **記録した版が「汚れていない」ことまで求める。** commit だけを鍵にすると、未コミットの変更を
   // 抱えた作業ツリーで操作した記録が同じ commit の記録として通り、鍵が版を指さなくなる。
   // 欠落・非真偽値は「調べていない」ので、false 以外を不合格にする。
-  const observedDirty = isObject(observed) ? observed.dirty : undefined;
+  const observedDirty = isObjectLike(observed) ? observed.dirty : undefined;
   if (observedDirty !== false) {
     findings.push({
       code: "comparison-implementation-dirty",
@@ -219,10 +183,7 @@ export function checkComponentComparison(input) {
   // （`comparison-implementation-stale` は相手が渡されたときにしか機能しない）。
   const replaceMetadata = input.replaceMetadata;
   const replaceNew =
-    isObject(replaceMetadata) &&
-    !isArray(replaceMetadata) &&
-    isObject(replaceMetadata.new) &&
-    !isArray(replaceMetadata.new)
+    isPlainObject(replaceMetadata) && isPlainObject(replaceMetadata.new)
       ? replaceMetadata.new
       : null;
   // 食い違いの判定で judgeCarry に掛けうる「今の版」。--carry-to が同じ版なら二重に判定しない。
@@ -263,14 +224,14 @@ export function checkComponentComparison(input) {
           });
         } else {
           // 両側とも `none`。文字列の比較は常に一致するので、鮮度は反復回数だけが担う。
-          const recordedIteration = toInteger(isObject(observed) ? observed.iteration : undefined);
+          const recordedIteration = toIterationCount(
+            isObjectLike(observed) ? observed.iteration : undefined,
+          );
           const loop =
-            isObject(replaceMetadata) &&
-            isObject(replaceMetadata.loop) &&
-            !isArray(replaceMetadata.loop)
+            isObjectLike(replaceMetadata) && isPlainObject(replaceMetadata.loop)
               ? replaceMetadata.loop
               : null;
-          const wantedIteration = toInteger(loop === null ? undefined : loop.iterations);
+          const wantedIteration = toIterationCount(loop === null ? undefined : loop.iterations);
           if (recordedIteration === null || wantedIteration === null) {
             findings.push({
               code: "comparison-implementation-unversionable",
@@ -381,7 +342,7 @@ export function checkComponentComparison(input) {
     });
   }
   const metadata = input.metadata;
-  if (isObject(metadata) && nonEmptyString(metadata.slug)) {
+  if (isObjectLike(metadata) && nonEmptyString(metadata.slug)) {
     if (comparison.slug !== metadata.slug) {
       findings.push({
         code: "comparison-slug-mismatch",
@@ -392,7 +353,7 @@ export function checkComponentComparison(input) {
   const expectedFingerprint = fingerprintOf(presentKeys);
   // source_coverage が falsy・プリミティブのときは、元の `x && x.fingerprint` と同じく文字列でない値になる
   const sourceCoverage = comparison.source_coverage;
-  const recorded = isObject(sourceCoverage) ? sourceCoverage.fingerprint : undefined;
+  const recorded = isObjectLike(sourceCoverage) ? sourceCoverage.fingerprint : undefined;
   if (!nonEmptyString(recorded)) {
     findings.push({
       code: "coverage-fingerprint-missing",
@@ -411,7 +372,7 @@ export function checkComponentComparison(input) {
   for (const raw of comparison.cells) {
     // 文字列・数の行はキーを読むと undefined になるので、{} と同じ扱いになる
     /** @type {Record<string, unknown>} */
-    const row = isObject(raw) ? raw : {};
+    const row = isObjectLike(raw) ? raw : {};
     const key = cellKey(row);
     if (!key) {
       findings.push({
@@ -449,7 +410,7 @@ export function checkComponentComparison(input) {
     }
     if (row.compared === true) {
       /** @type {Record<string, unknown>} */
-      const evidence = isObject(row.evidence) ? row.evidence : {};
+      const evidence = isObjectLike(row.evidence) ? row.evidence : {};
       const missing = EVIDENCE_AXES.filter((axis) => !nonEmptyString(evidence[axis]));
       if (missing.length > 0) {
         findings.push({
@@ -631,7 +592,7 @@ export function main(argv, deps = {}) {
     if (i > 0) replaceRoot = parts.slice(0, i + 1).join(sep);
   }
   const parsedCoverage = parsed["--coverage"];
-  const coverageSlug = isObject(parsedCoverage) ? parsedCoverage.slug : undefined;
+  const coverageSlug = isObjectLike(parsedCoverage) ? parsedCoverage.slug : undefined;
   const result = checkComponentComparison({
     coverage: parsed["--coverage"],
     comparison: parsed["--comparison"] ?? null,
@@ -670,19 +631,7 @@ export function main(argv, deps = {}) {
   return result.findings.length === 0 ? 0 : 1;
 }
 
-// CLI エントリ判定は両辺を実パスに解決してから突き合わせる（シンボリックリンク経由の起動でサイレント no-op にしない）。
-const invokedAsCli = (() => {
-  const entry = process.argv[1];
-  if (!entry) return false;
-  const self = fileURLToPath(import.meta.url);
-  try {
-    return realpathSync(entry) === realpathSync(self);
-  } catch {
-    return entry === self;
-  }
-})();
-
-if (invokedAsCli) {
+if (isCliEntry(import.meta.url)) {
   // process.exit は書き込み中の stdout を捨てるため、終了コードだけ設定して自然終了させる。
   process.exitCode = main(process.argv.slice(2));
 }

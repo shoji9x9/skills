@@ -26,10 +26,11 @@
 // 決定論的: 乱数・現在時刻に依存しない。TypeScript 構文は使わない（型は JSDoc）。
 
 import { createHash } from "node:crypto";
-import { readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { isArray } from "./lib/is-array.mjs";
+import { isCliEntry } from "./lib/cli.mjs";
+import { isFiniteNumber, isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 
 /**
  * ツールのバージョン（原本）。当てはめ・判定ロジック・出力形状を変えたら上げる。
@@ -55,36 +56,12 @@ const ROUNDING_SLACK = 1e-6;
 class UsageError extends Error {}
 
 /**
- * @param {unknown} v
- * @returns {v is string}
- */
-function nonEmptyString(v) {
-  return typeof v === "string" && v.trim() !== "";
-}
-
-/**
- * @param {unknown} v
- * @returns {v is Record<string, unknown>}
- */
-function isPlainObject(v) {
-  return typeof v === "object" && v !== null && !isArray(v);
-}
-
-/**
- * @param {unknown} v
- * @returns {v is number}
- */
-function finite(v) {
-  return typeof v === "number" && Number.isFinite(v);
-}
-
-/**
  * x / y / width / height がすべて有限数の矩形か。読むのは PROPERTIES の軸だけなので、値は数として扱う。
  * @param {unknown} v
  * @returns {v is Record<string, number>}
  */
-function isRect(v) {
-  return isPlainObject(v) && PROPERTIES.every((p) => finite(v[p]));
+function isFiniteRect(v) {
+  return isPlainObject(v) && PROPERTIES.every((p) => isFiniteNumber(v[p]));
 }
 
 /**
@@ -105,9 +82,9 @@ function isFitRecord(f) {
     typeof f.property === "string" &&
     PROPERTIES.includes(f.property) &&
     isPlainObject(f.ratio) &&
-    finite(f.ratio.width) &&
-    finite(f.ratio.height) &&
-    finite(f.offset)
+    isFiniteNumber(f.ratio.width) &&
+    isFiniteNumber(f.ratio.height) &&
+    isFiniteNumber(f.offset)
   );
 }
 
@@ -273,7 +250,7 @@ function indexElements(elements, windows, label) {
         rects.set(wk, null);
         return;
       }
-      if (!isRect(rect)) {
+      if (!isFiniteRect(rect)) {
         throw new UsageError(
           `${at}.rects[${j}].rect が x / y / width / height の有限数を持たない（表示されない窓は null と書く）`,
         );
@@ -518,7 +495,7 @@ export function checkModel(metadata, loadSamples, loadCurrentSamplesText) {
       `dimension_model.tool_version が ${String(dm.tool_version)}（ツールは ${VERSION}）。parity-suite で現側を採り直す`,
     );
   }
-  if (!finite(dm.tolerance) || dm.tolerance < 0) {
+  if (!isFiniteNumber(dm.tolerance) || dm.tolerance < 0) {
     throw new UsageError("dimension_model.tolerance が 0 以上の数でない");
   }
   const windows = validateWindows(dm.measured_at, "dimension_model.measured_at");
@@ -904,19 +881,7 @@ export function main(argv, deps = {}) {
   }
 }
 
-// CLI エントリ判定は両辺を実パスに解決してから突き合わせる（シンボリックリンク経由の起動でサイレント no-op にしない）。
-const invokedAsCli = (() => {
-  const entry = process.argv[1];
-  if (!entry) return false;
-  const self = fileURLToPath(import.meta.url);
-  try {
-    return realpathSync(entry) === realpathSync(self);
-  } catch {
-    return entry === self;
-  }
-})();
-
-if (invokedAsCli) {
+if (isCliEntry(import.meta.url)) {
   // process.exit は書き込み中の stdout を捨てる（パイプ越しに 64KB を超える JSON が切れる）。終了コードだけを設定して自然終了させる
   process.exitCode = main(process.argv.slice(2));
 }

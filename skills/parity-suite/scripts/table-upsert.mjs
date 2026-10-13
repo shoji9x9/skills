@@ -22,20 +22,13 @@
 //
 // 決定論的: 乱数・現在時刻に依存しない。TypeScript 構文は使わない（型は JSDoc）。
 
-import { readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs";
+import { readFileSync, renameSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { isArray } from "./lib/is-array.mjs";
+import { isCliEntry } from "./lib/cli.mjs";
+import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 
 class UsageError extends Error {}
-
-/**
- * @param {unknown} v
- * @returns {v is Record<string, unknown>}
- */
-function isPlainObject(v) {
-  return typeof v === "object" && v !== null && !isArray(v);
-}
 
 /**
  * 鍵の材料として使える値か。文字列（空でない）と整数だけを受ける（call_sites の line / column は整数）。
@@ -43,7 +36,7 @@ function isPlainObject(v) {
  * @returns {boolean}
  */
 function keyValue(v) {
-  return (typeof v === "string" && v.trim() !== "") || Number.isInteger(v);
+  return nonEmptyString(v) || Number.isInteger(v);
 }
 
 /** 表のキーとして辿ってはいけない名前（オブジェクトの継承プロパティに当たる）。 */
@@ -158,7 +151,7 @@ export function resolveArray(table, spec, create) {
  * @param {string[]} fields
  * @returns {string | null}
  */
-function keyOf(e, fields) {
+function rowKeyOf(e, fields) {
   if (!isPlainObject(e)) return null;
   const values = fields.map((f) => e[f]);
   if (!values.every(keyValue)) return null;
@@ -176,7 +169,7 @@ function indexArray(arr, fields, spec) {
   /** @type {Map<string, number>} */
   const index = new Map();
   for (const [i, e] of arr.entries()) {
-    const k = keyOf(e, fields);
+    const k = rowKeyOf(e, fields);
     if (k === null) {
       throw new UsageError(
         `${spec}[${i}] の鍵（${fields.join(", ")}）が欠けている・空・型の誤り（表を直してから使う）`,
@@ -288,7 +281,7 @@ export function main(argv, deps = {}) {
       }
       if (!isPlainObject(probe)) throw new UsageError("--match がオブジェクトでない");
     }
-    const key = keyOf(probe, fields);
+    const key = rowKeyOf(probe, fields);
     if (key === null) {
       throw new UsageError(
         `${command === "upsert" ? "断片" : "--match"} の鍵（${fields.join(", ")}）が欠けている・空・型の誤り`,
@@ -333,18 +326,6 @@ export function main(argv, deps = {}) {
   }
 }
 
-// CLI エントリ判定は両辺を実パスに解決してから突き合わせる（シンボリックリンク経由の起動でサイレント no-op にしない）。
-const invokedAsCli = (() => {
-  const entry = process.argv[1];
-  if (!entry) return false;
-  const self = fileURLToPath(import.meta.url);
-  try {
-    return realpathSync(entry) === realpathSync(self);
-  } catch {
-    return entry === self;
-  }
-})();
-
-if (invokedAsCli) {
+if (isCliEntry(import.meta.url)) {
   process.exit(main(process.argv.slice(2)));
 }

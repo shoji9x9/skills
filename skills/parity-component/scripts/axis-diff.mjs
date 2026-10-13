@@ -31,8 +31,9 @@
 
 import { readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
-import { fileURLToPath } from "node:url";
 import { isArray } from "./lib/is-array.mjs";
+import { isCliEntry } from "./lib/cli.mjs";
+import { field, isFiniteNumber, isObjectLike, isPlainObject } from "./lib/guards.mjs";
 
 /** ツールのバージョン（このツールで定義する）。出力スキーマを変えたら上げる。 */
 export const VERSION = "2";
@@ -40,26 +41,6 @@ export const VERSION = "2";
 // 状態名と軸名を 1 つのキーに畳むときの区切り。空白やスラッシュは軸名（`::before/content` 等）に
 // 現れうるので、CSS のプロパティ名にも状態名にも現れない制御文字を使う。
 const SEPARATOR = String.fromCharCode(31);
-
-/**
- * null でないオブジェクト（配列を含む）か。JSON 由来の値の欄を読む前の絞り込みに使う。
- * @param {unknown} value
- * @returns {value is Record<string, unknown>}
- */
-function isObject(value) {
-  return value !== null && typeof value === "object";
-}
-
-/**
- * `value && value[key]` と同じ値を返す（オブジェクトなら欄の値、偽の値ならその値、それ以外は undefined）。
- * @param {unknown} value
- * @param {string} key
- * @returns {unknown}
- */
-function field(value, key) {
-  if (isObject(value)) return value[key];
-  return value && undefined;
-}
 
 /**
  * 1 つの採取物（trait-capture.mjs の返り値の形）を「軸名 → 値」の平坦な表にまとめる。
@@ -233,7 +214,9 @@ export function diffAxes(manifest) {
     );
   }
 
-  const ids = instances.map((i) => (isObject(i) && typeof i.id === "string" ? i.id.trim() : ""));
+  const ids = instances.map((i) =>
+    isObjectLike(i) && typeof i.id === "string" ? i.id.trim() : "",
+  );
   if (ids.some((id) => id === ""))
     problems.push("id の無いインスタンスがある（照合キーが作れない）");
   const duplicated = ids.filter((id, i) => id !== "" && ids.indexOf(id) !== i);
@@ -254,7 +237,7 @@ export function diffAxes(manifest) {
       // 空白だけの名前も不正として弾く。`" "` は `!== ""` を通り、状態の和集合に入って
       // 軸を作り、誤って ok: true と判定される（前後の空白も揺れの元なので同一視しない）。
       if (
-        isObject(entry) &&
+        isObjectLike(entry) &&
         typeof entry.state === "string" &&
         entry.state.trim() === entry.state &&
         entry.state !== ""
@@ -285,7 +268,7 @@ export function diffAxes(manifest) {
     const names = new Set();
     for (const d of declared) {
       if (
-        isObject(d) &&
+        isObjectLike(d) &&
         typeof d.state === "string" &&
         d.state !== "" &&
         typeof d.reason === "string" &&
@@ -362,7 +345,7 @@ export function diffAxes(manifest) {
   let propertySet = null;
   /** @type {(p: unknown) => p is string} 空でなく、前後に空白の無い文字列か。 */
   const isPropertyName = (p) => typeof p === "string" && p !== "" && p.trim() === p;
-  if (isObject(manifest) && manifest.property_set !== undefined) {
+  if (isObjectLike(manifest) && manifest.property_set !== undefined) {
     const declared = manifest.property_set;
     if (
       !isArray(declared) ||
@@ -381,9 +364,9 @@ export function diffAxes(manifest) {
   instances.forEach((instance, i) => {
     const declaredStates = field(instance, "states");
     for (const entry of isArray(declaredStates) ? declaredStates : []) {
-      if (!isObject(entry) || typeof entry.state !== "string" || entry.state === "") continue;
+      if (!isObjectLike(entry) || typeof entry.state !== "string" || entry.state === "") continue;
       const traits = entry.traits;
-      if (!isObject(traits)) {
+      if (!isObjectLike(traits)) {
         problems.push(`${ids[i] || `#${i}`} / ${entry.state}: traits が無い`);
         continue;
       }
@@ -392,21 +375,17 @@ export function diffAxes(manifest) {
       // 有無だけが立つ採取が measured 2 を作って通る（本体のスタイルも幾何も測っていない）。
       // 数えた軸の**中身を問わない**条件は、退化形が新しく現れるたびに破られる。
       const missing = [];
-      // `typeof [] === "object"` なので、配列を明示的に弾く。`computed: ["x"]` は数値のキーを
+      // `typeof [] === "object"` なので、配列を明示的に弾く（isPlainObject）。`computed: ["x"]` は数値のキーを
       // 軸として通してしまい、不正な採取物でも ok: true になりうる（どちらもレコードの形が仕様である）。
-      /**
-       * @param {unknown} v
-       * @returns {v is Record<string, unknown>}
-       */
-      const isRecord = (v) => Boolean(v) && typeof v === "object" && !isArray(v);
       // 値の型まで見る。trait-capture.mjs は計算後スタイルを**非空の文字列**で返すので、
       // `{}` や `""` は採取物ではない。ここを通すと flattenTraits がそのまま軸の値にし、
       // オブジェクトは同一性比較で必ず「割れている」と判定されて**偽の可変軸**になる
       // （引数として実装へ渡るところまで行く）。キーの有無だけを見る検証では止まらない。
       /** @param {unknown} v */
-      const nonEmptyString = (v) => typeof v === "string" && v !== "";
+      const nonEmptyUntrimmedString = (v) => typeof v === "string" && v !== "";
       /** @param {Record<string, unknown>} record */
-      const badValues = (record) => Object.values(record).filter((v) => !nonEmptyString(v)).length;
+      const badValues = (record) =>
+        Object.values(record).filter((v) => !nonEmptyUntrimmedString(v)).length;
       // 値だけでなく**キー（軸名）**も見る。`{ "": "x" }` は値の検証を通り、空の軸名が
       // 可変軸として ok: true の axes.json に載る。CSS のプロパティ名は空白を含まないので、
       // 空文字と空白を含む名前を弾く。集合が渡されていれば、その集合との一致まで求める。
@@ -433,7 +412,7 @@ export function diffAxes(manifest) {
         return out;
       };
       const computed = traits.computed;
-      if (!isRecord(computed) || Object.keys(computed).length === 0) {
+      if (!isPlainObject(computed) || Object.keys(computed).length === 0) {
         missing.push("computed");
       } else {
         if (badValues(computed) > 0) {
@@ -444,9 +423,7 @@ export function diffAxes(manifest) {
       // trait-capture.mjs は x / y / width / height を常に数値で返す。キーの有無だけを見ると
       // `{ width: null }` のような不正な採取が通り、軸を作って、誤って ok: true と判定される。
       const rect = traits.rect;
-      /** @param {unknown} v */
-      const isFiniteNumber = (v) => typeof v === "number" && Number.isFinite(v);
-      if (!isRecord(rect) || !isFiniteNumber(rect.width) || !isFiniteNumber(rect.height)) {
+      if (!isPlainObject(rect) || !isFiniteNumber(rect.width) || !isFiniteNumber(rect.height)) {
         missing.push("rect");
       } else if (Object.values(rect).some((v) => !isFiniteNumber(v))) {
         // rect は flattenTraits が String() で文字列にするので、不正な値も
@@ -465,7 +442,7 @@ export function diffAxes(manifest) {
         if (!Object.hasOwn(traits, pseudo)) continue;
         const captured = traits[pseudo];
         if (captured === null) continue;
-        if (!isRecord(captured) || Object.keys(captured).length === 0) {
+        if (!isPlainObject(captured) || Object.keys(captured).length === 0) {
           missing.push(`::${pseudo} の形（null か非空のレコード）`);
         } else {
           if (badValues(captured) > 0) {
@@ -661,21 +638,6 @@ export function main(argv) {
   return result.ok ? 0 : 1;
 }
 
-// CLI として起動されたかの判定は、両辺を実パスに解決してから突き合わせる。
-// process.argv[1] は起動時のパスのままである。import.meta.url も --preserve-symlinks(-main) では未解決のままである。
-// そのため、片側だけ解決すると、シンボリックリンク経由の起動で main() が呼ばれない。
-// 何も出力せず exit 0 になる（警告なしに何もしない）。
-const invokedAsCli = (() => {
-  const entry = process.argv[1];
-  if (!entry) return false;
-  const self = fileURLToPath(import.meta.url);
-  try {
-    return realpathSync(entry) === realpathSync(self);
-  } catch {
-    return entry === self;
-  }
-})();
-
-if (invokedAsCli) {
+if (isCliEntry(import.meta.url)) {
   process.exit(main(process.argv.slice(2)));
 }

@@ -20,8 +20,9 @@
 import { createHash } from "node:crypto";
 import { readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs";
 import { isAbsolute, resolve, sep } from "node:path";
-import { fileURLToPath } from "node:url";
 import { isArray } from "./lib/is-array.mjs";
+import { isCliEntry } from "./lib/cli.mjs";
+import { isPlainObject, nonEmptyString, nonNegativeNumber } from "./lib/guards.mjs";
 
 /**
  * ツールのバージョン（原本）。判定規則・出力の形を変えたら上げる。
@@ -89,26 +90,10 @@ class UsageError extends Error {}
 
 /**
  * @param {unknown} v
- * @returns {v is Record<string, unknown>}
- */
-function isPlainObject(v) {
-  return typeof v === "object" && v !== null && !isArray(v);
-}
-
-/**
- * @param {unknown} v
  * @returns {v is number | null}
  */
 function isNumberOrNull(v) {
   return typeof v === "number" || v === null;
-}
-
-/**
- * @param {unknown} v
- * @returns {v is string}
- */
-function isNonEmptyString(v) {
-  return typeof v === "string" && v.trim() !== "";
 }
 
 /**
@@ -190,7 +175,7 @@ export function pairKey(page, viewport) {
  * @returns {v is string}
  */
 function isKeyPart(v) {
-  return isNonEmptyString(v) && !v.includes(KEY_SEPARATOR);
+  return nonEmptyString(v) && !v.includes(KEY_SEPARATOR);
 }
 
 /**
@@ -232,12 +217,12 @@ export function groupSamples(doc, expect) {
     "runner.arch",
     "runner.cpu_model",
   ]) {
-    if (!isNonEmptyString(getPath(doc.environment, key))) {
+    if (!nonEmptyString(getPath(doc.environment, key))) {
       throw new UsageError(`採取の environment.${key} が空でない文字列でない`);
     }
   }
   const channel = getPath(doc.environment, "channel");
-  if (channel !== null && !isNonEmptyString(channel)) {
+  if (channel !== null && !nonEmptyString(channel)) {
     throw new UsageError("採取の environment.channel が null か空でない文字列でない");
   }
   const cpuCount = getPath(doc.environment, "runner.cpu_count");
@@ -319,7 +304,7 @@ export function groupSamples(doc, expect) {
       const nullable = m === "lcp";
       if (v === null && nullable) {
         g.values[m].push(null);
-      } else if (typeof v === "number" && Number.isFinite(v) && v >= 0) {
+      } else if (nonNegativeNumber(v)) {
         g.values[m].push(v);
       } else {
         throw new UsageError(`samples[${i}] の ${m} が 0 以上の数でない: ${JSON.stringify(v)}`);
@@ -450,7 +435,7 @@ export function summarize(metadata, samplesDoc, opts) {
       `性能を採るのは feature モードだけ（mode: ${JSON.stringify(metadata.mode)}）`,
     );
   }
-  if (!isNonEmptyString(metadata.slug)) throw new UsageError("metadata.json に slug が無い");
+  if (!nonEmptyString(metadata.slug)) throw new UsageError("metadata.json に slug が無い");
   const groups = groupSamples(samplesDoc, {
     side: "current",
     slug: metadata.slug,
@@ -590,7 +575,7 @@ export function baseFloors(previous, key, defaults, overridden = []) {
   for (const m of METRICS) {
     const v = table[m];
     if (v === undefined || v === null || overridden.includes(m)) continue;
-    if (typeof v !== "number" || !Number.isFinite(v) || v < 0) {
+    if (!nonNegativeNumber(v)) {
       throw new UsageError(
         `前の ${label}.${m} が 0 以上の数でない（フラグでこの指標の値を渡せば上書きできる）`,
       );
@@ -766,8 +751,7 @@ export function loosenedFloors(perf) {
  * @param {{ currentSamplesSha256: (string|null), currentSamplesDoc?: unknown, target: string }} opts - 現側の採取ファイルを今読んだ sha256（読めなければ null）
  */
 export function compare(metadata, samplesDoc, opts) {
-  if (!isNonEmptyString(opts.target))
-    throw new UsageError("比べる新側の target が無い（--target）");
+  if (!nonEmptyString(opts.target)) throw new UsageError("比べる新側の target が無い（--target）");
   const perf = metadata.performance;
   if (!isPlainObject(perf)) {
     throw new UsageError("metadata.json に performance が無い（判定しない分岐は呼ぶ側で扱う）");
@@ -777,7 +761,7 @@ export function compare(metadata, samplesDoc, opts) {
       "metadata.json の performance.declared が true でない（判定しない分岐は呼ぶ側で扱う）",
     );
   }
-  if (!isNonEmptyString(metadata.slug)) throw new UsageError("metadata.json に slug が無い");
+  if (!nonEmptyString(metadata.slug)) throw new UsageError("metadata.json に slug が無い");
   if (!isArray(perf.pairs) || perf.pairs.length === 0) {
     throw new UsageError("performance.pairs が空か配列でない");
   }
@@ -795,7 +779,7 @@ export function compare(metadata, samplesDoc, opts) {
     if (!isPlainObject(table)) throw new TypeError(`performance.${key} の欄を読めない`);
     for (const m of METRICS) {
       const f = table[m];
-      if (typeof f !== "number" || !Number.isFinite(f) || f < 0) {
+      if (!nonNegativeNumber(f)) {
         throw new UsageError(`performance.${key}.${m} が 0 以上の数でない`);
       }
     }
@@ -881,9 +865,7 @@ export function compare(metadata, samplesDoc, opts) {
       // 値のある組は 0 以上の数、すべて null の組は null（summarizeValues が書く形）でなければ、基準として読まない
       const statsValid =
         cur.nulls < cur.n
-          ? [cur.median, cur.iqr].every(
-              (v) => typeof v === "number" && Number.isFinite(v) && v >= 0,
-            )
+          ? [cur.median, cur.iqr].every(nonNegativeNumber)
           : cur.median === null && cur.iqr === null;
       // statsValid が真なら median と iqr は数か null なので、後ろの 2 つの条件は判定を変えない
       if (!statsValid || !isNumberOrNull(cur.median) || !isNumberOrNull(cur.iqr)) {
@@ -1135,7 +1117,7 @@ export function main(argv, deps = {}) {
     let currentSha = null;
     /** @type {unknown} */
     let currentDoc = null;
-    if (isPlainObject(perf) && isNonEmptyString(perf.samples)) {
+    if (isPlainObject(perf) && nonEmptyString(perf.samples)) {
       // 手で書き換えた metadata.json で、リポジトリの外の JSON を現側の基準として読まない
       if (!isRepoRelative(perf.samples)) {
         throw new UsageError(
@@ -1223,18 +1205,6 @@ export function main(argv, deps = {}) {
   }
 }
 
-// CLI エントリ判定は両辺を実パスに解決してから突き合わせる（シンボリックリンク経由の起動でサイレント no-op にしない）。
-const invokedAsCli = (() => {
-  const entry = process.argv[1];
-  if (!entry) return false;
-  const self = fileURLToPath(import.meta.url);
-  try {
-    return realpathSync(entry) === realpathSync(self);
-  } catch {
-    return entry === self;
-  }
-})();
-
-if (invokedAsCli) {
+if (isCliEntry(import.meta.url)) {
   process.exit(main(process.argv.slice(2)));
 }

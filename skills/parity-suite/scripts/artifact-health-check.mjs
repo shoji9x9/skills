@@ -32,22 +32,14 @@
 // 決定論的: 乱数・現在時刻に依存しない。TypeScript 構文は使わない（型は JSDoc）。
 
 import { createHash } from "node:crypto";
-import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
-import {
-  basename,
-  dirname,
-  extname,
-  isAbsolute,
-  join,
-  posix,
-  relative,
-  resolve,
-  sep,
-} from "node:path";
-import { fileURLToPath } from "node:url";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { basename, extname, isAbsolute, join, posix, relative, resolve, sep } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 
 import { EVIDENCE_CARRY_FILE, judgeCarry } from "./evidence-carry.mjs";
+import { isCliEntry } from "./lib/cli.mjs";
+import { isPlainObject, nonEmptyString, toIterationCount } from "./lib/guards.mjs";
+import { realPathOf } from "./lib/paths.mjs";
 
 /**
  * ツールのバージョン（原本）。判定ロジック・出力形状を変えたら上げる。
@@ -76,31 +68,11 @@ const GREEN = "green";
 /** 新側リポジトリがコミットを持たないことを表す語彙上のセンチネル（リポジトリ共通）。 */
 const NO_COMMIT = "none";
 
-/**
- * 反復回数を整数として読む。**数字列は受けない**——同じ `loop.iterations` を読む
- * component-comparison-check.mjs は数値だけを受けるので、片方だけ緩めると 2 つのチェックが
- * 同じ記録に矛盾した判定（片方合格・片方 unversionable）を出す。原本のテンプレートも数値。
- * dataset の版（`toInteger`）とは入力の出所が違うので共有しない。
- * @param {unknown} value
- * @returns {number | null}
- */
-function toIterationCount(value) {
-  return typeof value === "number" && Number.isInteger(value) ? value : null;
-}
-
 /** 走査で辿らないディレクトリ名。 */
 const SKIP_DIRS = new Set([".git", "node_modules"]);
 
 /** 使い方の誤り・型崩れ（exit 2）。 */
 export class UsageError extends Error {}
-
-/**
- * @param {unknown} v
- * @returns {v is string}
- */
-function nonEmptyString(v) {
-  return typeof v === "string" && v.trim() !== "";
-}
 
 /**
  * 記録の spec_fingerprints から、正規化するとスペック spec になるキーの指紋を文字列で返す。
@@ -113,44 +85,6 @@ function specFingerprint(prints, spec) {
   if (!isPlainObject(prints)) throw new TypeError("spec_fingerprints がオブジェクトでない");
   const key = Object.keys(prints).find((k) => normalizeRel(k) === spec);
   return String(prints[String(key)]).trim();
-}
-
-/**
- * @param {unknown} v
- * @returns {v is Record<string, unknown>}
- */
-function isPlainObject(v) {
-  return typeof v === "object" && v !== null && !isArray(v);
-}
-
-/**
- * 実在する最も深い祖先まで `realpathSync` で解いてから、残りの区間を継ぎ足して実パスを組む。
- *
- * **まだ存在しないパスでも実パスで判定できるようにする**。存在しないことを理由に
- * 文字列のまま扱うと、途中のディレクトリがシンボリックリンクでも閉じ込めを確かめられない。
- * ENOENT 以外（ELOOP・EACCES など）は「解けなかった」であって「外でない」ではないので、
- * 合格として扱わず null を返す。
- * @param {string} p
- * @returns {string | null}
- */
-function realPathOf(p) {
-  let current = resolve(p);
-  /** @type {string[]} */
-  const tail = [];
-  for (;;) {
-    try {
-      const real = realpathSync(current);
-      return tail.length === 0 ? real : join(real, ...tail);
-    } catch (e) {
-      const code = e instanceof Error && "code" in e ? e.code : undefined;
-      if (code !== "ENOENT") return null;
-    }
-    const parent = dirname(current);
-    // ルートまで遡っても解けない（存在しないドライブ等）。文字列のまま通さない。
-    if (parent === current) return null;
-    tail.unshift(basename(current));
-    current = parent;
-  }
 }
 
 /**
@@ -2004,18 +1938,6 @@ export function main(
   }
 }
 
-// CLI エントリ判定は両辺を実パスに解決してから突き合わせる（シンボリックリンク経由の起動でサイレント no-op にしない）。
-const invokedAsCli = (() => {
-  const entry = process.argv[1];
-  if (!entry) return false;
-  const self = fileURLToPath(import.meta.url);
-  try {
-    return realpathSync(entry) === realpathSync(self);
-  } catch {
-    return entry === self;
-  }
-})();
-
-if (invokedAsCli) {
+if (isCliEntry(import.meta.url)) {
   process.exit(main(process.argv.slice(2)));
 }

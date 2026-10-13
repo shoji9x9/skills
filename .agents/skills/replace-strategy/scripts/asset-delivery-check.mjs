@@ -35,10 +35,12 @@
 // ネットワークに依存する（取得して比べることが検査の中身）。それ以外は決定論的。TypeScript 構文は使わない（型は JSDoc）。
 
 import { createHash } from "node:crypto";
-import { readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { relative, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { isArray } from "./lib/is-array.mjs";
+import { isCliEntry } from "./lib/cli.mjs";
+import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
+import { parseTables } from "./lib/markdown.mjs";
 
 /** ツールのバージョン（このファイルで定義する）。判定の規則や出力の形を変えたら上げる。 */
 export const VERSION = "1";
@@ -84,110 +86,6 @@ export function normalizeCell(value) {
 }
 
 /**
- * `| a | b |` を配列にする（表の行でなければ null）。`\|` は列の区切りにしない。
- * @param {string | undefined} line
- * @returns {string[] | null}
- */
-function splitRow(line) {
-  if (line === undefined) return null;
-  let trimmed = line.trim();
-  if (!trimmed.includes("|")) return null;
-  if (trimmed.startsWith("|")) trimmed = trimmed.slice(1);
-  if (trimmed.endsWith("|") && !trimmed.endsWith("\\|")) trimmed = trimmed.slice(0, -1);
-  /** @type {string[]} */
-  const cells = [];
-  let cur = "";
-  for (let i = 0; i < trimmed.length; i += 1) {
-    const ch = trimmed[i];
-    if (ch === "\\" && trimmed[i + 1] === "|") {
-      cur += "|";
-      i += 1;
-      continue;
-    }
-    if (ch === "|") {
-      cells.push(cur);
-      cur = "";
-      continue;
-    }
-    cur += ch;
-  }
-  cells.push(cur);
-  return cells;
-}
-
-/**
- * コードフェンスの開始／終了記号を返す（フェンス行でなければ null）。
- * @param {string} line
- * @returns {string | null}
- */
-function fenceOf(line) {
-  const match = /^ {0,3}(`{3,}|~{3,})/u.exec(line);
-  return match === null ? null : match[1];
-}
-
-/**
- * Markdown の表を全て取り出す。HTML コメントとコードフェンスの中は台帳ではないので読まない
- * （テンプレートの説明コメント・例示の表を本物の行として読まない）。
- * @param {string} text
- * 各行のファイル上の行番号（1 始まり）を rowLines に持つ（エラー文で台帳の行を指せるように）。
- * @returns {{ tables: { headers: string[], rows: string[][], rowLines: number[] }[], strayRows: { line: number, cells: number, leadingPipe: boolean }[] }}
- */
-export function parseTables(text) {
-  // コメントは改行を保ったまま空白に置き換える（行の対応を変えない）。閉じていないコメントは末尾まで。
-  const uncommented = text.replace(/<!--[\s\S]*?(?:-->|$)/gu, (m) => m.replace(/[^\n]/gu, " "));
-  const lines = uncommented.split(/\r?\n/u);
-  /** @type {{ headers: string[], rows: string[][], rowLines: number[] }[]} */
-  const tables = [];
-  /**
-   * 表に属さないのに `|` を含む行（空行で本体が切れた後の行など）。警告なしに捨てず、行番号・セル数・行頭の `|` の有無を
-   * 呼び出し側へ返す（GFM は行頭・行末の `|` を省けるので、行頭の `|` だけでは表の行を見分けられない）。
-   */
-  /** @type {{ line: number, cells: number, leadingPipe: boolean }[]} */
-  const strayRows = [];
-  /** @type {string | null} */
-  let fence = null;
-  for (let i = 0; i < lines.length; i += 1) {
-    const mark = fenceOf(lines[i]);
-    if (mark !== null) {
-      if (fence === null) fence = mark;
-      else if (mark[0] === fence[0] && mark.length >= fence.length) fence = null;
-      continue;
-    }
-    if (fence !== null) continue;
-    const header = splitRow(lines[i]);
-    if (header === null) continue;
-    const delimiter = splitRow(lines[i + 1]);
-    if (
-      delimiter === null ||
-      !delimiter.every((cell) => /^:?-+:?$/u.test(cell.trim())) ||
-      delimiter.length !== header.length
-    ) {
-      strayRows.push({
-        line: i + 1,
-        cells: header.length,
-        leadingPipe: lines[i].trim().startsWith("|"),
-      });
-      continue;
-    }
-    /** @type {string[][]} */
-    const rows = [];
-    /** @type {number[]} */
-    const rowLines = [];
-    let j = i + 2;
-    for (; j < lines.length; j += 1) {
-      if (fenceOf(lines[j]) !== null) break;
-      const row = splitRow(lines[j]);
-      if (row === null) break;
-      rows.push(row);
-      rowLines.push(j + 1);
-    }
-    tables.push({ headers: header.map(normalizeCell), rows, rowLines });
-    i = j - 1;
-  }
-  return { tables, strayRows };
-}
-
-/**
  * @typedef {{ kind: string, line: number }} LedgerRow
  */
 
@@ -196,8 +94,12 @@ export function parseTables(text) {
  * @param {string} text
  * @returns {{ copyRows: LedgerRow[], activeRows: number }}
  */
-export function readLedger(text) {
-  const { tables, strayRows } = parseTables(text);
+export function readAssetLedger(text) {
+  const { tables, strayRows } = parseTables(text, {
+    comments: "blank",
+    fenceEndsTable: true,
+    normalizeHeader: normalizeCell,
+  });
   const candidates = tables.filter(
     (t) => t.headers.includes("種類") && t.headers.includes("方針") && t.headers.includes("状態"),
   );
@@ -268,22 +170,6 @@ export function readLedger(text) {
     copyRows.push({ kind, line });
   });
   return { copyRows, activeRows: activeByKind.size };
-}
-
-/**
- * @param {unknown} v
- * @returns {v is Record<string, unknown>}
- */
-function isPlainObject(v) {
-  return typeof v === "object" && v !== null && !isArray(v);
-}
-
-/**
- * @param {unknown} v
- * @returns {v is string}
- */
-function nonEmptyString(v) {
-  return typeof v === "string" && v.trim() !== "";
 }
 
 /**
@@ -473,7 +359,7 @@ function sha256(bytes) {
  * @returns {Promise<{ findings: string[], notes: string[], files: CheckedFile[], counts: { rows: number, checkedRows: number, files: number } }>}
  */
 export async function check(input) {
-  const { copyRows } = readLedger(input.ledgerText);
+  const { copyRows } = readAssetLedger(input.ledgerText);
   const entries = readRecord(input.record);
   /** @type {string[]} */
   const findings = [];
@@ -879,19 +765,7 @@ function parseJson(text, path) {
   }
 }
 
-// CLI エントリ判定は両辺を実パスに解決してから突き合わせる（シンボリックリンク経由の起動でサイレント no-op にしない）。
-const invokedAsCli = (() => {
-  const entry = process.argv[1];
-  if (!entry) return false;
-  const self = fileURLToPath(import.meta.url);
-  try {
-    return realpathSync(entry) === realpathSync(self);
-  } catch {
-    return entry === self;
-  }
-})();
-
-if (invokedAsCli) {
+if (isCliEntry(import.meta.url)) {
   // process.exit は書き込み中の stdout を捨てるため、終了コードだけ設定して自然終了させる。
   process.exitCode = await main(process.argv.slice(2));
 }
