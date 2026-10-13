@@ -141,6 +141,41 @@
       "expect_failing": [
         "他セッション分の走査結果の再利用 残っていた判定不能のキャッシュも使わない"
       ]
+    },
+    {
+      "id": "SCAN-META-AS-UTTERANCE",
+      "why": "isMeta の user レコード（スキルの本文の注入）を発話として扱う（本文の修正語で実在しない user correction が出て commit が止まる）",
+      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
+      "find": "(if ($j.isMeta // false) == true then empty",
+      "replace": "(if false then empty",
+      "occurrences": 1,
+      "expect_failing": [
+        "Claude Code の isMeta の user レコード isMeta の本文の修正語は候補にしない",
+        "Claude Code の isMeta の user レコード isMeta: false の発話の修正語は候補にする"
+      ]
+    },
+    {
+      "id": "SCAN-CODEX-INJECTED-AS-UTTERANCE",
+      "why": "Codex の注入（AGENTS.md・スキルの本文）を発話として扱う（本文の修正語で実在しない user correction が出て commit が止まる）",
+      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
+      "find": "select(codex_injected | not)",
+      "replace": "select(true)",
+      "occurrences": 1,
+      "expect_failing": [
+        "Codex の注入された user メッセージ 注入の本文の修正語は候補にしない",
+        "Codex の注入された user メッセージ 注入でない発話の修正語は候補にする"
+      ]
+    },
+    {
+      "id": "SCAN-META-FALSE-AS-META",
+      "why": "isMeta が真のときだけでなく、キーがあるだけ（isMeta: false）で発話を捨てる（本物の user correction を見逃す）",
+      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
+      "find": "(if ($j.isMeta // false) == true then empty",
+      "replace": "(if ($j.isMeta != null) then empty",
+      "occurrences": 1,
+      "expect_failing": [
+        "Claude Code の isMeta の user レコード isMeta: false の発話の修正語は候補にする"
+      ]
     }
   ]
 }

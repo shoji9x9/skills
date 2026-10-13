@@ -274,6 +274,58 @@ describe.concurrent("Claude Code の atis-latch 補助レコード", () => {
   });
 });
 
+// Claude Code はスキルの本文などを `type: "user"`・`isMeta: true` のレコードで注入する。
+// 本文の修正語で実在しない user correction を出さないことと、`isMeta` が無い・false の
+// 本物の発話は引き続き候補になることを、同じ修正語を持つ fixture の対で確かめる。
+describe.concurrent("Claude Code の isMeta の user レコード", () => {
+  test.each([
+    ["isMeta の本文の修正語は候補にしない", "claude-meta-correction-word.jsonl", 1, null],
+    [
+      "isMeta: false の発話の修正語は候補にする",
+      "claude-meta-and-user-correction.jsonl",
+      0,
+      /user correction: transcript line 4$/m,
+    ],
+  ])("%s", async (_label, fixture, expectedStatus, evidence) => {
+    const cwd = makeProject();
+    const scan = await runScript(
+      "kaizen-candidate-scan.sh",
+      [join(fixturesDir, fixture), join(cwd, "no-checkpoint")],
+      { cwd },
+    );
+
+    expect(scan.status).toBe(expectedStatus);
+    if (evidence) expect(scan.stdout).toMatch(evidence);
+    expect(scan.stdout).not.toMatch(/user correction: transcript line 2$/m);
+  });
+});
+
+// Codex は AGENTS.md・スキルの本文などを `role: "user"` のメッセージで注入する（実際の transcript で 8 種類の形を確かめた）。
+// 注入の修正語は候補にせず、注入でない発話は引き続き候補にすることを、同じ修正語を持つ fixture の対で確かめる。
+describe.concurrent("Codex の注入された user メッセージ", () => {
+  test.each([
+    ["注入の本文の修正語は候補にしない", "codex-injected-correction-word.jsonl", 1, null],
+    [
+      "注入でない発話の修正語は候補にする",
+      "codex-injected-and-user-correction.jsonl",
+      0,
+      /user correction: transcript line 4$/m,
+    ],
+  ])("%s", async (_label, fixture, expectedStatus, evidence) => {
+    const cwd = makeProject();
+    const scan = await runScript(
+      "kaizen-candidate-scan.sh",
+      [join(fixturesDir, fixture), join(cwd, "no-checkpoint")],
+      { cwd },
+    );
+
+    expect(scan.status).toBe(expectedStatus);
+    expect(scan.stdout).toMatch(/^kaizen-candidate-scan: agent=codex$/m);
+    if (evidence) expect(scan.stdout).toMatch(evidence);
+    expect(scan.stdout).not.toMatch(/user correction: transcript line [23]$/m);
+  });
+});
+
 describe.concurrent("Codex の token usage / review mode 補助レコード", () => {
   test.each([
     ["補助レコードだけなら候補ゼロ", "codex-review-metadata-no-candidate.jsonl", 1],

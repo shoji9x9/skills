@@ -1,0 +1,3 @@
+{"type":"user","message":{"content":"/issue-batch run 601"}}
+{"type":"user","isMeta":true,"message":{"content":[{"type":"text","text":"Base directory for this skill: /tmp/skill\n\nworktree を作るだけでは隔離にならない。違う場所で動くのではなく、入ることで隔離が成り立つ。"}]}}
+{"type":"assistant","message":{"content":[{"type":"text","text":"読み取りました"}]}}

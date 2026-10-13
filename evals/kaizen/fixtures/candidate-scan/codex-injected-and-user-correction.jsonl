@@ -1,0 +1,4 @@
+{"type":"session_meta","payload":{"id":"fixture"}}
+{"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"# AGENTS.md instructions for /tmp/repo\n\n<INSTRUCTIONS>\n作るだけでは隔離にならない。違う場所で動くのではなく、入ることで隔離が成り立つ。\n</INSTRUCTIONS>"}]}}
+{"type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"確認しました。"}]}}
+{"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"違う、そのファイルではありません"}]}}
