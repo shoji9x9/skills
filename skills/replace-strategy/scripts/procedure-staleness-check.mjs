@@ -27,48 +27,16 @@
 // 決定論的: 乱数・現在時刻に依存しない。slug は名前順、記録は台帳の順で読む。
 // TypeScript 構文は使わない（型は JSDoc）。
 
-import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { isArray } from "./lib/is-array.mjs";
+import { isCliEntry } from "./lib/cli.mjs";
+import { errorMessage } from "./lib/errors.mjs";
+import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
+import { collapse, fenceOf, splitRow } from "./lib/markdown.mjs";
 
-// 表の読み方は evidence-gap-check.mjs と同じ（コードフェンスの中は読まない・外側の `|` は省略可）。
-// 同じスキルの中の重複は、まとめるまで両方を保つ。片方を直したら、もう片方も直す。
-
-/**
- * 空白を 1 つに畳み、前後を除く。
- * @param {string} value
- * @returns {string}
- */
-function collapse(value) {
-  return String(value).replace(/\s+/gu, " ").trim();
-}
-
-/**
- * コードフェンスの開始／終了記号を返す（フェンス行でなければ null）。
- * @param {string | undefined} line
- * @returns {string | null}
- */
-function fenceOf(line) {
-  if (line === undefined) return null;
-  const match = /^ {0,3}(`{3,}|~{3,})/u.exec(line);
-  return match === null ? null : match[1];
-}
-
-/**
- * `| a | b |` を配列にする（表の行でなければ null）。
- * @param {string | undefined} line
- * @returns {string[] | null}
- */
-function splitRow(line) {
-  if (line === undefined) return null;
-  let trimmed = line.trim();
-  if (!trimmed.includes("|")) return null;
-  if (trimmed.startsWith("|")) trimmed = trimmed.slice(1);
-  if (trimmed.endsWith("|") && !trimmed.endsWith("\\|")) trimmed = trimmed.slice(0, -1);
-  // GFM はセル内の縦棒を `\|` で書く。区切りにせず、セルの値では `|` に戻す。
-  return trimmed.split(/(?<!\\)\|/u).map((cell) => cell.replaceAll("\\|", "|"));
-}
+// 表の行・フェンス・空白の扱いは lib/markdown.mjs の helper を使う（コードフェンスの中は読まない・外側の `|` は省略可・`\|` はセル内の縦棒）。
+// HTML コメントの中の表も読まない点が、evidence-gap-check.mjs の parseTables と違う。
 
 /**
  * Markdown の表を全て取り出す（コードフェンスの中は例示なので読まない）。
@@ -76,7 +44,7 @@ function splitRow(line) {
  * @param {Set<number>} [consumed] 渡すと、表として読んだ行（見出し・区切り・行）の行番号を入れる
  * @returns {{ headers: string[], rows: string[][] }[]}
  */
-export function parseTables(text, consumed) {
+export function parseUncommentedTables(text, consumed) {
   const lines = text.split(/\r?\n/u);
   /** @type {{ headers: string[], rows: string[][] }[]} */
   const tables = [];
@@ -142,36 +110,6 @@ const CHANGE_HEADERS = ["ID", "追加日", "足した軸", "由来", "対象の�
 const RECORD_HEADERS = ["記録 ID", "変更 ID", "slug", "判断", "記録日", "根拠・理由"];
 
 /**
- * 空でない文字列か。
- * @param {unknown} value
- * @returns {value is string}
- */
-function nonEmptyString(value) {
-  return typeof value === "string" && value.trim() !== "";
-}
-
-/**
- * プレーンなオブジェクトか。
- * @param {unknown} value
- * @returns {value is Record<string, unknown>}
- */
-function isObject(value) {
-  return typeof value === "object" && value !== null && !isArray(value);
-}
-
-/**
- * 例外の message を読む。`error && error.message` と同じ値を返す（偽の値はそのまま、プリミティブは undefined）。
- * @param {unknown} error
- * @returns {unknown}
- */
-function errorMessage(error) {
-  if (!error) return error;
-  return typeof error === "object" || typeof error === "function"
-    ? Reflect.get(error, "message")
-    : undefined;
-}
-
-/**
  * `YYYY-MM-DD` として実在する日付か。
  * @param {string} value
  * @returns {boolean}
@@ -209,7 +147,7 @@ export function dateOf(value) {
 export function readRevisions(doc) {
   /** @type {string[]} */
   const errors = [];
-  if (!isObject(doc)) return { ok: false, errors: ["改訂一覧がオブジェクトでない"] };
+  if (!isPlainObject(doc)) return { ok: false, errors: ["改訂一覧がオブジェクトでない"] };
   const skill = doc.skill;
   if (!nonEmptyString(skill)) errors.push("skill が空");
   // 比べる意味（成果物の run.procedure_revision との大小）は parity-suite の改訂番号にしか無い。別のスキルの改訂一覧を
@@ -231,7 +169,7 @@ export function readRevisions(doc) {
   const seen = new Set();
   doc.changes.forEach((change, index) => {
     const where = `changes[${index}]`;
-    if (!isObject(change)) {
+    if (!isPlainObject(change)) {
       errors.push(`${where} がオブジェクトでない`);
       return;
     }
@@ -318,11 +256,11 @@ function looksLikeTableRow(line) {
 }
 
 /**
- * コードフェンスの外で表の行に見える行を数える（parseTables が読んだ行と突き合わせるため）。
+ * コードフェンスの外で表の行に見える行を数える（parseUncommentedTables が読んだ行と突き合わせるため）。
  * 読んだ行は件数の差し引きではなく行番号で除く。外側の `|` を省いた表の行は `|` で始まらないので、
  * 件数で差し引くと表の外の行を打ち消して、警告なしに通してしまう。
  * @param {string} text
- * @param {Set<number>} [consumed] parseTables が表として読んだ行番号（数えない）
+ * @param {Set<number>} [consumed] parseUncommentedTables が表として読んだ行番号（数えない）
  * @returns {number}
  */
 export function countRowLikeLines(text, consumed = new Set()) {
@@ -348,7 +286,7 @@ export function countRowLikeLines(text, consumed = new Set()) {
 }
 
 /**
- * HTML コメントの記号が、読み飛ばしの規則（parseTables / countRowLikeLines）が扱える位置にだけあるかを確かめる。
+ * HTML コメントの記号が、読み飛ばしの規則（parseUncommentedTables / countRowLikeLines）が扱える位置にだけあるかを確かめる。
  * 扱える形は「行頭の `<!--` で始まり行末の `-->` で終わる 1 行」「行頭の `<!--` だけの開始行 … 行末の `-->` で終わる終了行」の 2 つ。
  * それ以外（散文の後ろの `<!--`、行の途中の `-->`、1 行に複数の記号、閉じないコメント）は読める形を足さずに落とす。
  * 読み飛ばしの規則に合わない位置のコメントは、中の表を生きた表として読むか、以降の表を丸ごと読み飛ばす。
@@ -410,12 +348,12 @@ export function parseModes(cell) {
  * @param {Set<string>} skillChangeIds 改訂一覧が定める変更 ID（記録の参照先として有効なもの）
  * @returns {{ ok: true, changes: Array<{ id: string, added_at: string, axis: string, origin: string, affects: string[], placement: string }>, records: Array<{ id: string, change: string, slug: string, decision: string, recorded_at: string, basis: string }> } | { ok: false, errors: string[] }}
  */
-export function readLedger(text, skillChangeIds) {
+export function readProcedureLedger(text, skillChangeIds) {
   /** @type {string[]} */
   const errors = [];
   /** @type {Set<number>} */
   const consumed = new Set();
-  const tables = parseTables(text, consumed);
+  const tables = parseUncommentedTables(text, consumed);
   const changeTable = findTable(tables, CHANGE_HEADERS);
   const recordTable = findTable(tables, RECORD_HEADERS);
   // 表の不在を「変更なし」「記録なし」と読まない。列名を書き換えた台帳も同じ（警告なしに 0 件になる）。
@@ -600,7 +538,7 @@ export function readArtifacts(parityDir, latestRevision) {
       });
       continue;
     }
-    const meta = isObject(doc) ? doc : {};
+    const meta = isPlainObject(doc) ? doc : {};
     // 置き場の slug と成果物の slug が違えば、別の機能の成果物をこの機能として判定することになる。
     // 欠落や型の誤りも同じく照合できないので、合格として扱わない（parity-suite の metadata.json は slug を必須で持つ）。
     if (meta.slug !== name) {
@@ -611,7 +549,7 @@ export function readArtifacts(parityDir, latestRevision) {
     // MODES は文字列だけなので、typeof は型を絞るためだけにある（判定は変わらない）。
     const mode = typeof meta.mode === "string" && MODES.includes(meta.mode) ? meta.mode : null;
     if (mode === null) problems.push(`mode が ${MODES.join(" / ")} のどれでもない`);
-    const run = isObject(meta.run) ? meta.run : {};
+    const run = isPlainObject(meta.run) ? meta.run : {};
     /** @type {number | null} */
     let procedureRevision = null;
     if (!Object.hasOwn(run, "procedure_revision")) {
@@ -793,7 +731,7 @@ export function main(argv, deps = {}) {
     // 明示したパスが無いのは綴り・cwd の誤り。「台帳なし」として読むと台帳の未判断が警告なしに消える（--parity-dir と同じ扱い）。
     if (args["--ledger"] !== undefined) return fail(`--ledger に渡した ${ledgerPath} が無い`);
   }
-  /** @type {{ changes: Array<{ id: string, added_at: string, axis: string, origin: string, affects: string[], placement: string }>, records: Array<{ id: string, change: string, slug: string, decision: string, recorded_at: string, basis: string }> }} 台帳が無ければ空（readLedger が読めた形と同じ） */
+  /** @type {{ changes: Array<{ id: string, added_at: string, axis: string, origin: string, affects: string[], placement: string }>, records: Array<{ id: string, change: string, slug: string, decision: string, recorded_at: string, basis: string }> }} 台帳が無ければ空（readProcedureLedger が読めた形と同じ） */
   let ledger = { changes: [], records: [] };
   if (ledgerExists) {
     const skillChangeIds = new Set(revisions.changes.map((change) => change.id));
@@ -804,7 +742,7 @@ export function main(argv, deps = {}) {
     } catch (error) {
       return fail(`${ledgerPath} を読めない: ${errorMessage(error)}`);
     }
-    const read = readLedger(text, skillChangeIds);
+    const read = readProcedureLedger(text, skillChangeIds);
     if (!read.ok) {
       out({ ok: false, structural: true, ledger: ledgerPath, errors: read.errors });
       return 2;
@@ -886,19 +824,7 @@ export function main(argv, deps = {}) {
   return code;
 }
 
-// CLI エントリ判定は両辺を実パスに解決してから突き合わせる（シンボリックリンク経由の起動でサイレント no-op にしない）。
-const invokedAsCli = (() => {
-  const entry = process.argv[1];
-  if (!entry) return false;
-  const self = fileURLToPath(import.meta.url);
-  try {
-    return realpathSync(entry) === realpathSync(self);
-  } catch {
-    return entry === self;
-  }
-})();
-
-if (invokedAsCli) {
+if (isCliEntry(import.meta.url)) {
   // process.exit は書き込み中の stdout を捨てるため、終了コードだけ設定して自然終了させる。
   process.exitCode = main(process.argv.slice(2));
 }

@@ -43,12 +43,21 @@
 // TypeScript 構文は使わない（型は JSDoc）。
 
 import { createHash } from "node:crypto";
-import { readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
-import { fileURLToPath } from "node:url";
 import { isArray } from "./lib/is-array.mjs";
 
 import { pageForUrl, pageKey, resolvePages } from "./page-identity.mjs";
+import { isCliEntry } from "./lib/cli.mjs";
+import {
+  isInteger,
+  isPlaceholder,
+  isPlainObject,
+  nonEmptyString,
+  nonNegativeNumber,
+  positiveNumber,
+} from "./lib/guards.mjs";
+import { canonicalize } from "./lib/json.mjs";
 
 /**
  * ツールのバージョン（原本）。判定ロジック・出力形状を変えたら上げる。
@@ -144,31 +153,6 @@ const ABSENT_WITHOUT_ASSERTION = ["no-request", "not-applicable"];
 const SKIP_DIRS = new Set([".git", "node_modules"]);
 
 /**
- * @param {unknown} v
- * @returns {v is string}
- */
-function nonEmptyString(v) {
-  return typeof v === "string" && v.trim() !== "";
-}
-
-/**
- * @param {unknown} v
- * @returns {v is Record<string, unknown>}
- */
-function isPlainObject(v) {
-  return typeof v === "object" && v !== null && !isArray(v);
-}
-
-/**
- * 整数か（Number.isInteger と同じ判定。数でない値は false）。
- * @param {unknown} v
- * @returns {v is number}
- */
-function isInteger(v) {
-  return typeof v === "number" && Number.isInteger(v);
-}
-
-/**
  * 集合が値を持つか（Set#has と同じ照合。値の型を絞る前の値をそのまま照合に使う）。
  * @param {ReadonlySet<unknown>} set
  * @param {unknown} v
@@ -186,22 +170,6 @@ function setHas(set, v) {
  */
 function listIncludes(list, v) {
   return list.includes(v);
-}
-
-/**
- * @param {unknown} v
- * @returns {v is number}
- */
-function positiveNumber(v) {
-  return typeof v === "number" && Number.isFinite(v) && v > 0;
-}
-
-/**
- * @param {unknown} v
- * @returns {v is number}
- */
-function nonNegativeNumber(v) {
-  return typeof v === "number" && Number.isFinite(v) && v >= 0;
 }
 
 /** 使い方の誤り・型崩れ（exit 2）。 */
@@ -308,27 +276,25 @@ export function readDeclaration(metadata) {
 }
 
 /**
+ * 走査で見つけた箇所（ファイル・行・列・パターン id の組）の照合キー。
+ * 区切り文字の連結はファイル名・パターン id に ":" があると別の箇所が同じキーに潰れるため、組を JSON で符号化する。
+ * @param {Record<string, unknown>} s
+ * @returns {string}
+ */
+function siteKeyOf(s) {
+  return JSON.stringify([s.file, s.line, s.column, s.pattern]);
+}
+
+/**
  * 表の指紋。conformance と assertion_audit を除いた内容をキー順に正規化して sha256 を取る。
  * @param {Record<string, unknown>} table
  * @returns {string}
  */
 export function tableFingerprint(table) {
-  /** @param {unknown} v @returns {unknown} */
-  const canon = (v) => {
-    if (isArray(v)) return v.map(canon);
-    if (isPlainObject(v)) {
-      return Object.fromEntries(
-        Object.keys(v)
-          .sort()
-          .map((k) => [k, canon(v[k])]),
-      );
-    }
-    return v;
-  };
   // 監査の記録（assertion_audit）は表の指紋をコピーして持つ側なので、指紋の外に置く（入れると記録するたびに指紋が変わり一致しない）
   const { conformance: _ignored, assertion_audit: _audit, ...rest } = table;
   return createHash("sha256")
-    .update(JSON.stringify(canon(rest)))
+    .update(JSON.stringify(canonicalize(rest)))
     .digest("hex");
 }
 
@@ -834,16 +800,6 @@ function noneProblem(r, windowMs, documents) {
     return "kind: none なのに covered_by が空（観測時間・文書にわたる不在をスイートの assertion に落としていない）";
   }
   return null;
-}
-
-/**
- * 同梱テンプレートの説明文（"<...>" で囲んだプレースホルダ）のままの値か。
- * 空でない文字列というだけで「書いた」と数えると、テンプレートをコピーしただけの記録が通る。
- * @param {unknown} v
- * @returns {boolean}
- */
-function isPlaceholder(v) {
-  return typeof v === "string" && /^<[\s\S]*>$/.test(v.trim());
 }
 
 /**
@@ -1981,8 +1937,6 @@ function checkSideEffectWrites(sew, ctx) {
   }
   const sites = isArray(sew.sites) ? sew.sites : null;
   if (sites === null) throw new UsageError("side_effect_writes.sites が配列でない");
-  /** @param {Record<string, unknown>} s */
-  const keyOf = (s) => JSON.stringify([s.file, s.line, s.column, s.pattern]);
   /** @type {Map<string, number>} */
   const recordedCount = new Map();
   /** @type {Set<string>} 書き込み箇所を 1 件以上記録した表 */
@@ -1999,7 +1953,7 @@ function checkSideEffectWrites(sew, ctx) {
       problems.push("side_effect_writes.sites: file / line / column / pattern が欠けた行がある");
       continue;
     }
-    const key = keyOf(s);
+    const key = siteKeyOf(s);
     recordedCount.set(key, (recordedCount.get(key) ?? 0) + 1);
     const at = `side_effect_writes.sites ${key}`;
     if (!patIds.has(s.pattern)) {
@@ -2069,7 +2023,7 @@ function checkSideEffectWrites(sew, ctx) {
       problems.push(
         "side_effect_writes: 走査対象のテキストファイルが 0 件（走査範囲が誤っている）",
       );
-    const foundKeys = new Set(scan.sites.map(keyOf));
+    const foundKeys = new Set(scan.sites.map(siteKeyOf));
     for (const key of foundKeys) {
       if (!recordedCount.has(key))
         problems.push(
@@ -2609,9 +2563,6 @@ export function checkReactions(table, opts = {}) {
     const zeroReason = nonEmptyString(fc.zero_calls_reason);
     const recordedSites = isArray(fc.call_sites) ? fc.call_sites : null;
     if (recordedSites === null) throw new UsageError("feedback_calls.call_sites が配列でない");
-    // 区切り文字の連結はファイル名・パターン id に ":" があると別の箇所が同じキーに潰れるため、組を JSON で符号化する
-    /** @param {Record<string, unknown>} s */
-    const keyOf = (s) => JSON.stringify([s.file, s.line, s.column, s.pattern]);
     /** @type {Map<string, number>} */
     const recordedCount = new Map();
     for (const s of recordedSites) {
@@ -2626,7 +2577,7 @@ export function checkReactions(table, opts = {}) {
         problems.push("feedback_calls.call_sites: file / line / column / pattern が欠けた行がある");
         continue;
       }
-      const key = keyOf(s);
+      const key = siteKeyOf(s);
       recordedCount.set(key, (recordedCount.get(key) ?? 0) + 1);
       const hasReaction = nonEmptyString(s.reaction);
       const hasExcluded = nonEmptyString(s.excluded_reason);
@@ -2709,7 +2660,7 @@ export function checkReactions(table, opts = {}) {
       }
       if (scan.files === 0)
         problems.push("走査対象のテキストファイルが 0 件（走査範囲が誤っている）");
-      const foundKeys = new Set(scan.sites.map(keyOf));
+      const foundKeys = new Set(scan.sites.map(siteKeyOf));
       for (const key of foundKeys) {
         if (!recordedCount.has(key))
           problems.push(`call_sites: ソースの呼び出し ${key} が網羅表に記録されていない`);
@@ -3198,18 +3149,6 @@ export function main(argv, deps = {}) {
   }
 }
 
-// CLI エントリ判定は両辺を実パスに解決してから突き合わせる（シンボリックリンク経由の起動でサイレント no-op にしない）。
-const invokedAsCli = (() => {
-  const entry = process.argv[1];
-  if (!entry) return false;
-  const self = fileURLToPath(import.meta.url);
-  try {
-    return realpathSync(entry) === realpathSync(self);
-  } catch {
-    return entry === self;
-  }
-})();
-
-if (invokedAsCli) {
+if (isCliEntry(import.meta.url)) {
   process.exit(main(process.argv.slice(2)));
 }

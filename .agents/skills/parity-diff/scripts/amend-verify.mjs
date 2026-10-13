@@ -26,10 +26,12 @@
 // 本スクリプトは勝手にインストールしない）。TypeScript 構文は使わない（型は JSDoc）。
 
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { fileURLToPath } from "node:url";
 import { isArray } from "./lib/is-array.mjs";
+import { isCliEntry } from "./lib/cli.mjs";
+import { isPlainObject } from "./lib/guards.mjs";
+import { loadPng } from "./lib/png.mjs";
 
 /**
  * ツールのバージョン（原本）。判定の規則や記録の形を変えたら上げる。
@@ -40,16 +42,6 @@ export const VERSION = "1";
 
 /** @typedef {{ width:number, height:number, data:Uint8Array }} Image */
 /** @typedef {{ x:number, y:number, width:number, height:number }} Rect */
-
-/**
- * null でも配列でもないオブジェクトかを返す（型の絞り込みに使う）。
- *
- * @param {unknown} value
- * @returns {value is Record<string, unknown>}
- */
-function isRecord(value) {
-  return value !== null && typeof value === "object" && !isArray(value);
-}
 
 /**
  * `x,y,w,h` を矩形にする。数でない・幅か高さが 0 以下なら null（空の領域は「変更が反映された場所」を示さない）。
@@ -75,8 +67,8 @@ export function parseRegion(text) {
  */
 export function regionFromJson(value) {
   if (isArray(value)) return parseRegion(value.join(","));
-  // 配列は直前で返しているので、isRecord は元の「truthy なオブジェクト」の判定と同じ範囲を通す。
-  if (isRecord(value)) {
+  // 配列は直前で返しているので、isPlainObject は元の「truthy なオブジェクト」の判定と同じ範囲を通す。
+  if (isPlainObject(value)) {
     const r = value;
     if ([r.x, r.y, r.width, r.height].some((v) => typeof v !== "number")) return null;
     return parseRegion(`${r.x},${r.y},${r.width},${r.height}`);
@@ -241,7 +233,7 @@ export function mergeRecord(existing, entries, changeId) {
   /** @type {unknown[]} */
   const pairs = isArray(existing?.pairs) ? [...existing.pairs] : [];
   for (const entry of entries) {
-    const at = pairs.findIndex((p) => isRecord(p) && p.pair === entry.pair);
+    const at = pairs.findIndex((p) => isPlainObject(p) && p.pair === entry.pair);
     if (at === -1) pairs.push(entry);
     else pairs[at] = entry;
   }
@@ -249,20 +241,6 @@ export function mergeRecord(existing, entries, changeId) {
   // 欄の順（tool, version, change_id, pairs）を保って組み立てる。
   if (id !== undefined) return { tool: "amend-verify", version: VERSION, change_id: id, pairs };
   return { tool: "amend-verify", version: VERSION, pairs };
-}
-
-/**
- * pngjs を動的 import する（未導入なら null）。
- *
- * @returns {Promise<{ sync: { read(buf: Uint8Array): Image } } | null>}
- */
-async function loadPng() {
-  try {
-    const mod = await import("pngjs");
-    return mod.PNG;
-  } catch {
-    return null;
-  }
 }
 
 const USAGE =
@@ -360,7 +338,7 @@ export function parseArgs(argv) {
   const seen = new Set();
   for (const [n, item] of list.entries()) {
     const where = `--pairs[${n}]`;
-    if (!isRecord(item)) return { error: `${where} must be an object` };
+    if (!isPlainObject(item)) return { error: `${where} must be an object` };
     const rec = item;
     /** @type {Record<string, string>} */
     const text = {};
@@ -432,8 +410,8 @@ export async function main(argv) {
       process.stderr.write(`error: cannot read existing --out record: ${message}\n`);
       return 2;
     }
-    // 配列は pairs を持たないので、isRecord で弾いても元の判定と同じ範囲を弾く。
-    if (!isRecord(read) || !isArray(read.pairs)) {
+    // 配列は pairs を持たないので、isPlainObject で弾いても元の判定と同じ範囲を弾く。
+    if (!isPlainObject(read) || !isArray(read.pairs)) {
       process.stderr.write("error: existing --out record has no pairs array\n");
       return 2;
     }
@@ -516,20 +494,7 @@ export async function main(argv) {
   return entries.every((e) => e.pass) ? 0 : 1;
 }
 
-// CLI として起動されたかは、両辺を実パスに解決してから比べる。シンボリックリンクから起動したときに
-// 条件が偽になり、何も出力せずに exit 0 で終わるのを避ける。
-const invokedAsCli = (() => {
-  const entry = process.argv[1];
-  if (!entry) return false;
-  const self = fileURLToPath(import.meta.url);
-  try {
-    return realpathSync(entry) === realpathSync(self);
-  } catch {
-    return entry === self;
-  }
-})();
-
-if (invokedAsCli) {
+if (isCliEntry(import.meta.url)) {
   // process.exit は書き込み中の stdout を捨てる（パイプが非同期のプラットフォームで --out なしの記録が欠ける）ため、
   // 終了コードだけ設定して自然終了させる。
   main(process.argv.slice(2))

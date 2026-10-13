@@ -29,10 +29,11 @@
 //
 // 決定論的に動く（乱数・現在時刻・ネットワークに依存しない）。TypeScript の構文は使わない（型は JSDoc で書く）。
 
-import { readFileSync, realpathSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
+import { isCliEntry } from "./lib/cli.mjs";
+import { collapse, fenceOf } from "./lib/markdown.mjs";
 
 /** ツールのバージョン（このファイルで定義する）。判定のロジックや出力の形を変えたら上げる。 */
 export const VERSION = "1";
@@ -124,15 +125,6 @@ export function looksLikeEndpointHeader(header) {
 }
 
 /**
- * 空白を 1 つに畳み、前後を除く（Markdown の表はフォーマッタが桁を詰め直すため素の比較では揺れる）。
- * @param {string} value
- * @returns {string}
- */
-export function collapse(value) {
-  return String(value).replace(/\s+/gu, " ").trim();
-}
-
-/**
  * Markdown の表を全て取り出す。
  * @param {string} text
  * @returns {{ headers: string[], rows: string[][] }[]}
@@ -152,9 +144,9 @@ export function parseTables(text) {
       continue;
     }
     if (fence !== null) continue;
-    const header = splitRow(lines[i]);
+    const header = splitRowRaw(lines[i]);
     if (header === null) continue;
-    const delimiter = splitRow(lines[i + 1]);
+    const delimiter = splitRowRaw(lines[i + 1]);
     // 区切り行のハイフンは GFM では 1 個以上。3 個以上を要求すると `|-|-|` の表を読み落とす。
     if (delimiter === null || !delimiter.every((cell) => /^:?-+:?$/u.test(cell.trim()))) continue;
     if (delimiter.length !== header.length) continue;
@@ -162,7 +154,7 @@ export function parseTables(text) {
     const rows = [];
     let j = i + 2;
     for (; j < lines.length; j += 1) {
-      const row = splitRow(lines[j]);
+      const row = splitRowRaw(lines[j]);
       if (row === null) break;
       rows.push(row);
     }
@@ -173,22 +165,12 @@ export function parseTables(text) {
 }
 
 /**
- * コードフェンスの開始／終了記号を返す（フェンス行でなければ null）。
- * @param {string | undefined} line
- * @returns {string | null}
- */
-function fenceOf(line) {
-  if (line === undefined) return null;
-  const match = /^ {0,3}(`{3,}|~{3,})/u.exec(line);
-  return match === null ? null : match[1];
-}
-
-/**
  * `| a | b |` を配列にする（表の行でなければ null）。
+ * `\|` も列の区切りとして扱う（`lib/markdown.mjs` の splitRow はセル内の縦棒として扱う。挙動を変えないため名前を分ける）。
  * @param {string | undefined} line
  * @returns {string[] | null}
  */
-function splitRow(line) {
+function splitRowRaw(line) {
   if (line === undefined) return null;
   let trimmed = line.trim();
   if (!trimmed.includes("|")) return null;
@@ -654,19 +636,7 @@ export function main(argv) {
   }
 }
 
-// CLI エントリ判定は両辺を実パスに解決してから突き合わせる（シンボリックリンク経由の起動でサイレント no-op にしない）。
-const invokedAsCli = (() => {
-  const entry = process.argv[1];
-  if (!entry) return false;
-  const self = fileURLToPath(import.meta.url);
-  try {
-    return realpathSync(entry) === realpathSync(self);
-  } catch {
-    return entry === self;
-  }
-})();
-
-if (invokedAsCli) {
+if (isCliEntry(import.meta.url)) {
   // process.exit は書き込み中の stdout を捨てるため、終了コードだけ設定して自然終了させる
   // （判定の根拠は measured: 行なので、パイプ出力で欠けると判定そのものが読めなくなる）。
   process.exitCode = main(process.argv.slice(2));

@@ -79,7 +79,7 @@
     {
       "id": "placeholder",
       "why": "テンプレートのプレースホルダを記入済みとして受ける",
-      "file": "skills/parity-component/scripts/behavior-compare.mjs",
+      "file": "skills/parity-component/scripts/lib/guards.mjs",
       "find": "return typeof value === \"string\" && /^<[\\s\\S]*>$/.test(value.trim());",
       "replace": "return false;",
       "occurrences": 1,

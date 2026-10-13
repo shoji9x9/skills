@@ -27,9 +27,11 @@
 // 乱数と現在時刻に依存しない。入力の順を保って数える。
 // TypeScript の構文は使わない（型は JSDoc で書く）。
 
-import { readFileSync, realpathSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
 import { isArray } from "./lib/is-array.mjs";
+import { isCliEntry } from "./lib/cli.mjs";
+import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
+import { intentionalEntryText } from "./lib/intentional.mjs";
 
 /**
  * ツールのバージョン（原本）。判定の処理や出力の形を変えたら上げる。
@@ -71,39 +73,6 @@ const FEATURE_SLUG_WRITERS = new Set(["golden-dataset", "parity-suite", "parity-
 const DISPOSITIONS = ["keep", "may_change", "carried_over"];
 
 /**
- * 意図的差異レジストリの 1 要素から照合に使う散文テキストを取り出す。
- *
- * `pending` は追記元（slug / added_by / added_at）を持つオブジェクト形式で書かれるため、
- * 照合のキーは `item` である（要素の形は replace-strategy の
- * references/project-config.md「`pending` 要素の形」で定義する）。ただの文字列の要素も読む（旧形式）。
- * `item` が文字列でないオブジェクトは照合に使わない。
- *
- * diff-normalize.mjs にも同じ関数がある（同じスキルの中の重複は、まとめるまで両方を保つ）。
- * 片方を直したら、もう片方も直す。
- *
- * @param {unknown} entry
- * @returns {string} 照合に使うテキスト（取り出せなければ空文字列）
- */
-export function intentionalEntryText(entry) {
-  if (typeof entry === "string") return entry;
-  if (isPlainObject(entry)) {
-    const item = entry.item;
-    return typeof item === "string" ? item : "";
-  }
-  return "";
-}
-
-/**
- * 空でない文字列か。
- *
- * @param {unknown} v
- * @returns {boolean}
- */
-function nonEmptyString(v) {
-  return typeof v === "string" && v.trim() !== "";
-}
-
-/**
  * 照合キーの表記ゆれ（前後の空白・連続空白）だけを吸収する。
  * 大文字小文字は畳まない——散文の宣言は固有名を含み、畳むと別の宣言が同一視されうる。
  *
@@ -114,16 +83,6 @@ export function matchKey(v) {
   return String(v ?? "")
     .trim()
     .replace(/\s+/g, " ");
-}
-
-/**
- * プレーンオブジェクトか（配列・null を除く）。
- *
- * @param {unknown} v
- * @returns {v is Record<string, unknown>}
- */
-function isPlainObject(v) {
-  return typeof v === "object" && v !== null && !isArray(v);
 }
 
 /**
@@ -764,23 +723,6 @@ export function main(argv, deps = {}) {
   return ok ? 0 : 1;
 }
 
-// CLI として起動されたかは、両辺を実パスに解決してから比べる。
-// process.argv[1] は起動したときのパスのままである。--preserve-symlinks(-main) を付けると
-// （NODE_OPTIONS で付けた場合も）import.meta.url も解決されない。片側だけ解決すると、
-// シンボリックリンク（.claude/skills/<name> → .agents/skills/<name>）から起動したときに条件が偽になる。
-// すると main() が呼ばれず、何も出力せずに exit 0 で終わる。
-const invokedAsCli = (() => {
-  const entry = process.argv[1];
-  if (!entry) return false;
-  const self = fileURLToPath(import.meta.url);
-  try {
-    return realpathSync(entry) === realpathSync(self);
-  } catch {
-    // 実パスに解決できなければ、そのままのパスで比べる（何もせずに終わるより、誤って起動するほうを選ぶ）。
-    return entry === self;
-  }
-})();
-
-if (invokedAsCli) {
+if (isCliEntry(import.meta.url)) {
   process.exit(main(process.argv.slice(2)));
 }

@@ -113,8 +113,8 @@
       "id": "separator-ok",
       "why": "区切り文字を含む名前を受ける",
       "file": "skills/parity-suite/scripts/perf-stats.mjs",
-      "find": "  return isNonEmptyString(v) && !v.includes(KEY_SEPARATOR);\n",
-      "replace": "  return isNonEmptyString(v);\n",
+      "find": "  return nonEmptyString(v) && !v.includes(KEY_SEPARATOR);\n",
+      "replace": "  return nonEmptyString(v);\n",
       "occurrences": 1,
       "expect_failing": ["summarize 入力の形が違えば exit 2: metadata.json の page に区切り文字"]
     },
@@ -327,8 +327,8 @@
       "id": "target-arg-optional",
       "why": "--target 無しで比べる",
       "file": "skills/parity-suite/scripts/perf-stats.mjs",
-      "find": "  if (!isNonEmptyString(opts.target))\n",
-      "replace": "  if (false)\n",
+      "find": "  if (!nonEmptyString(opts.target)) throw",
+      "replace": "  if (false) throw",
       "occurrences": 1,
       "expect_failing": ["compare --target を渡さなければ exit 2"]
     },
@@ -464,7 +464,7 @@
       "id": "env-string-any",
       "why": "文字列でない環境の項目を受ける",
       "file": "skills/parity-suite/scripts/perf-stats.mjs",
-      "find": "    if (!isNonEmptyString(getPath(doc.environment, key))) {\n",
+      "find": "    if (!nonEmptyString(getPath(doc.environment, key))) {\n",
       "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
@@ -476,7 +476,7 @@
       "id": "channel-any",
       "why": "空の channel を受ける",
       "file": "skills/parity-suite/scripts/perf-stats.mjs",
-      "find": "  if (channel !== null && !isNonEmptyString(channel)) {\n",
+      "find": "  if (channel !== null && !nonEmptyString(channel)) {\n",
       "replace": "  if (false) {\n",
       "occurrences": 1,
       "expect_failing": ["summarize 入力の形が違えば exit 2: channel が空の文字列"]

@@ -33,9 +33,11 @@
 // TypeScript の構文は使わない（型は JSDoc で書く）。
 
 import { createHash } from "node:crypto";
-import { readFileSync, realpathSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
 import { isArray } from "./lib/is-array.mjs";
+import { isCliEntry } from "./lib/cli.mjs";
+import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
+import { canonicalize } from "./lib/json.mjs";
 
 /**
  * ツールのバージョン（原本）。判定の処理や出力の形を変えたら上げる。
@@ -68,16 +70,6 @@ const VALUES = ["present", "absent", "unmeasured"];
 
 /** 候補 id と同値クラスの members の区切り（parity-suite の coverage-profiles.md で定義する）。 */
 const ID_SEPARATOR = "/";
-
-/**
- * 空でない文字列か。
- *
- * @param {unknown} v
- * @returns {boolean}
- */
-function nonEmptyString(v) {
-  return typeof v === "string" && v.trim() !== "";
-}
 
 // ===== absence-evidence-contract:start =====
 // ここから contract:end までは、記録側（parity-suite の coverage-expand.mjs）と
@@ -657,16 +649,6 @@ function collectIds(entries, label, problems) {
 }
 
 /**
- * JSON オブジェクト（配列でない）か。配列は typeof で "object" を通るため明示的に弾く。
- *
- * @param {unknown} v
- * @returns {v is Record<string, unknown>}
- */
-function isPlainObject(v) {
-  return Boolean(v) && typeof v === "object" && !isArray(v);
-}
-
-/**
  * 表の指紋。conformance を除いた内容をキー順に正規化して sha256 を取る。
  * 記録側（parity-suite の coverage-expand.mjs）と判定側（parity-diff の coverage-check.mjs）で
  * 同じ値になる必要がある。両者を突き合わせる往復テストは、配布元のリポジトリにある。
@@ -704,19 +686,6 @@ export function captureFingerprint(capture) {
       ),
     )
     .digest("hex");
-}
-
-/** @param {unknown} v @returns {unknown} */
-function canonicalize(v) {
-  if (isArray(v)) return v.map(canonicalize);
-  if (isPlainObject(v)) {
-    return Object.fromEntries(
-      Object.keys(v)
-        .sort()
-        .map((k) => [k, canonicalize(v[k])]),
-    );
-  }
-  return v;
 }
 
 /**
@@ -1517,23 +1486,6 @@ export function main(argv, deps = {}) {
   return ok ? 0 : 1;
 }
 
-// CLI として起動されたかは、両辺を実パスに解決してから比べる。
-// process.argv[1] は起動したときのパスのままである。--preserve-symlinks(-main) を付けると
-// （NODE_OPTIONS で付けた場合も）import.meta.url も解決されない。片側だけ解決すると、
-// シンボリックリンク（.claude/skills/<name> → .agents/skills/<name>）から起動したときに条件が偽になる。
-// すると main() が呼ばれず、何も出力せずに exit 0 で終わる。
-const invokedAsCli = (() => {
-  const entry = process.argv[1];
-  if (!entry) return false;
-  const self = fileURLToPath(import.meta.url);
-  try {
-    return realpathSync(entry) === realpathSync(self);
-  } catch {
-    // 実パスに解決できなければ、そのままのパスで比べる（何もせずに終わるより、誤って起動するほうを選ぶ）。
-    return entry === self;
-  }
-})();
-
-if (invokedAsCli) {
+if (isCliEntry(import.meta.url)) {
   process.exit(main(process.argv.slice(2)));
 }

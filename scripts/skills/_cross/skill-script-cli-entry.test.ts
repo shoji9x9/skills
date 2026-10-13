@@ -21,6 +21,9 @@ const skillsDir = join(repoRoot, "skills");
 /**
  * skills/ 配下（scripts/ に限らず assets/ 等も含む）の *.mjs のうち、
  * `import.meta.url` による CLI エントリ判定を持つものを列挙する。
+ * 判定は、ファイルの中に持つ形（`import.meta.url` と `process.argv[1]` を比べる）と、
+ * スキルの `scripts/lib/cli.mjs` の `isCliEntry(import.meta.url)` を呼ぶ形の 2 通りがある。
+ * `lib/cli.mjs` 自身は呼び出し元の URL を引数で受けるので `import.meta.url` を含まず、対象にならない。
  * 判定を持たない素の CLI スクリプトはシンボリックリンクの影響を受けないので対象外にする。
  */
 function findCliScripts(dir: string = skillsDir, found: string[] = []): string[] {
@@ -32,7 +35,8 @@ function findCliScripts(dir: string = skillsDir, found: string[] = []): string[]
     }
     if (!entry.isFile() || !entry.name.endsWith(".mjs")) continue;
     const src = readFileSync(path, "utf8");
-    if (src.includes("import.meta.url") && src.includes("process.argv[1]")) found.push(path);
+    const inline = src.includes("import.meta.url") && src.includes("process.argv[1]");
+    if (inline || src.includes("isCliEntry(import.meta.url)")) found.push(path);
   }
   return found;
 }

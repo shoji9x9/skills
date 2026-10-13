@@ -15,29 +15,21 @@
 // 順序の差は差分にし、--sort-arrays で指定したパスだけ順序を正規化する。
 // TypeScript の構文は使わない（型は JSDoc で書く）。
 
-import { readFileSync, realpathSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
 import { isArray } from "./lib/is-array.mjs";
+import { isCliEntry } from "./lib/cli.mjs";
+import { isPlainObject } from "./lib/guards.mjs";
+import { canonicalize } from "./lib/json.mjs";
 
 /**
  * ツールのバージョン（原本）。比較の処理や出力の形を変えたら上げる。
  *
  * @type {string}
  */
-export const VERSION = "1";
+export const VERSION = "2";
 
 /** 値が存在しない（キー欠落）ことを示すセンチネル文字列。 */
 export const ABSENT = "(absent)";
-
-/**
- * 配列でないオブジェクトかを返す（型の絞り込みに使う）。
- *
- * @param {unknown} v
- * @returns {v is Record<string, unknown>}
- */
-function isRecord(v) {
-  return v !== null && typeof v === "object" && !isArray(v);
-}
 
 /**
  * ドット記法パスのセグメント配列を返す。"data.*.updated_at" → ["data","*","updated_at"]。
@@ -76,40 +68,23 @@ export function removePath(node, segs) {
       .filter((el) => !(head === "*" && rest.length === 0 && el === undefined));
   }
   // 先頭の検査で null と非オブジェクトを、直前の分岐で配列を返しているので、ここには到達しない。
-  if (!isRecord(node)) return node;
-  /** @type {Record<string, unknown>} */
-  const out = {};
+  if (!isPlainObject(node)) return node;
+  // `Object.fromEntries` で組む（`out[key] = ...` で組むと `__proto__` のキーがプロトタイプの設定として扱われて消え、
+  // そのキーの差分を警告なしに見逃す）。
+  /** @type {[string, unknown][]} */
+  const entries = [];
   for (const key of Object.keys(node)) {
     if (head === "*") {
-      out[key] = rest.length === 0 ? undefined : removePath(node[key], rest);
+      if (rest.length === 0) continue; // すべてのキーを落とす
+      entries.push([key, removePath(node[key], rest)]);
     } else if (key === head) {
       if (rest.length === 0) continue; // このキーを落とす
-      out[key] = removePath(node[key], rest);
+      entries.push([key, removePath(node[key], rest)]);
     } else {
-      out[key] = node[key];
+      entries.push([key, node[key]]);
     }
   }
-  for (const key of Object.keys(out)) {
-    if (out[key] === undefined) delete out[key];
-  }
-  return out;
-}
-
-/**
- * オブジェクトのキーを再帰的に昇順へ正規化した複製を返す（ソートキー生成用）。
- *
- * @param {unknown} v
- * @returns {unknown}
- */
-function canonicalize(v) {
-  if (isArray(v)) return v.map(canonicalize);
-  if (isRecord(v)) {
-    /** @type {Record<string, unknown>} */
-    const out = {};
-    for (const key of Object.keys(v).sort()) out[key] = canonicalize(v[key]);
-    return out;
-  }
-  return v;
+  return Object.fromEntries(entries.filter(([, value]) => value !== undefined));
 }
 
 /**
@@ -142,13 +117,14 @@ export function sortArrayAtPath(node, segs) {
     });
   }
   // 先頭の検査で null と非オブジェクトを、直前の分岐で配列を返しているので、ここには到達しない。
-  if (!isRecord(node)) return node;
-  /** @type {Record<string, unknown>} */
-  const out = {};
-  for (const key of Object.keys(node)) {
-    out[key] = key === head || head === "*" ? sortArrayAtPath(node[key], rest) : node[key];
-  }
-  return out;
+  if (!isPlainObject(node)) return node;
+  // removePath と同じく、`__proto__` のキーを消さないために `Object.fromEntries` で組む。
+  return Object.fromEntries(
+    Object.keys(node).map((key) => [
+      key,
+      key === head || head === "*" ? sortArrayAtPath(node[key], rest) : node[key],
+    ]),
+  );
 }
 
 /**
@@ -172,7 +148,7 @@ export function deepDiff(a, b, path, out) {
       }
       return;
     }
-    if (isRecord(a) && isRecord(b)) {
+    if (isPlainObject(a) && isPlainObject(b)) {
       const keys = [...new Set([...Object.keys(a), ...Object.keys(b)])].sort();
       for (const key of keys) {
         const childPath = path ? `${path}.${key}` : key;
@@ -245,23 +221,6 @@ export function main(argv) {
   return out.length > 0 ? 1 : 0;
 }
 
-// CLI として起動されたかは、両辺を実パスに解決してから比べる。
-// process.argv[1] は起動したときのパスのままである。--preserve-symlinks(-main) を付けると
-// （NODE_OPTIONS で付けた場合も）import.meta.url も解決されない。片側だけ解決すると、
-// シンボリックリンク（.claude/skills/<name> → .agents/skills/<name>）から起動したときに条件が偽になる。
-// すると main() が呼ばれず、何も出力せずに exit 0 で終わる。
-const invokedAsCli = (() => {
-  const entry = process.argv[1];
-  if (!entry) return false;
-  const self = fileURLToPath(import.meta.url);
-  try {
-    return realpathSync(entry) === realpathSync(self);
-  } catch {
-    // 実パスに解決できなければ、そのままのパスで比べる（何もせずに終わるより、誤って起動するほうを選ぶ）。
-    return entry === self;
-  }
-})();
-
-if (invokedAsCli) {
+if (isCliEntry(import.meta.url)) {
   process.exit(main(process.argv.slice(2)));
 }

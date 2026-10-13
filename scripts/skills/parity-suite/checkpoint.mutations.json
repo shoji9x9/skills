@@ -248,7 +248,7 @@
       "id": "w4-array",
       "why": "書き手の不変条件 W4 を読み手で検査しない",
       "file": "skills/parity-suite/scripts/checkpoint.mjs",
-      "find": "    if (!isArray(roots) || !roots.every(isNonEmptyString)) {\n",
+      "find": "    if (!isArray(roots) || !roots.every(nonEmptyUntrimmedString)) {\n",
       "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": ["record が書かない形の記録は verify で exit 2: W4 roots が配列でない"]
@@ -445,7 +445,7 @@
       "id": "checkpoint-cli-entry-skipped",
       "why": "CLI として起動されても main を呼ばない（テストは main を直接呼ぶので、子プロセスで起動する陽性コントロールだけが検出する。Issue #478）",
       "file": "skills/parity-suite/scripts/checkpoint.mjs",
-      "find": "if (invokedAsCli) {\n",
+      "find": "if (isCliEntry(import.meta.url)) {\n",
       "replace": "if (false) {\n",
       "occurrences": 1,
       "expect_failing": [

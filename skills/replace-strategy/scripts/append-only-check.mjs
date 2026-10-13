@@ -68,6 +68,8 @@ import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "n
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isArray } from "./lib/is-array.mjs";
+import { isCliEntry } from "./lib/cli.mjs";
+import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 
 /**
  * ツールのバージョン（このファイルで定義する）。判定のロジックや出力の形を変えたら上げる。
@@ -105,22 +107,6 @@ const REGISTRY_ITEM_PREFIX = "<registry-item: ";
 
 /** 使い方の誤り・型崩れ・判定不能（exit 2）。 */
 export class UsageError extends Error {}
-
-/**
- * @param {unknown} v
- * @returns {boolean}
- */
-function nonEmptyString(v) {
-  return typeof v === "string" && v.trim() !== "";
-}
-
-/**
- * @param {unknown} v
- * @returns {v is Record<string, unknown>}
- */
-function isPlainObject(v) {
-  return typeof v === "object" && v !== null && !isArray(v);
-}
 
 /**
  * 実パスに解決する（解決できなければ渡された値のまま返す）。
@@ -1087,7 +1073,7 @@ function canonicalJson(value) {
  * @returns {Map<string, number>} 単位 → 出現回数
  */
 export function jsonArrayUnits(text, paths, label, key = null) {
-  const parsed = parseJson(text, label);
+  const parsed = parseJsonForAppendCheck(text, label);
   /** @type {Map<string, number>} */
   const counts = new Map();
   for (const path of paths) {
@@ -1205,7 +1191,7 @@ function nonEmptyValue(v) {
  * @returns {Map<string, Record<string, unknown>[]>}
  */
 function keyedElements(text, path, key, label) {
-  const parsed = parseJson(text, label);
+  const parsed = parseJsonForAppendCheck(text, label);
   /** @type {Map<string, Record<string, unknown>[]>} */
   const out = new Map();
   const value = atPath(parsed, path);
@@ -1231,7 +1217,7 @@ function keyedElements(text, path, key, label) {
  * @param {string} label
  * @returns {unknown}
  */
-function parseJson(text, label) {
+function parseJsonForAppendCheck(text, label) {
   try {
     return JSON.parse(text);
   } catch (e) {
@@ -1275,8 +1261,8 @@ export function comparePinnedValues(beforeText, afterText, groups, labels) {
   /** @type {string[]} */
   const findings = [];
   if (groups.length === 0) return findings;
-  const before = parseJson(beforeText, labels.before);
-  const after = parseJson(afterText, labels.after);
+  const before = parseJsonForAppendCheck(beforeText, labels.before);
+  const after = parseJsonForAppendCheck(afterText, labels.after);
   for (const group of groups) {
     const baseHistory = historyAt(before, group.history, labels.before);
     const nowHistory = historyAt(after, group.history, labels.after);
@@ -2132,18 +2118,6 @@ export function main(argv) {
   }
 }
 
-// CLI エントリ判定は両辺を実パスに解決してから突き合わせる（シンボリックリンク経由の起動でサイレント no-op にしない）。
-const invokedAsCli = (() => {
-  const entry = process.argv[1];
-  if (!entry) return false;
-  const self = fileURLToPath(import.meta.url);
-  try {
-    return realpathSync(entry) === realpathSync(self);
-  } catch {
-    return entry === self;
-  }
-})();
-
-if (invokedAsCli) {
+if (isCliEntry(import.meta.url)) {
   process.exit(main(process.argv.slice(2)));
 }

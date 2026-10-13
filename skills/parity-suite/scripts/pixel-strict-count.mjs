@@ -14,8 +14,8 @@
 // プロジェクトに入っていることが多い。無ければ導入をユーザーに確認する。本スクリプトは勝手にインストールしない）。
 // TypeScript 構文は使わない（型は JSDoc）。
 
-import { readFileSync, realpathSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
+import { isCliEntry } from "./lib/cli.mjs";
 
 /**
  * ツールのバージョン（原本）。計数規則・出力形状を変えたら上げる。
@@ -207,20 +207,7 @@ export async function main(argv) {
   return 0;
 }
 
-// CLI エントリ判定は両辺を実パスに解決してから突き合わせる（シンボリックリンク経由の起動で
-// 条件が偽になり、何も出力せず exit 0 になるのを避ける）。
-const invokedAsCli = (() => {
-  const entry = process.argv[1];
-  if (!entry) return false;
-  const self = fileURLToPath(import.meta.url);
-  try {
-    return realpathSync(entry) === realpathSync(self);
-  } catch {
-    return entry === self;
-  }
-})();
-
-if (invokedAsCli) {
+if (isCliEntry(import.meta.url)) {
   main(process.argv.slice(2))
     .then((code) => process.exit(code))
     .catch((err) => {

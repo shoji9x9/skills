@@ -20,7 +20,7 @@ import * as checkModule from "../../../skills/replace-strategy/scripts/asset-del
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "skills/replace-strategy/scripts/asset-delivery-check.mjs");
-const { main, readLedger, readRecord, referencedUrls } = checkModule;
+const { main, readAssetLedger, readRecord, referencedUrls } = checkModule;
 
 const TEMPLATE = readFileSync(
   join(repoRoot, "skills/replace-strategy/assets/assets-template.md"),
@@ -193,7 +193,7 @@ async function runCheck(opts: {
 // ---- 台帳の読み取り ----
 
 test("台帳: 原本のテンプレートから「有効 × 実体をコピーする」の行だけを取り出す（取り消し済み・同等物・空欄は取らない）", () => {
-  const { copyRows } = readLedger(TEMPLATE);
+  const { copyRows } = readAssetLedger(TEMPLATE);
   expect(copyRows.map((r) => r.kind)).toEqual(["本文の書体"]);
 });
 
@@ -209,7 +209,7 @@ test("台帳: 旧い方針の値を新しい値と同じ意味に読む（改名
     "| 旧い除外 | 写さない | 有効 |",
     // textlint-enable
   ].join("\n");
-  const { copyRows, activeRows } = readLedger(text);
+  const { copyRows, activeRows } = readAssetLedger(text);
   expect(copyRows.map((r) => r.kind)).toEqual(["新", "旧"]);
   expect(activeRows).toBe(4);
 });
@@ -217,9 +217,9 @@ test("台帳: 旧い方針の値を新しい値と同じ意味に読む（改名
 test("台帳: 行番号は表の中の順番ではなく台帳ファイル上の行を指す（利用者が開く行と揃える）", () => {
   const fileLine = TEMPLATE.split("\n").findIndex((l) => l.startsWith("| 本文の書体 |")) + 1;
   expect(fileLine).toBeGreaterThan(1);
-  expect(readLedger(TEMPLATE).copyRows[0].line).toBe(fileLine);
+  expect(readAssetLedger(TEMPLATE).copyRows[0].line).toBe(fileLine);
   const broken = TEMPLATE.replace("| 本文の書体 |", "|  |");
-  expect(() => readLedger(broken)).toThrow(`台帳の ${fileLine} 行目の「種類」が空`);
+  expect(() => readAssetLedger(broken)).toThrow(`台帳の ${fileLine} 行目の「種類」が空`);
 });
 
 test("台帳: 表の本体が空行で切れた後の行は警告なしに捨てず判定しない（例外）", () => {
@@ -230,7 +230,7 @@ test("台帳: 表の本体が空行で切れた後の行は警告なしに捨て
     "",
     "| favicon | `link[rel=icon]`、全ページ | 実体をコピーする | 有効 |",
   ].join("\n");
-  expect(() => readLedger(text)).toThrow(/台帳の 5 行目は表に属さない/u);
+  expect(() => readAssetLedger(text)).toThrow(/台帳の 5 行目は表に属さない/u);
 });
 
 test("台帳: 空行で切れた後の、行頭の `|` を省いた行（GFM では表の行になりうる）も判定しない（例外）", () => {
@@ -241,7 +241,7 @@ test("台帳: 空行で切れた後の、行頭の `|` を省いた行（GFM で
     "",
     "favicon | `link[rel=icon]`、全ページ | 実体をコピーする | 有効",
   ].join("\n");
-  expect(() => readLedger(text)).toThrow(/台帳の 5 行目は表に属さない/u);
+  expect(() => readAssetLedger(text)).toThrow(/台帳の 5 行目は表に属さない/u);
 });
 
 test("台帳: 表の外の散文に `|` があっても行頭でなければ表の行とみなさない", () => {
@@ -252,7 +252,7 @@ test("台帳: 表の外の散文に `|` があっても行頭でなければ表�
     "|---|---|---|---|",
     "| ロゴ | `img`、/a | 実体をコピーする | 有効 |",
   ].join("\n");
-  expect(readLedger(text).copyRows.map((r) => r.kind)).toEqual(["ロゴ"]);
+  expect(readAssetLedger(text).copyRows.map((r) => r.kind)).toEqual(["ロゴ"]);
 });
 
 test("台帳: HTML コメントとコードフェンスの中の表は台帳として読まない", () => {
@@ -271,7 +271,7 @@ test("台帳: HTML コメントとコードフェンスの中の表は台帳と�
     "|---|---|---|---|",
     "| ロゴ | `img`、/a | 実体をコピーする | 有効 |",
   ].join("\n");
-  expect(readLedger(text).copyRows.map((r) => r.kind)).toEqual(["ロゴ"]);
+  expect(readAssetLedger(text).copyRows.map((r) => r.kind)).toEqual(["ロゴ"]);
 });
 
 test("台帳: セル内の `\\|` では列を分けない", () => {
@@ -280,7 +280,7 @@ test("台帳: セル内の `\\|` では列を分けない", () => {
     "|---|---|---|---|---|",
     "| ロゴ | `a.png` \\| `b.png` | 実体をコピーする | 有効 | /a |",
   ].join("\n");
-  expect(readLedger(text).copyRows.map((r) => r.kind)).toEqual(["ロゴ"]);
+  expect(readAssetLedger(text).copyRows.map((r) => r.kind)).toEqual(["ロゴ"]);
 });
 
 test("台帳: 強調で囲んだ方針・状態・種類は囲みを外して読む", () => {
@@ -289,7 +289,7 @@ test("台帳: 強調で囲んだ方針・状態・種類は囲みを外して読
     "|---|---|---|---|",
     "| **ロゴ** | **実体をコピーする** | **有効** | /a |",
   ].join("\n");
-  expect(readLedger(text).copyRows.map((r) => r.kind)).toEqual(["ロゴ"]);
+  expect(readAssetLedger(text).copyRows.map((r) => r.kind)).toEqual(["ロゴ"]);
 });
 
 test.each([
@@ -325,7 +325,7 @@ test.each([
     /列数が見出しと違う/u,
   ],
 ])("台帳: %s は判定しない（例外）", (_label, text, message) => {
-  expect(() => readLedger(text)).toThrow(message);
+  expect(() => readAssetLedger(text)).toThrow(message);
 });
 
 // ---- 記録の読み取り ----

@@ -252,7 +252,7 @@
       "id": "unmeasured-reason-optional",
       "why": "理由の無い未測定を通し、測り直しの判断材料を残さない",
       "file": "skills/parity-suite/scripts/header-normalize.mjs",
-      "find": "if (!isNonEmptyString(doc.unmeasured_reason))",
+      "find": "if (!nonEmptyString(doc.unmeasured_reason))",
       "replace": "if (false)",
       "occurrences": 1,
       "expect_failing": [
@@ -289,7 +289,7 @@
       "id": "captured-at-optional",
       "why": "採った日時の無い一覧を通す",
       "file": "skills/parity-suite/scripts/header-normalize.mjs",
-      "find": "if (!isNonEmptyString(doc.captured_at))",
+      "find": "if (!nonEmptyString(doc.captured_at))",
       "replace": "if (false)",
       "occurrences": 1,
       "expect_failing": ["一覧: captured_at が無い は入力の誤りにする"]
@@ -298,7 +298,7 @@
       "id": "target-optional",
       "why": "採った target の無い一覧を通す",
       "file": "skills/parity-suite/scripts/header-normalize.mjs",
-      "find": "if (!isNonEmptyString(doc.target))",
+      "find": "if (!nonEmptyString(doc.target))",
       "replace": "if (false)",
       "occurrences": 1,
       "expect_failing": ["一覧: target が空 は入力の誤りにする"]
@@ -325,7 +325,7 @@
       "id": "captured-url-optional",
       "why": "採った応答の URL を求めない",
       "file": "skills/parity-suite/scripts/header-normalize.mjs",
-      "find": "if (!isNonEmptyString(c.url))",
+      "find": "if (!nonEmptyString(c.url))",
       "replace": "if (false)",
       "occurrences": 1,
       "expect_failing": ["一覧: captured_responses の url が無い は入力の誤りにする"]
@@ -343,7 +343,7 @@
       "id": "server-config-slug-unreadable",
       "why": "欠落・空文字の引き受ける機能 slug を通し、欄の書き忘れを未確定と区別しない",
       "file": "skills/parity-suite/scripts/header-normalize.mjs",
-      "find": "if (doc.server_config_slug !== null && !isNonEmptyString(doc.server_config_slug))",
+      "find": "if (doc.server_config_slug !== null && !nonEmptyString(doc.server_config_slug))",
       "replace": "if (false)",
       "occurrences": 1,
       "expect_failing": [
@@ -390,7 +390,7 @@
       "id": "defense-value-optional",
       "why": "値の無い防御の行を通す",
       "file": "skills/parity-suite/scripts/header-normalize.mjs",
-      "find": "if (row.class === \"defense\" && !isNonEmptyString(value))",
+      "find": "if (row.class === \"defense\" && !nonEmptyString(value))",
       "replace": "if (false)",
       "occurrences": 1,
       "expect_failing": [
@@ -456,7 +456,7 @@
       "id": "setter-source-empty",
       "why": "空文字の付け手のファイルを通す",
       "file": "skills/parity-suite/scripts/header-normalize.mjs",
-      "find": "!isNonEmptyString(row.setter_source)",
+      "find": "!nonEmptyString(row.setter_source)",
       "replace": "false",
       "occurrences": 1,
       "expect_failing": ["一覧: 行が「setter_source が空文字」なら入力の誤りにする"]
@@ -465,7 +465,7 @@
       "id": "owner-empty",
       "why": "空文字・欠落の所有者 slug を通す",
       "file": "skills/parity-suite/scripts/header-normalize.mjs",
-      "find": "if (!isNonEmptyString(owner)) throw",
+      "find": "if (!nonEmptyString(owner)) throw",
       "replace": "if (false) throw",
       "occurrences": 1,
       "expect_failing": [

@@ -23,9 +23,11 @@
 // 乱数と現在時刻に依存しない。入力の順を保って分類する。
 // TypeScript の構文は使わない（型は JSDoc で書く）。
 
-import { readFileSync, realpathSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
 import { isArray } from "./lib/is-array.mjs";
+import { isCliEntry } from "./lib/cli.mjs";
+import { isPlainObject } from "./lib/guards.mjs";
+import { intentionalEntryText } from "./lib/intentional.mjs";
 
 /**
  * ツールのバージョン（原本）。分類の処理や出力の形を変えたら上げる。
@@ -75,16 +77,6 @@ export const VERSION = "6";
  */
 
 /**
- * null でも配列でもないオブジェクトかを返す（型の絞り込みに使う）。
- *
- * @param {unknown} v
- * @returns {v is Record<string, unknown>}
- */
-function isRecord(v) {
-  return v !== null && typeof v === "object" && !isArray(v);
-}
-
-/**
  * null でないオブジェクト（配列を含む）かを返す（型の絞り込みに使う）。
  * 配列の名前付きの欄は読むと undefined なので、Record として読んでよい。
  *
@@ -121,30 +113,6 @@ export function normalizeValue(v) {
     .replace(/\s+/g, " ");
 }
 
-/**
- * 意図的差異レジストリの 1 要素から照合に使う散文テキストを取り出す。
- *
- * `pending` は追記元（slug / added_by / added_at）を持つオブジェクト形式で書かれるため、
- * 照合のキーは `item` である（要素の形は replace-strategy の
- * references/project-config.md「`pending` 要素の形」で定義する）。ただの文字列の要素も読む（旧形式）。
- * `item` が文字列でないオブジェクトは照合に使わない。`[object Object]` を
- * needle にすると、意図しない一致や不一致が含まれる。
- *
- * pending-triage-check.mjs にも同じ関数がある（同じスキルの中の重複は、まとめるまで両方を保つ）。
- * 片方を直したらもう片方も直す。
- *
- * @param {unknown} entry
- * @returns {string} 照合に使うテキスト（取り出せなければ空文字列）
- */
-export function intentionalEntryText(entry) {
-  if (typeof entry === "string") return entry;
-  if (isRecord(entry)) {
-    const item = entry.item;
-    return typeof item === "string" ? item : "";
-  }
-  return "";
-}
-
 /** 意図的差異レジストリの分類 3 群（照合の優先順）。 */
 /** @type {readonly ["keep", "may_change", "pending"]} */
 const INTENTIONAL_GROUPS = ["keep", "may_change", "pending"];
@@ -167,7 +135,7 @@ const INTENTIONAL_MATCH_KEYS = ["element", "property", "page", "state", "viewpor
  * @returns {{ element:string, property:string, page?:string, state?:string, viewport?:string } | { invalid:string } | null}
  */
 export function intentionalEntryMatch(entry) {
-  if (!isRecord(entry)) return null;
+  if (!isPlainObject(entry)) return null;
   if (!Object.prototype.hasOwnProperty.call(entry, "match")) return null;
   const match = entry.match;
   // item（散文）は必須。棚卸し・追記専用の検査は item で要素を突き合わせ、matched_rule にも item が入るため、
@@ -175,7 +143,7 @@ export function intentionalEntryMatch(entry) {
   if (normalizeValue(intentionalEntryText(entry)).length === 0) {
     return { invalid: "missing item (the prose declaration is required alongside match)" };
   }
-  if (!isRecord(match)) {
+  if (!isPlainObject(match)) {
     return { invalid: "match is not an object" };
   }
   const m = match;
@@ -616,7 +584,7 @@ export function validateNoiseBaseline(noiseBaseline) {
   /** @type {string[]} */
   const problems = [];
   list.forEach((row, i) => {
-    if (!isRecord(row))
+    if (!isPlainObject(row))
       problems.push(`noise_baseline[${i}]: not an object — not used for matching`);
   });
   return problems;
@@ -637,7 +605,7 @@ export function matchNoise(noiseBaseline, ctx) {
   for (const row of list) {
     // object でない行は照合に使わない（validateNoiseBaseline が警告する）。欄の無い行として読むと、
     // 軸を指定しない実行で最初の行として当たり、後ろの正しい行を隠す。
-    if (!isRecord(row)) continue;
+    if (!isPlainObject(row)) continue;
     if (ctx.page && row.page !== ctx.page) continue;
     if (ctx.state && row.state !== ctx.state) continue;
     if (ctx.viewport && row.viewport !== ctx.viewport) continue;
@@ -849,23 +817,6 @@ export function main(argv) {
   return actionable ? 1 : 0;
 }
 
-// CLI として起動されたかは、両辺を実パスに解決してから比べる。
-// process.argv[1] は起動したときのパスのままである。--preserve-symlinks(-main) を付けると
-// （NODE_OPTIONS で付けた場合も）import.meta.url も解決されない。片側だけ解決すると、
-// シンボリックリンク（.claude/skills/<name> → .agents/skills/<name>）から起動したときに条件が偽になる。
-// すると main() が呼ばれず、何も出力せずに exit 0 で終わる。
-const invokedAsCli = (() => {
-  const entry = process.argv[1];
-  if (!entry) return false;
-  const self = fileURLToPath(import.meta.url);
-  try {
-    return realpathSync(entry) === realpathSync(self);
-  } catch {
-    // 実パスに解決できなければ、そのままのパスで比べる（何もせずに終わるより、誤って起動するほうを選ぶ）。
-    return entry === self;
-  }
-})();
-
-if (invokedAsCli) {
+if (isCliEntry(import.meta.url)) {
   process.exit(main(process.argv.slice(2)));
 }

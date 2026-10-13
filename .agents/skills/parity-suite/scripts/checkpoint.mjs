@@ -24,17 +24,12 @@
 // 決定論的: 指紋にも出力にも時刻を入れない。TypeScript 構文は使わない（型は JSDoc）。
 
 import { createHash } from "node:crypto";
-import {
-  existsSync,
-  readdirSync,
-  readFileSync,
-  realpathSync,
-  statSync,
-  writeFileSync,
-} from "node:fs";
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
-import { fileURLToPath } from "node:url";
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
+import { isCliEntry } from "./lib/cli.mjs";
+import { isPlainObject } from "./lib/guards.mjs";
+import { realPathOf } from "./lib/paths.mjs";
 
 /**
  * ツールのバージョン（原本）。指紋の取り方・記録の形を変えたら上げる。版が違う記録は verify で落ちる。
@@ -62,17 +57,9 @@ class UsageError extends Error {}
 
 /**
  * @param {unknown} v
- * @returns {v is Record<string, unknown>}
- */
-function isPlainObject(v) {
-  return typeof v === "object" && v !== null && !isArray(v);
-}
-
-/**
- * @param {unknown} v
  * @returns {v is string}
  */
-function isNonEmptyString(v) {
+function nonEmptyUntrimmedString(v) {
   return typeof v === "string" && v !== "";
 }
 
@@ -100,32 +87,6 @@ function isWrittenRecord(rec, slugDir, opts) {
 function toRel(cwd, p) {
   const rel = relative(cwd, resolve(cwd, p));
   return rel === "" ? "." : rel.split(sep).join("/");
-}
-
-/**
- * 実在する最も深い祖先まで `realpathSync` で解いてから、残りの区間を継ぎ足して実パスを組む。
- * verify では記録後に消えた根も数えるため、存在しないパスでも実パスで包含を判定できるようにする。
- * ENOENT 以外（ELOOP・EACCES 等）は「解けなかった」であって「外にある」ではないので、null を返す（判定できないものとして扱う）。
- * @param {string} p - 絶対パス
- * @returns {string | null}
- */
-function realPathOf(p) {
-  let current = resolve(p);
-  /** @type {string[]} */
-  const tail = [];
-  for (;;) {
-    try {
-      const real = realpathSync(current);
-      return tail.length === 0 ? real : join(real, ...tail);
-    } catch (e) {
-      const code = e instanceof Error && "code" in e ? e.code : undefined;
-      if (code !== "ENOENT") return null;
-    }
-    const parent = dirname(current);
-    if (parent === current) return null;
-    tail.unshift(basename(current));
-    current = parent;
-  }
 }
 
 /**
@@ -309,7 +270,7 @@ export function recordProblem(rec, slugDir, opts) {
     }
     // W4
     const roots = c.roots;
-    if (!isArray(roots) || !roots.every(isNonEmptyString)) {
+    if (!isArray(roots) || !roots.every(nonEmptyUntrimmedString)) {
       return `${c.at} の roots が空でない文字列の配列でない`;
     }
     if (new Set(roots).size !== roots.length) return `${c.at} の roots に重複がある`;
@@ -542,18 +503,6 @@ export function main(argv, deps = {}) {
   }
 }
 
-// CLI エントリ判定は両辺を実パスに解決してから突き合わせる（シンボリックリンク経由の起動でサイレント no-op にしない）。
-const invokedAsCli = (() => {
-  const entry = process.argv[1];
-  if (!entry) return false;
-  const self = fileURLToPath(import.meta.url);
-  try {
-    return realpathSync(entry) === realpathSync(self);
-  } catch {
-    return entry === self;
-  }
-})();
-
-if (invokedAsCli) {
+if (isCliEntry(import.meta.url)) {
   process.exit(main(process.argv.slice(2)));
 }

@@ -19,6 +19,7 @@
 // 決定論的: 乱数・現在時刻・ネットワークに依存しない。TypeScript 構文は使わない（型は JSDoc）。
 
 import { isArray } from "./lib/is-array.mjs";
+import { nonEmptyString } from "./lib/guards.mjs";
 
 /** baseURL の無い（runtime の）とき、`/` で始まる path を解くためだけに当てるオリジン。照合はパス以降しか見ない。 */
 const PLACEHOLDER_ORIGIN = "http://runtime.invalid/";
@@ -43,12 +44,6 @@ const PLACEHOLDER_ORIGIN = "http://runtime.invalid/";
  * pages: 解けたページだけ（名前 → 解決結果）。problems: 入力の誤り（path が空・解けない・baseURL が URL でない）。
  * unresolved: runtime で baseURL が無く解けなかった相対の path（名前 → 書いた path）。使い回しは書いた path で数える。
  */
-
-/**
- * @param {unknown} v
- * @returns {v is string}
- */
-const nonEmptyString = (v) => typeof v === "string" && v.trim() !== "";
 
 /**
  * baseURL（target.ui_url）を読む。runtime は null、絶対 URL（http / https）はその URL、それ以外は誤り。
@@ -88,7 +83,8 @@ const originRelative = (path) =>
  * @param {string | null} search
  * @param {string | null} hash
  */
-const keyOf = (pathname, search, hash) => JSON.stringify([pathname, search ?? null, hash ?? null]);
+const urlKeyOf = (pathname, search, hash) =>
+  JSON.stringify([pathname, search ?? null, hash ?? null]);
 
 /**
  * capture_conditions.pages を baseURL に対して解く。
@@ -145,7 +141,7 @@ export function resolvePages(pages, uiUrl) {
       pathname: u.pathname,
       search,
       hash,
-      key: keyOf(u.pathname, search, hash),
+      key: urlKeyOf(u.pathname, search, hash),
     });
   }
   if (problems.length > 0) {

@@ -11,7 +11,7 @@ import { join } from "node:path";
 import { assert, test, expect } from "vitest";
 import {
   main,
-  readLedger,
+  readProcedureLedger,
   readRevisions,
 } from "../../../skills/replace-strategy/scripts/procedure-staleness-check.mjs";
 import { parseJsonAs } from "../../lib/parse-as.ts";
@@ -38,20 +38,20 @@ type Output = {
   stray: unknown[];
   errors: string[];
 };
-/** readRevisions・readLedger が失敗したときの結果。各テストは直前に `ok` が false であることを確かめる。 */
+/** readRevisions・readProcedureLedger が失敗したときの結果。各テストは直前に `ok` が false であることを確かめる。 */
 type Failed = { ok: false; errors: string[] };
-type ReadLedger = Extract<ReturnType<typeof readLedger>, { ok: true }>;
+type ReadLedger = Extract<ReturnType<typeof readProcedureLedger>, { ok: true }>;
 
 /** 読み取りが失敗した結果として扱う。成功していたらテストを失敗させる。 */
 function failedOf(
-  result: ReturnType<typeof readLedger> | ReturnType<typeof readRevisions>,
+  result: ReturnType<typeof readProcedureLedger> | ReturnType<typeof readRevisions>,
 ): Failed {
   assert(!result.ok, "失敗するはずの読み取りが成功した");
   return result;
 }
 
 /** 台帳の読み取りが成功した結果として扱う。失敗していたらテストを失敗させる。 */
-function ledgerOf(result: ReturnType<typeof readLedger>): ReadLedger {
+function ledgerOf(result: ReturnType<typeof readProcedureLedger>): ReadLedger {
   assert(result.ok, `台帳の読み取りが失敗した: ${JSON.stringify(result)}`);
   return result;
 }
@@ -577,19 +577,19 @@ test("誤検知しないことの確認: 複数行の HTML コメントの中の
     "## 観点の追加",
     "<!--\n記入例: | PC-009 | 2026-09-01 | 軸 | 由来 | feature | #9 |\n-->\n\n## 観点の追加",
   );
-  const r = readLedger(text, new Set());
+  const r = readProcedureLedger(text, new Set());
   expect(r.ok).toBe(true);
 });
 
 test("HTML コメントの中の表は台帳として読まない（生きた表の代わりにも、重複にもならない）", () => {
   const retired = `<!--\n退役した表:\n${CHANGE_HEADER}| PC-900 | 2026-01-01 | 軸 | 由来 | * | #9 |\n-->\n\n`;
-  const withLive = readLedger(
+  const withLive = readProcedureLedger(
     retired + ledger(["| PC-001 | 2026-09-20 | 軸 | 由来 | feature | #1 |"], []),
     new Set(),
   );
   expect(withLive.ok).toBe(true);
   expect(ledgerOf(withLive).changes.map((c) => c.id)).toEqual(["PC-001"]);
-  const onlyRetired = readLedger(`# 台帳\n\n${retired}${RECORD_HEADER}`, new Set());
+  const onlyRetired = readProcedureLedger(`# 台帳\n\n${retired}${RECORD_HEADER}`, new Set());
   expect(onlyRetired.ok).toBe(false);
   expect(failedOf(onlyRetired).errors.join("\n")).toContain("「観点の追加」表が無い");
 });
@@ -606,13 +606,13 @@ test.each([
   ["終了行の後ろの散文", "<!--\n説明\n--> 続き\n\n"],
   ["コメントの中で開き直したコメント", "<!--\n説明 <!-- 入れ子\n-->\n\n"],
 ])("HTML コメントの記号が扱えない位置にある台帳は落とす: %s", (_name, prefix) => {
-  const r = readLedger(prefix + LIVE, new Set());
+  const r = readProcedureLedger(prefix + LIVE, new Set());
   expect(r.ok).toBe(false);
   expect(failedOf(r).errors.join("\n")).toContain("HTML コメントの記号が");
 });
 
 test("閉じない HTML コメントは、以降の表を読まずに合格させない", () => {
-  const r = readLedger(`${LIVE}\n<!--\n説明\n`, new Set());
+  const r = readProcedureLedger(`${LIVE}\n<!--\n説明\n`, new Set());
   expect(r.ok).toBe(false);
   expect(failedOf(r).errors.join("\n")).toContain("HTML コメントが閉じていない");
 });
@@ -624,7 +624,7 @@ test.each([
   ["コードフェンスの中の記号", "```text\n退役 <!-- 例 --> 続き\n```\n\n"],
   ["コメントの中のフェンス記号", "<!--\n```\n-->\n\n"],
 ])("誤検知しないことの確認: 扱える位置の HTML コメントは通す: %s", (_name, prefix) => {
-  const r = readLedger(prefix + LIVE, new Set());
+  const r = readProcedureLedger(prefix + LIVE, new Set());
   expect(r.ok).toBe(true);
   expect(ledgerOf(r).changes.map((c) => c.id)).toEqual(["PC-001"]);
 });
@@ -634,7 +634,7 @@ test("同梱の改訂一覧と台帳テンプレートは検査がそのまま�
     JSON.parse(readFileSync("skills/parity-suite/assets/procedure-revisions.json", "utf8")),
   );
   expect(shipped.ok).toBe(true);
-  const template = readLedger(
+  const template = readProcedureLedger(
     readFileSync("skills/replace-strategy/assets/procedure-changes-template.md", "utf8"),
     new Set(),
   );

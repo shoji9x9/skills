@@ -184,7 +184,7 @@
       "id": "sample-x-finite",
       "why": "在る標本の x が有限の数でない時系列を、比較に使える要約にしない",
       "file": "skills/parity-component/scripts/motion-compare.mjs",
-      "find": "if (!finite(x)) return notFinite(\"x\");",
+      "find": "if (!isFiniteNumber(x)) return notFinite(\"x\");",
       "replace": "if (false) return notFinite(\"x\");",
       "occurrences": 1,
       "expect_failing": ["在る標本の x が有限の数でない時系列は比較に使わない"]
@@ -193,7 +193,7 @@
       "id": "sample-y-finite",
       "why": "在る標本の y が有限の数でない時系列を、比較に使える要約にしない",
       "file": "skills/parity-component/scripts/motion-compare.mjs",
-      "find": "if (!finite(y)) return notFinite(\"y\");",
+      "find": "if (!isFiniteNumber(y)) return notFinite(\"y\");",
       "replace": "if (false) return notFinite(\"y\");",
       "occurrences": 1,
       "expect_failing": ["在る標本の y が有限の数でない時系列は比較に使わない"]
@@ -202,7 +202,7 @@
       "id": "sample-width-finite",
       "why": "在る標本の width が有限の数でない時系列を、比較に使える要約にしない",
       "file": "skills/parity-component/scripts/motion-compare.mjs",
-      "find": "if (!finite(width)) return notFinite(\"width\");",
+      "find": "if (!isFiniteNumber(width)) return notFinite(\"width\");",
       "replace": "if (false) return notFinite(\"width\");",
       "occurrences": 1,
       "expect_failing": ["在る標本の width が有限の数でない時系列は比較に使わない"]
@@ -211,7 +211,7 @@
       "id": "sample-height-finite",
       "why": "在る標本の height が有限の数でない時系列を、比較に使える要約にしない",
       "file": "skills/parity-component/scripts/motion-compare.mjs",
-      "find": "if (!finite(height)) return notFinite(\"height\");",
+      "find": "if (!isFiniteNumber(height)) return notFinite(\"height\");",
       "replace": "if (false) return notFinite(\"height\");",
       "occurrences": 1,
       "expect_failing": ["在る標本の height が有限の数でない時系列は比較に使わない"]
@@ -220,7 +220,7 @@
       "id": "sample-opacity-finite",
       "why": "在る標本の opacity が有限の数でない時系列を、比較に使える要約にしない",
       "file": "skills/parity-component/scripts/motion-compare.mjs",
-      "find": "if (!finite(opacity)) return notFinite(\"opacity\");",
+      "find": "if (!isFiniteNumber(opacity)) return notFinite(\"opacity\");",
       "replace": "if (false) return notFinite(\"opacity\");",
       "occurrences": 1,
       "expect_failing": ["在る標本の opacity が有限の数でない時系列は比較に使わない"]

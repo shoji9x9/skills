@@ -33,10 +33,12 @@
 //
 // 終了コード: 0 ＝ 条件を満たす（判定しない場合を含む）、1 ＝ 未突合・不一致・記録の不備が残る、2 ＝ 使い方の誤り・型崩れ。
 
-import { readFileSync, realpathSync } from "node:fs";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
-import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
+import { loadBaseline } from "./lib/baseline.mjs";
+import { isCliEntry } from "./lib/cli.mjs";
+import { field, filled, isObjectLike, isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 
 /** ツールのバージョン（このスクリプトで定義する）。判定の規則・出力の形を変えたら上げる。 */
 export const VERSION = "1";
@@ -51,54 +53,6 @@ export const OPERATION_SOURCES = [
   "current-source",
   "app-ui",
 ];
-
-/**
- * 空でない文字列か。
- * @param {unknown} value
- * @returns {value is string}
- */
-export function nonEmptyString(value) {
-  return typeof value === "string" && value.trim() !== "";
-}
-
-/**
- * 同梱テンプレートのプレースホルダ（`<...>` の形）か。テンプレートは利用者がそのまま提出しうる入力なので、
- * 空でないだけの値を「記入済み」と読むと、テンプレートからコピーしただけの承認・理由・識別子が判定を通る。
- * @param {unknown} value
- * @returns {boolean}
- */
-function isPlaceholder(value) {
-  return typeof value === "string" && /^<[\s\S]*>$/.test(value.trim());
-}
-
-/**
- * 人が記入すべき欄が記入済みか（空でなく、テンプレートのプレースホルダのままでもない）。
- * @param {unknown} value
- * @returns {value is string}
- */
-export function filled(value) {
-  return nonEmptyString(value) && !isPlaceholder(value);
-}
-
-/**
- * null でないオブジェクト（配列を含む）か。JSON 由来の値の欄を読む前の絞り込みに使う。
- * @param {unknown} value
- * @returns {value is Record<string, unknown>}
- */
-function isObject(value) {
-  return value !== null && typeof value === "object";
-}
-
-/**
- * `value && value[key]` と同じ値を返す（オブジェクトなら欄の値、偽の値ならその値、それ以外は undefined）。
- * @param {unknown} value
- * @param {string} key
- * @returns {unknown}
- */
-function field(value, key) {
-  if (isObject(value)) return value[key];
-  return value && undefined;
-}
 
 /**
  * ISO 8601 の日付・日時として読めるか（承認日時の検査。プレースホルダや自由記述を通さない）。
@@ -152,7 +106,7 @@ export function cellKey(operation, instance) {
  */
 export function canonical(value) {
   if (isArray(value)) return `[${value.map(canonical).join(",")}]`;
-  if (isObject(value)) {
+  if (isObjectLike(value)) {
     const keys = Object.keys(value).sort();
     return `{${keys.map((k) => `${JSON.stringify(k)}:${canonical(value[k])}`).join(",")}}`;
   }
@@ -168,7 +122,7 @@ export function canonical(value) {
  *   一致したときは、観測値をオブジェクトとして読める形で返す。
  */
 function observationShape(observed, expected) {
-  if (!isObject(observed) || isArray(observed)) {
+  if (!isPlainObject(observed)) {
     return { ok: false, missing: [...expected], extra: [] };
   }
   const keys = Object.keys(observed);
@@ -239,7 +193,7 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
   const capture = field(metadata, "capture");
   const operations = field(capture, "operations");
   // operations が配列なら metadata と capture はオブジェクトなので、絞り込みを足しても判定は変わらない。
-  if (!isObject(metadata) || !isObject(capture) || !isArray(operations)) {
+  if (!isObjectLike(metadata) || !isObjectLike(capture) || !isArray(operations)) {
     return structural("metadata.json の capture.operations が配列でない（操作の列挙が無い）");
   }
   if (operations.length === 0) {
@@ -305,8 +259,8 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
     if (!filled(id)) return structural("instances[].id が空かプレースホルダのまま");
     if (instanceIds.includes(id)) return structural(`instances[].id が重複: ${id}`);
     instanceIds.push(id);
-    // id が文字列なら inst はオブジェクトなので、isObject は型を絞るためだけにある（判定は変わらない）。
-    if (isObject(inst)) instanceRecords.push({ id, record: inst });
+    // id が文字列なら inst はオブジェクトなので、isObjectLike は型を絞るためだけにある（判定は変わらない）。
+    if (isObjectLike(inst)) instanceRecords.push({ id, record: inst });
   }
   if (!nonEmptyString(target)) return structural("--target が空");
   // 部品の照合を省ける形にしない——slug が無いと、別の部品の突き合わせ表がそのまま通る。
@@ -368,7 +322,7 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
     if (raw === null || raw === undefined) continue; // 欠落は下の未採取で数える
     // オブジェクトでない値の欄は undefined として読む（プロパティアクセスと同じ）。
     /** @type {Record<string, unknown>} */
-    const doc = isObject(raw) ? raw : {};
+    const doc = isObjectLike(raw) ? raw : {};
     if (doc.instance !== id) {
       findings.push({
         code: "behavior-baseline-instance-mismatch",
@@ -437,7 +391,7 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
   }
   // オブジェクトでない値の欄は undefined として読む（プロパティアクセスと同じ）。
   /** @type {Record<string, unknown>} */
-  const table = isObject(comparison) ? comparison : {};
+  const table = isObjectLike(comparison) ? comparison : {};
   if (table.target !== target) {
     findings.push({
       code: "comparison-target-mismatch",
@@ -574,61 +528,6 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
 }
 
 /**
- * パスの 1 セグメントとして安全か（`../` で baseline の外を読ませない）。
- * @param {unknown} value
- * @returns {value is string}
- */
-export function safeSegment(value) {
-  return (
-    typeof value === "string" &&
-    value !== "" &&
-    value !== "." &&
-    value !== ".." &&
-    !/[/\\\0]/.test(value)
-  );
-}
-
-/**
- * 部品の成果物ディレクトリから metadata.json と各インスタンスの behaviors.json を読む。
- * behaviors.json が無い・読めないインスタンスは null（未採取として判定側が数える）。
- * @param {string} dir
- * @returns {{ metadata: unknown, behaviors: Record<string, unknown> }} 中身の形は検査しない（compareBehaviors が検査する）。
- */
-export function loadBaseline(dir) {
-  const metadata = JSON.parse(readFileSync(join(dir, "metadata.json"), "utf8"));
-  /** @type {Record<string, unknown>} */
-  const behaviors = {};
-  const declared = field(metadata, "instances");
-  const instances = isArray(declared) ? declared : [];
-  const baselineRoot = resolve(dir, "baseline");
-  for (const inst of instances) {
-    const id = field(inst, "id");
-    if (!safeSegment(id)) {
-      throw new Error(`instances[].id がパスの 1 セグメントとして不正: ${JSON.stringify(id)}`);
-    }
-    const path = resolve(baselineRoot, id, "behaviors.json");
-    let realPath;
-    try {
-      realPath = realpathSync(path);
-    } catch {
-      behaviors[id] = null;
-      continue;
-    }
-    // 包含の判定は両辺を実パスに解決してから行う（リンク経由で外のファイルを読ませない）。
-    const rel = relative(realpathSync(baselineRoot), realPath);
-    if (rel === "" || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
-      throw new Error(`採取物のパスが baseline の外を指す: ${path} → ${realPath}`);
-    }
-    try {
-      behaviors[id] = JSON.parse(readFileSync(realPath, "utf8"));
-    } catch {
-      behaviors[id] = null;
-    }
-  }
-  return { metadata, behaviors };
-}
-
-/**
  * CLI 本体。
  * @param {string[]} argv
  * @param {{ cwd?: string, write?: (s: string) => void, writeErr?: (s: string) => void }} [io]
@@ -673,7 +572,7 @@ export function main(
   }
   let loaded;
   try {
-    loaded = loadBaseline(resolve(cwd, args["--baseline"]));
+    loaded = loadBaseline(resolve(cwd, args["--baseline"]), "behaviors.json");
   } catch (error) {
     return fail(`採取物を読めない: ${field(error, "message")}`);
   }
@@ -686,7 +585,7 @@ export function main(
   }
   const result = compareBehaviors({
     metadata: loaded.metadata,
-    behaviors: loaded.behaviors,
+    behaviors: loaded.byInstance,
     comparison,
     target: args["--target"],
   });
@@ -703,19 +602,7 @@ export function main(
   return result.findings.length === 0 ? 0 : 1;
 }
 
-// CLI エントリ判定は両辺を実パスに解決してから突き合わせる（シンボリックリンク経由の起動でサイレント no-op にしない）。
-const invokedAsCli = (() => {
-  const entry = process.argv[1];
-  if (!entry) return false;
-  const self = fileURLToPath(import.meta.url);
-  try {
-    return realpathSync(entry) === realpathSync(self);
-  } catch {
-    return entry === self;
-  }
-})();
-
-if (invokedAsCli) {
+if (isCliEntry(import.meta.url)) {
   // process.exit は書き込み中の stdout を捨てるため、終了コードだけ設定して自然終了させる。
   process.exitCode = main(process.argv.slice(2));
 }

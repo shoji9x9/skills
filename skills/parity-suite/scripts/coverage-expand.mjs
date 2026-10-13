@@ -23,10 +23,13 @@
 // TypeScript 構文は使わない（型は JSDoc）。
 
 import { createHash } from "node:crypto";
-import { readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isArray } from "./lib/is-array.mjs";
+import { isCliEntry } from "./lib/cli.mjs";
+import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
+import { canonicalize } from "./lib/json.mjs";
 
 /**
  * ツールのバージョン（原本）。展開規則・照合規則・出力形状を変えたら上げる。
@@ -64,24 +67,6 @@ const HUMAN_DECIDED_ROW_FIELDS = ["captured", "reason", "shared_capture_reason"]
 const ID_SEPARATOR = "/";
 
 /**
- * 空でない文字列か。
- * @param {unknown} v
- * @returns {boolean}
- */
-function nonEmptyString(v) {
-  return typeof v === "string" && v.trim() !== "";
-}
-
-/**
- * JSON オブジェクト（配列でない）か。配列は typeof で "object" を通るため明示的に弾く。
- * @param {unknown} v
- * @returns {v is Record<string, unknown>}
- */
-function isPlainObject(v) {
-  return Boolean(v) && typeof v === "object" && !isArray(v);
-}
-
-/**
  * 表の指紋。conformance を除いた内容をキー順に正規化して sha256 を取る。
  * 記録側（parity-suite の coverage-expand.mjs）と判定側（parity-diff の coverage-check.mjs）で
  * 同じ値になる必要がある。両者を突き合わせる往復テストは、配布元のリポジトリにある。
@@ -117,19 +102,6 @@ export function captureFingerprint(capture) {
       ),
     )
     .digest("hex");
-}
-
-/** @param {unknown} v @returns {unknown} */
-function canonicalize(v) {
-  if (isArray(v)) return v.map(canonicalize);
-  if (isPlainObject(v)) {
-    return Object.fromEntries(
-      Object.keys(v)
-        .sort()
-        .map((k) => [k, canonicalize(v[k])]),
-    );
-  }
-  return v;
 }
 
 // ===== absence-evidence-contract:start =====
@@ -2731,23 +2703,6 @@ export function main(argv, deps = {}) {
   return result.ok ? 0 : 1;
 }
 
-// CLI として起動されたかは、両辺を実パスに解決してから突き合わせて判定する。
-// process.argv[1] は起動時のパスのままである。--preserve-symlinks(-main) を付けると（NODE_OPTIONS 経由でも付く）、
-// import.meta.url もシンボリックリンクを解決しない。
-// 片側だけを解決すると、シンボリックリンク経由（.claude/skills/<name> → .agents/skills/<name>）の起動で条件が偽になる。
-// そのときは main() が呼ばれず、何も出力せずに exit 0 で終わる。
-const invokedAsCli = (() => {
-  const entry = process.argv[1];
-  if (!entry) return false;
-  const self = fileURLToPath(import.meta.url);
-  try {
-    return realpathSync(entry) === realpathSync(self);
-  } catch {
-    // 実パス解決に失敗したら生パスで突き合わせる（サイレント no-op より誤検出を選ぶ）。
-    return entry === self;
-  }
-})();
-
-if (invokedAsCli) {
+if (isCliEntry(import.meta.url)) {
   process.exit(main(process.argv.slice(2)));
 }

@@ -43,9 +43,10 @@
 //
 // 決定論的: 乱数・現在時刻・ネットワークに依存しない。TypeScript 構文は使わない（型は JSDoc）。
 
-import { readFileSync, realpathSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
 import { isArray } from "./lib/is-array.mjs";
+import { isCliEntry } from "./lib/cli.mjs";
+import { isObjectLike, isPlainObject } from "./lib/guards.mjs";
 
 /**
  * ツールのバージョン（このスクリプトで定義する）。優先順位の規則・出力の形・判定できないとする条件を変えたら上げる。
@@ -101,15 +102,6 @@ const CO_OCCURRING_STATES = {
 };
 
 class UsageError extends Error {}
-
-/**
- * null でないオブジェクト（配列を含む）か。JSON 由来の値の欄を読む前の絞り込みに使う。
- * @param {unknown} value
- * @returns {value is Record<string, unknown>}
- */
-function isObject(value) {
-  return value !== null && typeof value === "object";
-}
 
 /** 詳細度を機械的に決められないときに投げる。 */
 export class UndecidableSelector extends Error {}
@@ -504,7 +496,7 @@ function strongest(candidates) {
  *             results:CascadeResult[], counts:{resolved:number, undecidable:number, absent:number} }}
  */
 export function resolveCascade(document, options) {
-  if (!isObject(document) || isArray(document)) {
+  if (!isPlainObject(document)) {
     throw new UsageError("css-rules.json must be a JSON object");
   }
   if (!isArray(document.matched)) {
@@ -592,7 +584,7 @@ export function resolveCascade(document, options) {
   /** @type {Record<string, unknown>[]} */
   const rules = [];
   for (const [i, rule] of document.matched.entries()) {
-    if (!isObject(rule) || isArray(rule)) {
+    if (!isObjectLike(rule) || isArray(rule)) {
       throw new UsageError(
         `css-rules.json \`matched[${i}]\` is not an object; re-capture with the bundled css-rules-capture.mjs`,
       );
@@ -635,7 +627,7 @@ export function resolveCascade(document, options) {
     }
     for (let declIndex = 0; declIndex < declarations.length; declIndex += 1) {
       const decl = declarations[declIndex];
-      if (!isObject(decl) || typeof decl.property !== "string") continue;
+      if (!isObjectLike(decl) || typeof decl.property !== "string") continue;
       // `all` はプロパティ名の振り分けに入れない（どのプロパティにも当たりうるので別に持つ）。
       const wildcard = decl.property === "all";
       const entry = wildcard ? null : bucket(rule.pseudo_element ?? null, decl.property);
@@ -679,7 +671,7 @@ export function resolveCascade(document, options) {
 
   for (let i = 0; i < inline.length; i += 1) {
     const decl = inline[i];
-    if (!isObject(decl) || typeof decl.property !== "string") continue;
+    if (!isObjectLike(decl) || typeof decl.property !== "string") continue;
     /** @type {CascadeCandidate} */
     const candidate = {
       source: "inline",
@@ -1071,17 +1063,4 @@ export function main(argv) {
   }
 }
 
-// CLI エントリ判定は両辺を実パスに解決してから突き合わせる（シンボリックリンク経由の起動で
-// 条件が偽になり、何も出力せず exit 0 になるのを避ける）。
-const invokedAsCli = (() => {
-  const entry = process.argv[1];
-  if (!entry) return false;
-  const self = fileURLToPath(import.meta.url);
-  try {
-    return realpathSync(entry) === realpathSync(self);
-  } catch {
-    return entry === self;
-  }
-})();
-
-if (invokedAsCli) process.exitCode = main(process.argv.slice(2));
+if (isCliEntry(import.meta.url)) process.exitCode = main(process.argv.slice(2));

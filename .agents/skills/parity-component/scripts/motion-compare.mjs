@@ -36,12 +36,21 @@
 //
 // 終了コード: 0 ＝ 条件を満たす（判定しない場合を含む）、1 ＝ 未突合・不一致・記録の不備が残る、2 ＝ 使い方の誤り・型崩れ。
 
-import { readFileSync, realpathSync } from "node:fs";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
-import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 
-import { cellKey, filled, isoDateTime, nonEmptyString, safeSegment } from "./behavior-compare.mjs";
+import { cellKey, isoDateTime } from "./behavior-compare.mjs";
+import { loadBaseline } from "./lib/baseline.mjs";
+import { isCliEntry } from "./lib/cli.mjs";
+import {
+  field,
+  filled,
+  isFiniteNumber,
+  isObjectLike,
+  isPlainObject,
+  nonEmptyString,
+} from "./lib/guards.mjs";
 
 /** ツールのバージョン（このスクリプトで定義する）。判定の規則・許容差・出力の形を変えたら上げる。 */
 export const VERSION = "1";
@@ -146,26 +155,6 @@ export const TRAJECTORY_POINTS = 20;
 const TRAJECTORY_METRICS = ["dx", "dy", "dw", "dh", "opacity"];
 
 /**
- * null でないオブジェクト（配列を含む）か。JSON 由来の値の欄を読む前の絞り込みに使う。
- * @param {unknown} value
- * @returns {value is Record<string, unknown>}
- */
-function isObject(value) {
-  return value !== null && typeof value === "object";
-}
-
-/**
- * `value && value[key]` と同じ値を返す（オブジェクトなら欄の値、偽の値ならその値、それ以外は undefined）。
- * @param {unknown} value
- * @param {string} key
- * @returns {unknown}
- */
-function field(value, key) {
-  if (isObject(value)) return value[key];
-  return value && undefined;
-}
-
-/**
  * 2 つの標本が違うか（motion-probe.mjs のページ側の判定と同じ）。
  * @param {MotionSample} a
  * @param {MotionSample} b
@@ -191,7 +180,7 @@ function differs(a, b) {
  * @returns {{ ok: true, summary: MotionSummary } | { ok: false, reason: string }}
  */
 export function summarizeTimeline(timeline) {
-  if (!isObject(timeline) || isArray(timeline)) {
+  if (!isPlainObject(timeline)) {
     return { ok: false, reason: "時系列がオブジェクトでない" };
   }
   if (timeline.timed_out !== false) {
@@ -205,12 +194,6 @@ export function summarizeTimeline(timeline) {
     return { ok: false, reason: "samples が空" };
   }
   /**
-   * 有限の数か（Number.isFinite は数でない値に false を返すので、typeof は型を絞るためだけにある）。
-   * @param {unknown} v
-   * @returns {v is number}
-   */
-  const finite = (v) => typeof v === "number" && Number.isFinite(v);
-  /**
    * @param {string} key
    * @returns {{ ok: false, reason: string }}
    */
@@ -219,11 +202,11 @@ export function summarizeTimeline(timeline) {
   const checked = [];
   let previousT = -Infinity;
   for (const raw of samples) {
-    if (!isObject(raw) || typeof raw.present !== "boolean") {
+    if (!isObjectLike(raw) || typeof raw.present !== "boolean") {
       return { ok: false, reason: "標本の present が真偽値でない" };
     }
     const t = raw.t;
-    if (!finite(t) || t < previousT) {
+    if (!isFiniteNumber(t) || t < previousT) {
       return { ok: false, reason: "標本の t が有限の非減少列でない" };
     }
     previousT = t;
@@ -232,11 +215,11 @@ export function summarizeTimeline(timeline) {
       continue;
     }
     const { x, y, width, height, opacity } = raw;
-    if (!finite(x)) return notFinite("x");
-    if (!finite(y)) return notFinite("y");
-    if (!finite(width)) return notFinite("width");
-    if (!finite(height)) return notFinite("height");
-    if (!finite(opacity)) return notFinite("opacity");
+    if (!isFiniteNumber(x)) return notFinite("x");
+    if (!isFiniteNumber(y)) return notFinite("y");
+    if (!isFiniteNumber(width)) return notFinite("width");
+    if (!isFiniteNumber(height)) return notFinite("height");
+    if (!isFiniteNumber(opacity)) return notFinite("opacity");
     checked.push({ t, present: true, x, y, width, height, opacity });
   }
   const first = checked[0];
@@ -445,7 +428,7 @@ export function compareMotions({ metadata, motions, comparison, target }) {
   const capture = field(metadata, "capture");
   const declared = field(capture, "motions");
   // declared がオブジェクトなら metadata と capture もオブジェクトなので、絞り込みを足しても判定は変わらない。
-  if (!isObject(metadata) || !isObject(capture) || !isObject(declared) || isArray(declared)) {
+  if (!isObjectLike(metadata) || !isObjectLike(capture) || !isPlainObject(declared)) {
     return structural(
       "metadata.json の capture.motions が無い（動きが無いのか数えていないのか区別できない）",
     );
@@ -507,8 +490,8 @@ export function compareMotions({ metadata, motions, comparison, target }) {
     if (!filled(id)) return structural("instances[].id が空かプレースホルダのまま");
     if (instanceIds.includes(id)) return structural(`instances[].id が重複: ${id}`);
     instanceIds.push(id);
-    // id が文字列なら inst はオブジェクトなので、isObject は型を絞るためだけにある（判定は変わらない）。
-    if (isObject(inst)) instanceRecords.push({ id, record: inst });
+    // id が文字列なら inst はオブジェクトなので、isObjectLike は型を絞るためだけにある（判定は変わらない）。
+    if (isObjectLike(inst)) instanceRecords.push({ id, record: inst });
   }
   if (!nonEmptyString(target)) return structural("--target が空");
   if (!filled(metadata.slug)) return structural("metadata.json の slug が空かプレースホルダのまま");
@@ -574,7 +557,7 @@ export function compareMotions({ metadata, motions, comparison, target }) {
     if (raw === null || raw === undefined) continue;
     // オブジェクトでない値の欄は undefined として読む（プロパティアクセスと同じ）。
     /** @type {Record<string, unknown>} */
-    const doc = isObject(raw) ? raw : {};
+    const doc = isObjectLike(raw) ? raw : {};
     if (doc.instance !== id) {
       findings.push({
         code: "motion-baseline-instance-mismatch",
@@ -695,7 +678,7 @@ export function compareMotions({ metadata, motions, comparison, target }) {
   }
   // オブジェクトでない値の欄は undefined として読む（プロパティアクセスと同じ）。
   /** @type {Record<string, unknown>} */
-  const table = isObject(comparison) ? comparison : {};
+  const table = isObjectLike(comparison) ? comparison : {};
   if (table.target !== target) {
     findings.push({
       code: "comparison-target-mismatch",
@@ -834,45 +817,6 @@ export function compareMotions({ metadata, motions, comparison, target }) {
 }
 
 /**
- * 部品の成果物ディレクトリから metadata.json と各インスタンスの motions.json を読む。
- * motions.json が無い・読めないインスタンスは null（未採取として判定側が数える）。
- * @param {string} dir
- * @returns {{ metadata: unknown, motions: Record<string, unknown> }} 中身の形は検査しない（compareMotions が検査する）。
- */
-export function loadBaseline(dir) {
-  const metadata = JSON.parse(readFileSync(join(dir, "metadata.json"), "utf8"));
-  /** @type {Record<string, unknown>} */
-  const motions = {};
-  const declared = field(metadata, "instances");
-  const instances = isArray(declared) ? declared : [];
-  const baselineRoot = resolve(dir, "baseline");
-  for (const inst of instances) {
-    const id = field(inst, "id");
-    if (!safeSegment(id)) {
-      throw new Error(`instances[].id がパスの 1 セグメントとして不正: ${JSON.stringify(id)}`);
-    }
-    const path = resolve(baselineRoot, id, "motions.json");
-    let realPath;
-    try {
-      realPath = realpathSync(path);
-    } catch {
-      motions[id] = null;
-      continue;
-    }
-    const rel = relative(realpathSync(baselineRoot), realPath);
-    if (rel === "" || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
-      throw new Error(`採取物のパスが baseline の外を指す: ${path} → ${realPath}`);
-    }
-    try {
-      motions[id] = JSON.parse(readFileSync(realPath, "utf8"));
-    } catch {
-      motions[id] = null;
-    }
-  }
-  return { metadata, motions };
-}
-
-/**
  * CLI 本体。
  * @param {string[]} argv
  * @param {{ cwd?: string, write?: (s: string) => void, writeErr?: (s: string) => void }} [io]
@@ -915,7 +859,7 @@ export function main(
   }
   let loaded;
   try {
-    loaded = loadBaseline(resolve(cwd, args["--baseline"]));
+    loaded = loadBaseline(resolve(cwd, args["--baseline"]), "motions.json");
   } catch (error) {
     return fail(`採取物を読めない: ${field(error, "message")}`);
   }
@@ -927,7 +871,7 @@ export function main(
   }
   const result = compareMotions({
     metadata: loaded.metadata,
-    motions: loaded.motions,
+    motions: loaded.byInstance,
     comparison,
     target: args["--target"],
   });
@@ -944,18 +888,6 @@ export function main(
   return result.findings.length === 0 ? 0 : 1;
 }
 
-// CLI エントリ判定は両辺を実パスに解決してから突き合わせる（シンボリックリンク経由の起動でサイレント no-op にしない）。
-const invokedAsCli = (() => {
-  const entry = process.argv[1];
-  if (!entry) return false;
-  const self = fileURLToPath(import.meta.url);
-  try {
-    return realpathSync(entry) === realpathSync(self);
-  } catch {
-    return entry === self;
-  }
-})();
-
-if (invokedAsCli) {
+if (isCliEntry(import.meta.url)) {
   process.exitCode = main(process.argv.slice(2));
 }

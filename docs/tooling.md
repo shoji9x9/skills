@@ -254,6 +254,11 @@ import できない雛形（`skills/*/assets/*.template.ts`）とミューテー
 コピーとの一致は `check-identical-copies.ts` が確かめる。
 1 ファイルだけコピーして使うツールが単独で読み込めることは、`scripts/skills/_cross/vendored-tool-standalone.test.ts` が確かめる。
 
+`isArray` 以外の helper（型ガード・CLI の起動の判定など）も、配布スキルの中で複数のファイルが使うものは、そのスキルの `scripts/lib/` に 1 つだけ置いて import する。
+各ファイルに同じ helper を書くと、同じ名前で中身が食い違っても気付けない。中身が違うものは、意味ごとに名前を分ける（配列も通すものは `isObjectLike`）。
+スキルをまたいでは共通化しない。同じ内容であるべきコピーは、`isArray` と同じく `check-identical-copies.ts` の組に登録する。
+スキルの中の重複を検出するチェックは無いので、これは規約である（一致を確かめるのは、登録したコピーの組だけである）。
+
 配布スキルの `.mjs` では、型の検査を外す JSDoc の書き方を `scripts/gates/check-jsdoc-types.ts` が失敗にする。
 失敗にするのは、型の表明 `/** @type {X} */ (v)`（TypeScript の `as` と同じ）と、`@ts-ignore`・`@ts-expect-error`・`@ts-nocheck` である。
 JSDoc の型の `any`・`*`・`?`・`Function` と、型引数の無い `Object` も失敗にする。
