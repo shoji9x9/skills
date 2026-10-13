@@ -26,6 +26,7 @@
     "scripts/gates/code/lint-yaml.mutations.json": 0.9,
     "scripts/gates/tooling/run-on-sources.mutations.json": 0.7,
     "scripts/hooks/bash-command-guard.mutations.json": 1.7,
+    "scripts/hooks/response-language-check.mutations.json": 1,
     "scripts/lib/code-comments.mutations.json": 1.2,
     "scripts/lib/code-strings.mutations.json": 0.9,
     "scripts/lib/source-scope.mutations.json": 0.5,

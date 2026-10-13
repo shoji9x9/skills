@@ -139,6 +139,10 @@ Bash の実行前のチェック（PreToolUse）として、`scripts/hooks/bash-
 
 このチェックは、3 つのエージェントに設定してある（`.claude/settings.json`・`.codex/hooks.json`・`.github/hooks/kaizen-session.json`）。
 
+応答を確定する前のチェック（Claude Code の Stop）として、`scripts/hooks/response-language-check.ts` が、最後の応答が日本語で書かれているかを確かめる。
+コードブロック・インラインコード・引用・URL・ハーネスのタグの塊を除いた本文で、ラテン文字が 40 字以上あり、日本語の文字（ひらがな・カタカナ・漢字）の割合が 0.1 未満なら、exit 2 で書き直させる。
+`stop_hook_active` が true のとき（既に書き直させた後）は通し、node が無い環境では警告だけを出して通す。設定は Claude Code だけで、Codex と Copilot には入れていない。
+
 シークレットの走査は `gitleaks` で行う。pre-commit は staged の差分を（`gitleaks git --staged`）、CI はリポジトリ全体と全履歴を（`Secret scan` ジョブ、`fetch-depth: 0`）走査する。
 
 どのファイルにどのフォーマッタを当てるかは、`lefthook.yml` の glob と `package.json` の `format:*` で決める。「リントと整形」の表はその要約で、ツールが扱える範囲の上限ではない。
