@@ -12,3 +12,17 @@ skills:
     # （markdownlint-cli2 / oxlint / oxfmt は `.claude/**` を既に除外済み、
     #   check-skills-sync.ts / check-js-extensions.ts は固定の最上位ルートしか読まない）
     carry_in: manual # node_modules は worktree 内で `pnpm install --frozen-lockfile`、.env.local と .claude/settings.local.json は手でコピー
+  issue-batch:
+    merge_mode: auto # auto | agent。auto はリポジトリの allow_auto_merge: true が前提
+    merge_method: squash # squash | merge | rebase
+    max_local_review_iterations: 1
+    max_pr_iterations: 5
+    wait_ci_before_review: false
+    continue_on_blocked: true
+    deployment:
+      workflows:
+        - .github/workflows/release.yml # push main（paths: skills/**）
+        - .github/workflows/ci.yml # merge 後の main の検証（push main）
+      registration_timeout_minutes: 5
+      completion_timeout_minutes: 10
+      max_fix_iterations: 3
