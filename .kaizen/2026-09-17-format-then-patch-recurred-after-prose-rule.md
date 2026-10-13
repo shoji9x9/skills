@@ -2,8 +2,8 @@
 date: 2026-09-17
 type: doc
 priority: medium
-status: pending
-applied-to: []
+status: applied
+applied-to: [AGENTS.md, docs/agent-workflow.md]
 session: claude-code
 ---
 
