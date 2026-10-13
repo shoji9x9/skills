@@ -44,6 +44,7 @@ import { isCliEntry } from "./lib/cli.mjs";
 import {
   isInteger,
   isObjectLike,
+  isPlainObject,
   nonEmptyString,
   nonNegativeNumber,
   positiveNumber,
@@ -523,7 +524,7 @@ export function checkDisplayAxes(conditions) {
     return result();
   }
   const raw = conditions.display_axes;
-  if (!isObjectLike(raw) || isArray(raw)) {
+  if (!isPlainObject(raw)) {
     add("display-axes-malformed", "capture_conditions.display_axes がオブジェクトではない");
     return result();
   }
@@ -1060,7 +1061,7 @@ export function checkBrowser(conditions) {
  * @returns {{code:string, message:string}[]}
  */
 function checkBrowserOs(os) {
-  if (!isObjectLike(os) || isArray(os)) {
+  if (!isPlainObject(os)) {
     return [
       {
         code: "browser-os-missing",

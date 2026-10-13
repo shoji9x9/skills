@@ -4,8 +4,8 @@
 // シンボリックリンク（.claude/skills/<name> → .agents/skills/<name>）から起動したときに条件が偽になり、
 // main() が呼ばれず、何も出力せずに exit 0 で終わる。そのため、両辺を実パスに解決してから比べる。
 // このファイルは、同じ内容を複数の配布スキルが持つ。スキルの中で完結させるため、共有せずにコピーする。
-// 利用者のプロジェクトへ 1 ファイルだけコピーして使うスクリプト（`trait-compare.mjs` など）は import できないので、
-// 印（`// cli-entry-js:begin`〜`// cli-entry-js:end`）の間と同じ関数をファイルの中に持つ。
+// 利用者のプロジェクトへ 1 ファイルだけコピーして使うスクリプト（parity-suite の `trait-compare.mjs` など）は import できない。
+// そのため、印（`// cli-entry-js:begin`〜`// cli-entry-js:end`）の間と同じ関数をファイルの中に持つ。
 
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";

@@ -584,7 +584,7 @@ export function resolveCascade(document, options) {
   /** @type {Record<string, unknown>[]} */
   const rules = [];
   for (const [i, rule] of document.matched.entries()) {
-    if (!isObjectLike(rule) || isArray(rule)) {
+    if (!isPlainObject(rule)) {
       throw new UsageError(
         `css-rules.json \`matched[${i}]\` is not an object; re-capture with the bundled css-rules-capture.mjs`,
       );
