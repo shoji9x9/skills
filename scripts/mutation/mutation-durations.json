@@ -18,6 +18,7 @@
     "scripts/gates/prose/check-time-sensitive-prose.mutations.json": 0.8,
     "scripts/gates/prose/check-word-list.mutations.json": 0.8,
     "scripts/gates/tooling/formatter-scope.mutations.json": 1.1,
+    "scripts/gates/code/gates-layout.mutations.json": 0.6,
     "scripts/gates/code/lint-pagination.mutations.json": 1.5,
     "scripts/gates/prose/lint-prose.mutations.json": 4.5,
     "scripts/gates/tooling/lint-scope.mutations.json": 0.6,
