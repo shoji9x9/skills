@@ -132,6 +132,21 @@ test("空白の無い行コメントの中の Array.isArray は違反にしな�
   );
 });
 
+test("型ガードと同じ行の、関数の後ろの Array.isArray を外として数える", () => {
+  const text =
+    "// 日本語のコメント\nfunction isArray(value) { return value; } Array.isArray([]);\n";
+  expect(findOutsideGuard(text)).toEqual([
+    "2: 型ガード isArray の外で Array.isArray を使っている",
+    "2: 型ガード isArray の中の Array.isArray が 1 回だけでない（0 回）",
+  ]);
+});
+
+test("型ガードと同じ行の、関数の前の Array.isArray を外として数える", () => {
+  const text =
+    "// 日本語のコメント\nexport const a = Array.isArray([]); function isArray(value) { return Array.isArray(value); }\n";
+  expect(findOutsideGuard(text)).toEqual(["2: 型ガード isArray の外で Array.isArray を使っている"]);
+});
+
 test("型ガードの中の 2 回目の Array.isArray を違反にする", () => {
   const text = GUARD.join("\n").replace(
     "  return Array.isArray(value);",
@@ -229,6 +244,18 @@ test("一覧のファイルの作業ツリーと staged が食い違えば例外
   }
 });
 
+test("一覧のファイルが index に無ければ（未追跡・index から外した）例外にする", () => {
+  const root = makeRepo({ [HOLDERS_REGISTRY]: "export const A = 1;\n" });
+  try {
+    expect(() => assertRegistryStaged(root)).toThrow("index に無い");
+    git(root, "add", HOLDERS_REGISTRY);
+    git(root, "rm", "--cached", "-q", HOLDERS_REGISTRY);
+    expect(() => assertRegistryStaged(root)).toThrow("index に無い");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("一覧のファイルが無ければ違反にする", () => {
   const root = makeRepo({ "skills/demo/a.mjs": "export {};\n" });
   try {
@@ -242,10 +269,17 @@ test("一覧のファイルが無ければ違反にする", () => {
 
 // CLI は実物の IS_ARRAY_HOLDERS を読むので、一時リポジトリにも型ガードのファイルを置く。
 // 置かないと「一覧のファイルが無い」でも exit 1 になり、終了コードで指示の検出を確かめられない。
+// 一覧のファイル自身も index に置く（無いと exit 2 になる）。
 const HOLDER_FILES = Object.fromEntries(IS_ARRAY_HOLDERS.map((p) => [p, `${GUARD.join("\n")}\n`]));
 
+function makeCliRepo(files: Record<string, string>): string {
+  const root = makeRepo({ ...HOLDER_FILES, [HOLDERS_REGISTRY]: "export {};\n", ...files });
+  git(root, "add", HOLDERS_REGISTRY);
+  return root;
+}
+
 test("CLI: 違反が無ければ exit 0 にする", () => {
-  const root = makeRepo({ ...HOLDER_FILES, "skills/demo/scripts/a.mjs": "export {};\n" });
+  const root = makeCliRepo({ "skills/demo/scripts/a.mjs": "export {};\n" });
   try {
     const res = spawnSync(process.execPath, [script], { cwd: root, encoding: "utf8" });
     expect(res.stderr).toBe("");
@@ -256,10 +290,7 @@ test("CLI: 違反が無ければ exit 0 にする", () => {
 });
 
 test("CLI: 未追跡のファイルの指示を検出して exit 1 にする", () => {
-  const root = makeRepo({
-    ...HOLDER_FILES,
-    "skills/demo/scripts/a.mjs": "// eslint-disable-next-line\n",
-  });
+  const root = makeCliRepo({ "skills/demo/scripts/a.mjs": "// eslint-disable-next-line\n" });
   try {
     const res = spawnSync(process.execPath, [script], { cwd: root, encoding: "utf8" });
     expect(res.status).toBe(1);
@@ -270,7 +301,9 @@ test("CLI: 未追跡のファイルの指示を検出して exit 1 にする", (
 });
 
 test("CLI: skills/ の JavaScript・TypeScript が 0 件なら exit 2 にする", () => {
-  const root = makeRepo({ "skills/demo/SKILL.md": "# demo\n" });
+  // 型ガードのファイルも skills/ の下にあるので置かず、一覧のファイルだけを index に置く。
+  const root = makeRepo({ [HOLDERS_REGISTRY]: "export {};\n", "skills/demo/SKILL.md": "# demo\n" });
+  git(root, "add", HOLDERS_REGISTRY);
   try {
     const res = spawnSync(process.execPath, [script], { cwd: root, encoding: "utf8" });
     expect(res.status).toBe(2);

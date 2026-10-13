@@ -99,8 +99,11 @@ export function findDirectives(source: string, path = "a.ts"): string[] {
   return out;
 }
 
-/** 関数宣言 `isArray` の行の範囲（1 始まり）。1 つだけでなければ、その件数。 */
-function guardLines(source: string, path: string): { from: number; to: number } | number {
+/** 関数宣言 `isArray` の範囲（UTF-8 のバイト位置）と、始まりの行。1 つだけでなければ、その件数。 */
+function guardRange(
+  source: string,
+  path: string,
+): { start: number; end: number; line: number } | number {
   const kind = path.endsWith(".ts") ? ts.ScriptKind.TS : ts.ScriptKind.JS;
   const sf = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, kind);
   const guards: ts.FunctionDeclaration[] = [];
@@ -110,19 +113,26 @@ function guardLines(source: string, path: string): { from: number; to: number } 
   };
   visit(sf);
   if (guards.length !== 1) return guards.length;
-  return { from: lineOf(source, guards[0].getStart(sf)), to: lineOf(source, guards[0].getEnd()) };
+  // oxlint の診断の位置（offset）は UTF-8 のバイト位置なので、TypeScript の位置（UTF-16）を同じ単位に直す。
+  // 行で比べると、同じ行で関数の前後にある呼び出しを、関数の中と取り違える。
+  const bytes = (pos: number) => Buffer.byteLength(source.slice(0, pos), "utf8");
+  const start = guards[0].getStart(sf);
+  return { start: bytes(start), end: bytes(guards[0].getEnd()), line: lineOf(source, start) };
 }
+
+/** oxlint が検出した `Array.isArray` の位置（行は 1 始まり、offset は UTF-8 のバイト位置）。 */
+export type IsArrayUse = { line: number; offset: number };
 
 const REPO_DIR = join(dirname(fileURLToPath(import.meta.url)), "../../..");
 const RULE = "no-restricted-properties";
 
 /**
- * 組み込みの `Array.isArray` を使う行（1 始まり）を、ファイルごとに返す。
+ * 組み込みの `Array.isArray` を使う位置を、ファイルごとに返す。
  * 判定は、`oxlint.config.ts` と同じ禁止（IS_ARRAY_RESTRICTION）だけを有効にした oxlint に任せる。
  * 書き方（改行を挟んだ参照・`?.`・`["isArray"]`・分割代入・代入の分割）を自前で数えると、書き方の数だけ抜けが出るからである。
  * 中身は一時ディレクトリに書いて渡す（staged の中身を読むため）。oxlint が失敗したら例外にする。
  */
-export function isArrayUseLines(entries: readonly { path: string; source: string }[]): number[][] {
+export function isArrayUses(entries: readonly { path: string; source: string }[]): IsArrayUse[][] {
   const dir = mkdtempSync(join(tmpdir(), "skill-lint-directives-"));
   try {
     const config = join(dir, "oxlintrc.json");
@@ -146,37 +156,45 @@ export function isArrayUseLines(entries: readonly { path: string; source: string
     const parsed: unknown = JSON.parse(res.stdout);
     const diagnostics = isRecord(parsed) ? parsed.diagnostics : undefined;
     if (!isArray(diagnostics)) throw new Error("oxlint の出力に diagnostics が無い");
-    const lines = entries.map((): number[] => []);
+    const uses = entries.map((): IsArrayUse[] => []);
     for (const d of diagnostics) {
       if (!isRecord(d) || typeof d.code !== "string" || !d.code.endsWith(`(${RULE})`)) continue;
       const label = isArray(d.labels) ? d.labels[0] : undefined;
       const span = isRecord(label) ? label.span : undefined;
       const index = files.indexOf(typeof d.filename === "string" ? d.filename : "");
-      if (!isRecord(span) || typeof span.line !== "number" || index === -1) {
+      if (
+        !isRecord(span) ||
+        typeof span.line !== "number" ||
+        typeof span.offset !== "number" ||
+        index === -1
+      ) {
         throw new Error("oxlint の診断の形を読めない");
       }
-      lines[index].push(span.line);
+      uses[index].push({ line: span.line, offset: span.offset });
     }
-    return lines;
+    return uses;
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 }
 
 /** `isArray` を持つファイルの違反。組み込みの `Array.isArray` は、関数宣言 `isArray` の中で 1 回だけ使ってよい。 */
-export function guardViolations(source: string, path: string, uses: readonly number[]): string[] {
-  const guard = guardLines(source, path);
+export function guardViolations(
+  source: string,
+  path: string,
+  uses: readonly IsArrayUse[],
+): string[] {
+  const guard = guardRange(source, path);
   if (typeof guard === "number") return [`関数宣言 isArray が 1 つだけ無い（${guard} 件）`];
   const out: string[] = [];
-  const inside = uses.filter((line) => line >= guard.from && line <= guard.to);
-  for (const line of uses) {
-    if (line < guard.from || line > guard.to) {
-      out.push(`${line}: 型ガード isArray の外で Array.isArray を使っている`);
-    }
+  const within = (u: IsArrayUse) => u.offset >= guard.start && u.offset < guard.end;
+  for (const u of uses) {
+    if (!within(u)) out.push(`${u.line}: 型ガード isArray の外で Array.isArray を使っている`);
   }
-  if (inside.length !== 1) {
+  const inside = uses.filter(within).length;
+  if (inside !== 1) {
     out.push(
-      `${guard.from}: 型ガード isArray の中の Array.isArray が 1 回だけでない（${inside.length} 回）`,
+      `${guard.line}: 型ガード isArray の中の Array.isArray が 1 回だけでない（${inside} 回）`,
     );
   }
   return out;
@@ -184,7 +202,7 @@ export function guardViolations(source: string, path: string, uses: readonly num
 
 /** 1 ファイルの `guardViolations`（テスト用。oxlint を 1 回起動する）。 */
 export function findOutsideGuard(source: string, path = "a.ts"): string[] {
-  const [uses] = isArrayUseLines([{ path, source }]);
+  const [uses] = isArrayUses([{ path, source }]);
   return guardViolations(source, path, uses ?? []);
 }
 
@@ -257,7 +275,7 @@ export function findViolations(
       out.push(`${path}: scripts/lib/is-array-holders.ts に挙げたファイルが無い`);
     else present.push({ path, source });
   }
-  const uses = present.length ? isArrayUseLines(present) : [];
+  const uses = present.length ? isArrayUses(present) : [];
   present.forEach((e, i) => {
     for (const v of guardViolations(e.source, e.path, uses[i] ?? [])) out.push(`${e.path}:${v}`);
   });
@@ -276,11 +294,20 @@ function repoRoot(cwd: string): string {
 export const HOLDERS_REGISTRY = "scripts/lib/is-array-holders.ts";
 
 /**
- * 一覧のファイルが、作業ツリーと index で食い違っていれば例外にする。
+ * 一覧のファイルが index に無いか、作業ツリーと index で食い違っていれば例外にする。
  * このチェックは一覧を import する（作業ツリーの版）が、ファイルの中身は staged の版を読む。
  * 一部だけを stage すると、commit に入る一覧と、検査に使う一覧がずれる。
+ * index に無いと（未追跡・`git rm --cached`）、`git diff` は差を報告しないのに、commit の後は
+ * `oxlint.config.ts` の import 先が無くなる。
  */
 export function assertRegistryStaged(root: string): void {
+  const listed = spawnSync("git", ["ls-files", "--error-unmatch", "--", HOLDERS_REGISTRY], {
+    cwd: root,
+    encoding: "utf8",
+  });
+  if (listed.status !== 0) {
+    throw new Error(`${HOLDERS_REGISTRY} が index に無い。追加して stage してから実行する`);
+  }
   const res = spawnSync("git", ["diff", "--quiet", "--no-ext-diff", "--", HOLDERS_REGISTRY], {
     cwd: root,
     encoding: "utf8",
