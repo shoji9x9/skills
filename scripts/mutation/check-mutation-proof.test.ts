@@ -1440,6 +1440,17 @@ describe.concurrent("--shard", () => {
     );
   });
 
+  test("--list は、持ち主の死んだ残骸のロックでは知らせない", async () => {
+    const lock = join(lockDir, `stale-${++durationsSeq}.lock`);
+    writeFileSync(lock, `${DEAD_PID}\n`);
+    const res = await runRunner(specOf("A", 1), "--list", "--shard", "1/1", {
+      ...durations(),
+      MUTATION_PROOF_LOCK: lock,
+    });
+    expect(res.status, res.out).toBe(0);
+    expect(res.stderr).not.toContain("割り当てを計算している可能性がある");
+  });
+
   test("見積もりの無い宣言は default_seconds で見積もり、宣言を出力する", async () => {
     const [a, b] = [specOf("A", 1), specOf("B", 1)];
     const res = await runRunner(a, b, "--shard", "1/2", durations({ [a]: 1 }));

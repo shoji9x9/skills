@@ -447,12 +447,21 @@
       "id": "LIST-NO-WARNING",
       "why": "--list が、測定の実行中や中断の後でも知らせない（変異が入ったランナーで計算した割り当てを、警告なしに出す）",
       "file": "scripts/mutation/check-mutation-proof.ts",
-      "find": "  } else if (existsSync(lockPath) || existsSync(recoveryPath)) {",
+      "find": "  } else if (lockOwnerAlive() || existsSync(recoveryPath)) {",
       "replace": "  } else if (false) {",
       "occurrences": 1,
       "expect_failing": [
         "--shard --list はロックを取らない（測定の実行中でも割り当てを確かめられる）"
       ]
+    },
+    {
+      "id": "LIST-WARNS-STALE-LOCK",
+      "why": "--list が、持ち主の死んだ残骸のロックでも知らせる（前回が SIGKILL で終わると、毎回誤って知らせる）",
+      "file": "scripts/mutation/check-mutation-proof.ts",
+      "find": "  return Number.isInteger(pid) && pid > 0 && alive(pid);\n}\n\nfunction releaseLock() {",
+      "replace": "  return Number.isInteger(pid) && pid > 0;\n}\n\nfunction releaseLock() {",
+      "occurrences": 1,
+      "expect_failing": ["--shard --list は、持ち主の死んだ残骸のロックでは知らせない"]
     },
     {
       "id": "DURATIONS-ROOT-UNCHECKED",

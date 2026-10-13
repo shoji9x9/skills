@@ -268,6 +268,19 @@ function alive(pid: number): boolean {
   }
 }
 
+/** ロックの持ち主が生きているか（`--list` の知らせに使う。持ち主が死んだ残骸のロックでは知らせない）。 */
+function lockOwnerAlive(): boolean {
+  // 知らせるためだけに読むので、読めないロック（無い・権限が無い）は持ち主がいないものとして扱う。
+  let text: string;
+  try {
+    text = readFileSync(lockPath, "utf8");
+  } catch {
+    return false;
+  }
+  const pid = Number(text.trim());
+  return Number.isInteger(pid) && pid > 0 && alive(pid);
+}
+
 function releaseLock() {
   if (!lockHeld) return;
   lockHeld = false;
@@ -659,7 +672,8 @@ function loadDurations(): { defaultSeconds: number; seconds: Map<string, number>
  *
  * 宣言の所要時間は、テストファイルを 1 回実行する秒数 t の (変異の数 + 1) 倍と見積もる（基準 run を含む）。
  * 1 シャードの目安（全体の見積もり ÷ N）を超える宣言だけを、変異で分ける。分けた一部ごとに基準 run を測るので、
- * 一部の見積もり（一部の変異の数 + 1）× t が目安に収まる数に分ける。
+ * 一部の見積もり（一部の変異の数 + 1）× t が目安に収まる数に分ける。ただし、シャードの数より多くは分けない。
+ * 1 件ずつにしても一部は 2t になる。そのため t が目安の半分を超える宣言と、分ける数をシャードの数で抑えた宣言では、一部が目安を超えうる。
  * そのうえで、見積もりの大きい順に、その時点で見積もりの合計が最も小さいシャードへ割り当てる（同じなら番号の小さいほう）。
  * どのシャードも同じ入力から同じ割り当てを計算するので、N 本を合わせるとちょうど全件になる。
  */
@@ -1100,7 +1114,7 @@ function main() {
     takeLock();
     // 前回が中断されて変異が残っていれば、測る前に戻す（残った変異を基準 run が測らないため）。
     recoverFromInterrupted();
-  } else if (existsSync(lockPath) || existsSync(recoveryPath)) {
+  } else if (lockOwnerAlive() || existsSync(recoveryPath)) {
     console.error(
       `mutation-proof: 測定の実行中か、前回の中断の後である（${lockPath}）。変異が入ったままのファイル（このランナー自身を含む）で` +
         "割り当てを計算している可能性がある。測定の後か、別の worktree で確かめ直す",
