@@ -36,7 +36,8 @@ import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 import { collapse, fenceOf, splitRow } from "./lib/markdown.mjs";
 
 // 表の行・フェンス・空白の扱いは lib/markdown.mjs の helper を使う（コードフェンスの中は読まない・外側の `|` は省略可・`\|` はセル内の縦棒）。
-// HTML コメントの中の表も読まない点が、evidence-gap-check.mjs の parseTables と違う。
+// evidence-gap-check.mjs の parseTables とは 2 点が違う。HTML コメントの中の表を読まないことと、
+// `\|` をセル内の縦棒として読むこと（evidence-gap-check.mjs の splitRowRaw は列の区切りにする）である。
 
 /**
  * Markdown の表を全て取り出す（コードフェンスの中は例示なので読まない）。
