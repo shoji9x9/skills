@@ -1,0 +1,198 @@
+// 整形ツールが、引数でディレクトリを渡されても、割り当てた種類のファイルだけを書き換えるかの回帰テスト。
+//
+// 整形ツールは渡された範囲を自分の判断で整形する。markdownlint-cli2 --fix にディレクトリを渡すと .mjs・.png・.yml まで
+// 書き換え、oxfmt は .md・.css・.html・.toml も整形した（実測）。どう渡されたか（ディレクトリ・glob・コマンド置換）を
+// 呼び出し側で見分けるのではなく、ツールの設定で書き換える種類を閉じている。ここでは実物のツールに実際の設定を読ませ、
+// 割り当て外の種類が変わらないこと（と、割り当てた種類は変わること）を確かめる。
+//
+// fixture はリポジトリの外の一時ディレクトリに置き、設定をそこへコピーする（scripts/ の下に置くと、他のテストの走査に入る）。
+// リポジトリの外では mise の shim の node が版を決められないので、ツールの本体を process.execPath で起動する。
+import { expect, test } from "vitest";
+import { parseJsonAs } from "../../lib/parse-as.ts";
+import { spawnSync } from "node:child_process";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import yaml from "js-yaml";
+import { makeTempDir } from "../../lib/test-tmpdir.ts";
+import { loadYamlAs } from "../../lib/yaml-as.ts";
+import { removeField } from "../../lib/test-input.ts";
+import oxfmtConfig, { assigned } from "../../../oxfmt.config.ts";
+import { isArray } from "../../lib/is-array.ts";
+
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const req = createRequire(join(repoRoot, "package.json"));
+
+/** パッケージの bin の本体（node で起動するファイル）の絶対パス。 */
+function binOf(pkg: string, name: string) {
+  // markdownlint-cli2 は package.json を exports に出していないので、本体の main から package.json を探す。
+  let dir = dirname(req.resolve(pkg));
+  for (;;) {
+    const manifest = join(dir, "package.json");
+    if (existsSync(manifest)) {
+      const json = parseJsonAs<{ name?: string; bin: string | Record<string, string> }>(
+        readFileSync(manifest, "utf8"),
+      );
+      if (json.name === pkg) {
+        return join(dir, typeof json.bin === "string" ? json.bin : json.bin[name]);
+      }
+    }
+    if (dirname(dir) === dir) throw new Error(`${pkg} の package.json が見つからない`);
+    dir = dirname(dir);
+  }
+}
+
+// oxfmt に割り当てた種類（oxfmt.config.ts の許可リスト）。fixture をここから作るので、許可リストに種類を足すと、
+// その種類も実物の oxfmt で整形されることを確かめる対象に入る。
+// 行の形を正規表現で探さず、設定が書き出す値を読む（行が設定に無ければ、ここで失敗する）。
+const OXFMT_EXTS = (() => {
+  if (!oxfmtConfig.ignorePatterns.includes(`!**/*.{${assigned}}`)) {
+    throw new Error("oxfmt.config.ts の ignorePatterns に、許可リストの行が無い");
+  }
+  return assigned.split(",");
+})();
+
+// 割り当てた種類ごとの、oxfmt が整形すれば必ず変わる内容。無い種類があれば、fixture を作る前に失敗する。
+const OXFMT_BODY = {
+  script: "const x = 1  *  2\n",
+  json: '{"a":1,\n"b":   2}\n',
+  yaml: "a:   1\n",
+};
+/** 拡張子から内容の種類を導く（拡張子の一覧を assigned と別に持たない）。導けない種類は undefined。 */
+function kindOf(ext: string) {
+  if (/^[cm]?[jt]sx?$/.test(ext)) return "script";
+  if (ext === "json") return "json";
+  if (ext === "yml" || ext === "yaml") return "yaml";
+  return undefined;
+}
+const OXFMT_FILES = Object.fromEntries(
+  OXFMT_EXTS.map((ext) => {
+    const kind = kindOf(ext);
+    if (!kind)
+      throw new Error(
+        `許可リストの .${ext} に fixture の内容が無い（kindOf と OXFMT_BODY に足す）`,
+      );
+    return [`o.${ext}`, OXFMT_BODY[kind]];
+  }),
+);
+
+// どの種類も、そのツールが整形すれば必ず変わる内容にする。
+const FILES: Record<string, string> = {
+  "a.md": "#title\n\ntext   \n",
+  // 名前にドットを 2 つ以上含む Markdown も、markdownlint-cli2 の対象から外さない（`**/*.!(md)` だと外れた）。
+  "x.ja.md": "#title\n\ntext   \n",
+  "b.mjs": "export const x = 1  *  2\n",
+  "c.yml": "a:   1\n",
+  "e.json": '{"a":1,\n"b":   2}\n',
+  ...OXFMT_FILES,
+  "x.css": "a  {color:red}\n",
+  "x.toml": "a  =   1\n",
+  "x.html": "<div  ><p >x</p></div>\n",
+  "x.png": "#title\n",
+  // 名前にドットを含むディレクトリの中も、割り当てた種類なら整形する（`**/*.*` がディレクトリに当たらないこと）。
+  ".hidden/h.mjs": "export const y = 3  *  4\n",
+};
+
+function makeFixture() {
+  const root = makeTempDir("formatter-scope-");
+  for (const [rel, body] of Object.entries(FILES)) {
+    mkdirSync(dirname(join(root, "d", rel)), { recursive: true });
+    writeFileSync(join(root, "d", rel), body);
+  }
+  return root;
+}
+
+/** 書き換わったファイル（d/ からの相対パス）を並べて返す。 */
+function changed(root: string) {
+  return Object.keys(FILES)
+    .filter((rel) => readFileSync(join(root, "d", rel), "utf8") !== FILES[rel])
+    .sort();
+}
+
+// どのテストにも、ツールが動けば必ず書き換わるファイルを入れて、変わったファイルの集合で判定する。
+// 起動に失敗して何も変えずに終わった実行を、「書き換えなかった」として合格にしないため。
+// spawnSync は同期の呼び出しで vitest のタイムアウトが発火しないので、呼び出しごとにタイムアウトを付ける。
+function run(root: string, bin: string, args: string[]) {
+  const r = spawnSync(process.execPath, [bin, ...args], {
+    cwd: root,
+    encoding: "utf8",
+    timeout: 60_000,
+  });
+  if (r.error) throw r.error;
+  if (r.signal) throw new Error(`${bin} が ${r.signal} で終わった: ${r.stderr}`);
+  return r;
+}
+
+// ---- markdownlint-cli2 ----
+
+const MARKDOWNLINT = binOf("markdownlint-cli2", "markdownlint-cli2");
+
+// 設定の globs（`**/*.md`）は引数に足されるので、残すと引数に関わらず .md が整形され、
+// 引数で渡した範囲の扱いを測れない。ignores などは実際の設定のまま、globs だけを外す。
+function markdownlintFixture() {
+  const root = makeFixture();
+  const config = loadYamlAs<{ ignores?: unknown; globs?: unknown }>(
+    readFileSync(join(repoRoot, ".markdownlint-cli2.yaml"), "utf8"),
+  );
+  if (!isArray(config.ignores)) throw new Error(".markdownlint-cli2.yaml に ignores が無い");
+  removeField(config, "globs");
+  writeFileSync(join(root, ".markdownlint-cli2.yaml"), yaml.dump(config));
+  copyFileSync(join(repoRoot, ".markdownlint.yaml"), join(root, ".markdownlint.yaml"));
+  return root;
+}
+
+test.each([
+  ["ディレクトリ", ["--fix", "d/"], ["a.md", "x.ja.md"]],
+  ["glob", ["--fix", "d/**"], ["a.md", "x.ja.md"]],
+  // 渡さなかった a.md は変わらないこと（globs を外したので、整形されるのは引数の範囲だけ）も確かめる。
+  [
+    "Markdown と他の種類を並べたファイルの列挙",
+    ["--fix", "d/x.ja.md", "d/b.mjs", "d/x.png", "d/c.yml"],
+    ["x.ja.md"],
+  ],
+])(
+  "markdownlint-cli2 --fix に%sを渡しても、書き換えるのは渡した範囲の .md だけ",
+  (_name, args, expected) => {
+    const root = markdownlintFixture();
+    run(root, MARKDOWNLINT, args);
+    expect(changed(root)).toEqual(expected);
+  },
+);
+
+// ---- oxfmt ----
+
+const OXFMT = binOf("oxfmt", "oxfmt");
+
+function oxfmtFixture() {
+  const root = makeFixture();
+  // oxfmt.config.ts は import.meta.dirname を使うので、計算済みの設定を JSON にして置く。
+  writeFileSync(join(root, ".oxfmtrc.json"), JSON.stringify(oxfmtConfig));
+  return root;
+}
+
+const OXFMT_ASSIGNED = [
+  ".hidden/h.mjs",
+  "b.mjs",
+  "c.yml",
+  "e.json",
+  ...Object.keys(OXFMT_FILES),
+].sort();
+
+test.each([
+  ["ディレクトリ", ["d/"]],
+  ["カレントディレクトリ", ["."]],
+])(
+  "oxfmt に%sを渡しても、書き換えるのは割り当てた種類（JS・TS・JSON・YAML）だけ",
+  (_name, args) => {
+    const root = oxfmtFixture();
+    run(root, OXFMT, args);
+    expect(changed(root)).toEqual(OXFMT_ASSIGNED);
+  },
+);
+
+test("oxfmt に Markdown を直接渡しても書き換えない（並べた JS だけを書き換える）", () => {
+  const root = oxfmtFixture();
+  run(root, OXFMT, ["d/a.md", "d/x.ja.md", "d/x.css", "d/b.mjs"]);
+  expect(changed(root)).toEqual(["b.mjs"]);
+});

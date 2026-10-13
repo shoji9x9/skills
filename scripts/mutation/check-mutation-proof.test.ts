@@ -1561,11 +1561,11 @@ describe("本物の vitest を通す end-to-end", () => {
   test.concurrent("対象ファイルが変わった宣言だけを選ぶ", async () => {
     const res = await runRunner("--changed-since", "origin/main", "--only", "WL-DUP", {
       ...REAL,
-      MUTATION_PROOF_CHANGED_FILES: "scripts/gates/check-word-list.ts",
+      MUTATION_PROOF_CHANGED_FILES: "scripts/gates/prose/check-word-list.ts",
       // 語の一覧のチェックの宣言だけが選ばれる差分。`--only` で 1 変異に抑える（有界化の理由は `--changed-since` のテストの前のコメント）。
     });
     expect(res.status, res.out).toBe(0);
-    expect(res.out).toContain("測る: scripts/gates/check-word-list.mutations.json");
+    expect(res.out).toContain("測る: scripts/gates/prose/check-word-list.mutations.json");
     expect(res.out).toContain("飛ばす: scripts/mutation/check-mutation-proof.mutations.json");
     expect(res.out).toContain("PASS WL-DUP");
   }, 60_000);

@@ -2,7 +2,7 @@ import { configDefaults, defineConfig } from "vitest/config";
 
 // **リポジトリの tracked ファイルを書き換えて戻すテスト。** 兄弟テストと並べない。
 // `check-mutation-proof.test.ts` の差分選択テストはミューテーションテストの実行を含む。
-// その実行は tracked ファイル（`scripts/gates/check-word-list.ts`）を書き換えて戻す。
+// その実行は tracked ファイル（`scripts/gates/prose/check-word-list.ts`）を書き換えて戻す。
 // それを読む兄弟テスト（`check-word-list.test.ts` / `mutations-declaration.test.ts`）と並ぶと、
 // 変異中の中間状態を読んで**無関係に赤くなる**。
 // `MUTATION_PROOF_LOCK` は別のミューテーションテストを排除するだけで、兄弟テストには機能しない。

@@ -107,15 +107,15 @@ AI が書いた文章には、英語を直訳したような言い回し、日�
 
 ## 機械的なチェック
 
-規則 2・4・6・7・8 の一部は `scripts/gates/lint-prose.ts` が textlint でチェックする（pre-commit と CI）。
+規則 2・4・6・7・8 の一部は `scripts/gates/prose/lint-prose.ts` が textlint でチェックする（pre-commit と CI）。
 設定は `.textlintrc.json`、使わない語の一覧は `.textlint/words.json` に置く。
 Markdown に加えて、JavaScript・TypeScript・シェル・YAML のコメントもチェックする。
 コメントは日本語を含む段落だけを見て、文字列（利用者に表示するメッセージ）は見ない。メッセージは、書いた人とレビューする人が確かめる。
 
-- 書き換えがまだ済んでいないファイルは `scripts/gates/prose-lint-pending.json` に載っていて、指摘を数えない。
+- 書き換えがまだ済んでいないファイルは `scripts/gates/prose/prose-lint-pending.json` に載っていて、指摘を数えない。
   ファイルを書き換えて指摘が 0 件になったら、一覧から外す。
 - 語を一覧に足すときは、言い換え先を `message` に、検出されることを確かめる文を `example` に書く。
-  `scripts/gates/lint-prose.test.ts` が全エントリの `example` で検出されることを確かめる。
+  `scripts/gates/prose/lint-prose.test.ts` が全エントリの `example` で検出されることを確かめる。
 - 図の線のように字義どおりの意味で使う語は、その箇所だけ `<!-- textlint-disable -->` で除外する。
   コメントでは、`textlint-disable` と `textlint-enable` だけを書いたコメントの行で囲む。
 
@@ -124,4 +124,4 @@ Markdown に加えて、JavaScript・TypeScript・シェル・YAML のコメン�
 人への応答はファイルではないので、textlint ではチェックできない。
 代わりに、使わない語の一覧 `.textlint/word-list.md` を `AGENTS.md` から `@` で取り込み、Claude Code がセッション開始時に読み込むようにしている。
 `@` での取り込みは Claude Code だけが処理するので、他のエージェントには `AGENTS.md` の文で一覧を開くよう指示している。
-この一覧は `.textlint/words.json` の `term` と `instead` から `scripts/gates/check-word-list.ts --fix` で生成し、一致をチェックしている。
+この一覧は `.textlint/words.json` の `term` と `instead` から `scripts/gates/prose/check-word-list.ts --fix` で生成し、一致をチェックしている。

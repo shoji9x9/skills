@@ -12,7 +12,7 @@
 // リンク（`.claude/rules/`・`.claude/skills/` と、rule へのリンクの `.github/instructions/`）は、リンク先の実体を
 // lint するので除く。`.claude/` を丸ごと除かないのは、`.claude/settings.json` が実体だから。
 // lefthook と markdownlint-cli2 は設定ファイルにパターンを書くので、ここで計算した集合と一致するかを
-// `scripts/gates/lint-scope.test.ts` が確かめる。
+// `scripts/gates/tooling/lint-scope.test.ts` が確かめる。
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 

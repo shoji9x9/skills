@@ -26,7 +26,7 @@ applyTo: "AGENTS.md,CLAUDE.md,**/SKILL.md,skills/**/references/**/*.md,.agents/r
 
 文書を 4 つの階層に分け、置き場所と参照の向きを決める。どのファイルがどの階層かは次の表で決める。
 
-<!-- doc-tiers:begin（scripts/gates/doc-tiers.json から scripts/gates/check-doc-tiers.ts --fix で生成する。手で直さない） -->
+<!-- doc-tiers:begin（scripts/gates/docs/doc-tiers.json から scripts/gates/docs/check-doc-tiers.ts --fix で生成する。手で直さない） -->
 
 | Tier | 文書 | 置くもの |
 | --- | --- | --- |
@@ -51,7 +51,7 @@ applyTo: "AGENTS.md,CLAUDE.md,**/SKILL.md,skills/**/references/**/*.md,.agents/r
 - 作成日、「現状は」「当面」のように時間がたつと正しくなくなる記述を Tier 1〜3 に書かない。経過は Tier 4 に追記する。
 - 配布するスキル（`skills/`）は配布先で単独で動く。階層とは別の制約として、このリポジトリの他の文書を参照せず、必要なものは同梱する。
 
-参照の向き・リンクと節名の実在は `scripts/gates/check-doc-refs.ts`、時間がたつと正しくなくなる記述は `scripts/gates/check-time-sensitive-prose.ts` がチェックする。
+参照の向き・リンクと節名の実在は `scripts/gates/docs/check-doc-refs.ts`、時間がたつと正しくなくなる記述は `scripts/gates/prose/check-time-sensitive-prose.ts` がチェックする。
 
 ## 重複を原本への参照にまとめるとき
 

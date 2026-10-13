@@ -31,7 +31,7 @@
    文字数・バイト数・書式のように数えれば分かる規約は、その規約をチェックする実装をそのまま実行して確かめる。自分で近似のスクリプトを書かない。
    単位（バイト・文字・表示幅）はチェックする実装ごとに違うので、近似は誤検知と見逃しを出す。
    commit message は `pnpm exec commitlint --edit <file>`、Markdown は `pnpm exec markdownlint-cli2 <path>`、
-   `SKILL.md` の frontmatter は `node scripts/gates/check-skill-frontmatter.ts <path>` で確かめる。
+   `SKILL.md` の frontmatter は `node scripts/gates/packaging/check-skill-frontmatter.ts <path>` で確かめる。
 2. スキルの間でコピーしたファイルに、同じ修正を当てる。
    `evals/<name>/README.md` のようにスキルごとにコピーしたファイルは、直す文字列で `grep -rn <キーワード> skills/ evals/` を実行し、すべてのコピーに同じ修正を当てる。
 3. ルールに書いた規律を、チェックが実際に強制しているかを確かめる。
@@ -128,9 +128,9 @@ scripts/tools/reinstall-skill.sh <name>
 
 新しく作った eval と変えた eval には `reachability` を書く。
 各 assertion を引き出す prompt の文を、`{ "assertion": "<assertions に実在するテキスト>", "prompt_quote": "<prompt 内の部分文字列>" }` の形で並べる。
-`scripts/gates/check-eval-reachability.ts` が pre-commit と CI で次のものをエラーにする。
+`scripts/gates/packaging/check-eval-reachability.ts` が pre-commit と CI で次のものをエラーにする。
 対応する要素が無いもの、引用が空のもの、prompt に無い引用、assertions に無い assertion である。対応はテキストで付け、位置では付けない。
-既存の eval は `scripts/gates/eval-reachability-backlog.json` に載せて、順に適用している。
+既存の eval は `scripts/gates/packaging/eval-reachability-backlog.json` に載せて、順に適用している。
 この一覧の各項目は eval の指紋（prompt と assertions のハッシュ）を持つ。その eval を書き換えると一覧から外れたものとして扱われ、`reachability` が必要になる。
 そのため、触った eval から順に `reachability` が埋まる。新しい eval をこの一覧に足さない。
 

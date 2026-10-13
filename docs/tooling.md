@@ -29,11 +29,11 @@ mise の shim は、cwd の設定の階層からツールの版を決める。
 
 | 対象 | リント | 整形 | 補助のチェック |
 | --- | --- | --- | --- |
-| Markdown（`*.md`） | `markdownlint-cli2` | `markdownlint-cli2` | `scripts/gates/lint-pagination.ts` が shell のコードブロックの `gh api` のページネーションを、`scripts/gates/lint-prose.ts` が人が読む文章を textlint でチェックする |
-| JavaScript・TypeScript（`*.js`、`*.mjs`、`*.ts` など） | `oxlint` | `oxfmt` | `tsc`（`pnpm run typecheck`）が `.ts`・`.tsx` の型を検査する（下の「型の検査」）。`scripts/gates/lint-prose.ts` がコメントの文章を textlint で、文字列（テスト名・メッセージ）を使わない語の規則でチェックする |
-| JSON（`*.json`） | `jsonlint` | `oxfmt` | 重複したキーもチェックする。`scripts/gates/lint-prose.ts` が `evals/<name>/evals.json` の文字列を使わない語の規則でチェックする |
-| YAML（`*.yml`、`*.yaml`） | `js-yaml`（`scripts/gates/lint-yaml.ts` が API で 1 つのプロセスにまとめて読む） | `oxfmt` | `scripts/gates/lint-prose.ts` がコメントの文章を textlint でチェックする |
-| シェル（`*.sh`） | `shellcheck` | `shfmt` | `scripts/gates/lint-pagination.ts` が `gh api` のページネーションを、`scripts/gates/lint-prose.ts` がコメントの文章をチェックする |
+| Markdown（`*.md`） | `markdownlint-cli2` | `markdownlint-cli2` | `scripts/gates/code/lint-pagination.ts` が shell のコードブロックの `gh api` のページネーションを、`scripts/gates/prose/lint-prose.ts` が人が読む文章を textlint でチェックする |
+| JavaScript・TypeScript（`*.js`、`*.mjs`、`*.ts` など） | `oxlint` | `oxfmt` | `tsc`（`pnpm run typecheck`）が `.ts`・`.tsx` の型を検査する（下の「型の検査」）。`scripts/gates/prose/lint-prose.ts` がコメントの文章を textlint で、文字列（テスト名・メッセージ）を使わない語の規則でチェックする |
+| JSON（`*.json`） | `jsonlint` | `oxfmt` | 重複したキーもチェックする。`scripts/gates/prose/lint-prose.ts` が `evals/<name>/evals.json` の文字列を使わない語の規則でチェックする |
+| YAML（`*.yml`、`*.yaml`） | `js-yaml`（`scripts/gates/code/lint-yaml.ts` が API で 1 つのプロセスにまとめて読む） | `oxfmt` | `scripts/gates/prose/lint-prose.ts` がコメントの文章を textlint でチェックする |
+| シェル（`*.sh`） | `shellcheck` | `shfmt` | `scripts/gates/code/lint-pagination.ts` が `gh api` のページネーションを、`scripts/gates/prose/lint-prose.ts` がコメントの文章をチェックする |
 | GitHub Actions（`.github/workflows/*.{yml,yaml}`） | `actionlint` と `ghalint` | `oxfmt` | `pinact` が SHA の固定を確かめる |
 
 表のうち `shellcheck`・`shfmt`・`actionlint`・`pinact`・`ghalint`・`gitleaks` は、mise でインストールし（`mise.toml`）、コマンド名だけで起動する。
@@ -48,26 +48,26 @@ GitHub Actions は、`actionlint` で構文を、`ghalint` で `permissions`・`
 
 ファイルの種類に依らない横断のチェックは、pre-commit と CI の `Lint` ジョブで実行する。どのチェックも、対象が 0 件のときは成功にしない。
 
-| スクリプト（`scripts/gates/`） | チェックする内容 |
+| スクリプト（`scripts/gates/` からのパス） | チェックする内容 |
 | --- | --- |
-| `check-rule-symlinks.ts` | rule を各エージェントから読むためのシンボリックリンク |
-| `check-control-chars.ts` | テキストの拡張子のファイルに入った制御文字 |
-| `check-eval-reachability.ts` | eval の assertion と prompt の対応 |
-| `check-skills-sync.ts` | `skills/<name>/` とインストール済みのコピー `.agents/skills/<name>/` の一致 |
-| `check-js-extensions.ts` | JavaScript の拡張子（「JavaScript の拡張子」の節） |
-| `check-jsdoc-types.ts` | 配布スキルの `.mjs` で、型の検査を外す JSDoc の書き方（「JavaScript の拡張子」の節） |
-| `check-skill-frontmatter.ts` | `SKILL.md` の frontmatter |
-| `lint-pagination.ts` | `gh api` などの一覧の取得のページネーション |
-| `check-kaizen-refs.ts` | `.kaizen/` の学びへの参照の実在。意図して実在しないものは `scripts/gates/kaizen-refs-exemptions.json` に書く |
-| `check-identical-copies.ts` | 同じ内容であるべきコピー。組は `scripts/gates/identical-copies.json` に書く。`region` を持つ組は、印 `// <region>:begin` と `// <region>:end` の間だけを比べる |
-| `check-skill-checks.ts` | 配布スキルのチェック（`*-check.*`）の分類。利用者の pre-commit・CI に組み込むもの（`skills/<name>/checks.json`）か、組み込まないもの（理由を付けて `scripts/gates/skill-checks-unwired.json`）のどちらかにする |
-| `check-time-sensitive-prose.ts` | 日付・「現状は」「当面」を Tier 1〜3 の文書とコメントに書いていないか。変異の件数や全件の実測値は `mutation-proof.yml` だけに書く |
-| `check-doc-tiers.ts` | 文書の階層。原本は `scripts/gates/doc-tiers.json` で、`.agents/rules/doc-altitude.md` の表は `--fix` で生成する |
-| `check-doc-refs.ts` | リンクと節名の実在、参照の向き。節名は、パス（バッククォート・リンク・スキル名付き）の後に「」で書いたものを照合する。間に「の」や空白を挟んでもよく、節名でない語句を引用するときは名詞を挟む。導入先で生成するファイルは `scripts/gates/doc-refs.json`、保留は `scripts/gates/doc-pending.json` に書く |
-| `check-skill-index.ts` | スキルガイド・README とスキルの実体の対応 |
-| `lint-prose.ts` | 人が読む Markdown の文章と、JavaScript・TypeScript・シェル・YAML のコメントの文章。JavaScript・TypeScript の文字列と `evals/<name>/evals.json` の prompt・expected_output・assertions には、使わない語の規則だけを当てる（取り出し方は `scripts/lib/code-strings.ts`）。シェルのコメントは `shfmt --to-json` の構文木から取り出すので、shfmt（`mise.toml` で版を固定）が要る。書き換え前のファイルは `scripts/gates/prose-lint-pending.json` に書く |
-| `check-word-list.ts` | `.textlint/word-list.md` と `.textlint/words.json` の一致 |
-| `check-agents-md-size.ts` | `AGENTS.md` のサイズ。ブランチで 30 KiB を超えたら、24 KiB 以下まで縮めさせる。超えたかは履歴で判定し、上限は `scripts/gates/agents-md-size.json` に書く |
+| `packaging/check-rule-symlinks.ts` | rule を各エージェントから読むためのシンボリックリンク |
+| `code/check-control-chars.ts` | テキストの拡張子のファイルに入った制御文字 |
+| `packaging/check-eval-reachability.ts` | eval の assertion と prompt の対応 |
+| `packaging/check-skills-sync.ts` | `skills/<name>/` とインストール済みのコピー `.agents/skills/<name>/` の一致 |
+| `code/check-js-extensions.ts` | JavaScript の拡張子（「JavaScript の拡張子」の節） |
+| `code/check-jsdoc-types.ts` | 配布スキルの `.mjs` で、型の検査を外す JSDoc の書き方（「JavaScript の拡張子」の節） |
+| `packaging/check-skill-frontmatter.ts` | `SKILL.md` の frontmatter |
+| `code/lint-pagination.ts` | `gh api` などの一覧の取得のページネーション |
+| `docs/check-kaizen-refs.ts` | `.kaizen/` の学びへの参照の実在。意図して実在しないものは `scripts/gates/docs/kaizen-refs-exemptions.json` に書く |
+| `packaging/check-identical-copies.ts` | 同じ内容であるべきコピー。組は `scripts/gates/packaging/identical-copies.json` に書く。`region` を持つ組は、印 `// <region>:begin` と `// <region>:end` の間だけを比べる |
+| `packaging/check-skill-checks.ts` | 配布スキルのチェック（`*-check.*`）の分類。利用者の pre-commit・CI に組み込むもの（`skills/<name>/checks.json`）か、組み込まないもの（理由を付けて `scripts/gates/packaging/skill-checks-unwired.json`）のどちらかにする |
+| `prose/check-time-sensitive-prose.ts` | 日付・「現状は」「当面」を Tier 1〜3 の文書とコメントに書いていないか。変異の件数や全件の実測値は `mutation-proof.yml` だけに書く |
+| `docs/check-doc-tiers.ts` | 文書の階層。原本は `scripts/gates/docs/doc-tiers.json` で、`.agents/rules/doc-altitude.md` の表は `--fix` で生成する |
+| `docs/check-doc-refs.ts` | リンクと節名の実在、参照の向き。節名は、パス（バッククォート・リンク・スキル名付き）の後に「」で書いたものを照合する。間に「の」や空白を挟んでもよく、節名でない語句を引用するときは名詞を挟む。導入先で生成するファイルは `scripts/gates/docs/doc-refs.json`、保留は `scripts/gates/docs/doc-pending.json` に書く |
+| `packaging/check-skill-index.ts` | スキルガイド・README とスキルの実体の対応 |
+| `prose/lint-prose.ts` | 人が読む Markdown の文章と、JavaScript・TypeScript・シェル・YAML のコメントの文章。JavaScript・TypeScript の文字列と `evals/<name>/evals.json` の prompt・expected_output・assertions には、使わない語の規則だけを当てる（取り出し方は `scripts/lib/code-strings.ts`）。シェルのコメントは `shfmt --to-json` の構文木から取り出すので、shfmt（`mise.toml` で版を固定）が要る。書き換え前のファイルは `scripts/gates/prose/prose-lint-pending.json` に書く |
+| `prose/check-word-list.ts` | `.textlint/word-list.md` と `.textlint/words.json` の一致 |
+| `docs/check-agents-md-size.ts` | `AGENTS.md` のサイズ。ブランチで 30 KiB を超えたら、24 KiB 以下まで縮めさせる。超えたかは履歴で判定し、上限は `scripts/gates/docs/agents-md-size.json` に書く |
 
 ### ミューテーションテスト（CI だけで実行）
 
@@ -152,7 +152,8 @@ markdownlint-cli2 は `.mjs`・`.png`・`.yml` まで書き換えて構文エラ
 - `oxfmt`: `oxfmt.config.ts` の `ignorePatterns` を、lefthook の `oxfmt-*` のジョブと同じ種類（JS・TS・JSON・YAML）の許可リストにする。
   oxfmt は `.md`・`.css`・`.html`・`.toml` も整形するので、外す種類を挙げる形にはしない。
 
-どの渡し方でも割り当て外の種類が変わらないことは、`scripts/gates/formatter-scope.test.ts` が実物のツールで確かめ、許可リストと lefthook の一致は `scripts/gates/lint-scope.test.ts` が確かめる。
+どの渡し方でも割り当て外の種類が変わらないことは、`scripts/gates/tooling/formatter-scope.test.ts` が実物のツールで確かめる。
+許可リストと lefthook の一致は `scripts/gates/tooling/lint-scope.test.ts` が確かめる。
 Markdown の整形は `markdownlint-cli2 --fix` で行う。
 生成物は、生成スクリプト自身が出力ファイルを並べて整形する。手順書で人に oxfmt を当てさせない。
 
@@ -201,7 +202,7 @@ oxlint の `.ts` の設定は Node.js から起動することが前提なので
 `.ts` を読まないツールの設定は、元の形式のままにする。markdownlint-cli2 は `.mjs`・`.cjs`・JSON・YAML を、lefthook は YAML・JSON・TOML を読む。
 mise・pnpm・GitHub・各エージェントの設定は、形式をツールが決めている。
 
-`scripts/gates/check-js-extensions.ts` が、この規約を lefthook の pre-commit と CI（`Lint` ジョブ）でチェックする。
+`scripts/gates/code/check-js-extensions.ts` が、この規約を lefthook の pre-commit と CI（`Lint` ジョブ）でチェックする。
 失敗にするのは、次の拡張子である。走査するのは、追跡しているファイルと、`.gitignore` に当たらない未追跡のファイルである。
 
 - `skills/**`: `.js`・`.cjs`・`.mts`・`.cts`・`.tsx`・`.jsx`。`skills/<name>/assets/`（利用者のプロジェクトへ置く雛形）の外の `.ts` も失敗にする。
@@ -259,7 +260,7 @@ import できない雛形（`skills/*/assets/*.template.ts`）とミューテー
 スキルをまたいでは共通化しない。同じ内容であるべきコピーは、`isArray` と同じく `check-identical-copies.ts` の組に登録する。
 スキルの中の重複を検出するチェックは無いので、これは規約である（一致を確かめるのは、登録したコピーの組だけである）。
 
-配布スキルの `.mjs` では、型の検査を外す JSDoc の書き方を `scripts/gates/check-jsdoc-types.ts` が失敗にする。
+配布スキルの `.mjs` では、型の検査を外す JSDoc の書き方を `scripts/gates/code/check-jsdoc-types.ts` が失敗にする。
 失敗にするのは、型の表明 `/** @type {X} */ (v)`（TypeScript の `as` と同じ）と、`@ts-ignore`・`@ts-expect-error`・`@ts-nocheck` である。
 JSDoc の型の `any`・`*`・`?`・`Function` と、型引数の無い `Object` も失敗にする。
 型引数を省くとデフォルトの `any` が入る型（`Generator`・`Iterable`・`IteratorResult`・`ReadableStream` など）は、`any` が入らない数まで型引数を書かせる。

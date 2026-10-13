@@ -3,7 +3,7 @@ date: 2026-10-05
 type: hook
 priority: medium
 status: applied
-applied-to: [scripts/lib/source-scope.ts, scripts/gates/lint-scope.test.ts]
+applied-to: [scripts/lib/source-scope.ts, scripts/gates/tooling/lint-scope.test.ts]
 session: claude-code
 ---
 

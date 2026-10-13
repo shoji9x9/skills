@@ -43,7 +43,7 @@ const PASSING = [
   ["-f を使わない pkill は通す", "pkill chrome"],
   [
     "危険語を含まない通常のコマンドは通す",
-    "git status --short && node scripts/gates/check-rule-symlinks.ts",
+    "git status --short && node scripts/gates/packaging/check-rule-symlinks.ts",
   ],
   // 文字クラスによる回避は語頭とは限らない。位置で免除を決めると、ブロック時の指示に
   // 従った形（`[d]ump-dom` を含むパターン）が落ちる。
