@@ -429,7 +429,8 @@
       "occurrences": 1,
       "expect_failing": [
         "--shard --list は測る変異を出し、測らずに終わる",
-        "--shard --list はロックを取らない（測定の実行中でも割り当てを確かめられる）"
+        "--shard --list はロックを取らない（測定の実行中でも割り当てを確かめられる）",
+        "--shard --list は、前回の中断の復元情報が残っていれば知らせる"
       ]
     },
     {
@@ -440,7 +441,8 @@
       "replace": "  if (true) {\n    // 宣言の検証より先にロックを取る",
       "occurrences": 1,
       "expect_failing": [
-        "--shard --list はロックを取らない（測定の実行中でも割り当てを確かめられる）"
+        "--shard --list はロックを取らない（測定の実行中でも割り当てを確かめられる）",
+        "--shard --list は、前回の中断の復元情報が残っていれば知らせる"
       ]
     },
     {
@@ -451,7 +453,8 @@
       "replace": "  } else if (false) {",
       "occurrences": 1,
       "expect_failing": [
-        "--shard --list はロックを取らない（測定の実行中でも割り当てを確かめられる）"
+        "--shard --list はロックを取らない（測定の実行中でも割り当てを確かめられる）",
+        "--shard --list は、前回の中断の復元情報が残っていれば知らせる"
       ]
     },
     {
@@ -462,6 +465,15 @@
       "replace": "  return Number.isInteger(pid) && pid > 0;\n}\n\nfunction releaseLock() {",
       "occurrences": 1,
       "expect_failing": ["--shard --list は、持ち主の死んだ残骸のロックでは知らせない"]
+    },
+    {
+      "id": "LIST-IGNORES-RECOVERY",
+      "why": "--list が、前回の中断の復元情報が残っていても知らせない（変異が残ったままのランナーで計算した割り当てを、警告なしに出す）",
+      "file": "scripts/mutation/check-mutation-proof.ts",
+      "find": "  } else if (lockOwnerAlive() || existsSync(recoveryPath)) {",
+      "replace": "  } else if (lockOwnerAlive()) {",
+      "occurrences": 1,
+      "expect_failing": ["--shard --list は、前回の中断の復元情報が残っていれば知らせる"]
     },
     {
       "id": "DURATIONS-ROOT-UNCHECKED",

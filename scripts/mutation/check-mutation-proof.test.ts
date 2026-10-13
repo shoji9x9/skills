@@ -1440,6 +1440,20 @@ describe.concurrent("--shard", () => {
     );
   });
 
+  test("--list は、前回の中断の復元情報が残っていれば知らせる", async () => {
+    // ロックは無く、復元情報（`<ロック>.recovery.json`）だけが残った状態（SIGKILL の後など）。
+    const lock = join(lockDir, `recovery-only-${++durationsSeq}.lock`);
+    writeFileSync(`${lock}.recovery.json`, "{}");
+    const res = await runRunner(specOf("A", 1), "--list", "--shard", "1/1", {
+      ...durations(),
+      MUTATION_PROOF_LOCK: lock,
+    });
+    expect(res.status, res.out).toBe(0);
+    expect(res.stderr).toContain("割り当てを計算している可能性がある");
+    // --list は復元情報に触れない（書き戻しも消去もしない）。
+    expect(readFileSync(`${lock}.recovery.json`, "utf8")).toBe("{}");
+  });
+
   test("--list は、持ち主の死んだ残骸のロックでは知らせない", async () => {
     const lock = join(lockDir, `stale-${++durationsSeq}.lock`);
     writeFileSync(lock, `${DEAD_PID}\n`);
