@@ -2,54 +2,71 @@
 //
 // 状態空間の軸と、各セルに置いた入力:
 //
-// | 軸                   | 値                                                                              |
-// | -------------------- | ------------------------------------------------------------------------------- |
-// | 指示の種類           | oxlint-disable（-next-line・-line）/ eslint-disable / biome-ignore / @ts-expect-error / deno-lint-ignore / 対象外（textlint・shellcheck・markdownlint） |
-// | コメントの形         | `//` / `/*` / JSDoc の行頭の `*` / コードの後ろの `//`                          |
-// | コメント以外の出現   | 文章の途中の名前 / 文字列 / 正規表現                                             |
-// | 拡張子               | .mjs / .ts / .md（対象外）                                                       |
-// | isArray の印         | 1 組 / 無い / begin の重複 / 逆順                                                |
-// | Array.isArray の位置 | 印の間 / 印の外のコード / 印の外のコメント / 一覧のファイルが無い                  |
+// | 軸                       | 値                                                                          |
+// | ------------------------ | --------------------------------------------------------------------------- |
+// | 指示の種類               | oxlint-disable（-next-line・-line）/ eslint-disable / biome-ignore / @ts-expect-error / deno-lint-ignore / 対象外（textlint・shellcheck） |
+// | コメントの形             | `//` / `/*` / `/**` / JSDoc の 2 行目以降の `*` / コードの後ろの `//`（空白あり・なし） |
+// | コメント以外の出現       | 文章の途中の名前 / 文字列 / テンプレート / 正規表現（どれも `//` を含む形も）  |
+// | 拡張子                   | .mjs / .ts / .md（対象外）                                                   |
+// | Array.isArray の書き方   | `.isArray` / 改行を挟んだ `.isArray` / `?.isArray` / `["isArray"]` / 分割代入 / コメント・文字列の中（数えない） |
+// | Array.isArray の位置     | 型ガードの中の 1 回 / 型ガードの中の 2 回目 / 型ガードの外 / 文字列の `//` の後ろ |
+// | 型ガードの関数宣言       | 1 つ / 無い / 2 つ                                                           |
+// | 中身の出所               | 未追跡（作業ツリー）/ staged（作業ツリーから消した・作業ツリーで直した）/ どちらにも無い |
 import { expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  findDirectives,
-  findOutsideRegion,
-  findViolations,
-} from "./check-skill-lint-directives.ts";
+import { findDirectives, findOutsideGuard, findViolations } from "./check-skill-lint-directives.ts";
 import { IS_ARRAY_HOLDERS } from "../../lib/is-array-holders.ts";
 import { makeTempDir } from "../../lib/test-tmpdir.ts";
 
 const script = join(dirname(fileURLToPath(import.meta.url)), "check-skill-lint-directives.ts");
 
 test.each([
-  ["// oxlint-disable-next-line no-restricted-properties -- 理由", "oxlint-disable"],
-  ["  return x; // oxlint-disable-line no-console", "oxlint-disable"],
-  ["/* eslint-disable no-console */", "eslint-disable"],
-  ["/** eslint-disable-next-line */", "eslint-disable"],
-  [" * eslint-disable no-console", "eslint-disable"],
-  ["// biome-ignore lint/style: 理由", "biome-ignore"],
-  ["  // @ts-expect-error 型が合わない", "@ts-expect-error"],
-  ["// deno-lint-ignore no-explicit-any", "deno-lint-ignore"],
-])("抑止の指示 %s を違反にする", (line, directive) => {
-  expect(findDirectives(`const a = 1;\n${line}\n`)).toEqual([`2: ${directive}`]);
+  [
+    "// の -next-line",
+    "// oxlint-disable-next-line no-restricted-properties -- 理由",
+    "oxlint-disable",
+  ],
+  ["コードの後ろの //", "export const x = 1; // oxlint-disable-line no-console", "oxlint-disable"],
+  [
+    "空白の無いコードの後ろの //",
+    "export const x = 1;// oxlint-disable-line no-console",
+    "oxlint-disable",
+  ],
+  ["/* */", "/* eslint-disable no-console */", "eslint-disable"],
+  ["/** */", "/** eslint-disable-next-line */", "eslint-disable"],
+  ["JSDoc の行頭の *", "/**\n * eslint-disable no-console\n */", "eslint-disable"],
+  ["biome-ignore", "// biome-ignore lint/style: 理由", "biome-ignore"],
+  ["@ts-expect-error", "  // @ts-expect-error 型が合わない", "@ts-expect-error"],
+  ["deno-lint-ignore", "// deno-lint-ignore no-explicit-any", "deno-lint-ignore"],
+])("抑止の指示（%s）を違反にする", (_label, comment, directive) => {
+  const found = findDirectives(`export const a = 1;\n${comment}\n`);
+  expect(found).toHaveLength(1);
+  expect(found[0]).toMatch(new RegExp(`^\\d+: ${directive}$`));
+});
+
+test("JSDoc の 2 行目以降の指示は、その行の番号で報告する", () => {
+  expect(findDirectives("/**\n * 説明\n * eslint-disable no-console\n */\n")).toEqual([
+    "3: eslint-disable",
+  ]);
 });
 
 test.each([
   ["// textlint-disable"],
-  ["# shellcheck disable=SC2016"],
-  ["<!-- markdownlint-disable MD013 -->"],
+  ["# shellcheck disable=SC2016\n"],
   ["// ツールへの指示（eslint-disable・@ts-expect-error など）は除かない"],
   ['const s = "eslint-disable";'],
+  ['const s = "// eslint-disable";'],
+  ["const s = `/* oxlint-disable */`;"],
+  ["const re = /\\/\\/ eslint-disable/;"],
   ["const re = /^(eslint|oxlint-)/;"],
 ])("指示として読まれない %s は違反にしない", (line) => {
   expect(findDirectives(`${line}\n`)).toEqual([]);
 });
 
-const HOLDER = [
+const GUARD = [
   "// 説明に `Array.isArray` と書く",
   "/** `Array.isArray` より狭く絞る */",
   "// is-array-js:begin",
@@ -60,40 +77,58 @@ const HOLDER = [
   "  return Array.isArray(value);",
   "}",
   "// is-array-js:end",
-  "export const ok = isArray([]);",
+  'export const ok = [isArray([]), "Array.isArray(x)", "https://x"];',
 ];
 
-test("印の間の Array.isArray と、印の外のコメントは違反にしない", () => {
-  expect(findOutsideRegion(HOLDER.join("\n"))).toEqual([]);
+test("型ガードの中の 1 回と、コメント・文字列の中の名前は違反にしない", () => {
+  expect(findOutsideGuard(GUARD.join("\n"))).toEqual([]);
 });
 
-test("印の外のコードの Array.isArray を違反にする", () => {
-  const text = [...HOLDER, "export const ng = Array.isArray([]);"].join("\n");
-  expect(findOutsideRegion(text)).toEqual([
+test.each([
+  ["プロパティの参照", "export const ng = Array.isArray([]);"],
+  ["改行を挟んだ参照", "export const ng = Array\n  .isArray([]);"],
+  ["オプショナルチェーン", "export const ng = Array?.isArray([]);"],
+  ["要素の参照", 'export const ng = Array["isArray"]([]);'],
+  ["分割代入", "const { isArray: builtin } = Array;"],
+  ["文字列の // の後ろ", 'export const ng = ["https://x", Array.isArray([])];'],
+  ["空白の無い行コメントの前", "export const ng = Array.isArray([]);// 説明"],
+])("型ガードの外の Array.isArray（%s）を違反にする", (_label, line) => {
+  expect(findOutsideGuard([...GUARD, line].join("\n"))).toEqual([
     "12: 型ガード isArray の外で Array.isArray を使っている",
   ]);
 });
 
-test("文字列の中の // の後ろのコードの Array.isArray を違反にする", () => {
-  const text = [...HOLDER, 'export const ng = ["https://x", Array.isArray([])];'].join("\n");
-  expect(findOutsideRegion(text)).toEqual([
-    "12: 型ガード isArray の外で Array.isArray を使っている",
+test("空白の無い行コメントの中の Array.isArray は違反にしない", () => {
+  expect(findOutsideGuard([...GUARD, "export const x = 1;// Array.isArray(v)"].join("\n"))).toEqual(
+    [],
+  );
+});
+
+test("型ガードの中の 2 回目の Array.isArray を違反にする", () => {
+  const text = GUARD.join("\n").replace(
+    "  return Array.isArray(value);",
+    "  Array.isArray([]);\n  return Array.isArray(value);",
+  );
+  expect(findOutsideGuard(text)).toEqual([
+    "7: 型ガード isArray の中の Array.isArray が 1 回だけでない（2 回）",
   ]);
 });
 
 test.each([
-  ["印が無い", HOLDER.filter((l) => !l.includes("is-array-js:"))],
-  ["begin が重複する", ["// is-array:begin", ...HOLDER]],
-  ["逆順", ["// is-array-js:end", "// is-array-js:begin"]],
-])("印が 1 組だけ無い（%s）ものを違反にする", (_label, lines) => {
-  expect(findOutsideRegion(lines.join("\n"))).toEqual([
-    "印 `// is-array*:begin` と `// is-array*:end` が 1 組だけ、この順で無い",
-  ]);
+  ["無い", GUARD.join("\n").replace("function isArray(value)", "function other(value)"), 0],
+  ["2 つ", `${GUARD.join("\n")}\nfunction isArray(v) { return v; }`, 2],
+])("関数宣言 isArray が 1 つだけでない（%s）ものを違反にする", (_label, text, n) => {
+  expect(findOutsideGuard(text)).toEqual([`関数宣言 isArray が 1 つだけ無い（${n} 件）`]);
 });
+
+function git(root: string, ...args: string[]) {
+  const res = spawnSync("git", args, { cwd: root, encoding: "utf8" });
+  if (res.status !== 0) throw new Error(`git ${args.join(" ")}: ${res.stderr}`);
+}
 
 function makeRepo(files: Record<string, string>): string {
   const root = makeTempDir("skill-lint-directives-");
-  spawnSync("git", ["init", "-q"], { cwd: root });
+  git(root, "init", "-q");
   for (const [path, body] of Object.entries(files)) {
     mkdirSync(dirname(join(root, path)), { recursive: true });
     writeFileSync(join(root, path), body);
@@ -101,12 +136,13 @@ function makeRepo(files: Record<string, string>): string {
   return root;
 }
 
-test("配布スキルの .mjs と .ts の指示を検出し、.md と skills/ の外は見ない", () => {
+const NOTE = "（このリポジトリの設定を前提にした抑止。設定の overrides で外す）";
+
+test("配布スキルの .mjs と .ts の指示を検出し、.md は見ない", () => {
   const root = makeRepo({
     "skills/demo/scripts/a.mjs": "// oxlint-disable-next-line no-console\n",
     "skills/demo/assets/b.template.ts": "// @ts-expect-error x\n",
     "skills/demo/references/c.md": "// eslint-disable\n",
-    "scripts/d.ts": "// oxlint-disable-next-line no-console\n",
   });
   try {
     const files = [
@@ -115,9 +151,39 @@ test("配布スキルの .mjs と .ts の指示を検出し、.md と skills/ �
       "skills/demo/references/c.md",
     ];
     expect(findViolations(root, files, [])).toEqual([
-      "skills/demo/scripts/a.mjs:1: oxlint-disable（このリポジトリの設定を前提にした抑止。設定の overrides で外す）",
-      "skills/demo/assets/b.template.ts:1: @ts-expect-error（このリポジトリの設定を前提にした抑止。設定の overrides で外す）",
+      `skills/demo/scripts/a.mjs:1: oxlint-disable${NOTE}`,
+      `skills/demo/assets/b.template.ts:1: @ts-expect-error${NOTE}`,
     ]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("staged の中身を読む（作業ツリーから消したファイル・作業ツリーで直したファイル）", () => {
+  const root = makeRepo({
+    "skills/demo/scripts/gone.mjs": "// eslint-disable\n",
+    "skills/demo/scripts/fixed.mjs": "// eslint-disable\n",
+  });
+  try {
+    git(root, "add", "skills");
+    rmSync(join(root, "skills/demo/scripts/gone.mjs"));
+    writeFileSync(join(root, "skills/demo/scripts/fixed.mjs"), "export {};\n");
+    const files = ["skills/demo/scripts/fixed.mjs", "skills/demo/scripts/gone.mjs"];
+    expect(findViolations(root, files, [])).toEqual([
+      `skills/demo/scripts/fixed.mjs:1: eslint-disable${NOTE}`,
+      `skills/demo/scripts/gone.mjs:1: eslint-disable${NOTE}`,
+    ]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("index にも作業ツリーにも無い走査対象は、判定できないので例外にする", () => {
+  const root = makeRepo({ "skills/demo/a.mjs": "export {};\n" });
+  try {
+    expect(() => findViolations(root, ["skills/demo/missing.mjs"], [])).toThrow(
+      "index にも作業ツリーにも無い",
+    );
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -134,9 +200,9 @@ test("一覧のファイルが無ければ違反にする", () => {
   }
 });
 
-// CLI は実物の IS_ARRAY_HOLDERS を読むので、一時リポジトリにも印の付いたファイルを置く。
+// CLI は実物の IS_ARRAY_HOLDERS を読むので、一時リポジトリにも型ガードのファイルを置く。
 // 置かないと「一覧のファイルが無い」でも exit 1 になり、終了コードで指示の検出を確かめられない。
-const HOLDER_FILES = Object.fromEntries(IS_ARRAY_HOLDERS.map((p) => [p, `${HOLDER.join("\n")}\n`]));
+const HOLDER_FILES = Object.fromEntries(IS_ARRAY_HOLDERS.map((p) => [p, `${GUARD.join("\n")}\n`]));
 
 test("CLI: 違反が無ければ exit 0 にする", () => {
   const root = makeRepo({ ...HOLDER_FILES, "skills/demo/scripts/a.mjs": "export {};\n" });

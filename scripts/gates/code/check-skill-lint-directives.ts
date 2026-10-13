@@ -9,19 +9,27 @@
 // 判断の基準は `.agents/rules/distributed-skill-stack-independence.md` にある。
 //
 // 判定規則:
-// 1. `skills/**` の JavaScript・TypeScript で、コメントの先頭（`//`・`/*`・JSDoc の行頭の `*` の直後）に
+// 1. `skills/**` の JavaScript・TypeScript のコメントで、行頭（`//`・`/*`・JSDoc の行頭の `*` を除いた先頭）に
 //    使われない抑止を報告されうる指示（下の DIRECTIVES）があれば違反にする。
-//    文章の途中で名前を挙げるだけのコメントや、文字列・正規表現の中の名前は、指示として読まれないので対象にしない。
+//    コメントの範囲は TypeScript のパーサで決める（`scripts/lib/code-comments.ts` の jsCommentRanges）。
+//    文字列・テンプレート・正規表現の中の `//` や指示の名前は、コメントではないので対象にしない。
+//    文章の途中で名前を挙げるだけのコメントも、指示として読まれないので対象にしない。
 //    textlint・markdownlint・shellcheck の指示は、未使用でも報告されず、規則が無いプロジェクトでは何もしないので対象にしない。
 // 2. `oxlint.config.ts` は、`Array.isArray` の禁止をファイル単位で外す（一覧は `scripts/lib/is-array-holders.ts`）。
-//    そのファイルでは、印 `// is-array*:begin` と `// is-array*:end` の間（型ガード `isArray` の本体）の外の `Array.isArray` を違反にする。
-//    ファイル単位で外した分、関数の外の呼び出しを oxlint が検出しなくなるので、ここで検出する。
-//    一覧のファイルが無い・印が 1 組だけ無い（無い・重複・逆順）ものも違反にする。
-// 走査したファイルが 0 件・git が失敗したときは、判定できないので exit 2 にする。
+//    そのファイルでは、組み込みの `Array.isArray` を、関数宣言 `isArray` の中で 1 回だけ使うことを求める。
+//    使い方は構文木で数える（`Array.isArray`・`Array?.isArray`・`Array["isArray"]`・`const { isArray } = Array`。
+//    改行やコメントを挟んでも同じ）。ファイル単位で外した分、関数の外の呼び出しを oxlint が検出しなくなるので、ここで検出する。
+//    一覧のファイルが無い・関数宣言 `isArray` が 1 つだけ無いものも違反にする。
+// 読む中身: index にあるファイルは staged の blob、未追跡のファイルは作業ツリーから読む。
+// pre-commit では commit に入る中身を、CI では commit の中身（作業ツリーと同じ）を見る。作業ツリーから消して
+// stage したままのファイルも、index から読む。
+// 走査したファイルが 0 件・git が失敗した・中身を読めないときは、判定できないので exit 2 にする。
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import ts from "typescript";
+import { jsCommentRanges } from "../../lib/code-comments.ts";
 import { errorMessage } from "../../lib/errors.ts";
 import { IS_ARRAY_HOLDERS } from "../../lib/is-array-holders.ts";
 
@@ -36,53 +44,87 @@ const DIRECTIVES = [
   "deno-lint-ignore",
 ];
 
-const DIRECTIVE_RE = new RegExp(
-  String.raw`(?:\/\/|\/\*+|^\s*\*)\s*(${DIRECTIVES.map((d) => d.replace(/[-@]/g, (c) => `\\${c}`)).join("|")})`,
-);
-
-const REGION_RE = /^\s*\/\/ is-array[a-z0-9-]*:(begin|end)\s*$/;
-const BUILTIN_IS_ARRAY_RE = /\bArray\s*\.\s*isArray\b/;
-const LINE_COMMENT_RE = /(^|\s)\/\//;
+function lineOf(source: string, pos: number): number {
+  let line = 1;
+  for (let i = 0; i < pos; i++) if (source[i] === "\n") line++;
+  return line;
+}
 
 /** 1 ファイルの抑止コメントの違反（`行番号: 指示`）。 */
-export function findDirectives(text: string): string[] {
+export function findDirectives(source: string, path = "a.ts"): string[] {
   const out: string[] = [];
-  text.split("\n").forEach((line, i) => {
-    const m = DIRECTIVE_RE.exec(line);
-    if (m) out.push(`${i + 1}: ${m[1]}`);
-  });
+  for (const r of jsCommentRanges(source, path)) {
+    const raw = source.slice(r.pos, r.end);
+    const body =
+      r.kind === ts.SyntaxKind.SingleLineCommentTrivia
+        ? raw.replace(/^\/\//, "")
+        : raw.replace(/^\/\*+/, "").replace(/\*+\/$/, "");
+    const first = lineOf(source, r.pos);
+    body.split("\n").forEach((part, i) => {
+      const head = part.replace(/^\s*(?:\*+(?!\/))?\s*/, "");
+      const hit = DIRECTIVES.find((d) => head.startsWith(d));
+      if (hit) out.push(`${first + i}: ${hit}`);
+    });
+  }
   return out;
 }
 
-/** 行からコメントを除いた部分（行コメントと、JSDoc・ブロックコメントの行）。 */
-function codePart(line: string): string {
-  const trimmed = line.trimStart();
-  if (trimmed.startsWith("*") || trimmed.startsWith("/*")) return "";
-  // 行コメントの `//` は、行頭か空白の直後のものだけにする。文字列の中の URL（`"https://..."`）で切ると、
-  // その後ろのコードの `Array.isArray` を見逃す。
-  const m = LINE_COMMENT_RE.exec(line);
-  const idx = m ? m.index + m[1].length : -1;
-  return idx === -1 ? line : line.slice(0, idx);
+/** 組み込みの `Array.isArray` を読む式か（プロパティの参照・要素の参照・分割代入）。 */
+function isBuiltinIsArray(node: ts.Node): boolean {
+  const isArrayIdent = (e: ts.Expression) => ts.isIdentifier(e) && e.text === "Array";
+  if (ts.isPropertyAccessExpression(node)) {
+    return isArrayIdent(node.expression) && node.name.text === "isArray";
+  }
+  if (ts.isElementAccessExpression(node)) {
+    const arg = node.argumentExpression;
+    return (
+      isArrayIdent(node.expression) &&
+      (ts.isStringLiteral(arg) || ts.isNoSubstitutionTemplateLiteral(arg)) &&
+      arg.text === "isArray"
+    );
+  }
+  if (ts.isVariableDeclaration(node) && node.initializer && ts.isObjectBindingPattern(node.name)) {
+    return (
+      isArrayIdent(node.initializer) &&
+      node.name.elements.some((el) => (el.propertyName ?? el.name).getText() === "isArray")
+    );
+  }
+  return false;
 }
 
-/** `isArray` を持つファイルで、印の間の外にある `Array.isArray` の違反。印が 1 組だけ無ければ、その理由を返す。 */
-export function findOutsideRegion(text: string): string[] {
-  const lines = text.split("\n");
-  const marks = lines
-    .map((line, i) => ({ i, kind: REGION_RE.exec(line)?.[1] }))
-    .filter((m) => m.kind !== undefined);
-  const begin = marks.filter((m) => m.kind === "begin");
-  const end = marks.filter((m) => m.kind === "end");
-  if (begin.length !== 1 || end.length !== 1 || begin[0].i > end[0].i) {
-    return ["印 `// is-array*:begin` と `// is-array*:end` が 1 組だけ、この順で無い"];
+/** `isArray` を持つファイルの違反。組み込みの `Array.isArray` は、関数宣言 `isArray` の中で 1 回だけ使ってよい。 */
+export function findOutsideGuard(source: string, path = "a.ts"): string[] {
+  const kind = path.endsWith(".ts") ? ts.ScriptKind.TS : ts.ScriptKind.JS;
+  const sf = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, kind);
+  const guards: ts.FunctionDeclaration[] = [];
+  const uses: { node: ts.Node; inGuard: boolean }[] = [];
+  const visit = (node: ts.Node, inGuard: boolean) => {
+    let inside = inGuard;
+    if (ts.isFunctionDeclaration(node) && node.name?.text === "isArray") {
+      guards.push(node);
+      inside = true;
+    }
+    if (isBuiltinIsArray(node)) uses.push({ node, inGuard: inside });
+    ts.forEachChild(node, (child) => visit(child, inside));
+  };
+  visit(sf, false);
+  if (guards.length !== 1) {
+    return [`関数宣言 isArray が 1 つだけ無い（${guards.length} 件）`];
   }
   const out: string[] = [];
-  lines.forEach((line, i) => {
-    if (i > begin[0].i && i < end[0].i) return;
-    if (BUILTIN_IS_ARRAY_RE.test(codePart(line))) {
-      out.push(`${i + 1}: 型ガード isArray の外で Array.isArray を使っている`);
+  for (const u of uses) {
+    if (!u.inGuard) {
+      out.push(
+        `${lineOf(source, u.node.getStart(sf))}: 型ガード isArray の外で Array.isArray を使っている`,
+      );
     }
-  });
+  }
+  const inside = uses.filter((u) => u.inGuard).length;
+  if (inside !== 1) {
+    out.push(
+      `${lineOf(source, guards[0].getStart(sf))}: 型ガード isArray の中の Array.isArray が 1 回だけでない（${inside} 回）`,
+    );
+  }
   return out;
 }
 
@@ -99,6 +141,39 @@ export function listSkillFiles(root: string): string[] {
   return res.stdout.split("\0").filter((p) => p !== "");
 }
 
+/** index にあるファイルのパスと blob の id。 */
+function indexBlobs(root: string, paths: readonly string[]): Map<string, string> {
+  const res = spawnSync("git", ["ls-files", "-z", "--stage", "--", ...paths], {
+    cwd: root,
+    encoding: "utf8",
+  });
+  if (res.status !== 0) {
+    throw new Error(`git ls-files --stage に失敗した（exit ${res.status}）: ${res.stderr}`);
+  }
+  const map = new Map<string, string>();
+  for (const entry of res.stdout.split("\0")) {
+    const m = /^\d+ ([0-9a-f]+) \d+\t(.+)$/s.exec(entry);
+    if (m) map.set(m[2], m[1]);
+  }
+  return map;
+}
+
+/** ファイルの中身。index にあれば staged の blob、無ければ作業ツリーから読む。どちらにも無ければ null。 */
+function readSource(root: string, path: string, blobs: Map<string, string>): string | null {
+  const blob = blobs.get(path);
+  if (blob) {
+    const res = spawnSync("git", ["cat-file", "blob", blob], { cwd: root, encoding: "utf8" });
+    if (res.status !== 0) {
+      throw new Error(
+        `${path}: staged の中身を読めない（git cat-file exit ${res.status}）: ${res.stderr}`,
+      );
+    }
+    return res.stdout;
+  }
+  const abs = join(root, path);
+  return existsSync(abs) ? readFileSync(abs, "utf8") : null;
+}
+
 /** 違反の一覧（`パス:行番号: 内容`）。 */
 export function findViolations(
   root: string,
@@ -106,22 +181,22 @@ export function findViolations(
   holders: readonly string[],
 ): string[] {
   const out: string[] = [];
-  for (const path of skillFiles) {
-    if (!CODE_EXT_RE.test(path)) continue;
-    const abs = join(root, path);
-    // 作業ツリーに無いファイルは読めないので対象にしない（CI は commit の中身を作業ツリーとして読むので、そこで検出する）。
-    if (!existsSync(abs)) continue;
-    for (const v of findDirectives(readFileSync(abs, "utf8"))) {
+  const code = skillFiles.filter((p) => CODE_EXT_RE.test(p));
+  const blobs = indexBlobs(root, [...code, ...holders]);
+  for (const path of code) {
+    const source = readSource(root, path, blobs);
+    if (source === null) throw new Error(`${path}: index にも作業ツリーにも無い`);
+    for (const v of findDirectives(source, path)) {
       out.push(`${path}:${v}（このリポジトリの設定を前提にした抑止。設定の overrides で外す）`);
     }
   }
   for (const path of holders) {
-    const abs = join(root, path);
-    if (!existsSync(abs)) {
+    const source = readSource(root, path, blobs);
+    if (source === null) {
       out.push(`${path}: scripts/lib/is-array-holders.ts に挙げたファイルが無い`);
       continue;
     }
-    for (const v of findOutsideRegion(readFileSync(abs, "utf8"))) out.push(`${path}:${v}`);
+    for (const v of findOutsideGuard(source, path)) out.push(`${path}:${v}`);
   }
   return out;
 }

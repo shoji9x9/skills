@@ -5,7 +5,7 @@
 // 利用者のプロジェクトでは、このリポジトリの lint の設定を前提にしたコメントは何も抑えず、
 // 使われない disable を error にする設定では lint が失敗する（`.agents/rules/distributed-skill-stack-independence.md`）。
 // ファイル単位で外すと、関数の外の呼び出しも検出されなくなる。その分は
-// `scripts/gates/code/check-skill-lint-directives.ts` が、印 `// is-array*:begin` と `:end` の外の呼び出しとして検出する。
+// `scripts/gates/code/check-skill-lint-directives.ts` が、関数宣言 `isArray` の外の呼び出しと、中の 2 回目以降の呼び出しとして検出する。
 export const IS_ARRAY_HOLDERS = [
   "scripts/lib/is-array.ts",
   "scripts/mutation/check-mutation-proof.ts",
