@@ -181,6 +181,24 @@ function makeRepo(files: Record<string, string>): string {
 
 const NOTE = "（このリポジトリの設定を前提にした抑止。設定の overrides で外す）";
 
+test("配布スキルで禁じた拡張子（.jsx・.tsx・.js）は見ない（check-js-extensions が禁じる）", () => {
+  const root = makeRepo({
+    "skills/demo/assets/a.jsx": "export const a = <div>// eslint-disable</div>;\n",
+    "skills/demo/assets/b.tsx": "// eslint-disable\n",
+    "skills/demo/scripts/c.js": "// eslint-disable\n",
+  });
+  try {
+    const files = [
+      "skills/demo/assets/a.jsx",
+      "skills/demo/assets/b.tsx",
+      "skills/demo/scripts/c.js",
+    ];
+    expect(findViolations(root, files, [])).toEqual([]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("配布スキルの .mjs と .ts の指示を検出し、.md は見ない", () => {
   const root = makeRepo({
     "skills/demo/scripts/a.mjs": "// oxlint-disable-next-line no-console\n",

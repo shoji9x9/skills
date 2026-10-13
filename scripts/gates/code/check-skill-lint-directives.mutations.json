@@ -92,7 +92,10 @@
       "find": "skillFiles.filter((p) => CODE_EXT_RE.test(p))",
       "replace": "skillFiles.filter(() => true)",
       "occurrences": 1,
-      "expect_failing": ["配布スキルの .mjs と .ts の指示を検出し、.md は見ない"]
+      "expect_failing": [
+        "配布スキルで禁じた拡張子（.jsx・.tsx・.js）は見ない（check-js-extensions が禁じる）",
+        "配布スキルの .mjs と .ts の指示を検出し、.md は見ない"
+      ]
     },
     {
       "id": "GUARD-RANGE",

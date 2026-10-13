@@ -43,7 +43,10 @@ import { isRecord } from "../../lib/guards.ts";
 import { IS_ARRAY_HOLDERS, IS_ARRAY_RESTRICTION } from "../../lib/is-array-holders.ts";
 import { isArray } from "../../lib/is-array.ts";
 
-const CODE_EXT_RE = /\.(?:mjs|cjs|js|jsx|ts|mts|cts|tsx)$/i;
+// 配布スキルで置ける JavaScript・TypeScript の拡張子だけを走査する（`.mjs` と雛形の `.ts`）。
+// 他の拡張子（`.js`・`.jsx`・`.tsx`・`.mts` など）は `check-js-extensions.ts` が配布スキルで禁じているので、
+// ここで JSX などの文法を読み分ける必要は無い。
+const CODE_EXT_RE = /\.(?:mjs|ts)$/;
 
 /**
  * 使われない抑止を報告されうる指示と、ツールが受け付ける接尾辞。
