@@ -30,7 +30,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
-import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
+import { isFiniteNumber, isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 
 /**
  * ツールのバージョン（原本）。当てはめ・判定ロジック・出力形状を変えたら上げる。
@@ -56,20 +56,12 @@ const ROUNDING_SLACK = 1e-6;
 class UsageError extends Error {}
 
 /**
- * @param {unknown} v
- * @returns {v is number}
- */
-function finite(v) {
-  return typeof v === "number" && Number.isFinite(v);
-}
-
-/**
  * x / y / width / height がすべて有限数の矩形か。読むのは PROPERTIES の軸だけなので、値は数として扱う。
  * @param {unknown} v
  * @returns {v is Record<string, number>}
  */
 function isFiniteRect(v) {
-  return isPlainObject(v) && PROPERTIES.every((p) => finite(v[p]));
+  return isPlainObject(v) && PROPERTIES.every((p) => isFiniteNumber(v[p]));
 }
 
 /**
@@ -90,9 +82,9 @@ function isFitRecord(f) {
     typeof f.property === "string" &&
     PROPERTIES.includes(f.property) &&
     isPlainObject(f.ratio) &&
-    finite(f.ratio.width) &&
-    finite(f.ratio.height) &&
-    finite(f.offset)
+    isFiniteNumber(f.ratio.width) &&
+    isFiniteNumber(f.ratio.height) &&
+    isFiniteNumber(f.offset)
   );
 }
 
@@ -503,7 +495,7 @@ export function checkModel(metadata, loadSamples, loadCurrentSamplesText) {
       `dimension_model.tool_version が ${String(dm.tool_version)}（ツールは ${VERSION}）。parity-suite で現側を採り直す`,
     );
   }
-  if (!finite(dm.tolerance) || dm.tolerance < 0) {
+  if (!isFiniteNumber(dm.tolerance) || dm.tolerance < 0) {
     throw new UsageError("dimension_model.tolerance が 0 以上の数でない");
   }
   const windows = validateWindows(dm.measured_at, "dimension_model.measured_at");

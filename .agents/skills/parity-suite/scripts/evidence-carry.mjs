@@ -36,7 +36,7 @@ import { readdirSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { computeImpact, isChangeKind, validateChange } from "./component-impact.mjs";
 import { isArray } from "./lib/is-array.mjs";
-import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
+import { isFiniteNumber, isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 
 /**
  * ツールのバージョン（原本）。判定規則を変えたら上げる。
@@ -129,7 +129,7 @@ function rectKey(r) {
   if (!isPlainObject(r)) return null;
   const v = r;
   const nums = [v.x, v.y, v.width, v.height];
-  if (!nums.every((n) => typeof n === "number" && Number.isFinite(n))) return null;
+  if (!nums.every(isFiniteNumber)) return null;
   return nums.join(",");
 }
 

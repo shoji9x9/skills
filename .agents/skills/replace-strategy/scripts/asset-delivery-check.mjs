@@ -97,6 +97,7 @@ export function normalizeCell(value) {
 export function readAssetLedger(text) {
   const { tables, strayRows } = parseTables(text, {
     comments: "blank",
+    fenceEndsTable: true,
     normalizeHeader: normalizeCell,
   });
   const candidates = tables.filter(

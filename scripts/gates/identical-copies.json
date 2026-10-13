@@ -106,10 +106,13 @@
     {
       "files": [
         "skills/parity-suite/scripts/lib/guards.mjs",
-        "skills/parity-suite/scripts/header-normalize.mjs"
+        "skills/parity-suite/scripts/header-normalize.mjs",
+        "skills/parity-component/scripts/lib/guards.mjs",
+        "skills/parity-diff/scripts/lib/guards.mjs",
+        "skills/replace-strategy/scripts/lib/guards.mjs"
       ],
       "region": "non-empty-string-js",
-      "reason": "header-normalize.mjs は利用者のプロジェクトへ 1 ファイルだけコピーして使い、隣のファイルを import できないので、lib/guards.mjs の nonEmptyString と同じ関数を持つ。片方だけを直すと、同じ名前の型ガードがファイルごとに別の値を通す"
+      "reason": "header-normalize.mjs は利用者のプロジェクトへ 1 ファイルだけコピーして使い、隣のファイルを import できないので、lib/guards.mjs の nonEmptyString と同じ関数を持つ。片方だけを直すと、同じ名前の型ガードがファイルごとに別の値を通す。parity-component・parity-diff・replace-strategy の lib/guards.mjs も、同じ名前の型ガードの意味がスキル間でずれないように同じ関数を持つ"
     },
     {
       "files": [

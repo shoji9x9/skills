@@ -26,7 +26,7 @@ import { isArray } from "./lib/is-array.mjs";
 import { EVIDENCE_CARRY_FILE, judgeCarry } from "./evidence-carry.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { errorMessage } from "./lib/errors.mjs";
-import { isObjectLike, nonEmptyString, toIterationCount } from "./lib/guards.mjs";
+import { isObjectLike, isPlainObject, nonEmptyString, toIterationCount } from "./lib/guards.mjs";
 
 /**
  * ツールのバージョン（原本）。判定規則・出力形状を変えたら上げる。
@@ -183,10 +183,7 @@ export function checkComponentComparison(input) {
   // （`comparison-implementation-stale` は相手が渡されたときにしか機能しない）。
   const replaceMetadata = input.replaceMetadata;
   const replaceNew =
-    isObjectLike(replaceMetadata) &&
-    !isArray(replaceMetadata) &&
-    isObjectLike(replaceMetadata.new) &&
-    !isArray(replaceMetadata.new)
+    isPlainObject(replaceMetadata) && isPlainObject(replaceMetadata.new)
       ? replaceMetadata.new
       : null;
   // 食い違いの判定で judgeCarry に掛けうる「今の版」。--carry-to が同じ版なら二重に判定しない。
@@ -231,9 +228,7 @@ export function checkComponentComparison(input) {
             isObjectLike(observed) ? observed.iteration : undefined,
           );
           const loop =
-            isObjectLike(replaceMetadata) &&
-            isObjectLike(replaceMetadata.loop) &&
-            !isArray(replaceMetadata.loop)
+            isObjectLike(replaceMetadata) && isPlainObject(replaceMetadata.loop)
               ? replaceMetadata.loop
               : null;
           const wantedIteration = toIterationCount(loop === null ? undefined : loop.iterations);

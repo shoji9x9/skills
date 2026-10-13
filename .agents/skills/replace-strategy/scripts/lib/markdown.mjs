@@ -50,16 +50,24 @@ function splitRow(line) {
  * - `blank`: コメントを改行を保ったまま空白に置き換えてから読む（行の対応は変えない。閉じていないコメントは末尾まで）
  * - `skip-lines`: フェンスの外で `<!--` で始まる行から、`-->` を含む行までを読み飛ばす
  *
+ * fenceEndsTable が真なら、表の行の途中のフェンス行（`|` を含むものも）で表を終える。
+ * 偽（デフォルト）なら、表の行として読めない行（`|` を含まない行）でだけ終える。
+ *
  * 表に属さないのに `|` を含む行は、警告なしに捨てず、行番号・セル数・行頭の `|` の有無を strayRows に返す
  * （GFM は行頭・行末の `|` を省けるので、行頭の `|` だけでは表の行を見分けられない）。
  * @param {string} text
- * @param {{ comments?: "keep" | "blank" | "skip-lines", normalizeHeader?: (cell: string) => string, consumed?: Set<number> }} [options]
+ * @param {{ comments?: "keep" | "blank" | "skip-lines", fenceEndsTable?: boolean, normalizeHeader?: (cell: string) => string, consumed?: Set<number> }} [options]
  *   normalizeHeader は見出しのセルの正規化（デフォルトは collapse）。consumed を渡すと、表として読んだ行（見出し・区切り・行）の行番号（0 始まり）を入れる
  * @returns {{ tables: { headers: string[], rows: string[][], rowLines: number[] }[], strayRows: StrayRow[] }}
  *   rowLines は各行のファイル上の行番号（1 始まり。エラー文で行を指せるように）
  */
 function parseTables(text, options = {}) {
-  const { comments = "keep", normalizeHeader = collapse, consumed } = options;
+  const {
+    comments = "keep",
+    fenceEndsTable = false,
+    normalizeHeader = collapse,
+    consumed,
+  } = options;
   const source =
     comments === "blank"
       ? text.replace(/<!--[\s\S]*?(?:-->|$)/gu, (m) => m.replace(/[^\n]/gu, " "))
@@ -109,7 +117,7 @@ function parseTables(text, options = {}) {
     const rowLines = [];
     let j = i + 2;
     for (; j < lines.length; j += 1) {
-      if (fenceOf(lines[j]) !== null) break;
+      if (fenceEndsTable && fenceOf(lines[j]) !== null) break;
       const row = splitRow(lines[j]);
       if (row === null) break;
       rows.push(row);

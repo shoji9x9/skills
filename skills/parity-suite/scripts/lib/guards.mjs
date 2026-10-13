@@ -39,6 +39,15 @@ function nonEmptyString(v) {
 // non-empty-string-js:end
 
 /**
+ * 有限の数か（Number.isFinite は数でない値に false を返すので、typeof は型を絞るためだけにある）。
+ * @param {unknown} v
+ * @returns {v is number}
+ */
+function isFiniteNumber(v) {
+  return typeof v === "number" && Number.isFinite(v);
+}
+
+/**
  * 正の有限数か（寸法の実測値はここを通す）。
  * @param {unknown} value
  * @returns {value is number}
@@ -87,6 +96,7 @@ function isPlaceholder(value) {
 }
 
 export {
+  isFiniteNumber,
   isInteger,
   isObjectLike,
   isPlaceholder,
