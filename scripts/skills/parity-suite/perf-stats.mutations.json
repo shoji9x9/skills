@@ -674,7 +674,7 @@
       "id": "base-floors-invalid-accepted",
       "why": "集計済みの前の下限が読めなくても受け付ける",
       "file": "skills/parity-suite/scripts/perf-stats.mjs",
-      "find": "    if (typeof v !== \"number\" || !Number.isFinite(v) || v < 0) {",
+      "find": "    if (!nonNegativeNumber(v)) {",
       "replace": "    if (false) {",
       "occurrences": 1,
       "expect_failing": [

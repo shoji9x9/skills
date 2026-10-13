@@ -22,7 +22,7 @@ import { readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs";
 import { isAbsolute, resolve, sep } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
-import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
+import { isPlainObject, nonEmptyString, nonNegativeNumber } from "./lib/guards.mjs";
 
 /**
  * ツールのバージョン（原本）。判定規則・出力の形を変えたら上げる。
@@ -304,7 +304,7 @@ export function groupSamples(doc, expect) {
       const nullable = m === "lcp";
       if (v === null && nullable) {
         g.values[m].push(null);
-      } else if (typeof v === "number" && Number.isFinite(v) && v >= 0) {
+      } else if (nonNegativeNumber(v)) {
         g.values[m].push(v);
       } else {
         throw new UsageError(`samples[${i}] の ${m} が 0 以上の数でない: ${JSON.stringify(v)}`);
@@ -575,7 +575,7 @@ export function baseFloors(previous, key, defaults, overridden = []) {
   for (const m of METRICS) {
     const v = table[m];
     if (v === undefined || v === null || overridden.includes(m)) continue;
-    if (typeof v !== "number" || !Number.isFinite(v) || v < 0) {
+    if (!nonNegativeNumber(v)) {
       throw new UsageError(
         `前の ${label}.${m} が 0 以上の数でない（フラグでこの指標の値を渡せば上書きできる）`,
       );
@@ -779,7 +779,7 @@ export function compare(metadata, samplesDoc, opts) {
     if (!isPlainObject(table)) throw new TypeError(`performance.${key} の欄を読めない`);
     for (const m of METRICS) {
       const f = table[m];
-      if (typeof f !== "number" || !Number.isFinite(f) || f < 0) {
+      if (!nonNegativeNumber(f)) {
         throw new UsageError(`performance.${key}.${m} が 0 以上の数でない`);
       }
     }
@@ -865,9 +865,7 @@ export function compare(metadata, samplesDoc, opts) {
       // 値のある組は 0 以上の数、すべて null の組は null（summarizeValues が書く形）でなければ、基準として読まない
       const statsValid =
         cur.nulls < cur.n
-          ? [cur.median, cur.iqr].every(
-              (v) => typeof v === "number" && Number.isFinite(v) && v >= 0,
-            )
+          ? [cur.median, cur.iqr].every(nonNegativeNumber)
           : cur.median === null && cur.iqr === null;
       // statsValid が真なら median と iqr は数か null なので、後ろの 2 つの条件は判定を変えない
       if (!statsValid || !isNumberOrNull(cur.median) || !isNumberOrNull(cur.iqr)) {

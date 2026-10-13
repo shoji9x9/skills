@@ -1,5 +1,6 @@
 // このスキルの .mjs が共通に使う型ガードと、JSON 由来の値を読む helper。
 // 同じ helper を各ファイルが別々に持つと、同じ名前で中身が食い違っても気付けないので、ここに 1 つだけ置く。
+// isPlainObject は、印の間を他のスキルの lib/guards.mjs と一致させる（identical-copies の組で確かめる）。
 // 利用者のプロジェクトへ 1 ファイルだけコピーして使うスクリプト（`motion-probe.mjs`）は import できないので、ここを使わない。
 
 import { isArray } from "./is-array.mjs";
@@ -41,14 +42,16 @@ function isFiniteNumber(v) {
   return typeof v === "number" && Number.isFinite(v);
 }
 
+// is-plain-object-js:begin
 /**
- * JSON オブジェクト（null と配列を除く）か。`typeof [] === "object"` なので、配列を明示的に弾く。
+ * JSON オブジェクト（null と配列を除く）か。配列は typeof で "object" を通るため明示的に弾く。
  * @param {unknown} v
  * @returns {v is Record<string, unknown>}
  */
 function isPlainObject(v) {
   return typeof v === "object" && v !== null && !isArray(v);
 }
+// is-plain-object-js:end
 
 /**
  * null でないオブジェクト（配列を含む）か。JSON 由来の値の欄を読む前の絞り込みに使う。
@@ -85,13 +88,4 @@ function safeSegment(value) {
   );
 }
 
-export {
-  field,
-  filled,
-  isFiniteNumber,
-  isObjectLike,
-  isPlaceholder,
-  isPlainObject,
-  nonEmptyString,
-  safeSegment,
-};
+export { field, filled, isFiniteNumber, isObjectLike, isPlainObject, nonEmptyString, safeSegment };

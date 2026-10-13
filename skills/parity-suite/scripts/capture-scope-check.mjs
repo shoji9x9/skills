@@ -1245,7 +1245,7 @@ export function checkOverflow(conditions) {
       !isInteger(probe.step) ||
       probe.step <= 0 ||
       !isArray(probe.breakpoints) ||
-      !probe.breakpoints.every((v) => typeof v === "number" && Number.isFinite(v) && v > 0) ||
+      !probe.breakpoints.every(positiveNumber) ||
       !isInteger(probe.unreadable_stylesheets) ||
       probe.unreadable_stylesheets < 0
     ) {

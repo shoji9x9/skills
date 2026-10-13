@@ -54,7 +54,7 @@ export function cellKey(cell) {
   // **区切り文字を含む材料も鍵を作らない**——`("a|b","c","d")` と `("a","b|c","d")` は
   // どちらも `a|b|c|d` になり、別の操作の記録が別のセルの証拠として通る
   // （指紋も同じ潰れた鍵を数えるので一致してしまう）。
-  if (!parts.every((p) => typeof p === "string" && p.trim() !== "" && !p.includes(KEY_SEPARATOR))) {
+  if (!parts.every((p) => nonEmptyString(p) && !p.includes(KEY_SEPARATOR))) {
     return null;
   }
   return parts.map((p) => String(p)).join(KEY_SEPARATOR);

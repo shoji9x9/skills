@@ -26,7 +26,7 @@ import { readFileSync, renameSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
-import { isPlainObject } from "./lib/guards.mjs";
+import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 
 class UsageError extends Error {}
 
@@ -36,7 +36,7 @@ class UsageError extends Error {}
  * @returns {boolean}
  */
 function keyValue(v) {
-  return (typeof v === "string" && v.trim() !== "") || Number.isInteger(v);
+  return nonEmptyString(v) || Number.isInteger(v);
 }
 
 /** 表のキーとして辿ってはいけない名前（オブジェクトの継承プロパティに当たる）。 */

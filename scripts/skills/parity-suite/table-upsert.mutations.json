@@ -10,17 +10,17 @@
       "id": "key-integer",
       "why": "小数の鍵を受ける",
       "file": "skills/parity-suite/scripts/table-upsert.mjs",
-      "find": "  return (typeof v === \"string\" && v.trim() !== \"\") || Number.isInteger(v);\n",
-      "replace": "  return (typeof v === \"string\" && v.trim() !== \"\") || typeof v === \"number\";\n",
+      "find": "  return nonEmptyString(v) || Number.isInteger(v);\n",
+      "replace": "  return nonEmptyString(v) || typeof v === \"number\";\n",
       "occurrences": 1,
       "expect_failing": ["書き込まずに exit 2: 断片の鍵が小数"]
     },
     {
       "id": "key-blank",
       "why": "空白だけの鍵を受ける",
-      "file": "skills/parity-suite/scripts/table-upsert.mjs",
-      "find": "  return (typeof v === \"string\" && v.trim() !== \"\") || Number.isInteger(v);\n",
-      "replace": "  return (typeof v === \"string\" && v !== \"\") || Number.isInteger(v);\n",
+      "file": "skills/parity-suite/scripts/lib/guards.mjs",
+      "find": "  return typeof v === \"string\" && v.trim() !== \"\";\n",
+      "replace": "  return typeof v === \"string\" && v !== \"\";\n",
       "occurrences": 1,
       "expect_failing": ["書き込まずに exit 2: 断片の鍵が空文字"]
     },
