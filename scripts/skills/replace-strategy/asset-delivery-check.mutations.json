@@ -113,9 +113,9 @@
     {
       "id": "comment-strip-off",
       "why": "HTML コメント内の例示の表を本物の台帳として読む",
-      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "  const uncommented = text.replace(/<!--[\\s\\S]*?(?:-->|$)/gu, (m) => m.replace(/[^\\n]/gu, \" \"));\n",
-      "replace": "  const uncommented = text;\n",
+      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
+      "find": "    comments === \"blank\"\n",
+      "replace": "    false\n",
       "occurrences": 1,
       "expect_failing": ["台帳: HTML コメントとコードフェンスの中の表は台帳として読まない"]
     },

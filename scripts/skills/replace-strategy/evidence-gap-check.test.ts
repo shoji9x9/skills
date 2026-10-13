@@ -473,6 +473,22 @@ test("行頭・行末の | が無い表も読む（exit 3 の誤判定にしな�
   });
 });
 
+test("セル内の縦棒 `\\|` は列の区切りにしない（同じスキルの他のスクリプトと同じ読み方。列がずれて別の列を口として読まない）", () => {
+  withDir((dir) => {
+    const text = [
+      "## 機能一覧",
+      "",
+      "| slug | 機能名 | 新規実装 API | 要求単位の根拠 |",
+      "|---|---|---|---|",
+      "| plan | 計画\\|実績 | GET /api/plans | GET /api/plans → 実測: 起点の SELECT を読了（母集合=MST_PLAN） |",
+      "",
+    ].join("\n");
+    const r = run(dir, { "features.md": text }, ["--features", "features.md", "--slug", "plan"]);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain("実測 1");
+  });
+});
+
 test("API 列が空欄は未調査（exit 2）——明示の「なし」（exit 0）と分ける", () => {
   withDir((dir) => {
     const blank = features({ api: "", evidence: "" });

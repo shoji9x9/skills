@@ -33,57 +33,7 @@ import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { errorMessage } from "./lib/errors.mjs";
 import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
-import { collapse, fenceOf, splitRow } from "./lib/markdown.mjs";
-
-// 表の行・フェンス・空白の扱いは lib/markdown.mjs の helper を使う（コードフェンスの中は読まない・外側の `|` は省略可・`\|` はセル内の縦棒）。
-// evidence-gap-check.mjs の parseTables とは 2 点が違う。HTML コメントの中の表を読まないことと、
-// `\|` をセル内の縦棒として読むこと（evidence-gap-check.mjs の splitRowRaw は列の区切りにする）である。
-
-/**
- * Markdown の表を全て取り出す（コードフェンスの中は例示なので読まない）。
- * @param {string} text
- * @param {Set<number>} [consumed] 渡すと、表として読んだ行（見出し・区切り・行）の行番号を入れる
- * @returns {{ headers: string[], rows: string[][] }[]}
- */
-export function parseUncommentedTables(text, consumed) {
-  const lines = text.split(/\r?\n/u);
-  /** @type {{ headers: string[], rows: string[][] }[]} */
-  const tables = [];
-  let fence = null;
-  let comment = false;
-  for (let i = 0; i < lines.length; i += 1) {
-    // HTML コメントの中の表（コメントアウトした記入例・退役した表）は台帳ではない。読むと、生きた表の代わりに
-    // 変更を供給するか、同じ列名の表の重複と誤って判定される。countRowLikeLines と同じ規則で読み飛ばす。
-    if (fence === null && (comment || lines[i].trim().startsWith("<!--"))) {
-      comment = !lines[i].includes("-->");
-      continue;
-    }
-    const mark = fenceOf(lines[i]);
-    if (mark !== null) {
-      if (fence === null) fence = mark;
-      else if (mark[0] === fence[0] && mark.length >= fence.length) fence = null;
-      continue;
-    }
-    if (fence !== null) continue;
-    const header = splitRow(lines[i]);
-    if (header === null) continue;
-    const delimiter = splitRow(lines[i + 1]);
-    if (delimiter === null || !delimiter.every((cell) => /^:?-+:?$/u.test(cell.trim()))) continue;
-    if (delimiter.length !== header.length) continue;
-    /** @type {string[][]} */
-    const rows = [];
-    let j = i + 2;
-    for (; j < lines.length; j += 1) {
-      const row = splitRow(lines[j]);
-      if (row === null) break;
-      rows.push(row);
-    }
-    tables.push({ headers: header.map(collapse), rows });
-    if (consumed !== undefined) for (let k = i; k < j; k += 1) consumed.add(k);
-    i = j - 1;
-  }
-  return tables;
-}
+import { collapse, fenceOf, parseTables, splitRow } from "./lib/markdown.mjs";
 
 /**
  * ツールのバージョン（このファイルで定義する）。判定の規則や出力の形を変えたら上げる。
@@ -257,11 +207,11 @@ function looksLikeTableRow(line) {
 }
 
 /**
- * コードフェンスの外で表の行に見える行を数える（parseUncommentedTables が読んだ行と突き合わせるため）。
+ * コードフェンスの外で表の行に見える行を数える（parseTables が読んだ行と突き合わせるため）。
  * 読んだ行は件数の差し引きではなく行番号で除く。外側の `|` を省いた表の行は `|` で始まらないので、
  * 件数で差し引くと表の外の行を打ち消して、警告なしに通してしまう。
  * @param {string} text
- * @param {Set<number>} [consumed] parseUncommentedTables が表として読んだ行番号（数えない）
+ * @param {Set<number>} [consumed] parseTables が表として読んだ行番号（数えない）
  * @returns {number}
  */
 export function countRowLikeLines(text, consumed = new Set()) {
@@ -287,7 +237,7 @@ export function countRowLikeLines(text, consumed = new Set()) {
 }
 
 /**
- * HTML コメントの記号が、読み飛ばしの規則（parseUncommentedTables / countRowLikeLines）が扱える位置にだけあるかを確かめる。
+ * HTML コメントの記号が、読み飛ばしの規則（parseTables の skip-lines / countRowLikeLines）が扱える位置にだけあるかを確かめる。
  * 扱える形は「行頭の `<!--` で始まり行末の `-->` で終わる 1 行」「行頭の `<!--` だけの開始行 … 行末の `-->` で終わる終了行」の 2 つ。
  * それ以外（散文の後ろの `<!--`、行の途中の `-->`、1 行に複数の記号、閉じないコメント）は読める形を足さずに落とす。
  * 読み飛ばしの規則に合わない位置のコメントは、中の表を生きた表として読むか、以降の表を丸ごと読み飛ばす。
@@ -354,7 +304,7 @@ export function readProcedureLedger(text, skillChangeIds) {
   const errors = [];
   /** @type {Set<number>} */
   const consumed = new Set();
-  const tables = parseUncommentedTables(text, consumed);
+  const { tables } = parseTables(text, { comments: "skip-lines", consumed });
   const changeTable = findTable(tables, CHANGE_HEADERS);
   const recordTable = findTable(tables, RECORD_HEADERS);
   // 表の不在を「変更なし」「記録なし」と読まない。列名を書き換えた台帳も同じ（警告なしに 0 件になる）。

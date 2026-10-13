@@ -40,7 +40,7 @@ import { relative, resolve } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
-import { fenceOf, splitRow } from "./lib/markdown.mjs";
+import { parseTables } from "./lib/markdown.mjs";
 
 /** ツールのバージョン（このファイルで定義する）。判定の規則や出力の形を変えたら上げる。 */
 export const VERSION = "1";
@@ -86,68 +86,6 @@ export function normalizeCell(value) {
 }
 
 /**
- * Markdown の表を全て取り出す。HTML コメントとコードフェンスの中は台帳ではないので読まない
- * （テンプレートの説明コメント・例示の表を本物の行として読まない）。
- * @param {string} text
- * 各行のファイル上の行番号（1 始まり）を rowLines に持つ（エラー文で台帳の行を指せるように）。
- * @returns {{ tables: { headers: string[], rows: string[][], rowLines: number[] }[], strayRows: { line: number, cells: number, leadingPipe: boolean }[] }}
- */
-export function parseTablesWithStrayRows(text) {
-  // コメントは改行を保ったまま空白に置き換える（行の対応を変えない）。閉じていないコメントは末尾まで。
-  const uncommented = text.replace(/<!--[\s\S]*?(?:-->|$)/gu, (m) => m.replace(/[^\n]/gu, " "));
-  const lines = uncommented.split(/\r?\n/u);
-  /** @type {{ headers: string[], rows: string[][], rowLines: number[] }[]} */
-  const tables = [];
-  /**
-   * 表に属さないのに `|` を含む行（空行で本体が切れた後の行など）。警告なしに捨てず、行番号・セル数・行頭の `|` の有無を
-   * 呼び出し側へ返す（GFM は行頭・行末の `|` を省けるので、行頭の `|` だけでは表の行を見分けられない）。
-   */
-  /** @type {{ line: number, cells: number, leadingPipe: boolean }[]} */
-  const strayRows = [];
-  /** @type {string | null} */
-  let fence = null;
-  for (let i = 0; i < lines.length; i += 1) {
-    const mark = fenceOf(lines[i]);
-    if (mark !== null) {
-      if (fence === null) fence = mark;
-      else if (mark[0] === fence[0] && mark.length >= fence.length) fence = null;
-      continue;
-    }
-    if (fence !== null) continue;
-    const header = splitRow(lines[i]);
-    if (header === null) continue;
-    const delimiter = splitRow(lines[i + 1]);
-    if (
-      delimiter === null ||
-      !delimiter.every((cell) => /^:?-+:?$/u.test(cell.trim())) ||
-      delimiter.length !== header.length
-    ) {
-      strayRows.push({
-        line: i + 1,
-        cells: header.length,
-        leadingPipe: lines[i].trim().startsWith("|"),
-      });
-      continue;
-    }
-    /** @type {string[][]} */
-    const rows = [];
-    /** @type {number[]} */
-    const rowLines = [];
-    let j = i + 2;
-    for (; j < lines.length; j += 1) {
-      if (fenceOf(lines[j]) !== null) break;
-      const row = splitRow(lines[j]);
-      if (row === null) break;
-      rows.push(row);
-      rowLines.push(j + 1);
-    }
-    tables.push({ headers: header.map(normalizeCell), rows, rowLines });
-    i = j - 1;
-  }
-  return { tables, strayRows };
-}
-
-/**
  * @typedef {{ kind: string, line: number }} LedgerRow
  */
 
@@ -157,7 +95,10 @@ export function parseTablesWithStrayRows(text) {
  * @returns {{ copyRows: LedgerRow[], activeRows: number }}
  */
 export function readAssetLedger(text) {
-  const { tables, strayRows } = parseTablesWithStrayRows(text);
+  const { tables, strayRows } = parseTables(text, {
+    comments: "blank",
+    normalizeHeader: normalizeCell,
+  });
   const candidates = tables.filter(
     (t) => t.headers.includes("種類") && t.headers.includes("方針") && t.headers.includes("状態"),
   );
