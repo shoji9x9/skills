@@ -1,0 +1,146 @@
+{
+  "$comment": [
+    "check-skill-lint-directives.test.ts の検出能力を示す変異の一覧。",
+    "散文コメントで持つと古くなるため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。"
+  ],
+  "test_file": "scripts/gates/code/check-skill-lint-directives.test.ts",
+  "mutations": [
+    {
+      "id": "DIRECTIVE-ESLINT",
+      "why": "eslint-disable を指示の一覧から外す",
+      "file": "scripts/gates/code/check-skill-lint-directives.ts",
+      "find": "  \"eslint-disable\",\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "抑止の指示 /* eslint-disable no-console */ を違反にする",
+        "抑止の指示 /** eslint-disable-next-line */ を違反にする",
+        "抑止の指示  * eslint-disable no-console を違反にする",
+        "CLI: 未追跡のファイルの指示を検出して exit 1 にする"
+      ]
+    },
+    {
+      "id": "DIRECTIVE-JSDOC-LINE",
+      "why": "JSDoc の行頭の * の直後を、コメントの先頭として扱わない",
+      "file": "scripts/gates/code/check-skill-lint-directives.ts",
+      "find": "|^\\s*\\*)",
+      "replace": ")",
+      "occurrences": 1,
+      "expect_failing": ["抑止の指示  * eslint-disable no-console を違反にする"]
+    },
+    {
+      "id": "EXT-FILTER",
+      "why": "JavaScript・TypeScript 以外の拡張子も走査する",
+      "file": "scripts/gates/code/check-skill-lint-directives.ts",
+      "find": "if (!CODE_EXT_RE.test(path)) continue;",
+      "replace": "if (false) continue;",
+      "occurrences": 1,
+      "expect_failing": ["配布スキルの .mjs と .ts の指示を検出し、.md と skills/ の外は見ない"]
+    },
+    {
+      "id": "REGION-SKIP",
+      "why": "印の外の行も、印の間として読み飛ばす",
+      "file": "scripts/gates/code/check-skill-lint-directives.ts",
+      "find": "if (i > begin[0].i && i < end[0].i) return;",
+      "replace": "if (true) return;",
+      "occurrences": 1,
+      "expect_failing": [
+        "印の外のコードの Array.isArray を違反にする",
+        "文字列の中の // の後ろのコードの Array.isArray を違反にする"
+      ]
+    },
+    {
+      "id": "STRIP-BLOCK-COMMENT",
+      "why": "JSDoc・ブロックコメントの行をコードとして読む",
+      "file": "scripts/gates/code/check-skill-lint-directives.ts",
+      "find": "if (trimmed.startsWith(\"*\") || trimmed.startsWith(\"/*\")) return \"\";",
+      "replace": "if (false) return \"\";",
+      "occurrences": 1,
+      "expect_failing": [
+        "印の間の Array.isArray と、印の外のコメントは違反にしない",
+        "印の外のコードの Array.isArray を違反にする",
+        "文字列の中の // の後ろのコードの Array.isArray を違反にする",
+        "CLI: 違反が無ければ exit 0 にする"
+      ]
+    },
+    {
+      "id": "STRIP-LINE-COMMENT",
+      "why": "行コメントをコードとして読む",
+      "file": "scripts/gates/code/check-skill-lint-directives.ts",
+      "find": "return idx === -1 ? line : line.slice(0, idx);",
+      "replace": "return line;",
+      "occurrences": 1,
+      "expect_failing": [
+        "印の間の Array.isArray と、印の外のコメントは違反にしない",
+        "印の外のコードの Array.isArray を違反にする",
+        "文字列の中の // の後ろのコードの Array.isArray を違反にする",
+        "CLI: 違反が無ければ exit 0 にする"
+      ]
+    },
+    {
+      "id": "STRIP-LINE-COMMENT-IN-STRING",
+      "why": "文字列の中の // も行コメントの始まりとして扱う",
+      "file": "scripts/gates/code/check-skill-lint-directives.ts",
+      "find": "const LINE_COMMENT_RE = /(^|\\s)\\/\\//;",
+      "replace": "const LINE_COMMENT_RE = /()\\/\\//;",
+      "occurrences": 1,
+      "expect_failing": ["文字列の中の // の後ろのコードの Array.isArray を違反にする"]
+    },
+    {
+      "id": "MARK-DUPLICATE",
+      "why": "begin の印の重複を許す",
+      "file": "scripts/gates/code/check-skill-lint-directives.ts",
+      "find": "if (begin.length !== 1 || end.length !== 1 ||",
+      "replace": "if (begin.length === 0 || end.length !== 1 ||",
+      "occurrences": 1,
+      "expect_failing": ["印が 1 組だけ無い（begin が重複する）ものを違反にする"]
+    },
+    {
+      "id": "MARK-ORDER",
+      "why": "印の逆順を許す",
+      "file": "scripts/gates/code/check-skill-lint-directives.ts",
+      "find": " || begin[0].i > end[0].i) {",
+      "replace": ") {",
+      "occurrences": 1,
+      "expect_failing": ["印が 1 組だけ無い（逆順）ものを違反にする"]
+    },
+    {
+      "id": "HOLDER-MISSING",
+      "why": "一覧のファイルが無いことを違反にしない",
+      "file": "scripts/gates/code/check-skill-lint-directives.ts",
+      "find": "      out.push(`${path}: scripts/lib/is-array-holders.ts に挙げたファイルが無い`);\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["一覧のファイルが無ければ違反にする"]
+    },
+    {
+      "id": "ZERO-FILES",
+      "why": "走査したファイルが 0 件でも判定を続ける",
+      "file": "scripts/gates/code/check-skill-lint-directives.ts",
+      "find": "if (code.length === 0) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["CLI: skills/ の JavaScript・TypeScript が 0 件なら exit 2 にする"]
+    },
+    {
+      "id": "DIRECTIVE-ALL-OFF",
+      "why": "抑止の指示を 1 件も違反にしない（CLI の終了コードがこの検出だけで 1 になることを示す）",
+      "file": "scripts/gates/code/check-skill-lint-directives.ts",
+      "find": "if (m) out.push(`${i + 1}: ${m[1]}`);",
+      "replace": "if (false) out.push(`${i + 1}: ${m[1]}`);",
+      "occurrences": 1,
+      "expect_failing": [
+        "抑止の指示 // oxlint-disable-next-line no-restricted-properties -- 理由 を違反にする",
+        "抑止の指示   return x; // oxlint-disable-line no-console を違反にする",
+        "抑止の指示 /* eslint-disable no-console */ を違反にする",
+        "抑止の指示 /** eslint-disable-next-line */ を違反にする",
+        "抑止の指示  * eslint-disable no-console を違反にする",
+        "抑止の指示 // biome-ignore lint/style: 理由 を違反にする",
+        "抑止の指示   // @ts-expect-error 型が合わない を違反にする",
+        "抑止の指示 // deno-lint-ignore no-explicit-any を違反にする",
+        "配布スキルの .mjs と .ts の指示を検出し、.md と skills/ の外は見ない",
+        "CLI: 未追跡のファイルの指示を検出して exit 1 にする"
+      ]
+    }
+  ]
+}

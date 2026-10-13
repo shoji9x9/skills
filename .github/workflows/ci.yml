@@ -74,6 +74,8 @@ jobs:
         run: node scripts/gates/packaging/check-skills-sync.ts
       - name: JS extensions (skills/ => .mjs, scripts/ => .ts)
         run: node scripts/gates/code/check-js-extensions.ts
+      - name: Lint directives in distributed skills (no oxlint-disable etc.)
+        run: node scripts/gates/code/check-skill-lint-directives.ts
       - name: JSDoc types in distributed .mjs (no casts, any, @ts-ignore)
         run: node scripts/gates/code/check-jsdoc-types.ts
       - name: Rule symlinks (.agents/rules vs .claude/rules / .github/instructions)

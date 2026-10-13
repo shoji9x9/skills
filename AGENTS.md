@@ -193,6 +193,7 @@ rule は、対象のファイルを触るときに自動で読み込まれる。
 - `.agents/rules/curl-data-urlencode.md`: 配布スキルの curl で、変数の値を `--data-urlencode` でエンコードする
 - `.agents/rules/distributed-skill-base-doc-generalization.md`: 配布スキルで、基底ドキュメントを `AGENTS.md` に決め打ちしない
 - `.agents/rules/distributed-skill-bundle-artifacts.md`: 配布スキルが実行時に使う成果物を、スキルの中に同梱する
+- `.agents/rules/distributed-skill-stack-independence.md`: 配布スキルが、このリポジトリの技術スタックと設定（lint の抑止コメントなど）を前提にしないための基準
 - `.agents/rules/api-pagination.md`: `gh api` などの一覧の取得で、ページネーションを処理する
 - `.agents/rules/skill-file-format.md`: `SKILL.md` の frontmatter を Agent Skills 仕様に合わせる
 - `.agents/rules/eval-assertion-discrimination.md`: 回帰 eval の assertion と fixture を書いたときに確かめること
