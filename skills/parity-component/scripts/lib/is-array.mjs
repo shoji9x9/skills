@@ -27,7 +27,6 @@
  * @returns {value is ArrayNarrowed<T>}
  */
 function isArray(value) {
-  // oxlint-disable-next-line no-restricted-properties -- 組み込みの判定を呼ぶのは、この関数の中だけにする
   return Array.isArray(value);
 }
 // is-array-js:end

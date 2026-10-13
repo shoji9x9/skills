@@ -41,7 +41,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 
 ## 前提
 
-- ツール: `git`。ブランチ作成・commit・push・PR は `issue-start` が行う（このスキルは実装の流れを作り直さない）
+- ツール: `git`、Node.js（`parity-suite` と `replace-strategy` の同梱のスクリプトを実行する）。ブランチ作成・commit・push・PR は `issue-start` が行う（このスキルは実装の流れを作り直さない）
 - 前提スキル: `issue-start`（実装の流れと受け入れ条件の突き合わせの委譲先）、`replace-strategy`（`setup` の完了）、`golden-dataset`（フェーズ A の完了）、対象 slug の `parity-suite`（完了）
 - 前提スキルがインストールされていない場合: `gh skill install shoji9x9/skills <name>` で導入してから実行する。
   このスキルは設定スキーマ・成果物の様式の原本を `replace-strategy` と `parity-suite` の `references/`・`assets/` に置いているので、単体では動かない（同時に導入されている前提である）

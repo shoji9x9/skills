@@ -172,7 +172,13 @@ function lineStarts(source: string): number[] {
   return starts;
 }
 
-function jsComments(source: string, path: string): Piece[] {
+/**
+ * JavaScript・TypeScript のコメントの範囲を、位置の順に返す。TypeScript のパーサで読むので、文字列・正規表現・
+ * テンプレートの中の `//` や `/*` をコメントとして扱わない。
+ * JSDoc の子のノードの位置はコメントの中にあるので、そこから読んだ範囲（本文の `//` など）は
+ * 前の範囲の中に入る。同じ文章を別のコメントとして二重に返さないよう、外側の範囲だけを返す。
+ */
+export function jsCommentRanges(source: string, path: string): ts.CommentRange[] {
   const kind = path.endsWith(".ts") ? ts.ScriptKind.TS : ts.ScriptKind.JS;
   const sf = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, kind);
   const ranges = new Map<number, ts.CommentRange>();
@@ -185,7 +191,17 @@ function jsComments(source: string, path: string): Piece[] {
     for (const child of node.getChildren(sf)) visit(child);
   };
   visit(sf);
+  const outer: ts.CommentRange[] = [];
+  let coveredUntil = -1;
+  for (const r of [...ranges.values()].sort((a, b) => a.pos - b.pos)) {
+    if (r.pos < coveredUntil) continue;
+    coveredUntil = r.end;
+    outer.push(r);
+  }
+  return outer;
+}
 
+function jsComments(source: string, path: string): Piece[] {
   const starts = lineStarts(source);
   const lineOf = (pos: number) => {
     let lo = 0;
@@ -198,12 +214,7 @@ function jsComments(source: string, path: string): Piece[] {
     return lo;
   };
   const pieces: Piece[] = [];
-  // JSDoc の子のノードの位置はコメントの中にあるので、そこから読んだ範囲（本文の `//` など）は
-  // 前の範囲の中に入る。同じ文章を別のコメントとして二重に取り出さないよう、外側の範囲だけを使う。
-  let coveredUntil = -1;
-  for (const r of [...ranges.values()].sort((a, b) => a.pos - b.pos)) {
-    if (r.pos < coveredUntil) continue;
-    coveredUntil = r.end;
+  for (const r of jsCommentRanges(source, path)) {
     const raw = source.slice(r.pos, r.end);
     const first = lineOf(r.pos);
     if (r.kind === ts.SyntaxKind.SingleLineCommentTrivia) {

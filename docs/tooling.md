@@ -55,6 +55,7 @@ GitHub Actions は、`actionlint` で構文を、`ghalint` で `permissions`・`
 | `packaging/check-eval-reachability.ts` | eval の assertion と prompt の対応 |
 | `packaging/check-skills-sync.ts` | `skills/<name>/` とインストール済みのコピー `.agents/skills/<name>/` の一致 |
 | `code/check-js-extensions.ts` | JavaScript の拡張子（「JavaScript の拡張子」の節） |
+| `code/check-skill-lint-directives.ts` | 配布スキルの、このリポジトリの lint の設定を前提にした抑止コメント（`.agents/rules/distributed-skill-stack-independence.md`）と、`Array.isArray` の禁止をファイル単位で外したファイル（`scripts/lib/is-array-holders.ts`）の、型ガードの外の呼び出し |
 | `code/check-jsdoc-types.ts` | 配布スキルの `.mjs` で、型の検査を外す JSDoc の書き方（「JavaScript の拡張子」の節） |
 | `packaging/check-skill-frontmatter.ts` | `SKILL.md` の frontmatter |
 | `code/lint-pagination.ts` | `gh api` などの一覧の取得のページネーション |
@@ -183,6 +184,7 @@ private skill は、`.private-skill` を持ち、`.agents/skills/<name>/` にだ
 null や undefined になりうる値は、表明せずに確かめて型を絞る。テストでは vitest の `assert`（`assert.exists` など）を使う。
 型の表明（`as T`）も同じ設定で失敗にする（`as const` と `satisfies` は使ってよい）。型ガード・`instanceof`・型の注釈で書き換える。
 表明が避けられない箇所は、その行に `// oxlint-disable-next-line typescript/consistent-type-assertions -- <理由>` を書く。
+ただし、配布スキル（`skills/**`）には行の disable コメントを置かず、`oxlint.config.ts` の `overrides` でファイルごとに外す（`check-skill-lint-directives.ts` が検出する）。
 何も抑えていない disable のコメントは、`reportUnusedDisableDirectives` が失敗にする。
 よく使う形は `scripts/lib/` の helper にまとめ、表明をそこだけに置く。
 catch の値は `errors.ts`、わざと不正な入力と欄の削除は `test-input.ts`、外部の JSON は `parse-as.ts`、YAML は `yaml-as.ts` を使う。
@@ -249,7 +251,9 @@ lefthook の pre-commit は、TypeScript か JavaScript（`ts`・`tsx`・`mts`�
 `isArray` は入力の型の配列の部分（`unknown` なら `unknown[]`、`number[] | undefined` なら `number[]`）に絞る。
 `scripts/**` と private skill は `scripts/lib/is-array.ts` を、配布スキルは各スキルの `scripts/lib/is-array.mjs` を import する。
 直接の呼び出しは、`oxlint.config.ts` の `no-restricted-properties` が失敗にする。
-ユーティリティの中の 1 行だけを、その行の disable コメントで外す。
+型ガードの中で組み込みの判定を呼ぶファイルは、行の disable コメントではなく、`oxlint.config.ts` の `overrides` でファイルごとに外す（一覧は `scripts/lib/is-array-holders.ts`）。
+配布スキルのファイルは利用者のプロジェクトへ入り、そこでは使われない disable のコメントになるからである。
+外したファイルの型ガードの外の呼び出しは、`check-skill-lint-directives.ts` が検出する。
 import できない雛形（`skills/*/assets/*.template.ts`）とミューテーションテストのランナーは、同じ関数をファイルの中に持つ。
 利用者のプロジェクトへ 1 ファイルだけコピーして使う配布スキルのツール（`trait-compare.mjs` など）も同じである。
 コピーとの一致は `check-identical-copies.ts` が確かめる。

@@ -104,7 +104,6 @@ type ArrayNarrowed<T> = ArrayPart<T> extends T ? ArrayPart<T> : never;
 
 /** 配列か。配列なら、入力の型の配列の部分に絞る。 */
 function isArray<T>(value: T): value is ArrayNarrowed<T> {
-  // oxlint-disable-next-line no-restricted-properties -- 組み込みの判定を呼ぶのは、この関数の中だけにする
   return Array.isArray(value);
 }
 // is-array:end

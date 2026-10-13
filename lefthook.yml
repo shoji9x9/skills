@@ -152,6 +152,12 @@ pre-commit:
           - name: js-extensions
             # Enforce the JS extension policy (skills/ => .mjs, scripts/ and private skills => .ts).
             run: node scripts/gates/code/check-js-extensions.ts
+          - name: skill-lint-directives
+            # 配布スキルに、このリポジトリの lint の設定を前提にした抑止コメント（oxlint-disable など）を置かない。
+            # isArray を持つファイル（scripts/lib/is-array-holders.ts）の、型ガードの外の Array.isArray も検出する。
+            # TypeScript のパーサで全ファイルを読み、oxlint も起動する（約 3 秒）ので、JavaScript・TypeScript が staged のときだけ実行する。
+            glob: "*.{mjs,cjs,js,jsx,ts,mts,cts,tsx}"
+            run: node scripts/gates/code/check-skill-lint-directives.ts
           - name: jsdoc-types
             # 配布スキルの .mjs で、型の検査を外す JSDoc の書き方（型の表明・any・@ts-ignore など）を禁じる。
             # 型の名前を tsconfig.skills.json の Program で解決する。そのため、型の解決に関わるファイルが staged のときだけ実行する

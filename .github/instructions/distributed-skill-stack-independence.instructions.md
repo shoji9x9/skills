@@ -1,0 +1,1 @@
+../../.agents/rules/distributed-skill-stack-independence.md
