@@ -48,6 +48,7 @@ name: kaizen
 - MCP: なし
 - シェル: bash（POSIX 互換シェル）。このスキルのコマンド例と、設定する Hook（`mkdir -p` / `date -u` 等）は bash を前提にしている。Windows では WSL / Git Bash 等の bash 環境で実行する
 - node / pnpm / python などのランタイムは要らない。transcript の候補を速く探すために `jq` があれば使い、無い場合は判定できないものとして扱い、コミットを止める。
+  コミット前のチェックは、Hook の入力を `jq` か `python3` があれば構造として読み、どちらも無ければ生の JSON の `command` フィールドで判定する（機能を減らして動く）。
 
 ## 基本原則
 

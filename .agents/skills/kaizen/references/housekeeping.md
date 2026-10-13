@@ -17,6 +17,8 @@
 - デフォルトはアーカイブ（移動）にする。削除せず `.kaizen/archive/` へ移すので、改善の経緯（証跡）が残る。`apply.md`「`.kaizen/` の Git 管理」が述べる「履歴を残して経緯を追える」と合う。
 - アーカイブしても学びは見つけられる。KEDB 照合（`extract.md`「KEDB 照合」）は、top-level（`.kaizen/*.md`）では本文を、アーカイブではサマリーの索引 `.kaizen/archive/INDEX.md`（1 ファイル 1 行）だけを照合する。
   archive の本文は読まないのでコンテキストを圧迫せず、サマリーが一致したときだけその 1 ファイルを開く。そのため、整理するときは INDEX.md を最新に保つ（下の手順）。
+  INDEX.md の 1 行は、`kaizen-archive.sh` が 200 文字以下に収める。markdownlint の MD013 の上限をこれより小さくしているプロジェクトでは、
+  生成物の INDEX.md を markdownlint の対象から外す（行を切ると、KEDB 照合が読むサマリーが失われる）。
 - アーカイブは SessionStart の注入に影響しない。参照を注入するフック（`kaizen-context-inject.sh`）は、`.kaizen/*.md`（サブディレクトリは見ない）の `status: pending` だけを渡す。
   アーカイブの対象は applied / rejected / forgotten なので、もともと注入に含まれない。注入を軽くするのは忘却の役目である（pending を対象にする動作は忘却だけ）。
 - pending はデフォルトの対象にしない。`status: pending` はまだ適用を待っている学びで、アーカイブすると注入から外れ、削除すると失われる。`all` を選んだときだけ含め、その場合は特に強く確認する。

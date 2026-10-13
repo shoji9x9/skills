@@ -182,7 +182,9 @@ regenerate_index() {
 			# 切り詰めの予算は**行全体**で決める。要約だけを 80 文字に切っても、接頭辞
 			# （ファイル名＋meta）が長いと行が 200 文字を超え、markdownlint の MD013 で
 			# 落ちる（INDEX.md はコミット対象の生成物なので、生成側が規約を満たす）。
-			# 200 は markdownlint 既定の line_length。接頭辞だけで予算を使い切る場合は
+			# 200 は、このスキルが決めた索引の 1 行の上限である（markdownlint のデフォルトの line_length は 80 で、
+			# 日本語の要約ではほぼすべての行が超える）。導入先の MD013 がこれより厳しければ、生成物の INDEX.md を
+			# lint の対象から外す（references/housekeeping.md）。接頭辞だけで予算を使い切る場合は
 			# 要約を落とす（行を切らずに壊すより、要約が無い方が索引として読める）。
 			if grep -qi 'utf-\{0,1\}8' <<<"$(locale charmap 2>/dev/null)"; then
 				budget=$((200 - ${#prefix}))

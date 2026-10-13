@@ -34,6 +34,7 @@ git-worktree cleanup [<worktree パス>]
   加えて、エージェント側にセッションを移す機能（Claude Code の `EnterWorktree` など）が要る
 - 前提スキル: なし
 - シェル: bash。Windows では WSL や Git Bash などを使う
+- 任意: `jq` か `python3`。同梱の Hook（`scripts/git-worktree-branch-guard.sh`）が入力を構造として読むのに使い、どちらも無ければ通知しない
 
 セッションを移す機能が無いエージェントでは、隔離は成り立たない。`git worktree add` だけを実行して
 「隔離した」と報告せず、その旨を述べて停止する（理由は [`references/isolation.md`](references/isolation.md)）。
