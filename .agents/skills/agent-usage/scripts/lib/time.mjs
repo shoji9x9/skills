@@ -67,17 +67,25 @@ function formatterFor(tz) {
 }
 
 /**
- * タイムゾーンでの日付（YYYY-MM-DD）・時（0〜23）・曜日（Mon〜Sun）。
+ * タイムゾーンでの日付（YYYY-MM-DD）・時（0〜23）・分・曜日（Mon〜Sun）。
  * @param {number} ms
  * @param {string} tz
- * @returns {{ date: string; hour: number; weekday: string }}
+ * @returns {{ date: string; hour: number; minute: number; weekday: string }}
  */
 export function localParts(ms, tz) {
   /** @type {Record<string, string>} */
   const p = {};
   for (const part of formatterFor(tz).formatToParts(new Date(ms))) p[part.type] = part.value;
-  return { date: `${p.year}-${p.month}-${p.day}`, hour: Number(p.hour), weekday: p.weekday };
+  return {
+    date: `${p.year}-${p.month}-${p.day}`,
+    hour: Number(p.hour),
+    minute: Number(p.minute),
+    weekday: p.weekday,
+  };
 }
+
+/** タイムゾーンと 15 分の区切りごとの、現地の分と UTC の分の差（オフセットは 15 分の区切りの中では変わらない）。 */
+const minuteDelta = new Map();
 
 /**
  * ms を含む、タイムゾーンでの正時の始まり。オフセットが 30 分・45 分のタイムゾーンでは、UTC の正時からずれる。
@@ -87,9 +95,14 @@ export function localParts(ms, tz) {
  * @returns {number}
  */
 export function localHourStart(ms, tz) {
-  let minute = 0;
-  for (const part of formatterFor(tz).formatToParts(new Date(ms)))
-    if (part.type === "minute") minute = Number(part.value);
+  const block = Math.floor(ms / 900000) * 900000;
+  const cacheKey = `${tz}\u0000${block}`;
+  let delta = minuteDelta.get(cacheKey);
+  if (delta === undefined) {
+    delta = (localParts(block, tz).minute - new Date(block).getUTCMinutes() + 60) % 60;
+    minuteDelta.set(cacheKey, delta);
+  }
+  const minute = (new Date(ms).getUTCMinutes() + delta) % 60;
   return Math.floor(ms / 60000) * 60000 - minute * 60000;
 }
 

@@ -395,12 +395,18 @@ export function runCollect(o) {
   }
   // 打ち消し: ログが今もあるセッションの記録済みの行のうち、今の collect で作らなくなった行（重複を除いた後のコピーの側の行、
   // 区切り方を変えた後の前の区切りの行など）は、打ち消しの行（retracted=1）を書いて、report が数えないようにする。
-  // ログが消えたセッションの行は、作れないだけなので打ち消さない。人の commit と GitHub の行は、ログから作らないので対象にしない
+  // ログが消えたセッションの行は、作れないだけなので打ち消さない。人の commit と GitHub の行は、ログから作らないので対象にしない。
+  // サブエージェントの行は、サブエージェントのログだけが先に消えることがあるので打ち消さない。
+  // 開始時刻が下限より古い行は、置き換わる行を書かないので打ち消さない（打ち消すと、その時間帯の使用量が消える）
+  /** @param {string | undefined} p */
+  const canonical = (p) => (p ? (repoConfig.aliases[p] ?? p) : "");
   /** @type {Row[]} */
   const retractions = [];
   for (const r of existing.values()) {
-    if (r.person !== person || r.retracted === "1" || !RETRACTABLE_KINDS.includes(r.kind ?? ""))
-      continue;
+    if (canonical(r.person) !== person || r.retracted === "1") continue;
+    if (!RETRACTABLE_KINDS.includes(r.kind ?? "") || r.subagent === "1") continue;
+    const start = parseTime(r.start);
+    if (start === null || start < lowerBound) continue;
     if (!local.presentSessions.has(`${r.agent ?? ""}:${r.session ?? ""}`)) continue;
     if (unique.has(r.key ?? "")) continue;
     retractions.push({ ...r, retracted: "1" });

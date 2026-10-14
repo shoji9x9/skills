@@ -927,6 +927,40 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(again.stdout).not.toMatch(/打ち消した行/);
   });
 
+  test("開始時刻が範囲より古い行は、区切り方が変わっても打ち消さず、使用量を残す", () => {
+    const { repo, git, cli, logDir, logLines } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    // 範囲（60 日）より古いセッション。初めての collect なので書く
+    const old = logLines.map((l) => ({
+      ...l,
+      timestamp: l.timestamp.replace("2026-10-01", "2026-07-01"),
+      ...(l.message && "id" in l.message
+        ? { message: { ...l.message, id: `old-${l.message.id}` } }
+        : {}),
+    }));
+    writeFileSync(join(logDir, "s-old.jsonl"), old.map((l) => JSON.stringify(l)).join("\n"));
+    expect(cli("collect").status).toBe(0);
+    const tokens = () => {
+      expect(cli("report", "--since", "2026-06-01").status).toBe(0);
+      const dir = join(repo, ".agent-usage", "report");
+      const day = readdirSync(dir)[0] ?? "";
+      const usage = readFileSync(join(dir, day, "usage.csv"), "utf8");
+      const [header, ...body] = usage.trim().split("\n");
+      const cols = (header ?? "").split(",");
+      return body
+        .map((l) => l.split(","))
+        .filter((c) => (c[cols.indexOf("date")] ?? "").startsWith("2026-07"))
+        .reduce((a, c) => a + Number(c[cols.indexOf("input_tokens")] ?? 0), 0);
+    };
+    const before = tokens();
+    expect(before).toBeGreaterThan(0);
+    // 区切り方を変えても、範囲より古い行は書き直さないので、打ち消さない
+    expect(cli("setup", "--time-zone", "Asia/Kolkata").status).toBe(0);
+    expect(cli("collect").status).toBe(0);
+    expect(tokens()).toBe(before);
+  });
+
   test("打ち消しの列が無い古い記録も読み、report は同じ値を出す", () => {
     const { repo, git, cli } = setup();
     expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
