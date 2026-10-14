@@ -137,7 +137,9 @@
         "agent-usage のコマンドと Hook origin が GitHub でなければ、GitHub を取得しない",
         "agent-usage のコマンドと Hook Hook の collect も、GitHub を取得しなかった理由を出す",
         "agent-usage のコマンドと Hook githubTarget: ログインしていないホストは理由を返す",
-        "agent-usage のコマンドと Hook ログインで GitHub と判定したホストには、環境変数の GH_ENTERPRISE_TOKEN を送らない"
+        "agent-usage のコマンドと Hook ログインで GitHub と判定したホストには、環境変数の GH_ENTERPRISE_TOKEN を送らない",
+        "agent-usage のコマンドと Hook githubTarget: ポート付きでログインしていなければ取得しない",
+        "agent-usage のコマンドと Hook ポートを含み、gh にログインしていないホストの origin は、理由を出して取得しない"
       ]
     },
     {
