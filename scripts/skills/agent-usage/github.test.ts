@@ -161,10 +161,35 @@ describe("timelineRows", () => {
     ).toEqual([]);
   });
 
-  test("login の [bot] と大文字を除いて比べる", () => {
+  test("login の [bot] と大文字を除いて比べ、REST の Copilot を GraphQL の login にそろえる", () => {
     expect(normalizeLogin("Copilot-Pull-Request-Reviewer[bot]")).toBe(
       "copilot-pull-request-reviewer",
     );
+    expect(normalizeLogin("Copilot")).toBe("copilot-pull-request-reviewer");
+    expect(normalizeLogin("copilot-x")).toBe("copilot-x");
+  });
+
+  test("レビューツールがコメントで結果を返したら、そこで待ちを終える（@codex review の指摘なし）", () => {
+    const rows = timelineRows(
+      pr,
+      [
+        { type: "comment", id: 1, login: "me", at: ms(1), body: "@codex review" },
+        {
+          type: "comment",
+          id: 2,
+          login: "chatgpt-codex-connector[bot]",
+          at: ms(3),
+          body: "No issues found.",
+        },
+      ],
+      "me",
+      options(noGh),
+    );
+    expect(
+      rows.filter((r) => r.kind === "review-wait").map((r) => [r.agent, r.start, r.end, r.detail]),
+    ).toEqual([
+      ["codex-cloud", new Date(ms(1)).toISOString(), new Date(ms(3)).toISOString(), "pr=7"],
+    ]);
   });
 });
 
@@ -318,6 +343,25 @@ describe("collectGitHub", () => {
     expect(calls.some((c) => c.includes("/zip"))).toBe(false);
   });
 
+  test("artifact が 1 件読めなくても、残りの artifact は取得する", () => {
+    const gh: Gh = (args) => {
+      if (args[0] === "user") return Buffer.from(JSON.stringify({ login: "me" }));
+      if (args[0] === "graphql") throw new Error("HTTP 502");
+      if (args[0].endsWith("/41/zip")) return Buffer.from("not a zip");
+      if (args[0].endsWith("/42/zip")) throw new Error("ダウンロードの失敗");
+      const artifacts = args.some((a) => a.includes("agent-usage-review-claude"))
+        ? [
+            { id: 41, created_at: iso(1), expired: false, workflow_run: {} },
+            { id: 42, created_at: iso(2), expired: false, workflow_run: {} },
+          ]
+        : [];
+      return Buffer.from(JSON.stringify([{ workflow_runs: [], artifacts }]));
+    };
+    const res = collectGitHub(options(gh));
+    const failed = res.failures.filter((f) => f.startsWith("artifacts"));
+    expect(failed.map((f) => f.split(":")[0])).toEqual(["artifacts#41", "artifacts#42"]);
+  });
+
   test("ツールごとの名前の artifact を、名前ごとに取得する", () => {
     const calls: string[] = [];
     const gh: Gh = (args) => {
@@ -329,6 +373,66 @@ describe("collectGitHub", () => {
     collectGitHub(options(gh));
     for (const name of ["agent-usage-review-claude", "agent-usage-review-codex"])
       expect(calls.some((c) => c.includes(`artifacts?name=${name}&`))).toBe(true);
+  });
+});
+
+describe("外部の CI", () => {
+  test("ci.external では、レビューツールの check run を CI に入れない", () => {
+    const gh: Gh = (args) => {
+      if (args[0] === "user") return Buffer.from(JSON.stringify({ login: "me" }));
+      if (args[0] === "graphql") {
+        const pages = [
+          {
+            data: {
+              search: {
+                pageInfo: { hasNextPage: false, endCursor: null },
+                nodes: args.some((a) => a.includes("is:open"))
+                  ? []
+                  : [
+                      {
+                        number: 7,
+                        headRefName: "feature/7-x",
+                        author: { login: "me" },
+                        headRefOid: "abc",
+                        timelineItems: { nodes: [], pageInfo: { hasNextPage: false } },
+                      },
+                    ],
+              },
+            },
+          },
+        ];
+        return Buffer.from(JSON.stringify(pages));
+      }
+      if (args.some((a) => a.includes("/statuses"))) return Buffer.from(JSON.stringify([[]]));
+      if (args.some((a) => a.includes("/check-runs"))) {
+        return Buffer.from(
+          JSON.stringify([
+            {
+              check_runs: [
+                {
+                  id: 1,
+                  name: "copilot-pull-request-reviewer",
+                  app: { slug: "copilot-pull-request-reviewer" },
+                  started_at: iso(1),
+                  completed_at: iso(2),
+                },
+                {
+                  id: 2,
+                  name: "build",
+                  app: { slug: "circleci-checks" },
+                  started_at: iso(1),
+                  completed_at: iso(3),
+                },
+              ],
+            },
+          ]),
+        );
+      }
+      return Buffer.from(JSON.stringify([{ workflow_runs: [], artifacts: [] }]));
+    };
+    const res = collectGitHub(options(gh, { config: parseRepoConfig({ ci: { external: true } }) }));
+    expect(res.failures).toEqual([]);
+    expect(res.rows.filter((r) => r.kind === "ci").map((r) => r.key)).toEqual(["ci-ext:2"]);
   });
 });
 

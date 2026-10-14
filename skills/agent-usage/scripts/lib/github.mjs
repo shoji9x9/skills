@@ -103,7 +103,9 @@ function getAll(gh, path, pick) {
  * @returns {string}
  */
 export function normalizeLogin(login) {
-  return login.replace(/\[bot\]$/i, "").toLowerCase();
+  const name = login.replace(/\[bot\]$/i, "").toLowerCase();
+  // Copilot のレビュアーは、GraphQL では copilot-pull-request-reviewer、REST では Copilot になる
+  return name === "copilot" ? "copilot-pull-request-reviewer" : name;
 }
 
 /**
@@ -324,6 +326,9 @@ export function timelineRows(pr, items, me, o) {
       waits.push({ reviewer: who(it.login), start: it.at });
     } else {
       if (/@codex\s+review\b/i.test(it.body)) waits.push({ reviewer: "codex-cloud", start: it.at });
+      // レビューツールは、指摘が無いとレビューではなくコメントで結果を返すことがある
+      const commentTool = toolOf(o.bundledTools, o.config.reviewTools, it.login);
+      if (commentTool) arrivals.push({ reviewer: commentTool, at: it.at });
       if (it.at >= o.since && mine(it.login) && !nearAgentCommand(it.at, o.commands, /\bgh\b/)) {
         rows.push({
           key: `activity:gh-comment:${it.id}`,
@@ -547,6 +552,12 @@ export function collectGitHub(o) {
           if (!isRecord(c)) continue;
           const app = isRecord(c.app) ? str(c.app.slug) : "";
           if (app === "github-actions") continue;
+          // レビューツールの check run（copilot-pull-request-reviewer など）はレビュー待ちで数えるので、CI にしない
+          if (
+            toolOf(o.bundledTools, o.config.reviewTools, app) ||
+            toolOf(o.bundledTools, o.config.reviewTools, str(c.name))
+          )
+            continue;
           const start = parseTime(c.started_at);
           if (start === null) continue;
           const end = parseTime(c.completed_at) ?? o.now;
@@ -608,16 +619,20 @@ export function collectGitHub(o) {
       if (created === null || created < o.since) continue;
       if (o.knownArtifacts?.has(a.id)) continue;
       const run = isRecord(a.workflow_run) ? a.workflow_run : {};
-      const files = unzip(
-        o.gh([`repos/${o.slug}/actions/artifacts/${a.id}/zip`], { binary: true }),
-      );
-      rows.push(
-        ...artifactRows(
-          files,
-          { id: a.id, created, branch: str(run.head_branch), runId: num(run.id) },
-          o,
-        ),
-      );
+      const id = a.id;
+      // 1 件が不正（zip や JSON が読めない）でも、残りの artifact は取得する
+      attempt(`artifacts#${id}`, () => {
+        const files = unzip(
+          o.gh([`repos/${o.slug}/actions/artifacts/${id}/zip`], { binary: true }),
+        );
+        rows.push(
+          ...artifactRows(
+            files,
+            { id, created, branch: str(run.head_branch), runId: num(run.id) },
+            o,
+          ),
+        );
+      });
     }
   });
 
