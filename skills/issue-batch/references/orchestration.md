@@ -65,8 +65,10 @@ branch や設定を変更する前に、すべての Issue について次を済
    ```bash
    cfg=.config/skills/shoji9x9/skills.yml
    top=$(git rev-parse --show-toplevel) || { echo '判定不能: リポジトリの直下を特定できない' >&2; exit 1; }
-   git fetch --quiet origin '<base>' || { echo '判定不能: base を取得できない' >&2; exit 1; }
-   if git cat-file -e "origin/<base>:$cfg" 2>/dev/null && git show "origin/<base>:$cfg" | cmp -s - "$top/$cfg"; then
+   git fetch --quiet origin '+refs/heads/<base>:refs/remotes/origin/<base>' || { echo '判定不能: base を取得できない' >&2; exit 1; }
+   base_blob=$(git rev-parse --verify --quiet "origin/<base>:$cfg") || base_blob=''
+   work_blob=$(git hash-object --path="$cfg" "$top/$cfg" 2>/dev/null) || work_blob=''
+   if [ -n "$base_blob" ] && [ "$base_blob" = "$work_blob" ]; then
      echo '設定は base に入っている'
    else
      echo '設定が base と作業ツリーで一致しない（どちらかに無いか、内容が違う）'
@@ -74,15 +76,16 @@ branch や設定を変更する前に、すべての Issue について次を済
    ```
 
    判定の結果は出力の行で読む。入っていない状態は期待される結果の 1 つなので、終了コードを 0 以外にしない。exit 1 は判定できない場合だけである。
-   内容をリポジトリの直下のファイルと直接比べるので、サブディレクトリから実行しても、設定が追跡されていない（同じ内容の）ファイルでも正しく判定する。
+   refspec を明示するのは、single-branch の clone でも `origin/<base>` を更新するためである。
+   作業ツリーのファイルを `git hash-object --path` で base の blob と同じ変換（改行・filter）にかけて比べるので、サブディレクトリから実行しても、追跡されていない同じ内容のファイルでも、`core.autocrlf` の環境でも正しく判定する。
    入っていなければ、run を始めずに全体を停止し、設定を base に入れるよう案内する。設定を無人で commit・push しない。
    比べるのはファイル全体なので、他のスキルの設定だけが違っても止まる。worktree の設定が共有ツリーと違うことに変わりはないので、同じく base に入れてもらう。
    base を取得できず判定できないときも、入っているとは扱わずに全体を停止する。
 10. run の前に利用者の判断が要るものを、すべての Issue について洗い出す。本文とすべてのコメントを読み、次のものを挙げる。
     - 提案に複数の案が並んでいて、どれを採るかが書かれていない
     - 方針や範囲が書かれていない。本文とコメントの決定が食い違い、どれに従うかを決められない
-    - 受け入れ条件が、試していない機構を約束している。決めてもらうのは、試して採らなかったときに条件を外してよいか（前もっての承認）である。
-      承認を得た条件は、run の途中で採らないと決めても判断待ちにせず、`waived` にする。`approval.ref` には、着手のときに Issue に残した承認のコメント（下）を書く
+    - 受け入れ条件が、試していない機構を約束している。決めてもらうのは、試して採らなかったときの扱い（外す＝`waived`、別の作業に回す＝`deferred` と残りの作業の置き場所）である。
+      決まった条件は、run の途中で採らないと決めても判断待ちにせず、決まった状態にする。`approval.ref` には、着手のときに Issue に残した承認のコメント（下）を書く
 
     挙げたものは、何かを変更する前に、1 回の確認にまとめて利用者に決めてもらう。Issue ごとに、論点・選択肢・根拠・推奨を並べる。
     この確認に載せるのは、上の 3 種類の判断だけである。
@@ -93,14 +96,14 @@ branch や設定を変更する前に、すべての Issue について次を済
     preflight で Issue を書き換えないのは、全体を停止した場合に、run が何もしていないのに Issue だけが変わるのを避けるためである。
     この洗い出しは読むだけで何も変えないので、preflight の他の手順で全体を停止する場合も、停止を決めた後に行う。
     そのうえで確認を求めずに、ここで挙げたものを停止の報告に載せる。決めてもらうのは、やり直した run の preflight で 1 回だけである。
-    決まらなかった Issue は、BLOCKED（判断待ち）にして残りを進める。run を始めた後は、ここで挙げなかった判断も利用者に確認しない（「判断の扱い」）。
+    決まらなかった Issue は、BLOCKED（判断待ち）にし、`continue_on_blocked` に従って残りを進める。run を始めた後は、ここで挙げなかった判断も利用者に確認しない（「判断の扱い」）。
 
 ## 判断の扱い
 
 run を始めた後（全体 preflight を終え、manifest の作成などの最初の変更に進んだ後）は、利用者に確認を送らない。
 利用者が不在でも run を最後まで進め、判断は最終報告でまとめて受け取る。preflight 10 の確認は、この前に行う 1 回だけの確認である。
 前提スキル（`issue-start` など）が「利用者に確認する」と定める箇所も、run の中ではこの扱いに読み替える。
-`pr-finalize-loop` が「人の判断が要る指摘は利用者に確認する」と定める箇所も同じである（「pr-finalize-loop への handoff」）。
+`pr-finalize-loop` の人の判断が要る指摘は、`--defer-decisions` を渡して判断待ちとして受け取る（「pr-finalize-loop への handoff」）。
 
 - 途中で利用者の判断が要る状態になったら、確認を送る代わりに、その Issue を BLOCKED（判断待ち）にして manifest に記録する。
   そのうえで、`continue_on_blocked` に従って次の Issue に進む。
@@ -205,16 +208,14 @@ exit 0 だけを見て push すると、確認がどこにも残らずに消え�
 
 ## pr-finalize-loop への handoff
 
-PR の URL と、決まった `max_pr_iterations` を、`pr-finalize-loop <PR URL> --max-iterations <N>` に渡す。`wait_ci_before_review: true` の場合だけ、`--wait-ci-before-review` を足す。
+PR の URL と、決まった `max_pr_iterations` を、`pr-finalize-loop <PR URL> --max-iterations <N> --defer-decisions` に渡す。`wait_ci_before_review: true` の場合だけ、`--wait-ci-before-review` を足す。
 レビューツールは pr-finalize-loop が決めるので、issue-batch は値を先に固定したり渡したりしない。pr-finalize-loop の参照先を読めなければ、handoff の前に停止する。
 
 CI、すべてのレビュアーの thread と review の本文、再レビューの依頼は、`pr-finalize-loop` が扱う。issue-batch 自身からは、リモートの AI レビューを依頼しない。
 収束しなければ BLOCKED か FAILED にし、影響をその Issue の中に留められるなら、方針に従って次の Issue に進む。
 
-`pr-finalize-loop` が人の判断が要るとする指摘（妥当かをコードだけで決められない、直し方が複数あって影響が大きい、設計の判断が絡む）は、run の中では利用者に確認しない。
-その指摘は直さず、スレッドを解決せずに残し、判断待ちとして manifest に記録する。記録には、指摘の URL・選択肢・推奨を含める。
-CI の失敗と他の指摘は、続けてループで扱う。残りが判断待ちの指摘だけになったら、`--max-iterations` を待たずにループを終え、その Issue を BLOCKED（判断待ち）にして merge に進まない。
-この読み替えは issue-batch の run の中だけのもので、`pr-finalize-loop` を単独で使うときの確認は変えない。
+issue-batch の run では、常に `--defer-decisions` を付けて渡す。`pr-finalize-loop` が人の判断が要るとする指摘は、利用者に確認されず、解決されないまま判断待ちとして返る。
+返った判断待ち（指摘の URL・選択肢・推奨）を manifest に記録し、その Issue を BLOCKED（判断待ち）にして merge に進まない。
 
 ## merge、close、deployment
 
