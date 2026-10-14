@@ -94,7 +94,7 @@ lockfile で `pkg@x.y.z(peer@a.b.c)` の形を持つ peer-keyed transitive で�
 着手できるかの分類（`dependabot-alert-issue` が受け持つ）を誤らせないように、次のことを確かめて `context_note` に書く。
 
 - 対象が peer-keyed か plain か
-- できれば使い捨てのコピーで、バージョンを付けない `pnpm update <package> --depth Infinity --lockfile-only` を試し、patched version に届くか。
+- できれば使い捨てのコピーで、バージョンを付けない `pnpm update <package> --depth 9999 --lockfile-only` を試し（pnpm 12 は `--depth Infinity` を拒否する）、patched version に届くか。
   届かなくても「作り直すしかない」とは書かない。`references/pnpm-transitive-update.md` の手段の優先順に従って判定する
 
 pnpm の transitive 依存の更新に特有の制約と手段は、`dependabot-alert-issue` の `references/pnpm-transitive-update.md` にある。たとえば次の内容である。
