@@ -628,6 +628,12 @@ describe("agent-usage のコマンドと Hook", () => {
     writeFileSync(join(logDir, "s-future.jsonl"), old0.map((l) => JSON.stringify(l)).join("\n"));
     expect(cli("collect").status).toBe(0);
     expect(readState()[person]).toBe("2026-10-01T12:00:00.000Z");
+    const branches0 = join(repo, ".agent-usage", "records", person, "branches");
+    expect(
+      readdirSync(branches0)
+        .map((f) => readFileSync(join(branches0, f), "utf8"))
+        .join(""),
+    ).toContain("usage:claude-code:s-future:");
     // 最後に collect したのが範囲より前だったことにする
     writeFileSync(state, JSON.stringify({ [person]: "2026-07-01T00:00:00.000Z" }));
     // 前回の collect の後（範囲より前）のセッションのログを足す
