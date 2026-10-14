@@ -67,7 +67,7 @@ branch や設定を変更する前に、すべての Issue について次を済
    top=$(git rev-parse --show-toplevel) || { echo '判定不能: リポジトリの直下を特定できない' >&2; exit 1; }
    git fetch --quiet origin '+refs/heads/<base>:refs/remotes/origin/<base>' || { echo '判定不能: base を取得できない' >&2; exit 1; }
    base_blob=$(git rev-parse --verify --quiet "origin/<base>:$cfg") || base_blob=''
-   work_blob=$(git hash-object --path="$cfg" "$top/$cfg" 2>/dev/null) || work_blob=''
+   work_blob=$(git -C "$top" hash-object --path="$cfg" "$cfg" 2>/dev/null) || work_blob=''
    if [ -n "$base_blob" ] && [ "$base_blob" = "$work_blob" ]; then
      echo '設定は base に入っている'
    else
@@ -77,7 +77,7 @@ branch や設定を変更する前に、すべての Issue について次を済
 
    判定の結果は出力の行で読む。入っていない状態は期待される結果の 1 つなので、終了コードを 0 以外にしない。exit 1 は判定できない場合だけである。
    refspec を明示するのは、single-branch の clone でも `origin/<base>` を更新するためである。
-   作業ツリーのファイルを `git hash-object --path` で base の blob と同じ変換（改行・filter）にかけて比べるので、サブディレクトリから実行しても、追跡されていない同じ内容のファイルでも、`core.autocrlf` の環境でも正しく判定する。
+   作業ツリーのファイルをリポジトリの直下から `git hash-object --path` で base の blob と同じ変換（改行・filter）にかけて比べるので、サブディレクトリから実行しても、追跡されていない同じ内容のファイルでも、`core.autocrlf` の環境でも正しく判定する。
    入っていなければ、run を始めずに全体を停止し、設定を base に入れるよう案内する。設定を無人で commit・push しない。
    比べるのはファイル全体なので、他のスキルの設定だけが違っても止まる。worktree の設定が共有ツリーと違うことに変わりはないので、同じく base に入れてもらう。
    base を取得できず判定できないときも、入っているとは扱わずに全体を停止する。
