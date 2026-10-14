@@ -554,6 +554,63 @@
       "expect_failing": [
         "lastObservedAt（読む範囲の判定に使う、最後の行の observed_at） 判定できなければ null を返す（呼び出し側はファイル全体を読む）: 最後の行が、改行を含む値の途中に見える"
       ]
+    },
+    {
+      "id": "retraction-skipped",
+      "why": "作らなくなった記録済みの行を打ち消さない",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "    retractions.push({ ...r, retracted: \"1\" });",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook 区切り方が変わった記録済みの行は打ち消し、report は二重に数えない"
+      ]
+    },
+    {
+      "id": "retraction-without-log",
+      "why": "ログが消えたセッションの行も打ち消す",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "    if (!local.presentSessions.has(`${r.agent ?? \"\"}:${r.session ?? \"\"}`)) continue;",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook 区切り方が変わった記録済みの行は打ち消し、report は二重に数えない",
+        "agent-usage のコマンドと Hook サブエージェントのログしか残っていないセッションの行は、打ち消さない"
+      ]
+    },
+    {
+      "id": "retraction-ignored-by-report",
+      "why": "report が打ち消しの行を数える",
+      "file": "skills/agent-usage/scripts/lib/report.mjs",
+      "find": "  const latest = [...latestByKey(allRows).values()].filter((r) => r.retracted !== \"1\");",
+      "replace": "  const latest = [...latestByKey(allRows).values()];",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook 区切り方が変わった記録済みの行は打ち消し、report は二重に数えない"
+      ]
+    },
+    {
+      "id": "utc-hour-bucket",
+      "why": "使用量を UTC の正時で区切る",
+      "file": "skills/agent-usage/scripts/lib/usage.mjs",
+      "find": "    const hour = localHourStart(m.ts, ctx.tz);",
+      "replace": "    const hour = Math.floor(m.ts / HOUR) * HOUR;",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook オフセットが 30 分のタイムゾーンでは、日付の境目の前後の使用量をそれぞれの日に入れる",
+        "agent-usage のコマンドと Hook 区切り方が変わった記録済みの行は打ち消し、report は二重に数えない"
+      ]
+    },
+    {
+      "id": "retraction-subagent-only",
+      "why": "メインのログが消え、サブエージェントのログだけが残ったセッションの行を打ち消す",
+      "file": "skills/agent-usage/scripts/lib/collect.mjs",
+      "find": "      matched.filter((s) => !s.subagent).map((s) => `${s.agent}:${s.sessionId}`),",
+      "replace": "      matched.map((s) => `${s.agent}:${s.sessionId}`),",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook サブエージェントのログしか残っていないセッションの行は、打ち消さない"
+      ]
     }
   ]
 }

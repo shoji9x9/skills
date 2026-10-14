@@ -25,6 +25,7 @@ import { encodeProjectPath } from "../../../skills/agent-usage/scripts/lib/disco
 import { COLUMNS } from "../../../skills/agent-usage/scripts/lib/rows.mjs";
 import { githubTarget } from "../../../skills/agent-usage/scripts/lib/run-collect.mjs";
 import { branchLabel, lastObservedAt } from "../../../skills/agent-usage/scripts/lib/records.mjs";
+import { localHourStart } from "../../../skills/agent-usage/scripts/lib/time.mjs";
 import { makeTempDir } from "../../lib/test-tmpdir.ts";
 
 const SCRIPTS = join(import.meta.dirname, "../../../skills/agent-usage/scripts");
@@ -832,6 +833,136 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(again.stdout).toMatch(/書いた: /);
     expect(readFileSync(file, "utf8").split("\n")[0]).toBe(COLUMNS.join(","));
     expect(cli("report").status).toBe(0);
+  });
+
+  test("オフセットが 30 分のタイムゾーンでは、日付の境目の前後の使用量をそれぞれの日に入れる", () => {
+    const { repo, git, cli, logDir } = setup();
+    expect(cli("setup", "--time-zone", "Asia/Kolkata").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    // 18:20Z は IST の前日の 23:50、18:40Z は IST の翌日の 00:10（どちらも UTC では 18 時台）
+    const msg = (id: string, ts: string) => ({
+      type: "assistant",
+      timestamp: ts,
+      cwd: repo,
+      message: { id, model: "claude-opus-5-5", usage: { input_tokens: 100, output_tokens: 0 } },
+    });
+    const lines = [
+      {
+        type: "user",
+        timestamp: "2026-10-01T18:19:00.000Z",
+        cwd: repo,
+        gitBranch: "feature/5-x",
+        origin: { kind: "human" },
+        message: { content: "x" },
+      },
+      msg("k1", "2026-10-01T18:20:00.000Z"),
+      msg("k2", "2026-10-01T18:40:00.000Z"),
+    ];
+    writeFileSync(join(logDir, "s-ist.jsonl"), lines.map((l) => JSON.stringify(l)).join("\n"));
+    expect(cli("collect").status).toBe(0);
+    expect(cli("report").status).toBe(0);
+    const usage = readFileSync(
+      join(repo, ".agent-usage", "report", "20261001", "usage.csv"),
+      "utf8",
+    );
+    // usage.csv は日付・人・エージェント・モデルでまとめる。10-02 の行は、このセッションの 18:40Z の応答（100 トークン）だけ
+    const [header, ...body] = usage.trim().split("\n");
+    const cols = (header ?? "").split(",");
+    const oct2 = body
+      .map((l) => l.split(","))
+      .filter((c) => c[cols.indexOf("date")] === "2026-10-02");
+    expect(oct2.map((c) => c[cols.indexOf("input_tokens")])).toEqual(["100"]);
+  });
+
+  test("区切り方が変わった記録済みの行は打ち消し、report は二重に数えない", () => {
+    const { repo, git, cli, logDir } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    expect(cli("collect").status).toBe(0);
+    const total = () => {
+      expect(cli("report").status).toBe(0);
+      const usage = readFileSync(
+        join(repo, ".agent-usage", "report", "20261001", "usage.csv"),
+        "utf8",
+      );
+      const [header, ...body] = usage.trim().split("\n");
+      const col = (header ?? "").split(",").indexOf("input_tokens");
+      return body.reduce((a, l) => a + Number(l.split(",")[col] ?? 0), 0);
+    };
+    const before = total();
+    expect(before).toBeGreaterThan(0);
+    // タイムゾーンを 30 分のオフセットに変えると、使用量の区切り（key）が変わる
+    expect(cli("setup", "--time-zone", "Asia/Kolkata").status).toBe(0);
+    const again = cli("collect");
+    expect(again.stdout).toMatch(/打ち消した行（ログはあるが、今は作らなくなった行）: [1-9]/);
+    expect(total()).toBe(before);
+    // ログが消えたセッションの行は、作れないだけなので打ち消さない
+    rmSync(join(logDir, "s1.jsonl"));
+    expect(cli("collect").stdout).not.toMatch(/打ち消した行/);
+    expect(total()).toBe(before);
+  });
+
+  test("サブエージェントのログしか残っていないセッションの行は、打ち消さない", () => {
+    const { repo, git, cli, logDir } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    const sub = join(logDir, "s1", "subagents");
+    mkdirSync(sub, { recursive: true });
+    const line = {
+      type: "assistant",
+      timestamp: "2026-10-01T10:05:00.000Z",
+      cwd: repo,
+      message: {
+        id: "sa1",
+        model: "claude-opus-5-5",
+        usage: { input_tokens: 5, output_tokens: 0 },
+      },
+    };
+    writeFileSync(join(sub, "agent-a.jsonl"), JSON.stringify(line));
+    expect(cli("collect").status).toBe(0);
+    // メインのログが消えると、指示・稼働・待ちの行は作れなくなるが、ログが消えただけなので打ち消さない
+    rmSync(join(logDir, "s1.jsonl"));
+    const again = cli("collect");
+    expect(again.status).toBe(0);
+    expect(again.stdout).not.toMatch(/打ち消した行/);
+  });
+
+  test("打ち消しの列が無い古い記録も読み、report は同じ値を出す", () => {
+    const { repo, git, cli } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    expect(cli("collect").status).toBe(0);
+    const out = join(repo, ".agent-usage", "report", "20261001");
+    expect(cli("report").status).toBe(0);
+    const baseline = readFileSync(join(out, "usage.csv"), "utf8");
+    const records = join(repo, ".agent-usage", "records");
+    const person = readdirSync(records).find((d) => d.startsWith("p-")) ?? "";
+    const branches = join(records, person, "branches");
+    const [name] = readdirSync(branches);
+    // 最後の列（retracted）を除いた、前の版の形にする
+    const text = readFileSync(join(branches, name ?? ""), "utf8");
+    const old = text
+      .trim()
+      .split("\n")
+      .map((l) => l.replace(/,[^,]*$/, ""))
+      .join("\n");
+    expect(old.split("\n")[0]).not.toMatch(/retracted/);
+    writeFileSync(join(branches, name ?? ""), `${old}\n`);
+    expect(cli("report").status).toBe(0);
+    expect(readFileSync(join(out, "usage.csv"), "utf8")).toBe(baseline);
+  });
+
+  test.each([
+    ["UTC", "2026-10-01T18:40:00Z", "2026-10-01T18:00:00.000Z"],
+    ["Asia/Tokyo", "2026-10-01T18:40:00Z", "2026-10-01T18:00:00.000Z"],
+    ["Asia/Kolkata", "2026-10-01T18:40:00Z", "2026-10-01T18:30:00.000Z"],
+    ["Asia/Kolkata", "2026-10-01T18:20:00Z", "2026-10-01T17:30:00.000Z"],
+    ["Asia/Kathmandu", "2026-10-01T18:20:00Z", "2026-10-01T18:15:00.000Z"],
+    // 夏時間の終わり: 01 時が 2 回ある。2 回目の 01:40 EST（06:40Z）は、2 回目の 01:00 EST（06:00Z）から
+    ["America/New_York", "2026-11-01T05:40:00Z", "2026-11-01T05:00:00.000Z"],
+    ["America/New_York", "2026-11-01T06:40:00Z", "2026-11-01T06:00:00.000Z"],
+  ])("localHourStart %s %s → %s", (tz, at, expected) => {
+    expect(new Date(localHourStart(Date.parse(at), tz)).toISOString()).toBe(expected);
   });
 
   test("origin が GitHub でなければ、GitHub を取得しない", () => {

@@ -299,6 +299,8 @@ export function belongsToRepo(s, roots, remote) {
  * @property {number} duplicateMessages 別のセッションと重複したので数えなかった応答の数
  * @property {{ ts: number; text: string }[]} commands エージェントが実行したコマンド（人の活動からエージェントの操作を除くのに使う）
  * @property {number[]} prompts 人の指示の時刻
+ * @property {Set<string>} presentSessions メインのログが今もあるこのリポジトリのセッション（`<agent>:<session>`。重複を除く前）。
+ *   サブエージェントのログしか残っていないセッションは含めない（指示・稼働・待ちの行と、サブエージェントの応答の無い時間帯の使用量を作れないだけなので）
  */
 
 /**
@@ -362,6 +364,9 @@ export function collectLocal(opts) {
     duplicateMessages: dropped,
     commands: [],
     prompts: [],
+    presentSessions: new Set(
+      matched.filter((s) => !s.subagent).map((s) => `${s.agent}:${s.sessionId}`),
+    ),
   };
   for (const s of summaries) {
     result.rows.push(...usageRows(s, ctx), ...timelineRows(s, ctx));

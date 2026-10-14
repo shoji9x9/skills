@@ -12,6 +12,7 @@
 //   billing      課金 API から取った日別の実額。
 //   coverage     GitHub の情報を取得した期間と、その成否（取得していない期間の停止を「判定不能」にするため）。
 //
+// retracted が 1 の行は打ち消しの行で、同じ key の前の行を打ち消す（report は observed_at の最も新しい行が打ち消しなら、その key を数えない）。
 // key は行の同一性。並行するブランチや繰り返しの collect で同じ key の行が複数あれば、
 // report は observed_at の最も新しい行を使う（後の collect ほど多くのログを見ているため）。
 
@@ -40,6 +41,7 @@ export const COLUMNS = /** @type {const} */ ([
   "cost_source",
   "wait_ms",
   "detail",
+  "retracted",
 ]);
 
 /** @typedef {(typeof COLUMNS)[number]} Column */

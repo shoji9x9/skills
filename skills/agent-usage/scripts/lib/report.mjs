@@ -207,7 +207,8 @@ export function periodLabel(rows, o) {
  * @returns {ReportData}
  */
 export function buildReport(allRows, o) {
-  const latest = [...latestByKey(allRows).values()];
+  // observed_at の最も新しい行が打ち消しの行（retracted=1）なら、その key を数えない
+  const latest = [...latestByKey(allRows).values()].filter((r) => r.retracted !== "1");
   const alias = (/** @type {string | undefined} */ p) => (p ? (o.config.aliases[p] ?? p) : "");
   const inPeriod = (/** @type {Row} */ r) => {
     const t = parseTime(r.start);

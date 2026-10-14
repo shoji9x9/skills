@@ -80,6 +80,20 @@ export function localParts(ms, tz) {
 }
 
 /**
+ * ms を含む、タイムゾーンでの正時の始まり。オフセットが 30 分・45 分のタイムゾーンでは、UTC の正時からずれる。
+ * 現地の分を引いて戻すので、夏時間の終わりに同じ時が 2 回あっても、それぞれの正時に置く。
+ * @param {number} ms
+ * @param {string} tz
+ * @returns {number}
+ */
+export function localHourStart(ms, tz) {
+  let minute = 0;
+  for (const part of formatterFor(tz).formatToParts(new Date(ms)))
+    if (part.type === "minute") minute = Number(part.value);
+  return Math.floor(ms / 60000) * 60000 - minute * 60000;
+}
+
+/**
  * 区間 [start, end) を、タイムゾーンでの正時の境界で分ける。夏時間で 1 時間が 30 分などになっても、境界は実際の正時に置く。
  * @param {number} start
  * @param {number} end

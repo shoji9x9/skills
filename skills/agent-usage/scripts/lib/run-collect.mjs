@@ -45,6 +45,9 @@ export const GITHUB_FIRST_LOOKBACK_MS = 60 * 86400000;
  */
 export const RECORD_WINDOW_MS = GITHUB_FIRST_LOOKBACK_MS;
 
+/** ログから作る行の種類（ログが今もあるのに作らなくなったら、打ち消す）。 */
+const RETRACTABLE_KINDS = ["usage", "run", "human-wait", "prompt"];
+
 /**
  * この clone で人ごとに最後に collect した時刻の置き場所（git の共通のディレクトリ。clone ごとに別で、commit しない）。
  * @param {string} commonDir
@@ -236,6 +239,7 @@ function ghLoginError(host, env) {
  * @property {number} keyConflicts 同じ key で内容の違う行の数（0 でなければ行の作り方の不具合）
  * @property {number} skippedFiles 範囲より古いので読まなかった記録のファイルの数
  * @property {number} olderRowsSkipped 開始時刻が範囲より古いので書かなかった行の数
+ * @property {number} retractedRows 打ち消した行の数
  */
 
 /**
@@ -389,6 +393,18 @@ export function runCollect(o) {
     if (!prev) unique.set(r.key ?? "", r);
     else if (signature(prev) !== signature(r)) conflicts += 1;
   }
+  // 打ち消し: ログが今もあるセッションの記録済みの行のうち、今の collect で作らなくなった行（重複を除いた後のコピーの側の行、
+  // 区切り方を変えた後の前の区切りの行など）は、打ち消しの行（retracted=1）を書いて、report が数えないようにする。
+  // ログが消えたセッションの行は、作れないだけなので打ち消さない。人の commit と GitHub の行は、ログから作らないので対象にしない
+  /** @type {Row[]} */
+  const retractions = [];
+  for (const r of existing.values()) {
+    if (r.person !== person || r.retracted === "1" || !RETRACTABLE_KINDS.includes(r.kind ?? ""))
+      continue;
+    if (!local.presentSessions.has(`${r.agent ?? ""}:${r.session ?? ""}`)) continue;
+    if (unique.has(r.key ?? "")) continue;
+    retractions.push({ ...r, retracted: "1" });
+  }
   // 既に読んだ key の行は、前の内容と比べられるので、範囲より古くても内容が変わっていれば書く
   let olderRowsSkipped = 0;
   const fresh = changedRows([...unique.values()], existing).filter((r) => {
@@ -400,6 +416,7 @@ export function runCollect(o) {
     olderRowsSkipped += 1;
     return false;
   });
+  fresh.push(...retractions);
   const observed = toIso(now);
   for (const r of fresh) r.observed_at = observed;
   const personRows = fresh.filter((r) => !GITHUB_KINDS.includes(r.kind ?? ""));
@@ -426,5 +443,6 @@ export function runCollect(o) {
     keyConflicts: conflicts,
     skippedFiles: read.skipped,
     olderRowsSkipped,
+    retractedRows: retractions.length,
   };
 }
