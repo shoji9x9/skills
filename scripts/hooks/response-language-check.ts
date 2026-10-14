@@ -27,12 +27,15 @@ export const MIN_JAPANESE_RATIO = 0.1;
  * 応答の言語に数えない部分を除いた本文を返す。
  * - コードブロックは、Markdown の解析の部品（字下げ・長い閉じ記号・閉じていないブロックを扱う）で外す。
  * - 引用（`>` で始まる行）は、英語のレビューコメントなどを貼っただけで応答の言語ではない。
- * - ハーネスが本文の後ろに付けるタグの塊（`<system-reminder>` など）は、過去の transcript の実測で、
- *   日本語の応答を英語と判定させた。
+ * - ハーネスが本文の後ろに付けるタグの塊は、過去の transcript の実測で、日本語の応答を英語と判定させた。
+ *   外すのは実測で見たタグ（HARNESS_TAGS）だけにする。任意のタグを外すと、`<p>...</p>` のような英語の本文まで消えて通ってしまう。
  * - URL は ASCII の範囲だけを外す。空白で区切らない日本語の続きまで消さないためである。
  */
+export const HARNESS_TAGS = ["system-reminder", "task-notification"];
+const HARNESS_BLOCK = new RegExp(`<(${HARNESS_TAGS.join("|")})>[\\s\\S]*?<\\/\\1>`, "g");
+
 export function prose(message: string): string {
-  const lines = message.replace(/<([a-z][a-z-]*)>[\s\S]*?<\/\1>/g, " ").split("\n");
+  const lines = message.replace(HARNESS_BLOCK, " ").split("\n");
   const fenced = fencedLines(lines);
   return lines
     .filter((line, i) => !fenced[i] && !/^\s*>/.test(line))

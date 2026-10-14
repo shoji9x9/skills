@@ -60,6 +60,10 @@ test.each([
     `完了の通知を待っています。\n\n<system-reminder>\n${ENGLISH}\n</system-reminder>`,
   ],
   [
+    "後ろに英語のタスク完了通知が付いた日本語の応答",
+    `完了しました。\n\n<task-notification>\n${ENGLISH}\n</task-notification>`,
+  ],
+  [
     "リストの中で字下げした英語のコードブロックを含む日本語の応答",
     `- 次の出力で失敗しました。\n\n  \`\`\`text\n  ${ENGLISH}\n  ${ENGLISH}\n  \`\`\`\n`,
   ],
@@ -115,6 +119,7 @@ test.each([
       last_assistant_message: `${ENGLISH} The note is \`.kaizen/学び.md\`, and the branch is ready.`,
     },
   ],
+  ["ハーネスのものでないタグで囲んだ英語の応答", { last_assistant_message: `<p>${ENGLISH}</p>` }],
 ])("書き直させる: %s", (_label, fields) => {
   const res = run(hook(fields));
   expect(res.status).toBe(2);

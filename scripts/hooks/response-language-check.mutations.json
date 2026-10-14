@@ -18,10 +18,22 @@
       "id": "LANG-TAG-NOT-STRIPPED",
       "why": "ハーネスのタグの塊を外さない（日本語の応答の後ろに付いた英語の通知で、英語と判定する）",
       "file": "scripts/hooks/response-language-check.ts",
-      "find": ".replace(/<([a-z][a-z-]*)>[\\s\\S]*?<\\/\\1>/g, \" \")",
-      "replace": ".replace(/$^/g, \" \")",
+      "find": "message.replace(HARNESS_BLOCK, \" \")",
+      "replace": "message",
       "occurrences": 1,
-      "expect_failing": ["通す: 後ろに英語の通知のタグの塊が付いた日本語の応答"]
+      "expect_failing": [
+        "通す: 後ろに英語の通知のタグの塊が付いた日本語の応答",
+        "通す: 後ろに英語のタスク完了通知が付いた日本語の応答"
+      ]
+    },
+    {
+      "id": "LANG-ANY-TAG-STRIPPED",
+      "why": "ハーネスのものでないタグの中身まで外す（`<p>` で囲んだ英語の応答を通してしまう）",
+      "file": "scripts/hooks/response-language-check.ts",
+      "find": "${HARNESS_TAGS.join(\"|\")}",
+      "replace": "[a-z][a-z-]*",
+      "occurrences": 1,
+      "expect_failing": ["書き直させる: ハーネスのものでないタグで囲んだ英語の応答"]
     },
     {
       "id": "LANG-FENCE-NOT-STRIPPED",
@@ -120,7 +132,8 @@
       "expect_failing": [
         "書き直させる: 英語の応答（stop_hook_active が false）",
         "書き直させる: 英語の応答（stop_hook_active が欠落）",
-        "書き直させる: 日本語の識別子を少し含む英語の応答"
+        "書き直させる: 日本語の識別子を少し含む英語の応答",
+        "書き直させる: ハーネスのものでないタグで囲んだ英語の応答"
       ]
     },
     {
