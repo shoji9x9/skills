@@ -15,8 +15,9 @@
 //   cost-state（costSnapshots）は変えない。引き継いだ側の cost-state は、引き継いだ後の自分の応答の費用だけを数える
 //   （実ログで、コピーした側の cost-state が、コピーした応答を除いた自分の応答の単価表の計算値と同じ程度だった）。
 
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { writeFileAtomic } from "./atomic.mjs";
 import { isRecord } from "./config.mjs";
 
 /** @typedef {import("./session.mjs").SessionSummary} SessionSummary */
@@ -51,11 +52,8 @@ export function loadClaims(path) {
  * @param {Map<string, string>} claims
  */
 export function saveClaims(path, claims) {
-  mkdirSync(dirname(path), { recursive: true });
-  const tmp = `${path}.${process.pid}.tmp`;
   const sorted = Object.fromEntries([...claims].sort(([a], [b]) => a.localeCompare(b)));
-  writeFileSync(tmp, `${JSON.stringify(sorted)}\n`);
-  renameSync(tmp, path);
+  writeFileAtomic(path, `${JSON.stringify(sorted)}\n`);
 }
 
 /**

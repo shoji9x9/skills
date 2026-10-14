@@ -178,6 +178,22 @@ describe("明細の重複", () => {
     const next = [row("k1", "x", "1"), row("k2", "x", "2"), row("k3", "x", "1")];
     expect(changedRows(next, existing).map((r) => r.key)).toEqual(["k2", "k3"]);
   });
+
+  test("リポジトリ全体の行は、取得した人とタイムゾーンの違いだけでは書き直さない", () => {
+    const by = (kind: string, person: string, tz: string) => ({
+      key: `${kind}:1`,
+      kind,
+      observed_at: "x",
+      person,
+      tz,
+      start: "2026-10-01T00:00:00.000Z",
+    });
+    const existing = latestByKey(
+      ["ci", "review-wait", "review", "activity"].map((k) => by(k, "p-a", "UTC")),
+    );
+    const next = ["ci", "review-wait", "review", "activity"].map((k) => by(k, "p-b", "Asia/Tokyo"));
+    expect(changedRows(next, existing).map((r) => r.kind)).toEqual(["activity"]);
+  });
 });
 
 describe("CSV", () => {

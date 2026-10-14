@@ -4,8 +4,9 @@
 // そのため、削除した worktree のログは、そのパスを覚えていないと探せない。
 // Hook と collect が実行されるたびに、その時点の worktree のパスをここに足す。
 
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { writeFileAtomic } from "./atomic.mjs";
 import { isArray } from "./is-array.mjs";
 
 /**
@@ -42,10 +43,7 @@ export function rememberWorktrees(commonDir, current) {
   const all = [...new Set([...current, ...known])];
   if (all.length !== known.length) {
     const path = worktreesPath(commonDir);
-    mkdirSync(dirname(path), { recursive: true });
-    const tmp = `${path}.${process.pid}.tmp`;
-    writeFileSync(tmp, `${JSON.stringify([...all].sort(), null, 2)}\n`);
-    renameSync(tmp, path);
+    writeFileAtomic(path, `${JSON.stringify([...all].sort(), null, 2)}\n`);
   }
   return all;
 }

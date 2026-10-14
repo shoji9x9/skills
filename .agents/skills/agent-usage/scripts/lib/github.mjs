@@ -13,7 +13,14 @@ import { spawnSync } from "node:child_process";
 import { isArray } from "./is-array.mjs";
 import { isRecord } from "./config.mjs";
 import { parseCodexLog } from "./codex-log.mjs";
-import { costOf, normalizeModel, resolvePrice, resolveReviewPrice } from "./pricing.mjs";
+import {
+  addTokens,
+  costOf,
+  normalizeModel,
+  resolvePrice,
+  resolveReviewPrice,
+  zeroTokens,
+} from "./pricing.mjs";
 import { fmt } from "./rows.mjs";
 import { issueOf } from "./session.mjs";
 import { parseTime, toIso } from "./time.mjs";
@@ -373,6 +380,16 @@ export function actionRuns(o, from, to) {
     const mid = Math.floor((from + to) / 2);
     return [...actionRuns(o, from, mid), ...actionRuns(o, mid + 1000, to)];
   }
+  return runRows(runs, o);
+}
+
+/**
+ * actions/runs の run を ci の行にする。
+ * @param {readonly unknown[]} runs
+ * @param {GitHubOptions} o
+ * @returns {Row[]}
+ */
+export function runRows(runs, o) {
   /** @type {Row[]} */
   const rows = [];
   for (const r of runs) {
@@ -412,6 +429,7 @@ export function actionRuns(o, from, to) {
  * @property {readonly { ts: number; text: string }[]} commands エージェントが実行したコマンド
  * @property {"none" | "user"} billing
  * @property {GhRunner} gh
+ * @property {ReadonlySet<number>} [knownArtifacts] 記録済みの artifact の id（ダウンロードしない）
  */
 
 /**
@@ -454,60 +472,64 @@ export function collectGitHub(o) {
 
   /** @type {{ number: number; branch: string; author: string; sha: string; closedAt: number | null }[]} */
   const prs = [];
-  attempt("pulls", () => {
-    const pages = JSON.parse(
-      o
-        .gh(
-          [
-            "graphql",
-            "--paginate",
-            "--slurp",
-            "-f",
-            `query=${PR_QUERY}`,
-            "-f",
-            `q=repo:${o.slug} is:pr updated:>=${sinceDate}`,
-          ],
-          {},
-        )
-        .toString("utf8"),
-    );
-    if (!isArray(pages)) throw new Error("GraphQL の応答がページの配列でない");
-    for (const page of pages) {
-      const search =
-        isRecord(page) && isRecord(page.data) && isRecord(page.data.search)
-          ? page.data.search
-          : null;
-      if (!search || !isArray(search.nodes))
-        throw new Error("GraphQL の応答に search.nodes が無い");
-      for (const node of search.nodes) {
-        if (!isRecord(node) || typeof node.number !== "number") continue;
-        const pr = {
-          number: node.number,
-          branch: str(node.headRefName),
-          author: loginOf(node.author),
-          sha: str(node.headRefOid),
-          closedAt: parseTime(node.closedAt),
-        };
-        prs.push(pr);
-        const tl = isRecord(node.timelineItems) ? node.timelineItems : {};
-        const more = isRecord(tl.pageInfo) && tl.pageInfo.hasNextPage === true;
-        // 100 件を超える timeline は、その PR だけ REST でページングして再取得する
-        const items = more
-          ? getAll(
-              o.gh,
-              `repos/${o.slug}/issues/${pr.number}/timeline?per_page=100`,
-              (x) => x,
-            ).flatMap(fromRestEvent)
-          : isArray(tl.nodes)
-            ? tl.nodes.flatMap(fromGraphqlItem)
-            : [];
-        rows.push(...timelineRows(pr, items, me, o));
+  /** @type {Set<number>} */
+  const seenPrs = new Set();
+  // 更新されていない open な PR（レビューを待ち続けている）も取得し、待ちの終わりを今の時刻まで延ばす
+  for (const q of [`repo:${o.slug} is:pr updated:>=${sinceDate}`, `repo:${o.slug} is:pr is:open`])
+    attempt(q.includes("is:open") ? "pulls (open)" : "pulls", () => {
+      const pages = JSON.parse(
+        o
+          .gh(["graphql", "--paginate", "--slurp", "-f", `query=${PR_QUERY}`, "-f", `q=${q}`], {})
+          .toString("utf8"),
+      );
+      if (!isArray(pages)) throw new Error("GraphQL の応答がページの配列でない");
+      for (const page of pages) {
+        const search =
+          isRecord(page) && isRecord(page.data) && isRecord(page.data.search)
+            ? page.data.search
+            : null;
+        if (!search || !isArray(search.nodes))
+          throw new Error("GraphQL の応答に search.nodes が無い");
+        for (const node of search.nodes) {
+          if (!isRecord(node) || typeof node.number !== "number") continue;
+          if (seenPrs.has(node.number)) continue;
+          seenPrs.add(node.number);
+          const pr = {
+            number: node.number,
+            branch: str(node.headRefName),
+            author: loginOf(node.author),
+            sha: str(node.headRefOid),
+            closedAt: parseTime(node.closedAt),
+          };
+          prs.push(pr);
+          const tl = isRecord(node.timelineItems) ? node.timelineItems : {};
+          const more = isRecord(tl.pageInfo) && tl.pageInfo.hasNextPage === true;
+          // 100 件を超える timeline は、その PR だけ REST でページングして再取得する
+          const items = more
+            ? getAll(
+                o.gh,
+                `repos/${o.slug}/issues/${pr.number}/timeline?per_page=100`,
+                (x) => x,
+              ).flatMap(fromRestEvent)
+            : isArray(tl.nodes)
+              ? tl.nodes.flatMap(fromGraphqlItem)
+              : [];
+          rows.push(...timelineRows(pr, items, me, o));
+        }
       }
-    }
-  });
+    });
 
   attempt("actions/runs", () => {
     rows.push(...actionRuns(o, o.since, o.now));
+    // since より前に始まって、まだ終わっていない run（end を今の時刻まで延ばす）
+    for (const status of ["queued", "in_progress", "waiting"]) {
+      const open = getAll(
+        o.gh,
+        `repos/${o.slug}/actions/runs?status=${status}&per_page=100`,
+        (p) => (isRecord(p) ? p.workflow_runs : null),
+      );
+      rows.push(...runRows(open, o).filter((r) => (parseTime(r.start) ?? 0) < o.since));
+    }
   });
 
   if (o.config.ci.external) {
@@ -582,6 +604,7 @@ export function collectGitHub(o) {
       if (!isRecord(a) || a.expired === true || typeof a.id !== "number") continue;
       const created = parseTime(a.created_at);
       if (created === null || created < o.since) continue;
+      if (o.knownArtifacts?.has(a.id)) continue;
       const run = isRecord(a.workflow_run) ? a.workflow_run : {};
       const files = unzip(
         o.gh([`repos/${o.slug}/actions/artifacts/${a.id}/zip`], { binary: true }),
@@ -612,7 +635,7 @@ export function collectGitHub(o) {
           if (!isRecord(it)) continue;
           const date = toIso(day).slice(0, 10);
           rows.push({
-            key: `billing:${date}:${str(it.product)}:${str(it.model)}:${str(it.sku)}`,
+            key: `billing:${o.person}:${date}:${str(it.product)}:${str(it.model)}:${str(it.sku)}`,
             kind: "billing",
             ...base,
             agent: str(it.product),
@@ -689,27 +712,8 @@ export function artifactRows(files, a, o) {
     const byModel = new Map();
     for (const m of s.messages) {
       const { price, source } = resolvePrice(m.model, o.config.pricing, o.bundledPricing);
-      const cur = byModel.get(m.model) ?? {
-        tokens: {
-          input: 0,
-          cacheRead: 0,
-          cacheWrite5m: 0,
-          cacheWrite1h: 0,
-          output: 0,
-          reasoning: 0,
-        },
-        cost: 0,
-        source,
-      };
-      for (const k of /** @type {const} */ ([
-        "input",
-        "cacheRead",
-        "cacheWrite5m",
-        "cacheWrite1h",
-        "output",
-        "reasoning",
-      ]))
-        cur.tokens[k] += m.tokens[k];
+      const cur = byModel.get(m.model) ?? { tokens: zeroTokens(), cost: 0, source };
+      addTokens(cur.tokens, m.tokens);
       cur.cost = price && cur.cost !== null ? cur.cost + costOf(m.tokens, price) : null;
       byModel.set(m.model, cur);
     }

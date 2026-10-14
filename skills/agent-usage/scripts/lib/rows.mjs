@@ -75,6 +75,28 @@ export function isKind(value) {
  * @param {Row} row
  * @returns {string}
  */
+/** 誰が取得しても内容が同じ、リポジトリ全体の行の種類（person と tz は取得した人の値が入るだけ）。 */
+export const REPO_SCOPE_KINDS = ["ci", "review-wait", "review"];
+
+/**
+ * 書き直すかを決めるための内容の署名。リポジトリ全体の行では、person と tz の違いを無視する
+ * （2 人が交互に collect したときに、互いの行を書き直し続けないため）。
+ * @param {Row} row
+ * @returns {string}
+ */
+export function contentSignature(row) {
+  const repoScope = REPO_SCOPE_KINDS.includes(row.kind ?? "");
+  return COLUMNS.filter(
+    (c) => c !== "observed_at" && !(repoScope && (c === "person" || c === "tz")),
+  )
+    .map((c) => row[c] ?? "")
+    .join("\u0001");
+}
+
+/**
+ * @param {Row} row
+ * @returns {string}
+ */
 export function signature(row) {
   return COLUMNS.filter((c) => c !== "observed_at")
     .map((c) => row[c] ?? "")

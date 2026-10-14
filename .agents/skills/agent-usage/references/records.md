@@ -27,6 +27,7 @@
 識別の列（`key`・`kind`・`observed_at`・`person`）、出所の列（`agent`・`session`・`subagent`・`model`）、時刻の列（`start`・`end`・`tz`）を持つ。
 ほかに、作業の列（`branch`・`issue`）、トークン数の 5 列と `messages`、費用の列（`cost_usd`・`cost_source`）、`wait_ms`・`detail` を持つ。
 時刻はすべて、末尾が `Z` の ISO 8601（UTC）で書く。`tz` は、その行を日付に切るときに使うタイムゾーンである。
+`usage` は UTC の正時で区切り、区切りの開始時刻で日付に切る。オフセットが 30 分・45 分のタイムゾーン（`Asia/Kolkata` など）では、日付の境目の前後の 30 分・45 分の使用量が隣の日に入る（停止の集計は現地の正時で区切るので揃わない）。
 
 | `kind` | 内容 |
 | --- | --- |

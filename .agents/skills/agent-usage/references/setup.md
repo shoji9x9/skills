@@ -75,13 +75,14 @@ setup はリポジトリに `.agent-usage/config.json`（空の設定）と `.ag
 
 | 状況 | 振る舞い |
 | --- | --- |
-| `git commit` を実行しない | 通す。判定は、引用符・`git` のグローバルのオプション（`-C <dir>` など）・`&&`・`;`・`$(...)`・シェルの予約語（`then`・`do`・`{`・`!` など）・コマンドを実行するコマンド（`env`・`command`・`sudo` など）を扱う。エイリアス・変数・`sh -c` の中・スクリプトの中・`git` や `commit` の語を引用符で分けた形は検出しない |
+| `git commit` を実行しない | 通す。判定は、引用符・`git` のグローバルのオプション（`-C <dir>` など）・`&&`・`;`・`$(...)`・シェルの予約語（`if`・`then`・`while`・`do`・`{`・`!` など）・前の `cd <dir>`・コマンドを実行するコマンド（`env`・`command`・`sudo` など）を扱う。エイリアス・変数・`sh -c` の中・スクリプトの中・`git` や `commit` の語を引用符で分けた形は検出しない |
 | `.agent-usage/` が無い・detached HEAD・デフォルトブランチ | 通す |
 | ブランチの判断が無い | 止める（exit 2）。stderr で、利用者に確かめて `collect --stage` か `decline` を実行するよう求める |
 | 判断が「記録しない」 | 通す |
-| 判断が「記録する」 | collect を実行し、増えた明細を stage して通す。collect が失敗したら止める。Hook の collect は常に GitHub も取得する（`--no-github` は手動の collect だけ） |
+| 判断が「記録する」 | collect を実行し、`.agent-usage/records/` を stage して通す（前に書いて stage されなかった記録も入る）。collect が失敗したら止める。Hook の collect は常に GitHub も取得する（`--no-github` は手動の collect だけ） |
 | Node.js が無い・同梱のスクリプトを読めない・想定外の失敗 | 確認をせずに通し、その旨を stderr に出す（記録の仕組みの不具合で作業を止めない） |
 
+判断と collect は、git commit を実行する作業ディレクトリ（`-C <dir>` と前の `cd <dir>` を当てた先）のリポジトリで行う。
 デフォルトブランチは、`origin/HEAD` から決める。分からなければ `main` と `master` をデフォルトブランチとして扱う。
 判断はリポジトリに入れず、git の共通のディレクトリ（`git rev-parse --git-common-dir` の下の `agent-usage/decisions.json`）に置く。worktree でも共有する。
 

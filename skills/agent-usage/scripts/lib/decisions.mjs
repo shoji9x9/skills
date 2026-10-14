@@ -1,7 +1,8 @@
 // ブランチごとの「記録するか」の判断。リポジトリには入れず、git の共通のディレクトリ（worktree で共有）に置く。
 
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { writeFileAtomic } from "./atomic.mjs";
 import { isRecord } from "./config.mjs";
 
 /** @typedef {"record" | "decline"} Decision */
@@ -58,8 +59,5 @@ export function saveDecision(commonDir, branch, decision, now) {
   const all = loadDecisions(commonDir);
   all[branch] = { decision, at: new Date(now).toISOString() };
   const path = decisionsPath(commonDir);
-  mkdirSync(dirname(path), { recursive: true });
-  const tmp = `${path}.${process.pid}.tmp`;
-  writeFileSync(tmp, `${JSON.stringify(all, null, 2)}\n`);
-  renameSync(tmp, path);
+  writeFileAtomic(path, `${JSON.stringify(all, null, 2)}\n`);
 }

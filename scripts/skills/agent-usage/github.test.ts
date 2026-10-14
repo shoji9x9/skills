@@ -209,7 +209,7 @@ describe("collectGitHub", () => {
       return Buffer.from(JSON.stringify([{ workflow_runs: [], artifacts: [] }]));
     };
     const res = collectGitHub(options(gh));
-    expect(res.failures).toEqual(["pulls: HTTP 502"]);
+    expect(res.failures).toEqual(["pulls: HTTP 502", "pulls (open): HTTP 502"]);
   });
 
   test("人の設定で billing が user のときだけ、課金 API の日別の実額を billing の行にする", () => {
@@ -240,7 +240,7 @@ describe("collectGitHub", () => {
     const billing = res.rows.filter((r) => r.kind === "billing");
     expect(billing).toHaveLength(1);
     expect(billing[0]).toMatchObject({
-      key: "billing:2026-10-01:Copilot:gpt-x:premium",
+      key: "billing:p-00000001:2026-10-01:Copilot:gpt-x:premium",
       cost_usd: "0.520000",
       cost_source: "billing",
       detail: "sku=premium;quantity=13",
@@ -254,6 +254,68 @@ describe("collectGitHub", () => {
     const none = collectGitHub(options(gh));
     expect(none.rows.some((r) => r.kind === "billing")).toBe(false);
     expect(calls.some((c) => c.includes("billing"))).toBe(false);
+  });
+
+  test("更新されていない open な PR と、since より前に始まって実行中の run も取得する", () => {
+    const calls: string[] = [];
+    const gh: Gh = (args) => {
+      calls.push(args.join(" "));
+      if (args[0] === "user") return Buffer.from(JSON.stringify({ login: "me" }));
+      if (args[0] === "graphql") throw new Error("HTTP 502");
+      const path = args.find((a) => a.includes("actions/runs")) ?? "";
+      if (path.includes("status=in_progress")) {
+        return Buffer.from(
+          JSON.stringify([
+            {
+              workflow_runs: [
+                {
+                  id: 7,
+                  run_attempt: 1,
+                  status: "in_progress",
+                  run_started_at: "2026-09-30T23:00:00Z",
+                  head_branch: "feature/1-x",
+                  name: "CI",
+                  event: "pull_request",
+                },
+                {
+                  id: 8,
+                  run_attempt: 1,
+                  status: "in_progress",
+                  run_started_at: iso(1),
+                  head_branch: "feature/1-x",
+                  name: "CI",
+                  event: "pull_request",
+                },
+              ],
+            },
+          ]),
+        );
+      }
+      return Buffer.from(JSON.stringify([{ workflow_runs: [], artifacts: [] }]));
+    };
+    const res = collectGitHub(options(gh));
+    expect(calls.some((c) => c.includes("is:pr is:open"))).toBe(true);
+    const ci = res.rows.filter((r) => r.kind === "ci");
+    // since（0 時）より前に始まった run だけを足す。後に始まった run は created で取る
+    expect(ci.map((r) => r.key)).toEqual(["ci:7:1"]);
+    expect(ci[0].end).toBe(new Date(ms(12)).toISOString());
+  });
+
+  test("記録済みの artifact はダウンロードしない", () => {
+    const calls: string[] = [];
+    const gh: Gh = (args) => {
+      calls.push(args.join(" "));
+      if (args[0] === "user") return Buffer.from(JSON.stringify({ login: "me" }));
+      if (args[0] === "graphql") throw new Error("HTTP 502");
+      if (args[0].includes("/zip")) throw new Error("ダウンロードしない想定");
+      const artifacts = args.some((a) => a.includes("agent-usage-review-claude"))
+        ? [{ id: 42, created_at: iso(1), expired: false, workflow_run: {} }]
+        : [];
+      return Buffer.from(JSON.stringify([{ workflow_runs: [], artifacts }]));
+    };
+    const res = collectGitHub(options(gh, { knownArtifacts: new Set([42]) }));
+    expect(res.failures.some((f) => f.startsWith("artifacts"))).toBe(false);
+    expect(calls.some((c) => c.includes("/zip"))).toBe(false);
   });
 
   test("ツールごとの名前の artifact を、名前ごとに取得する", () => {

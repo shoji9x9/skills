@@ -63,6 +63,9 @@ describe("isGitCommit", () => {
     ["sudo git commit", true],
     ["xargs -0 git commit", true],
     ["env git status", false],
+    ["if git commit -m x; then echo ok; fi", true],
+    ["while git commit; do :; done", true],
+    ["until git commit -m y; do :; done", true],
     ["echo then commit", false],
   ])("%s → %s", (cmd, expected) => {
     expect(isGitCommit(cmd)).toBe(expected);
@@ -78,6 +81,9 @@ describe("commitCwd", () => {
     ["git -C /x status && git commit", "/w"],
     ["git status", "/w"],
     ['git -C "/a b" commit "unterminated', "/w"],
+    ["cd ../wt && git commit -m x", "/wt"],
+    ["cd /r; git -C sub commit", "/r/sub"],
+    ["cd /r && git status", "/w"],
   ])("%s → %s", (cmd, expected) => {
     expect(commitCwd(cmd, "/w")).toBe(expected);
   });
@@ -286,6 +292,36 @@ describe("agent-usage のコマンドと Hook", () => {
       .map((f) => readFileSync(join(records, person, f), "utf8"))
       .join("");
     expect(text).toMatch(/usage:claude-code:s-wt:/);
+  });
+
+  test("Hook は、前に書いて stage されなかった記録も stage する", () => {
+    const { repo, git, cli, gate } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    expect(cli("collect", "--stage").status).toBe(0);
+    git("commit", "-q", "-m", "records");
+    // 手動の collect（--stage なし）が書いた記録は stage されない
+    expect(cli("collect").status).toBe(0);
+    const untracked = git("ls-files", "--others", "--", ".agent-usage/records").trim();
+    expect(untracked).not.toBe("");
+    expect(gate("git commit -m y").status).toBe(0);
+    const staged = git("diff", "--cached", "--name-only").trim().split("\n");
+    for (const f of untracked.split("\n")) expect(staged).toContain(f);
+    expect(existsSync(join(repo, untracked.split("\n")[0]))).toBe(true);
+  });
+
+  test("origin が GitHub でなければ、GitHub を取得しない", () => {
+    const { git, cli } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("remote", "add", "origin", "https://gitlab.com/group/sub/repo.git");
+    git("switch", "-q", "-c", "feature/5-x");
+    const sub = cli("collect");
+    expect(sub.status).toBe(0);
+    expect(sub.stdout).toMatch(/GitHub: 取得していない/);
+    git("remote", "set-url", "origin", "https://gitlab.com/owner/repo.git");
+    const flat = cli("collect");
+    expect(flat.status).toBe(0);
+    expect(flat.stdout).toMatch(/GitHub: 取得していない/);
   });
 
   test("知らない引数と値の無い引数は、使い方を出して 2 で止める", () => {

@@ -50,6 +50,17 @@
       "expect_failing": [
         "停止の分類 report: 記録の時点で単価の無かった行は、今の単価表で計算し直し、それでも無ければ単価不明として数える"
       ]
+    },
+    {
+      "id": "repo-scope-rewrites",
+      "why": "リポジトリ全体の行を、取得した人の違いで書き直す",
+      "file": "skills/agent-usage/scripts/lib/rows.mjs",
+      "find": "  const repoScope = REPO_SCOPE_KINDS.includes(row.kind ?? \"\");",
+      "replace": "  const repoScope = false;",
+      "occurrences": 1,
+      "expect_failing": [
+        "明細の重複 リポジトリ全体の行は、取得した人とタイムゾーンの違いだけでは書き直さない"
+      ]
     }
   ]
 }

@@ -6,8 +6,9 @@
 // 行は、セッションをまたいだ重複を除いて（dedupe.mjs）から、毎回すべての要約から作る。
 
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { writeFileAtomic } from "./atomic.mjs";
 import { isArray } from "./is-array.mjs";
 import { isRecord } from "./config.mjs";
 import { parseClaudeSession } from "./claude-log.mjs";
@@ -207,10 +208,10 @@ function tokensOf(t) {
  * @param {Map<string, CacheEntry>} cache
  */
 export function saveCache(path, cache) {
-  mkdirSync(dirname(path), { recursive: true });
-  const tmp = `${path}.${process.pid}.tmp`;
-  writeFileSync(tmp, JSON.stringify({ version: ROWS_VERSION, entries: Object.fromEntries(cache) }));
-  renameSync(tmp, path);
+  writeFileAtomic(
+    path,
+    JSON.stringify({ version: ROWS_VERSION, entries: Object.fromEntries(cache) }),
+  );
 }
 
 /**

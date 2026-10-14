@@ -41,7 +41,7 @@ export function readHookInput(text) {
 }
 
 /** コマンドの前に来るシェルの予約語（`if x; then git commit; fi` の then など）。 */
-const SHELL_PREFIXES = ["then", "do", "else", "elif", "{", "!", "time"];
+const SHELL_PREFIXES = ["if", "then", "elif", "else", "while", "until", "do", "{", "!", "time"];
 
 /** 後ろのコマンドを実行するコマンド。値を取らないオプション（`-` で始まる語）だけを読み飛ばす。 */
 const COMMAND_WRAPPERS = ["env", "command", "exec", "nohup", "nice", "sudo", "xargs"];
@@ -179,7 +179,8 @@ function commitDirsOf(words) {
 
 /**
  * git commit を実行する作業ディレクトリ。最初の git commit の `-C` を、git と同じく cwd から順に解決する（相対パスは前の -C に続ける）。
- * 語に分けられないときと、-C が無いときは cwd。`cd <dir> && git commit` の cd は追わない。
+ * その前の `cd <dir>`（同じ呼び出しの中で git commit より前のもの）も順に当てる。語に分けられないときは cwd。
+ * 区切り（`&&`・`;`・`||`・サブシェル）は区別しないので、`(cd x) && git commit` の cd も当てる。
  * @param {string} command
  * @param {string} cwd
  * @returns {string}
@@ -187,9 +188,14 @@ function commitDirsOf(words) {
 export function commitCwd(command, cwd) {
   const commands = splitCommands(command);
   if (commands === null) return cwd;
+  let dir = cwd;
   for (const words of commands) {
+    if (words[0] === "cd" && words.length === 2 && words[1] !== "-") {
+      dir = resolve(dir, words[1]);
+      continue;
+    }
     const dirs = commitDirsOf(words);
-    if (dirs !== null) return dirs.reduce((acc, d) => resolve(acc, d), cwd);
+    if (dirs !== null) return dirs.reduce((acc, d) => resolve(acc, d), dir);
   }
   return cwd;
 }
@@ -253,7 +259,8 @@ export function gateDecision(input, fallbackCwd, now, script, agent) {
   if (decision === "decline") return { exit: 0, message: "" };
   try {
     const r = runCollect({ repo, now, env: process.env, github: true, gh: null });
-    if (r.written.length > 0) git(["add", "--", ...r.written], repo.root);
+    // 今回書いたファイルに加えて、前回書いて stage されなかった（index.lock などで失敗した、手動の collect で書いた）記録も入れる
+    git(["add", "--", ".agent-usage/records"], repo.root);
     const notes =
       r.githubFailures.length > 0
         ? `（GitHub の取得に失敗した段: ${r.githubFailures.length}。その期間の停止は「判定不能」になる）`

@@ -48,6 +48,38 @@
       "expect_failing": [
         "collectGitHub 人の設定で billing が user のときだけ、課金 API の日別の実額を billing の行にする"
       ]
+    },
+    {
+      "id": "no-open-prs",
+      "why": "更新されていない open な PR を取得しない",
+      "file": "skills/agent-usage/scripts/lib/github.mjs",
+      "find": "  for (const q of [`repo:${o.slug} is:pr updated:>=${sinceDate}`, `repo:${o.slug} is:pr is:open`])",
+      "replace": "  for (const q of [`repo:${o.slug} is:pr updated:>=${sinceDate}`])",
+      "occurrences": 1,
+      "expect_failing": [
+        "collectGitHub 更新されていない open な PR と、since より前に始まって実行中の run も取得する",
+        "collectGitHub 取得に失敗した段を failures に残し、他の段は続ける"
+      ]
+    },
+    {
+      "id": "no-open-runs",
+      "why": "since より前に始まって実行中の run を取得しない",
+      "file": "skills/agent-usage/scripts/lib/github.mjs",
+      "find": "    for (const status of [\"queued\", \"in_progress\", \"waiting\"]) {",
+      "replace": "    for (const status of []) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "collectGitHub 更新されていない open な PR と、since より前に始まって実行中の run も取得する"
+      ]
+    },
+    {
+      "id": "download-known",
+      "why": "記録済みの artifact もダウンロードする",
+      "file": "skills/agent-usage/scripts/lib/github.mjs",
+      "find": "      if (o.knownArtifacts?.has(a.id)) continue;",
+      "replace": "      void 0;",
+      "occurrences": 1,
+      "expect_failing": ["collectGitHub 記録済みの artifact はダウンロードしない"]
     }
   ]
 }

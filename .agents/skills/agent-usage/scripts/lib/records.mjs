@@ -6,7 +6,7 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { parseCsv, toCsv } from "./csv.mjs";
-import { COLUMNS, isKind, signature } from "./rows.mjs";
+import { COLUMNS, contentSignature, isKind, signature } from "./rows.mjs";
 import { parseTime } from "./time.mjs";
 
 /** @typedef {import("./rows.mjs").Row} Row */
@@ -99,7 +99,7 @@ export function latestByKey(rows) {
 export function changedRows(candidates, existing) {
   return candidates.filter((r) => {
     const prev = existing.get(r.key ?? "");
-    return !prev || signature(prev) !== signature(r);
+    return !prev || contentSignature(prev) !== contentSignature(r);
   });
 }
 

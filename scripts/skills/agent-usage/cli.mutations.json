@@ -55,7 +55,8 @@
         "isGitCommit git -C commit status → false",
         "commitCwd git -C /other commit -m x → /other",
         "commitCwd git -C sub -C deeper commit → /w/sub/deeper",
-        "commitCwd git -C ../o -c a=b commit → /o"
+        "commitCwd git -C ../o -c a=b commit → /o",
+        "commitCwd cd /r; git -C sub commit → /r/sub"
       ]
     },
     {
@@ -79,7 +80,10 @@
         "isGitCommit for i in 1; do git commit; done → true",
         "isGitCommit { git commit; } → true",
         "isGitCommit ! git commit → true",
-        "isGitCommit time git commit → true"
+        "isGitCommit time git commit → true",
+        "isGitCommit if git commit -m x; then echo ok; fi → true",
+        "isGitCommit while git commit; do :; done → true",
+        "isGitCommit until git commit -m y; do :; done → true"
       ]
     },
     {
@@ -95,6 +99,40 @@
         "isGitCommit command git commit → true",
         "isGitCommit sudo git commit → true",
         "isGitCommit xargs -0 git commit → true"
+      ]
+    },
+    {
+      "id": "cd-not-followed",
+      "why": "git commit の前の cd を追わない",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "    if (words[0] === \"cd\" && words.length === 2 && words[1] !== \"-\") {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "commitCwd cd ../wt && git commit -m x → /wt",
+        "commitCwd cd /r; git -C sub commit → /r/sub"
+      ]
+    },
+    {
+      "id": "stage-only-written",
+      "why": "今回書いたファイルだけを stage する",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "    git([\"add\", \"--\", \".agent-usage/records\"], repo.root);",
+      "replace": "    if (r.written.length > 0) git([\"add\", \"--\", ...r.written], repo.root);",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook Hook は、前に書いて stage されなかった記録も stage する"
+      ]
+    },
+    {
+      "id": "non-github-host",
+      "why": "GitHub でないホストも GitHub として扱う",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "!ghHosts.includes(host);",
+      "replace": "false;",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook origin が GitHub でなければ、GitHub を取得しない"
       ]
     }
   ]

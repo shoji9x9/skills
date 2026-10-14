@@ -138,7 +138,10 @@ export function runCollect(o) {
   /** @type {string[]} */
   let githubFailures = [];
   const [host, owner, name] = repo.remote.split("/");
-  const githubSkipped = !o.github || !owner || !name;
+  // github.com（か、GH_HOST で指定した GitHub Enterprise のホスト）の owner/name の形だけを GitHub として扱う
+  const ghHosts = ["github.com", (env.GH_HOST ?? "").toLowerCase()].filter((h) => h !== "");
+  const githubSkipped =
+    !o.github || !owner || !name || repo.remote.split("/").length !== 3 || !ghHosts.includes(host);
   if (!githubSkipped) {
     const gh = o.gh ?? makeGh(host);
     const res = collectGitHub({
@@ -151,6 +154,12 @@ export function runCollect(o) {
       bundledTools: loadBundledTools(),
       bundledPricing,
       bundledReviewPricing: loadBundledReviewPricing(),
+      knownArtifacts: new Set(
+        [...existing.keys()].flatMap((k) => {
+          const m = /^review-artifact:(\d+):/.exec(k);
+          return m ? [Number(m[1])] : [];
+        }),
+      ),
       commands: local.commands,
       billing: user.config.billing,
       gh,

@@ -31,7 +31,8 @@ agent-usage status
 ## 前提
 
 - ツール: `git`、Node.js（22 以上）、`bash`（Hook のスクリプト）
-- GitHub の情報（CI・レビュー・自分の操作）を取るときだけ `gh`（GitHub CLI）。リポジトリの読み取りの権限で足りる。`gh` が無いか失敗したら、その期間の停止を「判定不能」として記録し、collect は続ける。失敗した段は collect の出力に「GitHub の取得に失敗」として出る
+- GitHub の情報（CI・レビュー・自分の操作）を取るときだけ `gh`（GitHub CLI）。リポジトリの読み取りの権限で足りる。`gh` が無いか失敗したら、その期間の停止を「判定不能」として記録し、collect は続ける。失敗した段は collect の出力に「GitHub の取得に失敗」として出る。
+  origin が github.com（か、`GH_HOST` で指定したホスト）の `owner/name` でなければ、GitHub は取得しない
 - 前提スキル: なし
 - MCP: なし
 - 対象のエージェント: Claude Code と Codex（ローカルのログを読む）。GitHub Copilot のログは読まない
