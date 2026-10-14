@@ -355,7 +355,8 @@
         "agent-usage のコマンドと Hook Hook は、前に書いて stage されなかった記録も stage する",
         "agent-usage のコマンドと Hook collect --stage は明細を書いて stage し、記録すると決めたブランチのコミットでは Hook が collect して通す",
         "agent-usage のコマンドと Hook 見出しの列が今と違うファイルに足すときは、今の列で書き直す",
-        "agent-usage のコマンドと Hook デフォルトブランチに入った（squash merge された）ブランチのファイルには足さず、新しいファイルを作る"
+        "agent-usage のコマンドと Hook デフォルトブランチに入った（squash merge された）ブランチのファイルには足さず、新しいファイルを作る",
+        "agent-usage のコマンドと Hook デフォルトブランチ自身では、push した後も同じファイルに足す"
       ]
     },
     {
@@ -370,15 +371,17 @@
       ]
     },
     {
-      "id": "collected-in-window-by-rows",
-      "why": "この clone の最後の collect の時刻ではなく、記録の行の有無で範囲の中の collect を判定する",
+      "id": "missing-last-collect-as-collected",
+      "why": "last-collect.json が無いとき（初めての collect・新しい clone）も、範囲の中で collect したとして扱う",
       "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
       "find": "  const collectedInWindow = last !== null && last >= windowStart;",
-      "replace": "  const collectedInWindow = [...existing.values()].some((r) => r.person === person);",
+      "replace": "  const collectedInWindow = last === null || last >= windowStart;",
       "occurrences": 1,
       "expect_failing": [
+        "agent-usage のコマンドと Hook この clone で初めての collect は、記録の全体を読み、範囲より古い記録済みの行を重ねて書かない",
         "agent-usage のコマンドと Hook この clone で範囲の中に collect していれば、範囲より古いログの行は書かない（していなければ書く）",
-        "agent-usage のコマンドと Hook この clone で最後に collect したのが範囲より前なら、範囲より古いログの行も書く"
+        "agent-usage のコマンドと Hook この clone で最後に collect したのが範囲より前なら、範囲より古いログの行も書く",
+        "agent-usage のコマンドと Hook 範囲より古い開始時刻の行でも、読んだ記録に同じ key があって内容が変われば書く"
       ]
     },
     {
@@ -401,7 +404,8 @@
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook 英数字以外を含むブランチの名前は、ハッシュを足して別のブランチと別のファイルにする",
-        "agent-usage のコマンドと Hook branchLabel: 英数字以外を含む名前はハッシュを足す"
+        "agent-usage のコマンドと Hook branchLabel: 英数字以外を含む名前はハッシュを足す",
+        "agent-usage のコマンドと Hook branchLabel: 末尾の - を消す名前はハッシュを足す"
       ]
     },
     {
@@ -424,7 +428,10 @@
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook この clone で範囲の中に collect していれば、範囲より古いログの行は書かない（していなければ書く）",
-        "agent-usage のコマンドと Hook この clone で最後に collect したのが範囲より前なら、範囲より古いログの行も書く"
+        "agent-usage のコマンドと Hook この clone で最後に collect したのが範囲より前なら、範囲より古いログの行も書く",
+        "agent-usage のコマンドと Hook collect は範囲より古いファイルを読まず、範囲の外の key を書き直しても report の結果は変わらない",
+        "agent-usage のコマンドと Hook この clone で初めての collect は、記録の全体を読み、範囲より古い記録済みの行を重ねて書かない",
+        "agent-usage のコマンドと Hook 古い形のファイルは、名前の時刻だけで読むかを決める（末尾を読まない）"
       ]
     },
     {
