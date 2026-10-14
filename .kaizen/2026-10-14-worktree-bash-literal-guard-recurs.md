@@ -21,7 +21,8 @@ issue-batch の #631 の作業で、worktree に入った後の Bash 呼び出�
 
 どれも Write ツールでスクリプトを書いて `bash <絶対パス>` で実行する形に直して通した。
 
-記録した後も、同じセッションで 8 回以上再発した（変数名 `githubTarget_` を置換する sed、`gh --jq` の `\(.number)` を含む式、`github.mjs` のパスを含む複合コマンドなど）。
+記録した後も、同じセッションで 9 回以上再発した。
+例は、`kaizen-kedb-match.sh` に `"gh issue develop"` を渡した呼び出し（変数名 `githubTarget_` を置換する sed、`gh --jq` の `\(.number)` を含む式、`github.mjs` のパスを含む複合コマンドなど）。
 記録が文脈にあっても、複合コマンドを書く時点では参照されなかった。
 
 この制約は `.kaizen/archive/2026-09-17-worktree-session-rejects-computed-bash.md` で記録し、`skills/git-worktree/references/isolation.md` に適用済みである。
