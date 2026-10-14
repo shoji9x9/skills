@@ -19,6 +19,7 @@ export const IS_ARRAY_HOLDERS = [
   "scripts/mutation/check-mutation-proof.ts",
   "skills/golden-dataset/scripts/lib/is-array.mjs",
   "skills/issue-start/scripts/lib/is-array.mjs",
+  "skills/agent-usage/scripts/lib/is-array.mjs",
   "skills/parity-component/scripts/lib/is-array.mjs",
   "skills/parity-diff/scripts/lib/is-array.mjs",
   "skills/parity-suite/scripts/lib/is-array.mjs",

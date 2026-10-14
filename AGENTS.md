@@ -225,6 +225,7 @@ rule は、対象のファイルを触るときに自動で読み込まれる。
 - `browser-test`: 変更による回帰を、実際のブラウザ（chrome-devtools MCP）で確認する
 - `aws-architecture-diagram`: IaC や説明から AWS の構成図を spec に起こし、SVG として生成・更新する
 - `box`: Box のファイルとフォルダを、Box REST API（`curl` と `jq`）で参照・検索・更新する
+- `agent-usage`: コーディングエージェントの利用実績（費用・稼働と停止の時間・PR のレビュー）を、人別にリポジトリへ記録して HTML と CSV に集計する
 - `replace-strategy`: 仕様を変えないアプリケーションのリプレイスの起点。現行アプリを測って戦略を決め、機能を姉妹スキルに振り分ける
 - `current-environment-bootstrap`: replace-strategy の姉妹スキル。受け取った資産だけを基に、現行のテスト環境を作り直す
 - `golden-dataset`: replace-strategy の姉妹スキル。新旧の比較に使う共通のデータセットを投入する、冪等で決定論的なツールを作る

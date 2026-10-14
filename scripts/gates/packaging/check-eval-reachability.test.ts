@@ -80,10 +80,12 @@ test("誤検知しないことの確認（実データ）: 実リポジトリの
 
 test("検出の確認（実データ）: 実在の eval の prompt を変えると免除の指紋が外れる", () => {
   const files = listEvalFiles(repoRoot);
-  const target = files[0];
-  const parsed = parseJsonAs<{ skill_name: string; evals: EvalEntry[] }>(
-    readFileSync(target, "utf8"),
-  );
+  // backlog に残る（reachability の無い）eval を持つ最初のファイルを使う。すべての eval が reachability を持つファイル（新しいスキル）もある
+  const parse = (f: string) =>
+    parseJsonAs<{ skill_name: string; evals: EvalEntry[] }>(readFileSync(f, "utf8"));
+  const target = files.find((f) => parse(f).evals.some((e) => !Object.hasOwn(e, "reachability")));
+  assert.exists(target);
+  const parsed = parse(target);
   const ev = parsed.evals.find((e) => !Object.hasOwn(e, "reachability"));
   assert.exists(ev);
   const backlog = parseJsonAs<{ exempt: Record<string, string> }>(

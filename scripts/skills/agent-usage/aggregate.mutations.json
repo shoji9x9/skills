@@ -1,0 +1,55 @@
+{
+  "$comment": [
+    "aggregate.test.ts のうち、費用の配分・重複の扱い・停止の分類を検出できることを示す変異の一覧。",
+    "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する（scripts/mutation/check-mutation-proof.ts）。"
+  ],
+  "test_file": "scripts/skills/agent-usage/aggregate.test.ts",
+  "mutations": [
+    {
+      "id": "stop-priority-reversed",
+      "why": "停止の分類の層を優先順位の逆に当てる",
+      "file": "skills/agent-usage/scripts/lib/report.mjs",
+      "find": "    const hit = layers.find((l) => l.spans.some(([x, y]) => mid >= x && mid < y));",
+      "replace": "    const hit = layers.findLast((l) => l.spans.some(([x, y]) => mid >= x && mid < y));",
+      "occurrences": 1,
+      "expect_failing": [
+        "停止の分類 層の優先順位の順に分類し、どれにも当たらなければ fallback にする",
+        "停止の分類 report: 人の稼働を合わせた隙間を停止にし、人の活動の幅・直前のブランチの CI・取得した期間で分類する"
+      ]
+    },
+    {
+      "id": "cost-state-ignored",
+      "why": "cost-state があっても、その値に合わせない",
+      "file": "skills/agent-usage/scripts/lib/usage.mjs",
+      "find": "  if (!snap) return priced;",
+      "replace": "  return priced;",
+      "occurrences": 1,
+      "expect_failing": [
+        "費用 cost-state があれば、その時刻までの応答の合計をモデルごとに cost-state に合わせ、後の応答は単価で数える",
+        "費用 単価の無いモデルは proxyWeight の比で cost-state を配り、cost-state が無ければ空欄にする"
+      ]
+    },
+    {
+      "id": "latest-observed-ignored",
+      "why": "同じ key の行で、observed_at の新しい行を選ばない",
+      "file": "skills/agent-usage/scripts/lib/records.mjs",
+      "find": "    if (b > a || (b === a && signature(r) > signature(prev))) out.set(key, r);",
+      "replace": "    if (false) out.set(key, r);",
+      "occurrences": 1,
+      "expect_failing": [
+        "明細の重複 同じ key は observed_at の新しい行を使い、同じ時刻なら読む順に依らない"
+      ]
+    },
+    {
+      "id": "report-no-reprice",
+      "why": "記録の時点で単価の無かった行を、report で計算し直さない",
+      "file": "skills/agent-usage/scripts/lib/report.mjs",
+      "find": "    if (cost === null) {\n      const { price, source }",
+      "replace": "    if (false) {\n      const { price, source }",
+      "occurrences": 1,
+      "expect_failing": [
+        "停止の分類 report: 記録の時点で単価の無かった行は、今の単価表で計算し直し、それでも無ければ単価不明として数える"
+      ]
+    }
+  ]
+}

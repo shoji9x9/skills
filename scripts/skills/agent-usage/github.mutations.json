@@ -1,0 +1,42 @@
+{
+  "$comment": [
+    "github.test.ts のうち、GitHub の取得と人の活動の判定を検出できることを示す変異の一覧。",
+    "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する（scripts/mutation/check-mutation-proof.ts）。"
+  ],
+  "test_file": "scripts/skills/agent-usage/github.test.ts",
+  "mutations": [
+    {
+      "id": "agent-gh-comment-counted",
+      "why": "エージェントの gh の直後のコメントを人の活動として数える",
+      "file": "skills/agent-usage/scripts/lib/github.mjs",
+      "find": "      if (it.at >= o.since && mine(it.login) && !nearAgentCommand(it.at, o.commands, /\\bgh\\b/)) {",
+      "replace": "      if (it.at >= o.since && mine(it.login)) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "timelineRows 自分のレビューとコメントは活動にし、エージェントの gh の直後のものは除く"
+      ]
+    },
+    {
+      "id": "runs-limit-not-split",
+      "why": "actions/runs が上限に達しても期間を分けない",
+      "file": "skills/agent-usage/scripts/lib/github.mjs",
+      "find": "  if (runs.length >= RUNS_QUERY_LIMIT) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "actionRuns 上限に達した期間は半分に分けて再取得し、実行中の run は今の時刻までの open にする"
+      ]
+    },
+    {
+      "id": "reflog-non-commit-counted",
+      "why": "reflog の commit 以外の操作も人の commit として数える",
+      "file": "skills/agent-usage/scripts/lib/github.mjs",
+      "find": "    if (!/^commit\\b/.test(subject)) continue;",
+      "replace": "    if (false) continue;",
+      "occurrences": 1,
+      "expect_failing": [
+        "commitActivityRows reflog の commit の操作だけを数え、エージェントの git の直後と since より前は除く"
+      ]
+    }
+  ]
+}

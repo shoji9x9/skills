@@ -1,0 +1,98 @@
+{
+  "$comment": [
+    "cli.test.ts のうち、コミット前の確認の Hook の判定を検出できることを示す変異の一覧。",
+    "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する（scripts/mutation/check-mutation-proof.ts）。"
+  ],
+  "test_file": "scripts/skills/agent-usage/cli.test.ts",
+  "mutations": [
+    {
+      "id": "undecided-branch-passes",
+      "why": "判断の無いブランチのコミットを止めない",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "  if (decision === null) return { exit: 2, message: askMessage(agent, script) };",
+      "replace": "  if (false) return { exit: 2, message: askMessage(agent, script) };",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook 判断の無い feature ブランチのコミットを止め、記録しないと決めたら通す。デフォルトブランチでは止めない",
+        "agent-usage のコマンドと Hook Hook が実行された worktree のパスを覚え、その worktree を削除した後も collect がログを集める"
+      ]
+    },
+    {
+      "id": "default-branch-blocked",
+      "why": "デフォルトブランチのコミットも確認の対象にする",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "  if (defaults.includes(repo.branch)) return { exit: 0, message: \"\" };",
+      "replace": "  if (false) return { exit: 0, message: \"\" };",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook 判断の無い feature ブランチのコミットを止め、記録しないと決めたら通す。デフォルトブランチでは止めない"
+      ]
+    },
+    {
+      "id": "gate-forgets-worktree",
+      "why": "Hook が worktree のパスを覚えないので、削除した worktree のログを collect が探せない",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "    rememberWorktrees(repo.commonDir, repo.worktrees);",
+      "replace": "    void rememberWorktrees;",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook Hook が実行された worktree のパスを覚え、その worktree を削除した後も collect がログを集める"
+      ]
+    },
+    {
+      "id": "value-option-not-skipped",
+      "why": "値を取るオプションの値を語として飛ばさない",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "      i += GIT_VALUE_OPTIONS.includes(words[i]) ? 2 : 1;",
+      "replace": "      i += 1;",
+      "occurrences": 1,
+      "expect_failing": [
+        "isGitCommit git -C \"/path with space\" commit -m x → true",
+        "isGitCommit git -C '/a b' -c core.x=1 commit → true",
+        "isGitCommit git --git-dir /r/.git --work-tree /r commit → true",
+        "isGitCommit git -C /repo commit -m x → true",
+        "isGitCommit git -c user.name=x commit → true",
+        "isGitCommit git -C commit status → false"
+      ]
+    },
+    {
+      "id": "unparsed-passes",
+      "why": "語に分けられないコマンドを、検出しない側として扱う",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "  if (commands === null) return /\\bgit\\b[\\s\\S]*\\bcommit\\b/.test(command);",
+      "replace": "  if (commands === null) return false;",
+      "occurrences": 1,
+      "expect_failing": ["isGitCommit git commit -m \"unterminated → true"]
+    },
+    {
+      "id": "shell-prefix-not-skipped",
+      "why": "シェルの予約語を読み飛ばさない",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "      if (i < words.length && SHELL_PREFIXES.includes(words[i])) {",
+      "replace": "      if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "isGitCommit if true; then git commit -m x; fi → true",
+        "isGitCommit for i in 1; do git commit; done → true",
+        "isGitCommit { git commit; } → true",
+        "isGitCommit ! git commit → true",
+        "isGitCommit time git commit → true"
+      ]
+    },
+    {
+      "id": "wrapper-not-skipped",
+      "why": "コマンドを実行するコマンドを読み飛ばさない",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "      if (i < words.length && COMMAND_WRAPPERS.includes(words[i])) {",
+      "replace": "      if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "isGitCommit env FOO=1 git commit → true",
+        "isGitCommit env -i git commit → true",
+        "isGitCommit command git commit → true",
+        "isGitCommit sudo git commit → true",
+        "isGitCommit xargs -0 git commit → true"
+      ]
+    }
+  ]
+}
