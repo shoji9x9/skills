@@ -1,0 +1,88 @@
+{
+  "$comment": [
+    "dedupe.test.ts のうち、セッションをまたいだ重複の除去と、キャッシュの要約の読み込みを検出できることを示す変異の一覧。",
+    "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する（scripts/mutation/check-mutation-proof.ts）。"
+  ],
+  "test_file": "scripts/skills/agent-usage/dedupe.test.ts",
+  "mutations": [
+    {
+      "id": "no-dedupe",
+      "why": "セッションをまたいだ重複を除かない",
+      "file": "skills/agent-usage/scripts/lib/dedupe.mjs",
+      "find": "      if (s.sessionId === owner) continue;",
+      "replace": "      continue;",
+      "occurrences": 1,
+      "expect_failing": [
+        "dedupeSessions コピーした側から、重複した応答と、その時刻までの指示・完了・待ちを外し、claims に記録する",
+        "dedupeSessions 最初の時刻が同じなら、最後の時刻が早いセッション（引き継いだ元）に数える",
+        "dedupeSessions claims に記録した決定に従い、記録した側のログが無ければどちらにも数えない"
+      ]
+    },
+    {
+      "id": "ignore-last-ts",
+      "why": "最初の時刻が同じとき、引き継いだ元ではなく ID の順で決める",
+      "file": "skills/agent-usage/scripts/lib/dedupe.mjs",
+      "find": "  return a.firstTs - b.firstTs || a.lastTs - b.lastTs || a.sessionId.localeCompare(b.sessionId);",
+      "replace": "  return a.firstTs - b.firstTs || a.sessionId.localeCompare(b.sessionId);",
+      "occurrences": 1,
+      "expect_failing": [
+        "dedupeSessions 最初の時刻が同じなら、最後の時刻が早いセッション（引き継いだ元）に数える"
+      ]
+    },
+    {
+      "id": "ignore-claims",
+      "why": "記録した決定を使わず、毎回決め直す",
+      "file": "skills/agent-usage/scripts/lib/dedupe.mjs",
+      "find": "    let owner = claims.get(k);",
+      "replace": "    let owner = undefined;",
+      "occurrences": 1,
+      "expect_failing": [
+        "dedupeSessions claims に記録した決定に従い、記録した側のログが無ければどちらにも数えない"
+      ]
+    },
+    {
+      "id": "forget-claims",
+      "why": "決めた結果を記録しない",
+      "file": "skills/agent-usage/scripts/lib/dedupe.mjs",
+      "find": "      claims.set(k, owner);",
+      "replace": "      void owner;",
+      "occurrences": 1,
+      "expect_failing": [
+        "dedupeSessions コピーした側から、重複した応答と、その時刻までの指示・完了・待ちを外し、claims に記録する"
+      ]
+    },
+    {
+      "id": "keep-copied-turn-ends",
+      "why": "コピーした範囲の完了の記録を残す",
+      "file": "skills/agent-usage/scripts/lib/dedupe.mjs",
+      "find": "      turnEnds: s.turnEnds.filter(own),",
+      "replace": "      turnEnds: s.turnEnds,",
+      "occurrences": 1,
+      "expect_failing": [
+        "dedupeSessions コピーした側から、重複した応答と、その時刻までの指示・完了・待ちを外し、claims に記録する"
+      ]
+    },
+    {
+      "id": "cache-infinity",
+      "why": "キャッシュの無限大（JSON の null）を戻さない",
+      "file": "skills/agent-usage/scripts/lib/collect.mjs",
+      "find": "  const firstTs = v.firstTs === null ? Number.POSITIVE_INFINITY : v.firstTs;",
+      "replace": "  const firstTs = v.firstTs;",
+      "occurrences": 1,
+      "expect_failing": [
+        "summaryFromCache JSON を通した要約を元に戻す（無限大は null になるので戻す）"
+      ]
+    },
+    {
+      "id": "cache-tokens-unchecked",
+      "why": "キャッシュのトークン数の形を確かめない",
+      "file": "skills/agent-usage/scripts/lib/collect.mjs",
+      "find": "    if (!isNum(value)) return null;",
+      "replace": "    if (false) return null;",
+      "occurrences": 1,
+      "expect_failing": [
+        "summaryFromCache トークン数が数でない・配列の欄が配列でない要約は読まない"
+      ]
+    }
+  ]
+}

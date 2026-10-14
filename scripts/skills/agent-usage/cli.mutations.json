@@ -1,0 +1,211 @@
+{
+  "$comment": [
+    "cli.test.ts のうち、コミット前の確認の Hook の判定を検出できることを示す変異の一覧。",
+    "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する（scripts/mutation/check-mutation-proof.ts）。"
+  ],
+  "test_file": "scripts/skills/agent-usage/cli.test.ts",
+  "mutations": [
+    {
+      "id": "undecided-branch-passes",
+      "why": "判断の無いブランチのコミットを止めない",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "  if (decision === null) return { exit: 2, message: askMessage(agent, script) };",
+      "replace": "  if (false) return { exit: 2, message: askMessage(agent, script) };",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook 判断の無い feature ブランチのコミットを止め、記録しないと決めたら通す。デフォルトブランチでは止めない",
+        "agent-usage のコマンドと Hook Hook が実行された worktree のパスを覚え、その worktree を削除した後も collect がログを集める"
+      ]
+    },
+    {
+      "id": "default-branch-blocked",
+      "why": "デフォルトブランチのコミットも確認の対象にする",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "  if (defaults.includes(repo.branch)) return { exit: 0, message: \"\" };",
+      "replace": "  if (false) return { exit: 0, message: \"\" };",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook 判断の無い feature ブランチのコミットを止め、記録しないと決めたら通す。デフォルトブランチでは止めない"
+      ]
+    },
+    {
+      "id": "gate-forgets-worktree",
+      "why": "Hook が worktree のパスを覚えないので、削除した worktree のログを collect が探せない",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "    rememberWorktrees(repo.commonDir, repo.worktrees);",
+      "replace": "    void rememberWorktrees;",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook Hook が実行された worktree のパスを覚え、その worktree を削除した後も collect がログを集める"
+      ]
+    },
+    {
+      "id": "value-option-not-skipped",
+      "why": "値を取るオプションの値を語として飛ばさない",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "    i += GIT_VALUE_OPTIONS.includes(words[i]) ? 2 : 1;",
+      "replace": "    i += 1;",
+      "occurrences": 1,
+      "expect_failing": [
+        "isGitCommit git -C \"/path with space\" commit -m x → true",
+        "isGitCommit git -C '/a b' -c core.x=1 commit → true",
+        "isGitCommit git --git-dir /r/.git --work-tree /r commit → true",
+        "isGitCommit git -C /repo commit -m x → true",
+        "isGitCommit git -c user.name=x commit → true",
+        "isGitCommit git -C commit status → false",
+        "commitCwd git -C /other commit -m x → /other",
+        "commitCwd git -C sub -C deeper commit → /w/sub/deeper",
+        "commitCwd git -C ../o -c a=b commit → /o",
+        "commitCwd cd /r; git -C sub commit → /r/sub"
+      ]
+    },
+    {
+      "id": "unparsed-passes",
+      "why": "語に分けられないコマンドを、検出しない側として扱う",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "  if (commands === null) return /\\bgit\\b[\\s\\S]*\\bcommit\\b/.test(command);",
+      "replace": "  if (commands === null) return false;",
+      "occurrences": 1,
+      "expect_failing": ["isGitCommit git commit -m \"unterminated → true"]
+    },
+    {
+      "id": "shell-prefix-not-skipped",
+      "why": "シェルの予約語を読み飛ばさない",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "    if (i < words.length && SHELL_PREFIXES.includes(words[i])) {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "isGitCommit if true; then git commit -m x; fi → true",
+        "isGitCommit for i in 1; do git commit; done → true",
+        "isGitCommit { git commit; } → true",
+        "isGitCommit ! git commit → true",
+        "isGitCommit time git commit → true",
+        "isGitCommit if git commit -m x; then echo ok; fi → true",
+        "isGitCommit while git commit; do :; done → true",
+        "isGitCommit until git commit -m y; do :; done → true"
+      ]
+    },
+    {
+      "id": "wrapper-not-skipped",
+      "why": "コマンドを実行するコマンドを読み飛ばさない",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "    if (i < words.length && COMMAND_WRAPPERS.includes(words[i])) {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "isGitCommit env FOO=1 git commit → true",
+        "isGitCommit env -i git commit → true",
+        "isGitCommit command git commit → true",
+        "isGitCommit sudo git commit → true",
+        "isGitCommit xargs -0 git commit → true"
+      ]
+    },
+    {
+      "id": "cd-not-followed",
+      "why": "git commit の前の cd を追わない",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "    if (words[0] === \"cd\" || words[0] === \"pushd\") {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "commitCwd cd ../wt && git commit -m x → /wt",
+        "commitCwd cd /r; git -C sub commit → /r/sub",
+        "commitCwd pushd ../o && git commit → /o",
+        "commitCwd cd /r && pushd sub && pushd x && popd && git commit → /r/sub"
+      ]
+    },
+    {
+      "id": "stage-only-written",
+      "why": "今回書いたファイルだけを stage する",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "    git([\"add\", \"--\", \".agent-usage/records\"], repo.root);",
+      "replace": "    if (r.written.length > 0) git([\"add\", \"--\", ...r.written], repo.root);",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook Hook は、前に書いて stage されなかった記録も stage する"
+      ]
+    },
+    {
+      "id": "non-github-host",
+      "why": "GitHub でないホストも GitHub として扱う",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "!ghHosts.includes(host);",
+      "replace": "false;",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook origin が GitHub でなければ、GitHub を取得しない"
+      ]
+    },
+    {
+      "id": "cd-expansion-resolved",
+      "why": "展開の要る cd の引数をそのまま当てる",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "        arg === \"\" || /^[-+]/.test(arg) || /[$`]/.test(arg) || arg.startsWith(\"~\")",
+      "replace": "        arg === \"\" || /^[-+]/.test(arg)",
+      "occurrences": 1,
+      "expect_failing": [
+        "commitCwd cd \"$(git rev-parse --show-toplevel)\" && git commit → /w",
+        "commitCwd cd ~/x && git commit → /w",
+        "commitCwd cd /r && cd $WT && git commit → /w"
+      ]
+    },
+    {
+      "id": "subst-in-quotes",
+      "why": "二重引用符の中のコマンド置換を調べない",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "  return substitutions.some((inner) => isGitCommit(inner));",
+      "replace": "  return false;",
+      "occurrences": 1,
+      "expect_failing": [
+        "isGitCommit out=\"$(git commit -m x 2>&1)\" → true",
+        "isGitCommit echo \"`git commit -m x`\" → true",
+        "isGitCommit echo \"a $(echo \"$(git commit -m x)\") b\" → true"
+      ]
+    },
+    {
+      "id": "pushd-ignored",
+      "why": "pushd を cd と同じに当てない",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "    if (words[0] === \"cd\" || words[0] === \"pushd\") {",
+      "replace": "    if (words[0] === \"cd\") {",
+      "occurrences": 1,
+      "expect_failing": [
+        "commitCwd pushd ../o && git commit → /o",
+        "commitCwd cd /r && pushd sub && pushd x && popd && git commit → /r/sub"
+      ]
+    },
+    {
+      "id": "gate-usage-blocks",
+      "why": "gate の処理の誤りでコミットを止める",
+      "file": "skills/agent-usage/scripts/agent-usage.mjs",
+      "find": "    if (process.argv[2] === \"gate\") {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook gate は、確認の処理の誤り（不正な AGENT_USAGE_NOW）ではコミットを止めない"
+      ]
+    },
+    {
+      "id": "popd-ignored",
+      "why": "popd で pushd の前のディレクトリに戻さない",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "      dir = stack.pop() ?? cwd;",
+      "replace": "      void stack;",
+      "occurrences": 1,
+      "expect_failing": [
+        "commitCwd pushd sub && popd && git commit -m x → /w",
+        "commitCwd cd /r && pushd sub && pushd x && popd && git commit → /r/sub"
+      ]
+    },
+    {
+      "id": "pushd-stack-index",
+      "why": "pushd +N をパスとして当てる",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "        arg === \"\" || /^[-+]/.test(arg) || /[$`]/.test(arg) || arg.startsWith(\"~\")",
+      "replace": "        arg === \"\" || arg === \"-\" || /[$`]/.test(arg) || arg.startsWith(\"~\")",
+      "occurrences": 1,
+      "expect_failing": ["commitCwd pushd +1 && git commit → /w"]
+    }
+  ]
+}

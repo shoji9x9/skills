@@ -1,0 +1,110 @@
+{
+  "$comment": [
+    "aggregate.test.ts のうち、費用の配分・重複の扱い・停止の分類を検出できることを示す変異の一覧。",
+    "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する（scripts/mutation/check-mutation-proof.ts）。"
+  ],
+  "test_file": "scripts/skills/agent-usage/aggregate.test.ts",
+  "mutations": [
+    {
+      "id": "stop-priority-reversed",
+      "why": "停止の分類の層を優先順位の逆に当てる",
+      "file": "skills/agent-usage/scripts/lib/report.mjs",
+      "find": "    const hit = layers.find((l) => l.spans.some(([x, y]) => mid >= x && mid < y));",
+      "replace": "    const hit = layers.findLast((l) => l.spans.some(([x, y]) => mid >= x && mid < y));",
+      "occurrences": 1,
+      "expect_failing": [
+        "停止の分類 層の優先順位の順に分類し、どれにも当たらなければ fallback にする",
+        "停止の分類 report: 人の稼働を合わせた隙間を停止にし、人の活動の幅・直前のブランチの CI・取得した期間で分類する"
+      ]
+    },
+    {
+      "id": "cost-state-ignored",
+      "why": "cost-state があっても、その値に合わせない",
+      "file": "skills/agent-usage/scripts/lib/usage.mjs",
+      "find": "  if (!snap) return priced;",
+      "replace": "  return priced;",
+      "occurrences": 1,
+      "expect_failing": [
+        "費用 cost-state があれば、その時刻までの応答の合計をモデルごとに cost-state に合わせ、後の応答は単価で数える",
+        "費用 単価の無いモデルは proxyWeight の比で cost-state を配り、cost-state が無ければ空欄にする"
+      ]
+    },
+    {
+      "id": "latest-observed-ignored",
+      "why": "同じ key の行で、observed_at の新しい行を選ばない",
+      "file": "skills/agent-usage/scripts/lib/records.mjs",
+      "find": "    if (b > a || (b === a && signature(r) > signature(prev))) out.set(key, r);",
+      "replace": "    if (false) out.set(key, r);",
+      "occurrences": 1,
+      "expect_failing": [
+        "明細の重複 同じ key は observed_at の新しい行を使い、同じ時刻なら読む順に依らない"
+      ]
+    },
+    {
+      "id": "report-no-reprice",
+      "why": "記録の時点で単価の無かった行を、report で計算し直さない",
+      "file": "skills/agent-usage/scripts/lib/report.mjs",
+      "find": "    if (cost === null) {\n      const { price, source }",
+      "replace": "    if (false) {\n      const { price, source }",
+      "occurrences": 1,
+      "expect_failing": [
+        "停止の分類 report: 記録の時点で単価の無かった行は、今の単価表で計算し直し、それでも無ければ単価不明として数える"
+      ]
+    },
+    {
+      "id": "repo-scope-rewrites",
+      "why": "リポジトリ全体の行を、取得した人の違いで書き直す",
+      "file": "skills/agent-usage/scripts/lib/rows.mjs",
+      "find": "  const repoScope = REPO_SCOPE_KINDS.includes(row.kind ?? \"\");",
+      "replace": "  const repoScope = false;",
+      "occurrences": 1,
+      "expect_failing": [
+        "明細の重複 リポジトリ全体の行は、取得した人とタイムゾーンの違いだけでは書き直さない"
+      ]
+    },
+    {
+      "id": "idle-until-now",
+      "why": "まだ collect していない人の時間も停止に数える",
+      "file": "skills/agent-usage/scripts/lib/report.mjs",
+      "find": "    const personEnd = Number.isFinite(lastSeen) ? Math.min(periodEnd, lastSeen) : periodEnd;",
+      "replace": "    const personEnd = periodEnd;",
+      "occurrences": 1,
+      "expect_failing": [
+        "停止の分類 report: 人ごとの停止は、その人が最後に記録した時刻（observed_at）で打ち切る"
+      ]
+    },
+    {
+      "id": "partial-unknown-hidden",
+      "why": "単価の一部が不明な行を単価不明に数えない",
+      "file": "skills/agent-usage/scripts/lib/report.mjs",
+      "find": "    if (cost === null || sources.includes(\"unknown\")) {",
+      "replace": "    if (cost === null) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "停止の分類 report: 単価のある応答と単価不明の応答が混在する行も、単価不明に数える"
+      ]
+    },
+    {
+      "id": "billing-fails-coverage",
+      "why": "課金 API の失敗で coverage を失敗にする",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "  return failures.filter((f) => !f.startsWith(\"billing\") && !f.startsWith(\"artifacts\"));",
+      "replace": "  return [...failures];",
+      "occurrences": 1,
+      "expect_failing": [
+        "停止の分類 coverage は、課金 API と artifact の失敗だけなら判定不能にしない"
+      ]
+    },
+    {
+      "id": "formula-unsafe",
+      "why": "report の CSV の数式を文字列にしない",
+      "file": "skills/agent-usage/scripts/lib/csv.mjs",
+      "find": "          return quote(opts.formulaSafe ? formulaSafe(text) : text);",
+      "replace": "          return quote(text);",
+      "occurrences": 1,
+      "expect_failing": [
+        "CSV の数式 report の CSV では、数式として読まれる値の先頭に ' を付け、数は変えない"
+      ]
+    }
+  ]
+}

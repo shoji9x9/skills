@@ -53,7 +53,8 @@
         "skills/parity-component/scripts/lib/is-array.mjs",
         "skills/replace-strategy/scripts/lib/is-array.mjs",
         "skills/golden-dataset/scripts/lib/is-array.mjs",
-        "skills/issue-start/scripts/lib/is-array.mjs"
+        "skills/issue-start/scripts/lib/is-array.mjs",
+        "skills/agent-usage/scripts/lib/is-array.mjs"
       ],
       "reason": "配布スキルの .mjs が使う配列の型ガード isArray。スキルの中で完結させるためにコピーする。片方だけを直すと、スキルごとに絞り込みの型が食い違う"
     },

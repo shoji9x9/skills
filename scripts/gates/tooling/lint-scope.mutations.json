@@ -79,7 +79,7 @@
       "id": "LS-LH-COPY",
       "why": "lefthook の除外からコピーを 1 つ挙げ忘れる（そのコピーを二重に整形・lint する）",
       "file": "lefthook.yml",
-      "find": "            exclude: &agent-copies\n              - \".claude/rules/**\"\n              - \".claude/skills/**\"\n              - \".github/instructions/**\"\n              - \".agents/skills/aws-architecture-diagram/**\"\n",
+      "find": "            exclude: &agent-copies\n              - \".claude/rules/**\"\n              - \".claude/skills/**\"\n              - \".github/instructions/**\"\n              - \".agents/skills/agent-usage/**\"\n",
       "replace": "            exclude: &agent-copies\n              - \".claude/rules/**\"\n              - \".claude/skills/**\"\n              - \".github/instructions/**\"\n",
       "occurrences": 1,
       "expect_failing": [

@@ -20,6 +20,7 @@ Claude Code・Codex・GitHub Copilot に対応した、マルチエージェン�
 | [browser-test](./skills/browser-test/) | フロント／バックエンドの変更を実ブラウザ（chrome-devtools MCP）で回帰確認。実施できる操作は環境ごとの設定（`forbidden_actions`）に従い、副作用を伴う操作は承認制（未設定の環境は読み取り専用）。変更の範囲から影響するページを割り出し、描画・console・API 応答を確認して課題をクロス環境で切り分け。`setup` で対話的に設定を記録 |
 | [aws-architecture-diagram](./skills/aws-architecture-diagram/) | AWS 構成図を IaC（CDK / Terraform 等）や説明から spec に起こし SVG として生成・更新。作図ルール（線の交差を減らす・線を直角に曲げる・軸をそろえる）に従い、環境（prod・local など）ごとの図を 1 つの基本の spec と変換で出し分け、PNG 化して目視確認しながら反復。初回は `setup` で対話導入、以降は `update` |
 | [box](./skills/box/) | Box のファイル/フォルダを Box REST API（`curl` + `jq`）で参照・検索・更新。フォルダ一覧・メタ取得・ダウンロード・検索・アップロード・新バージョン作成を、Dev Token または OAuth refresh のトークンで実行。MCP・SDK 不要 |
+| [agent-usage](./skills/agent-usage/) | コーディングエージェント（Claude Code・Codex）の利用実績を、人別にリポジトリへ記録して集計。モデル別・日別のトークン数と費用、1 回の指示で動き続けた時間、エージェントが止まっていた時間（確認中・CI 待ち・レビュー待ち・未活用）と PR のレビューの回数と費用を、ローカルのログと GitHub から集める。コミットの前に Hook が記録するかを確かめ、要約は HTML、明細は CSV |
 | [replace-strategy](./skills/replace-strategy/) | 仕様を変えないアプリケーションリプレイスの起点。現行アプリを実測（セマンティクス・DB 復元可否・コード入手性・副作用・既存テスト）して戦略を決め、機能に分解して姉妹スキルへ振り分ける。自分では実装しない。`setup` / `issues`（issue-create へ委譲）/ `status` / `evidence`（確定した要求単位の根拠を機能インベントリへ書き戻す唯一の方法）の 4 モード。測定できなければ停止 |
 | [current-environment-bootstrap](./skills/current-environment-bootstrap/) | replace-strategy の姉妹スキル。先方から受領した資産だけを起点に、比較基準として測定可能な現行テスト環境（current target）を自社へ再構築する。受領資産の棚卸しと「受領済み／導出可能／不足」の分類、DB スキーマと設定の復元、データ意味論の根拠収集、不足に対する先方・SME 向け質問票の生成、根拠のある範囲での最小の暫定起動データ構築、起動・認証・主要画面到達の実測、空環境からの再構築の再実行検証、current target の引き渡しまで。カラム名や型からの推測でドメイン値を確定せず、出所・利用許可が不明なデータは投入しない。`current.origin: received-assets` のとき `replace-strategy setup` が測定の前に委譲する |
 | [golden-dataset](./skills/golden-dataset/) | replace-strategy の姉妹スキル。現行と新側の比較を成立させる共通データセットを構築。データそのものではなく冪等・決定論的な投入ツール（TypeScript / SQL）を作り、本番を参照せず一から作る。新側スキーマは後から出来るため 2 フェーズ（A: 現行テスト環境へ投入・検証、B: 新側スキーマへの対応づけ・投入・現新一致検証）。データセットのバージョンで parity-suite / parity-diff のベースライン陳腐化を検出。replace-strategy setup 未完了なら停止 |
@@ -49,6 +50,7 @@ gh skill install shoji9x9/skills pr-finalize-loop
 gh skill install shoji9x9/skills browser-test
 gh skill install shoji9x9/skills aws-architecture-diagram
 gh skill install shoji9x9/skills box
+gh skill install shoji9x9/skills agent-usage
 gh skill install shoji9x9/skills replace-strategy
 gh skill install shoji9x9/skills current-environment-bootstrap
 gh skill install shoji9x9/skills golden-dataset
