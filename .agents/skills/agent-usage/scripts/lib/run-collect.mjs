@@ -9,18 +9,19 @@ import { collectGitHub, commitActivityRows, makeGh, withoutEnvTokens } from "./g
 import { loadBundledPricing, loadBundledReviewPricing } from "./pricing.mjs";
 import { signature } from "./rows.mjs";
 import {
+  BRANCH_DIR,
   GITHUB_DIR,
   GITHUB_KINDS,
+  appendBranchFile,
+  branchFile,
+  branchLabel,
   changedRows,
   fileStamp,
   latestByKey,
   readRecords,
-  safeName,
   usageDir,
-  writeNewFile,
 } from "./records.mjs";
 import { gitOrNull } from "./repo.mjs";
-import { issueOf } from "./session.mjs";
 import { parseTime, toIso } from "./time.mjs";
 import { rememberWorktrees } from "./worktrees.mjs";
 import { join } from "node:path";
@@ -34,6 +35,13 @@ export const GITHUB_OVERLAP_MS = 86400000;
 
 /** 初めての取得でさかのぼる上限（ローカルのログの最初の時刻がこれより古くても、ここまでにする）。 */
 export const GITHUB_FIRST_LOOKBACK_MS = 60 * 86400000;
+
+/**
+ * collect が読む記録と、書く行の範囲。ファイル名の時刻と最後の行の observed_at がどちらもこれより古いファイルは、重複を除くときに読まない。
+ * 読む行数を記録の総量に依らず一定にするため。GitHub を初めて取る範囲と揃え、前回の取得の期間（coverage）が範囲に入るようにする。
+ * この人が範囲の中で collect していない（久しぶりの collect か初めての collect）ときは、ログに残る分をすべて書く。
+ */
+export const RECORD_WINDOW_MS = GITHUB_FIRST_LOOKBACK_MS;
 
 /**
  * @returns {Record<string, string>}
@@ -178,6 +186,7 @@ function ghLoginError(host, env) {
  * @property {boolean} githubSkipped
  * @property {string} githubSkipReason GitHub を取得しなかった理由（取得したなら空）
  * @property {number} keyConflicts 同じ key で内容の違う行の数（0 でなければ行の作り方の不具合）
+ * @property {number} skippedFiles 範囲より古いので読まなかった記録のファイルの数
  */
 
 /**
@@ -202,7 +211,26 @@ export function runCollect(o) {
     ctx,
     useCache: true,
   });
-  const existing = latestByKey(readRecords(join(dir, "records")).rows);
+  const recordsDir = join(dir, "records");
+  const label = repo.branch ? branchLabel(repo.branch) : "detached";
+  const personDir = join(recordsDir, person, BRANCH_DIR);
+  const githubDir = join(recordsDir, GITHUB_DIR, person);
+  const windowStart = now - RECORD_WINDOW_MS;
+  /** @type {Set<string>} */
+  const keep = new Set();
+  for (const d of [personDir, githubDir]) {
+    const f = branchFile(d, label);
+    if (f !== null) keep.add(f);
+  }
+  const read = readRecords(recordsDir, { since: windowStart, keep });
+  const existing = latestByKey(read.rows);
+  // 範囲より古い行は、範囲の外のファイルにあって読んでいないので、書くと重複する。
+  // この人が範囲の中で collect していなければ、前回の collect から範囲の始まりまでの行を取りこぼさないよう、すべて書く
+  // （重複は report が key でまとめる）。今のブランチのファイルは範囲より古くても読むので、行の有無ではなく observed_at で見る
+  const collectedInWindow = [...existing.values()].some(
+    (r) => r.person === person && (parseTime(r.observed_at) ?? -Infinity) >= windowStart,
+  );
+  const lowerBound = collectedInWindow ? windowStart : Number.NEGATIVE_INFINITY;
 
   /** @type {Row[]} */
   const candidates = [...local.rows];
@@ -275,19 +303,21 @@ export function runCollect(o) {
     if (!prev) unique.set(r.key ?? "", r);
     else if (signature(prev) !== signature(r)) conflicts += 1;
   }
-  const fresh = changedRows([...unique.values()], existing);
+  // 既に読んだ key の行は、前の内容と比べられるので、範囲より古くても内容が変わっていれば書く
+  const fresh = changedRows([...unique.values()], existing).filter((r) => {
+    if (existing.has(r.key ?? "")) return true;
+    const t = parseTime(r.start);
+    return t === null || t >= lowerBound;
+  });
   const observed = toIso(now);
   for (const r of fresh) r.observed_at = observed;
   const personRows = fresh.filter((r) => !GITHUB_KINDS.includes(r.kind ?? ""));
   const githubRows = fresh.filter((r) => GITHUB_KINDS.includes(r.kind ?? ""));
   const stamp = fileStamp(now);
-  const label = issueOf(repo.branch) || safeName(repo.branch || "detached");
   /** @type {string[]} */
   const written = [];
-  if (personRows.length > 0)
-    written.push(writeNewFile(join(dir, "records", person), `${stamp}-${label}`, personRows));
-  if (githubRows.length > 0)
-    written.push(writeNewFile(join(dir, "records", GITHUB_DIR), `${stamp}-${person}`, githubRows));
+  if (personRows.length > 0) written.push(appendBranchFile(personDir, label, stamp, personRows));
+  if (githubRows.length > 0) written.push(appendBranchFile(githubDir, label, stamp, githubRows));
   return {
     person,
     personCreated: user.created,
@@ -301,5 +331,6 @@ export function runCollect(o) {
     githubSkipped,
     githubSkipReason,
     keyConflicts: conflicts,
+    skippedFiles: read.skipped,
   };
 }

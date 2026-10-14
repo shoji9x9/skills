@@ -8,13 +8,16 @@
 .agent-usage/
   config.json                                   リポジトリの設定（setup.md「リポジトリの設定」）
   records/
-    <person-id>/<UTC の時刻>-<Issue 番号>.csv    ローカルのログ・人の活動からの行（collect 1 回につき 1 ファイル）
-    _github/<UTC の時刻>-<person-id>.csv         GitHub から取った行（CI・レビュー・取得した期間）
-  report/<yyyyMMdd>/                             report の結果（index.html・usage.csv・intervals.csv・reviews.csv）
+    <person-id>/branches/<UTC の時刻>-<ブランチ>.csv   ローカルのログ・人の活動からの行（ブランチごとに 1 ファイル）
+    _github/<person-id>/<UTC の時刻>-<ブランチ>.csv    GitHub から取った行（CI・レビュー・取得した期間。ブランチごとに 1 ファイル）
+  report/<yyyyMMdd>/                                  report の結果（index.html・usage.csv・intervals.csv・reviews.csv）
 ```
 
-- collect は毎回新しいファイルを作り、既存のファイルは変えない。並行するブランチで記録しても、merge で競合しない
-- Issue 番号は、ブランチの名前（`feature/602-...` の 602）から取る。取れなければ、ブランチの名前を使う
+- 時刻は、そのブランチで初めて collect した時刻である。`<ブランチ>` は、ブランチの名前の `/` などを `-` にした形（detached なら `detached`）
+- 英数字・`.`・`_`・`-`・`/` 以外の文字（日本語など）を含むブランチの名前は、その形の後ろに名前のハッシュの先頭 8 文字を足す。別のブランチと同じファイル名にならないようにするためである
+- collect は、今のブランチのファイルだけを変える（既存の行の後ろに足す）。そのブランチのファイルを書くのはそのブランチだけなので、並行するブランチで記録しても、merge で競合しない
+- 古い形のファイル（collect 1 回につき 1 ファイルの `<person-id>/<時刻>-<Issue 番号>.csv`・`_github/<時刻>-<person-id>.csv`）は、そのまま残して読む。移したりまとめたりしない
+- PR の差分で記録のファイルを折りたたむには、`.gitattributes` に `.agent-usage/records/** linguist-generated=true` を置く（[`setup.md`](setup.md)）
 - すべてのエージェントとセッションの行を、1 つのファイルにまとめる。どのエージェントの行かは `agent` 列で分かる
 - ログの解析の結果（セッションの要約）のキャッシュは、git の共通のディレクトリの `agent-usage/cache.json` に置く。消しても結果は変わらない
 - Hook と collect は、その時点の worktree のパスを git の共通のディレクトリの `agent-usage/worktrees.json` に足していく。
@@ -47,6 +50,14 @@
 `key` が行の同一性である。同じ `key` の行が複数あれば、report は `observed_at` の最も新しい行を使う。
 後の collect ほど多くのログを見ているからである（ログは増えるだけで、一度見た分は減らない）。
 collect は、既に記録した内容と同じ行を書き直さない。
+
+collect が重複を除くために読むのは、ファイル名の時刻か最後の行の `observed_at` が 60 日（GitHub を初めて取る範囲と同じ）より新しいファイルと、今のブランチのファイルだけである。
+ブランチのファイルの名前の時刻は初めて書いた時刻なので、後から足した行は最後の行で見る（collect は行を後ろに足すので、最後の行が最も新しい）。
+最後の行はファイルの末尾だけを読んで確かめる。ファイルの更新時刻は、clone や worktree の作成ですべて今の時刻になるので使わない。
+読む行数を記録の総量に依らず一定にするためである。
+範囲より古い開始時刻の行は、読んだ記録に同じ `key` が無ければ書かない。範囲の外のファイルにあって読んでいないので、書くと重複するからである。
+ただし、この人が範囲の中で collect していない（`observed_at` が範囲の中の行が無い。久しぶりの collect や、初めての collect）ときは、ログに残る分をすべて書く。
+読まなかったファイルと同じ `key` の行を書いても、report は `key` で 1 行にまとめるので、集計の結果は変わらない。
 
 並行するブランチは、お互いの記録を見られないので、同じ行を両方で記録しうる。merge した後も、report は `key` で 1 行にまとめる。
 

@@ -16,6 +16,15 @@ node <このスキル>/scripts/agent-usage.mjs setup --time-zone Asia/Tokyo
 
 setup はリポジトリに `.agent-usage/config.json`（空の設定）と `.agent-usage/records/` を作る。`.agent-usage/` があることが、このリポジトリでスキルを使う印になる（Hook は無いリポジトリでは何もしない）。
 
+続けて、記録のファイルを PR の差分で生成物として折りたたむために、リポジトリの直下の `.gitattributes` に次の 1 行を足すかを利用者に確かめる。
+了承されたら、無ければファイルを作り、既に同じ行があれば何もしない。既存の行は変えない。
+
+```text
+.agent-usage/records/** linguist-generated=true
+```
+
+GitHub は `linguist-generated` の付いたファイルを、PR の差分で最初から折りたたむ（[Customizing how changed files appear on GitHub](https://docs.github.com/en/repositories/working-with-files/managing-files/customizing-how-changed-files-appear-on-github)）。
+
 ## 2. コミットの前の確認の Hook を設定する
 
 `<SCRIPTS_DIR>` は、インストールしたこのスキルの `scripts/` の絶対パス、またはリポジトリのルートからの相対パス（例: `.agents/skills/agent-usage/scripts`）に置き換える。
