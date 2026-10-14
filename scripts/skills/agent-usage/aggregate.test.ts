@@ -346,6 +346,36 @@ describe("停止の分類", () => {
     expect(r.runHistogram).toEqual([0, 0, 0, 2, 0]);
   });
 
+  test("report: 人ごとの停止は、その人が最後に記録した時刻（observed_at）で打ち切る", () => {
+    const iso = (h: number, m = 0) => new Date(H(h, m)).toISOString();
+    const base = { observed_at: iso(4), person: "p-00000001", tz: "UTC" };
+    const rows = [
+      {
+        ...base,
+        key: "run1",
+        kind: "run",
+        start: iso(1),
+        end: iso(2),
+        branch: "feature/1-a",
+        issue: "1",
+        detail: "prompt",
+      },
+      { ...base, key: "cov", kind: "coverage", start: iso(0), end: iso(4), detail: "ok" },
+    ];
+    const r = buildReport(rows, {
+      config: parseRepoConfig({}),
+      bundledPricing: {},
+      bundledReviewPricing: {},
+      tz: "UTC",
+      now: H(10),
+      since: null,
+      until: null,
+      recordFiles: 1,
+    });
+    const stops = r.intervals.filter((x) => x.type === "stop");
+    expect(stops.map((x) => [x.start, x.end])).toEqual([[iso(2), iso(4)]]);
+  });
+
   test("report: 停止の直前のブランチは、隙間の前に最も遅く終わった run から取る（後に始まって先に終わった run ではない）", () => {
     const iso = (h: number, m = 0) => new Date(H(h, m)).toISOString();
     const base = { observed_at: iso(23), person: "p-00000001", tz: "UTC" };

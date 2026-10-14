@@ -185,6 +185,35 @@ describe("Claude Code のログ", () => {
     expect(s.costSnapshots[0].models["claude-haiku-4-5"].costUSD).toBe(0.01);
   });
 
+  test("利用者が中断した応答（[Request interrupted by user]）は、指示ではなく応答の完了にする", () => {
+    const s = emptySummary("claude-code", "s1");
+    const lines = [
+      {
+        type: "user",
+        timestamp: "2026-10-01T10:00:00.000Z",
+        origin: { kind: "human" },
+        message: { content: "やって" },
+      },
+      {
+        type: "user",
+        timestamp: "2026-10-01T10:05:00.000Z",
+        message: { content: [{ type: "text", text: "[Request interrupted by user]" }] },
+      },
+      {
+        type: "user",
+        timestamp: "2026-10-01T12:05:00.000Z",
+        origin: { kind: "human" },
+        message: { content: "次" },
+      },
+    ];
+    addClaudeLog(s, lines.map((l) => JSON.stringify(l)).join("\n"), true);
+    expect(s.prompts).toEqual([
+      Date.parse("2026-10-01T10:00:00.000Z"),
+      Date.parse("2026-10-01T12:05:00.000Z"),
+    ]);
+    expect(s.turnEnds).toEqual([Date.parse("2026-10-01T10:05:00.000Z")]);
+  });
+
   test("サブエージェントのファイルは使用量だけを数え、指示や完了を記録しない", () => {
     const s = emptySummary("claude-code", "s1");
     addClaudeLog(s, jsonl([human(0), assistant(1, "m1", { output_tokens: 5 }), turnEnd(2)]), false);

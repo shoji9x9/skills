@@ -44,6 +44,8 @@ setup はリポジトリに `.agent-usage/config.json`（空の設定）と `.ag
 
 - `if` は、git 以外の Bash の呼び出しで、スクリプトそのものを起動しないための絞り込みである。
   `Bash(git commit *)` にしないのは、`git -C <dir> commit` のようにオプションを挟んだ形が当たるかを、ドキュメントで確かめられないためである。
+  ドキュメントによると、`if` は `&&` などでつないだコマンドを 1 つずつ照合し、先頭の `VAR=value` を除いて照合する。
+  そのため、`cd x && git commit` は当たるが、`env A=1 git commit`・`command git commit`・`sudo git commit` のように別のコマンドの後ろの git は当たらず、Claude Code ではスクリプトが起動しない（Codex では起動する）。
   コマンドを解析できないときは `if` に関わらず起動するので、スクリプトの中でも判定する（[Claude Code Hooks reference](https://code.claude.com/docs/en/hooks)）
 - Claude Code は、timeout に達した Hook の呼び出しを止めずに通す。`timeout` を付けるなら、collect の所要時間（初めての collect は GitHub の取得で数分かかることがある）より長くする
 

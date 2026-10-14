@@ -411,7 +411,17 @@ export function buildReport(allRows, o) {
       if (t !== null) marks.push(around(t, windowMs));
     }
     const presence = mergeSpans(marks);
-    for (const gap of gaps(merged, merged[0][0], periodEnd)) {
+    // その人がまだ collect していない時間を停止に数えない（最後に記録した時刻で打ち切る）
+    const lastSeen = mine.reduce(
+      (a, r) => Math.max(a, parseTime(r.observed_at ?? "") ?? Number.NEGATIVE_INFINITY),
+      Number.NEGATIVE_INFINITY,
+    );
+    const personEnd = Number.isFinite(lastSeen) ? Math.min(periodEnd, lastSeen) : periodEnd;
+    for (const gap of gaps(
+      merged,
+      merged[0][0],
+      Math.max(personEnd, merged[merged.length - 1][1]),
+    )) {
       // 直前に動いていた run は、隙間の前に最も遅く終わったもの（runs は始まりの順なので、末尾が最後に終わったとは限らない）
       /** @type {(typeof runs)[number] | undefined} */
       let before;

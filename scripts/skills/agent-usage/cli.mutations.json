@@ -105,7 +105,7 @@
       "id": "cd-not-followed",
       "why": "git commit の前の cd を追わない",
       "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "    if (words[0] === \"cd\" && words.length === 2 && words[1] !== \"-\") {",
+      "find": "    if (words[0] === \"cd\") {",
       "replace": "    if (false) {",
       "occurrences": 1,
       "expect_failing": [
@@ -133,6 +133,19 @@
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook origin が GitHub でなければ、GitHub を取得しない"
+      ]
+    },
+    {
+      "id": "cd-expansion-resolved",
+      "why": "展開の要る cd の引数をそのまま当てる",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "        arg === \"\" || arg === \"-\" || /[$`]/.test(arg) || arg.startsWith(\"~\")",
+      "replace": "        arg === \"\" || arg === \"-\"",
+      "occurrences": 1,
+      "expect_failing": [
+        "commitCwd cd \"$(git rev-parse --show-toplevel)\" && git commit → /w",
+        "commitCwd cd ~/x && git commit → /w",
+        "commitCwd cd /r && cd $WT && git commit → /w"
       ]
     }
   ]

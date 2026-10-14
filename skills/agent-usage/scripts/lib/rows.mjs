@@ -70,11 +70,6 @@ export function isKind(value) {
   return KINDS.some((k) => k === value);
 }
 
-/**
- * 行の内容の署名。observed_at を除いた列で作る（同じ内容を書き直さないため）。
- * @param {Row} row
- * @returns {string}
- */
 /** 誰が取得しても内容が同じ、リポジトリ全体の行の種類（person と tz は取得した人の値が入るだけ）。 */
 export const REPO_SCOPE_KINDS = ["ci", "review-wait", "review"];
 
@@ -94,6 +89,7 @@ export function contentSignature(row) {
 }
 
 /**
+ * 行の内容の署名。observed_at を除いたすべての列で作る（同じ key の行の順序を決めるため）。
  * @param {Row} row
  * @returns {string}
  */

@@ -17,6 +17,7 @@ import { claimsPath, dedupeSessions, loadClaims, saveClaims } from "./dedupe.mjs
 import { discoverClaude, discoverCodex } from "./discover.mjs";
 import { zeroTokens } from "./pricing.mjs";
 import { isInside, normalizeRemote } from "./repo.mjs";
+import { emptySummary } from "./session.mjs";
 import { timelineRows, usageRows } from "./usage.mjs";
 
 /** @typedef {import("./rows.mjs").Row} Row */
@@ -36,6 +37,17 @@ export const ROWS_VERSION = "3";
  * @typedef {object} CacheEntry
  * @property {string} fingerprint
  * @property {SessionSummary | null} summary このリポジトリのセッションでなければ null
+ * @property {Probe | null} probe このリポジトリのセッションかを判定し直すための材料（summary が null のときだけ持つ）
+ */
+
+/**
+ * ルートやリモートが変わったときに、解析し直さずに判定し直すための材料。
+ * @typedef {object} Probe
+ * @property {"claude-code" | "codex"} agent
+ * @property {string} sessionId
+ * @property {boolean} subagent
+ * @property {string[]} cwds
+ * @property {string} repoUrl
  */
 
 /**
@@ -65,12 +77,13 @@ export function loadCache(path) {
   for (const [k, v] of Object.entries(raw.entries)) {
     if (!isRecord(v) || typeof v.fingerprint !== "string") continue;
     if (v.summary === null) {
-      out.set(k, { fingerprint: v.fingerprint, summary: null });
+      const probe = probeFromCache(v.probe);
+      if (probe) out.set(k, { fingerprint: v.fingerprint, summary: null, probe });
       continue;
     }
     const summary = summaryFromCache(v.summary);
     // 読めない要素は、そのセッションを解析し直す（キャッシュは消しても結果が変わらない）
-    if (summary) out.set(k, { fingerprint: v.fingerprint, summary });
+    if (summary) out.set(k, { fingerprint: v.fingerprint, summary, probe: null });
   }
   return out;
 }
@@ -80,6 +93,21 @@ export function loadCache(path) {
  * @returns {v is number}
  */
 const isNum = (v) => typeof v === "number" && Number.isFinite(v);
+
+/**
+ * @param {unknown} v
+ * @returns {Probe | null}
+ */
+function probeFromCache(v) {
+  if (!isRecord(v)) return null;
+  const agent = v.agent;
+  if (agent !== "claude-code" && agent !== "codex") return null;
+  if (typeof v.sessionId !== "string" || typeof v.subagent !== "boolean") return null;
+  if (typeof v.repoUrl !== "string") return null;
+  const cwds = listOf(v.cwds, (c) => (typeof c === "string" ? c : null));
+  if (!cwds) return null;
+  return { agent, sessionId: v.sessionId, subagent: v.subagent, cwds, repoUrl: v.repoUrl };
+}
 
 /**
  * キャッシュに置いた要約を読む。形が違えば null（JSON にすると無限大は null になるので戻す）。
@@ -216,15 +244,11 @@ export function saveCache(path, cache) {
 
 /**
  * @param {SessionSource} src
- * @param {readonly string[]} roots
- * @param {string} remote
  * @returns {string}
  */
-export function fingerprintOf(src, roots, remote) {
+export function fingerprintOf(src) {
   const h = createHash("sha256");
   h.update(ROWS_VERSION);
-  // このリポジトリのセッションかの判定は、ルートとリモートで変わる（worktree が増えたら判定し直す）
-  h.update(JSON.stringify([[...roots].sort(), remote]));
   for (const f of [src.main, ...src.subagents]) {
     if (f) h.update(`${f.path}\u0000${f.size}\u0000${f.mtimeMs}\u0000`);
   }
@@ -290,13 +314,33 @@ export function collectLocal(opts) {
   let parsed = 0;
   for (const src of sources) {
     const cacheKey = `${src.agent}:${src.main ? src.main.path : src.id}`;
-    const fp = fingerprintOf(src, roots, remote);
+    const fp = fingerprintOf(src);
     let entry = cache.get(cacheKey);
-    if (!entry || entry.fingerprint !== fp) {
+    // ルートやリモートが変わって、このリポジトリのセッションになったものは解析し直す（判定は材料だけで行い、全件を解析し直さない）
+    const nowMatches = entry?.probe
+      ? belongsToRepo(
+          { ...emptySummary(entry.probe.agent, entry.probe.sessionId), ...entry.probe },
+          roots,
+          remote,
+        )
+      : false;
+    if (!entry || entry.fingerprint !== fp || nowMatches) {
       const s = parseSource(src);
       // コマンドは、人の活動からエージェントの git・gh の操作を除くのにだけ使うので、それだけを残す（キャッシュを小さくする）
       const summary = { ...s, commands: s.commands.filter((c) => AGENT_GIT_COMMAND.test(c.text)) };
-      entry = { fingerprint: fp, summary: belongsToRepo(s, roots, remote) ? summary : null };
+      entry = belongsToRepo(s, roots, remote)
+        ? { fingerprint: fp, summary, probe: null }
+        : {
+            fingerprint: fp,
+            summary: null,
+            probe: {
+              agent: s.agent,
+              sessionId: s.sessionId,
+              subagent: s.subagent,
+              cwds: s.cwds,
+              repoUrl: s.repoUrl,
+            },
+          };
       parsed += 1;
     }
     next.set(cacheKey, entry);

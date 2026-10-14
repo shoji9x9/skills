@@ -84,6 +84,9 @@ describe("commitCwd", () => {
     ["cd ../wt && git commit -m x", "/wt"],
     ["cd /r; git -C sub commit", "/r/sub"],
     ["cd /r && git status", "/w"],
+    ['cd "$(git rev-parse --show-toplevel)" && git commit', "/w"],
+    ["cd ~/x && git commit", "/w"],
+    ["cd /r && cd $WT && git commit", "/w"],
   ])("%s → %s", (cmd, expected) => {
     expect(commitCwd(cmd, "/w")).toBe(expected);
   });

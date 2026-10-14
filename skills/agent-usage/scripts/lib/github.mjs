@@ -30,7 +30,6 @@ import { unzip } from "./unzip.mjs";
 /** @typedef {import("./config.mjs").RepoConfig} RepoConfig */
 /** @typedef {import("./config.mjs").Price} Price */
 
-/** 自分の Actions で実行したレビューの使用量を残す artifact の名前（同梱の workflow の雛形と同じ）。 */
 /** 同梱の雛形が上げる artifact の名前。1 回の workflow の実行で両方の手順を使えるよう、ツールごとに分ける。 */
 export const ARTIFACT_NAMES = ["agent-usage-review-claude", "agent-usage-review-codex"];
 
@@ -49,8 +48,8 @@ const AGENT_AFTER_MS = 180000;
  * @returns {GhRunner}
  */
 export function makeGh(host) {
-  const env =
-    host !== "" && host !== "github.com" ? { ...process.env, GH_HOST: host } : process.env;
+  // 利用者の環境の GH_HOST（GitHub Enterprise など）ではなく、リモートのホストに問い合わせる
+  const env = { ...process.env, GH_HOST: host === "" ? "github.com" : host };
   return (args) => {
     const r = spawnSync("gh", ["api", ...args], {
       env,
@@ -688,17 +687,36 @@ export function artifactRows(files, a, o) {
       ? messages.filter((m) => isRecord(m) && m.type === "result").pop()
       : null;
     if (isRecord(result) && isRecord(result.modelUsage)) {
+      // 日付付きの名前と無い名前が同じモデルになるので、正規化した名前で合算する
+      /** @type {Map<string, { input: number; cacheRead: number; cacheWrite: number; output: number; cost: number }>} */
+      const byModel = new Map();
       for (const [model, u] of Object.entries(result.modelUsage)) {
         if (!isRecord(u)) continue;
+        const name = normalizeModel(model);
+        const cur = byModel.get(name) ?? {
+          input: 0,
+          cacheRead: 0,
+          cacheWrite: 0,
+          output: 0,
+          cost: 0,
+        };
+        cur.input += num(u.inputTokens);
+        cur.cacheRead += num(u.cacheReadInputTokens);
+        cur.cacheWrite += num(u.cacheCreationInputTokens);
+        cur.output += num(u.outputTokens);
+        cur.cost += num(u.costUSD);
+        byModel.set(name, cur);
+      }
+      for (const [model, u] of byModel) {
         rows.push({
           ...base,
-          key: `review-artifact:${a.id}:${normalizeModel(model)}`,
-          model: normalizeModel(model),
-          input_tokens: fmt(num(u.inputTokens)),
-          cache_read_tokens: fmt(num(u.cacheReadInputTokens)),
-          cache_write_tokens: fmt(num(u.cacheCreationInputTokens)),
-          output_tokens: fmt(num(u.outputTokens)),
-          cost_usd: fmt(num(u.costUSD), true),
+          key: `review-artifact:${a.id}:${model}`,
+          model,
+          input_tokens: fmt(u.input),
+          cache_read_tokens: fmt(u.cacheRead),
+          cache_write_tokens: fmt(u.cacheWrite),
+          output_tokens: fmt(u.output),
+          cost_usd: fmt(u.cost, true),
           cost_source: "log",
           detail: `pr=${pr};source=artifact;run=${a.runId}`,
         });

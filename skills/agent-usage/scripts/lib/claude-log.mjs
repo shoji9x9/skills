@@ -243,6 +243,11 @@ export function addClaudeLog(s, text, main) {
         }
       }
     }
+    // 利用者が応答を中断した（Esc）。turn_duration が記録されないので、ここを応答の完了にする
+    if (userText(message.content)?.startsWith("[Request interrupted by user") === true) {
+      s.turnEnds.push(ts);
+      continue;
+    }
     const kind = classifyUserEntry(entry);
     if (kind === "human") s.prompts.push(ts);
     else if (kind === "auto") s.autoResumes.push(ts);

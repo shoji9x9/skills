@@ -190,8 +190,13 @@ export function commitCwd(command, cwd) {
   if (commands === null) return cwd;
   let dir = cwd;
   for (const words of commands) {
-    if (words[0] === "cd" && words.length === 2 && words[1] !== "-") {
-      dir = resolve(dir, words[1]);
+    if (words[0] === "cd") {
+      // 展開が要る引数（$・バッククォート・~）は解決できないので当てず、Hook の cwd で判断する側に寄せる
+      const arg = words.length === 2 ? words[1] : "";
+      dir =
+        arg === "" || arg === "-" || /[$`]/.test(arg) || arg.startsWith("~")
+          ? cwd
+          : resolve(dir, arg);
       continue;
     }
     const dirs = commitDirsOf(words);
@@ -227,13 +232,19 @@ function askMessage(agent, script) {
 export function gateDecision(input, fallbackCwd, now, script, agent) {
   if (!isGitCommit(input.command)) return { exit: 0, message: "" };
   // `git -C <dir> commit` は <dir> のリポジトリにコミットするので、Hook の cwd ではなくそこで判断・記録する
-  const cwd = commitCwd(input.command, input.cwd !== "" ? input.cwd : fallbackCwd);
+  const base = input.cwd !== "" ? input.cwd : fallbackCwd;
+  const cwd = commitCwd(input.command, base);
   /** @type {import("./repo.mjs").RepoInfo} */
   let repo;
   try {
     repo = repoInfo(cwd);
   } catch {
-    return { exit: 0, message: "" };
+    // コマンドから求めたディレクトリが無い（展開を含む -C など）ときは、Hook の cwd のリポジトリで判断する
+    try {
+      repo = repoInfo(base);
+    } catch {
+      return { exit: 0, message: "" };
+    }
   }
   if (!existsSync(usageDir(repo.root))) return { exit: 0, message: "" };
   try {
