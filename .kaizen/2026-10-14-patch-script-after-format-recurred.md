@@ -14,6 +14,7 @@ session: claude-code
 Issue #630 の PR #635 のレビューへの対応で、置換をまとめた python のスクリプトが、records.mjs の import の置換で一致せずに止まった。
 置換元を、oxfmt が複数行に整形する前の 1 行の形で書いていた。同じスクリプトの前半（run-collect.mjs）は書き込み済みだったので、後半だけを抜き出したスクリプトを作り直した。
 同じ日の PR #634 でも、整形した後のテストの行に、整形前の形の置換元を当てて止まった。
+この記録を書いた後の PR #635 の 4 回目の対応でも、oxfmt が 2 行に折り返した `console.log` の行に 1 行の置換元を当てて止まった。
 
 `AGENTS.md`「編集」と `docs/agent-workflow.md` の規約（`.kaizen/2026-09-17-format-then-patch-recurred-after-prose-rule.md`、applied）は、文脈に入っていた。
 
