@@ -45,13 +45,19 @@ const AGENT_COMMIT_AFTER_MS = 600000;
  */
 
 /**
- * GH_ENTERPRISE_TOKEN・GITHUB_ENTERPRISE_TOKEN を除いた環境変数を返す。
- * gh はこれらを github.com 以外のすべてのホストの token として、保存した token より優先して使う（gh 2.93.0 で実測）。
+ * 環境変数の token（GH_TOKEN・GITHUB_TOKEN・GH_ENTERPRISE_TOKEN・GITHUB_ENTERPRISE_TOKEN）を除いた環境変数を返す。
+ * gh は環境変数の token を、保存した token より優先して使う（gh 2.93.0 で実測）。
  * @param {NodeJS.ProcessEnv} env
  * @returns {NodeJS.ProcessEnv}
  */
-export function withoutEnterpriseToken(env) {
-  const { GH_ENTERPRISE_TOKEN: _a, GITHUB_ENTERPRISE_TOKEN: _b, ...rest } = env;
+export function withoutEnvTokens(env) {
+  const {
+    GH_TOKEN: _a,
+    GITHUB_TOKEN: _b,
+    GH_ENTERPRISE_TOKEN: _c,
+    GITHUB_ENTERPRISE_TOKEN: _d,
+    ...rest
+  } = env;
   return rest;
 }
 

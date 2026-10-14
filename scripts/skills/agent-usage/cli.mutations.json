@@ -163,7 +163,8 @@
       "expect_failing": [
         "agent-usage のコマンドと Hook GH_HOST が無くても、gh にログインしたホストの origin は GitHub として取得する",
         "agent-usage のコマンドと Hook ログインで GitHub と判定したホストには、環境変数の GH_ENTERPRISE_TOKEN を送らない",
-        "agent-usage のコマンドと Hook githubTarget: GH_HOST は大文字小文字を区別せずログインを確かめない"
+        "agent-usage のコマンドと Hook githubTarget: GH_HOST は大文字小文字を区別せずログインを確かめない",
+        "agent-usage のコマンドと Hook githubTarget: ポート付きでも GH_HOST と一致すれば扱う"
       ]
     },
     {
@@ -182,18 +183,19 @@
       "id": "enterprise-token-counted",
       "why": "GH_ENTERPRISE_TOKEN をログインとして数え、どのホストも GitHub として扱う",
       "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
-      "find": "    env: withoutEnterpriseToken(env),",
+      "find": "    env: withoutEnvTokens(env),",
       "replace": "    env,",
       "occurrences": 1,
       "expect_failing": [
-        "agent-usage のコマンドと Hook GH_HOST が無くても、gh にログインしたホストの origin は GitHub として取得する"
+        "agent-usage のコマンドと Hook GH_HOST が無くても、gh にログインしたホストの origin は GitHub として取得する",
+        "agent-usage のコマンドと Hook ログインで GitHub と判定したホストには、環境変数の GH_ENTERPRISE_TOKEN を送らない"
       ]
     },
     {
       "id": "enterprise-token-sent",
       "why": "ログインで判定したホストに、環境変数の enterprise の token を送る",
       "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
-      "find": "target.viaLogin ? withoutEnterpriseToken(env) : env",
+      "find": "target.viaLogin ? withoutEnvTokens(env) : env",
       "replace": "env",
       "occurrences": 1,
       "expect_failing": [
@@ -202,14 +204,14 @@
     },
     {
       "id": "port-host-authed",
-      "why": "ポートを含むホストもログインや GH_HOST の判定に進める",
+      "why": "ポートを含むホストもログインの判定に進める",
       "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
       "find": "  if (host.includes(\":\"))",
       "replace": "  if (false)",
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook ポートを含むホストの origin は、ログインを確かめずに理由を出して取得しない",
-        "agent-usage のコマンドと Hook githubTarget: ポート付きは GH_HOST と一致しても扱わない"
+        "agent-usage のコマンドと Hook githubTarget: ポート付きはログインを確かめない"
       ]
     },
     {

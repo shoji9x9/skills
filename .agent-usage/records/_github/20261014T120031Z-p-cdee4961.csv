@@ -1,0 +1,4 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail
+ci:38559864063:1,ci,2026-10-14T12:00:31.201Z,p-cdee4961,github-actions,,,,2026-10-14T11:54:10.000Z,2026-10-14T11:54:16.000Z,Asia/Tokyo,feature/631-agent-usage-ghe-host-detection,631,,,,,,,,,,Dependabot auto-merge;pull_request;skipped
+ci:38559864194:1,ci,2026-10-14T12:00:31.201Z,p-cdee4961,github-actions,,,,2026-10-14T11:54:10.000Z,2026-10-14T11:57:11.000Z,Asia/Tokyo,feature/631-agent-usage-ghe-host-detection,631,,,,,,,,,,CI;pull_request;success
+coverage:github:2026-10-13T11:50:27.601Z:2026-10-14T12:00:31.201Z,coverage,2026-10-14T12:00:31.201Z,p-cdee4961,,,,,2026-10-13T11:50:27.601Z,2026-10-14T12:00:31.201Z,Asia/Tokyo,,,,,,,,,,,,ok

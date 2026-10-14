@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { isRecord, loadOrCreateUserConfig, loadRepoConfig } from "./config.mjs";
 import { collectLocal } from "./collect.mjs";
-import { collectGitHub, commitActivityRows, makeGh, withoutEnterpriseToken } from "./github.mjs";
+import { collectGitHub, commitActivityRows, makeGh, withoutEnvTokens } from "./github.mjs";
 import { loadBundledPricing, loadBundledReviewPricing } from "./pricing.mjs";
 import { signature } from "./rows.mjs";
 import {
@@ -111,13 +111,14 @@ export function githubTarget(remote, env, loginError) {
   if (remote === "") return { ...t, reason: "origin が無い" };
   if (parts.length !== 3 || !host || !owner || !name)
     return { ...t, reason: `origin（${remote}）が <ホスト>/<owner>/<name> の形でない` };
-  // ポートを含むホスト（ssh://git@<ホスト>:7999/...）は SSH のポートで、API のホストにならない。GH_HOST と一致しても扱わない
+  // 利用者が GH_HOST で指定したホストは、ポート付き（https の非標準ポートの GHES）でもそのまま扱う
+  if (host === "github.com" || host === (env.GH_HOST ?? "").toLowerCase()) return t;
+  // ポートを含むホスト（ssh://git@<ホスト>:7999/...）は SSH のポートでありうるので、gh のホストとしてログインを確かめない
   if (host.includes(":"))
     return {
       ...t,
-      reason: `origin のホスト ${host} はポートを含むので、API のホストとして扱えない`,
+      reason: `origin のホスト ${host} はポートを含むので、gh のホストとして扱えない（GHES の API のホストなら GH_HOST=${host} で取得する）`,
     };
-  if (host === "github.com" || host === (env.GH_HOST ?? "").toLowerCase()) return t;
   const err = loginError(host);
   if (err === "") return { ...t, viaLogin: true };
   return {
@@ -129,8 +130,8 @@ export function githubTarget(remote, env, loginError) {
 /**
  * gh がそのホストにログインしているか（`gh auth login --hostname` で保存した token があるか）を確かめ、していなければ理由を返す。
  * `gh auth token` はネットワークに問い合わせない。参考: https://cli.github.com/manual/gh_auth_token
- * GH_ENTERPRISE_TOKEN・GITHUB_ENTERPRISE_TOKEN は外して確かめる。
- * gh はこれらを github.com 以外のすべてのホストの token として返す（gh 2.93.0 で実測）。
+ * 環境変数の token（GH_TOKEN・GITHUB_TOKEN・GH_ENTERPRISE_TOKEN・GITHUB_ENTERPRISE_TOKEN）は外して確かめる。
+ * gh は GH_ENTERPRISE_TOKEN を github.com 以外のすべてのホストの token として返す（gh 2.93.0 で実測）。
  * 残すと GitLab などの origin も GitHub として扱い、その token を送ってしまう。
  * @param {string} host
  * @param {NodeJS.ProcessEnv} env GH_HOST の判定と同じ環境変数で確かめる
@@ -138,12 +139,16 @@ export function githubTarget(remote, env, loginError) {
  */
 function ghLoginError(host, env) {
   const r = spawnSync("gh", ["auth", "token", "--hostname", host], {
-    env: withoutEnterpriseToken(env),
+    env: withoutEnvTokens(env),
     timeout: 10000,
-    stdio: ["ignore", "ignore", "ignore"],
+    // stdout は token なので読まない。stderr は失敗の理由として出す
+    stdio: ["ignore", "ignore", "pipe"],
   });
+  const stderr = (r.stderr?.toString("utf8") ?? "").trim().split("\n")[0] ?? "";
+  if (r.error && "code" in r.error && r.error.code === "ETIMEDOUT")
+    return "gh auth token が 10 秒以内に終わらない（keyring の応答を確かめる）";
   if (r.error) return `gh を起動できない: ${r.error.message}`;
-  if (r.status !== 0) return "gh auth token が失敗した";
+  if (r.status !== 0) return `gh auth token が失敗した: ${stderr || `exit ${r.status}`}`;
   return "";
 }
 
@@ -215,8 +220,8 @@ export function runCollect(o) {
   const githubSkipReason = target.reason;
   const githubSkipped = githubSkipReason !== "";
   if (!githubSkipped) {
-    // ログインで判定したホストには、環境変数の enterprise の token（別のホスト用でありうる）を送らない
-    const gh = o.gh ?? makeGh(target.host, target.viaLogin ? withoutEnterpriseToken(env) : env);
+    // ログインで判定したホストには、保存した token で問い合わせ、環境変数の token（別のホスト用でありうる）を送らない
+    const gh = o.gh ?? makeGh(target.host, target.viaLogin ? withoutEnvTokens(env) : env);
     const res = collectGitHub({
       slug: target.slug,
       since,

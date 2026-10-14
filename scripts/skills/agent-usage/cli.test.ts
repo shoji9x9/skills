@@ -389,31 +389,36 @@ describe("agent-usage のコマンドと Hook", () => {
     const log = join(tmp, "gh-token.log");
     writeFileSync(
       join(bin, "gh"),
-      '#!/bin/sh\nif [ "$1" = auth ]; then exit 0; fi\nprintf "[%s]" "${GH_ENTERPRISE_TOKEN-}" >> "$GH_LOG"\necho fail >&2\nexit 1\n',
+      // 保存した token の印（GH_LOGGED_IN）か環境変数の token があれば、auth token は成功する（実物の gh と同じ）
+      '#!/bin/sh\nif [ "$1" = auth ]; then\n  if [ -f "$GH_LOGGED_IN" ] || [ -n "${GH_ENTERPRISE_TOKEN-}${GH_TOKEN-}" ]; then exit 0; fi\n  echo "no oauth token" >&2; exit 1\nfi\nprintf "[%s%s]" "${GH_ENTERPRISE_TOKEN-}" "${GH_TOKEN-}" >> "$GH_LOG"\necho fail >&2\nexit 1\n',
       { mode: 0o755 },
     );
     const path = `${bin}:${process.env.PATH ?? ""}`;
-    const viaLogin = cliWith({ PATH: path, GH_LOG: log, GH_ENTERPRISE_TOKEN: "secret" }, "collect");
+    const marker = join(tmp, "logged-in");
+    const base = { PATH: path, GH_LOG: log, GH_LOGGED_IN: marker, GH_ENTERPRISE_TOKEN: "secret" };
+    // 環境変数の token だけでは、ログインとして数えない
+    const envOnly = cliWith({ ...base, GH_TOKEN: "t" }, "collect");
+    expect(envOnly.stdout).toMatch(/GitHub: 取得していない（.*no oauth token/);
+    writeFileSync(marker, "");
+    const viaLogin = cliWith({ ...base, GH_TOKEN: "t" }, "collect");
     expect(viaLogin.stdout).not.toMatch(/GitHub: 取得していない/);
     expect(readFileSync(log, "utf8")).toMatch(/^(\[\])+$/);
     // GH_HOST で指定したホストには、これまでどおり環境変数の token で問い合わせる
     writeFileSync(log, "");
-    cliWith(
-      { PATH: path, GH_LOG: log, GH_ENTERPRISE_TOKEN: "secret", GH_HOST: "ghe.invalid" },
-      "collect",
-    );
+    cliWith({ ...base, GH_HOST: "ghe.invalid" }, "collect");
     expect(readFileSync(log, "utf8")).toMatch(/^(\[secret\])+$/);
   });
 
   test.each([
     ["origin が無い", "", {}, "", "origin が無い", false],
     ["owner/name の形でない", "gitlab.com/group/sub/repo", {}, "", "の形でない", false],
+    ["ポート付きはログインを確かめない", "ghe.invalid:7999/o/r", {}, "", "ポートを含む", false],
     [
-      "ポート付きは GH_HOST と一致しても扱わない",
-      "ghe.invalid:7999/o/r",
-      { GH_HOST: "ghe.invalid:7999" },
+      "ポート付きでも GH_HOST と一致すれば扱う",
+      "ghe.invalid:8443/o/r",
+      { GH_HOST: "ghe.invalid:8443" },
+      "x",
       "",
-      "ポートを含む",
       false,
     ],
     ["github.com はログインを確かめない", "github.com/o/r", {}, "x", "", false],
