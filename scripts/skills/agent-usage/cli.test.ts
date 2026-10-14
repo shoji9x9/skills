@@ -407,6 +407,16 @@ describe("agent-usage のコマンドと Hook", () => {
     writeFileSync(log, "");
     cliWith({ ...base, GH_HOST: "ghe.invalid" }, "collect");
     expect(readFileSync(log, "utf8")).toMatch(/^(\[secret\])+$/);
+    // auth token を持たない古い gh では、更新が要ることを理由に出す
+    writeFileSync(
+      join(bin, "gh"),
+      '#!/bin/sh\necho \'unknown command "token" for "gh auth"\' >&2\nexit 1\n',
+      {
+        mode: 0o755,
+      },
+    );
+    const old = cliWith({ PATH: path }, "collect");
+    expect(old.stdout).toMatch(/GitHub: 取得していない（.*gh を更新する/);
   });
 
   test.each([

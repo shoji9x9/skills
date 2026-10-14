@@ -117,7 +117,7 @@ export function githubTarget(remote, env, loginError) {
   if (host.includes(":"))
     return {
       ...t,
-      reason: `origin のホスト ${host} はポートを含むので、gh のホストとして扱えない（GHES の API のホストなら GH_HOST=${host} で取得する）`,
+      reason: `origin のホスト ${host} はポートを含むので取得しない（SSH のポートなら API のホストではない。https の非標準ポートで API を提供する GHES なら GH_HOST=${host} で取得する）`,
     };
   const err = loginError(host);
   if (err === "") return { ...t, viaLogin: true };
@@ -140,14 +140,16 @@ export function githubTarget(remote, env, loginError) {
 function ghLoginError(host, env) {
   const r = spawnSync("gh", ["auth", "token", "--hostname", host], {
     env: withoutEnvTokens(env),
-    timeout: 10000,
+    // ネットワークに問い合わせないので通常は数十 ms で終わる。keyring が応答しないときに、コミットを長く止めない
+    timeout: 5000,
     // stdout は token なので読まない。stderr は失敗の理由として出す
     stdio: ["ignore", "ignore", "pipe"],
   });
   const stderr = (r.stderr?.toString("utf8") ?? "").trim().split("\n")[0] ?? "";
   if (r.error && "code" in r.error && r.error.code === "ETIMEDOUT")
-    return "gh auth token が 10 秒以内に終わらない（keyring の応答を確かめる）";
+    return "gh auth token が 5 秒以内に終わらない（keyring の応答を確かめる）";
   if (r.error) return `gh を起動できない: ${r.error.message}`;
+  if (/unknown command/i.test(stderr)) return `gh に auth token が無い（gh を更新する）: ${stderr}`;
   if (r.status !== 0) return `gh auth token が失敗した: ${stderr || `exit ${r.status}`}`;
   return "";
 }
