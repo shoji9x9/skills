@@ -349,8 +349,7 @@
       "replace": "  const path = join(dir, `${stamp}-${label}.csv`);",
       "occurrences": 1,
       "expect_failing": [
-        "agent-usage のコマンドと Hook 1 つのブランチで時刻を変えて何回 collect しても、記録のファイルは人別・GitHub のそれぞれ 1 つまで",
-        "agent-usage のコマンドと Hook この clone で最後に collect したのが範囲より前なら、範囲より古いログの行も書く"
+        "agent-usage のコマンドと Hook 1 つのブランチで時刻を変えて何回 collect しても、記録のファイルは人別・GitHub のそれぞれ 1 つまで"
       ]
     },
     {
@@ -395,15 +394,16 @@
       "replace": "  if (true) return name;",
       "occurrences": 1,
       "expect_failing": [
-        "agent-usage のコマンドと Hook 英数字以外を含むブランチの名前は、ハッシュを足して別のブランチと別のファイルにする"
+        "agent-usage のコマンドと Hook 英数字以外を含むブランチの名前は、ハッシュを足して別のブランチと別のファイルにする",
+        "agent-usage のコマンドと Hook branchLabel: 英数字以外を含む名前はハッシュを足す"
       ]
     },
     {
       "id": "header-mismatch-appended",
       "why": "見出しが違うファイルにも、書き直さずに後ろへ足す",
       "file": "skills/agent-usage/scripts/lib/records.mjs",
-      "find": "  else if (prev.startsWith(header))",
-      "replace": "  else if (true)",
+      "find": "  if (lf.startsWith(header)) {",
+      "replace": "  if (true) {",
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook 見出しの列が今と違うファイルに足すときは、今の列で書き直す"
