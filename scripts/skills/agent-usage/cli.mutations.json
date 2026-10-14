@@ -135,7 +135,6 @@
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook origin が GitHub でなければ、GitHub を取得しない",
-        "agent-usage のコマンドと Hook GH_HOST が無くても、gh にログインしたホストの origin は GitHub として取得する",
         "agent-usage のコマンドと Hook Hook の collect も、GitHub を取得しなかった理由を出す",
         "agent-usage のコマンドと Hook githubTarget: ログインしていないホストは理由を返す",
         "agent-usage のコマンドと Hook ログインで GitHub と判定したホストには、環境変数の GH_ENTERPRISE_TOKEN を送らない"
@@ -149,7 +148,6 @@
       "replace": "  if (false) return { ...t, viaLogin: true };",
       "occurrences": 1,
       "expect_failing": [
-        "agent-usage のコマンドと Hook GH_HOST が無くても、gh にログインしたホストの origin は GitHub として取得する",
         "agent-usage のコマンドと Hook ログインで GitHub と判定したホストには、環境変数の GH_ENTERPRISE_TOKEN を送らない",
         "agent-usage のコマンドと Hook githubTarget: ログインしたホストは viaLogin"
       ]
@@ -162,7 +160,6 @@
       "replace": "  if (host === \"github.com\") return t;",
       "occurrences": 1,
       "expect_failing": [
-        "agent-usage のコマンドと Hook GH_HOST が無くても、gh にログインしたホストの origin は GitHub として取得する",
         "agent-usage のコマンドと Hook ログインで GitHub と判定したホストには、環境変数の GH_ENTERPRISE_TOKEN を送らない",
         "agent-usage のコマンドと Hook githubTarget: GH_HOST は大文字小文字を区別せずログインを確かめない",
         "agent-usage のコマンドと Hook githubTarget: ポート付きでも GH_HOST と一致すれば扱う"
@@ -188,7 +185,6 @@
       "replace": "    env,",
       "occurrences": 1,
       "expect_failing": [
-        "agent-usage のコマンドと Hook GH_HOST が無くても、gh にログインしたホストの origin は GitHub として取得する",
         "agent-usage のコマンドと Hook ログインで GitHub と判定したホストには、環境変数の GH_ENTERPRISE_TOKEN を送らない"
       ]
     },

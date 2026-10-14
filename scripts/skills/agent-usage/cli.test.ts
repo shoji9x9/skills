@@ -17,7 +17,6 @@ import { githubTarget } from "../../../skills/agent-usage/scripts/lib/run-collec
 import { makeTempDir } from "../../lib/test-tmpdir.ts";
 
 const SCRIPTS = join(import.meta.dirname, "../../../skills/agent-usage/scripts");
-const HAS_GH = spawnSync("gh", ["--version"], { stdio: "ignore" }).status === 0;
 const CLI = join(SCRIPTS, "agent-usage.mjs");
 const GATE = join(SCRIPTS, "precommit-gate.sh");
 
@@ -179,10 +178,9 @@ function setup() {
     { type: "system", subtype: "turn_duration", timestamp: at(12), cwd: repo },
   ];
   writeFileSync(join(dir, "s1.jsonl"), lines.map((l) => JSON.stringify(l)).join("\n"));
-  const cli = (...args: string[]) =>
-    spawnSync("node", [CLI, ...args], { cwd: repo, env, encoding: "utf8" });
   const cliWith = (extra: NodeJS.ProcessEnv, ...args: string[]) =>
     spawnSync("node", [CLI, ...args], { cwd: repo, env: { ...env, ...extra }, encoding: "utf8" });
+  const cli = (...args: string[]) => cliWith({}, ...args);
   const gate = (command: string, cwd = repo) =>
     spawnSync("bash", [GATE, "claude-code"], {
       cwd,
@@ -349,34 +347,6 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(flat.stdout).toMatch(/gh auth login --hostname gitlab\.com/);
     expect(cli("collect", "--no-github").stdout).toMatch(/GitHub: 取得していない（--no-github）/);
   });
-
-  // gh の hosts.yml を実際に読ませるので、gh が無い環境では実行しない（判定そのものは githubTarget の単体テストで確かめる）
-  test.skipIf(!HAS_GH)(
-    "GH_HOST が無くても、gh にログインしたホストの origin は GitHub として取得する",
-    () => {
-      const { tmp, git, cli, cliWith } = setup();
-      expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
-      git("remote", "add", "origin", "https://ghe.invalid/example-org/example-repo.git");
-      git("switch", "-q", "-c", "feature/5-x");
-      // ログインしていなければ取得せず、理由を出す。GH_ENTERPRISE_TOKEN はどのホストにも返るので、ログインとして数えない
-      const none = cliWith({ GH_ENTERPRISE_TOKEN: "dummy" }, "collect");
-      expect(none.stdout).toMatch(/GitHub: 取得していない（origin のホスト ghe\.invalid は/);
-      // GH_HOST で指定したホストは、ログインを確かめずに GitHub として扱う（ログインしていない状態で確かめる）
-      const viaHost = cliWith({ GH_HOST: "ghe.invalid" }, "collect");
-      expect(viaHost.stdout).not.toMatch(/GitHub: 取得していない/);
-      expect(viaHost.stdout).toMatch(/GitHub の取得に失敗/);
-      // ログインしていれば GitHub として問い合わせる（実在しないホストなので、取得の失敗として出る）
-      mkdirSync(join(tmp, "gh"), { recursive: true });
-      writeFileSync(
-        join(tmp, "gh", "hosts.yml"),
-        "ghe.invalid:\n    users:\n        u:\n            oauth_token: dummy\n    oauth_token: dummy\n    user: u\n",
-      );
-      const authed = cli("collect");
-      expect(authed.status).toBe(0);
-      expect(authed.stdout).not.toMatch(/GitHub: 取得していない/);
-      expect(authed.stdout).toMatch(/GitHub の取得に失敗/);
-    },
-  );
 
   test("ログインで GitHub と判定したホストには、環境変数の GH_ENTERPRISE_TOKEN を送らない", () => {
     const { tmp, git, cli, cliWith } = setup();
