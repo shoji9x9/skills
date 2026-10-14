@@ -1,4 +1,4 @@
-# agent-usage: 自分の GitHub Actions で実行したレビューの使用量を、artifact（名前 agent-usage-review）に残す手順の雛形。
+# agent-usage: 自分の GitHub Actions で実行したレビューの使用量を、artifact（名前 agent-usage-review-claude・agent-usage-review-codex）に残す手順の雛形。
 # レビューする job の steps の最後に、使う Action に合う方を足す。collect がこの artifact を取得して費用を記録する。
 # uses の版は、使っている他の workflow と同じ方法（SHA の固定など）で決める。
 
@@ -10,15 +10,15 @@
     EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
     PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number || 0 }}
   run: |
-    mkdir -p "$RUNNER_TEMP/agent-usage"
-    cp "$EXECUTION_FILE" "$RUNNER_TEMP/agent-usage/claude-execution-output.json"
-    printf '{"tool":"claude-code-action","pr":%s}\n' "$PR_NUMBER" >"$RUNNER_TEMP/agent-usage/meta.json"
+    mkdir -p "$RUNNER_TEMP/agent-usage-claude"
+    cp "$EXECUTION_FILE" "$RUNNER_TEMP/agent-usage-claude/claude-execution-output.json"
+    printf '{"tool":"claude-code-action","pr":%s}\n' "$PR_NUMBER" >"$RUNNER_TEMP/agent-usage-claude/meta.json"
 - name: agent-usage の artifact を上げる（Claude Code）
   if: always() && steps.claude.outputs.execution_file != ''
   uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
   with:
-    name: agent-usage-review
-    path: ${{ runner.temp }}/agent-usage/
+    name: agent-usage-review-claude
+    path: ${{ runner.temp }}/agent-usage-claude/
     retention-days: 90
 
 # --- Codex の Action（openai/codex-action）の後に足す ---
@@ -28,15 +28,15 @@
   env:
     PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number || 0 }}
   run: |
-    mkdir -p "$RUNNER_TEMP/agent-usage/codex"
+    mkdir -p "$RUNNER_TEMP/agent-usage-codex/codex"
     if [ -d "$RUNNER_TEMP/codex-home/sessions" ]; then
-      find "$RUNNER_TEMP/codex-home/sessions" -name '*.jsonl' -exec cp {} "$RUNNER_TEMP/agent-usage/codex/" \;
+      find "$RUNNER_TEMP/codex-home/sessions" -name '*.jsonl' -exec cp {} "$RUNNER_TEMP/agent-usage-codex/codex/" \;
     fi
-    printf '{"tool":"codex-action","pr":%s}\n' "$PR_NUMBER" >"$RUNNER_TEMP/agent-usage/meta.json"
+    printf '{"tool":"codex-action","pr":%s}\n' "$PR_NUMBER" >"$RUNNER_TEMP/agent-usage-codex/meta.json"
 - name: agent-usage の artifact を上げる（Codex）
   if: always()
   uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
   with:
-    name: agent-usage-review
-    path: ${{ runner.temp }}/agent-usage/
+    name: agent-usage-review-codex
+    path: ${{ runner.temp }}/agent-usage-codex/
     retention-days: 90

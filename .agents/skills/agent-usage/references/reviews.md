@@ -28,7 +28,8 @@ PR に付いたレビューの作者（GitHub の login）から決める。対�
 ## 自分の Actions で実行するレビューの費用を残す
 
 レビューする job の最後に、同梱の [`assets/review-usage-steps.yml`](../assets/review-usage-steps.yml) の手順を足す。
-手順は、使用量のファイルと `meta.json`（ツールの名前と PR の番号）を、名前 `agent-usage-review` の artifact にする。collect はこの名前の artifact を取得する。
+手順は、使用量のファイルと `meta.json`（ツールの名前と PR の番号）を、ツールごとの名前（`agent-usage-review-claude`・`agent-usage-review-codex`）の artifact にする。
+1 回の workflow の実行で両方を使っても、名前が重ならない。collect はこの 2 つの名前の artifact を取得する。
 
 - Claude Code の Action: Action の出力 `execution_file`（SDK のメッセージの配列で、最後の `result` が `total_cost_usd` と `modelUsage` を持つ）を残す
 - Codex の Action: Action の入力 `codex-home` で置き場所を決め、その下の `sessions/` のログを残す

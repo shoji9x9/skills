@@ -6,6 +6,7 @@
 // デフォルトブランチが分からない（origin/HEAD が無い）ときは、main と master をデフォルトブランチとして扱う。
 
 import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import { isRecord } from "./config.mjs";
 import { decisionFor } from "./decisions.mjs";
 import { git, repoInfo } from "./repo.mjs";
@@ -142,28 +143,55 @@ export function splitCommands(command) {
 export function isGitCommit(command) {
   const commands = splitCommands(command);
   if (commands === null) return /\bgit\b[\s\S]*\bcommit\b/.test(command);
-  return commands.some((words) => {
-    let i = 0;
-    for (;;) {
-      while (i < words.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[i])) i += 1;
-      if (i < words.length && SHELL_PREFIXES.includes(words[i])) {
-        i += 1;
-        continue;
-      }
-      if (i < words.length && COMMAND_WRAPPERS.includes(words[i])) {
-        i += 1;
-        while (i < words.length && words[i].startsWith("-")) i += 1;
-        continue;
-      }
-      break;
+  return commands.some((words) => commitDirsOf(words) !== null);
+}
+
+/**
+ * 単純なコマンド（語の列）が git commit なら、`-C` で指定したディレクトリを指定の順に返す。git commit でなければ null。
+ * @param {readonly string[]} words
+ * @returns {string[] | null}
+ */
+function commitDirsOf(words) {
+  let i = 0;
+  for (;;) {
+    while (i < words.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[i])) i += 1;
+    if (i < words.length && SHELL_PREFIXES.includes(words[i])) {
+      i += 1;
+      continue;
     }
-    if (i >= words.length || words[i].split("/").pop() !== "git") return false;
-    i += 1;
-    while (i < words.length && words[i].startsWith("-")) {
-      i += GIT_VALUE_OPTIONS.includes(words[i]) ? 2 : 1;
+    if (i < words.length && COMMAND_WRAPPERS.includes(words[i])) {
+      i += 1;
+      while (i < words.length && words[i].startsWith("-")) i += 1;
+      continue;
     }
-    return words[i] === "commit";
-  });
+    break;
+  }
+  if (i >= words.length || words[i].split("/").pop() !== "git") return null;
+  i += 1;
+  /** @type {string[]} */
+  const dirs = [];
+  while (i < words.length && words[i].startsWith("-")) {
+    if (words[i] === "-C" && i + 1 < words.length) dirs.push(words[i + 1]);
+    i += GIT_VALUE_OPTIONS.includes(words[i]) ? 2 : 1;
+  }
+  return words[i] === "commit" ? dirs : null;
+}
+
+/**
+ * git commit を実行する作業ディレクトリ。最初の git commit の `-C` を、git と同じく cwd から順に解決する（相対パスは前の -C に続ける）。
+ * 語に分けられないときと、-C が無いときは cwd。`cd <dir> && git commit` の cd は追わない。
+ * @param {string} command
+ * @param {string} cwd
+ * @returns {string}
+ */
+export function commitCwd(command, cwd) {
+  const commands = splitCommands(command);
+  if (commands === null) return cwd;
+  for (const words of commands) {
+    const dirs = commitDirsOf(words);
+    if (dirs !== null) return dirs.reduce((acc, d) => resolve(acc, d), cwd);
+  }
+  return cwd;
 }
 
 /**
@@ -192,7 +220,8 @@ function askMessage(agent, script) {
  */
 export function gateDecision(input, fallbackCwd, now, script, agent) {
   if (!isGitCommit(input.command)) return { exit: 0, message: "" };
-  const cwd = input.cwd !== "" ? input.cwd : fallbackCwd;
+  // `git -C <dir> commit` は <dir> のリポジトリにコミットするので、Hook の cwd ではなくそこで判断・記録する
+  const cwd = commitCwd(input.command, input.cwd !== "" ? input.cwd : fallbackCwd);
   /** @type {import("./repo.mjs").RepoInfo} */
   let repo;
   try {

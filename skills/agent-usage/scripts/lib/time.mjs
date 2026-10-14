@@ -94,12 +94,9 @@ export function splitByLocalHour(start, end, tz) {
     const parts = localParts(cur, tz);
     // 次の正時は、15 分刻みで進めて時が変わる位置を探す（オフセットが 15 分単位のタイムゾーンにも合う）
     let next = Math.floor(cur / 900000) * 900000 + 900000;
-    while (
-      next < end &&
-      localParts(next, tz).hour === parts.hour &&
-      localParts(next, tz).date === parts.date
-    ) {
-      next += 900000;
+    for (; next < end; next += 900000) {
+      const p = localParts(next, tz);
+      if (p.hour !== parts.hour || p.date !== parts.date) break;
     }
     const segEnd = Math.min(next, end);
     out.push({ start: cur, end: segEnd, ...parts });

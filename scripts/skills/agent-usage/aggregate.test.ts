@@ -330,6 +330,48 @@ describe("停止の分類", () => {
     expect(r.runHistogram).toEqual([0, 0, 0, 2, 0]);
   });
 
+  test("report: 停止の直前のブランチは、隙間の前に最も遅く終わった run から取る（後に始まって先に終わった run ではない）", () => {
+    const iso = (h: number, m = 0) => new Date(H(h, m)).toISOString();
+    const base = { observed_at: iso(23), person: "p-00000001", tz: "UTC" };
+    const rows = [
+      {
+        ...base,
+        key: "long",
+        kind: "run",
+        start: iso(1),
+        end: iso(5),
+        branch: "a",
+        detail: "prompt",
+      },
+      {
+        ...base,
+        key: "short",
+        kind: "run",
+        start: iso(2),
+        end: iso(3),
+        branch: "b",
+        detail: "prompt",
+      },
+      { ...base, key: "ci-a", kind: "ci", start: iso(5), end: iso(6), branch: "a" },
+      { ...base, key: "cov", kind: "coverage", start: iso(0), end: iso(7), detail: "ok" },
+    ];
+    const r = buildReport(rows, {
+      config: parseRepoConfig({}),
+      bundledPricing: {},
+      bundledReviewPricing: {},
+      tz: "UTC",
+      now: H(6),
+      since: null,
+      until: null,
+      recordFiles: 1,
+    });
+    expect(
+      r.intervals
+        .filter((x) => x.type === "stop")
+        .map((x) => [x.start, x.end, x.category, x.branch]),
+    ).toEqual([[iso(5), iso(6), "ci-wait", "a"]]);
+  });
+
   test("report: 記録の時点で単価の無かった行は、今の単価表で計算し直し、それでも無ければ単価不明として数える", () => {
     const base = {
       observed_at: "2026-10-02T00:00:00.000Z",

@@ -128,24 +128,32 @@ function walkJsonl(dir) {
 
 /**
  * ファイルの最初の行を読む（全体を読まずに session_meta を確かめる）。
+ * 読んだ塊ごとに文字列にすると、塊の境目で分かれた複数バイトの文字が置換文字になるので、バイトのままつないでから 1 回で文字列にする。
  * @param {string} path
  * @returns {string}
  */
 export function firstLine(path) {
   const fd = openSync(path, "r");
   try {
-    let text = "";
+    /** @type {Buffer[]} */
+    const chunks = [];
+    let total = 0;
     const buf = Buffer.alloc(65536);
     for (let pos = 0; ;) {
       const n = readSync(fd, buf, 0, buf.length, pos);
-      if (n <= 0) return text;
-      const chunk = buf.subarray(0, n).toString("utf8");
-      const nl = chunk.indexOf("\n");
-      if (nl >= 0) return text + chunk.slice(0, nl);
-      text += chunk;
+      if (n <= 0) break;
+      const chunk = buf.subarray(0, n);
+      const nl = chunk.indexOf(0x0a);
+      if (nl >= 0) {
+        chunks.push(Buffer.from(chunk.subarray(0, nl)));
+        break;
+      }
+      chunks.push(Buffer.from(chunk));
+      total += n;
       pos += n;
-      if (text.length > 4 * 1024 * 1024) return text;
+      if (total > 4 * 1024 * 1024) break;
     }
+    return Buffer.concat(chunks).toString("utf8");
   } finally {
     closeSync(fd);
   }

@@ -5,7 +5,7 @@
 //   更新された PR（search）と、その timeline     自分のレビュー・コメント（activity）・レビュー待ち（review-wait）・ボットのレビュー（review）。
 //   GitHub Actions の実行（actions/runs）        CI の区間（ci）。
 //   外部の CI（設定で有効なときだけ）            PR の head の commit ごとの check runs と commit status（ci）。
-//   artifact（名前 agent-usage-review）          自分の Actions で実行したレビューの使用量（review）。
+//   artifact（名前 agent-usage-review-*）        自分の Actions で実行したレビューの使用量（review）。
 //   課金 API（人の設定で有効なときだけ）         premium request の日別の実額（billing）。
 // 取得に失敗したら、その期間を coverage の行に failed として残す（report はその期間の停止を「判定不能」にする）。
 
@@ -24,7 +24,8 @@ import { unzip } from "./unzip.mjs";
 /** @typedef {import("./config.mjs").Price} Price */
 
 /** 自分の Actions で実行したレビューの使用量を残す artifact の名前（同梱の workflow の雛形と同じ）。 */
-export const ARTIFACT_NAME = "agent-usage-review";
+/** 同梱の雛形が上げる artifact の名前。1 回の workflow の実行で両方の手順を使えるよう、ツールごとに分ける。 */
+export const ARTIFACT_NAMES = ["agent-usage-review-claude", "agent-usage-review-codex"];
 
 /** エージェントの操作とみなす、コマンドの時刻からの幅（コマンドより前・コマンドより後）。 */
 const AGENT_BEFORE_MS = 60000;
@@ -572,10 +573,10 @@ export function collectGitHub(o) {
   }
 
   attempt("artifacts", () => {
-    const artifacts = getAll(
-      o.gh,
-      `repos/${o.slug}/actions/artifacts?name=${ARTIFACT_NAME}&per_page=100`,
-      (p) => (isRecord(p) ? p.artifacts : null),
+    const artifacts = ARTIFACT_NAMES.flatMap((name) =>
+      getAll(o.gh, `repos/${o.slug}/actions/artifacts?name=${name}&per_page=100`, (p) =>
+        isRecord(p) ? p.artifacts : null,
+      ),
     );
     for (const a of artifacts) {
       if (!isRecord(a) || a.expired === true || typeof a.id !== "number") continue;

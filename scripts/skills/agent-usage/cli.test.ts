@@ -11,7 +11,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
-import { isGitCommit } from "../../../skills/agent-usage/scripts/lib/gate.mjs";
+import { commitCwd, isGitCommit } from "../../../skills/agent-usage/scripts/lib/gate.mjs";
 import { encodeProjectPath } from "../../../skills/agent-usage/scripts/lib/discover.mjs";
 import { makeTempDir } from "../../lib/test-tmpdir.ts";
 
@@ -66,6 +66,20 @@ describe("isGitCommit", () => {
     ["echo then commit", false],
   ])("%s → %s", (cmd, expected) => {
     expect(isGitCommit(cmd)).toBe(expected);
+  });
+});
+
+describe("commitCwd", () => {
+  test.each([
+    ["git commit -m x", "/w"],
+    ["git -C /other commit -m x", "/other"],
+    ["git -C sub -C deeper commit", "/w/sub/deeper"],
+    ["git -C ../o -c a=b commit", "/o"],
+    ["git -C /x status && git commit", "/w"],
+    ["git status", "/w"],
+    ['git -C "/a b" commit "unterminated', "/w"],
+  ])("%s → %s", (cmd, expected) => {
+    expect(commitCwd(cmd, "/w")).toBe(expected);
   });
 });
 

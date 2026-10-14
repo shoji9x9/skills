@@ -345,6 +345,26 @@ export function buildReport(allRows, o) {
   const coverageAll = mergeSpans(
     spansOf(latest.filter((r) => r.kind === "coverage" && r.detail === "ok")),
   );
+  // CI とレビュー待ちの区間は、ブランチごとに 1 回だけまとめる（停止の隙間ごとに全行を走査しない）
+  /**
+   * @param {string} kind
+   * @returns {Map<string, Span[]>}
+   */
+  const spansByBranch = (kind) => {
+    /** @type {Map<string, Span[]>} */
+    const byBranch = new Map();
+    for (const r of latest) {
+      if (r.kind !== kind || !r.branch) continue;
+      const s = spanOf(r);
+      if (!s) continue;
+      const list = byBranch.get(r.branch) ?? [];
+      list.push(s);
+      byBranch.set(r.branch, list);
+    }
+    return new Map([...byBranch].map(([b, list]) => [b, mergeSpans(list)]));
+  };
+  const ciByBranch = spansByBranch("ci");
+  const reviewWaitByBranch = spansByBranch("review-wait");
   const people = [
     ...new Set(rows.filter((r) => r.kind === "run").map((r) => alias(r.person))),
   ].sort();
@@ -392,16 +412,15 @@ export function buildReport(allRows, o) {
     }
     const presence = mergeSpans(marks);
     for (const gap of gaps(merged, merged[0][0], periodEnd)) {
-      const before = runs.filter((r) => r.span[1] <= gap[0]).pop();
+      // 直前に動いていた run は、隙間の前に最も遅く終わったもの（runs は始まりの順なので、末尾が最後に終わったとは限らない）
+      /** @type {(typeof runs)[number] | undefined} */
+      let before;
+      for (const r of runs) {
+        if (r.span[1] <= gap[0] && (!before || r.span[1] >= before.span[1])) before = r;
+      }
       const branch = before ? (before.row.branch ?? "") : "";
-      const ci = mergeSpans(
-        spansOf(latest.filter((r) => r.kind === "ci" && branch !== "" && r.branch === branch)),
-      );
-      const reviewWait = mergeSpans(
-        spansOf(
-          latest.filter((r) => r.kind === "review-wait" && branch !== "" && r.branch === branch),
-        ),
-      );
+      const ci = ciByBranch.get(branch) ?? [];
+      const reviewWait = reviewWaitByBranch.get(branch) ?? [];
       const uncovered = gaps(coverageAll, gap[0], gap[1]);
       const pieces = classifySpan(
         gap,

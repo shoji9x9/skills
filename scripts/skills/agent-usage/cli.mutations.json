@@ -43,8 +43,8 @@
       "id": "value-option-not-skipped",
       "why": "値を取るオプションの値を語として飛ばさない",
       "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "      i += GIT_VALUE_OPTIONS.includes(words[i]) ? 2 : 1;",
-      "replace": "      i += 1;",
+      "find": "    i += GIT_VALUE_OPTIONS.includes(words[i]) ? 2 : 1;",
+      "replace": "    i += 1;",
       "occurrences": 1,
       "expect_failing": [
         "isGitCommit git -C \"/path with space\" commit -m x → true",
@@ -52,7 +52,10 @@
         "isGitCommit git --git-dir /r/.git --work-tree /r commit → true",
         "isGitCommit git -C /repo commit -m x → true",
         "isGitCommit git -c user.name=x commit → true",
-        "isGitCommit git -C commit status → false"
+        "isGitCommit git -C commit status → false",
+        "commitCwd git -C /other commit -m x → /other",
+        "commitCwd git -C sub -C deeper commit → /w/sub/deeper",
+        "commitCwd git -C ../o -c a=b commit → /o"
       ]
     },
     {
@@ -68,8 +71,8 @@
       "id": "shell-prefix-not-skipped",
       "why": "シェルの予約語を読み飛ばさない",
       "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "      if (i < words.length && SHELL_PREFIXES.includes(words[i])) {",
-      "replace": "      if (false) {",
+      "find": "    if (i < words.length && SHELL_PREFIXES.includes(words[i])) {",
+      "replace": "    if (false) {",
       "occurrences": 1,
       "expect_failing": [
         "isGitCommit if true; then git commit -m x; fi → true",
@@ -83,8 +86,8 @@
       "id": "wrapper-not-skipped",
       "why": "コマンドを実行するコマンドを読み飛ばさない",
       "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "      if (i < words.length && COMMAND_WRAPPERS.includes(words[i])) {",
-      "replace": "      if (false) {",
+      "find": "    if (i < words.length && COMMAND_WRAPPERS.includes(words[i])) {",
+      "replace": "    if (false) {",
       "occurrences": 1,
       "expect_failing": [
         "isGitCommit env FOO=1 git commit → true",

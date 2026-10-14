@@ -211,6 +211,63 @@ describe("collectGitHub", () => {
     const res = collectGitHub(options(gh));
     expect(res.failures).toEqual(["pulls: HTTP 502"]);
   });
+
+  test("人の設定で billing が user のときだけ、課金 API の日別の実額を billing の行にする", () => {
+    const calls: string[] = [];
+    const gh: Gh = (args) => {
+      const path = args.find((a) => a.includes("/")) ?? args[0];
+      calls.push(path);
+      if (args[0] === "user") return Buffer.from(JSON.stringify({ login: "me" }));
+      if (path.includes("settings/billing/premium_request/usage")) {
+        return Buffer.from(
+          JSON.stringify({
+            usageItems: [
+              {
+                product: "Copilot",
+                model: "gpt-x",
+                sku: "premium",
+                netQuantity: 13,
+                netAmount: 0.52,
+              },
+            ],
+          }),
+        );
+      }
+      if (args[0] === "graphql") throw new Error("HTTP 502");
+      return Buffer.from(JSON.stringify([{ workflow_runs: [], artifacts: [] }]));
+    };
+    const res = collectGitHub(options(gh, { billing: "user" }));
+    const billing = res.rows.filter((r) => r.kind === "billing");
+    expect(billing).toHaveLength(1);
+    expect(billing[0]).toMatchObject({
+      key: "billing:2026-10-01:Copilot:gpt-x:premium",
+      cost_usd: "0.520000",
+      cost_source: "billing",
+      detail: "sku=premium;quantity=13",
+    });
+    expect(calls.some((c) => c.includes("users/me/settings/billing/premium_request/usage"))).toBe(
+      true,
+    );
+    expect(res.failures.some((f) => f.startsWith("billing"))).toBe(false);
+    // デフォルト（none）では課金 API を呼ばない
+    calls.length = 0;
+    const none = collectGitHub(options(gh));
+    expect(none.rows.some((r) => r.kind === "billing")).toBe(false);
+    expect(calls.some((c) => c.includes("billing"))).toBe(false);
+  });
+
+  test("ツールごとの名前の artifact を、名前ごとに取得する", () => {
+    const calls: string[] = [];
+    const gh: Gh = (args) => {
+      calls.push(args.join(" "));
+      if (args[0] === "user") return Buffer.from(JSON.stringify({ login: "me" }));
+      if (args[0] === "graphql") throw new Error("HTTP 502");
+      return Buffer.from(JSON.stringify([{ workflow_runs: [], artifacts: [] }]));
+    };
+    collectGitHub(options(gh));
+    for (const name of ["agent-usage-review-claude", "agent-usage-review-codex"])
+      expect(calls.some((c) => c.includes(`artifacts?name=${name}&`))).toBe(true);
+  });
 });
 
 describe("commitActivityRows", () => {

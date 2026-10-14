@@ -50,16 +50,19 @@ function loadBundledTools() {
 }
 
 /**
- * GitHub から取り始める時刻。取得に成功した期間の最後から GITHUB_OVERLAP_MS さかのぼる。記録が無ければ、ローカルの行の最初の時刻。
+ * GitHub から取り始める時刻。この人の取得に成功した期間の最後から GITHUB_OVERLAP_MS さかのぼる。記録が無ければ、ローカルの行の最初の時刻。
+ * 他の人の取得（_github/ の coverage）は数えない。この時刻は、この人の commit と GitHub での操作（activity）を取る範囲にも使うので、
+ * 他の人が最近取得していると、しばらく collect していなかった人の activity が取れなくなる。
  * @param {Map<string, Row>} existing
  * @param {readonly Row[]} localRows
  * @param {number} now
+ * @param {string} person
  * @returns {number}
  */
-export function githubSince(existing, localRows, now) {
+export function githubSince(existing, localRows, now, person) {
   let lastOk = Number.NEGATIVE_INFINITY;
   for (const r of existing.values()) {
-    if (r.kind !== "coverage" || r.detail !== "ok") continue;
+    if (r.kind !== "coverage" || r.detail !== "ok" || r.person !== person) continue;
     const end = parseTime(r.end);
     if (end !== null && end > lastOk) lastOk = end;
   }
@@ -123,7 +126,7 @@ export function runCollect(o) {
 
   /** @type {Row[]} */
   const candidates = [...local.rows];
-  const since = githubSince(existing, local.rows, now);
+  const since = githubSince(existing, local.rows, now, person);
 
   const reflog =
     gitOrNull(
