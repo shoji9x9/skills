@@ -1,12 +1,12 @@
 ---
 name: pnpm-audit-alert-issue
-description: pnpm 11 と devEngines.packageManager の組み合わせで Dependabot が pnpm-lock.yaml を解析できず Dependabot alerts が出ない間、`pnpm audit --json` を一次情報として脆弱性 Issue を作る private skill。pnpm audit の結果を正規化し、`dependabot-alert-issue` の外部 audit findings mode に渡す。「pnpm audit から Issue」「pnpm の脆弱性を起票」「dependabot-core#14794 回避」「pnpm-audit-alert-issue」で必ず使用する。
+description: pnpm 11 以降と devEngines.packageManager の組み合わせで Dependabot が pnpm-lock.yaml を解析できず Dependabot alerts が出ない間、`pnpm audit --json` を一次情報として脆弱性 Issue を作る private skill。pnpm audit の結果を正規化し、`dependabot-alert-issue` の外部 audit findings mode に渡す。「pnpm audit から Issue」「pnpm の脆弱性を起票」「dependabot-core#14794 回避」「pnpm-audit-alert-issue」で必ず使用する。
 license: MIT
 ---
 
 # PNPM Audit Alert Issue
 
-pnpm 11 の複数ドキュメントの `pnpm-lock.yaml` に Dependabot が対応するまでの間、`pnpm audit --json` を元の情報として、脆弱性に対応する Issue を作る private skill。
+pnpm 11 以降の複数ドキュメントの `pnpm-lock.yaml` に Dependabot が対応するまでの間、`pnpm audit --json` を元の情報として、脆弱性に対応する Issue を作る private skill。
 
 このスキルは、`pnpm audit` の検出結果を、Issue にするのに要る情報を付けた外部 audit findings として整理する。
 Issue のまとめ方と起票は、配布スキル `dependabot-alert-issue` の外部 audit findings mode に任せる。

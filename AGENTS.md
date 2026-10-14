@@ -165,7 +165,7 @@ scripts/                リポジトリ内のツールとテスト（配布し�
 
 ## 脆弱性対応
 
-Dependabot が pnpm 11 に対応するまでの脆弱性の確認と起票、major 更新の手動確認の方針は [`docs/vulnerability-handling.md`](docs/vulnerability-handling.md) にある。
+Dependabot が pnpm の複数ドキュメントの lockfile に対応するまでの脆弱性の確認と起票、major 更新の手動確認の方針は [`docs/vulnerability-handling.md`](docs/vulnerability-handling.md) にある。
 
 ## エージェントの自己設定編集
 
