@@ -128,13 +128,70 @@
     },
     {
       "id": "non-github-host",
-      "why": "GitHub でないホストも GitHub として扱う",
+      "why": "token を持たないホストも GitHub として扱う",
       "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
-      "find": "!ghHosts.includes(host);",
-      "replace": "false;",
+      "find": "  if (authed(host)) return \"\";",
+      "replace": "  if (true) return \"\";",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook origin が GitHub でなければ、GitHub を取得しない",
+        "agent-usage のコマンドと Hook GH_HOST が無くても、gh にログインしたホストの origin は GitHub として取得する",
+        "agent-usage のコマンドと Hook Hook の collect も、GitHub を取得しなかった理由を出す"
+      ]
+    },
+    {
+      "id": "ghe-token-ignored",
+      "why": "gh が token を持つホストを GitHub として扱わない",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "  if (authed(host)) return \"\";",
+      "replace": "  if (false) return \"\";",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook GH_HOST が無くても、gh にログインしたホストの origin は GitHub として取得する"
+      ]
+    },
+    {
+      "id": "remote-shape-ignored",
+      "why": "<ホスト>/<owner>/<name> の形でない origin も GitHub の判定に進める",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "  if (parts.length !== 3 || !host || !owner || !name)",
+      "replace": "  if (false)",
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook origin が GitHub でなければ、GitHub を取得しない"
+      ]
+    },
+    {
+      "id": "enterprise-token-counted",
+      "why": "GH_ENTERPRISE_TOKEN をログインとして数え、どのホストも GitHub として扱う",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "    env: rest,",
+      "replace": "    env,",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook GH_HOST が無くても、gh にログインしたホストの origin は GitHub として取得する"
+      ]
+    },
+    {
+      "id": "port-host-authed",
+      "why": "ポートを含むホストもログインの判定に進める",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "  if (host.includes(\":\"))",
+      "replace": "  if (false)",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook ポートを含むホストの origin は、ログインを確かめずに理由を出して取得しない"
+      ]
+    },
+    {
+      "id": "gate-skip-reason-hidden",
+      "why": "Hook の出力に GitHub を取得しなかった理由を出さない",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "        : r.githubSkipped",
+      "replace": "        : false",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook Hook の collect も、GitHub を取得しなかった理由を出す"
       ]
     },
     {

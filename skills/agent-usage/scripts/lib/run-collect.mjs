@@ -1,5 +1,6 @@
 // collect の全体: ローカルのログ・人の commit・GitHub から行を作り、まだ記録していない行を records/ に書く。
 
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { isRecord, loadOrCreateUserConfig, loadRepoConfig } from "./config.mjs";
@@ -87,12 +88,57 @@ export function classifyingFailuresOf(failures) {
 }
 
 /**
+ * origin を GitHub として扱わない理由を返す。GitHub として扱うなら空文字。
+ * GitHub として扱うのは、`<ホスト>/<owner>/<name>` の形で、ホストが github.com・GH_HOST・gh にログインしたホストのどれかのとき。
+ * GitHub Enterprise のホストは、`gh auth login --hostname <ホスト>` でログインしていれば、GH_HOST が無くても取得する。
+ * @param {string} remote `<ホスト>/<パス>` の形の origin（無ければ空）
+ * @param {NodeJS.ProcessEnv} env
+ * @param {(host: string) => boolean} authed
+ * @returns {string}
+ */
+export function githubHostSkipReason(remote, env, authed) {
+  if (remote === "") return "origin が無い";
+  const parts = remote.split("/");
+  const [host, owner, name] = parts;
+  if (parts.length !== 3 || !host || !owner || !name)
+    return `origin（${remote}）が <ホスト>/<owner>/<name> の形でない`;
+  if (host === "github.com" || host === (env.GH_HOST ?? "").toLowerCase()) return "";
+  // ポートを含むホスト（ssh://git@<ホスト>:7999/...）は、gh のホスト名と一致しないので、ログインの有無を確かめない
+  if (host.includes(":"))
+    return `origin のホスト ${host} はポートを含むので、gh のホストとして扱えない（GH_HOST とも一致しない）`;
+  if (authed(host)) return "";
+  return `origin のホスト ${host} は、github.com でも GH_HOST でも gh にログインしたホストでもない（GitHub Enterprise なら gh auth login --hostname ${host} か GH_HOST=${host} で取得する）`;
+}
+
+/**
+ * gh がそのホストにログインしているか（`gh auth login --hostname` で保存した token があるか）。
+ * `gh auth token` はネットワークに問い合わせない。gh が無ければ、ログインしていないとして扱う。
+ * 参考: https://cli.github.com/manual/gh_auth_token
+ * GH_ENTERPRISE_TOKEN・GITHUB_ENTERPRISE_TOKEN は外して確かめる。
+ * gh はこれらを github.com 以外のすべてのホストの token として返す（gh 2.93.0 で実測）。
+ * 残すと GitLab などの origin も GitHub として扱い、その token を送ってしまう。
+ * @param {string} host
+ * @param {NodeJS.ProcessEnv} env GH_HOST の判定と同じ環境変数で確かめる
+ * @returns {boolean}
+ */
+function ghHasToken(host, env) {
+  const { GH_ENTERPRISE_TOKEN: _a, GITHUB_ENTERPRISE_TOKEN: _b, ...rest } = env;
+  const r = spawnSync("gh", ["auth", "token", "--hostname", host], {
+    env: rest,
+    timeout: 10000,
+    stdio: ["ignore", "ignore", "ignore"],
+  });
+  return r.status === 0;
+}
+
+/**
  * @typedef {object} CollectOptions
  * @property {RepoInfo} repo
  * @property {number} now
  * @property {NodeJS.ProcessEnv} env
  * @property {boolean} github
  * @property {GhRunner | null} gh テストで差し替える（null なら gh を使う）
+ * @property {((host: string) => boolean) | undefined} [ghAuthed] テストで差し替える（無ければ gh auth token で確かめる）
  */
 
 /**
@@ -107,6 +153,7 @@ export function classifyingFailuresOf(failures) {
  * @property {number} duplicateMessages 別のセッションと重複したので数えなかった応答の数
  * @property {string[]} githubFailures
  * @property {boolean} githubSkipped
+ * @property {string} githubSkipReason GitHub を取得しなかった理由（取得したなら空）
  * @property {number} keyConflicts 同じ key で内容の違う行の数（0 でなければ行の作り方の不具合）
  */
 
@@ -148,10 +195,10 @@ export function runCollect(o) {
   /** @type {string[]} */
   let githubFailures = [];
   const [host, owner, name] = repo.remote.split("/");
-  // github.com（か、GH_HOST で指定した GitHub Enterprise のホスト）の owner/name の形だけを GitHub として扱う
-  const ghHosts = ["github.com", (env.GH_HOST ?? "").toLowerCase()].filter((h) => h !== "");
-  const githubSkipped =
-    !o.github || !owner || !name || repo.remote.split("/").length !== 3 || !ghHosts.includes(host);
+  const githubSkipReason = !o.github
+    ? "--no-github"
+    : githubHostSkipReason(repo.remote, env, o.ghAuthed ?? ((h) => ghHasToken(h, env)));
+  const githubSkipped = githubSkipReason !== "";
   if (!githubSkipped) {
     const gh = o.gh ?? makeGh(host);
     const res = collectGitHub({
@@ -227,6 +274,7 @@ export function runCollect(o) {
     duplicateMessages: local.duplicateMessages,
     githubFailures,
     githubSkipped,
+    githubSkipReason,
     keyConflicts: conflicts,
   };
 }
