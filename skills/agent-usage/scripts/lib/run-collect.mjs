@@ -268,8 +268,11 @@ export function runCollect(o) {
   // 書き足す先は、このブランチのファイルのうち最も新しいもの。ただし、デフォルトブランチ（origin）に既に入ったファイルには足さず、
   // 新しいファイルを作る。squash merge の後に同じブランチで作業を続けて足すと、デフォルトブランチを取り込むときに add/add で競合するため
   const defaults = defaultBranches(repo);
+  // 今のブランチがデフォルトブランチ自身なら、足しても add/add の競合は起きないので、同じファイルに足し続ける
+  const onDefault = defaults.includes(repo.branch);
   /** @param {string} f */
   const published = (f) =>
+    !onDefault &&
     defaults.some(
       (b) =>
         gitOrNull(
@@ -300,15 +303,19 @@ export function runCollect(o) {
     const t = last === undefined ? now : Math.max(now, (fileStampTime(last) ?? now) + 1000);
     return join(d, `${fileStamp(t)}-${label}.csv`);
   };
-  const read = readRecords(recordsDir, { since: windowStart, keep });
+  const lastPath = lastCollectPath(repo.commonDir);
+  const last = loadLastCollect(lastPath, person, now);
+  const collectedInWindow = last !== null && last >= windowStart;
+  // 範囲の中で collect していなければ（この版にした後の最初の collect・新しい clone）、範囲より古い行もすべて書くので、
+  // 記録も全体を読み、記録済みの行を重ねて書かない
+  const read = collectedInWindow
+    ? readRecords(recordsDir, { since: windowStart, keep })
+    : readRecords(recordsDir);
   const existing = latestByKey(read.rows);
   // 範囲より古い行は、範囲の外のファイルにあって読んでいないので、書くと重複する。
   // この clone で範囲の中に collect していなければ、前回の collect から範囲の始まりまでの行を取りこぼさないよう、すべて書く
   // （重複は report が key でまとめる）。記録の行では決めない。別のマシン（clone）の行が範囲の中にあっても、
   // このマシンのログにある古い行はまだ書いていないことがあるため
-  const lastPath = lastCollectPath(repo.commonDir);
-  const last = loadLastCollect(lastPath, person, now);
-  const collectedInWindow = last !== null && last >= windowStart;
   const lowerBound = collectedInWindow ? windowStart : Number.NEGATIVE_INFINITY;
 
   /** @type {Row[]} */
@@ -386,6 +393,8 @@ export function runCollect(o) {
   let olderRowsSkipped = 0;
   const fresh = changedRows([...unique.values()], existing).filter((r) => {
     if (existing.has(r.key ?? "")) return true;
+    // GitHub の行は取得の範囲（since）で決まり、その前に始まった区間（実行中の CI・レビュー待ち）も意図して書く
+    if (GITHUB_KINDS.includes(r.kind ?? "")) return true;
     const t = parseTime(r.start);
     if (t === null || t >= lowerBound) return true;
     olderRowsSkipped += 1;

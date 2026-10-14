@@ -396,7 +396,7 @@
       "id": "branch-label-no-hash",
       "why": "英数字以外を含むブランチの名前にハッシュを足さない",
       "file": "skills/agent-usage/scripts/lib/records.mjs",
-      "find": "  if (/^[A-Za-z0-9._/-]+$/.test(branch)) return name;",
+      "find": "  if (name === branch.replaceAll(\"/\", \"-\")) return name;",
       "replace": "  if (true) return name;",
       "occurrences": 1,
       "expect_failing": [
@@ -513,6 +513,39 @@
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook この clone で範囲の中に collect していれば、範囲より古いログの行は書かない（していなければ書く）"
+      ]
+    },
+    {
+      "id": "first-collect-reads-window",
+      "why": "この clone で初めての collect でも、範囲の中の記録しか読まない",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "    : readRecords(recordsDir);",
+      "replace": "    : readRecords(recordsDir, { since: windowStart, keep });",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook この clone で初めての collect は、記録の全体を読み、範囲より古い記録済みの行を重ねて書かない"
+      ]
+    },
+    {
+      "id": "default-branch-published",
+      "why": "デフォルトブランチ自身でも、push したファイルに足さない",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "    !onDefault &&",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook デフォルトブランチ自身では、push した後も同じファイルに足す"
+      ]
+    },
+    {
+      "id": "quoted-last-line-trusted",
+      "why": "引用符を含む最後の行も、1 行として読む",
+      "file": "skills/agent-usage/scripts/lib/records.mjs",
+      "find": "    if (lines[lines.length - 1]?.includes('\"')) return null;",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "lastObservedAt（読む範囲の判定に使う、最後の行の observed_at） 判定できなければ null を返す（呼び出し側はファイル全体を読む）: 最後の行が、改行を含む値の途中に見える"
       ]
     }
   ]

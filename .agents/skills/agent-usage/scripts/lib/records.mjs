@@ -19,6 +19,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { basename, dirname, join, relative, sep } from "node:path";
+import { writeFileAtomic } from "./atomic.mjs";
 import { parseCsv, toCsv } from "./csv.mjs";
 import { COLUMNS, contentSignature, isKind, signature } from "./rows.mjs";
 import { parseTime } from "./time.mjs";
@@ -80,8 +81,10 @@ const HEAD_BYTES = 2048;
  * @returns {number | null}
  */
 export function lastObservedAt(path) {
-  const fd = openSync(path, "r");
+  /** @type {number | null} */
+  let fd = null;
   try {
+    fd = openSync(path, "r");
     const size = fstatSync(fd).size;
     const len = Math.min(size, TAIL_BYTES);
     // 見出しの 1 行は短い（列の名前だけ）ので、先頭は少しだけ読む
@@ -94,12 +97,14 @@ export function lastObservedAt(path) {
     const lines = tail.toString("utf8").replace(/\n$/, "").split("\n");
     // 末尾の 1 行がバッファに収まっていること（先頭の要素は途中から始まりうる）
     if (nl < 0 || lines.length < 2) return null;
+    // 引用符を含む最後の行は、改行を含む値の途中から始まっている場合と区別できないので、ファイル全体を読む
+    if (lines[lines.length - 1]?.includes('"')) return null;
     const rows = parseCsv(`${headText.slice(0, nl + 1)}${lines[lines.length - 1]}\n`);
     return rows.length === 1 ? parseTime(rows[0]?.observed_at) : null;
   } catch {
     return null;
   } finally {
-    closeSync(fd);
+    if (fd !== null) closeSync(fd);
   }
 }
 
@@ -225,7 +230,8 @@ export function branchLabel(branch) {
   const hash = () => createHash("sha256").update(branch).digest("hex").slice(0, 8);
   // ファイル名の上限（多くのファイルシステムで 255 バイト）に、時刻と拡張子を足しても収まるようにする
   if (name.length > MAX_LABEL) return `${name.slice(0, MAX_LABEL - 9)}-${hash()}`;
-  if (/^[A-Za-z0-9._/-]+$/.test(branch)) return name;
+  // `/` を `-` にしただけで名前が決まる（他の文字を消したり詰めたりしていない）ときだけ、ハッシュを足さない
+  if (name === branch.replaceAll("/", "-")) return name;
   return `${name}-${hash()}`;
 }
 
@@ -273,8 +279,8 @@ export function appendBranchFile(path, rows) {
   /** @type {Set<string>} */
   const known = new Set(COLUMNS);
   const extra = [...new Set(prevRows.flatMap((r) => Object.keys(r)))].filter((c) => !known.has(c));
-  // 一時ファイルを records/ の中に作らずに書き直す（中断して残ると、Hook の git add が stage してしまう）。改行は既存のファイルに合わせる
+  // 書き直しは一時ファイルから rename で置き換える（途中で止まっても、行の消えたファイルを残さない）。改行は既存のファイルに合わせる
   const rewritten = toCsv([...COLUMNS, ...extra], [...prevRows, ...rows]);
-  writeFileSync(path, crlf ? rewritten.replace(/\n/g, "\r\n") : rewritten);
+  writeFileAtomic(path, crlf ? rewritten.replace(/\n/g, "\r\n") : rewritten);
   return path;
 }

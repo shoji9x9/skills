@@ -524,6 +524,62 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(cli("collect").stdout).toMatch(/範囲より古いので読まなかった記録のファイル: 1/);
   });
 
+  test("この clone で初めての collect は、記録の全体を読み、範囲より古い記録済みの行を重ねて書かない", () => {
+    const { repo, git, cli, logDir, logLines } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    // 範囲より古いセッションのログを、古い形のファイルに記録済みにしておく
+    const old = logLines.map((l) => ({
+      ...l,
+      timestamp: l.timestamp.replace("2026-10-01", "2026-07-01"),
+      ...(l.message && "id" in l.message
+        ? { message: { ...l.message, id: `old-${l.message.id}` } }
+        : {}),
+    }));
+    writeFileSync(join(logDir, "s-old.jsonl"), old.map((l) => JSON.stringify(l)).join("\n"));
+    expect(cli("collect").status).toBe(0);
+    const records = join(repo, ".agent-usage", "records");
+    const person = readdirSync(records).find((d) => d.startsWith("p-")) ?? "";
+    const branches = join(records, person, "branches");
+    const [name] = readdirSync(branches);
+    writeFileSync(
+      join(records, person, "20260701T000000Z-5.csv"),
+      readFileSync(join(branches, name ?? ""), "utf8").replaceAll(
+        "2026-10-01T12:00:00.000Z",
+        "2026-07-01T00:00:00.000Z",
+      ),
+    );
+    rmSync(branches, { recursive: true });
+    // 新しい clone と同じ状態（last-collect.json が無い）
+    rmSync(join(repo, ".git", "agent-usage", "last-collect.json"));
+    const again = cli("collect");
+    expect(again.stdout).not.toMatch(/範囲より古いので読まなかった/);
+    // 記録済みの行は書かないので、新しいブランチのファイルは作られないか、古い行を含まない
+    const text = existsSync(branches)
+      ? readdirSync(branches)
+          .map((f) => readFileSync(join(branches, f), "utf8"))
+          .join("")
+      : "";
+    expect(text).not.toContain("usage:claude-code:s-old:");
+  });
+
+  test("デフォルトブランチ自身では、push した後も同じファイルに足す", () => {
+    const { tmp, repo, git, cliWith } = setup();
+    expect(cliWith({}, "setup", "--time-zone", "UTC").status).toBe(0);
+    expect(cliWith({}, "collect", "--stage").status).toBe(0);
+    git("commit", "-q", "-m", "records");
+    const origin = join(tmp, "origin.git");
+    spawnSync("git", ["init", "-q", "--bare", origin]);
+    git("remote", "add", "origin", origin);
+    git("push", "-q", "origin", "HEAD:main");
+    git("fetch", "-q", "origin");
+    git("commit", "-q", "--allow-empty", "-m", "more");
+    expect(cliWith({ AGENT_USAGE_NOW: "2026-10-01T13:00:00Z" }, "collect").status).toBe(0);
+    const records = join(repo, ".agent-usage", "records");
+    const person = readdirSync(records).find((d) => d.startsWith("p-")) ?? "";
+    expect(readdirSync(join(records, person, "branches"))).toHaveLength(1);
+  });
+
   test("今のブランチのファイルは、範囲より古い時刻でも読み、同じ行を書き直さない", () => {
     const { repo, git, cli } = setup();
     expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
@@ -687,6 +743,7 @@ describe("agent-usage のコマンドと Hook", () => {
 
   test.each([
     ["ASCII の名前はそのまま", "feature/5-x", "feature-5-x"],
+    ["末尾の - を消す名前はハッシュを足す", "feature/x-", /^feature-x-[0-9a-f]{8}$/],
     ["英数字以外を含む名前はハッシュを足す", "feature/日本語", /^feature-[0-9a-f]{8}$/],
     ["長い名前は切ってハッシュを足す", `feature/${"a".repeat(300)}`, /^feature-a{83}-[0-9a-f]{8}$/],
   ])("branchLabel: %s", (_case, branch, expected) => {
@@ -929,6 +986,9 @@ describe("lastObservedAt（読む範囲の判定に使う、最後の行の obse
     return f;
   };
   const header = "key,kind,observed_at,detail\n";
+  test("開けないファイルは null を返す", () => {
+    expect(lastObservedAt(join(makeTempDir("agent-usage-tail-"), "missing.csv"))).toBeNull();
+  });
   test("最後の行の observed_at を返す", () => {
     const f = write(
       `${header}a,usage,2026-07-01T00:00:00.000Z,\nb,usage,2026-09-30T00:00:00.000Z,\n`,
@@ -944,6 +1004,10 @@ describe("lastObservedAt（読む範囲の判定に使う、最後の行の obse
     [
       "最後の行が引用符の中の改行で分かれている",
       `${header}a,usage,2026-09-30T00:00:00.000Z,"x\ny"\n`,
+    ],
+    [
+      "最後の行が、改行を含む値の途中に見える",
+      `${header}k2,usage,2026-10-01T00:00:00.000Z,"a\nb,c,2025-01-01T00:00:00.000Z,d"\n`,
     ],
     ["observed_at が時刻でない", `${header}a,usage,nope,\n`],
   ])("判定できなければ null を返す（呼び出し側はファイル全体を読む）: %s", (_case, text) => {
