@@ -60,7 +60,8 @@ export function inferTurnEnds(s) {
  */
 export function buildRuns(s) {
   if (s.subagent) return [];
-  const turnEnds = s.turnEnds.length > 0 ? s.turnEnds : inferTurnEnds(s);
+  // 完了の記録が無いログ（古い版）は応答の時刻から推定する。中断はどちらの場合も完了に足す
+  const turnEnds = [...(s.turnEnds.length > 0 ? s.turnEnds : inferTurnEnds(s)), ...s.interrupts];
   /** @type {TimelineEvent[]} */
   const events = [];
   for (const t of s.prompts) events.push({ t, order: ORDER.prompt, type: "prompt" });

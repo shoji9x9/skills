@@ -63,6 +63,9 @@ describe("isGitCommit", () => {
     ["sudo git commit", true],
     ["xargs -0 git commit", true],
     ["env git status", false],
+    ['out="$(git commit -m x 2>&1)"', true],
+    ['echo "`git commit -m x`"', true],
+    ['echo "$(git status)"', false],
     ["if git commit -m x; then echo ok; fi", true],
     ["while git commit; do :; done", true],
     ["until git commit -m y; do :; done", true],
@@ -84,6 +87,7 @@ describe("commitCwd", () => {
     ["cd ../wt && git commit -m x", "/wt"],
     ["cd /r; git -C sub commit", "/r/sub"],
     ["cd /r && git status", "/w"],
+    ["pushd ../o && git commit", "/o"],
     ['cd "$(git rev-parse --show-toplevel)" && git commit', "/w"],
     ["cd ~/x && git commit", "/w"],
     ["cd /r && cd $WT && git commit", "/w"],
@@ -325,6 +329,19 @@ describe("agent-usage のコマンドと Hook", () => {
     const flat = cli("collect");
     expect(flat.status).toBe(0);
     expect(flat.stdout).toMatch(/GitHub: 取得していない/);
+  });
+
+  test("gate は、確認の処理の誤り（不正な AGENT_USAGE_NOW）ではコミットを止めない", () => {
+    const { repo, cli } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    const r = spawnSync("node", [CLI, "gate", "--agent", "claude-code"], {
+      cwd: repo,
+      env: { ...process.env, AGENT_USAGE_NOW: "not-a-time" },
+      encoding: "utf8",
+      input: JSON.stringify({ cwd: repo, tool_input: { command: "git commit -m x" } }),
+    });
+    expect(r.status).toBe(0);
+    expect(r.stderr).toMatch(/確認をせずに通します/);
   });
 
   test("知らない引数と値の無い引数は、使い方を出して 2 で止める", () => {

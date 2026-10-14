@@ -40,7 +40,8 @@
  * @property {MessageUsage[]} messages
  * @property {CostSnapshot[]} costSnapshots
  * @property {number[]} prompts 人の指示の時刻
- * @property {number[]} turnEnds 応答の完了の時刻
+ * @property {number[]} turnEnds 応答の完了の時刻（turn_duration などの完了の記録）
+ * @property {number[]} interrupts 利用者が応答を中断した時刻（完了として扱う）
  * @property {number[]} autoResumes 自動の再開（バックグラウンドの処理の通知・予約した再開・他のセッションからの連絡）の時刻
  * @property {HumanWait[]} humanWaits
  * @property {{ ts: number; text: string }[]} commands エージェントが実行したコマンド（git commit と gh の判定に使う）
@@ -66,6 +67,7 @@ export function emptySummary(agent, sessionId) {
     costSnapshots: [],
     prompts: [],
     turnEnds: [],
+    interrupts: [],
     autoResumes: [],
     humanWaits: [],
     commands: [],

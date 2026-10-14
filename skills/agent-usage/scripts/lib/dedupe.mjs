@@ -117,6 +117,7 @@ export function dedupeSessions(summaries, claims) {
       messages: kept,
       prompts: s.prompts.filter(own),
       turnEnds: s.turnEnds.filter(own),
+      interrupts: s.interrupts.filter(own),
       autoResumes: s.autoResumes.filter(own),
       humanWaits: s.humanWaits.filter((w) => own(w.start)),
       commands: s.commands.filter((c) => own(c.ts)),

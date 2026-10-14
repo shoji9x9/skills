@@ -202,12 +202,12 @@ export function renderHtml(d) {
   };
 
   // Issue ごと
-  /** @type {Map<string, { cost: number; active: number; runs: number; idle: number }>} */
+  /** @type {Map<string, { active: number; runs: number; idle: number }>} */
   const byIssue = new Map();
   const issueOf = (/** @type {string} */ i) => {
     let v = byIssue.get(i);
     if (!v) {
-      v = { cost: 0, active: 0, runs: 0, idle: 0 };
+      v = { active: 0, runs: 0, idle: 0 };
       byIssue.set(i, v);
     }
     return v;
@@ -234,7 +234,7 @@ export function renderHtml(d) {
     .filter((x) => x.type === "billing")
     .reduce((a, x) => a + Number(x.cost_usd || 0), 0);
 
-  // 人ごと（費用・指示の数・稼働・停止の内訳）
+  // 人ごと（費用・稼働の回数・稼働・停止の内訳）
   /** @type {Map<string, { id: string; name: string; cost: number; runs: number; active: number; stops: Record<StopCategory, number> }>} */
   const byPerson = new Map();
   const personOf = (/** @type {string} */ id) => {
@@ -275,7 +275,7 @@ export function renderHtml(d) {
     },
     {
       title: "稼働",
-      total: ["指示の数", num(runs.length)],
+      total: ["稼働の回数", num(runs.length)],
       items: [["連続稼働の中央値", `${num(median, 1)} 分`]],
     },
     {
@@ -326,7 +326,7 @@ export function renderHtml(d) {
       note: "判定不能は、GitHub の情報（CI・レビュー・自分の操作）を取得していない期間の停止です。collect が GitHub を取得するのは、初回は最大 60 日前からです。",
     }),
     `<section><h2>Issue ごと（稼働の長い順に ${ISSUE_ROWS} 件まで。すべては intervals.csv）</h2>${table(
-      ["Issue", "指示の数", "稼働（時間）", "未活用の停止（時間）"],
+      ["Issue", "稼働の回数", "稼働（時間）", "未活用の停止（時間）"],
       [...byIssue.entries()]
         .sort((a, b) => b[1].active - a[1].active)
         .slice(0, ISSUE_ROWS)
@@ -388,7 +388,7 @@ export function renderHtml(d) {
         "ID",
         "表示名",
         "費用",
-        "指示の数",
+        "稼働の回数",
         "稼働（時間）",
         ...STOP_CATEGORIES.map((c) => `${STOP_LABELS[c]}（時間）`),
       ],

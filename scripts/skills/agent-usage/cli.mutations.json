@@ -105,12 +105,13 @@
       "id": "cd-not-followed",
       "why": "git commit の前の cd を追わない",
       "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "    if (words[0] === \"cd\") {",
+      "find": "    if (words[0] === \"cd\" || words[0] === \"pushd\") {",
       "replace": "    if (false) {",
       "occurrences": 1,
       "expect_failing": [
         "commitCwd cd ../wt && git commit -m x → /wt",
-        "commitCwd cd /r; git -C sub commit → /r/sub"
+        "commitCwd cd /r; git -C sub commit → /r/sub",
+        "commitCwd pushd ../o && git commit → /o"
       ]
     },
     {
@@ -146,6 +147,38 @@
         "commitCwd cd \"$(git rev-parse --show-toplevel)\" && git commit → /w",
         "commitCwd cd ~/x && git commit → /w",
         "commitCwd cd /r && cd $WT && git commit → /w"
+      ]
+    },
+    {
+      "id": "subst-in-quotes",
+      "why": "二重引用符の中のコマンド置換を調べない",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "  return [...command.matchAll(/\\$\\(([^()]*)\\)|`([^`]*)`/g)].some((m) => {",
+      "replace": "  return [].some((m) => {",
+      "occurrences": 1,
+      "expect_failing": [
+        "isGitCommit out=\"$(git commit -m x 2>&1)\" → true",
+        "isGitCommit echo \"`git commit -m x`\" → true"
+      ]
+    },
+    {
+      "id": "pushd-ignored",
+      "why": "pushd を cd と同じに当てない",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "    if (words[0] === \"cd\" || words[0] === \"pushd\") {",
+      "replace": "    if (words[0] === \"cd\") {",
+      "occurrences": 1,
+      "expect_failing": ["commitCwd pushd ../o && git commit → /o"]
+    },
+    {
+      "id": "gate-usage-blocks",
+      "why": "gate の処理の誤りでコミットを止める",
+      "file": "skills/agent-usage/scripts/agent-usage.mjs",
+      "find": "    if (process.argv[2] === \"gate\") {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook gate は、確認の処理の誤り（不正な AGENT_USAGE_NOW）ではコミットを止めない"
       ]
     }
   ]

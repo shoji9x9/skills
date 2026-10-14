@@ -219,7 +219,13 @@ if (invokedDirectly()) {
     process.exitCode = main(process.argv.slice(2));
   } catch (e) {
     process.stderr.write(`agent-usage: ${e instanceof Error ? e.message : String(e)}\n`);
-    if (e instanceof UsageError) process.stderr.write(`${USAGE}\n`);
-    process.exitCode = e instanceof UsageError ? 2 : 1;
+    if (process.argv[2] === "gate") {
+      // Hook の exit 2 は「止める」なので、確認の処理の誤り（環境の AGENT_USAGE_NOW など）ではコミットを止めない
+      process.stderr.write("agent-usage: 確認の処理が失敗したので、確認をせずに通します\n");
+      process.exitCode = 0;
+    } else {
+      if (e instanceof UsageError) process.stderr.write(`${USAGE}\n`);
+      process.exitCode = e instanceof UsageError ? 2 : 1;
+    }
   }
 }

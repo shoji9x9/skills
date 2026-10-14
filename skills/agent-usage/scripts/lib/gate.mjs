@@ -143,7 +143,12 @@ export function splitCommands(command) {
 export function isGitCommit(command) {
   const commands = splitCommands(command);
   if (commands === null) return /\bgit\b[\s\S]*\bcommit\b/.test(command);
-  return commands.some((words) => commitDirsOf(words) !== null);
+  if (commands.some((words) => commitDirsOf(words) !== null)) return true;
+  // 二重引用符の中のコマンド置換（"$(git commit)"・"`git commit`"）は 1 つの語として読まれるので、中身を別に調べる
+  return [...command.matchAll(/\$\(([^()]*)\)|`([^`]*)`/g)].some((m) => {
+    const inner = m[1] ?? m[2] ?? "";
+    return inner !== command && isGitCommit(inner);
+  });
 }
 
 /**
@@ -190,7 +195,7 @@ export function commitCwd(command, cwd) {
   if (commands === null) return cwd;
   let dir = cwd;
   for (const words of commands) {
-    if (words[0] === "cd") {
+    if (words[0] === "cd" || words[0] === "pushd") {
       // 展開が要る引数（$・バッククォート・~）は解決できないので当てず、Hook の cwd で判断する側に寄せる
       const arg = words.length === 2 ? words[1] : "";
       dir =

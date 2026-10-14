@@ -529,7 +529,7 @@ export function collectGitHub(o) {
   attempt("actions/runs", () => {
     rows.push(...actionRuns(o, o.since, o.now));
     // since より前に始まって、まだ終わっていない run（end を今の時刻まで延ばす）
-    for (const status of ["queued", "in_progress", "waiting"]) {
+    for (const status of ["requested", "queued", "pending", "waiting", "in_progress"]) {
       const open = getAll(
         o.gh,
         `repos/${o.slug}/actions/runs?status=${status}&per_page=100`,

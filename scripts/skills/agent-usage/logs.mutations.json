@@ -91,6 +91,15 @@
       "expect_failing": [
         "buildRuns 重なった人の待ち（並列のツール呼び出し）では、すべて終わってから次の run を始める"
       ]
+    },
+    {
+      "id": "interrupts-disable-infer",
+      "why": "中断があると完了の推定を使わない",
+      "file": "skills/agent-usage/scripts/lib/timeline.mjs",
+      "find": "  const turnEnds = [...(s.turnEnds.length > 0 ? s.turnEnds : inferTurnEnds(s)), ...s.interrupts];",
+      "replace": "  const turnEnds = s.turnEnds.length + s.interrupts.length > 0 ? [...s.turnEnds, ...s.interrupts] : inferTurnEnds(s);",
+      "occurrences": 1,
+      "expect_failing": ["buildRuns 完了の記録が無いログでも、中断があると推定した完了を使い続ける"]
     }
   ]
 }

@@ -213,7 +213,8 @@ describe("Claude Code のログ", () => {
       Date.parse("2026-10-01T10:00:00.000Z"),
       Date.parse("2026-10-01T12:05:00.000Z"),
     ]);
-    expect(s.turnEnds).toEqual([Date.parse("2026-10-01T10:05:00.000Z")]);
+    expect(s.turnEnds).toEqual([]);
+    expect(s.interrupts).toEqual([Date.parse("2026-10-01T10:05:00.000Z")]);
   });
 
   test("サブエージェントのファイルは使用量だけを数え、指示や完了を記録しない", () => {
@@ -403,6 +404,23 @@ describe("buildRuns", () => {
   const summary = (parts: Partial<ReturnType<typeof emptySummary>>) => ({
     ...emptySummary("claude-code", "s"),
     ...parts,
+  });
+
+  test("完了の記録が無いログでも、中断があると推定した完了を使い続ける", () => {
+    const m = (t: number) => ({ key: `m${t}`, ts: ms(t), model: "x", tokens: zeroTokens() });
+    const runs = buildRuns(
+      summary({
+        prompts: [ms(0), ms(10), ms(20)],
+        interrupts: [ms(12)],
+        messages: [m(1), m(2), m(11), m(21)],
+        lastTs: ms(21),
+      }),
+    );
+    expect(runs.map((r) => [r.start, r.end])).toEqual([
+      [ms(0), ms(2)],
+      [ms(10), ms(12)],
+      [ms(20), ms(21)],
+    ]);
   });
 
   test("重なった人の待ち（並列のツール呼び出し）では、すべて終わってから次の run を始める", () => {

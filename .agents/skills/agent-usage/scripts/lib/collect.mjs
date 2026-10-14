@@ -31,7 +31,7 @@ const TOKEN_FIELDS = ["input", "cacheRead", "cacheWrite5m", "cacheWrite1h", "out
 const AGENT_GIT_COMMAND = /\bgit\b|\bgh\b/;
 
 /** 要約の作り方を変えたら上げる（古いキャッシュを使わないため）。 */
-export const ROWS_VERSION = "3";
+export const ROWS_VERSION = "4";
 
 /**
  * @typedef {object} CacheEntry
@@ -126,6 +126,7 @@ export function summaryFromCache(v) {
   const cwds = listOf(v.cwds, (c) => (typeof c === "string" ? c : null));
   const prompts = listOf(v.prompts, numOrNull);
   const turnEnds = listOf(v.turnEnds, numOrNull);
+  const interrupts = listOf(v.interrupts, numOrNull);
   const autoResumes = listOf(v.autoResumes, numOrNull);
   const branches = listOf(v.branches, (b) =>
     isRecord(b) && isNum(b.ts) && typeof b.branch === "string"
@@ -161,6 +162,7 @@ export function summaryFromCache(v) {
     !cwds ||
     !prompts ||
     !turnEnds ||
+    !interrupts ||
     !autoResumes ||
     !branches ||
     !messages ||
@@ -180,6 +182,7 @@ export function summaryFromCache(v) {
     costSnapshots,
     prompts,
     turnEnds,
+    interrupts,
     autoResumes,
     humanWaits,
     commands,
