@@ -60,10 +60,12 @@ const GIT_VALUE_OPTIONS = [
 /**
  * コマンドの文字列を、単純なコマンドごとの語の列に分ける。引用符・エスケープ・行の継続・コメントを扱い、
  * `;`・`&`・`|`・`(`・`)`・改行・`$(`・バッククォートでコマンドを区切る。閉じていない引用符があれば null。
+ * 二重引用符の中のコマンド置換（`"$(...)"`・`` "`...`" ``）は語の一部になるので、中身を substitutions に足す。
  * @param {string} command
+ * @param {string[]} [substitutions]
  * @returns {string[][] | null}
  */
-export function splitCommands(command) {
+export function splitCommands(command, substitutions = []) {
   /** @type {string[][]} */
   const out = [];
   /** @type {string[]} */
@@ -101,7 +103,12 @@ export function splitCommands(command) {
       let j = i + 1;
       let text = "";
       while (j < command.length && command[j] !== '"') {
-        if (command[j] === "\\" && j + 1 < command.length) {
+        const inner = substitutionAt(command, j);
+        if (inner !== null) {
+          substitutions.push(inner.text);
+          text += command.slice(j, inner.end);
+          j = inner.end;
+        } else if (command[j] === "\\" && j + 1 < command.length) {
           text += command[j + 1];
           j += 2;
         } else {
@@ -131,6 +138,30 @@ export function splitCommands(command) {
 }
 
 /**
+ * pos から始まるコマンド置換（`$(...)` か `` `...` ``）の中身と、閉じた直後の位置。置換でないか閉じていなければ null。
+ * `$(...)` は括弧の深さで閉じる位置を決める（中の引用符の中の括弧は数える。誤っても検出が増える側になる）。
+ * @param {string} command
+ * @param {number} pos
+ * @returns {{ text: string; end: number } | null}
+ */
+function substitutionAt(command, pos) {
+  if (command[pos] === "`") {
+    const close = command.indexOf("`", pos + 1);
+    return close < 0 ? null : { text: command.slice(pos + 1, close), end: close + 1 };
+  }
+  if (command[pos] !== "$" || command[pos + 1] !== "(") return null;
+  let depth = 0;
+  for (let k = pos + 1; k < command.length; k += 1) {
+    if (command[k] === "(") depth += 1;
+    else if (command[k] === ")") {
+      depth -= 1;
+      if (depth === 0) return { text: command.slice(pos + 2, k), end: k + 1 };
+    }
+  }
+  return null;
+}
+
+/**
  * git commit を実行するコマンドか。単純なコマンドごとに、先頭の変数の代入を除き、
  * `git`（パス付きを含む）の後にグローバルのオプション（値を取るものはその値も）だけを挟んで `commit` が来るかを見る。
  * 前に来るシェルの予約語（SHELL_PREFIXES）と、後ろのコマンドを実行するコマンド（COMMAND_WRAPPERS）は読み飛ばす。
@@ -141,14 +172,13 @@ export function splitCommands(command) {
  * @returns {boolean}
  */
 export function isGitCommit(command) {
-  const commands = splitCommands(command);
+  /** @type {string[]} */
+  const substitutions = [];
+  const commands = splitCommands(command, substitutions);
   if (commands === null) return /\bgit\b[\s\S]*\bcommit\b/.test(command);
   if (commands.some((words) => commitDirsOf(words) !== null)) return true;
-  // 二重引用符の中のコマンド置換（"$(git commit)"・"`git commit`"）は 1 つの語として読まれるので、中身を別に調べる
-  return [...command.matchAll(/\$\(([^()]*)\)|`([^`]*)`/g)].some((m) => {
-    const inner = m[1] ?? m[2] ?? "";
-    return inner !== command && isGitCommit(inner);
-  });
+  // 二重引用符の中のコマンド置換は 1 つの語として読まれるので、中身を別に調べる（単一引用符の中は展開されないので調べない）
+  return substitutions.some((inner) => isGitCommit(inner));
 }
 
 /**
@@ -194,12 +224,20 @@ export function commitCwd(command, cwd) {
   const commands = splitCommands(command);
   if (commands === null) return cwd;
   let dir = cwd;
+  /** @type {string[]} */
+  const stack = [];
   for (const words of commands) {
+    if (words[0] === "popd") {
+      dir = stack.pop() ?? cwd;
+      continue;
+    }
     if (words[0] === "cd" || words[0] === "pushd") {
-      // 展開が要る引数（$・バッククォート・~）は解決できないので当てず、Hook の cwd で判断する側に寄せる
+      if (words[0] === "pushd") stack.push(dir);
+      // 展開が要る引数（$・バッククォート・~）と、pushd のスタックの指定（+N・-N）は解決できないので当てず、
+      // Hook の cwd で判断する側に寄せる
       const arg = words.length === 2 ? words[1] : "";
       dir =
-        arg === "" || arg === "-" || /[$`]/.test(arg) || arg.startsWith("~")
+        arg === "" || /^[-+]/.test(arg) || /[$`]/.test(arg) || arg.startsWith("~")
           ? cwd
           : resolve(dir, arg);
       continue;

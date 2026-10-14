@@ -111,7 +111,8 @@
       "expect_failing": [
         "commitCwd cd ../wt && git commit -m x → /wt",
         "commitCwd cd /r; git -C sub commit → /r/sub",
-        "commitCwd pushd ../o && git commit → /o"
+        "commitCwd pushd ../o && git commit → /o",
+        "commitCwd cd /r && pushd sub && pushd x && popd && git commit → /r/sub"
       ]
     },
     {
@@ -140,8 +141,8 @@
       "id": "cd-expansion-resolved",
       "why": "展開の要る cd の引数をそのまま当てる",
       "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "        arg === \"\" || arg === \"-\" || /[$`]/.test(arg) || arg.startsWith(\"~\")",
-      "replace": "        arg === \"\" || arg === \"-\"",
+      "find": "        arg === \"\" || /^[-+]/.test(arg) || /[$`]/.test(arg) || arg.startsWith(\"~\")",
+      "replace": "        arg === \"\" || /^[-+]/.test(arg)",
       "occurrences": 1,
       "expect_failing": [
         "commitCwd cd \"$(git rev-parse --show-toplevel)\" && git commit → /w",
@@ -153,12 +154,13 @@
       "id": "subst-in-quotes",
       "why": "二重引用符の中のコマンド置換を調べない",
       "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "  return [...command.matchAll(/\\$\\(([^()]*)\\)|`([^`]*)`/g)].some((m) => {",
-      "replace": "  return [].some((m) => {",
+      "find": "  return substitutions.some((inner) => isGitCommit(inner));",
+      "replace": "  return false;",
       "occurrences": 1,
       "expect_failing": [
         "isGitCommit out=\"$(git commit -m x 2>&1)\" → true",
-        "isGitCommit echo \"`git commit -m x`\" → true"
+        "isGitCommit echo \"`git commit -m x`\" → true",
+        "isGitCommit echo \"a $(echo \"$(git commit -m x)\") b\" → true"
       ]
     },
     {
@@ -168,7 +170,10 @@
       "find": "    if (words[0] === \"cd\" || words[0] === \"pushd\") {",
       "replace": "    if (words[0] === \"cd\") {",
       "occurrences": 1,
-      "expect_failing": ["commitCwd pushd ../o && git commit → /o"]
+      "expect_failing": [
+        "commitCwd pushd ../o && git commit → /o",
+        "commitCwd cd /r && pushd sub && pushd x && popd && git commit → /r/sub"
+      ]
     },
     {
       "id": "gate-usage-blocks",
@@ -180,6 +185,27 @@
       "expect_failing": [
         "agent-usage のコマンドと Hook gate は、確認の処理の誤り（不正な AGENT_USAGE_NOW）ではコミットを止めない"
       ]
+    },
+    {
+      "id": "popd-ignored",
+      "why": "popd で pushd の前のディレクトリに戻さない",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "      dir = stack.pop() ?? cwd;",
+      "replace": "      void stack;",
+      "occurrences": 1,
+      "expect_failing": [
+        "commitCwd pushd sub && popd && git commit -m x → /w",
+        "commitCwd cd /r && pushd sub && pushd x && popd && git commit → /r/sub"
+      ]
+    },
+    {
+      "id": "pushd-stack-index",
+      "why": "pushd +N をパスとして当てる",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "        arg === \"\" || /^[-+]/.test(arg) || /[$`]/.test(arg) || arg.startsWith(\"~\")",
+      "replace": "        arg === \"\" || arg === \"-\" || /[$`]/.test(arg) || arg.startsWith(\"~\")",
+      "occurrences": 1,
+      "expect_failing": ["commitCwd pushd +1 && git commit → /w"]
     }
   ]
 }
