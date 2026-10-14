@@ -324,6 +324,60 @@ describe.concurrent("Codex の注入された user メッセージ", () => {
     if (evidence) expect(scan.stdout).toMatch(evidence);
     expect(scan.stdout).not.toMatch(/user correction: transcript line [23]$/m);
   });
+
+  // 閉じた集合の形ごとに、注入として外されることを確かめる（1 つの形を集合から落とすと、その形の行だけが落ちる）。
+  // 境界: 同じ語で始まっても注入の形でない発話は、引き続き候補にする。
+  const codexTranscript = (cwd: string, text: string) => {
+    const path = join(cwd, "codex.jsonl");
+    const record = {
+      type: "response_item",
+      payload: { type: "message", role: "user", content: [{ type: "input_text", text }] },
+    };
+    writeFileSync(
+      path,
+      `${JSON.stringify({ type: "session_meta", payload: { id: "fixture" } })}\n${JSON.stringify(record)}\n`,
+    );
+    return path;
+  };
+  const CORRECTION = "違う場所で動くのではなく、入ることで成り立つ。";
+  test.each([
+    ["# AGENTS.md instructions for", `# AGENTS.md instructions for /tmp/repo\n${CORRECTION}`],
+    ["<skill>", `<skill>\n${CORRECTION}\n</skill>`],
+    ["<user_action>", `<user_action>\n${CORRECTION}\n</user_action>`],
+    ["<recommended_plugins>", `<recommended_plugins>\n${CORRECTION}\n</recommended_plugins>`],
+    ["<turn_aborted>", `<turn_aborted>\n${CORRECTION}\n</turn_aborted>`],
+    ["<environment_context>", `<environment_context>\n${CORRECTION}\n</environment_context>`],
+    [
+      "<codex_internal_context>",
+      `<codex_internal_context source="x">${CORRECTION}</codex_internal_context>`,
+    ],
+    ["<user_shell_command>", `<user_shell_command>\n${CORRECTION}\n</user_shell_command>`],
+  ])("注入の形 %s は候補にしない", async (_label, text) => {
+    const cwd = makeProject();
+    const scan = await runScript(
+      "kaizen-candidate-scan.sh",
+      [codexTranscript(cwd, text), join(cwd, "no-checkpoint")],
+      { cwd },
+    );
+
+    expect(scan.status).toBe(1);
+  });
+
+  test.each([
+    ["AGENTS.md の見出しで始まる発話", `# AGENTS.md の説明は${CORRECTION}`],
+    ["タグ名で始まる語の発話", `<skills> の置き場所は${CORRECTION}`],
+    ["行の途中にタグを含む発話", `そうではなく <skill> を${CORRECTION}`],
+  ])("注入の形でない発話は候補にする: %s", async (_label, text) => {
+    const cwd = makeProject();
+    const scan = await runScript(
+      "kaizen-candidate-scan.sh",
+      [codexTranscript(cwd, text), join(cwd, "no-checkpoint")],
+      { cwd },
+    );
+
+    expect(scan.status).toBe(0);
+    expect(scan.stdout).toMatch(/user correction: transcript line 2$/m);
+  });
 });
 
 describe.concurrent("Codex の token usage / review mode 補助レコード", () => {

@@ -163,7 +163,15 @@
       "occurrences": 1,
       "expect_failing": [
         "Codex の注入された user メッセージ 注入の本文の修正語は候補にしない",
-        "Codex の注入された user メッセージ 注入でない発話の修正語は候補にする"
+        "Codex の注入された user メッセージ 注入でない発話の修正語は候補にする",
+        "Codex の注入された user メッセージ 注入の形 # AGENTS.md instructions for は候補にしない",
+        "Codex の注入された user メッセージ 注入の形 <skill> は候補にしない",
+        "Codex の注入された user メッセージ 注入の形 <user_action> は候補にしない",
+        "Codex の注入された user メッセージ 注入の形 <recommended_plugins> は候補にしない",
+        "Codex の注入された user メッセージ 注入の形 <turn_aborted> は候補にしない",
+        "Codex の注入された user メッセージ 注入の形 <environment_context> は候補にしない",
+        "Codex の注入された user メッセージ 注入の形 <codex_internal_context> は候補にしない",
+        "Codex の注入された user メッセージ 注入の形 <user_shell_command> は候補にしない"
       ]
     },
     {
@@ -175,6 +183,96 @@
       "occurrences": 1,
       "expect_failing": [
         "Claude Code の isMeta の user レコード isMeta: false の発話の修正語は候補にする"
+      ]
+    },
+    {
+      "id": "SCAN-CODEX-FORM-AGENTS",
+      "why": "注入の形 # AGENTS.md instructions for を閉じた集合から落とす（その形の注入を発話として扱い、実在しない user correction が出る）",
+      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
+      "find": "# AGENTS\\\\.md instructions for |",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "Codex の注入された user メッセージ 注入の形 # AGENTS.md instructions for は候補にしない",
+        "Codex の注入された user メッセージ 注入でない発話の修正語は候補にする",
+        "Codex の注入された user メッセージ 注入の本文の修正語は候補にしない"
+      ]
+    },
+    {
+      "id": "SCAN-CODEX-FORM-SKILL",
+      "why": "注入の形 <skill> を閉じた集合から落とす（その形の注入を発話として扱い、実在しない user correction が出る）",
+      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
+      "find": "<(skill|",
+      "replace": "<(",
+      "occurrences": 1,
+      "expect_failing": [
+        "Codex の注入された user メッセージ 注入の形 <skill> は候補にしない",
+        "Codex の注入された user メッセージ 注入の本文の修正語は候補にしない"
+      ]
+    },
+    {
+      "id": "SCAN-CODEX-FORM-USER-ACTION",
+      "why": "注入の形 <user_action> を閉じた集合から落とす（その形の注入を発話として扱い、実在しない user correction が出る）",
+      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
+      "find": "|user_action",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["Codex の注入された user メッセージ 注入の形 <user_action> は候補にしない"]
+    },
+    {
+      "id": "SCAN-CODEX-FORM-RECOMMENDED-PLUGINS",
+      "why": "注入の形 <recommended_plugins> を閉じた集合から落とす（その形の注入を発話として扱い、実在しない user correction が出る）",
+      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
+      "find": "|recommended_plugins",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "Codex の注入された user メッセージ 注入の形 <recommended_plugins> は候補にしない"
+      ]
+    },
+    {
+      "id": "SCAN-CODEX-FORM-TURN-ABORTED",
+      "why": "注入の形 <turn_aborted> を閉じた集合から落とす（その形の注入を発話として扱い、実在しない user correction が出る）",
+      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
+      "find": "|turn_aborted",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "Codex の注入された user メッセージ 注入の形 <turn_aborted> は候補にしない"
+      ]
+    },
+    {
+      "id": "SCAN-CODEX-FORM-ENVIRONMENT-CONTEXT",
+      "why": "注入の形 <environment_context> を閉じた集合から落とす（その形の注入を発話として扱い、実在しない user correction が出る）",
+      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
+      "find": "|environment_context",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "Codex の注入された user メッセージ 注入の形 <environment_context> は候補にしない"
+      ]
+    },
+    {
+      "id": "SCAN-CODEX-FORM-CODEX-INTERNAL-CONTEXT",
+      "why": "注入の形 <codex_internal_context> を閉じた集合から落とす（その形の注入を発話として扱い、実在しない user correction が出る）",
+      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
+      "find": "|codex_internal_context",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "Codex の注入された user メッセージ 注入の形 <codex_internal_context> は候補にしない",
+        "Codex の注入された user メッセージ 注入の本文の修正語は候補にしない"
+      ]
+    },
+    {
+      "id": "SCAN-CODEX-FORM-USER-SHELL-COMMAND",
+      "why": "注入の形 <user_shell_command> を閉じた集合から落とす（その形の注入を発話として扱い、実在しない user correction が出る）",
+      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
+      "find": "|user_shell_command",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "Codex の注入された user メッセージ 注入の形 <user_shell_command> は候補にしない"
       ]
     }
   ]
