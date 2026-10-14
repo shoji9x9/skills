@@ -2,8 +2,8 @@
 date: 2026-10-10
 type: hook
 priority: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [scripts/hooks/response-language-check.ts, .claude/settings.json, AGENTS.md]
 session: claude-code
 ---
 

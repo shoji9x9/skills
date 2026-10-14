@@ -24,6 +24,15 @@
             "command": "bash \"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || echo .)}/.agents/skills/kaizen/scripts/kaizen-stop-mark.sh\""
           }
         ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if command -v node >/dev/null 2>&1; then node \"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || echo .)}/scripts/hooks/response-language-check.ts\"; else echo 'response-language-check: node が無いので応答の言語を確かめていない' >&2; fi"
+          }
+        ]
       }
     ],
     "PreToolUse": [

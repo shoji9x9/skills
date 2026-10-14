@@ -2,8 +2,8 @@
 date: 2026-10-09
 type: hook
 priority: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [~/.config/mise/config.toml]
 session: claude-code
 ---
 
@@ -32,3 +32,13 @@ KEDB: 2026-09-30-temp-dir-cwd-breaks-mise-shim（applied）、archive/2026-09-03
 - 外の判定: `cd` の引数を hook の cwd から解決し、`git rev-parse --show-toplevel` の外なら対象
 - 通す形: `cd` の後でも実体パス（`$(mise which pnpm)`・絶対パスの node）で呼ぶもの、リポジトリ内への cd、cd を含まない呼び出し
 - 誤検知しないことの確認を、止める形と同じ数以上テストに置き、ミューテーションテストの定義も足す
+
+## 適用（2026-10-14・Issue #601）
+
+提案の guard のルールは作らず、原因の側で閉じた（利用者の決定）。
+呼び出しの形を読むルールは列挙が尽きず（`2026-10-09-fix-at-cause-before-caller-check`）、失敗そのものは副作用の無い大きなエラーで気づけるので、止める費用に見合わないと判断した。
+
+- 利用者のグローバルの mise 設定（`~/.config/mise/config.toml`）に `node` と `pnpm` のデフォルトの版を置き、`mise lock --global` を `$HOME` から実行した
+- 確かめた結果: `/tmp` から shim の `pnpm --version`・`node --version` が起動する。グローバル設定を外した同じ呼び出しは `No version is set for shim: pnpm` で失敗する
+- 各プロジェクトの `mise.toml` の版が優先されるので、プロジェクトの間で版をそろえる必要はない
+- 範囲はこの PC だけである。他の環境で同じ失敗が起きたら、同じ設定を入れるかをその環境の利用者が決める

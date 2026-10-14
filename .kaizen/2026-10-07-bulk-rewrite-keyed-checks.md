@@ -2,8 +2,8 @@
 date: 2026-10-07
 type: doc
 priority: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [AGENTS.md, docs/agent-workflow.md]
 session: claude-code
 ---
 
@@ -38,3 +38,11 @@ eval の再実行の対象も、Issue の見積もり（24 件・約 50 か所�
 - テストを消す・名前を変えるときは、その名前を `scripts/**/*.mutations.json` 全体で grep し、参照する変異をすべて直す
 - 決定論的な対策の候補: `expect_failing` の名前が `test_file` に実在するかを、vitest の `--list` などで変異を当てずに確かめるチェックを、`mutations-declaration.test.ts` か pre-commit に足す
 - 判断が利用者に要るもの（免除の更新は、チェックを緩める変更に当たる）は、着手前の確認にまとめる
+
+## 適用（2026-10-14・Issue #601）
+
+手順は `AGENTS.md`「編集」と `docs/agent-workflow.md` に書いた。決定論的な対策の候補（`vitest list` で名前を集めて照合するテスト）は作って試したが、採らなかった。
+
+- `vitest list` は収集のためにテストファイルの最上位と `describe` の本体を実行し、`afterAll` を実行しない。収集時に作る一時ディレクトリが、実行のたびに十数個残った
+- 収集で落ちたファイルは、エラーにならずに 0 件として返る。名前の対応づけ（` > ` を空白にする）も、ランナーと別の実装になる
+- 実在しない名前は、ランナーが基準 run の直後に exit 2 で止める。PR の CI もテストファイルの変更で該当する定義を選ぶので、`main` には入らない

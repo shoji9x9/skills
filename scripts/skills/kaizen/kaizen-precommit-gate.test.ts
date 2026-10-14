@@ -274,6 +274,112 @@ describe.concurrent("Claude Code の atis-latch 補助レコード", () => {
   });
 });
 
+// Claude Code はスキルの本文などを `type: "user"`・`isMeta: true` のレコードで注入する。
+// 本文の修正語で実在しない user correction を出さないことと、`isMeta` が無い・false の
+// 本物の発話は引き続き候補になることを、同じ修正語を持つ fixture の対で確かめる。
+describe.concurrent("Claude Code の isMeta の user レコード", () => {
+  test.each([
+    ["isMeta の本文の修正語は候補にしない", "claude-meta-correction-word.jsonl", 1, null],
+    [
+      "isMeta: false の発話の修正語は候補にする",
+      "claude-meta-and-user-correction.jsonl",
+      0,
+      /user correction: transcript line 4$/m,
+    ],
+  ])("%s", async (_label, fixture, expectedStatus, evidence) => {
+    const cwd = makeProject();
+    const scan = await runScript(
+      "kaizen-candidate-scan.sh",
+      [join(fixturesDir, fixture), join(cwd, "no-checkpoint")],
+      { cwd },
+    );
+
+    expect(scan.status).toBe(expectedStatus);
+    if (evidence) expect(scan.stdout).toMatch(evidence);
+    expect(scan.stdout).not.toMatch(/user correction: transcript line 2$/m);
+  });
+});
+
+// Codex は AGENTS.md・スキルの本文などを `role: "user"` のメッセージで注入する（実際の transcript で 8 種類の形を確かめた）。
+// 注入の修正語は候補にせず、注入でない発話は引き続き候補にすることを、同じ修正語を持つ fixture の対で確かめる。
+describe.concurrent("Codex の注入された user メッセージ", () => {
+  test.each([
+    ["注入の本文の修正語は候補にしない", "codex-injected-correction-word.jsonl", 1, null],
+    [
+      "注入でない発話の修正語は候補にする",
+      "codex-injected-and-user-correction.jsonl",
+      0,
+      /user correction: transcript line 4$/m,
+    ],
+  ])("%s", async (_label, fixture, expectedStatus, evidence) => {
+    const cwd = makeProject();
+    const scan = await runScript(
+      "kaizen-candidate-scan.sh",
+      [join(fixturesDir, fixture), join(cwd, "no-checkpoint")],
+      { cwd },
+    );
+
+    expect(scan.status).toBe(expectedStatus);
+    expect(scan.stdout).toMatch(/^kaizen-candidate-scan: agent=codex$/m);
+    if (evidence) expect(scan.stdout).toMatch(evidence);
+    expect(scan.stdout).not.toMatch(/user correction: transcript line [23]$/m);
+  });
+
+  // 閉じた集合の形ごとに、注入として外されることを確かめる（1 つの形を集合から落とすと、その形の行だけが落ちる）。
+  // 境界: 同じ語で始まっても注入の形でない発話は、引き続き候補にする。
+  const codexTranscript = (cwd: string, text: string) => {
+    const path = join(cwd, "codex.jsonl");
+    const record = {
+      type: "response_item",
+      payload: { type: "message", role: "user", content: [{ type: "input_text", text }] },
+    };
+    writeFileSync(
+      path,
+      `${JSON.stringify({ type: "session_meta", payload: { id: "fixture" } })}\n${JSON.stringify(record)}\n`,
+    );
+    return path;
+  };
+  const CORRECTION = "違う場所で動くのではなく、入ることで成り立つ。";
+  test.each([
+    ["# AGENTS.md instructions for", `# AGENTS.md instructions for /tmp/repo\n${CORRECTION}`],
+    ["<skill>", `<skill>\n${CORRECTION}\n</skill>`],
+    ["<user_action>", `<user_action>\n${CORRECTION}\n</user_action>`],
+    ["<recommended_plugins>", `<recommended_plugins>\n${CORRECTION}\n</recommended_plugins>`],
+    ["<turn_aborted>", `<turn_aborted>\n${CORRECTION}\n</turn_aborted>`],
+    ["<environment_context>", `<environment_context>\n${CORRECTION}\n</environment_context>`],
+    [
+      "<codex_internal_context>",
+      `<codex_internal_context source="x">${CORRECTION}</codex_internal_context>`,
+    ],
+    ["<user_shell_command>", `<user_shell_command>\n${CORRECTION}\n</user_shell_command>`],
+  ])("注入の形 %s は候補にしない", async (_label, text) => {
+    const cwd = makeProject();
+    const scan = await runScript(
+      "kaizen-candidate-scan.sh",
+      [codexTranscript(cwd, text), join(cwd, "no-checkpoint")],
+      { cwd },
+    );
+
+    expect(scan.status).toBe(1);
+  });
+
+  test.each([
+    ["AGENTS.md の見出しで始まる発話", `# AGENTS.md の説明は${CORRECTION}`],
+    ["タグ名で始まる語の発話", `<skills> の置き場所は${CORRECTION}`],
+    ["行の途中にタグを含む発話", `そうではなく <skill> を${CORRECTION}`],
+  ])("注入の形でない発話は候補にする: %s", async (_label, text) => {
+    const cwd = makeProject();
+    const scan = await runScript(
+      "kaizen-candidate-scan.sh",
+      [codexTranscript(cwd, text), join(cwd, "no-checkpoint")],
+      { cwd },
+    );
+
+    expect(scan.status).toBe(0);
+    expect(scan.stdout).toMatch(/user correction: transcript line 2$/m);
+  });
+});
+
 describe.concurrent("Codex の token usage / review mode 補助レコード", () => {
   test.each([
     ["補助レコードだけなら候補ゼロ", "codex-review-metadata-no-candidate.jsonl", 1],

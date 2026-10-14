@@ -1,0 +1,6 @@
+{"type":"session_meta","payload":{"id":"fixture"}}
+{"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"# AGENTS.md instructions for /tmp/repo\n\n<INSTRUCTIONS>\n作るだけでは隔離にならない。違う場所で動くのではなく、入ることで隔離が成り立つ。\n</INSTRUCTIONS>"}]}}
+{"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"<skill>\n<name>git-worktree</name>\nそうではなく、branch は呼び出し側が作る。\n</skill>"}]}}
+{"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"<codex_internal_context source=\"x\">違う場所で動く</codex_internal_context>"}]}}
+{"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"README の構成を確認してください"}]}}
+{"type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"確認しました。"}]}}

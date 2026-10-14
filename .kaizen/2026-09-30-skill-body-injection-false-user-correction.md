@@ -2,8 +2,8 @@
 date: 2026-09-30
 type: hook
 priority: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [skills/kaizen/scripts/kaizen-candidate-scan.sh, scripts/skills/kaizen/kaizen-precommit-gate.test.ts]
 session: claude-code
 ---
 
@@ -32,3 +32,12 @@ transcript 走査で「ユーザー発話」を拾う検査は、ロールだけ
 - `kaizen-candidate-scan.sh` の `elif $j.type == "user"` 分岐で、`$j.isMeta == true` のレコードは `U` を出さない（`E` の tool error 抽出は維持）
 - 検出と誤検知の確認: 同じ修正語を含む `isMeta` 無しの user レコードは引き続き候補になること、`isMeta: true` のレコードは候補にならないことをテストに置く（`scripts/*.mutations.json` の宣言も追随）
 - 横断スコープ: Codex / Copilot の transcript に同種の注入レコード（スキル本文を user ロールで運ぶもの）があるかを実物で確かめる
+
+## 適用（2026-10-14・Issue #601）
+
+- Claude Code: `isMeta: true` の user レコードから `U` を出さない。実際の transcript で、スキルの本文・別のエージェントからの報告・ローカルコマンドの注記が `isMeta: true` だった
+- Codex: 手元の全 transcript の `response_item` の `role: user` を調べ、注入の形を 8 種類確かめた。この閉じた集合だけを外す。
+  - 本文の先頭が `# AGENTS.md instructions for` のもの
+  - 先頭のタグが `<skill>`・`<user_action>`・`<recommended_plugins>`・`<turn_aborted>` のもの
+  - 先頭のタグが `<environment_context>`・`<codex_internal_context>`・`<user_shell_command>` のもの
+- Copilot: transcript を走査ツールに渡さないので、対象にならない

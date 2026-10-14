@@ -114,6 +114,11 @@ fi
 
 if ! jq -Rr '
 	def clean: tostring | gsub("[\\r\\n\\t]+"; " ") | .[0:500];
+	# Codex は、ユーザー発話でない本文（AGENTS.md・スキルの本文・環境の情報・中断の通知・レビューの結果）も
+	# `role: "user"` のメッセージで注入する。実際の transcript に現れた形（閉じた集合）だけを外し、
+	# それ以外は発話として扱う（知らない形を警告なしに外さない）。
+	def codex_injected:
+		test("^(# AGENTS\\.md instructions for |<(skill|user_action|recommended_plugins|turn_aborted|environment_context|codex_internal_context|user_shell_command)[ >\\n])");
 	def content_text:
 		if type == "string" then .
 		elif type == "array" then map(content_text) | join(" ")
@@ -139,9 +144,13 @@ if ! jq -Rr '
 		(($j.message.content // []) | if type == "array" then .[] else empty end |
 		 select(type == "object" and .type == "tool_use" and (.name == "Edit" or .name == "Write")) |
 		 (.input.file_path // .input.path // empty) | select(type == "string" and length > 0) | "F\t" + .)
+	# `isMeta: true` の user レコードは、Claude Code がユーザー発話でなく注入した本文（スキルの本文・
+	# 別のエージェントからの報告・ローカルコマンドの注記）である。日本語の長い本文が修正語に当たり、
+	# 実在しない user correction で commit が止まる（実測）ので、`U` を出さない。`E` の抽出は残す。
 	elif $j.type == "user" then
 		"C", "R",
-		(($j.message.content // "") | user_text | clean | select(length > 0) | "U\t" + .),
+		(if ($j.isMeta // false) == true then empty
+		 else (($j.message.content // "") | user_text | clean | select(length > 0) | "U\t" + .) end),
 		(($j.message.content // []) | if type == "array" then .[] else empty end |
 		 select(type == "object" and .type == "tool_result") |
 		 ((.content // "") | content_text | clean) as $tool_text |
@@ -154,7 +163,7 @@ if ! jq -Rr '
 	elif $j.type == "response_item" and $j.payload.type == "message" then
 		"D", "R",
 		(if $j.payload.role == "assistant" then "A"
-		 elif $j.payload.role == "user" then (($j.payload.content // "") | content_text | clean | select(length > 0) | "U\t" + .)
+		 elif $j.payload.role == "user" then (($j.payload.content // "") | content_text | select(codex_injected | not) | clean | select(length > 0) | "U\t" + .)
 		 else empty end)
 	elif $j.type == "response_item" and $j.payload.type == "custom_tool_call_output" then
 		"D", "R",

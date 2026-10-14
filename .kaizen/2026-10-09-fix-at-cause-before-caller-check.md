@@ -2,8 +2,8 @@
 date: 2026-10-09
 type: skill
 priority: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [skills/kaizen/references/apply.md]
 session: claude-code
 ---
 
