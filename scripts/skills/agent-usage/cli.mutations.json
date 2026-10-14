@@ -21,7 +21,7 @@
       "id": "default-branch-blocked",
       "why": "デフォルトブランチのコミットも確認の対象にする",
       "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "  if (defaults.includes(repo.branch)) return { exit: 0, message: \"\" };",
+      "find": "  if (defaultBranches(repo).includes(repo.branch)) return { exit: 0, message: \"\" };",
       "replace": "  if (false) return { exit: 0, message: \"\" };",
       "occurrences": 1,
       "expect_failing": [
@@ -354,7 +354,8 @@
         "agent-usage のコマンドと Hook 2 つのブランチで並行して記録しても、merge で記録のファイルが競合しない",
         "agent-usage のコマンドと Hook Hook は、前に書いて stage されなかった記録も stage する",
         "agent-usage のコマンドと Hook collect --stage は明細を書いて stage し、記録すると決めたブランチのコミットでは Hook が collect して通す",
-        "agent-usage のコマンドと Hook 見出しの列が今と違うファイルに足すときは、今の列で書き直す"
+        "agent-usage のコマンドと Hook 見出しの列が今と違うファイルに足すときは、今の列で書き直す",
+        "agent-usage のコマンドと Hook デフォルトブランチに入った（squash merge された）ブランチのファイルには足さず、新しいファイルを作る"
       ]
     },
     {
