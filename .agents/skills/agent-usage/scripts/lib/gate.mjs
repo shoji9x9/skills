@@ -318,7 +318,9 @@ export function gateDecision(input, fallbackCwd, now, script, agent) {
     const notes =
       r.githubFailures.length > 0
         ? `（GitHub の取得に失敗した段: ${r.githubFailures.length}。その期間の停止は「判定不能」になる）`
-        : "";
+        : r.githubSkipped
+          ? `（GitHub は取得していない: ${r.githubSkipReason}）`
+          : "";
     return {
       exit: 0,
       message: `agent-usage: 利用実績を記録した（新しい行 ${r.newRows}、stage したファイル ${r.written.length}）${notes}`,

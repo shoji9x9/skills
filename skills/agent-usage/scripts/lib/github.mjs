@@ -45,13 +45,31 @@ const AGENT_COMMIT_AFTER_MS = 600000;
  */
 
 /**
+ * 環境変数の token（GH_TOKEN・GITHUB_TOKEN・GH_ENTERPRISE_TOKEN・GITHUB_ENTERPRISE_TOKEN）を除いた環境変数を返す。
+ * gh は環境変数の token を、保存した token より優先して使う（gh 2.93.0 で実測）。
+ * @param {NodeJS.ProcessEnv} env
+ * @returns {NodeJS.ProcessEnv}
+ */
+export function withoutEnvTokens(env) {
+  const {
+    GH_TOKEN: _a,
+    GITHUB_TOKEN: _b,
+    GH_ENTERPRISE_TOKEN: _c,
+    GITHUB_ENTERPRISE_TOKEN: _d,
+    ...rest
+  } = env;
+  return rest;
+}
+
+/**
  * gh api を実行する GhRunner を作る。github.com 以外（GitHub Enterprise Server）のリモートなら、GH_HOST でそのホストに向ける。
  * @param {string} host
+ * @param {NodeJS.ProcessEnv} [baseEnv] gh に渡す環境変数（デフォルトは process.env）
  * @returns {GhRunner}
  */
-export function makeGh(host) {
+export function makeGh(host, baseEnv = process.env) {
   // 利用者の環境の GH_HOST（GitHub Enterprise など）ではなく、リモートのホストに問い合わせる
-  const env = { ...process.env, GH_HOST: host === "" ? "github.com" : host };
+  const env = { ...baseEnv, GH_HOST: host === "" ? "github.com" : host };
   return (args) => {
     const r = spawnSync("gh", ["api", ...args], {
       env,

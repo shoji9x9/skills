@@ -90,8 +90,7 @@ function printCollect(r) {
     console.log(`別のセッションと重複したので数えなかった応答: ${r.duplicateMessages}`);
   if (r.keyConflicts > 0)
     console.log(`警告: 同じ key で内容の違う行が ${r.keyConflicts} 件あった（最初の行を記録した）`);
-  if (r.githubSkipped)
-    console.log("GitHub: 取得していない（--no-github か、origin が GitHub の形でない）");
+  if (r.githubSkipped) console.log(`GitHub: 取得していない（${r.githubSkipReason}）`);
   for (const f of r.githubFailures)
     console.log(`GitHub の取得に失敗（この期間の停止は「判定不能」になる）: ${f}`);
 }

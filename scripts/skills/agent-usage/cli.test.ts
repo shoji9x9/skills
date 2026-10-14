@@ -13,6 +13,7 @@ import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { commitCwd, isGitCommit } from "../../../skills/agent-usage/scripts/lib/gate.mjs";
 import { encodeProjectPath } from "../../../skills/agent-usage/scripts/lib/discover.mjs";
+import { githubTarget } from "../../../skills/agent-usage/scripts/lib/run-collect.mjs";
 import { makeTempDir } from "../../lib/test-tmpdir.ts";
 
 const SCRIPTS = join(import.meta.dirname, "../../../skills/agent-usage/scripts");
@@ -112,6 +113,13 @@ function setup() {
     AGENT_USAGE_CLAUDE_PROJECTS: join(tmp, "claude"),
     AGENT_USAGE_CODEX_SESSIONS: join(tmp, "codex"),
     AGENT_USAGE_NOW: "2026-10-01T12:00:00Z",
+    // gh の認証は手元の設定に依らせない（token を持つホストは、テストが GH_ENTERPRISE_TOKEN で作る）
+    GH_CONFIG_DIR: join(tmp, "gh"),
+    GH_HOST: undefined,
+    GH_TOKEN: undefined,
+    GITHUB_TOKEN: undefined,
+    GH_ENTERPRISE_TOKEN: undefined,
+    GITHUB_ENTERPRISE_TOKEN: undefined,
     GIT_AUTHOR_NAME: "t",
     GIT_AUTHOR_EMAIL: "t@example.com",
     GIT_COMMITTER_NAME: "t",
@@ -170,8 +178,9 @@ function setup() {
     { type: "system", subtype: "turn_duration", timestamp: at(12), cwd: repo },
   ];
   writeFileSync(join(dir, "s1.jsonl"), lines.map((l) => JSON.stringify(l)).join("\n"));
-  const cli = (...args: string[]) =>
-    spawnSync("node", [CLI, ...args], { cwd: repo, env, encoding: "utf8" });
+  const cliWith = (extra: NodeJS.ProcessEnv, ...args: string[]) =>
+    spawnSync("node", [CLI, ...args], { cwd: repo, env: { ...env, ...extra }, encoding: "utf8" });
+  const cli = (...args: string[]) => cliWith({}, ...args);
   const gate = (command: string, cwd = repo) =>
     spawnSync("bash", [GATE, "claude-code"], {
       cwd,
@@ -179,7 +188,7 @@ function setup() {
       encoding: "utf8",
       input: JSON.stringify({ cwd, tool_input: { command } }),
     });
-  return { tmp, repo, git, cli, gate };
+  return { tmp, repo, git, cli, cliWith, gate };
 }
 
 describe("agent-usage のコマンドと Hook", () => {
@@ -330,11 +339,119 @@ describe("agent-usage のコマンドと Hook", () => {
     git("switch", "-q", "-c", "feature/5-x");
     const sub = cli("collect");
     expect(sub.status).toBe(0);
-    expect(sub.stdout).toMatch(/GitHub: 取得していない/);
+    expect(sub.stdout).toMatch(/GitHub: 取得していない（.*の形でない）/);
     git("remote", "set-url", "origin", "https://gitlab.com/owner/repo.git");
     const flat = cli("collect");
     expect(flat.status).toBe(0);
-    expect(flat.stdout).toMatch(/GitHub: 取得していない/);
+    expect(flat.stdout).toMatch(/GitHub: 取得していない（origin のホスト gitlab\.com は/);
+    expect(flat.stdout).toMatch(/gh auth login --hostname gitlab\.com/);
+    expect(cli("collect", "--no-github").stdout).toMatch(/GitHub: 取得していない（--no-github）/);
+  });
+
+  test("ログインで GitHub と判定したホストには、環境変数の GH_ENTERPRISE_TOKEN を送らない", () => {
+    const { tmp, git, cli, cliWith } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("remote", "add", "origin", "https://ghe.invalid/example-org/example-repo.git");
+    git("switch", "-q", "-c", "feature/5-x");
+    // 偽の gh: auth token は成功し、api は受け取った GH_ENTERPRISE_TOKEN を記録して失敗する
+    const bin = join(tmp, "bin");
+    mkdirSync(bin, { recursive: true });
+    const log = join(tmp, "gh-token.log");
+    writeFileSync(
+      join(bin, "gh"),
+      // 保存した token の印（GH_LOGGED_IN）か環境変数の token があれば、auth token は成功する（実物の gh と同じ）
+      '#!/bin/sh\nif [ "$1" = auth ]; then\n  if [ -f "$GH_LOGGED_IN" ] || [ -n "${GH_ENTERPRISE_TOKEN-}${GH_TOKEN-}" ]; then exit 0; fi\n  echo "no oauth token" >&2; exit 1\nfi\nprintf "[%s%s]" "${GH_ENTERPRISE_TOKEN-}" "${GH_TOKEN-}" >> "$GH_LOG"\necho fail >&2\nexit 1\n',
+      { mode: 0o755 },
+    );
+    const path = `${bin}:${process.env.PATH ?? ""}`;
+    const marker = join(tmp, "logged-in");
+    const base = { PATH: path, GH_LOG: log, GH_LOGGED_IN: marker, GH_ENTERPRISE_TOKEN: "secret" };
+    // 環境変数の token だけでは、ログインとして数えない
+    const envOnly = cliWith({ ...base, GH_TOKEN: "t" }, "collect");
+    expect(envOnly.stdout).toMatch(/GitHub: 取得していない（.*no oauth token/);
+    writeFileSync(marker, "");
+    const viaLogin = cliWith({ ...base, GH_TOKEN: "t" }, "collect");
+    expect(viaLogin.stdout).not.toMatch(/GitHub: 取得していない/);
+    expect(readFileSync(log, "utf8")).toMatch(/^(\[\])+$/);
+    // GH_HOST で指定したホストには、これまでどおり環境変数の token で問い合わせる
+    writeFileSync(log, "");
+    cliWith({ ...base, GH_HOST: "ghe.invalid" }, "collect");
+    expect(readFileSync(log, "utf8")).toMatch(/^(\[secret\])+$/);
+    // auth token を持たない古い gh では、更新が要ることを理由に出す
+    writeFileSync(
+      join(bin, "gh"),
+      '#!/bin/sh\necho \'unknown command "token" for "gh auth"\' >&2\nexit 1\n',
+      {
+        mode: 0o755,
+      },
+    );
+    const old = cliWith({ PATH: path }, "collect");
+    expect(old.stdout).toMatch(/GitHub: 取得していない（.*gh を更新する/);
+  });
+
+  test.each([
+    ["origin が無い", "", {}, "", "origin が無い", false],
+    ["owner/name の形でない", "gitlab.com/group/sub/repo", {}, "", "の形でない", false],
+    [
+      "ポート付きでログインしていなければ取得しない",
+      "ghe.invalid:7999/o/r",
+      {},
+      "x",
+      "ポートを含み",
+      false,
+    ],
+    ["ポート付きでもログインしていれば取得する", "ghe.invalid:8443/o/r", {}, "", "", true],
+    [
+      "ポート付きでも GH_HOST と一致すれば扱う",
+      "ghe.invalid:8443/o/r",
+      { GH_HOST: "ghe.invalid:8443" },
+      "x",
+      "",
+      false,
+    ],
+    ["github.com はログインを確かめない", "github.com/o/r", {}, "x", "", false],
+    [
+      "GH_HOST は大文字小文字を区別せずログインを確かめない",
+      "ghe.invalid/o/r",
+      { GH_HOST: "GHE.invalid" },
+      "x",
+      "",
+      false,
+    ],
+    ["ログインしたホストは viaLogin", "ghe.invalid/o/r", {}, "", "", true],
+    [
+      "ログインしていないホストは理由を返す",
+      "gitlab.com/o/r",
+      {},
+      "gh auth token が失敗した",
+      "gh auth token が失敗した",
+      false,
+    ],
+  ])("githubTarget: %s", (_case, remote, env, loginError, reason, viaLogin) => {
+    const t = githubTarget(remote, env, () => loginError);
+    if (reason === "") expect(t.reason).toBe("");
+    else expect(t.reason).toContain(reason);
+    expect(t.viaLogin).toBe(viaLogin);
+    if (reason === "") expect(t.slug).toBe(remote.split("/").slice(1).join("/"));
+  });
+
+  test("ポートを含み、gh にログインしていないホストの origin は、理由を出して取得しない", () => {
+    const { git, cli } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("remote", "add", "origin", "ssh://git@ghe.invalid:7999/example-org/example-repo.git");
+    git("switch", "-q", "-c", "feature/5-x");
+    expect(cli("collect").stdout).toMatch(/GitHub: 取得していない（.*ポートを含み/);
+  });
+
+  test("Hook の collect も、GitHub を取得しなかった理由を出す", () => {
+    const { git, cli, gate } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("remote", "add", "origin", "https://gitlab.com/owner/repo.git");
+    git("switch", "-q", "-c", "feature/5-x");
+    expect(cli("collect", "--stage").status).toBe(0);
+    const r = gate("git commit -m x");
+    expect(r.status).toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/GitHub は取得していない: origin のホスト gitlab\.com は/);
   });
 
   test("gate は、確認の処理の誤り（不正な AGENT_USAGE_NOW）ではコミットを止めない", () => {

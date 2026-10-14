@@ -31,7 +31,12 @@ agent-usage status
 
 - ツール: `git`、Node.js（22 以上）、`bash`（Hook のスクリプト）
 - GitHub の情報（CI・レビュー・自分の操作）を取るときだけ `gh`（GitHub CLI）。リポジトリの読み取りの権限で足りる。`gh` が無いか失敗したら、その期間の停止を「判定不能」として記録し、collect は続ける。失敗した段は collect の出力に「GitHub の取得に失敗」として出る。
-  origin が github.com（か、`GH_HOST` で指定したホスト）の `owner/name` でなければ、GitHub は取得しない
+  GitHub を取得するのは、origin が `<ホスト>/<owner>/<name>` の形のときだけである。
+  ホストは、github.com・`GH_HOST`・`gh auth login --hostname <ホスト>` でログインしたホストのどれかに限る。
+  github.com 以外のホストに、環境変数の token（`GH_TOKEN`・`GH_ENTERPRISE_TOKEN` など）だけで認証するなら `GH_HOST` を指定する。
+  `GH_ENTERPRISE_TOKEN` は github.com 以外のどのホストにも返るので、環境変数の token はログインの判定に使わない。
+  ポートを含むホストは、`GH_HOST` で指定したか、そのホスト名（ポート付き）で gh にログインしたときだけ取得する。
+  取得しなかったときは、collect と Hook の出力に「GitHub: 取得していない」と理由が出る
 - 前提スキル: なし
 - MCP: なし
 - 対象のエージェント: Claude Code と Codex（ローカルのログを読む）。GitHub Copilot のログは読まない
