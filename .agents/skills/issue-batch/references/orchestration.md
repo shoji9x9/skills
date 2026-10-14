@@ -100,7 +100,7 @@ branch や設定を変更する前に、すべての Issue について次を済
 run を始めた後（全体 preflight を終え、manifest の作成などの最初の変更に進んだ後）は、利用者に確認を送らない。
 利用者が不在でも run を最後まで進め、判断は最終報告でまとめて受け取る。preflight 10 の確認は、この前に行う 1 回だけの確認である。
 前提スキル（`issue-start` など）が「利用者に確認する」と定める箇所も、run の中ではこの扱いに読み替える。
-`pr-finalize-loop` の中で人の判断が要る指摘を確かめる扱いは、そのスキルの取り決めに従い、ここでは変えない。
+`pr-finalize-loop` が「人の判断が要る指摘は利用者に確認する」と定める箇所も同じである（「pr-finalize-loop への handoff」）。
 
 - 途中で利用者の判断が要る状態になったら、確認を送る代わりに、その Issue を BLOCKED（判断待ち）にして manifest に記録する。
   そのうえで、`continue_on_blocked` に従って次の Issue に進む。
@@ -210,6 +210,11 @@ PR の URL と、決まった `max_pr_iterations` を、`pr-finalize-loop <PR UR
 
 CI、すべてのレビュアーの thread と review の本文、再レビューの依頼は、`pr-finalize-loop` が扱う。issue-batch 自身からは、リモートの AI レビューを依頼しない。
 収束しなければ BLOCKED か FAILED にし、影響をその Issue の中に留められるなら、方針に従って次の Issue に進む。
+
+`pr-finalize-loop` が人の判断が要るとする指摘（妥当かをコードだけで決められない、直し方が複数あって影響が大きい、設計の判断が絡む）は、run の中では利用者に確認しない。
+その指摘は直さず、スレッドを解決せずに残し、判断待ちとして manifest に記録する。記録には、指摘の URL・選択肢・推奨を含める。
+CI の失敗と他の指摘は、続けてループで扱う。残りが判断待ちの指摘だけになったら、`--max-iterations` を待たずにループを終え、その Issue を BLOCKED（判断待ち）にして merge に進まない。
+この読み替えは issue-batch の run の中だけのもので、`pr-finalize-loop` を単独で使うときの確認は変えない。
 
 ## merge、close、deployment
 
