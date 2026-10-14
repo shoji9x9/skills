@@ -14,7 +14,7 @@ import {
   GITHUB_DIR,
   GITHUB_KINDS,
   appendBranchFile,
-  branchFile,
+  branchFiles,
   branchLabel,
   changedRows,
   fileStamp,
@@ -25,7 +25,7 @@ import {
 import { gitOrNull } from "./repo.mjs";
 import { parseTime, toIso } from "./time.mjs";
 import { rememberWorktrees } from "./worktrees.mjs";
-import { join } from "node:path";
+import { join, relative, sep } from "node:path";
 
 /** @typedef {import("./rows.mjs").Row} Row */
 /** @typedef {import("./repo.mjs").RepoInfo} RepoInfo */
@@ -262,12 +262,37 @@ export function runCollect(o) {
   const personDir = join(recordsDir, person, BRANCH_DIR);
   const githubDir = join(recordsDir, GITHUB_DIR, person);
   const windowStart = now - RECORD_WINDOW_MS;
+  // 書き足す先は、このブランチのファイルのうち最も新しいもの。ただし、デフォルトブランチ（origin）に既に入ったファイルには足さず、
+  // 新しいファイルを作る。squash merge の後に同じブランチで作業を続けて足すと、デフォルトブランチを取り込むときに add/add で競合するため
+  const defaults = repo.defaultBranch ? [repo.defaultBranch] : ["main", "master"];
+  /** @param {string} f */
+  const published = (f) =>
+    defaults.some(
+      (b) =>
+        gitOrNull(
+          [
+            "cat-file",
+            "-e",
+            `refs/remotes/origin/${b}:${relative(repo.root, f).split(sep).join("/")}`,
+          ],
+          repo.root,
+        ) !== null,
+    );
   /** @type {Set<string>} */
   const keep = new Set();
-  for (const d of [personDir, githubDir]) {
-    const f = branchFile(d, label);
-    if (f !== null) keep.add(f);
-  }
+  /** @param {string} d */
+  const appendTarget = (d) => {
+    const files = branchFiles(d, label);
+    for (const f of files) keep.add(f);
+    const last = files[files.length - 1];
+    if (last !== undefined && !published(last)) return last;
+    // 同じ秒に作ったファイル（デフォルトブランチに入ったもの）と名前が重ならないよう、時刻をずらす
+    let t = now;
+    while (existsSync(join(d, `${fileStamp(t)}-${label}.csv`))) t += 1000;
+    return join(d, `${fileStamp(t)}-${label}.csv`);
+  };
+  const personTarget = appendTarget(personDir);
+  const githubFileTarget = appendTarget(githubDir);
   const read = readRecords(recordsDir, { since: windowStart, keep });
   const existing = latestByKey(read.rows);
   // 範囲より古い行は、範囲の外のファイルにあって読んでいないので、書くと重複する。
@@ -360,11 +385,10 @@ export function runCollect(o) {
   for (const r of fresh) r.observed_at = observed;
   const personRows = fresh.filter((r) => !GITHUB_KINDS.includes(r.kind ?? ""));
   const githubRows = fresh.filter((r) => GITHUB_KINDS.includes(r.kind ?? ""));
-  const stamp = fileStamp(now);
   /** @type {string[]} */
   const written = [];
-  if (personRows.length > 0) written.push(appendBranchFile(personDir, label, stamp, personRows));
-  if (githubRows.length > 0) written.push(appendBranchFile(githubDir, label, stamp, githubRows));
+  if (personRows.length > 0) written.push(appendBranchFile(personTarget, personRows));
+  if (githubRows.length > 0) written.push(appendBranchFile(githubFileTarget, githubRows));
   saveLastCollect(lastPath, person, now);
   return {
     person,

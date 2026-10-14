@@ -464,6 +464,54 @@ describe("agent-usage のコマンドと Hook", () => {
     ]);
   });
 
+  test("デフォルトブランチに入った（squash merge された）ブランチのファイルには足さず、新しいファイルを作る", () => {
+    const { tmp, repo, git, cli, cliWith } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    expect(cli("collect", "--stage").status).toBe(0);
+    git("commit", "-q", "-m", "records");
+    // squash merge と同じく、今の内容を、このブランチの commit を祖先に持たない 1 つの commit として origin の main に入れる
+    const origin = join(tmp, "origin.git");
+    spawnSync("git", ["init", "-q", "--bare", origin]);
+    git("remote", "add", "origin", origin);
+    const squash = git("commit-tree", "HEAD^{tree}", "-p", "main", "-m", "squash").trim();
+    git("push", "-q", "origin", `${squash}:refs/heads/main`);
+    git("fetch", "-q", "origin");
+    const records = join(repo, ".agent-usage", "records");
+    const person = readdirSync(records).find((d) => d.startsWith("p-")) ?? "";
+    const branches = join(records, person, "branches");
+    const [first] = readdirSync(branches);
+    const before = readFileSync(join(branches, first ?? ""), "utf8");
+    // 同じブランチで作業を続ける（同じ秒の collect でも、名前が重ならない）
+    git("commit", "-q", "--allow-empty", "-m", "more");
+    expect(cliWith({}, "collect", "--stage").status).toBe(0);
+    const files = readdirSync(branches);
+    expect(files).toHaveLength(2);
+    expect(readFileSync(join(branches, first ?? ""), "utf8")).toBe(before);
+    git("commit", "-q", "-m", "more records");
+    // デフォルトブランチを取り込んでも競合しない（git は競合すると 0 以外で終わり、未解決のパスを残す）
+    git("merge", "-q", "--no-edit", "origin/main");
+    expect(git("diff", "--name-only", "--diff-filter=U")).toBe("");
+  });
+
+  test("古い形のファイルは、名前の時刻だけで読むかを決める（末尾を読まない）", () => {
+    const { repo, git, cli } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    expect(cli("collect").status).toBe(0);
+    const records = join(repo, ".agent-usage", "records");
+    const person = readdirSync(records).find((d) => d.startsWith("p-")) ?? "";
+    // 名前の時刻は範囲より古く、最後の行は範囲の中（古い形は後から書き足さないので、この組み合わせは読まない）
+    writeFileSync(
+      join(records, person, "20260701T000000Z-5.csv"),
+      readFileSync(
+        join(records, person, "branches", readdirSync(join(records, person, "branches"))[0] ?? ""),
+        "utf8",
+      ),
+    );
+    expect(cli("collect").stdout).toMatch(/範囲より古いので読まなかった記録のファイル: 1/);
+  });
+
   test("今のブランチのファイルは、範囲より古い時刻でも読み、同じ行を書き直さない", () => {
     const { repo, git, cli } = setup();
     expect(cli("setup", "--time-zone", "UTC").status).toBe(0);

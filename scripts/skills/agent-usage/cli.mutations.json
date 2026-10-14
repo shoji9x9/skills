@@ -453,6 +453,39 @@
       "expect_failing": [
         "agent-usage のコマンドと Hook branchLabel: 長い名前は切ってハッシュを足す"
       ]
+    },
+    {
+      "id": "published-branch-file-appended",
+      "why": "デフォルトブランチに入ったブランチのファイルにも足す",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "    if (last !== undefined && !published(last)) return last;",
+      "replace": "    if (last !== undefined) return last;",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook デフォルトブランチに入った（squash merge された）ブランチのファイルには足さず、新しいファイルを作る"
+      ]
+    },
+    {
+      "id": "same-second-name-reused",
+      "why": "同じ秒に作ったデフォルトブランチのファイルと同じ名前にする",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "    while (existsSync(join(d, `${fileStamp(t)}-${label}.csv`))) t += 1000;",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook デフォルトブランチに入った（squash merge された）ブランチのファイルには足さず、新しいファイルを作る"
+      ]
+    },
+    {
+      "id": "old-format-tail-read",
+      "why": "古い形のファイルも末尾の行で読むかを決める",
+      "file": "skills/agent-usage/scripts/lib/records.mjs",
+      "find": "          if (relative(recordsDir, f).split(sep).length < 3) return false;",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook 古い形のファイルは、名前の時刻だけで読むかを決める（末尾を読まない）"
+      ]
     }
   ]
 }

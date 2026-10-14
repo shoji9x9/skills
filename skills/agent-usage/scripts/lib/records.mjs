@@ -16,7 +16,7 @@ import {
   readSync,
   readdirSync,
 } from "node:fs";
-import { basename, join, relative } from "node:path";
+import { basename, join, relative, sep } from "node:path";
 import { writeFileAtomic } from "./atomic.mjs";
 import { parseCsv, toCsv } from "./csv.mjs";
 import { COLUMNS, contentSignature, isKind, signature } from "./rows.mjs";
@@ -124,6 +124,9 @@ export function readRecords(recordsDir, opts = {}) {
           if (opts.keep?.has(f)) return true;
           const t = fileStampTime(f);
           if (t === null || t >= since) return true;
+          // 古い形（records/<person-id>/<時刻>-….csv・records/_github/<時刻>-….csv）は collect 1 回につき 1 ファイルで、
+          // 後から書き足さないので、名前の時刻だけで決まる
+          if (relative(recordsDir, f).split(sep).length < 3) return false;
           // collect は行を後ろに足すので、最後の行の observed_at が最も新しい。これも範囲より前なら、中の行はすべて範囲より前に書いた行である。
           // ファイルの更新時刻は使わない（clone や worktree の作成で、すべてのファイルが今の時刻になる）
           const last = lastObservedAt(f);
@@ -223,31 +226,28 @@ export function branchLabel(branch) {
 }
 
 /**
- * ブランチのファイル（`<時刻>-<label>.csv`）を探す。複数あれば時刻の最も早いもの。無ければ null。
+ * ブランチのファイル（`<時刻>-<label>.csv`）を、時刻の古い順にすべて返す。
  * @param {string} dir
- * @param {string} label safeName したブランチの名前
- * @returns {string | null}
+ * @param {string} label branchLabel したブランチの名前
+ * @returns {string[]}
  */
-export function branchFile(dir, label) {
-  if (!existsSync(dir)) return null;
-  const names = readdirSync(dir)
+export function branchFiles(dir, label) {
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
     .filter((n) => /^\d{8}T\d{6}Z-/.test(n) && n.slice(17) === `${label}.csv`)
-    .sort();
-  return names.length > 0 ? join(dir, names[0] ?? "") : null;
+    .sort()
+    .map((n) => join(dir, n));
 }
 
 /**
- * ブランチのファイルに行を足す。ファイルが無ければ `<stamp>-<label>.csv` を作る。書いたファイルのパスを返す。
+ * ブランチのファイル（path）に行を足す。ファイルが無ければ作る。
  * 見出しが今の列と同じなら、既存の内容をそのまま残して後ろに足すので、git の差分は足した行だけになる（改行は既存のファイルに合わせる）。
  * 見出しが違う（列の違う版が書いた）ときだけ、今の列と既存の列を合わせた見出しで全体を書き直す（知らない列の値を落とさない）。
- * @param {string} dir
- * @param {string} label safeName したブランチの名前
- * @param {string} stamp fileStamp した時刻（ファイルを作るときだけ使う）
+ * @param {string} path
  * @param {readonly Row[]} rows
  * @returns {string}
  */
-export function appendBranchFile(dir, label, stamp, rows) {
-  const path = branchFile(dir, label) ?? join(dir, `${stamp}-${label}.csv`);
+export function appendBranchFile(path, rows) {
   const text = toCsv(COLUMNS, rows);
   if (!existsSync(path)) {
     writeFileAtomic(path, text);
