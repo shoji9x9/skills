@@ -22,7 +22,7 @@
     "@prantlf/jsonlint": "^17.0.1",
     "@textlint-ja/textlint-rule-preset-ai-writing": "^1.7.0",
     "@types/js-yaml": "^4.0.9",
-    "@types/node": "^24.19.1",
+    "@types/node": "^26.6.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "conventional-changelog-conventionalcommits": "9.3.1",
@@ -42,9 +42,9 @@
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
-      "version": "11.23.0",
+      "version": "12.10.1",
       "onFail": "warn"
     }
   },
-  "packageManager": "pnpm@11.23.0"
+  "packageManager": "pnpm@12.10.1"
 }
