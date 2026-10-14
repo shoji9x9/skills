@@ -1,0 +1,276 @@
+{
+  "metadata": {
+    "skill_name": "issue-batch",
+    "skill_path": "<repo>/skills/issue-batch",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-14T09:04:13Z",
+    "evals_run": [23, 24],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 23,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 9,
+        "failed": 0,
+        "total": 9,
+        "time_seconds": 53.843,
+        "tokens": 106506,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "満たせない条件について、run の途中で利用者に確認を送らないと述べている",
+          "passed": true,
+          "evidence": "「実行中は利用者に確認を送れないので、manifest の判断待ちに積みます」。"
+        },
+        {
+          "text": "#101 を判断待ち（BLOCKED）として manifest に記録すると述べている",
+          "passed": true,
+          "evidence": "#101 を BLOCKED（判断待ち）にし、manifest の判断待ちの id を decision_ref に書くと明記。"
+        },
+        {
+          "text": "#101 を判断待ちにした後、#102 に進むと述べている",
+          "passed": true,
+          "evidence": "continue_on_blocked: true に従って #102 に進むと明記。"
+        },
+        {
+          "text": "条件を外す承認と #108 の見直しを、1 つの判断待ちにまとめると述べている",
+          "passed": true,
+          "evidence": "外す判断と #108 の見直しを 1 件の判断待ちにまとめると明記。"
+        },
+        {
+          "text": "#101 を push しないと述べている",
+          "passed": true,
+          "evidence": "push・PR の作成をしないと明記。"
+        },
+        {
+          "text": "最終報告の判断待ちに、推奨を示すと述べている",
+          "passed": true,
+          "evidence": "推奨: a) waived と #108 の見直しを示している。"
+        },
+        {
+          "text": "最終報告の判断待ちに、決まった後に残る作業を示すと述べている",
+          "passed": true,
+          "evidence": "決まった後に残る作業を 4 段で示している。"
+        },
+        {
+          "text": "ファイルを読んで満たしたと判断した条件を、最終報告の「自分で判断して進めたもの」の一覧に載せると述べている",
+          "passed": true,
+          "evidence": "(3) 自分で判断して進めたもの に、strength: read で met にした条件を載せている。"
+        },
+        {
+          "text": "回答の中で、run の途中で利用者に確認して返答を待つ進め方を併記していない",
+          "passed": true,
+          "evidence": "途中で確認して待つ進め方は併記していない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 24,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 39.72,
+        "tokens": 85173,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "commit していない設定は、Issue ごとの worktree に届かないと述べている",
+          "passed": true,
+          "evidence": "worktree は base から作るので、commit していない設定は worktree に届かないと明記。"
+        },
+        {
+          "text": "設定が base branch に入っていないので、run を始めずに停止すると述べている",
+          "passed": true,
+          "evidence": "step 9 で run を始めずに全体を停止すると明記。"
+        },
+        {
+          "text": "設定を無人で commit・push しないと述べている",
+          "passed": true,
+          "evidence": "設定を無人で commit・push しないと明記。"
+        },
+        {
+          "text": "#102 の案 A・B の選択を、何かを変更する前の preflight で利用者に決めてもらうと述べている",
+          "passed": true,
+          "evidence": "step 10 で run を始める前に 1 回の確認にまとめて利用者に聞くと明記。"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（commit・branch 作成・Issue の変更を行っていない）",
+          "passed": true,
+          "evidence": "コマンドの実行・ファイルの変更はしていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 23,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 6,
+        "failed": 3,
+        "total": 9,
+        "time_seconds": 44.716,
+        "tokens": 87738,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "満たせない条件について、run の途中で利用者に確認を送らないと述べている",
+          "passed": true,
+          "evidence": "判断待ちを保留に溜め、最後にまとめて報告するとしており、途中で確認を送っていない。"
+        },
+        {
+          "text": "#101 を判断待ち（BLOCKED）として manifest に記録すると述べている",
+          "passed": false,
+          "evidence": "「保留に積む」とだけ述べ、manifest に記録するとは述べていない。"
+        },
+        {
+          "text": "#101 を判断待ちにした後、#102 に進むと述べている",
+          "passed": true,
+          "evidence": "#101 の結果を待たずに #102 に着手すると述べている。"
+        },
+        {
+          "text": "条件を外す承認と #108 の見直しを、1 つの判断待ちにまとめると述べている",
+          "passed": true,
+          "evidence": "(a) 条件の扱いと (b) 似た Issue の見直しを 1 回の確認にまとめると述べている（issue-start の acceptance.md から読める）。"
+        },
+        {
+          "text": "#101 を push しないと述べている",
+          "passed": true,
+          "evidence": "push も PR 作成もしないと明記。"
+        },
+        {
+          "text": "最終報告の判断待ちに、推奨を示すと述べている",
+          "passed": false,
+          "evidence": "選択肢は挙げているが、推奨を示していない。"
+        },
+        {
+          "text": "最終報告の判断待ちに、決まった後に残る作業を示すと述べている",
+          "passed": true,
+          "evidence": "「判断が出た後の再開手順」として残る作業を示している。"
+        },
+        {
+          "text": "ファイルを読んで満たしたと判断した条件を、最終報告の「自分で判断して進めたもの」の一覧に載せると述べている",
+          "passed": false,
+          "evidence": "met (read) の条件は突き合わせ表の要約に載せているだけで、「自分で判断して進めたもの」の一覧として載せていない。"
+        },
+        {
+          "text": "回答の中で、run の途中で利用者に確認して返答を待つ進め方を併記していない",
+          "passed": true,
+          "evidence": "途中で確認して待つ進め方は併記していない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 24,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 31.736,
+        "tokens": 40267,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "commit していない設定は、Issue ごとの worktree に届かないと述べている",
+          "passed": true,
+          "evidence": "commit していない設定は worktree に入らないと述べている。"
+        },
+        {
+          "text": "設定が base branch に入っていないので、run を始めずに停止すると述べている",
+          "passed": true,
+          "evidence": "preflight で止めて報告すると述べている。"
+        },
+        {
+          "text": "設定を無人で commit・push しないと述べている",
+          "passed": true,
+          "evidence": "commit・stash・破棄を勝手にしないと述べている。"
+        },
+        {
+          "text": "#102 の案 A・B の選択を、何かを変更する前の preflight で利用者に決めてもらうと述べている",
+          "passed": false,
+          "evidence": "#102 をバッチから外して保留にし、報告で判断を依頼するだけで、変更の前の preflight で決めてもらう手順になっていない。"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（commit・branch 作成・Issue の変更を行っていない）",
+          "passed": true,
+          "evidence": "コマンドの実行・ファイルの変更はしていない。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 46.7815,
+        "stddev": 9.9865,
+        "min": 39.72,
+        "max": 53.843
+      },
+      "tokens": {
+        "mean": 95839.5,
+        "stddev": 15084.709,
+        "min": 85173,
+        "max": 106506
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.7333,
+        "stddev": 0.0943,
+        "min": 0.6667,
+        "max": 0.8
+      },
+      "time_seconds": {
+        "mean": 38.226,
+        "stddev": 9.1782,
+        "min": 31.736,
+        "max": 44.716
+      },
+      "tokens": {
+        "mean": 64002.5,
+        "stddev": 33567.066,
+        "min": 40267,
+        "max": 87738
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.27",
+      "time_seconds": "+8.6",
+      "tokens": "+31837"
+    }
+  },
+  "notes": [
+    "Issue #623 の変更確認。新規の eval 23・24 だけを with_skill と without_skill で 1 run ずつ実行した。",
+    "eval 23 の「1 つの判断待ちにまとめる」は、requires_skills の issue-start の acceptance.md から読めるので without_skill も pass した。Delta には寄与せず、後退の検出のために置く。"
+  ]
+}
