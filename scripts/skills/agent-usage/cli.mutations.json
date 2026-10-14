@@ -149,7 +149,8 @@
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook ログインで GitHub と判定したホストには、環境変数の GH_ENTERPRISE_TOKEN を送らない",
-        "agent-usage のコマンドと Hook githubTarget: ログインしたホストは viaLogin"
+        "agent-usage のコマンドと Hook githubTarget: ログインしたホストは viaLogin",
+        "agent-usage のコマンドと Hook githubTarget: ポート付きでもログインしていれば取得する"
       ]
     },
     {
@@ -201,14 +202,14 @@
     },
     {
       "id": "port-host-authed",
-      "why": "ポートを含むホストもログインの判定に進める",
+      "why": "ポート付きでログインしていないホストに、ログインを勧める理由を出す",
       "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
       "find": "  if (host.includes(\":\"))",
       "replace": "  if (false)",
       "occurrences": 1,
       "expect_failing": [
-        "agent-usage のコマンドと Hook ポートを含むホストの origin は、ログインを確かめずに理由を出して取得しない",
-        "agent-usage のコマンドと Hook githubTarget: ポート付きはログインを確かめない"
+        "agent-usage のコマンドと Hook ポートを含み、gh にログインしていないホストの origin は、理由を出して取得しない",
+        "agent-usage のコマンドと Hook githubTarget: ポート付きでログインしていなければ取得しない"
       ]
     },
     {

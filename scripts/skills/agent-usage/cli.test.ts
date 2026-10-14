@@ -392,7 +392,15 @@ describe("agent-usage のコマンドと Hook", () => {
   test.each([
     ["origin が無い", "", {}, "", "origin が無い", false],
     ["owner/name の形でない", "gitlab.com/group/sub/repo", {}, "", "の形でない", false],
-    ["ポート付きはログインを確かめない", "ghe.invalid:7999/o/r", {}, "", "ポートを含む", false],
+    [
+      "ポート付きでログインしていなければ取得しない",
+      "ghe.invalid:7999/o/r",
+      {},
+      "x",
+      "ポートを含み",
+      false,
+    ],
+    ["ポート付きでもログインしていれば取得する", "ghe.invalid:8443/o/r", {}, "", "", true],
     [
       "ポート付きでも GH_HOST と一致すれば扱う",
       "ghe.invalid:8443/o/r",
@@ -427,12 +435,12 @@ describe("agent-usage のコマンドと Hook", () => {
     if (reason === "") expect(t.slug).toBe(remote.split("/").slice(1).join("/"));
   });
 
-  test("ポートを含むホストの origin は、ログインを確かめずに理由を出して取得しない", () => {
+  test("ポートを含み、gh にログインしていないホストの origin は、理由を出して取得しない", () => {
     const { git, cli } = setup();
     expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
     git("remote", "add", "origin", "ssh://git@ghe.invalid:7999/example-org/example-repo.git");
     git("switch", "-q", "-c", "feature/5-x");
-    expect(cli("collect").stdout).toMatch(/GitHub: 取得していない（.*ポートを含む/);
+    expect(cli("collect").stdout).toMatch(/GitHub: 取得していない（.*ポートを含み/);
   });
 
   test("Hook の collect も、GitHub を取得しなかった理由を出す", () => {

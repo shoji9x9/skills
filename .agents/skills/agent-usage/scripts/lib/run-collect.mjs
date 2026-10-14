@@ -114,13 +114,14 @@ export function githubTarget(remote, env, loginError) {
   // 利用者が GH_HOST で指定したホストは、ポート付き（https の非標準ポートの GHES）でもそのまま扱う
   if (host === "github.com" || host === (env.GH_HOST ?? "").toLowerCase()) return t;
   // ポートを含むホスト（ssh://git@<ホスト>:7999/...）は SSH のポートでありうるので、gh のホストとしてログインを確かめない
+  const err = loginError(host);
+  if (err === "") return { ...t, viaLogin: true };
+  // ポート付きのホストにログインしていなければ、SSH のポートでありうるので、ログインを勧めない
   if (host.includes(":"))
     return {
       ...t,
-      reason: `origin のホスト ${host} はポートを含むので取得しない（SSH のポートなら API のホストではない。https の非標準ポートで API を提供する GHES なら GH_HOST=${host} で取得する）`,
+      reason: `origin のホスト ${host} はポートを含み、gh にログインしたホストでもないので取得しない（SSH のポートなら API のホストではない。https の非標準ポートで API を提供する GHES なら GH_HOST=${host} で取得する）`,
     };
-  const err = loginError(host);
-  if (err === "") return { ...t, viaLogin: true };
   return {
     ...t,
     reason: `origin のホスト ${host} は、github.com でも GH_HOST でもなく、gh にログインしたホストでもない（${err}）。GitHub Enterprise のホストなら gh auth login --hostname ${host} か GH_HOST=${host} で取得する`,
