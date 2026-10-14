@@ -214,6 +214,7 @@ export function runCollect(o) {
 
   /** @type {string[]} */
   let githubFailures = [];
+  /** @type {GitHubTarget} */
   const target = o.github
     ? githubTarget(repo.remote, env, (h) => ghLoginError(h, env))
     : { reason: "--no-github", host: "", slug: "", viaLogin: false };
