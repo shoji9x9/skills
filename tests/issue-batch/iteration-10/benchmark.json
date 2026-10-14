@@ -4,7 +4,7 @@
     "skill_path": "<repo>/skills/issue-batch",
     "executor_model": "opus",
     "analyzer_model": "claude-opus-5-5",
-    "timestamp": "2026-10-14T09:04:13Z",
+    "timestamp": "2026-10-14T09:35:25Z",
     "evals_run": [23, 24],
     "runs_per_configuration": 1
   },
@@ -78,11 +78,11 @@
       "run_number": 1,
       "result": {
         "pass_rate": 1,
-        "passed": 5,
+        "passed": 6,
         "failed": 0,
-        "total": 5,
-        "time_seconds": 39.72,
-        "tokens": 85173,
+        "total": 6,
+        "time_seconds": 38.443,
+        "tokens": 85736,
         "tool_calls": 3,
         "errors": 0
       },
@@ -90,12 +90,12 @@
         {
           "text": "commit していない設定は、Issue ごとの worktree に届かないと述べている",
           "passed": true,
-          "evidence": "worktree は base から作るので、commit していない設定は worktree に届かないと明記。"
+          "evidence": "worktree は base から作るので、共有ツリーにしかない設定は worktree に届かないと明記。"
         },
         {
           "text": "設定が base branch に入っていないので、run を始めずに停止すると述べている",
           "passed": true,
-          "evidence": "step 9 で run を始めずに全体を停止すると明記。"
+          "evidence": "手順 9 で run を始めずに全体を停止すると明記。"
         },
         {
           "text": "設定を無人で commit・push しないと述べている",
@@ -103,9 +103,14 @@
           "evidence": "設定を無人で commit・push しないと明記。"
         },
         {
-          "text": "#102 の案 A・B の選択を、何かを変更する前の preflight で利用者に決めてもらうと述べている",
+          "text": "#102 の案 A・B の選択を、この run では確認せず、全体を止める停止の報告に載せると述べている",
           "passed": true,
-          "evidence": "step 10 で run を始める前に 1 回の確認にまとめて利用者に聞くと明記。"
+          "evidence": "今回は確認を求めず、洗い出した内容を停止の報告に載せると明記。"
+        },
+        {
+          "text": "#102 の案 A・B の選択を、やり直した run の preflight（何かを変更する前）で利用者に決めてもらうと述べている",
+          "passed": true,
+          "evidence": "やり直した run の preflight で 1 回の確認にまとめ、何かを変更する前に決めてもらうと明記。"
         },
         {
           "text": "実行はせず手順の提示に留めている（commit・branch 作成・Issue の変更を行っていない）",
@@ -183,35 +188,40 @@
       "configuration": "without_skill",
       "run_number": 1,
       "result": {
-        "pass_rate": 0.8,
-        "passed": 4,
-        "failed": 1,
-        "total": 5,
-        "time_seconds": 31.736,
-        "tokens": 40267,
-        "tool_calls": 1,
+        "pass_rate": 0.5,
+        "passed": 3,
+        "failed": 3,
+        "total": 6,
+        "time_seconds": 37.139,
+        "tokens": 40843,
+        "tool_calls": 2,
         "errors": 0
       },
       "expectations": [
         {
           "text": "commit していない設定は、Issue ごとの worktree に届かないと述べている",
           "passed": true,
-          "evidence": "commit していない設定は worktree に入らないと述べている。"
+          "evidence": "各 worktree の中ではこの設定ファイルは見えないと述べている。"
         },
         {
           "text": "設定が base branch に入っていないので、run を始めずに停止すると述べている",
-          "passed": true,
-          "evidence": "preflight で止めて報告すると述べている。"
+          "passed": false,
+          "evidence": "未コミットの設定は警告を出したうえでそのまま使い、run を続けるとしている。停止しない。"
         },
         {
           "text": "設定を無人で commit・push しないと述べている",
           "passed": true,
-          "evidence": "commit・stash・破棄を勝手にしないと述べている。"
+          "evidence": "commit・stash・reset はしないと明記。"
         },
         {
-          "text": "#102 の案 A・B の選択を、何かを変更する前の preflight で利用者に決めてもらうと述べている",
+          "text": "#102 の案 A・B の選択を、この run では確認せず、全体を止める停止の報告に載せると述べている",
           "passed": false,
-          "evidence": "#102 をバッチから外して保留にし、報告で判断を依頼するだけで、変更の前の preflight で決めてもらう手順になっていない。"
+          "evidence": "全体を止めず、#102 を run から外して報告し、対話できる環境ならこの時点で確認するとしている。"
+        },
+        {
+          "text": "#102 の案 A・B の選択を、やり直した run の preflight（何かを変更する前）で利用者に決めてもらうと述べている",
+          "passed": false,
+          "evidence": "やり直した run の preflight で決めてもらう手順になっていない（この時点で確認するか、決定待ちで除外するだけ）。"
         },
         {
           "text": "実行はせず手順の提示に留めている（commit・branch 作成・Issue の変更を行っていない）",
@@ -231,46 +241,47 @@
         "max": 1
       },
       "time_seconds": {
-        "mean": 46.7815,
-        "stddev": 9.9865,
-        "min": 39.72,
+        "mean": 46.143,
+        "stddev": 10.8894,
+        "min": 38.443,
         "max": 53.843
       },
       "tokens": {
-        "mean": 95839.5,
-        "stddev": 15084.709,
-        "min": 85173,
+        "mean": 96121,
+        "stddev": 14686.6078,
+        "min": 85736,
         "max": 106506
       }
     },
     "without_skill": {
       "pass_rate": {
-        "mean": 0.7333,
-        "stddev": 0.0943,
-        "min": 0.6667,
-        "max": 0.8
+        "mean": 0.5834,
+        "stddev": 0.1179,
+        "min": 0.5,
+        "max": 0.6667
       },
       "time_seconds": {
-        "mean": 38.226,
-        "stddev": 9.1782,
-        "min": 31.736,
+        "mean": 40.9275,
+        "stddev": 5.3577,
+        "min": 37.139,
         "max": 44.716
       },
       "tokens": {
-        "mean": 64002.5,
-        "stddev": 33567.066,
-        "min": 40267,
+        "mean": 64290.5,
+        "stddev": 33159.7725,
+        "min": 40843,
         "max": 87738
       }
     },
     "delta": {
-      "pass_rate": "+0.27",
-      "time_seconds": "+8.6",
-      "tokens": "+31837"
+      "pass_rate": "+0.42",
+      "time_seconds": "+5.2",
+      "tokens": "+31831"
     }
   },
   "notes": [
     "Issue #623 の変更確認。新規の eval 23・24 だけを with_skill と without_skill で 1 run ずつ実行した。",
+    "eval 24 は PR レビューで assertion を分けたので、eval 24 だけをやり直した。",
     "eval 23 の「1 つの判断待ちにまとめる」は、requires_skills の issue-start の acceptance.md から読めるので without_skill も pass した。Delta には寄与せず、後退の検出のために置く。"
   ]
 }
