@@ -87,3 +87,7 @@ diff tests/pr-finalize-loop/iteration-<前回>/benchmark.md \
 2. 上記手順で新しい iteration を実行する
 3. `benchmark.json` の pass_rate が前回以上であることを確認する
 4. 問題があれば `benchmark.json` の `expectations` で失敗アサーションを特定する
+
+## 区別できない eval
+
+- eval 20（`--defer-decisions`）は、フラグの名前から振る舞いを推測できるので without_skill も pass する。Delta には寄与せず、判断待ちの扱いが消えたり食い違ったりした後退を検出するために置く。

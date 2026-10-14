@@ -1,0 +1,170 @@
+{
+  "metadata": {
+    "skill_name": "pr-finalize-loop",
+    "skill_path": "<repo>/skills/pr-finalize-loop",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-14T10:40:51Z",
+    "evals_run": [20],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 20,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 33.114,
+        "tokens": 85642,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "スレッド B について、利用者に確認を送らないと述べている",
+          "passed": true,
+          "evidence": "「利用者には確認しません」と明記。"
+        },
+        {
+          "text": "スレッド B を直さず、解決もせずに残すと述べている",
+          "passed": true,
+          "evidence": "コードも直さず、スレッドも解決しないまま残すと明記。"
+        },
+        {
+          "text": "スレッド A は直して、返信してから解決すると述べている",
+          "passed": true,
+          "evidence": "スレッド A を修正し、返信してから解決する（返信より先に解決しない）と明記。"
+        },
+        {
+          "text": "残りがスレッド B だけになったら、--max-iterations を待たずにループを止めると述べている",
+          "passed": true,
+          "evidence": "残りが B だけになったら --max-iterations を待たずに止まると明記。"
+        },
+        {
+          "text": "止まった理由を「完了」ではなく、判断待ちで終えたことを表す理由として報告すると述べている",
+          "passed": true,
+          "evidence": "止まった理由を「判断待ちで終了」とし、「完了」と区別すると明記。"
+        },
+        {
+          "text": "判断待ちの報告に、スレッド B の選択肢（案 X・案 Y）と推奨を載せると述べている",
+          "passed": true,
+          "evidence": "判断待ちの一覧に B の URL・案 X と案 Y・推奨を載せると明記。"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "コマンドの実行・ファイルの変更はしていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 20,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 23.215,
+        "tokens": 39606,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "スレッド B について、利用者に確認を送らないと述べている",
+          "passed": true,
+          "evidence": "--defer-decisions では B を後回しリストに入れ、止まらずに進めると述べている（フラグ名から推測）。"
+        },
+        {
+          "text": "スレッド B を直さず、解決もせずに残すと述べている",
+          "passed": true,
+          "evidence": "B には返信も resolve もしないと述べている。"
+        },
+        {
+          "text": "スレッド A は直して、返信してから解決すると述べている",
+          "passed": true,
+          "evidence": "A を修正し、返信・resolve まで進めると述べている。"
+        },
+        {
+          "text": "残りがスレッド B だけになったら、--max-iterations を待たずにループを止めると述べている",
+          "passed": true,
+          "evidence": "自分で進められる作業が無くなった時点で止まると述べ、上限を待っていない。"
+        },
+        {
+          "text": "止まった理由を「完了」ではなく、判断待ちで終えたことを表す理由として報告すると述べている",
+          "passed": true,
+          "evidence": "止まった理由を「ユーザーの判断待ち」とし、「完了」ではないと述べている。"
+        },
+        {
+          "text": "判断待ちの報告に、スレッド B の選択肢（案 X・案 Y）と推奨を載せると述べている",
+          "passed": true,
+          "evidence": "後回しリストに案 X と案 Y の比較と推奨をまとめると述べている。"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "コマンドの実行・ファイルの変更はしていない。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 33.114,
+        "stddev": 0,
+        "min": 33.114,
+        "max": 33.114
+      },
+      "tokens": {
+        "mean": 85642,
+        "stddev": 0,
+        "min": 85642,
+        "max": 85642
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 23.215,
+        "stddev": 0,
+        "min": 23.215,
+        "max": 23.215
+      },
+      "tokens": {
+        "mean": 39606,
+        "stddev": 0,
+        "min": 39606,
+        "max": 39606
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.00",
+      "time_seconds": "+9.9",
+      "tokens": "+46036"
+    }
+  },
+  "notes": [
+    "Issue #623 の変更確認。新規の eval 20 だけを with_skill と without_skill で 1 run ずつ実行した。",
+    "without_skill もフラグの名前（--defer-decisions）から振る舞いを推測して 7/7 を満たした。Delta には寄与せず、後退の検出のために置く。"
+  ]
+}
