@@ -430,8 +430,8 @@
       "id": "crlf-ignored",
       "why": "CRLF のファイルに LF で足す",
       "file": "skills/agent-usage/scripts/lib/records.mjs",
-      "find": "    appendFileSync(path, crlf ? `${sep}${body}`.replace(/\\n/g, \"\\r\\n\") : `${sep}${body}`);",
-      "replace": "    appendFileSync(path, `${sep}${body}`);",
+      "find": "    appendFileSync(path, crlf ? `${glue}${body}`.replace(/\\n/g, \"\\r\\n\") : `${glue}${body}`);",
+      "replace": "    appendFileSync(path, `${glue}${body}`);",
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook ブランチのファイルの改行と、知らない列を保って足す"
@@ -472,10 +472,10 @@
     },
     {
       "id": "same-second-name-reused",
-      "why": "同じ秒に作ったデフォルトブランチのファイルと同じ名前にする",
+      "why": "新しいファイルの時刻を、デフォルトブランチに入ったファイルより後にしない",
       "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
-      "find": "    while (existsSync(join(d, `${fileStamp(t)}-${label}.csv`))) t += 1000;",
-      "replace": "",
+      "find": "    const t = last === undefined ? now : Math.max(now, (fileStampTime(last) ?? now) + 1000);",
+      "replace": "    const t = now;",
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook デフォルトブランチに入った（squash merge された）ブランチのファイルには足さず、新しいファイルを作る"

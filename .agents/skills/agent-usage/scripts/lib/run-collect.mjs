@@ -18,11 +18,12 @@ import {
   branchLabel,
   changedRows,
   fileStamp,
+  fileStampTime,
   latestByKey,
   readRecords,
   usageDir,
 } from "./records.mjs";
-import { gitOrNull } from "./repo.mjs";
+import { defaultBranches, gitOrNull } from "./repo.mjs";
 import { parseTime, toIso } from "./time.mjs";
 import { rememberWorktrees } from "./worktrees.mjs";
 import { join, relative, sep } from "node:path";
@@ -264,7 +265,7 @@ export function runCollect(o) {
   const windowStart = now - RECORD_WINDOW_MS;
   // 書き足す先は、このブランチのファイルのうち最も新しいもの。ただし、デフォルトブランチ（origin）に既に入ったファイルには足さず、
   // 新しいファイルを作る。squash merge の後に同じブランチで作業を続けて足すと、デフォルトブランチを取り込むときに add/add で競合するため
-  const defaults = repo.defaultBranch ? [repo.defaultBranch] : ["main", "master"];
+  const defaults = defaultBranches(repo);
   /** @param {string} f */
   const published = (f) =>
     defaults.some(
@@ -286,9 +287,9 @@ export function runCollect(o) {
     for (const f of files) keep.add(f);
     const last = files[files.length - 1];
     if (last !== undefined && !published(last)) return last;
-    // 同じ秒に作ったファイル（デフォルトブランチに入ったもの）と名前が重ならないよう、時刻をずらす
-    let t = now;
-    while (existsSync(join(d, `${fileStamp(t)}-${label}.csv`))) t += 1000;
+    // 新しいファイルは、デフォルトブランチに入ったファイル（このブランチの最後のファイル）より後に並べる。
+    // 他のマシンの時計が進んでいて、そのファイルの時刻が今より後でも、次の collect が新しいファイルを書き足す先に選ぶようにする
+    const t = last === undefined ? now : Math.max(now, (fileStampTime(last) ?? now) + 1000);
     return join(d, `${fileStamp(t)}-${label}.csv`);
   };
   const personTarget = appendTarget(personDir);

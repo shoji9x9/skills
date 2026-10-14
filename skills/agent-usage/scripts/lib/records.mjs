@@ -9,14 +9,16 @@ import { createHash } from "node:crypto";
 import {
   appendFileSync,
   closeSync,
+  mkdirSync,
   existsSync,
   fstatSync,
   openSync,
   readFileSync,
   readSync,
   readdirSync,
+  writeFileSync,
 } from "node:fs";
-import { basename, join, relative, sep } from "node:path";
+import { basename, dirname, join, relative, sep } from "node:path";
 import { writeFileAtomic } from "./atomic.mjs";
 import { parseCsv, toCsv } from "./csv.mjs";
 import { COLUMNS, contentSignature, isKind, signature } from "./rows.mjs";
@@ -250,7 +252,9 @@ export function branchFiles(dir, label) {
 export function appendBranchFile(path, rows) {
   const text = toCsv(COLUMNS, rows);
   if (!existsSync(path)) {
-    writeFileAtomic(path, text);
+    // records/ の中に一時ファイルを作らない（中断して残ると、Hook の git add が stage してしまう）
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, text, { flag: "wx" });
     return path;
   }
   const prev = readFileSync(path, "utf8");
@@ -259,8 +263,8 @@ export function appendBranchFile(path, rows) {
   const header = text.slice(0, text.indexOf("\n") + 1);
   if (lf.startsWith(header)) {
     const body = text.slice(header.length);
-    const sep = lf.endsWith("\n") || lf === "" ? "" : "\n";
-    appendFileSync(path, crlf ? `${sep}${body}`.replace(/\n/g, "\r\n") : `${sep}${body}`);
+    const glue = lf.endsWith("\n") ? "" : "\n";
+    appendFileSync(path, crlf ? `${glue}${body}`.replace(/\n/g, "\r\n") : `${glue}${body}`);
     return path;
   }
   const prevRows = parseCsv(lf);

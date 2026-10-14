@@ -469,6 +469,13 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
     git("switch", "-q", "-c", "feature/5-x");
     expect(cli("collect", "--stage").status).toBe(0);
+    // 他のマシンの時計が進んでいたことにする（デフォルトブランチに入るファイルの時刻が、今より後）
+    const records0 = join(repo, ".agent-usage", "records");
+    const person0 = readdirSync(records0).find((d) => d.startsWith("p-")) ?? "";
+    const branches0 = join(records0, person0, "branches");
+    const [created] = readdirSync(branches0);
+    renameSync(join(branches0, created ?? ""), join(branches0, "20261005T000000Z-feature-5-x.csv"));
+    git("add", "-A", ".agent-usage");
     git("commit", "-q", "-m", "records");
     // squash merge と同じく、今の内容を、このブランチの commit を祖先に持たない 1 つの commit として origin の main に入れる
     const origin = join(tmp, "origin.git");
@@ -487,6 +494,11 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(cliWith({}, "collect", "--stage").status).toBe(0);
     const files = readdirSync(branches);
     expect(files).toHaveLength(2);
+    // 新しいファイルは、デフォルトブランチに入ったファイルより後に並び、次の collect はそれに足す
+    expect(files[1]).toBe("20261005T000001Z-feature-5-x.csv");
+    git("commit", "-q", "--allow-empty", "-m", "more2");
+    expect(cliWith({}, "collect", "--stage").status).toBe(0);
+    expect(readdirSync(branches)).toHaveLength(2);
     expect(readFileSync(join(branches, first ?? ""), "utf8")).toBe(before);
     git("commit", "-q", "-m", "more records");
     // デフォルトブランチを取り込んでも競合しない（git は競合すると 0 以外で終わり、未解決のパスを残す）
