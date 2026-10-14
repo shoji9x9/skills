@@ -15,11 +15,13 @@ import {
   parseClaudeSession,
 } from "../../../skills/agent-usage/scripts/lib/claude-log.mjs";
 import { codexTokens, parseCodexLog } from "../../../skills/agent-usage/scripts/lib/codex-log.mjs";
+import { zeroTokens } from "../../../skills/agent-usage/scripts/lib/pricing.mjs";
 import { emptySummary, issueOf } from "../../../skills/agent-usage/scripts/lib/session.mjs";
 import { buildRuns, inferTurnEnds } from "../../../skills/agent-usage/scripts/lib/timeline.mjs";
 
 const T = (min: number) => `2026-10-01T00:${String(min).padStart(2, "0")}:00.000Z`;
-const ms = (min: number) => Date.parse(T(min));
+// 60 分以上は T の書式に収まらないので、0 分からの経過で求める
+const ms = (min: number) => Date.parse(T(0)) + min * 60000;
 const jsonl = (rows: object[]) => rows.map((r) => JSON.stringify(r)).join("\n");
 
 const human = (min: number, text = "やって") => ({
@@ -401,6 +403,41 @@ describe("buildRuns", () => {
   const summary = (parts: Partial<ReturnType<typeof emptySummary>>) => ({
     ...emptySummary("claude-code", "s"),
     ...parts,
+  });
+
+  test("重なった人の待ち（並列のツール呼び出し）では、すべて終わってから次の run を始める", () => {
+    const runs = buildRuns(
+      summary({
+        prompts: [ms(0)],
+        humanWaits: [
+          { start: ms(1), end: ms(2), reason: "permission" },
+          { start: ms(1), end: ms(10), reason: "permission" },
+        ],
+        turnEnds: [ms(12)],
+        lastTs: ms(12),
+      }),
+    );
+    expect(runs.map((r) => [r.start, r.end])).toEqual([
+      [ms(0), ms(1)],
+      [ms(10), ms(12)],
+    ]);
+  });
+
+  test("完了の記録が抜けたターンの後の指示は、直前の応答から 30 分を超えていれば区切る", () => {
+    const m = (t: number) => ({ key: `m${t}`, ts: ms(t), model: "x", tokens: zeroTokens() });
+    const runs = buildRuns(
+      summary({
+        prompts: [ms(0), ms(60), ms(300)],
+        turnEnds: [ms(5), ms(305)],
+        messages: [m(1), m(61), m(62), m(301)],
+        lastTs: ms(305),
+      }),
+    );
+    expect(runs.map((r) => [r.start, r.end])).toEqual([
+      [ms(0), ms(5)],
+      [ms(60), ms(62)],
+      [ms(300), ms(305)],
+    ]);
   });
 
   test("指示から完了までを 1 つの run にし、次の指示で次の run を始める", () => {

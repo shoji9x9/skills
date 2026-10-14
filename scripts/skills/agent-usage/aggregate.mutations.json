@@ -72,6 +72,39 @@
       "expect_failing": [
         "停止の分類 report: 人ごとの停止は、その人が最後に記録した時刻（observed_at）で打ち切る"
       ]
+    },
+    {
+      "id": "partial-unknown-hidden",
+      "why": "単価の一部が不明な行を単価不明に数えない",
+      "file": "skills/agent-usage/scripts/lib/report.mjs",
+      "find": "    if (cost === null || sources.includes(\"unknown\")) {",
+      "replace": "    if (cost === null) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "停止の分類 report: 単価のある応答と単価不明の応答が混在する行も、単価不明に数える"
+      ]
+    },
+    {
+      "id": "billing-fails-coverage",
+      "why": "課金 API の失敗で coverage を失敗にする",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "  return failures.filter((f) => !f.startsWith(\"billing\") && !f.startsWith(\"artifacts\"));",
+      "replace": "  return [...failures];",
+      "occurrences": 1,
+      "expect_failing": [
+        "停止の分類 coverage は、課金 API と artifact の失敗だけなら判定不能にしない"
+      ]
+    },
+    {
+      "id": "formula-unsafe",
+      "why": "report の CSV の数式を文字列にしない",
+      "file": "skills/agent-usage/scripts/lib/csv.mjs",
+      "find": "          return quote(opts.formulaSafe ? formulaSafe(text) : text);",
+      "replace": "          return quote(text);",
+      "occurrences": 1,
+      "expect_failing": [
+        "CSV の数式 report の CSV では、数式として読まれる値の先頭に ' を付け、数は変えない"
+      ]
     }
   ]
 }

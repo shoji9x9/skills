@@ -22,6 +22,9 @@
  * @typedef {{ t: number; order: number; type: "prompt" | "hwStart" | "hwEnd" | "turnEnd" | "auto" }} TimelineEvent
  */
 
+/** 応答の途中の指示を、完了の記録が抜けたターンの後の指示とみなすまでの、直前の応答からの時間。 */
+const STALE_TURN_MS = 30 * 60000;
+
 /** 同じ時刻のイベントを処理する順。完了を先に、始まりを後にする。 */
 const ORDER = { turnEnd: 0, hwStart: 1, hwEnd: 2, auto: 3, prompt: 4 };
 
@@ -73,9 +76,23 @@ export function buildRuns(s) {
   const runs = [];
   /**
    * 状態を 1 つのオブジェクトに持つ（閉じた関数の中で書き換える let は、型の絞り込みが追えないため）。
-   * @type {{ run: Run | null; working: boolean; lastTurnEnd: number | null; waitMs: number }}
+   * @type {{ run: Run | null; working: boolean; lastTurnEnd: number | null; waitMs: number; waiting: number }}
    */
-  const st = { run: null, working: false, lastTurnEnd: null, waitMs: 0 };
+  const st = { run: null, working: false, lastTurnEnd: null, waitMs: 0, waiting: 0 };
+  const msgTimes = s.messages.map((m) => m.ts).sort((a, b) => a - b);
+  /**
+   * t より前で最後の応答の時刻（無ければ null）。
+   * @param {number} t
+   * @returns {number | null}
+   */
+  const lastMessageBefore = (t) => {
+    let found = null;
+    for (const m of msgTimes) {
+      if (m >= t) break;
+      found = m;
+    }
+    return found;
+  };
 
   /** @param {number} end */
   const close = (end) => {
@@ -102,11 +119,21 @@ export function buildRuns(s) {
 
   for (const e of events) {
     switch (e.type) {
-      case "prompt":
-        if (st.run && st.working) break;
+      case "prompt": {
+        if (st.run && st.working) {
+          // 応答の途中の指示は区切らない。ただし、直前の応答から STALE_TURN_MS より長く何も無ければ、
+          // 完了の記録が抜けた（API のエラー・プロセスの終了など）とみなし、最後の応答で閉じる
+          const lastMsg = lastMessageBefore(e.t);
+          const since = lastMsg ?? st.run.start;
+          if (e.t - since <= STALE_TURN_MS) break;
+          close(Math.max(st.run.start, since));
+          open(e.t, "prompt");
+          break;
+        }
         if (st.run) close(st.lastTurnEnd ?? e.t);
         open(e.t, "prompt");
         break;
+      }
       case "auto":
         if (!st.run) {
           open(e.t, "auto");
@@ -121,10 +148,15 @@ export function buildRuns(s) {
         st.lastTurnEnd = e.t;
         break;
       case "hwStart":
+        // 並列のツール呼び出しで人の待ちが重なることがあるので、重なりの深さで数える
+        st.waiting += 1;
         if (st.run) close(e.t);
         st.working = false;
         break;
       case "hwEnd":
+        st.waiting = Math.max(0, st.waiting - 1);
+        if (st.waiting > 0) break;
+        if (st.run) close(e.t);
         open(e.t, "human-wait");
         break;
     }

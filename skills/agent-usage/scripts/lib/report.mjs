@@ -299,10 +299,12 @@ export function buildReport(allRows, o) {
       }
     }
     for (const src of sources) u.sources.add(src);
-    if (cost === null) {
+    // 単価のある応答と単価不明の応答が混在する行（cost_source に unknown を含む）も、費用が足りないので単価不明に数える
+    if (cost === null || sources.includes("unknown")) {
       u.unknown += 1;
       unknownCostBuckets += 1;
-    } else {
+    }
+    if (cost !== null) {
       u.cost += cost;
       const dk = `${date}\u0000${model}`;
       daily.set(dk, (daily.get(dk) ?? 0) + cost);
@@ -596,9 +598,9 @@ export function runReport(o) {
   const outDir = o.out ?? join(dir, "report", day);
   mkdirSync(outDir, { recursive: true });
   const written = [
-    [join(outDir, "usage.csv"), toCsv(USAGE_COLUMNS, data.usage)],
-    [join(outDir, "intervals.csv"), toCsv(INTERVAL_COLUMNS, data.intervals)],
-    [join(outDir, "reviews.csv"), toCsv(REVIEW_COLUMNS, data.reviews)],
+    [join(outDir, "usage.csv"), toCsv(USAGE_COLUMNS, data.usage, { formulaSafe: true })],
+    [join(outDir, "intervals.csv"), toCsv(INTERVAL_COLUMNS, data.intervals, { formulaSafe: true })],
+    [join(outDir, "reviews.csv"), toCsv(REVIEW_COLUMNS, data.reviews, { formulaSafe: true })],
     [join(outDir, "index.html"), renderHtml(data)],
   ];
   for (const [p, text] of written) writeFileSync(p, text);

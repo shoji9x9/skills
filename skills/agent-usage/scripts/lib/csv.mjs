@@ -10,19 +10,31 @@ function quote(value) {
 }
 
 /**
+ * =・+・-・@ で始まる値（数を除く）の先頭に ' を付け、表計算ソフトが数式として実行しないようにする。
+ * ブランチ名・PR の作者・check の名前など、他の人が決められる値が入るため。
+ * @param {string} value
+ * @returns {string}
+ */
+export function formulaSafe(value) {
+  return /^[=+\-@\t\r]/.test(value) && !/^[+-]?\d+(\.\d+)?$/.test(value) ? `'${value}` : value;
+}
+
+/**
  * 列の順を決めて行を CSV にする。行に無い列は空にする。
  * @param {readonly string[]} columns
  * @param {readonly Record<string, string | number | boolean | null | undefined>[]} rows
+ * @param {{ formulaSafe?: boolean }} [opts] formulaSafe: 表計算ソフトで開く CSV（report の出力）で、数式として読まれる値を文字列にする
  * @returns {string}
  */
-export function toCsv(columns, rows) {
+export function toCsv(columns, rows, opts = {}) {
   const lines = [columns.map(quote).join(",")];
   for (const row of rows) {
     lines.push(
       columns
         .map((c) => {
           const v = row[c];
-          return quote(v === undefined || v === null ? "" : String(v));
+          const text = v === undefined || v === null ? "" : String(v);
+          return quote(opts.formulaSafe ? formulaSafe(text) : text);
         })
         .join(","),
     );

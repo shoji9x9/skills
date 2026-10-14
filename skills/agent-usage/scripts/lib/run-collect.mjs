@@ -77,6 +77,16 @@ export function githubSince(existing, localRows, now, person) {
 }
 
 /**
+ * 停止の分類に使う段の失敗だけを返す。課金 API と artifact の失敗は費用の行が欠けるだけなので、
+ * その期間を判定不能（coverage が ok でない）にしない。
+ * @param {readonly string[]} failures
+ * @returns {string[]}
+ */
+export function classifyingFailuresOf(failures) {
+  return failures.filter((f) => !f.startsWith("billing") && !f.startsWith("artifacts"));
+}
+
+/**
  * @typedef {object} CollectOptions
  * @property {RepoInfo} repo
  * @property {number} now
@@ -166,6 +176,7 @@ export function runCollect(o) {
     });
     candidates.push(...res.rows);
     githubFailures = res.failures;
+    const classifyingFailures = classifyingFailuresOf(res.failures);
     candidates.push({
       key: `coverage:github:${toIso(since)}:${toIso(now)}`,
       kind: "coverage",
@@ -173,7 +184,12 @@ export function runCollect(o) {
       tz,
       start: toIso(since),
       end: toIso(now),
-      detail: res.failures.length === 0 ? "ok" : `failed:${res.failures.join(" | ").slice(0, 500)}`,
+      // 停止の分類に使う段（PR・Actions の run・外部の CI・自分の login）が取れていれば ok にする。
+      // 課金 API と artifact の失敗は費用の行が欠けるだけなので、その期間を判定不能にしない（失敗は collect の出力に出る）
+      detail:
+        classifyingFailures.length === 0
+          ? "ok"
+          : `failed:${classifyingFailures.join(" | ").slice(0, 500)}`,
     });
   }
 

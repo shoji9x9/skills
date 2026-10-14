@@ -7,7 +7,8 @@
 //   停止の分類       人の活動の幅・CI・レビュー待ち・取得していない期間の優先順位／どれにも当たらない（未活用）。
 
 import { describe, expect, test } from "vitest";
-import { parseCsv, toCsv } from "../../../skills/agent-usage/scripts/lib/csv.mjs";
+import { formulaSafe, parseCsv, toCsv } from "../../../skills/agent-usage/scripts/lib/csv.mjs";
+import { classifyingFailuresOf } from "../../../skills/agent-usage/scripts/lib/run-collect.mjs";
 import {
   parseRepoConfig,
   parseUserConfig,
@@ -196,6 +197,19 @@ describe("明細の重複", () => {
   });
 });
 
+describe("CSV の数式", () => {
+  test("report の CSV では、数式として読まれる値の先頭に ' を付け、数は変えない", () => {
+    expect(formulaSafe("=HYPERLINK(1)")).toBe("'=HYPERLINK(1)");
+    expect(formulaSafe("+cmd")).toBe("'+cmd");
+    expect(formulaSafe("@SUM(A1)")).toBe("'@SUM(A1)");
+    expect(formulaSafe("-x")).toBe("'-x");
+    expect(formulaSafe("-1.5")).toBe("-1.5");
+    expect(formulaSafe("feature/1-x")).toBe("feature/1-x");
+    expect(toCsv(["a"], [{ a: "=1+1" }], { formulaSafe: true })).toBe("a\n'=1+1\n");
+    expect(toCsv(["a"], [{ a: "=1+1" }])).toBe("a\n=1+1\n");
+  });
+});
+
 describe("CSV", () => {
   test("区切り・引用符・改行を含む値を往復できる", () => {
     const rows = [
@@ -344,6 +358,46 @@ describe("停止の分類", () => {
       [iso(5, 45), iso(6), "reviewing"],
     ]);
     expect(r.runHistogram).toEqual([0, 0, 0, 2, 0]);
+  });
+
+  test("coverage は、課金 API と artifact の失敗だけなら判定不能にしない", () => {
+    expect(classifyingFailuresOf(["billing 2026-10-01: 404", "artifacts: 500"])).toEqual([]);
+    expect(classifyingFailuresOf(["pulls: 502", "billing 2026-10-01: 404"])).toEqual([
+      "pulls: 502",
+    ]);
+    expect(classifyingFailuresOf(["check-runs#1: 500", "user: 401"])).toEqual([
+      "check-runs#1: 500",
+      "user: 401",
+    ]);
+  });
+
+  test("report: 単価のある応答と単価不明の応答が混在する行も、単価不明に数える", () => {
+    const base = { observed_at: "2026-10-01T05:00:00.000Z", person: "p-00000001", tz: "UTC" };
+    const rows = [
+      {
+        ...base,
+        key: "u1",
+        kind: "usage",
+        agent: "claude-code",
+        model: "m",
+        start: "2026-10-01T01:00:00.000Z",
+        end: "2026-10-01T02:00:00.000Z",
+        cost_usd: "1.000000",
+        cost_source: "log+unknown",
+      },
+    ];
+    const r = buildReport(rows, {
+      config: parseRepoConfig({}),
+      bundledPricing: {},
+      bundledReviewPricing: {},
+      tz: "UTC",
+      now: Date.parse("2026-10-01T06:00:00Z"),
+      since: null,
+      until: null,
+      recordFiles: 1,
+    });
+    expect(r.unknownCostBuckets).toBe(1);
+    expect(Number(r.usage[0].cost_usd)).toBe(1);
   });
 
   test("report: 人ごとの停止は、その人が最後に記録した時刻（observed_at）で打ち切る", () => {

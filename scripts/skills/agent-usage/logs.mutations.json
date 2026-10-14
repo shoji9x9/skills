@@ -9,10 +9,13 @@
       "id": "mid-turn-prompt-splits",
       "why": "応答の途中の人の指示で run を区切ってしまう",
       "file": "skills/agent-usage/scripts/lib/timeline.mjs",
-      "find": "        if (st.run && st.working) break;",
-      "replace": "        if (false) break;",
+      "find": "        if (st.run && st.working) {",
+      "replace": "        if (false) {",
       "occurrences": 1,
-      "expect_failing": ["buildRuns 応答の途中の指示は区切らない"]
+      "expect_failing": [
+        "buildRuns 応答の途中の指示は区切らない",
+        "buildRuns 完了の記録が抜けたターンの後の指示は、直前の応答から 30 分を超えていれば区切る"
+      ]
     },
     {
       "id": "external-wait-not-counted",
@@ -65,6 +68,28 @@
       "occurrences": 1,
       "expect_failing": [
         "Claude Code のログ 利用者が中断した応答（[Request interrupted by user]）は、指示ではなく応答の完了にする"
+      ]
+    },
+    {
+      "id": "stale-turn-kept",
+      "why": "完了の記録が抜けたターンの後の指示を区切らない",
+      "file": "skills/agent-usage/scripts/lib/timeline.mjs",
+      "find": "          if (e.t - since <= STALE_TURN_MS) break;",
+      "replace": "          break;",
+      "occurrences": 1,
+      "expect_failing": [
+        "buildRuns 完了の記録が抜けたターンの後の指示は、直前の応答から 30 分を超えていれば区切る"
+      ]
+    },
+    {
+      "id": "overlapping-waits",
+      "why": "重なった人の待ちの途中で run を始める",
+      "file": "skills/agent-usage/scripts/lib/timeline.mjs",
+      "find": "        if (st.waiting > 0) break;",
+      "replace": "        void 0;",
+      "occurrences": 1,
+      "expect_failing": [
+        "buildRuns 重なった人の待ち（並列のツール呼び出し）では、すべて終わってから次の run を始める"
       ]
     }
   ]

@@ -36,6 +36,8 @@ export const ARTIFACT_NAMES = ["agent-usage-review-claude", "agent-usage-review-
 /** エージェントの操作とみなす、コマンドの時刻からの幅（コマンドより前・コマンドより後）。 */
 const AGENT_BEFORE_MS = 60000;
 const AGENT_AFTER_MS = 180000;
+/** コミットは、Hook の collect（初回は数分かかる）が終わってから記録されるので、後ろの幅を長く取る。 */
+const AGENT_COMMIT_AFTER_MS = 600000;
 
 /**
  * gh api の呼び出し方。テストで差し替える。
@@ -123,11 +125,12 @@ export function toolOf(bundled, repo, login) {
  * @param {number} t
  * @param {readonly { ts: number; text: string }[]} commands
  * @param {RegExp} pattern
+ * @param {number} [afterMs] コマンドより後の幅
  * @returns {boolean}
  */
-export function nearAgentCommand(t, commands, pattern) {
+export function nearAgentCommand(t, commands, pattern, afterMs = AGENT_AFTER_MS) {
   return commands.some(
-    (c) => pattern.test(c.text) && t >= c.ts - AGENT_BEFORE_MS && t <= c.ts + AGENT_AFTER_MS,
+    (c) => pattern.test(c.text) && t >= c.ts - AGENT_BEFORE_MS && t <= c.ts + afterMs,
   );
 }
 
@@ -778,6 +781,7 @@ export function commitActivityRows(reflog, commands, o) {
         at,
         commands,
         /\bgit\b[^\n]*\b(?:commit|merge|rebase|cherry-pick|revert|pull|am)\b/,
+        AGENT_COMMIT_AFTER_MS,
       )
     )
       continue;
