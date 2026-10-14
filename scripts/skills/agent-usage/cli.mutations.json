@@ -339,7 +339,8 @@
       "expect_failing": [
         "agent-usage のコマンドと Hook この clone で範囲の中に collect していれば、範囲より古いログの行は書かない（していなければ書く）",
         "agent-usage のコマンドと Hook この clone で最後に collect したのが範囲より前なら、範囲より古いログの行も書く",
-        "agent-usage のコマンドと Hook 範囲より古い開始時刻の行でも、読んだ記録に同じ key があって内容が変われば書く"
+        "agent-usage のコマンドと Hook 範囲より古い開始時刻の行でも、読んだ記録に同じ key があって内容が変われば書く",
+        "agent-usage のコマンドと Hook 開始時刻が範囲より古い行は、区切り方が変わっても打ち消さず、使用量を残す"
       ]
     },
     {
@@ -381,7 +382,8 @@
         "agent-usage のコマンドと Hook この clone で初めての collect は、記録の全体を読み、範囲より古い記録済みの行を重ねて書かない",
         "agent-usage のコマンドと Hook この clone で範囲の中に collect していれば、範囲より古いログの行は書かない（していなければ書く）",
         "agent-usage のコマンドと Hook この clone で最後に collect したのが範囲より前なら、範囲より古いログの行も書く",
-        "agent-usage のコマンドと Hook 範囲より古い開始時刻の行でも、読んだ記録に同じ key があって内容が変われば書く"
+        "agent-usage のコマンドと Hook 範囲より古い開始時刻の行でも、読んだ記録に同じ key があって内容が変われば書く",
+        "agent-usage のコマンドと Hook 開始時刻が範囲より古い行は、区切り方が変わっても打ち消さず、使用量を残す"
       ]
     },
     {
