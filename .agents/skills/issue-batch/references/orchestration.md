@@ -215,7 +215,7 @@ CI、すべてのレビュアーの thread と review の本文、再レビュ�
 収束しなければ BLOCKED か FAILED にし、影響をその Issue の中に留められるなら、方針に従って次の Issue に進む。
 
 issue-batch の run では、常に `--defer-decisions` を付けて渡す。`pr-finalize-loop` が人の判断が要るとする指摘は、利用者に確認されず、解決されないまま判断待ちとして返る。
-返った判断待ち（指摘の URL・選択肢・推奨）を manifest に記録し、その Issue を BLOCKED（判断待ち）にして merge に進まない。
+返った判断待ち（指摘の URL・選択肢・推奨）は、issue-batch の側で `id`・論点・決まった後に残る作業（判断を反映して PR を収束させ、merge する）を補って manifest に記録し、その Issue を BLOCKED（判断待ち）にして merge に進まない。
 
 ## merge、close、deployment
 
