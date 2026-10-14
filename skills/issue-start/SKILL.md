@@ -166,7 +166,8 @@ issue-start https://github.com/<owner>/<repo>/issues/220 --pr
     満たせない条件を自分で外さず、利用者に確認する（`waived` と `deferred` には利用者の承認が要る）。呼び出し元が判断待ちの記録を持つなら、確認の代わりに `pending-decision` にして記録に積む。
     検査の出力の `closable` が `false` なら、PR の本文で Issue を閉じない（`Refs #<番号>` と書く）。
     **受け入れ条件を変えた（`waived` や `deferred` にした、コメントで改訂した）なら、似た Issue を見直すかを利用者に確かめる。**
-    外す承認を求めるときは、似た Issue の候補を先に探し、同じ確認に載せて 1 つの判断にする。手順は同じ [`references/acceptance.md`](references/acceptance.md) の「受け入れ条件を変えたとき」で定義する。他の Issue は、承認を得てから変える
+    外す承認を求めるときは、似た Issue の候補を先に探し、同じ確認に載せて 1 つの判断にする。
+    呼び出し元が判断待ちの記録を持つなら、見直すかも確認せずに、外す承認と同じ判断待ちに積む。手順は同じ [`references/acceptance.md`](references/acceptance.md) の「受け入れ条件を変えたとき」で定義する。他の Issue は、承認を得てから変える
 11. **push する直前に、リモートの PR のベースブランチが進んでいないかを確かめる**（`--pr` だけ）
     - step 7 で規約から決めたベースブランチを、これから作る PR のベースとして使い、`git fetch origin '<PR ベースブランチ>'` を実行する。
       リポジトリのデフォルトブランチと同じだと決めつけない。既存の PR を続ける場合は、`gh pr view --json baseRefName` で実際の PR のベースを取得し直して使う
