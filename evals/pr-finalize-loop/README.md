@@ -90,4 +90,4 @@ diff tests/pr-finalize-loop/iteration-<前回>/benchmark.md \
 
 ## 区別できない eval
 
-- eval 20（`--defer-decisions`）は、フラグの名前から振る舞いを推測できるので without_skill も pass する。Delta には寄与せず、判断待ちの扱いが消えたり食い違ったりした後退を検出するために置く。
+- eval 20（`--defer-decisions`）のうち、確認を送らない・解決せずに残す・判断待ちとして報告する assertion は、フラグの名前から推測できるので without_skill も pass する。これらは判断待ちの扱いが消えたり食い違ったりした後退を検出するために置く。
