@@ -57,13 +57,16 @@ export function lastCollectPath(commonDir) {
 /**
  * @param {string} path
  * @param {string} person
+ * @param {number} now
  * @returns {number | null} 読めなければ null（範囲の中で collect していないとして扱い、行をすべて書く）
  */
-function loadLastCollect(path, person) {
+function loadLastCollect(path, person, now) {
   if (!existsSync(path)) return null;
   try {
     const raw = JSON.parse(readFileSync(path, "utf8"));
-    return isRecord(raw) && typeof raw[person] === "string" ? parseTime(raw[person]) : null;
+    const t = isRecord(raw) && typeof raw[person] === "string" ? parseTime(raw[person]) : null;
+    // 今より後の時刻（時計が進んでいたときに保存した値）は信じない
+    return t !== null && t <= now ? t : null;
   } catch {
     return null;
   }
@@ -85,8 +88,6 @@ function saveLastCollect(path, person, now) {
       // JSON として読めなければ作り直す（読めないときは、次の collect がすべての行を書くだけ）
     }
   }
-  const prev = typeof raw[person] === "string" ? parseTime(raw[person]) : null;
-  if (prev !== null && prev >= now) return;
   writeFileAtomic(path, `${JSON.stringify({ ...raw, [person]: toIso(now) }, null, 2)}\n`);
 }
 
@@ -234,6 +235,7 @@ function ghLoginError(host, env) {
  * @property {string} githubSkipReason GitHub を取得しなかった理由（取得したなら空）
  * @property {number} keyConflicts 同じ key で内容の違う行の数（0 でなければ行の作り方の不具合）
  * @property {number} skippedFiles 範囲より古いので読まなかった記録のファイルの数
+ * @property {number} olderRowsSkipped 開始時刻が範囲より古いので書かなかった行の数
  */
 
 /**
@@ -279,12 +281,18 @@ export function runCollect(o) {
           repo.root,
         ) !== null,
     );
+  const personFiles = branchFiles(personDir, label);
+  const githubFiles = branchFiles(githubDir, label);
+  // 範囲に関わらず読むのは、書き足す候補（このブランチの最後のファイル）だけ。前のファイルは範囲の判定に任せる
   /** @type {Set<string>} */
   const keep = new Set();
-  /** @param {string} d */
-  const appendTarget = (d) => {
-    const files = branchFiles(d, label);
-    for (const f of files) keep.add(f);
+  for (const f of [personFiles.at(-1), githubFiles.at(-1)]) if (f !== undefined) keep.add(f);
+  /**
+   * 書き足す先。git を起動するので、書く行があるときだけ呼ぶ
+   * @param {string} d
+   * @param {readonly string[]} files
+   */
+  const appendTarget = (d, files) => {
     const last = files[files.length - 1];
     if (last !== undefined && !published(last)) return last;
     // 新しいファイルは、デフォルトブランチに入ったファイル（このブランチの最後のファイル）より後に並べる。
@@ -292,8 +300,6 @@ export function runCollect(o) {
     const t = last === undefined ? now : Math.max(now, (fileStampTime(last) ?? now) + 1000);
     return join(d, `${fileStamp(t)}-${label}.csv`);
   };
-  const personTarget = appendTarget(personDir);
-  const githubFileTarget = appendTarget(githubDir);
   const read = readRecords(recordsDir, { since: windowStart, keep });
   const existing = latestByKey(read.rows);
   // 範囲より古い行は、範囲の外のファイルにあって読んでいないので、書くと重複する。
@@ -301,7 +307,7 @@ export function runCollect(o) {
   // （重複は report が key でまとめる）。記録の行では決めない。別のマシン（clone）の行が範囲の中にあっても、
   // このマシンのログにある古い行はまだ書いていないことがあるため
   const lastPath = lastCollectPath(repo.commonDir);
-  const last = loadLastCollect(lastPath, person);
+  const last = loadLastCollect(lastPath, person, now);
   const collectedInWindow = last !== null && last >= windowStart;
   const lowerBound = collectedInWindow ? windowStart : Number.NEGATIVE_INFINITY;
 
@@ -377,10 +383,13 @@ export function runCollect(o) {
     else if (signature(prev) !== signature(r)) conflicts += 1;
   }
   // 既に読んだ key の行は、前の内容と比べられるので、範囲より古くても内容が変わっていれば書く
+  let olderRowsSkipped = 0;
   const fresh = changedRows([...unique.values()], existing).filter((r) => {
     if (existing.has(r.key ?? "")) return true;
     const t = parseTime(r.start);
-    return t === null || t >= lowerBound;
+    if (t === null || t >= lowerBound) return true;
+    olderRowsSkipped += 1;
+    return false;
   });
   const observed = toIso(now);
   for (const r of fresh) r.observed_at = observed;
@@ -388,8 +397,10 @@ export function runCollect(o) {
   const githubRows = fresh.filter((r) => GITHUB_KINDS.includes(r.kind ?? ""));
   /** @type {string[]} */
   const written = [];
-  if (personRows.length > 0) written.push(appendBranchFile(personTarget, personRows));
-  if (githubRows.length > 0) written.push(appendBranchFile(githubFileTarget, githubRows));
+  if (personRows.length > 0)
+    written.push(appendBranchFile(appendTarget(personDir, personFiles), personRows));
+  if (githubRows.length > 0)
+    written.push(appendBranchFile(appendTarget(githubDir, githubFiles), githubRows));
   saveLastCollect(lastPath, person, now);
   return {
     person,
@@ -405,5 +416,6 @@ export function runCollect(o) {
     githubSkipReason,
     keyConflicts: conflicts,
     skippedFiles: read.skipped,
+    olderRowsSkipped,
   };
 }

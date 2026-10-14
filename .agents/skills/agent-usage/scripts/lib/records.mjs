@@ -19,7 +19,6 @@ import {
   writeFileSync,
 } from "node:fs";
 import { basename, dirname, join, relative, sep } from "node:path";
-import { writeFileAtomic } from "./atomic.mjs";
 import { parseCsv, toCsv } from "./csv.mjs";
 import { COLUMNS, contentSignature, isKind, signature } from "./rows.mjs";
 import { parseTime } from "./time.mjs";
@@ -72,6 +71,8 @@ export function fileStampTime(path) {
 
 /** 最後の行を探すために、ファイルの末尾から読む量。これに収まらない行は、判定できないとしてファイル全体を読む。 */
 const TAIL_BYTES = 16384;
+/** 見出しの 1 行を読むために、ファイルの先頭から読む量。 */
+const HEAD_BYTES = 2048;
 
 /**
  * ファイルの最後の行の observed_at を、見出しと末尾だけを読んで返す。判定できなければ null（呼び出し側はファイル全体を読む）。
@@ -83,8 +84,9 @@ export function lastObservedAt(path) {
   try {
     const size = fstatSync(fd).size;
     const len = Math.min(size, TAIL_BYTES);
-    const head = Buffer.alloc(len);
-    readSync(fd, head, 0, len, 0);
+    // 見出しの 1 行は短い（列の名前だけ）ので、先頭は少しだけ読む
+    const head = Buffer.alloc(Math.min(size, HEAD_BYTES));
+    readSync(fd, head, 0, head.length, 0);
     const tail = Buffer.alloc(len);
     readSync(fd, tail, 0, len, size - len);
     const headText = head.toString("utf8");
@@ -271,6 +273,8 @@ export function appendBranchFile(path, rows) {
   /** @type {Set<string>} */
   const known = new Set(COLUMNS);
   const extra = [...new Set(prevRows.flatMap((r) => Object.keys(r)))].filter((c) => !known.has(c));
-  writeFileAtomic(path, toCsv([...COLUMNS, ...extra], [...prevRows, ...rows]));
+  // 一時ファイルを records/ の中に作らずに書き直す（中断して残ると、Hook の git add が stage してしまう）。改行は既存のファイルに合わせる
+  const rewritten = toCsv([...COLUMNS, ...extra], [...prevRows, ...rows]);
+  writeFileSync(path, crlf ? rewritten.replace(/\n/g, "\r\n") : rewritten);
   return path;
 }

@@ -562,7 +562,10 @@ describe("agent-usage のコマンドと Hook", () => {
         : {}),
     }));
     writeFileSync(join(logDir, "s-old.jsonl"), old.map((l) => JSON.stringify(l)).join("\n"));
-    expect(cli("collect").status).toBe(0);
+    const skipped = cli("collect");
+    expect(skipped.status).toBe(0);
+    // 書かなかった行の件数を出す（取りこぼしに気づけるように）
+    expect(skipped.stdout).toMatch(/開始時刻が範囲より古いので書かなかった行: [1-9]/);
     const records = join(repo, ".agent-usage", "records");
     const person = readdirSync(records).find((d) => d.startsWith("p-")) ?? "";
     const branches = join(records, person, "branches");
@@ -613,6 +616,18 @@ describe("agent-usage のコマンドと Hook", () => {
     const saved = readState();
     const person = Object.keys(saved)[0] ?? "";
     expect(saved[person]).toBe("2026-10-01T12:00:00.000Z");
+    // 時計が進んでいたときに保存した、今より後の時刻は信じない（範囲の中で collect していないとして扱う）
+    writeFileSync(state, JSON.stringify({ [person]: "2030-01-01T00:00:00.000Z" }));
+    const old0 = logLines.map((l) => ({
+      ...l,
+      timestamp: l.timestamp.replace("2026-10-01", "2026-07-10"),
+      ...(l.message && "id" in l.message
+        ? { message: { ...l.message, id: `future-${l.message.id}` } }
+        : {}),
+    }));
+    writeFileSync(join(logDir, "s-future.jsonl"), old0.map((l) => JSON.stringify(l)).join("\n"));
+    expect(cli("collect").status).toBe(0);
+    expect(readState()[person]).toBe("2026-10-01T12:00:00.000Z");
     // 最後に collect したのが範囲より前だったことにする
     writeFileSync(state, JSON.stringify({ [person]: "2026-07-01T00:00:00.000Z" }));
     // 前回の collect の後（範囲より前）のセッションのログを足す
@@ -630,6 +645,7 @@ describe("agent-usage のコマンドと Hook", () => {
       .map((f) => readFileSync(join(branches, f), "utf8"))
       .join("");
     expect(text).toContain("usage:claude-code:s-old:");
+    expect(text).toContain("usage:claude-code:s-future:");
     expect(readState()[person]).toBe("2026-10-01T12:00:00.000Z");
   });
 
