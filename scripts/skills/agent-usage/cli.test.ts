@@ -8,12 +8,23 @@
 //   判断           未決定（止める）／記録しない（通す）／記録する（collect して stage し、通す）。
 
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { commitCwd, isGitCommit } from "../../../skills/agent-usage/scripts/lib/gate.mjs";
+import { parseCsv, toCsv } from "../../../skills/agent-usage/scripts/lib/csv.mjs";
 import { encodeProjectPath } from "../../../skills/agent-usage/scripts/lib/discover.mjs";
+import { COLUMNS } from "../../../skills/agent-usage/scripts/lib/rows.mjs";
 import { githubTarget } from "../../../skills/agent-usage/scripts/lib/run-collect.mjs";
+import { branchLabel, lastObservedAt } from "../../../skills/agent-usage/scripts/lib/records.mjs";
 import { makeTempDir } from "../../lib/test-tmpdir.ts";
 
 const SCRIPTS = join(import.meta.dirname, "../../../skills/agent-usage/scripts");
@@ -188,7 +199,7 @@ function setup() {
       encoding: "utf8",
       input: JSON.stringify({ cwd, tool_input: { command } }),
     });
-  return { tmp, repo, git, cli, cliWith, gate };
+  return { tmp, repo, git, cli, cliWith, gate, logDir: dir, logLines: lines };
 }
 
 describe("agent-usage のコマンドと Hook", () => {
@@ -223,32 +234,30 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(first.status).toBe(0);
     expect(first.stdout).toMatch(/新しい行: \d+/);
     const staged = git("diff", "--cached", "--name-only").trim().split("\n");
-    expect(
-      staged.some((p) => /^\.agent-usage\/records\/p-[0-9a-f]{8}\/\d{8}T\d{6}Z-5\.csv$/.test(p)),
-    ).toBe(true);
-    // 新しいログが増えたら、Hook が collect して stage する
+    const file = staged.find((p) =>
+      /^\.agent-usage\/records\/p-[0-9a-f]{8}\/branches\/\d{8}T\d{6}Z-feature-5-x\.csv$/.test(p),
+    );
+    expect(file).toBeDefined();
+    // 新しいログが増えたら、Hook が collect して、同じブランチのファイルに足して stage する
     git("commit", "-q", "-m", "records");
     const dir = readdirSync(join(repo, ".agent-usage", "records"));
     const person = dir.find((d) => d.startsWith("p-")) ?? "";
-    const beforeFiles = readdirSync(join(repo, ".agent-usage", "records", person));
-    const before = beforeFiles.length;
+    const branches = join(repo, ".agent-usage", "records", person, "branches");
+    const beforeText = readFileSync(join(repo, file ?? ""), "utf8");
     const passed = gate("git commit -m y");
     expect(passed.status).toBe(0);
-    // ログは変わっていないので、増えるのはテストが今した commit（reflog の人の commit）の行だけで、それを stage する
-    const newFiles = readdirSync(join(repo, ".agent-usage", "records", person)).filter(
-      (f) => !beforeFiles.includes(f),
-    );
-    expect(newFiles).toHaveLength(1);
-    const added = readFileSync(join(repo, ".agent-usage", "records", person, newFiles[0]), "utf8")
-      .trim()
-      .split("\n")
-      .slice(1);
+    // ログは変わっていないので、増えるのはテストが今した commit（reflog の人の commit）の行だけで、既存の行の後ろに足す
+    expect(readdirSync(branches)).toHaveLength(1);
+    const afterText = readFileSync(join(repo, file ?? ""), "utf8");
+    expect(afterText.startsWith(beforeText)).toBe(true);
+    const added = afterText.slice(beforeText.length).trim().split("\n");
     expect(added.length).toBeGreaterThan(0);
     expect(added.every((l) => l.startsWith("activity:commit:"))).toBe(true);
     expect(git("diff", "--cached", "--name-only")).toMatch(/\.agent-usage\/records\//);
-    // もう一度 Hook を通しても、同じ内容は書き直さない
+    // もう一度 Hook を通しても、同じ内容は書き直さず、ファイルも増えない
     expect(gate("git commit -m z").status).toBe(0);
-    expect(readdirSync(join(repo, ".agent-usage", "records", person))).toHaveLength(before + 1);
+    expect(readFileSync(join(repo, file ?? ""), "utf8")).toBe(afterText);
+    expect(readdirSync(join(repo, ".agent-usage", "records", person))).toEqual(["branches"]);
   });
 
   test("report は report/<日付>/ に HTML と 3 つの CSV を書き、費用と稼働を集計する", () => {
@@ -310,8 +319,8 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(cli("collect").status).toBe(0);
     const records = join(repo, ".agent-usage", "records");
     const person = readdirSync(records).find((d) => d.startsWith("p-")) ?? "";
-    const text = readdirSync(join(records, person))
-      .map((f) => readFileSync(join(records, person, f), "utf8"))
+    const text = readdirSync(join(records, person, "branches"))
+      .map((f) => readFileSync(join(records, person, "branches", f), "utf8"))
       .join("");
     expect(text).toMatch(/usage:claude-code:s-wt:/);
   });
@@ -322,14 +331,507 @@ describe("agent-usage のコマンドと Hook", () => {
     git("switch", "-q", "-c", "feature/5-x");
     expect(cli("collect", "--stage").status).toBe(0);
     git("commit", "-q", "-m", "records");
-    // 手動の collect（--stage なし）が書いた記録は stage されない
+    // 手動の collect（--stage なし）が足した記録は stage されない
+    git("commit", "-q", "--allow-empty", "-m", "work");
     expect(cli("collect").status).toBe(0);
-    const untracked = git("ls-files", "--others", "--", ".agent-usage/records").trim();
-    expect(untracked).not.toBe("");
+    const unstaged = git("diff", "--name-only", "--", ".agent-usage/records").trim();
+    expect(unstaged).not.toBe("");
     expect(gate("git commit -m y").status).toBe(0);
     const staged = git("diff", "--cached", "--name-only").trim().split("\n");
-    for (const f of untracked.split("\n")) expect(staged).toContain(f);
-    expect(existsSync(join(repo, untracked.split("\n")[0]))).toBe(true);
+    for (const f of unstaged.split("\n")) expect(staged).toContain(f);
+    expect(existsSync(join(repo, unstaged.split("\n")[0] ?? ""))).toBe(true);
+  });
+
+  test("2 つのブランチで並行して記録しても、merge で記録のファイルが競合しない", () => {
+    const { repo, git, cli } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("add", ".agent-usage");
+    git("commit", "-q", "-m", "setup");
+    git("switch", "-q", "-c", "feature/5-a");
+    expect(cli("collect", "--stage").status).toBe(0);
+    git("commit", "-q", "-m", "a");
+    expect(cli("collect", "--stage").status).toBe(0);
+    git("commit", "-q", "--allow-empty", "-m", "a2");
+    git("switch", "-q", "main");
+    git("switch", "-q", "-c", "feature/6-b");
+    expect(cli("collect", "--stage").status).toBe(0);
+    git("commit", "-q", "-m", "b");
+    git("merge", "-q", "--no-edit", "feature/5-a");
+    expect(git("status", "--porcelain")).toBe("");
+    const person = readdirSync(join(repo, ".agent-usage", "records")).find((d) =>
+      d.startsWith("p-"),
+    );
+    const files = readdirSync(join(repo, ".agent-usage", "records", person ?? "", "branches"));
+    expect(files.map((f) => f.replace(/^\d{8}T\d{6}Z-/, "")).sort()).toEqual([
+      "feature-5-a.csv",
+      "feature-6-b.csv",
+    ]);
+  });
+
+  test("古い形（collect 1 回につき 1 ファイル）と新しい形が混在しても、report の結果は同じ", () => {
+    const { repo, git, cli } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    expect(cli("collect").status).toBe(0);
+    const records = join(repo, ".agent-usage", "records");
+    const person = readdirSync(records).find((d) => d.startsWith("p-")) ?? "";
+    const branches = join(records, person, "branches");
+    const [name] = readdirSync(branches);
+    const text = readFileSync(join(branches, name ?? ""), "utf8");
+    const report = () => {
+      expect(cli("report").status).toBe(0);
+      const out = join(repo, ".agent-usage", "report", "20261001");
+      return ["usage.csv", "intervals.csv", "reviews.csv"].map((f) =>
+        readFileSync(join(out, f), "utf8"),
+      );
+    };
+    const onlyNew = report();
+    const [header, ...body] = text.trim().split("\n");
+    expect(body.length).toBeGreaterThan(1);
+    const half = Math.ceil(body.length / 2);
+    // 半分を古い形のファイルに移す（混在）
+    writeFileSync(join(branches, name ?? ""), `${[header, ...body.slice(half)].join("\n")}\n`);
+    writeFileSync(
+      join(records, person, "20261001T110000Z-5.csv"),
+      `${[header, ...body.slice(0, half)].join("\n")}\n`,
+    );
+    expect(report()).toEqual(onlyNew);
+    // すべてを古い形のファイルに移す
+    rmSync(branches, { recursive: true });
+    writeFileSync(join(records, person, "20261001T110000Z-5.csv"), text);
+    expect(report()).toEqual(onlyNew);
+  });
+
+  test("collect は範囲より古いファイルを読まず、範囲の外の key を書き直しても report の結果は変わらない", () => {
+    const { repo, git, cli } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    expect(cli("collect").status).toBe(0);
+    const records = join(repo, ".agent-usage", "records");
+    const person = readdirSync(records).find((d) => d.startsWith("p-")) ?? "";
+    const branches = join(records, person, "branches");
+    const [name] = readdirSync(branches);
+    expect(cli("report").status).toBe(0);
+    const out = join(repo, ".agent-usage", "report", "20261001");
+    const baseline = readFileSync(join(out, "usage.csv"), "utf8");
+    // 同じ行を、範囲（60 日）より古い時刻の古い形のファイルに移す
+    const text = readFileSync(join(branches, name ?? ""), "utf8");
+    rmSync(branches, { recursive: true });
+    // そのときに書いた行なので、observed_at も範囲より古い
+    writeFileSync(
+      join(records, person, "20260701T000000Z-5.csv"),
+      text.replaceAll("2026-10-01T12:00:00.000Z", "2026-07-01T00:00:00.000Z"),
+    );
+    const again = cli("collect");
+    expect(again.stdout).toMatch(/範囲より古いので読まなかった記録のファイル: 1/);
+    // 読まなかったので、同じ key の行をもう一度書く（重複）
+    expect(readFileSync(join(branches, readdirSync(branches)[0] ?? ""), "utf8")).toContain(
+      "usage:claude-code:s1:",
+    );
+    expect(cli("report").status).toBe(0);
+    expect(readFileSync(join(out, "usage.csv"), "utf8")).toBe(baseline);
+  });
+
+  test("1 つのブランチで時刻を変えて何回 collect しても、記録のファイルは人別・GitHub のそれぞれ 1 つまで", () => {
+    const { tmp, repo, git, cli, cliWith } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("remote", "add", "origin", "https://github.com/example-org/example-repo.git");
+    git("switch", "-q", "-c", "feature/5-x");
+    // 偽の gh: api は失敗する（取得した期間の行が、取得の失敗として毎回書かれる）
+    const bin = join(tmp, "bin");
+    mkdirSync(bin, { recursive: true });
+    writeFileSync(join(bin, "gh"), "#!/bin/sh\necho fail >&2\nexit 1\n", { mode: 0o755 });
+    const path = `${bin}:${process.env.PATH ?? ""}`;
+    for (const [i, now] of [
+      "2026-10-01T12:00:00Z",
+      "2026-10-01T13:00:00Z",
+      "2026-10-02T09:00:00Z",
+    ].entries()) {
+      git("commit", "-q", "--allow-empty", "-m", `work ${i}`);
+      const r = cliWith({ AGENT_USAGE_NOW: now, PATH: path }, "collect", "--stage");
+      expect(r.status).toBe(0);
+      expect(r.stdout).toMatch(/書いた: /);
+    }
+    const records = join(repo, ".agent-usage", "records");
+    const person = readdirSync(records).find((d) => d.startsWith("p-")) ?? "";
+    expect(readdirSync(join(records, person))).toEqual(["branches"]);
+    expect(readdirSync(join(records, person, "branches"))).toEqual([
+      "20261001T120000Z-feature-5-x.csv",
+    ]);
+    expect(readdirSync(join(records, "_github"))).toEqual([person]);
+    expect(readdirSync(join(records, "_github", person))).toEqual([
+      "20261001T120000Z-feature-5-x.csv",
+    ]);
+  });
+
+  test("デフォルトブランチに入った（squash merge された）ブランチのファイルには足さず、新しいファイルを作る", () => {
+    const { tmp, repo, git, cli, cliWith } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    expect(cli("collect", "--stage").status).toBe(0);
+    // 他のマシンの時計が進んでいたことにする（デフォルトブランチに入るファイルの時刻が、今より後）
+    const records0 = join(repo, ".agent-usage", "records");
+    const person0 = readdirSync(records0).find((d) => d.startsWith("p-")) ?? "";
+    const branches0 = join(records0, person0, "branches");
+    const [created] = readdirSync(branches0);
+    renameSync(join(branches0, created ?? ""), join(branches0, "20261005T000000Z-feature-5-x.csv"));
+    git("add", "-A", ".agent-usage");
+    git("commit", "-q", "-m", "records");
+    // squash merge と同じく、今の内容を、このブランチの commit を祖先に持たない 1 つの commit として origin の main に入れる
+    const origin = join(tmp, "origin.git");
+    spawnSync("git", ["init", "-q", "--bare", origin]);
+    git("remote", "add", "origin", origin);
+    const squash = git("commit-tree", "HEAD^{tree}", "-p", "main", "-m", "squash").trim();
+    git("push", "-q", "origin", `${squash}:refs/heads/main`);
+    git("fetch", "-q", "origin");
+    const records = join(repo, ".agent-usage", "records");
+    const person = readdirSync(records).find((d) => d.startsWith("p-")) ?? "";
+    const branches = join(records, person, "branches");
+    const [first] = readdirSync(branches);
+    const before = readFileSync(join(branches, first ?? ""), "utf8");
+    // 同じブランチで作業を続ける（同じ秒の collect でも、名前が重ならない）
+    git("commit", "-q", "--allow-empty", "-m", "more");
+    expect(cliWith({}, "collect", "--stage").status).toBe(0);
+    const files = readdirSync(branches);
+    expect(files).toHaveLength(2);
+    // 新しいファイルは、デフォルトブランチに入ったファイルより後に並び、次の collect はそれに足す
+    expect(files[1]).toBe("20261005T000001Z-feature-5-x.csv");
+    git("commit", "-q", "--allow-empty", "-m", "more2");
+    expect(cliWith({}, "collect", "--stage").status).toBe(0);
+    expect(readdirSync(branches)).toHaveLength(2);
+    expect(readFileSync(join(branches, first ?? ""), "utf8")).toBe(before);
+    git("commit", "-q", "-m", "more records");
+    // デフォルトブランチを取り込んでも競合しない（git は競合すると 0 以外で終わり、未解決のパスを残す）
+    git("merge", "-q", "--no-edit", "origin/main");
+    expect(git("diff", "--name-only", "--diff-filter=U")).toBe("");
+  });
+
+  test("古い形のファイルは、名前の時刻だけで読むかを決める（末尾を読まない）", () => {
+    const { repo, git, cli } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    expect(cli("collect").status).toBe(0);
+    const records = join(repo, ".agent-usage", "records");
+    const person = readdirSync(records).find((d) => d.startsWith("p-")) ?? "";
+    // 名前の時刻は範囲より古く、最後の行は範囲の中（古い形は後から書き足さないので、この組み合わせは読まない）
+    writeFileSync(
+      join(records, person, "20260701T000000Z-5.csv"),
+      readFileSync(
+        join(records, person, "branches", readdirSync(join(records, person, "branches"))[0] ?? ""),
+        "utf8",
+      ),
+    );
+    expect(cli("collect").stdout).toMatch(/範囲より古いので読まなかった記録のファイル: 1/);
+  });
+
+  test("この clone で初めての collect は、記録の全体を読み、範囲より古い記録済みの行を重ねて書かない", () => {
+    const { repo, git, cli, logDir, logLines } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    // 範囲より古いセッションのログを、古い形のファイルに記録済みにしておく
+    const old = logLines.map((l) => ({
+      ...l,
+      timestamp: l.timestamp.replace("2026-10-01", "2026-07-01"),
+      ...(l.message && "id" in l.message
+        ? { message: { ...l.message, id: `old-${l.message.id}` } }
+        : {}),
+    }));
+    writeFileSync(join(logDir, "s-old.jsonl"), old.map((l) => JSON.stringify(l)).join("\n"));
+    expect(cli("collect").status).toBe(0);
+    const records = join(repo, ".agent-usage", "records");
+    const person = readdirSync(records).find((d) => d.startsWith("p-")) ?? "";
+    const branches = join(records, person, "branches");
+    const [name] = readdirSync(branches);
+    writeFileSync(
+      join(records, person, "20260701T000000Z-5.csv"),
+      readFileSync(join(branches, name ?? ""), "utf8").replaceAll(
+        "2026-10-01T12:00:00.000Z",
+        "2026-07-01T00:00:00.000Z",
+      ),
+    );
+    rmSync(branches, { recursive: true });
+    // 新しい clone と同じ状態（last-collect.json が無い）
+    rmSync(join(repo, ".git", "agent-usage", "last-collect.json"));
+    const again = cli("collect");
+    expect(again.stdout).not.toMatch(/範囲より古いので読まなかった/);
+    // 記録済みの行は書かないので、新しいブランチのファイルは作られないか、古い行を含まない
+    const text = existsSync(branches)
+      ? readdirSync(branches)
+          .map((f) => readFileSync(join(branches, f), "utf8"))
+          .join("")
+      : "";
+    expect(text).not.toContain("usage:claude-code:s-old:");
+  });
+
+  test("デフォルトブランチ自身では、push した後も同じファイルに足す", () => {
+    const { tmp, repo, git, cliWith } = setup();
+    expect(cliWith({}, "setup", "--time-zone", "UTC").status).toBe(0);
+    expect(cliWith({}, "collect", "--stage").status).toBe(0);
+    git("commit", "-q", "-m", "records");
+    const origin = join(tmp, "origin.git");
+    spawnSync("git", ["init", "-q", "--bare", origin]);
+    git("remote", "add", "origin", origin);
+    git("push", "-q", "origin", "HEAD:main");
+    git("fetch", "-q", "origin");
+    git("commit", "-q", "--allow-empty", "-m", "more");
+    expect(cliWith({ AGENT_USAGE_NOW: "2026-10-01T13:00:00Z" }, "collect").status).toBe(0);
+    const records = join(repo, ".agent-usage", "records");
+    const person = readdirSync(records).find((d) => d.startsWith("p-")) ?? "";
+    expect(readdirSync(join(records, person, "branches"))).toHaveLength(1);
+  });
+
+  test("今のブランチのファイルは、範囲より古い時刻でも読み、同じ行を書き直さない", () => {
+    const { repo, git, cli } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    expect(cli("collect").status).toBe(0);
+    const records = join(repo, ".agent-usage", "records");
+    const person = readdirSync(records).find((d) => d.startsWith("p-")) ?? "";
+    const branches = join(records, person, "branches");
+    const [name] = readdirSync(branches);
+    // そのブランチで最後に collect したのも範囲より前だったことにする（名前の時刻と observed_at）
+    const renamed = join(branches, "20260701T000000Z-feature-5-x.csv");
+    const original = readFileSync(join(branches, name ?? ""), "utf8");
+    rmSync(join(branches, name ?? ""));
+    writeFileSync(
+      renamed,
+      original.replaceAll("2026-10-01T12:00:00.000Z", "2026-07-01T00:00:00.000Z"),
+    );
+    const before = readFileSync(renamed, "utf8");
+    const again = cli("collect");
+    expect(again.stdout).toMatch(/新しい行: 0/);
+    expect(readdirSync(branches)).toEqual(["20260701T000000Z-feature-5-x.csv"]);
+    expect(readFileSync(renamed, "utf8")).toBe(before);
+  });
+
+  test("この clone で範囲の中に collect していれば、範囲より古いログの行は書かない（していなければ書く）", () => {
+    const { repo, git, cli, logDir, logLines } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    expect(cli("collect").status).toBe(0);
+    // 範囲（60 日）より古いセッションのログを足す
+    const old = logLines.map((l) => ({
+      ...l,
+      timestamp: l.timestamp.replace("2026-10-01", "2026-07-01"),
+      ...(l.message && "id" in l.message
+        ? { message: { ...l.message, id: `old-${l.message.id}` } }
+        : {}),
+    }));
+    writeFileSync(join(logDir, "s-old.jsonl"), old.map((l) => JSON.stringify(l)).join("\n"));
+    const skipped = cli("collect");
+    expect(skipped.status).toBe(0);
+    // 書かなかった行の件数を出す（取りこぼしに気づけるように）
+    expect(skipped.stdout).toMatch(/開始時刻が範囲より古いので書かなかった行: [1-9]/);
+    const records = join(repo, ".agent-usage", "records");
+    const person = readdirSync(records).find((d) => d.startsWith("p-")) ?? "";
+    const branches = join(records, person, "branches");
+    const read = () =>
+      readdirSync(branches)
+        .map((f) => readFileSync(join(branches, f), "utf8"))
+        .join("");
+    expect(read()).not.toContain("usage:claude-code:s-old:");
+    // 別の clone（別のマシン）で記録した行が範囲の中にあっても、この clone で collect していなければ、古い行も書く
+    rmSync(join(repo, ".git", "agent-usage", "last-collect.json"));
+    expect(cli("collect").status).toBe(0);
+    expect(read()).toContain("usage:claude-code:s-old:");
+  });
+
+  test("名前の時刻が範囲より古くても最後の行が範囲の中のファイルは読み、別のブランチで同じ行を書き直さない", () => {
+    const { repo, git, cli } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    expect(cli("collect").status).toBe(0);
+    const records = join(repo, ".agent-usage", "records");
+    const person = readdirSync(records).find((d) => d.startsWith("p-")) ?? "";
+    const branches = join(records, person, "branches");
+    const [name] = readdirSync(branches);
+    // 長く続いたブランチ: 初めて collect したのは範囲より前で、最近も行を足した（最後の行の observed_at は今）
+    renameSync(join(branches, name ?? ""), join(branches, "20260701T000000Z-feature-5-x.csv"));
+    git("switch", "-q", "-c", "feature/6-y");
+    git("commit", "-q", "--allow-empty", "-m", "work");
+    const again = cli("collect");
+    expect(again.status).toBe(0);
+    expect(again.stdout).not.toMatch(/範囲より古いので読まなかった/);
+    const other = readdirSync(branches).filter((f) => f.endsWith("-feature-6-y.csv"));
+    const text = other.map((f) => readFileSync(join(branches, f), "utf8")).join("");
+    expect(text).not.toContain("usage:claude-code:s1:");
+  });
+
+  test("この clone で最後に collect したのが範囲より前なら、範囲より古いログの行も書く", () => {
+    const { repo, git, cli, logDir, logLines } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    expect(cli("collect").status).toBe(0);
+    const state = join(repo, ".git", "agent-usage", "last-collect.json");
+    const readState = (): Record<string, unknown> => {
+      const v: unknown = JSON.parse(readFileSync(state, "utf8"));
+      if (typeof v !== "object" || v === null)
+        throw new Error("last-collect.json がオブジェクトでない");
+      return Object.fromEntries(Object.entries(v));
+    };
+    const saved = readState();
+    const person = Object.keys(saved)[0] ?? "";
+    expect(saved[person]).toBe("2026-10-01T12:00:00.000Z");
+    // 時計が進んでいたときに保存した、今より後の時刻は信じない（範囲の中で collect していないとして扱う）
+    writeFileSync(state, JSON.stringify({ [person]: "2030-01-01T00:00:00.000Z" }));
+    const old0 = logLines.map((l) => ({
+      ...l,
+      timestamp: l.timestamp.replace("2026-10-01", "2026-07-10"),
+      ...(l.message && "id" in l.message
+        ? { message: { ...l.message, id: `future-${l.message.id}` } }
+        : {}),
+    }));
+    writeFileSync(join(logDir, "s-future.jsonl"), old0.map((l) => JSON.stringify(l)).join("\n"));
+    expect(cli("collect").status).toBe(0);
+    expect(readState()[person]).toBe("2026-10-01T12:00:00.000Z");
+    const branches0 = join(repo, ".agent-usage", "records", person, "branches");
+    expect(
+      readdirSync(branches0)
+        .map((f) => readFileSync(join(branches0, f), "utf8"))
+        .join(""),
+    ).toContain("usage:claude-code:s-future:");
+    // 最後に collect したのが範囲より前だったことにする
+    writeFileSync(state, JSON.stringify({ [person]: "2026-07-01T00:00:00.000Z" }));
+    // 前回の collect の後（範囲より前）のセッションのログを足す
+    const old = logLines.map((l) => ({
+      ...l,
+      timestamp: l.timestamp.replace("2026-10-01", "2026-07-15"),
+      ...(l.message && "id" in l.message
+        ? { message: { ...l.message, id: `old-${l.message.id}` } }
+        : {}),
+    }));
+    writeFileSync(join(logDir, "s-old.jsonl"), old.map((l) => JSON.stringify(l)).join("\n"));
+    expect(cli("collect").status).toBe(0);
+    const branches = join(repo, ".agent-usage", "records", person, "branches");
+    const text = readdirSync(branches)
+      .map((f) => readFileSync(join(branches, f), "utf8"))
+      .join("");
+    expect(text).toContain("usage:claude-code:s-old:");
+    expect(text).toContain("usage:claude-code:s-future:");
+    expect(readState()[person]).toBe("2026-10-01T12:00:00.000Z");
+  });
+
+  test("ブランチのファイルの改行と、知らない列を保って足す", () => {
+    const { repo, git, cli } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    expect(cli("collect").status).toBe(0);
+    const records = join(repo, ".agent-usage", "records");
+    const person = readdirSync(records).find((d) => d.startsWith("p-")) ?? "";
+    const branches = join(records, person, "branches");
+    const file = join(branches, readdirSync(branches)[0] ?? "");
+    const text = readFileSync(file, "utf8");
+    // CRLF のファイル（Windows の core.autocrlf）には、CRLF のまま後ろに足す
+    writeFileSync(file, text.replace(/\n/g, "\r\n"));
+    git("commit", "-q", "--allow-empty", "-m", "work");
+    expect(cli("collect").status).toBe(0);
+    const crlf = readFileSync(file, "utf8");
+    expect(crlf.startsWith(text.replace(/\n/g, "\r\n"))).toBe(true);
+    expect(crlf.replace(/\r\n/g, "")).not.toContain("\n");
+    // 新しい版が足した列（この版が知らない列）の値は、書き直しても落とさない
+    const [header, ...body] = text.trim().split("\n");
+    writeFileSync(
+      file,
+      `${[`${header},future_col`, ...body.map((l) => `${l},keep-me`)].join("\n")}\n`,
+    );
+    git("commit", "-q", "--allow-empty", "-m", "work2");
+    expect(cli("collect").status).toBe(0);
+    const merged = readFileSync(file, "utf8");
+    expect(merged.split("\n")[0]).toMatch(/,future_col$/);
+    expect(merged.split("keep-me").length - 1).toBe(body.length);
+  });
+
+  test.each([
+    ["ASCII の名前はそのまま", "feature/5-x", "feature-5-x"],
+    ["末尾の - を消す名前はハッシュを足す", "feature/x-", /^feature-x-[0-9a-f]{8}$/],
+    ["英数字以外を含む名前はハッシュを足す", "feature/日本語", /^feature-[0-9a-f]{8}$/],
+    ["長い名前は切ってハッシュを足す", `feature/${"a".repeat(300)}`, /^feature-a{83}-[0-9a-f]{8}$/],
+  ])("branchLabel: %s", (_case, branch, expected) => {
+    const label = branchLabel(branch);
+    if (typeof expected === "string") expect(label).toBe(expected);
+    else expect(label).toMatch(expected);
+    expect(label.length).toBeLessThanOrEqual(100);
+  });
+
+  test("範囲より古い開始時刻の行でも、読んだ記録に同じ key があって内容が変われば書く", () => {
+    const { repo, git, cli, logDir, logLines } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    // 範囲より古いセッションのログ（初めての collect なので書く）
+    const old = logLines.map((l) => ({
+      ...l,
+      timestamp: l.timestamp.replace("2026-10-01", "2026-07-01"),
+      ...(l.message && "id" in l.message
+        ? { message: { ...l.message, id: `old-${l.message.id}` } }
+        : {}),
+    }));
+    const write = (lines: unknown[]) =>
+      writeFileSync(join(logDir, "s-old.jsonl"), lines.map((l) => JSON.stringify(l)).join("\n"));
+    write(old);
+    expect(cli("collect").status).toBe(0);
+    const records = join(repo, ".agent-usage", "records");
+    const person = readdirSync(records).find((d) => d.startsWith("p-")) ?? "";
+    const branches = join(records, person, "branches");
+    const read = () =>
+      readdirSync(branches)
+        .map((f) => readFileSync(join(branches, f), "utf8"))
+        .join("")
+        .split("\n")
+        .filter((l) => l.startsWith("usage:claude-code:s-old:"));
+    const before = read();
+    expect(before.length).toBeGreaterThan(0);
+    // 同じセッションの同じ日に応答を足す（同じ key の行の内容が変わる）
+    write([
+      ...old,
+      {
+        type: "assistant",
+        timestamp: "2026-07-01T10:13:00.000Z",
+        cwd: repo,
+        message: {
+          id: "old-m3",
+          model: "claude-opus-5-5",
+          usage: { input_tokens: 5, output_tokens: 5 },
+        },
+      },
+    ]);
+    expect(cli("collect").status).toBe(0);
+    expect(read().length).toBeGreaterThan(before.length);
+  });
+
+  test("英数字以外を含むブランチの名前は、ハッシュを足して別のブランチと別のファイルにする", () => {
+    const { repo, git, cli } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/日本語");
+    expect(cli("collect").status).toBe(0);
+    git("switch", "-q", "main");
+    git("switch", "-q", "-c", "feature/中文");
+    git("commit", "-q", "--allow-empty", "-m", "work");
+    expect(cli("collect").status).toBe(0);
+    const records = join(repo, ".agent-usage", "records");
+    const person = readdirSync(records).find((d) => d.startsWith("p-")) ?? "";
+    const files = readdirSync(join(records, person, "branches"));
+    expect(files).toHaveLength(2);
+    for (const f of files) expect(f).toMatch(/^\d{8}T\d{6}Z-feature-[0-9a-f]{8}\.csv$/);
+  });
+
+  test("見出しの列が今と違うファイルに足すときは、今の列で書き直す", () => {
+    const { repo, git, cli } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    expect(cli("collect").status).toBe(0);
+    const records = join(repo, ".agent-usage", "records");
+    const person = readdirSync(records).find((d) => d.startsWith("p-")) ?? "";
+    const branches = join(records, person, "branches");
+    const file = join(branches, readdirSync(branches)[0] ?? "");
+    // 列の少ない版が書いたファイル（detail の列が無い）
+    const columns = [...COLUMNS].filter((c) => c !== "detail");
+    writeFileSync(file, toCsv(columns, parseCsv(readFileSync(file, "utf8"))));
+    git("commit", "-q", "--allow-empty", "-m", "work");
+    const again = cli("collect");
+    expect(again.status).toBe(0);
+    expect(again.stdout).toMatch(/書いた: /);
+    expect(readFileSync(file, "utf8").split("\n")[0]).toBe(COLUMNS.join(","));
+    expect(cli("report").status).toBe(0);
   });
 
   test("origin が GitHub でなければ、GitHub を取得しない", () => {
@@ -474,5 +976,41 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(bad.stderr).toMatch(/^usage: /m);
     expect(cli("report", "--since").status).toBe(2);
     expect(cli("unknown").status).toBe(2);
+  });
+});
+
+describe("lastObservedAt（読む範囲の判定に使う、最後の行の observed_at）", () => {
+  const write = (text: string) => {
+    const f = join(makeTempDir("agent-usage-tail-"), "20260701T000000Z-x.csv");
+    writeFileSync(f, text);
+    return f;
+  };
+  const header = "key,kind,observed_at,detail\n";
+  test("開けないファイルは null を返す", () => {
+    expect(lastObservedAt(join(makeTempDir("agent-usage-tail-"), "missing.csv"))).toBeNull();
+  });
+  test("最後の行の observed_at を返す", () => {
+    const f = write(
+      `${header}a,usage,2026-07-01T00:00:00.000Z,\nb,usage,2026-09-30T00:00:00.000Z,\n`,
+    );
+    expect(lastObservedAt(f)).toBe(Date.parse("2026-09-30T00:00:00.000Z"));
+  });
+  test.each([
+    ["見出しだけ", header],
+    [
+      "最後の行が末尾の読み取りに収まらない",
+      `${header}a,usage,2026-09-30T00:00:00.000Z,${"x".repeat(40000)}\n`,
+    ],
+    [
+      "最後の行が引用符の中の改行で分かれている",
+      `${header}a,usage,2026-09-30T00:00:00.000Z,"x\ny"\n`,
+    ],
+    [
+      "最後の行が、改行を含む値の途中に見える",
+      `${header}k2,usage,2026-10-01T00:00:00.000Z,"a\nb,c,2025-01-01T00:00:00.000Z,d"\n`,
+    ],
+    ["observed_at が時刻でない", `${header}a,usage,nope,\n`],
+  ])("判定できなければ null を返す（呼び出し側はファイル全体を読む）: %s", (_case, text) => {
+    expect(lastObservedAt(write(text))).toBeNull();
   });
 });

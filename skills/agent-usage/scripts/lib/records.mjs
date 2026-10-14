@@ -1,10 +1,25 @@
 // 明細（.agent-usage/records/）の読み書き。
-//   records/<person-id>/<UTC の時刻>-<Issue 番号かブランチ>.csv   ローカルのログからの行（人別）。
-//   records/_github/<UTC の時刻>-<person-id>.csv                  GitHub から取った行（リポジトリ全体の CI・レビュー・取得した期間）。
-// collect は毎回新しいファイルを作り、既存のファイルは変えない（並行するブランチの merge で競合しない）。
+//   records/<person-id>/branches/<UTC の時刻>-<ブランチ>.csv   ローカルのログからの行（人別・ブランチ別）。
+//   records/_github/<person-id>/<UTC の時刻>-<ブランチ>.csv    GitHub から取った行（リポジトリ全体の CI・レビュー・取得した期間）。
+// 時刻は、そのブランチで初めて collect した時刻。collect は今のブランチのファイルだけを変える
+// （そのブランチのファイルを書くのはそのブランチだけなので、並行するブランチの merge で競合しない）。
+// 古い形（collect 1 回につき 1 ファイル）の records/<person-id>/<時刻>-<…>.csv・records/_github/<時刻>-<…>.csv もそのまま読む。
 
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import { createHash } from "node:crypto";
+import {
+  appendFileSync,
+  closeSync,
+  mkdirSync,
+  existsSync,
+  fstatSync,
+  openSync,
+  readFileSync,
+  readSync,
+  readdirSync,
+  writeFileSync,
+} from "node:fs";
+import { basename, dirname, join, relative, sep } from "node:path";
+import { writeFileAtomic } from "./atomic.mjs";
 import { parseCsv, toCsv } from "./csv.mjs";
 import { COLUMNS, contentSignature, isKind, signature } from "./rows.mjs";
 import { parseTime } from "./time.mjs";
@@ -12,6 +27,9 @@ import { parseTime } from "./time.mjs";
 /** @typedef {import("./rows.mjs").Row} Row */
 
 export const GITHUB_DIR = "_github";
+
+/** 人別の行のうち、ブランチごとのファイルを置くディレクトリ（records/<person-id>/ の下）。 */
+export const BRANCH_DIR = "branches";
 
 /** GitHub から取る行の種類。人別のファイルではなく _github/ に書く。 */
 export const GITHUB_KINDS = ["ci", "review-wait", "review", "coverage"];
@@ -41,14 +59,88 @@ function csvFiles(dir) {
 }
 
 /**
- * records/ のすべての行を読む。種類・key・observed_at の無い行はエラーにする（手で直して不正になった行を、警告なしに捨てない）。
- * @param {string} recordsDir
- * @returns {{ rows: Row[]; files: number }}
+ * ファイル名の先頭の UTC の時刻（`yyyyMMddTHHmmssZ`）を返す。無ければ null。
+ * @param {string} path
+ * @returns {number | null}
  */
-export function readRecords(recordsDir) {
+export function fileStampTime(path) {
+  const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z/.exec(basename(path));
+  if (!m) return null;
+  const [, y, mo, d, h, mi, se] = m.map(Number);
+  return Date.UTC(y ?? 0, (mo ?? 1) - 1, d ?? 1, h ?? 0, mi ?? 0, se ?? 0);
+}
+
+/** 最後の行を探すために、ファイルの末尾から読む量。これに収まらない行は、判定できないとしてファイル全体を読む。 */
+const TAIL_BYTES = 16384;
+/** 見出しの 1 行を読むために、ファイルの先頭から読む量。 */
+const HEAD_BYTES = 2048;
+
+/**
+ * ファイルの最後の行の observed_at を、見出しと末尾だけを読んで返す。判定できなければ null（呼び出し側はファイル全体を読む）。
+ * @param {string} path
+ * @returns {number | null}
+ */
+export function lastObservedAt(path) {
+  /** @type {number | null} */
+  let fd = null;
+  try {
+    fd = openSync(path, "r");
+    const size = fstatSync(fd).size;
+    const len = Math.min(size, TAIL_BYTES);
+    // 見出しの 1 行は短い（列の名前だけ）ので、先頭は少しだけ読む
+    const head = Buffer.alloc(Math.min(size, HEAD_BYTES));
+    readSync(fd, head, 0, head.length, 0);
+    const tail = Buffer.alloc(len);
+    readSync(fd, tail, 0, len, size - len);
+    const headText = head.toString("utf8");
+    const nl = headText.indexOf("\n");
+    const lines = tail.toString("utf8").replace(/\n$/, "").split("\n");
+    // 末尾の 1 行がバッファに収まっていること（先頭の要素は途中から始まりうる）
+    if (nl < 0 || lines.length < 2) return null;
+    // 引用符を含む最後の行は、改行を含む値の途中から始まっている場合と区別できないので、ファイル全体を読む
+    if (lines[lines.length - 1]?.includes('"')) return null;
+    const rows = parseCsv(`${headText.slice(0, nl + 1)}${lines[lines.length - 1]}\n`);
+    return rows.length === 1 ? parseTime(rows[0]?.observed_at) : null;
+  } catch {
+    return null;
+  } finally {
+    if (fd !== null) closeSync(fd);
+  }
+}
+
+/**
+ * @typedef {object} ReadOptions
+ * @property {number} [since] ファイル名の時刻と最後の行の observed_at がどちらもこれより前のファイルは読まない（時刻の無いファイルは読む）。
+ *   ブランチのファイルの名前の時刻は初めて書いた時刻で、後から足した行の時刻は最後の行にしか表れないので、両方を見る
+ * @property {ReadonlySet<string>} [keep] since に関わらず読むファイル（今のブランチのファイル）
+ */
+
+/**
+ * records/ の行を読む。種類・key・observed_at の無い行はエラーにする（手で直して不正になった行を、警告なしに捨てない）。
+ * @param {string} recordsDir
+ * @param {ReadOptions} [opts]
+ * @returns {{ rows: Row[]; files: number; skipped: number }}
+ */
+export function readRecords(recordsDir, opts = {}) {
   /** @type {Row[]} */
   const rows = [];
-  const files = csvFiles(recordsDir);
+  const all = csvFiles(recordsDir);
+  const since = opts.since;
+  const files =
+    since === undefined
+      ? all
+      : all.filter((f) => {
+          if (opts.keep?.has(f)) return true;
+          const t = fileStampTime(f);
+          if (t === null || t >= since) return true;
+          // 古い形（records/<person-id>/<時刻>-….csv・records/_github/<時刻>-….csv）は collect 1 回につき 1 ファイルで、
+          // 後から書き足さないので、名前の時刻だけで決まる
+          if (relative(recordsDir, f).split(sep).length < 3) return false;
+          // collect は行を後ろに足すので、最後の行の observed_at が最も新しい。これも範囲より前なら、中の行はすべて範囲より前に書いた行である。
+          // ファイルの更新時刻は使わない（clone や worktree の作成で、すべてのファイルが今の時刻になる）
+          const last = lastObservedAt(f);
+          return last === null || last >= since;
+        });
   for (const f of files) {
     const where = relative(recordsDir, f);
     let n = 1;
@@ -65,7 +157,7 @@ export function readRecords(recordsDir) {
       rows.push(row);
     }
   }
-  return { rows, files: files.length };
+  return { rows, files: files.length, skipped: all.length - files.length };
 }
 
 /**
@@ -123,17 +215,72 @@ export function safeName(s) {
   return s.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "none";
 }
 
+/** ブランチのファイルの名前に使う形の長さの上限。 */
+const MAX_LABEL = 100;
+
 /**
- * 行を新しいファイルに書く。同じ名前があれば番号を付ける。書いたファイルのパスを返す。
+ * ブランチのファイルの名前に使う形。英数字・`.`・`_`・`-`・`/` だけのブランチの名前は safeName した形にする。
+ * それ以外の文字（日本語など）を含む名前は、safeName で別のブランチと同じ形になりうる（`feature/日本語` と `feature/中文` がどちらも `feature`）。
+ * 同じファイルを 2 つのブランチが書くと merge で競合するので、元の名前のハッシュの先頭 8 文字を足して分ける。
+ * @param {string} branch
+ * @returns {string}
+ */
+export function branchLabel(branch) {
+  const name = safeName(branch);
+  const hash = () => createHash("sha256").update(branch).digest("hex").slice(0, 8);
+  // ファイル名の上限（多くのファイルシステムで 255 バイト）に、時刻と拡張子を足しても収まるようにする
+  if (name.length > MAX_LABEL) return `${name.slice(0, MAX_LABEL - 9)}-${hash()}`;
+  // `/` を `-` にしただけで名前が決まる（他の文字を消したり詰めたりしていない）ときだけ、ハッシュを足さない
+  if (name === branch.replaceAll("/", "-")) return name;
+  return `${name}-${hash()}`;
+}
+
+/**
+ * ブランチのファイル（`<時刻>-<label>.csv`）を、時刻の古い順にすべて返す。
  * @param {string} dir
- * @param {string} base 拡張子を除いたファイル名
+ * @param {string} label branchLabel したブランチの名前
+ * @returns {string[]}
+ */
+export function branchFiles(dir, label) {
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .filter((n) => /^\d{8}T\d{6}Z-/.test(n) && n.slice(17) === `${label}.csv`)
+    .sort()
+    .map((n) => join(dir, n));
+}
+
+/**
+ * ブランチのファイル（path）に行を足す。ファイルが無ければ作る。
+ * 見出しが今の列と同じなら、既存の内容をそのまま残して後ろに足すので、git の差分は足した行だけになる（改行は既存のファイルに合わせる）。
+ * 見出しが違う（列の違う版が書いた）ときだけ、今の列と既存の列を合わせた見出しで全体を書き直す（知らない列の値を落とさない）。
+ * @param {string} path
  * @param {readonly Row[]} rows
  * @returns {string}
  */
-export function writeNewFile(dir, base, rows) {
-  mkdirSync(dir, { recursive: true });
-  let path = join(dir, `${base}.csv`);
-  for (let i = 2; existsSync(path); i += 1) path = join(dir, `${base}-${i}.csv`);
-  writeFileSync(path, toCsv(COLUMNS, rows), { flag: "wx" });
+export function appendBranchFile(path, rows) {
+  const text = toCsv(COLUMNS, rows);
+  if (!existsSync(path)) {
+    // records/ の中に一時ファイルを作らない（中断して残ると、Hook の git add が stage してしまう）
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, text, { flag: "wx" });
+    return path;
+  }
+  const prev = readFileSync(path, "utf8");
+  const crlf = prev.includes("\r\n");
+  const lf = crlf ? prev.replace(/\r\n/g, "\n") : prev;
+  const header = text.slice(0, text.indexOf("\n") + 1);
+  if (lf.startsWith(header)) {
+    const body = text.slice(header.length);
+    const glue = lf.endsWith("\n") ? "" : "\n";
+    appendFileSync(path, crlf ? `${glue}${body}`.replace(/\n/g, "\r\n") : `${glue}${body}`);
+    return path;
+  }
+  const prevRows = parseCsv(lf);
+  /** @type {Set<string>} */
+  const known = new Set(COLUMNS);
+  const extra = [...new Set(prevRows.flatMap((r) => Object.keys(r)))].filter((c) => !known.has(c));
+  // 書き直しは一時ファイルから rename で置き換える（途中で止まっても、行の消えたファイルを残さない）。改行は既存のファイルに合わせる
+  const rewritten = toCsv([...COLUMNS, ...extra], [...prevRows, ...rows]);
+  writeFileAtomic(path, crlf ? rewritten.replace(/\n/g, "\r\n") : rewritten);
   return path;
 }

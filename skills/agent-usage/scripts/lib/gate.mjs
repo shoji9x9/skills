@@ -9,7 +9,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { isRecord } from "./config.mjs";
 import { decisionFor } from "./decisions.mjs";
-import { git, repoInfo } from "./repo.mjs";
+import { defaultBranches, git, repoInfo } from "./repo.mjs";
 import { usageDir } from "./records.mjs";
 import { runCollect } from "./run-collect.mjs";
 import { rememberWorktrees } from "./worktrees.mjs";
@@ -297,8 +297,7 @@ export function gateDecision(input, fallbackCwd, now, script, agent) {
     // 次の collect で、読めない理由がエラーとして出る
   }
   if (repo.branch === "") return { exit: 0, message: "" };
-  const defaults = repo.defaultBranch ? [repo.defaultBranch] : ["main", "master"];
-  if (defaults.includes(repo.branch)) return { exit: 0, message: "" };
+  if (defaultBranches(repo).includes(repo.branch)) return { exit: 0, message: "" };
   /** @type {import("./decisions.mjs").Decision | null} */
   let decision;
   try {

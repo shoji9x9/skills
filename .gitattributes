@@ -1,0 +1,2 @@
+# agent-usage の記録（collect が書く CSV）を、PR の差分で生成物として折りたたむ
+.agent-usage/records/** linguist-generated=true

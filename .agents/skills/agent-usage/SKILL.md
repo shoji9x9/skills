@@ -22,7 +22,7 @@ agent-usage status
 コマンドは、このスキルのディレクトリに置いたまま `node <このスキル>/scripts/agent-usage.mjs <コマンド>` で実行する。利用者のプロジェクトへコピーしない。
 
 - `setup`: 人の ID とタイムゾーンを決め、リポジトリに `.agent-usage/` を作る。Hook の設定は [`references/setup.md`](references/setup.md) に従う
-- `collect`: ログと GitHub から、まだ記録していない分を `.agent-usage/records/` の新しいファイルに書く。`--stage` は書いたファイルを stage し、今のブランチの判断を「記録する」にする
+- `collect`: ログと GitHub から、まだ記録していない分を `.agent-usage/records/` の今のブランチのファイルに足す（ブランチごとに 1 ファイル）。`--stage` は書いたファイルを stage し、今のブランチの判断を「記録する」にする
 - `decline`: 今のブランチの判断を「記録しない」にする。そのブランチでは、コミットの前に確認しない
 - `report`: 記録を集計し、`.agent-usage/report/<yyyyMMdd>/` に `index.html`・`usage.csv`・`intervals.csv`・`reviews.csv` を書く。同じ日に実行し直したら上書きする。期間を省けば、すべての記録を集計する
 - `status`: セットアップの有無・今のブランチの判断・人の設定を表示する

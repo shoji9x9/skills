@@ -1,0 +1,2 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail
+run:claude-code:5b0dcd6e-b906-4a59-80a6-ab4b7d897088:2026-10-14T11:25:57.240Z,run,2026-10-14T13:16:59.097Z,p-cdee4961,claude-code,5b0dcd6e-b906-4a59-80a6-ab4b7d897088,,,2026-10-14T11:25:57.240Z,2026-10-14T13:16:55.611Z,Asia/Tokyo,main,,,,,,,,,,2131497,human-wait;open

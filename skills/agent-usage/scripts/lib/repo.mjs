@@ -57,6 +57,15 @@ export function normalizeRemote(url) {
 }
 
 /**
+ * デフォルトブランチの候補。リモートのデフォルトブランチが分からなければ main と master。
+ * @param {{ defaultBranch: string | null }} repo
+ * @returns {string[]}
+ */
+export function defaultBranches(repo) {
+  return repo.defaultBranch ? [repo.defaultBranch] : ["main", "master"];
+}
+
+/**
  * @typedef {object} RepoInfo
  * @property {string} root 今の作業ツリーのルート
  * @property {string} commonDir git の共通のディレクトリ（worktree で共有する）

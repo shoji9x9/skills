@@ -21,7 +21,7 @@
       "id": "default-branch-blocked",
       "why": "デフォルトブランチのコミットも確認の対象にする",
       "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "  if (defaults.includes(repo.branch)) return { exit: 0, message: \"\" };",
+      "find": "  if (defaultBranches(repo).includes(repo.branch)) return { exit: 0, message: \"\" };",
       "replace": "  if (false) return { exit: 0, message: \"\" };",
       "occurrences": 1,
       "expect_failing": [
@@ -294,6 +294,266 @@
       "replace": "        arg === \"\" || arg === \"-\" || /[$`]/.test(arg) || arg.startsWith(\"~\")",
       "occurrences": 1,
       "expect_failing": ["commitCwd pushd +1 && git commit → /w"]
+    },
+    {
+      "id": "record-window-ignored",
+      "why": "範囲より古いファイルも読む",
+      "file": "skills/agent-usage/scripts/lib/records.mjs",
+      "find": "          if (relative(recordsDir, f).split(sep).length < 3) return false;",
+      "replace": "          return true;",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook collect は範囲より古いファイルを読まず、範囲の外の key を書き直しても report の結果は変わらない",
+        "agent-usage のコマンドと Hook 古い形のファイルは、名前の時刻だけで読むかを決める（末尾を読まない）"
+      ]
+    },
+    {
+      "id": "current-branch-file-skipped",
+      "why": "今のブランチのファイルも、範囲より古ければ読まない",
+      "file": "skills/agent-usage/scripts/lib/records.mjs",
+      "find": "          if (opts.keep?.has(f)) return true;",
+      "replace": "          if (false) return true;",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook 今のブランチのファイルは、範囲より古い時刻でも読み、同じ行を書き直さない"
+      ]
+    },
+    {
+      "id": "lower-bound-ignored",
+      "why": "この人の行が範囲の中にあっても、範囲より古いログの行を書く",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "  const lowerBound = collectedInWindow ? windowStart : Number.NEGATIVE_INFINITY;",
+      "replace": "  const lowerBound = Number.NEGATIVE_INFINITY;",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook この clone で範囲の中に collect していれば、範囲より古いログの行は書かない（していなければ書く）"
+      ]
+    },
+    {
+      "id": "lower-bound-always",
+      "why": "この人の行が範囲の中に無くても、範囲より古いログの行を書かない",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "  const lowerBound = collectedInWindow ? windowStart : Number.NEGATIVE_INFINITY;",
+      "replace": "  const lowerBound = windowStart;",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook この clone で範囲の中に collect していれば、範囲より古いログの行は書かない（していなければ書く）",
+        "agent-usage のコマンドと Hook この clone で最後に collect したのが範囲より前なら、範囲より古いログの行も書く",
+        "agent-usage のコマンドと Hook 範囲より古い開始時刻の行でも、読んだ記録に同じ key があって内容が変われば書く"
+      ]
+    },
+    {
+      "id": "branch-file-not-reused",
+      "why": "collect のたびに新しいファイルを作る",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "    if (last !== undefined && !published(last)) return last;",
+      "replace": "    if (false) return last;",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook 1 つのブランチで時刻を変えて何回 collect しても、記録のファイルは人別・GitHub のそれぞれ 1 つまで",
+        "agent-usage のコマンドと Hook 2 つのブランチで並行して記録しても、merge で記録のファイルが競合しない",
+        "agent-usage のコマンドと Hook Hook は、前に書いて stage されなかった記録も stage する",
+        "agent-usage のコマンドと Hook collect --stage は明細を書いて stage し、記録すると決めたブランチのコミットでは Hook が collect して通す",
+        "agent-usage のコマンドと Hook 見出しの列が今と違うファイルに足すときは、今の列で書き直す",
+        "agent-usage のコマンドと Hook デフォルトブランチに入った（squash merge された）ブランチのファイルには足さず、新しいファイルを作る",
+        "agent-usage のコマンドと Hook デフォルトブランチ自身では、push した後も同じファイルに足す"
+      ]
+    },
+    {
+      "id": "record-tail-ignored",
+      "why": "名前の時刻だけを見て、後から行を足したファイルを読まない",
+      "file": "skills/agent-usage/scripts/lib/records.mjs",
+      "find": "          return last === null || last >= since;",
+      "replace": "          return false;",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook 名前の時刻が範囲より古くても最後の行が範囲の中のファイルは読み、別のブランチで同じ行を書き直さない"
+      ]
+    },
+    {
+      "id": "missing-last-collect-as-collected",
+      "why": "last-collect.json が無いとき（初めての collect・新しい clone）も、範囲の中で collect したとして扱う",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "  const collectedInWindow = last !== null && last >= windowStart;",
+      "replace": "  const collectedInWindow = last === null || last >= windowStart;",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook この clone で初めての collect は、記録の全体を読み、範囲より古い記録済みの行を重ねて書かない",
+        "agent-usage のコマンドと Hook この clone で範囲の中に collect していれば、範囲より古いログの行は書かない（していなければ書く）",
+        "agent-usage のコマンドと Hook この clone で最後に collect したのが範囲より前なら、範囲より古いログの行も書く",
+        "agent-usage のコマンドと Hook 範囲より古い開始時刻の行でも、読んだ記録に同じ key があって内容が変われば書く"
+      ]
+    },
+    {
+      "id": "known-key-update-dropped",
+      "why": "読んだ記録に同じ key があっても、範囲より古い開始時刻の行の更新を書かない",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "    if (existing.has(r.key ?? \"\")) return true;",
+      "replace": "    if (false) return true;",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook 範囲より古い開始時刻の行でも、読んだ記録に同じ key があって内容が変われば書く"
+      ]
+    },
+    {
+      "id": "branch-label-no-hash",
+      "why": "英数字以外を含むブランチの名前にハッシュを足さない",
+      "file": "skills/agent-usage/scripts/lib/records.mjs",
+      "find": "  if (name === branch.replaceAll(\"/\", \"-\")) return name;",
+      "replace": "  if (true) return name;",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook 英数字以外を含むブランチの名前は、ハッシュを足して別のブランチと別のファイルにする",
+        "agent-usage のコマンドと Hook branchLabel: 英数字以外を含む名前はハッシュを足す",
+        "agent-usage のコマンドと Hook branchLabel: 末尾の - を消す名前はハッシュを足す"
+      ]
+    },
+    {
+      "id": "header-mismatch-appended",
+      "why": "見出しが違うファイルにも、書き直さずに後ろへ足す",
+      "file": "skills/agent-usage/scripts/lib/records.mjs",
+      "find": "  if (lf.startsWith(header)) {",
+      "replace": "  if (true) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook 見出しの列が今と違うファイルに足すときは、今の列で書き直す"
+      ]
+    },
+    {
+      "id": "last-collect-not-saved",
+      "why": "この clone の最後の collect の時刻を残さない",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "  saveLastCollect(lastPath, person, now);",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook この clone で範囲の中に collect していれば、範囲より古いログの行は書かない（していなければ書く）",
+        "agent-usage のコマンドと Hook この clone で最後に collect したのが範囲より前なら、範囲より古いログの行も書く",
+        "agent-usage のコマンドと Hook collect は範囲より古いファイルを読まず、範囲の外の key を書き直しても report の結果は変わらない",
+        "agent-usage のコマンドと Hook この clone で初めての collect は、記録の全体を読み、範囲より古い記録済みの行を重ねて書かない",
+        "agent-usage のコマンドと Hook 古い形のファイルは、名前の時刻だけで読むかを決める（末尾を読まない）"
+      ]
+    },
+    {
+      "id": "crlf-ignored",
+      "why": "CRLF のファイルに LF で足す",
+      "file": "skills/agent-usage/scripts/lib/records.mjs",
+      "find": "    appendFileSync(path, crlf ? `${glue}${body}`.replace(/\\n/g, \"\\r\\n\") : `${glue}${body}`);",
+      "replace": "    appendFileSync(path, `${glue}${body}`);",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook ブランチのファイルの改行と、知らない列を保って足す"
+      ]
+    },
+    {
+      "id": "unknown-columns-dropped",
+      "why": "書き直すときに、知らない列の値を落とす",
+      "file": "skills/agent-usage/scripts/lib/records.mjs",
+      "find": "  const rewritten = toCsv([...COLUMNS, ...extra], [...prevRows, ...rows]);",
+      "replace": "  const rewritten = toCsv(COLUMNS, [...prevRows, ...rows]);",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook ブランチのファイルの改行と、知らない列を保って足す"
+      ]
+    },
+    {
+      "id": "long-label-kept",
+      "why": "長いブランチの名前を切らない",
+      "file": "skills/agent-usage/scripts/lib/records.mjs",
+      "find": "  if (name.length > MAX_LABEL) return `${name.slice(0, MAX_LABEL - 9)}-${hash()}`;",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook branchLabel: 長い名前は切ってハッシュを足す"
+      ]
+    },
+    {
+      "id": "published-branch-file-appended",
+      "why": "デフォルトブランチに入ったブランチのファイルにも足す",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "    if (last !== undefined && !published(last)) return last;",
+      "replace": "    if (last !== undefined) return last;",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook デフォルトブランチに入った（squash merge された）ブランチのファイルには足さず、新しいファイルを作る"
+      ]
+    },
+    {
+      "id": "same-second-name-reused",
+      "why": "新しいファイルの時刻を、デフォルトブランチに入ったファイルより後にしない",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "    const t = last === undefined ? now : Math.max(now, (fileStampTime(last) ?? now) + 1000);",
+      "replace": "    const t = now;",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook デフォルトブランチに入った（squash merge された）ブランチのファイルには足さず、新しいファイルを作る"
+      ]
+    },
+    {
+      "id": "old-format-tail-read",
+      "why": "古い形のファイルも末尾の行で読むかを決める",
+      "file": "skills/agent-usage/scripts/lib/records.mjs",
+      "find": "          if (relative(recordsDir, f).split(sep).length < 3) return false;",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook 古い形のファイルは、名前の時刻だけで読むかを決める（末尾を読まない）"
+      ]
+    },
+    {
+      "id": "future-last-collect-trusted",
+      "why": "今より後の時刻の last-collect を信じる",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "    return t !== null && t <= now ? t : null;",
+      "replace": "    return t;",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook この clone で最後に collect したのが範囲より前なら、範囲より古いログの行も書く"
+      ]
+    },
+    {
+      "id": "older-rows-not-counted",
+      "why": "開始時刻が範囲より古いので書かなかった行を数えない",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "    olderRowsSkipped += 1;",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook この clone で範囲の中に collect していれば、範囲より古いログの行は書かない（していなければ書く）"
+      ]
+    },
+    {
+      "id": "first-collect-reads-window",
+      "why": "この clone で初めての collect でも、範囲の中の記録しか読まない",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "    : readRecords(recordsDir);",
+      "replace": "    : readRecords(recordsDir, { since: windowStart, keep });",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook この clone で初めての collect は、記録の全体を読み、範囲より古い記録済みの行を重ねて書かない"
+      ]
+    },
+    {
+      "id": "default-branch-published",
+      "why": "デフォルトブランチ自身でも、push したファイルに足さない",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "    !onDefault &&",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook デフォルトブランチ自身では、push した後も同じファイルに足す"
+      ]
+    },
+    {
+      "id": "quoted-last-line-trusted",
+      "why": "引用符を含む最後の行も、1 行として読む",
+      "file": "skills/agent-usage/scripts/lib/records.mjs",
+      "find": "    if (lines[lines.length - 1]?.includes('\"')) return null;",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "lastObservedAt（読む範囲の判定に使う、最後の行の observed_at） 判定できなければ null を返す（呼び出し側はファイル全体を読む）: 最後の行が、改行を含む値の途中に見える"
+      ]
     }
   ]
 }

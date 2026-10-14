@@ -1,7 +1,8 @@
 // collect の全体: ローカルのログ・人の commit・GitHub から行を作り、まだ記録していない行を records/ に書く。
 
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { writeFileAtomic } from "./atomic.mjs";
 import { fileURLToPath } from "node:url";
 import { isRecord, loadOrCreateUserConfig, loadRepoConfig } from "./config.mjs";
 import { collectLocal } from "./collect.mjs";
@@ -9,21 +10,23 @@ import { collectGitHub, commitActivityRows, makeGh, withoutEnvTokens } from "./g
 import { loadBundledPricing, loadBundledReviewPricing } from "./pricing.mjs";
 import { signature } from "./rows.mjs";
 import {
+  BRANCH_DIR,
   GITHUB_DIR,
   GITHUB_KINDS,
+  appendBranchFile,
+  branchFiles,
+  branchLabel,
   changedRows,
   fileStamp,
+  fileStampTime,
   latestByKey,
   readRecords,
-  safeName,
   usageDir,
-  writeNewFile,
 } from "./records.mjs";
-import { gitOrNull } from "./repo.mjs";
-import { issueOf } from "./session.mjs";
+import { defaultBranches, gitOrNull } from "./repo.mjs";
 import { parseTime, toIso } from "./time.mjs";
 import { rememberWorktrees } from "./worktrees.mjs";
-import { join } from "node:path";
+import { join, relative, sep } from "node:path";
 
 /** @typedef {import("./rows.mjs").Row} Row */
 /** @typedef {import("./repo.mjs").RepoInfo} RepoInfo */
@@ -34,6 +37,59 @@ export const GITHUB_OVERLAP_MS = 86400000;
 
 /** 初めての取得でさかのぼる上限（ローカルのログの最初の時刻がこれより古くても、ここまでにする）。 */
 export const GITHUB_FIRST_LOOKBACK_MS = 60 * 86400000;
+
+/**
+ * collect が読む記録と、書く行の範囲。ファイル名の時刻と最後の行の observed_at がどちらもこれより古いファイルは、重複を除くときに読まない。
+ * 読む行数を記録の総量に依らず一定にするため。GitHub を初めて取る範囲と揃え、前回の取得の期間（coverage）が範囲に入るようにする。
+ * この人が範囲の中で collect していない（久しぶりの collect か初めての collect）ときは、ログに残る分をすべて書く。
+ */
+export const RECORD_WINDOW_MS = GITHUB_FIRST_LOOKBACK_MS;
+
+/**
+ * この clone で人ごとに最後に collect した時刻の置き場所（git の共通のディレクトリ。clone ごとに別で、commit しない）。
+ * @param {string} commonDir
+ * @returns {string}
+ */
+export function lastCollectPath(commonDir) {
+  return join(commonDir, "agent-usage", "last-collect.json");
+}
+
+/**
+ * @param {string} path
+ * @param {string} person
+ * @param {number} now
+ * @returns {number | null} 読めなければ null（範囲の中で collect していないとして扱い、行をすべて書く）
+ */
+function loadLastCollect(path, person, now) {
+  if (!existsSync(path)) return null;
+  try {
+    const raw = JSON.parse(readFileSync(path, "utf8"));
+    const t = isRecord(raw) && typeof raw[person] === "string" ? parseTime(raw[person]) : null;
+    // 今より後の時刻（時計が進んでいたときに保存した値）は信じない
+    return t !== null && t <= now ? t : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * @param {string} path
+ * @param {string} person
+ * @param {number} now
+ */
+function saveLastCollect(path, person, now) {
+  /** @type {Record<string, unknown>} */
+  let raw = {};
+  if (existsSync(path)) {
+    try {
+      const v = JSON.parse(readFileSync(path, "utf8"));
+      if (isRecord(v)) raw = v;
+    } catch {
+      // JSON として読めなければ作り直す（読めないときは、次の collect がすべての行を書くだけ）
+    }
+  }
+  writeFileAtomic(path, `${JSON.stringify({ ...raw, [person]: toIso(now) }, null, 2)}\n`);
+}
 
 /**
  * @returns {Record<string, string>}
@@ -178,6 +234,8 @@ function ghLoginError(host, env) {
  * @property {boolean} githubSkipped
  * @property {string} githubSkipReason GitHub を取得しなかった理由（取得したなら空）
  * @property {number} keyConflicts 同じ key で内容の違う行の数（0 でなければ行の作り方の不具合）
+ * @property {number} skippedFiles 範囲より古いので読まなかった記録のファイルの数
+ * @property {number} olderRowsSkipped 開始時刻が範囲より古いので書かなかった行の数
  */
 
 /**
@@ -202,7 +260,63 @@ export function runCollect(o) {
     ctx,
     useCache: true,
   });
-  const existing = latestByKey(readRecords(join(dir, "records")).rows);
+  const recordsDir = join(dir, "records");
+  const label = repo.branch ? branchLabel(repo.branch) : "detached";
+  const personDir = join(recordsDir, person, BRANCH_DIR);
+  const githubDir = join(recordsDir, GITHUB_DIR, person);
+  const windowStart = now - RECORD_WINDOW_MS;
+  // 書き足す先は、このブランチのファイルのうち最も新しいもの。ただし、デフォルトブランチ（origin）に既に入ったファイルには足さず、
+  // 新しいファイルを作る。squash merge の後に同じブランチで作業を続けて足すと、デフォルトブランチを取り込むときに add/add で競合するため
+  const defaults = defaultBranches(repo);
+  // 今のブランチがデフォルトブランチ自身なら、足しても add/add の競合は起きないので、同じファイルに足し続ける
+  const onDefault = defaults.includes(repo.branch);
+  /** @param {string} f */
+  const published = (f) =>
+    !onDefault &&
+    defaults.some(
+      (b) =>
+        gitOrNull(
+          [
+            "cat-file",
+            "-e",
+            `refs/remotes/origin/${b}:${relative(repo.root, f).split(sep).join("/")}`,
+          ],
+          repo.root,
+        ) !== null,
+    );
+  const personFiles = branchFiles(personDir, label);
+  const githubFiles = branchFiles(githubDir, label);
+  // 範囲に関わらず読むのは、書き足す候補（このブランチの最後のファイル）だけ。前のファイルは範囲の判定に任せる
+  /** @type {Set<string>} */
+  const keep = new Set();
+  for (const f of [personFiles.at(-1), githubFiles.at(-1)]) if (f !== undefined) keep.add(f);
+  /**
+   * 書き足す先。git を起動するので、書く行があるときだけ呼ぶ
+   * @param {string} d
+   * @param {readonly string[]} files
+   */
+  const appendTarget = (d, files) => {
+    const last = files[files.length - 1];
+    if (last !== undefined && !published(last)) return last;
+    // 新しいファイルは、デフォルトブランチに入ったファイル（このブランチの最後のファイル）より後に並べる。
+    // 他のマシンの時計が進んでいて、そのファイルの時刻が今より後でも、次の collect が新しいファイルを書き足す先に選ぶようにする
+    const t = last === undefined ? now : Math.max(now, (fileStampTime(last) ?? now) + 1000);
+    return join(d, `${fileStamp(t)}-${label}.csv`);
+  };
+  const lastPath = lastCollectPath(repo.commonDir);
+  const last = loadLastCollect(lastPath, person, now);
+  const collectedInWindow = last !== null && last >= windowStart;
+  // 範囲の中で collect していなければ（この版にした後の最初の collect・新しい clone）、範囲より古い行もすべて書くので、
+  // 記録も全体を読み、記録済みの行を重ねて書かない
+  const read = collectedInWindow
+    ? readRecords(recordsDir, { since: windowStart, keep })
+    : readRecords(recordsDir);
+  const existing = latestByKey(read.rows);
+  // 範囲より古い行は、範囲の外のファイルにあって読んでいないので、書くと重複する。
+  // この clone で範囲の中に collect していなければ、前回の collect から範囲の始まりまでの行を取りこぼさないよう、すべて書く
+  // （重複は report が key でまとめる）。記録の行では決めない。別のマシン（clone）の行が範囲の中にあっても、
+  // このマシンのログにある古い行はまだ書いていないことがあるため
+  const lowerBound = collectedInWindow ? windowStart : Number.NEGATIVE_INFINITY;
 
   /** @type {Row[]} */
   const candidates = [...local.rows];
@@ -275,19 +389,28 @@ export function runCollect(o) {
     if (!prev) unique.set(r.key ?? "", r);
     else if (signature(prev) !== signature(r)) conflicts += 1;
   }
-  const fresh = changedRows([...unique.values()], existing);
+  // 既に読んだ key の行は、前の内容と比べられるので、範囲より古くても内容が変わっていれば書く
+  let olderRowsSkipped = 0;
+  const fresh = changedRows([...unique.values()], existing).filter((r) => {
+    if (existing.has(r.key ?? "")) return true;
+    // GitHub の行は取得の範囲（since）で決まり、その前に始まった区間（実行中の CI・レビュー待ち）も意図して書く
+    if (GITHUB_KINDS.includes(r.kind ?? "")) return true;
+    const t = parseTime(r.start);
+    if (t === null || t >= lowerBound) return true;
+    olderRowsSkipped += 1;
+    return false;
+  });
   const observed = toIso(now);
   for (const r of fresh) r.observed_at = observed;
   const personRows = fresh.filter((r) => !GITHUB_KINDS.includes(r.kind ?? ""));
   const githubRows = fresh.filter((r) => GITHUB_KINDS.includes(r.kind ?? ""));
-  const stamp = fileStamp(now);
-  const label = issueOf(repo.branch) || safeName(repo.branch || "detached");
   /** @type {string[]} */
   const written = [];
   if (personRows.length > 0)
-    written.push(writeNewFile(join(dir, "records", person), `${stamp}-${label}`, personRows));
+    written.push(appendBranchFile(appendTarget(personDir, personFiles), personRows));
   if (githubRows.length > 0)
-    written.push(writeNewFile(join(dir, "records", GITHUB_DIR), `${stamp}-${person}`, githubRows));
+    written.push(appendBranchFile(appendTarget(githubDir, githubFiles), githubRows));
+  saveLastCollect(lastPath, person, now);
   return {
     person,
     personCreated: user.created,
@@ -301,5 +424,7 @@ export function runCollect(o) {
     githubSkipped,
     githubSkipReason,
     keyConflicts: conflicts,
+    skippedFiles: read.skipped,
+    olderRowsSkipped,
   };
 }

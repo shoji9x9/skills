@@ -86,6 +86,10 @@ function printCollect(r) {
   );
   for (const f of r.written) console.log(`書いた: ${f}`);
   if (r.invalidLines > 0) console.log(`読めなかったログの行: ${r.invalidLines}`);
+  if (r.skippedFiles > 0)
+    console.log(`範囲より古いので読まなかった記録のファイル: ${r.skippedFiles}`);
+  if (r.olderRowsSkipped > 0)
+    console.log(`開始時刻が範囲より古いので書かなかった行: ${r.olderRowsSkipped}`);
   if (r.duplicateMessages > 0)
     console.log(`別のセッションと重複したので数えなかった応答: ${r.duplicateMessages}`);
   if (r.keyConflicts > 0)
