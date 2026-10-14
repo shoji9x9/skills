@@ -109,8 +109,7 @@ run を始めた後（全体 preflight を終え、manifest の作成などの�
   そのうえで、`continue_on_blocked` に従って次の Issue に進む。
   記録するのは、一意な `id`・論点・選択肢・それぞれの根拠と影響・推奨・決まった後に残る作業である（`id` は受け入れ条件の表の `decision_ref` が指す）。利用者が最終報告だけを読んで決められるようにする。
 - 1 つの変更から生じる判断は、1 つの判断待ちにまとめる。
-  受け入れ条件を外す（`waived`・`deferred`）承認が要るなら、`issue-start` の `references/acceptance.md`「受け入れ条件を変えたとき」の候補の検索を先に済ませる。
-  外す承認と似た Issue の見直しを、同じ判断待ちに載せる。分けると、利用者は同じ変更について 2 回判断することになる。
+  受け入れ条件を外す承認と似た Issue の見直しは、`issue-start` の `references/acceptance.md` の手順 3 のとおり、1 つの判断待ちに載せる。
 - 自分で判断して進めたものも、manifest に記録する。記録するのは、判断・根拠・覆すときに戻る工程である。
   当たるのは、受け入れ条件を `met` にした判断（特に `strength: read`）、レビューの指摘を採らなかった判断、
   browser-test や deployment を `not-applicable` にした判断、Issue の記述と今の状態のずれの扱いなどである。
@@ -215,7 +214,9 @@ CI、すべてのレビュアーの thread と review の本文、再レビュ�
 収束しなければ BLOCKED か FAILED にし、影響をその Issue の中に留められるなら、方針に従って次の Issue に進む。
 
 issue-batch の run では、常に `--defer-decisions` を付けて渡す。`pr-finalize-loop` が人の判断が要るとする指摘は、利用者に確認されず、解決されないまま判断待ちとして返る。
-返った判断待ち（指摘の URL・選択肢・推奨）は、issue-batch の側で `id`・論点・決まった後に残る作業（判断を反映して PR を収束させ、merge する）を補って manifest に記録し、その Issue を BLOCKED（判断待ち）にして merge に進まない。
+返った判断待ち（指摘の URL・選択肢とそれぞれの根拠と影響・推奨）には、issue-batch の側で `id`・論点・決まった後に残る作業（判断を反映して PR を収束させ、merge する）を補う。
+そのうえで manifest に記録し、その Issue を BLOCKED（判断待ち）にして merge に進まない。
+pr-finalize-loop が指摘を採らずに根拠を返信して解決したものも、PR のスレッドの返信から集め、「自分で判断して進めたもの」として manifest に記録する。
 
 ## merge、close、deployment
 
