@@ -84,7 +84,11 @@ export function localParts(ms, tz) {
   };
 }
 
-/** タイムゾーンと 15 分の区切りごとの、現地の分と UTC の分の差（オフセットは 15 分の区切りの中では変わらない）。 */
+/** オフセットの単位。どのタイムゾーンのオフセットも、この倍数で、変わるのもこの区切りの境目である。 */
+const QUARTER_HOUR = 900000;
+
+/** タイムゾーンごとに、最後に使った 15 分の区切りと、そこでの現地の分と UTC の分の差（区切りの中では変わらない）。 */
+/** @type {Map<string, { block: number; delta: number }>} */
 const minuteDelta = new Map();
 
 /**
@@ -95,14 +99,14 @@ const minuteDelta = new Map();
  * @returns {number}
  */
 export function localHourStart(ms, tz) {
-  const block = Math.floor(ms / 900000) * 900000;
-  const cacheKey = `${tz}\u0000${block}`;
-  let delta = minuteDelta.get(cacheKey);
-  if (delta === undefined) {
-    delta = (localParts(block, tz).minute - new Date(block).getUTCMinutes() + 60) % 60;
-    minuteDelta.set(cacheKey, delta);
+  const block = Math.floor(ms / QUARTER_HOUR) * QUARTER_HOUR;
+  let cached = minuteDelta.get(tz);
+  if (cached === undefined || cached.block !== block) {
+    const delta = (localParts(block, tz).minute - new Date(block).getUTCMinutes() + 60) % 60;
+    cached = { block, delta };
+    minuteDelta.set(tz, cached);
   }
-  const minute = (new Date(ms).getUTCMinutes() + delta) % 60;
+  const minute = (new Date(ms).getUTCMinutes() + cached.delta) % 60;
   return Math.floor(ms / 60000) * 60000 - minute * 60000;
 }
 
@@ -120,8 +124,8 @@ export function splitByLocalHour(start, end, tz) {
   while (cur < end) {
     const parts = localParts(cur, tz);
     // 次の正時は、15 分刻みで進めて時が変わる位置を探す（オフセットが 15 分単位のタイムゾーンにも合う）
-    let next = Math.floor(cur / 900000) * 900000 + 900000;
-    for (; next < end; next += 900000) {
+    let next = Math.floor(cur / QUARTER_HOUR) * QUARTER_HOUR + QUARTER_HOUR;
+    for (; next < end; next += QUARTER_HOUR) {
       const p = localParts(next, tz);
       if (p.hour !== parts.hour || p.date !== parts.date) break;
     }

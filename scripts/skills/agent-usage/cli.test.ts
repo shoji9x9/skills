@@ -927,6 +927,52 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(again.stdout).not.toMatch(/打ち消した行/);
   });
 
+  test("サブエージェントのログだけが消えたセッションの使用量は、打ち消さない", () => {
+    const { repo, git, cli, logDir } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    // メインのログがあるので、サブエージェントの応答はメインのセッションにまとめて数える（別のモデル・別の時間帯）
+    const sub = join(logDir, "s1", "subagents");
+    mkdirSync(sub, { recursive: true });
+    const line = {
+      type: "assistant",
+      timestamp: "2026-10-01T11:05:00.000Z",
+      cwd: repo,
+      message: {
+        id: "sa2",
+        model: "claude-haiku-5-5",
+        usage: { input_tokens: 7, output_tokens: 0 },
+      },
+    };
+    writeFileSync(join(sub, "agent-b.jsonl"), JSON.stringify(line));
+    expect(cli("collect").status).toBe(0);
+    // サブエージェントのログだけが先に消えても、その使用量は打ち消さない（メインのログはある）
+    rmSync(sub, { recursive: true });
+    const again = cli("collect");
+    expect(again.status).toBe(0);
+    expect(again.stdout).not.toMatch(/打ち消した行/);
+  });
+
+  test("打ち消しの列が空でも 1 でもない記録は、読むときに失敗にする", () => {
+    const { repo, git, cli } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    expect(cli("collect").status).toBe(0);
+    const records = join(repo, ".agent-usage", "records");
+    const person = readdirSync(records).find((d) => d.startsWith("p-")) ?? "";
+    const branches = join(records, person, "branches");
+    const [name] = readdirSync(branches);
+    const file = join(branches, name ?? "");
+    const [header, first, ...rest] = readFileSync(file, "utf8").trim().split("\n");
+    writeFileSync(
+      file,
+      `${[header, `${(first ?? "").replace(/,$/, "")},true`, ...rest].join("\n")}\n`,
+    );
+    const r = cli("report");
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toMatch(/retracted が空でも 1 でもない/);
+  });
+
   test("開始時刻が範囲より古い行は、区切り方が変わっても打ち消さず、使用量を残す", () => {
     const { repo, git, cli, logDir, logLines } = setup();
     expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
