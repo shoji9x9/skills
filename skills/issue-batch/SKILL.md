@@ -99,7 +99,7 @@ BLOCKED や FAILED の影響が Issue の隔離した worktree の中だけで�
 - dirty か BLOCKED の worktree は削除しない。絶対パスと残りの作業を、最終報告に残す。
 - run を始めた後は、利用者に確認を送らない。前提スキル（`issue-start` など）が「利用者に確認する」と定める箇所も同じである。
   例外は、`pr-finalize-loop` の中で人の判断が要るレビューの指摘を確かめる扱いだけで、そのスキルの取り決めに従う。
-  判断が要るものを「無人実行」を理由に飛ばさず、結果を作り上げず、BLOCKED（判断待ち）として記録して次の Issue に進む（`references/orchestration.md`「判断の扱い」）。
+  判断が要るものを「無人実行」を理由に飛ばさず、結果を作り上げず、BLOCKED（判断待ち）として記録し、`continue_on_blocked` に従って次の Issue に進む（`references/orchestration.md`「判断の扱い」）。
 - `kaizen extract --current --record-pending` が現在の transcript を特定できないエージェントでは、候補が 0 件であることを確かめられない。
   transcript を提供しないエージェント（例: Copilot）はこれに当たるので、run が何かを変更する前に BLOCKED にする。検出できるふりをして続けない。
 
