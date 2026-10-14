@@ -170,7 +170,7 @@ GitHub alerts mode で設定の `dismiss` に当たる alert は、ユーザー�
 
 ## 外部 audit findings 入力
 
-Dependabot alerts が作られない状況（例: pnpm 11 の複数ドキュメントの lockfile に Dependabot が対応していない）では、外部 audit findings を入力にして Issue を作る。
+Dependabot alerts が作られない状況（例: pnpm 11 以降の複数ドキュメントの lockfile に Dependabot が対応していない）では、外部 audit findings を入力にして Issue を作る。
 このモードでも、グルーピング・着手可否の判定・既存の Issue と PR を飛ばす処理は、GitHub alerts mode と同じ考え方で行う。
 
 入力の JSON は次の形にする。
@@ -194,7 +194,7 @@ Dependabot alerts が作られない状況（例: pnpm 11 の複数ドキュメ�
       "dependency_paths": ["project>example"],
       "direct_dependencies": ["parent-package"],
       "why_summary": "parent-package > example",
-      "context_note": "Dependabot pnpm 11 support is pending",
+      "context_note": "Dependabot support for pnpm 11+ multi-document lockfiles is pending",
       "manifest": "pnpm-lock.yaml",
       "scope": "unknown"
     }
@@ -215,7 +215,7 @@ Dependabot alerts が作られない状況（例: pnpm 11 の複数ドキュメ�
 - GHSA・advisory の URL（無ければ advisory の title と package）
 - 脆弱な範囲、patched の範囲、今検出されている version
 - dependency path・direct dependency・why summary（ある場合）
-- GitHub の Dependabot alert が無い理由が分かっていれば、その補足（例: Dependabot が pnpm 11 に対応していない）
+- GitHub の Dependabot alert が無い理由が分かっていれば、その補足（例: Dependabot が pnpm 11 以降の lockfile に対応していない）
 
 ## gh メカニクス
 

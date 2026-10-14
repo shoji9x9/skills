@@ -27,10 +27,11 @@ plain transitive は、patched version が分かっていても、バージョ�
 
 ## 手段の優先順
 
-`pnpm update` で上がらないことを確かめても、同じコマンドのオプションを広げただけ（`--depth Infinity`・`-L`・`<pkg>@"*"` など）で、「できない」「作り直すしかない」と結論しない。
+`pnpm update` で上がらないことを確かめても、同じコマンドのオプションを広げただけ（`--depth 9999`・`-L`・`<pkg>@"*"` など）で、「できない」「作り直すしかない」と結論しない。
 update が上げない理由（lockfile にある transitive の解決を残す）を特定したら、その前提が成り立たなくなる別のコマンド（lockfile からエントリを消す `remove`）まで候補に入れてから結論する。
 
-1. plain transitive は、バージョンを付けない `pnpm update <pkg> --depth Infinity --lockfile-only` を試す。patched version が分かっていても `<pkg>@<version>` にしない
+1. plain transitive は、バージョンを付けない `pnpm update <pkg> --depth 9999 --lockfile-only` を試す。patched version が分かっていても `<pkg>@<version>` にしない。
+   depth は数値で書く。pnpm 12 は `--depth Infinity` を `invalid digit found in string` で拒否して exit 2 で止まり、`9999` は pnpm 11 と 12 のどちらも受け付ける（pnpm 11.23.0 と 12.10.1 で実測）
 2. direct 依存なら、直接更新する
 3. 親を remove し、同じ range で add し直す（その下の依存だけを解決し直す。後述）
 4. lockfile を手で最小限に編集する（最小の差分が要る plain transitive。後述）
@@ -40,7 +41,7 @@ update が上げない理由（lockfile にある transitive の解決を残す�
 
 ## リリース年齢の制限で何も変わらない場合を切り分ける
 
-`minimumReleaseAge` は、transitive を含むすべての依存に当てはまる。patched version がまだ年齢の条件を満たさないとき、`pnpm update <pkg> --depth Infinity --lockfile-only` は、exit 0 でエラーも lockfile の差分も無いまま旧版を残すことがある。
+`minimumReleaseAge` は、transitive を含むすべての依存に当てはまる。patched version がまだ年齢の条件を満たさないとき、`pnpm update <pkg> --depth 9999 --lockfile-only` は、exit 0 でエラーも lockfile の差分も無いまま旧版を残すことがある。
 この結果だけでは、「待てば解決するリリース年齢の制限」なのか、「update の解決し直しが機能せず、別の手段が要る」のかを区別できない。
 
 次の順で切り分ける。
@@ -54,8 +55,8 @@ update が上げない理由（lockfile にある transitive の解決を残す�
    バージョンマネージャの shim は cwd の設定で版を決めるので、コピー先で `pnpm` や `node` を名前で呼ぶと、起動できないか、グローバルの設定の別の版で動く。
    `node_modules/.bin` の bin は中で `node` を PATH から名前で呼ぶので、`node` の実体のディレクトリを PATH の先頭に足す（`PATH="$(dirname "$node_bin"):$PATH"`）。
    コピー先のそれぞれで `pnpm config get minimumReleaseAge` をもう一度実行し、元と同じ有効な値であることを確かめる。
-   pnpm 11 では、`minimumReleaseAge` などのプロジェクトの設定は `pnpm-workspace.yaml` から、レジストリと認証の設定は `.npmrc` から読まれる
-4. コピー先で `pnpm update <pkg> --depth Infinity --lockfile-only` を実行し、lockfile の対象の version を確かめる
+   pnpm 11 以降では、`minimumReleaseAge` などのプロジェクトの設定は `pnpm-workspace.yaml` から、レジストリと認証の設定は `.npmrc` から読まれる
+4. コピー先で `pnpm update <pkg> --depth 9999 --lockfile-only` を実行し、lockfile の対象の version を確かめる
 5. 同じコピー元から作った別のコピーで、`pnpm add --save-dev <pkg>@<patched-version> --lockfile-only` を実行する
 
 `add` が `ERR_PNPM_NO_MATURE_MATCHING_VERSION` を出し、対象の version の公開日時と基準の日時を示して失敗すれば、`update` が警告なしに旧版を残したのも同じリリース年齢の制限によるものと判断できる。

@@ -1,12 +1,12 @@
 ---
 name: pnpm-audit-alert-issue
-description: pnpm 11 と devEngines.packageManager の組み合わせで Dependabot が pnpm-lock.yaml を解析できず Dependabot alerts が出ない間、`pnpm audit --json` を一次情報として脆弱性 Issue を作る private skill。pnpm audit の結果を正規化し、`dependabot-alert-issue` の外部 audit findings mode に渡す。「pnpm audit から Issue」「pnpm の脆弱性を起票」「dependabot-core#14794 回避」「pnpm-audit-alert-issue」で必ず使用する。
+description: pnpm 11 以降と devEngines.packageManager の組み合わせで Dependabot が pnpm-lock.yaml を解析できず Dependabot alerts が出ない間、`pnpm audit --json` を一次情報として脆弱性 Issue を作る private skill。pnpm audit の結果を正規化し、`dependabot-alert-issue` の外部 audit findings mode に渡す。「pnpm audit から Issue」「pnpm の脆弱性を起票」「dependabot-core#14794 回避」「pnpm-audit-alert-issue」で必ず使用する。
 license: MIT
 ---
 
 # PNPM Audit Alert Issue
 
-pnpm 11 の複数ドキュメントの `pnpm-lock.yaml` に Dependabot が対応するまでの間、`pnpm audit --json` を元の情報として、脆弱性に対応する Issue を作る private skill。
+pnpm 11 以降の複数ドキュメントの `pnpm-lock.yaml` に Dependabot が対応するまでの間、`pnpm audit --json` を元の情報として、脆弱性に対応する Issue を作る private skill。
 
 このスキルは、`pnpm audit` の検出結果を、Issue にするのに要る情報を付けた外部 audit findings として整理する。
 Issue のまとめ方と起票は、配布スキル `dependabot-alert-issue` の外部 audit findings mode に任せる。
@@ -94,7 +94,7 @@ lockfile で `pkg@x.y.z(peer@a.b.c)` の形を持つ peer-keyed transitive で�
 着手できるかの分類（`dependabot-alert-issue` が受け持つ）を誤らせないように、次のことを確かめて `context_note` に書く。
 
 - 対象が peer-keyed か plain か
-- できれば使い捨てのコピーで、バージョンを付けない `pnpm update <package> --depth Infinity --lockfile-only` を試し、patched version に届くか。
+- できれば使い捨てのコピーで、バージョンを付けない `pnpm update <package> --depth 9999 --lockfile-only` を試し（pnpm 12 は `--depth Infinity` を拒否する）、patched version に届くか。
   届かなくても「作り直すしかない」とは書かない。`references/pnpm-transitive-update.md` の手段の優先順に従って判定する
 
 pnpm の transitive 依存の更新に特有の制約と手段は、`dependabot-alert-issue` の `references/pnpm-transitive-update.md` にある。たとえば次の内容である。
