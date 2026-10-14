@@ -325,7 +325,7 @@
       "replace": "  const lowerBound = Number.NEGATIVE_INFINITY;",
       "occurrences": 1,
       "expect_failing": [
-        "agent-usage のコマンドと Hook この人の行が範囲の中にあれば、範囲より古いログの行は書かない（無ければ書く）"
+        "agent-usage のコマンドと Hook この clone で範囲の中に collect していれば、範囲より古いログの行は書かない（していなければ書く）"
       ]
     },
     {
@@ -336,8 +336,8 @@
       "replace": "  const lowerBound = windowStart;",
       "occurrences": 1,
       "expect_failing": [
-        "agent-usage のコマンドと Hook この人の行が範囲の中にあれば、範囲より古いログの行は書かない（無ければ書く）",
-        "agent-usage のコマンドと Hook 今のブランチの古いファイルにだけ行があり、範囲の中で collect していなければ、範囲より古いログの行も書く",
+        "agent-usage のコマンドと Hook この clone で範囲の中に collect していれば、範囲より古いログの行は書かない（していなければ書く）",
+        "agent-usage のコマンドと Hook この clone で最後に collect したのが範囲より前なら、範囲より古いログの行も書く",
         "agent-usage のコマンドと Hook 範囲より古い開始時刻の行でも、読んだ記録に同じ key があって内容が変われば書く"
       ]
     },
@@ -350,7 +350,7 @@
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook 1 つのブランチで時刻を変えて何回 collect しても、記録のファイルは人別・GitHub のそれぞれ 1 つまで",
-        "agent-usage のコマンドと Hook 今のブランチの古いファイルにだけ行があり、範囲の中で collect していなければ、範囲より古いログの行も書く"
+        "agent-usage のコマンドと Hook この clone で最後に collect したのが範囲より前なら、範囲より古いログの行も書く"
       ]
     },
     {
@@ -366,13 +366,14 @@
     },
     {
       "id": "collected-in-window-by-rows",
-      "why": "今のブランチの古いファイルの行も、範囲の中で collect した印として数える",
+      "why": "この clone の最後の collect の時刻ではなく、記録の行の有無で範囲の中の collect を判定する",
       "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
-      "find": "    (r) => r.person === person && (parseTime(r.observed_at) ?? -Infinity) >= windowStart,",
-      "replace": "    (r) => r.person === person,",
+      "find": "  const collectedInWindow = last !== null && last >= windowStart;",
+      "replace": "  const collectedInWindow = [...existing.values()].some((r) => r.person === person);",
       "occurrences": 1,
       "expect_failing": [
-        "agent-usage のコマンドと Hook 今のブランチの古いファイルにだけ行があり、範囲の中で collect していなければ、範囲より古いログの行も書く"
+        "agent-usage のコマンドと Hook この clone で範囲の中に collect していれば、範囲より古いログの行は書かない（していなければ書く）",
+        "agent-usage のコマンドと Hook この clone で最後に collect したのが範囲より前なら、範囲より古いログの行も書く"
       ]
     },
     {
@@ -406,6 +407,51 @@
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook 見出しの列が今と違うファイルに足すときは、今の列で書き直す"
+      ]
+    },
+    {
+      "id": "last-collect-not-saved",
+      "why": "この clone の最後の collect の時刻を残さない",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "  saveLastCollect(lastPath, person, now);",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook この clone で範囲の中に collect していれば、範囲より古いログの行は書かない（していなければ書く）",
+        "agent-usage のコマンドと Hook この clone で最後に collect したのが範囲より前なら、範囲より古いログの行も書く"
+      ]
+    },
+    {
+      "id": "crlf-ignored",
+      "why": "CRLF のファイルに LF で足す",
+      "file": "skills/agent-usage/scripts/lib/records.mjs",
+      "find": "    appendFileSync(path, crlf ? `${sep}${body}`.replace(/\\n/g, \"\\r\\n\") : `${sep}${body}`);",
+      "replace": "    appendFileSync(path, `${sep}${body}`);",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook ブランチのファイルの改行と、知らない列を保って足す"
+      ]
+    },
+    {
+      "id": "unknown-columns-dropped",
+      "why": "書き直すときに、知らない列の値を落とす",
+      "file": "skills/agent-usage/scripts/lib/records.mjs",
+      "find": "  writeFileAtomic(path, toCsv([...COLUMNS, ...extra], [...prevRows, ...rows]));",
+      "replace": "  writeFileAtomic(path, toCsv(COLUMNS, [...prevRows, ...rows]));",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook ブランチのファイルの改行と、知らない列を保って足す"
+      ]
+    },
+    {
+      "id": "long-label-kept",
+      "why": "長いブランチの名前を切らない",
+      "file": "skills/agent-usage/scripts/lib/records.mjs",
+      "find": "  if (name.length > MAX_LABEL) return `${name.slice(0, MAX_LABEL - 9)}-${hash()}`;",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook branchLabel: 長い名前は切ってハッシュを足す"
       ]
     }
   ]

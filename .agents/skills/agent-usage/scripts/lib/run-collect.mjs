@@ -1,7 +1,8 @@
 // collect の全体: ローカルのログ・人の commit・GitHub から行を作り、まだ記録していない行を records/ に書く。
 
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { writeFileAtomic } from "./atomic.mjs";
 import { fileURLToPath } from "node:url";
 import { isRecord, loadOrCreateUserConfig, loadRepoConfig } from "./config.mjs";
 import { collectLocal } from "./collect.mjs";
@@ -42,6 +43,51 @@ export const GITHUB_FIRST_LOOKBACK_MS = 60 * 86400000;
  * この人が範囲の中で collect していない（久しぶりの collect か初めての collect）ときは、ログに残る分をすべて書く。
  */
 export const RECORD_WINDOW_MS = GITHUB_FIRST_LOOKBACK_MS;
+
+/**
+ * この clone で人ごとに最後に collect した時刻の置き場所（git の共通のディレクトリ。clone ごとに別で、commit しない）。
+ * @param {string} commonDir
+ * @returns {string}
+ */
+export function lastCollectPath(commonDir) {
+  return join(commonDir, "agent-usage", "last-collect.json");
+}
+
+/**
+ * @param {string} path
+ * @param {string} person
+ * @returns {number | null} 読めなければ null（範囲の中で collect していないとして扱い、行をすべて書く）
+ */
+function loadLastCollect(path, person) {
+  if (!existsSync(path)) return null;
+  try {
+    const raw = JSON.parse(readFileSync(path, "utf8"));
+    return isRecord(raw) && typeof raw[person] === "string" ? parseTime(raw[person]) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * @param {string} path
+ * @param {string} person
+ * @param {number} now
+ */
+function saveLastCollect(path, person, now) {
+  /** @type {Record<string, unknown>} */
+  let raw = {};
+  if (existsSync(path)) {
+    try {
+      const v = JSON.parse(readFileSync(path, "utf8"));
+      if (isRecord(v)) raw = v;
+    } catch {
+      // JSON として読めなければ作り直す（読めないときは、次の collect がすべての行を書くだけ）
+    }
+  }
+  const prev = typeof raw[person] === "string" ? parseTime(raw[person]) : null;
+  if (prev !== null && prev >= now) return;
+  writeFileAtomic(path, `${JSON.stringify({ ...raw, [person]: toIso(now) }, null, 2)}\n`);
+}
 
 /**
  * @returns {Record<string, string>}
@@ -225,11 +271,12 @@ export function runCollect(o) {
   const read = readRecords(recordsDir, { since: windowStart, keep });
   const existing = latestByKey(read.rows);
   // 範囲より古い行は、範囲の外のファイルにあって読んでいないので、書くと重複する。
-  // この人が範囲の中で collect していなければ、前回の collect から範囲の始まりまでの行を取りこぼさないよう、すべて書く
-  // （重複は report が key でまとめる）。今のブランチのファイルは範囲より古くても読むので、行の有無ではなく observed_at で見る
-  const collectedInWindow = [...existing.values()].some(
-    (r) => r.person === person && (parseTime(r.observed_at) ?? -Infinity) >= windowStart,
-  );
+  // この clone で範囲の中に collect していなければ、前回の collect から範囲の始まりまでの行を取りこぼさないよう、すべて書く
+  // （重複は report が key でまとめる）。記録の行では決めない。別のマシン（clone）の行が範囲の中にあっても、
+  // このマシンのログにある古い行はまだ書いていないことがあるため
+  const lastPath = lastCollectPath(repo.commonDir);
+  const last = loadLastCollect(lastPath, person);
+  const collectedInWindow = last !== null && last >= windowStart;
   const lowerBound = collectedInWindow ? windowStart : Number.NEGATIVE_INFINITY;
 
   /** @type {Row[]} */
@@ -318,6 +365,7 @@ export function runCollect(o) {
   const written = [];
   if (personRows.length > 0) written.push(appendBranchFile(personDir, label, stamp, personRows));
   if (githubRows.length > 0) written.push(appendBranchFile(githubDir, label, stamp, githubRows));
+  saveLastCollect(lastPath, person, now);
   return {
     person,
     personCreated: user.created,

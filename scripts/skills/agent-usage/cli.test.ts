@@ -24,7 +24,7 @@ import { parseCsv, toCsv } from "../../../skills/agent-usage/scripts/lib/csv.mjs
 import { encodeProjectPath } from "../../../skills/agent-usage/scripts/lib/discover.mjs";
 import { COLUMNS } from "../../../skills/agent-usage/scripts/lib/rows.mjs";
 import { githubTarget } from "../../../skills/agent-usage/scripts/lib/run-collect.mjs";
-import { lastObservedAt } from "../../../skills/agent-usage/scripts/lib/records.mjs";
+import { branchLabel, lastObservedAt } from "../../../skills/agent-usage/scripts/lib/records.mjs";
 import { makeTempDir } from "../../lib/test-tmpdir.ts";
 
 const SCRIPTS = join(import.meta.dirname, "../../../skills/agent-usage/scripts");
@@ -201,8 +201,6 @@ function setup() {
     });
   return { tmp, repo, git, cli, cliWith, gate, logDir: dir, logLines: lines };
 }
-
-/** 記録を読む範囲（AGENT_USAGE_NOW の 60 日前）より古い時刻。ファイルの更新時刻に使う。 */
 
 describe("agent-usage のコマンドと Hook", () => {
   test("setup 前は Hook が何もせず通し、collect はセットアップを求めて失敗する", () => {
@@ -490,7 +488,7 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(readFileSync(renamed, "utf8")).toBe(before);
   });
 
-  test("この人の行が範囲の中にあれば、範囲より古いログの行は書かない（無ければ書く）", () => {
+  test("この clone で範囲の中に collect していれば、範囲より古いログの行は書かない（していなければ書く）", () => {
     const { repo, git, cli, logDir, logLines } = setup();
     expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
     git("switch", "-q", "-c", "feature/5-x");
@@ -513,8 +511,8 @@ describe("agent-usage のコマンドと Hook", () => {
         .map((f) => readFileSync(join(branches, f), "utf8"))
         .join("");
     expect(read()).not.toContain("usage:claude-code:s-old:");
-    // この人の行が範囲の中に無ければ（久しぶりの collect）、古い行も書く
-    rmSync(branches, { recursive: true });
+    // 別の clone（別のマシン）で記録した行が範囲の中にあっても、この clone で collect していなければ、古い行も書く
+    rmSync(join(repo, ".git", "agent-usage", "last-collect.json"));
     expect(cli("collect").status).toBe(0);
     expect(read()).toContain("usage:claude-code:s-old:");
   });
@@ -540,20 +538,23 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(text).not.toContain("usage:claude-code:s1:");
   });
 
-  test("今のブランチの古いファイルにだけ行があり、範囲の中で collect していなければ、範囲より古いログの行も書く", () => {
+  test("この clone で最後に collect したのが範囲より前なら、範囲より古いログの行も書く", () => {
     const { repo, git, cli, logDir, logLines } = setup();
     expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
     git("switch", "-q", "-c", "feature/5-x");
     expect(cli("collect").status).toBe(0);
-    const records = join(repo, ".agent-usage", "records");
-    const person = readdirSync(records).find((d) => d.startsWith("p-")) ?? "";
-    const branches = join(records, person, "branches");
-    const [name] = readdirSync(branches);
-    // 最後に collect したのが範囲より前だったことにする（名前の時刻と observed_at）
-    const file = join(branches, "20260701T000000Z-feature-5-x.csv");
-    const text = readFileSync(join(branches, name ?? ""), "utf8");
-    rmSync(join(branches, name ?? ""));
-    writeFileSync(file, text.replaceAll("2026-10-01T12:00:00.000Z", "2026-07-01T00:00:00.000Z"));
+    const state = join(repo, ".git", "agent-usage", "last-collect.json");
+    const readState = (): Record<string, unknown> => {
+      const v: unknown = JSON.parse(readFileSync(state, "utf8"));
+      if (typeof v !== "object" || v === null)
+        throw new Error("last-collect.json がオブジェクトでない");
+      return Object.fromEntries(Object.entries(v));
+    };
+    const saved = readState();
+    const person = Object.keys(saved)[0] ?? "";
+    expect(saved[person]).toBe("2026-10-01T12:00:00.000Z");
+    // 最後に collect したのが範囲より前だったことにする
+    writeFileSync(state, JSON.stringify({ [person]: "2026-07-01T00:00:00.000Z" }));
     // 前回の collect の後（範囲より前）のセッションのログを足す
     const old = logLines.map((l) => ({
       ...l,
@@ -564,7 +565,53 @@ describe("agent-usage のコマンドと Hook", () => {
     }));
     writeFileSync(join(logDir, "s-old.jsonl"), old.map((l) => JSON.stringify(l)).join("\n"));
     expect(cli("collect").status).toBe(0);
-    expect(readFileSync(file, "utf8")).toContain("usage:claude-code:s-old:");
+    const branches = join(repo, ".agent-usage", "records", person, "branches");
+    const text = readdirSync(branches)
+      .map((f) => readFileSync(join(branches, f), "utf8"))
+      .join("");
+    expect(text).toContain("usage:claude-code:s-old:");
+    expect(readState()[person]).toBe("2026-10-01T12:00:00.000Z");
+  });
+
+  test("ブランチのファイルの改行と、知らない列を保って足す", () => {
+    const { repo, git, cli } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    expect(cli("collect").status).toBe(0);
+    const records = join(repo, ".agent-usage", "records");
+    const person = readdirSync(records).find((d) => d.startsWith("p-")) ?? "";
+    const branches = join(records, person, "branches");
+    const file = join(branches, readdirSync(branches)[0] ?? "");
+    const text = readFileSync(file, "utf8");
+    // CRLF のファイル（Windows の core.autocrlf）には、CRLF のまま後ろに足す
+    writeFileSync(file, text.replace(/\n/g, "\r\n"));
+    git("commit", "-q", "--allow-empty", "-m", "work");
+    expect(cli("collect").status).toBe(0);
+    const crlf = readFileSync(file, "utf8");
+    expect(crlf.startsWith(text.replace(/\n/g, "\r\n"))).toBe(true);
+    expect(crlf.replace(/\r\n/g, "")).not.toContain("\n");
+    // 新しい版が足した列（この版が知らない列）の値は、書き直しても落とさない
+    const [header, ...body] = text.trim().split("\n");
+    writeFileSync(
+      file,
+      `${[`${header},future_col`, ...body.map((l) => `${l},keep-me`)].join("\n")}\n`,
+    );
+    git("commit", "-q", "--allow-empty", "-m", "work2");
+    expect(cli("collect").status).toBe(0);
+    const merged = readFileSync(file, "utf8");
+    expect(merged.split("\n")[0]).toMatch(/,future_col$/);
+    expect(merged.split("keep-me").length - 1).toBe(body.length);
+  });
+
+  test.each([
+    ["ASCII の名前はそのまま", "feature/5-x", "feature-5-x"],
+    ["英数字以外を含む名前はハッシュを足す", "feature/日本語", /^feature-[0-9a-f]{8}$/],
+    ["長い名前は切ってハッシュを足す", `feature/${"a".repeat(300)}`, /^feature-a{83}-[0-9a-f]{8}$/],
+  ])("branchLabel: %s", (_case, branch, expected) => {
+    const label = branchLabel(branch);
+    if (typeof expected === "string") expect(label).toBe(expected);
+    else expect(label).toMatch(expected);
+    expect(label.length).toBeLessThanOrEqual(100);
   });
 
   test("範囲より古い開始時刻の行でも、読んだ記録に同じ key があって内容が変われば書く", () => {

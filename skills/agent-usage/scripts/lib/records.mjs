@@ -7,13 +7,14 @@
 
 import { createHash } from "node:crypto";
 import {
+  appendFileSync,
   closeSync,
   existsSync,
+  fstatSync,
   openSync,
   readFileSync,
   readSync,
   readdirSync,
-  fstatSync,
 } from "node:fs";
 import { basename, join, relative } from "node:path";
 import { writeFileAtomic } from "./atomic.mjs";
@@ -202,6 +203,9 @@ export function safeName(s) {
   return s.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "none";
 }
 
+/** ブランチのファイルの名前に使う形の長さの上限。 */
+const MAX_LABEL = 100;
+
 /**
  * ブランチのファイルの名前に使う形。英数字・`.`・`_`・`-`・`/` だけのブランチの名前は safeName した形にする。
  * それ以外の文字（日本語など）を含む名前は、safeName で別のブランチと同じ形になりうる（`feature/日本語` と `feature/中文` がどちらも `feature`）。
@@ -211,8 +215,11 @@ export function safeName(s) {
  */
 export function branchLabel(branch) {
   const name = safeName(branch);
+  const hash = () => createHash("sha256").update(branch).digest("hex").slice(0, 8);
+  // ファイル名の上限（多くのファイルシステムで 255 バイト）に、時刻と拡張子を足しても収まるようにする
+  if (name.length > MAX_LABEL) return `${name.slice(0, MAX_LABEL - 9)}-${hash()}`;
   if (/^[A-Za-z0-9._/-]+$/.test(branch)) return name;
-  return `${name}-${createHash("sha256").update(branch).digest("hex").slice(0, 8)}`;
+  return `${name}-${hash()}`;
 }
 
 /**
@@ -231,8 +238,8 @@ export function branchFile(dir, label) {
 
 /**
  * ブランチのファイルに行を足す。ファイルが無ければ `<stamp>-<label>.csv` を作る。書いたファイルのパスを返す。
- * 見出しが今の列と同じなら、既存の内容をそのまま残して後ろに足すので、git の差分は足した行だけになる。
- * 見出しが違う（列の違う版が書いた）ときだけ、今の列で全体を書き直す。
+ * 見出しが今の列と同じなら、既存の内容をそのまま残して後ろに足すので、git の差分は足した行だけになる（改行は既存のファイルに合わせる）。
+ * 見出しが違う（列の違う版が書いた）ときだけ、今の列と既存の列を合わせた見出しで全体を書き直す（知らない列の値を落とさない）。
  * @param {string} dir
  * @param {string} label safeName したブランチの名前
  * @param {string} stamp fileStamp した時刻（ファイルを作るときだけ使う）
@@ -242,11 +249,24 @@ export function branchFile(dir, label) {
 export function appendBranchFile(dir, label, stamp, rows) {
   const path = branchFile(dir, label) ?? join(dir, `${stamp}-${label}.csv`);
   const text = toCsv(COLUMNS, rows);
-  const prev = existsSync(path) ? readFileSync(path, "utf8") : "";
+  if (!existsSync(path)) {
+    writeFileAtomic(path, text);
+    return path;
+  }
+  const prev = readFileSync(path, "utf8");
+  const crlf = prev.includes("\r\n");
+  const lf = crlf ? prev.replace(/\r\n/g, "\n") : prev;
   const header = text.slice(0, text.indexOf("\n") + 1);
-  if (prev === "") writeFileAtomic(path, text);
-  else if (prev.startsWith(header))
-    writeFileAtomic(path, `${prev}${prev.endsWith("\n") ? "" : "\n"}${text.slice(header.length)}`);
-  else writeFileAtomic(path, toCsv(COLUMNS, [...parseCsv(prev), ...rows]));
+  if (lf.startsWith(header)) {
+    const body = text.slice(header.length);
+    const sep = lf.endsWith("\n") || lf === "" ? "" : "\n";
+    appendFileSync(path, crlf ? `${sep}${body}`.replace(/\n/g, "\r\n") : `${sep}${body}`);
+    return path;
+  }
+  const prevRows = parseCsv(lf);
+  /** @type {Set<string>} */
+  const known = new Set(COLUMNS);
+  const extra = [...new Set(prevRows.flatMap((r) => Object.keys(r)))].filter((c) => !known.has(c));
+  writeFileAtomic(path, toCsv([...COLUMNS, ...extra], [...prevRows, ...rows]));
   return path;
 }
