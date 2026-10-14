@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { isRecord, loadOrCreateUserConfig, loadRepoConfig } from "./config.mjs";
 import { collectLocal } from "./collect.mjs";
-import { collectGitHub, commitActivityRows, makeGh } from "./github.mjs";
+import { collectGitHub, commitActivityRows, makeGh, withoutEnterpriseToken } from "./github.mjs";
 import { loadBundledPricing, loadBundledReviewPricing } from "./pricing.mjs";
 import { signature } from "./rows.mjs";
 import {
@@ -88,47 +88,63 @@ export function classifyingFailuresOf(failures) {
 }
 
 /**
- * origin を GitHub として扱わない理由を返す。GitHub として扱うなら空文字。
+ * @typedef {object} GitHubTarget
+ * @property {string} reason GitHub として扱わない理由（扱うなら空）
+ * @property {string} host
+ * @property {string} slug `<owner>/<name>`
+ * @property {boolean} viaLogin gh へのログインで GitHub と判定した（GH_ENTERPRISE_TOKEN を問い合わせに使わない）
+ */
+
+/**
+ * origin を GitHub として扱うかを決める。
  * GitHub として扱うのは、`<ホスト>/<owner>/<name>` の形で、ホストが github.com・GH_HOST・gh にログインしたホストのどれかのとき。
  * GitHub Enterprise のホストは、`gh auth login --hostname <ホスト>` でログインしていれば、GH_HOST が無くても取得する。
  * @param {string} remote `<ホスト>/<パス>` の形の origin（無ければ空）
  * @param {NodeJS.ProcessEnv} env
- * @param {(host: string) => boolean} authed
- * @returns {string}
+ * @param {(host: string) => string} loginError ログインしていれば空、していなければその理由を返す
+ * @returns {GitHubTarget}
  */
-export function githubHostSkipReason(remote, env, authed) {
-  if (remote === "") return "origin が無い";
+export function githubTarget(remote, env, loginError) {
   const parts = remote.split("/");
-  const [host, owner, name] = parts;
+  const [host = "", owner = "", name = ""] = parts;
+  const t = { reason: "", host, slug: `${owner}/${name}`, viaLogin: false };
+  if (remote === "") return { ...t, reason: "origin が無い" };
   if (parts.length !== 3 || !host || !owner || !name)
-    return `origin（${remote}）が <ホスト>/<owner>/<name> の形でない`;
-  if (host === "github.com" || host === (env.GH_HOST ?? "").toLowerCase()) return "";
-  // ポートを含むホスト（ssh://git@<ホスト>:7999/...）は、gh のホスト名と一致しないので、ログインの有無を確かめない
+    return { ...t, reason: `origin（${remote}）が <ホスト>/<owner>/<name> の形でない` };
+  // ポートを含むホスト（ssh://git@<ホスト>:7999/...）は SSH のポートで、API のホストにならない。GH_HOST と一致しても扱わない
   if (host.includes(":"))
-    return `origin のホスト ${host} はポートを含むので、gh のホストとして扱えない（GH_HOST とも一致しない）`;
-  if (authed(host)) return "";
-  return `origin のホスト ${host} は、github.com でも GH_HOST でも gh にログインしたホストでもない（GitHub Enterprise なら gh auth login --hostname ${host} か GH_HOST=${host} で取得する）`;
+    return {
+      ...t,
+      reason: `origin のホスト ${host} はポートを含むので、API のホストとして扱えない`,
+    };
+  if (host === "github.com" || host === (env.GH_HOST ?? "").toLowerCase()) return t;
+  const err = loginError(host);
+  if (err === "") return { ...t, viaLogin: true };
+  return {
+    ...t,
+    reason: `origin のホスト ${host} は、github.com でも GH_HOST でもなく、gh にログインしたホストでもない（${err}）。GitHub Enterprise のホストなら gh auth login --hostname ${host} か GH_HOST=${host} で取得する`,
+  };
 }
 
 /**
- * gh がそのホストにログインしているか（`gh auth login --hostname` で保存した token があるか）。
- * `gh auth token` はネットワークに問い合わせない。gh が無ければ、ログインしていないとして扱う。
- * 参考: https://cli.github.com/manual/gh_auth_token
+ * gh がそのホストにログインしているか（`gh auth login --hostname` で保存した token があるか）を確かめ、していなければ理由を返す。
+ * `gh auth token` はネットワークに問い合わせない。参考: https://cli.github.com/manual/gh_auth_token
  * GH_ENTERPRISE_TOKEN・GITHUB_ENTERPRISE_TOKEN は外して確かめる。
  * gh はこれらを github.com 以外のすべてのホストの token として返す（gh 2.93.0 で実測）。
  * 残すと GitLab などの origin も GitHub として扱い、その token を送ってしまう。
  * @param {string} host
  * @param {NodeJS.ProcessEnv} env GH_HOST の判定と同じ環境変数で確かめる
- * @returns {boolean}
+ * @returns {string}
  */
-function ghHasToken(host, env) {
-  const { GH_ENTERPRISE_TOKEN: _a, GITHUB_ENTERPRISE_TOKEN: _b, ...rest } = env;
+function ghLoginError(host, env) {
   const r = spawnSync("gh", ["auth", "token", "--hostname", host], {
-    env: rest,
+    env: withoutEnterpriseToken(env),
     timeout: 10000,
     stdio: ["ignore", "ignore", "ignore"],
   });
-  return r.status === 0;
+  if (r.error) return `gh を起動できない: ${r.error.message}`;
+  if (r.status !== 0) return "gh auth token が失敗した";
+  return "";
 }
 
 /**
@@ -138,7 +154,6 @@ function ghHasToken(host, env) {
  * @property {NodeJS.ProcessEnv} env
  * @property {boolean} github
  * @property {GhRunner | null} gh テストで差し替える（null なら gh を使う）
- * @property {((host: string) => boolean) | undefined} [ghAuthed] テストで差し替える（無ければ gh auth token で確かめる）
  */
 
 /**
@@ -194,15 +209,16 @@ export function runCollect(o) {
 
   /** @type {string[]} */
   let githubFailures = [];
-  const [host, owner, name] = repo.remote.split("/");
-  const githubSkipReason = !o.github
-    ? "--no-github"
-    : githubHostSkipReason(repo.remote, env, o.ghAuthed ?? ((h) => ghHasToken(h, env)));
+  const target = o.github
+    ? githubTarget(repo.remote, env, (h) => ghLoginError(h, env))
+    : { reason: "--no-github", host: "", slug: "", viaLogin: false };
+  const githubSkipReason = target.reason;
   const githubSkipped = githubSkipReason !== "";
   if (!githubSkipped) {
-    const gh = o.gh ?? makeGh(host);
+    // ログインで判定したホストには、環境変数の enterprise の token（別のホスト用でありうる）を送らない
+    const gh = o.gh ?? makeGh(target.host, target.viaLogin ? withoutEnterpriseToken(env) : env);
     const res = collectGitHub({
-      slug: `${owner}/${name}`,
+      slug: target.slug,
       since,
       now,
       person,
