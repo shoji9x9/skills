@@ -57,6 +57,64 @@ branch や設定を変更する前に、すべての Issue について次を済
    無ければ `agent` に要る待機の上限が決まらず、やり直しても preflight で止まる（設定を読んで、どちらかを案内する）。
    `agent` でも、base で merge queue が必須なら、`gh pr merge` は queue への投入（条件を満たしていなければ auto-merge の有効化）になる。
    その base では、同じ確認をする。共有の障害では全体を停止する。
+9. setup の設定（`skills.issue-batch`）が base branch に入っていることを確かめる。
+   worktree は base から作るので、共有ツリーにだけある設定（commit・push・merge していない）は worktree に届かず、run の途中で設定の扱いを決める判断が要る。
+
+   `<base>` は 3 で決めた base branch である。
+
+   ```bash
+   cfg=.config/skills/shoji9x9/skills.yml
+   top=$(git rev-parse --show-toplevel) || { echo '判定不能: リポジトリの直下を特定できない' >&2; exit 1; }
+   git fetch --quiet origin '+refs/heads/<base>:refs/remotes/origin/<base>' || { echo '判定不能: base を取得できない' >&2; exit 1; }
+   base_blob=$(git rev-parse --verify --quiet "origin/<base>:$cfg") || base_blob=''
+   work_blob=$(git -C "$top" hash-object --path="$cfg" "$cfg" 2>/dev/null) || work_blob=''
+   if [ -n "$base_blob" ] && [ "$base_blob" = "$work_blob" ]; then
+     echo '設定は base に入っている'
+   else
+     echo '設定が base と作業ツリーで一致しない（どちらかに無いか、内容が違う）'
+   fi
+   ```
+
+   判定の結果は出力の行で読む。入っていない状態は期待される結果の 1 つなので、終了コードを 0 以外にしない。exit 1 は判定できない場合だけである。
+   refspec を明示するのは、single-branch の clone でも `origin/<base>` を更新するためである。
+   作業ツリーのファイルをリポジトリの直下から `git hash-object --path` で base の blob と同じ変換（改行・filter）にかけて比べるので、サブディレクトリから実行しても、追跡されていない同じ内容のファイルでも、`core.autocrlf` の環境でも正しく判定する。
+   入っていなければ、run を始めずに全体を停止し、設定を base に入れるよう案内する。設定を無人で commit・push しない。
+   比べるのはファイル全体なので、他のスキルの設定だけが違っても止まる。worktree の設定が共有ツリーと違うことに変わりはないので、同じく base に入れてもらう。
+   base を取得できず判定できないときも、入っているとは扱わずに全体を停止する。
+10. run の前に利用者の判断が要るものを、すべての Issue について洗い出す。本文とすべてのコメントを読み、次のものを挙げる。
+    - 提案に複数の案が並んでいて、どれを採るかが書かれていない
+    - 方針や範囲が書かれていない。本文とコメントの決定が食い違い、どれに従うかを決められない
+    - 受け入れ条件が、試していない機構を約束している。決めてもらうのは、試して採らなかったときの扱い（外す＝`waived`、別の作業に回す＝`deferred` と残りの作業の置き場所）である。
+      決まった条件は、run の途中で採らないと決めても判断待ちにせず、決まった状態にする。`approval.ref` には、着手のときに Issue に残した承認のコメント（下）を書く
+
+    挙げたものは、何かを変更する前に、1 回の確認にまとめて利用者に決めてもらう。Issue ごとに、論点・選択肢・根拠・推奨を並べる。
+    この確認に載せるのは、上の 3 種類の判断だけである。
+    preflight の他の手順で SKIPPED や BLOCKED にした Issue（CLOSED、持ち主や担当者を判定できない、他の人が担当している、無人では実行しない操作が要るなど）は、確認に載せない。
+    受け入れ条件を変える決定を求めるなら、`issue-start` の `references/acceptance.md`「受け入れ条件を変えたとき」の似た Issue の候補を先に探し、見直すかを同じ確認に載せる。
+    載せないと、コメントでの条件の改訂が push の前の突き合わせ（`acceptance.md` の手順 6）で再び判断待ちになり、run の途中で止まる。
+    決まった内容は、manifest を作ったときに記録する。受け入れ条件や範囲を変える決定と、条件を外してよいという前もっての承認は、その Issue に着手するとき（branch を作る前）に Issue にコメントで残す。
+    preflight で Issue を書き換えないのは、全体を停止した場合に、run が何もしていないのに Issue だけが変わるのを避けるためである。
+    この洗い出しは読むだけで何も変えないので、preflight の他の手順で全体を停止する場合も、停止を決めた後に行う。
+    そのうえで確認を求めずに、ここで挙げたものを停止の報告に載せる。決めてもらうのは、やり直した run の preflight で 1 回だけである。
+    決まらなかった Issue は、BLOCKED（判断待ち）にし、`continue_on_blocked` に従って残りを進める。run を始めた後は、ここで挙げなかった判断も利用者に確認しない（「判断の扱い」）。
+
+## 判断の扱い
+
+run を始めた後（全体 preflight を終え、manifest の作成などの最初の変更に進んだ後）は、利用者に確認を送らない。
+利用者が不在でも run を最後まで進め、判断は最終報告でまとめて受け取る。preflight 10 の確認は、この前に行う 1 回だけの確認である。
+前提スキル（`issue-start` など）が「利用者に確認する」と定める箇所も、run の中ではこの扱いに読み替える。
+`pr-finalize-loop` の人の判断が要る指摘は、`--defer-decisions` を渡して判断待ちとして受け取る（「pr-finalize-loop への handoff」）。
+
+- 途中で利用者の判断が要る状態になったら、確認を送る代わりに、その Issue を BLOCKED（判断待ち）にして manifest に記録する。
+  そのうえで、`continue_on_blocked` に従って次の Issue に進む。
+  記録するのは、一意な `id`・論点・選択肢・それぞれの根拠と影響・推奨・決まった後に残る作業である（`id` は受け入れ条件の表の `decision_ref` が指す）。利用者が最終報告だけを読んで決められるようにする。
+- 1 つの変更から生じる判断は、1 つの判断待ちにまとめる。
+  受け入れ条件を外す承認と似た Issue の見直しは、`issue-start` の `references/acceptance.md` の手順 3 のとおり、1 つの判断待ちに載せる。
+- 自分で判断して進めたものも、manifest に記録する。記録するのは、判断・根拠・覆すときに戻る工程である。
+  当たるのは、受け入れ条件を `met` にした判断（特に `strength: read`）、レビューの指摘を採らなかった判断、
+  browser-test や deployment を `not-applicable` にした判断、Issue の記述と今の状態のずれの扱いなどである。
+- 範囲を自分で Issue やコメントに書くとき（影響範囲を確かめ直して範囲を書き直すなど）は、試していない機構を「候補（試して採否を決める）」と書き、受け入れ条件に入れない。
+  約束として書くと、試して採らないと決めた時点で、条件を外す承認が要る判断待ちになる。
 
 ## worktree と manifest
 
@@ -79,6 +137,7 @@ manifest に書いてよいのは、次のものだけである。
 - 状態、branch、worktree、PR URL
 - 検証名・結果・証拠 URL / SHA
 - BLOCKED / FAILED の理由と残作業
+- 判断待ちの項目と、自分で判断して進めたもの（「判断の扱い」）
 
 token・cookie・認証の header・秘密の環境変数・設定から渡された変わる URL は、記録しない。
 やり直すときは、manifest を起点に候補を得ても、branch・PR・CI の今の状態を、GitHub と git から確かめ直す。
@@ -136,20 +195,28 @@ transcript を特定できないエージェントでは、何もしないで進
 次のどれかに当たれば `BLOCKED` にする。
 
 - exit 0 にならない
-- 満たせない条件に、利用者の判断が要る
+- 満たせない条件に、利用者の判断が要る（判断待ち）。その行は `pending-decision` にし、`decision_ref` に manifest の判断待ちの id を書く。検査は exit 1 のままになる
+  manifest の判断待ちを、`id` を持つ項目の配列 `pending_decisions` として JSON に書き出し、検査に `--decisions <path>` で渡して、`decision_ref` が記録を指すことまで確かめさせる
 - `closable: false`（Issue を閉じられない）
-- 受け入れ条件を変えたので、似た Issue を見直すかを確かめる必要がある（同じ `acceptance.md` の手順 6。すべての行が `met` でも、コメントでの条件の改訂や本文の書き換えで起きる）
+- 受け入れ条件を変えたので、似た Issue を見直すかを確かめる必要がある（同じ `acceptance.md` の手順 6。すべての行が `met` でも、コメントでの条件の改訂や本文の書き換えで起きる）。
+  preflight 10 で、その変更と見直しの判断をすでに得ていれば当たらない
 
-見直すかどうかは、候補の一覧を添えて、BLOCKED の理由に残す。exit 0 だけを見て push すると、確認がどこにも残らずに消える。
+見直すかどうかは、候補の一覧を添えて、判断待ちとして記録する。満たせない条件と同時に起きたら、「判断の扱い」のとおり 1 つの判断待ちにまとめる。
+exit 0 だけを見て push すると、確認がどこにも残らずに消える。
 通ったら push する。PR の本文には、`Closes #<Issue番号>`、変更の概要、静的な検査、受け入れ条件の突き合わせの表、browser-test の結果か対象外の根拠、Kaizen の結果を含める。
 
 ## pr-finalize-loop への handoff
 
-PR の URL と、決まった `max_pr_iterations` を、`pr-finalize-loop <PR URL> --max-iterations <N>` に渡す。`wait_ci_before_review: true` の場合だけ、`--wait-ci-before-review` を足す。
+PR の URL と、決まった `max_pr_iterations` を、`pr-finalize-loop <PR URL> --max-iterations <N> --defer-decisions` に渡す。`wait_ci_before_review: true` の場合だけ、`--wait-ci-before-review` を足す。
 レビューツールは pr-finalize-loop が決めるので、issue-batch は値を先に固定したり渡したりしない。pr-finalize-loop の参照先を読めなければ、handoff の前に停止する。
 
 CI、すべてのレビュアーの thread と review の本文、再レビューの依頼は、`pr-finalize-loop` が扱う。issue-batch 自身からは、リモートの AI レビューを依頼しない。
 収束しなければ BLOCKED か FAILED にし、影響をその Issue の中に留められるなら、方針に従って次の Issue に進む。
+
+issue-batch の run では、常に `--defer-decisions` を付けて渡す。`pr-finalize-loop` が人の判断が要るとする指摘は、利用者に確認されず、解決されないまま判断待ちとして返る。
+返った判断待ち（指摘の URL・選択肢とそれぞれの根拠と影響・推奨）には、issue-batch の側で `id`・論点・決まった後に残る作業（判断を反映して PR を収束させ、merge する）を補う。
+そのうえで manifest に記録し、その Issue を BLOCKED（判断待ち）にして merge に進まない。
+pr-finalize-loop が指摘を採らずに根拠を返信して解決したものも、PR のスレッドの返信から集め、「自分で判断して進めたもの」として manifest に記録する。
 
 ## merge、close、deployment
 

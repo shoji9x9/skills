@@ -1,0 +1,4 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail
+ci:38541920698:1,ci,2026-10-14T09:26:12.120Z,p-cdee4961,github-actions,,,,2026-10-14T09:22:53.000Z,2026-10-14T09:22:54.000Z,Asia/Tokyo,feature/623-issue-batch-defer-decisions,623,,,,,,,,,,Dependabot auto-merge;pull_request;skipped
+ci:38541920964:1,ci,2026-10-14T09:26:12.120Z,p-cdee4961,github-actions,,,,2026-10-14T09:22:53.000Z,2026-10-14T09:25:50.000Z,Asia/Tokyo,feature/623-issue-batch-defer-decisions,623,,,,,,,,,,CI;pull_request;success
+coverage:github:2026-10-13T09:21:56.986Z:2026-10-14T09:26:12.120Z,coverage,2026-10-14T09:26:12.120Z,p-cdee4961,,,,,2026-10-13T09:21:56.986Z,2026-10-14T09:26:12.120Z,Asia/Tokyo,,,,,,,,,,,,ok

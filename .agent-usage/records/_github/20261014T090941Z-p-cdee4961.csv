@@ -1,0 +1,6 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail
+ci:38538019961:1,ci,2026-10-14T09:09:41.643Z,p-cdee4961,github-actions,,,,2026-10-14T08:50:42.000Z,2026-10-14T08:53:53.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success
+ci:38538019817:1,ci,2026-10-14T09:09:41.643Z,p-cdee4961,github-actions,,,,2026-10-14T08:50:42.000Z,2026-10-14T08:51:03.000Z,Asia/Tokyo,main,,,,,,,,,,,Release;push;success
+ci:38536122930:1,ci,2026-10-14T09:09:41.643Z,p-cdee4961,github-actions,,,,2026-10-14T08:34:55.000Z,2026-10-14T08:34:56.000Z,Asia/Tokyo,feature/602-agent-usage-tracking-skill,602,,,,,,,,,,Dependabot auto-merge;pull_request;skipped
+ci:38536122934:1,ci,2026-10-14T09:09:41.643Z,p-cdee4961,github-actions,,,,2026-10-14T08:34:55.000Z,2026-10-14T08:37:55.000Z,Asia/Tokyo,feature/602-agent-usage-tracking-skill,602,,,,,,,,,,CI;pull_request;success
+coverage:github:2026-10-13T08:34:23.537Z:2026-10-14T09:09:41.643Z,coverage,2026-10-14T09:09:41.643Z,p-cdee4961,,,,,2026-10-13T08:34:23.537Z,2026-10-14T09:09:41.643Z,Asia/Tokyo,,,,,,,,,,,,ok

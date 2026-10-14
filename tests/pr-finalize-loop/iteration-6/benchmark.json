@@ -1,0 +1,180 @@
+{
+  "metadata": {
+    "skill_name": "pr-finalize-loop",
+    "skill_path": "<repo>/skills/pr-finalize-loop",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-14T10:47:03Z",
+    "evals_run": [20],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 20,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 8,
+        "failed": 0,
+        "total": 8,
+        "time_seconds": 37.337,
+        "tokens": 87909,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "スレッド B について、利用者に確認を送らないと述べている",
+          "passed": true,
+          "evidence": "「あなたへの確認は送りません」と明記。"
+        },
+        {
+          "text": "スレッド B を直さず、解決もせずに残すと述べている",
+          "passed": true,
+          "evidence": "コードは直さず、スレッドも解決せずに残すと明記。"
+        },
+        {
+          "text": "スレッド A は直して、返信してから解決すると述べている",
+          "passed": true,
+          "evidence": "A は返信してから解決し、この順序を守ると明記。"
+        },
+        {
+          "text": "残りがスレッド B だけになったら、--max-iterations を待たずにループを止めると述べている",
+          "passed": true,
+          "evidence": "--max-iterations の上限を待たずに止まると明記。"
+        },
+        {
+          "text": "スレッド A の修正を push した後の HEAD が再レビューされたことを確かめてから止めると述べている",
+          "passed": true,
+          "evidence": "新しい HEAD にレビューが届き新しい指摘が無いことを、止まる条件に挙げている。"
+        },
+        {
+          "text": "止まった理由を「完了」ではなく、判断待ちで終えたことを表す理由として報告すると述べている",
+          "passed": true,
+          "evidence": "「判断待ちで終了」は「完了」とは別の止まった理由だと明記。"
+        },
+        {
+          "text": "判断待ちの報告に、スレッド B の選択肢（案 X・案 Y）と推奨を載せると述べている",
+          "passed": true,
+          "evidence": "判断待ちの一覧に B の URL・案 X と案 Y・推奨を載せると明記。"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "コマンドの実行・ファイルの変更はしていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 20,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 6,
+        "failed": 2,
+        "total": 8,
+        "time_seconds": 26.655,
+        "tokens": 39917,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "スレッド B について、利用者に確認を送らないと述べている",
+          "passed": true,
+          "evidence": "--defer-decisions があるのでその場で止まらず、判断待ちとして記録すると述べている。"
+        },
+        {
+          "text": "スレッド B を直さず、解決もせずに残すと述べている",
+          "passed": true,
+          "evidence": "B は勝手に実装せず、スレッドを未解決のまま残すと述べている。"
+        },
+        {
+          "text": "スレッド A は直して、返信してから解決すると述べている",
+          "passed": false,
+          "evidence": "A は返信までで、解決するかは「スキルの方針に従う」としており、返信してから解決すると述べていない。"
+        },
+        {
+          "text": "残りがスレッド B だけになったら、--max-iterations を待たずにループを止めると述べている",
+          "passed": true,
+          "evidence": "自分で進められる作業がなくなった時点で止まると述べ、上限を待っていない。"
+        },
+        {
+          "text": "スレッド A の修正を push した後の HEAD が再レビューされたことを確かめてから止めると述べている",
+          "passed": false,
+          "evidence": "A の push 後は CI の成功だけを確かめて止まるとしており、再レビューを確かめていない。"
+        },
+        {
+          "text": "止まった理由を「完了」ではなく、判断待ちで終えたことを表す理由として報告すると述べている",
+          "passed": true,
+          "evidence": "止まる理由を判断待ちとし、正常な完了ではないと述べている。"
+        },
+        {
+          "text": "判断待ちの報告に、スレッド B の選択肢（案 X・案 Y）と推奨を載せると述べている",
+          "passed": true,
+          "evidence": "B の要約と案 X・案 Y の比較、推奨案を載せると述べている。"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "コマンドの実行・ファイルの変更はしていない。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 37.337,
+        "stddev": 0,
+        "min": 37.337,
+        "max": 37.337
+      },
+      "tokens": {
+        "mean": 87909,
+        "stddev": 0,
+        "min": 87909,
+        "max": 87909
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.75,
+        "stddev": 0,
+        "min": 0.75,
+        "max": 0.75
+      },
+      "time_seconds": {
+        "mean": 26.655,
+        "stddev": 0,
+        "min": 26.655,
+        "max": 26.655
+      },
+      "tokens": {
+        "mean": 39917,
+        "stddev": 0,
+        "min": 39917,
+        "max": 39917
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.25",
+      "time_seconds": "+10.7",
+      "tokens": "+47992"
+    }
+  },
+  "notes": [
+    "Issue #623 の変更確認。新規の eval 20 だけを with_skill と without_skill で 1 run ずつ実行した。",
+    "PR レビューで assertion を足したので、eval 20 をやり直した。"
+  ]
+}
