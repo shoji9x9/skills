@@ -27,8 +27,11 @@ dependabot-merge の判断ガイドに、見送るときは待つ版を先に決
 
 - 単位が小さすぎると（patch）、同じ minor の次の patch の PR がまた作られる。大きすぎると（major）、待つ版の PR も作られない
 - major の ignore は、その major を使わないと決めたときだけにする
-- グループの PR では `ignore this ...` の形が使えないので、`@dependabot ignore <依存の名前> minor version` の形で書く。
+- グループの PR では `ignore this ...` の形が使えず、`@dependabot ignore <依存の名前> minor version` の形になる。
+  この形が止める範囲（その minor だけか、minor の更新の種別全体か）は公式の文書から読み切れないので、
+  付けた後に `@dependabot show <依存の名前> ignore conditions` で記録された条件を確かめてから、手順に書く。
   対の組のグループは、組のすべての依存に書く（1 つだけでは残りの依存で PR が作り直される）
 - 待つ条件が版で表せない（他のツールの対応を待つなど）ときは、単位を決めずにユーザーに確認する
-- 見送りの理由と解く条件は、ignore のコメントだけに残さず PR のコメントに書く（コメントの ignore はリポジトリから見えない）
+- 見送りの理由と解く条件は、ignore のコメントだけに残さず PR のコメントに書く（ignore の条件はファイルとしてリポジトリに残らない）。
+  付いている条件は `@dependabot show <依存の名前> ignore conditions` で確かめ、`@dependabot unignore <依存の名前>` で外せる
 - 根拠: <https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-pull-request-comment-commands>
