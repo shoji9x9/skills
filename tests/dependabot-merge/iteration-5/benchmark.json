@@ -1,0 +1,197 @@
+{
+  "metadata": {
+    "skill_name": "dependabot-merge",
+    "skill_path": "<repo>/skills/dependabot-merge",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-15T04:28:09Z",
+    "evals_run": [10],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 10,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 10,
+        "failed": 0,
+        "total": 10,
+        "time_seconds": 33.465,
+        "tokens": 47963,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "6.0.3 から 7.0.2 への更新を major の更新と認識し、破壊的な変更を含むことを前提に扱っている",
+          "passed": true,
+          "evidence": "「major 更新（6 → 7）なので、スキルの規則では破壊的変更があることを前提に扱います」"
+        },
+        {
+          "text": "changelog か移行ガイドから破壊的な変更を挙げ、リポジトリの中で使っている箇所に当たるかを確かめる方針を示している",
+          "passed": true,
+          "evidence": "手順 3「TS 7 の主な変更…を、使用箇所に当てて確かめます」と、削除されたオプションを tsconfig に当てる"
+        },
+        {
+          "text": "使っている箇所に当たる破壊的な変更が無いことを、マージしてよい条件にしている",
+          "passed": true,
+          "evidence": "「マージできる条件は『挙げた破壊的変更のどれも使用箇所に当たらず、CI も通っている』ことです」"
+        },
+        {
+          "text": "使っている箇所に当たる破壊的な変更があれば、マージしない方針である",
+          "passed": true,
+          "evidence": "「止める理由」の表に「tsconfig で削除されたオプションを使っている」を挙げ、マージしない"
+        },
+        {
+          "text": "使っている箇所に当たる破壊的な変更があれば、必要な修正を PR コメントに書く方針である",
+          "passed": true,
+          "evidence": "表の「コメントに書く課題と解決策」に、該当するファイルとオプション・移行先・修正 PR を先に入れることを書く"
+        },
+        {
+          "text": "使っている箇所に当たる破壊的な変更があれば、ユーザーに確認する方針である",
+          "passed": true,
+          "evidence": "「マージせずに PR コメントを残し、ユーザーに報告します」"
+        },
+        {
+          "text": "使っている箇所に当たるかを判断できないときも、マージせずにユーザーに確認する方針である",
+          "passed": true,
+          "evidence": "「当たるかどうか判断できません。この場合、スキルは止めてユーザーに確認するよう定めています」"
+        },
+        {
+          "text": "マージ方式を .config/skills/shoji9x9/skills.yml の skills.dependabot-merge.merge_method（無ければ squash）から決める方針を示している",
+          "passed": true,
+          "evidence": "「`.config/skills/shoji9x9/skills.yml` の `merge_method` に従います。設定が無ければ `squash` を使い」"
+        },
+        {
+          "text": "判断の根拠を PR コメントに記録する方針である",
+          "passed": true,
+          "evidence": "手順 4「マージしてよいと判断した場合も、先にコメントを書きます」と、止める場合のコメントの下書き"
+        },
+        {
+          "text": "回答の中で、CI が通っていることだけを根拠に major の更新をマージしてよいとする食い違った判断をしていない",
+          "passed": true,
+          "evidence": "「CI 成功の申告だけでは、major 更新をマージする条件を満たしません」。食い違う判断は無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 10,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.7,
+        "passed": 7,
+        "failed": 3,
+        "total": 10,
+        "time_seconds": 27.607,
+        "tokens": 18995,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "6.0.3 から 7.0.2 への更新を major の更新と認識し、破壊的な変更を含むことを前提に扱っている",
+          "passed": true,
+          "evidence": "「メジャー更新は破壊的変更を含む前提で扱い、人が判断します」"
+        },
+        {
+          "text": "changelog か移行ガイドから破壊的な変更を挙げ、リポジトリの中で使っている箇所に当たるかを確かめる方針を示している",
+          "passed": true,
+          "evidence": "リリースノートで破壊的変更を確かめ、`tsconfig*.json` に廃止されたオプションが残っていないかを確かめる"
+        },
+        {
+          "text": "使っている箇所に当たる破壊的な変更が無いことを、マージしてよい条件にしている",
+          "passed": true,
+          "evidence": "「問題がなければ、人の承認を得てからマージする」。破壊的な変更が当たらないことを条件にしている"
+        },
+        {
+          "text": "使っている箇所に当たる破壊的な変更があれば、マージしない方針である",
+          "passed": true,
+          "evidence": "「周辺ツールが TS 7 に未対応の場合は、対応が出るまで保留します」"
+        },
+        {
+          "text": "使っている箇所に当たる破壊的な変更があれば、必要な修正を PR コメントに書く方針である",
+          "passed": false,
+          "evidence": "保留のコメントに添えるのは「確認リスト」で、使っている箇所に当たったときの必要な修正を書く方針は無い"
+        },
+        {
+          "text": "使っている箇所に当たる破壊的な変更があれば、ユーザーに確認する方針である",
+          "passed": true,
+          "evidence": "「人の承認を得てから」「チームで決めること」。人に判断を返している"
+        },
+        {
+          "text": "使っている箇所に当たるかを判断できないときも、マージせずにユーザーに確認する方針である",
+          "passed": true,
+          "evidence": "結論は「マージせず、人のレビュー待ちで止める」で、判断できないときも人に返す"
+        },
+        {
+          "text": "マージ方式を .config/skills/shoji9x9/skills.yml の skills.dependabot-merge.merge_method（無ければ squash）から決める方針を示している",
+          "passed": false,
+          "evidence": "「リポジトリの既定のマージ方式に従います」。skills.yml の merge_method と squash のデフォルトは無い"
+        },
+        {
+          "text": "判断の根拠を PR コメントに記録する方針である",
+          "passed": false,
+          "evidence": "「ラベルやコメントで保留中であることを示します」は止める場合だけの任意の手段で、マージする場合に根拠を PR コメントに残す方針は無い"
+        },
+        {
+          "text": "回答の中で、CI が通っていることだけを根拠に major の更新をマージしてよいとする食い違った判断をしていない",
+          "passed": true,
+          "evidence": "「CI が成功しても安全とは言い切れない」。食い違う判断は無い"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 33.465,
+        "stddev": 0,
+        "min": 33.465,
+        "max": 33.465
+      },
+      "tokens": {
+        "mean": 47963,
+        "stddev": 0,
+        "min": 47963,
+        "max": 47963
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.7,
+        "stddev": 0,
+        "min": 0.7,
+        "max": 0.7
+      },
+      "time_seconds": {
+        "mean": 27.607,
+        "stddev": 0,
+        "min": 27.607,
+        "max": 27.607
+      },
+      "tokens": {
+        "mean": 18995,
+        "stddev": 0,
+        "min": 18995,
+        "max": 18995
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.30",
+      "time_seconds": "+5.9",
+      "tokens": "+28968"
+    }
+  },
+  "notes": []
+}

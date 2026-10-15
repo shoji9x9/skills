@@ -1,7 +1,7 @@
 ---
 date: 2026-10-01
 type: doc
-priority: low
+priority: medium
 status: pending
 applied-to: []
 session: claude-code
@@ -13,6 +13,11 @@ session: claude-code
 
 issue-batch の SKILL.md の番号付き手順 3 に、文字列置換で 1 文を行の途中へ挿入した。
 行が 313 桁になり、markdownlint の MD013 で落ちた（再実行 1 回で解消）。
+
+2026-10-15、#616 の PR レビューへの対応で、dependabot-merge の SKILL.md の箇条書き（major の更新の判断基準）に、python の置換で 2 回続けて文を挿入した。
+行が 248 桁になり、markdownlint の MD013（上限 200）で失敗した。箇条書きを継続行に分けて直した。
+この学びはセッション開始時に注入されていたが、置換を書く時点では参照されなかった。
+1 回目の挿入では上限に届かず、2 回目の挿入で超えた。置換のたびに行の長さが視野に入らないという根本原因は変わらない。
 
 ## 根本原因
 

@@ -5,9 +5,10 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-    # グループが多い（0.x 専用 + カテゴリ + catch-all で 7 つ）ため、更新が重なっても
-    # 各グループの PR が抑制されないよう上限を引き上げる。
-    open-pull-requests-limit: 10
+    # 上限はグループの PR と major の PR の合計で数える。修正待ちの major の PR は open の
+    # まま残るので、それが積み上がっても minor・patch のグループ PR が止まらないよう、
+    # 直接の依存の数とグループの数を足した数より大きくする。
+    open-pull-requests-limit: 50
     # cooldown は pnpm の minimumReleaseAge (3 日) より大きくする。
     # こうすることで Dependabot が更新 PR を作る頃には対象バージョンが
     # minimumReleaseAge の期間を過ぎており、lockfile がポリシー違反で
@@ -18,11 +19,15 @@ updates:
     # 依存更新の型は commit-types.ts の単一の真実に従い chore（build は使わない）。
     commit-message:
       prefix: "chore"
-    # メジャーアップデートの PR は作成しない
+    # major の更新の扱い（1 パッケージ 1 PR・手動レビュー・@types/node を除く理由）は
+    # docs/vulnerability-handling.md に書く。major は minor・patch のグループに当たらず、
+    # 末尾の major のグループに当たらないものは個別の PR になる。
+    # https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/optimizing-pr-creation-version-updates
     ignore:
-      - dependency-name: "*"
+      - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
-    # グループはマッチ先勝ち。0.x（<1.0）はマイナー更新でも破壊的変更があり得て
+    # 一致したグループが複数あれば、パターンがより具体的なグループが優先する（update-types が
+    # 重ならないグループどうしは競合しない）。0.x（<1.0）はマイナー更新でも破壊的変更があり得て
     # 自動マージ対象外なので、パッケージごとに専用グループへ隔離し 1 PR 単位で
     # 手動レビューできるようにする。それ以外（>=1.0）は機能カテゴリ + catch-all に
     # まとめ、dependabot-automerge ワークフローで CI 通過後に自動マージする。
@@ -57,13 +62,21 @@ updates:
         patterns: ["*"]
         exclude-patterns: ["oxfmt", "markdownlint-cli2"]
         update-types: ["minor", "patch"]
+      # --- major: 版をそろえて使う組だけを 1 PR にまとめる（片方だけでは peer が合わない） ---
+      commitlint-major:
+        patterns: ["@commitlint/*"]
+        update-types: ["major"]
+      react-types-major:
+        patterns: ["@types/react", "@types/react-dom"]
+        update-types: ["major"]
 
   # GitHub Actions (pinact で SHA ピン留めしたアクションを追跡)
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5
+    # 上限はグループの PR（1 つ）と major の PR（1 アクション 1 PR）の合計で数える。
+    open-pull-requests-limit: 10
     # minimumReleaseAge (3 日) より大きい 7 日に設定。
     cooldown:
       default-days: 7
@@ -71,11 +84,8 @@ updates:
     # 依存更新の型は commit-types.ts の単一の真実に従い chore（build は使わない）。
     commit-message:
       prefix: "chore"
-    # メジャーアップデートの PR は作成しない
-    ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-major"]
-    # 個別 PR を 1 グループに集約する。github-actions はタグが semver を厳密に守らないため、
+    # major の更新は ignore せず、1 アクション 1 PR にする（docs/vulnerability-handling.md）。
+    # minor・patch の個別 PR を 1 グループに集約する。github-actions はタグが semver を厳密に守らないため、
     # dependabot-automerge ワークフローは自動マージせず常にレビューラベルへ回す。
     groups:
       actions:
