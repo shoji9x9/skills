@@ -35,6 +35,12 @@ function listFiles(dir: string): string[] {
 
 function sortKeys(value: unknown): unknown {
   if (isArray(value)) return value.map(sortKeys);
+  // YAML の `!!set`（Set）とタイムスタンプ（Date）は Object.entries が空になり、中身が違っても同じ `{}` になる。
+  // 中身を比べられる値に変える。
+  if (value instanceof Set) {
+    return { $set: [...value].map((item) => JSON.stringify(sortKeys(item))).sort() };
+  }
+  if (value instanceof Date) return value.toISOString();
   if (value && typeof value === "object") {
     return Object.fromEntries(
       Object.entries(value)
