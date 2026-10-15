@@ -15,7 +15,7 @@ import { readFileSync, readdirSync, existsSync, lstatSync, readlinkSync } from "
 import { join, relative } from "node:path";
 import {
   normalizeSkillFrontmatter,
-  sameSkillFrontmatter,
+  sameNormalizedFrontmatter,
   splitFrontmatter,
 } from "../../lib/frontmatter.ts";
 import { errorMessage, isErrnoException } from "../../lib/errors.ts";
@@ -41,10 +41,10 @@ function frontmatterOf(text: string) {
   return splitFrontmatter(text) ?? { fm: "", body: text };
 }
 
-// frontmatter が YAML として読めることを確かめる。読めなければ、どのファイルかを示して exit 2 にする。
-function readFrontmatterOrExit(fmText: string, source: string): void {
+// frontmatter を読んで正規化する。読めなければ、どのファイルかを示して exit 2 にする。
+function readFrontmatterOrExit(fmText: string, source: string): unknown {
   try {
-    normalizeSkillFrontmatter(fmText);
+    return normalizeSkillFrontmatter(fmText);
   } catch (err) {
     console.error(`skills-sync: invalid YAML frontmatter in ${source}: ${errorMessage(err)}`);
     process.exit(2);
@@ -99,9 +99,9 @@ for (const e of readdirSync(SRC_ROOT, { withFileTypes: true })) {
     if (rel === "SKILL.md") {
       const A = frontmatterOf(a.toString("utf8"));
       const B = frontmatterOf(b.toString("utf8"));
-      readFrontmatterOrExit(A.fm, join(srcDir, "SKILL.md"));
-      readFrontmatterOrExit(B.fm, join(instDir, "SKILL.md"));
-      if (!sameSkillFrontmatter(A.fm, B.fm) || A.body.trim() !== B.body.trim()) {
+      const fmA = readFrontmatterOrExit(A.fm, join(srcDir, "SKILL.md"));
+      const fmB = readFrontmatterOrExit(B.fm, join(instDir, "SKILL.md"));
+      if (!sameNormalizedFrontmatter(fmA, fmB) || A.body.trim() !== B.body.trim()) {
         drifts.push(`${name}: SKILL.md content differs`);
       }
     } else if (!a.equals(b)) {

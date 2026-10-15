@@ -9,8 +9,8 @@
       "id": "SS-JSON-COMPARE",
       "why": "JSON の文字列にして比べる（キーの順を区別し、Set の中身と、Date と同じ ISO の文字列を区別しない）",
       "file": "scripts/lib/frontmatter.ts",
-      "find": "return isDeepStrictEqual(normalizeSkillFrontmatter(fmA), normalizeSkillFrontmatter(fmB));",
-      "replace": "return JSON.stringify(normalizeSkillFrontmatter(fmA)) === JSON.stringify(normalizeSkillFrontmatter(fmB));",
+      "find": "return isDeepStrictEqual(a, b);",
+      "replace": "return JSON.stringify(a) === JSON.stringify(b);",
       "occurrences": 1,
       "expect_failing": [
         "同じとみなす: キーの順だけが違う",
@@ -38,6 +38,24 @@
       "replace": "if (false) delete obj.metadata;",
       "occurrences": 1,
       "expect_failing": ["同じとみなす: コピーにだけ metadata.local-path がある"]
+    },
+    {
+      "id": "SS-METADATA-ANY-OBJECT",
+      "why": "metadata がマッピングでなくても（Set・Date など）キーが無いとみなして消す（中身の違う metadata を見逃す）",
+      "file": "scripts/lib/frontmatter.ts",
+      "find": "if (isPlainObject(obj) && isPlainObject(obj.metadata)) {",
+      "replace": "if (isPlainObject(obj) && obj.metadata !== null && typeof obj.metadata === \"object\") {",
+      "occurrences": 1,
+      "expect_failing": ["違うとみなす: metadata が集合（!!set）で、もう片方に metadata が無い"]
+    },
+    {
+      "id": "SS-FALSY-AS-EMPTY",
+      "why": "空の入力だけでなく false や 0 のスカラーも空の frontmatter とみなす",
+      "file": "scripts/lib/frontmatter.ts",
+      "find": "(fmText) ?? {};",
+      "replace": "(fmText) || {};",
+      "occurrences": 1,
+      "expect_failing": ["違うとみなす: スカラーの false と空"]
     }
   ]
 }

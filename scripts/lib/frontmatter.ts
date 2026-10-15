@@ -27,18 +27,33 @@ export function splitFrontmatter(content: string): { fm: string; body: string } 
   return { fm: m[1], body: text.slice(m[0].length) };
 }
 
-type SkillFrontmatter = { metadata?: Record<string, unknown> };
+type SkillFrontmatter = { metadata?: unknown };
 
-/** frontmatter を YAML として読み、`metadata.local-path` を除く。空になった metadata も除く。読めなければ例外にする。 */
-export function normalizeSkillFrontmatter(fmText: string): SkillFrontmatter {
-  const obj = loadYamlAs<SkillFrontmatter | null | undefined>(fmText) || {};
-  if (obj.metadata && typeof obj.metadata === "object") {
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return (
+    value !== null && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype
+  );
+}
+
+/**
+ * frontmatter を YAML として読み、`metadata.local-path` を除く。それで空になった metadata も除く。読めなければ例外にする。
+ * 空の入力（undefined・null）だけを空の frontmatter とみなす。false や 0 のようなスカラーは、そのまま比べる。
+ * metadata がマッピングでない（Set・Date・配列など）ときは、キーが無く見えても消さずに比べる。
+ */
+export function normalizeSkillFrontmatter(fmText: string): unknown {
+  const obj = loadYamlAs<SkillFrontmatter | null | undefined>(fmText) ?? {};
+  if (isPlainObject(obj) && isPlainObject(obj.metadata)) {
     delete obj.metadata["local-path"];
     if (Object.keys(obj.metadata).length === 0) delete obj.metadata;
   }
   return obj;
 }
 
+/** normalizeSkillFrontmatter で正規化した 2 つの値が同じかを返す（キーの順は問わず、型と中身で比べる）。 */
+export function sameNormalizedFrontmatter(a: unknown, b: unknown): boolean {
+  return isDeepStrictEqual(a, b);
+}
+
 export function sameSkillFrontmatter(fmA: string, fmB: string): boolean {
-  return isDeepStrictEqual(normalizeSkillFrontmatter(fmA), normalizeSkillFrontmatter(fmB));
+  return sameNormalizedFrontmatter(normalizeSkillFrontmatter(fmA), normalizeSkillFrontmatter(fmB));
 }
