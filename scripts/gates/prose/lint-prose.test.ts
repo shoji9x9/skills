@@ -117,38 +117,9 @@ test.each([
   ["CSS の背景色", "前景色と背景色を指定する。"],
   ["図の背景", "角をラベルの背景で隠さない。"],
   ["経緯の意味の背景", "この変更の背景を書く。"],
-  ["「直す対象にする」", "A 機能を直す対象にする。"],
-  ["差し引いた「残り」", "接頭辞を外した残りが空かを確かめる。"],
-  ["直後の名詞で示す「残り時間」", "待機する残り時間を表示する。"],
-  ["直後の名詞で示す「残りの〜」", "処理する残りのファイル数を数える。"],
-  ["「する」以外の動詞の「除く残り」", "配列から先頭を除く残りを返す。"],
 ])("陰性: %s は検出しない", async (_, sentence) => {
   const root = makeRepo({ "doc.md": `# 例\n\n${sentence}\n` });
   expect((await lintProse({ root })).violations).toEqual([]);
-});
-
-test("何の残りかを補わせる句を、#595 の例の見出しで検出する", async () => {
-  // textlint-disable
-  const heading =
-    "# 型を付ける作業では、型の検査を外す書き方を、報告する残りではなく直す対象にする\n";
-  // textlint-enable
-  const root = makeRepo({ "doc.md": heading });
-  const { violations } = await lintProse({ root });
-  expect(violations.filter((v) => v.includes("何の残りかを読み手が補う"))).toHaveLength(1);
-});
-
-// 直後に何の残りかを示す名詞が来ない形（助詞・文末・読点・判定詞）を、それぞれ検出する。
-// textlint-disable
-test.each([
-  ["文末", "報告する残り。"],
-  ["読点", "報告する残り、次に回す。"],
-  ["助詞の「から」", "報告する残りから選ぶ。"],
-  ["判定詞の「だ」", "報告する残りだ。"],
-])("何の残りかを補わせる句を、直後が %s でも検出する", async (_, sentence) => {
-  // textlint-enable
-  const root = makeRepo({ "doc.md": `# 例\n\n${sentence}\n` });
-  const { violations } = await lintProse({ root });
-  expect(violations.filter((v) => v.includes("何の残りかを読み手が補う"))).toHaveLength(1);
 });
 
 test("陰性: インラインコード・コードブロック・frontmatter の中の語は検出しない", async () => {

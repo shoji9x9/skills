@@ -3,7 +3,7 @@ date: 2026-10-15
 type: doc
 priority: medium
 status: applied
-applied-to: ["docs/writing-style.md", "scripts/gates/prose/lint-prose.test.ts"]
+applied-to: ["docs/writing-style.md"]
 session: claude-code
 ---
 
