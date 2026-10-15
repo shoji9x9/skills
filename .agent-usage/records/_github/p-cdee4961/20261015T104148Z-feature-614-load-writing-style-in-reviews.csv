@@ -111,3 +111,6 @@ coverage:github:2026-10-14T11:48:22.603Z:2026-10-15T13:05:18.565Z,coverage,2026-
 ci:38739721211:1,ci,2026-10-15T13:08:47.647Z,p-cdee4961,github-actions,,,,2026-10-15T13:05:01.000Z,2026-10-15T13:08:03.000Z,Asia/Tokyo,dependabot/github_actions/actions-5425acbca1,,,,,,,,,,,CI;pull_request;success,
 ci:38739443998:1,ci,2026-10-15T13:08:47.647Z,p-cdee4961,github-actions,,,,2026-10-15T13:03:01.000Z,2026-10-15T13:06:08.000Z,Asia/Tokyo,dependabot/npm_and_yarn/js-yaml-5.4.3,,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-10-14T13:05:18.565Z:2026-10-15T13:08:47.647Z,coverage,2026-10-15T13:08:47.647Z,p-cdee4961,,,,,2026-10-14T13:05:18.565Z,2026-10-15T13:08:47.647Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:38740273907:1,ci,2026-10-15T13:09:16.698Z,p-cdee4961,github-actions,,,,2026-10-15T13:09:04.000Z,2026-10-15T13:09:16.698Z,Asia/Tokyo,dependabot/github_actions/actions-5425acbca1,,,,,,,,,,,CI;pull_request;open,
+ci:38740273852:1,ci,2026-10-15T13:09:16.698Z,p-cdee4961,github-actions,,,,2026-10-15T13:09:04.000Z,2026-10-15T13:09:17.000Z,Asia/Tokyo,dependabot/github_actions/actions-5425acbca1,,,,,,,,,,,Dependabot auto-merge;pull_request;success,
+coverage:github:2026-10-14T13:08:47.647Z:2026-10-15T13:09:16.698Z,coverage,2026-10-15T13:09:16.698Z,p-cdee4961,,,,,2026-10-14T13:08:47.647Z,2026-10-15T13:09:16.698Z,Asia/Tokyo,,,,,,,,,,,,ok,
