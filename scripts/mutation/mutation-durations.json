@@ -32,6 +32,7 @@
     "scripts/lib/source-scope.mutations.json": 0.5,
     "scripts/lib/spawn-async.mutations.json": 0.7,
     "scripts/lib/test-tmpdir.mutations.json": 0.7,
+    "scripts/lib/yaml-as.mutations.json": 0.7,
     "scripts/mutation/check-mutation-proof.mutations.json": 7.8,
     "scripts/skills/_cross/skill-script-cli-entry.mutations.json": 3.9,
     "scripts/skills/_cross/vendored-tool-standalone.mutations.json": 0.7,

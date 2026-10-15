@@ -65,7 +65,8 @@ test("誤検知しないことの確認: 読める YAML（複数文書・.yaml�
 test("不正な YAML を 1 件置くと exit 1 でそのファイルを名指しする", () => {
   const dir = repo({ "a.yml": VALID, "sub/broken.yml": BROKEN });
   const r = run(["--root", dir]);
-  expect(r.stderr).toContain("sub/broken.yml: deficient indentation");
+  // 理由の文言は js-yaml の版で変わるので、ファイルを名指しして理由が続くことだけを確かめる。
+  expect(r.stderr).toMatch(/sub\/broken\.yml: \S/);
   expect(r.stderr).toContain("2 件中 1 件を YAML として読めない");
   expect(r.status).toBe(1);
 });

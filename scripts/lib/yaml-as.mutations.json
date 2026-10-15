@@ -1,0 +1,48 @@
+{
+  "$comment": [
+    "yaml-as.test.ts の検出能力を示す変異の一覧。",
+    "js-yaml 5 で変わったデフォルト（スキーマ・空の入力・複数の文書）を、js-yaml 4 と同じ読み方に保つ分岐を無効にする。"
+  ],
+  "test_file": "scripts/lib/yaml-as.test.ts",
+  "mutations": [
+    {
+      "id": "YA-SCHEMA-DEFAULT",
+      "why": "スキーマを渡さず、js-yaml 5 のデフォルト（merge key と YAML 1.1 のタグを持たない CORE_SCHEMA）で読む",
+      "file": "scripts/lib/yaml-as.ts",
+      "find": "return loadAll(text, { schema: YAML_SCHEMA });",
+      "replace": "return loadAll(text);",
+      "occurrences": 1,
+      "expect_failing": [
+        "merge key を展開する",
+        "merge key の値がマッピングでなければ例外にする",
+        "YAML 1.1 のタグ（binary）を読める",
+        "YAML 1.1 のタグ（set）を読める",
+        "YAML 1.1 のタグ（omap）を読める",
+        "YAML 1.1 のタグ（pairs）を読める",
+        "YAML 1.1 のタグ（timestamp）を読める"
+      ]
+    },
+    {
+      "id": "YA-MULTI-DOC",
+      "why": "複数の文書を例外にせず、先頭の文書だけを返す",
+      "file": "scripts/lib/yaml-as.ts",
+      "find": "if (docs.length > 1) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["複数の文書は loadYaml では例外にし、loadYamlDocuments では全部を返す"]
+    },
+    {
+      "id": "YA-EMPTY-THROWS",
+      "why": "空の入力を js-yaml 5 の load と同じく例外にする",
+      "file": "scripts/lib/yaml-as.ts",
+      "find": "  return docs[0];",
+      "replace": "  if (docs.length === 0) throw new Error(\"empty\");\n  return docs[0];",
+      "occurrences": 1,
+      "expect_failing": [
+        "空の入力（空文字）は例外にせず undefined を返す",
+        "空の入力（空行だけ）は例外にせず undefined を返す",
+        "空の入力（コメントだけ）は例外にせず undefined を返す"
+      ]
+    }
+  ]
+}
