@@ -3,7 +3,10 @@
 //
 // 以前は 1 ファイルごとに `pnpm exec js-yaml <file>` を起動していた。起動が 1 回約 0.6 秒かかり（`pnpm exec` の起動コスト）、
 // 66 ファイルで 44 秒を占めていた（Issue #507）。js-yaml の API で全ファイルを 1 プロセスで読む。
-// 判定は js-yaml の CLI と同じにする: JSON として読めればよし、読めなければ `loadAll`（複数文書）で読む。
+// 判定: JSON として読めればよし、読めなければ `loadAll`（複数文書）で読む。
+// スキーマは js-yaml 5 の CLI のデフォルト（CORE_SCHEMA）ではなく、`yaml-as.ts` の YAML_SCHEMA を使う。
+// そのため、merge key・YAML 1.1 のタグ・複合キー（`? [1, 2]`）を含む YAML では、`pnpm exec js-yaml` と結果が分かれる。
+// js-yaml 4 と合否が違う形は `yaml-as.ts` の冒頭にある。
 //
 // 使い方:
 //   node scripts/gates/code/lint-yaml.ts                 # --root（既定はリポジトリ）配下の *.yml / *.yaml を全部
@@ -16,7 +19,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import yaml from "js-yaml";
+import { loadYamlDocuments } from "../../lib/yaml-as.ts";
 import { errorMessage } from "../../lib/errors.ts";
 import { isAgentCopy } from "../../lib/source-scope.ts";
 
@@ -51,7 +54,7 @@ export function findYamlFiles(root: string): string[] {
   return [...new Set(found)].sort();
 }
 
-/** 1 ファイルを js-yaml の CLI と同じ判定で読む。読めなければ理由を返す。 */
+/** 1 ファイルを JSON か YAML（YAML_SCHEMA）として読む。読めなければ理由を返す。 */
 export function lintFile(path: string): string | null {
   let text: string;
   try {
@@ -66,7 +69,7 @@ export function lintFile(path: string): string | null {
     /* JSON でなければ YAML として読む */
   }
   try {
-    yaml.loadAll(text, () => {});
+    loadYamlDocuments(text);
     return null;
   } catch (err) {
     return errorMessage(err);
