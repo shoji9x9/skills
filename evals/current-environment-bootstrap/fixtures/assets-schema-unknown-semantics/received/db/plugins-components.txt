@@ -1,0 +1,10 @@
+# 受領物: 現行 DB サーバーのプラグインとコンポーネント（2026-08-13 受領・非本番検証環境で取得）
+mysql> SELECT PLUGIN_NAME, PLUGIN_STATUS, PLUGIN_TYPE, PLUGIN_LIBRARY
+    -> FROM information_schema.PLUGINS WHERE PLUGIN_LIBRARY IS NOT NULL;
+Empty set (0.00 sec)
+
+mysql> SELECT PLUGIN_NAME, PLUGIN_STATUS FROM information_schema.PLUGINS WHERE PLUGIN_STATUS <> 'ACTIVE';
+Empty set (0.00 sec)
+
+mysql> SELECT * FROM mysql.component;
+Empty set (0.00 sec)

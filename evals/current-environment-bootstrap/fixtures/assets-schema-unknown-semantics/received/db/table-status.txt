@@ -1,0 +1,11 @@
+# 受領物: 現行 DB のテーブルの状態（2026-08-13 受領・非本番検証環境で取得）
+mysql> SELECT TABLE_NAME, TABLE_TYPE, ENGINE, TABLE_ROWS, AUTO_INCREMENT, TABLE_COLLATION
+    -> FROM information_schema.TABLES WHERE TABLE_SCHEMA = 'shipdb' ORDER BY TABLE_NAME;
++------------+------------+--------+------------+----------------+-----------------------+
+| TABLE_NAME | TABLE_TYPE | ENGINE | TABLE_ROWS | AUTO_INCREMENT | TABLE_COLLATION       |
++------------+------------+--------+------------+----------------+-----------------------+
+| app_users  | BASE TABLE | InnoDB |          0 |              1 | utf8mb4_ja_0900_as_cs |
+| customers  | BASE TABLE | InnoDB |          0 |              1 | utf8mb4_ja_0900_as_cs |
+| orders     | BASE TABLE | InnoDB |          0 |              1 | utf8mb4_ja_0900_as_cs |
++------------+------------+--------+------------+----------------+-----------------------+
+3 rows in set (0.00 sec)
