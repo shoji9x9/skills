@@ -26,7 +26,8 @@ updates:
     ignore:
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
-    # グループはマッチ先勝ち。0.x（<1.0）はマイナー更新でも破壊的変更があり得て
+    # 一致したグループが複数あれば、パターンがより具体的なグループが優先する（update-types が
+    # 重ならないグループどうしは競合しない）。0.x（<1.0）はマイナー更新でも破壊的変更があり得て
     # 自動マージ対象外なので、パッケージごとに専用グループへ隔離し 1 PR 単位で
     # 手動レビューできるようにする。それ以外（>=1.0）は機能カテゴリ + catch-all に
     # まとめ、dependabot-automerge ワークフローで CI 通過後に自動マージする。
