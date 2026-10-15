@@ -64,3 +64,5 @@ ci:38695532552:1,ci,2026-10-15T10:41:48.953Z,p-cdee4961,github-actions,,,,2026-1
 coverage:github:2026-10-14T06:56:15.274Z:2026-10-15T10:41:48.953Z,coverage,2026-10-15T10:41:48.953Z,p-cdee4961,,,,,2026-10-14T06:56:15.274Z,2026-10-15T10:41:48.953Z,Asia/Tokyo,,,,,,,,,,,,ok,
 ci:38721902457:1,ci,2026-10-15T10:42:10.642Z,p-cdee4961,github-actions,,,,2026-10-15T10:40:13.000Z,2026-10-15T10:42:10.642Z,Asia/Tokyo,dependabot/npm_and_yarn/vitest-5.0.3,,,,,,,,,,,CI;pull_request;open,
 coverage:github:2026-10-14T10:41:48.953Z:2026-10-15T10:42:10.642Z,coverage,2026-10-15T10:42:10.642Z,p-cdee4961,,,,,2026-10-14T10:41:48.953Z,2026-10-15T10:42:10.642Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:38721902457:1,ci,2026-10-15T10:42:51.373Z,p-cdee4961,github-actions,,,,2026-10-15T10:40:13.000Z,2026-10-15T10:42:51.373Z,Asia/Tokyo,dependabot/npm_and_yarn/vitest-5.0.3,,,,,,,,,,,CI;pull_request;open,
+coverage:github:2026-10-14T10:42:10.642Z:2026-10-15T10:42:51.373Z,coverage,2026-10-15T10:42:51.373Z,p-cdee4961,,,,,2026-10-14T10:42:10.642Z,2026-10-15T10:42:51.373Z,Asia/Tokyo,,,,,,,,,,,,ok,
