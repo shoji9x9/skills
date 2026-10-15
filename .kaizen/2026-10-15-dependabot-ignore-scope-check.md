@@ -23,20 +23,22 @@ major を ignore すると 7.x のすべてが対象になり、待ちたい 7.1
 
 ## 提案
 
-dependabot-merge の判断ガイドに、見送るときは待つ版を先に決め、待つ版を含まない単位（7.1 を待つなら 7.0 の minor）で ignore する、と書く。
+dependabot-merge の判断ガイドに、見送るときは待つ版を先に決め、待つ版を含まない単位のうち最も大きいもの（7.1 を待つなら 7.0 の minor）で ignore する、と書く。
 
 - 単位ごとに止まる範囲が違う。PR が上げる先の版（7.0.2）について、minor はその minor の版（7.0.x）を、major はその major の版（7.x）を、patch はその版だけを止める。
   7.1 を待つなら minor、8.0 を待つなら major、直後の patch を待つなら patch を選ぶ
 - 待つ版が直後の版でないとき（7.0 の PR で 7.2 を待つなど）は、間の版（7.1）の PR も作られる。その PR も同じ理由で見送るかを確かめる
-- major を選ぶのは、次の major を待つときだけにする。その major を使わないと決めたときは、コメントの ignore ではなく、
-  docs/vulnerability-handling.md の方針どおり dependabot.yml の ignore に理由を添えて書き、人が定期的に確かめる対象にする
+- major を選ぶのは、次の major を待つときだけにする。その major を使わないと決めたときの扱いは、まだ決まっていない。
+  前例は `@types/node` で、`dependabot.yml` の ignore に理由を添えて書き、人が定期的に確かめている（docs/vulnerability-handling.md）。
+  これに倣うかは、適用するときにユーザーと決める。倣う場合も、`update-types: version-update:semver-major` は次の major も止めるので、
+  `versions` でその major だけを指す（書き方は、適用するときに公式の文書で確かめる）
 - 待つ条件が版で表せない（他のツールの対応を待つなど）ときは、単位を決めずにユーザーに確認する
 - 公式の文書は、グループの PR 用に `@dependabot ignore <依存の名前> minor version` の形を別に挙げている。
   この形が止める範囲（その minor だけか、minor の更新の種別全体か）は公式の文書から読み切れないので、確かめるまではグループの PR の見送りもユーザーに確認する
 - 見送りの理由と解く条件は、ignore のコメントだけに残さず PR のコメントに書く（ignore の条件はファイルとしてリポジトリに残らない）。
-  付いている条件は `@dependabot show <依存の名前> ignore conditions` で確かめられる
+  付いている条件は `@dependabot show <依存の名前> ignore conditions` で確かめる（グループの PR で使えるかは、下の項目で実測する）
 - ignore で閉じた PR を再び開くと、その PR で付けた条件が外れる（PR #648 への Dependabot の返信）。
-  見送りの理由を確かめるときは、閉じた PR のコメントを読み、PR は再び開かない。閉じた PR は `gh pr list --state closed --author app/dependabot --search <依存の名前>` で探す
+  見送りの理由を確かめるときは、閉じた PR のコメントを読み、PR は再び開かない。閉じた PR は `gh pr list --state closed --author app/dependabot --search "<依存の名前> is:unmerged" --limit 200` で探す
 - 次の点は、適用するときに公式の文書を読み、Dependabot を有効にした検証用のリポジトリで実測してから手順に書く（このリポジトリの PR では試さない）。
   - グループの形が止める範囲と、グループの PR で `ignore this ...` と `show` が使えるか
   - 条件を指定する `unignore <依存の名前> <条件>` と、手で依存を上げたときに条件が外れるか
