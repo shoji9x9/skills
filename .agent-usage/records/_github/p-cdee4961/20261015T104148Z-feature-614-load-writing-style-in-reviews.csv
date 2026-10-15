@@ -171,3 +171,6 @@ coverage:github:2026-10-14T15:12:44.312Z:2026-10-15T15:41:07.840Z,coverage,2026-
 ci:38762645971:1,ci,2026-10-15T15:55:37.977Z,p-cdee4961,github-actions,,,,2026-10-15T15:42:12.000Z,2026-10-15T15:42:13.000Z,Asia/Tokyo,feature/614-load-writing-style-in-reviews,614,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 ci:38762645948:1,ci,2026-10-15T15:55:37.977Z,p-cdee4961,github-actions,,,,2026-10-15T15:42:12.000Z,2026-10-15T15:49:45.000Z,Asia/Tokyo,feature/614-load-writing-style-in-reviews,614,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-10-14T15:41:07.840Z:2026-10-15T15:55:37.977Z,coverage,2026-10-15T15:55:37.977Z,p-cdee4961,,,,,2026-10-14T15:41:07.840Z,2026-10-15T15:55:37.977Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:38764736774:1,ci,2026-10-15T23:57:45.323Z,p-cdee4961,github-actions,,,,2026-10-15T15:56:34.000Z,2026-10-15T15:56:42.000Z,Asia/Tokyo,feature/614-load-writing-style-in-reviews,614,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:38764736617:1,ci,2026-10-15T23:57:45.323Z,p-cdee4961,github-actions,,,,2026-10-15T15:56:34.000Z,2026-10-15T16:03:34.000Z,Asia/Tokyo,feature/614-load-writing-style-in-reviews,614,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-14T15:55:37.977Z:2026-10-15T23:57:45.323Z,coverage,2026-10-15T23:57:45.323Z,p-cdee4961,,,,,2026-10-14T15:55:37.977Z,2026-10-15T23:57:45.323Z,Asia/Tokyo,,,,,,,,,,,,ok,

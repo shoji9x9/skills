@@ -108,6 +108,9 @@ test.each([
   ["罫線だけの区切りの行", `結果\n\n${BOX2}${BOX2}\n\n次`, 0],
   ["行頭の罫線の区切り", `- ${BOX2}${BOX2}`, 0],
   ["全角のハイフンだけの区切り", `${FULL2}${FULL2}`, 0],
+  ["矢印の図（▶）", `フローは A${BOX2}\u25b6B の順である。`, 0],
+  ["矢印の図（→）", `main${BOX2}\u2192feature の順に取り込む。`, 0],
+  ["全角のハイフンの矢印", `A${FULL2}>B の順である。`, 0],
 ])("ダッシュの規則: %s の件数", async (_name, text, count) => {
   writeWords([{ term: DASH_TERM, message: "m", tokens: [{ surface_form: DASH_TERM }] }]);
   const descriptor = (await load({})).shallowMerge({ rules: [dashRule(dir)] });

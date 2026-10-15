@@ -146,7 +146,8 @@ node が無い環境では警告だけを出して通す。設定は Claude Code
 
 同じ Stop で、`scripts/hooks/response-word-check.ts` が、最後の応答に使わない語（`.textlint/words.json`）が含まれていないかを確かめる。
 判定は textlint の `ai-words-ja/no-ai-words` の規則と、記号が続く形も拾うダッシュの規則（`local/no-dash-emphasis`）で行い、引用・ハーネスのタグの塊とコードは対象から外す。
-見つかれば、辞書の言い換えを添えて exit 2 で書き直させる。`stop_hook_active` の扱いと印は、上の Hook と同じである。
+見つかれば、辞書の言い換えを添えて exit 2 で書き直させる。
+語の言い換えを説明するときと、固有名詞や複合語の一部として字義どおりに使うとき（`NAT ゲートウェイ` など）は、インラインコードで書けば止めない。`stop_hook_active` の扱いと印は、上の Hook と同じである。
 textlint の設定を読めないときや規則が無効なときは、書き直させずに exit 1 にする。設定は Claude Code だけである。
 
 シークレットの走査は `gitleaks` で行う。pre-commit は staged の差分を（`gitleaks git --staged`）、CI はリポジトリ全体と全履歴を（`Secret scan` ジョブ、`fetch-depth: 0`）走査する。
