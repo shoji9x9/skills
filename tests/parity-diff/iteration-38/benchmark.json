@@ -1,0 +1,256 @@
+{
+  "metadata": {
+    "skill_name": "parity-diff",
+    "skill_path": "<repo>/skills/parity-diff",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-15T13:23:11Z",
+    "evals_run": [20, 27],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 20,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 31.791,
+        "tokens": 146812,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "保留（intentional_diffs.pending）の棚卸しを収束条件として扱い、済むまで converged: true にしないと答えている",
+          "passed": true,
+          "evidence": "「後者の棚卸しは、独立した収束条件として定められています」「この 1 項目が残っている限り収束になりません」"
+        },
+        {
+          "text": "棚卸しの対象を「この機能に帰属する保留（slug 一致）・機能に帰属しない保留（cross-cutting）・帰属不明の保留（素の文字列の旧形式や slug 欠落）」の 3 群とし、別の機能に帰属する保留はその機能の収束判定が扱うとして対象外にしている",
+          "passed": true,
+          "evidence": "表で slug: order-list・cross-cutting・帰属不明（素の文字列・slug 無し）を対象、別機能に紐づく分は「その機能の収束判定が扱います」として対象外"
+        },
+        {
+          "text": "差分の分類の承認待ち（pending_review）と、意図的差異として認めるかが未決の intentional_diffs.pending を別物として区別している",
+          "passed": true,
+          "evidence": "「分類が承認待ちであることを示す pending_review と、レジストリの intentional_diffs.pending は別のもの」"
+        },
+        {
+          "text": "内容を見ない一括分類（残りを全部 keep として扱う）に従わず 1 件ずつ提示すると答え、keep / may_change へ移すのは人間でスキルは設定ファイルを書き換えないと断っている",
+          "passed": true,
+          "evidence": "「一括処置は規則で禁止…保留は 1 件ずつ見せて処置を決めます」「keep / may_change へ文言を移すのは人の作業です。スキルは pending を書き換えません」"
+        },
+        {
+          "text": "今決められないものは持ち越しとして理由を記録すれば通過でき、恒久的に機能を止めるものではないと答えている",
+          "passed": true,
+          "evidence": "「処置を carried_over にして、reason に具体的な持ち越し理由…理由があれば棚卸しは通るので、機能をずっと止めることにはなりません」"
+        },
+        {
+          "text": "対象内訳・確定件数・持ち越し件数を diff-metadata.json の intentional_diffs_pending に残し、数え直しは同梱の pending-triage-check.mjs が設定ファイルの pending から行う（記録された件数を信用しない）と答えている",
+          "passed": true,
+          "evidence": "「diff-metadata.json の intentional_diffs_pending と diff.md の内訳を書きます」「このスクリプトは記録された件数を信用せず、設定ファイルの pending から数え直します」（pending-triage-check.mjs）"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 27,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 88.69,
+        "tokens": 272315,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "gaps.md の散文は収束判定の入力ではないため、未測定を現側 metadata.json の unmeasured に機械可読で宣言して収束判定に入れると述べている",
+          "passed": true,
+          "evidence": "「gaps.md の散文をそのまま機械に読ませるのは避けて」、測っていないものは「現側の metadata.json の unmeasured.entries[]」に機械可読で置き収束の関門にする"
+        },
+        {
+          "text": "disposition: blocking が 1 件でも残る間は converged: true にしないと述べている",
+          "passed": true,
+          "evidence": "「disposition: blocking が残ると artifact-health-check.mjs --stage diff が失敗にし」、order-list も収束にしない"
+        },
+        {
+          "text": "測らないことを承認したものだけ判定から外せるとし、承認記録が空なら blocking として数える（判定できないときは未収束として扱う）と述べている",
+          "passed": true,
+          "evidence": "承認は人だけ（blocking → accepted）、「承認記録が空のものも blocking として数えます」、欠けた記録は blocking として 1 件"
+        },
+        {
+          "text": "unmeasured をキーごと持たない旧成果物は判定しない後方互換にし、宣言を持つ成果物から順に厳しくすると述べている（既存の全機能が一斉に未収束へ転じるのを避ける）",
+          "passed": true,
+          "evidence": "「測定の抜け」の節を持たない古い gaps.md（unmeasured の宣言を持たない旧成果物）は判定せず judged: false と理由を残す。宣言を持つ order-list から判定する"
+        },
+        {
+          "text": "gaps.md は人向けの説明としてそのまま残し、判定に入れる項目だけを unmeasured へ転記すると述べている（散文を廃止・生成物へ降格させない）",
+          "passed": true,
+          "evidence": "gaps.md の行はそのまま残し、新しい節の各行が unmeasured_id で記録を指す。宣言できない構造差の節も今までどおり"
+        },
+        {
+          "text": "gaps.md に正しく書いてあることを根拠に converged: true にしていない",
+          "passed": true,
+          "evidence": "「まだしないでください」。gaps.md の記述を根拠に収束にしていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 20,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 2,
+        "failed": 4,
+        "total": 6,
+        "time_seconds": 24.361,
+        "tokens": 39353,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "保留（intentional_diffs.pending）の棚卸しを収束条件として扱い、済むまで converged: true にしないと答えている",
+          "passed": true,
+          "evidence": "「このままでは converged: true にできません」、今回の機能で足した保留は「収束前に必ず決める」"
+        },
+        {
+          "text": "棚卸しの対象を「この機能に帰属する保留（slug 一致）・機能に帰属しない保留（cross-cutting）・帰属不明の保留（素の文字列の旧形式や slug 欠落）」の 3 群とし、別の機能に帰属する保留はその機能の収束判定が扱うとして対象外にしている",
+          "passed": false,
+          "evidence": "データセット側（機能に紐づかない）と古い散文（帰属不明）を「今回の範囲外」「今回の機能のものとして扱わない」として対象から外している"
+        },
+        {
+          "text": "差分の分類の承認待ち（pending_review）と、意図的差異として認めるかが未決の intentional_diffs.pending を別物として区別している",
+          "passed": false,
+          "evidence": "pending_review と intentional_diffs.pending の区別に触れていない"
+        },
+        {
+          "text": "内容を見ない一括分類（残りを全部 keep として扱う）に従わず 1 件ずつ提示すると答え、keep / may_change へ移すのは人間でスキルは設定ファイルを書き換えないと断っている",
+          "passed": true,
+          "evidence": "一括「変えない」を勧めず「私が代わりに書き込むのも避けます」、1 件ずつ決めるよう求め、ファイルがあれば一覧化して判断はそちらでと答えている（keep / may_change の語は使っていない）"
+        },
+        {
+          "text": "今決められないものは持ち越しとして理由を記録すれば通過でき、恒久的に機能を止めるものではないと答えている",
+          "passed": false,
+          "evidence": "今回の機能の決められない分は blocked_by に入れて converged: false のままとし、持ち越しで通過できるとは答えていない"
+        },
+        {
+          "text": "対象内訳・確定件数・持ち越し件数を diff-metadata.json の intentional_diffs_pending に残し、数え直しは同梱の pending-triage-check.mjs が設定ファイルの pending から行う（記録された件数を信用しない）と答えている",
+          "passed": false,
+          "evidence": "diff-metadata.json の intentional_diffs_pending・pending-triage-check.mjs による数え直しに触れていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 27,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8333,
+        "passed": 5,
+        "failed": 1,
+        "total": 6,
+        "time_seconds": 44.279,
+        "tokens": 41243,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "gaps.md の散文は収束判定の入力ではないため、未測定を現側 metadata.json の unmeasured に機械可読で宣言して収束判定に入れると述べている",
+          "passed": false,
+          "evidence": "機械可読にする先を「台帳の構造化エントリ（gaps: id/target/status）」と網羅表の axes にしており、現側 metadata.json の unmeasured には触れていない"
+        },
+        {
+          "text": "disposition: blocking が 1 件でも残る間は converged: true にしないと述べている",
+          "passed": true,
+          "evidence": "status: open が残る間（unresolved_gaps > 0）は converged: true にしないと述べている（disposition: blocking の語は使っていないが、未解決が 1 件でも残る間は収束させない判定は同じ）"
+        },
+        {
+          "text": "測らないことを承認したものだけ判定から外せるとし、承認記録が空なら blocking として数える（判定できないときは未収束として扱う）と述べている",
+          "passed": true,
+          "evidence": "waived は承認者・日時などが揃ったものだけで、項目が欠けたもの・承認者がエージェントのものは open として数える"
+        },
+        {
+          "text": "unmeasured をキーごと持たない旧成果物は判定しない後方互換にし、宣言を持つ成果物から順に厳しくすると述べている（既存の全機能が一斉に未収束へ転じるのを避ける）",
+          "passed": true,
+          "evidence": "gaps 欄が無い既存の機能は unknown と表示して未収束にせず、rule v2 は新しく評価する機能と触った機能にだけ適用"
+        },
+        {
+          "text": "gaps.md は人向けの説明としてそのまま残し、判定に入れる項目だけを unmeasured へ転記すると述べている（散文を廃止・生成物へ降格させない）",
+          "passed": true,
+          "evidence": "「gaps.md は人が読む散文のまま残して構いません」、各項目に ID を付けて台帳の実体を指させる"
+        },
+        {
+          "text": "gaps.md に正しく書いてあることを根拠に converged: true にしていない",
+          "passed": true,
+          "evidence": "「converged: true にしていいか → いいえ」"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 60.2405,
+        "stddev": 40.2337,
+        "min": 31.791,
+        "max": 88.69
+      },
+      "tokens": {
+        "mean": 209563.5,
+        "stddev": 88744.0224,
+        "min": 146812,
+        "max": 272315
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.5833,
+        "stddev": 0.3536,
+        "min": 0.3333,
+        "max": 0.8333
+      },
+      "time_seconds": {
+        "mean": 34.32,
+        "stddev": 14.0842,
+        "min": 24.361,
+        "max": 44.279
+      },
+      "tokens": {
+        "mean": 40298,
+        "stddev": 1336.4318,
+        "min": 39353,
+        "max": 41243
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.42",
+      "time_seconds": "+25.9",
+      "tokens": "+169266"
+    }
+  },
+  "notes": [
+    "Issue #614: 全角ダッシュを 2 つ続けた記号（U+2014 の連続）の書き換え（意味を変えない表記の変更）の後の変更確認。入力が変わった eval を with_skill / without_skill で 1 run ずつ実行した（executor: claude-code / opus）。",
+    "集計から外した run は無い。"
+  ]
+}

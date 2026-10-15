@@ -49,7 +49,11 @@ scripts/eval/run-skill-eval.sh \
   アプリの接続設定は `received/app/webapp/META-INF/context.xml` に置いた。
   これらが無いと、スキルの手順どおりに動いた run が工程 3 で不足として止まり、意味論の工程まで進まない（iteration-7 の with_skill）。
   使い捨てのプロジェクトでは DB を構築できないので、スキーマと DB 設定を見る assertion は「値と根拠があるものとして扱ったか」を見て、「復元可」と書いたかは求めない
-  （構築できて初めて「復元可」とする取り決めがあるため）
+  （構築できて初めて「復元可」とする取り決めがあるため）。
+  後退の検知のための assertion（baseline も満たすが、スキルの記述が退行したら落ちる）は、次の 4 つである。
+  1 行目（スキーマ・DB 設定とデータ意味論を分けて判定）、2 行目（enum の値を確認待ちとして記録）、
+  4 行目（起動に必須の項目とそうでない項目を区別）、6 行目（`blocked_on` に起動に必須でない確認待ちを挙げない）。
+  iteration-10 の 1 run で、`without_skill` も宣言した `replace-strategy` の SKILL.md を読んで満たした。1 run の結果なので確定ではなく、Delta には数えない
 - eval 3・4 は `requires_skills: ["replace-strategy"]` を宣言する。本スキルは設定のスキーマの原本を `replace-strategy` に持ち、単独では動かない。
   宣言しないと、前提スキルが無いことが停止理由に入る（iteration-7・8 の with_skill）。
   宣言すると `without_skill` も `replace-strategy` の `references/scope.md`（出所が分からない dump を投入も参照もしない）を読める。
@@ -58,6 +62,11 @@ scripts/eval/run-skill-eval.sh \
   扱ってよいかの判断は書かない。dump は個人データが載る列（利用者ログイン ID・連絡先メール・電話番号）を持ち、
   **その値を成果物・応答へ書き出さない**ことも見る。**値そのものは、明らかに合成したプレースホルダにしてある**。
   検査しているのは「dump を開かずに停止するか」であって、値の本物らしさではない。実在しそうな値を fixture に置く必要は無い
+  後退の検知のための assertion（baseline も満たすが、スキルの記述が退行したら落ちる）は、次の 3 つである。
+  2 行目（dump の行を確定根拠にしない）、3 行目（ドメイン値を暫定データへ転記しない）、
+  6〜9 行目（投入しない・建ったと報告しない・個人データを書き出さない・空のテンプレートを置かない）。
+  iteration-10 の 1 run で、`without_skill` は current-environment-bootstrap が無いことを理由に止まり、ファイルを作らなかったので、これらを満たした。
+  1 run の結果なので確定ではなく、Delta には数えない
 - eval 5（`resume-after-answers`）: 質問票に回答が返った状態（Q-1 は確定回答、Q-2 は「現物が無く回答できない」、Q-3 は未回答）。
   区別の要点は、**工程 1 からやり直さないこと**と、**「聞いていない」「聞いたが確定できない」「確定した」の 3 つの状態をまとめてしまわないこと**である
 - eval 6（`commercial-ui-component-without-vendor-docs`）: 受領した依存台帳と UI ソースから、市販のデータグリッドを使っていることと、その版は確認できる。

@@ -1,0 +1,342 @@
+{
+  "metadata": {
+    "skill_name": "replace-strategy",
+    "skill_path": "<repo>/skills/replace-strategy",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-15T13:23:12Z",
+    "evals_run": [30, 31, 34],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 30,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8571,
+        "passed": 6,
+        "failed": 1,
+        "total": 7,
+        "time_seconds": 62.827,
+        "tokens": 355693,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".replace/features.md の Issue 列が埋まっていること（notification-banner の #102）を引き受けの根拠にせず、各 Issue の受け入れ条件に現れた slug との差分で引き受けを判定している",
+          "passed": true,
+          "evidence": "「インベントリの Issue 列は #102 ですが、#102 の受け入れ条件は order しか引き受けていません」と、受け入れ条件との差分で判定"
+        },
+        {
+          "text": "notification-banner がどの Issue の受け入れ条件にも現れない落ちた行だと名指しし、塞ぎ方として notification-banner 専用の Issue を起こすことを示している（#102 の受け入れ条件へ足して order と Issue 番号を共有させる案を推さない。下流は slug ごとに行の Issue 番号で着手するため）",
+          "passed": true,
+          "evidence": "notification-banner を落ちた行と名指しし、専用の Issue の起票を示して「#102 に追記するのはやめてください…下流のスキルが Issue 番号ごとにブランチを作るので」"
+        },
+        {
+          "text": "横断 API user の fan-out のうち order（#102）の受け入れ条件に「この機能から user を呼ぶ」項が無いことを届いていない呼び出しとして検出し、同項を持つ report（#103）は届いていない呼び出しとして挙げていない",
+          "passed": true,
+          "evidence": "order は「呼び出し未達: user」、report は「user の呼び出しは書かれていて問題ありません」"
+        },
+        {
+          "text": "横断 API Issue（#101）の「全機能から使われる」という記述は消費側の完了の条件にならず、消費側の受け入れ条件に入って初めて届くと説明している",
+          "passed": true,
+          "evidence": "「#101 の『この API は全機能から使われる』は、使う側の条件としては数えません」"
+        },
+        {
+          "text": "既存 Issue の本文追記は外向きの副作用なので差分を提示して承認を得てから行うとし、承認の無いまま gh issue edit を実行していない",
+          "passed": true,
+          "evidence": "本文の追記は「どれも承認を得てから実行します」とし、raw に gh issue edit の実行なし。応答「Issue 本文への追記や新しい起票は…していません」"
+        },
+        {
+          "text": "突き合わせの結果を features.md の「受け入れ条件」列へ書き分けている。notification-banner は 未対応（空欄＝未突き合わせと同じ表記にしていない）、report は引き受けた Issue 番号、order は番号に届いていない呼び出しの併記（呼び出し未達: user）を添えている",
+          "passed": false,
+          "evidence": "features.md の受け入れ条件列で notification-banner は 未対応、order は呼び出し未達: user を併記しているが、report は「#103（未対応: /report, GET /api/reports）」で、引き受けた Issue 番号だけになっていない（ページと API が名前で書かれていないことを未対応として併記）"
+        },
+        {
+          "text": "order と notification-banner が同じ #102 を Issue 列に持っていることを、下流が同じブランチ・PR へ畳む要確認状態として挙げている",
+          "passed": true,
+          "evidence": "「番号を共有したままだと…order と同じブランチ・同じ PR にまとめられてしまいます」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 31,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 53.344,
+        "tokens": 364671,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "引き受けの判定を slug の一致で終わらせず、行が所有する部分の集合差分も取っている。母集合をページだけに絞らず新規実装 API の口も含め、#210 が名指ししていない /orders/:id と GET /api/orders/:id を落ちた部分として挙げている",
+          "passed": true,
+          "evidence": "order を「行は引き受けているが、詳細ページの分が条件に入っていない」とし、/orders/:id と GET /api/orders/:id を未対応の部分として挙げている（API の口を含む）"
+        },
+        {
+          "text": "部分が覆えている report（/report・GET /api/reports は #212 が名指し）を落ちた部分として挙げていない",
+          "passed": true,
+          "evidence": "report は呼び出し未達だけで、/report・GET /api/reports を落ちた部分として挙げていない"
+        },
+        {
+          "text": "notification-banner が #210 に「対象外」として現れるだけで引き受けられていないため、出現を引き受けに数えず落ちた行（未対応）として名指ししている",
+          "passed": true,
+          "evidence": "「#210 は『対象外（別途扱う）』と除いているだけで、どの Issue も引き受けていません」、受け入れ条件列は 未対応"
+        },
+        {
+          "text": "横断 API user の fan-out のうち #212（report）に「この機能から user を呼ぶ」項が無いことを届いていない呼び出しとして検出し、呼び出しの項のある #210（order）は届いていない呼び出しとして挙げていない",
+          "passed": true,
+          "evidence": "report は #212（呼び出し未達: user）、order（#210）は呼び出し未達として挙げていない"
+        },
+        {
+          "text": "突き合わせの結果を .replace/features.md の「受け入れ条件」列へ書き分けている。order は #210 に覆われない部分の併記（例 #210（未対応: /orders/:id, GET /api/orders/:id））、report は #212 に呼び出し未達の併記、notification-banner は 未対応、user は #201 としている",
+          "passed": true,
+          "evidence": "features.md の受け入れ条件列: order「#210（未対応: /orders/:id, GET /api/orders/:id）」、report「#212（呼び出し未達: user）」、notification-banner「未対応」、user「#201」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 34,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 40.922,
+        "tokens": 235191,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "未実測の 2 件を「保留」として intentional_diffs.pending に置き、自分で keep / may_change へ入れていない",
+          "passed": true,
+          "evidence": "「skills.replace-strategy.intentional_diffs.pending に入れます。keep や may_change には入れません」"
+        },
+        {
+          "text": "要素を item / slug / added_by / added_at の 4 キーのオブジェクトで書くとし、散文の文字列だけで足していない（item が照合キーであることを示している）",
+          "passed": true,
+          "evidence": "2 件を item / slug / added_by / added_at の 4 キーで書き、同じ文言（item）の要素の重複確認と promoted_as での文言の対応づけを述べている"
+        },
+        {
+          "text": "added_by に自分の名前（replace-strategy）を書くとしており、欄を空ける・unknown と書く・下流のスキル名を書くのいずれもしていない",
+          "passed": true,
+          "evidence": "両要素とも added_by: replace-strategy、「added_by は空にも unknown にもしません」"
+        },
+        {
+          "text": "slug は cross-cutting にするとし、機能 slug がまだ採番されていないことを理由にしている（採番前の slug を推測で書いていない）",
+          "passed": true,
+          "evidence": "「slug は必ず cross-cutting…機能インベントリはまだ無いので、機能の slug を推測で書いてはいけません」"
+        },
+        {
+          "text": "確定させるのは後の工程であることを示している。測定後に人が keep / may_change へ移す棚卸しに載ると述べ、スキルが自分で確定させていない",
+          "passed": true,
+          "evidence": "「確定したら、人がこの文言を keep か may_change へ移します」、cross-cutting の保留は parity-diff の収束判定の棚卸しで人に示される"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 30,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2857,
+        "passed": 2,
+        "failed": 5,
+        "total": 7,
+        "time_seconds": 47.05,
+        "tokens": 114749,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".replace/features.md の Issue 列が埋まっていること（notification-banner の #102）を引き受けの根拠にせず、各 Issue の受け入れ条件に現れた slug との差分で引き受けを判定している",
+          "passed": true,
+          "evidence": "「インベントリではこの行も #102 に割り当てられていますが、#102 の受け入れ条件は order のパリティスイートについてしか書いていません」"
+        },
+        {
+          "text": "notification-banner がどの Issue の受け入れ条件にも現れない落ちた行だと名指しし、塞ぎ方として notification-banner 専用の Issue を起こすことを示している（#102 の受け入れ条件へ足して order と Issue 番号を共有させる案を推さない。下流は slug ごとに行の Issue 番号で着手するため）",
+          "passed": false,
+          "evidence": "専用の Issue をおすすめとしつつ、「別の方法として、#102 の受け入れ条件に notification-banner の…を追加しても塞がります」と #102 への追記を有効な案として示し、下流が slug ごとに Issue 番号で着手する理由を挙げていない"
+        },
+        {
+          "text": "横断 API user の fan-out のうち order（#102）の受け入れ条件に「この機能から user を呼ぶ」項が無いことを届いていない呼び出しとして検出し、同項を持つ report（#103）は届いていない呼び出しとして挙げていない",
+          "passed": true,
+          "evidence": "order は「user を呼ぶ条件がない（G2）」、report は判定 OK（呼び出し未達として挙げていない）"
+        },
+        {
+          "text": "横断 API Issue（#101）の「全機能から使われる」という記述は消費側の完了の条件にならず、消費側の受け入れ条件に入って初めて届くと説明している",
+          "passed": false,
+          "evidence": "#101 の「全機能から使われる」を実際の利用先と合わない記述として直す（G3）だけで、消費側の受け入れ条件に入って初めて届くという説明が無い"
+        },
+        {
+          "text": "既存 Issue の本文追記は外向きの副作用なので差分を提示して承認を得てから行うとし、承認の無いまま gh issue edit を実行していない",
+          "passed": false,
+          "evidence": "gh issue edit は実行していないが、差分を提示して承認を得てから行うとは述べていない（「リモートへの書き込みになるので、私は行っていません。手順だけ書きます」）"
+        },
+        {
+          "text": "突き合わせの結果を features.md の「受け入れ条件」列へ書き分けている。notification-banner は 未対応（空欄＝未突き合わせと同じ表記にしていない）、report は引き受けた Issue 番号、order は番号に届いていない呼び出しの併記（呼び出し未達: user）を添えている",
+          "passed": false,
+          "evidence": "受け入れ条件列は notification-banner が「⚠ 未カバー: …」、report が受け入れ条件の文面の転記で、未対応・Issue 番号・呼び出し未達の表記で書き分けていない"
+        },
+        {
+          "text": "order と notification-banner が同じ #102 を Issue 列に持っていることを、下流が同じブランチ・PR へ畳む要確認状態として挙げている",
+          "passed": false,
+          "evidence": "order と notification-banner が #102 を共有することによる同じブランチ・PR への畳み込みに触れていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 31,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 44.653,
+        "tokens": 113057,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "引き受けの判定を slug の一致で終わらせず、行が所有する部分の集合差分も取っている。母集合をページだけに絞らず新規実装 API の口も含め、#210 が名指ししていない /orders/:id と GET /api/orders/:id を落ちた部分として挙げている",
+          "passed": true,
+          "evidence": "ページ・API・テーブル・依存する横断 API を 1 つずつ確かめ、order の /orders/:id と GET /api/orders/:id を一部が落ちるとして挙げている"
+        },
+        {
+          "text": "部分が覆えている report（/report・GET /api/reports は #212 が名指し）を落ちた部分として挙げていない",
+          "passed": true,
+          "evidence": "report は呼び出しの抜けだけで、/report・GET /api/reports は「記載あり OK」"
+        },
+        {
+          "text": "notification-banner が #210 に「対象外」として現れるだけで引き受けられていないため、出現を引き受けに数えず落ちた行（未対応）として名指ししている",
+          "passed": true,
+          "evidence": "notification-banner を「#210 は『対象外（別途扱う）』と書いています。ほかに受け持つ Issue もない」として行ごと落ちると名指し"
+        },
+        {
+          "text": "横断 API user の fan-out のうち #212（report）に「この機能から user を呼ぶ」項が無いことを届いていない呼び出しとして検出し、呼び出しの項のある #210（order）は届いていない呼び出しとして挙げていない",
+          "passed": true,
+          "evidence": "report（#212）は「この機能から user を呼ぶこと」が無いと検出し、order は OK"
+        },
+        {
+          "text": "突き合わせの結果を .replace/features.md の「受け入れ条件」列へ書き分けている。order は #210 に覆われない部分の併記（例 #210（未対応: /orders/:id, GET /api/orders/:id））、report は #212 に呼び出し未達の併記、notification-banner は 未対応、user は #201 としている",
+          "passed": false,
+          "evidence": "受け入れ条件列は貼られた条件の文面と ※ の注記で、notification-banner は「なし（受け皿の Issue が無いため未設定）」、user は条件の文面。未対応・#201 などの表記で書き分けていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 34,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2,
+        "passed": 1,
+        "failed": 4,
+        "total": 5,
+        "time_seconds": 31.837,
+        "tokens": 63510,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "未実測の 2 件を「保留」として intentional_diffs.pending に置き、自分で keep / may_change へ入れていない",
+          "passed": true,
+          "evidence": "「2 件とも pending に入れ、keep と may_change は空のままにする」"
+        },
+        {
+          "text": "要素を item / slug / added_by / added_at の 4 キーのオブジェクトで書くとし、散文の文字列だけで足していない（item が照合キーであることを示している）",
+          "passed": false,
+          "evidence": "要素のキーは id / topic / current / new / blocked_by / ref / affected_features / resolve_when で、item / slug / added_by / added_at の形ではない"
+        },
+        {
+          "text": "added_by に自分の名前（replace-strategy）を書くとしており、欄を空ける・unknown と書く・下流のスキル名を書くのいずれもしていない",
+          "passed": false,
+          "evidence": "added_by を書いていない"
+        },
+        {
+          "text": "slug は cross-cutting にするとし、機能 slug がまだ採番されていないことを理由にしている（採番前の slug を推測で書いていない）",
+          "passed": false,
+          "evidence": "slug を持たず、affected_features: 未特定 としている（cross-cutting にしていない）"
+        },
+        {
+          "text": "確定させるのは後の工程であることを示している。測定後に人が keep / may_change へ移す棚卸しに載ると述べ、スキルが自分で確定させていない",
+          "passed": false,
+          "evidence": "「実測完了時に、一致なら削除、相違なら keep / may_change を判断」とだけあり、人が移すことや棚卸しに載ることに触れていない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.9524,
+        "stddev": 0.0825,
+        "min": 0.8571,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 52.3643,
+        "stddev": 10.9853,
+        "min": 40.922,
+        "max": 62.827
+      },
+      "tokens": {
+        "mean": 318518.3333,
+        "stddev": 72303.0738,
+        "min": 235191,
+        "max": 364671
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.4286,
+        "stddev": 0.3245,
+        "min": 0.2,
+        "max": 0.8
+      },
+      "time_seconds": {
+        "mean": 41.18,
+        "stddev": 8.1796,
+        "min": 31.837,
+        "max": 47.05
+      },
+      "tokens": {
+        "mean": 97105.3333,
+        "stddev": 29106.7094,
+        "min": 63510,
+        "max": 114749
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.52",
+      "time_seconds": "+11.2",
+      "tokens": "+221413"
+    }
+  },
+  "notes": [
+    "Issue #614: 全角ダッシュを 2 つ続けた記号（U+2014 の連続）の書き換え（意味を変えない表記の変更）の後の変更確認。入力が変わった eval を with_skill / without_skill で 1 run ずつ実行した（executor: claude-code / opus）。",
+    "集計から外した run は無い。"
+  ]
+}
