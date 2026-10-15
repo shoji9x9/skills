@@ -25,12 +25,11 @@ major を ignore すると 7.x のすべてが対象になり、待ちたい 7.1
 
 dependabot-merge の判断ガイドに、見送るときは待つ版を先に決め、その版を含まない最大の単位（7.1 を待つなら 7.0 の minor）で ignore する、と書く。
 
-- 単位は待つ版で決まる（7.1 を待つなら minor、8.0 を待つなら major、7.0.3 を待つなら patch）。
+- 単位は待つ版で決まる（7.1 を待つなら minor、8.0 を待つなら major）。patch の ignore は今の版だけを止めるので、先の patch を待つ形には使えない。
   7.1 を待つ例では、patch では同じ minor の次の patch の PR がまた作られ、major では 7.1 の PR も作られない
 - major の ignore は、その major を使わないと決めたときだけにする
 - グループの PR では `ignore this ...` の形が使えず、`@dependabot ignore <依存の名前> minor version` の形になる。
-  この形が止める範囲（その minor だけか、minor の更新の種別全体か）は公式の文書から読み切れないので、
-  付けた後に `@dependabot show <依存の名前> ignore conditions` で記録された条件を確かめてから、手順に書く。
+  この形が止める範囲（その minor だけか、minor の更新の種別全体か）は、公式の文書から読み切れない。
   対の組のグループは、組のすべての依存に書く（1 つだけでは残りの依存で PR が作り直される）
 - 待つ条件が版で表せない（他のツールの対応を待つなど）ときは、単位を決めずにユーザーに確認する
 - 見送りの理由と解く条件は、ignore のコメントだけに残さず PR のコメントに書く（ignore の条件はファイルとしてリポジトリに残らない）。
@@ -38,4 +37,6 @@ dependabot-merge の判断ガイドに、見送るときは待つ版を先に決
   `@dependabot unignore <依存の名前>` は、公式の文書ではグループの PR の節にだけ載っている
 - ignore で閉じた PR を再び開くと、その依存の PR を止めなくなる（PR #648 への Dependabot の返信と公式の文書）。
   見送りの理由を確かめるときは、閉じた PR のコメントを読み、PR は再び開かない
+- コマンドが止める範囲と外し方（グループの形の範囲、条件を指定する `unignore <依存の名前> <条件>`、手で依存を上げると外れること）は、
+  適用するときに公式の文書と実測で確かめてから手順に書く。範囲の分からない ignore を、確かめるために本番の PR へ付けない
 - 根拠: <https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-pull-request-comment-commands>
