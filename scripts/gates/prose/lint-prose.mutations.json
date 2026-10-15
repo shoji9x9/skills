@@ -129,7 +129,8 @@
         "JSDoc のタグの行の指摘も、元の行の文章より前の桁を指さない",
         "陽性: コメントを取り出せないシェルは、指摘として報告する",
         "陽性: 保留したファイルでも、コメントを取り出せなければ報告する",
-        "shfmt が無ければ、ファイルの指摘にせず例外にし、main は保留の一覧を名指ししない exit 2"
+        "shfmt が無ければ、ファイルの指摘にせず例外にし、main は保留の一覧を名指ししない exit 2",
+        "陽性: 記号が続くダッシュと U+2015 の並びを、Markdown・コメント・文字列で辞書の message で報告する"
       ]
     },
     {
@@ -164,7 +165,8 @@
         "陽性: コメントの指摘を、元のファイルの行と桁で報告する",
         "文字列の中の HTML のコメントとコードフェンスは、後の文字列を隠さない",
         "陽性: JS の文字列とテンプレートの語を、元のファイルの行と桁で報告する",
-        "値に \\r を含む文字列の後ろの指摘も、元の行で報告する"
+        "値に \\r を含む文字列の後ろの指摘も、元の行で報告する",
+        "陽性: 記号が続くダッシュと U+2015 の並びを、Markdown・コメント・文字列で辞書の message で報告する"
       ]
     },
     {
@@ -243,7 +245,8 @@
         "陽性: JSON として読めない evals.json は、指摘として報告する",
         "先頭の --- と行頭の [ラベル]: を Markdown の構文として読ませず、文字列の語を検出する",
         "入れ物（リスト・引用）の中の字下げとリンク参照の定義も、文字列の語を検出する",
-        "値に \\r を含む文字列の後ろの指摘も、元の行で報告する"
+        "値に \\r を含む文字列の後ろの指摘も、元の行で報告する",
+        "陽性: 記号が続くダッシュと U+2015 の並びを、Markdown・コメント・文字列で辞書の message で報告する"
       ]
     },
     {
@@ -261,7 +264,7 @@
       "id": "LP-WORD-RULE",
       "why": "文字列に語以外の規則（文の長さ・感嘆符など）も当てる",
       "file": "scripts/gates/prose/lint-prose.ts",
-      "find": "kind === \"strings\" ? result.messages.filter((m) => m.ruleId === WORD_RULE) : result.messages;",
+      "find": "kind === \"strings\"\n      ? result.messages.filter((m) => WORD_RULE_IDS.includes(m.ruleId))\n      : result.messages;",
       "replace": "result.messages;",
       "expect_failing": [
         "陰性: 文字列には語の規則だけを当て、バッククォートの中と import の指定子は見ない"
@@ -276,6 +279,28 @@
       "occurrences": 1,
       "expect_failing": [
         "textlint の設定で使わない語の規則が無効なら、文字列の指摘が 0 件のまま通さずに止まる"
+      ]
+    },
+    {
+      "id": "LP-DASH-NOT-ADDED",
+      "why": "ダッシュの並びを探す規則を当てない（記号が続く形と U+2015 を通す）",
+      "file": "scripts/gates/prose/lint-prose.ts",
+      "find": "descriptor: withDashRule(descriptor, configRoot)",
+      "replace": "descriptor",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: 記号が続くダッシュと U+2015 の並びを、Markdown・コメント・文字列で辞書の message で報告する"
+      ]
+    },
+    {
+      "id": "LP-DASH-STRINGS-DROPPED",
+      "why": "文字列の指摘を使わない語の辞書の規則だけに絞る（文字列の中のダッシュの並びを通す）",
+      "file": "scripts/gates/prose/lint-prose.ts",
+      "find": "WORD_RULE_IDS.includes(m.ruleId)",
+      "replace": "m.ruleId === WORD_RULE_IDS[0]",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: 記号が続くダッシュと U+2015 の並びを、Markdown・コメント・文字列で辞書の message で報告する"
       ]
     }
   ]

@@ -55,6 +55,46 @@
       "replace": "if (false) {",
       "occurrences": 1,
       "expect_failing": ["宣言した文書の名前が rule と重なれば検出する"]
+    },
+    {
+      "id": "RS-APPLYTO-UNCHECKED",
+      "why": "宣言した文書が applyTo を持つかを確かめない（symlink があっても Copilot が読まない）",
+      "file": "scripts/gates/packaging/check-rule-symlinks.ts",
+      "find": "if (typeof fm?.applyTo !== \"string\" || fm.applyTo.trim() === \"\") {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["宣言した文書の frontmatter に applyTo が無ければ検出する"]
+    },
+    {
+      "id": "RS-HEADING-UNCHECKED",
+      "why": "reviewedUntil の見出しが在るかを確かめない（読む範囲を確かめないまま通す）",
+      "file": "scripts/gates/packaging/check-rule-symlinks.ts",
+      "find": "if (at < 0) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["宣言した文書に reviewedUntil の見出しが無ければ検出する"]
+    },
+    {
+      "id": "RS-LIMIT-LOOSE",
+      "why": "上限を 1 文字ゆるめる（4,000 文字を超えた節を Copilot が読まないことを見逃す）",
+      "file": "scripts/gates/packaging/check-rule-symlinks.ts",
+      "find": "if (before > REVIEW_READ_LIMIT) {",
+      "replace": "if (before > REVIEW_READ_LIMIT + 1) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "reviewedUntil の見出しより前の文字数が上限を 1 文字超えるなら、それに応じて報告する"
+      ]
+    },
+    {
+      "id": "RS-LIMIT-STRICT",
+      "why": "上限ちょうどを違反にする（読まれる範囲の文書を止める）",
+      "file": "scripts/gates/packaging/check-rule-symlinks.ts",
+      "find": "if (before > REVIEW_READ_LIMIT) {",
+      "replace": "if (before >= REVIEW_READ_LIMIT) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "reviewedUntil の見出しより前の文字数が上限ちょうどなら、それに応じて報告する"
+      ]
     }
   ]
 }

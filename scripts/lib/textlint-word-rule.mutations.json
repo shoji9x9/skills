@@ -1,6 +1,6 @@
 {
   "$comment": [
-    "textlint-word-rule.test.ts が、使わない語の規則を設定から取り出す処理の判定の行を検出できることを示す変異の一覧。",
+    "textlint-word-rule.test.ts が、使わない語の規則を設定から取り出す処理と、ダッシュの規則の message を辞書から読む処理の判定の行を検出できることを示す変異の一覧。",
     "テスト名を変えたら expect_failing も直す（実在しない名前は、ランナーの基準 run で検出して exit 2）。"
   ],
   "test_file": "scripts/lib/textlint-word-rule.test.ts",
@@ -12,7 +12,7 @@
       "find": ".filter((r) => r.ruleId === WORD_RULE)",
       "replace": "",
       "occurrences": 1,
-      "expect_failing": ["リポジトリの .textlintrc.json から、使わない語の規則だけを 1 件取り出す"]
+      "expect_failing": ["語の規則と他の規則を持つ設定から、使わない語の規則だけを 1 件取り出す"]
     },
     {
       "id": "TWR-PRESENCE-UNCHECKED",
@@ -24,6 +24,18 @@
       "expect_failing": [
         "規則の無い設定 なら、0 件として返さずに例外を投げる",
         "設定ファイルが無い なら、0 件として返さずに例外を投げる"
+      ]
+    },
+    {
+      "id": "TWR-DASH-MESSAGE-UNCHECKED",
+      "why": "辞書にダッシュの項目が無くても例外にしない（message の無い指摘を出すか、規則が働かない）",
+      "file": "scripts/lib/textlint-word-rule.ts",
+      "find": "if (!isRecord(entry) || !isNonEmptyString(entry.message)) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "ダッシュの項目が無い なら、規則を作らずに例外を投げる",
+        "ダッシュの項目に message が無い なら、規則を作らずに例外を投げる"
       ]
     }
   ]

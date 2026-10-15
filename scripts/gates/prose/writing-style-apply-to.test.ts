@@ -3,7 +3,7 @@
 //
 // lint-prose に拡張子を足しても applyTo は変わらず、そのファイルだけを変える PR では Copilot がこの規約を読み込まない。
 // エラーは出ないので、ここで両方向の一致を確かめる。
-// - lint-prose の対象の見本（拡張子ごとの 1 件と evals.json）が、applyTo のどれかの glob に当たる
+// - lint-prose の対象の見本（拡張子ごとに、ドットで始まるディレクトリとそうでないディレクトリの 2 件と、evals.json）が、applyTo のどれかの glob に当たる
 // - applyTo の各 glob が、lint-prose の対象の見本のどれかに当たる（対象でない種類を足していない）
 // 見本の拡張子は lint-prose が使う一覧から作る。拡張子で決まらない対象（evals.json）は、見本を手で書いて hasStrings で対象であることを確かめる。
 import { readFileSync } from "node:fs";
@@ -25,8 +25,15 @@ function applyToGlobs(markdown: string): string[] {
   return typeof fm?.applyTo === "string" ? fm.applyTo.split(",").map((g) => g.trim()) : [];
 }
 
+// ドットで始まるディレクトリ（`.kaizen/`・`.agents/rules/`・`.github/workflows/`）の見本も置く。
+// `**` がドットで始まるディレクトリに当たらない glob の実装（node の matchesGlob など）でも、applyTo が当たることを確かめる。
 const samples = [
-  ...new Set([".md", ...COMMENT_EXTENSIONS, ...JS_EXTENSIONS].map((ext) => `dir/sub/file${ext}`)),
+  ...new Set(
+    [".md", ...COMMENT_EXTENSIONS, ...JS_EXTENSIONS].flatMap((ext) => [
+      `dir/sub/file${ext}`,
+      `.dir/sub/file${ext}`,
+    ]),
+  ),
   "evals/name/evals.json",
 ];
 

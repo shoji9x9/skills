@@ -34,8 +34,8 @@ Issue #420 で、2 つのワークフローに重複していた追跡 Issue の
 
 ## KEDB 照合
 
-[[2026-09-21-check-written-to-fit-the-fixture]]（`status: pending` / high）と同じ族——「検査が本物の対象に
-当たっていないのに緑」。あちらは対象の**形**（fixture のスキーマ）、本件は対象の**場所**（原本かコピーか）。
+[[2026-09-21-check-written-to-fit-the-fixture]]（`status: pending` / high）と同じ族で、どちらも「検査が本物の対象に
+当たっていないのに緑」である。あちらは対象の**形**（fixture のスキーマ）、本件は対象の**場所**（原本かコピーか）。
 [[2026-09-19-mutation-proof-judged-by-exit-code]]（applied）は「変異が当たらない偽の生存」で、本件は
 「変異は当たったが測る対象が別ファイル」で、同じ偽の生存の別の形である。applied なので追記せず恒久側で扱う。
 

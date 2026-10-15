@@ -9,10 +9,19 @@
 // 期待する集合は、観測ではなく宣言から作る。`.agents/rules/*.md` の実在が原本で、symlink の側はその反映である。
 // 逆向き（原本の無い孤児の symlink）も、同じ表から検出する。
 // 対象 0 件は成功として扱わず、fail にする（走査できていないことと、違反が無いことを区別する）。
-import { existsSync, lstatSync, readdirSync, readlinkSync, realpathSync } from "node:fs";
+import {
+  existsSync,
+  lstatSync,
+  readFileSync,
+  readdirSync,
+  readlinkSync,
+  realpathSync,
+} from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { errorMessage } from "../../lib/errors.ts";
+import { splitFrontmatter } from "../../lib/frontmatter.ts";
+import { loadYamlAs } from "../../lib/yaml-as.ts";
 
 export const CANON_DIR = ".agents/rules";
 
@@ -27,14 +36,62 @@ export const WIRINGS = [
 // 作業によらず常に要る規約は rule にせず、AGENTS.md から `@` で取り込む（Claude Code）。
 // Copilot は `@` の取り込みもリンク先も読まないので、`.github/instructions/` にその文書への symlink を置く。
 // 宣言に無い名前は、これまでどおり孤児として検出する。
-export type DocInstruction = { name: string; canon: string; reason: string };
+//
+// symlink だけでは Copilot は読まない。文書の frontmatter の applyTo が PR の変更ファイルに当たるときだけ読むので、
+// applyTo を持つことも確かめる。applyTo の範囲は文書ごとに決める（writing-style は lint-prose の対象に合わせ、
+// writing-style-apply-to.test.ts が一致を確かめる。`**` がドットで始まるディレクトリに当たらない glob の実装もあるので、`.*/**` の形も並べる）。
+// Copilot のコードレビューは instructions の先頭 4,000 文字しか読まない
+// （https://docs.github.com/en/copilot/how-tos/copilot-on-github/use-copilot-agents/copilot-code-review）。
+// そのため、レビューで確かめる節を文書の前に置き、その後に続く最初の見出し（reviewedUntil）が 4,000 文字の内側にあることを確かめる。
+export type DocInstruction = { name: string; canon: string; reason: string; reviewedUntil: string };
 export const DOC_INSTRUCTIONS: DocInstruction[] = [
   {
     name: "writing-style",
     canon: "docs/writing-style.md",
     reason: "文章の規約は人への応答にも当てるので常に要り、rule にしない",
+    reviewedUntil: "## 書き換えで変えないもの",
   },
 ];
+
+/** Copilot のコードレビューが instructions から読む文字数の上限。 */
+export const REVIEW_READ_LIMIT = 4000;
+
+/** 宣言した文書が、Copilot のレビューに読まれる形（applyTo を持ち、レビューで確かめる節が上限の内側）かを確かめる。 */
+function checkDocShape(root: string, doc: DocInstruction): string[] {
+  // 文書が無いことは呼び出し側が報告するので、ここでは読めなければ何も足さない。
+  if (!existsSync(join(root, doc.canon))) return [];
+  const text = readFileSync(join(root, doc.canon), "utf8");
+  const out: string[] = [];
+  const split = splitFrontmatter(text);
+  const fm = split ? loadYamlAs<{ applyTo?: unknown }>(split.fm) : null;
+  if (typeof fm?.applyTo !== "string" || fm.applyTo.trim() === "") {
+    out.push(
+      `${doc.canon}: frontmatter に applyTo が無い（Copilot のレビューが PR のファイルに当てない）`,
+    );
+  }
+  const at = text.split("\n").findIndex((line) => line === doc.reviewedUntil);
+  if (at < 0) {
+    out.push(
+      `${doc.canon}: 見出し「${doc.reviewedUntil}」が無い（Copilot が読む範囲を確かめられない）`,
+    );
+  } else {
+    // 文字数は、Copilot の数え方に近い符号位置の数で数える。
+    const before = [
+      ...text
+        .split("\n")
+        .slice(0, at)
+        .map((line) => `${line}\n`)
+        .join(""),
+    ].length;
+    if (before > REVIEW_READ_LIMIT) {
+      out.push(
+        `${doc.canon}: 「${doc.reviewedUntil}」より前が ${before} 文字ある。` +
+          `Copilot のレビューは先頭の ${REVIEW_READ_LIMIT} 文字しか読まない`,
+      );
+    }
+  }
+  return out;
+}
 
 const canonBase = (file: string) => file.replace(/\.md$/, "");
 
@@ -71,6 +128,7 @@ export function checkRuleSymlinks(
     if (!existsSync(join(root, doc.canon))) {
       violations.push(`${doc.canon}: instructions として宣言した文書が無い`);
     }
+    violations.push(...checkDocShape(root, doc));
   }
 
   for (const { dir, suffix, agent, docs } of WIRINGS) {

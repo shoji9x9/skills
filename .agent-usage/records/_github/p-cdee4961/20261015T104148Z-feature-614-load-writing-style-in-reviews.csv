@@ -136,3 +136,6 @@ ci:38747335110:1,ci,2026-10-15T14:25:39.258Z,p-cdee4961,github-actions,,,,2026-1
 ci:38746260076:1,ci,2026-10-15T14:25:39.258Z,p-cdee4961,github-actions,,,,2026-10-15T13:51:19.000Z,2026-10-15T13:51:20.000Z,Asia/Tokyo,feature/614-load-writing-style-in-reviews,614,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 ci:38746259687:1,ci,2026-10-15T14:25:39.258Z,p-cdee4961,github-actions,,,,2026-10-15T13:51:19.000Z,2026-10-15T13:58:17.000Z,Asia/Tokyo,feature/614-load-writing-style-in-reviews,614,,,,,,,,,,CI;pull_request;failure,
 coverage:github:2026-10-14T13:49:16.700Z:2026-10-15T14:25:39.258Z,coverage,2026-10-15T14:25:39.258Z,p-cdee4961,,,,,2026-10-14T13:49:16.700Z,2026-10-15T14:25:39.258Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:38751346722:1,ci,2026-10-15T14:26:11.095Z,p-cdee4961,github-actions,,,,2026-10-15T14:26:02.000Z,2026-10-15T14:26:11.095Z,Asia/Tokyo,main,,,,,,,,,,,github_actions in / for jdx/mise-action - Update #1629639590;dynamic;open,
+ci:38751144243:1,ci,2026-10-15T14:26:11.095Z,p-cdee4961,github-actions,,,,2026-10-15T14:24:43.000Z,2026-10-15T14:26:11.095Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;open,
+coverage:github:2026-10-14T14:25:39.258Z:2026-10-15T14:26:11.095Z,coverage,2026-10-15T14:26:11.095Z,p-cdee4961,,,,,2026-10-14T14:25:39.258Z,2026-10-15T14:26:11.095Z,Asia/Tokyo,,,,,,,,,,,,ok,

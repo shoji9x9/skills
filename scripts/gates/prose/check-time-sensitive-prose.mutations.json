@@ -462,17 +462,32 @@
     },
     {
       "id": "TS-TIME-WORD-STATE-PHRASES",
-      "why": "書いた時点の状態を述べる語（今のところ・目下・しばらくは など）を語彙から外す",
+      "why": "書いた時点の状態を述べる語（今のところ・いまのところ）を語彙から外す",
       "file": "scripts/gates/prose/check-time-sensitive-prose.ts",
-      "find": "|今のところ|いまのところ|目下|しばらくは|しばらくの間",
-      "replace": "",
+      "find": "|今のところ|いまのところ)",
+      "replace": ")",
+      "occurrences": 1,
+      "expect_failing": ["陽性: 今のところ を拾う", "陽性: いまのところ を拾う"]
+    },
+    {
+      "id": "TS-WORD-MOKKA",
+      "why": "「目下」を語彙から外す",
+      "file": "scripts/gates/prose/check-time-sensitive-prose.ts",
+      "find": "|(?<![の「\\p{Script=Han}])目下/gu",
+      "replace": "/gu",
+      "occurrences": 1,
+      "expect_failing": ["陽性: 目下 を拾う"]
+    },
+    {
+      "id": "TS-WORD-MOKKA-HAN",
+      "why": "「目下」の前の漢字を除かない（項目下・注目下を時期の語として拾う）",
+      "file": "scripts/gates/prose/check-time-sensitive-prose.ts",
+      "find": "(?<![の「\\p{Script=Han}])目下",
+      "replace": "(?<![の「])目下",
       "occurrences": 1,
       "expect_failing": [
-        "陽性: 今のところ を拾う",
-        "陽性: いまのところ を拾う",
-        "陽性: 目下 を拾う",
-        "陽性: しばらくは を拾う",
-        "陽性: しばらくの間 を拾う"
+        "陰性: 漢字の複合語の目下（項目下） は拾わない",
+        "陰性: 漢字の複合語の目下（注目下） は拾わない"
       ]
     }
   ]

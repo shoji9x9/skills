@@ -6,6 +6,8 @@
 // | -------------- | ----------------------------------------------------------------------------- |
 // | 入力           | 正常な Hook JSON / 不正な JSON / オブジェクトでない JSON                        |
 // | 続けさせた後か | stop_hook_active が true / false / 欠落                                        |
+// | 止めた印       | 無い / 在る（この一続きで止めた）/ session_id が使えない形                        |
+// | ダッシュ       | `——` の後に「「」「（」「。」/ `――`（U+2015）/ 1 文字の `—`                      |
 // | 本文           | 欠落 / 文字列でない / 空白だけ / 使わない語が 0 個・1 個・2 個                    |
 // | 語の位置       | 本文 / コードブロック / インラインコード / 引用 / ハーネスのタグの塊             |
 // | 止める指示     | textlint-disable のコメント（応答では従わない）                                  |
@@ -13,17 +15,24 @@
 // | 設定           | 読める / .textlintrc.json が無い                                               |
 //
 // 通す入力が止める入力と同じ数以上あることが要点である。止める入力だけのテストでは、「全部止める実装」と区別できない。
-import { readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { isNonEmptyString, isRecord } from "../lib/guards.ts";
 import { isArray } from "../lib/is-array.ts";
 import { makeTempDir } from "../lib/test-tmpdir.ts";
-import { REWRITE_REQUEST, main } from "./response-word-check.ts";
+import { DASH_TERM } from "../lib/textlint-word-rule.ts";
+import { REWRITE_REQUEST, blockedMarker, main } from "./response-word-check.ts";
 
+// 止めた印は、テストごとの一時ディレクトリに置く（OS の一時ディレクトリの実物に触らない）。
+let markerDir = "";
+beforeEach(() => {
+  markerDir = makeTempDir("response-word-check-marker-");
+});
 afterEach(() => {
   vi.restoreAllMocks();
+  rmSync(markerDir, { recursive: true, force: true });
 });
 
 const hook = (fields: Record<string, unknown>) =>
@@ -47,13 +56,18 @@ const entries =
 if (entries.length < 2) throw new Error(".textlint/words.json から term を持つ語を 2 つ読めない");
 const [FIRST, SECOND] = entries;
 const WITH_WORD = FIRST.example;
+const DASH = entries.find((e) => e.term === DASH_TERM);
+if (!DASH) throw new Error(".textlint/words.json にダッシュの項目が無い");
+// ダッシュの並びもテストの文字列に直接書かない（このファイルも textlint の対象である）。
+const EM2 = "\u2014".repeat(2);
+const BAR2 = "\u2015".repeat(2);
 
 async function run(input: string, root?: string): Promise<{ status: number; stderr: string }> {
   const errors: string[] = [];
   vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
     errors.push(args.join(" "));
   });
-  const status = await main(input, root);
+  const status = await main(input, root, markerDir);
   return { status, stderr: errors.join("\n") };
 }
 
@@ -78,9 +92,34 @@ test.each([
   expect(status).toBe(0);
 });
 
-test("通す: stop_hook_active が true なら使わない語があっても通す", async () => {
+test("通す: この一続きで既に止めた後（stop_hook_active が true で印が在る）は、使わない語があっても通す", async () => {
+  const marker = blockedMarker("s", markerDir);
+  if (!marker) throw new Error("印のパスを作れない");
+  writeFileSync(marker, "");
   const { status } = await run(hook({ stop_hook_active: true, last_assistant_message: WITH_WORD }));
   expect(status).toBe(0);
+});
+
+test("通す: session_id が使えない形なら、続けさせた後の応答は確かめない", async () => {
+  const { status } = await run(
+    hook({ session_id: "../x", stop_hook_active: true, last_assistant_message: WITH_WORD }),
+  );
+  expect(status).toBe(0);
+});
+
+test("通す: 1 文字の — は対象にしない（表の空欄や英語の区切り）", async () => {
+  const { status, stderr } = await run(hook({ last_assistant_message: "結果 — 成功です。" }));
+  expect(stderr).toBe("");
+  expect(status).toBe(0);
+});
+
+test("通す: 新しい一続きの最初の Stop は、前の一続きの印を消す", async () => {
+  const marker = blockedMarker("s", markerDir);
+  if (!marker) throw new Error("印のパスを作れない");
+  writeFileSync(marker, "");
+  const { status } = await run(hook({ stop_hook_active: false, last_assistant_message: PLAIN }));
+  expect(status).toBe(0);
+  expect(existsSync(marker)).toBe(false);
 });
 
 test.each([
@@ -101,6 +140,32 @@ test("止める: 本文の使わない語を、辞書の言い換えとともに
   expect(status).toBe(2);
   expect(stderr).toContain(REWRITE_REQUEST);
   expect(stderr).toContain(FIRST.message);
+});
+
+test("止める: 別の Hook が続けさせた後（stop_hook_active が true で印が無い）の応答も確かめ、止めた印を残す", async () => {
+  const { status, stderr } = await run(
+    hook({ stop_hook_active: true, last_assistant_message: WITH_WORD }),
+  );
+  expect(status).toBe(2);
+  expect(stderr).toContain(FIRST.message);
+  expect(existsSync(blockedMarker("s", markerDir) ?? "")).toBe(true);
+});
+
+test.each([
+  ["後に「「」が続く", `同じ族${EM2}「検査」と同じである。`],
+  ["後に「（」が続く", `判定する${EM2}（終了コードは使えない）。`],
+  ["後に「。」が続く", `判定する${EM2}。`],
+  ["U+2015 の 2 文字", `判定する${BAR2} 終了コードは使えない。`],
+])("止める: ダッシュの強調（%s）を、辞書の言い換えとともに示す", async (_name, message) => {
+  const { status, stderr } = await run(hook({ last_assistant_message: message }));
+  expect(status).toBe(2);
+  expect(stderr).toContain(DASH.message);
+});
+
+test("止める: 辞書でも検出できるダッシュの強調は、1 件だけ示す", async () => {
+  const { status, stderr } = await run(hook({ last_assistant_message: DASH.example }));
+  expect(status).toBe(2);
+  expect(stderr.split(DASH.message).length - 1).toBe(1);
 });
 
 test("止める: textlint-disable のコメントを書いても、使わない語を示す", async () => {
@@ -139,5 +204,20 @@ test("エラー: textlint の設定が無ければ、書き直しを求めずに
     expect(stderr).toContain("textlint で判定できない");
   } finally {
     rmSync(empty, { recursive: true, force: true });
+  }
+});
+
+test("エラー: 設定で使わない語の規則が無効なら、書き直しを求めずに 1 を返す", async () => {
+  // 辞書は在るので、ダッシュの規則だけは作れる。語の規則が無いことを、0 件の指摘として通さないことを確かめる。
+  const root = makeTempDir("response-word-check-");
+  try {
+    mkdirSync(join(root, ".textlint"), { recursive: true });
+    writeFileSync(join(root, ".textlintrc.json"), JSON.stringify({ rules: {} }));
+    writeFileSync(join(root, ".textlint/words.json"), JSON.stringify({ entries: [DASH] }));
+    const { status, stderr } = await run(hook({ last_assistant_message: WITH_WORD }), root);
+    expect(status).toBe(1);
+    expect(stderr).toContain("textlint で判定できない");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
   }
 });

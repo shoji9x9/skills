@@ -25,10 +25,11 @@ import { makeSharedTempDir, makeTempDir } from "../../lib/test-tmpdir.ts";
 import { spawnAsync } from "../../lib/spawn-async.ts";
 import { parseJsonAs } from "../../lib/parse-as.ts";
 import { loadYamlAs } from "../../lib/yaml-as.ts";
+import { DASH_TERM } from "../../lib/textlint-word-rule.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "scripts/gates/prose/lint-prose.ts");
-const words = parseJsonAs<{ entries: { example: string; message: string }[] }>(
+const words = parseJsonAs<{ entries: { term?: string; example: string; message: string }[] }>(
   readFileSync(join(repoRoot, ".textlint/words.json"), "utf8"),
 );
 /** lefthook.yml の job のうち、このテストが読むフィールド。 */
@@ -289,6 +290,30 @@ test("陽性: evals.json の prompt・expected_output・assertions の語を報�
     "evals/x/evals.json:6",
     "evals/x/evals.json:7",
   ]);
+});
+
+// ダッシュの並びは、テストの文字列に直接書かない（このファイルも textlint の対象である）。
+const EM2 = "—".repeat(2);
+const BAR2 = "―".repeat(2);
+
+test("陽性: 記号が続くダッシュと U+2015 の並びを、Markdown・コメント・文字列で辞書の message で報告する", async () => {
+  const dash = words.entries.find((e) => e.term === DASH_TERM);
+  if (!dash) throw new Error(".textlint/words.json にダッシュの項目が無い");
+  const root = makeRepo({
+    "a.md": `# 例\n\n同じ族${EM2}「検査」である。\n\n判定する${BAR2} 次へ進む。\n\n判定する${EM2}次へ進む。\n`,
+    "b.ts": `// 判定する${EM2}（理由）。\nconst s = "判定する${BAR2}。";\n`,
+    "c.md": `# 例\n\n結果 — 成功した。\n\n<!-- textlint-disable -->\n判定する${EM2}「検査」。\n<!-- textlint-enable -->\n`,
+  });
+  const { violations } = await lintProse({ root });
+  // 辞書でも検出できる形（a.md の 7 行目）は、同じ位置と message の指摘が 1 件にまとまる。
+  expect(violations.map((v) => v.split(" ")[0]).sort()).toEqual([
+    "a.md:3:4",
+    "a.md:5:5",
+    "a.md:7:5",
+    "b.ts:1:8",
+    "b.ts:2:16",
+  ]);
+  expect(violations.every((v) => v.includes(dash.message))).toBe(true);
 });
 
 test("陰性: 文字列には語の規則だけを当て、バッククォートの中と import の指定子は見ない", async () => {

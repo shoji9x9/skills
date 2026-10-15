@@ -9,13 +9,21 @@
 // 同じ設定の他の規則（「である」調・文の長さなど）は文書の規約なので、応答には当てない。
 // 応答の本文の取り出し（コードブロック・インラインコード・引用・URL・ハーネスのタグの塊を外す）は、
 // response-language-check.ts と同じ関数を使う。語そのものを説明するときは、インラインコードで書けば止めない。
-import { readFileSync, realpathSync } from "node:fs";
+//
+// stop_hook_active が true（どれかの Stop の Hook が続けさせた後）の応答も確かめる。
+// 別の Hook（response-language-check など）が書き直させた応答は、この Hook がまだ見ていないからである。
+// 止め続けないように、この Hook が止めるのは、続けさせた一続きの中で 1 回までにする。
+// 止めたことは session_id ごとの印のファイル（OS の一時ディレクトリ）に残し、stop_hook_active が false の Stop で消す。
+//
+// textlint は応答を確かめるときだけ読み込む。読み込めない環境（依存を入れる前の worktree など）でも、
+// スタックトレースで終わらずに、確かめていないことを 1 行で示す。
+import { existsSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createLinter, loadTextlintrc } from "textlint";
 import { errorMessage } from "../lib/errors.ts";
 import { isRecord } from "../lib/guards.ts";
-import { wordRules } from "../lib/textlint-word-rule.ts";
+import { dashRule, wordRules } from "../lib/textlint-word-rule.ts";
 import { prose } from "./response-language-check.ts";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -24,9 +32,11 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 export async function findWords(message: string, root: string = REPO_ROOT): Promise<string[]> {
   const body = prose(message);
   if (body.trim() === "") return [];
+  const { createLinter, loadTextlintrc } = await import("textlint");
   const loaded = await loadTextlintrc({ configFilePath: join(root, ".textlintrc.json") });
   // 設定が無い・規則が外れていると、textlint は規則なしで成功し、どの応答も通してしまう。wordRules がそれを例外にする。
-  const rules = wordRules(loaded);
+  // 辞書では検出しきれない `——` を、文字列で探す規則も当てる（理由は textlint-word-rule.ts）。
+  const rules = [...wordRules(loaded), dashRule(root)];
   // 他の規則は実行しない（応答ごとに文書の規約の規則まで動かさない）。
   // filter の規則も外す。応答に `<!-- textlint-disable -->` を書くだけで確かめずに通すことを防ぐ。
   const descriptor = loaded.shallowMerge({ rules, filterRules: [] });
@@ -38,10 +48,14 @@ export async function findWords(message: string, root: string = REPO_ROOT): Prom
 export const REWRITE_REQUEST =
   "response-word-check: 人への応答に、使わない語（.textlint/word-list.md）が含まれています。" +
   "次の指摘に従って、同じ内容を言い換えて書き直してください。" +
-  "語そのものを説明するときは、インラインコードで囲めば対象から外れます。";
+  "その語の言い換えを説明する場合に限り、語をインラインコードで囲めば対象から外れます。言い換えずに通すために囲まないでください。";
 
 /** Hook として実行する。戻り値は終了コード（0: 通す、2: 書き直させる、1: 入力を読めない・判定できない）。 */
-export async function main(input: string, root: string = REPO_ROOT): Promise<number> {
+export async function main(
+  input: string,
+  root: string = REPO_ROOT,
+  markerDir: string = tmpdir(),
+): Promise<number> {
   let payload: unknown;
   try {
     payload = JSON.parse(input);
@@ -54,8 +68,14 @@ export async function main(input: string, root: string = REPO_ROOT): Promise<num
     console.error("response-word-check: 入力がオブジェクトでない");
     return 1;
   }
-  // 既に Stop の Hook で続けさせた後なら通す。書き直しても判定が変わらない応答で、止め続けないためである。
-  if (payload.stop_hook_active === true) return 0;
+  const marker = blockedMarker(payload.session_id, markerDir);
+  if (payload.stop_hook_active !== true) {
+    // 新しい一続きの最初の Stop なので、前の一続きで止めた印を消す。
+    if (marker) rmSync(marker, { force: true });
+  } else if (!marker || existsSync(marker)) {
+    // この一続きで既に止めた（か、印を置けない）なら通す。書き直しても判定が変わらない応答で、止め続けないためである。
+    return 0;
+  }
   const message = payload.last_assistant_message;
   if (typeof message !== "string" || message.trim() === "") return 0;
   let findings: string[];
@@ -68,7 +88,19 @@ export async function main(input: string, root: string = REPO_ROOT): Promise<num
   }
   if (findings.length === 0) return 0;
   console.error([REWRITE_REQUEST, ...findings.map((f) => `- ${f}`)].join("\n"));
+  try {
+    if (marker) writeFileSync(marker, "");
+  } catch (error) {
+    // 印を残せなくても書き直しは求める。次の Stop で同じ語が残っていれば、もう一度止める。
+    console.error(`response-word-check: 止めた印を残せない: ${errorMessage(error)}`);
+  }
   return 2;
+}
+
+/** この Hook が止めたことを残す印のパス。session_id が使えない形なら null（続けさせた後の応答は確かめずに通す）。 */
+export function blockedMarker(sessionId: unknown, dir: string = tmpdir()): string | null {
+  if (typeof sessionId !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(sessionId)) return null;
+  return join(dir, `response-word-check-${sessionId}.blocked`);
 }
 
 // CLI エントリ判定は両辺を実パスへ揃える（片側だけの解決は symlink 経由の起動で何もせずに終わる）。
