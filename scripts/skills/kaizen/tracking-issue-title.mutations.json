@@ -76,8 +76,8 @@
       "occurrences": 1,
       "expect_failing": [
         "照会の原本（tracking-issue-lib.sh） gh issue list が失敗したら非 0 で返る",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する",
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する",
         "照会の原本（tracking-issue-lib.sh） errexit が無効な文脈でも照会の失敗を戻り値で伝える"
       ]
     },
@@ -147,12 +147,12 @@
       "expect_failing": [
         "kaizen スクリプトの探索（レポートと照会を同じ版から採る） 両方揃ったディレクトリを採り、lib のパスを出力する",
         "kaizen スクリプトの探索（レポートと照会を同じ版から採る） 本リポでは実在する lib を指す（探索先の 1 つに原本がある）",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ 照会は lib を source して呼び、ステップ内に再展開しない",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ lib を読めないときは Issue を触らずに失敗する",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"\" なら Issue を触らずに失敗する",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"3件\" なら Issue を触らずに失敗する",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"-1\" なら Issue を触らずに失敗する"
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 照会は lib を source して呼び、ステップ内に再展開しない",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ lib を読めないときは Issue を触らずに失敗する",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ PENDING_COUNT=\"\" なら Issue を触らずに失敗する",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ PENDING_COUNT=\"3件\" なら Issue を触らずに失敗する",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ PENDING_COUNT=\"-1\" なら Issue を触らずに失敗する"
       ]
     },
     {
@@ -163,8 +163,8 @@
       "replace": "title=\"$ISSUE_TITLE_PREFIX\"",
       "occurrences": 1,
       "expect_failing": [
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ env で接頭辞を宣言し、タイトルへ UTC の更新日を付ける",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する"
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ env で接頭辞を宣言し、タイトルへ UTC の更新日を付ける",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する"
       ]
     },
     {
@@ -175,12 +175,12 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ env で接頭辞を宣言し、タイトルへ UTC の更新日を付ける",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ lib を読めないときは Issue を触らずに失敗する",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"\" なら Issue を触らずに失敗する",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"3件\" なら Issue を触らずに失敗する",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"-1\" なら Issue を触らずに失敗する"
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ env で接頭辞を宣言し、タイトルへ UTC の更新日を付ける",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ lib を読めないときは Issue を触らずに失敗する",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ PENDING_COUNT=\"\" なら Issue を触らずに失敗する",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ PENDING_COUNT=\"3件\" なら Issue を触らずに失敗する",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ PENDING_COUNT=\"-1\" なら Issue を触らずに失敗する"
       ]
     },
     {
@@ -191,8 +191,8 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ 照会は lib を source して呼び、ステップ内に再展開しない",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する"
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 照会は lib を source して呼び、ステップ内に再展開しない",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する"
       ]
     },
     {
@@ -203,12 +203,12 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ 照会は lib を source して呼び、ステップ内に再展開しない",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ lib を読めないときは Issue を触らずに失敗する",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"\" なら Issue を触らずに失敗する",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"3件\" なら Issue を触らずに失敗する",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"-1\" なら Issue を触らずに失敗する"
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 照会は lib を source して呼び、ステップ内に再展開しない",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ lib を読めないときは Issue を触らずに失敗する",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ PENDING_COUNT=\"\" なら Issue を触らずに失敗する",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ PENDING_COUNT=\"3件\" なら Issue を触らずに失敗する",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ PENDING_COUNT=\"-1\" なら Issue を触らずに失敗する"
       ]
     },
     {
@@ -219,9 +219,9 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"\" なら Issue を触らずに失敗する",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"3件\" なら Issue を触らずに失敗する",
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"-1\" なら Issue を触らずに失敗する"
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ PENDING_COUNT=\"\" なら Issue を触らずに失敗する",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ PENDING_COUNT=\"3件\" なら Issue を触らずに失敗する",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ PENDING_COUNT=\"-1\" なら Issue を触らずに失敗する"
       ]
     },
     {
@@ -232,7 +232,7 @@
       "replace": "              gh issue edit \"$number\" --title \"$title\"\n              for n in \"${numbers[@]}\"; do\n                gh issue close \"$n\" --comment \"未適用の学びはありません。自動クローズします。\"\n                echo \"閉じた: #${n}\" >&2\n              done\n",
       "occurrences": 1,
       "expect_failing": [
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ クローズ時はリネームしない（閉じた Issue は当時の日付で固定する）"
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ クローズ時はリネームしない（閉じた Issue は当時の日付で固定する）"
       ]
     },
     {
@@ -243,7 +243,7 @@
       "replace": "              gh issue close \"$number\" --comment \"未適用の学びはありません。自動クローズします。\"\n              echo \"閉じた: #${number}\" >&2\n",
       "occurrences": 1,
       "expect_failing": [
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ クローズは一致した全件に当てる（更新は最古 1 本だけ）"
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ クローズは一致した全件に当てる（更新は最古 1 本だけ）"
       ]
     },
     {
@@ -254,7 +254,7 @@
       "replace": "            gh issue edit \"$number\" --body-file \"$BODY_FILE\"\n",
       "occurrences": 1,
       "expect_failing": [
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ 既存の追跡 Issue は毎回リネームし、新規作成も日付つきで立てる"
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 既存の追跡 Issue は毎回リネームし、新規作成も日付つきで立てる"
       ]
     },
     {
@@ -265,7 +265,7 @@
       "replace": "            for n in \"${numbers[@]}\"; do\n              gh issue edit \"$n\" --title \"$title\" --body-file \"$BODY_FILE\"\n            done\n",
       "occurrences": 1,
       "expect_failing": [
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ クローズは一致した全件に当てる（更新は最古 1 本だけ）"
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ クローズは一致した全件に当てる（更新は最古 1 本だけ）"
       ]
     },
     {
@@ -276,7 +276,7 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない"
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない"
       ]
     },
     {
@@ -287,7 +287,7 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない"
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない"
       ]
     },
     {
@@ -298,7 +298,7 @@
       "replace": "              warn_if_truncated \"何もしていないのに鳴らす\"\n              echo \"未適用の学びは 0 件。追跡 Issue も無いので何もしない\"\n",
       "occurrences": 1,
       "expect_failing": [
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない"
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない"
       ]
     },
     {
@@ -309,7 +309,7 @@
       "replace": "            echo \"追跡 Issue が ${#numbers[@]} 件ある（番号: ${numbers[*]}）。更新するのは最も古い 1 本のみ\" >&2",
       "occurrences": 1,
       "expect_failing": [
-        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ 複数一致の通知は分岐前で挙動を断定しない"
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 複数一致の通知は分岐前で挙動を断定しない"
       ]
     },
     {
@@ -320,8 +320,8 @@
       "replace": "title=\"$ISSUE_TITLE_PREFIX\"",
       "occurrences": 1,
       "expect_failing": [
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ env で接頭辞を宣言し、タイトルへ UTC の更新日を付ける",
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する"
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ env で接頭辞を宣言し、タイトルへ UTC の更新日を付ける",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する"
       ]
     },
     {
@@ -332,12 +332,12 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ env で接頭辞を宣言し、タイトルへ UTC の更新日を付ける",
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する",
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ lib を読めないときは Issue を触らずに失敗する",
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ HAS_OUTDATED=\"\" なら Issue を触らずに失敗する",
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ HAS_OUTDATED=\"TRUE\" なら Issue を触らずに失敗する",
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ HAS_OUTDATED=\"1\" なら Issue を触らずに失敗する"
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ env で接頭辞を宣言し、タイトルへ UTC の更新日を付ける",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ lib を読めないときは Issue を触らずに失敗する",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ HAS_OUTDATED=\"\" なら Issue を触らずに失敗する",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ HAS_OUTDATED=\"TRUE\" なら Issue を触らずに失敗する",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ HAS_OUTDATED=\"1\" なら Issue を触らずに失敗する"
       ]
     },
     {
@@ -348,8 +348,8 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ 照会は lib を source して呼び、ステップ内に再展開しない",
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する"
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ 照会は lib を source して呼び、ステップ内に再展開しない",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する"
       ]
     },
     {
@@ -360,12 +360,12 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ 照会は lib を source して呼び、ステップ内に再展開しない",
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する",
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ lib を読めないときは Issue を触らずに失敗する",
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ HAS_OUTDATED=\"\" なら Issue を触らずに失敗する",
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ HAS_OUTDATED=\"TRUE\" なら Issue を触らずに失敗する",
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ HAS_OUTDATED=\"1\" なら Issue を触らずに失敗する"
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ 照会は lib を source して呼び、ステップ内に再展開しない",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ lib を読めないときは Issue を触らずに失敗する",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ HAS_OUTDATED=\"\" なら Issue を触らずに失敗する",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ HAS_OUTDATED=\"TRUE\" なら Issue を触らずに失敗する",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ HAS_OUTDATED=\"1\" なら Issue を触らずに失敗する"
       ]
     },
     {
@@ -376,9 +376,9 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ HAS_OUTDATED=\"\" なら Issue を触らずに失敗する",
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ HAS_OUTDATED=\"TRUE\" なら Issue を触らずに失敗する",
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ HAS_OUTDATED=\"1\" なら Issue を触らずに失敗する"
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ HAS_OUTDATED=\"\" なら Issue を触らずに失敗する",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ HAS_OUTDATED=\"TRUE\" なら Issue を触らずに失敗する",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ HAS_OUTDATED=\"1\" なら Issue を触らずに失敗する"
       ]
     },
     {
@@ -389,7 +389,7 @@
       "replace": "              gh issue edit \"$number\" --title \"$title\"\n              for n in \"${numbers[@]}\"; do\n                gh issue close \"$n\" --comment \"全ツールが最新です。自動クローズします。\"\n                echo \"閉じた: #${n}\" >&2\n              done\n",
       "occurrences": 1,
       "expect_failing": [
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ クローズ時はリネームしない（閉じた Issue は当時の日付で固定する）"
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ クローズ時はリネームしない（閉じた Issue は当時の日付で固定する）"
       ]
     },
     {
@@ -400,7 +400,7 @@
       "replace": "              gh issue close \"$number\" --comment \"全ツールが最新です。自動クローズします。\"\n              echo \"閉じた: #${number}\" >&2\n",
       "occurrences": 1,
       "expect_failing": [
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ クローズは一致した全件に当てる（更新は最古 1 本だけ）"
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ クローズは一致した全件に当てる（更新は最古 1 本だけ）"
       ]
     },
     {
@@ -411,7 +411,7 @@
       "replace": "            gh issue edit \"$number\" --body-file /tmp/issue-body.md\n",
       "occurrences": 1,
       "expect_failing": [
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ 既存の追跡 Issue は毎回リネームし、新規作成も日付つきで立てる"
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ 既存の追跡 Issue は毎回リネームし、新規作成も日付つきで立てる"
       ]
     },
     {
@@ -422,7 +422,7 @@
       "replace": "            for n in \"${numbers[@]}\"; do\n              gh issue edit \"$n\" --title \"$title\" --body-file /tmp/issue-body.md\n            done\n",
       "occurrences": 1,
       "expect_failing": [
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ クローズは一致した全件に当てる（更新は最古 1 本だけ）"
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ クローズは一致した全件に当てる（更新は最古 1 本だけ）"
       ]
     },
     {
@@ -433,7 +433,7 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない"
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない"
       ]
     },
     {
@@ -444,7 +444,7 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない"
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない"
       ]
     },
     {
@@ -455,7 +455,7 @@
       "replace": "              warn_if_truncated \"何もしていないのに鳴らす\"\n              echo \"更新のあるツールは無く、追跡 Issue も無いので何もしない\"\n",
       "occurrences": 1,
       "expect_failing": [
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない"
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない"
       ]
     },
     {
@@ -466,7 +466,7 @@
       "replace": "            echo \"追跡 Issue が ${#numbers[@]} 件ある（番号: ${numbers[*]}）。更新するのは最も古い 1 本のみ\" >&2",
       "occurrences": 1,
       "expect_failing": [
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ 複数一致の通知は分岐前で挙動を断定しない"
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ 複数一致の通知は分岐前で挙動を断定しない"
       ]
     },
     {
