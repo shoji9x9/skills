@@ -19,7 +19,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { loadYaml } from "../../lib/yaml-as.ts";
 import { splitFrontmatter } from "../../lib/frontmatter.ts";
-import { isArray } from "../../lib/is-array.ts";
+import { isPlainObject } from "../../lib/guards.ts";
 
 const DESCRIPTION_MAX_BYTES = 1024;
 const NAME_MAX_LENGTH = 64;
@@ -52,7 +52,8 @@ export function checkFrontmatter(path: string, content: string) {
     violations.push(`frontmatter が YAML としてパースできない: ${reason}`);
     return violations; // パース不能なら以降のフィールド検査は無意味。
   }
-  if (data === null || typeof data !== "object" || isArray(data)) {
+  // js-yaml 5 は `!!set` を Set に、タイムスタンプを Date にするので、object かどうかではなくマッピングかで判定する。
+  if (!isPlainObject(data)) {
     violations.push("frontmatter が YAML マッピングになっていない");
     return violations;
   }

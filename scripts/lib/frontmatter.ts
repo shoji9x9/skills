@@ -17,6 +17,7 @@
 //     中身に関わらず同じ `{}` になり、Date と同じ ISO の文字列を書いた値も区別できない。
 //   - 読めなければ例外にする（どちらのファイルかは、呼び出し側が normalizeSkillFrontmatter で先に確かめる）。
 import { isDeepStrictEqual } from "node:util";
+import { isPlainObject } from "./guards.ts";
 import { loadYamlAs } from "./yaml-as.ts";
 
 export function splitFrontmatter(content: string): { fm: string; body: string } | null {
@@ -28,12 +29,6 @@ export function splitFrontmatter(content: string): { fm: string; body: string } 
 }
 
 type SkillFrontmatter = { metadata?: unknown };
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return (
-    value !== null && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype
-  );
-}
 
 /**
  * frontmatter を YAML として読み、`metadata.local-path` を除く。それで空になった metadata も除く。読めなければ例外にする。
