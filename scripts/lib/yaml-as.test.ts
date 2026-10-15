@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import { loadYaml, loadYamlAs, loadYamlDocuments } from "./yaml-as.ts";
 
-// js-yaml 4 のデフォルトと同じ読み方を保つことを確かめる（js-yaml 5 で変わった点を 1 件ずつ置く）。
+// yaml-as.ts の読み方を確かめる。js-yaml 5 で変わった点（スキーマ・空の入力）と、4 と違いが残る主な形を置く。
 
 test.each([
   ["空文字", ""],

@@ -1,7 +1,7 @@
 {
   "$comment": [
     "yaml-as.test.ts の検出能力を示す変異の一覧。",
-    "js-yaml 5 で変わったデフォルト（スキーマ・空の入力・複数の文書）を、js-yaml 4 と同じ読み方に保つ分岐を無効にする。"
+    "js-yaml 5 で変わったデフォルト（スキーマ・空の入力）を js-yaml 4 の読み方に近づける分岐と、複数の文書を例外にする分岐を無効にする。"
   ],
   "test_file": "scripts/lib/yaml-as.test.ts",
   "mutations": [
