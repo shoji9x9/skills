@@ -18,3 +18,5 @@ ci:38684671789:1,ci,2026-10-15T05:04:04.679Z,p-cdee4961,github-actions,,,,2026-1
 coverage:github:2026-10-14T05:03:50.430Z:2026-10-15T05:04:04.679Z,coverage,2026-10-15T05:04:04.679Z,p-cdee4961,,,,,2026-10-14T05:03:50.430Z,2026-10-15T05:04:04.679Z,Asia/Tokyo,,,,,,,,,,,,ok,
 ci:38684671789:1,ci,2026-10-15T05:04:25.973Z,p-cdee4961,github-actions,,,,2026-10-15T05:02:51.000Z,2026-10-15T05:04:25.973Z,Asia/Tokyo,feature/595-prose-clarity-rules,595,,,,,,,,,,CI;pull_request;open,
 coverage:github:2026-10-14T05:04:04.679Z:2026-10-15T05:04:25.973Z,coverage,2026-10-15T05:04:25.973Z,p-cdee4961,,,,,2026-10-14T05:04:04.679Z,2026-10-15T05:04:25.973Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:38684671789:1,ci,2026-10-15T05:04:54.838Z,p-cdee4961,github-actions,,,,2026-10-15T05:02:51.000Z,2026-10-15T05:04:38.000Z,Asia/Tokyo,feature/595-prose-clarity-rules,595,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-14T05:04:25.973Z:2026-10-15T05:04:54.838Z,coverage,2026-10-15T05:04:54.838Z,p-cdee4961,,,,,2026-10-14T05:04:25.973Z,2026-10-15T05:04:54.838Z,Asia/Tokyo,,,,,,,,,,,,ok,
