@@ -559,13 +559,16 @@
     },
     {
       "id": "retraction-skipped",
-      "why": "作らなくなった記録済みの行を打ち消さない",
+      "why": "作らなくなった使用量の行を打ち消さない",
       "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
-      "find": "    retractions.push({ ...r, retracted: \"1\" });",
+      "find": "      for (const r of old) rows.push({ ...r, retracted: \"1\" });",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "agent-usage のコマンドと Hook 区切り方が変わった記録済みの行は打ち消し、report は二重に数えない"
+        "agent-usage のコマンドと Hook 区切り方が変わった記録済みの行は打ち消し、report は二重に数えない",
+        "agent-usage のコマンドと Hook サブエージェントのログだけが消えたセッションの使用量は、区切り方が変わっても打ち消さない",
+        "agent-usage のコマンドと Hook 別名で記録した行と、observed_at が今より後の行も打ち消し、report は二重に数えない",
+        "retractableRows 範囲の中のまとまりは、作り直した合計が減らなければ打ち消し、減れば打ち消さない"
       ]
     },
     {
@@ -588,7 +591,9 @@
       "replace": "  const latest = [...latestByKey(allRows).values()];",
       "occurrences": 1,
       "expect_failing": [
-        "agent-usage のコマンドと Hook 区切り方が変わった記録済みの行は打ち消し、report は二重に数えない"
+        "agent-usage のコマンドと Hook 区切り方が変わった記録済みの行は打ち消し、report は二重に数えない",
+        "agent-usage のコマンドと Hook サブエージェントのログだけが消えたセッションの使用量は、区切り方が変わっても打ち消さない",
+        "agent-usage のコマンドと Hook 別名で記録した行と、observed_at が今より後の行も打ち消し、report は二重に数えない"
       ]
     },
     {
@@ -600,7 +605,8 @@
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook オフセットが 30 分のタイムゾーンでは、日付の境目の前後の使用量をそれぞれの日に入れる",
-        "agent-usage のコマンドと Hook 区切り方が変わった記録済みの行は打ち消し、report は二重に数えない"
+        "agent-usage のコマンドと Hook 区切り方が変わった記録済みの行は打ち消し、report は二重に数えない",
+        "agent-usage のコマンドと Hook 別名で記録した行と、observed_at が今より後の行も打ち消し、report は二重に数えない"
       ]
     },
     {
@@ -615,28 +621,6 @@
       ]
     },
     {
-      "id": "old-rows-retracted",
-      "why": "開始時刻が範囲より古い行も、作らなくなったら打ち消す",
-      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
-      "find": "    if (start === null || start < lowerBound + HOUR_MS) continue;",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook 開始時刻が範囲より古い行は、区切り方が変わっても打ち消さず、使用量を残す"
-      ]
-    },
-    {
-      "id": "aligned-usage-retracted",
-      "why": "今のタイムゾーンの正時に揃った使用量の行も、作らなくなったら打ち消す",
-      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
-      "find": "    if (r.kind === \"usage\" && localHourStart(start, tz) === start) continue;",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "agent-usage のコマンドと Hook サブエージェントのログだけが消えたセッションの使用量は、打ち消さない"
-      ]
-    },
-    {
       "id": "retracted-value-unchecked",
       "why": "打ち消しの列の値を検査しない",
       "file": "skills/agent-usage/scripts/lib/records.mjs",
@@ -645,6 +629,97 @@
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook 打ち消しの列が空でも 1 でもない記録は、読むときに失敗にする"
+      ]
+    },
+    {
+      "id": "old-rows-retracted",
+      "why": "開始時刻が範囲より古い指示・稼働の行も、作らなくなったら打ち消す",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "    if (start !== null && start >= o.lowerBound) rows.push({ ...r, retracted: \"1\" });",
+      "replace": "    if (start !== null) rows.push({ ...r, retracted: \"1\" });",
+      "occurrences": 1,
+      "expect_failing": [
+        "retractableRows 指示・稼働・cost-state の使用量は、範囲の中に始まる行だけを打ち消す"
+      ]
+    },
+    {
+      "id": "usage-total-unchecked",
+      "why": "作り直した使用量が記録済みより少なくても（ログが欠けていても）打ち消す",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "    if (written && tokenTotal(rebuilt) >= tokenTotal(recorded)) {",
+      "replace": "    if (written) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook サブエージェントのログだけが消えたセッションの使用量は、区切り方が変わっても打ち消さない",
+        "retractableRows 範囲の中のまとまりは、作り直した合計が減らなければ打ち消し、減れば打ち消さない",
+        "agent-usage のコマンドと Hook 同じモデルのサブエージェントのログが消えた後に区切り方を変えても、重なる新しい行を書かず二重に数えない"
+      ]
+    },
+    {
+      "id": "retracted-again",
+      "why": "打ち消し済みの行も、collect のたびに打ち消す",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "    if (canonical(r.person) !== person || r.retracted === \"1\") continue;",
+      "replace": "    if (canonical(r.person) !== person) continue;",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook 区切り方が変わった記録済みの行は打ち消し、report は二重に数えない",
+        "agent-usage のコマンドと Hook 別名で記録した行と、observed_at が今より後の行も打ち消し、report は二重に数えない"
+      ]
+    },
+    {
+      "id": "withheld-written",
+      "why": "打ち消せない前の区切りの行と重なる新しい行も書く",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "    if (withheld.has(r.key ?? \"\")) return false;",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook 同じモデルのサブエージェントのログが消えた後に区切り方を変えても、重なる新しい行を書かず二重に数えない"
+      ]
+    },
+    {
+      "id": "alias-ignored",
+      "why": "別名で記録した行を、今の人の行として打ち消さない",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "    if (canonical(r.person) !== person || r.retracted === \"1\") continue;",
+      "replace": "    if (r.person !== person || r.retracted === \"1\") continue;",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook 別名で記録した行と、observed_at が今より後の行も打ち消し、report は二重に数えない"
+      ]
+    },
+    {
+      "id": "retraction-observed-now",
+      "why": "打ち消しの行の observed_at を今の時刻にする（元の行が今より後だと反映されない）",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "    r.observed_at = toIso(Math.max(now, (parseTime(r.observed_at) ?? now) + 1000));",
+      "replace": "    r.observed_at = toIso(now);",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook 別名で記録した行と、observed_at が今より後の行も打ち消し、report は二重に数えない"
+      ]
+    },
+    {
+      "id": "run-not-retractable",
+      "why": "稼働の行を打ち消しの対象にしない",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "const RETRACTABLE_KINDS = [\"usage\", \"run\", \"human-wait\", \"prompt\"];",
+      "replace": "const RETRACTABLE_KINDS = [\"usage\", \"human-wait\", \"prompt\"];",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook 引き継いだ側のセッションの指示・稼働の行は、元のセッションのログが見つかると打ち消す"
+      ]
+    },
+    {
+      "id": "cost-state-kept",
+      "why": "cost-state の使用量の行を、作らなくなっても打ち消さない",
+      "file": "skills/agent-usage/scripts/lib/run-collect.mjs",
+      "find": "    if (r.kind === \"usage\" && r.detail !== \"cost-state\") {",
+      "replace": "    if (r.kind === \"usage\") {",
+      "occurrences": 1,
+      "expect_failing": [
+        "retractableRows 指示・稼働・cost-state の使用量は、範囲の中に始まる行だけを打ち消す"
       ]
     }
   ]

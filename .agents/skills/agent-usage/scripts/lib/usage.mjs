@@ -17,14 +17,12 @@ import {
 import { fmt } from "./rows.mjs";
 import { branchAt, issueOf } from "./session.mjs";
 import { buildRuns } from "./timeline.mjs";
-import { localHourStart, toIso } from "./time.mjs";
+import { HOUR, localHourStart, toIso } from "./time.mjs";
 
 /** @typedef {import("./session.mjs").SessionSummary} SessionSummary */
 /** @typedef {import("./pricing.mjs").Tokens} Tokens */
 /** @typedef {import("./pricing.mjs").Price} Price */
 /** @typedef {import("./rows.mjs").Row} Row */
-
-const HOUR = 3600000;
 
 /**
  * @typedef {object} Context

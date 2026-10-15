@@ -24,7 +24,7 @@ import {
 } from "./pricing.mjs";
 import { renderHtml } from "./html.mjs";
 import { latestByKey, readRecords, usageDir } from "./records.mjs";
-import { localParts, parseTime, splitByLocalHour, toIso } from "./time.mjs";
+import { QUARTER_HOUR, localParts, parseTime, splitByLocalHour, toIso } from "./time.mjs";
 
 /** @typedef {import("./rows.mjs").Row} Row */
 /** @typedef {import("./config.mjs").RepoConfig} RepoConfig */
@@ -144,7 +144,7 @@ function around(t, w) {
  */
 export function endOfLocalDate(date, tz) {
   let t = Date.parse(`${date}T00:00:00Z`) - 15 * 3600000;
-  while (localParts(t, tz).date <= date) t += 900000;
+  while (localParts(t, tz).date <= date) t += QUARTER_HOUR;
   return t;
 }
 
