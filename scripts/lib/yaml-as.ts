@@ -3,13 +3,17 @@
 // js-yaml を読み込むので、JSON だけを読むスクリプトは `parse-as.ts` の `parseJsonAs` を使う。
 //
 // js-yaml 5 は、デフォルトのスキーマを CORE_SCHEMA（merge key と YAML 1.1 のタグを持たない）に変え、
-// 空の入力で `load` が例外を投げるようになった。このリポジトリの YAML の読み方は js-yaml 4 のデフォルトに揃える。
-// - スキーマ: CORE_SCHEMA に、4 のデフォルトが持っていた merge key・timestamp・binary・omap・pairs・set を足す。
+// 空の入力で `load` が例外を投げるようになった。このリポジトリの YAML の読み方は、js-yaml 4 のデフォルトに近づける。
+// - スキーマ: CORE_SCHEMA に、4 のデフォルトが持っていた merge key・timestamp・binary・omap・pairs・set と、
+//   複合キー（`? [1, 2]`）を文字列のキーにする legacyMapTag を足す。4 と読める YAML の範囲を揃えるためである。
 //   YAML11_SCHEMA は使わない。`on`・`yes` を真偽値に読み、GitHub Actions のワークフローの `on:` のキーを変えてしまう。
 // - 空の入力（空文字・コメントだけ）は `undefined` を返し、複数の文書は例外にする（4 の `load` と同じ）。
+// 4 と値が違うまま残る形: `!!set` は JavaScript の `Set` になり（4 はオブジェクト）、`0b11` は文字列になる（4 は数値）。
+// どちらも読めることは変わらないので、lint-yaml の判定には影響しない。
 import {
   binaryTag,
   CORE_SCHEMA,
+  legacyMapTag,
   loadAll,
   mergeTag,
   omapTag,
@@ -18,8 +22,9 @@ import {
   timestampTag,
 } from "js-yaml";
 
-/** このリポジトリで YAML を読むスキーマ（js-yaml 4 のデフォルトと同じ範囲）。 */
+/** このリポジトリで YAML を読むスキーマ（js-yaml 4 のデフォルトが読める YAML の範囲）。 */
 export const YAML_SCHEMA = CORE_SCHEMA.withTags(
+  legacyMapTag,
   mergeTag,
   timestampTag,
   binaryTag,

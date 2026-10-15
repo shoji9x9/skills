@@ -39,6 +39,15 @@ test.each([
   expect(() => loadYaml(text)).not.toThrow();
 });
 
+test("複合キー（`? [1, 2]`）は js-yaml 4 と同じく文字列のキーとして読む", () => {
+  expect(loadYaml("? [1, 2]\n: x\n")).toEqual({ "1,2": "x" });
+});
+
+test("`!!set` は js-yaml 4 と違い Set として読む（yaml-as.ts の冒頭に書いた差）", () => {
+  const value = loadYamlAs<{ a: unknown }>("a: !!set {x}\n");
+  expect(value.a).toEqual(new Set(["x"]));
+});
+
 test("`on`・`yes` は真偽値ではなく文字列のキーとして読む（GitHub Actions の `on:`）", () => {
   expect(loadYamlAs<Record<string, unknown>>("on: push\nyes: 1\n")).toEqual({ on: "push", yes: 1 });
 });

@@ -19,8 +19,19 @@
         "YAML 1.1 のタグ（set）を読める",
         "YAML 1.1 のタグ（omap）を読める",
         "YAML 1.1 のタグ（pairs）を読める",
-        "YAML 1.1 のタグ（timestamp）を読める"
+        "YAML 1.1 のタグ（timestamp）を読める",
+        "複合キー（`? [1, 2]`）は js-yaml 4 と同じく文字列のキーとして読む",
+        "`!!set` は js-yaml 4 と違い Set として読む（yaml-as.ts の冒頭に書いた差）"
       ]
+    },
+    {
+      "id": "YA-LEGACY-MAP",
+      "why": "複合キーを文字列のキーにする legacyMapTag を外す（js-yaml 4 が読めた YAML を不正と判定する）",
+      "file": "scripts/lib/yaml-as.ts",
+      "find": "withTags(\n  legacyMapTag,\n",
+      "replace": "withTags(\n",
+      "occurrences": 1,
+      "expect_failing": ["複合キー（`? [1, 2]`）は js-yaml 4 と同じく文字列のキーとして読む"]
     },
     {
       "id": "YA-MULTI-DOC",
