@@ -71,6 +71,18 @@ test("不正な YAML を 1 件置くと exit 1 でそのファイルを名指し
   expect(r.status).toBe(1);
 });
 
+test("yaml-as.ts の YAML_SCHEMA で読む: YAML 1.1 のタグは通し、不正な merge key は名指しする", () => {
+  const dir = repo({
+    "binary.yml": "a: !!binary aGVsbG8=\n",
+    "merge.yml": "b:\n  <<: 1\n",
+  });
+  const r = run(["--root", dir]);
+  expect(r.stderr).not.toContain("binary.yml");
+  expect(r.stderr).toMatch(/merge\.yml: \S/);
+  expect(r.stderr).toContain("2 件中 1 件を YAML として読めない");
+  expect(r.status).toBe(1);
+});
+
 test("未追跡でも ignore されていない YAML は検査する（add 前の新規ファイルを見落とさない）", () => {
   const dir = repo({ "a.yml": VALID, "new.yml": BROKEN }, { track: false });
   const r = run(["--root", dir]);

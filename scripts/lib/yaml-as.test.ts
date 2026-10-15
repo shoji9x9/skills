@@ -39,6 +39,10 @@ test.each([
   expect(() => loadYaml(text)).not.toThrow();
 });
 
+test("タグの無い日付は js-yaml 4 と同じく Date として読む", () => {
+  expect(loadYamlAs<{ a: unknown }>("a: 2026-10-15\n").a).toEqual(new Date("2026-10-15T00:00:00Z"));
+});
+
 test("複合キー（`? [1, 2]`）は js-yaml 4 と同じく文字列のキーとして読む", () => {
   expect(loadYaml("? [1, 2]\n: x\n")).toEqual({ "1,2": "x" });
 });

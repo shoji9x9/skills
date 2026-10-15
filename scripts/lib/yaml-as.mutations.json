@@ -21,7 +21,19 @@
         "YAML 1.1 のタグ（pairs）を読める",
         "YAML 1.1 のタグ（timestamp）を読める",
         "複合キー（`? [1, 2]`）は js-yaml 4 と同じく文字列のキーとして読む",
-        "`!!set` は js-yaml 4 と違い Set として読む（yaml-as.ts の冒頭に書いた差）"
+        "`!!set` は js-yaml 4 と違い Set として読む（yaml-as.ts の冒頭に書いた差）",
+        "タグの無い日付は js-yaml 4 と同じく Date として読む"
+      ]
+    },
+    {
+      "id": "YA-YAML11",
+      "why": "基にするスキーマを YAML11_SCHEMA にする（`on`・`yes` を真偽値に読み、ワークフローの `on:` のキーを変える）",
+      "file": "scripts/lib/yaml-as.ts",
+      "find": "  CORE_SCHEMA,\n",
+      "replace": "  YAML11_SCHEMA as CORE_SCHEMA,\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "`on`・`yes` は真偽値ではなく文字列のキーとして読む（GitHub Actions の `on:`）"
       ]
     },
     {

@@ -97,7 +97,19 @@
         "起点直下の除外（node_modules/pkg/z.yml）の中の不正な YAML は見ないが、外に同じものがあれば落とす",
         "ファイルを指定したらそれだけを検査する（lefthook 用）",
         "検出の確認（CLI）: 子プロセスとして起動しても、不正な YAML は exit 1、読めれば exit 0",
-        "rule と private skill（skills/ に同名の無い .agents/skills/<name>/）の実体は検査する"
+        "rule と private skill（skills/ に同名の無い .agents/skills/<name>/）の実体は検査する",
+        "yaml-as.ts の YAML_SCHEMA で読む: YAML 1.1 のタグは通し、不正な merge key は名指しする"
+      ]
+    },
+    {
+      "id": "LY-SCHEMA",
+      "why": "yaml-as.ts の YAML_SCHEMA ではなく js-yaml 5 のデフォルト（CORE_SCHEMA）で読む",
+      "file": "scripts/gates/code/lint-yaml.ts",
+      "find": "import { loadYamlDocuments } from \"../../lib/yaml-as.ts\";",
+      "replace": "import { loadAll as loadYamlDocuments } from \"js-yaml\";",
+      "occurrences": 1,
+      "expect_failing": [
+        "yaml-as.ts の YAML_SCHEMA で読む: YAML 1.1 のタグは通し、不正な merge key は名指しする"
       ]
     },
     {
