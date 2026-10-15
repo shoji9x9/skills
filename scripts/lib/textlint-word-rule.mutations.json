@@ -37,6 +37,36 @@
         "ダッシュの項目が無い なら、規則を作らずに例外を投げる",
         "ダッシュの項目に message が無い なら、規則を作らずに例外を投げる"
       ]
+    },
+    {
+      "id": "TWR-DASH-BOX",
+      "why": "罫線の `──` を探さない",
+      "file": "scripts/lib/textlint-word-rule.ts",
+      "find": "|(?<![\\u2500-\\u257f])─{2,}(?![\\u2500-\\u257f])",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["ダッシュの規則: 罫線（U+2500） の件数"]
+    },
+    {
+      "id": "TWR-DASH-TREE",
+      "why": "罫線の前後を見ない（ディレクトリの木の `├──` を検出する）",
+      "file": "scripts/lib/textlint-word-rule.ts",
+      "find": "(?<![\\u2500-\\u257f])─{2,}(?![\\u2500-\\u257f])",
+      "replace": "─{2,}",
+      "occurrences": 1,
+      "expect_failing": [
+        "ダッシュの規則: ディレクトリの木（├） の件数",
+        "ダッシュの規則: ディレクトリの木（└） の件数"
+      ]
+    },
+    {
+      "id": "TWR-DASH-FULLWIDTH",
+      "why": "全角のハイフンの `－－` を探さない",
+      "file": "scripts/lib/textlint-word-rule.ts",
+      "find": "|－{2,}/g",
+      "replace": "/g",
+      "occurrences": 1,
+      "expect_failing": ["ダッシュの規則: 全角のハイフン（U+FF0D） の件数"]
     }
   ]
 }

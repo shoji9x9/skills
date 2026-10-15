@@ -8,9 +8,9 @@
     {
       "id": "WORD-MARKER-IGNORED",
       "why": "止めた印を見ない（この Hook が止めた後の応答も止め続ける）",
-      "file": "scripts/hooks/response-word-check.ts",
-      "find": "} else if (!marker || existsSync(marker)) {",
-      "replace": "} else if (!marker) {",
+      "file": "scripts/lib/stop-marker.ts",
+      "find": "return !marker || existsSync(marker);",
+      "replace": "return !marker;",
       "occurrences": 1,
       "expect_failing": [
         "通す: この一続きで既に止めた後（stop_hook_active が true で印が在る）は、使わない語があっても通す"
@@ -19,9 +19,9 @@
     {
       "id": "WORD-ACTIVE-SKIPPED",
       "why": "stop_hook_active が true なら確かめずに通す（別の Hook が書き直させた応答を一度も確かめない）",
-      "file": "scripts/hooks/response-word-check.ts",
-      "find": "} else if (!marker || existsSync(marker)) {",
-      "replace": "} else if (true) {",
+      "file": "scripts/lib/stop-marker.ts",
+      "find": "return !marker || existsSync(marker);",
+      "replace": "return true;",
       "occurrences": 1,
       "expect_failing": [
         "止める: 別の Hook が続けさせた後（stop_hook_active が true で印が無い）の応答も確かめ、止めた印を残す",
@@ -31,7 +31,7 @@
     {
       "id": "WORD-MARKER-NOT-CLEARED",
       "why": "新しい一続きで前の印を消さない（次に続けさせた後の応答を確かめない）",
-      "file": "scripts/hooks/response-word-check.ts",
+      "file": "scripts/lib/stop-marker.ts",
       "find": "      if (marker) rmSync(marker, { force: true });",
       "replace": "",
       "occurrences": 1,
@@ -43,7 +43,7 @@
     {
       "id": "WORD-MARKER-NOT-WRITTEN",
       "why": "止めた印を残さない（書き直した応答を止め続ける）",
-      "file": "scripts/hooks/response-word-check.ts",
+      "file": "scripts/lib/stop-marker.ts",
       "find": "    if (marker) writeFileSync(marker, \"\", { flag: \"wx\" });",
       "replace": "",
       "occurrences": 1,
@@ -55,7 +55,7 @@
     {
       "id": "WORD-SESSION-UNCHECKED",
       "why": "session_id の形を確かめない（パスの区切りを含む値で印のパスを作る）",
-      "file": "scripts/hooks/response-word-check.ts",
+      "file": "scripts/lib/stop-marker.ts",
       "find": "!/^[A-Za-z0-9_-]{1,128}$/.test(sessionId)",
       "replace": "false",
       "occurrences": 1,
@@ -79,8 +79,8 @@
       "id": "WORD-DASH-SINGLE",
       "why": "1 文字のダッシュも対象にする（表の空欄や英語の区切りで止める）",
       "file": "scripts/lib/textlint-word-rule.ts",
-      "find": "const DASH_RE = /[—―]{2,}/g;",
-      "replace": "const DASH_RE = /[—―]+/g;",
+      "find": "/[—―]{2,}|",
+      "replace": "/[—―]+|",
       "occurrences": 1,
       "expect_failing": ["通す: 1 文字の — は対象にしない（表の空欄や英語の区切り）"]
     },
@@ -128,8 +128,8 @@
     {
       "id": "WORD-RM-UNGUARDED",
       "why": "前の印を消せないときに例外で終わる（Stop のたびに exit 1 になる）",
-      "file": "scripts/hooks/response-word-check.ts",
-      "find": "console.error(`response-word-check: 前の印を消せない: ${errorMessage(error)}`);",
+      "file": "scripts/lib/stop-marker.ts",
+      "find": "console.error(`${hook}: 前の印を消せない: ${errorMessage(error)}`);",
       "replace": "throw error;",
       "occurrences": 1,
       "expect_failing": ["通す: 前の印を消せなくても、例外で終わらずに判定を続ける"]
@@ -137,12 +137,26 @@
     {
       "id": "WORD-MARKER-FOLLOWS-LINK",
       "why": "印を書くときに先に在るシンボリックリンクを辿る（リンク先のファイルを作る・空にする）",
-      "file": "scripts/hooks/response-word-check.ts",
+      "file": "scripts/lib/stop-marker.ts",
       "find": "writeFileSync(marker, \"\", { flag: \"wx\" });",
       "replace": "writeFileSync(marker, \"\");",
       "occurrences": 1,
       "expect_failing": [
         "止める: 印の名前にシンボリックリンクが先に在れば、リンク先を書かずに書き直しを求める"
+      ]
+    },
+    {
+      "id": "WORD-MARKER-NOT-CHECKED",
+      "why": "共有の印の確認を呼ばない（stop_hook_active に関わらず確かめ、書き直した応答を止め続ける）",
+      "file": "scripts/hooks/response-word-check.ts",
+      "find": "if (alreadyBlocked(HOOK, payload, markerDir)) return 0;",
+      "replace": "if (false) return 0;",
+      "occurrences": 1,
+      "expect_failing": [
+        "通す: この一続きで既に止めた後（stop_hook_active が true で印が在る）は、使わない語があっても通す",
+        "通す: session_id が使えない形なら、続けさせた後の応答は確かめない",
+        "通す: 前の印を消せなくても、例外で終わらずに判定を続ける",
+        "通す: 新しい一続きの最初の Stop は、前の一続きの印を消す"
       ]
     }
   ]

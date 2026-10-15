@@ -540,7 +540,10 @@ test("main: 保留の一覧のパスは、一覧を読めないときだけ示�
     process.chdir(cwd);
     spy.mockRestore();
   }
-  expect(errors.join("\n")).toMatch(/^lint-prose: 実行できない: .*prose-lint-pending\.json: /m);
+  // パスは 1 回だけ出す（loadPending が付け、内側の message には付けない）。
+  expect(errors.join("\n")).toMatch(
+    /^lint-prose: 実行できない: [^:]*prose-lint-pending\.json: ファイルが無い$/m,
+  );
 });
 
 test("検出の確認（CLI）: 子プロセスとして起動しても、指摘は exit 1、無ければ exit 0", async () => {

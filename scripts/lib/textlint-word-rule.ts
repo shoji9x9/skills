@@ -6,7 +6,8 @@
 //
 // 辞書の `——` の項目だけは、辞書の照合では検出しきれない。辞書は形態素の surface_form で照合するが、
 // kuromoji は記号の連続を 1 つのトークンにまとめるので、`——「`・`——（`・`——。` は `——` のトークンにならない。
-// 字形の違う `――`（U+2015）も辞書には一致しない。そこで、2 文字以上続くダッシュを文字列で探す規則（DASH_RULE）を足す。
+// 字形の違う `――`（U+2015）・`──`（U+2500）・`－－`（U+FF0D）も辞書には一致しない。そこで、2 文字以上続くダッシュを文字列で探す規則（DASH_RULE）を足す。
+// `─` はディレクトリの木（`├──`）にも使うので、前後に罫線の文字が続く並びは除く。
 // 指摘は辞書の `——` の項目の message で出す。textlint は位置と message が同じ指摘を 1 件にまとめるので、
 // 辞書でも検出できる形は 2 件にならない。1 文字の `—` は、表の空欄や英語の区切りに使うので対象にしない。
 import { readFileSync } from "node:fs";
@@ -17,7 +18,7 @@ import { isArray } from "./is-array.ts";
 
 /** `.textlintrc.json` の preset の id と規則名を `/` でつないだもの。 */
 export const WORD_RULE = "ai-words-ja/no-ai-words";
-/** 2 文字以上続くダッシュ（`——`・`――`）を検出する規則の ID。設定ファイルには書かず、使う側が足す。 */
+/** 2 文字以上続くダッシュ（`——`・`――`・`──`・`－－`）を検出する規則の ID。設定ファイルには書かず、使う側が足す。 */
 export const DASH_RULE = "local/no-dash-emphasis";
 /** 使わない語として扱う規則の ID（文字列と応答には、これだけを当てる）。 */
 export const WORD_RULE_IDS: readonly string[] = [WORD_RULE, DASH_RULE];
@@ -29,7 +30,7 @@ type Descriptor = Awaited<ReturnType<typeof loadTextlintrc>>;
 type KernelRules = ReturnType<Descriptor["rule"]["toKernelRulesFormat"]>;
 type KernelRule = KernelRules[number];
 
-const DASH_RE = /[—―]{2,}/g;
+const DASH_RE = /[—―]{2,}|(?<![\u2500-\u257f])─{2,}(?![\u2500-\u257f])|－{2,}/g;
 
 /** 設定から使わない語の規則だけを取り出す。規則が無ければ、0 件として通さずに例外を投げる。 */
 export function wordRules(descriptor: Descriptor): KernelRules {
@@ -40,9 +41,12 @@ export function wordRules(descriptor: Descriptor): KernelRules {
   return rules;
 }
 
-/** 辞書（`<root>/.textlint/words.json`）から `——` の項目の message を読む。無ければ例外を投げる。 */
+/** 使わない語の辞書のパス（リポジトリ相対）。`.textlintrc.json` の dictionaryPath と同じであることをテストで確かめる。 */
+export const WORDS_PATH = ".textlint/words.json";
+
+/** 辞書（`<root>/WORDS_PATH`）から `——` の項目の message を読む。無ければ例外を投げる。 */
 export function dashMessage(root: string): string {
-  const path = join(root, ".textlint/words.json");
+  const path = join(root, WORDS_PATH);
   const data: unknown = JSON.parse(readFileSync(path, "utf8"));
   const entries = isRecord(data) && isArray(data.entries) ? data.entries : [];
   const entry = entries.find((e) => isRecord(e) && e.term === DASH_TERM);

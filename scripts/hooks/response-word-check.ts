@@ -17,15 +17,17 @@
 //
 // textlint は応答を確かめるときだけ読み込む。読み込めない環境（依存を入れる前の worktree など）でも、
 // スタックトレースで終わらずに、確かめていないことを 1 行で示す。
-import { existsSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { errorMessage } from "../lib/errors.ts";
 import { isRecord } from "../lib/guards.ts";
+import { alreadyBlocked, recordBlocked } from "../lib/stop-marker.ts";
 import { dashRule, wordRules } from "../lib/textlint-word-rule.ts";
 import { prose } from "./response-language-check.ts";
 
+const HOOK = "response-word-check";
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 /** 応答の本文から、使わない語の指摘（辞書の message）を返す。 */
@@ -68,19 +70,8 @@ export async function main(
     console.error("response-word-check: 入力がオブジェクトでない");
     return 1;
   }
-  const marker = blockedMarker(payload.session_id, markerDir);
-  if (payload.stop_hook_active !== true) {
-    // 新しい一続きの最初の Stop なので、前の一続きで止めた印を消す。
-    // 消せなくても判定は続ける（印が残ると、この一続きで続けさせた後の応答を確かめずに通すだけである）。
-    try {
-      if (marker) rmSync(marker, { force: true });
-    } catch (error) {
-      console.error(`response-word-check: 前の印を消せない: ${errorMessage(error)}`);
-    }
-  } else if (!marker || existsSync(marker)) {
-    // この一続きで既に止めた（か、印を置けない）なら通す。書き直しても判定が変わらない応答で、止め続けないためである。
-    return 0;
-  }
+  // 自分が止めた後だけ通す。別の Hook が書き直させた後の応答は確かめる（理由は stop-marker.ts）。
+  if (alreadyBlocked(HOOK, payload, markerDir)) return 0;
   const message = payload.last_assistant_message;
   if (typeof message !== "string" || message.trim() === "") return 0;
   let findings: string[];
@@ -93,20 +84,8 @@ export async function main(
   }
   if (findings.length === 0) return 0;
   console.error([REWRITE_REQUEST, ...findings.map((f) => `- ${f}`)].join("\n"));
-  try {
-    // 共有の tmpdir に置くので、同じ名前のシンボリックリンクやファイルが先に在れば書かない（wx は辿らずに失敗する）。
-    if (marker) writeFileSync(marker, "", { flag: "wx" });
-  } catch (error) {
-    // 印を残せなくても書き直しは求める。次の Stop で同じ語が残っていれば、もう一度止める。
-    console.error(`response-word-check: 止めた印を残せない: ${errorMessage(error)}`);
-  }
+  recordBlocked(HOOK, payload, markerDir);
   return 2;
-}
-
-/** この Hook が止めたことを残す印のパス。session_id が使えない形なら null（続けさせた後の応答は確かめずに通す）。 */
-export function blockedMarker(sessionId: unknown, dir: string = tmpdir()): string | null {
-  if (typeof sessionId !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(sessionId)) return null;
-  return join(dir, `response-word-check-${sessionId}.blocked`);
 }
 
 // CLI エントリ判定は両辺を実パスへ揃える（片側だけの解決は symlink 経由の起動で何もせずに終わる）。

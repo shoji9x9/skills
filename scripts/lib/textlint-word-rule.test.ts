@@ -7,11 +7,12 @@
 //
 // 規則が無い設定を 0 件の規則として返すと、使う側（lint-prose・応答の Hook）がエラーにならずに通す。それを例外にすることが要点である。
 // 設定は実リポジトリの .textlintrc.json を読まずに合成する。実リポジトリの設定が変わると、変異を検出できるかが変わるからである。
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadTextlintrc } from "textlint";
+import { createLinter, loadTextlintrc } from "textlint";
 import { afterEach, beforeEach, expect, test } from "vitest";
+import { isRecord } from "./guards.ts";
 import { makeTempDir } from "./test-tmpdir.ts";
 import {
   DASH_RULE,
@@ -19,6 +20,7 @@ import {
   dashMessage,
   dashRule,
   WORD_RULE,
+  WORDS_PATH,
   wordRules,
 } from "./textlint-word-rule.ts";
 
@@ -83,6 +85,31 @@ test.each([
 ])("%s なら、規則を作らずに例外を投げる", (_name, entries) => {
   writeWords(entries);
   expect(() => dashRule(dir)).toThrow("message を持つ項目が無い");
+});
+
+test("実リポジトリ: .textlintrc.json の dictionaryPath は WORDS_PATH を指す", () => {
+  const rc: unknown = JSON.parse(readFileSync(join(repoRoot, ".textlintrc.json"), "utf8"));
+  const preset = isRecord(rc) && isRecord(rc.rules) ? rc.rules["preset-ai-words-ja"] : undefined;
+  const rule = isRecord(preset) ? preset["no-ai-words"] : undefined;
+  const path = isRecord(rule) ? rule.dictionaryPath : undefined;
+  if (typeof path !== "string") throw new Error("no-ai-words の dictionaryPath を読めない");
+  expect(resolve(repoRoot, path)).toBe(resolve(repoRoot, WORDS_PATH));
+});
+
+// ダッシュの並びはテストの文字列に直接書かない（このファイルも textlint の対象である）。
+const BOX2 = "\u2500".repeat(2);
+const FULL2 = "\uff0d".repeat(2);
+
+test.each([
+  ["罫線（U+2500）", `判定する${BOX2}終了コードは使えない。`, 1],
+  ["全角のハイフン（U+FF0D）", `判定する${FULL2}終了コードは使えない。`, 1],
+  ["ディレクトリの木（├）", `\u251c${BOX2} benchmark.json`, 0],
+  ["ディレクトリの木（└）", `\u2514${BOX2} eval-1/`, 0],
+])("ダッシュの規則: %s の件数", async (_name, text, count) => {
+  writeWords([{ term: DASH_TERM, message: "m", tokens: [{ surface_form: DASH_TERM }] }]);
+  const descriptor = (await load({})).shallowMerge({ rules: [dashRule(dir)] });
+  const result = await createLinter({ descriptor }).lintText(text, join(dir, "a.md"));
+  expect(result.messages.filter((m) => m.ruleId === DASH_RULE)).toHaveLength(count);
 });
 
 test("辞書が無ければ、規則を作らずに例外を投げる", () => {

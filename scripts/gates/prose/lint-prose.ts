@@ -70,7 +70,7 @@ export function loadPending(root: string): Set<string> {
 
 function readPending(root: string): Set<string> {
   const path = join(root, PENDING_PATH);
-  if (!existsSync(path)) throw new Error(`${PENDING_PATH} が無い`);
+  if (!existsSync(path)) throw new Error("ファイルが無い");
   const data: unknown = JSON.parse(readFileSync(path, "utf8"));
   if (!isRecord(data) || typeof data.reason !== "string" || !data.reason.trim()) {
     throw new Error("reason が無い（なぜ保留しているかを書く）");

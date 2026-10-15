@@ -23,7 +23,8 @@ import { isNonEmptyString, isRecord } from "../lib/guards.ts";
 import { isArray } from "../lib/is-array.ts";
 import { makeTempDir } from "../lib/test-tmpdir.ts";
 import { DASH_TERM } from "../lib/textlint-word-rule.ts";
-import { REWRITE_REQUEST, blockedMarker, main } from "./response-word-check.ts";
+import { blockedMarker } from "../lib/stop-marker.ts";
+import { REWRITE_REQUEST, main } from "./response-word-check.ts";
 
 // 止めた印は、テストごとの一時ディレクトリに置く（OS の一時ディレクトリの実物に触らない）。
 let markerDir = "";
@@ -93,7 +94,7 @@ test.each([
 });
 
 test("通す: この一続きで既に止めた後（stop_hook_active が true で印が在る）は、使わない語があっても通す", async () => {
-  const marker = blockedMarker("s", markerDir);
+  const marker = blockedMarker("response-word-check", "s", markerDir);
   if (!marker) throw new Error("印のパスを作れない");
   writeFileSync(marker, "");
   const { status } = await run(hook({ stop_hook_active: true, last_assistant_message: WITH_WORD }));
@@ -114,7 +115,7 @@ test("通す: 1 文字の — は対象にしない（表の空欄や英語の�
 });
 
 test("通す: 新しい一続きの最初の Stop は、前の一続きの印を消す", async () => {
-  const marker = blockedMarker("s", markerDir);
+  const marker = blockedMarker("response-word-check", "s", markerDir);
   if (!marker) throw new Error("印のパスを作れない");
   writeFileSync(marker, "");
   const { status } = await run(hook({ stop_hook_active: false, last_assistant_message: PLAIN }));
@@ -123,7 +124,7 @@ test("通す: 新しい一続きの最初の Stop は、前の一続きの印を
 });
 
 test("通す: 前の印を消せなくても、例外で終わらずに判定を続ける", async () => {
-  const marker = blockedMarker("s", markerDir);
+  const marker = blockedMarker("response-word-check", "s", markerDir);
   if (!marker) throw new Error("印のパスを作れない");
   // ディレクトリは recursive なしの rmSync で消せないので、消せない印の代わりに置く。
   mkdirSync(marker);
@@ -160,11 +161,11 @@ test("止める: 別の Hook が続けさせた後（stop_hook_active が true �
   );
   expect(status).toBe(2);
   expect(stderr).toContain(FIRST.message);
-  expect(existsSync(blockedMarker("s", markerDir) ?? "")).toBe(true);
+  expect(existsSync(blockedMarker("response-word-check", "s", markerDir) ?? "")).toBe(true);
 });
 
 test("止める: 印の名前にシンボリックリンクが先に在れば、リンク先を書かずに書き直しを求める", async () => {
-  const marker = blockedMarker("s", markerDir);
+  const marker = blockedMarker("response-word-check", "s", markerDir);
   if (!marker) throw new Error("印のパスを作れない");
   const target = join(markerDir, "target");
   symlinkSync(target, marker);

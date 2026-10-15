@@ -165,3 +165,6 @@ ci:38755076704:1,ci,2026-10-15T15:10:12.066Z,p-cdee4961,github-actions,,,,2026-1
 coverage:github:2026-10-14T14:50:03.799Z:2026-10-15T15:10:12.066Z,coverage,2026-10-15T15:10:12.066Z,p-cdee4961,,,,,2026-10-14T14:50:03.799Z,2026-10-15T15:10:12.066Z,Asia/Tokyo,,,,,,,,,,,,ok,
 ci:38757749523:1,ci,2026-10-15T15:12:44.312Z,p-cdee4961,github-actions,,,,2026-10-15T15:08:58.000Z,2026-10-15T15:11:47.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
 coverage:github:2026-10-14T15:10:12.066Z:2026-10-15T15:12:44.312Z,coverage,2026-10-15T15:12:44.312Z,p-cdee4961,,,,,2026-10-14T15:10:12.066Z,2026-10-15T15:12:44.312Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:38758442182:1,ci,2026-10-15T15:41:07.840Z,p-cdee4961,github-actions,,,,2026-10-15T15:13:38.000Z,2026-10-15T15:13:46.000Z,Asia/Tokyo,feature/614-load-writing-style-in-reviews,614,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:38758441991:1,ci,2026-10-15T15:41:07.840Z,p-cdee4961,github-actions,,,,2026-10-15T15:13:38.000Z,2026-10-15T15:20:51.000Z,Asia/Tokyo,feature/614-load-writing-style-in-reviews,614,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-14T15:12:44.312Z:2026-10-15T15:41:07.840Z,coverage,2026-10-15T15:41:07.840Z,p-cdee4961,,,,,2026-10-14T15:12:44.312Z,2026-10-15T15:41:07.840Z,Asia/Tokyo,,,,,,,,,,,,ok,

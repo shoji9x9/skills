@@ -7,12 +7,38 @@
   "mutations": [
     {
       "id": "LANG-STOP-ACTIVE-IGNORED",
-      "why": "stop_hook_active を見ない（書き直しても判定が変わらない応答で、止め続ける）",
+      "why": "自分が止めた印を見ない（書き直しても判定が変わらない応答で、止め続ける）",
       "file": "scripts/hooks/response-language-check.ts",
-      "find": "if (payload.stop_hook_active === true) return 0;",
+      "find": "if (alreadyBlocked(HOOK, payload, markerDir)) return 0;",
       "replace": "if (false) return 0;",
       "occurrences": 1,
-      "expect_failing": ["通す: stop_hook_active が true なら英語でも通す"]
+      "expect_failing": [
+        "通す: この Hook が止めた後（stop_hook_active が true で印が在る）は、英語でも通す",
+        "通す: 新しい一続きの最初の Stop は、前の一続きの印を消す"
+      ]
+    },
+    {
+      "id": "LANG-ACTIVE-SKIPPED",
+      "why": "stop_hook_active が true なら確かめずに通す（別の Hook が書き直させた後の英語の応答を確かめない）",
+      "file": "scripts/hooks/response-language-check.ts",
+      "find": "if (alreadyBlocked(HOOK, payload, markerDir)) return 0;",
+      "replace": "if (payload.stop_hook_active === true) return 0;",
+      "occurrences": 1,
+      "expect_failing": [
+        "書き直させる: 別の Hook が続けさせた後（stop_hook_active が true で印が無い）の英語の応答も確かめ、印を残す",
+        "通す: 新しい一続きの最初の Stop は、前の一続きの印を消す"
+      ]
+    },
+    {
+      "id": "LANG-NOT-RECORDED",
+      "why": "止めた印を残さない（書き直しても判定が変わらない応答で、止め続ける）",
+      "file": "scripts/hooks/response-language-check.ts",
+      "find": "  recordBlocked(HOOK, payload, markerDir);\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "書き直させる: 別の Hook が続けさせた後（stop_hook_active が true で印が無い）の英語の応答も確かめ、印を残す"
+      ]
     },
     {
       "id": "LANG-TAG-NOT-STRIPPED",
@@ -126,14 +152,15 @@
       "id": "LANG-NEVER-BLOCKS",
       "why": "英語でも書き直させない（Hook が何もしない）",
       "file": "scripts/hooks/response-language-check.ts",
-      "find": "  console.error(REWRITE_REQUEST);\n  return 2;",
+      "find": "  console.error(REWRITE_REQUEST);\n  recordBlocked(HOOK, payload, markerDir);\n  return 2;",
       "replace": "  return 0;",
       "occurrences": 1,
       "expect_failing": [
         "書き直させる: 英語の応答（stop_hook_active が false）",
         "書き直させる: 英語の応答（stop_hook_active が欠落）",
         "書き直させる: 日本語の識別子を少し含む英語の応答",
-        "書き直させる: ハーネスのものでないタグで囲んだ英語の応答"
+        "書き直させる: ハーネスのものでないタグで囲んだ英語の応答",
+        "書き直させる: 別の Hook が続けさせた後（stop_hook_active が true で印が無い）の英語の応答も確かめ、印を残す"
       ]
     },
     {

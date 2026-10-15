@@ -6,15 +6,25 @@
 // | -------------- | ------------------------------------------------------------------------------------ |
 // | 入力           | 正常な Hook JSON / 不正な JSON / オブジェクトでない JSON                               |
 // | 続けさせた後か | stop_hook_active が true / false / 欠落                                               |
+// | 止めた印       | 無い（別の Hook が続けさせた後）/ 在る（この Hook が止めた後）                          |
 // | 本文           | 欠落 / 文字列でない / 空白だけ / 英語 / 日本語 / 識別子の多い日本語 / 短い英語         |
 // | 除外する部分   | コードブロック / インラインコード / URL / ハーネスのタグの塊（中が英語）                |
 //
 // 通す入力が止める入力と同じ数以上あることが要点である。止める入力だけのテストでは、「全部止める実装」と区別できない。
-import { afterEach, expect, test, vi } from "vitest";
+import { existsSync, rmSync, writeFileSync } from "node:fs";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { blockedMarker } from "../lib/stop-marker.ts";
+import { makeTempDir } from "../lib/test-tmpdir.ts";
 import { MIN_LATIN_LETTERS, REWRITE_REQUEST, judge, main } from "./response-language-check.ts";
 
+// 止めた印は、テストごとの一時ディレクトリに置く（OS の一時ディレクトリの実物に触らない）。
+let markerDir = "";
+beforeEach(() => {
+  markerDir = makeTempDir("response-language-check-marker-");
+});
 afterEach(() => {
   vi.restoreAllMocks();
+  rmSync(markerDir, { recursive: true, force: true });
 });
 
 const hook = (fields: Record<string, unknown>) =>
@@ -30,7 +40,7 @@ function run(input: string): { status: number; stderr: string } {
   vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
     errors.push(args.join(" "));
   });
-  const status = main(input);
+  const status = main(input, markerDir);
   return { status, stderr: errors.join("\n") };
 }
 
@@ -97,12 +107,30 @@ test.each([
   ["本文の欠落", {}],
   ["本文が文字列でない", { last_assistant_message: 42 }],
   ["本文が空白だけ", { last_assistant_message: " \n " }],
-  [
-    "stop_hook_active が true なら英語でも通す",
-    { stop_hook_active: true, last_assistant_message: ENGLISH },
-  ],
 ])("通す: %s", (_label, fields) => {
   expect(run(hook(fields)).status).toBe(0);
+});
+
+test("通す: この Hook が止めた後（stop_hook_active が true で印が在る）は、英語でも通す", () => {
+  const marker = blockedMarker("response-language-check", "s", markerDir);
+  if (!marker) throw new Error("印のパスを作れない");
+  writeFileSync(marker, "");
+  expect(run(hook({ stop_hook_active: true, last_assistant_message: ENGLISH })).status).toBe(0);
+});
+
+test("書き直させる: 別の Hook が続けさせた後（stop_hook_active が true で印が無い）の英語の応答も確かめ、印を残す", () => {
+  const res = run(hook({ stop_hook_active: true, last_assistant_message: ENGLISH }));
+  expect(res.status).toBe(2);
+  expect(res.stderr).toContain(REWRITE_REQUEST);
+  expect(existsSync(blockedMarker("response-language-check", "s", markerDir) ?? "")).toBe(true);
+});
+
+test("通す: 新しい一続きの最初の Stop は、前の一続きの印を消す", () => {
+  const marker = blockedMarker("response-language-check", "s", markerDir);
+  if (!marker) throw new Error("印のパスを作れない");
+  writeFileSync(marker, "");
+  expect(run(hook({ stop_hook_active: false, last_assistant_message: JAPANESE })).status).toBe(0);
+  expect(existsSync(marker)).toBe(false);
 });
 
 // --- 検出されることの確認（書き直させる） ---
