@@ -45,6 +45,9 @@ export const GITHUB_FIRST_LOOKBACK_MS = 60 * 86400000;
  */
 export const RECORD_WINDOW_MS = GITHUB_FIRST_LOOKBACK_MS;
 
+/** ログから作る行の種類（ログが今もあるのに作らなくなったら、打ち消す）。 */
+const RETRACTABLE_KINDS = ["usage", "run", "human-wait", "prompt"];
+
 /**
  * この clone で人ごとに最後に collect した時刻の置き場所（git の共通のディレクトリ。clone ごとに別で、commit しない）。
  * @param {string} commonDir
@@ -89,6 +92,87 @@ function saveLastCollect(path, person, now) {
     }
   }
   writeFileAtomic(path, `${JSON.stringify({ ...raw, [person]: toIso(now) }, null, 2)}\n`);
+}
+
+/**
+ * 使用量の行のトークン数の合計（打ち消してよいかを、作り直した行と比べるのに使う）。
+ * @param {readonly Row[]} rows
+ * @returns {number}
+ */
+function tokenTotal(rows) {
+  let n = 0;
+  for (const r of rows)
+    for (const c of /** @type {const} */ ([
+      "input_tokens",
+      "cache_read_tokens",
+      "cache_write_tokens",
+      "output_tokens",
+    ]))
+      n += Number(r[c] ?? 0) || 0;
+  return n;
+}
+
+/**
+ * 作らなくなった記録済みの行（stale）のうち、打ち消してよい行を打ち消しの行にして返す。
+ * run・human-wait・prompt はメインのログだけから作るので、開始時刻が書く範囲の中なら打ち消す。
+ * cost-state の使用量の行（そのモデルが応答に現れると作らなくなる）も、key に時刻を持たず区切り方で変わらないので、同じに扱う。
+ * usage はメインのセッションにまとめたサブエージェントのログも材料にし、区切り方が変わると key が変わる。
+ * そこで、セッションとモデルごとに、次をすべて満たすときだけ、そのまとまりの記録済みの行を打ち消す。
+ * 作り直した行がすべて書かれるか記録済みで（範囲の下限より古くて書かれない行が無い）、
+ * 作り直した行の合計が記録済みの合計より少なくない（ログが欠けていない）こと。
+ * 打ち消さないまとまりでは、作らなくなった行と時間が重なる新しい行を書かない（withheld）。両方を数えて二重にしないため。
+ * @param {readonly Row[]} stale
+ * @param {Map<string, Row>} existing
+ * @param {Map<string, Row>} unique 今の collect で作った行（key ごと）
+ * @param {{ person: string; lowerBound: number; canonical: (p: string | undefined) => string }} o
+ * @returns {{ rows: Row[]; withheld: Set<string> }}
+ */
+export function retractableRows(stale, existing, unique, o) {
+  /** @type {Row[]} */
+  const rows = [];
+  /** @type {Set<string>} */
+  const withheld = new Set();
+  const groupOf = (/** @type {Row} */ r) =>
+    `${r.agent ?? ""}\u0000${r.session ?? ""}\u0000${r.model ?? ""}`;
+  /** @type {Map<string, Row[]>} */
+  const usageStale = new Map();
+  for (const r of stale) {
+    if (r.kind === "usage" && r.detail !== "cost-state") {
+      const g = groupOf(r);
+      usageStale.set(g, [...(usageStale.get(g) ?? []), r]);
+      continue;
+    }
+    const start = parseTime(r.start);
+    if (start !== null && start >= o.lowerBound) rows.push({ ...r, retracted: "1" });
+  }
+  for (const [g, old] of usageStale) {
+    /** @param {Row} r */
+    const inGroup = (r) => r.kind === "usage" && r.detail !== "cost-state" && groupOf(r) === g;
+    const rebuilt = [...unique.values()].filter(inGroup);
+    const recorded = [...existing.values()].filter(
+      (r) => inGroup(r) && r.retracted !== "1" && o.canonical(r.person) === o.person,
+    );
+    const written = rebuilt.every(
+      (r) => existing.has(r.key ?? "") || (parseTime(r.start) ?? 0) >= o.lowerBound,
+    );
+    if (written && tokenTotal(rebuilt) >= tokenTotal(recorded)) {
+      for (const r of old) rows.push({ ...r, retracted: "1" });
+      continue;
+    }
+    for (const r of rebuilt) {
+      if (existing.has(r.key ?? "")) continue;
+      const s = parseTime(r.start);
+      const e = parseTime(r.end);
+      if (s === null || e === null) continue;
+      const overlaps = old.some((x) => {
+        const xs = parseTime(x.start);
+        const xe = parseTime(x.end);
+        return xs !== null && xe !== null && s < xe && xs < e;
+      });
+      if (overlaps) withheld.add(r.key ?? "");
+    }
+  }
+  return { rows, withheld };
 }
 
 /**
@@ -236,6 +320,7 @@ function ghLoginError(host, env) {
  * @property {number} keyConflicts 同じ key で内容の違う行の数（0 でなければ行の作り方の不具合）
  * @property {number} skippedFiles 範囲より古いので読まなかった記録のファイルの数
  * @property {number} olderRowsSkipped 開始時刻が範囲より古いので書かなかった行の数
+ * @property {number} retractedRows 打ち消した行の数
  */
 
 /**
@@ -389,10 +474,31 @@ export function runCollect(o) {
     if (!prev) unique.set(r.key ?? "", r);
     else if (signature(prev) !== signature(r)) conflicts += 1;
   }
+  // 打ち消し: ログが今もあるセッションの記録済みの行のうち、今の collect で作らなくなった行は、打ち消しの行（retracted=1）を書いて、
+  // report が数えないようにする。ログが消えたセッションの行は、作れないだけなので打ち消さない。人の commit と GitHub の行は、ログから作らないので対象にしない。
+  // サブエージェントとして記録した行は、サブエージェントのログだけが先に消えることがあるので打ち消さない。
+  /** @param {string | undefined} p */
+  const canonical = (p) => (p ? (repoConfig.aliases[p] ?? p) : "");
+  /** @type {Row[]} */
+  const stale = [];
+  for (const r of existing.values()) {
+    if (canonical(r.person) !== person || r.retracted === "1") continue;
+    if (!RETRACTABLE_KINDS.includes(r.kind ?? "") || r.subagent === "1") continue;
+    if (!local.presentSessions.has(`${r.agent ?? ""}:${r.session ?? ""}`)) continue;
+    if (unique.has(r.key ?? "")) continue;
+    stale.push(r);
+  }
+  const { rows: retractions, withheld } = retractableRows(stale, existing, unique, {
+    person,
+    lowerBound,
+    canonical,
+  });
   // 既に読んだ key の行は、前の内容と比べられるので、範囲より古くても内容が変わっていれば書く
   let olderRowsSkipped = 0;
   const fresh = changedRows([...unique.values()], existing).filter((r) => {
     if (existing.has(r.key ?? "")) return true;
+    // 打ち消せない前の区切りの行と時間が重なる行は、書くと二重に数えるので書かない
+    if (withheld.has(r.key ?? "")) return false;
     // GitHub の行は取得の範囲（since）で決まり、その前に始まった区間（実行中の CI・レビュー待ち）も意図して書く
     if (GITHUB_KINDS.includes(r.kind ?? "")) return true;
     const t = parseTime(r.start);
@@ -402,6 +508,10 @@ export function runCollect(o) {
   });
   const observed = toIso(now);
   for (const r of fresh) r.observed_at = observed;
+  // 打ち消しの行は、元の行より新しい observed_at にする（他のマシンの時計が進んでいて、元の行が今より後でも打ち消せるように）
+  for (const r of retractions)
+    r.observed_at = toIso(Math.max(now, (parseTime(r.observed_at) ?? now) + 1000));
+  fresh.push(...retractions);
   const personRows = fresh.filter((r) => !GITHUB_KINDS.includes(r.kind ?? ""));
   const githubRows = fresh.filter((r) => GITHUB_KINDS.includes(r.kind ?? ""));
   /** @type {string[]} */
@@ -426,5 +536,6 @@ export function runCollect(o) {
     keyConflicts: conflicts,
     skippedFiles: read.skipped,
     olderRowsSkipped,
+    retractedRows: retractions.length,
   };
 }

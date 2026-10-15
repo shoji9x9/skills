@@ -67,16 +67,53 @@ function formatterFor(tz) {
 }
 
 /**
- * タイムゾーンでの日付（YYYY-MM-DD）・時（0〜23）・曜日（Mon〜Sun）。
+ * タイムゾーンでの日付（YYYY-MM-DD）・時（0〜23）・分・曜日（Mon〜Sun）。
  * @param {number} ms
  * @param {string} tz
- * @returns {{ date: string; hour: number; weekday: string }}
+ * @returns {{ date: string; hour: number; minute: number; weekday: string }}
  */
 export function localParts(ms, tz) {
   /** @type {Record<string, string>} */
   const p = {};
   for (const part of formatterFor(tz).formatToParts(new Date(ms))) p[part.type] = part.value;
-  return { date: `${p.year}-${p.month}-${p.day}`, hour: Number(p.hour), weekday: p.weekday };
+  return {
+    date: `${p.year}-${p.month}-${p.day}`,
+    hour: Number(p.hour),
+    minute: Number(p.minute),
+    weekday: p.weekday,
+  };
+}
+
+/** 1 時間（使用量を区切る幅）。 */
+export const HOUR = 3600000;
+
+/** オフセットの単位。どのタイムゾーンのオフセットも、この倍数で、変わるのもこの区切りの境目である。 */
+export const QUARTER_HOUR = 900000;
+
+/**
+ * タイムゾーンごとに、最後に使った 15 分の区切りと、そこでの現地の分と UTC の分の差（区切りの中では変わらない）。
+ * 応答ごとに Intl で分を求めるより、20 万回で 910ms が 56ms になる（Asia/Kolkata、7 秒間隔の時刻で測定）。
+ */
+/** @type {Map<string, { block: number; delta: number }>} */
+const minuteDelta = new Map();
+
+/**
+ * ms を含む、タイムゾーンでの正時の始まり。オフセットが 30 分・45 分のタイムゾーンでは、UTC の正時からずれる。
+ * 現地の分を引いて戻すので、夏時間の終わりに同じ時が 2 回あっても、それぞれの正時に置く。
+ * @param {number} ms
+ * @param {string} tz
+ * @returns {number}
+ */
+export function localHourStart(ms, tz) {
+  const block = Math.floor(ms / QUARTER_HOUR) * QUARTER_HOUR;
+  let cached = minuteDelta.get(tz);
+  if (cached === undefined || cached.block !== block) {
+    const delta = (localParts(block, tz).minute - new Date(block).getUTCMinutes() + 60) % 60;
+    cached = { block, delta };
+    minuteDelta.set(tz, cached);
+  }
+  const minute = (new Date(ms).getUTCMinutes() + cached.delta) % 60;
+  return Math.floor(ms / 60000) * 60000 - minute * 60000;
 }
 
 /**
@@ -93,8 +130,8 @@ export function splitByLocalHour(start, end, tz) {
   while (cur < end) {
     const parts = localParts(cur, tz);
     // 次の正時は、15 分刻みで進めて時が変わる位置を探す（オフセットが 15 分単位のタイムゾーンにも合う）
-    let next = Math.floor(cur / 900000) * 900000 + 900000;
-    for (; next < end; next += 900000) {
+    let next = Math.floor(cur / QUARTER_HOUR) * QUARTER_HOUR + QUARTER_HOUR;
+    for (; next < end; next += QUARTER_HOUR) {
       const p = localParts(next, tz);
       if (p.hour !== parts.hour || p.date !== parts.date) break;
     }
