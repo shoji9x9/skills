@@ -2568,7 +2568,7 @@ test.concurrent("折り返したコンテナの中の独立したコメント行
   rmSync(root, { recursive: true, force: true });
 });
 
-test.concurrent("要素が鍵と同じインデントに並ぶ折り返しも読む（js-yaml で妥当な YAML）", async () => {
+test.concurrent("要素が鍵と同じインデントに並ぶ折り返しも読む（js-yaml 4 が読む YAML）", async () => {
   const wrapped = [
     "      keep: [",
     '      "テーブル名を保つ"',

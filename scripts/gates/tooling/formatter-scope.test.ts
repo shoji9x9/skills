@@ -14,7 +14,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import yaml from "js-yaml";
+import { dump } from "js-yaml";
 import { makeTempDir } from "../../lib/test-tmpdir.ts";
 import { loadYamlAs } from "../../lib/yaml-as.ts";
 import { removeField } from "../../lib/test-input.ts";
@@ -137,7 +137,7 @@ function markdownlintFixture() {
   );
   if (!isArray(config.ignores)) throw new Error(".markdownlint-cli2.yaml に ignores が無い");
   removeField(config, "globs");
-  writeFileSync(join(root, ".markdownlint-cli2.yaml"), yaml.dump(config));
+  writeFileSync(join(root, ".markdownlint-cli2.yaml"), dump(config));
   copyFileSync(join(repoRoot, ".markdownlint.yaml"), join(root, ".markdownlint.yaml"));
   return root;
 }
