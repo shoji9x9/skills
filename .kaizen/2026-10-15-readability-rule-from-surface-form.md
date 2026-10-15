@@ -2,8 +2,8 @@
 date: 2026-10-15
 type: doc
 priority: medium
-status: pending
-applied-to: []
+status: applied
+applied-to: ["docs/writing-style.md", "scripts/gates/prose/lint-prose.test.ts"]
 session: claude-code
 ---
 

@@ -13,3 +13,8 @@ ci:38658823187:1,ci,2026-10-15T04:57:28.653Z,p-cdee4961,github-actions,,,,2026-1
 ci:38658823195:1,ci,2026-10-15T04:57:28.653Z,p-cdee4961,github-actions,,,,2026-10-15T00:13:52.000Z,2026-10-15T00:13:53.000Z,Asia/Tokyo,feature/628-agent-usage-retract-tz,628,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 coverage:github:2026-10-14T00:13:03.352Z:2026-10-15T04:57:28.653Z,coverage,2026-10-15T04:57:28.653Z,p-cdee4961,,,,,2026-10-14T00:13:03.352Z,2026-10-15T04:57:28.653Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-14T04:57:28.653Z:2026-10-15T04:57:43.684Z,coverage,2026-10-15T04:57:43.684Z,p-cdee4961,,,,,2026-10-14T04:57:28.653Z,2026-10-15T04:57:43.684Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:38685034364:1,ci,2026-10-15T05:15:14.045Z,p-cdee4961,github-actions,,,,2026-10-15T05:06:56.000Z,2026-10-15T05:06:57.000Z,Asia/Tokyo,feature/616-dependabot-major-updates,616,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:38685034357:1,ci,2026-10-15T05:15:14.045Z,p-cdee4961,github-actions,,,,2026-10-15T05:06:56.000Z,2026-10-15T05:10:12.000Z,Asia/Tokyo,feature/616-dependabot-major-updates,616,,,,,,,,,,CI;pull_request;success,
+ci:38684671782:1,ci,2026-10-15T05:15:14.045Z,p-cdee4961,github-actions,,,,2026-10-15T05:02:51.000Z,2026-10-15T05:03:00.000Z,Asia/Tokyo,feature/595-prose-clarity-rules,595,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:38684671789:1,ci,2026-10-15T05:15:14.045Z,p-cdee4961,github-actions,,,,2026-10-15T05:02:51.000Z,2026-10-15T05:04:38.000Z,Asia/Tokyo,feature/595-prose-clarity-rules,595,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-14T04:57:43.684Z:2026-10-15T05:15:14.045Z,coverage,2026-10-15T05:15:14.045Z,p-cdee4961,,,,,2026-10-14T04:57:43.684Z,2026-10-15T05:15:14.045Z,Asia/Tokyo,,,,,,,,,,,,ok,
