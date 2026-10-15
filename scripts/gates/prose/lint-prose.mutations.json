@@ -266,6 +266,17 @@
       "expect_failing": [
         "陰性: 文字列には語の規則だけを当て、バッククォートの中と import の指定子は見ない"
       ]
+    },
+    {
+      "id": "LP-WORD-RULE-UNCHECKED",
+      "why": "使わない語の規則が設定に在るかを確かめない（ID がずれると文字列の指摘が 0 件のまま通る）",
+      "file": "scripts/gates/prose/lint-prose.ts",
+      "find": "  wordRules(descriptor);\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "textlint の設定で使わない語の規則が無効なら、文字列の指摘が 0 件のまま通さずに止まる"
+      ]
     }
   ]
 }

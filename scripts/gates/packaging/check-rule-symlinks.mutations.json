@@ -1,0 +1,60 @@
+{
+  "$comment": [
+    "check-rule-symlinks.test.ts が、rule ではない文書を instructions として読ませる宣言（DOC_INSTRUCTIONS）の判定の行を検出できることを示す変異の一覧。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は、ランナーの基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/gates/packaging/check-rule-symlinks.test.ts",
+  "mutations": [
+    {
+      "id": "RS-DOC-NOT-WIRED",
+      "why": "宣言した文書へのリンクを、置く先の期待に入れない（正しいリンクを孤児とし、欠落も検出しない）",
+      "file": "scripts/gates/packaging/check-rule-symlinks.ts",
+      "find": "if (docs) for (const doc of docInstructions) targets.set(doc.name, join(root, doc.canon));",
+      "replace": "if (false) for (const doc of docInstructions) targets.set(doc.name, join(root, doc.canon));",
+      "occurrences": 1,
+      "expect_failing": [
+        "誤検知しないことの確認: 正しくリンクを張った rule は違反 0 件・走査件数が原本の件数と一致",
+        "欠落: エージェント用の symlink を作っていない rule を両エージェントぶん検出する",
+        "実ファイル: symlink ではなく実体のコピーを置いたら検出する",
+        "誤った指し先: 別の rule を指す symlink を検出する",
+        "孤児: 原本の無いエージェント用の symlink を検出する",
+        "命名規則外: suffix に合わない名前を検出する",
+        "リンクのディレクトリが不在なら、走査を飛ばさず違反として報告する",
+        "CLI: 違反があれば exit 1、無ければ exit 0 で走査件数を出す",
+        "誤検知しないことの確認: 宣言した文書への instructions の symlink は孤児にしない",
+        "欠落: 宣言した文書の instructions の symlink が無ければ検出する（Claude Code の側には求めない）",
+        "孤児: 宣言していない文書への instructions の symlink は検出する"
+      ]
+    },
+    {
+      "id": "RS-DOC-CLAUDE-WIRED",
+      "why": "Claude Code の側にも文書へのリンクを求める（文書は AGENTS.md の `@` で読むので、rule にしない）",
+      "file": "scripts/gates/packaging/check-rule-symlinks.ts",
+      "find": "{ dir: \".claude/rules\", suffix: \".md\", agent: \"Claude Code\", docs: false },",
+      "replace": "{ dir: \".claude/rules\", suffix: \".md\", agent: \"Claude Code\", docs: true },",
+      "occurrences": 1,
+      "expect_failing": [
+        "誤検知しないことの確認: 宣言した文書への instructions の symlink は孤児にしない",
+        "欠落: 宣言した文書の instructions の symlink が無ければ検出する（Claude Code の側には求めない）"
+      ]
+    },
+    {
+      "id": "RS-DOC-MISSING-UNCHECKED",
+      "why": "宣言した文書が在るかを確かめない",
+      "file": "scripts/gates/packaging/check-rule-symlinks.ts",
+      "find": "if (!existsSync(join(root, doc.canon))) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["宣言した文書が無ければ検出する"]
+    },
+    {
+      "id": "RS-DOC-NAME-CLASH-UNCHECKED",
+      "why": "宣言した文書の名前が rule と重なっても検出しない（rule のリンクの検査が文書の側で上書きされる）",
+      "file": "scripts/gates/packaging/check-rule-symlinks.ts",
+      "find": "if (bases.includes(doc.name)) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["宣言した文書の名前が rule と重なれば検出する"]
+    }
+  ]
+}

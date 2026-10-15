@@ -50,7 +50,7 @@ GitHub Actions は、`actionlint` で構文を、`ghalint` で `permissions`・`
 
 | スクリプト（`scripts/gates/` からのパス） | チェックする内容 |
 | --- | --- |
-| `packaging/check-rule-symlinks.ts` | rule を各エージェントから読むためのシンボリックリンク |
+| `packaging/check-rule-symlinks.ts` | rule を各エージェントから読むためのシンボリックリンクと、Copilot のレビューに読ませる文書（`docs/writing-style.md`）へのシンボリックリンク |
 | `code/check-control-chars.ts` | テキストの拡張子のファイルに入った制御文字 |
 | `packaging/check-eval-reachability.ts` | eval の assertion と prompt の対応 |
 | `packaging/check-skills-sync.ts` | `skills/<name>/` とインストール済みのコピー `.agents/skills/<name>/` の一致 |
@@ -142,6 +142,10 @@ Bash の実行前のチェック（PreToolUse）として、`scripts/hooks/bash-
 応答を確定する前のチェック（Claude Code の Stop）として、`scripts/hooks/response-language-check.ts` が、最後の応答が日本語で書かれているかを確かめる。
 コードブロック・インラインコード・引用・URL・ハーネスのタグの塊を除いた本文で、ラテン文字が 40 字以上あり、日本語の文字（ひらがな・カタカナ・漢字）の割合が 0.1 未満なら、exit 2 で書き直させる。
 `stop_hook_active` が true のとき（既に書き直させた後）は通し、node が無い環境では警告だけを出して通す。設定は Claude Code だけで、Codex と Copilot には入れていない。
+
+同じ Stop で、`scripts/hooks/response-word-check.ts` が、最後の応答に使わない語（`.textlint/words.json`）が含まれていないかを確かめる。
+判定は textlint の `ai-words-ja/no-ai-words` の規則だけで行い、引用・ハーネスのタグの塊とコードは対象から外す。見つかれば、辞書の言い換えを添えて exit 2 で書き直させる。
+`stop_hook_active` が true のときは通し、textlint の設定を読めないときや規則が無効なときは、書き直させずに exit 1 にする。設定は Claude Code だけである。
 
 シークレットの走査は `gitleaks` で行う。pre-commit は staged の差分を（`gitleaks git --staged`）、CI はリポジトリ全体と全履歴を（`Secret scan` ジョブ、`fetch-depth: 0`）走査する。
 

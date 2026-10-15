@@ -17,9 +17,23 @@ import { errorMessage } from "../../lib/errors.ts";
 export const CANON_DIR = ".agents/rules";
 
 // symlink を置く先の宣言。`suffix` は原本のベース名（拡張子なし）に付く。
+// `docs` が true の置き先には、rule に加えて DOC_INSTRUCTIONS の文書へのリンクも置く。
 export const WIRINGS = [
-  { dir: ".claude/rules", suffix: ".md", agent: "Claude Code" },
-  { dir: ".github/instructions", suffix: ".instructions.md", agent: "GitHub Copilot" },
+  { dir: ".claude/rules", suffix: ".md", agent: "Claude Code", docs: false },
+  { dir: ".github/instructions", suffix: ".instructions.md", agent: "GitHub Copilot", docs: true },
+];
+
+// rule ではない文書を、Copilot のレビューにだけ instructions として読ませる宣言。
+// 作業によらず常に要る規約は rule にせず、AGENTS.md から `@` で取り込む（Claude Code）。
+// Copilot は `@` の取り込みもリンク先も読まないので、`.github/instructions/` にその文書への symlink を置く。
+// 宣言に無い名前は、これまでどおり孤児として検出する。
+export type DocInstruction = { name: string; canon: string; reason: string };
+export const DOC_INSTRUCTIONS: DocInstruction[] = [
+  {
+    name: "writing-style",
+    canon: "docs/writing-style.md",
+    reason: "文章の規約は人への応答にも当てるので常に要り、rule にしない",
+  },
 ];
 
 const canonBase = (file: string) => file.replace(/\.md$/, "");
@@ -30,9 +44,13 @@ const baseFromWiring = (name: string, suffix: string) =>
 
 /**
  * @param {string} root リポジトリルート（テストでは一時ディレクトリ）
+ * @param docInstructions rule ではない文書を instructions として読ませる宣言（テストでは差し替える）
  * @returns {{ rules: string[], violations: string[] }} rules は走査した原本の絶対パス
  */
-export function checkRuleSymlinks(root: string) {
+export function checkRuleSymlinks(
+  root: string,
+  docInstructions: DocInstruction[] = DOC_INSTRUCTIONS,
+) {
   const violations: string[] = [];
   const canonDir = join(root, CANON_DIR);
 
@@ -46,7 +64,16 @@ export function checkRuleSymlinks(root: string) {
     .sort();
   const rules = bases.map((b) => resolve(join(canonDir, `${b}.md`)));
 
-  for (const { dir, suffix, agent } of WIRINGS) {
+  for (const doc of docInstructions) {
+    if (bases.includes(doc.name)) {
+      violations.push(`${doc.canon}: rule の ${CANON_DIR}/${doc.name}.md と名前が重なる`);
+    }
+    if (!existsSync(join(root, doc.canon))) {
+      violations.push(`${doc.canon}: instructions として宣言した文書が無い`);
+    }
+  }
+
+  for (const { dir, suffix, agent, docs } of WIRINGS) {
     const wiringDir = join(root, dir);
     if (!existsSync(wiringDir)) {
       violations.push(
@@ -55,10 +82,14 @@ export function checkRuleSymlinks(root: string) {
       continue;
     }
 
+    // この置き先に置くリンク: 名前 → 原本の絶対パス
+    const targets = new Map(bases.map((b) => [b, join(canonDir, `${b}.md`)]));
+    if (docs) for (const doc of docInstructions) targets.set(doc.name, join(root, doc.canon));
+
     // 原本 → symlink（欠落・実ファイル・誤った指し先・リンク先の無い symlink）
-    for (const base of bases) {
+    for (const [base, canonPath] of targets) {
       const linkPath = join(wiringDir, `${base}${suffix}`);
-      const expected = relative(wiringDir, join(canonDir, `${base}.md`));
+      const expected = relative(wiringDir, canonPath);
       if (!lstatSafe(linkPath)) {
         violations.push(
           `${dir}/${base}${suffix}: 欠落（${agent} で自動適用されない）。期待する指し先: ${expected}`,
@@ -82,7 +113,7 @@ export function checkRuleSymlinks(root: string) {
         violations.push(`${dir}/${base}${suffix}: symlink の指し先が存在しない`);
         continue;
       }
-      if (realpathSync(linkPath) !== realpathSync(join(canonDir, `${base}.md`))) {
+      if (realpathSync(linkPath) !== realpathSync(canonPath)) {
         violations.push(`${dir}/${base}${suffix}: 解決先が原本と一致しない`);
       }
     }
@@ -94,7 +125,7 @@ export function checkRuleSymlinks(root: string) {
         violations.push(`${dir}/${name}: 命名規則（<name>${suffix}）に合わない`);
         continue;
       }
-      if (!bases.includes(base)) {
+      if (!targets.has(base)) {
         violations.push(`${dir}/${name}: 対応する原本 ${CANON_DIR}/${base}.md が無い（孤児）`);
       }
     }
@@ -140,7 +171,8 @@ if (isCliEntry()) {
     for (const v of violations) console.error(`  - ${v}`);
     console.error(
       `Fix: 各 rule について ln -s ../../${CANON_DIR}/<name>.md .claude/rules/<name>.md と` +
-        ` ln -s ../../${CANON_DIR}/<name>.md .github/instructions/<name>.instructions.md を作る。`,
+        ` ln -s ../../${CANON_DIR}/<name>.md .github/instructions/<name>.instructions.md を作る。` +
+        ` DOC_INSTRUCTIONS の文書は ln -s ../../<canon> .github/instructions/<name>.instructions.md を作る。`,
     );
     process.exit(1);
   }

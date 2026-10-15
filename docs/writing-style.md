@@ -1,8 +1,17 @@
+---
+# GitHub Copilot のコードレビューに、この規約を読ませるための指定である。
+# Copilot は AGENTS.md のリンク先や `@` の取り込みを読まない。本文を読ませるには、applyTo が PR の変更ファイルに当たる `.github/instructions/*.instructions.md` が要る。
+# そのため `.github/instructions/writing-style.instructions.md` をこのファイルへの symlink にし、人が読む文章を持つファイルの種類を applyTo に挙げている。
+# 範囲は lint-prose（scripts/gates/prose/lint-prose.ts）が見るファイルに合わせ、scripts/gates/prose/writing-style-apply-to.test.ts が一致を確かめる。
+# Claude Code はこの指定を使わず、AGENTS.md の `@docs/writing-style.md` で常に読み込む。
+applyTo: "**/*.md,**/*.js,**/*.mjs,**/*.cjs,**/*.ts,**/*.sh,**/*.yml,**/*.yaml,evals/*/evals.json"
+---
+
 # 文章の書き方
 
 人が読んで分かる文章にするための規約。
 AI が書いた文章には、英語を直訳したような言い回し、日本のエンジニアが使わない語、装飾の多さが繰り返し現れる。
-エージェントが文章を書くときも、人が書くときも、この規約に従う。
+エージェントが文章を書くときも、人が書くときも、この規約に従う。差分をレビューするときは、差分の中の人が読む文章がこの規約に従うかも確かめる。
 
 ## 対象
 
@@ -155,8 +164,9 @@ Markdown に加えて、JavaScript・TypeScript・シェル・YAML のコメン�
 規則 1・3・5・9・10 は、機械では判定しきれない。書いた人とレビューする人が確かめる。
 規則 10 の分かりにくさは意味から来るので、語の並びで検出すると誤検知と見逃しが避けられない。そのため lint にしない。
 
-人への応答はファイルではないので、textlint ではチェックできない。
-代わりに、使わない語の一覧 `.textlint/word-list.md` を `AGENTS.md` から `@` で取り込み、Claude Code がセッション開始時に読み込むようにしている。
+人への応答はファイルではないので、pre-commit と CI の textlint ではチェックできない。
+代わりに、Claude Code の Stop の Hook（`scripts/hooks/response-word-check.ts`）が、応答を確定する前に同じ辞書で使わない語を確かめ、見つかれば書き直させる。
+使わない語の一覧 `.textlint/word-list.md` は `AGENTS.md` から `@` で取り込み、Claude Code がセッション開始時に読み込むようにしている。
 `@` での取り込みは Claude Code だけが処理するので、他のエージェントには `AGENTS.md` の文で一覧を開くよう指示している。
 この一覧は `.textlint/words.json` の `term` と `instead` から `scripts/gates/prose/check-word-list.ts --fix` で生成し、一致をチェックしている。
 

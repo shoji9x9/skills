@@ -18,17 +18,27 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { CANON_DIR, WIRINGS, checkRuleSymlinks } from "./check-rule-symlinks.ts";
+import { CANON_DIR, DOC_INSTRUCTIONS, WIRINGS, checkRuleSymlinks } from "./check-rule-symlinks.ts";
 import { makeTempDir } from "../../lib/test-tmpdir.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "scripts/gates/packaging/check-rule-symlinks.ts");
 
-/** 正しく symlink を張った rule を持つ一時リポジトリを作る。 */
+/**
+ * 正しく symlink を張った rule を持つ一時リポジトリを作る。
+ * DOC_INSTRUCTIONS の文書とそのリンクは、`wire` に関わらず正しく置く（rule のリンクの検査を独立に測るため）。
+ */
 function makeRepo(names = ["alpha", "beta"], { wire = true } = {}) {
   const root = makeTempDir("rule-symlinks-");
   mkdirSync(join(root, CANON_DIR), { recursive: true });
   for (const { dir } of WIRINGS) mkdirSync(join(root, dir), { recursive: true });
+  for (const doc of DOC_INSTRUCTIONS) {
+    mkdirSync(join(root, dirname(doc.canon)), { recursive: true });
+    writeFileSync(join(root, doc.canon), `# ${doc.name}\n`);
+    for (const { dir, suffix, docs } of WIRINGS) {
+      if (docs) symlinkSync(`../../${doc.canon}`, join(root, dir, `${doc.name}${suffix}`));
+    }
+  }
   for (const name of names) {
     writeFileSync(
       join(root, CANON_DIR, `${name}.md`),
@@ -167,4 +177,54 @@ test("CLI: 違反があれば exit 1、無ければ exit 0 で走査件数を出
   expect(r.status).toBe(1);
   expect(r.stderr).toMatch(/2 件のリンクの不備/);
   cleanup(bad);
+});
+
+// --- rule ではない文書を instructions として読ませる宣言（DOC_INSTRUCTIONS） ---
+
+const DOC = { name: "style", canon: "docs/style.md", reason: "テスト用" };
+
+function makeDocRepo({ link = true, file = true } = {}) {
+  const root = makeRepo(["alpha"]);
+  mkdirSync(join(root, "docs"), { recursive: true });
+  if (file) writeFileSync(join(root, DOC.canon), "# style\n");
+  if (link) {
+    symlinkSync("../../docs/style.md", join(root, ".github/instructions/style.instructions.md"));
+  }
+  return root;
+}
+
+test("誤検知しないことの確認: 宣言した文書への instructions の symlink は孤児にしない", () => {
+  const root = makeDocRepo();
+  expect(checkRuleSymlinks(root, [...DOC_INSTRUCTIONS, DOC]).violations).toEqual([]);
+  cleanup(root);
+});
+
+test("孤児: 宣言していない文書への instructions の symlink は検出する", () => {
+  const root = makeDocRepo();
+  expect(checkRuleSymlinks(root, DOC_INSTRUCTIONS).violations).toEqual([
+    `.github/instructions/style.instructions.md: 対応する原本 ${CANON_DIR}/style.md が無い（孤児）`,
+  ]);
+  cleanup(root);
+});
+
+test("欠落: 宣言した文書の instructions の symlink が無ければ検出する（Claude Code の側には求めない）", () => {
+  const root = makeDocRepo({ link: false });
+  expect(checkRuleSymlinks(root, [...DOC_INSTRUCTIONS, DOC]).violations).toEqual([
+    ".github/instructions/style.instructions.md: 欠落（GitHub Copilot で自動適用されない）。期待する指し先: ../../docs/style.md",
+  ]);
+  cleanup(root);
+});
+
+test("宣言した文書が無ければ検出する", () => {
+  const root = makeDocRepo({ file: false });
+  const { violations } = checkRuleSymlinks(root, [...DOC_INSTRUCTIONS, DOC]);
+  expect(violations).toContain("docs/style.md: instructions として宣言した文書が無い");
+  cleanup(root);
+});
+
+test("宣言した文書の名前が rule と重なれば検出する", () => {
+  const root = makeDocRepo();
+  const { violations } = checkRuleSymlinks(root, [...DOC_INSTRUCTIONS, { ...DOC, name: "alpha" }]);
+  expect(violations).toContain(`docs/style.md: rule の ${CANON_DIR}/alpha.md と名前が重なる`);
+  cleanup(root);
 });

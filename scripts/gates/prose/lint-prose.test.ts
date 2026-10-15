@@ -512,3 +512,16 @@ test("検出の確認（CLI）: 子プロセスとして起動しても、指摘
   // textlint-enable
   expect(clean.status, clean.stderr).toBe(0);
 }, 60_000);
+
+test("textlint の設定で使わない語の規則が無効なら、文字列の指摘が 0 件のまま通さずに止まる", async () => {
+  // 規則の ID がずれると、文字列の指摘を ID で絞った結果が 0 件になり、エラーにならずに通ってしまう。
+  const configRoot = makeTempDir("lint-prose-config-");
+  writeFileSync(join(configRoot, ".textlintrc.json"), JSON.stringify({ rules: {} }));
+  symlinkSync(join(repoRoot, "node_modules"), join(configRoot, "node_modules"));
+  const root = makeRepo({
+    "a.ts": `export const m = ${JSON.stringify(words.entries[0].example)};\n`,
+  });
+  await expect(lintProse({ root, files: ["a.ts"], configRoot })).rejects.toThrow(
+    "ai-words-ja/no-ai-words の規則が .textlintrc.json で有効になっていない",
+  );
+});

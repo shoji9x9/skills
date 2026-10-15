@@ -39,12 +39,12 @@ import { isAgentCopy } from "../../lib/source-scope.ts";
 import { errorMessage } from "../../lib/errors.ts";
 import { isNonEmptyString, isRecord } from "../../lib/guards.ts";
 import { isArray } from "../../lib/is-array.ts";
+import { WORD_RULE, wordRules } from "../../lib/textlint-word-rule.ts";
 
 export const PENDING_PATH = "scripts/gates/prose/prose-lint-pending.json";
 /** コメントを取り出せなかったファイルの指摘に付ける ruleId。 */
 const PARSE_RULE = "code-comments";
 /** 文字列に当てる規則（使わない語の一覧）。 */
-const WORD_RULE = "ai-words-ja/no-ai-words";
 const EXCLUDED_PREFIXES = [".kaizen/archive/", "tests/", "node_modules/"];
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 
@@ -151,6 +151,8 @@ export async function lintProse({
     configFilePath: join(configRoot, ".textlintrc.json"),
     node_modulesDir: join(configRoot, "node_modules"),
   });
+  // 規則の ID がずれると、文字列の指摘を WORD_RULE で絞った結果が 0 件になり、エラーにならずに通る。先に在ることを確かめる。
+  wordRules(descriptor);
   const linter = createLinter({ descriptor, cwd: root });
   const docs = targets.filter((t) => t.endsWith(".md"));
   const results = docs.length ? await linter.lintFiles(docs.map((t) => join(root, t))) : [];

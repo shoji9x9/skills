@@ -1,0 +1,58 @@
+{
+  "$comment": [
+    "response-word-check.test.ts が、応答の使わない語を確かめる Stop の Hook の判定の行を検出できることを示す変異の一覧。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は、ランナーの基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/hooks/response-word-check.test.ts",
+  "mutations": [
+    {
+      "id": "WORD-STOP-ACTIVE-IGNORED",
+      "why": "stop_hook_active を見ない（書き直しても判定が変わらない応答で、止め続ける）",
+      "file": "scripts/hooks/response-word-check.ts",
+      "find": "if (payload.stop_hook_active === true) return 0;",
+      "replace": "if (false) return 0;",
+      "occurrences": 1,
+      "expect_failing": ["通す: stop_hook_active が true なら使わない語があっても通す"]
+    },
+    {
+      "id": "WORD-PROSE-NOT-EXTRACTED",
+      "why": "本文を取り出さない（引用の中の語で止める。コードとハーネスのタグの塊は textlint の Markdown の解析でも外れる）",
+      "file": "scripts/hooks/response-word-check.ts",
+      "find": "const body = prose(message);",
+      "replace": "const body = message;",
+      "occurrences": 1,
+      "expect_failing": ["通す: 引用の中の使わない語"]
+    },
+    {
+      "id": "WORD-ALL-RULES",
+      "why": "使わない語の規則に絞らない（文書の規約の「である」調・文の長さで応答を止める）",
+      "file": "scripts/lib/textlint-word-rule.ts",
+      "find": ".filter((r) => r.ruleId === WORD_RULE)",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "通す: 引用の中の使わない語",
+        "通す: 「ですます」調で 150 字を超える文",
+        "通す: コードブロックの中の使わない語"
+      ]
+    },
+    {
+      "id": "WORD-RULE-PRESENCE-UNCHECKED",
+      "why": "規則が有効かを確かめない（設定が無いと規則なしで成功し、どの応答も通す）",
+      "file": "scripts/lib/textlint-word-rule.ts",
+      "find": "if (rules.length === 0) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["エラー: textlint の設定が無ければ、書き直しを求めずに 1 を返す"]
+    },
+    {
+      "id": "WORD-FILTER-RULES-KEPT",
+      "why": "filter の規則を外さない（応答に textlint-disable のコメントを書くだけで通す）",
+      "file": "scripts/hooks/response-word-check.ts",
+      "find": ", filterRules: []",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["止める: textlint-disable のコメントを書いても、使わない語を示す"]
+    }
+  ]
+}

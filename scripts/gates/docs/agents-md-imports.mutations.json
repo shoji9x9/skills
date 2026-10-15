@@ -12,7 +12,9 @@
       "find": "@docs/agent-workflow.md\n",
       "replace": "",
       "occurrences": 1,
-      "expect_failing": ["作業の原則の詳細と使わない語の一覧を、行頭の @path で取り込んでいる"]
+      "expect_failing": [
+        "作業の原則の詳細・文章の規約・使わない語の一覧を、行頭の @path で取り込んでいる"
+      ]
     },
     {
       "id": "AI-WORDLIST-CODESPAN",
@@ -21,7 +23,20 @@
       "find": "@.textlint/word-list.md\n",
       "replace": "`@.textlint/word-list.md`\n",
       "occurrences": 1,
-      "expect_failing": ["作業の原則の詳細と使わない語の一覧を、行頭の @path で取り込んでいる"]
+      "expect_failing": [
+        "作業の原則の詳細・文章の規約・使わない語の一覧を、行頭の @path で取り込んでいる"
+      ]
+    },
+    {
+      "id": "AI-WRITING-STYLE",
+      "why": "文章の規約の取り込みを消す",
+      "file": "AGENTS.md",
+      "find": "@docs/writing-style.md\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "作業の原則の詳細・文章の規約・使わない語の一覧を、行頭の @path で取り込んでいる"
+      ]
     },
     {
       "id": "AI-MISSING",
