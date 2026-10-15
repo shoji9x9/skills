@@ -19,7 +19,6 @@ import { isRecord } from "../../lib/guards.ts";
 import { isArray } from "../../lib/is-array.ts";
 import { WORDS_PATH } from "../../lib/textlint-word-rule.ts";
 
-export { WORDS_PATH };
 export const LIST_PATH = ".textlint/word-list.md";
 
 /** words.json から一覧のファイルの全文を作る。形の誤りは例外にする。 */

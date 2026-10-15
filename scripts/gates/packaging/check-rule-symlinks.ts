@@ -19,6 +19,7 @@ import {
 } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { fencedLines } from "../../lib/doc-scan.ts";
 import { errorMessage } from "../../lib/errors.ts";
 import { splitFrontmatter } from "../../lib/frontmatter.ts";
 import { loadYamlAs } from "../../lib/yaml-as.ts";
@@ -77,21 +78,20 @@ function checkDocShape(root: string, doc: DocInstruction): string[] {
       `${doc.canon}: frontmatter に applyTo が無い（Copilot のレビューが PR のファイルに当てない）`,
     );
   }
-  // CRLF で保存した文書でも見出しを見つけられるように、行末の \r を外して比べる。
-  const lines = text.split(/\r?\n/);
-  const at = lines.findIndex((line) => line === doc.reviewedUntil);
+  // 行末（\n か \r\n）を残したまま行に分け、比べるときだけ \r を外す。CRLF の文書でも、見出しを見つけて文字数を正しく数える。
+  // コードブロックの中の同じ行は見出しではないので、フェンスの中の行は比べない。
+  const lines = text.split(/(?<=\n)/);
+  const fenced = fencedLines(lines.map((line) => line.replace(/\r?\n$/, "")));
+  const at = lines.findIndex(
+    (line, i) => !fenced[i] && line.replace(/\r?\n$/, "") === doc.reviewedUntil,
+  );
   if (at < 0) {
     out.push(
       `${doc.canon}: 見出し「${doc.reviewedUntil}」が無い（Copilot が読む範囲を確かめられない）`,
     );
   } else {
-    // 文字数は、Copilot の数え方に近い符号位置の数で数える。
-    const before = [
-      ...lines
-        .slice(0, at)
-        .map((line) => `${line}\n`)
-        .join(""),
-    ].length;
+    // 文字数は、Copilot の数え方に近い符号位置の数で数える。行末の \r も 1 文字に数える。
+    const before = [...lines.slice(0, at).join("")].length;
     if (before > REVIEW_READ_LIMIT) {
       out.push(
         `${doc.canon}: 「${doc.reviewedUntil}」より前が ${before} 文字ある。` +

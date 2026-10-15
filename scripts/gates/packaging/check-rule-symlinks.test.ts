@@ -268,6 +268,26 @@ test("CRLF で保存した文書でも、reviewedUntil の見出しを見つけ�
   cleanup(root);
 });
 
+test("CRLF で保存した文書は、行末の \\r も文字数に数える", () => {
+  // LF なら上限ちょうどになる本文を CRLF にすると、行の数だけ上限を超える。
+  const head = docText("style", DOC.reviewedUntil, { filler: 0 }).split(DOC.reviewedUntil)[0];
+  const filler = REVIEW_READ_LIMIT - [...head].length;
+  const text = docText("style", DOC.reviewedUntil, { filler }).replaceAll("\n", "\r\n");
+  const root = makeDocRepo({ text });
+  const { violations } = checkRuleSymlinks(root, [...DOC_INSTRUCTIONS, DOC]);
+  expect(violations.filter((v) => v.includes("Copilot のレビューは先頭"))).toHaveLength(1);
+  cleanup(root);
+});
+
+test("コードブロックの中の reviewedUntil と同じ行は、見出しとして扱わない", () => {
+  const fm = `---\napplyTo: "**/*.md"\n---\n\n`;
+  const text = `${fm}# style\n\n\`\`\`text\n${DOC.reviewedUntil}\n\`\`\`\n\n${"あ".repeat(REVIEW_READ_LIMIT)}\n\n${DOC.reviewedUntil}\n`;
+  const root = makeDocRepo({ text });
+  const { violations } = checkRuleSymlinks(root, [...DOC_INSTRUCTIONS, DOC]);
+  expect(violations.filter((v) => v.includes("Copilot のレビューは先頭"))).toHaveLength(1);
+  cleanup(root);
+});
+
 test("宣言した文書に reviewedUntil の見出しが無ければ検出する", () => {
   const root = makeDocRepo({ text: docText("style", "## 別の見出し") });
   const { violations } = checkRuleSymlinks(root, [...DOC_INSTRUCTIONS, DOC]);

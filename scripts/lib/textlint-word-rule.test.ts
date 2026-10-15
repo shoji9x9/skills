@@ -105,6 +105,9 @@ test.each([
   ["全角のハイフン（U+FF0D）", `判定する${FULL2}終了コードは使えない。`, 1],
   ["ディレクトリの木（├）", `\u251c${BOX2} benchmark.json`, 0],
   ["ディレクトリの木（└）", `\u2514${BOX2} eval-1/`, 0],
+  ["罫線だけの区切りの行", `結果\n\n${BOX2}${BOX2}\n\n次`, 0],
+  ["行頭の罫線の区切り", `- ${BOX2}${BOX2}`, 0],
+  ["全角のハイフンだけの区切り", `${FULL2}${FULL2}`, 0],
 ])("ダッシュの規則: %s の件数", async (_name, text, count) => {
   writeWords([{ term: DASH_TERM, message: "m", tokens: [{ surface_form: DASH_TERM }] }]);
   const descriptor = (await load({})).shallowMerge({ rules: [dashRule(dir)] });

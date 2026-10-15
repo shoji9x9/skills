@@ -5,7 +5,7 @@
 // 一方で、自分が止めた後も確かめ続けると、書き直しても判定が変わらない応答で止め続ける。
 // そこで、止めたときに session ごとの印を一時ディレクトリに置き、true のときは自分の印が在るときだけ通す。
 // 印は 0 バイトのファイルで、一続きの最後を Hook から知る方法が無いので、次の一続きの最初の Stop で消す。
-import { existsSync, rmSync, writeFileSync } from "node:fs";
+import { lstatSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { errorMessage } from "./errors.ts";
@@ -39,7 +39,8 @@ export function alreadyBlocked(
     }
     return false;
   }
-  return !marker || existsSync(marker);
+  // existsSync はシンボリックリンクを辿るので、リンク先の無いリンクを「無い」と判定する。印の名前に何か在れば在るとみなす。
+  return !marker || lstatSync(marker, { throwIfNoEntry: false }) !== undefined;
 }
 
 /** 書き直させるときに呼び、止めた印を残す。残せなくても例外にしない（次の Stop で同じ判定ならもう一度止める）。 */

@@ -172,7 +172,8 @@ Markdown に加えて、JavaScript・TypeScript・シェル・YAML のコメン�
 - 図の線のように字義どおりの意味で使う語は、その箇所だけ `<!-- textlint-disable -->` で除外する。
   コメントでは、`textlint-disable` と `textlint-enable` だけを書いたコメントの行で囲む。
 
-規則 5 の `——` は `lint-prose.ts` が、規則 9 の時期の語（「現状は」「当面」など）と日付は `scripts/gates/prose/check-time-sensitive-prose.ts` が検出する。
+規則 5 のダッシュでつないだ強調（`——` と、字形の違う `――`・`──`・`－－`）は、`lint-prose.ts` と応答の Stop の Hook が検出する。
+規則 9 の時期の語（「現状は」「当面」など）と日付は、`scripts/gates/prose/check-time-sensitive-prose.ts` が検出する。
 それ以外の形を含め、規則 1・3・5・9・10 は機械では判定しきれない。書いた人とレビューする人が確かめる。
 規則 10 の分かりにくさは意味から来るので、語の並びで検出すると誤検知と見逃しが避けられない。そのため lint にしない。
 

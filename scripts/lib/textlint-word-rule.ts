@@ -7,7 +7,7 @@
 // 辞書の `——` の項目だけは、辞書の照合では検出しきれない。辞書は形態素の surface_form で照合するが、
 // kuromoji は記号の連続を 1 つのトークンにまとめるので、`——「`・`——（`・`——。` は `——` のトークンにならない。
 // 字形の違う `――`（U+2015）・`──`（U+2500）・`－－`（U+FF0D）も辞書には一致しない。そこで、2 文字以上続くダッシュを文字列で探す規則（DASH_RULE）を足す。
-// `─` はディレクトリの木（`├──`）にも使うので、前後に罫線の文字が続く並びは除く。
+// `─` と `－` は、ディレクトリの木（`├──`）や区切りの線（`────`）にも使うので、前後の両方に文字（`─` は罫線を除く）が続く並びだけを拾う。
 // 指摘は辞書の `——` の項目の message で出す。textlint は位置と message が同じ指摘を 1 件にまとめるので、
 // 辞書でも検出できる形は 2 件にならない。1 文字の `—` は、表の空欄や英語の区切りに使うので対象にしない。
 import { readFileSync } from "node:fs";
@@ -30,7 +30,8 @@ type Descriptor = Awaited<ReturnType<typeof loadTextlintrc>>;
 type KernelRules = ReturnType<Descriptor["rule"]["toKernelRulesFormat"]>;
 type KernelRule = KernelRules[number];
 
-const DASH_RE = /[—―]{2,}|(?<![\u2500-\u257f])─{2,}(?![\u2500-\u257f])|－{2,}/g;
+const DASH_RE =
+  /[—―]{2,}|(?<=[^\s\u2500-\u257f])─{2,}(?=[^\s\u2500-\u257f])|(?<=[^\s－])－{2,}(?=[^\s－])/g;
 
 /** 設定から使わない語の規則だけを取り出す。規則が無ければ、0 件として通さずに例外を投げる。 */
 export function wordRules(descriptor: Descriptor): KernelRules {
