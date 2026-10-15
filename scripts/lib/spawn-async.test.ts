@@ -39,7 +39,7 @@ describe.concurrent("spawnAsync", () => {
     "stdin を読まずに終わる子へ大きな input を渡しても失敗にしない（EPIPE を数えない）",
     { concurrent: false },
     async () => {
-      // 握りつぶさないと、EPIPE は例外として投げられ、vitest は「Unhandled Errors」を出すだけでテストを通す（実測）。
+      // 握りつぶさないと、EPIPE は例外として投げられ、vitest は「Unhandled Errors」を出すだけでテストを通す（vitest 4 で実測）。
       // テストごとの結果を読むミューテーションテストにも見えないので、ここで受けて数える。
       const uncaught: Error[] = [];
       const onUncaught = (err: Error) => uncaught.push(err);
