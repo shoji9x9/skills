@@ -28,7 +28,7 @@ dependabot-merge の判断ガイドに、見送るときは待つ版を先に決
 - ignore は PR を閉じて以後の通知を止める外向きの操作なので、単位を選んだら、付ける前にユーザーの承認を得る
 - 単位ごとに止まる範囲が違う。PR が上げる先の版（7.0.2）について、minor はその minor の版（7.0.x）を、major はその major の版（7.x）を、patch はその版だけを止める。
   7.1 を待つなら minor、8.0 を待つなら major、直後の patch を待つなら patch を選ぶ
-- 0.x の依存でも数え方は同じで、0.3 の PR で 0.4 を待つなら minor を選ぶ。major は 0.x のすべてを止めるので選ばない
+- 0.x の依存で Dependabot が各単位をどう数えるか（0.3→0.4 を minor と major のどちらとして扱うか）は、公式の文書に無い。確かめるまでは、0.x の依存の見送りもユーザーに確認する
 - 待つ版が直後の版でないとき（7.0 の PR で 7.2 を待つなど）は、間の版（7.1）の PR も作られる。その PR も同じ理由で見送るかを確かめる
 - major を選ぶのは、次の major を待つときだけにする。その major を使わないと決めたときの扱いは、前例が無く決まっていないので、適用するときにユーザーと決める。
   `dependabot.yml` の ignore に書くなら、`update-types: version-update:semver-major` は次の major も止めるので、`versions` でその major だけを指す
@@ -36,13 +36,14 @@ dependabot-merge の判断ガイドに、見送るときは待つ版を先に決
 - 公式の文書は、グループの PR 用に `@dependabot ignore <依存の名前> minor version` の形を別に挙げている。
   この形が止める範囲（その minor だけか、minor の更新の種別全体か）は公式の文書から読み切れないので、確かめるまではグループの PR の見送りもユーザーに確認する
 - 見送りの理由と解く条件は、dependabot-merge の「判断の記録（PR コメント）」に書く。ignore のコマンドは理由を残さず、条件もファイルとしてリポジトリに残らない
-- ignore で閉じた PR を再び開くと、その PR で付けた条件が外れる（PR #648 への Dependabot の返信）。見送りの理由を確かめるときも、PR は再び開かない
+- 単独の PR で付けた条件は、その PR を再び開くか、自分でその版に上げると外れる（公式の文書と、PR #648 への Dependabot の返信）。見送りの理由を確かめるときも、PR は再び開かない
 - 見送った PR の候補は、`gh pr list --state closed --author app/dependabot --search "<依存の名前> is:unmerged" --limit 200` で挙げる。
   そのうえで、各 PR の Dependabot の返信（ignore を受けた旨）で特定する。候補には、superseded で閉じた PR や人が閉じた PR も出る。
-  グループの PR は ignore で閉じられずに作り直されるので、見送りの記録がこの検索に出ないことがある。グループの場合の記録先は、適用するときに決める
+  グループの PR で見送ったときに、どの PR に記録が残るかは、下の実測の項目で確かめる
 - 次の点は、適用するときに公式の文書を読み、Dependabot を有効にした検証用のリポジトリで実測してから手順に書く（このリポジトリの PR では試さない）。
-  - グループの形が止める範囲と、グループの PR で `ignore this ...` が使えるか
+  - グループの形が止める範囲、グループの PR で `ignore this ...` が使えるか、ignore の後にグループの PR が閉じられるか作り直されるか
+  - 0.x の依存で、各単位がどの版を止めるか
   - `@dependabot show <依存の名前> ignore conditions` をどの PR に書けば応答するか（見送った依存の PR は閉じている）
-  - 条件を指定する `unignore <依存の名前> <条件>` と、手で依存を上げたときに条件が外れるか
+  - 条件を指定する `unignore <依存の名前> <条件>` と、グループの PR で付けた条件が、手で依存を上げたときに外れるか
   - `dependabot.yml` の `versions` で 1 つの major だけを指す書き方
 - 根拠: <https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-pull-request-comment-commands>
