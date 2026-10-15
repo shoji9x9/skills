@@ -95,3 +95,15 @@ test("frontmatter がマッピングでなければ検出", () => {
   const v = checkFrontmatter("SKILL.md", skill("- a\n- b"));
   expect(v).toContain("frontmatter が YAML マッピングになっていない");
 });
+
+// js-yaml 5 の load は空の入力で例外を投げるが、構文の誤りではないので「パースできない」とは報告しない。
+test.each([
+  ["空", ""],
+  ["コメントだけ", "# comment"],
+])(
+  "frontmatter が%sなら、パースできないではなくマッピングになっていないと報告する",
+  (_label, fm) => {
+    const v = checkFrontmatter("SKILL.md", skill(fm));
+    expect(v).toEqual(["frontmatter が YAML マッピングになっていない"]);
+  },
+);
