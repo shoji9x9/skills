@@ -55,3 +55,16 @@ test("`!!set` は js-yaml 4 と違い Set として読む（yaml-as.ts の冒頭
 test("`on`・`yes` は真偽値ではなく文字列のキーとして読む（GitHub Actions の `on:`）", () => {
   expect(loadYamlAs<Record<string, unknown>>("on: push\nyes: 1\n")).toEqual({ on: "push", yes: 1 });
 });
+
+// yaml-as.ts の冒頭に書いた「4 と違う形」を固定する。js-yaml の版で変わったら、冒頭のコメントと lint-yaml の説明も直す。
+test("`0b11` は js-yaml 4 と違い文字列として読む", () => {
+  expect(loadYamlAs<{ a: unknown }>("a: 0b11\n").a).toBe("0b11");
+});
+
+test("キーの無い暗黙のマッピング（`: value`）は js-yaml 4 と違い例外にせず `null` のキーとして読む", () => {
+  expect(loadYaml(": x\n")).toEqual({ null: "x" });
+});
+
+test("フロー形式の続きの行の字下げが足りない形は js-yaml 4 と違い例外にする", () => {
+  expect(() => loadYaml("a: [1,\n2]\n")).toThrow(/deficient indentation/);
+});

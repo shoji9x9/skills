@@ -33,7 +33,8 @@
       "replace": "  YAML11_SCHEMA as CORE_SCHEMA,\n",
       "occurrences": 1,
       "expect_failing": [
-        "`on`・`yes` は真偽値ではなく文字列のキーとして読む（GitHub Actions の `on:`）"
+        "`on`・`yes` は真偽値ではなく文字列のキーとして読む（GitHub Actions の `on:`）",
+        "`0b11` は js-yaml 4 と違い文字列として読む"
       ]
     },
     {
