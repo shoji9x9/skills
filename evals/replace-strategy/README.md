@@ -195,7 +195,7 @@ scripts/eval/run-skill-eval.sh \
   fixture（`pending-writer-at-setup`）は、測定・戦略が完了して **`features.md` が無い**（slug が未採番の）状態と、`references.db_semantics` の下書きを持つ。
   下書きは、点検項目 5 節のうち NULL の並び順と照合順序だけが、新 DB 側で「未実測」になっている。
   この 2 つが揃っていないと、「採番前だから `cross-cutting`」と「未実測だから保留」のどちらも材料が無く、判定できない。fixture には `pending` の書き方も許可値も書かない。
-  `references` には、この eval の判断に要る `db_semantics` だけを置いてある。`setup` が本来キーごと生成する残りのパス型のキーは省いた最小の構成で、
+  `references` には、この eval の判断に要る `db_semantics` だけを置いてある。`setup` が本来キーごとに生成するパス型のキーのうち、これ以外を省いた最小の構成で、
   姉妹の fixture の `inventory-multi-page` も `references` を持たない。
   **そのため、この fixture を他の eval へ流用するときは、そのキーの有無が判断材料になる eval には使えない**。
   prompt は「機能インベントリはこの後の手順なのでまだ無い」状態を明示し、**`added_by` / `slug` / `cross-cutting` の語も許可値も書かない**。差が出るように仕込んだ点は 2 つある。

@@ -117,9 +117,22 @@ test.each([
   ["CSS の背景色", "前景色と背景色を指定する。"],
   ["図の背景", "角をラベルの背景で隠さない。"],
   ["経緯の意味の背景", "この変更の背景を書く。"],
+  ["「直す対象にする」", "A 機能を直す対象にする。"],
+  ["差し引いた「残り」", "接頭辞を外した残りが空かを確かめる。"],
+  ["差し引く意味の現在形の「残り」", "配列から先頭を除く残りを返す。"],
 ])("陰性: %s は検出しない", async (_, sentence) => {
   const root = makeRepo({ "doc.md": `# 例\n\n${sentence}\n` });
   expect((await lintProse({ root })).violations).toEqual([]);
+});
+
+test("何の残りかを補わせる句を、#595 の例の見出しで検出する", async () => {
+  // textlint-disable
+  const heading =
+    "# 型を付ける作業では、型の検査を外す書き方を、報告する残りではなく直す対象にする\n";
+  // textlint-enable
+  const root = makeRepo({ "doc.md": heading });
+  const { violations } = await lintProse({ root });
+  expect(violations.filter((v) => v.includes("何の残りかを読み手が補う"))).toHaveLength(1);
 });
 
 test("陰性: インラインコード・コードブロック・frontmatter の中の語は検出しない", async () => {
