@@ -53,8 +53,22 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 type LintMessage = { line: number; column: number; message: string; ruleId: string };
 type Linter = ReturnType<typeof createLinter>;
 
-/** 一覧を読み、形の誤りは例外にする（読めない一覧を「保留 0 件」として扱わない）。 */
+/**
+ * 一覧を読み、形の誤りは例外にする（読めない一覧を「保留 0 件」として扱わない）。
+ * 例外の message には一覧のパスを付ける。main は他の例外（設定・辞書・ツール）と同じ形で表示するので、
+ * 一覧の問題かどうかは message で区別する。
+ */
 export function loadPending(root: string): Set<string> {
+  try {
+    return readPending(root);
+  } catch (error) {
+    throw new Error(`${resolve(join(root, PENDING_PATH))}: ${errorMessage(error)}`, {
+      cause: error,
+    });
+  }
+}
+
+function readPending(root: string): Set<string> {
   const path = join(root, PENDING_PATH);
   if (!existsSync(path)) throw new Error(`${PENDING_PATH} が無い`);
   const data: unknown = JSON.parse(readFileSync(path, "utf8"));
@@ -209,9 +223,8 @@ export async function main(argv: string[]): Promise<number> {
   try {
     result = await lintProse({ root: process.cwd(), files: files.length ? files : undefined });
   } catch (error) {
-    // ツールが無いときは、保留の一覧の問題と読めないように、一覧のパスを添えない。
-    const where = isMissingToolError(error) ? "" : `（${resolve(PENDING_PATH)}）`;
-    console.error(`lint-prose: 実行できない${where}: ${errorMessage(error)}`);
+    // 一覧のパスは、一覧を読めないときだけ loadPending が message に付ける（設定・辞書・ツールの問題に付けない）。
+    console.error(`lint-prose: 実行できない: ${errorMessage(error)}`);
     return 2;
   }
   const { checked, pending, violations, stale } = result;

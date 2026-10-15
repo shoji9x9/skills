@@ -50,7 +50,7 @@ GitHub Actions は、`actionlint` で構文を、`ghalint` で `permissions`・`
 
 | スクリプト（`scripts/gates/` からのパス） | チェックする内容 |
 | --- | --- |
-| `packaging/check-rule-symlinks.ts` | rule を各エージェントから読むためのシンボリックリンクと、Copilot のレビューに読ませる文書（`docs/writing-style.md`）へのシンボリックリンク |
+| `packaging/check-rule-symlinks.ts` | rule を各エージェントから読むためのシンボリックリンクと、Copilot のレビューに読ませる文書（`docs/writing-style.md`）へのシンボリックリンク。その文書が applyTo を持つことと、レビューで確かめる節が Copilot の読む先頭 4,000 文字に収まることも確かめる |
 | `code/check-control-chars.ts` | テキストの拡張子のファイルに入った制御文字 |
 | `packaging/check-eval-reachability.ts` | eval の assertion と prompt の対応 |
 | `packaging/check-skills-sync.ts` | `skills/<name>/` とインストール済みのコピー `.agents/skills/<name>/` の一致 |

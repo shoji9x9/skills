@@ -1,7 +1,6 @@
 ---
-# Copilot のコードレビューは AGENTS.md の `@` を読まないので、この規約を読ませるために applyTo を付ける。
-# 範囲と、レビューが先頭の 4,000 文字しか読まないことへの扱いは、check-rule-symlinks.ts の DOC_INSTRUCTIONS に書いてある。
-applyTo: "**/*.md,**/*.js,**/*.mjs,**/*.cjs,**/*.ts,**/*.sh,**/*.yml,**/*.yaml,.*/**/*.md,.*/**/*.js,.*/**/*.mjs,.*/**/*.cjs,.*/**/*.ts,.*/**/*.sh,.*/**/*.yml,.*/**/*.yaml,evals/*/evals.json"
+# Copilot のレビューに読ませる範囲。理由は check-rule-symlinks.ts の DOC_INSTRUCTIONS にある。
+applyTo: "**/*.md,**/*.js,**/*.mjs,**/*.cjs,**/*.ts,**/*.sh,**/*.yml,**/*.yaml,**/.*/**/*.md,**/.*/**/*.js,**/.*/**/*.mjs,**/.*/**/*.cjs,**/.*/**/*.ts,**/.*/**/*.sh,**/.*/**/*.yml,**/.*/**/*.yaml,**/.*.md,**/.*.js,**/.*.mjs,**/.*.cjs,**/.*.ts,**/.*.sh,**/.*.yml,**/.*.yaml,evals/*/evals.json"
 ---
 
 # 文章の書き方

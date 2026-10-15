@@ -529,6 +529,20 @@ test("main: 指摘があれば 1、無ければ 0、一覧が読めなければ 
   }
 });
 
+test("main: 保留の一覧のパスは、一覧を読めないときだけ示す", async () => {
+  const cwd = process.cwd();
+  const errors: string[] = [];
+  const spy = vi.spyOn(console, "error").mockImplementation((m) => errors.push(String(m)));
+  try {
+    process.chdir(makeRepo({ "a.md": CLEAN }, null));
+    expect(await main([])).toBe(2);
+  } finally {
+    process.chdir(cwd);
+    spy.mockRestore();
+  }
+  expect(errors.join("\n")).toMatch(/^lint-prose: 実行できない: .*prose-lint-pending\.json: /m);
+});
+
 test("検出の確認（CLI）: 子プロセスとして起動しても、指摘は exit 1、無ければ exit 0", async () => {
   const { dirty, clean } = await cliRuns;
   expect(dirty.status, dirty.stderr).toBe(1);

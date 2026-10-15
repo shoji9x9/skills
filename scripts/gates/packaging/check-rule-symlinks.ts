@@ -38,8 +38,9 @@ export const WIRINGS = [
 // 宣言に無い名前は、これまでどおり孤児として検出する。
 //
 // symlink だけでは Copilot は読まない。文書の frontmatter の applyTo が PR の変更ファイルに当たるときだけ読むので、
-// applyTo を持つことも確かめる。applyTo の範囲は文書ごとに決める（writing-style は lint-prose の対象に合わせ、
-// writing-style-apply-to.test.ts が一致を確かめる。`**` がドットで始まるディレクトリに当たらない glob の実装もあるので、`.*/**` の形も並べる）。
+// applyTo を持つことも確かめる。applyTo の範囲は文書ごとに決める。
+// writing-style は lint-prose の対象に合わせ、writing-style-apply-to.test.ts が一致を確かめる。
+// `**` と `*` がドットで始まる名前に当たらない glob の実装もあるので、`**/.*/**/*.<ext>` と `**/.*.<ext>` の形も並べる。
 // Copilot のコードレビューは instructions の先頭 4,000 文字しか読まない
 // （https://docs.github.com/en/copilot/how-tos/copilot-on-github/use-copilot-agents/copilot-code-review）。
 // そのため、レビューで確かめる節を文書の前に置き、その後に続く最初の見出し（reviewedUntil）が 4,000 文字の内側にあることを確かめる。

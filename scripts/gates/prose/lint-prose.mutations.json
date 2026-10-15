@@ -222,14 +222,24 @@
     },
     {
       "id": "LP-TOOL-MESSAGE",
-      "why": "shfmt が無いときも、保留の一覧のパスを添えて報告する",
+      "why": "どの例外にも保留の一覧のパスを添えて報告する（shfmt や設定の問題を一覧の問題と読ませる）",
       "file": "scripts/gates/prose/lint-prose.ts",
-      "find": "    const where = isMissingToolError(error) ? \"\" : `（${resolve(PENDING_PATH)}）`;",
-      "replace": "    const where = `（${resolve(PENDING_PATH)}）`;",
+      "find": "console.error(`lint-prose: 実行できない: ${errorMessage(error)}`);",
+      "replace": "console.error(`lint-prose: 実行できない（${resolve(PENDING_PATH)}）: ${errorMessage(error)}`);",
       "occurrences": 1,
       "expect_failing": [
-        "shfmt が無ければ、ファイルの指摘にせず例外にし、main は保留の一覧を名指ししない exit 2"
+        "shfmt が無ければ、ファイルの指摘にせず例外にし、main は保留の一覧を名指ししない exit 2",
+        "main: 保留の一覧のパスは、一覧を読めないときだけ示す"
       ]
+    },
+    {
+      "id": "LP-PENDING-PATH-MISSING",
+      "why": "一覧を読めないときに、一覧のパスを示さない",
+      "file": "scripts/gates/prose/lint-prose.ts",
+      "find": "throw new Error(`${resolve(join(root, PENDING_PATH))}: ${errorMessage(error)}`, {",
+      "replace": "throw new Error(`${errorMessage(error)}`, {",
+      "occurrences": 1,
+      "expect_failing": ["main: 保留の一覧のパスは、一覧を読めないときだけ示す"]
     },
     {
       "id": "LP-STRINGS",
