@@ -35,22 +35,26 @@ describe.concurrent("spawnAsync", () => {
   });
 
   // プロセス全体の uncaughtException を受けるので、並んだ他のテストの例外を数えないよう、このテストだけ並べない。
-  test.sequential("stdin を読まずに終わる子へ大きな input を渡しても失敗にしない（EPIPE を数えない）", async () => {
-    // 握りつぶさないと、EPIPE は例外として投げられ、vitest は「Unhandled Errors」を出すだけでテストを通す（実測）。
-    // テストごとの結果を読むミューテーションテストにも見えないので、ここで受けて数える。
-    const uncaught: Error[] = [];
-    const onUncaught = (err: Error) => uncaught.push(err);
-    process.on("uncaughtException", onUncaught);
-    try {
-      const r = await spawnAsync(process.execPath, ["-e", "process.exit(0)"], {
-        input: "x".repeat(4 * 1024 * 1024),
-      });
-      expect(r.status).toBe(0);
-      expect(r.error).toBeUndefined();
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    } finally {
-      process.off("uncaughtException", onUncaught);
-    }
-    expect(uncaught).toEqual([]);
-  });
+  test(
+    "stdin を読まずに終わる子へ大きな input を渡しても失敗にしない（EPIPE を数えない）",
+    { concurrent: false },
+    async () => {
+      // 握りつぶさないと、EPIPE は例外として投げられ、vitest は「Unhandled Errors」を出すだけでテストを通す（vitest 4 で実測）。
+      // テストごとの結果を読むミューテーションテストにも見えないので、ここで受けて数える。
+      const uncaught: Error[] = [];
+      const onUncaught = (err: Error) => uncaught.push(err);
+      process.on("uncaughtException", onUncaught);
+      try {
+        const r = await spawnAsync(process.execPath, ["-e", "process.exit(0)"], {
+          input: "x".repeat(4 * 1024 * 1024),
+        });
+        expect(r.status).toBe(0);
+        expect(r.error).toBeUndefined();
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      } finally {
+        process.off("uncaughtException", onUncaught);
+      }
+      expect(uncaught).toEqual([]);
+    },
+  );
 });
