@@ -7,7 +7,7 @@ applied-to: ["oxlint.config.ts", "docs/tooling.md"]
 session: claude-code
 ---
 
-# 型を付ける作業では、型の検査を外す書き方を、報告する残りではなく直す対象にする
+# 型を付ける作業では、型の検査を外す書き方（`!`・`as`・`any`・`@ts-ignore`）を lint で禁じて直し、件数の報告で終えない
 
 ## 事象
 
