@@ -16,7 +16,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import yaml from "js-yaml";
+import { loadAll } from "js-yaml";
 import { errorMessage } from "../../lib/errors.ts";
 import { isAgentCopy } from "../../lib/source-scope.ts";
 
@@ -66,7 +66,7 @@ export function lintFile(path: string): string | null {
     /* JSON でなければ YAML として読む */
   }
   try {
-    yaml.loadAll(text, () => {});
+    loadAll(text);
     return null;
   } catch (err) {
     return errorMessage(err);

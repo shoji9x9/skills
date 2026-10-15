@@ -86,7 +86,7 @@
       "id": "LY-LOADALL",
       "why": "YAML として読まない（壊れた YAML を通す）",
       "file": "scripts/gates/code/lint-yaml.ts",
-      "find": "    yaml.loadAll(text, () => {});",
+      "find": "    loadAll(text);",
       "replace": "    void text;",
       "occurrences": 1,
       "expect_failing": [

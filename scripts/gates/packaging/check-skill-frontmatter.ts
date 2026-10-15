@@ -17,7 +17,7 @@
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import yaml from "js-yaml";
+import { load } from "js-yaml";
 import { splitFrontmatter } from "../../lib/frontmatter.ts";
 import { isArray } from "../../lib/is-array.ts";
 
@@ -46,7 +46,7 @@ export function checkFrontmatter(path: string, content: string) {
   // (a) YAML パース可能性。
   let data;
   try {
-    data = yaml.load(fm);
+    data = load(fm);
   } catch (e) {
     const reason = e instanceof Error && e.message ? e.message.split("\n")[0] : String(e);
     violations.push(`frontmatter が YAML としてパースできない: ${reason}`);
