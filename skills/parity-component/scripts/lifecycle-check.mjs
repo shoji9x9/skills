@@ -48,8 +48,8 @@ export const PATHS = ["strict-rebind", "prop-identity", "remount", "prop-change-
  */
 
 /**
- * build-metadata.json の lifecycle の記録を検査する（純関数）。lifecycle だけでなく catalog.stories も読む——
- * 順番の見本が見た目の照合の対応表にも載っていると、見た目の見本がすり替わっても検査が通るため。
+ * build-metadata.json の lifecycle の記録を検査する（純関数）。lifecycle だけでなく catalog.stories も読む。
+ * 順番の見本が見た目の照合の対応表にも載っていると、見た目の見本がすり替わっても検査が通るためである。
  * @param {unknown} metadata build-metadata.json の中身（形はここで検査する）
  * @returns {{ structural: boolean, applies: boolean | null, findings: LifecycleFinding[] }}
  */

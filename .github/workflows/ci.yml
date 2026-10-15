@@ -134,7 +134,7 @@ jobs:
   #
   # **差分に当たる宣言だけ**を測る。対象も検査も変わっていない宣言は前回の実証がそのまま有効なので、
   # PR では測り直さない。**全件は定期実行**（`.github/workflows/mutation-proof.yml`）が週次で測る。
-  # **pre-commit には入れない**——実行中は対象ファイルを書き換えて戻すため、staged な変更と
+  # **pre-commit には入れない**。実行中は対象ファイルを書き換えて戻すため、staged な変更と
   # 混在すると取り違えが起きる。
   #
   # **選んだ変異を matrix で分割して並べて実行する**（`--shard i/N`）。宣言が大きいと直列では
@@ -155,7 +155,7 @@ jobs:
       matrix:
         # 分割数を変えたら、下の timeout を 1 シャードぶんの実測（mutation-proof.yml のコメント）で見直す。
         shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-    # 上限は**最悪ケース**で決める——ランナーを触った PR は全宣言へ広がるので、最悪ケースは全宣言を
+    # 上限は**最悪ケース**で決める。ランナーを触った PR は全宣言へ広がるので、最悪ケースは全宣言を
     # この分割数で割った 1 シャードぶん（実測値は `.github/workflows/mutation-proof.yml` のコメント）。変異が増える前提で余裕を取る。
     timeout-minutes: 20
     permissions:
@@ -176,8 +176,8 @@ jobs:
         run: node scripts/mutation/check-mutation-proof.ts --changed-since "origin/${BASE_REF}" --shard "$((JOB_INDEX + 1))/${JOB_TOTAL}"
 
   # 必須チェックの名前（`Mutation proof (PR)`）は集約ジョブで維持する。ルールセットはこの名前を要求し、
-  # シャードの名前（分割数で変わる）を要求しない。**シャードが 1 本でも成功以外（失敗・中止・スキップ）なら落とす**
-  # ——`always()` が無いと、シャードが落ちたときこのジョブ自体がスキップになり、スキップは必須チェックを満たしてしまう。
+  # シャードの名前（分割数で変わる）を要求しない。**シャードが 1 本でも成功以外（失敗・中止・スキップ）なら落とす**。
+  # `always()` が無いと、シャードが落ちたときこのジョブ自体がスキップになり、スキップは必須チェックを満たしてしまう。
   mutation-proof:
     name: Mutation proof (PR)
     if: always() && github.event_name == 'pull_request'

@@ -525,7 +525,7 @@ export function collectMatchedRules(el, options) {
       for (const p of scanPseudos(selector)) {
         if (!p.args || p.doubled) continue;
         if (p.name === "not") continue;
-        // セレクタを引数に取る擬似クラスは `:is()` / `:where()` / `:has()` だけではない——
+        // セレクタを引数に取る擬似クラスは `:is()` / `:where()` / `:has()` だけではない。
         // `:nth-child(2n of .item:hover)` / `:host(.foo:hover)` にも状態を置ける。
         // 名前で絞ると、絞り漏れた擬似クラスの中の状態が base に残り、通常状態の matches() が
         // false を返して規則が matched にも unresolved にも残らない。`:not()` 以外は一律に見る。
@@ -538,7 +538,7 @@ export function collectMatchedRules(el, options) {
     };
     const stateInsideFunctional = hasStateInsideFunctional(base);
     // 剥がしも許容もできない擬似クラスが残っていたら、当たる／当たらないを決めずに残す。
-    // **入れ子の中も見る**——`:is()` / `:not()` 等の引数に未知の動的擬似クラスが入っていると
+    // **入れ子の中も見る**。`:is()` / `:not()` 等の引数に未知の動的擬似クラスが入っていると
     // （`.card:is(.item:popover-open)`）、外側は構造擬似クラスとして許容され、内側は
     // 状態集合にも構造集合にも無いまま matches() へ渡る。その状態でない要素では false が
     // 返り、規則が matched にも unresolved にも残らずに消える。

@@ -230,13 +230,13 @@ export function readRow(text, slug) {
       }
       if (kind.kind === "missing-endpoint-column") {
         malformed.push(
-          `slug ${slug} の行の表は「${EVIDENCE_HEADER}」列を持つのに口の列（${ENDPOINT_HEADERS.join(" / ")}）が無い——列を追加する（改名ではない）`,
+          `slug ${slug} の行の表は「${EVIDENCE_HEADER}」列を持つのに口の列（${ENDPOINT_HEADERS.join(" / ")}）が無い。列を追加する（改名ではない）`,
         );
         continue;
       }
       if (kind.kind === "malformed-endpoint") {
         malformed.push(
-          `slug ${slug} の行の表は口の列らしい見出し（${kind.headers.join(" / ")}）を持つが、規約名（${ENDPOINT_HEADERS.join(" / ")}）と一致しない——見出しを規約名に揃える` +
+          `slug ${slug} の行の表は口の列らしい見出し（${kind.headers.join(" / ")}）を持つが、規約名（${ENDPOINT_HEADERS.join(" / ")}）と一致しない。見出しを規約名に揃える` +
             (kind.missingEvidence
               ? `（「${EVIDENCE_HEADER}」列も無いので、列名を揃えた後に列の追加も要る）`
               : ""),
@@ -245,7 +245,7 @@ export function readRow(text, slug) {
       }
       if (kind.kind === "malformed-evidence") {
         malformed.push(
-          `slug ${slug} の行の表は根拠列らしい見出し（${kind.headers.join(" / ")}）を持つが、規約名（${EVIDENCE_HEADER}）と一致しない——見出しを規約名に揃える`,
+          `slug ${slug} の行の表は根拠列らしい見出し（${kind.headers.join(" / ")}）を持つが、規約名（${EVIDENCE_HEADER}）と一致しない。見出しを規約名に揃える`,
         );
         continue;
       }
@@ -269,19 +269,19 @@ export function readRow(text, slug) {
   }
   if (matched.length === 0 && nonEndpointRows > 0) {
     throw new NotApplicableError(
-      `slug ${slug} の行はバッチ・「その他の Issue」の表にある（見出しから同定）——要求単位の根拠は口ごとの記録なので、この行に検査対象は無い`,
+      `slug ${slug} の行はバッチ・「その他の Issue」の表にある（見出しから同定）。要求単位の根拠は口ごとの記録なので、この行に検査対象は無い`,
     );
   }
   if (matched.length === 0 && legacyRows > 0) {
     throw new UndecidableError(
-      `slug ${slug} の行の表に「${EVIDENCE_HEADER}」列が無い（列の導入前に作られたインベントリ）——列の追加は replace-strategy の setup / issues が行う`,
+      `slug ${slug} の行の表に「${EVIDENCE_HEADER}」列が無い（列の導入前に作られたインベントリ）。列の追加は replace-strategy の setup / issues が行う`,
     );
   }
   if (matched.length === 0) throw new UsageError(`slug ${slug} の行がインベントリに無い`);
   const row = matched[0];
   if (row.endpointCell.length === 0) {
     throw new UsageError(
-      `slug ${slug} の API 列が空欄——口が無いことを確かめたなら \`-\` か \`なし\` と書く。空欄は未調査であり、口 0 件（合格）として扱わない`,
+      `slug ${slug} の API 列が空欄。口が無いことを確かめたなら \`-\` か \`なし\` と書く。空欄は未調査であり、口 0 件（合格）として扱わない`,
     );
   }
   const seen = new Set();
@@ -430,7 +430,7 @@ export function check(input) {
 
   if (declaration !== null && declaration.legacyArtifact) {
     notes.push(
-      `${input.unmeasuredPath} に unmeasured キーが無い（列の導入前の parity-suite 成果物）——宣言ゼロとして数える`,
+      `${input.unmeasuredPath} に unmeasured キーが無い（列の導入前の parity-suite 成果物）。宣言ゼロとして数える`,
     );
   }
   /** @type {[number, string][]} */
@@ -441,7 +441,7 @@ export function check(input) {
   ];
   for (const [count, label] of discarded) {
     if (count > 0) {
-      notes.push(`unmeasured.entries の${label}が ${count} 件ある——宣言に数えていない`);
+      notes.push(`unmeasured.entries の${label}が ${count} 件あるが、宣言に数えていない`);
     }
   }
 

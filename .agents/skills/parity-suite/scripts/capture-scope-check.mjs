@@ -2,7 +2,7 @@
 //
 // 何のためか: 撮る範囲が狭いと、**実装したあとに範囲外の差分が現れる**。
 // そこで範囲を広げて撮り直すことになるが、**現側も撮り直し**なので反復が 1 つ増える。
-// 範囲の狭さは「差分が出なかった」と同じ見え方になる——**差分ツールは撮った 2 枚しか比べない**ので、
+// 範囲の狭さは「差分が出なかった」と同じ見え方になる。**差分ツールは撮った 2 枚しか比べない**ので、
 // 撮らなかった領域は永久に差 0 件として通る。だから**撮る段で抜けを数える**。
 //
 // この検査が落とすのは次の 4 つである。出力では、この抜けを `穴` と表示する。
@@ -96,7 +96,7 @@ export function combinationKey(entry) {
 /**
  * 鍵の材料に区切り文字が入っていないか。
  *
- * **入っていると別々の組が同じ鍵に潰れる**——`("a|b", "c", "d")` と `("a", "b|c", "d")` はどちらも
+ * **入っていると別々の組が同じ鍵に潰れる**。`("a|b", "c", "d")` と `("a", "b|c", "d")` はどちらも
  * `a|b|c|d` になり、1 つの範囲の実測が 2 つの撮影組を満たしたことになって抜けが消える。
  * 鍵は抜けの id にも入る（利用者が `capture_scope_exemptions` に書き写す）ので、
  * 符号化で回避せず**材料の側で弾く**。
@@ -135,7 +135,7 @@ function isOneOf(list, value) {
 /**
  * 寸法（`{width, height}`）を検証して返す。型崩れ・0 以下なら null。
  *
- * **0 を通さない**——同梱テンプレートは寸法を `0` で置いてあるので、
+ * **0 を通さない**。同梱テンプレートは寸法を `0` で置いてあるので、
  * プレースホルダのまま書いた組は文書も撮影領域も 0×0 になり、寸法の比較では抜けが 1 つも出ない。
  * 「測っていない組」が「抜けの無い組」と同じ見え方になるため、実測値は正の数だけを受ける。
  * @param {unknown} value
@@ -157,7 +157,7 @@ const SCROLLBAR_OVERFLOW = ["scroll", "auto"];
 /**
  * 1 つの撮影組の実測から抜けを導く。
  *
- * **抜けは記録された `holes` ではなく寸法から導く**——書き手が挙げた分だけを見ると、
+ * **抜けは記録された `holes` ではなく寸法から導く**。書き手が挙げた分だけを見ると、
  * 挙げ忘れた抜けが「抜けが無い」と同じ見え方になる。
  *
  * `context.elements` は `traits.elements`（特性照合する論理名）の集合。null（読めない）ならスクロール領域ごとの
@@ -317,7 +317,7 @@ export function deriveHoles(entry, context = {}) {
         });
         continue;
       }
-      // **同じ論理名が 2 つあると同じ id の抜けが 2 つできる**——1 つの宣言で両方が消えるので、
+      // **同じ論理名が 2 つあると同じ id の抜けが 2 つできる**。1 つの宣言で両方が消えるので、
       // スクロール領域の名前と同じく重複の側で落とす（棚卸しが潰れたまま exit 0 にしない）。
       if (seenOutside.has(name)) {
         findings.push({
@@ -340,7 +340,7 @@ export function deriveHoles(entry, context = {}) {
 /**
  * 撮影条件が宣言した組（ページ × 状態 × ビューポート）を列挙する。
  *
- * **突き合わせ相手を `noise_baseline` だけにしない**——採った組の一覧を期待値にすると、
+ * **突き合わせ相手を `noise_baseline` だけにしない**。採った組の一覧を期待値にすると、
  * 宣言した組を採らずに落とした場合に「採っていない組」が一覧から消え、
  * 抜けが 1 つも出ないまま通る（範囲の狭さが差分 0 件と同じ見え方になる、というこの検査の前提そのもの）。
  * 期待値は `capture_conditions` の 3 軸から作り、採った側・測った側の双方と突き合わせる。
@@ -497,7 +497,7 @@ function variantSignature(values) {
  *      または、掛けると宣言した対の組み合わせの変種が無い。
  *   4. スイートに反映していない。軸ごとに、値ごとの期待値を読む箇所か、値で文言・振る舞いが変わらない根拠が無い。
  *
- * 撮った組の数え直しはここではしない——変種の label を `declaredCombinations` に渡し、
+ * 撮った組の数え直しはここではしない。変種の label を `declaredCombinations` に渡し、
  * 撮っていない組を `#not-captured` の抜けとして他の抜けと同じ処理で数える。
  * @param {Record<string, unknown>} conditions
  * @returns {{ findings: {code:string, message:string}[], variants: {label:string, axes:string[]}[], notApplicable: Map<string, Set<string>> }}
@@ -944,7 +944,7 @@ export function checkDisplayAxes(conditions) {
  * 採取環境と利用者環境の一致（`capture_conditions.viewer_environment`）を検査する。
  *
  * 通すのは `一致: <確かめ方>` と `乖離: <内容と gaps.md の該当箇所>` の 2 形だけ。
- * **「未確認」を通さない**——記録しただけでは誰も読まず、採取環境でだけ成立する一致（フォントのフォールバック先等）が
+ * **「未確認」を通さない**。記録しただけでは誰も読まず、採取環境でだけ成立する一致（フォントのフォールバック先等）が
  * 差分ゼロのまま収束する。**確かめ方の無い「一致」も通さない**（未確認と見分けが付かない）。
  * @param {Record<string, unknown>} conditions
  * @returns {{code:string, message:string}[]}
@@ -1003,7 +1003,7 @@ export const BROWSER_MODES = ["launched", "cdp"];
 /**
  * `cdp` の `browser_identity.browser_os` のキー（`navigator.userAgentData.getHighEntropyValues` から、この 3 つだけを拾った形）。
  * Chromium は UA の OS 版を固定値に縮めて返す（reduced UA）ので、`product` と `user_agent` だけでは OS の版・アーキテクチャが違う機械を見分けられない。
- * `navigator.platform` への代替は認めない——`cdp` の接続先は Chromium 系で、`platform` も縮められており同じ抜けが残る。
+ * `navigator.platform` への代替は認めない。`cdp` の接続先は Chromium 系で、`platform` も縮められており同じ抜けが残るからである。
  * 正規化と読み方（安全なコンテキストの頁で読む）の原本は parity-suite の references/locator-mapping.md「利用者環境のブラウザへ接続する」。
  */
 export const BROWSER_OS_KEYS = ["platform", "platformVersion", "architecture"];
@@ -1226,7 +1226,7 @@ export function checkOverflow(conditions) {
       );
     }
     // 狭い窓で読んだ中身の高さ。最小幅を持つ頁では、これより高い狭い窓（縦のはみ出しが頁の高さの決め方だけで決まる窓）を要求する。
-    // 「縦にはみ出さないこと」は要求しない——body { height: 100% } と既定の margin のように、どの高さでもはみ出す正当な頁がある
+    // 「縦にはみ出さないこと」は要求しない。body { height: 100% } と既定の margin のように、どの高さでもはみ出す正当な頁があるからである。
     const contentHeight = entry.content_height;
     const contentHeightOk = minWidth === null || (isInteger(contentHeight) && contentHeight > 0);
     if (minWidthOk && !contentHeightOk) {
@@ -1502,7 +1502,7 @@ export function checkCaptureScope(metadata) {
       continue;
     }
     const key = combinationKey(entry);
-    // **後勝ちで上書きしない**——`deriveHoles` は鍵ごとに最後に残った要素しか評価しないので、
+    // **後勝ちで上書きしない**。`deriveHoles` は鍵ごとに最後に残った要素しか評価しないので、
     // 本物の実測の後にプレースホルダーが続くと、警告は出るのに抜けそのものが消える。
     // noise_baseline の重複と同じく先勝ちで残す。
     // **先勝ちにしても `holes` の中身は並び順で変わる**（どちらの重複を読むかが入れ替わるだけ）。
@@ -1542,7 +1542,7 @@ export function checkCaptureScope(metadata) {
         continue;
       }
       const noiseKey = combinationKey(entry);
-      // **同じ組が 2 行あると Set が警告なしに畳む**——parity-diff の突き合わせは先に当たった行を使うので、
+      // **同じ組が 2 行あると Set が警告なしに畳む**。parity-diff の突き合わせは先に当たった行を使うので、
       // しきい値の大きい行が選ばれると実差がノイズとして分類されうる。畳む前に落とす。
       if (shot.has(noiseKey)) {
         findings.push({

@@ -276,9 +276,35 @@
         "2026-02-01-lint-scope-in-doc.md だけが指摘され、2026-02-02-mechanism-applied.md（同じ type: hook だが applied-to に scripts/check-control-bytes.js を含む）と 2026-02-03-prose-only.md（type: doc）は指摘されないことを、出力と照合して述べている",
         "判定は frontmatter の type が hook であることと、applied-to の要素が .md だけであることの両方が成り立つ場合だと説明している",
         "これは警告であって終了コードは 0 のままであり、コミット前のチェックは止まらないと述べている",
-        "閉じ方は 2 つ——機構を実際に作るか、ドキュメントへ寄せると決めたなら type を実際にやったこと（doc / rule）へ直す——であることを述べている",
+        "閉じ方は、機構を実際に作るか、ドキュメントへ寄せると決めたなら type を実際にやったこと（doc / rule）へ直すかの 2 つであることを述べている",
         "機構化を別作業へ切り出す場合は applied-to に \"#<Issue番号>\" を載せる方法があり、その形なら警告の対象外になると述べている",
         "提案の文面にある語（lint / hook / 検査 等）で判定しない理由として、語は提案が何について述べているかを指すだけで機構を要求している証拠にならない旨を述べている"
+      ],
+      "reachability": [
+        {
+          "assertion": "2026-02-01-lint-scope-in-doc.md だけが指摘され、2026-02-02-mechanism-applied.md（同じ type: hook だが applied-to に scripts/check-control-bytes.js を含む）と 2026-02-03-prose-only.md（type: doc）は指摘されないことを、出力と照合して述べている",
+          "prompt_quote": "出力が出たファイルと出なかったファイルの違いを"
+        },
+        {
+          "assertion": "判定は frontmatter の type が hook であることと、applied-to の要素が .md だけであることの両方が成り立つ場合だと説明している",
+          "prompt_quote": "検査が frontmatter の何を見ているかに即して説明し"
+        },
+        {
+          "assertion": "これは警告であって終了コードは 0 のままであり、コミット前のチェックは止まらないと述べている",
+          "prompt_quote": "バンドルされた lifecycle 検査を実行して"
+        },
+        {
+          "assertion": "閉じ方は、機構を実際に作るか、ドキュメントへ寄せると決めたなら type を実際にやったこと（doc / rule）へ直すかの 2 つであることを述べている",
+          "prompt_quote": "閉じるなら何を直すのかを示して"
+        },
+        {
+          "assertion": "機構化を別作業へ切り出す場合は applied-to に \"#<Issue番号>\" を載せる方法があり、その形なら警告の対象外になると述べている",
+          "prompt_quote": "指摘されたノートをこのまま applied で閉じてよいのか"
+        },
+        {
+          "assertion": "提案の文面にある語（lint / hook / 検査 等）で判定しない理由として、語は提案が何について述べているかを指すだけで機構を要求している証拠にならない旨を述べている",
+          "prompt_quote": "この検査が提案の文面ではなくその材料を使っている理由も説明して"
+        }
       ]
     },
     {

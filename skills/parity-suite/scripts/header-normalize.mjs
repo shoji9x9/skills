@@ -108,7 +108,7 @@ const UNMEASURED_KEYS = new Set(["schema_version", "status", "unmeasured_reason"
 const CSP_HEADERS = new Set(["content-security-policy", "content-security-policy-report-only"]);
 
 /**
- * 一覧に書けるヘッダー名。RFC 9110 の token のうち英数字と `-` `_` `.` だけに絞る——token は `*` `_` とバッククォートも許すので、
+ * 一覧に書けるヘッダー名。RFC 9110 の token のうち英数字と `-` `_` `.` だけに絞る。token は `*` `_` とバッククォートも許すので、
  * Markdown の強調・コードの記号を残した名前（`**X-Frame-Options**`）が別名として通り、本来のヘッダーが警告なしに比較から外れる。
  */
 const HEADER_NAME = /^[0-9A-Za-z][0-9A-Za-z._-]*$/;
@@ -170,7 +170,7 @@ function rejectPlaceholders(v, where) {
 }
 
 /**
- * 一覧の 1 行を検査する。書き手（replace-strategy の測定）の不変条件をここで全部確かめる——
+ * 一覧の 1 行を検査する。書き手（replace-strategy の測定）の不変条件をここで全部確かめる。
  * 読み手が使う欄（name・setter）だけを見ると、他の欄の誤りが残ったまま一覧として通る。
  * @param {unknown} row
  * @param {number} i

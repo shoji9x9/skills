@@ -17,7 +17,7 @@
         "落とす: プローブの localFragmentRefs にしか現れない URL は参照に数えない",
         "落とす: プローブの manifests にしか現れない URL は参照に数えない",
         "落とす: プローブの unclassifiedResources にしか現れない URL は参照に数えない",
-        "落とす: 実例の形——favicon を配っていてバイトも同じだが、新側の画面が指していない"
+        "落とす: 実例の形。favicon を配っていてバイトも同じだが、新側の画面が指していない"
       ]
     },
     {
@@ -265,7 +265,7 @@
       "replace": "      const fetchFindingsBefore = byteFindingsEnd;\n",
       "occurrences": 1,
       "expect_failing": [
-        "落とす: 実例の形——favicon を配っていてバイトも同じだが、新側の画面が指していない"
+        "落とす: 実例の形。favicon を配っていてバイトも同じだが、新側の画面が指していない"
       ]
     },
     {

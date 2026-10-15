@@ -951,7 +951,7 @@ test("holes の中身は先に来た実測で決まり、合否は並び順に�
   expect(
     holeIdsOf(metadataOf({ states: ["default"], scope: [noHole, withHole], noise })),
   ).not.toContain("list|default|desktop#below-fold");
-  // 一方で合否は並び順に依らない——どちらの順でも重複そのものが必ず報告される（無音で決まらない）。
+  // 一方で合否は並び順に依らない。どちらの順でも重複そのものが必ず報告される（無音で決まらない）。
   expect(codesOf(metadataOf({ states: ["default"], scope: [noHole, withHole], noise }))).toContain(
     "scope-entry-duplicated",
   );

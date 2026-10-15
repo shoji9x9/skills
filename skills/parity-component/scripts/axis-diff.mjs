@@ -210,7 +210,7 @@ export function diffAxes(manifest) {
 
   if (instances.length < 2) {
     problems.push(
-      `インスタンスが ${instances.length} 件——固定と可変は 2 件以上を突き合わせないと区別できない`,
+      `インスタンスが ${instances.length} 件。固定と可変は 2 件以上を突き合わせないと区別できない`,
     );
   }
 
@@ -295,7 +295,7 @@ export function diffAxes(manifest) {
   ].sort();
   // 突き合わせる状態が 1 つも残らないなら、比較は成立していない。
   if (states.length === 0) {
-    problems.push("採取された状態が 1 つも無い——固定と可変を突き合わせる対象が無い");
+    problems.push("採取された状態が 1 つも無いので、固定と可変を突き合わせる対象が無い");
   }
   // 全インスタンスが到達不能と宣言した状態は、比較の母集合が空になる。採取条件に載せるべきでない
   // 状態か、状態名の typo のどちらかなので、除外として警告なしに通さない。
@@ -305,7 +305,7 @@ export function diffAxes(manifest) {
   );
   if (unreachableEverywhere.length > 0) {
     problems.push(
-      `どのインスタンスでも到達できない状態が宣言されている（${unreachableEverywhere.join(", ")}）——採取条件から外すか状態名を確かめる`,
+      `どのインスタンスでも到達できない状態が宣言されている（${unreachableEverywhere.join(", ")}）。採取条件から外すか状態名を確かめる`,
     );
   }
 
@@ -480,8 +480,8 @@ export function diffAxes(manifest) {
   /** @type {VariableAxis[]} */
   const variable = [];
   // インスタンスが 1 件だと、全軸が「割れていない」＝固定として並ぶ。`ok: false` は付くが、
-  // 読み手が problems を見ずに fixed だけを引くと「この部品に可変軸は無い」と読める——
-  // 本ツールが防ごうとしている取りこぼしそのものなので、割り出し自体を行わない。
+  // 読み手が problems を見ずに fixed だけを引くと「この部品に可変軸は無い」と読める。
+  // これは本ツールが防ごうとしている取りこぼしそのものなので、割り出し自体を行わない。
   if (instances.length < 2) {
     return {
       component: field(manifest, "component") || null,
@@ -530,7 +530,7 @@ export function diffAxes(manifest) {
   // 実際、判定できない入力を合格とするこの種の誤りが、1 つのツールで 3 回起きた。個別の分岐を足し続けず、式で防ぐ。
   const measured = fixed.length + variable.length;
   if (measured === 0) {
-    problems.push("突き合わせられた軸が 0 件——測れたことの証拠が無いので合格にしない");
+    problems.push("突き合わせられた軸が 0 件。測れたことの証拠が無いので合格にしない");
   }
 
   return {
@@ -632,7 +632,7 @@ export function main(argv) {
   for (const problem of result.problems) process.stderr.write(`warn: ${problem}\n`);
   if (!result.ok) {
     process.stderr.write(
-      `error: 軸の割り出しに ${result.problems.length} 件の問題——採取へ戻す（固定として扱わない）\n`,
+      `error: 軸の割り出しに ${result.problems.length} 件の問題がある。採取へ戻す（固定として扱わない）\n`,
     );
   }
   return result.ok ? 0 : 1;

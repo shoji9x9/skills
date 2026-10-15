@@ -1,18 +1,18 @@
 {
   "_note_appearance": "この表が数えるのは操作と状態の「有無」だけで、色・寸法・余白・書体は 1 つも見ていない。機能が揃っていて見た目が全部違う部品も全セルが present で埋まるため、unmeasured 0 を「見た目が現行と合っている」の根拠にしない。見た目の担保は画素比較と特性照合（parity-diff）が持ち、画面より先に作った共通部品では parity-component が現行の要素から採った基準との照合で持つ。どの比較方法にも担保が無い箇所は gaps.md の未検証領域へ別立てで残す。セルの値は操作・状態を測ったかだけで決め、見た目の比較方法が無いことを理由に present を unmeasured へ落とさない（落としても見た目の担保は増えず、parity-diff が見た目とは別の理由で収束できなくなる）。",
   "_note_measured_side": "この表の 3 値は移行元側の測定であり、新側の欠落は 1 件も示さない。「移行元でその操作が在ることを確かめた」と「新側で同じ操作を実施して移行元と差が無いことを確かめた」は別の測定で、欠落を見つけるのは後者だけ。新側の突き合わせは new/<target>/component-comparison.json が持ち（様式の原本は assets/component-comparison-template.json、検査は scripts/component-comparison-check.mjs）、value: present のセル 1 つにつき 1 行を要求する。したがって unmeasured 0 は「新側で操作を完了できる」を意味しない。新側で突き合わせていないことを理由に present を unmeasured へ落とさない（移行元側の網羅が読めなくなる）。",
-  "_note": "parity-suite が .replace/parity/<slug>/component-coverage.json として生成する。形式の原本は parity-suite が定義する。部品（データグリッド・エディタ等、1 つで多数の操作を持つ共通コンポーネント）について、機能表の項目 × 部品インスタンス（ページ）の網羅表を持つ。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す）。値は present / absent / unmeasured の 3 値で、cells に行が無い組み合わせは unmeasured として数える（欠落を「無」に倒さない）。表は 3 つの集合（部品・インスタンス・軸の要素）の上に立ち、どの集合も出所（source）と完全性（complete）を宣言する——列挙しなかった要素は期待セルにも現れないため、宣言が無い集合は測り漏れが unmeasured 0 で収束する。同じ部品でもインスタンスごとに設定が違うため、1 インスタンスで測った結果を他インスタンスへ流用しない。網羅プロファイルを宣言した部品では、期待セルは 項目 × インスタンス ではなくインスタンスごとの候補（instances[].candidates）になる。候補の展開と照合は scripts/coverage-expand.mjs、契約は references/coverage-profiles.md が原本。parity-diff は metadata.json の component_coverage.declared が true のときだけこのファイルを読み、unmeasured が残る間は収束させない。",
+  "_note": "parity-suite が .replace/parity/<slug>/component-coverage.json として生成する。形式の原本は parity-suite が定義する。部品（データグリッド・エディタ等、1 つで多数の操作を持つ共通コンポーネント）について、機能表の項目 × 部品インスタンス（ページ）の網羅表を持つ。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す）。値は present / absent / unmeasured の 3 値で、cells に行が無い組み合わせは unmeasured として数える（欠落を「無」に倒さない）。表は 3 つの集合（部品・インスタンス・軸の要素）の上に立ち、どの集合も出所（source）と完全性（complete）を宣言する。列挙しなかった要素は期待セルにも現れないので、宣言が無い集合は測り漏れが unmeasured 0 で収束する。同じ部品でもインスタンスごとに設定が違うため、1 インスタンスで測った結果を他インスタンスへ流用しない。網羅プロファイルを宣言した部品では、期待セルは 項目 × インスタンス ではなくインスタンスごとの候補（instances[].candidates）になる。候補の展開と照合は scripts/coverage-expand.mjs、契約は references/coverage-profiles.md が原本。parity-diff は metadata.json の component_coverage.declared が true のときだけこのファイルを読み、unmeasured が残る間は収束させない。",
   "slug": "<features.md が採番した slug（自分で採番しない）>",
   "measured_target": "<測定に使った current target 名（metadata.json.target.name と一致）>",
   "component_inventory": {
-    "_note": "部品の集合（この機能の画面に載っている部品の全体）をどこから起こしたか＝出所と、読み切れたか＝完全性。列挙しなかった部品は期待セルにも現れないため、この宣言が無いと「載せなかった部品」が unmeasured 0 のまま収束し、測り漏れと「本当に無い」が同じ見え方になる。受領ソース（サーバー側テンプレート等）が読めるなら、そこから部品の配置を静的に列挙してから画面を開く——実 UI の歩行はその画面がその時描いたものしか拾わず、本体の周りに置かれた部品（ページャ・設定の保存と復元・右クリックで開くコンテナ）は本体の軸に現れないので集合の側で落ちる。",
+    "_note": "部品の集合（この機能の画面に載っている部品の全体）をどこから起こしたか＝出所と、読み切れたか＝完全性。列挙しなかった部品は期待セルにも現れないため、この宣言が無いと「載せなかった部品」が unmeasured 0 のまま収束し、測り漏れと「本当に無い」が同じ見え方になる。受領ソース（サーバー側テンプレート等）が読めるなら、そこから部品の配置を静的に列挙してから画面を開く。実 UI の歩行はその画面がその時描いたものしか拾わず、本体の周りに置かれた部品（ページャ・設定の保存と復元・右クリックで開くコンテナ）は本体の軸に現れないので集合の側で落ちる。",
     "source": {
       "kind": "<current-source | config | app-ui。強い順で、current-source（受領した現行ソース）が一次情報源。app-ui は実 UI を歩いて列挙した場合>",
       "ref": "<列挙元の所在（テンプレートのパスと範囲・設定名・画面と手順）>",
       "version": "<列挙元の版（コミット SHA・資料の版）。対象版が残らないと後から突き合わせられない>",
       "condition": "<抽出条件。どの画面のどの範囲を全部拾ったか（共通ブロック・マスターページ・部分ビューを含めたか）>"
     },
-    "stronger_source_unavailable_reason": "<kind が current-source 以外のときだけ、受領ソースから列挙できなかった理由（未受領・難読化・動的生成で追えない等）。current-source で列挙したなら null——使ったのに理由が残っていると、弱い情報源から起こしたと誤読される>",
+    "stronger_source_unavailable_reason": "<kind が current-source 以外のときだけ、受領ソースから列挙できなかった理由（未受領・難読化・動的生成で追えない等）。current-source で列挙したなら null にする。使ったのに理由が残っていると、弱い情報源から起こしたと誤読される>",
     "complete": "<真偽値。部品の集合を読み切れたか。true 以外は未列挙として扱われ、部品ゼロで素通りしない>",
     "incomplete_reason": "<complete: false のときだけ、不足しているものと実 UI からの列挙手順。空だと落ちる。complete: true では null>"
   },
@@ -21,7 +21,7 @@
       "id": "<部品 id。cells から参照する>",
       "name": "<部品名（例: 商用データグリッド）>",
       "version": "<現行アプリが使っている版。入手できなければ unknown>",
-      "profile": "<網羅プロファイル id（references/coverage-profiles.md の同梱プロファイル）。適合するものが無ければ null。キーごと省略しない——省略は暗黙の汎用扱いになり、構成要素ごとの候補が導出されないまま通る>",
+      "profile": "<網羅プロファイル id（references/coverage-profiles.md の同梱プロファイル）。適合するものが無ければ null。キーごと省略しない。省略は暗黙の汎用扱いになり、構成要素ごとの候補が導出されないまま通る>",
       "profile_absent_reason": "<profile: null のときだけ、適合プロファイルが無い理由。同じ理由を gaps.md の未検証領域にも残す。空だと coverage-expand.mjs / coverage-check.mjs が落とす。profile を宣言したときは null>",
       "profile_version": "<coverage-expand.mjs が --write で書き戻す、展開に使ったプロファイルの版。同梱プロファイルの版と違えば候補を展開し直す>",
       "instance_inventory": {
@@ -48,7 +48,7 @@
           "category": "<機能表の分類（例: 行操作）。プロファイル由来なら候補ルール id>",
           "name": "<項目名（例: 右クリックのコンテキストメニュー）>",
           "visual_states": [
-            "<この項目の操作で見た目が変わる状態の種別: opens-container | hover | focus | active | disabled | after-operation（重複不可。after-operation は操作を終えた後に残る見た目〈選択の塗り・絞り込みの印・並べ替えの印〉）。プロファイルを宣言した部品では coverage-expand.mjs --write が candidate_rules[].visual_states から書き戻すので手で書かない。プロファイル無しの部品では手で書く。キーごと省略しない——省略は「見た目が変わらない」と「考えていない」を同じ見え方にする>"
+            "<この項目の操作で見た目が変わる状態の種別: opens-container | hover | focus | active | disabled | after-operation（重複不可。after-operation は操作を終えた後に残る見た目〈選択の塗り・絞り込みの印・並べ替えの印〉）。プロファイルを宣言した部品では coverage-expand.mjs --write が candidate_rules[].visual_states から書き戻すので手で書かない。プロファイル無しの部品では手で書く。キーごと省略しない。省略は「見た目が変わらない」と「考えていない」を同じ見え方にする>"
           ],
           "no_visual_state_reason": "<visual_states が空配列のときだけ、この操作で見た目の状態が変わらない理由。空だと coverage-expand.mjs が落とす。非空なら null>",
           "candidate": {
@@ -62,7 +62,7 @@
       "instances": [
         {
           "id": "<インスタンス id。cells から参照する。\"/\" を含めない（候補キー・同値クラスの members が切り分けられない）>",
-          "page": "<metadata.json.capture_conditions.pages[].name に**実在する**ページ名（非空なだけでは通らない。採取は pages を外側のループにして回るので、宣言に無い名前を書いた行はどのページでも撮られない）。撮影状態を要求する行を持つインスタンスでは必須——page が撮影単位（ページ × 状態名 × ビューポート）を決めるキーなので、欠けると状態名の使い回しを判定できず coverage-expand.mjs が落とす>",
+          "page": "<metadata.json.capture_conditions.pages[].name に**実在する**ページ名（非空なだけでは通らない。採取は pages を外側のループにして回るので、宣言に無い名前を書いた行はどのページでも撮られない）。撮影状態を要求する行を持つインスタンスでは必須である。page が撮影単位（ページ × 状態名 × ビューポート）を決めるキーなので、欠けると状態名の使い回しを判定できず coverage-expand.mjs が落とす>",
           "locator": "<そのインスタンスを引く論理名（ロケータマッピングで解決できる名前）>",
           "applicable_states": {
             "_note": "non-renderable absent を使うインスタンスだけが持つ、セルとは独立した適用可能状態manifest。セル側の自己申告だけで網羅済みにしないため、absence_evidence.expected_states と機械照合する。",
@@ -89,7 +89,7 @@
               "extracted_at": "<列挙した日時（ISO 8601）>",
               "condition": "<抽出条件。何を全部拾ったか、プロファイルの enumeration.pitfalls をどう潰したかを書く>"
             },
-            "stronger_source_unavailable_reason": "<source.kind が current-source 以外のときだけ、受領ソースから列挙できなかった理由。fail_closed（読めないときの complete: false）の裏側——読めるのに読まなかった——を残す欄で、current-source で列挙したなら null>",
+            "stronger_source_unavailable_reason": "<source.kind が current-source 以外のときだけ、受領ソースから列挙できなかった理由。fail_closed（読めないときの complete: false）の裏側（読めるのに読まなかったこと）を残す欄で、current-source で列挙したなら null>",
             "complete": "<真偽値。列挙元を読み切れたか。true 以外は未列挙として扱われ、候補ゼロで素通りしない>",
             "incomplete_reason": "<complete: false のときだけ、実 UI からの列挙手順と、その手順でも確定できない不足。空だと落ちる。complete: true では null>",
             "justified_absences": [
@@ -180,12 +180,12 @@
     }
   ],
   "visual_state_coverage": {
-    "_note": "撮影状態の必要集合を網羅表から導いた結果。行の単位は「部品 × インスタンス × 要求元の候補 × 種別」（同値クラスに属する候補は代表へ寄る）。captured の値も同じ撮影単位の中で一意にする（重複は shared_capture_reason が全行にあるときだけ通る）。coverage-expand.mjs --write が rows の component / instance / required_by / kind を present のセルと items[].visual_states から導出して書き戻し（手で書かない）、captured / reason は人／エージェントが埋めた値を同じキー（component + instance + required_by + kind）で引き継ぐ。どちらも空の行は「撮影状態が未決」として problems に出る——これが『導いた集合と capture_conditions.states の差』の報告にあたる。--metadata を渡した実行では captured の状態名が metadata.json の capture_conditions.states に在ることまで照合し、kind: opens-container はさらに capture_conditions.popup_inventory[].captured に在ることを要求する。導出は下限であって上限ではない——操作から導けない状態（error / 初期表示のバリアント）は手で states へ足す。部品に依らない操作の後に残る見た目と戻り先は reactions.json の aftermath が数える。",
+    "_note": "撮影状態の必要集合を網羅表から導いた結果。行の単位は「部品 × インスタンス × 要求元の候補 × 種別」（同値クラスに属する候補は代表へ寄る）。captured の値も同じ撮影単位の中で一意にする（重複は shared_capture_reason が全行にあるときだけ通る）。coverage-expand.mjs --write が rows の component / instance / required_by / kind を present のセルと items[].visual_states から導出して書き戻し（手で書かない）、captured / reason は人／エージェントが埋めた値を同じキー（component + instance + required_by + kind）で引き継ぐ。どちらも空の行は「撮影状態が未決」として problems に出る。これが『導いた集合と capture_conditions.states の差』の報告にあたる。--metadata を渡した実行では captured の状態名が metadata.json の capture_conditions.states に在ることまで照合し、kind: opens-container はさらに capture_conditions.popup_inventory[].captured に在ることを要求する。導出は下限であって上限ではない。操作から導けない状態（error / 初期表示のバリアント）は手で states へ足す。部品に依らない操作の後に残る見た目と戻り先は reactions.json の aftermath が数える。",
     "rows": [
       {
         "component": "<部品 id>",
         "instance": "<インスタンス id>",
-        "required_by": "<この状態を要求した項目 id（プロファイル由来なら候補 id）。coverage-expand.mjs が書き戻す。**ルール id でまとめない**——ルールは複数の軸の直積へ展開されるので、まとめると縮約してはいけない軸（datagrid の sort-direction 等）まで畳んでしまう。縮約は equivalence_classes に宣言した検証済みのクラス経由でだけ行い、そのとき行は代表の候補・代表のインスタンスへ寄る。行のキーの一部——種別だけで束ねると、同じ種別を要求する別の操作（列フィルタの吹き出しと右クリックメニューはどちらも opens-container）が 1 行へ潰れ、片方の状態名を書くだけで門が通る>",
+        "required_by": "<この状態を要求した項目 id（プロファイル由来なら候補 id）。coverage-expand.mjs が書き戻す。**ルール id でまとめない**。ルールは複数の軸の直積へ展開されるので、まとめると縮約してはいけない軸（datagrid の sort-direction 等）まで畳んでしまう。縮約は equivalence_classes に宣言した検証済みのクラス経由でだけ行い、そのとき行は代表の候補・代表のインスタンスへ寄る。この欄は行のキーの一部である。種別だけで束ねると、同じ種別を要求する別の操作（列フィルタの吹き出しと右クリックメニューはどちらも opens-container）が 1 行へ潰れ、片方の状態名を書くだけで門が通る>",
         "kind": "<opens-container | hover | focus | active | disabled | after-operation>",
         "captured": "<撮るなら metadata.json の capture_conditions.states の状態名（kind: opens-container は capture_conditions.popup_inventory[].captured と同じ状態名）。撮らないなら null>",
         "shared_capture_reason": "<同じ撮影単位（同じページ。ページを書いていなければ同じインスタンス）の別の行と captured を共有するときだけ、共有してよい根拠。別々の操作が本当に同じコンテナを開くことを実 UI で確かめた記録を書く。共有する全行に要る（片方だけでは通らない）。反応の網羅表（reactions.json）の撮る状態（反応・残る見た目・状態表示）と同じページ × 状態名を指すときも、両方の表の全行に要る（reaction-check.mjs がこの表を読んで数える）。共有しないなら null。撮影は ページ × 状態名 × ビューポート の単位なので、根拠なく状態名を使い回すと 1 枚で複数の操作を満たしたことになり、撮られなかった側の差が「差 0 件」と同じ見え方に戻る>",

@@ -242,7 +242,7 @@ function takeLock() {
             `終わるまで待つ（この検査は同時に実行できない）。ロック: ${lockPath}`,
         );
       }
-      // 生きていないプロセスのロックは残骸。**奪うのは `renameSync` で行う**——`unlinkSync` だと、
+      // 生きていないプロセスのロックは残骸。**奪うのは `renameSync` で行う**。`unlinkSync` だと、
       // 同じ残骸を読んだ 2 本が「先に貼り直した側の**生きた**ロック」を消してしまい、両方が同時に
       // 作業ツリーへ変異を当てる（ロックが防ぐはずの状態そのもの）。rename は勝者が 1 本に決まり、
       // 負けた側は ENOENT で次の試行へ落ちる。
@@ -453,7 +453,7 @@ function settleTarget(path: string, before: string, after: string): SettleState 
     // 区別せず上書きすると、無関係な編集を消して「変異を戻した」と事実でないログを出す（実測）。
     // 書き戻しが失敗しても対象は変異のまま残るので、次回の起動が自分の変異として戻せる。
     replaceContent(path, before);
-    // **検証を通ってから復元情報を消す**——先に消すと、記録が要るまさにその場合
+    // **検証を通ってから復元情報を消す**。先に消すと、記録が要るまさにその場合
     //（書き戻したのに内容が一致しない）に次回起動が回収できない。
     if (readFileSync(path, "utf8") !== before) return "unrestored";
     clearRecovery();
@@ -522,8 +522,8 @@ function recoverFromInterrupted() {
   }
 }
 
-// 変異を当てている最中のファイル。中断（Ctrl-C・SIGTERM）でも必ず戻す
-// ——戻せないまま終わると、変異したワークフローやスクリプトが作業ツリーに残る。
+// 変異を当てている最中のファイル。中断（Ctrl-C・SIGTERM）でも必ず戻す。
+// 戻せないまま終わると、変異したワークフローやスクリプトが作業ツリーに残る。
 let pending: { path: string; content: string; mutated: string } | null = null;
 
 function cleanupTempDirs() {
@@ -1138,8 +1138,8 @@ function main() {
   let proven = 0;
   let failures = 0;
 
-  // `--only` は**宣言をまたいで** id で絞る指定。選ばれなかった宣言は飛ばす
-  // ——宣言ごとに「1 件も選ばれなかった」で落とすと、宣言が 2 件以上ある時点で
+  // `--only` は**宣言をまたいで** id で絞る指定。選ばれなかった宣言は飛ばす。
+  // 宣言ごとに「1 件も選ばれなかった」で落とすと、宣言が 2 件以上ある時点で
   // `--only <id>` が常に exit 2 になる（実測。宣言は今 3 件ある）。
   const plans: Plan[] = specs.map((spec) => ({
     spec,

@@ -401,7 +401,7 @@ export function specificity(selector) {
  *
  * `css-rules-capture.mjs` は状態擬似クラスをセレクタから剥がして `states` に名前だけ記録するため、
  * `.trigger:hover + .target` は `states: ["hover"]` になる。名前だけで「いまその状態か」を判定すると、
- * `.target` を hover した採取に対してこの規則を成立と扱ってしまう——**隣の要素が hover されているか**は
+ * `.target` を hover した採取に対してこの規則を成立と扱ってしまう。**隣の要素が hover されているか**は
  * 採取ディレクトリ名からは分からない。主語の外に状態が付いていたら成否を決めず undecidable に回す。
  *
  * @param {string} selector - 規則のセレクタ（状態擬似クラスを含む形）。

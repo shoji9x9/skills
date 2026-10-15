@@ -437,7 +437,7 @@ test.each([
   ["3 番目", ["old-low", "old-medium", "--auto"]],
 ])("2 番目以降の未知フラグも、何も書き換える前に拒否する: %s", (_label, args) => {
   // 第 1 引数しか見ないと、先行するノートを忘却したうえで「skip (not a file)」を出し
-  // exit 0 で返る——一部は書き換わっているのに成功として報告される。
+  // exit 0 で返る。一部は書き換わっているのに成功として報告される。
   const dir = makeProject(CANDIDATES);
   try {
     const files = args.map((a) => (a.startsWith("-") ? a : join(dir, ".kaizen", `${a}.md`)));

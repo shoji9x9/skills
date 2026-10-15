@@ -51,7 +51,7 @@ export const DISPOSITIONS = ["blocking", "accepted"];
  */
 export function cellKey(cell) {
   const parts = [cell.component, cell.item, cell.instance];
-  // **区切り文字を含む材料も鍵を作らない**——`("a|b","c","d")` と `("a","b|c","d")` は
+  // **区切り文字を含む材料も鍵を作らない**。`("a|b","c","d")` と `("a","b|c","d")` は
   // どちらも `a|b|c|d` になり、別の操作の記録が別のセルの証拠として通る
   // （指紋も同じ潰れた鍵を数えるので一致してしまう）。
   if (!parts.every((p) => nonEmptyString(p) && !p.includes(KEY_SEPARATOR))) {
@@ -66,7 +66,7 @@ const NO_COMMIT = "none";
 /**
  * 網羅表の `present` セルの鍵から指紋を作る。
  *
- * **指紋は突き合わせ表が「どの網羅表に対する記録か」を縛る**——網羅表が更新されて
+ * **指紋は突き合わせ表が「どの網羅表に対する記録か」を縛る**。網羅表が更新されて
  * `present` が増えたのに古い突き合わせ表が残ると、増えた分が数えられないまま通る。
  * @param {string[]} keys
  * @returns {string}
@@ -127,7 +127,7 @@ export function checkComponentComparison(input) {
       });
       continue;
     }
-    // 鍵の重複は突き合わせ表側と同じく落とす——数え上げ（present / compared / blocking）が
+    // 鍵の重複は突き合わせ表側と同じく落とす。重複を残すと、数え上げ（present / compared / blocking）が
     // 1 セルにつき 2 回進み、網羅の規模も未突合の件数も実際と違う数で報告される。
     if (seenPresent.has(key)) {
       findings.push({
@@ -156,7 +156,7 @@ export function checkComponentComparison(input) {
       message: `突き合わせ表の target「${String(comparison.target)}」が判定対象の target「${String(input.target)}」と違う（別環境の記録で収束させない）`,
     });
   }
-  // **突き合わせは新側の実装の版に紐づく**——target・slug・網羅表の指紋だけで縛ると、
+  // **突き合わせは新側の実装の版に紐づく**。target・slug・網羅表の指紋だけで縛ると、
   // 記録した後に新側を変えても古い証拠が通る。当たり判定・完了の退行はスイートの green に
   // 出ないので、この工程が唯一の網になる。
   const observed = comparison.new_implementation;
@@ -207,7 +207,7 @@ export function checkComponentComparison(input) {
       judgedWanted = wanted;
       const recorded = String(observedCommit).trim();
       if (wanted === NO_COMMIT || recorded === NO_COMMIT) {
-        // **`none` センチネルを素の文字列として比べない**——新側が git 管理を持たないと両側とも
+        // **`none` センチネルを素の文字列として比べない**。新側が git 管理を持たないと両側とも
         // `none` になり、実装をいくら変えても `none !== none` は常に偽で、古い記録が鮮度検査を
         // 永久に素通りする。artifact-health-check.mjs の checkStage と同じく反復回数へ退く。
         // **退き先が無いことを合格として扱わない**。材料（どちらかの反復回数）が読めなければ不合格にする。
@@ -325,10 +325,10 @@ export function checkComponentComparison(input) {
       });
     }
   }
-  // **slug の照合は網羅表との間で常に行う**——`--metadata` は任意なので、metadata があるときだけ見ると、
+  // **slug の照合は網羅表との間で常に行う**。`--metadata` は任意なので、metadata があるときだけ見ると、
   // 別機能からコピーした突き合わせ表が「target と鍵がたまたま一致する」だけで通る（指紋は鍵しか数えない）。
   if (!nonEmptyString(coverage.slug)) {
-    // **網羅表に slug が無いことを免除にしない**——照合相手が消えるだけで、
+    // **網羅表に slug が無いことを免除にしない**。免除にすると照合相手が消えるだけで、
     // 別機能からコピーした突き合わせ表が「鍵と target が一致する」だけで通る。
     findings.push({
       code: "coverage-slug-missing",
@@ -536,7 +536,7 @@ export function main(argv, deps = {}) {
   if (!args["--coverage"]) {
     return fail("--coverage は必須");
   }
-  // **鮮度の照合相手を省けるようにしない**——省くと `comparison-implementation-stale` が
+  // **鮮度の照合相手を省けるようにしない**。省くと `comparison-implementation-stale` が
   // 一度も評価されず、記録の後に新側を変えても古い証拠で収束する。
   if (!args["--replace-metadata"] || args["--replace-metadata"].trim() === "") {
     return fail(
@@ -546,7 +546,7 @@ export function main(argv, deps = {}) {
   // `--target` を省ける形にすると、別環境で採った突き合わせ表がそのまま通る
   // （`comparison-target-mismatch` は照合相手が渡されたときにしか機能しない）。
   // 突き合わせは環境別の記録なので、判定対象の target を必ず受け取る。
-  // **空白だけの値を通さない**——CLI の truthy 判定は通るのに、判定側は非空文字列でないと
+  // **空白だけの値を通さない**。CLI の truthy 判定は通るのに、判定側は非空文字列でないと
   // 「渡されていない」として target 照合を飛ばすため、別環境の記録が通る。
   if (!args["--target"] || args["--target"].trim() === "") {
     return fail(

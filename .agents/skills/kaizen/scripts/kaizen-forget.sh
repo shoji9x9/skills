@@ -255,7 +255,7 @@ fi
 
 # **フラグの検査は第 1 引数だけでは足りない。** 位置が 2 番目以降でも同じ打ち間違いは起きる。
 # 上の case を通り抜けると `kaizen-forget.sh note.md --dry-run` が note を忘却したうえで
-# 「skip (not a file): --dry-run」を出して exit 0 で返る——**一部は書き換わっているのに成功**。
+# 「skip (not a file): --dry-run」を出して exit 0 で返る。つまり**一部は書き換わっているのに成功**になる。
 # 書き換えの前に全引数を検査し、1 つでもフラグがあれば何もせずに落とす。
 for arg in "$@"; do
 	case "${arg}" in

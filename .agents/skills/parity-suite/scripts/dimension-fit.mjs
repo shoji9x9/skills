@@ -171,7 +171,7 @@ export function validateWindows(windows, label) {
     );
   if (!independent) {
     throw new UsageError(
-      `${label} の窓が一直線上に並んでいる（縦横比が一定など）。幅と高さを独立に動かした窓を含める——でないと幅と高さのどちらに追従しているかを分けられない`,
+      `${label} の窓が一直線上に並んでいる（縦横比が一定など）。幅と高さを独立に動かした窓を含める。含めないと、幅と高さのどちらに追従しているかを分けられない`,
     );
   }
   return out;

@@ -532,7 +532,7 @@ test.each([
 
 // ---- 落とす入力（exit 1） ----
 
-test("落とす: 実例の形——favicon を配っていてバイトも同じだが、新側の画面が指していない", async () => {
+test("落とす: 実例の形。favicon を配っていてバイトも同じだが、新側の画面が指していない", async () => {
   const r = await runCheck({
     ledgerText: ledger(FAVICON_ROW),
     record: {
@@ -943,7 +943,7 @@ test("CLI: node で起動し、ローカルの HTTP 配信物を実際に取得�
         join(dir, "probe.json"),
         JSON.stringify(probe({ icons: [{ rel: "icon", href: `${base}${newPath}` }] })),
       );
-      // spawnSync はイベントループを止めるので、同じプロセスのサーバーは応答できない——非同期で起動する。
+      // spawnSync はイベントループを止めるので、同じプロセスのサーバーは応答できない。そのため非同期で起動する。
       return new Promise<{ status: number | null; stdout: string }>((resolveRun) => {
         import("node:child_process").then(({ spawn }) => {
           const child = spawn(

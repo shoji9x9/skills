@@ -1702,7 +1702,7 @@ describe.concurrent("チェックはリポジトリの全作業ツリーの .kai
   });
 
   // `git worktree list` は解決済み（物理）のパスを返す。base をシンボリックリンク越しに受け取ると
-  // 文字列比較では一致せず、**同じ `.kaizen/` を 2 回**返す——同一のセンチネルが二重に数えられ、
+  // 文字列比較では一致せず、**同じ `.kaizen/` を 2 回**返す。同一のセンチネルが二重に数えられ、
   // 案内も他セッションの走査予算も二重に消費される。件数で押さえる。
   test("シンボリックリンク越しの project root でも .kaizen/ を重複して数えない", async () => {
     const { main } = await makeRepoWithWorktree();

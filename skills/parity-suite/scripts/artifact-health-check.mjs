@@ -169,7 +169,7 @@ function sha256File(path) {
 }
 
 /**
- * コメントを除いて指紋を取る拡張子。TypeScript（`.ts` / `.mts` / `.cts`）だけにする——TypeScript で JSX を書けるのは
+ * コメントを除いて指紋を取る拡張子。TypeScript（`.ts` / `.mts` / `.cts`）だけにする。TypeScript で JSX を書けるのは
  * `.tsx` だけだが、JavaScript はトランスパイルで拡張子に関係なく JSX を書ける。JSX のテキスト（`<p>http://x</p>`）の `//` は
  * この字句解析ではコメントと区別できず、テキストの書き換えを見逃すので、`.js` 系と `.jsx` / `.tsx` は生バイトで数える。
  */
@@ -521,7 +521,7 @@ export function checkArtifacts(metadata, ctx) {
           continue;
         }
         const specPath = resolveInside(ctx.root, String(reader).trim());
-        // **閉じ込め拒否と不在を同じ文言にしない**——リンク越しにルート外を指す宣言は実体が在るのに
+        // **閉じ込め拒否と不在を同じ文言にしない**。リンク越しにルート外を指す宣言は実体が在るのに
         // ここで null になるため、「無い」と報告すると原因（閉じ込め拒否）に辿り着けない。
         if (specPath === null) {
           findings.push(
@@ -1491,7 +1491,7 @@ export function checkStage(ctx) {
   // 同じ target の diff-metadata.json が「いまの新側」に対応しているかを見る。
   // dataset_version だけを鮮度にすると、データセットを変えずに parity-replace が作り直した実装に対して、
   // 前の反復で収束した古い diff-metadata.json が、そのままこのチェックを満たす（差分を採り直していないのに「済んだ」に見える）。
-  // 対応づけは両成果物が既に持っている識別子で取る——新側のコミット SHA と反復回数。
+  // 対応づけは、両成果物が既に持っている識別子（新側のコミット SHA と反復回数）で取る。
   const replaceNew = isPlainObject(replaceMeta.new) ? replaceMeta.new : null;
   const diffNew = isPlainObject(diffMeta.new) ? diffMeta.new : null;
 
@@ -1516,7 +1516,7 @@ export function checkStage(ctx) {
   }
 
   // 未コミット変更のある木では「差分を採った実装」を特定できない。
-  // コミットの比較方法（一致 / none / 片側欠落）を選ぶ前に落とす——
+  // コミットの比較方法（一致 / none / 片側欠落）を選ぶ前に落とす。
   // none の枝へ入ると dirty の判定へ到達せず、同じ反復のまま中身だけ変わった実装が素通りする。
   if (replaceNew !== null && replaceNew.dirty === true) {
     findings.push(
@@ -1706,7 +1706,7 @@ export function checkStage(ctx) {
       );
     }
   }
-  // converged が偽でも落とさない——偽は「まだ直っていない」の記録であり、隠す相手ではない。
+  // converged が偽でも落とさない。偽は「まだ直っていない」の記録であり、隠す相手ではない。
   notes.push(
     `工程の成果物を判定（converged: ${JSON.stringify(diffMeta.converged)} は判定に入れない）`,
   );

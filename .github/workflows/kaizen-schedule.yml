@@ -88,8 +88,8 @@ jobs:
           esac
           echo "skip=$skip" >>"$GITHUB_OUTPUT"
 
-      # kaizen スクリプトの置き場はインストール形態で変わる。見つからなければ**落とす**
-      # ——レポートの材料を作れないまま先へ進むと、空の Issue を「異常なし」として出す。
+      # kaizen スクリプトの置き場はインストール形態で変わる。見つからなければ**落とす**。
+      # レポートの材料を作れないまま先へ進むと、空の Issue を「異常なし」として出してしまう。
       #
       # 実行ビットは見ない（`-x` にしない）。`gh skill install` が配るコピーは 100644 で、
       # `.claude/` / `.agents/` 配下のインストール済みスクリプトは実行可能にならない。
@@ -97,7 +97,7 @@ jobs:
       #
       # 探索先は `references/setup.md` が正規配置として列挙するリポジトリ内のパス全部
       # （Copilot 向けの `.github/skills/...` を含む）＋本リポのソース配置。
-      # `$HOME` 配下のユーザースコープは checkout に無いので探さない——そのため
+      # `$HOME` 配下のユーザースコープは checkout に無いので探さない。そのため
       # **スキル本体がリポジトリにコミットされていること**がこのワークフローの前提になる。
       #
       # **レポートと追跡 Issue の照会は、同じディレクトリから採る。** 片方だけ見つかる
@@ -221,8 +221,8 @@ jobs:
       # `node-version` を省くと setup-node は何も入れず、ランナーの既定 Node に依存する。
       # Copilot CLI は Node 22 以上を要求するので明示する。
       # `continue-on-error` を落とさない。カスタム `if:` でも暗黙の `success() &&` は外れないので、
-      # ここが落ちるとジョブが失敗状態になり、後続の Issue 更新まで丸ごと skip される
-      # ——pending 一覧はできているのに、その週の追跡 Issue が作成も更新もクローズもされない。
+      # ここが落ちるとジョブが失敗状態になり、後続の Issue 更新まで丸ごと skip される。
+      # その結果、pending 一覧はできているのに、その週の追跡 Issue が作成も更新もクローズもされない。
       - name: Set up Node.js
         if: steps.cred.outputs.present == 'true' && steps.settings.outputs.agent == 'copilot'
         continue-on-error: true
@@ -294,8 +294,8 @@ jobs:
             elif [ -s "$REPORT_FILE" ]; then
               # 表は 60 行で切って本文の文字数予算を守っているのに、ここが無制限だと
               # 同じ故障（`gh issue edit/create` が上限超過で落ち、その週の Issue が
-              # 作成も更新もされない）がエージェント経由で再現する。行の境界で切る
-              # ——バイト数で切ると日本語が文字の途中で割れる。
+              # 作成も更新もされない）がエージェント経由で再現する。行の境界で切るのは、
+              # バイト数で切ると日本語が文字の途中で割れるためである。
               awk -v max="$MAX_REPORT_CHARS" '
                 { n += length($0) + 1 }
                 n > max {

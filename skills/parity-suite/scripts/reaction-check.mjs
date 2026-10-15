@@ -77,7 +77,7 @@ const REACTION_KINDS = ["observed", "none", "unmeasured"];
 
 /**
  * 文書のオリジンが対象 URL（targets[].url）のオリジンと同じか。
- * 値そのもの（ホスト・ポート）は書かせない——url_command の target は URL を成果物に残さない規約なので、関係だけを記録する。
+ * 値そのもの（ホスト・ポート）は書かせない。url_command の target は URL を成果物に残さない規約なので、関係だけを記録する。
  */
 const ORIGIN_RELATIONS = ["same-origin", "cross-origin"];
 
@@ -317,7 +317,7 @@ const SAFE_KEY = /^[A-Za-z_$][A-Za-z0-9_$-]*$/;
 const NON_TABLE_KEYS = new Set(["conformance", "assertion_audit"]);
 
 /**
- * 表の中で covered_by を持つオブジェクト（持ち主）を全て列挙する。欄の位置を決め打ちせず表全体を歩く——
+ * 表の中で covered_by を持つオブジェクト（持ち主）を全て列挙する。欄の位置を決め打ちせず表全体を歩く。
  * 欄を足すたびに列挙を足す形にすると、足し忘れた欄の covered_by が解決・共有・監査のどれにも入らない。
  * path は JSON の位置（例: $.operations[0].reactions[1]）で、監査の記録（assertion_audit.entries[].path）の突き合わせに使う。
  * @param {Record<string, unknown>} table
@@ -509,7 +509,7 @@ export function coveredByProblems(owners, testIndex) {
 /**
  * assertion の深さの監査の記録（assertion_audit）を検査する。
  * 監査そのもの（期待値のどこを確かめていないか）は実装役と別の subagent が行い、ここでは「全ての持ち主を 1 件ずつ当てた記録が、
- * 今の表に対して残っているか」だけを数える——記録の指紋が表と違えば、監査の後に期待値か covered_by が変わっている。
+ * 今の表に対して残っているか」だけを数える。記録の指紋が表と違えば、監査の後に期待値か covered_by が変わっている。
  * @param {unknown} audit
  * @param {ReturnType<typeof coveredByOwners>} owners
  * @param {string} fingerprint
@@ -625,7 +625,7 @@ export function specsFingerprint(owners, testIndex, rootDir, readFile) {
 /**
  * 監査用の入力（期待値とテストの所在）を作る。監査役の subagent には、これとテストのソースの 2 つだけを渡す。
  * expected は持ち主の欄から covered_by と共有の根拠を除いたもの（期待値そのもの）。
- * context は持ち主を含む祖先（外側から。表そのものは除く）の位置と値の欄——操作の id / trigger、送る前の判定の項目の
+ * context は持ち主を含む祖先（外側から。表そのものは除く）の位置と値の欄である。例えば、操作の id / trigger、送る前の判定の項目の
  * id / kind / condition、状態表示の画面名など。欄だけを渡すと、似た期待値を持つ別の操作・別の判定のテストでも
  * 「届いている」と判定されうる（祖先を 1 段ずつ足すと段の数だけ抜けるので、全ての祖先を載せる）。
  * @param {ReturnType<typeof coveredByOwners>} owners
@@ -1225,7 +1225,7 @@ function aftermathReturnsProblems(ret, screenStates) {
  * 横取り・保留した要求の URL のパターンが、オリジン（スキームとホスト・ポート）を含まない形か。
  * 成果物にホスト・ポートを残さない規約（url_command の target）に合わせ、実行時に解決した URL がそのまま記録されるのを落とす。
  * 先頭の `*`（Playwright の glob）を外した残りが `/` で始まるパス（`//` で始まらない）で、
- * どこにも `://` を含まないものだけを通す——`https://host/…`・`//host/…` に加えて、glob の後ろにスキームやホストを書いた
+ * どこにも `://` を含まないものだけを通す。`https://host/…`・`//host/…` に加えて、glob の後ろにスキームやホストを書いた
  * `*` + `*://host/…` の形も落とす。
  * @param {unknown} v
  * @returns {boolean}
@@ -1614,7 +1614,7 @@ function symbolIn(text, symbol) {
  * 件数・長さ・大きさの上限や必須・形式の検証は、共通部品のクライアント側スクリプトや送信の関数の中に置かれることがあり、
  * 画面の処理にも部品へ渡す引数にも現れない。ふだんの操作では通るので、スイートも差分ツールも両側で緑のまま新側に判定が無いことが分からない。
  * そこで、どこまで追ったか（traced_to）を残させ、判定ごとに境界の両側（通る側と止まる側）を現行で測った記録と assertion を要求する。
- * 判定の順序（確認・記録・送信のどれより前か）も order に残させる——順序が違うと、止めたときに残る記録や出る確認の回数が変わる。
+ * 判定の順序（確認・記録・送信のどれより前か）も order に残させる。順序が違うと、止めたときに残る記録や出る確認の回数が変わる。
  * @param {unknown} ps
  * @returns {{ problems: { problem: string, unmeasured: boolean }[], refs: { file: string, symbol: string, label: string }[] }}
  */
@@ -2267,7 +2267,7 @@ export function checkReactions(table, opts = {}) {
   }
   const windowMs = positiveNumber(table.observation_window_ms) ? table.observation_window_ms : null;
   // 操作の無い表には none の反応が無いので、観測時間の下限は null でよい（測っていない値を書かせない）。
-  // 正の数を書いた表も通す——照合する none が無いので値は判定に使われず、落とす理由が無い
+  // 正の数を書いた表も通す。照合する none が無いので値は判定に使われず、落とす理由が無い
   const noOperations = isArray(table.operations) && table.operations.length === 0;
   if (windowMs === null && !(noOperations && table.observation_window_ms === null))
     problems.push(
@@ -2914,7 +2914,7 @@ export function readCoverageCaptures(metadata, pageNames, readFile, cwd) {
 }
 
 /**
- * capture_conditions.pages から画面名の集合を作る。名前の無い・空・重複した宣言は警告なしに捨てずに落とす——
+ * capture_conditions.pages から画面名の集合を作る。名前の無い・空・重複した宣言は警告なしに捨てずに落とす。
  * 捨てると、宣言した画面の一部が期待集合から消え、状態表示の全画面の振り分けが残りの画面だけで通る。
  * @param {unknown[]} pages
  * @returns {Set<string>}

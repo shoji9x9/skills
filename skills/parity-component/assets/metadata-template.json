@@ -18,7 +18,7 @@
   },
   "dataset_version": "<採取時の .replace/dataset/metadata.json の version。データ依存部品の抽出データの出所でもある。陳腐化は版の数値では決まらず、この版から現在までの changes[].affects がこの部品の実効参照テーブルと交差するときだけ。判定規則の原本は golden-dataset の references/versioning.md>",
   "capture": {
-    "complete": "<採取が**比較の母集合**（instances × capture.states − 宣言済みの unreachable_states）で完了したか。全インスタンス × 全状態ではない——宣言済みの到達不能な組み合わせを数えると、正当な採取が永久に false のまま build を塞ぐ。build はこの値が true のときだけ進む。真偽値で書く>",
+    "complete": "<採取が**比較の母集合**（instances × capture.states − 宣言済みの unreachable_states）で完了したか。全インスタンス × 全状態ではない。宣言済みの到達不能な組み合わせを数えると、正当な採取が永久に false のまま build を塞ぐ。build はこの値が true のときだけ進む。真偽値で書く>",
     "states": [
       "<採った状態名（default / hover / active / focus / disabled / checked 等）。全インスタンスで同じ集合にする>"
     ],
@@ -134,7 +134,7 @@
     "ok": "<axis-diff.mjs が exit 0 で通ったか。false のまま build へ進まない。真偽値で書く>",
     "variable": "<可変と割り出された軸の件数（概観用。判断の記録は component-api.md）>",
     "fixed": "<固定と割り出された軸の件数（概観用）>",
-    "measured": "<突き合わせられた軸の件数（fixed + variable）。0 件なら axis-diff.mjs は合格にしない——合否は問題の不在ではなく測れた件数で決まる>",
+    "measured": "<突き合わせられた軸の件数（fixed + variable）。0 件なら axis-diff.mjs は合格にしない。合否は、問題の不在ではなく測れた件数で決まる>",
     "not_compared": "<軸の割り出しから外した 組み合わせ（[{ instance, state }]）。あるインスタンスで到達できない状態は 突き合わせる相手が居ないため固定とも可変とも言えない。その組み合わせは照合の母集合からも外れる（到達できないので基準が無く見本も作らない）。外した事実と理由は gaps.md に残す>"
   },
   "capture_gaps": {

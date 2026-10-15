@@ -10,7 +10,7 @@
 // | 区切り       | && / \|\| / ; / \| / 改行（セグメントごとに判定する）                                  |
 // | 危険語なし   | 通常のコマンド（hot path で即 exit 0）                                                 |
 //
-// 誤検知しないことの確認（通さねばならない入力）が、止める入力と同数以上あることが要点——
+// 誤検知しないことの確認（通さねばならない入力）が、止める入力と同数以上あることが要点である。
 // 止める入力だけのテストでは、「全部落とす実装」と区別が付かない。
 import { assert, test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
@@ -53,7 +53,7 @@ const PASSING = [
   // 単引用符の中は展開されない＝データ。コマンド置換の形をしていても実行されない。
   ["単引用符のコマンド置換はデータなので通す", "TPL='$(gh api x --body-file b)'"],
   ["echo の引数に書いた注意書きは通す", 'echo "gh api --body-file は無い"'],
-  // ルール 2 も同じ扱いにする——「話題にしているだけ」の呼び出しを止めない。
+  // ルール 2 も同じ扱いにし、「話題にしているだけ」の呼び出しを止めない。
   ["コミットメッセージで pkill に言及するだけなら通す", 'git commit -m "docs: never use pkill -f"'],
   ["echo で pkill に言及するだけなら通す", "echo 'avoid pkill -f patterns'"],
   ["grep のパターンに pkill と書くだけなら通す", "cat AGENTS.md | grep -- 'pkill -f'"],

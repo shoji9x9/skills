@@ -73,7 +73,7 @@ const NONE_SENTINEL = "-";
 /**
  * セルの表記ゆれを畳む。コード引用（`）・強調（*）・全角空白・前後の空白を落とす。
  *
- * **`_` は落とさない**——識別子（`order_items`）の一部であり、落とすと別のテーブル名
+ * **`_` は落とさない**。`_` は識別子（`order_items`）の一部であり、落とすと別のテーブル名
  * （`orders_2024` と `orders2024`）が同じ鍵に潰れる。`_` による強調は表のセルでは使わない。
  *
  * @param {string} cell
@@ -102,7 +102,7 @@ export function parseTables(markdown) {
   let i = 0;
   /** @param {string} line */
   const splitRow = (line) => {
-    // **エスケープされたパイプ（`\|`）はセルの区切りではない**——境界として割ると列がずれ、
+    // **エスケープされたパイプ（`\|`）はセルの区切りではない**。境界として割ると列がずれ、
     // 正当な設計が「件数が読めない」等の無関係な finding で落ちる。
     const trimmed = line
       .trim()
@@ -195,7 +195,7 @@ export function rowsAsRecords(table) {
 /**
  * 一覧セル（`orders, order_items` / `-` / 空欄）を読む。
  *
- * **空欄と `-` を同じに扱わない**——空欄は「まだ調べていない」で、`-` だけが「調べた結果ゼロ件」。
+ * **空欄と `-` を同じに扱わない**。空欄は「まだ調べていない」で、`-` だけが「調べた結果ゼロ件」。
  *
  * @param {string} cell
  * @returns {{ kind: "blank" | "none" | "items", items: string[] }}
@@ -262,7 +262,7 @@ export function splitTopLevel(value) {
 /**
  * 述語の文面が指定の列を**識別子として**含むか。
  *
- * **部分文字列で見ない**——`owner_id = :me` は `id` を部分文字列として含むので、
+ * **部分文字列で見ない**。`owner_id = :me` は `id` を部分文字列として含むので、
  * `id, owner_id` のように一方が他方の一部になる列名の組では、片方の分岐が数えられていなくても通る。
  * 前後が識別子を構成しない文字（英数字・`_` 以外）であることまで確かめる。
  *
@@ -298,7 +298,7 @@ export function filterColumn(filter) {
 /**
  * 列と述語行を 1 対 1 で対応づける（二部マッチング。Kuhn の増加路法）。
  *
- * **行の再利用を許さない**——1 行が複数の列の文面を含むと、その 1 行で複数の絞り込みを
+ * **行の再利用を許さない**。1 行が複数の列の文面を含むと、その 1 行で複数の絞り込みを
  * 満たしたことになり、真・偽の行数は結合した条件のものしか表さない。
  * 貪欲だと「後の列が使える行を先の列が取る」形で取りこぼすので、増加路で全体の最大マッチングを取る。
  *
@@ -397,7 +397,7 @@ export function collectConsumers(featuresMarkdown) {
       if (list.kind === "blank") {
         findings.push({
           code: "features-reference-blank",
-          message: `${source.label} が空欄（slug: ${slug}）。空欄は未調査であり「参照テーブル無し」ではない——replace-strategy 側で埋めてから設計する`,
+          message: `${source.label} が空欄（slug: ${slug}）。空欄は未調査であり「参照テーブル無し」ではない。replace-strategy 側で埋めてから設計する`,
         });
         continue;
       }
@@ -595,7 +595,7 @@ export function checkPredicateCoverage(input) {
   }
 
   // 4. 述語ごとの真・偽（0 件の側があれば踏めない）
-  // 「値の出どころ」列は必須列に入れない——入れると表そのものが無い（exit 2）と同じ出力になり、
+  // 「値の出どころ」列は必須列に入れない。入れると表そのものが無い（exit 2）と同じ出力になり、
   // 列を足せば直る設計を「表が読めない」と取り違える。列の欠けは不備（exit 1）として名指しする。
   const hasOriginColumn = predicateTable.headers.includes("値の出どころ");
   if (!hasOriginColumn) {
@@ -707,7 +707,7 @@ export function checkPredicateCoverage(input) {
   }
 
   // 5. 消費側パラメータの絞り込みが、述語として列挙されているか
-  // **表が無いときを素通りさせない**——絞り込みの一覧が読めないと、この節は 0 行の走査になり
+  // **表が無いときを素通りさせない**。絞り込みの一覧が読めないと、この節は 0 行の走査になり
   // 「絞り込みが 1 つも無い」と「絞り込みを数えていない」が同じ（findings 0 件）に見える。
   if (!paramTable) {
     findings.push({
@@ -824,7 +824,7 @@ export function checkPredicateCoverage(input) {
   // 消費側が述語へ渡す前に変換する（32 ビット整数への変換・桁の切り詰め・型の上限）と別の値になり、
   // 述語は設計どおり真でも、消費側が取得する行は 0 件になる。
   // 分岐網羅の表と verification.md は設計者の値で数えるので、何も出ない。
-  // **消費側 (slug, テーブル) ごとに変換を列挙させる**——表ごと 1 行で済ませると、変換する消費側が 1 つでも
+  // **消費側 (slug, テーブル) ごとに変換を列挙させる**。表ごと 1 行で済ませると、変換する消費側が 1 つでも
   // 在ることが「別の消費側で届いた」に隠れる。
   const idRangeTable = findTable(designTables, "識別子の値の範囲", [
     "テーブル",
@@ -858,7 +858,7 @@ export function checkPredicateCoverage(input) {
       const tableName = normalizeCell(row["テーブル"]);
       const column = normalizeCell(row["列"]);
       const reason = normalizeCell(row["根拠"]);
-      // 根拠の `-` は空欄と同じく欠けとして扱う——`-` は「調べた結果ゼロ件」の印で、根拠の代わりにならない。
+      // 根拠の `-` は空欄と同じく欠けとして扱う。`-` は「調べた結果ゼロ件」の印で、根拠の代わりにならない。
       const reasonMissing = reason === "" || reason === NONE_SENTINEL;
       if (tableName === "" && column === "") continue;
       const label = `${tableName || "（テーブル空欄）"}.${column || "（列空欄）"}`;
@@ -909,7 +909,7 @@ export function checkPredicateCoverage(input) {
         });
         continue;
       }
-      // 列は 1 行に 1 つ——`id, parent_id` のように並べると、変換の違う識別子が 1 つの「届くか」を共有する。
+      // 列は 1 行に 1 つにする。`id, parent_id` のように並べると、変換の違う識別子が 1 つの「届くか」を共有する。
       if (splitList(column).items.length > 1) {
         findings.push({
           code: "id-range-column-multiple",
@@ -934,7 +934,7 @@ export function checkPredicateCoverage(input) {
           message: `識別子の値の範囲の ${label} の「受け取る型・変換」が空欄（未調査。変換が無いなら - と書く）`,
         });
       }
-      // 根拠は届く・届かないを問わず要る——届くかは変換の意味から設計者が判定した自己申告で、
+      // 根拠は届く・届かないを問わず要る。届くかは変換の意味から設計者が判定した自己申告で、
       // 読み手が確かめられる材料（帯が型の上限に収まる等）が無いと、届くと書くだけで通る。
       if (reasonMissing) {
         findings.push({
@@ -980,7 +980,7 @@ export function checkPredicateCoverage(input) {
         continue;
       }
       if (reach === "届く") {
-        // 空欄は受けない——空欄は未調査で、`-` だけが「届くので何もしない」と決めた記録（書き分けの規律）。
+        // 空欄は受けない。空欄は未調査で、`-` だけが「届くので何もしない」と決めた記録（書き分けの規律）。
         if (disposition !== NONE_SENTINEL) {
           findings.push({
             code: "id-range-disposition-vocabulary",
@@ -1039,7 +1039,7 @@ export function checkPredicateCoverage(input) {
 
   // 6. 投入後の実測件数（渡されたときだけ）
   //
-  // **「渡していない」と「渡した中身が空」を書き分ける。** 空文字も分岐へ入れて表の不在として落とす——
+  // **「渡していない」と「渡した中身が空」を書き分ける。** 空文字も分岐へ入れて表の不在として落とす。
   // 空を未指定に丸めると、verification.md を空で作った（あるいは書き出しに失敗した）場合に
   // 6 節の検査が丸ごと飛び、「実測していない」が「実測して問題なし」と同じ見え方になる。
   if (typeof input.verificationMarkdown === "string") {
@@ -1183,7 +1183,7 @@ export function main(argv, deps = {}) {
     ["features", featuresPath],
     ["design", designPath],
   ];
-  // `--verification` は任意だが、**値が空のときは未指定へ丸めない**——丸めると 6 節の検査が飛び、
+  // `--verification` は任意だが、**値が空のときは未指定へ丸めない**。丸めると 6 節の検査が飛び、
   // 指定したつもりの利用者に「実測して問題なし」と同じ出力を返す。
   if (verificationPath !== undefined) {
     if (verificationPath.trim() === "") {

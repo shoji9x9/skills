@@ -74,7 +74,7 @@ const DISPOSITIONS = ["keep", "may_change", "carried_over"];
 
 /**
  * 照合キーの表記ゆれ（前後の空白・連続空白）だけを吸収する。
- * 大文字小文字は畳まない——散文の宣言は固有名を含み、畳むと別の宣言が同一視されうる。
+ * 大文字小文字は畳まない。散文の宣言は固有名を含み、畳むと別の宣言が同一視されうるためである。
  *
  * @param {unknown} v
  * @returns {string}
@@ -90,7 +90,7 @@ export function matchKey(v) {
  *
  * slug は、機能・横断 API・バッチ・その他の Issue で**同じ名前空間**を共有する（replace-strategy の
  * `assets/features-template.md` で定義する）。どれも 1 列目が `slug` の表に並ぶ。ここではその表だけを読む。
- * **slug 表が 1 つも無いファイルは読めなかったものとして null を返す**——空集合を返すと
+ * **slug 表が 1 つも無いファイルは読めなかったものとして null を返す**。空集合を返すと
  * 「インベントリに 1 件も無い」と区別が付かない。
  *
  * @param {string} markdown
@@ -191,8 +191,8 @@ export function normalizePending(entries, knownSlugs = null) {
     const rawSlug = nonEmptyString(rec.slug) ? String(rec.slug).trim() : null;
     // 帰属を信用できるのは、書き手が読めていてその書き手が機能 slug を書け、かつその slug が
     // 機能インベントリに実在する場合だけ。書き手が読めない要素（added_by の欠落・unknown・未知の名前）も、
-    // 実在しない slug（綴り違い・部品 slug）も、別機能に帰属すると読めていることにならない
-    // ——どちらもその「担当機能」が現れないまま永久に棚卸しされない。
+    // 実在しない slug（綴り違い・部品 slug）も、別機能に帰属すると読めていることにならない。
+    // どちらもその「担当機能」が現れないまま永久に棚卸しされない。
     // インベントリを読めていない（knownSlugs が null）ときは何も検証できないので緩和を適用しない。
     // cross-cutting は書き手に依らず帰属不明と同じ範囲（全機能）なのでそのまま信用してよい。
     const writerWritesFeatureSlug = writer !== null && FEATURE_SLUG_WRITERS.has(writer);
@@ -366,7 +366,7 @@ export function countTriage(registries, record, slug, knownSlugs = null) {
   const scoped = items.filter((item) => inScope(item, slug));
   const pendingKeys = new Set(items.map((item) => item.key));
   // 照合キー → 設定ファイル側の帰属。重複キーは上で不整合として報告するが、全て別機能に帰属する重複は
-  // 報告だけ（out_of_scope）なので終了コードには出ない。その場合ここは後勝ちになる——ただし
+  // 報告だけ（out_of_scope）なので終了コードには出ない。その場合ここは後勝ちになる。ただし、
   // その帰属を記録した棚卸しは「対象外の slug」または「帰属が違う」で落ちるため、素通りにはならない。
   /** @type {Map<string, (string|null)>} */
   const pendingSlugs = new Map(items.map((item) => [item.key, item.slug]));
