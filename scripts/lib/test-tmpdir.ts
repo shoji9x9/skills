@@ -11,7 +11,7 @@
 //   その階層の `afterAll` で消す。`base` を渡すと `tmpdir()` の代わりにその下に作る（vitest が収集する `scripts/` 配下の fixture など）。
 // - `makeTempDirFactory`: 並べて実行するテスト（`test.concurrent`・`describe.concurrent`）用。収集時に呼んで作る関数を受け取り、
 //   テストの中ではそれで作る。作ったものは共有の 1 つのディレクトリの下に置き、その階層の `afterAll` でまとめて消す。
-//   並べたテストの中では、vitest が「いま実行中のテスト」を正しく追えない（実測で、テスト a の中で b を返し、
+//   並べたテストの中では、vitest が「いま実行中のテスト」を正しく追えない（vitest 4 の実測で、テスト a の中で b を返し、
 //   `await` の後は undefined を返した）。そこで `makeTempDir` を呼ぶと、別のテストの終わりに消える予約になり、
 //   まだ使っているディレクトリが消える。それを避けるため、`makeTempDir` は並べたテストの中では例外にする（Issue #590）。
 import { mkdtempSync, rmSync } from "node:fs";
