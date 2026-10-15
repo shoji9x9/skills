@@ -7,7 +7,7 @@ applied-to: []
 session: claude-code
 ---
 
-# Dependabot の見送りに major の ignore を提案し、待ちたい次の版（7.1）まで止める形にしていた
+# TypeScript 7.0 の Dependabot の PR を見送る案に major の ignore を書き、待ちたい TypeScript 7.1 まで止める形にしていた
 
 ## 事象
 
@@ -23,7 +23,9 @@ major を ignore すると 7.x のすべてが対象になり、待ちたい 7.1
 
 ## 提案
 
-dependabot-merge の判断ガイドに、見送るときは待つ版を先に決め、その版を含まない最小の単位（minor など）で ignore する、と書く。
+dependabot-merge の判断ガイドに、見送るときは待つ版を先に決め、その版を含まない最大の単位（7.1 を待つなら 7.0 の minor）で ignore する、と書く。
 
+- 単位が小さすぎると（patch）、同じ minor の次の patch の PR がまた作られる。大きすぎると（major）、待つ版の PR も作られない
 - major の ignore は、その major を使わないと決めたときだけにする
+- グループの PR では `ignore this ...` の形が使えないので、`@dependabot ignore <依存の名前> minor version` の形で書く
 - 根拠: <https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-pull-request-comment-commands>
