@@ -6,7 +6,8 @@
 #   （dependabot-merge スキル）に回す。
 # - github-actions はタグが semver を厳密に守らない（必須 CI も構文・ピン留めしか見ない）ため、
 #   決定論的自動マージの対象外とし、常にレビューラベルへ回す。
-# メジャー更新は dependabot.yml の ignore で PR が作られない前提だが、ここでも二重にガードする。
+# - major の更新は破壊的な変更を前提にするため、エコシステムに関わらず自動マージせず、
+#   レビューラベルへ回す（dependabot.yml は major を 1 パッケージ 1 PR で作る）。
 # 前提: リポジトリ設定で「Allow auto-merge」が有効であること（gh repo edit --enable-auto-merge）。
 name: Dependabot auto-merge
 
@@ -62,13 +63,13 @@ jobs:
               exit 0
               ;;
           esac
-          # 対象は minor/patch のみ。major は dependabot 設定で無視済み（万一来たら何もしない）。
+          # 自動マージの対象は minor/patch のみ。major は破壊的な変更を前提にするので手動レビューへ回す。
           # update-type が不明/空のときは取りこぼさないよう手動レビューへ回す（判定できないものは手動で見る）。
           case "$UPDATE_TYPE" in
             version-update:semver-minor | version-update:semver-patch) ;;
             version-update:semver-major)
-              echo "major は対象外のため何もしない"
-              echo "decision=skip" >>"$GITHUB_OUTPUT"
+              echo "major の更新のため手動レビューへ回す"
+              echo "decision=review" >>"$GITHUB_OUTPUT"
               exit 0
               ;;
             *)
@@ -118,7 +119,7 @@ jobs:
           # ラベルを作成する（--force で既存なら説明・色を最新に更新し、説明が陳腐化しない）。
           gh label create "dependabot/needs-review" \
             --repo "$REPO" \
-            --description "Dependabot PR needs agent review (0.x / github-actions / auto-merge fallback)" \
+            --description "Dependabot PR needs agent review (major / 0.x / github-actions / auto-merge fallback)" \
             --color "D93F0B" \
             --force 2>/dev/null || true
           gh pr edit "$PR_URL" --add-label "dependabot/needs-review"
