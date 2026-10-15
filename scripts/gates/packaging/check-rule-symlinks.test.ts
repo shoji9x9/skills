@@ -254,6 +254,20 @@ test("宣言した文書の frontmatter に applyTo が無ければ検出する"
   cleanup(root);
 });
 
+test("宣言した文書の frontmatter の YAML が読めなければ、例外にせず違反として検出する", () => {
+  const root = makeDocRepo({ text: `---\napplyTo: [\n---\n\n# style\n\n## 後半\n` });
+  const { violations } = checkRuleSymlinks(root, [...DOC_INSTRUCTIONS, DOC]);
+  expect(violations.filter((v) => v.includes("frontmatter の YAML を読めない"))).toHaveLength(1);
+  cleanup(root);
+});
+
+test("CRLF で保存した文書でも、reviewedUntil の見出しを見つける", () => {
+  const root = makeDocRepo({ text: docText("style", DOC.reviewedUntil).replaceAll("\n", "\r\n") });
+  const { violations } = checkRuleSymlinks(root, [...DOC_INSTRUCTIONS, DOC]);
+  expect(violations.filter((v) => v.startsWith("docs/style.md"))).toEqual([]);
+  cleanup(root);
+});
+
 test("宣言した文書に reviewedUntil の見出しが無ければ検出する", () => {
   const root = makeDocRepo({ text: docText("style", "## 別の見出し") });
   const { violations } = checkRuleSymlinks(root, [...DOC_INSTRUCTIONS, DOC]);

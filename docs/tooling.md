@@ -144,8 +144,10 @@ Bash の実行前のチェック（PreToolUse）として、`scripts/hooks/bash-
 `stop_hook_active` が true のとき（既に書き直させた後）は通し、node が無い環境では警告だけを出して通す。設定は Claude Code だけで、Codex と Copilot には入れていない。
 
 同じ Stop で、`scripts/hooks/response-word-check.ts` が、最後の応答に使わない語（`.textlint/words.json`）が含まれていないかを確かめる。
-判定は textlint の `ai-words-ja/no-ai-words` の規則だけで行い、引用・ハーネスのタグの塊とコードは対象から外す。見つかれば、辞書の言い換えを添えて exit 2 で書き直させる。
-`stop_hook_active` が true のときは通し、textlint の設定を読めないときや規則が無効なときは、書き直させずに exit 1 にする。設定は Claude Code だけである。
+判定は textlint の `ai-words-ja/no-ai-words` の規則と、記号が続く形も拾うダッシュの規則（`local/no-dash-emphasis`）で行い、引用・ハーネスのタグの塊とコードは対象から外す。
+見つかれば、辞書の言い換えを添えて exit 2 で書き直させ、止めたことを一時ディレクトリの印（session ごとのファイル）に残す。
+`stop_hook_active` が true のときも、印が無ければ（別の Hook が書き直させた後なら）確かめる。印が在れば、この Hook が既に止めた後なので通す。
+textlint の設定を読めないときや規則が無効なときは、書き直させずに exit 1 にする。設定は Claude Code だけである。
 
 シークレットの走査は `gitleaks` で行う。pre-commit は staged の差分を（`gitleaks git --staged`）、CI はリポジトリ全体と全履歴を（`Secret scan` ジョブ、`fetch-depth: 0`）走査する。
 

@@ -71,7 +71,12 @@ export async function main(
   const marker = blockedMarker(payload.session_id, markerDir);
   if (payload.stop_hook_active !== true) {
     // 新しい一続きの最初の Stop なので、前の一続きで止めた印を消す。
-    if (marker) rmSync(marker, { force: true });
+    // 消せなくても判定は続ける（印が残ると、この一続きで続けさせた後の応答を確かめずに通すだけである）。
+    try {
+      if (marker) rmSync(marker, { force: true });
+    } catch (error) {
+      console.error(`response-word-check: 前の印を消せない: ${errorMessage(error)}`);
+    }
   } else if (!marker || existsSync(marker)) {
     // この一続きで既に止めた（か、印を置けない）なら通す。書き直しても判定が変わらない応答で、止め続けないためである。
     return 0;
@@ -89,7 +94,8 @@ export async function main(
   if (findings.length === 0) return 0;
   console.error([REWRITE_REQUEST, ...findings.map((f) => `- ${f}`)].join("\n"));
   try {
-    if (marker) writeFileSync(marker, "");
+    // 共有の tmpdir に置くので、同じ名前のシンボリックリンクやファイルが先に在れば書かない（wx は辿らずに失敗する）。
+    if (marker) writeFileSync(marker, "", { flag: "wx" });
   } catch (error) {
     // 印を残せなくても書き直しは求める。次の Stop で同じ語が残っていれば、もう一度止める。
     console.error(`response-word-check: 止めた印を残せない: ${errorMessage(error)}`);

@@ -63,13 +63,22 @@ function checkDocShape(root: string, doc: DocInstruction): string[] {
   const text = readFileSync(join(root, doc.canon), "utf8");
   const out: string[] = [];
   const split = splitFrontmatter(text);
-  const fm = split ? loadYamlAs<{ applyTo?: unknown }>(split.fm) : null;
+  let fm: { applyTo?: unknown } | null = null;
+  try {
+    fm = split ? loadYamlAs<{ applyTo?: unknown }>(split.fm) : null;
+  } catch (error) {
+    // 他の不備と一緒に報告できるように、読めない frontmatter も違反として返す。
+    out.push(`${doc.canon}: frontmatter の YAML を読めない: ${errorMessage(error)}`);
+    return out;
+  }
   if (typeof fm?.applyTo !== "string" || fm.applyTo.trim() === "") {
     out.push(
       `${doc.canon}: frontmatter に applyTo が無い（Copilot のレビューが PR のファイルに当てない）`,
     );
   }
-  const at = text.split("\n").findIndex((line) => line === doc.reviewedUntil);
+  // CRLF で保存した文書でも見出しを見つけられるように、行末の \r を外して比べる。
+  const lines = text.split(/\r?\n/);
+  const at = lines.findIndex((line) => line === doc.reviewedUntil);
   if (at < 0) {
     out.push(
       `${doc.canon}: 見出し「${doc.reviewedUntil}」が無い（Copilot が読む範囲を確かめられない）`,
@@ -77,8 +86,7 @@ function checkDocShape(root: string, doc: DocInstruction): string[] {
   } else {
     // 文字数は、Copilot の数え方に近い符号位置の数で数える。
     const before = [
-      ...text
-        .split("\n")
+      ...lines
         .slice(0, at)
         .map((line) => `${line}\n`)
         .join(""),
@@ -230,7 +238,8 @@ if (isCliEntry()) {
     console.error(
       `Fix: 各 rule について ln -s ../../${CANON_DIR}/<name>.md .claude/rules/<name>.md と` +
         ` ln -s ../../${CANON_DIR}/<name>.md .github/instructions/<name>.instructions.md を作る。` +
-        ` DOC_INSTRUCTIONS の文書は ln -s ../../<canon> .github/instructions/<name>.instructions.md を作る。`,
+        ` DOC_INSTRUCTIONS の文書は ln -s ../../<canon> .github/instructions/<name>.instructions.md を作る。` +
+        ` 文書の applyTo と文字数の不備は、frontmatter に applyTo を書くか、reviewedUntil の見出しより前を ${REVIEW_READ_LIMIT} 文字以内に縮めて直す。`,
     );
     process.exit(1);
   }

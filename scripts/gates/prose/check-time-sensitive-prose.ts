@@ -149,8 +149,10 @@ export const SELF_FIXTURES = [
   "scripts/gates/prose/check-time-sensitive-prose.mutations.json",
 ];
 
+// 「目下」は語の始まりにあるときだけ拾う。前が文字なら別の語の一部（項目下・見た目下）とみなす。
+// ただし、前が助詞（は・も・が・で・に・を）なら語の始まりとみなす。
 const TIME_WORD_RE =
-  /(?<![の「])(?:現状は|現状では|現時点|当面|今のところ|いまのところ)|(?<![の「\p{Script=Han}])目下/gu;
+  /(?<![の「])(?:現状は|現状では|現時点|当面|今のところ|いまのところ)|(?:(?<=[はもがでにを])|(?<![\p{L}\p{N}「]))目下/gu;
 const DATE_RE =
   /(?<![\w-])(?:20\d\d-\d\d-\d\d(?![\w-]*\.md)|20\d\d\/\d\d\/\d\d|20\d\d\s*年\s*\d{1,2}\s*月)/g;
 const SLASH_COMMENT_EXT_RE = /\.(?:[cm]?[jt]sx?|[cm]ts)$/;

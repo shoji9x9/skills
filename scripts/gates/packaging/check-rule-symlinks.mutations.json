@@ -95,6 +95,26 @@
       "expect_failing": [
         "reviewedUntil の見出しより前の文字数が上限ちょうどなら、それに応じて報告する"
       ]
+    },
+    {
+      "id": "RS-YAML-THROWS",
+      "why": "読めない frontmatter を違反にせず例外で終わる（他の不備と一緒に報告しない）",
+      "file": "scripts/gates/packaging/check-rule-symlinks.ts",
+      "find": "out.push(`${doc.canon}: frontmatter の YAML を読めない: ${errorMessage(error)}`);",
+      "replace": "throw error;",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言した文書の frontmatter の YAML が読めなければ、例外にせず違反として検出する"
+      ]
+    },
+    {
+      "id": "RS-CRLF",
+      "why": "行末の \\r を外さずに見出しと比べる（CRLF の文書で見出しが無いと誤って報告する）",
+      "file": "scripts/gates/packaging/check-rule-symlinks.ts",
+      "find": "const lines = text.split(/\\r?\\n/);",
+      "replace": "const lines = text.split(\"\\n\");",
+      "occurrences": 1,
+      "expect_failing": ["CRLF で保存した文書でも、reviewedUntil の見出しを見つける"]
     }
   ]
 }

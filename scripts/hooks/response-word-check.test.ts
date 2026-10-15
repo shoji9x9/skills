@@ -6,7 +6,7 @@
 // | -------------- | ----------------------------------------------------------------------------- |
 // | 入力           | 正常な Hook JSON / 不正な JSON / オブジェクトでない JSON                        |
 // | 続けさせた後か | stop_hook_active が true / false / 欠落                                        |
-// | 止めた印       | 無い / 在る（この一続きで止めた）/ session_id が使えない形                        |
+// | 止めた印       | 無い / 在る（この一続きで止めた）/ session_id が使えない形 / 消せない / 先に在るシンボリックリンク |
 // | ダッシュ       | `——` の後に「「」「（」「。」/ `――`（U+2015）/ 1 文字の `—`                      |
 // | 本文           | 欠落 / 文字列でない / 空白だけ / 使わない語が 0 個・1 個・2 個                    |
 // | 語の位置       | 本文 / コードブロック / インラインコード / 引用 / ハーネスのタグの塊             |
@@ -15,7 +15,7 @@
 // | 設定           | 読める / .textlintrc.json が無い                                               |
 //
 // 通す入力が止める入力と同じ数以上あることが要点である。止める入力だけのテストでは、「全部止める実装」と区別できない。
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
@@ -122,6 +122,18 @@ test("通す: 新しい一続きの最初の Stop は、前の一続きの印を
   expect(existsSync(marker)).toBe(false);
 });
 
+test("通す: 前の印を消せなくても、例外で終わらずに判定を続ける", async () => {
+  const marker = blockedMarker("s", markerDir);
+  if (!marker) throw new Error("印のパスを作れない");
+  // ディレクトリは recursive なしの rmSync で消せないので、消せない印の代わりに置く。
+  mkdirSync(marker);
+  const { status, stderr } = await run(
+    hook({ stop_hook_active: false, last_assistant_message: PLAIN }),
+  );
+  expect(status).toBe(0);
+  expect(stderr).toContain("前の印を消せない");
+});
+
 test.each([
   ["欠落", {}],
   ["文字列でない", { last_assistant_message: 1 }],
@@ -149,6 +161,19 @@ test("止める: 別の Hook が続けさせた後（stop_hook_active が true �
   expect(status).toBe(2);
   expect(stderr).toContain(FIRST.message);
   expect(existsSync(blockedMarker("s", markerDir) ?? "")).toBe(true);
+});
+
+test("止める: 印の名前にシンボリックリンクが先に在れば、リンク先を書かずに書き直しを求める", async () => {
+  const marker = blockedMarker("s", markerDir);
+  if (!marker) throw new Error("印のパスを作れない");
+  const target = join(markerDir, "target");
+  symlinkSync(target, marker);
+  const { status, stderr } = await run(
+    hook({ stop_hook_active: true, last_assistant_message: WITH_WORD }),
+  );
+  expect(status).toBe(2);
+  expect(stderr).toContain("止めた印を残せない");
+  expect(existsSync(target)).toBe(false);
 });
 
 test.each([

@@ -473,22 +473,32 @@
       "id": "TS-WORD-MOKKA",
       "why": "「目下」を語彙から外す",
       "file": "scripts/gates/prose/check-time-sensitive-prose.ts",
-      "find": "|(?<![の「\\p{Script=Han}])目下/gu",
+      "find": "|(?:(?<=[はもがでにを])|(?<![\\p{L}\\p{N}「]))目下/gu",
       "replace": "/gu",
       "occurrences": 1,
-      "expect_failing": ["陽性: 目下 を拾う"]
+      "expect_failing": ["陽性: 目下 を拾う", "陽性: 助詞の後の目下 を拾う"]
     },
     {
       "id": "TS-WORD-MOKKA-HAN",
-      "why": "「目下」の前の漢字を除かない（項目下・注目下を時期の語として拾う）",
+      "why": "「目下」の前の文字を見ない（項目下・注目下・見た目下を時期の語として拾う）",
       "file": "scripts/gates/prose/check-time-sensitive-prose.ts",
-      "find": "(?<![の「\\p{Script=Han}])目下",
+      "find": "(?:(?<=[はもがでにを])|(?<![\\p{L}\\p{N}「]))目下",
       "replace": "(?<![の「])目下",
       "occurrences": 1,
       "expect_failing": [
         "陰性: 漢字の複合語の目下（項目下） は拾わない",
-        "陰性: 漢字の複合語の目下（注目下） は拾わない"
+        "陰性: 漢字の複合語の目下（注目下） は拾わない",
+        "陰性: 仮名で終わる語の目下（見た目下部） は拾わない"
       ]
+    },
+    {
+      "id": "TS-WORD-MOKKA-PARTICLE",
+      "why": "前が助詞の「目下」を語の始まりとみなさない（作業は目下… を見逃す）",
+      "file": "scripts/gates/prose/check-time-sensitive-prose.ts",
+      "find": "(?<=[はもがでにを])",
+      "replace": "(?!)",
+      "occurrences": 1,
+      "expect_failing": ["陽性: 助詞の後の目下 を拾う"]
     }
   ]
 }

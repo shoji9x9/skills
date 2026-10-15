@@ -24,27 +24,32 @@
       "replace": "} else if (true) {",
       "occurrences": 1,
       "expect_failing": [
-        "止める: 別の Hook が続けさせた後（stop_hook_active が true で印が無い）の応答も確かめ、止めた印を残す"
+        "止める: 別の Hook が続けさせた後（stop_hook_active が true で印が無い）の応答も確かめ、止めた印を残す",
+        "止める: 印の名前にシンボリックリンクが先に在れば、リンク先を書かずに書き直しを求める"
       ]
     },
     {
       "id": "WORD-MARKER-NOT-CLEARED",
       "why": "新しい一続きで前の印を消さない（次に続けさせた後の応答を確かめない）",
       "file": "scripts/hooks/response-word-check.ts",
-      "find": "    if (marker) rmSync(marker, { force: true });",
+      "find": "      if (marker) rmSync(marker, { force: true });",
       "replace": "",
       "occurrences": 1,
-      "expect_failing": ["通す: 新しい一続きの最初の Stop は、前の一続きの印を消す"]
+      "expect_failing": [
+        "通す: 新しい一続きの最初の Stop は、前の一続きの印を消す",
+        "通す: 前の印を消せなくても、例外で終わらずに判定を続ける"
+      ]
     },
     {
       "id": "WORD-MARKER-NOT-WRITTEN",
       "why": "止めた印を残さない（書き直した応答を止め続ける）",
       "file": "scripts/hooks/response-word-check.ts",
-      "find": "    if (marker) writeFileSync(marker, \"\");",
+      "find": "    if (marker) writeFileSync(marker, \"\", { flag: \"wx\" });",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "止める: 別の Hook が続けさせた後（stop_hook_active が true で印が無い）の応答も確かめ、止めた印を残す"
+        "止める: 別の Hook が続けさせた後（stop_hook_active が true で印が無い）の応答も確かめ、止めた印を残す",
+        "止める: 印の名前にシンボリックリンクが先に在れば、リンク先を書かずに書き直しを求める"
       ]
     },
     {
@@ -119,6 +124,26 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": ["止める: textlint-disable のコメントを書いても、使わない語を示す"]
+    },
+    {
+      "id": "WORD-RM-UNGUARDED",
+      "why": "前の印を消せないときに例外で終わる（Stop のたびに exit 1 になる）",
+      "file": "scripts/hooks/response-word-check.ts",
+      "find": "console.error(`response-word-check: 前の印を消せない: ${errorMessage(error)}`);",
+      "replace": "throw error;",
+      "occurrences": 1,
+      "expect_failing": ["通す: 前の印を消せなくても、例外で終わらずに判定を続ける"]
+    },
+    {
+      "id": "WORD-MARKER-FOLLOWS-LINK",
+      "why": "印を書くときに先に在るシンボリックリンクを辿る（リンク先のファイルを作る・空にする）",
+      "file": "scripts/hooks/response-word-check.ts",
+      "find": "writeFileSync(marker, \"\", { flag: \"wx\" });",
+      "replace": "writeFileSync(marker, \"\");",
+      "occurrences": 1,
+      "expect_failing": [
+        "止める: 印の名前にシンボリックリンクが先に在れば、リンク先を書かずに書き直しを求める"
+      ]
     }
   ]
 }
