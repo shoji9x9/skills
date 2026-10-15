@@ -13,10 +13,12 @@
 // ignored) + trimmed body. Every other file must be byte-identical.
 import { readFileSync, readdirSync, existsSync, lstatSync, readlinkSync } from "node:fs";
 import { join, relative } from "node:path";
-import { splitFrontmatter } from "../../lib/frontmatter.ts";
+import {
+  normalizeSkillFrontmatter,
+  sameSkillFrontmatter,
+  splitFrontmatter,
+} from "../../lib/frontmatter.ts";
 import { errorMessage, isErrnoException } from "../../lib/errors.ts";
-import { loadYamlAs } from "../../lib/yaml-as.ts";
-import { isArray } from "../../lib/is-array.ts";
 
 const SRC_ROOT = "skills";
 const INSTALLED_ROOT = ".agents/skills";
@@ -33,46 +35,20 @@ function listFiles(dir: string): string[] {
   return out;
 }
 
-function sortKeys(value: unknown): unknown {
-  if (isArray(value)) return value.map(sortKeys);
-  // YAML の `!!set`（Set）とタイムスタンプ（Date）は Object.entries が空になり、中身が違っても同じ `{}` になる。
-  // 中身を比べられる値に変える。
-  if (value instanceof Set) {
-    return { $set: [...value].map((item) => JSON.stringify(sortKeys(item))).sort() };
-  }
-  if (value instanceof Date) return value.toISOString();
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value)
-        // Object.keys().sort() と同じく、UTF-16 の符号単位の順に並べる。
-        .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
-        .map(([k, item]) => [k, sortKeys(item)]),
-    );
-  }
-  return value;
-}
-
 // frontmatter を切り出す。共通ヘルパー（BOM/CRLF 対応）に委譲し、frontmatter が
 // 無い場合は従来どおり { fm: "", body: text } を返して比較ロジックの挙動を保つ。
 function frontmatterOf(text: string) {
   return splitFrontmatter(text) ?? { fm: "", body: text };
 }
 
-type Frontmatter = { metadata?: Record<string, unknown> };
-
-function normFrontmatter(fmText: string, source: string) {
-  let obj: Frontmatter;
+// frontmatter が YAML として読めることを確かめる。読めなければ、どのファイルかを示して exit 2 にする。
+function readFrontmatterOrExit(fmText: string, source: string): void {
   try {
-    obj = loadYamlAs<Frontmatter | null | undefined>(fmText) || {};
+    normalizeSkillFrontmatter(fmText);
   } catch (err) {
     console.error(`skills-sync: invalid YAML frontmatter in ${source}: ${errorMessage(err)}`);
     process.exit(2);
   }
-  if (obj.metadata && typeof obj.metadata === "object") {
-    delete obj.metadata["local-path"];
-    if (Object.keys(obj.metadata).length === 0) delete obj.metadata;
-  }
-  return JSON.stringify(sortKeys(obj));
 }
 
 function checkClaudeSymlink(name: string, drifts: string[]) {
@@ -123,9 +99,9 @@ for (const e of readdirSync(SRC_ROOT, { withFileTypes: true })) {
     if (rel === "SKILL.md") {
       const A = frontmatterOf(a.toString("utf8"));
       const B = frontmatterOf(b.toString("utf8"));
-      const fmA = normFrontmatter(A.fm, join(srcDir, "SKILL.md"));
-      const fmB = normFrontmatter(B.fm, join(instDir, "SKILL.md"));
-      if (fmA !== fmB || A.body.trim() !== B.body.trim()) {
+      readFrontmatterOrExit(A.fm, join(srcDir, "SKILL.md"));
+      readFrontmatterOrExit(B.fm, join(instDir, "SKILL.md"));
+      if (!sameSkillFrontmatter(A.fm, B.fm) || A.body.trim() !== B.body.trim()) {
         drifts.push(`${name}: SKILL.md content differs`);
       }
     } else if (!a.equals(b)) {

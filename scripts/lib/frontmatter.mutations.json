@@ -1,0 +1,43 @@
+{
+  "$comment": [
+    "frontmatter.test.ts の検出能力を示す変異の一覧。",
+    "SKILL.md の frontmatter を、キーの順と metadata.local-path を除いて、型と中身で比べる分岐を無効にする。"
+  ],
+  "test_file": "scripts/lib/frontmatter.test.ts",
+  "mutations": [
+    {
+      "id": "SS-JSON-COMPARE",
+      "why": "JSON の文字列にして比べる（キーの順を区別し、Set の中身と、Date と同じ ISO の文字列を区別しない）",
+      "file": "scripts/lib/frontmatter.ts",
+      "find": "return isDeepStrictEqual(normalizeSkillFrontmatter(fmA), normalizeSkillFrontmatter(fmB));",
+      "replace": "return JSON.stringify(normalizeSkillFrontmatter(fmA)) === JSON.stringify(normalizeSkillFrontmatter(fmB));",
+      "occurrences": 1,
+      "expect_failing": [
+        "同じとみなす: キーの順だけが違う",
+        "違うとみなす: 集合（!!set）の中身が違う",
+        "違うとみなす: 日付と、同じ ISO 8601 の文字列"
+      ]
+    },
+    {
+      "id": "SS-LOCAL-PATH",
+      "why": "`gh skill install` が足す metadata.local-path を除かない（インストールしただけで差分として報告する）",
+      "file": "scripts/lib/frontmatter.ts",
+      "find": "delete obj.metadata[\"local-path\"];",
+      "replace": "void 0;",
+      "occurrences": 1,
+      "expect_failing": [
+        "同じとみなす: コピーにだけ metadata.local-path がある",
+        "同じとみなす: local-path 以外の metadata は残る"
+      ]
+    },
+    {
+      "id": "SS-EMPTY-METADATA",
+      "why": "local-path を除いて空になった metadata を残す（metadata の無い原本と違うと報告する）",
+      "file": "scripts/lib/frontmatter.ts",
+      "find": "if (Object.keys(obj.metadata).length === 0) delete obj.metadata;",
+      "replace": "if (false) delete obj.metadata;",
+      "occurrences": 1,
+      "expect_failing": ["同じとみなす: コピーにだけ metadata.local-path がある"]
+    }
+  ]
+}
