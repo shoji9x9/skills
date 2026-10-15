@@ -26,7 +26,8 @@ test("merge key を展開する", () => {
 });
 
 test("merge key の値がマッピングでなければ例外にする", () => {
-  expect(() => loadYaml("b:\n  <<: 1\n")).toThrow(/cannot merge mappings/);
+  // 文言は js-yaml の版で変わるので、例外になることだけを確かめる（merge key を持たないスキーマでは例外にならない）。
+  expect(() => loadYaml("b:\n  <<: 1\n")).toThrow();
 });
 
 test.each([
@@ -66,5 +67,13 @@ test("キーの無い暗黙のマッピング（`: value`）は js-yaml 4 と違
 });
 
 test("フロー形式の続きの行の字下げが足りない形は js-yaml 4 と違い例外にする", () => {
-  expect(() => loadYaml("a: [1,\n2]\n")).toThrow(/deficient indentation/);
+  expect(() => loadYaml("a: [1,\n2]\n")).toThrow();
+});
+
+test("暦に無い日付は js-yaml 4 と違い Date にせず文字列として読む", () => {
+  expect(loadYamlAs<{ a: unknown }>("a: 2026-02-30\n").a).toBe("2026-02-30");
+});
+
+test("暦に無い日付に !!timestamp を付けると js-yaml 4 と違い例外にする", () => {
+  expect(() => loadYaml("a: !!timestamp 2026-02-30\n")).toThrow();
 });

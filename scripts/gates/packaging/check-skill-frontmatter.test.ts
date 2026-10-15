@@ -96,7 +96,7 @@ test("frontmatter がマッピングでなければ検出", () => {
   expect(v).toContain("frontmatter が YAML マッピングになっていない");
 });
 
-// js-yaml 5 は `!!set` を Set に、タイムスタンプを Date にする。object でもマッピングではないので、同じ報告にする。
+// `!!set` は Set に（js-yaml 5 から）、タイムスタンプは Date に（js-yaml 4 から）なる。object でもマッピングではないので、同じ報告にする。
 test.each([
   ["集合（!!set）", "!!set {name, description}"],
   ["日付", "2026-10-15"],

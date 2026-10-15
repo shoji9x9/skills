@@ -1,4 +1,5 @@
-// SKILL.md 等の先頭 frontmatter（`---` で挟まれた YAML）を分割する単一実装。
+// SKILL.md 等の先頭 frontmatter（`---` で挟まれた YAML）を分割し、SKILL.md の frontmatter どうしを比べる単一実装。
+// 比べる処理が js-yaml を読み込むので、このモジュールを import すると splitFrontmatter だけを使う場合も js-yaml を読み込む。
 // BOM（先頭の U+FEFF）と CRLF（`\r\n`）の両方に対応し、frontmatter 検査系
 // スクリプト（check-skill-frontmatter.ts / check-skills-sync.ts）が同じ規則で
 // frontmatter を切り出せるようにする。
@@ -13,8 +14,8 @@
 //
 // sameSkillFrontmatter(fmA, fmB) → boolean
 //   - 2 つの frontmatter を YAML として読み、キーの順と `metadata.local-path`（gh skill install が足す）を除いて同じかを返す。
-//   - 値は isDeepStrictEqual で比べる。JSON の文字列にして比べると、`!!set` の Set とタイムスタンプの Date が
-//     中身に関わらず同じ `{}` になり、Date と同じ ISO の文字列を書いた値も区別できない。
+//   - 値は isDeepStrictEqual で比べる。JSON の文字列にして比べると、`!!set` の Set は中身に関わらず同じ `{}` になり、
+//     タイムスタンプの Date は同じ ISO の文字列を書いた値と区別できない。
 //   - 読めなければ例外にする（どちらのファイルかは、呼び出し側が normalizeSkillFrontmatter で先に確かめる）。
 import { isDeepStrictEqual } from "node:util";
 import { isPlainObject } from "./guards.ts";
@@ -32,7 +33,7 @@ type SkillFrontmatter = { metadata?: unknown };
 
 /**
  * frontmatter を YAML として読み、`metadata.local-path` を除く。それで空になった metadata も除く。読めなければ例外にする。
- * 空の入力（undefined・null）だけを空の frontmatter とみなす。false や 0 のようなスカラーは、そのまま比べる。
+ * 読んだ値が undefined か null のとき（空・コメントだけ・`~`・`null`）だけを空の frontmatter とみなす。false や 0 のようなスカラーは、そのまま比べる。
  * metadata がマッピングでない（Set・Date・配列など）ときは、キーが無く見えても消さずに比べる。
  */
 export function normalizeSkillFrontmatter(fmText: string): unknown {

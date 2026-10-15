@@ -9,7 +9,7 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 
 /**
  * YAML や JSON のマッピングとして読んだ object か（プロトタイプが Object.prototype）。
- * isRecord と違い、js-yaml 5 が `!!set` から作る Set や、タイムスタンプの Date を含めない。
+ * isRecord と違い、js-yaml が `!!set` から作る Set（js-yaml 5 から）や、タイムスタンプの Date を含めない。
  */
 export function isPlainObject(value: unknown): value is Record<string, unknown> {
   return isRecord(value) && Object.getPrototypeOf(value) === Object.prototype;

@@ -16,6 +16,7 @@ test.each([
     "name: x\nmetadata:\n  a: 1\n  local-path: skills/x\n",
   ],
   ["空とコメントだけ", "", "# comment\n"],
+  ["`~`（null）と空", "~\n", ""],
   ["同じ集合（!!set）", "tags: !!set {a, b}\n", "tags: !!set {b, a}\n"],
   ["同じ日付", "d: 2026-10-15\n", "d: 2026-10-15\n"],
 ])("同じとみなす: %s", (_label, a, b) => {

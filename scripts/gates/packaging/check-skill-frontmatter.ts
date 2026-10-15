@@ -52,7 +52,7 @@ export function checkFrontmatter(path: string, content: string) {
     violations.push(`frontmatter が YAML としてパースできない: ${reason}`);
     return violations; // パース不能なら以降のフィールド検査は無意味。
   }
-  // js-yaml 5 は `!!set` を Set に、タイムスタンプを Date にするので、object かどうかではなくマッピングかで判定する。
+  // `!!set` は Set に（js-yaml 5 から）、タイムスタンプは Date に（js-yaml 4 から）なる。どちらも object なので、マッピングかで判定する。
   if (!isPlainObject(data)) {
     violations.push("frontmatter が YAML マッピングになっていない");
     return violations;
