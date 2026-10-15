@@ -1,7 +1,7 @@
 ---
 date: 2026-10-14
 type: skill
-priority: medium
+priority: high
 status: pending
 applied-to: []
 session: claude-code
@@ -26,6 +26,19 @@ issue-batch の #631 の作業で、worktree に入った後の Bash 呼び出�
 記録が文脈にあっても、複合コマンドを書く時点では参照されなかった。
 
 この制約は `.kaizen/archive/2026-09-17-worktree-session-rejects-computed-bash.md` で記録し、`skills/git-worktree/references/isolation.md` に適用済みである。
+
+2026-10-15、#616 の作業（issue-start から git-worktree enter）で、worktree に入った後の Bash の呼び出しが 6 回拒否された。
+`this command names git in a form too complex to verify` が 5 回、`this command is too complex to verify` が 1 回である。
+拒否された形は次のとおりである。
+
+- `for` ループと `cp`・`mise trust`・`pnpm install` をつないだ準備の処理
+- `git rev-list` と `git log` を `;` でつないだ処理
+- `curl -o` と `||` を含む処理
+- run の結果を確かめる `node -e` と、関数の定義を含む処理
+
+どれも、単独の呼び出しに分けるか、Write ツールでスクリプトにして `bash <絶対パス>` で実行する形に直して通した。
+この学びは、セッション開始時に pending として注入されていたが、最初の拒否が起きるまで書き方は変わらなかった。
+注入した要約の 1 行だけでは、コマンドを書く時点の行動を変えられない。優先度を上げる根拠はこの再発であり、文書より先に決定論的な対策（PreToolUse の Hook）を適用する。
 
 ## 根本原因
 
