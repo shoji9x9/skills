@@ -17,11 +17,10 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, onTestFinished } from "vitest";
-import { getCurrentTest } from "vitest/suite";
+import { afterAll, onTestFinished, TestRunner } from "vitest";
 
 export function makeTempDir(prefix: string): string {
-  if (getCurrentTest()?.concurrent) {
+  if (TestRunner.getCurrentTest()?.concurrent) {
     throw new Error(
       "並べて実行するテストの中では makeTempDir を使わない（消す予約が別のテストに付く）。makeTempDirFactory を使う",
     );
