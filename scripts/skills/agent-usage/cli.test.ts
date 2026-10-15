@@ -23,8 +23,12 @@ import { commitCwd, isGitCommit } from "../../../skills/agent-usage/scripts/lib/
 import { parseCsv, toCsv } from "../../../skills/agent-usage/scripts/lib/csv.mjs";
 import { encodeProjectPath } from "../../../skills/agent-usage/scripts/lib/discover.mjs";
 import { COLUMNS } from "../../../skills/agent-usage/scripts/lib/rows.mjs";
-import { githubTarget } from "../../../skills/agent-usage/scripts/lib/run-collect.mjs";
+import {
+  githubTarget,
+  retractableRows,
+} from "../../../skills/agent-usage/scripts/lib/run-collect.mjs";
 import { branchLabel, lastObservedAt } from "../../../skills/agent-usage/scripts/lib/records.mjs";
+import { localHourStart } from "../../../skills/agent-usage/scripts/lib/time.mjs";
 import { makeTempDir } from "../../lib/test-tmpdir.ts";
 
 const SCRIPTS = join(import.meta.dirname, "../../../skills/agent-usage/scripts");
@@ -834,6 +838,385 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(cli("report").status).toBe(0);
   });
 
+  test("オフセットが 30 分のタイムゾーンでは、日付の境目の前後の使用量をそれぞれの日に入れる", () => {
+    const { repo, git, cli, logDir } = setup();
+    expect(cli("setup", "--time-zone", "Asia/Kolkata").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    // 18:20Z は IST の前日の 23:50、18:40Z は IST の翌日の 00:10（どちらも UTC では 18 時台）
+    const msg = (id: string, ts: string) => ({
+      type: "assistant",
+      timestamp: ts,
+      cwd: repo,
+      message: { id, model: "claude-opus-5-5", usage: { input_tokens: 100, output_tokens: 0 } },
+    });
+    const lines = [
+      {
+        type: "user",
+        timestamp: "2026-10-01T18:19:00.000Z",
+        cwd: repo,
+        gitBranch: "feature/5-x",
+        origin: { kind: "human" },
+        message: { content: "x" },
+      },
+      msg("k1", "2026-10-01T18:20:00.000Z"),
+      msg("k2", "2026-10-01T18:40:00.000Z"),
+    ];
+    writeFileSync(join(logDir, "s-ist.jsonl"), lines.map((l) => JSON.stringify(l)).join("\n"));
+    expect(cli("collect").status).toBe(0);
+    expect(cli("report").status).toBe(0);
+    const usage = readFileSync(
+      join(repo, ".agent-usage", "report", "20261001", "usage.csv"),
+      "utf8",
+    );
+    // usage.csv は日付・人・エージェント・モデルでまとめる。10-02 の行は、このセッションの 18:40Z の応答（100 トークン）だけ
+    const [header, ...body] = usage.trim().split("\n");
+    const cols = (header ?? "").split(",");
+    const oct2 = body
+      .map((l) => l.split(","))
+      .filter((c) => c[cols.indexOf("date")] === "2026-10-02");
+    expect(oct2.map((c) => c[cols.indexOf("input_tokens")])).toEqual(["100"]);
+  });
+
+  test("区切り方が変わった記録済みの行は打ち消し、report は二重に数えない", () => {
+    const { repo, git, cli, logDir } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    expect(cli("collect").status).toBe(0);
+    const total = () => {
+      expect(cli("report").status).toBe(0);
+      const usage = readFileSync(
+        join(repo, ".agent-usage", "report", "20261001", "usage.csv"),
+        "utf8",
+      );
+      const [header, ...body] = usage.trim().split("\n");
+      const col = (header ?? "").split(",").indexOf("input_tokens");
+      return body.reduce((a, l) => a + Number(l.split(",")[col] ?? 0), 0);
+    };
+    const before = total();
+    expect(before).toBeGreaterThan(0);
+    // タイムゾーンを 30 分のオフセットに変えると、使用量の区切り（key）が変わる
+    expect(cli("setup", "--time-zone", "Asia/Kolkata").status).toBe(0);
+    const again = cli("collect");
+    expect(again.stdout).toMatch(/打ち消した行（ログはあるが、今は作らなくなった行）: [1-9]/);
+    expect(total()).toBe(before);
+    // 打ち消し済みの行は、次の collect で打ち消しの行を書き足さない
+    expect(cli("collect").stdout).not.toMatch(/打ち消した行/);
+    // ログが消えたセッションの行は、作れないだけなので打ち消さない
+    rmSync(join(logDir, "s1.jsonl"));
+    expect(cli("collect").stdout).not.toMatch(/打ち消した行/);
+    expect(total()).toBe(before);
+  });
+
+  test("引き継いだ側のセッションの指示・稼働の行は、元のセッションのログが見つかると打ち消す", () => {
+    const { repo, git, cli, logDir, logLines } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    // 元のセッション（s1）のログが見えない間に、それをコピーして続けたセッション（s2）だけを記録する
+    const original = join(logDir, "s1.jsonl");
+    const aside = join(logDir, "..", "s1.jsonl.aside");
+    renameSync(original, aside);
+    const extra = [
+      {
+        type: "user",
+        timestamp: "2026-10-01T10:20:00.000Z",
+        cwd: repo,
+        origin: { kind: "human" },
+        message: { content: "続き" },
+      },
+      {
+        type: "assistant",
+        timestamp: "2026-10-01T10:21:00.000Z",
+        cwd: repo,
+        message: {
+          id: "m3",
+          model: "claude-opus-5-5",
+          usage: { input_tokens: 3, output_tokens: 3 },
+        },
+      },
+      {
+        type: "system",
+        subtype: "turn_duration",
+        timestamp: "2026-10-01T10:22:00.000Z",
+        cwd: repo,
+      },
+    ];
+    writeFileSync(
+      join(logDir, "s2.jsonl"),
+      [...logLines, ...extra].map((l) => JSON.stringify(l)).join("\n"),
+    );
+    expect(cli("collect").status).toBe(0);
+    // 元のログが見つかると、コピーした範囲の s2 の行は作らなくなるので、打ち消す
+    renameSync(aside, original);
+    const again = cli("collect");
+    expect(again.status).toBe(0);
+    expect(again.stdout).toMatch(/打ち消した行（ログはあるが、今は作らなくなった行）: [1-9]/);
+    const records = join(repo, ".agent-usage", "records");
+    const person = readdirSync(records).find((d) => d.startsWith("p-")) ?? "";
+    const branches = join(records, person, "branches");
+    const latest = new Map<string, Record<string, string>>();
+    for (const f of readdirSync(branches))
+      for (const r of parseCsv(readFileSync(join(branches, f), "utf8")))
+        if (r.session === "s2") latest.set(r.key ?? "", r);
+    const retractedKinds = new Set(
+      [...latest.values()].filter((r) => r.retracted === "1").map((r) => r.kind),
+    );
+    expect(retractedKinds).toContain("prompt");
+    expect(retractedKinds).toContain("run");
+    // コピーの後の指示（10:20）の行は、s2 だけにあるので残す
+    expect(
+      [...latest.values()].some(
+        (r) =>
+          r.kind === "prompt" && r.start?.startsWith("2026-10-01T10:20") && r.retracted !== "1",
+      ),
+    ).toBe(true);
+  });
+
+  test("別名で記録した行と、observed_at が今より後の行も打ち消し、report は二重に数えない", () => {
+    const { repo, git, cli } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    expect(cli("collect").status).toBe(0);
+    const total = () => {
+      expect(cli("report").status).toBe(0);
+      const usage = readFileSync(
+        join(repo, ".agent-usage", "report", "20261001", "usage.csv"),
+        "utf8",
+      );
+      const [header, ...body] = usage.trim().split("\n");
+      const col = (header ?? "").split(",").indexOf("input_tokens");
+      return body.reduce((a, l) => a + Number(l.split(",")[col] ?? 0), 0);
+    };
+    const before = total();
+    expect(before).toBeGreaterThan(0);
+    // 記録済みの行を、前の ID（別名）で、時計の進んだマシンが書いた形にする
+    const records = join(repo, ".agent-usage", "records");
+    const person = readdirSync(records).find((d) => d.startsWith("p-")) ?? "";
+    const branches = join(records, person, "branches");
+    for (const f of readdirSync(branches)) {
+      const file = join(branches, f);
+      const rows = parseCsv(readFileSync(file, "utf8")).map((r) => ({
+        ...r,
+        person: "p-00000001",
+        observed_at: "2027-01-01T00:00:00Z",
+      }));
+      writeFileSync(file, toCsv([...COLUMNS], rows));
+    }
+    writeFileSync(
+      join(repo, ".agent-usage", "config.json"),
+      JSON.stringify({ aliases: { "p-00000001": person } }),
+    );
+    expect(total()).toBe(before);
+    expect(cli("setup", "--time-zone", "Asia/Kolkata").status).toBe(0);
+    const again = cli("collect");
+    expect(again.stdout).toMatch(/打ち消した行（ログはあるが、今は作らなくなった行）: [1-9]/);
+    expect(total()).toBe(before);
+    // 打ち消しが反映されたので、次の collect で打ち消しの行を書き足さない
+    expect(cli("collect").stdout).not.toMatch(/打ち消した行/);
+  });
+
+  test("サブエージェントのログしか残っていないセッションの行は、打ち消さない", () => {
+    const { repo, git, cli, logDir } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    const sub = join(logDir, "s1", "subagents");
+    mkdirSync(sub, { recursive: true });
+    const line = {
+      type: "assistant",
+      timestamp: "2026-10-01T10:05:00.000Z",
+      cwd: repo,
+      message: {
+        id: "sa1",
+        model: "claude-opus-5-5",
+        usage: { input_tokens: 5, output_tokens: 0 },
+      },
+    };
+    writeFileSync(join(sub, "agent-a.jsonl"), JSON.stringify(line));
+    expect(cli("collect").status).toBe(0);
+    // メインのログが消えると、指示・稼働・待ちの行は作れなくなるが、ログが消えただけなので打ち消さない
+    rmSync(join(logDir, "s1.jsonl"));
+    const again = cli("collect");
+    expect(again.status).toBe(0);
+    expect(again.stdout).not.toMatch(/打ち消した行/);
+  });
+
+  test("サブエージェントのログだけが消えたセッションの使用量は、区切り方が変わっても打ち消さない", () => {
+    const { repo, git, cli, logDir } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    // メインのログがあるので、サブエージェントの応答はメインのセッションにまとめて数える（別のモデル・別の時間帯）
+    const sub = join(logDir, "s1", "subagents");
+    mkdirSync(sub, { recursive: true });
+    const line = {
+      type: "assistant",
+      timestamp: "2026-10-01T11:05:00.000Z",
+      cwd: repo,
+      message: {
+        id: "sa2",
+        model: "claude-haiku-5-5",
+        usage: { input_tokens: 7, output_tokens: 0 },
+      },
+    };
+    writeFileSync(join(sub, "agent-b.jsonl"), JSON.stringify(line));
+    expect(cli("collect").status).toBe(0);
+    // サブエージェントのログだけが先に消えても、その使用量は打ち消さない（メインのログはある）
+    rmSync(sub, { recursive: true });
+    const again = cli("collect");
+    expect(again.status).toBe(0);
+    expect(again.stdout).not.toMatch(/打ち消した行/);
+    // 区切り方が変わっても、作り直した使用量が減るモデル（ログの欠けたサブエージェントのモデル）の行は打ち消さず、
+    // 前の区切りの行と重なる新しい行も書かない（両方を数えて二重にしない）
+    const total = () => {
+      expect(cli("report").status).toBe(0);
+      const usage = readFileSync(
+        join(repo, ".agent-usage", "report", "20261001", "usage.csv"),
+        "utf8",
+      );
+      const [header, ...body] = usage.trim().split("\n");
+      const col = (header ?? "").split(",").indexOf("input_tokens");
+      return body.reduce((a, l) => a + Number(l.split(",")[col] ?? 0), 0);
+    };
+    const before = total();
+    expect(cli("setup", "--time-zone", "Asia/Kolkata").status).toBe(0);
+    expect(cli("collect").status).toBe(0);
+    expect(total()).toBe(before);
+    expect(cli("report").status).toBe(0);
+    const usage = readFileSync(
+      join(repo, ".agent-usage", "report", "20261001", "usage.csv"),
+      "utf8",
+    );
+    expect(usage).toMatch(/claude-haiku-5-5/);
+  });
+
+  test("同じモデルのサブエージェントのログが消えた後に区切り方を変えても、重なる新しい行を書かず二重に数えない", () => {
+    const { repo, git, cli, logDir } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    const sub = join(logDir, "s1", "subagents");
+    mkdirSync(sub, { recursive: true });
+    const line = {
+      type: "assistant",
+      timestamp: "2026-10-01T10:05:00.000Z",
+      cwd: repo,
+      message: {
+        id: "sa3",
+        model: "claude-opus-5-5",
+        usage: { input_tokens: 7, output_tokens: 0 },
+      },
+    };
+    writeFileSync(join(sub, "agent-c.jsonl"), JSON.stringify(line));
+    expect(cli("collect").status).toBe(0);
+    const total = () => {
+      expect(cli("report").status).toBe(0);
+      const usage = readFileSync(
+        join(repo, ".agent-usage", "report", "20261001", "usage.csv"),
+        "utf8",
+      );
+      const [header, ...body] = usage.trim().split("\n");
+      const col = (header ?? "").split(",").indexOf("input_tokens");
+      return body.reduce((a, l) => a + Number(l.split(",")[col] ?? 0), 0);
+    };
+    const before = total();
+    // メインと同じモデルの使用量が減るので、前の区切りの行は打ち消さず、それと重なる新しい区切りの行も書かない
+    rmSync(sub, { recursive: true });
+    expect(cli("setup", "--time-zone", "Asia/Kolkata").status).toBe(0);
+    const again = cli("collect");
+    expect(again.status).toBe(0);
+    expect(again.stdout).not.toMatch(/打ち消した行/);
+    expect(total()).toBe(before);
+  });
+
+  test("打ち消しの列が空でも 1 でもない記録は、読むときに失敗にする", () => {
+    const { repo, git, cli } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    expect(cli("collect").status).toBe(0);
+    const records = join(repo, ".agent-usage", "records");
+    const person = readdirSync(records).find((d) => d.startsWith("p-")) ?? "";
+    const branches = join(records, person, "branches");
+    const [name] = readdirSync(branches);
+    const file = join(branches, name ?? "");
+    const [header, first, ...rest] = readFileSync(file, "utf8").trim().split("\n");
+    writeFileSync(
+      file,
+      `${[header, `${(first ?? "").replace(/,$/, "")},true`, ...rest].join("\n")}\n`,
+    );
+    const r = cli("report");
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toMatch(/retracted が空でも 1 でもない/);
+  });
+
+  test("開始時刻が範囲より古い行は、区切り方が変わっても打ち消さず、使用量を残す", () => {
+    const { repo, git, cli, logDir, logLines } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    // 範囲（60 日）より古いセッション。初めての collect なので書く
+    const old = logLines.map((l) => ({
+      ...l,
+      timestamp: l.timestamp.replace("2026-10-01", "2026-07-01"),
+      ...(l.message && "id" in l.message
+        ? { message: { ...l.message, id: `old-${l.message.id}` } }
+        : {}),
+    }));
+    writeFileSync(join(logDir, "s-old.jsonl"), old.map((l) => JSON.stringify(l)).join("\n"));
+    expect(cli("collect").status).toBe(0);
+    const tokens = () => {
+      expect(cli("report", "--since", "2026-06-01").status).toBe(0);
+      const dir = join(repo, ".agent-usage", "report");
+      const day = readdirSync(dir)[0] ?? "";
+      const usage = readFileSync(join(dir, day, "usage.csv"), "utf8");
+      const [header, ...body] = usage.trim().split("\n");
+      const cols = (header ?? "").split(",");
+      return body
+        .map((l) => l.split(","))
+        .filter((c) => (c[cols.indexOf("date")] ?? "").startsWith("2026-07"))
+        .reduce((a, c) => a + Number(c[cols.indexOf("input_tokens")] ?? 0), 0);
+    };
+    const before = tokens();
+    expect(before).toBeGreaterThan(0);
+    // 区切り方を変えても、範囲より古い行は書き直さないので、打ち消さない
+    expect(cli("setup", "--time-zone", "Asia/Kolkata").status).toBe(0);
+    expect(cli("collect").status).toBe(0);
+    expect(tokens()).toBe(before);
+  });
+
+  test("打ち消しの列が無い古い記録も読み、report は同じ値を出す", () => {
+    const { repo, git, cli } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    expect(cli("collect").status).toBe(0);
+    const out = join(repo, ".agent-usage", "report", "20261001");
+    expect(cli("report").status).toBe(0);
+    const baseline = readFileSync(join(out, "usage.csv"), "utf8");
+    const records = join(repo, ".agent-usage", "records");
+    const person = readdirSync(records).find((d) => d.startsWith("p-")) ?? "";
+    const branches = join(records, person, "branches");
+    const [name] = readdirSync(branches);
+    // 最後の列（retracted）を除いた、前の版の形にする
+    const text = readFileSync(join(branches, name ?? ""), "utf8");
+    const old = text
+      .trim()
+      .split("\n")
+      .map((l) => l.replace(/,[^,]*$/, ""))
+      .join("\n");
+    expect(old.split("\n")[0]).not.toMatch(/retracted/);
+    writeFileSync(join(branches, name ?? ""), `${old}\n`);
+    expect(cli("report").status).toBe(0);
+    expect(readFileSync(join(out, "usage.csv"), "utf8")).toBe(baseline);
+  });
+
+  test.each([
+    ["UTC", "2026-10-01T18:40:00Z", "2026-10-01T18:00:00.000Z"],
+    ["Asia/Tokyo", "2026-10-01T18:40:00Z", "2026-10-01T18:00:00.000Z"],
+    ["Asia/Kolkata", "2026-10-01T18:40:00Z", "2026-10-01T18:30:00.000Z"],
+    ["Asia/Kolkata", "2026-10-01T18:20:00Z", "2026-10-01T17:30:00.000Z"],
+    ["Asia/Kathmandu", "2026-10-01T18:20:00Z", "2026-10-01T18:15:00.000Z"],
+    // 夏時間の終わり: 01 時が 2 回ある。2 回目の 01:40 EST（06:40Z）は、2 回目の 01:00 EST（06:00Z）から
+    ["America/New_York", "2026-11-01T05:40:00Z", "2026-11-01T05:00:00.000Z"],
+    ["America/New_York", "2026-11-01T06:40:00Z", "2026-11-01T06:00:00.000Z"],
+  ])("localHourStart %s %s → %s", (tz, at, expected) => {
+    expect(new Date(localHourStart(Date.parse(at), tz)).toISOString()).toBe(expected);
+  });
+
   test("origin が GitHub でなければ、GitHub を取得しない", () => {
     const { git, cli } = setup();
     expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
@@ -1012,5 +1395,83 @@ describe("lastObservedAt（読む範囲の判定に使う、最後の行の obse
     ["observed_at が時刻でない", `${header}a,usage,nope,\n`],
   ])("判定できなければ null を返す（呼び出し側はファイル全体を読む）: %s", (_case, text) => {
     expect(lastObservedAt(write(text))).toBeNull();
+  });
+});
+
+describe("retractableRows", () => {
+  const W = Date.parse("2026-10-01T10:20:00Z");
+  const canonical = (p: string | undefined) => p ?? "";
+  const usage = (start: string, end: string, tz: string, input: number) => ({
+    key: `usage:claude-code:s1:claude-opus-5-5:${start}`,
+    kind: "usage",
+    person: "p-1",
+    agent: "claude-code",
+    session: "s1",
+    model: "claude-opus-5-5",
+    start,
+    end,
+    tz,
+    input_tokens: String(input),
+  });
+  const byKey = (rows: { key: string }[]) => new Map(rows.map((r) => [r.key, r]));
+
+  test("範囲の下限より前に始まる前の区切りの行があるまとまりは打ち消さず、重なる新しい行を書かない", () => {
+    const o1 = usage("2026-10-01T10:00:00Z", "2026-10-01T11:00:00Z", "UTC", 10);
+    const o2 = usage("2026-10-01T11:00:00Z", "2026-10-01T12:00:00Z", "UTC", 10);
+    const n1 = usage("2026-10-01T09:30:00Z", "2026-10-01T10:30:00Z", "Asia/Kolkata", 5);
+    const n2 = usage("2026-10-01T10:30:00Z", "2026-10-01T11:30:00Z", "Asia/Kolkata", 10);
+    const n3 = usage("2026-10-01T11:30:00Z", "2026-10-01T12:30:00Z", "Asia/Kolkata", 5);
+    const { rows, withheld } = retractableRows([o1, o2], byKey([o1, o2]), byKey([n1, n2, n3]), {
+      person: "p-1",
+      lowerBound: W,
+      canonical,
+    });
+    expect(rows).toEqual([]);
+    expect([...withheld].sort()).toEqual([n1.key, n2.key, n3.key]);
+  });
+
+  test("範囲の中のまとまりは、作り直した合計が減らなければ打ち消し、減れば打ち消さない", () => {
+    const o = usage("2026-10-01T11:00:00Z", "2026-10-01T12:00:00Z", "UTC", 20);
+    const n1 = usage("2026-10-01T10:30:00Z", "2026-10-01T11:30:00Z", "Asia/Kolkata", 10);
+    const n2 = usage("2026-10-01T11:30:00Z", "2026-10-01T12:30:00Z", "Asia/Kolkata", 10);
+    const opts = { person: "p-1", lowerBound: W, canonical };
+    const full = retractableRows([o], byKey([o]), byKey([n1, n2]), opts);
+    expect(full.rows.map((r) => [r.key, r.retracted])).toEqual([[o.key, "1"]]);
+    expect(full.withheld.size).toBe(0);
+    const short = retractableRows([o], byKey([o]), byKey([n1]), opts);
+    expect(short.rows).toEqual([]);
+    expect([...short.withheld]).toEqual([n1.key]);
+  });
+
+  test("指示・稼働・cost-state の使用量は、範囲の中に始まる行だけを打ち消す", () => {
+    const run = (start: string) => ({
+      key: `run:claude-code:s2:${start}`,
+      kind: "run",
+      person: "p-1",
+      agent: "claude-code",
+      session: "s2",
+      start,
+      end: start,
+    });
+    const inside = run("2026-10-01T10:20:00Z");
+    const before = run("2026-10-01T10:19:59Z");
+    const cost = {
+      ...usage("2026-10-01T11:00:00Z", "2026-10-01T12:00:00Z", "UTC", 1),
+      detail: "cost-state",
+    };
+    // 範囲の前の cost-state の行は、作り直す行が無くても打ち消さない（使用量のまとまりとして扱わない）
+    const costBefore = {
+      ...usage("2026-10-01T10:00:00Z", "2026-10-01T11:00:00Z", "UTC", 1),
+      key: "usage:claude-code:s1:claude-haiku-5-5:cost-state",
+      model: "claude-haiku-5-5",
+      detail: "cost-state",
+    };
+    const { rows } = retractableRows(
+      [inside, before, cost, costBefore],
+      byKey([inside, before, cost, costBefore]),
+      new Map(),
+      { person: "p-1", lowerBound: W, canonical },
+    );
+    expect(rows.map((r) => r.key)).toEqual([inside.key, cost.key]);
   });
 });

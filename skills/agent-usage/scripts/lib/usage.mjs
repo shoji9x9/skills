@@ -17,14 +17,12 @@ import {
 import { fmt } from "./rows.mjs";
 import { branchAt, issueOf } from "./session.mjs";
 import { buildRuns } from "./timeline.mjs";
-import { toIso } from "./time.mjs";
+import { HOUR, localHourStart, toIso } from "./time.mjs";
 
 /** @typedef {import("./session.mjs").SessionSummary} SessionSummary */
 /** @typedef {import("./pricing.mjs").Tokens} Tokens */
 /** @typedef {import("./pricing.mjs").Price} Price */
 /** @typedef {import("./rows.mjs").Row} Row */
-
-const HOUR = 3600000;
 
 /**
  * @typedef {object} Context
@@ -78,7 +76,8 @@ export function usageRows(s, ctx) {
   /** @type {Map<string, { model: string; hour: number; tokens: Tokens; cost: number; unknown: boolean; sources: Set<string>; count: number; first: number }>} */
   const buckets = new Map();
   s.messages.forEach((m, i) => {
-    const hour = Math.floor(m.ts / HOUR) * HOUR;
+    // 現地の正時で区切る（日付に切るときに、日付の境目をまたがない。整数時間のオフセットなら UTC の正時と同じ）
+    const hour = localHourStart(m.ts, ctx.tz);
     const key = `${m.model}\u0000${hour}`;
     let b = buckets.get(key);
     if (!b) {
@@ -134,7 +133,7 @@ export function usageRows(s, ctx) {
     const seen = new Set(s.messages.map((m) => normalizeModel(m.model)));
     for (const [model, total] of Object.entries(snap.models)) {
       if (seen.has(model)) continue;
-      const hour = Math.floor(snap.ts / HOUR) * HOUR;
+      const hour = localHourStart(snap.ts, ctx.tz);
       const branch = branchAt(s, snap.ts);
       rows.push({
         key: `usage:${s.agent}:${s.sessionId}:${model}:cost-state`,

@@ -90,6 +90,8 @@ function printCollect(r) {
     console.log(`範囲より古いので読まなかった記録のファイル: ${r.skippedFiles}`);
   if (r.olderRowsSkipped > 0)
     console.log(`開始時刻が範囲より古いので書かなかった行: ${r.olderRowsSkipped}`);
+  if (r.retractedRows > 0)
+    console.log(`打ち消した行（ログはあるが、今は作らなくなった行）: ${r.retractedRows}`);
   if (r.duplicateMessages > 0)
     console.log(`別のセッションと重複したので数えなかった応答: ${r.duplicateMessages}`);
   if (r.keyConflicts > 0)

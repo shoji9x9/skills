@@ -149,6 +149,11 @@ export function readRecords(recordsDir, opts = {}) {
       if (!r.key) throw new Error(`${where}:${n}: key が空`);
       if (!r.kind || !isKind(r.kind))
         throw new Error(`${where}:${n}: 知らない kind ${JSON.stringify(r.kind)}`);
+      // 打ち消しの列は、空（前の版の記録を含む）か 1 だけ。ほかの値を警告なしに通常の行として数えない
+      if (r.retracted !== undefined && r.retracted !== "" && r.retracted !== "1")
+        throw new Error(
+          `${where}:${n}: retracted が空でも 1 でもない ${JSON.stringify(r.retracted)}`,
+        );
       if (parseTime(r.observed_at) === null)
         throw new Error(`${where}:${n}: observed_at が時刻でない`);
       /** @type {Row} */
