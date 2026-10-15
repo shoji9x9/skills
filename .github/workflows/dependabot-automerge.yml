@@ -6,8 +6,8 @@
 #   （dependabot-merge スキル）に回す。
 # - github-actions はタグが semver を厳密に守らない（必須 CI も構文・ピン留めしか見ない）ため、
 #   決定論的自動マージの対象外とし、常にレビューラベルへ回す。
-# - major の更新は破壊的な変更を前提にするため、エコシステムに関わらず自動マージせず、
-#   レビューラベルへ回す（dependabot.yml は major を 1 パッケージ 1 PR で作る）。
+# - major の更新は、エコシステムに関わらず自動マージせず、レビューラベルへ回す
+#   （方針は docs/vulnerability-handling.md）。
 # 前提: リポジトリ設定で「Allow auto-merge」が有効であること（gh repo edit --enable-auto-merge）。
 name: Dependabot auto-merge
 

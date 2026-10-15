@@ -21,3 +21,8 @@ coverage:github:2026-10-14T05:04:04.679Z:2026-10-15T05:04:25.973Z,coverage,2026-
 ci:38684671789:1,ci,2026-10-15T05:04:54.838Z,p-cdee4961,github-actions,,,,2026-10-15T05:02:51.000Z,2026-10-15T05:04:38.000Z,Asia/Tokyo,feature/595-prose-clarity-rules,595,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-10-14T05:04:25.973Z:2026-10-15T05:04:54.838Z,coverage,2026-10-15T05:04:54.838Z,p-cdee4961,,,,,2026-10-14T05:04:25.973Z,2026-10-15T05:04:54.838Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-14T05:04:54.838Z:2026-10-15T05:05:15.900Z,coverage,2026-10-15T05:05:15.900Z,p-cdee4961,,,,,2026-10-14T05:04:54.838Z,2026-10-15T05:05:15.900Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:38685859594:1,ci,2026-10-15T05:20:32.863Z,p-cdee4961,github-actions,,,,2026-10-15T05:16:01.000Z,2026-10-15T05:16:02.000Z,Asia/Tokyo,feature/595-prose-clarity-rules,595,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:38685859575:1,ci,2026-10-15T05:20:32.863Z,p-cdee4961,github-actions,,,,2026-10-15T05:16:01.000Z,2026-10-15T05:19:00.000Z,Asia/Tokyo,feature/595-prose-clarity-rules,595,,,,,,,,,,CI;pull_request;success,
+ci:38685034364:1,ci,2026-10-15T05:20:32.863Z,p-cdee4961,github-actions,,,,2026-10-15T05:06:56.000Z,2026-10-15T05:06:57.000Z,Asia/Tokyo,feature/616-dependabot-major-updates,616,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:38685034357:1,ci,2026-10-15T05:20:32.863Z,p-cdee4961,github-actions,,,,2026-10-15T05:06:56.000Z,2026-10-15T05:10:12.000Z,Asia/Tokyo,feature/616-dependabot-major-updates,616,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-14T05:05:15.900Z:2026-10-15T05:20:32.863Z,coverage,2026-10-15T05:20:32.863Z,p-cdee4961,,,,,2026-10-14T05:05:15.900Z,2026-10-15T05:20:32.863Z,Asia/Tokyo,,,,,,,,,,,,ok,
