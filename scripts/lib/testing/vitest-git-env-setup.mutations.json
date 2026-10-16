@@ -1,0 +1,54 @@
+{
+  "$comment": [
+    "vitest-git-env-setup.test.ts の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/lib/testing/vitest-git-env-setup.test.ts",
+  "mutations": [
+    {
+      "id": "not-cleared-on-import",
+      "why": "モジュールを読み込んでも process.env から外さない",
+      "file": "scripts/lib/testing/vitest-git-env-setup.ts",
+      "find": "clearRepoLocalGitEnv(process.env);",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "読み込んだだけで外すので、GIT_DIR を受け継いだ子の git の commit が元のリポジトリに入らない"
+      ]
+    },
+    {
+      "id": "config-entries-kept",
+      "why": "GIT_CONFIG_KEY_<n>・GIT_CONFIG_VALUE_<n> を外さない",
+      "file": "scripts/lib/testing/vitest-git-env-setup.ts",
+      "find": " || CONFIG_ENTRY.test(name)",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "一覧の名前と GIT_CONFIG_KEY_<n>・GIT_CONFIG_VALUE_<n> を消し、他の名前は残す"
+      ]
+    },
+    {
+      "id": "prefix-match",
+      "why": "一覧の名前を前方に含む別の名前（GIT_DIRX）まで外す",
+      "file": "scripts/lib/testing/vitest-git-env-setup.ts",
+      "find": "REPO_LOCAL_GIT_ENV.includes(name)",
+      "replace": "REPO_LOCAL_GIT_ENV.some((n) => name.startsWith(n))",
+      "occurrences": 1,
+      "expect_failing": [
+        "一覧の名前と GIT_CONFIG_KEY_<n>・GIT_CONFIG_VALUE_<n> を消し、他の名前は残す"
+      ]
+    },
+    {
+      "id": "config-entry-no-digits",
+      "why": "番号の無い GIT_CONFIG_KEY_ まで外す",
+      "file": "scripts/lib/testing/vitest-git-env-setup.ts",
+      "find": "_\\d+$/",
+      "replace": "_\\d*$/",
+      "occurrences": 1,
+      "expect_failing": [
+        "一覧の名前と GIT_CONFIG_KEY_<n>・GIT_CONFIG_VALUE_<n> を消し、他の名前は残す"
+      ]
+    }
+  ]
+}
