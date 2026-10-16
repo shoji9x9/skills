@@ -1,0 +1,58 @@
+{
+  "$comment": [
+    "shell-coverage.test.ts の検出能力を示す変異の一覧（Issue #619）。",
+    "テスト名を変えたら expect_failing も直す。"
+  ],
+  "test_file": "scripts/coverage/shell-coverage.test.ts",
+  "mutations": [
+    {
+      "id": "case-not-counted",
+      "why": "case の文を実行できる行に数えない",
+      "file": "scripts/coverage/shell-coverage.ts",
+      "find": "  \"CaseClause\",\n",
+      "replace": "",
+      "expect_failing": [
+        "executableLines: xtrace が記録する種類の文の開始行だけを、昇順で返す",
+        "shellCoverage: 実行しなかった分岐の行だけを未実行として数える"
+      ]
+    },
+    {
+      "id": "copy-not-mapped",
+      "why": "原本と同じ内容のコピーの実行を原本に数えない",
+      "file": "scripts/coverage/shell-coverage.ts",
+      "find": "hashToTarget.get(hash)",
+      "replace": "undefined",
+      "expect_failing": [
+        "shellCoverage: 内容が原本と同じコピーの実行は、コピーを消した後も原本として数え、書き換えたコピーは数えない"
+      ]
+    },
+    {
+      "id": "before-cwd-read",
+      "why": "#CWD より前の記録も読む",
+      "file": "scripts/coverage/shell-coverage.ts",
+      "find": "!m || cwd === undefined || ",
+      "replace": "!m || ",
+      "expect_failing": [
+        "parseTrace: #CWD の前の記録・BASH_SOURCE が空の記録・改行で続いた本文を記録として読まない"
+      ]
+    },
+    {
+      "id": "bash-c-read",
+      "why": "BASH_SOURCE が空の記録も読む",
+      "file": "scripts/coverage/shell-coverage.ts",
+      "find": " || m[1] === \"\") continue;",
+      "replace": ") continue;",
+      "expect_failing": [
+        "parseTrace: #CWD の前の記録・BASH_SOURCE が空の記録・改行で続いた本文を記録として読まない"
+      ]
+    },
+    {
+      "id": "stderr-discarded",
+      "why": "記録の書き込み先を開くリダイレクトを exec に直接付けて、以後の stderr を捨てる",
+      "file": "scripts/coverage/bash-trace-env.sh",
+      "find": "{ exec {__shell_coverage_fd}>>\"${SHELL_COVERAGE_DIR}/trace.$$\"; } 2>/dev/null",
+      "replace": "exec {__shell_coverage_fd}>>\"${SHELL_COVERAGE_DIR}/trace.$$\" 2>/dev/null",
+      "expect_failing": ["bash-trace-env.sh: スクリプトの stdout・stderr・終了コードを変えない"]
+    }
+  ]
+}

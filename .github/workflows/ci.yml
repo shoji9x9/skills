@@ -128,8 +128,10 @@ jobs:
           persist-credentials: false
       - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
       - run: pnpm install --frozen-lockfile
-      - name: Unit tests (vitest)
-        run: pnpm test
+      # テスト全体をカバレッジ付きで実行し、ファイルごとの値を閾値と比べる（docs/testing.md「カバレッジ」）。
+      # テストが失敗したときも、閾値を下回ったときも失敗する。
+      - name: Unit tests and coverage (vitest + c8)
+        run: pnpm run test:coverage
 
   # ミューテーションテスト（検査の検出能力の再実行）。Lint・Unit tests から独立したジョブにして並べて実行する
   # （ステップ自体は縮まないが、PR 全体の待ち時間が縮む。Issue #478）。

@@ -33,6 +33,7 @@ JavaScript の拡張子は、配布する `skills/**` では `.mjs` にする。
 `skills/**`・`scripts/**`・private skill の拡張子は、`scripts/gates/code/check-js-extensions.ts` がチェックする。
 
 pre-commit と CI で実行するチェックの一覧、ミューテーションテスト、Markdown の行長などの詳細は [`docs/tooling.md`](docs/tooling.md) にある。
+テストは振る舞いを確かめ、期待値は仕様から決める。テストを書く対象・粒度・偽物の使い方・並列実行・カバレッジの閾値（lefthook の pre-push と CI で確かめる）は [`docs/testing.md`](docs/testing.md) にある。
 
 ## ディレクトリ構造
 
@@ -60,6 +61,7 @@ scripts/                リポジトリ内のツールとテスト（配布し�
     tooling/            lint と整形のツールの対象範囲と起動
     layout/             ディレクトリの構成（直下のファイル数）
   mutation/             ミューテーションテストのランナー
+  coverage/             カバレッジの測定のランナーと、ファイルごとの閾値のチェック
   eval/                 eval の実行・隔離・集計と、evals/ の fixture の生成・チェック
   hooks/                エージェントの Hook から起動するスクリプト
   tools/                手で起動する補助スクリプト（reinstall-skill.sh など）
