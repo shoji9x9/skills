@@ -49,7 +49,7 @@ type Entry =
   | { pos: number; node: ts.LiteralLikeNode; d?: undefined }
   | { pos: number; d: ReturnType<typeof commentDirectives>[number]; node?: undefined };
 
-const JS_EXTENSIONS = [".js", ".mjs", ".cjs", ".ts"];
+export const JS_EXTENSIONS = [".js", ".mjs", ".cjs", ".ts"];
 const EVALS = /^evals\/[^/]+\/evals\.json$/;
 // key は文字列のキーでないプロパティでは undefined になるので、undefined も引数に取れるようにする。
 const EVAL_STRING_KEYS = new Set<string | undefined>(["prompt", "expected_output"]);

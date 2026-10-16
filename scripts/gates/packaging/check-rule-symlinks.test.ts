@@ -18,17 +18,33 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { CANON_DIR, WIRINGS, checkRuleSymlinks } from "./check-rule-symlinks.ts";
+import {
+  CANON_DIR,
+  DOC_INSTRUCTIONS,
+  REVIEW_READ_LIMIT,
+  WIRINGS,
+  checkRuleSymlinks,
+} from "./check-rule-symlinks.ts";
 import { makeTempDir } from "../../lib/test-tmpdir.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "scripts/gates/packaging/check-rule-symlinks.ts");
 
-/** 正しく symlink を張った rule を持つ一時リポジトリを作る。 */
+/**
+ * 正しく symlink を張った rule を持つ一時リポジトリを作る。
+ * DOC_INSTRUCTIONS の文書とそのリンクは、`wire` に関わらず正しく置く（rule のリンクの検査を独立に測るため）。
+ */
 function makeRepo(names = ["alpha", "beta"], { wire = true } = {}) {
   const root = makeTempDir("rule-symlinks-");
   mkdirSync(join(root, CANON_DIR), { recursive: true });
   for (const { dir } of WIRINGS) mkdirSync(join(root, dir), { recursive: true });
+  for (const doc of DOC_INSTRUCTIONS) {
+    mkdirSync(join(root, dirname(doc.canon)), { recursive: true });
+    writeFileSync(join(root, doc.canon), docText(doc.name, doc.reviewedUntil));
+    for (const { dir, suffix, docs } of WIRINGS) {
+      if (docs) symlinkSync(`../../${doc.canon}`, join(root, dir, `${doc.name}${suffix}`));
+    }
+  }
   for (const name of names) {
     writeFileSync(
       join(root, CANON_DIR, `${name}.md`),
@@ -40,6 +56,12 @@ function makeRepo(names = ["alpha", "beta"], { wire = true } = {}) {
     }
   }
   return root;
+}
+
+/** Copilot のレビューに読まれる形の文書（applyTo を持ち、reviewedUntil の見出しが先頭の近くにある）。 */
+function docText(name: string, reviewedUntil: string, { applyTo = true, filler = 0 } = {}) {
+  const fm = applyTo ? `---\napplyTo: "**/*.md"\n---\n\n` : "";
+  return `${fm}# ${name}\n\n${"あ".repeat(filler)}\n\n${reviewedUntil}\n\n後半。\n`;
 }
 
 // symlink のディレクトリ（2 階層）から見た、原本への相対パス。
@@ -168,3 +190,131 @@ test("CLI: 違反があれば exit 1、無ければ exit 0 で走査件数を出
   expect(r.stderr).toMatch(/2 件のリンクの不備/);
   cleanup(bad);
 });
+
+// --- rule ではない文書を instructions として読ませる宣言（DOC_INSTRUCTIONS） ---
+
+const DOC = { name: "style", canon: "docs/style.md", reason: "テスト用", reviewedUntil: "## 後半" };
+
+function makeDocRepo({
+  link = true,
+  file = true,
+  text = docText("style", DOC.reviewedUntil),
+} = {}) {
+  const root = makeRepo(["alpha"]);
+  mkdirSync(join(root, "docs"), { recursive: true });
+  if (file) writeFileSync(join(root, DOC.canon), text);
+  if (link) {
+    symlinkSync("../../docs/style.md", join(root, ".github/instructions/style.instructions.md"));
+  }
+  return root;
+}
+
+test("誤検知しないことの確認: 宣言した文書への instructions の symlink は孤児にしない", () => {
+  const root = makeDocRepo();
+  expect(checkRuleSymlinks(root, [...DOC_INSTRUCTIONS, DOC]).violations).toEqual([]);
+  cleanup(root);
+});
+
+test("孤児: 宣言していない文書への instructions の symlink は検出する", () => {
+  const root = makeDocRepo();
+  expect(checkRuleSymlinks(root, DOC_INSTRUCTIONS).violations).toEqual([
+    `.github/instructions/style.instructions.md: 対応する原本 ${CANON_DIR}/style.md が無い（孤児）`,
+  ]);
+  cleanup(root);
+});
+
+test("欠落: 宣言した文書の instructions の symlink が無ければ検出する（Claude Code の側には求めない）", () => {
+  const root = makeDocRepo({ link: false });
+  expect(checkRuleSymlinks(root, [...DOC_INSTRUCTIONS, DOC]).violations).toEqual([
+    ".github/instructions/style.instructions.md: 欠落（GitHub Copilot で自動適用されない）。期待する指し先: ../../docs/style.md",
+  ]);
+  cleanup(root);
+});
+
+test("宣言した文書が無ければ検出する", () => {
+  const root = makeDocRepo({ file: false });
+  const { violations } = checkRuleSymlinks(root, [...DOC_INSTRUCTIONS, DOC]);
+  expect(violations).toContain("docs/style.md: instructions として宣言した文書が無い");
+  cleanup(root);
+});
+
+test("宣言した文書の名前が rule と重なれば検出する", () => {
+  const root = makeDocRepo();
+  const { violations } = checkRuleSymlinks(root, [...DOC_INSTRUCTIONS, { ...DOC, name: "alpha" }]);
+  expect(violations).toContain(`docs/style.md: rule の ${CANON_DIR}/alpha.md と名前が重なる`);
+  cleanup(root);
+});
+
+test("宣言した文書の frontmatter に applyTo が無ければ検出する", () => {
+  const root = makeDocRepo({ text: docText("style", DOC.reviewedUntil, { applyTo: false }) });
+  const { violations } = checkRuleSymlinks(root, [...DOC_INSTRUCTIONS, DOC]);
+  expect(violations).toContain(
+    "docs/style.md: frontmatter に applyTo が無い（Copilot のレビューが PR のファイルに当てない）",
+  );
+  cleanup(root);
+});
+
+test("宣言した文書の frontmatter の YAML が読めなければ、例外にせず違反として検出する", () => {
+  const root = makeDocRepo({ text: `---\napplyTo: [\n---\n\n# style\n\n## 後半\n` });
+  const { violations } = checkRuleSymlinks(root, [...DOC_INSTRUCTIONS, DOC]);
+  expect(violations.filter((v) => v.includes("frontmatter の YAML を読めない"))).toHaveLength(1);
+  cleanup(root);
+});
+
+test("CRLF で保存した文書でも、reviewedUntil の見出しを見つける", () => {
+  const root = makeDocRepo({ text: docText("style", DOC.reviewedUntil).replaceAll("\n", "\r\n") });
+  const { violations } = checkRuleSymlinks(root, [...DOC_INSTRUCTIONS, DOC]);
+  expect(violations.filter((v) => v.startsWith("docs/style.md"))).toEqual([]);
+  cleanup(root);
+});
+
+test("CRLF で保存した文書は、行末の \\r も文字数に数える", () => {
+  // LF なら上限ちょうどになる本文を CRLF にすると、行の数だけ上限を超える。
+  const head = docText("style", DOC.reviewedUntil, { filler: 0 }).split(DOC.reviewedUntil)[0];
+  const filler = REVIEW_READ_LIMIT - [...head].length;
+  const text = docText("style", DOC.reviewedUntil, { filler }).replaceAll("\n", "\r\n");
+  const root = makeDocRepo({ text });
+  const { violations } = checkRuleSymlinks(root, [...DOC_INSTRUCTIONS, DOC]);
+  expect(violations.filter((v) => v.includes("Copilot のレビューは先頭"))).toHaveLength(1);
+  cleanup(root);
+});
+
+test("コードブロックの中の reviewedUntil と同じ行は、見出しとして扱わない", () => {
+  const fm = `---\napplyTo: "**/*.md"\n---\n\n`;
+  const text = `${fm}# style\n\n\`\`\`text\n${DOC.reviewedUntil}\n\`\`\`\n\n${"あ".repeat(REVIEW_READ_LIMIT)}\n\n${DOC.reviewedUntil}\n`;
+  const root = makeDocRepo({ text });
+  const { violations } = checkRuleSymlinks(root, [...DOC_INSTRUCTIONS, DOC]);
+  expect(violations.filter((v) => v.includes("Copilot のレビューは先頭"))).toHaveLength(1);
+  cleanup(root);
+});
+
+test("宣言した文書に reviewedUntil の見出しが無ければ検出する", () => {
+  const root = makeDocRepo({ text: docText("style", "## 別の見出し") });
+  const { violations } = checkRuleSymlinks(root, [...DOC_INSTRUCTIONS, DOC]);
+  expect(violations).toContain(
+    "docs/style.md: 見出し「## 後半」が無い（Copilot が読む範囲を確かめられない）",
+  );
+  cleanup(root);
+});
+
+test.each([
+  ["上限ちょうど", REVIEW_READ_LIMIT, []],
+  ["上限を 1 文字超える", REVIEW_READ_LIMIT + 1, ["超える"]],
+])(
+  "reviewedUntil の見出しより前の文字数が%sなら、それに応じて報告する",
+  (_name, total, expected) => {
+    // 見出しより前の文字数が total になるように、本文の「あ」の数を決める（符号位置で数える）。
+    const head = docText("style", DOC.reviewedUntil, { filler: 0 }).split(DOC.reviewedUntil)[0];
+    const filler = total - [...head].length;
+    const root = makeDocRepo({ text: docText("style", DOC.reviewedUntil, { filler }) });
+    // 文字数の指摘だけを見る（リンクの検査の変異で増える指摘と区別する）。
+    const { violations } = checkRuleSymlinks(root, [...DOC_INSTRUCTIONS, DOC]);
+    const length = violations.filter((v) => v.includes("Copilot のレビューは先頭"));
+    if (expected.length === 0) expect(length).toEqual([]);
+    else
+      expect(length).toEqual([
+        `docs/style.md: 「## 後半」より前が ${total} 文字ある。Copilot のレビューは先頭の ${REVIEW_READ_LIMIT} 文字しか読まない`,
+      ]);
+    cleanup(root);
+  },
+);

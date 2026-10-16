@@ -1,7 +1,7 @@
 // parity-suite の採取物・工程の健全性チェッカ（artifact-health-check.mjs）の回帰テスト（Issue #382 / #278）。
 //
 // 採取物は工程の出力であり次の工程の入力なのに、「読まれたか」「いま正しいか」を数える段が無いと
-// 4 つの形で緑のまま抜ける——読み手のいない採取物・古い加工物・回っていない工程・1 回だけ回した状態変更スイート。
+// 4 つの形で緑のまま抜ける。読み手のいない採取物・古い加工物・回っていない工程・1 回だけ回した状態変更スイートの 4 つである。
 // 加えて、gaps.md の散文は収束判定の入力ではないため、未測定と書いてあっても収束する（#278）。
 //
 // 通ることの確認（健全な成果物が exit 0、旧成果物は判定しない）を置く。これが無いと「常に落とす」実装と区別できない。
@@ -733,7 +733,7 @@ test("--stage suite では blocking の未測定を落とさない（書いた�
   const r = run(metadataPath, ["--stage", "suite"]);
   expect(r.stdout).toMatch(/stage: suite のため blocking 1 件は落とさない/);
   expect(r.status).toBe(0);
-  // 既定（diff）では同じ記録で落ちる——工程の指定だけが挙動を変えていることの対照。
+  // 既定（diff）では同じ記録で落ちる。工程の指定だけが挙動を変えていることを示す対照である。
   const strict = run(metadataPath);
   expect(strict.status).toBe(1);
   rmSync(root, { recursive: true, force: true });

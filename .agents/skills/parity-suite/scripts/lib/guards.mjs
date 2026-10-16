@@ -76,7 +76,7 @@ function isInteger(value) {
 
 /**
  * 反復回数を整数として読む。読めなければ null（「記録が無い」と「0 回」を混ぜない）。
- * **数字列は受けない**——同じ `loop.iterations` を artifact-health-check.mjs と component-comparison-check.mjs が読むので、
+ * **数字列は受けない**。同じ `loop.iterations` を artifact-health-check.mjs と component-comparison-check.mjs が読むので、
  * 片方だけ緩めると 2 つのチェックが同じ記録に矛盾した判定を出す。原本のテンプレートも数値。
  * @param {unknown} value
  * @returns {number | null}

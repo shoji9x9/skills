@@ -223,7 +223,7 @@ const identityPath = join(
 );
 // 同一性は撮影に使うページ（プロジェクトの use の userAgent・デバイスの設定が当たったコンテキスト）から読む。
 // browser.newPage() の既定のコンテキストで読むと、撮影側の userAgent と食い違う。
-// OS も撮影するブラウザ側から読む——cdp では Node のランナーと描画する機械が別なので、os モジュールはランナーしか表さない。
+// OS も撮影するブラウザ側から読む。cdp では Node のランナーと描画する機械が別なので、os モジュールはランナーしか表さない。
 // ランナーの OS は runner_os に別に残す
 let identityRecorded = false;
 
@@ -294,7 +294,7 @@ function sameBrowserOs(a: unknown, b: Record<string, string>): boolean {
 // cdp では共通のフィクスチャが connectOverCDP で接続するので launchOptions は反映されず、接続先が --hide-scrollbars や
 // オーバーレイのバーで起動していても分からない。launched でもプロジェクトの launchOptions が上書きしうる。
 // overflow: scroll の箱を 1 つ置いてバーの幅を読み、現側の scrollbars と食い違えば撮らない（片側だけ場所を取る）。
-// 読むのは頁へ移動する前の about:blank——確かめるのはブラウザの起動の仕方で、頁の CSS（scrollbar-width: none 等）ではない。
+// 読むのは頁へ移動する前の about:blank である。確かめるのはブラウザの起動の仕方で、頁の CSS（scrollbar-width: none 等）ではない。
 // 頁の CSS で隠したバーは現側も同じ CSS で隠れ、スクロールする箱ごとの差は trait-capture.mjs の scroll が照合する。
 // 移動後に測ると、頁が正当にバーを隠しているだけで shown の撮影が止まる
 let scrollbarPx: number | null = null;
@@ -386,7 +386,7 @@ for (const viewport of shots) {
           // 撮影に使うページでスクロールバーの扱いを実測し、同一性を読む（組を飛ばす前に行う。全組を再利用する noise パスでも書く）
           await recordIdentity(page, browserName, testInfo);
           // noise パスは「測り直す組」だけを撮る（再利用の可否は parity-diff が判定して PARITY_NOISE_PAIRS で渡す）。
-          // noise パスの出力は撮る組・撮らない組とも先に消す——前反復の 2 回目が残っていると、
+          // noise パスの出力は、撮る組・撮らない組とも先に消す。前反復の 2 回目が残っていると、
           // 撮らない組では「今回の baseline-new」と「前反復の 2 回目」が突き合わされ、反復の間のコードの変更を
           // 自己ノイズとして計上してしまう。撮る組では、今回撮り直さなかったファイルが含まれる。
           // 通常は前回の測定後に parity-diff が削除済みなので no-op で、削除が中断した場合の保険として残す

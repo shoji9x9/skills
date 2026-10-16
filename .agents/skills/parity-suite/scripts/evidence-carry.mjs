@@ -14,7 +14,7 @@
 //      記録した入力画像の sha256 が今のファイルと一致するときだけ持ち越す。判定不能なら持ち越さない。
 //
 // 呼び出し元: artifact-health-check.mjs の checkStage と component-comparison-check.mjs の
-// comparison-implementation-stale。**2 つのチェックは同じ入力に同じ判定を出す**——どちらもこの関数だけで
+// comparison-implementation-stale。**2 つのチェックは同じ入力に同じ判定を出す**。どちらもこの関数だけで
 // 持ち越しを決め、独自の緩和を足さない。
 //
 // 次のどれに当たっても持ち越さない。リポジトリが無い・git が失敗する・コミットが無い・変更宣言が読めない／不正・

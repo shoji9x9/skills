@@ -1,0 +1,98 @@
+{
+  "$comment": [
+    "response-word-check.test.ts が、応答の使わない語を確かめる Stop の Hook の判定の行を検出できることを示す変異の一覧。 印の処理そのものの変異は scripts/lib/stop-marker.mutations.json にある。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は、ランナーの基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/hooks/response-word-check.test.ts",
+  "mutations": [
+    {
+      "id": "WORD-DASH-NOT-ADDED",
+      "why": "ダッシュの並びを探す規則を応答に当てない（記号が続く形と U+2015 を通す）",
+      "file": "scripts/hooks/response-word-check.ts",
+      "find": "const rules = [...wordRules(loaded), dashRule(root)];",
+      "replace": "const rules = [...wordRules(loaded)];",
+      "occurrences": 1,
+      "expect_failing": [
+        "止める: ダッシュの強調（後に「「」が続く）を、辞書の言い換えとともに示す",
+        "止める: ダッシュの強調（後に「（」が続く）を、辞書の言い換えとともに示す",
+        "止める: ダッシュの強調（後に「。」が続く）を、辞書の言い換えとともに示す",
+        "止める: ダッシュの強調（U+2015 の 2 文字）を、辞書の言い換えとともに示す"
+      ]
+    },
+    {
+      "id": "WORD-DASH-SINGLE",
+      "why": "1 文字のダッシュも対象にする（表の空欄や英語の区切りで止める）",
+      "file": "scripts/lib/textlint-word-rule.ts",
+      "find": "`(?<![—―${ARROWS}])[—―]{2,}(?![—―${ARROWS}])`,",
+      "replace": "`(?<![—―${ARROWS}])[—―]+(?![—―${ARROWS}])`,",
+      "occurrences": 1,
+      "expect_failing": ["通す: 1 文字の — は対象にしない（表の空欄や英語の区切り）"]
+    },
+    {
+      "id": "WORD-PROSE-NOT-EXTRACTED",
+      "why": "本文を取り出さない（引用の中の語で止める。コードとハーネスのタグの塊は textlint の Markdown の解析でも外れる）",
+      "file": "scripts/hooks/response-word-check.ts",
+      "find": "const body = prose(message);",
+      "replace": "const body = message;",
+      "occurrences": 1,
+      "expect_failing": ["通す: 引用の中の使わない語"]
+    },
+    {
+      "id": "WORD-ALL-RULES",
+      "why": "使わない語の規則に絞らない（文書の規約の「である」調・文の長さで応答を止める）",
+      "file": "scripts/lib/textlint-word-rule.ts",
+      "find": ".filter((r) => r.ruleId === WORD_RULE)",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "通す: 引用の中の使わない語",
+        "通す: 「ですます」調で 150 字を超える文",
+        "通す: コードブロックの中の使わない語",
+        "通す: 1 文字の — は対象にしない（表の空欄や英語の区切り）"
+      ]
+    },
+    {
+      "id": "WORD-RULE-PRESENCE-UNCHECKED",
+      "why": "規則が有効かを確かめない（設定が無いと規則なしで成功し、どの応答も通す）",
+      "file": "scripts/lib/textlint-word-rule.ts",
+      "find": "if (rules.length === 0) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["エラー: 設定で使わない語の規則が無効なら、書き直しを求めずに 1 を返す"]
+    },
+    {
+      "id": "WORD-FILTER-RULES-KEPT",
+      "why": "filter の規則を外さない（応答に textlint-disable のコメントを書くだけで通す）",
+      "file": "scripts/hooks/response-word-check.ts",
+      "find": ", filterRules: []",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["止める: textlint-disable のコメントを書いても、使わない語を示す"]
+    },
+    {
+      "id": "WORD-MARKER-NOT-CHECKED",
+      "why": "共有の印の確認を呼ばない（stop_hook_active に関わらず確かめ、書き直した応答を止め続ける）",
+      "file": "scripts/hooks/response-word-check.ts",
+      "find": "if (alreadyBlocked(HOOK, payload, markerDir)) return 0;",
+      "replace": "if (false) return 0;",
+      "occurrences": 1,
+      "expect_failing": [
+        "通す: この一続きで既に止めた後（stop_hook_active が true で印が在る）は、使わない語があっても通す",
+        "通す: session_id が使えない形なら、続けさせた後の応答は確かめない",
+        "通す: 前の印を消せなくても、例外で終わらずに判定を続ける",
+        "通す: 新しい一続きの最初の Stop は、前の一続きの印を消す"
+      ]
+    },
+    {
+      "id": "WORD-NOT-RECORDED",
+      "why": "止めた印を残さない（書き直した応答を止め続ける）",
+      "file": "scripts/hooks/response-word-check.ts",
+      "find": "  recordBlocked(HOOK, payload, markerDir);\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "止める: 別の Hook が続けさせた後（stop_hook_active が true で印が無い）の応答も確かめ、止めた印を残す"
+      ]
+    }
+  ]
+}

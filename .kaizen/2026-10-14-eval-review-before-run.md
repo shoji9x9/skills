@@ -1,7 +1,7 @@
 ---
 date: 2026-10-14
 type: rule
-priority: medium
+priority: high
 status: pending
 applied-to: []
 session: claude-code
@@ -15,6 +15,10 @@ Issue #623 で eval 23・24 を足し、reachability のチェックが通った
 並行して起動した Sonnet のサブエージェントのレビューが、複数の主張を束ねた assertion（「確認を送らず、BLOCKED にして、#102 に進む」など）を 6 件指摘した。
 assertion を主張ごとに分けたので、fingerprint が変わり、4 run をすべてやり直した。
 
+再発（2026-10-15、Issue #614）: eval 3・4 の prompt に問いを足す案を書き、規約の観点のレビューを通す前に利用者に承認を求めた。
+承認の後のレビューが、案が判断の軸を baseline に渡すことと、`--target` が無いことを指摘した。案を作り直して、もう一度承認を求めた。
+2 回目のレビューでも、fixture と assertion に指摘が続いた。
+
 ## 根本原因
 
 - なぜ run をやり直したか → assertion を変えると、その run の採点も baseline の再利用もできない
@@ -27,3 +31,4 @@ evals.json の assertion を足したり変えたりしたら、rule の「レ�
 
 - 適用先の候補: `.agents/rules/eval-assertion-discrimination.md`「到達できるかを確かめる方法」の 4 点の直後に、「4 点のレビューは run を起動する前に終える」と足す
 - 候補（試して採否を決める）: assertion の文に読点で並んだ動詞が 2 つ以上あるものを警告する lint。誤検知率は実データで測ってから決める
+- eval の定義（prompt・assertion・fixture）の案を利用者に示して承認を求めるときも、観点のレビューを先に終え、指摘を反映した案を示す。承認した案を後から変えると、利用者に同じ判断を 2 度求めることになる

@@ -991,7 +991,7 @@ test("行の選択・複数列の並べ替えを持たないグリッドは、�
 
 test("必須ルールの代替の組は、どれか 1 つが候補を生めば満たす（全列が初期非表示のグリッド。Codex レビュー）", () => {
   // 全列が初期非表示で表示切替できるグリッドは row-select の候補を生まず、row-select-revealed だけが立つ。
-  // 行を選ぶ手段も列も実在するので justified_absences では通せない——組にしないと行き止まりになる。
+  // 行を選ぶ手段も列も実在するので justified_absences では通せない。組にしないと行き止まりになる。
   const profile = bundledProfile("datagrid");
   const cov = datagridCoverage();
   const inst = cov.components[0].instances[0];
@@ -1399,7 +1399,7 @@ test("プロファイルの形式検査: enumeration の欠落・空フィール
 
 /**
  * 一時ディレクトリにプロファイルと網羅表を書いて CLI を実行する。
- * プロファイルディレクトリ（@profiles）と成果物ディレクトリを分ける——同じにすると
+ * プロファイルディレクトリ（@profiles）と成果物ディレクトリを分ける。同じにすると
  * 網羅表がプロファイルとして読み込まれ、検証したい処理と別の理由で落ちる。
  */
 function runCli(
@@ -1708,7 +1708,7 @@ test("網羅表の操作から撮影状態を導く（種別はプロファイ�
     component: "grid",
     instance: "orders",
   });
-  // **ルール id でまとめない**——ルールは複数の軸の直積へ展開されるので、まとめると
+  // **ルール id でまとめない**。ルールは複数の軸の直積へ展開されるので、まとめると
   // 縮約してはいけない軸（datagrid では sort-direction）まで畳んでしまう。
   const sortActive = cov.visual_state_coverage.rows.filter(
     (r) => r.kind === "active" && r.required_by.startsWith("column-sort/"),
@@ -2260,7 +2260,7 @@ test("同じ撮影単位で状態名を使い回した行は根拠なしに通�
 
 test("--write は人が埋める欄を全部引き継ぐ（逃げ道が書き戻しで消えない）", () => {
   // shared_capture_reason を引き継がないと、手順 8 で必ず通す --write が根拠を消し、
-  // 同じ実行の照合が「根拠なしの使い回し」で落ちる——逃げ道が構造的に死ぬ。
+  // 同じ実行の照合が「根拠なしの使い回し」で落ちる。逃げ道が構造的に死ぬ。
   const cov: GenericCoverage = {
     slug: "order-list",
     components: [

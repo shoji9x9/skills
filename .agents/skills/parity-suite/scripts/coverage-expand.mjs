@@ -59,7 +59,7 @@ const VISUAL_STATE_KINDS = [
 
 // 撮影状態の行のうち、人／エージェントが埋める欄。導出は要求の集合だけを決めるので、
 // 書き戻し（fillVisualStateRows）はこの一覧を必ず引き継ぐ。
-// **欄を増やしたらここへ足す**——足し忘れると、その欄は必ず通る --write の側で消える。
+// **欄を増やしたらここへ足す**。足し忘れると、その欄は必ず通る --write の側で消える。
 // 実際に shared_capture_reason で起き、根拠を書いても次の --write が消して逃げ道が死んだ。
 const HUMAN_DECIDED_ROW_FIELDS = ["captured", "reason", "shared_capture_reason"];
 
@@ -407,7 +407,7 @@ function showKind(v) {
 
 /**
  * 一次情報源（`SET_SOURCE_KINDS[0]`）以外で列挙したときに、その情報源が使えなかった理由の申告を要求する。
- * `fail_closed`（ソースを読めないときの `complete: false`）の裏側——**読めるのに読まなかった**——には
+ * `fail_closed`（ソースを読めないときの `complete: false`）の裏側は、**読めるのに読まなかった**場合である。この場合には
  * それまで検査する手段が無く、いちばん弱い情報源だけで `complete: true` が通っていた。
  * 「読めなかった」のか「実 UI から起こした」のかは機械では区別できないので、申告を残させる。
  * 強さの判定は記録側（coverage-expand）・判定側（coverage-check）のどちらも同じ語彙で行う
@@ -566,7 +566,7 @@ function enumerationSourceProblems(en, label) {
 // ===== absence-evidence-contract:end =====
 
 /**
- * 期待セルの展開に使える id を集める。`coverage-check.mjs` の `collectIds` と同じ規則にする——
+ * 期待セルの展開に使える id を集める。`coverage-check.mjs` の `collectIds` と同じ規則にする。
  * id が空・重複の要素は識別できないので展開に使わず、その要素が関わるセルは未測定として数える。
  * **警告なしに読み飛ばさない**（読み飛ばすと、識別できない要素があるのに conformance.ok: true になる）。
  * @param {unknown[]} entries
@@ -1960,7 +1960,7 @@ function visualRowKey(row) {
  * 「部品 × インスタンス × 要求元の操作 × 種別」の行を作る。撮っていない状態には差が出ず、差分ツールは撮った 2 枚しか比べないので、
  * 集合が足りないぶんは「差 0 件」と区別が付かない。導出はその不足を撮る前に見えるようにする。
  *
- * 下限であって上限ではない——操作から導けない状態（error / 初期表示のバリアント）は手で states へ足す。
+ * 下限であって上限ではない。操作から導けない状態（error / 初期表示のバリアント）は手で states へ足す。
  * @param {Record<string, unknown>} cov
  * @returns {{rows: Array<Record<string, unknown>>, problems: string[]}}
  */
@@ -2021,7 +2021,7 @@ export function deriveVisualStateRows(cov) {
       if (!nonEmptyString(it.id)) continue;
       const iid = String(it.id);
       if (byItem.has(iid)) continue;
-      // 要求元は項目 id（プロファイル由来なら候補 id）そのもの。**ルール id でまとめない**——
+      // 要求元は項目 id（プロファイル由来なら候補 id）そのもの。**ルール id でまとめない**。
       // ルールは複数の軸の直積へ展開されるので、まとめると縮約してはいけない軸まで畳んでしまう
       // （datagrid の column-sort は sort-direction へ展開されるが、その軸は reducible_axes に無い）。
       // 縮約は宣言・検証済みの同値クラス経由でだけ行う（下の representativeOf）。
@@ -2078,7 +2078,7 @@ export function deriveVisualStateRows(cov) {
     // 宣言に無い部品・項目のセルは reconcile が余剰として落とす。
     if (!item) continue;
     // 同値クラスに属する候補は、視覚採取する代表の行へ寄せる（代表 1 件だけを撮る）。
-    // 寄せ先は代表のインスタンス——撮るのは代表が載っているページなので、
+    // 寄せ先は代表のインスタンスである。撮るのは代表が載っているページなので、
     // 行の撮影単位も代表側で決まる。クラスに属さない候補は自分の行を持つ。
     const representative = representativeOf.get(cid)?.get(`${inst}${ID_SEPARATOR}${iid}`);
     let rowInstance = inst;
@@ -2124,7 +2124,7 @@ export function deriveVisualStateRows(cov) {
 
 /**
  * 導いた行を網羅表へ書き戻す。captured / reason は同じキー（部品・インスタンス・要求元・種別）の
- * 既存行から引き継ぐ——導出は要求の集合だけを決め、撮る／撮らないの判断は人／エージェントが持つ。
+ * 既存行から引き継ぐ。導出は要求の集合だけを決め、撮る／撮らないの判断は人／エージェントが持つ。
  * 要求が消えた行は落とす（測っていない操作の撮影判断が残り続けない）。
  * @param {Record<string, unknown>} cov
  * @returns {Record<string, unknown>}
@@ -2404,8 +2404,8 @@ export function fillVisualStates(coverage, profiles) {
 /**
  * 網羅表へ展開結果（instances[].candidates と profile_version）を書き戻す。
  * 測定値（cells の value / evidence / covered_by）には触れない。
- * 照合の前に呼ぶ——記録された候補が古い／無いことを理由にした問題を、書き戻しで先に解消してから
- * 残る欠落だけを報告するため（書き戻しても直らない欠落だけが問題として残る）。
+ * 照合の前に呼ぶ。記録された候補が古い／無いことを理由にした問題を、書き戻しで先に解消してから
+ * 残る欠落だけを報告するためである（書き戻しても直らない欠落だけが問題として残る）。
  * @param {Record<string, unknown>} coverage
  * @param {Map<string, Record<string, unknown>>} profiles
  * @returns {Record<string, unknown>}

@@ -11,7 +11,8 @@
 //   （JavaScript・TypeScript・シェル・YAML。拡張子は `scripts/lib/code-comments.ts` で定義する）。
 //   コメントは、取り出した文章を Markdown にして見る。
 // - 文字列（JavaScript・TypeScript の文字列リテラルと、`evals/<name>/evals.json` の prompt・expected_output・assertions）には、
-//   使わない語の規則（`ai-words-ja/no-ai-words`）だけを当てる。取り出し方は `scripts/lib/code-strings.ts` で定義する。
+//   使わない語の規則だけを当てる。規則は `ai-words-ja/no-ai-words` と、`——` を探す `local/no-dash-emphasis` である。
+//   取り出し方は `scripts/lib/code-strings.ts` で定義する。
 //   テスト名・メッセージ・eval の文字列を手本にすると旧称が広がるので見る（#567）。文章の書式の規則は当てない。
 //   次のものは除く。
 //   - エージェント用のコピーとリンク（判定は `scripts/lib/source-scope.ts`）。rule（`.agents/rules/`）と
@@ -39,12 +40,12 @@ import { isAgentCopy } from "../../lib/source-scope.ts";
 import { errorMessage } from "../../lib/errors.ts";
 import { isNonEmptyString, isRecord } from "../../lib/guards.ts";
 import { isArray } from "../../lib/is-array.ts";
+import { WORD_RULE_IDS, withDashRule, wordRules } from "../../lib/textlint-word-rule.ts";
 
 export const PENDING_PATH = "scripts/gates/prose/prose-lint-pending.json";
 /** コメントを取り出せなかったファイルの指摘に付ける ruleId。 */
 const PARSE_RULE = "code-comments";
 /** 文字列に当てる規則（使わない語の一覧）。 */
-const WORD_RULE = "ai-words-ja/no-ai-words";
 const EXCLUDED_PREFIXES = [".kaizen/archive/", "tests/", "node_modules/"];
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 
@@ -52,10 +53,24 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 type LintMessage = { line: number; column: number; message: string; ruleId: string };
 type Linter = ReturnType<typeof createLinter>;
 
-/** 一覧を読み、形の誤りは例外にする（読めない一覧を「保留 0 件」として扱わない）。 */
+/**
+ * 一覧を読み、形の誤りは例外にする（読めない一覧を「保留 0 件」として扱わない）。
+ * 例外の message には一覧のパスを付ける。main は他の例外（設定・辞書・ツール）と同じ形で表示するので、
+ * 一覧の問題かどうかは message で区別する。
+ */
 export function loadPending(root: string): Set<string> {
+  try {
+    return readPending(root);
+  } catch (error) {
+    throw new Error(`${resolve(join(root, PENDING_PATH))}: ${errorMessage(error)}`, {
+      cause: error,
+    });
+  }
+}
+
+function readPending(root: string): Set<string> {
   const path = join(root, PENDING_PATH);
-  if (!existsSync(path)) throw new Error(`${PENDING_PATH} が無い`);
+  if (!existsSync(path)) throw new Error("ファイルが無い");
   const data: unknown = JSON.parse(readFileSync(path, "utf8"));
   if (!isRecord(data) || typeof data.reason !== "string" || !data.reason.trim()) {
     throw new Error("reason が無い（なぜ保留しているかを書く）");
@@ -115,7 +130,9 @@ async function lintExtracted(
   if (!markdown) return [];
   const result = await linter.lintText(markdown, `${abs}.md`);
   const messages =
-    kind === "strings" ? result.messages.filter((m) => m.ruleId === WORD_RULE) : result.messages;
+    kind === "strings"
+      ? result.messages.filter((m) => WORD_RULE_IDS.includes(m.ruleId))
+      : result.messages;
   return messages.map((m) => ({
     ...m,
     line: lines[m.line - 1] + 1,
@@ -151,7 +168,10 @@ export async function lintProse({
     configFilePath: join(configRoot, ".textlintrc.json"),
     node_modulesDir: join(configRoot, "node_modules"),
   });
-  const linter = createLinter({ descriptor, cwd: root });
+  // 規則の ID がずれると、文字列の指摘を WORD_RULE_IDS で絞った結果が 0 件になり、エラーにならずに通る。先に在ることを確かめる。
+  wordRules(descriptor);
+  // 辞書では検出しきれない `——` を、文字列で探す規則も当てる（理由は textlint-word-rule.ts）。
+  const linter = createLinter({ descriptor: withDashRule(descriptor, configRoot), cwd: root });
   const docs = targets.filter((t) => t.endsWith(".md"));
   const results = docs.length ? await linter.lintFiles(docs.map((t) => join(root, t))) : [];
   const byPath = new Map<string, LintMessage[]>(
@@ -203,9 +223,8 @@ export async function main(argv: string[]): Promise<number> {
   try {
     result = await lintProse({ root: process.cwd(), files: files.length ? files : undefined });
   } catch (error) {
-    // ツールが無いときは、保留の一覧の問題と読めないように、一覧のパスを添えない。
-    const where = isMissingToolError(error) ? "" : `（${resolve(PENDING_PATH)}）`;
-    console.error(`lint-prose: 実行できない${where}: ${errorMessage(error)}`);
+    // 一覧のパスは、一覧を読めないときだけ loadPending が message に付ける（設定・辞書・ツールの問題に付けない）。
+    console.error(`lint-prose: 実行できない: ${errorMessage(error)}`);
     return 2;
   }
   const { checked, pending, violations, stale } = result;

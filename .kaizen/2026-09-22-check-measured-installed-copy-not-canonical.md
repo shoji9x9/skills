@@ -14,7 +14,7 @@ session: claude-code
 Issue #420 で、2 つのワークフローに重複していた追跡 Issue の照会を配布スキル同梱の
 `skills/kaizen/scripts/tracking-issue-lib.sh` へ括り出した。ステップの実行テストは
 `TRACKING_LIB` の宣言（`${{ steps.locate.outputs.lib }}`）を**本番と同じ探索ステップを実際に実行して**
-解決していた。その探索順の先頭は `.claude/skills/kaizen/scripts` ——
+解決していた。その探索順の先頭は `.claude/skills/kaizen/scripts` なので、
 テストは原本ではなく**インストール済みコピー**を source していた。
 
 原本へ当てた変異（`query_tracking_issues` を終了コードを捨てる形へ戻す）で、`outdated.yml` 側の
@@ -34,10 +34,10 @@ Issue #420 で、2 つのワークフローに重複していた追跡 Issue の
 
 ## KEDB 照合
 
-[[2026-09-21-check-written-to-fit-the-fixture]]（`status: pending` / high）と同じ族——「検査が本物の対象に
-当たっていないのに緑」。あちらは対象の**形**（fixture のスキーマ）、本件は対象の**場所**（原本かコピーか）。
+[[2026-09-21-check-written-to-fit-the-fixture]]（`status: pending` / high）と同じ族で、どちらも「検査が本物の対象に
+当たっていないのに緑」である。あちらは対象の**形**（fixture のスキーマ）、本件は対象の**場所**（原本かコピーか）。
 [[2026-09-19-mutation-proof-judged-by-exit-code]]（applied）は「変異が当たらない偽の生存」で、本件は
-「変異は当たったが測る対象が別ファイル」——同じ偽の生存の別の形。applied なので追記せず恒久側で扱う。
+「変異は当たったが測る対象が別ファイル」で、同じ偽の生存の別の形である。applied なので追記せず恒久側で扱う。
 
 横断スコープ: `scripts/*.test.ts` のうち実行対象のパスを実行時の探索で解決していたのはこの 1 件だけだった
 （他は `skills/<name>/scripts/...` を名指し。`.claude` / `.agents` 配下への言及は合成 fixture の文字列のみ）。実測で確認した。

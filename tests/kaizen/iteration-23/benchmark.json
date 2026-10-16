@@ -1,0 +1,160 @@
+{
+  "metadata": {
+    "skill_name": "kaizen",
+    "skill_path": "<repo>/skills/kaizen",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-15T13:23:11Z",
+    "evals_run": [24],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 24,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 41.178,
+        "tokens": 175392,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "2026-02-01-lint-scope-in-doc.md だけが指摘され、2026-02-02-mechanism-applied.md（同じ type: hook だが applied-to に scripts/check-control-bytes.js を含む）と 2026-02-03-prose-only.md（type: doc）は指摘されないことを、出力と照合して述べている",
+          "passed": true,
+          "evidence": "応答の実行結果に 2026-02-01-lint-scope-in-doc.md の warning だけが出て、表で 02（applied-to に scripts/check-control-bytes.js）と 03（type: doc）が出ない理由を出力と照合して述べている"
+        },
+        {
+          "text": "判定は frontmatter の type が hook であることと、applied-to の要素が .md だけであることの両方が成り立つ場合だと説明している",
+          "passed": true,
+          "evidence": "条件 2（type が hook）と条件 3（applied-to の要素がすべて .md）の両方が成り立つときに警告と説明（status: applied も前提として併記）"
+        },
+        {
+          "text": "これは警告であって終了コードは 0 のままであり、コミット前のチェックは止まらないと述べている",
+          "passed": true,
+          "evidence": "「警告扱いのため exit 0」「警告は exit 0 なので commit は止まりません」"
+        },
+        {
+          "text": "閉じ方は、機構を実際に作るか、ドキュメントへ寄せると決めたなら type を実際にやったこと（doc / rule）へ直すかの 2 つであることを述べている",
+          "passed": true,
+          "evidence": "閉じ方として「機構を作ってから閉じる」と「type: doc に直す（意図してドキュメントに寄せる場合）」を挙げている（Issue 切り出しを 3 つ目に併記）"
+        },
+        {
+          "text": "機構化を別作業へ切り出す場合は applied-to に \"#<Issue番号>\" を載せる方法があり、その形なら警告の対象外になると述べている",
+          "passed": true,
+          "evidence": "「applied-to に \"#<Issue番号>\" を足します。…警告も消えます（.md 以外の要素になるため）」"
+        },
+        {
+          "text": "提案の文面にある語（lint / hook / 検査 等）で判定しない理由として、語は提案が何について述べているかを指すだけで機構を要求している証拠にならない旨を述べている",
+          "passed": true,
+          "evidence": "「検査/ゲート/スクリプト…これらは提案が何について書いているかを表すだけで、何で解決したかは表しません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 24,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.1667,
+        "passed": 1,
+        "failed": 5,
+        "total": 6,
+        "time_seconds": 112.281,
+        "tokens": 305275,
+        "tool_calls": 10,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "2026-02-01-lint-scope-in-doc.md だけが指摘され、2026-02-02-mechanism-applied.md（同じ type: hook だが applied-to に scripts/check-control-bytes.js を含む）と 2026-02-03-prose-only.md（type: doc）は指摘されないことを、出力と照合して述べている",
+          "passed": false,
+          "evidence": "バンドルの検査は見つからず実行していない。表は自作の代替スクリプトの出力との照合で、本人も「バンドル版の実際の出力ではありません」と述べている"
+        },
+        {
+          "text": "判定は frontmatter の type が hook であることと、applied-to の要素が .md だけであることの両方が成り立つ場合だと説明している",
+          "passed": false,
+          "evidence": "判定を「type が仕組み系（hook など）で applied-to が文書だけ（.md など）」と自作スクリプトの仮定として述べ、「バンドル版の実際の判定条件…は確認できていません」としている"
+        },
+        {
+          "text": "これは警告であって終了コードは 0 のままであり、コミット前のチェックは止まらないと述べている",
+          "passed": false,
+          "evidence": "警告であることと終了コード 0 のままでコミット前のチェックが止まらないことに触れていない"
+        },
+        {
+          "text": "閉じ方は、機構を実際に作るか、ドキュメントへ寄せると決めたなら type を実際にやったこと（doc / rule）へ直すかの 2 つであることを述べている",
+          "passed": false,
+          "evidence": "閉じ方は機構の実装と status を戻すことで、type を doc / rule に直す方法は「やめてください」と退けている"
+        },
+        {
+          "text": "機構化を別作業へ切り出す場合は applied-to に \"#<Issue番号>\" を載せる方法があり、その形なら警告の対象外になると述べている",
+          "passed": false,
+          "evidence": "applied-to に \"#<Issue番号>\" を載せる方法に触れていない"
+        },
+        {
+          "text": "提案の文面にある語（lint / hook / 検査 等）で判定しない理由として、語は提案が何について述べているかを指すだけで機構を要求している証拠にならない旨を述べている",
+          "passed": true,
+          "evidence": "（境界）「01 の提案には仕組みの話が、02 の提案にも文書の話が混ざっている。キーワードで拾うと誤検出と見逃しが両方出る」と、語は話題を示すだけで機構の要否を分けない旨を述べている"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 41.178,
+        "stddev": 0,
+        "min": 41.178,
+        "max": 41.178
+      },
+      "tokens": {
+        "mean": 175392,
+        "stddev": 0,
+        "min": 175392,
+        "max": 175392
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.1667,
+        "stddev": 0,
+        "min": 0.1667,
+        "max": 0.1667
+      },
+      "time_seconds": {
+        "mean": 112.281,
+        "stddev": 0,
+        "min": 112.281,
+        "max": 112.281
+      },
+      "tokens": {
+        "mean": 305275,
+        "stddev": 0,
+        "min": 305275,
+        "max": 305275
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.83",
+      "time_seconds": "-71.1",
+      "tokens": "-129883"
+    }
+  },
+  "notes": [
+    "Issue #614: 全角ダッシュを 2 つ続けた記号（U+2014 の連続）の書き換え（意味を変えない表記の変更）の後の変更確認。入力が変わった eval を with_skill / without_skill で 1 run ずつ実行した（executor: claude-code / opus）。",
+    "集計から外した run は無い。"
+  ]
+}

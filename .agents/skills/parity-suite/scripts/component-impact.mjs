@@ -478,7 +478,7 @@ function judgeFeature(slug, metadata, change, instances) {
  * 変更宣言から機能ごとの影響を導く（純関数）。
  *
  * 変更宣言は validateChange を通ったものを渡す。通らない宣言を渡すと例外を投げる
- * （`error.code === "invalid-change"`、`error.errors` に理由）——型崩れを判定不能や影響なしに混ぜない。
+ * （`error.code === "invalid-change"`、`error.errors` に理由）。型崩れを、判定不能や影響なしと同じ扱いにしないためである。
  *
  * `pageUniverse`（任意）は unmatched_instances の判定にだけ使う機能 metadata の一覧。`--feature` で 1 機能に
  * 絞った実行でも、他の機能のページにあるインスタンスを「一致しない」に数えないために渡す。省略時は features。

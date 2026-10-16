@@ -182,7 +182,7 @@ export function buildStrictMask(currentData, nextData, pixels, thresholdMask = n
 
 /**
  * しきい値つき（記録済みツールの差分画像）としきい値なし（厳密比較）の画素数を並べた summary を返す。
- * `strict_only_pixels` が**許容の内側に隠れた差**——ここが非ゼロなら、差分領域が 0 件でも
+ * `strict_only_pixels` は**許容の内側に隠れた差**である。ここが非ゼロなら、差分領域が 0 件でも
  * 「一致」とは読めない（ノイズ基準値と対比して分類する。判断は呼び出し側＝トリアージが行う）。
  *
  * @param {Uint8Array} thresholdMask - 差分画像から作ったマスク

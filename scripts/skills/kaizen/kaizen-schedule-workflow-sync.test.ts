@@ -22,8 +22,8 @@ const WIRED = ".github/workflows/kaizen-schedule.yml";
 // そのバージョンが最新かは見ないからである。
 //
 // 完全一致にする代わり、Dependabot が `.github/workflows/` 側だけを上げた PR では
-// この検査が赤くなる。**silent な陳腐化より visible な 1 コマンドの手戻りを選ぶ**
-// ——失敗メッセージに同期コマンドを書いてあり、その PR は `dependabot-merge` が
+// この検査が赤くなる。**silent な陳腐化より visible な 1 コマンドの手戻りを選ぶ**。
+// 失敗メッセージに同期コマンドを書いてあり、その PR は `dependabot-merge` が
 // どのみち人の目を通す。CI 側の pin 検査（`ci.yml` の "Pin check (distributed workflow
 // templates)"）は、テンプレートが未 pin・コメント不整合になることを別途落とす。
 const SYNC_HINT =

@@ -9,18 +9,98 @@
 // 期待する集合は、観測ではなく宣言から作る。`.agents/rules/*.md` の実在が原本で、symlink の側はその反映である。
 // 逆向き（原本の無い孤児の symlink）も、同じ表から検出する。
 // 対象 0 件は成功として扱わず、fail にする（走査できていないことと、違反が無いことを区別する）。
-import { existsSync, lstatSync, readdirSync, readlinkSync, realpathSync } from "node:fs";
+import {
+  existsSync,
+  lstatSync,
+  readFileSync,
+  readdirSync,
+  readlinkSync,
+  realpathSync,
+} from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { fencedLines } from "../../lib/doc-scan.ts";
 import { errorMessage } from "../../lib/errors.ts";
+import { splitFrontmatter } from "../../lib/frontmatter.ts";
+import { loadYamlAs } from "../../lib/yaml-as.ts";
 
 export const CANON_DIR = ".agents/rules";
 
 // symlink を置く先の宣言。`suffix` は原本のベース名（拡張子なし）に付く。
+// `docs` が true の置き先には、rule に加えて DOC_INSTRUCTIONS の文書へのリンクも置く。
 export const WIRINGS = [
-  { dir: ".claude/rules", suffix: ".md", agent: "Claude Code" },
-  { dir: ".github/instructions", suffix: ".instructions.md", agent: "GitHub Copilot" },
+  { dir: ".claude/rules", suffix: ".md", agent: "Claude Code", docs: false },
+  { dir: ".github/instructions", suffix: ".instructions.md", agent: "GitHub Copilot", docs: true },
 ];
+
+// rule ではない文書を、Copilot のレビューにだけ instructions として読ませる宣言。
+// 作業によらず常に要る規約は rule にせず、AGENTS.md から `@` で取り込む（Claude Code）。
+// Copilot は `@` の取り込みもリンク先も読まないので、`.github/instructions/` にその文書への symlink を置く。
+// 宣言に無い名前は、これまでどおり孤児として検出する。
+//
+// symlink だけでは Copilot は読まない。文書の frontmatter の applyTo が PR の変更ファイルに当たるときだけ読むので、
+// applyTo を持つことも確かめる。applyTo の範囲は文書ごとに決める。
+// writing-style は lint-prose の対象に合わせ、writing-style-apply-to.test.ts が一致を確かめる。
+// `**` と `*` がドットで始まる名前に当たらない glob の実装もあるので、`**/.*/**/*.<ext>` と `**/.*.<ext>` の形も並べる。
+// Copilot のコードレビューは instructions の先頭 4,000 文字しか読まない
+// （https://docs.github.com/en/copilot/how-tos/copilot-on-github/use-copilot-agents/copilot-code-review）。
+// そのため、レビューで確かめる節を文書の前に置き、その後に続く最初の見出し（reviewedUntil）が 4,000 文字の内側にあることを確かめる。
+export type DocInstruction = { name: string; canon: string; reason: string; reviewedUntil: string };
+export const DOC_INSTRUCTIONS: DocInstruction[] = [
+  {
+    name: "writing-style",
+    canon: "docs/writing-style.md",
+    reason: "文章の規約は人への応答にも当てるので常に要り、rule にしない",
+    reviewedUntil: "## 書き換えで変えないもの",
+  },
+];
+
+/** Copilot のコードレビューが instructions から読む文字数の上限。 */
+export const REVIEW_READ_LIMIT = 4000;
+
+/** 宣言した文書が、Copilot のレビューに読まれる形（applyTo を持ち、レビューで確かめる節が上限の内側）かを確かめる。 */
+function checkDocShape(root: string, doc: DocInstruction): string[] {
+  // 文書が無いことは呼び出し側が報告するので、ここでは読めなければ何も足さない。
+  if (!existsSync(join(root, doc.canon))) return [];
+  const text = readFileSync(join(root, doc.canon), "utf8");
+  const out: string[] = [];
+  const split = splitFrontmatter(text);
+  let fm: { applyTo?: unknown } | null = null;
+  try {
+    fm = split ? loadYamlAs<{ applyTo?: unknown }>(split.fm) : null;
+  } catch (error) {
+    // 他の不備と一緒に報告できるように、読めない frontmatter も違反として返す。
+    out.push(`${doc.canon}: frontmatter の YAML を読めない: ${errorMessage(error)}`);
+    return out;
+  }
+  if (typeof fm?.applyTo !== "string" || fm.applyTo.trim() === "") {
+    out.push(
+      `${doc.canon}: frontmatter に applyTo が無い（Copilot のレビューが PR のファイルに当てない）`,
+    );
+  }
+  // 行末（\n か \r\n）を残したまま行に分け、比べるときだけ \r を外す。CRLF の文書でも、見出しを見つけて文字数を正しく数える。
+  // コードブロックの中の同じ行は見出しではないので、フェンスの中の行は比べない。
+  const lines = text.split(/(?<=\n)/);
+  const fenced = fencedLines(lines.map((line) => line.replace(/\r?\n$/, "")));
+  const at = lines.findIndex(
+    (line, i) => !fenced[i] && line.replace(/\r?\n$/, "") === doc.reviewedUntil,
+  );
+  if (at < 0) {
+    out.push(
+      `${doc.canon}: 見出し「${doc.reviewedUntil}」が無い（Copilot が読む範囲を確かめられない）`,
+    );
+  } else {
+    // 文字数は、Copilot の数え方に近い符号位置の数で数える。行末の \r も 1 文字に数える。
+    const before = [...lines.slice(0, at).join("")].length;
+    if (before > REVIEW_READ_LIMIT) {
+      out.push(
+        `${doc.canon}: 「${doc.reviewedUntil}」より前が ${before} 文字ある。` +
+          `Copilot のレビューは先頭の ${REVIEW_READ_LIMIT} 文字しか読まない`,
+      );
+    }
+  }
+  return out;
+}
 
 const canonBase = (file: string) => file.replace(/\.md$/, "");
 
@@ -30,9 +110,13 @@ const baseFromWiring = (name: string, suffix: string) =>
 
 /**
  * @param {string} root リポジトリルート（テストでは一時ディレクトリ）
+ * @param docInstructions rule ではない文書を instructions として読ませる宣言（テストでは差し替える）
  * @returns {{ rules: string[], violations: string[] }} rules は走査した原本の絶対パス
  */
-export function checkRuleSymlinks(root: string) {
+export function checkRuleSymlinks(
+  root: string,
+  docInstructions: DocInstruction[] = DOC_INSTRUCTIONS,
+) {
   const violations: string[] = [];
   const canonDir = join(root, CANON_DIR);
 
@@ -46,7 +130,17 @@ export function checkRuleSymlinks(root: string) {
     .sort();
   const rules = bases.map((b) => resolve(join(canonDir, `${b}.md`)));
 
-  for (const { dir, suffix, agent } of WIRINGS) {
+  for (const doc of docInstructions) {
+    if (bases.includes(doc.name)) {
+      violations.push(`${doc.canon}: rule の ${CANON_DIR}/${doc.name}.md と名前が重なる`);
+    }
+    if (!existsSync(join(root, doc.canon))) {
+      violations.push(`${doc.canon}: instructions として宣言した文書が無い`);
+    }
+    violations.push(...checkDocShape(root, doc));
+  }
+
+  for (const { dir, suffix, agent, docs } of WIRINGS) {
     const wiringDir = join(root, dir);
     if (!existsSync(wiringDir)) {
       violations.push(
@@ -55,10 +149,14 @@ export function checkRuleSymlinks(root: string) {
       continue;
     }
 
+    // この置き先に置くリンク: 名前 → 原本の絶対パス
+    const targets = new Map(bases.map((b) => [b, join(canonDir, `${b}.md`)]));
+    if (docs) for (const doc of docInstructions) targets.set(doc.name, join(root, doc.canon));
+
     // 原本 → symlink（欠落・実ファイル・誤った指し先・リンク先の無い symlink）
-    for (const base of bases) {
+    for (const [base, canonPath] of targets) {
       const linkPath = join(wiringDir, `${base}${suffix}`);
-      const expected = relative(wiringDir, join(canonDir, `${base}.md`));
+      const expected = relative(wiringDir, canonPath);
       if (!lstatSafe(linkPath)) {
         violations.push(
           `${dir}/${base}${suffix}: 欠落（${agent} で自動適用されない）。期待する指し先: ${expected}`,
@@ -82,7 +180,7 @@ export function checkRuleSymlinks(root: string) {
         violations.push(`${dir}/${base}${suffix}: symlink の指し先が存在しない`);
         continue;
       }
-      if (realpathSync(linkPath) !== realpathSync(join(canonDir, `${base}.md`))) {
+      if (realpathSync(linkPath) !== realpathSync(canonPath)) {
         violations.push(`${dir}/${base}${suffix}: 解決先が原本と一致しない`);
       }
     }
@@ -94,7 +192,7 @@ export function checkRuleSymlinks(root: string) {
         violations.push(`${dir}/${name}: 命名規則（<name>${suffix}）に合わない`);
         continue;
       }
-      if (!bases.includes(base)) {
+      if (!targets.has(base)) {
         violations.push(`${dir}/${name}: 対応する原本 ${CANON_DIR}/${base}.md が無い（孤児）`);
       }
     }
@@ -140,7 +238,9 @@ if (isCliEntry()) {
     for (const v of violations) console.error(`  - ${v}`);
     console.error(
       `Fix: 各 rule について ln -s ../../${CANON_DIR}/<name>.md .claude/rules/<name>.md と` +
-        ` ln -s ../../${CANON_DIR}/<name>.md .github/instructions/<name>.instructions.md を作る。`,
+        ` ln -s ../../${CANON_DIR}/<name>.md .github/instructions/<name>.instructions.md を作る。` +
+        ` DOC_INSTRUCTIONS の文書は ln -s ../../<canon> .github/instructions/<name>.instructions.md を作る。` +
+        ` 文書の applyTo と文字数の不備は、frontmatter に applyTo を書くか、reviewedUntil の見出しより前を ${REVIEW_READ_LIMIT} 文字以内に縮めて直す。`,
     );
     process.exit(1);
   }

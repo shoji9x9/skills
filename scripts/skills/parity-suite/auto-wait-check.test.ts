@@ -570,7 +570,7 @@ test.each([
 
 test("呼び出し・添字で途切れて分類できないチェーンは判定不能にする（警告なしに捨てない）", () => {
   // `frames()` の先は名前で追えない。Locator とも Page とも言えないが、**追えなかった**ことは
-  // 出力に残す——捨てると出力の件数からも取りこぼしが読めない。
+  // 出力に残す。捨てると出力の件数からも取りこぼしが読めない。
   const source = [
     "const cell = page\n  .frames()[0]\n  .getByRole('cell')\n  .nth(1);",
     "const text = await cell.textContent();",
@@ -877,7 +877,7 @@ test("二重アサーションの行き先が Page / Locator でなければ従�
 
 // 角括弧アサーションが書ける `.ts` 系は、generic なアロー関数が同じ形に見える拡張子でもある。
 // 関数値は「Playwright 以外と確定」の根拠にしないので判定不能になるが、理由はアサーション由来（alias）ではなく
-// 束縛（binding）であること——角括弧アサーションと読み違えると別名が opaqueAliases に入り alias になる。
+// 束縛（binding）であることを確かめる。角括弧アサーションと読み違えると別名が opaqueAliases に入り alias になる。
 test("generic なアロー関数を角括弧アサーションと読み違えない", () => {
   const [finding] = scanSource(
     `const pick = <T>(x: T) => x;\nfunction f() {\n  return pick.count();\n}`,
@@ -1092,7 +1092,7 @@ const excludedForms = [
   ["document の中の DOM", "document.body.getAttribute('x');", "spec.ts"],
 ];
 // 型注釈と関数値は根拠にしない（PR #448 のレビュー後に絞った）。以前は対象外に数えていた形が
-// 判定不能になることを固定する——根拠を広げ直すと、ここが赤くなる。
+// 判定不能になることを固定する。根拠を広げ直すと、ここが赤くなる。
 const notEvidenceForms = [
   ["アロー関数", "const pick = (x) => x;\npick.count();"],
   ["generic なアロー関数", "const pick = <T>(x: T) => x;\npick.count();"],

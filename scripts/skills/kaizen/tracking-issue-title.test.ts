@@ -642,7 +642,7 @@ describe.each(WORKFLOWS)(
         expect(branch, `${name} 分岐に打ち切り警告が無い`).toContain("warn_if_truncated ");
       }
       // 何もしない側（追跡 Issue が 1 件も無い）では鳴らさない。
-      // **`indexOf("\nelse\n")` で切らない**——`yaml.load` の字下げ剥がしの後もこの `else` は
+      // **`indexOf("\nelse\n")` で切らない**。`yaml.load` の字下げ剥がしの後もこの `else` は
       // 入れ子のぶん字下げされており、-1 が返って検査対象が改行 1 文字になる。素通りして、
       // 何もしない分岐へ警告を挿す変異が緑のまま通った（実測）。
       const doNothing = close.match(/[\s\S]*\n *else\n([\s\S]*)$/);

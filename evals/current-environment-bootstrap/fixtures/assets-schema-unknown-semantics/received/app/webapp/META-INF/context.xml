@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Context path="/ship">
+  <Resource name="jdbc/shipdb"
+            auth="Container"
+            type="javax.sql.DataSource"
+            factory="org.apache.tomcat.dbcp.dbcp2.BasicDataSourceFactory"
+            driverClassName="com.mysql.cj.jdbc.Driver"
+            url="jdbc:mysql://${ship.db.host}:3306/shipdb?characterEncoding=UTF-8&amp;connectionCollation=utf8mb4_ja_0900_as_cs&amp;connectionTimeZone=Asia/Tokyo&amp;forceConnectionTimeZoneToSession=true"
+            username="${ship.db.user}"
+            password="${ship.db.password}"
+            connectionInitSqls="SET SESSION sql_mode='STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION'"
+            maxTotal="20"
+            maxIdle="5" />
+</Context>

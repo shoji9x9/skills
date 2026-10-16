@@ -351,7 +351,7 @@ worktree_add_creates_branch() { # $1: コマンド文字列
 		if [ "${operands}" -le 1 ] && [ "${detach}" -eq 0 ]; then
 			return 0
 		fi
-		# この add は branch を作らない。**ここで return しない** ——
+		# この add は branch を作らない。**ここで return しない**。
 		# 同じコマンド行に後続の `git worktree add` が続くことがあり
 		# （`git worktree add ../a HEAD; git worktree add -b x ../b`）、
 		# 打ち切ると後続の branch 作成を取りこぼす。

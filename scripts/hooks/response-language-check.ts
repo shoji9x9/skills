@@ -6,17 +6,21 @@
 //
 // 入力は Stop の Hook の JSON（https://code.claude.com/docs/en/hooks の Stop）。
 // - `last_assistant_message` を読む。transcript は Stop の時点で最後のメッセージを含まないことがある。
-// - `stop_hook_active` が true なら、この Hook（か別の Stop の Hook）で既に続けさせた後なので通す。
-//   書き直しても判定が変わらない応答で、止め続けないためである。
+// - `stop_hook_active` が true でも、この Hook が止めた印が無ければ（別の Stop の Hook が続けさせた後なら）確かめる。
+//   印が在れば、書き直しても判定が変わらない応答で止め続けないように通す（scripts/lib/stop-marker.ts）。
 //
 // 判定: 応答の言語に数えない部分（コードブロック・インラインコード・引用・URL・ハーネスのタグの塊）を除いた本文で、
 // 日本語の文字（ひらがな・カタカナ・漢字）とラテン文字を数え、日本語の文字が極めて少ない応答を英語とみなす。
 // ラテン文字が少ない応答（「OK」やコマンドだけ）は判定の対象から外す。
 import { readFileSync, realpathSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { blankInlineCode, fencedLines } from "../lib/doc-scan.ts";
 import { errorMessage } from "../lib/errors.ts";
 import { isRecord } from "../lib/guards.ts";
+import { alreadyBlocked, recordBlocked } from "../lib/stop-marker.ts";
+
+const HOOK = "response-language-check";
 
 /** ラテン文字がこれより少ない応答は、言語を判定しない（短い返事・識別子だけの応答）。 */
 export const MIN_LATIN_LETTERS = 40;
@@ -59,7 +63,7 @@ export const REWRITE_REQUEST =
   "同じ内容を日本語で書き直してください。コード・コマンド・識別子はそのままでかまいません。";
 
 /** Hook として実行する。戻り値は終了コード（0: 通す、2: 書き直させる、1: 入力を読めない）。 */
-export function main(input: string): number {
+export function main(input: string, markerDir: string = tmpdir()): number {
   let payload: unknown;
   try {
     payload = JSON.parse(input);
@@ -72,12 +76,13 @@ export function main(input: string): number {
     console.error("response-language-check: 入力がオブジェクトでない");
     return 1;
   }
-  if (payload.stop_hook_active === true) return 0;
+  if (alreadyBlocked(HOOK, payload, markerDir)) return 0;
   const message = payload.last_assistant_message;
   // ツールの呼び出しだけで終わったターンなど、本文が無ければ判定しない。
   if (typeof message !== "string" || message.trim() === "") return 0;
   if (!judge(message).english) return 0;
   console.error(REWRITE_REQUEST);
+  recordBlocked(HOOK, payload, markerDir);
   return 2;
 }
 

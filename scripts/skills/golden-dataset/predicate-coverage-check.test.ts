@@ -360,7 +360,7 @@ test("消費側が在るのに「読み取りだけ」は落ちる（引き方�
 
 test("FK を満たすためだけに要る親表は「FK 親のみ」で通り、0 件だけ落ちる", () => {
   // features.md のどの表からも参照されないが、orders の FK を満たすために投入が要る親表。
-  // 「投入する」だと消費側が居ないと言われ、「読み取りだけ」だと投入対象から外れる——どちらも事実と違う。
+  // 「投入する」だと消費側が居ないと言われ、「読み取りだけ」だと投入対象から外れる。どちらも事実と違う。
   const targetsWith = (customers: string) => [
     "| orders | order, monthly-summary | 41 | 投入する | customers の子 |",
     "| order_items | order | 80 | 投入する | orders の子 |",
@@ -766,7 +766,7 @@ test("「消費側パラメータ」表が無ければ落ちる（絞り込み�
 });
 
 test("verification の述語 id が重複していれば落ちる（後勝ちで実測を警告なしに捨てない）", () => {
-  // 2 行目（後勝ちする側）は設計と一致させる——重複を弾かないと、食い違う 1 行目が
+  // 2 行目（後勝ちする側）は設計と一致させる。重複を弾かないと、食い違う 1 行目が
   // 突き合わせに使われずに捨てられ、0 件の分岐が 1 件も報告されないまま通る。
   const codes = codesOf({
     verification: VERIFICATION.replace(
@@ -969,7 +969,7 @@ test("「識別子の値の範囲」表が無い設計は落ちる（採番帯�
   expect(codesOf({ design: designOf({ idRanges: null }) })).toEqual(["id-range-table-missing"]);
 });
 
-test("消費側 (slug, テーブル) ごとに行を要する——表ごと 1 行では変換する消費側が隠れる", () => {
+test("消費側 (slug, テーブル) ごとに行を要する。表ごと 1 行では変換する消費側が隠れる", () => {
   const codes = codesOf({
     design: designOf({
       idRanges: idRangesWith([

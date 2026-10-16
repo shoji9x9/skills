@@ -208,8 +208,8 @@ function signed(value: number, digits: number): string {
 
 /**
  * 判定を **assertion テキストをキーにしたマップ**で受け取る。
- * 位置配列（`[true, ...]` / `[[true, "..."], ...]`）と `text` を持たない要素は受理しない
- * ——位置で対応づけると、assertion の追加・削除・並べ替えで判定がずれる（Issue #421）。
+ * 位置配列（`[true, ...]` / `[[true, "..."], ...]`）と `text` を持たない要素は受理しない。
+ * 位置で対応づけると、assertion の追加・削除・並べ替えで判定がずれる（Issue #421）。
  */
 function verdictsFromGrading(grading: JsonObject, where: string) {
   const map = new Map<string, { passed: boolean; evidence: string }>();
@@ -287,7 +287,7 @@ function listDirs(parent: string, prefix: string): string[] {
  *
  * `listDirs` はこれを false で落とすだけなので、**呼び出し側がここで報告しないと警告なしに消える**。
  * 実測では、リンク先が無い `eval-9` が警告も無く集計から外れ、exit 0 になった。
- * **「ディレクトリでない全エントリ」を返さない**——eval 直下には `eval_metadata.json` のような
+ * **「ディレクトリでない全エントリ」を返さない**。eval 直下には `eval_metadata.json` のような
  * ファイルが正当に在り、それを不明扱いにすると実データの iteration が落ちる（実測で踏んだ）。
  */
 function undirNamed(parent: string, names: readonly string[]): string[] {
@@ -316,7 +316,7 @@ function loadRun(runDir: string, configuration: string, evalDir: string) {
   // キーは `eval_id` なので、食い違うと「eval-27 の run が 26 として数えられる」取り違えが
   // 警告なしに通る（位置で対応づけて件数を誤ったのと同じ種類の誤り。Issue #421）。
   // 形は `eval-<番号>` か `eval-<番号>-<注記>`（本リポの成果物に `eval-31-mutation-ownership` 等が
-  // 4 件ある）。**形に合わない名前は突き合わせを飛ばさず落とす**——飛ばすと `eval-27b` や
+  // 4 件ある）。**形に合わない名前は突き合わせを飛ばさず落とす**。飛ばすと `eval-27b` や
   // `eval-1 copy` が eval として採り込まれ、eval_id の重複に気づけない。
   const named = /^eval-(\d+)(?:-[\w.-]+)?$/.exec(evalDir);
   if (!named) {
@@ -380,7 +380,7 @@ function loadRun(runDir: string, configuration: string, evalDir: string) {
   // **保存値の桁に合わせて比べる。** `pass_rate` の小数桁は規約が定めていないので、採点者は
   // 0.56（= 5/9）のように 2〜3 桁で保存する（本リポの既存成果物に 10 件ある）。4 桁固定で
   // 比べると、内訳が正しい採点を「summary と食い違う」と誤報して落とす。
-  // 桁は 1〜4 に収める——0 桁（整数で保存）をそのまま使うと 1 と 0.6667 が同じに丸まり、区別できなくなる。
+  // 桁は 1〜4 に収める。0 桁（整数で保存）をそのまま使うと 1 と 0.6667 が同じに丸まり、区別できなくなる。
   const storedDigits = decimals(summary.pass_rate);
   const digits = Math.min(Math.max(storedDigits, 1), 4);
   if (round(computedRate, digits) !== round(summary.pass_rate, digits)) {
@@ -397,7 +397,7 @@ function loadRun(runDir: string, configuration: string, evalDir: string) {
   const tokens = timing.total_tokens;
   if (typeof tokens !== "number") die(`${timingPath}: total_tokens が数値でない`);
   // `metrics.json` が無いのは成果物が切り詰められた形なので落とす（20 件の旧 run が該当）。
-  // **キーが `null` なのは別の状態**——正規化のスクリプトが「この executor では測れない」を明示した形
+  // **キーが `null` なのは別の状態**。正規化のスクリプトが「この executor では測れない」を明示した形
   // （`total_tool_calls` は 436 件中 235 件が null）。その場合だけ 0 として記録する。
   const metricsPath = join(runDir, "outputs", "metrics.json");
   if (!existsSync(metricsPath)) {

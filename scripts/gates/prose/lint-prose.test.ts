@@ -25,10 +25,11 @@ import { makeSharedTempDir, makeTempDir } from "../../lib/test-tmpdir.ts";
 import { spawnAsync } from "../../lib/spawn-async.ts";
 import { parseJsonAs } from "../../lib/parse-as.ts";
 import { loadYamlAs } from "../../lib/yaml-as.ts";
+import { DASH_TERM } from "../../lib/textlint-word-rule.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "scripts/gates/prose/lint-prose.ts");
-const words = parseJsonAs<{ entries: { example: string; message: string }[] }>(
+const words = parseJsonAs<{ entries: { term?: string; example: string; message: string }[] }>(
   readFileSync(join(repoRoot, ".textlint/words.json"), "utf8"),
 );
 /** lefthook.yml の job のうち、このテストが読むフィールド。 */
@@ -291,6 +292,30 @@ test("陽性: evals.json の prompt・expected_output・assertions の語を報�
   ]);
 });
 
+// ダッシュの並びは、テストの文字列に直接書かない（このファイルも textlint の対象である）。
+const EM2 = "—".repeat(2);
+const BAR2 = "―".repeat(2);
+
+test("陽性: 記号が続くダッシュと U+2015 の並びを、Markdown・コメント・文字列で辞書の message で報告する", async () => {
+  const dash = words.entries.find((e) => e.term === DASH_TERM);
+  if (!dash) throw new Error(".textlint/words.json にダッシュの項目が無い");
+  const root = makeRepo({
+    "a.md": `# 例\n\n同じ族${EM2}「検査」である。\n\n判定する${BAR2} 次へ進む。\n\n判定する${EM2}次へ進む。\n`,
+    "b.ts": `// 判定する${EM2}（理由）。\nconst s = "判定する${BAR2}。";\n`,
+    "c.md": `# 例\n\n結果 — 成功した。\n\n<!-- textlint-disable -->\n判定する${EM2}「検査」。\n<!-- textlint-enable -->\n`,
+  });
+  const { violations } = await lintProse({ root });
+  // 辞書でも検出できる形（a.md の 7 行目）は、同じ位置と message の指摘が 1 件にまとまる。
+  expect(violations.map((v) => v.split(" ")[0]).sort()).toEqual([
+    "a.md:3:4",
+    "a.md:5:5",
+    "a.md:7:5",
+    "b.ts:1:8",
+    "b.ts:2:16",
+  ]);
+  expect(violations.every((v) => v.includes(dash.message))).toBe(true);
+});
+
 test("陰性: 文字列には語の規則だけを当て、バッククォートの中と import の指定子は見ない", async () => {
   const long = "ファイルを読んで中身を確かめてから結果を返す".repeat(8);
   const root = makeRepo({
@@ -504,6 +529,23 @@ test("main: 指摘があれば 1、無ければ 0、一覧が読めなければ 
   }
 });
 
+test("main: 保留の一覧のパスは、一覧を読めないときだけ示す", async () => {
+  const cwd = process.cwd();
+  const errors: string[] = [];
+  const spy = vi.spyOn(console, "error").mockImplementation((m) => errors.push(String(m)));
+  try {
+    process.chdir(makeRepo({ "a.md": CLEAN }, null));
+    expect(await main([])).toBe(2);
+  } finally {
+    process.chdir(cwd);
+    spy.mockRestore();
+  }
+  // パスは 1 回だけ出す（loadPending が付け、内側の message には付けない）。
+  expect(errors.join("\n")).toMatch(
+    /^lint-prose: 実行できない: [^:]*prose-lint-pending\.json: ファイルが無い$/m,
+  );
+});
+
 test("検出の確認（CLI）: 子プロセスとして起動しても、指摘は exit 1、無ければ exit 0", async () => {
   const { dirty, clean } = await cliRuns;
   expect(dirty.status, dirty.stderr).toBe(1);
@@ -512,3 +554,16 @@ test("検出の確認（CLI）: 子プロセスとして起動しても、指摘
   // textlint-enable
   expect(clean.status, clean.stderr).toBe(0);
 }, 60_000);
+
+test("textlint の設定で使わない語の規則が無効なら、文字列の指摘が 0 件のまま通さずに止まる", async () => {
+  // 規則の ID がずれると、文字列の指摘を ID で絞った結果が 0 件になり、エラーにならずに通ってしまう。
+  const configRoot = makeTempDir("lint-prose-config-");
+  writeFileSync(join(configRoot, ".textlintrc.json"), JSON.stringify({ rules: {} }));
+  symlinkSync(join(repoRoot, "node_modules"), join(configRoot, "node_modules"));
+  const root = makeRepo({
+    "a.ts": `export const m = ${JSON.stringify(words.entries[0].example)};\n`,
+  });
+  await expect(lintProse({ root, files: ["a.ts"], configRoot })).rejects.toThrow(
+    "ai-words-ja/no-ai-words の規則が .textlintrc.json で有効になっていない",
+  );
+});

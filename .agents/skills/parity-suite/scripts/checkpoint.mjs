@@ -477,7 +477,7 @@ export function main(argv, deps = {}) {
       throw new UsageError(`--include の根にファイルが無い: ${emptyRoots.join(", ")}`);
     }
     // 前の区切りから成果物が足されも書き換えられもしていないなら、その間の手順は何も作っていない（採取・強度チェックを飛ばした記録になる）。
-    // 削除だけは進んだ証拠にしない——前段の成果物が消えただけでも指紋は変わる
+    // 削除だけは進んだ証拠にしない。前段の成果物が消えただけでも指紋は変わるからである。
     if (pos > 0) {
       const prevFiles = record.checkpoints[record.checkpoints.length - 1].files;
       const moved = Object.keys(files).some((f) => prevFiles[f] !== files[f]);

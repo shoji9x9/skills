@@ -610,7 +610,7 @@ test("秘密の値: 正規化の出力に cookie の値も nonce の値も現れ
   expect(out).not.toContain(NONCE_SECRET);
 });
 
-test("秘密の値: 検出されることの確認——正規化しないと差分の出力に cookie の値と nonce の値が出る", () => {
+test("秘密の値: 検出されることの確認。正規化しないと差分の出力に cookie の値と nonce の値が出る", () => {
   const { status, stdout } = runDiff(
     rawResponse(COOKIE_SECRET, NONCE_SECRET, "Lax"),
     rawResponse(COOKIE_SECRET_2, NONCE_SECRET_2, "Lax"),

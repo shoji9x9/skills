@@ -1,0 +1,98 @@
+{
+  "$comment": [
+    "stop-marker.test.ts が、Stop の Hook が止めた印を見る処理と書く処理の判定の行を検出できることを示す変異の一覧。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は、ランナーの基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/lib/stop-marker.test.ts",
+  "mutations": [
+    {
+      "id": "SM-MARKER-IGNORED",
+      "why": "印を見ない（自分が止めた後も止め続ける）",
+      "file": "scripts/lib/stop-marker.ts",
+      "find": "return !marker || lstatSync(marker, { throwIfNoEntry: false }) !== undefined;",
+      "replace": "return !marker;",
+      "occurrences": 1,
+      "expect_failing": [
+        "続けさせた後で印が在れば、通す",
+        "続けさせた後で印の名前にリンク先の無いシンボリックリンクが在れば、印が在るとみなして通す"
+      ]
+    },
+    {
+      "id": "SM-ACTIVE-SKIPPED",
+      "why": "続けさせた後は一律に通す（別の Hook が書き直させた後を確かめない）",
+      "file": "scripts/lib/stop-marker.ts",
+      "find": "return !marker || lstatSync(marker, { throwIfNoEntry: false }) !== undefined;",
+      "replace": "return true;",
+      "occurrences": 1,
+      "expect_failing": ["続けさせた後で印が無ければ、確かめさせる"]
+    },
+    {
+      "id": "SM-FOLLOWS-LINK-ON-READ",
+      "why": "通常のファイルだけを印とみなす（リンク先の無いリンクを「無い」と判定し、止め続ける）",
+      "file": "scripts/lib/stop-marker.ts",
+      "find": "lstatSync(marker, { throwIfNoEntry: false }) !== undefined",
+      "replace": "lstatSync(marker, { throwIfNoEntry: false })?.isFile() === true",
+      "occurrences": 1,
+      "expect_failing": [
+        "続けさせた後で印の名前にリンク先の無いシンボリックリンクが在れば、印が在るとみなして通す"
+      ]
+    },
+    {
+      "id": "SM-NOT-CLEARED",
+      "why": "新しい一続きで前の印を消さない",
+      "file": "scripts/lib/stop-marker.ts",
+      "find": "      if (marker) rmSync(marker, { force: true });",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "新しい一続き（stop_hook_active が false）では、前の印を消して確かめさせる",
+        "前の印を消せなくても、例外にせずに確かめさせる"
+      ]
+    },
+    {
+      "id": "SM-RM-UNGUARDED",
+      "why": "前の印を消せないときに例外で終わる",
+      "file": "scripts/lib/stop-marker.ts",
+      "find": "console.error(`${hook}: 前の印を消せない: ${errorMessage(error)}`);",
+      "replace": "throw error;",
+      "occurrences": 1,
+      "expect_failing": ["前の印を消せなくても、例外にせずに確かめさせる"]
+    },
+    {
+      "id": "SM-NOT-WRITTEN",
+      "why": "止めた印を残さない",
+      "file": "scripts/lib/stop-marker.ts",
+      "find": "    if (marker) writeFileSync(marker, \"\", { flag: \"wx\" });",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "止めたら印を残す",
+        "印の名前にシンボリックリンクが先に在れば、リンク先を書かずに、残せないことを示す"
+      ]
+    },
+    {
+      "id": "SM-FOLLOWS-LINK-ON-WRITE",
+      "why": "印を書くときにリンクを辿る（リンク先のファイルを作る・空にする）",
+      "file": "scripts/lib/stop-marker.ts",
+      "find": "writeFileSync(marker, \"\", { flag: \"wx\" });",
+      "replace": "writeFileSync(marker, \"\");",
+      "occurrences": 1,
+      "expect_failing": [
+        "印の名前にシンボリックリンクが先に在れば、リンク先を書かずに、残せないことを示す"
+      ]
+    },
+    {
+      "id": "SM-SESSION-UNCHECKED",
+      "why": "session_id の形を確かめない（パスの区切りを含む値で印のパスを作る）",
+      "file": "scripts/lib/stop-marker.ts",
+      "find": "!/^[A-Za-z0-9_-]{1,128}$/.test(sessionId)",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": [
+        "session_id が空文字なら、印のパスを作らない",
+        "session_id がパスの区切りを含むなら、印のパスを作らない",
+        "続けさせた後で session_id が使えない形なら、印を置けないので通す"
+      ]
+    }
+  ]
+}

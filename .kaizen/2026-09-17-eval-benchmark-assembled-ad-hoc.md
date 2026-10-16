@@ -46,7 +46,7 @@ run 時点の原本が各 run の `eval_metadata.json` に在ることに気づ�
 eval の採点集計は書き捨てスクリプトで組み立てず、assertion テキストをキーにした入力だけを受理する repo のスクリプトで生成する。
 
 - `scripts/eval/build-skill-eval-benchmark.ts` を新設する
-- assertion テキストは各 run の `eval_metadata.json`（run 時点の原本）から取る——`evals.json` から取ると、
+- assertion テキストは各 run の `eval_metadata.json`（run 時点の原本）から取る。`evals.json` から取ると、
   後から assertion を変えたときに過去の記録のテキストがずれる
 - 判定は assertion テキストをキーにしたマップで受け取り、位置配列を受理しない
 - キー集合の不一致・件数の不一致で exit 2

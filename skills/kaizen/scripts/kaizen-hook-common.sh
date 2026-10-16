@@ -165,7 +165,7 @@ kaizen_resolve_project_root() {
 #
 # 置き場そのものを 1 箇所へ移すと、既存インストールの制御ファイルが迷子になる（移行の途中で
 # 両方が有効になり、片方が見えないまま素通りする）。**置き場は変えず、探索と解消をリポジトリ
-# 全体へ広げる**——`git worktree list --porcelain` は本体と全 worktree を返す。
+# 全体へ広げる**。`git worktree list --porcelain` は本体と全 worktree を返す。
 #
 # git を起動できない場合や worktree を列挙できない場合は、自分のツリーだけを返す（機能を減らして動く。
 # すべての作業ツリーを探すようにする前の振る舞いに戻るだけである）。
@@ -187,7 +187,7 @@ kaizen_worktree_kaizen_dirs() { # $1: 基準のツリー（省略時は cwd）
 	[ -d "${base}" ] || return 0
 	base=$(cd "${base}" 2>/dev/null && pwd) || return 0
 	# `git worktree list` は**解決済み（物理）のパス**を返す。base をシンボリックリンク越しに
-	# 受け取っていると論理パスとは文字列が一致せず、**同じ `.kaizen/` を 2 回返す**——同一の
+	# 受け取っていると論理パスとは文字列が一致せず、**同じ `.kaizen/` を 2 回返す**。同一の
 	# センチネルが二重に数えられ、案内も他セッションの走査予算も二重に消費される。物理パスでも
 	# 突き合わせて弾く。
 	base_phys=$(cd "${base}" 2>/dev/null && pwd -P) || base_phys=${base}

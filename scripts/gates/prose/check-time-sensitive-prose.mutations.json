@@ -301,8 +301,8 @@
       "id": "TS-WORD-NO",
       "why": "前が「の」の語も数える",
       "file": "scripts/gates/prose/check-time-sensitive-prose.ts",
-      "find": "const TIME_WORD_RE = /(?<![の「])",
-      "replace": "const TIME_WORD_RE = /(?<![「])",
+      "find": "  /(?<![の「])(?:現状は",
+      "replace": "  /(?<![「])(?:現状は",
       "occurrences": 1,
       "expect_failing": ["陰性: 前が「の」 は拾わない"]
     },
@@ -310,8 +310,8 @@
       "id": "TS-WORD-QUOTE",
       "why": "語として挙げた形も数える",
       "file": "scripts/gates/prose/check-time-sensitive-prose.ts",
-      "find": "const TIME_WORD_RE = /(?<![の「])",
-      "replace": "const TIME_WORD_RE = /(?<![の])",
+      "find": "  /(?<![の「])(?:現状は",
+      "replace": "  /(?<![の])(?:現状は",
       "occurrences": 1,
       "expect_failing": ["陰性: 語として挙げた形 は拾わない"]
     },
@@ -459,6 +459,50 @@
       "expect_failing": [
         "保留の一覧の形の誤り（stage が無い・reason が無い・知らない規則・知らない stage）はチェックできない（exit 2）"
       ]
+    },
+    {
+      "id": "TS-TIME-WORD-STATE-PHRASES",
+      "why": "書いた時点の状態を述べる語（今のところ・いまのところ）を語彙から外す",
+      "file": "scripts/gates/prose/check-time-sensitive-prose.ts",
+      "find": "|今のところ|いまのところ)",
+      "replace": ")",
+      "occurrences": 1,
+      "expect_failing": ["陽性: 今のところ を拾う", "陽性: いまのところ を拾う"]
+    },
+    {
+      "id": "TS-WORD-MOKKA",
+      "why": "「目下」を語彙から外す",
+      "file": "scripts/gates/prose/check-time-sensitive-prose.ts",
+      "find": "|(?<![の「\\p{Script=Han}]|見た)目下/gu",
+      "replace": "/gu",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: 目下 を拾う",
+        "陽性: 助詞の後の目下 を拾う",
+        "陽性: 接続の語の後の目下（また） を拾う",
+        "陽性: 接続の語の後の目下（なお） を拾う"
+      ]
+    },
+    {
+      "id": "TS-WORD-MOKKA-HAN",
+      "why": "「目下」の前の漢字を除かない（項目下・注目下を時期の語として拾う）",
+      "file": "scripts/gates/prose/check-time-sensitive-prose.ts",
+      "find": "(?<![の「\\p{Script=Han}]|見た)目下",
+      "replace": "(?<![の「]|見た)目下",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: 漢字の複合語の目下（項目下） は拾わない",
+        "陰性: 漢字の複合語の目下（注目下） は拾わない"
+      ]
+    },
+    {
+      "id": "TS-WORD-MOKKA-MITAME",
+      "why": "「見た目」の後の「下」を除かない（見た目下部を時期の語として拾う）",
+      "file": "scripts/gates/prose/check-time-sensitive-prose.ts",
+      "find": "(?<![の「\\p{Script=Han}]|見た)目下",
+      "replace": "(?<![の「\\p{Script=Han}])目下",
+      "occurrences": 1,
+      "expect_failing": ["陰性: 仮名で終わる語の目下（見た目下部） は拾わない"]
     }
   ]
 }

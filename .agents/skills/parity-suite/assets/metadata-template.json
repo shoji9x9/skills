@@ -36,11 +36,11 @@
     "current_green": true,
     "state_mutating": "<このスイートが現行アプリの状態を変えるか（書き込み・更新・削除を含むか）を真偽値で書く。artifact_health.declared: true では省略しない。判断の原本は parity-suite の references/baseline.md「状態を変えるスイートは 2 回続けて緑にする」>",
     "repeat_run": {
-      "_note": "状態を変えるスイートの反復実行の記録。state_mutating: true のときだけ検査に入る（false では runs を空配列にし reason を書く）。1 回目は初期状態から始まるため後始末の有無が結果に現れない——2 回続けて緑になって初めて後始末が効いたことの証拠になる。記録は suite_fingerprint で「どの版のスイートを回したか」に結びつける（結びつけないと、記録した後にスペックや後始末を変えても古い記録で通る）。原本は parity-suite の references/baseline.md「状態を変えるスイートは 2 回続けて緑にする」。",
+      "_note": "状態を変えるスイートの反復実行の記録。state_mutating: true のときだけ検査に入る（false では runs を空配列にし reason を書く）。1 回目は初期状態から始まるため後始末の有無が結果に現れない。2 回続けて緑になって初めて後始末が効いたことの証拠になる。記録は suite_fingerprint で「どの版のスイートを回したか」に結びつける（結びつけないと、記録した後にスペックや後始末を変えても古い記録で通る）。原本は parity-suite の references/baseline.md「状態を変えるスイートは 2 回続けて緑にする」。",
       "cleanup_in_suite": "<後始末（反対の操作）をスイートの中に置いたか。外のツールに頼ると回した人が忘れた時点で次の実行が失敗し、しかもその失敗は「現行が変わった」と同じ見え方になる。state_mutating: true では true でなければ未検証として数える>",
       "specs": [
         {
-          "_note": "任意（推奨）。書くとスペック単位で判定する——2 回続けての緑を求めるのは state_mutating: true のスペックだけで、state_mutating: false のスペックは現在の版での 1 回の緑の記録で足りる。変えたスペックだけを回し直せば足りる。書かなければ suite_fingerprint でスイート全体を判定する。suite.specs の下のスペック（Playwright 既定の testMatch に当たる *.spec.* / *.test.* と、ここに書いたファイル）はすべて分類する（分類漏れは未検証として落ちる）。原本は parity-suite の references/baseline.md「スペック単位で記録する」。",
+          "_note": "任意（推奨）。書くとスペック単位で判定する。このとき 2 回続けての緑を求めるのは state_mutating: true のスペックだけで、state_mutating: false のスペックは現在の版での 1 回の緑の記録で足りる。変えたスペックだけを回し直せば足りる。書かなければ suite_fingerprint でスイート全体を判定する。suite.specs の下のスペック（Playwright 既定の testMatch に当たる *.spec.* / *.test.* と、ここに書いたファイル）はすべて分類する（分類漏れは未検証として落ちる）。原本は parity-suite の references/baseline.md「スペック単位で記録する」。",
           "path": "<スペックのリポジトリルート基準の相対パス>",
           "state_mutating": "<このスペックが現行アプリの状態を変えるかを真偽値で。現側専用の採取・ノイズ測定・強度チェックは、現行へ保存する操作を含まなければ false>",
           "reason": "<判断の根拠（必須）。検査は字面で裏づけないので、レビューで読まれる記録として書く。迷ったら true>"
@@ -66,7 +66,7 @@
           "spec_fingerprints": {
             "<その回に回したスペックのパス>": "<そのスペックの指紋（sha256-nc:<16 進>）。specs を書いたときに書き、その回に回したスペックの分だけを --fingerprint の出力から転記する>"
           },
-          "suite_fingerprint": "<specs を書かないときに書く。その回に回したスイートの指紋（sha256-nc:<16 進>）。artifact-health-check.mjs が suite.specs / locator_map / expectations / interactions / tools の宣言パスから再計算して照合する（ディレクトリは再帰、パスはソート、各ファイルの sha256 を連結して sha256）。TypeScript（.ts .mts .cts）はコメントを除いた内容で数えるので、注記だけの書き換えでは取り直しにならない（文字列・テンプレート・正規表現の中身と、ツールへの指示コメント〈@ts-expect-error・///・/*! */・eslint- 等〉は除かない）。.js 系・.jsx / .tsx（JSX のテキストの // をコメントと区別できない）を含むそれ以外の拡張子は生バイト。旧方式の sha256: で記録済みの runs は旧方式（コメントも含めた生バイト）で照合する。手で計算せず artifact-health-check.mjs --fingerprint の出力から転記する。連続する 2 回で同じ値になり、かつ現在のスイートと一致することを求める——記録をスイートの版に結びつけないと、2 回緑を記録した後にスペックや後始末を変えても古い記録で緑のまま通る。キーごと持たない旧成果物はこの軸を判定しない>"
+          "suite_fingerprint": "<specs を書かないときに書く。その回に回したスイートの指紋（sha256-nc:<16 進>）。artifact-health-check.mjs が suite.specs / locator_map / expectations / interactions / tools の宣言パスから再計算して照合する（ディレクトリは再帰、パスはソート、各ファイルの sha256 を連結して sha256）。TypeScript（.ts .mts .cts）はコメントを除いた内容で数えるので、注記だけの書き換えでは取り直しにならない（文字列・テンプレート・正規表現の中身と、ツールへの指示コメント〈@ts-expect-error・///・/*! */・eslint- 等〉は除かない）。.js 系・.jsx / .tsx（JSX のテキストの // をコメントと区別できない）を含むそれ以外の拡張子は生バイト。旧方式の sha256: で記録済みの runs は旧方式（コメントも含めた生バイト）で照合する。手で計算せず artifact-health-check.mjs --fingerprint の出力から転記する。連続する 2 回で同じ値になり、かつ現在のスイートと一致することを求める。記録をスイートの版に結びつけないと、2 回緑を記録した後にスペックや後始末を変えても古い記録で緑のまま通る。キーごと持たない旧成果物はこの軸を判定しない>"
         }
       ],
       "reason": "<state_mutating: false のときだけ、状態を変えないと判断した根拠。true では null>"
@@ -79,7 +79,7 @@
     "components": 0,
     "items": 0,
     "instances": 0,
-    "cells": "<期待セル数。プロファイルを宣言していない部品は 項目数 × インスタンス数、宣言した部品はインスタンスごとの候補数の合計。網羅表の行数ではない——行が無い組み合わせは unmeasured として数えるため>",
+    "cells": "<期待セル数。プロファイルを宣言していない部品は 項目数 × インスタンス数、宣言した部品はインスタンスごとの候補数の合計。網羅表の行数ではない。行が無い組み合わせは unmeasured として数えるからである>",
     "unmeasured": "<未測定セル数。記録側の原本は parity-suite の references/coverage.md「部品網羅表」、数え直し側の原本は parity-diff の references/convergence.md。absent の比較方法ごとの証拠・非描画の確かめ方の applicable_states manifest・hidden_by の検証済み関係・重複行まで含むため、条件をここへ転記すると実際のチェックとずれる。概観用の宣言値で、判定側は網羅表の実体から数え直す。1 以上なら parity-diff は収束させない>",
     "profiles": [
       "<網羅表の components[].profile に現れたプロファイル id。適合プロファイルが無い部品は含めない（その部品は profile: null ＋ profile_absent_reason で未検証として残す）>"
@@ -88,19 +88,19 @@
     "reason": "<declared: false のときだけ、宣言しない理由（例: 共通部品を使っていない／ベンダー資料にも実 UI にも到達できず列挙を起こせない）。同じ理由を gaps.md にも残す。declared: false で空だと免除の根拠が残らないため parity-diff の coverage-check.mjs が exit 2 で落とす。declared: true では null>"
   },
   "reaction_coverage": {
-    "_note": "反応の網羅表（reactions.json）の宣言。feature モードのみ持つ。parity-diff はこのキーがあるときだけ parity-suite の scripts/reaction-check.mjs --tests <テスト一覧> --recorded で網羅表を収束判定に入れ、キーごと無い旧成果物は判定しない（後方互換）。件数は書かない——判定側は網羅表の実体から数え直す。",
+    "_note": "反応の網羅表（reactions.json）の宣言。feature モードのみ持つ。parity-diff はこのキーがあるときだけ parity-suite の scripts/reaction-check.mjs --tests <テスト一覧> --recorded で網羅表を収束判定に入れ、キーごと無い旧成果物は判定しない（後方互換）。件数は書かない。判定側は網羅表の実体から数え直す。",
     "declared": true,
     "path": ".replace/parity/<slug>/reactions.json",
-    "reason": "<declared: false のときだけ、宣言しない理由（画面を持たない api-resource / batch モードだけ。操作を持たない画面駆動の機能も declared: true にし、reactions.json を operations: [] と operations_none_reason で作って画面ごとの状態表示を振り分ける——run.procedure_revision が 4 以上の画面駆動の機能の declared: false は reaction-check.mjs が exit 2 で落とす）。同じ理由を gaps.md にも残す。declared: false で空だと reaction-check.mjs が exit 2 で落とす。declared: true では null>"
+    "reason": "<declared: false のときだけ、宣言しない理由（画面を持たない api-resource / batch モードだけ。操作を持たない画面駆動の機能も declared: true にし、reactions.json を operations: [] と operations_none_reason で作って画面ごとの状態表示を振り分ける。run.procedure_revision が 4 以上の画面駆動の機能の declared: false は reaction-check.mjs が exit 2 で落とす）。同じ理由を gaps.md にも残す。declared: false で空だと reaction-check.mjs が exit 2 で落とす。declared: true では null>"
   },
   "unmeasured": {
-    "_note": "未測定の宣言（gaps.md の散文を機械可読にした対）。parity-diff はこのキーがあるときだけ収束判定に入れ、キーごと無い旧成果物は判定しない（後方互換）。gaps.md は人向けの説明としてそのまま残し、ここには判定に入れる項目だけを書く。disposition: blocking が 1 件でも残る間は parity-diff を収束させない。accepted は「測っていないことをユーザーが承認した」記録で、approved_by / approved_at が空なら blocking として数える（fail-closed）。追記は非破壊で行う（既存要素の item を消さない。検査は replace-strategy の scripts/append-only-check.mjs が append-only-manifest.json の parity-unmeasured で行う——同一性は item で取るので disposition の blocking → accepted〈承認の追記〉は正規の遷移として通り、item を消すと gaps.md を触らなくても落ちる）。原本は parity-suite の references/coverage.md「未測定を機械可読にする」。",
+    "_note": "未測定の宣言（gaps.md の散文を機械可読にした対）。parity-diff はこのキーがあるときだけ収束判定に入れ、キーごと無い旧成果物は判定しない（後方互換）。gaps.md は人向けの説明としてそのまま残し、ここには判定に入れる項目だけを書く。disposition: blocking が 1 件でも残る間は parity-diff を収束させない。accepted は「測っていないことをユーザーが承認した」記録で、approved_by / approved_at が空なら blocking として数える（fail-closed）。追記は非破壊で行う（既存要素の item を消さない。検査は replace-strategy の scripts/append-only-check.mjs が append-only-manifest.json の parity-unmeasured で行う。同一性は item で取るので disposition の blocking → accepted〈承認の追記〉は正規の遷移として通り、item を消すと gaps.md を触らなくても落ちる）。原本は parity-suite の references/coverage.md「未測定を機械可読にする」。",
     "declared": true,
     "entries": [
       {
         "item": "<未測定の項目名。gaps.md の該当行と同じ文言にする（成果物の片側だけに残さない）>",
         "reason": "<測れなかった事情。gaps.md の理由と同じ文言>",
-        "endpoint": "<API の要求単位を確定できなかった項目のときだけ、features.md の API 列に書いた口をそのまま書く（例 PATCH /api/plans/:id）。それ以外の未測定では null。replace-strategy の scripts/evidence-gap-check.mjs はこの値の完全一致だけを宣言として数える（item の散文に口が含まれることは宣言に数えない——部分一致は別の口を宣言済みに化けさせる）>",
+        "endpoint": "<API の要求単位を確定できなかった項目のときだけ、features.md の API 列に書いた口をそのまま書く（例 PATCH /api/plans/:id）。それ以外の未測定では null。replace-strategy の scripts/evidence-gap-check.mjs はこの値の完全一致だけを宣言として数える（item の散文に口が含まれることは宣言に数えない。部分一致だと、別の口が宣言済みとして数えられてしまうからである）>",
         "disposition": "<blocking | accepted。blocking は「測るまで収束させない」、accepted は「測らないことをユーザーが承認した」。語彙外・欠落は blocking として数える>",
         "approved_by": "<accepted のときだけ、承認した人。blocking では null>",
         "approved_at": "<accepted のときだけ、承認日時（ISO 8601）。blocking では null>"
@@ -123,7 +123,7 @@
       }
     },
     "display_axes": {
-      "_note": "表示を切り替える軸（ロケール・配色テーマ等）。feature モードではキーごと省略しない（軸が無い機能も候補を全て absent に書く）。基準の組（全軸が既定値）は viewports × pages × states で撮り、既定以外の値は variants として撮る。変種の label は noise_baseline / capture_scope の viewport に書き、撮るはずの組（pages × states × variants。not_applicable のページを除く）に入る——撮っていない組は capture-scope-check.mjs が #not-captured の抜けとして数える。原本は parity-suite の references/baseline.md「表示を切り替える軸（掛け合わせずに撮る）」。",
+      "_note": "表示を切り替える軸（ロケール・配色テーマ等）。feature モードではキーごと省略しない（軸が無い機能も候補を全て absent に書く）。基準の組（全軸が既定値）は viewports × pages × states で撮り、既定以外の値は variants として撮る。変種の label は noise_baseline / capture_scope の viewport に書き、撮るはずの組（pages × states × variants。not_applicable のページを除く）に入る。撮っていない組は capture-scope-check.mjs が #not-captured の抜けとして数える。原本は parity-suite の references/baseline.md「表示を切り替える軸（掛け合わせずに撮る）」。",
       "axes": [
         {
           "name": "<軸の名前（例: locale）。variants / pairs から指す。| # = , と予約語 viewport は使えない>",
@@ -214,7 +214,7 @@
     ],
     "capture_scope": [
       {
-        "_note": "撮った組ごとの範囲の実測。撮るはずの組は pages × states × viewports の直積と、pages × states × display_axes.variants の label（その軸が not_applicable のページを除く）で、noise_baseline にもここにも無い組は #not-captured の抜けとして数える（採った組の一覧を期待値にすると、組ごと落とした範囲が期待値からも消える）。突き合わせ相手は noise_baseline（採った組に実測が無ければ「測っていない」として落ちる）。抜けは記録せず寸法から導くので、ここには実測だけを書く。原本は parity-suite の references/baseline.md「撮る範囲の決め方（抜けは採取の段で数える）」。寸法は実測値（正の数）で埋める——下のプレースホルダ 0 を残した組は「測っていない」として落ちる（0×0 では抜けが 1 つも出ないため）。",
+        "_note": "撮った組ごとの範囲の実測。撮るはずの組は pages × states × viewports の直積と、pages × states × display_axes.variants の label（その軸が not_applicable のページを除く）で、noise_baseline にもここにも無い組は #not-captured の抜けとして数える（採った組の一覧を期待値にすると、組ごと落とした範囲が期待値からも消える）。突き合わせ相手は noise_baseline（採った組に実測が無ければ「測っていない」として落ちる）。抜けは記録せず寸法から導くので、ここには実測だけを書く。原本は parity-suite の references/baseline.md「撮る範囲の決め方（抜けは採取の段で数える）」。寸法は実測値（正の数）で埋める。下のプレースホルダ 0 を残した組は「測っていない」として落ちる（0×0 では抜けが 1 つも出ないため）。",
         "page": "<capture_conditions.pages[].name>",
         "state": "<capture_conditions.states の状態名>",
         "viewport": "<ビューポート label。表示の軸の変種は変種の label>",
@@ -322,7 +322,7 @@
               "vertical": "<真偽値。scrollHeight > clientHeight（縦にはみ出したか）>",
               "horizontal_bar_px": "<0 以上の数。innerHeight − clientHeight（横スクロールバーの厚み）。横にはみ出した窓で 0 なら、スクロールバーが隠れたまま測っている>",
               "overflow_x_px": "<0 以上の整数。横のはみ出し量（scrollWidth − clientWidth。根の overflow-x が hidden / clip なら 0）。horizontal は overflow_x_px > 0 と一致させる>",
-              "overflow_y_px": "<0 以上の整数。縦のはみ出し量（scrollHeight − clientHeight）。vertical は overflow_y_px > 0 と一致させる。スイートは有無ではなく量（±1px）で比べる——どの高さでも縦にはみ出す頁では有無だけだと 100% と 100vh を見分けられない>"
+              "overflow_y_px": "<0 以上の整数。縦のはみ出し量（scrollHeight − clientHeight）。vertical は overflow_y_px > 0 と一致させる。スイートは有無ではなく量（±1px）で比べる。どの高さでも縦にはみ出す頁では、有無だけだと 100% と 100vh を見分けられないからである>"
             }
           ]
         }
@@ -331,7 +331,7 @@
     },
     "popup_inventory": [
       {
-        "name": "<コンテナの名前（例: 列フィルタの吹き出し / 演算子の引き出し / 項目に指を乗せた状態）。この棚卸し全体で一意にする——parent が name で親を指すので、兄弟の中だけで一意にすると 3 段目以降で親が決まらない。衝突するなら文脈を含めて改名する>",
+        "name": "<コンテナの名前（例: 列フィルタの吹き出し / 演算子の引き出し / 項目に指を乗せた状態）。この棚卸し全体で一意にする。parent が name で親を指すので、兄弟の中だけで一意にすると 3 段目以降で親が決まらない。衝突するなら文脈を含めて改名する>",
         "parent": "<このコンテナを内側に持つコンテナの name。1 段目は null>",
         "opened_by": [
           "<開く操作を操作アダプタの呼び出しとして <関数名>(<開く対象の論理名>) の形で書く（引数なしは <関数名>()。関数名だけ・状態名での代用はしない。開く対象を決める引数だけを書き、それ以外は全て落とす〈page のような不変の引数も ArrowDown のような操作の詳細も〉。列挙側にも同じ正規化を当てる）。1 つのコンテナを複数の操作で開けるなら全ての開き方を要素に並べ、行は分けない（空配列は不整合）>",
@@ -498,7 +498,7 @@
         "path": "<baseline_dir からの相対パス（例: orders.default.desktop.png）>",
         "kind": "<captured | derived。captured は採取そのもの、derived は採取物から作った加工物（実体を展開した JSON 等）。語彙外・欠落は未検証として数える>",
         "read_by": [
-          "<この採取物を読むスペックのパス（リポジトリルートからの相対）。検査は字面の照合で行う——そのファイルの中に path の basename がファイル名として現れるかだけを見る（前後がファイル名を構成する文字なら別ファイル扱い。orders.xlsx は orders.xlsx.json に一致しない。assertion に使っているかまでは見ない）>"
+          "<この採取物を読むスペックのパス（リポジトリルートからの相対）。検査は字面の照合で行う。そのファイルの中に path の basename がファイル名として現れるかだけを見る（前後がファイル名を構成する文字なら別ファイル扱い。orders.xlsx は orders.xlsx.json に一致しない。assertion に使っているかまでは見ない）>"
         ],
         "unread_reason": "<read_by が空のときだけ、読み手がいない理由（補助資料・決定論性を見るだけの記録など）。空だと未検証として数える。read_by があるときは null>",
         "derived_from": {

@@ -36,7 +36,7 @@ fi
 [ -d .kaizen ] || exit 1
 
 # frontmatter（最初の `---` ブロック）の 1 フィールドを取り出す。
-# `sed ... | head -n 1` は使わない——大きなノートでは head が先に閉じて sed が SIGPIPE で死に、
+# `sed ... | head -n 1` は使わない。大きなノートでは head が先に閉じて sed が SIGPIPE で死に、
 # pipefail 下でスクリプトごと 141 で落ちる（実測: 5.7MB のノートで再現）。awk なら自前で exit
 # するのでパイプが要らず、読めないファイルは `|| true` で空文字にできる。
 # 本文中の `priority:` 等を拾わないよう、走査は frontmatter 内に限る。

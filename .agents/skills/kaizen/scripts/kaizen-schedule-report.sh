@@ -2,7 +2,7 @@
 # kaizen 定期実行（scheduled run）の設定解決とレポート生成。
 #
 # CI（GitHub Actions 等）から週次で呼ばれ、`.kaizen/` の未適用（status: pending）の
-# 学びを 1 本の Issue にまとめる。LLM をここでは動かさない——エージェント実行は
+# 学びを 1 本の Issue にまとめる。LLM をここでは動かさない。エージェント実行は
 # 呼び出し側（workflow）が担い、このスクリプトはその**入力と出力の素材**だけを作る。
 #
 # 使い方は次のとおりである（プロジェクトルートで実行する。kaizen のスクリプトすべてに共通）。
@@ -65,7 +65,7 @@ readonly DEFAULT_AGENT=claude
 # 定期実行は **opt-in**。`schedule_enabled` を書いていないリポジトリは動かさない。
 # 既定を on にすると、テンプレートを `.github/workflows/` へ置いた（あるいは置かれた）
 # だけで週次実行が始まり、配布先は「入れた覚えのない定期実行」に驚く。
-# 逆極性のキー（`schedule_skip` 等）は足さない——二重の否定になって読み違えやすい。
+# 逆極性のキー（`schedule_skip` 等）は足さない。二重の否定になって読み違えやすい。
 readonly DEFAULT_SCHEDULE_ENABLED=off
 
 # Issue 本文に載せる表の最大行数と、1 行の要約の最大文字数。
@@ -232,7 +232,7 @@ resolve_config() {
 	fi
 
 	# 一時停止（環境変数 KAIZEN_SCHEDULE_SKIP）とリポジトリの意思（schedule_enabled）は
-	# 別の軸。**どちらかが止めれば止まる**——一時停止は上書きではなく追加の安全弁なので、
+	# 別の軸。**どちらかが止めれば止まる**。一時停止は上書きではなく追加の安全弁なので、
 	# 「環境変数が優先だから schedule_enabled=off を無視する」にはしない。
 	skip_raw=${KAIZEN_SCHEDULE_SKIP-}
 	if [ -n "${skip_raw}" ]; then
@@ -401,7 +401,7 @@ cmd_prompt() {
    置き場はインストール形態で変わるので、次の順に最初に読めたものを使う:
    `.claude/skills/kaizen/references/apply.md` / `.agents/skills/kaizen/references/apply.md` /
    `.github/skills/kaizen/references/apply.md` / `skills/kaizen/references/apply.md`。
-   特に「決定性で選ぶ」——散文（rule / doc）で閉じる対策と、lint / hook / スクリプトなど
+   特に「決定性で選ぶ」に従い、散文（rule / doc）で閉じる対策と、lint / hook / スクリプトなど
    機構へ寄せるべき対策を区別し、機構へ寄せるべきものはそう書く。
 4. 優先して着手すべきグループを上位 3 つまで挙げ、理由を添える。
 

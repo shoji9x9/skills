@@ -128,7 +128,7 @@ function observationShape(observed, expected) {
   const keys = Object.keys(observed);
   const missing = expected.filter((k) => !Object.prototype.hasOwnProperty.call(observed, k));
   const extra = keys.filter((k) => !expected.includes(k));
-  // 観測値そのものはプレースホルダ判定をしない——部品の出力として `<button>` や `<none>` は正当な値で、
+  // 観測値そのものはプレースホルダ判定をしない。部品の出力として `<button>` や `<none>` は正当な値で、
   // 弾くと一致していても永久に通らない。テンプレートの行は観測項目名がプレースホルダなので、
   // observe の集合と食い違って missing / extra で落ちる。
   if (missing.length === 0 && extra.length === 0) return { ok: true, observed };
@@ -263,7 +263,7 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
     if (isObjectLike(inst)) instanceRecords.push({ id, record: inst });
   }
   if (!nonEmptyString(target)) return structural("--target が空");
-  // 部品の照合を省ける形にしない——slug が無いと、別の部品の突き合わせ表がそのまま通る。
+  // 部品の照合を省ける形にしない。slug が無いと、別の部品の突き合わせ表がそのまま通る。
   if (!filled(metadata.slug)) return structural("metadata.json の slug が空かプレースホルダのまま");
 
   // 母集合: 操作 × インスタンスから、宣言済みの到達できない操作を除いたもの。
