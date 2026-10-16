@@ -52,3 +52,8 @@ coverage:github:2026-10-15T03:02:10.074Z:2026-10-16T03:06:41.513Z,coverage,2026-
 ci:38843941021:1,ci,2026-10-16T03:07:35.025Z,p-cdee4961,github-actions,,,,2026-10-16T03:07:33.000Z,2026-10-16T03:07:35.025Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;open,
 ci:38843941048:1,ci,2026-10-16T03:07:35.025Z,p-cdee4961,github-actions,,,,2026-10-16T03:07:33.000Z,2026-10-16T03:07:35.025Z,Asia/Tokyo,main,,,,,,,,,,,Release;push;open,
 coverage:github:2026-10-15T03:06:41.513Z:2026-10-16T03:07:35.025Z,coverage,2026-10-16T03:07:35.025Z,p-cdee4961,,,,,2026-10-15T03:06:41.513Z,2026-10-16T03:07:35.025Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:38844001320:1,ci,2026-10-16T03:48:29.653Z,p-cdee4961,github-actions,,,,2026-10-16T03:08:17.000Z,2026-10-16T03:11:34.000Z,Asia/Tokyo,feature/655-bump-handlebars,655,,,,,,,,,,CI;pull_request;success,
+ci:38844001314:1,ci,2026-10-16T03:48:29.653Z,p-cdee4961,github-actions,,,,2026-10-16T03:08:17.000Z,2026-10-16T03:08:18.000Z,Asia/Tokyo,feature/655-bump-handlebars,655,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:38843941021:1,ci,2026-10-16T03:48:29.653Z,p-cdee4961,github-actions,,,,2026-10-16T03:07:33.000Z,2026-10-16T03:10:12.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:38843941048:1,ci,2026-10-16T03:48:29.653Z,p-cdee4961,github-actions,,,,2026-10-16T03:07:33.000Z,2026-10-16T03:08:01.000Z,Asia/Tokyo,main,,,,,,,,,,,Release;push;success,
+coverage:github:2026-10-15T03:07:35.025Z:2026-10-16T03:48:29.653Z,coverage,2026-10-16T03:48:29.653Z,p-cdee4961,,,,,2026-10-15T03:07:35.025Z,2026-10-16T03:48:29.653Z,Asia/Tokyo,,,,,,,,,,,,ok,

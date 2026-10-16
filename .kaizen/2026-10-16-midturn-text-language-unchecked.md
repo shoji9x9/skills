@@ -28,8 +28,8 @@ Stop の Hook（`scripts/hooks/response-language-check.ts`）が止めたのは�
    加えて、ラテン文字が 40 字に届かない短い英文は、最後の本文でも判定の対象から外す。
 3. なぜ対象から外れたか → applied の記録の提案が「最後の応答の本文」と書き、利用者に表示する文の出口を挙げずに Hook の範囲を決めた ← 根本原因
 
-出口のうち、確認の UI（AskUserQuestion）と PR・Issue の本文は、#626 のブランチで記録した `.kaizen/2026-10-16-ask-user-question-language-unchecked.md` が同じ根本原因として扱う。
-この記録は、残りの出口であるツールの呼び出しの合間の文を扱う。どちらかが main に入った後で、2 件を 1 つにまとめる。
+出口のうち、確認の UI（AskUserQuestion）と PR・Issue の本文は、`.kaizen/2026-10-16-ask-user-question-language-unchecked.md`（#626 で記録）が同じ根本原因として扱う。
+この記録は、残りの出口であるツールの呼び出しの合間の文を扱う。apply のときに、2 件を 1 つにまとめる。
 
 ## 提案
 
