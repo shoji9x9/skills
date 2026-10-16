@@ -36,12 +36,24 @@
       "functions": 90
     },
     {
+      "path": ".agents/skills/",
+      "kind": "js",
+      "lines": 90,
+      "branches": 80,
+      "functions": 90
+    },
+    {
       "path": "scripts/",
       "kind": "sh",
       "lines": 80
     },
     {
       "path": "skills/",
+      "kind": "sh",
+      "lines": 80
+    },
+    {
+      "path": ".agents/skills/",
       "kind": "sh",
       "lines": 80
     }

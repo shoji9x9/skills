@@ -188,7 +188,9 @@ export function describe(finding: Finding): string {
     case "no-rule":
       return `${finding.file}: 当たる規則が無い。${CONFIG_PATH} の rules に、このファイルを含むディレクトリの規則を足す`;
     case "not-measured":
-      return `${finding.file}: 測定の結果に無い。測定の対象（run-coverage.ts の c8 の引数）を確かめる`;
+      return kindOf(finding.file) === "sh"
+        ? `${finding.file}: 測定の結果に無い。シェルスクリプトは対象をすべて結果に入れるので、--reuse で古い結果を使っていないかを確かめ、測り直す`
+        : `${finding.file}: 測定の結果に無い。測定の対象（run-coverage.ts の c8 の引数）を確かめる`;
     case "stale-config":
       return `${CONFIG_PATH} の ${finding.section}: ${finding.path} は対象のファイルに無い。消すか、パスを直す`;
     case "excluded-and-ruled":

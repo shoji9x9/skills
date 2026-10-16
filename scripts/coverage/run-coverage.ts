@@ -21,7 +21,15 @@
 // 終了コード: 0 はすべて閾値以上、1 は閾値を下回るファイルか設定の古い記述がある、またはテストが失敗した、
 // 2 は判定できない（設定の形の誤り・測定の失敗・前回の結果が無い）。
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { errorMessage } from "../lib/errors.ts";
@@ -39,11 +47,23 @@ import { shellCoverage } from "./shell-coverage.ts";
 
 const CACHE = "node_modules/.cache/coverage";
 
+/** private skill のディレクトリ（`.agents/skills/<name>/` のうち `.private-skill` を持つもの）。リポジトリからの相対パスで、末尾に `/` を付ける。 */
+export function privateSkillDirs(root: string): string[] {
+  const base = join(root, ".agents", "skills");
+  if (!existsSync(base)) return [];
+  return readdirSync(base)
+    .filter((name) => existsSync(join(base, name, ".private-skill")))
+    .map((name) => `.agents/skills/${name}/`)
+    .sort();
+}
+
 /**
- * 測る対象のファイル（scripts/ と skills/ の下）。git が管理するファイルに加え、まだ add していない新しいファイルも含める。
+ * 測る対象のファイル（scripts/・skills/ と private skill の下）。git が管理するファイルに加え、まだ add していない新しいファイルも含める。
  * 含めないと、commit する前の手元の実行では新しいファイルを比べず、commit した後の CI で初めて閾値を下回ることが分かる。
+ * `.agents/skills/` のうち private skill でないものは、skills/ のインストール済みのコピーなので測らない。
  */
 export function targetFiles(root: string): string[] {
+  const privates = privateSkillDirs(root);
   const args = [
     "ls-files",
     "-z",
@@ -53,6 +73,7 @@ export function targetFiles(root: string): string[] {
     "--",
     "scripts",
     "skills",
+    ...privates,
   ];
   const res = spawnSync("git", args, {
     cwd: root,
@@ -89,6 +110,7 @@ function measure(
   files: readonly string[],
   vitestArgs: readonly string[],
 ): number {
+  const privates = privateSkillDirs(root);
   rmSync(cache, { recursive: true, force: true });
   const traceDir = join(cache, "shell-trace");
   mkdirSync(traceDir, { recursive: true });
@@ -100,7 +122,13 @@ function measure(
     "scripts",
     "--src",
     "skills",
-    ...["scripts/**/*.ts", "skills/**/*.mjs", "skills/**/*.ts"].flatMap((p) => ["--include", p]),
+    ...privates.flatMap((dir) => ["--src", dir]),
+    ...[
+      "scripts/**/*.ts",
+      "skills/**/*.mjs",
+      "skills/**/*.ts",
+      ...privates.flatMap((dir) => [`${dir}**/*.mjs`, `${dir}**/*.ts`]),
+    ].flatMap((p) => ["--include", p]),
     ...["**/*.test.ts", "**/*.d.ts"].flatMap((p) => ["--exclude", p]),
     "--temp-directory",
     join(cache, "v8"),
@@ -108,8 +136,8 @@ function measure(
     join(cache, "report"),
     "--reporter",
     "json-summary",
-    "--reporter",
-    "html",
+    // HTML のレポートは手元で未実行の行を見るためのもので、CI では残さないので作らない（GitHub Actions は CI=true を渡す）。
+    ...(process.env.CI === "true" ? [] : ["--reporter", "html"]),
     "--reporter",
     "text-summary",
     "vitest",
@@ -125,18 +153,22 @@ function measure(
       SHELL_COVERAGE_DIR: traceDir,
     },
   });
-  if (res.error) throw res.error;
-  if (res.status !== 0) return res.status ?? 1;
-  const sh = shellCoverage(
-    root,
-    files.filter((f) => kindOf(f) === "sh"),
-    traceDir,
-  );
-  writeFileSync(join(cache, "shell-summary.json"), `${JSON.stringify(sh, null, 2)}\n`);
-  // 比べるのに使うのは 2 つの要約とレポートだけである。元の記録は数百 MB になるので、集計の後に消す。
-  rmSync(join(cache, "v8"), { recursive: true, force: true });
-  rmSync(traceDir, { recursive: true, force: true });
-  return 0;
+  try {
+    if (res.error) throw res.error;
+    if (res.status !== 0) return res.status ?? 1;
+    const sh = shellCoverage(
+      root,
+      files.filter((f) => kindOf(f) === "sh"),
+      traceDir,
+    );
+    writeFileSync(join(cache, "shell-summary.json"), `${JSON.stringify(sh, null, 2)}\n`);
+    return 0;
+  } finally {
+    // 比べるのに使うのは 2 つの要約とレポートだけである。元の記録は数百 MB になるので、
+    // テストが失敗したときも消す（--focus の実行は実行ごとに別のディレクトリを作るので、残すと溜まる）。
+    rmSync(join(cache, "v8"), { recursive: true, force: true });
+    rmSync(traceDir, { recursive: true, force: true });
+  }
 }
 
 /** --focus の実行の結果を出す。対象のファイルごとの値と、閾値を下回るものを出す。 */

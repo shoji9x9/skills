@@ -1,8 +1,9 @@
 // シェルのカバレッジ（bash-trace-env.sh と shell-coverage.ts）のテスト。
 //
 // 本物の bash と shfmt で実行し、期待値は bash の xtrace の仕様から決める。
-// xtrace は、単純なコマンド・宣言・`[[ ]]`・`(( ))`・`for`・`case` を、文の開始行で記録する。
+// xtrace は、単純なコマンド・宣言・`[[ ]]`・`(( ))`・`case` を、文の開始行で記録する。
 // `if`・`while`・`{ }`・`( )`・関数の定義・heredoc の本文は記録しない。
+// `for` は反復が 1 回以上のときだけ記録するので、実行できる行に数えない（本体の文で数える）。
 //
 // 状態空間の軸と、各セルに置いた入力:
 //
@@ -63,9 +64,9 @@ export E=1
 declare -r R=2
 `;
 
-/** 見本の文の開始行。記録する種類の文だけで、関数の定義（3）・if・fi・heredoc の本文（27・28）を含まない。 */
+/** 見本の文の開始行。記録する種類の文だけで、関数の定義（3）・if・fi・for（15）・heredoc の本文（27・28）を含まない。 */
 const SAMPLE_LINES = [
-  2, 4, 5, 8, 9, 10, 11, 13, 15, 16, 18, 19, 21, 24, 25, 26, 30, 31, 32, 33, 34, 35, 36, 37,
+  2, 4, 5, 8, 9, 10, 11, 13, 16, 18, 19, 21, 24, 25, 26, 30, 31, 32, 33, 34, 35, 36, 37,
 ];
 
 function writeSample(dir: string, name = "sample.sh", body = SAMPLE): string {
@@ -106,7 +107,7 @@ test("shellCoverage: 実行しなかった分岐の行だけを未実行とし�
   expect(files["sample.sh"]).toEqual({
     total: SAMPLE_LINES.length,
     covered: SAMPLE_LINES.length - 3,
-    pct: 87.5,
+    pct: 86.96,
     uncovered: [9, 11, 19],
   });
 });
@@ -209,5 +210,62 @@ test("bash-trace-env.sh: 記録は 1 プロセス 1 ファイルで、起動し�
     ),
   );
   expect([...trace.hashes.keys()].map((p) => relative(dir, p)).sort()).toEqual(["h.sh", "lib.sh"]);
+  expect(trace.hits.map((h) => h.line)).toEqual([1]);
+});
+
+test("shellCoverage: 反復が 0 回の for の本体だけが未実行になり、for の行そのものは数えない", () => {
+  const dir = makeTempDir("shell-coverage-for-");
+  const traceDir = join(dir, "trace");
+  mkdirSync(traceDir);
+  writeSample(dir, "f.sh", 'arr=()\nfor i in "${arr[@]}"; do\n  echo "$i"\ndone\n');
+  expect(runTraced([join(dir, "f.sh")], { cwd: dir, traceDir }).status).toBe(0);
+  expect(shellCoverage(dir, ["f.sh"], traceDir).files["f.sh"]).toEqual({
+    total: 2,
+    covered: 1,
+    pct: 50,
+    uncovered: [3],
+  });
+});
+
+test("shellCoverage: 内容が同じ対象が 2 つあれば、コピーの実行はどちらにも数える", () => {
+  const root = makeTempDir("shell-coverage-twins-");
+  const traceDir = join(root, "trace");
+  mkdirSync(traceDir);
+  mkdirSync(join(root, "a"));
+  mkdirSync(join(root, "b"));
+  writeSample(join(root, "a"), "t.sh", "echo t\n");
+  writeSample(join(root, "b"), "t.sh", "echo t\n");
+  const copy = makeTempDir("shell-coverage-twins-copy-");
+  copyFileSync(join(root, "a", "t.sh"), join(copy, "t.sh"));
+  expect(runTraced([join(copy, "t.sh")], { cwd: copy, traceDir }).status).toBe(0);
+  rmSync(copy, { recursive: true, force: true });
+  const { files } = shellCoverage(root, ["a/t.sh", "b/t.sh"], traceDir);
+  expect([files["a/t.sh"]?.covered, files["b/t.sh"]?.covered]).toEqual([1, 1]);
+});
+
+test("bash-trace-env.sh: リポジトリの scripts/・skills/ の下の原本を起動したときは、隣の *.sh のハッシュを書かない", () => {
+  const root = makeTempDir("shell-coverage-root-");
+  const traceDir = join(root, "trace");
+  mkdirSync(traceDir);
+  mkdirSync(join(root, "scripts", "coverage"), { recursive: true });
+  copyFileSync(TRACE_ENV, join(root, "scripts", "coverage", "bash-trace-env.sh"));
+  writeSample(join(root, "scripts"), "s.sh", "echo s\n");
+  const res = spawnSync("bash", [join(root, "scripts", "s.sh")], {
+    cwd: root,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      BASH_ENV: join(root, "scripts", "coverage", "bash-trace-env.sh"),
+      SHELL_COVERAGE_DIR: traceDir,
+    },
+  });
+  expect(res.status).toBe(0);
+  const trace = parseTrace(
+    readFileSync(
+      join(traceDir, spawnSync("ls", [traceDir], { encoding: "utf8" }).stdout.trim()),
+      "utf8",
+    ),
+  );
+  expect(trace.hashes.size).toBe(0);
   expect(trace.hits.map((h) => h.line)).toEqual([1]);
 });

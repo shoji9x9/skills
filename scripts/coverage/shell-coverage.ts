@@ -18,14 +18,16 @@ import { errorMessage } from "../lib/errors.ts";
 import { isRecord } from "../lib/guards.ts";
 import { isArray } from "../lib/is-array.ts";
 
-/** xtrace が開始行で記録する文の種類（shfmt の `Cmd.Type`）。 */
+/**
+ * xtrace が開始行で記録する文の種類（shfmt の `Cmd.Type`）。
+ * `for` は反復が 0 回だと記録されないので、実行しても未実行に見える。数えず、本体の文で数える。
+ */
 const TRACED_COMMANDS = new Set([
   "CallExpr",
   "DeclClause",
   "TestClause",
   "ArithmCmd",
   "LetClause",
-  "ForClause",
   "CaseClause",
 ]);
 
@@ -138,11 +140,13 @@ export function shellCoverage(
   traceDir: string,
 ): ShellCoverageResult {
   const realToTarget = new Map<string, string>();
-  const hashToTarget = new Map<string, string>();
+  // 内容が同じ対象（同じスクリプトを 2 つのスキルが持つなど）は、コピーの実行をどちらにも数える。
+  const hashToTargets = new Map<string, string[]>();
   for (const rel of targets) {
     const path = join(root, rel);
     realToTarget.set(realpathSync(path), rel);
-    hashToTarget.set(createHash("sha256").update(readFileSync(path)).digest("hex"), rel);
+    const hash = createHash("sha256").update(readFileSync(path)).digest("hex");
+    hashToTargets.set(hash, [...(hashToTargets.get(hash) ?? []), rel]);
   }
 
   const executed = new Map<string, Set<number>>();
@@ -155,16 +159,18 @@ export function shellCoverage(
       const abs = absSource(hit);
       const real = resolveSource(abs, cache);
       const hash = trace.hashes.get(abs);
-      const rel =
-        (real === null ? undefined : realToTarget.get(real)) ??
-        (hash === undefined ? undefined : hashToTarget.get(hash));
-      if (rel === undefined) {
+      const direct = real === null ? undefined : realToTarget.get(real);
+      const rels =
+        direct !== undefined ? [direct] : hash === undefined ? [] : (hashToTargets.get(hash) ?? []);
+      if (rels.length === 0) {
         if (real === null) unresolved += 1;
         continue;
       }
-      let set = executed.get(rel);
-      if (!set) executed.set(rel, (set = new Set()));
-      set.add(hit.line);
+      for (const rel of rels) {
+        let set = executed.get(rel);
+        if (!set) executed.set(rel, (set = new Set()));
+        set.add(hit.line);
+      }
     }
   }
 

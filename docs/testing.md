@@ -1,8 +1,9 @@
 # テストの書き方
 
 テスト（`*.test.ts`）を書くときと直すときの規約。
-テストする対象は、`scripts/` と `skills/` の下の実行するコードである。テストのファイルは、どちらの対象のものも `scripts/` の下に置く。
-`skills/` は利用者のリポジトリへ配布するので、そのテストは配布しない `scripts/skills/<name>/` に置く（置き場所は `AGENTS.md`「ディレクトリ構造」）。
+テストする対象は、`scripts/`・`skills/`・private skill（`.agents/skills/<name>/` のうち `.private-skill` を持つもの）の下の実行するコードである。
+テストのファイルは、どの対象のものも `scripts/` の下に置く。
+`skills/` は利用者のリポジトリへ配布するので、そのテストは配布しない `scripts/skills/<name>/` に置く（置き場所は `AGENTS.md`「ディレクトリ構造」）。private skill のテストも `scripts/skills/<name>/` に置く。
 テストは、利用者やほかのスクリプトから見える振る舞いを守るために書く。
 内部の作りに依存したテストは、振る舞いを変えない書き換えのたびに直す必要がある。守るもののないテストは、保守の手間だけを増やす。
 
@@ -10,7 +11,8 @@
 
 ## テストを書く対象
 
-`scripts/` と `skills/` の下の実行するコード（`.ts`・`.mjs`・`.sh`）には、すべてテストを書く。
+`scripts/`・`skills/`・private skill の下の実行するコード（`.ts`・`.mjs`・`.sh`）には、すべてテストを書く。
+`.agents/skills/` のうち private skill でないものは `skills/` のインストール済みのコピーなので、原本の `skills/` で測る。
 テストの無いファイルも、カバレッジの測定では 0% として数えるので、閾値を下回って失敗する（「カバレッジ」の節）。
 テストで確かめられないファイルだけを、理由を付けて除外する。
 
@@ -21,7 +23,7 @@
 - eval の入力（`evals/*/fixtures/`）。eval とその fixture のチェック（`scripts/eval/`）が確かめる
 - 種別の定義（`commit-types.ts`）。使う側との一致を `scripts/gates/code/commit-types-consistency.test.ts` が確かめる
 
-この外に実行するロジックを置くときは、`scripts/` か `skills/` に移すか、この一覧と測定の対象（`scripts/coverage/run-coverage.ts`）を同じ変更で広げる。
+この外に実行するロジックを置くときは、`scripts/`・`skills/`・private skill に移すか、この一覧と測定の対象（`scripts/coverage/run-coverage.ts`）を同じ変更で広げる。
 
 次のときは、コードと同じ変更でテストを書く。
 
@@ -116,7 +118,7 @@ fixture も、原本（テンプレート・スキーマの文書・同梱の雛
 - テストする処理が読む環境変数（`HOME`・`PATH`・`LC_ALL`・`CLAUDE_PROJECT_DIR` など）は、テストの中で一時ディレクトリかリポジトリの中を指す値に固定する。手元の `~/` の中身に結果を左右させない
 - ネットワークに接続しない。時刻に依存する処理は、時刻を引数や環境変数で渡せるようにして、固定した値でテストする
 - 子プロセスの環境を明示した値だけで組み立てるときは、`coverageEnv()` を足す（「カバレッジ」の節）
-- 子プロセスにはタイムアウトを付ける。vitest の 1 テストの上限は `vitest.config.ts` で 30 秒にしている
+- 子プロセスにはタイムアウトを付ける。付けないと、止まった子プロセスを待つテストは `vitest.config.ts` の `testTimeout` まで待ってから失敗し、原因が出力に残らない
 
 ## 並列実行
 

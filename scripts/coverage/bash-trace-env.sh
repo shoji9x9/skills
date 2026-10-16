@@ -15,7 +15,16 @@ if [ -n "${SHELL_COVERAGE_DIR:-}" ] && { exec {__shell_coverage_fd}>>"${SHELL_CO
 	# テストは、スクリプトを一時ディレクトリにコピーして実行することがある。コピーは実行の後に消えるので、
 	# 起動したスクリプトと同じディレクトリの *.sh の内容のハッシュを残し、原本と同じ内容のコピーを原本として数える。
 	# source で読む隣のファイル（kaizen-hook-common.sh など）も、同じディレクトリにあれば含まれる。
-	if [ -f "$0" ] && command -v sha256sum >/dev/null 2>&1; then
+	# 原本（リポジトリの scripts/ と skills/ の下）を起動したときは、パスで原本に結び付くので、ハッシュを取らない。
+	# 起動のたびに隣の *.sh をすべてハッシュすると、12 本のディレクトリで 1 回あたり約 7 ms 遅くなる。
+	# リポジトリの直下は、このファイルの位置（BASH_ENV に絶対パスで渡す）から決める。
+	__shell_coverage_root=${BASH_SOURCE[0]%/scripts/coverage/bash-trace-env.sh}
+	case "$0" in
+	"${__shell_coverage_root}"/scripts/* | "${__shell_coverage_root}"/skills/*) __shell_coverage_hash_needed='' ;;
+	*) __shell_coverage_hash_needed=1 ;;
+	esac
+	unset __shell_coverage_root
+	if [ -n "${__shell_coverage_hash_needed}" ] && [ -f "$0" ] && command -v sha256sum >/dev/null 2>&1; then
 		__shell_coverage_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" 2>/dev/null && pwd) &&
 			sha256sum -- "${__shell_coverage_dir}"/*.sh 2>/dev/null |
 			while read -r __shell_coverage_hash __shell_coverage_path; do
@@ -23,6 +32,7 @@ if [ -n "${SHELL_COVERAGE_DIR:-}" ] && { exec {__shell_coverage_fd}>>"${SHELL_CO
 			done >&"${__shell_coverage_fd}"
 		unset __shell_coverage_dir
 	fi
+	unset __shell_coverage_hash_needed
 	BASH_XTRACEFD=${__shell_coverage_fd}
 	# 区切りはタブにする。先頭の + は、bash が入れ子の深さの分だけ繰り返す。
 	PS4='+SHCOV	${BASH_SOURCE[0]-}	${LINENO}	'

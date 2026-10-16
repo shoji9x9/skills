@@ -1,22 +1,21 @@
 #!/usr/bin/env node
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { errorMessage } from "../../../../scripts/lib/errors.ts";
 import { isArray } from "../../../../scripts/lib/is-array.ts";
 import { parseJsonAs } from "../../../../scripts/lib/parse-as.ts";
 
-const [, , inputPath, outputPath] = process.argv;
-
 // pnpm audit の JSON は版で形が変わるので、各フィールドは unknown として読み、使うところで確かめる。
-type AuditRecord = Record<string, unknown>;
-type Packages = Record<string, { version?: unknown } | undefined>;
-type AuditJson = {
+export type AuditRecord = Record<string, unknown>;
+export type Packages = Record<string, { version?: unknown } | undefined>;
+export type AuditJson = {
   advisories?: Record<string, AuditRecord>;
   vulnerabilities?: Record<string, AuditRecord>;
   packages?: Packages;
 };
 
 /** 出力する 1 件の finding（dependabot-alert-issue の外部 audit findings の形）。 */
-type Finding = {
+export type Finding = {
   package: string;
   ecosystem: string;
   severity: string;
@@ -32,30 +31,29 @@ type Finding = {
   scope: string;
 };
 
-if (!inputPath || !outputPath) {
-  console.error("Usage: normalize-pnpm-audit.ts <pnpm-audit.json> <findings.json>");
-  process.exit(2);
-}
-
-function loadJson(path: string): AuditJson {
+/**
+ * 読めないか解析できなければ、理由を stderr に出して undefined を返す。
+ * JSON の null は解析できた値なので、失敗の印には使わない（null は後の読み取りで TypeError になる）。
+ */
+function loadJson(path: string): AuditJson | undefined {
   let text: string;
   try {
     text = readFileSync(path, "utf8");
   } catch (err) {
     console.error(`Failed to read pnpm audit JSON: ${path}: ${errorMessage(err)}`);
-    process.exit(1);
+    return undefined;
   }
 
   if (text.trim() === "") {
     console.error(`Failed to parse pnpm audit JSON: ${path} is empty`);
-    process.exit(1);
+    return undefined;
   }
 
   try {
     return parseJsonAs<AuditJson>(text);
   } catch (err) {
     console.error(`Failed to parse pnpm audit JSON: ${path}: ${errorMessage(err)}`);
-    process.exit(1);
+    return undefined;
   }
 }
 
@@ -177,7 +175,8 @@ function currentVersionsFrom(
   return uniq(versions);
 }
 
-function fromAdvisory(advisory: AuditRecord): Finding {
+/** 古い形（`advisories` の 1 件）から finding を作る。 */
+export function fromAdvisory(advisory: AuditRecord): Finding {
   const ghsa = firstString(
     normalizeGhsa(advisory.ghsa),
     normalizeGhsa(advisory.ghsa_id),
@@ -257,48 +256,85 @@ function fromVulnerability(
   };
 }
 
-const raw = loadJson(inputPath);
-const findings: Finding[] = [];
-
-if (raw.advisories && typeof raw.advisories === "object") {
-  for (const advisory of Object.values(raw.advisories)) {
-    findings.push(fromAdvisory(advisory));
-  }
+/**
+ * 新しい形（`vulnerabilities` の 1 件）から finding を作る。advisory を表す `via` ごとに 1 件にし、
+ * advisory を表す `via` が無ければ、パッケージの欄だけで 1 件にする。
+ */
+export function findingsFromVulnerability(
+  packageName: string,
+  vulnerability: AuditRecord,
+  packages: Packages | undefined,
+): Finding[] {
+  const advisories = asArray(vulnerability.via).filter((via) => {
+    if (typeof via === "object" && via) return true;
+    return typeof via === "string" && (ghsaFrom(via) || isUrl(via));
+  });
+  if (advisories.length === 0) return [fromVulnerability(packageName, vulnerability, {}, packages)];
+  return advisories.map((advisory) =>
+    fromVulnerability(packageName, vulnerability, advisory, packages),
+  );
 }
 
-if (raw.vulnerabilities && typeof raw.vulnerabilities === "object") {
-  for (const [packageName, vulnerability] of Object.entries(raw.vulnerabilities)) {
-    const advisories = asArray(vulnerability.via).filter((via) => {
-      if (typeof via === "object" && via) return true;
-      return typeof via === "string" && (ghsaFrom(via) || isUrl(via));
-    });
-    if (advisories.length === 0) {
-      findings.push(fromVulnerability(packageName, vulnerability, {}, raw.packages));
-    } else {
-      for (const advisory of advisories) {
-        findings.push(fromVulnerability(packageName, vulnerability, advisory, raw.packages));
-      }
+/** pnpm audit の JSON から findings を作る。`package` の無いものは除き、同じ package と advisory の組はまとめる。 */
+export function normalizeAudit(raw: AuditJson): Finding[] {
+  const findings: Finding[] = [];
+
+  if (raw.advisories && typeof raw.advisories === "object") {
+    for (const advisory of Object.values(raw.advisories)) {
+      findings.push(fromAdvisory(advisory));
     }
   }
+
+  if (raw.vulnerabilities && typeof raw.vulnerabilities === "object") {
+    for (const [packageName, vulnerability] of Object.entries(raw.vulnerabilities)) {
+      findings.push(...findingsFromVulnerability(packageName, vulnerability, raw.packages));
+    }
+  }
+
+  const merged = new Map<string, Finding>();
+  for (const finding of findings.filter((item) => item.package)) {
+    const key = findingKey(finding);
+    const existing = merged.get(key);
+    if (existing) mergeFinding(existing, finding);
+    else merged.set(key, finding);
+  }
+  return [...merged.values()];
 }
 
-const merged = new Map<string, Finding>();
-for (const finding of findings.filter((item) => item.package)) {
-  const key = findingKey(finding);
-  const existing = merged.get(key);
-  if (existing) mergeFinding(existing, finding);
-  else merged.set(key, finding);
+/** 引数が足りなければ 2、入力を読めなければ 1、書き出したら 0 を返す。 */
+export function main(argv: string[]): number {
+  const [inputPath, outputPath] = argv;
+  if (!inputPath || !outputPath) {
+    console.error("Usage: normalize-pnpm-audit.ts <pnpm-audit.json> <findings.json>");
+    return 2;
+  }
+
+  const raw = loadJson(inputPath);
+  if (raw === undefined) return 1;
+
+  writeFileSync(
+    outputPath,
+    `${JSON.stringify(
+      {
+        source: "pnpm-audit",
+        generated_at: new Date().toISOString(),
+        findings: normalizeAudit(raw),
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  return 0;
 }
 
-writeFileSync(
-  outputPath,
-  `${JSON.stringify(
-    {
-      source: "pnpm-audit",
-      generated_at: new Date().toISOString(),
-      findings: [...merged.values()],
-    },
-    null,
-    2,
-  )}\n`,
-);
+function isCliEntry(): boolean {
+  if (!process.argv[1]) return false;
+  try {
+    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+  } catch (error) {
+    console.error(`normalize-pnpm-audit: 起動パスを正規化できない: ${errorMessage(error)}`);
+    process.exit(2);
+  }
+}
+
+if (isCliEntry()) process.exit(main(process.argv.slice(2)));

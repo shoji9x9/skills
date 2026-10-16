@@ -18,6 +18,69 @@ const ROOT = fileURLToPath(new URL("../../", import.meta.url));
 const run = (args: string[]) =>
   spawnSync(process.execPath, [SCRIPT, ...args], { encoding: "utf8", cwd: ROOT });
 
+/**
+ * ランナーを一時ディレクトリに置いたリポジトリにコピーし、前回の測定の結果（要約）を置いて、--reuse の CLI を起動する。
+ * ランナーはリポジトリの直下を自分の位置から決めるので、コピーしたリポジトリの結果と設定を読む。
+ * --reuse は測り直さない（pnpm を起動しない）ので、リポジトリの外に置ける。
+ */
+function runCopiedCli(pct: number) {
+  const root = makeTempDir("run-coverage-cli-");
+  const RUNNER = [
+    "coverage/run-coverage.ts",
+    "coverage/check-coverage.ts",
+    "coverage/shell-coverage.ts",
+  ];
+  const LIB = ["lib/errors.ts", "lib/guards.ts", "lib/is-array.ts"];
+  for (const rel of [...RUNNER, ...LIB]) {
+    mkdirSync(dirname(join(root, "scripts", rel)), { recursive: true });
+    copyFileSync(join(ROOT, "scripts", rel), join(root, "scripts", rel));
+  }
+  const write = (rel: string, text: string) => {
+    mkdirSync(dirname(join(root, rel)), { recursive: true });
+    writeFileSync(join(root, rel), text);
+  };
+  write(
+    "scripts/coverage/coverage-thresholds.json",
+    JSON.stringify({
+      rules: [{ path: "skills/", kind: "js", lines: 90 }],
+      exclude: [...RUNNER, ...LIB].map((rel) => ({
+        path: `scripts/${rel}`,
+        reason: "ランナーのコピー",
+      })),
+    }),
+  );
+  write("skills/x/a.mjs", "export const a = 1;\n");
+  const m = { total: 1, covered: 1, skipped: 0, pct };
+  write(
+    "node_modules/.cache/coverage/report/coverage-summary.json",
+    JSON.stringify({
+      total: { lines: m, branches: m, functions: m },
+      [join(root, "skills/x/a.mjs")]: { lines: m, branches: m, functions: m },
+    }),
+  );
+  write(
+    "node_modules/.cache/coverage/shell-summary.json",
+    JSON.stringify({ files: {}, unresolved: 0 }),
+  );
+  expect(spawnSync("git", ["init", "-q"], { cwd: root }).status).toBe(0);
+  return spawnSync(process.execPath, [join(root, "scripts/coverage/run-coverage.ts"), "--reuse"], {
+    encoding: "utf8",
+    cwd: root,
+  });
+}
+
+test("CLI: 前回の結果がすべて閾値以上なら exit 0", () => {
+  const res = runCopiedCli(95);
+  expect(res.status, res.stderr).toBe(0);
+  expect(res.stdout).toMatch(/閾値以上/);
+});
+
+test("CLI: 閾値を下回るファイルがあれば exit 1", () => {
+  const res = runCopiedCli(50);
+  expect(res.status, res.stdout).toBe(1);
+  expect(res.stderr).toMatch(/skills\/x\/a\.mjs: lines 50% が閾値 90%/);
+});
+
 test.each([
   ["知らない引数", ["--bogus"], /知らない引数/],
   ["値の無い --focus", ["--focus"], /値の無い --focus/],
@@ -57,7 +120,7 @@ test.each([
   expect(() => readC8Summary("/r", value)).toThrow();
 });
 
-test("targetFiles: scripts/ と skills/ の下のソースを、add していない新しいファイルも含め、テストと型の宣言と無視するファイルを除いて返す", () => {
+test("targetFiles: scripts/・skills/・private skill の下のソースを、add していない新しいファイルも含め、テストと型の宣言と無視するファイルとインストール済みのコピーを除いて返す", () => {
   const root = makeTempDir("run-coverage-targets-");
   const tracked = [
     "scripts/a.ts",
@@ -76,8 +139,14 @@ test("targetFiles: scripts/ と skills/ の下のソースを、add していな
   const git = (...args: string[]) => expect(spawnSync("git", args, { cwd: root }).status).toBe(0);
   git("init", "-q");
   writeFileSync(join(root, ".gitignore"), "scripts/ignored.ts\n");
+  // private skill（.private-skill を持つもの）のスクリプトは測り、インストール済みのコピーは測らない。
+  for (const rel of [".agents/skills/p/.private-skill", ".agents/skills/p/scripts/p.ts"]) {
+    mkdirSync(dirname(join(root, rel)), { recursive: true });
+    writeFileSync(join(root, rel), "");
+  }
   git("add", "--", ...tracked);
   expect(targetFiles(root)).toEqual([
+    ".agents/skills/p/scripts/p.ts",
     "scripts/a.ts",
     "scripts/c.sh",
     "scripts/untracked.ts",

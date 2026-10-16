@@ -20,10 +20,21 @@
       "id": "copy-not-mapped",
       "why": "原本と同じ内容のコピーの実行を原本に数えない",
       "file": "scripts/coverage/shell-coverage.ts",
-      "find": "hashToTarget.get(hash)",
-      "replace": "undefined",
+      "find": ": (hashToTargets.get(hash) ?? []);",
+      "replace": ": [];",
       "expect_failing": [
-        "shellCoverage: 内容が原本と同じコピーの実行は、コピーを消した後も原本として数え、書き換えたコピーは数えない"
+        "shellCoverage: 内容が原本と同じコピーの実行は、コピーを消した後も原本として数え、書き換えたコピーは数えない",
+        "shellCoverage: 内容が同じ対象が 2 つあれば、コピーの実行はどちらにも数える"
+      ]
+    },
+    {
+      "id": "twin-only-first",
+      "why": "内容が同じ対象が 2 つあるとき、コピーの実行を片方にしか数えない",
+      "file": "scripts/coverage/shell-coverage.ts",
+      "find": "for (const rel of rels) {",
+      "replace": "for (const rel of rels.slice(0, 1)) {",
+      "expect_failing": [
+        "shellCoverage: 内容が同じ対象が 2 つあれば、コピーの実行はどちらにも数える"
       ]
     },
     {
