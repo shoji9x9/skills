@@ -8,7 +8,7 @@
 // kuromoji は記号の連続を 1 つのトークンにまとめるので、`——「`・`——（`・`——。` は `——` のトークンにならない。
 // 字形の違う `――`（U+2015）・`──`（U+2500）・`－－`（U+FF0D）も辞書には一致しない。そこで、2 文字以上続くダッシュを文字列で探す規則（DASH_RULE）を足す。
 // `─` と `－` は、ディレクトリの木（`├──`）・区切りの線（`────`）・矢印の図（`A──▶B`・`A──→B`）にも使う。
-// そのため、前後の両方に文字が続く並びだけを拾う。前後の文字からは、罫線・図形・矢印（`<` `>` を含む）を除く。
+// そのため、前後の両方に文字が続く並びだけを拾う。前後の文字からは、罫線・図形・矢印（`<` `>` を含む）を除く（ARROWS・FIGURES）。
 // 指摘は辞書の `——` の項目の message で出す。textlint は位置と message が同じ指摘を 1 件にまとめるので、
 // 辞書でも検出できる形は 2 件にならない。1 文字の `—` は、表の空欄や英語の区切りに使うので対象にしない。
 import { readFileSync } from "node:fs";
@@ -31,8 +31,20 @@ type Descriptor = Awaited<ReturnType<typeof loadTextlintrc>>;
 type KernelRules = ReturnType<Descriptor["rule"]["toKernelRulesFormat"]>;
 type KernelRule = KernelRules[number];
 
-const DASH_RE =
-  /[—―]{2,}|(?<=[^\s\u2500-\u25ff\u2190-\u21ff\u27f0-\u27ff\u2900-\u297f\u2b00-\u2bff<>])─{2,}(?=[^\s\u2500-\u25ff\u2190-\u21ff\u27f0-\u27ff\u2900-\u297f\u2b00-\u2bff<>])|(?<=[^\s－\u2500-\u25ff\u2190-\u21ff\u27f0-\u27ff\u2900-\u297f\u2b00-\u2bff<>])－{2,}(?=[^\s－\u2500-\u25ff\u2190-\u21ff\u27f0-\u27ff\u2900-\u297f\u2b00-\u2bff<>])/g;
+// 矢印の図（`A──▶B`・`A－－＞B`・`A——→B`・`B＜－－A`）で、ダッシュの並びの前後に来る文字。
+// 矢印（U+2190〜U+21FF・U+2794〜U+27BF の Dingbats・U+27F0〜U+27FF・U+2900〜U+297F・U+2B00〜U+2BFF）と、半角・全角の `<` `>`。
+const ARROWS = "\\u2190-\\u21ff\\u2794-\\u27bf\\u27f0-\\u27ff\\u2900-\\u297f\\u2b00-\\u2bff<>＜＞";
+// 罫線・ブロック要素・図形（U+2500〜U+25FF）。ディレクトリの木・区切りの線・`▶` を含む。
+const FIGURES = "\\u2500-\\u25ff";
+const DASH_RE = new RegExp(
+  [
+    // `——`・`――` は文末（`——。`）でも拾うので、前後に文字を求めず、矢印の図の形だけを除く。
+    `(?<![—―${ARROWS}])[—―]{2,}(?![—―${ARROWS}])`,
+    `(?<=[^\\s${FIGURES}${ARROWS}])─{2,}(?=[^\\s${FIGURES}${ARROWS}])`,
+    `(?<=[^\\s－${FIGURES}${ARROWS}])－{2,}(?=[^\\s－${FIGURES}${ARROWS}])`,
+  ].join("|"),
+  "g",
+);
 
 /** 設定から使わない語の規則だけを取り出す。規則が無ければ、0 件として通さずに例外を投げる。 */
 export function wordRules(descriptor: Descriptor): KernelRules {

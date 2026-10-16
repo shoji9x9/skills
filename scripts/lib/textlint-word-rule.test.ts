@@ -99,6 +99,8 @@ test("実リポジトリ: .textlintrc.json の dictionaryPath は WORDS_PATH を
 // ダッシュの並びはテストの文字列に直接書かない（このファイルも textlint の対象である）。
 const BOX2 = "\u2500".repeat(2);
 const FULL2 = "\uff0d".repeat(2);
+const EM2 = "\u2014".repeat(2);
+const BAR2 = "\u2015".repeat(2);
 
 test.each([
   ["罫線（U+2500）", `判定する${BOX2}終了コードは使えない。`, 1],
@@ -111,6 +113,14 @@ test.each([
   ["矢印の図（▶）", `フローは A${BOX2}\u25b6B の順である。`, 0],
   ["矢印の図（→）", `main${BOX2}\u2192feature の順に取り込む。`, 0],
   ["全角のハイフンの矢印", `A${FULL2}>B の順である。`, 0],
+  ["全角のハイフンと全角の＞の矢印", `フローは A${FULL2}\uff1eB の順である。`, 0],
+  ["全角の＜と全角のハイフンの矢印", `B\uff1c${FULL2}A の順で戻す。`, 0],
+  ["Dingbats の矢印（➡）", `A${BOX2}\u27a1B の順である。`, 0],
+  ["U+2015 の並びと > の矢印", `フローは A${BAR2}>B の順である。`, 0],
+  ["U+2014 の並びと → の矢印", `フローは A${EM2}\u2192B の順である。`, 0],
+  ["U+2014 が 3 文字続く矢印", `フローは A${EM2}\u2014\u2192B の順である。`, 0],
+  ["U+2014 の並びの文末", `判定する${EM2}。`, 1],
+  ["U+2014 が 3 文字続く並び", `判定する${EM2}\u2014終了コードは使えない。`, 1],
 ])("ダッシュの規則: %s の件数", async (_name, text, count) => {
   writeWords([{ term: DASH_TERM, message: "m", tokens: [{ surface_form: DASH_TERM }] }]);
   const descriptor = (await load({})).shallowMerge({ rules: [dashRule(dir)] });

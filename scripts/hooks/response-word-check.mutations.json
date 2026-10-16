@@ -23,8 +23,8 @@
       "id": "WORD-DASH-SINGLE",
       "why": "1 文字のダッシュも対象にする（表の空欄や英語の区切りで止める）",
       "file": "scripts/lib/textlint-word-rule.ts",
-      "find": "/[—―]{2,}|",
-      "replace": "/[—―]+|",
+      "find": "`(?<![—―${ARROWS}])[—―]{2,}(?![—―${ARROWS}])`,",
+      "replace": "`(?<![—―${ARROWS}])[—―]+(?![—―${ARROWS}])`,",
       "occurrences": 1,
       "expect_failing": ["通す: 1 文字の — は対象にしない（表の空欄や英語の区切り）"]
     },
