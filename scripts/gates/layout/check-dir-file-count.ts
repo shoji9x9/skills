@@ -125,9 +125,7 @@ export function countFiles(files: readonly string[]) {
 
 /** `dir` を対象外にする設定があれば、それを返す。 */
 function excludeOf(dir: string, excludes: readonly Exclude[]): Exclude | undefined {
-  return excludes.find(
-    (e) => e.dir === dir || (e.descendants && (e.dir === ROOT_DIR || dir.startsWith(`${e.dir}/`))),
-  );
+  return excludes.find((e) => e.dir === dir || (e.descendants && dir.startsWith(`${e.dir}/`)));
 }
 
 /** 違反（閾値の超過）と、設定の古い記述・空の理由を返す。 */
@@ -174,15 +172,16 @@ export function listTrackedFiles(cwd: string) {
   const top = spawnSync("git", ["rev-parse", "--show-toplevel"], { cwd, encoding: "utf8" });
   if (top.status !== 0) throw new Error(`git のリポジトリのルートを特定できない: ${top.stderr}`);
   const root = top.stdout.trim();
-  // 衝突を解消していない index は 1 つのパスを段ごとに持つので、--deduplicate で 1 件にする（無いと件数が最大 3 倍になる）。
-  const ls = spawnSync("git", ["ls-files", "-z", "--cached", "--deduplicate"], {
+  // 衝突を解消していない index は 1 つのパスを段ごとに持ち、ls-files は同じパスを最大 3 回出す。重複は Set で除く
+  // （--deduplicate は git 2.31 から使えるオプションなので、git の版に依らない方法で除く）。
+  const ls = spawnSync("git", ["ls-files", "-z", "--cached"], {
     cwd: root,
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
   });
   if (ls.status !== 0)
     throw new Error(`git ls-files に失敗した（exit ${ls.status}）: ${ls.stderr}`);
-  return { root, files: ls.stdout.split("\0").filter((p) => p !== "") };
+  return { root, files: [...new Set(ls.stdout.split("\0").filter((p) => p !== ""))] };
 }
 
 export function main(cwd = "."): number {
@@ -205,11 +204,11 @@ export function main(cwd = "."): number {
   }
   const { violations, configErrors } = checkDirFileCount(files, config);
   if (configErrors.length) {
-    console.error(`dir-file-count: ${CONFIG_PATH} の記述を直す:`);
+    console.error(`dir-file-count: ${CONFIG_PATH} に、直す記述がある。`);
     for (const e of configErrors) console.error(`  - ${e}`);
   }
   if (violations.length) {
-    console.error("dir-file-count: 直下のファイル数が閾値を超えたディレクトリがある:");
+    console.error("dir-file-count: 直下のファイル数が閾値を超えたディレクトリがある。");
     for (const v of violations) console.error(`  - ${v}`);
     console.error(
       "対処: 役割ごとのサブディレクトリに分ける。分けられない理由があれば、" +

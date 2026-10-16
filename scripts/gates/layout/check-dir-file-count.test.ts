@@ -1,6 +1,6 @@
 // ディレクトリの直下のファイル数のチェック（check-dir-file-count.ts）の回帰テスト。
 //
-// 状態空間の軸と、各セルに置いた入力:
+// 状態空間の軸と、各セルに置いた入力は次の表のとおりである。
 //
 // | 軸             | 値                                                                     |
 // | -------------- | ---------------------------------------------------------------------- |
@@ -225,7 +225,7 @@ describe("CLI", () => {
   test("CLI: シンボリックリンクをファイルとして数え、違反なら 1 で終わる", () => {
     const root = makeRepo(files("a", 3), { default_max: 3 });
     symlinkSync("f0.txt", join(root, "a/link"));
-    spawnSync("git", ["add", "a/link"], { cwd: root });
+    expect(spawnSync("git", ["add", "a/link"], { cwd: root }).status).toBe(0);
     const res = spawnSync(process.execPath, [script], { cwd: root, encoding: "utf8" });
     expect(res.status).toBe(1);
     expect(res.stderr).toContain("a: 4 件（閾値 3）");
@@ -243,10 +243,24 @@ describe("CLI", () => {
   test("CLI: 衝突を解消していないファイルを、段の数ではなく 1 件として数える", () => {
     const root = makeRepo(files("a", 2), { default_max: 3 });
     const git = (...args: string[]) =>
-      spawnSync("git", ["-c", "user.name=t", "-c", "user.email=t@example.com", ...args], {
-        cwd: root,
-        encoding: "utf8",
-      });
+      spawnSync(
+        "git",
+        [
+          "-c",
+          "user.name=t",
+          "-c",
+          "user.email=t@example.com",
+          "-c",
+          "commit.gpgsign=false",
+          "-c",
+          "core.hooksPath=/dev/null",
+          ...args,
+        ],
+        {
+          cwd: root,
+          encoding: "utf8",
+        },
+      );
     const record = "com" + "mit";
     expect(git(record, "-qm", "base").status).toBe(0);
     expect(git("checkout", "-qb", "other").status).toBe(0);
@@ -261,7 +275,7 @@ describe("CLI", () => {
 
   test("CLI: 追跡しているファイルが 0 件なら、判定できないとして 2 で終わる", () => {
     const root = makeRepo([], { default_max: 3 });
-    spawnSync("git", ["rm", "-q", "--cached", CONFIG_PATH], { cwd: root });
+    expect(spawnSync("git", ["rm", "-q", "--cached", CONFIG_PATH], { cwd: root }).status).toBe(0);
     expect(main(root)).toBe(2);
   });
 

@@ -24,7 +24,7 @@
     {
       "dir": "scripts/gates",
       "max": 0,
-      "reason": "直下にファイルを置かず、チェックする対象ごとの分類（docs・prose・packaging・code・tooling・layout）に置く（AGENTS.md「ディレクトリ構造」）"
+      "reason": "直下にファイルを置かず、チェックする対象ごとの分類に置く（分類の一覧は AGENTS.md「ディレクトリ構造」）"
     }
   ],
   "excludes": [

@@ -69,8 +69,8 @@
       "id": "DFC-DESCENDANTS",
       "why": "descendants が true の対象外でも、下のディレクトリを数える",
       "file": "scripts/gates/layout/check-dir-file-count.ts",
-      "find": "e.dir === dir || (e.descendants && (",
-      "replace": "e.dir === dir || (false && (",
+      "find": "e.dir === dir || (e.descendants && dir",
+      "replace": "e.dir === dir || (false && dir",
       "occurrences": 1,
       "expect_failing": [
         "対象外 descendants が true の対象外は、下のディレクトリも数えない",
@@ -127,8 +127,8 @@
       "id": "DFC-DEDUP",
       "why": "衝突を解消していないファイルを、index の段の数だけ数える",
       "file": "scripts/gates/layout/check-dir-file-count.ts",
-      "find": "[\"ls-files\", \"-z\", \"--cached\", \"--deduplicate\"]",
-      "replace": "[\"ls-files\", \"-z\", \"--cached\"]",
+      "find": "[...new Set(ls.stdout.split(\"\\0\").filter((p) => p !== \"\"))]",
+      "replace": "ls.stdout.split(\"\\0\").filter((p) => p !== \"\")",
       "occurrences": 1,
       "expect_failing": ["CLI CLI: 衝突を解消していないファイルを、段の数ではなく 1 件として数える"]
     },
