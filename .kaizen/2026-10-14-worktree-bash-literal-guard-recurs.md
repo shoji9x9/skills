@@ -43,16 +43,18 @@ issue-batch の #631 の作業で、worktree に入った後の Bash 呼び出�
 2026-10-16、#655 の作業（issue-start から git-worktree enter）で、worktree に入った後の Bash の呼び出しが 4 回拒否された。
 拒否された形は次のとおりである。
 
-- `git rev-parse`・`cp`・`mise trust`・`pnpm install`・`git log` を `;` でつないだ準備の処理
-- 変数を引数に使う `node` と `&&` を含む更新・確認の処理
-- `kaizen-kedb-match.sh` に `"git"` を引数で渡した呼び出し
+- `git rev-parse`・`cp`・`mise trust`・`pnpm install`・`git log` を `;` でつないだ準備の処理（`names git in a form too complex to verify`）
+- 変数を引数に使う `node` と `&&` を含む更新・確認の処理（`runs node with a value computed at runtime`）
+- `kaizen-kedb-match.sh` に `"git"` を引数で渡し、`; echo rc=$?` と `; cat` を続けた呼び出し（`names git in a form too complex to verify`）
 - `kaizen-kedb-match.sh` に `; echo rc=$?` を付けた呼び出し（`runs bash inside a construct too complex to verify`）
 
 どれも、単独の呼び出しに分けるか、Write ツールでスクリプトにして `bash <絶対パス>` で実行する形に直して通した。
 この学びはセッション開始時に注入されていたが、最初の 2 回は書き方を変えなかった。
 2 回目の後、更新の処理はスクリプトに直した。それでも、後の kaizen の照合では、同じ形の複合コマンドを再び書いて 2 回拒否された。
-3 つのセッションで、worktree に入って最初の複合コマンドが拒否されている。
+これで、#631・#616・#655 の 3 つのセッションで、worktree に入った後の複合コマンドが拒否されている。
 文書の注入では書き方が変わらないことの裏付けであり、「## 提案」の PreToolUse の Hook を先に適用する根拠を強める。
+ただし、今回の 4 回のうち、提案の Hook の条件（heredoc か `;`・`&&` と、`git` の語の両方）に当たるのは 1 回目と 3 回目だけである。
+2 回目は `git` の語を含まず、4 回目は `bash` の起動を理由に拒否された。Hook の条件は、ガードが拒否する形に合わせて広げる（「## 提案」に追記した）。
 
 ## 根本原因
 
@@ -67,4 +69,5 @@ worktree の隔離セッションでは、heredoc・複合コマンド・`git` �
 - 反映先の候補: `issue-batch` の `references/orchestration.md`「issue-start への handoff」と `issue-start` の worktree の項に、この書き方を 1 行で置く。
   原本は `git-worktree` の `isolation.md` のまま参照する。
 - 決定論的な対策の候補: PreToolUse の Hook で、worktree のセッションの Bash の本文に heredoc か `;`・`&&` と `git` の語が両方あれば、実行前に「スクリプトファイルにする」と案内する（ハーネスの拒否より先に、直し方を示す）。
+  #655 の拒否から、条件には、`;`・`&&` と、実行時に決まる値（変数）を引数にした `node` や `bash` の起動の組も含める。
 - KEDB 照合: `worktree`・`Bash`・`拒否` で `.kaizen/archive/2026-09-17-worktree-session-rejects-computed-bash.md`（applied）に一致。applied なので追記せず、この記録を新しく作った。
