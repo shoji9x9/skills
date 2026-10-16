@@ -18,6 +18,15 @@
       ]
     },
     {
+      "id": "list-entry-dropped",
+      "why": "一覧から GIT_WORK_TREE が抜けても、一覧の名前だけで組み立てたテストは通ってしまう",
+      "file": "scripts/lib/testing/vitest-git-env-setup.ts",
+      "find": "  \"GIT_WORK_TREE\",\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["実物の git が挙げるリポジトリに固有の変数を、一覧がすべて含む"]
+    },
+    {
       "id": "config-entries-kept",
       "why": "GIT_CONFIG_KEY_<n>・GIT_CONFIG_VALUE_<n> を外さない",
       "file": "scripts/lib/testing/vitest-git-env-setup.ts",
