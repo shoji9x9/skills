@@ -13,6 +13,7 @@ node <このスキル>/scripts/agent-usage.mjs setup --time-zone Asia/Tokyo
 - 後から同じ人だと分かった ID は、リポジトリの設定の `aliases` でまとめる（下の「リポジトリの設定」）
 - タイムゾーンを省くと、マシンのタイムゾーンを使う。日別の集計の日付と、時刻ごとの停止の時間はこのタイムゾーンで切る
 - `--billing user` を付けると、collect が個人のプランの premium request の実額（GitHub の課金 API）も記録する（[`reviews.md`](reviews.md)）
+- 人の設定に `"defaultDecision": "record"`（または `"decline"`）を手で書くと、判断の無いブランチのコミットを止めずに、その値に従う。リポジトリの設定の同じキーより優先する。setup を実行し直しても、この値は残る
 
 setup はリポジトリに `.agent-usage/config.json`（空の設定）と `.agent-usage/records/` を作る。`.agent-usage/` があることが、このリポジトリでスキルを使う印になる（Hook は無いリポジトリでは何もしない）。
 
@@ -115,7 +116,8 @@ GitHub は `linguist-generated` の付いたファイルを、PR の差分で最
   "activityWindowMinutes": 15,
   "reviewTools": { "<レビューの作者の login>": "<ツールの名前>" },
   "people": { "p-0123abcd": { "name": "表示名" } },
-  "aliases": { "p-89abcdef": "p-0123abcd" }
+  "aliases": { "p-89abcdef": "p-0123abcd" },
+  "defaultDecision": "record"
 }
 ```
 
@@ -128,3 +130,11 @@ GitHub は `linguist-generated` の付いたファイルを、PR の差分で最
 | `reviewTools` | レビューの作者からツールを決める対応。同梱の `assets/review-tools.json` より優先する。自分の Actions で実行するレビューの作者（workflow のトークンの持ち主）はここに足す |
 | `people` | 人の ID の表示名 |
 | `aliases` | 同じ人としてまとめる ID の対応（左の ID を右の ID として数える）。右の ID をさらに別名にはできない |
+| `defaultDecision` | 判断の無いブランチの扱い（`record` か `decline`）。置くと、コミットの前の確認で止めずにこの値に従う。人の設定に同じキーがあれば、そちらを使う。置かなければ止めて確かめる |
+
+リポジトリの設定はコミットして全員で使うので、`defaultDecision` は、人の設定に同じキーを置いていないすべての人のコミットに当たる。
+`record` を置くと、確認を受けずに各自の利用実績が記録されてコミットに入るので、置く前にリポジトリを使う人の同意を得る。
+
+`defaultDecision` を知らない古い版の agent-usage は、知らないキーとしてエラーにする。
+人の設定はマシンのすべてのリポジトリで共有するので、人の設定に置くときは、そのマシンで使うすべてのリポジトリのスキルを、このキーを読める版に更新してから置く。
+リポジトリの設定に置くときも、そのリポジトリを使う人のスキルを先に更新する。

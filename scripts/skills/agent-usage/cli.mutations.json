@@ -9,13 +9,14 @@
       "id": "undecided-branch-passes",
       "why": "判断の無いブランチのコミットを止めない",
       "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "  if (decision === null) return { exit: 2, message: askMessage(agent, script) };",
-      "replace": "  if (false) return { exit: 2, message: askMessage(agent, script) };",
+      "find": "    if (fallback === null) return { exit: 2, message: askMessage(agent, script) };",
+      "replace": "    if (false) return { exit: 2, message: askMessage(agent, script) };",
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook 判断の無い feature ブランチのコミットを止め、記録しないと決めたら通す。デフォルトブランチでは止めない",
         "agent-usage のコマンドと Hook Hook が実行された worktree のパスを覚え、その worktree を削除した後も collect がログを集める",
-        "agent-usage のコマンドの入力と状態 origin/HEAD のデフォルトブランチでは、main 以外の名前でもコミットを止めない"
+        "agent-usage のコマンドの入力と状態 origin/HEAD のデフォルトブランチでは、main 以外の名前でもコミットを止めない",
+        "agent-usage のコマンドと Hook defaultDecision が読めない値なら、コミットを止めて理由を返す。どちらの設定にも無ければ確かめる"
       ]
     },
     {
@@ -734,6 +735,73 @@
       "occurrences": 1,
       "expect_failing": [
         "retractableRows 指示・稼働・cost-state の使用量は、範囲の中に始まる行だけを打ち消す"
+      ]
+    },
+    {
+      "id": "default-decision-ignored",
+      "why": "判断の無いブランチで defaultDecision を読まず、常に止める",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "    if (fallback === null) return { exit: 2, message: askMessage(agent, script) };",
+      "replace": "    if (true) return { exit: 2, message: askMessage(agent, script) };",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook 判断の無いブランチでは、defaultDecision に従って止めずに通す。人の設定がリポジトリの設定より優先する"
+      ]
+    },
+    {
+      "id": "user-default-not-preferred",
+      "why": "人の設定の defaultDecision を読まず、リポジトリの設定だけに従う",
+      "file": "skills/agent-usage/scripts/lib/config.mjs",
+      "find": "  if (user !== null && user.defaultDecision !== undefined)",
+      "replace": "  if (false)",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook 判断の無いブランチでは、defaultDecision に従って止めずに通す。人の設定がリポジトリの設定より優先する"
+      ]
+    },
+    {
+      "id": "repo-default-unread",
+      "why": "リポジトリの設定の defaultDecision を読まない",
+      "file": "skills/agent-usage/scripts/lib/config.mjs",
+      "find": "  if (obj.defaultDecision !== undefined) {\n    cfg.defaultDecision",
+      "replace": "  if (false) {\n    cfg.defaultDecision",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook 判断の無いブランチでは、defaultDecision に従って止めずに通す。人の設定がリポジトリの設定より優先する",
+        "agent-usage のコマンドと Hook defaultDecision が読めない値なら、コミットを止めて理由を返す。どちらの設定にも無ければ確かめる"
+      ]
+    },
+    {
+      "id": "setup-drops-default-decision",
+      "why": "setup をやり直すと、人の設定の defaultDecision が消える",
+      "file": "skills/agent-usage/scripts/agent-usage.mjs",
+      "find": "defaultDecision: config.defaultDecision",
+      "replace": "defaultDecision: undefined",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook 判断の無いブランチでは、defaultDecision に従って止めずに通す。人の設定がリポジトリの設定より優先する"
+      ]
+    },
+    {
+      "id": "default-decline-silent",
+      "why": "defaultDecision の decline に従って通したことを、出所と一緒に伝えない",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "message: note === \"\" ? \"\" : `agent-usage: 記録しない${note}`",
+      "replace": "message: \"\"",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook 判断の無いブランチでは、defaultDecision に従って止めずに通す。人の設定がリポジトリの設定より優先する"
+      ]
+    },
+    {
+      "id": "status-throws-on-bad-config",
+      "why": "status が設定を読めないときに止まり、他の行を出さない",
+      "file": "skills/agent-usage/scripts/agent-usage.mjs",
+      "find": "    return `未決定（設定を読めない: ${e instanceof Error ? e.message : String(e)}）`;",
+      "replace": "    throw e;",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook defaultDecision が読めない値なら、コミットを止めて理由を返す。どちらの設定にも無ければ確かめる"
       ]
     }
   ]

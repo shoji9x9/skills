@@ -245,7 +245,23 @@ describe("設定", () => {
     expect(parseRepoConfig({})).toMatchObject({
       activityWindowMinutes: 15,
       ci: { external: false },
+      defaultDecision: null,
     });
+    expect(parseUserConfig({ personId: "p-0123abcd" }, "u").defaultDecision).toBeUndefined();
+  });
+
+  test("defaultDecision は record か decline だけを受け付ける", () => {
+    expect(parseRepoConfig({ defaultDecision: "record" }).defaultDecision).toBe("record");
+    expect(parseRepoConfig({ defaultDecision: "decline" }).defaultDecision).toBe("decline");
+    expect(
+      parseUserConfig({ personId: "p-0123abcd", defaultDecision: "decline" }, "u").defaultDecision,
+    ).toBe("decline");
+    for (const v of ["ask", "", null, true, ["record"]]) {
+      expect(() => parseRepoConfig({ defaultDecision: v })).toThrow(/record か decline/);
+      expect(() => parseUserConfig({ personId: "p-0123abcd", defaultDecision: v }, "u")).toThrow(
+        /record か decline/,
+      );
+    }
   });
 
   test("人の ID の形とタイムゾーンを確かめる", () => {

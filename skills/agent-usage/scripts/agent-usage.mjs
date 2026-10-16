@@ -16,6 +16,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   PERSON_ID_RE,
+  defaultDecisionOf,
   loadOrCreateUserConfig,
   parseUserConfig,
   saveUserConfig,
@@ -102,6 +103,27 @@ function printCollect(r) {
 }
 
 /**
+ * status に出すブランチの判断。判断が無ければ、コミットの前の確認が従う defaultDecision と、その出所を添える。
+ * 設定を読めなくても、status の他の行は出したいので、理由を文字列にして返す。
+ * @param {import("./lib/repo.mjs").RepoInfo} repo
+ * @param {boolean} set
+ * @returns {string}
+ */
+function branchDecisionText(repo, set) {
+  const decided = decisionFor(repo.commonDir, repo.branch);
+  if (decided !== null) return decided;
+  if (!set) return "未決定";
+  try {
+    const fallback = defaultDecisionOf(join(usageDir(repo.root), "config.json"));
+    return fallback === null
+      ? "未決定"
+      : `未決定（defaultDecision: ${fallback.decision}、${fallback.source}）`;
+  } catch (e) {
+    return `未決定（設定を読めない: ${e instanceof Error ? e.message : String(e)}）`;
+  }
+}
+
+/**
  * @param {string[]} argv
  * @param {string} cwd
  * @returns {number}
@@ -122,7 +144,10 @@ export function main(argv, cwd = process.cwd()) {
       if (!isValidTimeZone(timeZone))
         throw new UsageError("--time-zone は IANA のタイムゾーンの名前にする");
       const billing = a.options.get("--billing") ?? config.billing;
-      const next = parseUserConfig({ personId, timeZone, billing }, path);
+      const next = parseUserConfig(
+        { personId, timeZone, billing, defaultDecision: config.defaultDecision },
+        path,
+      );
       saveUserConfig(path, next);
       const dir = usageDir(repo.root);
       mkdirSync(join(dir, "records"), { recursive: true });
@@ -169,9 +194,7 @@ export function main(argv, cwd = process.cwd()) {
       console.log(
         `ブランチ: ${repo.branch || "(detached)"} / デフォルトブランチ: ${repo.defaultBranch ?? "(不明)"}`,
       );
-      console.log(
-        `このブランチの判断: ${repo.branch ? (decisionFor(repo.commonDir, repo.branch) ?? "未決定") : "-"}`,
-      );
+      console.log(`このブランチの判断: ${repo.branch ? branchDecisionText(repo, set) : "-"}`);
       const path = userConfigPath();
       console.log(
         `人の設定: ${existsSync(path) ? readFileSync(path, "utf8").trim().replace(/\s+/g, " ") : "(無い)"}`,

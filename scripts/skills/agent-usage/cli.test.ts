@@ -6,6 +6,7 @@
 //   リポジトリ     .agent-usage/ が無い／ある。
 //   ブランチ       デフォルトブランチ（origin/HEAD が無ければ main・master）／それ以外。
 //   判断           未決定（止める）／記録しない（通す）／記録する（collect して stage し、通す）。
+//   defaultDecision 無い／リポジトリの設定だけ／人の設定だけ／両方（人が優先）／読めない値（止める）。
 
 import { spawnSync } from "node:child_process";
 import {
@@ -32,6 +33,7 @@ import {
 import { branchLabel } from "../../../skills/agent-usage/scripts/lib/records.mjs";
 import { localHourStart } from "../../../skills/agent-usage/scripts/lib/time.mjs";
 import { coverageEnv } from "../../lib/testing/coverage-env.ts";
+import { parseJsonAs } from "../../lib/parse-as.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 const SCRIPTS = join(import.meta.dirname, "../../../skills/agent-usage/scripts");
@@ -231,6 +233,73 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(blocked.stderr).toMatch(/decline/);
     expect(cli("decline").status).toBe(0);
     expect(gate("git commit -m x").status).toBe(0);
+  });
+
+  test("判断の無いブランチでは、defaultDecision に従って止めずに通す。人の設定がリポジトリの設定より優先する", () => {
+    const { tmp, repo, git, cli, gate } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    const repoConfig = join(repo, ".agent-usage", "config.json");
+    const userConfig = join(tmp, "user", "config.json");
+    const user = parseJsonAs<Record<string, unknown>>(readFileSync(userConfig, "utf8"));
+    const staged = () => git("diff", "--cached", "--name-only").trim();
+
+    // リポジトリの設定が decline: 記録せずに通す
+    writeFileSync(repoConfig, JSON.stringify({ defaultDecision: "decline" }));
+    const declined = gate("git commit -m x");
+    expect(declined.status).toBe(0);
+    expect(declined.stderr).toContain(`${repoConfig} の defaultDecision: decline`);
+    expect(staged()).toBe("");
+    expect(cli("status").stdout).toMatch(/未決定（defaultDecision: decline、/);
+
+    // 人の設定の record が、リポジトリの設定の decline より優先する。記録して stage し、出所を出す
+    writeFileSync(userConfig, JSON.stringify({ ...user, defaultDecision: "record" }));
+    const recorded = gate("git commit -m x");
+    expect(recorded.status).toBe(0);
+    expect(recorded.stderr + recorded.stdout).toContain(`${userConfig} の defaultDecision: record`);
+    expect(staged()).toMatch(/\.agent-usage\/records\//);
+
+    // setup を実行し直しても、人の設定の defaultDecision は残る
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    expect(
+      parseJsonAs<Record<string, unknown>>(readFileSync(userConfig, "utf8")).defaultDecision,
+    ).toBe("record");
+
+    // ブランチの判断は defaultDecision より優先する
+    expect(cli("decline").status).toBe(0);
+    git("reset", "-q");
+    expect(gate("git commit -m x").status).toBe(0);
+    expect(staged()).toBe("");
+  });
+
+  test("defaultDecision が読めない値なら、コミットを止めて理由を返す。どちらの設定にも無ければ確かめる", () => {
+    const { tmp, repo, git, cli, gate } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    const repoConfig = join(repo, ".agent-usage", "config.json");
+    const userConfig = join(tmp, "user", "config.json");
+    const user = parseJsonAs<Record<string, unknown>>(readFileSync(userConfig, "utf8"));
+
+    writeFileSync(repoConfig, JSON.stringify({ defaultDecision: "yes" }));
+    const badRepo = gate("git commit -m x");
+    expect(badRepo.status).toBe(2);
+    expect(badRepo.stderr).toMatch(/設定を読めない: .*defaultDecision: record か decline でない/);
+    // status は設定を読めなくても止まらず、理由をブランチの判断の行に出す
+    const status = cli("status");
+    expect(status.status).toBe(0);
+    expect(status.stdout).toMatch(/このブランチの判断: 未決定（設定を読めない: .*defaultDecision/);
+    expect(status.stdout).toContain("人の設定: ");
+
+    writeFileSync(repoConfig, "{}");
+    writeFileSync(userConfig, JSON.stringify({ ...user, defaultDecision: "ask" }));
+    const badUser = gate("git commit -m x");
+    expect(badUser.status).toBe(2);
+    expect(badUser.stderr).toMatch(/設定を読めない: .*defaultDecision: record か decline でない/);
+
+    writeFileSync(userConfig, JSON.stringify(user));
+    const ask = gate("git commit -m x");
+    expect(ask.status).toBe(2);
+    expect(ask.stderr).toMatch(/defaultDecision（record か decline）を置きます/);
   });
 
   test("collect --stage は明細を書いて stage し、記録すると決めたブランチのコミットでは Hook が collect して通す", () => {

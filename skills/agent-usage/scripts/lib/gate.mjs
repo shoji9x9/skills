@@ -1,13 +1,14 @@
 // コミット前の確認（PreToolUse の Hook）。デフォルトブランチ以外の git commit で、そのブランチの判断がまだ無ければ止め、
 // 記録するかを利用者に確かめるようエージェントに返す。判断が「記録する」なら collect を実行して明細を stage し、通す。
+// 判断が無くても、人かリポジトリの設定に defaultDecision があれば、止めずにその判断として扱う（ブランチの判断は保存しない）。
 //
 // 止めない場合: git commit でない・git のリポジトリでない・.agent-usage/ が無い（このリポジトリでは使っていない）・
 //               detached HEAD・デフォルトブランチ・判断が「記録しない」。
 // デフォルトブランチが分からない（origin/HEAD が無い）ときは、main と master をデフォルトブランチとして扱う。
 
 import { existsSync } from "node:fs";
-import { resolve } from "node:path";
-import { isRecord } from "./config.mjs";
+import { join, resolve } from "node:path";
+import { defaultDecisionOf, isRecord } from "./config.mjs";
 import { decisionFor } from "./decisions.mjs";
 import { defaultBranches, git, repoInfo } from "./repo.mjs";
 import { usageDir } from "./records.mjs";
@@ -260,6 +261,7 @@ function askMessage(agent, script) {
     `- 記録する: node "${script}" collect --stage を実行してから、もう一度コミットする`,
     `- 記録しない: node "${script}" decline を実行してから、もう一度コミットする`,
     "確認はブランチごとに 1 回です。利用者に確認できない（無人の実行）ときは、記録しない側を選ばず、止まった理由を報告してください。",
+    "無人の実行で止めたくないときは、利用者が前もって、人の設定かリポジトリの .agent-usage/config.json に defaultDecision（record か decline）を置きます。エージェントはこの値を自分で書き足さないでください。",
     `（agent: ${agent}）`,
   ].join("\n");
 }
@@ -308,8 +310,24 @@ export function gateDecision(input, fallbackCwd, now, script, agent) {
       message: `agent-usage: 判断の記録を読めない: ${e instanceof Error ? e.message : String(e)}`,
     };
   }
-  if (decision === null) return { exit: 2, message: askMessage(agent, script) };
-  if (decision === "decline") return { exit: 0, message: "" };
+  let note = "";
+  if (decision === null) {
+    /** @type {{ decision: import("./config.mjs").DefaultDecision; source: string } | null} */
+    let fallback;
+    try {
+      fallback = defaultDecisionOf(join(usageDir(repo.root), "config.json"), process.env);
+    } catch (e) {
+      return {
+        exit: 2,
+        message: `agent-usage: 設定を読めない: ${e instanceof Error ? e.message : String(e)}`,
+      };
+    }
+    if (fallback === null) return { exit: 2, message: askMessage(agent, script) };
+    decision = fallback.decision;
+    note = `（このブランチの判断は無いので、${fallback.source} の defaultDecision: ${fallback.decision} に従った）`;
+  }
+  if (decision === "decline")
+    return { exit: 0, message: note === "" ? "" : `agent-usage: 記録しない${note}` };
   try {
     const r = runCollect({ repo, now, env: process.env, github: true, gh: null });
     // 今回書いたファイルに加えて、前回書いて stage されなかった（index.lock などで失敗した、手動の collect で書いた）記録も入れる
@@ -322,7 +340,7 @@ export function gateDecision(input, fallbackCwd, now, script, agent) {
           : "";
     return {
       exit: 0,
-      message: `agent-usage: 利用実績を記録した（新しい行 ${r.newRows}、stage したファイル ${r.written.length}）${notes}`,
+      message: `agent-usage: 利用実績を記録した（新しい行 ${r.newRows}、stage したファイル ${r.written.length}）${notes}${note}`,
     };
   } catch (e) {
     return {

@@ -1,0 +1,7 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+ci:38906060838:1,ci,2026-10-16T14:13:54.890Z,p-cdee4961,github-actions,,,,2026-10-16T13:12:19.000Z,2026-10-16T13:15:34.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:38901015514:1,ci,2026-10-16T14:13:54.890Z,p-cdee4961,github-actions,,,,2026-10-16T12:30:39.000Z,2026-10-16T12:39:26.000Z,Asia/Tokyo,feature/619-test-coverage-and-behavior-review,619,,,,,,,,,,CI;pull_request;success,
+ci:38901015500:1,ci,2026-10-16T14:13:54.890Z,p-cdee4961,github-actions,,,,2026-10-16T12:30:39.000Z,2026-10-16T12:30:40.000Z,Asia/Tokyo,feature/619-test-coverage-and-behavior-review,619,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+coverage:github:2026-10-15T12:28:49.584Z:2026-10-16T14:13:54.890Z,coverage,2026-10-16T14:13:54.890Z,p-cdee4961,,,,,2026-10-15T12:28:49.584Z,2026-10-16T14:13:54.890Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-15T14:13:54.890Z:2026-10-16T14:14:19.551Z,coverage,2026-10-16T14:14:19.551Z,p-cdee4961,,,,,2026-10-15T14:13:54.890Z,2026-10-16T14:14:19.551Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-15T14:14:19.551Z:2026-10-16T14:15:06.233Z,coverage,2026-10-16T14:15:06.233Z,p-cdee4961,,,,,2026-10-15T14:14:19.551Z,2026-10-16T14:15:06.233Z,Asia/Tokyo,,,,,,,,,,,,ok,
