@@ -10,10 +10,10 @@ import { cpSync, existsSync, readdirSync, readFileSync, rmSync, writeFileSync } 
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
-import { makeTempDir } from "../lib/test-tmpdir.ts";
+import { makeTempDir } from "../lib/testing/test-tmpdir.ts";
 import { errorMessage } from "../lib/errors.ts";
 import { parseJsonAs } from "../lib/parse-as.ts";
-import { invalidInput, removeField } from "../lib/test-input.ts";
+import { invalidInput, removeField } from "../lib/testing/test-input.ts";
 import * as traitCapture from "../../skills/parity-suite/scripts/trait-capture.mjs";
 import * as cssRules from "../../skills/parity-component/scripts/css-rules-capture.mjs";
 import * as axisDiff from "../../skills/parity-component/scripts/axis-diff.mjs";

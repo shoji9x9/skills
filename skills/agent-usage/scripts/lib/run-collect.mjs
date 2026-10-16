@@ -6,7 +6,7 @@ import { writeFileAtomic } from "./atomic.mjs";
 import { fileURLToPath } from "node:url";
 import { isRecord, loadOrCreateUserConfig, loadRepoConfig } from "./config.mjs";
 import { collectLocal } from "./collect.mjs";
-import { collectGitHub, commitActivityRows, makeGh, withoutEnvTokens } from "./github.mjs";
+import { collectGitHub, commitActivityRows, makeGh, withoutEnvTokens } from "./sources/github.mjs";
 import { loadBundledPricing, loadBundledReviewPricing } from "./pricing.mjs";
 import { signature } from "./rows.mjs";
 import {
@@ -25,12 +25,12 @@ import {
 } from "./records.mjs";
 import { defaultBranches, gitOrNull } from "./repo.mjs";
 import { parseTime, toIso } from "./time.mjs";
-import { rememberWorktrees } from "./worktrees.mjs";
+import { rememberWorktrees } from "./sources/worktrees.mjs";
 import { join, relative, sep } from "node:path";
 
 /** @typedef {import("./rows.mjs").Row} Row */
 /** @typedef {import("./repo.mjs").RepoInfo} RepoInfo */
-/** @typedef {import("./github.mjs").GhRunner} GhRunner */
+/** @typedef {import("./sources/github.mjs").GhRunner} GhRunner */
 
 /** 前回の取得の終わりから、さかのぼって再取得する幅（投稿や artifact の反映の遅れを拾うため）。重なった分は key で除く。 */
 export const GITHUB_OVERLAP_MS = 86400000;

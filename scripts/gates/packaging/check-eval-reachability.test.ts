@@ -33,7 +33,7 @@ import {
   listEvalFiles,
 } from "./check-eval-reachability.ts";
 import { parseJsonAs } from "../../lib/parse-as.ts";
-import { makeTempDir } from "../../lib/test-tmpdir.ts";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 /** evals.json の 1 件（テストが読む欄だけ）。 */
 type EvalEntry = { id: number; prompt: string; assertions?: unknown; reachability?: unknown };

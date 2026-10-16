@@ -3,7 +3,7 @@ import { cpSync, readFileSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { afterEach, expect, test } from "vitest";
 import { parseJsonAs } from "../lib/parse-as.ts";
-import { makeTempDir } from "../lib/test-tmpdir.ts";
+import { makeTempDir } from "../lib/testing/test-tmpdir.ts";
 
 const repository = resolve(import.meta.dirname, "..", "..");
 const fixturesRoot = join(repository, "evals", "issue-start", "fixtures");

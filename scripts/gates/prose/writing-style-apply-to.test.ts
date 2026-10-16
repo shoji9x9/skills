@@ -11,10 +11,10 @@ import { readFileSync } from "node:fs";
 import { dirname, join, matchesGlob } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
-import { COMMENT_EXTENSIONS, hasComments } from "../../lib/code-comments.ts";
-import { JS_EXTENSIONS, hasStrings } from "../../lib/code-strings.ts";
-import { splitFrontmatter } from "../../lib/frontmatter.ts";
-import { loadYamlAs } from "../../lib/yaml-as.ts";
+import { COMMENT_EXTENSIONS, hasComments } from "../../lib/text/code-comments.ts";
+import { JS_EXTENSIONS, hasStrings } from "../../lib/text/code-strings.ts";
+import { splitFrontmatter } from "../../lib/text/frontmatter.ts";
+import { loadYamlAs } from "../../lib/text/yaml-as.ts";
 import { listTargets } from "./lint-prose.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");

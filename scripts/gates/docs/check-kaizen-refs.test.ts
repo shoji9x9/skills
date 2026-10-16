@@ -31,7 +31,7 @@ import {
   findRefs,
   main,
 } from "./check-kaizen-refs.ts";
-import { makeTempDir } from "../../lib/test-tmpdir.ts";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "scripts/gates/docs/check-kaizen-refs.ts");

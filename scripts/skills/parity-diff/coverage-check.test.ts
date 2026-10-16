@@ -17,10 +17,10 @@ import {
   fillSetProvenance,
   itemSource,
   setInventory,
-} from "../../lib/coverage-set-provenance-fixture.ts";
-import { invalidInput, removeField } from "../../lib/test-input.ts";
+} from "../../lib/testing/coverage-set-provenance-fixture.ts";
+import { invalidInput, removeField } from "../../lib/testing/test-input.ts";
 import { isRecord } from "../../lib/guards.ts";
-import { makeTempDir } from "../../lib/test-tmpdir.ts";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { parseJsonAs } from "../../lib/parse-as.ts";
 import {
   captureFingerprint,

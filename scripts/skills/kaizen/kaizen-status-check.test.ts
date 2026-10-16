@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { makeTempDir } from "../../lib/test-tmpdir.ts";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 // kaizen-status-check.sh は awk で frontmatter の applied-to を読む。値が
 // 折り返された flow 配列（.kaizen/*.md にフォーマッタを掛けると applied-to が

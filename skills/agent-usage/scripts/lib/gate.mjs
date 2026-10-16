@@ -12,7 +12,7 @@ import { decisionFor } from "./decisions.mjs";
 import { defaultBranches, git, repoInfo } from "./repo.mjs";
 import { usageDir } from "./records.mjs";
 import { runCollect } from "./run-collect.mjs";
-import { rememberWorktrees } from "./worktrees.mjs";
+import { rememberWorktrees } from "./sources/worktrees.mjs";
 
 /**
  * @typedef {object} HookInput

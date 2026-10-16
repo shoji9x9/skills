@@ -21,7 +21,7 @@ import {
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { makeSharedTempDir, makeTempDirFactory } from "../../lib/test-tmpdir.ts";
+import { makeSharedTempDir, makeTempDirFactory } from "../../lib/testing/test-tmpdir.ts";
 import { spawnAsync } from "../../lib/spawn-async.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");

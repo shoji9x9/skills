@@ -11,7 +11,7 @@ session: claude-code
 
 ## 事象
 
-Issue #567 で、JS の文字列を Markdown にして textlint に渡す処理（`scripts/lib/code-strings.ts`）を書いた。
+Issue #567 で、JS の文字列を Markdown にして textlint に渡す処理（`scripts/lib/text/code-strings.ts`）を書いた。
 無効にする構文は、思いついた `<`・フェンス・字下げだけだった。
 1 回目のレビューがリンク参照の定義を指摘したが、「まれ」として見送った。
 2 回目のレビュー（PR #570）で、先頭の `---` が front matter として読まれ、テストに多い `---` で始まる文字列の語が検出されないことが分かった。

@@ -14,9 +14,9 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { WORDS_PATH } from "../../lib/textlint-word-rule.ts";
+import { WORDS_PATH } from "../../lib/text/textlint-word-rule.ts";
 import { LIST_PATH, checkWordList, main, renderWordList } from "./check-word-list.ts";
-import { makeTempDir } from "../../lib/test-tmpdir.ts";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "scripts/gates/prose/check-word-list.ts");

@@ -105,7 +105,7 @@
       "id": "LY-SCHEMA",
       "why": "yaml-as.ts の YAML_SCHEMA ではなく js-yaml 5 のデフォルト（CORE_SCHEMA）で読む",
       "file": "scripts/gates/code/lint-yaml.ts",
-      "find": "import { loadYamlDocuments } from \"../../lib/yaml-as.ts\";",
+      "find": "import { loadYamlDocuments } from \"../../lib/text/yaml-as.ts\";",
       "replace": "import { loadAll as loadYamlDocuments } from \"js-yaml\";",
       "occurrences": 1,
       "expect_failing": [

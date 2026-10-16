@@ -15,9 +15,9 @@ import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { dump } from "js-yaml";
-import { makeTempDir } from "../../lib/test-tmpdir.ts";
-import { loadYamlAs } from "../../lib/yaml-as.ts";
-import { removeField } from "../../lib/test-input.ts";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { loadYamlAs } from "../../lib/text/yaml-as.ts";
+import { removeField } from "../../lib/testing/test-input.ts";
 import oxfmtConfig, { assigned } from "../../../oxfmt.config.ts";
 import { isArray } from "../../lib/is-array.ts";
 

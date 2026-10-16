@@ -947,7 +947,7 @@ function runTests(testFile: string): RunResult {
         cwd: repoRoot,
         encoding: "utf8",
         stdio: ["ignore", "pipe", "pipe"],
-        // 子 vitest に、使用中の fixture を掃かせない（`scripts/lib/vitest-global-setup.ts`）。
+        // 子 vitest に、使用中の fixture を掃かせない（`scripts/lib/testing/vitest-global-setup.ts`）。
         env: { ...process.env, MUTATION_PROOF_CHILD: "1" },
       },
     );

@@ -11,7 +11,7 @@ session: claude-code
 
 ## 事象
 
-`scripts/skills/parity-suite/capture-scope-check.test.ts` にテストを足した後、新しい変異だけを
+`scripts/skills/parity-suite/checks/capture-scope-check.test.ts` にテストを足した後、新しい変異だけを
 `check-mutation-proof.ts --only <新 id>` で実証して済ませた。宣言ファイル全件を回すと、
 既存・別の変異 3 件が「宣言外で落ちた」で FAIL した
 （後から足したテンプレートのテスト・全ページ `not_applicable` のテストが既存の変異も検出したため）。2 回繰り返した。

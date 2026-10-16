@@ -72,6 +72,8 @@ jobs:
         run: node scripts/gates/code/lint-pagination.ts
       - name: Skills sync (skills/ vs .agents/skills/)
         run: node scripts/gates/packaging/check-skills-sync.ts
+      - name: Files per directory (scripts/gates/layout/dir-file-count.json)
+        run: node scripts/gates/layout/check-dir-file-count.ts
       - name: JS extensions (skills/ => .mjs, scripts/ => .ts)
         run: node scripts/gates/code/check-js-extensions.ts
       - name: Lint directives in distributed skills (no oxlint-disable etc.)
