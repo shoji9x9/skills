@@ -5,6 +5,7 @@
 // | 名前       | 一覧の名前 / GIT_CONFIG_KEY_<n>・GIT_CONFIG_VALUE_<n> / 一覧に無い名前 |
 // | 一致       | 完全一致 / 一覧の名前を前方に含む別の名前                             |
 // | 呼び出し方 | 関数を呼ぶ / モジュールを読み込むだけ                                 |
+// | 一覧の出所 | 実物の `git rev-parse --local-env-vars` の出力                         |
 import { spawnSync } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -38,13 +39,29 @@ test("一覧の名前と GIT_CONFIG_KEY_<n>・GIT_CONFIG_VALUE_<n> を消し、�
   ]);
 });
 
+// spawnSync は同期の呼び出しで vitest のタイムアウトが発火しないので、呼び出しごとにタイムアウトを付ける。
+const TIMEOUT_MS = 10_000;
+
+test("実物の git が挙げるリポジトリに固有の変数を、一覧がすべて含む", () => {
+  const res = spawnSync("git", ["rev-parse", "--local-env-vars"], {
+    cwd: makeTempDir("vitest-git-env-setup-"),
+    encoding: "utf8",
+    timeout: TIMEOUT_MS,
+  });
+  expect(res.status, res.stderr).toBe(0);
+  const fromGit = res.stdout.split("\n").filter((name) => name !== "");
+  expect(fromGit.length).toBeGreaterThan(0);
+  expect(fromGit.filter((name) => !REPO_LOCAL_GIT_ENV.includes(name))).toEqual([]);
+});
+
 test("実リポジトリの vitest.config.ts が、他の setupFiles より先にこの setup を読み込む", () => {
   expect(config.test?.setupFiles?.[0]).toBe("scripts/lib/testing/vitest-git-env-setup.ts");
 });
 
 test("読み込んだだけで外すので、GIT_DIR を受け継いだ子の git の commit が元のリポジトリに入らない", () => {
   const dir = makeTempDir("vitest-git-env-setup-");
-  const git = (cwd: string, args: string[]) => spawnSync("git", args, { cwd, encoding: "utf8" });
+  const git = (cwd: string, args: string[]) =>
+    spawnSync("git", args, { cwd, encoding: "utf8", timeout: TIMEOUT_MS });
   const victim = join(dir, "victim");
   const own = join(dir, "own");
   for (const repo of [victim, own]) {
@@ -56,14 +73,15 @@ test("読み込んだだけで外すので、GIT_DIR を受け継いだ子の gi
   const script = [
     `await import(${JSON.stringify(setupUrl)});`,
     `const { spawnSync } = await import("node:child_process");`,
-    `const args = ["-c", "user.name=t", "-c", "user.email=t@example.com", "com" + "mit", "-q", "--allow-empty", "-m", "child"];`,
-    `process.exit(spawnSync("git", args).status ?? 1);`,
+    `const args = ["-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false", "com" + "mit", "-q", "--allow-empty", "-m", "child"];`,
+    `process.exit(spawnSync("git", args, { timeout: ${TIMEOUT_MS} }).status ?? 1);`,
   ].join("\n");
 
   const child = spawnSync(process.execPath, ["--input-type=module", "-e", script], {
     cwd: own,
     encoding: "utf8",
     env: { ...process.env, GIT_DIR: join(victim, ".git") },
+    timeout: TIMEOUT_MS * 2,
   });
 
   expect(child.status, child.stderr).toBe(0);
