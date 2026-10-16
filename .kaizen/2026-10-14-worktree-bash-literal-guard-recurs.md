@@ -73,3 +73,11 @@ worktree の隔離セッションでは、heredoc・複合コマンド・`git` �
   #655 の拒否から、条件には、`;`・`&&` と `node` や `bash` の起動の組も含める（引数が変数かどうかは問わない）。
   4 回目の `bash <スクリプト> <引数>; echo rc=$?` は `git` の語も変数の引数も含まないので、起動の組で拾う。
 - KEDB 照合: `worktree`・`Bash`・`拒否` で `.kaizen/archive/2026-09-17-worktree-session-rejects-computed-bash.md`（applied）に一致。applied なので追記せず、この記録を新しく作った。
+
+### apply のときに確かめること
+
+PR #656 のレビューで出た指摘である。上の Hook の条件の細部は、apply の時点で次のことを確かめてから決める。
+
+- 区切りを `;`・`&&` だけにすると、#616 の `curl -o` と `||` を含む拒否や、`for` ループ・パイプ・改行でつないだ形を拾えない。#631・#616・#655 のすべての拒否に条件を当てる。
+- `;`・`&&` と `node`・`bash` の起動の組は、ハーネスが通す正当な複合コマンド（定数の引数だけの `pnpm exec vitest run a.test.ts && node scripts/x.ts` など）にも当たる。ハーネスの拒否の理由（`computed at runtime`・`inside a construct too complex`）に対応する形に絞り、誤検知しないことを確かめる例を挙げる。
+- 新しい Hook を書かず、Bash の呼び出しをセグメントに分けて判定する既存の PreToolUse の Hook（`scripts/hooks/bash-command-guard.sh`）に足せるかを先に確かめる。

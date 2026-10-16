@@ -36,3 +36,11 @@ Stop の Hook（`scripts/hooks/response-language-check.ts`）が止めたのは�
 - 止め方: 合間の文は画面に出ていて書き直せないので、exit 2 にしない。stderr に警告を出し、最後の本文で同じ内容を日本語で書くように促す。exit 2 で書き直させるのは、最後の本文だけにする。
 - 誤検知しないことの確認: コード・コマンドだけの短い文と、`tool_result` の後の text ブロックの境界を、既存のテストと同じ形でテストにする。
 - KEDB 照合: `.kaizen/2026-10-10-response-language-drift-to-english.md`（applied。同じ機序）。applied なので追記せず、この記録を新しく作った。
+
+### apply のときに確かめること
+
+PR #656 のレビューで出た指摘である。上の提案の細部は、apply の時点で次のことを確かめてから決める。
+
+- Stop の Hook が exit 0 で書いた stderr は、モデルに渡らない。警告をモデルに届けるなら、exit 2 か JSON の `decision: block` を使う。
+- 「人が入力した最後のプロンプト」の見分け方を決める。バックグラウンドの完了通知・タスクの通知・Hook の exit 2 のフィードバックも、type が `user` のエントリとして transcript に入る。
+- Stop の Hook の範囲を広げる案と、ツールの呼び出しごと（PreToolUse か PostToolUse）に直前の text ブロックを確かめて `additionalContext` で伝える案を比べる。後者なら、最初の英語の文の直後に伝えられる。
