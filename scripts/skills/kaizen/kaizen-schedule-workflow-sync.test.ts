@@ -1,7 +1,11 @@
 import { assert, describe, test, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { loadYamlAs } from "../../lib/text/yaml-as.ts";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { coverageEnv } from "../../lib/testing/coverage-env.ts";
 
 // kaizen の定期実行ワークフローは、配布スキルに同梱したテンプレート
 // （skills/kaizen/assets/kaizen-schedule.yml）を原本とし、本リポの
@@ -37,15 +41,77 @@ test("配布テンプレートと本リポのワークフローがバイト単�
   expect(wired, SYNC_HINT).toBe(canon);
 });
 
-// エージェントのレポートは Issue 本文へそのまま載る。無制限に `cat` すると、
+/** テストが読むワークフローの形（使うフィールドだけ）。 */
+type Workflow = {
+  env?: Record<string, unknown>;
+  jobs: Record<string, { steps?: { name?: string; run?: string }[] }>;
+};
+
+/** 原本の「Append agent report」ステップを、成功したエージェントのレポートで実行し、本文を返す。 */
+function appendReport(report: string) {
+  const doc = loadYamlAs<Workflow>(readFileSync(join(repoRoot, CANON), "utf8"));
+  const steps = Object.values(doc.jobs).flatMap((job) => job.steps ?? []);
+  const matched = steps.filter((s) => s.name === "Append agent report");
+  expect(matched, "Append agent report ステップ").toHaveLength(1);
+  const run = matched[0]?.run;
+  assert.exists(run, "Append agent report ステップに run が無い");
+  const max = Number(doc.env?.MAX_REPORT_CHARS);
+  expect(max, "env の MAX_REPORT_CHARS").toBeGreaterThan(0);
+
+  const dir = makeTempDir("kaizen-append-report-");
+  try {
+    const step = join(dir, "step.sh");
+    writeFileSync(step, run);
+    writeFileSync(join(dir, "report.md"), report);
+    const res = spawnSync("bash", ["-eo", "pipefail", step], {
+      cwd: dir,
+      encoding: "utf8",
+      env: {
+        PATH: process.env.PATH,
+        HOME: dir,
+        LC_ALL: "C.UTF-8",
+        AGENT: "claude",
+        CRED_PRESENT: "true",
+        OUTCOME_CLAUDE: "success",
+        MAX_REPORT_CHARS: String(max),
+        REPORT_FILE: "report.md",
+        BODY_FILE: "body.md",
+        GITHUB_SERVER_URL: "https://github.com",
+        GITHUB_REPOSITORY: "o/r",
+        GITHUB_RUN_ID: "1",
+        ...coverageEnv(),
+      },
+    });
+    expect(res.status, res.stderr).toBe(0);
+    return { body: readFileSync(join(dir, "body.md"), "utf8"), max };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+// エージェントのレポートは Issue 本文へそのまま載る。無制限に載せると、
 // 表を 60 行で切って守っている本文の文字数予算がエージェント経由で破られ、
 // `gh issue edit/create` が落ちてその週の Issue が作成も更新もされない。
-test("エージェントのレポートを無制限に cat しない", () => {
-  const canon = readFileSync(join(repoRoot, CANON), "utf8");
-  expect(canon).toContain("MAX_REPORT_CHARS");
-  expect(canon).toMatch(/awk -v max="\$MAX_REPORT_CHARS"/);
-  // 予算を通さない生の `cat "$REPORT_FILE"` が戻っていないこと。
-  expect(canon).not.toMatch(/^\s*cat "\$REPORT_FILE"\s*$/m);
+const OMITTED = "レポートが長いため以降を省略しました";
+describe("エージェントのレポートを本文の予算の中で載せる", () => {
+  test("上限を超えるレポートは行の境界で切り、省略したことを書く", () => {
+    const lines = Array.from({ length: 1000 }, (_, i) => `L${i} ${"あ".repeat(60)}`);
+    const { body, max } = appendReport(`${lines.join("\n")}\n`);
+    // 検体が上限を超えていることの確認（超えなければ切り詰めの分岐へ入らない）。
+    expect(lines.join("\n").length).toBeGreaterThan(max);
+    const kept = body.split("\n").filter((l) => /^L\d+ /.test(l));
+    expect(kept.length).toBeGreaterThan(0);
+    // 載せた行はどれも元の行のまま（文字の途中で割っていない）で、合計が上限に収まる。
+    for (const l of kept) expect(lines).toContain(l);
+    expect(kept.reduce((n, l) => n + l.length + 1, 0)).toBeLessThanOrEqual(max);
+    expect(body).toContain(OMITTED);
+  });
+
+  test("上限以下のレポートはそのまま載せ、省略したと書かない", () => {
+    const { body } = appendReport("短いレポート\n2 行目\n");
+    expect(body).toContain("短いレポート\n2 行目\n");
+    expect(body).not.toContain(OMITTED);
+  });
 });
 
 test("すべての uses: を 40 桁 SHA で固定している", () => {
@@ -69,18 +135,15 @@ test("原本が定期実行スキルの前提（cron・skip・エージェント
   }
 });
 
-// スクリプトの探索条件が誤っていても、本リポでは緑のまま、配布先でだけスクリプトが見つからなくなる
-// （配布先のファイルは実行ビットを持たない）。本リポには 755 のソース配置
-// `skills/kaizen/scripts/` があるので、`-x` に戻しても `.github/skills/...` を落としても
-// ここ以外は誰も赤くならない。2 つの軸を別々に固定する。
+// スクリプトの探索条件が誤っていても、本リポでは緑のまま、配布先でだけスクリプトが見つからなくなる。
+// 本リポには 755 のソース配置 `skills/kaizen/scripts/` があるので、探索先の一覧から
+// `.github/skills/...` を落としても、ここ以外は誰も赤くならない。
 describe("スクリプト探索条件（配布先でだけ失敗するので実配置から固定する）", () => {
   const canon = () => readFileSync(join(repoRoot, CANON), "utf8");
 
-  test("実行ビットではなく可読性で判定する", () => {
-    // `gh skill install` は 100644 で配るため、`-x` は配布先で必ず外れる。
-    expect(canon()).toContain('[ -r "$dir/kaizen-schedule-report.sh" ]');
-    expect(canon()).not.toContain('[ -x "$dir/kaizen-schedule-report.sh" ]');
-  });
+  // `gh skill install` は 100644 で配るので、探索は実行ビット（`-x`）ではなく可読性で判定する。
+  // これは tracking-issue-title.test.ts の「両方揃ったディレクトリを採り、lib のパスを出力する」が確かめる。
+  // そのテストは、モード 644 のファイルを置いて探索ステップを実行する。
 
   // 探索は「レポートと照会が同じディレクトリに揃っていること」を条件にしている。
   // setup.md の確認スニペットが片方しか見ないと、**そのスニペットは緑なのに毎週の run が

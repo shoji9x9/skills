@@ -177,23 +177,28 @@ test("陰性: Windows の区切り（\\）の相対パスも宣言と同じ / �
   expect(toRepoPath("skills/s/scripts/a-check.mjs", "/")).toBe("skills/s/scripts/a-check.mjs");
 });
 
+/** 分類されていない検査として報告されたパス。 */
+const undecided = (root: string) =>
+  violationsOf(root)
+    .filter((v) => v.includes("組み込むか決まっていない"))
+    .map((v) => v.slice(0, v.indexOf(": ")))
+    .sort();
+
 test("陰性: scripts/ のサブディレクトリにある検査も拾う", () => {
-  const root = makeTempDir("skill-checks-");
-  write(root, "skills/s/scripts/sub/c-check.sh", "");
-  expect(findCheckScripts(root)).toEqual(["skills/s/scripts/sub/c-check.sh"]);
+  const root = makeRepo({ extraFiles: { "skills/s/scripts/sub/c-check.sh": "" } });
+  expect(undecided(root)).toEqual(["skills/s/scripts/sub/c-check.sh"]);
 });
 
 test("陰性: シンボリックリンクの検査・ディレクトリも拾う（リンクを警告なしに走査から外さない）", () => {
-  const root = makeTempDir("skill-checks-");
-  write(root, "skills/s/shared/d-check.mjs", "");
-  write(root, "skills/s/shared/dir/e-check.mjs", "");
-  mkdirSync(join(root, "skills/s/scripts"), { recursive: true });
+  const root = makeRepo({
+    extraFiles: { "skills/s/shared/d-check.mjs": "", "skills/s/shared/dir/e-check.mjs": "" },
+  });
   symlinkSync(
     join(root, "skills/s/shared/d-check.mjs"),
     join(root, "skills/s/scripts/d-check.mjs"),
   );
   symlinkSync(join(root, "skills/s/shared/dir"), join(root, "skills/s/scripts/linked"));
-  expect(findCheckScripts(root)).toEqual([
+  expect(undecided(root)).toEqual([
     "skills/s/scripts/d-check.mjs",
     "skills/s/scripts/linked/e-check.mjs",
   ]);
@@ -210,14 +215,12 @@ test("陰性: 祖先を指すディレクトリのリンクは辿り直さず、
 });
 
 test("陰性: 同じディレクトリを指す兄弟のリンクは、どちらのパスの検査も拾う（循環の判定で別名を捨てない）", () => {
-  const root = makeTempDir("skill-checks-");
-  write(root, "skills/s/shared/a-check.mjs", "");
-  mkdirSync(join(root, "skills/s/scripts"), { recursive: true });
+  const root = makeRepo({ extraFiles: { "skills/s/shared/x-check.mjs": "" } });
   symlinkSync(join(root, "skills/s/shared"), join(root, "skills/s/scripts/one"));
   symlinkSync(join(root, "skills/s/shared"), join(root, "skills/s/scripts/two"));
-  expect(findCheckScripts(root)).toEqual([
-    "skills/s/scripts/one/a-check.mjs",
-    "skills/s/scripts/two/a-check.mjs",
+  expect(undecided(root)).toEqual([
+    "skills/s/scripts/one/x-check.mjs",
+    "skills/s/scripts/two/x-check.mjs",
   ]);
 });
 

@@ -89,16 +89,13 @@ function makeRepo({
 
 // ---- 誤検知しないことの確認（通さねばならない入力）----
 
+// makeRepo の AGENTS.md と README.md は、節の前後に同じ形の箇条・表（ghost-after）を持つ。違反 0 件は、節の外を数えないことも示す。
 test("陰性: 配布は両方に、private は AGENTS.md にだけ載っていれば違反 0 件で件数を数える", () => {
   expect(checkSkillIndex(makeRepo())).toEqual({
     distributed: ["alpha", "beta"],
     private: ["secret"],
     violations: [],
   });
-});
-
-test("陰性: 節の前後にある同じ形の箇条・表は数えない（節の外の ghost-after を実在しないと言わない）", () => {
-  expect(checkSkillIndex(makeRepo()).violations).toEqual([]);
 });
 
 test("陰性: 節内の導入文・字下げの継続行・表の見出し行と区切り行は飛ばす", () => {

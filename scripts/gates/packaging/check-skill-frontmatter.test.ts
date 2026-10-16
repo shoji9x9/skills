@@ -1,22 +1,34 @@
 import { test, expect } from "vitest";
-import { checkFrontmatter, extractFrontmatter } from "./check-skill-frontmatter.ts";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { checkFrontmatter } from "./check-skill-frontmatter.ts";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+
+const script = join(dirname(fileURLToPath(import.meta.url)), "check-skill-frontmatter.ts");
 
 // frontmatter を持つ最小の SKILL.md を組み立てるヘルパ。
 const skill = (fm: string, body = "\n# Title\n") => `---\n${fm}\n---\n${body}`;
 const ok = (path: string, content: string) => checkFrontmatter(path, content).length === 0;
 
-test("extractFrontmatter: 先頭 --- ブロックを取り出す", () => {
-  expect(extractFrontmatter("---\nname: a\n---\n本文\n")).toBe("name: a");
-  expect(extractFrontmatter("先頭に本文\n---\nname: a\n---\n")).toBe(null);
-  expect(extractFrontmatter("frontmatter 無し\n")).toBe(null);
+test("先頭に本文がある --- ブロックは frontmatter として読まない", () => {
+  const v = checkFrontmatter("SKILL.md", "先頭に本文\n---\nname: a\ndescription: b\n---\n");
+  expect(v).toHaveLength(1);
+  expect(v[0]).toMatch(/frontmatter.*見つからない/);
 });
 
 test("BOM 付きでも BOM 無しと同じ結果になる", () => {
   const withBom = "﻿---\nname: a\ndescription: b\n---\n本文\n";
   const withoutBom = "---\nname: a\ndescription: b\n---\n本文\n";
-  expect(extractFrontmatter(withBom)).toBe(extractFrontmatter(withoutBom));
-  expect(extractFrontmatter(withBom)).toBe("name: a\ndescription: b");
+  expect(checkFrontmatter("SKILL.md", withBom)).toEqual([]);
   expect(checkFrontmatter("SKILL.md", withBom)).toEqual(checkFrontmatter("SKILL.md", withoutBom));
+  // 違反がある入力でも、BOM の有無で結果が変わらない。
+  const badBom = "﻿---\nname: A\n---\n";
+  expect(checkFrontmatter("SKILL.md", badBom)).toEqual(
+    checkFrontmatter("SKILL.md", badBom.slice(1)),
+  );
+  expect(checkFrontmatter("SKILL.md", badBom)).toHaveLength(2);
 });
 
 test("妥当な frontmatter は違反ゼロ", () => {
@@ -116,3 +128,68 @@ test.each([
     expect(v).toEqual(["frontmatter が YAML マッピングになっていない"]);
   },
 );
+
+test.each([
+  ["description が文字列でない", "name: my-skill\ndescription: 1", "description が文字列でない"],
+  ["name が文字列でない", 'name: 1\ndescription: "x"', "name が文字列でない"],
+])("%sなら検出する", (_label, fm, msg) => {
+  expect(checkFrontmatter("SKILL.md", skill(fm))).toEqual([msg]);
+});
+
+// CLI の状態空間: 引数（なし / SKILL.md / SKILL.md 以外）× 走査の対象（skills/ / 印のある private skill / 印の無いコピー）× 結果（違反あり / なし）。
+const GOOD = skill('name: good\ndescription: "x"');
+const BAD = skill('name: Bad\ndescription: "x"');
+
+function makeRepo(files: Record<string, string>) {
+  const root = makeTempDir("skill-frontmatter-");
+  for (const [path, text] of Object.entries(files)) {
+    mkdirSync(dirname(join(root, path)), { recursive: true });
+    writeFileSync(join(root, path), text);
+  }
+  return root;
+}
+
+const run = (cwd: string, args: string[] = []) =>
+  spawnSync(process.execPath, [script, ...args], { cwd, encoding: "utf8" });
+
+test("引数なしは skills/*/SKILL.md と印のある private skill を見て、印の無いコピーは見ない", () => {
+  const root = makeRepo({
+    "skills/a/SKILL.md": BAD,
+    "skills/README.md": "ディレクトリではないので見ない",
+    "skills/no-skill/README.md": "SKILL.md が無い",
+    ".agents/skills/priv/.private-skill": "",
+    ".agents/skills/priv/SKILL.md": BAD,
+    ".agents/skills/a/SKILL.md": BAD,
+  });
+  const r = run(root);
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain("skills/a/SKILL.md: name「Bad」");
+  expect(r.stderr).toContain(".agents/skills/priv/SKILL.md: name「Bad」");
+  expect(r.stderr).not.toContain(".agents/skills/a/SKILL.md");
+});
+
+test("引数なしで違反が無ければ OK を出して exit 0", () => {
+  const root = makeRepo({
+    "skills/a/SKILL.md": GOOD,
+    ".agents/skills/priv/.private-skill": "",
+    ".agents/skills/priv/SKILL.md": GOOD,
+  });
+  const r = run(root);
+  expect(r.status).toBe(0);
+  expect(r.stdout).toContain("skill-frontmatter: OK");
+});
+
+test("skills/ も .agents/skills/ も無いリポジトリは対象 0 件で exit 0", () => {
+  const r = run(makeRepo({ "README.md": "x" }));
+  expect(r.status).toBe(0);
+});
+
+test("引数ありは SKILL.md だけを見て、それ以外のファイルは違反があっても見ない", () => {
+  const root = makeRepo({ "skills/a/SKILL.md": BAD, "docs/x.md": BAD, "skills/b/SKILL.md": GOOD });
+  const bad = run(root, ["docs/x.md", "skills/a/SKILL.md"]);
+  expect(bad.status).toBe(1);
+  expect(bad.stderr).toContain("skills/a/SKILL.md");
+  expect(bad.stderr).not.toContain("docs/x.md");
+  const good = run(root, ["docs/x.md", "skills/b/SKILL.md"]);
+  expect(good.status).toBe(0);
+});

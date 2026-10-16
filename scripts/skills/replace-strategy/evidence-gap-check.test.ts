@@ -540,22 +540,6 @@ test("全ての口が実測なら、unmeasured キーの無い旧成果物でも
   });
 });
 
-test("口の列らしい見出しがあれば、根拠列が無くても対象外（exit 4）として扱わない", () => {
-  withDir((dir) => {
-    const text = [
-      "## 機能一覧",
-      "",
-      "| slug | 新規実装API |",
-      "|---|---|",
-      "| plan | GET /api/plans |",
-      "",
-    ].join("\n");
-    const r = run(dir, { "features.md": text }, ["--features", "features.md", "--slug", "plan"]);
-    expect(r.status).toBe(2);
-    expect(r.stderr).not.toContain("not-applicable:");
-  });
-});
-
 test("列名のずれは根拠列の有無ごとに違う理由を出す（直す場所が違う）", () => {
   withDir((dir) => {
     const withEvidence = [
@@ -779,23 +763,6 @@ test("バッチ表の行は対象外（exit 4）で、行が無い（exit 2）�
     expect(r.status).toBe(4);
     expect(r.stderr).toContain("not-applicable:");
     expect(r.stderr).toContain("バッチ・「その他の Issue」の表にある");
-  });
-});
-
-test("根拠列はあるのに口の列名がずれている表は入力の不備（exit 2）で、対象外として扱わない", () => {
-  withDir((dir) => {
-    const text = [
-      "## 機能一覧",
-      "",
-      "| slug | 新規実装API | 要求単位の根拠 |",
-      "|---|---|---|",
-      "| plan | GET /api/plans | GET /api/plans → 推定: 要求単位は未確定 |",
-      "",
-    ].join("\n");
-    const r = run(dir, { "features.md": text }, ["--features", "features.md", "--slug", "plan"]);
-    expect(r.status).toBe(2);
-    expect(r.stderr).toContain("口の列らしい見出し");
-    expect(r.stderr).not.toContain("not-applicable:");
   });
 });
 

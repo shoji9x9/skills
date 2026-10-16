@@ -71,7 +71,7 @@ jobs:
       - name: Pagination lint
         run: node scripts/gates/code/lint-pagination.ts
       - name: Skills sync (skills/ vs .agents/skills/)
-        run: node scripts/gates/packaging/check-skills-sync.ts
+        run: node scripts/gates/packaging/copies/check-skills-sync.ts
       - name: Files per directory (scripts/gates/layout/dir-file-count.json)
         run: node scripts/gates/layout/check-dir-file-count.ts
       - name: JS extensions (skills/ => .mjs, scripts/ => .ts)
@@ -81,7 +81,7 @@ jobs:
       - name: JSDoc types in distributed .mjs (no casts, any, @ts-ignore)
         run: node scripts/gates/code/check-jsdoc-types.ts
       - name: Rule symlinks (.agents/rules vs .claude/rules / .github/instructions)
-        run: node scripts/gates/packaging/check-rule-symlinks.ts
+        run: node scripts/gates/packaging/copies/check-rule-symlinks.ts
       - name: Control characters in tracked text files
         run: node scripts/gates/code/check-control-chars.ts
       - name: Eval assertion reachability
@@ -90,8 +90,8 @@ jobs:
         run: node scripts/gates/packaging/check-skill-frontmatter.ts
       - name: Kaizen learning references exist
         run: node scripts/gates/docs/check-kaizen-refs.ts
-      - name: Identical copies (scripts/gates/packaging/identical-copies.json)
-        run: node scripts/gates/packaging/check-identical-copies.ts
+      - name: Identical copies (scripts/gates/packaging/copies/identical-copies.json)
+        run: node scripts/gates/packaging/copies/check-identical-copies.ts
       - name: Skill checks wiring declarations (checks.json / scripts/gates/packaging/skill-checks-unwired.json)
         run: node scripts/gates/packaging/check-skill-checks.ts
       - name: Time-sensitive prose (mutation counts, dates, 現状は / 当面)

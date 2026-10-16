@@ -9,12 +9,14 @@
 
 import { spawnSync } from "node:child_process";
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   readFileSync,
   readdirSync,
   renameSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
@@ -27,8 +29,9 @@ import {
   githubTarget,
   retractableRows,
 } from "../../../skills/agent-usage/scripts/lib/run-collect.mjs";
-import { branchLabel, lastObservedAt } from "../../../skills/agent-usage/scripts/lib/records.mjs";
+import { branchLabel } from "../../../skills/agent-usage/scripts/lib/records.mjs";
 import { localHourStart } from "../../../skills/agent-usage/scripts/lib/time.mjs";
+import { coverageEnv } from "../../lib/testing/coverage-env.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 const SCRIPTS = join(import.meta.dirname, "../../../skills/agent-usage/scripts");
@@ -1274,6 +1277,7 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(old.stdout).toMatch(/GitHub: 取得していない（.*gh を更新する/);
   });
 
+  // githubTarget の reason は、collect が出す「GitHub: 取得していない（…）」の理由になる。
   test.each([
     ["origin が無い", "", {}, "", "origin が無い", false],
     ["owner/name の形でない", "gitlab.com/group/sub/repo", {}, "", "の形でない", false],
@@ -1320,6 +1324,48 @@ describe("agent-usage のコマンドと Hook", () => {
     if (reason === "") expect(t.slug).toBe(remote.split("/").slice(1).join("/"));
   });
 
+  // 取得した期間の coverage の行は、停止の分類に使う段がすべて取れたときだけ ok にする。
+  // 課金 API と artifact の失敗は費用の行が欠けるだけなので、その期間を判定不能（ok でない）にしない。
+  // 課金 API と artifact を数えない分岐は、aggregate.test.ts の classifyingFailuresOf のテストが確かめる。
+  test("collect の coverage: Actions の run の取得も失敗したら、その段だけを挙げて判定不能にする", () => {
+    const { tmp, repo, git, cli, cliWith } = setup();
+    expect(cli("setup", "--time-zone", "UTC", "--billing", "user").status).toBe(0);
+    git("remote", "add", "origin", "https://github.com/example-org/example-repo.git");
+    git("switch", "-q", "-c", "feature/5-x");
+    // 偽の gh: 自分の login・PR・Actions の run は空の結果を返し、artifact と課金 API は失敗する
+    const bin = join(tmp, "bin");
+    mkdirSync(bin, { recursive: true });
+    writeFileSync(
+      join(bin, "gh"),
+      [
+        "#!/bin/sh",
+        'case "$*" in',
+        '  "api user") echo \'{"login":"me"}\' ;;',
+        '  *graphql*) echo \'[{"data":{"search":{"nodes":[]}}}]\' ;;',
+        '  *actions/artifacts*) echo "artifacts: HTTP 500" >&2; exit 1 ;;',
+        '  *billing*) echo "billing: HTTP 404" >&2; exit 1 ;;',
+        '  *actions/runs*) if [ -n "$FAIL_RUNS" ]; then echo "runs: HTTP 502" >&2; exit 1; fi; echo \'[{"workflow_runs":[]}]\' ;;',
+        '  *) echo "unexpected: $*" >&2; exit 1 ;;',
+        "esac",
+        "",
+      ].join("\n"),
+      { mode: 0o755 },
+    );
+    const r = cliWith({ PATH: `${bin}:${process.env.PATH ?? ""}`, FAIL_RUNS: "runs" }, "collect");
+    expect(r.status, r.stderr).toBe(0);
+    // 失敗した段は、coverage の判定に使わなくても collect の出力に出す
+    expect(r.stdout).toMatch(/artifacts/);
+    expect(r.stdout).toMatch(/billing/);
+    const dir = join(repo, ".agent-usage", "records", "_github");
+    const rows = readdirSync(dir).flatMap((p) =>
+      readdirSync(join(dir, p)).flatMap((f) => parseCsv(readFileSync(join(dir, p, f), "utf8"))),
+    );
+    const coverage = rows.filter((row) => row.kind === "coverage");
+    expect(coverage).toHaveLength(1);
+    expect(coverage[0]?.detail).toMatch(/^failed:actions\/runs: /);
+    expect(coverage[0]?.detail).not.toMatch(/billing|artifacts/);
+  });
+
   test("ポートを含み、gh にログインしていないホストの origin は、理由を出して取得しない", () => {
     const { git, cli } = setup();
     expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
@@ -1362,42 +1408,384 @@ describe("agent-usage のコマンドと Hook", () => {
   });
 });
 
-describe("lastObservedAt（読む範囲の判定に使う、最後の行の observed_at）", () => {
-  const write = (text: string) => {
-    const f = join(makeTempDir("agent-usage-tail-"), "20260701T000000Z-x.csv");
-    writeFileSync(f, text);
-    return f;
-  };
-  const header = "key,kind,observed_at,detail\n";
-  test("開けないファイルは null を返す", () => {
-    expect(lastObservedAt(join(makeTempDir("agent-usage-tail-"), "missing.csv"))).toBeNull();
+// コマンドの入力の誤りと、表示する状態（SKILL.md の status・setup・decline）。
+describe("agent-usage のコマンドの入力と状態", () => {
+  test("status は、セットアップの有無・ブランチ・判断・人の設定を表示する", () => {
+    const { tmp, git, cli } = setup();
+    const before = cli("status");
+    expect(before.status).toBe(0);
+    expect(before.stdout).toMatch(/^セットアップ: 未（.*\.agent-usage）$/m);
+    expect(before.stdout).toMatch(/^ブランチ: main \/ デフォルトブランチ: \(不明\)$/m);
+    expect(before.stdout).toMatch(/^このブランチの判断: 未決定$/m);
+    expect(before.stdout).toMatch(/^人の設定: \(無い\)$/m);
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    // origin/HEAD があれば、それをデフォルトブランチとして表示する
+    const origin = join(tmp, "origin.git");
+    spawnSync("git", ["init", "-q", "--bare", "-b", "trunk", origin]);
+    git("remote", "add", "origin", origin);
+    git("push", "-q", "origin", "HEAD:trunk");
+    git("remote", "set-head", "origin", "trunk");
+    git("switch", "-q", "-c", "feature/5-x");
+    expect(cli("decline").status).toBe(0);
+    const after = cli("status");
+    expect(after.stdout).toMatch(/^セットアップ: 済み/m);
+    expect(after.stdout).toMatch(/^ブランチ: feature\/5-x \/ デフォルトブランチ: trunk$/m);
+    expect(after.stdout).toMatch(/^このブランチの判断: decline$/m);
+    expect(after.stdout).toMatch(/^人の設定: .*"timeZone": "UTC"/m);
+    git("switch", "-q", "--detach");
+    const detached = cli("status");
+    expect(detached.stdout).toMatch(/^ブランチ: \(detached\) /m);
+    expect(detached.stdout).toMatch(/^このブランチの判断: -$/m);
   });
-  test("最後の行の observed_at を返す", () => {
-    const f = write(
-      `${header}a,usage,2026-07-01T00:00:00.000Z,\nb,usage,2026-09-30T00:00:00.000Z,\n`,
-    );
-    expect(lastObservedAt(f)).toBe(Date.parse("2026-09-30T00:00:00.000Z"));
+
+  test("origin/HEAD のデフォルトブランチでは、main 以外の名前でもコミットを止めない", () => {
+    const { tmp, git, cli, gate } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    const origin = join(tmp, "origin.git");
+    spawnSync("git", ["init", "-q", "--bare", "-b", "trunk", origin]);
+    git("remote", "add", "origin", origin);
+    git("switch", "-q", "-c", "trunk");
+    git("push", "-q", "origin", "trunk");
+    git("remote", "set-head", "origin", "trunk");
+    expect(gate("git commit -m x").status).toBe(0);
+    // origin/HEAD が分かるときは、main もデフォルトブランチとして扱わない
+    git("switch", "-q", "main");
+    expect(gate("git commit -m x").status).toBe(2);
   });
+
   test.each([
-    ["見出しだけ", header],
     [
-      "最後の行が末尾の読み取りに収まらない",
-      `${header}a,usage,2026-09-30T00:00:00.000Z,${"x".repeat(40000)}\n`,
+      "人の ID の形が違う",
+      ["setup", "--person-id", "p-xyz"],
+      /--person-id は p- と 16 進数 8 桁の形にする/,
     ],
     [
-      "最後の行が引用符の中の改行で分かれている",
-      `${header}a,usage,2026-09-30T00:00:00.000Z,"x\ny"\n`,
+      "タイムゾーンが IANA の名前でない",
+      ["setup", "--time-zone", "Mars/Olympus"],
+      /--time-zone は IANA のタイムゾーンの名前にする/,
     ],
     [
-      "最後の行が、改行を含む値の途中に見える",
-      `${header}k2,usage,2026-10-01T00:00:00.000Z,"a\nb,c,2025-01-01T00:00:00.000Z,d"\n`,
+      "同じ引数が 2 回ある",
+      ["setup", "--time-zone", "UTC", "--time-zone", "UTC"],
+      /--time-zone が 2 回ある/,
     ],
-    ["observed_at が時刻でない", `${header}a,usage,nope,\n`],
-  ])("判定できなければ null を返す（呼び出し側はファイル全体を読む）: %s", (_case, text) => {
-    expect(lastObservedAt(write(text))).toBeNull();
+  ])("setup は、%s なら使い方を出して 2 で止める", (_case, args, message) => {
+    const { cli } = setup();
+    const r = cli(...args);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(message);
+    expect(r.stderr).toMatch(/^usage: /m);
+  });
+
+  test("decline は、detached HEAD では判断を記録せずに失敗する", () => {
+    const { repo, git, cli } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "--detach");
+    const r = cli("decline");
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/ブランチの上にいない（detached HEAD）/);
+    expect(existsSync(join(repo, ".git", "agent-usage", "decisions.json"))).toBe(false);
+  });
+
+  test("detached HEAD の collect --stage は、detached の名前のファイルに書き、判断は記録しない", () => {
+    const { repo, git, cli } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "--detach");
+    const r = cli("collect", "--stage");
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/書いた: .*\/branches\/\d{8}T\d{6}Z-detached\.csv$/m);
+    expect(existsSync(join(repo, ".git", "agent-usage", "decisions.json"))).toBe(false);
+  });
+
+  test("collect は、人の設定が無ければ作ったことと、読めなかったログの行の数を出す", () => {
+    const { tmp, git, cli, logDir, logLines } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    rmSync(join(tmp, "user"), { recursive: true });
+    writeFileSync(
+      join(logDir, "s1.jsonl"),
+      [...logLines.map((l) => JSON.stringify(l)), "{ not json"].join("\n"),
+    );
+    const r = cli("collect");
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/^人の ID を作った: p-[0-9a-f]{8}（/m);
+    expect(r.stdout).toMatch(/^読めなかったログの行: 1$/m);
+  });
+
+  test.each([
+    ["JSON として読めない", () => "{ not json"],
+    ["人の時刻が文字列でない", (person: string) => JSON.stringify({ [person]: 1 })],
+  ])(
+    "last-collect.json が%sなら、範囲の中で collect していないとして扱い、範囲より古いログの行も書いて作り直す",
+    (_case, broken) => {
+      const { repo, git, cli, logDir, logLines } = setup();
+      expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+      git("switch", "-q", "-c", "feature/5-x");
+      expect(cli("collect").status).toBe(0);
+      // 範囲（60 日）より古いセッションのログを足す
+      const old = logLines.map((l) => ({
+        ...l,
+        timestamp: l.timestamp.replace("2026-10-01", "2026-07-01"),
+        ...(l.message && "id" in l.message
+          ? { message: { ...l.message, id: `old-${l.message.id}` } }
+          : {}),
+      }));
+      writeFileSync(join(logDir, "s-old.jsonl"), old.map((l) => JSON.stringify(l)).join("\n"));
+      const records = join(repo, ".agent-usage", "records");
+      const person = readdirSync(records).find((d) => d.startsWith("p-")) ?? "";
+      const last = join(repo, ".git", "agent-usage", "last-collect.json");
+      writeFileSync(last, broken(person));
+      const r = cli("collect");
+      expect(r.status, r.stderr).toBe(0);
+      expect(r.stdout).not.toMatch(/開始時刻が範囲より古いので書かなかった行/);
+      const branches = join(records, person, "branches");
+      const text = readdirSync(branches)
+        .map((f) => readFileSync(join(branches, f), "utf8"))
+        .join("");
+      expect(text).toContain("usage:claude-code:s-old:");
+      // 作り直した last-collect.json には、この人の時刻がある
+      expect(JSON.parse(readFileSync(last, "utf8"))).toEqual({
+        [person]: "2026-10-01T12:00:00.000Z",
+      });
+    },
+  );
+
+  test("GitHub を前に取得した期間があれば、その終わりから 1 日さかのぼって取得する", () => {
+    const { tmp, repo, git, cli, cliWith } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("remote", "add", "origin", "https://github.com/example-org/example-repo.git");
+    git("switch", "-q", "-c", "feature/5-x");
+    const bin = join(tmp, "bin");
+    mkdirSync(bin, { recursive: true });
+    writeFileSync(
+      join(bin, "gh"),
+      [
+        "#!/bin/sh",
+        'case "$*" in',
+        '  "api user") echo \'{"login":"me"}\' ;;',
+        '  *graphql*) echo \'[{"data":{"search":{"nodes":[]}}}]\' ;;',
+        "  *actions/runs*) echo '[{\"workflow_runs\":[]}]' ;;",
+        "  *actions/artifacts*) echo '[{\"artifacts\":[]}]' ;;",
+        '  *) echo "unexpected: $*" >&2; exit 1 ;;',
+        "esac",
+        "",
+      ].join("\n"),
+      { mode: 0o755 },
+    );
+    const path = `${bin}:${process.env.PATH ?? ""}`;
+    expect(cliWith({ PATH: path }, "collect").status).toBe(0);
+    const second = cliWith({ PATH: path, AGENT_USAGE_NOW: "2026-10-03T12:00:00Z" }, "collect");
+    expect(second.status).toBe(0);
+    const dir = join(repo, ".agent-usage", "records", "_github");
+    const coverage = readdirSync(dir)
+      .flatMap((p) =>
+        readdirSync(join(dir, p)).flatMap((f) => parseCsv(readFileSync(join(dir, p, f), "utf8"))),
+      )
+      .filter((r) => r.kind === "coverage")
+      .map((r) => [r.start, r.end, r.detail]);
+    // 1 回目はローカルの行の最初の時刻（10:00）から、2 回目は前回の終わり（10-01 12:00）の 1 日前から取得する
+    expect(coverage).toEqual([
+      ["2026-10-01T10:00:00.000Z", "2026-10-01T12:00:00.000Z", "ok"],
+      ["2026-09-30T12:00:00.000Z", "2026-10-03T12:00:00.000Z", "ok"],
+    ]);
+  });
+
+  test.each([
+    ["gh が無い", "", /gh を起動できない: /],
+    [
+      "gh auth token が理由を出さずに失敗する",
+      "#!/bin/sh\nexit 3\n",
+      /gh auth token が失敗した: exit 3/,
+    ],
+  ])("ログインを確かめられないホストは、%s 理由を出して取得しない", (_case, script, reason) => {
+    const { tmp, git, cli, cliWith } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("remote", "add", "origin", "https://ghe.invalid/o/r.git");
+    git("switch", "-q", "-c", "feature/5-x");
+    // PATH には collect が使う node と git だけを置き、gh は置かない（置くなら偽物）
+    const bin = join(tmp, "bin");
+    mkdirSync(bin, { recursive: true });
+    for (const tool of ["node", "git"]) {
+      const real = spawnSync("bash", ["-c", `command -v ${tool}`], {
+        encoding: "utf8",
+      }).stdout.trim();
+      expect(real).not.toBe("");
+      symlinkSync(real, join(bin, tool));
+    }
+    if (script !== "") writeFileSync(join(bin, "gh"), script, { mode: 0o755 });
+    const r = cliWith({ PATH: bin }, "collect");
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/GitHub: 取得していない（origin のホスト ghe\.invalid は/);
+    expect(r.stdout).toMatch(reason);
   });
 });
 
+// precommit-gate.sh が、確認の処理を実行できないときにコミットを止めないこと（スクリプトの冒頭の取り決め）。
+describe("precommit-gate.sh の、確認を実行できないとき", () => {
+  const input = JSON.stringify({ cwd: "/tmp", tool_input: { command: "git commit -m x" } });
+  const bash = spawnSync("bash", ["-c", "command -v bash"], { encoding: "utf8" }).stdout.trim();
+  /** precommit-gate.sh をコピーしたディレクトリ（同梱の agent-usage.mjs を置き換えられる）。 */
+  function copied(mjs: string | null) {
+    const dir = makeTempDir("agent-usage-gate-");
+    writeFileSync(join(dir, "precommit-gate.sh"), readFileSync(GATE, "utf8"));
+    if (mjs !== null) writeFileSync(join(dir, "agent-usage.mjs"), mjs);
+    return join(dir, "precommit-gate.sh");
+  }
+  const run = (script: string, env: NodeJS.ProcessEnv, stdin = input) =>
+    spawnSync(bash, [script, "claude-code"], {
+      encoding: "utf8",
+      input: stdin,
+      env: { ...env, ...coverageEnv() },
+    });
+
+  test("git commit を含まない入力は、同梱の agent-usage.mjs が無くても何も出さずに通す", () => {
+    const r = run(
+      copied(null),
+      { PATH: process.env.PATH ?? "" },
+      JSON.stringify({ tool_input: { command: "git status" } }),
+    );
+    expect(r.status).toBe(0);
+    expect(r.stderr).toBe("");
+  });
+
+  test("同梱の agent-usage.mjs を読めなければ、確認をせずに通す", () => {
+    const r = run(copied(null), { PATH: process.env.PATH ?? "" });
+    expect(r.status).toBe(0);
+    expect(r.stderr).toMatch(/同梱の agent-usage\.mjs を読めないので、確認をせずに通します/);
+  });
+
+  test("node が無ければ、確認をせずに通す", () => {
+    const bin = makeTempDir("agent-usage-nonode-");
+    const dirname = spawnSync("bash", ["-c", "command -v dirname"], {
+      encoding: "utf8",
+    }).stdout.trim();
+    symlinkSync(dirname, join(bin, "dirname"));
+    const r = run(copied("process.exit(2);\n"), { PATH: bin });
+    expect(r.status).toBe(0);
+    expect(r.stderr).toMatch(/node が無いので、確認をせずに通します/);
+  });
+
+  test.each([
+    [0, 0, false],
+    [2, 2, false],
+    [3, 0, true],
+  ])(
+    "確認の処理が %i で終わったら %i で終わる（0 と 2 以外では止めない）",
+    (code, expected, warned) => {
+      const r = run(copied(`process.exit(${code});\n`), { PATH: process.env.PATH ?? "" });
+      expect(r.status).toBe(expected);
+      if (warned)
+        expect(r.stderr).toContain(
+          `確認の処理が失敗しました（exit ${code}）。コミットは止めません`,
+        );
+      else expect(r.stderr).toBe("");
+    },
+  );
+});
+
+// 範囲より古い時刻の名前を持つブランチのファイルは、最後の行の observed_at も範囲より古いときだけ読まない。
+// 最後の行を判定できない形（次の表）なら、ファイル全体を読む。読んだことは、同じ key の行を別のブランチで書き直さないことで確かめる。
+// 範囲の中の最後の行を読む形は「名前の時刻が範囲より古くても…」が、範囲より古い最後の行で読まない形は
+// 「collect は範囲より古いファイルを読まず…」が確かめる。
+describe("読む範囲の判定で、最後の行を判定できないブランチのファイル", () => {
+  const OLD = "2026-07-01T00:00:00.000Z";
+  /** 記録済みのファイルを範囲より古い時刻のファイルにして末尾に tail を足し、別のブランチに移る。 */
+  function prepare(tail: string) {
+    const { repo, git, cli } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    expect(cli("collect").status).toBe(0);
+    const records = join(repo, ".agent-usage", "records");
+    const person = readdirSync(records).find((d) => d.startsWith("p-")) ?? "";
+    const branches = join(records, person, "branches");
+    const [name] = readdirSync(branches);
+    const text = readFileSync(join(branches, name ?? ""), "utf8").replaceAll(
+      "2026-10-01T12:00:00.000Z",
+      OLD,
+    );
+    rmSync(join(branches, name ?? ""));
+    const old = join(branches, "20260701T000000Z-feature-5-x.csv");
+    writeFileSync(old, `${text}${tail}`);
+    git("switch", "-q", "-c", "feature/6-y");
+    git("commit", "-q", "--allow-empty", "-m", "work");
+    const written = () =>
+      readdirSync(branches)
+        .filter((f) => f.endsWith("-feature-6-y.csv"))
+        .map((f) => readFileSync(join(branches, f), "utf8"))
+        .join("");
+    return { cli, old, written };
+  }
+  /**
+   * COLUMNS の順の 1 行（見出しを除き、改行で終える）。toCsv は改行で終えるので、改行を足さない。
+   * 足すとファイルの最後の行が空になり、どの形も「最後の行が空」として判定されて、形ごとの分岐に届かない。
+   */
+  const line = (row: Record<string, string>) =>
+    toCsv([...COLUMNS], [row]).slice(COLUMNS.join(",").length + 1);
+
+  test.each([
+    [
+      "最後の行が末尾の読み取りに収まらない",
+      line({ key: "x:long", kind: "coverage", observed_at: OLD, detail: "x".repeat(40000) }),
+    ],
+    [
+      "最後の行が引用符の中の改行で分かれている",
+      line({ key: "x:nl", kind: "coverage", observed_at: OLD, detail: "x\ny" }),
+    ],
+    [
+      // 物理的な最後の行は「b,c,」の後に範囲より古い日時が続き、範囲より古い observed_at を持つ行に見える
+      "最後の行が、改行を含む値の途中に見える",
+      line({
+        key: "x:mid",
+        kind: "coverage",
+        observed_at: OLD,
+        person: "a\nb,c,2025-01-01T00:00:00.000Z,d",
+      }),
+    ],
+  ])("%s なら、ファイル全体を読む", (_case, tail) => {
+    const { cli, written } = prepare(tail);
+    const r = cli("collect");
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).not.toMatch(/範囲より古いので読まなかった/);
+    expect(written()).not.toContain("usage:claude-code:s1:");
+  });
+
+  test("見出しだけのファイルも読む（読まなかったファイルとして数えない）", () => {
+    const { repo, git, cli } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    expect(cli("collect").status).toBe(0);
+    const records = join(repo, ".agent-usage", "records");
+    const person = readdirSync(records).find((d) => d.startsWith("p-")) ?? "";
+    writeFileSync(
+      join(records, person, "branches", "20260701T000000Z-feature-4-w.csv"),
+      `${COLUMNS.join(",")}\n`,
+    );
+    const r = cli("collect");
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).not.toMatch(/範囲より古いので読まなかった/);
+  });
+
+  test("最後の行の observed_at が時刻でなければ、ファイル全体を読んでその行をエラーにする", () => {
+    const { cli } = prepare(line({ key: "x:bad", kind: "coverage", observed_at: "nope" }));
+    const r = cli("collect");
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toMatch(/20260701T000000Z-feature-5-x\.csv:\d+: observed_at が時刻でない/);
+  });
+
+  // root は読み取りの権限が無くてもファイルを開けるので、開けないファイルを作れない
+  test.skipIf(process.getuid?.() === 0)(
+    "開けないファイルは、読まなかったことにせずエラーにする",
+    () => {
+      const { cli, old } = prepare("");
+      chmodSync(old, 0o000);
+      const r = cli("collect");
+      expect(r.status).not.toBe(0);
+      expect(r.stderr).toMatch(/EACCES/);
+    },
+  );
+});
+
+// retractableRows の rows は、collect が記録のファイルに書く打ち消しの行になる（withheld は書かない行の key）。
 describe("retractableRows", () => {
   const W = Date.parse("2026-10-01T10:20:00Z");
   const canonical = (p: string | undefined) => p ?? "";
@@ -1428,19 +1816,6 @@ describe("retractableRows", () => {
     });
     expect(rows).toEqual([]);
     expect([...withheld].sort()).toEqual([n1.key, n2.key, n3.key]);
-  });
-
-  test("範囲の中のまとまりは、作り直した合計が減らなければ打ち消し、減れば打ち消さない", () => {
-    const o = usage("2026-10-01T11:00:00Z", "2026-10-01T12:00:00Z", "UTC", 20);
-    const n1 = usage("2026-10-01T10:30:00Z", "2026-10-01T11:30:00Z", "Asia/Kolkata", 10);
-    const n2 = usage("2026-10-01T11:30:00Z", "2026-10-01T12:30:00Z", "Asia/Kolkata", 10);
-    const opts = { person: "p-1", lowerBound: W, canonical };
-    const full = retractableRows([o], byKey([o]), byKey([n1, n2]), opts);
-    expect(full.rows.map((r) => [r.key, r.retracted])).toEqual([[o.key, "1"]]);
-    expect(full.withheld.size).toBe(0);
-    const short = retractableRows([o], byKey([o]), byKey([n1]), opts);
-    expect(short.rows).toEqual([]);
-    expect([...short.withheld]).toEqual([n1.key]);
   });
 
   test("指示・稼働・cost-state の使用量は、範囲の中に始まる行だけを打ち消す", () => {

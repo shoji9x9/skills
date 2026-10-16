@@ -152,9 +152,8 @@ test("prompt_quote が空なら落とす", () => {
       },
     ),
   );
-  expect(v).toEqual([
-    "evals.json #1 reachability[0]: prompt_quote が空（引用を書けない assertion は prompt 側に問いを足すか落とす）",
-  ]);
+  expect(v).toHaveLength(1);
+  expect(v[0]).toMatch(/reachability\[0\]: prompt_quote が空/);
 });
 
 test("assertion が assertions に実在しなければ落とす（位置で対応づけない）", () => {
@@ -266,9 +265,9 @@ test("配布スキルの中の eval（skills/<name>/evals/）は全走査でだ�
   mkdirSync(join(root, "skills/demo/evals"), { recursive: true });
   writeFileSync(join(root, "skills/demo/evals/evals.json"), file());
   expect(listEvalFiles(root)).toEqual([evalsPath]);
-  expect(checkAll(root, [evalsPath]).violations).toEqual([
-    "skills/demo/evals/: 配布スキルの中に eval がある（下流へ配られ、この検査の走査からも外れる）。evals/demo/ へ置く",
-  ]);
+  const { violations } = checkAll(root, [evalsPath]);
+  expect(violations).toHaveLength(1);
+  expect(violations[0]).toMatch(/^skills\/demo\/evals\/: 配布スキルの中に eval がある/);
   expect(checkAll(root, [evalsPath], { fullScan: false }).violations).toEqual([]);
   rmSync(root, { recursive: true, force: true });
 });

@@ -177,12 +177,15 @@ describe("skill eval result normalization", () => {
     expect(parsed.finalResponse).toBe("claude response");
     expect(parsed.toolCalls).toBeNull();
     expect(parsed.totalToolCalls).toBeNull();
-    expect(parsed.skillEvidence).toEqual({
-      visibleSkills: null,
-      invokedSkills: null,
-      toolInputTexts: null,
-      toolOutputTexts: null,
+    // ツールの記録が無い trace から「読まなかった」を測った値として出さない。
+    const usage = buildSkillUsage({
+      config: "with_skill",
+      skill: "box",
+      evidence: parsed.skillEvidence,
     });
+    expect(usage).toMatchObject({ read: null, invalid_run: null });
+    assert.exists(usage, "buildSkillUsage が null を返した");
+    expect(usage.undeterminable).toEqual(["visible", "invoked", "files_read", "content_seen"]);
   });
 
   describe("skill read detection", () => {
@@ -298,6 +301,8 @@ describe("skill eval result normalization", () => {
       });
 
       expect(usage).toMatchObject({ read: true, invalid_run: false });
+      assert.exists(usage, "buildSkillUsage が null を返した");
+      expect(usage.files_read).toEqual([".claude/skills/box/SKILL.md"]);
     });
 
     test("does not let a baseline's absence check read as an unexpected read", () => {
@@ -616,46 +621,6 @@ describe("skill eval result normalization", () => {
       expect(usage.files_read).toEqual([]);
     });
 
-    test.each([
-      ["head with a count", "head -n 40 .claude/skills/box/SKILL.md"],
-      ["sed with a script", "sed -n '1,20p' .claude/skills/box/SKILL.md"],
-      ["grep with a flag and pattern", "grep -n name .claude/skills/box/SKILL.md"],
-    ])("still counts %s", (_label, command) => {
-      const usage = buildSkillUsage({
-        config: "with_skill",
-        skill: "box",
-        evidence: evidenceFor(
-          claudeStream([
-            { type: "system", subtype: "init", skills: ["box"] },
-            assistantToolUse("Bash", { command }),
-            RESULT_EVENT,
-          ]),
-        ),
-      });
-
-      expect(usage).toMatchObject({ read: true, invalid_run: false });
-      assert.exists(usage, "buildSkillUsage が null を返した");
-      expect(usage.files_read).toEqual([".claude/skills/box/SKILL.md"]);
-    });
-
-    test("still reads the file operand that follows a pattern", () => {
-      const usage = buildSkillUsage({
-        config: "with_skill",
-        skill: "box",
-        evidence: evidenceFor(
-          claudeStream([
-            { type: "system", subtype: "init", skills: ["box"] },
-            assistantToolUse("Bash", { command: "grep -n name .claude/skills/box/SKILL.md" }),
-            RESULT_EVENT,
-          ]),
-        ),
-      });
-
-      expect(usage).toMatchObject({ read: true, invalid_run: false });
-      assert.exists(usage, "buildSkillUsage が null を返した");
-      expect(usage.files_read).toEqual([".claude/skills/box/SKILL.md"]);
-    });
-
     // The subject must be a whole directory segment; `.` and `@` are not boundaries.
     test.each([
       ["a dotted suffix", "cat .claude/skills/box.old/SKILL.md"],
@@ -942,8 +907,36 @@ describe("skill eval result normalization", () => {
           ),
         });
 
+      // 索引に入った行は、ツールの出力に現れると content_seen にそのファイルを出す。
+      // command は `;` でつなぎ、コマンドの解析（files_read）では読んだと数えない形にする。
+      const seenFor = (output: string, index: SkillContentIndex | null = contentIndex) => {
+        const usage = usageFor(
+          "with_skill",
+          [
+            assistantToolUse(
+              "Bash",
+              { command: "cd .claude/skills/box; cat SKILL.md" },
+              { content: output },
+            ),
+          ],
+          index,
+        );
+        assert.exists(usage, "buildSkillUsage が null を返した");
+        return usage;
+      };
+
       test("indexes only the lines a run could not have been given", () => {
-        expect([...contentIndex.keys()]).toEqual([BODY_LINE, API_LINE]);
+        const excluded = [
+          DESCRIPTION_LINE,
+          SHARED_LINE,
+          GIVEN_LINE,
+          PATH_LINE,
+          ASCII_LINE,
+          SHORT_LINE,
+        ];
+        expect(seenFor(`${excluded.join("\n")}\n`).content_seen).toEqual([]);
+        expect(seenFor(`${BODY_LINE}\n`).content_seen).toEqual(["SKILL.md"]);
+        expect(seenFor(`${API_LINE}\n`).content_seen).toEqual(["references/api.md"]);
       });
 
       test.each([
@@ -954,7 +947,7 @@ describe("skill eval result normalization", () => {
         ["an ASCII-only line of code a run could write itself", ASCII_LINE],
         ["a line shorter than the minimum", SHORT_LINE],
       ])("does not index %s", (_label, line) => {
-        expect(contentIndex.has(line)).toBe(false);
+        expect(seenFor(`${line}\n`)).toMatchObject({ read: false, content_seen: [] });
       });
 
       test("counts skill text printed by a ;-joined read the command parser skips", () => {
@@ -1061,13 +1054,15 @@ describe("skill eval result normalization", () => {
             prompt: "p",
           });
 
-          expect(Object.fromEntries([...index].map(([line, paths]) => [line, [...paths]]))).toEqual(
-            {
-              [LINE]: ["SKILL.md"],
-              [API_LINE]: ["references/api.md"],
-              [BODY_LINE]: ["assets/template.md"],
-            },
-          );
+          expect(seenFor(`${LINE}\n`, index).content_seen).toEqual(["SKILL.md"]);
+          expect(seenFor(`${API_LINE}\n`, index).content_seen).toEqual(["references/api.md"]);
+          expect(seenFor(`${BODY_LINE}\n`, index).content_seen).toEqual(["assets/template.md"]);
+          // scripts/ と Markdown 以外のファイルの行は、出力に現れても数えない。
+          const nonMarkdown = [
+            "echo 'スクリプトの使い方: run.sh <対象のディレクトリ>'",
+            '{"k": "JSON の値は索引に入れない、長い文字列"}',
+          ];
+          expect(seenFor(`${nonMarkdown.join("\n")}\n`, index).content_seen).toEqual([]);
         });
 
         // A fixture's config usually sits under a dot-directory (`.config/skills/…`).
@@ -1079,8 +1074,8 @@ describe("skill eval result normalization", () => {
             fixture: join(root, "fixture"),
           });
 
-          expect(index.has(LINE)).toBe(false);
-          expect(index.has(API_LINE)).toBe(true);
+          expect(seenFor(`${LINE}\n`, index).content_seen).toEqual([]);
+          expect(seenFor(`${API_LINE}\n`, index).content_seen).toEqual(["references/api.md"]);
         });
 
         test("takes out a line the prompt holds", () => {
@@ -1091,8 +1086,8 @@ describe("skill eval result normalization", () => {
             prompt: `次の文に従う: ${API_LINE}`,
           });
 
-          expect(index.has(API_LINE)).toBe(false);
-          expect(index.has(LINE)).toBe(true);
+          expect(seenFor(`${API_LINE}\n`, index).content_seen).toEqual([]);
+          expect(seenFor(`${LINE}\n`, index).content_seen).toEqual(["SKILL.md"]);
         });
 
         test("takes out a line another skill's script holds", () => {
@@ -1103,7 +1098,7 @@ describe("skill eval result normalization", () => {
           });
           const index = loadSkillContentIndex({ skillsRoot: join(root, "skills"), skill: "box" });
 
-          expect(index.has(LINE)).toBe(false);
+          expect(seenFor(`${LINE}\n`, index).content_seen).toEqual([]);
         });
 
         // A skill directory reached through a symlink must still take its lines out.
@@ -1117,8 +1112,8 @@ describe("skill eval result normalization", () => {
           symlinkSync(join(root, target), join(root, "skills", link));
           const index = loadSkillContentIndex({ skillsRoot: join(root, "skills"), skill: "box" });
 
-          expect(index.has(LINE)).toBe(false);
-          expect(index.has(API_LINE)).toBe(true);
+          expect(seenFor(`${LINE}\n`, index).content_seen).toEqual([]);
+          expect(seenFor(`${API_LINE}\n`, index).content_seen).toEqual(["references/api.md"]);
         });
 
         test("does not walk a symlink back to an ancestor again", () => {
@@ -1133,8 +1128,8 @@ describe("skill eval result normalization", () => {
           );
           const index = loadSkillContentIndex({ skillsRoot: join(root, "skills"), skill: "box" });
 
-          expect(index.has(LINE)).toBe(false);
-          expect(index.has(API_LINE)).toBe(true);
+          expect(seenFor(`${LINE}\n`, index).content_seen).toEqual([]);
+          expect(seenFor(`${API_LINE}\n`, index).content_seen).toEqual(["references/api.md"]);
         });
 
         test("fails on a dangling symlink rather than drop what it would hold", () => {

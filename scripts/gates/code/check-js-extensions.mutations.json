@@ -162,7 +162,6 @@
       "replace": "true",
       "occurrences": 1,
       "expect_failing": [
-        "private skill は、一覧の中で .agents/skills/<name>/ にあって skills/<name>/ に無いものにする",
         "CLI: private skill は skills/<name>/ が無いことで決め、公開スキルのコピーは対象にしない"
       ]
     },

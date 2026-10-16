@@ -41,7 +41,10 @@
       "find": "canonical(shape.observed[name]) !== canonical(expected[name])",
       "replace": "false",
       "occurrences": 1,
-      "expect_failing": ["見た目が同じでも操作の結果が違えば behavior-mismatch で落とす"]
+      "expect_failing": [
+        "見た目が同じでも操作の結果が違えば behavior-mismatch で落とす",
+        "オブジェクトのキー順だけの違いは不一致にしない（配列の順序は比べる）"
+      ]
     },
     {
       "id": "unreachable-reason",

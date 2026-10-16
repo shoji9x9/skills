@@ -103,6 +103,7 @@ test("陰性: プレースホルダは参照として拾わない（数えない
 });
 
 test("陰性: 前が単語文字の `foo.kaizen/…` は参照ではない", () => {
+  // findRefs の戻り値は、CLI が数える参照と、報告する崩れた参照・切れた参照の一覧と同じ意味を持つ。
   expect(findRefs("foo.kaizen/2026-01-01-x.md")).toEqual({ refs: [], broken: [], malformed: [] });
 });
 

@@ -29,7 +29,6 @@ import {
   findMentions,
   findTimeMentions,
   main,
-  proseLines,
   TIME_RULES,
 } from "./check-time-sensitive-prose.ts";
 import { KNOWN_RULES, PENDING_PATH } from "../../lib/doc-scan.ts";
@@ -306,12 +305,9 @@ test.each([
   ["JS のコード（コメントでない）", "a.js", 'const d = "2026-09-19";\n'],
   ["shebang", "a.sh", "#!/usr/bin/env bash 2026-09-19\n"],
   ["JSON（行の途中の # も読まない）", "a.json", '{ "at": "x # 2026-09-19" }\n'],
+  ["Markdown 以外でコメントを持たない種類", "a.txt", "当面\n"],
 ])("陰性: %s は拾わない", (_, file, text) => {
   expect(texts(file, text)).toEqual([]);
-});
-
-test("proseLines: Markdown 以外でコメントを持たない種類は 1 行も読まない", () => {
-  expect(proseLines("a.txt", "当面\n")).toEqual([null, null]);
 });
 
 test("走査対象: Tier 4・階層の外・スキルのコピー・このチェックのテストは読まない", () => {

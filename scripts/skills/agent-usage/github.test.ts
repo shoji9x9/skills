@@ -8,6 +8,8 @@
 //   artifact     Claude Code の Action の実行結果／Codex の Action のログ／単価の無いモデル。
 //   zip          無圧縮・deflate／知らない圧縮方式。
 
+import { chmodSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { crc32, deflateRawSync } from "node:zlib";
 import { describe, expect, test } from "vitest";
 import { parseRepoConfig } from "../../../skills/agent-usage/scripts/lib/config.mjs";
@@ -17,11 +19,13 @@ import {
   artifactRows,
   collectGitHub,
   commitActivityRows,
-  fromGraphqlItem,
+  makeGh,
   normalizeLogin,
   timelineRows,
+  withoutEnvTokens,
 } from "../../../skills/agent-usage/scripts/lib/sources/github.mjs";
 import { unzip } from "../../../skills/agent-usage/scripts/lib/sources/unzip.mjs";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 const iso = (h: number, m = 0) =>
   `2026-10-01T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00Z`;
@@ -143,24 +147,7 @@ describe("timelineRows", () => {
     ]);
   });
 
-  test("GraphQL の項目をそろえる（チームへの依頼は name を使う）", () => {
-    expect(
-      fromGraphqlItem({
-        __typename: "ReviewRequestedEvent",
-        createdAt: iso(1),
-        requestedReviewer: { __typename: "Team", name: "core" },
-      }),
-    ).toEqual([{ type: "request", login: "core", at: ms(1) }]);
-    expect(
-      fromGraphqlItem({
-        __typename: "PullRequestReview",
-        databaseId: 3,
-        author: { login: "a" },
-        submittedAt: null,
-      }),
-    ).toEqual([]);
-  });
-
+  // normalizeLogin の戻り値は、レビューツールの対応表に無いレビュアーの、review-wait の行の agent になる。
   test("login の [bot] と大文字を除いて比べ、REST の Copilot を GraphQL の login にそろえる", () => {
     expect(normalizeLogin("Copilot-Pull-Request-Reviewer[bot]")).toBe(
       "copilot-pull-request-reviewer",
@@ -550,5 +537,500 @@ describe("unzip と artifactRows", () => {
       ["gpt-5.5", "5.000000", "bundled", "pr=7;source=artifact;run=3"],
       ["mystery", "", "unknown", "pr=7;source=artifact;run=3"],
     ]);
+  });
+});
+
+// collectGitHub に渡す偽の gh。graphql は PR の一覧を、それ以外は path の部分文字列で選んだ応答を返す。
+// どれにも当たらない REST の呼び出しは、空の 1 ページを返す。
+function fakeGh(
+  prs: object[],
+  routes: [string, unknown][] = [],
+  user: unknown = { login: "me" },
+): Gh {
+  return (args) => {
+    if (args[0] === "user") return Buffer.from(JSON.stringify(user));
+    if (args[0] === "graphql") {
+      const nodes = args.some((a) => a.includes("is:open")) ? prs.slice(0, 1) : prs;
+      return Buffer.from(
+        JSON.stringify([
+          { data: { search: { pageInfo: { hasNextPage: false, endCursor: null }, nodes } } },
+        ]),
+      );
+    }
+    const path = args[args.length - 1];
+    for (const [needle, body] of routes) {
+      if (path.includes(needle)) {
+        if (body instanceof Error) throw body;
+        return Buffer.isBuffer(body) ? body : Buffer.from(JSON.stringify(body));
+      }
+    }
+    return Buffer.from(JSON.stringify([{ workflow_runs: [], artifacts: [], check_runs: [] }]));
+  };
+}
+
+const prNode = (items: unknown[], extra: object = {}) => ({
+  number: 7,
+  headRefName: "feature/5-x",
+  author: { login: "me" },
+  headRefOid: "abc",
+  closedAt: null,
+  timelineItems: { pageInfo: { hasNextPage: false }, nodes: items },
+  ...extra,
+});
+
+const waits = (
+  rows: { kind?: string; agent?: string; start?: string; end?: string; detail?: string }[],
+) => rows.filter((r) => r.kind === "review-wait").map((r) => [r.agent, r.start, r.end, r.detail]);
+
+describe("collectGitHub の timeline", () => {
+  test("GraphQL の項目をそろえる（チームへの依頼は name を使い、時刻や依頼先の無い項目は数えない）", () => {
+    const res = collectGitHub(
+      options(
+        fakeGh([
+          prNode([
+            {
+              __typename: "ReviewRequestedEvent",
+              createdAt: iso(1),
+              requestedReviewer: { __typename: "Team", name: "core" },
+            },
+            { __typename: "ReviewRequestedEvent", createdAt: iso(1), requestedReviewer: null },
+            {
+              __typename: "PullRequestReview",
+              databaseId: 3,
+              author: { login: "core" },
+              submittedAt: null,
+            },
+            { __typename: "IssueComment", databaseId: 4, author: { login: "me" }, createdAt: null },
+            {
+              __typename: "IssueComment",
+              databaseId: 5,
+              author: { login: "me" },
+              createdAt: iso(2),
+            },
+            { __typename: "LabeledEvent", createdAt: iso(2) },
+            "not a record",
+          ]),
+          // number の無い項目と、2 つの問い合わせの両方に出る PR は数えない
+          { headRefName: "x" },
+        ]),
+      ),
+    );
+    expect(res.failures).toEqual([]);
+    expect(waits(res.rows)).toEqual([
+      ["core", new Date(ms(1)).toISOString(), new Date(ms(12)).toISOString(), "pr=7;open"],
+    ]);
+    expect(res.rows.filter((r) => r.kind === "activity").map((r) => r.key)).toEqual([
+      "activity:gh-comment:5",
+    ]);
+  });
+
+  test("100 件を超える timeline は REST で取り、REST の Copilot と [bot]・大文字の付いた login を同じレビュアーとして扱う", () => {
+    const rest = [
+      {
+        event: "review_requested",
+        created_at: iso(1),
+        requested_reviewer: { login: "Copilot-Pull-Request-Reviewer[bot]" },
+      },
+      {
+        event: "reviewed",
+        id: 5,
+        submitted_at: iso(2),
+        user: { login: "Copilot" },
+        state: "COMMENTED",
+      },
+      { event: "review_requested", created_at: iso(3), requested_team: { name: "core" } },
+      { event: "review_requested", created_at: iso(3) },
+      { event: "reviewed", id: 6, submitted_at: null, user: { login: "core" } },
+      { event: "commented", id: 8, created_at: iso(4), user: { login: "me" }, body: "見ました" },
+      { event: "commented", id: 9, created_at: "読めない時刻", user: { login: "me" } },
+      { event: "labeled", created_at: iso(4) },
+      "not a record",
+    ];
+    const res = collectGitHub(
+      options(
+        fakeGh(
+          [prNode([], { timelineItems: { pageInfo: { hasNextPage: true }, nodes: [] } })],
+          [["issues/7/timeline", [rest]]],
+        ),
+      ),
+    );
+    expect(res.failures).toEqual([]);
+    expect(
+      res.rows
+        .filter((r) => r.kind === "review")
+        .map((r) => [r.key, r.agent, r.cost_usd, r.detail]),
+    ).toEqual([["review:5", "copilot", "0.040000", "pr=7;author=me;state=commented"]]);
+    expect(waits(res.rows)).toEqual([
+      ["copilot", new Date(ms(1)).toISOString(), new Date(ms(2)).toISOString(), "pr=7"],
+      ["core", new Date(ms(3)).toISOString(), new Date(ms(12)).toISOString(), "pr=7;open"],
+    ]);
+    expect(res.rows.filter((r) => r.kind === "activity").map((r) => r.key)).toEqual([
+      "activity:gh-comment:8",
+    ]);
+  });
+
+  test("since より前のレビューは行にしないが待ちの終わりには使い、since より前に終わった待ちは行にしない。単価の無いツールは費用を空にする", () => {
+    const before = (h: number) => `2026-09-30T${h}:00:00Z`;
+    const res = collectGitHub(
+      options(
+        fakeGh([
+          prNode([
+            {
+              __typename: "ReviewRequestedEvent",
+              createdAt: before(21),
+              requestedReviewer: { login: "copilot-pull-request-reviewer" },
+            },
+            {
+              __typename: "PullRequestReview",
+              databaseId: 1,
+              author: { login: "copilot-pull-request-reviewer" },
+              submittedAt: before(22),
+              state: "COMMENTED",
+            },
+            {
+              __typename: "PullRequestReview",
+              databaseId: 2,
+              author: { login: "unpriced-bot" },
+              submittedAt: iso(2),
+              state: "APPROVED",
+            },
+          ]),
+        ]),
+        { config: parseRepoConfig({ reviewTools: { "unpriced-bot": "unpriced" } }) },
+      ),
+    );
+    expect(waits(res.rows)).toEqual([]);
+    expect(
+      res.rows.filter((r) => r.kind === "review").map((r) => [r.key, r.cost_usd, r.cost_source]),
+    ).toEqual([["review:2", "", "unknown"]]);
+  });
+});
+
+const throwingUser: Gh = (args, opts) => {
+  if (args[0] === "user") throw "文字列の例外";
+  return fakeGh([])(args, opts);
+};
+const graphqlReturning =
+  (body: string): Gh =>
+  (args, opts) =>
+    args[0] === "graphql" ? Buffer.from(body) : fakeGh([])(args, opts);
+
+describe("collectGitHub の失敗と読めない応答", () => {
+  test.each([
+    ["login の無い user", fakeGh([], [], {}), "user: login を取得できない"],
+    ["Error でない例外", throwingUser, "user: 文字列の例外"],
+    [
+      "ページの配列でない GraphQL",
+      graphqlReturning("{}"),
+      "pulls: GraphQL の応答がページの配列でない",
+    ],
+    [
+      "search の無い GraphQL",
+      graphqlReturning("[{}]"),
+      "pulls: GraphQL の応答に search.nodes が無い",
+    ],
+    [
+      "ページの配列でない REST",
+      fakeGh([], [["actions/runs?created", {}]]),
+      /^actions\/runs: repos\/o\/r\/actions\/runs\?created=\S+: ページの配列でない$/,
+    ],
+    [
+      "項目の配列が無い REST",
+      fakeGh([], [["actions/runs?created", [{}]]]),
+      /^actions\/runs: repos\/o\/r\/actions\/runs\?created=\S+: 項目の配列が無い$/,
+    ],
+  ])("%s は、その段を failures に残す", (_name, gh, failure) => {
+    const res = collectGitHub(options(gh, { billing: "user" }));
+    expect(
+      res.failures.some((f) => (typeof failure === "string" ? f === failure : failure.test(f))),
+    ).toBe(true);
+  });
+
+  test("login を取得できなければ、課金 API を呼ばない", () => {
+    const calls: string[] = [];
+    const inner = fakeGh([], [], {});
+    const gh: Gh = (args, opts) => {
+      calls.push(args.join(" "));
+      return inner(args, opts);
+    };
+    const res = collectGitHub(options(gh, { billing: "user" }));
+    expect(res.rows.some((r) => r.kind === "billing")).toBe(false);
+    expect(calls.some((c) => c.includes("billing"))).toBe(false);
+  });
+
+  test("課金 API の応答に usageItems が無い日・項目が object でない日は、行を作らずに失敗にもしない", () => {
+    const res = collectGitHub(
+      options(fakeGh([], [["premium_request/usage", { usageItems: ["x"] }]]), { billing: "user" }),
+    );
+    expect(res.rows.some((r) => r.kind === "billing")).toBe(false);
+    expect(res.failures.some((f) => f.startsWith("billing"))).toBe(false);
+    const none = collectGitHub(
+      options(fakeGh([], [["premium_request/usage", {}]]), { billing: "user" }),
+    );
+    expect(none.rows.some((r) => r.kind === "billing")).toBe(false);
+  });
+});
+
+describe("collectGitHub の CI", () => {
+  test("run は created_at・updated_at が無くても区間にし、開始の時刻が無い run と object でない run は数えない", () => {
+    const res = collectGitHub(
+      options(
+        fakeGh(
+          [],
+          [
+            [
+              "actions/runs?created",
+              [
+                {
+                  workflow_runs: [
+                    { id: 1, created_at: iso(1), status: "completed", name: "CI", event: "push" },
+                    { id: 2, status: "completed" },
+                    "not a record",
+                  ],
+                },
+              ],
+            ],
+          ],
+        ),
+      ),
+    );
+    expect(res.failures).toEqual([]);
+    expect(
+      res.rows.filter((r) => r.kind === "ci").map((r) => [r.key, r.start, r.end, r.detail]),
+    ).toEqual([
+      ["ci:1:1", new Date(ms(1)).toISOString(), new Date(ms(1)).toISOString(), "CI;push;"],
+    ]);
+  });
+
+  test("1 時間の実行が上限を超えたら、その期間を失敗にする", () => {
+    const full = Array.from({ length: RUNS_QUERY_LIMIT }, (_, i) => ({ id: i }));
+    const gh: Gh = () => Buffer.from(JSON.stringify([{ workflow_runs: full }]));
+    expect(() => actionRuns(options(gh), ms(0), ms(1))).toThrow(/1 時間の実行が 1000 件を超えて/);
+  });
+
+  test("外部の CI: check run と commit status を区間にし、Actions の check run・開始の無い check run・head の無い PR は数えない", () => {
+    const res = collectGitHub(
+      options(
+        fakeGh(
+          [prNode([]), prNode([], { number: 8, headRefOid: "" })],
+          [
+            [
+              "/check-runs",
+              [
+                {
+                  check_runs: [
+                    { id: 1, name: "ci", app: { slug: "github-actions" }, started_at: iso(1) },
+                    { id: 2, name: "lint", started_at: iso(1), completed_at: null },
+                    { id: 3, name: "x", app: { slug: "circleci-checks" }, started_at: null },
+                    "not a record",
+                  ],
+                },
+              ],
+            ],
+            [
+              "/statuses",
+              [
+                [
+                  { context: "ext", state: "pending", created_at: iso(2) },
+                  { context: "ext", state: "success", created_at: iso(3) },
+                  { context: "ext", state: "pending", created_at: iso(1) },
+                  { context: "slow", state: "pending", created_at: iso(4) },
+                  { context: "bad", state: "success", created_at: null },
+                  "not a record",
+                ],
+              ],
+            ],
+          ],
+        ),
+        { config: parseRepoConfig({ ci: { external: true } }) },
+      ),
+    );
+    expect(res.failures).toEqual([]);
+    expect(
+      res.rows
+        .filter((r) => r.kind === "ci")
+        .map((r) => [r.key, r.agent, r.start, r.end, r.detail]),
+    ).toEqual([
+      [
+        "ci-ext:2",
+        "external",
+        new Date(ms(1)).toISOString(),
+        new Date(ms(12)).toISOString(),
+        "lint;check-run",
+      ],
+      [
+        "ci-status:abc:ext",
+        "external",
+        new Date(ms(1)).toISOString(),
+        new Date(ms(3)).toISOString(),
+        "ext;status",
+      ],
+      [
+        "ci-status:abc:slow",
+        "external",
+        new Date(ms(4)).toISOString(),
+        new Date(ms(12)).toISOString(),
+        "slow;status",
+      ],
+    ]);
+  });
+});
+
+describe("collectGitHub の artifact", () => {
+  test("期限切れ・id が数でない・作成の時刻が無いか since より前の artifact はダウンロードしない", () => {
+    const calls: string[] = [];
+    const inner = fakeGh(
+      [],
+      [
+        [
+          "agent-usage-review-claude",
+          [
+            {
+              artifacts: [
+                { id: 1, created_at: iso(1), expired: true },
+                { id: "2", created_at: iso(1) },
+                { id: 3, created_at: null },
+                { id: 4, created_at: "2026-09-30T23:00:00Z" },
+                "not a record",
+              ],
+            },
+          ],
+        ],
+      ],
+    );
+    const gh: Gh = (args, opts) => {
+      calls.push(args.join(" "));
+      return inner(args, opts);
+    };
+    const res = collectGitHub(options(gh));
+    expect(res.failures).toEqual([]);
+    expect(calls.some((c) => c.includes("/zip"))).toBe(false);
+  });
+
+  test("meta.json の無い artifact は tool を unknown・PR を 0 にし、workflow_run が無くても行を作る", () => {
+    const exec = [
+      {
+        type: "result",
+        modelUsage: { "claude-opus-5-5": { inputTokens: 1, costUSD: 0.5 }, bad: "x" },
+      },
+    ];
+    const zip = makeZip([
+      { name: "claude-execution-output.json", data: Buffer.from(JSON.stringify(exec)), method: 0 },
+    ]);
+    const res = collectGitHub(
+      options(
+        fakeGh(
+          [],
+          [
+            ["artifacts/9/zip", zip],
+            ["agent-usage-review-claude", [{ artifacts: [{ id: 9, created_at: iso(1) }] }]],
+          ],
+        ),
+      ),
+    );
+    expect(res.failures).toEqual([]);
+    expect(
+      res.rows
+        .filter((r) => r.kind === "review")
+        .map((r) => [r.agent, r.model, r.cost_usd, r.branch, r.detail]),
+    ).toEqual([["unknown", "claude-opus-5-5", "0.500000", "", "pr=0;source=artifact;run=0"]]);
+  });
+
+  test("meta.json の tool と pr の型が違えば unknown と 0 にし、実行結果が配列でなければ行を作らない", () => {
+    const files = new Map<string, Buffer>([
+      ["meta.json", Buffer.from(JSON.stringify({ tool: 1, pr: "7" }))],
+      ["claude-execution-output.json", Buffer.from(JSON.stringify({ type: "result" }))],
+      ["notes.txt", Buffer.from("x")],
+    ]);
+    expect(
+      artifactRows(files, { id: 1, created: ms(1), branch: "b", runId: 2 }, options(noGh)),
+    ).toEqual([]);
+  });
+});
+
+describe("commitActivityRows の読めない記録", () => {
+  test("selector に時刻が無い記録と、欄の足りない記録は数えない", () => {
+    const reflog = ["a\x00HEAD@{0}\x00commit: x", "b\x00HEAD\x00commit: y", "c\x00only-two"].join(
+      "\x1e",
+    );
+    expect(commitActivityRows(reflog, [], { person: "p", tz: "UTC", since: ms(0) })).toEqual([]);
+  });
+});
+
+describe("makeGh（PATH の前に置いた偽の gh）", () => {
+  // 偽の gh は、受け取った引数と GH_HOST を stdout に出す。FAIL があれば stderr に出して失敗する。
+  function stubGh(body: string) {
+    const dir = makeTempDir("agent-usage-gh-");
+    const gh = join(dir, "gh");
+    writeFileSync(gh, `#!/usr/bin/env bash\n${body}\n`);
+    chmodSync(gh, 0o755);
+    return { PATH: `${dir}:${process.env.PATH}` };
+  }
+
+  test("gh api に引数を渡し、ホストが空なら github.com に、そうでなければそのホストに向ける", () => {
+    const env = { ...stubGh('printf "%s|" "$GH_HOST" "$@"'), GH_HOST: "利用者の設定" };
+    expect(makeGh("", env)(["user"], {}).toString()).toBe("github.com|api|user|");
+    expect(makeGh("ghe.example.com", env)(["user"], {}).toString()).toBe(
+      "ghe.example.com|api|user|",
+    );
+  });
+
+  test("0 以外で終われば、stderr を添えて失敗にし、stderr が空なら終了コードを添える", () => {
+    const withErr = stubGh('echo "HTTP 404" >&2; exit 1');
+    expect(() => makeGh("", withErr)(["repos/o/r"], {})).toThrow("gh api repos/o/r: HTTP 404");
+    const silent = stubGh("exit 3");
+    expect(() => makeGh("", silent)(["repos/o/r"], {})).toThrow("gh api repos/o/r: exit 3");
+  });
+
+  test("gh を起動できなければ失敗にする", () => {
+    const dir = makeTempDir("agent-usage-nogh-");
+    expect(() => makeGh("", { PATH: dir })(["user"], {})).toThrow(/ENOENT/);
+  });
+
+  test("withoutEnvTokens は環境変数の token だけを除く", () => {
+    expect(
+      withoutEnvTokens({
+        GH_TOKEN: "a",
+        GITHUB_TOKEN: "b",
+        GH_ENTERPRISE_TOKEN: "c",
+        GITHUB_ENTERPRISE_TOKEN: "d",
+        PATH: "/bin",
+      }),
+    ).toEqual({ PATH: "/bin" });
+  });
+});
+
+describe("unzip の読めない zip", () => {
+  test("ディレクトリの項目は除く", () => {
+    const files = unzip(
+      makeZip([
+        { name: "dir/", data: Buffer.alloc(0), method: 0 },
+        { name: "dir/a", data: Buffer.from("a"), method: 0 },
+      ]),
+    );
+    expect([...files.keys()]).toEqual(["dir/a"]);
+  });
+
+  test.each([
+    [
+      "ZIP64（項目数が 0xffff）",
+      (z: Buffer) => z.writeUInt16LE(0xffff, z.length - 22 + 10),
+      /ZIP64/,
+    ],
+    [
+      "中央ディレクトリの署名が違う",
+      (z: Buffer) => z.writeUInt32LE(0, z.readUInt32LE(z.length - 22 + 16)),
+      /中央ディレクトリが不正/,
+    ],
+    [
+      "暗号化の flag",
+      (z: Buffer) => z.writeUInt16LE(1, z.readUInt32LE(z.length - 22 + 16) + 8),
+      /暗号化された項目/,
+    ],
+    ["ローカルヘッダの署名が違う", (z: Buffer) => z.writeUInt32LE(0, 0), /ローカルヘッダが不正: a/],
+  ])("%s はエラーにする", (_name, corrupt, message) => {
+    const z = makeZip([{ name: "a", data: Buffer.from("a"), method: 0 }]);
+    corrupt(z);
+    expect(() => unzip(z)).toThrow(message);
   });
 });

@@ -19,7 +19,6 @@ import {
   VERSION,
   resolveCascade,
   specificity,
-  compareSpecificity,
   statesOutsideSubject,
   UndecidableSelector,
 } from "../../../skills/parity-component/scripts/cascade-resolve.mjs";
@@ -437,10 +436,27 @@ test("詳細度の数え方", () => {
   expect(() => specificity("")).toThrow(UndecidableSelector);
 });
 
-test("詳細度の比較", () => {
-  expect(compareSpecificity([1, 0, 0], [0, 9, 9])).toBeGreaterThan(0);
-  expect(compareSpecificity([0, 1, 0], [0, 1, 0])).toBe(0);
-  expect(compareSpecificity([0, 0, 1], [0, 1, 0])).toBeLessThan(0);
+test("詳細度は桁ごとに比べる（ID 1 つはクラスと型をいくつ並べても上回る）", () => {
+  // ID が 1 つの規則と、クラス 9 つと型 9 つの規則を比べる。桁を足し合わせて比べる実装では、後の規則が勝つ。
+  const many = `${".c".repeat(9)}${" div".repeat(9)}`;
+  const input = doc({
+    matched: [
+      { order: 1, selector: "#a", declarations: [decl("color", "red")] },
+      { order: 2, selector: many, declarations: [decl("color", "blue")] },
+    ],
+  });
+  const result = resolve(input, "color");
+  expect(winnerOf(result).value).toBe("red");
+  expect(result.losers.map((l) => l.specificity)).toEqual([[0, 9, 9]]);
+
+  // 型が 1 つの規則は、クラスが 1 つの規則に負ける。
+  const lower = doc({
+    matched: [
+      { order: 1, selector: ".a", declarations: [decl("color", "red")] },
+      { order: 2, selector: "div", declarations: [decl("color", "blue")] },
+    ],
+  });
+  expect(winnerOf(resolve(lower, "color")).value).toBe("red");
 });
 
 function runCli(args: string[], files: Record<string, unknown> = {}) {

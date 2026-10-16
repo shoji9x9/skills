@@ -50,10 +50,10 @@ GitHub Actions は、`actionlint` で構文を、`ghalint` で `permissions`・`
 
 | スクリプト（`scripts/gates/` からのパス） | チェックする内容 |
 | --- | --- |
-| `packaging/check-rule-symlinks.ts` | rule を各エージェントから読むためのシンボリックリンクと、Copilot のレビューに読ませる文書（`docs/writing-style.md`）へのシンボリックリンク。その文書が applyTo を持つことと、レビューで確かめる節が Copilot の読む先頭 4,000 文字に収まることも確かめる |
+| `packaging/copies/check-rule-symlinks.ts` | rule を各エージェントから読むためのシンボリックリンクと、Copilot のレビューに読ませる文書（`docs/writing-style.md`）へのシンボリックリンク。その文書が applyTo を持つことと、レビューで確かめる節が Copilot の読む先頭 4,000 文字に収まることも確かめる |
 | `code/check-control-chars.ts` | テキストの拡張子のファイルに入った制御文字 |
 | `packaging/check-eval-reachability.ts` | eval の assertion と prompt の対応 |
-| `packaging/check-skills-sync.ts` | `skills/<name>/` とインストール済みのコピー `.agents/skills/<name>/` の一致 |
+| `packaging/copies/check-skills-sync.ts` | `skills/<name>/` とインストール済みのコピー `.agents/skills/<name>/` の一致 |
 | `layout/check-dir-file-count.ts` | 各ディレクトリの直下のファイル数。閾値（デフォルトは 20）を変えるディレクトリと対象外のディレクトリは、理由を付けて `scripts/gates/layout/dir-file-count.json` に書く。書いたディレクトリが実在しないとき、理由が空のとき、判定に使われない設定（`descendants` の対象外の下に書いた設定、デフォルトと同じ閾値、件数がデフォルトの閾値以下に減ったディレクトリの、閾値を上げた例外）を書いたときも失敗にする |
 | `code/check-js-extensions.ts` | JavaScript の拡張子（「JavaScript の拡張子」の節） |
 | `code/check-skill-lint-directives.ts` | 配布スキルの、このリポジトリの lint の設定を前提にした抑止コメント（`.agents/rules/distributed-skill-stack-independence.md`）と、`Array.isArray` の禁止をファイル単位で外したファイル（`scripts/lib/is-array-holders.ts`）の、型ガードの外の呼び出し |
@@ -61,7 +61,7 @@ GitHub Actions は、`actionlint` で構文を、`ghalint` で `permissions`・`
 | `packaging/check-skill-frontmatter.ts` | `SKILL.md` の frontmatter |
 | `code/lint-pagination.ts` | `gh api` などの一覧の取得のページネーション |
 | `docs/check-kaizen-refs.ts` | `.kaizen/` の学びへの参照の実在。意図して実在しないものは `scripts/gates/docs/kaizen-refs-exemptions.json` に書く |
-| `packaging/check-identical-copies.ts` | 同じ内容であるべきコピー。組は `scripts/gates/packaging/identical-copies.json` に書く。`region` を持つ組は、印 `// <region>:begin` と `// <region>:end` の間だけを比べる |
+| `packaging/copies/check-identical-copies.ts` | 同じ内容であるべきコピー。組は `scripts/gates/packaging/copies/identical-copies.json` に書く。`region` を持つ組は、印 `// <region>:begin` と `// <region>:end` の間だけを比べる |
 | `packaging/check-skill-checks.ts` | 配布スキルのチェック（`*-check.*`）の分類。利用者の pre-commit・CI に組み込むもの（`skills/<name>/checks.json`）か、組み込まないもの（理由を付けて `scripts/gates/packaging/skill-checks-unwired.json`）のどちらかにする |
 | `prose/check-time-sensitive-prose.ts` | 日付・「現状は」「当面」を Tier 1〜3 の文書とコメントに書いていないか。変異の件数や全件の実測値は `mutation-proof.yml` だけに書く |
 | `docs/check-doc-tiers.ts` | 文書の階層。原本は `scripts/gates/docs/doc-tiers.json` で、`.agents/rules/doc-altitude.md` の表は `--fix` で生成する |

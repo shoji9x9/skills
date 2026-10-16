@@ -543,13 +543,17 @@ describe.concurrent("受理しない入力（exit 2）", () => {
     },
   );
 
+  // 保存値の桁（2 桁）に内訳の 5/9 = 0.5556 を丸めると 0.56 になり、0.55 とは合わない。
+  // 桁を保存値に合わせる処理が、内訳と違う値まで受理しないことを確かめる。
   test("桁を丸めても説明できない pass_rate は落とす", async () => {
+    const nine = Array.from({ length: 9 }, (_, i) => `assertion ${i + 1}`);
     await reject(
       {
-        summary: { pass_rate: 0.5, passed: 3, failed: 0, total: 3 },
-        expectations: ASSERTIONS.map((text) => ({ text, passed: true, evidence: "e" })),
+        summary: { pass_rate: 0.55, passed: 5, failed: 4, total: 9 },
+        expectations: nine.map((text, i) => ({ text, passed: i < 5, evidence: "e" })),
       },
-      "summary.pass_rate=0.5 が採点内訳（1）と違う",
+      "summary.pass_rate=0.55 が採点内訳（0.5556）と違う",
+      { assertions: nine },
     );
   });
 

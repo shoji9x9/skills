@@ -10,10 +10,7 @@
 // 決定を 1 つも守らない。
 
 import { test, expect } from "vitest";
-import {
-  flowItems,
-  stripYamlBlocks,
-} from "../../../skills/replace-strategy/scripts/append-only-check.mjs";
+import { flowItems } from "../../../skills/replace-strategy/scripts/append-only-check.mjs";
 import { appendFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -2143,6 +2140,19 @@ test.concurrent("同じキーパスを 2 つのオプションに書けば合格
 // コンテナを「読めた」ことにしていた（`[` は空、`[ "a",` は要素 1 件）。読めたことにすると
 // 折り返しの中身が空に見え、要素を足しただけの編集が誤って縮小と判定される。
 
+/**
+ * growable_containers に a.keep を名指しした設定で、比較元 before を after へ書き換えて実行する。
+ * @param {string} before
+ * @param {string} after
+ */
+async function runKeepEdit(before: string, after: string) {
+  const { root, manifest } = await makeHintRepo({ growable_containers: ["a.keep"] }, before);
+  writeConfig(root, after);
+  const r = await run(root, ["--manifest", manifest]);
+  rmSync(root, { recursive: true, force: true });
+  return r;
+}
+
 test.concurrent("1 行で閉じないフロー形式のコンテナは読めたことにしない（null）", () => {
   // 折り返しの各形。`[` を空コンテナ（`[]`）、`[ "a",` を要素 1 件と読んだのが #430 の直接の原因。
   expect(flowItems("[")).toBeNull();
@@ -2279,80 +2289,88 @@ test.concurrent("区別: 折り返しが無ければ案内を出さない", asyn
 
 // 折り返しの連結は「名指しした鍵の値が何行に渡るか」の 1 軸だけを受理する。受理する側と
 // 読めなかったことにする側を同じ数だけ並べ、境界（閉じ括弧の位置・途中の行の種類・文書の終わり）を固定する。
-/** @param {string} src */
-function keepUnits(src: string) {
-  return stripYamlBlocks(src, [], ["a.keep"], [])
-    .split("\n")
-    .filter((l) => l.trim() !== "");
-}
+// 読めた折り返しは 1 行の形と同じ要素になるので、1 行へ畳んで要素を足す編集が通る。
 
-test.concurrent("折り返しの連結: 鍵のブロック内で閉じていれば読む（閉じ括弧のインデントは問わない）", () => {
-  expect(keepUnits('a:\n  keep: [\n    "x"\n  ] # c\n')).toEqual([
-    "a:",
-    "<container: a.keep>",
-    "# c",
-    "<item: a.keep> x",
-  ]);
+test.concurrent("折り返しの連結: 鍵のブロック内で閉じていれば読む（閉じ括弧のインデントは問わない）", async () => {
+  const folded = 'a:\n  keep: ["x", "y"] # c\n';
+  const closed = await runKeepEdit('a:\n  keep: [\n    "x"\n  ] # c\n', folded);
+  expect(closed.stdout).toMatch(/^ok: /m);
+  expect(closed.status).toBe(0);
   // 閉じ括弧が鍵より深くても読む。
-  expect(keepUnits('a:\n  keep: [\n    "x"\n    ] # c\n')).toContain("<item: a.keep> x");
-  // 途中の行に付いた行末コメントも単位として残す（別行へ移しただけの編集を落とさない）。
-  expect(keepUnits('a:\n  keep: [\n    "x", # 注記\n    "y"\n  ] # c\n')).toEqual([
-    "a:",
-    "<container: a.keep>",
-    "# 注記",
-    "# c",
-    "<item: a.keep> x",
-    "<item: a.keep> y",
-  ]);
+  const deeper = await runKeepEdit('a:\n  keep: [\n    "x"\n    ] # c\n', folded);
+  expect(deeper.stdout).toMatch(/^ok: /m);
+  expect(deeper.status).toBe(0);
   // 入れ子のマッピングが複数行に渡っても 1 要素として読む。
-  expect(keepUnits('a:\n  keep: [\n    {item: "x",\n     slug: s}\n  ] # c\n')).toContain(
-    '<item: a.keep> {item: "x", slug: s}',
+  const nested = await runKeepEdit(
+    'a:\n  keep: [\n    {item: "x",\n     slug: s}\n  ] # c\n',
+    'a:\n  keep: [{item: "x", slug: s}, "y"] # c\n',
   );
+  expect(nested.stdout).toMatch(/^ok: /m);
+  expect(nested.status).toBe(0);
 });
 
-test.concurrent("折り返しの連結: 開き括弧が次の行にあっても読む（フォーマッタが畳む形）", () => {
+test.concurrent("折り返しの連結: 途中の行に付いた行末コメントは単位として残す（別行へ移しただけの編集は通す）", async () => {
+  const before = 'a:\n  keep: [\n    "x", # 注記\n    "y"\n  ] # c\n';
+  // 1 行へ畳むと注記の置き場所が無くなり、注記が失われたとして落ちる。
+  const dropped = await runKeepEdit(before, 'a:\n  keep: ["x", "y"] # c\n');
+  expect(dropped.status).toBe(1);
+  expect(dropped.stdout).toMatch(/# 注記/);
+  // 注記を独立した行へ移せば通る。
+  const moved = await runKeepEdit(before, 'a:\n  # 注記\n  keep: ["x", "y"] # c\n');
+  expect(moved.stdout).toMatch(/^ok: /m);
+  expect(moved.status).toBe(0);
+});
+
+test.concurrent("折り返しの連結: 開き括弧が次の行にあっても読む（フォーマッタが畳む形）", async () => {
   // YAML のフォーマッタは 1 行に収まらないコンテナを `key:` と `[` に分けて畳む。ブロック形式として
   // 扱うと中身が行のまま単位になり、要素を足しただけの編集が誤って縮小と判定される（#430 と同じ害）。
-  expect(keepUnits('a:\n  keep:\n    [\n      "x",\n      "y"\n    ] # c\n')).toEqual([
-    "a:",
-    "<container: a.keep>",
-    "# c",
-    "<item: a.keep> x",
-    "<item: a.keep> y",
-  ]);
-  // 1 行の形と同じ単位になる（表記を変えただけの編集が通る）。
-  expect(keepUnits('a:\n  keep:\n    [\n      "x",\n      "y"\n    ] # c\n')).toEqual(
-    keepUnits('a:\n  keep: ["x", "y"] # c\n'),
-  );
-  // 区別できることの確認: 要素を落とせば単位が減る。
-  expect(keepUnits('a:\n  keep:\n    [\n      "x"\n    ] # c\n')).not.toContain("<item: a.keep> y");
-  // 次の行が開き括弧でなければ今までどおりブロック形式として扱う（行のまま残す）。
-  expect(keepUnits('a:\n  keep:\n    - "x"\n')).toEqual(["a:", "<container: a.keep>", '    - "x"']);
+  const before = 'a:\n  keep:\n    [\n      "x",\n      "y"\n    ] # c\n';
+  const grown = await runKeepEdit(before, 'a:\n  keep: ["x", "y", "z"] # c\n');
+  expect(grown.stdout).toMatch(/^ok: /m);
+  expect(grown.status).toBe(0);
+  // 区別できることの確認: 要素を落とせば落ちる。
+  const shrunk = await runKeepEdit(before, 'a:\n  keep: ["x"] # c\n');
+  expect(shrunk.status).toBe(1);
+  expect(shrunk.stdout).toMatch(/y/);
+  // 次の行が開き括弧でなければ今までどおりブロック形式として扱う（行のまま単位にする）。
+  // ブロック形式の要素行をフロー形式へ書き直すと、その行が失われたとして落ちる。
+  const block = await runKeepEdit('a:\n  keep:\n    - "x"\n', 'a:\n  keep: ["x"]\n');
+  expect(block.status).toBe(1);
+  expect(block.stdout).toMatch(/- "x"/);
 });
 
-test.concurrent("折り返しの連結: 途中の空行・コメント行を挟んでも読む（同じ軸の内側）", () => {
+test.concurrent("折り返しの連結: 途中の空行・コメント行を挟んでも読む（同じ軸の内側）", async () => {
   // ここで打ち切ると、比較元の折り返し行がそのまま単位になり、案内どおり 1 行へ書き直しても落ちる。
-  expect(keepUnits('a:\n  keep: [\n\n    "x"\n  ] # c\n')).toEqual([
-    "a:",
-    "<container: a.keep>",
-    "# c",
-    "<item: a.keep> x",
-  ]);
+  const blank = await runKeepEdit(
+    'a:\n  keep: [\n\n    "x"\n  ] # c\n',
+    'a:\n  keep: ["x", "y"] # c\n',
+  );
+  expect(blank.stdout).toMatch(/^ok: /m);
+  expect(blank.status).toBe(0);
   // コメント行は単位として残す（警告なしに消せるようにしない）。
-  expect(keepUnits('a:\n  keep: [\n    # note\n    "x"\n  ] # c\n')).toEqual([
-    "a:",
-    "<container: a.keep>",
-    "# note",
-    "# c",
-    "<item: a.keep> x",
-  ]);
+  const before = 'a:\n  keep: [\n    # note\n    "x"\n  ] # c\n';
+  const dropped = await runKeepEdit(before, 'a:\n  keep: ["x"] # c\n');
+  expect(dropped.status).toBe(1);
+  expect(dropped.stdout).toMatch(/# note/);
+  const moved = await runKeepEdit(before, 'a:\n  # note\n  keep: ["x", "y"] # c\n');
+  expect(moved.stdout).toMatch(/^ok: /m);
+  expect(moved.status).toBe(0);
 });
 
-test.concurrent("折り返しの連結: 読めない形は行のまま突き合わせる（読めない形を連結の対象にしない）", () => {
-  // 閉じないまま文書が終わる。
-  expect(keepUnits('a:\n  keep: [\n    "x"\n')).toEqual(["a:", "  keep: [", '    "x"']);
-  // 閉じないまま鍵のブロックを抜ける（続きの行を飲み込まない）。
-  expect(keepUnits("a:\n  keep: [\n  other: 1\n")).toEqual(["a:", "  keep: [", "  other: 1"]);
+test.concurrent("折り返しの連結: 読めない形は行のまま突き合わせる（読めない形を連結の対象にしない）", async () => {
+  // 閉じないまま文書が終わる。行のまま単位になるので、要素の行を消せばその行を名指しして落ちる。
+  const eof = await runKeepEdit('a:\n  keep: [\n    "x"\n', "a:\n  keep: [\n");
+  expect(eof.status).toBe(1);
+  expect(eof.stdout).toMatch(/"x"/);
+  // 閉じないまま鍵のブロックを抜ける（続きの行を飲み込まない）。兄弟の鍵を書き換えれば、その行を名指しして落ちる。
+  const sibling = await runKeepEdit(
+    'a:\n  keep: [\n  comp: ["p"]\n',
+    "a:\n  keep: [\n  comp: []\n",
+  );
+  expect(sibling.status).toBe(1);
+  expect(sibling.stdout).toMatch(/comp: \["p"\]/);
+  // 兄弟の鍵はコンテナの外の行なので、その削除に「閉じ括弧を補う」の案内を付けない。
+  expect(sibling.stdout).not.toMatch(/閉じ括弧を補う/);
 });
 
 test.concurrent("空行を挟んだ折り返しでも、追記と 1 行への書き直しが通る", async () => {
@@ -2767,18 +2785,19 @@ test.concurrent("同じ鍵が比較元側と現在側の両方に帰属したら
   rmSync(root, { recursive: true, force: true });
 });
 
-/** 読めないコンテナとして記録されたキーパス（案内の材料）。 */
-function wrappedPathsOf(src: string) {
-  const out: NonNullable<Parameters<typeof stripYamlBlocks>[4]> = [];
-  stripYamlBlocks(src, [], ["a.keep"], [], out);
-  return out.map((w) => w.path);
-}
-
-test.concurrent("閉じた後に余りがある形は「閉じていない」と案内しない", () => {
+test.concurrent("閉じた後に余りがある形は「閉じていない」と案内しない", async () => {
   // `[a] b` は**閉じてはいる**。1 行へ畳んでも同じく読めないので、その案内は指示にならない。
-  expect(wrappedPathsOf('a:\n  keep: [\n    "x"\n  ],\n')).toEqual([]);
-  // 検出できることの確認: 閉じないまま兄弟のキーへ出る形は記録する。
-  expect(wrappedPathsOf("a:\n  keep: [\n  other: 1\n")).toEqual(["a.keep"]);
+  const hint = /閉じていないフロー形式のコンテナがある/;
+  const remainder = await runKeepEdit('a:\n  keep: ["x"]\n', 'a:\n  keep: [\n    "x"\n  ],\n');
+  expect(remainder.status).toBe(1);
+  expect(remainder.stdout).not.toMatch(hint);
+  // 検出できることの確認: 閉じないまま兄弟のキーへ出る形は案内する。
+  const unclosed = await runKeepEdit(
+    'a:\n  keep: ["x"]\n  other: 1\n',
+    "a:\n  keep: [\n  other: 1\n",
+  );
+  expect(unclosed.status).toBe(1);
+  expect(unclosed.stdout).toMatch(/閉じていないフロー形式のコンテナがある: a\.keep/);
 });
 
 test.concurrent("mutable_blocks の折り返しも配下ごと消費する（1 行への畳み込みで単位が消えない）", async () => {

@@ -16,7 +16,6 @@ import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import {
   VERSION,
   compareBehaviors,
-  canonical,
   cellKey,
   isoDateTime,
   main,
@@ -166,8 +165,26 @@ test("見た目が同じでも操作の結果が違えば behavior-mismatch で�
 });
 
 test("オブジェクトのキー順だけの違いは不一致にしない（配列の順序は比べる）", () => {
-  expect(canonical({ b: 1, a: [2, 1] })).toBe(canonical({ a: [2, 1], b: 1 }));
-  expect(canonical([1, 2])).not.toBe(canonical([2, 1]));
+  const withObserved = (observed: Observed) =>
+    comparisonOf().rows.map((r) =>
+      r.operation === "corner-click" && r.instance === "orders" ? { ...r, observed } : r,
+    );
+  // 基準と同じ値で、オブジェクトのキーの並びだけを入れ替えた観測。
+  const reordered = run({
+    comparison: comparisonOf({
+      rows: withObserved({ open_popup: null, selection: { cols: [0, 4], rows: [0, 9] } }),
+    }),
+  });
+  expect(codes(reordered)).toEqual([]);
+  expect(reordered.counts.matched).toBe(4);
+
+  // 配列の並びは意味を持つ（選択した範囲の始点と終点）ので、逆順は不一致にする。
+  const reversed = run({
+    comparison: comparisonOf({
+      rows: withObserved({ selection: { rows: [9, 0], cols: [0, 4] }, open_popup: null }),
+    }),
+  });
+  expect(codes(reversed)).toEqual(["behavior-mismatch"]);
 });
 
 test("突き合わせ表が無いときは全組み合わせを未突合として数える", () => {

@@ -274,6 +274,42 @@
       "expect_failing": [
         "Codex の注入された user メッセージ 注入の形 <user_shell_command> は候補にしない"
       ]
+    },
+    {
+      "id": "SCAN-CODEX-AUX-TOKEN-USAGE",
+      "why": "token_usage_record を補助レコードとして認識しない（使用量のレコードだけの transcript が判定不能になり、commit が止まる）",
+      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
+      "find": "elif $j.type == \"token_usage_record\" then \"D\", \"R\"",
+      "replace": "elif false then \"D\", \"R\"",
+      "occurrences": 1,
+      "expect_failing": [
+        "Codex の token usage / review mode 補助レコード 補助レコードだけなら候補ゼロ",
+        "Codex の token usage / review mode 補助レコード 補助レコードはツール失敗候補を隠さない"
+      ]
+    },
+    {
+      "id": "SCAN-CODEX-AUX-ENTERED-REVIEW",
+      "why": "EnteredReviewMode を補助レコードとして認識しない（review mode に入っただけの transcript が判定不能になる）",
+      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
+      "find": "$item.type == \"EnteredReviewMode\" or",
+      "replace": "false or",
+      "occurrences": 1,
+      "expect_failing": [
+        "Codex の token usage / review mode 補助レコード 補助レコードだけなら候補ゼロ",
+        "Codex の token usage / review mode 補助レコード 補助レコードはツール失敗候補を隠さない"
+      ]
+    },
+    {
+      "id": "SCAN-CODEX-AUX-EXITED-REVIEW",
+      "why": "ExitedReviewMode を補助レコードとして認識しない（review mode を出ただけの transcript が判定不能になる）",
+      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
+      "find": "$item.type == \"ExitedReviewMode\" or",
+      "replace": "false or",
+      "occurrences": 1,
+      "expect_failing": [
+        "Codex の token usage / review mode 補助レコード 補助レコードだけなら候補ゼロ",
+        "Codex の token usage / review mode 補助レコード 補助レコードはツール失敗候補を隠さない"
+      ]
     }
   ]
 }

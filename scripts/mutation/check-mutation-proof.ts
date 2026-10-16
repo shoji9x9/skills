@@ -78,7 +78,7 @@ function parseJsonAs<T>(text: string): T {
   return value as T;
 }
 
-// `scripts/lib/is-array.ts` と同じ内容を持つ（`scripts/gates/packaging/identical-copies.json` の組で一致を確かめる）。
+// `scripts/lib/is-array.ts` と同じ内容を持つ（`scripts/gates/packaging/copies/identical-copies.json` の組で一致を確かめる）。
 // is-array:begin
 // `Array.isArray` は `arg is any[]` なので、`unknown` の値を絞ると `any[]` になり、要素を読む処理で型の検査が外れる。
 // `isArray` は、入力が `unknown` か `any` なら `unknown[]` に絞る。入力の union の配列の部分（`number[] | undefined` の

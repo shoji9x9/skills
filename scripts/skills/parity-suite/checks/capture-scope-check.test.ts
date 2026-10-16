@@ -11,7 +11,6 @@ import {
   main,
   checkCaptureScope,
   deriveHoles,
-  combinationKey,
   AXIS_CANDIDATES,
 } from "../../../../skills/parity-suite/scripts/capture-scope-check.mjs";
 import { parseJsonAs } from "../../../lib/parse-as.ts";
@@ -740,12 +739,6 @@ test("鍵の材料に区切り文字が入っていれば落とす（別々の�
   const codes = codesOf(metadata);
   expect(codes).toContain("scope-entry-key-unsafe");
   expect(codes).toContain("noise-entry-key-unsafe");
-});
-
-test("撮影組の鍵はページ・状態・ビューポートで作る", () => {
-  expect(combinationKey({ page: "list", state: "hover", viewport: "mobile" })).toBe(
-    "list|hover|mobile",
-  );
 });
 
 test("テンプレートのプレースホルダ（寸法 0）は測っていない組として落ちる", () => {

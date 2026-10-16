@@ -3,12 +3,12 @@
     "check-rule-symlinks.test.ts が、rule ではない文書を instructions として読ませる宣言（DOC_INSTRUCTIONS）の判定の行を検出できることを示す変異の一覧。",
     "テスト名を変えたら expect_failing も直す（実在しない名前は、ランナーの基準 run で検出して exit 2）。"
   ],
-  "test_file": "scripts/gates/packaging/check-rule-symlinks.test.ts",
+  "test_file": "scripts/gates/packaging/copies/check-rule-symlinks.test.ts",
   "mutations": [
     {
       "id": "RS-DOC-NOT-WIRED",
       "why": "宣言した文書へのリンクを、置く先の期待に入れない（正しいリンクを孤児とし、欠落も検出しない）",
-      "file": "scripts/gates/packaging/check-rule-symlinks.ts",
+      "file": "scripts/gates/packaging/copies/check-rule-symlinks.ts",
       "find": "if (docs) for (const doc of docInstructions) targets.set(doc.name, join(root, doc.canon));",
       "replace": "if (false) for (const doc of docInstructions) targets.set(doc.name, join(root, doc.canon));",
       "occurrences": 1,
@@ -29,7 +29,7 @@
     {
       "id": "RS-DOC-CLAUDE-WIRED",
       "why": "Claude Code の側にも文書へのリンクを求める（文書は AGENTS.md の `@` で読むので、rule にしない）",
-      "file": "scripts/gates/packaging/check-rule-symlinks.ts",
+      "file": "scripts/gates/packaging/copies/check-rule-symlinks.ts",
       "find": "{ dir: \".claude/rules\", suffix: \".md\", agent: \"Claude Code\", docs: false },",
       "replace": "{ dir: \".claude/rules\", suffix: \".md\", agent: \"Claude Code\", docs: true },",
       "occurrences": 1,
@@ -41,7 +41,7 @@
     {
       "id": "RS-DOC-MISSING-UNCHECKED",
       "why": "宣言した文書が在るかを確かめない",
-      "file": "scripts/gates/packaging/check-rule-symlinks.ts",
+      "file": "scripts/gates/packaging/copies/check-rule-symlinks.ts",
       "find": "if (!existsSync(join(root, doc.canon))) {",
       "replace": "if (false) {",
       "occurrences": 1,
@@ -50,7 +50,7 @@
     {
       "id": "RS-DOC-NAME-CLASH-UNCHECKED",
       "why": "宣言した文書の名前が rule と重なっても検出しない（rule のリンクの検査が文書の側で上書きされる）",
-      "file": "scripts/gates/packaging/check-rule-symlinks.ts",
+      "file": "scripts/gates/packaging/copies/check-rule-symlinks.ts",
       "find": "if (bases.includes(doc.name)) {",
       "replace": "if (false) {",
       "occurrences": 1,
@@ -59,7 +59,7 @@
     {
       "id": "RS-APPLYTO-UNCHECKED",
       "why": "宣言した文書が applyTo を持つかを確かめない（symlink があっても Copilot が読まない）",
-      "file": "scripts/gates/packaging/check-rule-symlinks.ts",
+      "file": "scripts/gates/packaging/copies/check-rule-symlinks.ts",
       "find": "if (typeof fm?.applyTo !== \"string\" || fm.applyTo.trim() === \"\") {",
       "replace": "if (false) {",
       "occurrences": 1,
@@ -68,7 +68,7 @@
     {
       "id": "RS-HEADING-UNCHECKED",
       "why": "reviewedUntil の見出しが在るかを確かめない（読む範囲を確かめないまま通す）",
-      "file": "scripts/gates/packaging/check-rule-symlinks.ts",
+      "file": "scripts/gates/packaging/copies/check-rule-symlinks.ts",
       "find": "if (at < 0) {",
       "replace": "if (false) {",
       "occurrences": 1,
@@ -77,7 +77,7 @@
     {
       "id": "RS-LIMIT-LOOSE",
       "why": "上限を 1 文字ゆるめる（4,000 文字を超えた節を Copilot が読まないことを見逃す）",
-      "file": "scripts/gates/packaging/check-rule-symlinks.ts",
+      "file": "scripts/gates/packaging/copies/check-rule-symlinks.ts",
       "find": "if (before > REVIEW_READ_LIMIT) {",
       "replace": "if (before > REVIEW_READ_LIMIT + 1) {",
       "occurrences": 1,
@@ -88,7 +88,7 @@
     {
       "id": "RS-LIMIT-STRICT",
       "why": "上限ちょうどを違反にする（読まれる範囲の文書を止める）",
-      "file": "scripts/gates/packaging/check-rule-symlinks.ts",
+      "file": "scripts/gates/packaging/copies/check-rule-symlinks.ts",
       "find": "if (before > REVIEW_READ_LIMIT) {",
       "replace": "if (before >= REVIEW_READ_LIMIT) {",
       "occurrences": 1,
@@ -99,7 +99,7 @@
     {
       "id": "RS-YAML-THROWS",
       "why": "読めない frontmatter を違反にせず例外で終わる（他の不備と一緒に報告しない）",
-      "file": "scripts/gates/packaging/check-rule-symlinks.ts",
+      "file": "scripts/gates/packaging/copies/check-rule-symlinks.ts",
       "find": "out.push(`${doc.canon}: frontmatter の YAML を読めない: ${errorMessage(error)}`);",
       "replace": "throw error;",
       "occurrences": 1,
@@ -110,7 +110,7 @@
     {
       "id": "RS-CRLF",
       "why": "比べるときに行末の \\r を外さない（CRLF の文書で見出しが無いと誤って報告する）",
-      "file": "scripts/gates/packaging/check-rule-symlinks.ts",
+      "file": "scripts/gates/packaging/copies/check-rule-symlinks.ts",
       "find": "!fenced[i] && line.replace(/\\r?\\n$/, \"\") === doc.reviewedUntil",
       "replace": "!fenced[i] && line.replace(/\\n$/, \"\") === doc.reviewedUntil",
       "occurrences": 1,
@@ -122,7 +122,7 @@
     {
       "id": "RS-FENCE-IGNORED",
       "why": "コードブロックの中の同じ行を見出しとして扱う（その手前までしか数えない）",
-      "file": "scripts/gates/packaging/check-rule-symlinks.ts",
+      "file": "scripts/gates/packaging/copies/check-rule-symlinks.ts",
       "find": "!fenced[i] && ",
       "replace": "",
       "occurrences": 1,
@@ -131,7 +131,7 @@
     {
       "id": "RS-CRLF-COUNT",
       "why": "行末の \\r を文字数に数えない（CRLF の文書を少なく数える）",
-      "file": "scripts/gates/packaging/check-rule-symlinks.ts",
+      "file": "scripts/gates/packaging/copies/check-rule-symlinks.ts",
       "find": "[...lines.slice(0, at).join(\"\")].length",
       "replace": "[...lines.slice(0, at).join(\"\").replaceAll(\"\\r\", \"\")].length",
       "occurrences": 1,

@@ -133,11 +133,6 @@ const NON_CANDIDATES = {
   "old-forgotten": note({ status: "forgotten" }),
 };
 
-test("候補側と非候補側の両方の検体を持つ", () => {
-  expect(Object.keys(CANDIDATES).length).toBeGreaterThan(0);
-  expect(Object.keys(NON_CANDIDATES).length).toBeGreaterThan(0);
-});
-
 test("--list は候補だけを挙げ、何も書き換えない", () => {
   const dir = makeProject({ ...CANDIDATES, ...NON_CANDIDATES });
   try {

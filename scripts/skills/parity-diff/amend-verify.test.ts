@@ -1,12 +1,21 @@
 // 部品改修後の撮り直しの機械判定（parity-diff 同梱 amend-verify.mjs）の回帰テスト（#454）。
-// pngjs はこのリポジトリに入れないため、判定は純関数 judgePair で測り、CLI は入力不備（exit 2）の分岐だけを測る。
+// 判定の規則は judgePair で測る。judgePair は SKILL の references/component-change.md が決める合格の条件を、
+// デコード済みの画像に当てる関数である。
+// 領域の読み方（parseRegion・regionFromJson・expandRegion）と記録の合わせ方（mergeRecord）も、純関数を直接呼んで測る。
+// 戻り値は、記録の declared_regions・regions・pairs と同じ意味を持つ。
+// pngjs はこのリポジトリに入れない。CLI の記録（--out・stdout）と終了コードは、子プロセスの Node に
+// resolve の Hook（scripts/lib/testing/fake-pngjs-hooks.ts）を登録し、"pngjs" を PNG を読み書きする偽物に差し替えて確かめる。
 
 import { expect, test } from "vitest";
+import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { encodePng } from "../../lib/testing/fake-pngjs.ts";
+import { parseJsonAs } from "../../lib/parse-as.ts";
 import * as verify from "../../../skills/parity-diff/scripts/amend-verify.mjs";
 import type { Image } from "../../../skills/parity-diff/scripts/amend-verify.mjs";
 
@@ -375,6 +384,11 @@ test.each([
     /unreadable region/,
   ],
   [
+    "margin が負",
+    [{ pair: "p", prev_new: "a", new: "b", current: "c", regions: [[0, 0, 1, 1]], margin: -1 }],
+    /margin must be a non-negative number/,
+  ],
+  [
     "current が無い",
     [{ pair: "p", prev_new: "a", new: "b", regions: [[0, 0, 1, 1]] }],
     /current must be a non-empty string/,
@@ -433,3 +447,200 @@ test.skipIf(pngjsAvailable)(
     expect(stderr).toMatch(/pngjs is not installed/);
   },
 );
+
+test("--pairs が読めなければ exit 2", async () => {
+  const dir = makeTempDir("amend-verify-");
+
+  const { code, stderr } = await run(["--pairs", join(dir, "missing.json")]);
+
+  expect(code).toBe(2);
+  expect(stderr).toMatch(/cannot read --pairs/);
+});
+
+test("--pairs の組の margin が --margin と食い違えば exit 2（どちらで判定したかが曖昧になる）", async () => {
+  const dir = makeTempDir("amend-verify-");
+  const path = join(dir, "pairs.json");
+  const item = { pair: "p", prev_new: "a", new: "b", current: "c", regions: [[0, 0, 1, 1]] };
+  writeFileSync(path, JSON.stringify([{ ...item, margin: 2 }]));
+
+  const { code, stderr } = await run(["--pairs", path, "--margin", "1"]);
+
+  expect(code).toBe(2);
+  expect(stderr).toMatch(/margin \(2\) conflicts with --margin \(1\)/);
+});
+
+test.each([
+  ["JSON として読めない", "{", /cannot read existing --out record/],
+  ["pairs が配列でない", JSON.stringify({ tool: "amend-verify", pairs: {} }), /has no pairs array/],
+  ["object でない", JSON.stringify([]), /has no pairs array/],
+])("--out の既存の記録が %s なら exit 2 で、記録を書き換えない", async (_name, before, message) => {
+  const dir = makeTempDir("amend-verify-");
+  const out = join(dir, "record.json");
+  writeFileSync(out, before);
+
+  const { code, stderr } = await run([...base, "--region", "0,0,1,1", "--out", out]);
+
+  expect(code).toBe(2);
+  expect(stderr).toMatch(message);
+  expect(readFileSync(out, "utf8")).toBe(before);
+});
+
+// --- pngjs を偽のモジュールに差し替えて、CLI の記録と終了コードを確かめる ---
+
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const script = join(repoRoot, "skills/parity-diff/scripts/amend-verify.mjs");
+const HOOKS = fileURLToPath(new URL("../../lib/testing/fake-pngjs-hooks.ts", import.meta.url));
+
+/** 画像を PNG で書く。 */
+function writeImage(path: string, img: Image) {
+  writeFileSync(path, encodePng(img.width, img.height, Uint8Array.from(img.data)));
+}
+
+/** scene() の 3 枚を書き、パスを返す。nextChange で撮り直した新側を変える。 */
+function writeScene(dir: string, nextChange: (next: Image) => void = () => {}) {
+  const { current, prevNew } = scene();
+  const next = clone(prevNew);
+  nextChange(next);
+  const paths = {
+    prev_new: join(dir, "prev-new.png"),
+    new: join(dir, "new.png"),
+    current: join(dir, "current.png"),
+  };
+  writeImage(paths.prev_new, prevNew);
+  writeImage(paths.new, next);
+  writeImage(paths.current, current);
+  return paths;
+}
+
+function singleArgs(paths: ReturnType<typeof writeScene>, pair = "p|hover|desktop") {
+  return [
+    "--pair",
+    pair,
+    "--prev-new",
+    paths.prev_new,
+    "--new",
+    paths.new,
+    "--current",
+    paths.current,
+  ];
+}
+
+/** 偽の pngjs で CLI を子プロセスとして実行する（計測の環境変数は親から引き継ぐ）。 */
+function runCli(argv: string[]) {
+  const r = spawnSync(process.execPath, ["--import", pathToFileURL(HOOKS).href, script, ...argv], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  return { status: r.status, stdout: r.stdout, stderr: r.stderr };
+}
+
+type PairRecord = {
+  pair: string;
+  pass: boolean;
+  outside_diff_pixels: number | null;
+  inside_diff_before: number | null;
+  inside_diff_after: number | null;
+  margin: number;
+  declared_regions: unknown[];
+  regions: unknown[];
+  inputs: Record<string, { path: string; sha256: string }>;
+  reasons: string[];
+};
+type AmendRecord = { tool: string; version: string; change_id?: string; pairs: PairRecord[] };
+
+const parseRecord = (text: string) => parseJsonAs<AmendRecord>(text);
+
+test("CLI: 全組 pass なら exit 0 で、記録を stdout に出す（広げる前の領域と広げた後の領域を両方残す）", () => {
+  const dir = makeTempDir("amend-verify-");
+  const paths = writeScene(dir, (next) => setPixel(next, 4, 4, GREY));
+
+  const r = runCli([...singleArgs(paths), "--region", "3,3,3,3", "--margin", "1"]);
+
+  expect(r.status).toBe(0);
+  const record = parseRecord(r.stdout);
+  expect(record).toMatchObject({ tool: "amend-verify" });
+  expect(record).not.toHaveProperty("change_id");
+  expect(record.pairs).toHaveLength(1);
+  expect(record.pairs[0]).toMatchObject({
+    pair: "p|hover|desktop",
+    pass: true,
+    outside_diff_pixels: 0,
+    inside_diff_before: 1,
+    inside_diff_after: 0,
+    margin: 1,
+    declared_regions: [{ x: 3, y: 3, width: 3, height: 3 }],
+    regions: [{ x: 2, y: 2, width: 5, height: 5 }],
+    reasons: [],
+  });
+});
+
+test("CLI: 記録の inputs は渡したパスと画像のバイトの sha256 を持つ（鮮度の検査が突き合わせる）", () => {
+  const dir = makeTempDir("amend-verify-");
+  const paths = writeScene(dir);
+
+  const r = runCli([...singleArgs(paths), "--region", "3,3,3,3"]);
+
+  const { inputs } = parseRecord(r.stdout).pairs[0];
+  for (const key of ["prev_new", "new", "current"] as const) {
+    const digest = createHash("sha256").update(readFileSync(paths[key])).digest("hex");
+    expect(inputs[key]).toEqual({ path: paths[key], sha256: digest });
+  }
+});
+
+test("CLI: --pairs の領域は配列とオブジェクトのどちらでも読み、組ごとの margin を使う", () => {
+  const dir = makeTempDir("amend-verify-");
+  const paths = writeScene(dir, (next) => setPixel(next, 4, 4, GREY));
+  const pairsPath = join(dir, "pairs.json");
+  writeFileSync(
+    pairsPath,
+    JSON.stringify([
+      { pair: "array", ...paths, regions: [[3, 3, 3, 3]] },
+      { pair: "object", ...paths, regions: [{ x: 3, y: 3, width: 3, height: 3 }], margin: 1 },
+    ]),
+  );
+
+  const r = runCli(["--pairs", pairsPath]);
+
+  expect(r.status).toBe(0);
+  const pairs = parseRecord(r.stdout).pairs;
+  expect(pairs.map((p) => p.pair)).toEqual(["array", "object"]);
+  for (const p of pairs) expect(p.declared_regions).toEqual([{ x: 3, y: 3, width: 3, height: 3 }]);
+  expect(pairs[0]).toMatchObject({ margin: 0, regions: [{ x: 3, y: 3, width: 3, height: 3 }] });
+  expect(pairs[1]).toMatchObject({ margin: 1, regions: [{ x: 2, y: 2, width: 5, height: 5 }] });
+});
+
+test("CLI: fail の組があれば exit 1 で、--out には記録を書き、stdout には組ごとの判定と理由を出す", () => {
+  const dir = makeTempDir("amend-verify-");
+  const paths = writeScene(dir, (next) => setPixel(next, 0, 0, BLACK));
+  const out = join(dir, "nested", "record.json");
+
+  const r = runCli([
+    ...singleArgs(paths),
+    "--region",
+    "3,3,3,3",
+    "--change-id",
+    "c1",
+    "--out",
+    out,
+  ]);
+
+  expect(r.status).toBe(1);
+  expect(r.stdout).toMatch(
+    /^FAIL p\|hover\|desktop: 1 pixels changed outside the declared regions\n$/,
+  );
+  const record = parseRecord(readFileSync(out, "utf8"));
+  expect(record.change_id).toBe("c1");
+  expect(record.pairs[0]).toMatchObject({ pass: false, outside_diff_pixels: 1 });
+});
+
+test("CLI: 画像が読めない組があれば、どの組かを出して exit 2（判定していないので合格にしない）", () => {
+  const dir = makeTempDir("amend-verify-");
+  const paths = writeScene(dir);
+  writeFileSync(paths.current, "not an image");
+
+  const r = runCli([...singleArgs(paths), "--region", "3,3,3,3"]);
+
+  expect(r.status).toBe(2);
+  expect(r.stderr).toMatch(/cannot read PNG inputs of pair p\|hover\|desktop/);
+  expect(r.stdout).toBe("");
+});

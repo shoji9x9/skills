@@ -15,6 +15,7 @@ import type {
 } from "../../../../skills/parity-suite/scripts/trait-compare.mjs";
 import { invalidInput } from "../../../lib/testing/test-input.ts";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
+import { parseJsonAs } from "../../../lib/parse-as.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 const {
@@ -295,14 +296,139 @@ test("片側だけが scroll のキーを持つ（採取ツールの版違い）
   expect(compareTraits([legacy], [legacy])).toEqual([]);
 });
 
-/** CLI に 2 つの採取結果を渡して起動する。 */
-function runCli(baseline: unknown, capture: unknown) {
+// --- 要素の計算値・擬似要素・論理名の照合 ---
+
+test("要素の計算値の差を、プロパティ名の順に kind property で出す", () => {
+  const current = { ...trait([]), computed: { color: "rgb(0, 0, 0)", "font-size": "12px" } };
+  const replacement = {
+    ...trait([]),
+    computed: { "font-size": "13px", color: "rgb(0, 0, 0)", "line-height": "16px" },
+  };
+  expect(compareTraits([current], [replacement])).toEqual([
+    {
+      name: "toolbar.settings",
+      kind: "property",
+      prop: "font-size",
+      expected: "12px",
+      actual: "13px",
+    },
+    {
+      name: "toolbar.settings",
+      kind: "property",
+      prop: "line-height",
+      expected: "undefined",
+      actual: "16px",
+    },
+  ]);
+});
+
+test("擬似要素は、生成コンテンツの有無の差と、両側にあるときの計算値の差を出す", () => {
+  const current = {
+    ...trait([]),
+    before: { content: '"*"' },
+    after: { content: '"›"', color: "red" },
+  };
+  const replacement = { ...trait([]), before: null, after: { content: '"›"', color: "blue" } };
+  expect(compareTraits([current], [replacement])).toEqual([
+    {
+      name: "toolbar.settings",
+      kind: "pseudo",
+      prop: "::before",
+      expected: "present",
+      actual: "absent",
+    },
+    {
+      name: "toolbar.settings",
+      kind: "pseudo",
+      prop: "::after/color",
+      expected: "red",
+      actual: "blue",
+    },
+  ]);
+  // 両側とも生成コンテンツが無ければ差にしない
+  expect(compareTraits([trait([])], [trait([])])).toEqual([]);
+});
+
+test("片側にしか無い論理名は、どちら側に無いかを kind missing で出す", () => {
+  const diffs = compareTraits(
+    [trait([], "toolbar.settings"), trait([], "toolbar.help")],
+    [trait([], "toolbar.settings"), trait([], "toolbar.extra")],
+  );
+  expect(diffs.filter((d: Diff) => d.kind === "missing")).toEqual([
+    { name: "toolbar.help", kind: "missing", expected: "present", actual: "absent" },
+    { name: "toolbar.extra", kind: "missing", expected: "absent", actual: "present" },
+  ]);
+});
+
+test("同じ論理名が片側に 2 件以上あれば、どちらの側かと件数を kind duplicate で出す", () => {
+  const diffs = compareTraits([trait([]), trait([])], [trait([])]);
+  expect(diffs.filter((d: Diff) => d.kind === "duplicate")).toEqual([
+    { name: "toolbar.settings", kind: "duplicate", prop: "baseline", expected: "1", actual: "2" },
+  ]);
+  expect(
+    compareTraits([trait([])], [trait([]), trait([]), trait([])]).filter(
+      (d: Diff) => d.kind === "duplicate",
+    ),
+  ).toEqual([
+    { name: "toolbar.settings", kind: "duplicate", prop: "capture", expected: "1", actual: "3" },
+  ]);
+});
+
+// --- 相対幾何（要素対の関係だけを比べる） ---
+
+type Box = { x: number; y: number; width: number; height: number };
+const placed = (name: string, rect: Box): Trait => ({ ...trait([], name), rect });
+const shift = (r: Box, dx: number, dy: number): Box => ({ ...r, x: r.x + dx, y: r.y + dy });
+// 検索欄の右に、同じ高さの送信ボタンが並ぶ
+const FIELD = { x: 0, y: 0, width: 100, height: 20 };
+const SUBMIT = { x: 120, y: 0, width: 100, height: 20 };
+
+test("ページ全体がずれても、要素同士の関係が同じなら差分にしない", () => {
+  const current = [placed("search.field", FIELD), placed("search.submit", SUBMIT)];
+  const replacement = [
+    placed("search.field", shift(FIELD, 50, 30)),
+    placed("search.submit", shift(SUBMIT, 50, 30)),
+  ];
+  expect(compareTraits(current, replacement)).toEqual([]);
+});
+
+test("要素対の左右・上下・端揃えの関係が変われば、変わった関係を kind geometry で出す", () => {
+  const current = [placed("search.field", FIELD), placed("search.submit", SUBMIT)];
+  // 送信ボタンが検索欄の右から真下へ回り込んだ
+  const replacement = [
+    placed("search.field", FIELD),
+    placed("search.submit", { x: 0, y: 40, width: 100, height: 20 }),
+  ];
+  const pair = "search.field | search.submit";
+  expect(compareTraits(current, replacement)).toEqual([
+    { name: pair, kind: "geometry", prop: "horizontal", expected: "lt", actual: "eq" },
+    { name: pair, kind: "geometry", prop: "vertical", expected: "eq", actual: "lt" },
+    { name: pair, kind: "geometry", prop: "leftAligned", expected: "false", actual: "true" },
+    { name: pair, kind: "geometry", prop: "rightAligned", expected: "false", actual: "true" },
+    { name: pair, kind: "geometry", prop: "topAligned", expected: "true", actual: "false" },
+    { name: pair, kind: "geometry", prop: "bottomAligned", expected: "true", actual: "false" },
+  ]);
+});
+
+test("端揃えのずれが alignTolerance の内側なら関係は変わらない", () => {
+  const current = [placed("search.field", FIELD), placed("search.submit", SUBMIT)];
+  // 送信ボタンだけが 2px 下がった
+  const replacement = [placed("search.field", FIELD), placed("search.submit", shift(SUBMIT, 0, 2))];
+  expect(compareTraits(current, replacement, { alignTolerance: 2 })).toEqual([]);
+  expect(
+    compareTraits(current, replacement, { alignTolerance: 1 }).map((d: Diff) => d.prop),
+  ).toEqual(["vertical", "topAligned", "bottomAligned"]);
+});
+
+const script = join(repoRoot, "skills/parity-suite/scripts/trait-compare.mjs");
+
+/** CLI に 2 つの採取結果を渡して起動する。`extra` は 2 つのファイルの後ろに足す引数。 */
+function runCli(baseline: unknown, capture: unknown, extra: string[] = []) {
   const dir = makeTempDir("trait-compare-");
   const files = [join(dir, "baseline.json"), join(dir, "capture.json")];
   writeFileSync(files[0], JSON.stringify(baseline));
   writeFileSync(files[1], JSON.stringify(capture));
-  const script = join(repoRoot, "skills/parity-suite/scripts/trait-compare.mjs");
-  return spawnSync(process.execPath, [script, ...files], { encoding: "utf8" });
+  return spawnSync(process.execPath, [script, ...files, ...extra], { encoding: "utf8" });
 }
 
 test.each([
@@ -405,4 +531,48 @@ test("CLI は rect の欠けた要素（旧スキーマ・手編集）を受け�
       actual: "present",
     },
   ]);
+});
+
+test("CLI は --align-tolerance の値で端揃えを比べる", () => {
+  const field = { ...trait([], "search.field"), rect: { x: 0, y: 0, width: 100, height: 20 } };
+  const submit = { ...trait([], "search.submit"), rect: { x: 120, y: 0, width: 100, height: 20 } };
+  const lowered = { ...submit, rect: { ...submit.rect, y: 2 } };
+  expect(runCli([field, submit], [field, lowered], ["--align-tolerance", "2"]).status).toBe(0);
+  const r = runCli([field, submit], [field, lowered]);
+  expect(r.status).toBe(1);
+  expect(parseJsonAs<Diff[]>(r.stdout).map((d) => d.prop)).toEqual([
+    "vertical",
+    "topAligned",
+    "bottomAligned",
+  ]);
+});
+
+test.each([
+  ["負の数", ["-1"]],
+  ["数でない", ["abc"]],
+  ["値が無い", []],
+])("CLI は --align-tolerance が 0 以上の数でなければ（%s）、比較せず exit 2", (_label, value) => {
+  const r = runCli([trait([])], [trait([])], ["--align-tolerance", ...value]);
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain("--align-tolerance must be a non-negative number");
+});
+
+test.each([
+  ["ファイルが 1 つ", ["only.json"]],
+  ["ファイルが 3 つ", ["a.json", "b.json", "c.json"]],
+])("CLI は入力のファイルが 2 つでなければ（%s）、使い方を出して exit 2", (_label, files) => {
+  const r = spawnSync(process.execPath, [script, ...files], { encoding: "utf8" });
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain("usage: node trait-compare.mjs");
+});
+
+test("CLI は入力を JSON として読めなければ、理由を出して exit 2", () => {
+  const dir = makeTempDir("trait-compare-broken-");
+  const broken = join(dir, "baseline.json");
+  writeFileSync(broken, "{");
+  const r = spawnSync(process.execPath, [script, broken, join(dir, "missing.json")], {
+    encoding: "utf8",
+  });
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain("error: cannot read inputs:");
 });

@@ -12,11 +12,12 @@
 //
 // 誤検知しないことの確認（通さねばならない入力）が、止める入力と同数以上あることが要点である。
 // 止める入力だけのテストでは、「全部落とす実装」と区別が付かない。
-import { assert, test, expect } from "vitest";
+import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { chmodSync, existsSync, writeFileSync } from "node:fs";
+import { delimiter, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { makeSharedTempDir } from "../lib/testing/test-tmpdir.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const script = join(repoRoot, "scripts/hooks/bash-command-guard.sh");
@@ -43,7 +44,7 @@ const PASSING = [
   ["-f を使わない pkill は通す", "pkill chrome"],
   [
     "危険語を含まない通常のコマンドは通す",
-    "git status --short && node scripts/gates/packaging/check-rule-symlinks.ts",
+    "git status --short && node scripts/gates/packaging/copies/check-rule-symlinks.ts",
   ],
   // 文字クラスによる回避は語頭とは限らない。位置で免除を決めると、ブロック時の指示に
   // 従った形（`[d]ump-dom` を含むパターン）が落ちる。
@@ -532,12 +533,26 @@ test("危険語はあるが command を取り出せない payload は、検査�
 // 上の「payload の形」テストは node フォールバックが拾うため、jq の filter が落ちていても緑になる。
 // 実際 `.toolArgs.command` は toolArgs が文字列のとき jq がエラー終了し（実測: jq 1.8.2 で rc=5）、
 // node の無い環境では Codex の JSON 文字列形が検査されないまま通っていた。
-// そこでスクリプトから filter を取り出し、jq に直接当てて処理の流れごとに検証する。
-const guardSource = readFileSync(script, "utf8");
-const jqFilter = guardSource.match(/jq -r '([\s\S]*?)'\s*2>\/dev\/null/)?.[1];
+// そこで node を PATH から外し、jq だけが居る環境でスクリプト全体を起動して、payload の形ごとに確かめる。
+// jq の取り出しが失敗すると、node の後段も無いので「検査していない」の警告で exit 0 になり、exit 2 と区別できる。
+const jqOnlyEnv = (() => {
+  const jq = spawnSync("bash", ["-c", "command -v jq"], { encoding: "utf8" }).stdout.trim();
+  const bin = makeSharedTempDir("bash-command-guard-jq-only-");
+  // jq の実体（mise の shim のこともある）を絶対パスで呼ぶラッパーだけを置く。
+  writeFileSync(join(bin, "jq"), `#!/bin/sh\nexec '${jq}' "$@"\n`);
+  chmodSync(join(bin, "jq"), 0o755);
+  const kept = (process.env.PATH ?? "")
+    .split(delimiter)
+    .filter((entry) => entry !== "" && !existsSync(join(entry, "node")));
+  return { jq, env: { ...process.env, PATH: [bin, ...kept].join(delimiter) } };
+})();
 
-test("スクリプトから jq filter を取り出せる（取り出せなければ以降の検証は無意味）", () => {
-  expect(jqFilter).toBeTruthy();
+test("jq だけの環境を作れる（node が無く jq が在る。作れなければ以降の検証は無意味）", () => {
+  expect(jqOnlyEnv.jq, "jq が必要（この検証は jq を使う処理の回帰テスト）").not.toBe("");
+  const probe = (name: string) =>
+    spawnSync("bash", ["-c", `command -v ${name}`], { env: jqOnlyEnv.env }).status;
+  expect(probe("node")).not.toBe(0);
+  expect(probe("jq")).toBe(0);
 });
 
 test.each([
@@ -550,14 +565,13 @@ test.each([
   ["input.command", { tool_name: "Bash", input: { command: OFFENDING } }],
   ["素の command", { tool_name: "Bash", command: OFFENDING }],
 ])("jq 単独でも %s から command を取り出す", (_name, payload) => {
-  // 取り出せることは上のテストも確かめる。
-  assert.exists(jqFilter, "bash-command-guard から jq のフィルタを取り出せない");
-  const r = spawnSync("jq", ["-r", jqFilter], {
+  const r = spawnSync("bash", [script], {
     input: JSON.stringify(payload),
     encoding: "utf8",
+    cwd: repoRoot,
+    env: jqOnlyEnv.env,
   });
-  // jq が無い環境ではこの検証は成立しない。警告なしに緑にせず落とす。
-  expect(r.error, "jq が必要（この検証は jq を使う処理の回帰テスト）").toBeUndefined();
-  expect(r.status).toBe(0);
-  expect(r.stdout.trim()).toBe(OFFENDING);
+  expect(r.stderr).not.toMatch(/検査していない/);
+  expect(r.status).toBe(2);
+  expect(r.stderr).toMatch(/full command line/);
 });

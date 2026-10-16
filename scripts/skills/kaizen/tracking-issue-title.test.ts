@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { loadYamlAs } from "../../lib/text/yaml-as.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { coverageEnv } from "../../lib/testing/coverage-env.ts";
 
 // 週次ワークフローの追跡 Issue は、タイトルが固定文字列だと手動クローズのたびに
 // 同名の Issue が open / closed に並び、一覧で世代を区別できない（Issue #417）。
@@ -39,6 +40,8 @@ const WORKFLOWS = [
     prefix: "kaizen: 未適用の学び",
     // 追跡 Issue が 1 件も見つからず、新規作成へ進む条件。
     createEnv: { PENDING_COUNT: "3" },
+    // 追跡 Issue を閉じる側（何もしない側）へ進む条件。
+    closeEnv: { PENDING_COUNT: "0" },
     // ステップの挙動を決める入力。空・仕様外の値なら、gh を呼ばずに失敗すること。
     gateVar: "PENDING_COUNT",
     badValues: ["", "3件", "-1"],
@@ -47,6 +50,7 @@ const WORKFLOWS = [
     path: ".github/workflows/outdated.yml",
     prefix: "mise outdated tool versions",
     createEnv: { HAS_OUTDATED: "true" },
+    closeEnv: { HAS_OUTDATED: "false" },
     gateVar: "HAS_OUTDATED",
     badValues: ["", "TRUE", "1"],
   },
@@ -90,7 +94,13 @@ if [ "\${1-}" = issue ] && [ "\${2-}" = list ]; then
 fi
 `;
 
-/** スタブ化した `gh` を PATH 前段に置いて bash スクリプトを実行する。 */
+/** ステップが `date -u +%F` で得る UTC の日付。テストでは固定し、日付の境目で結果が変わらないようにする。 */
+const TODAY = "2026-09-14";
+
+/**
+ * スタブ化した `gh` と `date` を PATH 前段に置いて bash スクリプトを実行する。
+ * `date` は `-u +%F` のときだけ TODAY を返し、ほかの引数は PATH の後ろにある本物に渡す。
+ */
 function runBash(script: string, ghScript: string, env: NodeJS.ProcessEnv) {
   const dir = makeTempDir("tracking-step-");
   try {
@@ -99,6 +109,12 @@ function runBash(script: string, ghScript: string, env: NodeJS.ProcessEnv) {
     const gh = join(bin, "gh");
     writeFileSync(gh, ghScript);
     chmodSync(gh, 0o755);
+    const date = join(bin, "date");
+    writeFileSync(
+      date,
+      `#!/usr/bin/env bash\nif [ "$*" = "-u +%F" ]; then echo ${TODAY}; exit 0; fi\nPATH="\${PATH#*:}" exec date "$@"\n`,
+    );
+    chmodSync(date, 0o755);
     const file = join(dir, "step.sh");
     writeFileSync(file, script);
     const log = join(dir, "gh.log");
@@ -115,6 +131,7 @@ function runBash(script: string, ghScript: string, env: NodeJS.ProcessEnv) {
         GITHUB_REPOSITORY: "o/r",
         GITHUB_RUN_ID: "1",
         BODY_FILE: join(dir, "body.md"),
+        ...coverageEnv(),
         ...env,
       },
     });
@@ -186,7 +203,7 @@ function declaredEnv(wfPath: string, key: string) {
  * ここで解決した先は**インストール済みコピー**になりうる。それを source して測ると、
  * 再インストール前の週に原本ではない別のファイルを測ることになり、原本へ入れた退行が
  * 緑のまま通る（ミューテーションテストで実際に起きた）。実行は原本（`libPath`）で測り、
- * コピーとの一致は `scripts/gates/packaging/check-skills-sync.ts` が別に見る。
+ * コピーとの一致は `scripts/gates/packaging/copies/check-skills-sync.ts` が別に見る。
  */
 function resolveLib(wfPath: string) {
   const declared = declaredEnv(wfPath, "TRACKING_LIB");
@@ -219,7 +236,13 @@ function runLocate(wfPath: string, cwd: string) {
     const res = spawnSync("bash", ["-eo", "pipefail", file], {
       cwd,
       encoding: "utf8",
-      env: { PATH: process.env.PATH, HOME: dir, LC_ALL: "C.UTF-8", GITHUB_OUTPUT: out },
+      env: {
+        PATH: process.env.PATH,
+        HOME: dir,
+        LC_ALL: "C.UTF-8",
+        GITHUB_OUTPUT: out,
+        ...coverageEnv(),
+      },
     });
     const outputs = Object.fromEntries(
       readFileSync(out, "utf8")
@@ -238,32 +261,6 @@ function jqFilter(source: string) {
   const m = source.match(/--jq '([\s\S]*?)'\s*$/m);
   assert.exists(m, "--jq の式を取り出せない");
   return m[1];
-}
-
-/**
- * 追跡 Issue の分岐を 3 つに割る。**分岐ごとに別々の assertion を当てる**ために要る。
- * `run` 全体へ `toContain('--title "$title"')` を当てると、新規作成側の `gh issue create`
- * だけで満たされてしまう。すると、更新側（`gh issue edit`）からリネームを消しても緑のままになる
- * （両方とも変異で実測した）。
- *
- *   close  : 追跡 Issue を閉じる／何もしない側（`elif` の手前）
- *   update : 既存の追跡 Issue を更新する側（`elif` 〜 `else`）
- *   create : 新規作成する側（`else` 以降）
- */
-function branches(run: string) {
-  const elif = run.indexOf('elif [ -n "$number" ]; then');
-  expect(elif, "更新分岐（elif）を見つけられない").toBeGreaterThan(-1);
-  const head = run.slice(0, elif);
-  const open = head.lastIndexOf("\nif [");
-  expect(open, "クローズ分岐の if を見つけられない").toBeGreaterThan(-1);
-  const rest = run.slice(elif);
-  const els = rest.indexOf("\nelse\n");
-  expect(els, "新規作成分岐（else）を見つけられない").toBeGreaterThan(-1);
-  return {
-    close: head.slice(open),
-    update: rest.slice(0, els),
-    create: rest.slice(els),
-  };
 }
 
 describe("照会の原本（tracking-issue-lib.sh）", () => {
@@ -399,24 +396,42 @@ describe("照会の原本（tracking-issue-lib.sh）", () => {
     expect(ok.stdout).toContain("REACHED-END");
   });
 
-  test("既定 30 件で打ち切らず、上限と閾値を 1 箇所で決める", () => {
-    const src = libSource();
-    expect(src).toContain('--limit "$list_limit"');
-    // 上限そのものが 30 件の既定より大きいこと（変数化で値が緩んでいないか見る）。
-    const decl = src.match(/^list_limit=(\d+)$/m);
-    assert.exists(decl, "list_limit の宣言が無い");
-    expect(Number(decl[1])).toBeGreaterThan(30);
-    // 閾値側に数値リテラルが残っていないこと（片方だけ上げたときに、誤警告と検出の抜けが出る）。
-    expect(src).not.toMatch(/-ge 100\b/);
-    expect(src).toContain('-ge "$list_limit"');
+  // `gh issue list` の既定は 30 件なので、上限を渡さないと open の Issue が多いリポジトリで取りこぼす。
+  // 打ち切りの閾値を上限と別の値で持つと、片方だけ変えたときに誤警告と見逃しが出る。
+  // 上限の値を変えた lib で、照会の --limit と打ち切りの警告が同じ値に揃うことを確かめる
+  // （既定の上限のままでは、閾値を同じ数のリテラルで書いた形と区別できない）。
+  test("照会は既定の 30 件より多く取得し、打ち切りの閾値を取得の上限に揃える", () => {
+    const probe = 'resolve_tracking_issues; warn_if_truncated "害の説明"';
+    const limitOf = (calls: string) =>
+      calls
+        .split("\n")
+        .filter((l) => l.startsWith("CALL: issue list"))
+        .map((l) => Number(l.match(/--limit (\d+)/)?.[1]));
+
+    const byDefault = runLib(probe, GH_LOGGING, {
+      ISSUE_TITLE_PREFIX: "p",
+      LIST_OUT: "scanned=1\n7",
+    });
+    expect(byDefault.status, byDefault.stderr).toBe(0);
+    const [defaultLimit] = limitOf(byDefault.calls);
+    expect(defaultLimit, byDefault.calls).toBeGreaterThan(30);
+
+    const lowered = (scanned: number) =>
+      runBash(`. ${JSON.stringify(libPath)}\nlist_limit=50\n${probe}\n`, GH_LOGGING, {
+        ISSUE_TITLE_PREFIX: "p",
+        LIST_OUT: `scanned=${scanned}\n7`,
+      });
+    const atLimit = lowered(50);
+    expect(atLimit.status, atLimit.stderr).toBe(0);
+    expect(limitOf(atLimit.calls)).toStrictEqual([50]);
+    expect(atLimit.stdout).toContain("::warning::open Issue の照会が 50 件で打ち切られた。");
+    // 誤検知しないことの確認: 上限を下回れば鳴らさない。
+    const below = lowered(49);
+    expect(below.status, below.stderr).toBe(0);
+    expect(below.stdout).not.toContain("::warning::");
   });
 
-  test("完全一致の検索へ戻っていない（戻ると毎週新しい Issue が立つ）", () => {
-    const src = libSource();
-    expect(src).not.toMatch(/select\(\s*\.title\s*==\s*env\./);
-    expect(src).toContain("startswith(env.ISSUE_TITLE_PREFIX)");
-  });
-
+  // 完全一致の検索へ戻すと、下の「jq 式が世代違いだけを拾う」の日付つきの検体を拾わなくなる。
   // 実式をそのまま jq へ通し、拾うべき検体と拾ってはいけない検体で、区別できるかを測る。
   // 接頭辞は 2 つのワークフローの宣言値と、正規表現のメタ文字を含む値の 3 通りで測る
   // （照合は文字列比較なので、メタ文字でも誤らないことまで含めて固定する）。
@@ -504,7 +519,11 @@ describe("kaizen スクリプトの探索（レポートと照会を同じ版か
     try {
       const target = join(dir, SEARCH_DIRS[SEARCH_DIRS.length - 1]);
       mkdirSync(target, { recursive: true });
-      for (const f of files) writeFileSync(join(target, f), "# stub\n");
+      // `gh skill install` が配るのと同じ 644 にする。探索が実行ビット（`-x`）で判定すると、ここで見つからない。
+      for (const f of files) {
+        writeFileSync(join(target, f), "# stub\n");
+        chmodSync(join(target, f), 0o644);
+      }
       return runLocate(wfPath, dir);
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -537,8 +556,16 @@ describe("kaizen スクリプトの探索（レポートと照会を同じ版か
 
 describe.each(WORKFLOWS)(
   "$path の追跡 Issue 更新ステップ",
-  ({ path, prefix, createEnv, gateVar, badValues }) => {
+  ({ path, prefix, createEnv, closeEnv, gateVar, badValues }) => {
     const run = () => trackingStep(path);
+    /** 照会を除いた gh の呼び出し（作成・更新・コメント・クローズ）。 */
+    const changes = (calls: string) =>
+      calls.split("\n").filter((l) => l.startsWith("CALL: ") && !l.startsWith("CALL: issue list"));
+    /** ステップを実行し、固定した日付（TODAY）で付くタイトルを添えて返す。 */
+    const runDated = (env: NodeJS.ProcessEnv) => {
+      const res = runStep(path, GH_LOGGING, env);
+      return { ...res, titles: [`--title ${prefix} (${TODAY})`] };
+    };
 
     test("env で接頭辞を宣言し、タイトルへ UTC の更新日を付ける", () => {
       expect(declaredEnv(path, "ISSUE_TITLE_PREFIX")).toBe(prefix);
@@ -567,13 +594,23 @@ describe.each(WORKFLOWS)(
     });
 
     test("既存の追跡 Issue は毎回リネームし、新規作成も日付つきで立てる", () => {
-      const { update, create } = branches(run());
-      // 分岐へ到達していることの確認（空文字を検査しても常に緑になる）。
-      expect(update).toContain("gh issue edit");
-      expect(create).toContain("gh issue create");
-      // 本 PR の主目的。`run` 全体へ当てると create 側だけで満たされてしまうので分岐ごとに当てる。
-      expect(update).toContain('--title "$title"');
-      expect(create).toContain('--title "$title"');
+      const updated = runDated({ ...createEnv, LIST_OUT: "scanned=1\n7" });
+      expect(updated.status, updated.stderr).toBe(0);
+      const edits = changes(updated.calls).filter((l) => l.startsWith("CALL: issue edit 7 "));
+      expect(edits, updated.calls).toHaveLength(1);
+      expect(
+        updated.titles.some((t) => edits[0]?.includes(t)),
+        edits[0],
+      ).toBe(true);
+
+      const created = runDated({ ...createEnv, LIST_OUT: "scanned=0" });
+      expect(created.status, created.stderr).toBe(0);
+      const creates = changes(created.calls).filter((l) => l.startsWith("CALL: issue create "));
+      expect(creates, created.calls).toHaveLength(1);
+      expect(
+        created.titles.some((t) => creates[0]?.includes(t)),
+        creates[0],
+      ).toBe(true);
     });
 
     // ステップ全体を、差し替えた `gh` と実物の lib で実行する。静的な文字列検査では
@@ -585,20 +622,12 @@ describe.each(WORKFLOWS)(
 
       // 検出されることの確認: 同じ入力で `gh` が正常なら、新規作成まで到達する
       // （到達していない呼び出し方で「触らなかった」を測っても何も実証しない）。
-      // 日付は**ステップ実行の前後**で採る。後で 1 回だけ採ると、シェルの `date -u` が先・
-      // JS が後という並びのため UTC の日跨ぎで期待値だけ翌日になって落ちる。
-      const before = new Date().toISOString().slice(0, 10);
       const ok = runStep(path, GH_EMPTY, createEnv);
-      const after = new Date().toISOString().slice(0, 10);
       expect(ok.status, ok.stderr).toBe(0);
       expect(ok.calls).toContain("issue create");
       // 接頭辞と日付が実際にタイトルへ乗っていること。ここを見ないと、空の接頭辞で
       // 実行していても「作成へ到達した」だけで緑になる。
-      const titles = [...new Set([before, after])].map((d) => `--title ${prefix} (${d})`);
-      expect(
-        titles.some((t) => ok.calls.includes(t)),
-        ok.calls,
-      ).toBe(true);
+      expect(ok.calls).toContain(`--title ${prefix} (${TODAY})`);
     });
 
     // 照会できないまま分岐へ進むと、`numbers` が未設定のまま新規作成の側へ進み、重複を作る。
@@ -622,59 +651,82 @@ describe.each(WORKFLOWS)(
     });
 
     test("クローズ時はリネームしない（閉じた Issue は当時の日付で固定する）", () => {
-      const { close } = branches(run());
-      expect(close).toContain("gh issue close");
-      expect(close).not.toContain("--title");
+      const res = runStep(path, GH_LOGGING, { ...closeEnv, LIST_OUT: "scanned=1\n7" });
+      expect(res.status, res.stderr).toBe(0);
+      const done = changes(res.calls);
+      // 検出されることの確認: クローズの分岐へ到達している。
+      expect(
+        done.some((l) => l.startsWith("CALL: issue close 7 ")),
+        res.calls,
+      ).toBe(true);
+      expect(
+        done.filter((l) => l.startsWith("CALL: issue edit")),
+        res.calls,
+      ).toStrictEqual([]);
+      expect(
+        done.filter((l) => l.includes("--title")),
+        res.calls,
+      ).toStrictEqual([]);
     });
 
     // 打ち切りの害は**動いた分岐ごと**に出る:
     //   作成 → 重複を作る / 更新 → 別の Issue を更新する / クローズ → 閉じ残す
     // 一方、何もしない分岐では害が無いので鳴らさない（追跡 Issue が無い正常な定常状態で
-    // 毎週ノイズになる）。
-    test("打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない", () => {
-      const r = run();
-      const { create, close, update } = branches(r);
-      for (const [name, branch] of [
-        ["create", create],
-        ["update", update],
-        ["close", close],
-      ]) {
-        expect(branch, `${name} 分岐に打ち切り警告が無い`).toContain("warn_if_truncated ");
-      }
-      // 何もしない側（追跡 Issue が 1 件も無い）では鳴らさない。
-      // **`indexOf("\nelse\n")` で切らない**。`yaml.load` の字下げ剥がしの後もこの `else` は
-      // 入れ子のぶん字下げされており、-1 が返って検査対象が改行 1 文字になる。素通りして、
-      // 何もしない分岐へ警告を挿す変異が緑のまま通った（実測）。
-      const doNothing = close.match(/[\s\S]*\n *else\n([\s\S]*)$/);
-      assert.exists(doNothing, "何もしない分岐を切り出せない");
-      // 切り出せた中身が、本当に「何もしない」側であることの確認。
-      expect(doNothing[1]).toContain("何もしない");
-      expect(doNothing[1]).not.toContain("warn_if_truncated");
-    });
+    // 毎週ノイズになる）。照会は 4 つとも上限の 100 件に張り付かせる。
+    test.each([
+      ["作成", "create", "scanned=100", true],
+      ["更新", "update", "scanned=100\n7", true],
+      ["クローズ", "close", "scanned=100\n7", true],
+      ["何もしない", "close", "scanned=100", false],
+    ] as const)(
+      "打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: %s",
+      (_label, side, listOut, warned) => {
+        const env = side === "close" ? closeEnv : createEnv;
+        const res = runStep(path, GH_LOGGING, { ...env, LIST_OUT: listOut });
+        expect(res.status, res.stderr).toBe(0);
+        // どの分岐へ入ったかを、gh の呼び出しの有無で確かめる。
+        expect(changes(res.calls).length > 0, res.calls).toBe(warned);
+        expect(res.stdout.includes("::warning::open Issue の照会が"), res.stdout).toBe(warned);
+      },
+    );
 
     // 一致が複数のときの扱いは分岐で違う（更新は最古 1 本、クローズは全件）。
     // 分岐前の行で「何をするか」を断定すると run ログが実挙動と食い違う。
     test("複数一致の通知は分岐前で挙動を断定しない", () => {
-      const r = run();
-      const notice = r.match(/^ *echo "追跡 Issue が[^"]*" >&2$/m);
-      assert.exists(notice, "複数一致の通知が見つからない");
-      expect(notice[0]).not.toContain("更新");
-      expect(notice[0]).not.toContain("閉じ");
-      // 何をしたかは分岐の中で出す。
-      const { close, update } = branches(r);
-      expect(update).toContain("更新するのは最も古い");
-      expect(close).toContain("閉じた: #");
+      const closed = runStep(path, GH_LOGGING, { ...closeEnv, LIST_OUT: "scanned=2\n7\n9" });
+      expect(closed.status, closed.stderr).toBe(0);
+      expect(closed.stderr).toContain("追跡 Issue が 2 件ある");
+      expect(closed.stderr).toContain("閉じた: #7");
+      expect(closed.stderr).toContain("閉じた: #9");
+      // クローズの分岐は更新しないので、更新すると書いた通知を出さない。
+      expect(closed.stderr).not.toContain("更新する");
+
+      const updated = runStep(path, GH_LOGGING, { ...createEnv, LIST_OUT: "scanned=2\n7\n9" });
+      expect(updated.status, updated.stderr).toBe(0);
+      expect(updated.stderr).toContain("追跡 Issue が 2 件ある");
+      expect(updated.stderr).toContain("更新するのは最も古い #7");
+      expect(updated.stderr).not.toContain("閉じた");
     });
 
     // 最古の 1 本だけ閉じると、残りが「未対応がある」という本文のまま open で残り、
     // 一覧に矛盾した追跡 Issue が並ぶ。閉じるときは一致した全部を閉じる。
     test("クローズは一致した全件に当てる（更新は最古 1 本だけ）", () => {
-      const { close, update } = branches(run());
-      expect(close).toContain('for n in "${numbers[@]}"');
-      expect(close).toContain('gh issue close "$n"');
-      // 更新側は 1 本だけ（ループになっていないこと＝過剰一般化していないことの確認）。
-      expect(update).not.toContain('for n in "${numbers[@]}"');
-      expect(update).toContain('gh issue edit "$number"');
+      const closed = runStep(path, GH_LOGGING, { ...closeEnv, LIST_OUT: "scanned=2\n7\n9" });
+      expect(closed.status, closed.stderr).toBe(0);
+      const closes = changes(closed.calls).filter((l) => l.startsWith("CALL: issue close "));
+      expect(
+        closes.map((l) => l.split(" ")[3]),
+        closed.calls,
+      ).toStrictEqual(["7", "9"]);
+
+      // 更新側は 1 本だけ（全件に当てる形へ広げていないことの確認）。
+      const updated = runStep(path, GH_LOGGING, { ...createEnv, LIST_OUT: "scanned=2\n7\n9" });
+      expect(updated.status, updated.stderr).toBe(0);
+      const edits = changes(updated.calls).filter((l) => l.startsWith("CALL: issue edit "));
+      expect(
+        edits.map((l) => l.split(" ")[3]),
+        updated.calls,
+      ).toStrictEqual(["7"]);
     });
 
     /** ステップの `run` を、差し替えた `gh` と宣言から解決した lib で実際に実行する。 */

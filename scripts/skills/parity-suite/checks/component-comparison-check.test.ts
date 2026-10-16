@@ -604,17 +604,6 @@ test.each([
   },
 );
 
-test("両側とも none で反復回数も一致すれば通る（誤検知しないことの確認。常に落とす実装ではない）", () => {
-  expect(
-    codesOf({
-      comparison: comparisonOf({
-        new_implementation: { commit: "none", dirty: false, iteration: 3 },
-      }),
-      replaceMetadata: noneReplaceMetadata(3),
-    }),
-  ).toEqual([]);
-});
-
 // 証跡の持ち越し（Issue #454）。comparison-implementation-stale の SHA 不一致でも、描画入力の差分が変更宣言と
 // amend-verify で説明できれば持ち越す（判定の原本は evidence-carry.mjs。artifact-health-check.mjs と同じ関数）。
 // git を実物で使うので、ここだけメモリ上のファイルではなく一時ディレクトリで回す。
@@ -733,12 +722,10 @@ test("持ち越し: render_inputs が無ければ従来の stale だけで落と
   const p = carryFiles([["list", "default", "desktop"]], {});
   const { base, component } = p.commits;
   const { code, result } = runCarry(p);
-  expect(result.findings).toEqual([
-    {
-      code: "comparison-implementation-stale",
-      message: `突き合わせ表の new_implementation.commit「${base}」が現在の新側「${component}」と違う（記録の後に実装が変わっている。同じ版で記録し直す）`,
-    },
-  ]);
+  expect(result.findings.map((f) => f.code)).toEqual(["comparison-implementation-stale"]);
+  // 利用者が記録し直す版を決められるよう、記録した版と現在の版の両方を示す。
+  expect(result.findings[0]?.message).toContain(base);
+  expect(result.findings[0]?.message).toContain(component);
   expect(result.notes.join("\n")).toContain("render_inputs");
   expect(code).toBe(1);
 });

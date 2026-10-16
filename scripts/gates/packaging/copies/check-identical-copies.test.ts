@@ -25,14 +25,13 @@ import { fileURLToPath } from "node:url";
 import {
   DECLARATION_PATH,
   checkIdenticalCopies,
-  extractRegion,
   loadGroups,
   main,
 } from "./check-identical-copies.ts";
-import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const script = join(repoRoot, "scripts/gates/packaging/check-identical-copies.ts");
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
+const script = join(repoRoot, "scripts/gates/packaging/copies/check-identical-copies.ts");
 
 const BODY = "# 手順\n\n1 行目\n2 行目\n3 行目\n";
 
@@ -206,9 +205,18 @@ test("陰性: 範囲の中が一致すれば、範囲の外が違っても通す
 });
 
 test("陰性: 字下げした印も印として読む（範囲の中身は字下げも含めて比べる）", () => {
-  expect(extractRegion("  // is-array:begin\n  x\n  // is-array:end\n", "is-array")).toEqual({
-    body: "  x",
-  });
+  const indented = "  // is-array:begin\n  x\n  // is-array:end\n";
+  const same = makeRepo({ "a/x.ts": indented, "b/x.ts": `前置き\n${indented}` }, [
+    regionGroup("a/x.ts", "b/x.ts"),
+  ]);
+  expect(checkIdenticalCopies(same).violations).toEqual([]);
+  const reindented = makeRepo(
+    { "a/x.ts": indented, "b/x.ts": "  // is-array:begin\n    x\n  // is-array:end\n" },
+    [regionGroup("a/x.ts", "b/x.ts")],
+  );
+  const { violations } = checkIdenticalCopies(reindented);
+  expect(violations).toHaveLength(1);
+  expect(violations[0]).toMatch(/^b\/x\.ts: a\/x\.ts と範囲「is-array」が一致しない/);
 });
 
 test("陽性: 範囲の中が違えば、範囲の中の行番号を付けて落とす", () => {

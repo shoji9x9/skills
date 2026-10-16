@@ -13,7 +13,7 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "gitFiles は node_modules とエージェント用のコピー・リンクを外し、rule と private skill の実体は見る"
+        "git の列挙は node_modules とエージェント用のコピー・リンクを外し、rule と private skill の実体は見る"
       ]
     },
     {
@@ -24,7 +24,7 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "walkFiles は node_modules とエージェント用のコピー・リンクを外し、rule と private skill の実体は見る"
+        "git の無いディレクトリの走査は node_modules とエージェント用のコピー・リンクを外し、rule と private skill の実体は見る"
       ]
     },
     {
@@ -35,8 +35,8 @@
       "replace": "const SKIP_DIRS = new Set([\"node_modules\", \".git\", \".agents\"]);",
       "occurrences": 1,
       "expect_failing": [
-        "gitFiles は node_modules とエージェント用のコピー・リンクを外し、rule と private skill の実体は見る",
-        "walkFiles は node_modules とエージェント用のコピー・リンクを外し、rule と private skill の実体は見る"
+        "git の列挙は node_modules とエージェント用のコピー・リンクを外し、rule と private skill の実体は見る",
+        "git の無いディレクトリの走査は node_modules とエージェント用のコピー・リンクを外し、rule と private skill の実体は見る"
       ]
     }
   ]

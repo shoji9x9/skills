@@ -41,7 +41,7 @@
       "replace": "gh issue list --state open \"$@\" \\",
       "occurrences": 1,
       "expect_failing": [
-        "照会の原本（tracking-issue-lib.sh） 既定 30 件で打ち切らず、上限と閾値を 1 箇所で決める"
+        "照会の原本（tracking-issue-lib.sh） 照会は既定の 30 件より多く取得し、打ち切りの閾値を取得の上限に揃える"
       ]
     },
     {
@@ -52,7 +52,7 @@
       "replace": "if [ \"$scanned\" -ge 100 ]; then",
       "occurrences": 2,
       "expect_failing": [
-        "照会の原本（tracking-issue-lib.sh） 既定 30 件で打ち切らず、上限と閾値を 1 箇所で決める"
+        "照会の原本（tracking-issue-lib.sh） 照会は既定の 30 件より多く取得し、打ち切りの閾値を取得の上限に揃える"
       ]
     },
     {
@@ -64,7 +64,14 @@
       "occurrences": 1,
       "expect_failing": [
         "照会の原本（tracking-issue-lib.sh） どちらの照会が打ち切られても truncated を立て、下回れば鳴らさない",
-        "照会の原本（tracking-issue-lib.sh） 走査件数が 10 進でなければ落ちる（打ち切りを判定できないまま通さない）"
+        "照会の原本（tracking-issue-lib.sh） 走査件数が 10 進でなければ落ちる（打ち切りを判定できないまま通さない）",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: クローズ",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: 作成",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: 更新",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: クローズ",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: 作成",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: 更新",
+        "照会の原本（tracking-issue-lib.sh） 照会は既定の 30 件より多く取得し、打ち切りの閾値を取得の上限に揃える"
       ]
     },
     {
@@ -101,7 +108,12 @@
       "replace": "\ttruncated=false\n",
       "occurrences": 1,
       "expect_failing": [
-        "照会の原本（tracking-issue-lib.sh） どちらの照会が打ち切られても truncated を立て、下回れば鳴らさない"
+        "照会の原本（tracking-issue-lib.sh） どちらの照会が打ち切られても truncated を立て、下回れば鳴らさない",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: クローズ",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: 更新",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: クローズ",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: 更新",
+        "照会の原本（tracking-issue-lib.sh） 照会は既定の 30 件より多く取得し、打ち切りの閾値を取得の上限に揃える"
       ]
     },
     {
@@ -152,7 +164,15 @@
         ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ lib を読めないときは Issue を触らずに失敗する",
         ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ PENDING_COUNT=\"\" なら Issue を触らずに失敗する",
         ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ PENDING_COUNT=\"3件\" なら Issue を触らずに失敗する",
-        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ PENDING_COUNT=\"-1\" なら Issue を触らずに失敗する"
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ PENDING_COUNT=\"-1\" なら Issue を触らずに失敗する",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ クローズは一致した全件に当てる（更新は最古 1 本だけ）",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ クローズ時はリネームしない（閉じた Issue は当時の日付で固定する）",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: クローズ",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: 何もしない",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: 作成",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: 更新",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 既存の追跡 Issue は毎回リネームし、新規作成も日付つきで立てる",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 複数一致の通知は分岐前で挙動を断定しない"
       ]
     },
     {
@@ -164,7 +184,8 @@
       "occurrences": 1,
       "expect_failing": [
         ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ env で接頭辞を宣言し、タイトルへ UTC の更新日を付ける",
-        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する"
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 既存の追跡 Issue は毎回リネームし、新規作成も日付つきで立てる"
       ]
     },
     {
@@ -180,7 +201,15 @@
         ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ lib を読めないときは Issue を触らずに失敗する",
         ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ PENDING_COUNT=\"\" なら Issue を触らずに失敗する",
         ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ PENDING_COUNT=\"3件\" なら Issue を触らずに失敗する",
-        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ PENDING_COUNT=\"-1\" なら Issue を触らずに失敗する"
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ PENDING_COUNT=\"-1\" なら Issue を触らずに失敗する",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ クローズは一致した全件に当てる（更新は最古 1 本だけ）",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ クローズ時はリネームしない（閉じた Issue は当時の日付で固定する）",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: クローズ",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: 何もしない",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: 作成",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: 更新",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 既存の追跡 Issue は毎回リネームし、新規作成も日付つきで立てる",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 複数一致の通知は分岐前で挙動を断定しない"
       ]
     },
     {
@@ -192,7 +221,15 @@
       "occurrences": 1,
       "expect_failing": [
         ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 照会は lib を source して呼び、ステップ内に再展開しない",
-        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する"
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ クローズは一致した全件に当てる（更新は最古 1 本だけ）",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ クローズ時はリネームしない（閉じた Issue は当時の日付で固定する）",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: クローズ",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: 何もしない",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: 作成",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: 更新",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 既存の追跡 Issue は毎回リネームし、新規作成も日付つきで立てる",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 複数一致の通知は分岐前で挙動を断定しない"
       ]
     },
     {
@@ -208,7 +245,15 @@
         ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ lib を読めないときは Issue を触らずに失敗する",
         ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ PENDING_COUNT=\"\" なら Issue を触らずに失敗する",
         ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ PENDING_COUNT=\"3件\" なら Issue を触らずに失敗する",
-        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ PENDING_COUNT=\"-1\" なら Issue を触らずに失敗する"
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ PENDING_COUNT=\"-1\" なら Issue を触らずに失敗する",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ クローズは一致した全件に当てる（更新は最古 1 本だけ）",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ クローズ時はリネームしない（閉じた Issue は当時の日付で固定する）",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: クローズ",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: 何もしない",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: 作成",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: 更新",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 既存の追跡 Issue は毎回リネームし、新規作成も日付つきで立てる",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 複数一致の通知は分岐前で挙動を断定しない"
       ]
     },
     {
@@ -243,7 +288,8 @@
       "replace": "              gh issue close \"$number\" --comment \"未適用の学びはありません。自動クローズします。\"\n              echo \"閉じた: #${number}\" >&2\n",
       "occurrences": 1,
       "expect_failing": [
-        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ クローズは一致した全件に当てる（更新は最古 1 本だけ）"
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ クローズは一致した全件に当てる（更新は最古 1 本だけ）",
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 複数一致の通知は分岐前で挙動を断定しない"
       ]
     },
     {
@@ -276,7 +322,7 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない"
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: 作成"
       ]
     },
     {
@@ -287,7 +333,7 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない"
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: 更新"
       ]
     },
     {
@@ -298,7 +344,7 @@
       "replace": "              warn_if_truncated \"何もしていないのに鳴らす\"\n              echo \"未適用の学びは 0 件。追跡 Issue も無いので何もしない\"\n",
       "occurrences": 1,
       "expect_failing": [
-        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない"
+        ".github/workflows/kaizen-schedule.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: 何もしない"
       ]
     },
     {
@@ -321,7 +367,8 @@
       "occurrences": 1,
       "expect_failing": [
         ".github/workflows/outdated.yml の追跡 Issue 更新ステップ env で接頭辞を宣言し、タイトルへ UTC の更新日を付ける",
-        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する"
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ 既存の追跡 Issue は毎回リネームし、新規作成も日付つきで立てる"
       ]
     },
     {
@@ -337,7 +384,15 @@
         ".github/workflows/outdated.yml の追跡 Issue 更新ステップ lib を読めないときは Issue を触らずに失敗する",
         ".github/workflows/outdated.yml の追跡 Issue 更新ステップ HAS_OUTDATED=\"\" なら Issue を触らずに失敗する",
         ".github/workflows/outdated.yml の追跡 Issue 更新ステップ HAS_OUTDATED=\"TRUE\" なら Issue を触らずに失敗する",
-        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ HAS_OUTDATED=\"1\" なら Issue を触らずに失敗する"
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ HAS_OUTDATED=\"1\" なら Issue を触らずに失敗する",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ クローズは一致した全件に当てる（更新は最古 1 本だけ）",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ クローズ時はリネームしない（閉じた Issue は当時の日付で固定する）",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: クローズ",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: 何もしない",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: 作成",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: 更新",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ 既存の追跡 Issue は毎回リネームし、新規作成も日付つきで立てる",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ 複数一致の通知は分岐前で挙動を断定しない"
       ]
     },
     {
@@ -349,7 +404,15 @@
       "occurrences": 1,
       "expect_failing": [
         ".github/workflows/outdated.yml の追跡 Issue 更新ステップ 照会は lib を source して呼び、ステップ内に再展開しない",
-        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する"
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに失敗する",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ クローズは一致した全件に当てる（更新は最古 1 本だけ）",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ クローズ時はリネームしない（閉じた Issue は当時の日付で固定する）",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: クローズ",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: 何もしない",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: 作成",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: 更新",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ 既存の追跡 Issue は毎回リネームし、新規作成も日付つきで立てる",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ 複数一致の通知は分岐前で挙動を断定しない"
       ]
     },
     {
@@ -365,7 +428,15 @@
         ".github/workflows/outdated.yml の追跡 Issue 更新ステップ lib を読めないときは Issue を触らずに失敗する",
         ".github/workflows/outdated.yml の追跡 Issue 更新ステップ HAS_OUTDATED=\"\" なら Issue を触らずに失敗する",
         ".github/workflows/outdated.yml の追跡 Issue 更新ステップ HAS_OUTDATED=\"TRUE\" なら Issue を触らずに失敗する",
-        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ HAS_OUTDATED=\"1\" なら Issue を触らずに失敗する"
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ HAS_OUTDATED=\"1\" なら Issue を触らずに失敗する",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ クローズは一致した全件に当てる（更新は最古 1 本だけ）",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ クローズ時はリネームしない（閉じた Issue は当時の日付で固定する）",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: クローズ",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: 何もしない",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: 作成",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: 更新",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ 既存の追跡 Issue は毎回リネームし、新規作成も日付つきで立てる",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ 複数一致の通知は分岐前で挙動を断定しない"
       ]
     },
     {
@@ -400,7 +471,8 @@
       "replace": "              gh issue close \"$number\" --comment \"全ツールが最新です。自動クローズします。\"\n              echo \"閉じた: #${number}\" >&2\n",
       "occurrences": 1,
       "expect_failing": [
-        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ クローズは一致した全件に当てる（更新は最古 1 本だけ）"
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ クローズは一致した全件に当てる（更新は最古 1 本だけ）",
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ 複数一致の通知は分岐前で挙動を断定しない"
       ]
     },
     {
@@ -433,7 +505,7 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない"
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: 作成"
       ]
     },
     {
@@ -444,7 +516,7 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない"
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: 更新"
       ]
     },
     {
@@ -455,7 +527,7 @@
       "replace": "              warn_if_truncated \"何もしていないのに鳴らす\"\n              echo \"更新のあるツールは無く、追跡 Issue も無いので何もしない\"\n",
       "occurrences": 1,
       "expect_failing": [
-        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない"
+        ".github/workflows/outdated.yml の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない: 何もしない"
       ]
     },
     {

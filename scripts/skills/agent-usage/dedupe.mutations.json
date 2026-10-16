@@ -70,7 +70,7 @@
       "replace": "  const firstTs = v.firstTs;",
       "occurrences": 1,
       "expect_failing": [
-        "summaryFromCache JSON を通した要約を元に戻す（無限大は null になるので戻す）"
+        "collectLocal のキャッシュ 時刻を持つ行が無いセッション（最初と最後の時刻が無限大）も、キャッシュから読み直せる"
       ]
     },
     {
@@ -81,7 +81,7 @@
       "replace": "    if (false) return null;",
       "occurrences": 1,
       "expect_failing": [
-        "summaryFromCache トークン数が数でない・配列の欄が配列でない要約は読まない"
+        "collectLocal のキャッシュ キャッシュの要約のトークン数が数でないなら、そのセッションをログから解析し直す"
       ]
     }
   ]

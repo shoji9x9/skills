@@ -10,9 +10,6 @@ import { assert, test, expect } from "vitest";
 import { parseJsonAs } from "../../lib/parse-as.ts";
 import {
   main,
-  parseTables,
-  splitList,
-  collectConsumers,
   checkPredicateCoverage,
   filterColumn,
 } from "../../../skills/golden-dataset/scripts/predicate-coverage-check.mjs";
@@ -183,28 +180,48 @@ function codesOf(input: { features?: string; design?: string; verification?: str
   return result.findings.map((f) => f.code);
 }
 
-test("表のパーサは見出しごとに表を拾い、区切り行の無い塊を表にしない", () => {
-  const tables = parseTables("## 見出し\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n| x |\n| y |\n");
-  expect(tables).toHaveLength(1);
-  expect(tables[0].heading).toBe("見出し");
-  expect(tables[0].headers).toEqual(["a", "b"]);
-  expect(tables[0].rows).toEqual([["1", "2"]]);
+test("区切り行の無い塊は表として読まない（描画で表にならない対象テーブルは無いものとして exit 2）", () => {
+  // 区切り行（`|---|`）が無い塊は、Markdown の描画で表にならない。表として読むと、
+  // 利用者に見えない「表」で突き合わせて合格にしてしまう。
+  const design = designOf().replace(
+    "|---|---|---|---|---|\n| orders | order, monthly-summary",
+    "| orders | order, monthly-summary",
+  );
+  assert(design !== designOf(), "対象テーブル表の区切り行を消せていない");
+  const { code, result } = run(["--features", "f.md", "--design", "d.md"], {
+    "/w/f.md": FEATURES,
+    "/w/d.md": design,
+  });
+  assert(result, "出力が無い");
+  expect(code).toBe(2);
+  expect(result.structural).toBe(true);
+  expect(result.findings.map((f) => f.code)).toContain("design-target-table-missing");
 });
 
-test("一覧セルは空欄（未調査）と `-`（ゼロ件）を書き分ける", () => {
-  expect(splitList("").kind).toBe("blank");
-  expect(splitList("-").kind).toBe("none");
-  expect(splitList("orders, order_items").items).toEqual(["orders", "order_items"]);
-});
-
-test("区切りは引用符・括弧の外だけで有効になる（条件の中のカンマで割らない）", () => {
-  expect(splitList("status IN ('pending','canceled')").items).toEqual([
-    "status IN ('pending','canceled')",
-  ]);
-  expect(splitList("COALESCE(owner_id, assignee_id) = :me").items).toEqual([
-    "COALESCE(owner_id, assignee_id) = :me",
-  ]);
-  expect(splitList("status, owner_id").items).toEqual(["status", "owner_id"]);
+test("括弧の中のカンマで絞り込みを割らない（割ると 1 行の述語が 2 列を兼ねたと判定される）", () => {
+  // 正しく 1 件として読めば、列 COALESCE に述語行が 1 本対応して通る。
+  // カンマで割ると COALESCE と assignee_id の 2 列になり、1 行を共有するので predicate-filter-shares-row が出る。
+  const codes = codesOf({
+    design: designOf({
+      params: [
+        "| order | orders | status | ordered_at DESC | 20 | 実測 |",
+        "| order | order_items | order_id | id ASC | - | 実測 |",
+        "| report | reports | COALESCE(owner_id, assignee_id) = :me | created_at DESC | 20 | 実測 |",
+        "| user | users | active | id ASC | - | 実測 |",
+        "| user | roles | role | id ASC | - | 実測 |",
+        "| monthly-summary | orders | ordered_at | - | - | 実測 |",
+      ],
+      predicates: [
+        "| orders-status | orders | order | status = 'shipped' | 画面の入力値（変換なし） | 3 | 38 | 踏める | - | /orders の SELECT を読了 |",
+        "| orders-month | orders | monthly-summary | ordered_at の月境界 | 画面の入力値（変換なし） | 12 | 29 | 踏める | - | バッチの入力条件 |",
+        "| items-order | order_items | order | order_id = :id | 画面の入力値（変換なし） | 4 | 76 | 踏める | - | 明細の絞り込み |",
+        "| reports-owner | reports | report | COALESCE(owner_id, assignee_id) = :me | 画面の入力値（変換なし） | 2 | 4 | 踏める | - | 一覧の所有者条件 |",
+        "| users-active | users | user | active = true | 画面の入力値（変換なし） | 3 | 1 | 踏める | - | 共通ヘッダの利用者 |",
+        "| roles-admin | roles | user | role = 'admin' | 画面の入力値（変換なし） | 1 | 2 | 踏める | - | ロール表示 |",
+      ],
+    }),
+  });
+  expect(codes).toEqual([]);
 });
 
 test("条件の中にカンマがある絞り込みでも、述語行があれば通る", () => {
@@ -224,8 +241,10 @@ test("条件の中にカンマがある絞り込みでも、述語行があれ�
 });
 
 test("エスケープされたパイプはセルの区切りにしない（列がずれて無関係な finding になる）", () => {
-  const tables = parseTables("## 見出し\n\n| a | b |\n|---|---|\n| status = 'x\\|y' | 2 |\n");
-  expect(tables[0].rows).toEqual([["status = 'x|y'", "2"]]);
+  // `\|` で割ると、述語の後ろの列が 1 つずつずれ、真の行数が数値として読めなくなる。
+  const design = designOf().replace("| status = 'shipped' |", "| status = 'x\\|y' |");
+  assert(design !== designOf(), "述語の条件を差し替えられていない");
+  expect(codesOf({ design })).toEqual([]);
 });
 
 test("features.md の (slug, テーブル) に消費側パラメータの行が無ければ落ちる", () => {
@@ -259,17 +278,25 @@ test("features.md の (slug, テーブル) に消費側パラメータの行が�
   expect(withSentinel).not.toContain("param-row-missing");
 });
 
-test("消費側は 3 表すべてから集める（1 表しか読まないと転記の抜けを検出できない）", () => {
-  const { consumers, structural } = collectConsumers(FEATURES);
-  expect(structural).toBe(false);
-  // FEATURES は orders と roles を参照するので、どちらも消費側を持つ。
-  const orders = consumers.get("orders");
-  assert.exists(orders, "orders の消費側が無い");
-  expect([...orders].sort()).toEqual(["monthly-summary", "order"]);
-  const roles = consumers.get("roles");
-  assert.exists(roles, "roles の消費側が無い");
-  expect([...roles]).toEqual(["user"]);
-});
+// 各行は、features.md の 1 つの表だけが持つ参照を対象テーブル表から消す。
+// 1 表しか読まない実装では、ほかの表だけが持つ参照の抜けを検出できない。
+test.each([
+  ["機能一覧", "| order_items | order | 80 | 投入する | orders の子 |\n", "copy-missing-table"],
+  ["横断 API", "| roles | user | 3 | 投入する | - |\n", "copy-missing-table"],
+  [
+    "バッチ",
+    "| orders | order, monthly-summary | 41 | 投入する | FK 親 |\n",
+    "copy-missing-slug",
+    "| orders | order | 41 | 投入する | FK 親 |\n",
+  ],
+])(
+  "消費側は 3 表すべてから集める: %s の表だけが持つ参照の転記の抜けを検出する",
+  (_label, removed, expected, replacement = "") => {
+    const design = designOf().replace(removed, replacement);
+    assert(design !== designOf(), "対象テーブル表の行を差し替えられていない");
+    expect(codesOf({ design })).toContain(expected);
+  },
+);
 
 test("誤検知しないことの確認: 欠陥の無い設計は exit 0（常に落とす実装ではない）", () => {
   const { code, result } = run(["--features", "f.md", "--design", "d.md"], {

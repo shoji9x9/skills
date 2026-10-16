@@ -83,11 +83,13 @@ const SLUG = "my-feature";
 
 /**
  * pending の要素と棚卸し記録を書いてスクリプトを 1 回実行する。
- * @param {{pending: unknown[], entries?: unknown[], keep?: unknown[], may_change?: unknown[], slugs?: string[], features?: false}} input
+ * @param {{pending: unknown[], entries?: unknown[], record?: unknown, keep?: unknown[], may_change?: unknown[], slugs?: string[], features?: false}} input
  */
 function run(input: {
   pending: unknown[];
   entries?: unknown[];
+  /** 棚卸しの記録（intentional_diffs_pending）全体。渡すと entries より優先する。 */
+  record?: unknown;
   keep?: unknown[];
   may_change?: unknown[];
   slugs?: string[];
@@ -118,7 +120,10 @@ function run(input: {
   );
   writeFileSync(
     metadata,
-    JSON.stringify({ slug: SLUG, intentional_diffs_pending: { entries: input.entries ?? [] } }),
+    JSON.stringify({
+      slug: SLUG,
+      intentional_diffs_pending: input.record ?? { entries: input.entries ?? [] },
+    }),
   );
   const args = [script, "--registries", registries, "--metadata", metadata];
   if (input.features !== false) args.push("--features", features);
@@ -258,6 +263,8 @@ test("対象 0 件で不備も無ければ、ゼロ件の記録とともに合�
   const parsed = parseJsonAs<TriageSummary>(stdout);
   expect(parsed.in_scope).toBe(0);
   expect(parsed.untriaged).toBe(0);
+  // 他のスキルが別機能の slug を書いた要素は、この検査で帰属不明として扱われない。
+  expect(parsed.unattributed).toBe(0);
   expect(parsed.registry_problems).toEqual([]);
   expect(parsed.record_problems).toEqual([]);
   expect(parsed.out_of_scope_problems).toEqual([]);
@@ -377,16 +384,6 @@ test("replace-strategy が機能 slug を書いた要素は帰属不明として
   const parsed = parseJsonAs<TriageSummary>(stdout);
   expect(parsed.in_scope).toBe(1);
   expect(parsed.out_of_scope_problems).toEqual([]);
-});
-
-test("他のスキルが別機能の slug を書いた要素は、この検査で帰属不明として扱われない", () => {
-  const { status, stdout } = run({
-    pending: [{ ...otherFeature, added_at: "2026-09-01" }],
-  });
-  expect(status).toBe(0);
-  const parsed = parseJsonAs<TriageSummary>(stdout);
-  expect(parsed.in_scope).toBe(0);
-  expect(parsed.unattributed).toBe(0);
 });
 
 // 書き手が読めない要素の帰属（レビュー指摘。PR #397 の 2 巡目）。
@@ -526,4 +523,237 @@ test("移動先に無ければ落ちる（検出されることの確認: 移動
   });
   expect(r.stderr).toContain("may_change に見つからない");
   expect(r.status).not.toBe(0);
+});
+
+// --- 棚卸しの記録の検査（references/convergence.md「記録」が挙げる失敗の条件）---
+// 記録の不備は、どれも記録側の error 行と exit 1 になる。warn 行の文言で、どの不備として扱ったかを区別する。
+
+const mine = {
+  item: "この機能の保留",
+  slug: SLUG,
+  added_by: "parity-suite",
+  added_at: "2026-09-01",
+};
+const carried = { item: mine.item, slug: SLUG, disposition: "carried_over", reason: "測定待ち" };
+
+test.each([
+  ["要素がオブジェクトでない", [mine], [carried, 5], /entries\[1\]: オブジェクトでない/],
+  [
+    "同じ item を二重に記録した",
+    [mine],
+    [carried, carried],
+    /entries\[1\]: 同じ item が二重に記録されている/,
+  ],
+  ["slug が文字列でない", [mine], [{ ...carried, slug: 5 }], /entries\[0\]: slug が文字列でない/],
+  [
+    "記録した帰属が pending の帰属と違う",
+    [mine],
+    [{ ...carried, slug: "cross-cutting" }],
+    /記録した帰属（cross-cutting）が設定ファイルの pending の帰属（my-feature）と違う/,
+  ],
+  [
+    "別の機能の slug で記録した",
+    [],
+    [{ item: "別機能の保留", slug: "other-feature", disposition: "keep" }],
+    /対象外の slug（other-feature）を棚卸しに記録している/,
+  ],
+  [
+    "処置が語彙の外",
+    [mine],
+    [{ ...carried, disposition: "done" }],
+    /disposition が .* のいずれでもない/,
+  ],
+  ["持ち越しの理由が空", [mine], [{ ...carried, reason: " " }], /持ち越しの理由が空/],
+  ["持ち越した要素が pending に無い", [], [carried], /持ち越しと記録されているが pending に無い/],
+  [
+    "移した後の文言が空",
+    [],
+    [{ item: mine.item, slug: SLUG, disposition: "keep", promoted_as: "" }],
+    /promoted_as が空文字列/,
+  ],
+  [
+    "移したと記録したのに pending に残っている",
+    [mine],
+    [{ item: mine.item, slug: SLUG, disposition: "keep" }],
+    /keep へ移したと記録されているが pending に残っている/,
+  ],
+])("記録の不備（%s）は記録側の error で exit 1", (_name, pending, entries, warn) => {
+  const { status, stderr } = run({ pending, entries, keep: [mine.item] });
+
+  expect(status).toBe(1);
+  expect(stderr).toMatch(warn);
+  expect(stderr).toContain("error: 棚卸し記録の不整合（intentional_diffs_pending.entries");
+});
+
+test("宣言した件数が数え直した件数と違えば落ちる（記録の件数を信用しない）", () => {
+  const { status, stderr } = run({
+    pending: [mine],
+    record: { attributed: 3, carried_over: 1, entries: [carried] },
+  });
+
+  expect(status).toBe(1);
+  expect(stderr).toContain(
+    "intentional_diffs_pending.attributed: 宣言 3 と数え直した 1 が一致しない",
+  );
+  expect(stderr).not.toContain("carried_over: 宣言");
+});
+
+test("持ち越し・文言を変えて移した確定・帰属不明の記録を数え直し、件数を note に出して合格する", () => {
+  const legacy = "旧形式の文字列の保留";
+  const { status, stdout, stderr } = run({
+    // ただの文字列は旧形式で、帰属不明として全機能の対象になる。
+    pending: [mine, legacy],
+    keep: ["移した後の文言"],
+    entries: [
+      carried,
+      { item: legacy, slug: null, disposition: "carried_over", reason: "依存先の実装待ち" },
+      { item: "移す前の文言", slug: SLUG, disposition: "keep", promoted_as: "移した後の文言" },
+    ],
+  });
+
+  expect(status).toBe(0);
+  expect(parseJsonAs<TriageSummary & Record<string, number>>(stdout)).toMatchObject({
+    attributed: 2,
+    unattributed: 1,
+    resolved: 1,
+    carried_over: 2,
+    in_scope: 2,
+    untriaged: 0,
+  });
+  expect(stderr).toContain(
+    "note: 棚卸しの記録 3 件（この機能 2 / 横断 0 / 帰属不明 1）、確定 1 件、持ち越し 2 件",
+  );
+});
+
+test("帰属不明の文字列の要素も、棚卸ししなければ未棚卸しとして落ちる", () => {
+  const { status, stderr } = run({ pending: ["旧形式の文字列の保留"] });
+
+  expect(status).toBe(1);
+  expect(stderr).toContain("（帰属不明）— 旧形式の文字列の保留");
+  expect(stderr).toContain("error: 未棚卸し 1 件");
+});
+
+test.each([
+  ["空の文字列", "", /pending\[0\]: 空の要素/],
+  ["slug が数", { ...mine, slug: 5 }, /pending\[0\]: slug が空／文字列でない/],
+])("pending の要素の %s は帰属不明として登録簿側の error で落ちる", (_name, entry, warn) => {
+  const { status, stderr } = run({ pending: [entry] });
+
+  expect(status).toBe(1);
+  expect(stderr).toMatch(warn);
+  expect(stderr).toContain("error: 設定ファイルの登録簿の不整合");
+});
+
+test("区切り行の無い slug 表は機能インベントリとして読まない（対象 slug が見つからず exit 2）", () => {
+  const work = makeTempDir("pending-triage-features-");
+  const { registries, metadata } = writeInputs(work, {});
+  const features = join(work, "features.md");
+  writeFileSync(features, `| slug | 機能名 |\n| ${SLUG} | x |\n`);
+
+  const r = runArgs(["--registries", registries, "--metadata", metadata, "--features", features]);
+
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain(`対象 slug が機能インベントリに無い（${SLUG}）`);
+});
+
+/** 設定ファイルと成果物を、渡した内容（文字列ならそのまま）で書く。 */
+function writeInputs(work: string, input: { registries?: unknown; metadata?: unknown }) {
+  const registries = join(work, "registries.json");
+  const metadata = join(work, "diff-metadata.json");
+  const text = (v: unknown) => (typeof v === "string" ? v : JSON.stringify(v));
+  writeFileSync(
+    registries,
+    text(input.registries ?? { intentional_diffs: { keep: [], may_change: [], pending: [] } }),
+  );
+  writeFileSync(
+    metadata,
+    text(input.metadata ?? { slug: SLUG, intentional_diffs_pending: { entries: [] } }),
+  );
+  return { registries, metadata };
+}
+
+function runArgs(args: string[]) {
+  const r = spawnSync(process.execPath, [script, ...args], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  return { status: r.status, stdout: r.stdout, stderr: r.stderr };
+}
+
+// 成果物と設定ファイルの型の誤り・使い方の誤りは、未棚卸し（exit 1）とまとめず exit 2 にする。
+test.each([
+  ["registries.json が JSON でない", { registries: "{" }, "registries.json を読めない"],
+  ["registries.json が配列", { registries: [] }, "registries.json がオブジェクトでない"],
+  ["intentional_diffs が無い", { registries: {} }, "intentional_diffs が無い／オブジェクトでない"],
+  [
+    "pending が配列でない",
+    { registries: { intentional_diffs: { pending: {} } } },
+    "intentional_diffs.pending が無い／配列でない",
+  ],
+  ["diff-metadata.json が JSON でない", { metadata: "{" }, "diff-metadata.json を読めない"],
+  ["diff-metadata.json が配列", { metadata: [] }, "diff-metadata.json がオブジェクトでない"],
+  ["slug が無い", { metadata: { intentional_diffs_pending: { entries: [] } } }, "slug が無い"],
+  [
+    "棚卸しの記録がオブジェクトでない",
+    { metadata: { slug: SLUG, intentional_diffs_pending: [] } },
+    "intentional_diffs_pending がオブジェクトでない",
+  ],
+  [
+    "entries が無い",
+    { metadata: { slug: SLUG, intentional_diffs_pending: {} } },
+    "intentional_diffs_pending.entries が配列でない",
+  ],
+])("%s なら exit 2", (_name, input, message) => {
+  const { registries, metadata } = writeInputs(makeTempDir("pending-triage-input-"), input);
+
+  const r = runArgs(["--registries", registries, "--metadata", metadata]);
+
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain(message);
+});
+
+test("棚卸しの記録がキーごと無ければ未実施として exit 1（旧成果物として合格にしない）", () => {
+  const { registries, metadata } = writeInputs(makeTempDir("pending-triage-input-"), {
+    metadata: { slug: SLUG },
+  });
+
+  const r = runArgs(["--registries", registries, "--metadata", metadata]);
+
+  expect(r.status).toBe(1);
+  expect(JSON.parse(r.stdout)).toMatchObject({ recorded: false, in_scope: null, untriaged: null });
+  expect(r.stderr).toContain("intentional_diffs_pending が無い（棚卸し未実施）");
+});
+
+test.each([
+  ["引数が無い", [], "usage:"],
+  ["--metadata が無い", ["--registries", "r.json"], "usage:"],
+  ["値が無い", ["--registries"], "usage:"],
+  [
+    "同じフラグを 2 回",
+    ["--registries", "a.json", "--registries", "b.json"],
+    "が複数回指定されている",
+  ],
+  ["知らない引数", ["--foo"], "unknown argument: --foo"],
+])("CLI の使い方の誤り（%s）は exit 2", (_name, args, message) => {
+  const r = runArgs(args);
+
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain(message);
+});
+
+test("features.md が読めなければ exit 2", () => {
+  const work = makeTempDir("pending-triage-input-");
+  const { registries, metadata } = writeInputs(work, {});
+
+  const r = runArgs([
+    "--registries",
+    registries,
+    "--metadata",
+    metadata,
+    "--features",
+    join(work, "missing.md"),
+  ]);
+
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain("features.md を読めない");
 });

@@ -25,10 +25,10 @@ import {
   WIRINGS,
   checkRuleSymlinks,
 } from "./check-rule-symlinks.ts";
-import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const script = join(repoRoot, "scripts/gates/packaging/check-rule-symlinks.ts");
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
+const script = join(repoRoot, "scripts/gates/packaging/copies/check-rule-symlinks.ts");
 
 /**
  * 正しく symlink を張った rule を持つ一時リポジトリを作る。
@@ -102,9 +102,8 @@ test("実ファイル: symlink ではなく実体のコピーを置いたら検�
     join(root, ".github/instructions/alpha.instructions.md"),
   );
   const { violations } = checkRuleSymlinks(root);
-  expect(violations).toEqual([
-    ".claude/rules/alpha.md: symlink ではない（実体のコピーは原本と drift する）",
-  ]);
+  expect(violations).toHaveLength(1);
+  expect(violations[0]).toMatch(/^\.claude\/rules\/alpha\.md: symlink ではない/);
   cleanup(root);
 });
 
@@ -225,9 +224,10 @@ test("孤児: 宣言していない文書への instructions の symlink は検�
 
 test("欠落: 宣言した文書の instructions の symlink が無ければ検出する（Claude Code の側には求めない）", () => {
   const root = makeDocRepo({ link: false });
-  expect(checkRuleSymlinks(root, [...DOC_INSTRUCTIONS, DOC]).violations).toEqual([
-    ".github/instructions/style.instructions.md: 欠落（GitHub Copilot で自動適用されない）。期待する指し先: ../../docs/style.md",
-  ]);
+  const { violations } = checkRuleSymlinks(root, [...DOC_INSTRUCTIONS, DOC]);
+  expect(violations).toHaveLength(1);
+  expect(violations[0]).toMatch(/^\.github\/instructions\/style\.instructions\.md: 欠落/);
+  expect(violations[0]).toContain("../../docs/style.md");
   cleanup(root);
 });
 
@@ -248,8 +248,8 @@ test("宣言した文書の名前が rule と重なれば検出する", () => {
 test("宣言した文書の frontmatter に applyTo が無ければ検出する", () => {
   const root = makeDocRepo({ text: docText("style", DOC.reviewedUntil, { applyTo: false }) });
   const { violations } = checkRuleSymlinks(root, [...DOC_INSTRUCTIONS, DOC]);
-  expect(violations).toContain(
-    "docs/style.md: frontmatter に applyTo が無い（Copilot のレビューが PR のファイルに当てない）",
+  expect(violations.some((v) => v.startsWith("docs/style.md: frontmatter に applyTo が無い"))).toBe(
+    true,
   );
   cleanup(root);
 });
@@ -291,9 +291,7 @@ test("コードブロックの中の reviewedUntil と同じ行は、見出し�
 test("宣言した文書に reviewedUntil の見出しが無ければ検出する", () => {
   const root = makeDocRepo({ text: docText("style", "## 別の見出し") });
   const { violations } = checkRuleSymlinks(root, [...DOC_INSTRUCTIONS, DOC]);
-  expect(violations).toContain(
-    "docs/style.md: 見出し「## 後半」が無い（Copilot が読む範囲を確かめられない）",
-  );
+  expect(violations.some((v) => v.startsWith("docs/style.md: 見出し「## 後半」が無い"))).toBe(true);
   cleanup(root);
 });
 

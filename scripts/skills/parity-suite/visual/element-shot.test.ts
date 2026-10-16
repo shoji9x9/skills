@@ -218,19 +218,24 @@ function fakeTree(animations: FakeAnimation[] = [], hosts: FakeShadowHost[] = []
   return { getAnimations: () => animations, querySelectorAll: () => hosts };
 }
 
+/** 偽の要素。`getAnimations: false` は、文書が getAnimations を持たない環境（アニメーションを数えられない）。 */
 function fakeElement({
   rect,
   frames,
   animations = [],
   shadowHosts = [],
+  getAnimations = true,
 }: {
   rect?: Rect;
   frames?: FakeFrame[];
   animations?: FakeAnimation[];
   shadowHosts?: FakeShadowHost[];
+  getAnimations?: boolean;
 } = {}) {
+  const tree = fakeTree(animations, shadowHosts);
+  const doc = getAnimations ? tree : { querySelectorAll: tree.querySelectorAll };
   return {
-    ownerDocument: { defaultView: fakeView({ frames }), ...fakeTree(animations, shadowHosts) },
+    ownerDocument: { defaultView: fakeView({ frames }), ...doc },
     getBoundingClientRect: () => rect ?? { x: 1328.8125, y: 219.296875, width: 25, height: 28 },
   };
 }
@@ -760,56 +765,29 @@ test("scrollIntoView: false なら見える位置へ入れない", async () => {
 // 途中フレームが PNG になり run ごとに揺れるのに、撮影条件は `animations: disabled` として
 // 記録される。記録と実体を食い違わせない。
 
-/** 最上位フレームの要素について readRectAndViewport が返す形。 */
-function measuredTop(rect: Rect, liveAnimations: number | null) {
-  return {
-    rect,
-    page_rect: rect,
-    viewport: VIEWPORT,
-    frames: [],
-    frame_error: null,
-    live_animations: liveAnimations,
-  };
-}
-
-function shotSpy(rect: Rect = { x: 0, y: 0, width: 10, height: 10 }) {
-  const calls: ShotOptions[] = [];
-  const locator = {
-    scrollIntoViewIfNeeded: async () => {},
-    evaluate: async () => measuredTop(rect, 0),
-  };
-  const page = {
-    screenshot: async (options: ShotOptions) => {
-      calls.push(options);
-      return pngHeader(options.clip.width, options.clip.height);
-    },
-  };
-  return { calls, locator, page };
-}
-
 test("デフォルトでアニメーションを止めて撮る", async () => {
-  const { calls, locator, page } = shotSpy();
-  const out = await captureElementShot(page, locator);
-  expect(calls[0].animations).toBe("disabled");
+  const page = recordingPage();
+  const out = await captureElementShot(page, frameLocator(fakeElement()));
+  expect(page.calls[0].animations).toBe("disabled");
   expect(out.animations).toBe("disabled");
   // path を渡さない呼び出しでも clip と animations は必ず載る。
-  expect(Object.keys(calls[0]).sort()).toEqual(["animations", "clip"]);
+  expect(Object.keys(page.calls[0]).sort()).toEqual(["animations", "clip"]);
 });
 
 test("animations: allow を明示すればそのまま渡す（止める一択にしない）", async () => {
-  const { calls, locator, page } = shotSpy();
-  const out = await captureElementShot(page, locator, { animations: "allow" });
-  expect(calls[0].animations).toBe("allow");
+  const page = recordingPage();
+  const out = await captureElementShot(page, frameLocator(fakeElement()), { animations: "allow" });
+  expect(page.calls[0].animations).toBe("allow");
   expect(out.animations).toBe("allow");
 });
 
 test("animations に未知の値を渡したら撮らずに失敗する", async () => {
-  const { calls, locator, page } = shotSpy();
+  const page = recordingPage();
   // わざと語彙外の値を渡す
   await expect(
-    captureElementShot(page, locator, { animations: invalidInput("off") }),
+    captureElementShot(page, frameLocator(fakeElement()), { animations: invalidInput("off") }),
   ).rejects.toThrow(/animations must be/);
-  expect(calls).toEqual([]);
+  expect(page.calls).toEqual([]);
 });
 
 // --- 撮影中に要素が動いていないかの検査 -------------------------------------
@@ -818,20 +796,23 @@ test("animations に未知の値を渡したら撮らずに失敗する", async 
 // （有限のアニメーションは完了まで早送りされる）。早送りで動いた要素を古い矩形で切ると、
 // 別の領域を撮った PNG がエラー無しで残る。
 
-function movingSpy(before: Rect, after: Rect) {
-  const rects = [before, after];
-  let call = 0;
-  const calls: ShotOptions[] = [];
-  const locator = {
-    scrollIntoViewIfNeeded: async () => {},
-    evaluate: async () => measuredTop(rects[Math.min(call++, rects.length - 1)], 0),
-  };
-  const page = {
+const BEFORE = { x: 10, y: 10, width: 40, height: 20 };
+const AFTER = { x: 10, y: 34, width: 40, height: 20 };
+
+/** 撮影の前後で矩形が BEFORE から AFTER へ動く要素の locator。 */
+const movingLocator = () =>
+  frameLocator(fakeElement({ rect: BEFORE }), fakeElement({ rect: AFTER }));
+
+/**
+ * `path` を渡されたらその場で書き出す page。Playwright は `path` を渡されると撮った直後に書くので、
+ * fake も同じ振る舞いにしないと、「検査の前に書いていないか」を測るテストが素通りする。
+ */
+function writingPage() {
+  const page = recordingPage();
+  return {
+    calls: page.calls,
     screenshot: async (options: ShotOptions) => {
-      calls.push(options);
-      // Playwright は `path` を渡されるとその場で書き出す。fake も同じ振る舞いにしないと、
-      // 「検査前に書いていないか」を測るテストが素通りする。
-      const data = pngHeader(options.clip.width, options.clip.height);
+      const data = await page.screenshot(options);
       if (options.path !== undefined) {
         mkdirSync(dirname(options.path), { recursive: true });
         writeFileSync(options.path, data);
@@ -839,48 +820,42 @@ function movingSpy(before: Rect, after: Rect) {
       return data;
     },
   };
-  return { calls, locator, page };
 }
 
 test("撮影中に矩形が変わったら失敗する", async () => {
-  const { calls, locator, page } = movingSpy(
-    { x: 10, y: 10, width: 40, height: 20 },
-    { x: 10, y: 34, width: 40, height: 20 },
+  const page = recordingPage();
+  await expect(captureElementShot(page, movingLocator())).rejects.toThrow(
+    /box changed while capturing/,
   );
-  await expect(captureElementShot(page, locator)).rejects.toThrow(/box changed while capturing/);
   // 撮影自体は実行されている（検知は事後）。撮れた PNG を基準にしないことが目的。
-  expect(calls).toHaveLength(1);
+  expect(page.calls).toHaveLength(1);
 });
 
 test("矩形が変わらなければ従来どおり返す（何でも失敗させない）", async () => {
-  const rect = { x: 10, y: 10, width: 40, height: 20 };
-  const { locator, page } = movingSpy(rect, { ...rect });
-  const out = await captureElementShot(page, locator);
+  const out = await captureElementShot(
+    recordingPage(),
+    frameLocator(fakeElement({ rect: BEFORE }), fakeElement({ rect: { ...BEFORE } })),
+  );
   expect(out.clip).toEqual({ x: 10, y: 10, width: 40, height: 20 });
 });
 
 test("検査で失敗したら PNG を書かない（拒否したフレームを基準に残さない）", async () => {
-  const { locator, page } = movingSpy(
-    { x: 10, y: 10, width: 40, height: 20 },
-    { x: 10, y: 34, width: 40, height: 20 },
-  );
   const dir = makeTempDir("element-shot-reject-");
   const target = join(dir, "element.png");
-  await expect(captureElementShot(page, locator, { path: target })).rejects.toThrow(
-    /box changed while capturing/,
-  );
+  await expect(
+    captureElementShot(writingPage(), movingLocator(), { path: target }),
+  ).rejects.toThrow(/box changed while capturing/);
   expect(existsSync(target)).toBe(false);
+  expect(existsSync(join(dir, "element.shot.json"))).toBe(false);
 });
 
 test("既存の基準ファイルを、落ちた run が上書きしない", async () => {
-  const { locator, page } = movingSpy(
-    { x: 10, y: 10, width: 40, height: 20 },
-    { x: 10, y: 34, width: 40, height: 20 },
-  );
   const dir = makeTempDir("element-shot-keep-");
   const target = join(dir, "element.png");
   writeFileSync(target, "previous");
-  await expect(captureElementShot(page, locator, { path: target })).rejects.toThrow();
+  await expect(
+    captureElementShot(writingPage(), movingLocator(), { path: target }),
+  ).rejects.toThrow(/box changed while capturing/);
   expect(readFileSync(target).toString()).toBe("previous");
 });
 
@@ -889,46 +864,24 @@ test("既存の基準ファイルを、落ちた run が上書きしない", asy
 // animations: "disabled" は撮影の中で有限のものを早送りし、無限のものを初期状態へ戻して撮り、
 // 撮り終えたら元の時刻へ復帰させる。一時停止した無限アニメーションでは、撮影の前後で測った矩形が
 // どちらも同じ（停止時の幾何）なのに PNG だけ初期状態の幾何になる。事後の測り直しでは捕まらない。
-
-function animatedSpy(
-  liveAnimations: number | null,
-  rect: Rect = { x: 0, y: 0, width: 10, height: 10 },
-) {
-  const calls: ShotOptions[] = [];
-  const locator = {
-    scrollIntoViewIfNeeded: async () => {},
-    evaluate: async () => measuredTop(rect, liveAnimations),
-  };
-  const page = {
-    screenshot: async (options: ShotOptions) => {
-      calls.push(options);
-      return pngHeader(options.clip.width, options.clip.height);
-    },
-  };
-  return { calls, locator, page };
-}
-
-test("生きているアニメーションがあれば撮らずに失敗する", async () => {
-  const { calls, locator, page } = animatedSpy(2);
-  await expect(captureElementShot(page, locator)).rejects.toThrow(/live animation/);
-  expect(calls).toEqual([]); // 撮る前に落とす（事後検査ではない）
-});
-
-test("アニメーションが無ければ従来どおり撮る", async () => {
-  const { calls, locator, page } = animatedSpy(0);
-  await captureElementShot(page, locator);
-  expect(calls).toHaveLength(1);
-});
+// 生きているアニメーションで撮らずに失敗することと、終わったアニメーションで撮ることは、上の
+// 「文書内のアニメーションが生きていれば撮らずに失敗する」と「終わっていれば撮る」が確かめる。
 
 test('animations: "allow" なら生きていても撮る（呼び出し側が選んだ条件）', async () => {
-  const { calls, locator, page } = animatedSpy(3);
-  const out = await captureElementShot(page, locator, { animations: "allow" });
-  expect(calls).toHaveLength(1);
+  const page = recordingPage();
+  const el = fakeElement({ animations: anims("running", "running", "paused") });
+  const out = await captureElementShot(page, frameLocator(el), { animations: "allow" });
+  expect(page.calls).toHaveLength(1);
   expect(out.animations).toBe("allow");
+  // 検出されることの確認: 同じ要素を止めて撮る条件では落ちる。
+  await expect(captureElementShot(recordingPage(), frameLocator(el))).rejects.toThrow(
+    /live animation/,
+  );
 });
 
-test("数えられない環境（getAnimations 無し）では判定しない", async () => {
-  const { calls, locator, page } = animatedSpy(null);
-  await captureElementShot(page, locator);
-  expect(calls).toHaveLength(1);
+test("数えられない環境（文書が getAnimations を持たない）では判定しない", async () => {
+  const page = recordingPage();
+  const el = fakeElement({ getAnimations: false });
+  await captureElementShot(page, frameLocator(el));
+  expect(page.calls).toHaveLength(1);
 });

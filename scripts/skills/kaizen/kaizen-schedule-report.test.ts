@@ -4,6 +4,7 @@ import { chmodSync, copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { coverageEnv } from "../../lib/testing/coverage-env.ts";
 
 // kaizen-schedule-report.sh は **CI から無人で実行され、出力がそのまま Issue になる**。
 // 判定が狂っても人が見ているのは結果の Issue だけなので、狂ったこと自体は出力に現れない。
@@ -120,7 +121,7 @@ function run({ dir, target }: Project, args: string[], env: NodeJS.ProcessEnv = 
     // 紛れ込むと env 層のテストが本来の層を測らなくなるので、明示したものだけを渡す。
     // ロケールだけは明示する。最小 env は C ロケールになり、要約の切り詰めが
     // 機能を減らす分岐で処理される。CI のランナー（UTF-8）と違う条件で測らないよう既定を揃える。
-    env: { PATH: process.env.PATH, HOME: dir, LC_ALL: "C.UTF-8", ...env },
+    env: { PATH: process.env.PATH, HOME: dir, LC_ALL: "C.UTF-8", ...coverageEnv(), ...env },
   });
   const settings = Object.fromEntries(
     res.stdout
@@ -210,33 +211,8 @@ describe("opt-in（schedule_enabled の既定は off）", () => {
     });
   });
 
-  // **既定は定数が決める。** 分岐ごとに `skip="true"` を直書きすると、定数を on にしても
-  // 挙動は止まったままメッセージだけが「既定 on」と嘘をつく（実測でこの状態だった）。
-  // 定数を差し替えたコピーで動かし、既定が本当に反転することで判定点の単一性を測る。
-  test("DEFAULT_SCHEDULE_ENABLED が実際の既定を決める（メッセージだけではない）", () => {
-    const flipped = readFileSync(script, "utf8").replace(
-      /^readonly DEFAULT_SCHEDULE_ENABLED=off$/m,
-      "readonly DEFAULT_SCHEDULE_ENABLED=on",
-    );
-    // 置換が当たったことの確認（空振りだと既定 off のまま測ってしまう）。
-    expect(flipped).toContain("readonly DEFAULT_SCHEDULE_ENABLED=on");
-    const dir = makeTempDir("kaizen-sched-default-");
-    try {
-      mkdirSync(join(dir, ".kaizen"), { recursive: true });
-      writeFileSync(join(dir, ".kaizen", "a.md"), note({ slug: "a" }));
-      const target = join(dir, "kaizen-schedule-report.sh");
-      // 共通ライブラリも一緒に置く（機能を減らす分岐で測らないため）。
-      copyFileSync(join(scriptDir, "kaizen-hook-common.sh"), join(dir, "kaizen-hook-common.sh"));
-      writeFileSync(target, flipped);
-      // 既定が on になるので、キーが無くても実行する側へ反転する。
-      expect(run({ dir, target }, ["config"]).settings.skip).toBe("false");
-      // 明示的な off は既定に関わらず止まる（既定の反転が、誤って上書きとして扱われていないこと）。
-      writeFileSync(join(dir, ".kaizen", "config"), "schedule_enabled=off\n");
-      expect(run({ dir, target }, ["config"]).settings.skip).toBe("true");
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
+  // 既定を決める定数（DEFAULT_SCHEDULE_ENABLED）と、それを使う 2 か所の判定点を差し替えたときに
+  // 上と下のテストが落ちることは、kaizen-schedule-report.mutations.json の SR-* が確かめる。
 
   // 不正値を有効として扱うと、typo した `.kaizen/config` が「有効化した証拠」になってしまう。
   test("schedule_enabled が真偽値として読めなければデフォルトの off として扱って止まる", () => {

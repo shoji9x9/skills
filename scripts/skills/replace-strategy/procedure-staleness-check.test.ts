@@ -630,15 +630,25 @@ test.each([
 });
 
 test("同梱の改訂一覧と台帳テンプレートは検査がそのまま読める", () => {
-  const shipped = readRevisions(
-    JSON.parse(readFileSync("skills/parity-suite/assets/procedure-revisions.json", "utf8")),
+  const shipped = parseJsonAs<{ revision: number }>(
+    readFileSync("skills/parity-suite/assets/procedure-revisions.json", "utf8"),
   );
-  expect(shipped.ok).toBe(true);
-  const template = readProcedureLedger(
-    readFileSync("skills/replace-strategy/assets/procedure-changes-template.md", "utf8"),
-    new Set(),
-  );
-  expect(template).toEqual({ ok: true, changes: [], records: [] });
+  // 最新の改訂で作った成果物を、テンプレートのどの記入例の追加日よりも前に置く。
+  // テンプレートが変更や記録の行を持っていれば、未判断（exit 1）か stray として出る。
+  const work = workspace({
+    revisions: shipped,
+    ledger: readFileSync("skills/replace-strategy/assets/procedure-changes-template.md", "utf8"),
+    artifacts: {
+      order: meta({ procedure_revision: shipped.revision, finished_at: "2000-01-01T00:00:00Z" }),
+    },
+  });
+  const r = run(work);
+  expect(r.stderr).toBe("");
+  expect(r.code).toBe(0);
+  assert.exists(r.json);
+  expect(r.json.ledger_exists).toBe(true);
+  expect(r.json.unresolved).toEqual([]);
+  expect(r.json.stray).toEqual([]);
   // 成果物のテンプレートが改訂番号の置き場を持つ（無いと parity-suite が書かず、全成果物が導入前として出続ける）。
   const metadata = parseJsonAs<{ run: Record<string, unknown> }>(
     readFileSync("skills/parity-suite/assets/metadata-template.json", "utf8"),
