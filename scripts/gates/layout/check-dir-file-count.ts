@@ -8,11 +8,13 @@
 // - 対象は git の index にあるファイル（`git ls-files`）。`node_modules` や生成物は `.gitignore` で外れる。
 //   未追跡のファイルは commit に入らないので数えない。衝突を解消していないファイルも 1 件として数える。
 // - 各ディレクトリの直下のファイルを数える。サブディレクトリとその中身は数えず、シンボリックリンクはファイルとして数える。
+//   submodule はファイルとして数えず、ディレクトリとして扱う。
 // - 閾値はデフォルトの値（`default_max`）か、ディレクトリごとの値（`overrides`）。対象外のディレクトリ（`excludes`）は数えない。
 //   `descendants: true` の対象外は、そのディレクトリの下のディレクトリもすべて数えない（人ごとに作られるディレクトリなど）。
 // - 閾値を変えたディレクトリと対象外のディレクトリには、理由を必須にする。
 //   設定に書いたディレクトリが実在しないと失敗にする。古い例外が残ると、同じ名前で作り直したディレクトリが警告なしに外れる。
-//   判定に使われない設定（descendants の対象外の下に書いた設定、デフォルトと同じ閾値）も失敗にする。
+//   判定に使われない設定も失敗にする。descendants の対象外の下に書いた設定、デフォルトと同じ閾値、
+//   件数がデフォルトの閾値以下に減ったディレクトリの、閾値を上げた例外と descendants の無い対象外である。
 //
 // 終了コード: 0 は違反なし、1 は違反か設定の古い記述、2 は判定できない（設定の形の誤り・git の失敗・ファイルが 0 件）。
 import { spawnSync } from "node:child_process";
@@ -112,15 +114,22 @@ function parentDir(path: string): string {
   return i < 0 ? ROOT_DIR : path.slice(0, i);
 }
 
-/** 直下のファイル数（ディレクトリごと）と、実在するディレクトリ（ファイルを 1 つ以上下に持つもの）。 */
-export function countFiles(files: readonly string[]) {
+/**
+ * 直下のファイル数（ディレクトリごと）と、実在するディレクトリ（ファイルを 1 つ以上下に持つもの）。
+ * submodule（gitlink）はファイルとして数えず、ディレクトリとして扱う。
+ */
+export function countFiles(files: readonly string[], submodules: readonly string[] = []) {
   const direct = new Map<string, number>();
   const dirs = new Set<string>([ROOT_DIR]);
+  const addAncestors = (dir: string) => {
+    for (let d = dir; d !== ROOT_DIR; d = parentDir(d)) dirs.add(d);
+  };
   for (const file of files) {
     const parent = parentDir(file);
     direct.set(parent, (direct.get(parent) ?? 0) + 1);
-    for (let d = parent; d !== ROOT_DIR; d = parentDir(d)) dirs.add(d);
+    addAncestors(parent);
   }
+  for (const sub of submodules) addAncestors(sub);
   return { direct, dirs };
 }
 
@@ -129,32 +138,51 @@ function excludeOf(dir: string, excludes: readonly Exclude[]): Exclude | undefin
   return excludes.find((e) => e.dir === dir || (e.descendants && dir.startsWith(`${e.dir}/`)));
 }
 
-/** 違反（閾値の超過）と、設定の古い記述・空の理由を返す。 */
-export function checkDirFileCount(files: readonly string[], config: Config) {
-  const { direct, dirs } = countFiles(files);
+/** 設定の 1 項目が判定に使われないなら、その理由を返す。 */
+function unusedReason(
+  entry: Override | Exclude,
+  config: Config,
+  count: number,
+): string | undefined {
+  // descendants の対象外の下に書いた設定は判定に使われない
+  // （残すと、親の descendants を外したときに、見直していない子の設定が警告なしに有効になる）。
+  const ex = excludeOf(
+    entry.dir,
+    config.excludes.filter((e) => e !== entry),
+  );
+  if (ex) return `対象外（${ex.dir}）の下にあるので、この設定は使われない`;
+  if ("max" in entry) {
+    if (entry.max === config.defaultMax)
+      return `閾値がデフォルト（${entry.max}）と同じで、判定を変えない`;
+    // 閾値を上げた例外は、件数がデフォルトの閾値以下に減ると要らない。残すと、また増えたときに分けるべき増え方を検出できない。
+    if (entry.max > config.defaultMax && count <= config.defaultMax)
+      return `件数（${count}）がデフォルトの閾値（${config.defaultMax}）以下で、閾値を上げる必要が無い`;
+    return undefined;
+  }
+  // 下のディレクトリを含む対象外は、下に作られるディレクトリのためにあるので、直下の件数では判定しない。
+  if (!entry.descendants && count <= config.defaultMax)
+    return `件数（${count}）がデフォルトの閾値（${config.defaultMax}）以下で、対象外にする必要が無い`;
+  return undefined;
+}
+
+/** 違反（閾値の超過）と、設定の古い記述・空の理由・使われない設定を返す。 */
+export function checkDirFileCount(
+  files: readonly string[],
+  config: Config,
+  submodules: readonly string[] = [],
+) {
+  const { direct, dirs } = countFiles(files, submodules);
   const configErrors: string[] = [];
-  for (const { dir, reason } of [...config.overrides, ...config.excludes]) {
-    if (!dirs.has(dir)) configErrors.push(`${dir}: git 管理下に無いディレクトリ（設定から外す）`);
+  for (const entry of [...config.overrides, ...config.excludes]) {
+    const { dir, reason } = entry;
+    if (!dirs.has(dir)) {
+      configErrors.push(`${dir}: git 管理下に無いディレクトリ（設定から外す）`);
+    } else {
+      const unused = unusedReason(entry, config, direct.get(dir) ?? 0);
+      if (unused) configErrors.push(`${dir}: ${unused}（設定から外す）`);
+    }
     if (!isNonBlankString(reason))
       configErrors.push(`${dir}: reason が空（閾値を変える・対象外にする理由を書く）`);
-  }
-  // descendants の対象外の下に書いた閾値と対象外は判定に使われない。使われない設定を残さない
-  // （残すと、親の descendants を外したときに、見直していない子の設定が警告なしに有効になる）。
-  for (const entry of [...config.overrides, ...config.excludes]) {
-    const ex = excludeOf(
-      entry.dir,
-      config.excludes.filter((e) => e !== entry),
-    );
-    if (ex)
-      configErrors.push(
-        `${entry.dir}: 対象外（${ex.dir}）の下にあるので、この設定は使われない（設定から外す）`,
-      );
-  }
-  for (const { dir, max } of config.overrides) {
-    if (max === config.defaultMax)
-      configErrors.push(
-        `${dir}: 閾値がデフォルト（${max}）と同じで、判定を変えない（設定から外す）`,
-      );
   }
   const maxOf = new Map(config.overrides.map((o) => [o.dir, o.max]));
   const violations: string[] = [];
@@ -174,29 +202,42 @@ export function loadConfig(root: string): Config {
   return parseConfig(JSON.parse(readFileSync(path, "utf8")));
 }
 
-/** `cwd` を含むリポジトリのルートと、index にあるファイル（ルートからの相対パス）。 */
+/** `cwd` を含むリポジトリのルートと、index にあるファイルと submodule（ルートからの相対パス）。 */
 export function listTrackedFiles(cwd: string) {
   const top = spawnSync("git", ["rev-parse", "--show-toplevel"], { cwd, encoding: "utf8" });
   if (top.status !== 0) throw new Error(`git のリポジトリのルートを特定できない: ${top.stderr}`);
   const root = top.stdout.trim();
   // 衝突を解消していない index は 1 つのパスを段ごとに持ち、ls-files は同じパスを最大 3 回出す。重複は Set で除く
   // （--deduplicate は git 2.31 から使えるオプションなので、git の版に依らない方法で除く）。
-  const ls = spawnSync("git", ["ls-files", "-z", "--cached"], {
+  // -s で各行の先頭にモードを出し、submodule（gitlink。モード 160000）をファイルと分ける。
+  const ls = spawnSync("git", ["ls-files", "-z", "--cached", "-s"], {
     cwd: root,
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
   });
   if (ls.status !== 0)
     throw new Error(`git ls-files に失敗した（exit ${ls.status}）: ${ls.stderr}`);
-  return { root, files: [...new Set(ls.stdout.split("\0").filter((p) => p !== ""))] };
+  const files = new Set<string>();
+  const submodules = new Set<string>();
+  for (const record of ls.stdout.split("\0")) {
+    if (record === "") continue;
+    // 形式は「<モード> <オブジェクト> <段>\t<パス>」。
+    const tab = record.indexOf("\t");
+    if (tab < 0) throw new Error(`git ls-files -s の出力を読めない: ${record}`);
+    const path = record.slice(tab + 1);
+    if (record.startsWith("160000 ")) submodules.add(path);
+    else files.add(path);
+  }
+  return { root, files: [...files], submodules: [...submodules] };
 }
 
 export function main(cwd = "."): number {
   let root: string;
   let files: string[];
+  let submodules: string[];
   let config: Config;
   try {
-    ({ root, files } = listTrackedFiles(cwd));
+    ({ root, files, submodules } = listTrackedFiles(cwd));
     config = loadConfig(root);
   } catch (error) {
     console.error(`dir-file-count: 判定できない: ${errorMessage(error)}`);
@@ -209,7 +250,7 @@ export function main(cwd = "."): number {
     );
     return 2;
   }
-  const { violations, configErrors } = checkDirFileCount(files, config);
+  const { violations, configErrors } = checkDirFileCount(files, config, submodules);
   if (configErrors.length) {
     console.error(`dir-file-count: ${CONFIG_PATH} に、直す記述がある。`);
     for (const e of configErrors) console.error(`  - ${e}`);

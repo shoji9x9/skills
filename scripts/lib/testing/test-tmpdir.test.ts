@@ -8,7 +8,7 @@ import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeSharedTempDir, makeTempDir, makeTempDirFactory } from "./test-tmpdir.ts";
 
-// 走査の起点は `scripts/` 全体（このファイルは `scripts/lib/` にある）。
+// 走査の起点は `scripts/` 全体（このファイルは `scripts/lib/testing/` にあるので 2 段上がる）。
 const scriptsDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 // --- 挙動 -------------------------------------------------------------------
