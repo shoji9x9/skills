@@ -33,6 +33,12 @@ describe("閾値との比較", () => {
     expect(checkDirFileCount(files("a", 4), config()).violations).toEqual(["a: 4 件（閾値 3）"]);
   });
 
+  test("デフォルトの閾値 20 では、20 件は違反にせず 21 件を違反にする", () => {
+    const c = parseConfig({ default_max: 20 });
+    expect(checkDirFileCount(files("a", 20), c).violations).toEqual([]);
+    expect(checkDirFileCount(files("a", 21), c).violations).toEqual(["a: 21 件（閾値 20）"]);
+  });
+
   test("ルートの直下のファイルも数える", () => {
     expect(checkDirFileCount(files(".", 4), config()).violations).toEqual([".: 4 件（閾値 3）"]);
   });
