@@ -284,12 +284,20 @@ export function main(
   // 結果の置き場所は、測ると決まってから作る（引数・設定・対象の誤りで止まる実行に、空のディレクトリを残さない）。
   // --focus は実行ごとに一意なディレクトリを作り、通常の実行は前回の結果を消してから測る。
   let cache = join(root, CACHE);
-  if (focus.length > 0) {
-    sweepFocusDirs(root);
-    mkdirSync(dirname(cache), { recursive: true });
-    cache = mkdtempSync(`${cache}-focus-${process.pid}-`);
-  } else if (!reuse) {
-    rmSync(cache, { recursive: true, force: true });
+  try {
+    if (focus.length > 0) {
+      sweepFocusDirs(root);
+      mkdirSync(dirname(cache), { recursive: true });
+      cache = mkdtempSync(`${cache}-focus-${process.pid}-`);
+    } else if (!reuse) {
+      rmSync(cache, { recursive: true, force: true });
+    }
+  } catch (error) {
+    // 置き場所を用意できないのは、閾値を下回ったこと（exit 1）ではなく、判定できないこと（exit 2）である。
+    console.error(
+      `run-coverage: 判定できない: 結果の置き場所を用意できない: ${errorMessage(error)}`,
+    );
+    return 2;
   }
   const c8Path = join(cache, "report", "coverage-summary.json");
   const shPath = join(cache, "shell-summary.json");

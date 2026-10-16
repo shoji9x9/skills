@@ -157,6 +157,18 @@ function advisoryFromVia(via: unknown): AuditRecord {
   };
 }
 
+/**
+ * packages から 1 つの項目の版を読む。項目が無い（null を含む）なら undefined。
+ * 読む項目が object でなければ、今の版が警告なしに抜けるので、どの項目かを書いた Error を投げる。
+ * 読まない項目（どの vulnerability も指さないもの）の形は確かめない。
+ */
+function packageVersion(packages: Packages | undefined, key: string): unknown {
+  const entry: unknown = packages?.[key];
+  if (entry === undefined || entry === null) return undefined;
+  if (!isRecord(entry)) throw new Error(`packages.${key} が object でない`);
+  return entry.version;
+}
+
 function currentVersionsFrom(
   packageName: string,
   vulnerability: AuditRecord,
@@ -166,12 +178,12 @@ function currentVersionsFrom(
   for (const node of asArray(vulnerability.nodes)) {
     // nodes の要素はパッケージのパス（文字列）。それ以外の値は、元の JavaScript と同じくキーとして文字列に直して引く
     // （JSON の値では、String() とプロパティのキーへの変換が同じ文字列になる）。
-    versions.push(packages?.[String(node)]?.version);
+    versions.push(packageVersion(packages, String(node)));
   }
   versions.push(
     vulnerability.version,
-    packages?.[packageName]?.version,
-    packages?.[`node_modules/${packageName}`]?.version,
+    packageVersion(packages, packageName),
+    packageVersion(packages, `node_modules/${packageName}`),
   );
   return uniq(versions);
 }
@@ -276,7 +288,7 @@ export function findingsFromVulnerability(
   );
 }
 
-/** advisories・vulnerabilities の欄の項目。欄が無い（null を含む）なら 0 件、object でなければ Error にする。 */
+/** advisories・vulnerabilities・packages の欄の項目。欄が無い（null を含む）なら 0 件、object でなければ Error にする。 */
 function entriesOf(value: unknown, name: string): [string, unknown][] {
   if (value === undefined || value === null) return [];
   if (!isRecord(value)) throw new Error(`${name} が object でない`);
@@ -285,17 +297,15 @@ function entriesOf(value: unknown, name: string): [string, unknown][] {
 
 /**
  * 解析した JSON 全体から findings を作る。`package` の無いものは除き、同じ package と advisory の組はまとめる。
- * 形が違う入力（object でない全体、object でない advisories・vulnerabilities とその要素）は、
- * 読み飛ばすと advisory を警告なしに落とすので、どこが違うかを書いた Error を投げる（main が exit 1 にする）。
+ * 形が違う入力は、読み飛ばすと advisory を警告なしに落とすので、どこが違うかを書いた Error を投げる（main が exit 1 にする）。
+ * Error にするのは、object でない全体・欄（advisories・vulnerabilities・packages）・advisory・vulnerability と、
+ * 読む packages の項目が object でないものである。
  */
 export function normalizeAudit(raw: unknown): Finding[] {
   if (!isRecord(raw)) throw new Error("全体が object でない");
   const audit: AuditJson = raw;
-  // packages は今の版を読むためだけに使う。全体か項目の形が違うと current_versions が警告なしに空になるので、止める。
-  for (const [path, entry] of entriesOf(audit.packages, "packages")) {
-    if (entry !== undefined && entry !== null && !isRecord(entry))
-      throw new Error(`packages.${path} が object でない`);
-  }
+  // packages は今の版を読むためだけに使う。欄の形はここで確かめ、項目の形は読むとき（packageVersion）に確かめる。
+  entriesOf(audit.packages, "packages");
   const findings: Finding[] = [];
 
   for (const [id, advisory] of entriesOf(audit.advisories, "advisories")) {

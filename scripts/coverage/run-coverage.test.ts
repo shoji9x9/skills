@@ -7,6 +7,7 @@
 import { spawnSync } from "node:child_process";
 import {
   copyFileSync,
+  existsSync,
   mkdirSync,
   readFileSync,
   readdirSync,
@@ -275,7 +276,12 @@ test(
   { timeout: 120_000 },
   () => {
     const root = miniRepo(FULL);
+    // 前回の結果の残り（測り直しで消えるはずのファイル）を置いておく。
+    const stale = join(root, "node_modules", ".cache", "coverage", "stale.json");
+    mkdirSync(dirname(stale), { recursive: true });
+    writeFileSync(stale, "{}");
     const first = runMain([], root);
+    expect(existsSync(stale), "通常の実行が前回の結果を消していない").toBe(false);
     expect(first.status, first.out).toBe(0);
     expect(first.out).toMatch(/対象 3 ファイルのうち 2 ファイルが閾値以上（除外 1）/);
     const again = runMain(["--reuse"], root);
@@ -380,4 +386,14 @@ test("sweepFocusDirs: pid のプロセスが無くても、更新から FOCUS_ST
 
 test("sweepFocusDirs: 結果の置き場所がまだ無ければ何もしない", () => {
   expect(() => sweepFocusDirs(makeTempDir("run-coverage-sweep-empty-"))).not.toThrow();
+});
+
+test("main: 結果の置き場所を用意できなければ、判定できないとして exit 2", () => {
+  const root = miniRepo(FULL);
+  // node_modules/.cache をファイルにしておくと、--focus の結果のディレクトリを作れない。
+  mkdirSync(join(root, "node_modules"), { recursive: true });
+  writeFileSync(join(root, "node_modules", ".cache"), "");
+  const res = runMain(["--focus", "skills/x/a.mjs"], root);
+  expect(res.status, res.out).toBe(2);
+  expect(res.out).toMatch(/結果の置き場所を用意できない/);
 });

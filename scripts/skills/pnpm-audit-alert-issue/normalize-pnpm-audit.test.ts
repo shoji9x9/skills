@@ -362,6 +362,17 @@ describe("normalizeAudit（audit の JSON 全体）", () => {
     expect(normalizeAudit({})).toEqual([]);
   });
 
+  test("packages の項目が null なら版は無いものとして読み、どの vulnerability も読まない項目の形は確かめない", () => {
+    const result = normalizeAudit(
+      auditJson({
+        vulnerabilities: { x: { severity: "high" } },
+        packages: { "node_modules/x": null, "node_modules/unrelated": "link:../y" },
+      }),
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0]?.current_versions).toEqual([]);
+  });
+
   test("advisories・vulnerabilities・packages が null なら、その欄は無いものとして読む", () => {
     expect(
       normalizeAudit(auditJson({ advisories: null, vulnerabilities: null, packages: null })),
@@ -390,8 +401,13 @@ describe("normalizeAudit（audit の JSON 全体）", () => {
     ["packages が配列", { packages: [] }, /packages が object でない/],
     ["packages が文字列", { packages: "x" }, /packages が object でない/],
     [
-      "packages の項目が文字列",
-      { packages: { "node_modules/x": "1.2.3" } },
+      "読む packages の項目が文字列",
+      { vulnerabilities: { x: { severity: "high" } }, packages: { "node_modules/x": "1.2.3" } },
+      /packages\.node_modules\/x が object でない/,
+    ],
+    [
+      "読む packages の項目が配列",
+      { vulnerabilities: { x: { severity: "high" } }, packages: { "node_modules/x": [] } },
       /packages\.node_modules\/x が object でない/,
     ],
   ])("%s なら、どこが違うかを書いた Error を投げる", (_label, raw, message) => {

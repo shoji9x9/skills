@@ -52,7 +52,10 @@
         "normalizeAudit（audit の JSON 全体） 古い形と新しい形の両方を読む",
         "normalizeAudit（audit の JSON 全体） vulnerabilities の値が null なら、どこが違うかを書いた Error を投げる",
         "normalizeAudit（audit の JSON 全体） vulnerabilities の値が配列 なら、どこが違うかを書いた Error を投げる",
-        "normalizeAudit（audit の JSON 全体） vulnerabilities が数 なら、どこが違うかを書いた Error を投げる"
+        "normalizeAudit（audit の JSON 全体） vulnerabilities が数 なら、どこが違うかを書いた Error を投げる",
+        "normalizeAudit（audit の JSON 全体） packages の項目が null なら版は無いものとして読み、どの vulnerability も読まない項目の形は確かめない",
+        "normalizeAudit（audit の JSON 全体） 読む packages の項目が文字列 なら、どこが違うかを書いた Error を投げる",
+        "normalizeAudit（audit の JSON 全体） 読む packages の項目が配列 なら、どこが違うかを書いた Error を投げる"
       ]
     },
     {
@@ -165,7 +168,7 @@
       "id": "node-paths-version-ignored",
       "why": "新しい形で、nodes のパスから今の版を読まない",
       "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
-      "find": "    versions.push(packages?.[String(node)]?.version);\n",
+      "find": "    versions.push(packageVersion(packages, String(node)));\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
@@ -213,13 +216,14 @@
     },
     {
       "id": "packages-shape-unchecked",
-      "why": "packages の項目の形を確かめず、文字列でも読み進める（今の版が警告なしに空になる）",
+      "why": "読む packages の項目の形を確かめず、文字列や配列でも読み進める（今の版が警告なしに抜ける）",
       "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
-      "find": "if (entry !== undefined && entry !== null && !isRecord(entry))",
-      "replace": "if (false)",
+      "find": "if (!isRecord(entry)) throw new Error(`packages.${key} が object でない`);",
+      "replace": "if (!isRecord(entry)) return undefined;",
       "occurrences": 1,
       "expect_failing": [
-        "normalizeAudit（audit の JSON 全体） packages の項目が文字列 なら、どこが違うかを書いた Error を投げる"
+        "normalizeAudit（audit の JSON 全体） 読む packages の項目が文字列 なら、どこが違うかを書いた Error を投げる",
+        "normalizeAudit（audit の JSON 全体） 読む packages の項目が配列 なら、どこが違うかを書いた Error を投げる"
       ]
     },
     {
@@ -242,6 +246,28 @@
       "occurrences": 1,
       "expect_failing": [
         "normalizeAudit（audit の JSON 全体） vulnerabilities の値が配列 なら、どこが違うかを書いた Error を投げる"
+      ]
+    },
+    {
+      "id": "packages-array-entry-accepted",
+      "why": "読む packages の項目が配列でも object として読む",
+      "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
+      "find": "if (!isRecord(entry)) throw new Error(`packages.${key} が object でない`);",
+      "replace": "if (typeof entry !== \"object\") throw new Error(`packages.${key} が object でない`);",
+      "occurrences": 1,
+      "expect_failing": [
+        "normalizeAudit（audit の JSON 全体） 読む packages の項目が配列 なら、どこが違うかを書いた Error を投げる"
+      ]
+    },
+    {
+      "id": "packages-null-entry-rejected",
+      "why": "packages の項目が null のとき、無いものとして読まずに Error にする",
+      "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
+      "find": "  if (entry === undefined || entry === null) return undefined;",
+      "replace": "  if (entry === undefined) return undefined;",
+      "occurrences": 1,
+      "expect_failing": [
+        "normalizeAudit（audit の JSON 全体） packages の項目が null なら版は無いものとして読み、どの vulnerability も読まない項目の形は確かめない"
       ]
     }
   ]
