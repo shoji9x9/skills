@@ -80,6 +80,7 @@ function runTraced(args: string[], opts: { cwd: string; traceDir: string }) {
     cwd: opts.cwd,
     encoding: "utf8",
     env: { ...process.env, BASH_ENV: TRACE_ENV, SHELL_COVERAGE_DIR: opts.traceDir },
+    timeout: 30_000,
   });
 }
 
@@ -164,7 +165,7 @@ test("bash-trace-env.sh: スクリプトの stdout・stderr・終了コードを
   const traceDir = join(dir, "trace");
   mkdirSync(traceDir);
   writeSample(dir, "e.sh", 'echo out\necho err >&2\nx=$(echo e2 >&2; echo v)\necho "$x"\nexit 3\n');
-  const plain = spawnSync("bash", [join(dir, "e.sh")], { encoding: "utf8" });
+  const plain = spawnSync("bash", [join(dir, "e.sh")], { encoding: "utf8", timeout: 30_000 });
   const traced = runTraced([join(dir, "e.sh")], { cwd: dir, traceDir });
   const missing = runTraced([join(dir, "e.sh")], { cwd: dir, traceDir: join(dir, "no-such-dir") });
   for (const res of [traced, missing]) {
@@ -205,7 +206,10 @@ test("bash-trace-env.sh: 記録は 1 プロセス 1 ファイルで、起動し�
   expect(runTraced([join(dir, "h.sh")], { cwd: dir, traceDir }).status).toBe(0);
   const trace = parseTrace(
     readFileSync(
-      join(traceDir, spawnSync("ls", [traceDir], { encoding: "utf8" }).stdout.trim()),
+      join(
+        traceDir,
+        spawnSync("ls", [traceDir], { encoding: "utf8", timeout: 30_000 }).stdout.trim(),
+      ),
       "utf8",
     ),
   );
@@ -243,6 +247,19 @@ test("shellCoverage: 内容が同じ対象が 2 つあれば、コピーの実�
   expect([files["a/t.sh"]?.covered, files["b/t.sh"]?.covered]).toEqual([1, 1]);
 });
 
+test("shellCoverage: 内容が同じ対象の片方を原本のパスで起動しても、両方に数える（起動の方法で結果を変えない）", () => {
+  const root = makeTempDir("shell-coverage-twins-direct-");
+  const traceDir = join(root, "trace");
+  mkdirSync(traceDir);
+  mkdirSync(join(root, "a"));
+  mkdirSync(join(root, "b"));
+  writeSample(join(root, "a"), "t.sh", "echo t\n");
+  writeSample(join(root, "b"), "t.sh", "echo t\n");
+  expect(runTraced([join(root, "a", "t.sh")], { cwd: root, traceDir }).status).toBe(0);
+  const { files } = shellCoverage(root, ["a/t.sh", "b/t.sh"], traceDir);
+  expect([files["a/t.sh"]?.covered, files["b/t.sh"]?.covered]).toEqual([1, 1]);
+});
+
 test("bash-trace-env.sh: リポジトリの scripts/・skills/ の下の原本を起動したときは、隣の *.sh のハッシュを書かない", () => {
   const root = makeTempDir("shell-coverage-root-");
   const traceDir = join(root, "trace");
@@ -258,11 +275,15 @@ test("bash-trace-env.sh: リポジトリの scripts/・skills/ の下の原本�
       BASH_ENV: join(root, "scripts", "coverage", "bash-trace-env.sh"),
       SHELL_COVERAGE_DIR: traceDir,
     },
+    timeout: 30_000,
   });
   expect(res.status).toBe(0);
   const trace = parseTrace(
     readFileSync(
-      join(traceDir, spawnSync("ls", [traceDir], { encoding: "utf8" }).stdout.trim()),
+      join(
+        traceDir,
+        spawnSync("ls", [traceDir], { encoding: "utf8", timeout: 30_000 }).stdout.trim(),
+      ),
       "utf8",
     ),
   );

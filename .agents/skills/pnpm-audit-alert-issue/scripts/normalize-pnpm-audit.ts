@@ -276,18 +276,29 @@ export function findingsFromVulnerability(
 }
 
 /** pnpm audit の JSON から findings を作る。`package` の無いものは除き、同じ package と advisory の組はまとめる。 */
-export function normalizeAudit(raw: AuditJson): Finding[] {
+/**
+ * 解析した JSON 全体から findings を作る。形が違う入力（object でない全体・advisory・vulnerability）は、
+ * 読み飛ばすと advisory を警告なしに落とすので、どこが違うかを書いた Error を投げる（main が exit 1 にする）。
+ */
+export function normalizeAudit(raw: unknown): Finding[] {
+  if (!isObjectLike(raw) || isArray(raw)) {
+    throw new Error("全体が object でない");
+  }
+  const audit: AuditJson = raw;
   const findings: Finding[] = [];
 
-  if (raw.advisories && typeof raw.advisories === "object") {
-    for (const advisory of Object.values(raw.advisories)) {
+  if (audit.advisories && typeof audit.advisories === "object") {
+    for (const [id, advisory] of Object.entries(audit.advisories)) {
+      if (!isObjectLike(advisory)) throw new Error(`advisories.${id} が object でない`);
       findings.push(fromAdvisory(advisory));
     }
   }
 
-  if (raw.vulnerabilities && typeof raw.vulnerabilities === "object") {
-    for (const [packageName, vulnerability] of Object.entries(raw.vulnerabilities)) {
-      findings.push(...findingsFromVulnerability(packageName, vulnerability, raw.packages));
+  if (audit.vulnerabilities && typeof audit.vulnerabilities === "object") {
+    for (const [packageName, vulnerability] of Object.entries(audit.vulnerabilities)) {
+      if (!isObjectLike(vulnerability))
+        throw new Error(`vulnerabilities.${packageName} が object でない`);
+      findings.push(...findingsFromVulnerability(packageName, vulnerability, audit.packages));
     }
   }
 
@@ -301,7 +312,7 @@ export function normalizeAudit(raw: AuditJson): Finding[] {
   return [...merged.values()];
 }
 
-/** 引数が足りなければ 2、入力を読めなければ 1、書き出したら 0 を返す。 */
+/** 引数が足りなければ 2、入力を読めないか形が違えば 1、書き出したら 0 を返す。 */
 export function main(argv: string[]): number {
   const [inputPath, outputPath] = argv;
   if (!inputPath || !outputPath) {
@@ -312,13 +323,20 @@ export function main(argv: string[]): number {
   const raw = loadJson(inputPath);
   if (raw === undefined) return 1;
 
+  let findings: Finding[];
+  try {
+    findings = normalizeAudit(raw);
+  } catch (err) {
+    console.error(`Failed to normalize pnpm audit JSON: ${inputPath}: ${errorMessage(err)}`);
+    return 1;
+  }
   writeFileSync(
     outputPath,
     `${JSON.stringify(
       {
         source: "pnpm-audit",
         generated_at: new Date().toISOString(),
-        findings: normalizeAudit(raw),
+        findings,
       },
       null,
       2,

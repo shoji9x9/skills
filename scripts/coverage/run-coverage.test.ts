@@ -5,18 +5,18 @@
 // リポジトリの外では mise が pnpm の版を決められない。package.json を置くと、pnpm exec がそこを別のプロジェクトとして依存を入れ直す。
 // 置かなければ、pnpm と Node はリポジトリの直下の package.json と node_modules を使う。
 import { spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, expect, test, vi } from "vitest";
 import { makeTempDir, makeTempDirFactory } from "../lib/testing/test-tmpdir.ts";
-import { main, readC8Summary, targetFiles } from "./run-coverage.ts";
+import { main, readC8Summary, sweepFocusDirs, targetFiles } from "./run-coverage.ts";
 
 const SCRIPT = fileURLToPath(new URL("run-coverage.ts", import.meta.url));
 const ROOT = fileURLToPath(new URL("../../", import.meta.url));
 
 const run = (args: string[]) =>
-  spawnSync(process.execPath, [SCRIPT, ...args], { encoding: "utf8", cwd: ROOT });
+  spawnSync(process.execPath, [SCRIPT, ...args], { encoding: "utf8", cwd: ROOT, timeout: 30_000 });
 
 /**
  * ランナーを一時ディレクトリに置いたリポジトリにコピーし、前回の測定の結果（要約）を置いて、--reuse の CLI を起動する。
@@ -62,10 +62,11 @@ function runCopiedCli(pct: number) {
     "node_modules/.cache/coverage/shell-summary.json",
     JSON.stringify({ files: {}, unresolved: 0 }),
   );
-  expect(spawnSync("git", ["init", "-q"], { cwd: root }).status).toBe(0);
+  expect(spawnSync("git", ["init", "-q"], { cwd: root, timeout: 30_000 }).status).toBe(0);
   return spawnSync(process.execPath, [join(root, "scripts/coverage/run-coverage.ts"), "--reuse"], {
     encoding: "utf8",
     cwd: root,
+    timeout: 30_000,
   });
 }
 
@@ -136,7 +137,8 @@ test("targetFiles: scripts/・skills/・private skill の下のソースを、ad
     mkdirSync(dirname(join(root, rel)), { recursive: true });
     writeFileSync(join(root, rel), "");
   }
-  const git = (...args: string[]) => expect(spawnSync("git", args, { cwd: root }).status).toBe(0);
+  const git = (...args: string[]) =>
+    expect(spawnSync("git", args, { cwd: root, timeout: 30_000 }).status).toBe(0);
   git("init", "-q");
   writeFileSync(join(root, ".gitignore"), "scripts/ignored.ts\n");
   // private skill（.private-skill を持つもの）のスクリプトは測り、インストール済みのコピーは測らない。
@@ -156,7 +158,7 @@ test("targetFiles: scripts/・skills/・private skill の下のソースを、ad
 
 test("targetFiles: 対象が 0 件のときは、判定できないとして例外にする", () => {
   const root = makeTempDir("run-coverage-empty-");
-  expect(spawnSync("git", ["init", "-q"], { cwd: root }).status).toBe(0);
+  expect(spawnSync("git", ["init", "-q"], { cwd: root, timeout: 30_000 }).status).toBe(0);
   expect(() => targetFiles(root)).toThrow(/0 件/);
 });
 
@@ -169,7 +171,7 @@ test("coverageEnv: シェルの計測は SHELL_COVERAGE_DIR と BASH_ENV が両�
         "-e",
         `import { coverageEnv } from ${JSON.stringify(new URL("../lib/testing/coverage-env.ts", import.meta.url).href)}; console.log(JSON.stringify(coverageEnv()));`,
       ],
-      { encoding: "utf8", env: { PATH: process.env.PATH ?? "", ...env } },
+      { encoding: "utf8", env: { PATH: process.env.PATH ?? "", ...env }, timeout: 30_000 },
     ).stdout.trim();
   // Node は、環境を明示した子プロセスにも親の NODE_V8_COVERAGE を引き継ぐ。測る実行では、親の値が入る。
   const inherited = process.env.NODE_V8_COVERAGE
@@ -231,7 +233,7 @@ function miniRepo(body: string): string {
   );
   write("skills/x/s.sh", "echo one\necho two\n");
   write("tests/a.test.mjs", body);
-  expect(spawnSync("git", ["init", "-q"], { cwd: root }).status).toBe(0);
+  expect(spawnSync("git", ["init", "-q"], { cwd: root, timeout: 30_000 }).status).toBe(0);
   return root;
 }
 
@@ -313,4 +315,24 @@ test("main: 設定が読めなければ、測らずに exit 2", () => {
   const res = runMain([], root);
   expect(res.status).toBe(2);
   expect(res.out).toMatch(/判定できない/);
+});
+
+test("sweepFocusDirs: 終わった --focus の実行の結果だけを消し、実行中のものと通常の結果は残す", () => {
+  const root = makeTempDir("run-coverage-sweep-");
+  const cache = join(root, "node_modules", ".cache");
+  // pid 1 は常に在る（別の利用者のプロセスなら EPERM になり、在るとみなす）。2 の 22 乗より大きい pid は Linux では作られない。
+  const names = [
+    "coverage",
+    "coverage-focus-1",
+    "coverage-focus-9999999",
+    "coverage-focus-x",
+    "other",
+  ];
+  for (const name of names) mkdirSync(join(cache, name), { recursive: true });
+  sweepFocusDirs(root);
+  expect(readdirSync(cache).sort()).toEqual(["coverage", "coverage-focus-1", "other"]);
+});
+
+test("sweepFocusDirs: 結果の置き場所がまだ無ければ何もしない", () => {
+  expect(() => sweepFocusDirs(makeTempDir("run-coverage-sweep-empty-"))).not.toThrow();
 });

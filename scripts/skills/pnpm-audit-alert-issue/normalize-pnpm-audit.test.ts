@@ -366,6 +366,20 @@ describe("normalizeAudit（audit の JSON 全体）", () => {
     expect(normalizeAudit(auditJson({ advisories: "x", vulnerabilities: null }))).toEqual([]);
   });
 
+  // 形が違う要素を読み飛ばすと、その advisory を警告なしに落とす。どこが違うかを書いた Error で止める。
+  test.each([
+    ["全体が null", null, /全体が object でない/],
+    ["全体が配列", [], /全体が object でない/],
+    ["advisories の値が null", { advisories: { "7": null } }, /advisories\.7 が object でない/],
+    [
+      "vulnerabilities の値が null",
+      { vulnerabilities: { x: null } },
+      /vulnerabilities\.x が object でない/,
+    ],
+  ])("%s なら、どこが違うかを書いた Error を投げる", (_label, raw, message) => {
+    expect(() => normalizeAudit(raw)).toThrow(message);
+  });
+
   test("古い形と新しい形の両方を読む", () => {
     const result = normalizeAudit(
       auditJson({
@@ -497,6 +511,7 @@ describe("CLI", () => {
     return spawnSync(process.execPath, [script, ...args], {
       encoding: "utf8",
       env: { PATH: process.env.PATH ?? "", ...coverageEnv() },
+      timeout: 20_000,
     });
   }
 
@@ -553,6 +568,16 @@ describe("CLI", () => {
     ["無いファイル", null, /Failed to read pnpm audit JSON/],
     ["空のファイル", " \n", /Failed to parse pnpm audit JSON: .* is empty/],
     ["JSON でないファイル", "{not json", /Failed to parse pnpm audit JSON/],
+    [
+      "全体が null の JSON",
+      "null",
+      /Failed to normalize pnpm audit JSON: .*: 全体が object でない/,
+    ],
+    [
+      "findings の要素が null の JSON",
+      JSON.stringify({ advisories: { "1": { module_name: "x", findings: [null] } } }),
+      /Failed to normalize pnpm audit JSON: .*: advisory\.findings の要素が null で、欄を読めない/,
+    ],
   ])("%s は理由を出して exit 1、出力を書かない", (_label, content, message) => {
     const dir = makeTempDir("normalize-pnpm-audit-");
     const input = join(dir, "audit.json");
@@ -574,6 +599,7 @@ describe("CLI", () => {
     const result = spawnSync(process.execPath, [viaLink], {
       encoding: "utf8",
       env: { PATH: process.env.PATH ?? "", ...coverageEnv() },
+      timeout: 20_000,
     });
 
     expect(result.status).toBe(2);

@@ -72,7 +72,7 @@ scripts/                リポジトリ内のツールとテスト（配布し�
 
 `scripts/` のテスト（`*.test.ts`）とミューテーションテストの定義ファイル（`*.mutations.json`）は、テスト対象の隣に置く。
 `scripts/` のツールのテストはそのツールと同じディレクトリに置く。
-配布スキルのスクリプトのテストは `scripts/skills/<name>/` に置き、複数のスキルにまたがるものは `scripts/skills/_cross/` に置く。
+配布スキルと private skill のスクリプトのテストは `scripts/skills/<name>/` に置き、複数のスキルにまたがるものは `scripts/skills/_cross/` に置く。
 
 新しいチェックは、チェックする対象で `scripts/gates/` の分類を選び、どれにも当たらなければ分類を足す。
 

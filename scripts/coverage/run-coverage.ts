@@ -17,7 +17,8 @@
 //       # 一部のテストだけを実行し、--focus で始まるファイルだけを比べる（テストを足しながら確かめるとき）。
 //       # `--` の後は vitest に渡す。--focus は何度でも書ける。結果は実行ごとに別のディレクトリに置くので、並べて実行できる。
 //
-// 結果は node_modules/.cache/coverage/ に置く。HTML のレポートは report/index.html にある。
+// 結果は node_modules/.cache/coverage/ に置く。HTML のレポートは report/index.html にある（GitHub Actions では作らない）。
+// --focus の結果は実行ごとのディレクトリに置き、次の --focus の実行が、終わった実行の分を消す。
 // 終了コード: 0 はすべて閾値以上、1 は閾値を下回るファイルか設定の古い記述がある、またはテストが失敗した、
 // 2 は判定できない（設定の形の誤り・測定の失敗・前回の結果が無い）。
 import { spawnSync } from "node:child_process";
@@ -30,9 +31,9 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { join, relative } from "node:path";
+import { basename, dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { errorMessage } from "../lib/errors.ts";
+import { errorMessage, isErrnoException } from "../lib/errors.ts";
 import { isRecord } from "../lib/guards.ts";
 import {
   type Config,
@@ -83,6 +84,32 @@ export function targetFiles(root: string): string[] {
   const files = [...new Set(res.stdout.split("\0"))].filter((f) => f !== "" && kindOf(f) !== null);
   if (files.length === 0) throw new Error("測る対象のファイルが 0 件である");
   return files.sort();
+}
+
+/**
+ * 終わった --focus の実行が残した結果のディレクトリ（`coverage-focus-<pid>`）を消す。
+ * 実行中のもの（pid のプロセスが在るもの）は、並べて実行している別の --focus の結果なので残す。
+ */
+export function sweepFocusDirs(root: string): void {
+  const parent = join(root, dirname(CACHE));
+  if (!existsSync(parent)) return;
+  const prefix = `${basename(CACHE)}-focus-`;
+  for (const name of readdirSync(parent)) {
+    if (!name.startsWith(prefix)) continue;
+    const pid = Number(name.slice(prefix.length));
+    if (Number.isInteger(pid) && pid > 0 && pid !== process.pid && isAlive(pid)) continue;
+    rmSync(join(parent, name), { recursive: true, force: true });
+  }
+}
+
+function isAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    // EPERM は、別の利用者のプロセスとして在ることを示す。
+    return isErrnoException(error) && error.code === "EPERM";
+  }
 }
 
 /** c8 の json-summary を、リポジトリからの相対パスの測定値にする。 */
@@ -136,8 +163,8 @@ function measure(
     join(cache, "report"),
     "--reporter",
     "json-summary",
-    // HTML のレポートは手元で未実行の行を見るためのもので、CI では残さないので作らない（GitHub Actions は CI=true を渡す）。
-    ...(process.env.CI === "true" ? [] : ["--reporter", "html"]),
+    // HTML のレポートは手元で未実行の行を見るためのもので、GitHub Actions のジョブでは残さないので作らない。
+    ...(process.env.GITHUB_ACTIONS === "true" ? [] : ["--reporter", "html"]),
     "--reporter",
     "text-summary",
     "vitest",
@@ -229,6 +256,7 @@ export function main(
     console.error("run-coverage: --reuse と --focus は一緒に使えない");
     return 2;
   }
+  if (focus.length > 0) sweepFocusDirs(root);
   const cache = join(root, focus.length > 0 ? `${CACHE}-focus-${process.pid}` : CACHE);
   let config;
   let files;

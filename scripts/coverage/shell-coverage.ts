@@ -139,13 +139,14 @@ export function shellCoverage(
   targets: readonly string[],
   traceDir: string,
 ): ShellCoverageResult {
-  const realToTarget = new Map<string, string>();
-  // 内容が同じ対象（同じスクリプトを 2 つのスキルが持つなど）は、コピーの実行をどちらにも数える。
+  // 内容が同じ対象（同じスクリプトを 2 つのスキルが持つなど）は、どちらを起動しても、コピーを起動しても、両方に数える。
+  // 起動の方法で結果が変わらないよう、実体のパスからも内容のハッシュを経て同じ組に結び付ける。
+  const realToHash = new Map<string, string>();
   const hashToTargets = new Map<string, string[]>();
   for (const rel of targets) {
     const path = join(root, rel);
-    realToTarget.set(realpathSync(path), rel);
     const hash = createHash("sha256").update(readFileSync(path)).digest("hex");
+    realToHash.set(realpathSync(path), hash);
     hashToTargets.set(hash, [...(hashToTargets.get(hash) ?? []), rel]);
   }
 
@@ -159,9 +160,8 @@ export function shellCoverage(
       const abs = absSource(hit);
       const real = resolveSource(abs, cache);
       const hash = trace.hashes.get(abs);
-      const direct = real === null ? undefined : realToTarget.get(real);
-      const rels =
-        direct !== undefined ? [direct] : hash === undefined ? [] : (hashToTargets.get(hash) ?? []);
+      const key = (real === null ? undefined : realToHash.get(real)) ?? hash;
+      const rels = key === undefined ? [] : (hashToTargets.get(key) ?? []);
       if (rels.length === 0) {
         if (real === null) unresolved += 1;
         continue;

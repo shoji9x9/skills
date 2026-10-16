@@ -44,12 +44,13 @@
       "id": "vulnerabilities-shape-ignored",
       "why": "新しい形（vulnerabilities）を読まない",
       "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
-      "find": "if (raw.vulnerabilities && typeof raw.vulnerabilities === \"object\") {",
+      "find": "if (audit.vulnerabilities && typeof audit.vulnerabilities === \"object\") {",
       "replace": "if (false) {",
       "occurrences": 1,
       "expect_failing": [
         "normalizeAudit（audit の JSON 全体） 古い形と新しい形に同じ組があれば、欠けた欄を後の finding で補う",
-        "normalizeAudit（audit の JSON 全体） 古い形と新しい形の両方を読む"
+        "normalizeAudit（audit の JSON 全体） 古い形と新しい形の両方を読む",
+        "normalizeAudit（audit の JSON 全体） vulnerabilities の値が null なら、どこが違うかを書いた Error を投げる"
       ]
     },
     {
@@ -120,7 +121,8 @@
       "replace": "if (false) {",
       "occurrences": 1,
       "expect_failing": [
-        "fromAdvisory（古い形の advisories の 1 件） findings の要素が null なら、欄を読めないので例外にする"
+        "fromAdvisory（古い形の advisories の 1 件） findings の要素が null なら、欄を読めないので例外にする",
+        "CLI findings の要素が null の JSON は理由を出して exit 1、出力を書かない"
       ]
     },
     {

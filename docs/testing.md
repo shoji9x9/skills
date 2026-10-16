@@ -152,7 +152,7 @@ node scripts/coverage/run-coverage.ts --focus skills/kaizen/ -- scripts/skills/k
 ```
 
 `--focus` で始まるファイルの値と、閾値を下回るものだけを出す。
-シェルの未実行の行は、出力の最後に示すディレクトリの `shell-summary.json` に、JavaScript の未実行の行は同じディレクトリの `report/index.html` にある。
+シェルの未実行の行は、出力の最後に示すディレクトリの `shell-summary.json` に、JavaScript の未実行の行は同じディレクトリの `report/index.html` にある（GitHub Actions のジョブでは作らない）。
 
 子プロセスの環境を明示した値だけで組み立てると、計測の環境変数（`NODE_V8_COVERAGE`・`BASH_ENV`・`SHELL_COVERAGE_DIR`）が子プロセスに渡らない。
 渡らないと、その子プロセスの実行がカバレッジに数えられない。組み立てた環境に `scripts/lib/testing/coverage-env.ts` の `coverageEnv()` を足す。

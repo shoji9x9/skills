@@ -20,8 +20,8 @@
       "id": "copy-not-mapped",
       "why": "原本と同じ内容のコピーの実行を原本に数えない",
       "file": "scripts/coverage/shell-coverage.ts",
-      "find": ": (hashToTargets.get(hash) ?? []);",
-      "replace": ": [];",
+      "find": "realToHash.get(real)) ?? hash;",
+      "replace": "realToHash.get(real)) ?? undefined;",
       "expect_failing": [
         "shellCoverage: 内容が原本と同じコピーの実行は、コピーを消した後も原本として数え、書き換えたコピーは数えない",
         "shellCoverage: 内容が同じ対象が 2 つあれば、コピーの実行はどちらにも数える"
@@ -34,7 +34,8 @@
       "find": "for (const rel of rels) {",
       "replace": "for (const rel of rels.slice(0, 1)) {",
       "expect_failing": [
-        "shellCoverage: 内容が同じ対象が 2 つあれば、コピーの実行はどちらにも数える"
+        "shellCoverage: 内容が同じ対象が 2 つあれば、コピーの実行はどちらにも数える",
+        "shellCoverage: 内容が同じ対象の片方を原本のパスで起動しても、両方に数える（起動の方法で結果を変えない）"
       ]
     },
     {
