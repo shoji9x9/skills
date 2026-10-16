@@ -530,6 +530,7 @@ function runCli(argv: string[]) {
   const r = spawnSync(process.execPath, ["--import", pathToFileURL(HOOKS).href, script, ...argv], {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
+    timeout: 30_000,
   });
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }

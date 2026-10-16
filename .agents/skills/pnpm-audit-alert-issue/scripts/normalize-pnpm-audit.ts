@@ -275,31 +275,37 @@ export function findingsFromVulnerability(
   );
 }
 
-/** pnpm audit の JSON から findings を作る。`package` の無いものは除き、同じ package と advisory の組はまとめる。 */
+/** object で、配列でない値（advisory・vulnerability とそれらを入れる欄）。 */
+function isRecordLike(value: unknown): value is AuditRecord {
+  return isObjectLike(value) && !isArray(value);
+}
+
+/** advisories・vulnerabilities の欄の項目。欄が無い（null を含む）なら 0 件、object でなければ Error にする。 */
+function entriesOf(value: unknown, name: string): [string, unknown][] {
+  if (value === undefined || value === null) return [];
+  if (!isRecordLike(value)) throw new Error(`${name} が object でない`);
+  return Object.entries(value);
+}
+
 /**
- * 解析した JSON 全体から findings を作る。形が違う入力（object でない全体・advisory・vulnerability）は、
+ * 解析した JSON 全体から findings を作る。`package` の無いものは除き、同じ package と advisory の組はまとめる。
+ * 形が違う入力（object でない全体、object でない advisories・vulnerabilities とその要素）は、
  * 読み飛ばすと advisory を警告なしに落とすので、どこが違うかを書いた Error を投げる（main が exit 1 にする）。
  */
 export function normalizeAudit(raw: unknown): Finding[] {
-  if (!isObjectLike(raw) || isArray(raw)) {
-    throw new Error("全体が object でない");
-  }
+  if (!isRecordLike(raw)) throw new Error("全体が object でない");
   const audit: AuditJson = raw;
   const findings: Finding[] = [];
 
-  if (audit.advisories && typeof audit.advisories === "object") {
-    for (const [id, advisory] of Object.entries(audit.advisories)) {
-      if (!isObjectLike(advisory)) throw new Error(`advisories.${id} が object でない`);
-      findings.push(fromAdvisory(advisory));
-    }
+  for (const [id, advisory] of entriesOf(audit.advisories, "advisories")) {
+    if (!isRecordLike(advisory)) throw new Error(`advisories.${id} が object でない`);
+    findings.push(fromAdvisory(advisory));
   }
 
-  if (audit.vulnerabilities && typeof audit.vulnerabilities === "object") {
-    for (const [packageName, vulnerability] of Object.entries(audit.vulnerabilities)) {
-      if (!isObjectLike(vulnerability))
-        throw new Error(`vulnerabilities.${packageName} が object でない`);
-      findings.push(...findingsFromVulnerability(packageName, vulnerability, audit.packages));
-    }
+  for (const [packageName, vulnerability] of entriesOf(audit.vulnerabilities, "vulnerabilities")) {
+    if (!isRecordLike(vulnerability))
+      throw new Error(`vulnerabilities.${packageName} が object でない`);
+    findings.push(...findingsFromVulnerability(packageName, vulnerability, audit.packages));
   }
 
   const merged = new Map<string, Finding>();

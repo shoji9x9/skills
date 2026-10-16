@@ -96,7 +96,7 @@ function runFiles(
   const res = spawnSync(
     process.execPath,
     [...(fake ? ["--import", HOOKS] : []), SCRIPT, ...paths, "--out", out, ...args],
-    { encoding: "utf8", env: process.env },
+    { encoding: "utf8", env: process.env, timeout: 30_000 },
   );
   return { code: res.status, stdout: res.stdout, stderr: res.stderr, out };
 }
@@ -889,6 +889,7 @@ test.each([
 ])("引数が足りなければ使い方を出して exit 2（%s）", (_label, argv, message) => {
   const res = spawnSync(process.execPath, ["--import", HOOKS, SCRIPT, ...argv], {
     encoding: "utf8",
+    timeout: 30_000,
   });
   expect(res.status).toBe(2);
   expect(res.stderr).toMatch(message);

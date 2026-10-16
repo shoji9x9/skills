@@ -40,6 +40,7 @@ function match(dir: string, ...keywords: string[]) {
     cwd: dir,
     encoding: "utf8",
     env: { ...process.env, CLAUDE_PROJECT_DIR: dir, ...coverageEnv() },
+    timeout: 30_000,
   });
   const hits = res.stdout.split("\n").filter(Boolean);
   return { ...res, hits };

@@ -65,6 +65,17 @@
       "find": "{ exec {__shell_coverage_fd}>>\"${SHELL_COVERAGE_DIR}/trace.$$\"; } 2>/dev/null",
       "replace": "exec {__shell_coverage_fd}>>\"${SHELL_COVERAGE_DIR}/trace.$$\" 2>/dev/null",
       "expect_failing": ["bash-trace-env.sh: スクリプトの stdout・stderr・終了コードを変えない"]
+    },
+    {
+      "id": "direct-not-mapped",
+      "why": "実体のパスで起動した原本を、内容が同じ組に結び付けない（ハッシュの無い原本の実行が 0 件になる）",
+      "file": "scripts/coverage/shell-coverage.ts",
+      "find": "(real === null ? undefined : realToHash.get(real)) ?? hash",
+      "replace": "hash",
+      "occurrences": 1,
+      "expect_failing": [
+        "shellCoverage: 内容が同じ対象の片方を原本のパスで起動しても、両方に数える（起動の方法で結果を変えない）"
+      ]
     }
   ]
 }

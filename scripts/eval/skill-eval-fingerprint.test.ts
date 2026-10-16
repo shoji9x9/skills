@@ -31,6 +31,7 @@ function runCli(script: string, args: string[]) {
   return spawnSync(process.execPath, [script, ...args], {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
+    timeout: 30_000,
   });
 }
 

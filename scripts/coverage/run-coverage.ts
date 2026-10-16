@@ -18,7 +18,7 @@
 //       # `--` の後は vitest に渡す。--focus は何度でも書ける。結果は実行ごとに別のディレクトリに置くので、並べて実行できる。
 //
 // 結果は node_modules/.cache/coverage/ に置く。HTML のレポートは report/index.html にある（GitHub Actions では作らない）。
-// --focus の結果は実行ごとのディレクトリに置き、次の --focus の実行が、終わった実行の分を消す。
+// --focus の結果は実行ごとのディレクトリに置く。次の --focus の実行が、終わった実行の結果のディレクトリを消す。
 // 終了コード: 0 はすべて閾値以上、1 は閾値を下回るファイルか設定の古い記述がある、またはテストが失敗した、
 // 2 は判定できない（設定の形の誤り・測定の失敗・前回の結果が無い）。
 import { spawnSync } from "node:child_process";
@@ -29,6 +29,7 @@ import {
   readdirSync,
   realpathSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
@@ -86,11 +87,16 @@ export function targetFiles(root: string): string[] {
   return files.sort();
 }
 
+/** 実行中かを pid で決められないときに、実行中とみなす期間。--focus の実行は数分で終わる。 */
+const FOCUS_STALE_MS = 60 * 60 * 1000;
+
 /**
  * 終わった --focus の実行が残した結果のディレクトリ（`coverage-focus-<pid>`）を消す。
- * 実行中のもの（pid のプロセスが在るもの）は、並べて実行している別の --focus の結果なので残す。
+ * 消すのは、pid のプロセスが無く、かつ更新から FOCUS_STALE_MS が過ぎたものだけである。
+ * pid だけで決めると、pid の名前空間の違う環境（コンテナとホスト）で node_modules を共有したときに、実行中の結果を消す。
+ * pid が再利用されて残ったものは、次に pid が空いたときに消える。
  */
-export function sweepFocusDirs(root: string): void {
+export function sweepFocusDirs(root: string, now: number = Date.now()): void {
   const parent = join(root, dirname(CACHE));
   if (!existsSync(parent)) return;
   const prefix = `${basename(CACHE)}-focus-`;
@@ -98,7 +104,9 @@ export function sweepFocusDirs(root: string): void {
     if (!name.startsWith(prefix)) continue;
     const pid = Number(name.slice(prefix.length));
     if (Number.isInteger(pid) && pid > 0 && pid !== process.pid && isAlive(pid)) continue;
-    rmSync(join(parent, name), { recursive: true, force: true });
+    const dir = join(parent, name);
+    if (now - statSync(dir).mtimeMs < FOCUS_STALE_MS) continue;
+    rmSync(dir, { recursive: true, force: true });
   }
 }
 

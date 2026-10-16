@@ -150,7 +150,7 @@ function makeRepo(files: Record<string, string>) {
 }
 
 const run = (cwd: string, args: string[] = []) =>
-  spawnSync(process.execPath, [script, ...args], { cwd, encoding: "utf8" });
+  spawnSync(process.execPath, [script, ...args], { cwd, encoding: "utf8", timeout: 30_000 });
 
 test("引数なしは skills/*/SKILL.md と印のある private skill を見て、印の無いコピーは見ない", () => {
   const root = makeRepo({

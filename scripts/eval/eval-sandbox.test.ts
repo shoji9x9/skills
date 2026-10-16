@@ -223,7 +223,10 @@ function sandbox(args: string[], options: SandboxOptions = {}) {
   let path = `${bin}:${process.env.PATH}`;
   if (options.bwrap === false) {
     for (const tool of ["readlink", "dirname", "basename", "realpath"]) {
-      const real = spawnSync("bash", ["-c", `command -v ${tool}`], { encoding: "utf8" });
+      const real = spawnSync("bash", ["-c", `command -v ${tool}`], {
+        encoding: "utf8",
+        timeout: 30_000,
+      });
       symlinkSync(real.stdout.trim(), join(bin, tool));
     }
     path = bin;
@@ -244,6 +247,7 @@ function sandbox(args: string[], options: SandboxOptions = {}) {
     encoding: "utf8",
     env,
     stdio: ["ignore", "pipe", "pipe"],
+    timeout: 30_000,
   });
   const bwrapArgs = (() => {
     try {

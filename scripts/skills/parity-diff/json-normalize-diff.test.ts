@@ -36,7 +36,10 @@ function runCli(currentJson: string, newJson: string, args: string[] = []) {
   const next = join(dir, "new.json");
   writeFileSync(current, currentJson);
   writeFileSync(next, newJson);
-  const r = spawnSync(process.execPath, [script, current, next, ...args], { encoding: "utf8" });
+  const r = spawnSync(process.execPath, [script, current, next, ...args], {
+    encoding: "utf8",
+    timeout: 30_000,
+  });
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }
 
@@ -207,7 +210,7 @@ test("入力のファイルが 2 つでなければ、使い方を出して exit
   const dir = makeTempDir("json-normalize-diff-");
   const only = join(dir, "current.json");
   writeFileSync(only, "{}");
-  const r = spawnSync(process.execPath, [script, only], { encoding: "utf8" });
+  const r = spawnSync(process.execPath, [script, only], { encoding: "utf8", timeout: 30_000 });
   expect(r.stderr).toContain("usage: node json-normalize-diff.mjs");
   expect(r.stdout).toBe("");
   expect(r.status).toBe(2);
@@ -227,6 +230,7 @@ test("入力のファイルが無ければ exit 2 にする", () => {
   const dir = makeTempDir("json-normalize-diff-");
   const r = spawnSync(process.execPath, [script, join(dir, "a.json"), join(dir, "b.json")], {
     encoding: "utf8",
+    timeout: 30_000,
   });
   expect(r.stderr).toContain("error: cannot read inputs:");
   expect(r.status).toBe(2);
@@ -241,6 +245,7 @@ test.each([
   const code = `await import(${JSON.stringify(script)}); console.log("imported");`;
   const r = spawnSync(process.execPath, ["--input-type=module", "-e", code, ...extra], {
     encoding: "utf8",
+    timeout: 30_000,
   });
   expect(r.stdout).toBe("imported\n");
   expect(r.stderr).not.toContain("usage:");

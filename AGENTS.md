@@ -66,7 +66,7 @@ scripts/                リポジトリ内のツールとテスト（配布し�
   hooks/                エージェントの Hook から起動するスクリプト
   tools/                手で起動する補助スクリプト（reinstall-skill.sh など）
   lib/                  テストとツールの共有ライブラリ、vitest の globalSetup
-  skills/<name>/        配布スキル skills/<name>/ のスクリプトのテストと fixture
+  skills/<name>/        配布スキルと private skill のスクリプトのテストと fixture
   skills/_cross/        複数のスキルにまたがる取り決めのテスト
 ```
 

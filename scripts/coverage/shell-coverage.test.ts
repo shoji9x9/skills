@@ -248,16 +248,30 @@ test("shellCoverage: 内容が同じ対象が 2 つあれば、コピーの実�
 });
 
 test("shellCoverage: 内容が同じ対象の片方を原本のパスで起動しても、両方に数える（起動の方法で結果を変えない）", () => {
+  // 原本はリポジトリの scripts/ の下に置き、計測のファイルもそのリポジトリの中から読ませる。
+  // そうすると隣の *.sh のハッシュが書かれないので、実体のパスから内容の組に結び付ける処理だけで数える。
   const root = makeTempDir("shell-coverage-twins-direct-");
   const traceDir = join(root, "trace");
   mkdirSync(traceDir);
-  mkdirSync(join(root, "a"));
-  mkdirSync(join(root, "b"));
-  writeSample(join(root, "a"), "t.sh", "echo t\n");
-  writeSample(join(root, "b"), "t.sh", "echo t\n");
-  expect(runTraced([join(root, "a", "t.sh")], { cwd: root, traceDir }).status).toBe(0);
-  const { files } = shellCoverage(root, ["a/t.sh", "b/t.sh"], traceDir);
-  expect([files["a/t.sh"]?.covered, files["b/t.sh"]?.covered]).toEqual([1, 1]);
+  mkdirSync(join(root, "scripts", "coverage"), { recursive: true });
+  copyFileSync(TRACE_ENV, join(root, "scripts", "coverage", "bash-trace-env.sh"));
+  for (const dir of ["a", "b"]) {
+    mkdirSync(join(root, "scripts", dir));
+    writeSample(join(root, "scripts", dir), "t.sh", "echo t\n");
+  }
+  const res = spawnSync("bash", [join(root, "scripts", "a", "t.sh")], {
+    cwd: root,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      BASH_ENV: join(root, "scripts", "coverage", "bash-trace-env.sh"),
+      SHELL_COVERAGE_DIR: traceDir,
+    },
+    timeout: 30_000,
+  });
+  expect(res.status).toBe(0);
+  const { files } = shellCoverage(root, ["scripts/a/t.sh", "scripts/b/t.sh"], traceDir);
+  expect([files["scripts/a/t.sh"]?.covered, files["scripts/b/t.sh"]?.covered]).toEqual([1, 1]);
 });
 
 test("bash-trace-env.sh: リポジトリの scripts/・skills/ の下の原本を起動したときは、隣の *.sh のハッシュを書かない", () => {

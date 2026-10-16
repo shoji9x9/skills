@@ -329,8 +329,17 @@ test("sweepFocusDirs: 終わった --focus の実行の結果だけを消し、�
     "other",
   ];
   for (const name of names) mkdirSync(join(cache, name), { recursive: true });
-  sweepFocusDirs(root);
+  // 更新から 1 時間を過ぎた時刻として呼ぶ。過ぎていなければ、pid が無くても残す（下のテスト）。
+  sweepFocusDirs(root, Date.now() + 2 * 60 * 60 * 1000);
   expect(readdirSync(cache).sort()).toEqual(["coverage", "coverage-focus-1", "other"]);
+});
+
+test("sweepFocusDirs: pid のプロセスが無くても、更新から 1 時間たっていなければ残す（別の pid の名前空間で実行中のもの）", () => {
+  const root = makeTempDir("run-coverage-sweep-recent-");
+  const cache = join(root, "node_modules", ".cache");
+  mkdirSync(join(cache, "coverage-focus-9999999"), { recursive: true });
+  sweepFocusDirs(root);
+  expect(readdirSync(cache)).toEqual(["coverage-focus-9999999"]);
 });
 
 test("sweepFocusDirs: 結果の置き場所がまだ無ければ何もしない", () => {

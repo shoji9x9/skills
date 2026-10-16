@@ -72,7 +72,7 @@ function runRaw(registries: unknown, diffs: unknown, args: string[] = CTX_ARGS) 
   const r = spawnSync(
     process.execPath,
     [script, input, "--registries", registriesPath, "--slug", "demo", ...args],
-    { encoding: "utf8" },
+    { encoding: "utf8", timeout: 30_000 },
   );
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }

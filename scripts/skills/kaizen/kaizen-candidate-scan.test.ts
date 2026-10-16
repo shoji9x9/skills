@@ -39,6 +39,7 @@ function scan(args: string[], env: NodeJS.ProcessEnv = {}) {
   return spawnSync("bash", [script, ...args], {
     encoding: "utf8",
     env: { ...process.env, ...coverageEnv(), ...env },
+    timeout: 30_000,
   });
 }
 
@@ -76,7 +77,10 @@ function pathWith(dir: string, overrides: Record<string, string | null>) {
 }
 
 const realCommand = (name: string) =>
-  spawnSync("bash", ["-c", `command -v ${name}`], { encoding: "utf8" }).stdout.trim();
+  spawnSync("bash", ["-c", `command -v ${name}`], {
+    encoding: "utf8",
+    timeout: 30_000,
+  }).stdout.trim();
 
 const claudeUser = (text: string) =>
   JSON.stringify({ type: "user", message: { role: "user", content: [{ type: "text", text }] } });

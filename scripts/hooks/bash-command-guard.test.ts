@@ -536,7 +536,10 @@ test("危険語はあるが command を取り出せない payload は、検査�
 // そこで node を PATH から外し、jq だけが居る環境でスクリプト全体を起動して、payload の形ごとに確かめる。
 // jq の取り出しが失敗すると、node の後段も無いので「検査していない」の警告で exit 0 になり、exit 2 と区別できる。
 const jqOnlyEnv = (() => {
-  const jq = spawnSync("bash", ["-c", "command -v jq"], { encoding: "utf8" }).stdout.trim();
+  const jq = spawnSync("bash", ["-c", "command -v jq"], {
+    encoding: "utf8",
+    timeout: 30_000,
+  }).stdout.trim();
   const bin = makeSharedTempDir("bash-command-guard-jq-only-");
   // jq の実体（mise の shim のこともある）を絶対パスで呼ぶラッパーだけを置く。
   writeFileSync(join(bin, "jq"), `#!/bin/sh\nexec '${jq}' "$@"\n`);
@@ -550,7 +553,7 @@ const jqOnlyEnv = (() => {
 test("jq だけの環境を作れる（node が無く jq が在る。作れなければ以降の検証は無意味）", () => {
   expect(jqOnlyEnv.jq, "jq が必要（この検証は jq を使う処理の回帰テスト）").not.toBe("");
   const probe = (name: string) =>
-    spawnSync("bash", ["-c", `command -v ${name}`], { env: jqOnlyEnv.env }).status;
+    spawnSync("bash", ["-c", `command -v ${name}`], { env: jqOnlyEnv.env, timeout: 30_000 }).status;
   expect(probe("node")).not.toBe(0);
   expect(probe("jq")).toBe(0);
 });
@@ -570,6 +573,7 @@ test.each([
     encoding: "utf8",
     cwd: repoRoot,
     env: jqOnlyEnv.env,
+    timeout: 30_000,
   });
   expect(r.stderr).not.toMatch(/検査していない/);
   expect(r.status).toBe(2);

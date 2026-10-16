@@ -1421,7 +1421,7 @@ describe("agent-usage のコマンドの入力と状態", () => {
     expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
     // origin/HEAD があれば、それをデフォルトブランチとして表示する
     const origin = join(tmp, "origin.git");
-    spawnSync("git", ["init", "-q", "--bare", "-b", "trunk", origin]);
+    spawnSync("git", ["init", "-q", "--bare", "-b", "trunk", origin], { timeout: 30_000 });
     git("remote", "add", "origin", origin);
     git("push", "-q", "origin", "HEAD:trunk");
     git("remote", "set-head", "origin", "trunk");
@@ -1442,7 +1442,7 @@ describe("agent-usage のコマンドの入力と状態", () => {
     const { tmp, git, cli, gate } = setup();
     expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
     const origin = join(tmp, "origin.git");
-    spawnSync("git", ["init", "-q", "--bare", "-b", "trunk", origin]);
+    spawnSync("git", ["init", "-q", "--bare", "-b", "trunk", origin], { timeout: 30_000 });
     git("remote", "add", "origin", origin);
     git("switch", "-q", "-c", "trunk");
     git("push", "-q", "origin", "trunk");
@@ -1608,6 +1608,7 @@ describe("agent-usage のコマンドの入力と状態", () => {
     for (const tool of ["node", "git"]) {
       const real = spawnSync("bash", ["-c", `command -v ${tool}`], {
         encoding: "utf8",
+        timeout: 30_000,
       }).stdout.trim();
       expect(real).not.toBe("");
       symlinkSync(real, join(bin, tool));
@@ -1623,7 +1624,10 @@ describe("agent-usage のコマンドの入力と状態", () => {
 // precommit-gate.sh が、確認の処理を実行できないときにコミットを止めないこと（スクリプトの冒頭の取り決め）。
 describe("precommit-gate.sh の、確認を実行できないとき", () => {
   const input = JSON.stringify({ cwd: "/tmp", tool_input: { command: "git commit -m x" } });
-  const bash = spawnSync("bash", ["-c", "command -v bash"], { encoding: "utf8" }).stdout.trim();
+  const bash = spawnSync("bash", ["-c", "command -v bash"], {
+    encoding: "utf8",
+    timeout: 30_000,
+  }).stdout.trim();
   /** precommit-gate.sh をコピーしたディレクトリ（同梱の agent-usage.mjs を置き換えられる）。 */
   function copied(mjs: string | null) {
     const dir = makeTempDir("agent-usage-gate-");
@@ -1636,6 +1640,7 @@ describe("precommit-gate.sh の、確認を実行できないとき", () => {
       encoding: "utf8",
       input: stdin,
       env: { ...env, ...coverageEnv() },
+      timeout: 30_000,
     });
 
   test("git commit を含まない入力は、同梱の agent-usage.mjs が無くても何も出さずに通す", () => {
@@ -1658,6 +1663,7 @@ describe("precommit-gate.sh の、確認を実行できないとき", () => {
     const bin = makeTempDir("agent-usage-nonode-");
     const dirname = spawnSync("bash", ["-c", "command -v dirname"], {
       encoding: "utf8",
+      timeout: 30_000,
     }).stdout.trim();
     symlinkSync(dirname, join(bin, "dirname"));
     const r = run(copied("process.exit(2);\n"), { PATH: bin });

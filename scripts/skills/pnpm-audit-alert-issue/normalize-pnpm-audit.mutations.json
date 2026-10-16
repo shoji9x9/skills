@@ -44,13 +44,15 @@
       "id": "vulnerabilities-shape-ignored",
       "why": "新しい形（vulnerabilities）を読まない",
       "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
-      "find": "if (audit.vulnerabilities && typeof audit.vulnerabilities === \"object\") {",
-      "replace": "if (false) {",
+      "find": "entriesOf(audit.vulnerabilities, \"vulnerabilities\")",
+      "replace": "[]",
       "occurrences": 1,
       "expect_failing": [
         "normalizeAudit（audit の JSON 全体） 古い形と新しい形に同じ組があれば、欠けた欄を後の finding で補う",
         "normalizeAudit（audit の JSON 全体） 古い形と新しい形の両方を読む",
-        "normalizeAudit（audit の JSON 全体） vulnerabilities の値が null なら、どこが違うかを書いた Error を投げる"
+        "normalizeAudit（audit の JSON 全体） vulnerabilities の値が null なら、どこが違うかを書いた Error を投げる",
+        "normalizeAudit（audit の JSON 全体） vulnerabilities の値が配列 なら、どこが違うかを書いた Error を投げる",
+        "normalizeAudit（audit の JSON 全体） vulnerabilities が数 なら、どこが違うかを書いた Error を投げる"
       ]
     },
     {
@@ -168,6 +170,46 @@
       "occurrences": 1,
       "expect_failing": [
         "findingsFromVulnerability（新しい形の vulnerabilities の 1 件） 今の版を、nodes・version・パッケージ名・node_modules のパスから重複なく集める"
+      ]
+    },
+    {
+      "id": "whole-not-object-accepted",
+      "why": "全体が object でない JSON を Error にせず読む",
+      "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
+      "find": "if (!isRecordLike(raw)) throw new Error(\"全体が object でない\");",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "normalizeAudit（audit の JSON 全体） 全体が null なら、どこが違うかを書いた Error を投げる",
+        "normalizeAudit（audit の JSON 全体） 全体が配列 なら、どこが違うかを書いた Error を投げる",
+        "CLI 全体が null の JSON は理由を出して exit 1、出力を書かない"
+      ]
+    },
+    {
+      "id": "container-not-object-skipped",
+      "why": "advisories・vulnerabilities が object でなければ、Error にせず 0 件として読む",
+      "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
+      "find": "if (!isRecordLike(value)) throw new Error(`${name} が object でない`);",
+      "replace": "if (!isRecordLike(value)) return [];",
+      "occurrences": 1,
+      "expect_failing": [
+        "normalizeAudit（audit の JSON 全体） advisories が文字列 なら、どこが違うかを書いた Error を投げる",
+        "normalizeAudit（audit の JSON 全体） advisories が配列 なら、どこが違うかを書いた Error を投げる",
+        "normalizeAudit（audit の JSON 全体） vulnerabilities が数 なら、どこが違うかを書いた Error を投げる"
+      ]
+    },
+    {
+      "id": "array-element-accepted",
+      "why": "advisory・vulnerability が配列でも object として読む",
+      "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
+      "find": "return isObjectLike(value) && !isArray(value);",
+      "replace": "return isObjectLike(value);",
+      "occurrences": 1,
+      "expect_failing": [
+        "normalizeAudit（audit の JSON 全体） 全体が配列 なら、どこが違うかを書いた Error を投げる",
+        "normalizeAudit（audit の JSON 全体） advisories の値が配列 なら、どこが違うかを書いた Error を投げる",
+        "normalizeAudit（audit の JSON 全体） vulnerabilities の値が配列 なら、どこが違うかを書いた Error を投げる",
+        "normalizeAudit（audit の JSON 全体） advisories が配列 なら、どこが違うかを書いた Error を投げる"
       ]
     }
   ]

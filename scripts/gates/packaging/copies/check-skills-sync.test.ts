@@ -45,7 +45,8 @@ function makeRepo() {
   return root;
 }
 
-const run = (cwd: string) => spawnSync(process.execPath, [script], { cwd, encoding: "utf8" });
+const run = (cwd: string) =>
+  spawnSync(process.execPath, [script], { cwd, encoding: "utf8", timeout: 30_000 });
 
 test("陰性: インストールで書き換わる SKILL.md の frontmatter の違いだけなら OK で exit 0", () => {
   const r = run(makeRepo());

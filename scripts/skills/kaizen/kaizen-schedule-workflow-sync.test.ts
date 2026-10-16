@@ -81,6 +81,7 @@ function appendReport(report: string) {
         GITHUB_RUN_ID: "1",
         ...coverageEnv(),
       },
+      timeout: 30_000,
     });
     expect(res.status, res.stderr).toBe(0);
     return { body: readFileSync(join(dir, "body.md"), "utf8"), max };

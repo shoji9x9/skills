@@ -61,6 +61,7 @@ function render(dir: string, args: string[], env: Record<string, string> = {}) {
       ...env,
     },
     encoding: "utf8",
+    timeout: 30_000,
   });
   if (result.error) throw result.error;
   return result;

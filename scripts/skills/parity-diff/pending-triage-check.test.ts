@@ -676,6 +676,7 @@ function runArgs(args: string[]) {
   const r = spawnSync(process.execPath, [script, ...args], {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
+    timeout: 30_000,
   });
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }

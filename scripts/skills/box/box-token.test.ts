@@ -38,6 +38,7 @@ const INIT_SCRIPT = join(repoRoot, "skills/box/scripts/box-oauth-init.sh");
 const JQ = spawnSync("bash", ["-c", "mise which jq 2>/dev/null || command -v jq"], {
   cwd: repoRoot,
   encoding: "utf8",
+  timeout: 30_000,
 }).stdout.trim();
 
 const CURL_STUB = `#!/usr/bin/env bash
@@ -83,6 +84,7 @@ function run(
       ...coverageEnv(),
       ...env,
     },
+    timeout: 30_000,
   });
   const log = existsSync(s.log) ? readFileSync(s.log, "utf8") : "";
   return { status: r.status, stdout: r.stdout, stderr: r.stderr, log };

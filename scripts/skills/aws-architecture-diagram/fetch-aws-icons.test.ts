@@ -135,6 +135,7 @@ globalThis.fetch = async (url) => {
       cwd: dir,
       env: { ...process.env, DIAGRAM_DIR: dir, FAKE_FETCH_ROUTES: JSON.stringify(table) },
       encoding: "utf8",
+      timeout: 30_000,
     },
   );
   if (result.error) throw result.error;

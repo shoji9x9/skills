@@ -428,7 +428,10 @@ function runCli(baseline: unknown, capture: unknown, extra: string[] = []) {
   const files = [join(dir, "baseline.json"), join(dir, "capture.json")];
   writeFileSync(files[0], JSON.stringify(baseline));
   writeFileSync(files[1], JSON.stringify(capture));
-  return spawnSync(process.execPath, [script, ...files, ...extra], { encoding: "utf8" });
+  return spawnSync(process.execPath, [script, ...files, ...extra], {
+    encoding: "utf8",
+    timeout: 30_000,
+  });
 }
 
 test.each([
@@ -561,7 +564,7 @@ test.each([
   ["ファイルが 1 つ", ["only.json"]],
   ["ファイルが 3 つ", ["a.json", "b.json", "c.json"]],
 ])("CLI は入力のファイルが 2 つでなければ（%s）、使い方を出して exit 2", (_label, files) => {
-  const r = spawnSync(process.execPath, [script, ...files], { encoding: "utf8" });
+  const r = spawnSync(process.execPath, [script, ...files], { encoding: "utf8", timeout: 30_000 });
   expect(r.status).toBe(2);
   expect(r.stderr).toContain("usage: node trait-compare.mjs");
 });
@@ -572,6 +575,7 @@ test("CLI は入力を JSON として読めなければ、理由を出して exi
   writeFileSync(broken, "{");
   const r = spawnSync(process.execPath, [script, broken, join(dir, "missing.json")], {
     encoding: "utf8",
+    timeout: 30_000,
   });
   expect(r.status).toBe(2);
   expect(r.stderr).toContain("error: cannot read inputs:");

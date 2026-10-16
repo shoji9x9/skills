@@ -362,8 +362,8 @@ describe("normalizeAudit（audit の JSON 全体）", () => {
     expect(normalizeAudit({})).toEqual([]);
   });
 
-  test("advisories と vulnerabilities が型の違う値なら読まない", () => {
-    expect(normalizeAudit(auditJson({ advisories: "x", vulnerabilities: null }))).toEqual([]);
+  test("advisories と vulnerabilities が null なら、その形の advisory は無いものとして読む", () => {
+    expect(normalizeAudit(auditJson({ advisories: null, vulnerabilities: null }))).toEqual([]);
   });
 
   // 形が違う要素を読み飛ばすと、その advisory を警告なしに落とす。どこが違うかを書いた Error で止める。
@@ -376,6 +376,15 @@ describe("normalizeAudit（audit の JSON 全体）", () => {
       { vulnerabilities: { x: null } },
       /vulnerabilities\.x が object でない/,
     ],
+    ["advisories の値が配列", { advisories: { "7": [] } }, /advisories\.7 が object でない/],
+    [
+      "vulnerabilities の値が配列",
+      { vulnerabilities: { x: [] } },
+      /vulnerabilities\.x が object でない/,
+    ],
+    ["advisories が文字列", { advisories: "x" }, /advisories が object でない/],
+    ["advisories が配列", { advisories: [] }, /advisories が object でない/],
+    ["vulnerabilities が数", { vulnerabilities: 1 }, /vulnerabilities が object でない/],
   ])("%s なら、どこが違うかを書いた Error を投げる", (_label, raw, message) => {
     expect(() => normalizeAudit(raw)).toThrow(message);
   });
