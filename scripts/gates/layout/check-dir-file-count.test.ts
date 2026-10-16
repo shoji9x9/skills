@@ -130,6 +130,22 @@ describe("設定の古い記述と空の理由", () => {
     ]);
   });
 
+  test("デフォルトと同じ閾値は、判定を変えない設定として報告する", () => {
+    const c = config({ overrides: [{ dir: "a", max: 3, reason: "r" }] });
+    expect(checkDirFileCount(files("a", 1), c).configErrors).toEqual([
+      "a: 閾値がデフォルト（3）と同じで、判定を変えない（設定から外す）",
+    ]);
+  });
+
+  test("違反はロケールに依らず、コードポイントの順に並べる", () => {
+    const input = [...files("b", 4), ...files("B", 4), ...files("_a", 4)];
+    expect(checkDirFileCount(input, config()).violations).toEqual([
+      "B: 4 件（閾値 3）",
+      "_a: 4 件（閾値 3）",
+      "b: 4 件（閾値 3）",
+    ]);
+  });
+
   test("descendants が無い対象外の下に書いた閾値は、使われるので報告しない", () => {
     const c = config({
       overrides: [{ dir: "a/b", max: 5, reason: "r" }],

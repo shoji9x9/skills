@@ -12,6 +12,7 @@
 //   `descendants: true` の対象外は、そのディレクトリの下のディレクトリもすべて数えない（人ごとに作られるディレクトリなど）。
 // - 閾値を変えたディレクトリと対象外のディレクトリには、理由を必須にする。
 //   設定に書いたディレクトリが実在しないと失敗にする。古い例外が残ると、同じ名前で作り直したディレクトリが警告なしに外れる。
+//   判定に使われない設定（descendants の対象外の下に書いた設定、デフォルトと同じ閾値）も失敗にする。
 //
 // 終了コード: 0 は違反なし、1 は違反か設定の古い記述、2 は判定できない（設定の形の誤り・git の失敗・ファイルが 0 件）。
 import { spawnSync } from "node:child_process";
@@ -149,9 +150,15 @@ export function checkDirFileCount(files: readonly string[], config: Config) {
         `${entry.dir}: 対象外（${ex.dir}）の下にあるので、この設定は使われない（設定から外す）`,
       );
   }
+  for (const { dir, max } of config.overrides) {
+    if (max === config.defaultMax)
+      configErrors.push(
+        `${dir}: 閾値がデフォルト（${max}）と同じで、判定を変えない（設定から外す）`,
+      );
+  }
   const maxOf = new Map(config.overrides.map((o) => [o.dir, o.max]));
   const violations: string[] = [];
-  for (const [dir, count] of [...direct].sort(([a], [b]) => a.localeCompare(b))) {
+  for (const [dir, count] of [...direct].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
     if (excludeOf(dir, config.excludes)) continue;
     const max = maxOf.get(dir) ?? config.defaultMax;
     if (count > max) violations.push(`${dir}: ${count} 件（閾値 ${max}）`);
