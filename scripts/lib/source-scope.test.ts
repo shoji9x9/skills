@@ -12,7 +12,7 @@ import { expect, test } from "vitest";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { agentCopyGlobs, copySkillNames, isAgentCopy, sourceSkillNames } from "./source-scope.ts";
-import { makeTempDir } from "./test-tmpdir.ts";
+import { makeTempDir } from "./testing/test-tmpdir.ts";
 
 function makeRoot(files: string[]) {
   const root = makeTempDir("source-scope-");

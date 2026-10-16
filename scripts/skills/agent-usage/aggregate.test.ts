@@ -26,15 +26,15 @@ import {
   gaps,
   mergeSpans,
   periodLabel,
-} from "../../../skills/agent-usage/scripts/lib/report.mjs";
-import { renderHtml } from "../../../skills/agent-usage/scripts/lib/html.mjs";
-import { emptySummary } from "../../../skills/agent-usage/scripts/lib/session.mjs";
+} from "../../../skills/agent-usage/scripts/lib/report/report.mjs";
+import { renderHtml } from "../../../skills/agent-usage/scripts/lib/report/html.mjs";
+import { emptySummary } from "../../../skills/agent-usage/scripts/lib/sources/session.mjs";
 import {
   localParts,
   parseTime,
   splitByLocalHour,
 } from "../../../skills/agent-usage/scripts/lib/time.mjs";
-import { messageCosts, usageRows } from "../../../skills/agent-usage/scripts/lib/usage.mjs";
+import { messageCosts, usageRows } from "../../../skills/agent-usage/scripts/lib/sources/usage.mjs";
 
 const zero = { input: 0, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0, output: 0, reasoning: 0 };
 const H = (h: number, m = 0) =>

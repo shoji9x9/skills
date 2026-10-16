@@ -54,6 +54,7 @@ GitHub Actions は、`actionlint` で構文を、`ghalint` で `permissions`・`
 | `code/check-control-chars.ts` | テキストの拡張子のファイルに入った制御文字 |
 | `packaging/check-eval-reachability.ts` | eval の assertion と prompt の対応 |
 | `packaging/check-skills-sync.ts` | `skills/<name>/` とインストール済みのコピー `.agents/skills/<name>/` の一致 |
+| `layout/check-dir-file-count.ts` | 各ディレクトリの直下のファイル数。閾値（デフォルトは 20）を変えるディレクトリと対象外のディレクトリは、理由を付けて `scripts/gates/layout/dir-file-count.json` に書く。書いたディレクトリが実在しないときと、理由が空のときも失敗にする |
 | `code/check-js-extensions.ts` | JavaScript の拡張子（「JavaScript の拡張子」の節） |
 | `code/check-skill-lint-directives.ts` | 配布スキルの、このリポジトリの lint の設定を前提にした抑止コメント（`.agents/rules/distributed-skill-stack-independence.md`）と、`Array.isArray` の禁止をファイル単位で外したファイル（`scripts/lib/is-array-holders.ts`）の、型ガードの外の呼び出し |
 | `code/check-jsdoc-types.ts` | 配布スキルの `.mjs` で、型の検査を外す JSDoc の書き方（「JavaScript の拡張子」の節） |
@@ -66,7 +67,7 @@ GitHub Actions は、`actionlint` で構文を、`ghalint` で `permissions`・`
 | `docs/check-doc-tiers.ts` | 文書の階層。原本は `scripts/gates/docs/doc-tiers.json` で、`.agents/rules/doc-altitude.md` の表は `--fix` で生成する |
 | `docs/check-doc-refs.ts` | リンクと節名の実在、参照の向き。節名は、パス（バッククォート・リンク・スキル名付き）の後に「」で書いたものを照合する。間に「の」や空白を挟んでもよく、節名でない語句を引用するときは名詞を挟む。導入先で生成するファイルは `scripts/gates/docs/doc-refs.json`、保留は `scripts/gates/docs/doc-pending.json` に書く |
 | `packaging/check-skill-index.ts` | スキルガイド・README とスキルの実体の対応 |
-| `prose/lint-prose.ts` | 人が読む Markdown の文章と、JavaScript・TypeScript・シェル・YAML のコメントの文章。JavaScript・TypeScript の文字列と `evals/<name>/evals.json` の prompt・expected_output・assertions には、使わない語の規則だけを当てる（取り出し方は `scripts/lib/code-strings.ts`）。シェルのコメントは `shfmt --to-json` の構文木から取り出すので、shfmt（`mise.toml` で版を固定）が要る。書き換え前のファイルは `scripts/gates/prose/prose-lint-pending.json` に書く |
+| `prose/lint-prose.ts` | 人が読む Markdown の文章と、JavaScript・TypeScript・シェル・YAML のコメントの文章。JavaScript・TypeScript の文字列と `evals/<name>/evals.json` の prompt・expected_output・assertions には、使わない語の規則だけを当てる（取り出し方は `scripts/lib/text/code-strings.ts`）。シェルのコメントは `shfmt --to-json` の構文木から取り出すので、shfmt（`mise.toml` で版を固定）が要る。書き換え前のファイルは `scripts/gates/prose/prose-lint-pending.json` に書く |
 | `prose/check-word-list.ts` | `.textlint/word-list.md` と `.textlint/words.json` の一致 |
 | `docs/check-agents-md-size.ts` | `AGENTS.md` のサイズ。ブランチで 30 KiB を超えたら、24 KiB 以下まで縮めさせる。超えたかは履歴で判定し、上限は `scripts/gates/docs/agents-md-size.json` に書く |
 
@@ -141,7 +142,7 @@ Bash の実行前のチェック（PreToolUse）として、`scripts/hooks/bash-
 
 応答を確定する前のチェック（Claude Code の Stop）として、`scripts/hooks/response-language-check.ts` が、最後の応答が日本語で書かれているかを確かめる。
 コードブロック・インラインコード・引用・URL・ハーネスのタグの塊を除いた本文で、ラテン文字が 40 字以上あり、日本語の文字（ひらがな・カタカナ・漢字）の割合が 0.1 未満なら、exit 2 で書き直させる。
-`stop_hook_active` が true のときも、この Hook が止めた印が無ければ（別の Hook が書き直させた後なら）確かめる。印は `scripts/lib/stop-marker.ts` で、次の Hook と共有している。
+`stop_hook_active` が true のときも、この Hook が止めた印が無ければ（別の Hook が書き直させた後なら）確かめる。印は `scripts/hooks/stop-marker.ts` で、次の Hook と共有している。
 node が無い環境では警告だけを出して通す。設定は Claude Code だけで、Codex と Copilot には入れていない。
 
 同じ Stop で、`scripts/hooks/response-word-check.ts` が、最後の応答に使わない語（`.textlint/words.json`）が含まれていないかを確かめる。
@@ -206,7 +207,7 @@ private skill は配布せず、このリポジトリの中でだけ動くので
 
 ツールが読む `.ts` の設定は次のとおりである。
 
-- `vitest.config.ts`、`scripts/lib/vitest-global-setup.ts`
+- `vitest.config.ts`、`scripts/lib/testing/vitest-global-setup.ts`
 - `commitlint.config.ts`、`release.config.ts`、`commit-types.ts`
 - `oxlint.config.ts`、`oxfmt.config.ts`
 

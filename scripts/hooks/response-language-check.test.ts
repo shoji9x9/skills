@@ -13,8 +13,8 @@
 // 通す入力が止める入力と同じ数以上あることが要点である。止める入力だけのテストでは、「全部止める実装」と区別できない。
 import { existsSync, rmSync, writeFileSync } from "node:fs";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { blockedMarker } from "../lib/stop-marker.ts";
-import { makeTempDir } from "../lib/test-tmpdir.ts";
+import { blockedMarker } from "./stop-marker.ts";
+import { makeTempDir } from "../lib/testing/test-tmpdir.ts";
 import { MIN_LATIN_LETTERS, REWRITE_REQUEST, judge, main } from "./response-language-check.ts";
 
 // 止めた印は、テストごとの一時ディレクトリに置く（OS の一時ディレクトリの実物に触らない）。

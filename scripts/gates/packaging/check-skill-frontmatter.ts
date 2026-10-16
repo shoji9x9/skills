@@ -17,8 +17,8 @@
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { loadYaml } from "../../lib/yaml-as.ts";
-import { splitFrontmatter } from "../../lib/frontmatter.ts";
+import { loadYaml } from "../../lib/text/yaml-as.ts";
+import { splitFrontmatter } from "../../lib/text/frontmatter.ts";
 import { isPlainObject } from "../../lib/guards.ts";
 
 const DESCRIPTION_MAX_BYTES = 1024;

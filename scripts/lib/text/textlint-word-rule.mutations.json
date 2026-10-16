@@ -1,0 +1,126 @@
+{
+  "$comment": [
+    "textlint-word-rule.test.ts が、使わない語の規則を設定から取り出す処理と、ダッシュの規則の message を辞書から読む処理の判定の行を検出できることを示す変異の一覧。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は、ランナーの基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/lib/text/textlint-word-rule.test.ts",
+  "mutations": [
+    {
+      "id": "TWR-ALL-RULES",
+      "why": "使わない語の規則に絞らない（設定のすべての規則を返す）",
+      "file": "scripts/lib/text/textlint-word-rule.ts",
+      "find": ".filter((r) => r.ruleId === WORD_RULE)",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["語の規則と他の規則を持つ設定から、使わない語の規則だけを 1 件取り出す"]
+    },
+    {
+      "id": "TWR-PRESENCE-UNCHECKED",
+      "why": "規則が無くても例外にしない（使う側が 0 件の指摘のまま通す）",
+      "file": "scripts/lib/text/textlint-word-rule.ts",
+      "find": "if (rules.length === 0) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "規則の無い設定 なら、0 件として返さずに例外を投げる",
+        "設定ファイルが無い なら、0 件として返さずに例外を投げる"
+      ]
+    },
+    {
+      "id": "TWR-DASH-MESSAGE-UNCHECKED",
+      "why": "辞書にダッシュの項目が無くても例外にしない（message の無い指摘を出すか、規則が働かない）",
+      "file": "scripts/lib/text/textlint-word-rule.ts",
+      "find": "if (!isRecord(entry) || !isNonEmptyString(entry.message)) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "ダッシュの項目が無い なら、規則を作らずに例外を投げる",
+        "ダッシュの項目に message が無い なら、規則を作らずに例外を投げる"
+      ]
+    },
+    {
+      "id": "TWR-DASH-BOX",
+      "why": "罫線の `──` を探さない",
+      "file": "scripts/lib/text/textlint-word-rule.ts",
+      "find": "`(?<=[^\\\\s${FIGURES}${ARROWS}])─{2,}(?=[^\\\\s${FIGURES}${ARROWS}])`,",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["ダッシュの規則: 罫線（U+2500） の件数"]
+    },
+    {
+      "id": "TWR-DASH-TREE",
+      "why": "罫線の前後を見ない（ディレクトリの木・区切りの線・矢印の図を検出する）",
+      "file": "scripts/lib/text/textlint-word-rule.ts",
+      "find": "`(?<=[^\\\\s${FIGURES}${ARROWS}])─{2,}(?=[^\\\\s${FIGURES}${ARROWS}])`,",
+      "replace": "`─{2,}`,",
+      "occurrences": 1,
+      "expect_failing": [
+        "ダッシュの規則: ディレクトリの木（├） の件数",
+        "ダッシュの規則: ディレクトリの木（└） の件数",
+        "ダッシュの規則: 罫線だけの区切りの行 の件数",
+        "ダッシュの規則: 行頭の罫線の区切り の件数",
+        "ダッシュの規則: 矢印の図（▶） の件数",
+        "ダッシュの規則: 矢印の図（→） の件数",
+        "ダッシュの規則: Dingbats の矢印（➡） の件数"
+      ]
+    },
+    {
+      "id": "TWR-DASH-FULLWIDTH",
+      "why": "全角のハイフンの `－－` を探さない",
+      "file": "scripts/lib/text/textlint-word-rule.ts",
+      "find": "`(?<=[^\\\\s－${FIGURES}${ARROWS}])－{2,}(?=[^\\\\s－${FIGURES}${ARROWS}])`,",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["ダッシュの規則: 全角のハイフン（U+FF0D） の件数"]
+    },
+    {
+      "id": "TWR-DASH-FULLWIDTH-ALONE",
+      "why": "全角のハイフンの前後を見ない（区切りの線と矢印の図を検出する）",
+      "file": "scripts/lib/text/textlint-word-rule.ts",
+      "find": "`(?<=[^\\\\s－${FIGURES}${ARROWS}])－{2,}(?=[^\\\\s－${FIGURES}${ARROWS}])`,",
+      "replace": "`－{2,}`,",
+      "occurrences": 1,
+      "expect_failing": [
+        "ダッシュの規則: 全角のハイフンだけの区切り の件数",
+        "ダッシュの規則: 全角のハイフンの矢印 の件数",
+        "ダッシュの規則: 全角のハイフンと全角の＞の矢印 の件数",
+        "ダッシュの規則: 全角の＜と全角のハイフンの矢印 の件数"
+      ]
+    },
+    {
+      "id": "TWR-DASH-EM-ARROW",
+      "why": "`——`・`――` の前後の矢印を見ない（矢印の図を検出する）",
+      "file": "scripts/lib/text/textlint-word-rule.ts",
+      "find": "`(?<![—―${ARROWS}])[—―]{2,}(?![—―${ARROWS}])`,",
+      "replace": "`[—―]{2,}`,",
+      "occurrences": 1,
+      "expect_failing": [
+        "ダッシュの規則: U+2015 の並びと > の矢印 の件数",
+        "ダッシュの規則: U+2014 の並びと → の矢印 の件数",
+        "ダッシュの規則: U+2014 が 3 文字続く矢印 の件数"
+      ]
+    },
+    {
+      "id": "TWR-DASH-EM-RUN",
+      "why": "`——` の前後から `—` 自身を除かない（3 文字の並びの途中で区切って、矢印の除外を外す）",
+      "file": "scripts/lib/text/textlint-word-rule.ts",
+      "find": "`(?<![—―${ARROWS}])[—―]{2,}(?![—―${ARROWS}])`,",
+      "replace": "`(?<![${ARROWS}])[—―]{2,}(?![${ARROWS}])`,",
+      "occurrences": 1,
+      "expect_failing": ["ダッシュの規則: U+2014 が 3 文字続く矢印 の件数"]
+    },
+    {
+      "id": "TWR-DASH-ARROW-NARROW",
+      "why": "全角の `<` `>` と Dingbats の矢印を除かない",
+      "file": "scripts/lib/text/textlint-word-rule.ts",
+      "find": "const ARROWS = \"\\\\u2190-\\\\u21ff\\\\u2794-\\\\u27bf\\\\u27f0-\\\\u27ff\\\\u2900-\\\\u297f\\\\u2b00-\\\\u2bff<>＜＞\";",
+      "replace": "const ARROWS = \"\\\\u2190-\\\\u21ff\\\\u27f0-\\\\u27ff\\\\u2900-\\\\u297f\\\\u2b00-\\\\u2bff<>\";",
+      "occurrences": 1,
+      "expect_failing": [
+        "ダッシュの規則: 全角のハイフンと全角の＞の矢印 の件数",
+        "ダッシュの規則: 全角の＜と全角のハイフンの矢印 の件数",
+        "ダッシュの規則: Dingbats の矢印（➡） の件数"
+      ]
+    }
+  ]
+}

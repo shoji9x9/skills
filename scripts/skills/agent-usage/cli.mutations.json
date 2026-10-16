@@ -586,7 +586,7 @@
     {
       "id": "retraction-ignored-by-report",
       "why": "report が打ち消しの行を数える",
-      "file": "skills/agent-usage/scripts/lib/report.mjs",
+      "file": "skills/agent-usage/scripts/lib/report/report.mjs",
       "find": "  const latest = [...latestByKey(allRows).values()].filter((r) => r.retracted !== \"1\");",
       "replace": "  const latest = [...latestByKey(allRows).values()];",
       "occurrences": 1,
@@ -599,7 +599,7 @@
     {
       "id": "utc-hour-bucket",
       "why": "使用量を UTC の正時で区切る",
-      "file": "skills/agent-usage/scripts/lib/usage.mjs",
+      "file": "skills/agent-usage/scripts/lib/sources/usage.mjs",
       "find": "    const hour = localHourStart(m.ts, ctx.tz);",
       "replace": "    const hour = Math.floor(m.ts / HOUR) * HOUR;",
       "occurrences": 1,

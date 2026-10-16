@@ -26,7 +26,7 @@ import { gateDecision, readHookInput } from "./lib/gate.mjs";
 import { git, repoInfo } from "./lib/repo.mjs";
 import { usageDir } from "./lib/records.mjs";
 import { runCollect } from "./lib/run-collect.mjs";
-import { runReport } from "./lib/report.mjs";
+import { runReport } from "./lib/report/report.mjs";
 import { isValidTimeZone, parseTime } from "./lib/time.mjs";
 
 const SCRIPT = fileURLToPath(import.meta.url);

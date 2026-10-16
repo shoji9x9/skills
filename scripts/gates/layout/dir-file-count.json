@@ -1,0 +1,49 @@
+{
+  "$comment": [
+    "scripts/gates/layout/check-dir-file-count.ts の設定。各ディレクトリの直下のファイル数を default_max 以下に保つ。",
+    "閾値を変えるディレクトリは overrides に、数えないディレクトリは excludes に、理由を付けて書く。dir はルートからの相対パスで、ルートは \".\"。",
+    "excludes の descendants が true なら、その下のディレクトリもすべて数えない。"
+  ],
+  "default_max": 20,
+  "overrides": [
+    {
+      "dir": ".",
+      "max": 35,
+      "reason": "ツール（mise・pnpm・lefthook・oxlint・tsconfig など）は設定をリポジトリの直下から読むので、別のディレクトリに分けられない"
+    },
+    {
+      "dir": "evals/kaizen/fixtures/candidate-scan",
+      "max": 35,
+      "reason": "eval（evals/kaizen/evals.json の 15・16・19）が fixture のディレクトリ一式を入力にし、prompt と assertion がファイル名で参照する。分けると eval の入力が変わる"
+    },
+    {
+      "dir": "scripts",
+      "max": 0,
+      "reason": "直下にファイルを置かず、役割ごとのディレクトリ（gates・lib・eval など）に置く（AGENTS.md「ディレクトリ構造」）"
+    },
+    {
+      "dir": "scripts/gates",
+      "max": 0,
+      "reason": "直下にファイルを置かず、チェックする対象ごとの分類（docs・prose・packaging・code・tooling・layout）に置く（AGENTS.md「ディレクトリ構造」）"
+    }
+  ],
+  "excludes": [
+    {
+      "dir": ".kaizen",
+      "reason": "kaizen スキルが未適用の学びを 1 件 1 ファイルで直下に置く。件数は学びの数で決まり、置き場所はスキルの仕様で決まっている"
+    },
+    {
+      "dir": ".kaizen/archive",
+      "reason": "kaizen スキルが適用済みの学びを溜めていく置き場所で、増えることを前提にしている"
+    },
+    {
+      "dir": ".agent-usage/records",
+      "descendants": true,
+      "reason": "agent-usage スキルが利用実績を人ごと・ブランチごとのファイルで記録し、溜めていく。下のディレクトリは人ごとに作られる"
+    },
+    {
+      "dir": ".claude/skills",
+      "reason": "インストールしたスキル 1 つにつき 1 つのシンボリックリンクを置く。件数はスキルの数で決まり、Claude Code が読む場所なので分けられない"
+    }
+  ]
+}

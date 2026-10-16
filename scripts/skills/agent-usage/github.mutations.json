@@ -8,7 +8,7 @@
     {
       "id": "agent-gh-comment-counted",
       "why": "エージェントの gh の直後のコメントを人の活動として数える",
-      "file": "skills/agent-usage/scripts/lib/github.mjs",
+      "file": "skills/agent-usage/scripts/lib/sources/github.mjs",
       "find": "      if (it.at >= o.since && mine(it.login) && !nearAgentCommand(it.at, o.commands, /\\bgh\\b/)) {",
       "replace": "      if (it.at >= o.since && mine(it.login)) {",
       "occurrences": 1,
@@ -19,7 +19,7 @@
     {
       "id": "runs-limit-not-split",
       "why": "actions/runs が上限に達しても期間を分けない",
-      "file": "skills/agent-usage/scripts/lib/github.mjs",
+      "file": "skills/agent-usage/scripts/lib/sources/github.mjs",
       "find": "  if (runs.length >= RUNS_QUERY_LIMIT) {",
       "replace": "  if (false) {",
       "occurrences": 1,
@@ -30,7 +30,7 @@
     {
       "id": "reflog-non-commit-counted",
       "why": "reflog の commit 以外の操作も人の commit として数える",
-      "file": "skills/agent-usage/scripts/lib/github.mjs",
+      "file": "skills/agent-usage/scripts/lib/sources/github.mjs",
       "find": "    if (!/^commit\\b/.test(subject)) continue;",
       "replace": "    if (false) continue;",
       "occurrences": 1,
@@ -41,7 +41,7 @@
     {
       "id": "billing-ignored",
       "why": "人の設定で billing が user でも、課金 API の実額を取得しない",
-      "file": "skills/agent-usage/scripts/lib/github.mjs",
+      "file": "skills/agent-usage/scripts/lib/sources/github.mjs",
       "find": "  if (o.billing === \"user\" && me !== \"\") {",
       "replace": "  if (false && me !== \"\") {",
       "occurrences": 1,
@@ -52,7 +52,7 @@
     {
       "id": "no-open-prs",
       "why": "更新されていない open な PR を取得しない",
-      "file": "skills/agent-usage/scripts/lib/github.mjs",
+      "file": "skills/agent-usage/scripts/lib/sources/github.mjs",
       "find": "  for (const q of [`repo:${o.slug} is:pr updated:>=${sinceDate}`, `repo:${o.slug} is:pr is:open`])",
       "replace": "  for (const q of [`repo:${o.slug} is:pr updated:>=${sinceDate}`])",
       "occurrences": 1,
@@ -64,7 +64,7 @@
     {
       "id": "no-open-runs",
       "why": "since より前に始まって実行中の run を取得しない",
-      "file": "skills/agent-usage/scripts/lib/github.mjs",
+      "file": "skills/agent-usage/scripts/lib/sources/github.mjs",
       "find": "    for (const status of [\"requested\", \"queued\", \"pending\", \"waiting\", \"in_progress\"]) {",
       "replace": "    for (const status of []) {",
       "occurrences": 1,
@@ -75,7 +75,7 @@
     {
       "id": "download-known",
       "why": "記録済みの artifact もダウンロードする",
-      "file": "skills/agent-usage/scripts/lib/github.mjs",
+      "file": "skills/agent-usage/scripts/lib/sources/github.mjs",
       "find": "      if (o.knownArtifacts?.has(a.id)) continue;",
       "replace": "      void 0;",
       "occurrences": 1,
@@ -84,7 +84,7 @@
     {
       "id": "rest-copilot-login",
       "why": "REST の Copilot の login を GraphQL の形にそろえない",
-      "file": "skills/agent-usage/scripts/lib/github.mjs",
+      "file": "skills/agent-usage/scripts/lib/sources/github.mjs",
       "find": "  return name === \"copilot\" ? \"copilot-pull-request-reviewer\" : name;",
       "replace": "  return name;",
       "occurrences": 1,
@@ -95,7 +95,7 @@
     {
       "id": "comment-not-arrival",
       "why": "レビューツールのコメントを、レビューの到着として扱わない",
-      "file": "skills/agent-usage/scripts/lib/github.mjs",
+      "file": "skills/agent-usage/scripts/lib/sources/github.mjs",
       "find": "      if (commentTool) arrivals.push({ reviewer: commentTool, at: it.at });",
       "replace": "      void commentTool;",
       "occurrences": 1,
@@ -106,7 +106,7 @@
     {
       "id": "artifact-all-or-nothing",
       "why": "artifact の 1 件の失敗で残りを止める",
-      "file": "skills/agent-usage/scripts/lib/github.mjs",
+      "file": "skills/agent-usage/scripts/lib/sources/github.mjs",
       "find": "      attempt(`artifacts#${id}`, () => {",
       "replace": "      (() => {",
       "occurrences": 1,
@@ -115,7 +115,7 @@
     {
       "id": "review-check-as-ci",
       "why": "レビューツールの check run を外部の CI に入れる",
-      "file": "skills/agent-usage/scripts/lib/github.mjs",
+      "file": "skills/agent-usage/scripts/lib/sources/github.mjs",
       "find": "            toolOf(o.bundledTools, o.config.reviewTools, app) ||\n            toolOf(o.bundledTools, o.config.reviewTools, str(c.name))",
       "replace": "            false",
       "occurrences": 1,

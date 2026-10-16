@@ -9,7 +9,7 @@
 // | ------------------ | --------------------------------------------------------------------------- |
 // | 単語帳のエントリ   | 全エントリの example（検出される）/ 残すと決めた語・技術用語（検出されない）    |
 // | 文章の位置         | 本文 / インラインコード / コードブロック / frontmatter / コメント / 文字列       |
-// | コメントの言語     | JavaScript / シェル / YAML（取り出し方の状態は scripts/lib/code-comments.test.ts） |
+// | コメントの言語     | JavaScript / シェル / YAML（取り出し方の状態は scripts/lib/text/code-comments.test.ts） |
 // | ファイルの場所     | 対象 / .agents/rules / private skill / スキルのコピー / .claude/ / .kaizen/ と archive / tests/ / シンボリックリンク / .md 以外 |
 // | 保留の一覧         | 在る / 無い / JSON でない / reason が空 / files が配列でない / 重複            |
 // | 保留したファイル   | 指摘あり / 指摘 0 件 / ファイルが無い                                         |
@@ -20,12 +20,12 @@ import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PENDING_PATH, lintProse, loadPending, main } from "./lint-prose.ts";
-import { COMMENT_EXTENSIONS } from "../../lib/code-comments.ts";
-import { makeSharedTempDir, makeTempDir } from "../../lib/test-tmpdir.ts";
+import { COMMENT_EXTENSIONS } from "../../lib/text/code-comments.ts";
+import { makeSharedTempDir, makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { spawnAsync } from "../../lib/spawn-async.ts";
 import { parseJsonAs } from "../../lib/parse-as.ts";
-import { loadYamlAs } from "../../lib/yaml-as.ts";
-import { DASH_TERM } from "../../lib/textlint-word-rule.ts";
+import { loadYamlAs } from "../../lib/text/yaml-as.ts";
+import { DASH_TERM } from "../../lib/text/textlint-word-rule.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "scripts/gates/prose/lint-prose.ts");

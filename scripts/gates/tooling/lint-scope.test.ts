@@ -19,7 +19,7 @@ import { agentCopyGlobs, copySkillNames, sourceSkillNames } from "../../lib/sour
 import oxlintConfig from "../../../oxlint.config.ts";
 import oxfmtConfig, { assigned as oxfmtAssigned } from "../../../oxfmt.config.ts";
 import { errorMessage } from "../../lib/errors.ts";
-import { loadYamlAs } from "../../lib/yaml-as.ts";
+import { loadYamlAs } from "../../lib/text/yaml-as.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const read = (rel: string) => readFileSync(join(repoRoot, rel), "utf8");

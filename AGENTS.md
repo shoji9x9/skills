@@ -58,6 +58,7 @@ scripts/                リポジトリ内のツールとテスト（配布し�
     packaging/          スキル・rule・eval の宣言・frontmatter・索引と、インストール済みのコピーの整合
     code/               コード・設定ファイルの中身（拡張子・配置・型・制御文字・YAML・ページネーション）
     tooling/            lint と整形のツールの対象範囲と起動
+    layout/             ディレクトリの構成（直下のファイル数）
   mutation/             ミューテーションテストのランナー
   eval/                 eval の実行・隔離・集計と、evals/ の fixture の生成・チェック
   hooks/                エージェントの Hook から起動するスクリプト
@@ -71,8 +72,13 @@ scripts/                リポジトリ内のツールとテスト（配布し�
 `scripts/` のツールのテストはそのツールと同じディレクトリに置く。
 配布スキルのスクリプトのテストは `scripts/skills/<name>/` に置き、複数のスキルにまたがるものは `scripts/skills/_cross/` に置く。
 
-新しいチェックは、チェックする対象で `scripts/gates/` の分類を選び、どれにも当たらなければ分類を足す。1 つの分類は 20 ファイル以下に保つ。
-`scripts/` と `scripts/gates/` の直下にファイルが無いことと、分類のファイル数は、`scripts/gates/code/gates-layout.test.ts` がチェックする。
+新しいチェックは、チェックする対象で `scripts/gates/` の分類を選び、どれにも当たらなければ分類を足す。
+
+1 つのディレクトリの直下のファイルは、原則 20 件以下に保つ。超えたら、役割ごとのサブディレクトリに分ける。
+分けられないディレクトリ（ツールが決まった場所から読むもの、スキルが溜めていく記録）だけ、理由を付けて閾値を変えるか対象外にする。
+どちらにするかの基準と分け方は [`docs/directory-layout.md`](docs/directory-layout.md) にある。
+件数・閾値・対象外は、`scripts/gates/layout/check-dir-file-count.ts` が `scripts/gates/layout/dir-file-count.json` に従ってチェックする（pre-commit と CI）。
+`scripts/` と `scripts/gates/` の直下にファイルを置かない規約も、この設定で閾値を 0 にしてチェックしている。
 
 ## ワークフロー
 

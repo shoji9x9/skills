@@ -1,0 +1,162 @@
+{
+  "$comment": [
+    "check-dir-file-count.test.ts の検出能力を示す変異の一覧。",
+    "散文コメントで持つと古くなるため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。"
+  ],
+  "test_file": "scripts/gates/layout/check-dir-file-count.test.ts",
+  "mutations": [
+    {
+      "id": "DFC-LIMIT",
+      "why": "閾値を超えたディレクトリを違反にしない",
+      "file": "scripts/gates/layout/check-dir-file-count.ts",
+      "find": "    if (count > max) violations.push",
+      "replace": "    if (false) violations.push",
+      "occurrences": 1,
+      "expect_failing": [
+        "閾値との比較 閾値を 1 件超えたディレクトリを違反にする",
+        "閾値との比較 ルートの直下のファイルも数える",
+        "閾値との比較 ディレクトリごとの閾値で判定する（デフォルトより大きい値）",
+        "閾値との比較 閾値 0 のディレクトリは、直下にファイルが 1 件あれば違反にする",
+        "閾値との比較 デフォルトの閾値を変えると、変えた値で判定する",
+        "対象外 descendants が無い対象外は、下のディレクトリを数える",
+        "対象外 対象外の名前を前方に含む別のディレクトリは数える",
+        "CLI CLI: シンボリックリンクをファイルとして数え、違反なら 1 で終わる"
+      ]
+    },
+    {
+      "id": "DFC-OFF-BY-ONE",
+      "why": "閾値ちょうどのディレクトリを違反にする",
+      "file": "scripts/gates/layout/check-dir-file-count.ts",
+      "find": "    if (count > max) violations.push",
+      "replace": "    if (count >= max) violations.push",
+      "occurrences": 1,
+      "expect_failing": [
+        "閾値との比較 閾値ちょうどのディレクトリは違反にしない",
+        "閾値との比較 サブディレクトリの中のファイルは、親のディレクトリの件数に数えない",
+        "閾値との比較 ディレクトリごとの閾値で判定する（デフォルトより大きい値）",
+        "閾値との比較 デフォルトの閾値を変えると、変えた値で判定する",
+        "CLI CLI: index にある追跡しているファイルだけを数え、未追跡のファイルは数えない"
+      ]
+    },
+    {
+      "id": "DFC-OVERRIDE",
+      "why": "ディレクトリごとの閾値を読まず、デフォルトの閾値で判定する",
+      "file": "scripts/gates/layout/check-dir-file-count.ts",
+      "find": "    const max = maxOf.get(dir) ?? config.defaultMax;",
+      "replace": "    const max = config.defaultMax;",
+      "occurrences": 1,
+      "expect_failing": [
+        "閾値との比較 ディレクトリごとの閾値で判定する（デフォルトより大きい値）",
+        "閾値との比較 閾値 0 のディレクトリは、直下にファイルが 1 件あれば違反にする"
+      ]
+    },
+    {
+      "id": "DFC-EXCLUDE",
+      "why": "対象外のディレクトリも数える",
+      "file": "scripts/gates/layout/check-dir-file-count.ts",
+      "find": "    if (excludeOf(dir, config.excludes)) continue;",
+      "replace": "    if (false) continue;",
+      "occurrences": 1,
+      "expect_failing": [
+        "対象外 対象外のディレクトリは数えない",
+        "対象外 descendants が無い対象外は、下のディレクトリを数える",
+        "対象外 descendants が true の対象外は、下のディレクトリも数えない"
+      ]
+    },
+    {
+      "id": "DFC-DESCENDANTS",
+      "why": "descendants が true の対象外でも、下のディレクトリを数える",
+      "file": "scripts/gates/layout/check-dir-file-count.ts",
+      "find": "e.dir === dir || (e.descendants && (",
+      "replace": "e.dir === dir || (false && (",
+      "occurrences": 1,
+      "expect_failing": [
+        "対象外 descendants が true の対象外は、下のディレクトリも数えない",
+        "設定の古い記述と空の理由 descendants の対象外の下に書いた閾値は、使われない設定として報告する"
+      ]
+    },
+    {
+      "id": "DFC-PREFIX",
+      "why": "対象外の名前を前方に含む別のディレクトリも、下のディレクトリとして外す",
+      "file": "scripts/gates/layout/check-dir-file-count.ts",
+      "find": "dir.startsWith(`${e.dir}/`)",
+      "replace": "dir.startsWith(e.dir)",
+      "occurrences": 1,
+      "expect_failing": ["対象外 対象外の名前を前方に含む別のディレクトリは数える"]
+    },
+    {
+      "id": "DFC-STALE",
+      "why": "実在しないディレクトリを書いた設定を報告しない",
+      "file": "scripts/gates/layout/check-dir-file-count.ts",
+      "find": "    if (!dirs.has(dir)) configErrors.push",
+      "replace": "    if (false) configErrors.push",
+      "occurrences": 1,
+      "expect_failing": [
+        "設定の古い記述と空の理由 実在しないディレクトリを書いた閾値と対象外を報告する",
+        "CLI CLI: 設定の古い記述があれば 1 で終わる"
+      ]
+    },
+    {
+      "id": "DFC-ANCESTOR",
+      "why": "直下にファイルが無いディレクトリを、実在として扱わない",
+      "file": "scripts/gates/layout/check-dir-file-count.ts",
+      "find": "    for (let d = parent; d !== ROOT_DIR; d = parentDir(d)) dirs.add(d);",
+      "replace": "    dirs.add(parent);",
+      "occurrences": 1,
+      "expect_failing": [
+        "設定の古い記述と空の理由 直下にファイルが無くても、下にファイルがあるディレクトリは実在として扱う",
+        "設定の古い記述と空の理由 descendants の対象外の下に書いた閾値は、使われない設定として報告する"
+      ]
+    },
+    {
+      "id": "DFC-BLANK-REASON",
+      "why": "空の理由を報告しない",
+      "file": "scripts/gates/layout/check-dir-file-count.ts",
+      "find": "    if (!isNonBlankString(reason))",
+      "replace": "    if (false)",
+      "occurrences": 1,
+      "expect_failing": [
+        "設定の古い記述と空の理由 理由が空（\"\"）の閾値と対象外を報告する",
+        "設定の古い記述と空の理由 理由が空（\"   \"）の閾値と対象外を報告する"
+      ]
+    },
+    {
+      "id": "DFC-DEDUP",
+      "why": "衝突を解消していないファイルを、index の段の数だけ数える",
+      "file": "scripts/gates/layout/check-dir-file-count.ts",
+      "find": "[\"ls-files\", \"-z\", \"--cached\", \"--deduplicate\"]",
+      "replace": "[\"ls-files\", \"-z\", \"--cached\"]",
+      "occurrences": 1,
+      "expect_failing": ["CLI CLI: 衝突を解消していないファイルを、段の数ではなく 1 件として数える"]
+    },
+    {
+      "id": "DFC-EMPTY",
+      "why": "追跡しているファイルが 0 件でも、判定できないとして失敗にしない",
+      "file": "scripts/gates/layout/check-dir-file-count.ts",
+      "find": "  if (files.length === 0) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["CLI CLI: 追跡しているファイルが 0 件なら、判定できないとして 2 で終わる"]
+    },
+    {
+      "id": "DFC-DUPLICATE",
+      "why": "同じ dir の重複を拒否しない",
+      "file": "scripts/gates/layout/check-dir-file-count.ts",
+      "find": "    if (seen.has(dir))",
+      "replace": "    if (false)",
+      "occurrences": 1,
+      "expect_failing": ["設定の形 同じ dir を閾値と対象外の両方に書く なら例外にする"]
+    },
+    {
+      "id": "DFC-UNUSED-OVERRIDE",
+      "why": "descendants の対象外の下に書いた、使われない閾値を報告しない",
+      "file": "scripts/gates/layout/check-dir-file-count.ts",
+      "find": "    if (ex)\n",
+      "replace": "    if (false)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "設定の古い記述と空の理由 descendants の対象外の下に書いた閾値は、使われない設定として報告する"
+      ]
+    }
+  ]
+}

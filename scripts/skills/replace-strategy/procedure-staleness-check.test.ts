@@ -15,7 +15,7 @@ import {
   readRevisions,
 } from "../../../skills/replace-strategy/scripts/procedure-staleness-check.mjs";
 import { parseJsonAs } from "../../lib/parse-as.ts";
-import { makeTempDir } from "../../lib/test-tmpdir.ts";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 /** CLI が stdout に出す JSON のうち、テストが読む項目。 */
 type Entry = {

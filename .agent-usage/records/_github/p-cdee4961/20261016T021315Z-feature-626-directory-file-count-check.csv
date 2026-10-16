@@ -1,0 +1,7 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+ci:38832919855:1,ci,2026-10-16T02:13:15.369Z,p-cdee4961,github-actions,,,,2026-10-16T01:02:27.000Z,2026-10-16T01:02:56.000Z,Asia/Tokyo,main,,,,,,,,,,,Release;push;success,
+ci:38832919841:1,ci,2026-10-16T02:13:15.369Z,p-cdee4961,github-actions,,,,2026-10-16T01:02:27.000Z,2026-10-16T01:05:36.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:38832081331:1,ci,2026-10-16T02:13:15.369Z,p-cdee4961,github-actions,,,,2026-10-16T00:53:44.000Z,2026-10-16T00:53:45.000Z,Asia/Tokyo,feature/614-load-writing-style-in-reviews,614,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:38832081319:1,ci,2026-10-16T02:13:15.369Z,p-cdee4961,github-actions,,,,2026-10-16T00:53:44.000Z,2026-10-16T01:01:11.000Z,Asia/Tokyo,feature/614-load-writing-style-in-reviews,614,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-15T00:52:53.859Z:2026-10-16T02:13:15.369Z,coverage,2026-10-16T02:13:15.369Z,p-cdee4961,,,,,2026-10-15T00:52:53.859Z,2026-10-16T02:13:15.369Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-15T02:13:15.369Z:2026-10-16T02:13:31.775Z,coverage,2026-10-16T02:13:31.775Z,p-cdee4961,,,,,2026-10-15T02:13:15.369Z,2026-10-16T02:13:31.775Z,Asia/Tokyo,,,,,,,,,,,,ok,

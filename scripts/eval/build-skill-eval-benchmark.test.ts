@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { makeTempDirFactory } from "../lib/test-tmpdir.ts";
+import { makeTempDirFactory } from "../lib/testing/test-tmpdir.ts";
 import { spawnAsync } from "../lib/spawn-async.ts";
 import { parseJsonAs } from "../lib/parse-as.ts";
 

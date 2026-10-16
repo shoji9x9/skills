@@ -20,8 +20,8 @@ import {
   fromGraphqlItem,
   normalizeLogin,
   timelineRows,
-} from "../../../skills/agent-usage/scripts/lib/github.mjs";
-import { unzip } from "../../../skills/agent-usage/scripts/lib/unzip.mjs";
+} from "../../../skills/agent-usage/scripts/lib/sources/github.mjs";
+import { unzip } from "../../../skills/agent-usage/scripts/lib/sources/unzip.mjs";
 
 const iso = (h: number, m = 0) =>
   `2026-10-01T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00Z`;

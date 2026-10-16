@@ -97,7 +97,7 @@ id、照合のキー、論理名の、欠落、空文字、重複、型の誤り
 入力を捨てる分岐には、必ず件数か理由を出力に残す。
 
 ソースコードのコメント・文字列・構文を判定するチェックは、行の正規表現で近似しない。既存のパーサ（TypeScript の構文木・`shfmt --to-json`）で読む。
-書く前に、`scripts/lib/` の解析部品（`code-comments.ts` の `jsCommentRanges`・`code-strings.ts`）を grep で探して使う。
+書く前に、`scripts/lib/text/` の解析部品（`code-comments.ts` の `jsCommentRanges`・`code-strings.ts`）を grep で探して使う。
 行で近似すると、文字列の中の `//`、改行を挟んだ参照、空白の無いコメントのように、文法が許す形の数だけレビューの指摘が続く。
 
 任意の文字列を別の形式（Markdown・HTML・YAML・シェル）に埋め込んで解析させるときは、埋め込み先の仕様から、文字列が構文として読まれる形を挙げる。

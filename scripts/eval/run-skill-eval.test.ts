@@ -10,7 +10,7 @@ import {
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { assert, describe, expect, test } from "vitest";
-import { makeTempDirFactory } from "../lib/test-tmpdir.ts";
+import { makeTempDirFactory } from "../lib/testing/test-tmpdir.ts";
 import { spawnAsync } from "../lib/spawn-async.ts";
 import { parseJsonAs } from "../lib/parse-as.ts";
 

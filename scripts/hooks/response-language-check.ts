@@ -7,7 +7,7 @@
 // 入力は Stop の Hook の JSON（https://code.claude.com/docs/en/hooks の Stop）。
 // - `last_assistant_message` を読む。transcript は Stop の時点で最後のメッセージを含まないことがある。
 // - `stop_hook_active` が true でも、この Hook が止めた印が無ければ（別の Stop の Hook が続けさせた後なら）確かめる。
-//   印が在れば、書き直しても判定が変わらない応答で止め続けないように通す（scripts/lib/stop-marker.ts）。
+//   印が在れば、書き直しても判定が変わらない応答で止め続けないように通す（scripts/hooks/stop-marker.ts）。
 //
 // 判定: 応答の言語に数えない部分（コードブロック・インラインコード・引用・URL・ハーネスのタグの塊）を除いた本文で、
 // 日本語の文字（ひらがな・カタカナ・漢字）とラテン文字を数え、日本語の文字が極めて少ない応答を英語とみなす。
@@ -18,7 +18,7 @@ import { fileURLToPath } from "node:url";
 import { blankInlineCode, fencedLines } from "../lib/doc-scan.ts";
 import { errorMessage } from "../lib/errors.ts";
 import { isRecord } from "../lib/guards.ts";
-import { alreadyBlocked, recordBlocked } from "../lib/stop-marker.ts";
+import { alreadyBlocked, recordBlocked } from "./stop-marker.ts";
 
 const HOOK = "response-language-check";
 

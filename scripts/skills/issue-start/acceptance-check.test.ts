@@ -15,7 +15,7 @@ import {
   RESULT_MARKER,
 } from "../../../skills/issue-start/scripts/acceptance-check.mjs";
 import { RENDERED } from "./acceptance-check-rendered-fixture.ts";
-import { makeTempDir } from "../../lib/test-tmpdir.ts";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { parseJsonAs } from "../../lib/parse-as.ts";
 
 /** main が出す JSON の、テストで確かめる欄（成功時と exit 2 の時で欄が違うので、すべて省略可にする）。 */

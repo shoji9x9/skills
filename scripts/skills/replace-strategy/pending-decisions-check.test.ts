@@ -14,7 +14,7 @@ import {
   checkPendingDecisions,
 } from "../../../skills/replace-strategy/scripts/pending-decisions-check.mjs";
 import { parseJsonAs } from "../../lib/parse-as.ts";
-import { makeTempDir } from "../../lib/test-tmpdir.ts";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 /** 構造が正しい入力の結果。各テストは直後に `expect(result.structural).toBe(false)` で確かめる。 */
 type Checked = Extract<ReturnType<typeof checkPendingDecisions>, { structural: false }>;

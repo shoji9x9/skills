@@ -3,7 +3,7 @@ import { dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { afterEach, expect, test } from "vitest";
-import { makeTempDir } from "../lib/test-tmpdir.ts";
+import { makeTempDir } from "../lib/testing/test-tmpdir.ts";
 
 const sourceScript = resolve(dirname(fileURLToPath(import.meta.url)), "eval-sandbox.sh");
 const temporaryDirectories: string[] = [];

@@ -13,7 +13,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { findViolations, privateSkillNames, violationOf } from "./check-js-extensions.ts";
-import { makeTempDir } from "../../lib/test-tmpdir.ts";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 const script = join(dirname(fileURLToPath(import.meta.url)), "check-js-extensions.ts");
 const PRIVATE = ["private-one"];

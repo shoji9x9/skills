@@ -8,7 +8,7 @@ import {
   formatError as formatFingerprintError,
   hashFixture,
 } from "./skill-eval-fingerprint.ts";
-import { makeTempDir } from "../lib/test-tmpdir.ts";
+import { makeTempDir } from "../lib/testing/test-tmpdir.ts";
 
 const temporaryDirectories: string[] = [];
 

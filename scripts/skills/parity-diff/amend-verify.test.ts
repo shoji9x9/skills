@@ -6,7 +6,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { join } from "node:path";
-import { makeTempDir } from "../../lib/test-tmpdir.ts";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import * as verify from "../../../skills/parity-diff/scripts/amend-verify.mjs";
 import type { Image } from "../../../skills/parity-diff/scripts/amend-verify.mjs";
 

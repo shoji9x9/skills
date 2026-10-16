@@ -21,9 +21,9 @@ import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { isNonEmptyString, isRecord } from "../lib/guards.ts";
 import { isArray } from "../lib/is-array.ts";
-import { makeTempDir } from "../lib/test-tmpdir.ts";
-import { DASH_TERM } from "../lib/textlint-word-rule.ts";
-import { blockedMarker } from "../lib/stop-marker.ts";
+import { makeTempDir } from "../lib/testing/test-tmpdir.ts";
+import { DASH_TERM } from "../lib/text/textlint-word-rule.ts";
+import { blockedMarker } from "./stop-marker.ts";
 import { REWRITE_REQUEST, main } from "./response-word-check.ts";
 
 // 止めた印は、テストごとの一時ディレクトリに置く（OS の一時ディレクトリの実物に触らない）。

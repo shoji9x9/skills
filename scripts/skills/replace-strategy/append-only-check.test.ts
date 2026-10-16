@@ -17,10 +17,10 @@ import {
 import { appendFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { makeTempDirFactory } from "../../lib/test-tmpdir.ts";
+import { makeTempDirFactory } from "../../lib/testing/test-tmpdir.ts";
 import { spawnAsync } from "../../lib/spawn-async.ts";
 import { parseJsonAs } from "../../lib/parse-as.ts";
-import { invalidInput, removeField } from "../../lib/test-input.ts";
+import { invalidInput, removeField } from "../../lib/testing/test-input.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "skills/replace-strategy/scripts/append-only-check.mjs");

@@ -15,8 +15,8 @@ import { writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseJsonAs } from "../../lib/parse-as.ts";
-import { invalidInput } from "../../lib/test-input.ts";
-import { makeTempDir } from "../../lib/test-tmpdir.ts";
+import { invalidInput } from "../../lib/testing/test-input.ts";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import {
   matchComponentT,
   matchException,

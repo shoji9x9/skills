@@ -14,7 +14,7 @@ import {
   sampleLimit,
 } from "../../../skills/parity-component/scripts/motion-probe.mjs";
 import { summarizeTimeline } from "../../../skills/parity-component/scripts/motion-compare.mjs";
-import { invalidInput } from "../../lib/test-input.ts";
+import { invalidInput } from "../../lib/testing/test-input.ts";
 
 const FRAME = 16.7;
 

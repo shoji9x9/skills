@@ -11,7 +11,7 @@
 // 判定規則:
 // 1. `skills/**` の JavaScript・TypeScript のコメントで、行頭（`//`・`/*`・JSDoc の行頭の `*` を除いた先頭）に
 //    使われない抑止を報告されうる指示（下の DIRECTIVES）があれば違反にする。
-//    コメントの範囲は TypeScript のパーサで決める（`scripts/lib/code-comments.ts` の jsCommentRanges）。
+//    コメントの範囲は TypeScript のパーサで決める（`scripts/lib/text/code-comments.ts` の jsCommentRanges）。
 //    文字列・テンプレート・正規表現の中の `//` や指示の名前は、コメントではないので対象にしない。
 //    文章の途中で名前を挙げるだけのコメントも、指示として読まれないので対象にしない。
 //    textlint・markdownlint・shellcheck の指示は、未使用でも報告されず、規則が無いプロジェクトでは何もしないので対象にしない。
@@ -37,7 +37,7 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
-import { jsCommentRanges } from "../../lib/code-comments.ts";
+import { jsCommentRanges } from "../../lib/text/code-comments.ts";
 import { errorMessage } from "../../lib/errors.ts";
 import { isRecord } from "../../lib/guards.ts";
 import { IS_ARRAY_HOLDERS, IS_ARRAY_RESTRICTION } from "../../lib/is-array-holders.ts";
