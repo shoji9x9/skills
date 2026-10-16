@@ -40,6 +40,19 @@ issue-batch の #631 の作業で、worktree に入った後の Bash 呼び出�
 この学びは、セッション開始時に pending として注入されていたが、最初の拒否が起きるまで書き方は変わらなかった。
 注入した要約の 1 行だけでは、コマンドを書く時点の行動を変えられない。優先度を上げる根拠はこの再発であり、文書より先に決定論的な対策（PreToolUse の Hook）を適用する。
 
+2026-10-16、#655 の作業（issue-start から git-worktree enter）で、worktree に入った後の Bash の呼び出しが 4 回拒否された。
+拒否された形は次のとおりである。
+
+- `git rev-parse`・`cp`・`mise trust`・`pnpm install`・`git log` を `;` でつないだ準備の処理
+- 変数を引数に使う `node` と `&&` を含む更新・確認の処理
+- `kaizen-kedb-match.sh` に `"git"` を引数で渡した呼び出し
+- `kaizen-kedb-match.sh` に `; echo rc=$?` を付けた呼び出し（`runs bash inside a construct too complex to verify`）
+
+どれも、単独の呼び出しに分けるか、Write ツールでスクリプトにして `bash <絶対パス>` で実行する形に直して通した。
+この学びはセッション開始時に注入されていたが、最初の 2 回は書き方を変えなかった。
+3 つのセッションで、worktree に入って最初の複合コマンドが拒否されている。
+文書の注入では書き方が変わらないことの裏付けであり、「## 提案」の PreToolUse の Hook を先に適用する根拠を強める。
+
 ## 根本原因
 
 1. なぜ拒否されたか → 隔離セッションのガードは字面で判定し、本文・引数・パスに `git` を含む複合コマンドや heredoc を拒否する。
