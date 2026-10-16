@@ -25,6 +25,7 @@ import { spawnSync } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
+  mkdtempSync,
   readFileSync,
   readdirSync,
   realpathSync,
@@ -88,10 +89,11 @@ export function targetFiles(root: string): string[] {
 }
 
 /** 実行中かを pid で決められないときに、実行中とみなす期間。--focus の実行は数分で終わる。 */
-const FOCUS_STALE_MS = 60 * 60 * 1000;
+export const FOCUS_STALE_MS = 60 * 60 * 1000;
 
 /**
- * 終わった --focus の実行が残した結果のディレクトリ（`coverage-focus-<pid>`）を消す。
+ * 終わった --focus の実行が残した結果のディレクトリ（`coverage-focus-<pid>-<一意な文字列>`）を消す。
+ * 名前に一意な文字列を付けるのは、pid の名前空間の違う実行どうしで pid が同じでも、同じディレクトリを使わないためである。
  * 消すのは、pid のプロセスが無く、かつ更新から FOCUS_STALE_MS が過ぎたものだけである。
  * pid だけで決めると、pid の名前空間の違う環境（コンテナとホスト）で node_modules を共有したときに、実行中の結果を消す。
  * pid が再利用されて残ったものは、次に pid が空いたときに消える。
@@ -102,10 +104,12 @@ export function sweepFocusDirs(root: string, now: number = Date.now()): void {
   const prefix = `${basename(CACHE)}-focus-`;
   for (const name of readdirSync(parent)) {
     if (!name.startsWith(prefix)) continue;
-    const pid = Number(name.slice(prefix.length));
-    if (Number.isInteger(pid) && pid > 0 && pid !== process.pid && isAlive(pid)) continue;
+    const pid = Number(name.slice(prefix.length).split("-")[0]);
+    if (Number.isInteger(pid) && pid > 0 && isAlive(pid)) continue;
     const dir = join(parent, name);
-    if (now - statSync(dir).mtimeMs < FOCUS_STALE_MS) continue;
+    // 並べて実行した別の --focus が先に消していれば、在るかを確かめた後でも無いことがある。
+    const stat = statSync(dir, { throwIfNoEntry: false });
+    if (stat === undefined || now - stat.mtimeMs < FOCUS_STALE_MS) continue;
     rmSync(dir, { recursive: true, force: true });
   }
 }
@@ -264,8 +268,12 @@ export function main(
     console.error("run-coverage: --reuse と --focus は一緒に使えない");
     return 2;
   }
-  if (focus.length > 0) sweepFocusDirs(root);
-  const cache = join(root, focus.length > 0 ? `${CACHE}-focus-${process.pid}` : CACHE);
+  let cache = join(root, CACHE);
+  if (focus.length > 0) {
+    sweepFocusDirs(root);
+    mkdirSync(dirname(cache), { recursive: true });
+    cache = mkdtempSync(`${cache}-focus-${process.pid}-`);
+  }
   let config;
   let files;
   try {

@@ -1421,7 +1421,9 @@ describe("agent-usage のコマンドの入力と状態", () => {
     expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
     // origin/HEAD があれば、それをデフォルトブランチとして表示する
     const origin = join(tmp, "origin.git");
-    spawnSync("git", ["init", "-q", "--bare", "-b", "trunk", origin], { timeout: 30_000 });
+    expect(
+      spawnSync("git", ["init", "-q", "--bare", "-b", "trunk", origin], { timeout: 30_000 }).status,
+    ).toBe(0);
     git("remote", "add", "origin", origin);
     git("push", "-q", "origin", "HEAD:trunk");
     git("remote", "set-head", "origin", "trunk");
@@ -1442,7 +1444,9 @@ describe("agent-usage のコマンドの入力と状態", () => {
     const { tmp, git, cli, gate } = setup();
     expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
     const origin = join(tmp, "origin.git");
-    spawnSync("git", ["init", "-q", "--bare", "-b", "trunk", origin], { timeout: 30_000 });
+    expect(
+      spawnSync("git", ["init", "-q", "--bare", "-b", "trunk", origin], { timeout: 30_000 }).status,
+    ).toBe(0);
     git("remote", "add", "origin", origin);
     git("switch", "-q", "-c", "trunk");
     git("push", "-q", "origin", "trunk");

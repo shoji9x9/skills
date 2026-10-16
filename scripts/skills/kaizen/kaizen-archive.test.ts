@@ -335,9 +335,12 @@ test.each([
 // C.utf8 の照合はバイト順で C と同じなので、上の 2 つのロケールでは LC_COLLATE を固定しなくても通る。
 // 固定しているかは、記号を無視して照合する UTF-8 ロケール（en_US.UTF-8 など）でだけ区別できる。
 // そのロケールが入っていない環境では、このテストを飛ばす。
-const collatingLocale = (
-  spawnSync("locale", ["-a"], { encoding: "utf8", timeout: 30_000 }).stdout ?? ""
-)
+// locale の一覧を取れない（起動の失敗・時間切れ）ことは、ロケールが無いことと同じに扱わず、テストの収集を失敗させる。
+const localeList = spawnSync("locale", ["-a"], { encoding: "utf8", timeout: 30_000 });
+if (localeList.error || localeList.status !== 0) {
+  throw new Error(`locale -a を実行できない: ${String(localeList.error ?? localeList.stderr)}`);
+}
+const collatingLocale = localeList.stdout
   .split("\n")
   .find((l) => /utf-?8$/i.test(l) && !/^(c|posix)\./i.test(l));
 

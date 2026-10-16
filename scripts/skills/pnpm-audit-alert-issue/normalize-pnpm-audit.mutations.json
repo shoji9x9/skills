@@ -176,7 +176,7 @@
       "id": "whole-not-object-accepted",
       "why": "全体が object でない JSON を Error にせず読む",
       "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
-      "find": "if (!isRecordLike(raw)) throw new Error(\"全体が object でない\");",
+      "find": "if (!isRecord(raw)) throw new Error(\"全体が object でない\");",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
@@ -189,8 +189,8 @@
       "id": "container-not-object-skipped",
       "why": "advisories・vulnerabilities が object でなければ、Error にせず 0 件として読む",
       "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
-      "find": "if (!isRecordLike(value)) throw new Error(`${name} が object でない`);",
-      "replace": "if (!isRecordLike(value)) return [];",
+      "find": "if (!isRecord(value)) throw new Error(`${name} が object でない`);",
+      "replace": "if (!isRecord(value)) return [];",
       "occurrences": 1,
       "expect_failing": [
         "normalizeAudit（audit の JSON 全体） advisories が文字列 なら、どこが違うかを書いた Error を投げる",
@@ -200,16 +200,36 @@
     },
     {
       "id": "array-element-accepted",
-      "why": "advisory・vulnerability が配列でも object として読む",
+      "why": "advisory が配列でも object として読む",
       "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
-      "find": "return isObjectLike(value) && !isArray(value);",
-      "replace": "return isObjectLike(value);",
+      "find": "if (!isRecord(advisory)) throw new Error(`advisories.${id} が object でない`);",
+      "replace": "if (typeof advisory !== \"object\" || advisory === null) throw new Error(`advisories.${id} が object でない`);",
       "occurrences": 1,
       "expect_failing": [
-        "normalizeAudit（audit の JSON 全体） 全体が配列 なら、どこが違うかを書いた Error を投げる",
-        "normalizeAudit（audit の JSON 全体） advisories の値が配列 なら、どこが違うかを書いた Error を投げる",
-        "normalizeAudit（audit の JSON 全体） vulnerabilities の値が配列 なら、どこが違うかを書いた Error を投げる",
-        "normalizeAudit（audit の JSON 全体） advisories が配列 なら、どこが違うかを書いた Error を投げる"
+        "normalizeAudit（audit の JSON 全体） advisories の値が配列 なら、どこが違うかを書いた Error を投げる"
+      ]
+    },
+    {
+      "id": "packages-shape-unchecked",
+      "why": "packages の形を確かめず、配列や文字列でも読み進める（今の版が警告なしに空になる）",
+      "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
+      "find": "if (audit.packages !== undefined && audit.packages !== null && !isRecord(audit.packages)) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "normalizeAudit（audit の JSON 全体） packages が配列 なら、どこが違うかを書いた Error を投げる",
+        "normalizeAudit（audit の JSON 全体） packages が文字列 なら、どこが違うかを書いた Error を投げる"
+      ]
+    },
+    {
+      "id": "null-container-rejected",
+      "why": "advisories・vulnerabilities が null のとき、無いものとして読まずに Error にする",
+      "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
+      "find": "if (value === undefined || value === null) return [];",
+      "replace": "if (value === undefined) return [];",
+      "occurrences": 1,
+      "expect_failing": [
+        "normalizeAudit（audit の JSON 全体） advisories・vulnerabilities・packages が null なら、その欄は無いものとして読む"
       ]
     }
   ]

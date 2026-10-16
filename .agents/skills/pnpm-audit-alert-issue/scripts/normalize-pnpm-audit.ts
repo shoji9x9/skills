@@ -2,6 +2,7 @@
 import { readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { errorMessage } from "../../../../scripts/lib/errors.ts";
+import { isRecord } from "../../../../scripts/lib/guards.ts";
 import { isArray } from "../../../../scripts/lib/is-array.ts";
 import { parseJsonAs } from "../../../../scripts/lib/parse-as.ts";
 
@@ -275,15 +276,10 @@ export function findingsFromVulnerability(
   );
 }
 
-/** object で、配列でない値（advisory・vulnerability とそれらを入れる欄）。 */
-function isRecordLike(value: unknown): value is AuditRecord {
-  return isObjectLike(value) && !isArray(value);
-}
-
 /** advisories・vulnerabilities の欄の項目。欄が無い（null を含む）なら 0 件、object でなければ Error にする。 */
 function entriesOf(value: unknown, name: string): [string, unknown][] {
   if (value === undefined || value === null) return [];
-  if (!isRecordLike(value)) throw new Error(`${name} が object でない`);
+  if (!isRecord(value)) throw new Error(`${name} が object でない`);
   return Object.entries(value);
 }
 
@@ -293,17 +289,21 @@ function entriesOf(value: unknown, name: string): [string, unknown][] {
  * 読み飛ばすと advisory を警告なしに落とすので、どこが違うかを書いた Error を投げる（main が exit 1 にする）。
  */
 export function normalizeAudit(raw: unknown): Finding[] {
-  if (!isRecordLike(raw)) throw new Error("全体が object でない");
+  if (!isRecord(raw)) throw new Error("全体が object でない");
   const audit: AuditJson = raw;
+  // packages は今の版を読むためだけに使う。形が違うと current_versions が警告なしに空になるので、止める。
+  if (audit.packages !== undefined && audit.packages !== null && !isRecord(audit.packages)) {
+    throw new Error("packages が object でない");
+  }
   const findings: Finding[] = [];
 
   for (const [id, advisory] of entriesOf(audit.advisories, "advisories")) {
-    if (!isRecordLike(advisory)) throw new Error(`advisories.${id} が object でない`);
+    if (!isRecord(advisory)) throw new Error(`advisories.${id} が object でない`);
     findings.push(fromAdvisory(advisory));
   }
 
   for (const [packageName, vulnerability] of entriesOf(audit.vulnerabilities, "vulnerabilities")) {
-    if (!isRecordLike(vulnerability))
+    if (!isRecord(vulnerability))
       throw new Error(`vulnerabilities.${packageName} が object でない`);
     findings.push(...findingsFromVulnerability(packageName, vulnerability, audit.packages));
   }

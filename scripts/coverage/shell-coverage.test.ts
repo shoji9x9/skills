@@ -75,13 +75,29 @@ function writeSample(dir: string, name = "sample.sh", body = SAMPLE): string {
   return path;
 }
 
-function runTraced(args: string[], opts: { cwd: string; traceDir: string }) {
+/**
+ * 計測を読み込ませた bash でスクリプトを実行する。`bashEnv` を渡すと、その計測のファイルを読ませる
+ * （リポジトリの中に置いたコピーを読ませると、計測はそのリポジトリの scripts/・skills/ の下を原本とみなす）。
+ */
+function runTraced(args: string[], opts: { cwd: string; traceDir: string; bashEnv?: string }) {
   return spawnSync("bash", args, {
     cwd: opts.cwd,
     encoding: "utf8",
-    env: { ...process.env, BASH_ENV: TRACE_ENV, SHELL_COVERAGE_DIR: opts.traceDir },
+    env: {
+      ...process.env,
+      BASH_ENV: opts.bashEnv ?? TRACE_ENV,
+      SHELL_COVERAGE_DIR: opts.traceDir,
+    },
     timeout: 30_000,
   });
+}
+
+/** `root` を直下とするリポジトリの scripts/coverage/ に計測のファイルを置き、そのパスを返す。 */
+function placeTraceEnv(root: string): string {
+  mkdirSync(join(root, "scripts", "coverage"), { recursive: true });
+  const path = join(root, "scripts", "coverage", "bash-trace-env.sh");
+  copyFileSync(TRACE_ENV, path);
+  return path;
 }
 
 test("executableLines: xtrace が記録する種類の文の開始行だけを、昇順で返す", () => {
@@ -253,22 +269,12 @@ test("shellCoverage: 内容が同じ対象の片方を原本のパスで起動�
   const root = makeTempDir("shell-coverage-twins-direct-");
   const traceDir = join(root, "trace");
   mkdirSync(traceDir);
-  mkdirSync(join(root, "scripts", "coverage"), { recursive: true });
-  copyFileSync(TRACE_ENV, join(root, "scripts", "coverage", "bash-trace-env.sh"));
+  const bashEnv = placeTraceEnv(root);
   for (const dir of ["a", "b"]) {
     mkdirSync(join(root, "scripts", dir));
     writeSample(join(root, "scripts", dir), "t.sh", "echo t\n");
   }
-  const res = spawnSync("bash", [join(root, "scripts", "a", "t.sh")], {
-    cwd: root,
-    encoding: "utf8",
-    env: {
-      ...process.env,
-      BASH_ENV: join(root, "scripts", "coverage", "bash-trace-env.sh"),
-      SHELL_COVERAGE_DIR: traceDir,
-    },
-    timeout: 30_000,
-  });
+  const res = runTraced([join(root, "scripts", "a", "t.sh")], { cwd: root, traceDir, bashEnv });
   expect(res.status).toBe(0);
   const { files } = shellCoverage(root, ["scripts/a/t.sh", "scripts/b/t.sh"], traceDir);
   expect([files["scripts/a/t.sh"]?.covered, files["scripts/b/t.sh"]?.covered]).toEqual([1, 1]);
@@ -278,19 +284,9 @@ test("bash-trace-env.sh: リポジトリの scripts/・skills/ の下の原本�
   const root = makeTempDir("shell-coverage-root-");
   const traceDir = join(root, "trace");
   mkdirSync(traceDir);
-  mkdirSync(join(root, "scripts", "coverage"), { recursive: true });
-  copyFileSync(TRACE_ENV, join(root, "scripts", "coverage", "bash-trace-env.sh"));
+  const bashEnv = placeTraceEnv(root);
   writeSample(join(root, "scripts"), "s.sh", "echo s\n");
-  const res = spawnSync("bash", [join(root, "scripts", "s.sh")], {
-    cwd: root,
-    encoding: "utf8",
-    env: {
-      ...process.env,
-      BASH_ENV: join(root, "scripts", "coverage", "bash-trace-env.sh"),
-      SHELL_COVERAGE_DIR: traceDir,
-    },
-    timeout: 30_000,
-  });
+  const res = runTraced([join(root, "scripts", "s.sh")], { cwd: root, traceDir, bashEnv });
   expect(res.status).toBe(0);
   const trace = parseTrace(
     readFileSync(

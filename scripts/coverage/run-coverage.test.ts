@@ -5,12 +5,25 @@
 // リポジトリの外では mise が pnpm の版を決められない。package.json を置くと、pnpm exec がそこを別のプロジェクトとして依存を入れ直す。
 // 置かなければ、pnpm と Node はリポジトリの直下の package.json と node_modules を使う。
 import { spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, expect, test, vi } from "vitest";
 import { makeTempDir, makeTempDirFactory } from "../lib/testing/test-tmpdir.ts";
-import { main, readC8Summary, sweepFocusDirs, targetFiles } from "./run-coverage.ts";
+import {
+  FOCUS_STALE_MS,
+  main,
+  readC8Summary,
+  sweepFocusDirs,
+  targetFiles,
+} from "./run-coverage.ts";
 
 const SCRIPT = fileURLToPath(new URL("run-coverage.ts", import.meta.url));
 const ROOT = fileURLToPath(new URL("../../", import.meta.url));
@@ -317,29 +330,37 @@ test("main: 設定が読めなければ、測らずに exit 2", () => {
   expect(res.out).toMatch(/判定できない/);
 });
 
-test("sweepFocusDirs: 終わった --focus の実行の結果だけを消し、実行中のものと通常の結果は残す", () => {
+// 時刻は固定する。結果のディレクトリの更新時刻を T0 にし、sweepFocusDirs に渡す「今」を T0 からの差で決める。
+const T0 = Date.UTC(2026, 0, 1);
+
+/** node_modules/.cache の下に、更新時刻を T0 にしたディレクトリを作る。 */
+function focusDirs(names: string[]): { root: string; cache: string } {
   const root = makeTempDir("run-coverage-sweep-");
   const cache = join(root, "node_modules", ".cache");
+  for (const name of names) {
+    mkdirSync(join(cache, name), { recursive: true });
+    utimesSync(join(cache, name), T0 / 1000, T0 / 1000);
+  }
+  return { root, cache };
+}
+
+test("sweepFocusDirs: pid のプロセスが無く、更新から FOCUS_STALE_MS たった --focus の結果だけを消す", () => {
   // pid 1 は常に在る（別の利用者のプロセスなら EPERM になり、在るとみなす）。2 の 22 乗より大きい pid は Linux では作られない。
-  const names = [
+  const { root, cache } = focusDirs([
     "coverage",
-    "coverage-focus-1",
-    "coverage-focus-9999999",
+    "coverage-focus-1-aaaaaa",
+    "coverage-focus-9999999-bbbbbb",
     "coverage-focus-x",
     "other",
-  ];
-  for (const name of names) mkdirSync(join(cache, name), { recursive: true });
-  // 更新から 1 時間を過ぎた時刻として呼ぶ。過ぎていなければ、pid が無くても残す（下のテスト）。
-  sweepFocusDirs(root, Date.now() + 2 * 60 * 60 * 1000);
-  expect(readdirSync(cache).sort()).toEqual(["coverage", "coverage-focus-1", "other"]);
+  ]);
+  sweepFocusDirs(root, T0 + FOCUS_STALE_MS);
+  expect(readdirSync(cache).sort()).toEqual(["coverage", "coverage-focus-1-aaaaaa", "other"]);
 });
 
-test("sweepFocusDirs: pid のプロセスが無くても、更新から 1 時間たっていなければ残す（別の pid の名前空間で実行中のもの）", () => {
-  const root = makeTempDir("run-coverage-sweep-recent-");
-  const cache = join(root, "node_modules", ".cache");
-  mkdirSync(join(cache, "coverage-focus-9999999"), { recursive: true });
-  sweepFocusDirs(root);
-  expect(readdirSync(cache)).toEqual(["coverage-focus-9999999"]);
+test("sweepFocusDirs: pid のプロセスが無くても、更新から FOCUS_STALE_MS たっていなければ残す（別の pid の名前空間で実行中のもの）", () => {
+  const { root, cache } = focusDirs(["coverage-focus-9999999-bbbbbb"]);
+  sweepFocusDirs(root, T0 + FOCUS_STALE_MS - 1);
+  expect(readdirSync(cache)).toEqual(["coverage-focus-9999999-bbbbbb"]);
 });
 
 test("sweepFocusDirs: 結果の置き場所がまだ無ければ何もしない", () => {
