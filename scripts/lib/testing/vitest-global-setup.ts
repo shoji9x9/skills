@@ -17,15 +17,19 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..")
 // 「状態ファイルは `/tmp` に置かない」理由つきでそう決めている）。`scripts/` 配下に残るのは fixture だけ。
 const STALE_PREFIXES = ["mutation-proof-fixture-"];
 
+/** `scriptsDir` の直下にある残骸の fixture（`mutation-proof-fixture-*`）を消す。下の階層と他の名前は触らない。 */
+export function sweepStaleFixtures(scriptsDir: string): void {
+  for (const name of readdirSync(scriptsDir)) {
+    if (STALE_PREFIXES.some((prefix) => name.startsWith(prefix))) {
+      rmSync(join(scriptsDir, name), { recursive: true, force: true });
+    }
+  }
+}
+
 export function setup(): void {
   // **runner が起動した子 vitest では掃かない。** 子は `scripts/mutation-proof-fixture-*` の
   // fixture を**いま使っている**ので、ここで消すと検査対象ごと消える（実測で 12 テストが落ちた）。
   // 親（通常の `pnpm test`）だけが掃く。
   if (process.env.MUTATION_PROOF_CHILD) return;
-  const scripts = join(repoRoot, "scripts");
-  for (const name of readdirSync(scripts)) {
-    if (STALE_PREFIXES.some((prefix) => name.startsWith(prefix))) {
-      rmSync(join(scripts, name), { recursive: true, force: true });
-    }
-  }
+  sweepStaleFixtures(join(repoRoot, "scripts"));
 }

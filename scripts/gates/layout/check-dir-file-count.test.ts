@@ -163,6 +163,7 @@ describe("設定の古い記述と空の理由", () => {
     expect(checkDirFileCount(files("a", 4), c).configErrors).toEqual([]);
   });
 
+  // s は直下にファイルを持たず、下の s/lib にだけ持つ。そのようなディレクトリも実在として扱う。
   test("閾値を下げた例外は、件数に関わらず報告しない", () => {
     const c = config({ overrides: [{ dir: "s", max: 0, reason: "r" }] });
     expect(checkDirFileCount(["s/lib/x.ts"], c).configErrors).toEqual([]);
@@ -173,11 +174,6 @@ describe("設定の古い記述と空の理由", () => {
     ["descendants あり", { dir: "a", reason: "r", descendants: true }, files("a/b", 1)],
   ])("対象外（%s）は、件数がデフォルトの閾値以下でも報告しない", (_name, entry, input) => {
     expect(checkDirFileCount(input, config({ excludes: [entry] })).configErrors).toEqual([]);
-  });
-
-  test("直下にファイルが無くても、下にファイルがあるディレクトリは実在として扱う", () => {
-    const c = config({ overrides: [{ dir: "s", max: 0, reason: "r" }] });
-    expect(checkDirFileCount(["s/lib/x.ts"], c).configErrors).toEqual([]);
   });
 
   test.each([[""], ["   "]])("理由が空（%j）の閾値と対象外を報告する", (reason) => {

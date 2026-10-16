@@ -71,7 +71,7 @@ jobs:
       - name: Pagination lint
         run: node scripts/gates/code/lint-pagination.ts
       - name: Skills sync (skills/ vs .agents/skills/)
-        run: node scripts/gates/packaging/check-skills-sync.ts
+        run: node scripts/gates/packaging/copies/check-skills-sync.ts
       - name: Files per directory (scripts/gates/layout/dir-file-count.json)
         run: node scripts/gates/layout/check-dir-file-count.ts
       - name: JS extensions (skills/ => .mjs, scripts/ => .ts)
@@ -81,7 +81,7 @@ jobs:
       - name: JSDoc types in distributed .mjs (no casts, any, @ts-ignore)
         run: node scripts/gates/code/check-jsdoc-types.ts
       - name: Rule symlinks (.agents/rules vs .claude/rules / .github/instructions)
-        run: node scripts/gates/packaging/check-rule-symlinks.ts
+        run: node scripts/gates/packaging/copies/check-rule-symlinks.ts
       - name: Control characters in tracked text files
         run: node scripts/gates/code/check-control-chars.ts
       - name: Eval assertion reachability
@@ -90,8 +90,8 @@ jobs:
         run: node scripts/gates/packaging/check-skill-frontmatter.ts
       - name: Kaizen learning references exist
         run: node scripts/gates/docs/check-kaizen-refs.ts
-      - name: Identical copies (scripts/gates/packaging/identical-copies.json)
-        run: node scripts/gates/packaging/check-identical-copies.ts
+      - name: Identical copies (scripts/gates/packaging/copies/identical-copies.json)
+        run: node scripts/gates/packaging/copies/check-identical-copies.ts
       - name: Skill checks wiring declarations (checks.json / scripts/gates/packaging/skill-checks-unwired.json)
         run: node scripts/gates/packaging/check-skill-checks.ts
       - name: Time-sensitive prose (mutation counts, dates, 現状は / 当面)
@@ -128,8 +128,10 @@ jobs:
           persist-credentials: false
       - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
       - run: pnpm install --frozen-lockfile
-      - name: Unit tests (vitest)
-        run: pnpm test
+      # テスト全体をカバレッジ付きで実行し、ファイルごとの値を閾値と比べる（docs/testing.md「カバレッジ」）。
+      # テストが失敗したときも、閾値を下回ったときも失敗する。
+      - name: Unit tests and coverage (vitest + c8)
+        run: pnpm run test:coverage
 
   # ミューテーションテスト（検査の検出能力の再実行）。Lint・Unit tests から独立したジョブにして並べて実行する
   # （ステップ自体は縮まないが、PR 全体の待ち時間が縮む。Issue #478）。

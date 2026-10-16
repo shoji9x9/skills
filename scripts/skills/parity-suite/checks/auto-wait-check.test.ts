@@ -14,7 +14,6 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..",
 const script = join(repoRoot, "skills/parity-suite/scripts/auto-wait-check.mjs");
 const {
   breakdownMismatch,
-  maskNonCode,
   scanSource,
   scanSourceWithStats,
 }: typeof import("../../../../skills/parity-suite/scripts/auto-wait-check.mjs") = await import(
@@ -210,18 +209,25 @@ test.each([
 });
 
 test.each([
-  ["識別子の後", "const r = a / b + c / d;"],
-  ["閉じ括弧の後", "const r = f(1) / g(2) + h(3) / k(4);"],
-  ["閉じ角括弧の後", "const r = xs[0] / ys[1] + zs[2] / ws[3];"],
-  ["数値の後", "const r = 10 / 2 + 30 / 5;"],
-  ["後置インクリメントの後", "let i = 1; const r = i++ / 2 + i-- / 3;"],
+  ["識別子の後", "const r = a / await locator.textContent() + c / d;"],
+  ["閉じ括弧の後", "const r = f(1) / await locator.textContent() + h(3) / k(4);"],
+  ["閉じ角括弧の後", "const r = xs[0] / await locator.textContent() + zs[2] / ws[3];"],
+  ["数値の後", "const r = 10 / await locator.textContent() + 30 / 5;"],
+  ["後置インクリメントの後", "let i = 1; const r = i++ / await locator.textContent() + i-- / 3;"],
 ])("除算（%s）を正規表現リテラルとして潰さない", (_name, source) => {
-  expect(maskNonCode(source)).toBe(source);
+  // 最初の / を正規表現の開始と読むと、2 つの / の間にある違反が検出されなくなる。
+  expect(scanSource(source).map((v) => v.rule)).toEqual(["immediate-read"]);
 });
 
 test("キーワードの後の / は正規表現として潰す", () => {
-  const source = "function f(x) { return /a b/.test(x); }";
-  expect(maskNonCode(source)).toBe("function f(x) { return      .test(x); }");
+  // 正規表現として読まないと、アポストロフィが文字列の開始と判定され、
+  // 次の行の違反が 3 行目のアポストロフィまでの文字列として扱われて検出されなくなる。
+  const source = [
+    "function f(x) { return /it's/.test(x); }",
+    "const value = await locator.textContent();",
+    "// isn't relevant",
+  ].join("\n");
+  expect(scanSource(source).map((v) => v.rule)).toEqual(["immediate-read"]);
 });
 
 test("行をまたぐ / は正規表現として潰さない", () => {

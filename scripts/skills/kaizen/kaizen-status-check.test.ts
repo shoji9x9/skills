@@ -66,6 +66,12 @@ const ACCEPTED = [
   ]`,
   },
   {
+    name: "次の行に置いた 1 行の flow 配列",
+    status: "applied",
+    appliedTo: `
+  ["AGENTS.md", "docs/a.md"]`,
+  },
+  {
     name: "開き括弧が applied-to 行に残る折り返し",
     status: "applied",
     appliedTo: ` [
@@ -79,6 +85,12 @@ const ACCEPTED = [
     appliedTo: `
   - "a.md"
   - "b.md"`,
+  },
+  {
+    name: "引用符の無いブロックシーケンス",
+    status: "applied",
+    appliedTo: `
+  - AGENTS.md`,
   },
   {
     // ブロックシーケンスは親キーと同じ桁 0 に置いても正しい YAML。桁 0 を一律で値の終わりと
@@ -142,12 +154,6 @@ const REJECTED = [
     message: "applied-to is set but status is pending",
   },
 ];
-
-test("受理側と拒否側の両方の検体を持つ", () => {
-  // 片側だけになると、検査が常に成功／常に失敗へ退化しても気づけない。
-  expect(ACCEPTED.length).toBeGreaterThan(0);
-  expect(REJECTED.length).toBeGreaterThan(0);
-});
 
 test.each(ACCEPTED)("適用先を読める形式は通す: $name", ({ status, appliedTo }) => {
   const { status: exitCode, stderr } = runCheck(note(status, appliedTo));
@@ -334,11 +340,6 @@ const INTACT_LEADS = [
     body: "\n## 事象\n\n一行の事象。\n\n## 提案\n\n## 根本原因\n\n原因。\n",
   },
 ];
-
-test("折り返し検査は陽性・陰性の両方の検体を持つ", () => {
-  expect(WRAPPED_LEADS.length).toBeGreaterThan(0);
-  expect(INTACT_LEADS.length).toBeGreaterThan(0);
-});
 
 test.each(WRAPPED_LEADS)("先頭段落の折り返しを報告する: $name", ({ body, section }) => {
   const { status: exitCode, stderr } = runCheckOnBody(body);
@@ -538,11 +539,6 @@ const NOT_WARNED = [
   },
   { name: "archive 配下は履歴なので対象外", note: { archived: true } },
 ];
-
-test("警告側と沈黙側の両方の検体を持つ", () => {
-  expect(WARNED.length).toBeGreaterThan(0);
-  expect(NOT_WARNED.length).toBeGreaterThan(0);
-});
 
 test.each(WARNED)("機構と宣言して doc だけで閉じたら警告する: $name", ({ note }) => {
   const { status: exitCode, stderr } = runCheckTyped(note);

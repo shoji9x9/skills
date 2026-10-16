@@ -12,7 +12,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { findViolations, privateSkillNames, violationOf } from "./check-js-extensions.ts";
+import { violationOf } from "./check-js-extensions.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 const script = join(dirname(fileURLToPath(import.meta.url)), "check-js-extensions.ts");
@@ -73,24 +73,6 @@ test.each([
   [".agents/skills/private-one/a.mts", ".mts"],
 ])("private skill の %s を違反にする", (path, ext) => {
   expect(violationOf(path, PRIVATE)).toContain(`private skill では ${ext} を使わない`);
-});
-
-test("private skill は、一覧の中で .agents/skills/<name>/ にあって skills/<name>/ に無いものにする", () => {
-  expect(
-    privateSkillNames([
-      "skills/demo/SKILL.md",
-      ".agents/skills/demo/SKILL.md",
-      ".agents/skills/private-one/SKILL.md",
-      ".agents/skills/private-one/scripts/a.ts",
-      ".agents/skills/README.md",
-    ]),
-  ).toEqual(["private-one"]);
-});
-
-test("違反だけを、パスと理由の組で返す", () => {
-  expect(
-    findViolations(["scripts/a.ts", "scripts/b.js", "skills/demo/scripts/c.mjs"], PRIVATE),
-  ).toEqual(["scripts/b.js: scripts/ では .js を使わない（非配布物 → .ts にする）"]);
 });
 
 /** 一時的な git リポジトリを作る。`ignored` のファイルは .gitignore に載せ、`tracked` だけを git add する。 */

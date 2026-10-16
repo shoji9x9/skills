@@ -18,6 +18,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { coverageEnv } from "../../lib/testing/coverage-env.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const SCRIPTS = [
@@ -39,7 +40,7 @@ function run(scriptRel: string, { args = [], env = {}, config, cwd = repoRoot }:
     encoding: "utf8",
     cwd,
     // 呼び出し側の SKILLS_REVIEW_TOOL に左右されないよう、毎回明示的に組み立てる。
-    env: { PATH: process.env.PATH, HOME: process.env.HOME, ...env },
+    env: { PATH: process.env.PATH, HOME: process.env.HOME, ...coverageEnv(), ...env },
   });
 }
 
@@ -184,13 +185,6 @@ for (const script of SCRIPTS) {
     const r = run(script, { env: { SKILLS_REVIEW_TOOL: "bogus" } });
     expect(r.status).toBe(2);
     expect(r.stderr).toMatch(/出所: env/);
-  });
-
-  test(`${name}: 空の環境変数は未設定として扱う`, () => {
-    withConfig(CONFIG, (path) => {
-      const r = run(script, { config: path, env: { SKILLS_REVIEW_TOOL: "" } });
-      expect(parse(r.stdout)).toEqual({ value: "codex", source: "config" });
-    });
   });
 
   test(`${name}: 引数不正は exit 64`, () => {

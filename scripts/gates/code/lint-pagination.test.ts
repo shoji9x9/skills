@@ -1,44 +1,14 @@
-import { assert, test, expect } from "vitest";
+import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  lint,
-  tokenize,
-  restEndpointSegment,
-  gitFiles,
-  walkFiles,
-  listFiles,
-} from "./lint-pagination.ts";
+import { lint } from "./lint-pagination.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 // markdown の bash コードブロックで囲む小さなヘルパ。
 const md = (body: string) => "# t\n\n```bash\n" + body + "\n```\n";
 const count = (path: string, content: string) => lint(path, content).length;
-
-test("tokenize: クォート内の空白を 1 トークンに保つ", () => {
-  expect(tokenize('gh api -H "Accept: application/vnd.github+json" repos/o/r/issues')).toEqual([
-    "gh",
-    "api",
-    "-H",
-    '"Accept: application/vnd.github+json"',
-    "repos/o/r/issues",
-  ]);
-});
-
-test("restEndpointSegment: 末尾セグメントを取り出す", () => {
-  expect(restEndpointSegment("gh api repos/o/r/pulls/6/comments")).toBe("comments");
-  expect(restEndpointSegment("gh api --paginate repos/o/r/issues")).toBe("issues");
-  expect(restEndpointSegment("gh api repos/o/r/pulls/6")).toBe("6");
-  expect(restEndpointSegment("gh api graphql -f query='{}'")).toBe(null);
-});
-
-test("restEndpointSegment: スラッシュを含むフラグ値をエンドポイントと誤認しない", () => {
-  expect(
-    restEndpointSegment('gh api -H "Accept: application/vnd.github+json" repos/o/r/comments'),
-  ).toBe("comments");
-});
 
 test("GraphQL: first: に pageInfo も --paginate も無ければ指摘", () => {
   expect(
@@ -103,6 +73,19 @@ test("REST: コレクション取得に --paginate が無ければ指摘", () =>
 
 test("REST: --paginate があれば許可", () => {
   expect(count("t.md", md("gh api --paginate repos/o/r/pulls/6/comments"))).toBe(0);
+});
+
+test("REST: クォートの中に空白とスラッシュを含むフラグ値があっても、後ろのコレクション取得を指摘する", () => {
+  expect(
+    count("t.md", md('gh api -H "Accept: application/vnd.github+json" repos/o/r/comments')),
+  ).toBe(1);
+});
+
+test.each([
+  ["--paginate 付きのコレクション取得", "gh api --paginate repos/o/r/issues"],
+  ["first: を持たない GraphQL", "gh api graphql -f query='{}'"],
+])("%sは指摘しない", (_label, body) => {
+  expect(count("t.md", md(body))).toBe(0);
 });
 
 test("REST: 単一リソース GET は対象外", () => {
@@ -227,7 +210,6 @@ test("git work tree でなければディレクトリ走査へ落ちる（走査
   const dir = makeRepo({ git: false });
   write(dir, "docs/guide.md", OFFENDING);
 
-  expect(gitFiles(dir)).toBeNull();
   const out = runCli(dir);
   expect(out.status).toBe(1);
   expect(out.stderr).toContain("guide.md");
@@ -249,24 +231,26 @@ test("指摘ゼロのときは走査したファイル数を出す（0 件の素
 });
 
 test.each([
-  ["gitFiles", (dir: string) => gitFiles(dir)],
-  ["walkFiles", (dir: string) => walkFiles(dir)],
+  ["git の列挙", true],
+  ["git の無いディレクトリの走査", false],
 ])(
-  "%s は node_modules とエージェント用のコピー・リンクを外し、rule と private skill の実体は見る",
-  (_, list) => {
-    const dir = makeRepo();
-    write(dir, "skills/x/SKILL.md", "# t\n");
-    write(dir, ".agents/skills/x/SKILL.md", "# t\n");
-    write(dir, ".claude/skills/x.md", "# t\n");
-    write(dir, "node_modules/pkg/readme.md", "# t\n");
-    write(dir, ".agents/rules/r.md", "# t\n");
-    write(dir, ".agents/skills/priv/SKILL.md", "# t\n");
+  "%sは node_modules とエージェント用のコピー・リンクを外し、rule と private skill の実体は見る",
+  (_, git) => {
+    const dir = makeRepo({ git });
+    for (const rel of [
+      "skills/x/SKILL.md",
+      ".agents/skills/x/SKILL.md",
+      ".claude/skills/x.md",
+      "node_modules/pkg/readme.md",
+      ".agents/rules/r.md",
+      ".agents/skills/priv/SKILL.md",
+    ])
+      write(dir, rel, OFFENDING);
 
-    const files = list(dir);
-    expect(files).not.toBeNull();
-    assert.exists(files);
-    const rel = files.map((f) => relative(dir, resolve(f))).sort();
-    expect(rel).toEqual([
+    const out = runCli(dir);
+    expect(out.status).toBe(1);
+    const flagged = [...out.stderr.matchAll(/^(\S+):\d+: /gm)].map((m) => m[1]).sort();
+    expect(flagged).toEqual([
       ".agents/rules/r.md",
       ".agents/skills/priv/SKILL.md",
       "skills/x/SKILL.md",
@@ -274,36 +258,21 @@ test.each([
   },
 );
 
-test("walkFiles は .sh と .md だけを拾い、除外ディレクトリへ降りない", () => {
+test("git の無いディレクトリでは .sh と .md だけを読み、除外ディレクトリへ降りない", () => {
   const dir = makeRepo({ git: false });
-  write(dir, "a.md", "");
-  write(dir, "b.sh", "");
-  write(dir, "c.txt", "");
-  write(dir, "node_modules/d.md", "");
-
-  const files = walkFiles(dir).map((f) => f.slice(dir.length + 1));
-  expect(files.sort()).toEqual(["a.md", "b.sh"]);
-});
-
-test("読めなかったファイルは件数として出す（警告なしに飛ばさない）", () => {
-  const dir = makeRepo();
+  const command = "gh api graphql -f query='{ a { b(first: 50) { nodes { id } } } }'\n";
   write(dir, "a.md", OFFENDING);
-  const out = spawnSync(
-    process.execPath,
-    [
-      "-e",
-      `const fs = await import("node:fs");` +
-        `const m = await import(${JSON.stringify(script)});` +
-        `process.exitCode = m.main(["a.md", "gone.md"], { readFileSync: (p, e) => {` +
-        `  if (p === "gone.md") throw new Error("ENOENT");` +
-        `  return fs.readFileSync(p, e);` +
-        `} });`,
-      "--input-type=module",
-    ],
-    { cwd: dir, encoding: "utf8" },
-  );
+  write(dir, "b.sh", command);
+  write(dir, "c.txt", command);
+  write(dir, "node_modules/d.md", OFFENDING);
+
+  const out = runCli(dir);
   expect(out.status).toBe(1);
-  expect(out.stderr).toContain("1 ファイルは読めず未走査");
+  expect(out.stderr).toContain("a.md:");
+  expect(out.stderr).toContain("b.sh:");
+  expect(out.stderr).not.toContain("c.txt");
+  expect(out.stderr).not.toContain("d.md");
+  expect(out.stderr).toContain("2 ファイル走査");
 });
 
 test("対象は挙がったのに 1 件も読めなければ成功として扱わない", () => {
@@ -332,23 +301,9 @@ test("除外判定は dir 相対で行う（リポジトリの外側のディレ
   expect(init.status, init.stderr).toBe(0);
   write(nested, "docs/guide.md", OFFENDING);
 
-  const files = gitFiles(nested);
-  expect(files).not.toBeNull();
-  assert.exists(files);
-  expect(files.some((f) => f.endsWith("docs/guide.md"))).toBe(true);
-});
-
-test("listFiles は git があれば git の結果を使う", () => {
-  const dir = makeRepo();
-  write(dir, ".gitignore", "gen/\n");
-  write(dir, "gen/x.md", "");
-  write(dir, "y.md", "");
-
-  const fromList = listFiles(dir);
-  expect(fromList.some((f) => f.endsWith("y.md"))).toBe(true);
-  expect(fromList.some((f) => f.endsWith("gen/x.md"))).toBe(false);
-  // 対照: 素朴な走査なら無視ファイルも拾う（＝上の不在が「走査していない」ではないことの裏取り）。
-  expect(walkFiles(dir).some((f) => f.endsWith("x.md"))).toBe(true);
+  const out = runCli(nested);
+  expect(out.status).toBe(1);
+  expect(out.stderr).toContain("docs/guide.md:");
 });
 
 test("1 件でも読めなければ合格として扱わない", () => {

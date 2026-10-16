@@ -399,32 +399,8 @@ describe.concurrent("Codex の token usage / review mode 補助レコード", ()
     expect(scan.stdout).toMatch(/^kaizen-candidate-scan: agent=codex$/m);
   });
 
-  test.each([
-    ["token_usage_record", '\n\telif $j.type == "token_usage_record" then "D", "R"'],
-    ["EnteredReviewMode", '$item.type == "EnteredReviewMode" or\n\t\t       '],
-    ["ExitedReviewMode", '$item.type == "ExitedReviewMode" or '],
-  ])("%s の認識分岐を除くと fixture は判定不能になる", async (_label, branch) => {
-    const scripts = cloneScripts();
-    const scanner = join(scripts, "kaizen-candidate-scan.sh");
-    const original = readFileSync(scanner, "utf8");
-    const mutated = original.replace(branch, "");
-    expect(mutated).not.toBe(original);
-    writeFileSync(scanner, mutated);
-
-    const cwd = makeProject();
-    const transcript = join(fixturesDir, "codex-review-metadata-no-candidate.jsonl");
-    const scan = await runScript(
-      "kaizen-candidate-scan.sh",
-      [transcript, join(cwd, "no-checkpoint")],
-      {
-        cwd,
-        scripts,
-      },
-    );
-
-    expect(scan.status).toBe(2);
-    expect(scan.stderr).toMatch(/unsupported or malformed record/);
-  });
+  // 補助レコード（token_usage_record・EnteredReviewMode・ExitedReviewMode）を認識する分岐を除く。
+  // そのときに上の「補助レコードだけなら候補ゼロ」が落ちることは、mutations.json の SCAN-CODEX-AUX-* が確かめる。
 });
 
 describe.concurrent("checkpoint はスキャナが検査した範囲までしか進めない", () => {
@@ -1384,46 +1360,24 @@ describe.concurrent("lifecycle 検査", () => {
     },
   );
 
-  // Markdown フォーマッタが applied-to の flow 配列を折り返しても判定が変わらないこと。
-  const appliedToCases: [string, string, string, number, RegExp | null][] = [
-    ["1 行の flow 配列", "applied", ' ["AGENTS.md", "docs/a.md"]', 0, null],
-    ["折り返された flow 配列", "applied", '\n  ["AGENTS.md", "docs/a.md"]', 0, null],
-    [
-      "複数行に割れた flow 配列",
-      "applied",
-      '\n  [\n    "AGENTS.md",\n    "docs/a.md",\n  ]',
-      0,
-      null,
-    ],
-    ["折り返された空配列", "applied", "\n  [\n  ]", 2, /applied-to is empty/],
-    ["ブロックリスト", "applied", "\n  - AGENTS.md", 0, null],
-    [
-      "pending × 折り返し非空",
-      "pending",
-      '\n  ["AGENTS.md"]',
-      2,
-      /applied-to is set but status is pending/,
-    ],
-    ["pending × 空配列", "pending", " []", 0, null],
-  ];
+  // applied-to の形（1 行・折り返し・ブロックシーケンス・空配列）と status の組み合わせは、
+  // kaizen-status-check.test.ts の ACCEPTED と REJECTED が確かめる。ここでは、検査が
+  // 不整合で exit 2 を返したときに、チェックがその理由を出して commit を止めることを確かめる。
+  test("lifecycle 検査の不整合は、理由を出して commit を止める", async () => {
+    const cwd = makeProject();
+    writeNote(cwd, "2026-08-10-note.md", note("applied", " []"));
 
-  test.each(appliedToCases)(
-    "applied-to: %s",
-    async (_label, status, appliedTo, expected, stderrPattern) => {
-      const cwd = makeProject();
-      writeNote(cwd, "2026-08-10-note.md", note(status, appliedTo));
-      const check = await runScript("kaizen-status-check.sh", [], { cwd });
-      expect(check.status).toBe(expected);
-      if (stderrPattern) expect(check.stderr).toMatch(stderrPattern);
-    },
-  );
+    const gate = await runGate("git commit -m x", { cwd });
+    expect(gate.status).toBe(2);
+    expect(gate.stderr).toMatch(/2026-08-10-note\.md: status is applied but applied-to is empty/);
+  });
 
   // 警告（rc 0）は、チェックの出力から外れやすい。チェックは検査の出力を変数へ取り込む。
   // さらに、**PreToolUse フックの stderr は非 0 で終えたときしか表示されない**。そのため、素通りの
   // exit 0 のまま stderr へ書いても誰にも届かない（`references/setup.md` に出典付きで
   // 書いてある仕様。他セッションの警告が warn_exit_code を使っているのと同じ理由）。
   // 状態空間は、検査の rc × 出力の有無 × チェックの出口である。
-  //   - rc 2 × 出力あり            → 出す・exit 2（既存の appliedToCases が押さえている）
+  //   - rc 2 × 出力あり            → 出す・exit 2（上の「不整合は、理由を出して commit を止める」）
   //   - rc 0 × 出力あり × 素通り   → 出す・exit 1（表示される非 0）  ← ここ
   //   - rc 0 × 出力なし × 素通り   → 何も足さない・exit 0            ← ここ
   //   - rc 0 × 出力あり × -copilot → 出す・exit 0（非 0 は誤って deny として扱われるため）← ここ

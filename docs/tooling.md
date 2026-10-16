@@ -50,10 +50,10 @@ GitHub Actions は、`actionlint` で構文を、`ghalint` で `permissions`・`
 
 | スクリプト（`scripts/gates/` からのパス） | チェックする内容 |
 | --- | --- |
-| `packaging/check-rule-symlinks.ts` | rule を各エージェントから読むためのシンボリックリンクと、Copilot のレビューに読ませる文書（`docs/writing-style.md`）へのシンボリックリンク。その文書が applyTo を持つことと、レビューで確かめる節が Copilot の読む先頭 4,000 文字に収まることも確かめる |
+| `packaging/copies/check-rule-symlinks.ts` | rule を各エージェントから読むためのシンボリックリンクと、Copilot のレビューに読ませる文書（`docs/writing-style.md`）へのシンボリックリンク。その文書が applyTo を持つことと、レビューで確かめる節が Copilot の読む先頭 4,000 文字に収まることも確かめる |
 | `code/check-control-chars.ts` | テキストの拡張子のファイルに入った制御文字 |
 | `packaging/check-eval-reachability.ts` | eval の assertion と prompt の対応 |
-| `packaging/check-skills-sync.ts` | `skills/<name>/` とインストール済みのコピー `.agents/skills/<name>/` の一致 |
+| `packaging/copies/check-skills-sync.ts` | `skills/<name>/` とインストール済みのコピー `.agents/skills/<name>/` の一致 |
 | `layout/check-dir-file-count.ts` | 各ディレクトリの直下のファイル数。閾値（デフォルトは 20）を変えるディレクトリと対象外のディレクトリは、理由を付けて `scripts/gates/layout/dir-file-count.json` に書く。書いたディレクトリが実在しないとき、理由が空のとき、判定に使われない設定（`descendants` の対象外の下に書いた設定、デフォルトと同じ閾値、件数がデフォルトの閾値以下に減ったディレクトリの、閾値を上げた例外）を書いたときも失敗にする |
 | `code/check-js-extensions.ts` | JavaScript の拡張子（「JavaScript の拡張子」の節） |
 | `code/check-skill-lint-directives.ts` | 配布スキルの、このリポジトリの lint の設定を前提にした抑止コメント（`.agents/rules/distributed-skill-stack-independence.md`）と、`Array.isArray` の禁止をファイル単位で外したファイル（`scripts/lib/is-array-holders.ts`）の、型ガードの外の呼び出し |
@@ -61,7 +61,7 @@ GitHub Actions は、`actionlint` で構文を、`ghalint` で `permissions`・`
 | `packaging/check-skill-frontmatter.ts` | `SKILL.md` の frontmatter |
 | `code/lint-pagination.ts` | `gh api` などの一覧の取得のページネーション |
 | `docs/check-kaizen-refs.ts` | `.kaizen/` の学びへの参照の実在。意図して実在しないものは `scripts/gates/docs/kaizen-refs-exemptions.json` に書く |
-| `packaging/check-identical-copies.ts` | 同じ内容であるべきコピー。組は `scripts/gates/packaging/identical-copies.json` に書く。`region` を持つ組は、印 `// <region>:begin` と `// <region>:end` の間だけを比べる |
+| `packaging/copies/check-identical-copies.ts` | 同じ内容であるべきコピー。組は `scripts/gates/packaging/copies/identical-copies.json` に書く。`region` を持つ組は、印 `// <region>:begin` と `// <region>:end` の間だけを比べる |
 | `packaging/check-skill-checks.ts` | 配布スキルのチェック（`*-check.*`）の分類。利用者の pre-commit・CI に組み込むもの（`skills/<name>/checks.json`）か、組み込まないもの（理由を付けて `scripts/gates/packaging/skill-checks-unwired.json`）のどちらかにする |
 | `prose/check-time-sensitive-prose.ts` | 日付・「現状は」「当面」を Tier 1〜3 の文書とコメントに書いていないか。変異の件数や全件の実測値は `mutation-proof.yml` だけに書く |
 | `docs/check-doc-tiers.ts` | 文書の階層。原本は `scripts/gates/docs/doc-tiers.json` で、`.agents/rules/doc-altitude.md` の表は `--fix` で生成する |
@@ -70,6 +70,15 @@ GitHub Actions は、`actionlint` で構文を、`ghalint` で `permissions`・`
 | `prose/lint-prose.ts` | 人が読む Markdown の文章と、JavaScript・TypeScript・シェル・YAML のコメントの文章。JavaScript・TypeScript の文字列と `evals/<name>/evals.json` の prompt・expected_output・assertions には、使わない語の規則だけを当てる（取り出し方は `scripts/lib/text/code-strings.ts`）。シェルのコメントは `shfmt --to-json` の構文木から取り出すので、shfmt（`mise.toml` で版を固定）が要る。書き換え前のファイルは `scripts/gates/prose/prose-lint-pending.json` に書く |
 | `prose/check-word-list.ts` | `.textlint/word-list.md` と `.textlint/words.json` の一致 |
 | `docs/check-agents-md-size.ts` | `AGENTS.md` のサイズ。ブランチで 30 KiB を超えたら、24 KiB 以下まで縮めさせる。超えたかは履歴で判定し、上限は `scripts/gates/docs/agents-md-size.json` に書く |
+
+### カバレッジ（pre-push と CI で実行）
+
+`pnpm run test:coverage` がテスト全体をカバレッジ付きで実行し、ファイルごとの値を `scripts/coverage/coverage-thresholds.json` の閾値と比べる。
+テスト全体を実行するので、lefthook の pre-commit ではなく pre-push で実行する。CI では `Unit tests` のジョブがこのコマンドを実行する。
+測り方・閾値の決め方・除外の書き方は [`docs/testing.md`](testing.md)「カバレッジ」にある。
+
+vitest は、vite の変換を通さず Node がファイルを直接読み込む設定にしている（`vitest.config.ts` の `experimental.viteModuleRunner`）。
+変換を通すと、c8 が数える位置がずれる。
 
 ### ミューテーションテスト（CI だけで実行）
 

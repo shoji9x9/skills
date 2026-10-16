@@ -1030,6 +1030,7 @@ test("#457: 行・ブロック・JSDoc のコメントの書き換え（行数�
       "/**",
       " * JSDoc を足した（2 行目）",
       " * @see intentional_diffs.may_change",
+      " * @param x 指示コメントでない JSDoc のタグ",
       " */",
       "// orders.default.desktop.png と orders.xlsx.json を読む（書き換えた）",
       "test('orders', async () => { // 行末にも注記",
@@ -1183,15 +1184,15 @@ test("#457: ) の後の / が正規表現にも読める形で同じ行に // �
 });
 
 test("#457: ) の後の / でも同じ行に // /* が無い除算は従来どおり正規形にする（誤検知しないことの確認）", () => {
-  expect(stripJsComments("const h = (a + b) / 2;\n// note\nx();\n")).toBe(
-    "const h = (a + b) / 2;\nx();",
-  );
-});
-
-test("#457: 指示コメントでない行コメント・ブロックコメントは従来どおり除く", () => {
-  const src =
-    "// plain note\nfoo(); /* note */ bar();\n/**\n * JSDoc の説明\n * @param x 説明\n */\nbaz();\n";
-  expect(stripJsComments(src)).toBe("foo(); bar();\nbaz();");
+  const body =
+    "// orders.default.desktop.png と orders.xlsx.json\nconst h = (a + b) / 2;\n// note\nx();\n";
+  const { root, metadataPath, specPath } = recordedProject({ specBody: body });
+  writeFileSync(specPath, body.replace("// note", "// 別の note"));
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(/スイートの指紋が記録と一致.*コメントを除いて照合/);
+  expect(r.stdout).not.toMatch(/生バイトで数えたファイル/);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
 });
 
 test("#457: 字句解析が閉じない JS / TS 系のファイルは生バイトで数え、その旨を残す", () => {

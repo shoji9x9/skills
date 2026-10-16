@@ -157,19 +157,8 @@ describe("transcript が無い claude-code / codex の Stop はセンチネル�
 });
 
 describe("共通ライブラリが読めず機能を減らして動くときは transcript の有無で判定しない", () => {
-  test("陽性: ライブラリが読めれば有効な transcript でセンチネルを立てる", () => {
-    const cwd = makeProject();
-    try {
-      const transcript = join(cwd, "t.jsonl");
-      writeFileSync(transcript, "{}\n");
-      const result = runStopMark(cwd, { transcriptPath: transcript, sessionId: "d0" });
-      expect(result.status).toBe(0);
-      expect(sentinelFiles(cwd).length).toBe(1);
-    } finally {
-      rmSync(cwd, { recursive: true, force: true });
-    }
-  });
-
+  // ライブラリが読めるときの陽性の側は、先頭の describe の「読める transcript があれば
+  // claude-code はセンチネルを立てる」が同じ入力で確かめている。
   test("kaizen-hook-common.sh が同梱されていない場合、有効な transcript を渡してもセンチネルを立てる", () => {
     const cwd = makeProject();
     const degradedDir = makeTempDir("kaizen-stop-mark-degraded-");

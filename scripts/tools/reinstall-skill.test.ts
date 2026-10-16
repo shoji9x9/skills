@@ -271,3 +271,149 @@ test.each([
     }
   },
 );
+
+// --- 削除より前で止める preflight と、引数の検査 ---
+//
+// | 止める理由                         | 入力の状態                                         |
+// | ---------------------------------- | -------------------------------------------------- |
+// | 引数の数                           | 0 個 / 2 個                                        |
+// | スキル名                           | 大文字を含む / - で始まる / パスの区切りを含む     |
+// | スキルの原本                       | skills/<name>/SKILL.md が無い                      |
+// | frontmatter                        | 検査が失敗する                                     |
+// | 更新先の書き込み                   | リンク先の無い symlink / 書き込めないディレクトリ  |
+// | インストール済みのコピーの書き込み | 書き込めないサブディレクトリ                       |
+// | local-path の除去                  | gh が別の形で local-path を書く                    |
+//
+// 削除より前で止める理由では、インストール済みのコピーと symlink が残り、gh を呼ばないことを確かめる。
+
+/** 書き込めなくしたディレクトリを、後片付けの前に戻す。 */
+function withReadOnly(dir: string, body: () => void) {
+  chmodSync(dir, 0o555);
+  try {
+    body();
+  } finally {
+    chmodSync(dir, 0o755);
+  }
+}
+
+function expectUntouched(ctx: Ctx, root: string, before: Record<string, string>) {
+  expect(snapshot(root)).toEqual(before);
+  expect(ghCalls(ctx)).toEqual([]);
+}
+
+test.each([
+  ["引数が無い", []],
+  ["引数が 2 個", ["demo", "extra"]],
+])("%s なら使い方を出して exit 2 で止まる", (_label, args) => {
+  const ctx = setup();
+  const root = createRepo(ctx.base, "repo");
+  preinstall(root);
+  const before = snapshot(root);
+  const result = run(ctx, root, ["scripts/tools/reinstall-skill.sh", ...args]);
+  expect(result.status).toBe(2);
+  expect(result.stderr).toMatch(/^Usage: scripts\/tools\/reinstall-skill\.sh <skill-name>\|--all/);
+  expectUntouched(ctx, root, before);
+});
+
+test.each([["Demo"], ["-demo"], ["../demo"], ["a/b"]])(
+  "kebab-case でないスキル名 %s は exit 2 で止まり、何も消さない",
+  (name) => {
+    const ctx = setup();
+    const root = createRepo(ctx.base, "repo");
+    preinstall(root);
+    const before = snapshot(root);
+    const result = run(ctx, root, ["scripts/tools/reinstall-skill.sh", name]);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain(
+      `invalid skill name (expected kebab-case: a-z, 0-9, -): ${name}`,
+    );
+    expectUntouched(ctx, root, before);
+  },
+);
+
+test("スキルの原本が無ければ exit 1 で止まり、何も消さない", () => {
+  const ctx = setup();
+  const root = createRepo(ctx.base, "repo");
+  preinstall(root);
+  const before = snapshot(root);
+  const result = run(ctx, root, ["scripts/tools/reinstall-skill.sh", "absent"]);
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain("Skill source not found: skills/absent/SKILL.md");
+  expectUntouched(ctx, root, before);
+});
+
+test("frontmatter の検査が失敗すれば exit 1 で止まり、インストール済みのコピーを消さない", () => {
+  const ctx = setup();
+  const root = createRepo(ctx.base, "repo");
+  writeFile(join(root, "scripts/gates/packaging/check-skill-frontmatter.ts"), "process.exit(1);\n");
+  preinstall(root);
+  const before = snapshot(root);
+  const result = run(ctx, root, ["scripts/tools/reinstall-skill.sh", "demo"]);
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain("Preflight failed: skills/demo/SKILL.md の frontmatter が不正");
+  expectUntouched(ctx, root, before);
+});
+
+test("更新先の祖先がリンク先の無い symlink なら exit 1 で止まり、gh を呼ばない", () => {
+  const ctx = setup();
+  const root = createRepo(ctx.base, "repo");
+  symlinkSync(join(root, "absent"), join(root, ".agents"));
+  const result = run(ctx, root, ["scripts/tools/reinstall-skill.sh", "demo"]);
+  expect(result.status).toBe(1);
+  // 文言はスクリプトの表示のまま照合せず、止めた対象（.agents）と symlink であることを確かめる。
+  expect(result.stderr).toMatch(
+    /^Preflight failed: \.agents が\S+ symlink（既存のインストールは触っていない）$/mu,
+  );
+  expect(isLink(join(root, ".agents"))).toBe(true);
+  expect(ghCalls(ctx)).toEqual([]);
+});
+
+test("更新先のディレクトリへ書き込めなければ exit 1 で止まり、インストール済みのコピーを消さない", () => {
+  const ctx = setup();
+  const root = createRepo(ctx.base, "repo");
+  preinstall(root);
+  const before = snapshot(root);
+  withReadOnly(join(root, ".claude", "skills"), () => {
+    const result = run(ctx, root, ["scripts/tools/reinstall-skill.sh", "demo"]);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("Preflight failed: .claude/skills へ書き込めない");
+    expectUntouched(ctx, root, before);
+  });
+});
+
+test("インストール済みのコピーの中に書き込めないディレクトリがあれば exit 1 で止まり、コピーを消さない", () => {
+  const ctx = setup();
+  const root = createRepo(ctx.base, "repo");
+  preinstall(root);
+  const locked = join(root, ".agents", "skills", "demo", "locked");
+  writeFile(join(locked, "a.md"), "kept\n");
+  const before = snapshot(root);
+  withReadOnly(locked, () => {
+    const result = run(ctx, root, ["scripts/tools/reinstall-skill.sh", "demo"]);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("Preflight failed: .agents/skills/demo/locked へ書き込めない");
+    expectUntouched(ctx, root, before);
+  });
+});
+
+test("gh が書いた local-path を外せなければ exit 1 で失敗を示す（機械の絶対パスを残したまま成功にしない）", () => {
+  const ctx = setup();
+  const root = createRepo(ctx.base, "repo");
+  // metadata: の下ではない位置に local-path を書く gh。除去の正規表現に当たらない。
+  writeFile(
+    join(ctx.base, "bin", "gh"),
+    `#!/bin/sh
+set -eu
+pwd -P >>"$GH_LOG"
+mkdir -p .agents/skills
+cp -R "$3" ".agents/skills/$4"
+printf 'local-path: %s\\n' "$PWD/$3" >>".agents/skills/$4/SKILL.md"
+`,
+  );
+  const result = run(ctx, root, ["scripts/tools/reinstall-skill.sh", "demo"]);
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain(
+    "Failed to remove local-path metadata from .agents/skills/demo/SKILL.md",
+  );
+  expect(result.stdout).not.toContain("Reinstalled demo");
+});

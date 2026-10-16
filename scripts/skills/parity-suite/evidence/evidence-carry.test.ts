@@ -23,7 +23,6 @@ import { assert, expect, test } from "vitest";
 import {
   judgeCarry,
   LEGACY_HINT,
-  toPathspec,
 } from "../../../../skills/parity-suite/scripts/evidence-carry.mjs";
 import { fingerprintOf } from "../../../../skills/parity-suite/scripts/component-comparison-check.mjs";
 import {
@@ -101,9 +100,33 @@ const templateRenderInputs = parseJsonAs<{ new: { render_inputs: unknown } }>(
   readFileSync(join(repoRoot, "skills/parity-replace/assets/metadata-template.json"), "utf8"),
 ).new.render_inputs;
 
-test.concurrent("toPathspec: magic の無い pathspec に :(glob) を付け、magic 付きはそのまま", () => {
-  expect(toPathspec("src/**")).toBe(":(glob)src/**");
-  expect(toPathspec(":(literal)src/*.ts")).toBe(":(literal)src/*.ts");
+test.concurrent("magic の無い render_inputs は glob として読む（* は / をまたがず、** は深い階層に当たる）", () => {
+  const p = project();
+  const deep = commit(p.repo, { "src/pages/extra.css": ".x {}\n" }, "deep css");
+  const judgeDeep = (renderInputs: string[]) =>
+    judge(p, { recordedCommit: p.commits.component, wantedCommit: deep, renderInputs });
+  // src/*.css は src/theme.css だけに当たる。git の既定の照合では * が / をまたぎ、深い階層の差分まで数える。
+  const shallow = judgeDeep(["src/*.css"]);
+  expect(shallow.ok).toBe(true);
+  expect(shallow.notes.join("\n")).toContain("差分が無い");
+  // src/** は深い階層の差分を数え、変更宣言に無いファイルなので持ち越さない。
+  const recursive = judgeDeep(["src/**"]);
+  expect(recursive.ok).toBe(false);
+  expect(recursive.findings.join("\n")).toContain("src/pages/extra.css");
+});
+
+test.concurrent("magic 付きの render_inputs はそのまま渡す（:(literal) の * は文字として扱う）", () => {
+  const p = project();
+  const star = commit(p.repo, { "src/*.css": ".literal {}\n" }, "literal star");
+  const theme = commit(p.repo, { "src/theme.css": ":root { --accent: red; }\n" }, "theme");
+  const judgeTheme = (renderInputs: string[]) =>
+    judge(p, { recordedCommit: star, wantedCommit: theme, renderInputs });
+  // 名前が src/*.css のファイルは変わっていないので、差分は無い。
+  const literal = judgeTheme([":(literal)src/*.css"]);
+  expect(literal.ok).toBe(true);
+  expect(literal.notes.join("\n")).toContain("差分が無い");
+  // 対照: magic が無ければ glob として src/theme.css の差分を数える。
+  expect(judgeTheme(["src/*.css"]).ok).toBe(false);
 });
 
 test.concurrent.each([

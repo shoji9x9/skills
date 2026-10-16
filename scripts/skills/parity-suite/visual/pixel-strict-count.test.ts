@@ -2,6 +2,7 @@
 // parity-diff の pixel-crops.mjs と同じ計数規則であることも、同じ入力で突き合わせて固定する。
 
 import { expect, test } from "vitest";
+import { createRequire } from "node:module";
 import * as counter from "../../../../skills/parity-suite/scripts/pixel-strict-count.mjs";
 import * as crops from "../../../../skills/parity-diff/scripts/pixel-crops.mjs";
 
@@ -97,3 +98,46 @@ test.each([
   expect(code).toBe(2);
   expect(stderr).toMatch(/--diff requires a path/);
 });
+
+test.each([
+  ["3 桁", "f00"],
+  ["16 進でない文字を含む", "gg0000"],
+  ["値が無い", undefined],
+])("--diff-color が 6 桁の 16 進でなければ（%s）、その理由で落ちる", async (_name, color) => {
+  const argv = ["a.png", "b.png", "--diff-color", ...(color === undefined ? [] : [color])];
+  const { code, stderr } = await runCapturingStderr(argv);
+
+  expect(code).toBe(2);
+  expect(stderr).toMatch(/--diff-color must be a 6-digit hex color/);
+});
+
+test.each([
+  ["入力が無い", []],
+  ["入力が 1 つ", ["a.png"]],
+  ["入力が 3 つ", ["a.png", "b.png", "c.png"]],
+])("入力の PNG が 2 つでなければ（%s）、使い方を出して落ちる", async (_name, argv) => {
+  const { code, stderr } = await runCapturingStderr(argv);
+
+  expect(code).toBe(2);
+  expect(stderr).toMatch(/^usage: node pixel-strict-count\.mjs/);
+});
+
+const pngjsAvailable = (() => {
+  try {
+    createRequire(import.meta.url).resolve("pngjs");
+    return true;
+  } catch {
+    return false;
+  }
+})();
+
+// pngjs のある環境では、この分岐の入力を作れない（計数の側は pixel-strict-count-cli.test.ts が偽の pngjs で確かめる）。
+test.skipIf(pngjsAvailable)(
+  "pngjs が無ければ導入を促して落ちる（勝手にインストールしない）",
+  async () => {
+    const { code, stderr } = await runCapturingStderr(["a.png", "b.png"]);
+
+    expect(code).toBe(2);
+    expect(stderr).toMatch(/pngjs is not installed/);
+  },
+);

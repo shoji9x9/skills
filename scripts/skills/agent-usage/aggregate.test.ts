@@ -7,6 +7,8 @@
 //   停止の分類       人の活動の幅・CI・レビュー待ち・取得していない期間の優先順位／どれにも当たらない（未活用）。
 
 import { describe, expect, test } from "vitest";
+import { mkdirSync } from "node:fs";
+import { join } from "node:path";
 import { formulaSafe, parseCsv, toCsv } from "../../../skills/agent-usage/scripts/lib/csv.mjs";
 import { classifyingFailuresOf } from "../../../skills/agent-usage/scripts/lib/run-collect.mjs";
 import {
@@ -23,11 +25,11 @@ import {
   buildReport,
   classifySpan,
   endOfLocalDate,
-  gaps,
-  mergeSpans,
   periodLabel,
+  runReport,
 } from "../../../skills/agent-usage/scripts/lib/report/report.mjs";
-import { renderHtml } from "../../../skills/agent-usage/scripts/lib/report/html.mjs";
+import { renderHtml, STOP_LABELS } from "../../../skills/agent-usage/scripts/lib/report/html.mjs";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { emptySummary } from "../../../skills/agent-usage/scripts/lib/sources/session.mjs";
 import {
   localParts,
@@ -90,11 +92,12 @@ describe("費用", () => {
       ],
       costSnapshots: [{ ts: H(3), models: { "claude-opus-5-5": { costUSD: 8, tokens: zero } } }],
     };
-    const costs = messageCosts(s, ctx);
-    expect(costs.map((c) => c.source)).toEqual(["log", "log", "bundled"]);
-    expect(costs[0].cost).toBeCloseTo(2);
-    expect(costs[1].cost).toBeCloseTo(6);
-    expect(costs[2].cost).toBeCloseTo(1);
+    // cost-state の 8 ドルを、その時刻（3 時）までの応答に単価の比（1:3）で配る。5 時の応答は単価で数える
+    expect(usageRows(s, ctx).map((r) => [r.start, r.cost_usd, r.cost_source])).toEqual([
+      ["2026-10-01T01:00:00.000Z", "2.000000", "log"],
+      ["2026-10-01T02:00:00.000Z", "6.000000", "log"],
+      ["2026-10-01T05:00:00.000Z", "1.000000", "bundled"],
+    ]);
   });
 
   test("単価の無いモデルは proxyWeight の比で cost-state を配り、cost-state が無ければ空欄にする", () => {
@@ -199,6 +202,7 @@ describe("明細の重複", () => {
 
 describe("CSV の数式", () => {
   test("report の CSV では、数式として読まれる値の先頭に ' を付け、数は変えない", () => {
+    // formulaSafe の戻り値は、report の CSV に書くセルの値になる。
     expect(formulaSafe("=HYPERLINK(1)")).toBe("'=HYPERLINK(1)");
     expect(formulaSafe("+cmd")).toBe("'+cmd");
     expect(formulaSafe("@SUM(A1)")).toBe("'@SUM(A1)");
@@ -274,23 +278,59 @@ describe("時刻", () => {
 });
 
 describe("停止の分類", () => {
-  test("重なる区間をまとめ、隙間を取る", () => {
-    const m = mergeSpans([
-      [5, 7],
-      [1, 3],
-      [2, 4],
-    ]);
-    expect(m).toEqual([
-      [1, 4],
-      [5, 7],
-    ]);
-    expect(gaps(m, 0, 10)).toEqual([
-      [0, 1],
-      [4, 5],
-      [7, 10],
+  const iso = (h: number, m = 0) => new Date(H(h, m)).toISOString();
+  const report = (
+    rows: Parameters<typeof buildReport>[0],
+    over: Partial<Parameters<typeof buildReport>[1]> = {},
+  ) =>
+    buildReport(rows, {
+      config: parseRepoConfig({}),
+      bundledPricing: {},
+      bundledReviewPricing: {},
+      tz: "UTC",
+      now: H(23),
+      since: null,
+      until: null,
+      recordFiles: 1,
+      ...over,
+    });
+  const stopsOf = (r: ReturnType<typeof buildReport>) =>
+    r.intervals.filter((x) => x.type === "stop").map((x) => [x.start, x.end, x.category]);
+  const runRow = (key: string, from: number, to: number, extra: Record<string, string> = {}) => ({
+    key,
+    kind: "run",
+    observed_at: iso(10),
+    person: "p-00000001",
+    tz: "UTC",
+    start: iso(from),
+    end: iso(to),
+    branch: "a",
+    detail: "prompt",
+    ...extra,
+  });
+  const coverageRow = (key: string, from: number, to: number, detail = "ok") => ({
+    key,
+    kind: "coverage",
+    observed_at: iso(10),
+    person: "p-00000001",
+    tz: "UTC",
+    start: iso(from),
+    end: iso(to),
+    detail,
+  });
+
+  test("report: 重なる run をまとめ、その隙間だけを停止にする", () => {
+    const r = report(
+      [runRow("r1", 5, 7), runRow("r2", 1, 3), runRow("r3", 2, 4), coverageRow("cov", 0, 10)],
+      { now: H(10) },
+    );
+    expect(stopsOf(r)).toEqual([
+      [iso(4), iso(5), "idle"],
+      [iso(7), iso(10), "idle"],
     ]);
   });
 
+  // classifySpan の戻り値は、intervals.csv の停止の行（start・end・category）と同じ意味を持つ。
   test("層の優先順位の順に分類し、どれにも当たらなければ fallback にする", () => {
     const pieces = classifySpan(
       [0, 100],
@@ -360,6 +400,7 @@ describe("停止の分類", () => {
     expect(r.runHistogram).toEqual([0, 0, 0, 2, 0]);
   });
 
+  // classifyingFailuresOf の戻り値は、coverage の行の detail（failed:<段>）に挙げる段になる。
   test("coverage は、課金 API と artifact の失敗だけなら判定不能にしない", () => {
     expect(classifyingFailuresOf(["billing 2026-10-01: 404", "artifacts: 500"])).toEqual([]);
     expect(classifyingFailuresOf(["pulls: 502", "billing 2026-10-01: 404"])).toEqual([
@@ -607,13 +648,30 @@ describe("停止の分類", () => {
         recordFiles: 1,
       }),
     );
+    // 「人ごと」の節の表を、列の見出しと対応づけた行にする（マークアップの細部には依らない）
     const start = html.indexOf("<h2>人ごと</h2>");
     const section = html.slice(start, html.indexOf("</section>", start));
-    expect(section).toContain("<td>p-00000002</td><td>花子</td><td>$2.50</td><td>0</td>");
-    expect(section).toContain(
-      "<td>p-00000001</td><td>p-00000001</td><td>$1.50</td><td>1</td><td>1.0</td><td>0.0</td><td>0.0</td><td>0.0</td><td>0.0</td><td>1.0</td>",
+    const [header, ...body] = [...section.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)].map((m) =>
+      [...m[1].matchAll(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/g)].map((c) => c[1]),
     );
-    expect(section).toContain("<tfoot><tr><td>合計</td><td></td><td>$4.00</td><td>1</td>");
+    const byId = new Map(
+      body.map((cells) => [cells[0], Object.fromEntries(header.map((h, i) => [h, cells[i]]))]),
+    );
+    expect(byId.get("p-00000002")).toMatchObject({
+      表示名: "花子",
+      費用: "$2.50",
+      稼働の回数: "0",
+    });
+    // p-00000001 は 1〜2 時に稼働し、2〜3 時は GitHub を取得していないので「取得していない」の停止になる
+    expect(byId.get("p-00000001")).toMatchObject({
+      表示名: "p-00000001",
+      費用: "$1.50",
+      稼働の回数: "1",
+      "稼働（時間）": "1.0",
+      [`${STOP_LABELS.idle}（時間）`]: "0.0",
+      [`${STOP_LABELS.unknown}（時間）`]: "1.0",
+    });
+    expect(byId.get("合計")).toMatchObject({ 費用: "$4.00", 稼働の回数: "1" });
   });
 
   test("期間の表示: 指定が無い側は記録の最も古い日付・新しい日付にし、coverage の行は数えない", () => {
@@ -641,6 +699,7 @@ describe("停止の分類", () => {
         detail: "ok",
       },
     ];
+    // periodLabel の戻り値は、report の HTML に出す期間の表示になる。
     expect(periodLabel(rows, { since: null, until: null, tz: "UTC" })).toBe(
       "2026-10-01 〜 2026-10-03",
     );
@@ -648,5 +707,339 @@ describe("停止の分類", () => {
       "2026-09-01 〜 2026-10-03",
     );
     expect(periodLabel([], { since: null, until: null, tz: "UTC" })).toBe("記録なし");
+  });
+});
+
+// report の集計で、行の欄が欠けた・読めない・期間の外にある入力の状態。
+//   期間       since・until の外の行 / タイムゾーンの無い行（report のタイムゾーンで日付を切る）/ until の日の終わりで打ち切る。
+//   時刻       start か end を読めない run・ci・coverage・usage。
+//   人         別名でまとめる / 人の無い行 / observed_at の無い人 / 同じ時刻に始まる別の人。
+//   人の活動   human-wait は終わりの時刻、activity は始まりの時刻。
+//   レビュー   課金の行 / artifact の使用量 / 推定額のある行 / 欄の無い行。
+describe("report の集計（欄の欠け・期間・時刻）", () => {
+  const options = (over: Partial<Parameters<typeof buildReport>[1]> = {}) => ({
+    config: parseRepoConfig({}),
+    bundledPricing: {},
+    bundledReviewPricing: {},
+    tz: "UTC",
+    now: H(23),
+    since: null,
+    until: null,
+    recordFiles: 1,
+    ...over,
+  });
+  const stops = (r: ReturnType<typeof buildReport>) =>
+    r.intervals.filter((x) => x.type === "stop").map((x) => [x.start, x.end, x.category]);
+
+  test("since・until の外の行を数えず、タイムゾーンの無い行は report のタイムゾーンで日付を切り、停止は until の日の終わりで打ち切る", () => {
+    const base = { observed_at: "2026-10-05T00:00:00.000Z", person: "p-00000001" };
+    const run = (key: string, start: string, end: string) => ({
+      ...base,
+      key,
+      kind: "run",
+      start,
+      end,
+      branch: "a",
+      detail: "prompt",
+    });
+    const rows = [
+      // 東京で 9 月 30 日（since より前）・10 月 2 日・10 月 3 日（until より後）の run
+      run("r0", "2026-09-30T10:00:00.000Z", "2026-09-30T11:00:00.000Z"),
+      run("r1", "2026-10-01T23:00:00.000Z", "2026-10-01T23:30:00.000Z"),
+      run("r2", "2026-10-02T16:00:00.000Z", "2026-10-02T17:00:00.000Z"),
+      {
+        ...base,
+        key: "u",
+        kind: "usage",
+        agent: "codex",
+        model: "m",
+        start: "2026-10-01T16:00:00.000Z",
+        end: "2026-10-01T17:00:00.000Z",
+        cost_usd: "1.000000",
+        cost_source: "bundled",
+      },
+      // 停止より前に終わる取得と、停止より後に始まる取得。どちらも停止に重ならない
+      {
+        ...base,
+        key: "cov-before",
+        kind: "coverage",
+        start: "2026-10-01T00:00:00.000Z",
+        end: "2026-10-01T01:00:00.000Z",
+        detail: "ok",
+      },
+      {
+        ...base,
+        key: "cov-after",
+        kind: "coverage",
+        start: "2026-10-02T16:00:00.000Z",
+        end: "2026-10-03T00:00:00.000Z",
+        detail: "ok",
+      },
+    ];
+    const r = buildReport(
+      rows,
+      options({
+        tz: "Asia/Tokyo",
+        since: "2026-10-01",
+        until: "2026-10-02",
+        now: Date.parse("2026-10-05T00:00:00Z"),
+      }),
+    );
+    expect(r.intervals.filter((x) => x.type === "run").map((x) => x.start)).toEqual([
+      "2026-10-01T23:00:00.000Z",
+    ]);
+    // 東京の日付の終わりは、UTC の同じ日の 15:00 である
+    expect(stops(r)).toEqual([["2026-10-01T23:30:00.000Z", "2026-10-02T15:00:00.000Z", "unknown"]]);
+    expect(r.usage.map((u) => [u.date, u.cost_usd])).toEqual([["2026-10-02", "1.000000"]]);
+    expect(r.period).toBe("2026-10-01 〜 2026-10-02");
+  });
+
+  test("時刻を読めない行は、稼働・停止・取得した期間・費用に数えない", () => {
+    const base = { observed_at: "2026-10-01T10:00:00.000Z", person: "p-00000001", tz: "UTC" };
+    const rows = [
+      // end を読めない run だけを持つ人は、稼働も停止も無い
+      {
+        ...base,
+        key: "r",
+        kind: "run",
+        start: "2026-10-01T01:00:00.000Z",
+        end: "x",
+        detail: "prompt",
+      },
+      { ...base, key: "ci", kind: "ci", start: "2026-10-01T02:00:00.000Z", end: "x", branch: "a" },
+      {
+        ...base,
+        key: "cov",
+        kind: "coverage",
+        start: "2026-10-01T00:00:00.000Z",
+        end: "x",
+        detail: "ok",
+      },
+      {
+        ...base,
+        key: "u",
+        kind: "usage",
+        model: "m",
+        start: "x",
+        end: "x",
+        cost_usd: "5.000000",
+        cost_source: "bundled",
+      },
+    ];
+    const r = buildReport(rows, options());
+    expect(r.intervals).toEqual([]);
+    expect(r.usage).toEqual([]);
+    expect(r.rows).toBe(3);
+    expect(r.period).toBe("2026-10-01 〜 2026-10-01");
+  });
+
+  test("別名で人をまとめ、欄の無い usage は空の値と 0 として数え、単価があれば計算し直す", () => {
+    const base = {
+      observed_at: "2026-10-02T00:00:00.000Z",
+      tz: "UTC",
+      kind: "usage",
+      start: "2026-10-01T01:00:00.000Z",
+      end: "2026-10-01T02:00:00.000Z",
+    };
+    const rows = [
+      {
+        ...base,
+        key: "u1",
+        person: "p-00000001",
+        agent: "codex",
+        model: "m",
+        output_tokens: "1000000",
+        cost_usd: "",
+      },
+      {
+        ...base,
+        key: "u2",
+        person: "p-00000002",
+        agent: "codex",
+        model: "m",
+        cost_usd: "1.000000",
+        cost_source: "bundled",
+      },
+      // 人・エージェント・モデル・費用の出所の欄が無い行
+      { ...base, key: "u3", cost_usd: "0.500000" },
+    ];
+    const config = parseRepoConfig({
+      aliases: { "p-00000001": "p-00000002" },
+      people: { "p-00000002": { name: "花子" } },
+      pricing: { m: { input: 1, output: 2 } },
+    });
+    const r = buildReport(rows, options({ config }));
+    expect(
+      r.usage.map((u) => [
+        u.person,
+        u.name,
+        u.agent,
+        u.model,
+        u.output_tokens,
+        u.cost_usd,
+        u.cost_sources,
+      ]),
+    ).toEqual([
+      ["", "", "", "", "0", "0.500000", ""],
+      ["p-00000002", "花子", "codex", "m", "1000000", "3.000000", "bundled+repo@report"],
+    ]);
+    expect(r.names).toEqual({ "p-00000002": "花子" });
+    expect(r.unknownCostBuckets).toBe(0);
+  });
+
+  test("human-wait は終わり、activity は始まりの前後を人の活動にし、observed_at の無い人は期間の終わりまで停止に数える", () => {
+    const base = { person: "p-00000001", tz: "UTC" };
+    const iso = (h: number, m = 0) => new Date(H(h, m)).toISOString();
+    const rows = [
+      {
+        ...base,
+        key: "r1",
+        kind: "run",
+        start: iso(1),
+        end: iso(2),
+        branch: "a",
+        detail: "prompt+open",
+        wait_ms: "600000",
+      },
+      {
+        ...base,
+        key: "r2",
+        kind: "run",
+        start: iso(5),
+        end: iso(6),
+        branch: "a",
+        detail: "prompt",
+      },
+      { ...base, key: "hw", kind: "human-wait", start: iso(2, 30), end: iso(3) },
+      { ...base, key: "act", kind: "activity", start: iso(4, 30), end: iso(4, 30) },
+      { ...base, key: "cov", kind: "coverage", start: iso(0), end: iso(8), detail: "ok" },
+    ];
+    const r = buildReport(rows, options({ now: H(8) }));
+    expect(stops(r)).toEqual([
+      [iso(2), iso(2, 45), "idle"],
+      [iso(2, 45), iso(3, 15), "reviewing"],
+      [iso(3, 15), iso(4, 15), "idle"],
+      [iso(4, 15), iso(4, 45), "reviewing"],
+      [iso(4, 45), iso(5), "idle"],
+      [iso(6), iso(8), "idle"],
+    ]);
+    expect(
+      r.intervals
+        .filter((x) => x.type === "run")
+        .map((x) => [x.category, x.minutes, x.active_minutes]),
+    ).toEqual([
+      ["running", "60.0", "50.0"],
+      ["run", "60.0", "60.0"],
+    ]);
+  });
+
+  test("同じ時刻に始まる区間は、人の ID の順に並べる", () => {
+    const run = (key: string, person: string) => ({
+      key,
+      kind: "run",
+      person,
+      tz: "UTC",
+      observed_at: new Date(H(2)).toISOString(),
+      start: new Date(H(1)).toISOString(),
+      end: new Date(H(2)).toISOString(),
+      detail: "prompt",
+    });
+    const r = buildReport([run("b", "p-00000002"), run("a", "p-00000001")], options({ now: H(2) }));
+    expect(r.intervals.map((x) => x.person)).toEqual(["p-00000001", "p-00000002"]);
+  });
+
+  test("課金の行と artifact の使用量は推定し直さず、欄の無いレビューは空の値にする", () => {
+    const base = {
+      observed_at: "2026-10-02T00:00:00.000Z",
+      person: "p-00000001",
+      tz: "UTC",
+      start: "2026-10-01T01:00:00.000Z",
+      end: "2026-10-01T01:00:00.000Z",
+    };
+    const rows = [
+      {
+        ...base,
+        key: "b",
+        kind: "billing",
+        agent: "copilot",
+        cost_usd: "0.040000",
+        cost_source: "billing",
+      },
+      {
+        ...base,
+        key: "art",
+        kind: "review",
+        agent: "codex-cloud",
+        model: "x",
+        cost_usd: "",
+        detail: "source=artifact;pr=2",
+      },
+      {
+        ...base,
+        key: "est",
+        kind: "review",
+        agent: "copilot",
+        cost_usd: "0.100000",
+        cost_source: "estimate-bundled",
+        detail: "pr=3;author=a",
+      },
+      { ...base, key: "bare", kind: "review" },
+    ];
+    const r = buildReport(
+      rows,
+      options({ bundledReviewPricing: { copilot: 0.52, "codex-cloud": 9 } }),
+    );
+    expect(
+      r.reviews.map((x) => [
+        x.type,
+        x.tool,
+        x.model,
+        x.pr,
+        x.author,
+        x.branch,
+        x.cost_usd,
+        x.cost_source,
+        x.detail,
+      ]),
+    ).toEqual([
+      ["review", "", "", "", "", "", "", "", ""],
+      ["usage", "codex-cloud", "x", "2", "", "", "", "", "source=artifact;pr=2"],
+      ["billing", "copilot", "", "", "", "", "0.040000", "billing", ""],
+      ["review", "copilot", "", "3", "a", "", "0.100000", "estimate-bundled", "pr=3;author=a"],
+    ]);
+  });
+});
+
+describe("runReport の入力の誤り", () => {
+  const run = (over: Partial<Parameters<typeof runReport>[0]>) => {
+    const root = makeTempDir("agent-usage-report-");
+    const env = { AGENT_USAGE_CONFIG_DIR: join(root, "user") };
+    return () => runReport({ root, now: H(1), env, since: null, until: null, out: null, ...over });
+  };
+
+  test.each([
+    ["--since", { since: "10/01" }, /--since は YYYY-MM-DD で書く/],
+    ["--until", { until: "2026-1-1" }, /--until は YYYY-MM-DD で書く/],
+  ])("%s の形が違えばエラーにする", (_name, over, message) => {
+    expect(run(over)).toThrow(message);
+  });
+
+  test("--since が --until より後ならエラーにする", () => {
+    expect(run({ since: "2026-10-02", until: "2026-10-01" })).toThrow(/--since が --until より後/);
+  });
+
+  test("記録のファイルが 1 つも無ければ、collect を先に実行するよう伝える", () => {
+    const root = makeTempDir("agent-usage-report-");
+    mkdirSync(join(root, ".agent-usage", "records"), { recursive: true });
+    expect(() =>
+      runReport({
+        root,
+        now: H(1),
+        env: { AGENT_USAGE_CONFIG_DIR: join(root, "user") },
+        since: null,
+        until: null,
+        out: null,
+      }),
+    ).toThrow(/記録が無い。先に collect を実行する/);
   });
 });

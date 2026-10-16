@@ -1,0 +1,48 @@
+{
+  "$comment": [
+    "kaizen-schedule-report.test.ts のうち、定期実行の opt-in（schedule_enabled の既定は off）を守るテストの検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/skills/kaizen/kaizen-schedule-report.test.ts",
+  "mutations": [
+    {
+      "id": "SR-DEFAULT-ON",
+      "why": "既定の定数を on にする（ワークフローを置いただけで週次実行が始まる）",
+      "file": "skills/kaizen/scripts/kaizen-schedule-report.sh",
+      "find": "readonly DEFAULT_SCHEDULE_ENABLED=off\n",
+      "replace": "readonly DEFAULT_SCHEDULE_ENABLED=on\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "opt-in（schedule_enabled の既定は off） config がそもそも無ければ止まり、opt-in であることを理由に出す",
+        "opt-in（schedule_enabled の既定は off） config はあっても schedule_enabled が無ければ止まる",
+        "opt-in（schedule_enabled の既定は off） schedule_enabled が真偽値として読めなければデフォルトの off として扱って止まる",
+        "機能を減らして動く場合（共通ライブラリを読めない） config がそもそも無ければ opt-in のデフォルトで止まる（機能を減らしたことが理由ではない）"
+      ]
+    },
+    {
+      "id": "SR-MISSING-KEY-BYPASS",
+      "why": "キーが無いときに定数を使わず on として扱う（既定の判定点が定数とずれる）",
+      "file": "skills/kaizen/scripts/kaizen-schedule-report.sh",
+      "find": "\t\t\tenabled_raw=${DEFAULT_SCHEDULE_ENABLED}\n\t\t\tenabled_source=",
+      "replace": "\t\t\tenabled_raw=on\n\t\t\tenabled_source=",
+      "occurrences": 1,
+      "expect_failing": [
+        "opt-in（schedule_enabled の既定は off） config がそもそも無ければ止まり、opt-in であることを理由に出す",
+        "opt-in（schedule_enabled の既定は off） config はあっても schedule_enabled が無ければ止まる",
+        "機能を減らして動く場合（共通ライブラリを読めない） config がそもそも無ければ opt-in のデフォルトで止まる（機能を減らしたことが理由ではない）"
+      ]
+    },
+    {
+      "id": "SR-INVALID-VALUE-BYPASS",
+      "why": "真偽値として読めない値を、定数を使わず on として扱う（typo した config が opt-in の根拠になる）",
+      "file": "skills/kaizen/scripts/kaizen-schedule-report.sh",
+      "find": "\t\t\t\tenabled_raw=${DEFAULT_SCHEDULE_ENABLED}\n\t\t\tfi\n",
+      "replace": "\t\t\t\tenabled_raw=on\n\t\t\tfi\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "opt-in（schedule_enabled の既定は off） schedule_enabled が真偽値として読めなければデフォルトの off として扱って止まる"
+      ]
+    }
+  ]
+}

@@ -42,8 +42,13 @@ test.each([
   expect(blockedMarker(HOOK, sessionId, dir)).toBeNull();
 });
 
-test("印のパスは Hook の名前と session_id で決まる", () => {
-  expect(marker()).toBe(join(dir, "test-hook-s.blocked"));
+test("止めた印は、同じ Hook と同じ session_id にだけ当たる", () => {
+  recordBlocked(HOOK, { session_id: "s" }, dir);
+  expect(alreadyBlocked(HOOK, { session_id: "s", stop_hook_active: true }, dir)).toBe(true);
+  expect(alreadyBlocked("other-hook", { session_id: "s", stop_hook_active: true }, dir)).toBe(
+    false,
+  );
+  expect(alreadyBlocked(HOOK, { session_id: "t", stop_hook_active: true }, dir)).toBe(false);
 });
 
 test("新しい一続き（stop_hook_active が false）では、前の印を消して確かめさせる", () => {

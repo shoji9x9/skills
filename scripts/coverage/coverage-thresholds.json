@@ -1,0 +1,87 @@
+{
+  "rules": [
+    {
+      "path": "scripts/",
+      "kind": "js",
+      "lines": 90,
+      "branches": 80,
+      "functions": 90
+    },
+    {
+      "path": "scripts/lib/",
+      "kind": "js",
+      "lines": 95,
+      "branches": 85,
+      "functions": 95
+    },
+    {
+      "path": "scripts/eval/",
+      "kind": "js",
+      "lines": 80,
+      "branches": 70,
+      "functions": 80
+    },
+    {
+      "path": "scripts/tools/",
+      "kind": "js",
+      "lines": 80,
+      "branches": 70,
+      "functions": 80
+    },
+    {
+      "path": "skills/",
+      "kind": "js",
+      "lines": 90,
+      "branches": 80,
+      "functions": 90
+    },
+    {
+      "path": ".agents/skills/",
+      "kind": "js",
+      "lines": 90,
+      "branches": 80,
+      "functions": 90
+    },
+    {
+      "path": "scripts/",
+      "kind": "sh",
+      "lines": 80
+    },
+    {
+      "path": "skills/",
+      "kind": "sh",
+      "lines": 80
+    },
+    {
+      "path": ".agents/skills/",
+      "kind": "sh",
+      "lines": 80
+    }
+  ],
+  "exclude": [
+    {
+      "path": "scripts/coverage/bash-trace-env.sh",
+      "reason": "xtrace を有効にする前に実行し終わるので、自分の行は記録に残らない。振る舞いは shell-coverage.test.ts が確かめる"
+    },
+    {
+      "path": "scripts/eval/generate-parity-component-fixtures.ts",
+      "reason": "eval の fixture を実 Chrome で生成するツールで、テストの中では Chrome を起動しない"
+    },
+    {
+      "path": "skills/parity-diff/assets/capture-new.spec.template.ts",
+      "reason": "利用者のリポジトリにコピーして Playwright で実行する雛形で、このリポジトリでは読み込まない"
+    },
+    {
+      "path": "skills/parity-suite/assets/perf-capture.spec.template.ts",
+      "reason": "利用者のリポジトリにコピーして Playwright で実行する雛形で、実ブラウザを起動する"
+    },
+    {
+      "path": "skills/replace-strategy/scripts/asset-probe.mjs",
+      "reason": "chrome-devtools MCP の evaluate_script でブラウザの中で実行するプローブで、Node では実行しない"
+    },
+    {
+      "path": "skills/replace-strategy/scripts/role-probe.mjs",
+      "reason": "chrome-devtools MCP の evaluate_script でブラウザの中で実行するプローブで、Node では実行しない"
+    }
+  ]
+}

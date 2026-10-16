@@ -1,5 +1,7 @@
-import { chmodSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { spawnSync } from "node:child_process";
+import { chmodSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, expect, test } from "vitest";
 import { formatError as formatReuseError } from "./reuse-skill-eval-baseline.ts";
 import {
@@ -7,8 +9,31 @@ import {
   createFingerprint,
   formatError as formatFingerprintError,
   hashFixture,
+  hashInstalledSkill,
+  requiredSkillsForEval,
 } from "./skill-eval-fingerprint.ts";
+import { parseJsonAs } from "../lib/parse-as.ts";
 import { makeTempDir } from "../lib/testing/test-tmpdir.ts";
+
+// CLI が stdout に出す指紋の JSON のうち、テストが読む部分。
+type FingerprintOutput = {
+  schema_version: number;
+  algorithm: string;
+  fingerprint: string;
+  inputs: Record<string, unknown>;
+};
+
+const here = dirname(fileURLToPath(import.meta.url));
+const FINGERPRINT_CLI = join(here, "skill-eval-fingerprint.ts");
+const REUSE_CLI = join(here, "reuse-skill-eval-baseline.ts");
+
+function runCli(script: string, args: string[]) {
+  return spawnSync(process.execPath, [script, ...args], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    timeout: 30_000,
+  });
+}
 
 const temporaryDirectories: string[] = [];
 
@@ -74,11 +99,189 @@ test("missing eval assertions are treated as a failure", () => {
   expect(() => assertionsForEval(evals, "2")).toThrow(/not found/u);
 });
 
+// formatError の戻り値は、CLI が stderr に出す「<CLI 名>: <理由>」の理由の部分になる。
 test.each([formatFingerprintError, formatReuseError])(
   "CLI error formatting preserves Error and non-Error diagnostics",
   (formatError) => {
     expect(formatError(new Error("failure"))).toBe("failure");
     expect(formatError("plain failure")).toBe("plain failure");
-    expect(formatError({ reason: "structured failure" })).toBe("[object Object]");
   },
 );
+
+const BASE_ARGS = [
+  "--prompt",
+  "p",
+  "--executor",
+  "codex",
+  "--model",
+  "m",
+  "--reasoning-effort",
+  "low",
+  "--cli-version",
+  "1",
+  "--harness-version",
+  "2",
+];
+
+// CLI の失敗は「<CLI 名>: <理由>」を stderr に出して exit 1 で終える（run-skill-eval.sh が読む）。
+test.each([
+  [
+    "フラグの値が無い",
+    FINGERPRINT_CLI,
+    ["--prompt"],
+    /^skill-eval-fingerprint: arguments must be --name value pairs$/mu,
+  ],
+  [
+    "必須の引数が無い",
+    FINGERPRINT_CLI,
+    ["--prompt", "p"],
+    /^skill-eval-fingerprint: missing --executor$/mu,
+  ],
+  [
+    "引数が足りない",
+    REUSE_CLI,
+    ["only-source"],
+    /^reuse-skill-eval-baseline: usage: reuse-skill-eval-baseline\.ts /mu,
+  ],
+])(
+  "CLI の失敗（%s）は、CLI 名と理由を stderr に出して exit 1 で終える",
+  (_label, script, args, stderr) => {
+    const result = runCli(script, args);
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toMatch(stderr);
+  },
+);
+
+test("CLI は指紋の JSON を stdout に出し、入力に eval の assertion と fixture の hash を含める", () => {
+  const directory = temporaryDirectory();
+  const evals = join(directory, "evals.json");
+  writeFileSync(evals, JSON.stringify({ evals: [{ id: 3, assertions: ["a"] }] }), "utf8");
+  const fixture = join(directory, "fixture");
+  mkdirSync(fixture);
+  writeFileSync(join(fixture, "f.txt"), "x", "utf8");
+  const result = runCli(FINGERPRINT_CLI, [
+    ...BASE_ARGS,
+    "--evals",
+    evals,
+    "--eval-id",
+    "3",
+    "--fixture",
+    fixture,
+  ]);
+  expect(result.status).toBe(0);
+  const output = parseJsonAs<FingerprintOutput>(result.stdout);
+  expect(output.schema_version).toBe(1);
+  expect(output.algorithm).toBe("sha256");
+  expect(output.fingerprint).toMatch(/^[0-9a-f]{64}$/u);
+  expect(output.inputs.assertions).toEqual(["a"]);
+  expect(output.inputs.eval_id).toBe("3");
+  expect(output.inputs.fixture_sha256).toBe(hashFixture(fixture));
+  expect(output.inputs).not.toHaveProperty("required_skills");
+});
+
+function writeSkill(root: string, name: string, body: string) {
+  mkdirSync(join(root, name), { recursive: true });
+  writeFileSync(join(root, name, "SKILL.md"), body, "utf8");
+}
+
+test("requires_skills を宣言した eval は、兄弟のスキルの hash を指紋に入れ、--skills-root が無ければ失敗する", () => {
+  const directory = temporaryDirectory();
+  const evals = join(directory, "evals.json");
+  writeFileSync(
+    evals,
+    JSON.stringify({ evals: [{ id: 1, assertions: ["a"], requires_skills: ["sib"] }] }),
+    "utf8",
+  );
+  const skills = join(directory, "skills");
+  writeSkill(skills, "sib", "v1\n");
+  const args = [...BASE_ARGS, "--evals", evals, "--eval-id", "1", "--skill", "subject"];
+
+  const missingRoot = runCli(FINGERPRINT_CLI, args);
+  expect(missingRoot.status).toBe(1);
+  expect(missingRoot.stderr).toMatch(/requires_skills needs --skills-root/u);
+
+  const first = runCli(FINGERPRINT_CLI, [...args, "--skills-root", skills]);
+  expect(first.status).toBe(0);
+  const firstOutput = parseJsonAs<FingerprintOutput>(first.stdout);
+  expect(firstOutput.inputs.required_skills).toEqual([
+    { name: "sib", sha256: hashInstalledSkill(join(skills, "sib")) },
+  ]);
+  writeSkill(skills, "sib", "v2\n");
+  const changed = parseJsonAs<FingerprintOutput>(
+    runCli(FINGERPRINT_CLI, [...args, "--skills-root", skills]).stdout,
+  );
+  expect(changed.fingerprint).not.toBe(firstOutput.fingerprint);
+});
+
+test("--required-skills-of は、必要な兄弟のスキルを 1 行に 1 つ出す", () => {
+  const directory = temporaryDirectory();
+  const evals = join(directory, "evals.json");
+  writeFileSync(
+    evals,
+    JSON.stringify({ evals: [{ id: 1, assertions: [], requires_skills: ["a-1", "b"] }] }),
+    "utf8",
+  );
+  const result = runCli(FINGERPRINT_CLI, [
+    "--required-skills-of",
+    "subject",
+    "--evals",
+    evals,
+    "--eval-id",
+    "1",
+  ]);
+  expect(result.status).toBe(0);
+  expect(result.stdout).toBe("a-1\nb\n");
+});
+
+test.each([
+  ["空の配列", [], /must be a non-empty array/u],
+  ["配列でない", "a", /must be a non-empty array/u],
+  ["名前の形が不正", ["Bad_Name"], /invalid skill name: "Bad_Name"/u],
+  ["名前が文字列でない", [1], /invalid skill name: 1/u],
+  ["対象のスキル自身", ["subject"], /lists the subject skill itself: subject/u],
+  ["重複", ["a", "a"], /lists a twice/u],
+])("requires_skills が%sなら失敗する（名前を警告なしに捨てない）", (_label, names, error) => {
+  const directory = temporaryDirectory();
+  const evals = join(directory, "evals.json");
+  writeFileSync(
+    evals,
+    JSON.stringify({ evals: [{ id: 1, assertions: [], requires_skills: names }] }),
+    "utf8",
+  );
+  expect(() => requiredSkillsForEval(evals, "1", "subject")).toThrow(error);
+});
+
+test("requires_skills を持たない eval と eval id の無い実行は、兄弟のスキルを求めない", () => {
+  const directory = temporaryDirectory();
+  const evals = join(directory, "evals.json");
+  writeFileSync(evals, JSON.stringify({ evals: [{ id: 1, assertions: [] }] }), "utf8");
+  expect(requiredSkillsForEval(evals, "1", "subject")).toEqual([]);
+  expect(requiredSkillsForEval(undefined, undefined, "subject")).toEqual([]);
+  expect(assertionsForEval(undefined, undefined)).toEqual([]);
+  expect(() => assertionsForEval(join(directory, "missing.json"), "1")).toThrow(
+    /eval definition unavailable for eval 1/u,
+  );
+});
+
+test("インストールするスキルの hash は、SKILL.md が無ければ失敗し、インストールする部分だけを見る", () => {
+  const directory = temporaryDirectory();
+  expect(() => hashInstalledSkill(join(directory, "none"))).toThrow(
+    /required skill source not found/u,
+  );
+  writeSkill(directory, "s", "body\n");
+  const initial = hashInstalledSkill(join(directory, "s"));
+  mkdirSync(join(directory, "s", "evals"));
+  writeFileSync(join(directory, "s", "evals", "evals.json"), "{}", "utf8");
+  expect(hashInstalledSkill(join(directory, "s"))).toBe(initial);
+  mkdirSync(join(directory, "s", "references"));
+  writeFileSync(join(directory, "s", "references", "r.md"), "r", "utf8");
+  expect(hashInstalledSkill(join(directory, "s"))).not.toBe(initial);
+});
+
+test("fixture の中のシンボリックリンクは、指紋にできないものとして失敗する", () => {
+  const fixture = temporaryDirectory();
+  writeFileSync(join(fixture, "target.txt"), "t", "utf8");
+  symlinkSync("target.txt", join(fixture, "link"));
+  expect(() => hashFixture(fixture)).toThrow(/fixture symlink is not fingerprintable: link/u);
+});

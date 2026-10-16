@@ -1,9 +1,8 @@
 // 当たっている CSS 規則の採取が、「取りこぼしても例外が出ない」入力で規則を取りこぼさないことの回帰テスト（Issue #326）。
 //
-// 検査するのは走査の検出能力そのものなので、素朴な走査（`if (rule.cssRules) 再帰; else 数える;`・
-// @import を辿らない）を同じ入力に当て、**検出できることを確かめるテスト**を同居させる。
-// 素朴な走査が取りこぼすことまで確かめないと、この fixture で区別できているのか
-// （＝テストが赤くなりうるのか）が分からない。
+// 検査するのは走査の検出能力そのものなので、修正前の素朴な走査に戻す変異を css-rules-capture.mutations.json に置く。
+// 戻す走査は、@import を辿らない走査・引用符を見ない括弧勘定・直下の引数しか見ない状態の判定の 3 つである。
+// 変異で本体のテストが落ちることで、この fixture が区別できていることを示す。空の cssRules を持つ通常の規則は、素朴な走査を同じ入力に当てて確かめる。
 //
 // fixture の形は、Chrome 149.0.7827.155 で実測した次の形に合わせてある。
 //   - CSSImportRule は cssRules を持たず styleSheet を持つ
@@ -226,12 +225,6 @@ function naiveCollect(sheets: FakeSheet[]) {
   }
   return selectors;
 }
-
-test("検出されることの確認: 素朴な走査は @import の先を 1 件も見ない", () => {
-  const seen = naiveCollect(buildSheets());
-  expect(seen).not.toContain(".marker-in-imported");
-  expect(seen).not.toContain(".marker-in-imported:hover");
-});
 
 test("検出されることの確認: 素朴な走査は空の cssRules を持つ通常の規則を数えない", () => {
   // `.plain-rule` は入れ子を持たないが cssRules（空）を持つため、素朴な走査では
@@ -557,24 +550,7 @@ test("style 属性が空でも inline_declarations を空配列で出す", () =>
 
 // --- 関数擬似クラスの引数の釣り合い ---
 
-// 素朴な括弧勘定（引用符・角括弧を見ない）。修正前の実装と同じ数え方。
-function naiveArgEnd(selector: string, open: number) {
-  let d = 1;
-  let j = open + 1;
-  while (j < selector.length && d > 0) {
-    if (selector[j] === "(") d++;
-    else if (selector[j] === ")") d--;
-    j++;
-  }
-  return j;
-}
-
 const TRICKY_SELECTOR = '.button:has([data-label="("]):hover';
-
-test("検出されることの確認: 素朴な括弧勘定は引用符内の ( で :hover まで食う", () => {
-  const open = TRICKY_SELECTOR.indexOf("(");
-  expect(naiveArgEnd(TRICKY_SELECTOR, open)).toBe(TRICKY_SELECTOR.length);
-});
 
 test("引用符・角括弧を跨ぐ関数引数でも状態擬似クラスを剥がす", () => {
   const base = '.button:has([data-label="("])';
@@ -649,32 +625,6 @@ test("シャドウでない要素では document を走査する", () => {
 });
 
 // --- 入れ子になった関数擬似クラスの中の状態 ---
-
-// 直下の引数しか見ない判定（修正前の実装と同じ深さ）。
-function naiveStateInside(
-  selector: string,
-  scan: (selector: string) => { name: string; args: string }[],
-) {
-  for (const p of scan(selector)) {
-    if (!p.args) continue;
-    if (p.name !== "is" && p.name !== "where" && p.name !== "has") continue;
-    for (const inner of scan(p.args)) {
-      if (STATE_PSEUDO_CLASSES.includes(inner.name)) return true;
-    }
-  }
-  return false;
-}
-
-test("検出されることの確認: 直下しか見ない判定は :is(:has(:hover)) を取りこぼす", () => {
-  // scanPseudos はモジュール外へ出していないので、同じ規則の最小実装で深さだけを再現する。
-  const scan = (sel: string) => {
-    const out: { name: string; args: string }[] = [];
-    const m = /:([-\w]+)\((.*)\)$/.exec(sel.replace(/^[^:]*/, ""));
-    if (m) out.push({ name: m[1], args: m[2] });
-    return out;
-  };
-  expect(naiveStateInside(".card:is(:has(:hover))", scan)).toBe(false);
-});
 
 test("入れ子の関数引数に入った状態を unresolved に落とす", () => {
   const selector = ".card:is(:has(:hover))";
@@ -801,15 +751,6 @@ test("読み込めていない @import を警告なしに捨てない", () => {
   ]);
   // 同じシートの後続の規則は通常どおり採る（打ち切らない）。
   expect(result.matched.some((m: Match) => m.selector === ".plain-rule")).toBe(true);
-});
-
-test("読み込めている @import は従来どおり辿る", () => {
-  // 上の分岐を「in 判定」に変えた結果、正常な @import まで落としていないことの確認。
-  const result = capture();
-  expect(result.inaccessible.every((i: { error: string }) => i.error !== "ImportNotLoaded")).toBe(
-    true,
-  );
-  expect(result.matched.some((m: Match) => m.selector === ".marker-in-imported")).toBe(true);
 });
 
 test("スロットに割り当てられた要素では ::slotted() を残す", () => {

@@ -26,9 +26,8 @@ const NAME_MAX_LENGTH = 64;
 const NAME_RE = /^[a-z0-9-]+$/;
 
 // 先頭の `---` ... `---` に挟まれた frontmatter 本文を取り出す。無ければ null。
-// 実体は共通ヘルパー splitFrontmatter（BOM/CRLF 対応）。互換のためエクスポートを残す
-// （check-skill-frontmatter.test.ts が import している）。
-export function extractFrontmatter(content: string) {
+// 実体は共通ヘルパー splitFrontmatter（BOM/CRLF 対応）。
+function extractFrontmatter(content: string) {
   const r = splitFrontmatter(content);
   return r ? r.fm : null;
 }

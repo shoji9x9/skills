@@ -15,7 +15,7 @@ import { existsSync, rmSync, writeFileSync } from "node:fs";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { blockedMarker } from "./stop-marker.ts";
 import { makeTempDir } from "../lib/testing/test-tmpdir.ts";
-import { MIN_LATIN_LETTERS, REWRITE_REQUEST, judge, main } from "./response-language-check.ts";
+import { REWRITE_REQUEST, judge, main } from "./response-language-check.ts";
 
 // 止めた印は、テストごとの一時ディレクトリに置く（OS の一時ディレクトリの実物に触らない）。
 let markerDir = "";
@@ -167,9 +167,13 @@ test.each([
 
 // --- 境界 ---
 
+// しきい値は docs/tooling.md の取り決め（ラテン文字が 40 字以上、日本語の文字の割合が 0.1 未満で書き直させる）から決める。
+// judge の english は、Hook が書き直させる（exit 2）か通す（exit 0）かの判定と同じ意味を持つ。
+const status = (message: string) => run(hook({ last_assistant_message: message })).status;
+
 test("ラテン文字がしきい値ちょうどの英語は判定の対象に入る", () => {
-  expect(judge("a".repeat(MIN_LATIN_LETTERS)).english).toBe(true);
-  expect(judge("a".repeat(MIN_LATIN_LETTERS - 1)).english).toBe(false);
+  expect(judge("a".repeat(40)).english).toBe(true);
+  expect(judge("a".repeat(39)).english).toBe(false);
 });
 
 test("日本語の文字の割合がしきい値ちょうどなら日本語として通す", () => {
@@ -179,7 +183,7 @@ test("日本語の文字の割合がしきい値ちょうどなら日本語と�
 });
 
 test("ひらがな・カタカナ・漢字のどれも日本語の文字として数える", () => {
-  expect(judge("あア亜").japanese).toBe(3);
-  expect(judge(`${"ア".repeat(10)}${"a".repeat(90)}`).english).toBe(false);
-  expect(judge(`${"亜".repeat(10)}${"a".repeat(90)}`).english).toBe(false);
+  expect(status(`${"ア".repeat(10)}${"a".repeat(90)}`)).toBe(0);
+  expect(status(`${"亜".repeat(10)}${"a".repeat(90)}`)).toBe(0);
+  expect(status(`${"ア".repeat(9)}${"a".repeat(91)}`)).toBe(2);
 });

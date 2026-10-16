@@ -11,8 +11,10 @@ const ISOLATED: string[] = ["scripts/mutation/check-mutation-proof.test.ts"];
 export default defineConfig({
   test: {
     environment: "node",
+    experimental: { viteModuleRunner: false },
     // 収集より前に、異常終了で残った使い捨て fixture を掃く（理由はスクリプト内のコメント）。
     globalSetup: ["scripts/lib/testing/vitest-global-setup.ts"],
+    setupFiles: ["scripts/lib/testing/vitest-coverage-setup.ts"],
     // 残りはファイル並列で実行し、書き換えるテストだけを後のグループで単独に実行する。
     // `groupOrder` が違うプロジェクトは前のグループが終わってから始まる。
     // 実測コスト（手元 8 コア）: 全件直列 118 秒 → 並列 25 秒 ＋ 単独 約 11 秒。

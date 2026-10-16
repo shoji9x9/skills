@@ -4013,9 +4013,28 @@ test("--audit-sheet は監査の入力（期待値とテストの所在）を出
   expect(toastEntry.expected).toMatchObject({ id: "toast", description: "コピー完了のトースト" });
   expect(toastEntry.expected).not.toHaveProperty("covered_by");
   expect(toastEntry.expected).not.toHaveProperty("shared_assertion_reason");
-  expect(out.entries.map((e: { path: string }) => e.path)).toEqual(
-    coveredByOwners(baseTable()).map((o) => o.path),
-  );
+  // 表のどの欄の covered_by も監査の対象になる（references/coverage.md）。期待値は baseTable の covered_by を
+  // 持つ行を表の並びで手で挙げる（本体と同じ関数で作ると、行の取りこぼしが両辺に同じだけ出て通る）。
+  // covered_by を持たない行（source-only の書き込み・dialog の候補・送らない押し直し）は入らない。
+  expect(out.entries.map((e: { path: string }) => e.path)).toEqual([
+    "$.side_effect_writes.sites[0]",
+    "$.state_displays.pages[0].candidates.empty",
+    "$.state_displays.pages[0].candidates.fetch-error",
+    "$.state_displays.pages[0].candidates.loading",
+    "$.state_displays.pages[0].candidates.toast",
+    "$.operations[0].layout",
+    "$.operations[0].aftermath.look",
+    "$.operations[0].aftermath.returns_to",
+    "$.operations[0].reactions[0]",
+    "$.operations[1].layout",
+    "$.operations[1].aftermath.look.items[0]",
+    "$.operations[1].aftermath.look.items[1]",
+    "$.operations[1].aftermath.returns_to",
+    "$.operations[1].pre_send.items[0].sides[0]",
+    "$.operations[1].pre_send.items[0].sides[1]",
+    "$.operations[1].resubmit",
+    "$.operations[1].reactions[0]",
+  ]);
 });
 
 test("--audit-sheet は解決できない名前があれば exit 1（監査の基にしない。Issue #506）", () => {

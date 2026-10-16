@@ -8,6 +8,15 @@
 // 照合キーの欠落は「どの要素にも合う」ではなく不一致として扱う。警告なしに無効化せず、
 // stderr の警告として出すところまでを固定する（警告が無いと、吸収されたのか
 // 掛からなかったのかが宣言側から見えない）。
+//
+// 分岐ごとの入力は、照合の純関数を同じプロセスで呼んで確かめる。戻り値は CLI の出力の一部と同じ意味を持つ。
+// 対応は次のとおりである。
+//   - matchComponentT の status と rule: classification と matched_rule
+//   - matchException の戻り値: absorbed_exception の matched_rule
+//   - matchNoise の trait_diffs: noise_candidate の matched_rule の数
+//   - validateComponentDiffs・validateNoiseBaseline の各行: stderr の warning 行
+//   - matchesComponentPattern: その宣言が matched_rule に入るか
+// 終了コードと stderr は、CLI を子プロセスで起動して数件だけ確かめる。
 
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
@@ -24,7 +33,6 @@ import {
   matchesComponentPattern,
   validateComponentDiffs,
   validateNoiseBaseline,
-  VERSION,
 } from "../../../skills/parity-diff/scripts/diff-normalize.mjs";
 import type { ComponentDiff } from "../../../skills/parity-diff/scripts/diff-normalize.mjs";
 
@@ -47,22 +55,47 @@ const diff = (name: string, actual: string) => ({
   actual,
 });
 
-test("宣言した要素の差分は従来どおり吸収する（照合が動いていることの確認）", () => {
-  expect(matchComponentT(diff("filter-popup", "2px"), [popupT])).toEqual({
-    status: "absorbed_T",
-    rule: popupT,
-  });
-});
+type Classified = { classification: string; matched_rule: unknown };
+
+const CTX_ARGS = ["--page", "main", "--viewport", "1280x800"];
+
+/**
+ * registries.json と Diff の配列を書いて CLI を 1 回実行する。分類・終了コード・stderr は
+ * 同じ実行の観測でしか結び付かない（関数単体では exit code も警告も出ない）。
+ */
+function runRaw(registries: unknown, diffs: unknown, args: string[] = CTX_ARGS) {
+  const dir = makeTempDir("diff-normalize-");
+  const registriesPath = join(dir, "registries.json");
+  const input = join(dir, "diffs.json");
+  writeFileSync(registriesPath, JSON.stringify(registries));
+  writeFileSync(input, JSON.stringify(diffs));
+  const r = spawnSync(
+    process.execPath,
+    [script, input, "--registries", registriesPath, "--slug", "demo", ...args],
+    { encoding: "utf8", timeout: 30_000 },
+  );
+  return { status: r.status, stdout: r.stdout, stderr: r.stderr };
+}
+
+/** component_diffs だけを持つ registries.json で実行し、分類を読む。 */
+function runCli(componentDiffs: unknown, diffs: unknown[]) {
+  const r = runRaw(
+    {
+      intentional_diffs: { keep: [], may_change: [], pending: [] },
+      component_diffs: componentDiffs,
+      component_diff_exceptions: [],
+      component_diff_exception_causes: [],
+    },
+    diffs,
+  );
+  return { status: r.status, stderr: r.stderr, classified: parseJsonAs<Classified[]>(r.stdout) };
+}
 
 test("宣言した要素が T から逸脱していれば deviates_T として浮かせる", () => {
   expect(matchComponentT(diff("filter-popup", "5.2969px"), [popupT])).toEqual({
     status: "deviates_T",
     rule: popupT,
   });
-});
-
-test("別要素の同値の差分を吸収しない（偽陰性: 回帰を抱えたまま収束する）", () => {
-  expect(matchComponentT(diff("clear-button", "2px"), [popupT])).toBeNull();
 });
 
 test("別要素の逸脱値を deviates_T へ格上げしない（偽陽性: 無関係な宣言で回帰扱いになる）", () => {
@@ -115,45 +148,6 @@ test("照合に使えない宣言は理由付きで列挙する（0 件・非オ
   ]);
 });
 
-/**
- * CLI を 1 回実行する。分類・終了コード・stderr は同じ実行の観測でしか結び付かない
- * （関数単体では exit code も警告も出ない）。
- */
-type Classified = { classification: string; matched_rule: unknown };
-
-function runCli(componentDiffs: unknown[], diffs: unknown[]) {
-  const dir = makeTempDir("diff-normalize-");
-  const registries = join(dir, "registries.json");
-  const input = join(dir, "diffs.json");
-  writeFileSync(
-    registries,
-    JSON.stringify({
-      intentional_diffs: { keep: [], may_change: [], pending: [] },
-      component_diffs: componentDiffs,
-      component_diff_exceptions: [],
-      component_diff_exception_causes: [],
-    }),
-  );
-  writeFileSync(input, JSON.stringify(diffs));
-  const r = spawnSync(
-    process.execPath,
-    [
-      script,
-      input,
-      "--registries",
-      registries,
-      "--slug",
-      "demo",
-      "--page",
-      "main",
-      "--viewport",
-      "1280x800",
-    ],
-    { encoding: "utf8" },
-  );
-  return { status: r.status, stderr: r.stderr, classified: parseJsonAs<Classified[]>(r.stdout) };
-}
-
 test("CLI: 別要素の回帰は unexplained として残り exit 1 になる（収束条件を満たさない）", () => {
   const r = runCli([popupT], [diff("clear-button", "2px")]);
   expect(r.classified[0].classification).toBe("unexplained");
@@ -164,6 +158,7 @@ test("CLI: 別要素の回帰は unexplained として残り exit 1 になる（
 test("CLI: 宣言した要素の差分は absorbed_T で exit 0（誤検知しないことの確認）", () => {
   const r = runCli([popupT], [diff("filter-popup", "2px")]);
   expect(r.classified[0].classification).toBe("absorbed_T");
+  expect(r.classified[0].matched_rule).toEqual(popupT);
   expect(r.status).toBe(0);
 });
 
@@ -201,6 +196,50 @@ test("インスタンス例外の object でない要素は照合に使わず、
   });
 });
 
+// 原因を解決できない例外と、根拠（evidence）が空の原因を指す例外は、照合に使わない（根拠の無い吸収をしない）。
+test.each([
+  ["cause が無い", { cause: undefined }, [{ id: "c1", reason: "r", evidence: "e" }]],
+  ["cause が空文字", { cause: "" }, [{ id: "", reason: "r", evidence: "e" }]],
+  ["cause が文字列でない", { cause: 1 }, [{ id: 1, reason: "r", evidence: "e" }]],
+  ["causes に同じ id が無い", { cause: "c1" }, [{ id: "c2", reason: "r", evidence: "e" }]],
+  ["evidence が空白だけ", { cause: "c1" }, [{ id: "c1", reason: "r", evidence: "  " }]],
+  ["evidence が文字列でない", { cause: "c1" }, [{ id: "c1", reason: "r", evidence: 1 }]],
+  ["causes が配列でない", { cause: "c1" }, { c1: { reason: "r", evidence: "e" } }],
+])("インスタンス例外の原因を解決できない（%s）なら、照合に使わない", (_case, cause, causes) => {
+  const ex = {
+    slug: "demo",
+    page: "main",
+    viewport: "1280x800",
+    element: "filter-popup",
+    property: "margin-top",
+    current: "0px",
+    new: "2px",
+    ...cause,
+  };
+  const ctx = { slug: "demo", page: "main", viewport: "1280x800" };
+  expect(matchException(diff("filter-popup", "2px"), [ex], ctx, causes)).toBeNull();
+});
+
+test("インスタンス例外の原因の reason が文字列でなければ、空の reason で照合する（根拠があれば使う）", () => {
+  const ex = {
+    slug: "demo",
+    page: "main",
+    viewport: "1280x800",
+    element: "filter-popup",
+    property: "margin-top",
+    current: "0px",
+    new: "2px",
+    cause: "c1",
+  };
+  const causes = [{ id: "c1", reason: 1, evidence: " ticket-1 " }];
+  const ctx = { slug: "demo", page: "main", viewport: "1280x800" };
+  expect(matchException(diff("filter-popup", "2px"), [ex], ctx, causes)).toEqual({
+    ...ex,
+    cause_reason: "",
+    cause_evidence: "ticket-1",
+  });
+});
+
 test.each([
   ["null", null],
   ["文字列", "x"],
@@ -216,23 +255,8 @@ test.each([
   ]);
 });
 
-test("VERSION は 6（object でない要素を含む Diff の配列を exit 2 にし、ノイズ基準値の行の形を警告する）", () => {
-  expect(VERSION).toBe("6");
-});
-
 test("CLI: object でない要素を含む Diff の配列は入力エラー（exit 2）にする", () => {
-  const dir = makeTempDir("diff-normalize-");
-  const registries = join(dir, "registries.json");
-  const input = join(dir, "diffs.json");
-  writeFileSync(registries, JSON.stringify({ component_diffs: [popupT] }));
-  writeFileSync(input, JSON.stringify([diff("filter-popup", "2px"), null]));
-  const r = spawnSync(
-    process.execPath,
-    [script, input, "--registries", registries, "--slug", "demo"],
-    {
-      encoding: "utf8",
-    },
-  );
+  const r = runRaw({ component_diffs: [popupT] }, [diff("filter-popup", "2px"), null], []);
   expect(r.stderr).toContain("<trait-diffs.json> must be a JSON array of trait diffs");
   expect(r.status).toBe(2);
 });

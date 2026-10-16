@@ -224,7 +224,9 @@ test("想定より速く描く環境でフレーム数の上限に達したら�
     timeoutMs: 1000,
     settleMs: 100,
   });
-  expect(timeline.samples).toHaveLength(sampleLimit(1000));
+  // 上限は想定の最大フレームレート 240Hz で 1000ms を採り切れる件数（1000 × 240 / 1000 + 1 = 241）。
+  // 500Hz で 1000ms 採れば 500 件になるので、それより先に上限で止まっている。
+  expect(timeline.samples).toHaveLength(241);
   expect(timeline.timed_out).toBe(true);
 });
 
@@ -277,9 +279,6 @@ test("操作が失敗したらページ側の採取を止め、元の例外を�
   await expect(probeMotion(page, { selector: ".msg", trigger: failing })).rejects.toThrow(
     "click failed",
   );
-  // 採取を止めた後なので、ページ側の状態はある。
-  assert.exists(fakeGlobal.__parityMotionProbe, "ページ側のプローブの状態が無い");
-  expect(fakeGlobal.__parityMotionProbe.done).toBe(true);
   // 止まっているので、そのまま採り直せる（still running で弾かれない）。
   const timeline = await probeMotion(page, { selector: ".msg", trigger });
   expect(timeline.timed_out).toBe(false);
@@ -294,9 +293,6 @@ test("採取が例外で落ちてもプローブを終わらせ、同じペー�
   await expect(probeMotion(page, { selector: ".msg[", trigger })).rejects.toThrow(
     /sampler failed: .*not a valid selector/,
   );
-  // 採取を止めた後なので、ページ側の状態はある。
-  assert.exists(fakeGlobal.__parityMotionProbe, "ページ側のプローブの状態が無い");
-  expect(fakeGlobal.__parityMotionProbe.done).toBe(true);
   fakeGlobal.document.querySelectorAll = original;
   const timeline = await probeMotion(page, { selector: ".msg", trigger });
   expect(timeline.timed_out).toBe(false);

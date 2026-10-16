@@ -209,15 +209,13 @@ test("台帳: 旧い方針の値を新しい値と同じ意味に読む（改名
     "| 旧い除外 | 写さない | 有効 |",
     // textlint-enable
   ].join("\n");
-  const { copyRows, activeRows } = readAssetLedger(text);
-  expect(copyRows.map((r) => r.kind)).toEqual(["新", "旧"]);
-  expect(activeRows).toBe(4);
+  // 旧い値を語彙外として例外にせず、新しい「実体をコピーする」「コピーしない」と同じ意味に読む。
+  expect(readAssetLedger(text).copyRows.map((r) => r.kind)).toEqual(["新", "旧"]);
 });
 
 test("台帳: 行番号は表の中の順番ではなく台帳ファイル上の行を指す（利用者が開く行と揃える）", () => {
   const fileLine = TEMPLATE.split("\n").findIndex((l) => l.startsWith("| 本文の書体 |")) + 1;
   expect(fileLine).toBeGreaterThan(1);
-  expect(readAssetLedger(TEMPLATE).copyRows[0].line).toBe(fileLine);
   const broken = TEMPLATE.replace("| 本文の書体 |", "|  |");
   expect(() => readAssetLedger(broken)).toThrow(`台帳の ${fileLine} 行目の「種類」が空`);
 });

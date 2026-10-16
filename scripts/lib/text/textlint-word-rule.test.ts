@@ -17,7 +17,6 @@ import { makeTempDir } from "../testing/test-tmpdir.ts";
 import {
   DASH_RULE,
   DASH_TERM,
-  dashMessage,
   dashRule,
   WORD_RULE,
   WORDS_PATH,
@@ -70,13 +69,19 @@ test.each([
   );
 });
 
-test("辞書のダッシュの項目の message を、ダッシュの規則の指摘に使う", () => {
+test("辞書のダッシュの項目の message を、ダッシュの規則の指摘に使う", async () => {
   writeWords([
     { term: "x", message: "別の項目", tokens: [{ surface_form: "x" }] },
     { term: DASH_TERM, message: "ダッシュでつながない", tokens: [{ surface_form: DASH_TERM }] },
   ]);
-  expect(dashMessage(dir)).toBe("ダッシュでつながない");
-  expect(dashRule(dir).ruleId).toBe(DASH_RULE);
+  const descriptor = (await load({})).shallowMerge({ rules: [dashRule(dir)] });
+  const result = await createLinter({ descriptor }).lintText(
+    `判定する${"\u2014".repeat(2)}終了コードは使えない。`,
+    join(dir, "a.md"),
+  );
+  const dash = result.messages.filter((m) => m.ruleId === DASH_RULE);
+  expect(dash).toHaveLength(1);
+  expect(dash[0]?.message).toBe("ダッシュでつながない");
 });
 
 test.each([

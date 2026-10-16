@@ -1,0 +1,197 @@
+// aws-architecture-diagram の render-diagram.mjs の、環境の選び方と spec の解決のテスト。
+//
+// 確かめる状態は次のとおりである。
+//   - --env: 無い（全環境）/ `--env a` / `--env=a,b` / 値が無い / 次が別のフラグ / 区切りだけで名前が 0 件 / 未知の名前
+//   - 環境の spec: transform が無い（base に環境の title）/ transform が title を付ける / 付け忘れる（環境の title、
+//     それも無ければ base の title）/ transform が base を書き換える（他の環境に影響しない）
+//   - 書き出し: 後の環境が規約違反で止まったら、先の環境の SVG も書き出さない
+//   - 同梱の見本（samples/the-simple-webservice）: spec から生成した図が、commit してある SVG と一致する
+// レジストリの探し方（.mjs と .js）は render-diagram-registry.test.ts が確かめる。
+
+import { expect, test } from "vitest";
+import { spawnSync } from "node:child_process";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const skillDir = join(repoRoot, "skills/aws-architecture-diagram");
+const renderScript = join(skillDir, "assets/engine/render-diagram.mjs");
+const starterIcons = join(skillDir, "assets/starter/icons");
+const sampleDir = join(skillDir, "assets/samples/the-simple-webservice");
+
+/** 2 ノードを水平につなぐ base。environments の本体は envs に書く（JavaScript の式）。 */
+const registry = (envs: string) => `
+export const baseSpec = {
+  W: 400,
+  H: 200,
+  title: "BASE",
+  nodes: [
+    { id: "a", icon: null, label: ["A"], x: 100, y: 100 },
+    { id: "b", icon: null, label: ["B"], x: 300, y: 100 },
+  ],
+  edges: [{ from: "a", to: "b" }],
+  groups: [],
+};
+export const environments = ${envs};
+`;
+
+function diagramDir(envs: string): string {
+  const dir = makeTempDir("diagram-cli-");
+  writeFileSync(join(dir, "package.json"), JSON.stringify({ type: "module" }));
+  writeFileSync(join(dir, "environments.mjs"), registry(envs));
+  return dir;
+}
+
+function render(dir: string, args: string[], env: Record<string, string> = {}) {
+  const result = spawnSync(process.execPath, [renderScript, ...args], {
+    env: {
+      ...process.env,
+      DIAGRAM_DIR: dir,
+      DIAGRAM_ICON_DIR: starterIcons,
+      DIAGRAM_OUT_DIR: join(dir, "out"),
+      ...env,
+    },
+    encoding: "utf8",
+    timeout: 30_000,
+  });
+  if (result.error) throw result.error;
+  return result;
+}
+
+const outFiles = (dir: string) =>
+  existsSync(join(dir, "out")) ? readdirSync(join(dir, "out")).sort() : [];
+const titleOf = (dir: string, env: string) =>
+  readFileSync(join(dir, "out", `architecture-${env}.svg`), "utf8").match(
+    /font-weight="700" fill="#16191F">([^<]*)</,
+  )?.[1];
+
+const threeEnvs = `{ prod: { title: "P" }, stg: { title: "S" }, local: { title: "L" } }`;
+
+test("--env を省くと全環境を書き出し、書いたファイルを表示する", () => {
+  const dir = diagramDir(threeEnvs);
+  const { status, stdout } = render(dir, []);
+  expect(status).toBe(0);
+  expect(outFiles(dir)).toEqual([
+    "architecture-local.svg",
+    "architecture-prod.svg",
+    "architecture-stg.svg",
+  ]);
+  expect(stdout).toContain(`wrote ${join(dir, "out", "architecture-prod.svg")}`);
+});
+
+test.each([
+  ["--env stg", ["--env", "stg"], ["architecture-stg.svg"]],
+  ["--env=prod,local", ["--env=prod,local"], ["architecture-local.svg", "architecture-prod.svg"]],
+  [
+    "--env ' prod , ,stg '（空白と空の要素は捨てる）",
+    ["--env", " prod , ,stg "],
+    ["architecture-prod.svg", "architecture-stg.svg"],
+  ],
+])("%s は指定した環境だけを書き出す", (_label, args, expected) => {
+  const dir = diagramDir(threeEnvs);
+  expect(render(dir, args).status).toBe(0);
+  expect(outFiles(dir)).toEqual(expected);
+});
+
+test.each([
+  ["値が無い", ["--env"]],
+  ["次が別のフラグ", ["--env", "--verbose"]],
+  ["区切りだけで名前が 0 件", ["--env", ", ,"]],
+  ["= の後が空", ["--env="]],
+])("--env の%sときは、全環境として扱わずエラーにする", (_label, args) => {
+  const dir = diagramDir(threeEnvs);
+  const { status, stderr } = render(dir, args);
+  expect(status).not.toBe(0);
+  expect(stderr).toContain("--env には環境名を指定してください");
+  expect(outFiles(dir)).toEqual([]);
+});
+
+test("未知の環境名は、定義済みの環境を示すエラーにする", () => {
+  const dir = diagramDir(threeEnvs);
+  const { status, stderr } = render(dir, ["--env", "dev"]);
+  expect(status).not.toBe(0);
+  expect(stderr).toContain("未知の環境: dev（定義済み: prod, stg, local）");
+  expect(outFiles(dir)).toEqual([]);
+});
+
+test("図の title は、transform の title・環境の title・base の title の順に決まる", () => {
+  const dir = diagramDir(`{
+    own: { title: "ENV", transform: (s) => ({ ...s, title: "FROM-TRANSFORM" }) },
+    forgot: { title: "ENV-FORGOT", transform: (s) => ({ ...s, title: undefined }) },
+    bare: { transform: (s) => ({ ...s, title: undefined }) },
+    plain: { title: "PLAIN" },
+    none: {},
+  }`);
+  expect(render(dir, []).status).toBe(0);
+  expect(titleOf(dir, "own")).toBe("FROM-TRANSFORM");
+  expect(titleOf(dir, "forgot")).toBe("ENV-FORGOT");
+  expect(titleOf(dir, "bare")).toBe("BASE");
+  expect(titleOf(dir, "plain")).toBe("PLAIN");
+  expect(titleOf(dir, "none")).toBe("BASE");
+});
+
+test("transform が base を書き換えても、他の環境の図は変わらない", () => {
+  // first が受け取った spec のノード a のラベルを書き換える。base を共有していれば second にも出る。
+  const dir = diagramDir(`{
+    first: { transform: (s) => { s.nodes[0].label = ["MUTATED"]; return s; } },
+    second: { transform: (s) => s },
+  }`);
+  expect(render(dir, []).status).toBe(0);
+  const first = readFileSync(join(dir, "out", "architecture-first.svg"), "utf8");
+  const second = readFileSync(join(dir, "out", "architecture-second.svg"), "utf8");
+  expect(first).toContain("MUTATED");
+  expect(second).not.toContain("MUTATED");
+  expect(second).toContain(">A<");
+});
+
+test("後の環境が規約違反で止まったら、先の環境の SVG も書き出さない", () => {
+  // bad は a->b のエッジを重複させる（エンジンが「重複エッジ」で止める）。
+  const dir = diagramDir(`{
+    good: {},
+    bad: { transform: (s) => ({ ...s, edges: [...s.edges, { from: "a", to: "b" }] }) },
+  }`);
+  const { status, stderr } = render(dir, []);
+  expect(status).not.toBe(0);
+  expect(stderr).toContain("重複エッジ: a->b");
+  expect(outFiles(dir)).toEqual([]);
+});
+
+test("同梱の見本は、spec から生成した図が commit してある SVG と一致する（アイコンの中身を除く）", () => {
+  // AWS のアイコンは commit していない（README）。同じ名前の仮のアイコンを置いて生成し、
+  // 埋め込んだアイコンの中身と viewBox だけを比べる対象から外す。配置・線・ラベルは spec で決まる。
+  const work = makeTempDir("diagram-sample-");
+  const icons = join(work, "icons");
+  mkdirSync(join(icons, "aws-icons"), { recursive: true });
+  for (const name of readdirSync(join(sampleDir, "icons")).filter((f) => f.endsWith(".svg"))) {
+    copyFileSync(join(sampleDir, "icons", name), join(icons, name));
+  }
+  for (const id of ["api-gateway", "lambda", "dynamodb"]) {
+    writeFileSync(join(icons, "aws-icons", `${id}.svg`), '<svg viewBox="0 0 64 64"><rect/></svg>');
+  }
+  const { status, stderr } = render(sampleDir, [], {
+    DIAGRAM_ICON_DIR: icons,
+    DIAGRAM_OUT_DIR: join(work, "out"),
+  });
+  expect(stderr).toBe("");
+  expect(status).toBe(0);
+  expect(readdirSync(join(work, "out"))).toEqual(["architecture-prod.svg"]);
+  const withoutIcons = (svg: string) =>
+    svg.replace(
+      /<svg x="([^"]+)" y="([^"]+)" [^>]*overflow="visible">[\s\S]*?<\/svg>/g,
+      "<icon $1 $2>",
+    );
+  const committed = withoutIcons(readFileSync(join(sampleDir, "architecture-prod.svg"), "utf8"));
+  const generated = withoutIcons(readFileSync(join(work, "out", "architecture-prod.svg"), "utf8"));
+  // アイコンが 4 つ（browser と AWS の 3 つ）埋め込まれていることを先に確かめ、置き換えが当たっていることを示す。
+  expect(committed.match(/<icon /g)).toHaveLength(4);
+  expect(generated).toBe(committed);
+});

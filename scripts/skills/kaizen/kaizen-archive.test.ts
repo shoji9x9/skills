@@ -332,15 +332,41 @@ test.each([
   expect(order).toEqual(["a-b", "aB", "a_b", "ab"]);
 });
 
-test("照合順を固定する指定がソースにある（挙動テストでは区別できない部分）", () => {
-  // 上の行順テストは、非 C 照合の UTF-8 ロケール（en_US.UTF-8 等）が入っていない環境では
-  // 通ってしまう（C.utf8 の照合はバイト順で C と同じ）。つまり「LC_COLLATE を固定しない」
-  // 変異を挙動から落とせない。落とせない部分は指定そのものを検査する。
-  const source = readFileSync(script, "utf8");
-  expect(source).toMatch(/export LC_COLLATE=C/);
-  // UTF-8 へ寄せるのに LC_ALL を使うと、LC_COLLATE ごと上書きして照合順が戻る。
-  expect(source).not.toMatch(/export LC_ALL=/);
-});
+// C.utf8 の照合はバイト順で C と同じなので、上の 2 つのロケールでは LC_COLLATE を固定しなくても通る。
+// 固定しているかは、記号を無視して照合する UTF-8 ロケール（en_US.UTF-8 など）でだけ区別できる。
+// そのロケールが入っていない環境では、このテストを飛ばす。
+// locale の一覧を取れない（起動の失敗・時間切れ）ことは、ロケールが無いことと同じに扱わない。
+// そのときはテストを飛ばさずに実行し、テストの中で失敗させる（ほかのテストの収集は止めない）。
+const localeList = spawnSync("locale", ["-a"], { encoding: "utf8", timeout: 30_000 });
+const localeListed = localeList.error === undefined && localeList.status === 0;
+const collatingLocale = localeListed
+  ? localeList.stdout.split("\n").find((l) => /utf-?8$/i.test(l) && !/^(c|posix)\./i.test(l))
+  : undefined;
+
+test.skipIf(localeListed && collatingLocale === undefined)(
+  "記号を無視して照合するロケールでも、索引の行はバイト順に並べる",
+  () => {
+    expect(localeList.error, "locale -a を実行できない").toBeUndefined();
+    expect(localeList.status, localeList.stderr).toBe(0);
+    assert.exists(collatingLocale);
+    const dir = createRepo();
+    const names = ["a-b", "aB", "a_b", "ab"];
+    const notes = names.map((n) => writeNote(dir, `2026-09-01-${n}.md`, `要約 ${n}`));
+    const localeEnv = {
+      LANG: collatingLocale,
+      LC_ALL: collatingLocale,
+      LC_COLLATE: collatingLocale,
+    };
+
+    expect(archiveIn(dir, localeEnv, ...notes).status).toBe(0);
+
+    const order = readFileSync(join(dir, ".kaizen/archive/INDEX.md"), "utf8")
+      .split("\n")
+      .filter((l) => l.startsWith("- "))
+      .map((l) => l.match(/2026-09-01-(.+)\.md/)?.[1]);
+    expect(order).toEqual(["a-b", "aB", "a_b", "ab"]);
+  },
+);
 
 test("glibc 流の名前（en_US.utf8）しか無い環境でも UTF-8 ロケールを見つける", () => {
   // 候補名を決め打ちで完全一致させると、glibc の `locale -a` は `en_US.utf8` と

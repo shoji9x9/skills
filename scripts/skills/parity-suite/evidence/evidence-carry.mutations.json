@@ -34,7 +34,9 @@
       "occurrences": 1,
       "expect_failing": [
         "D が空（描画入力の外だけ変わった）: 持ち越す・注記を残す",
-        "D が空でも evidence-carry.json を読まない（不正でも持ち越しの判定に使わない）"
+        "D が空でも evidence-carry.json を読まない（不正でも持ち越しの判定に使わない）",
+        "magic の無い render_inputs は glob として読む（* は / をまたがず、** は深い階層に当たる）",
+        "magic 付きの render_inputs はそのまま渡す（:(literal) の * は文字として扱う）"
       ]
     },
     {

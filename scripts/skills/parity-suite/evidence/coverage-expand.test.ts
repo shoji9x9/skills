@@ -8,7 +8,7 @@
 // 「新しい部品は共通処理と中心ドキュメントを変えずに足せる」ことも、
 // 仮想部品のプロファイルを一時ディレクトリへ置いて照合させることで確認する。
 
-import { assert, test, expect } from "vitest";
+import { assert, test, expect, vi } from "vitest";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -21,7 +21,7 @@ import {
   fillVisualStateRows,
   fillVisualStates,
   loadProfiles,
-  readCaptureConditions,
+  main,
   readEnumeration,
   reconcile as reconcileRaw,
   validateProfile,
@@ -373,6 +373,21 @@ function bundledProfile(id: string): Profile {
   assert.exists(found, `同梱プロファイル ${id} が無い`);
   assert(isProfile(found), `同梱プロファイル ${id} の形が違う`);
   return found;
+}
+
+/**
+ * プロファイル 1 件を、CLI と同じ loadProfiles で読んだときの problems を返す。
+ * プロファイルを配る人に見えるのは CLI が表示する problems なので、形式の検査はこの出口で確かめる。
+ * ファイル名は id から決める（id とファイル名の不一致は別の検査なので、ここでは起こさない）。
+ */
+function profileProblems(profile: { id?: unknown }, name = `${String(profile.id)}.json`): string[] {
+  const { profiles, problems } = loadProfiles("profiles", {
+    readdir: () => [name],
+    readFile: () => JSON.stringify(profile),
+  });
+  // 問題が無いのに読み込まれていなければ、警告なしに外れたことになる。
+  if (problems.length === 0) expect(profiles.has(String(profile.id))).toBe(true);
+  return problems;
 }
 
 test("同梱プロファイルはすべてスキーマ検証を通る（不正なまま配布しない）", () => {
@@ -1982,10 +1997,10 @@ test("プロファイルは visual_states の宣言を省略できない（未�
   }
 });
 
-test("CLI: --metadata を渡すと撮影状態まで照合し、読めない metadata は合格として扱わない", () => {
-  const cov = datagridCoverage();
+/** 網羅表が要求する撮影状態とページ名を、そのまま撮影条件に持つ metadata.json。 */
+function metadataFor(cov: Coverage) {
   const conditions = captureConditionsFor(cov);
-  const metadata = {
+  return {
     slug: "order-list",
     capture_conditions: {
       pages: conditions.pageNames.map((name) => ({ name, path: `/${name}` })),
@@ -1999,6 +2014,11 @@ test("CLI: --metadata を渡すと撮影状態まで照合し、読めない met
       })),
     },
   };
+}
+
+test("CLI: --metadata を渡すと撮影状態まで照合し、読めない metadata は合格として扱わない", () => {
+  const cov = datagridCoverage();
+  const metadata = metadataFor(cov);
   const ok = runCli(
     [
       "--coverage",
@@ -2417,19 +2437,33 @@ test("インスタンスの page は宣言されたページ名でなければ�
 });
 
 test("metadata に capture_conditions.pages が無ければ読めたことにしない", () => {
-  const withPages = {
-    slug: "order-list",
-    capture_conditions: { pages: [{ name: "受注一覧" }], states: ["default"], popup_inventory: [] },
-  };
-  expect(readCaptureConditions(withPages)).toMatchObject({
-    slug: "order-list",
-    pageNames: ["受注一覧"],
-  });
-  // pages キーの欠落を「照合しない」として扱わない。
+  const cov = datagridCoverage();
+  const run = (metadata: unknown) =>
+    runCli(
+      [
+        "--coverage",
+        "component-coverage.json",
+        "--metadata",
+        "metadata.json",
+        "--profiles",
+        bundledProfiles,
+      ],
+      { files: { "component-coverage.json": cov, "metadata.json": metadata } },
+    );
+  // 通ることの確認: pages を持つ metadata なら撮影状態まで照合して通る。
+  const withPages = metadataFor(cov);
+  const ok = run(withPages);
+  expect(ok.status).toBe(0);
+  expect(
+    parseJsonAs<{ visual_states: { checked: unknown } }>(ok.stdout).visual_states.checked,
+  ).toBe(true);
+  // pages キーの欠落を「照合しない」として扱わず、使い方の誤りとして exit 2 にする。
   const noPages = structuredClone(withPages);
   // わざと pages を欠落させる
   removeField(noPages.capture_conditions, "pages");
-  expect(readCaptureConditions(noPages)).toBeNull();
+  const broken = run(noPages);
+  expect(broken.status).toBe(2);
+  expect(broken.stderr).toMatch(/metadata に slug、または capture_conditions/);
 });
 
 test("撮影条件を渡したのにページ名一覧が無ければ照合しない扱いにしない", () => {
@@ -2687,4 +2721,610 @@ test("プロファイルの形式検査: enumeration.sources は強い順に並�
   expect(validateProfile(notArray, "z2.json").join("\n")).toMatch(
     /enumeration.sources が配列ではない/,
   );
+});
+
+// ===== 形の不備を 1 件ずつ落とす（Issue #619） =====
+//
+// 照合が受け取る入力（プロファイル・網羅表・列挙・同値クラス・absent の証拠・CLI の引数）の各欄に
+// 読めない状態（欠落・空・型の誤り・重複・未定義の参照）を 1 つずつ作り、合格として扱わないことを確かめる。
+// 各表の最初で、壊す前の入力が通ることを確かめる（常に落とす実装を弾く）。
+
+/** 形式の検査を確かめるための最小のプロファイル（軸 1 つ・ルール 1 つ）。 */
+function minimalProfile(): Profile {
+  return {
+    id: "m",
+    version: "1",
+    applies_to: "テスト用",
+    axes: [{ id: "a", kind: "element", flags: ["on"] }],
+    enumeration: {
+      sources: ["current-source"],
+      procedure: "定義から a を抜く",
+      pitfalls: ["隠れている a を落とす"],
+      fail_closed: "読めなければ complete: false",
+    },
+    candidate_rules: [{ id: "r", axes: ["a"], guard: { "a.on": true }, visual_states: ["hover"] }],
+    required_rules: ["r"],
+    equivalence: { reducible_axes: ["a"] },
+  };
+}
+
+test("プロファイルの形式検査: 軸・ルール・guard・同値の宣言の不備を 1 件ずつ弾く", () => {
+  expect(profileProblems(minimalProfile())).toEqual([]);
+  for (const [mutate, pattern] of [
+    [(p) => (p.version = ""), /version が空/],
+    [(p) => (p.applies_to = " "), /applies_to が空/],
+    [(p) => (p.axes = []), /axes が空/],
+    // わざと JSON オブジェクトでない軸を入れる
+    [(p) => (p.axes = [invalidInput(42), ...p.axes]), /axes\[0\]: JSON オブジェクトではない/],
+    [(p) => p.axes.push({ id: "", kind: "element" }), /axes\[1\]: id が空/],
+    [(p) => p.axes.push({ id: "a", kind: "element" }), /軸 id a が重複している/],
+    [
+      (p) => p.axes.push({ id: "b", kind: "set" }),
+      /軸 b: kind が element \/ enum のいずれでもない/,
+    ],
+    [
+      (p) => p.axes.push({ id: "b", kind: "enum", values: [] }),
+      /軸 b: kind: enum なのに values が空/,
+    ],
+    [(p) => (p.candidate_rules = []), /candidate_rules が空/],
+    [
+      // わざと JSON オブジェクトでないルールを入れる
+      (p) => p.candidate_rules.push(invalidInput("r2")),
+      /candidate_rules\[1\]: JSON オブジェクトではない/,
+    ],
+    [
+      (p) => p.candidate_rules.push({ id: "", axes: ["a"], guard: {}, visual_states: ["hover"] }),
+      /candidate_rules\[1\]: id が空/,
+    ],
+    [(p) => (p.candidate_rules[0].id = "r/x"), /ルール r\/x: id に "\/" を含む/],
+    [
+      (p) => p.candidate_rules.push(structuredClone(p.candidate_rules[0])),
+      /ルール id r が重複している/,
+    ],
+    [(p) => (p.candidate_rules[0].axes = []), /ルール r: axes が空/],
+    // わざと JSON オブジェクトでない guard を入れる
+    [(p) => (p.candidate_rules[0].guard = invalidInput(42)), /guard が JSON オブジェクトではない/],
+    [(p) => (p.candidate_rules[0].guard = { on: true }), /<軸 id>.<フラグ名> の形になっていない/],
+    [
+      (p) => {
+        p.axes.push({ id: "b", kind: "enum", values: ["v"] });
+        p.candidate_rules[0].axes = ["a", "b"];
+        p.candidate_rules[0].guard = { "a.on": true, "b.v": true };
+      },
+      /guard は element 軸にしか置けない（b.v）/,
+    ],
+    [
+      // わざと真偽値でない guard の値を入れる
+      (p) => (p.candidate_rules[0].guard = { "a.on": invalidInput("yes") }),
+      /guard a.on の値が真偽値ではない/,
+    ],
+    [
+      (p) => {
+        p.axes.push({ id: "c", kind: "element", flags: ["on"] });
+        p.candidate_rules[0].guard = { "a.on": true, "c.on": true };
+      },
+      /guard が axes に無い軸 c を参照している/,
+    ],
+    [
+      (p) => (p.equivalence.reducible_axes = ["nope"]),
+      /reducible_axes: 未定義の軸 nope を参照している/,
+    ],
+  ] satisfies [(p: Profile) => unknown, RegExp][]) {
+    const p = minimalProfile();
+    mutate(p);
+    expect(profileProblems(p).join("\n")).toMatch(pattern);
+  }
+  // JSON オブジェクトでないプロファイルと、id が空のプロファイルも読み込まない。
+  expect(profileProblems(invalidInput([]), "arr.json").join("\n")).toMatch(
+    /arr.json: プロファイルが JSON オブジェクトではない/,
+  );
+  expect(profileProblems({ ...minimalProfile(), id: "" }, "noid.json").join("\n")).toMatch(
+    /noid.json: id が空/,
+  );
+});
+
+test("CLI: プロファイルディレクトリを読めない・id とファイル名が違うときは exit 2", () => {
+  const missingDir = runCli(["--list-profiles", "--profiles", "no-such-dir"]);
+  expect(missingDir.status).toBe(2);
+  expect(missingDir.stderr).toMatch(/プロファイルディレクトリを読めない: no-such-dir/);
+
+  // 通ることの確認: 同梱の datagrid を同じ名前で置けば一覧に出る。
+  const datagrid = readFileSync(join(bundledProfiles, "datagrid.json"), "utf8");
+  const ok = runCli(["--list-profiles", "--profiles", "@profiles"], {
+    profiles: { "datagrid.json": datagrid },
+  });
+  expect(ok.status).toBe(0);
+  expect(
+    parseJsonAs<{ profiles: Array<{ id: string }> }>(ok.stdout).profiles.map((p) => p.id),
+  ).toEqual(["datagrid"]);
+
+  const renamed = runCli(["--list-profiles", "--profiles", "@profiles"], {
+    profiles: { "grid.json": datagrid },
+  });
+  expect(renamed.status).toBe(2);
+  expect(renamed.stderr).toMatch(/grid.json: id（datagrid）がファイル名と一致しない/);
+});
+
+test("CLI: 不明な引数・値の無いフラグ・読めない入力は exit 2", () => {
+  const cov = datagridCoverage();
+  const files = { "component-coverage.json": cov, "metadata.json": metadataFor(cov) };
+  for (const [args, extraFiles, pattern] of [
+    [["--coverage", "component-coverage.json", "--nope"], {}, /unknown argument: --nope/],
+    [["--coverage"], {}, /^usage: /m],
+    [["--coverage", "missing.json"], {}, /網羅表を読めない: missing.json/],
+    [
+      ["--coverage", "component-coverage.json", "--metadata", "broken.json"],
+      { "broken.json": "{ not json" },
+      /metadata を読めない/,
+    ],
+    [
+      ["--coverage", "array.json", "--write"],
+      { "array.json": "[]" },
+      /網羅表が JSON オブジェクトではないので書き戻せない/,
+    ],
+    [
+      ["--coverage", "noslug.json", "--metadata", "metadata.json"],
+      { "noslug.json": { ...cov, slug: "" } },
+      /網羅表に slug が無いので metadata と同じ機能か照合できない/,
+    ],
+  ] satisfies [string[], Record<string, unknown>, RegExp][]) {
+    const r = runCli(args, { files: { ...files, ...extraFiles } });
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(pattern);
+  }
+  // 書き戻さない実行では、JSON オブジェクトでない網羅表は照合の問題として exit 1 にする。
+  const notObject = runCli(["--coverage", "array.json"], { files: { "array.json": "[]" } });
+  expect(notObject.status).toBe(1);
+  expect(notObject.stderr).toMatch(/網羅表が JSON オブジェクトではない/);
+});
+
+test("CLI --write: 網羅表を書き戻せなければ exit 2 で知らせる（書けたことにしない）", () => {
+  const cov = JSON.stringify(datagridCoverage());
+  const stderr: string[] = [];
+  const spy = vi.spyOn(process.stderr, "write").mockImplementation((chunk) => {
+    stderr.push(String(chunk));
+    return true;
+  });
+  const stdout = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+  try {
+    const status = main(["--coverage", "cov.json", "--write"], {
+      readFile: (p) => (p === "cov.json" ? cov : readFileSync(p, "utf8")),
+      writeFile: () => {
+        throw new Error("EACCES: permission denied");
+      },
+    });
+    expect(status).toBe(2);
+    expect(stderr.join("")).toMatch(/網羅表を書き戻せない: cov.json: Error: EACCES/);
+    // 書き戻しに失敗したら、照合の結果を出力しない。
+    expect(stdout).not.toHaveBeenCalled();
+  } finally {
+    spy.mockRestore();
+    stdout.mockRestore();
+  }
+});
+
+/** 網羅表の形を 1 か所壊し、照合が合格として扱わず、狙った問題を報告することを確かめる。 */
+function expectRejected(
+  mutate: (cov: Coverage) => unknown,
+  pattern: RegExp,
+  { unmeasured = true }: { unmeasured?: boolean } = {},
+) {
+  const cov = datagridCoverage();
+  mutate(cov);
+  const r = reconcile(cov, bundled);
+  expect(r.ok).toBe(false);
+  expect(r.problems.join("\n")).toMatch(pattern);
+  if (unmeasured) expect(r.unmeasured).toBeGreaterThan(0);
+  return r;
+}
+
+test("網羅表の部品・項目・インスタンス・セルの不備を 1 件ずつ未測定として扱う", () => {
+  expect(reconcile(datagridCoverage(), bundled)).toMatchObject({ ok: true, unmeasured: 0 });
+  const grid = (cov: Coverage) => cov.components[0];
+  const instance = (cov: Coverage) => grid(cov).instances[0];
+  // わざと型に合わない値を入れる
+  expectRejected(
+    (cov) => (cov.components = invalidInput([42])),
+    /components\[0\]: JSON オブジェクトではない/,
+  );
+  // 判定側（parity-diff の coverage-check.mjs）と同じく、部品が空なら未測定 0 のまま不合格にする。
+  expectRejected((cov) => (cov.components = []), /components が空/, { unmeasured: false });
+  expectRejected((cov) => (grid(cov).id = ""), /components\[0\]: id が空/);
+  // わざと文字列でも null でもない profile を入れる
+  expectRejected(
+    (cov) => (grid(cov).profile = invalidInput(42)),
+    /profile が空でない文字列でも null でもない/,
+  );
+  // 同梱に無いプロファイルは候補を展開できない。採点していない分を、少なくとも宣言セル数（項目 × インスタンス）だけ数える。
+  const unknownProfile = expectRejected(
+    (cov) => (grid(cov).profile = "nope"),
+    /プロファイル nope が同梱ディレクトリに無い/,
+  );
+  expect(unknownProfile.unmeasured).toBeGreaterThanOrEqual(20);
+  // 版の違いは展開し直しの指示として残す（候補は同じなので未測定には数えない）。
+  expectRejected(
+    (cov) => (grid(cov).profile_version = "999"),
+    /記録されたプロファイル版（999）が同梱プロファイル（3）と違う/,
+    { unmeasured: false },
+  );
+  expectRejected((cov) => (grid(cov).instances = []), /instances が空（列挙が起きていない）/);
+  // わざと JSON オブジェクトでない項目・インスタンスを入れる
+  expectRejected(
+    (cov) => grid(cov).items.push(invalidInput(42)),
+    /items\[20\] が JSON オブジェクトではない/,
+    {
+      unmeasured: false,
+    },
+  );
+  expectRejected(
+    (cov) => grid(cov).items.push({ ...grid(cov).items[0], id: "" }),
+    /items\[20\]: id が空/,
+    { unmeasured: false },
+  );
+  expectRejected(
+    (cov) => grid(cov).items.push(structuredClone(grid(cov).items[0])),
+    /項目 id column-visible\/price が重複している/,
+    { unmeasured: false },
+  );
+  expectRejected(
+    (cov) => grid(cov).instances.push(invalidInput(42)),
+    /instances\[1\] が JSON オブジェクトではない/,
+  );
+  expectRejected((cov) => (instance(cov).id = ""), /instances\[0\]: id が空/);
+  // 項目の candidate の記録が無い・展開結果と違うと、判定側（parity-diff）が数え直せない。
+  expectRejected(
+    (cov) => removeField(grid(cov).items[0], "candidate"),
+    /項目 column-visible\/price に candidate（ルール id と軸値）が記録されていない/,
+  );
+  expectRejected(
+    (cov) => (grid(cov).items[0].candidate.axes = { column: "name" }),
+    /candidate.axes.column（name）が展開結果（price）と違う/,
+  );
+  // rule だけの不一致は判定側の件数を変えないので、問題として残すが未測定には数えない。
+  const ruleOnly = expectRejected(
+    (cov) => (grid(cov).items[0].candidate.rule = "column-filter"),
+    /candidate.rule（column-filter）が展開結果（column-visible）と違う/,
+    { unmeasured: false },
+  );
+  expect(ruleOnly.unmeasured).toBe(0);
+  expectRejected(
+    (cov) => cov.cells.push(structuredClone(cov.cells[0])),
+    /候補 column-visible\/price のセル行が複数ある/,
+  );
+  expectRejected((cov) => cov.cells.shift(), /候補 column-visible\/price のセルが無い/);
+  expectRejected(
+    (cov) => (cov.cells[0].value = "maybe"),
+    /候補 column-visible\/price: value が present \/ absent \/ unmeasured のいずれでもない/,
+  );
+  // instances[].candidates の記録の欠落・不足・余剰。
+  expectRejected(
+    (cov) => removeField(instance(cov), "candidates"),
+    /instances\[\]\.candidates が無い/,
+  );
+  expectRejected(
+    (cov) => instance(cov).candidates.shift(),
+    /instances\[\]\.candidates に展開結果の候補が足りない（1 件）/,
+  );
+  expectRejected(
+    (cov) => instance(cov).candidates.push("column-visible/ghost"),
+    /instances\[\]\.candidates に展開結果に無い候補がある（1 件）/,
+    { unmeasured: false },
+  );
+});
+
+test("インスタンスの列挙の不備を 1 件ずつ未列挙として扱う（候補ゼロで素通りさせない）", () => {
+  const en = (cov: Coverage) => cov.components[0].instances[0].enumeration;
+  const columns = (cov: Coverage) => en(cov).elements.column;
+  expectRejected(
+    (cov) => removeField(cov.components[0].instances[0], "enumeration"),
+    /enumeration が無い/,
+  );
+  expectRejected((cov) => removeField(en(cov), "source"), /enumeration.source が無い/);
+  expectRejected(
+    (cov) => (en(cov).source.kind = "vendor-spec"),
+    /enumeration.source.kind（vendor-spec）がプロファイルの sources にない/,
+  );
+  // わざと真偽値でない complete を入れる
+  expectRejected(
+    (cov) => (en(cov).complete = invalidInput("yes")),
+    /enumeration.complete が true ではない/,
+  );
+  // わざと JSON オブジェクトでない elements を入れる
+  expectRejected(
+    (cov) => (en(cov).elements = invalidInput(42)),
+    /enumeration.elements が JSON オブジェクトではない/,
+  );
+  expectRejected((cov) => removeField(en(cov).elements, "column"), /軸 column の列挙が無い/);
+  expectRejected(
+    (cov) => columns(cov).push(invalidInput(42)),
+    /軸 column\[2\] が JSON オブジェクトではない/,
+  );
+  expectRejected((cov) => columns(cov).push({ id: "", flags: {} }), /軸 column\[2\]: id が空/);
+  expectRejected((cov) => (columns(cov)[1].id = "a/b"), /要素 a\/b: id に "\/" を含む/);
+  expectRejected(
+    (cov) => columns(cov).push(structuredClone(columns(cov)[0])),
+    /要素 price が重複している/,
+  );
+  expectRejected(
+    // わざと真偽値でないフラグを入れる
+    (cov) => (columns(cov)[0].flags.sortable = invalidInput("yes")),
+    /要素 price: フラグ sortable が真偽値で記録されていない/,
+  );
+  expectRejected(
+    (cov) => (columns(cov)[0].flags.resizable = true),
+    /要素 price: プロファイルに宣言の無いフラグ resizable がある/,
+  );
+  // 免除の宣言の不備。
+  for (const [absences, pattern] of [
+    [42, /justified_absences が配列ではない/],
+    [[42], /justified_absences\[0\] が JSON オブジェクトではない/],
+    [[{ scope: "", reason: "根拠" }], /justified_absences\[0\]: scope が空/],
+    [[{ scope: "nope", reason: "根拠" }], /未定義の element 軸 nope を参照している/],
+    [
+      [{ scope: "column/ghost", reason: "根拠" }],
+      /軸 column に列挙されていない要素 ghost を参照している/,
+    ],
+  ] satisfies [unknown, RegExp][]) {
+    // わざと型に合わない免除の宣言を入れる
+    expectRejected((cov) => (en(cov).justified_absences = invalidInput(absences)), pattern);
+  }
+});
+
+test("同値クラスの宣言の不備を 1 件ずつ弾く（id・根拠・軸・メンバー・代表）", () => {
+  const key = (id: string) => `orders/${id}`;
+  /** 全候補を 1 件ずつのクラスに分けた、通る宣言。 */
+  const singletons = (cov: Coverage): EquivalenceClass[] =>
+    cov.components[0].instances[0].candidates.map((id) => ({
+      id: `c-${id}`,
+      axis: "column",
+      rationale: "現行 UI で同じセルレンダラ・同じ書式であることを確認した",
+      members: [key(id)],
+      representative: key(id),
+    }));
+  const withClasses = (edit: (classes: EquivalenceClass[]) => unknown) => (cov: Coverage) => {
+    const classes = singletons(cov);
+    edit(classes);
+    cov.components[0].equivalence_classes = classes;
+  };
+  // 通ることの確認: 全候補を過不足なく分類すれば通る。
+  const valid = datagridCoverage();
+  valid.components[0].equivalence_classes = singletons(valid);
+  expect(reconcile(valid, bundled).problems).toEqual([]);
+
+  for (const [edit, pattern] of [
+    // わざと JSON オブジェクトでないクラスを入れる
+    [(c) => c.push(invalidInput(42)), /equivalence_classes\[20\] が JSON オブジェクトではない/],
+    [(c) => (c[0].id = ""), /equivalence_classes\[0\]: id が空/],
+    [(c) => (c[1].id = c[0].id), /同値クラス c-column-visible\/price の id が重複している/],
+    [(c) => (c[0].rationale = " "), /rationale が空/],
+    [(c) => (c[0].axis = ""), /axis が空/],
+    [(c) => (c[0].members = []), /members が空/],
+    [(c) => c[0].members.push(key("ghost")), /候補に無いメンバー orders\/ghost を参照している/],
+    [(c) => c[0].members.push(c[1].members[0]), /の両方に属している/],
+    [(c) => (c[0].representative = ""), /representative が空/],
+    [(c) => (c[0].representative = c[1].members[0]), /が members に含まれていない/],
+    [
+      (c) => {
+        // 列の表示と列の絞り込みは、同じ列でも別の操作なので束ねられない。
+        const filter = c.find((x) => x.members[0] === key("column-filter/price"));
+        assert.exists(filter, "column-filter/price のクラスが無い");
+        c[0].members.push(...filter.members);
+        c.splice(c.indexOf(filter), 1);
+      },
+      /ルールの違う候補が含まれている（column-visible と column-filter）/,
+    ],
+  ] satisfies [(c: EquivalenceClass[]) => unknown, RegExp][]) {
+    expectRejected(withClasses(edit), pattern, { unmeasured: false });
+  }
+});
+
+test("記録された撮影状態の行の形が読めなければ照合を通さない", () => {
+  for (const [mutate, pattern] of [
+    // わざと配列でない rows を入れる
+    [
+      (cov) => (cov.visual_state_coverage.rows = invalidInput(null)),
+      /visual_state_coverage.rows が無い/,
+    ],
+    // わざと JSON オブジェクトでない行を入れる
+    [
+      (cov) => cov.visual_state_coverage.rows.push(invalidInput(42)),
+      /JSON オブジェクトでない行がある/,
+    ],
+    [
+      (cov) => (cov.visual_state_coverage.rows[0].kind = ""),
+      /component \/ instance \/ required_by \/ kind が空の行がある/,
+    ],
+  ] satisfies [(cov: Coverage) => unknown, RegExp][]) {
+    expectRejected(mutate, pattern, { unmeasured: false });
+  }
+});
+
+/** 最初の候補を、全状態で非描画だった absent として記録した網羅表（照合を通る形）。 */
+function nonRenderableCoverage(): Coverage {
+  const cov = datagridCoverage();
+  const locator = "getByRole('columnheader', { name: 'Price', includeHidden: true })";
+  cov.cells[0] = {
+    ...cov.cells[0],
+    value: "absent",
+    covered_by: [],
+    evidence: "全到達状態で非描画",
+    absence_evidence: {
+      kind: "non-renderable",
+      locator,
+      state_source: "datagrid profile と現行 UI",
+      locator_includes_hidden: true,
+      states_exhaustive: true,
+      expected_states: ["desktop/default"],
+      states: [
+        {
+          name: "desktop/default",
+          transition: "右端までスクロールする",
+          locator_match_count: 1,
+          bounding_box: { x: 0, y: 0, width: 0, height: 20 },
+          offset_parent: null,
+          hidden_by: null,
+        },
+      ],
+    },
+  };
+  cov.components[0].instances[0].applicable_states = {
+    source: {
+      kind: "current-source",
+      ref: "src/grid/states.json",
+      version: "rev-abc123",
+      condition: "desktop の全状態",
+    },
+    complete: true,
+    items: [{ id: "desktop/default", transition: "右端までスクロールする" }],
+  };
+  return cov;
+}
+
+test("非描画 absent の証拠と状態の一覧の欠け・矛盾を 1 件ずつ未測定として扱う", () => {
+  expect(reconcile(nonRenderableCoverage(), bundled)).toMatchObject({ ok: true, unmeasured: 0 });
+  const evidence = (cov: Coverage) => nonRenderable(cov.cells[0]);
+  const manifest = (cov: Coverage) => applicableStates(cov.components[0].instances[0]);
+  const hiddenBySelf = (cov: Coverage): HiddenBy => ({
+    target_locator: evidence(cov).locator ?? "",
+    locator: "#price",
+    relation: "self",
+    relationship_verified: true,
+    computed_style: { display: "none" },
+  });
+  for (const [mutate, pattern] of [
+    // わざと JSON オブジェクトでない証拠を入れる
+    [
+      (cov) => (cov.cells[0].absence_evidence = invalidInput("見えない")),
+      /absence_evidence が JSON オブジェクトではない/,
+    ],
+    [
+      (cov) => (evidence(cov).kind = "guess"),
+      /absence_evidence.kind が fired-without-response \/ non-renderable のいずれでもない/,
+    ],
+    [(cov) => (evidence(cov).locator = " "), /non-renderable の locator \/ state_source が空/],
+    [(cov) => (evidence(cov).states_exhaustive = false), /states_exhaustive が true ではない/],
+    [
+      (cov) => removeField(cov.components[0].instances[0], "applicable_states"),
+      /インスタンスの applicable_states が無い/,
+    ],
+    [(cov) => (manifest(cov).complete = false), /applicable_states の complete \/ source が不完全/],
+    [(cov) => (manifest(cov).items = []), /applicable_states.items が空/],
+    // わざと JSON オブジェクトでない状態を入れる
+    [(cov) => manifest(cov).items.push(invalidInput(42)), /applicable_states.items\[1\] が不正/],
+    [
+      (cov) => manifest(cov).items.push({ id: "", transition: "t" }),
+      /applicable_states.items\[1\] の id \/ transition が空/,
+    ],
+    [
+      (cov) => manifest(cov).items.push(structuredClone(manifest(cov).items[0])),
+      /applicable_states.items の id desktop\/default が重複/,
+    ],
+    [(cov) => (evidence(cov).states = []), /non-renderable の states が空/],
+    [(cov) => (evidence(cov).expected_states = [""]), /expected_states が空または不正/],
+    // わざと JSON オブジェクトでない状態の記録を入れる
+    [
+      (cov) => (evidence(cov).states = [invalidInput(42)]),
+      /states\[0\] が JSON オブジェクトではない/,
+    ],
+    [(cov) => (firstState(cov.cells[0]).name = ""), /states\[0\] の name \/ transition が空/],
+    [
+      (cov) => evidence(cov).states.push(structuredClone(firstState(cov.cells[0]))),
+      /states\[1\]\.name desktop\/default が重複している/,
+    ],
+    [
+      (cov) => (firstState(cov.cells[0]).transition = "別の手順"),
+      /applicable_states の id \/ transition と一致しない/,
+    ],
+    [
+      (cov) => (firstState(cov.cells[0]).offset_parent = ""),
+      /offset_parent が null または空でない文字列ではない/,
+    ],
+    // わざと JSON オブジェクトでない矩形を入れる
+    [
+      (cov) => (firstState(cov.cells[0]).bounding_box = invalidInput("0x20")),
+      /bounding_box が null または JSON オブジェクトではない/,
+    ],
+    // 非表示の原因を持つ状態は、矩形を持たない（hidden_by と矩形の両方は矛盾）。
+    [
+      (cov) => (firstState(cov.cells[0]).hidden_by = hiddenBySelf(cov)),
+      /hidden_by があるのに bounding_box が null ではない/,
+    ],
+    // 正の寸法の矩形で、非表示の原因も無い状態は非描画の証拠にならない。
+    [
+      (cov) => (firstState(cov.cells[0]).bounding_box = { x: 0, y: 0, width: 10, height: 20 }),
+      /に 0 寸法の矩形または非表示原因の証拠が無い/,
+    ],
+    // 測った状態が一覧の全状態に揃っていない。
+    [
+      (cov) =>
+        manifest(cov).items.push({ id: "mobile/default", transition: "mobile へ切り替える" }),
+      /expected_states \/ states\[\]\.name \/ applicable_states.items\[\]\.id が完全一致しない/,
+    ],
+  ] satisfies [(cov: Coverage) => unknown, RegExp][]) {
+    const cov = nonRenderableCoverage();
+    mutate(cov);
+    const r = reconcile(cov, bundled);
+    expect(r).toMatchObject({ ok: false, unmeasured: 1 });
+    expect(r.problems.join("\n")).toMatch(pattern);
+  }
+});
+
+test("fired-without-response の送り方・発火確認の欠けを 1 件ずつ未測定として扱う", () => {
+  const base = (): Coverage => {
+    const cov = datagridCoverage();
+    cov.cells[0] = {
+      ...cov.cells[0],
+      value: "absent",
+      covered_by: [],
+      evidence: "右クリックしても応答が無い",
+      absence_evidence: {
+        kind: "fired-without-response",
+        action: {
+          locator: "getByTestId('grid-cell-1-1')",
+          method: "coordinate",
+          detail: "page.mouse.click(x, y, { button: 'right' })",
+          bounding_box: { x: 10, y: 20, width: 120, height: 32 },
+          visible: true,
+          actionability_bypassed: false,
+          hit_test_target: "getByTestId('grid-cell-1-1')",
+          hit_test_is_target_or_descendant: true,
+        },
+        fired: { signal: "event-listener", detail: "contextmenu リスナで受信した", verified: true },
+        observation: "メニューが開かず DOM も変化しなかった",
+      },
+    };
+    return cov;
+  };
+  expect(reconcile(base(), bundled)).toMatchObject({ ok: true, unmeasured: 0 });
+  for (const [mutate, pattern] of [
+    [(e) => (e.action.locator = ""), /action.locator \/ action.detail が空/],
+    // わざと JSON オブジェクトでない矩形を入れる
+    [
+      (e) => (e.action.bounding_box = invalidInput(null)),
+      /action.bounding_box が JSON オブジェクトではない/,
+    ],
+    [
+      (e) => (e.action.bounding_box.x = Number.NaN),
+      /action.bounding_box の x \/ y \/ width \/ height が有限の数値ではない/,
+    ],
+    [(e) => (e.action.hit_test_target = " "), /座標操作なのに action.hit_test_target が空/],
+    // わざと JSON オブジェクトでない発火確認を入れる
+    [(e) => (e.fired = invalidInput("受信した")), /fired が JSON オブジェクトではない/],
+    [
+      (e) => (e.fired.signal = "guess"),
+      /fired.signal が event-listener \/ dom-change \/ state-change のいずれでもない/,
+    ],
+  ] satisfies [(e: FiredEvidence) => unknown, RegExp][]) {
+    const cov = base();
+    mutate(firedEvidenceOf(cov.cells[0]));
+    const r = reconcile(cov, bundled);
+    expect(r).toMatchObject({ ok: false, unmeasured: 1 });
+    expect(r.problems.join("\n")).toMatch(pattern);
+  }
+  // 座標を使わない送り方（locator-api）では hit-test を要求しない。
+  const locatorApi = base();
+  const action = firedEvidenceOf(locatorApi.cells[0]).action;
+  action.method = "locator-api";
+  action.hit_test_target = "";
+  expect(reconcile(locatorApi, bundled)).toMatchObject({ ok: true, unmeasured: 0 });
 });

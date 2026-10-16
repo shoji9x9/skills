@@ -582,7 +582,14 @@
       "expect_failing": [
         "skill eval result normalization skill read detection skill text in tool output counts skill text printed by a ;-joined read the command parser skips",
         "skill eval result normalization skill read detection skill text in tool output counts skill text in the output of a call that failed afterwards",
-        "skill eval result normalization skill read detection skill text in tool output reports a baseline whose tool output holds the skill text as an unexpected read"
+        "skill eval result normalization skill read detection skill text in tool output reports a baseline whose tool output holds the skill text as an unexpected read",
+        "skill eval result normalization skill read detection skill text in tool output indexes only the lines a run could not have been given",
+        "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk does not walk a symlink back to an ancestor again",
+        "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk indexes SKILL.md and the Markdown under references and assets only",
+        "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk takes out a line held by a sibling skill that is itself a symlink",
+        "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk takes out a line held by a sibling skill whose subdirectory is a symlink",
+        "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk takes out a line the fixture holds under a dot-directory",
+        "skill eval result normalization skill read detection skill text in tool output loading the skill text from disk takes out a line the prompt holds"
       ]
     },
     {

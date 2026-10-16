@@ -9,7 +9,7 @@
     "scripts/gates/docs/check-agents-md-size.mutations.json": 1.6,
     "scripts/gates/docs/check-doc-refs.mutations.json": 2.0,
     "scripts/gates/docs/check-doc-tiers.mutations.json": 1.0,
-    "scripts/gates/packaging/check-identical-copies.mutations.json": 0.5,
+    "scripts/gates/packaging/copies/check-identical-copies.mutations.json": 0.5,
     "scripts/gates/code/check-js-extensions.mutations.json": 1.0,
     "scripts/gates/code/check-jsdoc-types.mutations.json": 6.7,
     "scripts/gates/code/check-skill-lint-directives.mutations.json": 4.8,
@@ -62,6 +62,7 @@
     "scripts/skills/parity-suite/evidence/table-upsert.mutations.json": 2.3,
     "scripts/skills/parity-suite/visual/trait-capture.mutations.json": 0.6,
     "scripts/skills/parity-suite/visual/trait-compare.mutations.json": 1.2,
+    "scripts/skills/pnpm-audit-alert-issue/normalize-pnpm-audit.mutations.json": 0.8,
     "scripts/skills/replace-strategy/append-only-check.mutations.json": 7.5,
     "scripts/skills/replace-strategy/asset-delivery-check.mutations.json": 0.9,
     "scripts/skills/replace-strategy/pending-decisions-check.mutations.json": 0.6,
@@ -75,9 +76,14 @@
     "scripts/skills/agent-usage/dedupe.mutations.json": 0.6,
     "scripts/hooks/response-word-check.mutations.json": 1.4,
     "scripts/lib/text/textlint-word-rule.mutations.json": 0.9,
-    "scripts/gates/packaging/check-rule-symlinks.mutations.json": 0.8,
+    "scripts/gates/packaging/copies/check-rule-symlinks.mutations.json": 0.8,
     "scripts/lib/text/frontmatter.mutations.json": 0.7,
     "scripts/lib/text/yaml-as.mutations.json": 0.7,
-    "scripts/hooks/stop-marker.mutations.json": 0.6
+    "scripts/hooks/stop-marker.mutations.json": 0.6,
+    "scripts/coverage/check-coverage.mutations.json": 0.7,
+    "scripts/coverage/run-coverage.mutations.json": 6,
+    "scripts/coverage/shell-coverage.mutations.json": 0.8,
+    "scripts/skills/kaizen/kaizen-schedule-report.mutations.json": 2.9,
+    "scripts/skills/parity-component/css-rules-capture.mutations.json": 0.7
   }
 }

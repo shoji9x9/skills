@@ -24,7 +24,8 @@
       "replace": "  if (false) {",
       "occurrences": 1,
       "expect_failing": [
-        "actionRuns 上限に達した期間は半分に分けて再取得し、実行中の run は今の時刻までの open にする"
+        "actionRuns 上限に達した期間は半分に分けて再取得し、実行中の run は今の時刻までの open にする",
+        "collectGitHub の CI 1 時間の実行が上限を超えたら、その期間を失敗にする"
       ]
     },
     {
@@ -89,7 +90,8 @@
       "replace": "  return name;",
       "occurrences": 1,
       "expect_failing": [
-        "timelineRows login の [bot] と大文字を除いて比べ、REST の Copilot を GraphQL の login にそろえる"
+        "timelineRows login の [bot] と大文字を除いて比べ、REST の Copilot を GraphQL の login にそろえる",
+        "collectGitHub の timeline 100 件を超える timeline は REST で取り、REST の Copilot と [bot]・大文字の付いた login を同じレビュアーとして扱う"
       ]
     },
     {
@@ -110,7 +112,10 @@
       "find": "      attempt(`artifacts#${id}`, () => {",
       "replace": "      (() => {",
       "occurrences": 1,
-      "expect_failing": ["collectGitHub artifact が 1 件読めなくても、残りの artifact は取得する"]
+      "expect_failing": [
+        "collectGitHub artifact が 1 件読めなくても、残りの artifact は取得する",
+        "collectGitHub の artifact meta.json の無い artifact は tool を unknown・PR を 0 にし、workflow_run が無くても行を作る"
+      ]
     },
     {
       "id": "review-check-as-ci",

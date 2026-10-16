@@ -18,7 +18,8 @@
         "領域の外が 1 画素でも変われば、その数を出して fail",
         "margin で領域を広げる（広げた分の変化は外に数えない）",
         "複数の領域は和集合で扱う",
-        "領域の外は隠れた RGB の違い（両側とも透明）も差にする"
+        "領域の外は隠れた RGB の違い（両側とも透明）も差にする",
+        "CLI: fail の組があれば exit 1 で、--out には記録を書き、stdout には組ごとの判定と理由を出す"
       ]
     },
     {
@@ -64,7 +65,11 @@
       "find": "    const e = expandRegion(r, margin, width, height);",
       "replace": "    const e = expandRegion(r, 0, width, height);",
       "occurrences": 1,
-      "expect_failing": ["margin で領域を広げる（広げた分の変化は外に数えない）"]
+      "expect_failing": [
+        "margin で領域を広げる（広げた分の変化は外に数えない）",
+        "CLI: --pairs の領域は配列とオブジェクトのどちらでも読み、組ごとの margin を使う",
+        "CLI: 全組 pass なら exit 0 で、記録を stdout に出す（広げる前の領域と広げた後の領域を両方残す）"
+      ]
     },
     {
       "id": "empty-regions",

@@ -7,7 +7,7 @@
 // レビューでも実行でも気づけない（実例: `review-tool.md` の片方にだけ Codex の実測挙動が追記されていた）。
 //
 // 判定規則:
-// - 組は `scripts/gates/packaging/identical-copies.json` の宣言から作る（観測した「今一致しているもの」からは作らない。
+// - 組は `scripts/gates/packaging/copies/identical-copies.json` の宣言から作る（観測した「今一致しているもの」からは作らない。
 //   一致が崩れた組は観測では見つからない）。各組は 2 件以上のファイルと理由（`reason`）を持つ。
 // - 一致はバイト単位の完全一致。節単位の一致は採らない。宣言した組は冒頭もスキル固有の節も持たず
 //   全文が姉妹スキルで共通（本文は「このスキル」「姉妹スキル（A / B）」と書いて両方から読める形）なので、
@@ -24,11 +24,11 @@
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { errorMessage } from "../../lib/errors.ts";
-import { isRecord } from "../../lib/guards.ts";
-import { isArray } from "../../lib/is-array.ts";
+import { errorMessage } from "../../../lib/errors.ts";
+import { isRecord } from "../../../lib/guards.ts";
+import { isArray } from "../../../lib/is-array.ts";
 
-export const DECLARATION_PATH = "scripts/gates/packaging/identical-copies.json";
+export const DECLARATION_PATH = "scripts/gates/packaging/copies/identical-copies.json";
 
 type CopyGroup = { files: string[]; reason: string; region?: string };
 

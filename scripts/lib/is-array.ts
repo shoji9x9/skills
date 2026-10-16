@@ -1,7 +1,7 @@
 // 入力の型を保って配列に絞る型ガード。`Array.isArray` の代わりに使う（`oxlint.config.ts` が直接の呼び出しを失敗にする）。
 // 印の間は、利用者のプロジェクトへコピーする雛形（`skills/*/assets/*.template.ts`）も同じ内容で持つ。
 // 配布スキルの `.mjs` は、同じ型を JSDoc で書いた `scripts/lib/is-array.mjs` を各スキルに持つ。
-// 雛形との一致と、`.mjs` のコピーどうしの一致は、`scripts/gates/packaging/identical-copies.json` の組で確かめる。
+// 雛形との一致と、`.mjs` のコピーどうしの一致は、`scripts/gates/packaging/copies/identical-copies.json` の組で確かめる。
 // この `.ts` と `.mjs` は書き方が違うので、文字では比べない。絞った型が同じことは、`is-array.test.ts` が両方の
 // 実装に同じ型の期待を当てて確かめる。
 

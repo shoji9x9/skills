@@ -14,7 +14,8 @@
       "occurrences": 1,
       "expect_failing": [
         "続けさせた後で印が在れば、通す",
-        "続けさせた後で印の名前にリンク先の無いシンボリックリンクが在れば、印が在るとみなして通す"
+        "続けさせた後で印の名前にリンク先の無いシンボリックリンクが在れば、印が在るとみなして通す",
+        "止めた印は、同じ Hook と同じ session_id にだけ当たる"
       ]
     },
     {
@@ -24,7 +25,10 @@
       "find": "return !marker || lstatSync(marker, { throwIfNoEntry: false }) !== undefined;",
       "replace": "return true;",
       "occurrences": 1,
-      "expect_failing": ["続けさせた後で印が無ければ、確かめさせる"]
+      "expect_failing": [
+        "続けさせた後で印が無ければ、確かめさせる",
+        "止めた印は、同じ Hook と同じ session_id にだけ当たる"
+      ]
     },
     {
       "id": "SM-FOLLOWS-LINK-ON-READ",
@@ -67,7 +71,8 @@
       "occurrences": 1,
       "expect_failing": [
         "止めたら印を残す",
-        "印の名前にシンボリックリンクが先に在れば、リンク先を書かずに、残せないことを示す"
+        "印の名前にシンボリックリンクが先に在れば、リンク先を書かずに、残せないことを示す",
+        "止めた印は、同じ Hook と同じ session_id にだけ当たる"
       ]
     },
     {

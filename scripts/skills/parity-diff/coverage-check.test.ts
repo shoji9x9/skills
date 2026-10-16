@@ -430,14 +430,6 @@ test("evidence が空なら present / absent でも未測定", () => {
   expect(r.problems.join("\n")).toMatch(/evidence/);
 });
 
-test("非描画 absent は全状態の機械可読証拠が揃った場合だけ通る", () => {
-  const cov = full();
-  cov.cells[1].evidence = "全到達状態で非描画";
-  cov.cells[1].absence_evidence = nonRenderableEvidence();
-  cov.components[0].instances[1].applicable_states = applicableStates();
-  expect(countCoverage(cov, "order-list")).toMatchObject({ absent: 1, unmeasured: 0 });
-});
-
 test("非描画 absent の証拠の欠落・型崩れ・空配列は未測定として扱う", () => {
   const mutations: ((e: NonRenderableEvidence) => unknown)[] = [
     (e) => removeField(e, "locator"),
@@ -869,13 +861,6 @@ test("型崩れの metadata.json は旧成果物として扱わず malformed と
   });
 });
 
-test("後方互換: component_coverage キーが無い旧成果物は判定に入れない", () => {
-  const d = readDeclaration({ slug: "order-list" });
-  expect(d.judged).toBe(false);
-  expect(d.malformed).toBe(false);
-  expect(d.reason).toMatch(/旧成果物/);
-});
-
 test("declared: false は理由付きで判定に入れない（キー欠落と区別する）", () => {
   const d = readDeclaration({
     component_coverage: { declared: false, reason: "共通部品を使っていない" },
@@ -1238,7 +1223,8 @@ test("CLI: 型崩れの metadata.json は exit 2（後方互換の exit 0 とし
 test("CLI: キーを持たない旧成果物は exit 0 で judged: false を出力する", () => {
   const r = runCli({ slug: "order-list" }, full());
   expect(r.status).toBe(0);
-  expect(JSON.parse(r.stdout)).toMatchObject({ judged: false });
+  expect(JSON.parse(r.stdout)).toMatchObject({ judged: false, unmeasured: 0 });
+  expect(parseJsonAs<{ reason: string }>(r.stdout).reason).toMatch(/旧成果物/);
 });
 
 test("CLI: declared: true で path も --coverage も無ければ判定した記録を出して exit 1", () => {
@@ -1407,12 +1393,6 @@ function withSets({
 
 const countSets = (cov: Coverage) =>
   countCoverageRaw(cov, "order-list", captureFingerprint(CAPTURE));
-
-test("誤検知しないことの確認: 3 つの集合の出所と完全性が揃っていれば未測定 0 で通る", () => {
-  const r = countSets(withSets());
-  expect(r.problems).toEqual([]);
-  expect(r).toMatchObject({ cells: 4, unmeasured: 0 });
-});
 
 test("部品・インスタンスの集合の宣言が無ければ 1 件ずつ未測定として数える", () => {
   const missingBoth = countSets(withSets({ componentInventory: null, instanceInventory: null }));

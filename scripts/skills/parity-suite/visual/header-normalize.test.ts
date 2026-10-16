@@ -228,12 +228,6 @@ test("一覧: status: measured の空の headers は比べるヘッダーが無�
   expect([...list(doc([]))]).toEqual([]);
 });
 
-test("一覧: 未測定（status: unmeasured と理由だけ）なら NoHeaderListError（推測で一覧を作らない）", () => {
-  expect(() =>
-    list({ schema_version: 1, status: "unmeasured", unmeasured_reason: "現行へ到達できなかった" }),
-  ).toThrow(NoHeaderListError);
-});
-
 // 落とす入力（形の誤り）。一覧が無い扱いにも、比べる・比べないのどちらとしても警告なしに扱わない。
 test.each([
   ["JSON として読めない", "{"],

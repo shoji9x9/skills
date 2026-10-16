@@ -33,18 +33,6 @@ const borderDiff = { name: "heading", kind: "property", prop: "border-top-style"
 
 const declared = (match: Record<string, unknown>, item = PROSE) => ({ item, match });
 
-test("理由を添えた散文の宣言は、match があれば当たる", () => {
-  const registry = {
-    may_change: [declared({ element: "heading", property: "border-*-style" })],
-  };
-  expect(matchIntentional(borderDiff, registry, ctx)).toEqual({
-    group: "may_change",
-    entry: PROSE,
-    index: 0,
-    by: "match",
-  });
-});
-
 test("match の無い散文の宣言は当たらない（修正前の再現。文全体の包含でしか照合されない）", () => {
   expect(matchIntentional(borderDiff, { may_change: [PROSE] }, ctx)).toBeNull();
   expect(matchIntentional(borderDiff, { may_change: [{ item: PROSE }] }, ctx)).toBeNull();

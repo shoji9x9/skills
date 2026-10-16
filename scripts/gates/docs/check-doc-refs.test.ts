@@ -23,7 +23,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { CONFIG_PATH, RULES, anchorsOf, checkDocRefs, hasAnchor, main } from "./check-doc-refs.ts";
+import { CONFIG_PATH, RULES, checkDocRefs, hasAnchor, main } from "./check-doc-refs.ts";
 import { KNOWN_RULES, PENDING_PATH } from "../../lib/doc-scan.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
@@ -76,29 +76,32 @@ const found = (root: string) =>
 
 // ---- 節名の一致 ----
 
-test("anchorsOf: 見出し・番号を除いた見出し・太字・表のセルを集め、フェンスの中は集めない", () => {
-  const names = anchorsOf(
-    "## 7. 定期実行\n- **a は「b」に付ける。** c\n| 列 | `値` |\n```\n## フェンス\n```\n",
-  );
-  expect([...names].sort()).toEqual(
-    ["7. 定期実行", "a は「b」に付ける", "値", "列", "定期実行"].sort(),
-  );
-});
-
-test("anchorsOf: 英字の付いた番号（6a.）も除いた見出しを集める", () => {
-  expect(anchorsOf("## 6a. 判断待ち（x）\n").has("判断待ち（x）")).toBe(true);
-});
-
+// hasAnchor の戻り値は、節名の参照を違反として報告しないか（true）・報告するか（false）の判定と同じ意味を持つ。
 test.each([
   ["完全一致", ["手順"], "手順", true],
   ["末尾の括弧書き", ["手順（補足）"], "手順", true],
   ["半角の括弧書き", ["手順 (補足)"], "手順", true],
+  ["括弧の前に空白の無い半角の括弧書き", ["手順(補足)"], "手順", true],
   ["バッククォートの有無（集めた名前は正規化済み）", ["x の形"], "`x` の形", true],
   ["『』と「」", ["a は「b」"], "a は『b』", true],
   ["前方一致だが括弧でない", ["手順書"], "手順", false],
   ["一部だけ", ["記述先（適用先）の選び方"], "記述先の選び方", false],
 ])("hasAnchor: %s", (_, names, name, want) => {
   expect(hasAnchor(new Set(names), name)).toBe(want);
+});
+
+// 参照先の文書（docs/target.md）の書き方と、参照に書いた節名の組。節名を集める規則を、checkDocRefs の結果で確かめる。
+test.each([
+  ["番号付きの見出しを番号ごと書いた形", "## 7. 定期実行\n", "7. 定期実行", true],
+  ["英字の付いた番号を除いた見出し", "## 6a. 判断待ち\n", "判断待ち", true],
+  ["バッククォートで囲んだ表のセル", "| 列 | `値` |\n| --- | --- |\n", "値", true],
+  ["フェンスの中の見出し", "```\n## フェンス\n```\n", "フェンス", false],
+])("節名の照合: %s", (_, target, name, ok) => {
+  const root = makeRepo({
+    "docs/target.md": `# T\n\n${target}`,
+    "docs/a.md": `\`target.md\`「${name}」\n`,
+  });
+  expect(found(root)).toEqual(ok ? [] : [`docs/a.md:1 section target.md「${name}」`]);
 });
 
 // ---- リンク ----

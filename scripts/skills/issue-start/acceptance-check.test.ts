@@ -25,6 +25,7 @@ type CheckOutput = {
   error?: string;
   counts?: { checklist: number };
   checklist_items?: string[];
+  structural?: boolean;
   findings?: { code: string }[];
 };
 
@@ -466,4 +467,115 @@ test("チェックを付けて書き戻したときの末尾の改行では表�
   }
   // 中身が変われば変わる（検出できることの確認）。
   expect(fingerprintOf("- [ ] a", [])).not.toBe(fingerprintOf("- [ ] b", []));
+});
+
+// 行ごとの形の不備。どれも 1 行だけを差し替え、ほかの行は条件を満たしたままにする。
+// 1 件でも読めない行があれば exit 1 にし、その行を合格の側に数えない。
+test.each<[string, (row: Record<string, unknown>) => unknown, string]>([
+  ["行がオブジェクトでない", () => "検索条件を URL で持つ", "row-malformed"],
+  ["criterion が空", (row) => ({ ...row, criterion: "" }), "criterion-missing"],
+  ["source が語彙外", (row) => ({ ...row, source: "chat" }), "source-invalid"],
+  ["散文の行に quote が無い", (row) => ({ ...row, source: "body", quote: "" }), "quote-missing"],
+  ["status が語彙外", (row) => ({ ...row, status: "done" }), "status-invalid"],
+  ["met の strength が語彙外", (row) => ({ ...row, strength: "guessed" }), "strength-invalid"],
+  [
+    "pending-decision に decision_ref が無い",
+    (row) => ({ ...row, status: "pending-decision" }),
+    "decision-ref-missing",
+  ],
+])("行の形の不備は exit 1 で名指しする: %s", (_label, replace, expected) => {
+  const items: unknown[] = table().items.map((row, n) => (n === 1 ? replace(row) : row));
+  const r = run({ tableData: { ...table(), items } });
+  expect(r.code).toBe(1);
+  expect(r.codes).toContain(expected);
+});
+
+test("表にコミットが無ければ、根拠を確かめた時点が分からないので落とす", () => {
+  const r = run({ tableData: { ...table(), commit: "" } });
+  expect(r.code).toBe(1);
+  expect(r.codes).toContain("commit-missing");
+});
+
+// 根拠 1 件の形の不備。met の行の根拠をこの 1 件だけにする。
+test.each<[string, unknown]>([
+  ["根拠がオブジェクトでない", "src/app.js:1"],
+  ["command が空", { kind: "command", command: "", result: "exit 0" }],
+  ["result が空", { kind: "command", command: "pnpm test", result: "" }],
+  ["ref が空", { kind: "file", ref: "" }],
+  ["kind が語彙外", { kind: "url", ref: "https://example.com" }],
+  ["行番号の無い参照", { kind: "file", ref: "src/app.js" }],
+  ["行番号が 0", { kind: "file", ref: "src/app.js:0" }],
+  ["範囲の終わりが始まりより前", { kind: "file", ref: "src/app.js:3-2" }],
+  ["ディレクトリを指す参照", { kind: "file", ref: "src:1" }],
+])("根拠の形の不備は evidence-invalid として落とす: %s", (_label, evidence) => {
+  const items = table().items.map((row, n) => (n === 1 ? { ...row, evidence: [evidence] } : row));
+  const r = run({ tableData: table({ items }) });
+  expect(r.code).toBe(1);
+  expect(r.codes).toContain("evidence-invalid");
+});
+
+test("誤検知しないことの確認: 絶対パスの ファイル:行 と行の範囲の根拠は通る", () => {
+  const absolute = join(makeTempDir("acceptance-check-abs-"), "ref.txt");
+  writeFileSync(absolute, "1\n2\n3\n");
+  const items = table().items.map((row, n) =>
+    n === 1
+      ? {
+          ...row,
+          evidence: [
+            { kind: "file", ref: `${absolute}:2-3` },
+            { kind: "file", ref: "src/app.js:1-3" },
+          ],
+        }
+      : row,
+  );
+  const r = run({ tableData: table({ items }) });
+  expect(r.codes).toEqual([]);
+  expect(r.code).toBe(0);
+});
+
+test("comments を持たない Issue はコメント無しとして読み、コメントからの行は引用が見つからない", () => {
+  const { comments: _omitted, ...withoutComments } = issue({ comments: [] });
+  const items = table().items.slice(0, 3);
+  const data = { ...withoutComments, comments: [] };
+  const fingerprinted = table({ issueData: data, items });
+  // comments が無い形と空の配列は同じ指紋になる（stale-issue にならない）。
+  expect(run({ issueData: withoutComments, tableData: fingerprinted }).code).toBe(0);
+  const withComment = table({ issueData: data, items: table().items });
+  expect(run({ issueData: withoutComments, tableData: withComment }).codes).toEqual([
+    "quote-not-found",
+  ]);
+});
+
+// 判定の前提が読めない入力は、未充足（exit 1）ではなく入力の誤り（exit 2）として止める。
+test.each<[string, { issueData?: Record<string, unknown>; tableData?: unknown }]>([
+  ["comments が配列でない", { issueData: { ...issue(), comments: "検査の対象を広げる" } }],
+  ["コメントに本文の文字列が無い", { issueData: { ...issue(), comments: [{ body: 1 }] } }],
+  ["表がオブジェクトでない", { tableData: [] }],
+  ["表に issue が無い", { tableData: { ...table(), issue: undefined } }],
+  ["表の items が配列でない", { tableData: { ...table(), items: {} } }],
+])("読めない入力は exit 2: %s", (_label, input) => {
+  const r = run(input);
+  expect(r.code).toBe(2);
+  expect(r.json?.structural).toBe(true);
+});
+
+test.each<[string, string[]]>([
+  ["未知の引数", ["--nope", "x"]],
+  ["値の無い引数", ["--head"]],
+  ["次の引数を値として読まない", ["--root", "--head"]],
+  ["同じ引数の重複", ["--root", ".", "--root", "."]],
+])("引数の誤りは exit 2 で使い方を出す: %s", (_label, extra) => {
+  const r = run({ extra });
+  expect(r.code).toBe(2);
+  expect(r.json).toBeNull();
+  expect(r.stderr).toContain("usage:");
+});
+
+test("JSON として読めない入力ファイルと、pending_decisions の無い --decisions は exit 2", () => {
+  const broken = run({ extra: ["--decisions", "src/app.js"] });
+  expect(broken.code).toBe(2);
+  expect(broken.stderr).toContain("を読めない");
+  const noList = run({ decisions: { decisions: [] } });
+  expect(noList.code).toBe(2);
+  expect(noList.stderr).toContain("pending_decisions");
 });

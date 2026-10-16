@@ -8,22 +8,28 @@
 //   Codex                      最初の session_meta だけを使う（子のファイルは親のコピーを持つ）／token_usage_record と token_count の片方だけ。
 //   timeline                   応答の途中の指示／自動の再開（外部待ち）／人を待った区間での区切り／完了の無いログ（推定）／まだ完了していない run。
 
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import {
-  addClaudeLog,
   classifyUserEntry,
   parseClaudeSession,
 } from "../../../skills/agent-usage/scripts/lib/sources/claude-log.mjs";
 import {
   codexTokens,
   parseCodexLog,
+  parseCodexSession,
 } from "../../../skills/agent-usage/scripts/lib/sources/codex-log.mjs";
 import { zeroTokens } from "../../../skills/agent-usage/scripts/lib/pricing.mjs";
 import { emptySummary, issueOf } from "../../../skills/agent-usage/scripts/lib/sources/session.mjs";
+import { buildRuns } from "../../../skills/agent-usage/scripts/lib/sources/timeline.mjs";
 import {
-  buildRuns,
-  inferTurnEnds,
-} from "../../../skills/agent-usage/scripts/lib/sources/timeline.mjs";
+  discoverClaude,
+  discoverCodex,
+  encodeProjectPath,
+} from "../../../skills/agent-usage/scripts/lib/sources/discover.mjs";
+import { isInside } from "../../../skills/agent-usage/scripts/lib/repo.mjs";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 const T = (min: number) => `2026-10-01T00:${String(min).padStart(2, "0")}:00.000Z`;
 // 60 分以上は T の書式に収まらないので、0 分からの経過で求める
@@ -43,6 +49,23 @@ const assistant = (min: number, id: string, usage: object, content: object[] = [
 });
 const turnEnd = (min: number) => ({ type: "system", subtype: "turn_duration", timestamp: T(min) });
 
+/** ログをファイルに書き、他のモジュールが使う parseClaudeSession で読む。sub はサブエージェントのファイル。 */
+function parseClaude(main: string | object[] | null, sub: object[][] = []) {
+  const dir = makeTempDir("agent-usage-claude-log-");
+  let mainPath: string | null = null;
+  if (main !== null) {
+    mainPath = join(dir, "s1.jsonl");
+    writeFileSync(mainPath, typeof main === "string" ? main : jsonl(main));
+  }
+  const subPaths = sub.map((rows, i) => {
+    const path = join(dir, `agent-${i}.jsonl`);
+    writeFileSync(path, jsonl(rows));
+    return path;
+  });
+  return parseClaudeSession("s1", mainPath, subPaths);
+}
+
+// classifyUserEntry の戻り値は、user の行が prompt の行（human）になるか、自動の再開（auto）か、どちらでもない（other）かの判定と同じ意味を持つ。
 describe("classifyUserEntry", () => {
   test.each([
     ["origin が human", { origin: { kind: "human" }, message: { content: "x" } }, "human"],
@@ -78,31 +101,26 @@ describe("classifyUserEntry", () => {
 
 describe("Claude Code のログ", () => {
   test("同じ message.id の複数行は欄ごとの最大を取り、<synthetic> は数えない", () => {
-    const s = emptySummary("claude-code", "s1");
-    addClaudeLog(
-      s,
-      jsonl([
-        assistant(1, "m1", {
-          input_tokens: 2,
-          output_tokens: 10,
-          cache_read_input_tokens: 100,
-          cache_creation: { ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 50 },
-        }),
-        assistant(1, "m1", {
-          input_tokens: 2,
-          output_tokens: 300,
-          cache_read_input_tokens: 100,
-          cache_creation: { ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 50 },
-          output_tokens_details: { thinking_tokens: 40 },
-        }),
-        {
-          type: "assistant",
-          timestamp: T(2),
-          message: { id: "m2", model: "<synthetic>", usage: { output_tokens: 9 } },
-        },
-      ]),
-      true,
-    );
+    const s = parseClaude([
+      assistant(1, "m1", {
+        input_tokens: 2,
+        output_tokens: 10,
+        cache_read_input_tokens: 100,
+        cache_creation: { ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 50 },
+      }),
+      assistant(1, "m1", {
+        input_tokens: 2,
+        output_tokens: 300,
+        cache_read_input_tokens: 100,
+        cache_creation: { ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 50 },
+        output_tokens_details: { thinking_tokens: 40 },
+      }),
+      {
+        type: "assistant",
+        timestamp: T(2),
+        message: { id: "m2", model: "<synthetic>", usage: { output_tokens: 9 } },
+      },
+    ]);
     expect(s.messages).toHaveLength(1);
     expect(s.messages[0].tokens).toEqual({
       input: 2,
@@ -115,29 +133,23 @@ describe("Claude Code のログ", () => {
   });
 
   test("人の指示・自動の再開・応答の完了・予約した再開を時刻で記録する", () => {
-    const s = emptySummary("claude-code", "s1");
-    addClaudeLog(
-      s,
-      jsonl([
-        human(0),
-        turnEnd(5),
-        {
-          type: "user",
-          timestamp: T(7),
-          origin: { kind: "task-notification" },
-          message: { content: "<task-notification>" },
-        },
-        { type: "system", subtype: "scheduled_task_fire", timestamp: T(9) },
-      ]),
-      true,
-    );
+    const s = parseClaude([
+      human(0),
+      turnEnd(5),
+      {
+        type: "user",
+        timestamp: T(7),
+        origin: { kind: "task-notification" },
+        message: { content: "<task-notification>" },
+      },
+      { type: "system", subtype: "scheduled_task_fire", timestamp: T(9) },
+    ]);
     expect(s.prompts).toEqual([ms(0)]);
     expect(s.turnEnds).toEqual([ms(5)]);
     expect(s.autoResumes).toEqual([ms(7), ms(9)]);
   });
 
   test("AskUserQuestion と、人が判断した権限は人を待った区間にし、設定による許可は区間にしない", () => {
-    const s = emptySummary("claude-code", "s1");
     const toolUse = (min: number, id: string, name: string) =>
       assistant(min, `m${id}`, { output_tokens: 1 }, [
         { type: "tool_use", id, name, input: { command: "ls" } },
@@ -148,20 +160,16 @@ describe("Claude Code のログ", () => {
       ...(source ? { permissionDecision: { decision: "accept", source } } : {}),
       message: { content: [{ type: "tool_result", tool_use_id: id }] },
     });
-    addClaudeLog(
-      s,
-      jsonl([
-        toolUse(1, "a", "AskUserQuestion"),
-        result(4, "a", null),
-        toolUse(5, "b", "Bash"),
-        result(9, "b", "user_temporary"),
-        toolUse(10, "c", "Bash"),
-        result(11, "c", "config"),
-        toolUse(12, "d", "Bash"),
-        result(13, "d", "user_reject"),
-      ]),
-      true,
-    );
+    const s = parseClaude([
+      toolUse(1, "a", "AskUserQuestion"),
+      result(4, "a", null),
+      toolUse(5, "b", "Bash"),
+      result(9, "b", "user_temporary"),
+      toolUse(10, "c", "Bash"),
+      result(11, "c", "config"),
+      toolUse(12, "d", "Bash"),
+      result(13, "d", "user_reject"),
+    ]);
     expect(s.humanWaits).toEqual([
       { start: ms(1), end: ms(4), reason: "AskUserQuestion" },
       { start: ms(5), end: ms(9), reason: "permission" },
@@ -171,22 +179,17 @@ describe("Claude Code のログ", () => {
   });
 
   test("cost-state は [1m] を除いたモデル名でまとめ、直前の行の時刻を付ける", () => {
-    const s = emptySummary("claude-code", "s1");
-    addClaudeLog(
-      s,
-      jsonl([
-        human(3),
-        {
-          type: "cost-state",
-          modelUsage: {
-            "claude-opus-5-5[1m]": { inputTokens: 1, outputTokens: 2, costUSD: 1.5 },
-            "claude-opus-5-5": { inputTokens: 1, outputTokens: 2, costUSD: 0.5 },
-            "claude-haiku-4-5-20251001": { outputTokens: 1, costUSD: 0.01 },
-          },
+    const s = parseClaude([
+      human(3),
+      {
+        type: "cost-state",
+        modelUsage: {
+          "claude-opus-5-5[1m]": { inputTokens: 1, outputTokens: 2, costUSD: 1.5 },
+          "claude-opus-5-5": { inputTokens: 1, outputTokens: 2, costUSD: 0.5 },
+          "claude-haiku-4-5-20251001": { outputTokens: 1, costUSD: 0.01 },
         },
-      ]),
-      true,
-    );
+      },
+    ]);
     expect(s.costSnapshots).toHaveLength(1);
     expect(s.costSnapshots[0].ts).toBe(ms(3));
     expect(s.costSnapshots[0].models["claude-opus-5-5"].costUSD).toBe(2);
@@ -194,8 +197,7 @@ describe("Claude Code のログ", () => {
   });
 
   test("利用者が中断した応答（[Request interrupted by user]）は、指示ではなく応答の完了にする", () => {
-    const s = emptySummary("claude-code", "s1");
-    const lines = [
+    const s = parseClaude([
       {
         type: "user",
         timestamp: "2026-10-01T10:00:00.000Z",
@@ -213,8 +215,7 @@ describe("Claude Code のログ", () => {
         origin: { kind: "human" },
         message: { content: "次" },
       },
-    ];
-    addClaudeLog(s, lines.map((l) => JSON.stringify(l)).join("\n"), true);
+    ]);
     expect(s.prompts).toEqual([
       Date.parse("2026-10-01T10:00:00.000Z"),
       Date.parse("2026-10-01T12:05:00.000Z"),
@@ -224,27 +225,30 @@ describe("Claude Code のログ", () => {
   });
 
   test("サブエージェントのファイルは使用量だけを数え、指示や完了を記録しない", () => {
-    const s = emptySummary("claude-code", "s1");
-    addClaudeLog(s, jsonl([human(0), assistant(1, "m1", { output_tokens: 5 }), turnEnd(2)]), false);
-    expect(s.messages).toHaveLength(1);
+    const s = parseClaude([], [[human(0), assistant(1, "m1", { output_tokens: 5 }), turnEnd(2)]]);
+    expect(s.subagent).toBe(false);
+    expect(s.messages.map((m) => m.key)).toEqual(["m1"]);
     expect(s.prompts).toEqual([]);
     expect(s.turnEnds).toEqual([]);
   });
 
   test("JSON として読めない行は数え、残りは読む", () => {
-    const s = emptySummary("claude-code", "s1");
-    addClaudeLog(s, `${JSON.stringify(human(0))}\n{broken\n${JSON.stringify(turnEnd(1))}`, true);
-    expect(s.invalidLines).toBe(1);
+    const s = parseClaude(
+      `${JSON.stringify(human(0))}\n{broken\n[1]\n${JSON.stringify(turnEnd(1))}`,
+    );
+    expect(s.invalidLines).toBe(2);
+    expect(s.prompts).toEqual([ms(0)]);
     expect(s.turnEnds).toEqual([ms(1)]);
   });
 
   test("メインのファイルが無いセッションはサブエージェントとして扱う", () => {
-    expect(parseClaudeSession("s1", null, []).subagent).toBe(true);
+    expect(parseClaude(null).subagent).toBe(true);
   });
 });
 
 describe("Codex のログ", () => {
   test("input からキャッシュの分を引き、output は推論を含めたまま数える", () => {
+    // codexTokens の戻り値は、usage の行の input_tokens・cache_read_tokens・output_tokens・reasoning_tokens になる。
     expect(
       codexTokens({
         input_tokens: 100,
@@ -383,6 +387,80 @@ describe("Codex のログ", () => {
     expect(s.humanWaits).toEqual([{ start: ms(2), end: ms(6), reason: "request_user_input" }]);
   });
 
+  test("ファイルから読み、JSON として読めない行と object でない行を数え、時刻の無い行は飛ばす", () => {
+    const dir = makeTempDir("agent-usage-codex-log-");
+    const path = join(dir, "rollout-x.jsonl");
+    writeFileSync(
+      path,
+      [
+        JSON.stringify(meta("a", "cli")),
+        "{broken",
+        "[1]",
+        JSON.stringify({ type: "event_msg", payload: { type: "user_message" } }),
+        JSON.stringify({ type: "event_msg", timestamp: T(2), payload: { type: "user_message" } }),
+      ].join("\n"),
+    );
+    const s = parseCodexSession(path, "rollout-x");
+    expect(s.sessionId).toBe("a");
+    expect(s.invalidLines).toBe(2);
+    expect(s.prompts).toEqual([ms(2)]);
+  });
+
+  test("turn_id の無い応答は直前の turn のモデルを使い、モデルが分からない応答と response_id の無い応答は数えない", () => {
+    const usage = { input_tokens: 1, output_tokens: 1 };
+    const s = parseCodexLog(
+      jsonl([
+        meta("a", "cli"),
+        { type: "token_usage_record", timestamp: T(1), payload: { response_id: "r0", usage } },
+        { type: "turn_context", timestamp: T(2), payload: { model: "gpt-5.5", cwd: "/repo/sub" } },
+        { type: "token_usage_record", timestamp: T(3), payload: { response_id: "", usage } },
+        { type: "token_usage_record", timestamp: T(4), payload: { response_id: "r1", usage } },
+      ]),
+      "f",
+    );
+    expect(s.messages.map((m) => [m.key, m.model])).toEqual([["r1", "gpt-5.5"]]);
+    expect(s.cwds).toEqual(["/repo", "/repo/sub"]);
+  });
+
+  test("info の無い token_count と、モデルが分かる前の token_count は数えない", () => {
+    const s = parseCodexLog(
+      jsonl([
+        meta("a", "cli"),
+        count(1),
+        ctx(2, "t1", "gpt-5.5"),
+        { type: "event_msg", timestamp: T(3), payload: { type: "token_count" } },
+        count(4),
+      ]),
+      "rollout-x",
+    );
+    expect(s.messages.map((m) => m.key)).toEqual(["rollout-x:5"]);
+  });
+
+  test("custom_tool_call の input をコマンドとして記録し、本文の無い呼び出しは記録しない。custom_tool_call_output で待ちを閉じる", () => {
+    const item = (min: number, payload: object) => ({
+      type: "response_item",
+      timestamp: T(min),
+      payload,
+    });
+    const s = parseCodexLog(
+      jsonl([
+        meta("a", "cli"),
+        item(1, {
+          type: "custom_tool_call",
+          name: "request_user_input",
+          call_id: "c1",
+          input: "q",
+        }),
+        item(2, { type: "function_call", name: "shell" }),
+        item(3, { type: "custom_tool_call_output", output: "no id" }),
+        item(5, { type: "custom_tool_call_output", call_id: "c1", output: "a" }),
+      ]),
+      "f",
+    );
+    expect(s.commands).toEqual([{ ts: ms(1), text: "q" }]);
+    expect(s.humanWaits).toEqual([{ start: ms(1), end: ms(5), reason: "request_user_input" }]);
+  });
+
   test("サブエージェントのセッションは指示と完了を持たない", () => {
     const s = parseCodexLog(
       jsonl([
@@ -392,6 +470,106 @@ describe("Codex のログ", () => {
       "f",
     );
     expect(s.prompts).toEqual([]);
+  });
+});
+
+describe("ログの探索", () => {
+  const sessionMeta = (payload: object) => JSON.stringify({ type: "session_meta", payload });
+  function codexDir() {
+    const home = makeTempDir("agent-usage-codex-home-");
+    const day = join(home, "sessions", "2026", "10", "01");
+    mkdirSync(day, { recursive: true });
+    return { home, day };
+  }
+  const ids = (sources: { id: string }[]) => sources.map((x) => x.id).sort();
+
+  test("Codex: cwd がルートの中にあるか、リモートが一致するログだけを返し、最初の行が session_meta でないログは飛ばす", () => {
+    const { home, day } = codexDir();
+    const write = (name: string, first: string) =>
+      writeFileSync(join(day, name), `${first}\n{"type":"event_msg"}\n`);
+    write("rollout-in.jsonl", sessionMeta({ id: "in", cwd: "/repo/wt" }));
+    write(
+      "rollout-remote.jsonl",
+      sessionMeta({
+        id: "remote",
+        cwd: "/elsewhere",
+        git: { repository_url: "git@github.com:O/R.git" },
+      }),
+    );
+    write(
+      "rollout-out.jsonl",
+      sessionMeta({ id: "out", cwd: "/other", git: { repository_url: "" } }),
+    );
+    write("rollout-noid.jsonl", sessionMeta({ cwd: "/repo" }));
+    write("rollout-broken.jsonl", "{broken");
+    write(
+      "rollout-notmeta.jsonl",
+      JSON.stringify({ type: "event_msg", payload: { cwd: "/repo" } }),
+    );
+    write("rollout-nopayload.jsonl", JSON.stringify({ type: "session_meta", payload: "x" }));
+    writeFileSync(join(day, "notes.txt"), sessionMeta({ id: "txt", cwd: "/repo" }));
+    const found = discoverCodex(["/repo"], "github.com/o/r", { CODEX_HOME: home }, isInside);
+    expect(ids(found)).toEqual(["in", "remote", "rollout-noid"]);
+    expect(found.every((x) => x.agent === "codex" && x.subagents.length === 0)).toBe(true);
+  });
+
+  test("Codex: リモートが分からなければ、URL の無いログをリモートの一致として扱わない", () => {
+    const { home, day } = codexDir();
+    writeFileSync(join(day, "rollout-a.jsonl"), `${sessionMeta({ id: "a", cwd: "/other" })}\n`);
+    expect(discoverCodex(["/repo"], "", { CODEX_HOME: home }, isInside)).toEqual([]);
+  });
+
+  test("Codex: ログのディレクトリが無ければ空を返す", () => {
+    const env = { AGENT_USAGE_CODEX_SESSIONS: join(makeTempDir("agent-usage-none-"), "missing") };
+    expect(discoverCodex(["/repo"], "github.com/o/r", env, isInside)).toEqual([]);
+  });
+
+  test("Codex: 最初の行が読み込みの塊の境目で複数バイトの文字を分けても、文字を壊さずに読む", () => {
+    const { home, day } = codexDir();
+    const prefix = '{"type":"session_meta","payload":{"id":"';
+    // 「あ」（3 バイト）が 65535 バイト目から始まり、64 KiB の塊の境目をまたぐようにする
+    const id = `${"a".repeat(65535 - prefix.length)}あ`;
+    writeFileSync(join(day, "rollout-long.jsonl"), `${prefix}${id}","cwd":"/repo"}}\nnot json\n`);
+    const found = discoverCodex(["/repo"], "", { CODEX_HOME: home }, isInside);
+    expect(found.map((x) => x.id)).toEqual([id]);
+  });
+
+  test("Codex: 改行の無いまま 4 MiB を超える最初の行は読み切らず、そのログを飛ばす", () => {
+    const { home, day } = codexDir();
+    const meta = sessionMeta({ id: "big", cwd: "/repo", pad: "x".repeat(4.5 * 1024 * 1024) });
+    writeFileSync(join(day, "rollout-big.jsonl"), meta);
+    writeFileSync(join(day, "rollout-small.jsonl"), sessionMeta({ id: "small", cwd: "/repo" }));
+    expect(ids(discoverCodex(["/repo"], "", { CODEX_HOME: home }, isInside))).toEqual(["small"]);
+  });
+
+  test("Claude Code: サブエージェントのファイルしか無いセッションは、ディレクトリ名が作業ツリーと一致するときだけ返す", () => {
+    const config = makeTempDir("agent-usage-claude-home-");
+    const projects = join(config, "projects");
+    const exact = join(projects, encodeProjectPath("/repo"));
+    const prefixed = join(projects, encodeProjectPath("/repo-other"));
+    mkdirSync(join(exact, "s-main", "subagents"), { recursive: true });
+    mkdirSync(join(exact, "s-sub", "subagents"), { recursive: true });
+    mkdirSync(join(exact, "s-empty", "subagents"), { recursive: true });
+    mkdirSync(join(prefixed, "s-other", "subagents"), { recursive: true });
+    writeFileSync(join(exact, "s-main.jsonl"), "");
+    writeFileSync(join(exact, "s-main", "subagents", "agent-1.jsonl"), "");
+    writeFileSync(join(exact, "s-sub", "subagents", "agent-2.jsonl"), "");
+    writeFileSync(join(prefixed, "s-other", "subagents", "agent-3.jsonl"), "");
+    writeFileSync(join(projects, "file.jsonl"), "");
+    const found = discoverClaude(["/repo"], { CLAUDE_CONFIG_DIR: config });
+    expect(
+      found
+        .map((x) => [x.id, x.main !== null, x.subagents.length])
+        .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+    ).toEqual([
+      ["s-main", true, 1],
+      ["s-sub", false, 1],
+    ]);
+  });
+
+  test("Claude Code: プロジェクトのディレクトリが無ければ空を返す", () => {
+    const env = { AGENT_USAGE_CLAUDE_PROJECTS: join(makeTempDir("agent-usage-none-"), "missing") };
+    expect(discoverClaude(["/repo"], env)).toEqual([]);
   });
 });
 
@@ -527,7 +705,6 @@ describe("buildRuns", () => {
       messages: [m(1), m(4), m(21), m(23)],
       lastTs: ms(23),
     });
-    expect(inferTurnEnds(s)).toEqual([ms(4), ms(23)]);
     expect(buildRuns(s).map((r) => [r.start, r.end])).toEqual([
       [ms(0), ms(4)],
       [ms(20), ms(23)],

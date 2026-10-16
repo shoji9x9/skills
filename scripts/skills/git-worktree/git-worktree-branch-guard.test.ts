@@ -82,6 +82,7 @@ const SILENT = [
     name: "EnterWorktree の path 指定（既存 worktree に入るだけ）",
     payload: enterWorktree({ path: ".claude/worktrees/x" }),
   },
+  // 次の 2 件は、commit-ish か --detach を外すと NOTIFIED の「commit-ish 省略の DWIM」と同じ入力になる。
   { name: "既存 branch を渡す add", payload: bash("git worktree add /tmp/wt feature/x") },
   { name: "--detach 付きの add", payload: bash("git worktree add --detach /tmp/wt") },
   { name: "worktree list", payload: bash("git worktree list --porcelain") },
@@ -134,16 +135,6 @@ test.each(SILENT)("通知しない: $name", ({ payload }) => {
 
 // 検出できることの確認: 「通知しない」側の検体は、branch を作る形へ 1 か所変えるだけで
 // 検出側へ移る。移らなければ、その検体が通らないのは検出の処理が動いていないからだと分かる。
-test("--detach を外すと同じ add が検出側へ移る", () => {
-  expect(runGuard(bash("git worktree add --detach /tmp/wt")).stdout).toBe("");
-  expect(runGuard(bash("git worktree add /tmp/wt")).stdout).not.toBe("");
-});
-
-test("commit-ish を外すと同じ add が検出側へ移る", () => {
-  expect(runGuard(bash("git worktree add /tmp/wt feature/x")).stdout).toBe("");
-  expect(runGuard(bash("git worktree add /tmp/wt")).stdout).not.toBe("");
-});
-
 test("束ねから d を外すと同じ add が検出側へ移る", () => {
   expect(runGuard(bash("git worktree add -df /tmp/wt")).stdout).toBe("");
   expect(runGuard(bash("git worktree add -f /tmp/wt")).stdout).not.toBe("");

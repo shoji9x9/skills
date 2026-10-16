@@ -15,7 +15,6 @@
       "replace": "      if (false) {\n        if (\"invalid\" in match) continue;",
       "occurrences": 1,
       "expect_failing": [
-        "理由を添えた散文の宣言は、match があれば当たる",
         "match があるときは item の文面では照合しない（別要素の差分を吸収しない）",
         "element は論理名に対する完全一致・glob・幾何差分の対の両側で当たる",
         "property は完全一致か glob で当たり、別のプロパティには当たらない",

@@ -17,8 +17,8 @@ import {
   normalizeSkillFrontmatter,
   sameNormalizedFrontmatter,
   splitFrontmatter,
-} from "../../lib/text/frontmatter.ts";
-import { errorMessage, isErrnoException } from "../../lib/errors.ts";
+} from "../../../lib/text/frontmatter.ts";
+import { errorMessage, isErrnoException } from "../../../lib/errors.ts";
 
 const SRC_ROOT = "skills";
 const INSTALLED_ROOT = ".agents/skills";
