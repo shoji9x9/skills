@@ -43,13 +43,18 @@ issue-batch の #631 の作業で、worktree に入った後の Bash 呼び出�
 2026-10-16、#655 の作業（issue-start から git-worktree enter）で、worktree に入った後の Bash の呼び出しが 4 回拒否された。
 拒否された形は次のとおりである。
 
-- `git rev-parse`・`cp`・`mise trust`・`pnpm install`・`git log` を `;` でつないだ準備の処理（`names git in a form too complex to verify`）
-- handlebars を `pnpm update` で上げ、`pnpm audit` の結果を確かめる処理。変数を引数に使う `node` と `&&` を含む（`runs node with a value computed at runtime`）
+- worktree に入った直後の準備の処理。`cd` と `git rev-parse` を `&&` でつないだ。
+  続けて `for` ループ（`cp`）・`git status`・`mise trust`・`pnpm install`・`git fetch`・コマンド置換の `$(git rev-list ...)`・`git log` を `;` でつないだ。
+  拒否のメッセージは `names git in a form too complex to verify` である
+- handlebars を `pnpm update` で上げ、`pnpm audit` の結果を確かめる処理。
+  `node -e '...' $S/findings-after.json` のように、`-e` のスクリプトと変数の引数を並べた `node` を含む。
+  拒否のメッセージは `runs node with a value computed at runtime (the variable S) (a computed argument goes after the script or --)` である
 - `bash <絶対パス>/kaizen-kedb-match.sh "worktree" "git" "Write"; echo rc=$?; cat <ファイル>`（`names git in a form too complex to verify`）
 - `bash <絶対パス>/kaizen-kedb-match.sh "worktree" "heredoc"; echo rc=$?`（`runs bash inside a construct too complex to verify`）
 
 どれも、単独の呼び出しに分けるか、Write ツールでスクリプトにして `bash <絶対パス>` で実行する形に直して通した。
-この学びはセッション開始時に注入されていたが、最初の 2 回は書き方を変えなかった。
+この学びはセッション開始時に注入されていたが、worktree に入った最初の呼び出しから、この形を書いた。
+1 回目と 2 回目は 19 秒しか離れておらず、拒否の理由も違う（2 回目は `git` の語ではなく `node` の引数）。1 回目のメッセージを読んでも、2 回目の形は避けられなかった。
 2 回目の後、handlebars を上げて確かめる処理はスクリプトに直した。それでも、後の kaizen の照合では、同じ形の複合コマンドを再び書いて 2 回拒否された。
 これで、#631・#616・#655 の 3 つのセッションで、worktree に入った後の複合コマンドが拒否されている。
 文書の注入では書き方が変わらないことの裏付けであり、「## 提案」の PreToolUse の Hook を先に適用する根拠を強める。
@@ -60,7 +65,9 @@ Hook の条件は、`;`・`&&` と `node` や `bash` の起動の組まで広げ
 ## 根本原因
 
 1. なぜ拒否されたか → 隔離セッションのガードは字面で判定し、本文・引数・パスに `git` を含む複合コマンドや heredoc を拒否する。
-   `git` の語を含まなくても、実行時に決まる値を引数にした `node` や、複合コマンドの中の `bash` の起動は、git を実行しないことを示せないとして拒否する（#655 の 2 回目と 4 回目）。
+   `git` の語を含まなくても、git を実行しないことを示せない形は拒否する（#655 の 2 回目と 4 回目）。
+   `node` では、`-e` のスクリプトと変数の引数を並べると、どのオペランドがプログラムかを決められないとして拒否し、変数の引数をスクリプトの後か `--` の後に置くよう案内する。
+   複合コマンドの中の `bash` の起動も、渡すシェルの本文が git を実行しないことを示せないとして拒否する。
 2. なぜ同じ形を書いたか → 適用先の `isolation.md` は worktree に入る時点で読む文書で、コマンドを書く時点（実装・検証の途中）には参照されない。
 3. なぜ参照されないか → issue-batch・issue-start の実装の手順に、worktree の中では検証や編集のスクリプトを最初から Write ツールでファイルにする、という書き方の取り決めが無く、文書の 1 か所に頼っている ← 根本原因
 
@@ -71,7 +78,7 @@ worktree の隔離セッションでは、heredoc・複合コマンド・`git` �
 - 反映先の候補: `issue-batch` の `references/orchestration.md`「issue-start への handoff」と `issue-start` の worktree の項に、この書き方を 1 行で置く。
   原本は `git-worktree` の `isolation.md` のまま参照する。
 - 決定論的な対策の候補: PreToolUse の Hook で、worktree のセッションの Bash の本文に heredoc か `;`・`&&` と `git` の語が両方あれば、実行前に「スクリプトファイルにする」と案内する（ハーネスの拒否より先に、直し方を示す）。
-  #655 の拒否から、条件には、`;`・`&&` と `node` や `bash` の起動の組も含める（引数が変数かどうかは問わない）。
+  #655 の拒否から、`;`・`&&` と組む形として、`-e` のスクリプトに変数の引数を並べた `node` と `bash` の起動も条件に含める。
   4 回目の `bash <スクリプト> <引数>; echo rc=$?` は `git` の語を含まないので、起動の組で拾う。`echo` の引数の `$?` は実行時に決まる値なので、拒否の理由にこの展開が関わっている可能性もある。
 - KEDB 照合: `worktree`・`Bash`・`拒否` で `.kaizen/archive/2026-09-17-worktree-session-rejects-computed-bash.md`（applied）に一致。applied なので追記せず、この記録を新しく作った。
 
