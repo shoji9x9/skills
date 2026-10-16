@@ -15,6 +15,7 @@ Issue #655 の作業（`issue-start --pr` から `pr-finalize-loop`）で、ツ�
 例は「Both commits are done. Running `code-review --fix` before pushing.」「PR is up. Posting the acceptance result ...」「Preconditions pass ...」である。
 Stop の Hook（`scripts/hooks/response-language-check.ts`）が止めたのは、ターンの最後の「All 6 required CI checks passed. ...」の 1 回だけだった。
 合間の文は利用者の画面に出ているのに、どれも確かめられなかった。
+なお、最初の例は、インラインコードを除くとラテン文字が 38 字で、Hook が判定の対象にする下限（`MIN_LATIN_LETTERS` の 40 字）に届かない。読む範囲を広げても、この長さの英文は判定の対象から外れる。
 直前の入力は、英語のツール出力・英語の Hook のエラー・英語のバックグラウンドの完了通知で、`.kaizen/2026-10-10-response-language-drift-to-english.md`（applied）と同じ機序である。
 
 ## 根本原因
