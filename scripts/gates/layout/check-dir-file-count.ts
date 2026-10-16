@@ -14,7 +14,7 @@
 // - 閾値を変えたディレクトリと対象外のディレクトリには、理由を必須にする。
 //   設定に書いたディレクトリが実在しないと失敗にする。古い例外が残ると、同じ名前で作り直したディレクトリが警告なしに外れる。
 //   判定に使われない設定も失敗にする。descendants の対象外の下に書いた設定、デフォルトと同じ閾値、
-//   件数がデフォルトの閾値以下に減ったディレクトリの、閾値を上げた例外と descendants の無い対象外である。
+//   件数がデフォルトの閾値以下に減ったディレクトリの、閾値を上げた例外である。対象外は件数では判定しない。
 //
 // 終了コード: 0 は違反なし、1 は違反か設定の古い記述、2 は判定できない（設定の形の誤り・git の失敗・ファイルが 0 件）。
 import { spawnSync } from "node:child_process";
@@ -159,9 +159,8 @@ function unusedReason(
       return `件数（${count}）がデフォルトの閾値（${config.defaultMax}）以下で、閾値を上げる必要が無い`;
     return undefined;
   }
-  // 下のディレクトリを含む対象外は、下に作られるディレクトリのためにあるので、直下の件数では判定しない。
-  if (!entry.descendants && count <= config.defaultMax)
-    return `件数（${count}）がデフォルトの閾値（${config.defaultMax}）以下で、対象外にする必要が無い`;
+  // 対象外は、件数に上限が無く増減するディレクトリのための設定なので、件数では判定しない。
+  // 件数で判定すると、kaizen の archive やスキルの削除で件数が減るたびに設定を外すことになる。増えたらまた戻す。
   return undefined;
 }
 
@@ -205,7 +204,8 @@ export function loadConfig(root: string): Config {
 /** `cwd` を含むリポジトリのルートと、index にあるファイルと submodule（ルートからの相対パス）。 */
 export function listTrackedFiles(cwd: string) {
   const top = spawnSync("git", ["rev-parse", "--show-toplevel"], { cwd, encoding: "utf8" });
-  if (top.status !== 0) throw new Error(`git のリポジトリのルートを特定できない: ${top.stderr}`);
+  if (top.status !== 0)
+    throw new Error(`git のリポジトリのルートを特定できない: ${top.error?.message ?? top.stderr}`);
   const root = top.stdout.trim();
   // 衝突を解消していない index は 1 つのパスを段ごとに持ち、ls-files は同じパスを最大 3 回出す。重複は Set で除く
   // （--deduplicate は git 2.31 から使えるオプションなので、git の版に依らない方法で除く）。
@@ -216,7 +216,9 @@ export function listTrackedFiles(cwd: string) {
     maxBuffer: 64 * 1024 * 1024,
   });
   if (ls.status !== 0)
-    throw new Error(`git ls-files に失敗した（exit ${ls.status}）: ${ls.stderr}`);
+    throw new Error(
+      `git ls-files に失敗した（exit ${ls.status}）: ${ls.error?.message ?? ls.stderr}`,
+    );
   const files = new Set<string>();
   const submodules = new Set<string>();
   for (const record of ls.stdout.split("\0")) {

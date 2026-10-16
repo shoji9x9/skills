@@ -168,17 +168,11 @@ describe("設定の古い記述と空の理由", () => {
     expect(checkDirFileCount(["s/lib/x.ts"], c).configErrors).toEqual([]);
   });
 
-  test("descendants の無い対象外は、件数がデフォルトの閾値以下なら使われない設定として報告する", () => {
-    const c = config({ excludes: [{ dir: "a", reason: "r" }] });
-    expect(checkDirFileCount(files("a", 3), c).configErrors).toEqual([
-      "a: 件数（3）がデフォルトの閾値（3）以下で、対象外にする必要が無い（設定から外す）",
-    ]);
-    expect(checkDirFileCount(files("a", 4), c).configErrors).toEqual([]);
-  });
-
-  test("descendants が true の対象外は、直下の件数では報告しない", () => {
-    const c = config({ excludes: [{ dir: "a", reason: "r", descendants: true }] });
-    expect(checkDirFileCount(files("a/b", 1), c).configErrors).toEqual([]);
+  test.each([
+    ["descendants なし", { dir: "a", reason: "r" }, files("a", 1)],
+    ["descendants あり", { dir: "a", reason: "r", descendants: true }, files("a/b", 1)],
+  ])("対象外（%s）は、件数がデフォルトの閾値以下でも報告しない", (_name, entry, input) => {
+    expect(checkDirFileCount(input, config({ excludes: [entry] })).configErrors).toEqual([]);
   });
 
   test("直下にファイルが無くても、下にファイルがあるディレクトリは実在として扱う", () => {
@@ -332,7 +326,7 @@ describe("CLI", () => {
     // a は 3 件のままで違反にならず、a/sub は実在するディレクトリとして扱う（実在しないとは報告しない）。
     expect(res.stderr).not.toContain("a: 4 件");
     expect(res.stderr).not.toContain("git 管理下に無い");
-    expect(res.stderr).toContain("a/sub: 件数（0）がデフォルトの閾値（3）以下");
+    expect(res.status).toBe(0);
   });
 
   test("CLI: 追跡しているファイルが 0 件なら、判定できないとして 2 で終わる", () => {
