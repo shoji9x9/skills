@@ -32,6 +32,7 @@
     "scripts/lib/source-scope.mutations.json": 0.6,
     "scripts/lib/spawn-async.mutations.json": 0.7,
     "scripts/lib/testing/test-tmpdir.mutations.json": 0.6,
+    "scripts/lib/testing/vitest-git-env-setup.mutations.json": 0.7,
     "scripts/mutation/check-mutation-proof.mutations.json": 7.0,
     "scripts/skills/_cross/skill-script-cli-entry.mutations.json": 2.9,
     "scripts/skills/_cross/vendored-tool-standalone.mutations.json": 0.6,
