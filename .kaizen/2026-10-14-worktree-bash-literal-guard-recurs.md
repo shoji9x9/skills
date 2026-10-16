@@ -62,6 +62,12 @@ issue-batch の #631 の作業で、worktree に入った後の Bash 呼び出�
 2 回目は `git` の語を含まず、4 回目は `bash` の起動を理由に拒否された。
 Hook の条件は、`;`・`&&` と `node` や `bash` の起動の組まで広げる（「## 提案」に追記した）。広げた条件で、4 回とも拾える。
 
+2026-10-16、issue-batch の #632 の作業で、worktree に入った後の Bash の呼び出しが 2 回拒否された。
+1 回目は、worktree に入った直後の準備の処理である。`git rev-parse`・`git branch`・`cp`・`mise trust`・`pnpm install`・`git status` を `;` でつないだ（`names git in a form too complex to verify`）。
+2 回目は、python の quoted heredoc で置換をまとめた処理で、本文の JavaScript に `git(...)` の呼び出しを含んでいた（`feeds python text naming git in a plain command`）。
+どちらも、単独の呼び出しに分けるか、Write ツールでスクリプトにして実行する形に直して通した。
+同じ run の前の段（issue-batch の preflight）でこの学びを読んでいたが、worktree に入った最初の呼び出しで同じ形を書いた。4 つ目のセッションでの再発である。
+
 ## 根本原因
 
 1. なぜ拒否されたか → 隔離セッションのガードは字面で判定し、本文・引数・パスに `git` を含む複合コマンドや heredoc を拒否する。
