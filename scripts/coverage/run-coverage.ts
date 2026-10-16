@@ -150,7 +150,6 @@ function measure(
   vitestArgs: readonly string[],
 ): number {
   const privates = privateSkillDirs(root);
-  rmSync(cache, { recursive: true, force: true });
   const traceDir = join(cache, "shell-trace");
   mkdirSync(traceDir, { recursive: true });
   const c8Args = [
@@ -268,12 +267,6 @@ export function main(
     console.error("run-coverage: --reuse と --focus は一緒に使えない");
     return 2;
   }
-  let cache = join(root, CACHE);
-  if (focus.length > 0) {
-    sweepFocusDirs(root);
-    mkdirSync(dirname(cache), { recursive: true });
-    cache = mkdtempSync(`${cache}-focus-${process.pid}-`);
-  }
   let config;
   let files;
   try {
@@ -287,6 +280,16 @@ export function main(
   if (focus.length > 0 && !files.some((f) => focus.some((prefix) => f.startsWith(prefix)))) {
     console.error(`run-coverage: --focus に当たる対象のファイルが無い: ${focus.join(" ")}`);
     return 2;
+  }
+  // 結果の置き場所は、測ると決まってから作る（引数・設定・対象の誤りで止まる実行に、空のディレクトリを残さない）。
+  // --focus は実行ごとに一意なディレクトリを作り、通常の実行は前回の結果を消してから測る。
+  let cache = join(root, CACHE);
+  if (focus.length > 0) {
+    sweepFocusDirs(root);
+    mkdirSync(dirname(cache), { recursive: true });
+    cache = mkdtempSync(`${cache}-focus-${process.pid}-`);
+  } else if (!reuse) {
+    rmSync(cache, { recursive: true, force: true });
   }
   const c8Path = join(cache, "report", "coverage-summary.json");
   const shPath = join(cache, "shell-summary.json");

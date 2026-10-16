@@ -389,6 +389,11 @@ describe("normalizeAudit（audit の JSON 全体）", () => {
     ["vulnerabilities が数", { vulnerabilities: 1 }, /vulnerabilities が object でない/],
     ["packages が配列", { packages: [] }, /packages が object でない/],
     ["packages が文字列", { packages: "x" }, /packages が object でない/],
+    [
+      "packages の項目が文字列",
+      { packages: { "node_modules/x": "1.2.3" } },
+      /packages\.node_modules\/x が object でない/,
+    ],
   ])("%s なら、どこが違うかを書いた Error を投げる", (_label, raw, message) => {
     expect(() => normalizeAudit(raw)).toThrow(message);
   });

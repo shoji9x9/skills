@@ -305,6 +305,21 @@ test("main: --focus は当たるファイルだけを比べ、値を出す", { t
   expect(res.status, res.out).toBe(0);
   expect(res.out).toMatch(/skills\/x\/a\.mjs: lines 100%, branches 100%, functions 100%/);
   expect(res.out).not.toMatch(/s\.sh/);
+  // 結果のディレクトリの名前を作る側（main）と、名前から pid を読む側（sweepFocusDirs）を通しで確かめる。
+  // 名前は自分の pid で始まり、pid のプロセスが在る（実行中とみなす）間は、時間がたっても消さない。
+  const cache = join(root, "node_modules", ".cache");
+  const [dir] = readdirSync(cache).filter((name) => name.startsWith("coverage-focus-"));
+  expect(dir).toMatch(new RegExp(`^coverage-focus-${process.pid}-`));
+  sweepFocusDirs(root, Date.now() + 2 * FOCUS_STALE_MS);
+  expect(readdirSync(cache)).toContain(dir);
+});
+
+test("main: --focus に当たる対象が無ければ、結果のディレクトリを作らずに exit 2 で止める", () => {
+  const root = miniRepo(FULL);
+  const res = runMain(["--focus", "no-such-dir/"], root);
+  expect(res.status).toBe(2);
+  expect(res.out).toMatch(/当たる対象のファイルが無い/);
+  expect(readdirSync(root)).not.toContain("node_modules");
 });
 
 test("main: テストが失敗したら、カバレッジを比べずに exit 1 で止める", { timeout: 120_000 }, () => {

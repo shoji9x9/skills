@@ -486,7 +486,7 @@ describe("agent-usage のコマンドと Hook", () => {
     git("commit", "-q", "-m", "records");
     // squash merge と同じく、今の内容を、このブランチの commit を祖先に持たない 1 つの commit として origin の main に入れる
     const origin = join(tmp, "origin.git");
-    spawnSync("git", ["init", "-q", "--bare", origin]);
+    expect(spawnSync("git", ["init", "-q", "--bare", origin], { timeout: 30_000 }).status).toBe(0);
     git("remote", "add", "origin", origin);
     const squash = git("commit-tree", "HEAD^{tree}", "-p", "main", "-m", "squash").trim();
     git("push", "-q", "origin", `${squash}:refs/heads/main`);
@@ -576,7 +576,7 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(cliWith({}, "collect", "--stage").status).toBe(0);
     git("commit", "-q", "-m", "records");
     const origin = join(tmp, "origin.git");
-    spawnSync("git", ["init", "-q", "--bare", origin]);
+    expect(spawnSync("git", ["init", "-q", "--bare", origin], { timeout: 30_000 }).status).toBe(0);
     git("remote", "add", "origin", origin);
     git("push", "-q", "origin", "HEAD:main");
     git("fetch", "-q", "origin");

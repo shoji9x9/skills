@@ -291,9 +291,10 @@ function entriesOf(value: unknown, name: string): [string, unknown][] {
 export function normalizeAudit(raw: unknown): Finding[] {
   if (!isRecord(raw)) throw new Error("全体が object でない");
   const audit: AuditJson = raw;
-  // packages は今の版を読むためだけに使う。形が違うと current_versions が警告なしに空になるので、止める。
-  if (audit.packages !== undefined && audit.packages !== null && !isRecord(audit.packages)) {
-    throw new Error("packages が object でない");
+  // packages は今の版を読むためだけに使う。全体か項目の形が違うと current_versions が警告なしに空になるので、止める。
+  for (const [path, entry] of entriesOf(audit.packages, "packages")) {
+    if (entry !== undefined && entry !== null && !isRecord(entry))
+      throw new Error(`packages.${path} が object でない`);
   }
   const findings: Finding[] = [];
 

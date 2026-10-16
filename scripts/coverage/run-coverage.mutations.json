@@ -10,7 +10,8 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "sweepFocusDirs: pid のプロセスが無く、更新から FOCUS_STALE_MS たった --focus の結果だけを消す"
+        "sweepFocusDirs: pid のプロセスが無く、更新から FOCUS_STALE_MS たった --focus の結果だけを消す",
+        "main: --focus は当たるファイルだけを比べ、値を出す"
       ]
     },
     {
