@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 
 import { assert, describe, expect, test } from "vitest";
 
-import { makeTempDir } from "../lib/test-tmpdir.ts";
+import { makeTempDir } from "../lib/testing/test-tmpdir.ts";
 
 import {
   buildSkillContentIndex,

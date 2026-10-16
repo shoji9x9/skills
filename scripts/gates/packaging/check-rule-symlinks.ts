@@ -21,8 +21,8 @@ import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { fencedLines } from "../../lib/doc-scan.ts";
 import { errorMessage } from "../../lib/errors.ts";
-import { splitFrontmatter } from "../../lib/frontmatter.ts";
-import { loadYamlAs } from "../../lib/yaml-as.ts";
+import { splitFrontmatter } from "../../lib/text/frontmatter.ts";
+import { loadYamlAs } from "../../lib/text/yaml-as.ts";
 
 export const CANON_DIR = ".agents/rules";
 

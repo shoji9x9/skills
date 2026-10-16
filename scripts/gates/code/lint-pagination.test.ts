@@ -11,7 +11,7 @@ import {
   walkFiles,
   listFiles,
 } from "./lint-pagination.ts";
-import { makeTempDir } from "../../lib/test-tmpdir.ts";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 // markdown の bash コードブロックで囲む小さなヘルパ。
 const md = (body: string) => "# t\n\n```bash\n" + body + "\n```\n";

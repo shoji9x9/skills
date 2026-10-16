@@ -25,7 +25,7 @@ import {
   isTextPath,
   trackedTextFiles,
 } from "./check-control-chars.ts";
-import { makeTempDir } from "../../lib/test-tmpdir.ts";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "scripts/gates/code/check-control-chars.ts");

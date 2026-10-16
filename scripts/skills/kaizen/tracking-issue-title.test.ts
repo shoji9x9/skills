@@ -3,8 +3,8 @@ import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { loadYamlAs } from "../../lib/yaml-as.ts";
-import { makeTempDir } from "../../lib/test-tmpdir.ts";
+import { loadYamlAs } from "../../lib/text/yaml-as.ts";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 // 週次ワークフローの追跡 Issue は、タイトルが固定文字列だと手動クローズのたびに
 // 同名の Issue が open / closed に並び、一覧で世代を区別できない（Issue #417）。

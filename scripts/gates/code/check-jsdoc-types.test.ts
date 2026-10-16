@@ -17,7 +17,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { findEscapes, isTarget } from "./check-jsdoc-types.ts";
-import { makeTempDir } from "../../lib/test-tmpdir.ts";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 const script = join(dirname(fileURLToPath(import.meta.url)), "check-jsdoc-types.ts");
 const find = (text: string) => findEscapes("skills/demo/scripts/a.mjs", text);

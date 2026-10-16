@@ -2,7 +2,7 @@ import { test, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { loadYamlAs } from "../../lib/yaml-as.ts";
+import { loadYamlAs } from "../../lib/text/yaml-as.ts";
 import { types } from "../../../commit-types.ts";
 
 // commit メッセージの type を決める設定は commit-types.ts を単一の真実とする。

@@ -11,7 +11,7 @@ import {
 } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { makeTempDir } from "../../lib/test-tmpdir.ts";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 // kaizen-forget.sh は **SessionStart フックから無人で実行され、追跡ファイルを書き換える**
 // （Issue #339）。判定が緩むと、まだ適用したい学びが警告なしに注入から消える。消えたことは

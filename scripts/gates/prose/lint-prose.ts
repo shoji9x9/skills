@@ -8,11 +8,11 @@
 //
 // 判定規則:
 // - 対象は git が管理する（または ignore されていない未追跡の）`*.md` と、コメントを持つファイル
-//   （JavaScript・TypeScript・シェル・YAML。拡張子は `scripts/lib/code-comments.ts` で定義する）。
+//   （JavaScript・TypeScript・シェル・YAML。拡張子は `scripts/lib/text/code-comments.ts` で定義する）。
 //   コメントは、取り出した文章を Markdown にして見る。
 // - 文字列（JavaScript・TypeScript の文字列リテラルと、`evals/<name>/evals.json` の prompt・expected_output・assertions）には、
 //   使わない語の規則だけを当てる。規則は `ai-words-ja/no-ai-words` と、`——` を探す `local/no-dash-emphasis` である。
-//   取り出し方は `scripts/lib/code-strings.ts` で定義する。
+//   取り出し方は `scripts/lib/text/code-strings.ts` で定義する。
 //   テスト名・メッセージ・eval の文字列を手本にすると旧称が広がるので見る（#567）。文章の書式の規則は当てない。
 //   次のものは除く。
 //   - エージェント用のコピーとリンク（判定は `scripts/lib/source-scope.ts`）。rule（`.agents/rules/`）と
@@ -34,13 +34,13 @@ import {
   hasComments,
   isMissingToolError,
   type CommentMarkdown,
-} from "../../lib/code-comments.ts";
-import { hasStrings, stringMarkdown } from "../../lib/code-strings.ts";
+} from "../../lib/text/code-comments.ts";
+import { hasStrings, stringMarkdown } from "../../lib/text/code-strings.ts";
 import { isAgentCopy } from "../../lib/source-scope.ts";
 import { errorMessage } from "../../lib/errors.ts";
 import { isNonEmptyString, isRecord } from "../../lib/guards.ts";
 import { isArray } from "../../lib/is-array.ts";
-import { WORD_RULE_IDS, withDashRule, wordRules } from "../../lib/textlint-word-rule.ts";
+import { WORD_RULE_IDS, withDashRule, wordRules } from "../../lib/text/textlint-word-rule.ts";
 
 export const PENDING_PATH = "scripts/gates/prose/prose-lint-pending.json";
 /** コメントを取り出せなかったファイルの指摘に付ける ruleId。 */

@@ -1,6 +1,6 @@
 {
   "$comment": [
-    "response-word-check.test.ts が、応答の使わない語を確かめる Stop の Hook の判定の行を検出できることを示す変異の一覧。 印の処理そのものの変異は scripts/lib/stop-marker.mutations.json にある。",
+    "response-word-check.test.ts が、応答の使わない語を確かめる Stop の Hook の判定の行を検出できることを示す変異の一覧。 印の処理そのものの変異は scripts/hooks/stop-marker.mutations.json にある。",
     "テスト名を変えたら expect_failing も直す（実在しない名前は、ランナーの基準 run で検出して exit 2）。"
   ],
   "test_file": "scripts/hooks/response-word-check.test.ts",
@@ -22,7 +22,7 @@
     {
       "id": "WORD-DASH-SINGLE",
       "why": "1 文字のダッシュも対象にする（表の空欄や英語の区切りで止める）",
-      "file": "scripts/lib/textlint-word-rule.ts",
+      "file": "scripts/lib/text/textlint-word-rule.ts",
       "find": "`(?<![—―${ARROWS}])[—―]{2,}(?![—―${ARROWS}])`,",
       "replace": "`(?<![—―${ARROWS}])[—―]+(?![—―${ARROWS}])`,",
       "occurrences": 1,
@@ -40,7 +40,7 @@
     {
       "id": "WORD-ALL-RULES",
       "why": "使わない語の規則に絞らない（文書の規約の「である」調・文の長さで応答を止める）",
-      "file": "scripts/lib/textlint-word-rule.ts",
+      "file": "scripts/lib/text/textlint-word-rule.ts",
       "find": ".filter((r) => r.ruleId === WORD_RULE)",
       "replace": "",
       "occurrences": 1,
@@ -54,7 +54,7 @@
     {
       "id": "WORD-RULE-PRESENCE-UNCHECKED",
       "why": "規則が有効かを確かめない（設定が無いと規則なしで成功し、どの応答も通す）",
-      "file": "scripts/lib/textlint-word-rule.ts",
+      "file": "scripts/lib/text/textlint-word-rule.ts",
       "find": "if (rules.length === 0) {",
       "replace": "if (false) {",
       "occurrences": 1,

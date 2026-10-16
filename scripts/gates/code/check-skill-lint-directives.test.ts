@@ -27,7 +27,7 @@ import {
   HOLDERS_REGISTRY,
 } from "./check-skill-lint-directives.ts";
 import { IS_ARRAY_HOLDERS } from "../../lib/is-array-holders.ts";
-import { makeTempDir } from "../../lib/test-tmpdir.ts";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 const script = join(dirname(fileURLToPath(import.meta.url)), "check-skill-lint-directives.ts");
 

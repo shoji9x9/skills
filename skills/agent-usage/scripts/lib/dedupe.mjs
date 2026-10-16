@@ -20,7 +20,7 @@ import { join } from "node:path";
 import { writeFileAtomic } from "./atomic.mjs";
 import { isRecord } from "./config.mjs";
 
-/** @typedef {import("./session.mjs").SessionSummary} SessionSummary */
+/** @typedef {import("./sources/session.mjs").SessionSummary} SessionSummary */
 
 /**
  * @param {string} commonDir

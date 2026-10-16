@@ -1,8 +1,8 @@
 import { assert, test, expect } from "vitest";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { fillSetProvenance } from "../../lib/coverage-set-provenance-fixture.ts";
-import { invalidInput, removeField } from "../../lib/test-input.ts";
+import { fillSetProvenance } from "../../lib/testing/coverage-set-provenance-fixture.ts";
+import { invalidInput, removeField } from "../../lib/testing/test-input.ts";
 import {
   expandCandidates,
   loadProfiles,

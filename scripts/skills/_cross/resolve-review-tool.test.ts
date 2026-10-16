@@ -17,7 +17,7 @@ import { rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { makeTempDir } from "../../lib/test-tmpdir.ts";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const SCRIPTS = [

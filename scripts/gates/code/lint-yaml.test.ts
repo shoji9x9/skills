@@ -11,7 +11,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { main } from "./lint-yaml.ts";
-import { makeTempDir } from "../../lib/test-tmpdir.ts";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 const script = join(dirname(fileURLToPath(import.meta.url)), "lint-yaml.ts");
 

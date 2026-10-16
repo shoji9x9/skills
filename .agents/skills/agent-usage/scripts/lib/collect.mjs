@@ -11,19 +11,19 @@ import { join } from "node:path";
 import { writeFileAtomic } from "./atomic.mjs";
 import { isArray } from "./is-array.mjs";
 import { isRecord } from "./config.mjs";
-import { parseClaudeSession } from "./claude-log.mjs";
-import { parseCodexSession } from "./codex-log.mjs";
+import { parseClaudeSession } from "./sources/claude-log.mjs";
+import { parseCodexSession } from "./sources/codex-log.mjs";
 import { claimsPath, dedupeSessions, loadClaims, saveClaims } from "./dedupe.mjs";
-import { discoverClaude, discoverCodex } from "./discover.mjs";
+import { discoverClaude, discoverCodex } from "./sources/discover.mjs";
 import { zeroTokens } from "./pricing.mjs";
 import { isInside, normalizeRemote } from "./repo.mjs";
-import { emptySummary } from "./session.mjs";
-import { timelineRows, usageRows } from "./usage.mjs";
+import { emptySummary } from "./sources/session.mjs";
+import { timelineRows, usageRows } from "./sources/usage.mjs";
 
 /** @typedef {import("./rows.mjs").Row} Row */
-/** @typedef {import("./discover.mjs").SessionSource} SessionSource */
-/** @typedef {import("./usage.mjs").Context} Context */
-/** @typedef {import("./session.mjs").SessionSummary} SessionSummary */
+/** @typedef {import("./sources/discover.mjs").SessionSource} SessionSource */
+/** @typedef {import("./sources/usage.mjs").Context} Context */
+/** @typedef {import("./sources/session.mjs").SessionSummary} SessionSummary */
 /** @typedef {import("./pricing.mjs").Tokens} Tokens */
 
 /** @type {(keyof Tokens)[]} */

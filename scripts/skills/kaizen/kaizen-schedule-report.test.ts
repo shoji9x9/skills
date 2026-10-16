@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { chmodSync, copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { makeTempDir } from "../../lib/test-tmpdir.ts";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 // kaizen-schedule-report.sh は **CI から無人で実行され、出力がそのまま Issue になる**。
 // 判定が狂っても人が見ているのは結果の Issue だけなので、狂ったこと自体は出力に現れない。

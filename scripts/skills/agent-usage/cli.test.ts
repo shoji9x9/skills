@@ -21,7 +21,7 @@ import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { commitCwd, isGitCommit } from "../../../skills/agent-usage/scripts/lib/gate.mjs";
 import { parseCsv, toCsv } from "../../../skills/agent-usage/scripts/lib/csv.mjs";
-import { encodeProjectPath } from "../../../skills/agent-usage/scripts/lib/discover.mjs";
+import { encodeProjectPath } from "../../../skills/agent-usage/scripts/lib/sources/discover.mjs";
 import { COLUMNS } from "../../../skills/agent-usage/scripts/lib/rows.mjs";
 import {
   githubTarget,
@@ -29,7 +29,7 @@ import {
 } from "../../../skills/agent-usage/scripts/lib/run-collect.mjs";
 import { branchLabel, lastObservedAt } from "../../../skills/agent-usage/scripts/lib/records.mjs";
 import { localHourStart } from "../../../skills/agent-usage/scripts/lib/time.mjs";
-import { makeTempDir } from "../../lib/test-tmpdir.ts";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 const SCRIPTS = join(import.meta.dirname, "../../../skills/agent-usage/scripts");
 const CLI = join(SCRIPTS, "agent-usage.mjs");

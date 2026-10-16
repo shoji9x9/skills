@@ -63,7 +63,7 @@ import { spawnSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { makeTempDir } from "../../lib/test-tmpdir.ts";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { parseJsonAs } from "../../lib/parse-as.ts";
 
 /** pending-triage-check.mjs が stdout に出す要約のうち、テストが読む欄。 */

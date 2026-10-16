@@ -17,7 +17,7 @@ import { fileURLToPath } from "node:url";
 import { errorMessage } from "../../lib/errors.ts";
 import { isRecord } from "../../lib/guards.ts";
 import { isArray } from "../../lib/is-array.ts";
-import { WORDS_PATH } from "../../lib/textlint-word-rule.ts";
+import { WORDS_PATH } from "../../lib/text/textlint-word-rule.ts";
 
 export const LIST_PATH = ".textlint/word-list.md";
 

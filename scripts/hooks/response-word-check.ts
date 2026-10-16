@@ -24,8 +24,8 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { errorMessage } from "../lib/errors.ts";
 import { isRecord } from "../lib/guards.ts";
-import { alreadyBlocked, recordBlocked } from "../lib/stop-marker.ts";
-import { dashRule, wordRules } from "../lib/textlint-word-rule.ts";
+import { alreadyBlocked, recordBlocked } from "./stop-marker.ts";
+import { dashRule, wordRules } from "../lib/text/textlint-word-rule.ts";
 import { prose } from "./response-language-check.ts";
 
 const HOOK = "response-word-check";

@@ -8,7 +8,7 @@
     {
       "id": "mid-turn-prompt-splits",
       "why": "応答の途中の人の指示で run を区切ってしまう",
-      "file": "skills/agent-usage/scripts/lib/timeline.mjs",
+      "file": "skills/agent-usage/scripts/lib/sources/timeline.mjs",
       "find": "        if (st.run && st.working) {",
       "replace": "        if (false) {",
       "occurrences": 1,
@@ -20,7 +20,7 @@
     {
       "id": "external-wait-not-counted",
       "why": "完了から自動の再開までを外部待ちとして数えない",
-      "file": "skills/agent-usage/scripts/lib/timeline.mjs",
+      "file": "skills/agent-usage/scripts/lib/sources/timeline.mjs",
       "find": "        if (!st.working && st.lastTurnEnd !== null) st.waitMs += e.t - st.lastTurnEnd;",
       "replace": "        if (false) st.waitMs += e.t - (st.lastTurnEnd ?? 0);",
       "occurrences": 1,
@@ -29,7 +29,7 @@
     {
       "id": "permission-by-user-ignored",
       "why": "人が判断した権限の確認を、人を待った区間にしない",
-      "file": "skills/agent-usage/scripts/lib/claude-log.mjs",
+      "file": "skills/agent-usage/scripts/lib/sources/claude-log.mjs",
       "find": "      const byUser = typeof decision.source === \"string\" && decision.source.startsWith(\"user\");",
       "replace": "      const byUser = false;",
       "occurrences": 1,
@@ -40,7 +40,7 @@
     {
       "id": "streaming-usage-first-row",
       "why": "ストリーミングの同じ id の行で、欄ごとの最大ではなく最初の行を使う",
-      "file": "skills/agent-usage/scripts/lib/claude-log.mjs",
+      "file": "skills/agent-usage/scripts/lib/sources/claude-log.mjs",
       "find": "            ? { ts: prev.ts, model, tokens: maxTokens(prev.tokens, tokens) }",
       "replace": "            ? { ts: prev.ts, model, tokens: prev.tokens }",
       "occurrences": 1,
@@ -51,7 +51,7 @@
     {
       "id": "codex-parent-meta-overwrites",
       "why": "子のファイルが持つ親の session_meta のコピーで id を上書きする",
-      "file": "skills/agent-usage/scripts/lib/codex-log.mjs",
+      "file": "skills/agent-usage/scripts/lib/sources/codex-log.mjs",
       "find": "      if (seenMeta) continue;",
       "replace": "      if (false) continue;",
       "occurrences": 1,
@@ -62,7 +62,7 @@
     {
       "id": "interrupt-as-prompt",
       "why": "中断した応答を応答の完了にしない",
-      "file": "skills/agent-usage/scripts/lib/claude-log.mjs",
+      "file": "skills/agent-usage/scripts/lib/sources/claude-log.mjs",
       "find": "    if (userText(message.content)?.startsWith(\"[Request interrupted by user\") === true) {",
       "replace": "    if (false) {",
       "occurrences": 1,
@@ -73,7 +73,7 @@
     {
       "id": "stale-turn-kept",
       "why": "完了の記録が抜けたターンの後の指示を区切らない",
-      "file": "skills/agent-usage/scripts/lib/timeline.mjs",
+      "file": "skills/agent-usage/scripts/lib/sources/timeline.mjs",
       "find": "          if (e.t - since <= STALE_TURN_MS) break;",
       "replace": "          break;",
       "occurrences": 1,
@@ -84,7 +84,7 @@
     {
       "id": "overlapping-waits",
       "why": "重なった人の待ちの途中で run を始める",
-      "file": "skills/agent-usage/scripts/lib/timeline.mjs",
+      "file": "skills/agent-usage/scripts/lib/sources/timeline.mjs",
       "find": "        if (st.waiting > 0) break;",
       "replace": "        void 0;",
       "occurrences": 1,
@@ -95,7 +95,7 @@
     {
       "id": "interrupts-disable-infer",
       "why": "中断があると完了の推定を使わない",
-      "file": "skills/agent-usage/scripts/lib/timeline.mjs",
+      "file": "skills/agent-usage/scripts/lib/sources/timeline.mjs",
       "find": "  const turnEnds = [...(s.turnEnds.length > 0 ? s.turnEnds : inferTurnEnds(s)), ...s.interrupts];",
       "replace": "  const turnEnds = s.turnEnds.length + s.interrupts.length > 0 ? [...s.turnEnds, ...s.interrupts] : inferTurnEnds(s);",
       "occurrences": 1,

@@ -11,7 +11,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseJsonAs } from "../../lib/parse-as.ts";
-import { makeTempDir } from "../../lib/test-tmpdir.ts";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { isArray } from "../../lib/is-array.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");

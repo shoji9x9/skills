@@ -13,8 +13,8 @@ import { describe, expect, test } from "vitest";
 import { summaryFromCache } from "../../../skills/agent-usage/scripts/lib/collect.mjs";
 import { dedupeSessions, loadClaims } from "../../../skills/agent-usage/scripts/lib/dedupe.mjs";
 import { zeroTokens } from "../../../skills/agent-usage/scripts/lib/pricing.mjs";
-import { emptySummary } from "../../../skills/agent-usage/scripts/lib/session.mjs";
-import { makeTempDir } from "../../lib/test-tmpdir.ts";
+import { emptySummary } from "../../../skills/agent-usage/scripts/lib/sources/session.mjs";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 type Summary = ReturnType<typeof emptySummary>;
 
