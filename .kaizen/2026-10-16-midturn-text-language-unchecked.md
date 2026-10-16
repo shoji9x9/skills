@@ -20,13 +20,19 @@ Stop の Hook（`scripts/hooks/response-language-check.ts`）が止めたのは�
 ## 根本原因
 
 1. なぜ英語になったか → 応答を書く直前の入力が英語のツール出力と通知だった（applied の記録と同じ）。
-2. なぜ Hook が止めなかったか → Hook はターンの最後の assistant の本文だけを読み、ツールの呼び出しの前に書いた文を対象にしていない。
-3. なぜ対象から外れたか → applied の記録の提案が「最後の応答の本文」と書き、利用者に表示する文の出口（ツールの呼び出しの合間の文・確認の UI・PR や Issue の本文）を挙げずに Hook の範囲を決めた ← 根本原因
+2. なぜ Hook が止めなかったか → Hook は Stop の入力の `last_assistant_message` だけを読み、ツールの呼び出しの前に書いた文を対象にしていない。
+3. なぜ対象から外れたか → applied の記録の提案が「最後の応答の本文」と書き、利用者に表示する文の出口を挙げずに Hook の範囲を決めた ← 根本原因
+
+出口のうち、確認の UI（AskUserQuestion）と PR・Issue の本文は、#626 のブランチで記録した `.kaizen/2026-10-16-ask-user-question-language-unchecked.md` が同じ根本原因として扱う。
+この記録は、残りの出口であるツールの呼び出しの合間の文を扱う。どちらかが main に入った後で、2 件を 1 つにまとめる。
 
 ## 提案
 
-人への応答の言語を確かめる Hook は、ターンの最後の本文だけでなく、そのターンで assistant が書いたすべての文（ツールの呼び出しの合間を含む）を対象にする。
+人への文を確かめる Stop の Hook（言語と使わない語）は、最後の本文に加えて、そのターンでツールの呼び出しの合間に書いた文も対象にする。
 
-- 置き場所: `scripts/hooks/response-language-check.ts`。transcript から、直前の利用者の入力より後の assistant の text ブロックをすべて読み、それぞれに同じ判定を当てる。
-- 誤検知しないことの確認: コード・コマンドだけの短い文、ツールの呼び出しだけのブロックを対象から外すテストを、既存のテストと同じ形で置く。
+- 対象の Hook: `scripts/hooks/response-language-check.ts` と、同じく `last_assistant_message` だけを読む `scripts/hooks/response-word-check.ts` の 2 本。
+- 読む範囲: transcript の、人が入力した最後のプロンプトより後の assistant の text ブロックである。transcript ではツールの結果（`tool_result`）も type が `user` のエントリになるので、それを境界にしない。
+- 最後の本文: これまでどおり `last_assistant_message` から読む。Stop の時点の transcript は、最後のメッセージを含まないことがある（`response-language-check.ts` の冒頭のコメント）。
+- 止め方: 合間の文は画面に出ていて書き直せないので、exit 2 にしない。stderr に警告を出し、最後の本文で同じ内容を日本語で書くように促す。exit 2 で書き直させるのは、最後の本文だけにする。
+- 誤検知しないことの確認: コード・コマンドだけの短い文と、`tool_result` の後の text ブロックの境界を、既存のテストと同じ形でテストにする。
 - KEDB 照合: `.kaizen/2026-10-10-response-language-drift-to-english.md`（applied。同じ機序）。applied なので追記せず、この記録を新しく作った。
