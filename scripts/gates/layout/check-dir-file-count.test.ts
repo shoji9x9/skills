@@ -114,7 +114,19 @@ describe("設定の古い記述と空の理由", () => {
       excludes: [{ dir: "a", reason: "r", descendants: true }],
     });
     expect(checkDirFileCount(files("a/b", 1), c).configErrors).toEqual([
-      "a/b: 対象外（a）の下にあるので、閾値は使われない（設定から外す）",
+      "a/b: 対象外（a）の下にあるので、この設定は使われない（設定から外す）",
+    ]);
+  });
+
+  test("descendants の対象外の下に書いた対象外は、使われない設定として報告する", () => {
+    const c = config({
+      excludes: [
+        { dir: "a", reason: "r", descendants: true },
+        { dir: "a/b", reason: "r" },
+      ],
+    });
+    expect(checkDirFileCount([...files("a", 1), ...files("a/b", 1)], c).configErrors).toEqual([
+      "a/b: 対象外（a）の下にあるので、この設定は使われない（設定から外す）",
     ]);
   });
 
@@ -162,6 +174,11 @@ describe("設定の形", () => {
     ["dir が / で終わる", { default_max: 3, excludes: [{ dir: "a/", reason: "r" }] }],
     ["dir が空", { default_max: 3, excludes: [{ dir: "", reason: "r" }] }],
     ["dir が .. で始まる", { default_max: 3, excludes: [{ dir: "../a", reason: "r" }] }],
+    ["dir が ..", { default_max: 3, excludes: [{ dir: "..", reason: "r" }] }],
+    [
+      "ルートを descendants で対象外にする",
+      { default_max: 3, excludes: [{ dir: ".", reason: "r", descendants: true }] },
+    ],
     [
       "同じ dir を閾値と対象外の両方に書く",
       {
@@ -173,6 +190,13 @@ describe("設定の形", () => {
   ])("%s なら例外にする", (_name, raw) => {
     expect(() => parseConfig(raw)).toThrow();
   });
+});
+
+test.each([
+  [".. で始まる名前（..cache）", { dir: "..cache", reason: "r" }],
+  ["ルートだけを対象外にする（descendants なし）", { dir: ".", reason: "r" }],
+])("%s は設定の形として受け付ける", (_name, entry) => {
+  expect(() => parseConfig({ default_max: 3, excludes: [entry] })).not.toThrow();
 });
 
 describe("CLI", () => {

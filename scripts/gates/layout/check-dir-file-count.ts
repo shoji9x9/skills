@@ -50,7 +50,8 @@ function assertDir(where: string, dir: unknown): asserts dir is string {
     posix.normalize(dir) !== dir ||
     dir.startsWith("/") ||
     dir.endsWith("/") ||
-    dir.startsWith("..")
+    dir === ".." ||
+    dir.startsWith("../")
   ) {
     throw new Error(
       `${where}: dir「${dir}」はルートからの相対パスで、. や .. や末尾の / を含めずに書く（ルートは "."）`,
@@ -85,6 +86,11 @@ export function parseConfig(data: unknown): Config {
     assertDir(where, dir);
     if (typeof reason !== "string") throw new Error(`${where}: reason は文字列にする`);
     if (typeof descendants !== "boolean") throw new Error(`${where}: descendants は真偽値にする`);
+    // ルートを下のディレクトリごと外すと、設定 1 行でチェック全体が何も数えなくなり、それでも OK を出す。
+    if (dir === ROOT_DIR && descendants)
+      throw new Error(
+        `${where}: ルート（"."）は descendants で対象外にできない（すべてのディレクトリを数えなくなる）`,
+      );
     return { dir, reason, descendants };
   });
 
@@ -133,12 +139,16 @@ export function checkDirFileCount(files: readonly string[], config: Config) {
     if (!isNonBlankString(reason))
       configErrors.push(`${dir}: reason が空（閾値を変える・対象外にする理由を書く）`);
   }
-  // descendants の対象外の下に書いた閾値は判定に使われない。使われない設定を残さない。
-  for (const { dir } of config.overrides) {
-    const ex = excludeOf(dir, config.excludes);
+  // descendants の対象外の下に書いた閾値と対象外は判定に使われない。使われない設定を残さない
+  // （残すと、親の descendants を外したときに、見直していない子の設定が警告なしに有効になる）。
+  for (const entry of [...config.overrides, ...config.excludes]) {
+    const ex = excludeOf(
+      entry.dir,
+      config.excludes.filter((e) => e !== entry),
+    );
     if (ex)
       configErrors.push(
-        `${dir}: 対象外（${ex.dir}）の下にあるので、閾値は使われない（設定から外す）`,
+        `${entry.dir}: 対象外（${ex.dir}）の下にあるので、この設定は使われない（設定から外す）`,
       );
   }
   const maxOf = new Map(config.overrides.map((o) => [o.dir, o.max]));
@@ -219,7 +229,7 @@ function isCliEntry() {
     return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
   } catch (error) {
     console.error(`dir-file-count: 起動パスを正規化できない: ${errorMessage(error)}`);
-    process.exit(1);
+    process.exit(2);
   }
 }
 

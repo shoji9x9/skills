@@ -7,3 +7,8 @@ coverage:github:2026-10-15T00:52:53.859Z:2026-10-16T02:13:15.369Z,coverage,2026-
 coverage:github:2026-10-15T02:13:15.369Z:2026-10-16T02:13:31.775Z,coverage,2026-10-16T02:13:31.775Z,p-cdee4961,,,,,2026-10-15T02:13:15.369Z,2026-10-16T02:13:31.775Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-15T02:13:31.775Z:2026-10-16T02:14:31.644Z,coverage,2026-10-16T02:14:31.644Z,p-cdee4961,,,,,2026-10-15T02:13:31.775Z,2026-10-16T02:14:31.644Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-15T02:14:31.644Z:2026-10-16T02:15:55.997Z,coverage,2026-10-16T02:15:55.997Z,p-cdee4961,,,,,2026-10-15T02:14:31.644Z,2026-10-16T02:15:55.997Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:38839690252:1,ci,2026-10-16T02:22:25.952Z,p-cdee4961,github-actions,,,,2026-10-16T02:17:47.000Z,2026-10-16T02:17:48.000Z,Asia/Tokyo,feature/626-directory-file-count-check,626,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:38839690379:1,ci,2026-10-16T02:22:25.952Z,p-cdee4961,github-actions,,,,2026-10-16T02:17:47.000Z,2026-10-16T02:22:25.952Z,Asia/Tokyo,feature/626-directory-file-count-check,626,,,,,,,,,,CI;pull_request;open,
+coverage:github:2026-10-15T02:15:55.997Z:2026-10-16T02:22:25.952Z,coverage,2026-10-16T02:22:25.952Z,p-cdee4961,,,,,2026-10-15T02:15:55.997Z,2026-10-16T02:22:25.952Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:38839690379:1,ci,2026-10-16T02:23:11.531Z,p-cdee4961,github-actions,,,,2026-10-16T02:17:47.000Z,2026-10-16T02:23:11.531Z,Asia/Tokyo,feature/626-directory-file-count-check,626,,,,,,,,,,CI;pull_request;open,
+coverage:github:2026-10-15T02:22:25.952Z:2026-10-16T02:23:11.531Z,coverage,2026-10-16T02:23:11.531Z,p-cdee4961,,,,,2026-10-15T02:22:25.952Z,2026-10-16T02:23:11.531Z,Asia/Tokyo,,,,,,,,,,,,ok,
