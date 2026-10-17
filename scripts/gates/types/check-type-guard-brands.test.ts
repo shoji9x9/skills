@@ -47,7 +47,6 @@ test.each([
     "2 文以上のブロック",
     'function f(v: unknown): v is string { const t = typeof v; return t === "string"; }\n',
   ],
-  ["every のコールバック", 'a.every((x): x is string => typeof x === "string" && x !== "");\n'],
 ])("ブランド型でない型ガードの余分な条件を検出する（TypeScript）: %s", (_name, text) => {
   expect(ts(text)).toHaveLength(1);
 });
@@ -272,11 +271,54 @@ test.each([
   ],
   [
     "代入",
-    'let o: any;\n/** @type {(v: unknown) => v is string} */\no.g = (v) => typeof v === "string" && v !== "";\n',
+    'const o = {};\n/** @type {(v: unknown) => v is string} */\no.g = (v) => typeof v === "string" && v !== "";\n',
     "3: o.g は",
   ],
-])("報告に型ガードの名前を書く: %s", (_name, text, prefix) => {
-  const out = ts(text);
+])("報告に型ガードの名前を書く: %s", (name, text, prefix) => {
+  // 代入の JSDoc の @type は、TypeScript が JavaScript でだけ読む。
+  const out = name === "代入" ? mjs(text) : ts(text);
   expect(out).toHaveLength(1);
   expect(out[0].startsWith(prefix)).toBe(true);
+});
+
+test.each([
+  ["every のコールバック", 'a.every((x): x is string => typeof x === "string" && x !== "");\n'],
+  ["some のコールバック", 'a.some((x): x is string => typeof x === "string" && x !== "");\n'],
+  ["独自の関数の引数", 'check(xs, (x): x is string => typeof x === "string" && x !== "");\n'],
+  [
+    ".ts の JSDoc の @returns（TypeScript は型ガードとして扱わない）",
+    '/** @returns {v is string} */\nfunction f(v: unknown): boolean { return typeof v === "string" && v !== ""; }\n',
+  ],
+])("呼び出しの引数に渡した関数と、型述語の無い関数は検出しない: %s", (_name, text) => {
+  expect(ts(text)).toEqual([]);
+});
+
+test.each([
+  [
+    "JSDoc の ?string",
+    '/**\n * @param {unknown} v\n * @returns {v is ?string}\n */\nfunction f(v) { return v === null || (typeof v === "string" && v !== ""); }\n',
+  ],
+])("JSDoc の型の書き方を型チェッカーで読む: %s", (_name, text) => {
+  expect(mjs(text)).toHaveLength(1);
+});
+
+test.each([
+  [
+    "印の無い交差 string & {}",
+    'function f(v: unknown): v is string & {} { return typeof v === "string" && v !== ""; }\n',
+  ],
+  [
+    "後ろのオーバーロードの型述語",
+    'function f(v: unknown): v is "a";\nfunction f(v: unknown): v is string;\nfunction f(v: unknown) { return typeof v === "string" && v !== ""; }\n',
+  ],
+])("ブランドでない交差と、すべてのオーバーロードを検査する: %s", (_name, text) => {
+  expect(ts(text)).toEqual([expect.stringContaining("ブランド型に絞っていない")]);
+});
+
+test("絞る型より狭い配列だけを受ける本体は、ブランド型の不足として報告する", () => {
+  expect(
+    ts(
+      'function f(v: unknown): v is (string | number)[] { return isArray(v) && v.every((x) => typeof x === "string"); }\n',
+    ),
+  ).toEqual([expect.stringContaining("ブランド型に絞っていない")]);
 });

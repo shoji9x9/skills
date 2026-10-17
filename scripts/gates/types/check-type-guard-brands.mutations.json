@@ -8,10 +8,10 @@
   "mutations": [
     {
       "id": "NO-DETECT",
-      "why": "判定が型と一致しない本体を検出しない",
+      "why": "判定が型と一致しない本体を、ブランド型の不足として報告しない",
       "file": "scripts/gates/types/check-type-guard-brands.ts",
-      "find": "if (accepted === null || !sameSet(accepted, target)) {",
-      "replace": "if (false) {",
+      "find": "} else if (accepted === null || !sameSet(accepted, target)) {",
+      "replace": "} else if (false) {",
       "occurrences": 1,
       "expect_failing": [
         "ブランド型でない型ガードの余分な条件を検出する（TypeScript）: 空文字を除く string",
@@ -21,10 +21,10 @@
         "ブランド型でない型ガードの余分な条件を検出する（TypeScript）: 空でない string[]",
         "ブランド型でない型ガードの余分な条件を検出する（TypeScript）: 他の関数を呼ぶ",
         "ブランド型でない型ガードの余分な条件を検出する（TypeScript）: 2 文以上のブロック",
-        "ブランド型でない型ガードの余分な条件を検出する（TypeScript）: every のコールバック",
         "ブランド型でない型ガードの余分な条件を検出する（JSDoc）: @returns",
         "ブランド型でない型ガードの余分な条件を検出する（JSDoc）: 変数の @type",
         "行番号と名前を報告する",
+        "CLI: 違反をパスと行番号の付いた一覧で報告して exit 1",
         "種類の集合が絞る型と違う本体を検出する: 否定した typeof",
         "種類の集合が絞る型と違う本体を検出する: null を除く number | null",
         "種類の集合が絞る型と違う本体を検出する: null を受けない number | null",
@@ -32,27 +32,53 @@
         "種類の集合が絞る型と違う本体を検出する: 変数の型の注釈",
         "置いた先の JSDoc の @type を読む: オブジェクトの欄の @type",
         "置いた先の JSDoc の @type を読む: 代入の @type",
-        "CLI: 違反をパスと行番号の付いた一覧で報告して exit 1",
         "型述語の置き場所と種類を広げて検出する: オーバーロードの宣言に書いた型述語",
         "型述語の置き場所と種類を広げて検出する: 括弧で囲んだ注釈の関数の型",
         "型述語の置き場所と種類を広げて検出する: 条件式の枝の初期化子",
         "型述語の置き場所と種類を広げて検出する: symbol",
         "報告に型ガードの名前を書く: クラスの欄",
-        "報告に型ガードの名前を書く: 代入"
+        "報告に型ガードの名前を書く: 代入",
+        "JSDoc の型の書き方を型チェッカーで読む: JSDoc の ?string",
+        "ブランドでない交差と、すべてのオーバーロードを検査する: 印の無い交差 string & {}",
+        "ブランドでない交差と、すべてのオーバーロードを検査する: 後ろのオーバーロードの型述語",
+        "絞る型より狭い配列だけを受ける本体は、ブランド型の不足として報告する"
       ]
     },
     {
       "id": "SET-IGNORED",
-      "why": "種類を求められた本体を、絞る型と比べずに通す（null を受けない number | null を見逃す）",
+      "why": "種類を求められた本体を、絞る型と比べずに通す",
       "file": "scripts/gates/types/check-type-guard-brands.ts",
       "find": "accepted === null || !sameSet(accepted, target)",
       "replace": "accepted === null",
       "occurrences": 1,
-      "expect_failing": ["種類の集合が絞る型と違う本体を検出する: null を受けない number | null"]
+      "expect_failing": [
+        "種類の集合が絞る型と違う本体を検出する: null を受けない number | null",
+        "絞る型より狭い配列だけを受ける本体は、ブランド型の不足として報告する"
+      ]
+    },
+    {
+      "id": "EXTRA-AS-BRAND",
+      "why": "絞る型に無い種類にも true を返す本体を、ブランド型の不足として報告する",
+      "file": "scripts/gates/types/check-type-guard-brands.ts",
+      "find": "if (accepted !== null && [...accepted].some((k) => !covered(k, target))) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "絞る型に無い種類にも true を返す本体は、ブランド型ではなく判定を直すよう報告する"
+      ]
+    },
+    {
+      "id": "NO-ARRAY-COVER",
+      "why": "絞る型より狭い配列を、絞る型に含まれない種類として扱う",
+      "file": "scripts/gates/types/check-type-guard-brands.ts",
+      "find": "  if (inner === null) return false;\n  return [...target]",
+      "replace": "  if (inner === null || true) return false;\n  return [...target]",
+      "occurrences": 1,
+      "expect_failing": ["絞る型より狭い配列だけを受ける本体は、ブランド型の不足として報告する"]
     },
     {
       "id": "OR-LEFT-ONLY",
-      "why": "|| の右側の種類を数えない（typeof と null の組み合わせを誤検知する）",
+      "why": "|| の右側の種類を数えない",
       "file": "scripts/gates/types/check-type-guard-brands.ts",
       "find": "return union([acceptedKinds(e.left, name), acceptedKinds(e.right, name)]);",
       "replace": "return acceptedKinds(e.left, name);",
@@ -63,160 +89,99 @@
       ]
     },
     {
-      "id": "NO-ARRAY-REF",
-      "why": "Array<T> を配列の型として読まない",
-      "file": "scripts/gates/types/check-type-guard-brands.ts",
-      "find": "    ARRAY_NAMES.has(node.typeName.text) &&\n",
-      "replace": "    false &&\n",
-      "occurrences": 1,
-      "expect_failing": ["種類の集合が絞る型と違う本体を検出する: Array<string> の長さ"]
-    },
-    {
       "id": "ASSERTS-CHECKED",
       "why": "false の側が無い asserts も検査する",
       "file": "scripts/gates/types/check-type-guard-brands.ts",
-      "find": "        pred.assertsModifier === undefined &&\n",
-      "replace": "        true &&\n",
+      "find": "if (p && p.kind === ts.TypePredicateKind.Identifier) out.push(p);",
+      "replace": "if (p) out.push(p);",
       "occurrences": 1,
       "expect_failing": ["判定が型と一致するものと対象外のものは検出しない（TypeScript）: asserts"]
     },
     {
-      "id": "FILTER-CHECKED",
-      "why": "false の側が無い filter のコールバックも検査する",
+      "id": "CALL-ARGS-CHECKED",
+      "why": "呼び出しの引数に渡した関数も検査する",
       "file": "scripts/gates/types/check-type-guard-brands.ts",
-      "find": "        !isNoFalseSideCallback(node)\n",
-      "replace": "        true\n",
+      "find": "      !isCallArgument(node)\n",
+      "replace": "      true\n",
       "occurrences": 1,
       "expect_failing": [
         "判定が型と一致するものと対象外のものは検出しない（TypeScript）: filter のコールバック",
-        "本体の無い形と、判定が型と一致するものは検出しない: 括弧で囲んだ filter のコールバック"
+        "本体の無い形と、判定が型と一致するものは検出しない: 括弧で囲んだ filter のコールバック",
+        "呼び出しの引数に渡した関数と、型述語の無い関数は検出しない: every のコールバック",
+        "呼び出しの引数に渡した関数と、型述語の無い関数は検出しない: some のコールバック",
+        "呼び出しの引数に渡した関数と、型述語の無い関数は検出しない: 独自の関数の引数"
       ]
     },
     {
       "id": "NO-PAREN-WALK",
-      "why": "括弧で囲んだコールバックを、渡した先の呼び出しまでたどらない",
+      "why": "括弧で囲んだ関数を、渡した先の呼び出しまでたどらない",
       "file": "scripts/gates/types/check-type-guard-brands.ts",
-      "find": "if (ts.isParenthesizedExpression(p)) n = p;",
-      "replace": "if (false) n = p;",
+      "find": "while (ts.isParenthesizedExpression(n.parent)) n = n.parent;",
+      "replace": "while (false) n = n.parent;",
       "occurrences": 1,
       "expect_failing": [
         "本体の無い形と、判定が型と一致するものは検出しない: 括弧で囲んだ filter のコールバック"
       ]
     },
     {
-      "id": "NO-JSDOC-RETURNS",
-      "why": "JSDoc の @returns の型述語を読まない",
+      "id": "NO-NAME-SIGS",
+      "why": "名前の付いた関数の、同じ名前のシグネチャ（オーバーロード）を読まない",
       "file": "scripts/gates/types/check-type-guard-brands.ts",
-      "find": "if (tag?.typeExpression && ts.isTypePredicateNode(tag.typeExpression.type)) {",
-      "replace": "if (false && tag?.typeExpression && ts.isTypePredicateNode(tag.typeExpression.type)) {",
+      "find": "sigs.push(...checker.getTypeAtLocation(fn.name).getCallSignatures());",
+      "replace": "void 0;",
       "occurrences": 1,
       "expect_failing": [
-        "ブランド型でない型ガードの余分な条件を検出する（JSDoc）: @returns",
-        "CLI: 違反をパスと行番号の付いた一覧で報告して exit 1"
-      ]
-    },
-    {
-      "id": "NO-VAR-TYPE",
-      "why": "変数の型の注釈（TypeScript と JSDoc）の型述語を読まない",
-      "file": "scripts/gates/types/check-type-guard-brands.ts",
-      "find": "return predicateOfType(holder.type) ?? predicateOfType(jsDocTypeOf(holder));",
-      "replace": "return undefined;",
-      "occurrences": 1,
-      "expect_failing": [
-        "ブランド型でない型ガードの余分な条件を検出する（JSDoc）: 変数の @type",
-        "種類の集合が絞る型と違う本体を検出する: 変数の型の注釈",
-        "型述語の置き場所と種類を広げて検出する: 括弧で囲んだ注釈の関数の型",
-        "型述語の置き場所と種類を広げて検出する: 条件式の枝の初期化子",
-        "報告に型ガードの名前を書く: クラスの欄"
-      ]
-    },
-    {
-      "id": "NO-PROP-TYPE",
-      "why": "オブジェクトの欄の JSDoc の @type を読まない",
-      "file": "scripts/gates/types/check-type-guard-brands.ts",
-      "find": "if (ts.isPropertyAssignment(holder)) return predicateOfType(jsDocTypeOf(holder));",
-      "replace": "if (ts.isPropertyAssignment(holder)) return undefined;",
-      "occurrences": 1,
-      "expect_failing": ["置いた先の JSDoc の @type を読む: オブジェクトの欄の @type"]
-    },
-    {
-      "id": "NO-ASSIGN-TYPE",
-      "why": "代入の文の JSDoc の @type を読まない",
-      "file": "scripts/gates/types/check-type-guard-brands.ts",
-      "find": "return predicateOfType(jsDocTypeOf(holder.parent));",
-      "replace": "return undefined;",
-      "occurrences": 1,
-      "expect_failing": [
-        "置いた先の JSDoc の @type を読む: 代入の @type",
-        "報告に型ガードの名前を書く: 代入"
-      ]
-    },
-    {
-      "id": "BODYLESS-CHECKED",
-      "why": "本体の無い関数の形（関数の型・引数の型・宣言）も検査する",
-      "file": "scripts/gates/types/check-type-guard-brands.ts",
-      "find": "\"body\" in node && node.body !== undefined",
-      "replace": "true",
-      "occurrences": 1,
-      "expect_failing": [
-        "本体の無い形と、判定が型と一致するものは検出しない: 型の別名",
-        "本体の無い形と、判定が型と一致するものは検出しない: 引数の型",
-        "本体の無い形と、判定が型と一致するものは検出しない: 本体の無い宣言",
-        "種類の集合が絞る型と違う本体を検出する: 変数の型の注釈",
         "型述語の置き場所と種類を広げて検出する: オーバーロードの宣言に書いた型述語",
+        "ブランドでない交差と、すべてのオーバーロードを検査する: 後ろのオーバーロードの型述語"
+      ]
+    },
+    {
+      "id": "NO-CONTEXT",
+      "why": "関数式とアロー関数の、置いた先の文脈の型を読まない",
+      "file": "scripts/gates/types/check-type-guard-brands.ts",
+      "find": "if (ctx) sigs.push(...ctx.getCallSignatures());",
+      "replace": "if (false) sigs.push(...ctx.getCallSignatures());",
+      "occurrences": 1,
+      "expect_failing": [
+        "種類の集合が絞る型と違う本体を検出する: 変数の型の注釈",
         "型述語の置き場所と種類を広げて検出する: 括弧で囲んだ注釈の関数の型",
         "型述語の置き場所と種類を広げて検出する: 条件式の枝の初期化子",
         "報告に型ガードの名前を書く: クラスの欄"
       ]
     },
     {
-      "id": "NO-OVERLOAD",
-      "why": "オーバーロードの宣言に書いた型述語を読まない",
+      "id": "BRAND-NOT-SKIPPED",
+      "why": "ブランドの印を持つ交差も検査する",
       "file": "scripts/gates/types/check-type-guard-brands.ts",
-      "find": "if (overload) return overload;",
-      "replace": "if (false) return overload;",
+      "find": "if (t.types.some(isBrandMark)) return BRANDED;",
+      "replace": "if (false) return BRANDED;",
       "occurrences": 1,
       "expect_failing": [
-        "型述語の置き場所と種類を広げて検出する: オーバーロードの宣言に書いた型述語"
+        "判定が型と一致するものと対象外のものは検出しない（TypeScript）: ブランド型",
+        "判定が型と一致するものは検出しない（JSDoc）: @returns のブランド型"
       ]
     },
     {
-      "id": "NO-PAREN-TYPE",
-      "why": "括弧で囲んだ関数の型の注釈を読まない",
+      "id": "NO-ARRAY-TYPE",
+      "why": "配列の型を絞る型の種類として読まない",
       "file": "scripts/gates/types/check-type-guard-brands.ts",
-      "find": "if (t && ts.isParenthesizedTypeNode(t)) return predicateOfType(t.type);",
-      "replace": "if (false) return predicateOfType(t.type);",
+      "find": "if (checker.isArrayType(t)) {",
+      "replace": "if (false) {",
       "occurrences": 1,
-      "expect_failing": ["型述語の置き場所と種類を広げて検出する: 括弧で囲んだ注釈の関数の型"]
-    },
-    {
-      "id": "NO-CONDITIONAL-WALK",
-      "why": "条件式の枝の関数を、置いた先の変数までたどらない",
-      "file": "scripts/gates/types/check-type-guard-brands.ts",
-      "find": "else if (ts.isConditionalExpression(p) && p.condition !== n) n = p;",
-      "replace": "else if (false) n = p;",
-      "occurrences": 1,
-      "expect_failing": ["型述語の置き場所と種類を広げて検出する: 条件式の枝の初期化子"]
+      "expect_failing": [
+        "ブランド型でない型ガードの余分な条件を検出する（TypeScript）: 空でない string[]",
+        "種類の集合が絞る型と違う本体を検出する: Array<string> の長さ",
+        "絞る型より狭い配列だけを受ける本体は、ブランド型の不足として報告する"
+      ]
     },
     {
       "id": "NO-SYMBOL",
       "why": "symbol を絞る型の種類として読まない",
       "file": "scripts/gates/types/check-type-guard-brands.ts",
-      "find": "  [ts.SyntaxKind.SymbolKeyword, \"symbol\"],\n",
+      "find": "  if (f & ts.TypeFlags.ESSymbol) return new Set([\"symbol\"]);\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": ["型述語の置き場所と種類を広げて検出する: symbol"]
-    },
-    {
-      "id": "EXTRA-AS-BRAND",
-      "why": "絞る型に無い種類にも true を返す本体を、ブランド型の不足として報告する",
-      "file": "scripts/gates/types/check-type-guard-brands.ts",
-      "find": "if (accepted !== null && [...accepted].some((k) => !target.has(k))) {",
-      "replace": "if (false) {",
-      "occurrences": 1,
-      "expect_failing": [
-        "絞る型に無い種類にも true を返す本体は、ブランド型ではなく判定を直すよう報告する"
-      ]
     },
     {
       "id": "COPIES-TARGETED",

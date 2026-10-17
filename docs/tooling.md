@@ -291,10 +291,12 @@ import できない雛形（`skills/*/assets/*.template.ts`）とミューテー
 `v is string & { readonly __<関数名>: true }` と書けば、false の側には元の型が残る。true の側の値は `string` の一種なので、`string` を受け取る関数にそのまま渡せる。
 配列の型ガードは、要素ではなく配列にブランドを付ける（`v is string[] & { readonly __<関数名>: true }`）。要素にブランドを付けると、その要素を `string` の配列の `includes` に渡せなくなる。
 要素の型ガードを `.every` に渡して絞った配列は、要素がブランド型になる。この配列を検査していない `string` と比べるときは、`includes` の代わりに `some((x) => x === y)` を使うか、`/** @type {Set<string>} */` の注釈で受けた `Set` で比べる。
-判定が型と一致する型ガード（`typeof` だけのもの、`isArray`）と、false の側が無いもの（`asserts`、`filter` のコールバック）は、ブランド型にしない。
+判定が型と一致する型ガード（`typeof` だけのもの、`isArray`）と、false の側が無いもの（`asserts`）は、ブランド型にしない。
+呼び出しの引数に直接渡す関数（`filter`・`every` のコールバックなど）も、false の側を使うかを呼び出し先が決めるので、ブランド型にしなくてよい。
 絞る型がプリミティブとその配列の型ガードは、`scripts/gates/types/check-type-guard-brands.ts` がこの規約を pre-commit と CI でチェックする。
+チェックは型述語と絞る型を TypeScript の型チェッカーで読むので、注釈・JSDoc・オーバーロード・型の別名のどこに書いた型述語も対象になる。
+対象のファイルは `scripts/` と `skills/` と private skill の `.ts`・`.mjs` で、`types/` とリポジトリの直下のファイルは対象にしない。
 オブジェクトの形の型ガードは、判定が型と一致するかを構文から決められないので、書いた人とレビューする人が確かめる。
-型の別名（`type`・`@typedef`・`@callback`）を通して付けた型述語も、チェックは別名を解決しないので読まない。書いた人とレビューする人が確かめる。
 `isArray(v) && v.every(isS)` のように、配列の要素の判定に関数を名前で渡す型ガードは、判定が型と一致していてもチェックが違反にする。要素の判定はアロー関数（`(x) => typeof x === "string"`）で書く。
 
 配布スキルの `.mjs` では、型の検査を外す JSDoc の書き方を `scripts/gates/types/check-jsdoc-types.ts` が失敗にする。

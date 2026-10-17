@@ -36,3 +36,7 @@ ci:39036121606:1,ci,2026-10-17T13:29:59.384Z,p-cdee4961,github-actions,,,,2026-1
 coverage:github:2026-10-16T13:17:56.583Z:2026-10-17T13:29:59.384Z,coverage,2026-10-17T13:29:59.384Z,p-cdee4961,,,,,2026-10-16T13:17:56.583Z,2026-10-17T13:29:59.384Z,Asia/Tokyo,,,,,,,,,,,,ok,
 ci:39036121606:1,ci,2026-10-17T13:30:43.872Z,p-cdee4961,github-actions,,,,2026-10-17T13:20:03.000Z,2026-10-17T13:30:43.872Z,Asia/Tokyo,feature/606-type-guard-false-branch,606,,,,,,,,,,CI;pull_request;open,
 coverage:github:2026-10-16T13:29:59.384Z:2026-10-17T13:30:43.872Z,coverage,2026-10-17T13:30:43.872Z,p-cdee4961,,,,,2026-10-16T13:29:59.384Z,2026-10-17T13:30:43.872Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:39036999236:1,ci,2026-10-17T13:52:51.365Z,p-cdee4961,github-actions,,,,2026-10-17T13:32:41.000Z,2026-10-17T13:32:51.000Z,Asia/Tokyo,feature/606-type-guard-false-branch,606,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:39036999230:1,ci,2026-10-17T13:52:51.365Z,p-cdee4961,github-actions,,,,2026-10-17T13:32:41.000Z,2026-10-17T13:45:44.000Z,Asia/Tokyo,feature/606-type-guard-false-branch,606,,,,,,,,,,CI;pull_request;success,
+ci:39036121606:1,ci,2026-10-17T13:52:51.365Z,p-cdee4961,github-actions,,,,2026-10-17T13:20:03.000Z,2026-10-17T13:31:09.000Z,Asia/Tokyo,feature/606-type-guard-false-branch,606,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-16T13:30:43.872Z:2026-10-17T13:52:51.365Z,coverage,2026-10-17T13:52:51.365Z,p-cdee4961,,,,,2026-10-16T13:30:43.872Z,2026-10-17T13:52:51.365Z,Asia/Tokyo,,,,,,,,,,,,ok,

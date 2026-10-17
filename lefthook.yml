@@ -173,7 +173,7 @@ pre-commit:
             run: node scripts/gates/types/check-jsdoc-types.ts
           - name: type-guard-brands
             # 絞る型の値にも false を返す型ガード（空文字を除く `v is string` など）を、ブランド型に絞らせる。
-            # TypeScript のパーサで読むだけで型チェッカーは作らないので、JavaScript・TypeScript が staged のときだけ実行する。
+            # 型チェッカーを作るので約 4 秒かかる。JavaScript・TypeScript が staged のときだけ実行する。
             glob: "*.{mjs,ts}"
             run: node scripts/gates/types/check-type-guard-brands.ts
           - name: kaizen-refs
