@@ -281,7 +281,7 @@ export function main(cwd = "."): number {
     console.error("jsdoc-types: 型の検査を外す JSDoc の書き方:");
     for (const v of violations) console.error(`  - ${v}`);
     console.error(
-      "Fix: 型ガード・instanceof・typeof で絞り、JSDoc には具体的な型か unknown を書く（docs/tooling.md「JavaScript の拡張子」）。",
+      "Fix: 型ガード・instanceof・typeof で絞り、JSDoc には具体的な型か unknown を書く（docs/tooling.md「型の検査」）。",
     );
     return 1;
   }

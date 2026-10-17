@@ -4,13 +4,13 @@
 // 実際には来る "" や "  " が型の上で消える（#606）。そうした型ガードは、絞る型を
 // `string & { readonly __<名前>: true }` のブランド型にして、false の側に元の型を残す。
 //
-// 対象にする型ガードは、絞る型がプリミティブ（string・number・bigint・boolean）と null・undefined と、
+// 対象にする型ガードは、絞る型がプリミティブ（string・number・bigint・boolean・symbol）と null・undefined と、
 // それらの配列（`T[]`・`readonly T[]`・`Array<T>`・`ReadonlyArray<T>`）だけで組み立てた型のものである。
 // オブジェクトの形の型ガードは、判定が型と一致するかを構文から決められないので対象にしない（レビューで確かめる）。
 // ブランド型（`string & { readonly __<名前>: true }`）は交差の型なので、この対象に入らない。
 // 判定が型と一致するかは、本体が true を返す値の種類の集合と、絞る型の種類の集合が一致するかで決める。
 // 本体の種類を求められるのは、次の式を || と括弧で組み合わせたものだけである。
-//   - `typeof x === "<型>"`（string・number・bigint・boolean・undefined）
+//   - `typeof x === "<型>"`（string・number・bigint・boolean・symbol・undefined）
 //   - `x === null`・`x === undefined`
 //   - `isArray(x) && x.every((e) => <同じ形の式>)`（`Array.isArray` も）
 // これ以外の条件（`x !== ""`・`x.trim()`・`Number.isFinite(x)`・否定・他の関数の呼び出し）を持つ本体と、
@@ -19,7 +19,9 @@
 // 本体の無い関数の形（関数の型・オーバーロードの宣言・引数の型）は、型ガードの実装ではないので対象にしない。
 // 型述語は、戻り値の型、JSDoc の `@returns`、置いた先（変数・オブジェクトの欄・代入）の注釈から読む。
 // 置いた先の注釈は、TypeScript の型と JSDoc の `@type` の両方を読む。
-// 型の別名（`type G = ...`・`@typedef`）を通した型述語は、別名を解決しないので読まない。
+// 型の別名（`type G = ...`・`@typedef`・`@callback`）を通した型述語は、別名を解決しないので読まない。
+// `x.every(isS)` のように関数を名前で渡す本体は、その関数の判定を読まないので、種類を求められない形として扱う。
+// 絞る型に無い種類にも true を返す本体は、ブランド型にしても直らないので、判定か絞る型を直すよう別の言葉で報告する。
 // 対象のファイルは、scripts/ と skills/ の .ts・.mjs と、private skill の .ts・.mjs である。
 // 構文は TypeScript のパーサで読む。
 import { existsSync, readFileSync, realpathSync } from "node:fs";
@@ -33,10 +35,11 @@ const KEYWORD_KINDS = new Map([
   [ts.SyntaxKind.StringKeyword, "string"],
   [ts.SyntaxKind.NumberKeyword, "number"],
   [ts.SyntaxKind.BigIntKeyword, "bigint"],
+  [ts.SyntaxKind.SymbolKeyword, "symbol"],
   [ts.SyntaxKind.BooleanKeyword, "boolean"],
   [ts.SyntaxKind.UndefinedKeyword, "undefined"],
 ]);
-const TYPEOF_NAMES = new Set(["string", "number", "bigint", "boolean", "undefined"]);
+const TYPEOF_NAMES = new Set(["string", "number", "bigint", "boolean", "symbol", "undefined"]);
 const ARRAY_NAMES = new Set(["Array", "ReadonlyArray"]);
 const NO_FALSE_SIDE_METHODS = new Set(["filter", "find", "findLast"]);
 
@@ -167,6 +170,7 @@ function bodyExpression(fn: ts.SignatureDeclaration): ts.Expression | null {
 
 /** 関数の型の注釈から、型述語を取り出す。 */
 function predicateOfType(t: ts.TypeNode | undefined): ts.TypePredicateNode | undefined {
+  if (t && ts.isParenthesizedTypeNode(t)) return predicateOfType(t.type);
   return t && ts.isFunctionTypeNode(t) && ts.isTypePredicateNode(t.type) ? t.type : undefined;
 }
 
@@ -176,11 +180,41 @@ function jsDocTypeOf(node: ts.Node): ts.TypeNode | undefined {
   return tag?.typeExpression.type;
 }
 
-/** 括弧を外側へたどった、関数を包む最も外側の式。 */
+/** 括弧と条件式の枝を外側へたどった、関数を包む最も外側の式。 */
 function outer(fn: ts.Node): ts.Node {
   let n = fn;
-  while (ts.isParenthesizedExpression(n.parent)) n = n.parent;
-  return n;
+  for (;;) {
+    const p = n.parent;
+    if (ts.isParenthesizedExpression(p)) n = p;
+    else if (ts.isConditionalExpression(p) && p.condition !== n) n = p;
+    else return n;
+  }
+}
+
+/** 本体を持つ関数の宣言の、同じ名前のオーバーロードの宣言（本体の無いもの）に書いた型述語。 */
+function overloadPredicate(fn: ts.SignatureDeclaration): ts.TypePredicateNode | undefined {
+  if (!(ts.isFunctionDeclaration(fn) || ts.isMethodDeclaration(fn)) || fn.name === undefined) {
+    return undefined;
+  }
+  const name = fn.name.getText();
+  const p = fn.parent;
+  const siblings: readonly ts.Node[] = ts.isClassLike(p)
+    ? p.members
+    : ts.isSourceFile(p) || ts.isBlock(p) || ts.isModuleBlock(p)
+      ? p.statements
+      : [];
+  for (const s of siblings) {
+    if (
+      (ts.isFunctionDeclaration(s) || ts.isMethodDeclaration(s)) &&
+      s.body === undefined &&
+      s.name?.getText() === name &&
+      s.type &&
+      ts.isTypePredicateNode(s.type)
+    ) {
+      return s.type;
+    }
+  }
+  return undefined;
 }
 
 /** 関数の型述語。戻り値の型、JSDoc の @returns、置いた先（変数・オブジェクトの欄・代入）の注釈の順に探す。 */
@@ -190,6 +224,8 @@ function predicateOf(fn: ts.SignatureDeclaration): ts.TypePredicateNode | undefi
   if (tag?.typeExpression && ts.isTypePredicateNode(tag.typeExpression.type)) {
     return tag.typeExpression.type;
   }
+  const overload = overloadPredicate(fn);
+  if (overload) return overload;
   const holder = outer(fn).parent;
   if (ts.isVariableDeclaration(holder) || ts.isPropertyDeclaration(holder)) {
     return predicateOfType(holder.type) ?? predicateOfType(jsDocTypeOf(holder));
@@ -220,8 +256,15 @@ function isNoFalseSideCallback(fn: ts.Node): boolean {
 function nameOf(fn: ts.SignatureDeclaration): string {
   if (fn.name) return fn.name.getText();
   const holder = outer(fn).parent;
-  if (ts.isVariableDeclaration(holder) || ts.isPropertyAssignment(holder)) {
+  if (
+    ts.isVariableDeclaration(holder) ||
+    ts.isPropertyAssignment(holder) ||
+    ts.isPropertyDeclaration(holder)
+  ) {
     return holder.name.getText();
+  }
+  if (ts.isBinaryExpression(holder) && holder.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
+    return holder.left.getText();
   }
   return "(無名の関数)";
 }
@@ -244,11 +287,13 @@ export function findViolations(text: string, fileName: string): string[] {
       ) {
         const body = bodyExpression(node);
         const accepted = body === null ? null : acceptedKinds(body, pred.parameterName.text);
-        if (accepted === null || !sameSet(accepted, target)) {
-          const { line } = sf.getLineAndCharacterOfPosition(node.getStart(sf));
-          out.push(
-            `${line + 1}: ${nameOf(node)} は ${pred.type.getText(sf)} の値にも false を返しうるのに、ブランド型に絞っていない`,
-          );
+        const { line } = sf.getLineAndCharacterOfPosition(node.getStart(sf));
+        const where = `${line + 1}: ${nameOf(node)} は ${pred.type.getText(sf)}`;
+        // 絞る型に無い種類にも true を返す本体は、ブランド型にしても直らない（true の側の型が誤っている）。
+        if (accepted !== null && [...accepted].some((k) => !target.has(k))) {
+          out.push(`${where} に無い種類の値にも true を返す。判定か絞る型を直す`);
+        } else if (accepted === null || !sameSet(accepted, target)) {
+          out.push(`${where} の値にも false を返しうるのに、ブランド型に絞っていない`);
         }
       }
     }

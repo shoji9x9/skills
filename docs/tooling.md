@@ -294,6 +294,8 @@ import できない雛形（`skills/*/assets/*.template.ts`）とミューテー
 判定が型と一致する型ガード（`typeof` だけのもの、`isArray`）と、false の側が無いもの（`asserts`、`filter` のコールバック）は、ブランド型にしない。
 絞る型がプリミティブとその配列の型ガードは、`scripts/gates/types/check-type-guard-brands.ts` がこの規約を pre-commit と CI でチェックする。
 オブジェクトの形の型ガードは、判定が型と一致するかを構文から決められないので、書いた人とレビューする人が確かめる。
+型の別名（`type`・`@typedef`・`@callback`）を通して付けた型述語も、チェックは別名を解決しないので読まない。書いた人とレビューする人が確かめる。
+`isArray(v) && v.every(isS)` のように、配列の要素の判定に関数を名前で渡す型ガードは、判定が型と一致していてもチェックが違反にする。要素の判定はアロー関数（`(x) => typeof x === "string"`）で書く。
 
 配布スキルの `.mjs` では、型の検査を外す JSDoc の書き方を `scripts/gates/types/check-jsdoc-types.ts` が失敗にする。
 失敗にするのは、型の表明 `/** @type {X} */ (v)`（TypeScript の `as` と同じ）と、`@ts-ignore`・`@ts-expect-error`・`@ts-nocheck` である。

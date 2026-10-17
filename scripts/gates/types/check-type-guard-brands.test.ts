@@ -234,3 +234,49 @@ test.each([
 ])("本体の無い形と、判定が型と一致するものは検出しない: %s", (_name, text) => {
   expect(ts(text)).toEqual([]);
 });
+
+test.each([
+  [
+    "オーバーロードの宣言に書いた型述語",
+    'function f(v: unknown): v is string;\nfunction f(v: unknown) { return typeof v === "string" && v !== ""; }\n',
+  ],
+  [
+    "括弧で囲んだ注釈の関数の型",
+    'const f: ((v: unknown) => v is string) = (v) => typeof v === "string" && v !== "";\n',
+  ],
+  [
+    "条件式の枝の初期化子",
+    'const f: (v: unknown) => v is string = c ? (v) => typeof v === "string" && v !== "" : g;\n',
+  ],
+  [
+    "symbol",
+    'function f(v: unknown): v is symbol { return typeof v === "symbol" && v.description !== undefined; }\n',
+  ],
+])("型述語の置き場所と種類を広げて検出する: %s", (_name, text) => {
+  expect(ts(text)).toHaveLength(1);
+});
+
+test("絞る型に無い種類にも true を返す本体は、ブランド型ではなく判定を直すよう報告する", () => {
+  expect(
+    ts(
+      'function f(v: unknown): v is string { return typeof v === "string" || typeof v === "number"; }\n',
+    ),
+  ).toEqual(["1: f は string に無い種類の値にも true を返す。判定か絞る型を直す"]);
+});
+
+test.each([
+  [
+    "クラスの欄",
+    'class C {\n  g: (v: unknown) => v is string = (v) => typeof v === "string" && v !== "";\n}\n',
+    "2: g は",
+  ],
+  [
+    "代入",
+    'let o: any;\n/** @type {(v: unknown) => v is string} */\no.g = (v) => typeof v === "string" && v !== "";\n',
+    "3: o.g は",
+  ],
+])("報告に型ガードの名前を書く: %s", (_name, text, prefix) => {
+  const out = ts(text);
+  expect(out).toHaveLength(1);
+  expect(out[0].startsWith(prefix)).toBe(true);
+});

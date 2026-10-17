@@ -32,7 +32,13 @@
         "種類の集合が絞る型と違う本体を検出する: 変数の型の注釈",
         "置いた先の JSDoc の @type を読む: オブジェクトの欄の @type",
         "置いた先の JSDoc の @type を読む: 代入の @type",
-        "CLI: 違反をパスと行番号の付いた一覧で報告して exit 1"
+        "CLI: 違反をパスと行番号の付いた一覧で報告して exit 1",
+        "型述語の置き場所と種類を広げて検出する: オーバーロードの宣言に書いた型述語",
+        "型述語の置き場所と種類を広げて検出する: 括弧で囲んだ注釈の関数の型",
+        "型述語の置き場所と種類を広げて検出する: 条件式の枝の初期化子",
+        "型述語の置き場所と種類を広げて検出する: symbol",
+        "報告に型ガードの名前を書く: クラスの欄",
+        "報告に型ガードの名前を書く: 代入"
       ]
     },
     {
@@ -52,7 +58,8 @@
       "replace": "return acceptedKinds(e.left, name);",
       "occurrences": 1,
       "expect_failing": [
-        "判定が型と一致するものと対象外のものは検出しない（TypeScript）: typeof と null"
+        "判定が型と一致するものと対象外のものは検出しない（TypeScript）: typeof と null",
+        "絞る型に無い種類にも true を返す本体は、ブランド型ではなく判定を直すよう報告する"
       ]
     },
     {
@@ -89,8 +96,8 @@
       "id": "NO-PAREN-WALK",
       "why": "括弧で囲んだコールバックを、渡した先の呼び出しまでたどらない",
       "file": "scripts/gates/types/check-type-guard-brands.ts",
-      "find": "while (ts.isParenthesizedExpression(n.parent)) n = n.parent;",
-      "replace": "while (false) n = n.parent;",
+      "find": "if (ts.isParenthesizedExpression(p)) n = p;",
+      "replace": "if (false) n = p;",
       "occurrences": 1,
       "expect_failing": [
         "本体の無い形と、判定が型と一致するものは検出しない: 括弧で囲んだ filter のコールバック"
@@ -117,7 +124,10 @@
       "occurrences": 1,
       "expect_failing": [
         "ブランド型でない型ガードの余分な条件を検出する（JSDoc）: 変数の @type",
-        "種類の集合が絞る型と違う本体を検出する: 変数の型の注釈"
+        "種類の集合が絞る型と違う本体を検出する: 変数の型の注釈",
+        "型述語の置き場所と種類を広げて検出する: 括弧で囲んだ注釈の関数の型",
+        "型述語の置き場所と種類を広げて検出する: 条件式の枝の初期化子",
+        "報告に型ガードの名前を書く: クラスの欄"
       ]
     },
     {
@@ -136,7 +146,10 @@
       "find": "return predicateOfType(jsDocTypeOf(holder.parent));",
       "replace": "return undefined;",
       "occurrences": 1,
-      "expect_failing": ["置いた先の JSDoc の @type を読む: 代入の @type"]
+      "expect_failing": [
+        "置いた先の JSDoc の @type を読む: 代入の @type",
+        "報告に型ガードの名前を書く: 代入"
+      ]
     },
     {
       "id": "BODYLESS-CHECKED",
@@ -149,7 +162,60 @@
         "本体の無い形と、判定が型と一致するものは検出しない: 型の別名",
         "本体の無い形と、判定が型と一致するものは検出しない: 引数の型",
         "本体の無い形と、判定が型と一致するものは検出しない: 本体の無い宣言",
-        "種類の集合が絞る型と違う本体を検出する: 変数の型の注釈"
+        "種類の集合が絞る型と違う本体を検出する: 変数の型の注釈",
+        "型述語の置き場所と種類を広げて検出する: オーバーロードの宣言に書いた型述語",
+        "型述語の置き場所と種類を広げて検出する: 括弧で囲んだ注釈の関数の型",
+        "型述語の置き場所と種類を広げて検出する: 条件式の枝の初期化子",
+        "報告に型ガードの名前を書く: クラスの欄"
+      ]
+    },
+    {
+      "id": "NO-OVERLOAD",
+      "why": "オーバーロードの宣言に書いた型述語を読まない",
+      "file": "scripts/gates/types/check-type-guard-brands.ts",
+      "find": "if (overload) return overload;",
+      "replace": "if (false) return overload;",
+      "occurrences": 1,
+      "expect_failing": [
+        "型述語の置き場所と種類を広げて検出する: オーバーロードの宣言に書いた型述語"
+      ]
+    },
+    {
+      "id": "NO-PAREN-TYPE",
+      "why": "括弧で囲んだ関数の型の注釈を読まない",
+      "file": "scripts/gates/types/check-type-guard-brands.ts",
+      "find": "if (t && ts.isParenthesizedTypeNode(t)) return predicateOfType(t.type);",
+      "replace": "if (false) return predicateOfType(t.type);",
+      "occurrences": 1,
+      "expect_failing": ["型述語の置き場所と種類を広げて検出する: 括弧で囲んだ注釈の関数の型"]
+    },
+    {
+      "id": "NO-CONDITIONAL-WALK",
+      "why": "条件式の枝の関数を、置いた先の変数までたどらない",
+      "file": "scripts/gates/types/check-type-guard-brands.ts",
+      "find": "else if (ts.isConditionalExpression(p) && p.condition !== n) n = p;",
+      "replace": "else if (false) n = p;",
+      "occurrences": 1,
+      "expect_failing": ["型述語の置き場所と種類を広げて検出する: 条件式の枝の初期化子"]
+    },
+    {
+      "id": "NO-SYMBOL",
+      "why": "symbol を絞る型の種類として読まない",
+      "file": "scripts/gates/types/check-type-guard-brands.ts",
+      "find": "  [ts.SyntaxKind.SymbolKeyword, \"symbol\"],\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["型述語の置き場所と種類を広げて検出する: symbol"]
+    },
+    {
+      "id": "EXTRA-AS-BRAND",
+      "why": "絞る型に無い種類にも true を返す本体を、ブランド型の不足として報告する",
+      "file": "scripts/gates/types/check-type-guard-brands.ts",
+      "find": "if (accepted !== null && [...accepted].some((k) => !target.has(k))) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "絞る型に無い種類にも true を返す本体は、ブランド型ではなく判定を直すよう報告する"
       ]
     },
     {
