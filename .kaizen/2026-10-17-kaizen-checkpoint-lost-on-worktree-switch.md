@@ -32,6 +32,9 @@ issue-batch の run で、#632 の worktree（`.claude/worktrees/632`）から #
 
 kaizen の走査は、処理位置の transcript のパスが今のパスと違っても、セッションの id が同じで記録したバイト位置と行数が今の transcript に収まるなら、その処理位置を使う。
 
-- 適用先: `skills/kaizen/scripts/kaizen-candidate-scan.sh` の処理位置の照合（30 行目）。セッションの id は処理位置のファイル名（`.extract-checkpoint.<session>`）から取れる
+- 適用先: `skills/kaizen/scripts/kaizen-candidate-scan.sh` の処理位置の照合（30 行目）。
+  session 単位の処理位置は、`kaizen-precommit-gate.sh` が今のセッションの key（`kaizen_session_key` が session id から作る）の名前で探すので、見つかった時点で同じセッションのものである。
+  そのため、照合でパスの比較をやめ、バイト位置と行数が今の transcript の範囲に収まるかで判定すればよい。
+  名前に key を持たない旧形式の `.extract-checkpoint` には、パスの比較を残す
 - 使ってよいかの確かめ: 移した後の transcript の先頭から記録したバイト位置までが、移す前と同じ内容かを確かめる方法を決める（バイト位置の直前の行の内容を処理位置に記録しておく、など）
 - 確かめる状態: セッションが worktree A で抽出した後に worktree B へ移り、B で最初にコミットする。B のチェックが、A で処理した範囲を候補に数えないこと。別のセッションの処理位置を誤って使わないこと
