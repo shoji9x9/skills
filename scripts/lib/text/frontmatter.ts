@@ -33,14 +33,21 @@ export function splitFrontmatter(content: string): { fm: string; body: string } 
 
 type SkillFrontmatter = { metadata?: unknown };
 
-/** マッピングと配列をたどり、負のゼロを 0 にした値を、コピーして返す。Set・Date などは、そのまま返す。 */
-function withoutNegativeZero(value: unknown): unknown {
-  if (Object.is(value, -0)) return 0;
-  if (isArray(value)) return value.map(withoutNegativeZero);
-  if (isPlainObject(value)) {
-    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, withoutNegativeZero(v)]));
+/**
+ * 読んだばかりの YAML の値の中で、マッピングと配列の要素の負のゼロを、その場で 0 に書き換える。Set・Date などの中は見ない。
+ * エイリアスは同じ値を共有し、自分自身を参照することもある（`a: &a [*a]`）ので、訪れた値を覚えて 1 回だけたどる。
+ */
+function zeroNegativeZeros(value: unknown, seen = new WeakSet<object>()): void {
+  if (!isArray(value) && !isPlainObject(value)) return;
+  if (seen.has(value)) return;
+  seen.add(value);
+  const entries: [string | number, unknown][] = isArray(value)
+    ? [...value.entries()]
+    : Object.entries(value);
+  for (const [key, item] of entries) {
+    if (Object.is(item, -0)) Reflect.set(value, key, 0);
+    else zeroNegativeZeros(item, seen);
   }
-  return value;
 }
 
 /**
@@ -48,17 +55,21 @@ function withoutNegativeZero(value: unknown): unknown {
  * 読んだ値が undefined か null のとき（空・コメントだけ・`~`・`null`）だけを空の frontmatter とみなす。false や 0 のようなスカラーは、そのまま比べる。
  * metadata がマッピングでない（Set・Date・配列など）ときは、キーが無く見えても消さずに比べる。
  * metadata が null（`metadata: ~`）のときは、metadata が無いものとして除く。`gh skill install` は null の metadata を `local-path` だけのマッピングにするので（#651）、除かないとインストールしただけで差分になる。
- * withoutNegativeZero はマッピングをコピーして返すので、`metadata: *b` のようにエイリアスで書かれていても、`local-path` を消したときにアンカー側の値は変わらない。
- * js-yaml 5 は `-0` を負のゼロとして読み（4 は +0）、isDeepStrictEqual は 0 と区別する。YAML 1.2 の core schema では `-0` は整数の 0 なので、負のゼロを 0 にそろえてから比べる（#651）。
+ * metadata は浅くコピーしてから `local-path` を消す。`metadata: *b` のようにエイリアスで書かれていると、その場で消すとアンカー側の値からも消えるからである。
+ * js-yaml 5 は `-0`（整数）と `-0.0`（浮動小数点数）を負のゼロとして読み（4 は `-0` を +0）、isDeepStrictEqual は 0 と区別する。
+ * 負のゼロと 0 の違いは frontmatter の内容の違いとして扱わないので、どちらも 0 にそろえてから比べる（#651）。
  * 空の入力（`"\t\n"`・`"...\n"`）は、loadYamlAs が undefined を返す（js-yaml 4 は null を返した）。どちらも `?? {}` で空の frontmatter として扱う。
  */
 export function normalizeSkillFrontmatter(fmText: string): unknown {
   const loaded = loadYamlAs<SkillFrontmatter | null | undefined>(fmText) ?? {};
-  const obj = withoutNegativeZero(loaded);
+  zeroNegativeZeros(loaded);
+  const obj = Object.is(loaded, -0) ? 0 : loaded;
   if (isPlainObject(obj) && obj.metadata === null) delete obj.metadata;
   if (isPlainObject(obj) && isPlainObject(obj.metadata)) {
-    delete obj.metadata["local-path"];
-    if (Object.keys(obj.metadata).length === 0) delete obj.metadata;
+    const metadata = { ...obj.metadata };
+    delete metadata["local-path"];
+    if (Object.keys(metadata).length === 0) delete obj.metadata;
+    else obj.metadata = metadata;
   }
   return obj;
 }
