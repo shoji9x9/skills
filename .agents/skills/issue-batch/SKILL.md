@@ -108,4 +108,8 @@ BLOCKED や FAILED の影響が Issue の隔離した worktree の中だけで�
 入力の順に並べた表で、Issue・最終状態・branch・worktree・PR・local review・tests・browser・Kaizen・merge・Issue close・deployment・cleanup・停止の理由を示す。
 表の後に、「判断待ち」と「自分で判断して進めたもの」の一覧を必ず載せる。0 件でも、無いことを書く。
 判断待ちは、Issue ごとに論点・選択肢・推奨・決まった後に残る作業を示す。自分で判断して進めたものは、判断・根拠・覆すときに戻る工程を示す。
+自分で判断して進めたものには、次の 4 つの欄を必ず載せる。それぞれ 0 件でも、無いことを書く。
+守っていない規約とその理由、速度や反復の回数を理由に直さなかった指摘、見送った指摘のうち Issue にしていないもの、Issue の対象から外した形とその根拠である。
+各欄の中は、迷った度合いの大きいもの（覆したときの手戻りが大きいもの）から並べる。どの欄にも当たらない判断は、4 つの欄の後に同じ並べ方で載せる。
+これらの欄は、run の間に manifest の同じ欄へ記録したものから作る（`references/orchestration.md`「判断の扱い」）。
 `DONE` は、次のすべてを確かめた場合だけ使う。PR が `MERGED`、Issue が `CLOSED`、deployment が成功したか根拠があって対象外である、local と remote の branch を削除した。

@@ -20,3 +20,4 @@ scripts/eval/run-skill-eval.sh \
 - fixture は入力状態だけを持つ。判定・分類・あるべき置き場所を書かない（ベースラインが読んで assertion を満たすと Delta が消える）。
 - 外部 GitHub 状態より先の工程は、実操作ではなく dry-run の最終報告として 1 つのメッセージに収めさせる（`result.json` には最終アシスタントメッセージしか残らない）。
 - eval 23 の「条件を外す承認と #108 の見直しを、1 つの判断待ちにまとめる」は、`requires_skills` で入る `issue-start` の `references/acceptance.md` から読めるので、without_skill も pass する。Delta には寄与せず、issue-batch 側の取り決めが消えたり食い違ったりした後退を検出するために置く。
+- eval 26 の 1〜3 本目（守っていない規約・反復を理由に直さなかった指摘・Issue にしていない見送りを載せる）と「説明に留める」は、prompt が事実を挙げているので without_skill も pass する。4 つの欄の取り決めが消えた後退を検出するために置く。
