@@ -16,7 +16,8 @@
         "agent-usage のコマンドと Hook 判断の無い feature ブランチのコミットを止め、記録しないと決めたら通す。デフォルトブランチでは止めない",
         "agent-usage のコマンドと Hook Hook が実行された worktree のパスを覚え、その worktree を削除した後も collect がログを集める",
         "agent-usage のコマンドの入力と状態 origin/HEAD のデフォルトブランチでは、main 以外の名前でもコミットを止めない",
-        "agent-usage のコマンドと Hook defaultDecision が読めない値なら、コミットを止めて理由を返す。どちらの設定にも無ければ確かめる"
+        "agent-usage のコマンドと Hook defaultDecision が読めない値なら、コミットを止めて理由を返す。どちらの設定にも無ければ確かめる",
+        "agent-usage のコマンドと Hook 人の設定が無いとき、引数を誤った setup と report は人の設定を作らず、判断を確かめる案内は setup --person-id を示す"
       ]
     },
     {
@@ -789,7 +790,7 @@
       "id": "setup-drops-default-decision",
       "why": "setup をやり直すと、人の設定の defaultDecision が消える",
       "file": "skills/agent-usage/scripts/agent-usage.mjs",
-      "find": "defaultDecision: config.defaultDecision",
+      "find": "defaultDecision: config?.defaultDecision",
       "replace": "defaultDecision: undefined",
       "occurrences": 1,
       "expect_failing": [
@@ -927,6 +928,50 @@
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook リポジトリの defaultDecision は、人の設定が無い人には当てずに止めて setup を求め、人の ID を作らない。デフォルトブランチの status は対象外と出す"
+      ]
+    },
+    {
+      "id": "setup-creates-before-validate",
+      "why": "setup が引数を確かめる前に人の設定を作り、打ち間違いで止まっても乱数の ID の設定が残る",
+      "file": "skills/agent-usage/scripts/agent-usage.mjs",
+      "find": "      const config = loadUserConfig();",
+      "replace": "      const config =\n        loadUserConfig() ??\n        (saveUserConfig(path, { personId: newPersonId(), timeZone: systemTimeZone(), billing: \"none\" }),\n        loadUserConfig());",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook 人の設定が無いとき、引数を誤った setup と report は人の設定を作らず、判断を確かめる案内は setup --person-id を示す"
+      ]
+    },
+    {
+      "id": "report-creates-user-config",
+      "why": "report が人の設定を作り、setup を通らずに乱数の ID ができる",
+      "file": "skills/agent-usage/scripts/lib/report/report.mjs",
+      "find": "import { loadRepoConfig, loadUserConfig } from \"../config.mjs\";",
+      "replace": "import { loadRepoConfig, loadOrCreateUserConfig } from \"../config.mjs\";\nconst loadUserConfig = (/** @type {NodeJS.ProcessEnv} */ env) => loadOrCreateUserConfig(env).config;",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook 人の設定が無いとき、引数を誤った setup と report は人の設定を作らず、判断を確かめる案内は setup --person-id を示す"
+      ]
+    },
+    {
+      "id": "ask-no-person-id-hint",
+      "why": "人の設定が無い人に、collect が新しい ID を作る前に setup --person-id を案内しない",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "    ...(existsSync(userConfigPath(process.env))",
+      "replace": "    ...(true",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook 人の設定が無いとき、引数を誤った setup と report は人の設定を作らず、判断を確かめる案内は setup --person-id を示す"
+      ]
+    },
+    {
+      "id": "ask-person-id-hint-always",
+      "why": "人の設定がある人にも、人の設定がまだ無いと案内する",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "    ...(existsSync(userConfigPath(process.env))",
+      "replace": "    ...(false",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook defaultDecision が読めない値なら、コミットを止めて理由を返す。どちらの設定にも無ければ確かめる"
       ]
     }
   ]

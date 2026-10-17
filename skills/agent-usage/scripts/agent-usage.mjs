@@ -17,7 +17,8 @@ import { fileURLToPath } from "node:url";
 import {
   PERSON_ID_RE,
   defaultDecisionOf,
-  loadOrCreateUserConfig,
+  loadUserConfig,
+  newPersonId,
   parseUserConfig,
   saveUserConfig,
   userConfigPath,
@@ -28,7 +29,7 @@ import { git, isDecisionBranch, repoInfo } from "./lib/repo.mjs";
 import { usageDir } from "./lib/records.mjs";
 import { runCollect } from "./lib/run-collect.mjs";
 import { runReport } from "./lib/report/report.mjs";
-import { isValidTimeZone, parseTime } from "./lib/time.mjs";
+import { isValidTimeZone, parseTime, systemTimeZone } from "./lib/time.mjs";
 
 const SCRIPT = fileURLToPath(import.meta.url);
 
@@ -148,16 +149,19 @@ export function main(argv, cwd = process.cwd()) {
     case "setup": {
       const a = parseArgs(rest, [], ["--person-id", "--time-zone", "--billing"]);
       const repo = repoInfo(cwd);
-      const { config, created, path } = loadOrCreateUserConfig();
-      const personId = a.options.get("--person-id") ?? config.personId;
+      // 引数を確かめる前に人の設定を作らない。打ち間違いで止まったときに、乱数の ID の設定が残らないようにする
+      const path = userConfigPath();
+      const config = loadUserConfig();
+      const created = config === null;
+      const personId = a.options.get("--person-id") ?? config?.personId ?? newPersonId();
       if (!PERSON_ID_RE.test(personId))
         throw new UsageError("--person-id は p- と 16 進数 8 桁の形にする");
-      const timeZone = a.options.get("--time-zone") ?? config.timeZone;
+      const timeZone = a.options.get("--time-zone") ?? config?.timeZone ?? systemTimeZone();
       if (!isValidTimeZone(timeZone))
         throw new UsageError("--time-zone は IANA のタイムゾーンの名前にする");
-      const billing = a.options.get("--billing") ?? config.billing;
+      const billing = a.options.get("--billing") ?? config?.billing ?? "none";
       const next = parseUserConfig(
-        { personId, timeZone, billing, defaultDecision: config.defaultDecision },
+        { personId, timeZone, billing, defaultDecision: config?.defaultDecision },
         path,
       );
       saveUserConfig(path, next);

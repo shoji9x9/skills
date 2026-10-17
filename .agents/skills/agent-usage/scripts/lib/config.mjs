@@ -276,6 +276,15 @@ function readUserConfig(path) {
 }
 
 /**
+ * 人ごとの設定を読む。無ければ null を返し、作らない。
+ * @param {NodeJS.ProcessEnv} env
+ * @returns {UserConfig | null}
+ */
+export function loadUserConfig(env = process.env) {
+  return readUserConfig(userConfigPath(env));
+}
+
+/**
  * 人ごとの設定を読む。無ければ ID を作って保存し、作ったことを返す。
  * @param {NodeJS.ProcessEnv} env
  * @returns {{ config: UserConfig; created: boolean; path: string }}

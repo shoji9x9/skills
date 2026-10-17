@@ -262,6 +262,12 @@ function askMessage(agent, script) {
     "利用者に「このブランチの作業の利用実績（トークン数・費用・稼働時間）を .agent-usage/records/ に記録してコミットするか」を確認してください。",
     `- 記録する: node "${script}" collect --stage を実行してから、もう一度コミットする`,
     `- 記録しない: node "${script}" decline を実行してから、もう一度コミットする`,
+    // 人の設定が無いまま collect を実行すると新しい ID を作るので、既存の ID を持つ人には setup を先に案内する
+    ...(existsSync(userConfigPath(process.env))
+      ? []
+      : [
+          `人の設定（${userConfigPath(process.env)}）がまだ無いので、記録すると collect が新しい人の ID を作ります。利用者が別のマシンや前の設定で人の ID を持っているなら、先に node "${script}" setup --person-id <その ID> を実行します。`,
+        ]),
     "確認はブランチごとに 1 回です。利用者に確認できない（無人の実行）ときは、記録しない側を選ばず、止まった理由を報告してください。",
     "無人の実行で止めたくないときは、利用者が前もって、人の設定かリポジトリの .agent-usage/config.json に defaultDecision（record か decline）を置きます。リポジトリの設定の値は、人の設定（setup が作る人の ID）がある人にだけ当たります。エージェントはこの値を自分で書き足さないでください。",
     `（agent: ${agent}）`,

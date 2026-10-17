@@ -344,6 +344,38 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(git("diff", "--cached", "--name-only").trim()).toBe("");
   });
 
+  test("人の設定が無いとき、引数を誤った setup と report は人の設定を作らず、判断を確かめる案内は setup --person-id を示す", () => {
+    const { tmp, git, cli, gate } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    expect(cli("collect", "--no-github").status).toBe(0);
+    const userConfig = join(tmp, "user", "config.json");
+    rmSync(userConfig);
+
+    // どの設定にも defaultDecision が無ければ確かめる。collect が新しい ID を作る前に、既存の ID を使う方法を案内する
+    const ask = gate("git commit -m x");
+    expect(ask.status).toBe(2);
+    expect(ask.stderr).toContain(`人の設定（${userConfig}）がまだ無いので`);
+    expect(ask.stderr).toContain("setup --person-id <その ID>");
+    expect(existsSync(userConfig)).toBe(false);
+
+    // report は人の設定を読むだけで作らない
+    expect(cli("report").status).toBe(0);
+    expect(existsSync(userConfig)).toBe(false);
+
+    // setup は、引数の誤りで止まったときに人の設定を残さない
+    expect(cli("setup", "--person-id", "p-1234").status).toBe(2);
+    expect(existsSync(userConfig)).toBe(false);
+    expect(cli("setup", "--time-zone", "Nowhere/Zone").status).toBe(2);
+    expect(existsSync(userConfig)).toBe(false);
+
+    // 正しい引数なら、指定した ID で作る
+    expect(cli("setup", "--person-id", "p-0123abcd", "--time-zone", "UTC").status).toBe(0);
+    expect(parseJsonAs<Record<string, unknown>>(readFileSync(userConfig, "utf8")).personId).toBe(
+      "p-0123abcd",
+    );
+  });
+
   test("defaultDecision が読めない値なら、コミットを止めて理由を返す。どちらの設定にも無ければ確かめる", () => {
     const { tmp, repo, git, cli, gate } = setup();
     expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
@@ -374,6 +406,8 @@ describe("agent-usage のコマンドと Hook", () => {
     const ask = gate("git commit -m x");
     expect(ask.status).toBe(2);
     expect(ask.stderr).toMatch(/defaultDecision（record か decline）を置きます/);
+    // 人の設定がある人には、setup --person-id の案内を出さない
+    expect(ask.stderr).not.toContain("がまだ無いので");
 
     // null は置いていないのと同じに扱い、読めない設定として止めずに確かめる
     writeFileSync(repoConfig, JSON.stringify({ defaultDecision: null }));
