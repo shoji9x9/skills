@@ -13,6 +13,11 @@
 #      シェルごと落ちる（3 回踏んだ。症状は非 0 終了だけで、対象が死んだのか自分が死んだのか読めない）。
 #      自分に一致しない形（`[d]ump-dom` のような文字クラス）と、PID 指定（`kill "$PID"`）は通す。
 #
+# `.claude/settings.json` の handler に `if` を付けない。`if` は `bash -c "…"` と heredoc の中のコマンドに
+# 一致しない（Claude Code 2.1.302 で実測）。このチェックはシェル委譲（`sh -c` など）の引数と、許可リスト外の
+# 読み手の heredoc の本文をコードとして読むので、`if` で絞るとそれらを取りこぼす。
+# また `if` には permission rule を 1 つしか書けないので、絞るなら `gh api`・`pkill`・`killall` ごとに handler を分けることになる。
+#
 # 判定はセグメント単位で行う。`&&` / `||` / `;` / `|` / 改行で切り、セグメントごとに評価する
 # （`gh pr create --body-file a && gh api x --body-file b` の後段だけを落とすため）。
 #

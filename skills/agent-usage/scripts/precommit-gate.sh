@@ -3,7 +3,8 @@
 #
 # すべての Bash の呼び出しで起動されうる（Codex の Hook はツール名でしか絞れない）ので、git commit を含まない入力は
 # node を起動せずにここで通す。含むときだけ agent-usage.mjs gate に渡す。
-# Claude Code では、Hook の定義の if（"Bash(git *)"）でも絞る。if は確実ではないので、ここでも判定する。
+# Claude Code の Hook の定義に if を付けない（heredoc の中の commit などを取りこぼすため）。
+# どのエージェントでも全 Bash 呼び出しで起動するので、ここで判定する。
 #
 # 使い方: precommit-gate.sh <claude-code|codex>   （stdin に Hook の JSON）
 # 終了コード: 0 = 通す、2 = 止める（理由は stderr）。node が無いときは止めずに通し、その旨を stderr に出す。

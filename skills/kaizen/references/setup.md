@@ -339,8 +339,7 @@ foreign_sentinel_retention_days = 14
         "hooks": [
           {
             "type": "command",
-            "command": "bash <KAIZEN_SCRIPTS_DIR>/kaizen-precommit-gate.sh",
-            "if": "Bash(git commit *)"
+            "command": "bash <KAIZEN_SCRIPTS_DIR>/kaizen-precommit-gate.sh"
           }
         ]
       }
@@ -351,8 +350,14 @@ foreign_sentinel_retention_days = 14
 
 この例は `timeout` を持たないので、Claude Code のデフォルト（600 秒）になる。ほかのフックに合わせて `timeout` を付けるなら、上の「チェックの締め切りとフックの timeout」に従って、締め切りより十分に長くする（短いと、打ち切られた commit が警告なしに通り抜ける）。
 
-Claude Code の handler の `if` は、commit でない呼び出しでスクリプトそのものを起動しないための、最初の絞り込みである。
-`if` に対応しない古い版では、このフィールドを省き、スクリプトの中の事前の絞り込みを代わりに使う。複合した Bash のコマンドでは、permission rule が安全側として handler を起動することがあるので、スクリプト側の厳密な判定も残す。
+handler に `if`（permission rule の形でツールの呼び出しを絞るフィールド）を付けない。スクリプトが止める形の `git commit` でも、`if` で絞るとスクリプトが起動しないためである。
+Claude Code 2.1.302 で、使い捨てのリポジトリに Hook を置いて測った。
+
+- `"if": "Bash(git commit *)"` は、`git -C <dir> commit` と heredoc の中の `git commit` で起動しない
+- `"if": "Bash(git *)"` も、heredoc の中の `git commit` で起動しない
+
+スクリプトはこの 2 つの形を止める。`bash -c "git commit …"` の中は引用の内側として読むので、`if` の有無に関わらず止めない。
+代わりに、`git commit` を含まない呼び出しでもスクリプトが起動する（判定して何もせずに終わる）。
 
 ##### Codex — PreToolUse (`.codex/hooks.json`)
 

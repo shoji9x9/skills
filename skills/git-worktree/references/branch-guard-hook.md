@@ -98,6 +98,10 @@ done
 matcher が英数字・`_`・`-`・空白・`,`・`|` だけでできていれば、ツール名を列挙したものとして完全一致で扱われる。
 そのため、`EnterWorktree|Bash` は 2 つのツール名にだけ一致する。それ以外の文字を含めると、正規表現として扱われる。
 
+handler に `if`（permission rule の形でツールの呼び出しを絞るフィールド）を付けない。
+`"if": "Bash(git *)"` にすると、`EnterWorktree` の呼び出しに一致しないので、そちらの通知が出なくなる。
+スクリプトは、worktree に関係しない呼び出しを bash の組み込みの照合だけで終えるので、起動しても重い処理はしない。
+
 #### Codex — PreToolUse (`.codex/hooks.json`)
 
 ```json

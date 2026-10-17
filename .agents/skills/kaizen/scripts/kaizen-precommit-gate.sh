@@ -41,8 +41,9 @@ if [ ! -t 0 ]; then
 	IFS= read -r -d '' input || true
 fi
 
-# Claude Code は setup の handler `if` でも絞る。Codex / Copilot の matcher は tool 名まで
-# なので、この広い prefilter が全 Bash 呼び出しの低コストな第一段になる。
+# setup は Claude Code の handler に `if` を付けない（`git -C <dir> commit` と heredoc の中の commit を
+# 取りこぼすため）。どのエージェントでも全 Bash 呼び出しでこのスクリプトが起動するので、
+# この広い prefilter が低コストな第一段になる。
 #
 # **行継続（`\` + 改行）はトークンを分けるので、語が揃っていることを通す条件にできない。**
 # `gi\<改行>t commit` / `git com\<改行>mit` は、シェルが継続を取り除いてから解析するので実際に
