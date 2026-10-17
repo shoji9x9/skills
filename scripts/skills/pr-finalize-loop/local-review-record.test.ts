@@ -7,7 +7,11 @@
 // | ------------ | ------------------------------------------------------------------------------------ |
 // | 記録の SHA   | 無い / HEAD と一致 / 前の HEAD だけ（直した commit を再レビューしていない）/ 両方       |
 // | 記録の書き手 | 作成者 / 担当者 / どちらでもない / 作成者の login を前方に含む別の login                 |
-// | 1 行目の形   | 正しい / 短縮した SHA / 件数が整数でない / 末尾に余計な文字 / 目印が先頭にない           |
+// | 1 行目の形   | 正しい / 短縮した SHA / 件数が整数でない / 件数の先頭が 0 / 件数が 20 桁 / open が無い  |
+// |              | / open が findings より大きい / 末尾に余計な文字 / CRLF / 1 行目に U+001F               |
+// | 目印の位置   | 本文の先頭 / 前に空白か改行 / 本文の途中の引用（作成者・作成者でない人）/ 目印なし       |
+// | 未対応       | open=0（reviewed）/ open が 1 以上（open）                                            |
+// | previous     | 前の HEAD の記録がある（出す）/ 無い（出さない）                                       |
 // | 取得         | 成功 / PR の取得の失敗 / コメントの取得の失敗 / headRefOid が完全な SHA でない           |
 // | ホスト       | github.com / GHE（--hostname を渡す）                                                 |
 // | post の引数  | 正しい / SHA が HEAD と違う / 短縮した SHA / 件数が負・先頭が 0 / 重複 / 投稿の失敗      |
@@ -230,8 +234,9 @@ test.each([
     `<!-- pr-finalize-loop:local-review sha=${HEAD} findings=0 -->`,
   ],
   ["open が整数でない", marker(HEAD, 1, "x")],
-  // bash の整数に収まらない値は比較が失敗し、open が findings より大きいことを見逃す
-  ["件数が 10 桁", marker(HEAD, 1, "9999999999")],
+  // bash の整数（64 ビット）に収まらない値は比較が失敗し、open が findings より大きいことを見逃す
+  ["件数が 20 桁", marker(HEAD, 1, "99999999999999999999")],
+  ["1 行目に U+001F", `${marker(HEAD, 0)}\u001fjunk`],
 ])("1 行目の形が違う記録（%s）は、数えずに読み飛ばす", (_name, body) => {
   const dir = setup({ comments: [{ id: 31, login: "alice", body }] });
   const r = run(dir, ["check", "--pr", "7"]);
@@ -253,6 +258,7 @@ test("目印の前に空白か改行がある記録は、記録として数え�
 test.each([
   ["目印を含まない", "LGTM"],
   ["本文の途中で目印を引用しただけ", `引用: ${marker(HEAD, 0)}`],
+  ["Quote reply で記録を引用した", `> ${marker(HEAD, 0)}\n\n返信`],
 ])("%s コメントは、記録の候補にも、読み飛ばした件数にも入れない", (_name, body) => {
   const dir = setup({ comments: [{ id: 42, login: "mallory", body }] });
   const r = run(dir, ["check", "--pr", "7"]);

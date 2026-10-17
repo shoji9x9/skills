@@ -33,7 +33,8 @@
 #          3 は gh のユーザーが PR の作成者でも担当者でもない（投稿しない）。
 #          4 は gh のユーザーを取得できない（ユーザーでないトークン。投稿しない）。
 #
-# 件数は 9 桁までにする。bash の整数に収まらない値は比較が失敗し、判定を誤る。
+# 件数は 9 桁までにする。bash の整数は 64 ビットで、19 桁を超える値は比較が失敗し（integer expression expected）、判定を誤る。
+# 9 桁は、実際の件数より十分大きく、64 ビットの範囲より十分小さい上限である。
 #
 # post が投稿しない理由は、呼び出し側の対処がそれぞれ違うので、終了コードを分ける。
 # 1 はレビューし直す、2 は取得し直す、3 は投稿する人を変える、4 はこの環境では local を使わずに止まる。
@@ -182,9 +183,10 @@ fi
 
 # check: 記録の候補（空白と改行を除いた本文が目印で始まるトップレベルのコメント）の 1 行目を取得する。
 # 目印の前に空白か改行があるものも取得し、読み飛ばした理由を出す（警告なしに記録が消えないようにする）。
-# 本文の途中で目印を引用しただけのコメントは、記録の候補にしない。4 つ目の欄は、目印の前に空白か改行があれば 1 にする
+# 本文の途中で目印を引用しただけのコメントは、記録の候補にしない。3 つ目の欄は、目印の前に空白か改行があれば 1 にする。
+# 自由な文字列の 1 行目は最後の欄に置く。1 行目に U+001F があっても、read は残りを最後の変数に入れるので、ほかの欄がずれない
 if ! list=$(gh api ${host_args[@]+"${host_args[@]}"} --paginate "${api_path}?per_page=100" \
-	--jq '.[] | {id: (.id | tostring), login: (.user.login // ""), b: (.body // "")} | .t = (.b | sub("^\\s+"; "")) | select(.t | startswith("'"${MARKER_PREFIX}"'")) | [.id, .login, (.t | split("\n")[0] | rtrimstr("\r")), (if .t == .b then "0" else "1" end)] | join("\u001f")' \
+	--jq '.[] | {id: (.id | tostring), login: (.user.login // ""), b: (.body // "")} | .t = (.b | sub("^\\s+"; "")) | select(.t | startswith("'"${MARKER_PREFIX}"'")) | [.id, .login, (if .t == .b then "0" else "1" end), (.t | split("\n")[0] | rtrimstr("\r"))] | join("\u001f")' \
 	</dev/null); then
 	echo "error: PR のコメントを取得できない" >&2
 	exit 2
@@ -196,7 +198,7 @@ record=""
 record_findings=""
 record_open=""
 previous=""
-while IFS=$'\x1f' read -r id login line leading; do
+while IFS=$'\x1f' read -r id login leading line; do
 	[ -n "${id}" ] || continue
 	case "${allowed}" in
 	*",${login},"*) ;;

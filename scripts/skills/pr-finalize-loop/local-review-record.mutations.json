@@ -55,7 +55,10 @@
       "find": "\" -->\"$ ]]; then\n",
       "replace": "\" -->\" ]]; then\n",
       "occurrences": 1,
-      "expect_failing": ["1 行目の形が違う記録（末尾に余計な文字）は、数えずに読み飛ばす"]
+      "expect_failing": [
+        "1 行目の形が違う記録（末尾に余計な文字）は、数えずに読み飛ばす",
+        "1 行目の形が違う記録（1 行目に U+001F）は、数えずに読み飛ばす"
+      ]
     },
     {
       "id": "head-sha-not-validated",
@@ -160,7 +163,7 @@
     },
     {
       "id": "marker-position-reason-dropped",
-      "why": "目印の前に空白か改行がある記録を、理由を区別せずに形の違う記録として扱う",
+      "why": "目印の前に空白か改行がある記録を、正しい記録として数える（1 行目は空白を除いた本文から作るので、この判定だけが防ぐ）",
       "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
       "find": "\tif [ \"${leading}\" != \"0\" ]; then\n",
       "replace": "\tif false; then\n",
@@ -199,7 +202,7 @@
       "find": "findings=\"(0|[1-9][0-9]{0,8})\" open=\"(0|[1-9][0-9]{0,8})\" -->",
       "replace": "findings=\"(0|[1-9][0-9]*)\" open=\"(0|[1-9][0-9]*)\" -->",
       "occurrences": 1,
-      "expect_failing": ["1 行目の形が違う記録（件数が 10 桁）は、数えずに読み飛ばす"]
+      "expect_failing": ["1 行目の形が違う記録（件数が 20 桁）は、数えずに読み飛ばす"]
     },
     {
       "id": "quote-counted-as-ignored",
@@ -209,8 +212,18 @@
       "replace": "select(.b | contains(",
       "occurrences": 1,
       "expect_failing": [
-        "本文の途中で目印を引用しただけ コメントは、記録の候補にも、読み飛ばした件数にも入れない"
+        "本文の途中で目印を引用しただけ コメントは、記録の候補にも、読み飛ばした件数にも入れない",
+        "Quote reply で記録を引用した コメントは、記録の候補にも、読み飛ばした件数にも入れない"
       ]
+    },
+    {
+      "id": "post-digits-unbounded",
+      "why": "post で件数の桁数を限らない（bash の整数の比較が失敗する値で記録を投稿する）",
+      "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
+      "find": "[[ \"${findings}\" =~ ^(0|[1-9][0-9]{0,8})$ ]]",
+      "replace": "[[ \"${findings}\" =~ ^(0|[1-9][0-9]*)$ ]]",
+      "occurrences": 1,
+      "expect_failing": ["引数が不正（件数が 10 桁）なら、gh を呼ばずに exit 64"]
     }
   ]
 }
