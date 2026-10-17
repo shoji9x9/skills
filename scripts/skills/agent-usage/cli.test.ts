@@ -323,7 +323,7 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(existsSync(userConfig)).toBe(false);
   });
 
-  test("ブランチの判断が「記録する」でも、人の設定が無ければ止めて、Hook からは人の ID を作らない", () => {
+  test("ブランチの判断が「記録する」でも、人の設定が無ければ止めて、Hook からは人の ID を作らない。status も止めると出す", () => {
     const { tmp, git, cli, gate } = setup();
     expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
     git("switch", "-q", "-c", "feature/5-x");
@@ -331,10 +331,15 @@ describe("agent-usage のコマンドと Hook", () => {
     git("reset", "-q");
     const userConfig = join(tmp, "user", "config.json");
     rmSync(userConfig);
+    expect(cli("status").stdout).toMatch(
+      /^このブランチの判断: record（人の設定が無いので、コミットの前の確認は止めて setup を求める）$/m,
+    );
 
     const r = gate("git commit -m x");
     expect(r.status).toBe(2);
     expect(r.stderr).toContain(`人の設定（${userConfig}）が無い`);
+    // 前の ID を持つ人が別の ID を作らないよう、--person-id を案内する
+    expect(r.stderr).toContain("--person-id");
     expect(existsSync(userConfig)).toBe(false);
     expect(git("diff", "--cached", "--name-only").trim()).toBe("");
   });

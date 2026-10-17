@@ -893,7 +893,29 @@
       "replace": "  try {",
       "occurrences": 1,
       "expect_failing": [
-        "agent-usage のコマンドと Hook ブランチの判断が「記録する」でも、人の設定が無ければ止めて、Hook からは人の ID を作らない"
+        "agent-usage のコマンドと Hook ブランチの判断が「記録する」でも、人の設定が無ければ止めて、Hook からは人の ID を作らない。status も止めると出す"
+      ]
+    },
+    {
+      "id": "status-record-ignores-missing-user",
+      "why": "判断が「記録する」で人の設定が無いとき、status が record とだけ出し、Hook が止めることと食い違う",
+      "file": "skills/agent-usage/scripts/agent-usage.mjs",
+      "find": "    if (decided === \"record\" && !existsSync(userConfigPath()))",
+      "replace": "    if (false)",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook ブランチの判断が「記録する」でも、人の設定が無ければ止めて、Hook からは人の ID を作らない。status も止めると出す"
+      ]
+    },
+    {
+      "id": "setup-message-no-person-id",
+      "why": "人の設定が無くて止めたときに、既存の ID を --person-id で渡すことを案内しない",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "setup に --person-id <その ID> を付けます。",
+      "replace": "setup を実行します。",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook ブランチの判断が「記録する」でも、人の設定が無ければ止めて、Hook からは人の ID を作らない。status も止めると出す"
       ]
     },
     {

@@ -116,6 +116,9 @@ function branchDecisionText(repo, set) {
     return "対象外（デフォルトブランチなので、コミットの前の確認は何もしない）";
   try {
     const decided = decisionFor(repo.commonDir, repo.branch);
+    // gateDecision と同じく、判断が「記録する」でも人の設定が無ければ止める
+    if (decided === "record" && !existsSync(userConfigPath()))
+      return "record（人の設定が無いので、コミットの前の確認は止めて setup を求める）";
     if (decided !== null) return decided;
   } catch (e) {
     return `判断の記録を読めない: ${e instanceof Error ? e.message : String(e)}`;
