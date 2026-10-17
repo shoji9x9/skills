@@ -69,3 +69,7 @@ ci:39027457587:1,ci,2026-10-17T11:39:23.079Z,p-cdee4961,github-actions,,,,2026-1
 ci:39027369579:1,ci,2026-10-17T11:39:23.079Z,p-cdee4961,github-actions,,,,2026-10-17T11:05:30.000Z,2026-10-17T11:08:11.000Z,Asia/Tokyo,feature/624-claude-hooks-if-filter,624,,,,,,,,,,CI;pull_request;success,
 ci:39027369586:1,ci,2026-10-17T11:39:23.079Z,p-cdee4961,github-actions,,,,2026-10-17T11:05:30.000Z,2026-10-17T11:05:31.000Z,Asia/Tokyo,feature/624-claude-hooks-if-filter,624,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 coverage:github:2026-10-16T11:04:29.060Z:2026-10-17T11:39:23.079Z,coverage,2026-10-17T11:39:23.079Z,p-cdee4961,,,,,2026-10-16T11:04:29.060Z,2026-10-17T11:39:23.079Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:39029736632:1,ci,2026-10-17T11:44:08.431Z,p-cdee4961,github-actions,,,,2026-10-17T11:42:40.000Z,2026-10-17T11:44:08.431Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;open,
+ci:39029736588:1,ci,2026-10-17T11:44:08.431Z,p-cdee4961,github-actions,,,,2026-10-17T11:42:40.000Z,2026-10-17T11:43:04.000Z,Asia/Tokyo,main,,,,,,,,,,,Release;push;success,
+ci:39029524282:1,ci,2026-10-17T11:44:08.431Z,p-cdee4961,github-actions,,,,2026-10-17T11:39:19.000Z,2026-10-17T11:42:34.000Z,Asia/Tokyo,feature/624-claude-hooks-if-filter,624,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-16T11:39:23.079Z:2026-10-17T11:44:08.431Z,coverage,2026-10-17T11:44:08.431Z,p-cdee4961,,,,,2026-10-16T11:39:23.079Z,2026-10-17T11:44:08.431Z,Asia/Tokyo,,,,,,,,,,,,ok,

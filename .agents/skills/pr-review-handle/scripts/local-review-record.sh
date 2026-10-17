@@ -33,7 +33,7 @@
 #          3 は gh のユーザーが PR の作成者でも担当者でもない（投稿しない）。
 #          4 は gh のユーザーを取得できない（ユーザーでないトークン。投稿しない）。
 #
-# 件数は 9 桁までにする。bash の整数は 64 ビットで、19 桁を超える値は比較が失敗し（integer expression expected）、判定を誤る。
+# 件数は 9 桁までにする。bash の整数は 64 ビットで、2^63-1（9223372036854775807）を超える値は比較が失敗し（integer expression expected）、判定を誤る。
 # 9 桁は、実際の件数より十分大きく、64 ビットの範囲より十分小さい上限である。
 #
 # post が投稿しない理由は、呼び出し側の対処がそれぞれ違うので、終了コードを分ける。
@@ -183,10 +183,11 @@ fi
 
 # check: 記録の候補（空白と改行を除いた本文が目印で始まるトップレベルのコメント）の 1 行目を取得する。
 # 目印の前に空白か改行があるものも取得し、読み飛ばした理由を出す（警告なしに記録が消えないようにする）。
-# 本文の途中で目印を引用しただけのコメントは、記録の候補にしない。3 つ目の欄は、目印の前に空白か改行があれば 1 にする。
-# 自由な文字列の 1 行目は最後の欄に置く。1 行目に U+001F があっても、read は残りを最後の変数に入れるので、ほかの欄がずれない
+# 本文の途中で目印を引用しただけのコメントは、記録の候補にしない。
+# 3 つ目の欄は 1 行目の状態で、ok・indented（目印の前に空白か改行がある）・separator（1 行目に U+001F がある）のどれかにする。
+# 1 行目の U+001F は read が欄の区切りとして扱い、末尾の 1 文字なら警告なしに取り除く。read の後では見分けられないので、jq の側で見分ける
 if ! list=$(gh api ${host_args[@]+"${host_args[@]}"} --paginate "${api_path}?per_page=100" \
-	--jq '.[] | {id: (.id | tostring), login: (.user.login // ""), b: (.body // "")} | .t = (.b | sub("^\\s+"; "")) | select(.t | startswith("'"${MARKER_PREFIX}"'")) | [.id, .login, (if .t == .b then "0" else "1" end), (.t | split("\n")[0] | rtrimstr("\r"))] | join("\u001f")' \
+	--jq '.[] | {id: (.id | tostring), login: (.user.login // ""), b: (.body // "")} | .t = (.b | sub("^\\s+"; "")) | select(.t | startswith("'"${MARKER_PREFIX}"'")) | .l = (.t | split("\n")[0] | rtrimstr("\r")) | [.id, .login, (if .t != .b then "indented" elif (.l | contains("\u001f")) then "separator" else "ok" end), .l] | join("\u001f")' \
 	</dev/null); then
 	echo "error: PR のコメントを取得できない" >&2
 	exit 2
@@ -198,7 +199,7 @@ record=""
 record_findings=""
 record_open=""
 previous=""
-while IFS=$'\x1f' read -r id login leading line; do
+while IFS=$'\x1f' read -r id login shape line; do
 	[ -n "${id}" ] || continue
 	case "${allowed}" in
 	*",${login},"*) ;;
@@ -208,12 +209,12 @@ while IFS=$'\x1f' read -r id login leading line; do
 		continue
 		;;
 	esac
-	if [ "${leading}" != "0" ]; then
+	if [ "${shape}" = "indented" ]; then
 		echo "note: 記録 ${id} を読み飛ばした（目印が本文の先頭に無い。前に空白か改行がある）" >&2
 		ignored=$((ignored + 1))
 		continue
 	fi
-	if [[ ! "${line}" =~ ^"${MARKER_PREFIX}sha="([0-9a-f]{40})" findings="(0|[1-9][0-9]{0,8})" open="(0|[1-9][0-9]{0,8})" -->"$ ]]; then
+	if [ "${shape}" != "ok" ] || [[ ! "${line}" =~ ^"${MARKER_PREFIX}sha="([0-9a-f]{40})" findings="(0|[1-9][0-9]{0,8})" open="(0|[1-9][0-9]{0,8})" -->"$ ]]; then
 		echo "note: 記録 ${id} を読み飛ばした（1 行目の形が違う）" >&2
 		ignored=$((ignored + 1))
 		continue

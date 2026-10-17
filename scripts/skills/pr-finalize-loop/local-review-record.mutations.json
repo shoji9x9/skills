@@ -55,9 +55,17 @@
       "find": "\" -->\"$ ]]; then\n",
       "replace": "\" -->\" ]]; then\n",
       "occurrences": 1,
+      "expect_failing": ["1 行目の形が違う記録（末尾に余計な文字）は、数えずに読み飛ばす"]
+    },
+    {
+      "id": "first-line-separator-accepted",
+      "why": "1 行目の U+001F を見分けない（read が末尾の 1 文字の U+001F を取り除き、形の違う記録を数える）",
+      "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
+      "find": "\tif [ \"${shape}\" != \"ok\" ] || [[ ! \"${line}\" =~ ^",
+      "replace": "\tif [[ ! \"${line}\" =~ ^",
+      "occurrences": 1,
       "expect_failing": [
-        "1 行目の形が違う記録（末尾に余計な文字）は、数えずに読み飛ばす",
-        "1 行目の形が違う記録（1 行目に U+001F）は、数えずに読み飛ばす"
+        "1 行目の形が違う記録（1 行目の末尾が U+001F 1 文字）は、数えずに読み飛ばす"
       ]
     },
     {
@@ -165,7 +173,7 @@
       "id": "marker-position-reason-dropped",
       "why": "目印の前に空白か改行がある記録を、正しい記録として数える（1 行目は空白を除いた本文から作るので、この判定だけが防ぐ）",
       "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
-      "find": "\tif [ \"${leading}\" != \"0\" ]; then\n",
+      "find": "\tif [ \"${shape}\" = \"indented\" ]; then\n",
       "replace": "\tif false; then\n",
       "occurrences": 1,
       "expect_failing": [
@@ -202,7 +210,10 @@
       "find": "findings=\"(0|[1-9][0-9]{0,8})\" open=\"(0|[1-9][0-9]{0,8})\" -->",
       "replace": "findings=\"(0|[1-9][0-9]*)\" open=\"(0|[1-9][0-9]*)\" -->",
       "occurrences": 1,
-      "expect_failing": ["1 行目の形が違う記録（件数が 20 桁）は、数えずに読み飛ばす"]
+      "expect_failing": [
+        "1 行目の形が違う記録（件数が 10 桁）は、数えずに読み飛ばす",
+        "1 行目の形が違う記録（件数が 20 桁）は、数えずに読み飛ばす"
+      ]
     },
     {
       "id": "quote-counted-as-ignored",
