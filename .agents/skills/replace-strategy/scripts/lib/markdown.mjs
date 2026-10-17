@@ -72,6 +72,7 @@ function commentEnd(rest, start) {
  * 行の途中のコメント（インラインのコメント）のうち、同じ行で閉じたものを空白に置き換える。
  * 同じ行で閉じない `<!--` は文字として読む。表や見出しは段落を中断するので、インラインのコメントは後ろの行の表を隠さない（GFM）。
  * コードスパンの中の `<!--` はコメントにしない。CommonMark と同じく、先に始まった方を採る。
+ * バックスラッシュを付けた `\<!--` と `` \` `` は、コメントとコードスパンの始まりにしない。
  * @param {string} line
  * @returns {string}
  */
@@ -81,13 +82,19 @@ function blankInlineComments(line) {
   for (;;) {
     const start = rest.indexOf("<!--");
     if (start < 0) return out + rest;
-    const code = /`+/u.exec(rest);
+    const code = /(?<!\\)`+/u.exec(rest);
     if (code !== null && code.index < start) {
       // 閉じるバッククォートが同じ行に無ければ、バッククォートを文字として読み、その後ろから探し続ける。
       const end = codeSpanEnd(rest, code.index, code[0].length);
       const stop = end < 0 ? code.index + code[0].length : end;
       out += rest.slice(0, stop);
       rest = rest.slice(stop);
+      continue;
+    }
+    if (rest[start - 1] === "\\") {
+      // `\<!--` は文字として読む（CommonMark のバックスラッシュのエスケープ）。
+      out += rest.slice(0, start + 4);
+      rest = rest.slice(start + 4);
       continue;
     }
     const end = commentEnd(rest, start);

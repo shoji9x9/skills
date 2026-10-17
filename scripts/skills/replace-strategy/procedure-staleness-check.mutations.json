@@ -319,7 +319,7 @@
       "id": "opener-after-prose-accepted",
       "why": "散文の後ろの <!-- を開始行として受け入れる（読み飛ばしの規則はその行をコメントと見ないので、中の表を読む）",
       "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
-      "find": "    if (!trimmed.startsWith(\"<!--\") || opens > 1 || closes > 1) {\n",
+      "find": "    if (!/^ {0,3}<!--/u.test(line) || opens > 1 || closes > 1) {\n",
       "replace": "    if (opens > 1 || closes > 1) {\n",
       "occurrences": 1,
       "expect_failing": [

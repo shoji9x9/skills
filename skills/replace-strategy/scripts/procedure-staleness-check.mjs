@@ -221,7 +221,8 @@ export function countRowLikeLines(text, consumed = new Set()) {
   let count = 0;
   text.split(/\r?\n/u).forEach((line, index) => {
     // HTML コメント（テンプレートの記入例・説明）は表ではない。複数行にまたがるコメントも中を数えない。
-    if (fence === null && (comment || line.trim().startsWith("<!--"))) {
+    // 行頭の判定は blankComments と同じ（字下げ 3 文字まで。4 文字以上は字下げのコードブロックで、HTML ブロックを開かない）。
+    if (fence === null && (comment || /^ {0,3}<!--/u.test(line))) {
       comment = !line.includes("-->");
       return;
     }
@@ -239,6 +240,7 @@ export function countRowLikeLines(text, consumed = new Set()) {
 /**
  * HTML コメントの記号が、読み飛ばしの規則（countRowLikeLines。parseTables はコメントの中を空白にしてから読む）が扱える位置にだけあるかを確かめる。
  * 扱える形は「行頭の `<!--` で始まり行末の `-->` で終わる 1 行」「行頭の `<!--` だけの開始行 … 行末の `-->` で終わる終了行」の 2 つ。
+ * 行頭は、blankComments と同じく字下げ 3 文字までとする。
  * それ以外（散文の後ろの `<!--`、行の途中の `-->`、1 行に複数の記号、閉じないコメント）は読める形を足さずに落とす。
  * 読み飛ばしの規則に合わない位置のコメントは、中の表を生きた表として読むか、以降の表を丸ごと読み飛ばす。
  * @param {string} text
@@ -268,7 +270,7 @@ export function strayCommentMarkers(text) {
     }
     if (fence !== null) return;
     if (opens === 0 && closes === 0) return;
-    if (!trimmed.startsWith("<!--") || opens > 1 || closes > 1) {
+    if (!/^ {0,3}<!--/u.test(line) || opens > 1 || closes > 1) {
       lines.push(index + 1);
       return;
     }

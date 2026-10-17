@@ -35,7 +35,9 @@
         "行頭の閉じない `<!--` は、末尾までコメントとして読む（字下げ 3 文字まで）",
         "asset-delivery-check: HTML コメントの中の表の行を台帳として読まない",
         "evidence-gap-check: HTML コメントの中の表の行を台帳として読まない",
-        "procedure-staleness-check: HTML コメントの中の表の行を台帳として読まない"
+        "procedure-staleness-check: HTML コメントの中の表の行を台帳として読まない",
+        "HTML ブロックを閉じる行は、`-->` の後ろもブロックに入るので表の行として読まない",
+        "バックスラッシュを付けた `\\<!--` と `` \\` `` は、コメントとコードスパンの始まりにしない"
       ]
     },
     {
@@ -110,7 +112,8 @@
       "expect_failing": [
         "HTML コメントの中の表は読まない（行頭で開いた複数行のコメントと、行の途中で開いて同じ行で閉じたコメント）",
         "閉じないバッククォートの後ろの `<!-- -->` は、コメントとして消す",
-        "`<!-->` と `<!--->` は、それだけで閉じたコメントとして消す（CommonMark 0.31）"
+        "`<!-->` と `<!--->` は、それだけで閉じたコメントとして消す（CommonMark 0.31）",
+        "バックスラッシュを付けた `\\<!--` と `` \\` `` は、コメントとコードスパンの始まりにしない"
       ]
     },
     {
@@ -148,7 +151,8 @@
         "行頭の閉じない `<!--` は、末尾までコメントとして読む（字下げ 3 文字まで）",
         "asset-delivery-check: HTML コメントの中の表の行を台帳として読まない",
         "evidence-gap-check: HTML コメントの中の表の行を台帳として読まない",
-        "procedure-staleness-check: HTML コメントの中の表の行を台帳として読まない"
+        "procedure-staleness-check: HTML コメントの中の表の行を台帳として読まない",
+        "HTML ブロックを閉じる行は、`-->` の後ろもブロックに入るので表の行として読まない"
       ]
     },
     {
@@ -215,6 +219,61 @@
       "occurrences": 1,
       "expect_failing": [
         "evidence-gap-check: 行頭の `|` を省いた行で表が切れても、表の外の行番号を添える"
+      ]
+    },
+    {
+      "id": "escaped-comment-opens",
+      "why": "バックスラッシュを付けた `\\<!--` もコメントの始まりとして読む",
+      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
+      "find": "    if (rest[start - 1] === \"\\\\\") {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "バックスラッシュを付けた `\\<!--` と `` \\` `` は、コメントとコードスパンの始まりにしない"
+      ]
+    },
+    {
+      "id": "escaped-backtick-opens-code",
+      "why": "バックスラッシュを付けたバッククォートもコードスパンの始まりとして数える",
+      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
+      "find": "    const code = /(?<!\\\\)`+/u.exec(rest);",
+      "replace": "    const code = /`+/u.exec(rest);",
+      "occurrences": 1,
+      "expect_failing": [
+        "バックスラッシュを付けた `\\<!--` と `` \\` `` は、コメントとコードスパンの始まりにしない"
+      ]
+    },
+    {
+      "id": "block-end-line-rest-read",
+      "why": "HTML ブロックを閉じる行の `-->` の後ろを、ブロックの外として読む",
+      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
+      "find": "      if (line.includes(\"-->\")) block = false;",
+      "replace": "      if (line.includes(\"-->\")) {\n        block = false;\n        return \" \".repeat(line.indexOf(\"-->\") + 3) + line.slice(line.indexOf(\"-->\") + 3);\n      }",
+      "occurrences": 1,
+      "expect_failing": [
+        "HTML ブロックを閉じる行は、`-->` の後ろもブロックに入るので表の行として読まない"
+      ]
+    },
+    {
+      "id": "procedure-count-indent-unbounded",
+      "why": "countRowLikeLines が、4 文字以上字下げした `<!--` もコメントの始まりとして読み飛ばす",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "    if (fence === null && (comment || /^ {0,3}<!--/u.test(line))) {",
+      "replace": "    if (fence === null && (comment || /^ *<!--/u.test(line))) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "procedure-staleness-check: 4 文字以上字下げした `<!--` は、parseTables と同じくコメントの始まりにしない"
+      ]
+    },
+    {
+      "id": "procedure-markers-indent-unbounded",
+      "why": "strayCommentMarkers が、4 文字以上字下げした `<!--` を扱える開始行として受け入れる",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "    if (!/^ {0,3}<!--/u.test(line) || opens > 1 || closes > 1) {",
+      "replace": "    if (!/^ *<!--/u.test(line) || opens > 1 || closes > 1) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "procedure-staleness-check: 4 文字以上字下げした `<!--` は、parseTables と同じくコメントの始まりにしない"
       ]
     }
   ]

@@ -8,7 +8,11 @@ import { expect, test } from "vitest";
 import { readAssetLedger } from "../../../skills/replace-strategy/scripts/asset-delivery-check.mjs";
 import { readRow } from "../../../skills/replace-strategy/scripts/evidence-gap-check.mjs";
 import { parseTables } from "../../../skills/replace-strategy/scripts/lib/markdown.mjs";
-import { readProcedureLedger } from "../../../skills/replace-strategy/scripts/procedure-staleness-check.mjs";
+import {
+  countRowLikeLines,
+  readProcedureLedger,
+  strayCommentMarkers,
+} from "../../../skills/replace-strategy/scripts/procedure-staleness-check.mjs";
 
 const lines = (...xs: string[]) => [...xs, ""].join("\n");
 
@@ -238,4 +242,27 @@ test("表のセルの中で閉じない `<!--` は、後ろの行の `-->` ま�
     ["2", "z"],
     ["3", "--> w"],
   ]);
+});
+
+test("バックスラッシュを付けた `\\<!--` と `` \\` `` は、コメントとコードスパンの始まりにしない", () => {
+  expect(
+    cells(lines("| a | b |", "|---|---|", "| 1 | \\<!-- x --> y |", "| 2 | \\` <!-- c --> \\` |")),
+  ).toEqual([
+    ["1", "\\<!-- x --> y"],
+    ["2", "\\`" + " ".repeat(12) + "\\`"],
+  ]);
+});
+
+test("HTML ブロックを閉じる行は、`-->` の後ろもブロックに入るので表の行として読まない", () => {
+  const { tables, strayRows } = parseTables(
+    lines("| a | b |", "|---|---|", "| 1 | 2 |", "", "<!-- 退役", "| 3 | 4 |", "--> | 5 | 6 |"),
+  );
+  expect(tables.map((t) => t.rows)).toEqual([[[" 1 ", " 2 "]]]);
+  expect(strayRows).toEqual([]);
+});
+
+test("procedure-staleness-check: 4 文字以上字下げした `<!--` は、parseTables と同じくコメントの始まりにしない", () => {
+  const text = lines("    <!-- 退役", "| 4 | 5 | 6 |", "-->");
+  expect(countRowLikeLines(text)).toBe(1);
+  expect(strayCommentMarkers(text).lines).toEqual([1, 3]);
 });
