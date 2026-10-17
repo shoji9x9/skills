@@ -42,3 +42,6 @@ ci:39055197287:1,ci,2026-10-17T17:51:01.055Z,p-cdee4961,github-actions,,,,2026-1
 ci:39055197314:1,ci,2026-10-17T17:51:01.055Z,p-cdee4961,github-actions,,,,2026-10-17T17:46:12.000Z,2026-10-17T17:49:26.000Z,Asia/Tokyo,feature/681-no-skip-findings-for-iterations,681,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-10-16T17:44:27.912Z:2026-10-17T17:51:01.055Z,coverage,2026-10-17T17:51:01.055Z,p-cdee4961,,,,,2026-10-16T17:44:27.912Z,2026-10-17T17:51:01.055Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-16T17:51:01.055Z:2026-10-17T17:51:31.832Z,coverage,2026-10-17T17:51:31.832Z,p-cdee4961,,,,,2026-10-16T17:51:01.055Z,2026-10-17T17:51:31.832Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:39055699864:1,ci,2026-10-17T18:00:14.981Z,p-cdee4961,github-actions,,,,2026-10-17T17:53:14.000Z,2026-10-17T17:53:25.000Z,Asia/Tokyo,feature/681-no-skip-findings-for-iterations,681,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:39055699840:1,ci,2026-10-17T18:00:14.981Z,p-cdee4961,github-actions,,,,2026-10-17T17:53:14.000Z,2026-10-17T17:56:00.000Z,Asia/Tokyo,feature/681-no-skip-findings-for-iterations,681,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-16T17:51:31.832Z:2026-10-17T18:00:14.981Z,coverage,2026-10-17T18:00:14.981Z,p-cdee4961,,,,,2026-10-16T17:51:31.832Z,2026-10-17T18:00:14.981Z,Asia/Tokyo,,,,,,,,,,,,ok,
