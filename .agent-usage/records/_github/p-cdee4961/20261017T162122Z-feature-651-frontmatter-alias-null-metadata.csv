@@ -17,3 +17,7 @@ ci:39041092767:1,ci,2026-10-17T16:21:22.074Z,p-cdee4961,github-actions,,,,2026-1
 ci:39040716489:1,ci,2026-10-17T16:21:22.074Z,p-cdee4961,github-actions,,,,2026-10-17T14:25:51.000Z,2026-10-17T14:29:10.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
 coverage:github:2026-10-16T14:28:28.273Z:2026-10-17T16:21:22.074Z,coverage,2026-10-17T16:21:22.074Z,p-cdee4961,,,,,2026-10-16T14:28:28.273Z,2026-10-17T16:21:22.074Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-16T16:21:22.074Z:2026-10-17T16:21:57.843Z,coverage,2026-10-17T16:21:57.843Z,p-cdee4961,,,,,2026-10-16T16:21:22.074Z,2026-10-17T16:21:57.843Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:39049273435:1,ci,2026-10-17T16:33:32.479Z,p-cdee4961,github-actions,,,,2026-10-17T16:24:35.000Z,2026-10-17T16:27:52.000Z,Asia/Tokyo,feature/651-frontmatter-alias-null-metadata,651,,,,,,,,,,CI;pull_request;success,
+ci:39049273524:1,ci,2026-10-17T16:33:32.479Z,p-cdee4961,github-actions,,,,2026-10-17T16:24:35.000Z,2026-10-17T16:24:36.000Z,Asia/Tokyo,feature/651-frontmatter-alias-null-metadata,651,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+coverage:github:2026-10-16T16:21:57.843Z:2026-10-17T16:33:32.479Z,coverage,2026-10-17T16:33:32.479Z,p-cdee4961,,,,,2026-10-16T16:21:57.843Z,2026-10-17T16:33:32.479Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-16T16:33:32.479Z:2026-10-17T16:34:11.510Z,coverage,2026-10-17T16:34:11.510Z,p-cdee4961,,,,,2026-10-16T16:33:32.479Z,2026-10-17T16:34:11.510Z,Asia/Tokyo,,,,,,,,,,,,ok,

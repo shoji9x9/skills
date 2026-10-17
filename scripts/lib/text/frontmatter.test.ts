@@ -17,6 +17,9 @@ test.each([
   ],
   ["空とコメントだけ", "", "# comment\n"],
   ["`~`（null）と空", "~\n", ""],
+  // js-yaml 5 は `-0` を負のゼロとして読む（4 は +0）。YAML 1.2 の core schema では整数の 0 である（#651）。
+  ["数値の -0 と 0", "a: -0\n", "a: 0\n"],
+  ["metadata の中と配列の中の -0 と 0", "metadata:\n  n: [-0]\n", "metadata:\n  n: [0]\n"],
   ["空白だけと空", "\t\n", ""],
   ["文書の終わりの印だけと空", "...\n", ""],
   ["metadata が null（`~`）と、metadata が無い", "name: x\nmetadata: ~\n", "name: x\n"],
@@ -52,8 +55,6 @@ test.each([
     "name: x\n",
   ],
   ["スカラーの false と空", "false\n", ""],
-  // js-yaml 5 は `-0` を負のゼロとして読む（4 は +0）。直さずに残している理由は frontmatter.ts に書いた（#651）。
-  ["数値の -0 と 0", "a: -0\n", "a: 0\n"],
   [
     "metadata がエイリアスで、アンカー側の local-path だけが違う",
     "base: &b {local-path: x, a: 1}\nmetadata: *b\n",
