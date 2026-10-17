@@ -175,7 +175,13 @@ test("直した commit を push した後に再レビューしていない（記
   const dir = setup({ comments: [{ id: 11, login: "alice", body: marker(OLD, 1) }] });
   const r = run(dir, ["check", "--pr", "7"]);
   expect(r.status).toBe(1);
-  expect(r.out).toMatchObject({ status: "not-reviewed", records: "1", ignored: "0" });
+  // 前の記録の SHA を、2 回目からのレビューの範囲の起点として出す
+  expect(r.out).toMatchObject({
+    status: "not-reviewed",
+    previous: OLD,
+    records: "1",
+    ignored: "0",
+  });
 });
 
 test("前の HEAD と今の HEAD の記録があれば、今の HEAD の記録を使う。同じ HEAD に 2 件あれば後のもの", () => {
@@ -188,7 +194,7 @@ test("前の HEAD と今の HEAD の記録があれば、今の HEAD の記録�
   });
   const r = run(dir, ["check", "--pr", "7"]);
   expect(r.status).toBe(0);
-  expect(r.out).toMatchObject({ record: "13", findings: "0", records: "3" });
+  expect(r.out).toMatchObject({ record: "13", findings: "0", previous: OLD, records: "3" });
 });
 
 test("担当者の記録は数え、作成者でも担当者でもない人の記録は理由を出して読み飛ばす", () => {
@@ -224,6 +230,8 @@ test.each([
     `<!-- pr-finalize-loop:local-review sha=${HEAD} findings=0 -->`,
   ],
   ["open が整数でない", marker(HEAD, 1, "x")],
+  // bash の整数に収まらない値は比較が失敗し、open が findings より大きいことを見逃す
+  ["件数が 10 桁", marker(HEAD, 1, "9999999999")],
 ])("1 行目の形が違う記録（%s）は、数えずに読み飛ばす", (_name, body) => {
   const dir = setup({ comments: [{ id: 31, login: "alice", body }] });
   const r = run(dir, ["check", "--pr", "7"]);
@@ -232,24 +240,25 @@ test.each([
   expect(r.stderr).toMatch(/記録 31 を読み飛ばした（1 行目の形が違う）/);
 });
 
-test.each([
-  ["引用の中", `引用: ${marker(HEAD, 0)}`],
-  ["先頭の改行の後", `\n${marker(HEAD, 0)}`],
-])(
-  "目印が本文の先頭に無いコメント（%s）は、記録として数えず、理由を出して読み飛ばす",
-  (_name, body) => {
-    const dir = setup({ comments: [{ id: 41, login: "alice", body }] });
-    const r = run(dir, ["check", "--pr", "7"]);
-    expect(r.status).toBe(1);
-    expect(r.out).toMatchObject({ status: "not-reviewed", records: "0", ignored: "1" });
-    expect(r.stderr).toMatch(/記録 41 を読み飛ばした（目印が本文の先頭に無い）/);
-  },
-);
-
-test("目印を含まないコメントは、記録の候補にも、読み飛ばした件数にも入れない", () => {
-  const dir = setup({ comments: [{ id: 42, login: "alice", body: "LGTM" }] });
+test("目印の前に空白か改行がある記録は、記録として数えず、理由を出して読み飛ばす", () => {
+  const dir = setup({ comments: [{ id: 41, login: "alice", body: `\n ${marker(HEAD, 0)}` }] });
   const r = run(dir, ["check", "--pr", "7"]);
-  expect(r.out).toMatchObject({ records: "0", ignored: "0" });
+  expect(r.status).toBe(1);
+  expect(r.out).toMatchObject({ status: "not-reviewed", records: "0", ignored: "1" });
+  expect(r.stderr).toMatch(
+    /記録 41 を読み飛ばした（目印が本文の先頭に無い。前に空白か改行がある）/,
+  );
+});
+
+test.each([
+  ["目印を含まない", "LGTM"],
+  ["本文の途中で目印を引用しただけ", `引用: ${marker(HEAD, 0)}`],
+])("%s コメントは、記録の候補にも、読み飛ばした件数にも入れない", (_name, body) => {
+  const dir = setup({ comments: [{ id: 42, login: "mallory", body }] });
+  const r = run(dir, ["check", "--pr", "7"]);
+  expect(r.status).toBe(1);
+  expect(r.out).toMatchObject({ status: "not-reviewed", records: "0", ignored: "0" });
+  expect(r.stderr).toBe("");
 });
 
 test("HEAD の記録に未対応の指摘（open が 1 以上）が残っていれば、open で exit 1", () => {
@@ -439,6 +448,7 @@ test.each([
   ],
   ["件数が負", ["post", "--pr", "7", "--sha", HEAD, "--findings", "-1", "--open", "0"]],
   ["件数の先頭が 0", ["post", "--pr", "7", "--sha", HEAD, "--findings", "01", "--open", "0"]],
+  ["件数が 10 桁", ["post", "--pr", "7", "--sha", HEAD, "--findings", "9999999999", "--open", "0"]],
   [
     "読めない --details",
     [

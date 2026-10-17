@@ -165,6 +165,9 @@ gh api --paginate repos/<owner>/<repo>/issues/<番号>/comments \
    それでも満たさなければ、記録せずに止まる（pr-finalize-loop では「行き詰まり」）。
 2. エージェント自身の機能でレビューする。別のエージェントに自動で切り替えない。機能を使えなければ、レビューしたことにせず止まる。
    最初のレビューは、PR の変更全体を対象にする。2 回目からは、前の記録の SHA から今の HEAD までの差分（直した commit）だけを対象にし、前の回の指摘と対応（解決したスレッドと記録の本文）をレビューに渡す。
+   前の記録の SHA は、`check` の出力の `previous` を使う。コメントを手で探さない。`check` が形と書き手を確かめた記録だけから取るためである。
+   `previous` が無い、`previous` が HEAD の祖先でない（rebase した）、`previous` から HEAD までに merge commit がある（ベースブランチを取り込んだ）ときは、PR の変更全体をレビューする。
+   差分にベースブランチの変更が入ると、PR に無い変更まで指摘の対象になる。祖先かは `git merge-base --is-ancestor <previous> HEAD`、merge commit の有無は `git rev-list --merges <previous>..HEAD` で確かめる。
    毎回 PR の全体をレビューし直すと、直すたびに前の回と別の指摘が出て、収束しないまま反復の上限に達しやすい。
    - Claude Code: 組み込みの `/code-review` に、対象の PR の番号と `--comment` を渡す（例: `/code-review high <PR の番号> --comment`）。指摘は PR の行に付いたコメントとして投稿される（[Claude Code commands](https://code.claude.com/docs/en/commands)）。
      PR の番号を渡さないと、upstream との差分をレビューする。push した後はこの差分が空になり、PR の変更をレビューしないまま指摘 0 件になる。
@@ -213,6 +216,7 @@ bash <スキルのディレクトリ>/scripts/local-review-record.sh check --pr 
 - exit 0（`status=reviewed`）は、PR の作成者か担当者が、今の HEAD の完全な SHA と `open=0` を書いた記録を残していることを表す。
 - exit 1 は、レビュー済みでないことを表す。`status=not-reviewed` は、記録が無いか、前の HEAD の記録しか無い。
   `status=open` は、今の HEAD の記録に未対応の指摘が残っている。直して push し、新しい HEAD をレビューし直す。
+  判断待ちの指摘を後で見送ると決めたなど、コードを変えずに未対応が減ったときは、同じ SHA に `--open` を減らした記録を投稿し直す。`check` は同じ SHA の記録のうち後のものを使う。
 - exit 2 は判定できないことを表すので、レビュー済みとも未レビューとも扱わずに取得し直す。
 - 記録は PR の作成者が投稿することが多い。作成者のレビューとコメントを判定から除く規則（各スキルの「HEAD のレビュー済み判定」など）は、この記録には当てない。
   この判定が数えるのは、記録の 1 行目に書いた SHA と件数だけだからである。

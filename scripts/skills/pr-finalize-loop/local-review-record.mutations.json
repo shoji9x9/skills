@@ -13,7 +13,8 @@
       "replace": "\tif true; then\n",
       "occurrences": 1,
       "expect_failing": [
-        "直した commit を push した後に再レビューしていない（記録が前の HEAD だけ）なら not-reviewed"
+        "直した commit を push した後に再レビューしていない（記録が前の HEAD だけ）なら not-reviewed",
+        "前の HEAD と今の HEAD の記録があれば、今の HEAD の記録を使う。同じ HEAD に 2 件あれば後のもの"
       ]
     },
     {
@@ -140,8 +141,8 @@
       "id": "open-not-checked",
       "why": "HEAD の記録の未対応の件数を見ない（直すと決めた指摘を残したまま reviewed と判定する）",
       "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
-      "find": "\tif [ \"${record_open}\" = \"0\" ]; then\n",
-      "replace": "\tif true; then\n",
+      "find": "elif [ \"${record_open}\" = \"0\" ]; then\n",
+      "replace": "elif true; then\n",
       "occurrences": 1,
       "expect_failing": [
         "HEAD の記録に未対応の指摘（open が 1 以上）が残っていれば、open で exit 1",
@@ -159,14 +160,13 @@
     },
     {
       "id": "marker-position-reason-dropped",
-      "why": "目印が先頭に無いコメントを、理由を区別せずに形の違う記録として扱う",
+      "why": "目印の前に空白か改行がある記録を、理由を区別せずに形の違う記録として扱う",
       "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
-      "find": "\tif [[ \"${line}\" != \"${MARKER_PREFIX}\"* ]]; then\n",
+      "find": "\tif [ \"${leading}\" != \"0\" ]; then\n",
       "replace": "\tif false; then\n",
       "occurrences": 1,
       "expect_failing": [
-        "目印が本文の先頭に無いコメント（引用の中）は、記録として数えず、理由を出して読み飛ばす",
-        "目印が本文の先頭に無いコメント（先頭の改行の後）は、記録として数えず、理由を出して読み飛ばす"
+        "目印の前に空白か改行がある記録は、記録として数えず、理由を出して読み飛ばす"
       ]
     },
     {
@@ -178,6 +178,38 @@
       "occurrences": 1,
       "expect_failing": [
         "post は、gh のユーザーを取得できなければ（ユーザーでないトークン）、投稿せずに exit 4"
+      ]
+    },
+    {
+      "id": "previous-not-output",
+      "why": "前の記録の SHA を出さない（2 回目からのレビューの範囲を、呼び出し側が手で探す）",
+      "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
+      "find": "\t\tprevious=\"${BASH_REMATCH[1]}\"\n",
+      "replace": "\t\t:\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "直した commit を push した後に再レビューしていない（記録が前の HEAD だけ）なら not-reviewed",
+        "前の HEAD と今の HEAD の記録があれば、今の HEAD の記録を使う。同じ HEAD に 2 件あれば後のもの"
+      ]
+    },
+    {
+      "id": "count-digits-unbounded",
+      "why": "件数の桁数を限らない（bash の整数に収まらない値で比較が失敗し、記録を数える）",
+      "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
+      "find": "findings=\"(0|[1-9][0-9]{0,8})\" open=\"(0|[1-9][0-9]{0,8})\" -->",
+      "replace": "findings=\"(0|[1-9][0-9]*)\" open=\"(0|[1-9][0-9]*)\" -->",
+      "occurrences": 1,
+      "expect_failing": ["1 行目の形が違う記録（件数が 10 桁）は、数えずに読み飛ばす"]
+    },
+    {
+      "id": "quote-counted-as-ignored",
+      "why": "本文の途中で目印を引用しただけのコメントを、記録の候補にする",
+      "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
+      "find": "select(.t | startswith(",
+      "replace": "select(.b | contains(",
+      "occurrences": 1,
+      "expect_failing": [
+        "本文の途中で目印を引用しただけ コメントは、記録の候補にも、読み飛ばした件数にも入れない"
       ]
     }
   ]

@@ -156,7 +156,10 @@ gh api --paginate repos/<owner>/<repo>/issues/<番号>/comments \
   mention で依頼済みかを判定するときは、同じ API を `body: .body[:60]` に切り詰めて取得する（[`references/review-tool.md`](references/review-tool.md)）。
   その取得を指摘の収集に使い回さない。切り詰めた後ろにある指摘を取りこぼす。
 - 対象は、自分（PR の作成者。このスキルが書いた依頼のコメントや対応の記録を含む）以外の投稿すべてである。
-  ただし、`review_tool: local` の記録（本文が `<!-- pr-finalize-loop:local-review` で始まるコメント）は除く。記録は担当者が投稿することもあり、作成者を除くだけでは除けない。記録の本文の指摘は、記録の `open` で追う（[`references/review-tool.md`](references/review-tool.md) の「local」）。
+  ただし、`review_tool: local` の記録のうち、PR の作成者か担当者が投稿したもの（本文が `<!-- pr-finalize-loop:local-review` で始まるコメント）は除く。
+  記録は担当者が投稿することもあり、作成者を除くだけでは除けない。
+  それ以外の人が投稿した、目印で始まるコメントは除かず、ほかのコメントと同じように指摘を集める。
+  記録の本文の指摘は、記録の `open` で追う（[`references/review-tool.md`](references/review-tool.md) の「local」）。
   `select(.user.type=="Bot")` で bot に絞らない。人のレビュアーが総評をトップレベルに置くこともあるので、絞ると取りこぼす。
   `.user.type` は bot か人かを区別するためだけに使い、集める対象の絞り込みには使わない。
 - 特に `review_tool` が mention で依頼する方法（`claude-code`・`codex`）のときは、レビュアーが総評と指摘をトップレベルのコメントに置くものとして読む。`reviews[].body` が空でも指摘はある。

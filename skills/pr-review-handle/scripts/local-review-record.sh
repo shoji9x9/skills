@@ -23,6 +23,7 @@
 #   record=<id>       HEAD と一致する記録のコメントの id。reviewed と open のときだけ出す。
 #   findings=<n>      その記録の指摘の件数。reviewed と open のときだけ出す。
 #   open=<n>          その記録の未対応の件数。reviewed と open のときだけ出す。
+#   previous=<sha>    HEAD と違う SHA の記録のうち、最後のものの SHA。2 回目からのレビューの範囲の起点に使う。無ければ出さない。
 #   records=<n>       形の正しい記録の件数。SHA は問わない。
 #   ignored=<n>       読み飛ばした記録の件数。理由は stderr に 1 件ずつ出す。
 #
@@ -31,6 +32,8 @@
 #   post:  0 は投稿した。1 は渡した SHA が HEAD と違う（投稿しない）。2 は取得か投稿に失敗した。
 #          3 は gh のユーザーが PR の作成者でも担当者でもない（投稿しない）。
 #          4 は gh のユーザーを取得できない（ユーザーでないトークン。投稿しない）。
+#
+# 件数は 9 桁までにする。bash の整数に収まらない値は比較が失敗し、判定を誤る。
 #
 # post が投稿しない理由は、呼び出し側の対処がそれぞれ違うので、終了コードを分ける。
 # 1 はレビューし直す、2 は取得し直す、3 は投稿する人を変える、4 はこの環境では local を使わずに止まる。
@@ -101,8 +104,8 @@ else
 	# 省いたときに 0 として扱うと、直していない指摘を残した記録がレビュー済みになる。必ず渡させる
 	[ -n "${open}" ] || die_usage "--open が無い（記録の本文の指摘のうち、まだ直していない件数。無ければ 0）"
 	[[ "${sha}" =~ ^[0-9a-f]{40}$ ]] || die_usage "--sha は 40 桁の小文字の 16 進数にする（短縮した SHA は受け取らない）: ${sha}"
-	[[ "${findings}" =~ ^(0|[1-9][0-9]*)$ ]] || die_usage "--findings は 0 以上の整数にする: ${findings}"
-	[[ "${open}" =~ ^(0|[1-9][0-9]*)$ ]] || die_usage "--open は 0 以上の整数にする: ${open}"
+	[[ "${findings}" =~ ^(0|[1-9][0-9]{0,8})$ ]] || die_usage "--findings は 0 以上の 9 桁までの整数にする: ${findings}"
+	[[ "${open}" =~ ^(0|[1-9][0-9]{0,8})$ ]] || die_usage "--open は 0 以上の 9 桁までの整数にする: ${open}"
 	[ "${open}" -le "${findings}" ] || die_usage "--open（${open}）が --findings（${findings}）より大きい"
 	if [ -n "${details}" ] && [ ! -r "${details}" ]; then
 		die_usage "--details のファイルを読めない: ${details}"
@@ -177,10 +180,11 @@ if [ "${mode}" = "post" ]; then
 	exit 0
 fi
 
-# check: 記録の候補（本文に目印を含むトップレベルのコメント）の 1 行目を取得する。
-# 目印が先頭に無いものも取得し、読み飛ばした理由を出す（先頭の改行や空白で、警告なしに記録が消えないようにする）
+# check: 記録の候補（空白と改行を除いた本文が目印で始まるトップレベルのコメント）の 1 行目を取得する。
+# 目印の前に空白か改行があるものも取得し、読み飛ばした理由を出す（警告なしに記録が消えないようにする）。
+# 本文の途中で目印を引用しただけのコメントは、記録の候補にしない。4 つ目の欄は、目印の前に空白か改行があれば 1 にする
 if ! list=$(gh api ${host_args[@]+"${host_args[@]}"} --paginate "${api_path}?per_page=100" \
-	--jq '.[] | select((.body // "") | contains("'"${MARKER_PREFIX}"'")) | [(.id | tostring), (.user.login // ""), ((.body // "") | split("\n")[0] | rtrimstr("\r"))] | join("\u001f")' \
+	--jq '.[] | {id: (.id | tostring), login: (.user.login // ""), b: (.body // "")} | .t = (.b | sub("^\\s+"; "")) | select(.t | startswith("'"${MARKER_PREFIX}"'")) | [.id, .login, (.t | split("\n")[0] | rtrimstr("\r")), (if .t == .b then "0" else "1" end)] | join("\u001f")' \
 	</dev/null); then
 	echo "error: PR のコメントを取得できない" >&2
 	exit 2
@@ -191,7 +195,8 @@ ignored=0
 record=""
 record_findings=""
 record_open=""
-while IFS=$'\x1f' read -r id login line; do
+previous=""
+while IFS=$'\x1f' read -r id login line leading; do
 	[ -n "${id}" ] || continue
 	case "${allowed}" in
 	*",${login},"*) ;;
@@ -201,12 +206,12 @@ while IFS=$'\x1f' read -r id login line; do
 		continue
 		;;
 	esac
-	if [[ "${line}" != "${MARKER_PREFIX}"* ]]; then
-		echo "note: 記録 ${id} を読み飛ばした（目印が本文の先頭に無い）" >&2
+	if [ "${leading}" != "0" ]; then
+		echo "note: 記録 ${id} を読み飛ばした（目印が本文の先頭に無い。前に空白か改行がある）" >&2
 		ignored=$((ignored + 1))
 		continue
 	fi
-	if [[ ! "${line}" =~ ^"${MARKER_PREFIX}sha="([0-9a-f]{40})" findings="(0|[1-9][0-9]*)" open="(0|[1-9][0-9]*)" -->"$ ]]; then
+	if [[ ! "${line}" =~ ^"${MARKER_PREFIX}sha="([0-9a-f]{40})" findings="(0|[1-9][0-9]{0,8})" open="(0|[1-9][0-9]{0,8})" -->"$ ]]; then
 		echo "note: 記録 ${id} を読み飛ばした（1 行目の形が違う）" >&2
 		ignored=$((ignored + 1))
 		continue
@@ -222,6 +227,8 @@ while IFS=$'\x1f' read -r id login line; do
 		record="${id}"
 		record_findings="${BASH_REMATCH[2]}"
 		record_open="${BASH_REMATCH[3]}"
+	else
+		previous="${BASH_REMATCH[1]}"
 	fi
 done <<<"${list}"
 
@@ -230,17 +237,18 @@ echo "head=${head}"
 status=1
 if [ -z "${record}" ]; then
 	echo "status=not-reviewed"
+elif [ "${record_open}" = "0" ]; then
+	status=0
+	echo "status=reviewed"
 else
-	if [ "${record_open}" = "0" ]; then
-		status=0
-		echo "status=reviewed"
-	else
-		echo "status=open"
-	fi
+	echo "status=open"
+fi
+if [ -n "${record}" ]; then
 	echo "record=${record}"
 	echo "findings=${record_findings}"
 	echo "open=${record_open}"
 fi
+[ -z "${previous}" ] || echo "previous=${previous}"
 echo "records=${records}"
 echo "ignored=${ignored}"
 exit "${status}"
