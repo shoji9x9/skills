@@ -56,11 +56,12 @@ GitHub は `linguist-generated` の付いたファイルを、PR の差分で最
 - `if` は、git 以外の Bash の呼び出しで、スクリプトそのものを起動しないための絞り込みである。
   `Bash(git commit *)` にしないのは、`git -C <dir> commit` のようにオプションを挟んだ形に当たらないためである。`Bash(git *)` はこの形に当たる（Claude Code 2.1.302 で実測）。
   `Bash(git *)` は、heredoc の中の `git commit`（`bash <<'EOF'` の本文）に当たらない（同じ版で実測）。
-  ドキュメントによると、`env A=1 git commit`・`sudo git commit` のように、照合の前に取り除かれないコマンドの後ろの git にも当たらない。
-  `timeout`・`nice`・`command` などは照合の前に取り除かれるので当たる（[Claude Code permissions](https://code.claude.com/docs/en/permissions) の Wrappers の節）。
+  ドキュメントによると、照合は前方一致なので、パスを付けた git（`/usr/bin/git commit`）と、照合の前に取り除かれないコマンドの後ろの git（`env A=1 git commit`・`sudo git commit`・`exec git commit`）にも当たらない。
+  取り除かれるのは `timeout`・`time`・`nice`・`nohup`・`stdbuf`・`command`・`builtin` で、この後ろの git には当たる（[Claude Code permissions](https://code.claude.com/docs/en/permissions) の Wrappers の節）。
+  ただし、スクリプトは `timeout 60 git commit`・`nice -n 5 git commit`・`stdbuf -oL git commit`・`builtin git commit` をコミットと判定しない。この形では、スクリプトは起動しても記録を stage せず、判断の無いブランチでも確認を求めない。
   `if` に当たらないコミットではスクリプトが起動しないので、その時点の記録は作られず、判断の無いブランチでも確認を求めない。記録は、次にスクリプトが起動したコミットの collect がまとめて作る。ブランチの最後のコミットがこの形だと、その分の記録は PR に入らない。
   `if` を外すとこれらも検出できるが、スクリプトは heredoc の本文を読み飛ばさないので、git を実行しない heredoc（`cat > f <<'EOF'` の本文の行頭の `git commit`）もコミットと判定し、判断の無いブランチで止めるか、コミットしない呼び出しで記録を stage する。
-  `if` を付けると、この誤検知は git のサブコマンドを含む呼び出しに限られる（`git add f && cat > g <<'EOF'` の本文に `git commit` があれば、まだ誤検知する）。そのため `if` を付ける。
+  `if` を付けると、Claude Code がコマンドを解析できる呼び出しでは、この誤検知は git のサブコマンドを含む呼び出しに限られる（`git add f && cat > g <<'EOF'` の本文に `git commit` があれば、まだ誤検知する）。そのため `if` を付ける。
   コマンドを解析できないときは `if` に関わらず起動するので、スクリプトの中でも判定する
 - Claude Code は、timeout に達した Hook の呼び出しを止めずに通す。`timeout` を付けるなら、collect の所要時間（初めての collect は GitHub の取得で数分かかることがある）より長くする
 

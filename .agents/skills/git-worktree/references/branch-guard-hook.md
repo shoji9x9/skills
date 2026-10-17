@@ -101,7 +101,8 @@ matcher が英数字・`_`・`-`・空白・`,`・`|` だけでできていれ�
 handler に `if`（permission rule の形でツールの呼び出しを絞るフィールド）を付けない。
 `EnterWorktree` と Bash を 1 つの定義で扱うので、`"if": "Bash(git *)"` を付けると `EnterWorktree` の呼び出しで起動しなくなる。
 定義を 2 つに分けて Bash の側だけに `if` を付けることはできるが、スクリプトの中の判定と `if` の照合が同じ形を拾うかを確かめていないので、分けない。
-スクリプトは、Hook の入力に `worktree` と `Worktree` の語が無い呼び出しを、bash の組み込みの照合だけで終える。パスにこの語を含む worktree（`.claude/worktrees/<name>` など）の中のセッションでは、入力の `cwd` に語が含まれるので、その先の `jq` か `python3` まで起動する。
+スクリプトは、Hook の入力の JSON 全体（`cwd`・`transcript_path`・コマンドの文字列を含む）に `worktree` も `Worktree` も含まない呼び出しを、bash の組み込みの照合だけで終える。
+どちらかを含む呼び出しでは、その先の `jq` か `python3` まで起動する。パスにこの語を含む worktree（`.claude/worktrees/<name>` など）の中のセッションでは、`cwd` に語が含まれるので、すべての呼び出しがこれに当たる。
 
 #### Codex — PreToolUse (`.codex/hooks.json`)
 
