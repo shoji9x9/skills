@@ -33,13 +33,20 @@ import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { errorMessage } from "./lib/errors.mjs";
 import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
-import { collapse, fenceOf, parseTables, splitRow } from "./lib/markdown.mjs";
+import {
+  blankComments,
+  collapse,
+  fenceOf,
+  opensHtmlBlock,
+  parseTables,
+  splitRow,
+} from "./lib/markdown.mjs";
 
 /**
  * ツールのバージョン（このファイルで定義する）。判定の規則や出力の形を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "1";
+export const VERSION = "2";
 
 /** 成果物の mode の語彙（parity-suite の metadata.json の mode）。 */
 export const MODES = ["feature", "api-resource", "batch"];
@@ -217,14 +224,9 @@ function looksLikeTableRow(line) {
 export function countRowLikeLines(text, consumed = new Set()) {
   /** @type {string | null} */
   let fence = null;
-  let comment = false;
   let count = 0;
-  text.split(/\r?\n/u).forEach((line, index) => {
-    // HTML コメント（テンプレートの記入例・説明）は表ではない。複数行にまたがるコメントも中を数えない。
-    if (fence === null && (comment || line.trim().startsWith("<!--"))) {
-      comment = !line.includes("-->");
-      return;
-    }
+  // HTML コメント（テンプレートの記入例・説明）は表ではない。parseTables と同じ blankComments で空白にしてから数える。
+  blankComments(text.split(/\r?\n/u)).forEach((line, index) => {
     const mark = fenceOf(line);
     if (mark !== null) {
       if (fence === null) fence = mark;
@@ -237,10 +239,11 @@ export function countRowLikeLines(text, consumed = new Set()) {
 }
 
 /**
- * HTML コメントの記号が、読み飛ばしの規則（parseTables の skip-lines / countRowLikeLines）が扱える位置にだけあるかを確かめる。
+ * HTML コメントの記号が、台帳で扱える位置にだけあるかを確かめる。
  * 扱える形は「行頭の `<!--` で始まり行末の `-->` で終わる 1 行」「行頭の `<!--` だけの開始行 … 行末の `-->` で終わる終了行」の 2 つ。
- * それ以外（散文の後ろの `<!--`、行の途中の `-->`、1 行に複数の記号、閉じないコメント）は読める形を足さずに落とす。
- * 読み飛ばしの規則に合わない位置のコメントは、中の表を生きた表として読むか、以降の表を丸ごと読み飛ばす。
+ * 行頭は、blankComments と同じく字下げ 3 文字までとする。
+ * それ以外（散文の後ろの `<!--`、行の途中の `-->`、1 行に複数の記号、エスケープした `\<!--`、閉じないコメント）は落とす。
+ * parseTables の読み方（blankComments）は GFM の描画と食い違う形が残っているので、その形の台帳を読まずに止める。
  * @param {string} text
  * @returns {{ lines: number[], unclosed: boolean }} 扱えない位置の記号を含む行番号（1 始まり）と、閉じないコメントの有無
  */
@@ -268,7 +271,7 @@ export function strayCommentMarkers(text) {
     }
     if (fence !== null) return;
     if (opens === 0 && closes === 0) return;
-    if (!trimmed.startsWith("<!--") || opens > 1 || closes > 1) {
+    if (!opensHtmlBlock(line) || opens > 1 || closes > 1) {
       lines.push(index + 1);
       return;
     }
@@ -304,7 +307,7 @@ export function readProcedureLedger(text, skillChangeIds) {
   const errors = [];
   /** @type {Set<number>} */
   const consumed = new Set();
-  const { tables } = parseTables(text, { comments: "skip-lines", consumed });
+  const { tables } = parseTables(text, { consumed });
   const changeTable = findTable(tables, CHANGE_HEADERS);
   const recordTable = findTable(tables, RECORD_HEADERS);
   // 表の不在を「変更なし」「記録なし」と読まない。列名を書き換えた台帳も同じ（警告なしに 0 件になる）。
@@ -319,7 +322,7 @@ export function readProcedureLedger(text, skillChangeIds) {
   const orphans = countRowLikeLines(text, consumed);
   if (orphans > 0) {
     errors.push(
-      `表の外に表の行のような行が ${orphans} 行ある（表の途中に空行を挟むと、それ以降の行は読まれない）`,
+      `表の外に表の行のような行が ${orphans} 行ある（表の途中に空行か HTML コメントの行を挟むと、それ以降の行は読まれない）`,
     );
   }
   if (recordTable.duplicated) errors.push("「既に閉じた機能への当て直し」表が 2 つ以上ある");
