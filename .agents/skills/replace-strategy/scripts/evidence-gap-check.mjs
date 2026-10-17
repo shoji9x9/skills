@@ -36,7 +36,7 @@ import { isCliEntry } from "./lib/cli.mjs";
 import { collapse, parseTables } from "./lib/markdown.mjs";
 
 /** ツールのバージョン（このファイルで定義する）。判定のロジックや出力の形を変えたら上げる。 */
-export const VERSION = "3";
+export const VERSION = "4";
 
 /** 使い方の誤り・入力の不備（exit 2）。 */
 export class UsageError extends Error {}

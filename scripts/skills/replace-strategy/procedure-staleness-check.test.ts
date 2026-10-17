@@ -669,3 +669,14 @@ test("4 文字以上字下げした `<!--` は、扱える位置の HTML コメ�
 test("エスケープした `\\<!--` は、扱えない位置の HTML コメントの記号として落とす", () => {
   expect(strayCommentMarkers("<!--\nメモ \\<!-- -->\n| 1 | 2 | 3 |\n-->\n").lines).toEqual([2, 4]);
 });
+
+test("情報文字列の付いた行でフェンスを閉じず、フェンスの中の表の行を数えない", () => {
+  expect(countRowLikeLines("```\n```bash\n| 1 | 2 | 3 |\n```\n")).toBe(0);
+});
+
+test("情報文字列の付いた行でフェンスを閉じず、フェンスの中の HTML コメントの記号を落とさない", () => {
+  expect(strayCommentMarkers("```\n```bash\n散文 <!-- 例\n```\n")).toEqual({
+    lines: [],
+    unclosed: false,
+  });
+});

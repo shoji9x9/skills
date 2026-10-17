@@ -12,6 +12,7 @@ import {
   main,
   checkPredicateCoverage,
   filterColumn,
+  parseTables,
 } from "../../../skills/golden-dataset/scripts/predicate-coverage-check.mjs";
 
 /** 欠陥の無い features.md（3 表とも在り、参照テーブルが埋まっている）。 */
@@ -1170,4 +1171,93 @@ test("変換の列の `-`（変換なし）は範囲の列と違い受ける（�
     }),
   });
   expect(codes).toEqual([]);
+});
+
+// コードフェンスの中は例示なので、表も見出しも読まない（Issue #679。replace-strategy の台帳と同じ読み方）。
+const md = (...xs: string[]) => [...xs, ""].join("\n");
+
+test("コードフェンスの中の表と見出しを読まない", () => {
+  const tables = parseTables(
+    md(
+      "## 本文",
+      "",
+      "```md",
+      "## 例",
+      "| a |",
+      "|---|",
+      "| 1 |",
+      "```",
+      "",
+      "| b |",
+      "|---|",
+      "| 2 |",
+    ),
+  );
+  expect(tables.map((t) => ({ heading: t.heading, headers: t.headers, rows: t.rows }))).toEqual([
+    { heading: "本文", headers: ["b"], rows: [["2"]] },
+  ]);
+});
+
+test("行頭のインラインのコード（```x```）ではフェンスを開かず、後ろの表を読む", () => {
+  const tables = parseTables(md("```x``` はインラインのコード", "", "| b |", "|---|", "| 2 |"));
+  expect(tables.map((t) => t.headers)).toEqual([["b"]]);
+});
+
+test("情報文字列の付いた行でフェンスを閉じず、フェンスの中の表を読まない", () => {
+  const tables = parseTables(
+    md("```", "```bash", "| a |", "|---|", "| 1 |", "```", "", "| b |", "|---|", "| 2 |"),
+  );
+  expect(tables.map((t) => t.headers)).toEqual([["b"]]);
+});
+
+test("HTML コメントの中のフェンス行でフェンスを開かず、コメントの後ろの表を読む", () => {
+  const tables = parseTables(
+    md(
+      "<!-- 記入例:",
+      "```",
+      "| x |",
+      "|---|",
+      "| 9 |",
+      "-->",
+      "",
+      "## 機能一覧",
+      "| b |",
+      "|---|",
+      "| 2 |",
+    ),
+  );
+  expect(tables.map((t) => ({ heading: t.heading, headers: t.headers }))).toEqual([
+    { heading: "", headers: ["x"] },
+    { heading: "機能一覧", headers: ["b"] },
+  ]);
+});
+
+test("誤検知しないことの確認: フェンスの中の `<!--` はコメントを開かず、フェンスの後ろのフェンスの中の表を読まない", () => {
+  const tables = parseTables(
+    md(
+      "```html",
+      "<!-- 例",
+      "```",
+      "",
+      "```",
+      "| x |",
+      "|---|",
+      "| 9 |",
+      "```",
+      "",
+      "| b |",
+      "|---|",
+      "| 2 |",
+    ),
+  );
+  expect(tables.map((t) => t.headers)).toEqual([["b"]]);
+});
+
+test("`<!-->` と `<!--->` はそれだけでコメントを閉じ、後ろのフェンスの中の表を読まない", () => {
+  for (const open of ["<!-->", "<!--->"]) {
+    const tables = parseTables(
+      md(open, "```", "| x |", "|---|", "| 9 |", "```", "", "| b |", "|---|", "| 2 |"),
+    );
+    expect(tables.map((t) => t.headers)).toEqual([["b"]]);
+  }
 });

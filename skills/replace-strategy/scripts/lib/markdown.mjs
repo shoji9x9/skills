@@ -1,5 +1,7 @@
 // Markdown の表とコードフェンスを読む helper。このスキルの台帳の表を読むスクリプトが共通に使う。
 
+import { stepFence } from "./fence.mjs";
+
 /**
  * 空白を 1 つに畳み、前後を除く（Markdown の表はフォーマッタが桁を詰め直すため素の比較では揺れる）。
  * @param {string} value
@@ -7,17 +9,6 @@
  */
 function collapse(value) {
   return String(value).replace(/\s+/gu, " ").trim();
-}
-
-/**
- * コードフェンスの開始／終了記号を返す（フェンス行でなければ null）。
- * @param {string | undefined} line
- * @returns {string | null}
- */
-function fenceOf(line) {
-  if (line === undefined) return null;
-  const match = /^ {0,3}(`{3,}|~{3,})/u.exec(line);
-  return match === null ? null : match[1];
 }
 
 /**
@@ -147,25 +138,29 @@ function opensHtmlBlock(line) {
  * 行の途中の `<!--` は、同じ行で閉じるときだけコメントにする（blankInlineComments）。
  * コードフェンスの中は例示なので置き換えない（フェンスの中の `<!--` で、以降の表を消さないため）。
  * コメントの中のフェンス行はフェンスとして扱わない。
+ * fenced を渡すと、各行がフェンスの記号の行かフェンスの中か（true）を入れる。
+ * フェンスは置き換える前の行で判定するので、呼び出し側は置き換えた後の行でフェンスを判定し直さず、fenced を使う。
+ * 置き換えた後の行で判定し直すと、` ```<!-- ` --> ` のようにコメントを空白にして初めてフェンスに見える行で開いてしまう。
  * @param {string[]} lines
+ * @param {boolean[]} [fenced]
  * @returns {string[]}
  */
-function blankComments(lines) {
+function blankComments(lines, fenced) {
   /** @type {string | null} */
   let fence = null;
   let block = false;
-  return lines.map((line) => {
+  return lines.map((line, index) => {
+    if (fenced !== undefined) fenced[index] = false;
     if (block) {
       if (line.includes("-->")) block = false;
       return " ".repeat(line.length);
     }
-    const mark = fenceOf(line);
-    if (mark !== null) {
-      if (fence === null) fence = mark;
-      else if (mark[0] === fence[0] && mark.length >= fence.length) fence = null;
+    const step = stepFence(fence, line);
+    fence = step.fence;
+    if (step.marker || fence !== null) {
+      if (fenced !== undefined) fenced[index] = true;
       return line;
     }
-    if (fence !== null) return line;
     if (opensHtmlBlock(line)) {
       block = !line.includes("-->");
       return " ".repeat(line.length);
@@ -196,21 +191,15 @@ function blankComments(lines) {
  */
 function parseTables(text, options = {}) {
   const { normalizeHeader = collapse, consumed } = options;
-  const lines = blankComments(text.split(/\r?\n/u));
+  /** @type {boolean[]} */
+  const fenced = [];
+  const lines = blankComments(text.split(/\r?\n/u), fenced);
   /** @type {{ headers: string[], rows: string[][], rowLines: number[] }[]} */
   const tables = [];
   /** @type {StrayRow[]} */
   const strayRows = [];
-  /** @type {string | null} */
-  let fence = null;
   for (let i = 0; i < lines.length; i += 1) {
-    const mark = fenceOf(lines[i]);
-    if (mark !== null) {
-      if (fence === null) fence = mark;
-      else if (mark[0] === fence[0] && mark.length >= fence.length) fence = null;
-      continue;
-    }
-    if (fence !== null) continue;
+    if (fenced[i]) continue;
     const header = splitRow(lines[i]);
     if (header === null) continue;
     const delimiter = splitRow(lines[i + 1]);
@@ -232,7 +221,7 @@ function parseTables(text, options = {}) {
     const rowLines = [];
     let j = i + 2;
     for (; j < lines.length; j += 1) {
-      if (fenceOf(lines[j]) !== null) break;
+      if (fenced[j]) break;
       const row = splitRow(lines[j]);
       if (row === null) break;
       rows.push(row);
@@ -245,4 +234,4 @@ function parseTables(text, options = {}) {
   return { tables, strayRows };
 }
 
-export { blankComments, opensHtmlBlock, collapse, fenceOf, parseTables, splitRow };
+export { blankComments, opensHtmlBlock, collapse, parseTables, splitRow };

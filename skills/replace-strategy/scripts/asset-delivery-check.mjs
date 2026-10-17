@@ -43,7 +43,7 @@ import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 import { parseTables } from "./lib/markdown.mjs";
 
 /** ツールのバージョン（このファイルで定義する）。判定の規則や出力の形を変えたら上げる。 */
-export const VERSION = "2";
+export const VERSION = "3";
 
 /** replace-metadata.json に書くキー。 */
 export const WRITE_KEY = "asset_delivery_check";
