@@ -1,6 +1,7 @@
 # Skill Benchmark: pr-finalize-loop
 
 **Model**: claude-code / opus
+**Date**: 2026-10-18
 **Evals**: 1（`with_skill` と `without_skill` を 1 run ずつ）
 
 ## 何を変えたか
@@ -18,3 +19,4 @@ Issue #681 で、反復の回数の残りを理由に妥当な指摘を見送ら
 
 - PR を作る前のレビューの指摘で、prompt に `review_tool` を足し、2 つの主張を持つ assertion を分けて、eval 21 をやり直した。
 - without_skill は、最後の反復でも直すことは自力で答えたが、直さない根拠を 3 つに限ること、この指摘がどれにも当たらないこと、「最大反復到達」の語は満たさなかった。
+- PR のレビューの指摘で SKILL.md の「最大反復到達」の行と範囲の書き方を直したので、with_skill だけをやり直した（7/7 のまま）。without_skill はスキルを読まないので、前の run をそのまま使った。
