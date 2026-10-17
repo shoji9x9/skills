@@ -11,7 +11,7 @@ skills:
     dismiss:
       - ghsa: "GHSA-vfj7-8cjw-p6xm"
         reason: "tolerable_risk"
-        comment: "braces は devDependencies が micromatch 経由で使うだけで、glob のパターンは設定ファイルとステージ済みのファイル名から来る。上流は修正版を出さない方針（#576）"
+        comment: "devDependencies の markdownlint-cli2 と semantic-release が micromatch 経由で braces を使う。このリポジトリが渡す glob のパターンは、設定ファイルとステージ済みのファイル名だけである。修正版が公開されるまで却下する（#576）"
   dependabot-merge:
     merge_method: squash # squash | merge | rebase
   git-worktree:
