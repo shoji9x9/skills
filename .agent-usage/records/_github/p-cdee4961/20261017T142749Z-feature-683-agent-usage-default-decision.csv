@@ -1,0 +1,9 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+ci:39040716488:1,ci,2026-10-17T14:27:49.172Z,p-cdee4961,github-actions,,,,2026-10-17T14:25:51.000Z,2026-10-17T14:26:13.000Z,Asia/Tokyo,main,,,,,,,,,,,Release;push;success,
+ci:39040716489:1,ci,2026-10-17T14:27:49.172Z,p-cdee4961,github-actions,,,,2026-10-17T14:25:51.000Z,2026-10-17T14:27:49.172Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;open,
+ci:39039619387:1,ci,2026-10-17T14:27:49.172Z,p-cdee4961,github-actions,,,,2026-10-17T14:10:32.000Z,2026-10-17T14:10:32.000Z,Asia/Tokyo,feature/606-type-guard-false-branch,606,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:39039619494:1,ci,2026-10-17T14:27:49.172Z,p-cdee4961,github-actions,,,,2026-10-17T14:10:32.000Z,2026-10-17T14:25:23.000Z,Asia/Tokyo,feature/606-type-guard-false-branch,606,,,,,,,,,,CI;pull_request;success,
+ci:39038552466:1,ci,2026-10-17T14:27:49.172Z,p-cdee4961,github-actions,,,,2026-10-17T13:55:21.000Z,2026-10-17T14:10:56.000Z,Asia/Tokyo,feature/606-type-guard-false-branch,606,,,,,,,,,,CI;pull_request;cancelled,
+coverage:github:2026-10-16T14:08:24.347Z:2026-10-17T14:27:49.172Z,coverage,2026-10-17T14:27:49.172Z,p-cdee4961,,,,,2026-10-16T14:08:24.347Z,2026-10-17T14:27:49.172Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:39040716489:1,ci,2026-10-17T14:28:28.273Z,p-cdee4961,github-actions,,,,2026-10-17T14:25:51.000Z,2026-10-17T14:28:28.273Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;open,
+coverage:github:2026-10-16T14:27:49.172Z:2026-10-17T14:28:28.273Z,coverage,2026-10-17T14:28:28.273Z,p-cdee4961,,,,,2026-10-16T14:27:49.172Z,2026-10-17T14:28:28.273Z,Asia/Tokyo,,,,,,,,,,,,ok,
