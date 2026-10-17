@@ -18,7 +18,10 @@ PR #666（agent-usage の Hook の stage が、コミットが実行されなく
 - 明細がこのブランチで既にコミットされていると、`git switch` は拒否され、stage を戻しても移れない
 - まだコミットしていない明細を戻すと、ファイルは untracked のまま残り、移った先が「記録する」ブランチならその Hook が stage し直す
 
-場合ごとの案内をやめ、コミットの後に `git status --short .agent-usage/records` で確かめる 1 つの手順にまとめた。
+場合ごとの案内をやめ、コミットの後に `git status` で確かめる 1 つの手順にまとめた。
+まとめた手順のコマンドも確かめずに書いたので、3 回目のレビューで 2 件の誤りが見つかった。
+相対パスはサブディレクトリから実行すると何も表示せず、`status.showUntrackedFiles=no` の設定では untracked の明細が隠れる。
+直した後のコマンドは `git status --short --untracked-files=all -- ':/.agent-usage/records'` で、使い捨てのリポジトリで両方の場合を確かめた。
 
 ## 根本原因
 
