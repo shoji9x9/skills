@@ -54,88 +54,80 @@ function codeSpanEnd(rest, index, ticks) {
 }
 
 /**
- * 行の途中で開いたコメント（インラインのコメント）が、段落の中で閉じるかを返す。
- * CommonMark では、インラインのコメントは段落の終わり（空行・フェンス行）を越えない。
- * 閉じない `<!--` は文字として読まれ、以降の表を隠さない。
- * @param {string[]} lines
- * @param {number} index `<!--` がある行の番号（0 始まり）
- * @param {string} tail 同じ行の `<!--` より後ろ
- * @returns {boolean}
+ * 1 行の中で閉じたコメントの終わりの位置（`-->` の直後）を返す（同じ行で閉じなければ -1）。
+ * CommonMark 0.31 では、`<!-->` と `<!--->` もそれだけで閉じたコメントである。
+ * @param {string} rest
+ * @param {number} start `<!--` の位置
+ * @returns {number}
  */
-function closesInParagraph(lines, index, tail) {
-  if (tail.includes("-->")) return true;
-  for (let k = index + 1; k < lines.length; k += 1) {
-    if (lines[k].trim() === "" || fenceOf(lines[k]) !== null) return false;
-    if (lines[k].includes("-->")) return true;
+function commentEnd(rest, start) {
+  const body = rest.slice(start + 4);
+  if (body.startsWith(">")) return start + 5;
+  if (body.startsWith("->")) return start + 6;
+  const close = body.indexOf("-->");
+  return close < 0 ? -1 : start + 4 + close + 3;
+}
+
+/**
+ * 行の途中のコメント（インラインのコメント）のうち、同じ行で閉じたものを空白に置き換える。
+ * 同じ行で閉じない `<!--` は文字として読む。表や見出しは段落を中断するので、インラインのコメントは後ろの行の表を隠さない（GFM）。
+ * コードスパンの中の `<!--` はコメントにしない。CommonMark と同じく、先に始まった方を採る。
+ * @param {string} line
+ * @returns {string}
+ */
+function blankInlineComments(line) {
+  let out = "";
+  let rest = line;
+  for (;;) {
+    const start = rest.indexOf("<!--");
+    if (start < 0) return out + rest;
+    const code = /`+/u.exec(rest);
+    if (code !== null && code.index < start) {
+      // 閉じるバッククォートが同じ行に無ければ、バッククォートを文字として読み、その後ろから探し続ける。
+      const end = codeSpanEnd(rest, code.index, code[0].length);
+      const stop = end < 0 ? code.index + code[0].length : end;
+      out += rest.slice(0, stop);
+      rest = rest.slice(stop);
+      continue;
+    }
+    const end = commentEnd(rest, start);
+    if (end < 0) return out + rest;
+    out += rest.slice(0, start) + " ".repeat(end - start);
+    rest = rest.slice(end);
   }
-  return false;
 }
 
 /**
  * HTML コメントを、改行を保ったまま空白に置き換える（行の対応は変えない）。
+ * 行頭（字下げ 3 文字まで）の `<!--` は HTML ブロックを開く（CommonMark）。
+ * ブロックは `-->` を含む行で終わり、その行の残りもブロックに入るので、行ごと空白にする。閉じなければ末尾まで続く。
+ * 行の途中の `<!--` は、同じ行で閉じるときだけコメントにする（blankInlineComments）。
  * コードフェンスの中は例示なので置き換えない（フェンスの中の `<!--` で、以降の表を消さないため）。
- * 同じ理由で、1 行の中のコードスパンの中の `<!--` もコメントの始まりにしない。
  * コメントの中のフェンス行はフェンスとして扱わない。
- * 行頭（字下げ 3 文字まで）の `<!--` は HTML ブロックを開き、閉じていなければ末尾まで置き換える（CommonMark）。
- * 行の途中の `<!--` は、段落の中で `-->` が来るときだけコメントにする（閉じなければ文字として読む）。
  * @param {string[]} lines
  * @returns {string[]}
  */
 function blankComments(lines) {
   /** @type {string | null} */
   let fence = null;
-  let comment = false;
-  return lines.map((line, index) => {
-    if (!comment) {
-      const mark = fenceOf(line);
-      if (mark !== null) {
-        if (fence === null) fence = mark;
-        else if (mark[0] === fence[0] && mark.length >= fence.length) fence = null;
-        return line;
-      }
-      if (fence !== null) return line;
+  let block = false;
+  return lines.map((line) => {
+    if (block) {
+      if (line.includes("-->")) block = false;
+      return " ".repeat(line.length);
     }
-    let out = "";
-    let rest = line;
-    while (rest !== "") {
-      if (comment) {
-        const end = rest.indexOf("-->");
-        if (end < 0) {
-          out += " ".repeat(rest.length);
-          rest = "";
-        } else {
-          out += " ".repeat(end + 3);
-          rest = rest.slice(end + 3);
-          comment = false;
-        }
-      } else {
-        const start = rest.indexOf("<!--");
-        const code = /`+/u.exec(rest);
-        if (start < 0) {
-          out += rest;
-          rest = "";
-        } else if (code !== null && code.index < start) {
-          // コードスパン（`<!--` の説明など）の中はコメントにしない。CommonMark と同じく、先に始まった方を採る。
-          // 閉じるバッククォートが同じ行に無ければ、バッククォートを文字として読み、その後ろから探し続ける。
-          const end = codeSpanEnd(rest, code.index, code[0].length);
-          const stop = end < 0 ? code.index + code[0].length : end;
-          out += rest.slice(0, stop);
-          rest = rest.slice(stop);
-        } else if (
-          (out !== "" || !/^ {0,3}$/u.test(rest.slice(0, start))) &&
-          !closesInParagraph(lines, index, rest.slice(start + 4))
-        ) {
-          // 行の途中で開き、段落の中で閉じない `<!--` は文字として読む（以降の表の行を警告なしに消さない）。
-          out += rest.slice(0, start + 4);
-          rest = rest.slice(start + 4);
-        } else {
-          out += rest.slice(0, start) + "    ";
-          rest = rest.slice(start + 4);
-          comment = true;
-        }
-      }
+    const mark = fenceOf(line);
+    if (mark !== null) {
+      if (fence === null) fence = mark;
+      else if (mark[0] === fence[0] && mark.length >= fence.length) fence = null;
+      return line;
     }
-    return out;
+    if (fence !== null) return line;
+    if (/^ {0,3}<!--/u.test(line)) {
+      block = !line.includes("-->");
+      return " ".repeat(line.length);
+    }
+    return blankInlineComments(line);
   });
 }
 

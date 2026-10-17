@@ -27,21 +27,22 @@
       "replace": "  const lines = text.split(/\\r?\\n/u);",
       "occurrences": 1,
       "expect_failing": [
-        "HTML コメントの中の表は読まない（複数行のコメントと、行の途中で開いたコメント）",
-        "行頭の閉じない `<!--` は、末尾までコメントとして読む",
+        "HTML コメントの中の表は読まない（行頭で開いた複数行のコメントと、行の途中で開いて同じ行で閉じたコメント）",
         "誤検知しないことの確認: コメントの中のフェンス行はフェンスを開かず、コメントの後の表を読む",
+        "閉じないバッククォートの後ろの `<!-- -->` は、コメントとして消す",
+        "`<!-->` と `<!--->` は、それだけで閉じたコメントとして消す（CommonMark 0.31）",
+        "evidence-gap-check: 表の途中の HTML コメントの行で表が切れたら、行が無いというエラーに表の外の行番号を添える",
+        "行頭の閉じない `<!--` は、末尾までコメントとして読む（字下げ 3 文字まで）",
         "asset-delivery-check: HTML コメントの中の表の行を台帳として読まない",
         "evidence-gap-check: HTML コメントの中の表の行を台帳として読まない",
-        "procedure-staleness-check: HTML コメントの中の表の行を台帳として読まない",
-        "閉じないバッククォートの後ろの `<!--` は、コメントの始まりとして読む",
-        "evidence-gap-check: 表の途中の HTML コメントの行で表が切れたら、行が無いというエラーに表の外の行番号を添える"
+        "procedure-staleness-check: HTML コメントの中の表の行を台帳として読まない"
       ]
     },
     {
       "id": "comments-blanked-inside-fence",
       "why": "フェンスの中の `<!--` もコメントとして扱い、以降の表を消す",
       "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "      if (fence !== null) return line;\n",
+      "find": "    if (fence !== null) return line;\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": ["誤検知しないことの確認: フェンスの中の `<!--` は、以降の表を消さない"]
@@ -50,8 +51,8 @@
       "id": "fence-opened-inside-comment",
       "why": "コメントの中のフェンス行でフェンスを開き、コメントの後の表を読まない",
       "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "    if (!comment) {\n      const mark = fenceOf(line);",
-      "replace": "    if (true) {\n      const mark = fenceOf(line);",
+      "find": "    if (block) {",
+      "replace": "    if (block && fenceOf(line) === null) {",
       "occurrences": 1,
       "expect_failing": [
         "誤検知しないことの確認: コメントの中のフェンス行はフェンスを開かず、コメントの後の表を読む"
@@ -59,30 +60,139 @@
     },
     {
       "id": "code-span-not-skipped",
-      "why": "コードスパンの中の `<!--` をコメントの始まりとして読み、以降の表を消す",
+      "why": "コードスパンの中の `<!-- -->` もコメントとして消す",
       "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "        } else if (code !== null && code.index < start) {",
-      "replace": "        } else if (false) {",
+      "find": "    if (code !== null && code.index < start) {",
+      "replace": "    if (false) {",
       "occurrences": 1,
-      "expect_failing": ["誤検知しないことの確認: コードスパンの中の `<!--` は、以降の表を消さない"]
+      "expect_failing": [
+        "誤検知しないことの確認: コードスパンの中の `<!-- -->` は、コメントとして消さない"
+      ]
     },
     {
       "id": "code-span-close-any-length",
-      "why": "開く側と数の違うバッククォートでコードスパンを閉じ、スパンの中の `<!--` をコメントとして読む",
+      "why": "コードスパンを、開く側と数の違うバッククォートでも閉じる",
       "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
       "find": "    if (m[0].length === ticks) return m.index + ticks;",
-      "replace": "    if (true) return m.index + ticks;",
+      "replace": "    return m.index + m[0].length;",
       "occurrences": 1,
-      "expect_failing": ["誤検知しないことの確認: コードスパンの中の `<!--` は、以降の表を消さない"]
+      "expect_failing": [
+        "誤検知しないことの確認: コードスパンの中の `<!-- -->` は、コメントとして消さない"
+      ]
     },
     {
       "id": "unclosed-backtick-hides-comment",
-      "why": "閉じないバッククォートの後ろを行の終わりまで読み飛ばし、その後ろの `<!--` のコメントの中の表を読む",
+      "why": "閉じないバッククォートの後ろを、行の末尾までコードスパンとして扱う",
       "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "          const stop = end < 0 ? code.index + code[0].length : end;",
-      "replace": "          const stop = end < 0 ? rest.length : end;",
+      "find": "      const stop = end < 0 ? code.index + code[0].length : end;",
+      "replace": "      const stop = end < 0 ? rest.length : end;",
       "occurrences": 1,
-      "expect_failing": ["閉じないバッククォートの後ろの `<!--` は、コメントの始まりとして読む"]
+      "expect_failing": ["閉じないバッククォートの後ろの `<!-- -->` は、コメントとして消す"]
+    },
+    {
+      "id": "inline-unclosed-blanks-rest",
+      "why": "行の途中の閉じない `<!--` から行末までを消す",
+      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
+      "find": "    if (end < 0) return out + rest;",
+      "replace": "    if (end < 0) return out + rest.slice(0, start);",
+      "occurrences": 1,
+      "expect_failing": [
+        "表のセルの中で閉じない `<!--` は、後ろの行の `-->` までの表の行を消さない"
+      ]
+    },
+    {
+      "id": "inline-closed-comment-kept",
+      "why": "行の途中で閉じたコメントを消さずに残す",
+      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
+      "find": "    out += rest.slice(0, start) + \" \".repeat(end - start);",
+      "replace": "    out += rest.slice(0, end);",
+      "occurrences": 1,
+      "expect_failing": [
+        "HTML コメントの中の表は読まない（行頭で開いた複数行のコメントと、行の途中で開いて同じ行で閉じたコメント）",
+        "閉じないバッククォートの後ろの `<!-- -->` は、コメントとして消す",
+        "`<!-->` と `<!--->` は、それだけで閉じたコメントとして消す（CommonMark 0.31）"
+      ]
+    },
+    {
+      "id": "empty-comment-not-closed",
+      "why": "`<!-->` を閉じたコメントとして扱わない",
+      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
+      "find": "  if (body.startsWith(\">\")) return start + 5;",
+      "replace": "  if (false) return start + 5;",
+      "occurrences": 1,
+      "expect_failing": [
+        "`<!-->` と `<!--->` は、それだけで閉じたコメントとして消す（CommonMark 0.31）"
+      ]
+    },
+    {
+      "id": "empty-dash-comment-not-closed",
+      "why": "`<!--->` を閉じたコメントとして扱わない",
+      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
+      "find": "  if (body.startsWith(\"->\")) return start + 6;",
+      "replace": "  if (false) return start + 6;",
+      "occurrences": 1,
+      "expect_failing": [
+        "`<!-->` と `<!--->` は、それだけで閉じたコメントとして消す（CommonMark 0.31）"
+      ]
+    },
+    {
+      "id": "block-not-spanning-lines",
+      "why": "行頭で開いたコメントを、閉じなくてもその行で終える",
+      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
+      "find": "      block = !line.includes(\"-->\");",
+      "replace": "      block = false;",
+      "occurrences": 1,
+      "expect_failing": [
+        "HTML コメントの中の表は読まない（行頭で開いた複数行のコメントと、行の途中で開いて同じ行で閉じたコメント）",
+        "誤検知しないことの確認: コメントの中のフェンス行はフェンスを開かず、コメントの後の表を読む",
+        "行頭の閉じない `<!--` は、末尾までコメントとして読む（字下げ 3 文字まで）",
+        "asset-delivery-check: HTML コメントの中の表の行を台帳として読まない",
+        "evidence-gap-check: HTML コメントの中の表の行を台帳として読まない",
+        "procedure-staleness-check: HTML コメントの中の表の行を台帳として読まない"
+      ]
+    },
+    {
+      "id": "block-closed-only-at-line-end",
+      "why": "行頭で開いたコメントが閉じたかを、行末の `-->` だけで決める",
+      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
+      "find": "      block = !line.includes(\"-->\");",
+      "replace": "      block = !line.endsWith(\"-->\");",
+      "occurrences": 1,
+      "expect_failing": [
+        "行頭のコメントが同じ行で閉じたら、その行の後ろの `<!--` で後ろの行を消さない"
+      ]
+    },
+    {
+      "id": "block-end-not-detected",
+      "why": "行頭で開いたコメントを、`-->` の行でも閉じない",
+      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
+      "find": "      if (line.includes(\"-->\")) block = false;",
+      "replace": "      if (false) block = false;",
+      "occurrences": 1,
+      "expect_failing": [
+        "誤検知しないことの確認: コメントの中のフェンス行はフェンスを開かず、コメントの後の表を読む",
+        "procedure-staleness-check: HTML コメントの中の表の行を台帳として読まない"
+      ]
+    },
+    {
+      "id": "block-indent-unbounded",
+      "why": "4 文字以上字下げした `<!--` でも HTML ブロックを開く",
+      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
+      "find": "    if (/^ {0,3}<!--/u.test(line)) {",
+      "replace": "    if (/^ *<!--/u.test(line)) {",
+      "occurrences": 1,
+      "expect_failing": ["4 文字以上字下げした `<!--` は、HTML ブロックを開かない"]
+    },
+    {
+      "id": "block-indent-none",
+      "why": "字下げした `<!--` で HTML ブロックを開かない",
+      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
+      "find": "    if (/^ {0,3}<!--/u.test(line)) {",
+      "replace": "    if (/^<!--/u.test(line)) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "行頭の閉じない `<!--` は、末尾までコメントとして読む（字下げ 3 文字まで）"
+      ]
     },
     {
       "id": "stray-lines-not-reported",
@@ -105,39 +215,6 @@
       "occurrences": 1,
       "expect_failing": [
         "evidence-gap-check: 行頭の `|` を省いた行で表が切れても、表の外の行番号を添える"
-      ]
-    },
-    {
-      "id": "inline-unclosed-comment-blanks-to-end",
-      "why": "行の途中の閉じない `<!--` を末尾までのコメントとして読み、以降の表の行を消す",
-      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "          !closesInParagraph(lines, index, rest.slice(start + 4))",
-      "replace": "          false",
-      "occurrences": 1,
-      "expect_failing": [
-        "行の途中の閉じない `<!--` は文字として読み、以降の表の行を消さない",
-        "行の途中の `<!--` は、空行の後ろの `-->` まではコメントにしない"
-      ]
-    },
-    {
-      "id": "inline-comment-crosses-blank-line",
-      "why": "行の途中の `<!--` を、空行の後ろの `-->` までのコメントとして読む",
-      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "    if (lines[k].trim() === \"\" || fenceOf(lines[k]) !== null) return false;",
-      "replace": "    if (fenceOf(lines[k]) !== null) return false;",
-      "occurrences": 1,
-      "expect_failing": ["行の途中の `<!--` は、空行の後ろの `-->` まではコメントにしない"]
-    },
-    {
-      "id": "line-start-comment-read-as-inline",
-      "why": "行頭の閉じない `<!--` も文字として読み、HTML ブロックの中の表を読む",
-      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "          (out !== \"\" || !/^ {0,3}$/u.test(rest.slice(0, start))) &&",
-      "replace": "          true &&",
-      "occurrences": 1,
-      "expect_failing": [
-        "行頭の閉じない `<!--` は、末尾までコメントとして読む",
-        "誤検知しないことの確認: コメントの中のフェンス行はフェンスを開かず、コメントの後の表を読む"
       ]
     }
   ]
