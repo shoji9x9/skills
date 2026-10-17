@@ -54,6 +54,33 @@ function codeSpanEnd(rest, index, ticks) {
 }
 
 /**
+ * index の文字がバックスラッシュでエスケープされているか（直前に続く `\` が奇数個か）を返す。
+ * @param {string} text
+ * @param {number} index
+ * @returns {boolean}
+ */
+function escapedAt(text, index) {
+  let count = 0;
+  for (let k = index - 1; k >= 0 && text[k] === "\\"; k -= 1) count += 1;
+  return count % 2 === 1;
+}
+
+/**
+ * コードスパンを開くバッククォートの並びを返す（無ければ null）。
+ * エスケープされたバッククォートは文字として読み、並びの残りから開く（CommonMark）。
+ * @param {string} rest
+ * @returns {{ index: number, ticks: number } | null}
+ */
+function codeSpanStart(rest) {
+  const run = /`+/gu;
+  for (let m = run.exec(rest); m !== null; m = run.exec(rest)) {
+    if (!escapedAt(rest, m.index)) return { index: m.index, ticks: m[0].length };
+    if (m[0].length > 1) return { index: m.index + 1, ticks: m[0].length - 1 };
+  }
+  return null;
+}
+
+/**
  * 1 行の中で閉じたコメントの終わりの位置（`-->` の直後）を返す（同じ行で閉じなければ -1）。
  * CommonMark 0.31 では、`<!-->` と `<!--->` もそれだけで閉じたコメントである。
  * @param {string} rest
@@ -82,16 +109,16 @@ function blankInlineComments(line) {
   for (;;) {
     const start = rest.indexOf("<!--");
     if (start < 0) return out + rest;
-    const code = /(?<!\\)`+/u.exec(rest);
+    const code = codeSpanStart(rest);
     if (code !== null && code.index < start) {
       // 閉じるバッククォートが同じ行に無ければ、バッククォートを文字として読み、その後ろから探し続ける。
-      const end = codeSpanEnd(rest, code.index, code[0].length);
-      const stop = end < 0 ? code.index + code[0].length : end;
+      const end = codeSpanEnd(rest, code.index, code.ticks);
+      const stop = end < 0 ? code.index + code.ticks : end;
       out += rest.slice(0, stop);
       rest = rest.slice(stop);
       continue;
     }
-    if (rest[start - 1] === "\\") {
+    if (escapedAt(rest, start)) {
       // `\<!--` は文字として読む（CommonMark のバックスラッシュのエスケープ）。
       out += rest.slice(0, start + 4);
       rest = rest.slice(start + 4);
@@ -102,6 +129,15 @@ function blankInlineComments(line) {
     out += rest.slice(0, start) + " ".repeat(end - start);
     rest = rest.slice(end);
   }
+}
+
+/**
+ * 行が HTML コメントのブロックを開くか（行頭の `<!--`。字下げは 3 文字まで。4 文字以上は字下げのコードブロック）を返す。
+ * @param {string} line
+ * @returns {boolean}
+ */
+function opensHtmlBlock(line) {
+  return /^ {0,3}<!--/u.test(line);
 }
 
 /**
@@ -130,7 +166,7 @@ function blankComments(lines) {
       return line;
     }
     if (fence !== null) return line;
-    if (/^ {0,3}<!--/u.test(line)) {
+    if (opensHtmlBlock(line)) {
       block = !line.includes("-->");
       return " ".repeat(line.length);
     }
@@ -209,4 +245,4 @@ function parseTables(text, options = {}) {
   return { tables, strayRows };
 }
 
-export { collapse, fenceOf, parseTables, splitRow };
+export { blankComments, opensHtmlBlock, collapse, fenceOf, parseTables, splitRow };

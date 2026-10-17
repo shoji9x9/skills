@@ -8,11 +8,7 @@ import { expect, test } from "vitest";
 import { readAssetLedger } from "../../../skills/replace-strategy/scripts/asset-delivery-check.mjs";
 import { readRow } from "../../../skills/replace-strategy/scripts/evidence-gap-check.mjs";
 import { parseTables } from "../../../skills/replace-strategy/scripts/lib/markdown.mjs";
-import {
-  countRowLikeLines,
-  readProcedureLedger,
-  strayCommentMarkers,
-} from "../../../skills/replace-strategy/scripts/procedure-staleness-check.mjs";
+import { readProcedureLedger } from "../../../skills/replace-strategy/scripts/procedure-staleness-check.mjs";
 
 const lines = (...xs: string[]) => [...xs, ""].join("\n");
 
@@ -261,8 +257,13 @@ test("HTML ブロックを閉じる行は、`-->` の後ろもブロックに入
   expect(strayRows).toEqual([]);
 });
 
-test("procedure-staleness-check: 4 文字以上字下げした `<!--` は、parseTables と同じくコメントの始まりにしない", () => {
-  const text = lines("    <!-- 退役", "| 4 | 5 | 6 |", "-->");
-  expect(countRowLikeLines(text)).toBe(1);
-  expect(strayCommentMarkers(text).lines).toEqual([1, 3]);
+const norm = (text: string) => cells(text).map((r) => r.map((c) => c.replace(/\s+/gu, " ")));
+
+test("バックスラッシュが 2 つ続く `\\\\<!--` とバッククォートは、エスケープにならない", () => {
+  expect(
+    norm(lines("| a | b |", "|---|---|", "| 1 | \\\\<!-- x --> y |", "| 2 | \\\\` <!-- z --> ` |")),
+  ).toEqual([
+    ["1", "\\\\ y"],
+    ["2", "\\\\` <!-- z --> `"],
+  ]);
 });

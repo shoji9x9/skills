@@ -21,7 +21,7 @@ Issue #611 の PR #670 で、replace-strategy の `lib/markdown.mjs` の HTML �
 
 - なぜ反復ごとに新しい形が出たか → 直す前に、入力の文法（CommonMark の HTML ブロックとインラインの HTML、GFM の表、コンテナのブロック）から形を挙げていなかった
 - なぜ回帰に気づけなかったか → テストの期待値を自分の理解で書き、実際の描画（micromark）と比べるテストが無かった
-- なぜ 3 巡まで続けたか → `.agents/rules/state-space-and-mutation-proof.md` の「同じ種類の誤りを 3 回以上指摘されたら入力の形式を疑う」を、反復の途中で当てなかった
+- なぜ 3 巡まで続けたか → `.agents/rules/state-space-and-mutation-proof.md` の「レビューが同じ種類の誤りを 3 回以上指摘したら、個別に直すのではなく入力の形式を疑う。」を、反復の途中で当てなかった
 
 ## 提案
 

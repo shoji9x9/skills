@@ -33,7 +33,14 @@ import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { errorMessage } from "./lib/errors.mjs";
 import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
-import { collapse, fenceOf, parseTables, splitRow } from "./lib/markdown.mjs";
+import {
+  blankComments,
+  collapse,
+  fenceOf,
+  opensHtmlBlock,
+  parseTables,
+  splitRow,
+} from "./lib/markdown.mjs";
 
 /**
  * ツールのバージョン（このファイルで定義する）。判定の規則や出力の形を変えたら上げる。
@@ -217,15 +224,9 @@ function looksLikeTableRow(line) {
 export function countRowLikeLines(text, consumed = new Set()) {
   /** @type {string | null} */
   let fence = null;
-  let comment = false;
   let count = 0;
-  text.split(/\r?\n/u).forEach((line, index) => {
-    // HTML コメント（テンプレートの記入例・説明）は表ではない。複数行にまたがるコメントも中を数えない。
-    // 行頭の判定は blankComments と同じ（字下げ 3 文字まで。4 文字以上は字下げのコードブロックで、HTML ブロックを開かない）。
-    if (fence === null && (comment || /^ {0,3}<!--/u.test(line))) {
-      comment = !line.includes("-->");
-      return;
-    }
+  // HTML コメント（テンプレートの記入例・説明）は表ではない。parseTables と同じ blankComments で空白にしてから数える。
+  blankComments(text.split(/\r?\n/u)).forEach((line, index) => {
     const mark = fenceOf(line);
     if (mark !== null) {
       if (fence === null) fence = mark;
@@ -236,6 +237,9 @@ export function countRowLikeLines(text, consumed = new Set()) {
   });
   return count;
 }
+
+/** 奇数個のバックスラッシュを付けた `<!--` と、同じ行でそれに続く `-->` まで。 */
+const ESCAPED_COMMENT = /(?<!\\)(?:\\\\)*\\<!--.*?(?:-->|$)/gu;
 
 /**
  * HTML コメントの記号が、読み飛ばしの規則（countRowLikeLines。parseTables はコメントの中を空白にしてから読む）が扱える位置にだけあるかを確かめる。
@@ -253,7 +257,8 @@ export function strayCommentMarkers(text) {
   let fence = null;
   let comment = false;
   text.split(/\r?\n/u).forEach((line, index) => {
-    const trimmed = line.trim();
+    // エスケープした `\<!--` は文字なので、後ろの `-->` と合わせて記号に数えない（parseTables と同じ）。
+    const trimmed = line.trim().replace(ESCAPED_COMMENT, "");
     const opens = trimmed.split("<!--").length - 1;
     const closes = trimmed.split("-->").length - 1;
     if (comment) {
@@ -270,7 +275,7 @@ export function strayCommentMarkers(text) {
     }
     if (fence !== null) return;
     if (opens === 0 && closes === 0) return;
-    if (!/^ {0,3}<!--/u.test(line) || opens > 1 || closes > 1) {
+    if (!opensHtmlBlock(line) || opens > 1 || closes > 1) {
       lines.push(index + 1);
       return;
     }

@@ -19,3 +19,6 @@ ci:39019292002:1,ci,2026-10-17T09:09:26.627Z,p-cdee4961,github-actions,,,,2026-1
 ci:39019292018:1,ci,2026-10-17T09:09:26.627Z,p-cdee4961,github-actions,,,,2026-10-17T08:57:22.000Z,2026-10-17T09:00:00.000Z,Asia/Tokyo,feature/611-replace-strategy-table-parser-unify,611,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-10-16T08:55:32.123Z:2026-10-17T09:09:26.627Z,coverage,2026-10-17T09:09:26.627Z,p-cdee4961,,,,,2026-10-16T08:55:32.123Z,2026-10-17T09:09:26.627Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-16T09:09:26.627Z:2026-10-17T09:10:04.253Z,coverage,2026-10-17T09:10:04.253Z,p-cdee4961,,,,,2026-10-16T09:09:26.627Z,2026-10-17T09:10:04.253Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:39020230720:1,ci,2026-10-17T09:24:16.472Z,p-cdee4961,github-actions,,,,2026-10-17T09:12:18.000Z,2026-10-17T09:15:27.000Z,Asia/Tokyo,feature/611-replace-strategy-table-parser-unify,611,,,,,,,,,,CI;pull_request;success,
+ci:39020230568:1,ci,2026-10-17T09:24:16.472Z,p-cdee4961,github-actions,,,,2026-10-17T09:12:17.000Z,2026-10-17T09:12:18.000Z,Asia/Tokyo,feature/611-replace-strategy-table-parser-unify,611,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+coverage:github:2026-10-16T09:10:04.253Z:2026-10-17T09:24:16.472Z,coverage,2026-10-17T09:24:16.472Z,p-cdee4961,,,,,2026-10-16T09:10:04.253Z,2026-10-17T09:24:16.472Z,Asia/Tokyo,,,,,,,,,,,,ok,

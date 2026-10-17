@@ -37,7 +37,8 @@
         "evidence-gap-check: HTML コメントの中の表の行を台帳として読まない",
         "procedure-staleness-check: HTML コメントの中の表の行を台帳として読まない",
         "HTML ブロックを閉じる行は、`-->` の後ろもブロックに入るので表の行として読まない",
-        "バックスラッシュを付けた `\\<!--` と `` \\` `` は、コメントとコードスパンの始まりにしない"
+        "バックスラッシュを付けた `\\<!--` と `` \\` `` は、コメントとコードスパンの始まりにしない",
+        "バックスラッシュが 2 つ続く `\\\\<!--` とバッククォートは、エスケープにならない"
       ]
     },
     {
@@ -68,7 +69,8 @@
       "replace": "    if (false) {",
       "occurrences": 1,
       "expect_failing": [
-        "誤検知しないことの確認: コードスパンの中の `<!-- -->` は、コメントとして消さない"
+        "誤検知しないことの確認: コードスパンの中の `<!-- -->` は、コメントとして消さない",
+        "バックスラッシュが 2 つ続く `\\\\<!--` とバッククォートは、エスケープにならない"
       ]
     },
     {
@@ -86,7 +88,7 @@
       "id": "unclosed-backtick-hides-comment",
       "why": "閉じないバッククォートの後ろを、行の末尾までコードスパンとして扱う",
       "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "      const stop = end < 0 ? code.index + code[0].length : end;",
+      "find": "      const stop = end < 0 ? code.index + code.ticks : end;",
       "replace": "      const stop = end < 0 ? rest.length : end;",
       "occurrences": 1,
       "expect_failing": ["閉じないバッククォートの後ろの `<!-- -->` は、コメントとして消す"]
@@ -113,7 +115,8 @@
         "HTML コメントの中の表は読まない（行頭で開いた複数行のコメントと、行の途中で開いて同じ行で閉じたコメント）",
         "閉じないバッククォートの後ろの `<!-- -->` は、コメントとして消す",
         "`<!-->` と `<!--->` は、それだけで閉じたコメントとして消す（CommonMark 0.31）",
-        "バックスラッシュを付けた `\\<!--` と `` \\` `` は、コメントとコードスパンの始まりにしない"
+        "バックスラッシュを付けた `\\<!--` と `` \\` `` は、コメントとコードスパンの始まりにしない",
+        "バックスラッシュが 2 つ続く `\\\\<!--` とバッククォートは、エスケープにならない"
       ]
     },
     {
@@ -182,8 +185,8 @@
       "id": "block-indent-unbounded",
       "why": "4 文字以上字下げした `<!--` でも HTML ブロックを開く",
       "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "    if (/^ {0,3}<!--/u.test(line)) {",
-      "replace": "    if (/^ *<!--/u.test(line)) {",
+      "find": "  return /^ {0,3}<!--/u.test(line);",
+      "replace": "  return /^ *<!--/u.test(line);",
       "occurrences": 1,
       "expect_failing": ["4 文字以上字下げした `<!--` は、HTML ブロックを開かない"]
     },
@@ -191,8 +194,8 @@
       "id": "block-indent-none",
       "why": "字下げした `<!--` で HTML ブロックを開かない",
       "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "    if (/^ {0,3}<!--/u.test(line)) {",
-      "replace": "    if (/^<!--/u.test(line)) {",
+      "find": "  return /^ {0,3}<!--/u.test(line);",
+      "replace": "  return /^<!--/u.test(line);",
       "occurrences": 1,
       "expect_failing": [
         "行頭の閉じない `<!--` は、末尾までコメントとして読む（字下げ 3 文字まで）"
@@ -225,7 +228,7 @@
       "id": "escaped-comment-opens",
       "why": "バックスラッシュを付けた `\\<!--` もコメントの始まりとして読む",
       "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "    if (rest[start - 1] === \"\\\\\") {",
+      "find": "    if (escapedAt(rest, start)) {",
       "replace": "    if (false) {",
       "occurrences": 1,
       "expect_failing": [
@@ -236,8 +239,8 @@
       "id": "escaped-backtick-opens-code",
       "why": "バックスラッシュを付けたバッククォートもコードスパンの始まりとして数える",
       "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "    const code = /(?<!\\\\)`+/u.exec(rest);",
-      "replace": "    const code = /`+/u.exec(rest);",
+      "find": "    if (!escapedAt(rest, m.index)) return { index: m.index, ticks: m[0].length };",
+      "replace": "    return { index: m.index, ticks: m[0].length };",
       "occurrences": 1,
       "expect_failing": [
         "バックスラッシュを付けた `\\<!--` と `` \\` `` は、コメントとコードスパンの始まりにしない"
@@ -255,25 +258,14 @@
       ]
     },
     {
-      "id": "procedure-count-indent-unbounded",
-      "why": "countRowLikeLines が、4 文字以上字下げした `<!--` もコメントの始まりとして読み飛ばす",
-      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
-      "find": "    if (fence === null && (comment || /^ {0,3}<!--/u.test(line))) {",
-      "replace": "    if (fence === null && (comment || /^ *<!--/u.test(line))) {",
+      "id": "escape-parity-ignored",
+      "why": "直前のバックスラッシュの数によらず、1 つでもあればエスケープとして扱う",
+      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
+      "find": "  return count % 2 === 1;",
+      "replace": "  return count > 0;",
       "occurrences": 1,
       "expect_failing": [
-        "procedure-staleness-check: 4 文字以上字下げした `<!--` は、parseTables と同じくコメントの始まりにしない"
-      ]
-    },
-    {
-      "id": "procedure-markers-indent-unbounded",
-      "why": "strayCommentMarkers が、4 文字以上字下げした `<!--` を扱える開始行として受け入れる",
-      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
-      "find": "    if (!/^ {0,3}<!--/u.test(line) || opens > 1 || closes > 1) {",
-      "replace": "    if (!/^ *<!--/u.test(line) || opens > 1 || closes > 1) {",
-      "occurrences": 1,
-      "expect_failing": [
-        "procedure-staleness-check: 4 文字以上字下げした `<!--` は、parseTables と同じくコメントの始まりにしない"
+        "バックスラッシュが 2 つ続く `\\\\<!--` とバッククォートは、エスケープにならない"
       ]
     }
   ]

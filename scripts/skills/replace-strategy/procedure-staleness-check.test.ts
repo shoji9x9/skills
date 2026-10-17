@@ -10,9 +10,11 @@ import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { assert, test, expect } from "vitest";
 import {
+  countRowLikeLines,
   main,
   readProcedureLedger,
   readRevisions,
+  strayCommentMarkers,
 } from "../../../skills/replace-strategy/scripts/procedure-staleness-check.mjs";
 import { parseJsonAs } from "../../lib/parse-as.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
@@ -654,4 +656,16 @@ test("同梱の改訂一覧と台帳テンプレートは検査がそのまま�
     readFileSync("skills/parity-suite/assets/metadata-template.json", "utf8"),
   );
   expect(Object.hasOwn(metadata.run, "procedure_revision")).toBe(true);
+});
+
+test("4 文字以上字下げして同じ行で閉じたコメントは、parseTables と同じく表の外の行に数えない", () => {
+  expect(countRowLikeLines("    <!-- | 4 | 5 | 6 | -->\n")).toBe(0);
+});
+
+test("4 文字以上字下げした `<!--` は、扱える位置の HTML コメントの記号にしない", () => {
+  expect(strayCommentMarkers("    <!-- 退役\n| 4 | 5 | 6 |\n-->\n").lines).toEqual([1, 3]);
+});
+
+test("誤検知しないことの確認: エスケープした `\\<!--` は、HTML コメントの記号に数えない", () => {
+  expect(strayCommentMarkers("メモ: \\<!-- 退役 --> は文字として書く\n").lines).toEqual([]);
 });
