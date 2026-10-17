@@ -973,6 +973,17 @@
       "expect_failing": [
         "agent-usage のコマンドと Hook defaultDecision が読めない値なら、コミットを止めて理由を返す。どちらの設定にも無ければ確かめる"
       ]
+    },
+    {
+      "id": "setup-billing-unchecked",
+      "why": "setup の --billing の誤りを引数の誤りにせず、まだ無い設定ファイルの誤りとして示す",
+      "file": "skills/agent-usage/scripts/agent-usage.mjs",
+      "find": "      if (billing !== \"none\" && billing !== \"user\")\n        throw new UsageError",
+      "replace": "      if (false)\n        throw new UsageError",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook 人の設定が無いとき、引数を誤った setup と report は人の設定を作らず、判断を確かめる案内は setup --person-id を示す"
+      ]
     }
   ]
 }

@@ -368,6 +368,11 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(existsSync(userConfig)).toBe(false);
     expect(cli("setup", "--time-zone", "Nowhere/Zone").status).toBe(2);
     expect(existsSync(userConfig)).toBe(false);
+    // --billing の誤りも引数の誤り（exit 2）として扱い、まだ無い設定ファイルの誤りとして示さない
+    const badBilling = cli("setup", "--billing", "User");
+    expect(badBilling.status).toBe(2);
+    expect(badBilling.stderr).toContain("--billing は none か user にする");
+    expect(existsSync(userConfig)).toBe(false);
 
     // 正しい引数なら、指定した ID で作る
     expect(cli("setup", "--person-id", "p-0123abcd", "--time-zone", "UTC").status).toBe(0);

@@ -160,6 +160,8 @@ export function main(argv, cwd = process.cwd()) {
       if (!isValidTimeZone(timeZone))
         throw new UsageError("--time-zone は IANA のタイムゾーンの名前にする");
       const billing = a.options.get("--billing") ?? config?.billing ?? "none";
+      if (billing !== "none" && billing !== "user")
+        throw new UsageError("--billing は none か user にする");
       const next = parseUserConfig(
         { personId, timeZone, billing, defaultDecision: config?.defaultDecision },
         path,

@@ -63,3 +63,6 @@ ci:39011037110:1,ci,2026-10-17T07:09:53.124Z,p-cdee4961,github-actions,,,,2026-1
 coverage:github:2026-10-16T06:46:28.894Z:2026-10-17T07:09:53.124Z,coverage,2026-10-17T07:09:53.124Z,p-cdee4961,,,,,2026-10-16T06:46:28.894Z,2026-10-17T07:09:53.124Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-16T07:09:53.124Z:2026-10-17T07:10:36.170Z,coverage,2026-10-17T07:10:36.170Z,p-cdee4961,,,,,2026-10-16T07:09:53.124Z,2026-10-17T07:10:36.170Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-16T07:10:36.170Z:2026-10-17T07:11:10.899Z,coverage,2026-10-17T07:11:10.899Z,p-cdee4961,,,,,2026-10-16T07:10:36.170Z,2026-10-17T07:11:10.899Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:39012794796:1,ci,2026-10-17T07:19:21.326Z,p-cdee4961,github-actions,,,,2026-10-17T07:12:52.000Z,2026-10-17T07:12:53.000Z,Asia/Tokyo,feature/632-agent-usage-default-decision,632,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:39012794797:1,ci,2026-10-17T07:19:21.326Z,p-cdee4961,github-actions,,,,2026-10-17T07:12:52.000Z,2026-10-17T07:16:42.000Z,Asia/Tokyo,feature/632-agent-usage-default-decision,632,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-16T07:11:10.899Z:2026-10-17T07:19:21.326Z,coverage,2026-10-17T07:19:21.326Z,p-cdee4961,,,,,2026-10-16T07:11:10.899Z,2026-10-17T07:19:21.326Z,Asia/Tokyo,,,,,,,,,,,,ok,
