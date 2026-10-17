@@ -94,7 +94,7 @@ GitHub は `linguist-generated` の付いたファイルを、PR の差分で最
 | ブランチの判断が無く、読んだ設定に `defaultDecision` がある（人の設定を読めないときは、リポジトリの設定に値があっても次の行に当たる） | 止めずに、その値（人の設定を優先する）を判断として扱う。下の「記録しない」「記録する」と同じに振る舞い、従った設定のパスを stderr に出す |
 | ブランチの判断が無く、`defaultDecision` を決めるのに読む設定を読めない（人の設定。人の設定に値が無ければリポジトリの設定も） | 止める（exit 2）。stderr で、読めない理由と、設定を直すか `decline` を実行するよう案内する。人の設定の値で決まったときはリポジトリの設定を読まないので、リポジトリの設定の誤りは、記録する場合の collect の失敗として止まる |
 | 判断が「記録しない」 | 通す |
-| 判断が「記録する」 | collect を実行し、`.agent-usage/records/` を stage して通す（前に書いて stage されなかった記録も入る）。collect が失敗したら止める。Hook の collect は常に GitHub も取得する（`--no-github` は手動の collect だけ） |
+| 判断が「記録する」 | collect を実行し、`.agent-usage/records/` を stage して通す（前に書いて stage されなかった記録も入る）。collect が失敗したら止める。Hook の collect は常に GitHub も取得する（`--no-github` は手動の collect だけ）。コミットが実行されなかったときに stage が残る場合の扱いは、[SKILL.md「コミットの前の確認」](../SKILL.md)にある |
 | Node.js が無い・同梱のスクリプトを読めない・想定外の失敗 | 確認をせずに通し、その旨を stderr に出す（記録の仕組みの不具合で作業を止めない） |
 
 判断と collect は、git commit を実行する作業ディレクトリ（`-C <dir>` と前の `cd <dir>` を当てた先）のリポジトリで行う。

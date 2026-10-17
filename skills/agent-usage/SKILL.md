@@ -58,6 +58,25 @@ Hook（PreToolUse）が、デフォルトブランチ以外の `git commit` を�
 
 「記録する」と決めたブランチでは、Hook がコミットのたびに collect を実行して、増えた明細を stage する。デフォルトブランチ（`main` など）と、`.agent-usage/` の無いリポジトリでは何もしない。
 
+この stage は、コミットが実行される前に Hook の中で行う。
+そのため、コミットが実行されなかったとき（同じコミットを別の Hook が止めた、git の `pre-commit` フックが失敗した、など）も、明細は stage されたまま残ることがある。
+Claude Code と Codex は、当てはまる Hook をすべて同時に起動する（[Claude Code の Hooks reference](https://code.claude.com/docs/en/hooks)・[Codex Hooks](https://learn.chatgpt.com/docs/hooks)）。
+そのため、別の Hook（kaizen のコミット前の確認など）がコミットを止めても、この Hook は起動し、collect が成功すれば stage する。
+
+stage された明細は index に残るので、同じブランチの次のコミット（パスを指定しないもの）に入る。戻さなくてよい。
+明細がコミットに入ったかは、Hook の出力ではなく、コミットしたリポジトリでコミットの後に次のコマンドを実行して確かめる。
+`:/` はリポジトリの直下を起点にしたパスで、サブディレクトリから実行しても同じ範囲を見る。`--untracked-files=all` は、利用者の設定で untracked のファイルが隠れないようにする。
+
+```bash
+git status --short --untracked-files=all -- ':/.agent-usage/records'
+```
+
+出力が空でなければ、明細はまだコミットされていない（コミットが止められた、パスを指定してコミットした、など）。
+記録すると決めたブランチで、出力が今のブランチの明細（ファイルの名前の決め方は [`references/records.md`](references/records.md)）だけなら、ブランチや worktree を移る前に、同じブランチでパスを指定せずにもう一度コミットして明細を入れる。
+移ると、明細が移った先のコミットに入るか、`git switch` が止まるか、明細がどのコミットにも入らないまま残る。
+それ以外の場合（記録しないと決めたブランチである、別のブランチの明細が出ている、今のブランチの明細かを決められない）は、コミットせずに利用者に確かめる。
+記録すると決めたブランチでは、Hook がコミットのたびに `.agent-usage/records/` をまとめて stage するので、別のブランチの明細があるままコミットすると、そのコミットに入る。
+
 ## 記録と集計の取り決め
 
 記録のファイルの構成、行の種類、費用の決め方、稼働と停止の分類、重複の除き方は [`references/records.md`](references/records.md) で定義する。
