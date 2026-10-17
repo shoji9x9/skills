@@ -171,7 +171,7 @@
     },
     {
       "id": "marker-position-reason-dropped",
-      "why": "目印の前に空白か改行がある記録を、正しい記録として数える（1 行目は空白を除いた本文から作るので、この判定だけが防ぐ）",
+      "why": "目印の前に空白か改行がある記録を、目印の位置という理由を出さずに「1 行目の形が違う」として読み飛ばす（利用者が直す箇所を取り違える）",
       "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
       "find": "\tif [ \"${shape}\" = \"indented\" ]; then\n",
       "replace": "\tif false; then\n",
