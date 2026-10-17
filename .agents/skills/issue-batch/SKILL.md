@@ -57,9 +57,10 @@ issue-batch run <Issue URL | 番号>... \
    - 設定、認証と権限、レビュー機能
    - Kaizen が transcript を特定できるか、browser-test が安全か
    - setup の設定が base branch に入っているか
-   - run の前に利用者の判断が要るもの（複数の案・決まっていない方針・試していない機構を約束した受け入れ条件）。1 回の確認にまとめて、変更の前に決めてもらう。全体を停止するときは確認せず、停止の報告に載せる
-2. `/tmp` に run manifest を作る。記録するのは、入力の順・Issue の URL・状態・branch・worktree・PR の URL・試験の結果・停止の理由・判断待ちの項目・自分で判断して進めたものだけである。秘密の値と、変わる環境の URL は書かない。
-3. 呼び出し元の worktree を checkout せず、Issue ごとに一意な隔離した worktree を `git-worktree` の取り決めで用意して、セッションを移す。
+   - run の前に利用者の判断が要るもの（複数の案・決まっていない方針・試していない機構を約束した受け入れ条件・対象から外す候補にする不確実性の高い Issue）。1 回の確認にまとめて、変更の前に決めてもらう。全体を停止するときは確認せず、停止の報告に載せる
+2. `/tmp` に run manifest を作る。記録するのは、入力の順・Issue の URL・状態・branch・worktree・PR の URL・試験の結果・停止の理由・対象から外した理由・判断待ちの項目・自分で判断して進めたものだけである。秘密の値と、変わる環境の URL は書かない。
+3. preflight の確認で対象から外した `EXCLUDED` の Issue は、この手順から後を行わない。
+   呼び出し元の worktree を checkout せず、Issue ごとに一意な隔離した worktree を `git-worktree` の取り決めで用意して、セッションを移す。
    branch を作る前に、その Issue の担当者を確かめ、自分を割り当てて読み直す（`references/orchestration.md`「issue-start への handoff」の 1。割り当てができなければ、branch も worktree も作らない）。
    置き場所は `git-worktree setup` の決定に従う。Issue ごとに worktree を移るので、リポジトリの中に置く必要がある。
 4. 各 Issue を入力の順に `issue-start` の取り決めで実装し、次に進める。
@@ -107,5 +108,6 @@ BLOCKED や FAILED の影響が Issue の隔離した worktree の中だけで�
 
 入力の順に並べた表で、Issue・最終状態・branch・worktree・PR・local review・tests・browser・Kaizen・merge・Issue close・deployment・cleanup・停止の理由を示す。
 表の後に、「判断待ち」と「自分で判断して進めたもの」の一覧を必ず載せる。0 件でも、無いことを書く。
+`EXCLUDED` にした Issue は、表に載せ、停止の理由の列に外した理由（当たった兆候と利用者の選択）を書く。
 判断待ちは、Issue ごとに論点・選択肢・推奨・決まった後に残る作業を示す。自分で判断して進めたものは、判断・根拠・覆すときに戻る工程を示す。
 `DONE` は、次のすべてを確かめた場合だけ使う。PR が `MERGED`、Issue が `CLOSED`、deployment が成功したか根拠があって対象外である、local と remote の branch を削除した。
