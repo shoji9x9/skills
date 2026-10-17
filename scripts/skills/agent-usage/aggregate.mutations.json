@@ -124,6 +124,28 @@
       "replace": "  if (obj.defaultDecision !== undefined) {\n    config.defaultDecision",
       "occurrences": 1,
       "expect_failing": ["設定 defaultDecision は record か decline だけを受け付ける"]
+    },
+    {
+      "id": "hour-not-split-by-branch",
+      "why": "1 時間の中のメッセージをブランチで分けず、最初のメッセージのブランチにまとめる",
+      "file": "skills/agent-usage/scripts/lib/sources/usage.mjs",
+      "find": "    const key = `${m.model}\\u0000${hour}\\u0000${branch}`;",
+      "replace": "    const key = `${m.model}\\u0000${hour}`;",
+      "occurrences": 1,
+      "expect_failing": [
+        "費用 1 時間の途中でブランチを切り替えたら、切り替えた後のメッセージを切り替えた後のブランチに入れる。最初のブランチの行は元の key のまま"
+      ]
+    },
+    {
+      "id": "first-branch-key-changed",
+      "why": "最初のブランチの行にもブランチを付けた key を使い、既に記録した行と二重に数える",
+      "file": "skills/agent-usage/scripts/lib/sources/usage.mjs",
+      "find": "      key: firstOfHour ? base : `${base}:${branch}`,",
+      "replace": "      key: `${base}:${branch}`,",
+      "occurrences": 1,
+      "expect_failing": [
+        "費用 1 時間の途中でブランチを切り替えたら、切り替えた後のメッセージを切り替えた後のブランチに入れる。最初のブランチの行は元の key のまま"
+      ]
     }
   ]
 }

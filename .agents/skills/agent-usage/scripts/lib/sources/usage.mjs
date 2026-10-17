@@ -73,17 +73,20 @@ export function messageCosts(s, ctx) {
  */
 export function usageRows(s, ctx) {
   const costs = messageCosts(s, ctx);
-  /** @type {Map<string, { model: string; hour: number; tokens: Tokens; cost: number; unknown: boolean; sources: Set<string>; count: number; first: number }>} */
+  /** @type {Map<string, { model: string; hour: number; branch: string; tokens: Tokens; cost: number; unknown: boolean; sources: Set<string>; count: number; first: number }>} */
   const buckets = new Map();
   s.messages.forEach((m, i) => {
     // 現地の正時で区切る（日付に切るときに、日付の境目をまたがない。整数時間のオフセットなら UTC の正時と同じ）
     const hour = localHourStart(m.ts, ctx.tz);
-    const key = `${m.model}\u0000${hour}`;
+    // 1 時間の途中でブランチを切り替えたら、メッセージごとのブランチで分ける
+    const branch = branchAt(s, m.ts);
+    const key = `${m.model}\u0000${hour}\u0000${branch}`;
     let b = buckets.get(key);
     if (!b) {
       b = {
         model: m.model,
         hour,
+        branch,
         tokens: zeroTokens(),
         cost: 0,
         unknown: false,
@@ -99,13 +102,25 @@ export function usageRows(s, ctx) {
     else b.cost += c.cost;
     b.sources.add(c.source);
     b.count += 1;
+    if (m.ts < b.first) b.first = m.ts;
   });
+  // モデルと時間ごとに、最初のメッセージのブランチの行は、ブランチで分ける前と同じ key にする。
+  // 既に記録した行を、次の collect がその key で上書きし（latestByKey）、二重に数えないため
+  /** @type {Map<string, number>} */
+  const earliest = new Map();
+  for (const b of buckets.values()) {
+    const mh = `${b.model}\u0000${b.hour}`;
+    earliest.set(mh, Math.min(earliest.get(mh) ?? Infinity, b.first));
+  }
   /** @type {Row[]} */
   const rows = [];
   for (const b of buckets.values()) {
-    const branch = branchAt(s, b.first);
+    const branch = b.branch;
+    const base = `usage:${s.agent}:${s.sessionId}:${b.model}:${toIso(b.hour)}`;
+    // 同じ時刻のメッセージのブランチは 1 つに決まるので、最初の時刻が同じ 2 つの行はできない
+    const firstOfHour = earliest.get(`${b.model}\u0000${b.hour}`) === b.first;
     rows.push({
-      key: `usage:${s.agent}:${s.sessionId}:${b.model}:${toIso(b.hour)}`,
+      key: firstOfHour ? base : `${base}:${branch}`,
       kind: "usage",
       person: ctx.person,
       agent: s.agent,
