@@ -17,6 +17,7 @@ import {
   checkLifecycle,
   main,
 } from "../../../skills/parity-component/scripts/lifecycle-check.mjs";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "skills/parity-component/scripts/lifecycle-check.mjs");
@@ -152,7 +153,10 @@ test("CLI: 揃った記録で exit 0、実行パスの抜けで exit 1、引数�
   const dir = makeTempDir("lifecycle-check-");
   const file = join(dir, "build-metadata.json");
   writeFileSync(file, JSON.stringify({ lifecycle: lifecycleOf(), catalog: { stories: [] } }));
-  const ok = spawnSync(process.execPath, [script, "--build-metadata", file], { encoding: "utf8" });
+  const ok = spawnSync(process.execPath, [script, "--build-metadata", file], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  });
   expect(ok.status).toBe(0);
   expect(JSON.parse(ok.stdout)).toMatchObject({ tool: "lifecycle-check", ok: true, applies: true });
   writeFileSync(
@@ -163,7 +167,10 @@ test("CLI: 揃った記録で exit 0、実行パスの抜けで exit 1、引数�
     }),
   );
   expect(
-    spawnSync(process.execPath, [script, "--build-metadata", file], { encoding: "utf8" }).status,
+    spawnSync(process.execPath, [script, "--build-metadata", file], {
+      timeout: CHILD_TIMEOUT_MS,
+      encoding: "utf8",
+    }).status,
   ).toBe(1);
   let err = "";
   expect(main([], { write: () => {}, writeErr: (s: string) => (err += s) })).toBe(2);

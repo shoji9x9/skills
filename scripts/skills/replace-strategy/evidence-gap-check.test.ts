@@ -14,6 +14,7 @@ import { rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "skills/replace-strategy/scripts/evidence-gap-check.mjs");
@@ -48,7 +49,11 @@ function features(row: {
 
 function run(dir: string, files: Record<string, string>, args: string[]) {
   for (const [name, body] of Object.entries(files)) writeFileSync(join(dir, name), body);
-  return spawnSync(process.execPath, [script, ...args], { cwd: dir, encoding: "utf8" });
+  return spawnSync(process.execPath, [script, ...args], {
+    timeout: CHILD_TIMEOUT_MS,
+    cwd: dir,
+    encoding: "utf8",
+  });
 }
 
 function withDir<T>(fn: (dir: string) => T): T {

@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { parseJsonAs } from "../../lib/parse-as.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 // git-worktree-branch-guard.sh は「worktree の作成手段が branch を作る呼び出し方」だけを通知する。
 // 通知のみでブロックしないため、取りこぼしは警告なしに起き、誤検知は通知の信頼を
@@ -17,6 +18,7 @@ const script = join(repoRoot, "skills/git-worktree/scripts/git-worktree-branch-g
 
 function runGuard(payload: unknown) {
   const result = spawnSync("bash", [script], {
+    timeout: CHILD_TIMEOUT_MS,
     input: JSON.stringify(payload),
     encoding: "utf8",
   });
@@ -215,6 +217,10 @@ test.each([
     input: '{"tool_name":"Bash","tool_input":"git worktree add -b x /tmp/wt"}',
   },
 ])("形式の不正な入力でもブロックしない: $name", ({ input }) => {
-  const result = spawnSync("bash", [script], { input, encoding: "utf8" });
+  const result = spawnSync("bash", [script], {
+    timeout: CHILD_TIMEOUT_MS,
+    input,
+    encoding: "utf8",
+  });
   expect(result.status).toBe(0);
 });

@@ -29,6 +29,7 @@ import {
   main,
 } from "./check-identical-copies.ts";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 const script = join(repoRoot, "scripts/gates/packaging/copies/check-identical-copies.ts");
@@ -182,11 +183,17 @@ test("陽性: 宣言が JSON でなければ exit 2", () => {
 
 test("検出の確認（CLI）: 子プロセスとして起動しても、不一致は exit 1、一致なら exit 0", () => {
   const ok = makeRepo({ "a/x.md": BODY, "b/x.md": BODY }, [group("a/x.md", "b/x.md")]);
-  const good = spawnSync(process.execPath, [script, ok], { encoding: "utf8", timeout: 30_000 });
+  const good = spawnSync(process.execPath, [script, ok], {
+    encoding: "utf8",
+    timeout: CHILD_TIMEOUT_MS,
+  });
   expect(good.status, good.stderr).toBe(0);
   expect(good.stdout).toMatch(/identical-copies: OK（1 組・2 件）/);
   const ng = makeRepo({ "a/x.md": BODY, "b/x.md": "x\n" }, [group("a/x.md", "b/x.md")]);
-  const bad = spawnSync(process.execPath, [script, ng], { encoding: "utf8", timeout: 30_000 });
+  const bad = spawnSync(process.execPath, [script, ng], {
+    encoding: "utf8",
+    timeout: CHILD_TIMEOUT_MS,
+  });
   expect(bad.status).toBe(1);
   expect(bad.stderr).toMatch(/1 件の不一致/);
 });

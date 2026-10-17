@@ -17,6 +17,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CONFIG_PATH, checkDirFileCount, main, parseConfig } from "./check-dir-file-count.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const script = join(dirname(fileURLToPath(import.meta.url)), "check-dir-file-count.ts");
 
@@ -237,7 +238,11 @@ describe("CLI", () => {
   function makeRepo(tracked: string[], raw: Record<string, unknown>): string {
     const root = makeTempDir("dir-file-count-");
     const git = (...args: string[]) => {
-      const res = spawnSync("git", args, { cwd: root, encoding: "utf8" });
+      const res = spawnSync("git", args, {
+        timeout: CHILD_TIMEOUT_MS,
+        cwd: root,
+        encoding: "utf8",
+      });
       if (res.status !== 0) throw new Error(`git ${args.join(" ")}: ${res.stderr}`);
     };
     git("init", "-q");
@@ -258,8 +263,14 @@ describe("CLI", () => {
   test("CLI: シンボリックリンクをファイルとして数え、違反なら 1 で終わる", () => {
     const root = makeRepo(files("a", 3), { default_max: 3 });
     symlinkSync("f0.txt", join(root, "a/link"));
-    expect(spawnSync("git", ["add", "a/link"], { cwd: root }).status).toBe(0);
-    const res = spawnSync(process.execPath, [script], { cwd: root, encoding: "utf8" });
+    expect(
+      spawnSync("git", ["add", "a/link"], { timeout: CHILD_TIMEOUT_MS, cwd: root }).status,
+    ).toBe(0);
+    const res = spawnSync(process.execPath, [script], {
+      timeout: CHILD_TIMEOUT_MS,
+      cwd: root,
+      encoding: "utf8",
+    });
     expect(res.status).toBe(1);
     expect(res.stderr).toContain("a: 4 件（閾値 3）");
     expect(res.stderr).toContain("excludes（対象外にする）");
@@ -289,10 +300,7 @@ describe("CLI", () => {
           "core.hooksPath=/dev/null",
           ...args,
         ],
-        {
-          cwd: root,
-          encoding: "utf8",
-        },
+        { timeout: CHILD_TIMEOUT_MS, cwd: root, encoding: "utf8" },
       );
     const record = "com" + "mit";
     expect(git(record, "-qm", "base").status).toBe(0);
@@ -314,11 +322,16 @@ describe("CLI", () => {
     // 中身の無い gitlink を index に置く（submodule の実体は要らない）。
     const sha = "0123456789012345678901234567890123456789";
     const add = spawnSync("git", ["update-index", "--add", "--cacheinfo", `160000,${sha},a/sub`], {
+      timeout: CHILD_TIMEOUT_MS,
       cwd: root,
       encoding: "utf8",
     });
     expect(add.status).toBe(0);
-    const res = spawnSync(process.execPath, [script], { cwd: root, encoding: "utf8" });
+    const res = spawnSync(process.execPath, [script], {
+      timeout: CHILD_TIMEOUT_MS,
+      cwd: root,
+      encoding: "utf8",
+    });
     // a は 3 件のままで違反にならず、a/sub は実在するディレクトリとして扱う（実在しないとは報告しない）。
     expect(res.stderr).not.toContain("a: 4 件");
     expect(res.stderr).not.toContain("git 管理下に無い");
@@ -327,7 +340,12 @@ describe("CLI", () => {
 
   test("CLI: 追跡しているファイルが 0 件なら、判定できないとして 2 で終わる", () => {
     const root = makeRepo([], { default_max: 3 });
-    expect(spawnSync("git", ["rm", "-q", "--cached", CONFIG_PATH], { cwd: root }).status).toBe(0);
+    expect(
+      spawnSync("git", ["rm", "-q", "--cached", CONFIG_PATH], {
+        timeout: CHILD_TIMEOUT_MS,
+        cwd: root,
+      }).status,
+    ).toBe(0);
     expect(main(root)).toBe(2);
   });
 

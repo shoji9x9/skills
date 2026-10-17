@@ -21,6 +21,7 @@ import {
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const skillDir = join(repoRoot, "skills/aws-architecture-diagram");
@@ -61,7 +62,7 @@ function render(dir: string, args: string[], env: Record<string, string> = {}) {
       ...env,
     },
     encoding: "utf8",
-    timeout: 30_000,
+    timeout: CHILD_TIMEOUT_MS,
   });
   if (result.error) throw result.error;
   return result;

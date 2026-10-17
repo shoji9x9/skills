@@ -29,6 +29,7 @@ import {
 } from "./check-doc-tiers.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { invalidInput } from "../../lib/testing/test-input.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 // 学びのパスは組み立てて書く（そのまま書くと check-kaizen-refs.ts が実在しない学びへの参照として数える）。
 const KZ = ".kaizen/";
@@ -77,7 +78,11 @@ function makeRepo(
     ...files,
   };
   for (const [p, t] of Object.entries(all)) if (t !== null) write(root, p, t);
-  const r = spawnSync("git", ["init", "-q"], { cwd: root, encoding: "utf8" });
+  const r = spawnSync("git", ["init", "-q"], {
+    timeout: CHILD_TIMEOUT_MS,
+    cwd: root,
+    encoding: "utf8",
+  });
   if (r.status !== 0) throw new Error(r.stderr);
   return root;
 }
@@ -234,16 +239,20 @@ test("Markdown が 0 件なら成功として扱わない（exit 2）", () => {
   write(root, TABLE_PATH, `${renderTable(CONFIG)}\n`);
   // 表も含めて Markdown を ignore し、列挙が 0 件になる状態を作る。
   write(root, ".gitignore", "*.md\n");
-  spawnSync("git", ["init", "-q"], { cwd: root });
+  spawnSync("git", ["init", "-q"], { timeout: CHILD_TIMEOUT_MS, cwd: root });
   expect(() => checkDocTiers(root)).toThrow(/Markdown が 0 件/);
   expect(main([root])).toBe(2);
 });
 
 test("検出の確認（CLI）: 子プロセスとして起動しても、違反は exit 1、無ければ exit 0", () => {
-  const good = spawnSync(process.execPath, [script, makeRepo()], { encoding: "utf8" });
+  const good = spawnSync(process.execPath, [script, makeRepo()], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  });
   expect(good.status, good.stderr).toBe(0);
   expect(good.stdout).toMatch(/doc-tiers: OK（7 件の Markdown）/);
   const bad = spawnSync(process.execPath, [script, makeRepo({ "README.md": "x\n" })], {
+    timeout: CHILD_TIMEOUT_MS,
     encoding: "utf8",
   });
   expect(bad.status).toBe(1);

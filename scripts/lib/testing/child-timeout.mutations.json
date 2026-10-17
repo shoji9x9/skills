@@ -1,0 +1,296 @@
+{
+  "$comment": [
+    "child-timeout.test.ts のうち、テストの子プロセスの起動にタイムアウトが付いていない呼び出しを拾う判定（Issue #663）を示す変異の一覧。",
+    "テスト名を変えたら expect_failing も直す。"
+  ],
+  "test_file": "scripts/lib/testing/child-timeout.test.ts",
+  "mutations": [
+    {
+      "id": "any-key-counts-as-timeout",
+      "why": "timeout 以外のキーを持つオプションも、タイムアウト付きとして扱う",
+      "file": "scripts/lib/testing/child-timeout.ts",
+      "find": "property.name.text === \"timeout\",",
+      "replace": "true,",
+      "occurrences": 1,
+      "expect_failing": [
+        "findUntimedChildCalls タイムアウトの無い起動（オプションに timeout が無い）を拾う",
+        "findUntimedChildCalls タイムアウトの無い起動（非同期の spawn）を拾う",
+        "findUntimedChildCalls タイムアウトの無い起動（別名で import した spawnAsync）を拾う"
+      ]
+    },
+    {
+      "id": "shorthand-timeout-ignored",
+      "why": "省略記法の timeout を読まない",
+      "file": "scripts/lib/testing/child-timeout.ts",
+      "find": "(ts.isPropertyAssignment(property) || ts.isShorthandPropertyAssignment(property))",
+      "replace": "ts.isPropertyAssignment(property)",
+      "occurrences": 1,
+      "expect_failing": ["findUntimedChildCalls 拾わない（timeout を省略記法で付けた）"]
+    },
+    {
+      "id": "string-key-timeout-ignored",
+      "why": "文字列のキーの timeout を読まない",
+      "file": "scripts/lib/testing/child-timeout.ts",
+      "find": "(ts.isIdentifier(property.name) || ts.isStringLiteral(property.name))",
+      "replace": "ts.isIdentifier(property.name)",
+      "occurrences": 1,
+      "expect_failing": ["findUntimedChildCalls 拾わない（timeout を文字列のキーで付けた）"]
+    },
+    {
+      "id": "alias-import-missed",
+      "why": "別名で import した関数を、元の名前で照合しない",
+      "file": "scripts/lib/testing/child-timeout.ts",
+      "find": "      const imported = (element.propertyName ?? element.name).text;",
+      "replace": "      const imported = element.name.text;",
+      "occurrences": 1,
+      "expect_failing": [
+        "findUntimedChildCalls タイムアウトの無い起動（別名で import した関数）を拾う"
+      ]
+    },
+    {
+      "id": "namespace-import-missed",
+      "why": "名前空間で import した関数の呼び出しを拾わない",
+      "file": "scripts/lib/testing/child-timeout.ts",
+      "find": "    names.namespaces.has(callee.expression.text) &&",
+      "replace": "    false &&",
+      "occurrences": 1,
+      "expect_failing": [
+        "findUntimedChildCalls タイムアウトの無い起動（名前空間で import した関数）を拾う"
+      ]
+    },
+    {
+      "id": "bare-module-missed",
+      "why": "node: の付かない child_process の import を読まない",
+      "file": "scripts/lib/testing/child-timeout.ts",
+      "find": "const MODULES = new Set([\"node:child_process\", \"child_process\"]);",
+      "replace": "const MODULES = new Set([\"node:child_process\"]);",
+      "occurrences": 1,
+      "expect_failing": [
+        "findUntimedChildCalls タイムアウトの無い起動（node: の付かない import）を拾う",
+        "findUntimedChildCalls タイムアウトの無い起動（require）を拾う"
+      ]
+    },
+    {
+      "id": "exempt-without-reason",
+      "why": "理由を書かない免除の印でも免除する",
+      "file": "scripts/lib/testing/child-timeout.ts",
+      "find": "const EXEMPT = /^\\/\\/ child-timeout-ok: \\S/u;",
+      "replace": "const EXEMPT = /^\\/\\/ child-timeout-ok:/u;",
+      "occurrences": 1,
+      "expect_failing": ["findUntimedChildCalls タイムアウトの無い起動（理由の無い免除）を拾う"]
+    },
+    {
+      "id": "same-line-exempt-ignored",
+      "why": "同じ行の免除の印を読まない",
+      "file": "scripts/lib/testing/child-timeout.ts",
+      "find": "const exempt = exempts.has(line) || ",
+      "replace": "const exempt = false || ",
+      "occurrences": 1,
+      "expect_failing": [
+        "findUntimedChildCalls 拾わない（理由付きの免除（同じ行））",
+        "findUntimedChildCalls タイムアウトの無い起動（前の行の呼び出しの末尾の免除は次の呼び出しに及ばない）を拾う"
+      ]
+    },
+    {
+      "id": "previous-line-exempt-ignored",
+      "why": "直前の行の免除の印を読まない",
+      "file": "scripts/lib/testing/child-timeout.ts",
+      "find": " || exempts.get(line - 1) === true;",
+      "replace": ";",
+      "occurrences": 1,
+      "expect_failing": ["findUntimedChildCalls 拾わない（理由付きの免除（直前の行））"]
+    },
+    {
+      "id": "trailing-exempt-leaks",
+      "why": "前の行の呼び出しの末尾に付けた免除の印で、次の行の呼び出しも免除する",
+      "file": "scripts/lib/testing/child-timeout.ts",
+      "find": "exempts.get(line - 1) === true",
+      "replace": "exempts.has(line - 1)",
+      "occurrences": 1,
+      "expect_failing": [
+        "findUntimedChildCalls タイムアウトの無い起動（前の行の呼び出しの末尾の免除は次の呼び出しに及ばない）を拾う"
+      ]
+    },
+    {
+      "id": "dynamic-import-missed",
+      "why": "child_process を動的に読み込む呼び出しを拾わない",
+      "file": "scripts/lib/testing/child-timeout.ts",
+      "find": "  return (\n    dynamic &&",
+      "replace": "  return (\n    false &&",
+      "occurrences": 1,
+      "expect_failing": [
+        "findUntimedChildCalls タイムアウトの無い起動（動的 import）を拾う",
+        "findUntimedChildCalls タイムアウトの無い起動（require）を拾う"
+      ]
+    },
+    {
+      "id": "absent-timeout-passes",
+      "why": "timeout が無い起動を、値を読めない timeout と同じに扱って通す",
+      "file": "scripts/lib/testing/child-timeout.ts",
+      "find": "    return ts.isPropertyAssignment(property) ? msOf(property.initializer) : null;\n  }\n  return undefined;",
+      "replace": "    return ts.isPropertyAssignment(property) ? msOf(property.initializer) : null;\n  }\n  return null;",
+      "occurrences": 1,
+      "expect_failing": [
+        "findUntimedChildCalls タイムアウトの無い起動（オプションが無い）を拾う",
+        "findUntimedChildCalls タイムアウトの無い起動（オプションに timeout が無い）を拾う",
+        "findUntimedChildCalls タイムアウトの無い起動（オプションを変数だけで渡す）を拾う",
+        "findUntimedChildCalls タイムアウトの無い起動（スプレッドだけのオプション）を拾う",
+        "findUntimedChildCalls タイムアウトの無い起動（非同期の spawn）を拾う",
+        "findUntimedChildCalls タイムアウトの無い起動（execSync）を拾う",
+        "findUntimedChildCalls タイムアウトの無い起動（別名で import した関数）を拾う",
+        "findUntimedChildCalls タイムアウトの無い起動（名前空間で import した関数）を拾う",
+        "findUntimedChildCalls タイムアウトの無い起動（node: の付かない import）を拾う",
+        "findUntimedChildCalls タイムアウトの無い起動（理由の無い免除）を拾う",
+        "findUntimedChildCalls タイムアウトの無い起動（入れ子の関数の中の呼び出し）を拾う",
+        "findUntimedChildCalls タイムアウトの無い起動（前の行の呼び出しの末尾の免除は次の呼び出しに及ばない）を拾う",
+        "findUntimedChildCalls タイムアウトの無い起動（文字列の中の免除の印）を拾う",
+        "findUntimedChildCalls タイムアウトの無い起動（spawnAsync）を拾う",
+        "findUntimedChildCalls タイムアウトの無い起動（別名で import した spawnAsync）を拾う"
+      ]
+    },
+    {
+      "id": "spawn-async-missed",
+      "why": "spawnAsync の import を読まない",
+      "file": "scripts/lib/testing/child-timeout.ts",
+      "find": "      SPAWN_ASYNC_MODULE.test(statement.moduleSpecifier.text) &&",
+      "replace": "      false &&",
+      "occurrences": 1,
+      "expect_failing": [
+        "findUntimedChildCalls タイムアウトの無い起動（spawnAsync）を拾う",
+        "findUntimedChildCalls タイムアウトの無い起動（別名で import した spawnAsync）を拾う"
+      ]
+    },
+    {
+      "id": "spawn-async-alias-missed",
+      "why": "別名で import した spawnAsync を、元の名前で照合しない",
+      "file": "scripts/lib/testing/child-timeout.ts",
+      "find": "        if ((element.propertyName ?? element.name).text === \"spawnAsync\")",
+      "replace": "        if (element.name.text === \"spawnAsync\")",
+      "occurrences": 1,
+      "expect_failing": [
+        "findUntimedChildCalls タイムアウトの無い起動（別名で import した spawnAsync）を拾う"
+      ]
+    },
+    {
+      "id": "spawn-async-prefilter",
+      "why": "child_process を含まないファイルを、spawnAsync を含んでいても読まない",
+      "file": "scripts/lib/testing/child-timeout.ts",
+      "find": " && !sourceText.includes(\"spawnAsync\")",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "findUntimedChildCalls タイムアウトの無い起動（spawnAsync）を拾う",
+        "findUntimedChildCalls タイムアウトの無い起動（別名で import した spawnAsync）を拾う"
+      ]
+    },
+    {
+      "id": "value-not-compared",
+      "why": "付けた timeout の値をテストの timeout と比べない",
+      "file": "scripts/lib/testing/child-timeout.ts",
+      "find": "|| child < limit) return undefined;",
+      "replace": "|| true) return undefined;",
+      "occurrences": 1,
+      "expect_failing": [
+        "findUntimedChildCalls タイムアウトの無い起動（testTimeout と同じ timeout）を拾う",
+        "findUntimedChildCalls タイムアウトの無い起動（テストの後ろの引数の timeout 以上）を拾う",
+        "findUntimedChildCalls タイムアウトの無い起動（テストのオプションの timeout 以上）を拾う",
+        "findUntimedChildCalls タイムアウトの無い起動（each のテストの timeout 以上）を拾う"
+      ]
+    },
+    {
+      "id": "equal-timeout-passes",
+      "why": "テストの timeout と同じ値の timeout を通す",
+      "file": "scripts/lib/testing/child-timeout.ts",
+      "find": "|| child < limit) return undefined;",
+      "replace": "|| child <= limit) return undefined;",
+      "occurrences": 1,
+      "expect_failing": [
+        "findUntimedChildCalls タイムアウトの無い起動（testTimeout と同じ timeout）を拾う",
+        "findUntimedChildCalls タイムアウトの無い起動（テストのオプションの timeout 以上）を拾う"
+      ]
+    },
+    {
+      "id": "enclosing-test-ignored",
+      "why": "囲むテストの timeout を読まず、常に testTimeout と比べる",
+      "file": "scripts/lib/testing/child-timeout.ts",
+      "find": "  const enclosing = enclosingTestTimeout(call, source);",
+      "replace": "  const enclosing = undefined;",
+      "occurrences": 1,
+      "expect_failing": [
+        "findUntimedChildCalls タイムアウトの無い起動（テストの後ろの引数の timeout 以上）を拾う",
+        "findUntimedChildCalls タイムアウトの無い起動（テストのオプションの timeout 以上）を拾う",
+        "findUntimedChildCalls タイムアウトの無い起動（each のテストの timeout 以上）を拾う",
+        "findUntimedChildCalls 拾わない（長いテストの中の、テストより短い timeout）",
+        "findUntimedChildCalls 拾わない（値を読めないテストの timeout）"
+      ]
+    },
+    {
+      "id": "trailing-test-timeout-ignored",
+      "why": "テストの後ろの引数の timeout を読まない",
+      "file": "scripts/lib/testing/child-timeout.ts",
+      "find": "    if (after !== undefined && !ts.isObjectLiteralExpression(after)) return msOf(after);",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "findUntimedChildCalls タイムアウトの無い起動（テストの後ろの引数の timeout 以上）を拾う",
+        "findUntimedChildCalls タイムアウトの無い起動（each のテストの timeout 以上）を拾う",
+        "findUntimedChildCalls 拾わない（値を読めないテストの timeout）"
+      ]
+    },
+    {
+      "id": "option-test-timeout-ignored",
+      "why": "テストのオプションの timeout を読まない",
+      "file": "scripts/lib/testing/child-timeout.ts",
+      "find": "    for (const arg of [...current.arguments.slice(0, index), ...(after ? [after] : [])]) {",
+      "replace": "    for (const arg of [] as ts.Expression[]) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "findUntimedChildCalls タイムアウトの無い起動（テストのオプションの timeout 以上）を拾う",
+        "findUntimedChildCalls 拾わない（長いテストの中の、テストより短い timeout）"
+      ]
+    },
+    {
+      "id": "unreadable-test-timeout-compared",
+      "why": "読めないテストの timeout を testTimeout として比べる",
+      "file": "scripts/lib/testing/child-timeout.ts",
+      "find": "  const limit = enclosing === undefined ? TEST_TIMEOUT_MS : enclosing;",
+      "replace": "  const limit = enclosing ?? TEST_TIMEOUT_MS;",
+      "occurrences": 1,
+      "expect_failing": ["findUntimedChildCalls 拾わない（値を読めないテストの timeout）"]
+    },
+    {
+      "id": "call-outside-body-counted",
+      "why": "テストの名前の中の起動も、そのテストの timeout と比べる",
+      "file": "scripts/lib/testing/child-timeout.ts",
+      "find": "    if (body === undefined || node.pos < body.pos || node.end > body.end) continue;",
+      "replace": "    if (body === undefined) continue;",
+      "occurrences": 1,
+      "expect_failing": [
+        "findUntimedChildCalls 拾わない（テストの名前の中の起動は、そのテストの timeout と比べない）"
+      ]
+    },
+    {
+      "id": "child-timeout-constant-unread",
+      "why": "CHILD_TIMEOUT_MS を値として読まない",
+      "file": "scripts/lib/testing/child-timeout.ts",
+      "find": "  if (ts.isIdentifier(expression) && expression.text === \"CHILD_TIMEOUT_MS\")",
+      "replace": "  if (false)",
+      "occurrences": 1,
+      "expect_failing": [
+        "findUntimedChildCalls タイムアウトの無い起動（テストの後ろの引数の timeout 以上）を拾う",
+        "findUntimedChildCalls タイムアウトの無い起動（each のテストの timeout 以上）を拾う"
+      ]
+    },
+    {
+      "id": "each-test-missed",
+      "why": "each で登録したテストを、テストとして読まない",
+      "file": "scripts/lib/testing/child-timeout.ts",
+      "find": "const TEST_CALLEE = /^(test|it)(\\.\\w+|\\([^]*\\))*$/u;",
+      "replace": "const TEST_CALLEE = /^(test|it)(\\.\\w+)*$/u;",
+      "occurrences": 1,
+      "expect_failing": [
+        "findUntimedChildCalls タイムアウトの無い起動（each のテストの timeout 以上）を拾う"
+      ]
+    }
+  ]
+}

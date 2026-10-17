@@ -22,6 +22,7 @@ import {
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../lib/testing/child-timeout.ts";
 
 const script = join(dirname(fileURLToPath(import.meta.url)), "reinstall-skill.sh");
 
@@ -93,7 +94,7 @@ function run(
     encoding: "utf8",
     input: input ?? "",
     env: { ...process.env, ...ctx.env, GH_LOG: ctx.ghLog, ...env },
-    timeout: 30_000,
+    timeout: CHILD_TIMEOUT_MS,
   });
 }
 

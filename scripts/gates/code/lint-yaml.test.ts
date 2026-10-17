@@ -12,6 +12,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { main } from "./lint-yaml.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const script = join(dirname(fileURLToPath(import.meta.url)), "lint-yaml.ts");
 
@@ -26,7 +27,7 @@ function repo(
 ) {
   const dir = makeTempDir("lint-yaml-");
   const git = (...args: string[]) => {
-    const r = spawnSync("git", args, { cwd: dir, encoding: "utf8" });
+    const r = spawnSync("git", args, { timeout: CHILD_TIMEOUT_MS, cwd: dir, encoding: "utf8" });
     if (r.status !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
   };
   git("init", "-q");
@@ -180,10 +181,16 @@ test.each([[["--bogus"]], [["--root"]]])("使い方の誤り %j は exit 2", (ar
 
 test("検出の確認（CLI）: 子プロセスとして起動しても、不正な YAML は exit 1、読めれば exit 0", () => {
   const dir = repo({ "a.yml": VALID, "broken.yml": BROKEN });
-  const ng = spawnSync(process.execPath, [script, "--root", dir], { encoding: "utf8" });
+  const ng = spawnSync(process.execPath, [script, "--root", dir], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  });
   expect(ng.stderr).toContain("broken.yml:");
   expect(ng.status).toBe(1);
-  const ok = spawnSync(process.execPath, [script, join(dir, "a.yml")], { encoding: "utf8" });
+  const ok = spawnSync(process.execPath, [script, join(dir, "a.yml")], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  });
   expect(ok.stdout).toContain("1 件を検査した");
   expect(ok.status).toBe(0);
 });

@@ -18,6 +18,7 @@ import { encodePng } from "../../lib/testing/fake-pngjs.ts";
 import { parseJsonAs } from "../../lib/parse-as.ts";
 import * as verify from "../../../skills/parity-diff/scripts/amend-verify.mjs";
 import type { Image } from "../../../skills/parity-diff/scripts/amend-verify.mjs";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const pngjsAvailable = (() => {
   try {
@@ -530,7 +531,7 @@ function runCli(argv: string[]) {
   const r = spawnSync(process.execPath, ["--import", pathToFileURL(HOOKS).href, script, ...argv], {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
-    timeout: 30_000,
+    timeout: CHILD_TIMEOUT_MS,
   });
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }

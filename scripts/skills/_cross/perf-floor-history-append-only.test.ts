@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 import { parseJsonAs } from "../../lib/parse-as.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { isArray } from "../../lib/is-array.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const perfStats = join(repoRoot, "skills/parity-suite/scripts/perf-stats.mjs");
@@ -72,7 +73,10 @@ const samples = {
  * @param {string[]} args
  */
 function git(root: string, args: string[]) {
-  const r = spawnSync("git", ["-C", root, ...args], { encoding: "utf8" });
+  const r = spawnSync("git", ["-C", root, ...args], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  });
   if (r.status !== 0) throw new Error(`git ${args.join(" ")} failed: ${r.stderr}`);
 }
 
@@ -84,7 +88,7 @@ function summarize(root: string, floors: string[] = []) {
   const r = spawnSync(
     process.execPath,
     [perfStats, "summarize", "--metadata", META, "--samples", SAMPLES, "--write", ...floors],
-    { cwd: root, encoding: "utf8" },
+    { timeout: CHILD_TIMEOUT_MS, cwd: root, encoding: "utf8" },
   );
   expect(r.stderr).toBe("");
   expect(r.status).toBe(0);
@@ -92,7 +96,10 @@ function summarize(root: string, floors: string[] = []) {
 
 /** @param {string} root */
 function appendOnlyCheck(root: string) {
-  const r = spawnSync(process.execPath, [appendOnly, "--root", root], { encoding: "utf8" });
+  const r = spawnSync(process.execPath, [appendOnly, "--root", root], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  });
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }
 

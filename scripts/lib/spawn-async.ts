@@ -6,10 +6,16 @@
 //
 // 書き換えを機械的に保つため、受け付けるオプションと返す形は、テストが使う `spawnSync` の部分に合わせる。
 // - オプション: `cwd`・`env`・`input`（文字列。渡さなければ stdin はすぐ閉じる）。出力は常に utf8 の文字列で返す
+// - `timeout` は必須にする。テストが起動する子プロセスにはタイムアウトを付ける（docs/testing.md「実行環境を固定する」、Issue #663）
 // - 返す形: `pid`・`status`・`signal`・`stdout`・`stderr`・`error`（起動できなかったときだけ。`spawnSync` と同じく reject しない）
 import { spawn } from "node:child_process";
 
-export type SpawnAsyncOptions = { cwd?: string; env?: NodeJS.ProcessEnv; input?: string };
+export type SpawnAsyncOptions = {
+  cwd?: string;
+  env?: NodeJS.ProcessEnv;
+  input?: string;
+  timeout: number;
+};
 
 export type SpawnAsyncResult = {
   pid: number | undefined;
@@ -23,7 +29,7 @@ export type SpawnAsyncResult = {
 export function spawnAsync(
   command: string,
   args: readonly string[] = [],
-  options: SpawnAsyncOptions = {},
+  options: SpawnAsyncOptions,
 ): Promise<SpawnAsyncResult> {
   const { input, ...spawnOptions } = options;
   return new Promise((resolve) => {

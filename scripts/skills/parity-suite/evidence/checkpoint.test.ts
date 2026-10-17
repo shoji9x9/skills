@@ -13,6 +13,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 import { invalidInput, removeField } from "../../../lib/testing/test-input.ts";
 import { parseJsonAs } from "../../../lib/parse-as.ts";
+import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/checkpoint.mjs");
@@ -73,6 +74,7 @@ function run(dir: string, args: string[]) {
  */
 function cli(cwd: string, args: string[]) {
   const r = spawnSync(process.execPath, [script, ...args], {
+    timeout: CHILD_TIMEOUT_MS,
     cwd,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],

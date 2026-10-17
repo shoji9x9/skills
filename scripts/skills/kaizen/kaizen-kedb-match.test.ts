@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { coverageEnv } from "../../lib/testing/coverage-env.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 // 一時ディレクトリの fixture リポジトリの学びのパス。check-kaizen-refs が、このリポジトリの学びへの参照と読まないよう、組み立てて書く。
 const noteRef = (name: string) => `.kaizen/${name}`;
@@ -40,7 +41,7 @@ function match(dir: string, ...keywords: string[]) {
     cwd: dir,
     encoding: "utf8",
     env: { ...process.env, CLAUDE_PROJECT_DIR: dir, ...coverageEnv() },
-    timeout: 30_000,
+    timeout: CHILD_TIMEOUT_MS,
   });
   const hits = res.stdout.split("\n").filter(Boolean);
   return { ...res, hits };

@@ -14,6 +14,7 @@ import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 import { invalidInput } from "../../../lib/testing/test-input.ts";
 import { parseJsonAs } from "../../../lib/parse-as.ts";
+import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/table-upsert.mjs");
@@ -77,6 +78,7 @@ function run(
     );
   }
   const r = spawnSync(process.execPath, [script, ...args], {
+    timeout: CHILD_TIMEOUT_MS,
     cwd: dir,
     encoding: "utf8",
     input: opts.input,

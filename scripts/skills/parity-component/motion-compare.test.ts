@@ -19,6 +19,7 @@ import {
   main,
 } from "../../../skills/parity-component/scripts/motion-compare.mjs";
 import * as probe from "../../../skills/parity-component/scripts/motion-probe.mjs";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "skills/parity-component/scripts/motion-compare.mjs");
@@ -596,14 +597,20 @@ test("CLI: 揃った採取物と突き合わせ表で exit 0、行を欠くと e
     comparisonPath,
     JSON.stringify({ component: "feedback-message", target: "preview", rows: rowsOf() }),
   );
-  const ok = spawnSync(process.execPath, [script, ...args], { encoding: "utf8" });
+  const ok = spawnSync(process.execPath, [script, ...args], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  });
   expect(ok.status).toBe(0);
   expect(JSON.parse(ok.stdout)).toMatchObject({ tool: "motion-compare", ok: true });
   writeFileSync(
     comparisonPath,
     JSON.stringify({ component: "feedback-message", target: "preview", rows: rowsOf().slice(1) }),
   );
-  expect(spawnSync(process.execPath, [script, ...args], { encoding: "utf8" }).status).toBe(1);
+  expect(
+    spawnSync(process.execPath, [script, ...args], { timeout: CHILD_TIMEOUT_MS, encoding: "utf8" })
+      .status,
+  ).toBe(1);
   let err = "";
   expect(
     main(["--baseline", dir, "--target", " "], {

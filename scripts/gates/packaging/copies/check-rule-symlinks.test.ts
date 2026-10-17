@@ -26,6 +26,7 @@ import {
   checkRuleSymlinks,
 } from "./check-rule-symlinks.ts";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 const script = join(repoRoot, "scripts/gates/packaging/copies/check-rule-symlinks.ts");
@@ -169,7 +170,10 @@ test("CLI: 対象 0 件は成功として扱わず exit 1", () => {
   const root = makeTempDir("rule-symlinks-");
   mkdirSync(join(root, CANON_DIR), { recursive: true });
   for (const { dir } of WIRINGS) mkdirSync(join(root, dir), { recursive: true });
-  const r = spawnSync(process.execPath, [script, root], { encoding: "utf8", timeout: 30_000 });
+  const r = spawnSync(process.execPath, [script, root], {
+    encoding: "utf8",
+    timeout: CHILD_TIMEOUT_MS,
+  });
   expect(r.status).toBe(1);
   expect(r.stderr).toMatch(/走査した rule が 0 件/);
   cleanup(root);
@@ -177,14 +181,20 @@ test("CLI: 対象 0 件は成功として扱わず exit 1", () => {
 
 test("CLI: 違反があれば exit 1、無ければ exit 0 で走査件数を出す", () => {
   const ok = makeRepo(["alpha", "beta"]);
-  const good = spawnSync(process.execPath, [script, ok], { encoding: "utf8", timeout: 30_000 });
+  const good = spawnSync(process.execPath, [script, ok], {
+    encoding: "utf8",
+    timeout: CHILD_TIMEOUT_MS,
+  });
   expect(good.status).toBe(0);
   expect(good.stdout).toMatch(/rule-symlinks: OK（2 件）/);
   expect(good.stdout).toContain(join(ok, CANON_DIR, "alpha.md"));
   cleanup(ok);
 
   const bad = makeRepo(["alpha"], { wire: false });
-  const r = spawnSync(process.execPath, [script, bad], { encoding: "utf8", timeout: 30_000 });
+  const r = spawnSync(process.execPath, [script, bad], {
+    encoding: "utf8",
+    timeout: CHILD_TIMEOUT_MS,
+  });
   expect(r.status).toBe(1);
   expect(r.stderr).toMatch(/2 件のリンクの不備/);
   cleanup(bad);

@@ -26,6 +26,7 @@ import { fileURLToPath } from "node:url";
 import { CONFIG_PATH, RULES, checkDocRefs, hasAnchor, main } from "./check-doc-refs.ts";
 import { KNOWN_RULES, PENDING_PATH } from "../../lib/doc-scan.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 // 学びのパスは組み立てて書く（そのまま書くと check-kaizen-refs.ts が実在しない学びへの参照として数える）。
 const KZ = ".kaizen/";
@@ -65,7 +66,11 @@ function makeRepo(
   };
   for (const [p, t] of Object.entries(all)) write(root, p, t);
   if (pending) write(root, PENDING_PATH, JSON.stringify(pending));
-  const r = spawnSync("git", ["init", "-q"], { cwd: root, encoding: "utf8" });
+  const r = spawnSync("git", ["init", "-q"], {
+    timeout: CHILD_TIMEOUT_MS,
+    cwd: root,
+    encoding: "utf8",
+  });
   if (r.status !== 0) throw new Error(r.stderr);
   return root;
 }
@@ -403,10 +408,14 @@ test("陰性: 実リポジトリは保留と許可を当てると失敗 0 件", 
 });
 
 test("検出の確認（CLI）: 子プロセスとして起動しても、違反は exit 1、無ければ exit 0", () => {
-  const good = spawnSync(process.execPath, [script, makeRepo()], { encoding: "utf8" });
+  const good = spawnSync(process.execPath, [script, makeRepo()], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  });
   expect(good.status, good.stderr).toBe(0);
   expect(good.stdout).toMatch(/doc-refs: OK（\d+ 件。保留 0 件）/);
   const bad = spawnSync(process.execPath, [script, makeRepo({ "docs/a.md": "[x](none.md)\n" })], {
+    timeout: CHILD_TIMEOUT_MS,
     encoding: "utf8",
   });
   expect(bad.status).toBe(1);

@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { coverageEnv } from "../../lib/testing/coverage-env.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 // kaizen-schedule-report.sh は **CI から無人で実行され、出力がそのまま Issue になる**。
 // 判定が狂っても人が見ているのは結果の Issue だけなので、狂ったこと自体は出力に現れない。
@@ -115,6 +116,7 @@ function withProject<T>(
 
 function run({ dir, target }: Project, args: string[], env: NodeJS.ProcessEnv = {}) {
   const res = spawnSync("bash", [target, ...args], {
+    timeout: CHILD_TIMEOUT_MS,
     cwd: dir,
     encoding: "utf8",
     // 呼び出し側が渡さない変数は「未設定」であって空文字ではない。継承した値が

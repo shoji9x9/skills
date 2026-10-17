@@ -35,6 +35,7 @@ import {
   validateNoiseBaseline,
 } from "../../../skills/parity-diff/scripts/diff-normalize.mjs";
 import type { ComponentDiff } from "../../../skills/parity-diff/scripts/diff-normalize.mjs";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "skills/parity-diff/scripts/diff-normalize.mjs");
@@ -72,7 +73,7 @@ function runRaw(registries: unknown, diffs: unknown, args: string[] = CTX_ARGS) 
   const r = spawnSync(
     process.execPath,
     [script, input, "--registries", registriesPath, "--slug", "demo", ...args],
-    { encoding: "utf8", timeout: 30_000 },
+    { encoding: "utf8", timeout: CHILD_TIMEOUT_MS },
   );
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }

@@ -25,6 +25,7 @@ import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 import { invalidInput, removeField } from "../../../lib/testing/test-input.ts";
 import { parseJsonAs } from "../../../lib/parse-as.ts";
 import { isArray } from "../../../lib/is-array.ts";
+import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
 
 /** 機能の metadata.json のうち、反復実行の記録の指紋を書き換える欄。 */
 type RepeatRunMetadata = { suite: { repeat_run: { runs: { suite_fingerprint: unknown }[] } } };
@@ -257,6 +258,7 @@ function run(metadataPath: string, extra: string[] = []) {
  */
 function cli(metadataPath: string, extra: string[] = []) {
   const r = spawnSync(process.execPath, [script, "--metadata", metadataPath, ...extra], {
+    timeout: CHILD_TIMEOUT_MS,
     encoding: "utf8",
   });
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };

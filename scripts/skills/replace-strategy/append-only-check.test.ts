@@ -18,6 +18,7 @@ import { makeTempDirFactory } from "../../lib/testing/test-tmpdir.ts";
 import { spawnAsync } from "../../lib/spawn-async.ts";
 import { parseJsonAs } from "../../lib/parse-as.ts";
 import { invalidInput, removeField } from "../../lib/testing/test-input.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "skills/replace-strategy/scripts/append-only-check.mjs");
@@ -199,7 +200,7 @@ async function makeRepo(opts: { emptyExceptions?: boolean } = {}) {
     ["add", "-A"],
     ["commit", "-qm", "seed"],
   ]) {
-    const r = await spawnAsync("git", ["-C", root, ...args]);
+    const r = await spawnAsync("git", ["-C", root, ...args], { timeout: CHILD_TIMEOUT_MS });
     if (r.status !== 0) throw new Error(`git ${args.join(" ")} failed: ${r.stderr}`);
   }
   return root;
@@ -210,7 +211,9 @@ async function makeRepo(opts: { emptyExceptions?: boolean } = {}) {
  * @param {string[]} [extra]
  */
 async function run(root: string, extra: string[] = []) {
-  const r = await spawnAsync(process.execPath, [script, "--root", root, ...extra]);
+  const r = await spawnAsync(process.execPath, [script, "--root", root, ...extra], {
+    timeout: CHILD_TIMEOUT_MS,
+  });
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }
 
@@ -275,7 +278,7 @@ test.concurrent("同じ行が 2 回在ったのが 1 回に減っても落ちる
   const root = await makeRepo();
   const path = join(root, ".replace/features.md");
   appendFileSync(path, "| order-list | 注文一覧（別ページ） | 済 | #12 |\n");
-  await spawnAsync("git", ["-C", root, "commit", "-qam", "dup"]);
+  await spawnAsync("git", ["-C", root, "commit", "-qam", "dup"], { timeout: CHILD_TIMEOUT_MS });
   writeFileSync(path, FEATURES);
   const r = await run(root);
   expect(r.stdout).toMatch(/1 件（unit: markdown-structure）が失われている/);
@@ -293,7 +296,7 @@ test.concurrent("追記専用の成果物が 1 件も無ければ合格として
     ["add", "-A"],
     ["commit", "-qm", "init"],
   ]) {
-    await spawnAsync("git", ["-C", root, ...args]);
+    await spawnAsync("git", ["-C", root, ...args], { timeout: CHILD_TIMEOUT_MS });
   }
   const r = await run(root);
   expect(r.stderr).toMatch(/対象 0 件を合格として扱わない/);
@@ -333,7 +336,7 @@ test.concurrent("リポジトリの一階層下を --root に渡しても突き�
     ["add", "-A"],
     ["commit", "-qm", "seed"],
   ]) {
-    const r = await spawnAsync("git", ["-C", repo, ...args]);
+    const r = await spawnAsync("git", ["-C", repo, ...args], { timeout: CHILD_TIMEOUT_MS });
     if (r.status !== 0) throw new Error(`git ${args.join(" ")} failed: ${r.stderr}`);
   }
   const root = join(repo, "app");
@@ -366,7 +369,7 @@ test.concurrent("比較元に在る追記専用の成果物が 0 件なら合格
     ["add", "README.md"],
     ["commit", "-qm", "init"],
   ]) {
-    await spawnAsync("git", ["-C", root, ...args]);
+    await spawnAsync("git", ["-C", root, ...args], { timeout: CHILD_TIMEOUT_MS });
   }
   // 成果物は作業ツリーにあるが 1 度もコミットされていない（比較元 HEAD に無い）。
   mkdirSync(join(root, ".replace"), { recursive: true });
@@ -569,7 +572,8 @@ test.concurrent("比較元の木に在るのに内容を取り出せなければ
   // これを「比較元に無い＝新規」として扱うと、一部だけ取り出せないときに縮小が数えられないまま素通りする。
   const root = await makeRepo();
   /** @param {string[]} args */
-  const g = async (args: string[]) => await spawnAsync("git", ["-C", root, ...args]);
+  const g = async (args: string[]) =>
+    await spawnAsync("git", ["-C", root, ...args], { timeout: CHILD_TIMEOUT_MS });
   await g([
     "update-index",
     "--add",
@@ -693,7 +697,8 @@ test.concurrent("承認済みの未測定項目の承認日時を差し替える
   entry.approved_by = "user";
   entry.approved_at = "2026-09-17T00:00:00Z";
   writeFileSync(path, `${JSON.stringify(doc, null, 2)}\n`);
-  const g = async (args: string[]) => await spawnAsync("git", ["-C", root, ...args]);
+  const g = async (args: string[]) =>
+    await spawnAsync("git", ["-C", root, ...args], { timeout: CHILD_TIMEOUT_MS });
   await g(["commit", "-qam", "approve"]);
   // ここまでが正規の遷移。以降は承認記録の差し替え。
   entry.approved_by = "someone-else";
@@ -777,7 +782,9 @@ test.concurrent("同じ鍵の 2 行の間でセルを入れ替えると落ちる
     rowB,
   );
   writeFileSync(join(root, ".replace/assets.md"), base);
-  await spawnAsync("git", ["-C", root, "commit", "-qam", "two-logo-rows"]);
+  await spawnAsync("git", ["-C", root, "commit", "-qam", "two-logo-rows"], {
+    timeout: CHILD_TIMEOUT_MS,
+  });
   // 行の中身だけを入れ替える（どちらの行も「ロゴ」のまま＝鍵は不変、決定の帰属だけが変わる）。
   const swapped = base.split("\n");
   const a = swapped.indexOf(rowA);
@@ -989,7 +996,7 @@ async function commit(root: string, message: string) {
     ["add", "-A"],
     ["commit", "-qm", message],
   ]) {
-    const r = await spawnAsync("git", ["-C", root, ...args]);
+    const r = await spawnAsync("git", ["-C", root, ...args], { timeout: CHILD_TIMEOUT_MS });
     if (r.status !== 0) throw new Error(`git ${args.join(" ")} failed: ${r.stderr}`);
   }
 }
@@ -3327,7 +3334,9 @@ async function makePerfRepo(performance: Record<string, unknown> | undefined) {
   const doc = parseJsonAs<ParityMetadataDoc>(readFileSync(path, "utf8"));
   if (performance !== undefined) doc.performance = performance;
   writeFileSync(path, `${JSON.stringify(doc, null, 2)}\n`);
-  const r = await spawnAsync("git", ["-C", root, "commit", "-qam", "perf"]);
+  const r = await spawnAsync("git", ["-C", root, "commit", "-qam", "perf"], {
+    timeout: CHILD_TIMEOUT_MS,
+  });
   if (r.status !== 0 && performance !== undefined) throw new Error(r.stderr);
   /** @param {(perf: Record<string, unknown>, doc: Record<string, unknown>) => void} edit */
   const edit = (edit: (perf: Performance, doc: Record<string, unknown>) => void) => {

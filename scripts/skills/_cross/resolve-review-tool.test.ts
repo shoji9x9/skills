@@ -19,6 +19,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { coverageEnv } from "../../lib/testing/coverage-env.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const SCRIPTS = [
@@ -37,6 +38,7 @@ function run(scriptRel: string, { args = [], env = {}, config, cwd = repoRoot }:
   const argv = [join(repoRoot, scriptRel), ...args];
   if (config !== undefined) argv.push("--config", config);
   return spawnSync("bash", argv, {
+    timeout: CHILD_TIMEOUT_MS,
     encoding: "utf8",
     cwd,
     // 呼び出し側の SKILLS_REVIEW_TOOL に左右されないよう、毎回明示的に組み立てる。
@@ -237,7 +239,8 @@ for (const script of SCRIPTS) {
 
 test("2 スキルの同梱コピーは同一内容（配布境界をまたいで drift させない）", () => {
   const [a, b] = SCRIPTS.map(
-    (s) => spawnSync("cat", [join(repoRoot, s)], { encoding: "utf8" }).stdout,
+    (s) =>
+      spawnSync("cat", [join(repoRoot, s)], { timeout: CHILD_TIMEOUT_MS, encoding: "utf8" }).stdout,
   );
   expect(a).toBe(b);
   expect(a.length).toBeGreaterThan(0);

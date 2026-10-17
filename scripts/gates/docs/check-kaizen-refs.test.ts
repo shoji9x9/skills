@@ -32,6 +32,7 @@ import {
   main,
 } from "./check-kaizen-refs.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "scripts/gates/docs/check-kaizen-refs.ts");
@@ -41,7 +42,7 @@ const ARCHIVED = ".kaizen/archive/2026-08-01-old-note.md";
 const INDEX = ".kaizen/archive/INDEX.md";
 
 function git(root: string, ...args: string[]) {
-  const r = spawnSync("git", args, { cwd: root, encoding: "utf8" });
+  const r = spawnSync("git", args, { timeout: CHILD_TIMEOUT_MS, cwd: root, encoding: "utf8" });
   if (r.status !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
 }
 
@@ -407,6 +408,7 @@ test("git リポジトリでなければ exit 2（列挙の失敗を 0 件とし
 
 test("検出の確認（CLI）: 子プロセスとして起動しても、切れた参照は exit 1、無ければ exit 0", () => {
   const good = spawnSync(process.execPath, [script, makeRepo({ "docs/a.md": NOTE })], {
+    timeout: CHILD_TIMEOUT_MS,
     encoding: "utf8",
   });
   expect(good.status, good.stderr).toBe(0);
@@ -414,7 +416,7 @@ test("検出の確認（CLI）: 子プロセスとして起動しても、切れ
   const bad = spawnSync(
     process.execPath,
     [script, makeRepo({ "docs/a.md": "`.kaizen/2026-01-01-missing.md`\n" })],
-    { encoding: "utf8" },
+    { timeout: CHILD_TIMEOUT_MS, encoding: "utf8" },
   );
   expect(bad.status).toBe(1);
   expect(bad.stderr).toMatch(/1 件の不備/);

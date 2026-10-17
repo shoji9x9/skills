@@ -70,7 +70,10 @@ function runGenerator(
 ) {
   return new Promise<GeneratorResult>((resolve) => {
     const started = Date.now();
+    // 待ちが終わらない実装を打ち切るための外側の上限。打ち切りは合格として扱わない（timedOut で落とす）。
     const child = spawn(process.execPath, [script], {
+      timeout: timeoutMs,
+      killSignal: "SIGKILL",
       env: {
         ...process.env,
         CHROME: chrome,
@@ -83,10 +86,7 @@ function runGenerator(
     child.stderr.on("data", (d) => {
       stderr += d;
     });
-    // 待ちが終わらない実装を打ち切るための外側の上限。打ち切りは合格として扱わない（timedOut で落とす）。
-    const guard = setTimeout(() => child.kill("SIGKILL"), timeoutMs);
     child.on("exit", (code, signal) => {
-      clearTimeout(guard);
       resolve({
         code,
         signal,

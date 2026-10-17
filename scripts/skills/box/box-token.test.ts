@@ -28,6 +28,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { coverageEnv } from "../../lib/testing/coverage-env.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const TOKEN_SCRIPT = join(repoRoot, "skills/box/scripts/box-token.sh");
@@ -38,7 +39,7 @@ const INIT_SCRIPT = join(repoRoot, "skills/box/scripts/box-oauth-init.sh");
 const JQ = spawnSync("bash", ["-c", "mise which jq 2>/dev/null || command -v jq"], {
   cwd: repoRoot,
   encoding: "utf8",
-  timeout: 30_000,
+  timeout: CHILD_TIMEOUT_MS,
 }).stdout.trim();
 
 const CURL_STUB = `#!/usr/bin/env bash
@@ -84,7 +85,7 @@ function run(
       ...coverageEnv(),
       ...env,
     },
-    timeout: 30_000,
+    timeout: CHILD_TIMEOUT_MS,
   });
   const log = existsSync(s.log) ? readFileSync(s.log, "utf8") : "";
   return { status: r.status, stdout: r.stdout, stderr: r.stderr, log };

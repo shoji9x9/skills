@@ -4,6 +4,7 @@ import { mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 // kaizen-status-check.sh は awk で frontmatter の applied-to を読む。値が
 // 折り返された flow 配列（.kaizen/*.md にフォーマッタを掛けると applied-to が
@@ -38,6 +39,7 @@ function runCheck(content: string) {
     // CLAUDE_PROJECT_DIR を渡さないとスクリプトは git rev-parse にフォールバックし、
     // 検体ではなくこのリポジトリ自身の .kaizen を検査してしまう。
     const result = spawnSync("bash", [script], {
+      timeout: CHILD_TIMEOUT_MS,
       env: { ...process.env, CLAUDE_PROJECT_DIR: dir },
       encoding: "utf8",
     });
@@ -247,6 +249,7 @@ function runCheckOnBody(
       writeFileSync(join(dir, ".kaizen", "archive", "INDEX.md"), "- `2026-01-01-note.md` — 学び\n");
     }
     const result = spawnSync("bash", [script], {
+      timeout: CHILD_TIMEOUT_MS,
       env: { ...process.env, CLAUDE_PROJECT_DIR: dir },
       encoding: "utf8",
     });
@@ -392,7 +395,10 @@ exec "${realAwk}" "$@"
 `;
 
 function realAwkPath() {
-  const found = spawnSync("sh", ["-c", "command -v awk"], { encoding: "utf8" });
+  const found = spawnSync("sh", ["-c", "command -v awk"], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  });
   return (found.stdout ?? "").trim();
 }
 
@@ -413,6 +419,7 @@ test("折り返し検査が実行できなかったら素通りさせない", ()
 
     // 誤検知しないことの確認: stub 無しなら同じ検体は通る（=stub が原因だと区別できる）。
     const intact = spawnSync("bash", [script], {
+      timeout: CHILD_TIMEOUT_MS,
       env: { ...process.env, CLAUDE_PROJECT_DIR: dir },
       encoding: "utf8",
     });
@@ -420,6 +427,7 @@ test("折り返し検査が実行できなかったら素通りさせない", ()
     expect(intact.status).toBe(0);
 
     const broken = spawnSync("bash", [script], {
+      timeout: CHILD_TIMEOUT_MS,
       env: { ...process.env, CLAUDE_PROJECT_DIR: dir, PATH: `${binDir}:${process.env.PATH}` },
       encoding: "utf8",
     });
@@ -501,6 +509,7 @@ function runCheckTyped({
       writeFileSync(join(dir, ".kaizen", "archive", "INDEX.md"), "- `2026-01-01-note.md` — 学び\n");
     }
     const result = spawnSync("bash", [script], {
+      timeout: CHILD_TIMEOUT_MS,
       env: { ...process.env, CLAUDE_PROJECT_DIR: dir },
       encoding: "utf8",
     });

@@ -16,6 +16,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { findViolations, isTarget } from "./check-type-guard-brands.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const script = join(dirname(fileURLToPath(import.meta.url)), "check-type-guard-brands.ts");
 const ts = (text: string) => findViolations(text, "scripts/a.ts");
@@ -135,7 +136,7 @@ test.each([
 function makeRepo(files: Record<string, string>): string {
   const root = makeTempDir("type-guard-brands-");
   const git = (...args: string[]) => {
-    const r = spawnSync("git", args, { cwd: root, encoding: "utf8" });
+    const r = spawnSync("git", args, { timeout: CHILD_TIMEOUT_MS, cwd: root, encoding: "utf8" });
     if (r.status !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
   };
   git("init", "-q");
@@ -148,7 +149,11 @@ function makeRepo(files: Record<string, string>): string {
 }
 
 function runCli(cwd: string) {
-  const r = spawnSync(process.execPath, [script], { cwd, encoding: "utf8" });
+  const r = spawnSync(process.execPath, [script], {
+    timeout: CHILD_TIMEOUT_MS,
+    cwd,
+    encoding: "utf8",
+  });
   return { status: r.status, out: `${r.stdout}${r.stderr}` };
 }
 

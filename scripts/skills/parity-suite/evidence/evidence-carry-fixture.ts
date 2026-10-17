@@ -13,6 +13,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 import { parseJsonAs } from "../../../lib/parse-as.ts";
+import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 
@@ -100,7 +101,7 @@ export function git(repo: string, args: string[]): string {
       "commit.gpgsign=false",
       ...args,
     ],
-    { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+    { timeout: CHILD_TIMEOUT_MS, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
   ).trim();
 }
 

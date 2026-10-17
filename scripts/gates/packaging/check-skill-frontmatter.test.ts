@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { checkFrontmatter } from "./check-skill-frontmatter.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const script = join(dirname(fileURLToPath(import.meta.url)), "check-skill-frontmatter.ts");
 
@@ -150,7 +151,11 @@ function makeRepo(files: Record<string, string>) {
 }
 
 const run = (cwd: string, args: string[] = []) =>
-  spawnSync(process.execPath, [script, ...args], { cwd, encoding: "utf8", timeout: 30_000 });
+  spawnSync(process.execPath, [script, ...args], {
+    cwd,
+    encoding: "utf8",
+    timeout: CHILD_TIMEOUT_MS,
+  });
 
 test("引数なしは skills/*/SKILL.md と印のある private skill を見て、印の無いコピーは見ない", () => {
   const root = makeRepo({

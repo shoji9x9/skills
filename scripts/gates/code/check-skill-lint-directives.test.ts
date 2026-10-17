@@ -28,6 +28,7 @@ import {
 } from "./check-skill-lint-directives.ts";
 import { IS_ARRAY_HOLDERS } from "../../lib/is-array-holders.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const script = join(dirname(fileURLToPath(import.meta.url)), "check-skill-lint-directives.ts");
 
@@ -165,7 +166,7 @@ test.each([
 });
 
 function git(root: string, ...args: string[]) {
-  const res = spawnSync("git", args, { cwd: root, encoding: "utf8" });
+  const res = spawnSync("git", args, { timeout: CHILD_TIMEOUT_MS, cwd: root, encoding: "utf8" });
   if (res.status !== 0) throw new Error(`git ${args.join(" ")}: ${res.stderr}`);
 }
 
@@ -315,7 +316,11 @@ function makeCliRepo(files: Record<string, string>): string {
 test("CLI: 違反が無ければ exit 0 にする", () => {
   const root = makeCliRepo({ "skills/demo/scripts/a.mjs": "export {};\n" });
   try {
-    const res = spawnSync(process.execPath, [script], { cwd: root, encoding: "utf8" });
+    const res = spawnSync(process.execPath, [script], {
+      timeout: CHILD_TIMEOUT_MS,
+      cwd: root,
+      encoding: "utf8",
+    });
     expect(res.stderr).toBe("");
     expect(res.status).toBe(0);
   } finally {
@@ -326,7 +331,11 @@ test("CLI: 違反が無ければ exit 0 にする", () => {
 test("CLI: 未追跡のファイルの指示を検出して exit 1 にする", () => {
   const root = makeCliRepo({ "skills/demo/scripts/a.mjs": "// eslint-disable-next-line\n" });
   try {
-    const res = spawnSync(process.execPath, [script], { cwd: root, encoding: "utf8" });
+    const res = spawnSync(process.execPath, [script], {
+      timeout: CHILD_TIMEOUT_MS,
+      cwd: root,
+      encoding: "utf8",
+    });
     expect(res.status).toBe(1);
     expect(res.stderr).toContain("skills/demo/scripts/a.mjs:1: eslint-disable");
   } finally {
@@ -339,7 +348,11 @@ test("CLI: skills/ の JavaScript・TypeScript が 0 件なら exit 2 にする"
   const root = makeRepo({ [HOLDERS_REGISTRY]: "export {};\n", "skills/demo/SKILL.md": "# demo\n" });
   git(root, "add", HOLDERS_REGISTRY);
   try {
-    const res = spawnSync(process.execPath, [script], { cwd: root, encoding: "utf8" });
+    const res = spawnSync(process.execPath, [script], {
+      timeout: CHILD_TIMEOUT_MS,
+      cwd: root,
+      encoding: "utf8",
+    });
     expect(res.status).toBe(2);
     expect(res.stderr).toContain("0 件");
   } finally {
@@ -348,7 +361,10 @@ test("CLI: skills/ の JavaScript・TypeScript が 0 件なら exit 2 にする"
 });
 
 test("実リポジトリ: 違反が無い", () => {
-  const res = spawnSync(process.execPath, [script], { encoding: "utf8" });
+  const res = spawnSync(process.execPath, [script], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  });
   expect(res.stderr).toBe("");
   expect(res.status).toBe(0);
 });

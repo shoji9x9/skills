@@ -18,6 +18,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { findEscapes, isTarget } from "./check-jsdoc-types.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const script = join(dirname(fileURLToPath(import.meta.url)), "check-jsdoc-types.ts");
 const find = (text: string) => findEscapes("skills/demo/scripts/a.mjs", text);
@@ -259,7 +260,7 @@ const TSCONFIG = JSON.stringify({
 function makeRepo(files: Record<string, string>, tsconfig: string | null = TSCONFIG): string {
   const root = makeTempDir("jsdoc-types-");
   const git = (...args: string[]) => {
-    const r = spawnSync("git", args, { cwd: root, encoding: "utf8" });
+    const r = spawnSync("git", args, { timeout: CHILD_TIMEOUT_MS, cwd: root, encoding: "utf8" });
     if (r.status !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
   };
   git("init", "-q");
@@ -273,7 +274,11 @@ function makeRepo(files: Record<string, string>, tsconfig: string | null = TSCON
 }
 
 function runCli(cwd: string) {
-  const r = spawnSync(process.execPath, [script], { cwd, encoding: "utf8" });
+  const r = spawnSync(process.execPath, [script], {
+    timeout: CHILD_TIMEOUT_MS,
+    cwd,
+    encoding: "utf8",
+  });
   return { status: r.status, out: `${r.stdout}${r.stderr}` };
 }
 

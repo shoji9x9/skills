@@ -18,6 +18,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join, relative } from "node:path";
 import { spawnAsync } from "../lib/spawn-async.ts";
 import { makeSharedTempDir, makeTempDirFactory } from "../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../lib/testing/child-timeout.ts";
 
 // `check-mutation-proof.ts` は「変異が当たったこと」と「狙ったテストが落ちたこと」の両方で
 // 判定する。**当たらなかった変異を成功として扱わない**のがこのチェックの主目的なので、
@@ -234,7 +235,10 @@ async function runNode(
   args: string[],
   options: { cwd: string; env: NodeJS.ProcessEnv },
 ): Promise<NodeResult> {
-  const { pid, status, stdout, stderr, error } = await spawnAsync(process.execPath, args, options);
+  const { pid, status, stdout, stderr, error } = await spawnAsync(process.execPath, args, {
+    timeout: CHILD_TIMEOUT_MS,
+    ...options,
+  });
   if (error) throw error;
   return { pid, status, stdout, stderr, out: `${stdout}${stderr}` };
 }

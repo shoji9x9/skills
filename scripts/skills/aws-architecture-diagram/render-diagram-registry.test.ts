@@ -12,6 +12,7 @@ import { readdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const skillDir = join(repoRoot, "skills/aws-architecture-diagram");
@@ -57,6 +58,7 @@ function diagramDir(files: Record<string, string>) {
 /** レンダリングを子プロセスで実行し、終了コードと stderr まで見えるようにする。 */
 function render(dir: string) {
   const result = spawnSync(process.execPath, [renderScript], {
+    timeout: CHILD_TIMEOUT_MS,
     env: {
       ...process.env,
       DIAGRAM_DIR: dir,

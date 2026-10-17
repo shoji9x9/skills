@@ -23,6 +23,7 @@ import {
   hasComments,
 } from "./code-comments.ts";
 import { makeTempDir } from "../testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../testing/child-timeout.ts";
 
 /** Markdown の段落ごとの本文（空行で分ける）。 */
 const paragraphs = (path: string, source: string) =>
@@ -304,7 +305,10 @@ describe("シェル", () => {
 
   test("shfmt を起動できるかは、カレントディレクトリごとに確かめ直す", () => {
     // ok のあるディレクトリでだけ起動できる shim（mise の shim が mise.toml の有無で変わるのをまねる）。
-    const real = execFileSync("mise", ["which", "shfmt"], { encoding: "utf8" }).trim();
+    const real = execFileSync("mise", ["which", "shfmt"], {
+      timeout: CHILD_TIMEOUT_MS,
+      encoding: "utf8",
+    }).trim();
     const bin = makeTempDir("shfmt-cwd-shim-");
     writeFileSync(
       join(bin, "shfmt"),

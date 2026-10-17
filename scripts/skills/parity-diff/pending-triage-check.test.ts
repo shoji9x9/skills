@@ -65,6 +65,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { parseJsonAs } from "../../lib/parse-as.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 /** pending-triage-check.mjs が stdout に出す要約のうち、テストが読む欄。 */
 type TriageSummary = {
@@ -127,7 +128,7 @@ function run(input: {
   );
   const args = [script, "--registries", registries, "--metadata", metadata];
   if (input.features !== false) args.push("--features", features);
-  const result = spawnSync(process.execPath, args, { encoding: "utf8" });
+  const result = spawnSync(process.execPath, args, { timeout: CHILD_TIMEOUT_MS, encoding: "utf8" });
   return { status: result.status, stderr: result.stderr, stdout: result.stdout };
 }
 
@@ -469,7 +470,7 @@ test("slug 表の無い features.md は読めないものとして exit 2 で落
   const result = spawnSync(
     process.execPath,
     [script, "--registries", registries, "--metadata", metadata, "--features", features],
-    { encoding: "utf8" },
+    { timeout: CHILD_TIMEOUT_MS, encoding: "utf8" },
   );
   expect(result.status).toBe(2);
   expect(result.stderr).toContain("slug 列の表が無い");
@@ -676,7 +677,7 @@ function runArgs(args: string[]) {
   const r = spawnSync(process.execPath, [script, ...args], {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
-    timeout: 30_000,
+    timeout: CHILD_TIMEOUT_MS,
   });
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }

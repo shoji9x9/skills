@@ -14,6 +14,7 @@ import { delimiter, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { coverageEnv } from "../../lib/testing/coverage-env.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 // kaizen-candidate-scan.sh の終了コードの取り決め（スクリプトの冒頭）を、入力の状態ごとに確かめる。
 //   exit 0: 候補あり / exit 1: 検証したうえで候補なし / exit 2: 判定できない
@@ -39,7 +40,7 @@ function scan(args: string[], env: NodeJS.ProcessEnv = {}) {
   return spawnSync("bash", [script, ...args], {
     encoding: "utf8",
     env: { ...process.env, ...coverageEnv(), ...env },
-    timeout: 30_000,
+    timeout: CHILD_TIMEOUT_MS,
   });
 }
 
@@ -79,7 +80,7 @@ function pathWith(dir: string, overrides: Record<string, string | null>) {
 const realCommand = (name: string) =>
   spawnSync("bash", ["-c", `command -v ${name}`], {
     encoding: "utf8",
-    timeout: 30_000,
+    timeout: CHILD_TIMEOUT_MS,
   }).stdout.trim();
 
 const claudeUser = (text: string) =>

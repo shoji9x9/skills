@@ -16,6 +16,7 @@ import { invalidInput, removeField } from "../../../lib/testing/test-input.ts";
 import { isRecord } from "../../../lib/guards.ts";
 import { parseJsonAs } from "../../../lib/parse-as.ts";
 import { isArray } from "../../../lib/is-array.ts";
+import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/reaction-check.mjs");
@@ -846,11 +847,7 @@ function cli(dir: string, args: string[] = []) {
   const r = spawnSync(
     process.execPath,
     [script, "--metadata", "metadata.json", ...withTests(args)],
-    {
-      cwd: dir,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    },
+    { timeout: CHILD_TIMEOUT_MS, cwd: dir, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
   );
   return { dir, status: r.status, stdout: r.stdout, stderr: r.stderr };
 }

@@ -14,6 +14,7 @@ import {
 } from "./skill-eval-fingerprint.ts";
 import { parseJsonAs } from "../lib/parse-as.ts";
 import { makeTempDir } from "../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../lib/testing/child-timeout.ts";
 
 // CLI が stdout に出す指紋の JSON のうち、テストが読む部分。
 type FingerprintOutput = {
@@ -31,7 +32,7 @@ function runCli(script: string, args: string[]) {
   return spawnSync(process.execPath, [script, ...args], {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
-    timeout: 30_000,
+    timeout: CHILD_TIMEOUT_MS,
   });
 }
 

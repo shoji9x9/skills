@@ -34,6 +34,7 @@ import {
 } from "./check-eval-reachability.ts";
 import { parseJsonAs } from "../../lib/parse-as.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 /** evals.json の 1 件（テストが読む欄だけ）。 */
 type EvalEntry = { id: number; prompt: string; assertions?: unknown; reachability?: unknown };
@@ -314,14 +315,22 @@ test.each([
 
 test("CLI: 対象 0 件は成功として扱わず exit 1", () => {
   const root = makeTempDir("eval-reach-");
-  const r = spawnSync(process.execPath, [script], { cwd: root, encoding: "utf8" });
+  const r = spawnSync(process.execPath, [script], {
+    timeout: CHILD_TIMEOUT_MS,
+    cwd: root,
+    encoding: "utf8",
+  });
   expect(r.status).toBe(1);
   expect(r.stderr).toMatch(/evals\.json が 0 件/);
   rmSync(root, { recursive: true, force: true });
 });
 
 test("CLI: 実リポジトリの全走査は exit 0 で件数を出す", () => {
-  const r = spawnSync(process.execPath, [script], { cwd: repoRoot, encoding: "utf8" });
+  const r = spawnSync(process.execPath, [script], {
+    timeout: CHILD_TIMEOUT_MS,
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
   expect(r.status).toBe(0);
   expect(r.stdout).toMatch(/eval-reachability: OK（\d+ ファイル・\d+ eval）/);
 });

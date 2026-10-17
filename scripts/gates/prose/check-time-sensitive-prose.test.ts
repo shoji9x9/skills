@@ -33,6 +33,7 @@ import {
 } from "./check-time-sensitive-prose.ts";
 import { KNOWN_RULES, PENDING_PATH } from "../../lib/doc-scan.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 // 学びのパスは組み立てて書く（そのまま書くと check-kaizen-refs.ts が実在しない学びへの参照として数える）。
 const KZ = ".kaizen/";
@@ -58,7 +59,11 @@ function makeGitRepo(files: Record<string, string>, { pending }: { pending?: obj
     ...files,
   });
   if (pending) writeFileSync(join(root, PENDING_PATH), JSON.stringify(pending));
-  const r = spawnSync("git", ["init", "-q"], { cwd: root, encoding: "utf8" });
+  const r = spawnSync("git", ["init", "-q"], {
+    timeout: CHILD_TIMEOUT_MS,
+    cwd: root,
+    encoding: "utf8",
+  });
   if (r.status !== 0) throw new Error(r.stderr);
   return root;
 }
@@ -237,6 +242,7 @@ test("対象ファイル 0 件は成功として扱わず exit 1", () => {
 
 test("検出の確認（CLI）: 子プロセスとして起動しても、件数の記述は exit 1、無ければ exit 0", () => {
   const good = spawnSync(process.execPath, [script, makeGitRepo({ "AGENTS.md": "本文\n" })], {
+    timeout: CHILD_TIMEOUT_MS,
     encoding: "utf8",
   });
   expect(good.status, good.stderr).toBe(0);
@@ -244,6 +250,7 @@ test("検出の確認（CLI）: 子プロセスとして起動しても、件数
     /time-sensitive-prose: OK（ミューテーションテストの件数 1 件、時間の語と日付 2 件。保留 0 件）/,
   );
   const bad = spawnSync(process.execPath, [script, makeGitRepo({ "docs/a.md": "376 変異\n" })], {
+    timeout: CHILD_TIMEOUT_MS,
     encoding: "utf8",
   });
   expect(bad.status).toBe(1);

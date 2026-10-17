@@ -23,6 +23,7 @@ import {
   UndecidableSelector,
 } from "../../../skills/parity-component/scripts/cascade-resolve.mjs";
 import type { CascadeResult } from "../../../skills/parity-component/scripts/cascade-resolve.mjs";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "skills/parity-component/scripts/cascade-resolve.mjs");
@@ -388,7 +389,7 @@ test("--property は CSS カスタムプロパティも受け取る", () => {
   const out = spawnSync(
     process.execPath,
     [script, "--css-rules", path, "--state", "default", "--property", "--brand"],
-    { encoding: "utf8" },
+    { timeout: CHILD_TIMEOUT_MS, encoding: "utf8" },
   );
   expect(out.status, out.stderr).toBe(0);
   expect(parseJsonAs<CliReport>(out.stdout).results[0].winner.value).toBe("red");
@@ -397,7 +398,7 @@ test("--property は CSS カスタムプロパティも受け取る", () => {
   const swallowed = spawnSync(
     process.execPath,
     [script, "--css-rules", path, "--state", "default", "--property", "--all"],
-    { encoding: "utf8" },
+    { timeout: CHILD_TIMEOUT_MS, encoding: "utf8" },
   );
   expect(swallowed.status).toBe(2);
   expect(swallowed.stderr).toMatch(/--property requires a value/);
@@ -467,7 +468,10 @@ function runCli(args: string[], files: Record<string, unknown> = {}) {
     writeFileSync(paths[name], JSON.stringify(content));
   }
   const resolved = args.map((a) => (paths[a] === undefined ? a : paths[a]));
-  return spawnSync(process.execPath, [script, ...resolved], { encoding: "utf8" });
+  return spawnSync(process.execPath, [script, ...resolved], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  });
 }
 
 test("CLI: --state を省くと exit 2（採取した状態を推測しない）", () => {
