@@ -15,14 +15,14 @@
 // sameSkillFrontmatter(fmA, fmB) → boolean
 //   - 2 つの frontmatter を YAML として読み、キーの順と `metadata.local-path`（gh skill install が足す）を除いて同じかを返す。
 //     null の metadata（`metadata: ~`）も、metadata が無いものとして比べる。
-//     負のゼロ（`-0`・`-0.0`）は、最上位でもマッピングと配列の中でも 0 として比べる。自分自身を参照するエイリアスがあっても、正規化は止まる。
+//     負のゼロ（`-0`・`-0.0`）は、最上位でもマッピングと配列の中でも 0 として比べる。自分自身を参照するエイリアスがあっても、値をたどる処理は終わる。
 //   - 値は isDeepStrictEqual で比べる。JSON の文字列にして比べると、`!!set` の Set は中身に関わらず同じ `{}` になり、
 //     タイムスタンプの Date は同じ ISO の文字列を書いた値と区別できない。
 //   - 読めなければ例外にする（どちらのファイルかは、呼び出し側が normalizeSkillFrontmatter で先に確かめる）。
 import { isDeepStrictEqual } from "node:util";
 import { isPlainObject } from "../guards.ts";
 import { isArray } from "../is-array.ts";
-import { loadYamlAs } from "./yaml-as.ts";
+import { loadYaml } from "./yaml-as.ts";
 
 export function splitFrontmatter(content: string): { fm: string; body: string } | null {
   // 先頭 BOM を除去してから照合する（BOM 付きでも無しでも同一結果にする）。
@@ -35,7 +35,8 @@ export function splitFrontmatter(content: string): { fm: string; body: string } 
 /**
  * 負のゼロを 0 にして返す。マッピングと配列は、中の負のゼロをその場で 0 に書き換えて、同じ値を返す。Set・Date などの中は見ない。
  * その場で書き換えるので、ほかの処理と共有していない値（normalizeSkillFrontmatter が読んだばかりの値）だけに使う。
- * 最上位のスカラーは書き換える場所が無いので、0 にした値を返す。
+ * 引数が負のゼロなら 0 を返す。マッピングと配列の中の負のゼロは、親のマッピングや配列に戻り値を書き戻して 0 にする。
+ * 書き戻しは、値が変わらない要素にも行う。js-yaml が返すマッピングと配列は凍結されておらず、getter も持たないので、同じ値を書いても何も変わらない。
  * エイリアスは値を共有し、自分自身を参照することもある（`a: &a [*a]`）ので、訪れた値を覚えて 1 回だけたどる。
  */
 function zeroNegativeZeros(value: unknown, seen = new WeakSet<object>()): unknown {
@@ -44,8 +45,7 @@ function zeroNegativeZeros(value: unknown, seen = new WeakSet<object>()): unknow
   if (seen.has(value)) return value;
   seen.add(value);
   for (const [key, item] of Object.entries(value)) {
-    const next = zeroNegativeZeros(item, seen);
-    if (!Object.is(next, item)) Reflect.set(value, key, next);
+    Reflect.set(value, key, zeroNegativeZeros(item, seen));
   }
   return value;
 }
@@ -58,10 +58,10 @@ function zeroNegativeZeros(value: unknown, seen = new WeakSet<object>()): unknow
  * metadata は浅くコピーしてから `local-path` を消す。`metadata: *b` のようにエイリアスで書かれていると、その場で消すとアンカー側の値からも消えるからである。
  * js-yaml 5 は `-0`（整数）と `-0.0`（浮動小数点数）を負のゼロとして読み（4 は `-0` を +0）、isDeepStrictEqual は 0 と区別する。
  * 負のゼロと 0 は、書き方が違うだけで同じ内容として扱うので、どちらも 0 にそろえてから比べる（#651）。
- * 空の入力（`"\t\n"`・`"...\n"`）は、loadYamlAs が undefined を返す（js-yaml 4 は null を返した）。どちらも `?? {}` で空の frontmatter として扱う。
+ * 空の入力（`"\t\n"`・`"...\n"`）は、loadYaml が undefined を返す（js-yaml 4 は null を返した）。どちらも `?? {}` で空の frontmatter として扱う。
  */
 export function normalizeSkillFrontmatter(fmText: string): unknown {
-  const loaded = loadYamlAs<unknown>(fmText) ?? {};
+  const loaded = loadYaml(fmText) ?? {};
   const obj = zeroNegativeZeros(loaded);
   if (isPlainObject(obj) && obj.metadata === null) delete obj.metadata;
   if (isPlainObject(obj) && isPlainObject(obj.metadata)) {

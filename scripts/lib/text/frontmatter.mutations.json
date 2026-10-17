@@ -140,8 +140,8 @@
       "id": "SS-NEGATIVE-ZERO-NOT-STORED",
       "why": "入れ子の負のゼロを 0 にした結果を書き戻さない（マッピングと配列の中の -0 と 0 を違うと報告する）",
       "file": "scripts/lib/text/frontmatter.ts",
-      "find": "if (!Object.is(next, item)) Reflect.set(value, key, next);",
-      "replace": "void next;",
+      "find": "Reflect.set(value, key, zeroNegativeZeros(item, seen));",
+      "replace": "zeroNegativeZeros(item, seen);",
       "occurrences": 1,
       "expect_failing": [
         "同じとみなす: 数値の -0 と 0",
