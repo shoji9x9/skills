@@ -1163,7 +1163,7 @@ function aftermathReturnsProblems(ret, screenStates) {
   }
   const probed = ret.probed;
   const reset = ret.reset;
-  /** @param {unknown} v @returns {v is (string & { readonly __stringsOk: true })[]} */
+  /** @param {unknown} v @returns {v is string[] & { readonly __stringsOk: true }} */
   const stringsOk = (v) => isArray(v) && v.every(filled) && new Set(v).size === v.length;
   if (!stringsOk(probed) || !stringsOk(reset)) {
     out.push({

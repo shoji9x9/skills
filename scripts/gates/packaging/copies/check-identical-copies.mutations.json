@@ -74,8 +74,8 @@
       "id": "IC-FILES-EMPTY",
       "why": "空文字のパスを受理する",
       "file": "scripts/gates/packaging/copies/check-identical-copies.ts",
-      "find": "!files.every((f): f is string => typeof f === \"string\" && f !== \"\")",
-      "replace": "!files.every((f): f is string => typeof f === \"string\")",
+      "find": "files.includes(\"\")",
+      "replace": "false",
       "occurrences": 1,
       "expect_failing": [
         "陽性: 宣言が読めない（files に空文字）なら exit 2（組 0 件＝違反なしとして扱わない）"

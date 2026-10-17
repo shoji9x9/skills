@@ -50,7 +50,8 @@ export function loadGroups(root: string): CopyGroup[] {
     if (
       !isArray(files) ||
       files.length < 2 ||
-      !files.every((f): f is string => typeof f === "string" && f !== "")
+      !files.every((f): f is string => typeof f === "string") ||
+      files.includes("")
     ) {
       throw new Error(`groups[${i}].files は 2 件以上の空でない文字列の配列にする`);
     }

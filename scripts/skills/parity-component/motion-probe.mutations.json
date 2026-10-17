@@ -94,7 +94,7 @@
       "id": "abort-before-trigger",
       "why": "最初の採取の失敗を返さず、操作（クリック・送信）を起こしてから失敗を報告する",
       "file": "skills/parity-component/scripts/motion-probe.mjs",
-      "find": "if (state.error) return { ok: false, error: state.error };",
+      "find": "if (typeof state.error === \"string\") return { ok: false, error: state.error };",
       "replace": "if (false) return { ok: false, error: state.error };",
       "occurrences": 1,
       "expect_failing": [

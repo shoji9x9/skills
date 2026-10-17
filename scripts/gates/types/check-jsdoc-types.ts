@@ -15,7 +15,7 @@ import { existsSync, realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
-import { listFiles, repoRoot } from "./check-js-extensions.ts";
+import { listFiles, repoRoot } from "../code/check-js-extensions.ts";
 import { errorMessage } from "../../lib/errors.ts";
 
 const TARGET_RE = /^skills\/[^/]+\/.*\.mjs$/;

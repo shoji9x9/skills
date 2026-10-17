@@ -79,7 +79,9 @@ jobs:
       - name: Lint directives in distributed skills (no oxlint-disable etc.)
         run: node scripts/gates/code/check-skill-lint-directives.ts
       - name: JSDoc types in distributed .mjs (no casts, any, @ts-ignore)
-        run: node scripts/gates/code/check-jsdoc-types.ts
+        run: node scripts/gates/types/check-jsdoc-types.ts
+      - name: Type guards narrow to brand types when they reject values of the target type
+        run: node scripts/gates/types/check-type-guard-brands.ts
       - name: Rule symlinks (.agents/rules vs .claude/rules / .github/instructions)
         run: node scripts/gates/packaging/copies/check-rule-symlinks.ts
       - name: Control characters in tracked text files

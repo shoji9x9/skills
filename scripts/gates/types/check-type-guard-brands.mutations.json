@@ -1,0 +1,125 @@
+{
+  "$comment": [
+    "check-type-guard-brands.test.ts の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/gates/types/check-type-guard-brands.test.ts",
+  "mutations": [
+    {
+      "id": "NO-DETECT",
+      "why": "判定が型と一致しない本体を検出しない",
+      "file": "scripts/gates/types/check-type-guard-brands.ts",
+      "find": "if (body === null || !isExactCheck(body, pred.parameterName.text)) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "ブランド型でない型ガードの余分な条件を検出する（TypeScript）: 空文字を除く string",
+        "ブランド型でない型ガードの余分な条件を検出する（TypeScript）: trim する string",
+        "ブランド型でない型ガードの余分な条件を検出する（TypeScript）: 有限の number",
+        "ブランド型でない型ガードの余分な条件を検出する（TypeScript）: string | null に絞る",
+        "ブランド型でない型ガードの余分な条件を検出する（TypeScript）: 空でない string[]",
+        "ブランド型でない型ガードの余分な条件を検出する（TypeScript）: 他の関数を呼ぶ",
+        "ブランド型でない型ガードの余分な条件を検出する（TypeScript）: 2 文以上のブロック",
+        "ブランド型でない型ガードの余分な条件を検出する（TypeScript）: every のコールバック",
+        "ブランド型でない型ガードの余分な条件を検出する（JSDoc）: @returns",
+        "ブランド型でない型ガードの余分な条件を検出する（JSDoc）: 変数の @type",
+        "行番号と名前を報告する",
+        "CLI: 違反をパスと行番号の付いた一覧で報告して exit 1"
+      ]
+    },
+    {
+      "id": "AND-AS-OR",
+      "why": "&& の片側だけが型と一致すれば、本体全体を型と一致するものとして扱う（余分な条件を見逃す）",
+      "file": "scripts/gates/types/check-type-guard-brands.ts",
+      "find": "return isExactCheck(e.left, name) && isExactCheck(e.right, name);",
+      "replace": "return isExactCheck(e.left, name) || isExactCheck(e.right, name);",
+      "occurrences": 1,
+      "expect_failing": [
+        "ブランド型でない型ガードの余分な条件を検出する（TypeScript）: 空文字を除く string",
+        "ブランド型でない型ガードの余分な条件を検出する（TypeScript）: trim する string",
+        "ブランド型でない型ガードの余分な条件を検出する（TypeScript）: 有限の number",
+        "ブランド型でない型ガードの余分な条件を検出する（TypeScript）: string | null に絞る",
+        "ブランド型でない型ガードの余分な条件を検出する（TypeScript）: 空でない string[]",
+        "ブランド型でない型ガードの余分な条件を検出する（TypeScript）: every のコールバック",
+        "ブランド型でない型ガードの余分な条件を検出する（JSDoc）: @returns",
+        "ブランド型でない型ガードの余分な条件を検出する（JSDoc）: 変数の @type",
+        "行番号と名前を報告する",
+        "CLI: 違反をパスと行番号の付いた一覧で報告して exit 1"
+      ]
+    },
+    {
+      "id": "ANY-TARGET",
+      "why": "絞る型を問わず検査する（ブランド型とオブジェクトの型の型ガードを誤検知する）",
+      "file": "scripts/gates/types/check-type-guard-brands.ts",
+      "find": "        isPrimitiveTarget(pred.type) &&\n",
+      "replace": "        true &&\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "判定が型と一致するものと対象外のものは検出しない（TypeScript）: ブランド型",
+        "判定が型と一致するものと対象外のものは検出しない（TypeScript）: 配列のブランド型",
+        "判定が型と一致するものと対象外のものは検出しない（TypeScript）: オブジェクトの型（対象外）",
+        "判定が型と一致するものは検出しない（JSDoc）: @returns のブランド型"
+      ]
+    },
+    {
+      "id": "ASSERTS-CHECKED",
+      "why": "false の側が無い asserts も検査する",
+      "file": "scripts/gates/types/check-type-guard-brands.ts",
+      "find": "        pred.assertsModifier === undefined &&\n",
+      "replace": "        true &&\n",
+      "occurrences": 1,
+      "expect_failing": ["判定が型と一致するものと対象外のものは検出しない（TypeScript）: asserts"]
+    },
+    {
+      "id": "FILTER-CHECKED",
+      "why": "false の側が無い filter のコールバックも検査する",
+      "file": "scripts/gates/types/check-type-guard-brands.ts",
+      "find": "        !isNoFalseSideCallback(node)\n",
+      "replace": "        true\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "判定が型と一致するものと対象外のものは検出しない（TypeScript）: filter のコールバック"
+      ]
+    },
+    {
+      "id": "NO-JSDOC-RETURNS",
+      "why": "JSDoc の @returns の型述語を読まない",
+      "file": "scripts/gates/types/check-type-guard-brands.ts",
+      "find": "if (tag?.typeExpression && ts.isTypePredicateNode(tag.typeExpression.type)) {",
+      "replace": "if (false && tag?.typeExpression && ts.isTypePredicateNode(tag.typeExpression.type)) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "ブランド型でない型ガードの余分な条件を検出する（JSDoc）: @returns",
+        "CLI: 違反をパスと行番号の付いた一覧で報告して exit 1"
+      ]
+    },
+    {
+      "id": "NO-JSDOC-TYPE",
+      "why": "変数の JSDoc の @type の型述語を読まない",
+      "file": "scripts/gates/types/check-type-guard-brands.ts",
+      "find": "if (t && ts.isFunctionTypeNode(t) && ts.isTypePredicateNode(t.type)) return t.type;",
+      "replace": "if (false && t && ts.isFunctionTypeNode(t) && ts.isTypePredicateNode(t.type)) return t.type;",
+      "occurrences": 1,
+      "expect_failing": ["ブランド型でない型ガードの余分な条件を検出する（JSDoc）: 変数の @type"]
+    },
+    {
+      "id": "COPIES-TARGETED",
+      "why": "private skill でない .agents/skills のコピーも対象にする",
+      "file": "scripts/gates/types/check-type-guard-brands.ts",
+      "find": "return m !== null && privateSkills.has(m[1]);",
+      "replace": "return m !== null;",
+      "occurrences": 1,
+      "expect_failing": ["対象のファイル: 配布スキルのコピー"]
+    },
+    {
+      "id": "ZERO-TARGETS-PASS",
+      "why": "対象のファイルが 0 件でも合格にする",
+      "file": "scripts/gates/types/check-type-guard-brands.ts",
+      "find": "if (targets.length === 0) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["CLI: 対象のファイルが 0 件なら判定できないので exit 2"]
+    }
+  ]
+}
