@@ -73,6 +73,12 @@ Hook の条件は、`;`・`&&` と `node` や `bash` の起動の組まで広げ
 python の heredoc の 1 回は、本文の文字列に `git` の語があっただけで、git を実行しない置換だった。
 どれも Write ツールでスクリプトにして、絶対パスで実行する形に直して通した。この学びが注入されていて、前の日に同じ形で拒否されたことも文脈にあるのに、同じセッションの中で再び起きた。
 
+2026-10-17、#576 の作業（issue-start から git-worktree enter）で、worktree に入った後の Bash の呼び出しが 2 回拒否された（`names git in a form too complex to verify`）。
+1 回目は、`git fetch` と `$(git rev-list ...)` と `git log` を `&&` でつなぎ、続けて `grep`・`pnpm audit --help` を `;` でつないだ処理である。
+2 回目は、`node scripts/gates/...` の検査 2 つと `git status --short` を `;` でつないだ処理である。
+どちらも git の操作を単独の呼び出しに分けて通した。
+この学びはセッション開始時に注入されていたが、worktree に入った後の最初の git を含む複合コマンドで同じ形を書いた。5 つ目のセッションでの再発である。
+
 ## 根本原因
 
 1. なぜ拒否されたか → 隔離セッションのガードは字面で判定し、本文・引数・パスに `git` を含む複合コマンドや heredoc を拒否する。
