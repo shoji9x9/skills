@@ -86,7 +86,7 @@ skills:
   common:
     # 導入先に実在する規約ドキュメントを指定（例: AGENTS.md / CLAUDE.md / CONTRIBUTING.md）
     conventions_doc: AGENTS.md
-    review_tool: copilot # 再レビュー依頼先。copilot | claude-code | codex | none
+    review_tool: copilot # 再レビュー依頼先。copilot | claude-code | codex | local | none
   dependabot-merge:
     merge_method: squash # squash | merge | rebase
   issue-batch:
@@ -119,8 +119,9 @@ skills:
 
 - `skills.common.conventions_doc`: ブランチ運用と commit の規約を書いた、インストール先に実在するドキュメント。上の `AGENTS.md` は例なので、そのままコピーしない。
   未設定なら、スキルはよく使われるドキュメント（`AGENTS.md`・`CLAUDE.md`・`.github/copilot-instructions.md`・`CONTRIBUTING.md` など）を探し、見つからなければユーザーに確認する。
-- `skills.common.review_tool`: pr-review-handle / pr-finalize-loop が再レビューを依頼する AI レビュアー。`copilot`（デフォルト）・`claude-code`・`codex`・`none` のどれかを書く。
-  `copilot` には `requested_reviewers` API で、`claude-code` と `codex` には PR のトップレベルのコメントでの mention（`@claude review`・`@codex review`）で依頼する。`none` なら再レビューを依頼しない。未設定なら `copilot` を使う。
+- `skills.common.review_tool`: pr-review-handle / pr-finalize-loop が再レビューを依頼する AI レビュアー。`copilot`（デフォルト）・`claude-code`・`codex`・`local`・`none` のどれかを書く。
+  `copilot` には `requested_reviewers` API で、`claude-code` と `codex` には PR のトップレベルのコメントでの mention（`@claude review`・`@codex review`）で依頼する。`local` なら依頼せず、エージェント自身が手元でレビューし、レビューした HEAD の SHA と指摘の件数を PR のコメントに記録する。
+  `none` なら再レビューを依頼しない。未設定なら `copilot` を使う。
   このリポジトリで一時的に個人の設定を変えるときは、Git で管理しない `.env.local` に `SKILLS_REVIEW_TOOL=codex` のように書く。
   ルートの `mise.toml` がこのファイルを読み込み、環境変数は共通の設定ファイルより優先される。
   ルートの mise の設定はインストール先に配布されないので、インストール先では `export SKILLS_REVIEW_TOOL=codex` を実行するか、そのプロジェクトの環境変数の管理の仕組みで設定する。

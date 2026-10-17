@@ -1,6 +1,6 @@
 ---
 name: pr-finalize-loop
-description: 作成済み GitHub PR の CI エラー解消とレビュー指摘対応を、CI が成功しレビュー指摘が尽きるまで自律ループで回すスキル。PR URL を受け取り、CI 失敗の修正・レビュースレッドの返信/解決・commit/push・設定したレビューツール（Copilot/Claude Code/Codex/none）への再レビュー依頼を反復する。自分の PR でなければ着手前に確認する。ループ中はユーザー確認を挟まず自律動作するが、人間判断を要する指摘だけは確認し、反映後にループへ戻る（`--defer-decisions` では確認せず判断待ちとして残す）。`--max-iterations`（既定 5）で無限ループを防ぐ。レビュー対応単体は姉妹スキル pr-review-handle が担う。「PR を最後まで解決して」「CI とレビュー指摘がなくなるまで回して」「PR の CI とレビューを収束させて」「pr-finalize-loop」で必ず発動する。
+description: 作成済み GitHub PR の CI エラー解消とレビュー指摘対応を、CI が成功しレビュー指摘が尽きるまで自律ループで回すスキル。PR URL を受け取り、CI 失敗の修正・レビュースレッドの返信/解決・commit/push・設定したレビューツール（Copilot/Claude Code/Codex/手元のレビュー/none）への再レビュー依頼を反復する。自分の PR でなければ着手前に確認する。ループ中はユーザー確認を挟まず自律動作するが、人間判断を要する指摘だけは確認し、反映後にループへ戻る（`--defer-decisions` では確認せず判断待ちとして残す）。`--max-iterations`（既定 5）で無限ループを防ぐ。レビュー対応単体は姉妹スキル pr-review-handle が担う。「PR を最後まで解決して」「CI とレビュー指摘がなくなるまで回して」「PR の CI とレビューを収束させて」「pr-finalize-loop」で必ず発動する。
 argument-hint: "<PR URL> [--max-iterations <N>] [--wait-ci-before-review] [--review-tool <tool>] [--defer-decisions]"
 license: MIT
 ---
@@ -33,7 +33,7 @@ pr-finalize-loop <PR URL> [--max-iterations <N>] [--wait-ci-before-review] [--re
   デフォルト（オフ）では、push の直後に CI の完了を待たずに依頼し、CI とレビューを並行して進める。収束が速くなる。
   レビューが進行中なら（設定したツールの自動レビューでも、別のエージェントのレビューでも）依頼を保留する。
   失敗している HEAD にレビューを始めさせたくないときだけ指定する。
-- `--review-tool <tool>`（任意）: この実行だけ、`copilot`・`claude-code`・`codex`・`none` のどれかを使う。共有の設定を変えずに、クレジットの状況などに一時的に対応できる。
+- `--review-tool <tool>`（任意）: この実行だけ、`copilot`・`claude-code`・`codex`・`local`・`none` のどれかを使う。共有の設定を変えずに、クレジットの状況などに一時的に対応できる。
 - `--defer-decisions`（任意。デフォルトはオフ）: 人の判断が要る指摘を利用者に確認せず、判断待ちとして残す。利用者が不在の自律実行の呼び出し元（`issue-batch` の run など）が付ける。
   付けたときの扱いは「自律性ポリシー」で定義する。単独で使うときは付けず、従来どおり確認する。
 - ループの間は、利用者に確認せずに自律して進める。
@@ -64,7 +64,9 @@ push の後などに再レビューを依頼する AI レビュアーは、CLI �
 依頼先は同梱のスクリプト `scripts/resolve-review-tool.sh` で決め、値と、それがどの層（cli・env・config・default）から来たかを報告してから使う。
 決める順序を推測すると層を取り違え、設定してある値を「未設定」と判定して、別のツールに依頼してしまう。手順は [`references/review-tool.md`](references/review-tool.md) にある。
 
-値は `copilot`・`claude-code`・`codex`・`none` のどれかである。
+値は `copilot`・`claude-code`・`codex`・`local`・`none` のどれかである。
+`local` のときは、依頼する代わりにエージェント自身が手元で HEAD をレビューし、レビューした HEAD の SHA と指摘の件数を、同梱のスクリプト `scripts/local-review-record.sh` で PR に記録する。
+「HEAD がレビュー済み」は、その記録の SHA が HEAD と一致するかで判定する。手順は [`references/review-tool.md`](references/review-tool.md) の「local」にある。
 `none` のときは再レビューを一切依頼せず、収束と完了の判定から「HEAD がレビュー済み」の条件を外す。CI がすべて成功し、未解決のスレッドが無く、スレッドの外の指摘にも対応していれば完了とする。
 この先の本文で「レビューの依頼」と書くときは、設定した `review_tool` への依頼を指す。
 
@@ -118,7 +120,7 @@ push の後などに再レビューを依頼する AI レビュアーは、CLI �
    - 現在の HEAD がレビュー済みかを判定する（後述の「HEAD のレビュー済み判定」）。
      根拠に使うのは、レビュー、現在の HEAD のレビュー用の check-run、現在の HEAD の完全な commit の OID を書いたレビューの bot のコメントである。
    - レビューが進行中かを確かめる。現在の HEAD に進行中のレビュー（PR の作成時や push のときの自動レビューを含む）や、進行中のレビューのエージェントが無いかを見る。
-     方法は後述の「レビュー進行中の検出」にあり、`review_tool` によって変わる。`none` は再依頼しないので、この保留そのものが要らない。
+     方法は後述の「レビュー進行中の検出」にあり、`review_tool` によって変わる。`none` は再依頼しないので、この保留そのものが要らない。`local` は自分のレビューの完了を待たないが、別のエージェントの進行中のレビューは確かめる。
      進行中なら依頼せず、上限を決めて結果を待ち、届いた分を反映してから判定する。
    - レビューの内容と突き合わせる。HEAD への作成者以外のレビューがコメントを作っているのに、reviewThreads から取得できなければ、反映が遅れているとみなし、間隔を空けて再取得する（後述の「レビュー内容との整合検証」）。
    - スレッドの外の指摘を取得する。指摘はスレッドだけでなく、レビューの本文と PR のトップレベルのコメントにも書かれる（後述の「スレッド外に置かれた指摘（レビュー本文・トップレベルコメント）」）。
@@ -138,6 +140,7 @@ push の後などに再レビューを依頼する AI レビュアーは、CLI �
      手順 2 は手順 4 より前に判定するので、判定の材料は「この反復でこれから行う対応」ではなく、「直近の対応より後のレビューがあるか」にする。
      前者にすると、前の反復の対応を拾えず、対応した反復の次で収束したと判定してしまう。
      満たさなければ手順 6 で再レビューを依頼し、新しいレビューの結果が届くか、上限まで待ち終えるまで、収束したと判定しない。
+     この時刻の条件は、`review_tool: local` には当てない。`local` では、記録の SHA が HEAD と一致すれば満たす。返信と解決をしたエージェント自身がレビューするからである（[`references/review-tool.md`](references/review-tool.md) の「local」）。
    - CI がすべて成功して未解決のスレッドも無いのに、HEAD がレビューされていないときだけ（`review_tool: none` を除く）、レビューを依頼する。
      後述の「レビュー進行中の検出」を通ってから、設定したレビューツールに依頼し、上限を決めて待つ（後述の「再レビュー依頼」）。
      レビューが付けば、次の反復で拾う。
@@ -146,6 +149,7 @@ push の後などに再レビューを依頼する AI レビュアーは、CLI �
 3. CI の失敗を直す。失敗したチェックのログを取得し（後述）、原因をコードの事実と照らして分析して直す。
    直せないとき、または同じ失敗が前の反復から良くならないときは、「行き詰まり」として扱う（後述の「停止条件」）。
 4. レビューの指摘を 1 件ずつ解消する。スレッド、レビューの本文、トップレベルのコメントの 3 つをすべて対象にする。
+   `review_tool: local` で `check` が `status=open` を返したら、その記録（出力の `record`）の本文に書いた、直すと決めた指摘も対象にする。この記録は、スレッドの外の指摘を集める処理が読まないので、ここで読む。
    1. 該当する `path` の `line` の付近を読み、指摘がコードの事実と合うかを評価する。
    2. 妥当で直す必要があれば、対象のファイルを直す。直さないなら、その根拠を用意する（例: 別の仕組みですでに対処している、指摘が事実と違う、設計の判断として意図している）。
    3. スレッドに返信してから解決する。この順序を必ず守り、返信していないスレッドは解決しない。
@@ -168,6 +172,11 @@ push の後などに再レビューを依頼する AI レビュアーは、CLI �
      行っていれば、リモートの HEAD は変わらず、CI も新しく実行されないので、`--wait-ci-before-review` は関係しない。判断待ちの印だけを残した反復は、行ったものに数えない（「自律性ポリシー」）。
      「レビュー進行中の検出」を通ってから、今の HEAD を対象に依頼する。
      基準の時刻には push が終わった時刻が無いので、HEAD の commit の `committedDate` ではなく、この反復で最後に投稿した返信やコメントの `createdAt` を下限に使う。それより前のレビューは対応を見ていない。
+
+   `review_tool: local` では、push した反復でだけ、新しい HEAD を手元でレビューして記録する（[`references/review-tool.md`](references/review-tool.md) の「local」）。
+   push しなかった反復では、HEAD の記録があれば（`check` が exit 0）、SHA が変わらず前の記録が有効なので、何もしない。
+   記録が無ければ（ループを始めた最初の反復で、人のレビューのスレッドに返信しただけのときなど）、今の HEAD を手元でレビューして記録する。
+   `check` が `status=open` を返したら（今の HEAD の記録に未対応の指摘が残っている）、レビューし直さない。扱いは「HEAD のレビュー済み判定」の `local` の項にある。
 
    リポジトリに別のレビューの bot（CI から起動される auto-review など）があるというだけで、それをレビューツールへの依頼の代わりとみなして依頼を省かない。
    進行中のときに保留して判定し直すのは、検出の手順に従う。保留は省略ではない。HEAD がレビュー済みなら依頼しないのは、収束の判定のとおりである。
@@ -388,6 +397,14 @@ query($endCursor: String) {
   ```
 
   API の形は [GitHub の check runs REST API](https://docs.github.com/en/rest/checks/runs) を、Claude Code Review の指摘が 0 件のときの出力は [Claude Code Review 公式ドキュメント](https://code.claude.com/docs/en/code-review) を参照する。
+- `review_tool` が `local` のときは、上の根拠の代わりに、同梱の `scripts/local-review-record.sh check --pr <PR URL>` で判定する。
+  exit 0 で、出力の `head` が `headRefOid` と一致するときだけレビュー済みとする。exit 2 は判定できないので、間隔を空けて数回取得し直す。
+  それでも exit 2 なら、レビュー済みとも未レビューとも扱わずに「行き詰まり」として止まり、`check` の stderr を報告に書く。権限の不足のような続く失敗で、ループが終わらなくなるのを防ぐ。
+  exit 1 でも `status=open` なら、今の HEAD はレビューしてあり、未対応の指摘が残っている。レビューを依頼し直さない。
+  未対応に直すと決めた指摘があれば、収束とは判定せず、手順 4 でその指摘を直し、手順 5 で push する。
+  未対応が判断待ちだけなら、HEAD はレビュー済みとして扱い、ほかの判断待ちと同じ扱いにする（`--defer-decisions` では「判断待ちで終了」、付けないときは利用者に確かめる）。
+  直すと決めた指摘が残っているか、判断待ちだけかは、記録の本文に書いた対応で見分ける。
+  記録は PR の作成者か担当者が投稿するので、作成者を除く上の規則は、この記録には当てない（[`references/review-tool.md`](references/review-tool.md) の「local」）。
 - 上の根拠がどれも無ければ、最新の HEAD はレビューされていない。
   レビュー済みと判定した後も、レビューの本文・トップレベルのコメント・check-run の出力に、対応していない指摘や失敗が無いかを、この後の収集と突き合わせで確かめる。「届いた」と「指摘が無い」を同じものとして扱わない。
 - 収束の判定では、この「HEAD がレビュー済み」を条件に入れる（`review_tool: none` を除く）。すでにレビュー済みならレビューを依頼しない。完了した PR に余計なレビューを起こさないためである。
@@ -437,6 +454,10 @@ gh api repos/<owner>/<repo>/issues/comments/<comment-id> \
 - トップレベルのコメントも、反復ごとに、索引で新しいものと更新されたものを見つけて読む。
   特に `review_tool` が mention で依頼する方法（`claude-code`・`codex`）のときは、レビュアーが総評と指摘をここに置くものとして扱う。`reviews[].body` が空でも指摘はある。
   対象は、自分（PR の作成者。このスキルが書いた依頼のコメントや対応の記録を含む）以外の投稿すべてである。
+  ただし、`review_tool: local` の記録のうち、PR の作成者か担当者が投稿したもの（本文が `<!-- pr-finalize-loop:local-review` で始まるコメント）は除く。
+  記録は担当者が投稿することもあり、作成者を除くだけでは除けない。
+  それ以外の人が投稿した、目印で始まるコメントは除かず、ほかのコメントと同じように指摘を集める。
+  記録の本文の指摘は、記録の `open` で追う（[`references/review-tool.md`](references/review-tool.md) の「local」）。
   `select(.user.type=="Bot")` で bot に絞らない。人のレビュアーが総評をトップレベルに置くこともあるので、絞ると取りこぼす。
   `.user.type` は bot か人かを区別するためだけに使い、集める対象の絞り込みには使わない。
 - 切り詰めずに読む。「レビュー進行中の検出」の補助のシグナルは同じ API を `body: .body[:200]` で取得するが、それは進行中か完了かの判定のためである。
@@ -538,7 +559,7 @@ gh api repos/<owner>/<repo>/issues/comments/<comment-id> \
 
   ```bash
   # review_tool: copilot のときは Copilot 自身のチェックを別エージェント判定から除外する。
-  # copilot 以外（claude-code / codex / none）のときは末尾の `and .name!=...` を外し、除外しない。
+  # copilot 以外（claude-code / codex / local / none）のときは末尾の `and .name!=...` を外し、除外しない。
   gh pr checks <番号> --repo <owner>/<repo> --json name,bucket,workflow \
     --jq '.[] | select(.bucket=="pending" and .name!="copilot-pull-request-reviewer")'
   ```
@@ -548,7 +569,7 @@ gh api repos/<owner>/<repo>/issues/comments/<comment-id> \
   - 除くものの条件は、`review_tool` によって変える。
     `review_tool: copilot` のとき、Copilot 自身のチェック（チェックの名前は `copilot-pull-request-reviewer`。実測）は、別のエージェントではなく、設定したレビューツールのレビューが進行中であることのシグナルとして扱う。
     そのため、上のコマンドで、別のエージェントの判定から除く。pending なら新しく依頼せず、完了を待つ。
-  - `review_tool` が copilot 以外（`claude-code`・`codex`・`none`）のときは、Copilot は設定したツールではないので、pending の Copilot のチェックは、別のエージェントの進行中のレビューにあたる。
+  - `review_tool` が copilot 以外（`claude-code`・`codex`・`local`・`none`）のときは、Copilot は設定したツールではないので、pending の Copilot のチェックは、別のエージェントの進行中のレビューにあたる。
     このときは除かずに（jq の `and .name!="copilot-pull-request-reviewer"` を外して）進行中として扱い、保留して完了を待つ。
 - 補助のシグナル（bot の進行中のコメント）: check-run として現れないレビューのエージェント（クラウドで実行するものなど）のためのシグナルである。bot による直近のコメントが作業中を示していないかを見る。
   見る対象は、今の反復（直近の push より後）に作られたか更新された、レビューのエージェントのコメントだけである。レビューと関係の無い bot（カバレッジなど）や古いコメントは、進行中の根拠にしない。
@@ -579,6 +600,7 @@ push した反復では、デフォルトでは push の直後に（CI の再実
 
 - `copilot`: `requested_reviewers` API に `copilot-pull-request-reviewer[bot]` を渡す。成立は、タイムラインの Copilot 宛ての `review_requested` イベントで確かめる。`requested_reviewers` が空でも、すぐに成立しなかったとはしない（実測）。
 - `claude-code`・`codex`: PR のトップレベルのコメントに `@claude review` か `@codex review` を投稿して依頼する。成立は、依頼のコメントを投稿したことと、その後の進行中の bot のレビューかコメントと、レビューが届いたことで確かめる。
+- `local`: 依頼せず、エージェント自身が手元で HEAD をレビューし、`scripts/local-review-record.sh post` で記録を投稿する。成立は、記録の投稿が exit 0 で終わったことと、その後の `check` の `record` が投稿した記録を指すこと（`status` は `reviewed` か `open`）で確かめる。待たない。
 
 タイムラインなどで確かめられないときも、上限のあるポーリング（「ポーリングと待機」）でレビューが届くのを待てば、成立を確かめられる。どちらでも確かめられなければ、成立しなかったとして報告する。
 レビューが付くまでの待ちは、「ポーリングと待機」の上限のあるポーリングに従い、止まったままにしない。
