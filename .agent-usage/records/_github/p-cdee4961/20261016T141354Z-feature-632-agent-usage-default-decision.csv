@@ -11,3 +11,7 @@ coverage:github:2026-10-15T14:15:55.080Z:2026-10-16T23:14:16.757Z,coverage,2026-
 coverage:github:2026-10-15T23:14:16.757Z:2026-10-16T23:22:45.563Z,coverage,2026-10-16T23:22:45.563Z,p-cdee4961,,,,,2026-10-15T23:14:16.757Z,2026-10-16T23:22:45.563Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-15T23:22:45.563Z:2026-10-16T23:24:16.766Z,coverage,2026-10-16T23:24:16.766Z,p-cdee4961,,,,,2026-10-15T23:22:45.563Z,2026-10-16T23:24:16.766Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-15T23:24:16.766Z:2026-10-16T23:24:58.186Z,coverage,2026-10-16T23:24:58.186Z,p-cdee4961,,,,,2026-10-15T23:24:16.766Z,2026-10-16T23:24:58.186Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:38981534020:1,ci,2026-10-17T00:40:53.853Z,p-cdee4961,github-actions,,,,2026-10-16T23:27:27.000Z,2026-10-16T23:30:48.000Z,Asia/Tokyo,feature/632-agent-usage-default-decision,632,,,,,,,,,,CI;pull_request;success,
+ci:38981534065:1,ci,2026-10-17T00:40:53.853Z,p-cdee4961,github-actions,,,,2026-10-16T23:27:27.000Z,2026-10-16T23:27:28.000Z,Asia/Tokyo,feature/632-agent-usage-default-decision,632,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+coverage:github:2026-10-15T23:24:58.186Z:2026-10-17T00:40:53.853Z,coverage,2026-10-17T00:40:53.853Z,p-cdee4961,,,,,2026-10-15T23:24:58.186Z,2026-10-17T00:40:53.853Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-16T00:40:53.853Z:2026-10-17T00:42:12.804Z,coverage,2026-10-17T00:42:12.804Z,p-cdee4961,,,,,2026-10-16T00:40:53.853Z,2026-10-17T00:42:12.804Z,Asia/Tokyo,,,,,,,,,,,,ok,

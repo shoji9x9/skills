@@ -24,7 +24,7 @@ import {
 } from "./lib/config.mjs";
 import { decisionFor, saveDecision } from "./lib/decisions.mjs";
 import { gateDecision, readHookInput } from "./lib/gate.mjs";
-import { git, repoInfo } from "./lib/repo.mjs";
+import { git, isDecisionBranch, repoInfo } from "./lib/repo.mjs";
 import { usageDir } from "./lib/records.mjs";
 import { runCollect } from "./lib/run-collect.mjs";
 import { runReport } from "./lib/report/report.mjs";
@@ -105,11 +105,14 @@ function printCollect(r) {
 /**
  * status に出すブランチの判断。判断が無ければ、コミットの前の確認が従う defaultDecision と、その出所を添える。
  * 設定を読めなくても、status の他の行は出したいので、理由を文字列にして返す。
+ * 対象のブランチの判定（isDecisionBranch）と見る順（ブランチの判断、defaultDecisionOf）は、gate.mjs の gateDecision と同じにする。
  * @param {import("./lib/repo.mjs").RepoInfo} repo
  * @param {boolean} set
  * @returns {string}
  */
 function branchDecisionText(repo, set) {
+  if (!isDecisionBranch(repo))
+    return "対象外（デフォルトブランチでは、コミットの前の確認は記録しない）";
   const decided = decisionFor(repo.commonDir, repo.branch);
   if (decided !== null) return decided;
   if (!set) return "未決定";

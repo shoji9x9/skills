@@ -8,9 +8,9 @@
 
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { defaultDecisionOf, isRecord } from "./config.mjs";
+import { defaultDecisionOf, isRecord, userConfigPath } from "./config.mjs";
 import { decisionFor } from "./decisions.mjs";
-import { defaultBranches, git, repoInfo } from "./repo.mjs";
+import { git, isDecisionBranch, repoInfo } from "./repo.mjs";
 import { usageDir } from "./records.mjs";
 import { runCollect } from "./run-collect.mjs";
 import { rememberWorktrees } from "./sources/worktrees.mjs";
@@ -298,8 +298,7 @@ export function gateDecision(input, fallbackCwd, now, script, agent) {
   } catch {
     // 次の collect で、読めない理由がエラーとして出る
   }
-  if (repo.branch === "") return { exit: 0, message: "" };
-  if (defaultBranches(repo).includes(repo.branch)) return { exit: 0, message: "" };
+  if (!isDecisionBranch(repo)) return { exit: 0, message: "" };
   /** @type {import("./decisions.mjs").Decision | null} */
   let decision;
   try {
@@ -319,7 +318,10 @@ export function gateDecision(input, fallbackCwd, now, script, agent) {
     } catch (e) {
       return {
         exit: 2,
-        message: `agent-usage: 設定を読めない: ${e instanceof Error ? e.message : String(e)}`,
+        message: [
+          `agent-usage: 設定を読めない: ${e instanceof Error ? e.message : String(e)}`,
+          `設定を直してからもう一度コミットするか、このブランチで記録しないなら node "${script}" decline を実行してからコミットしてください。`,
+        ].join("\n"),
       };
     }
     if (fallback === null) return { exit: 2, message: askMessage(agent, script) };
@@ -338,9 +340,13 @@ export function gateDecision(input, fallbackCwd, now, script, agent) {
         : r.githubSkipped
           ? `（GitHub は取得していない: ${r.githubSkipReason}）`
           : "";
+    // リポジトリの defaultDecision で記録すると、setup を実行していない人の ID もここで作る。作ったことを本人に知らせる
+    const created = r.personCreated
+      ? `（人の ID を作った: ${r.person}、${userConfigPath(process.env)}）`
+      : "";
     return {
       exit: 0,
-      message: `agent-usage: 利用実績を記録した（新しい行 ${r.newRows}、stage したファイル ${r.written.length}）${notes}${note}`,
+      message: `agent-usage: 利用実績を記録した（新しい行 ${r.newRows}、stage したファイル ${r.written.length}）${notes}${note}${created}`,
     };
   } catch (e) {
     return {

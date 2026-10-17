@@ -272,6 +272,25 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(staged()).toBe("");
   });
 
+  test("リポジトリの defaultDecision: record で人の設定が無ければ、人の ID を作って記録し、作ったことを知らせる。デフォルトブランチの status は対象外と出す", () => {
+    const { tmp, repo, git, cli, gate } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    writeFileSync(
+      join(repo, ".agent-usage", "config.json"),
+      JSON.stringify({ defaultDecision: "record" }),
+    );
+    expect(cli("status").stdout).toMatch(/このブランチの判断: 対象外/);
+    git("switch", "-q", "-c", "feature/5-x");
+    const userConfig = join(tmp, "user", "config.json");
+    rmSync(userConfig);
+
+    const recorded = gate("git commit -m x");
+    expect(recorded.status).toBe(0);
+    expect(recorded.stderr + recorded.stdout).toContain(`人の ID を作った: p-`);
+    expect(recorded.stderr + recorded.stdout).toContain(userConfig);
+    expect(existsSync(userConfig)).toBe(true);
+  });
+
   test("defaultDecision が読めない値なら、コミットを止めて理由を返す。どちらの設定にも無ければ確かめる", () => {
     const { tmp, repo, git, cli, gate } = setup();
     expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
@@ -284,6 +303,8 @@ describe("agent-usage のコマンドと Hook", () => {
     const badRepo = gate("git commit -m x");
     expect(badRepo.status).toBe(2);
     expect(badRepo.stderr).toMatch(/設定を読めない: .*defaultDecision: record か decline でない/);
+    // 設定を読めなくても、記録しない側で先へ進める方法を案内する
+    expect(badRepo.stderr).toMatch(/decline を実行してからコミット/);
     // status は設定を読めなくても止まらず、理由をブランチの判断の行に出す
     const status = cli("status");
     expect(status.status).toBe(0);
@@ -1485,7 +1506,8 @@ describe("agent-usage のコマンドの入力と状態", () => {
     expect(before.status).toBe(0);
     expect(before.stdout).toMatch(/^セットアップ: 未（.*\.agent-usage）$/m);
     expect(before.stdout).toMatch(/^ブランチ: main \/ デフォルトブランチ: \(不明\)$/m);
-    expect(before.stdout).toMatch(/^このブランチの判断: 未決定$/m);
+    // main はデフォルトブランチなので、コミットの前の確認は判断しない
+    expect(before.stdout).toMatch(/^このブランチの判断: 対象外/m);
     expect(before.stdout).toMatch(/^人の設定: \(無い\)$/m);
     expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
     // origin/HEAD があれば、それをデフォルトブランチとして表示する

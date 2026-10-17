@@ -22,13 +22,15 @@
     {
       "id": "default-branch-blocked",
       "why": "デフォルトブランチのコミットも確認の対象にする",
-      "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "  if (defaultBranches(repo).includes(repo.branch)) return { exit: 0, message: \"\" };",
-      "replace": "  if (false) return { exit: 0, message: \"\" };",
+      "file": "skills/agent-usage/scripts/lib/repo.mjs",
+      "find": "  return repo.branch !== \"\" && !defaultBranches(repo).includes(repo.branch);",
+      "replace": "  return repo.branch !== \"\";",
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook 判断の無い feature ブランチのコミットを止め、記録しないと決めたら通す。デフォルトブランチでは止めない",
-        "agent-usage のコマンドの入力と状態 origin/HEAD のデフォルトブランチでは、main 以外の名前でもコミットを止めない"
+        "agent-usage のコマンドの入力と状態 origin/HEAD のデフォルトブランチでは、main 以外の名前でもコミットを止めない",
+        "agent-usage のコマンドと Hook リポジトリの defaultDecision: record で人の設定が無ければ、人の ID を作って記録し、作ったことを知らせる。デフォルトブランチの status は対象外と出す",
+        "agent-usage のコマンドの入力と状態 status は、セットアップの有無・ブランチ・判断・人の設定を表示する"
       ]
     },
     {
@@ -745,7 +747,8 @@
       "replace": "    if (true) return { exit: 2, message: askMessage(agent, script) };",
       "occurrences": 1,
       "expect_failing": [
-        "agent-usage のコマンドと Hook 判断の無いブランチでは、defaultDecision に従って止めずに通す。人の設定がリポジトリの設定より優先する"
+        "agent-usage のコマンドと Hook 判断の無いブランチでは、defaultDecision に従って止めずに通す。人の設定がリポジトリの設定より優先する",
+        "agent-usage のコマンドと Hook リポジトリの defaultDecision: record で人の設定が無ければ、人の ID を作って記録し、作ったことを知らせる。デフォルトブランチの status は対象外と出す"
       ]
     },
     {
@@ -768,7 +771,8 @@
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook 判断の無いブランチでは、defaultDecision に従って止めずに通す。人の設定がリポジトリの設定より優先する",
-        "agent-usage のコマンドと Hook defaultDecision が読めない値なら、コミットを止めて理由を返す。どちらの設定にも無ければ確かめる"
+        "agent-usage のコマンドと Hook defaultDecision が読めない値なら、コミットを止めて理由を返す。どちらの設定にも無ければ確かめる",
+        "agent-usage のコマンドと Hook リポジトリの defaultDecision: record で人の設定が無ければ、人の ID を作って記録し、作ったことを知らせる。デフォルトブランチの status は対象外と出す"
       ]
     },
     {
@@ -791,6 +795,40 @@
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook 判断の無いブランチでは、defaultDecision に従って止めずに通す。人の設定がリポジトリの設定より優先する"
+      ]
+    },
+    {
+      "id": "status-default-branch-shows-default",
+      "why": "status がデフォルトブランチでも defaultDecision を添えて表示し、記録されると読める",
+      "file": "skills/agent-usage/scripts/agent-usage.mjs",
+      "find": "  if (!isDecisionBranch(repo))",
+      "replace": "  if (false)",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook リポジトリの defaultDecision: record で人の設定が無ければ、人の ID を作って記録し、作ったことを知らせる。デフォルトブランチの status は対象外と出す",
+        "agent-usage のコマンドの入力と状態 status は、セットアップの有無・ブランチ・判断・人の設定を表示する"
+      ]
+    },
+    {
+      "id": "person-created-silent",
+      "why": "defaultDecision で記録したときに人の ID を作っても、本人に知らせない",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "const created = r.personCreated",
+      "replace": "const created = false",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook リポジトリの defaultDecision: record で人の設定が無ければ、人の ID を作って記録し、作ったことを知らせる。デフォルトブランチの status は対象外と出す"
+      ]
+    },
+    {
+      "id": "bad-config-no-decline-hint",
+      "why": "設定を読めないときに、decline で先へ進めることを案内しない",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "decline を実行してからコミットしてください。`,",
+      "replace": "`,",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook defaultDecision が読めない値なら、コミットを止めて理由を返す。どちらの設定にも無ければ確かめる"
       ]
     },
     {

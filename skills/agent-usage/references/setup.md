@@ -13,7 +13,7 @@ node <このスキル>/scripts/agent-usage.mjs setup --time-zone Asia/Tokyo
 - 後から同じ人だと分かった ID は、リポジトリの設定の `aliases` でまとめる（下の「リポジトリの設定」）
 - タイムゾーンを省くと、マシンのタイムゾーンを使う。日別の集計の日付と、時刻ごとの停止の時間はこのタイムゾーンで切る
 - `--billing user` を付けると、collect が個人のプランの premium request の実額（GitHub の課金 API）も記録する（[`reviews.md`](reviews.md)）
-- 人の設定に `"defaultDecision": "record"`（または `"decline"`）を手で書くと、判断の無いブランチのコミットを止めずに、その値に従う。リポジトリの設定の同じキーより優先する。setup を実行し直しても、この値は残る
+- setup が作った人の設定に `"defaultDecision": "record"`（または `"decline"`）を手で書き足すと、判断の無いブランチのコミットを止めずに、その値に従う。リポジトリの設定の同じキーより優先する。setup を実行し直しても、この値は残る
 
 setup はリポジトリに `.agent-usage/config.json`（空の設定）と `.agent-usage/records/` を作る。`.agent-usage/` があることが、このリポジトリでスキルを使う印になる（Hook は無いリポジトリでは何もしない）。
 
