@@ -1,3 +1,16 @@
 allowBuilds:
   lefthook: true
+auditConfig:
+  # pnpm audit で報告しない advisory。足すときは理由と Issue を書く。
+  # 修正版が公開されたときと、どの依存もそのパッケージを使わなくなったときに外す。
+  ignoreGhsas:
+    # braces（markdownlint-cli2・semantic-release の devDependencies が micromatch 経由で使う）。
+    # 上流のメンテナはパッチを出さないと述べた（github/advisory-database#10132 のコメント）。
+    # このリポジトリが braces に渡す glob のパターンは、設定ファイルと、pre-commit で markdownlint-cli2 に渡すステージ済みのファイル名だけである。
+    # 設定ファイルは .markdownlint-cli2.yaml・release.config.ts と、その releaseRules の元の commit-types.ts である。
+    # 設定ファイルを変えるにはレビューとマージを通るので、信頼できない人がパターンを直接渡すことは無い。
+    # fork の PR が .markdownlint-cli2.yaml に展開すると数が膨大になるパターンを置いても、止まるのはその PR の CI だけである。
+    # この影響は許容する（#576）。
+    # Dependabot alerts 向けには .config/skills/shoji9x9/skills.yml の dependabot-alert-issue.dismiss に同じ GHSA を置く。
+    - GHSA-vfj7-8cjw-p6xm
 minimumReleaseAge: 4320 # 3 days in minutes
