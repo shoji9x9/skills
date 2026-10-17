@@ -766,7 +766,7 @@
       "id": "repo-default-unread",
       "why": "リポジトリの設定の defaultDecision を読まない",
       "file": "skills/agent-usage/scripts/lib/config.mjs",
-      "find": "  if (obj.defaultDecision !== undefined) {\n    cfg.defaultDecision",
+      "find": "  if (obj.defaultDecision !== undefined && obj.defaultDecision !== null) {\n    cfg.defaultDecision",
       "replace": "  if (false) {\n    cfg.defaultDecision",
       "occurrences": 1,
       "expect_failing": [
@@ -826,6 +826,39 @@
       "file": "skills/agent-usage/scripts/lib/gate.mjs",
       "find": "decline を実行してからコミットしてください。`,",
       "replace": "`,",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook defaultDecision が読めない値なら、コミットを止めて理由を返す。どちらの設定にも無ければ確かめる"
+      ]
+    },
+    {
+      "id": "repo-default-null-rejected",
+      "why": "リポジトリの設定の defaultDecision: null を、置いていないのと同じに扱わずに読めない設定として止める",
+      "file": "skills/agent-usage/scripts/lib/config.mjs",
+      "find": "  if (obj.defaultDecision !== undefined && obj.defaultDecision !== null) {\n    cfg.defaultDecision",
+      "replace": "  if (obj.defaultDecision !== undefined) {\n    cfg.defaultDecision",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook defaultDecision が読めない値なら、コミットを止めて理由を返す。どちらの設定にも無ければ確かめる"
+      ]
+    },
+    {
+      "id": "status-unset-shows-undecided",
+      "why": "status が、.agent-usage/ の無いリポジトリでも判断を「未決定」と出す",
+      "file": "skills/agent-usage/scripts/agent-usage.mjs",
+      "find": "  if (!set) return \"対象外",
+      "replace": "  if (false) return \"対象外",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook setup 前は Hook が何もせず通し、collect はセットアップを求めて失敗する"
+      ]
+    },
+    {
+      "id": "status-throws-on-bad-decisions",
+      "why": "status が判断の記録を読めないときに止まり、他の行を出さない",
+      "file": "skills/agent-usage/scripts/agent-usage.mjs",
+      "find": "    return `判断の記録を読めない: ${e instanceof Error ? e.message : String(e)}`;",
+      "replace": "    throw e;",
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook defaultDecision が読めない値なら、コミットを止めて理由を返す。どちらの設定にも無ければ確かめる"

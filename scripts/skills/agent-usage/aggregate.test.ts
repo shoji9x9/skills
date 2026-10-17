@@ -256,7 +256,12 @@ describe("設定", () => {
     expect(
       parseUserConfig({ personId: "p-0123abcd", defaultDecision: "decline" }, "u").defaultDecision,
     ).toBe("decline");
-    for (const v of ["ask", "", null, true, ["record"]]) {
+    // null は置いていないのと同じに扱う
+    expect(parseRepoConfig({ defaultDecision: null }).defaultDecision).toBeNull();
+    expect(
+      parseUserConfig({ personId: "p-0123abcd", defaultDecision: null }, "u").defaultDecision,
+    ).toBeUndefined();
+    for (const v of ["ask", "", true, ["record"]]) {
       expect(() => parseRepoConfig({ defaultDecision: v })).toThrow(/record か decline/);
       expect(() => parseUserConfig({ personId: "p-0123abcd", defaultDecision: v }, "u")).toThrow(
         /record か decline/,

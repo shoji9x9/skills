@@ -113,9 +113,13 @@ function printCollect(r) {
 function branchDecisionText(repo, set) {
   if (!isDecisionBranch(repo))
     return "対象外（デフォルトブランチでは、コミットの前の確認は記録しない）";
-  const decided = decisionFor(repo.commonDir, repo.branch);
-  if (decided !== null) return decided;
-  if (!set) return "未決定";
+  if (!set) return "対象外（.agent-usage/ が無いので、コミットの前の確認は何もしない）";
+  try {
+    const decided = decisionFor(repo.commonDir, repo.branch);
+    if (decided !== null) return decided;
+  } catch (e) {
+    return `判断の記録を読めない: ${e instanceof Error ? e.message : String(e)}`;
+  }
   try {
     const fallback = defaultDecisionOf(join(usageDir(repo.root), "config.json"));
     return fallback === null

@@ -219,6 +219,8 @@ describe("agent-usage のコマンドと Hook", () => {
     const r = cli("collect", "--no-github");
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/setup/);
+    // Hook は何もしないので、status も判断を「未決定」と出さない
+    expect(cli("status").stdout).toMatch(/^このブランチの判断: 対象外（\.agent-usage\/ が無い/m);
   });
 
   test("判断の無い feature ブランチのコミットを止め、記録しないと決めたら通す。デフォルトブランチでは止めない", () => {
@@ -279,7 +281,7 @@ describe("agent-usage のコマンドと Hook", () => {
       join(repo, ".agent-usage", "config.json"),
       JSON.stringify({ defaultDecision: "record" }),
     );
-    expect(cli("status").stdout).toMatch(/このブランチの判断: 対象外/);
+    expect(cli("status").stdout).toMatch(/このブランチの判断: 対象外（デフォルトブランチ/);
     git("switch", "-q", "-c", "feature/5-x");
     const userConfig = join(tmp, "user", "config.json");
     rmSync(userConfig);
@@ -321,6 +323,20 @@ describe("agent-usage のコマンドと Hook", () => {
     const ask = gate("git commit -m x");
     expect(ask.status).toBe(2);
     expect(ask.stderr).toMatch(/defaultDecision（record か decline）を置きます/);
+
+    // null は置いていないのと同じに扱い、読めない設定として止めずに確かめる
+    writeFileSync(repoConfig, JSON.stringify({ defaultDecision: null }));
+    const askNull = gate("git commit -m x");
+    expect(askNull.status).toBe(2);
+    expect(askNull.stderr).toMatch(/defaultDecision（record か decline）を置きます/);
+
+    // 判断の記録を読めなくても、status は止まらずに理由を出す
+    mkdirSync(join(repo, ".git", "agent-usage"), { recursive: true });
+    writeFileSync(join(repo, ".git", "agent-usage", "decisions.json"), "");
+    const badDecisions = cli("status");
+    expect(badDecisions.status).toBe(0);
+    expect(badDecisions.stdout).toMatch(/^このブランチの判断: 判断の記録を読めない: /m);
+    expect(badDecisions.stdout).toContain("人の設定: ");
   });
 
   test("collect --stage は明細を書いて stage し、記録すると決めたブランチのコミットでは Hook が collect して通す", () => {
@@ -1507,7 +1523,7 @@ describe("agent-usage のコマンドの入力と状態", () => {
     expect(before.stdout).toMatch(/^セットアップ: 未（.*\.agent-usage）$/m);
     expect(before.stdout).toMatch(/^ブランチ: main \/ デフォルトブランチ: \(不明\)$/m);
     // main はデフォルトブランチなので、コミットの前の確認は判断しない
-    expect(before.stdout).toMatch(/^このブランチの判断: 対象外/m);
+    expect(before.stdout).toMatch(/^このブランチの判断: 対象外（デフォルトブランチ/m);
     expect(before.stdout).toMatch(/^人の設定: \(無い\)$/m);
     expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
     // origin/HEAD があれば、それをデフォルトブランチとして表示する

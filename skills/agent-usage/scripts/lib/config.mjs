@@ -196,7 +196,8 @@ export function parseRepoConfig(raw, where = "config.json") {
       cfg.people[id] = { name: person.name };
     }
   }
-  if (obj.defaultDecision !== undefined) {
+  // null は、置いていないのと同じに扱う（値を外すつもりで null を書いた設定で止めない）
+  if (obj.defaultDecision !== undefined && obj.defaultDecision !== null) {
     cfg.defaultDecision = parseDefaultDecision(obj.defaultDecision, `${where}.defaultDecision`);
   }
   for (const [from, to] of Object.entries(cfg.aliases)) {
@@ -253,7 +254,7 @@ export function parseUserConfig(raw, where) {
     throw new Error(`${where}.billing: none か user でない`);
   /** @type {UserConfig} */
   const config = { personId: obj.personId, timeZone, billing };
-  if (obj.defaultDecision !== undefined) {
+  if (obj.defaultDecision !== undefined && obj.defaultDecision !== null) {
     config.defaultDecision = parseDefaultDecision(obj.defaultDecision, `${where}.defaultDecision`);
   }
   return config;
