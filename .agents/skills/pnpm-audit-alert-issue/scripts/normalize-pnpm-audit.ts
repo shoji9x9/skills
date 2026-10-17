@@ -100,11 +100,13 @@ function isUrl(value: unknown): boolean {
  * GHSA の id を GitHub と同じ表記（接頭辞の `GHSA` だけが大文字で、本体は小文字）にそろえる。
  * dependabot-alert-issue は findings の `ghsa` を、却下のルールの `ghsa`（GitHub の表記で書く）と文字列で照合する。
  * 既存の Issue・PR の検索（GitHub の search API）は大文字と小文字を区別しない。
- * 却下のルールとの照合は、dependabot-alert-issue の SKILL.md が大文字と小文字の扱いを決めていないので、findings の側で表記をそろえる。
+ * 検索で見つけた Issue との比べ方と、却下のルールとの照合は、dependabot-alert-issue の SKILL.md が大文字と小文字の扱いを決めていない。
+ * そのため、findings の側で、Dependabot alerts の ghsa_id と同じ表記にそろえる。
+ * 前後に英数字が続く文字列は GHSA の id ではないので、境界（\b）で切り詰めた id を取り出さない。
  */
 function ghsaFrom(value: unknown): string {
   if (typeof value !== "string") return "";
-  const match = value.match(/GHSA-([0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4})/i);
+  const match = value.match(/\bGHSA-([0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4})\b/i);
   return match ? `GHSA-${match[1].toLowerCase()}` : "";
 }
 

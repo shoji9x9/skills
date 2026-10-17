@@ -101,6 +101,7 @@ python の heredoc の 1 回は、本文の文字列に `git` の語があった
 1 回目は、`for` ループの中で変数 `q` を `gh api` の引数に渡し、GitHub の検索を 2 回実行する処理である（`runs gh with a value computed at runtime (the variable q)`）。
 2 回目は、python の quoted heredoc で mutations.json に追記し、続けて `oxfmt`・`vitest`・`grep` を `;` でつないだ処理である（`this command is too complex to verify`）。
 どちらも、単独の呼び出しに分けるか、Write ツールでスクリプトにして絶対パスで実行する形に直して通した。
+PR を作った後にも、`grep -n -i 'eval' <ファイル>` と `ls` を `;` でつないだ呼び出しが、`runs a string through eval` として拒否された。`eval` は grep の検索語で、実行していない。
 1 回目は `git` の語を含まず、`gh` に実行時の値を渡しただけで拒否された。提案の Hook の条件には、`gh` に変数の引数を渡す形も含める。8 つ目のセッションでの再発である。
 
 ## 根本原因
@@ -127,6 +128,6 @@ worktree の隔離セッションでは、heredoc・複合コマンド・`git` �
 
 PR #656 のレビューで出た指摘である。上の Hook の条件の細部は、apply の時点で次のことを確かめてから決める。
 
-- 区切りを `;`・`&&` だけにすると、#616 の `curl -o` と `||` を含む拒否や、`for` ループ・パイプ・改行でつないだ形を拾えない。#631・#616・#655 のすべての拒否に条件を当てる。
+- 区切りを `;`・`&&` だけにすると、#616 の `curl -o` と `||` を含む拒否や、`for` ループ・パイプ・改行でつないだ形を拾えない。#631・#616・#655 のすべての拒否に条件を当てる。#662 の、`for` ループの変数を `gh` の引数に渡した拒否（`runs gh with a value computed at runtime`）にも当てる。
 - `;`・`&&` と `node`・`bash` の起動の組は、ハーネスが通す正当な複合コマンド（定数の引数だけの `pnpm exec vitest run a.test.ts && node scripts/x.ts` など）にも当たる。ハーネスの拒否の理由（`computed at runtime`・`inside a construct too complex`）に対応する形に絞り、誤検知しないことを確かめる例を挙げる。
 - 新しい Hook を書かず、Bash の呼び出しをセグメントに分けて判定する既存の PreToolUse の Hook（`scripts/hooks/bash-command-guard.sh`）に足せるかを先に確かめる。

@@ -97,7 +97,7 @@ describe("fromAdvisory（古い形の advisories の 1 件）", () => {
   });
 
   // GitHub の advisory の id は、接頭辞の GHSA だけが大文字で、本体は小文字である（#662）。
-  // 却下のルール（.config/skills/shoji9x9/skills.yml の dismiss）と既存の Issue の本文も、この表記で書く。
+  // Dependabot alerts の ghsa_id と、却下のルールの例（dependabot-alert-issue の SKILL.md）も、この表記である。
   test.each([
     ["小文字", "ghsa-238p-pmpm-9mq7"],
     ["大文字", "GHSA-238P-PMPM-9MQ7"],
@@ -111,12 +111,11 @@ describe("fromAdvisory（古い形の advisories の 1 件）", () => {
     expect(fromAdvisory({ module_name: "x", url }).ghsa).toBe("GHSA-238p-pmpm-9mq7");
   });
 
-  test("GitHub の表記にそろえた GHSA の id は、却下のルールに書いた id と一致する", () => {
-    // dismiss のルールには、id を GitHub の表記で書く（例は braces の advisory）。その id を大文字で渡す。
-    const ruleGhsa = "GHSA-vfj7-8cjw-p6xm";
-    expect(fromAdvisory({ module_name: "braces", ghsa_id: ruleGhsa.toUpperCase() }).ghsa).toBe(
-      ruleGhsa,
-    );
+  test.each([
+    ["最後のかたまりが 5 文字", "GHSA-abcd-efgh-ijklm"],
+    ["前に英数字が付く", "XGHSA-abcd-efgh-ijkl"],
+  ])("GHSA の形に収まらない id（%s）からは、切り詰めた id を取り出さない", (_label, id) => {
+    expect(fromAdvisory({ module_name: "x", title: id }).ghsa).toBe("");
   });
 
   test.each([
