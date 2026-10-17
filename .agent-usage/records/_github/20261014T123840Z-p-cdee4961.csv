@@ -1,2 +1,0 @@
-key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail
-coverage:github:2026-10-13T12:35:22.940Z:2026-10-14T12:38:40.599Z,coverage,2026-10-14T12:38:40.599Z,p-cdee4961,,,,,2026-10-13T12:35:22.940Z,2026-10-14T12:38:40.599Z,Asia/Tokyo,,,,,,,,,,,,ok

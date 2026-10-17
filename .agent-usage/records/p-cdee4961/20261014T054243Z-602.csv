@@ -1,2 +1,0 @@
-key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail
-run:claude-code:fcbfa33a-a4c0-4067-b212-f5a8a5d41d40:2026-10-14T05:42:23.998Z,run,2026-10-14T05:42:43.739Z,p-cdee4961,claude-code,fcbfa33a-a4c0-4067-b212-f5a8a5d41d40,,,2026-10-14T05:42:23.998Z,2026-10-14T05:42:40.984Z,Asia/Tokyo,feature/602-agent-usage-tracking-skill,602,,,,,,,,,0,human-wait;open
