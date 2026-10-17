@@ -58,7 +58,7 @@ issue-batch run <Issue URL | 番号>... \
    - Kaizen が transcript を特定できるか、browser-test が安全か
    - setup の設定が base branch に入っているか
    - run の前に利用者の判断が要るもの（複数の案・決まっていない方針・試していない機構を約束した受け入れ条件）。1 回の確認にまとめて、変更の前に決めてもらう。全体を停止するときは確認せず、停止の報告に載せる
-2. `/tmp` に run manifest を作る。記録するのは、入力の順・Issue の URL・状態・branch・worktree・PR の URL・試験の結果・停止の理由・判断待ちの項目・自分で判断して進めたもの（`self_decisions` の 4 つの欄と `others`）だけである。秘密の値と、変わる環境の URL は書かない。
+2. `/tmp` に run manifest を作る。記録するのは、入力の順・Issue の URL・状態・branch・worktree・PR の URL・試験の結果・停止の理由・判断待ちの項目・自分で判断して進めたもの（`self_decisions` の下の 4 つの欄と `others`）だけである。秘密の値と、変わる環境の URL は書かない。
 3. 呼び出し元の worktree を checkout せず、Issue ごとに一意な隔離した worktree を `git-worktree` の取り決めで用意して、セッションを移す。
    branch を作る前に、その Issue の担当者を確かめ、自分を割り当てて読み直す（`references/orchestration.md`「issue-start への handoff」の 1。割り当てができなければ、branch も worktree も作らない）。
    置き場所は `git-worktree setup` の決定に従う。Issue ごとに worktree を移るので、リポジトリの中に置く必要がある。
@@ -110,6 +110,6 @@ BLOCKED や FAILED の影響が Issue の隔離した worktree の中だけで�
 判断待ちは、Issue ごとに論点・選択肢・推奨・決まった後に残る作業を示す。自分で判断して進めたものは、判断・根拠・覆すときに戻る工程を示す。
 自分で判断して進めたものには、次の 4 つの欄を必ず載せる。それぞれ 0 件でも、無いことを書く。
 守っていない規約とその理由、速度や反復の回数を理由に直さなかった指摘、見送った指摘のうち Issue にしていないもの、Issue の対象から外した形とその根拠である。
-4 つの欄は run 全体で 1 組にし、各項目に Issue の番号を添える。各欄の中は、迷った度合いの大きいものから並べる。迷った度合いは、manifest に記録した手戻りの大きさで測る。どの欄にも当たらない判断は、4 つの欄の後に同じ並べ方で載せる。
+4 つの欄は run 全体で 1 組にし、各項目に Issue の番号を添える。各欄の中は、迷った度合いの大きいものから並べる。迷った度合いは、manifest に記録した手戻りの大きさで測り、同じ大きさのものは入力の順に並べる。どの欄にも当たらない判断は、4 つの欄の後に同じ並べ方で載せる。
 これらの欄は、run の間に manifest の同じ欄へ記録したものから作る（`references/orchestration.md`「判断の扱い」）。
 `DONE` は、次のすべてを確かめた場合だけ使う。PR が `MERGED`、Issue が `CLOSED`、deployment が成功したか根拠があって対象外である、local と remote の branch を削除した。
