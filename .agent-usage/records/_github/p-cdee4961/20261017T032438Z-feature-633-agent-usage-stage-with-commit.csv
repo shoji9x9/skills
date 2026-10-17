@@ -23,3 +23,8 @@ ci:38998993072:1,ci,2026-10-17T03:33:12.246Z,p-cdee4961,github-actions,,,,2026-1
 coverage:github:2026-10-16T03:27:01.987Z:2026-10-17T03:33:12.246Z,coverage,2026-10-17T03:33:12.246Z,p-cdee4961,,,,,2026-10-16T03:27:01.987Z,2026-10-17T03:33:12.246Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-16T03:33:12.246Z:2026-10-17T03:35:56.996Z,coverage,2026-10-17T03:35:56.996Z,p-cdee4961,,,,,2026-10-16T03:33:12.246Z,2026-10-17T03:35:56.996Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-16T03:35:56.996Z:2026-10-17T03:36:26.448Z,coverage,2026-10-17T03:36:26.448Z,p-cdee4961,,,,,2026-10-16T03:35:56.996Z,2026-10-17T03:36:26.448Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:38999550781:1,ci,2026-10-17T03:40:15.129Z,p-cdee4961,github-actions,,,,2026-10-17T03:38:18.000Z,2026-10-17T03:38:29.000Z,Asia/Tokyo,feature/633-agent-usage-stage-with-commit,633,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:38999550730:1,ci,2026-10-17T03:40:15.129Z,p-cdee4961,github-actions,,,,2026-10-17T03:38:18.000Z,2026-10-17T03:40:15.129Z,Asia/Tokyo,feature/633-agent-usage-stage-with-commit,633,,,,,,,,,,CI;pull_request;open,
+coverage:github:2026-10-16T03:36:26.448Z:2026-10-17T03:40:15.129Z,coverage,2026-10-17T03:40:15.129Z,p-cdee4961,,,,,2026-10-16T03:36:26.448Z,2026-10-17T03:40:15.129Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:38999550730:1,ci,2026-10-17T03:45:13.190Z,p-cdee4961,github-actions,,,,2026-10-17T03:38:18.000Z,2026-10-17T03:41:23.000Z,Asia/Tokyo,feature/633-agent-usage-stage-with-commit,633,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-16T03:40:15.129Z:2026-10-17T03:45:13.190Z,coverage,2026-10-17T03:45:13.190Z,p-cdee4961,,,,,2026-10-16T03:40:15.129Z,2026-10-17T03:45:13.190Z,Asia/Tokyo,,,,,,,,,,,,ok,

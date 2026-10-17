@@ -58,12 +58,11 @@ Hook（PreToolUse）が、デフォルトブランチ以外の `git commit` を�
 Claude Code と Codex は、当てはまる Hook をすべて同時に起動する（[Claude Code の Hooks reference](https://code.claude.com/docs/en/hooks)・[Codex Hooks](https://learn.chatgpt.com/docs/hooks)）。
 そのため、別の Hook（kaizen のコミット前の確認など）がコミットを止めても、この Hook は起動し、collect が成功すれば stage する。
 
-同じブランチで作業を続けるなら、stage されたまま残った `.agent-usage/records/` は戻さなくてよい。
-次のコミットの前に、Hook が同じファイルをもう一度 stage するので、残った分はそのコミットに入る。
-次の 2 つの場合は、残った分が意図しないコミットに入るか、入らないままになる。
-
-- 別のブランチに移る: stage した変更は、`git switch` の後も index に残る。移った先のブランチのコミットに入るので、移る前に `git restore --staged .agent-usage/records` で戻す
-- パスを指定してコミットする（`git commit -- <path>`・`git commit <path>`）: 指定したパスだけがコミットに入るので、明細は入らない。Hook の出力が「stage した」と出ても、明細はコミットされていない
+stage された明細は index に残るので、同じブランチの次のコミットに入る。戻さなくてよい。
+明細がコミットに入ったかは、Hook の出力ではなく、コミットの後に `git status --short .agent-usage/records` で確かめる。
+出力が空でなければ、明細はまだコミットされていない（コミットが止められた、パスを指定してコミットした、など）。
+そのときは、ブランチや worktree を移る前に、同じブランチでもう一度コミットして明細を入れる。
+移ると、明細が移った先のコミットに入るか、`git switch` が止まるか、明細がどのコミットにも入らないまま残る。
 
 ## 記録と集計の取り決め
 
