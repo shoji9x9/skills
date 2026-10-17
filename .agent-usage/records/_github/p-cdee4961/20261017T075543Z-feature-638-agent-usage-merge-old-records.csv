@@ -1,0 +1,7 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+ci:39015264312:1,ci,2026-10-17T07:55:43.940Z,p-cdee4961,github-actions,,,,2026-10-17T07:52:36.000Z,2026-10-17T07:53:01.000Z,Asia/Tokyo,main,,,,,,,,,,,Release;push;success,
+ci:39015264296:1,ci,2026-10-17T07:55:43.940Z,p-cdee4961,github-actions,,,,2026-10-17T07:52:36.000Z,2026-10-17T07:55:41.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:39014936988:1,ci,2026-10-17T07:55:43.940Z,p-cdee4961,github-actions,,,,2026-10-17T07:47:16.000Z,2026-10-17T07:47:17.000Z,Asia/Tokyo,feature/657-agent-usage-split-hour-by-branch,657,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:39014936917:1,ci,2026-10-17T07:55:43.940Z,p-cdee4961,github-actions,,,,2026-10-17T07:47:16.000Z,2026-10-17T07:51:13.000Z,Asia/Tokyo,feature/657-agent-usage-split-hour-by-branch,657,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-16T07:45:25.837Z:2026-10-17T07:55:43.940Z,coverage,2026-10-17T07:55:43.940Z,p-cdee4961,,,,,2026-10-16T07:45:25.837Z,2026-10-17T07:55:43.940Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-16T07:55:43.940Z:2026-10-17T07:56:55.157Z,coverage,2026-10-17T07:56:55.157Z,p-cdee4961,,,,,2026-10-16T07:55:43.940Z,2026-10-17T07:56:55.157Z,Asia/Tokyo,,,,,,,,,,,,ok,

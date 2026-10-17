@@ -1,4 +1,0 @@
-key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail
-ci:38523380520:1,ci,2026-10-14T06:50:54.965Z,p-cdee4961,github-actions,,,,2026-10-14T06:38:19.000Z,2026-10-14T06:38:20.000Z,Asia/Tokyo,feature/602-agent-usage-tracking-skill,602,,,,,,,,,,Dependabot auto-merge;pull_request;skipped
-ci:38523380548:1,ci,2026-10-14T06:50:54.965Z,p-cdee4961,github-actions,,,,2026-10-14T06:38:19.000Z,2026-10-14T06:40:15.000Z,Asia/Tokyo,feature/602-agent-usage-tracking-skill,602,,,,,,,,,,CI;pull_request;success
-coverage:github:2026-10-13T06:37:29.169Z:2026-10-14T06:50:54.965Z,coverage,2026-10-14T06:50:54.965Z,p-cdee4961,,,,,2026-10-13T06:37:29.169Z,2026-10-14T06:50:54.965Z,Asia/Tokyo,,,,,,,,,,,,ok
