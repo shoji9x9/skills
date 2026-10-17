@@ -155,6 +155,63 @@ describe("費用", () => {
       ["2026-10-01T02:00:00.000Z", "3", "1"],
     ]);
   });
+
+  test("1 時間の途中でブランチを切り替えたら、切り替えた後のメッセージを切り替えた後のブランチに入れる。最初のブランチの行は元の key のまま", () => {
+    const at = (key: string, h: number, m: number, input: number) => ({
+      key,
+      ts: H(h, m),
+      model: "claude-opus-5-5",
+      tokens: { ...zero, input },
+    });
+    const s = {
+      ...emptySummary("claude-code", "s"),
+      branches: [
+        { ts: H(1, 0), branch: "feature/1-a" },
+        { ts: H(1, 30), branch: "feature/2-b" },
+      ],
+      messages: [
+        at("a", 1, 10, 1e6),
+        at("b", 1, 20, 2e6),
+        at("c", 1, 40, 4e6),
+        at("d", 2, 10, 8e6),
+      ],
+    };
+    expect(
+      usageRows(s, ctx).map((r) => [
+        r.key,
+        r.branch,
+        r.issue,
+        r.input_tokens,
+        r.messages,
+        r.cost_usd,
+      ]),
+    ).toEqual([
+      [
+        "usage:claude-code:s:claude-opus-5-5:2026-10-01T01:00:00.000Z",
+        "feature/1-a",
+        "1",
+        "3000000",
+        "2",
+        "3.000000",
+      ],
+      [
+        "usage:claude-code:s:claude-opus-5-5:2026-10-01T01:00:00.000Z:feature/2-b",
+        "feature/2-b",
+        "2",
+        "4000000",
+        "1",
+        "4.000000",
+      ],
+      [
+        "usage:claude-code:s:claude-opus-5-5:2026-10-01T02:00:00.000Z",
+        "feature/2-b",
+        "2",
+        "8000000",
+        "1",
+        "8.000000",
+      ],
+    ]);
+  });
 });
 
 describe("明細の重複", () => {
