@@ -6,8 +6,8 @@ auditConfig:
   ignoreGhsas:
     # braces（markdownlint-cli2・semantic-release の devDependencies が micromatch 経由で使う）。
     # 上流のメンテナはパッチを出さないと述べた（github/advisory-database#10132 のコメント）。
-    # このリポジトリが braces に渡す glob のパターンは、設定ファイル（.markdownlint-cli2.yaml・release.config.ts）と、
-    # pre-commit で markdownlint-cli2 に渡すステージ済みのファイル名だけである。
+    # このリポジトリが braces に渡す glob のパターンは、設定ファイルと、pre-commit で markdownlint-cli2 に渡すステージ済みのファイル名だけである。
+    # 設定ファイルは .markdownlint-cli2.yaml・release.config.ts と、その releaseRules の元の commit-types.ts である。
     # 設定ファイルを変えるにはレビューとマージを通るので、信頼できない人がパターンを直接渡すことは無い。
     # fork の PR が .markdownlint-cli2.yaml に展開すると数が膨大になるパターンを置いても、止まるのはその PR の CI だけである。
     # この影響は許容する（#576）。

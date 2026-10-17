@@ -11,7 +11,7 @@ skills:
     dismiss:
       - ghsa: "GHSA-vfj7-8cjw-p6xm"
         reason: "tolerable_risk"
-        comment: "影響を許容できると判断した理由は、#576 と pnpm-workspace.yaml の auditConfig.ignoreGhsas のコメントにある"
+        comment: "影響を許容できると判断した理由は、https://github.com/shoji9x9/skills/issues/576 と pnpm-workspace.yaml の auditConfig.ignoreGhsas のコメントにある"
   dependabot-merge:
     merge_method: squash # squash | merge | rebase
   git-worktree:
