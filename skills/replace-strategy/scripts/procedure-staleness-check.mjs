@@ -39,7 +39,7 @@ import { collapse, fenceOf, parseTables, splitRow } from "./lib/markdown.mjs";
  * ツールのバージョン（このファイルで定義する）。判定の規則や出力の形を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "1";
+export const VERSION = "2";
 
 /** 成果物の mode の語彙（parity-suite の metadata.json の mode）。 */
 export const MODES = ["feature", "api-resource", "batch"];
@@ -237,7 +237,7 @@ export function countRowLikeLines(text, consumed = new Set()) {
 }
 
 /**
- * HTML コメントの記号が、読み飛ばしの規則（parseTables の skip-lines / countRowLikeLines）が扱える位置にだけあるかを確かめる。
+ * HTML コメントの記号が、読み飛ばしの規則（countRowLikeLines。parseTables はコメントの中を空白にしてから読む）が扱える位置にだけあるかを確かめる。
  * 扱える形は「行頭の `<!--` で始まり行末の `-->` で終わる 1 行」「行頭の `<!--` だけの開始行 … 行末の `-->` で終わる終了行」の 2 つ。
  * それ以外（散文の後ろの `<!--`、行の途中の `-->`、1 行に複数の記号、閉じないコメント）は読める形を足さずに落とす。
  * 読み飛ばしの規則に合わない位置のコメントは、中の表を生きた表として読むか、以降の表を丸ごと読み飛ばす。
@@ -304,7 +304,7 @@ export function readProcedureLedger(text, skillChangeIds) {
   const errors = [];
   /** @type {Set<number>} */
   const consumed = new Set();
-  const { tables } = parseTables(text, { comments: "skip-lines", consumed });
+  const { tables } = parseTables(text, { consumed });
   const changeTable = findTable(tables, CHANGE_HEADERS);
   const recordTable = findTable(tables, RECORD_HEADERS);
   // 表の不在を「変更なし」「記録なし」と読まない。列名を書き換えた台帳も同じ（警告なしに 0 件になる）。

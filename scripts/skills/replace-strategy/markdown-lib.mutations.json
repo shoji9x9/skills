@@ -1,0 +1,98 @@
+{
+  "$comment": [
+    "markdown-lib.test.ts のうち、replace-strategy の表のパーサがフェンス行と HTML コメントを 3 本で同じに扱うこと（Issue #611）を示す変異の一覧。",
+    "テスト名を変えたら expect_failing も直す。"
+  ],
+  "test_file": "scripts/skills/replace-strategy/markdown-lib.test.ts",
+  "mutations": [
+    {
+      "id": "fence-not-ending-table",
+      "why": "表の行の途中のフェンス行で表を終えず、`|` を含むフェンス行を表の行として読む",
+      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
+      "find": "      if (fenceOf(lines[j]) !== null) break;",
+      "replace": "      if (false) break;",
+      "occurrences": 1,
+      "expect_failing": [
+        "表の行の途中の `|` を含むフェンス行で表を終え、フェンスの中の表の行を読まない",
+        "asset-delivery-check: 表の直後の `|` を含むフェンス行で表を終える",
+        "evidence-gap-check: 表の直後の `|` を含むフェンス行で表を終える",
+        "procedure-staleness-check: 表の直後の `|` を含むフェンス行で表を終える"
+      ]
+    },
+    {
+      "id": "comments-read-as-tables",
+      "why": "HTML コメントを空白に置き換えず、コメントの中の表を台帳として読む",
+      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
+      "find": "  const lines = blankComments(text.split(/\\r?\\n/u));",
+      "replace": "  const lines = text.split(/\\r?\\n/u);",
+      "occurrences": 1,
+      "expect_failing": [
+        "HTML コメントの中の表は読まない（複数行のコメントと、行の途中で開いたコメント）",
+        "誤検知しないことの確認: コメントの中のフェンス行はフェンスを開かず、コメントの後の表を読む",
+        "asset-delivery-check: HTML コメントの中の表の行を台帳として読まない",
+        "evidence-gap-check: HTML コメントの中の表の行を台帳として読まない",
+        "procedure-staleness-check: HTML コメントの中の表の行を台帳として読まない",
+        "閉じないバッククォートの後ろの `<!--` は、コメントの始まりとして読む",
+        "evidence-gap-check: 表の途中の HTML コメントの行で表が切れたら、行が無いというエラーに表の外の行番号を添える"
+      ]
+    },
+    {
+      "id": "comments-blanked-inside-fence",
+      "why": "フェンスの中の `<!--` もコメントとして扱い、以降の表を消す",
+      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
+      "find": "      if (fence !== null) return line;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["誤検知しないことの確認: フェンスの中の `<!--` は、以降の表を消さない"]
+    },
+    {
+      "id": "fence-opened-inside-comment",
+      "why": "コメントの中のフェンス行でフェンスを開き、コメントの後の表を読まない",
+      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
+      "find": "    if (!comment) {\n      const mark = fenceOf(line);",
+      "replace": "    if (true) {\n      const mark = fenceOf(line);",
+      "occurrences": 1,
+      "expect_failing": [
+        "誤検知しないことの確認: コメントの中のフェンス行はフェンスを開かず、コメントの後の表を読む"
+      ]
+    },
+    {
+      "id": "code-span-not-skipped",
+      "why": "コードスパンの中の `<!--` をコメントの始まりとして読み、以降の表を消す",
+      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
+      "find": "        } else if (code !== null && code.index < start) {",
+      "replace": "        } else if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["誤検知しないことの確認: コードスパンの中の `<!--` は、以降の表を消さない"]
+    },
+    {
+      "id": "code-span-close-any-length",
+      "why": "開く側と数の違うバッククォートでコードスパンを閉じ、スパンの中の `<!--` をコメントとして読む",
+      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
+      "find": "    if (m[0].length === ticks) return m.index + ticks;",
+      "replace": "    if (true) return m.index + ticks;",
+      "occurrences": 1,
+      "expect_failing": ["誤検知しないことの確認: コードスパンの中の `<!--` は、以降の表を消さない"]
+    },
+    {
+      "id": "unclosed-backtick-hides-comment",
+      "why": "閉じないバッククォートの後ろを行の終わりまで読み飛ばし、その後ろの `<!--` のコメントの中の表を読む",
+      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
+      "find": "          const stop = end < 0 ? code.index + code[0].length : end;",
+      "replace": "          const stop = end < 0 ? rest.length : end;",
+      "occurrences": 1,
+      "expect_failing": ["閉じないバッククォートの後ろの `<!--` は、コメントの始まりとして読む"]
+    },
+    {
+      "id": "stray-lines-not-reported",
+      "why": "slug の行が見つからないときに、表に属さない行の位置を添えず、表が切れた箇所を示さない",
+      "file": "skills/replace-strategy/scripts/evidence-gap-check.mjs",
+      "find": "    const outside = strayRows.filter((stray) => stray.leadingPipe).map((stray) => stray.line);",
+      "replace": "    const outside = strayRows.filter(() => false).map((stray) => stray.line);",
+      "occurrences": 1,
+      "expect_failing": [
+        "evidence-gap-check: 表の途中の HTML コメントの行で表が切れたら、行が無いというエラーに表の外の行番号を添える"
+      ]
+    }
+  ]
+}

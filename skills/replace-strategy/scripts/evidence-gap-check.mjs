@@ -36,7 +36,7 @@ import { isCliEntry } from "./lib/cli.mjs";
 import { collapse, parseTables } from "./lib/markdown.mjs";
 
 /** ツールのバージョン（このファイルで定義する）。判定のロジックや出力の形を変えたら上げる。 */
-export const VERSION = "2";
+export const VERSION = "3";
 
 /** 使い方の誤り・入力の不備（exit 2）。 */
 export class UsageError extends Error {}
@@ -205,7 +205,7 @@ export function classifyTable(headers) {
  * @returns {{ endpointCell: string, endpoints: string[], entries: { endpoints: string[], verdict: string, raw: string }[] }}
  */
 export function readRow(text, slug) {
-  const { tables } = parseTables(text);
+  const { tables, strayRows } = parseTables(text);
   /** @type {{ endpointCell: string, endpoints: string[], entries: ReturnType<typeof parseEvidenceEntries> }[]} */
   const matched = [];
   // 判定できない行は理由の別で数える。同じ終了コードへ畳むと、呼び出し側が
@@ -277,7 +277,17 @@ export function readRow(text, slug) {
       `slug ${slug} の行の表に「${EVIDENCE_HEADER}」列が無い（列の導入前に作られたインベントリ）。列の追加は replace-strategy の setup / issues が行う`,
     );
   }
-  if (matched.length === 0) throw new UsageError(`slug ${slug} の行がインベントリに無い`);
+  if (matched.length === 0) {
+    // 表の途中の空行や HTML コメントの行で表が切れると、その後ろの行は表の外になり、ここでは見つからない。
+    // 画面では行が見えるので、表に属さない行の位置を添えて、どこで表が切れたかを示す。
+    const outside = strayRows.filter((stray) => stray.leadingPipe).map((stray) => stray.line);
+    throw new UsageError(
+      `slug ${slug} の行がインベントリに無い` +
+        (outside.length > 0
+          ? `（${outside.join(", ")} 行目は表に属さない。表の途中の空行か HTML コメントの行で表が切れていないかを確かめる）`
+          : ""),
+    );
+  }
   const row = matched[0];
   if (row.endpointCell.length === 0) {
     throw new UsageError(

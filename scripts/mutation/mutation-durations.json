@@ -66,6 +66,7 @@
     "scripts/skills/pnpm-audit-alert-issue/normalize-pnpm-audit.mutations.json": 0.8,
     "scripts/skills/replace-strategy/append-only-check.mutations.json": 7.5,
     "scripts/skills/replace-strategy/asset-delivery-check.mutations.json": 0.9,
+    "scripts/skills/replace-strategy/markdown-lib.mutations.json": 0.5,
     "scripts/skills/replace-strategy/pending-decisions-check.mutations.json": 0.6,
     "scripts/skills/replace-strategy/procedure-staleness-check.mutations.json": 0.7,
     "scripts/tools/mutation-proof-shards.mutations.json": 2.4,

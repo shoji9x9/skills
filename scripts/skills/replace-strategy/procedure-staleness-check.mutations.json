@@ -252,8 +252,8 @@
       "id": "comment-tables-parsed",
       "why": "HTML コメントの中の表（退役した表・記入例）を台帳として読み、生きた表の代わりに変更を供給する",
       "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "      comment = !lines[i].includes(\"-->\");\n      continue;\n",
-      "replace": "      comment = false;\n",
+      "find": "  const lines = blankComments(text.split(/\\r?\\n/u));",
+      "replace": "  const lines = text.split(/\\r?\\n/u);",
       "occurrences": 1,
       "expect_failing": [
         "HTML コメントの中の表は台帳として読まない（生きた表の代わりにも、重複にもならない）",

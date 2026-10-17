@@ -37,6 +37,82 @@ function splitRow(line) {
 }
 
 /**
+ * コードスパンを閉じるバッククォートの直後の位置を返す（同じ行に無ければ -1）。
+ * 閉じる側は、開く側と同じ数のバッククォートの並びに限る（CommonMark）。
+ * @param {string} rest
+ * @param {number} index 開くバッククォートの位置
+ * @param {number} ticks 開くバッククォートの数
+ * @returns {number}
+ */
+function codeSpanEnd(rest, index, ticks) {
+  const run = /`+/gu;
+  run.lastIndex = index + ticks;
+  for (let m = run.exec(rest); m !== null; m = run.exec(rest)) {
+    if (m[0].length === ticks) return m.index + ticks;
+  }
+  return -1;
+}
+
+/**
+ * HTML コメントを、改行を保ったまま空白に置き換える（行の対応は変えない）。
+ * コードフェンスの中は例示なので置き換えない（フェンスの中の `<!--` で、以降の表を消さないため）。
+ * 同じ理由で、1 行の中のコードスパンの中の `<!--` もコメントの始まりにしない。
+ * コメントの中のフェンス行はフェンスとして扱わない。閉じていないコメントは末尾まで置き換える。
+ * @param {string[]} lines
+ * @returns {string[]}
+ */
+function blankComments(lines) {
+  /** @type {string | null} */
+  let fence = null;
+  let comment = false;
+  return lines.map((line) => {
+    if (!comment) {
+      const mark = fenceOf(line);
+      if (mark !== null) {
+        if (fence === null) fence = mark;
+        else if (mark[0] === fence[0] && mark.length >= fence.length) fence = null;
+        return line;
+      }
+      if (fence !== null) return line;
+    }
+    let out = "";
+    let rest = line;
+    while (rest !== "") {
+      if (comment) {
+        const end = rest.indexOf("-->");
+        if (end < 0) {
+          out += " ".repeat(rest.length);
+          rest = "";
+        } else {
+          out += " ".repeat(end + 3);
+          rest = rest.slice(end + 3);
+          comment = false;
+        }
+      } else {
+        const start = rest.indexOf("<!--");
+        const code = /`+/u.exec(rest);
+        if (start < 0) {
+          out += rest;
+          rest = "";
+        } else if (code !== null && code.index < start) {
+          // コードスパン（`<!--` の説明など）の中はコメントにしない。CommonMark と同じく、先に始まった方を採る。
+          // 閉じるバッククォートが同じ行に無ければ、バッククォートを文字として読み、その後ろから探し続ける。
+          const end = codeSpanEnd(rest, code.index, code[0].length);
+          const stop = end < 0 ? code.index + code[0].length : end;
+          out += rest.slice(0, stop);
+          rest = rest.slice(stop);
+        } else {
+          out += rest.slice(0, start) + "    ";
+          rest = rest.slice(start + 4);
+          comment = true;
+        }
+      }
+    }
+    return out;
+  });
+}
+
+/**
  * 表に属さないのに `|` を含む行（見出しに見えるが、次の行が区切り行でない行）。
  * @typedef {{ line: number, cells: number, leadingPipe: boolean }} StrayRow
  */
@@ -45,50 +121,27 @@ function splitRow(line) {
  * Markdown の表を全て取り出す。コードフェンスの中は例示なので読まない。
  * 区切り行のハイフンは GFM では 1 個以上（3 個以上を要求すると `|-|-|` の表を読み落とす）。
  *
- * HTML コメントの扱いは呼び出し元が選ぶ（台帳の書式に合わせて、読み飛ばしの規則を変えないため）。
- * - `keep`（デフォルト）: コメントを区別しない
- * - `blank`: コメントを改行を保ったまま空白に置き換えてから読む（行の対応は変えない。閉じていないコメントは末尾まで）
- * - `skip-lines`: フェンスの外で `<!--` で始まる行から、`-->` を含む行までを読み飛ばす
- *
- * fenceEndsTable が真なら、表の行の途中のフェンス行（`|` を含むものも）で表を終える。
- * 偽（デフォルト）なら、表の行として読めない行（`|` を含まない行）でだけ終える。
+ * HTML コメントの中の表は読まない（コメントアウトして残した行を、台帳の行として数えない）。
+ * 表の行の途中のフェンス行（`|` を含むものも）で、表を終える（GFM と同じ）。
  *
  * 表に属さないのに `|` を含む行は、警告なしに捨てず、行番号・セル数・行頭の `|` の有無を strayRows に返す
  * （GFM は行頭・行末の `|` を省けるので、行頭の `|` だけでは表の行を見分けられない）。
  * @param {string} text
- * @param {{ comments?: "keep" | "blank" | "skip-lines", fenceEndsTable?: boolean, normalizeHeader?: (cell: string) => string, consumed?: Set<number> }} [options]
+ * @param {{ normalizeHeader?: (cell: string) => string, consumed?: Set<number> }} [options]
  *   normalizeHeader は見出しのセルの正規化（デフォルトは collapse）。consumed を渡すと、表として読んだ行（見出し・区切り・行）の行番号（0 始まり）を入れる
  * @returns {{ tables: { headers: string[], rows: string[][], rowLines: number[] }[], strayRows: StrayRow[] }}
  *   rowLines は各行のファイル上の行番号（1 始まり。エラー文で行を指せるように）
  */
 function parseTables(text, options = {}) {
-  const {
-    comments = "keep",
-    fenceEndsTable = false,
-    normalizeHeader = collapse,
-    consumed,
-  } = options;
-  const source =
-    comments === "blank"
-      ? text.replace(/<!--[\s\S]*?(?:-->|$)/gu, (m) => m.replace(/[^\n]/gu, " "))
-      : text;
-  const lines = source.split(/\r?\n/u);
+  const { normalizeHeader = collapse, consumed } = options;
+  const lines = blankComments(text.split(/\r?\n/u));
   /** @type {{ headers: string[], rows: string[][], rowLines: number[] }[]} */
   const tables = [];
   /** @type {StrayRow[]} */
   const strayRows = [];
   /** @type {string | null} */
   let fence = null;
-  let comment = false;
   for (let i = 0; i < lines.length; i += 1) {
-    if (
-      comments === "skip-lines" &&
-      fence === null &&
-      (comment || lines[i].trim().startsWith("<!--"))
-    ) {
-      comment = !lines[i].includes("-->");
-      continue;
-    }
     const mark = fenceOf(lines[i]);
     if (mark !== null) {
       if (fence === null) fence = mark;
@@ -117,7 +170,7 @@ function parseTables(text, options = {}) {
     const rowLines = [];
     let j = i + 2;
     for (; j < lines.length; j += 1) {
-      if (fenceEndsTable && fenceOf(lines[j]) !== null) break;
+      if (fenceOf(lines[j]) !== null) break;
       const row = splitRow(lines[j]);
       if (row === null) break;
       rows.push(row);
