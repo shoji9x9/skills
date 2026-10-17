@@ -102,10 +102,10 @@ export function usageRows(s, ctx) {
     else b.cost += c.cost;
     b.sources.add(c.source);
     b.count += 1;
-    if (m.ts < b.first) b.first = m.ts;
   });
-  // モデルと時間ごとに、最初のメッセージのブランチの行は、ブランチで分ける前と同じ key にする。
-  // 既に記録した行を、次の collect がその key で上書きし（latestByKey）、二重に数えないため
+  // モデルと時間ごとに、最初に応答したブランチの行は、ブランチで分ける前と同じ key にする。
+  // 既に記録した行を次の collect がその key で上書きする（latestByKey）ので、二重に数えない。
+  // メッセージは時刻の順に並んでいる（claude-log.mjs・codex-log.mjs）ので、first はバケットの最初のメッセージの時刻になる
   /** @type {Map<string, number>} */
   const earliest = new Map();
   for (const b of buckets.values()) {
@@ -117,7 +117,7 @@ export function usageRows(s, ctx) {
   for (const b of buckets.values()) {
     const branch = b.branch;
     const base = `usage:${s.agent}:${s.sessionId}:${b.model}:${toIso(b.hour)}`;
-    // 同じ時刻のメッセージのブランチは 1 つに決まるので、最初の時刻が同じ 2 つの行はできない
+    // ブランチは時刻で 1 つに決まるので、first が同じ行は 1 つしかない
     const firstOfHour = earliest.get(`${b.model}\u0000${b.hour}`) === b.first;
     rows.push({
       key: firstOfHour ? base : `${base}:${branch}`,
