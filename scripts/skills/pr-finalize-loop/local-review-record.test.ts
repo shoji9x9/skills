@@ -63,6 +63,7 @@ elif [ "$1" = "api" ] && [ "$method" = "POST" ]; then
   printf '{"id": 999}' >"$dir/post.json"
   emit "$dir/post.json"
 elif [ "$1" = "api" ] && [ "$endpoint" = "user" ]; then
+  [ -f "$dir/user-fail" ] && { echo "HTTP 403: Resource not accessible by integration" >&2; exit 1; }
   emit "$dir/user.json"
 elif [ "$1" = "api" ]; then
   [ -f "$dir/comments-fail" ] && { echo "HTTP 502" >&2; exit 1; }
@@ -75,8 +76,8 @@ fi
 
 const HEAD = "a".repeat(40);
 const OLD = "b".repeat(40);
-const marker = (sha: string, findings: string | number) =>
-  `<!-- pr-finalize-loop:local-review sha=${sha} findings=${findings} -->`;
+const marker = (sha: string, findings: string | number, open: string | number = 0) =>
+  `<!-- pr-finalize-loop:local-review sha=${sha} findings=${findings} open=${open} -->`;
 
 type Comment = { id: number; login: string; body: string };
 type Fixture = {
@@ -87,7 +88,7 @@ type Fixture = {
   // gh のユーザー（post が投稿する人）。省略したら作成者
   me?: string;
   comments?: Comment[];
-  fail?: ("pr" | "comments" | "post")[];
+  fail?: ("pr" | "comments" | "post" | "user")[];
 };
 
 function setup(f: Fixture = {}) {
@@ -164,6 +165,7 @@ test("作成者が HEAD に残した記録があれば reviewed で exit 0。指
     status: "reviewed",
     record: "11",
     findings: "0",
+    open: "0",
     records: "1",
     ignored: "0",
   });
@@ -217,6 +219,11 @@ test.each([
   ["件数が整数でない", marker(HEAD, "none")],
   ["件数の先頭が 0", marker(HEAD, "01")],
   ["末尾に余計な文字", `${marker(HEAD, 0)} x`],
+  [
+    "open が無い（open を足す前の形）",
+    `<!-- pr-finalize-loop:local-review sha=${HEAD} findings=0 -->`,
+  ],
+  ["open が整数でない", marker(HEAD, 1, "x")],
 ])("1 行目の形が違う記録（%s）は、数えずに読み飛ばす", (_name, body) => {
   const dir = setup({ comments: [{ id: 31, login: "alice", body }] });
   const r = run(dir, ["check", "--pr", "7"]);
@@ -225,11 +232,47 @@ test.each([
   expect(r.stderr).toMatch(/記録 31 を読み飛ばした（1 行目の形が違う）/);
 });
 
-test("目印が本文の先頭に無いコメントは、記録の候補にしない", () => {
-  const dir = setup({ comments: [{ id: 41, login: "alice", body: `引用: ${marker(HEAD, 0)}` }] });
+test.each([
+  ["引用の中", `引用: ${marker(HEAD, 0)}`],
+  ["先頭の改行の後", `\n${marker(HEAD, 0)}`],
+])(
+  "目印が本文の先頭に無いコメント（%s）は、記録として数えず、理由を出して読み飛ばす",
+  (_name, body) => {
+    const dir = setup({ comments: [{ id: 41, login: "alice", body }] });
+    const r = run(dir, ["check", "--pr", "7"]);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatchObject({ status: "not-reviewed", records: "0", ignored: "1" });
+    expect(r.stderr).toMatch(/記録 41 を読み飛ばした（目印が本文の先頭に無い）/);
+  },
+);
+
+test("目印を含まないコメントは、記録の候補にも、読み飛ばした件数にも入れない", () => {
+  const dir = setup({ comments: [{ id: 42, login: "alice", body: "LGTM" }] });
+  const r = run(dir, ["check", "--pr", "7"]);
+  expect(r.out).toMatchObject({ records: "0", ignored: "0" });
+});
+
+test("HEAD の記録に未対応の指摘（open が 1 以上）が残っていれば、open で exit 1", () => {
+  const dir = setup({ comments: [{ id: 81, login: "alice", body: marker(HEAD, 3, 2) }] });
   const r = run(dir, ["check", "--pr", "7"]);
   expect(r.status).toBe(1);
-  expect(r.out).toMatchObject({ records: "0", ignored: "0" });
+  expect(r.out).toEqual({
+    head: HEAD,
+    status: "open",
+    record: "81",
+    findings: "3",
+    open: "2",
+    records: "1",
+    ignored: "0",
+  });
+});
+
+test("open が findings より大きい記録は、形が正しくても数えずに読み飛ばす", () => {
+  const dir = setup({ comments: [{ id: 82, login: "alice", body: marker(HEAD, 1, 2) }] });
+  const r = run(dir, ["check", "--pr", "7"]);
+  expect(r.status).toBe(1);
+  expect(r.out).toMatchObject({ status: "not-reviewed", records: "0", ignored: "1" });
+  expect(r.stderr).toMatch(/記録 82 を読み飛ばした（open が findings より大きい）/);
 });
 
 const UNDECIDABLE: [string, Fixture, RegExp][] = [
@@ -278,6 +321,8 @@ test("post は HEAD と一致する SHA の記録を投稿し、check がその�
     HEAD,
     "--findings",
     "0",
+    "--open",
+    "0",
     "--reviewer",
     "code-review high --comment",
     "--details",
@@ -286,9 +331,9 @@ test("post は HEAD と一致する SHA の記録を投稿し、check がその�
   expect(p.status).toBe(0);
   expect(p.out).toEqual({ record: "999" });
   const posted = readFileSync(join(dir, "posted.md"), "utf8");
-  expect(posted.split("\n")[0]).toBe(marker(HEAD, 0));
+  expect(posted.split("\n")[0]).toBe(marker(HEAD, 0, 0));
   expect(posted).toContain(
-    `HEAD \`${HEAD}\` を code-review high --comment でレビューし、指摘は 0 件だった。`,
+    `HEAD \`${HEAD}\` を code-review high --comment でレビューし、指摘は 0 件、そのうち未対応は 0 件だった。`,
   );
   expect(posted).toContain("- 指摘なし");
 
@@ -304,7 +349,7 @@ test("post は HEAD と一致する SHA の記録を投稿し、check がその�
 
 test("post は、渡した SHA が HEAD と違えば投稿せずに exit 1", () => {
   const dir = setup();
-  const r = run(dir, ["post", "--pr", "7", "--sha", OLD, "--findings", "0"]);
+  const r = run(dir, ["post", "--pr", "7", "--sha", OLD, "--findings", "0", "--open", "0"]);
   expect(r.status).toBe(1);
   expect(r.stderr).toMatch(/HEAD をレビューし直してから記録する/);
   expect(calls(dir)).not.toMatch(/--method POST/);
@@ -313,14 +358,41 @@ test("post は、渡した SHA が HEAD と違えば投稿せずに exit 1", () 
 
 test("post は、gh のユーザーが作成者でも担当者でもなければ、check が読み飛ばす記録を投稿せずに exit 3", () => {
   const dir = setup({ me: "mallory" });
-  const r = run(dir, ["post", "--pr", "7", "--sha", HEAD, "--findings", "0"]);
+  const r = run(dir, ["post", "--pr", "7", "--sha", HEAD, "--findings", "0", "--open", "0"]);
   // SHA の不一致（exit 1）と区別できる終了コードにする。呼び出し側の対処が違う
   expect(r.status).toBe(3);
   expect(r.stderr).toMatch(/mallory）は PR の作成者でも担当者でもない/);
   expect(calls(dir)).not.toMatch(/--method POST/);
 
   const byAssignee = setup({ me: "bob", assignees: ["bob"] });
-  expect(run(byAssignee, ["post", "--pr", "7", "--sha", HEAD, "--findings", "0"]).status).toBe(0);
+  expect(
+    run(byAssignee, ["post", "--pr", "7", "--sha", HEAD, "--findings", "0", "--open", "0"]).status,
+  ).toBe(0);
+});
+
+test("post は、未対応の件数を記録に残し、check はその記録を open と読む", () => {
+  const dir = setup();
+  expect(
+    run(dir, ["post", "--pr", "7", "--sha", HEAD, "--findings", "2", "--open", "1"]).status,
+  ).toBe(0);
+  const posted = readFileSync(join(dir, "posted.md"), "utf8");
+  expect(posted.split("\n")[0]).toBe(marker(HEAD, 2, 1));
+  writeFileSync(
+    join(dir, "comments.json"),
+    JSON.stringify([{ id: 999, user: { login: "alice" }, body: posted }]),
+  );
+  const c = run(dir, ["check", "--pr", "7"]);
+  expect(c.status).toBe(1);
+  expect(c.out).toMatchObject({ status: "open", open: "1" });
+});
+
+test("post は、gh のユーザーを取得できなければ（ユーザーでないトークン）、投稿せずに exit 4", () => {
+  const dir = setup({ fail: ["user"] });
+  const r = run(dir, ["post", "--pr", "7", "--sha", HEAD, "--findings", "0", "--open", "0"]);
+  // 一時的な失敗（exit 2）と区別できる終了コードにする。取得し直しても直らない
+  expect(r.status).toBe(4);
+  expect(r.stderr).toMatch(/local を使わずに止まる/);
+  expect(calls(dir)).not.toMatch(/--method POST/);
 });
 
 test("GitHub App が作った PR では、作成者の app/<name> を <name>[bot] として記録の書き手と照合する", () => {
@@ -340,7 +412,9 @@ test("1 行目の末尾の CR（CRLF の改行）は、形の照合の前に取�
 
 test("post は、投稿に失敗したら exit 2", () => {
   const dir = setup({ fail: ["post"] });
-  expect(run(dir, ["post", "--pr", "7", "--sha", HEAD, "--findings", "0"]).status).toBe(2);
+  expect(
+    run(dir, ["post", "--pr", "7", "--sha", HEAD, "--findings", "0", "--open", "0"]).status,
+  ).toBe(2);
 });
 
 test.each([
@@ -351,14 +425,35 @@ test.each([
   ["--pr が 2 回", ["check", "--pr", "7", "--pr", "8"]],
   ["check に --sha", ["check", "--pr", "7", "--sha", HEAD]],
   ["check に --reviewer", ["check", "--pr", "7", "--reviewer", "x"]],
-  ["post に --sha が無い", ["post", "--pr", "7", "--findings", "0"]],
-  ["post に --findings が無い", ["post", "--pr", "7", "--sha", HEAD]],
-  ["短縮した SHA", ["post", "--pr", "7", "--sha", HEAD.slice(0, 7), "--findings", "0"]],
-  ["件数が負", ["post", "--pr", "7", "--sha", HEAD, "--findings", "-1"]],
-  ["件数の先頭が 0", ["post", "--pr", "7", "--sha", HEAD, "--findings", "01"]],
+  ["post に --sha が無い", ["post", "--pr", "7", "--findings", "0", "--open", "0"]],
+  ["post に --findings が無い", ["post", "--pr", "7", "--sha", HEAD, "--open", "0"]],
+  ["post に --open が無い", ["post", "--pr", "7", "--sha", HEAD, "--findings", "0"]],
+  ["--open が整数でない", ["post", "--pr", "7", "--sha", HEAD, "--findings", "1", "--open", "x"]],
+  [
+    "--open が --findings より大きい",
+    ["post", "--pr", "7", "--sha", HEAD, "--findings", "1", "--open", "2"],
+  ],
+  [
+    "短縮した SHA",
+    ["post", "--pr", "7", "--sha", HEAD.slice(0, 7), "--findings", "0", "--open", "0"],
+  ],
+  ["件数が負", ["post", "--pr", "7", "--sha", HEAD, "--findings", "-1", "--open", "0"]],
+  ["件数の先頭が 0", ["post", "--pr", "7", "--sha", HEAD, "--findings", "01", "--open", "0"]],
   [
     "読めない --details",
-    ["post", "--pr", "7", "--sha", HEAD, "--findings", "0", "--details", "/nonexistent"],
+    [
+      "post",
+      "--pr",
+      "7",
+      "--sha",
+      HEAD,
+      "--findings",
+      "0",
+      "--open",
+      "0",
+      "--details",
+      "/nonexistent",
+    ],
   ],
   ["不明な引数", ["check", "--pr", "7", "--x"]],
 ])("引数が不正（%s）なら、gh を呼ばずに exit 64", (_name, args) => {

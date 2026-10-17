@@ -8,33 +8,39 @@
 #
 # 使い方:
 #   local-review-record.sh post --pr <PR URL|番号> --sha <レビューした HEAD の完全な SHA> --findings <件数> \
-#     [--reviewer <レビューに使った機能>] [--details <追記する本文のファイル>]
+#     --open <未対応の件数> [--reviewer <レビューに使った機能>] [--details <追記する本文のファイル>]
 #   local-review-record.sh check --pr <PR URL|番号>
 #
 # 記録の 1 行目（判定はこの行だけを読む）:
-#   <!-- pr-finalize-loop:local-review sha=<40 桁の SHA> findings=<件数> -->
+#   <!-- pr-finalize-loop:local-review sha=<40 桁の SHA> findings=<件数> open=<未対応の件数> -->
+#
+# open は、記録の本文に書いた指摘のうち、まだ直していないもの（直すと決めたものと判断待ち）の件数である。
+# 行に付いた指摘はスレッドの解決で追えるので数えない。本文の指摘は誰も集めないので、ここで数えないと、直さないまま収束と判定される。
 #
 # check は key=value の行を出力する。パースして使う。
 #   head=<sha>        現在の headRefOid。
-#   status=<value>    reviewed か not-reviewed。
-#   record=<id>       HEAD と一致する記録のコメントの id。reviewed のときだけ出す。
-#   findings=<n>      その記録の指摘の件数。reviewed のときだけ出す。
+#   status=<value>    reviewed・open・not-reviewed のどれか。
+#   record=<id>       HEAD と一致する記録のコメントの id。reviewed と open のときだけ出す。
+#   findings=<n>      その記録の指摘の件数。reviewed と open のときだけ出す。
+#   open=<n>          その記録の未対応の件数。reviewed と open のときだけ出す。
 #   records=<n>       形の正しい記録の件数。SHA は問わない。
 #   ignored=<n>       読み飛ばした記録の件数。理由は stderr に 1 件ずつ出す。
 #
 # 終了コードは次のとおりである。どちらのモードも、引数が不正なら 64 を返す。
-#   check: 0 は HEAD をレビューした記録がある。1 は無い。2 は判定できない。
+#   check: 0 は HEAD をレビューし、未対応が 0 件の記録がある。1 はそれが無い（open を含む）。2 は判定できない。
 #   post:  0 は投稿した。1 は渡した SHA が HEAD と違う（投稿しない）。2 は取得か投稿に失敗した。
 #          3 は gh のユーザーが PR の作成者でも担当者でもない（投稿しない）。
+#          4 は gh のユーザーを取得できない（ユーザーでないトークン。投稿しない）。
 #
-# post が投稿しない 2 つの理由は、呼び出し側の対処が違う（1 はレビューし直す、3 は投稿する人を変える）ので、終了コードを分ける。
+# post が投稿しない理由は、呼び出し側の対処がそれぞれ違うので、終了コードを分ける。
+# 1 はレビューし直す、2 は取得し直す、3 は投稿する人を変える、4 はこの環境では local を使わずに止まる。
 set -euo pipefail
 
 MARKER_PREFIX="<!-- pr-finalize-loop:local-review "
 
 usage() {
 	cat >&2 <<'EOF'
-usage: local-review-record.sh post --pr <PR URL|番号> --sha <SHA> --findings <件数> [--reviewer <text>] [--details <file>]
+usage: local-review-record.sh post --pr <PR URL|番号> --sha <SHA> --findings <件数> --open <件数> [--reviewer <text>] [--details <file>]
        local-review-record.sh check --pr <PR URL|番号>
 EOF
 }
@@ -60,13 +66,14 @@ esac
 pr=""
 sha=""
 findings=""
+open=""
 reviewer="local"
 details=""
 # 値を持つ引数は、重ねて渡したら拒否する（後の値で警告なしに上書きしない）
 seen=" "
 while [ "$#" -gt 0 ]; do
 	case "$1" in
-	--pr | --sha | --findings | --reviewer | --details)
+	--pr | --sha | --findings | --open | --reviewer | --details)
 		[ "$#" -ge 2 ] || die_usage "$1 に値がない"
 		[ -n "$2" ] || die_usage "$1 の値が空"
 		case "${seen}" in *" $1 "*) die_usage "$1 が 2 回渡された" ;; esac
@@ -75,6 +82,7 @@ while [ "$#" -gt 0 ]; do
 		--pr) pr="$2" ;;
 		--sha) sha="$2" ;;
 		--findings) findings="$2" ;;
+		--open) open="$2" ;;
 		--reviewer) reviewer="$2" ;;
 		--details) details="$2" ;;
 		esac
@@ -90,8 +98,12 @@ if [ "${mode}" = "check" ]; then
 else
 	[ -n "${sha}" ] || die_usage "--sha が無い"
 	[ -n "${findings}" ] || die_usage "--findings が無い"
+	# 省いたときに 0 として扱うと、直していない指摘を残した記録がレビュー済みになる。必ず渡させる
+	[ -n "${open}" ] || die_usage "--open が無い（記録の本文の指摘のうち、まだ直していない件数。無ければ 0）"
 	[[ "${sha}" =~ ^[0-9a-f]{40}$ ]] || die_usage "--sha は 40 桁の小文字の 16 進数にする（短縮した SHA は受け取らない）: ${sha}"
 	[[ "${findings}" =~ ^(0|[1-9][0-9]*)$ ]] || die_usage "--findings は 0 以上の整数にする: ${findings}"
+	[[ "${open}" =~ ^(0|[1-9][0-9]*)$ ]] || die_usage "--open は 0 以上の整数にする: ${open}"
+	[ "${open}" -le "${findings}" ] || die_usage "--open（${open}）が --findings（${findings}）より大きい"
 	if [ -n "${details}" ] && [ ! -r "${details}" ]; then
 		die_usage "--details のファイルを読めない: ${details}"
 	fi
@@ -136,21 +148,22 @@ if [ "${mode}" = "post" ]; then
 	fi
 	# check が読み飛ばす人の名前で投稿すると、記録が残っても HEAD はレビュー済みにならない
 	if ! me=$(gh api ${host_args[@]+"${host_args[@]}"} user --jq '.login' </dev/null) || [ -z "${me}" ]; then
-		echo "error: gh のユーザーを取得できない" >&2
-		exit 2
+		echo "error: gh のユーザーを取得できない（ユーザーでないトークンでは記録を残せないので、local を使わずに止まる）" >&2
+		exit 4
 	fi
 	case "${allowed}" in
 	*",${me},"*) ;;
 	*)
-		echo "error: gh のユーザー（${me}）は PR の作成者でも担当者でもないので、check はこの記録を読み飛ばす。作成者か担当者として投稿する" >&2
+		echo "error: gh のユーザー（${me}）は PR の作成者でも担当者でもないので、check はこの記録を読み飛ばす。利用者に確かめる" >&2
 		exit 3
 		;;
 	esac
 	body=$(mktemp)
 	trap 'rm -f "${pr_err}" "${body}"' EXIT
 	{
-		printf '%ssha=%s findings=%s -->\n\n' "${MARKER_PREFIX}" "${sha}" "${findings}"
-		printf '手元のレビューの記録: HEAD %s を %s でレビューし、指摘は %s 件だった。\n' "\`${sha}\`" "${reviewer}" "${findings}"
+		printf '%ssha=%s findings=%s open=%s -->\n\n' "${MARKER_PREFIX}" "${sha}" "${findings}" "${open}"
+		printf '手元のレビューの記録: HEAD %s を %s でレビューし、指摘は %s 件、そのうち未対応は %s 件だった。\n' \
+			"\`${sha}\`" "${reviewer}" "${findings}" "${open}"
 		if [ -n "${details}" ]; then
 			printf '\n'
 			cat "${details}"
@@ -164,9 +177,10 @@ if [ "${mode}" = "post" ]; then
 	exit 0
 fi
 
-# check: 記録の候補（本文が目印で始まるトップレベルのコメント）を、1 行目だけ取得する
+# check: 記録の候補（本文に目印を含むトップレベルのコメント）の 1 行目を取得する。
+# 目印が先頭に無いものも取得し、読み飛ばした理由を出す（先頭の改行や空白で、警告なしに記録が消えないようにする）
 if ! list=$(gh api ${host_args[@]+"${host_args[@]}"} --paginate "${api_path}?per_page=100" \
-	--jq '.[] | select((.body // "") | startswith("'"${MARKER_PREFIX}"'")) | [(.id | tostring), (.user.login // ""), ((.body // "") | split("\n")[0] | rtrimstr("\r"))] | join("\u001f")' \
+	--jq '.[] | select((.body // "") | contains("'"${MARKER_PREFIX}"'")) | [(.id | tostring), (.user.login // ""), ((.body // "") | split("\n")[0] | rtrimstr("\r"))] | join("\u001f")' \
 	</dev/null); then
 	echo "error: PR のコメントを取得できない" >&2
 	exit 2
@@ -176,6 +190,7 @@ records=0
 ignored=0
 record=""
 record_findings=""
+record_open=""
 while IFS=$'\x1f' read -r id login line; do
 	[ -n "${id}" ] || continue
 	case "${allowed}" in
@@ -186,8 +201,18 @@ while IFS=$'\x1f' read -r id login line; do
 		continue
 		;;
 	esac
-	if [[ ! "${line}" =~ ^"${MARKER_PREFIX}sha="([0-9a-f]{40})" findings="(0|[1-9][0-9]*)" -->"$ ]]; then
+	if [[ "${line}" != "${MARKER_PREFIX}"* ]]; then
+		echo "note: 記録 ${id} を読み飛ばした（目印が本文の先頭に無い）" >&2
+		ignored=$((ignored + 1))
+		continue
+	fi
+	if [[ ! "${line}" =~ ^"${MARKER_PREFIX}sha="([0-9a-f]{40})" findings="(0|[1-9][0-9]*)" open="(0|[1-9][0-9]*)" -->"$ ]]; then
 		echo "note: 記録 ${id} を読み飛ばした（1 行目の形が違う）" >&2
+		ignored=$((ignored + 1))
+		continue
+	fi
+	if [ "${BASH_REMATCH[3]}" -gt "${BASH_REMATCH[2]}" ]; then
+		echo "note: 記録 ${id} を読み飛ばした（open が findings より大きい）" >&2
 		ignored=$((ignored + 1))
 		continue
 	fi
@@ -196,19 +221,25 @@ while IFS=$'\x1f' read -r id login line; do
 	if [ "${BASH_REMATCH[1]}" = "${head}" ]; then
 		record="${id}"
 		record_findings="${BASH_REMATCH[2]}"
+		record_open="${BASH_REMATCH[3]}"
 	fi
 done <<<"${list}"
 
 echo "head=${head}"
 # 出力と終了コードを同じ分岐で決める
 status=1
-if [ -n "${record}" ]; then
-	status=0
-	echo "status=reviewed"
+if [ -z "${record}" ]; then
+	echo "status=not-reviewed"
+else
+	if [ "${record_open}" = "0" ]; then
+		status=0
+		echo "status=reviewed"
+	else
+		echo "status=open"
+	fi
 	echo "record=${record}"
 	echo "findings=${record_findings}"
-else
-	echo "status=not-reviewed"
+	echo "open=${record_open}"
 fi
 echo "records=${records}"
 echo "ignored=${ignored}"
