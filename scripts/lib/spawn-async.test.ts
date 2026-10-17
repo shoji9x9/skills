@@ -65,4 +65,21 @@ describe.concurrent("spawnAsync", () => {
       expect(uncaught).toEqual([]);
     },
   );
+
+  test("timeout を過ぎたら、孫プロセスが stdout を持っていても止めて ETIMEDOUT を返す（spawnSync と同じ）", async () => {
+    const started = Date.now();
+    const r = await spawnAsync("bash", ["-c", "sleep 5; echo done"], { timeout: 300 });
+    // 孫の sleep が stdout を持ったままでも、5 秒を待たずに返る。
+    expect(Date.now() - started).toBeLessThan(3000);
+    expect(r).toMatchObject({ status: null, signal: "SIGTERM", stdout: "" });
+    expect(r.error).toMatchObject({ code: "ETIMEDOUT" });
+  });
+
+  test("timeout より前に終わった子は、error を付けずに返す", async () => {
+    const r = await spawnAsync("bash", ["-c", "sleep 0.2; echo done"], {
+      timeout: CHILD_TIMEOUT_MS,
+    });
+    expect(r).toMatchObject({ status: 0, signal: null, stdout: "done\n" });
+    expect(r.error).toBeUndefined();
+  });
 });

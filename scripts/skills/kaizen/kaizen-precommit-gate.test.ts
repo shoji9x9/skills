@@ -122,12 +122,14 @@ function setupForeignScan(scannerBody: string) {
     `2099-01-01T00:00:00Z\n${transcript}\nclaude-code\n${FOREIGN_SCAN_FOREIGN}\n`,
   );
   const cache = join(cwd, ".kaizen", `.extract-checkpoint.${FOREIGN_SCAN_FOREIGN}.foreign-scan`);
-  const gate = async (env: Record<string, string> = {}) =>
+  // timeout は、1 つのテストで gate を何度も起動するときに、合計がテストの timeout を超えないように渡す。
+  const gate = async (env: Record<string, string> = {}, timeout?: number) =>
     await runGate("git commit -m x", {
       cwd,
       sessionId: FOREIGN_SCAN_OWN,
       scripts,
       env: { SCAN_COUNTER: counter, ...env },
+      timeout,
     });
   const scans = () =>
     existsSync(counter) ? readFileSync(counter, "utf8").split("\n").filter(Boolean).length : 0;
@@ -1844,12 +1846,13 @@ describe("他セッション分の走査結果の再利用（使える秒数を�
     );
     // 使える秒数は SECONDS の境界で 1 秒揺れる。同じ締め切りの 2 回目は許容内（+1 秒）に、
     // 3 回目は確実に許容の外に収まる値を選ぶ。
-    await gate({ KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "3" });
+    // gate を 3 回順に起動するので、子プロセスの timeout の合計（27 秒）をテストの timeout（30 秒）より短くする。
+    await gate({ KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "3" }, 9_000);
     expect(scans()).toBe(1);
-    const same = await gate({ KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "3" });
+    const same = await gate({ KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "3" }, 9_000);
     expect(scans()).toBe(1);
     expect(same.stderr).toMatch(/skipped re-scanning .*\(exit 124 after up to [12]s\)/);
-    await gate({ KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "7", SCAN_NO_WAIT: "1" });
+    await gate({ KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "7", SCAN_NO_WAIT: "1" }, 9_000);
     expect(scans()).toBe(2);
   }, 30000);
 });

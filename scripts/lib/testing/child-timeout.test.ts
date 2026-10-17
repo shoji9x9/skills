@@ -4,7 +4,7 @@
 // test-tmpdir.test.ts と同じ形で、テストと、テストから使う補助のファイルを走査して落とす。
 import { describe, expect, test } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
-import { dirname, join, relative } from "node:path";
+import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CHILD_TIMEOUT_MS, TEST_TIMEOUT_MS, findUntimedChildCalls } from "./child-timeout.ts";
 
@@ -96,6 +96,50 @@ describe("findUntimedChildCalls", () => {
       `${IMPORT}test.each([1])("t %s", () => {\n  spawnSync("node", [], { timeout: CHILD_TIMEOUT_MS });\n}, 10_000);`,
       ["3: spawnSync（timeout 25000 がテストの timeout 10000 以上）"],
     ],
+    ["timeout: 0", `${IMPORT}spawnSync("node", [], { timeout: 0 });`, ["2: spawnSync"]],
+    [
+      "?? の後ろの値が testTimeout 以上",
+      `${IMPORT}spawnSync("node", [], { timeout: options.timeout ?? 30_000 });`,
+      ["2: spawnSync（timeout 30000 がテストの timeout 30000 以上）"],
+    ],
+    [
+      "timeout の後ろのスプレッド",
+      `${IMPORT}spawnSync("node", [], { timeout: CHILD_TIMEOUT_MS, ...options });`,
+      ["2: spawnSync"],
+    ],
+    [
+      "beforeAll の hookTimeout 以上",
+      `${IMPORT}beforeAll(() => {\n  spawnSync("node", [], { timeout: CHILD_TIMEOUT_MS });\n});`,
+      ["3: spawnSync（timeout 25000 がテストの timeout 10000 以上）"],
+    ],
+    [
+      "型引数を付けた each のテストの timeout 以上",
+      `${IMPORT}test.each<[number]>([[1]])("t %s", () => {\n  spawnSync("node", [], { timeout: CHILD_TIMEOUT_MS });\n}, 10_000);`,
+      ["3: spawnSync（timeout 25000 がテストの timeout 10000 以上）"],
+    ],
+    ["変数への代入", `${IMPORT}const run = spawnSync;`, ["2: spawnSync（呼び出し以外で参照）"]],
+    ["promisify", `${IMPORT}const run = promisify(spawn);`, ["2: spawn（呼び出し以外で参照）"]],
+    ["省略記法で渡す", `${IMPORT}use({ spawnSync });`, ["2: spawnSync（呼び出し以外で参照）"]],
+    [
+      "名前空間からの分割代入",
+      'import * as cp from "node:child_process";\nconst { spawnSync: run } = cp;',
+      ["2: cp（呼び出し以外で参照）"],
+    ],
+    [
+      "名前空間の要素アクセス",
+      'import * as cp from "node:child_process";\ncp["spawnSync"]("node", []);',
+      ["2: cp（呼び出し以外で参照）"],
+    ],
+    [
+      "名前空間のメンバーの代入",
+      'import * as cp from "node:child_process";\nconst run = cp.spawnSync;',
+      ["2: spawnSync（呼び出し以外で参照）"],
+    ],
+    [
+      "spawn-async の名前空間",
+      'import * as sa from "./spawn-async.ts";\nawait sa.spawnAsync("node", []);',
+      ["2: spawnAsync"],
+    ],
   ])("タイムアウトの無い起動（%s）を拾う", (_, source, expected) => {
     expect(findUntimedChildCalls(source)).toEqual(expected);
   });
@@ -156,6 +200,25 @@ describe("findUntimedChildCalls", () => {
       "テストの名前の中の起動は、そのテストの timeout と比べない",
       `${IMPORT}test(String(spawnSync("node", [], { timeout: CHILD_TIMEOUT_MS }).status), () => {}, 1000);`,
     ],
+    [
+      "?? の後ろの CHILD_TIMEOUT_MS",
+      `${IMPORT}spawnSync("node", [], { ...options, timeout: options.timeout ?? CHILD_TIMEOUT_MS });`,
+    ],
+    ["型の中の参照", `${IMPORT}type Result = ReturnType<typeof spawnSync>;`],
+    ["同じ名前のオブジェクトのキー", `${IMPORT}const counts = { spawnSync: 1 };`],
+    ["同じ名前の他のオブジェクトのメンバー", `${IMPORT}fake.spawnSync("node", []);`],
+    [
+      "起動の関数ではない名前空間のメンバー",
+      'import * as cp from "node:child_process";\nconst Child = cp.ChildProcess;',
+    ],
+    [
+      "長い beforeAll の中の、Hook より短い timeout",
+      `${IMPORT}beforeAll(() => {\n  spawnSync("node", [], { timeout: CHILD_TIMEOUT_MS });\n}, 60_000);`,
+    ],
+    [
+      "テストの timeout が 0（比べない）",
+      `${IMPORT}test("t", () => {\n  spawnSync("node", [], { timeout: CHILD_TIMEOUT_MS });\n}, 0);`,
+    ],
   ])("拾わない（%s）", (_, source) => {
     expect(findUntimedChildCalls(source)).toEqual([]);
   });
@@ -168,8 +231,9 @@ function targets(dir: string): string[] {
     const path = join(dir, entry.name);
     if (entry.isDirectory()) return entry.name === "node_modules" ? [] : targets(path);
     if (!entry.name.endsWith(".ts")) return [];
+    // `lib/testing-foo/` のような別のディレクトリを含めないよう、区切り文字まで比べる。
     return /(\.test|-fixture)\.ts$/.test(entry.name) ||
-      relative(scriptsDir, path).startsWith(join("lib", "testing"))
+      relative(scriptsDir, path).startsWith(join("lib", "testing") + sep)
       ? [path]
       : [];
   });

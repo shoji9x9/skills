@@ -125,8 +125,11 @@ fixture も、原本（テンプレート・スキーマの文書・同梱の雛
   付け忘れは `scripts/lib/testing/child-timeout.test.ts` が検出する。付けない理由がある呼び出しは、同じ行の末尾か、直前のコメントだけの行に `// child-timeout-ok: <理由>` を書く。
   `child_process` は静的な `import` で読み込む。動的な `import()` と `require()` は、取り出した関数を追えないので検出の対象になる。
   `scripts/lib/spawn-async.ts` の `spawnAsync` は `timeout` を必須にしていて、同じテストが検出の対象にする。
-  子プロセスの `timeout` は、テストの打ち切りより短くする。同じテストが、数値と `CHILD_TIMEOUT_MS` で書いた値を、呼び出しを囲むテストの `timeout` と比べる。
-  補助の関数の中の呼び出しは、どのテストから呼ばれるかを追えないので、`testTimeout` と比べる。`testTimeout` より短いテストから補助の関数を呼ぶときは、補助の関数に子プロセスの `timeout` を引数で渡す
+  子プロセスの `timeout` は、テストの打ち切りより短くする。同じテストが、数値と `CHILD_TIMEOUT_MS` で書いた値を、呼び出しを囲むテストか Hook（`beforeAll` など）の `timeout` と比べる。
+  補助の関数の中の呼び出しは、どのテストから呼ばれるかを追えないので、`testTimeout` と比べる。
+  `testTimeout` と長さが違うテストから補助の関数を呼ぶときは、補助の関数に子プロセスの `timeout` を引数で渡し、`timeout: options.timeout ?? CHILD_TIMEOUT_MS` の形で受ける。
+  `timeout: 0`（Node ではタイムアウトなし）と、`timeout` のキーより後ろのスプレッドは、付いていないものとして検出する。起動の関数を呼び出し以外で参照する書き方（変数への代入・`promisify`・名前空間の分割代入）も検出する。
+  1 つのテストで順に起動する子プロセスの `timeout` の合計は比べないので、合計がテストの `timeout` を超えないようにする
 
 ## 並列実行
 

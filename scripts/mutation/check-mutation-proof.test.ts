@@ -233,22 +233,28 @@ type NodeResult = {
 };
 async function runNode(
   args: string[],
-  options: { cwd: string; env: NodeJS.ProcessEnv },
+  // timeout は、testTimeout より長いテストから呼ぶときだけ、そのテストの timeout より短い値を渡す。
+  options: { cwd: string; env: NodeJS.ProcessEnv; timeout?: number },
 ): Promise<NodeResult> {
   const { pid, status, stdout, stderr, error } = await spawnAsync(process.execPath, args, {
-    timeout: CHILD_TIMEOUT_MS,
     ...options,
+    timeout: options.timeout ?? CHILD_TIMEOUT_MS,
   });
   if (error) throw error;
   return { pid, status, stdout, stderr, out: `${stdout}${stderr}` };
 }
 
 function runRunner(...args: (string | Env)[]) {
+  return runRunnerWithin(CHILD_TIMEOUT_MS, ...args);
+}
+
+/** 子の vitest を何度も起動する長いテストから呼ぶ。timeout はそのテストの timeout より短くする。 */
+function runRunnerWithin(timeout: number, ...args: (string | Env)[]) {
   // 最後の引数が object なら env、残りはランナーへの引数の文字列。
   const last = args.at(-1);
   const env: Env = typeof last === "object" ? last : {};
   const runnerArgs = args.filter((a): a is string => typeof a === "string");
-  return runNode([RUNNER, ...runnerArgs], { cwd: repoRoot, env: runnerEnv(env) });
+  return runNode([RUNNER, ...runnerArgs], { cwd: repoRoot, env: runnerEnv(env), timeout });
 }
 
 function mutation(over: Record<string, unknown> = {}) {
@@ -1551,7 +1557,7 @@ describe("本物の vitest を通す end-to-end", () => {
   test.concurrent("本物の vitest でも PASS し、子の掃引で使用中の fixture が消えない", async () => {
     const fx = makeFixture({ real: true });
     const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
-    const res = await runRunner(spec, { ...REAL, MUTATION_PROOF_CHILD: undefined });
+    const res = await runRunnerWithin(50_000, spec, { ...REAL, MUTATION_PROOF_CHILD: undefined });
     expect(res.status, res.out).toBe(0);
     expect(res.out).toContain("PASS G");
     expect(res.out, "スタブで測っている").not.toContain("テスト用の注入");
@@ -1563,11 +1569,18 @@ describe("本物の vitest を通す end-to-end", () => {
   // 選択から測定までを、本物の vitest で通す。測る変異は、対象をそのテストだけが読み、テストファイルが軽い宣言から選ぶ。
   // 集計スクリプトの宣言（STDEV）で測っていたときは、子の vitest の 2 回の実行で 5 秒かかった（Issue #588）。
   test.concurrent("対象ファイルが変わった宣言だけを選ぶ", async () => {
-    const res = await runRunner("--changed-since", "origin/main", "--only", "WL-DUP", {
-      ...REAL,
-      MUTATION_PROOF_CHANGED_FILES: "scripts/gates/prose/check-word-list.ts",
-      // 語の一覧のチェックの宣言だけが選ばれる差分。`--only` で 1 変異に抑える（有界化の理由は `--changed-since` のテストの前のコメント）。
-    });
+    const res = await runRunnerWithin(
+      50_000,
+      "--changed-since",
+      "origin/main",
+      "--only",
+      "WL-DUP",
+      {
+        ...REAL,
+        MUTATION_PROOF_CHANGED_FILES: "scripts/gates/prose/check-word-list.ts",
+        // 語の一覧のチェックの宣言だけが選ばれる差分。`--only` で 1 変異に抑える（有界化の理由は `--changed-since` のテストの前のコメント）。
+      },
+    );
     expect(res.status, res.out).toBe(0);
     expect(res.out).toContain("測る: scripts/gates/prose/check-word-list.mutations.json");
     expect(res.out).toContain("飛ばす: scripts/mutation/check-mutation-proof.mutations.json");

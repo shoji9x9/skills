@@ -33,7 +33,8 @@
       "replace": "...{}",
       "occurrences": 1,
       "expect_failing": [
-        "spawnAsync 起動できなければ reject せず、error を持つ結果を返す（spawnSync と同じ）"
+        "spawnAsync 起動できなければ reject せず、error を持つ結果を返す（spawnSync と同じ）",
+        "spawnAsync timeout を過ぎたら、孫プロセスが stdout を持っていても止めて ETIMEDOUT を返す（spawnSync と同じ）"
       ]
     },
     {
@@ -45,7 +46,8 @@
       "occurrences": 1,
       "expect_failing": [
         "spawnAsync 終了コード・stdout・stderr を文字列で返す",
-        "spawnAsync 起動できなければ reject せず、error を持つ結果を返す（spawnSync と同じ）"
+        "spawnAsync 起動できなければ reject せず、error を持つ結果を返す（spawnSync と同じ）",
+        "spawnAsync timeout を過ぎたら、孫プロセスが stdout を持っていても止めて ETIMEDOUT を返す（spawnSync と同じ）"
       ]
     },
     {
@@ -57,6 +59,39 @@
       "occurrences": 1,
       "expect_failing": [
         "spawnAsync 起動できなければ reject せず、error を持つ結果を返す（spawnSync と同じ）"
+      ]
+    },
+    {
+      "id": "timeout-not-killed",
+      "why": "timeout を過ぎても子を止めない",
+      "file": "scripts/lib/spawn-async.ts",
+      "find": "      child.kill(\"SIGTERM\");",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "spawnAsync timeout を過ぎたら、孫プロセスが stdout を持っていても止めて ETIMEDOUT を返す（spawnSync と同じ）"
+      ]
+    },
+    {
+      "id": "stdout-kept-open",
+      "why": "止めた子の stdout を読み続け、孫プロセスが閉じるまで返らない",
+      "file": "scripts/lib/spawn-async.ts",
+      "find": "      child.stdout.destroy();",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "spawnAsync timeout を過ぎたら、孫プロセスが stdout を持っていても止めて ETIMEDOUT を返す（spawnSync と同じ）"
+      ]
+    },
+    {
+      "id": "timeout-error-missing",
+      "why": "timeout で止めたときに error を返さない",
+      "file": "scripts/lib/spawn-async.ts",
+      "find": "      if (timedOut)\n        error = ",
+      "replace": "      if (false)\n        error = ",
+      "occurrences": 1,
+      "expect_failing": [
+        "spawnAsync timeout を過ぎたら、孫プロセスが stdout を持っていても止めて ETIMEDOUT を返す（spawnSync と同じ）"
       ]
     }
   ]

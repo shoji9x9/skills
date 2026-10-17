@@ -73,7 +73,8 @@ const cliRuns = (() => {
   const run = (files: Record<string, string>) => {
     const root = makeSharedTempDir("lint-prose-cli-");
     fillRepo(root, files);
-    return spawnAsync(process.execPath, [script], { timeout: CHILD_TIMEOUT_MS, cwd: root });
+    // child-timeout-ok: 収集のときに起動し、60 秒の afterAll と CLI のテストで待つ。CPU が混むと 25 秒を超えるので、それより短い 50 秒にする
+    return spawnAsync(process.execPath, [script], { timeout: 50_000, cwd: root });
   };
   const dirty = run({ "a.md": DIRTY });
   const clean = run({ "a.md": CLEAN });
