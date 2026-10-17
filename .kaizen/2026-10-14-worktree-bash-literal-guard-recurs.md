@@ -125,4 +125,4 @@ PR #656 のレビューで出た指摘である。上の Hook の条件の細部
 - `;`・`&&` と `node`・`bash` の起動の組は、ハーネスが通す正当な複合コマンド（定数の引数だけの `pnpm exec vitest run a.test.ts && node scripts/x.ts` など）にも当たる。ハーネスの拒否の理由（`computed at runtime`・`inside a construct too complex`）に対応する形に絞り、誤検知しないことを確かめる例を挙げる。
 - 新しい Hook を書かず、Bash の呼び出しをセグメントに分けて判定する既存の PreToolUse の Hook（`scripts/hooks/bash-command-guard.sh`）に足せるかを先に確かめる。
 - 2026-10-18、#676 の作業でも、README に 1 行を足す `printf ... >> README.md` と、続けて lint を `;` でつないだ処理が、引数に日本語の文を持つ `printf` として拒否された。Edit ツールで足す形に直して通した。
-  同じ作業で、benchmark.md に 1 行を足す `printf` も同じ理由で拒否された。前の拒否から同じ形を書いた。
+  同じ作業で、benchmark.md に 1 行を足す `printf` も同じ理由で拒否された。1 回目の拒否で Edit ツールに直した後、次の追記でまた `printf` を書いた。

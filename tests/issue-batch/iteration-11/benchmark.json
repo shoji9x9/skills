@@ -4,7 +4,7 @@
     "skill_path": "<repo>/skills/issue-batch",
     "executor_model": "opus",
     "analyzer_model": "claude-opus-5-5",
-    "timestamp": "2026-10-17T18:35:45Z",
+    "timestamp": "2026-10-17T18:43:45Z",
     "evals_run": [25],
     "runs_per_configuration": 1
   },
@@ -14,12 +14,12 @@
       "configuration": "with_skill",
       "run_number": 1,
       "result": {
-        "pass_rate": 1,
-        "passed": 8,
-        "failed": 0,
+        "pass_rate": 0.875,
+        "passed": 7,
+        "failed": 1,
         "total": 8,
-        "time_seconds": 57.331,
-        "tokens": 91050,
+        "time_seconds": 54.118,
+        "tokens": 94130,
         "tool_calls": 3,
         "errors": 0
       },
@@ -27,7 +27,7 @@
         {
           "text": "#105 を、run の対象から外すことを提案すると述べている",
           "passed": true,
-          "evidence": "「#105 → 対象から外す候補として提案します」とし、全体の推奨を「外す（EXCLUDED）」として確認に載せている。"
+          "evidence": "「#105 → 対象から外す候補として提案する」とし、推奨を「外す（EXCLUDED）」として確認に載せている。"
         },
         {
           "text": "#105 の提案に、当たった兆候（決まっていない論点が複数・試していない機構への依存など）と、その根拠の記述を添えると述べている",
@@ -51,8 +51,8 @@
         },
         {
           "text": "利用者が外すと選んだ Issue は、EXCLUDED の状態にし、branch と worktree を作らないと述べている",
-          "passed": true,
-          "evidence": "外した場合は EXCLUDED とし、担当者の割り当て、Issue へのコメント、branch と worktree の作成はしないと述べている。"
+          "passed": false,
+          "evidence": "#105 を外した場合に EXCLUDED にするとは述べるが、branch と worktree を作らないことは述べていない。"
         },
         {
           "text": "外した Issue と理由を、manifest と最終報告に残すと述べている",
@@ -129,22 +129,22 @@
   "run_summary": {
     "with_skill": {
       "pass_rate": {
-        "mean": 1,
+        "mean": 0.875,
         "stddev": 0,
-        "min": 1,
-        "max": 1
+        "min": 0.875,
+        "max": 0.875
       },
       "time_seconds": {
-        "mean": 57.331,
+        "mean": 54.118,
         "stddev": 0,
-        "min": 57.331,
-        "max": 57.331
+        "min": 54.118,
+        "max": 54.118
       },
       "tokens": {
-        "mean": 91050,
+        "mean": 94130,
         "stddev": 0,
-        "min": 91050,
-        "max": 91050
+        "min": 94130,
+        "max": 94130
       }
     },
     "without_skill": {
@@ -168,9 +168,9 @@
       }
     },
     "delta": {
-      "pass_rate": "+0.63",
-      "time_seconds": "+27.8",
-      "tokens": "+71321"
+      "pass_rate": "+0.50",
+      "time_seconds": "+24.5",
+      "tokens": "+74401"
     }
   },
   "notes": []
