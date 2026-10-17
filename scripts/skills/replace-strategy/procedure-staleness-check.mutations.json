@@ -217,15 +217,18 @@
     },
     {
       "id": "multiline-comment-counted",
-      "why": "複数行の HTML コメントの中の記入例を表の外の行として数え、正しい台帳を落とす",
+      "why": "countRowLikeLines が、HTML コメントを空白にせずに表の行に見える行を数える",
       "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
-      "find": "      comment = !line.includes(\"-->\");\n",
-      "replace": "      comment = false;\n",
+      "find": "  blankComments(text.split(/\\r?\\n/u)).forEach((line, index) => {",
+      "replace": "  text.split(/\\r?\\n/u).forEach((line, index) => {",
       "occurrences": 1,
       "expect_failing": [
         "誤検知しないことの確認: 複数行の HTML コメントの中の `|` を含む行は表の外の行に数えない",
         "HTML コメントの中の表は台帳として読まない（生きた表の代わりにも、重複にもならない）",
-        "誤検知しないことの確認: 扱える位置の HTML コメントは通す: 開始行と終了行に分けたコメント"
+        "誤検知しないことの確認: 扱える位置の HTML コメントは通す: 開始行と終了行に分けたコメント",
+        "4 文字以上字下げして同じ行で閉じたコメントは、parseTables と同じく表の外の行に数えない",
+        "同梱の改訂一覧と台帳テンプレートは検査がそのまま読める",
+        "誤検知しないことの確認: 扱える位置の HTML コメントは通す: 1 行のコメント"
       ]
     },
     {
@@ -252,8 +255,8 @@
       "id": "comment-tables-parsed",
       "why": "HTML コメントの中の表（退役した表・記入例）を台帳として読み、生きた表の代わりに変更を供給する",
       "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "      comment = !lines[i].includes(\"-->\");\n      continue;\n",
-      "replace": "      comment = false;\n",
+      "find": "  const lines = blankComments(text.split(/\\r?\\n/u));",
+      "replace": "  const lines = text.split(/\\r?\\n/u);",
       "occurrences": 1,
       "expect_failing": [
         "HTML コメントの中の表は台帳として読まない（生きた表の代わりにも、重複にもならない）",
@@ -319,11 +322,13 @@
       "id": "opener-after-prose-accepted",
       "why": "散文の後ろの <!-- を開始行として受け入れる（読み飛ばしの規則はその行をコメントと見ないので、中の表を読む）",
       "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
-      "find": "    if (!trimmed.startsWith(\"<!--\") || opens > 1 || closes > 1) {\n",
+      "find": "    if (!opensHtmlBlock(line) || opens > 1 || closes > 1) {\n",
       "replace": "    if (opens > 1 || closes > 1) {\n",
       "occurrences": 1,
       "expect_failing": [
-        "HTML コメントの記号が扱えない位置にある台帳は落とす: 散文の後ろで開いたコメントの中の表"
+        "HTML コメントの記号が扱えない位置にある台帳は落とす: 散文の後ろで開いたコメントの中の表",
+        "4 文字以上字下げした `<!--` は、扱える位置の HTML コメントの記号にしない",
+        "エスケープした `\\<!--` は、扱えない位置の HTML コメントの記号として落とす"
       ]
     },
     {
@@ -427,6 +432,15 @@
       "expect_failing": [
         "--change では置き場の別 Issue へ回した見直し中を受け渡し済みとし、置き場と違う番号・未判断は残す"
       ]
+    },
+    {
+      "id": "markers-indent-unbounded",
+      "why": "lib の opensHtmlBlock が 4 文字以上の字下げでも HTML ブロックを開く（blankComments と strayCommentMarkers の両方が変わる。lib の側の検出は markdown-lib.mutations.json の block-indent-unbounded が示す）",
+      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
+      "find": "  return /^ {0,3}<!--/u.test(line);",
+      "replace": "  return /^ *<!--/u.test(line);",
+      "occurrences": 1,
+      "expect_failing": ["4 文字以上字下げした `<!--` は、扱える位置の HTML コメントの記号にしない"]
     }
   ]
 }

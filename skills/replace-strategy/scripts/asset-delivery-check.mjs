@@ -43,7 +43,7 @@ import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 import { parseTables } from "./lib/markdown.mjs";
 
 /** ツールのバージョン（このファイルで定義する）。判定の規則や出力の形を変えたら上げる。 */
-export const VERSION = "1";
+export const VERSION = "2";
 
 /** replace-metadata.json に書くキー。 */
 export const WRITE_KEY = "asset_delivery_check";
@@ -95,11 +95,7 @@ export function normalizeCell(value) {
  * @returns {{ copyRows: LedgerRow[], activeRows: number }}
  */
 export function readAssetLedger(text) {
-  const { tables, strayRows } = parseTables(text, {
-    comments: "blank",
-    fenceEndsTable: true,
-    normalizeHeader: normalizeCell,
-  });
+  const { tables, strayRows } = parseTables(text, { normalizeHeader: normalizeCell });
   const candidates = tables.filter(
     (t) => t.headers.includes("種類") && t.headers.includes("方針") && t.headers.includes("状態"),
   );
@@ -120,7 +116,7 @@ export function readAssetLedger(text) {
   const stray = strayRows.filter((r) => r.leadingPipe || r.cells === headers.length);
   if (stray.length > 0) {
     throw new UsageError(
-      `台帳の ${stray.map((r) => r.line).join(", ")} 行目は表に属さない（直前の空行で表が切れている等）。表の本体に空行を挟まない`,
+      `台帳の ${stray.map((r) => r.line).join(", ")} 行目は表に属さない（直前の空行か HTML コメントの行で表が切れている等）。表の本体に空行と HTML コメントの行を挟まない`,
     );
   }
   for (const name of ["種類", "方針", "状態"]) {
