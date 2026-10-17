@@ -138,7 +138,8 @@
       "replace": "export function fromAdvisory(advisory: AuditRecord): Finding {\n  const ghsa = firstString(\n    normalizeGhsa(advisory.ghsa),\n    normalizeGhsa(advisory.ghsa_id),\n    normalizeGhsa(advisory.github_advisory_id),\n",
       "occurrences": 1,
       "expect_failing": [
-        "fromAdvisory（古い形の advisories の 1 件） GHSA の id の欄が無ければ、url の中の GHSA を使う"
+        "fromAdvisory（古い形の advisories の 1 件） GHSA の id の欄が無ければ、url の中の GHSA を使う",
+        "fromAdvisory（古い形の advisories の 1 件） advisory の URL から取った GHSA の id も、GitHub の表記にそろえる"
       ]
     },
     {
@@ -268,6 +269,127 @@
       "occurrences": 1,
       "expect_failing": [
         "normalizeAudit（audit の JSON 全体） packages の項目が null なら版は無いものとして読み、どの vulnerability も読まない項目の形は確かめない"
+      ]
+    },
+    {
+      "id": "ghsa-body-not-lowercased",
+      "why": "GHSA の id の本体を小文字にそろえず、受け取った表記のまま書く（#662）",
+      "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
+      "find": "`GHSA-${match[1].toLowerCase()}`",
+      "replace": "`GHSA-${match[1]}`",
+      "occurrences": 1,
+      "expect_failing": [
+        "fromAdvisory（古い形の advisories の 1 件） GHSA の id は、大文字でも GitHub の表記にそろえる",
+        "fromAdvisory（古い形の advisories の 1 件） advisory の URL から取った GHSA の id も、GitHub の表記にそろえる",
+        "fromAdvisory（古い形の advisories の 1 件） 前に - で語が付いた GHSA の id も、title から取り出して GitHub の表記にそろえる",
+        "fromAdvisory（古い形の advisories の 1 件） 前に - で語が付いた GHSA の id も、ghsa_id から取り出して GitHub の表記にそろえる",
+        "findingsFromVulnerability（新しい形の vulnerabilities の 1 件） via の文字列の GHSA の前に - で語が付いていても、advisory として読む"
+      ]
+    },
+    {
+      "id": "ghsa-prefix-not-fixed",
+      "why": "GHSA の id の接頭辞を GHSA に固定せず、受け取った表記（小文字の ghsa など）のまま書く（#662）",
+      "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
+      "find": "`GHSA-${match[1].toLowerCase()}`",
+      "replace": "`${match[0].slice(0, 5)}${match[1].toLowerCase()}`",
+      "occurrences": 1,
+      "expect_failing": [
+        "fromAdvisory（古い形の advisories の 1 件） GHSA の id は、小文字でも GitHub の表記にそろえる"
+      ]
+    },
+    {
+      "id": "ghsa-lookbehind-dropped",
+      "why": "GHSA の前の文字を確かめず、前に英数字が付く文字列から id を取り出す",
+      "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
+      "find": "/(?<![0-9a-z])GHSA-([0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4})(?![0-9a-z-])/i",
+      "replace": "/GHSA-([0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4})(?![0-9a-z-])/i",
+      "occurrences": 1,
+      "expect_failing": [
+        "fromAdvisory（古い形の advisories の 1 件） GHSA の形に収まらない id（前に英字が付く）からは、切り詰めた id を取り出さない",
+        "fromAdvisory（古い形の advisories の 1 件） GHSA の形に収まらない id（前に数字が付く）からは、切り詰めた id を取り出さない"
+      ]
+    },
+    {
+      "id": "ghsa-lookbehind-letters-only",
+      "why": "GHSA の前の文字を英字だけ確かめ、前に数字が付く文字列から id を取り出す",
+      "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
+      "find": "/(?<![0-9a-z])GHSA-([0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4})(?![0-9a-z-])/i",
+      "replace": "/(?<![a-z])GHSA-([0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4})(?![0-9a-z-])/i",
+      "occurrences": 1,
+      "expect_failing": [
+        "fromAdvisory（古い形の advisories の 1 件） GHSA の形に収まらない id（前に数字が付く）からは、切り詰めた id を取り出さない"
+      ]
+    },
+    {
+      "id": "ghsa-lookbehind-rejects-hyphen",
+      "why": "GHSA の前に - で語が付いた文字列を、id として扱わない",
+      "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
+      "find": "/(?<![0-9a-z])GHSA-([0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4})(?![0-9a-z-])/i",
+      "replace": "/(?<![0-9a-z-])GHSA-([0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4})(?![0-9a-z-])/i",
+      "occurrences": 1,
+      "expect_failing": [
+        "fromAdvisory（古い形の advisories の 1 件） 前に - で語が付いた GHSA の id も、title から取り出して GitHub の表記にそろえる",
+        "fromAdvisory（古い形の advisories の 1 件） 前に - で語が付いた GHSA の id も、ghsa_id から取り出して GitHub の表記にそろえる",
+        "findingsFromVulnerability（新しい形の vulnerabilities の 1 件） via の文字列の GHSA の前に - で語が付いていても、advisory として読む"
+      ]
+    },
+    {
+      "id": "ghsa-lookbehind-rejects-underscore",
+      "why": "GHSA の前に _ が付く文字列を、id として扱わない",
+      "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
+      "find": "/(?<![0-9a-z])GHSA-([0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4})(?![0-9a-z-])/i",
+      "replace": "/(?<![0-9a-z_])GHSA-([0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4})(?![0-9a-z-])/i",
+      "occurrences": 1,
+      "expect_failing": [
+        "fromAdvisory（古い形の advisories の 1 件） 前に _ が付く GHSA の id は取り出す（_ は英数字として扱わない）"
+      ]
+    },
+    {
+      "id": "ghsa-lookahead-dropped",
+      "why": "GHSA の後ろの文字を確かめず、後ろに英数字か - が続く文字列から切り詰めた id を取り出す",
+      "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
+      "find": "/(?<![0-9a-z])GHSA-([0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4})(?![0-9a-z-])/i",
+      "replace": "/(?<![0-9a-z])GHSA-([0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4})/i",
+      "occurrences": 1,
+      "expect_failing": [
+        "fromAdvisory（古い形の advisories の 1 件） GHSA の形に収まらない id（最後のかたまりが 5 文字）からは、切り詰めた id を取り出さない",
+        "fromAdvisory（古い形の advisories の 1 件） GHSA の形に収まらない id（最後のかたまりに数字が続く）からは、切り詰めた id を取り出さない",
+        "fromAdvisory（古い形の advisories の 1 件） GHSA の形に収まらない id（後ろに - で続く）からは、切り詰めた id を取り出さない"
+      ]
+    },
+    {
+      "id": "ghsa-lookahead-letters-only",
+      "why": "GHSA の後ろの文字を英字と - だけ確かめ、後ろに数字が続く文字列から切り詰めた id を取り出す",
+      "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
+      "find": "/(?<![0-9a-z])GHSA-([0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4})(?![0-9a-z-])/i",
+      "replace": "/(?<![0-9a-z])GHSA-([0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4})(?![a-z-])/i",
+      "occurrences": 1,
+      "expect_failing": [
+        "fromAdvisory（古い形の advisories の 1 件） GHSA の形に収まらない id（最後のかたまりに数字が続く）からは、切り詰めた id を取り出さない"
+      ]
+    },
+    {
+      "id": "ghsa-lookahead-rejects-underscore",
+      "why": "GHSA の後ろに _ が続く文字列を、id として扱わない",
+      "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
+      "find": "/(?<![0-9a-z])GHSA-([0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4})(?![0-9a-z-])/i",
+      "replace": "/(?<![0-9a-z])GHSA-([0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4})(?![0-9a-z_-])/i",
+      "occurrences": 1,
+      "expect_failing": [
+        "fromAdvisory（古い形の advisories の 1 件） 後ろに _ が続く GHSA の id は取り出す（_ は英数字として扱わない）"
+      ]
+    },
+    {
+      "id": "ghsa-word-boundary",
+      "why": "前後の確かめを \\b に替える。_ の前後の id を取り出さず、後ろに - で続く文字列から切り詰めた id を取り出す",
+      "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
+      "find": "/(?<![0-9a-z])GHSA-([0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4})(?![0-9a-z-])/i",
+      "replace": "/\\bGHSA-([0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4})\\b/i",
+      "occurrences": 1,
+      "expect_failing": [
+        "fromAdvisory（古い形の advisories の 1 件） GHSA の形に収まらない id（後ろに - で続く）からは、切り詰めた id を取り出さない",
+        "fromAdvisory（古い形の advisories の 1 件） 前に _ が付く GHSA の id は取り出す（_ は英数字として扱わない）",
+        "fromAdvisory（古い形の advisories の 1 件） 後ろに _ が続く GHSA の id は取り出す（_ は英数字として扱わない）"
       ]
     }
   ]

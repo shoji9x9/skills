@@ -96,11 +96,47 @@ describe("fromAdvisory（古い形の advisories の 1 件）", () => {
     expect(result.advisory_url).toBe(GHSA_URL);
   });
 
-  test("GHSA の id は大文字にそろえる", () => {
-    expect(fromAdvisory({ module_name: "x", ghsa_id: "ghsa-abcd-efgh-2345" }).ghsa).toBe(
-      "GHSA-ABCD-EFGH-2345",
-    );
+  // GitHub の advisory の id は、接頭辞の GHSA だけが大文字で、本体は小文字である（#662）。
+  // Dependabot alerts の ghsa_id と、却下のルールの例（dependabot-alert-issue の SKILL.md）も、この表記である。
+  test.each([
+    ["小文字", "ghsa-238p-pmpm-9mq7"],
+    ["大文字", "GHSA-238P-PMPM-9MQ7"],
+    ["GitHub の表記", "GHSA-238p-pmpm-9mq7"],
+  ])("GHSA の id は、%sでも GitHub の表記にそろえる", (_label, id) => {
+    expect(fromAdvisory({ module_name: "x", ghsa_id: id }).ghsa).toBe("GHSA-238p-pmpm-9mq7");
   });
+
+  test("advisory の URL から取った GHSA の id も、GitHub の表記にそろえる", () => {
+    const url = "https://github.com/advisories/GHSA-238P-PMPM-9MQ7";
+    expect(fromAdvisory({ module_name: "x", url }).ghsa).toBe("GHSA-238p-pmpm-9mq7");
+  });
+
+  test.each([
+    ["最後のかたまりが 5 文字", "GHSA-abcd-efgh-ijklm"],
+    ["最後のかたまりに数字が続く", "GHSA-2345-6789-23456"],
+    ["前に英字が付く", "XGHSA-abcd-efgh-ijkl"],
+    ["前に数字が付く", "1GHSA-2345-6789-2345"],
+    ["後ろに - で続く", "GHSA-abcd-efgh-ijkl-mnop"],
+  ])("GHSA の形に収まらない id（%s）からは、切り詰めた id を取り出さない", (_label, id) => {
+    expect(fromAdvisory({ module_name: "x", title: id }).ghsa).toBe("");
+  });
+
+  test.each([
+    ["前に _ が付く", "github_GHSA-abcd-efgh-2345"],
+    ["後ろに _ が続く", "GHSA-abcd-efgh-2345_x"],
+  ])("%s GHSA の id は取り出す（_ は英数字として扱わない）", (_label, id) => {
+    expect(fromAdvisory({ module_name: "x", title: id }).ghsa).toBe("GHSA-abcd-efgh-2345");
+  });
+
+  test.each([
+    ["title", { title: "npm-GHSA-238P-PMPM-9MQ7" }],
+    ["ghsa_id", { ghsa_id: "npm-GHSA-238P-PMPM-9MQ7" }],
+  ])(
+    "前に - で語が付いた GHSA の id も、%s から取り出して GitHub の表記にそろえる",
+    (_label, fields) => {
+      expect(fromAdvisory({ module_name: "x", ...fields }).ghsa).toBe("GHSA-238p-pmpm-9mq7");
+    },
+  );
 
   test.each([
     ["url", { url: GHSA_URL }],
@@ -229,6 +265,15 @@ describe("findingsFromVulnerability（新しい形の vulnerabilities の 1 件�
         dependency_paths: ["node_modules/example"],
       }),
     ]);
+  });
+
+  test("via の文字列の GHSA の前に - で語が付いていても、advisory として読む", () => {
+    const [result] = findingsFromVulnerability(
+      "x",
+      { via: ["advisory-GHSA-238P-PMPM-9MQ7"] },
+      undefined,
+    );
+    expect(result.ghsa).toBe("GHSA-238p-pmpm-9mq7");
   });
 
   test("via の advisory に severity が無ければ、パッケージの severity を使う", () => {

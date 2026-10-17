@@ -97,6 +97,15 @@ python の heredoc の 1 回は、本文の文字列に `git` の語があった
 2026-10-17、#606 の作業で、python の quoted heredoc に `git` の語や `gh` の引数を含めた呼び出しと、`&&` でつないだ `git commit` と `grep` が、10 回以上拒否された。
 どれも、処理を Write ツールでスクリプトにして絶対パスで実行するか、git の操作を単独の呼び出しに分けて通した。#669 に続き、7 つ目のセッションでの再発である。
 
+2026-10-18、issue-batch の #662 の作業で、worktree に入った後の Bash の呼び出しが 4 回拒否された。
+1 回目は、`for` ループの中で変数 `q` を `gh api` の引数に渡し、GitHub の検索を 2 回実行する処理である（`runs gh with a value computed at runtime (the variable q)`）。
+2 回目は、python の quoted heredoc で mutations.json に追記し、続けて `oxfmt`・`vitest`・`grep` を `;` でつないだ処理である（`this command is too complex to verify`）。
+3 回目は、`grep -n -i 'eval' <ファイル>` と `ls` を `;` でつないだ処理である（`runs a string through eval`）。`eval` は grep の検索語で、実行していない。
+4 回目は、記録のスクリプトの `--sha` に、手で書いた SHA の前半 8 文字と `$(git rev-parse HEAD | cut -c9-)` を連結して渡した処理である（`names git in a form too complex to verify`）。
+この形は、拒否されなくても、表示された SHA を手で書き写す誤りに当たる。AGENTS.md は「ID・完全な SHA・長い prompt・スクリプト名は、表示された結果から手で書き写さない。」と定めている。PR の `headRefOid` を取得して渡すスクリプトに直した。
+どれも、単独の呼び出しに分けるか、Write ツールでスクリプトにして絶対パスで実行する形に直して通した。
+1 回目から 3 回目は、`git` の語を含まずに拒否された。提案の Hook の条件には、`gh` に変数の引数を渡す形、heredoc を含む複合コマンド、`eval` の語を含む形も含める。8 つ目のセッションでの再発である。
+
 ## 根本原因
 
 1. なぜ拒否されたか → 隔離セッションのガードは字面で判定し、本文・引数・パスに `git` を含む複合コマンドや heredoc を拒否する。
@@ -114,7 +123,7 @@ worktree の隔離セッションでは、heredoc・複合コマンド・`git` �
   原本は `git-worktree` の `isolation.md` のまま参照する。
 - 決定論的な対策の候補: PreToolUse の Hook で、worktree のセッションの Bash の本文に heredoc か `;`・`&&` と `git` の語が両方あれば、実行前に「スクリプトファイルにする」と案内する（ハーネスの拒否より先に、直し方を示す）。
   #655 の拒否から、`;`・`&&` と組む形として、`-e` のスクリプトに変数の引数を並べた `node` と `bash` の起動も条件に含める。
-  4 回目の `bash <スクリプト> <引数>; echo rc=$?` は `git` の語を含まないので、起動の組で拾う。`echo` の引数の `$?` は実行時に決まる値なので、拒否の理由にこの展開が関わっている可能性もある。
+  #655 の 4 回目の `bash <スクリプト> <引数>; echo rc=$?` は `git` の語を含まないので、起動の組で拾う。`echo` の引数の `$?` は実行時に決まる値なので、拒否の理由にこの展開が関わっている可能性もある。
 - KEDB 照合: `worktree`・`Bash`・`拒否` で `.kaizen/archive/2026-09-17-worktree-session-rejects-computed-bash.md`（applied）に一致。applied なので追記せず、この記録を新しく作った。
 
 ### apply のときに確かめること
@@ -122,5 +131,7 @@ worktree の隔離セッションでは、heredoc・複合コマンド・`git` �
 PR #656 のレビューで出た指摘である。上の Hook の条件の細部は、apply の時点で次のことを確かめてから決める。
 
 - 区切りを `;`・`&&` だけにすると、#616 の `curl -o` と `||` を含む拒否や、`for` ループ・パイプ・改行でつないだ形を拾えない。#631・#616・#655 のすべての拒否に条件を当てる。
+  #662 の 4 つの拒否にも当てる。`for` ループの変数を `gh` の引数に渡した形（`runs gh with a value computed at runtime`）と、heredoc と `;` でつないだ形である。
+  検索語の `eval` で拒否された形（`runs a string through eval`）と、引数の中のコマンド置換 `$(git ...)` もある。
 - `;`・`&&` と `node`・`bash` の起動の組は、ハーネスが通す正当な複合コマンド（定数の引数だけの `pnpm exec vitest run a.test.ts && node scripts/x.ts` など）にも当たる。ハーネスの拒否の理由（`computed at runtime`・`inside a construct too complex`）に対応する形に絞り、誤検知しないことを確かめる例を挙げる。
 - 新しい Hook を書かず、Bash の呼び出しをセグメントに分けて判定する既存の PreToolUse の Hook（`scripts/hooks/bash-command-guard.sh`）に足せるかを先に確かめる。
