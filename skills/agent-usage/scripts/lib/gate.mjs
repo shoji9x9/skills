@@ -267,6 +267,22 @@ function askMessage(agent, script) {
 }
 
 /**
+ * 人の設定が無いので止めるときの案内。
+ * @param {string} agent
+ * @param {string} script
+ * @returns {string}
+ */
+function setupMessage(agent, script) {
+  return [
+    `agent-usage: 人の設定（${userConfigPath(process.env)}）が無いので、コミットは止めました。コミットの前の確認は、人の ID を作りません。`,
+    `利用者に、node "${script}" setup を実行して人の ID を作るかを確認してください。このブランチで記録しないなら、node "${script}" decline を実行してから、もう一度コミットします。`,
+    "利用者に確認できない（無人の実行）ときは、setup を実行せず、人の設定も自分で書かずに、止まった理由を報告してください。",
+    "使い捨ての環境（CI のジョブやクラウドのエージェント）では、利用者が環境の起動の処理で人の設定を書いておきます（このスキルの references/setup.md）。",
+    `（agent: ${agent}）`,
+  ].join("\n");
+}
+
+/**
  * @param {HookInput} input
  * @param {string} fallbackCwd
  * @param {number} now
@@ -325,11 +341,18 @@ export function gateDecision(input, fallbackCwd, now, script, agent) {
       };
     }
     if (fallback === null) return { exit: 2, message: askMessage(agent, script) };
+    // リポジトリの defaultDecision は、人の設定（setup が作る人の ID）がある人にだけ当てる。
+    // 無い人に当てると、使い捨ての環境では実行のたびに別の ID で記録され、HOME に書けない環境では毎回止まる
+    if (!existsSync(userConfigPath(process.env)))
+      return { exit: 2, message: setupMessage(agent, script) };
     decision = fallback.decision;
     note = `（このブランチの判断は無いので、${fallback.source} の defaultDecision: ${fallback.decision} に従った）`;
   }
   if (decision === "decline")
     return { exit: 0, message: note === "" ? "" : `agent-usage: 記録しない${note}` };
+  // Hook からは人の ID を作らない（collect は人の設定が無いと ID を作るので、その前に止める）
+  if (!existsSync(userConfigPath(process.env)))
+    return { exit: 2, message: setupMessage(agent, script) };
   try {
     const r = runCollect({ repo, now, env: process.env, github: true, gh: null });
     // 今回書いたファイルに加えて、前回書いて stage されなかった（index.lock などで失敗した、手動の collect で書いた）記録も入れる
@@ -340,13 +363,9 @@ export function gateDecision(input, fallbackCwd, now, script, agent) {
         : r.githubSkipped
           ? `（GitHub は取得していない: ${r.githubSkipReason}）`
           : "";
-    // リポジトリの defaultDecision で記録すると、setup を実行していない人の ID もここで作る。作ったことを本人に知らせる
-    const created = r.personCreated
-      ? `（人の ID を作った: ${r.person}、${userConfigPath(process.env)}）`
-      : "";
     return {
       exit: 0,
-      message: `agent-usage: 利用実績を記録した（新しい行 ${r.newRows}、stage したファイル ${r.written.length}）${notes}${note}${created}`,
+      message: `agent-usage: 利用実績を記録した（新しい行 ${r.newRows}、stage したファイル ${r.written.length}）${notes}${note}`,
     };
   } catch (e) {
     return {

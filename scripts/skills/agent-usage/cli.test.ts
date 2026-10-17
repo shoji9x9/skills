@@ -283,7 +283,7 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(staged()).toBe("");
   });
 
-  test("リポジトリの defaultDecision: record で人の設定が無ければ、人の ID を作って記録し、作ったことを知らせる。デフォルトブランチの status は対象外と出す", () => {
+  test("リポジトリの defaultDecision は、人の設定が無い人には当てずに止めて setup を求め、人の ID を作らない。デフォルトブランチの status は対象外と出す", () => {
     const { tmp, repo, git, cli, gate } = setup();
     expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
     writeFileSync(
@@ -294,12 +294,49 @@ describe("agent-usage のコマンドと Hook", () => {
     git("switch", "-q", "-c", "feature/5-x");
     const userConfig = join(tmp, "user", "config.json");
     rmSync(userConfig);
+    const staged = () => git("diff", "--cached", "--name-only").trim();
+    // status も、人の設定が無い人には defaultDecision を当てないと出す
+    expect(cli("status").stdout).toMatch(
+      /このブランチの判断: 未決定（defaultDecision: record、.*人の設定が無いので、コミットの前の確認は止めて setup を求める）/,
+    );
 
+    // リポジトリの record は、人の設定が無い人には当てない。止めて setup を求め、人の ID を作らない
     const recorded = gate("git commit -m x");
-    expect(recorded.status).toBe(0);
-    expect(recorded.stderr + recorded.stdout).toContain(`人の ID を作った: p-`);
-    expect(recorded.stderr + recorded.stdout).toContain(userConfig);
-    expect(existsSync(userConfig)).toBe(true);
+    expect(recorded.status).toBe(2);
+    expect(recorded.stderr).toContain(`人の設定（${userConfig}）が無い`);
+    expect(recorded.stderr).toMatch(/setup を実行して人の ID を作る/);
+    expect(existsSync(userConfig)).toBe(false);
+    expect(staged()).toBe("");
+
+    // decline も同じく当てない
+    writeFileSync(
+      join(repo, ".agent-usage", "config.json"),
+      JSON.stringify({ defaultDecision: "decline" }),
+    );
+    const declined = gate("git commit -m x");
+    expect(declined.status).toBe(2);
+    expect(declined.stderr).toContain(`人の設定（${userConfig}）が無い`);
+
+    // 案内どおり decline を実行すれば、人の設定が無くても通り、人の ID は作らない
+    expect(cli("decline").status).toBe(0);
+    expect(gate("git commit -m x").status).toBe(0);
+    expect(existsSync(userConfig)).toBe(false);
+  });
+
+  test("ブランチの判断が「記録する」でも、人の設定が無ければ止めて、Hook からは人の ID を作らない", () => {
+    const { tmp, git, cli, gate } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    expect(cli("collect", "--stage", "--no-github").status).toBe(0);
+    git("reset", "-q");
+    const userConfig = join(tmp, "user", "config.json");
+    rmSync(userConfig);
+
+    const r = gate("git commit -m x");
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain(`人の設定（${userConfig}）が無い`);
+    expect(existsSync(userConfig)).toBe(false);
+    expect(git("diff", "--cached", "--name-only").trim()).toBe("");
   });
 
   test("defaultDecision が読めない値なら、コミットを止めて理由を返す。どちらの設定にも無ければ確かめる", () => {

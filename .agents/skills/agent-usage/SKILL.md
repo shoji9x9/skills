@@ -53,6 +53,7 @@ Hook（PreToolUse）が、デフォルトブランチ以外の `git commit` を�
 
 無人の実行のように、ブランチを作るたびに確かめられない使い方では、利用者が前もって `defaultDecision`（`record` か `decline`）を設定に置く。
 判断の無いブランチでは、Hook は止めずにその値に従う。置き場所は、人の設定とリポジトリの `.agent-usage/config.json` で、両方にあれば人の設定を使う（[`references/setup.md`](references/setup.md)）。
+人の設定（setup が作る人の ID）が無い人のコミットは、リポジトリの設定に値があっても止めて setup を求める。Hook は人の ID を作らない。
 エージェントがこの値を自分で書き足さない。
 
 「記録する」と決めたブランチでは、Hook がコミットのたびに collect を実行して、増えた明細を stage する。デフォルトブランチ（`main` など）と、`.agent-usage/` の無いリポジトリでは何もしない。

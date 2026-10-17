@@ -122,9 +122,11 @@ function branchDecisionText(repo, set) {
   }
   try {
     const fallback = defaultDecisionOf(join(usageDir(repo.root), "config.json"));
-    return fallback === null
-      ? "未決定"
-      : `未決定（defaultDecision: ${fallback.decision}、${fallback.source}）`;
+    if (fallback === null) return "未決定";
+    // gateDecision と同じく、人の設定が無ければ defaultDecision を当てずに止める
+    if (!existsSync(userConfigPath()))
+      return `未決定（defaultDecision: ${fallback.decision}、${fallback.source}。人の設定が無いので、コミットの前の確認は止めて setup を求める）`;
+    return `未決定（defaultDecision: ${fallback.decision}、${fallback.source}）`;
   } catch (e) {
     return `未決定（設定を読めない: ${e instanceof Error ? e.message : String(e)}）`;
   }
