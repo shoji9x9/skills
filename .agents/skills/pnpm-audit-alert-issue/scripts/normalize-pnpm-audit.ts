@@ -102,14 +102,16 @@ function isUrl(value: unknown): boolean {
  * 既存の Issue・PR の検索（GitHub の search API）は大文字と小文字を区別しない。
  * 検索で見つけた Issue との比べ方と、却下のルールとの照合は、dependabot-alert-issue の SKILL.md が大文字と小文字の扱いを決めていない。
  * そのため、findings の側で、Dependabot alerts の ghsa_id と同じ表記にそろえる。
- * 前に英数字か `-` が付く文字列と、後ろに英数字か `-` が続く文字列は、GHSA の id ではなく、もっと長い識別子の一部である。
- * そうした文字列の途中から id を取り出さないように、前後の文字を先読みと後読みで確かめる。
- * `\b` を使わないのは、`\b` が `_` を英数字と同じに扱い、`-` の前でも成り立つからである。
+ * 前に英数字が付く文字列（`XGHSA-...`）と、後ろに英数字か `-` が続く文字列（`GHSA-abcd-efgh-ijkl-mnop`）は、もっと長い識別子の一部として扱い、id を取り出さない。
+ * 前と後ろで `-` の扱いが違うのは、`-` の役割が違うからである。
+ * 前の `-` は、`npm-GHSA-...` のように id の前に語をつなぐ区切りなので、id を取り出す。
+ * 後ろの `-` は、id のかたまりの区切りと同じ文字なので、続く文字列を含めて別の形の識別子として扱う。
+ * `\b` を使わないのは、`\b` が `_` を英数字と同じに扱い、`-` の後ろでも前でも成り立つからである。
  */
 function ghsaFrom(value: unknown): string {
   if (typeof value !== "string") return "";
   const match = value.match(
-    /(?<![0-9a-z-])GHSA-([0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4})(?![0-9a-z-])/i,
+    /(?<![0-9a-z])GHSA-([0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4})(?![0-9a-z-])/i,
   );
   return match ? `GHSA-${match[1].toLowerCase()}` : "";
 }
