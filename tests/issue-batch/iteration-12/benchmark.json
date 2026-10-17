@@ -4,7 +4,7 @@
     "skill_path": "<repo>/skills/issue-batch",
     "executor_model": "opus",
     "analyzer_model": "claude-opus-5-5",
-    "timestamp": "2026-10-17T18:57:32Z",
+    "timestamp": "2026-10-17T19:07:34Z",
     "evals_run": [26],
     "runs_per_configuration": 1
   },
@@ -18,8 +18,8 @@
         "passed": 6,
         "failed": 0,
         "total": 6,
-        "time_seconds": 42.506,
-        "tokens": 75727,
+        "time_seconds": 49.757,
+        "tokens": 77396,
         "tool_calls": 2,
         "errors": 0
       },
@@ -115,16 +115,16 @@
         "max": 1
       },
       "time_seconds": {
-        "mean": 42.506,
+        "mean": 49.757,
         "stddev": 0,
-        "min": 42.506,
-        "max": 42.506
+        "min": 49.757,
+        "max": 49.757
       },
       "tokens": {
-        "mean": 75727,
+        "mean": 77396,
         "stddev": 0,
-        "min": 75727,
-        "max": 75727
+        "min": 77396,
+        "max": 77396
       }
     },
     "without_skill": {
@@ -149,8 +149,8 @@
     },
     "delta": {
       "pass_rate": "+0.33",
-      "time_seconds": "+16.3",
-      "tokens": "+53436"
+      "time_seconds": "+23.5",
+      "tokens": "+55105"
     }
   },
   "notes": []

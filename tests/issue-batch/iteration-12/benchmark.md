@@ -18,3 +18,4 @@ manifest にも同じ欄（`self_decisions` の下の 4 つの名前）を足し
 ## 備考
 
 - without_skill も、prompt が挙げた事実（eval の未実行・直さなかった指摘・Issue にしていない見送り）は報告に載せた。対象から外した形の欄を設けて 0 件と書くことと、欄の中の並べ方は満たさなかった。
+- PR のレビューの指摘で `references/orchestration.md` と SKILL.md を直した後、with_skill だけをやり直した（6/6 のまま）。without_skill はスキルを読まないので、前の run を使った。
