@@ -15,7 +15,7 @@
 // sameSkillFrontmatter(fmA, fmB) → boolean
 //   - 2 つの frontmatter を YAML として読み、キーの順と `metadata.local-path`（gh skill install が足す）を除いて同じかを返す。
 //     null の metadata（`metadata: ~`）も、metadata が無いものとして比べる。
-//     負のゼロ（`-0`・`-0.0`）は、最上位でもマッピングと配列の中でも 0 として比べる。自分自身を参照するエイリアスも読める。
+//     負のゼロ（`-0`・`-0.0`）は、最上位でもマッピングと配列の中でも 0 として比べる。自分自身を参照するエイリアスがあっても、正規化は止まる。
 //   - 値は isDeepStrictEqual で比べる。JSON の文字列にして比べると、`!!set` の Set は中身に関わらず同じ `{}` になり、
 //     タイムスタンプの Date は同じ ISO の文字列を書いた値と区別できない。
 //   - 読めなければ例外にする（どちらのファイルかは、呼び出し側が normalizeSkillFrontmatter で先に確かめる）。
@@ -32,19 +32,21 @@ export function splitFrontmatter(content: string): { fm: string; body: string } 
   return { fm: m[1], body: text.slice(m[0].length) };
 }
 
-type SkillFrontmatter = { metadata?: unknown };
-
 /**
  * 負のゼロを 0 にして返す。マッピングと配列は、中の負のゼロをその場で 0 に書き換えて、同じ値を返す。Set・Date などの中は見ない。
- * 読んだばかりの値だけに使う。エイリアスは値を共有し、自分自身を参照することもある（`a: &a [*a]`）ので、訪れた値を覚えて 1 回だけたどる。
+ * その場で書き換えるので、ほかの処理と共有していない値（normalizeSkillFrontmatter が読んだばかりの値）だけに使う。
+ * 最上位のスカラーは書き換える場所が無いので、0 にした値を返す。
+ * エイリアスは値を共有し、自分自身を参照することもある（`a: &a [*a]`）ので、訪れた値を覚えて 1 回だけたどる。
  */
 function zeroNegativeZeros(value: unknown, seen = new WeakSet<object>()): unknown {
   if (Object.is(value, -0)) return 0;
   if (!isArray(value) && !isPlainObject(value)) return value;
   if (seen.has(value)) return value;
   seen.add(value);
-  for (const [key, item] of Object.entries(value))
-    Reflect.set(value, key, zeroNegativeZeros(item, seen));
+  for (const [key, item] of Object.entries(value)) {
+    const next = zeroNegativeZeros(item, seen);
+    if (!Object.is(next, item)) Reflect.set(value, key, next);
+  }
   return value;
 }
 
@@ -59,7 +61,7 @@ function zeroNegativeZeros(value: unknown, seen = new WeakSet<object>()): unknow
  * 空の入力（`"\t\n"`・`"...\n"`）は、loadYamlAs が undefined を返す（js-yaml 4 は null を返した）。どちらも `?? {}` で空の frontmatter として扱う。
  */
 export function normalizeSkillFrontmatter(fmText: string): unknown {
-  const loaded = loadYamlAs<SkillFrontmatter | null | undefined>(fmText) ?? {};
+  const loaded = loadYamlAs<unknown>(fmText) ?? {};
   const obj = zeroNegativeZeros(loaded);
   if (isPlainObject(obj) && obj.metadata === null) delete obj.metadata;
   if (isPlainObject(obj) && isPlainObject(obj.metadata)) {
