@@ -70,7 +70,7 @@
         "skills/replace-strategy/scripts/lib/fence.mjs",
         "skills/golden-dataset/scripts/lib/fence.mjs"
       ],
-      "reason": "Markdown のコードフェンスを開く行と閉じる行を判定する処理。replace-strategy の台帳と golden-dataset の設計書を同じ規則で読む。片方だけを直すと、同じ文書のフェンスの中の表を片方のスキルだけが読む"
+      "reason": "Markdown のコードフェンスを開く行と閉じる行を判定する処理。replace-strategy の台帳と golden-dataset の設計書で、フェンスを同じ規則で判定する（HTML コメントの扱いはスキルごとに違う）。片方だけを直すと、同じ文書のフェンスの中の表を片方のスキルだけが読む"
     },
     {
       "files": [
