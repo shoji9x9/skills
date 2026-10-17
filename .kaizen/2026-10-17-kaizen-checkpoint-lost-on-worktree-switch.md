@@ -30,7 +30,7 @@ issue-batch の run で、#632 の worktree（`.claude/worktrees/632`）から #
 
 ## 提案
 
-kaizen の走査は、処理位置の transcript のパスが今のパスと違っても、セッションの id が同じで記録したバイト位置と行数が今の transcript に収まるなら、その処理位置を使う。
+kaizen のコミット前の確認は、セッションが worktree を移っても処理位置を引き継げるようにする（処理位置を移った後も残る場所に置き、key で見つけた処理位置だけは transcript のパスの違いを許す）。
 
 - 適用先: `skills/kaizen/scripts/kaizen-candidate-scan.sh` の処理位置の照合（30 行目）。
   session 単位の処理位置は、`kaizen-precommit-gate.sh` が今のセッションの key（`kaizen_session_key` が session id から作る）の名前で探すので、見つかった時点で同じセッションのものである。
