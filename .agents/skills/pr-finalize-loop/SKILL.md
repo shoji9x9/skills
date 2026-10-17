@@ -395,7 +395,8 @@ query($endCursor: String) {
 
   API の形は [GitHub の check runs REST API](https://docs.github.com/en/rest/checks/runs) を、Claude Code Review の指摘が 0 件のときの出力は [Claude Code Review 公式ドキュメント](https://code.claude.com/docs/en/code-review) を参照する。
 - `review_tool` が `local` のときは、上の根拠の代わりに、同梱の `scripts/local-review-record.sh check --pr <PR URL>` で判定する。
-  exit 0 で、出力の `head` が `headRefOid` と一致するときだけレビュー済みとする。exit 2 は判定できないので、取得し直す。
+  exit 0 で、出力の `head` が `headRefOid` と一致するときだけレビュー済みとする。exit 2 は判定できないので、間隔を空けて数回取得し直す。
+  それでも exit 2 なら、レビュー済みとも未レビューとも扱わずに「行き詰まり」として止まり、`check` の stderr を報告に書く。権限の不足のような続く失敗で、ループが終わらなくなるのを防ぐ。
   記録は PR の作成者か担当者が投稿するので、作成者を除く上の規則は、この記録には当てない（[`references/review-tool.md`](references/review-tool.md) の「local」）。
 - 上の根拠がどれも無ければ、最新の HEAD はレビューされていない。
   レビュー済みと判定した後も、レビューの本文・トップレベルのコメント・check-run の出力に、対応していない指摘や失敗が無いかを、この後の収集と突き合わせで確かめる。「届いた」と「指摘が無い」を同じものとして扱わない。

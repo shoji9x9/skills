@@ -237,6 +237,12 @@ const UNDECIDABLE: [string, Fixture, RegExp][] = [
   ["コメントを取得できない", { fail: ["comments"] }, /PR のコメントを取得できない/],
   ["headRefOid が完全な SHA でない", { head: "abc1234" }, /完全な SHA でない/],
   ["PR の URL を解析できない", { url: "not-a-url" }, /PR の URL を解析できない/],
+  // 欄の区切りが空白の扱いだと、空の作成者の欄が詰まり、担当者が作成者として読まれる
+  [
+    "作成者の login が空（担当者はいる）",
+    { author: "", assignees: ["bob"] },
+    /PR の作成者を取得できない/,
+  ],
 ];
 
 test.each(UNDECIDABLE)("%s ときは、記録が無いとせずに exit 2（判定できない）", (_name, f, msg) => {
@@ -250,14 +256,14 @@ test("GHE の PR では、gh api に --hostname を渡す", () => {
   const dir = setup({ url: "https://ghe.example.com/o/r/pull/7" });
   expect(run(dir, ["check", "--pr", "https://ghe.example.com/o/r/pull/7"]).status).toBe(1);
   expect(calls(dir)).toMatch(
-    /^api --hostname ghe\.example\.com --paginate repos\/o\/r\/issues\/7\/comments /m,
+    /^api --hostname ghe\.example\.com --paginate repos\/o\/r\/issues\/7\/comments\?per_page=100 /m,
   );
 });
 
 test("github.com の PR では、--hostname を渡さない", () => {
   const dir = setup();
   run(dir, ["check", "--pr", "7"]);
-  expect(calls(dir)).toMatch(/^api --paginate repos\/o\/r\/issues\/7\/comments /m);
+  expect(calls(dir)).toMatch(/^api --paginate repos\/o\/r\/issues\/7\/comments\?per_page=100 /m);
 });
 
 test("post は HEAD と一致する SHA の記録を投稿し、check がその記録を reviewed と読む", () => {

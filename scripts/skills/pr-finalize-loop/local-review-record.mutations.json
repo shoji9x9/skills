@@ -124,6 +124,17 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": ["1 行目の末尾の CR（CRLF の改行）は、形の照合の前に取り除く"]
+    },
+    {
+      "id": "empty-author-not-rejected",
+      "why": "作成者の login が空でも判定を続ける（作成者の無いまま、担当者だけを書き手として判定する）",
+      "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
+      "find": "if [ -z \"${author:-}\" ]; then\n",
+      "replace": "if false; then\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "作成者の login が空（担当者はいる） ときは、記録が無いとせずに exit 2（判定できない）"
+      ]
     }
   ]
 }

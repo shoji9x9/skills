@@ -99,14 +99,15 @@ else
 fi
 
 # PR の URL・HEAD・作成者・担当者を取得する。番号だけなら、gh が現在の repo の PR として扱う。
+# 欄の区切りは U+001F にする。タブは read の IFS で空白として扱われ、空の欄が詰まって後ろの値が前の欄に入る。
 pr_err=$(mktemp)
 trap 'rm -f "${pr_err}"' EXIT
 if ! pr_tsv=$(gh pr view "${pr}" --json url,headRefOid,author,assignees \
-	--jq '[.url, .headRefOid, .author.login, ([.assignees[].login] | join(","))] | @tsv' </dev/null 2>"${pr_err}"); then
+	--jq '[.url, .headRefOid, (.author.login // ""), ([.assignees[].login] | join(","))] | join("\u001f")' </dev/null 2>"${pr_err}"); then
 	echo "error: PR を取得できない: $(tr '\n' ' ' <"${pr_err}")" >&2
 	exit 2
 fi
-IFS=$'\t' read -r pr_url head author assignees <<<"${pr_tsv}" || true
+IFS=$'\x1f' read -r pr_url head author assignees <<<"${pr_tsv}" || true
 if [[ ! "${pr_url:-}" =~ ^https://([^/]+)/([^/]+)/([^/]+)/pull/([0-9]+)$ ]]; then
 	echo "error: PR の URL を解析できない: '${pr_url:-}'" >&2
 	exit 2
@@ -164,8 +165,8 @@ if [ "${mode}" = "post" ]; then
 fi
 
 # check: 記録の候補（本文が目印で始まるトップレベルのコメント）を、1 行目だけ取得する
-if ! list=$(gh api ${host_args[@]+"${host_args[@]}"} --paginate "${api_path}" \
-	--jq '.[] | select((.body // "") | startswith("'"${MARKER_PREFIX}"'")) | [(.id | tostring), .user.login, ((.body // "") | split("\n")[0] | rtrimstr("\r"))] | @tsv' \
+if ! list=$(gh api ${host_args[@]+"${host_args[@]}"} --paginate "${api_path}?per_page=100" \
+	--jq '.[] | select((.body // "") | startswith("'"${MARKER_PREFIX}"'")) | [(.id | tostring), (.user.login // ""), ((.body // "") | split("\n")[0] | rtrimstr("\r"))] | join("\u001f")' \
 	</dev/null); then
 	echo "error: PR のコメントを取得できない" >&2
 	exit 2
@@ -175,7 +176,7 @@ records=0
 ignored=0
 record=""
 record_findings=""
-while IFS=$'\t' read -r id login line; do
+while IFS=$'\x1f' read -r id login line; do
 	[ -n "${id}" ] || continue
 	case "${allowed}" in
 	*",${login},"*) ;;
