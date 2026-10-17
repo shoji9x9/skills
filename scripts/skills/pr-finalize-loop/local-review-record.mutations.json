@@ -102,7 +102,7 @@
       "replace": "\t*) ;;\n",
       "occurrences": 1,
       "expect_failing": [
-        "post は、gh のユーザーが作成者でも担当者でもなければ、check が読み飛ばす記録を投稿せずに exit 1"
+        "post は、gh のユーザーが作成者でも担当者でもなければ、check が読み飛ばす記録を投稿せずに exit 3"
       ]
     },
     {

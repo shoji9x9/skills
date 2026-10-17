@@ -159,8 +159,10 @@ gh api --paginate repos/<owner>/<repo>/issues/<番号>/comments \
 手元のレビューは、指摘が 0 件だと PR に何も投稿しないことがある。記録が無いと、HEAD をレビューしたのかを GitHub の上で確かめられないので、件数に関わらず記録を残す。
 
 1. レビューする HEAD の完全な SHA を、`gh pr view <番号> --repo <owner>/<repo> --json headRefOid --jq .headRefOid` で取得する。手元の HEAD がこれと一致することも確かめる。
+   作業ツリーに commit していない変更が無いこと（`git status --porcelain` が空）も確かめる。手元のレビューの機能は、commit していない変更もレビューの対象に入れることがあり、記録の SHA が表す内容とずれる。
 2. エージェント自身の機能でレビューする。別のエージェントに自動で切り替えない。機能を使えなければ、レビューしたことにせず止まる。
-   - Claude Code: 組み込みの `/code-review` を `--comment` 付きで使う（例: `/code-review high --comment`）。指摘は PR の行に付いたコメントとして投稿される（[Claude Code commands](https://code.claude.com/docs/en/commands)）。
+   - Claude Code: 組み込みの `/code-review` に、対象の PR の番号と `--comment` を渡す（例: `/code-review high <PR の番号> --comment`）。指摘は PR の行に付いたコメントとして投稿される（[Claude Code commands](https://code.claude.com/docs/en/commands)）。
+     PR の番号を渡さないと、upstream との差分をレビューする。push した後はこの差分が空になり、PR の変更をレビューしないまま指摘 0 件になる。
    - Codex: `codex review --base <PR のベースブランチ>`。`--base` の意味は、ローカルの `codex review --help` でも確かめる（[OpenAI Developers](https://developers.openai.com/codex/cli/reference)）。
    - GitHub Copilot CLI: 次のコマンドを使う（[GitHub Docs](https://docs.github.com/en/copilot/how-tos/copilot-cli/automate-copilot-cli/run-cli-programmatically#code-review-a-branch)）。
 
@@ -169,7 +171,9 @@ gh api --paginate repos/<owner>/<repo>/issues/<番号>/comments \
      ```
 
 3. 同梱のスクリプトで、記録を PR のトップレベルのコメントとして投稿する。
-   指摘を PR に投稿しない機能（Codex・Copilot CLI）では、指摘を 1 件ずつ書いたファイルを `--details` で渡し、記録の本文に残す。
+   指摘を PR に投稿しない機能（Codex・Copilot CLI）では、記録を投稿する前に、指摘を 1 件ずつ判断して対応（直すか、見送る根拠）を決める。
+   指摘と対応を書いたファイルを `--details` で渡し、記録の本文に残す。
+   記録は PR の作成者が投稿することが多く、トップレベルのコメントから指摘を集める処理（各スキルの「スレッド外に置かれた指摘」）は作成者の投稿を読まない。そのため、記録の本文の指摘への対応を、記録の後に回さない。
 
    ```bash
    bash <スキルのディレクトリ>/scripts/local-review-record.sh post --pr <PR URL> --sha <1 で取得した SHA> \
@@ -177,9 +181,9 @@ gh api --paginate repos/<owner>/<repo>/issues/<番号>/comments \
    ```
 
    スクリプトは、渡した SHA が PR の今の HEAD と違えば、投稿せずに exit 1 で終わる。そのときは、今の HEAD をレビューし直してから記録する。
-   gh のユーザーが PR の作成者でも担当者でもないときも、投稿せずに exit 1 で終わる。`check` はその人の記録を読み飛ばすので、投稿しても HEAD はレビュー済みにならない。
+   gh のユーザーが PR の作成者でも担当者でもないときは、投稿せずに exit 3 で終わる。`check` はその人の記録を読み飛ばすので、投稿しても HEAD はレビュー済みにならない。
    そのときは、PR の担当者に加わってから記録するか、利用者に確かめる。
-4. 指摘は、ほかのツールのレビューと同じように 1 件ずつ判断して対応する。行に付いた指摘はスレッドとして、記録の本文に書いた指摘はスレッドの外の指摘として扱う。
+4. 行に付いた指摘は、ほかのツールのレビューと同じように、スレッドとして 1 件ずつ判断して対応する。記録の本文に書いた指摘は、3 で決めた対応のとおりに直す。
    直して push したら、新しい HEAD は記録の SHA と一致しないので、もう一度 1 から行う。
 
 HEAD がレビュー済みかは、次の判定で決める。exit 0 のときだけレビュー済みとし、出力の `head` が判定に使う HEAD と一致することも確かめる。
@@ -194,6 +198,8 @@ bash <スキルのディレクトリ>/scripts/local-review-record.sh check --pr 
   この判定が数えるのは、記録の 1 行目に書いた SHA だけだからである。
 - 記録を数える条件は SHA の一致だけで、記録の時刻は見ない。手元のレビューは、指摘に返信して解決したエージェント自身が行うので、返信だけで終わった後にもう一度レビューしなくてよい。
   コードを変えて push したら SHA が変わるので、必ずもう一度レビューする。
+- 出力の `findings` は、記録した時点の指摘の件数で、対応したかは表さない。行に付いた指摘はスレッドが解決されたかで、記録の本文の指摘は 3 で決めた対応で確かめる。
+  見送った指摘も数えるので、`findings` が 1 以上であることを、merge できない理由にしない。
 - 記録の 1 行目は `<!-- pr-finalize-loop:local-review sha=<40 桁の SHA> findings=<件数> -->` である。
   スクリプトはこの形の行だけを数え、形の違う行と、作成者でも担当者でもない人の記録は、理由を stderr に出して読み飛ばす。
 - レビューはエージェント自身が実行して終わるので、依頼の成立を待つ処理と、自分のレビューが進行中かの検出は要らない。

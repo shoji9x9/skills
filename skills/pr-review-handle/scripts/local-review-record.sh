@@ -22,11 +22,12 @@
 #   records=<n>       形の正しい記録の件数。SHA は問わない。
 #   ignored=<n>       読み飛ばした記録の件数。理由は stderr に 1 件ずつ出す。
 #
-# 終了コード:
-#   check: 0=HEAD をレビューした記録がある / 1=無い / 2=判定できない / 64=引数が不正
-#   post:  0=投稿した / 1=投稿しない / 2=取得か投稿に失敗した / 64=引数が不正
+# 終了コードは次のとおりである。どちらのモードも、引数が不正なら 64 を返す。
+#   check: 0 は HEAD をレビューした記録がある。1 は無い。2 は判定できない。
+#   post:  0 は投稿した。1 は渡した SHA が HEAD と違う（投稿しない）。2 は取得か投稿に失敗した。
+#          3 は gh のユーザーが PR の作成者でも担当者でもない（投稿しない）。
 #
-# post が投稿しないのは、渡した SHA が HEAD と違うときと、gh のユーザーが PR の作成者でも担当者でもないときである。
+# post が投稿しない 2 つの理由は、呼び出し側の対処が違う（1 はレビューし直す、3 は投稿する人を変える）ので、終了コードを分ける。
 set -euo pipefail
 
 MARKER_PREFIX="<!-- pr-finalize-loop:local-review "
@@ -141,7 +142,7 @@ if [ "${mode}" = "post" ]; then
 	*",${me},"*) ;;
 	*)
 		echo "error: gh のユーザー（${me}）は PR の作成者でも担当者でもないので、check はこの記録を読み飛ばす。作成者か担当者として投稿する" >&2
-		exit 1
+		exit 3
 		;;
 	esac
 	body=$(mktemp)
@@ -198,7 +199,10 @@ while IFS=$'\t' read -r id login line; do
 done <<<"${list}"
 
 echo "head=${head}"
+# 出力と終了コードを同じ分岐で決める
+status=1
 if [ -n "${record}" ]; then
+	status=0
 	echo "status=reviewed"
 	echo "record=${record}"
 	echo "findings=${record_findings}"
@@ -207,7 +211,4 @@ else
 fi
 echo "records=${records}"
 echo "ignored=${ignored}"
-if [ -n "${record}" ]; then
-	exit 0
-fi
-exit 1
+exit "${status}"

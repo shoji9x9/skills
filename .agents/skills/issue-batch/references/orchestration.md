@@ -224,7 +224,9 @@ merge の実行方法だけが、`merge_mode` で分かれる。head の SHA の
 
 1. 収束した後に PR の `headRefOid` を取得し直して、`READY_TO_MERGE` にする。この後のコマンドにはすべてこの SHA を `--match-head-commit` で渡し、収束した後に入った push と取り違えない。
    `pr-finalize-loop` が報告した `review_tool`（同梱の解決スクリプトの出力）が `local` なら、`READY_TO_MERGE` にする前に、`pr-finalize-loop` の `scripts/local-review-record.sh check --pr <PR URL>` を実行する。
-   exit 0 で、出力の `head` が固定した `headRefOid` と一致するときだけ進める。exit 1（記録が無いか、前の HEAD の記録しか無い）と exit 2（判定できない）は、merge せずに BLOCKED にする。
+   exit 0 で、出力の `head` が固定した `headRefOid` と一致するときだけ進める。exit 1（記録が無いか、前の HEAD の記録しか無い）は、merge せずに BLOCKED にする。
+   exit 2（判定できない）は、間隔を空けて数回取得し直し（`merge_ready_timeout_minutes` があれば、それを上限にする）、0 か 1 にならなければ BLOCKED にする。
+   出力の `findings` は、見送った指摘も数えるので、merge の条件に使わない。指摘への対応は、`pr-finalize-loop` の収束（解決していないスレッドが無いこと）で確かめる。
    `merge_mode: auto` でも省かない。GitHub の auto-merge はこの記録を見ないので、ここで確かめないと、直した commit を手元でレビューしないまま merge される。
 2. 決まった `merge_mode` で merge する。
    - `auto`: `gh pr merge <PR URL> --auto --<method> --match-head-commit <headRefOid>`。条件を満たしたかの判定は GitHub に任せる（[gh pr merge](https://cli.github.com/manual/gh_pr_merge)）。

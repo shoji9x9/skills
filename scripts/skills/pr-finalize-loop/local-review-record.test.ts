@@ -305,10 +305,11 @@ test("post は、渡した SHA が HEAD と違えば投稿せずに exit 1", () 
   expect(existsSync(join(dir, "posted.md"))).toBe(false);
 });
 
-test("post は、gh のユーザーが作成者でも担当者でもなければ、check が読み飛ばす記録を投稿せずに exit 1", () => {
+test("post は、gh のユーザーが作成者でも担当者でもなければ、check が読み飛ばす記録を投稿せずに exit 3", () => {
   const dir = setup({ me: "mallory" });
   const r = run(dir, ["post", "--pr", "7", "--sha", HEAD, "--findings", "0"]);
-  expect(r.status).toBe(1);
+  // SHA の不一致（exit 1）と区別できる終了コードにする。呼び出し側の対処が違う
+  expect(r.status).toBe(3);
   expect(r.stderr).toMatch(/mallory）は PR の作成者でも担当者でもない/);
   expect(calls(dir)).not.toMatch(/--method POST/);
 

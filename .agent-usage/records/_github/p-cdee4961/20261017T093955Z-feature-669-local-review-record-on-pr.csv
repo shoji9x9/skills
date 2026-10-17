@@ -14,3 +14,8 @@ ci:39016001260:1,ci,2026-10-17T09:39:55.736Z,p-cdee4961,github-actions,,,,2026-1
 ci:39016001308:1,ci,2026-10-17T09:39:55.736Z,p-cdee4961,github-actions,,,,2026-10-17T08:04:34.000Z,2026-10-17T08:07:09.000Z,Asia/Tokyo,feature/638-agent-usage-merge-old-records,638,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-10-16T07:56:55.157Z:2026-10-17T09:39:55.736Z,coverage,2026-10-17T09:39:55.736Z,p-cdee4961,,,,,2026-10-16T07:56:55.157Z,2026-10-17T09:39:55.736Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-16T09:39:55.736Z:2026-10-17T09:40:11.063Z,coverage,2026-10-17T09:40:11.063Z,p-cdee4961,,,,,2026-10-16T09:39:55.736Z,2026-10-17T09:40:11.063Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:39022914628:1,ci,2026-10-17T09:56:05.644Z,p-cdee4961,github-actions,,,,2026-10-17T09:54:55.000Z,2026-10-17T09:54:56.000Z,Asia/Tokyo,feature/576-ignore-braces-ghsa-in-audit,576,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:39022914629:1,ci,2026-10-17T09:56:05.644Z,p-cdee4961,github-actions,,,,2026-10-17T09:54:55.000Z,2026-10-17T09:56:05.644Z,Asia/Tokyo,feature/576-ignore-braces-ghsa-in-audit,576,,,,,,,,,,CI;pull_request;open,
+ci:39022278875:1,ci,2026-10-17T09:56:05.644Z,p-cdee4961,github-actions,,,,2026-10-17T09:44:34.000Z,2026-10-17T09:47:21.000Z,Asia/Tokyo,feature/669-local-review-record-on-pr,669,,,,,,,,,,CI;pull_request;success,
+ci:39022278799:1,ci,2026-10-17T09:56:05.644Z,p-cdee4961,github-actions,,,,2026-10-17T09:44:34.000Z,2026-10-17T09:44:35.000Z,Asia/Tokyo,feature/669-local-review-record-on-pr,669,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+coverage:github:2026-10-16T09:40:11.063Z:2026-10-17T09:56:05.644Z,coverage,2026-10-17T09:56:05.644Z,p-cdee4961,,,,,2026-10-16T09:40:11.063Z,2026-10-17T09:56:05.644Z,Asia/Tokyo,,,,,,,,,,,,ok,
