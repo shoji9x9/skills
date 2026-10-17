@@ -1,0 +1,129 @@
+{
+  "$comment": [
+    "local-review-record.test.ts の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。"
+  ],
+  "test_file": "scripts/skills/pr-finalize-loop/local-review-record.test.ts",
+  "mutations": [
+    {
+      "id": "record-sha-not-compared",
+      "why": "記録の SHA を HEAD と比べない（直した commit を再レビューせずに、前の HEAD の記録で reviewed と判定する）",
+      "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
+      "find": "\tif [ \"${BASH_REMATCH[1]}\" = \"${head}\" ]; then\n",
+      "replace": "\tif true; then\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "直した commit を push した後に再レビューしていない（記録が前の HEAD だけ）なら not-reviewed"
+      ]
+    },
+    {
+      "id": "record-writer-not-checked",
+      "why": "記録を書いた人を確かめない（作成者でも担当者でもない人の記録を数える）",
+      "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
+      "find": "\t*\",${login},\"*) ;;\n",
+      "replace": "\t*) ;;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "担当者の記録は数え、作成者でも担当者でもない人の記録は理由を出して読み飛ばす"
+      ]
+    },
+    {
+      "id": "record-writer-substring-match",
+      "why": "書き手の login を区切りなしの部分一致で照合する（作成者の login の一部を持つ別の login を作成者として扱う）",
+      "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
+      "find": "\t*\",${login},\"*) ;;\n",
+      "replace": "\t*\"${login}\"*) ;;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "担当者の記録は数え、作成者でも担当者でもない人の記録は理由を出して読み飛ばす"
+      ]
+    },
+    {
+      "id": "record-short-sha-accepted",
+      "why": "1 行目の SHA に 40 桁を求めない（短縮した SHA の記録を形の正しい記録として数える）",
+      "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
+      "find": "sha=\"([0-9a-f]{40})\" findings=",
+      "replace": "sha=\"([0-9a-f]+)\" findings=",
+      "occurrences": 1,
+      "expect_failing": ["1 行目の形が違う記録（短縮した SHA）は、数えずに読み飛ばす"]
+    },
+    {
+      "id": "record-trailing-text-accepted",
+      "why": "1 行目の末尾を固定しない（目印の後ろに余計な文字がある記録を数える）",
+      "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
+      "find": "\" -->\"$ ]]; then\n",
+      "replace": "\" -->\" ]]; then\n",
+      "occurrences": 1,
+      "expect_failing": ["1 行目の形が違う記録（末尾に余計な文字）は、数えずに読み飛ばす"]
+    },
+    {
+      "id": "head-sha-not-validated",
+      "why": "headRefOid が完全な SHA かを確かめない（判定できない状態を not-reviewed として返す）",
+      "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
+      "find": "if [[ ! \"${head:-}\" =~ ^[0-9a-f]{40}$ ]]; then\n",
+      "replace": "if false; then\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "headRefOid が完全な SHA でない ときは、記録が無いとせずに exit 2（判定できない）"
+      ]
+    },
+    {
+      "id": "comments-failure-as-empty",
+      "why": "コメントの取得の失敗を、記録が 0 件として扱う",
+      "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
+      "find": "\techo \"error: PR のコメントを取得できない\" >&2\n\texit 2\n",
+      "replace": "\techo \"error: PR のコメントを取得できない\" >&2\n\tlist=\"\"\n",
+      "occurrences": 1,
+      "expect_failing": ["コメントを取得できない ときは、記録が無いとせずに exit 2（判定できない）"]
+    },
+    {
+      "id": "post-sha-not-compared",
+      "why": "post で、渡した SHA を HEAD と比べない（前の HEAD のレビューを、今の HEAD の記録として残す）",
+      "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
+      "find": "\tif [ \"${sha}\" != \"${head}\" ]; then\n",
+      "replace": "\tif false; then\n",
+      "occurrences": 1,
+      "expect_failing": ["post は、渡した SHA が HEAD と違えば投稿せずに exit 1"]
+    },
+    {
+      "id": "ghe-hostname-dropped",
+      "why": "GHE の PR で gh api に --hostname を渡さない（github.com の同じパスを読む）",
+      "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
+      "find": "[ \"${host}\" = \"github.com\" ] || host_args=(--hostname \"${host}\")\n",
+      "replace": "true || host_args=(--hostname \"${host}\")\n",
+      "occurrences": 1,
+      "expect_failing": ["GHE の PR では、gh api に --hostname を渡す"]
+    },
+    {
+      "id": "post-poster-not-checked",
+      "why": "post で gh のユーザーを確かめない（check が読み飛ばす人の名前で記録を投稿し、HEAD がレビュー済みにならない）",
+      "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
+      "find": "\t*\",${me},\"*) ;;\n",
+      "replace": "\t*) ;;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "post は、gh のユーザーが作成者でも担当者でもなければ、check が読み飛ばす記録を投稿せずに exit 1"
+      ]
+    },
+    {
+      "id": "app-author-not-normalized",
+      "why": "GitHub App の作成者 app/<name> を <name>[bot] に揃えない（bot が作った PR の記録をすべて読み飛ばす）",
+      "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
+      "find": "app/*) author=\"${author#app/}[bot]\" ;;",
+      "replace": "app/*) : ;;",
+      "occurrences": 1,
+      "expect_failing": [
+        "GitHub App が作った PR では、作成者の app/<name> を <name>[bot] として記録の書き手と照合する"
+      ]
+    },
+    {
+      "id": "crlf-not-trimmed",
+      "why": "1 行目の末尾の CR を取り除かない（CRLF で保存された記録を形が違うとして読み飛ばす）",
+      "file": "skills/pr-finalize-loop/scripts/local-review-record.sh",
+      "find": " | rtrimstr(\"\\r\")",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["1 行目の末尾の CR（CRLF の改行）は、形の照合の前に取り除く"]
+    }
+  ]
+}

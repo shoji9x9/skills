@@ -29,6 +29,13 @@
     },
     {
       "files": [
+        "skills/pr-review-handle/scripts/local-review-record.sh",
+        "skills/pr-finalize-loop/scripts/local-review-record.sh"
+      ],
+      "reason": "review_tool: local の記録の形と判定。姉妹スキルで食い違うと、片方が書いた記録をもう片方がレビュー済みと読めない"
+    },
+    {
+      "files": [
         "skills/issue-start/references/conventions.md",
         "skills/dependabot-alert-issue/references/conventions.md",
         "skills/pr-review-handle/references/conventions.md",

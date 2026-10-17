@@ -13,13 +13,13 @@
 # 決める（どこから起動しても同じ層を読む）。
 #
 # 出力（key=value の 2 行。パースして使う）:
-#   value=<copilot|claude-code|codex|none>
+#   value=<copilot|claude-code|codex|local|none>
 #   source=<cli|env|config|default>
 #
 # 終了コード: 0=値を決められた / 2=受理しない値（警告なしにデフォルトとして扱わず、止まる） / 64=引数が不正。
 set -euo pipefail
 
-ACCEPTED="copilot claude-code codex none"
+ACCEPTED="copilot claude-code codex local none"
 DEFAULT_TOOL="copilot"
 # 共有設定のデフォルトのパスは、**リポジトリルートを基準**に決める。cwd からの相対パスのままだと、
 # サブディレクトリから起動しただけで config 層が警告なしに飛ばされ、`source=default` を
