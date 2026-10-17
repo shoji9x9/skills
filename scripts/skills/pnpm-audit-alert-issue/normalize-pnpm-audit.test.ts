@@ -113,16 +113,20 @@ describe("fromAdvisory（古い形の advisories の 1 件）", () => {
 
   test.each([
     ["最後のかたまりが 5 文字", "GHSA-abcd-efgh-ijklm"],
-    ["前に英数字が付く", "XGHSA-abcd-efgh-ijkl"],
+    ["最後のかたまりに数字が続く", "GHSA-2345-6789-23456"],
+    ["前に英字が付く", "XGHSA-abcd-efgh-ijkl"],
+    ["前に数字が付く", "1GHSA-2345-6789-2345"],
+    ["前に - で付く", "foo-GHSA-2345-6789-2345"],
     ["後ろに - で続く", "GHSA-abcd-efgh-ijkl-mnop"],
   ])("GHSA の形に収まらない id（%s）からは、切り詰めた id を取り出さない", (_label, id) => {
     expect(fromAdvisory({ module_name: "x", title: id }).ghsa).toBe("");
   });
 
-  test("前に _ が付いた GHSA の id は取り出す（_ は英数字として扱わない）", () => {
-    expect(fromAdvisory({ module_name: "x", title: "github_GHSA-abcd-efgh-2345" }).ghsa).toBe(
-      "GHSA-abcd-efgh-2345",
-    );
+  test.each([
+    ["前に _ が付く", "github_GHSA-abcd-efgh-2345"],
+    ["後ろに _ が続く", "GHSA-abcd-efgh-2345_x"],
+  ])("%s GHSA の id は取り出す（_ は英数字として扱わない）", (_label, id) => {
+    expect(fromAdvisory({ module_name: "x", title: id }).ghsa).toBe("GHSA-abcd-efgh-2345");
   });
 
   test.each([

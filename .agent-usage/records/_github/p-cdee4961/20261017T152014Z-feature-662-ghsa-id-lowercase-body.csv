@@ -14,3 +14,6 @@ ci:39045584413:1,ci,2026-10-17T15:39:55.185Z,p-cdee4961,github-actions,,,,2026-1
 coverage:github:2026-10-16T15:31:42.603Z:2026-10-17T15:39:55.185Z,coverage,2026-10-17T15:39:55.185Z,p-cdee4961,,,,,2026-10-16T15:31:42.603Z,2026-10-17T15:39:55.185Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-16T15:39:55.185Z:2026-10-17T15:40:16.711Z,coverage,2026-10-17T15:40:16.711Z,p-cdee4961,,,,,2026-10-16T15:39:55.185Z,2026-10-17T15:40:16.711Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-16T15:40:16.711Z:2026-10-17T15:40:53.069Z,coverage,2026-10-17T15:40:53.069Z,p-cdee4961,,,,,2026-10-16T15:40:16.711Z,2026-10-17T15:40:53.069Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:39046235428:1,ci,2026-10-17T15:48:42.987Z,p-cdee4961,github-actions,,,,2026-10-17T15:42:35.000Z,2026-10-17T15:42:36.000Z,Asia/Tokyo,feature/662-ghsa-id-lowercase-body,662,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:39046235418:1,ci,2026-10-17T15:48:42.987Z,p-cdee4961,github-actions,,,,2026-10-17T15:42:35.000Z,2026-10-17T15:45:58.000Z,Asia/Tokyo,feature/662-ghsa-id-lowercase-body,662,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-16T15:40:53.069Z:2026-10-17T15:48:42.987Z,coverage,2026-10-17T15:48:42.987Z,p-cdee4961,,,,,2026-10-16T15:40:53.069Z,2026-10-17T15:48:42.987Z,Asia/Tokyo,,,,,,,,,,,,ok,
