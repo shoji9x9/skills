@@ -187,7 +187,8 @@ Claude Code / Codex / Copilot のどれも、ツールの実行前に起動し�
 
 判定は、スキルに同梱した `kaizen-precommit-gate.sh` が行う。
 
-- commit でない呼び出しは、Bash の組み込みの事前の絞り込みだけで終わり、jq / python / git を起動しない。
+- Hook の入力の JSON 全体（`cwd`・`transcript_path` を含む）に、文字列 `git` と `commit` がこの順で現れず、行継続（`\` と改行）も無い呼び出しは、Bash の組み込みの事前の絞り込みだけで終わる。jq / python / git は起動しない。
+  現れれば（`grep -rn 'git commit' docs` など）、commit でなくても jq か python3 で入力を読み、`git rev-parse` でプロジェクトの直下を求めてから判定する。
 - commit のときだけ `kaizen-status-check.sh` を実行し、未抽出のセンチネルがあるときだけ `kaizen-candidate-scan.sh` が `transcript_path` の未処理の範囲を走査する。
 - 時間は、チェック全体で 1 つの締め切り（デフォルトは 8 秒）で区切る（後の「チェックの締め切りとフックの timeout」）。
 - 走査の結果は、`0` が候補あり、`1` が検証したうえで 0 件、`2` が不明である。`1` のときだけそのまま通し、候補あり・読めない形式・jq が無い・timeout のときは、exit code 2 と stderr で止める。
@@ -270,7 +271,7 @@ foreign_sentinel_retention_days = 14
 
 確かめる元の情報は次のとおりである。
 
-- Claude Code の Hook の入力と handler の `if` は、[Claude Code Hooks reference](https://code.claude.com/docs/en/hooks) を原本とする。
+- Claude Code の Hook の入力は、[Claude Code Hooks reference](https://code.claude.com/docs/en/hooks) を原本とする。handler に `if` を付けない理由は、下の「Claude Code — PreToolUse」の実測による。
 - Codex の matcher・`transcript_path`・exit code は、[Codex Hooks reference](https://learn.chatgpt.com/docs/hooks) を原本として確かめ直す。
 - Copilot は、[GitHub Copilot Hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference) を原本とする。
 
@@ -339,8 +340,7 @@ foreign_sentinel_retention_days = 14
         "hooks": [
           {
             "type": "command",
-            "command": "bash <KAIZEN_SCRIPTS_DIR>/kaizen-precommit-gate.sh",
-            "if": "Bash(git commit *)"
+            "command": "bash <KAIZEN_SCRIPTS_DIR>/kaizen-precommit-gate.sh"
           }
         ]
       }
@@ -351,8 +351,20 @@ foreign_sentinel_retention_days = 14
 
 この例は `timeout` を持たないので、Claude Code のデフォルト（600 秒）になる。ほかのフックに合わせて `timeout` を付けるなら、上の「チェックの締め切りとフックの timeout」に従って、締め切りより十分に長くする（短いと、打ち切られた commit が警告なしに通り抜ける）。
 
-Claude Code の handler の `if` は、commit でない呼び出しでスクリプトそのものを起動しないための、最初の絞り込みである。
-`if` に対応しない古い版では、このフィールドを省き、スクリプトの中の事前の絞り込みを代わりに使う。複合した Bash のコマンドでは、permission rule が安全側として handler を起動することがあるので、スクリプト側の厳密な判定も残す。
+handler に `if`（permission rule の形でツールの呼び出しを絞るフィールド）を付けない。スクリプトが止める形の `git commit` でも、`if` で絞るとスクリプトが起動しないためである。
+Claude Code 2.1.302 で、使い捨てのリポジトリに Hook を置いて測った。
+
+- `"if": "Bash(git commit *)"` は、`git -C <dir> commit` と heredoc の中の `git commit` で起動しない
+- `"if": "Bash(git *)"` も、heredoc の中の `git commit` で起動しない
+
+スクリプトはこの 2 つの形を止める（`git -C <dir> commit` は、`<dir>` がプロジェクトの中を指すときだけ止め、外を指すときは通す）。`bash -c "git commit …"` の中は引用の内側として読むので、`if` の有無に関わらず止めない。
+代わりに、すべての Bash の呼び出しでスクリプトが起動する。事前の絞り込みで終わるのは、この節（4-2）の最初の箇条に書いた条件の呼び出しだけである。
+スクリプトは、`timeout 60 git commit`・`stdbuf -oL git commit`・`exec git commit`・`/usr/bin/git commit` を commit と判定しないので、`if` の有無に関わらず止めない。
+スクリプトは、引用の範囲を確定できない呼び出しでは、引用を外さずに元の文字列で判定する。確定できない入力には、`<<` の 2 文字があるもの（heredoc・here-string のほか、`$((1<<2))` や引用の中の `<<` も含む）、コマンド置換の中に `case … in` の構文があるもの、引用やコマンド置換（`$(`・バッククォート）が閉じていないもの、末尾が `\` のものなどがある。
+`jq` も `python3` も無い環境でも、Hook の入力の生の JSON を、引用を外さずに判定する。
+どちらの場合も、git を実行しない呼び出しで、引用の中の区切り（改行・`;`・`&`・`|` など）の後ろの `git commit` を commit として読む。そのため、`cat > f <<'EOF'` で本文の行頭に `git commit` がある手順書を書く呼び出しも、未抽出のセンチネルがあれば止める。
+`if: Bash(git commit *)` を付けるとこの呼び出しではスクリプトが起動しないので、この誤検知は `if` を外すと新たに起きる。
+見逃してコミットを通すと、学びを抽出しないままコミットが入るので、止めて抽出を促す側を選んでいる。
 
 ##### Codex — PreToolUse (`.codex/hooks.json`)
 
