@@ -39,3 +39,6 @@ ci:39041092767:1,ci,2026-10-17T18:16:33.904Z,p-cdee4961,github-actions,,,,2026-1
 ci:39040716489:1,ci,2026-10-17T18:16:33.904Z,p-cdee4961,github-actions,,,,2026-10-17T14:25:51.000Z,2026-10-17T14:29:10.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
 coverage:github:2026-10-16T14:28:28.273Z:2026-10-17T18:16:33.904Z,coverage,2026-10-17T18:16:33.904Z,p-cdee4961,,,,,2026-10-16T14:28:28.273Z,2026-10-17T18:16:33.904Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-16T18:16:33.904Z:2026-10-17T18:17:07.753Z,coverage,2026-10-17T18:17:07.753Z,p-cdee4961,,,,,2026-10-16T18:16:33.904Z,2026-10-17T18:17:07.753Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:39057610370:1,ci,2026-10-17T18:26:49.332Z,p-cdee4961,github-actions,,,,2026-10-17T18:19:49.000Z,2026-10-17T18:19:50.000Z,Asia/Tokyo,feature/676-propose-excluding-uncertain-issues,676,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:39057610444:1,ci,2026-10-17T18:26:49.332Z,p-cdee4961,github-actions,,,,2026-10-17T18:19:49.000Z,2026-10-17T18:23:09.000Z,Asia/Tokyo,feature/676-propose-excluding-uncertain-issues,676,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-16T18:17:07.753Z:2026-10-17T18:26:49.332Z,coverage,2026-10-17T18:26:49.332Z,p-cdee4961,,,,,2026-10-16T18:17:07.753Z,2026-10-17T18:26:49.332Z,Asia/Tokyo,,,,,,,,,,,,ok,
