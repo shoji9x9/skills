@@ -1,7 +1,7 @@
 ---
 date: 2026-10-08
 type: rule
-priority: medium
+priority: high
 status: pending
 applied-to: []
 session: claude-code
@@ -16,6 +16,15 @@ Issue #571 で、parity-suite の `references/baseline.md` に `artifact-health-
 - 「外のツールの後始末では通らない」と書いた。チェックは `cleanup_in_suite` の記録した値を読むだけで、`true` と書けば通る（ローカルの `code-review --fix` が検出し、eval 40 を実行し直した）
 - 「`runs` が 2 件に満たないと exit 1」と書いた。`repeat_run.specs` を持つ成果物では、`checkRepeatRunPerSpec` がスペックごとに数える（PR #574 の `code-review --comment` が検出）
 
+2026-10-17、PR #665（agent-usage の defaultDecision）で、レビューの指摘に合わせて `references/setup.md` を直したところ、直した文が次のレビューで 4 件の指摘を受けた。
+
+- 「設定を読めない → 止める」の表の行は、`defaultDecisionOf` が人の設定の値で決まるとリポジトリの設定を読まない分岐を書いていなかった
+- 動作の確かめ方に「試すブランチは使い捨てにし、確かめた後にブランチごと消す」と書いた。
+  collect は最初の実行の時刻を git の共通のディレクトリに残すので、ブランチを消すと 60 日より古い明細が以後記録されなくなる。作業中のブランチを消す指示としても読めた
+- 表の 2 つの行に同時に当たる状態（人の設定を読めず、リポジトリの設定に値がある）の優先を書いていなかった
+
+どれも、文書に書く手順や挙動を、コードの分岐と副作用（collect が残す状態）を追わずに、指摘の文面から書いたものである。
+
 ## 根本原因
 
 - 誤った理由: 1265 行目付近の 1 つの分岐だけを読んで書いた
@@ -28,3 +37,5 @@ Issue #571 で、parity-suite の `references/baseline.md` に `artifact-health-
 
 - 記述先の候補: `docs/skill-development.md`「push 前の整合パス」か、`skills/**` を対象にした rule
 - 「通らない」「止める」と書くときは、偽の記録で通る形を 1 つ考え、通るなら「記録しない限り」と条件を書く
+- 手順（試しの操作・後片付け・ブランチの削除）を書くときは、その操作が残す状態（ツールが git の共通のディレクトリや HOME に書くもの）をコードで挙げ、消せないものが残らないかを確かめてから書く
+- 表の行を足したら、2 つの行に同時に当たる状態が無いかを挙げ、あれば優先を書く

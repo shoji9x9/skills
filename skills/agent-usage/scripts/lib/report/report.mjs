@@ -12,7 +12,7 @@
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { loadOrCreateUserConfig, loadRepoConfig } from "../config.mjs";
+import { loadRepoConfig, loadUserConfig } from "../config.mjs";
 import { toCsv } from "../csv.mjs";
 import { RUN_BINS, STOP_CATEGORIES } from "./categories.mjs";
 import {
@@ -24,7 +24,14 @@ import {
 } from "../pricing.mjs";
 import { renderHtml } from "./html.mjs";
 import { latestByKey, readRecords, usageDir } from "../records.mjs";
-import { QUARTER_HOUR, localParts, parseTime, splitByLocalHour, toIso } from "../time.mjs";
+import {
+  QUARTER_HOUR,
+  localParts,
+  parseTime,
+  splitByLocalHour,
+  systemTimeZone,
+  toIso,
+} from "../time.mjs";
 
 /** @typedef {import("../rows.mjs").Row} Row */
 /** @typedef {import("../config.mjs").RepoConfig} RepoConfig */
@@ -582,7 +589,8 @@ export function runReport(o) {
     throw new Error("--since が --until より後になっている");
   const dir = usageDir(o.root);
   const config = loadRepoConfig(join(dir, "config.json"));
-  const tz = loadOrCreateUserConfig(o.env).config.timeZone;
+  // report は人の設定を読むだけで作らない（作ると、setup を通らずに乱数の ID ができる）
+  const tz = loadUserConfig(o.env)?.timeZone ?? systemTimeZone();
   const { rows, files } = readRecords(join(dir, "records"));
   if (files === 0) throw new Error(`${join(dir, "records")} に記録が無い。先に collect を実行する`);
   const data = buildReport(rows, {

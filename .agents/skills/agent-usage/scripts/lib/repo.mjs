@@ -66,6 +66,15 @@ export function defaultBranches(repo) {
 }
 
 /**
+ * コミットの前の確認が、記録するかを判断するブランチか。detached HEAD とデフォルトブランチは判断しない。
+ * @param {{ branch: string; defaultBranch: string | null }} repo
+ * @returns {boolean}
+ */
+export function isDecisionBranch(repo) {
+  return repo.branch !== "" && !defaultBranches(repo).includes(repo.branch);
+}
+
+/**
  * @typedef {object} RepoInfo
  * @property {string} root 今の作業ツリーのルート
  * @property {string} commonDir git の共通のディレクトリ（worktree で共有する）

@@ -60,8 +60,10 @@ test("実リポジトリの vitest.config.ts が、他の setupFiles より先�
 
 test("読み込んだだけで外すので、GIT_DIR を受け継いだ子の git の commit が元のリポジトリに入らない", () => {
   const dir = makeTempDir("vitest-git-env-setup-");
+  // 手元の ~/.gitconfig とシステムの設定（core.hooksPath など）を読ませない
+  const isolated = { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" };
   const git = (cwd: string, args: string[]) =>
-    spawnSync("git", args, { cwd, encoding: "utf8", timeout: TIMEOUT_MS });
+    spawnSync("git", args, { cwd, encoding: "utf8", env: isolated, timeout: TIMEOUT_MS });
   const victim = join(dir, "victim");
   const own = join(dir, "own");
   for (const repo of [victim, own]) {
@@ -80,7 +82,7 @@ test("読み込んだだけで外すので、GIT_DIR を受け継いだ子の gi
   const child = spawnSync(process.execPath, ["--input-type=module", "-e", script], {
     cwd: own,
     encoding: "utf8",
-    env: { ...process.env, GIT_DIR: join(victim, ".git") },
+    env: { ...isolated, GIT_DIR: join(victim, ".git") },
     timeout: TIMEOUT_MS * 2,
   });
 

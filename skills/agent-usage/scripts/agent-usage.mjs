@@ -16,18 +16,20 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   PERSON_ID_RE,
-  loadOrCreateUserConfig,
+  defaultDecisionOf,
+  loadUserConfig,
+  newPersonId,
   parseUserConfig,
   saveUserConfig,
   userConfigPath,
 } from "./lib/config.mjs";
 import { decisionFor, saveDecision } from "./lib/decisions.mjs";
 import { gateDecision, readHookInput } from "./lib/gate.mjs";
-import { git, repoInfo } from "./lib/repo.mjs";
+import { git, isDecisionBranch, repoInfo } from "./lib/repo.mjs";
 import { usageDir } from "./lib/records.mjs";
 import { runCollect } from "./lib/run-collect.mjs";
 import { runReport } from "./lib/report/report.mjs";
-import { isValidTimeZone, parseTime } from "./lib/time.mjs";
+import { isValidTimeZone, parseTime, systemTimeZone } from "./lib/time.mjs";
 
 const SCRIPT = fileURLToPath(import.meta.url);
 
@@ -102,6 +104,39 @@ function printCollect(r) {
 }
 
 /**
+ * status に出すブランチの判断。判断が無ければ、コミットの前の確認が従う defaultDecision と、その出所を添える。
+ * 設定を読めなくても、status の他の行は出したいので、理由を文字列にして返す。
+ * 見る順（.agent-usage/ の有無、対象のブランチか、ブランチの判断、defaultDecisionOf）は、gate.mjs の gateDecision と同じにする。
+ * @param {import("./lib/repo.mjs").RepoInfo} repo
+ * @param {boolean} set
+ * @returns {string}
+ */
+function branchDecisionText(repo, set) {
+  if (!set) return "対象外（.agent-usage/ が無いので、コミットの前の確認は何もしない）";
+  if (!isDecisionBranch(repo))
+    return "対象外（デフォルトブランチなので、コミットの前の確認は何もしない）";
+  try {
+    const decided = decisionFor(repo.commonDir, repo.branch);
+    // gateDecision と同じく、判断が「記録する」でも人の設定が無ければ止める
+    if (decided === "record" && !existsSync(userConfigPath()))
+      return "record（人の設定が無いので、コミットの前の確認は止めて setup を求める）";
+    if (decided !== null) return decided;
+  } catch (e) {
+    return `判断の記録を読めない: ${e instanceof Error ? e.message : String(e)}`;
+  }
+  try {
+    const fallback = defaultDecisionOf(join(usageDir(repo.root), "config.json"));
+    if (fallback === null) return "未決定";
+    // gateDecision と同じく、人の設定が無ければ defaultDecision を当てずに止める
+    if (!existsSync(userConfigPath()))
+      return `未決定（defaultDecision: ${fallback.decision}、${fallback.source}。人の設定が無いので、コミットの前の確認は止めて setup を求める）`;
+    return `未決定（defaultDecision: ${fallback.decision}、${fallback.source}）`;
+  } catch (e) {
+    return `未決定（設定を読めない: ${e instanceof Error ? e.message : String(e)}）`;
+  }
+}
+
+/**
  * @param {string[]} argv
  * @param {string} cwd
  * @returns {number}
@@ -114,15 +149,23 @@ export function main(argv, cwd = process.cwd()) {
     case "setup": {
       const a = parseArgs(rest, [], ["--person-id", "--time-zone", "--billing"]);
       const repo = repoInfo(cwd);
-      const { config, created, path } = loadOrCreateUserConfig();
-      const personId = a.options.get("--person-id") ?? config.personId;
+      // 引数を確かめる前に人の設定を作らない。打ち間違いで止まったときに、乱数の ID の設定が残らないようにする
+      const path = userConfigPath();
+      const config = loadUserConfig();
+      const created = config === null;
+      const personId = a.options.get("--person-id") ?? config?.personId ?? newPersonId();
       if (!PERSON_ID_RE.test(personId))
         throw new UsageError("--person-id は p- と 16 進数 8 桁の形にする");
-      const timeZone = a.options.get("--time-zone") ?? config.timeZone;
+      const timeZone = a.options.get("--time-zone") ?? config?.timeZone ?? systemTimeZone();
       if (!isValidTimeZone(timeZone))
         throw new UsageError("--time-zone は IANA のタイムゾーンの名前にする");
-      const billing = a.options.get("--billing") ?? config.billing;
-      const next = parseUserConfig({ personId, timeZone, billing }, path);
+      const billing = a.options.get("--billing") ?? config?.billing ?? "none";
+      if (billing !== "none" && billing !== "user")
+        throw new UsageError("--billing は none か user にする");
+      const next = parseUserConfig(
+        { personId, timeZone, billing, defaultDecision: config?.defaultDecision },
+        path,
+      );
       saveUserConfig(path, next);
       const dir = usageDir(repo.root);
       mkdirSync(join(dir, "records"), { recursive: true });
@@ -169,9 +212,7 @@ export function main(argv, cwd = process.cwd()) {
       console.log(
         `ブランチ: ${repo.branch || "(detached)"} / デフォルトブランチ: ${repo.defaultBranch ?? "(不明)"}`,
       );
-      console.log(
-        `このブランチの判断: ${repo.branch ? (decisionFor(repo.commonDir, repo.branch) ?? "未決定") : "-"}`,
-      );
+      console.log(`このブランチの判断: ${repo.branch ? branchDecisionText(repo, set) : "-"}`);
       const path = userConfigPath();
       console.log(
         `人の設定: ${existsSync(path) ? readFileSync(path, "utf8").trim().replace(/\s+/g, " ") : "(無い)"}`,

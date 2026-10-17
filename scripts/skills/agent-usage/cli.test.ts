@@ -6,6 +6,7 @@
 //   リポジトリ     .agent-usage/ が無い／ある。
 //   ブランチ       デフォルトブランチ（origin/HEAD が無ければ main・master）／それ以外。
 //   判断           未決定（止める）／記録しない（通す）／記録する（collect して stage し、通す）。
+//   defaultDecision 無い／リポジトリの設定だけ／人の設定だけ／両方（人が優先）／読めない値（止める）。
 
 import { spawnSync } from "node:child_process";
 import {
@@ -32,6 +33,7 @@ import {
 import { branchLabel } from "../../../skills/agent-usage/scripts/lib/records.mjs";
 import { localHourStart } from "../../../skills/agent-usage/scripts/lib/time.mjs";
 import { coverageEnv } from "../../lib/testing/coverage-env.ts";
+import { parseJsonAs } from "../../lib/parse-as.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 const SCRIPTS = join(import.meta.dirname, "../../../skills/agent-usage/scripts");
@@ -217,6 +219,8 @@ describe("agent-usage のコマンドと Hook", () => {
     const r = cli("collect", "--no-github");
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/setup/);
+    // Hook は何もしないので、status も判断を「未決定」と出さない
+    expect(cli("status").stdout).toMatch(/^このブランチの判断: 対象外（\.agent-usage\/ が無い/m);
   });
 
   test("判断の無い feature ブランチのコミットを止め、記録しないと決めたら通す。デフォルトブランチでは止めない", () => {
@@ -231,6 +235,198 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(blocked.stderr).toMatch(/decline/);
     expect(cli("decline").status).toBe(0);
     expect(gate("git commit -m x").status).toBe(0);
+  });
+
+  test("判断の無いブランチでは、defaultDecision に従って止めずに通す。人の設定がリポジトリの設定より優先する", () => {
+    const { tmp, repo, git, cli, gate } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    const repoConfig = join(repo, ".agent-usage", "config.json");
+    const userConfig = join(tmp, "user", "config.json");
+    const user = parseJsonAs<Record<string, unknown>>(readFileSync(userConfig, "utf8"));
+    const staged = () => git("diff", "--cached", "--name-only").trim();
+
+    // リポジトリの設定が decline: 記録せずに通す
+    writeFileSync(repoConfig, JSON.stringify({ defaultDecision: "decline" }));
+    const declined = gate("git commit -m x");
+    expect(declined.status).toBe(0);
+    expect(declined.stderr).toContain(`${repoConfig} の defaultDecision: decline`);
+    expect(staged()).toBe("");
+    expect(cli("status").stdout).toMatch(/未決定（defaultDecision: decline、/);
+
+    // 人の設定の record が、リポジトリの設定の decline より優先する。記録して stage し、出所を出す
+    writeFileSync(userConfig, JSON.stringify({ ...user, defaultDecision: "record" }));
+    const recorded = gate("git commit -m x");
+    expect(recorded.status).toBe(0);
+    expect(recorded.stderr + recorded.stdout).toContain(`${userConfig} の defaultDecision: record`);
+    expect(staged()).toMatch(/\.agent-usage\/records\//);
+
+    // setup を実行し直しても、人の設定の defaultDecision は残る
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    expect(
+      parseJsonAs<Record<string, unknown>>(readFileSync(userConfig, "utf8")).defaultDecision,
+    ).toBe("record");
+
+    // ブランチの判断は defaultDecision より優先する
+    expect(cli("decline").status).toBe(0);
+    git("reset", "-q");
+    expect(gate("git commit -m x").status).toBe(0);
+    expect(staged()).toBe("");
+
+    // 反対の組み合わせ: 人の設定の decline が、リポジトリの設定の record より優先する
+    git("switch", "-q", "-c", "feature/6-y");
+    writeFileSync(repoConfig, JSON.stringify({ defaultDecision: "record" }));
+    writeFileSync(userConfig, JSON.stringify({ ...user, defaultDecision: "decline" }));
+    const userDeclined = gate("git commit -m x");
+    expect(userDeclined.status).toBe(0);
+    expect(userDeclined.stderr).toContain(`${userConfig} の defaultDecision: decline`);
+    expect(staged()).toBe("");
+  });
+
+  test("リポジトリの defaultDecision は、人の設定が無い人には当てずに止めて setup を求め、人の ID を作らない。デフォルトブランチの status は対象外と出す", () => {
+    const { tmp, repo, git, cli, gate } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    writeFileSync(
+      join(repo, ".agent-usage", "config.json"),
+      JSON.stringify({ defaultDecision: "record" }),
+    );
+    expect(cli("status").stdout).toMatch(/このブランチの判断: 対象外（デフォルトブランチ/);
+    git("switch", "-q", "-c", "feature/5-x");
+    const userConfig = join(tmp, "user", "config.json");
+    rmSync(userConfig);
+    const staged = () => git("diff", "--cached", "--name-only").trim();
+    // status も、人の設定が無い人には defaultDecision を当てないと出す
+    expect(cli("status").stdout).toMatch(
+      /このブランチの判断: 未決定（defaultDecision: record、.*人の設定が無いので、コミットの前の確認は止めて setup を求める）/,
+    );
+
+    // リポジトリの record は、人の設定が無い人には当てない。止めて setup を求め、人の ID を作らない
+    const recorded = gate("git commit -m x");
+    expect(recorded.status).toBe(2);
+    expect(recorded.stderr).toContain(`人の設定（${userConfig}）が無い`);
+    expect(recorded.stderr).toMatch(/setup を実行して人の ID を作る/);
+    expect(existsSync(userConfig)).toBe(false);
+    expect(staged()).toBe("");
+
+    // decline も同じく当てない
+    writeFileSync(
+      join(repo, ".agent-usage", "config.json"),
+      JSON.stringify({ defaultDecision: "decline" }),
+    );
+    const declined = gate("git commit -m x");
+    expect(declined.status).toBe(2);
+    expect(declined.stderr).toContain(`人の設定（${userConfig}）が無い`);
+
+    // 案内どおり decline を実行すれば、人の設定が無くても通り、人の ID は作らない
+    expect(cli("decline").status).toBe(0);
+    expect(gate("git commit -m x").status).toBe(0);
+    expect(existsSync(userConfig)).toBe(false);
+  });
+
+  test("ブランチの判断が「記録する」でも、人の設定が無ければ止めて、Hook からは人の ID を作らない。status も止めると出す", () => {
+    const { tmp, git, cli, gate } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    expect(cli("collect", "--stage", "--no-github").status).toBe(0);
+    git("reset", "-q");
+    const userConfig = join(tmp, "user", "config.json");
+    rmSync(userConfig);
+    expect(cli("status").stdout).toMatch(
+      /^このブランチの判断: record（人の設定が無いので、コミットの前の確認は止めて setup を求める）$/m,
+    );
+
+    const r = gate("git commit -m x");
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain(`人の設定（${userConfig}）が無い`);
+    // 前の ID を持つ人が別の ID を作らないよう、--person-id を案内する
+    expect(r.stderr).toContain("--person-id");
+    expect(existsSync(userConfig)).toBe(false);
+    expect(git("diff", "--cached", "--name-only").trim()).toBe("");
+  });
+
+  test("人の設定が無いとき、引数を誤った setup と report は人の設定を作らず、判断を確かめる案内は setup --person-id を示す", () => {
+    const { tmp, git, cli, gate } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    expect(cli("collect", "--no-github").status).toBe(0);
+    const userConfig = join(tmp, "user", "config.json");
+    rmSync(userConfig);
+
+    // どの設定にも defaultDecision が無ければ確かめる。collect が新しい ID を作る前に、既存の ID を使う方法を案内する
+    const ask = gate("git commit -m x");
+    expect(ask.status).toBe(2);
+    expect(ask.stderr).toContain(`人の設定（${userConfig}）がまだ無いので`);
+    expect(ask.stderr).toContain("setup --person-id <その ID>");
+    expect(existsSync(userConfig)).toBe(false);
+
+    // report は人の設定を読むだけで作らない
+    expect(cli("report").status).toBe(0);
+    expect(existsSync(userConfig)).toBe(false);
+
+    // setup は、引数の誤りで止まったときに人の設定を残さない
+    expect(cli("setup", "--person-id", "p-1234").status).toBe(2);
+    expect(existsSync(userConfig)).toBe(false);
+    expect(cli("setup", "--time-zone", "Nowhere/Zone").status).toBe(2);
+    expect(existsSync(userConfig)).toBe(false);
+    // --billing の誤りも引数の誤り（exit 2）として扱い、まだ無い設定ファイルの誤りとして示さない
+    const badBilling = cli("setup", "--billing", "User");
+    expect(badBilling.status).toBe(2);
+    expect(badBilling.stderr).toContain("--billing は none か user にする");
+    expect(existsSync(userConfig)).toBe(false);
+
+    // 正しい引数なら、指定した ID で作る
+    expect(cli("setup", "--person-id", "p-0123abcd", "--time-zone", "UTC").status).toBe(0);
+    expect(parseJsonAs<Record<string, unknown>>(readFileSync(userConfig, "utf8")).personId).toBe(
+      "p-0123abcd",
+    );
+  });
+
+  test("defaultDecision が読めない値なら、コミットを止めて理由を返す。どちらの設定にも無ければ確かめる", () => {
+    const { tmp, repo, git, cli, gate } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    const repoConfig = join(repo, ".agent-usage", "config.json");
+    const userConfig = join(tmp, "user", "config.json");
+    const user = parseJsonAs<Record<string, unknown>>(readFileSync(userConfig, "utf8"));
+
+    writeFileSync(repoConfig, JSON.stringify({ defaultDecision: "yes" }));
+    const badRepo = gate("git commit -m x");
+    expect(badRepo.status).toBe(2);
+    expect(badRepo.stderr).toMatch(/設定を読めない: .*defaultDecision: record か decline でない/);
+    // 設定を読めなくても、記録しない側で先へ進める方法を案内する
+    expect(badRepo.stderr).toMatch(/decline を実行してからコミット/);
+    // status は設定を読めなくても止まらず、理由をブランチの判断の行に出す
+    const status = cli("status");
+    expect(status.status).toBe(0);
+    expect(status.stdout).toMatch(/このブランチの判断: 未決定（設定を読めない: .*defaultDecision/);
+    expect(status.stdout).toContain("人の設定: ");
+
+    writeFileSync(repoConfig, "{}");
+    writeFileSync(userConfig, JSON.stringify({ ...user, defaultDecision: "ask" }));
+    const badUser = gate("git commit -m x");
+    expect(badUser.status).toBe(2);
+    expect(badUser.stderr).toMatch(/設定を読めない: .*defaultDecision: record か decline でない/);
+
+    writeFileSync(userConfig, JSON.stringify(user));
+    const ask = gate("git commit -m x");
+    expect(ask.status).toBe(2);
+    expect(ask.stderr).toMatch(/defaultDecision（record か decline）を置きます/);
+    // 人の設定がある人には、setup --person-id の案内を出さない
+    expect(ask.stderr).not.toContain("がまだ無いので");
+
+    // null は置いていないのと同じに扱い、読めない設定として止めずに確かめる
+    writeFileSync(repoConfig, JSON.stringify({ defaultDecision: null }));
+    const askNull = gate("git commit -m x");
+    expect(askNull.status).toBe(2);
+    expect(askNull.stderr).toMatch(/defaultDecision（record か decline）を置きます/);
+
+    // 判断の記録を読めなくても、status は止まらずに理由を出す
+    mkdirSync(join(repo, ".git", "agent-usage"), { recursive: true });
+    writeFileSync(join(repo, ".git", "agent-usage", "decisions.json"), "");
+    const badDecisions = cli("status");
+    expect(badDecisions.status).toBe(0);
+    expect(badDecisions.stdout).toMatch(/^このブランチの判断: 判断の記録を読めない: /m);
+    expect(badDecisions.stdout).toContain("人の設定: ");
   });
 
   test("collect --stage は明細を書いて stage し、記録すると決めたブランチのコミットでは Hook が collect して通す", () => {
@@ -1416,7 +1612,8 @@ describe("agent-usage のコマンドの入力と状態", () => {
     expect(before.status).toBe(0);
     expect(before.stdout).toMatch(/^セットアップ: 未（.*\.agent-usage）$/m);
     expect(before.stdout).toMatch(/^ブランチ: main \/ デフォルトブランチ: \(不明\)$/m);
-    expect(before.stdout).toMatch(/^このブランチの判断: 未決定$/m);
+    // setup の前なので、デフォルトブランチかより先に、.agent-usage/ が無いことを理由に出す（Hook と同じ順）
+    expect(before.stdout).toMatch(/^このブランチの判断: 対象外（\.agent-usage\/ が無い/m);
     expect(before.stdout).toMatch(/^人の設定: \(無い\)$/m);
     expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
     // origin/HEAD があれば、それをデフォルトブランチとして表示する

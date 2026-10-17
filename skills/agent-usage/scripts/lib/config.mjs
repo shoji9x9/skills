@@ -31,13 +31,17 @@ export const PRICE_FIELDS = /** @type {const} */ ([
  * @property {Record<string, string>} reviewTools レビューの作者の login → ツール
  * @property {Record<string, { name: string }>} people 人の ID → 表示名
  * @property {Record<string, string>} aliases 人の ID → 同じ人としてまとめる先の ID
+ * @property {DefaultDecision | null} defaultDecision 判断の無いブランチの扱い。null なら、コミットの前に止めて確かめる
  */
+
+/** @typedef {"record" | "decline"} DefaultDecision */
 
 /**
  * @typedef {object} UserConfig
  * @property {string} personId
  * @property {string} timeZone
  * @property {"none" | "user"} billing 課金 API の実額を記録するか（user は個人のプランの premium request usage）
+ * @property {DefaultDecision} [defaultDecision] 判断の無いブランチの扱い。リポジトリの設定より優先する
  */
 
 /** @returns {RepoConfig} */
@@ -50,6 +54,7 @@ export function defaultRepoConfig() {
     reviewTools: {},
     people: {},
     aliases: {},
+    defaultDecision: null,
   };
 }
 
@@ -67,6 +72,16 @@ export function isRecord(v) {
  */
 function isNonNegative(v) {
   return typeof v === "number" && Number.isFinite(v) && v >= 0;
+}
+
+/**
+ * @param {unknown} v
+ * @param {string} where
+ * @returns {DefaultDecision}
+ */
+function parseDefaultDecision(v, where) {
+  if (v !== "record" && v !== "decline") throw new Error(`${where}: record か decline でない`);
+  return v;
 }
 
 /**
@@ -131,6 +146,7 @@ export function parseRepoConfig(raw, where = "config.json") {
       "reviewTools",
       "people",
       "aliases",
+      "defaultDecision",
     ],
     where,
   );
@@ -180,6 +196,10 @@ export function parseRepoConfig(raw, where = "config.json") {
       cfg.people[id] = { name: person.name };
     }
   }
+  // null は、置いていないのと同じに扱う（値を外すつもりで null を書いた設定で止めない）
+  if (obj.defaultDecision !== undefined && obj.defaultDecision !== null) {
+    cfg.defaultDecision = parseDefaultDecision(obj.defaultDecision, `${where}.defaultDecision`);
+  }
   for (const [from, to] of Object.entries(cfg.aliases)) {
     if (cfg.aliases[to] !== undefined)
       throw new Error(`${where}.aliases: ${from} → ${to} の先がさらに別名になっている`);
@@ -221,7 +241,7 @@ export function userConfigPath(env = process.env) {
  */
 export function parseUserConfig(raw, where) {
   const obj = requireRecord(raw, where);
-  rejectUnknownKeys(obj, ["personId", "timeZone", "billing"], where);
+  rejectUnknownKeys(obj, ["personId", "timeZone", "billing", "defaultDecision"], where);
   if (typeof obj.personId !== "string" || !PERSON_ID_RE.test(obj.personId)) {
     throw new Error(`${where}.personId: p- と 16 進数 8 桁の形でない`);
   }
@@ -232,12 +252,36 @@ export function parseUserConfig(raw, where) {
   const billing = obj.billing === undefined ? "none" : obj.billing;
   if (billing !== "none" && billing !== "user")
     throw new Error(`${where}.billing: none か user でない`);
-  return { personId: obj.personId, timeZone, billing };
+  /** @type {UserConfig} */
+  const config = { personId: obj.personId, timeZone, billing };
+  if (obj.defaultDecision !== undefined && obj.defaultDecision !== null) {
+    config.defaultDecision = parseDefaultDecision(obj.defaultDecision, `${where}.defaultDecision`);
+  }
+  return config;
 }
 
 /** @returns {string} */
 export function newPersonId() {
   return `p-${randomBytes(4).toString("hex")}`;
+}
+
+/**
+ * 人ごとの設定を読む。ファイルが無ければ null（作らない）。
+ * @param {string} path
+ * @returns {UserConfig | null}
+ */
+function readUserConfig(path) {
+  if (!existsSync(path)) return null;
+  return parseUserConfig(JSON.parse(readFileSync(path, "utf8")), path);
+}
+
+/**
+ * 人ごとの設定を読む。無ければ null を返し、作らない。
+ * @param {NodeJS.ProcessEnv} env
+ * @returns {UserConfig | null}
+ */
+export function loadUserConfig(env = process.env) {
+  return readUserConfig(userConfigPath(env));
 }
 
 /**
@@ -247,13 +291,8 @@ export function newPersonId() {
  */
 export function loadOrCreateUserConfig(env = process.env) {
   const path = userConfigPath(env);
-  if (existsSync(path)) {
-    return {
-      config: parseUserConfig(JSON.parse(readFileSync(path, "utf8")), path),
-      created: false,
-      path,
-    };
-  }
+  const existing = readUserConfig(path);
+  if (existing !== null) return { config: existing, created: false, path };
   const config = {
     personId: newPersonId(),
     timeZone: systemTimeZone(),
@@ -261,6 +300,24 @@ export function loadOrCreateUserConfig(env = process.env) {
   };
   saveUserConfig(path, config);
   return { config, created: true, path };
+}
+
+/**
+ * 判断の無いブランチの扱いと、それを決めた設定のパス。人の設定、リポジトリの設定の順に見る。どちらにも無ければ null。
+ * 人の設定は読むだけで、無くても作らない（コミットの前の確認から呼ぶため）。
+ * @param {string} repoConfigPath
+ * @param {NodeJS.ProcessEnv} env
+ * @returns {{ decision: DefaultDecision; source: string } | null}
+ */
+export function defaultDecisionOf(repoConfigPath, env = process.env) {
+  const userPath = userConfigPath(env);
+  const user = readUserConfig(userPath);
+  if (user !== null && user.defaultDecision !== undefined)
+    return { decision: user.defaultDecision, source: userPath };
+  const repo = loadRepoConfig(repoConfigPath);
+  return repo.defaultDecision === null
+    ? null
+    : { decision: repo.defaultDecision, source: repoConfigPath };
 }
 
 /**

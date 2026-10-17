@@ -1,15 +1,18 @@
 // コミット前の確認（PreToolUse の Hook）。デフォルトブランチ以外の git commit で、そのブランチの判断がまだ無ければ止め、
 // 記録するかを利用者に確かめるようエージェントに返す。判断が「記録する」なら collect を実行して明細を stage し、通す。
+// 判断が無くても、人かリポジトリの設定に defaultDecision があれば、止めずにその判断として扱う（ブランチの判断は保存しない）。
+// ただし人の設定（setup が作る人の ID）が無ければ、defaultDecision があっても、判断が「記録する」でも止めて setup を求める。
 //
 // 止めない場合: git commit でない・git のリポジトリでない・.agent-usage/ が無い（このリポジトリでは使っていない）・
-//               detached HEAD・デフォルトブランチ・判断が「記録しない」。
+//               detached HEAD・デフォルトブランチ・判断が「記録しない」・判断が無く defaultDecision がある。
+//               最後の場合は、人の設定があるときに限る。
 // デフォルトブランチが分からない（origin/HEAD が無い）ときは、main と master をデフォルトブランチとして扱う。
 
 import { existsSync } from "node:fs";
-import { resolve } from "node:path";
-import { isRecord } from "./config.mjs";
+import { join, resolve } from "node:path";
+import { defaultDecisionOf, isRecord, userConfigPath } from "./config.mjs";
 import { decisionFor } from "./decisions.mjs";
-import { defaultBranches, git, repoInfo } from "./repo.mjs";
+import { git, isDecisionBranch, repoInfo } from "./repo.mjs";
 import { usageDir } from "./records.mjs";
 import { runCollect } from "./run-collect.mjs";
 import { rememberWorktrees } from "./sources/worktrees.mjs";
@@ -259,7 +262,31 @@ function askMessage(agent, script) {
     "利用者に「このブランチの作業の利用実績（トークン数・費用・稼働時間）を .agent-usage/records/ に記録してコミットするか」を確認してください。",
     `- 記録する: node "${script}" collect --stage を実行してから、もう一度コミットする`,
     `- 記録しない: node "${script}" decline を実行してから、もう一度コミットする`,
+    // 人の設定が無いまま collect を実行すると新しい ID を作るので、既存の ID を持つ人には setup を先に案内する
+    ...(existsSync(userConfigPath(process.env))
+      ? []
+      : [
+          `人の設定（${userConfigPath(process.env)}）がまだ無いので、記録すると collect が新しい人の ID を作ります。利用者が別のマシンや前の設定で人の ID を持っているなら、先に node "${script}" setup --person-id <その ID> を実行します。`,
+        ]),
     "確認はブランチごとに 1 回です。利用者に確認できない（無人の実行）ときは、記録しない側を選ばず、止まった理由を報告してください。",
+    "無人の実行で止めたくないときは、利用者が前もって、人の設定かリポジトリの .agent-usage/config.json に defaultDecision（record か decline）を置きます。リポジトリの設定の値は、人の設定（setup が作る人の ID）がある人にだけ当たります。エージェントはこの値を自分で書き足さないでください。",
+    `（agent: ${agent}）`,
+  ].join("\n");
+}
+
+/**
+ * 人の設定が無いので止めるときの案内。
+ * @param {string} agent
+ * @param {string} script
+ * @returns {string}
+ */
+function setupMessage(agent, script) {
+  return [
+    `agent-usage: 人の設定（${userConfigPath(process.env)}）が無いので、コミットは止めました。コミットの前の確認は、人の ID を作りません。`,
+    `利用者に、node "${script}" setup を実行して人の ID を作るかを確認してください。このブランチで記録しないなら、node "${script}" decline を実行してから、もう一度コミットします。`,
+    "利用者が別のマシンや前の設定で人の ID を持っているなら、setup に --person-id <その ID> を付けます。付けないと新しい ID を作り、人別の集計が分かれます。",
+    "利用者に確認できない（無人の実行）ときは、setup を実行せず、人の設定も自分で書かずに、止まった理由を報告してください。",
+    "使い捨ての環境（CI のジョブやクラウドのエージェント）では、利用者が環境の起動の処理で人の設定を書いておきます（このスキルの references/setup.md）。",
     `（agent: ${agent}）`,
   ].join("\n");
 }
@@ -296,8 +323,7 @@ export function gateDecision(input, fallbackCwd, now, script, agent) {
   } catch {
     // 次の collect で、読めない理由がエラーとして出る
   }
-  if (repo.branch === "") return { exit: 0, message: "" };
-  if (defaultBranches(repo).includes(repo.branch)) return { exit: 0, message: "" };
+  if (!isDecisionBranch(repo)) return { exit: 0, message: "" };
   /** @type {import("./decisions.mjs").Decision | null} */
   let decision;
   try {
@@ -308,8 +334,34 @@ export function gateDecision(input, fallbackCwd, now, script, agent) {
       message: `agent-usage: 判断の記録を読めない: ${e instanceof Error ? e.message : String(e)}`,
     };
   }
-  if (decision === null) return { exit: 2, message: askMessage(agent, script) };
-  if (decision === "decline") return { exit: 0, message: "" };
+  let note = "";
+  if (decision === null) {
+    /** @type {{ decision: import("./config.mjs").DefaultDecision; source: string } | null} */
+    let fallback;
+    try {
+      fallback = defaultDecisionOf(join(usageDir(repo.root), "config.json"), process.env);
+    } catch (e) {
+      return {
+        exit: 2,
+        message: [
+          `agent-usage: 設定を読めない: ${e instanceof Error ? e.message : String(e)}`,
+          `設定を直してからもう一度コミットするか、このブランチで記録しないなら node "${script}" decline を実行してからコミットしてください。`,
+        ].join("\n"),
+      };
+    }
+    if (fallback === null) return { exit: 2, message: askMessage(agent, script) };
+    // リポジトリの defaultDecision は、人の設定（setup が作る人の ID）がある人にだけ当てる。
+    // 無い人に当てると、使い捨ての環境では実行のたびに別の ID で記録され、HOME に書けない環境では毎回止まる
+    if (!existsSync(userConfigPath(process.env)))
+      return { exit: 2, message: setupMessage(agent, script) };
+    decision = fallback.decision;
+    note = `（このブランチの判断は無いので、${fallback.source} の defaultDecision: ${fallback.decision} に従った）`;
+  }
+  if (decision === "decline")
+    return { exit: 0, message: note === "" ? "" : `agent-usage: 記録しない${note}` };
+  // Hook からは人の ID を作らない（collect は人の設定が無いと ID を作るので、その前に止める）
+  if (!existsSync(userConfigPath(process.env)))
+    return { exit: 2, message: setupMessage(agent, script) };
   try {
     const r = runCollect({ repo, now, env: process.env, github: true, gh: null });
     // 今回書いたファイルに加えて、前回書いて stage されなかった（index.lock などで失敗した、手動の collect で書いた）記録も入れる
@@ -322,7 +374,7 @@ export function gateDecision(input, fallbackCwd, now, script, agent) {
           : "";
     return {
       exit: 0,
-      message: `agent-usage: 利用実績を記録した（新しい行 ${r.newRows}、stage したファイル ${r.written.length}）${notes}`,
+      message: `agent-usage: 利用実績を記録した（新しい行 ${r.newRows}、stage したファイル ${r.written.length}）${notes}${note}`,
     };
   } catch (e) {
     return {

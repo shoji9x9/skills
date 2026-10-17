@@ -13,6 +13,8 @@ node <このスキル>/scripts/agent-usage.mjs setup --time-zone Asia/Tokyo
 - 後から同じ人だと分かった ID は、リポジトリの設定の `aliases` でまとめる（下の「リポジトリの設定」）
 - タイムゾーンを省くと、マシンのタイムゾーンを使う。日別の集計の日付と、時刻ごとの停止の時間はこのタイムゾーンで切る
 - `--billing user` を付けると、collect が個人のプランの premium request の実額（GitHub の課金 API）も記録する（[`reviews.md`](reviews.md)）
+- setup が作った人の設定に `"defaultDecision": "record"`（または `"decline"`）を手で書き足すと、コミットの前の確認の Hook は、判断の無いブランチのコミットを止めずに、その値に従う。
+  人の設定の値は、リポジトリの設定の同じキーより優先する。setup を実行し直しても、この値は残る
 
 setup はリポジトリに `.agent-usage/config.json`（空の設定）と `.agent-usage/records/` を作る。`.agent-usage/` があることが、このリポジトリでスキルを使う印になる（Hook は無いリポジトリでは何もしない）。
 
@@ -88,7 +90,10 @@ GitHub は `linguist-generated` の付いたファイルを、PR の差分で最
 | --- | --- |
 | `git commit` を実行しない | 通す。判定は、引用符・`git` のグローバルのオプション（`-C <dir>` など）・`&&`・`;`・`$(...)`・シェルの予約語（`if`・`then`・`while`・`do`・`{`・`!` など）・前の `cd <dir>`・コマンドを実行するコマンド（`env`・`command`・`sudo` など）を扱う。エイリアス・変数・`sh -c` の中・スクリプトの中・`git` や `commit` の語を引用符で分けた形は検出しない |
 | `.agent-usage/` が無い・detached HEAD・デフォルトブランチ | 通す |
-| ブランチの判断が無い | 止める（exit 2）。stderr で、利用者に確かめて `collect --stage` か `decline` を実行するよう求める |
+| ブランチの判断が無く、人の設定にもリポジトリの設定にも `defaultDecision` が無い | 止める（exit 2）。stderr で、利用者に確かめて `collect --stage` か `decline` を実行するよう求める |
+| ブランチの判断が無く、読んだ設定に `defaultDecision` がある（人の設定を読めないときは、リポジトリの設定に値があっても、下の「読む設定を読めない」の行に当たる） | 止めずに、その値（人の設定を優先する）を判断として扱う。下の「記録しない」「記録する」と同じに振る舞い、従った設定のパスを stderr に出す。ただし人の設定が無ければ、下の「人の設定が無く」の行に当たる |
+| 人の設定が無く、リポジトリの設定の `defaultDecision` に従う場合か、判断が「記録する」場合 | 止める（exit 2）。stderr で、setup を実行して人の ID を作るか、`decline` を実行するよう求める。Hook からは人の ID を作らない |
+| ブランチの判断が無く、`defaultDecision` を決めるのに読む設定を読めない（人の設定。人の設定に値が無ければリポジトリの設定も） | 止める（exit 2）。stderr で、読めない理由と、設定を直すか `decline` を実行するよう案内する。人の設定の値で決まったときはリポジトリの設定を読まないので、リポジトリの設定の誤りは、記録する場合の collect の失敗として止まる |
 | 判断が「記録しない」 | 通す |
 | 判断が「記録する」 | collect を実行し、`.agent-usage/records/` を stage して通す（前に書いて stage されなかった記録も入る）。collect が失敗したら止める。Hook の collect は常に GitHub も取得する（`--no-github` は手動の collect だけ）。コミットが実行されなかったときに stage が残る場合の扱いは、[SKILL.md「コミットの前の確認」](../SKILL.md)にある |
 | Node.js が無い・同梱のスクリプトを読めない・想定外の失敗 | 確認をせずに通し、その旨を stderr に出す（記録の仕組みの不具合で作業を止めない） |
@@ -100,8 +105,10 @@ GitHub は `linguist-generated` の付いたファイルを、PR の差分で最
 ## 3. 動作を確かめる
 
 1. `agent-usage status` で、セットアップ済みであることと、人の ID を確かめる
-2. feature ブランチで、何も変えずに `git commit --allow-empty -m test` を試し、Hook が止めて確認を求めることを確かめる（止まらなければ、Hook の設定か Codex の信頼を見直す）
-3. `agent-usage decline` を実行し、同じコミットが通ることを確かめてから、試しのコミットを取り消すか残すかを利用者に確かめる
+2. feature ブランチで `agent-usage status` を実行し、「このブランチの判断」に `defaultDecision` が出ていれば、Hook は判断の無いブランチのコミットを止めずにその値に従う。
+   そのときは試しのコミットをせず、手順 3 と 4 を飛ばす。`record` の値で試しのコミットをすると、明細がコミットに入り、最初の collect の記録が残る
+3. feature ブランチで、何も変えずに `git commit --allow-empty -m test` を試し、Hook が止めて確認を求めることを確かめる（止まらなければ、Hook の設定か Codex の信頼を見直す）
+4. `agent-usage decline` を実行し、同じコミットが通ることを確かめてから、試しのコミットを取り消すか残すかを利用者に確かめる
 
 ## リポジトリの設定（`.agent-usage/config.json`）
 
@@ -115,7 +122,8 @@ GitHub は `linguist-generated` の付いたファイルを、PR の差分で最
   "activityWindowMinutes": 15,
   "reviewTools": { "<レビューの作者の login>": "<ツールの名前>" },
   "people": { "p-0123abcd": { "name": "表示名" } },
-  "aliases": { "p-89abcdef": "p-0123abcd" }
+  "aliases": { "p-89abcdef": "p-0123abcd" },
+  "defaultDecision": "record"
 }
 ```
 
@@ -128,3 +136,30 @@ GitHub は `linguist-generated` の付いたファイルを、PR の差分で最
 | `reviewTools` | レビューの作者からツールを決める対応。同梱の `assets/review-tools.json` より優先する。自分の Actions で実行するレビューの作者（workflow のトークンの持ち主）はここに足す |
 | `people` | 人の ID の表示名 |
 | `aliases` | 同じ人としてまとめる ID の対応（左の ID を右の ID として数える）。右の ID をさらに別名にはできない |
+| `defaultDecision` | 判断の無いブランチの扱い（`record` か `decline`）。置くと、コミットの前の確認で止めずにこの値に従う。人の設定に同じキーがあれば、そちらを使う。置かなければ止めて確かめる |
+
+リポジトリの設定はコミットして全員で使うので、`defaultDecision` は、人の設定（setup が作る人の ID）があり、そこに同じキーを置いていないすべての人のコミットに当たる。
+人の設定が無い人には当てない。その人のコミットは止まり、setup を求める（Hook は人の ID を作らない）。
+`record` を置くと、確認を受けずに各自の利用実績が記録されてコミットに入るので、置く前にリポジトリを使う人の同意を得る。
+反対の向きもある。人の設定の `record` は、リポジトリの設定の `decline` より優先する。そのため、記録しないと決めたリポジトリでも、人の設定に `record` を置いた人のコミットには明細が入る。人の設定に `record` を置く人は、このことを知ったうえで置く。
+
+`defaultDecision` を知らない古い版の agent-usage は、知らないキーとしてエラーにする。
+人の設定はマシンのすべてのリポジトリで共有するので、人の設定に置くときは、そのマシンで使うすべてのリポジトリのスキルを、このキーを読める版に更新してから置く。
+リポジトリの設定に置くときも、そのリポジトリを使う人のスキルを先に更新する。
+
+### 使い捨ての環境と、HOME に書けない環境
+
+CI のジョブの中で動くエージェントや、クラウドのエージェントの環境は、実行のたびに作り直される。人の設定が残らないので、そのままではコミットのたびに止まる。
+環境の起動の処理（ジョブの最初のステップや、環境のセットアップのスクリプト）で、人の設定を書いておく。
+`personId` には、その人がいつも使う ID（手元のマシンで `agent-usage status` の「人の設定」に出る値）を書く（実行のたびに別の ID にすると、人別の集計が分かれる）。`defaultDecision` も同じファイルに書く。
+
+```bash
+mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/agent-usage"
+cat > "${XDG_CONFIG_HOME:-$HOME/.config}/agent-usage/config.json" <<'JSON'
+{ "personId": "p-0123abcd", "timeZone": "Asia/Tokyo", "defaultDecision": "record" }
+JSON
+```
+
+HOME に書けない sandbox では、`XDG_CONFIG_HOME` を書ける場所に向けてから、同じ内容を書く。人の設定の置き場所は、`XDG_CONFIG_HOME` があればその下の `agent-usage/config.json` になる。
+環境変数 `AGENT_USAGE_CONFIG_DIR` があれば、`XDG_CONFIG_HOME` より優先して、その下の `config.json` が置き場所になる。迷ったら、Hook が止めたときの stderr に出るパスに書く。
+向けた環境変数は、エージェントを起動するプロセスにも設定する。Hook はエージェントの環境変数を引き継ぐので、設定のスクリプトの中だけで向けると、Hook は元の場所を見て止まる。
