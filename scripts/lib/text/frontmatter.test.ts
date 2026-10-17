@@ -17,6 +17,26 @@ test.each([
   ],
   ["空とコメントだけ", "", "# comment\n"],
   ["`~`（null）と空", "~\n", ""],
+  // js-yaml 5 は `-0` と `-0.0` を負のゼロとして読む（4 は `-0` を +0）。負のゼロと 0 は同じとみなす（#651）。
+  ["数値の -0 と 0", "a: -0\n", "a: 0\n"],
+  ["metadata の中と配列の中の -0 と 0", "metadata:\n  n: [-0]\n", "metadata:\n  n: [0]\n"],
+  ["浮動小数点数の -0.0 と 0.0", "a: -0.0\n", "a: 0.0\n"],
+  ["スカラーの -0 と 0", "-0\n", "0\n"],
+  ["自分自身を参照する配列のエイリアス", "a: &a [*a]\n", "a: &a [*a]\n"],
+  ["自分自身を参照するマッピングのエイリアス", "a: &a {b: *a, n: -0}\n", "a: &a {b: *a, n: 0}\n"],
+  ["空白だけと空", "\t\n", ""],
+  ["文書の終わりの印だけと空", "...\n", ""],
+  ["metadata が null（`~`）と、metadata が無い", "name: x\nmetadata: ~\n", "name: x\n"],
+  [
+    "metadata が null と、gh skill install が local-path だけを足したコピー",
+    "name: x\nmetadata: ~\n",
+    "name: x\nmetadata:\n  local-path: skills/x\n",
+  ],
+  [
+    "metadata がエイリアスで、アンカー側にも local-path がある",
+    "base: &b {local-path: x, a: 1}\nmetadata: *b\n",
+    "base: {local-path: x, a: 1}\nmetadata: {a: 1}\n",
+  ],
   ["同じ集合（!!set）", "tags: !!set {a, b}\n", "tags: !!set {b, a}\n"],
   ["同じ日付", "d: 2026-10-15\n", "d: 2026-10-15\n"],
 ])("同じとみなす: %s", (_label, a, b) => {
@@ -39,6 +59,11 @@ test.each([
     "name: x\n",
   ],
   ["スカラーの false と空", "false\n", ""],
+  [
+    "metadata がエイリアスで、アンカー側の local-path だけが違う",
+    "base: &b {local-path: x, a: 1}\nmetadata: *b\n",
+    "base: {a: 1}\nmetadata: {a: 1}\n",
+  ],
 ])("違うとみなす: %s", (_label, a, b) => {
   expect(sameFrontmatter(a, b)).toBe(false);
 });

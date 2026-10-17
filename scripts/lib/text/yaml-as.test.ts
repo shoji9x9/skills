@@ -7,6 +7,9 @@ test.each([
   ["空文字", ""],
   ["空行だけ", "\n\n"],
   ["コメントだけ", "# comment\n"],
+  // js-yaml 4 の load はこの 2 つで null を返した（#651）。
+  ["空白だけ", "\t\n"],
+  ["文書の終わりの印だけ", "...\n"],
 ])("空の入力（%s）は例外にせず undefined を返す", (_label, text) => {
   expect(loadYaml(text)).toBeUndefined();
   expect(loadYamlDocuments(text)).toEqual([]);
@@ -64,6 +67,10 @@ test("`0b11` は js-yaml 4 と違い文字列として読む", () => {
 
 test("キーの無い暗黙のマッピング（`: value`）は js-yaml 4 と違い例外にせず `null` のキーとして読む", () => {
   expect(loadYaml(": x\n")).toEqual({ null: "x" });
+});
+
+test('`!!null ""` は js-yaml 4 と違い例外にせず null として読む', () => {
+  expect(loadYaml('!!null ""\n')).toBeNull();
 });
 
 test("フロー形式の続きの行の字下げが足りない形は js-yaml 4 と違い例外にする", () => {
