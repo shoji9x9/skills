@@ -54,10 +54,30 @@ function codeSpanEnd(rest, index, ticks) {
 }
 
 /**
+ * 行の途中で開いたコメント（インラインのコメント）が、段落の中で閉じるかを返す。
+ * CommonMark では、インラインのコメントは段落の終わり（空行・フェンス行）を越えない。
+ * 閉じない `<!--` は文字として読まれ、以降の表を隠さない。
+ * @param {string[]} lines
+ * @param {number} index `<!--` がある行の番号（0 始まり）
+ * @param {string} tail 同じ行の `<!--` より後ろ
+ * @returns {boolean}
+ */
+function closesInParagraph(lines, index, tail) {
+  if (tail.includes("-->")) return true;
+  for (let k = index + 1; k < lines.length; k += 1) {
+    if (lines[k].trim() === "" || fenceOf(lines[k]) !== null) return false;
+    if (lines[k].includes("-->")) return true;
+  }
+  return false;
+}
+
+/**
  * HTML コメントを、改行を保ったまま空白に置き換える（行の対応は変えない）。
  * コードフェンスの中は例示なので置き換えない（フェンスの中の `<!--` で、以降の表を消さないため）。
  * 同じ理由で、1 行の中のコードスパンの中の `<!--` もコメントの始まりにしない。
- * コメントの中のフェンス行はフェンスとして扱わない。閉じていないコメントは末尾まで置き換える。
+ * コメントの中のフェンス行はフェンスとして扱わない。
+ * 行頭（字下げ 3 文字まで）の `<!--` は HTML ブロックを開き、閉じていなければ末尾まで置き換える（CommonMark）。
+ * 行の途中の `<!--` は、段落の中で `-->` が来るときだけコメントにする（閉じなければ文字として読む）。
  * @param {string[]} lines
  * @returns {string[]}
  */
@@ -65,7 +85,7 @@ function blankComments(lines) {
   /** @type {string | null} */
   let fence = null;
   let comment = false;
-  return lines.map((line) => {
+  return lines.map((line, index) => {
     if (!comment) {
       const mark = fenceOf(line);
       if (mark !== null) {
@@ -101,6 +121,13 @@ function blankComments(lines) {
           const stop = end < 0 ? code.index + code[0].length : end;
           out += rest.slice(0, stop);
           rest = rest.slice(stop);
+        } else if (
+          (out !== "" || !/^ {0,3}$/u.test(rest.slice(0, start))) &&
+          !closesInParagraph(lines, index, rest.slice(start + 4))
+        ) {
+          // 行の途中で開き、段落の中で閉じない `<!--` は文字として読む（以降の表の行を警告なしに消さない）。
+          out += rest.slice(0, start + 4);
+          rest = rest.slice(start + 4);
         } else {
           out += rest.slice(0, start) + "    ";
           rest = rest.slice(start + 4);

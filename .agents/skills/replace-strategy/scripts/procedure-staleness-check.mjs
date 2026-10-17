@@ -319,7 +319,7 @@ export function readProcedureLedger(text, skillChangeIds) {
   const orphans = countRowLikeLines(text, consumed);
   if (orphans > 0) {
     errors.push(
-      `表の外に表の行のような行が ${orphans} 行ある（表の途中に空行を挟むと、それ以降の行は読まれない）`,
+      `表の外に表の行のような行が ${orphans} 行ある（表の途中に空行か HTML コメントの行を挟むと、それ以降の行は読まれない）`,
     );
   }
   if (recordTable.duplicated) errors.push("「既に閉じた機能への当て直し」表が 2 つ以上ある");

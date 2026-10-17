@@ -116,7 +116,7 @@ export function readAssetLedger(text) {
   const stray = strayRows.filter((r) => r.leadingPipe || r.cells === headers.length);
   if (stray.length > 0) {
     throw new UsageError(
-      `台帳の ${stray.map((r) => r.line).join(", ")} 行目は表に属さない（直前の空行で表が切れている等）。表の本体に空行を挟まない`,
+      `台帳の ${stray.map((r) => r.line).join(", ")} 行目は表に属さない（直前の空行か HTML コメントの行で表が切れている等）。表の本体に空行と HTML コメントの行を挟まない`,
     );
   }
   for (const name of ["種類", "方針", "状態"]) {

@@ -28,6 +28,7 @@
       "occurrences": 1,
       "expect_failing": [
         "HTML コメントの中の表は読まない（複数行のコメントと、行の途中で開いたコメント）",
+        "行頭の閉じない `<!--` は、末尾までコメントとして読む",
         "誤検知しないことの確認: コメントの中のフェンス行はフェンスを開かず、コメントの後の表を読む",
         "asset-delivery-check: HTML コメントの中の表の行を台帳として読まない",
         "evidence-gap-check: HTML コメントの中の表の行を台帳として読まない",
@@ -87,11 +88,56 @@
       "id": "stray-lines-not-reported",
       "why": "slug の行が見つからないときに、表に属さない行の位置を添えず、表が切れた箇所を示さない",
       "file": "skills/replace-strategy/scripts/evidence-gap-check.mjs",
-      "find": "    const outside = strayRows.filter((stray) => stray.leadingPipe).map((stray) => stray.line);",
-      "replace": "    const outside = strayRows.filter(() => false).map((stray) => stray.line);",
+      "find": "      .filter((stray) => stray.leadingPipe || widths.has(stray.cells))",
+      "replace": "      .filter(() => false)",
       "occurrences": 1,
       "expect_failing": [
-        "evidence-gap-check: 表の途中の HTML コメントの行で表が切れたら、行が無いというエラーに表の外の行番号を添える"
+        "evidence-gap-check: 表の途中の HTML コメントの行で表が切れたら、行が無いというエラーに表の外の行番号を添える",
+        "evidence-gap-check: 行頭の `|` を省いた行で表が切れても、表の外の行番号を添える"
+      ]
+    },
+    {
+      "id": "stray-lines-leading-pipe-only",
+      "why": "行頭の `|` を省いた表の外の行を、行が無いというエラーに添えない",
+      "file": "skills/replace-strategy/scripts/evidence-gap-check.mjs",
+      "find": "      .filter((stray) => stray.leadingPipe || widths.has(stray.cells))",
+      "replace": "      .filter((stray) => stray.leadingPipe)",
+      "occurrences": 1,
+      "expect_failing": [
+        "evidence-gap-check: 行頭の `|` を省いた行で表が切れても、表の外の行番号を添える"
+      ]
+    },
+    {
+      "id": "inline-unclosed-comment-blanks-to-end",
+      "why": "行の途中の閉じない `<!--` を末尾までのコメントとして読み、以降の表の行を消す",
+      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
+      "find": "          !closesInParagraph(lines, index, rest.slice(start + 4))",
+      "replace": "          false",
+      "occurrences": 1,
+      "expect_failing": [
+        "行の途中の閉じない `<!--` は文字として読み、以降の表の行を消さない",
+        "行の途中の `<!--` は、空行の後ろの `-->` まではコメントにしない"
+      ]
+    },
+    {
+      "id": "inline-comment-crosses-blank-line",
+      "why": "行の途中の `<!--` を、空行の後ろの `-->` までのコメントとして読む",
+      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
+      "find": "    if (lines[k].trim() === \"\" || fenceOf(lines[k]) !== null) return false;",
+      "replace": "    if (fenceOf(lines[k]) !== null) return false;",
+      "occurrences": 1,
+      "expect_failing": ["行の途中の `<!--` は、空行の後ろの `-->` まではコメントにしない"]
+    },
+    {
+      "id": "line-start-comment-read-as-inline",
+      "why": "行頭の閉じない `<!--` も文字として読み、HTML ブロックの中の表を読む",
+      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
+      "find": "          (out !== \"\" || !/^ {0,3}$/u.test(rest.slice(0, start))) &&",
+      "replace": "          true &&",
+      "occurrences": 1,
+      "expect_failing": [
+        "行頭の閉じない `<!--` は、末尾までコメントとして読む",
+        "誤検知しないことの確認: コメントの中のフェンス行はフェンスを開かず、コメントの後の表を読む"
       ]
     }
   ]

@@ -56,8 +56,16 @@ test("誤検知しないことの確認: コメントの中のフェンス行は
 });
 
 test("誤検知しないことの確認: コードスパンの中の `<!--` は、以降の表を消さない", () => {
+  // 段落の中に `-->` を置き、`<!--` をコメントとして読むと表が消える形にする（行の途中の閉じない `<!--` は文字として読むため）。
   const { tables } = parseTables(
-    lines("`<!--` で始まる行", "``a` <!--`` も同じ", "", "| a | b |", "|---|---|", "| 1 | 2 |"),
+    lines(
+      "`<!--` で始まる行",
+      "``a` <!--`` も同じ",
+      "| a | b |",
+      "|---|---|",
+      "| 1 | 2 |",
+      "`-->` で閉じる",
+    ),
   );
   expect(tables.map((t) => t.rows)).toEqual([[[" 1 ", " 2 "]]]);
 });
@@ -177,4 +185,38 @@ test("evidence-gap-check: 表の途中の HTML コメントの行で表が切れ
   const other = "| other | 他 | GET /c | GET /c: measured | T | #2 |";
   const text = lines(FEATURE, D6, PLAN("GET /a"), `<!-- ${PLAN("GET /b")} -->`, other);
   expect(() => readRow(text, "other")).toThrow(/行がインベントリに無い（5 行目は表に属さない/u);
+});
+
+test("evidence-gap-check: 行頭の `|` を省いた行で表が切れても、表の外の行番号を添える", () => {
+  const other = "other | 他 | GET /c | GET /c: measured | T | #2";
+  const text = lines(FEATURE, D6, PLAN("GET /a"), "<!-- 退役 -->", other);
+  expect(() => readRow(text, "other")).toThrow(/行がインベントリに無い（5 行目は表に属さない/u);
+});
+
+test("行の途中の閉じない `<!--` は文字として読み、以降の表の行を消さない", () => {
+  const text = lines(
+    "| 種類 | 方針 | 状態 | 備考 |",
+    "|---|---|---|---|",
+    "| 新 | 実体をコピーする | 有効 | 旧形式は <!-- で始まる |",
+    "| 旧 | 実体をコピーする | 有効 | |",
+  );
+  expect(readAssetLedger(text).copyRows.map((r) => r.kind)).toEqual(["新", "旧"]);
+});
+
+test("行の途中の `<!--` は、空行の後ろの `-->` まではコメントにしない", () => {
+  const text = lines(
+    "テンプレートの <!-- は記入例。",
+    "",
+    FEATURE,
+    D6,
+    PLAN("GET /a"),
+    "",
+    "閉じは --> と書く。",
+  );
+  expect(readRow(text, "plan").endpoints).toEqual(["GET /a"]);
+});
+
+test("行頭の閉じない `<!--` は、末尾までコメントとして読む", () => {
+  const { tables } = parseTables(lines("<!-- 退役", "", "| a | b |", "|---|---|", "| 1 | 2 |"));
+  expect(tables).toEqual([]);
 });

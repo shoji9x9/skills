@@ -280,7 +280,13 @@ export function readRow(text, slug) {
   if (matched.length === 0) {
     // 表の途中の空行や HTML コメントの行で表が切れると、その後ろの行は表の外になり、ここでは見つからない。
     // 画面では行が見えるので、表に属さない行の位置を添えて、どこで表が切れたかを示す。
-    const outside = strayRows.filter((stray) => stray.leadingPipe).map((stray) => stray.line);
+    // GFM は行頭の `|` を省けるので、slug 列を持つ表と同じセル数の行も、表の行を意図したものとして挙げる。
+    const widths = new Set(
+      tables.filter((table) => table.headers.includes("slug")).map((table) => table.headers.length),
+    );
+    const outside = strayRows
+      .filter((stray) => stray.leadingPipe || widths.has(stray.cells))
+      .map((stray) => stray.line);
     throw new UsageError(
       `slug ${slug} の行がインベントリに無い` +
         (outside.length > 0

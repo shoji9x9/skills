@@ -28,3 +28,8 @@ pr-finalize-loop で code-review --comment の指摘が 0 件だったときも�
 
 - 適用先候補: `skills/pr-finalize-loop/SKILL.md` の `review_tool: none` の扱いと、手順 2 の完了の判定
 - 見送った提案（文の書き方だけの提案など）があれば、その件数と理由も同じコメントに書く
+
+## 追記: 同じセッションで続けて起きたこと
+
+- worktree の隔離の拒否が、Issue #611 の作業で続けて 5 回起きた（`sed` の引数の変数・`&&` でつないだ `git commit` と `grep`・`cd && git merge-base`）。原因と対策は `2026-10-14-worktree-bash-literal-guard-recurs` と同じなので、そちらの提案を当てる
+- 受け入れ条件の検査で、根拠の `kind` を `test` にして `strength-unsupported` になった。`strength: measured` には `kind: command` の根拠が要る
