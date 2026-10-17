@@ -77,6 +77,7 @@
         "hooks": [
           {
             "type": "command",
+            "if": "Bash(git *)",
             "command": "bash \"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || echo .)}/.agents/skills/agent-usage/scripts/precommit-gate.sh\" claude-code"
           }
         ]

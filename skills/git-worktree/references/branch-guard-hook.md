@@ -99,8 +99,9 @@ matcher が英数字・`_`・`-`・空白・`,`・`|` だけでできていれ�
 そのため、`EnterWorktree|Bash` は 2 つのツール名にだけ一致する。それ以外の文字を含めると、正規表現として扱われる。
 
 handler に `if`（permission rule の形でツールの呼び出しを絞るフィールド）を付けない。
-`"if": "Bash(git *)"` にすると、`EnterWorktree` の呼び出しに一致しないので、そちらの通知が出なくなる。
-スクリプトは、worktree に関係しない呼び出しを bash の組み込みの照合だけで終えるので、起動しても重い処理はしない。
+`EnterWorktree` と Bash を 1 つの定義で扱うので、`"if": "Bash(git *)"` を付けると `EnterWorktree` の呼び出しで起動しなくなる。
+定義を 2 つに分けて Bash の側だけに `if` を付けることはできるが、スクリプトの中の判定と `if` の照合が同じ形を拾うかを確かめていないので、分けない。
+スクリプトは、Hook の入力に `worktree` の語が無い呼び出しを bash の組み込みの照合だけで終える。worktree の中のセッションでは入力のパスに `worktree` が含まれるので、その先の `jq` か `python3` まで起動する。
 
 #### Codex — PreToolUse (`.codex/hooks.json`)
 

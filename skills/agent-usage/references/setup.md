@@ -43,6 +43,7 @@ GitHub は `linguist-generated` の付いたファイルを、PR の差分で最
         "hooks": [
           {
             "type": "command",
+            "if": "Bash(git *)",
             "command": "bash \"${CLAUDE_PROJECT_DIR}/<SCRIPTS_DIR>/precommit-gate.sh\" claude-code"
           }
         ]
@@ -52,10 +53,12 @@ GitHub は `linguist-generated` の付いたファイルを、PR の差分で最
 }
 ```
 
-- handler に `if`（permission rule の形でツールの呼び出しを絞るフィールド）を付けない。スクリプトが検出する形の `git commit` でも、`if` で絞るとスクリプトが起動せず、判断の無いブランチでコミットを止められないためである。
-  Claude Code 2.1.302 で測ると、`"if": "Bash(git *)"` は heredoc の中の `git commit` で起動しなかった。`"if": "Bash(git commit *)"` は、`git -C <dir> commit` でも起動しなかった。
-  ドキュメントによると、`if` は `env A=1 git commit`・`command git commit`・`sudo git commit` のように別のコマンドの後ろの git にも当たらない（[Claude Code Hooks reference](https://code.claude.com/docs/en/hooks)）。スクリプトはこれらの形を検出する。
-  代わりに、git を含まない呼び出しでもスクリプトが起動する（判定して何もせずに終わる）。
+- `if` は、git 以外の Bash の呼び出しで、スクリプトそのものを起動しないための絞り込みである。
+  `Bash(git commit *)` にしないのは、`git -C <dir> commit` のようにオプションを挟んだ形に当たらないためである。`Bash(git *)` はこの形に当たる（Claude Code 2.1.302 で実測）。
+  `Bash(git *)` は、heredoc の中の `git commit`（`bash <<'EOF'` の本文）に当たらない（同じ版で実測）。ドキュメントによると、`env A=1 git commit`・`command git commit`・`sudo git commit` のように別のコマンドの後ろの git にも当たらない（[Claude Code Hooks reference](https://code.claude.com/docs/en/hooks)）。
+  これらのコミットでは記録が stage されず、判断の無いブランチでも確認を求めない。記録はファイルに残り、次にスクリプトが起動したコミットで stage される。
+  `if` を外すとこれらも検出できるが、git を実行しない heredoc（`cat > f <<'EOF'` の本文の行頭の `git commit`）もコミットと判定し、判断の無いブランチで止めるか、コミットしない呼び出しで記録を stage する。そのため `if` を付ける。
+  コマンドを解析できないときは `if` に関わらず起動するので、スクリプトの中でも判定する
 - Claude Code は、timeout に達した Hook の呼び出しを止めずに通す。`timeout` を付けるなら、collect の所要時間（初めての collect は GitHub の取得で数分かかることがある）より長くする
 
 ### Codex（`.codex/hooks.json`）

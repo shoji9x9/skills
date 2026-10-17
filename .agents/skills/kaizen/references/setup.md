@@ -270,7 +270,7 @@ foreign_sentinel_retention_days = 14
 
 確かめる元の情報は次のとおりである。
 
-- Claude Code の Hook の入力と handler の `if` は、[Claude Code Hooks reference](https://code.claude.com/docs/en/hooks) を原本とする。
+- Claude Code の Hook の入力は、[Claude Code Hooks reference](https://code.claude.com/docs/en/hooks) を原本とする。handler に `if` を付けない理由は、下の「Claude Code — PreToolUse」の実測による。
 - Codex の matcher・`transcript_path`・exit code は、[Codex Hooks reference](https://learn.chatgpt.com/docs/hooks) を原本として確かめ直す。
 - Copilot は、[GitHub Copilot Hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference) を原本とする。
 
@@ -357,7 +357,8 @@ Claude Code 2.1.302 で、使い捨てのリポジトリに Hook を置いて測
 - `"if": "Bash(git *)"` も、heredoc の中の `git commit` で起動しない
 
 スクリプトはこの 2 つの形を止める。`bash -c "git commit …"` の中は引用の内側として読むので、`if` の有無に関わらず止めない。
-代わりに、`git commit` を含まない呼び出しでもスクリプトが起動する（判定して何もせずに終わる）。
+代わりに、すべての Bash の呼び出しでスクリプトが起動する。`git commit` を含まない呼び出しは、判定して何もせずに終わる。
+git を実行しない呼び出しでも、heredoc の本文の行頭に `git commit` があると（`cat > f <<'EOF'` で手順書を書くなど）、未抽出のセンチネルがあれば止める。見逃してコミットを通すより、止めて抽出を促す側を選んでいる。
 
 ##### Codex — PreToolUse (`.codex/hooks.json`)
 
