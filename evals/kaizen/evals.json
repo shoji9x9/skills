@@ -39,8 +39,30 @@
         ".claude/settings.json の hooks セクションに Stop イベントの設定が追加されている",
         "Stop Hook がバンドルされた kaizen-stop-mark スクリプトを呼び出し、session 単位の未抽出センチネル .kaizen/.pending-extract<agent suffix>.<session key> を作成する設定になっている",
         "Stop Hook に echo によるリマインダー出力が含まれていない",
-        "PreToolUse Hook（matcher が Bash）が設定され、handler の if が Bash(git commit *) に限定され、kaizen-precommit-gate スクリプトを呼び出している",
+        "PreToolUse Hook（matcher が Bash）が設定され、handler に if が無く、kaizen-precommit-gate スクリプトを呼び出している",
         "コミット前のチェックは未抽出センチネルがある時に git commit をブロックして kaizen --current の実行を促す設計になっている"
+      ],
+      "reachability": [
+        {
+          "assertion": ".claude/settings.json の hooks セクションに Stop イベントの設定が追加されている",
+          "prompt_quote": "kaizen の Hook を Claude Code に設定して"
+        },
+        {
+          "assertion": "Stop Hook がバンドルされた kaizen-stop-mark スクリプトを呼び出し、session 単位の未抽出センチネル .kaizen/.pending-extract<agent suffix>.<session key> を作成する設定になっている",
+          "prompt_quote": "kaizen の Hook を Claude Code に設定して"
+        },
+        {
+          "assertion": "Stop Hook に echo によるリマインダー出力が含まれていない",
+          "prompt_quote": "kaizen の Hook を Claude Code に設定して"
+        },
+        {
+          "assertion": "PreToolUse Hook（matcher が Bash）が設定され、handler に if が無く、kaizen-precommit-gate スクリプトを呼び出している",
+          "prompt_quote": "kaizen の Hook を Claude Code に設定して"
+        },
+        {
+          "assertion": "コミット前のチェックは未抽出センチネルがある時に git commit をブロックして kaizen --current の実行を促す設計になっている",
+          "prompt_quote": "コミット前に学びを自動抽出できるようにしたい"
+        }
       ]
     },
     {
@@ -223,12 +245,38 @@
       "id": 20,
       "prompt": "kaizen のコミット前のチェックを Claude Code / Codex / Copilot に組み込みたい。全 Bash 呼び出しを遅くしない Hook 設定を示したうえで、次を 1 つの報告にまとめて: (1) commit でない Bash 呼び出しのとき、チェックは何を起動せずに終わるか。(2) 候補ゼロを検証できたとき、どのファイルをどこまで更新し、どのファイルを作らないか。(3) Codex と Copilot のセンチネルが同時に残っている状態で Codex 側の候補ゼロ transcript を走査したら、どちらが消えて commit はどうなるか。(4) 逆に、どんなときブロックと判定されるか。(5) ブロックされたエージェントが commit を通すまでに済ませるべき範囲はどこまでか。",
       "assertions": [
-        "Claude Code の handler if を Bash(git commit *) に限定し、Codex/Copilot は tool-name matcher のためスクリプト内 Bash prefilter を使う",
+        "Claude Code・Codex・Copilot のどれも handler の if で絞らず（Claude Code の if は git -C <dir> commit や heredoc の中の git commit で起動しないため）、スクリプト内の Bash prefilter で非 commit の呼び出しを速く終える",
         "非 commit の prefilter は jq・python・git を起動せず終了すると説明している",
         "transcript_path と自セッションの .kaizen/.extract-checkpoint.<session key> の間だけを走査し、検証済み候補ゼロなら checkpoint と自セッションのセンチネルだけを更新して .extract-done.<session key> は作らず commit を通す",
         "Codex と Copilot のセンチネルが同時にある状態で Codex の候補ゼロ transcript を走査すると、Codex のセンチネルだけを削除し Copilot のぶんは残す。残った Copilot 分が自セッション（または key を持たない旧形式）なら exit 2 でブロックし、別セッションのものなら警告に留めて commit は通すと区別している",
         "候補あり、既知 container の未知・欠損 subtype、不正な JSON、読めない transcript、jq 不在、内部 timeout は失敗として扱って kaizen --current を促すと説明している",
         "コミットの既定クリティカルパスは抽出・記録と extract-done までで、apply は明示選択時だけ続ける"
+      ],
+      "reachability": [
+        {
+          "assertion": "Claude Code・Codex・Copilot のどれも handler の if で絞らず（Claude Code の if は git -C <dir> commit や heredoc の中の git commit で起動しないため）、スクリプト内の Bash prefilter で非 commit の呼び出しを速く終える",
+          "prompt_quote": "全 Bash 呼び出しを遅くしない Hook 設定を示したうえで"
+        },
+        {
+          "assertion": "非 commit の prefilter は jq・python・git を起動せず終了すると説明している",
+          "prompt_quote": "(1) commit でない Bash 呼び出しのとき、チェックは何を起動せずに終わるか"
+        },
+        {
+          "assertion": "transcript_path と自セッションの .kaizen/.extract-checkpoint.<session key> の間だけを走査し、検証済み候補ゼロなら checkpoint と自セッションのセンチネルだけを更新して .extract-done.<session key> は作らず commit を通す",
+          "prompt_quote": "(2) 候補ゼロを検証できたとき、どのファイルをどこまで更新し、どのファイルを作らないか"
+        },
+        {
+          "assertion": "Codex と Copilot のセンチネルが同時にある状態で Codex の候補ゼロ transcript を走査すると、Codex のセンチネルだけを削除し Copilot のぶんは残す。残った Copilot 分が自セッション（または key を持たない旧形式）なら exit 2 でブロックし、別セッションのものなら警告に留めて commit は通すと区別している",
+          "prompt_quote": "(3) Codex と Copilot のセンチネルが同時に残っている状態で"
+        },
+        {
+          "assertion": "候補あり、既知 container の未知・欠損 subtype、不正な JSON、読めない transcript、jq 不在、内部 timeout は失敗として扱って kaizen --current を促すと説明している",
+          "prompt_quote": "(4) 逆に、どんなときブロックと判定されるか"
+        },
+        {
+          "assertion": "コミットの既定クリティカルパスは抽出・記録と extract-done までで、apply は明示選択時だけ続ける",
+          "prompt_quote": "(5) ブロックされたエージェントが commit を通すまでに済ませるべき範囲はどこまでか"
+        }
       ]
     },
     {
