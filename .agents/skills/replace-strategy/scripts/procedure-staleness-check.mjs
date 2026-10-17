@@ -238,15 +238,12 @@ export function countRowLikeLines(text, consumed = new Set()) {
   return count;
 }
 
-/** 奇数個のバックスラッシュを付けた `<!--` と、同じ行でそれに続く `-->` まで。 */
-const ESCAPED_COMMENT = /(?<!\\)(?:\\\\)*\\<!--.*?(?:-->|$)/gu;
-
 /**
- * HTML コメントの記号が、読み飛ばしの規則（countRowLikeLines。parseTables はコメントの中を空白にしてから読む）が扱える位置にだけあるかを確かめる。
+ * HTML コメントの記号が、台帳で扱える位置にだけあるかを確かめる。
  * 扱える形は「行頭の `<!--` で始まり行末の `-->` で終わる 1 行」「行頭の `<!--` だけの開始行 … 行末の `-->` で終わる終了行」の 2 つ。
  * 行頭は、blankComments と同じく字下げ 3 文字までとする。
- * それ以外（散文の後ろの `<!--`、行の途中の `-->`、1 行に複数の記号、閉じないコメント）は読める形を足さずに落とす。
- * 読み飛ばしの規則に合わない位置のコメントは、中の表を生きた表として読むか、以降の表を丸ごと読み飛ばす。
+ * それ以外（散文の後ろの `<!--`、行の途中の `-->`、1 行に複数の記号、エスケープした `\<!--`、閉じないコメント）は落とす。
+ * parseTables の読み方（blankComments）は GFM の描画と食い違う形が残っているので、その形の台帳を読まずに止める。
  * @param {string} text
  * @returns {{ lines: number[], unclosed: boolean }} 扱えない位置の記号を含む行番号（1 始まり）と、閉じないコメントの有無
  */
@@ -257,8 +254,7 @@ export function strayCommentMarkers(text) {
   let fence = null;
   let comment = false;
   text.split(/\r?\n/u).forEach((line, index) => {
-    // エスケープした `\<!--` は文字なので、後ろの `-->` と合わせて記号に数えない（parseTables と同じ）。
-    const trimmed = line.trim().replace(ESCAPED_COMMENT, "");
+    const trimmed = line.trim();
     const opens = trimmed.split("<!--").length - 1;
     const closes = trimmed.split("-->").length - 1;
     if (comment) {

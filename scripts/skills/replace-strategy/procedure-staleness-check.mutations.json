@@ -327,7 +327,8 @@
       "occurrences": 1,
       "expect_failing": [
         "HTML コメントの記号が扱えない位置にある台帳は落とす: 散文の後ろで開いたコメントの中の表",
-        "4 文字以上字下げした `<!--` は、扱える位置の HTML コメントの記号にしない"
+        "4 文字以上字下げした `<!--` は、扱える位置の HTML コメントの記号にしない",
+        "エスケープした `\\<!--` は、扱えない位置の HTML コメントの記号として落とす"
       ]
     },
     {
@@ -433,19 +434,8 @@
       ]
     },
     {
-      "id": "escaped-comment-counted-as-marker",
-      "why": "エスケープした `\\<!--` も HTML コメントの記号として数える",
-      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
-      "find": "    const trimmed = line.trim().replace(ESCAPED_COMMENT, \"\");",
-      "replace": "    const trimmed = line.trim();",
-      "occurrences": 1,
-      "expect_failing": [
-        "誤検知しないことの確認: エスケープした `\\<!--` は、HTML コメントの記号に数えない"
-      ]
-    },
-    {
       "id": "markers-indent-unbounded",
-      "why": "4 文字以上字下げした `<!--` も、扱える開始行として受け入れる",
+      "why": "lib の opensHtmlBlock が 4 文字以上の字下げでも HTML ブロックを開く（blankComments と strayCommentMarkers の両方が変わる。lib の側の検出は markdown-lib.mutations.json の block-indent-unbounded が示す）",
       "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
       "find": "  return /^ {0,3}<!--/u.test(line);",
       "replace": "  return /^ *<!--/u.test(line);",

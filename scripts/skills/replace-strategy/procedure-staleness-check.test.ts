@@ -666,6 +666,6 @@ test("4 文字以上字下げした `<!--` は、扱える位置の HTML コメ�
   expect(strayCommentMarkers("    <!-- 退役\n| 4 | 5 | 6 |\n-->\n").lines).toEqual([1, 3]);
 });
 
-test("誤検知しないことの確認: エスケープした `\\<!--` は、HTML コメントの記号に数えない", () => {
-  expect(strayCommentMarkers("メモ: \\<!-- 退役 --> は文字として書く\n").lines).toEqual([]);
+test("エスケープした `\\<!--` は、扱えない位置の HTML コメントの記号として落とす", () => {
+  expect(strayCommentMarkers("<!--\nメモ \\<!-- -->\n| 1 | 2 | 3 |\n-->\n").lines).toEqual([2, 4]);
 });
