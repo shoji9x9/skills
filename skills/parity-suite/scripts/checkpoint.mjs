@@ -57,7 +57,7 @@ class UsageError extends Error {}
 
 /**
  * @param {unknown} v
- * @returns {v is string}
+ * @returns {v is string & { readonly __nonEmptyUntrimmedString: true }}
  */
 function nonEmptyUntrimmedString(v) {
   return typeof v === "string" && v !== "";
@@ -73,7 +73,7 @@ function nonEmptyUntrimmedString(v) {
  * @param {unknown} rec
  * @param {string} slugDir - cwd 基準の相対パス
  * @param {{ cwd: string }} opts
- * @returns {rec is { checkpoints: CheckpointEntry[] }}
+ * @returns {rec is { checkpoints: CheckpointEntry[] } & { readonly __isWrittenRecord: true }}
  */
 function isWrittenRecord(rec, slugDir, opts) {
   return recordProblem(rec, slugDir, opts) === null;

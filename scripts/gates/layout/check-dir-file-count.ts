@@ -34,7 +34,7 @@ export type Exclude = { dir: string; reason: string; descendants: boolean };
 export type Config = { defaultMax: number; overrides: Override[]; excludes: Exclude[] };
 
 /** 0 以上の整数か。 */
-function isCount(value: unknown): value is number {
+function isCount(value: unknown): value is number & { readonly __isCount: true } {
   return Number.isInteger(value) && typeof value === "number" && value >= 0;
 }
 

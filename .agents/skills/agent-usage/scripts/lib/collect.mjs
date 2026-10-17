@@ -90,7 +90,7 @@ export function loadCache(path) {
 
 /**
  * @param {unknown} v
- * @returns {v is number}
+ * @returns {v is number & { readonly __isNum: true }}
  */
 const isNum = (v) => typeof v === "number" && Number.isFinite(v);
 

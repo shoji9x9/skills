@@ -172,7 +172,7 @@ export function pairKey(page, viewport) {
 /**
  * 鍵の材料として使えるか（区切りを含まない、空でない文字列）。区切りを含むと別の組が同じ鍵になる。
  * @param {unknown} v
- * @returns {v is string}
+ * @returns {v is string & { readonly __isKeyPart: true }}
  */
 function isKeyPart(v) {
   return nonEmptyString(v) && !v.includes(KEY_SEPARATOR);

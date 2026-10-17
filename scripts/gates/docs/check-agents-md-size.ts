@@ -28,7 +28,7 @@ export const CONFIG_PATH = "scripts/gates/docs/agents-md-size.json";
 export const TARGET_PATH = "AGENTS.md";
 
 /** 整数か（`Number.isInteger` を、number への絞り込みとして使う）。 */
-function isInteger(value: unknown): value is number {
+function isInteger(value: unknown): value is number & { readonly __isInteger: true } {
   return Number.isInteger(value);
 }
 

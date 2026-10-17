@@ -159,11 +159,11 @@ export function installSampler({ selector, settleMs, timeoutMs, epsilon, maxSamp
     );
   };
   /**
-   * 読めなかったフレームか（error が真の値か）。
+   * 読めなかったフレームか（error が文字列か）。MotionReading の error は undefined なので、判定は型と一致する。
    * @param {MotionReading | { error: string }} reading
    * @returns {reading is { error: string }}
    */
-  const failed = (reading) => Boolean(reading.error);
+  const failed = (reading) => typeof reading.error === "string";
   /** @type {MotionProbeState} */
   const state = {
     done: false,

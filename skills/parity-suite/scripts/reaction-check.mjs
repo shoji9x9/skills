@@ -307,7 +307,7 @@ const REQUIRED_PROJECTS = ["current", "new"];
 /** 監査の判定の語彙。short（期待値に届いていない部分がある）は未解消として落ちる。 */
 const AUDIT_VERDICTS = ["reaches", "short"];
 
-/** @param {unknown} v @returns {v is number} */
+/** @param {unknown} v @returns {v is number & { readonly __positiveInteger: true }} */
 const positiveInteger = (v) => typeof v === "number" && Number.isInteger(v) && v >= 1;
 
 /** 位置の文字列で . の後にそのまま書けるキー（区切りを含まない）。それ以外は $["…"] で書く。 */
@@ -775,8 +775,10 @@ function noneProblem(r, windowMs, documents) {
     return "observation.documents が空（どの文書を見たか記録していない）";
   }
   // 操作したコンテナ（iframe など）の中だけを見た none は、親文書や別フレームに出る反応を取りこぼす
-  if (!obs.documents.includes("top")) return "observation.documents に top（最上位の文書）が無い";
+  if (!obs.documents.some((d) => d === "top"))
+    return "observation.documents に top（最上位の文書）が無い";
   if (documents) {
+    /** @type {Set<string>} */
     const seen = new Set(obs.documents);
     const missing = [...documents].filter((d) => !seen.has(d));
     if (missing.length > 0) {
@@ -845,7 +847,7 @@ function layoutMeasureProblem(m) {
 /**
  * layoutMeasureProblem が欠けを見つけないか（型を絞るための述語）。
  * @param {unknown} m
- * @returns {m is LayoutMeasure}
+ * @returns {m is LayoutMeasure & { readonly __isLayoutMeasure: true }}
  */
 function isLayoutMeasure(m) {
   return layoutMeasureProblem(m) === null;
@@ -983,7 +985,7 @@ function filledStrings(v) {
 /**
  * 空でなく、テンプレートの説明文のままでもない文字列か。
  * @param {unknown} v
- * @returns {v is string}
+ * @returns {v is string & { readonly __filled: true }}
  */
 function filled(v) {
   return nonEmptyString(v) && !isPlaceholder(v);
@@ -1161,7 +1163,7 @@ function aftermathReturnsProblems(ret, screenStates) {
   }
   const probed = ret.probed;
   const reset = ret.reset;
-  /** @param {unknown} v @returns {v is string[]} */
+  /** @param {unknown} v @returns {v is (string & { readonly __stringsOk: true })[]} */
   const stringsOk = (v) => isArray(v) && v.every(filled) && new Set(v).size === v.length;
   if (!stringsOk(probed) || !stringsOk(reset)) {
     out.push({
@@ -1170,6 +1172,7 @@ function aftermathReturnsProblems(ret, screenStates) {
       unmeasured: true,
     });
   } else {
+    /** @type {Set<string>} */
     const probedSet = new Set(probed);
     const stray = reset.filter((x) => !probedSet.has(x));
     if (stray.length > 0) {
@@ -1582,7 +1585,7 @@ function resubmitProblems(rs, writes) {
 /**
  * 移行元ソースの 1 箇所（ファイルとシンボル）の参照か。
  * @param {unknown} ref
- * @returns {ref is { file: string, symbol: string }}
+ * @returns {ref is { file: string, symbol: string } & { readonly __isSourceRef: true }}
  */
 function isSourceRef(ref) {
   return isPlainObject(ref) && filled(ref.file) && filled(ref.symbol);
@@ -1591,7 +1594,7 @@ function isSourceRef(ref) {
 /**
  * 操作のハンドラ（file と symbol が空でない文字列）か。isSourceRef と違い、テンプレートの説明文のままの値を弾かない。
  * @param {unknown} h
- * @returns {h is { file: string, symbol: string }}
+ * @returns {h is { file: string, symbol: string } & { readonly __isHandlerRef: true }}
  */
 function isHandlerRef(h) {
   return isPlainObject(h) && nonEmptyString(h.file) && nonEmptyString(h.symbol);
@@ -2210,7 +2213,7 @@ export function checkReactions(table, opts = {}) {
     problems.push("documents が空でない文字列の配列でない（top と全フレームを棚卸ししていない）");
   } else if (new Set(docs).size !== docs.length) {
     problems.push("documents に重複がある");
-  } else if (!docs.includes("top")) {
+  } else if (!docs.some((d) => d === "top")) {
     problems.push("documents に top（最上位の文書）が無い");
   } else {
     documents = new Set(docs);

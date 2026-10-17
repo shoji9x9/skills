@@ -31,7 +31,7 @@ function isObjectLike(value) {
 /**
  * 空でない文字列か（空白だけの文字列は空として扱う）。
  * @param {unknown} v
- * @returns {v is string}
+ * @returns {v is string & { readonly __nonEmptyString: true }}
  */
 function nonEmptyString(v) {
   return typeof v === "string" && v.trim() !== "";
@@ -41,7 +41,7 @@ function nonEmptyString(v) {
 /**
  * 有限の数か（Number.isFinite は数でない値に false を返すので、typeof は型を絞るためだけにある）。
  * @param {unknown} v
- * @returns {v is number}
+ * @returns {v is number & { readonly __isFiniteNumber: true }}
  */
 function isFiniteNumber(v) {
   return typeof v === "number" && Number.isFinite(v);
@@ -50,7 +50,7 @@ function isFiniteNumber(v) {
 /**
  * 正の有限数か（寸法の実測値はここを通す）。
  * @param {unknown} value
- * @returns {value is number}
+ * @returns {value is number & { readonly __positiveNumber: true }}
  */
 function positiveNumber(value) {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
@@ -59,7 +59,7 @@ function positiveNumber(value) {
 /**
  * 0 以上の有限数か（0 が正規の値になる実測値はここを通す）。
  * @param {unknown} value
- * @returns {value is number}
+ * @returns {value is number & { readonly __nonNegativeNumber: true }}
  */
 function nonNegativeNumber(value) {
   return typeof value === "number" && Number.isFinite(value) && value >= 0;
@@ -68,7 +68,7 @@ function nonNegativeNumber(value) {
 /**
  * 整数か（`Number.isInteger` を、型を絞れる形にしたもの）。
  * @param {unknown} value
- * @returns {value is number}
+ * @returns {value is number & { readonly __isInteger: true }}
  */
 function isInteger(value) {
   return Number.isInteger(value);

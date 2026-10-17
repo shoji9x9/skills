@@ -42,7 +42,7 @@ const hook = (fields: Record<string, unknown>) =>
 const PLAIN = "レビューの指摘を直し、テストが通りました。";
 // 使わない語はテストの文字列に直接書かず（このファイルも textlint の対象である）、辞書の先頭の 2 語の例文と指摘を使う。
 type Entry = { term: string; example: string; message: string };
-const isEntry = (e: unknown): e is Entry =>
+const isEntry = (e: unknown): e is Entry & { readonly __isEntry: true } =>
   isRecord(e) &&
   isNonEmptyString(e.term) &&
   isNonEmptyString(e.example) &&

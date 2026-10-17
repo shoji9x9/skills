@@ -641,7 +641,7 @@ function loadDurations(): { defaultSeconds: number; seconds: Map<string, number>
   } catch (err) {
     die(`所要時間の見積もり（${path}）を読めない: ${errorMessage(err)}`);
   }
-  const positive = (value: unknown): value is number =>
+  const positive = (value: unknown): value is number & { readonly __positive: true } =>
     typeof value === "number" && Number.isFinite(value) && value > 0;
   if (typeof parsed !== "object" || parsed === null || isArray(parsed)) {
     die(`所要時間の見積もり（${path}）が JSON オブジェクトでない`);
