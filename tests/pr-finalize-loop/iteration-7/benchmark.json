@@ -4,7 +4,7 @@
     "skill_path": "<repo>/skills/pr-finalize-loop",
     "executor_model": "opus",
     "analyzer_model": "claude-opus-5-5",
-    "timestamp": "2026-10-17T17:24:59Z",
+    "timestamp": "2026-10-17T17:35:04Z",
     "evals_run": [21],
     "runs_per_configuration": 1
   },
@@ -18,8 +18,8 @@
         "passed": 7,
         "failed": 0,
         "total": 7,
-        "time_seconds": 29.692,
-        "tokens": 89096,
+        "time_seconds": 28.029,
+        "tokens": 89353,
         "tool_calls": 2,
         "errors": 0
       },
@@ -125,16 +125,16 @@
         "max": 1
       },
       "time_seconds": {
-        "mean": 29.692,
+        "mean": 28.029,
         "stddev": 0,
-        "min": 29.692,
-        "max": 29.692
+        "min": 28.029,
+        "max": 28.029
       },
       "tokens": {
-        "mean": 89096,
+        "mean": 89353,
         "stddev": 0,
-        "min": 89096,
-        "max": 89096
+        "min": 89353,
+        "max": 89353
       }
     },
     "without_skill": {
@@ -159,8 +159,8 @@
     },
     "delta": {
       "pass_rate": "+0.43",
-      "time_seconds": "+6.0",
-      "tokens": "+70283"
+      "time_seconds": "+4.4",
+      "tokens": "+70540"
     }
   },
   "notes": []
