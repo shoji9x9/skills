@@ -138,7 +138,8 @@
       "replace": "export function fromAdvisory(advisory: AuditRecord): Finding {\n  const ghsa = firstString(\n    normalizeGhsa(advisory.ghsa),\n    normalizeGhsa(advisory.ghsa_id),\n    normalizeGhsa(advisory.github_advisory_id),\n",
       "occurrences": 1,
       "expect_failing": [
-        "fromAdvisory（古い形の advisories の 1 件） GHSA の id の欄が無ければ、url の中の GHSA を使う"
+        "fromAdvisory（古い形の advisories の 1 件） GHSA の id の欄が無ければ、url の中の GHSA を使う",
+        "fromAdvisory（古い形の advisories の 1 件） advisory の URL から取った GHSA の id も、GitHub の表記にそろえる"
       ]
     },
     {
@@ -268,6 +269,19 @@
       "occurrences": 1,
       "expect_failing": [
         "normalizeAudit（audit の JSON 全体） packages の項目が null なら版は無いものとして読み、どの vulnerability も読まない項目の形は確かめない"
+      ]
+    },
+    {
+      "id": "ghsa-body-not-lowercased",
+      "why": "GHSA の id の本体を小文字にそろえず、受け取った表記のまま書く（#662）",
+      "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
+      "find": "`GHSA-${match[1].toLowerCase()}`",
+      "replace": "`GHSA-${match[1]}`",
+      "occurrences": 1,
+      "expect_failing": [
+        "fromAdvisory（古い形の advisories の 1 件） GHSA の id は、大文字でも GitHub の表記にそろえる",
+        "fromAdvisory（古い形の advisories の 1 件） advisory の URL から取った GHSA の id も、GitHub の表記にそろえる",
+        "fromAdvisory（古い形の advisories の 1 件） GitHub の表記にそろえた GHSA の id は、却下のルールに書いた id と一致する"
       ]
     }
   ]

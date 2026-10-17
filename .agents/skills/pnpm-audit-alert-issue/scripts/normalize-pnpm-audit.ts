@@ -96,10 +96,16 @@ function isUrl(value: unknown): boolean {
   return typeof value === "string" && /^https?:\/\//.test(value);
 }
 
+/**
+ * GHSA の id を GitHub と同じ表記（接頭辞の `GHSA` だけが大文字で、本体は小文字）にそろえる。
+ * dependabot-alert-issue は findings の `ghsa` を、却下のルールの `ghsa`（GitHub の表記で書く）と文字列で照合する。
+ * 既存の Issue・PR の検索（GitHub の search API）は大文字と小文字を区別しない。
+ * 却下のルールとの照合は、dependabot-alert-issue の SKILL.md が大文字と小文字の扱いを決めていないので、findings の側で表記をそろえる。
+ */
 function ghsaFrom(value: unknown): string {
   if (typeof value !== "string") return "";
-  const match = value.match(/GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}/i);
-  return match ? match[0].toUpperCase() : "";
+  const match = value.match(/GHSA-([0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4})/i);
+  return match ? `GHSA-${match[1].toLowerCase()}` : "";
 }
 
 function normalizeGhsa(value: unknown): string {

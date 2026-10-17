@@ -96,9 +96,26 @@ describe("fromAdvisory（古い形の advisories の 1 件）", () => {
     expect(result.advisory_url).toBe(GHSA_URL);
   });
 
-  test("GHSA の id は大文字にそろえる", () => {
-    expect(fromAdvisory({ module_name: "x", ghsa_id: "ghsa-abcd-efgh-2345" }).ghsa).toBe(
-      "GHSA-ABCD-EFGH-2345",
+  // GitHub の advisory の id は、接頭辞の GHSA だけが大文字で、本体は小文字である（#662）。
+  // 却下のルール（.config/skills/shoji9x9/skills.yml の dismiss）と既存の Issue の本文も、この表記で書く。
+  test.each([
+    ["小文字", "ghsa-238p-pmpm-9mq7"],
+    ["大文字", "GHSA-238P-PMPM-9MQ7"],
+    ["GitHub の表記", "GHSA-238p-pmpm-9mq7"],
+  ])("GHSA の id は、%sでも GitHub の表記にそろえる", (_label, id) => {
+    expect(fromAdvisory({ module_name: "x", ghsa_id: id }).ghsa).toBe("GHSA-238p-pmpm-9mq7");
+  });
+
+  test("advisory の URL から取った GHSA の id も、GitHub の表記にそろえる", () => {
+    const url = "https://github.com/advisories/GHSA-238P-PMPM-9MQ7";
+    expect(fromAdvisory({ module_name: "x", url }).ghsa).toBe("GHSA-238p-pmpm-9mq7");
+  });
+
+  test("GitHub の表記にそろえた GHSA の id は、却下のルールに書いた id と一致する", () => {
+    // dismiss のルールには、id を GitHub の表記で書く（例は braces の advisory）。その id を大文字で渡す。
+    const ruleGhsa = "GHSA-vfj7-8cjw-p6xm";
+    expect(fromAdvisory({ module_name: "braces", ghsa_id: ruleGhsa.toUpperCase() }).ghsa).toBe(
+      ruleGhsa,
     );
   });
 
