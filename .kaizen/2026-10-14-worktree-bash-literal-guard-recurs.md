@@ -122,5 +122,8 @@ worktree の隔離セッションでは、heredoc・複合コマンド・`git` �
 PR #656 のレビューで出た指摘である。上の Hook の条件の細部は、apply の時点で次のことを確かめてから決める。
 
 - 区切りを `;`・`&&` だけにすると、#616 の `curl -o` と `||` を含む拒否や、`for` ループ・パイプ・改行でつないだ形を拾えない。#631・#616・#655 のすべての拒否に条件を当てる。
+  検索語やパスに `eval` の語を含む形（`grep ... scripts/eval/` など）にも当てる。ハーネスはこの形を `runs a string through eval` として拒否する。
 - `;`・`&&` と `node`・`bash` の起動の組は、ハーネスが通す正当な複合コマンド（定数の引数だけの `pnpm exec vitest run a.test.ts && node scripts/x.ts` など）にも当たる。ハーネスの拒否の理由（`computed at runtime`・`inside a construct too complex`）に対応する形に絞り、誤検知しないことを確かめる例を挙げる。
 - 新しい Hook を書かず、Bash の呼び出しをセグメントに分けて判定する既存の PreToolUse の Hook（`scripts/hooks/bash-command-guard.sh`）に足せるかを先に確かめる。
+- 2026-10-18、#681 の作業でも、`for` ループの変数を `node -e` の引数に渡して eval の結果を読む処理が `runs node with a value computed at runtime` で拒否された。Read ツールでファイルを読む形に直して通した。
+  同じ作業で、`scripts/eval/` のパスを grep する呼び出しも、`eval` の語で `runs a string through eval` として拒否された。

@@ -1,0 +1,157 @@
+{
+  "metadata": {
+    "skill_name": "pr-finalize-loop",
+    "skill_path": "<repo>/skills/pr-finalize-loop",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-17T17:59:54Z",
+    "evals_run": [21],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 21,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 30.251,
+        "tokens": 67276,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "反復の残りが少ないこと（最後の反復であること）を、指摘を見送る理由にしないと述べている",
+          "passed": true,
+          "evidence": "「最後の反復であることは見送る理由にならない」「残りの反復が少ないことは、直さない根拠にしない」と述べている。"
+        },
+        {
+          "text": "この指摘を直し、スレッドに返信してから解決すると述べている",
+          "passed": true,
+          "evidence": "「先にスレッドへ返信する」「返信した後でスレッドを解決する。返信と解決の順番は必ず守ります」と述べている。"
+        },
+        {
+          "text": "指摘を直さずに見送ってよい根拠を、事実と違う・範囲の外・人の判断が要る、の 3 つに限ると述べている",
+          "passed": true,
+          "evidence": "「スキルが認める『直さない根拠』は次の 3 つだけ」として、事実と違う・範囲外・人の判断が要るを挙げている。"
+        },
+        {
+          "text": "この指摘は、見送ってよい根拠のどれにも当たらないと述べている",
+          "passed": true,
+          "evidence": "3 つの根拠ごとに当たらない理由を書き、「この指摘はどれにも当たりません」と述べている。"
+        },
+        {
+          "text": "止まった理由を「完了」ではなく「最大反復到達」として報告すると述べている",
+          "passed": true,
+          "evidence": "「止まった理由: 『最大反復到達』です。『完了』でも…ありません」と述べている。"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "冒頭で「コマンドの実行・ファイルの変更・commit・push・GitHub への書き込みは何もしていません」と述べている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 21,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 3,
+        "failed": 3,
+        "total": 6,
+        "time_seconds": 26.754,
+        "tokens": 40273,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "反復の残りが少ないこと（最後の反復であること）を、指摘を見送る理由にしないと述べている",
+          "passed": true,
+          "evidence": "「『最後の反復だから』という理由で直さずにおくのは誤りです」と述べている。"
+        },
+        {
+          "text": "この指摘を直し、スレッドに返信してから解決すると述べている",
+          "passed": true,
+          "evidence": "「スレッドに直したことを返信し、…スレッドを解決済みにする」と、返信してから解決すると述べている。"
+        },
+        {
+          "text": "指摘を直さずに見送ってよい根拠を、事実と違う・範囲の外・人の判断が要る、の 3 つに限ると述べている",
+          "passed": false,
+          "evidence": "直す理由として事実・範囲・直し方を挙げるが、見送ってよい根拠を 3 つに限るとは述べていない。"
+        },
+        {
+          "text": "この指摘は、見送ってよい根拠のどれにも当たらないと述べている",
+          "passed": false,
+          "evidence": "見送ってよい根拠という枠組みを示さず、この指摘がそのどれにも当たらないとは述べていない。"
+        },
+        {
+          "text": "止まった理由を「完了」ではなく「最大反復到達」として報告すると述べている",
+          "passed": false,
+          "evidence": "止まった理由を「反復回数の上限（max-iterations）に達した」と書き、「最大反復到達」として報告するとは述べていない。"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "「コマンドの実行やファイルの変更はしていません」と述べている。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 30.251,
+        "stddev": 0,
+        "min": 30.251,
+        "max": 30.251
+      },
+      "tokens": {
+        "mean": 67276,
+        "stddev": 0,
+        "min": 67276,
+        "max": 67276
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.5,
+        "stddev": 0,
+        "min": 0.5,
+        "max": 0.5
+      },
+      "time_seconds": {
+        "mean": 26.754,
+        "stddev": 0,
+        "min": 26.754,
+        "max": 26.754
+      },
+      "tokens": {
+        "mean": 40273,
+        "stddev": 0,
+        "min": 40273,
+        "max": 40273
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.50",
+      "time_seconds": "+3.5",
+      "tokens": "+27003"
+    }
+  },
+  "notes": []
+}
