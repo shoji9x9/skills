@@ -14,7 +14,8 @@
 //
 // sameSkillFrontmatter(fmA, fmB) → boolean
 //   - 2 つの frontmatter を YAML として読み、キーの順と `metadata.local-path`（gh skill install が足す）を除いて同じかを返す。
-//     null の metadata（`metadata: ~`）も、metadata が無いものとして比べる。負のゼロ（`-0`）は 0 として比べる。
+//     null の metadata（`metadata: ~`）も、metadata が無いものとして比べる。
+//     負のゼロ（`-0`・`-0.0`）は、最上位でもマッピングと配列の中でも 0 として比べる。自分自身を参照するエイリアスも読める。
 //   - 値は isDeepStrictEqual で比べる。JSON の文字列にして比べると、`!!set` の Set は中身に関わらず同じ `{}` になり、
 //     タイムスタンプの Date は同じ ISO の文字列を書いた値と区別できない。
 //   - 読めなければ例外にする（どちらのファイルかは、呼び出し側が normalizeSkillFrontmatter で先に確かめる）。
@@ -34,36 +35,32 @@ export function splitFrontmatter(content: string): { fm: string; body: string } 
 type SkillFrontmatter = { metadata?: unknown };
 
 /**
- * 読んだばかりの YAML の値の中で、マッピングと配列の要素の負のゼロを、その場で 0 に書き換える。Set・Date などの中は見ない。
- * エイリアスは同じ値を共有し、自分自身を参照することもある（`a: &a [*a]`）ので、訪れた値を覚えて 1 回だけたどる。
+ * 負のゼロを 0 にして返す。マッピングと配列は、中の負のゼロをその場で 0 に書き換えて、同じ値を返す。Set・Date などの中は見ない。
+ * 読んだばかりの値だけに使う。エイリアスは値を共有し、自分自身を参照することもある（`a: &a [*a]`）ので、訪れた値を覚えて 1 回だけたどる。
  */
-function zeroNegativeZeros(value: unknown, seen = new WeakSet<object>()): void {
-  if (!isArray(value) && !isPlainObject(value)) return;
-  if (seen.has(value)) return;
+function zeroNegativeZeros(value: unknown, seen = new WeakSet<object>()): unknown {
+  if (Object.is(value, -0)) return 0;
+  if (!isArray(value) && !isPlainObject(value)) return value;
+  if (seen.has(value)) return value;
   seen.add(value);
-  const entries: [string | number, unknown][] = isArray(value)
-    ? [...value.entries()]
-    : Object.entries(value);
-  for (const [key, item] of entries) {
-    if (Object.is(item, -0)) Reflect.set(value, key, 0);
-    else zeroNegativeZeros(item, seen);
-  }
+  for (const [key, item] of Object.entries(value))
+    Reflect.set(value, key, zeroNegativeZeros(item, seen));
+  return value;
 }
 
 /**
  * frontmatter を YAML として読み、`metadata.local-path` を除く。それで空になった metadata も除く。読めなければ例外にする。
- * 読んだ値が undefined か null のとき（空・コメントだけ・`~`・`null`）だけを空の frontmatter とみなす。false や 0 のようなスカラーは、そのまま比べる。
+ * 読んだ値が undefined か null のとき（空・コメントだけ・`~`・`null`）だけを空の frontmatter とみなす。false や 0 のようなスカラーは、そのまま比べる（負のゼロは 0 にする）。
  * metadata がマッピングでない（Set・Date・配列など）ときは、キーが無く見えても消さずに比べる。
  * metadata が null（`metadata: ~`）のときは、metadata が無いものとして除く。`gh skill install` は null の metadata を `local-path` だけのマッピングにするので（#651）、除かないとインストールしただけで差分になる。
  * metadata は浅くコピーしてから `local-path` を消す。`metadata: *b` のようにエイリアスで書かれていると、その場で消すとアンカー側の値からも消えるからである。
  * js-yaml 5 は `-0`（整数）と `-0.0`（浮動小数点数）を負のゼロとして読み（4 は `-0` を +0）、isDeepStrictEqual は 0 と区別する。
- * 負のゼロと 0 の違いは frontmatter の内容の違いとして扱わないので、どちらも 0 にそろえてから比べる（#651）。
+ * 負のゼロと 0 は、書き方が違うだけで同じ内容として扱うので、どちらも 0 にそろえてから比べる（#651）。
  * 空の入力（`"\t\n"`・`"...\n"`）は、loadYamlAs が undefined を返す（js-yaml 4 は null を返した）。どちらも `?? {}` で空の frontmatter として扱う。
  */
 export function normalizeSkillFrontmatter(fmText: string): unknown {
   const loaded = loadYamlAs<SkillFrontmatter | null | undefined>(fmText) ?? {};
-  zeroNegativeZeros(loaded);
-  const obj = Object.is(loaded, -0) ? 0 : loaded;
+  const obj = zeroNegativeZeros(loaded);
   if (isPlainObject(obj) && obj.metadata === null) delete obj.metadata;
   if (isPlainObject(obj) && isPlainObject(obj.metadata)) {
     const metadata = { ...obj.metadata };
