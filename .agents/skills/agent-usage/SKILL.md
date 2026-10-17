@@ -53,6 +53,13 @@ Hook（PreToolUse）が、デフォルトブランチ以外の `git commit` を�
 
 「記録する」と決めたブランチでは、Hook がコミットのたびに collect を実行して、増えた明細を stage する。デフォルトブランチ（`main` など）と、`.agent-usage/` の無いリポジトリでは何もしない。
 
+この stage は、コミットが実行される前に Hook の中で行う。
+そのため、コミットが実行されなかったとき（同じコミットを別の Hook が止めた、git の `pre-commit` フックが失敗した、など）も、明細は stage されたまま残ることがある。
+Claude Code と Codex は、当てはまる Hook をすべて並べて起動する（[Claude Code の Hooks reference](https://code.claude.com/docs/en/hooks)・[Codex Hooks](https://learn.chatgpt.com/docs/hooks)）。
+別の Hook（kaizen のコミット前の確認など）がコミットを止めても、この Hook は collect と stage まで実行する。
+stage されたまま残った `.agent-usage/records/` は、戻さなくてよい。このブランチでは Hook がどのコミットにも明細を stage するので、残った分は次のコミットに入る。
+collect は記録済みの行を書き直さないので、同じ行が重ねて入ることもない。
+
 ## 記録と集計の取り決め
 
 記録のファイルの構成、行の種類、費用の決め方、稼働と停止の分類、重複の除き方は [`references/records.md`](references/records.md) で定義する。
