@@ -347,7 +347,8 @@
         "stepFence: 開いていない・``` で開く",
         "stepFence: 開いていない・情報文字列付きで開く",
         "stepFence: 開いていない・~~~ で開く",
-        "stepFence: 開いていない・情報文字列にバッククォートを含む ~~~ は開く"
+        "stepFence: 開いていない・情報文字列にバッククォートを含む ~~~ は開く",
+        "stepFence: 開いていない・情報文字列に行区切りの文字があっても開く"
       ]
     },
     {
@@ -379,6 +380,15 @@
       "replace": "    globalThis.__fence = stepFence(i === 0 ? null : globalThis.__fence.fence, lines[i]);\n    if (globalThis.__fence.marker || globalThis.__fence.fence !== null) continue;",
       "occurrences": 1,
       "expect_failing": ["コメントを空白にして初めてフェンスに見える行では、フェンスを開かない"]
+    },
+    {
+      "id": "fence-open-without-dotall",
+      "why": "フェンスを開く行の情報文字列に行区切りの文字（U+2028）があると開かない（PR #696 のレビュー）",
+      "file": "skills/replace-strategy/scripts/lib/fence.mjs",
+      "find": "(.*)$/su.exec(line);",
+      "replace": "(.*)$/u.exec(line);",
+      "occurrences": 1,
+      "expect_failing": ["stepFence: 開いていない・情報文字列に行区切りの文字があっても開く"]
     }
   ]
 }

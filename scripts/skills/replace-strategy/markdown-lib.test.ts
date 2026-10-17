@@ -264,6 +264,12 @@ const norm = (text: string) => cells(text).map((r) => r.map((c) => c.replace(/\s
 test.each<[string, string | null, string | undefined, { fence: string | null; marker: boolean }]>([
   ["開いていない・``` で開く", null, "```", { fence: "```", marker: true }],
   ["開いていない・情報文字列付きで開く", null, "```bash", { fence: "```", marker: true }],
+  [
+    "開いていない・情報文字列に行区切りの文字があっても開く",
+    null,
+    "```a\u2028b",
+    { fence: "```", marker: true },
+  ],
   ["開いていない・~~~ で開く", null, "~~~", { fence: "~~~", marker: true }],
   [
     "開いていない・情報文字列にバッククォートを含む ``` は開かない",

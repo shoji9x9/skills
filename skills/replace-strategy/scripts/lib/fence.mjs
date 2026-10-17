@@ -10,7 +10,8 @@
  */
 function fenceOf(line) {
   if (line === undefined) return null;
-  const match = /^ {0,3}(`{3,}|~{3,})(.*)$/u.exec(line);
+  // 情報文字列に行区切りの文字（U+2028 など）があっても開くよう、`s` で `.` を全文字に一致させる。
+  const match = /^ {0,3}(`{3,}|~{3,})(.*)$/su.exec(line);
   if (match === null) return null;
   if (match[1][0] === "`" && match[2].includes("`")) return null;
   return match[1];
