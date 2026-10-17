@@ -134,7 +134,8 @@ export function parseTables(markdown) {
   const isSeparator = (line) => /^\s*\|?[\s:|-]+\|[\s:|-]*$/.test(line) && line.includes("-");
   // 各行がフェンスの記号の行かフェンスの中か（true）。
   // 行頭（字下げ 3 文字まで）の `<!--` で開いて閉じない HTML コメントの中では、フェンス行でフェンスを開かない。
-  // 開くと、コメントの中の記入例の ``` で、コメントの後ろの表がすべて消える。コメントの中の表と見出しは、これまでどおり読む。
+  // 開くと、コメントの中の記入例の ``` で、コメントの後ろの表がすべて消える。
+  // コメントの中の表と見出しは読む（replace-strategy の台帳と違い、コメントの中を除かない）。
   /** @type {boolean[]} */
   const fenced = [];
   /** @type {string | null} */
@@ -150,7 +151,8 @@ export function parseTables(markdown) {
     fence = step.fence;
     const inFence = step.marker || fence !== null;
     if (!inFence && /^ {0,3}<!--/u.test(line)) {
-      comment = !line.slice(line.indexOf("<!--") + 4).includes("-->");
+      // `<!-->` と `<!--->` は、それだけで閉じたコメントになる（CommonMark）。
+      comment = !line.slice(line.indexOf("<!--") + 2).includes("-->");
     }
     fenced.push(inFence);
   }

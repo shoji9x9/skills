@@ -64,3 +64,8 @@ coverage:github:2026-10-16T20:16:09.543Z:2026-10-17T20:20:08.400Z,coverage,2026-
 ci:39066389233:1,ci,2026-10-17T20:23:13.238Z,p-cdee4961,github-actions,,,,2026-10-17T20:21:52.000Z,2026-10-17T20:22:03.000Z,Asia/Tokyo,feature/679-unify-fence-detection,679,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 ci:39066389244:1,ci,2026-10-17T20:23:13.238Z,p-cdee4961,github-actions,,,,2026-10-17T20:21:52.000Z,2026-10-17T20:23:13.238Z,Asia/Tokyo,feature/679-unify-fence-detection,679,,,,,,,,,,CI;pull_request;open,
 coverage:github:2026-10-16T20:20:08.400Z:2026-10-17T20:23:13.238Z,coverage,2026-10-17T20:23:13.238Z,p-cdee4961,,,,,2026-10-16T20:20:08.400Z,2026-10-17T20:23:13.238Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:39066611505:1,ci,2026-10-17T20:32:47.144Z,p-cdee4961,github-actions,,,,2026-10-17T20:25:00.000Z,2026-10-17T20:25:01.000Z,Asia/Tokyo,feature/679-unify-fence-detection,679,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:39066611582:1,ci,2026-10-17T20:32:47.144Z,p-cdee4961,github-actions,,,,2026-10-17T20:25:00.000Z,2026-10-17T20:28:29.000Z,Asia/Tokyo,feature/679-unify-fence-detection,679,,,,,,,,,,CI;pull_request;success,
+ci:39066389244:1,ci,2026-10-17T20:32:47.144Z,p-cdee4961,github-actions,,,,2026-10-17T20:21:52.000Z,2026-10-17T20:25:09.000Z,Asia/Tokyo,feature/679-unify-fence-detection,679,,,,,,,,,,CI;pull_request;cancelled,
+coverage:github:2026-10-16T20:23:13.238Z:2026-10-17T20:32:47.144Z,coverage,2026-10-17T20:32:47.144Z,p-cdee4961,,,,,2026-10-16T20:23:13.238Z,2026-10-17T20:32:47.144Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-16T20:32:47.144Z:2026-10-17T20:33:18.859Z,coverage,2026-10-17T20:33:18.859Z,p-cdee4961,,,,,2026-10-16T20:32:47.144Z,2026-10-17T20:33:18.859Z,Asia/Tokyo,,,,,,,,,,,,ok,

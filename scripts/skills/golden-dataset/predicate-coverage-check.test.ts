@@ -1252,3 +1252,12 @@ test("誤検知しないことの確認: フェンスの中の `<!--` はコメ�
   );
   expect(tables.map((t) => t.headers)).toEqual([["b"]]);
 });
+
+test("`<!-->` と `<!--->` はそれだけでコメントを閉じ、後ろのフェンスの中の表を読まない", () => {
+  for (const open of ["<!-->", "<!--->"]) {
+    const tables = parseTables(
+      md(open, "```", "| x |", "|---|", "| 9 |", "```", "", "| b |", "|---|", "| 2 |"),
+    );
+    expect(tables.map((t) => t.headers)).toEqual([["b"]]);
+  }
+});

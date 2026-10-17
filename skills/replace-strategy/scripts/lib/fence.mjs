@@ -35,4 +35,4 @@ function stepFence(fence, line) {
   return { fence: closes ? null : fence, marker: closes };
 }
 
-export { fenceOf, stepFence };
+export { stepFence };
