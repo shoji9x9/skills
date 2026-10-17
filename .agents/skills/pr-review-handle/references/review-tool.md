@@ -6,7 +6,7 @@
 ## 設定の解決
 
 次の優先順位で、最初に設定されている値を使う。
-受け付ける値は `copilot`・`claude-code`・`codex`・`none` の 4 つだけで、それ以外の値なら、警告なしにデフォルトの値を使うことはせず止まる。
+受け付ける値は `copilot`・`claude-code`・`codex`・`local`・`none` の 5 つだけで、それ以外の値なら、警告なしにデフォルトの値を使うことはせず止まる。
 
 1. pr-finalize-loop の `--review-tool <tool>`
 2. 環境変数 `SKILLS_REVIEW_TOOL`
@@ -18,6 +18,7 @@
 | `copilot`（デフォルト） | GitHub Copilot。`requested_reviewers` API に bot の login を渡して依頼する |
 | `claude-code` | Claude Code。PR のトップレベルのコメントで mention して依頼する |
 | `codex` | OpenAI Codex。PR のトップレベルのコメントで mention して依頼する |
+| `local` | 今使っているエージェント自身が手元でレビューし、レビューした HEAD の SHA と指摘の件数を PR に記録する。PR に投稿する AI レビュアーを使わないリポジトリ向け |
 | `none` | AI レビュアーに再レビューを依頼しない。人だけがレビューするリポジトリ向け |
 
 - どれも設定されていなければ、デフォルトの `copilot` を使い、そのことを利用者に知らせる。
@@ -34,7 +35,7 @@
 version: 1
 skills:
   common:
-    review_tool: copilot # copilot | claude-code | codex | none
+    review_tool: copilot # copilot | claude-code | codex | local | none
 ```
 
 ### 解決は同梱スクリプトで行う（値と出所を表示してから使う）
@@ -151,6 +152,84 @@ copilot の `requested_reviewers` と違い、mention のコメントは、同�
 gh api --paginate repos/<owner>/<repo>/issues/<番号>/comments \
   --jq '.[] | select(.body | test("^@(claude|codex) review")) | {login: .user.login, created_at, body: .body[:60]}'
 ```
+
+### local
+
+依頼の代わりに、今使っているエージェント自身が PR の HEAD をレビューし、その結果を PR に記録する。
+手元のレビューは、指摘が 0 件だと PR に何も投稿しないことがある。記録が無いと、HEAD をレビューしたのかを GitHub の上で確かめられないので、件数に関わらず記録を残す。
+
+1. レビューする HEAD の完全な SHA を、`gh pr view <番号> --repo <owner>/<repo> --json headRefOid --jq .headRefOid` で取得する。手元の HEAD がこれと一致することも確かめる。
+   作業ツリーに commit していない変更が無いこと（`git status --porcelain` が空）も確かめる。手元のレビューの機能は、commit していない変更もレビューの対象に入れることがあり、記録の SHA が表す内容とずれる。
+   どちらかを満たさなければレビューしない。HEAD が一致しなければ、push が反映されるのを待って間隔を空けて取得し直す。
+   commit していない変更があれば、先に commit と push を済ませる。commit と push をしてよいかは各スキルの取り決めに従う（pr-finalize-loop は手順 5 で行う。pr-review-handle は `--push` が無ければ利用者に確かめる）。
+   それでも満たさなければ、記録せずに止まる（pr-finalize-loop では「行き詰まり」）。
+2. エージェント自身の機能でレビューする。別のエージェントに自動で切り替えない。機能を使えなければ、レビューしたことにせず止まる。
+   最初のレビューは、PR の変更全体を対象にする。2 回目からは、前の記録の SHA から今の HEAD までの差分（直した commit）だけを対象にし、前の回の指摘と対応（解決したスレッドと記録の本文）をレビューに渡す。
+   前の記録の SHA は、`check` の出力の `previous` を使う。コメントを手で探さない。`check` が形と書き手を確かめた記録だけから取るためである。
+   `previous` が無い、`previous` が HEAD の祖先でない（rebase した）、`previous` から HEAD までに merge commit がある（ベースブランチを取り込んだ）ときは、PR の変更全体をレビューする。
+   差分にベースブランチの変更が入ると、PR に無い変更まで指摘の対象になる。祖先かは `git merge-base --is-ancestor <previous> HEAD`、merge commit の有無は `git rev-list --merges <previous>..HEAD` で確かめる。
+   毎回 PR の全体をレビューし直すと、直すたびに前の回と別の指摘が出て、収束しないまま反復の上限に達しやすい。
+   - Claude Code: 組み込みの `/code-review` に、対象の PR の番号と `--comment` を渡す（例: `/code-review high <PR の番号> --comment`）。指摘は PR の行に付いたコメントとして投稿される（[Claude Code commands](https://code.claude.com/docs/en/commands)）。
+     PR の番号を渡さないと、upstream との差分をレビューする。push した後はこの差分が空になり、PR の変更をレビューしないまま指摘 0 件になる。
+     2 回目からの差分の範囲は、引数の説明（前の記録の SHA から HEAD まで）として渡す。
+   - Codex: `git fetch origin <PR のベースブランチ>` の後に、`codex review --base origin/<PR のベースブランチ>`。`--base` の意味は、ローカルの `codex review --help` でも確かめる（[OpenAI Developers](https://developers.openai.com/codex/cli/reference)）。
+     手元のベースブランチは古いことがあり、そのまま渡すと PR に無い変更まで差分に入る。下の Copilot CLI の `<base>` にも、同じように fetch した `origin/<PR のベースブランチ>` を渡す。
+     2 回目からは、`--base` に前の記録の SHA を渡す。
+   - GitHub Copilot CLI: 次のコマンドを使う（[GitHub Docs](https://docs.github.com/en/copilot/how-tos/copilot-cli/automate-copilot-cli/run-cli-programmatically#code-review-a-branch)）。
+     2 回目からは、`<base>` に前の記録の SHA を渡す。
+
+     ```bash
+     copilot -p '/review the changes on this branch compared to <base>. Focus on bugs and security issues.' -s --allow-tool='shell(git:*)'
+     ```
+
+3. 同梱のスクリプトで、記録を PR のトップレベルのコメントとして投稿する。
+   PR の行に付いていない指摘（Codex・Copilot CLI の指摘のすべてと、Claude Code が差分の外の行や総評として出した指摘）は、記録を投稿する前に 1 件ずつ判断して対応（直す・見送る・判断待ち）を決める。
+   指摘と対応を書いたファイルを `--details` で渡し、記録の本文に残す。直すと決めた件数と判断待ちの件数の合計を、`--open` に渡す。
+   記録は PR の作成者か担当者が投稿し、トップレベルのコメントから指摘を集める処理（各スキルの「スレッド外に置かれた指摘」）は記録を読まない。
+   そのため、行に付いていない指摘は、記録の `open` だけが追う。`check` は `open` が 0 の記録だけをレビュー済みと判定するので、直すと決めた指摘を残したまま収束と判定されない。
+   人の判断が要る指摘は、記録の本文では「判断待ち」と書く。pr-finalize-loop の `--defer-decisions` のときは、加えて同じ指摘を、判断待ちの印（`<!-- pr-finalize-loop:deferred -->`）で始まるトップレベルのコメントで残す（pr-finalize-loop の「自律性ポリシー」）。
+   `--defer-decisions` を付けない実行では、ほかの指摘と同じように、その 1 件を利用者に確かめる。
+
+   ```bash
+   bash <スキルのディレクトリ>/scripts/local-review-record.sh post --pr <PR URL> --sha <1 で取得した SHA> \
+     --findings <指摘の件数> --open <直すと決めた件数と判断待ちの件数の合計> \
+     --reviewer '<2 で使った機能>' [--details <指摘と対応を書いたファイル>]
+   ```
+
+   `post` が投稿しないときの終了コードと対処は、次のとおりである。
+   - exit 1: 渡した SHA が PR の今の HEAD と違う。今の HEAD をレビューし直してから記録する。
+   - exit 2: PR の取得か投稿に失敗した。間隔を空けて実行し直す。
+   - exit 3: gh のユーザーが PR の作成者でも担当者でもない。`check` はその人の記録を読み飛ばすので、投稿しても HEAD はレビュー済みにならない。
+     利用者に確かめる。自分を PR の担当者に加えない。持ち主を変える操作は利用者が決める（`references/pr-ownership.md`）。
+   - exit 4: 自分の login を取得できない（ユーザーでないトークンで認証している）。この環境では記録を残せないので、`local` を使わずに止まり、その理由を報告する。
+4. 行に付いた指摘は、ほかのツールのレビューと同じように、スレッドとして 1 件ずつ判断して対応する。記録の本文に書いた指摘は、3 で決めた対応のとおりに直す。
+   行に付いた指摘は PR の作成者の名前で投稿されることが多く、作成者以外のレビューを見る整合検証（pr-finalize-loop の「レビュー内容との整合検証」）には入らない。
+   代わりに、2 のレビューの機能が投稿したと報告した行の指摘の件数と、そのレビューが作ったスレッドの数を突き合わせ、足りなければ反映の遅れとして取得し直す。
+   直して push したら、新しい HEAD は記録の SHA と一致しないので、もう一度 1 から行う。
+
+HEAD がレビュー済みかは、次の判定で決める。exit 0 のときだけレビュー済みとし、出力の `head` が判定に使う HEAD と一致することも確かめる。
+
+```bash
+bash <スキルのディレクトリ>/scripts/local-review-record.sh check --pr <PR URL>
+```
+
+- exit 0（`status=reviewed`）は、PR の作成者か担当者が、今の HEAD の完全な SHA と `open=0` を書いた記録を残していることを表す。
+- exit 1 は、レビュー済みでないことを表す。`status=not-reviewed` は、記録が無いか、前の HEAD の記録しか無い。
+  `status=open` は、今の HEAD の記録に未対応の指摘が残っている。直すと決めた指摘が残っていれば、直して push し、新しい HEAD をレビューし直す。
+  残りが判断待ちだけなら、ほかの判断待ちと同じように扱う（pr-finalize-loop での扱いは、そのスキルの SKILL.md にある「HEAD のレビュー済み判定」に書いてある）。
+  判断待ちの指摘を後で見送ると決めたなど、コードを変えずに未対応が減ったときは、同じ SHA に `--open` を減らした記録を投稿し直す。`check` は同じ SHA の記録のうち後のものを使う。
+  投稿し直す記録には、前の記録の指摘と対応を、決まった対応に直して `--details` で書く。pr-finalize-loop では、SKILL.md の手順 4 が `check` の `record`（後の記録）の本文だけを読むので、書かないと残りの指摘の内容が失われる。
+- exit 2 は判定できないことを表すので、レビュー済みとも未レビューとも扱わずに取得し直す。
+- 記録は PR の作成者が投稿することが多い。作成者のレビューとコメントを判定から除く規則（各スキルの「HEAD のレビュー済み判定」など）は、この記録には当てない。
+  この判定が数えるのは、記録の 1 行目に書いた SHA と件数だけだからである。
+- 記録を数える条件は 1 行目だけで、記録の時刻は見ない。手元のレビューは、指摘に返信して解決したエージェント自身が行うので、返信だけで終わった後にもう一度レビューしなくてよい。
+  コードを変えて push したら SHA が変わるので、必ずもう一度レビューする。
+- 出力の `findings` は、記録した時点の指摘の件数で、見送った指摘も数える。`findings` が 1 以上であることを、merge できない理由にしない。未対応の指摘は `open` が表す。
+- 記録の 1 行目は `<!-- pr-finalize-loop:local-review sha=<40 桁の SHA> findings=<件数> open=<件数> -->` である。
+  スクリプトはこの形の行だけを数える。次の記録は、理由を stderr に出して読み飛ばす。形の違う行、目印の前に空白か改行があるもの、`open` が `findings` より大きいもの、作成者でも担当者でもない人の記録である。
+  本文の途中で目印を引用しただけのコメント（Quote reply など）は、記録の候補にせず、読み飛ばした件数にも入れない。
+- レビューはエージェント自身が実行して終わるので、依頼の成立を待つ処理と、自分のレビューが進行中かの検出は要らない。
+  PR に別のエージェントの進行中のレビューがあるかは、`claude-code`・`codex` と同じように確かめる。
 
 ### none
 

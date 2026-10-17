@@ -79,8 +79,23 @@ python の heredoc の 1 回は、本文の文字列に `git` の語があった
 どちらも git の操作を単独の呼び出しに分けて通した。
 この学びはセッション開始時に注入されていたが、worktree に入った後の最初の git を含む複合コマンドで同じ形を書いた。5 つ目のセッションでの再発である。
 
+2026-10-17、#669 の作業（issue-start から git-worktree enter、pr-finalize-loop）で、worktree に入った後の Bash の呼び出しが 7 回拒否された。
+拒否された形は次のとおりである。
+
+- worktree に入った直後の準備。`git rev-parse`・`for` ループの `cp`・`git status`・`mise trust` を `;` でつないだ
+- 変更したファイルだけに pre-commit を当てる処理。`$( { git diff ...; git ls-files ...; } | sort -u )` のコマンド置換を含む
+- python の quoted heredoc の本文に `shell(git:*)` を含む置換
+- `reinstall-skill.sh`・`git add -A`・`lefthook run` を `;` でつないだ処理
+- `H=$(git rev-parse HEAD)` を含む受け入れ条件の検査
+- `sed` と `diff` を含む Issue の本文の準備（`this command is too complex to verify`）
+- kaizen の抽出で、`ls`・走査ツール・`kaizen-kedb-match.sh` を `;` でつないだ処理（この学びを照合する呼び出しそのもの）
+
+どれも、単独の呼び出しに分けるか、Write ツールでスクリプトにして `bash <絶対パス>` で実行する形に直して通した。
+この学びはセッション開始時に注入されていたが、拒否のたびに形を直し、次の複合コマンドでまた拒否された。
+同じ形は #631・#616・#655・#632・#576・#669 の 6 つのセッションで続いており、文書では書き方が変わらないことの裏付けが増えた。
+
 2026-10-17、#606 の作業で、python の quoted heredoc に `git` の語や `gh` の引数を含めた呼び出しと、`&&` でつないだ `git commit` と `grep` が、10 回以上拒否された。
-どれも、処理を Write ツールでスクリプトにして絶対パスで実行するか、git の操作を単独の呼び出しに分けて通した。6 つ目のセッションでの再発である。
+どれも、処理を Write ツールでスクリプトにして絶対パスで実行するか、git の操作を単独の呼び出しに分けて通した。#669 に続き、7 つ目のセッションでの再発である。
 
 ## 根本原因
 

@@ -156,6 +156,10 @@ gh api --paginate repos/<owner>/<repo>/issues/<番号>/comments \
   mention で依頼済みかを判定するときは、同じ API を `body: .body[:60]` に切り詰めて取得する（[`references/review-tool.md`](references/review-tool.md)）。
   その取得を指摘の収集に使い回さない。切り詰めた後ろにある指摘を取りこぼす。
 - 対象は、自分（PR の作成者。このスキルが書いた依頼のコメントや対応の記録を含む）以外の投稿すべてである。
+  ただし、`review_tool: local` の記録のうち、PR の作成者か担当者が投稿したもの（本文が `<!-- pr-finalize-loop:local-review` で始まるコメント）は除く。
+  記録は担当者が投稿することもあり、作成者を除くだけでは除けない。
+  それ以外の人が投稿した、目印で始まるコメントは除かず、ほかのコメントと同じように指摘を集める。
+  記録の本文の指摘は、記録の `open` で追う（[`references/review-tool.md`](references/review-tool.md) の「local」）。
   `select(.user.type=="Bot")` で bot に絞らない。人のレビュアーが総評をトップレベルに置くこともあるので、絞ると取りこぼす。
   `.user.type` は bot か人かを区別するためだけに使い、集める対象の絞り込みには使わない。
 - 特に `review_tool` が mention で依頼する方法（`claude-code`・`codex`）のときは、レビュアーが総評と指摘をトップレベルのコメントに置くものとして読む。`reviews[].body` が空でも指摘はある。
@@ -242,6 +246,8 @@ GitHub の側で自動レビューを設定していても、push の後にレ�
 
 確認の前に、push したなら、自動レビューがすでに始まっていないかを確かめる。リポジトリの設定によっては、push に合わせて自動レビューが始まる（実測）。
 `copilot` ではタイムラインの Copilot 宛ての `review_requested` イベントで、mention で依頼する方法（`claude-code`・`codex`）では現在の HEAD への進行中の bot のレビューかコメントで判定する。
+`local` では、自分のレビューが自動で始まることは無い。ただし、別のエージェントの自動レビュー（Copilot など）が始まっていないかは、mention で依頼する方法と同じように確かめる（[`references/review-tool.md`](references/review-tool.md) の「local」）。
+`local` での「依頼」は、エージェント自身が手元でレビューして記録を投稿することを指す。
 判定の手順は [`references/review-tool.md`](references/review-tool.md) にある。
 push が終わった直後に記録した時刻より後に自動レビューが始まっていれば、改めて依頼せず、そのことを利用者に伝える。そのうえで、依頼するかの確認を省いて、レビューの結果の確認に進む。
 最新のイベントの日時だけでは判定できないので、前の HEAD への古い依頼（PR を作ったときなど）を、自動で依頼された根拠にしない。

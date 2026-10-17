@@ -66,6 +66,7 @@ issue-batch run <Issue URL | 番号>... \
    現在のエージェントのローカルレビュー、必要な検証、browser-test、`kaizen extract --current --record-pending`、commit・push・PR の作成である。
 5. PR は `pr-finalize-loop` に渡して収束させる。AI のレビューの依頼は、`pr-finalize-loop` にまとめる。
 6. head の SHA を固定し、決めた merge mode で merge する。`auto` は GitHub の auto-merge に任せ、`agent` は PR の状況を実際に確かめてから merge する。
+   `pr-finalize-loop` が使った `review_tool` が `local` なら、どちらの mode でも、固定した SHA を手元でレビューした記録があることを確かめてから merge する（`references/orchestration.md`「merge、close、deployment」の 1）。
    実際に PR が `MERGED`、Issue が `CLOSED` で、対象の deployment がその SHA で成功し、名前が完全一致した branch を片付けたことを確かめてから、`DONE` にする。
 
 状態を変える前に、毎回 GitHub と git の実際の状態を取得し直す。manifest の記憶だけで判断しない。

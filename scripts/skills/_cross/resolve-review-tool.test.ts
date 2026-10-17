@@ -5,7 +5,7 @@
 // | 軸       | 値                                                                       |
 // | -------- | ------------------------------------------------------------------------ |
 // | 層       | CLI / 環境変数 / 設定ファイル / 既定（優先順位どおりに上書きされるか）    |
-// | 値       | 受理する 4 値 / 未知値 / 空文字                                           |
+// | 値       | 受理する 5 値 / 未知値 / 空文字                                           |
 // | 設定内容 | 正常 / 行末コメント付き / 引用符付き / 別セクションの同名キー / キー欠落 / ファイル不在 |
 // | 引数     | 正常 / 値の無い --review-tool / 不明な引数                                |
 //
@@ -187,6 +187,15 @@ for (const script of SCRIPTS) {
     expect(r.stderr).toMatch(/出所: env/);
   });
 
+  test.each(["copilot", "claude-code", "codex", "local", "none"])(
+    `${name}: 受理する値 %s を CLI から受け取る`,
+    (value) => {
+      const r = run(script, { args: ["--review-tool", value] });
+      expect(r.status, r.stderr).toBe(0);
+      expect(parse(r.stdout)).toEqual({ value, source: "cli" });
+    },
+  );
+
   test(`${name}: 引数不正は exit 64`, () => {
     expect(run(script, { args: ["--review-tool"] }).status).toBe(64);
     expect(run(script, { args: ["--nope"] }).status).toBe(64);
@@ -222,7 +231,7 @@ for (const script of SCRIPTS) {
     expect(r.status).toBe(0);
     const out = parse(r.stdout);
     expect(out.source).toBe("config");
-    expect(["copilot", "claude-code", "codex", "none"]).toContain(out.value);
+    expect(["copilot", "claude-code", "codex", "local", "none"]).toContain(out.value);
   });
 }
 

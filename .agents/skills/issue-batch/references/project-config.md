@@ -10,6 +10,7 @@ issue-batch だけが使う設定は、`.config/skills/shoji9x9/skills.yml` の 
 
 決まったレビューツールは、`pr-finalize-loop` が PR で再レビューを依頼する相手で、ローカルレビューをする主体ではない。
 ローカルレビューは、設定の値に関わらず、常に今使っているエージェント自身の機能で行う（`references/orchestration.md`「ローカルレビュー」）。
+`review_tool: local` は、PR を作った後に `pr-finalize-loop` が HEAD ごとに行う手元のレビューを指す。PR を作る前のローカルレビューとは別に行い、片方でもう片方を省かない。
 同じように、Kaizen の `--record-pending` が BLOCKED になるのは、実行中のエージェントが現在の transcript を特定できない場合である。
 `review_tool: copilot` はレビュアーの指定にすぎず、BLOCKED の条件ではない。この 2 つを取り違えて、正常な場合を停止させない。
 
