@@ -453,6 +453,15 @@
         "情報文字列の付いた行でフェンスを閉じず、フェンスの中の表の行を数えない",
         "情報文字列の付いた行でフェンスを閉じず、フェンスの中の HTML コメントの記号を落とさない"
       ]
+    },
+    {
+      "id": "row-like-in-fence-counted",
+      "why": "countRowLikeLines が、フェンスの中の表の行に見える行も表の外の行として数える（PR #696 のレビュー）",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "    if (fenced[index]) return;",
+      "replace": "    if (false) return;",
+      "occurrences": 1,
+      "expect_failing": ["情報文字列の付いた行でフェンスを閉じず、フェンスの中の表の行を数えない"]
     }
   ]
 }

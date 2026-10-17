@@ -151,8 +151,8 @@ export function parseTables(markdown) {
     fence = step.fence;
     const inFence = step.marker || fence !== null;
     if (!inFence && /^ {0,3}<!--/u.test(line)) {
-      // `<!-->` と `<!--->` は、それだけで閉じたコメントになる（CommonMark）。
-      comment = !line.slice(line.indexOf("<!--") + 2).includes("-->");
+      // `<!-->` と `<!--->` も、それだけで閉じたコメントになる（CommonMark）。
+      comment = !line.includes("-->");
     }
     fenced.push(inFence);
   }
