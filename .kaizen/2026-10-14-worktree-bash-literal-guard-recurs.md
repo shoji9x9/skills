@@ -102,7 +102,7 @@ python の heredoc の 1 回は、本文の文字列に `git` の語があった
 2 回目は、python の quoted heredoc で mutations.json に追記し、続けて `oxfmt`・`vitest`・`grep` を `;` でつないだ処理である（`this command is too complex to verify`）。
 3 回目は、`grep -n -i 'eval' <ファイル>` と `ls` を `;` でつないだ処理である（`runs a string through eval`）。`eval` は grep の検索語で、実行していない。
 4 回目は、記録のスクリプトの `--sha` に、手で書いた SHA の前半 8 文字と `$(git rev-parse HEAD | cut -c9-)` を連結して渡した処理である（`names git in a form too complex to verify`）。
-この形は、拒否されなくても、表示された SHA を手で書き写す誤り（AGENTS.md の「ID・完全な SHA は手で書き写さない」）に当たる。PR の `headRefOid` を取得して渡すスクリプトに直した。
+この形は、拒否されなくても、表示された SHA を手で書き写す誤りに当たる。AGENTS.md は「ID・完全な SHA・長い prompt・スクリプト名は、表示された結果から手で書き写さない。」と定めている。PR の `headRefOid` を取得して渡すスクリプトに直した。
 どれも、単独の呼び出しに分けるか、Write ツールでスクリプトにして絶対パスで実行する形に直して通した。
 1 回目から 3 回目は、`git` の語を含まずに拒否された。提案の Hook の条件には、`gh` に変数の引数を渡す形、heredoc を含む複合コマンド、`eval` の語を含む形も含める。8 つ目のセッションでの再発である。
 
