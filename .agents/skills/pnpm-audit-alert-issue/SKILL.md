@@ -30,6 +30,8 @@ Issue のまとめ方と起票は、配布スキル `dependabot-alert-issue` の
    - JSON が空か、解析できない場合だけ止まり、原因を報告する
 3. 同梱のスクリプトで、外部 audit findings の JSON に正規化する
 4. 正規化した結果を読み、findings が 0 件なら「検出なし」と報告して終える
+   - `pnpm-workspace.yaml` の `auditConfig.ignoreGhsas` にある advisory は、`pnpm audit` に出ない。
+     報告には、0 件のときも含めて、無視している GHSA の一覧と件数を添える
 5. `pnpm install --frozen-lockfile` で、node_modules を lockfile に合わせる。
    これは、後の `pnpm why` で依存のつながりを補うための前提である。今の version の判定は lockfile と `pnpm audit` で行い、`pnpm why` や `pnpm list` を根拠にしない
 6. package ごとに `pnpm why <package>` を実行し、依存のつながりを補足の情報として整理する
