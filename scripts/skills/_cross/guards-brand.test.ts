@@ -4,7 +4,7 @@
 // 型の期待は `expectTypeOf` で書き、`pnpm run typecheck`（tsc）が確かめる。vitest の実行では値の判定だけを確かめる。
 // 2 つ以上のスキルの guards.mjs をまとめて扱うので、_cross に置く。
 // モジュールの中だけの型ガードは import できないので、ブランド型に絞っているかは
-// scripts/gates/types/check-type-guard-brands.ts が構文で確かめる。
+// scripts/gates/types/check-type-guard-brands.ts が型チェッカーで確かめる。
 //
 // 状態空間の軸と、各セルに置いた入力は次のとおりである。
 //

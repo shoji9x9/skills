@@ -174,7 +174,7 @@ pre-commit:
           - name: type-guard-brands
             # 絞る型の値にも false を返す型ガード（空文字を除く `v is string` など）を、ブランド型に絞らせる。
             # 型チェッカーを作るので約 4 秒かかる。JavaScript・TypeScript が staged のときだけ実行する。
-            glob: "*.{mjs,ts}"
+            glob: "{scripts,skills,.agents}/**/*.{mjs,ts}"
             run: node scripts/gates/types/check-type-guard-brands.ts
           - name: kaizen-refs
             # .kaizen/ の学びへの参照の実在。参照される側（.kaizen/ の archive への移動）で

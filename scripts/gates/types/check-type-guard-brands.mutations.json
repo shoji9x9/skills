@@ -64,7 +64,8 @@
       "replace": "if (false) {",
       "occurrences": 1,
       "expect_failing": [
-        "絞る型に無い種類にも true を返す本体は、ブランド型ではなく判定を直すよう報告する"
+        "絞る型に無い種類にも true を返す本体は、ブランド型ではなく判定を直すよう報告する",
+        "== null は undefined にも true を返すので、v is null には判定を直すよう報告する"
       ]
     },
     {
@@ -80,8 +81,8 @@
       "id": "OR-LEFT-ONLY",
       "why": "|| の右側の種類を数えない",
       "file": "scripts/gates/types/check-type-guard-brands.ts",
-      "find": "return union([acceptedKinds(e.left, name), acceptedKinds(e.right, name)]);",
-      "replace": "return acceptedKinds(e.left, name);",
+      "find": "return union([acceptedKinds(e.left, name, params), acceptedKinds(e.right, name, params)]);",
+      "replace": "return acceptedKinds(e.left, name, params);",
       "occurrences": 1,
       "expect_failing": [
         "判定が型と一致するものと対象外のものは検出しない（TypeScript）: typeof と null",
@@ -158,7 +159,8 @@
       "occurrences": 1,
       "expect_failing": [
         "判定が型と一致するものと対象外のものは検出しない（TypeScript）: ブランド型",
-        "判定が型と一致するものは検出しない（JSDoc）: @returns のブランド型"
+        "判定が型と一致するものは検出しない（JSDoc）: @returns のブランド型",
+        "判定が型と一致する型ガードを誤って検出しない: 欄の名前が __ で始まらないブランド型"
       ]
     },
     {
@@ -182,6 +184,53 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": ["型述語の置き場所と種類を広げて検出する: symbol"]
+    },
+    {
+      "id": "NO-NEGATION",
+      "why": "否定（!==・!=）を、引数の宣言した型の種類から差し引いて読まない",
+      "file": "scripts/gates/types/check-type-guard-brands.ts",
+      "find": "if (hit !== null) return negated ? minus(params, hit) : new Set(hit);",
+      "replace": "if (hit !== null) return negated ? null : new Set(hit);",
+      "occurrences": 1,
+      "expect_failing": [
+        "判定が型と一致する型ガードを誤って検出しない: 引数の型から null を除く !==",
+        "判定が型と一致する型ガードを誤って検出しない: 引数の型から null と undefined を除く !="
+      ]
+    },
+    {
+      "id": "NO-LOOSE",
+      "why": "== null を null だけに当たる比較として読む",
+      "file": "scripts/gates/types/check-type-guard-brands.ts",
+      "find": "hit = loose ? [\"null\", \"undefined\"] : [isNull ? \"null\" : \"undefined\"];",
+      "replace": "hit = [isNull ? \"null\" : \"undefined\"];",
+      "occurrences": 1,
+      "expect_failing": [
+        "判定が型と一致する型ガードを誤って検出しない: 引数の型から null と undefined を除く !=",
+        "== null は undefined にも true を返すので、v is null には判定を直すよう報告する"
+      ]
+    },
+    {
+      "id": "PARAM-BY-NAME",
+      "why": "型述語の引数を、位置ではなく型述語に書いた名前で本体に対応づける",
+      "file": "scripts/gates/types/check-type-guard-brands.ts",
+      "find": "acceptedKinds(body, param.name.text, params)",
+      "replace": "acceptedKinds(body, pred.parameterName, params)",
+      "occurrences": 1,
+      "expect_failing": [
+        "判定が型と一致する型ガードを誤って検出しない: 文脈の型の引数名が実装と違う",
+        "判定が型と一致する型ガードを誤って検出しない: オーバーロードの引数名が実装と違う"
+      ]
+    },
+    {
+      "id": "BRAND-BY-PREFIX",
+      "why": "ブランドの印を、欄の名前の __ の接頭辞だけで決める",
+      "file": "scripts/gates/types/check-type-guard-brands.ts",
+      "find": "t.getProperties().length > 0",
+      "replace": "t.getProperties().some((p) => p.name.startsWith(\"__\"))",
+      "occurrences": 1,
+      "expect_failing": [
+        "判定が型と一致する型ガードを誤って検出しない: 欄の名前が __ で始まらないブランド型"
+      ]
     },
     {
       "id": "COPIES-TARGETED",

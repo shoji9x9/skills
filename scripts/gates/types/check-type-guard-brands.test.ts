@@ -322,3 +322,34 @@ test("絞る型より狭い配列だけを受ける本体は、ブランド型�
     ),
   ).toEqual([expect.stringContaining("ブランド型に絞っていない")]);
 });
+
+test.each([
+  [
+    "文脈の型の引数名が実装と違う",
+    'const f: (value: unknown) => value is string = (v) => typeof v === "string";\n',
+  ],
+  [
+    "オーバーロードの引数名が実装と違う",
+    'function f(a: unknown): a is string;\nfunction f(v: unknown) { return typeof v === "string"; }\n',
+  ],
+  [
+    "引数の型から null を除く !==",
+    "function f(v: string | null): v is string { return v !== null; }\n",
+  ],
+  [
+    "引数の型から null と undefined を除く !=",
+    "function f(v: string | null | undefined): v is string { return v != null; }\n",
+  ],
+  [
+    "欄の名前が __ で始まらないブランド型",
+    'function f(v: unknown): v is string & { readonly brand: true } { return typeof v === "string" && v !== ""; }\n',
+  ],
+])("判定が型と一致する型ガードを誤って検出しない: %s", (_name, text) => {
+  expect(ts(text)).toEqual([]);
+});
+
+test("== null は undefined にも true を返すので、v is null には判定を直すよう報告する", () => {
+  expect(ts("const f = (v: unknown): v is null => v == null;\n")).toEqual([
+    expect.stringContaining("に無い種類の値にも true を返す"),
+  ]);
+});

@@ -14,7 +14,7 @@
 // 対象にするのは、絞る型がプリミティブ（string・number・bigint・boolean・symbol）と null・undefined と、
 // それらの配列だけで組み立てた型の型ガードである。リテラル型・オブジェクトの形の型ガードは、
 // 判定が型と一致するかを決められないので対象にしない（書いた人とレビューする人が確かめる）。
-// ブランドの印（名前が `__` で始まる欄）を持つ交差の型は対象にしない。印の無い交差（`string & {}`）は、
+// ブランドの印（欄を 1 つ以上持つオブジェクト型）を持つ交差の型は対象にしない。印の無い交差（`string & {}`）は、
 // false の側から string が消えるので、交差の中のプリミティブを絞る型として検査する。
 //
 // 判定が型と一致するかは、本体が true を返す値の種類の集合と、絞る型の種類の集合が一致するかで決める。
@@ -26,10 +26,12 @@
 // 絞る型の値にも false を返しうるので、ブランド型でなければ違反にする。
 // 絞る型に無い種類にも true を返す本体は、ブランド型にしても直らないので、判定か絞る型を直すよう別の言葉で報告する。
 // `x.every(isS)` のように関数を名前で渡す本体は、その関数の判定を読まないので、種類を求められない形として扱う。
+// 否定（`!==`・`!=`）は、引数の宣言した型の種類から差し引いて読む。`== null` は null と undefined の両方に当たる。
+// ブランド型と他の型を並べた union（`(string & { readonly __f: true }) | number`）は、対象にしない。
 //
 // 次のものは対象にしない。
 //   - `asserts x is T`（false の側が無い）
-//   - 呼び出しの引数に直接渡した関数（filter・find・every など）。false の側を使うかは呼び出し先が決め、
+//   - 呼び出しの引数に直接渡した関数（filter・find・every など、関数をそのまま返すラッパーを含む）。false の側を使うかは呼び出し先が決め、
 //     配列のメソッドは false の側で元の配列を絞らない
 // 対象のファイルは、scripts/ と skills/ の .ts・.mjs と、private skill の .ts・.mjs である。
 import { existsSync, readFileSync, realpathSync } from "node:fs";
@@ -69,11 +71,9 @@ function union(parts: (Set<string> | null)[]): Set<string> | null {
   return out;
 }
 
-/** 名前が `__` で始まる欄を持つ型（ブランドの印）か。 */
+/** 欄を 1 つ以上持つオブジェクト型（ブランドの印）か。欄の名前には依らない。欄の無い `{}` は印にしない。 */
 function isBrandMark(t: ts.Type): boolean {
-  return (
-    (t.flags & ts.TypeFlags.Object) !== 0 && t.getProperties().some((p) => p.name.startsWith("__"))
-  );
+  return (t.flags & ts.TypeFlags.Object) !== 0 && t.getProperties().length > 0;
 }
 
 /**
@@ -155,33 +155,61 @@ function everyKinds(e: ts.Expression, name: string): Set<string> | null {
   return ts.isIdentifier(p) && body !== null ? acceptedKinds(body, p.text) : null;
 }
 
-/** 本体の式が true を返す値の種類の集合。求められない形なら null。 */
-function acceptedKinds(expr: ts.Expression, name: string): Set<string> | null {
+/** 集合 a から b の要素を除いた集合。a が null なら null。 */
+function minus(a: ReadonlySet<string> | null, b: readonly string[]): Set<string> | null {
+  return a === null ? null : new Set([...a].filter((x) => !b.includes(x)));
+}
+
+const EQ_KINDS = new Set([
+  ts.SyntaxKind.EqualsEqualsEqualsToken,
+  ts.SyntaxKind.ExclamationEqualsEqualsToken,
+  ts.SyntaxKind.EqualsEqualsToken,
+  ts.SyntaxKind.ExclamationEqualsToken,
+]);
+
+/**
+ * 本体の式が true を返す値の種類の集合。求められない形なら null。
+ * `params` は引数の宣言した型の種類の集合で、否定（`!==`・`!=`）を読むときに、そこから差し引く。
+ */
+function acceptedKinds(
+  expr: ts.Expression,
+  name: string,
+  params: ReadonlySet<string> | null = null,
+): Set<string> | null {
   const e = unwrap(expr);
   if (!ts.isBinaryExpression(e)) return null;
   const op = e.operatorToken.kind;
   if (op === ts.SyntaxKind.BarBarToken) {
-    return union([acceptedKinds(e.left, name), acceptedKinds(e.right, name)]);
+    return union([acceptedKinds(e.left, name, params), acceptedKinds(e.right, name, params)]);
   }
   if (op === ts.SyntaxKind.AmpersandAmpersandToken) {
     if (!isArrayCall(e.left, name)) return null;
     const inner = everyKinds(e.right, name);
     return inner === null ? null : new Set([arrayKind(inner)]);
   }
-  if (op !== ts.SyntaxKind.EqualsEqualsEqualsToken) return null;
+  if (!EQ_KINDS.has(op)) return null;
+  const negated =
+    op === ts.SyntaxKind.ExclamationEqualsEqualsToken ||
+    op === ts.SyntaxKind.ExclamationEqualsToken;
+  const loose =
+    op === ts.SyntaxKind.EqualsEqualsToken || op === ts.SyntaxKind.ExclamationEqualsToken;
   const [a, b] = [unwrap(e.left), unwrap(e.right)];
   for (const [x, y] of [
     [a, b],
     [b, a],
   ]) {
+    let hit: string[] | null = null;
     if (ts.isTypeOfExpression(x) && isParam(x.expression, name)) {
-      return ts.isStringLiteral(y) && TYPEOF_NAMES.has(y.text) ? new Set([y.text]) : null;
+      if (!ts.isStringLiteral(y) || !TYPEOF_NAMES.has(y.text)) return null;
+      hit = [y.text];
+    } else if (isParam(x, name)) {
+      const isNull = y.kind === ts.SyntaxKind.NullKeyword;
+      const isUndefined = (ts.isIdentifier(y) && y.text === "undefined") || ts.isVoidExpression(y);
+      if (!isNull && !isUndefined) return null;
+      // `== null` と `== undefined` は、null と undefined の両方に true を返す。
+      hit = loose ? ["null", "undefined"] : [isNull ? "null" : "undefined"];
     }
-    if (isParam(x, name)) {
-      if (y.kind === ts.SyntaxKind.NullKeyword) return new Set(["null"]);
-      if (ts.isIdentifier(y) && y.text === "undefined") return new Set(["undefined"]);
-      return null;
-    }
+    if (hit !== null) return negated ? minus(params, hit) : new Set(hit);
   }
   return null;
 }
@@ -287,8 +315,12 @@ function violationsIn(sf: ts.SourceFile, checker: ts.TypeChecker): string[] {
       for (const pred of predicatesOf(node, checker)) {
         const target = typeKinds(pred.type, checker);
         if (target === null || target === BRANDED) continue;
+        const param = node.parameters[pred.parameterIndex];
+        if (param === undefined || !ts.isIdentifier(param.name)) continue;
+        const declared = typeKinds(checker.getTypeAtLocation(param), checker);
+        const params = declared === BRANDED ? null : declared;
         const body = bodyExpression(node);
-        const accepted = body === null ? null : acceptedKinds(body, pred.parameterName);
+        const accepted = body === null ? null : acceptedKinds(body, param.name.text, params);
         const { line } = sf.getLineAndCharacterOfPosition(node.getStart(sf));
         const where = `${line + 1}: ${nameOf(node)} は ${checker.typeToString(pred.type)}`;
         let message: string | null = null;
@@ -310,6 +342,9 @@ function violationsIn(sf: ts.SourceFile, checker: ts.TypeChecker): string[] {
   return out;
 }
 
+/** ディスクから読んだ標準ライブラリなどの構文木。Program を作るたびに読み直さないために持つ。 */
+const diskSourceFiles = new Map<string, ts.SourceFile | undefined>();
+
 /** 名前と中身を渡したファイルだけを読む Program を作る（標準ライブラリはディスクから読む）。 */
 function virtualProgram(files: ReadonlyMap<string, string>): ts.Program {
   const base = ts.createCompilerHost(COMPILER_OPTIONS);
@@ -317,9 +352,9 @@ function virtualProgram(files: ReadonlyMap<string, string>): ts.Program {
     ...base,
     getSourceFile: (name, lang) => {
       const text = files.get(name);
-      return text !== undefined
-        ? ts.createSourceFile(name, text, lang, true)
-        : base.getSourceFile(name, lang);
+      if (text !== undefined) return ts.createSourceFile(name, text, lang, true);
+      if (!diskSourceFiles.has(name)) diskSourceFiles.set(name, base.getSourceFile(name, lang));
+      return diskSourceFiles.get(name);
     },
     fileExists: (name) => files.has(name) || base.fileExists(name),
     readFile: (name) => files.get(name) ?? base.readFile(name),

@@ -27,4 +27,4 @@ PR #682 で、型ガードの絞る型を検査する `check-type-guard-brands.t
 型述語のように書き方が多い宣言を読むチェックは、構文を自分でたどる前に、型チェッカーの API で読めるかを確かめる。
 
 - 適用先候補: `.agents/rules/state-space-and-mutation-proof.md` の「ソースコードのコメント・文字列・構文を判定するチェックは、既存のパーサで読む」に、型の情報（型述語・別名の解決）が要るなら型チェッカーで読むことを足す
-- `check-type-guard-brands.ts` を型チェッカーで読む形に変えるかは、Program を作る時間（`check-jsdoc-types.ts` で約 2 秒）と比べて決める
+- `check-type-guard-brands.ts` は、PR #682 の反復 4 で型チェッカーで読む形に変えた（リポジトリ全体で約 4 秒）
