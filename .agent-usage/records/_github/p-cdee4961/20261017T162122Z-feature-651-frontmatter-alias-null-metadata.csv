@@ -30,3 +30,4 @@ coverage:github:2026-10-16T16:45:11.842Z:2026-10-17T16:45:39.222Z,coverage,2026-
 ci:39050938097:1,ci,2026-10-17T16:53:46.024Z,p-cdee4961,github-actions,,,,2026-10-17T16:47:23.000Z,2026-10-17T16:47:31.000Z,Asia/Tokyo,feature/651-frontmatter-alias-null-metadata,651,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 ci:39050938134:1,ci,2026-10-17T16:53:46.024Z,p-cdee4961,github-actions,,,,2026-10-17T16:47:23.000Z,2026-10-17T16:50:04.000Z,Asia/Tokyo,feature/651-frontmatter-alias-null-metadata,651,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-10-16T16:45:39.222Z:2026-10-17T16:53:46.024Z,coverage,2026-10-17T16:53:46.024Z,p-cdee4961,,,,,2026-10-16T16:45:39.222Z,2026-10-17T16:53:46.024Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-16T16:53:46.024Z:2026-10-17T16:54:22.084Z,coverage,2026-10-17T16:54:22.084Z,p-cdee4961,,,,,2026-10-16T16:53:46.024Z,2026-10-17T16:54:22.084Z,Asia/Tokyo,,,,,,,,,,,,ok,
