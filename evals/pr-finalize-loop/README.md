@@ -91,3 +91,4 @@ diff tests/pr-finalize-loop/iteration-<前回>/benchmark.md \
 ## 区別できない eval
 
 - eval 20（`--defer-decisions`）のうち、確認を送らない・解決せずに残す・判断待ちとして報告する assertion は、フラグの名前から推測できるので without_skill も pass する。これらは判断待ちの扱いが消えたり食い違ったりした後退を検出するために置く。
+- eval 21（最後の反復で規約の指摘を扱う）のうち、最後の反復であることを見送る理由にしない assertion と、push した HEAD が未レビューであると報告する assertion は、場面の説明から推測できるので without_skill も pass する。これらは、反復の残りを理由に指摘を見送る扱いへ戻った後退を検出するために置く。
