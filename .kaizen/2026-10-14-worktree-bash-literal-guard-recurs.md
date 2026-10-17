@@ -124,3 +124,4 @@ PR #656 のレビューで出た指摘である。上の Hook の条件の細部
 - 区切りを `;`・`&&` だけにすると、#616 の `curl -o` と `||` を含む拒否や、`for` ループ・パイプ・改行でつないだ形を拾えない。#631・#616・#655 のすべての拒否に条件を当てる。
 - `;`・`&&` と `node`・`bash` の起動の組は、ハーネスが通す正当な複合コマンド（定数の引数だけの `pnpm exec vitest run a.test.ts && node scripts/x.ts` など）にも当たる。ハーネスの拒否の理由（`computed at runtime`・`inside a construct too complex`）に対応する形に絞り、誤検知しないことを確かめる例を挙げる。
 - 新しい Hook を書かず、Bash の呼び出しをセグメントに分けて判定する既存の PreToolUse の Hook（`scripts/hooks/bash-command-guard.sh`）に足せるかを先に確かめる。
+- 2026-10-18、#676 の作業でも、README に 1 行を足す `printf ... >> README.md` と、続けて lint を `;` でつないだ処理が、引数に日本語の文を持つ `printf` として拒否された。Edit ツールで足す形に直して通した。

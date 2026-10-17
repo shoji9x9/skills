@@ -38,3 +38,4 @@ ci:39041092774:1,ci,2026-10-17T18:16:33.904Z,p-cdee4961,github-actions,,,,2026-1
 ci:39041092767:1,ci,2026-10-17T18:16:33.904Z,p-cdee4961,github-actions,,,,2026-10-17T14:31:07.000Z,2026-10-17T14:34:03.000Z,Asia/Tokyo,feature/683-agent-usage-default-decision,683,,,,,,,,,,CI;pull_request;success,
 ci:39040716489:1,ci,2026-10-17T18:16:33.904Z,p-cdee4961,github-actions,,,,2026-10-17T14:25:51.000Z,2026-10-17T14:29:10.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
 coverage:github:2026-10-16T14:28:28.273Z:2026-10-17T18:16:33.904Z,coverage,2026-10-17T18:16:33.904Z,p-cdee4961,,,,,2026-10-16T14:28:28.273Z,2026-10-17T18:16:33.904Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-16T18:16:33.904Z:2026-10-17T18:17:07.753Z,coverage,2026-10-17T18:17:07.753Z,p-cdee4961,,,,,2026-10-16T18:16:33.904Z,2026-10-17T18:17:07.753Z,Asia/Tokyo,,,,,,,,,,,,ok,
