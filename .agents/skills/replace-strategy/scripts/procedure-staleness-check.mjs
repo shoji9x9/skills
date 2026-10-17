@@ -33,14 +33,8 @@ import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { errorMessage } from "./lib/errors.mjs";
 import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
-import {
-  blankComments,
-  collapse,
-  stepFence,
-  opensHtmlBlock,
-  parseTables,
-  splitRow,
-} from "./lib/markdown.mjs";
+import { stepFence } from "./lib/fence.mjs";
+import { blankComments, collapse, opensHtmlBlock, parseTables, splitRow } from "./lib/markdown.mjs";
 
 /**
  * ツールのバージョン（このファイルで定義する）。判定の規則や出力の形を変えたら上げる。
@@ -222,14 +216,13 @@ function looksLikeTableRow(line) {
  * @returns {number}
  */
 export function countRowLikeLines(text, consumed = new Set()) {
-  /** @type {string | null} */
-  let fence = null;
+  /** @type {boolean[]} */
+  const fenced = [];
   let count = 0;
   // HTML コメント（テンプレートの記入例・説明）は表ではない。parseTables と同じ blankComments で空白にしてから数える。
-  blankComments(text.split(/\r?\n/u)).forEach((line, index) => {
-    const step = stepFence(fence, line);
-    fence = step.fence;
-    if (step.marker || fence !== null) return;
+  // フェンスも parseTables と同じく、blankComments が置き換える前の行で判定した fenced を使う。
+  blankComments(text.split(/\r?\n/u), fenced).forEach((line, index) => {
+    if (fenced[index]) return;
     if (!consumed.has(index) && looksLikeTableRow(line)) count += 1;
   });
   return count;

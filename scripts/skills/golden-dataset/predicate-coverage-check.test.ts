@@ -1209,3 +1209,46 @@ test("情報文字列の付いた行でフェンスを閉じず、フェンス�
   );
   expect(tables.map((t) => t.headers)).toEqual([["b"]]);
 });
+
+test("HTML コメントの中のフェンス行でフェンスを開かず、コメントの後ろの表を読む", () => {
+  const tables = parseTables(
+    md(
+      "<!-- 記入例:",
+      "```",
+      "| x |",
+      "|---|",
+      "| 9 |",
+      "-->",
+      "",
+      "## 機能一覧",
+      "| b |",
+      "|---|",
+      "| 2 |",
+    ),
+  );
+  expect(tables.map((t) => ({ heading: t.heading, headers: t.headers }))).toEqual([
+    { heading: "", headers: ["x"] },
+    { heading: "機能一覧", headers: ["b"] },
+  ]);
+});
+
+test("誤検知しないことの確認: フェンスの中の `<!--` はコメントを開かず、フェンスの後ろのフェンスの中の表を読まない", () => {
+  const tables = parseTables(
+    md(
+      "```html",
+      "<!-- 例",
+      "```",
+      "",
+      "```",
+      "| x |",
+      "|---|",
+      "| 9 |",
+      "```",
+      "",
+      "| b |",
+      "|---|",
+      "| 2 |",
+    ),
+  );
+  expect(tables.map((t) => t.headers)).toEqual([["b"]]);
+});

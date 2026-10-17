@@ -7,7 +7,8 @@
 import { expect, test } from "vitest";
 import { readAssetLedger } from "../../../skills/replace-strategy/scripts/asset-delivery-check.mjs";
 import { readRow } from "../../../skills/replace-strategy/scripts/evidence-gap-check.mjs";
-import { parseTables, stepFence } from "../../../skills/replace-strategy/scripts/lib/markdown.mjs";
+import { stepFence } from "../../../skills/replace-strategy/scripts/lib/fence.mjs";
+import { parseTables } from "../../../skills/replace-strategy/scripts/lib/markdown.mjs";
 import { readProcedureLedger } from "../../../skills/replace-strategy/scripts/procedure-staleness-check.mjs";
 
 const lines = (...xs: string[]) => [...xs, ""].join("\n");
@@ -384,6 +385,25 @@ test.each([
     expect(read()).toEqual(expected);
   },
 );
+
+test("コメントを空白にして初めてフェンスに見える行では、フェンスを開かない", () => {
+  const { tables } = parseTables(
+    lines(
+      "```<!-- ` -->",
+      "",
+      "| a | b |",
+      "|---|---|",
+      "| 1 | 2 |",
+      "",
+      "```",
+      "| x | y |",
+      "|---|---|",
+      "| 9 | 9 |",
+      "```",
+    ),
+  );
+  expect(tables.map((t) => t.rows)).toEqual([[[" 1 ", " 2 "]]]);
+});
 
 test("バックスラッシュが 2 つ続く `\\\\<!--` とバッククォートは、エスケープにならない", () => {
   expect(

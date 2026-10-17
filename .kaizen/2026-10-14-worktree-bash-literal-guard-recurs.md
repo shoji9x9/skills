@@ -127,6 +127,8 @@ PR #656 のレビューで出た指摘である。上の Hook の条件の細部
 
 ### 再発の記録（#679）
 
-2026-10-18、issue-batch の #679 の作業で、worktree に入った後の Bash の呼び出しが 3 回拒否された。
+2026-10-18、issue-batch の #679 の作業で、worktree に入った後の Bash の呼び出しが 5 回拒否された。
 python の quoted heredoc で置換スクリプトを渡した呼び出し、`cat >>` の heredoc で追記してから `sed -i` と `sed -n` を `&&` でつないだ呼び出し、再インストールと `git status` を `;` でつないだ呼び出しである。
+kaizen のチェックが示した解消のコマンド（共有ツリー側の `kaizen-extract-done.sh` を `; echo` でつないだもの）と、`cd <worktree> &&` で始めた `git commit` も拒否された。
+前者は worktree の中のコピーを絶対パスで、後者は `git commit` を単独で実行して通した。
 どれも、Write ツールでスクリプトにして絶対パスで実行するか、`git` の操作を単独の呼び出しに分けて通した。

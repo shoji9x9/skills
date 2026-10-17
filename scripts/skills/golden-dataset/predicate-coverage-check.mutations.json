@@ -289,12 +289,13 @@
       "id": "fence-content-read",
       "why": "コードフェンスの中の表と見出しを、設計の表として読む",
       "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
-      "find": "    if (step.marker || fence !== null) {",
+      "find": "    if (fenced[i]) {",
       "replace": "    if (false) {",
       "occurrences": 1,
       "expect_failing": [
         "コードフェンスの中の表と見出しを読まない",
-        "情報文字列の付いた行でフェンスを閉じず、フェンスの中の表を読まない"
+        "情報文字列の付いた行でフェンスを閉じず、フェンスの中の表を読まない",
+        "誤検知しないことの確認: フェンスの中の `<!--` はコメントを開かず、フェンスの後ろのフェンスの中の表を読まない"
       ]
     },
     {
@@ -305,6 +306,28 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": ["行頭のインラインのコード（```x```）ではフェンスを開かず、後ろの表を読む"]
+    },
+    {
+      "id": "fence-opened-inside-comment",
+      "why": "閉じない HTML コメントの中のフェンス行でフェンスを開き、コメントの後ろの表を読まない（PR #696 のレビュー）",
+      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
+      "find": "    if (comment) {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "HTML コメントの中のフェンス行でフェンスを開かず、コメントの後ろの表を読む"
+      ]
+    },
+    {
+      "id": "comment-opened-inside-fence",
+      "why": "フェンスの中の `<!--` で HTML コメントを開き、後ろのフェンスを読まない",
+      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
+      "find": "    if (!inFence && /^ {0,3}<!--/u.test(line)) {",
+      "replace": "    if (/^ {0,3}<!--/u.test(line)) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "誤検知しないことの確認: フェンスの中の `<!--` はコメントを開かず、フェンスの後ろのフェンスの中の表を読まない"
+      ]
     }
   ]
 }
