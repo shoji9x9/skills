@@ -124,3 +124,9 @@ PR #656 のレビューで出た指摘である。上の Hook の条件の細部
 - 区切りを `;`・`&&` だけにすると、#616 の `curl -o` と `||` を含む拒否や、`for` ループ・パイプ・改行でつないだ形を拾えない。#631・#616・#655 のすべての拒否に条件を当てる。
 - `;`・`&&` と `node`・`bash` の起動の組は、ハーネスが通す正当な複合コマンド（定数の引数だけの `pnpm exec vitest run a.test.ts && node scripts/x.ts` など）にも当たる。ハーネスの拒否の理由（`computed at runtime`・`inside a construct too complex`）に対応する形に絞り、誤検知しないことを確かめる例を挙げる。
 - 新しい Hook を書かず、Bash の呼び出しをセグメントに分けて判定する既存の PreToolUse の Hook（`scripts/hooks/bash-command-guard.sh`）に足せるかを先に確かめる。
+
+### 再発の記録（#679）
+
+2026-10-18、issue-batch の #679 の作業で、worktree に入った後の Bash の呼び出しが 3 回拒否された。
+python の quoted heredoc で置換スクリプトを渡した呼び出し、`cat >>` の heredoc で追記してから `sed -i` と `sed -n` を `&&` でつないだ呼び出し、再インストールと `git status` を `;` でつないだ呼び出しである。
+どれも、Write ツールでスクリプトにして絶対パスで実行するか、`git` の操作を単独の呼び出しに分けて通した。

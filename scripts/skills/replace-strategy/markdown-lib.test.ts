@@ -7,7 +7,7 @@
 import { expect, test } from "vitest";
 import { readAssetLedger } from "../../../skills/replace-strategy/scripts/asset-delivery-check.mjs";
 import { readRow } from "../../../skills/replace-strategy/scripts/evidence-gap-check.mjs";
-import { parseTables } from "../../../skills/replace-strategy/scripts/lib/markdown.mjs";
+import { parseTables, stepFence } from "../../../skills/replace-strategy/scripts/lib/markdown.mjs";
 import { readProcedureLedger } from "../../../skills/replace-strategy/scripts/procedure-staleness-check.mjs";
 
 const lines = (...xs: string[]) => [...xs, ""].join("\n");
@@ -258,6 +258,132 @@ test("HTML ブロックを閉じる行は、`-->` の後ろもブロックに入
 });
 
 const norm = (text: string) => cells(text).map((r) => r.map((c) => c.replace(/\s+/gu, " ")));
+
+// フェンスの開閉（Issue #679）。閉じる行は、開いた記号と同じ文字で同じ長さ以上の記号の後ろが空白だけの行（CommonMark）。
+test.each<[string, string | null, string | undefined, { fence: string | null; marker: boolean }]>([
+  ["開いていない・``` で開く", null, "```", { fence: "```", marker: true }],
+  ["開いていない・情報文字列付きで開く", null, "```bash", { fence: "```", marker: true }],
+  ["開いていない・~~~ で開く", null, "~~~", { fence: "~~~", marker: true }],
+  [
+    "開いていない・情報文字列にバッククォートを含む ``` は開かない",
+    null,
+    "```x``` はインラインのコード",
+    { fence: null, marker: false },
+  ],
+  [
+    "開いていない・情報文字列にバッククォートを含む ~~~ は開く",
+    null,
+    "~~~ `x`",
+    { fence: "~~~", marker: true },
+  ],
+  ["開いていない・字下げ 4 文字は開かない", null, "    ```", { fence: null, marker: false }],
+  ["開いていない・行が無い", null, undefined, { fence: null, marker: false }],
+  ["開いている・同じ記号で閉じる", "```", "```", { fence: null, marker: true }],
+  ["開いている・情報文字列付きの行では閉じない", "```", "```bash", { fence: "```", marker: false }],
+  [
+    "開いている・~~~ の情報文字列付きの行では閉じない",
+    "~~~",
+    "~~~ text",
+    { fence: "~~~", marker: false },
+  ],
+  ["開いている・後ろの空白とタブは閉じる", "```", "```  \t", { fence: null, marker: true }],
+  ["開いている・長い記号で閉じる", "```", "`````", { fence: null, marker: true }],
+  ["開いている・短い記号では閉じない", "````", "```", { fence: "````", marker: false }],
+  ["開いている・別の文字では閉じない", "```", "~~~", { fence: "```", marker: false }],
+  ["開いている・字下げ 3 文字は閉じる", "```", "   ```", { fence: null, marker: true }],
+  ["開いている・字下げ 4 文字は閉じない", "```", "    ```", { fence: "```", marker: false }],
+  ["開いている・行が無い", "```", undefined, { fence: "```", marker: false }],
+])("stepFence: %s", (_name, fence, line, expected) => {
+  expect(stepFence(fence, line)).toEqual(expected);
+});
+
+test("情報文字列の付いた行でフェンスを閉じず、フェンスの中の表と HTML コメントを読まない", () => {
+  const { tables } = parseTables(
+    lines(
+      "```",
+      "```bash",
+      "<!--",
+      "| c | d |",
+      "|---|---|",
+      "| 3 | 4 |",
+      "```",
+      "",
+      "| a | b |",
+      "|---|---|",
+      "| 1 | 2 |",
+    ),
+  );
+  expect(tables.map((t) => t.rows)).toEqual([[[" 1 ", " 2 "]]]);
+});
+
+test.each([
+  [
+    "asset-delivery-check",
+    () =>
+      readAssetLedger(
+        lines(
+          "```",
+          "```bash",
+          ASSET,
+          "|---|---|---|",
+          COPY("旧"),
+          "```",
+          "",
+          ASSET,
+          "|---|---|---|",
+          COPY("新"),
+        ),
+      ).copyRows.map((r) => r.kind),
+    ["新"],
+  ],
+  [
+    "evidence-gap-check",
+    () =>
+      readRow(
+        lines(
+          "```",
+          "```bash",
+          FEATURE,
+          D6,
+          PLAN("GET /b"),
+          "```",
+          "",
+          FEATURE,
+          D6,
+          PLAN("GET /a"),
+        ),
+        "plan",
+      ).endpoints,
+    ["GET /a"],
+  ],
+  [
+    "procedure-staleness-check",
+    () =>
+      procedureIds(
+        lines(
+          "```",
+          "```bash",
+          CHANGE,
+          D6,
+          PC("PC-002"),
+          "```",
+          "",
+          CHANGE,
+          D6,
+          PC("PC-001"),
+          "",
+          RECORD,
+          D6,
+        ),
+      ),
+    ["PC-001"],
+  ],
+])(
+  "%s: 情報文字列の付いた行でフェンスを閉じず、フェンスの中の表を読まない",
+  (_name, read, expected) => {
+    expect(read()).toEqual(expected);
+  },
+);
 
 test("バックスラッシュが 2 つ続く `\\\\<!--` とバッククォートは、エスケープにならない", () => {
   expect(

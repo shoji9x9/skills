@@ -28,6 +28,7 @@
 import { readFileSync, realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { stepFence } from "./lib/fence.mjs";
 import { isArray } from "./lib/is-array.mjs";
 
 /**
@@ -35,7 +36,7 @@ import { isArray } from "./lib/is-array.mjs";
  *
  * @type {string}
  */
-export const VERSION = "3";
+export const VERSION = "4";
 
 /**
  * 役割の語彙（原本）。
@@ -90,6 +91,7 @@ export function normalizeCell(cell) {
  * Markdown のパイプ表を見出しごとに集める。
  *
  * 行頭が `|` の連続した塊のうち、2 行目が区切り行（`---`）であるものだけを表として扱う。
+ * コードフェンスの中は例示なので、表も見出しも読まない（フェンスの判定は lib/fence.mjs）。
  *
  * @param {string} markdown
  * @returns {{ heading: string, headers: string[], rows: string[][], line: number }[]}
@@ -130,8 +132,16 @@ export function parseTables(markdown) {
   };
   /** @param {string} line */
   const isSeparator = (line) => /^\s*\|?[\s:|-]+\|[\s:|-]*$/.test(line) && line.includes("-");
+  /** @type {string | null} */
+  let fence = null;
   while (i < lines.length) {
     const line = lines[i];
+    const step = stepFence(fence, line);
+    fence = step.fence;
+    if (step.marker || fence !== null) {
+      i += 1;
+      continue;
+    }
     const headingMatch = /^#{1,6}\s+(.+?)\s*$/.exec(line);
     if (headingMatch) {
       heading = normalizeCell(headingMatch[1]);

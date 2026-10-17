@@ -45,10 +45,13 @@
       "id": "comments-blanked-inside-fence",
       "why": "フェンスの中の `<!--` もコメントとして扱い、以降の表を消す",
       "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "    if (fence !== null) return line;\n",
-      "replace": "",
+      "find": "    if (step.marker || fence !== null) return line;\n",
+      "replace": "    if (step.marker) return line;\n",
       "occurrences": 1,
-      "expect_failing": ["誤検知しないことの確認: フェンスの中の `<!--` は、以降の表を消さない"]
+      "expect_failing": [
+        "誤検知しないことの確認: フェンスの中の `<!--` は、以降の表を消さない",
+        "情報文字列の付いた行でフェンスを閉じず、フェンスの中の表と HTML コメントを読まない"
+      ]
     },
     {
       "id": "fence-opened-inside-comment",
@@ -267,6 +270,104 @@
       "expect_failing": [
         "バックスラッシュが 2 つ続く `\\\\<!--` とバッククォートは、エスケープにならない"
       ]
+    },
+    {
+      "id": "fence-closed-by-info-string",
+      "why": "閉じるフェンスの後ろに情報文字列を許し、` ```bash ` の行で開いているフェンスを閉じる（Issue #679）",
+      "file": "skills/replace-strategy/scripts/lib/fence.mjs",
+      "find": "/^ {0,3}(`{3,}|~{3,})[ \\t]*$/u",
+      "replace": "/^ {0,3}(`{3,}|~{3,})/u",
+      "occurrences": 1,
+      "expect_failing": [
+        "stepFence: 開いている・情報文字列付きの行では閉じない",
+        "stepFence: 開いている・~~~ の情報文字列付きの行では閉じない",
+        "情報文字列の付いた行でフェンスを閉じず、フェンスの中の表と HTML コメントを読まない",
+        "asset-delivery-check: 情報文字列の付いた行でフェンスを閉じず、フェンスの中の表を読まない",
+        "evidence-gap-check: 情報文字列の付いた行でフェンスを閉じず、フェンスの中の表を読まない",
+        "procedure-staleness-check: 情報文字列の付いた行でフェンスを閉じず、フェンスの中の表を読まない"
+      ]
+    },
+    {
+      "id": "fence-close-without-tab",
+      "why": "閉じるフェンスの後ろのタブを空白として扱わず、フェンスを閉じない",
+      "file": "skills/replace-strategy/scripts/lib/fence.mjs",
+      "find": "/^ {0,3}(`{3,}|~{3,})[ \\t]*$/u",
+      "replace": "/^ {0,3}(`{3,}|~{3,}) *$/u",
+      "occurrences": 1,
+      "expect_failing": ["stepFence: 開いている・後ろの空白とタブは閉じる"]
+    },
+    {
+      "id": "fence-close-without-indent",
+      "why": "字下げした閉じるフェンス（3 文字まで）で閉じない",
+      "file": "skills/replace-strategy/scripts/lib/fence.mjs",
+      "find": "/^ {0,3}(`{3,}|~{3,})[ \\t]*$/u",
+      "replace": "/^(`{3,}|~{3,})[ \\t]*$/u",
+      "occurrences": 1,
+      "expect_failing": ["stepFence: 開いている・字下げ 3 文字は閉じる"]
+    },
+    {
+      "id": "fence-closed-by-other-char",
+      "why": "開いた記号と別の文字（``` に対する ~~~）でフェンスを閉じる",
+      "file": "skills/replace-strategy/scripts/lib/fence.mjs",
+      "find": "match[1][0] === fence[0] && ",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["stepFence: 開いている・別の文字では閉じない"]
+    },
+    {
+      "id": "fence-closed-by-shorter",
+      "why": "開いた記号より短い記号でフェンスを閉じる",
+      "file": "skills/replace-strategy/scripts/lib/fence.mjs",
+      "find": "match[1].length >= fence.length",
+      "replace": "true",
+      "occurrences": 1,
+      "expect_failing": ["stepFence: 開いている・短い記号では閉じない"]
+    },
+    {
+      "id": "fence-close-not-marked",
+      "why": "閉じるフェンスの行を、フェンスの記号の行として返さない",
+      "file": "skills/replace-strategy/scripts/lib/fence.mjs",
+      "find": "marker: closes",
+      "replace": "marker: false",
+      "occurrences": 1,
+      "expect_failing": [
+        "stepFence: 開いている・同じ記号で閉じる",
+        "stepFence: 開いている・後ろの空白とタブは閉じる",
+        "stepFence: 開いている・長い記号で閉じる",
+        "stepFence: 開いている・字下げ 3 文字は閉じる"
+      ]
+    },
+    {
+      "id": "fence-open-not-marked",
+      "why": "開くフェンスの行を、フェンスの記号の行として返さない",
+      "file": "skills/replace-strategy/scripts/lib/fence.mjs",
+      "find": "marker: opened !== null",
+      "replace": "marker: false",
+      "occurrences": 1,
+      "expect_failing": [
+        "stepFence: 開いていない・``` で開く",
+        "stepFence: 開いていない・情報文字列付きで開く",
+        "stepFence: 開いていない・~~~ で開く",
+        "stepFence: 開いていない・情報文字列にバッククォートを含む ~~~ は開く"
+      ]
+    },
+    {
+      "id": "fence-opened-by-backtick-info",
+      "why": "情報文字列にバッククォートを含む ``` の行（行頭のインラインのコード）でフェンスを開く",
+      "file": "skills/replace-strategy/scripts/lib/fence.mjs",
+      "find": "  if (match[1][0] === \"`\" && match[2].includes(\"`\")) return null;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["stepFence: 開いていない・情報文字列にバッククォートを含む ``` は開かない"]
+    },
+    {
+      "id": "fence-tilde-info-backtick-rejected",
+      "why": "~~~ の情報文字列のバッククォートも拒み、~~~ で開くフェンスを開かない",
+      "file": "skills/replace-strategy/scripts/lib/fence.mjs",
+      "find": "  if (match[1][0] === \"`\" && match[2].includes(\"`\")) return null;\n",
+      "replace": "  if (match[2].includes(\"`\")) return null;\n",
+      "occurrences": 1,
+      "expect_failing": ["stepFence: 開いていない・情報文字列にバッククォートを含む ~~~ は開く"]
     }
   ]
 }

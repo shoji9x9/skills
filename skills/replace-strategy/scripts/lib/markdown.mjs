@@ -1,5 +1,7 @@
 // Markdown の表とコードフェンスを読む helper。このスキルの台帳の表を読むスクリプトが共通に使う。
 
+import { fenceOf, stepFence } from "./fence.mjs";
+
 /**
  * 空白を 1 つに畳み、前後を除く（Markdown の表はフォーマッタが桁を詰め直すため素の比較では揺れる）。
  * @param {string} value
@@ -7,17 +9,6 @@
  */
 function collapse(value) {
   return String(value).replace(/\s+/gu, " ").trim();
-}
-
-/**
- * コードフェンスの開始／終了記号を返す（フェンス行でなければ null）。
- * @param {string | undefined} line
- * @returns {string | null}
- */
-function fenceOf(line) {
-  if (line === undefined) return null;
-  const match = /^ {0,3}(`{3,}|~{3,})/u.exec(line);
-  return match === null ? null : match[1];
 }
 
 /**
@@ -159,13 +150,9 @@ function blankComments(lines) {
       if (line.includes("-->")) block = false;
       return " ".repeat(line.length);
     }
-    const mark = fenceOf(line);
-    if (mark !== null) {
-      if (fence === null) fence = mark;
-      else if (mark[0] === fence[0] && mark.length >= fence.length) fence = null;
-      return line;
-    }
-    if (fence !== null) return line;
+    const step = stepFence(fence, line);
+    fence = step.fence;
+    if (step.marker || fence !== null) return line;
     if (opensHtmlBlock(line)) {
       block = !line.includes("-->");
       return " ".repeat(line.length);
@@ -204,13 +191,9 @@ function parseTables(text, options = {}) {
   /** @type {string | null} */
   let fence = null;
   for (let i = 0; i < lines.length; i += 1) {
-    const mark = fenceOf(lines[i]);
-    if (mark !== null) {
-      if (fence === null) fence = mark;
-      else if (mark[0] === fence[0] && mark.length >= fence.length) fence = null;
-      continue;
-    }
-    if (fence !== null) continue;
+    const step = stepFence(fence, lines[i]);
+    fence = step.fence;
+    if (step.marker || fence !== null) continue;
     const header = splitRow(lines[i]);
     if (header === null) continue;
     const delimiter = splitRow(lines[i + 1]);
@@ -245,4 +228,4 @@ function parseTables(text, options = {}) {
   return { tables, strayRows };
 }
 
-export { blankComments, opensHtmlBlock, collapse, fenceOf, parseTables, splitRow };
+export { blankComments, opensHtmlBlock, collapse, fenceOf, parseTables, splitRow, stepFence };

@@ -67,6 +67,13 @@
     },
     {
       "files": [
+        "skills/replace-strategy/scripts/lib/fence.mjs",
+        "skills/golden-dataset/scripts/lib/fence.mjs"
+      ],
+      "reason": "Markdown のコードフェンスの開閉の判定。replace-strategy の台帳と golden-dataset の設計書を同じ規則で読む。片方だけを直すと、同じ文書のフェンスの中の表を片方のスキルだけが読む"
+    },
+    {
+      "files": [
         "skills/parity-suite/scripts/lib/is-array.mjs",
         "skills/parity-suite/scripts/trait-compare.mjs",
         "skills/parity-suite/scripts/header-normalize.mjs"

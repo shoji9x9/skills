@@ -275,6 +275,36 @@
       "replace": "export const PREDICATE_TABLE_HEADINGS = [\"述語ごとの分岐網羅\"];",
       "occurrences": 1,
       "expect_failing": ["述語の表は新しい見出しでも改名する前の見出しでも同じに読む"]
+    },
+    {
+      "id": "fence-closed-by-info-string",
+      "why": "閉じるフェンスの後ろに情報文字列を許し、` ```bash ` の行で開いているフェンスを閉じる（Issue #679）",
+      "file": "skills/golden-dataset/scripts/lib/fence.mjs",
+      "find": "/^ {0,3}(`{3,}|~{3,})[ \\t]*$/u",
+      "replace": "/^ {0,3}(`{3,}|~{3,})/u",
+      "occurrences": 1,
+      "expect_failing": ["情報文字列の付いた行でフェンスを閉じず、フェンスの中の表を読まない"]
+    },
+    {
+      "id": "fence-content-read",
+      "why": "コードフェンスの中の表と見出しを、設計の表として読む",
+      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
+      "find": "    if (step.marker || fence !== null) {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "コードフェンスの中の表と見出しを読まない",
+        "情報文字列の付いた行でフェンスを閉じず、フェンスの中の表を読まない"
+      ]
+    },
+    {
+      "id": "fence-opened-by-backtick-info",
+      "why": "情報文字列にバッククォートを含む ``` の行（行頭のインラインのコード）でフェンスを開き、後ろの表を読まない",
+      "file": "skills/golden-dataset/scripts/lib/fence.mjs",
+      "find": "  if (match[1][0] === \"`\" && match[2].includes(\"`\")) return null;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["行頭のインラインのコード（```x```）ではフェンスを開かず、後ろの表を読む"]
     }
   ]
 }

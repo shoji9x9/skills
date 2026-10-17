@@ -355,11 +355,12 @@
       "id": "markers-in-fence-rejected",
       "why": "コードフェンスの中の例示まで HTML コメントの記号として落とす",
       "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
-      "find": "    if (fence !== null) return;\n    if (opens === 0 && closes === 0) return;\n",
-      "replace": "    if (opens === 0 && closes === 0) return;\n",
+      "find": "    if (step.marker || fence !== null) return;\n    if (opens === 0 && closes === 0) return;\n",
+      "replace": "    if (step.marker) return;\n    if (opens === 0 && closes === 0) return;\n",
       "occurrences": 1,
       "expect_failing": [
-        "誤検知しないことの確認: 扱える位置の HTML コメントは通す: コードフェンスの中の記号"
+        "誤検知しないことの確認: 扱える位置の HTML コメントは通す: コードフェンスの中の記号",
+        "情報文字列の付いた行でフェンスを閉じず、フェンスの中の HTML コメントの記号を落とさない"
       ]
     },
     {
@@ -441,6 +442,18 @@
       "replace": "  return /^ *<!--/u.test(line);",
       "occurrences": 1,
       "expect_failing": ["4 文字以上字下げした `<!--` は、扱える位置の HTML コメントの記号にしない"]
+    },
+    {
+      "id": "fence-closed-by-info-string",
+      "why": "閉じるフェンスの後ろに情報文字列を許し、` ```bash ` の行で開いているフェンスを閉じる（Issue #679）",
+      "file": "skills/replace-strategy/scripts/lib/fence.mjs",
+      "find": "/^ {0,3}(`{3,}|~{3,})[ \\t]*$/u",
+      "replace": "/^ {0,3}(`{3,}|~{3,})/u",
+      "occurrences": 1,
+      "expect_failing": [
+        "情報文字列の付いた行でフェンスを閉じず、フェンスの中の表の行を数えない",
+        "情報文字列の付いた行でフェンスを閉じず、フェンスの中の HTML コメントの記号を落とさない"
+      ]
     }
   ]
 }

@@ -36,7 +36,7 @@ import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 import {
   blankComments,
   collapse,
-  fenceOf,
+  stepFence,
   opensHtmlBlock,
   parseTables,
   splitRow,
@@ -46,7 +46,7 @@ import {
  * ツールのバージョン（このファイルで定義する）。判定の規則や出力の形を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "2";
+export const VERSION = "3";
 
 /** 成果物の mode の語彙（parity-suite の metadata.json の mode）。 */
 export const MODES = ["feature", "api-resource", "batch"];
@@ -227,13 +227,10 @@ export function countRowLikeLines(text, consumed = new Set()) {
   let count = 0;
   // HTML コメント（テンプレートの記入例・説明）は表ではない。parseTables と同じ blankComments で空白にしてから数える。
   blankComments(text.split(/\r?\n/u)).forEach((line, index) => {
-    const mark = fenceOf(line);
-    if (mark !== null) {
-      if (fence === null) fence = mark;
-      else if (mark[0] === fence[0] && mark.length >= fence.length) fence = null;
-      return;
-    }
-    if (fence === null && !consumed.has(index) && looksLikeTableRow(line)) count += 1;
+    const step = stepFence(fence, line);
+    fence = step.fence;
+    if (step.marker || fence !== null) return;
+    if (!consumed.has(index) && looksLikeTableRow(line)) count += 1;
   });
   return count;
 }
@@ -263,13 +260,9 @@ export function strayCommentMarkers(text) {
       comment = false;
       return;
     }
-    const mark = fenceOf(line);
-    if (mark !== null) {
-      if (fence === null) fence = mark;
-      else if (mark[0] === fence[0] && mark.length >= fence.length) fence = null;
-      return;
-    }
-    if (fence !== null) return;
+    const step = stepFence(fence, line);
+    fence = step.fence;
+    if (step.marker || fence !== null) return;
     if (opens === 0 && closes === 0) return;
     if (!opensHtmlBlock(line) || opens > 1 || closes > 1) {
       lines.push(index + 1);
