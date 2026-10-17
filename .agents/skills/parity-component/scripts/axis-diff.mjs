@@ -342,8 +342,9 @@ export function diffAxes(manifest) {
   // 採取ツールのプロパティ集合（`--baseline` では metadata.json の `capture.tools.traits_property_set`）。
   // 渡されたときだけ、計算後スタイルと擬似要素のキーがこの集合と一致することを求める。
   // 集合そのものが不正なら突き合わせの根拠にならないので、照合を警告なしに飛ばさず問題にする。
+  /** @type {Set<string> | null} */
   let propertySet = null;
-  /** @type {(p: unknown) => p is string} 空でなく、前後に空白の無い文字列か。 */
+  /** @type {(p: unknown) => p is string & { readonly __isPropertyName: true }} 空でなく、前後に空白の無い文字列か。 */
   const isPropertyName = (p) => typeof p === "string" && p !== "" && p.trim() === p;
   if (isObjectLike(manifest) && manifest.property_set !== undefined) {
     const declared = manifest.property_set;

@@ -13,6 +13,8 @@ export function errorCodeOrMessage(error: unknown): string {
 }
 
 /** Node のシステムエラー（`code` を持つ Error）か。`error.code === "ENOENT"` などを読む前に確かめる。 */
-export function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
+export function isErrnoException(
+  error: unknown,
+): error is NodeJS.ErrnoException & { readonly __isErrnoException: true } {
   return error instanceof Error && "code" in error;
 }

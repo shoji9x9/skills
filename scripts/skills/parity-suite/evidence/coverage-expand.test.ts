@@ -324,7 +324,7 @@ function resolveVisualStates(
 }
 
 /** filter(Boolean) と同じく null と空文字を除き、型も string に絞る。 */
-function isNonEmpty(value: string | null): value is string {
+function isNonEmpty(value: string | null): value is string & { readonly __isNonEmpty: true } {
   return Boolean(value);
 }
 

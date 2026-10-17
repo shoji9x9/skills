@@ -9,7 +9,7 @@ import { isArray } from "./is-array.mjs";
 /**
  * 空でない文字列か（空白だけの文字列は空として扱う）。
  * @param {unknown} v
- * @returns {v is string}
+ * @returns {v is string & { readonly __nonEmptyString: true }}
  */
 function nonEmptyString(v) {
   return typeof v === "string" && v.trim() !== "";
@@ -29,7 +29,7 @@ function isPlaceholder(value) {
 /**
  * 人が記入すべき欄が記入済みか（空でなく、テンプレートのプレースホルダのままでもない）。
  * @param {unknown} value
- * @returns {value is string}
+ * @returns {value is string & { readonly __filled: true }}
  */
 function filled(value) {
   return nonEmptyString(value) && !isPlaceholder(value);
@@ -38,7 +38,7 @@ function filled(value) {
 /**
  * 有限の数か（Number.isFinite は数でない値に false を返すので、typeof は型を絞るためだけにある）。
  * @param {unknown} v
- * @returns {v is number}
+ * @returns {v is number & { readonly __isFiniteNumber: true }}
  */
 function isFiniteNumber(v) {
   return typeof v === "number" && Number.isFinite(v);
@@ -78,7 +78,7 @@ function field(value, key) {
 /**
  * パスの 1 セグメントとして安全か（`../` で baseline の外を読ませない）。
  * @param {unknown} value
- * @returns {value is string}
+ * @returns {value is string & { readonly __safeSegment: true }}
  */
 function safeSegment(value) {
   return (

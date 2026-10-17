@@ -170,7 +170,12 @@ pre-commit:
             # （.mjs・チェック自身・その設定・include の型の宣言 types/・依存の版を決める package.json と pnpm-lock.yaml）。
             # （Program の作成と型の解決に約 2 秒かかる）。
             glob: "{*.mjs,*check-jsdoc-types.ts,tsconfig.skills.json,tsconfig.base.json,types/*.ts,package.json,pnpm-lock.yaml}"
-            run: node scripts/gates/code/check-jsdoc-types.ts
+            run: node scripts/gates/types/check-jsdoc-types.ts
+          - name: type-guard-brands
+            # 絞る型の値にも false を返す型ガード（空文字を除く `v is string` など）を、ブランド型に絞らせる。
+            # 型チェッカーを作るので約 4 秒かかる。JavaScript・TypeScript が staged のときだけ実行する。
+            glob: "{scripts,skills,.agents}/**/*.{mjs,ts}"
+            run: node scripts/gates/types/check-type-guard-brands.ts
           - name: kaizen-refs
             # .kaizen/ の学びへの参照の実在。参照される側（.kaizen/ の archive への移動）で
             # 参照する側のリンクが切れるので、path glob で絞らず毎コミット全走査する。

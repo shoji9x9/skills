@@ -148,7 +148,7 @@ export function readRevisions(doc) {
       return;
     }
     // MODES は文字列だけなので、typeof は型を絞るためだけにある（判定は変わらない）。
-    /** @type {(mode: unknown) => mode is string} */
+    /** @type {(mode: unknown) => mode is string & { readonly __isMode: true }} */
     const isMode = (mode) => typeof mode === "string" && MODES.includes(mode);
     const modes = affects.filter(isMode);
     const unknown = affects.filter((mode) => !isMode(mode));

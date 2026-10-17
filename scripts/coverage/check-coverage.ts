@@ -49,7 +49,7 @@ export function kindOf(file: string): Kind | null {
   return null;
 }
 
-function isPercent(value: unknown): value is number {
+function isPercent(value: unknown): value is number & { readonly __isPercent: true } {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 100;
 }
 

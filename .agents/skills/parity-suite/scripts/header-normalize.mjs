@@ -131,7 +131,7 @@ function isPlainObject(v) {
 /**
  * 空でない文字列か（空白だけの文字列は空として扱う）。
  * @param {unknown} v
- * @returns {v is string}
+ * @returns {v is string & { readonly __nonEmptyString: true }}
  */
 function nonEmptyString(v) {
   return typeof v === "string" && v.trim() !== "";

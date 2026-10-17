@@ -73,7 +73,7 @@ export const ID_SEPARATOR = "#";
  * 例えば、ビューポート `v#scroll:x` の below-fold と、ビューポート `v` のスクロール領域 `x#below-fold` は、
  * どちらも `p|s|v#scroll:x#below-fold` になる。
  * @param {unknown} value
- * @returns {value is string}
+ * @returns {value is string & { readonly __idPartIsSafe: true }}
  */
 export function idPartIsSafe(value) {
   return (
@@ -126,7 +126,7 @@ function displayAxisLists(da) {
  * 語彙（文字列の一覧）のどれかと一致する文字列か。
  * @param {readonly string[]} list
  * @param {unknown} value
- * @returns {value is string}
+ * @returns {value is string & { readonly __isOneOf: true }}
  */
 function isOneOf(list, value) {
   return typeof value === "string" && list.includes(value);
@@ -459,7 +459,7 @@ export const VIEWPORT_AXIS = "viewport";
  * 軸の名前・値として使えるか。組の鍵と抜けの id に入る label の材料にはしないが、
  * 宣言の突き合わせで `名前=値` の形に並べるので、`=` と `,` も弾く。
  * @param {unknown} value
- * @returns {value is string}
+ * @returns {value is string & { readonly __axisPartIsSafe: true }}
  */
 function axisPartIsSafe(value) {
   return idPartIsSafe(value) && !String(value).includes("=") && !String(value).includes(",");
@@ -1302,7 +1302,7 @@ export function checkOverflow(conditions) {
       // 100% と 100vh が両側とも vertical: true になり見分けられない。スイートは量を比べる
       /**
        * @param {unknown} v
-       * @returns {v is number}
+       * @returns {v is number & { readonly __extentOk: true }}
        */
       const extentOk = (v) => isInteger(v) && v >= 0;
       if (!extentOk(w.overflow_x_px) || !extentOk(w.overflow_y_px)) {

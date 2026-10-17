@@ -58,7 +58,7 @@ class UsageError extends Error {}
 /**
  * x / y / width / height がすべて有限数の矩形か。読むのは PROPERTIES の軸だけなので、値は数として扱う。
  * @param {unknown} v
- * @returns {v is Record<string, number>}
+ * @returns {v is Record<string, number> & { readonly __isFiniteRect: true }}
  */
 function isFiniteRect(v) {
   return isPlainObject(v) && PROPERTIES.every((p) => isFiniteNumber(v[p]));
@@ -72,7 +72,7 @@ function isFiniteRect(v) {
 /**
  * fits の 1 件の形か。
  * @param {unknown} f
- * @returns {f is FitRecord}
+ * @returns {f is FitRecord & { readonly __isFitRecord: true }}
  */
 function isFitRecord(f) {
   return (

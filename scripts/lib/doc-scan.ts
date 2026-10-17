@@ -123,7 +123,7 @@ export function loadPending(root: string): PendingList {
 function hasNonEmptyStrings<K extends string>(
   e: unknown,
   keys: readonly K[],
-): e is Record<K, string> {
+): e is Record<K, string> & { readonly __hasNonEmptyStrings: true } {
   return (
     isRecord(e) &&
     keys.every((k) => {

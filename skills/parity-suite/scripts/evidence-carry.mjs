@@ -207,7 +207,7 @@ function checkGeometry(entry, change, instances, fromProject, readBytes) {
 function checkVerdict(entry) {
   /**
    * @param {unknown} v
-   * @returns {v is number}
+   * @returns {v is number & { readonly __count: true }}
    */
   const count = (v) => typeof v === "number" && Number.isInteger(v) && v >= 0;
   if (entry.outside_identical !== true || entry.outside_diff_pixels !== 0) {

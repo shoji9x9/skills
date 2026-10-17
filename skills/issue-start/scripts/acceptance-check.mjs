@@ -72,7 +72,7 @@ export const RESULT_MARKER = "<!-- issue-start:acceptance -->";
 /**
  * 空でない文字列か。
  * @param {unknown} value
- * @returns {value is string}
+ * @returns {value is string & { readonly __nonEmptyString: true }}
  */
 function nonEmptyString(value) {
   return typeof value === "string" && value.trim() !== "";

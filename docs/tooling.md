@@ -57,7 +57,8 @@ GitHub Actions は、`actionlint` で構文を、`ghalint` で `permissions`・`
 | `layout/check-dir-file-count.ts` | 各ディレクトリの直下のファイル数。閾値（デフォルトは 20）を変えるディレクトリと対象外のディレクトリは、理由を付けて `scripts/gates/layout/dir-file-count.json` に書く。書いたディレクトリが実在しないとき、理由が空のとき、判定に使われない設定（`descendants` の対象外の下に書いた設定、デフォルトと同じ閾値、件数がデフォルトの閾値以下に減ったディレクトリの、閾値を上げた例外）を書いたときも失敗にする |
 | `code/check-js-extensions.ts` | JavaScript の拡張子（「JavaScript の拡張子」の節） |
 | `code/check-skill-lint-directives.ts` | 配布スキルの、このリポジトリの lint の設定を前提にした抑止コメント（`.agents/rules/distributed-skill-stack-independence.md`）と、`Array.isArray` の禁止をファイル単位で外したファイル（`scripts/lib/is-array-holders.ts`）の、型ガードの外の呼び出し |
-| `code/check-jsdoc-types.ts` | 配布スキルの `.mjs` で、型の検査を外す JSDoc の書き方（「JavaScript の拡張子」の節） |
+| `types/check-jsdoc-types.ts` | 配布スキルの `.mjs` で、型の検査を外す JSDoc の書き方（「型の検査」の節） |
+| `types/check-type-guard-brands.ts` | 絞る型の値にも false を返す型ガードが、ブランド型に絞っているか（「型の検査」の節） |
 | `packaging/check-skill-frontmatter.ts` | `SKILL.md` の frontmatter |
 | `code/lint-pagination.ts` | `gh api` などの一覧の取得のページネーション |
 | `docs/check-kaizen-refs.ts` | `.kaizen/` の学びへの参照の実在。意図して実在しないものは `scripts/gates/docs/kaizen-refs-exemptions.json` に書く |
@@ -285,7 +286,21 @@ import できない雛形（`skills/*/assets/*.template.ts`）とミューテー
 スキルをまたいでは共通化しない。同じ内容であるべきコピーは、`isArray` と同じく `check-identical-copies.ts` の組に登録する。
 スキルの中の重複を検出するチェックは無いので、これは規約である（一致を確かめるのは、登録したコピーの組だけである）。
 
-配布スキルの `.mjs` では、型の検査を外す JSDoc の書き方を `scripts/gates/code/check-jsdoc-types.ts` が失敗にする。
+一部の値にだけ true を返す型ガード（空文字や空白を除く文字列・有限の数など）は、絞る型をブランド型にする。
+`v is string` と書くと、false の側から `string` が取り除かれ、実際には来る `""` や `"  "` が型の上で消える。
+`v is string & { readonly __<関数名>: true }` と書けば、false の側には元の型が残る。true の側の値は `string` の一種なので、`string` を受け取る関数にそのまま渡せる。
+配列の型ガードは、要素ではなく配列にブランドを付ける（`v is string[] & { readonly __<関数名>: true }`）。要素にブランドを付けると、その要素を `string` の配列の `includes` に渡せなくなる。
+要素の型ガードを `.every` に渡して絞った配列は、要素がブランド型になる。この配列を検査していない `string` と比べるときは、`includes` の代わりに `some((x) => x === y)` を使うか、`/** @type {Set<string>} */` の注釈で受けた `Set` で比べる。
+判定が型と一致する型ガード（`typeof` だけのもの、`isArray`）と、false の側が無いもの（`asserts`）は、ブランド型にしない。
+呼び出しの引数に直接渡す関数（`filter`・`every` のコールバックなど）も、false の側を使うかを呼び出し先が決めるので、ブランド型にしなくてよい。
+絞る型がプリミティブとその配列の型ガードは、`scripts/gates/types/check-type-guard-brands.ts` がこの規約を pre-commit と CI でチェックする。
+チェックは型述語と絞る型を TypeScript の型チェッカーで読むので、注釈・JSDoc・オーバーロード・型の別名のどこに書いた型述語も対象になる。
+対象のファイルは `scripts/` と `skills/` と private skill の `.ts`・`.mjs` で、`types/` とリポジトリの直下のファイルは対象にしない。
+呼び出しの引数に渡した関数（関数をそのまま返すラッパーで包んだ型ガードを含む）と、ブランド型と他の型を並べた union も、チェックは対象にしない。書いた人とレビューする人が確かめる。
+オブジェクトの形の型ガードは、判定が型と一致するかを構文から決められないので、書いた人とレビューする人が確かめる。
+`isArray(v) && v.every(isS)` のように、配列の要素の判定に関数を名前で渡す型ガードは、判定が型と一致していてもチェックが違反にする。要素の判定はアロー関数（`(x) => typeof x === "string"`）で書く。
+
+配布スキルの `.mjs` では、型の検査を外す JSDoc の書き方を `scripts/gates/types/check-jsdoc-types.ts` が失敗にする。
 失敗にするのは、型の表明 `/** @type {X} */ (v)`（TypeScript の `as` と同じ）と、`@ts-ignore`・`@ts-expect-error`・`@ts-nocheck` である。
 JSDoc の型の `any`・`*`・`?`・`Function` と、型引数の無い `Object` も失敗にする。
 型引数を省くとデフォルトの `any` が入る型（`Generator`・`Iterable`・`IteratorResult`・`ReadableStream` など）は、`any` が入らない数まで型引数を書かせる。

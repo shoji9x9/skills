@@ -68,7 +68,7 @@ export function isRecord(v) {
 
 /**
  * @param {unknown} v
- * @returns {v is number}
+ * @returns {v is number & { readonly __isNonNegative: true }}
  */
 function isNonNegative(v) {
   return typeof v === "number" && Number.isFinite(v) && v >= 0;

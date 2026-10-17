@@ -193,7 +193,7 @@ export function checkEvalFile(
         violations.push(`${at}: assertion が空`);
         continue;
       }
-      if (!assertions.includes(assertion)) {
+      if (!assertions.some((a) => a === assertion)) {
         violations.push(`${at}: assertion が assertions に実在しない（テキストが一致しない）`);
         continue;
       }

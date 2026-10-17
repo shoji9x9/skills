@@ -52,7 +52,8 @@ const ENTRY_KEYS = new Set([
   "notes",
 ]);
 
-const isTextArray = (v: unknown): v is string[] => isArray(v) && v.length > 0 && v.every(isText);
+const isTextArray = (v: unknown): v is string[] & { readonly __isTextArray: true } =>
+  isArray(v) && v.length > 0 && v.every(isText);
 
 /** real が base（実パス）の中か。 */
 const isInside = (base: string, real: string): boolean =>

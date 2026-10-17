@@ -159,11 +159,11 @@ export function installSampler({ selector, settleMs, timeoutMs, epsilon, maxSamp
     );
   };
   /**
-   * 読めなかったフレームか（error が真の値か）。
+   * 読めなかったフレームか（error が文字列か）。MotionReading の error は undefined なので、判定は型と一致する。
    * @param {MotionReading | { error: string }} reading
    * @returns {reading is { error: string }}
    */
-  const failed = (reading) => Boolean(reading.error);
+  const failed = (reading) => typeof reading.error === "string";
   /** @type {MotionProbeState} */
   const state = {
     done: false,
@@ -219,7 +219,7 @@ export function installSampler({ selector, settleMs, timeoutMs, epsilon, maxSamp
   step();
   // 最初の採取で失敗した（不正なセレクタ・操作の前から複数に当たる）なら、操作を起こす前に返す。
   // ok: true を返すと呼び出し側が trigger を実行し、失敗が報告される前にクリック・送信・遷移が現行へ届く。
-  if (state.error) return { ok: false, error: state.error };
+  if (typeof state.error === "string") return { ok: false, error: state.error };
   return { ok: true };
 }
 
@@ -313,7 +313,8 @@ export async function probeMotion(page, options) {
   await page.waitForFunction(samplerDone, undefined, { timeout: timeoutMs + 5000, polling: 50 });
   const result = await page.evaluate(readSampler);
   if (!result) throw new Error("motion probe: sampler state disappeared (the page navigated?)");
-  if (result.error) throw new Error(`motion probe: ${result.error} (${selector})`);
+  if (typeof result.error === "string")
+    throw new Error(`motion probe: ${result.error} (${selector})`);
   return {
     probe_version: VERSION,
     selector,

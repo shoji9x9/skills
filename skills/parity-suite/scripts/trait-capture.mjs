@@ -624,7 +624,7 @@ function captureElement(
   // 当てて行の断片を 1 つ作る（実測: 同じ書体の <button> の Range と幅・高さが一致した）。
   /**
    * @param {Node} node
-   * @returns {node is HTMLInputElement}
+   * @returns {node is HTMLInputElement & { readonly __isButtonInput: true }}
    */
   const isButtonInput = (node) =>
     isElementNode(node) &&

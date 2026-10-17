@@ -262,7 +262,9 @@ function resolveInstances(change, componentMetadata) {
     );
     return { resolved, problems };
   }
-  const unknownStates = stringList(change.states).filter((st) => !captureStates.includes(st));
+  const unknownStates = stringList(change.states).filter(
+    (st) => !captureStates.some((c) => c === st),
+  );
   if (unknownStates.length > 0) {
     problems.push(
       `変更宣言の states に部品 metadata の capture.states（${captureStates.join(", ")}）に無い状態がある: ${unknownStates.join(", ")}`,

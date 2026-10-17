@@ -16,11 +16,15 @@ export function isPlainObject(value: unknown): value is Record<string, unknown> 
 }
 
 /** 空でない文字列か（空白だけの文字列は通す）。 */
-export function isNonEmptyString(value: unknown): value is string {
+export function isNonEmptyString(
+  value: unknown,
+): value is string & { readonly __isNonEmptyString: true } {
   return typeof value === "string" && value !== "";
 }
 
 /** 空白だけでない文字列か。 */
-export function isNonBlankString(value: unknown): value is string {
+export function isNonBlankString(
+  value: unknown,
+): value is string & { readonly __isNonBlankString: true } {
   return typeof value === "string" && value.trim() !== "";
 }
