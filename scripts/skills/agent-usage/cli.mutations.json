@@ -29,8 +29,7 @@
       "expect_failing": [
         "agent-usage のコマンドと Hook 判断の無い feature ブランチのコミットを止め、記録しないと決めたら通す。デフォルトブランチでは止めない",
         "agent-usage のコマンドの入力と状態 origin/HEAD のデフォルトブランチでは、main 以外の名前でもコミットを止めない",
-        "agent-usage のコマンドと Hook リポジトリの defaultDecision: record で人の設定が無ければ、人の ID を作って記録し、作ったことを知らせる。デフォルトブランチの status は対象外と出す",
-        "agent-usage のコマンドの入力と状態 status は、セットアップの有無・ブランチ・判断・人の設定を表示する"
+        "agent-usage のコマンドと Hook リポジトリの defaultDecision: record で人の設定が無ければ、人の ID を作って記録し、作ったことを知らせる。デフォルトブランチの status は対象外と出す"
       ]
     },
     {
@@ -763,6 +762,17 @@
       ]
     },
     {
+      "id": "user-decline-not-preferred",
+      "why": "人の設定の record だけを優先し、人の decline よりリポジトリの record に従う",
+      "file": "skills/agent-usage/scripts/lib/config.mjs",
+      "find": "  if (user !== null && user.defaultDecision !== undefined)",
+      "replace": "  if (user !== null && user.defaultDecision === \"record\")",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook 判断の無いブランチでは、defaultDecision に従って止めずに通す。人の設定がリポジトリの設定より優先する"
+      ]
+    },
+    {
       "id": "repo-default-unread",
       "why": "リポジトリの設定の defaultDecision を読まない",
       "file": "skills/agent-usage/scripts/lib/config.mjs",
@@ -805,8 +815,7 @@
       "replace": "  if (false)",
       "occurrences": 1,
       "expect_failing": [
-        "agent-usage のコマンドと Hook リポジトリの defaultDecision: record で人の設定が無ければ、人の ID を作って記録し、作ったことを知らせる。デフォルトブランチの status は対象外と出す",
-        "agent-usage のコマンドの入力と状態 status は、セットアップの有無・ブランチ・判断・人の設定を表示する"
+        "agent-usage のコマンドと Hook リポジトリの defaultDecision: record で人の設定が無ければ、人の ID を作って記録し、作ったことを知らせる。デフォルトブランチの status は対象外と出す"
       ]
     },
     {
@@ -850,7 +859,8 @@
       "replace": "  if (false) return \"対象外",
       "occurrences": 1,
       "expect_failing": [
-        "agent-usage のコマンドと Hook setup 前は Hook が何もせず通し、collect はセットアップを求めて失敗する"
+        "agent-usage のコマンドと Hook setup 前は Hook が何もせず通し、collect はセットアップを求めて失敗する",
+        "agent-usage のコマンドの入力と状態 status は、セットアップの有無・ブランチ・判断・人の設定を表示する"
       ]
     },
     {

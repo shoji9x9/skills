@@ -13,7 +13,8 @@ node <このスキル>/scripts/agent-usage.mjs setup --time-zone Asia/Tokyo
 - 後から同じ人だと分かった ID は、リポジトリの設定の `aliases` でまとめる（下の「リポジトリの設定」）
 - タイムゾーンを省くと、マシンのタイムゾーンを使う。日別の集計の日付と、時刻ごとの停止の時間はこのタイムゾーンで切る
 - `--billing user` を付けると、collect が個人のプランの premium request の実額（GitHub の課金 API）も記録する（[`reviews.md`](reviews.md)）
-- setup が作った人の設定に `"defaultDecision": "record"`（または `"decline"`）を手で書き足すと、判断の無いブランチのコミットを止めずに、その値に従う。リポジトリの設定の同じキーより優先する。setup を実行し直しても、この値は残る
+- setup が作った人の設定に `"defaultDecision": "record"`（または `"decline"`）を手で書き足すと、コミットの前の確認の Hook は、判断の無いブランチのコミットを止めずに、その値に従う。
+  人の設定の値は、リポジトリの設定の同じキーより優先する。setup を実行し直しても、この値は残る
 
 setup はリポジトリに `.agent-usage/config.json`（空の設定）と `.agent-usage/records/` を作る。`.agent-usage/` があることが、このリポジトリでスキルを使う印になる（Hook は無いリポジトリでは何もしない）。
 
@@ -103,7 +104,8 @@ GitHub は `linguist-generated` の付いたファイルを、PR の差分で最
 ## 3. 動作を確かめる
 
 1. `agent-usage status` で、セットアップ済みであることと、人の ID を確かめる
-2. feature ブランチで、何も変えずに `git commit --allow-empty -m test` を試し、Hook が止めて確認を求めることを確かめる（止まらなければ、Hook の設定か Codex の信頼を見直す）
+2. feature ブランチで、何も変えずに `git commit --allow-empty -m test` を試し、Hook が止めて確認を求めることを確かめる（止まらなければ、Hook の設定か Codex の信頼を見直す）。
+   人の設定かリポジトリの設定に `defaultDecision` があると、Hook は止めずにその値に従い、従った設定のパスを出す。そのときは、この出力が出ることを確かめる
 3. `agent-usage decline` を実行し、同じコミットが通ることを確かめてから、試しのコミットを取り消すか残すかを利用者に確かめる
 
 ## リポジトリの設定（`.agent-usage/config.json`）

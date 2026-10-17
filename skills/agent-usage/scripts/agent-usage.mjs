@@ -105,15 +105,15 @@ function printCollect(r) {
 /**
  * status に出すブランチの判断。判断が無ければ、コミットの前の確認が従う defaultDecision と、その出所を添える。
  * 設定を読めなくても、status の他の行は出したいので、理由を文字列にして返す。
- * 対象のブランチの判定（isDecisionBranch）と見る順（ブランチの判断、defaultDecisionOf）は、gate.mjs の gateDecision と同じにする。
+ * 見る順（.agent-usage/ の有無、対象のブランチか、ブランチの判断、defaultDecisionOf）は、gate.mjs の gateDecision と同じにする。
  * @param {import("./lib/repo.mjs").RepoInfo} repo
  * @param {boolean} set
  * @returns {string}
  */
 function branchDecisionText(repo, set) {
-  if (!isDecisionBranch(repo))
-    return "対象外（デフォルトブランチでは、コミットの前の確認は記録しない）";
   if (!set) return "対象外（.agent-usage/ が無いので、コミットの前の確認は何もしない）";
+  if (!isDecisionBranch(repo))
+    return "対象外（デフォルトブランチなので、コミットの前の確認は何もしない）";
   try {
     const decided = decisionFor(repo.commonDir, repo.branch);
     if (decided !== null) return decided;

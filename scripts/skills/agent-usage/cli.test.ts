@@ -272,6 +272,15 @@ describe("agent-usage のコマンドと Hook", () => {
     git("reset", "-q");
     expect(gate("git commit -m x").status).toBe(0);
     expect(staged()).toBe("");
+
+    // 反対の組み合わせ: 人の設定の decline が、リポジトリの設定の record より優先する
+    git("switch", "-q", "-c", "feature/6-y");
+    writeFileSync(repoConfig, JSON.stringify({ defaultDecision: "record" }));
+    writeFileSync(userConfig, JSON.stringify({ ...user, defaultDecision: "decline" }));
+    const userDeclined = gate("git commit -m x");
+    expect(userDeclined.status).toBe(0);
+    expect(userDeclined.stderr).toContain(`${userConfig} の defaultDecision: decline`);
+    expect(staged()).toBe("");
   });
 
   test("リポジトリの defaultDecision: record で人の設定が無ければ、人の ID を作って記録し、作ったことを知らせる。デフォルトブランチの status は対象外と出す", () => {
@@ -1522,8 +1531,8 @@ describe("agent-usage のコマンドの入力と状態", () => {
     expect(before.status).toBe(0);
     expect(before.stdout).toMatch(/^セットアップ: 未（.*\.agent-usage）$/m);
     expect(before.stdout).toMatch(/^ブランチ: main \/ デフォルトブランチ: \(不明\)$/m);
-    // main はデフォルトブランチなので、コミットの前の確認は判断しない
-    expect(before.stdout).toMatch(/^このブランチの判断: 対象外（デフォルトブランチ/m);
+    // setup の前なので、デフォルトブランチかより先に、.agent-usage/ が無いことを理由に出す（Hook と同じ順）
+    expect(before.stdout).toMatch(/^このブランチの判断: 対象外（\.agent-usage\/ が無い/m);
     expect(before.stdout).toMatch(/^人の設定: \(無い\)$/m);
     expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
     // origin/HEAD があれば、それをデフォルトブランチとして表示する

@@ -3,7 +3,7 @@
 // 判断が無くても、人かリポジトリの設定に defaultDecision があれば、止めずにその判断として扱う（ブランチの判断は保存しない）。
 //
 // 止めない場合: git commit でない・git のリポジトリでない・.agent-usage/ が無い（このリポジトリでは使っていない）・
-//               detached HEAD・デフォルトブランチ・判断が「記録しない」。
+//               detached HEAD・デフォルトブランチ・判断が「記録しない」・判断が無く defaultDecision がある。
 // デフォルトブランチが分からない（origin/HEAD が無い）ときは、main と master をデフォルトブランチとして扱う。
 
 import { existsSync } from "node:fs";
