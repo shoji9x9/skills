@@ -97,6 +97,12 @@ python の heredoc の 1 回は、本文の文字列に `git` の語があった
 2026-10-17、#606 の作業で、python の quoted heredoc に `git` の語や `gh` の引数を含めた呼び出しと、`&&` でつないだ `git commit` と `grep` が、10 回以上拒否された。
 どれも、処理を Write ツールでスクリプトにして絶対パスで実行するか、git の操作を単独の呼び出しに分けて通した。#669 に続き、7 つ目のセッションでの再発である。
 
+2026-10-18、issue-batch の #662 の作業で、worktree に入った後の Bash の呼び出しが 2 回拒否された。
+1 回目は、`for` ループの中で変数 `q` を `gh api` の引数に渡し、GitHub の検索を 2 回実行する処理である（`runs gh with a value computed at runtime (the variable q)`）。
+2 回目は、python の quoted heredoc で mutations.json に追記し、続けて `oxfmt`・`vitest`・`grep` を `;` でつないだ処理である（`this command is too complex to verify`）。
+どちらも、単独の呼び出しに分けるか、Write ツールでスクリプトにして絶対パスで実行する形に直して通した。
+1 回目は `git` の語を含まず、`gh` に実行時の値を渡しただけで拒否された。提案の Hook の条件には、`gh` に変数の引数を渡す形も含める。8 つ目のセッションでの再発である。
+
 ## 根本原因
 
 1. なぜ拒否されたか → 隔離セッションのガードは字面で判定し、本文・引数・パスに `git` を含む複合コマンドや heredoc を拒否する。
