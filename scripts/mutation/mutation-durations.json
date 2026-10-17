@@ -12,7 +12,7 @@
     "scripts/gates/packaging/copies/check-identical-copies.mutations.json": 0.5,
     "scripts/gates/code/check-js-extensions.mutations.json": 1.0,
     "scripts/gates/types/check-jsdoc-types.mutations.json": 6.7,
-    "scripts/gates/types/check-type-guard-brands.mutations.json": 19.4,
+    "scripts/gates/types/check-type-guard-brands.mutations.json": 29.6,
     "scripts/gates/code/check-skill-lint-directives.mutations.json": 4.8,
     "scripts/gates/docs/check-kaizen-refs.mutations.json": 1.6,
     "scripts/gates/layout/check-dir-file-count.mutations.json": 1.0,

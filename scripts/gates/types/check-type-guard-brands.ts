@@ -5,19 +5,23 @@
 // `string & { readonly __<名前>: true }` のブランド型にして、false の側に元の型を残す。
 //
 // 対象にする型ガードは、絞る型がプリミティブ（string・number・bigint・boolean）と null・undefined と、
-// それらの配列だけで組み立てた型のものである。オブジェクトの形の型ガードは、判定が型と一致するかを
-// 構文から決められないので対象にしない（レビューで確かめる）。
+// それらの配列（`T[]`・`readonly T[]`・`Array<T>`・`ReadonlyArray<T>`）だけで組み立てた型のものである。
+// オブジェクトの形の型ガードは、判定が型と一致するかを構文から決められないので対象にしない（レビューで確かめる）。
 // ブランド型（`string & { readonly __<名前>: true }`）は交差の型なので、この対象に入らない。
-// 判定が型と一致する本体は、次の式を && と || と括弧で組み合わせたものだけとする。
-//   - `typeof x === "<型>"`（`!==` も）
-//   - `x === null`・`x === undefined`（`!==` も）
-//   - `isArray(x)`・`Array.isArray(x)`
-//   - `x.every((e) => <同じ形の式>)`
-// これ以外の条件（`x !== ""`・`x.trim()`・`Number.isFinite(x)`・他の関数の呼び出し）を持つ本体は、
-// 絞る型の値にも false を返しうるので、ブランド型でなければ違反にする。
-// 次の 2 つは false の側が無いので対象にしない。`asserts x is T` と、`filter`・`find`・`findLast` に直接渡すコールバックである。
+// 判定が型と一致するかは、本体が true を返す値の種類の集合と、絞る型の種類の集合が一致するかで決める。
+// 本体の種類を求められるのは、次の式を || と括弧で組み合わせたものだけである。
+//   - `typeof x === "<型>"`（string・number・bigint・boolean・undefined）
+//   - `x === null`・`x === undefined`
+//   - `isArray(x) && x.every((e) => <同じ形の式>)`（`Array.isArray` も）
+// これ以外の条件（`x !== ""`・`x.trim()`・`Number.isFinite(x)`・否定・他の関数の呼び出し）を持つ本体と、
+// 種類の集合が絞る型と違う本体（`v is number | null` なのに null に false を返すなど）は、ブランド型でなければ違反にする。
+// 次のものは対象にしない。false の側が無い `asserts x is T` と、`filter`・`find`・`findLast` に渡すコールバック。
+// 本体の無い関数の形（関数の型・オーバーロードの宣言・引数の型）は、型ガードの実装ではないので対象にしない。
+// 型述語は、戻り値の型、JSDoc の `@returns`、置いた先（変数・オブジェクトの欄・代入）の注釈から読む。
+// 置いた先の注釈は、TypeScript の型と JSDoc の `@type` の両方を読む。
+// 型の別名（`type G = ...`・`@typedef`）を通した型述語は、別名を解決しないので読まない。
 // 対象のファイルは、scripts/ と skills/ の .ts・.mjs と、private skill の .ts・.mjs である。
-// 構文は TypeScript のパーサで読む。JSDoc の `@returns {x is T}` と `@type {(x: unknown) => x is T}` も読む。
+// 構文は TypeScript のパーサで読む。
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -25,27 +29,56 @@ import ts from "typescript";
 import { listFiles, privateSkillNames, repoRoot } from "../code/check-js-extensions.ts";
 import { errorMessage } from "../../lib/errors.ts";
 
-const PRIMITIVE_KINDS = new Set([
-  ts.SyntaxKind.StringKeyword,
-  ts.SyntaxKind.NumberKeyword,
-  ts.SyntaxKind.BigIntKeyword,
-  ts.SyntaxKind.BooleanKeyword,
-  ts.SyntaxKind.UndefinedKeyword,
+const KEYWORD_KINDS = new Map([
+  [ts.SyntaxKind.StringKeyword, "string"],
+  [ts.SyntaxKind.NumberKeyword, "number"],
+  [ts.SyntaxKind.BigIntKeyword, "bigint"],
+  [ts.SyntaxKind.BooleanKeyword, "boolean"],
+  [ts.SyntaxKind.UndefinedKeyword, "undefined"],
 ]);
 const TYPEOF_NAMES = new Set(["string", "number", "bigint", "boolean", "undefined"]);
+const ARRAY_NAMES = new Set(["Array", "ReadonlyArray"]);
 const NO_FALSE_SIDE_METHODS = new Set(["filter", "find", "findLast"]);
 
-/** 絞る型がプリミティブと null・undefined と、それらの配列だけで組み立てた型か。 */
-function isPrimitiveTarget(node: ts.TypeNode): boolean {
-  if (PRIMITIVE_KINDS.has(node.kind)) return true;
-  if (ts.isLiteralTypeNode(node)) return node.literal.kind === ts.SyntaxKind.NullKeyword;
-  if (ts.isParenthesizedTypeNode(node)) return isPrimitiveTarget(node.type);
-  if (ts.isArrayTypeNode(node)) return isPrimitiveTarget(node.elementType);
-  if (ts.isTypeOperatorNode(node) && node.operator === ts.SyntaxKind.ReadonlyKeyword) {
-    return isPrimitiveTarget(node.type);
+/** 要素の種類の集合から、配列の種類の名前を作る（要素の順序に依らない）。 */
+function arrayKind(inner: ReadonlySet<string>): string {
+  return `array<${[...inner].sort().join("|")}>`;
+}
+
+function union(parts: (Set<string> | null)[]): Set<string> | null {
+  const out = new Set<string>();
+  for (const p of parts) {
+    if (p === null) return null;
+    for (const x of p) out.add(x);
   }
-  if (ts.isUnionTypeNode(node)) return node.types.every(isPrimitiveTarget);
-  return false;
+  return out;
+}
+
+/** 絞る型の種類の集合。プリミティブと null・undefined と、それらの配列だけで組み立てた型でなければ null。 */
+function targetKinds(node: ts.TypeNode): Set<string> | null {
+  const keyword = KEYWORD_KINDS.get(node.kind);
+  if (keyword !== undefined) return new Set([keyword]);
+  if (ts.isLiteralTypeNode(node)) {
+    return node.literal.kind === ts.SyntaxKind.NullKeyword ? new Set(["null"]) : null;
+  }
+  if (ts.isParenthesizedTypeNode(node)) return targetKinds(node.type);
+  if (ts.isTypeOperatorNode(node) && node.operator === ts.SyntaxKind.ReadonlyKeyword) {
+    return targetKinds(node.type);
+  }
+  if (ts.isUnionTypeNode(node)) return union(node.types.map(targetKinds));
+  let element: ts.TypeNode | undefined;
+  if (ts.isArrayTypeNode(node)) element = node.elementType;
+  else if (
+    ts.isTypeReferenceNode(node) &&
+    ts.isIdentifier(node.typeName) &&
+    ARRAY_NAMES.has(node.typeName.text) &&
+    node.typeArguments?.length === 1
+  ) {
+    element = node.typeArguments[0];
+  }
+  if (element === undefined) return null;
+  const inner = targetKinds(element);
+  return inner === null ? null : new Set([arrayKind(inner)]);
 }
 
 function unwrap(e: ts.Expression): ts.Expression {
@@ -57,58 +90,69 @@ function isParam(e: ts.Expression, name: string): boolean {
   return ts.isIdentifier(u) && u.text === name;
 }
 
-const EQUALITY = new Set([
-  ts.SyntaxKind.EqualsEqualsEqualsToken,
-  ts.SyntaxKind.ExclamationEqualsEqualsToken,
-]);
-
-/** 本体の式が、判定が型と一致する形だけで組み立てられているか。 */
-function isExactCheck(expr: ts.Expression, name: string): boolean {
-  const e = unwrap(expr);
-  if (ts.isBinaryExpression(e)) {
-    const op = e.operatorToken.kind;
-    if (op === ts.SyntaxKind.AmpersandAmpersandToken || op === ts.SyntaxKind.BarBarToken) {
-      return isExactCheck(e.left, name) && isExactCheck(e.right, name);
-    }
-    if (!EQUALITY.has(op)) return false;
-    const [a, b] = [unwrap(e.left), unwrap(e.right)];
-    for (const [x, y] of [
-      [a, b],
-      [b, a],
-    ]) {
-      if (ts.isTypeOfExpression(x) && isParam(x.expression, name)) {
-        return ts.isStringLiteral(y) && TYPEOF_NAMES.has(y.text);
-      }
-      if (isParam(x, name)) {
-        return (
-          y.kind === ts.SyntaxKind.NullKeyword || (ts.isIdentifier(y) && y.text === "undefined")
-        );
-      }
-    }
+/** `isArray(x)` か `Array.isArray(x)` か。 */
+function isArrayCall(e: ts.Expression, name: string): boolean {
+  const u = unwrap(e);
+  if (!ts.isCallExpression(u) || u.arguments.length !== 1 || !isParam(u.arguments[0], name)) {
     return false;
   }
-  if (ts.isCallExpression(e) && e.arguments.length === 1) {
-    const callee = e.expression;
-    const isArrayCall =
-      (ts.isIdentifier(callee) && callee.text === "isArray") ||
-      (ts.isPropertyAccessExpression(callee) &&
-        ts.isIdentifier(callee.expression) &&
-        callee.expression.text === "Array" &&
-        callee.name.text === "isArray");
-    if (isArrayCall) return isParam(e.arguments[0], name);
-    if (
-      ts.isPropertyAccessExpression(callee) &&
-      callee.name.text === "every" &&
-      isParam(callee.expression, name)
-    ) {
-      const cb = e.arguments[0];
-      if (!ts.isArrowFunction(cb) || cb.parameters.length !== 1) return false;
-      const p = cb.parameters[0].name;
-      const body = bodyExpression(cb);
-      return ts.isIdentifier(p) && body !== null && isExactCheck(body, p.text);
+  const callee = u.expression;
+  return (
+    (ts.isIdentifier(callee) && callee.text === "isArray") ||
+    (ts.isPropertyAccessExpression(callee) &&
+      ts.isIdentifier(callee.expression) &&
+      callee.expression.text === "Array" &&
+      callee.name.text === "isArray")
+  );
+}
+
+/** `x.every((e) => <式>)` の要素の種類の集合。この形でなければ null。 */
+function everyKinds(e: ts.Expression, name: string): Set<string> | null {
+  const u = unwrap(e);
+  if (!ts.isCallExpression(u) || u.arguments.length !== 1) return null;
+  const callee = u.expression;
+  if (!ts.isPropertyAccessExpression(callee) || callee.name.text !== "every") return null;
+  if (!isParam(callee.expression, name)) return null;
+  const cb = u.arguments[0];
+  if (!ts.isArrowFunction(cb) || cb.parameters.length !== 1) return null;
+  const p = cb.parameters[0].name;
+  const body = bodyExpression(cb);
+  return ts.isIdentifier(p) && body !== null ? acceptedKinds(body, p.text) : null;
+}
+
+/** 本体の式が true を返す値の種類の集合。求められない形なら null。 */
+function acceptedKinds(expr: ts.Expression, name: string): Set<string> | null {
+  const e = unwrap(expr);
+  if (!ts.isBinaryExpression(e)) return null;
+  const op = e.operatorToken.kind;
+  if (op === ts.SyntaxKind.BarBarToken) {
+    return union([acceptedKinds(e.left, name), acceptedKinds(e.right, name)]);
+  }
+  if (op === ts.SyntaxKind.AmpersandAmpersandToken) {
+    if (!isArrayCall(e.left, name)) return null;
+    const inner = everyKinds(e.right, name);
+    return inner === null ? null : new Set([arrayKind(inner)]);
+  }
+  if (op !== ts.SyntaxKind.EqualsEqualsEqualsToken) return null;
+  const [a, b] = [unwrap(e.left), unwrap(e.right)];
+  for (const [x, y] of [
+    [a, b],
+    [b, a],
+  ]) {
+    if (ts.isTypeOfExpression(x) && isParam(x.expression, name)) {
+      return ts.isStringLiteral(y) && TYPEOF_NAMES.has(y.text) ? new Set([y.text]) : null;
+    }
+    if (isParam(x, name)) {
+      if (y.kind === ts.SyntaxKind.NullKeyword) return new Set(["null"]);
+      if (ts.isIdentifier(y) && y.text === "undefined") return new Set(["undefined"]);
+      return null;
     }
   }
-  return false;
+  return null;
+}
+
+function sameSet(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
+  return a.size === b.size && [...a].every((x) => b.has(x));
 }
 
 /** 関数の本体を 1 つの式として取り出す。`return` 1 文だけのブロックも受ける。それ以外は null。 */
@@ -121,27 +165,53 @@ function bodyExpression(fn: ts.SignatureDeclaration): ts.Expression | null {
   return ts.isReturnStatement(only) && only.expression ? only.expression : null;
 }
 
-/** 関数の型述語。TypeScript の戻り値の型、JSDoc の @returns、変数の JSDoc の @type の順に探す。 */
+/** 関数の型の注釈から、型述語を取り出す。 */
+function predicateOfType(t: ts.TypeNode | undefined): ts.TypePredicateNode | undefined {
+  return t && ts.isFunctionTypeNode(t) && ts.isTypePredicateNode(t.type) ? t.type : undefined;
+}
+
+/** JSDoc の @type の型。代入の文に付いた JSDoc は ts.getJSDocType が読まないので、タグから読む。 */
+function jsDocTypeOf(node: ts.Node): ts.TypeNode | undefined {
+  const tag = ts.getJSDocTags(node).find(ts.isJSDocTypeTag);
+  return tag?.typeExpression.type;
+}
+
+/** 括弧を外側へたどった、関数を包む最も外側の式。 */
+function outer(fn: ts.Node): ts.Node {
+  let n = fn;
+  while (ts.isParenthesizedExpression(n.parent)) n = n.parent;
+  return n;
+}
+
+/** 関数の型述語。戻り値の型、JSDoc の @returns、置いた先（変数・オブジェクトの欄・代入）の注釈の順に探す。 */
 function predicateOf(fn: ts.SignatureDeclaration): ts.TypePredicateNode | undefined {
   if (fn.type && ts.isTypePredicateNode(fn.type)) return fn.type;
   const tag = ts.getJSDocReturnTag(fn);
   if (tag?.typeExpression && ts.isTypePredicateNode(tag.typeExpression.type)) {
     return tag.typeExpression.type;
   }
-  const decl = fn.parent;
-  if (ts.isVariableDeclaration(decl)) {
-    const t = ts.getJSDocType(decl);
-    if (t && ts.isFunctionTypeNode(t) && ts.isTypePredicateNode(t.type)) return t.type;
+  const holder = outer(fn).parent;
+  if (ts.isVariableDeclaration(holder) || ts.isPropertyDeclaration(holder)) {
+    return predicateOfType(holder.type) ?? predicateOfType(jsDocTypeOf(holder));
+  }
+  if (ts.isPropertyAssignment(holder)) return predicateOfType(jsDocTypeOf(holder));
+  if (
+    ts.isBinaryExpression(holder) &&
+    holder.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+    ts.isExpressionStatement(holder.parent)
+  ) {
+    return predicateOfType(jsDocTypeOf(holder.parent));
   }
   return undefined;
 }
 
-/** filter・find・findLast の引数に直接渡したコールバックか（false の側が無い）。 */
+/** filter・find・findLast の引数に渡したコールバックか（false の側が無い）。括弧で囲んでもよい。 */
 function isNoFalseSideCallback(fn: ts.Node): boolean {
-  const call = fn.parent;
+  const arg = outer(fn);
+  const call = arg.parent;
   return (
     ts.isCallExpression(call) &&
-    call.arguments.some((a) => a === fn) &&
+    call.arguments.some((a) => a === arg) &&
     ts.isPropertyAccessExpression(call.expression) &&
     NO_FALSE_SIDE_METHODS.has(call.expression.name.text)
   );
@@ -149,7 +219,10 @@ function isNoFalseSideCallback(fn: ts.Node): boolean {
 
 function nameOf(fn: ts.SignatureDeclaration): string {
   if (fn.name) return fn.name.getText();
-  if (ts.isVariableDeclaration(fn.parent)) return fn.parent.name.getText();
+  const holder = outer(fn).parent;
+  if (ts.isVariableDeclaration(holder) || ts.isPropertyAssignment(holder)) {
+    return holder.name.getText();
+  }
   return "(無名の関数)";
 }
 
@@ -159,21 +232,22 @@ export function findViolations(text: string, fileName: string): string[] {
   const sf = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true, kind);
   const out: string[] = [];
   const visit = (node: ts.Node) => {
-    if (ts.isFunctionLike(node)) {
+    if (ts.isFunctionLike(node) && "body" in node && node.body !== undefined) {
       const pred = predicateOf(node);
+      const target = pred?.type ? targetKinds(pred.type) : null;
       if (
         pred?.type &&
+        target !== null &&
         pred.assertsModifier === undefined &&
         ts.isIdentifier(pred.parameterName) &&
-        isPrimitiveTarget(pred.type) &&
         !isNoFalseSideCallback(node)
       ) {
         const body = bodyExpression(node);
-        if (body === null || !isExactCheck(body, pred.parameterName.text)) {
+        const accepted = body === null ? null : acceptedKinds(body, pred.parameterName.text);
+        if (accepted === null || !sameSet(accepted, target)) {
           const { line } = sf.getLineAndCharacterOfPosition(node.getStart(sf));
-          const target = pred.type.getText(sf);
           out.push(
-            `${line + 1}: ${nameOf(node)} は ${target} の値にも false を返しうるのに、ブランド型に絞っていない`,
+            `${line + 1}: ${nameOf(node)} は ${pred.type.getText(sf)} の値にも false を返しうるのに、ブランド型に絞っていない`,
           );
         }
       }

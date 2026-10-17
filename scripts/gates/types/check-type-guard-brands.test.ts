@@ -179,3 +179,58 @@ test("CLI: 対象のファイルが 0 件なら判定できないので exit 2",
   const r = runCli(root);
   expect(r.status).toBe(2);
 });
+
+test.each([
+  ["否定した typeof", 'function f(v: unknown): v is string { return typeof v !== "string"; }\n'],
+  [
+    "null を除く number | null",
+    'function f(v: unknown): v is number | null { return v !== null && typeof v === "number"; }\n',
+  ],
+  [
+    "null を受けない number | null",
+    'function f(v: unknown): v is number | null { return typeof v === "number"; }\n',
+  ],
+  [
+    "Array<string> の長さ",
+    "function f(v: unknown): v is Array<string> { return Array.isArray(v) && v.length > 0; }\n",
+  ],
+  [
+    "変数の型の注釈",
+    'const f: (v: unknown) => v is string = (v) => typeof v === "string" && v !== "";\n',
+  ],
+])("種類の集合が絞る型と違う本体を検出する: %s", (_name, text) => {
+  expect(ts(text)).toHaveLength(1);
+});
+
+test.each([
+  [
+    "オブジェクトの欄の @type",
+    'const o = {\n  /** @type {(v: unknown) => v is string} */\n  isX: (v) => typeof v === "string" && v !== "",\n};\n',
+  ],
+  [
+    "代入の @type",
+    'let g;\n/** @type {(v: unknown) => v is string} */\ng = (v) => typeof v === "string" && v !== "";\n',
+  ],
+])("置いた先の JSDoc の @type を読む: %s", (_name, text) => {
+  expect(mjs(text)).toHaveLength(1);
+});
+
+test.each([
+  ["型の別名", "type G = (v: unknown) => v is string;\n"],
+  ["引数の型", "function apply(g: (v: unknown) => v is string) { return g; }\n"],
+  ["本体の無い宣言", "declare function f(v: unknown): v is string;\n"],
+  [
+    "括弧で囲んだ filter のコールバック",
+    'xs.filter(((v): v is string => typeof v === "string" && v !== ""));\n',
+  ],
+  [
+    "Array<string> と every(typeof)",
+    'function f(v: unknown): v is Array<string> { return isArray(v) && v.every((x) => typeof x === "string"); }\n',
+  ],
+  [
+    "readonly string[] と every(typeof)",
+    'const f = (v: unknown): v is readonly string[] => isArray(v) && v.every((x) => typeof x === "string");\n',
+  ],
+])("本体の無い形と、判定が型と一致するものは検出しない: %s", (_name, text) => {
+  expect(ts(text)).toEqual([]);
+});

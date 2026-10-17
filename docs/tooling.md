@@ -57,7 +57,7 @@ GitHub Actions は、`actionlint` で構文を、`ghalint` で `permissions`・`
 | `layout/check-dir-file-count.ts` | 各ディレクトリの直下のファイル数。閾値（デフォルトは 20）を変えるディレクトリと対象外のディレクトリは、理由を付けて `scripts/gates/layout/dir-file-count.json` に書く。書いたディレクトリが実在しないとき、理由が空のとき、判定に使われない設定（`descendants` の対象外の下に書いた設定、デフォルトと同じ閾値、件数がデフォルトの閾値以下に減ったディレクトリの、閾値を上げた例外）を書いたときも失敗にする |
 | `code/check-js-extensions.ts` | JavaScript の拡張子（「JavaScript の拡張子」の節） |
 | `code/check-skill-lint-directives.ts` | 配布スキルの、このリポジトリの lint の設定を前提にした抑止コメント（`.agents/rules/distributed-skill-stack-independence.md`）と、`Array.isArray` の禁止をファイル単位で外したファイル（`scripts/lib/is-array-holders.ts`）の、型ガードの外の呼び出し |
-| `types/check-jsdoc-types.ts` | 配布スキルの `.mjs` で、型の検査を外す JSDoc の書き方（「JavaScript の拡張子」の節） |
+| `types/check-jsdoc-types.ts` | 配布スキルの `.mjs` で、型の検査を外す JSDoc の書き方（「型の検査」の節） |
 | `types/check-type-guard-brands.ts` | 絞る型の値にも false を返す型ガードが、ブランド型に絞っているか（「型の検査」の節） |
 | `packaging/check-skill-frontmatter.ts` | `SKILL.md` の frontmatter |
 | `code/lint-pagination.ts` | `gh api` などの一覧の取得のページネーション |
@@ -290,6 +290,7 @@ import できない雛形（`skills/*/assets/*.template.ts`）とミューテー
 `v is string` と書くと、false の側から `string` が取り除かれ、実際には来る `""` や `"  "` が型の上で消える。
 `v is string & { readonly __<関数名>: true }` と書けば、false の側には元の型が残る。true の側の値は `string` の一種なので、`string` を受け取る関数にそのまま渡せる。
 配列の型ガードは、要素ではなく配列にブランドを付ける（`v is string[] & { readonly __<関数名>: true }`）。要素にブランドを付けると、その要素を `string` の配列の `includes` に渡せなくなる。
+要素の型ガードを `.every` に渡して絞った配列は、要素がブランド型になる。この配列を検査していない `string` と比べるときは、`includes` の代わりに `some((x) => x === y)` を使うか、`/** @type {Set<string>} */` の注釈で受けた `Set` で比べる。
 判定が型と一致する型ガード（`typeof` だけのもの、`isArray`）と、false の側が無いもの（`asserts`、`filter` のコールバック）は、ブランド型にしない。
 絞る型がプリミティブとその配列の型ガードは、`scripts/gates/types/check-type-guard-brands.ts` がこの規約を pre-commit と CI でチェックする。
 オブジェクトの形の型ガードは、判定が型と一致するかを構文から決められないので、書いた人とレビューする人が確かめる。
