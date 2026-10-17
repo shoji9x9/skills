@@ -5,6 +5,13 @@ skills:
   common:
     conventions_doc: AGENTS.md # ブランチ運用・commit 規約を記したドキュメント
     review_tool: copilot # pr-review-handle / pr-finalize-loop の再レビュー依頼先。copilot | claude-code | codex | local | none
+  dependabot-alert-issue:
+    # pnpm-workspace.yaml の auditConfig.ignoreGhsas と同じ advisory を、Dependabot alerts でも却下する。
+    # 足すときと外すときは、ignoreGhsas と同じ変更で行う。
+    dismiss:
+      - ghsa: "GHSA-vfj7-8cjw-p6xm"
+        reason: "tolerable_risk"
+        comment: "影響を許容できると判断した理由は、https://github.com/shoji9x9/skills/issues/576 と pnpm-workspace.yaml の auditConfig.ignoreGhsas のコメントにある"
   dependabot-merge:
     merge_method: squash # squash | merge | rebase
   git-worktree:
