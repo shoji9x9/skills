@@ -73,6 +73,21 @@ Hook の条件は、`;`・`&&` と `node` や `bash` の起動の組まで広げ
 python の heredoc の 1 回は、本文の文字列に `git` の語があっただけで、git を実行しない置換だった。
 どれも Write ツールでスクリプトにして、絶対パスで実行する形に直して通した。この学びが注入されていて、前の日に同じ形で拒否されたことも文脈にあるのに、同じセッションの中で再び起きた。
 
+2026-10-17、#669 の作業（issue-start から git-worktree enter、pr-finalize-loop）で、worktree に入った後の Bash の呼び出しが 7 回拒否された。
+拒否された形は次のとおりである。
+
+- worktree に入った直後の準備。`git rev-parse`・`for` ループの `cp`・`git status`・`mise trust` を `;` でつないだ
+- 変更したファイルだけに pre-commit を当てる処理。`$( { git diff ...; git ls-files ...; } | sort -u )` のコマンド置換を含む
+- python の quoted heredoc の本文に `shell(git:*)` を含む置換
+- `reinstall-skill.sh`・`git add -A`・`lefthook run` を `;` でつないだ処理
+- `H=$(git rev-parse HEAD)` を含む受け入れ条件の検査
+- `sed` と `diff` を含む Issue の本文の準備（`this command is too complex to verify`）
+- kaizen の抽出で、`ls`・走査ツール・`kaizen-kedb-match.sh` を `;` でつないだ処理（この学びを照合する呼び出しそのもの）
+
+どれも、単独の呼び出しに分けるか、Write ツールでスクリプトにして `bash <絶対パス>` で実行する形に直して通した。
+この学びはセッション開始時に注入されていたが、拒否のたびに形を直し、次の複合コマンドでまた拒否された。
+同じ形は #631・#616・#655・#632・#669 の 5 つのセッションで続いており、文書では書き方が変わらないことの裏付けが増えた。
+
 ## 根本原因
 
 1. なぜ拒否されたか → 隔離セッションのガードは字面で判定し、本文・引数・パスに `git` を含む複合コマンドや heredoc を拒否する。
