@@ -21,3 +21,4 @@ scripts/eval/run-skill-eval.sh \
 - 外部 GitHub 状態より先の工程は、実操作ではなく dry-run の最終報告として 1 つのメッセージに収めさせる（`result.json` には最終アシスタントメッセージしか残らない）。
 - eval 23 の「条件を外す承認と #108 の見直しを、1 つの判断待ちにまとめる」は、`requires_skills` で入る `issue-start` の `references/acceptance.md` から読めるので、without_skill も pass する。Delta には寄与せず、issue-batch 側の取り決めが消えたり食い違ったりした後退を検出するために置く。
 - eval 25 の「兆候と根拠を添える」「manifest と最終報告に残す」「説明に留める」は、prompt の問い方から答えられるので without_skill も pass する。兆候の数え方と記録の項目が消えた後退を検出するために置く。
+- eval 26 の「#108 の外した理由に #107 を書く」「#109 を進める」「`--stop-on-blocked` でも止めない」は、prompt の問い方から答えられるので without_skill も pass する。依存元の理由の書き方と、preflight の `BLOCKED` で `continue_on_blocked` を使わない取り決めが消えた後退を検出するために置く。
