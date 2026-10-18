@@ -83,7 +83,7 @@ Issue のタイトルの規約（conventional commits に似た接頭辞など�
   node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mjs dump dependabot-alert-issue
   ```
 
-- 書くときは、読み取りの `set` と `append` を使う。既にあるキーは変えずに止まる（[`references/config-files.md`](references/config-files.md)「書き込みの決まり」）。
+- 書くときは、読み取りの `set` と `append` を使い、既にあるキー・値・コメントを変えずに足す（作成と追記は非破壊）。既にあるキーは変えずに止まる（[`references/config-files.md`](references/config-files.md)「書き込みの決まり」）。
   `dismiss` に 1 件足すなら、`append dependabot-alert-issue dismiss '<要素の JSON>' --layer repo --unique-by ghsa` のように、同じ advisory を重ねて足さない。
 - 設定が無くても動く。そのときは `ignore`・`dismiss`・`minimum_release_age_days` が無いものとして、open な alert をすべて Issue にする対象にする。
 

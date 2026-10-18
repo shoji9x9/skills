@@ -311,10 +311,11 @@ export function validateValue(value, schema, where) {
   if (isRecord(value)) {
     const props = isRecord(schema.properties) ? schema.properties : {};
     if (isStringArray(schema.required)) {
-      for (const r of schema.required) if (!(r in value)) errors.push(`${where}: ${r} が無い`);
+      for (const r of schema.required)
+        if (!Object.hasOwn(value, r)) errors.push(`${where}: ${r} が無い`);
     }
     for (const [k, v] of Object.entries(value)) {
-      if (k in props) errors.push(...validateValue(v, props[k], `${where}.${k}`));
+      if (Object.hasOwn(props, k)) errors.push(...validateValue(v, props[k], `${where}.${k}`));
       else if (schema.additionalProperties === false)
         errors.push(`${where}: 知らないキー ${JSON.stringify(k)}`);
       else if (isRecord(schema.additionalProperties))
@@ -409,7 +410,7 @@ export function readLayer(schema, layer, path) {
   const errors = [];
   for (const [key, v] of Object.entries(value)) {
     if (key === "$schema") continue;
-    const prop = schema.properties[key];
+    const prop = Object.hasOwn(schema.properties, key) ? schema.properties[key] : undefined;
     if (prop === undefined) {
       errors.push(
         `${path}: 知らないキー ${JSON.stringify(key)}（${schema.name} に置けるキー: ${Object.keys(schema.properties).join("・")}）`,
@@ -550,7 +551,7 @@ export function loadConfig(opts) {
     }
     const layer = FILE_LAYERS.find((l) => {
       const data = layers[l];
-      return data != null && key in data;
+      return data != null && Object.hasOwn(data, key);
     });
     const data = layer === undefined ? undefined : layers[layer];
     if (layer !== undefined && data != null) {
@@ -625,7 +626,7 @@ export function writeConfig(opts) {
   const top = opts.keyPath[0];
   if (typeof top !== "string")
     throw new ConfigError(`${opts.name}: キーのパスの最初は最上位のキーの名前にする`);
-  const prop = schema.properties[top];
+  const prop = Object.hasOwn(schema.properties, top) ? schema.properties[top] : undefined;
   if (prop === undefined)
     throw new ConfigError(`${opts.name} に ${JSON.stringify(top)} というキーは無い`);
   if (!prop.layers.includes(opts.layer)) {
@@ -857,7 +858,7 @@ function requireIgnored(root, path) {
 // ---------------------------------------------------------------------------
 // CLI
 
-const usage = `usage: skill-config.mjs get <name> <key> [--raw] [--cli-value <JSON>]
+const usage = `usage: skill-config.mjs get <name> <key-path> [--raw] [--cli-value <JSON>]
   skill-config.mjs dump <name>
   skill-config.mjs validate <name>
   skill-config.mjs paths <name>
@@ -930,26 +931,39 @@ export function main(argv, io) {
     switch (cmd) {
       case "get": {
         expectArgs(1);
-        const key = rest[0];
+        // 層は最上位のキーごとに選ぶ。入れ子のパスは、選んだ層の値の中をたどる。
+        const [key, ...inner] = parseKeyPath(rest[0]);
+        if (typeof key !== "string")
+          throw new UsageError(`キーのパス ${rest[0]} の最初が、キーの名前でない`);
         /** @type {Record<string, unknown>} */
         const cli = {};
-        if (typeof flags["--cli-value"] === "string")
+        if (typeof flags["--cli-value"] === "string") {
+          if (inner.length > 0) throw new UsageError("--cli-value は最上位のキーにだけ渡せる");
           cli[key] = parseJsonArg(flags["--cli-value"], "--cli-value");
+        }
         const schema = loadSchema(schemaDir, name);
-        if (!(key in schema.properties))
+        if (!Object.hasOwn(schema.properties, key))
           throw new ConfigError(`${name} に ${JSON.stringify(key)} というキーは無い`);
         const r = loadConfig({ ...base, cli })[key];
+        /** @type {unknown} */
+        let value = r?.value;
+        for (const part of inner) {
+          if (typeof part === "number" && isArray(value)) value = value[part];
+          else if (typeof part === "string" && isRecord(value) && Object.hasOwn(value, part))
+            value = value[part];
+          else value = undefined;
+        }
         if (flags["--raw"]) {
-          if (r === undefined) return 3;
-          io.out(`${typeof r.value === "string" ? r.value : JSON.stringify(r.value)}\n`);
+          if (r === undefined || value === undefined) return 3;
+          io.out(`${typeof value === "string" ? value : JSON.stringify(value)}\n`);
           return 0;
         }
-        if (r === undefined) {
+        if (r === undefined || value === undefined) {
           io.out(`source=unset\n`);
           return 3;
         }
         io.out(
-          `value=${JSON.stringify(r.value)}\nsource=${r.source}\n${r.path === null ? "" : `path=${r.path}\n`}`,
+          `value=${JSON.stringify(value)}\nsource=${r.source}\n${r.path === null ? "" : `path=${r.path}\n`}`,
         );
         return 0;
       }

@@ -220,7 +220,7 @@ rm -f "$body_file"
 
 ### マージ
 
-設定 `dependabot-merge` の `merge_method` に従う（デフォルトは `squash`）。値は同梱の読み取りで取得する。
+設定ファイル `.config/skills/shoji9x9/dependabot-merge.jsonc` の `merge_method` に従う（デフォルトは `squash`）。値は同梱の読み取りで取得する。
 
 ```bash
 node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mjs get dependabot-merge merge_method --raw

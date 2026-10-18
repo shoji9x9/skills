@@ -70,12 +70,15 @@ shoji9x9/skills の配布スキルは、設定を同じ置き場所・同じ形�
 
 ```bash
 CFG="<このスキルのディレクトリ>/scripts/skill-config/skill-config.mjs"
-node "$CFG" get <名前> <キー>            # value=<JSON> と source=<層> を出力する
-node "$CFG" get <名前> <キー> --raw      # 値だけを出力する（文字列はそのまま、それ以外は JSON）
+node "$CFG" get <名前> <キーのパス>      # value=<JSON> と source=<層> を出力する
+node "$CFG" get <名前> <キーのパス> --raw # 値だけを出力する（文字列はそのまま、それ以外は JSON）
 node "$CFG" dump <名前>                  # すべてのキーの値と出所を JSON で出力する
 node "$CFG" validate <名前>              # すべての層のファイルを検証する
 node "$CFG" paths <名前>                 # 3 つの層のファイルのパスを出力する
 ```
+
+`<キーのパス>` は、最上位のキーか、入れ子の値を指すパス（`current.origin`、配列の要素なら `targets.0`）である。数字だけの部分は配列の添字として読む。`.` を含むキーと数字だけのキーは、JSON の配列（`'["pricing","gpt-5.1"]'`）で書く。
+層は最上位のキーごとに選び、パスはその層の値の中をたどる。パスの先に値が無ければ、値が無いとき（exit 3）と同じに扱う。
 
 `source` は `cli`・`env`・`local`・`user`・`repo`・`default` のどれかで、ファイルの層なら `path=<ファイル>` も出力する。
 終了コードは、0 が成功、1 が設定の誤り（知らないキー・型の誤り・置けない層・旧い場所の設定）、2 が引数の誤り、3 が値が無い（どの層にも無く、デフォルトも無い）である。

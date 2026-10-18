@@ -366,6 +366,12 @@ describe.each(COPIES)("%s", (copy) => {
   describe("検証", () => {
     const cases: [string, string, RegExp][] = [
       ["知らないキー", '{ "tool": "a", "toool": "b" }', /知らないキー "toool"/],
+      ["継承した名前のキー", '{ "constructor": 1 }', /知らないキー "constructor"/],
+      [
+        "items の中の継承した名前",
+        '{ "list": [{ "id": "a", "toString": 1 }] }',
+        /list\[0\]: 知らないキー "toString"/,
+      ],
       ["enum の外", '{ "tool": "c" }', /"c" は "a"・"b" のどれでもない/],
       ["型の誤り", '{ "count": "3" }', /count: 型が "integer" でない（string）/],
       ["整数でない数", '{ "count": 1.5 }', /型が "integer" でない（number）/],
@@ -847,6 +853,46 @@ describe.each(COPIES)("%s", (copy) => {
         code: 3,
         out: "",
       });
+    });
+
+    test("get のキーのパスは、最上位のキーの値の中をたどり、たどれなければ exit 3", async () => {
+      const s = setup();
+      s.write(
+        "repo",
+        '{ "nested": { "inner": { "x": 1 } }, "list": [{ "id": "a" }], "map": { "k.1": 3 } }',
+      );
+      const args = ["--root", s.root, "--schema-dir", s.schemaDir];
+      expect(await cli(["get", "t", "nested.inner.x", ...args], s.env, s.root)).toEqual({
+        code: 0,
+        out: `value=1\nsource=repo\npath=${s.paths.repo}\n`,
+        err: "",
+      });
+      expect(await cli(["get", "t", "list.0.id", ...args, "--raw"], s.env, s.root)).toMatchObject({
+        code: 0,
+        out: "a\n",
+      });
+      expect(await cli(["get", "t", '["map","k.1"]', ...args], s.env, s.root)).toMatchObject({
+        code: 0,
+        out: `value=3\nsource=repo\npath=${s.paths.repo}\n`,
+      });
+      for (const missing of ["nested.inner.y", "list.1", "list.id", "nested.0", "flag.a"])
+        expect(await cli(["get", "t", missing, ...args], s.env, s.root)).toMatchObject({
+          code: 3,
+          out: "source=unset\n",
+        });
+      expect(await cli(["get", "t", "typo.a", ...args], s.env, s.root)).toMatchObject({ code: 1 });
+      // Object の継承した名前は、スキーマのキーとして扱わない。
+      for (const inherited of ["constructor", "__proto__", "toString.a"])
+        expect(await cli(["get", "t", inherited, ...args], s.env, s.root)).toMatchObject({
+          code: 1,
+        });
+      expect(await cli(["get", "t", "map.constructor", ...args], s.env, s.root)).toMatchObject({
+        code: 3,
+      });
+      expect(await cli(["get", "t", "0.a", ...args], s.env, s.root)).toMatchObject({ code: 2 });
+      expect(
+        await cli(["get", "t", "nested.inner", "--cli-value", "{}", ...args], s.env, s.root),
+      ).toMatchObject({ code: 2 });
     });
 
     test("get --cli-value は CLI の層として扱い、検証する", async () => {
