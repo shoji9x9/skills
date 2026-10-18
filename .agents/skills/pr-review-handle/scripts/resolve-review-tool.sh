@@ -106,7 +106,15 @@ fi
 
 case "${XDG_CONFIG_HOME:-}" in
 /*) user_home="${XDG_CONFIG_HOME}" ;;
-*) user_home="${HOME}/.config" ;;
+*)
+	# HOME が無いか空なら、読み取り（Node の os.homedir()）と同じく、ユーザーのデータベースのホームを使う
+	home_dir="${HOME:-}"
+	[ -n "${home_dir}" ] || home_dir=$(
+		unset HOME
+		printf '%s' ~
+	)
+	user_home="${home_dir}/.config"
+	;;
 esac
 # 人ごとの層を読まない指定は、読み取りと同じく 1 だけを受け付ける。設定ファイルが無いときも同じ結果にするため、ここでも確かめる
 user_file="${user_home}/skills/${NAMESPACE}/common.jsonc"

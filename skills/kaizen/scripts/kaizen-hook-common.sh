@@ -337,12 +337,20 @@ kaizen_config_legacy() {
 
 # 在る設定ファイルのパスを挙げる（1 行 1 件）。
 kaizen_config_files() {
-	local root user_home user_file f
+	local root user_home user_file home_dir f
 	root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 	user_home=${XDG_CONFIG_HOME:-}
 	case "${user_home}" in
 	/*) ;;
-	*) user_home="${HOME}/.config" ;;
+	*)
+		# HOME が無いか空なら、読み取り（Node の os.homedir()）と同じく、ユーザーのデータベースのホームを使う
+		home_dir="${HOME:-}"
+		[ -n "${home_dir}" ] || home_dir=$(
+			unset HOME
+			printf '%s' ~
+		)
+		user_home="${home_dir}/.config"
+		;;
 	esac
 	user_file="${user_home}/skills/shoji9x9/kaizen.jsonc"
 	# 人ごとの層を読まない（SHOJI9X9_SKILLS_IGNORE_USER_CONFIG=1）なら、読み取りと同じく人ごとのファイルを数えない

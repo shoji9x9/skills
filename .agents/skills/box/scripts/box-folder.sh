@@ -20,7 +20,15 @@ root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 xdg="${XDG_CONFIG_HOME:-}"
 case "${xdg}" in
 /*) ;;
-*) xdg="${HOME}/.config" ;;
+*)
+	# HOME が無いか空なら、読み取り（Node の os.homedir()）と同じく、ユーザーのデータベースのホームを使う
+	home_dir="${HOME:-}"
+	[ -n "${home_dir}" ] || home_dir=$(
+		unset HOME
+		printf '%s' ~
+	)
+	xdg="${home_dir}/.config"
+	;;
 esac
 
 # Node.js で読む必要があるファイル。人ごとの層の box.jsonc（置けない層）と、旧い skills.yml も含める。
