@@ -96,14 +96,58 @@ function isUrl(value: unknown): boolean {
   return typeof value === "string" && /^https?:\/\//.test(value);
 }
 
+/**
+ * GHSA の id を GitHub と同じ表記（接頭辞の `GHSA` だけが大文字で、本体は小文字）にそろえる。
+ * dependabot-alert-issue は findings の `ghsa` を、却下のルールの `ghsa`（GitHub の表記で書く）と文字列で照合する。
+ * 既存の Issue・PR の検索（GitHub の search API）は大文字と小文字を区別しない。
+ * 検索で見つけた Issue との比べ方と、却下のルールとの照合は、dependabot-alert-issue の SKILL.md が大文字と小文字の扱いを決めていない。
+ * そのため、findings の側で、Dependabot alerts の ghsa_id と同じ表記にそろえる。
+ *
+ * id は、前後に識別子の文字（ASCII の英字・数字・`_`・`-`）が付かない 1 語のときだけ取り出す。
+ * ASCII の外の文字（`é`・全角の英数字と記号・かな・漢字）は、すべて区切りとして扱う。
+ * pnpm audit の id と URL は ASCII で書かれるので、ASCII の外の文字の種類ごとには扱いを分けない。
+ * 前後のどちらかに付く文字列（`XGHSA-...`・`npm-GHSA-...`・`GHSA-abcd-efgh-ijkl-mnop`・`GHSA-..._x`）は、もっと長い識別子の一部として扱う。
+ * 前と後ろで同じ文字の集合を使う。片側だけを変えると前後の扱いが食い違うので、変えるときは両方を変える。
+ * 空白・`/`・`:`・`.`・`?`・`#` などの記号と、文字列の端は区切りとして扱う（URL の `/advisories/GHSA-...` を含む）。
+ * `\b` を使わないのは、`\b` が `-` の前後でも成り立つからである。
+ */
+const GHSA_BODY = "[0-9A-Za-z]{4}-[0-9A-Za-z]{4}-[0-9A-Za-z]{4}";
+const GHSA_IN_TEXT = new RegExp(`(?<![0-9a-z_-])GHSA-(${GHSA_BODY})(?![0-9a-z_-])`, "i");
+// 接頭辞は大文字だけを受け付ける。新しく登録できる npm のパッケージ名は小文字だけなので、
+// ghsa-xxxx-xxxx-xxxx という名前のパッケージを id として読まない。大文字の GHSA- で始まるパッケージ名は確かめていない。
+const GHSA_WHOLE = new RegExp(`^GHSA-(${GHSA_BODY})$`);
+
 function ghsaFrom(value: unknown): string {
   if (typeof value !== "string") return "";
-  const match = value.match(/GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}/i);
-  return match ? match[0].toUpperCase() : "";
+  const match = value.match(GHSA_IN_TEXT);
+  return match ? `GHSA-${match[1].toLowerCase()}` : "";
 }
 
-function normalizeGhsa(value: unknown): string {
-  return ghsaFrom(value) || firstString(value);
+/**
+ * `via` の文字列は、advisory の id・URL か、依存を指すパッケージ名（`@scope/name` を含む）である。
+ * パッケージ名は `-` や `/` の後ろに `ghsa-xxxx-xxxx-xxxx` の形を含みうるので、全体が id のときか URL のときだけ advisory として読む。
+ * filter と advisoryFromVia の両方がこの判定を使う。
+ */
+function isAdvisoryViaString(via: string): boolean {
+  return isUrl(via) || GHSA_WHOLE.test(via);
+}
+
+/**
+ * advisory の欄から GHSA の id を取り出す。順は、id の欄（ghsa・ghsa_id・github_advisory_id）、url、
+ * id の欄に入っていた文字列そのもの（id の形でない識別子を残すため）、source と title（自由記述）である。
+ * 生の文字列を url より後にするのは、advisory_url が url を先に使うからである。url に id があるのに生の文字列を ghsa にすると、ghsa と advisory_url が食い違う。
+ * 生の文字列を source と title より先にするのは、自由記述の中の別の id（`Superseded by GHSA-...` など）より、id の欄の値を信じるからである。
+ */
+function ghsaOf(advisory: AuditRecord): string {
+  return firstString(
+    ghsaFrom(advisory.ghsa),
+    ghsaFrom(advisory.ghsa_id),
+    ghsaFrom(advisory.github_advisory_id),
+    ghsaFrom(advisory.url),
+    firstString(advisory.ghsa, advisory.ghsa_id, advisory.github_advisory_id),
+    ghsaFrom(advisory.source),
+    ghsaFrom(advisory.title),
+  );
 }
 
 function patchedFrom(range: unknown): string {
@@ -147,8 +191,9 @@ function advisoryFromVia(via: unknown): AuditRecord {
   if (isObjectLike(via)) return via;
   if (typeof via !== "string") return {};
 
+  if (!isAdvisoryViaString(via)) return {};
+  // isAdvisoryViaString を通った文字列は、全体が id か URL なので、ほかの欄と同じく中の id を探す。
   const ghsa = ghsaFrom(via);
-  if (!ghsa && !isUrl(via)) return {};
 
   return {
     ghsa,
@@ -190,14 +235,7 @@ function currentVersionsFrom(
 
 /** 古い形（`advisories` の 1 件）から finding を作る。 */
 export function fromAdvisory(advisory: AuditRecord): Finding {
-  const ghsa = firstString(
-    normalizeGhsa(advisory.ghsa),
-    normalizeGhsa(advisory.ghsa_id),
-    normalizeGhsa(advisory.github_advisory_id),
-    ghsaFrom(advisory.url),
-    ghsaFrom(advisory.source),
-    ghsaFrom(advisory.title),
-  );
+  const ghsa = ghsaOf(advisory);
   const advisoryUrl = firstString(
     advisory.url,
     ghsa ? `https://github.com/advisories/${ghsa}` : "",
@@ -238,14 +276,7 @@ function fromVulnerability(
   const fix: AuditRecord = isObjectLike(vulnerability.fixAvailable)
     ? vulnerability.fixAvailable
     : {};
-  const ghsa = firstString(
-    normalizeGhsa(advisory.ghsa),
-    normalizeGhsa(advisory.ghsa_id),
-    normalizeGhsa(advisory.github_advisory_id),
-    ghsaFrom(advisory.url),
-    ghsaFrom(advisory.source),
-    ghsaFrom(advisory.title),
-  );
+  const ghsa = ghsaOf(advisory);
   const patched = firstString(fix.version);
   const patchedVersions = firstString(
     advisory.patched_versions,
@@ -280,7 +311,7 @@ export function findingsFromVulnerability(
 ): Finding[] {
   const advisories = asArray(vulnerability.via).filter((via) => {
     if (typeof via === "object" && via) return true;
-    return typeof via === "string" && (ghsaFrom(via) || isUrl(via));
+    return typeof via === "string" && isAdvisoryViaString(via);
   });
   if (advisories.length === 0) return [fromVulnerability(packageName, vulnerability, {}, packages)];
   return advisories.map((advisory) =>
