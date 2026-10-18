@@ -190,7 +190,7 @@ function blankComments(lines, fenced, state) {
  *
  * 表に属さないのに `|` を含む行は、警告なしに捨てず、行番号・セル数・行頭の `|` の有無を strayRows に返す
  * （GFM は行頭・行末の `|` を省けるので、行頭の `|` だけでは表の行を見分けられない）。
- * 末尾まで閉じないフェンス（閉じる行に情報文字列を付けた ` ```sh ` など）は、開いた行の番号を unclosedFence に返す。
+ * 末尾まで閉じないフェンス（閉じる行に情報文字列を付けた ` ```sh `、4 文字以上字下げした閉じる行など）は、開いた行の番号を unclosedFence に返す。
  * フェンスの後ろの表はすべて読まれないので、呼び出し側は台帳を読まずに止める。
  * @param {string} text
  * @param {{ normalizeHeader?: (cell: string) => string, consumed?: Set<number> }} [options]
@@ -251,7 +251,7 @@ function parseTables(text, options = {}) {
  * @returns {string}
  */
 function unclosedFenceMessage(line) {
-  return `${line} 行目で開いたコードフェンスが末尾まで閉じていない（閉じる行は、開いた記号と同じ記号を同じ数以上だけ書き、情報文字列を付けない。リストの項目と引用の中のフェンスは読めないので、その外に書く。以降の表が読まれない）`;
+  return `${line} 行目で開いたコードフェンスが末尾まで閉じていない。以降の表は読まれない。閉じる行は、字下げを 3 文字までにし、開いた記号と同じ文字を開いた数か、それより多く並べ、後ろには空白のほかに何も書かない`;
 }
 
 export { blankComments, opensHtmlBlock, collapse, parseTables, splitRow, unclosedFenceMessage };

@@ -125,7 +125,7 @@ function fenceLines(lines) {
 
 /**
  * 末尾まで閉じないコードフェンスを開いた行の番号を返す（閉じていれば null）。
- * 閉じる行に情報文字列を付けると（` ```sh ` など）フェンスは閉じず、後ろの表がすべて読まれない。
+ * 閉じる行の形が合わないと（情報文字列を付けた ` ```sh `、4 文字以上の字下げ、短い記号など）フェンスは閉じず、後ろの表がすべて読まれない。
  *
  * @param {string} markdown
  * @returns {number | null}
@@ -142,7 +142,7 @@ export function unclosedFenceLine(markdown) {
  * @returns {string}
  */
 function unclosedFenceMessage(file, line) {
-  return `${file} の ${line} 行目で開いたコードフェンスが末尾まで閉じていない（閉じる行は、開いた記号と同じ記号を同じ数以上だけ書き、情報文字列を付けない。リストの項目と引用の中のフェンスは読めないので、その外に書く。以降の表が読まれない）`;
+  return `${file} の ${line} 行目で開いたコードフェンスが末尾まで閉じていない。以降の表は読まれない。閉じる行は、字下げを 3 文字までにし、開いた記号と同じ文字を開いた数か、それより多く並べ、後ろには空白のほかに何も書かない`;
 }
 
 /**
@@ -1127,8 +1127,7 @@ export function checkPredicateCoverage(input) {
     const verificationTables = parseTables(input.verificationMarkdown);
     const verificationUnclosed = unclosedFenceLine(input.verificationMarkdown);
     if (verificationUnclosed !== null) {
-      // 表が読めないので、features.md・design.md と同じく構造の不備にする（設計ではなく verification.md の書き方を直す）。
-      structural = true;
+      // verification.md の表が無いとき（verification-table-missing）と同じく、構造の不備にはしない。
       findings.push({
         code: "verification-fence-unclosed",
         message: unclosedFenceMessage("verification.md", verificationUnclosed),

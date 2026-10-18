@@ -158,3 +158,7 @@ ci:39097931977:1,ci,2026-10-18T04:55:48.137Z,p-cdee4961,github-actions,,,,2026-1
 ci:39097692483:1,ci,2026-10-18T04:55:48.137Z,p-cdee4961,github-actions,,,,2026-10-18T04:36:42.000Z,2026-10-18T04:40:14.000Z,Asia/Tokyo,feature/680-report-unfollowed-rules-and-skips,680,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-10-17T04:38:29.888Z:2026-10-18T04:55:48.137Z,coverage,2026-10-18T04:55:48.137Z,p-cdee4961,,,,,2026-10-17T04:38:29.888Z,2026-10-18T04:55:48.137Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-17T04:55:48.137Z:2026-10-18T05:15:47.594Z,coverage,2026-10-18T05:15:47.594Z,p-cdee4961,,,,,2026-10-17T04:55:48.137Z,2026-10-18T05:15:47.594Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:39100084642:1,ci,2026-10-18T05:28:36.569Z,p-cdee4961,github-actions,,,,2026-10-18T05:18:11.000Z,2026-10-18T05:18:12.000Z,Asia/Tokyo,feature/679-unify-fence-detection,679,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:39100084638:1,ci,2026-10-18T05:28:36.569Z,p-cdee4961,github-actions,,,,2026-10-18T05:18:11.000Z,2026-10-18T05:21:06.000Z,Asia/Tokyo,feature/679-unify-fence-detection,679,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-17T05:15:47.594Z:2026-10-18T05:28:36.569Z,coverage,2026-10-18T05:28:36.569Z,p-cdee4961,,,,,2026-10-17T05:15:47.594Z,2026-10-18T05:28:36.569Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-17T05:28:36.569Z:2026-10-18T05:30:42.818Z,coverage,2026-10-18T05:30:42.818Z,p-cdee4961,,,,,2026-10-17T05:28:36.569Z,2026-10-18T05:30:42.818Z,Asia/Tokyo,,,,,,,,,,,,ok,
