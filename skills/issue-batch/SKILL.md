@@ -87,8 +87,7 @@ issue-batch run <Issue URL | 番号>... \
 - deployment の修正の上限: `--max-deployment-fix-iterations` があれば、その run だけ上書きする
 
 BLOCKED や FAILED の影響が Issue の隔離した worktree の中だけで済む場合は、デフォルトの方針に従って次の Issue に進む。
-続けるとき、run の途中で止まった Issue に依存する Issue は、`references/orchestration.md`「全体 preflight」の 6 の表のとおりに扱い、それを理由に全体を停止しない。
-preflight で止めた Issue に依存する Issue は、`continue_on_blocked` の値に関わらず、同じ表で扱う。
+止まった Issue に依存する Issue は、`references/orchestration.md`「全体 preflight」の 6 のとおりに扱う。依存先を理由に `BLOCKED` にした Issue では、全体も run も止めない。
 認証、権限、repo の不一致、共有の設定の誤りなど、全体に影響する失敗では、option に関わらず全体を停止する。
 
 ## 安全制約

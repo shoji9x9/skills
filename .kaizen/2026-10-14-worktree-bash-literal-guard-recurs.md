@@ -137,3 +137,4 @@ PR #656 のレビューで出た指摘である。上の Hook の条件の細部
   どれも、Write ツールでスクリプトにして絶対パスで実行するか、定数の引数だけの単独の呼び出しに分けて通した。
 - 2026-10-18、#676 の merge の前の作業でも、`kaizen-kedb-match.sh` の引数に `"eval"` を渡し、`; echo rc=$?` と `grep docs/...` をつないだ呼び出しが `runs a string through eval` で拒否された。
   引数の語だけでも `eval` に当たる。単独の呼び出しに分けて通した。
+- 2026-10-18、#676 の記録の投稿でも、`sha=$(gh pr view ...)` と `git rev-parse`・`git status` を `&&` でつないだ呼び出しが `names git in a form too complex to verify` で拒否された。Write ツールでスクリプトにして通した。
