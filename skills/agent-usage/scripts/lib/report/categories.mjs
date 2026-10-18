@@ -10,7 +10,11 @@ export const STOP_CATEGORIES = /** @type {const} */ ([
 ]);
 /** @typedef {(typeof STOP_CATEGORIES)[number]} StopCategory */
 
-/** 連続稼働のヒストグラムの区間（分）。最後の区間は上限なし。 */
+/** 稼働状況のチャートの系列。稼働中（人ごとに合わせた run の区間）と、停止の分類。積み上げの順もこの順にする。 */
+export const STATUSES = /** @type {const} */ (["active", ...STOP_CATEGORIES]);
+/** @typedef {(typeof STATUSES)[number]} Status */
+
+/** 1 回の指示で動き続けた時間のヒストグラムの区間（分）。最後の区間は上限なし。 */
 export const RUN_BINS = /** @type {const} */ ([
   { label: "5 分未満", max: 5 },
   { label: "5〜15 分", max: 15 },

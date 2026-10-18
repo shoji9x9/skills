@@ -1,10 +1,10 @@
 // report の HTML。1 ファイルで完結させ、グラフは SVG とインラインの JavaScript（ツールチップ）で描く。外部のライブラリと CDN は読まない。
 // 配色は役割の CSS 変数で持ち、ダークモードでは同じ役割に暗い面用の値を当てる。各グラフには、同じ値の表を <details> で添える。
 
-import { RUN_BINS, STOP_CATEGORIES } from "./categories.mjs";
+import { RUN_BINS, STATUSES, STOP_CATEGORIES } from "./categories.mjs";
 
 /** @typedef {import("./report.mjs").ReportData} ReportData */
-/** @typedef {import("./categories.mjs").StopCategory} StopCategory */
+/** @typedef {import("./categories.mjs").Status} Status */
 
 /** Issue ごとの表に出す行の数。 */
 const ISSUE_ROWS = 20;
@@ -17,6 +17,13 @@ export const STOP_LABELS = /** @type {const} */ ({
   "review-wait": "レビュー待ち",
   unknown: "判定不能",
 });
+
+/** 稼働状況のチャートの系列の表示名。 */
+export const STATUS_LABELS = /** @type {const} */ ({ active: "稼働中", ...STOP_LABELS });
+
+/** 稼働状況のチャートで、稼働中の数え方を説明する文。 */
+const ACTIVE_NOTE =
+  "稼働中は、人ごとに指示で動き続けた時間を合わせたものです。同じ人の指示が重なった時間は 1 回だけ数えます。";
 
 /**
  * @param {string} s
@@ -166,19 +173,29 @@ export function renderHtml(d) {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 7)
     .map(([m]) => m);
-  const dates = [...new Set(d.dailyCost.map((x) => x.date))].sort();
+  // 横軸は期間のすべての日にし、記録の無い日は 0 にする
+  const dates = d.days;
+  /** @type {Map<string, number>} */
+  const costByKey = new Map();
+  /** @type {Map<string, number>} */
+  const otherByDate = new Map();
+  for (const x of d.dailyCost) {
+    if (topModels.includes(x.model)) {
+      const k = `${x.date}\u0000${x.model}`;
+      costByKey.set(k, (costByKey.get(k) ?? 0) + x.cost);
+    } else otherByDate.set(x.date, (otherByDate.get(x.date) ?? 0) + x.cost);
+  }
   const modelSeries = topModels.map((m, i) => ({
     name: m,
     color: series[i],
-    values: dates.map((date) =>
-      d.dailyCost.filter((x) => x.date === date && x.model === m).reduce((a, x) => a + x.cost, 0),
-    ),
+    values: dates.map((date) => costByKey.get(`${date}\u0000${m}`) ?? 0),
   }));
-  const others = dates.map((date) =>
-    d.dailyCost
-      .filter((x) => x.date === date && !topModels.includes(x.model))
-      .reduce((a, x) => a + x.cost, 0),
-  );
+  const others = dates.map((date) => otherByDate.get(date) ?? 0);
+  // 期間が年をまたぐときは、日付の目盛りに年も書く
+  const dayLabel = (/** @type {string} */ l) =>
+    dates.length > 0 && dates[0].slice(0, 4) !== dates[dates.length - 1].slice(0, 4)
+      ? l
+      : l.slice(5);
   if (others.some((v) => v > 0))
     modelSeries.push({ name: "その他", color: "var(--other)", values: others });
 
@@ -189,11 +206,12 @@ export function renderHtml(d) {
   const runs = d.intervals.filter((x) => x.type === "run");
   const runMinutes = runs.map((x) => Number(x.minutes)).sort((a, b) => a - b);
   const median = runMinutes.length > 0 ? runMinutes[Math.floor(runMinutes.length / 2)] : 0;
-  /** @type {Record<string, number>} */
-  const stopHours = {};
-  for (const x of d.intervals.filter((y) => y.type === "stop"))
-    stopHours[x.category] = (stopHours[x.category] ?? 0) + Number(x.minutes) / 60;
-  const stopColors = {
+  // 稼働状況の合計は、日別のチャートと同じ値から取る（タイルとチャートで数え方を分けない）
+  const statusHours = Object.fromEntries(
+    d.statusByDay.map((s) => [s.status, s.byDay.reduce((a, b) => a + b, 0)]),
+  );
+  const statusColors = {
+    active: "var(--s6)",
     idle: "var(--s1)",
     reviewing: "var(--s2)",
     "ci-wait": "var(--s3)",
@@ -212,11 +230,9 @@ export function renderHtml(d) {
     }
     return v;
   };
-  for (const x of runs) {
-    const v = issueOf(x.issue || "(なし)");
-    v.active += Number(x.active_minutes) / 60;
-    v.runs += 1;
-  }
+  for (const x of runs) issueOf(x.issue || "(なし)").runs += 1;
+  for (const [issue, hours] of Object.entries(d.activeByIssue))
+    issueOf(issue || "(なし)").active += hours;
   for (const x of d.intervals.filter((y) => y.type === "stop" && y.category === "idle"))
     issueOf(x.issue || "(なし)").idle += Number(x.minutes) / 60;
 
@@ -234,8 +250,8 @@ export function renderHtml(d) {
     .filter((x) => x.type === "billing")
     .reduce((a, x) => a + Number(x.cost_usd || 0), 0);
 
-  // 人ごと（費用・稼働の回数・稼働・停止の内訳）
-  /** @type {Map<string, { id: string; name: string; cost: number; runs: number; active: number; stops: Record<StopCategory, number> }>} */
+  // 人ごと（費用・指示の数・稼働状況の内訳）
+  /** @type {Map<string, { id: string; name: string; cost: number; runs: number; status: Record<Status, number> }>} */
   const byPerson = new Map();
   const personOf = (/** @type {string} */ id) => {
     let v = byPerson.get(id);
@@ -245,27 +261,30 @@ export function renderHtml(d) {
         name: d.names[id] ?? id,
         cost: 0,
         runs: 0,
-        active: 0,
-        stops: { idle: 0, reviewing: 0, "ci-wait": 0, "review-wait": 0, unknown: 0 },
+        status: {
+          active: 0,
+          idle: 0,
+          reviewing: 0,
+          "ci-wait": 0,
+          "review-wait": 0,
+          unknown: 0,
+        },
       };
       byPerson.set(id, v);
     }
     return v;
   };
   for (const u of d.usage) personOf(u.person).cost += Number(u.cost_usd);
-  for (const x of runs) {
-    const v = personOf(x.person);
-    v.runs += 1;
-    v.active += Number(x.active_minutes) / 60;
-  }
+  for (const x of runs) personOf(x.person).runs += 1;
+  for (const [id, hours] of Object.entries(d.activeByPerson)) personOf(id).status.active += hours;
   for (const x of d.intervals.filter((y) => y.type === "stop")) {
     const v = personOf(x.person);
     const c = STOP_CATEGORIES.find((k) => k === x.category);
-    if (c) v.stops[c] += Number(x.minutes) / 60;
+    if (c) v.status[c] += Number(x.minutes) / 60;
   }
   const people = [...byPerson.values()].sort((a, b) => b.cost - a.cost);
 
-  const stopTotal = STOP_CATEGORIES.reduce((a, c) => a + (stopHours[c] ?? 0), 0);
+  const statusTotal = STATUSES.reduce((a, c) => a + (statusHours[c] ?? 0), 0);
   /** @type {{ title: string; total: [string, string]; items: [string, string][] }[]} */
   const tileGroups = [
     {
@@ -274,14 +293,14 @@ export function renderHtml(d) {
       items: [...byAgent.entries()].sort((a, b) => b[1] - a[1]).map(([a, c]) => [a, usd(c)]),
     },
     {
-      title: "稼働",
-      total: ["稼働の回数", num(runs.length)],
-      items: [["連続稼働の中央値", `${num(median, 1)} 分`]],
+      title: "指示",
+      total: ["指示の数", num(runs.length)],
+      items: [["1 回の指示で動き続けた時間の中央値", `${num(median, 1)} 分`]],
     },
     {
-      title: "停止",
-      total: ["合計", `${num(stopTotal, 1)} 時間`],
-      items: STOP_CATEGORIES.map((c) => [STOP_LABELS[c], `${num(stopHours[c] ?? 0, 1)} 時間`]),
+      title: "稼働状況",
+      total: ["合計", `${num(statusTotal, 1)} 時間`],
+      items: STATUSES.map((c) => [STATUS_LABELS[c], `${num(statusHours[c] ?? 0, 1)} 時間`]),
     },
   ];
 
@@ -303,8 +322,22 @@ export function renderHtml(d) {
       format: (n) => usd(n),
       axisFormat: (n) => `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`,
       unit: "",
-      axisLabel: (l) => l.slice(5),
+      axisLabel: dayLabel,
       maxLabels: 10,
+    }),
+    stackedBars({
+      title: "日別の稼働状況（時間）",
+      labels: dates,
+      series: d.statusByDay.map((s) => ({
+        name: STATUS_LABELS[s.status],
+        color: statusColors[s.status],
+        values: s.byDay,
+      })),
+      format: (n) => num(n, 1),
+      unit: " 時間",
+      axisLabel: dayLabel,
+      maxLabels: 10,
+      note: `${ACTIVE_NOTE}エージェントを使わなかった日も停止に数えます。各人の稼働中と停止は、その人の期間の最初の稼働から、最後に記録した時刻までを数えます。そのため、1 日の合計は 24 時間 × 人数までになります。`,
     }),
     stackedBars({
       title: "1 回の指示で動き続けた時間（件数）",
@@ -314,19 +347,19 @@ export function renderHtml(d) {
       unit: " 件",
     }),
     stackedBars({
-      title: "時刻ごとの停止の時間（時間）",
+      title: "時刻ごとの稼働状況（時間）",
       labels: Array.from({ length: 24 }, (_, h) => `${h} 時`),
-      series: d.stopByHour.map((s) => ({
-        name: STOP_LABELS[s.category],
-        color: stopColors[s.category],
+      series: d.statusByHour.map((s) => ({
+        name: STATUS_LABELS[s.status],
+        color: statusColors[s.status],
         values: s.byHour,
       })),
       format: (n) => num(n, 1),
       unit: " 時間",
-      note: "判定不能は、GitHub の情報（CI・レビュー・自分の操作）を取得していない期間の停止です。collect が GitHub を取得するのは、初回は最大 60 日前からです。",
+      note: `${ACTIVE_NOTE}判定不能は、GitHub の情報（CI・レビュー・自分の操作）を取得していない期間の停止です。collect が GitHub を取得するのは、初回は最大 60 日前からです。`,
     }),
-    `<section><h2>Issue ごと（稼働の長い順に ${ISSUE_ROWS} 件まで。すべては intervals.csv）</h2>${table(
-      ["Issue", "稼働の回数", "稼働（時間）", "未活用の停止（時間）"],
+    `<section><h2>Issue ごと（稼働中の長い順に ${ISSUE_ROWS} 件まで。すべては intervals.csv）</h2><p class="muted small">未活用は、直前に動いていた指示の Issue に数えます。同じ人が同時に複数の Issue の指示を動かした時間は、それぞれの Issue の稼働中に数えます。そのため、稼働中の合計は、稼働状況の稼働中より大きくなることがあります。</p>${table(
+      ["Issue", "指示の数", `${STATUS_LABELS.active}（時間）`, `${STATUS_LABELS.idle}（時間）`],
       [...byIssue.entries()]
         .sort((a, b) => b[1].active - a[1].active)
         .slice(0, ISSUE_ROWS)
@@ -384,34 +417,22 @@ export function renderHtml(d) {
       ],
     )}${billing > 0 ? `<p class="muted">課金 API の実額（premium request、レビュー以外を含む）: ${esc(usd(billing))}</p>` : ""}</section>`,
     `<section><h2>人ごと</h2>${table(
-      [
-        "ID",
-        "表示名",
-        "費用",
-        "稼働の回数",
-        "稼働（時間）",
-        ...STOP_CATEGORIES.map((c) => `${STOP_LABELS[c]}（時間）`),
-      ],
+      ["ID", "表示名", "費用", "指示の数", ...STATUSES.map((c) => `${STATUS_LABELS[c]}（時間）`)],
       people.map((p) => [
         p.id,
         p.name,
         usd(p.cost),
         num(p.runs),
-        num(p.active, 1),
-        ...STOP_CATEGORIES.map((c) => num(p.stops[c], 1)),
+        ...STATUSES.map((c) => num(p.status[c], 1)),
       ]),
       [
         "合計",
         "",
         usd(people.reduce((a, p) => a + p.cost, 0)),
         num(people.reduce((a, p) => a + p.runs, 0)),
-        num(
-          people.reduce((a, p) => a + p.active, 0),
-          1,
-        ),
-        ...STOP_CATEGORIES.map((c) =>
+        ...STATUSES.map((c) =>
           num(
-            people.reduce((a, p) => a + p.stops[c], 0),
+            people.reduce((a, p) => a + p.status[c], 0),
             1,
           ),
         ),
