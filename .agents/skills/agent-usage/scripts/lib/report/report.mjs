@@ -215,6 +215,16 @@ export function periodBounds(rows, o, dates = []) {
  */
 export function periodLabel(rows, o, dates = []) {
   const { from, to } = periodBounds(rows, o, dates);
+  return formatPeriod(from, to);
+}
+
+/**
+ * 期間の最初の日と最後の日から、期間の表示を作る。どちらかが無ければ「記録なし」とする。
+ * @param {string | null} from
+ * @param {string | null} to
+ * @returns {string}
+ */
+export function formatPeriod(from, to) {
   if (from === null || to === null) return "記録なし";
   return `${from} 〜 ${to}`;
 }
@@ -250,7 +260,8 @@ export function dateRange(from, to) {
  * @property {string[]} days 期間のすべての日付（記録の無い日を含む）。日別のチャートの横軸にする
  * @property {{ status: Status; byDay: number[] }[]} statusByDay 稼働中と停止の時間（時）を、days の日ごとに
  * @property {Record<string, number>} activeByPerson 人の ID → 稼働中の時間（時）
- * @property {Record<string, number>} activeByIssue Issue（無ければ空文字）→ 稼働中の時間（時）
+ * @property {Record<string, number>} activeByIssue Issue（無ければ空文字）→ 稼働中の時間（時）。同時に動いていた Issue の数で等分した値
+ * @property {Record<string, number>} idleByIssue Issue（無ければ空文字）→ 直前に動いていた指示がその Issue だった未活用の時間（時。丸める前の値）
  * @property {Record<string, Map<StopCategory, number>>} stopByPerson 人の ID → 停止の分類ごとの時間（時。丸める前の値）
  * @property {number[]} runHistogram RUN_BINS ごとの件数
  * @property {{ date: string; model: string; cost: number }[]} dailyCost
@@ -415,7 +426,7 @@ export function buildReport(allRows, o) {
       const arr = byHour.get(status);
       if (arr) arr[h.hour] += hours;
       const days = byDate.get(status);
-      const date = localParts(h.start, tz).date;
+      const date = h.date;
       if (days) days.set(date, (days.get(date) ?? 0) + hours);
     }
   };
@@ -452,6 +463,8 @@ export function buildReport(allRows, o) {
   const activeByIssue = {};
   /** @type {Record<string, Map<StopCategory, number>>} */
   const stopByPerson = {};
+  /** @type {Record<string, number>} */
+  const idleByIssue = {};
   for (const person of people) {
     const mine = rows.filter((r) => alias(r.person) === person);
     const runs = mine
@@ -460,6 +473,9 @@ export function buildReport(allRows, o) {
         const s = spanOf(r);
         return s ? [{ row: r, span: s }] : [];
       })
+      // 人のタイムゾーンが report と違うと、期間の終わりより後に始まる run が期間に入りうる。
+      // 稼働中と停止に数えないので、指示の数・ヒストグラム・intervals.csv にも数えない
+      .filter((r) => r.span[0] < periodEnd)
       .sort((a, b) => a.span[0] - b.span[0]);
     for (const { row, span } of runs) {
       const minutes = (span[1] - span[0]) / 60000;
@@ -490,16 +506,17 @@ export function buildReport(allRows, o) {
     activeByPerson[person] = activeHours(merged, periodEnd);
     const myStops = new Map(STOP_CATEGORIES.map((c) => [c, 0]));
     stopByPerson[person] = myStops;
-    // Issue ごとの稼働中も、同じ人の同じ Issue の run を合わせて数える。同時に別の Issue の run があれば、両方の Issue に数える
-    /** @type {Map<string, Span[]>} */
-    const spansByIssue = new Map();
-    for (const { row, span } of runs) {
-      const list = spansByIssue.get(row.issue ?? "") ?? [];
-      list.push(span);
-      spansByIssue.set(row.issue ?? "", list);
-    }
-    for (const [issue, list] of spansByIssue) {
-      activeByIssue[issue] = (activeByIssue[issue] ?? 0) + activeHours(mergeSpans(list), periodEnd);
+    // Issue ごとの稼働中は、人ごとの稼働中を、その時間に動いていた Issue の数で等分して配る（Issue ごとの合計が人ごとの稼働中と一致する）
+    const cuts = [
+      ...new Set(runs.flatMap(({ span }) => [span[0], Math.min(span[1], periodEnd)])),
+    ].sort((a, b) => a - b);
+    for (let i = 0; i + 1 < cuts.length; i += 1) {
+      const [a, b] = [cuts[i], cuts[i + 1]];
+      const issues = new Set(
+        runs.filter((r) => r.span[0] <= a && r.span[1] >= b).map((r) => r.row.issue ?? ""),
+      );
+      for (const issue of issues)
+        activeByIssue[issue] = (activeByIssue[issue] ?? 0) + (b - a) / 3600000 / issues.size;
     }
     /** @type {Span[]} */
     const marks = [];
@@ -519,11 +536,12 @@ export function buildReport(allRows, o) {
       Number.NEGATIVE_INFINITY,
     );
     const personEnd = Number.isFinite(lastSeen) ? Math.min(periodEnd, lastSeen) : periodEnd;
-    // 稼働中と同じく、期間の終わりより後は停止に数えない（人のタイムゾーンが report と違うと、期間の終わりより後に始まる run がありうる）
+    // 期間の終わりより後に始まる run は先に除いたので、run の間の隙間は期間の終わりより前に収まる。
+    // 最後の run の後の隙間も、personEnd（期間の終わりより後にならない）までである
     for (const gap of gaps(
       merged,
       merged[0][0],
-      Math.min(periodEnd, Math.max(personEnd, merged[merged.length - 1][1])),
+      Math.max(personEnd, merged[merged.length - 1][1]),
     )) {
       // 直前に動いていた run は、隙間の前に最も遅く終わったもの（runs は始まりの順なので、末尾が最後に終わったとは限らない）
       /** @type {(typeof runs)[number] | undefined} */
@@ -561,8 +579,12 @@ export function buildReport(allRows, o) {
           issue: before ? (before.row.issue ?? "") : "",
         });
         addStatus(p.category, p.start, p.end, tz);
-        // 人ごとの表も、丸める前の値から足す（intervals.csv の minutes は小数第 1 位に丸めてある）
+        // 人ごとの表と Issue ごとの表も、丸める前の値から足す（intervals.csv の minutes は小数第 1 位に丸めてある）
         myStops.set(p.category, (myStops.get(p.category) ?? 0) + (p.end - p.start) / 3600000);
+        if (p.category === "idle") {
+          const issue = before ? (before.row.issue ?? "") : "";
+          idleByIssue[issue] = (idleByIssue[issue] ?? 0) + (p.end - p.start) / 3600000;
+        }
       }
     }
   }
@@ -610,7 +632,17 @@ export function buildReport(allRows, o) {
     ...dailyCost.map((x) => x.date),
     ...[...byDate.values()].flatMap((m) => [...m.keys()]),
   ];
-  const { from, to } = periodBounds(rows, o, valueDates);
+  // 値のある最初と最後の日は 1 回の走査で取り、期間と横軸の両方に使う
+  /** @type {string | null} */
+  let valueMin = null;
+  /** @type {string | null} */
+  let valueMax = null;
+  for (const date of valueDates) {
+    if (valueMin === null || date < valueMin) valueMin = date;
+    if (valueMax === null || date > valueMax) valueMax = date;
+  }
+  const valueEnds = valueMin !== null && valueMax !== null ? [valueMin, valueMax] : [];
+  const { from, to } = periodBounds(rows, o, valueEnds);
   // 期間は行のタイムゾーンで絞るが、稼働状況は人のタイムゾーンで日に分けるので、--since・--until の外の日に値が置かれうる。
   // 値を横軸から外すと、日別のチャートとタイルが人ごとの表・時刻ごとのチャートより小さくなるので、横軸を値のある日まで広げる。
   // 終わりは今日（report のタイムゾーン）か値のある最後の日の遅い方までにする。値は report を実行した時刻より後に置かれないので、
@@ -619,19 +651,19 @@ export function buildReport(allRows, o) {
   let first = from;
   /** @type {string | null} */
   let last = to;
-  let cap = localParts(o.now, o.tz).date;
-  for (const date of valueDates) {
-    if (first !== null && date < first) first = date;
-    if (last !== null && date > last) last = date;
-    if (date > cap) cap = date;
+  if (first !== null && last !== null && valueMin !== null && valueMax !== null) {
+    if (valueMin < first) first = valueMin;
+    if (valueMax > last) last = valueMax;
   }
+  const today = localParts(o.now, o.tz).date;
+  const cap = valueMax !== null && valueMax > today ? valueMax : today;
   if (last !== null && last > cap) last = cap;
   const days = first !== null && last !== null ? dateRange(first, last) : [];
 
   return {
     generatedAt: toIso(o.now),
     tz: o.tz,
-    period: from !== null && to !== null ? `${from} 〜 ${to}` : "記録なし",
+    period: formatPeriod(from, to),
     recordFiles: o.recordFiles,
     rows: rows.length,
     names,
@@ -647,6 +679,7 @@ export function buildReport(allRows, o) {
     activeByPerson,
     activeByIssue,
     stopByPerson,
+    idleByIssue,
     runHistogram,
     dailyCost,
     unknownCostBuckets,

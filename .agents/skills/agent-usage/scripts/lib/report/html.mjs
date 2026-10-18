@@ -18,7 +18,7 @@ export const STOP_LABELS = /** @type {const} */ ({
   unknown: "判定不能",
 });
 
-/** 稼働状況のチャートの系列の表示名。 */
+/** 稼働状況のチャートで、系列に付ける表示名。 */
 export const STATUS_LABELS = /** @type {const} */ ({ active: "稼働中", ...STOP_LABELS });
 
 /** 稼働状況のチャートで、稼働中の数え方を説明する文。 */
@@ -233,8 +233,9 @@ export function renderHtml(d) {
   for (const x of runs) issueOf(x.issue || "(なし)").runs += 1;
   for (const [issue, hours] of Object.entries(d.activeByIssue))
     issueOf(issue || "(なし)").active += hours;
-  for (const x of d.intervals.filter((y) => y.type === "stop" && y.category === "idle"))
-    issueOf(x.issue || "(なし)").idle += Number(x.minutes) / 60;
+  // 未活用も、人ごとの表と同じく丸める前の値から足す
+  for (const [issue, hours] of Object.entries(d.idleByIssue))
+    issueOf(issue || "(なし)").idle += hours;
 
   // レビュー
   /** @type {Map<string, { count: number; cost: number; unknown: number }>} */
@@ -337,7 +338,7 @@ export function renderHtml(d) {
       unit: " 時間",
       axisLabel: dayLabel,
       maxLabels: 10,
-      note: `${ACTIVE_NOTE}エージェントを使わなかった日も停止に数えます。各人の稼働中と停止は、その人の期間の最初の稼働から、最後に記録した時刻までを数えます。そのため、1 日の合計は 24 時間 × 人数までになります。`,
+      note: `${ACTIVE_NOTE}エージェントを使わなかった日も停止に数えます。各人の稼働中と停止は、その人の期間の最初の稼働から、最後に記録した時刻までを数えます。そのため、1 日の合計は、その日の長さ × 人数までになります（夏時間が切り替わる日を除いて 24 時間）。`,
     }),
     stackedBars({
       title: "1 回の指示で動き続けた時間（件数）",
@@ -358,7 +359,7 @@ export function renderHtml(d) {
       unit: " 時間",
       note: `${ACTIVE_NOTE}判定不能は、GitHub の情報（CI・レビュー・自分の操作）を取得していない期間の停止です。collect が GitHub を取得するのは、初回は最大 60 日前からです。`,
     }),
-    `<section><h2>Issue ごと（稼働中の長い順に ${ISSUE_ROWS} 件まで。すべては intervals.csv）</h2><p class="muted small">未活用は、直前に動いていた指示の Issue に数えます。同じ人が同時に複数の Issue の指示を動かした時間は、それぞれの Issue の稼働中に数えます。そのため、稼働中の合計は、稼働状況の稼働中より大きくなることがあります。</p>${table(
+    `<section><h2>Issue ごと（稼働中の長い順に ${ISSUE_ROWS} 件まで。すべては intervals.csv）</h2><p class="muted small">同じ人が同時に複数の Issue の指示を動かした時間は、その Issue の数で等分して稼働中に数えます。未活用は、直前に動いていた指示の Issue に数えます。</p>${table(
       ["Issue", "指示の数", `${STATUS_LABELS.active}（時間）`, `${STATUS_LABELS.idle}（時間）`],
       [...byIssue.entries()]
         .sort((a, b) => b[1].active - a[1].active)

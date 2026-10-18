@@ -682,7 +682,7 @@ describe("停止の分類", () => {
     ]);
   });
 
-  test("HTML: Issue ごとの表の稼働中は、同じ人の同じ Issue の指示を合わせ、外部待ちを含める", () => {
+  test("HTML: Issue ごとの表の稼働中は、外部待ちを含め、同時に動いた Issue の数で等分し、未活用は直前の指示の Issue に数える", () => {
     const base = {
       observed_at: "2026-10-01T05:00:00.000Z",
       person: "p-00000001",
@@ -715,19 +715,33 @@ describe("停止の分類", () => {
         start: "2026-10-01T02:00:00.000Z",
         end: "2026-10-01T04:00:00.000Z",
       },
+      // 4〜5 時は止まっていた（GitHub は取得済みなので未活用）。直前に動いていたのは Issue 2 の指示
+      {
+        key: "cov",
+        kind: "coverage",
+        observed_at: "2026-10-01T05:00:00.000Z",
+        person: "p-00000001",
+        tz: "UTC",
+        start: "2026-10-01T00:00:00.000Z",
+        end: "2026-10-01T06:00:00.000Z",
+        detail: "ok",
+      },
     ];
     const r = buildReport(rows, {
       config: parseRepoConfig({}),
       bundledPricing: {},
       bundledReviewPricing: {},
       tz: "UTC",
-      now: Date.parse("2026-10-01T04:00:00Z"),
+      now: Date.parse("2026-10-01T05:00:00Z"),
       since: null,
       until: null,
       recordFiles: 1,
     });
-    expect(r.activeByIssue).toEqual({ "1": 2.5, "2": 2 });
+    // 1〜2 時は Issue 1 だけ、2〜3 時半は 2 つの Issue で等分、3 時半〜4 時は Issue 2 だけ
+    expect(r.activeByIssue).toEqual({ "1": 1.75, "2": 1.25 });
+    // Issue ごとの合計は、人ごとの稼働中と一致する
     expect(r.activeByPerson).toEqual({ "p-00000001": 3 });
+    expect(r.idleByIssue).toEqual({ "2": 1 });
     const html = renderHtml(r);
     const start = html.indexOf("<h2>Issue ごと");
     const section = html.slice(start, html.indexOf("</section>", start));
@@ -736,9 +750,9 @@ describe("停止の分類", () => {
     );
     expect(rowsOf).toEqual([
       ["Issue", "指示の数", `${STATUS_LABELS.active}（時間）`, `${STOP_LABELS.idle}（時間）`],
-      ["1", "2", "2.5", "0.0"],
-      ["2", "1", "2.0", "0.0"],
-      ["合計（すべての Issue）", "3", "4.5", "0.0"],
+      ["1", "2", "1.8", "0.0"],
+      ["2", "1", "1.3", "1.0"],
+      ["合計（すべての Issue）", "3", "3.0", "1.0"],
     ]);
   });
 
@@ -1454,8 +1468,12 @@ describe("日別のチャート", () => {
     expect(
       r.intervals.filter((x) => x.type === "stop").map((x) => [x.start, x.end, x.category]),
     ).toEqual([["2026-10-01T18:00:00.000Z", "2026-10-02T00:00:00.000Z", "idle"]]);
-    // 稼働中も同じ所で打ち切るので、2 つ目の run は数えない
+    // 稼働中も同じ所で打ち切るので、2 つ目の run は数えない。指示の数・ヒストグラム・intervals.csv にも数えない
     expect(r.activeByPerson).toEqual({ "p-00000001": 1 });
+    expect(r.intervals.filter((x) => x.type === "run").map((x) => x.start)).toEqual([
+      "2026-10-01T17:00:00.000Z",
+    ]);
+    expect(r.runHistogram.reduce((a, b) => a + b, 0)).toBe(1);
   });
 
   test("人ごとの停止は、intervals.csv の丸めた分ではなく、丸める前の値から足す", () => {
@@ -1474,6 +1492,8 @@ describe("日別のチャート", () => {
     expect(idle * 60).toBeCloseTo(0.5, 9);
     const byDay = r.statusByDay.find((x) => x.status === "idle")?.byDay ?? [];
     expect(byDay.reduce((a, b) => a + b, 0)).toBeCloseTo(idle, 12);
+    // Issue ごとの未活用も、丸める前の値から足す
+    expect((r.idleByIssue[""] ?? 0) * 60).toBeCloseTo(0.5, 9);
   });
 });
 
