@@ -33,20 +33,21 @@ import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { errorMessage } from "./lib/errors.mjs";
 import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
+import { stepFence } from "./lib/fence.mjs";
 import {
   blankComments,
   collapse,
-  fenceOf,
   opensHtmlBlock,
   parseTables,
   splitRow,
+  unclosedFenceMessage,
 } from "./lib/markdown.mjs";
 
 /**
  * ツールのバージョン（このファイルで定義する）。判定の規則や出力の形を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "2";
+export const VERSION = "3";
 
 /** 成果物の mode の語彙（parity-suite の metadata.json の mode）。 */
 export const MODES = ["feature", "api-resource", "batch"];
@@ -222,18 +223,14 @@ function looksLikeTableRow(line) {
  * @returns {number}
  */
 export function countRowLikeLines(text, consumed = new Set()) {
-  /** @type {string | null} */
-  let fence = null;
+  /** @type {boolean[]} */
+  const fenced = [];
   let count = 0;
   // HTML コメント（テンプレートの記入例・説明）は表ではない。parseTables と同じ blankComments で空白にしてから数える。
-  blankComments(text.split(/\r?\n/u)).forEach((line, index) => {
-    const mark = fenceOf(line);
-    if (mark !== null) {
-      if (fence === null) fence = mark;
-      else if (mark[0] === fence[0] && mark.length >= fence.length) fence = null;
-      return;
-    }
-    if (fence === null && !consumed.has(index) && looksLikeTableRow(line)) count += 1;
+  // フェンスも parseTables と同じく、blankComments が置き換える前の行で判定した fenced を使う。
+  blankComments(text.split(/\r?\n/u), fenced).forEach((line, index) => {
+    if (fenced[index]) return;
+    if (!consumed.has(index) && looksLikeTableRow(line)) count += 1;
   });
   return count;
 }
@@ -263,13 +260,9 @@ export function strayCommentMarkers(text) {
       comment = false;
       return;
     }
-    const mark = fenceOf(line);
-    if (mark !== null) {
-      if (fence === null) fence = mark;
-      else if (mark[0] === fence[0] && mark.length >= fence.length) fence = null;
-      return;
-    }
-    if (fence !== null) return;
+    const step = stepFence(fence, line);
+    fence = step.fence;
+    if (step.marker || fence !== null) return;
     if (opens === 0 && closes === 0) return;
     if (!opensHtmlBlock(line) || opens > 1 || closes > 1) {
       lines.push(index + 1);
@@ -307,7 +300,9 @@ export function readProcedureLedger(text, skillChangeIds) {
   const errors = [];
   /** @type {Set<number>} */
   const consumed = new Set();
-  const { tables } = parseTables(text, { consumed });
+  const { tables, unclosedFence } = parseTables(text, { consumed });
+  // 閉じないフェンスは後ろの表をすべて読めなくするので、表が無いなどのエラーより先に、原因として出す。
+  if (unclosedFence !== null) errors.push(`台帳の ${unclosedFenceMessage(unclosedFence)}`);
   const changeTable = findTable(tables, CHANGE_HEADERS);
   const recordTable = findTable(tables, RECORD_HEADERS);
   // 表の不在を「変更なし」「記録なし」と読まない。列名を書き換えた台帳も同じ（警告なしに 0 件になる）。

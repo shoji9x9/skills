@@ -7,6 +7,7 @@
 import { expect, test } from "vitest";
 import { readAssetLedger } from "../../../skills/replace-strategy/scripts/asset-delivery-check.mjs";
 import { readRow } from "../../../skills/replace-strategy/scripts/evidence-gap-check.mjs";
+import { stepFence } from "../../../skills/replace-strategy/scripts/lib/fence.mjs";
 import { parseTables } from "../../../skills/replace-strategy/scripts/lib/markdown.mjs";
 import { readProcedureLedger } from "../../../skills/replace-strategy/scripts/procedure-staleness-check.mjs";
 
@@ -259,6 +260,157 @@ test("HTML ブロックを閉じる行は、`-->` の後ろもブロックに入
 
 const norm = (text: string) => cells(text).map((r) => r.map((c) => c.replace(/\s+/gu, " ")));
 
+// フェンスの開閉（Issue #679）。閉じる行は、開いた記号と同じ文字で同じ長さ以上の記号の後ろが空白だけの行（CommonMark）。
+test.each<[string, string | null, string | undefined, { fence: string | null; marker: boolean }]>([
+  ["開いていない・``` で開く", null, "```", { fence: "```", marker: true }],
+  ["開いていない・情報文字列付きで開く", null, "```bash", { fence: "```", marker: true }],
+  [
+    "開いていない・情報文字列に行区切りの文字があっても開く",
+    null,
+    "```a\u2028b",
+    { fence: "```", marker: true },
+  ],
+  ["開いていない・~~~ で開く", null, "~~~", { fence: "~~~", marker: true }],
+  [
+    "開いていない・情報文字列にバッククォートを含む ``` は開かない",
+    null,
+    "```x``` はインラインのコード",
+    { fence: null, marker: false },
+  ],
+  [
+    "開いていない・情報文字列にバッククォートを含む ~~~ は開く",
+    null,
+    "~~~ `x`",
+    { fence: "~~~", marker: true },
+  ],
+  ["開いていない・字下げ 4 文字は開かない", null, "    ```", { fence: null, marker: false }],
+  ["開いていない・行が無い", null, undefined, { fence: null, marker: false }],
+  ["開いている・同じ記号で閉じる", "```", "```", { fence: null, marker: true }],
+  ["開いている・情報文字列付きの行では閉じない", "```", "```bash", { fence: "```", marker: false }],
+  [
+    "開いている・~~~ の情報文字列付きの行では閉じない",
+    "~~~",
+    "~~~ text",
+    { fence: "~~~", marker: false },
+  ],
+  ["開いている・後ろの空白とタブは閉じる", "```", "```  \t", { fence: null, marker: true }],
+  ["開いている・長い記号で閉じる", "```", "`````", { fence: null, marker: true }],
+  ["開いている・短い記号では閉じない", "````", "```", { fence: "````", marker: false }],
+  ["開いている・別の文字では閉じない", "```", "~~~", { fence: "```", marker: false }],
+  ["開いている・字下げ 3 文字は閉じる", "```", "   ```", { fence: null, marker: true }],
+  ["開いている・字下げ 4 文字は閉じない", "```", "    ```", { fence: "```", marker: false }],
+  ["開いている・行が無い", "```", undefined, { fence: "```", marker: false }],
+])("stepFence: %s", (_name, fence, line, expected) => {
+  expect(stepFence(fence, line)).toEqual(expected);
+});
+
+test("情報文字列の付いた行でフェンスを閉じず、フェンスの中の表と HTML コメントを読まない", () => {
+  const { tables } = parseTables(
+    lines(
+      "```",
+      "```bash",
+      "<!--",
+      "| c | d |",
+      "|---|---|",
+      "| 3 | 4 |",
+      "```",
+      "",
+      "| a | b |",
+      "|---|---|",
+      "| 1 | 2 |",
+    ),
+  );
+  expect(tables.map((t) => t.rows)).toEqual([[[" 1 ", " 2 "]]]);
+});
+
+test.each([
+  [
+    "asset-delivery-check",
+    () =>
+      readAssetLedger(
+        lines(
+          "```",
+          "```bash",
+          ASSET,
+          "|---|---|---|",
+          COPY("旧"),
+          "```",
+          "",
+          ASSET,
+          "|---|---|---|",
+          COPY("新"),
+        ),
+      ).copyRows.map((r) => r.kind),
+    ["新"],
+  ],
+  [
+    "evidence-gap-check",
+    () =>
+      readRow(
+        lines(
+          "```",
+          "```bash",
+          FEATURE,
+          D6,
+          PLAN("GET /b"),
+          "```",
+          "",
+          FEATURE,
+          D6,
+          PLAN("GET /a"),
+        ),
+        "plan",
+      ).endpoints,
+    ["GET /a"],
+  ],
+  [
+    "procedure-staleness-check",
+    () =>
+      procedureIds(
+        lines(
+          "```",
+          "```bash",
+          CHANGE,
+          D6,
+          PC("PC-002"),
+          "```",
+          "",
+          CHANGE,
+          D6,
+          PC("PC-001"),
+          "",
+          RECORD,
+          D6,
+        ),
+      ),
+    ["PC-001"],
+  ],
+])(
+  "%s: 情報文字列の付いた行でフェンスを閉じず、フェンスの中の表を読まない",
+  (_name, read, expected) => {
+    expect(read()).toEqual(expected);
+  },
+);
+
+test("コメントを空白にして初めてフェンスに見える行では、フェンスを開かない", () => {
+  const { tables } = parseTables(
+    lines(
+      "```<!-- ` -->",
+      "",
+      "| a | b |",
+      "|---|---|",
+      "| 1 | 2 |",
+      "",
+      "```",
+      "| x | y |",
+      "|---|---|",
+      "| 9 | 9 |",
+      "```",
+    ),
+  );
+  expect(tables.map((t) => t.rows)).toEqual([[[" 1 ", " 2 "]]]);
+});
+
 test("バックスラッシュが 2 つ続く `\\\\<!--` とバッククォートは、エスケープにならない", () => {
   expect(
     norm(lines("| a | b |", "|---|---|", "| 1 | \\\\<!-- x --> y |", "| 2 | \\\\` <!-- z --> ` |")),
@@ -266,4 +418,89 @@ test("バックスラッシュが 2 つ続く `\\\\<!--` とバッククォー�
     ["1", "\\\\ y"],
     ["2", "\\\\` <!-- z --> `"],
   ]);
+});
+
+// 閉じないコードフェンス（#679 の利用者の決定 A）。閉じる行に情報文字列を付けると（` ```sh ` など）フェンスは閉じず、
+// 文書の末尾までフェンスの中になる。後ろの表を警告なしに読まずに通さないよう、開いた行の番号を返して、各スクリプトが止める。
+test.each([
+  [
+    "閉じたフェンス",
+    lines("```bash", "cmd", "```", "", "| a | b |", "|---|---|", "| 1 | 2 |"),
+    null,
+  ],
+  [
+    "情報文字列の付いた行で閉じたつもりのフェンス",
+    lines("```bash", "cmd", "```sh", "", "| a | b |", "|---|---|", "| 1 | 2 |"),
+    1,
+  ],
+  ["閉じた後に開き直したフェンス", lines("```", "x", "```", "", "```", "y"), 5],
+  ["4 文字字下げした閉じる行", lines("```", "x", "    ```"), 1],
+  ["タブで字下げした閉じる行", lines("```", "x", "\t```"), 1],
+  ["字下げした `~~~` のフェンス", lines("説明", "   ~~~", "x"), 2],
+  ["閉じない HTML コメントの中のフェンス行", lines("<!--", "```", "x"), null],
+  ["閉じた HTML コメントの中のフェンス行", lines("<!--", "```", "-->"), null],
+  ["フェンスが無い", lines("| a | b |", "|---|---|", "| 1 | 2 |"), null],
+])(
+  "parseTables は、末尾まで閉じないフェンスを開いた行の番号を返す: %s",
+  (_name, text, expected) => {
+    expect(parseTables(text).unclosedFence).toBe(expected);
+  },
+);
+
+test.each([
+  [
+    "asset-delivery-check",
+    () => readAssetLedger(lines(ASSET, "|---|---|---|", COPY("新"), "", "```bash", "cmd", "```sh")),
+  ],
+  [
+    "evidence-gap-check",
+    () => readRow(lines(FEATURE, D6, PLAN("GET /a"), "", "```bash", "cmd", "```sh"), "plan"),
+  ],
+  [
+    "procedure-staleness-check",
+    () =>
+      procedureIds(lines(CHANGE, D6, PC("PC-001"), "", RECORD, D6, "", "```bash", "cmd", "```sh")),
+  ],
+])("%s: 閉じないコードフェンスは、開いた行の番号を付けて止める", (name, read) => {
+  const line = name === "procedure-staleness-check" ? 8 : 5;
+  const prefix = name === "evidence-gap-check" ? "インベントリの" : "台帳の";
+  expect(read).toThrow(
+    `${prefix} ${line} 行目で開いたコードフェンスが末尾まで閉じていない。フェンスの後ろの表を読めない。閉じる行は、字下げを半角の空白 3 個までにし、開いた記号と同じ文字を開いた数か、それより多く並べ、後ろには半角の空白とタブのほかに何も書かない`,
+  );
+});
+
+test("procedure-staleness-check: 閉じないフェンスが表を読めなくしたときは、表が無いエラーより先にフェンスを報告する", () => {
+  const r = readProcedureLedger(
+    lines("```bash", "cmd", "```sh", "", CHANGE, D6, PC("PC-001")),
+    new Set(),
+  );
+  expect(r.ok).toBe(false);
+  if (r.ok) return;
+  expect(r.errors[0]).toContain("1 行目で開いたコードフェンスが末尾まで閉じていない");
+  expect(r.errors.join("\n")).toContain("表が無い");
+});
+
+test.each([
+  [
+    "asset-delivery-check",
+    () =>
+      readAssetLedger(
+        lines(ASSET, "|---|---|---|", COPY("新"), "", "```bash", "cmd", "```"),
+      ).copyRows.map((r) => r.kind),
+    ["新"],
+  ],
+  [
+    "evidence-gap-check",
+    () =>
+      readRow(lines(FEATURE, D6, PLAN("GET /a"), "", "```bash", "cmd", "```"), "plan").endpoints,
+    ["GET /a"],
+  ],
+  [
+    "procedure-staleness-check",
+    () =>
+      procedureIds(lines(CHANGE, D6, PC("PC-001"), "", RECORD, D6, "", "```bash", "cmd", "```")),
+    ["PC-001"],
+  ],
+])("誤検知しないことの確認: %s は、閉じたコードフェンスでは止めない", (_name, read, expected) => {
+  expect(read()).toEqual(expected);
 });

@@ -219,8 +219,8 @@
       "id": "multiline-comment-counted",
       "why": "countRowLikeLines が、HTML コメントを空白にせずに表の行に見える行を数える",
       "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
-      "find": "  blankComments(text.split(/\\r?\\n/u)).forEach((line, index) => {",
-      "replace": "  text.split(/\\r?\\n/u).forEach((line, index) => {",
+      "find": "  blankComments(text.split(/\\r?\\n/u), fenced).forEach((line, index) => {",
+      "replace": "  const raw = text.split(/\\r?\\n/u);\n  blankComments(raw, fenced);\n  raw.forEach((line, index) => {",
       "occurrences": 1,
       "expect_failing": [
         "誤検知しないことの確認: 複数行の HTML コメントの中の `|` を含む行は表の外の行に数えない",
@@ -255,12 +255,11 @@
       "id": "comment-tables-parsed",
       "why": "HTML コメントの中の表（退役した表・記入例）を台帳として読み、生きた表の代わりに変更を供給する",
       "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "  const lines = blankComments(text.split(/\\r?\\n/u));",
-      "replace": "  const lines = text.split(/\\r?\\n/u);",
+      "find": "  const lines = blankComments(text.split(/\\r?\\n/u), fenced, state);",
+      "replace": "  const lines = text.split(/\\r?\\n/u);\n  blankComments(lines, fenced, state);",
       "occurrences": 1,
       "expect_failing": [
-        "HTML コメントの中の表は台帳として読まない（生きた表の代わりにも、重複にもならない）",
-        "誤検知しないことの確認: 扱える位置の HTML コメントは通す: コメントの中のフェンス記号"
+        "HTML コメントの中の表は台帳として読まない（生きた表の代わりにも、重複にもならない）"
       ]
     },
     {
@@ -355,11 +354,12 @@
       "id": "markers-in-fence-rejected",
       "why": "コードフェンスの中の例示まで HTML コメントの記号として落とす",
       "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
-      "find": "    if (fence !== null) return;\n    if (opens === 0 && closes === 0) return;\n",
-      "replace": "    if (opens === 0 && closes === 0) return;\n",
+      "find": "    if (step.marker || fence !== null) return;\n    if (opens === 0 && closes === 0) return;\n",
+      "replace": "    if (step.marker) return;\n    if (opens === 0 && closes === 0) return;\n",
       "occurrences": 1,
       "expect_failing": [
-        "誤検知しないことの確認: 扱える位置の HTML コメントは通す: コードフェンスの中の記号"
+        "誤検知しないことの確認: 扱える位置の HTML コメントは通す: コードフェンスの中の記号",
+        "情報文字列の付いた行でフェンスを閉じず、フェンスの中の HTML コメントの記号を落とさない"
       ]
     },
     {
@@ -441,6 +441,27 @@
       "replace": "  return /^ *<!--/u.test(line);",
       "occurrences": 1,
       "expect_failing": ["4 文字以上字下げした `<!--` は、扱える位置の HTML コメントの記号にしない"]
+    },
+    {
+      "id": "fence-closed-by-info-string",
+      "why": "閉じるフェンスの後ろに情報文字列を許し、` ```bash ` の行で開いているフェンスを閉じる（Issue #679）",
+      "file": "skills/replace-strategy/scripts/lib/fence.mjs",
+      "find": "/^ {0,3}(`{3,}|~{3,})[ \\t]*$/u",
+      "replace": "/^ {0,3}(`{3,}|~{3,})/u",
+      "occurrences": 1,
+      "expect_failing": [
+        "情報文字列の付いた行でフェンスを閉じず、フェンスの中の表の行を数えない",
+        "情報文字列の付いた行でフェンスを閉じず、フェンスの中の HTML コメントの記号を落とさない"
+      ]
+    },
+    {
+      "id": "row-like-in-fence-counted",
+      "why": "countRowLikeLines が、フェンスの中の表の行に見える行も表の外の行として数える（PR #696 のレビュー）",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "    if (fenced[index]) return;",
+      "replace": "    if (false) return;",
+      "occurrences": 1,
+      "expect_failing": ["情報文字列の付いた行でフェンスを閉じず、フェンスの中の表の行を数えない"]
     }
   ]
 }

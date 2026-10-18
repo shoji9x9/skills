@@ -28,6 +28,7 @@
 import { readFileSync, realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { stepFence, unclosedFenceMessage } from "./lib/fence.mjs";
 import { isArray } from "./lib/is-array.mjs";
 
 /**
@@ -35,7 +36,7 @@ import { isArray } from "./lib/is-array.mjs";
  *
  * @type {string}
  */
-export const VERSION = "3";
+export const VERSION = "4";
 
 /**
  * 役割の語彙（原本）。
@@ -87,9 +88,57 @@ export function normalizeCell(cell) {
 }
 
 /**
+ * 各行がフェンスの記号の行かフェンスの中か（true）と、末尾まで閉じないフェンスを開いた行の番号（1 始まり。閉じていれば null）を返す。
+ * 行頭（字下げ 3 文字まで）の `<!--` で開いて閉じない HTML コメントの中では、フェンス行でフェンスを開かない。
+ * 開くと、コメントの中の記入例の ``` で、コメントの後ろの表がすべて消える。
+ * コメントの中の表と見出しは読む（replace-strategy の台帳と違い、コメントの中を除かない）。
+ *
+ * @param {string[]} lines
+ * @returns {{ fenced: boolean[], unclosed: number | null }}
+ */
+function fenceLines(lines) {
+  /** @type {boolean[]} */
+  const fenced = [];
+  /** @type {string | null} */
+  let fence = null;
+  /** @type {number | null} */
+  let openedAt = null;
+  let comment = false;
+  lines.forEach((line, index) => {
+    if (comment) {
+      if (line.includes("-->")) comment = false;
+      fenced.push(false);
+      return;
+    }
+    const step = stepFence(fence, line);
+    if (fence === null && step.fence !== null) openedAt = index + 1;
+    fence = step.fence;
+    const inFence = step.marker || fence !== null;
+    if (!inFence && /^ {0,3}<!--/u.test(line)) {
+      // `<!-->` と `<!--->` も、それだけで閉じたコメントになる（CommonMark）。
+      comment = !line.includes("-->");
+    }
+    fenced.push(inFence);
+  });
+  return { fenced, unclosed: fence === null ? null : openedAt };
+}
+
+/**
+ * 末尾まで閉じないコードフェンスを開いた行の番号を返す（閉じていれば null）。
+ * 閉じる行の形が合わないと（情報文字列を付けた ` ```sh `、4 文字以上の字下げ、短い記号など）フェンスは閉じず、後ろの表がすべて読まれない。
+ *
+ * @param {string} markdown
+ * @returns {number | null}
+ */
+export function unclosedFenceLine(markdown) {
+  return fenceLines(String(markdown ?? "").split(/\r?\n/)).unclosed;
+}
+
+/**
  * Markdown のパイプ表を見出しごとに集める。
  *
  * 行頭が `|` の連続した塊のうち、2 行目が区切り行（`---`）であるものだけを表として扱う。
+ * コードフェンスの中は例示なので、表も見出しも読まない（フェンスの判定は lib/fence.mjs）。
  *
  * @param {string} markdown
  * @returns {{ heading: string, headers: string[], rows: string[][], line: number }[]}
@@ -130,8 +179,13 @@ export function parseTables(markdown) {
   };
   /** @param {string} line */
   const isSeparator = (line) => /^\s*\|?[\s:|-]+\|[\s:|-]*$/.test(line) && line.includes("-");
+  const { fenced } = fenceLines(lines);
   while (i < lines.length) {
     const line = lines[i];
+    if (fenced[i]) {
+      i += 1;
+      continue;
+    }
     const headingMatch = /^#{1,6}\s+(.+?)\s*$/.exec(line);
     if (headingMatch) {
       heading = normalizeCell(headingMatch[1]);
@@ -365,6 +419,14 @@ export function collectConsumers(featuresMarkdown) {
   /** @type {Map<string, Set<string>>} */
   const consumers = new Map();
   let structural = false;
+  const unclosed = unclosedFenceLine(featuresMarkdown);
+  if (unclosed !== null) {
+    structural = true;
+    findings.push({
+      code: "features-fence-unclosed",
+      message: `features.md の ${unclosedFenceMessage(unclosed)}`,
+    });
+  }
   const sources = [
     { heading: "機能一覧", column: "テーブル", label: "機能一覧の「テーブル」列" },
     { heading: "横断 API", column: "参照テーブル", label: "横断 API の「参照テーブル」列" },
@@ -431,6 +493,14 @@ export function checkPredicateCoverage(input) {
   let structural = featuresStructural;
 
   const designTables = parseTables(input.designMarkdown);
+  const designUnclosed = unclosedFenceLine(input.designMarkdown);
+  if (designUnclosed !== null) {
+    structural = true;
+    findings.push({
+      code: "design-fence-unclosed",
+      message: `design.md の ${unclosedFenceMessage(designUnclosed)}`,
+    });
+  }
   const targetTable = findTable(designTables, "対象テーブル", [
     "テーブル",
     "features.md の機能／リソース",
@@ -1044,6 +1114,14 @@ export function checkPredicateCoverage(input) {
   // 6 節の検査が丸ごと飛び、「実測していない」が「実測して問題なし」と同じ見え方になる。
   if (typeof input.verificationMarkdown === "string") {
     const verificationTables = parseTables(input.verificationMarkdown);
+    const verificationUnclosed = unclosedFenceLine(input.verificationMarkdown);
+    if (verificationUnclosed !== null) {
+      // verification.md の表が無いとき（verification-table-missing）と同じく、構造の不備にはしない。
+      findings.push({
+        code: "verification-fence-unclosed",
+        message: `verification.md の ${unclosedFenceMessage(verificationUnclosed)}`,
+      });
+    }
     const measured = findTable(verificationTables, "述語ごとの該当行数", [
       "述語 id",
       "真の実測行数",

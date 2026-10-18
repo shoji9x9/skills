@@ -275,6 +275,162 @@
       "replace": "export const PREDICATE_TABLE_HEADINGS = [\"述語ごとの分岐網羅\"];",
       "occurrences": 1,
       "expect_failing": ["述語の表は新しい見出しでも改名する前の見出しでも同じに読む"]
+    },
+    {
+      "id": "fence-closed-by-info-string",
+      "why": "閉じるフェンスの後ろに情報文字列を許し、` ```bash ` の行で開いているフェンスを閉じる（Issue #679）",
+      "file": "skills/golden-dataset/scripts/lib/fence.mjs",
+      "find": "/^ {0,3}(`{3,}|~{3,})[ \\t]*$/u",
+      "replace": "/^ {0,3}(`{3,}|~{3,})/u",
+      "occurrences": 1,
+      "expect_failing": [
+        "情報文字列の付いた行でフェンスを閉じず、フェンスの中の表を読まない",
+        "unclosedFenceLine は、末尾まで閉じないフェンスを開いた行の番号を返す: 情報文字列の付いた行で閉じたつもりのフェンス",
+        "features.md の閉じないコードフェンスは、構造の不備として合格にしない",
+        "design.md の閉じないコードフェンスは、構造の不備として合格にしない",
+        "verification.md の閉じないコードフェンスは、表が無いときと同じく、開いた行の番号を付けて報告する",
+        "verification.md の閉じないフェンスの後ろにある実測表は読めないので、表が無いことも報告する（replace-strategy の台帳と同じ）"
+      ]
+    },
+    {
+      "id": "fence-content-read",
+      "why": "コードフェンスの中の表と見出しを、設計の表として読む",
+      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
+      "find": "    if (fenced[i]) {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "コードフェンスの中の表と見出しを読まない",
+        "情報文字列の付いた行でフェンスを閉じず、フェンスの中の表を読まない",
+        "誤検知しないことの確認: フェンスの中の `<!--` はコメントを開かず、フェンスの後ろのフェンスの中の表を読まない",
+        "`<!-->` と `<!--->` はそれだけでコメントを閉じ、後ろのフェンスの中の表を読まない",
+        "verification.md の閉じないフェンスの後ろにある実測表は読めないので、表が無いことも報告する（replace-strategy の台帳と同じ）"
+      ]
+    },
+    {
+      "id": "fence-opened-by-backtick-info",
+      "why": "情報文字列にバッククォートを含む ``` の行（行頭のインラインのコード）でフェンスを開き、後ろの表を読まない",
+      "file": "skills/golden-dataset/scripts/lib/fence.mjs",
+      "find": "  if (match[1][0] === \"`\" && match[2].includes(\"`\")) return null;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["行頭のインラインのコード（```x```）ではフェンスを開かず、後ろの表を読む"]
+    },
+    {
+      "id": "fence-opened-inside-comment",
+      "why": "閉じない HTML コメントの中のフェンス行でフェンスを開き、コメントの後ろの表を読まない（PR #696 のレビュー）",
+      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
+      "find": "    if (comment) {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "HTML コメントの中のフェンス行でフェンスを開かず、コメントの後ろの表を読む",
+        "unclosedFenceLine は、末尾まで閉じないフェンスを開いた行の番号を返す: 閉じない HTML コメントの中のフェンス行"
+      ]
+    },
+    {
+      "id": "comment-opened-inside-fence",
+      "why": "フェンスの中の `<!--` で HTML コメントを開き、後ろのフェンスを読まない",
+      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
+      "find": "    if (!inFence && /^ {0,3}<!--/u.test(line)) {",
+      "replace": "    if (/^ {0,3}<!--/u.test(line)) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "誤検知しないことの確認: フェンスの中の `<!--` はコメントを開かず、フェンスの後ろのフェンスの中の表を読まない"
+      ]
+    },
+    {
+      "id": "short-comment-left-open",
+      "why": "`<!-->` と `<!--->` を閉じたコメントとして扱わず、次の `-->` までフェンスを認識しない（PR #696 のレビュー）",
+      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
+      "find": "      comment = !line.includes(\"-->\");",
+      "replace": "      comment = !line.slice(line.indexOf(\"<!--\") + 4).includes(\"-->\");",
+      "occurrences": 1,
+      "expect_failing": [
+        "`<!-->` と `<!--->` はそれだけでコメントを閉じ、後ろのフェンスの中の表を読まない"
+      ]
+    },
+    {
+      "id": "unclosed-fence-opened-at-not-tracked",
+      "why": "フェンスを開いた行を覚えず、閉じないフェンスを報告しない（#679 の決定 A）",
+      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
+      "find": "    if (fence === null && step.fence !== null) openedAt = index + 1;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "unclosedFenceLine は、末尾まで閉じないフェンスを開いた行の番号を返す: 情報文字列の付いた行で閉じたつもりのフェンス",
+        "unclosedFenceLine は、末尾まで閉じないフェンスを開いた行の番号を返す: 閉じた後に開き直したフェンス",
+        "unclosedFenceLine は、末尾まで閉じないフェンスを開いた行の番号を返す: 4 文字字下げした閉じる行",
+        "unclosedFenceLine は、末尾まで閉じないフェンスを開いた行の番号を返す: タブで字下げした閉じる行",
+        "features.md の閉じないコードフェンスは、構造の不備として合格にしない",
+        "design.md の閉じないコードフェンスは、構造の不備として合格にしない",
+        "verification.md の閉じないコードフェンスは、表が無いときと同じく、開いた行の番号を付けて報告する",
+        "verification.md の閉じないフェンスの後ろにある実測表は読めないので、表が無いことも報告する（replace-strategy の台帳と同じ）"
+      ]
+    },
+    {
+      "id": "unclosed-fence-opened-at-first-only",
+      "why": "最初に開いたフェンスの行だけを覚え、閉じた後に開き直したフェンスの行を指さない",
+      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
+      "find": "    if (fence === null && step.fence !== null) openedAt = index + 1;",
+      "replace": "    if (openedAt === null && step.fence !== null) openedAt = index + 1;",
+      "occurrences": 1,
+      "expect_failing": [
+        "unclosedFenceLine は、末尾まで閉じないフェンスを開いた行の番号を返す: 閉じた後に開き直したフェンス"
+      ]
+    },
+    {
+      "id": "unclosed-fence-ignores-closed",
+      "why": "末尾でフェンスが閉じていても、開いた行を閉じないフェンスとして返す",
+      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
+      "find": "unclosed: fence === null ? null : openedAt",
+      "replace": "unclosed: openedAt",
+      "occurrences": 1,
+      "expect_failing": [
+        "unclosedFenceLine は、末尾まで閉じないフェンスを開いた行の番号を返す: 閉じたフェンス",
+        "誤検知しないことの確認: 閉じたコードフェンスは、構造の不備にしない"
+      ]
+    },
+    {
+      "id": "features-unclosed-fence-unchecked",
+      "why": "features.md の閉じないフェンスを構造の不備にしない",
+      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
+      "find": "  if (unclosed !== null) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["features.md の閉じないコードフェンスは、構造の不備として合格にしない"]
+    },
+    {
+      "id": "design-unclosed-fence-unchecked",
+      "why": "design.md の閉じないフェンスを構造の不備にしない",
+      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
+      "find": "  if (designUnclosed !== null) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["design.md の閉じないコードフェンスは、構造の不備として合格にしない"]
+    },
+    {
+      "id": "verification-unclosed-fence-unchecked",
+      "why": "verification.md の閉じないフェンスを報告しない",
+      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
+      "find": "    if (verificationUnclosed !== null) {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "verification.md の閉じないコードフェンスは、表が無いときと同じく、開いた行の番号を付けて報告する",
+        "verification.md の閉じないフェンスの後ろにある実測表は読めないので、表が無いことも報告する（replace-strategy の台帳と同じ）"
+      ]
+    },
+    {
+      "id": "fence-close-indent-unbounded",
+      "why": "閉じる行の字下げの上限（半角の空白 3 個）を外し、4 個以上字下げした行でもフェンスを閉じる",
+      "file": "skills/golden-dataset/scripts/lib/fence.mjs",
+      "find": "/^ {0,3}(`{3,}|~{3,})[ \\t]*$/u",
+      "replace": "/^ *(`{3,}|~{3,})[ \\t]*$/u",
+      "occurrences": 1,
+      "expect_failing": [
+        "unclosedFenceLine は、末尾まで閉じないフェンスを開いた行の番号を返す: 4 文字字下げした閉じる行"
+      ]
     }
   ]
 }

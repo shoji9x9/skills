@@ -27,7 +27,7 @@
 //
 // 判定できないときは失敗として扱う。次のものは、どれも exit 2（判定していない）にする。
 // 台帳の表が無い・複数ある・状態や方針が語彙にない・同じ種類に `有効` が 2 行ある・記録の形が不正・
-// 表に属さない行がある・確かめる資産があるのにプローブが無い。
+// 表に属さない行がある・コードフェンスが閉じない・確かめる資産があるのにプローブが無い。
 // 取得の失敗・参照が無い・バイト列の不一致・記録に無い行・台帳に無い記録は、exit 1 にする。
 //
 // ネットワークに依存する（取得して比べることがチェックの中身である）。それ以外は決定論的に動く。
@@ -40,10 +40,10 @@ import { relative, resolve } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
-import { parseTables } from "./lib/markdown.mjs";
+import { parseTables, unclosedFenceMessage } from "./lib/markdown.mjs";
 
 /** ツールのバージョン（このファイルで定義する）。判定の規則や出力の形を変えたら上げる。 */
-export const VERSION = "2";
+export const VERSION = "3";
 
 /** replace-metadata.json に書くキー。 */
 export const WRITE_KEY = "asset_delivery_check";
@@ -95,7 +95,10 @@ export function normalizeCell(value) {
  * @returns {{ copyRows: LedgerRow[], activeRows: number }}
  */
 export function readAssetLedger(text) {
-  const { tables, strayRows } = parseTables(text, { normalizeHeader: normalizeCell });
+  const { tables, strayRows, unclosedFence } = parseTables(text, {
+    normalizeHeader: normalizeCell,
+  });
+  if (unclosedFence !== null) throw new UsageError(`台帳の ${unclosedFenceMessage(unclosedFence)}`);
   const candidates = tables.filter(
     (t) => t.headers.includes("種類") && t.headers.includes("方針") && t.headers.includes("状態"),
   );
