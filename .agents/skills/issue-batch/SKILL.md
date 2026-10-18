@@ -58,7 +58,7 @@ issue-batch run <Issue URL | 番号>... \
    - Kaizen が transcript を特定できるか、browser-test が安全か
    - setup の設定が base branch に入っているか
    - run の前に利用者の判断が要るもの（複数の案・決まっていない方針・試していない機構を約束した受け入れ条件・対象から外す候補にする不確実性の高い Issue）。1 回の確認にまとめて、変更の前に決めてもらう。全体を停止するときは確認せず、停止の報告に載せる
-2. `/tmp` に run manifest を作る。記録するのは、入力の順・Issue の URL・状態・branch・worktree・PR の URL・試験の結果・停止の理由・飛ばした理由・対象から外した理由・判断待ちの項目・自分で判断して進めたものだけである。秘密の値と、変わる環境の URL は書かない。
+2. `/tmp` に run manifest を作る。記録するのは、入力の順・Issue の URL・状態・branch・worktree・PR の URL・試験の結果・停止の理由・飛ばした理由・対象から外した理由・判断待ちの項目・自分で判断して進めたもの（`self_decisions` の下の 4 つの欄と `others`）だけである。秘密の値と、変わる環境の URL は書かない。
 3. preflight で `EXCLUDED`・`SKIPPED`・`BLOCKED` にした Issue は、この手順から後を行わず、残りの Issue を進める（`references/orchestration.md`「全体 preflight」の最後の段落）。
    依存のある Issue は、同じ文書の「全体 preflight」の 6 の条件を満たしてから着手する。
    呼び出し元の worktree を checkout せず、Issue ごとに一意な隔離した worktree を `git-worktree` の取り決めで用意して、セッションを移す。
@@ -112,4 +112,11 @@ BLOCKED や FAILED の影響が Issue の隔離した worktree の中だけで�
 表の後に、「判断待ち」と「自分で判断して進めたもの」の一覧を必ず載せる。0 件でも、無いことを書く。
 `SKIPPED` と `EXCLUDED` の Issue も表に載せる。`EXCLUDED` の対象から外した理由には、当たった兆候と利用者の選択か、外した依存先の番号を書く。
 判断待ちは、Issue ごとに論点・選択肢・推奨・決まった後に残る作業を示す。自分で判断して進めたものは、判断・根拠・覆すときに戻る工程を示す。
+自分で判断して進めたものには、次の 4 つの欄を必ず載せる。それぞれ 0 件でも、無いことを書く。
+守っていない規約とその理由、速度や反復の回数を理由に直さなかった指摘、見送った指摘のうち Issue にしていないもの、Issue の対象から外した形とその根拠である。
+preflight で Issue ごと外した `EXCLUDED` は、表の「対象から外した理由」にだけ書き、4 つ目の欄には載せない。
+4 つの欄は run 全体で 1 組にし、各項目に Issue の番号と手戻りの大きさ（大・中・小）を添える。各欄の中は、迷った度合いの大きいものから並べる。
+迷った度合いは、manifest に記録した手戻りの大きさで測る。
+どの欄にも当たらない判断は、4 つの欄の後に、Issue の番号と手戻りの大きさを添えて同じ並べ方で載せる。
+これらの欄は、run の間に manifest の同じ欄へ記録したものから作る（`references/orchestration.md`「判断の扱い」）。
 `DONE` は、次のすべてを確かめた場合だけ使う。PR が `MERGED`、Issue が `CLOSED`、deployment が成功したか根拠があって対象外である、local と remote の branch を削除した。
