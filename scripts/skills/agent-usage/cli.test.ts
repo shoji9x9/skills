@@ -500,6 +500,12 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(blocked.status).toBe(2);
     expect(blocked.stderr).toMatch(/設定を読めない: .*知らないキー "typo"/);
     expect(blocked.stderr).toMatch(/decline を実行してからコミット/);
+    // status も、判断の記録ではなく設定を読めないことを理由に出す
+    const status = cli("status");
+    expect(status.status).toBe(0);
+    expect(status.stdout).toMatch(
+      /このブランチの判断: record（設定を読めない: .*知らないキー "typo"/,
+    );
   });
 
   test("report は report/<日付>/ に HTML と 3 つの CSV を書き、費用と稼働を集計する", () => {

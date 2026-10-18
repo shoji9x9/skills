@@ -534,7 +534,7 @@ describe.each(COPIES)("%s", (copy) => {
       ).not.toThrow();
     });
 
-    test.each(["$&", "$'", "$`", "$$"])(
+    test.each(["$&", "$'", "$`", "$$", "{user_config_home}"])(
       "ルートのパスが置換のパターン（%s）を含んでも、そのパスの旧いファイルを見つける",
       async (pattern) => {
         const m = await load();
@@ -599,6 +599,13 @@ describe.each(COPIES)("%s", (copy) => {
         w(s, { layer: "user", keyPath: ["count"], value: 2, mode: "set" }),
       ).rejects.toThrow(/method は 人ごと の層に置けない/);
       expect(readFileSync(s.paths.user, "utf8")).toBe('{ "method": "m" }\n');
+      // 同じ値が既にあって書かずに返す場合も、ファイルの誤りで止める
+      s.write("repo", '{ "method": "m", "typo": 1 }\n');
+      await expect(w(s, {})).rejects.toThrow(/知らないキー "typo"/);
+      s.write("repo", '{ "list": [{ "id": "a" }], "typo": 1 }\n');
+      await expect(
+        w(s, { keyPath: ["list"], value: { id: "a" }, mode: "append", uniqueBy: "id" }),
+      ).rejects.toThrow(/知らないキー "typo"/);
     });
 
     test("コメントと末尾のカンマと既にあるキーを残したまま、無いキーを足す", async () => {

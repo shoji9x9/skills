@@ -878,7 +878,7 @@
       "id": "repo-default-applied-without-user",
       "why": "リポジトリの defaultDecision を、人の設定が無い人にも当てる",
       "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "    const person = personOf(script);\n    if (person !== true)\n      return person === false ? { exit: 2, message: setupMessage(agent, script) } : person;\n    decision = fallback.decision;",
+      "find": "    person = personOf(script);\n    if (person !== true)\n      return person === false ? { exit: 2, message: setupMessage(agent, script) } : person;\n    decision = fallback.decision;",
       "replace": "    decision = fallback.decision;",
       "occurrences": 1,
       "expect_failing": [
@@ -889,7 +889,7 @@
       "id": "gate-creates-person",
       "why": "記録するときに人の設定が無くても止めず、collect が人の ID を作る",
       "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "  const person = personOf(script);\n  if (person !== true)\n    return person === false ? { exit: 2, message: setupMessage(agent, script) } : person;\n  try {",
+      "find": "  person ??= personOf(script);\n  if (person !== true)\n    return person === false ? { exit: 2, message: setupMessage(agent, script) } : person;\n  try {",
       "replace": "  try {",
       "occurrences": 1,
       "expect_failing": [
@@ -912,11 +912,12 @@
       "id": "status-record-ignores-missing-user",
       "why": "判断が「記録する」で人の設定が無いとき、status が record とだけ出し、Hook が止めることと食い違う",
       "file": "skills/agent-usage/scripts/agent-usage.mjs",
-      "find": "    if (decided === \"record\" && !hasPerson())",
-      "replace": "    if (false)",
+      "find": "      if (!hasPerson())\n        return \"record（人の設定が無いので",
+      "replace": "      if (false)\n        return \"record（人の設定が無いので",
       "occurrences": 1,
       "expect_failing": [
-        "agent-usage のコマンドと Hook ブランチの判断が「記録する」でも、人の設定が無ければ止めて、Hook からは人の ID を作らない。status も止めると出す"
+        "agent-usage のコマンドと Hook ブランチの判断が「記録する」でも、人の設定が無ければ止めて、Hook からは人の ID を作らない。status も止めると出す",
+        "agent-usage のコマンドと Hook 記録すると決めたブランチで人ごとの設定を読めなければ、記録せずにコミットを止めて理由を返す"
       ]
     },
     {

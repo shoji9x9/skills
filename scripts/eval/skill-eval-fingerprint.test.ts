@@ -312,8 +312,8 @@ test("実リポジトリ: 配布スキルの直下の要素は、すべてイン
   for (const parts of loops) expect(parts.split(" ")).toEqual(INSTALLED_SKILL_PARTS);
 });
 
-// 使わなくなった環境変数が開発者の環境に残っていると、eval の中で読み取りが止まり、結果が起動した人で変わる。
-test("実リポジトリ: ランナーが eval の前に消す環境変数は、スキルのスキーマの x-legacy.env の名前と一致する", () => {
+// スキーマが挙げる環境変数（x-env と x-legacy.env）が開発者の環境にあると、eval の結果が起動した人で変わる。
+test("実リポジトリ: ランナーが eval の前に消す環境変数は、スキルのスキーマの x-env と x-legacy.env の名前と一致する", () => {
   const skillsRoot = join(here, "..", "..", "skills");
   const legacy = new Set<string>();
   for (const name of readdirSync(skillsRoot)) {
@@ -324,6 +324,9 @@ test("実リポジトリ: ランナーが eval の前に消す環境変数は、
       const env = isRecord(schema) && isRecord(schema["x-legacy"]) ? schema["x-legacy"].env : [];
       for (const e of isArray(env) ? env : [])
         if (isRecord(e) && typeof e.name === "string") legacy.add(e.name);
+      const props = isRecord(schema) && isRecord(schema.properties) ? schema.properties : {};
+      for (const prop of Object.values(props))
+        if (isRecord(prop) && typeof prop["x-env"] === "string") legacy.add(prop["x-env"]);
     }
   }
   expect(legacy.size).toBeGreaterThan(0);

@@ -54,7 +54,8 @@
         "kaizen の設定を読めないときはコミットを止める 使わなくなった環境変数 KAIZEN_PRECOMMIT_DEADLINE_SECONDS は、移行の手順を示して止める",
         "kaizen の設定を読めないときはコミットを止める 旧い .kaizen/config は、node が無くても移行の手順を示して止める",
         "kaizen の設定を読めないときはコミットを止める 設定ファイルがあるのに node が無ければ止め、設定ファイルが無ければ node なしで通す",
-        "kaizen の設定を読めないときはコミットを止める 人ごとの設定（XDG_CONFIG_HOME）の締め切りも読む"
+        "kaizen の設定を読めないときはコミットを止める 人ごとの設定（XDG_CONFIG_HOME）の締め切りも読む",
+        "他セッション分の走査結果の再利用 kaizen.jsonc の foreign_sentinel_retention_days が 1000000 なら、設定の誤りか（true）"
       ]
     },
     {

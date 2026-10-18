@@ -1410,6 +1410,8 @@ export function jsoncTreeUnits(text, blocks, growable, registryGroups, label) {
     }
     add(`${path} = ${JSON.stringify(v)}`);
   };
+  // 最上位の値の型も単位にする（{} を [] や null にする書き換えを落とす）
+  addContainer(value, "<最上位>");
   walk(value, "", true);
   // コメント。registry_groups と mutable_blocks の配列の中にあるものは数えない。
   const tree = jsonc.parseTree(text, [], { allowTrailingComma: true });

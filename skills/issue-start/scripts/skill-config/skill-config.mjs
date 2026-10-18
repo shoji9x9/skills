@@ -472,10 +472,10 @@ export function checkLegacy(schema, root, env) {
   for (const f of schema.legacyFiles) {
     // 人ごとの層を読まないなら、人ごとの旧い置き場所も見ない
     if (ignoreUser && f.path.startsWith("{user_config_home}")) continue;
-    // 置き換える文字列に $ が入っても置換のパターンとして読まないよう、関数で渡す
-    const path = f.path
-      .replace("{root}", () => root)
-      .replace("{user_config_home}", () => userConfigHome(env));
+    // 1 回の置換で両方を置き換える。置き換えた文字列（$ を含むパスや、{user_config_home} を含むルート）は、もう一度読まない
+    const path = f.path.replace(/\{root\}|\{user_config_home\}/g, (m) =>
+      m === "{root}" ? root : userConfigHome(env),
+    );
     if (existsSync(path)) found.push(`${path} が残っている。${f.steps}`);
   }
   for (const e of schema.legacyEnv) {
@@ -656,10 +656,19 @@ export function writeConfig(opts) {
   const text = existsSync(path) ? readFileSync(path, "utf8") : "{}\n";
   const current = parseJsonc(text, path);
   const existing = valueAt(current, opts.keyPath);
+  // 書かずに返すとき（同じ値が既にある・--unique-by の要素が既にある）も、書こうとしたキーの外の誤りは見逃さない。
+  // 書く前のファイル全体は検証しない。誤った状態を書き込みで直す操作（空の配列に最初の要素を足すなど）を止めるからである
+  const unchanged = (/** @type {string} */ reason) => {
+    if (isRecord(current)) {
+      const { [top]: _written, ...others } = current;
+      validateLayer(schema, opts.layer, others, path);
+    }
+    return { path, changed: false, reason };
+  };
   if (opts.mode === "set") {
     if (existing !== undefined && !opts.replace) {
       if (JSON.stringify(existing) === JSON.stringify(opts.value))
-        return { path, changed: false, reason: "同じ値が既にある" };
+        return unchanged("同じ値が既にある");
       throw new ConfigError(
         `${path}: ${opts.keyPath.join(".")} は既に ${JSON.stringify(existing)} になっている。既にあるキーは変えない（変えるなら人が確かめてから --replace を付ける）`,
       );
@@ -675,7 +684,7 @@ export function writeConfig(opts) {
       // 文字列だけの要素は、key の欄だけを書いた要素の短い書き方として扱う（intentional_diffs の "文言" と {"item": "文言"} など）
       const keyOf = (/** @type {unknown} */ x) => (isRecord(x) ? x[key] : x);
       if (list.some((x) => JSON.stringify(keyOf(x)) === JSON.stringify(want))) {
-        return { path, changed: false, reason: `${key} が同じ要素が既にある` };
+        return unchanged(`${key} が同じ要素が既にある`);
       }
     }
   }

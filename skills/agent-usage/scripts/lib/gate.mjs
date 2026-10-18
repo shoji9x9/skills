@@ -335,6 +335,8 @@ export function gateDecision(input, fallbackCwd, now, script, agent) {
     };
   }
   let note = "";
+  /** @type {boolean | { exit: number; message: string } | undefined} 人の設定があるか（読むのは 1 回だけにする） */
+  let person;
   if (decision === null) {
     /** @type {{ decision: import("./config.mjs").DefaultDecision; source: string } | null} */
     let fallback;
@@ -346,7 +348,7 @@ export function gateDecision(input, fallbackCwd, now, script, agent) {
     if (fallback === null) return { exit: 2, message: askMessage(agent, script) };
     // リポジトリの defaultDecision は、人の設定（setup が作る人の ID）がある人にだけ当てる。
     // 無い人に当てると、使い捨ての環境では実行のたびに別の ID で記録され、HOME に書けない環境では毎回止まる
-    const person = personOf(script);
+    person = personOf(script);
     if (person !== true)
       return person === false ? { exit: 2, message: setupMessage(agent, script) } : person;
     decision = fallback.decision;
@@ -355,7 +357,7 @@ export function gateDecision(input, fallbackCwd, now, script, agent) {
   if (decision === "decline")
     return { exit: 0, message: note === "" ? "" : `agent-usage: 記録しない${note}` };
   // Hook からは人の ID を作らない（collect は人の設定が無いと ID を作るので、その前に止める）
-  const person = personOf(script);
+  person ??= personOf(script);
   if (person !== true)
     return person === false ? { exit: 2, message: setupMessage(agent, script) } : person;
   try {

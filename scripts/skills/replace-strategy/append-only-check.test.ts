@@ -3193,6 +3193,18 @@ test.concurrent.each([
   expect(r.status).toBe(1);
 });
 
+test.concurrent.each(["[]", "null"])(
+  "jsonc-tree: 最上位の空のオブジェクトを %s にする書き換えは落とす",
+  async (to) => {
+    const root = await makeJsoncRepo("{}\n");
+    writeFileSync(jsoncPath(root), `${to}\n`);
+    const r = await run(root);
+    rmSync(root, { recursive: true, force: true });
+    expect(r.stdout).toMatch(/<object: <最上位>>/);
+    expect(r.status).toBe(1);
+  },
+);
+
 test.concurrent("jsonc-tree: 作業ツリーの JSONC が読めなければ、判定できないとして exit 2", async () => {
   const r = await runJsoncEdit('"repo": "none",', '"repo": "none" "x": 1,');
   expect(r.stderr).toMatch(/JSONC として読めないため追記であることを確かめられない/);

@@ -118,15 +118,23 @@ function branchDecisionText(repo, set) {
   if (!set) return "対象外（.agent-usage/ が無いので、コミットの前の確認は何もしない）";
   if (!isDecisionBranch(repo))
     return "対象外（デフォルトブランチなので、コミットの前の確認は何もしない）";
+  /** @type {import("./lib/decisions.mjs").Decision | null} */
+  let decided;
   try {
-    const decided = decisionFor(repo.commonDir, repo.branch);
-    // gateDecision と同じく、判断が「記録する」でも人の設定が無ければ止める
-    if (decided === "record" && !hasPerson())
-      return "record（人の設定が無いので、コミットの前の確認は止めて setup を求める）";
-    if (decided !== null) return decided;
+    decided = decisionFor(repo.commonDir, repo.branch);
   } catch (e) {
     return `判断の記録を読めない: ${e instanceof Error ? e.message : String(e)}`;
   }
+  if (decided === "record") {
+    // gateDecision と同じく、判断が「記録する」でも人の設定が無ければ止め、人ごとの設定を読めなければその理由を出す
+    try {
+      if (!hasPerson())
+        return "record（人の設定が無いので、コミットの前の確認は止めて setup を求める）";
+    } catch (e) {
+      return `record（設定を読めない: ${e instanceof Error ? e.message : String(e)}）`;
+    }
+  }
+  if (decided !== null) return decided;
   try {
     const fallback = defaultDecisionOf(repo.root);
     if (fallback === null) return "未決定";

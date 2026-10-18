@@ -308,18 +308,17 @@ export function newPersonId() {
  */
 export function saveUserConfig(root, env, values) {
   let path = userConfigPath(env);
-  // キーごとに書くので、後のキーの値の誤りで止まると、前のキーだけを書いた設定が残る。書く前にすべての値を検証する
+  // キーごとに書くので、後のキーの誤りで止まると、前のキーだけを書いた設定が残る。
+  // 書く前に、すべてのキーが人ごとの層に置けることと、値がスキーマに合うことを確かめる
   const schema = loadSchema(SCHEMA_DIR, CONFIG_NAME);
-  /** @type {string[]} */
-  const errors = [];
-  for (const [key, value] of Object.entries(values)) {
-    if (value === undefined) continue;
-    const prop = Object.hasOwn(schema.properties, key) ? schema.properties[key] : undefined;
-    if (prop === undefined)
-      errors.push(`${CONFIG_NAME} に ${JSON.stringify(key)} というキーは無い`);
-    else errors.push(...validateValue(value, prop.schema, `${path}: ${key}`));
-  }
-  if (errors.length > 0) throw new ConfigError(errors.join("\n"));
+  const userKeys = Object.keys(schema.properties).filter((k) =>
+    schema.properties[k].layers.includes("user"),
+  );
+  validateKeys(
+    Object.fromEntries(Object.entries(values).filter(([, v]) => v !== undefined)),
+    userKeys,
+    path,
+  );
   for (const [key, value] of Object.entries(values)) {
     if (value === undefined) continue;
     path = writeConfig({
