@@ -21,4 +21,4 @@ eval 26 が測る場面（未着手の依存元の 2 行と、preflight の `BLO
 
 - with_skill は iteration-12・13 と同じく 7/7 で、書き換えの後も下がっていない。
 - without_skill は、#108 を外すかを別の質問にし、答えが無いときの #108 を「保留」にして `BLOCKED` の状態を使わなかった。
-- without_skill は今回、`--stop-on-blocked` でも #109 を進めた。iteration-13 では止めていたので、この assertion は without_skill でも 1 run ごとに結果が分かれる。
+- without_skill は今回、`--stop-on-blocked` でも #109 を進めた。iteration-13 では止めていたので、without_skill の assertion 6（止めない）と 7（#109 を進める）は、1 run ごとに結果が分かれる。
