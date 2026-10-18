@@ -14,7 +14,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { loadRepoConfig, loadUserConfig } from "../config.mjs";
 import { toCsv } from "../csv.mjs";
-import { RUN_BINS, STATUSES } from "./categories.mjs";
+import { RUN_BINS, STATUSES, STOP_CATEGORIES } from "./categories.mjs";
 import {
   costOf,
   loadBundledPricing,
@@ -171,7 +171,10 @@ export function endOfLocalDate(date, tz) {
  * @returns {boolean}
  */
 function isDate(date) {
-  return date !== null && /^\d{4}-\d{2}-\d{2}$/.test(date);
+  if (date === null || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+  // 形だけでは、月が 0 の日付や 2 月 30 日が通るので、暦に在る日付かを往復で確かめる
+  const t = Date.parse(`${date}T00:00:00Z`);
+  return !Number.isNaN(t) && new Date(t).toISOString().slice(0, 10) === date;
 }
 
 /**
@@ -224,10 +227,10 @@ export function periodLabel(rows, o, dates = []) {
  */
 export function dateRange(from, to) {
   const out = [];
-  for (let t = Date.parse(`${from}T00:00:00Z`); ; t += 86400000) {
-    const date = new Date(t).toISOString().slice(0, 10);
-    if (date > to) break;
-    out.push(date);
+  // 文字列で比べると、10000 年からの toISOString（+010000-...）が to より後にならず終わらないので、時刻で比べる
+  const end = Date.parse(`${to}T00:00:00Z`);
+  for (let t = Date.parse(`${from}T00:00:00Z`); t <= end; t += 86400000) {
+    out.push(new Date(t).toISOString().slice(0, 10));
   }
   return out;
 }
@@ -248,6 +251,7 @@ export function dateRange(from, to) {
  * @property {{ status: Status; byDay: number[] }[]} statusByDay 稼働中と停止の時間（時）を、days の日ごとに
  * @property {Record<string, number>} activeByPerson 人の ID → 稼働中の時間（時）
  * @property {Record<string, number>} activeByIssue Issue（無ければ空文字）→ 稼働中の時間（時）
+ * @property {Record<string, Map<StopCategory, number>>} stopByPerson 人の ID → 停止の分類ごとの時間（時。丸める前の値）
  * @property {number[]} runHistogram RUN_BINS ごとの件数
  * @property {{ date: string; model: string; cost: number }[]} dailyCost
  * @property {number} unknownCostBuckets 費用が単価不明の usage の行の数
@@ -446,6 +450,8 @@ export function buildReport(allRows, o) {
   const activeByPerson = {};
   /** @type {Record<string, number>} */
   const activeByIssue = {};
+  /** @type {Record<string, Map<StopCategory, number>>} */
+  const stopByPerson = {};
   for (const person of people) {
     const mine = rows.filter((r) => alias(r.person) === person);
     const runs = mine
@@ -482,6 +488,8 @@ export function buildReport(allRows, o) {
       if (Math.min(b, periodEnd) > a) addStatus("active", a, Math.min(b, periodEnd), tz);
     }
     activeByPerson[person] = activeHours(merged, periodEnd);
+    const myStops = new Map(STOP_CATEGORIES.map((c) => [c, 0]));
+    stopByPerson[person] = myStops;
     // Issue ごとの稼働中も、同じ人の同じ Issue の run を合わせて数える。同時に別の Issue の run があれば、両方の Issue に数える
     /** @type {Map<string, Span[]>} */
     const spansByIssue = new Map();
@@ -511,10 +519,11 @@ export function buildReport(allRows, o) {
       Number.NEGATIVE_INFINITY,
     );
     const personEnd = Number.isFinite(lastSeen) ? Math.min(periodEnd, lastSeen) : periodEnd;
+    // 稼働中と同じく、期間の終わりより後は停止に数えない（人のタイムゾーンが report と違うと、期間の終わりより後に始まる run がありうる）
     for (const gap of gaps(
       merged,
       merged[0][0],
-      Math.max(personEnd, merged[merged.length - 1][1]),
+      Math.min(periodEnd, Math.max(personEnd, merged[merged.length - 1][1])),
     )) {
       // 直前に動いていた run は、隙間の前に最も遅く終わったもの（runs は始まりの順なので、末尾が最後に終わったとは限らない）
       /** @type {(typeof runs)[number] | undefined} */
@@ -552,6 +561,8 @@ export function buildReport(allRows, o) {
           issue: before ? (before.row.issue ?? "") : "",
         });
         addStatus(p.category, p.start, p.end, tz);
+        // 人ごとの表も、丸める前の値から足す（intervals.csv の minutes は小数第 1 位に丸めてある）
+        myStops.set(p.category, (myStops.get(p.category) ?? 0) + (p.end - p.start) / 3600000);
       }
     }
   }
@@ -601,14 +612,26 @@ export function buildReport(allRows, o) {
   ];
   const { from, to } = periodBounds(rows, o, valueDates);
   // 期間は行のタイムゾーンで絞るが、稼働状況は人のタイムゾーンで日に分けるので、--since・--until の外の日に値が置かれうる。
-  // 値を横軸から外すと、日別のチャートとタイルが人ごとの表・時刻ごとのチャートより小さくなるので、横軸を値のある日まで広げる
-  const axis = (from !== null && to !== null ? [from, to, ...valueDates] : []).sort();
-  const days = axis.length > 0 ? dateRange(axis[0], axis[axis.length - 1]) : [];
+  // 値を横軸から外すと、日別のチャートとタイルが人ごとの表・時刻ごとのチャートより小さくなるので、横軸を値のある日まで広げる。
+  // 終わりは今日（report のタイムゾーン）か値のある最後の日の遅い方までにする。値は report を実行した時刻より後に置かれないので、
+  // --until に先の日付を渡しても、0 しか無い日を並べない
+  /** @type {string | null} */
+  let first = from;
+  /** @type {string | null} */
+  let last = to;
+  let cap = localParts(o.now, o.tz).date;
+  for (const date of valueDates) {
+    if (first !== null && date < first) first = date;
+    if (last !== null && date > last) last = date;
+    if (date > cap) cap = date;
+  }
+  if (last !== null && last > cap) last = cap;
+  const days = first !== null && last !== null ? dateRange(first, last) : [];
 
   return {
     generatedAt: toIso(o.now),
     tz: o.tz,
-    period: periodLabel(rows, o, valueDates),
+    period: from !== null && to !== null ? `${from} 〜 ${to}` : "記録なし",
     recordFiles: o.recordFiles,
     rows: rows.length,
     names,
@@ -623,6 +646,7 @@ export function buildReport(allRows, o) {
     })),
     activeByPerson,
     activeByIssue,
+    stopByPerson,
     runHistogram,
     dailyCost,
     unknownCostBuckets,

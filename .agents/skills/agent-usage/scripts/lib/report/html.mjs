@@ -1,7 +1,7 @@
 // report の HTML。1 ファイルで完結させ、グラフは SVG とインラインの JavaScript（ツールチップ）で描く。外部のライブラリと CDN は読まない。
 // 配色は役割の CSS 変数で持ち、ダークモードでは同じ役割に暗い面用の値を当てる。各グラフには、同じ値の表を <details> で添える。
 
-import { RUN_BINS, STATUSES, STOP_CATEGORIES } from "./categories.mjs";
+import { RUN_BINS, STATUSES } from "./categories.mjs";
 
 /** @typedef {import("./report.mjs").ReportData} ReportData */
 /** @typedef {import("./categories.mjs").Status} Status */
@@ -251,37 +251,37 @@ export function renderHtml(d) {
     .reduce((a, x) => a + Number(x.cost_usd || 0), 0);
 
   // 人ごと（費用・指示の数・稼働状況の内訳）
-  /** @type {Map<string, { id: string; name: string; cost: number; runs: number; status: Record<Status, number> }>} */
+  /** @type {Map<string, { id: string; name: string; cost: number; runs: number; status: Map<Status, number> }>} */
   const byPerson = new Map();
   const personOf = (/** @type {string} */ id) => {
     let v = byPerson.get(id);
     if (!v) {
+      // 稼働状況の系列は STATUSES から作る（手で並べると、分類を足したときにずれる）
       v = {
         id,
         name: d.names[id] ?? id,
         cost: 0,
         runs: 0,
-        status: {
-          active: 0,
-          idle: 0,
-          reviewing: 0,
-          "ci-wait": 0,
-          "review-wait": 0,
-          unknown: 0,
-        },
+        status: new Map(STATUSES.map((c) => [c, 0])),
       };
       byPerson.set(id, v);
     }
     return v;
   };
+  const addTo = (
+    /** @type {string} */ id,
+    /** @type {Status} */ c,
+    /** @type {number} */ hours,
+  ) => {
+    const s = personOf(id).status;
+    s.set(c, (s.get(c) ?? 0) + hours);
+  };
   for (const u of d.usage) personOf(u.person).cost += Number(u.cost_usd);
   for (const x of runs) personOf(x.person).runs += 1;
-  for (const [id, hours] of Object.entries(d.activeByPerson)) personOf(id).status.active += hours;
-  for (const x of d.intervals.filter((y) => y.type === "stop")) {
-    const v = personOf(x.person);
-    const c = STOP_CATEGORIES.find((k) => k === x.category);
-    if (c) v.status[c] += Number(x.minutes) / 60;
-  }
+  for (const [id, hours] of Object.entries(d.activeByPerson)) addTo(id, "active", hours);
+  // 停止は丸める前の値から足す（intervals.csv の minutes から足すと、タイルとチャートの合計とずれる）
+  for (const [id, stops] of Object.entries(d.stopByPerson))
+    for (const [c, hours] of stops) addTo(id, c, hours);
   const people = [...byPerson.values()].sort((a, b) => b.cost - a.cost);
 
   const statusTotal = STATUSES.reduce((a, c) => a + (statusHours[c] ?? 0), 0);
@@ -423,7 +423,7 @@ export function renderHtml(d) {
         p.name,
         usd(p.cost),
         num(p.runs),
-        ...STATUSES.map((c) => num(p.status[c], 1)),
+        ...STATUSES.map((c) => num(p.status.get(c) ?? 0, 1)),
       ]),
       [
         "合計",
@@ -432,7 +432,7 @@ export function renderHtml(d) {
         num(people.reduce((a, p) => a + p.runs, 0)),
         ...STATUSES.map((c) =>
           num(
-            people.reduce((a, p) => a + p.status[c], 0),
+            people.reduce((a, p) => a + (p.status.get(c) ?? 0), 0),
             1,
           ),
         ),

@@ -25,6 +25,7 @@ import {
   buildReport,
   classifySpan,
   endOfLocalDate,
+  dateRange,
   periodLabel,
   runReport,
 } from "../../../skills/agent-usage/scripts/lib/report/report.mjs";
@@ -1425,6 +1426,55 @@ describe("日別のチャート", () => {
     expect(r.statusByDay.find((s) => s.status === "active")?.byDay).toEqual([5, 1]);
     expect(r.activeByPerson).toEqual({ "p-00000001": 6 });
   });
+
+  test("--until に先の日付を渡しても、横軸は今日までにし、9999 年の終わりでも止まる", () => {
+    const r = buildReport(
+      [usage("u1", "2026-10-08T01:00:00.000Z", "1.0")],
+      options({ until: "2099-12-31" }),
+    );
+    // now は options の既定のままなので、横軸は now の日で終わる
+    expect(r.days).toEqual(["2026-10-08", "2026-10-09", "2026-10-10"]);
+    expect(r.period).toBe("2026-10-08 〜 2099-12-31");
+    expect(dateRange("9999-12-30", "9999-12-31")).toEqual(["9999-12-30", "9999-12-31"]);
+  });
+
+  test("人のタイムゾーンで期間の終わりより後に始まる run があっても、停止は期間の終わりで打ち切る", () => {
+    // report のタイムゾーンは UTC で、期間の終わりは 10 月 2 日 0 時（UTC）。
+    // ロサンゼルスの 10 月 1 日 10〜11 時（UTC 17〜18 時）と 20〜21 時（UTC 10 月 2 日 3〜4 時）に動いた
+    const la = (key: string, start: string, end: string) => ({
+      ...run(key, "p-00000001", start, end, "2026-10-02T05:00:00.000Z"),
+      tz: "America/Los_Angeles",
+    });
+    const rows = [
+      coverage,
+      la("a", "2026-10-01T17:00:00.000Z", "2026-10-01T18:00:00.000Z"),
+      la("b", "2026-10-02T03:00:00.000Z", "2026-10-02T04:00:00.000Z"),
+    ];
+    const r = buildReport(rows, options({ until: "2026-10-01" }));
+    expect(
+      r.intervals.filter((x) => x.type === "stop").map((x) => [x.start, x.end, x.category]),
+    ).toEqual([["2026-10-01T18:00:00.000Z", "2026-10-02T00:00:00.000Z", "idle"]]);
+    // 稼働中も同じ所で打ち切るので、2 つ目の run は数えない
+    expect(r.activeByPerson).toEqual({ "p-00000001": 1 });
+  });
+
+  test("人ごとの停止は、intervals.csv の丸めた分ではなく、丸める前の値から足す", () => {
+    // 10 秒の停止が 3 回。intervals.csv の minutes は 0.2 分に丸まる（足すと 0.6 分）が、実際は 0.5 分
+    const s = (sec: number) =>
+      new Date(Date.parse("2026-10-01T01:00:00.000Z") + sec * 1000).toISOString();
+    const rows = [
+      coverage,
+      run("a", "p-00000001", s(0), s(60), s(250)),
+      run("b", "p-00000001", s(70), s(130), s(250)),
+      run("c", "p-00000001", s(140), s(200), s(250)),
+      run("d", "p-00000001", s(210), s(250), s(250)),
+    ];
+    const r = buildReport(rows, options());
+    const idle = r.stopByPerson["p-00000001"].get("idle") ?? 0;
+    expect(idle * 60).toBeCloseTo(0.5, 9);
+    const byDay = r.statusByDay.find((x) => x.status === "idle")?.byDay ?? [];
+    expect(byDay.reduce((a, b) => a + b, 0)).toBeCloseTo(idle, 12);
+  });
 });
 
 describe("runReport の入力の誤り", () => {
@@ -1437,6 +1487,9 @@ describe("runReport の入力の誤り", () => {
   test.each([
     ["--since", { since: "10/01" }, /--since は YYYY-MM-DD で書く/],
     ["--until", { until: "2026-1-1" }, /--until は YYYY-MM-DD で書く/],
+    // 形は合っていても、暦に無い日付（月が 0、2 月 30 日）
+    ["--since（月が 0）", { since: "2026-00-15" }, /--since は YYYY-MM-DD で書く/],
+    ["--until（2 月 30 日）", { until: "2026-02-30" }, /--until は YYYY-MM-DD で書く/],
   ])("%s の形が違えばエラーにする", (_name, over, message) => {
     expect(run(over)).toThrow(message);
   });
