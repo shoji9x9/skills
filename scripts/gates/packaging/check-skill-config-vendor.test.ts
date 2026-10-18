@@ -11,6 +11,7 @@
 // | 複数のスキルが持つファイルの組 | 1 つの組に全部 / 一部が外れる / 組が無い / 2 つの組に分かれる / 1 スキルだけが持つ |
 // | identical-copies.json | 読める / groups が配列でない / files が文字列の配列でない |
 // | --fix | 無し（報告だけ）/ 有り（作り直す。読み取りは作らない） |
+// | --fix の書き込み先 | 通常のファイル / ファイルがシンボリックリンク / 途中のディレクトリがシンボリックリンク |
 // | 引数 | 無し / --fix / 知らない引数 |
 import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -101,6 +102,31 @@ describe("check", () => {
     put(`skills/a/${SHARED_DOC}`);
     expect(await check(root, false)).toEqual([]);
   });
+
+  test.each([
+    ["ファイル", (dir: string) => `${dir}/${VENDOR_FILES[0]}`],
+    ["途中のディレクトリ", (dir: string) => dir],
+  ])(
+    "--fix は、書き込み先の%sがシンボリックリンクなら、リンク先を書き換えずに挙げる",
+    async (_name, linkOf) => {
+      const { root, put } = makeRepo();
+      put("skills/a/config-schemas/a.schema.json", "{}");
+      put(`skills/a/${READER}`);
+      put(`skills/a/${SHARED_DOC}`);
+      const outside = makeTempDir("skill-config-vendor-outside-");
+      writeFileSync(join(outside, VENDOR_FILES[0]), "outside\n");
+      const dir = `skills/a/${VENDOR_DIR}`;
+      const link = linkOf(dir);
+      mkdirSync(dirname(join(root, link)), { recursive: true });
+      symlinkSync(link === dir ? outside : join(outside, VENDOR_FILES[0]), join(root, link));
+      const findings = await check(root, true);
+      expect(findings).toContainEqual({
+        path: `${dir}/${VENDOR_FILES[0]}`,
+        message: `${link} がシンボリックリンクなので --fix で書かない`,
+      });
+      expect(readFileSync(join(outside, VENDOR_FILES[0]), "utf8")).toBe("outside\n");
+    },
+  );
 
   test("vendor/ の中身が生成した内容と 1 バイトでも違えば挙げる", async () => {
     const { root, put } = makeRepo();

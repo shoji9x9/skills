@@ -1376,7 +1376,10 @@ export function jsoncTreeUnits(text, blocks, growable, registryGroups, label) {
   const walk = (v, path, exact) => {
     if (isPlainObject(v)) {
       for (const [k, child] of Object.entries(v)) {
-        const p = path === "" ? k : `${path}.${k}`;
+        // 区切りの文字（. [ ] など）を含むキーは JSON の文字列で書く。そのまま連ねると、{"b.c": 1} と {"b": {"c": 1}} が同じ単位になり、
+        // 入れ子の値を消して同じ字面のキーを足す書き換えを追記として通す
+        const segment = /^[^.[\]"\s<>=]+$/.test(k) ? k : JSON.stringify(k);
+        const p = path === "" ? segment : `${path}.${segment}`;
         add(`<key: ${p}>`);
         if (exact && blockSet.has(p)) continue;
         addContainer(child, p);

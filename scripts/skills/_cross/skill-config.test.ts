@@ -480,6 +480,16 @@ describe.each(COPIES)("%s", (copy) => {
         /x-legacy\.files/,
       ],
       ["x-legacy.env の形", { properties: {}, "x-legacy": { env: ["A"] } }, /x-legacy\.env/],
+      [
+        "正規表現として読めない pattern",
+        { properties: { a: { "x-layers": ["repo"], type: "string", pattern: "(" } } },
+        /properties\.a\.pattern が正規表現として読めない/,
+      ],
+      [
+        "入れ子の正規表現として読めない pattern",
+        { properties: { a: { "x-layers": ["repo"], anyOf: [{ items: { pattern: "[" } }] } } },
+        /properties\.a\.anyOf\[0\]\.items\.pattern が正規表現として読めない/,
+      ],
     ];
     test.each(bad)("%s はスキーマの誤りにする", async (_name, schema, want) => {
       const m = await load();
@@ -605,6 +615,41 @@ describe.each(COPIES)("%s", (copy) => {
           ...o,
         }),
       );
+
+    test("先頭に BOM がある設定ファイルを読み、書くときも BOM を残す", async () => {
+      const m = await load();
+      const s = setup();
+      s.write("repo", '\uFEFF{ "method": "m" }\n');
+      expect(
+        m.loadConfig({ name: "t", root: s.root, env: s.env, schemaDir: s.schemaDir }),
+      ).toMatchObject({
+        method: { value: "m", source: "repo" },
+      });
+      await w(s, { keyPath: ["flag"], value: true });
+      const text = readFileSync(s.paths.repo, "utf8");
+      expect(text.startsWith("\uFEFF{")).toBe(true);
+      expect(text.indexOf("\uFEFF", 1)).toBe(-1);
+      expect(JSON.parse(text.slice(1))).toEqual({ method: "m", flag: true });
+    });
+
+    test.each(["", "\n  \n", "\uFEFF"])(
+      "既にあるファイルに中身が無ければ（%j）、ファイルが無いときと同じく {} から書く",
+      async (before) => {
+        const s = setup();
+        s.write("repo", before);
+        expect(await w(s, {})).toMatchObject({ changed: true });
+        expect(JSON.parse(readFileSync(s.paths.repo, "utf8").replace(/^\uFEFF/, ""))).toEqual({
+          method: "m",
+        });
+      },
+    );
+
+    test("コメントだけのファイルには、コメントを消さないように書かずに止める", async () => {
+      const s = setup();
+      s.write("repo", "// メモ\n");
+      await expect(w(s, {})).rejects.toThrow(/空のファイル/);
+      expect(readFileSync(s.paths.repo, "utf8")).toBe("// メモ\n");
+    });
 
     test("ファイルとディレクトリが無ければ作り、キーを足す", async () => {
       const s = setup();
@@ -1051,6 +1096,18 @@ describe.each(COPIES)("%s", (copy) => {
         code: 0,
         out: "ok: t の設定はスキーマに合う（設定ファイルは無い）\n",
       });
+      // 人ごとの層を読まないときは、読んでいない人ごとのファイルを検証したものとして並べない
+      s.write("user", '{ "bogus": 1 }');
+      const ignored = await cli(
+        ["validate", "t", ...args],
+        { ...s.env, SHOJI9X9_SKILLS_IGNORE_USER_CONFIG: "1" },
+        s.root,
+      );
+      expect(ignored).toMatchObject({
+        code: 0,
+        out: `ok: t の設定はスキーマに合う（repo=${s.paths.repo}）\n`,
+      });
+      expect(ignored.err).toMatch(/人ごとの層（.*）を読まない/);
       expect(await cli(["paths", "t", ...args], s.env, s.root)).toMatchObject({
         code: 0,
         out: `local=${s.paths.local}\nuser=${s.paths.user}\nrepo=${s.paths.repo}\n`,
@@ -1090,6 +1147,19 @@ describe.each(COPIES)("%s", (copy) => {
       ).toMatchObject({ code: 0, out: `unchanged: ${s.paths.repo}（id が同じ要素が既にある）\n` });
     });
 
+    test("-- の後は位置引数として扱い、- で始まる値（負の数）を渡せる", async () => {
+      const s = setup();
+      const args = ["--root", s.root, "--schema-dir", s.schemaDir, "--layer", "repo"];
+      expect(await cli(["set", "t", ...args, "--", "either", "-1"], s.env, s.root)).toMatchObject({
+        code: 0,
+        out: `changed: ${s.paths.repo}（書いた）\n`,
+      });
+      expect(JSON.parse(readFileSync(s.paths.repo, "utf8"))).toEqual({ either: -1 });
+      const r = await cli(["set", "t", "either", "-1", ...args], s.env, s.root);
+      expect(r.code).toBe(2);
+      expect(r.err).toMatch(/知らないオプション -1（- で始まる値は -- の後に置く）/);
+    });
+
     test("--root を省くと cwd のリポジトリのルートを使う", async () => {
       const s = setup();
       s.write("repo", '{ "method": "m" }');
@@ -1116,12 +1186,15 @@ describe.each(COPIES)("%s", (copy) => {
       ["set の層が無い", ["set", "t", "k", "1"]],
       ["set の層が不正", ["set", "t", "k", "1", "--layer", "team"]],
       ["set の値が JSON でない", ["set", "t", "k", "x", "--layer", "repo"]],
+      ["値を持つオプションを 2 回", ["set", "t", "k", "1", "--layer", "local", "--layer", "repo"]],
+      ["値を持たないオプションを 2 回", ["get", "t", "k", "--raw", "--raw"]],
     ];
     test.each(usage)("%s は exit 2 で usage を出す", async (_name, argv) => {
       const s = setup();
       const r = await cli([...argv, "--schema-dir", s.schemaDir], s.env, s.root);
       expect(r.code).toBe(2);
       expect(r.err).toMatch(/^error: [\s\S]*usage:/);
+      if (_name.endsWith("2 回")) expect(r.err).toMatch(/を 2 回渡している/);
     });
 
     test("--help は usage を出して exit 0", async () => {

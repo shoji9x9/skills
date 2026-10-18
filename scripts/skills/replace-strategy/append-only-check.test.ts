@@ -3205,6 +3205,19 @@ test.concurrent.each(["[]", "null"])(
   },
 );
 
+// . を含むキーを入れ子のパスと同じ単位にすると、入れ子の値を消して同じ字面のキーを足す書き換えが通る
+test.concurrent.each([
+  ["入れ子の値を消し、同じ字面の . を含むキーを足す", '{ "a": { "b": {}, "b.c": 1 } }\n', 1],
+  ["入れ子の値を残して、. を含むキーを足す", '{ "a": { "b": { "c": 1 }, "b.c": 1 } }\n', 0],
+])("jsonc-tree: %s", async (_name, after, status) => {
+  const root = await makeJsoncRepo('{ "a": { "b": { "c": 1 } } }\n');
+  writeFileSync(jsoncPath(root), after);
+  const r = await run(root);
+  rmSync(root, { recursive: true, force: true });
+  if (status === 1) expect(r.stdout).toMatch(/a\.b\.c = 1/);
+  expect(r.status).toBe(status);
+});
+
 test.concurrent("jsonc-tree: 作業ツリーの JSONC が読めなければ、判定できないとして exit 2", async () => {
   const r = await runJsoncEdit('"repo": "none",', '"repo": "none" "x": 1,');
   expect(r.stderr).toMatch(/JSONC として読めないため追記であることを確かめられない/);

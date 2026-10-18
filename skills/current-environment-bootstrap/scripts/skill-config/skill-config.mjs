@@ -116,12 +116,18 @@ function userHomeDecided(env) {
  * @returns {string}
  */
 function databaseHome() {
-  try {
-    return userInfo().homedir;
-  } catch {
-    return "";
+  if (databaseHomeCache === undefined) {
+    try {
+      databaseHomeCache = userInfo().homedir;
+    } catch {
+      databaseHomeCache = "";
+    }
   }
+  return databaseHomeCache;
 }
+
+/** databaseHome の結果。プロセスの間は変わらないので、passwd の照会を 1 回にする。 @type {string | undefined} */
+let databaseHomeCache;
 
 /** 人ごとの層を読まないことを、プログラムが子プロセスに伝える環境変数（eval のランナーの隔離に使う）。 */
 export const IGNORE_USER_ENV = "SHOJI9X9_SKILLS_IGNORE_USER_CONFIG";
@@ -258,6 +264,7 @@ export function loadSchema(schemaDir, name) {
     if (env !== undefined && typeof env !== "string") {
       throw new ConfigError(`${path}: properties.${key}["x-env"] が文字列でない`);
     }
+    checkPatterns(prop, `${path}: properties.${key}`);
     properties[key] = { layers, env, schema: prop };
   }
   const legacy = isRecord(raw["x-legacy"]) ? raw["x-legacy"] : {};
@@ -301,6 +308,29 @@ function matchesType(v, t) {
   const actual = jsonType(v);
   const types = isArray(t) ? t : [t];
   return types.some((x) => x === actual || (x === "number" && actual === "integer"));
+}
+
+/**
+ * スキーマの中の pattern が、正規表現（u フラグ）として読めるかを確かめる。
+ * 読めないまま検証すると、ConfigError でない SyntaxError で止まり、理由を示さずに終わる。
+ * @param {unknown} schema
+ * @param {string} where
+ */
+function checkPatterns(schema, where) {
+  if (isArray(schema)) {
+    schema.forEach((s, i) => checkPatterns(s, `${where}[${i}]`));
+    return;
+  }
+  if (!isRecord(schema)) return;
+  for (const [k, v] of Object.entries(schema)) {
+    if (k === "pattern" && typeof v === "string") {
+      try {
+        new RegExp(v, "u");
+      } catch (e) {
+        throw new ConfigError(`${where}.pattern が正規表現として読めない（${String(e)}）`);
+      }
+    } else checkPatterns(v, `${where}.${k}`);
+  }
 }
 
 /**
@@ -396,6 +426,18 @@ function lineCol(text, offset) {
   return `${before.length}:${(before.at(-1) ?? "").length + 1}`;
 }
 
+/** UTF-8 の BOM。Windows のエディタは、保存するファイルの先頭に付けることがある。 */
+const BOM = "\uFEFF";
+
+/**
+ * 先頭の BOM を外す。JSONC のパーサは BOM を読めない文字として扱う。
+ * @param {string} text
+ * @returns {string}
+ */
+function stripBom(text) {
+  return text.startsWith(BOM) ? text.slice(BOM.length) : text;
+}
+
 /** @type {jsonc.ParseOptions} */
 const PARSE_OPTIONS = { allowTrailingComma: true, disallowComments: false };
 
@@ -447,7 +489,7 @@ export function parseJsonc(text, where) {
  */
 export function readLayer(schema, layer, path) {
   if (!existsSync(path)) return null;
-  return validateLayer(schema, layer, parseJsonc(readFileSync(path, "utf8"), path), path);
+  return validateLayer(schema, layer, parseJsonc(stripBom(readFileSync(path, "utf8")), path), path);
 }
 
 /**
@@ -563,6 +605,7 @@ function coerceEnv(raw, schema) {
  * @property {string} [schemaDir]
  * @property {Record<string, unknown>} [cli] CLI のオプションで渡された値（キー → 値）
  * @property {(s: string) => void} [warn] 注意の出力先（デフォルトは stderr）
+ * @property {ConfigSchema} [schema] 読み込んだスキーマ（呼び出し側が先に読んでいれば、読み直さない）
  */
 
 /**
@@ -575,7 +618,7 @@ function coerceEnv(raw, schema) {
 export function loadConfig(opts) {
   const env = opts.env ?? process.env;
   const root = opts.root ?? findRoot(process.cwd());
-  const schema = loadSchema(opts.schemaDir ?? DEFAULT_SCHEMA_DIR, opts.name);
+  const schema = opts.schema ?? loadSchema(opts.schemaDir ?? DEFAULT_SCHEMA_DIR, opts.name);
   checkLegacy(schema, root, env);
   const paths = configPaths(root, opts.name, env);
   /** @type {Partial<Record<FileLayer, Record<string, unknown> | null>>} */
@@ -697,7 +740,12 @@ export function writeConfig(opts) {
   const path = configPaths(root, opts.name, env)[opts.layer];
   if (opts.layer === "local") requireIgnored(root, path);
   if (opts.layer !== "user") requireInsideRoot(root, path);
-  const text = existsSync(path) ? readFileSync(path, "utf8") : "{}\n";
+  const raw = existsSync(path) ? readFileSync(path, "utf8") : "";
+  // BOM は外して編集し、書くときに戻す（ファイルの他の部分と同じく、書き込みで変えない）
+  const bom = raw.startsWith(BOM) ? BOM : "";
+  // 中身の無いファイル（touch で作ったものなど）は、ファイルが無いときと同じく {} から書く。
+  // コメントだけのファイルは、コメントを消さないように、読み取りと同じ「空のファイル」で止める
+  const text = stripBom(raw).trim() === "" ? "{}\n" : stripBom(raw);
   const current = parseJsonc(text, path);
   const existing = valueAt(current, opts.keyPath);
   // 書かずに返すとき（同じ値が既にある・--unique-by の要素が既にある）も、書こうとしたキーの外の誤りは見逃さない。
@@ -740,7 +788,7 @@ export function writeConfig(opts) {
   const checkPath = `${path}（書き込んだ後）`;
   validateLayer(schema, opts.layer, parseJsonc(next, checkPath), checkPath);
   mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, next.endsWith("\n") ? next : `${next}\n`);
+  writeFileSync(path, `${bom}${next.endsWith("\n") ? next : `${next}\n`}`);
   return { path, changed: true, reason: opts.mode === "set" ? "書いた" : "足した" };
 }
 
@@ -950,7 +998,8 @@ const usage = `usage: skill-config.mjs get <name> <key-path> [--raw] [--cli-valu
   skill-config.mjs paths <name>
   skill-config.mjs set <name> <key-path> <JSON> --layer <local|user|repo> [--replace]
   skill-config.mjs append <name> <key-path> <JSON> --layer <local|user|repo> [--unique-by <field>]
-common options: --root <dir>（リポジトリのルート）  --schema-dir <dir>`;
+common options: --root <dir>（リポジトリのルート）  --schema-dir <dir>
+- で始まる値（負の数など）は、-- の後に置く（例: set <name> <key> --layer repo -- -1）`;
 
 /**
  * @param {string} s
@@ -988,13 +1037,22 @@ export function main(argv, io) {
     const bare = new Set(["--raw", "--replace", "-h", "--help"]);
     for (let i = 0; i < argv.length; i++) {
       const a = argv[i];
+      // -- の後はすべて位置引数にする（負の数の JSON 値 -1 などを渡すため）
+      if (a === "--") {
+        pos.push(...argv.slice(i + 1));
+        break;
+      }
+      // 同じオプションを重ねて渡したら、どちらの値を使うかを決めずに止める（--layer local --layer repo で共有の層に書かない）
+      if ((valued.has(a) || bare.has(a)) && Object.hasOwn(flags, a))
+        throw new UsageError(`${a} を 2 回渡している`);
       if (valued.has(a)) {
         const v = argv[i + 1];
         if (v === undefined || v === "") throw new UsageError(`${a} に値が無い`);
         flags[a] = v;
         i++;
       } else if (bare.has(a)) flags[a] = true;
-      else if (a.startsWith("-")) throw new UsageError(`知らないオプション ${a}`);
+      else if (a.startsWith("-"))
+        throw new UsageError(`知らないオプション ${a}（- で始まる値は -- の後に置く）`);
       else pos.push(a);
     }
     if (flags["-h"] || flags["--help"]) {
@@ -1030,7 +1088,7 @@ export function main(argv, io) {
         const schema = loadSchema(schemaDir, name);
         if (!Object.hasOwn(schema.properties, key))
           throw new ConfigError(`${name} に ${JSON.stringify(key)} というキーは無い`);
-        const r = loadConfig({ ...base, cli })[key];
+        const r = loadConfig({ ...base, cli, schema })[key];
         /** @type {unknown} */
         let value = r?.value;
         for (const part of inner) {
@@ -1061,8 +1119,10 @@ export function main(argv, io) {
       case "validate": {
         expectArgs(0);
         loadConfig(base);
-        const present = Object.entries(configPaths(root, name, io.env)).filter(([, p]) =>
-          existsSync(p),
+        // 読まなかった人ごとの層のファイルは、検証していないので並べない（読まない旨は loadConfig が note で出す）
+        const ignoreUser = ignoresUserLayer(io.env);
+        const present = Object.entries(configPaths(root, name, io.env)).filter(
+          ([l, p]) => !(l === "user" && ignoreUser) && existsSync(p),
         );
         io.out(
           `ok: ${name} の設定はスキーマに合う（${present.length === 0 ? "設定ファイルは無い" : present.map(([l, p]) => `${l}=${p}`).join(" ")}）\n`,

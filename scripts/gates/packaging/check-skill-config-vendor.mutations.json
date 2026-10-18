@@ -35,6 +35,18 @@
       "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": ["check スキーマを持つスキルの、読み取りと vendor/ の欠けをすべて挙げる"]
+    },
+    {
+      "id": "fix-follows-symlink",
+      "why": "--fix が書き込み先のシンボリックリンクをたどって、リンク先を書き換える",
+      "file": "scripts/gates/packaging/check-skill-config-vendor.ts",
+      "find": "const link = fix ? symlinkOnPath(root, rel) : null;",
+      "replace": "const link = fix ? null : null;",
+      "occurrences": 1,
+      "expect_failing": [
+        "check --fix は、書き込み先のファイルがシンボリックリンクなら、リンク先を書き換えずに挙げる",
+        "check --fix は、書き込み先の途中のディレクトリがシンボリックリンクなら、リンク先を書き換えずに挙げる"
+      ]
     }
   ]
 }

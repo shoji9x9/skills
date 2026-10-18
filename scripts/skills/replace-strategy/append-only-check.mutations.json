@@ -448,6 +448,15 @@
         "jsonc-tree: pending の文言を keep へ移す（付随する欄と、要素の行末コメントは移動先に無い） は通す",
         "jsonc-tree: pending の要素を消す（どの鍵にも移さない） は落とす"
       ]
+    },
+    {
+      "id": "jsonc-tree-dotted-key-raw",
+      "why": "jsonc-tree で . を含むキーをそのまま連ねる（入れ子の値を消して同じ字面のキーを足す書き換えが通る）",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "const segment = /^[^.[\\]\"\\s<>=]+$/.test(k) ? k : JSON.stringify(k);",
+      "replace": "const segment = k;",
+      "occurrences": 1,
+      "expect_failing": ["jsonc-tree: 入れ子の値を消し、同じ字面の . を含むキーを足す"]
     }
   ]
 }
