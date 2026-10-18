@@ -11,6 +11,7 @@ import {
   ConfigError,
   FILE_LAYERS,
   configPaths,
+  ignoresUserLayer,
   loadConfig,
   readLayer,
   loadSchema,
@@ -138,7 +139,7 @@ function resolved(root, env) {
 }
 
 /**
- * 解決した値のうち、keys のものだけをオブジェクトにする。値の出所（最初に見つかったファイル）も返す。
+ * 解決した値のうち、keys のものだけをオブジェクトにする。値を取ったファイルの 1 つ（keys の後ろのキーのもの）も返す。
  * @param {ReturnType<typeof resolved>} r
  * @param {readonly string[]} keys
  * @returns {{ raw: Record<string, unknown>; where: string }}
@@ -254,10 +255,12 @@ export function userConfigPath(env = process.env) {
 
 /**
  * 人の設定（人の ID）があるか。人の ID は人ごとの層にだけ置けるので、そのファイルだけを読む。
+ * 人ごとの層を読まない（SHOJI9X9_SKILLS_IGNORE_USER_CONFIG=1）なら、loadUserConfig と同じく無いものとして扱う。
  * @param {NodeJS.ProcessEnv} [env]
  * @returns {boolean}
  */
 export function hasPerson(env = process.env) {
+  if (ignoresUserLayer(env)) return false;
   const path = userConfigPath(env);
   if (!existsSync(path)) return false;
   const v = readLayer(loadSchema(SCHEMA_DIR, CONFIG_NAME), "user", path);
@@ -276,6 +279,18 @@ export function loadUserConfig(root, env = process.env) {
   if (typeof r.personId?.value !== "string") return null;
   const { raw, where } = pick(r, USER_KEYS);
   return parseUserConfig(raw, where);
+}
+
+/**
+ * 人ごとの層に書いたタイムゾーン。無いか、人ごとの層を読まないなら undefined。
+ * setup はこの値を引き継ぐ。.local.jsonc の値（このリポジトリだけの値）を人ごとの層へ書き写さないため、解決した値は使わない。
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {string | undefined}
+ */
+export function userLayerTimeZone(env = process.env) {
+  if (ignoresUserLayer(env)) return undefined;
+  const v = readLayer(loadSchema(SCHEMA_DIR, CONFIG_NAME), "user", userConfigPath(env));
+  return typeof v?.timeZone === "string" ? v.timeZone : undefined;
 }
 
 /** @returns {string} */
@@ -340,7 +355,10 @@ export function defaultDecisionOf(root, env = process.env) {
   resolved(root, env);
   const schema = loadSchema(SCHEMA_DIR, CONFIG_NAME);
   const paths = configPaths(root, CONFIG_NAME, env);
+  const ignoreUser = ignoresUserLayer(env);
   for (const layer of FILE_LAYERS) {
+    // 人ごとの層を読まないなら、loadConfig と同じく人ごとの値も当てない
+    if (layer === "user" && ignoreUser) continue;
     const d = readLayer(schema, layer, paths[layer])?.defaultDecision;
     if (d === "record" || d === "decline") return { decision: d, source: paths[layer] };
   }

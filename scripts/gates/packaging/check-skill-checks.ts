@@ -158,10 +158,6 @@ function placeholders(text: string): string[] {
 }
 
 /**
- * 1 スキルの `checks.json` を検査する。
- * @returns {{ scripts: string[], violations: string[] }} 宣言した検査（リポジトリ相対）と違反
- */
-/**
  * config_key が、そのスキルの同梱するスキーマ（config-schemas/<設定の名前>.schema.json）の最上位のキーを指すか。
  * スキーマに無いキーを指すと、利用者が設定を書いても読み取りが知らないキーとして止まる。
  */
@@ -188,6 +184,10 @@ function configKeyViolations(
   return [];
 }
 
+/**
+ * 1 スキルの `checks.json` を検査する。
+ * @returns {{ scripts: string[], violations: string[] }} 宣言した検査（リポジトリ相対）と違反
+ */
 export function checkDeclaration(
   root: string,
   skill: string,

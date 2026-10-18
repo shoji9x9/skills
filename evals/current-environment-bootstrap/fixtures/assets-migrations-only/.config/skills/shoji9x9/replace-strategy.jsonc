@@ -3,11 +3,11 @@
     "repo": "./received/app",
     "stack": ["C#", "ASP.NET Core"],
     "origin": "received-assets",
-    "received_assets": ["received/"],
+    "received_assets": ["received/"]
   },
   "new": {
     "repo": "./new-app",
-    "stack": ["TypeScript"],
+    "stack": ["TypeScript"]
   },
   "targets": [
     {
@@ -16,20 +16,20 @@
       "url": "none",
       "db": {
         "env_vars": ["CURRENT_DB_URL"],
-        "seedable": true,
+        "seedable": true
       },
       "auth": {
         "roles": {
           "admin": {
             "user_name_env": "CURRENT_ADMIN_USER",
-            "password_env": "CURRENT_ADMIN_PASS",
-          },
-        },
+            "password_env": "CURRENT_ADMIN_PASS"
+          }
+        }
       },
       "forbidden_actions": [],
       "pre_commands": [],
       "start": "docker compose up -d",
-      "check_urls": [],
+      "check_urls": []
     },
     {
       "name": "local-dev",
@@ -37,16 +37,16 @@
       "url": "none",
       "db": {
         "env_vars": ["NEW_DB_URL"],
-        "seedable": true,
+        "seedable": true
       },
-      "forbidden_actions": [],
-    },
+      "forbidden_actions": []
+    }
   ],
   "secrets": {
-    "wrapper": "",
+    "wrapper": ""
   },
   "verification_commands": {
-    "full": ["npm run lint"],
+    "full": ["npm run lint"]
   },
   "parity_suite_dir": "e2e/",
   "dataset_tool_dir": "seed/",
@@ -57,11 +57,11 @@
     "coding_conventions": "",
     "ui_library": "",
     "db_semantics": "",
-    "env_setup": "",
+    "env_setup": ""
   },
   "intentional_diffs": {
     "keep": [],
     "may_change": [],
-    "pending": [],
-  },
+    "pending": []
+  }
 }

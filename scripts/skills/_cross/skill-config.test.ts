@@ -475,16 +475,26 @@ describe.each(COPIES)("%s", (copy) => {
   });
 
   describe("旧い場所", () => {
-    test("どの名前空間の skills.yml も、移行の手順を示して止める", async () => {
+    test("この配布元の skills.yml は、移行の手順を示して止める", async () => {
+      const m = await load();
+      const s = setup();
+      mkdirSync(join(s.root, ".config/skills/shoji9x9"), { recursive: true });
+      writeFileSync(join(s.root, ".config/skills/shoji9x9/skills.yml"), "version: 1\n");
+      expect(() =>
+        m.loadConfig({ name: "t", root: s.root, env: s.env, schemaDir: s.schemaDir }),
+      ).toThrow(
+        /旧い場所の設定が残っているので止める[\s\S]*shoji9x9\/skills\.yml が残っている。skills\.<スキル名> の節を \.config\/skills\/shoji9x9\/<スキル名>\.jsonc/,
+      );
+    });
+
+    test("他の配布元の skills.yml では止めない", async () => {
       const m = await load();
       const s = setup();
       mkdirSync(join(s.root, ".config/skills/other"), { recursive: true });
       writeFileSync(join(s.root, ".config/skills/other/skills.yml"), "version: 1\n");
       expect(() =>
         m.loadConfig({ name: "t", root: s.root, env: s.env, schemaDir: s.schemaDir }),
-      ).toThrow(
-        /旧い場所の設定が残っているので止める[\s\S]*other\/skills\.yml が残っている。skills\.<スキル名> の節を \.config\/skills\/other\/<スキル名>\.jsonc/,
-      );
+      ).not.toThrow();
     });
 
     test("x-legacy のファイル（リポジトリと人ごと）と環境変数は、それぞれの手順を示して止める", async () => {
@@ -584,6 +594,14 @@ describe.each(COPIES)("%s", (copy) => {
         "m",
         "set",
         '{\n  "tool": "a", /* x */\n  "method": "m"\n}\n',
+      ],
+      [
+        "ブロックコメントの後の行コメント",
+        '{\n  "tool": "a" /* x */ // y\n}\n',
+        ["method"],
+        "m",
+        "set",
+        '{\n  "tool": "a", /* x */ // y\n  "method": "m"\n}\n',
       ],
       [
         "次の行に続くブロックコメントは越えない",
@@ -725,6 +743,14 @@ describe.each(COPIES)("%s", (copy) => {
       ).rejects.toThrow(/足す要素に id が無い/);
     });
 
+    test("append の --unique-by は、文字列だけの要素を、その欄だけを書いた要素と同じに扱う", async () => {
+      const s = setup();
+      s.write("repo", '{ "list": ["a"] }');
+      expect(
+        await w(s, { keyPath: ["list"], value: { id: "a" }, mode: "append", uniqueBy: "id" }),
+      ).toMatchObject({ changed: false });
+    });
+
     test("append の先が配列でなければエラー", async () => {
       const s = setup();
       s.write("repo", '{ "map": { "k": 1 } }');
@@ -781,6 +807,7 @@ describe.each(COPIES)("%s", (copy) => {
       expect(() => m.parseKeyPath("a..b")).toThrow(/空の部分/);
       expect(() => m.parseKeyPath("[]")).toThrow(/空でない JSON の配列でない/);
       expect(() => m.parseKeyPath("[1.5]")).toThrow(/空でない JSON の配列でない/);
+      expect(() => m.parseKeyPath("[")).toThrow(/空でない JSON の配列でない/);
     });
   });
 

@@ -3,11 +3,11 @@
     "repo": "./received/app",
     "stack": ["TypeScript", "React"],
     "origin": "received-assets",
-    "received_assets": ["received/"],
+    "received_assets": ["received/"]
   },
   "new": {
     "repo": "./new-app",
-    "stack": ["TypeScript", "React"],
+    "stack": ["TypeScript", "React"]
   },
   "targets": [
     {
@@ -16,22 +16,22 @@
       "url": "none",
       "db": {
         "env_vars": ["CURRENT_DB_URL"],
-        "seedable": true,
+        "seedable": true
       },
       "auth": {
-        "roles": {},
+        "roles": {}
       },
       "forbidden_actions": [],
       "pre_commands": [],
       "start": "pnpm start",
-      "check_urls": [],
-    },
+      "check_urls": []
+    }
   ],
   "secrets": {
-    "wrapper": "",
+    "wrapper": ""
   },
   "verification_commands": {
-    "full": ["pnpm test"],
+    "full": ["pnpm test"]
   },
   "parity_suite_dir": "e2e/",
   "dataset_tool_dir": "seed/",
@@ -42,11 +42,11 @@
     "coding_conventions": "",
     "ui_library": "",
     "db_semantics": "",
-    "env_setup": "",
+    "env_setup": ""
   },
   "intentional_diffs": {
     "keep": [],
     "may_change": [],
-    "pending": [],
-  },
+    "pending": []
+  }
 }

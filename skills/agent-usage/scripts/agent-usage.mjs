@@ -23,6 +23,7 @@ import {
   newPersonId,
   saveUserConfig,
   userConfigPath,
+  userLayerTimeZone,
 } from "./lib/config.mjs";
 import { configPaths } from "./skill-config/skill-config.mjs";
 import { decisionFor, saveDecision } from "./lib/decisions.mjs";
@@ -157,7 +158,8 @@ export function main(argv, cwd = process.cwd()) {
       const personId = a.options.get("--person-id") ?? config?.personId ?? newPersonId();
       if (!PERSON_ID_RE.test(personId))
         throw new UsageError("--person-id は p- と 16 進数 8 桁の形にする");
-      const timeZone = a.options.get("--time-zone") ?? config?.timeZone ?? systemTimeZone();
+      // config.timeZone は .local.jsonc の値のことがあるので使わない（人ごとの層へ書き写すと、他のリポジトリの記録の日付まで変わる）
+      const timeZone = a.options.get("--time-zone") ?? userLayerTimeZone() ?? systemTimeZone();
       if (!isValidTimeZone(timeZone))
         throw new UsageError("--time-zone は IANA のタイムゾーンの名前にする");
       const billing = a.options.get("--billing") ?? config?.billing ?? "none";

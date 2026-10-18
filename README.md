@@ -105,6 +105,6 @@ gh skill update --all
 
 ```jsonc
 {
-  "review_tool": "codex",
+  "review_tool": "codex"
 }
 ```

@@ -93,9 +93,15 @@ describe("box-folder.sh", () => {
     expect(s.run()).toMatchObject({ status: 0, stdout: "0" });
   });
 
+  test("他の配布元の skills.yml では止めず、Node.js なしでデフォルトの 0 を出す", () => {
+    const s = setup({ node: false });
+    s.write("../other/skills.yml", "skills: {}\n");
+    expect(s.run()).toMatchObject({ status: 0, stdout: "0" });
+  });
+
   test.each([
     ["リポジトリの設定", "box.jsonc"],
-    ["旧い skills.yml", "../other/skills.yml"],
+    ["旧い skills.yml", "skills.yml"],
     ["人ごとの層（置けない層）", "xdg:skills/shoji9x9/box.jsonc"],
   ])("%s があって Node.js が無ければ、0 で続けずに止める", (_name, rel) => {
     const s = setup({ node: false });
@@ -115,7 +121,7 @@ describe("box-folder.sh", () => {
       '{ "root_folder_id": "123" }',
       /人ごと の層に置けない/,
     ],
-    ["旧い skills.yml", "../other/skills.yml", "skills: {}\n", /skills\.yml が残っている/],
+    ["旧い skills.yml", "skills.yml", "skills: {}\n", /skills\.yml が残っている/],
   ])("%s は、設定の誤りとして止める", (_name, rel, text, message) => {
     const s = setup({ node: true });
     s.write(rel, text);

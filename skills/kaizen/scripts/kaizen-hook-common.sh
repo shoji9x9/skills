@@ -288,7 +288,7 @@ kaizen_sentinel_key_of() { # $1: センチネルのパス
 # 置き場所と解決の順序は references/config-files.md にある。
 #
 # 読み方は 3 通りに分かれる。
-#   - 旧い置き場所（`.kaizen/config`・`.config/skills/*/skills.yml`）か、使わなくなった環境変数
+#   - 旧い置き場所（`.kaizen/config`・`.config/skills/shoji9x9/skills.yml`）か、使わなくなった環境変数
 #     （`KAIZEN_PRECOMMIT_DEADLINE_SECONDS`）が残っている: node を使わずに検出し、移行の手順を示して誤りにする。
 #     旧い設定を警告なしに無視すると、デフォルトの値で動いてしまうためである。
 #   - 設定ファイルが 1 つも無く、値を受け取る環境変数（`KAIZEN_SCHEDULE_*`）も空: node を起動せずに、
@@ -329,10 +329,10 @@ kaizen_config_legacy() {
 		printf '%s\n' "- 環境変数 KAIZEN_PRECOMMIT_DEADLINE_SECONDS は使わなくなった。値を kaizen.jsonc（全員に同じ値）か kaizen.local.jsonc（このリポジトリの自分だけ）か人ごとの kaizen.jsonc（自分のすべてのリポジトリ）の precommit_deadline_seconds に移し、環境変数を消す"
 	fi
 	root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
-	for yml in "${root}"/.config/skills/*/skills.yml; do
-		[ -e "${yml}" ] || continue
-		printf '%s\n' "- ${yml} が残っている。skills.<スキル名> の節を .config/skills/<名前空間>/<スキル名>.jsonc に、skills.common の節を common.jsonc に移し、skills.yml を消す"
-	done
+	yml="${root}/.config/skills/shoji9x9/skills.yml"
+	if [ -e "${yml}" ]; then
+		printf '%s\n' "- ${yml} が残っている。skills.<スキル名> の節を .config/skills/shoji9x9/<スキル名>.jsonc に、skills.common の節を common.jsonc に移し、skills.yml を消す"
+	fi
 }
 
 # 在る設定ファイルのパスを挙げる（1 行 1 件）。
@@ -399,6 +399,8 @@ kaizen_config_load() {
 	# 最初の引数に読み取りのパスを置かない。`node -e` では process.argv[1] が最初の引数になり、
 	# 読み取りが自分を CLI として起動されたと判定して main を実行してしまう。
 	# 出力は「キー<TAB>出所<TAB>値」で、文字列はそのまま、それ以外は JSON にする。
+	# 設定の誤りも stdout に出す。stderr を stdout に合わせると、読み取りの注意（SHOJI9X9_SKILLS_IGNORE_USER_CONFIG=1 の
+	# note など）が値の行に入り、変数名にできないキーとして誤りになるので、stderr はそのまま呼び出し側へ流す。
 	rc=0
 	# shellcheck disable=SC2016 # 本文は node に渡す JavaScript で、シェルに展開させない
 	out=$("${node_bin}" --input-type=module -e '
@@ -413,10 +415,10 @@ try {
   }
 } catch (e) {
   if (!(e instanceof m.ConfigError)) throw e;
-  process.stderr.write(`${e.message}\n`);
+  process.stdout.write(`${e.message}\n`);
   process.exit(1);
 }
-' -- "kaizen-config" "${reader}" 2>&1 </dev/null) || rc=$?
+' -- "kaizen-config" "${reader}" </dev/null) || rc=$?
 	if [ "${rc}" -ne 0 ]; then
 		kaizen_config_fail "kaizen の設定を読めない（設定ファイル: $(printf '%s' "${files:-なし}" | tr '\n' ' ')）。"$'\n'"${out}"
 		return 1

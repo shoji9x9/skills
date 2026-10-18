@@ -27,7 +27,7 @@
 {
   // 導入先に実在する規約の文書を指定する（例: AGENTS.md / CLAUDE.md / CONTRIBUTING.md）。
   // 無ければこのキー自体を書かず、探索と利用者への確認に任せる。
-  "conventions_doc": "AGENTS.md",
+  "conventions_doc": "AGENTS.md"
 }
 ```
 

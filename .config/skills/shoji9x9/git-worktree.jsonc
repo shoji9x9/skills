@@ -6,6 +6,6 @@
   // node_modules は worktree 内で `pnpm install --frozen-lockfile`。残りは手でコピーする
   "carry_in": {
     "method": "manual",
-    "files": [".claude/settings.local.json", ".config/skills/shoji9x9/*.local.jsonc"],
-  },
+    "files": [".claude/settings.local.json", ".config/skills/shoji9x9/*.local.jsonc"]
+  }
 }

@@ -227,7 +227,7 @@ for (const script of SCRIPTS) {
     },
   );
 
-  test(`${name}: どの名前空間の skills.yml も、移行の手順を示して止まる`, () => {
+  test(`${name}: この配布元の skills.yml は、移行の手順を示して止まる`, () => {
     const s = setup();
     mkdirSync(join(s.root, ".config/skills/shoji9x9"), { recursive: true });
     writeFileSync(

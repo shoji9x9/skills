@@ -94,11 +94,11 @@ if [ "${SKILLS_REVIEW_TOOL+set}" = "set" ]; then
 	legacy="${legacy}
 - 環境変数 SKILLS_REVIEW_TOOL は使わなくなった。値を common.local.jsonc（このリポジトリの自分だけ）か人ごとの common.jsonc（自分のすべてのリポジトリ）の review_tool に移し、環境変数を .env などから消す。1 回だけ変えるなら、--review-tool で渡す"
 fi
-for yml in "${root}"/.config/skills/*/skills.yml; do
-	[ -e "${yml}" ] || continue
+yml="${root}/.config/skills/shoji9x9/skills.yml"
+if [ -e "${yml}" ]; then
 	legacy="${legacy}
 - ${yml} が残っている。skills.common の節を common.jsonc に、skills.<スキル名> の節を <スキル名>.jsonc に移し、skills.yml を消す"
-done
+fi
 if [ -n "${legacy}" ]; then
 	echo "error: 旧い場所の設定が残っているので止める（references/config-files.md「移行」）。${legacy}" >&2
 	exit 2

@@ -26,7 +26,7 @@ esac
 # Node.js で読む必要があるファイル。人ごとの層の box.jsonc（置けない層）と、旧い skills.yml も含める。
 # どちらも読み取りがエラーにするので、Node.js なしで 0 を出すと、その誤りを見逃す。
 needs_node=""
-for f in "${root}/.config/skills/shoji9x9/box.jsonc" "${root}/.config/skills/shoji9x9/box.local.jsonc" "${xdg}/skills/shoji9x9/box.jsonc" "${root}"/.config/skills/*/skills.yml; do
+for f in "${root}/.config/skills/shoji9x9/box.jsonc" "${root}/.config/skills/shoji9x9/box.local.jsonc" "${xdg}/skills/shoji9x9/box.jsonc" "${root}/.config/skills/shoji9x9/skills.yml"; do
 	if [ -e "${f}" ]; then
 		needs_node="${f}"
 		break

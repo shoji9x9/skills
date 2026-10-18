@@ -6,7 +6,7 @@
       "auth": "none",
       "start": "npm run start",
       "default": true,
-      "forbidden_actions": [],
-    },
-  ],
+      "forbidden_actions": []
+    }
+  ]
 }

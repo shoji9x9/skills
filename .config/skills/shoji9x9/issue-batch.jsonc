@@ -8,10 +8,10 @@
   "deployment": {
     "workflows": [
       ".github/workflows/release.yml", // push main（paths: skills/**）
-      ".github/workflows/ci.yml", // merge 後の main の検証（push main）
+      ".github/workflows/ci.yml" // merge 後の main の検証（push main）
     ],
     "registration_timeout_minutes": 5,
     "completion_timeout_minutes": 10,
-    "max_fix_iterations": 3,
-  },
+    "max_fix_iterations": 3
+  }
 }

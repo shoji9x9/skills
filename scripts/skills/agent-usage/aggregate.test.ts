@@ -13,10 +13,12 @@ import { formulaSafe, parseCsv, toCsv } from "../../../skills/agent-usage/script
 import { classifyingFailuresOf } from "../../../skills/agent-usage/scripts/lib/run-collect.mjs";
 import {
   defaultDecisionOf,
+  hasPerson,
   loadRepoConfig,
   loadUserConfig,
   parseRepoConfig,
   parseUserConfig,
+  userLayerTimeZone,
 } from "../../../skills/agent-usage/scripts/lib/config.mjs";
 import {
   costOf,
@@ -382,6 +384,25 @@ describe("設定ファイルの層", () => {
     expect(defaultDecisionOf(b.root, b.env)).toEqual({ decision: "decline", source: b.userPath });
     const c = layers('{ "defaultDecision": null }', null, null);
     expect(defaultDecisionOf(c.root, c.env)).toBeNull();
+  });
+
+  test("人ごとの層を読まない（SHOJI9X9_SKILLS_IGNORE_USER_CONFIG=1）なら、人の ID・defaultDecision・タイムゾーンも人ごとの層から取らない", () => {
+    const a = layers(
+      '{ "defaultDecision": "record" }',
+      null,
+      '{ "personId": "p-0123abcd", "timeZone": "UTC", "defaultDecision": "decline" }',
+    );
+    expect(hasPerson(a.env)).toBe(true);
+    expect(userLayerTimeZone(a.env)).toBe("UTC");
+    const ignored = { ...a.env, SHOJI9X9_SKILLS_IGNORE_USER_CONFIG: "1" };
+    expect(hasPerson(ignored)).toBe(false);
+    expect(userLayerTimeZone(ignored)).toBeUndefined();
+    expect(defaultDecisionOf(a.root, ignored)).toEqual({ decision: "record", source: a.repoPath });
+  });
+
+  test("setup が引き継ぐタイムゾーンは人ごとの層の値で、.local.jsonc の値は使わない", () => {
+    const a = layers(null, '{ "timeZone": "Asia/Tokyo" }', '{ "personId": "p-0123abcd" }');
+    expect(userLayerTimeZone(a.env)).toBeUndefined();
   });
 
   test("リポジトリの設定と人ごとの設定を、それぞれの層から読む。人の ID が無ければ人の設定は null", () => {

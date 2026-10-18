@@ -40,8 +40,8 @@ exit 1（知らないキー・型の誤り・旧い場所の設定）なら、�
     "workflows": [".github/workflows/release.yml"],
     "registration_timeout_minutes": 5,
     "completion_timeout_minutes": 20,
-    "max_fix_iterations": 3,
-  },
+    "max_fix_iterations": 3
+  }
 }
 ```
 

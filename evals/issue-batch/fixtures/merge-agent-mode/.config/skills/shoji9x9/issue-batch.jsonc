@@ -10,6 +10,6 @@
     "workflows": [],
     "registration_timeout_minutes": 5,
     "completion_timeout_minutes": 10,
-    "max_fix_iterations": 2,
-  },
+    "max_fix_iterations": 2
+  }
 }

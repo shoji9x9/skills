@@ -80,6 +80,28 @@ test("設定ファイルがあれば node で読み、同じキーのデフォ�
   expect(stdout).not.toContain("schedule_effort=");
 });
 
+test("人ごとの層を読まない（SHOJI9X9_SKILLS_IGNORE_USER_CONFIG=1）ときの注意は、値として読まない", () => {
+  const dir = makeTempDir("kaizen-config-");
+  writeKaizenConfig(dir, '{ "forget_after_days": 9 }\n');
+  const res = spawnSync(
+    "bash",
+    [
+      "-c",
+      '. "$1"; kaizen_config_load; echo "rc=$?"; kaizen_config_value forget_after_days',
+      "_",
+      lib,
+    ],
+    {
+      cwd: dir,
+      env: { ...kaizenEnv(dir), SHOJI9X9_SKILLS_IGNORE_USER_CONFIG: "1" },
+      encoding: "utf8",
+      timeout: CHILD_TIMEOUT_MS,
+    },
+  );
+  expect(res.stdout).toBe("rc=0\n9");
+  expect(res.stderr).toContain("SHOJI9X9_SKILLS_IGNORE_USER_CONFIG=1");
+});
+
 test("2 回目の kaizen_config_load は node を起動せず、前の結果を返す", () => {
   const dir = makeTempDir("kaizen-config-");
   writeKaizenConfig(dir, '{ "forget_after_days": 9 }\n');

@@ -2,11 +2,11 @@
   "current": {
     "repo": "./legacy-app",
     "stack": ["Java", "JSP"],
-    "origin": "managed",
+    "origin": "managed"
   },
   "new": {
     "repo": "./new-app",
-    "stack": ["TypeScript", "React"],
+    "stack": ["TypeScript", "React"]
   },
   "targets": [
     {
@@ -15,18 +15,18 @@
       "url": "http://localhost:8080",
       "db": {
         "env_vars": ["CURRENT_DB_URL"],
-        "seedable": true,
+        "seedable": true
       },
       "auth": {
         "roles": {
           "admin": {
             "user_name_env": "CURRENT_ADMIN_USER",
-            "password_env": "CURRENT_ADMIN_PASS",
-          },
-        },
+            "password_env": "CURRENT_ADMIN_PASS"
+          }
+        }
       },
       "forbidden_actions": [],
-      "default": true,
+      "default": true
     },
     {
       "name": "local-dev",
@@ -34,19 +34,19 @@
       "url": "http://localhost:3000",
       "db": {
         "env_vars": ["NEW_DB_URL"],
-        "seedable": true,
+        "seedable": true
       },
       "forbidden_actions": [],
       "default": true,
-      "catalog_url": "http://localhost:6006",
-    },
+      "catalog_url": "http://localhost:6006"
+    }
   ],
   "secrets": {
-    "wrapper": "",
+    "wrapper": ""
   },
   "verification_commands": {
     "full": ["npm run lint", "npm run typecheck"],
-    "diff": ["npx eslint {changed_files}"],
+    "diff": ["npx eslint {changed_files}"]
   },
   "parity_suite_dir": "e2e/",
   "dataset_tool_dir": "seed/",
@@ -55,7 +55,7 @@
     "retention": "latest",
     "storage": "local",
     "size_threshold_mb": 50,
-    "overrides": {},
+    "overrides": {}
   },
   "references": {
     "architecture": "docs/new-architecture.md",
@@ -64,11 +64,11 @@
     "component_catalog": "docs/component-catalog.md",
     "db_semantics": "docs/db-semantics.md",
     "env_setup": "docs/env-setup.md",
-    "dependency_policy": "none",
+    "dependency_policy": "none"
   },
   "intentional_diffs": {
     "keep": [],
     "may_change": [],
-    "pending": [],
-  },
+    "pending": []
+  }
 }

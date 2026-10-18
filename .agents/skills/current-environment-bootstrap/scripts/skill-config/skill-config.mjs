@@ -10,14 +10,7 @@
 // 2=引数の誤り / 3=値が無い（get で、どの層にも無く、デフォルトも無い）。
 
 import { execFileSync } from "node:child_process";
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  readdirSync,
-  realpathSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -455,17 +448,13 @@ function layerLabel(layer) {
 export function checkLegacy(schema, root, env) {
   /** @type {string[]} */
   const found = [];
-  const configRoot = join(root, ".config", "skills");
-  if (existsSync(configRoot)) {
-    for (const ns of readdirSync(configRoot)) {
-      const yml = join(configRoot, ns, "skills.yml");
-      if (existsSync(yml)) {
-        found.push(
-          `${yml} が残っている。skills.<スキル名> の節を .config/skills/${ns}/<スキル名>.jsonc に、skills.common の節を common.jsonc に移し、skills.yml を消す。` +
-            "キーの名前と値は変わらない（YAML のアンカーは使えないので、展開して書く）。",
-        );
-      }
-    }
+  // 見るのはこの配布元（NAMESPACE）の skills.yml だけにする。他の配布元の .config/skills/<名前>/ のファイルは、このスキルの旧い設定ではない
+  const yml = join(root, ".config", "skills", NAMESPACE, "skills.yml");
+  if (existsSync(yml)) {
+    found.push(
+      `${yml} が残っている。skills.<スキル名> の節を .config/skills/${NAMESPACE}/<スキル名>.jsonc に、skills.common の節を common.jsonc に移し、skills.yml を消す。` +
+        "キーの名前と値は変わらない（YAML のアンカーは使えないので、展開して書く）。",
+    );
   }
   const ignoreUser = ignoresUserLayer(env);
   for (const f of schema.legacyFiles) {
@@ -584,9 +573,14 @@ export function loadConfig(opts) {
  */
 export function parseKeyPath(spec) {
   if (spec.startsWith("[")) {
-    /** @type {unknown} */
-    const arr = JSON.parse(spec);
     const bad = new UsageError(`キーのパス ${spec} が、文字列と整数の空でない JSON の配列でない`);
+    /** @type {unknown} */
+    let arr;
+    try {
+      arr = JSON.parse(spec);
+    } catch {
+      throw bad;
+    }
     if (!isArray(arr) || arr.length === 0) throw bad;
     /** @type {(string | number)[]} */
     const out = [];
@@ -663,7 +657,9 @@ export function writeConfig(opts) {
       const key = opts.uniqueBy;
       const want = isRecord(opts.value) ? opts.value[key] : undefined;
       if (want === undefined) throw new UsageError(`--unique-by ${key}: 足す要素に ${key} が無い`);
-      if (list.some((x) => isRecord(x) && JSON.stringify(x[key]) === JSON.stringify(want))) {
+      // 文字列だけの要素は、key の欄だけを書いた要素の短い書き方として扱う（intentional_diffs の "文言" と {"item": "文言"} など）
+      const keyOf = (/** @type {unknown} */ x) => (isRecord(x) ? x[key] : x);
+      if (list.some((x) => JSON.stringify(keyOf(x)) === JSON.stringify(want))) {
         return { path, changed: false, reason: `${key} が同じ要素が既にある` };
       }
     }
@@ -743,15 +739,20 @@ function appendMember(text, container, member) {
   const hasComma = text[j] === ",";
   if (hasComma) j++;
   while (text[j] === " " || text[j] === "\t") j++;
+  // 同じ行で閉じるブロックコメントは読み進める。その後ろの行コメントも、最後の要素に付いたまま残す
+  let closedBlock = false;
+  while (text.startsWith("/*", j)) {
+    const closeComment = text.indexOf("*/", j);
+    const nl = text.indexOf("\n", j);
+    if (closeComment === -1 || (nl !== -1 && closeComment > nl)) break;
+    j = closeComment + 2;
+    closedBlock = true;
+    while (text[j] === " " || text[j] === "\t") j++;
+  }
   if (text.startsWith("//", j)) {
     const nl = text.indexOf("\n", j);
     j = nl === -1 ? text.length : nl;
-  } else if (text.startsWith("/*", j)) {
-    const closeComment = text.indexOf("*/", j);
-    const nl = text.indexOf("\n", j);
-    if (closeComment !== -1 && (nl === -1 || closeComment < nl)) j = closeComment + 2;
-    else j = hasComma ? j : end;
-  } else {
+  } else if (!closedBlock) {
     j = hasComma ? j : end;
   }
   const child = lineIndent(text, last.offset);

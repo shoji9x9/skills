@@ -8,6 +8,10 @@ import { VENDORED_GLOBS, agentCopyGlobs } from "./scripts/lib/source-scope.ts";
 export const assigned = "js,mjs,cjs,jsx,ts,tsx,mts,cts,json,jsonc,yml,yaml";
 
 export default defineConfig({
+  // .jsonc（スキルの設定ファイル）には末尾のカンマを付けない。VS Code の JSON の言語サポートは、.jsonc の末尾のカンマを
+  // 警告（Trailing comma）にするので、利用者が設定ファイルを開くたびに警告が出る。読み取り（skill-config.mjs）の追記も、
+  // 前の要素に合わせて付けないので、整形した後に書き足しても形がそろう。
+  overrides: [{ files: ["**/*.jsonc"], options: { trailingComma: "none" } }],
   ignorePatterns: [
     "**/*.*",
     // `**/*.*` は名前にドットを含むディレクトリ（`.agents` など）にも当たる。外したディレクトリの中は `!` で

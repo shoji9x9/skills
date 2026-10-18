@@ -4,5 +4,5 @@
   // ブランチ運用・commit 規約を記したドキュメント
   "conventions_doc": "AGENTS.md",
   // pr-review-handle / pr-finalize-loop の再レビュー依頼先。copilot | claude-code | codex | local | none
-  "review_tool": "copilot",
+  "review_tool": "copilot"
 }

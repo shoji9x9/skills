@@ -42,14 +42,14 @@ node "$CFG" dump replace-strategy                         # すべてのキー�
         "id": "toast", // パターンの id（一意）
         "regex": "\\bshowMessage\\s*\\(", // 呼び出しの字面に一致する JavaScript の正規表現（JSON の文字列なので \\ を 2 つ重ねる）。ファイル全体に複数行モードで照合する。^ / $ は行頭・行末
         "kind": "toast", // 利用者に見える副作用の種類（toast / script / dialog など）
-        "example": "showMessage('Saved', 'success')", // regex が一致すべき実際の呼び出しの字面（検出されることの確認に使う）
-      },
-    ],
+        "example": "showMessage('Saved', 'success')" // regex が一致すべき実際の呼び出しの字面（検出されることの確認に使う）
+      }
+    ]
   },
   "new": {
     // 新側のアプリ（URL・DB・認証・禁止操作は、targets の side: new が持つ）
     "repo": "<owner/repo | ローカルパス>", // 骨格をスキャフォールド済みのリポジトリ（骨格の選定はスキル群の対象外。下記「新側アーキテクチャ」）
-    "stack": [], // 新側のスタック（フレームワーク・バックエンドの構成・ORM など）。事前に決まっているものを、setup の対話で記録する（current.stack と対称）
+    "stack": [] // 新側のスタック（フレームワーク・バックエンドの構成・ORM など）。事前に決まっているものを、setup の対話で記録する（current.stack と対称）
   },
   // 現行と新側の実行対象環境。複数を定義し、各スキルの --target <name> で選ぶ（下記「実行対象環境」）
   "targets": [
@@ -62,31 +62,31 @@ node "$CFG" dump replace-strategy                         # すべてのキー�
       // "browser": { "cdp_url": "http://<利用者環境のホスト>:9222/" }, // 省略すると、Playwright が起動したブラウザで撮る
       "db": {
         "env_vars": ["CURRENT_DB_URL"], // この環境の DB の接続情報を持つ環境変数の「名前」。値は書かない。書いた target だけ、スキルが接続を読んでよい（書かない target の DB には、スキルは一切触れない）
-        "seedable": true, // true のときだけ golden-dataset の投入先になる。省略か false なら読み取り専用の接続（接続は読むが、削除と投入はしない）
+        "seedable": true // true のときだけ golden-dataset の投入先になる。省略か false なら読み取り専用の接続（接続は読むが、削除と投入はしない）
       },
       // この環境のファイルストレージ（アップロード先・ファイルの出力先）。書かなければ、この target のストレージにスキルは一切触れない（下記「ファイルストレージ」）
       "storage": {
         "env_vars": ["CURRENT_STORAGE_ENDPOINT"], // 接続情報を持つ環境変数の「名前」。値は書かない（db と同じ決まり）
         "write_scope": [], // 削除・生成してよい範囲（パス、または <bucket>/<prefix>）。空か未定義なら書き込めない
         "seedable": false, // ゴールデンデータの投入を設定で許すか（デフォルトは許さない）。true でも投入はしない（投入はスコープ外）
-        "upload_route": "direct", // direct（アプリサーバを通る multipart）| presigned（ブラウザがストレージに直接 PUT する）| none（アップロードの方法が無い）。省略は未確認で、推測せずに確認する
+        "upload_route": "direct" // direct（アプリサーバを通る multipart）| presigned（ブラウザがストレージに直接 PUT する）| none（アップロードの方法が無い）。省略は未確認で、推測せずに確認する
       },
       // この環境の認証情報。ロールごとに環境変数の「名前」を持つ（認証が要らない環境では省略する。ロールが 1 つならそれだけでよい）
       "auth": {
         "roles": {
           "admin": {
             "user_name_env": "CURRENT_ADMIN_USER", // ユーザー名を持つ環境変数の名前
-            "password_env": "CURRENT_ADMIN_PASS", // パスワードを持つ環境変数の名前。他の要素は <論理名>_env で足せる（例: totp_secret_env）
+            "password_env": "CURRENT_ADMIN_PASS" // パスワードを持つ環境変数の名前。他の要素は <論理名>_env で足せる（例: totp_secret_env）
           },
           "approver": {
             "user_name_env": "CURRENT_APPROVER_USER",
-            "password_env": "CURRENT_APPROVER_PASS",
-          },
-        },
+            "password_env": "CURRENT_APPROVER_PASS"
+          }
+        }
       },
       // この環境で行わない UI / API の操作（db.seedable を通る投入ツールには当てない。空リスト = すべて行ってよい、未定義 = 読み取り専用）
       "forbidden_actions": ["データの削除"],
-      "default": true, // --target を省いたときに使う target。側ごとに 1 つ（同じ側に複数あれば停止する）
+      "default": true // --target を省いたときに使う target。側ごとに 1 つ（同じ側に複数あれば停止する）
     },
     {
       "name": "local-dev",
@@ -98,35 +98,35 @@ node "$CFG" dump replace-strategy                         # すべてのキー�
         "env_vars": ["NEW_STORAGE_ENDPOINT"],
         "write_scope": [],
         "seedable": false,
-        "upload_route": "presigned", // 現行側とアップロードの方法が違う場合は、保存 path の命名規則の差も含めて、意図的差異レジストリの対象になる（下記「ファイルストレージ」）
+        "upload_route": "presigned" // 現行側とアップロードの方法が違う場合は、保存 path の命名規則の差も含めて、意図的差異レジストリの対象になる（下記「ファイルストレージ」）
       },
       "auth": {
         "roles": {
-          "admin": { "user_name_env": "NEW_ADMIN_USER", "password_env": "NEW_ADMIN_PASS" },
-        },
+          "admin": { "user_name_env": "NEW_ADMIN_USER", "password_env": "NEW_ADMIN_PASS" }
+        }
       },
       "forbidden_actions": [],
       "pre_commands": [], // start の前に要る環境準備のコマンド（build など）。起動が要るときだけ実行し、失敗したら停止する
       "start": "<コマンド>", // 長く動き続ける起動コマンド（稼働していないときだけ実行する。稼働の判定は check_urls で行う）
       "check_urls": [], // 稼働の確認に使う URL（省略すると url だけを使う）
-      "default": true,
+      "default": true
     },
     {
       "name": "develop", // 例: PR のマージの後に自動でデプロイされる環境（実体は開発環境。実データを持つなら seedable を書かず、読み取り専用にする）
       "side": "new",
       "url": "<URL>",
       "db": {
-        "env_vars": ["DEVELOP_DB_URL"], // seedable を書かない＝読み取り専用。バッチの出力の一致の検証などで DB の状態は読むが、削除と投入はしない
+        "env_vars": ["DEVELOP_DB_URL"] // seedable を書かない＝読み取り専用。バッチの出力の一致の検証などで DB の状態は読むが、削除と投入はしない
       },
       "auth": {
         "roles": {
-          "admin": { "user_name_env": "DEVELOP_ADMIN_USER", "password_env": "DEVELOP_ADMIN_PASS" },
-        },
+          "admin": { "user_name_env": "DEVELOP_ADMIN_USER", "password_env": "DEVELOP_ADMIN_PASS" }
+        }
       },
       "catalog_url": "<URL>", // 任意（side: new だけ。catalog_url_command と同時には書けない）。部品カタログの baseURL（固定の文字列）。parity-component の build が読み、どちらも無ければ推測せずに停止する
       // "catalog_url_command": "<コマンド>", // catalog_url と同時には書けない。標準出力に URL を 1 行出す（url_command と同じ解決と記録の規則）
       "commit_check": "<コマンド>", // 任意。稼働中の新側のコミットの SHA を標準出力に出す（start を持たない配信型の target で、parity-replace が軽い判定に使う）
-      "on_diff": "<path>", // 任意。この target で要対応の差分が出たときの対応手順を書いた Markdown のパス（下記「on_diff」。無ければデフォルトの動作）
+      "on_diff": "<path>" // 任意。この target で要対応の差分が出たときの対応手順を書いた Markdown のパス（下記「on_diff」。無ければデフォルトの動作）
     },
     {
       "name": "preview", // 例: ブランチに連動するプレビュー環境（URL がブランチ名で変わり、固定の文字列で書けない）
@@ -134,15 +134,15 @@ node "$CFG" dump replace-strategy                         # すべてのキー�
       "url_command": "<コマンド>", // url と同時には書けない。標準出力に URL を 1 行出す（意味の原本は browser-test。parity 系での解決と記録の規則は下記「URL の引き渡し」）
       "auth": {
         "roles": {
-          "admin": { "user_name_env": "PREVIEW_ADMIN_USER", "password_env": "PREVIEW_ADMIN_PASS" },
-        },
+          "admin": { "user_name_env": "PREVIEW_ADMIN_USER", "password_env": "PREVIEW_ADMIN_PASS" }
+        }
       },
       "forbidden_actions": [],
-      "commit_check": "<コマンド>",
-    },
+      "commit_check": "<コマンド>"
+    }
   ],
   "secrets": {
-    "wrapper": "", // 任意の起動ラッパー（例: aws-vault exec dev --）。シークレットが要るコマンドの前に付ける
+    "wrapper": "" // 任意の起動ラッパー（例: aws-vault exec dev --）。シークレットが要るコマンドの前に付ける
   },
   "parity_suite_dir": "e2e/", // パリティスイートの置き場所（parity-suite が読む。省略すると e2e/）
   "dataset_tool_dir": "seed/", // golden-dataset の投入ツールの置き場所（golden-dataset が読む。省略すると seed/）
@@ -157,13 +157,13 @@ node "$CFG" dump replace-strategy                         # すべてのキー�
     "full": ["<コマンド>"],
     // 任意（無ければ省略するか空リスト）。変更したファイルだけを受け取る安い列。実装の反復と、敵対的レビューの前の早い検出にだけ使い、完了判定には使わない
     // {changed_files} は、実行するスキルが変更したファイルの一覧に展開する
-    "diff": ["<コマンド> {changed_files}"],
+    "diff": ["<コマンド> {changed_files}"]
   },
   "artifacts": {
     "retention": "latest", // 作業ツリーには最新だけを置く。履歴は Git が持つ
     "storage": "local", // local（デフォルトで、コミットしない）| git | git-lfs — 大きなバイナリのデフォルトの保存先
     "size_threshold_mb": 50, // 超えたら警告する
-    "overrides": {}, // 機能ごとの上書き（例: "order": "git-lfs"）
+    "overrides": {} // 機能ごとの上書き（例: "order": "git-lfs"）
   },
   // 利用者が選ぶ知識の注入。パスだけを持つ（本文はファイルの側）。setup がすべてのキーを作り、決まらないキーは空の値で残す（下記「references（知識の注入）」）
   "references": {
@@ -191,7 +191,7 @@ node "$CFG" dump replace-strategy                         # すべてのキー�
       //   "added_by": "<replace-strategy | golden-dataset | parity-suite | parity-replace | parity-component>",
       //   "added_at": "<YYYY-MM-DD>",
       //   "match": { "element": "<論理名 | glob>", "property": "<プロパティ | glob>" }, // 任意。特性照合の差分に当てる照合キー（下記「照合キー（match）」）
-      // },
+      // }
     ],
     // keep / may_change の要素も { "item": "<散文>", "match": {...} } のオブジェクトにできる（照合キーを持たない散文は、理由を添えても差分に当たらない）
   },
@@ -200,7 +200,7 @@ node "$CFG" dump replace-strategy                         # すべてのキー�
   // 要素の形の原本はこのファイルで、{ component, property, current, new, reason } である。component は照合キーで、対象の要素の論理名（* を含めれば glob）を書く。
   // 無いか空の値は、すべてに合うものではなく不一致として扱い、照合に使わない（照合の方法の原本は parity-diff の references/normalize.md）
   // T を当てられない箇所のインスタンス単位の例外は、設定ファイルに置かない（slug スコープの台帳なので .replace/parity/<slug>/component-diff-exceptions.json に置く。スキーマの原本は parity-diff の references/normalize.md）
-  "component_diffs": [],
+  "component_diffs": []
 }
 ```
 
@@ -946,8 +946,8 @@ DB の接続情報もアプリの認証情報も、スキルは環境変数か�
 "may_change": [
   {
     "item": "見出しの border-style: 現行 none・新側 solid。幅は両側 0px で描かれない",
-    "match": { "element": "heading", "property": "border-*-style" },
-  },
+    "match": { "element": "heading", "property": "border-*-style" }
+  }
 ],
 ```
 

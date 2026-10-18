@@ -253,7 +253,7 @@ Copilot では、lifecycle の検査の警告が届かない（既知の制約�
 ```jsonc
 {
   // 他セッションのセンチネルを回収するまでの日数。既定 7。"never" で回収しない。
-  "foreign_sentinel_retention_days": 14,
+  "foreign_sentinel_retention_days": 14
 }
 ```
 
@@ -534,7 +534,7 @@ Hook を新たに設定する必要はない。4-1〜4-3 の 3 つの Hook は�
   // 記録からこの日数が過ぎた pending を候補にする。既定 30。
   "forget_after_days": 30,
   // この優先度までを候補にする（low | medium | high）。既定 medium。
-  "forget_max_priority": "medium",
+  "forget_max_priority": "medium"
 }
 ```
 
@@ -680,7 +680,7 @@ node <KAIZEN_SKILL_DIR>/scripts/skill-config/skill-config.mjs set kaizen schedul
   "schedule_mode": "notify", // notify | agent（既定 notify）
   "schedule_agent": "claude", // claude | codex | copilot（既定 claude）
   // "schedule_model": "...",  // 省くとエージェント側の既定モデル
-  // "schedule_effort": "...", // codex のみ有効
+  // "schedule_effort": "..." // codex のみ有効
 }
 ```
 

@@ -63,16 +63,16 @@ Issue のタイトルの規約（conventional commits に似た接頭辞など�
     {
       "ghsa": "GHSA-xxxx-xxxx-xxxx",
       "reason": "tolerable_risk", // fix_started | inaccurate | no_bandwidth | not_used | tolerable_risk
-      "comment": "影響箇所を使っていないため許容する",
+      "comment": "影響箇所を使っていないため許容する"
     },
     // パッケージそのものを使っていないなら、package で指定する（ecosystem でさらに絞れる）
     {
       "package": "<pkg>",
       "ecosystem": "npm", // 任意。別のエコシステムにある同名のパッケージを巻き込みたくないときに指定する
       "reason": "not_used",
-      "comment": "このパッケージは本番の処理で使っていないため却下する",
-    },
-  ],
+      "comment": "このパッケージは本番の処理で使っていないため却下する"
+    }
+  ]
 }
 ```
 

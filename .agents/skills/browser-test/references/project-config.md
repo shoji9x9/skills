@@ -58,23 +58,23 @@ node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mj
       // 稼働確認に使う URL（省略時は url のみ）
       "check_urls": ["http://localhost:5173/", "http://localhost:3001/"],
       "default": true, // 既定の環境
-      "forbidden_actions": [], // この環境で実施しない操作。空 = すべて実施可（副作用を伴う操作は承認制）
+      "forbidden_actions": [] // この環境で実施しない操作。空 = すべて実施可（副作用を伴う操作は承認制）
     },
     {
       "name": "dev",
       "url": "https://dev.example.com",
       "auth": "user",
       // forbidden_actions が未定義の環境は読み取り専用として扱う
-      "forbidden_actions": ["データの作成・変更・削除", "分析ジョブの開始（課金を伴う）"],
+      "forbidden_actions": ["データの作成・変更・削除", "分析ジョブの開始（課金を伴う）"]
     },
     {
       "name": "preview",
       // url と排他。標準出力に URL を 1 行出す（ブランチ連動のプレビュー環境等、URL を固定文字列で書けない環境向け）。実行のたび解決し、失敗・空出力は停止
       "url_command": "<コマンド>",
       "auth": "user",
-      "forbidden_actions": ["データの作成・変更・削除"],
-    },
-  ],
+      "forbidden_actions": ["データの作成・変更・削除"]
+    }
+  ]
 }
 ```
 

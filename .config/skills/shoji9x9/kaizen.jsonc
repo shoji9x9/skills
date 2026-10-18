@@ -1,5 +1,5 @@
 {
   // 定期実行（.github/workflows/kaizen-schedule.yml）を有効にする。
   // デフォルトは false（opt-in）なので、このキーが無いと週次の棚卸しは skip される。
-  "schedule_enabled": true,
+  "schedule_enabled": true
 }

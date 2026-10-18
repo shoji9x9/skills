@@ -5,7 +5,7 @@
       "url": "https://staging.example.test",
       "auth": "user",
       "default": true,
-      "forbidden_actions": ["data update"],
-    },
-  ],
+      "forbidden_actions": ["data update"]
+    }
+  ]
 }

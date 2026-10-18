@@ -56,8 +56,8 @@
 "may_change": [
   {
     "item": "font-family の大文字小文字: 現行の計算後スタイルは Roboto（大文字）、新側は roboto。描画は同じ書体",
-    "match": { "element": "grid-header-*", "property": "font-family" },
-  },
+    "match": { "element": "grid-header-*", "property": "font-family" }
+  }
 ],
 ```
 

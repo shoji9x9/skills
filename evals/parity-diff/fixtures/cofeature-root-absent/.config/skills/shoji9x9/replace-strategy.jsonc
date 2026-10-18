@@ -6,9 +6,9 @@
       "url": "https://current.example.test",
       "db": {
         "env_vars": ["CURRENT_DB_URL"],
-        "seedable": true,
+        "seedable": true
       },
-      "default": true,
+      "default": true
     },
     {
       "name": "preview",
@@ -16,10 +16,10 @@
       "url": "https://preview.example.test",
       "db": {
         "env_vars": ["PREVIEW_DB_URL"],
-        "seedable": true,
+        "seedable": true
       },
-      "default": true,
-    },
+      "default": true
+    }
   ],
-  "parity_suite_dir": "e2e/",
+  "parity_suite_dir": "e2e/"
 }
