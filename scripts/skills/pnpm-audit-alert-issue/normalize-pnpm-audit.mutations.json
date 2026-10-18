@@ -475,8 +475,8 @@
       "id": "ghsa-unicode-flag",
       "why": "照合に u フラグを足し、大文字と小文字の照合を Unicode の規則にする（ſ を s として読む）",
       "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
-      "find": "`, \"i\");",
-      "replace": "`, \"iu\");",
+      "find": "(?![0-9a-z_-])`, \"i\");",
+      "replace": "(?![0-9a-z_-])`, \"iu\");",
       "occurrences": 1,
       "expect_failing": [
         "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（本体に ASCII の外の英字）",
@@ -484,20 +484,34 @@
       ]
     },
     {
-      "id": "ghsa-boundary-fullwidth-after",
-      "why": "後ろの判定だけに全角の数字とハイフンを足し、前後の文字の集合を食い違わせる",
+      "id": "ghsa-boundary-non-ascii-before",
+      "why": "前の判定だけに ASCII の外の文字（é・全角の数字とハイフン）を足し、前後の文字の集合を食い違わせる",
       "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
-      "find": "(?![0-9a-z_-])",
-      "replace": "(?![0-9a-z_－０-９-])",
+      "find": "(?<![0-9a-z_-])",
+      "replace": "(?<![0-9a-z_é０-９－-])",
       "occurrences": 1,
       "expect_failing": [
+        "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（前が ASCII の外の英字）",
+        "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（前が全角の数字）",
+        "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（前が全角のハイフン）"
+      ]
+    },
+    {
+      "id": "ghsa-boundary-fullwidth-after",
+      "why": "後ろの判定だけに全角の英字・数字・ハイフンを足し、前後の文字の集合を食い違わせる",
+      "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
+      "find": "(?![0-9a-z_-])",
+      "replace": "(?![0-9a-z_Ａ-Ｚ０-９－-])",
+      "occurrences": 1,
+      "expect_failing": [
+        "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（後ろが全角の英字）",
         "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（後ろが全角の数字）",
         "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（後ろが全角のハイフン）"
       ]
     },
     {
       "id": "ghsa-via-string-id-dropped",
-      "why": "advisory を表す via の文字列から id を取り出さず、title を受け取った文字列のままにする",
+      "why": "advisoryFromVia が via の文字列から id を取り出さず、title を受け取った文字列のままにする（ghsa は ghsaOf が title と url から取り出し直す）",
       "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
       "find": "  const ghsa = ghsaFrom(via);\n",
       "replace": "  const ghsa = \"\";\n",

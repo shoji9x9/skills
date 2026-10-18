@@ -329,8 +329,8 @@ describe("findingsFromVulnerability（新しい形の vulnerabilities の 1 件�
     expect(result.ghsa).toBe(ID);
   });
 
-  // id の欄と url から id を取り出せなければ、id の欄の文字列をそのまま使う（id の形でない識別子を残すため）。
-  // source と title の id より先に使う（下の「別の id より id の欄の文字列を使う」テスト）。
+  // - で語が付いた id は、どの欄からも取り出さない。
+  // id の欄から取り出せなければ、ghsa には id の欄の文字列をそのまま入れる（id の形でない識別子を残すため）。url・source・title の行は "" になる。
   test.each([
     ["ghsa", "npm-GHSA-238P-PMPM-9MQ7", "npm-GHSA-238P-PMPM-9MQ7"],
     ["ghsa_id", "npm-GHSA-238P-PMPM-9MQ7", "npm-GHSA-238P-PMPM-9MQ7"],
