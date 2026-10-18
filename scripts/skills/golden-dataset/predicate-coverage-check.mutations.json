@@ -288,7 +288,7 @@
         "unclosedFenceLine は、末尾まで閉じないフェンスを開いた行の番号を返す: 情報文字列の付いた行で閉じたつもりのフェンス",
         "features.md の閉じないコードフェンスは、構造の不備として合格にしない",
         "design.md の閉じないコードフェンスは、構造の不備として合格にしない",
-        "verification.md の閉じないコードフェンスは、開いた行の番号を付けて報告する"
+        "verification.md の閉じないコードフェンスは、開いた行の番号を付けて構造の不備にする"
       ]
     },
     {
@@ -360,7 +360,7 @@
         "unclosedFenceLine は、末尾まで閉じないフェンスを開いた行の番号を返す: 閉じた後に開き直したフェンス",
         "features.md の閉じないコードフェンスは、構造の不備として合格にしない",
         "design.md の閉じないコードフェンスは、構造の不備として合格にしない",
-        "verification.md の閉じないコードフェンスは、開いた行の番号を付けて報告する"
+        "verification.md の閉じないコードフェンスは、開いた行の番号を付けて構造の不備にする"
       ]
     },
     {
@@ -412,7 +412,18 @@
       "replace": "    if (false) {",
       "occurrences": 1,
       "expect_failing": [
-        "verification.md の閉じないコードフェンスは、開いた行の番号を付けて報告する"
+        "verification.md の閉じないコードフェンスは、開いた行の番号を付けて構造の不備にする"
+      ]
+    },
+    {
+      "id": "verification-unclosed-fence-not-structural",
+      "why": "verification.md の閉じないフェンスを構造の不備にせず、設計の不備（exit 1）として報告する",
+      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
+      "find": "      // 表が読めないので、features.md・design.md と同じく構造の不備にする（設計ではなく verification.md の書き方を直す）。\n      structural = true;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "verification.md の閉じないコードフェンスは、開いた行の番号を付けて構造の不備にする"
       ]
     }
   ]

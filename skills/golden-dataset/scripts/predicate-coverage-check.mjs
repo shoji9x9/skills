@@ -142,7 +142,7 @@ export function unclosedFenceLine(markdown) {
  * @returns {string}
  */
 function unclosedFenceMessage(file, line) {
-  return `${file} の ${line} 行目で開いたコードフェンスが閉じていない（閉じる行に情報文字列を付けると閉じない。以降の表が読まれない）`;
+  return `${file} の ${line} 行目で開いたコードフェンスが末尾まで閉じていない（閉じる行は、開いた記号と同じ記号を同じ数以上だけ書き、情報文字列を付けない。リストの項目と引用の中のフェンスは読めないので、その外に書く。以降の表が読まれない）`;
 }
 
 /**
@@ -1127,6 +1127,8 @@ export function checkPredicateCoverage(input) {
     const verificationTables = parseTables(input.verificationMarkdown);
     const verificationUnclosed = unclosedFenceLine(input.verificationMarkdown);
     if (verificationUnclosed !== null) {
+      // 表が読めないので、features.md・design.md と同じく構造の不備にする（設計ではなく verification.md の書き方を直す）。
+      structural = true;
       findings.push({
         code: "verification-fence-unclosed",
         message: unclosedFenceMessage("verification.md", verificationUnclosed),

@@ -461,7 +461,7 @@ test.each([
   ],
 ])("%s: 閉じないコードフェンスは、開いた行の番号を付けて止める", (name, read) => {
   const line = name === "procedure-staleness-check" ? 8 : 5;
-  expect(read).toThrow(`${line} 行目で開いたコードフェンスが閉じていない`);
+  expect(read).toThrow(`${line} 行目で開いたコードフェンスが末尾まで閉じていない`);
 });
 
 test("procedure-staleness-check: 閉じないフェンスが表を読めなくしたときは、表が無いエラーより先にフェンスを報告する", () => {
@@ -471,7 +471,7 @@ test("procedure-staleness-check: 閉じないフェンスが表を読めなく�
   );
   expect(r.ok).toBe(false);
   if (r.ok) return;
-  expect(r.errors[0]).toContain("1 行目で開いたコードフェンスが閉じていない");
+  expect(r.errors[0]).toContain("1 行目で開いたコードフェンスが末尾まで閉じていない");
   expect(r.errors.join("\n")).toContain("表が無い");
 });
 

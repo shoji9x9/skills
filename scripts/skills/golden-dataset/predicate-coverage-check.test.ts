@@ -1299,7 +1299,7 @@ test.each([
   expect(result.structural).toBe(true);
 });
 
-test("verification.md の閉じないコードフェンスは、開いた行の番号を付けて報告する", () => {
+test("verification.md の閉じないコードフェンスは、開いた行の番号を付けて構造の不備にする", () => {
   const result = checkPredicateCoverage({
     featuresMarkdown: FEATURES,
     designMarkdown: designOf(),
@@ -1307,8 +1307,9 @@ test("verification.md の閉じないコードフェンスは、開いた行の�
   });
   const finding = result.findings.find((f) => f.code === "verification-fence-unclosed");
   expect(finding?.message).toContain(
-    "verification.md の 3 行目で開いたコードフェンスが閉じていない",
+    "verification.md の 3 行目で開いたコードフェンスが末尾まで閉じていない",
   );
+  expect(result.structural).toBe(true);
 });
 
 test("誤検知しないことの確認: 閉じたコードフェンスは、構造の不備にしない", () => {

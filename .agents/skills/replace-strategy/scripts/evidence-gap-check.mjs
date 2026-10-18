@@ -207,7 +207,7 @@ export function classifyTable(headers) {
 export function readRow(text, slug) {
   const { tables, strayRows, unclosedFence } = parseTables(text);
   if (unclosedFence !== null)
-    throw new UsageError(`features.md の ${unclosedFenceMessage(unclosedFence)}`);
+    throw new UsageError(`インベントリの ${unclosedFenceMessage(unclosedFence)}`);
   /** @type {{ endpointCell: string, endpoints: string[], entries: ReturnType<typeof parseEvidenceEntries> }[]} */
   const matched = [];
   // 判定できない行は理由の別で数える。同じ終了コードへ畳むと、呼び出し側が

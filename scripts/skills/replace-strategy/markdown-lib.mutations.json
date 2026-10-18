@@ -462,8 +462,8 @@
       "id": "evidence-gap-unclosed-fence-unchecked",
       "why": "evidence-gap-check が閉じないフェンスで止めず、後ろの表を読まないまま判定する",
       "file": "skills/replace-strategy/scripts/evidence-gap-check.mjs",
-      "find": "  if (unclosedFence !== null)\n    throw new UsageError(`features.md の",
-      "replace": "  if (false)\n    throw new UsageError(`features.md の",
+      "find": "  if (unclosedFence !== null)\n    throw new UsageError(`インベントリの",
+      "replace": "  if (false)\n    throw new UsageError(`インベントリの",
       "occurrences": 1,
       "expect_failing": [
         "evidence-gap-check: 閉じないコードフェンスは、開いた行の番号を付けて止める"

@@ -251,7 +251,7 @@ function parseTables(text, options = {}) {
  * @returns {string}
  */
 function unclosedFenceMessage(line) {
-  return `${line} 行目で開いたコードフェンスが閉じていない（閉じる行に情報文字列を付けると閉じない。以降の表が読まれない）`;
+  return `${line} 行目で開いたコードフェンスが末尾まで閉じていない（閉じる行は、開いた記号と同じ記号を同じ数以上だけ書き、情報文字列を付けない。リストの項目と引用の中のフェンスは読めないので、その外に書く。以降の表が読まれない）`;
 }
 
 export { blankComments, opensHtmlBlock, collapse, parseTables, splitRow, unclosedFenceMessage };
