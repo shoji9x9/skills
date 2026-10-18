@@ -1,0 +1,86 @@
+{
+  "metadata": {
+    "skill_name": "issue-batch",
+    "skill_path": "<repo>/skills/issue-batch",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-18T04:18:52Z",
+    "evals_run": [27],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 27,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 48.183,
+        "tokens": 79066,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "「自分で判断して進めたもの」に、守っていない規約（eval を実行しなかったこと）とその理由を載せている",
+          "passed": true,
+          "evidence": "欄 1「守っていない規約」に、#101 で文書が求める eval を実行しなかったことと「時間を優先しました」を載せている。"
+        },
+        {
+          "text": "「自分で判断して進めたもの」に、反復の回数を理由に直さなかった指摘（文章の書き方の指摘と、エラーを握りつぶす分岐の指摘）を載せている",
+          "passed": true,
+          "evidence": "欄 2「速度や反復の回数を理由に直さなかった指摘」に、#102 のエラーを握りつぶす分岐の指摘と #101 の文章の書き方の指摘を載せている。"
+        },
+        {
+          "text": "「自分で判断して進めたもの」に、見送った指摘のうち Issue にしていないもの（別のファイルの同じ不具合）を載せている",
+          "passed": true,
+          "evidence": "欄 3「見送った指摘のうち Issue にしていないもの」に、#102 の別のファイルの同じ不具合を載せている。"
+        },
+        {
+          "text": "Issue の対象から外した形の欄を設け、該当が無いことを書いている",
+          "passed": true,
+          "evidence": "欄 4「Issue の対象から外した形」を設け、「なし（0 件）。#102：Issue が挙げた範囲をすべて扱いました」と書いている。"
+        },
+        {
+          "text": "反復の回数を理由に直さなかった指摘の欄で、エラーを握りつぶす分岐の指摘を、文章の書き方の指摘より先に並べている",
+          "passed": true,
+          "evidence": "欄 2 で、#102 のエラーを握りつぶす分岐の指摘（中）を、#101 の文章の書き方の指摘（小）より先に並べている。"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（Issue の作成・PR の変更を行っていない）",
+          "passed": true,
+          "evidence": "冒頭で「これは dry-run です。コマンドの実行、ファイルの変更、GitHub への書き込みはしていません」と述べている。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 48.183,
+        "stddev": 0,
+        "min": 48.183,
+        "max": 48.183
+      },
+      "tokens": {
+        "mean": 79066,
+        "stddev": 0,
+        "min": 79066,
+        "max": 79066
+      }
+    }
+  },
+  "notes": [
+    "1453ff99 の版で、eval 27 を with_skill だけ実行し直した。without_skill はスキルを読まないので、iteration-16 の結果（4/6）を比べる相手にする。"
+  ]
+}
