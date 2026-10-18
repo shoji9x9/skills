@@ -111,6 +111,7 @@ python の heredoc の 1 回は、本文の文字列に `git` の語があった
 2 回目は、`oxfmt` に続けて `echo rc=$?` と `git diff --stat` を `;` でつないだ処理である（`names git in a form too complex to verify`）。
 どちらも、Write ツールでスクリプトにして絶対パスで実行するか、git の操作を単独の呼び出しに分けて通した。
 同じセッションの #692 でこの記録に追記した直後でも、worktree に入った後の最初の複合コマンドで同じ形を書いた。
+同じ日の #651 と #681 の再発は、「### apply のときに確かめること」の最後の 2 つの箇条に書いてある。
 
 ## 根本原因
 
@@ -138,7 +139,7 @@ PR #656 のレビューで出た指摘である。上の Hook の条件の細部
 
 - 区切りを `;`・`&&` だけにすると、#616 の `curl -o` と `||` を含む拒否や、`for` ループ・パイプ・改行でつないだ形を拾えない。#631・#616・#655 のすべての拒否に条件を当てる。
   #662 の 4 つの拒否にも当てる。`for` ループの変数を `gh` の引数に渡した形（`runs gh with a value computed at runtime`）と、heredoc と `;` でつないだ形である。
-  検索語の `eval` で拒否された形（`runs a string through eval`）と、引数の中のコマンド置換 `$(git ...)` もある。
+  引数の中のコマンド置換 `$(git ...)` もある。
   検索語やパスに `eval` の語を含む形（`grep ... scripts/eval/` など）にも当てる。ハーネスはこの形を `runs a string through eval` として拒否する。
 - `;`・`&&` と `node`・`bash` の起動の組は、ハーネスが通す正当な複合コマンド（定数の引数だけの `pnpm exec vitest run a.test.ts && node scripts/x.ts` など）にも当たる。ハーネスの拒否の理由（`computed at runtime`・`inside a construct too complex`）に対応する形に絞り、誤検知しないことを確かめる例を挙げる。
 - 新しい Hook を書かず、Bash の呼び出しをセグメントに分けて判定する既存の PreToolUse の Hook（`scripts/hooks/bash-command-guard.sh`）に足せるかを先に確かめる。

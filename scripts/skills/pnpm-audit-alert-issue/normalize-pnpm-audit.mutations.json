@@ -62,7 +62,7 @@
       "id": "via-package-name-as-advisory",
       "why": "via の文字列のうち advisory を表さないもの（パッケージ名）も advisory として扱う",
       "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
-      "find": "return typeof via === \"string\" && (ghsaFromVia(via) || isUrl(via));",
+      "find": "return typeof via === \"string\" && isAdvisoryViaString(via);",
       "replace": "return typeof via === \"string\";",
       "occurrences": 1,
       "expect_failing": [
@@ -132,15 +132,20 @@
     },
     {
       "id": "ghsa-from-url-skipped",
-      "why": "古い形で、GHSA の id の欄が無いときに url の中の GHSA を使わない",
+      "why": "GHSA の id の欄が無いときに url の中の GHSA を使わない",
       "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
-      "find": "export function fromAdvisory(advisory: AuditRecord): Finding {\n  const ghsa = firstString(\n    normalizeGhsa(advisory.ghsa),\n    normalizeGhsa(advisory.ghsa_id),\n    normalizeGhsa(advisory.github_advisory_id),\n    ghsaFrom(advisory.url),\n",
-      "replace": "export function fromAdvisory(advisory: AuditRecord): Finding {\n  const ghsa = firstString(\n    normalizeGhsa(advisory.ghsa),\n    normalizeGhsa(advisory.ghsa_id),\n    normalizeGhsa(advisory.github_advisory_id),\n",
+      "find": "    ghsaFrom(advisory.url),\n",
+      "replace": "",
       "occurrences": 1,
       "expect_failing": [
         "fromAdvisory（古い形の advisories の 1 件） advisory の URL から取った GHSA の id も、GitHub の表記にそろえる",
         "fromAdvisory（古い形の advisories の 1 件） GHSA の id の欄が無ければ、url の中の GHSA を使う",
-        "findingsFromVulnerability（新しい形の vulnerabilities の 1 件） url の GHSA の id は、古い形でも via のオブジェクトでも取り出す"
+        "findingsFromVulnerability（新しい形の vulnerabilities の 1 件） via の advisory と fixAvailable と packages から finding を作る",
+        "findingsFromVulnerability（新しい形の vulnerabilities の 1 件） url の GHSA の id は、古い形でも via のオブジェクトでも取り出す",
+        "findingsFromVulnerability（新しい形の vulnerabilities の 1 件） ghsa から id を取り出せなくても url に id があれば、受け取った文字列より url の id を使う",
+        "findingsFromVulnerability（新しい形の vulnerabilities の 1 件） ghsa_id から id を取り出せなくても url に id があれば、受け取った文字列より url の id を使う",
+        "findingsFromVulnerability（新しい形の vulnerabilities の 1 件） github_advisory_id から id を取り出せなくても url に id があれば、受け取った文字列より url の id を使う",
+        "findingsFromVulnerability（新しい形の vulnerabilities の 1 件） advisory を表す via が複数あれば、via ごとに 1 件にする"
       ]
     },
     {
@@ -293,6 +298,8 @@
         "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（後ろが ?）",
         "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（後ろが #）",
         "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（空白で区切った 2 つの id）",
+        "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（前後が全角の括弧）",
+        "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（前後が漢字とかな）",
         "findingsFromVulnerability（新しい形の vulnerabilities の 1 件） via の文字列（全体が id）は、advisory として読み、id を title にする",
         "findingsFromVulnerability（新しい形の vulnerabilities の 1 件） via の文字列（advisory の URL）は、advisory として読み、id を title にする",
         "findingsFromVulnerability（新しい形の vulnerabilities の 1 件） ghsa の GHSA の id は、古い形でも via のオブジェクトでも取り出す",
@@ -319,7 +326,7 @@
       "id": "ghsa-lookbehind-dropped",
       "why": "GHSA の前の文字を確かめず、前に識別子の文字が付く文字列から id を取り出す",
       "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
-      "find": "(?<![0-9a-z_-])",
+      "find": "(?<![\\\\p{Script=Latin}\\\\p{Nd}_-])",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
@@ -329,6 +336,9 @@
         "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（前が -）",
         "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（長い識別子の中の 2 つ目の GHSA-）",
         "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（前に英字が付く識別子の中の 2 つ目の GHSA-）",
+        "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（前が ASCII でない英字）",
+        "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（前が全角の数字）",
+        "findingsFromVulnerability（新しい形の vulnerabilities の 1 件） via の URL の中の id が境界の規則に当たらなければ、URL を advisory_url と title にする",
         "findingsFromVulnerability（新しい形の vulnerabilities の 1 件） ghsa の - で語が付いた id は、古い形でも via のオブジェクトでも取り出さない",
         "findingsFromVulnerability（新しい形の vulnerabilities の 1 件） ghsa_id の - で語が付いた id は、古い形でも via のオブジェクトでも取り出さない",
         "findingsFromVulnerability（新しい形の vulnerabilities の 1 件） github_advisory_id の - で語が付いた id は、古い形でも via のオブジェクトでも取り出さない",
@@ -338,22 +348,45 @@
       ]
     },
     {
-      "id": "ghsa-lookbehind-letters-only",
-      "why": "GHSA の前の文字を英字と _ と - だけ確かめ、前に数字が付く文字列から id を取り出す",
+      "id": "ghsa-lookbehind-ascii-letters",
+      "why": "GHSA の前の英字を ASCII だけ確かめ、前に é や全角の英字が付く文字列から id を取り出す",
       "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
-      "find": "(?<![0-9a-z_-])",
-      "replace": "(?<![a-z_-])",
+      "find": "(?<![\\\\p{Script=Latin}\\\\p{Nd}_-])",
+      "replace": "(?<![a-z\\\\p{Nd}_-])",
       "occurrences": 1,
       "expect_failing": [
-        "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（前が数字）"
+        "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（前が ASCII でない英字）"
+      ]
+    },
+    {
+      "id": "ghsa-lookbehind-no-digits",
+      "why": "GHSA の前の数字を確かめず、前に数字が付く文字列から id を取り出す",
+      "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
+      "find": "(?<![\\\\p{Script=Latin}\\\\p{Nd}_-])",
+      "replace": "(?<![\\\\p{Script=Latin}_-])",
+      "occurrences": 1,
+      "expect_failing": [
+        "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（前が数字）",
+        "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（前が全角の数字）"
+      ]
+    },
+    {
+      "id": "ghsa-lookbehind-all-letters",
+      "why": "GHSA の前の文字をラテン文字に限らず確かめ、前に漢字やかなが付く文から id を取り出さない",
+      "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
+      "find": "(?<![\\\\p{Script=Latin}\\\\p{Nd}_-])",
+      "replace": "(?<![\\\\p{L}\\\\p{Nd}_-])",
+      "occurrences": 1,
+      "expect_failing": [
+        "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（前後が漢字とかな）"
       ]
     },
     {
       "id": "ghsa-lookbehind-allows-underscore",
       "why": "GHSA の前の _ を区切りとして扱い、前に _ が付く文字列から id を取り出す",
       "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
-      "find": "(?<![0-9a-z_-])",
-      "replace": "(?<![0-9a-z-])",
+      "find": "(?<![\\\\p{Script=Latin}\\\\p{Nd}_-])",
+      "replace": "(?<![\\\\p{Script=Latin}\\\\p{Nd}-])",
       "occurrences": 1,
       "expect_failing": [
         "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（前が _）"
@@ -363,13 +396,14 @@
       "id": "ghsa-lookbehind-allows-hyphen",
       "why": "GHSA の前の - を区切りとして扱い、npm-GHSA-... やパッケージ名の中から id を取り出す",
       "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
-      "find": "(?<![0-9a-z_-])",
-      "replace": "(?<![0-9a-z_])",
+      "find": "(?<![\\\\p{Script=Latin}\\\\p{Nd}_-])",
+      "replace": "(?<![\\\\p{Script=Latin}\\\\p{Nd}_])",
       "occurrences": 1,
       "expect_failing": [
         "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（前が -）",
         "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（長い識別子の中の 2 つ目の GHSA-）",
         "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（前に英字が付く識別子の中の 2 つ目の GHSA-）",
+        "findingsFromVulnerability（新しい形の vulnerabilities の 1 件） via の URL の中の id が境界の規則に当たらなければ、URL を advisory_url と title にする",
         "findingsFromVulnerability（新しい形の vulnerabilities の 1 件） ghsa の - で語が付いた id は、古い形でも via のオブジェクトでも取り出さない",
         "findingsFromVulnerability（新しい形の vulnerabilities の 1 件） ghsa_id の - で語が付いた id は、古い形でも via のオブジェクトでも取り出さない",
         "findingsFromVulnerability（新しい形の vulnerabilities の 1 件） github_advisory_id の - で語が付いた id は、古い形でも via のオブジェクトでも取り出さない",
@@ -382,7 +416,7 @@
       "id": "ghsa-lookahead-dropped",
       "why": "GHSA の後ろの文字を確かめず、後ろに識別子の文字が続く文字列から切り詰めた id を取り出す",
       "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
-      "find": "(?![0-9a-z_-])",
+      "find": "(?![\\\\p{Script=Latin}\\\\p{Nd}_-])",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
@@ -390,26 +424,51 @@
         "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（後ろが数字）",
         "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（後ろが _）",
         "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（後ろが -）",
-        "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（長い識別子の中の 2 つ目の GHSA-）"
+        "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（長い識別子の中の 2 つ目の GHSA-）",
+        "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（後ろが ASCII でない英字）",
+        "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（後ろが全角の英字）"
       ]
     },
     {
-      "id": "ghsa-lookahead-letters-only",
-      "why": "GHSA の後ろの文字を英字と _ と - だけ確かめ、後ろに数字が続く文字列から切り詰めた id を取り出す",
+      "id": "ghsa-lookahead-ascii-letters",
+      "why": "GHSA の後ろの英字を ASCII だけ確かめ、後ろに é や全角の英字が続く文字列から id を取り出す",
       "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
-      "find": "(?![0-9a-z_-])",
-      "replace": "(?![a-z_-])",
+      "find": "(?![\\\\p{Script=Latin}\\\\p{Nd}_-])",
+      "replace": "(?![a-z\\\\p{Nd}_-])",
+      "occurrences": 1,
+      "expect_failing": [
+        "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（後ろが ASCII でない英字）",
+        "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（後ろが全角の英字）"
+      ]
+    },
+    {
+      "id": "ghsa-lookahead-no-digits",
+      "why": "GHSA の後ろの数字を確かめず、後ろに数字が続く文字列から切り詰めた id を取り出す",
+      "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
+      "find": "(?![\\\\p{Script=Latin}\\\\p{Nd}_-])",
+      "replace": "(?![\\\\p{Script=Latin}_-])",
       "occurrences": 1,
       "expect_failing": [
         "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（後ろが数字）"
       ]
     },
     {
+      "id": "ghsa-lookahead-all-letters",
+      "why": "GHSA の後ろの文字をラテン文字に限らず確かめ、後ろに漢字やかなが続く文から id を取り出さない",
+      "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
+      "find": "(?![\\\\p{Script=Latin}\\\\p{Nd}_-])",
+      "replace": "(?![\\\\p{L}\\\\p{Nd}_-])",
+      "occurrences": 1,
+      "expect_failing": [
+        "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（前後が漢字とかな）"
+      ]
+    },
+    {
       "id": "ghsa-lookahead-allows-underscore",
       "why": "GHSA の後ろの _ を区切りとして扱い、後ろに _ が続く文字列から id を取り出す",
       "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
-      "find": "(?![0-9a-z_-])",
-      "replace": "(?![0-9a-z-])",
+      "find": "(?![\\\\p{Script=Latin}\\\\p{Nd}_-])",
+      "replace": "(?![\\\\p{Script=Latin}\\\\p{Nd}-])",
       "occurrences": 1,
       "expect_failing": [
         "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（後ろが _）"
@@ -419,8 +478,8 @@
       "id": "ghsa-lookahead-allows-hyphen",
       "why": "GHSA の後ろの - を区切りとして扱い、後ろに - で続く文字列から切り詰めた id を取り出す",
       "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
-      "find": "(?![0-9a-z_-])",
-      "replace": "(?![0-9a-z_])",
+      "find": "(?![\\\\p{Script=Latin}\\\\p{Nd}_-])",
+      "replace": "(?![\\\\p{Script=Latin}\\\\p{Nd}_])",
       "occurrences": 1,
       "expect_failing": [
         "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（後ろが -）",
@@ -431,7 +490,7 @@
       "id": "ghsa-word-boundary",
       "why": "前後の確かめを \\b に替える。前後の - を区切りとして扱い、長い識別子の中から id を取り出す",
       "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
-      "find": "`(?<![0-9a-z_-])GHSA-(${GHSA_BODY})(?![0-9a-z_-])`",
+      "find": "`(?<![\\\\p{Script=Latin}\\\\p{Nd}_-])GHSA-(${GHSA_BODY})(?![\\\\p{Script=Latin}\\\\p{Nd}_-])`",
       "replace": "`\\\\bGHSA-(${GHSA_BODY})\\\\b`",
       "occurrences": 1,
       "expect_failing": [
@@ -440,6 +499,11 @@
         "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（前が - で後ろも -）",
         "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（長い識別子の中の 2 つ目の GHSA-）",
         "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（前に英字が付く識別子の中の 2 つ目の GHSA-）",
+        "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（前が ASCII でない英字）",
+        "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（後ろが ASCII でない英字）",
+        "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（前が全角の数字）",
+        "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（後ろが全角の英字）",
+        "findingsFromVulnerability（新しい形の vulnerabilities の 1 件） via の URL の中の id が境界の規則に当たらなければ、URL を advisory_url と title にする",
         "findingsFromVulnerability（新しい形の vulnerabilities の 1 件） ghsa の - で語が付いた id は、古い形でも via のオブジェクトでも取り出さない",
         "findingsFromVulnerability（新しい形の vulnerabilities の 1 件） ghsa_id の - で語が付いた id は、古い形でも via のオブジェクトでも取り出さない",
         "findingsFromVulnerability（新しい形の vulnerabilities の 1 件） github_advisory_id の - で語が付いた id は、古い形でも via のオブジェクトでも取り出さない",
@@ -449,11 +513,53 @@
       ]
     },
     {
+      "id": "ghsa-body-uppercase-dropped",
+      "why": "GHSA の id の本体を小文字だけにし、大文字の via の文字列を id として読まない",
+      "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
+      "find": "const GHSA_BODY = \"[0-9A-Za-z]{4}-[0-9A-Za-z]{4}-[0-9A-Za-z]{4}\";",
+      "replace": "const GHSA_BODY = \"[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}\";",
+      "occurrences": 1,
+      "expect_failing": [
+        "findingsFromVulnerability（新しい形の vulnerabilities の 1 件） via の文字列（全体が id）は、advisory として読み、id を title にする"
+      ]
+    },
+    {
+      "id": "ghsa-raw-fallback-first",
+      "why": "id の欄の生の文字列を、ほかの欄から取り出した id より先に使う",
+      "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
+      "find": "  return firstString(\n    ghsaFrom(advisory.ghsa),",
+      "replace": "  return firstString(\n    firstString(advisory.ghsa, advisory.ghsa_id, advisory.github_advisory_id),\n    ghsaFrom(advisory.ghsa),",
+      "occurrences": 1,
+      "expect_failing": [
+        "fromAdvisory（古い形の advisories の 1 件） GHSA の id は、小文字でも GitHub の表記にそろえる",
+        "fromAdvisory（古い形の advisories の 1 件） GHSA の id は、大文字でも GitHub の表記にそろえる",
+        "findingsFromVulnerability（新しい形の vulnerabilities の 1 件） ghsa の GHSA の id は、古い形でも via のオブジェクトでも取り出す",
+        "findingsFromVulnerability（新しい形の vulnerabilities の 1 件） ghsa_id の GHSA の id は、古い形でも via のオブジェクトでも取り出す",
+        "findingsFromVulnerability（新しい形の vulnerabilities の 1 件） github_advisory_id の GHSA の id は、古い形でも via のオブジェクトでも取り出す",
+        "findingsFromVulnerability（新しい形の vulnerabilities の 1 件） ghsa から id を取り出せなくても url に id があれば、受け取った文字列より url の id を使う",
+        "findingsFromVulnerability（新しい形の vulnerabilities の 1 件） ghsa_id から id を取り出せなくても url に id があれば、受け取った文字列より url の id を使う",
+        "findingsFromVulnerability（新しい形の vulnerabilities の 1 件） github_advisory_id から id を取り出せなくても url に id があれば、受け取った文字列より url の id を使う"
+      ]
+    },
+    {
+      "id": "ghsa-raw-fallback-dropped",
+      "why": "どの欄からも id を取り出せないとき、id の欄の文字列を残さない",
+      "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
+      "find": "    firstString(advisory.ghsa, advisory.ghsa_id, advisory.github_advisory_id),\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "findingsFromVulnerability（新しい形の vulnerabilities の 1 件） ghsa の - で語が付いた id は、古い形でも via のオブジェクトでも取り出さない",
+        "findingsFromVulnerability（新しい形の vulnerabilities の 1 件） ghsa_id の - で語が付いた id は、古い形でも via のオブジェクトでも取り出さない",
+        "findingsFromVulnerability（新しい形の vulnerabilities の 1 件） github_advisory_id の - で語が付いた id は、古い形でも via のオブジェクトでも取り出さない"
+      ]
+    },
+    {
       "id": "ghsa-via-whole-dropped",
       "why": "via の文字列を、ほかの欄と同じく中の id を探して読み、パッケージ名を advisory として数える",
       "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
-      "find": "ghsaFrom(via, GHSA_WHOLE)",
-      "replace": "ghsaFrom(via)",
+      "find": "isUrl(via) || GHSA_WHOLE.test(via)",
+      "replace": "isUrl(via) || GHSA_IN_TEXT.test(via)",
       "occurrences": 1,
       "expect_failing": [
         "findingsFromVulnerability（新しい形の vulnerabilities の 1 件） via の文字列（/ の後ろに id の形）は、パッケージ名として扱い、advisory として読まない",

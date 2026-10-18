@@ -139,6 +139,12 @@ describe("fromAdvisory（古い形の advisories の 1 件）", () => {
     ["前に英字が付く識別子の中の 2 つ目の GHSA-", "XGHSA-abcd-efgh-ijkl-GHSA-238P-PMPM-9MQ7", ""],
     ["空白で区切った 2 つの id", "GHSA-238P-PMPM-9MQ7 GHSA-2345-6789-2345", ID],
     ["接頭辞が小文字", "ghsa-238p-pmpm-9mq7", ID],
+    ["前が ASCII でない英字", "éGHSA-238P-PMPM-9MQ7", ""],
+    ["後ろが ASCII でない英字", "GHSA-238P-PMPM-9MQ7é", ""],
+    ["前が全角の数字", "１GHSA-238P-PMPM-9MQ7", ""],
+    ["後ろが全角の英字", "GHSA-238P-PMPM-9MQ7Ａ", ""],
+    ["前後が全角の括弧", "（GHSA-238P-PMPM-9MQ7）", ID],
+    ["前後が漢字とかな", "脆弱性GHSA-238P-PMPM-9MQ7です", ID],
   ])("title の GHSA の境界（%s）", (_label, title, expected) => {
     expect(fromAdvisory({ module_name: "x", title }).ghsa).toBe(expected);
   });
@@ -282,6 +288,14 @@ describe("findingsFromVulnerability（新しい形の vulnerabilities の 1 件�
     expect(results.map((result) => [result.ghsa, result.title])).toEqual([[expected, expected]]);
   });
 
+  test("via の URL の中の id が境界の規則に当たらなければ、URL を advisory_url と title にする", () => {
+    const url = "https://github.com/advisories/npm-GHSA-238P-PMPM-9MQ7";
+    const results = findingsFromVulnerability("x", { via: [url] }, undefined);
+    expect(results.map((result) => [result.ghsa, result.advisory_url, result.title])).toEqual([
+      ["", url, url],
+    ]);
+  });
+
   test.each([
     ["- の後ろに id の形", "my-ghsa-238p-pmpm-9mq7"],
     ["/ の後ろに id の形", "@scope/ghsa-238p-pmpm-9mq7"],
@@ -322,6 +336,21 @@ describe("findingsFromVulnerability（新しい形の vulnerabilities の 1 件�
       expect(fromAdvisory({ module_name: "x", [field]: value }).ghsa).toBe(expected);
       const [result] = findingsFromVulnerability("x", { via: [{ [field]: value }] }, undefined);
       expect(result.ghsa).toBe(expected);
+    },
+  );
+
+  test.each([
+    ["ghsa", { ghsa: "npm-GHSA-238P-PMPM-9MQ7" }],
+    ["ghsa_id", { ghsa_id: "npm-GHSA-238P-PMPM-9MQ7" }],
+    ["github_advisory_id", { github_advisory_id: "npm-GHSA-238P-PMPM-9MQ7" }],
+  ])(
+    "%s から id を取り出せなくても url に id があれば、受け取った文字列より url の id を使う",
+    (_label, fields) => {
+      const url = "https://github.com/advisories/GHSA-238p-pmpm-9mq7";
+      const old = fromAdvisory({ module_name: "x", url, ...fields });
+      expect([old.ghsa, old.advisory_url]).toEqual([ID, url]);
+      const [result] = findingsFromVulnerability("x", { via: [{ url, ...fields }] }, undefined);
+      expect([result.ghsa, result.advisory_url]).toEqual([ID, url]);
     },
   );
 
