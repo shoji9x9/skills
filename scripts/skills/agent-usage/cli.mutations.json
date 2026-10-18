@@ -958,8 +958,8 @@
       "id": "report-creates-user-config",
       "why": "report が人の設定を作り、setup を通らずに乱数の ID ができる",
       "file": "skills/agent-usage/scripts/lib/report/report.mjs",
-      "find": "import { loadRepoConfig, loadUserConfig } from \"../config.mjs\";",
-      "replace": "import { loadRepoConfig, loadOrCreateUserConfig } from \"../config.mjs\";\nconst loadUserConfig = (/** @type {NodeJS.ProcessEnv} */ env) => loadOrCreateUserConfig(env).config;",
+      "find": "import { loadRepoConfig, loadUserConfig, resolved } from \"../config.mjs\";",
+      "replace": "import { loadRepoConfig, loadOrCreateUserConfig, resolved } from \"../config.mjs\";\nconst loadUserConfig = (/** @type {string} */ root, /** @type {NodeJS.ProcessEnv} */ env, /** @type {ReturnType<typeof resolved>} */ r) => loadOrCreateUserConfig(root, env, r).config;",
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook 人の設定が無いとき、引数を誤った setup と report は人の設定を作らず、判断を確かめる案内は setup --person-id を示す"
