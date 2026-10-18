@@ -135,3 +135,5 @@ PR #656 のレビューで出た指摘である。上の Hook の条件の細部
   `for` ループの変数を `gh api` の URL に入れる形は `runs gh with a value computed at runtime` で拒否された。
   ほかは既知の形（`; echo rc=$?` と `bash` の起動の組、`scripts/eval/` の grep）だった。
   どれも、Write ツールでスクリプトにして絶対パスで実行するか、定数の引数だけの単独の呼び出しに分けて通した。
+- 2026-10-18、#676 の merge の前の作業でも、`kaizen-kedb-match.sh` の引数に `"eval"` を渡し、`; echo rc=$?` と `grep docs/...` をつないだ呼び出しが `runs a string through eval` で拒否された。
+  引数の語だけでも `eval` に当たる。単独の呼び出しに分けて通した。
