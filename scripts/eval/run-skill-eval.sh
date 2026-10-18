@@ -205,8 +205,9 @@ fi
 # eval fingerprint, and `--reuse-baseline` only accepts a baseline whose fingerprint
 # matches — /3 is the stream-json switch (raw/claude-code.jsonl + per-tool records +
 # result.json `skill_usage`), so a baseline captured under /2 can no longer be paired
-# with a with_skill run that has those fields.
-harness_version="run-skill-eval/4"
+# with a with_skill run that has those fields. /5 also installs config-schemas/ and
+# checks.json, without which skill-config.mjs failed inside every run.
+harness_version="run-skill-eval/5"
 
 metadata_eval_id="${eval_id}"
 eval_dir="$(dirname -- "$(dirname -- "${out}")")"
@@ -357,7 +358,7 @@ if [ "${#installed_skills[@]}" -gt 0 ]; then
 	for installed_skill in "${installed_skills[@]}"; do
 		installed_src="${repo}/skills/${installed_skill}"
 		mkdir -p -- "${skill_home}/${installed_skill}"
-		for subject_part in SKILL.md references assets scripts; do
+		for subject_part in SKILL.md references assets scripts config-schemas checks.json; do
 			[ -e "${installed_src}/${subject_part}" ] || continue
 			cp -R -- "${installed_src}/${subject_part}" "${skill_home}/${installed_skill}/"
 		done
@@ -582,7 +583,8 @@ if [ "${config}" = "without_skill" ]; then
 	markers=()
 	while IFS= read -r rel; do
 		[ -n "${rel}" ] && markers+=("${rel}")
-	done < <(cd "${src}" && find references assets scripts -mindepth 1 -maxdepth 1 -printf '%p\n' 2>/dev/null | sort -u)
+		# checks.json is a file, not a directory, so it has no entries to key markers on.
+	done < <(cd "${src}" && find references assets scripts config-schemas -mindepth 1 -maxdepth 1 -printf '%p\n' 2>/dev/null | sort -u)
 	# The bare source path `skills/<name>` is NOT a marker. A baseline that correctly
 	# reports the skill is absent routinely names where it would live ("install it at
 	# ~/.claude/skills/<name>/SKILL.md", "show me skills/<name>/ and I will retrace"),
@@ -611,7 +613,7 @@ if [ "${config}" = "without_skill" ]; then
 				sibling_hit=1
 				break
 			fi
-			for part in SKILL.md references assets scripts; do
+			for part in SKILL.md references assets scripts config-schemas checks.json; do
 				if [ -e "${required_src}/${part}" ] && grep -rqIF -e "${m}" -- "${required_src}/${part}" 2>/dev/null; then
 					sibling_hit=1
 					break 2

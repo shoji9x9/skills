@@ -1,5 +1,13 @@
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, expect, test } from "vitest";
@@ -10,6 +18,7 @@ import {
   formatError as formatFingerprintError,
   hashFixture,
   hashInstalledSkill,
+  INSTALLED_SKILL_PARTS,
   requiredSkillsForEval,
 } from "./skill-eval-fingerprint.ts";
 import { parseJsonAs } from "../lib/parse-as.ts";
@@ -278,6 +287,26 @@ test("インストールするスキルの hash は、SKILL.md が無ければ�
   mkdirSync(join(directory, "s", "references"));
   writeFileSync(join(directory, "s", "references", "r.md"), "r", "utf8");
   expect(hashInstalledSkill(join(directory, "s"))).not.toBe(initial);
+});
+
+// gh skill install はスキルのディレクトリのすべてのファイルを配る。eval が一部しかコピーしないと、
+// 配布先にはある同梱物（config-schemas/ など）が eval の中だけ欠け、スキルの手順が失敗する。
+// git だけが読み、スキルの実行では読まないファイル。eval にコピーしなくても run は変わらない。
+const NOT_READ_AT_RUN_TIME = new Set([".gitignore"]);
+test("実リポジトリ: 配布スキルの直下の要素は、すべてインストールする部分に入っていて、ランナーも同じ部分をコピーする", () => {
+  const skillsRoot = join(here, "..", "..", "skills");
+  const names = readdirSync(skillsRoot);
+  expect(names.length).toBeGreaterThan(0);
+  const outside = names.flatMap((name) =>
+    readdirSync(join(skillsRoot, name))
+      .filter((entry) => !INSTALLED_SKILL_PARTS.includes(entry) && !NOT_READ_AT_RUN_TIME.has(entry))
+      .map((entry) => `${name}/${entry}`),
+  );
+  expect(outside).toEqual([]);
+  const runner = readFileSync(join(here, "run-skill-eval.sh"), "utf8");
+  const loops = [...runner.matchAll(/for (?:subject_part|part) in ([^;]+); do/gu)].map((m) => m[1]);
+  expect(loops).toHaveLength(2);
+  for (const parts of loops) expect(parts.split(" ")).toEqual(INSTALLED_SKILL_PARTS);
 });
 
 test("fixture の中のシンボリックリンクは、指紋にできないものとして失敗する", () => {

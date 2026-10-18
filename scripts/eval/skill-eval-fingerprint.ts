@@ -58,7 +58,14 @@ export function hashFixture(directory?: string): string {
 // The parts run-skill-eval.sh copies into the disposable project. A required sibling
 // is installed in BOTH configurations, so a baseline's behavior depends on this
 // content: fingerprint exactly what is installed, not the sibling's evals/.
-const INSTALLED_SKILL_PARTS = ["SKILL.md", "references", "assets", "scripts"];
+export const INSTALLED_SKILL_PARTS = [
+  "SKILL.md",
+  "references",
+  "assets",
+  "scripts",
+  "config-schemas",
+  "checks.json",
+];
 export function hashInstalledSkill(skillDirectory: string): string {
   const root = resolve(skillDirectory);
   if (!existsSync(resolve(root, "SKILL.md"))) {

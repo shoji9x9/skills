@@ -221,7 +221,9 @@ eval の prompt は、スキル・ルール・Hook・`AGENTS.md` などのファ
 このランチャーは cwd を固定したヘッドレスの executor を、`/tmp` の下の使い捨ての空のプロジェクトで実行する。相対パスの操作も cwd のリセットも、そのディレクトリの中で起きる。
 `with_skill` は executor がスキルを読む場所にスキルを置き、`without_skill` は置かない。
 スキルを置かないだけでは、公平なベースラインにならない。CLI はマシンの任意のパスを読めるので、読み取りの遮断と汚染の判定まで揃って、初めて Delta が意味を持つ（後述）。
-被験体にコピーするのは `SKILL.md`・`references/`・`assets/`・`scripts/` など実行に要る成果物だけにし、`evals/` の assertion・採点の基準・トピックの表は含めない。
+被験体にコピーするのは `SKILL.md`・`references/`・`assets/`・`scripts/`・`config-schemas/`・`checks.json` など実行に要る成果物だけにし、`evals/` の assertion・採点の基準・トピックの表は含めない。
+配布先の `gh skill install` はスキルのディレクトリをすべて配るので、スキルの直下に足した要素がこの一覧から外れると、eval の中でだけ同梱物が欠ける。
+`scripts/eval/skill-eval-fingerprint.test.ts` が、配布スキルの直下の要素とこの一覧の一致を確かめる。
 
 Claude Code と Codex の選び方、共通の成果物のスキーマ、executor がスキルを見つける仕組み、NVIDIA SkillEvaluator を試すかの判断は、[`skill-eval-executors.md`](skill-eval-executors.md) で定義する。
 
