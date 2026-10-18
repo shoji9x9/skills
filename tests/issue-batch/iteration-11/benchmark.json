@@ -1,0 +1,177 @@
+{
+  "metadata": {
+    "skill_name": "issue-batch",
+    "skill_path": "<repo>/skills/issue-batch",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-17T18:43:45Z",
+    "evals_run": [25],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 25,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.875,
+        "passed": 7,
+        "failed": 1,
+        "total": 8,
+        "time_seconds": 54.118,
+        "tokens": 94130,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "#105 を、run の対象から外すことを提案すると述べている",
+          "passed": true,
+          "evidence": "「#105 → 対象から外す候補として提案する」とし、推奨を「外す（EXCLUDED）」として確認に載せている。"
+        },
+        {
+          "text": "#105 の提案に、当たった兆候（決まっていない論点が複数・試していない機構への依存など）と、その根拠の記述を添えると述べている",
+          "passed": true,
+          "evidence": "兆候の表で「決まっていない論点が 2 つ以上」「試していない機構に依存」と、根拠の記述を添えている。"
+        },
+        {
+          "text": "#105 を残すと選んだときに決める論点（置き場所・一覧を宣言する場所など）も、同じ確認に並べると述べている",
+          "passed": true,
+          "evidence": "「外す候補であっても、『対象に残す』と選ばれた場合に必要な論点は、同じ確認にすべて並べます」として判断 1〜3 を並べている。"
+        },
+        {
+          "text": "#106 は、不確実性の兆候が 1 つ（導入していないツール）だけなので、対象から外す候補にしないと述べている",
+          "passed": true,
+          "evidence": "「当たる兆候は 1 つ（まだ導入していないテストのツール）なので、外す候補にはしません」と述べている。"
+        },
+        {
+          "text": "対象から外すかは、何かを変更する前の 1 回の確認で利用者が決め、確認なしに外さないと述べている",
+          "passed": true,
+          "evidence": "何かを変更する前に 1 回の確認にまとめ、「#105 を無断で外すことはしません」と述べている。"
+        },
+        {
+          "text": "利用者が外すと選んだ Issue は、EXCLUDED の状態にし、branch と worktree を作らないと述べている",
+          "passed": false,
+          "evidence": "#105 を外した場合に EXCLUDED にするとは述べるが、branch と worktree を作らないことは述べていない。"
+        },
+        {
+          "text": "外した Issue と理由を、manifest と最終報告に残すと述べている",
+          "passed": true,
+          "evidence": "manifest に EXCLUDED と兆候・利用者の選択を、最終報告の停止の理由の列に外したことと理由を書くと述べている。"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（branch 作成・Issue の変更を行っていない）",
+          "passed": true,
+          "evidence": "冒頭で「コマンドの実行、ファイルの変更、GitHub への書き込みはしていません」と述べている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 25,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.375,
+        "passed": 3,
+        "failed": 5,
+        "total": 8,
+        "time_seconds": 29.574,
+        "tokens": 19729,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "#105 を、run の対象から外すことを提案すると述べている",
+          "passed": false,
+          "evidence": "#105 を自分の判断で「対象外（保留）」としており、対象から外すかを利用者に提案していない。"
+        },
+        {
+          "text": "#105 の提案に、当たった兆候（決まっていない論点が複数・試していない機構への依存など）と、その根拠の記述を添えると述べている",
+          "passed": true,
+          "evidence": "設計が決まっていない 3 点と、試していない外部 API を、判定の理由として本文の記述とともに挙げている。"
+        },
+        {
+          "text": "#105 を残すと選んだときに決める論点（置き場所・一覧を宣言する場所など）も、同じ確認に並べると述べている",
+          "passed": false,
+          "evidence": "#105 の論点（置き場所など）は質問として挙げるが、外すか残すかの選択と組にしておらず、残すと選んだときの決定を同じ確認で受け取るとは述べていない。"
+        },
+        {
+          "text": "#106 は、不確実性の兆候が 1 つ（導入していないツール）だけなので、対象から外す候補にしないと述べている",
+          "passed": false,
+          "evidence": "#106 を「条件付きで可。ただし今回は保留」とし、兆候が 1 つなので外す候補にしないとは述べていない。"
+        },
+        {
+          "text": "対象から外すかは、何かを変更する前の 1 回の確認で利用者が決め、確認なしに外さないと述べている",
+          "passed": false,
+          "evidence": "#105 を利用者の確認なしに対象外と判定している。"
+        },
+        {
+          "text": "利用者が外すと選んだ Issue は、EXCLUDED の状態にし、branch と worktree を作らないと述べている",
+          "passed": false,
+          "evidence": "branch を作らないとは述べるが、EXCLUDED の状態にするとは述べていない。"
+        },
+        {
+          "text": "外した Issue と理由を、manifest と最終報告に残すと述べている",
+          "passed": true,
+          "evidence": "run の記録に #105 の判定と理由を、最終報告に Issue ごとの結果を残すと述べている。"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（branch 作成・Issue の変更を行っていない）",
+          "passed": true,
+          "evidence": "「コマンドの実行、ファイルの変更、Issue の取得はしていません」と述べている。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.875,
+        "stddev": 0,
+        "min": 0.875,
+        "max": 0.875
+      },
+      "time_seconds": {
+        "mean": 54.118,
+        "stddev": 0,
+        "min": 54.118,
+        "max": 54.118
+      },
+      "tokens": {
+        "mean": 94130,
+        "stddev": 0,
+        "min": 94130,
+        "max": 94130
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.375,
+        "stddev": 0,
+        "min": 0.375,
+        "max": 0.375
+      },
+      "time_seconds": {
+        "mean": 29.574,
+        "stddev": 0,
+        "min": 29.574,
+        "max": 29.574
+      },
+      "tokens": {
+        "mean": 19729,
+        "stddev": 0,
+        "min": 19729,
+        "max": 19729
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.50",
+      "time_seconds": "+24.5",
+      "tokens": "+74401"
+    }
+  },
+  "notes": []
+}

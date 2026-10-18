@@ -12,6 +12,8 @@ import {
   main,
   checkPredicateCoverage,
   filterColumn,
+  parseTables,
+  unclosedFenceLine,
 } from "../../../skills/golden-dataset/scripts/predicate-coverage-check.mjs";
 
 /** 欠陥の無い features.md（3 表とも在り、参照テーブルが埋まっている）。 */
@@ -1170,4 +1172,165 @@ test("変換の列の `-`（変換なし）は範囲の列と違い受ける（�
     }),
   });
   expect(codes).toEqual([]);
+});
+
+// コードフェンスの中は例示なので、表も見出しも読まない（Issue #679。replace-strategy の台帳と同じ読み方）。
+const md = (...xs: string[]) => [...xs, ""].join("\n");
+
+test("コードフェンスの中の表と見出しを読まない", () => {
+  const tables = parseTables(
+    md(
+      "## 本文",
+      "",
+      "```md",
+      "## 例",
+      "| a |",
+      "|---|",
+      "| 1 |",
+      "```",
+      "",
+      "| b |",
+      "|---|",
+      "| 2 |",
+    ),
+  );
+  expect(tables.map((t) => ({ heading: t.heading, headers: t.headers, rows: t.rows }))).toEqual([
+    { heading: "本文", headers: ["b"], rows: [["2"]] },
+  ]);
+});
+
+test("行頭のインラインのコード（```x```）ではフェンスを開かず、後ろの表を読む", () => {
+  const tables = parseTables(md("```x``` はインラインのコード", "", "| b |", "|---|", "| 2 |"));
+  expect(tables.map((t) => t.headers)).toEqual([["b"]]);
+});
+
+test("情報文字列の付いた行でフェンスを閉じず、フェンスの中の表を読まない", () => {
+  const tables = parseTables(
+    md("```", "```bash", "| a |", "|---|", "| 1 |", "```", "", "| b |", "|---|", "| 2 |"),
+  );
+  expect(tables.map((t) => t.headers)).toEqual([["b"]]);
+});
+
+test("HTML コメントの中のフェンス行でフェンスを開かず、コメントの後ろの表を読む", () => {
+  const tables = parseTables(
+    md(
+      "<!-- 記入例:",
+      "```",
+      "| x |",
+      "|---|",
+      "| 9 |",
+      "-->",
+      "",
+      "## 機能一覧",
+      "| b |",
+      "|---|",
+      "| 2 |",
+    ),
+  );
+  expect(tables.map((t) => ({ heading: t.heading, headers: t.headers }))).toEqual([
+    { heading: "", headers: ["x"] },
+    { heading: "機能一覧", headers: ["b"] },
+  ]);
+});
+
+test("誤検知しないことの確認: フェンスの中の `<!--` はコメントを開かず、フェンスの後ろのフェンスの中の表を読まない", () => {
+  const tables = parseTables(
+    md(
+      "```html",
+      "<!-- 例",
+      "```",
+      "",
+      "```",
+      "| x |",
+      "|---|",
+      "| 9 |",
+      "```",
+      "",
+      "| b |",
+      "|---|",
+      "| 2 |",
+    ),
+  );
+  expect(tables.map((t) => t.headers)).toEqual([["b"]]);
+});
+
+test("`<!-->` と `<!--->` はそれだけでコメントを閉じ、後ろのフェンスの中の表を読まない", () => {
+  for (const open of ["<!-->", "<!--->"]) {
+    const tables = parseTables(
+      md(open, "```", "| x |", "|---|", "| 9 |", "```", "", "| b |", "|---|", "| 2 |"),
+    );
+    expect(tables.map((t) => t.headers)).toEqual([["b"]]);
+  }
+});
+
+// 閉じないコードフェンス（#679 の利用者の決定 A。replace-strategy の台帳と同じ扱い）。
+// 閉じる行の形が合わないとフェンスは閉じず、後ろの表がすべて読まれないので、開いた行の番号を返す。
+// features.md と design.md では構造の不備（exit 2）にする。verification.md では、表が無いときと同じく構造の不備にせず、exit 1 の finding にする。
+test.each([
+  ["閉じたフェンス", md("```bash", "cmd", "```", "", "| b |", "|---|", "| 2 |"), null],
+  ["情報文字列の付いた行で閉じたつもりのフェンス", md("```bash", "cmd", "```sh", "", "| b |"), 1],
+  ["閉じた後に開き直したフェンス", md("```", "x", "```", "", "```", "y"), 5],
+  ["4 文字字下げした閉じる行", md("```", "x", "    ```"), 1],
+  ["タブで字下げした閉じる行", md("```", "x", "\t```"), 1],
+  ["閉じない HTML コメントの中のフェンス行", md("<!--", "```", "x"), null],
+  ["フェンスが無い", md("| b |", "|---|", "| 2 |"), null],
+])(
+  "unclosedFenceLine は、末尾まで閉じないフェンスを開いた行の番号を返す: %s",
+  (_name, text, expected) => {
+    expect(unclosedFenceLine(text)).toBe(expected);
+  },
+);
+
+test.each([
+  [
+    "features.md",
+    "features-fence-unclosed",
+    { features: `${FEATURES}\n\`\`\`bash\ncmd\n\`\`\`sh\n`, design: designOf() },
+  ],
+  [
+    "design.md",
+    "design-fence-unclosed",
+    { features: FEATURES, design: `${designOf()}\n\`\`\`bash\ncmd\n\`\`\`sh\n` },
+  ],
+])("%s の閉じないコードフェンスは、構造の不備として合格にしない", (_name, code, input) => {
+  const result = checkPredicateCoverage({
+    featuresMarkdown: input.features,
+    designMarkdown: input.design,
+    verificationMarkdown: null,
+  });
+  expect(result.findings.map((f) => f.code)).toContain(code);
+  expect(result.structural).toBe(true);
+});
+
+test("verification.md の閉じないコードフェンスは、表が無いときと同じく、開いた行の番号を付けて報告する", () => {
+  const result = checkPredicateCoverage({
+    featuresMarkdown: FEATURES,
+    designMarkdown: designOf(),
+    verificationMarkdown: "# 検証\n\n```bash\ncmd\n```sh\n",
+  });
+  const finding = result.findings.find((f) => f.code === "verification-fence-unclosed");
+  expect(finding?.message).toContain(
+    "verification.md の 3 行目で開いたコードフェンスが末尾まで閉じていない。フェンスの後ろの表を読めない。閉じる行は、字下げを半角の空白 3 個までにし、開いた記号と同じ文字を開いた数か、それより多く並べ、後ろには半角の空白とタブのほかに何も書かない",
+  );
+  expect(result.structural).toBe(false);
+});
+
+test("verification.md の閉じないフェンスの後ろにある実測表は読めないので、表が無いことも報告する（replace-strategy の台帳と同じ）", () => {
+  const codes = codesOf({
+    verification:
+      "# 検証\n\n```bash\ncmd\n```sh\n\n## 述語ごとの該当行数\n\n| 述語 id | 真の実測行数 | 偽の実測行数 |\n|---|---|---|\n",
+  });
+  expect(codes).toContain("verification-fence-unclosed");
+  expect(codes).toContain("verification-table-missing");
+});
+
+test("誤検知しないことの確認: 閉じたコードフェンスは、構造の不備にしない", () => {
+  const codes = codesOf({
+    features: `${FEATURES}\n\`\`\`bash\ncmd\n\`\`\`\n`,
+    design: `${designOf()}\n\`\`\`bash\ncmd\n\`\`\`\n`,
+    verification: "# 検証\n\n```bash\ncmd\n```\n",
+  });
+  expect(codes).not.toContain("features-fence-unclosed");
+  expect(codes).not.toContain("design-fence-unclosed");
+  expect(codes).not.toContain("verification-fence-unclosed");
 });

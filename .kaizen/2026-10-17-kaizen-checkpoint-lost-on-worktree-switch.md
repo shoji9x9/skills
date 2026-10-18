@@ -1,7 +1,7 @@
 ---
 date: 2026-10-17
 type: hook
-priority: medium
+priority: high
 status: pending
 applied-to: []
 session: claude-code
@@ -21,6 +21,10 @@ issue-batch の run で、#632 の worktree（`.claude/worktrees/632`）から #
 
 初めは、処理位置を他の worktree から読まないことが原因だと考えて記録した。PR #666 のレビューで誤りと分かった。
 `kaizen-precommit-gate.sh` は、今の作業ツリーに処理位置が無ければ、`kaizen_find_control_file` で全作業ツリーから探す。`kaizen-extract-done.sh` も、書き込み先を同じ関数で決める。
+
+2026-10-18、issue-batch の run で、#662 の worktree から #651 の worktree へ移ったときにも同じことが起きた。
+transcript は `-issue-662/` から `-issue-651/` の projects のディレクトリに移り、#662 の worktree の処理位置は移す前のパスを指していた。
+`kaizen extract --current --record-pending` の手順で走査ツールを呼ぶ前に、処理位置の 1 行目を移した後のパスに書き換えた複製を #651 の worktree に置いて、処理済みの範囲を読み直さないようにした。
 
 ## 根本原因
 
