@@ -534,6 +534,20 @@ describe.each(COPIES)("%s", (copy) => {
       ).not.toThrow();
     });
 
+    test.each(["$&", "$'", "$`", "$$"])(
+      "ルートのパスが置換のパターン（%s）を含んでも、そのパスの旧いファイルを見つける",
+      async (pattern) => {
+        const m = await load();
+        const s = setup();
+        const root = join(s.base, `r${pattern}x`);
+        mkdirSync(join(root, ".old"), { recursive: true });
+        writeFileSync(join(root, ".old/config"), "a=1\n");
+        expect(() => m.loadConfig({ name: "t", root, env: s.env, schemaDir: s.schemaDir })).toThrow(
+          `${root}/.old/config が残っている`,
+        );
+      },
+    );
+
     test("書き込みも旧い場所が残っていれば止める", async () => {
       const m = await load();
       const s = setup();
@@ -573,6 +587,18 @@ describe.each(COPIES)("%s", (copy) => {
       const r = await w(s, {});
       expect(r).toEqual({ path: s.paths.repo, changed: true, reason: "書いた" });
       expect(JSON.parse(readFileSync(s.paths.repo, "utf8"))).toEqual({ method: "m" });
+    });
+
+    test("書いたキーの外に知らないキーや置けない層のキーがあれば、書かずに止める", async () => {
+      const s = setup();
+      s.write("repo", '{ "typo": 1 }\n');
+      await expect(w(s, {})).rejects.toThrow(/知らないキー "typo"/);
+      expect(readFileSync(s.paths.repo, "utf8")).toBe('{ "typo": 1 }\n');
+      s.write("user", '{ "method": "m" }\n');
+      await expect(
+        w(s, { layer: "user", keyPath: ["count"], value: 2, mode: "set" }),
+      ).rejects.toThrow(/method は 人ごと の層に置けない/);
+      expect(readFileSync(s.paths.user, "utf8")).toBe('{ "method": "m" }\n');
     });
 
     test("コメントと末尾のカンマと既にあるキーを残したまま、無いキーを足す", async () => {

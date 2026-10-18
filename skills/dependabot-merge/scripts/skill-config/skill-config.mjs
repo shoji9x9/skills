@@ -404,7 +404,18 @@ export function parseJsonc(text, where) {
  */
 export function readLayer(schema, layer, path) {
   if (!existsSync(path)) return null;
-  const value = parseJsonc(readFileSync(path, "utf8"), path);
+  return validateLayer(schema, layer, parseJsonc(readFileSync(path, "utf8"), path), path);
+}
+
+/**
+ * 1 つの層のファイルの中身を検証する。知らないキー・置けない層のキー・スキーマに合わない値は ConfigError にする。
+ * @param {ConfigSchema} schema
+ * @param {FileLayer} layer
+ * @param {unknown} value ファイルを読んだ値
+ * @param {string} path 失敗のメッセージに使う
+ * @returns {Record<string, unknown>}
+ */
+function validateLayer(schema, layer, value, path) {
   if (!isRecord(value)) throw new ConfigError(`${path}: 最上位がオブジェクトでない`);
   /** @type {string[]} */
   const errors = [];
@@ -461,7 +472,10 @@ export function checkLegacy(schema, root, env) {
   for (const f of schema.legacyFiles) {
     // 人ごとの層を読まないなら、人ごとの旧い置き場所も見ない
     if (ignoreUser && f.path.startsWith("{user_config_home}")) continue;
-    const path = f.path.replace("{root}", root).replace("{user_config_home}", userConfigHome(env));
+    // 置き換える文字列に $ が入っても置換のパターンとして読まないよう、関数で渡す
+    const path = f.path
+      .replace("{root}", () => root)
+      .replace("{user_config_home}", () => userConfigHome(env));
     if (existsSync(path)) found.push(`${path} が残っている。${f.steps}`);
   }
   for (const e of schema.legacyEnv) {
@@ -668,10 +682,7 @@ export function writeConfig(opts) {
   const edits = editsFor(text, opts.keyPath, opts.value, opts.mode, existing !== undefined, path);
   const next = jsonc.applyEdits(text, edits);
   const checkPath = `${path}（書き込んだ後）`;
-  const parsed = parseJsonc(next, checkPath);
-  if (!isRecord(parsed)) throw new ConfigError(`${checkPath}: 最上位がオブジェクトでない`);
-  const errors = validateValue(parsed[top], prop.schema, `${checkPath}: ${top}`);
-  if (errors.length > 0) throw new ConfigError(errors.join("\n"));
+  validateLayer(schema, opts.layer, parseJsonc(next, checkPath), checkPath);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, next.endsWith("\n") ? next : `${next}\n`);
   return { path, changed: true, reason: opts.mode === "set" ? "書いた" : "足した" };

@@ -47,8 +47,10 @@ name: kaizen
 - 前提スキル: `multiagent-setup`（Hook とドキュメントの整備のセットアップで使う。`references/setup.md` 参照）。学びを反映したスキルの検証に `skill-creator` も使えるが、必須ではない
 - MCP: なし
 - シェル: bash（POSIX 互換シェル）。このスキルのコマンド例と、設定する Hook（`mkdir -p` / `date -u` 等）は bash を前提にしている。Windows では WSL / Git Bash 等の bash 環境で実行する
-- pnpm や python などのランタイムは要らない。Node.js は、kaizen の設定ファイル（`.config/skills/shoji9x9/kaizen.jsonc` など。`references/config-files.md`）を置いたときだけ要る。
-  設定ファイルが無ければ、Node.js を使わずにデフォルトの値で動く。設定ファイルがあって Node.js が無いときは、デフォルトの値で動かずにコミットを止める。
+- pnpm や python などのランタイムは要らない。Node.js が要るのは、次の 2 つのどちらかに当たるときだけである。
+  kaizen の設定ファイル（`.config/skills/shoji9x9/kaizen.jsonc` など。`references/config-files.md`）を置いたとき。
+  定期実行の設定を環境変数（`KAIZEN_SCHEDULE_MODE`・`KAIZEN_SCHEDULE_AGENT`・`KAIZEN_SCHEDULE_MODEL`・`KAIZEN_SCHEDULE_EFFORT`）で渡したとき。
+  どちらも無ければ、Node.js を使わずにデフォルトの値で動く。どちらかがあって Node.js が無いときは、デフォルトの値で動かずにコミットを止める。
   transcript の候補を速く探すために `jq` があれば使い、無い場合は判定できないものとして扱い、コミットを止める。
   コミット前のチェックは、Hook の入力を `jq` か `python3` があれば構造として読み、どちらも無ければ生の JSON の `command` フィールドで判定する（機能を減らして動く）。
 

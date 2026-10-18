@@ -487,6 +487,21 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(readdirSync(join(repo, ".agent-usage", "records", person))).toEqual(["branches"]);
   });
 
+  test("記録すると決めたブランチで人ごとの設定を読めなければ、記録せずにコミットを止めて理由を返す", () => {
+    const { tmp, git, cli, gate } = setup();
+    expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
+    git("switch", "-q", "-c", "feature/5-x");
+    expect(cli("collect", "--stage").status).toBe(0);
+    git("commit", "-q", "-m", "records");
+    const userConfig = userConfigOf(tmp);
+    const user = parseJsonAs<Record<string, unknown>>(readFileSync(userConfig, "utf8"));
+    writeFileSync(userConfig, JSON.stringify({ ...user, typo: 1 }));
+    const blocked = gate("git commit -m y");
+    expect(blocked.status).toBe(2);
+    expect(blocked.stderr).toMatch(/設定を読めない: .*知らないキー "typo"/);
+    expect(blocked.stderr).toMatch(/decline を実行してからコミット/);
+  });
+
   test("report は report/<日付>/ に HTML と 3 つの CSV を書き、費用と稼働を集計する", () => {
     const { repo, git, cli } = setup();
     expect(cli("setup", "--time-zone", "UTC").status).toBe(0);

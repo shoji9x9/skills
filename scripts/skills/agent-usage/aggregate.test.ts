@@ -7,7 +7,7 @@
 //   停止の分類       人の活動の幅・CI・レビュー待ち・取得していない期間の優先順位／どれにも当たらない（未活用）。
 
 import { describe, expect, test } from "vitest";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { formulaSafe, parseCsv, toCsv } from "../../../skills/agent-usage/scripts/lib/csv.mjs";
 import { classifyingFailuresOf } from "../../../skills/agent-usage/scripts/lib/run-collect.mjs";
@@ -18,6 +18,7 @@ import {
   loadUserConfig,
   parseRepoConfig,
   parseUserConfig,
+  saveUserConfig,
   userLayerTimeZone,
 } from "../../../skills/agent-usage/scripts/lib/config.mjs";
 import {
@@ -391,6 +392,25 @@ describe("設定ファイルの層", () => {
     expect(defaultDecisionOf(b.root, b.env)).toEqual({ decision: "decline", source: b.userPath });
     const c = layers('{ "defaultDecision": null }', null, null);
     expect(defaultDecisionOf(c.root, c.env)).toBeNull();
+  });
+
+  test("defaultDecision を上の層で見つけても、下の層の誤りと旧い置き場所の設定で止める", () => {
+    const a = layers('{ "typo": 1 }', '{ "defaultDecision": "record" }', null);
+    expect(() => defaultDecisionOf(a.root, a.env)).toThrow(/知らないキー "typo"/);
+    const b = layers(null, '{ "defaultDecision": "record" }', null);
+    mkdirSync(join(b.root, ".agent-usage"), { recursive: true });
+    writeFileSync(join(b.root, ".agent-usage", "config.json"), "{}");
+    expect(() => defaultDecisionOf(b.root, b.env)).toThrow(
+      /\.agent-usage\/config\.json が残っている/,
+    );
+  });
+
+  test("人ごとの設定に書く値のどれかが誤りなら、どのキーも書かない", () => {
+    const a = layers(null, null, null);
+    expect(() => saveUserConfig(a.root, a.env, { personId: "p-0123abcd", timeZone: "" })).toThrow(
+      /timeZone/,
+    );
+    expect(existsSync(a.userPath)).toBe(false);
   });
 
   test("人ごとの層を読まない（SHOJI9X9_SKILLS_IGNORE_USER_CONFIG=1）なら、人の ID・defaultDecision・タイムゾーンも人ごとの層から取らない", () => {

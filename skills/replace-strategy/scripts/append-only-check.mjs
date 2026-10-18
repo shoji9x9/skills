@@ -1358,6 +1358,16 @@ export function jsoncTreeUnits(text, blocks, growable, registryGroups, label) {
   /** @type {Map<string, { id: string, itemKey: string }>} */
   const registryOf = new Map();
   for (const g of registryGroups) for (const path of g.paths) registryOf.set(path, g);
+  // 配列とオブジェクトは、型も単位にする。空の配列やオブジェクトは他に単位を持たないので、
+  // null やスカラへの書き換えで消える単位が無く、追記として通ってしまうためである。
+  /**
+   * @param {unknown} v
+   * @param {string} path
+   */
+  const addContainer = (v, path) => {
+    if (isArray(v)) add(`<array: ${path}>`);
+    else if (isPlainObject(v)) add(`<object: ${path}>`);
+  };
   /**
    * @param {unknown} v
    * @param {string} path 添字を `[]` に畳んだパス
@@ -1369,6 +1379,7 @@ export function jsoncTreeUnits(text, blocks, growable, registryGroups, label) {
         const p = path === "" ? k : `${path}.${k}`;
         add(`<key: ${p}>`);
         if (exact && blockSet.has(p)) continue;
+        addContainer(child, p);
         const group = exact ? registryOf.get(p) : undefined;
         if (exact && (growableSet.has(p) || group !== undefined) && isArray(child)) {
           for (const element of child) {
@@ -1391,7 +1402,10 @@ export function jsoncTreeUnits(text, blocks, growable, registryGroups, label) {
       return;
     }
     if (isArray(v)) {
-      for (const element of v) walk(element, `${path}[]`, false);
+      for (const element of v) {
+        addContainer(element, `${path}[]`);
+        walk(element, `${path}[]`, false);
+      }
       return;
     }
     add(`${path} = ${JSON.stringify(v)}`);

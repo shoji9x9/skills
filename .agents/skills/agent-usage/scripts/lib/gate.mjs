@@ -341,25 +341,23 @@ export function gateDecision(input, fallbackCwd, now, script, agent) {
     try {
       fallback = defaultDecisionOf(repo.root, process.env);
     } catch (e) {
-      return {
-        exit: 2,
-        message: [
-          `agent-usage: 設定を読めない: ${e instanceof Error ? e.message : String(e)}`,
-          `設定を直してからもう一度コミットするか、このブランチで記録しないなら node "${script}" decline を実行してからコミットしてください。`,
-        ].join("\n"),
-      };
+      return configErrorResult(e, script);
     }
     if (fallback === null) return { exit: 2, message: askMessage(agent, script) };
     // リポジトリの defaultDecision は、人の設定（setup が作る人の ID）がある人にだけ当てる。
     // 無い人に当てると、使い捨ての環境では実行のたびに別の ID で記録され、HOME に書けない環境では毎回止まる
-    if (!hasPerson(process.env)) return { exit: 2, message: setupMessage(agent, script) };
+    const person = personOf(script);
+    if (person !== true)
+      return person === false ? { exit: 2, message: setupMessage(agent, script) } : person;
     decision = fallback.decision;
     note = `（このブランチの判断は無いので、${fallback.source} の defaultDecision: ${fallback.decision} に従った）`;
   }
   if (decision === "decline")
     return { exit: 0, message: note === "" ? "" : `agent-usage: 記録しない${note}` };
   // Hook からは人の ID を作らない（collect は人の設定が無いと ID を作るので、その前に止める）
-  if (!hasPerson(process.env)) return { exit: 2, message: setupMessage(agent, script) };
+  const person = personOf(script);
+  if (person !== true)
+    return person === false ? { exit: 2, message: setupMessage(agent, script) } : person;
   try {
     const r = runCollect({ repo, now, env: process.env, github: true, gh: null });
     // 今回書いたファイルに加えて、前回書いて stage されなかった（index.lock などで失敗した、手動の collect で書いた）記録も入れる
@@ -383,4 +381,34 @@ export function gateDecision(input, fallbackCwd, now, script, agent) {
       ].join("\n"),
     };
   }
+}
+
+/**
+ * 人の設定があるか。人ごとの設定を読めない（知らないキー・型の誤り・SHOJI9X9_SKILLS_IGNORE_USER_CONFIG の誤り）ときは、
+ * コミットを止める結果を返す。例外のまま返すと、呼び出し側の Hook がコミットを通してしまう。
+ * @param {string} script
+ * @returns {boolean | { exit: number; message: string }}
+ */
+function personOf(script) {
+  try {
+    return hasPerson(process.env);
+  } catch (e) {
+    return configErrorResult(e, script);
+  }
+}
+
+/**
+ * 設定を読めないときに、コミットを止める結果。
+ * @param {unknown} e
+ * @param {string} script
+ * @returns {{ exit: number; message: string }}
+ */
+function configErrorResult(e, script) {
+  return {
+    exit: 2,
+    message: [
+      `agent-usage: 設定を読めない: ${e instanceof Error ? e.message : String(e)}`,
+      `設定を直してからもう一度コミットするか、このブランチで記録しないなら node "${script}" decline を実行してからコミットしてください。`,
+    ].join("\n"),
+  };
 }

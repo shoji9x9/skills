@@ -72,6 +72,25 @@ describe("box-folder.sh", () => {
     });
   });
 
+  test.each(["", "0", "true"])(
+    "SHOJI9X9_SKILLS_IGNORE_USER_CONFIG が 1 以外（%j）なら、設定ファイルが無くても読み取りと同じく止める",
+    (value) => {
+      const s = setup({ node: false });
+      const r = s.run({ SHOJI9X9_SKILLS_IGNORE_USER_CONFIG: value });
+      expect(r.status).toBe(1);
+      expect(r.stdout).toBe("");
+      expect(r.stderr).toContain("SHOJI9X9_SKILLS_IGNORE_USER_CONFIG は 1 だけを受け付ける");
+    },
+  );
+
+  test("SHOJI9X9_SKILLS_IGNORE_USER_CONFIG=1 なら、人ごとの層の box.jsonc を数えず、Node.js なしで 0 を出す", () => {
+    const s = setup({ node: false });
+    s.write("xdg:skills/shoji9x9/box.jsonc", '{ "root_folder_id": "9" }\n');
+    expect(s.run().status).toBe(1);
+    const r = s.run({ SHOJI9X9_SKILLS_IGNORE_USER_CONFIG: "1" });
+    expect({ status: r.status, stdout: r.stdout }).toEqual({ status: 0, stdout: "0" });
+  });
+
   test("git の外でも、cwd の下に設定が無ければ 0 を出す", () => {
     const s = setup({ node: false });
     const outside = join(s.dir, "outside");

@@ -368,6 +368,28 @@ test("人ごとの設定（XDG_CONFIG_HOME）の forget_* は置けない層な�
   }
 });
 
+test("SHOJI9X9_SKILLS_IGNORE_USER_CONFIG は読み取りと同じく 1 だけを受け付け、1 なら人ごとの設定を数えずに node なしで動く", () => {
+  const dir = makeProject(CANDIDATES);
+  try {
+    const noNode = { PATH: pathWithout(dir, ["node"], kaizenEnv(dir).PATH ?? "") };
+    // 設定ファイルが無くても、1 以外の値なら止める
+    const bad = run(dir, ["--auto"], { ...noNode, SHOJI9X9_SKILLS_IGNORE_USER_CONFIG: "0" });
+    expect(bad.status).toBe(1);
+    expect(bad.stderr).toContain("SHOJI9X9_SKILLS_IGNORE_USER_CONFIG は 1 だけを受け付ける");
+    expect(statusOf(dir, "old-low")).toBe("pending");
+    // 人ごとの設定だけがあっても、1 なら読まないので node は要らない
+    const user = join(dir, ".test-xdg", "skills", "shoji9x9");
+    mkdirSync(user, { recursive: true });
+    writeFileSync(join(user, "kaizen.jsonc"), '{ "precommit_deadline_seconds": 9 }\n');
+    expect(run(dir, ["--list"], noNode).status).toBe(1);
+    const ok = run(dir, ["--list"], { ...noNode, SHOJI9X9_SKILLS_IGNORE_USER_CONFIG: "1" });
+    expect(ok.status, ok.stderr).toBe(0);
+    expect(ok.stdout).toContain(".kaizen/old-low.md");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 // --- 明示指示 ---------------------------------------------------------------
 test("明示指示は閾値に関わらず pending を忘却する", () => {
   const dir = makeProject({ "recent-high": note({ date: daysAgo(1), priority: "high" }) });

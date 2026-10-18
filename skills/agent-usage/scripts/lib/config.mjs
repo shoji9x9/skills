@@ -10,6 +10,7 @@ import { isValidTimeZone, systemTimeZone } from "./time.mjs";
 import {
   ConfigError,
   FILE_LAYERS,
+  checkLegacy,
   configPaths,
   ignoresUserLayer,
   loadConfig,
@@ -307,6 +308,18 @@ export function newPersonId() {
  */
 export function saveUserConfig(root, env, values) {
   let path = userConfigPath(env);
+  // キーごとに書くので、後のキーの値の誤りで止まると、前のキーだけを書いた設定が残る。書く前にすべての値を検証する
+  const schema = loadSchema(SCHEMA_DIR, CONFIG_NAME);
+  /** @type {string[]} */
+  const errors = [];
+  for (const [key, value] of Object.entries(values)) {
+    if (value === undefined) continue;
+    const prop = Object.hasOwn(schema.properties, key) ? schema.properties[key] : undefined;
+    if (prop === undefined)
+      errors.push(`${CONFIG_NAME} に ${JSON.stringify(key)} というキーは無い`);
+    else errors.push(...validateValue(value, prop.schema, `${path}: ${key}`));
+  }
+  if (errors.length > 0) throw new ConfigError(errors.join("\n"));
   for (const [key, value] of Object.entries(values)) {
     if (value === undefined) continue;
     path = writeConfig({
@@ -351,15 +364,19 @@ export function loadOrCreateUserConfig(root, env = process.env) {
  * @returns {{ decision: DefaultDecision; source: string } | null}
  */
 export function defaultDecisionOf(root, env = process.env) {
-  // すべての層の検証と、旧い置き場所の確認
-  resolved(root, env);
+  // コミットのたびに Hook から呼ばれるので、各層のファイルは 1 回だけ読む。
+  // loadConfig と同じく、旧い置き場所を確かめ、値を取らない層も含めてすべての層を検証する（agent-usage には環境変数の層が無い）
   const schema = loadSchema(SCHEMA_DIR, CONFIG_NAME);
+  checkLegacy(schema, root, env);
   const paths = configPaths(root, CONFIG_NAME, env);
   const ignoreUser = ignoresUserLayer(env);
-  for (const layer of FILE_LAYERS) {
-    // 人ごとの層を読まないなら、loadConfig と同じく人ごとの値も当てない
-    if (layer === "user" && ignoreUser) continue;
-    const d = readLayer(schema, layer, paths[layer])?.defaultDecision;
+  // 人ごとの層を読まないなら、loadConfig と同じく人ごとの値も当てない
+  const layers = FILE_LAYERS.filter((layer) => !(layer === "user" && ignoreUser)).map((layer) => ({
+    layer,
+    value: readLayer(schema, layer, paths[layer]),
+  }));
+  for (const { layer, value } of layers) {
+    const d = value?.defaultDecision;
     if (d === "record" || d === "decline") return { decision: d, source: paths[layer] };
   }
   return null;

@@ -257,6 +257,23 @@ describe.concurrent("他セッション分の走査結果の再利用", () => {
     expect(result.stdout + result.stderr).toContain("foreign_sentinel_retention_days が never");
     expect(existsSync(sentinel)).toBe(true);
   });
+
+  // スキーマの上限は、日数を数として読むシェルの桁の上限（6 桁）と同じにする
+  test.each([
+    [999999, false],
+    [1000000, true],
+  ])(
+    "kaizen.jsonc の foreign_sentinel_retention_days が %i なら、設定の誤りか（%s）",
+    async (days, invalid) => {
+      const { cwd, gate } = setup("exit 0");
+      writeKaizenConfig(cwd, `{ "foreign_sentinel_retention_days": ${days} }\n`);
+      const result = await gate();
+      const output = result.stdout + result.stderr;
+      expect(output).not.toContain("回収しません");
+      if (invalid) expect(output).toMatch(/foreign_sentinel_retention_days[\s\S]*999999/);
+      else expect(output).not.toMatch(/foreign_sentinel_retention_days[\s\S]*999999/);
+    },
+  );
 });
 
 describe.concurrent("Claude Code の atis-latch 補助レコード", () => {

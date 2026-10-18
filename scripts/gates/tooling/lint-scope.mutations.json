@@ -86,13 +86,23 @@
       "occurrences": 1,
       "expect_failing": [
         "lefthook の shfmt は、エージェント用のコピーとリンクをすべて除く",
-        "lefthook の oxfmt-js は、エージェント用のコピーとリンクをすべて除く",
         "lefthook の oxfmt-json は、エージェント用のコピーとリンクをすべて除く",
         "lefthook の shellcheck は、エージェント用のコピーとリンクをすべて除く",
-        "lefthook の oxlint は、エージェント用のコピーとリンクをすべて除く",
         "lefthook の jsonlint は、エージェント用のコピーとリンクをすべて除く",
         "lefthook の js-yaml は、エージェント用のコピーとリンクをすべて除く",
         "lefthook の pagination は、エージェント用のコピーとリンクをすべて除く"
+      ]
+    },
+    {
+      "id": "LS-LH-COPY-VENDORED",
+      "why": "lefthook の oxfmt-js と oxlint の除外（生成物も除く組）から、コピーを 1 つ挙げ忘れる",
+      "file": "lefthook.yml",
+      "find": "            exclude: &agent-copies-and-vendored\n              - \".claude/rules/**\"\n              - \".claude/skills/**\"\n              - \".github/instructions/**\"\n              - \".agents/skills/agent-usage/**\"\n",
+      "replace": "            exclude: &agent-copies-and-vendored\n              - \".claude/rules/**\"\n              - \".claude/skills/**\"\n              - \".github/instructions/**\"\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "lefthook の oxfmt-js は、エージェント用のコピーとリンクをすべて除く",
+        "lefthook の oxlint は、エージェント用のコピーとリンクをすべて除く"
       ]
     },
     {

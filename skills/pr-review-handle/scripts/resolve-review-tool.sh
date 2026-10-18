@@ -108,12 +108,21 @@ case "${XDG_CONFIG_HOME:-}" in
 /*) user_home="${XDG_CONFIG_HOME}" ;;
 *) user_home="${HOME}/.config" ;;
 esac
+# 人ごとの層を読まない指定は、読み取りと同じく 1 だけを受け付ける。設定ファイルが無いときも同じ結果にするため、ここでも確かめる
+user_file="${user_home}/skills/${NAMESPACE}/common.jsonc"
+if [ "${SHOJI9X9_SKILLS_IGNORE_USER_CONFIG+set}" = "set" ]; then
+	if [ "${SHOJI9X9_SKILLS_IGNORE_USER_CONFIG}" != "1" ]; then
+		printf 'error: 環境変数 SHOJI9X9_SKILLS_IGNORE_USER_CONFIG は 1 だけを受け付ける（%q）。人ごとの層を読むなら変数を消す\n' "${SHOJI9X9_SKILLS_IGNORE_USER_CONFIG}" >&2
+		exit 2
+	fi
+	user_file=""
+fi
 present=""
 for f in \
 	"${root}/.config/skills/${NAMESPACE}/common.local.jsonc" \
-	"${user_home}/skills/${NAMESPACE}/common.jsonc" \
+	"${user_file}" \
 	"${root}/.config/skills/${NAMESPACE}/common.jsonc"; do
-	[ -e "${f}" ] && present="${present} ${f}"
+	[ -n "${f}" ] && [ -e "${f}" ] && present="${present} ${f}"
 done
 
 if [ -z "${present}" ]; then

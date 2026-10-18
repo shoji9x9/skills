@@ -337,17 +337,20 @@ kaizen_config_legacy() {
 
 # 在る設定ファイルのパスを挙げる（1 行 1 件）。
 kaizen_config_files() {
-	local root user_home f
+	local root user_home user_file f
 	root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 	user_home=${XDG_CONFIG_HOME:-}
 	case "${user_home}" in
 	/*) ;;
 	*) user_home="${HOME}/.config" ;;
 	esac
+	user_file="${user_home}/skills/shoji9x9/kaizen.jsonc"
+	# 人ごとの層を読まない（SHOJI9X9_SKILLS_IGNORE_USER_CONFIG=1）なら、読み取りと同じく人ごとのファイルを数えない
+	[ "${SHOJI9X9_SKILLS_IGNORE_USER_CONFIG:-}" = 1 ] && user_file=""
 	for f in "${root}/.config/skills/shoji9x9/kaizen.jsonc" \
 		"${root}/.config/skills/shoji9x9/kaizen.local.jsonc" \
-		"${user_home}/skills/shoji9x9/kaizen.jsonc"; do
-		[ -e "${f}" ] && printf '%s\n' "${f}"
+		"${user_file}"; do
+		[ -n "${f}" ] && [ -e "${f}" ] && printf '%s\n' "${f}"
 	done
 	return 0
 }
@@ -376,6 +379,11 @@ kaizen_config_load() {
 	legacy=$(kaizen_config_legacy)
 	if [ -n "${legacy}" ]; then
 		kaizen_config_fail "旧い場所の設定が残っているので止める（kaizen の references/config-files.md「移行」）。"$'\n'"${legacy}"
+		return 1
+	fi
+	# 人ごとの層を読まない指定は、読み取りと同じく 1 だけを受け付ける。設定ファイルが無いときも同じ結果にするため、ここでも確かめる
+	if [ "${SHOJI9X9_SKILLS_IGNORE_USER_CONFIG+set}" = set ] && [ "${SHOJI9X9_SKILLS_IGNORE_USER_CONFIG}" != 1 ]; then
+		kaizen_config_fail "環境変数 SHOJI9X9_SKILLS_IGNORE_USER_CONFIG は 1 だけを受け付ける（$(printf '%q' "${SHOJI9X9_SKILLS_IGNORE_USER_CONFIG}")）。人ごとの層を読むなら変数を消す"
 		return 1
 	fi
 	files=$(kaizen_config_files)

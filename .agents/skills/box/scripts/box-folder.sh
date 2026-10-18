@@ -25,9 +25,18 @@ esac
 
 # Node.js で読む必要があるファイル。人ごとの層の box.jsonc（置けない層）と、旧い skills.yml も含める。
 # どちらも読み取りがエラーにするので、Node.js なしで 0 を出すと、その誤りを見逃す。
+# 人ごとの層を読まない指定は、読み取りと同じく 1 だけを受け付け、1 なら人ごとのファイルを数えない
+user_file="${xdg}/skills/shoji9x9/box.jsonc"
+if [ "${SHOJI9X9_SKILLS_IGNORE_USER_CONFIG+set}" = "set" ]; then
+	if [ "${SHOJI9X9_SKILLS_IGNORE_USER_CONFIG}" != "1" ]; then
+		printf 'box-folder: 環境変数 SHOJI9X9_SKILLS_IGNORE_USER_CONFIG は 1 だけを受け付ける（%q）。人ごとの層を読むなら変数を消す\n' "${SHOJI9X9_SKILLS_IGNORE_USER_CONFIG}" >&2
+		exit 1
+	fi
+	user_file=""
+fi
 needs_node=""
-for f in "${root}/.config/skills/shoji9x9/box.jsonc" "${root}/.config/skills/shoji9x9/box.local.jsonc" "${xdg}/skills/shoji9x9/box.jsonc" "${root}/.config/skills/shoji9x9/skills.yml"; do
-	if [ -e "${f}" ]; then
+for f in "${root}/.config/skills/shoji9x9/box.jsonc" "${root}/.config/skills/shoji9x9/box.local.jsonc" "${user_file}" "${root}/.config/skills/shoji9x9/skills.yml"; do
+	if [ -n "${f}" ] && [ -e "${f}" ]; then
 		needs_node="${f}"
 		break
 	fi

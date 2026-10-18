@@ -428,7 +428,8 @@ rc=0
 # 人ごとの層（~/.config/skills/shoji9x9/）は SHOJI9X9_SKILLS_IGNORE_USER_CONFIG=1 で読ませない。
 # XDG_CONFIG_HOME は差し替えない。executor が使う gh・git・mise の設定も読めなくなるためである。
 # 人ごと・リポジトリ限定の層（.local.jsonc）は fixture のディレクトリで読むので、開発者のものは入らない。
-# 外した SKILLS_REVIEW_TOOL を開発者が残していると、読み取りが移行の手順を示して止まるので、ここで消す。
+# スキルのスキーマが x-legacy.env に挙げる、使わなくなった環境変数を開発者が残していると、
+# 読み取りが移行の手順を示して止まるので、ここで消す（一覧はスキーマとの一致をテストで確かめる）。
 # 層の優先順位を試すシナリオは、その入力を eval の prompt と fixture に書く。
 # stdin は必ず /dev/null にする。プロンプトは引数で渡しているが、executor は stdin も読もうとする。
 # 呼び出し側の stdin が EOF にならないパイプ（バックグラウンド実行・エージェント経由）だと、
@@ -436,7 +437,8 @@ rc=0
 # timeout でしか終わらない（実測で codex が 7 分以上止まった）。
 (
 	cd "${proj}"
-	unset SKILLS_REVIEW_TOOL
+	unset AGENT_USAGE_CONFIG_DIR BOX_ROOT_FOLDER_ID DIAGRAM_CHROME_NO_SANDBOX DIAGRAM_CHROME_TIMEOUT_MS \
+		DIAGRAM_DIR DIAGRAM_ICON_DIR DIAGRAM_OUT_DIR KAIZEN_PRECOMMIT_DEADLINE_SECONDS SKILLS_REVIEW_TOOL
 	export SHOJI9X9_SKILLS_IGNORE_USER_CONFIG=1
 	EVAL_SANDBOX_CLI="${executor_binary}" EVAL_SANDBOX_VENDOR="${executor}" "${runner}" "${executor_args[@]}"
 ) </dev/null >"${raw_trace}" 2>"${out}/stderr.log" || rc=$?

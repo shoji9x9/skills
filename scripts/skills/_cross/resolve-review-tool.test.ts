@@ -198,6 +198,33 @@ for (const script of SCRIPTS) {
     expect(r.stderr).toMatch(/"bogus"/);
   });
 
+  test.each(["", "0"])(
+    `${name}: SHOJI9X9_SKILLS_IGNORE_USER_CONFIG が 1 以外（%j）なら、設定ファイルが無くても読み取りと同じく exit 2`,
+    (value) => {
+      const s = setup();
+      const r = run(script, {
+        cwd: s.root,
+        env: { ...s.env, PATH: pathWithoutNode(s.base), SHOJI9X9_SKILLS_IGNORE_USER_CONFIG: value },
+      });
+      expect(r.status).toBe(2);
+      expect(r.stdout).toBe("");
+      expect(r.stderr).toContain("SHOJI9X9_SKILLS_IGNORE_USER_CONFIG は 1 だけを受け付ける");
+    },
+  );
+
+  test(`${name}: SHOJI9X9_SKILLS_IGNORE_USER_CONFIG=1 なら人ごとの設定を数えず、Node.js なしでデフォルトを返す`, () => {
+    const s = setup();
+    s.write("user", '{ "review_tool": "codex" }');
+    const env = { ...s.env, PATH: pathWithoutNode(s.base) };
+    expect(run(script, { cwd: s.root, env }).status).toBe(2);
+    const r = run(script, {
+      cwd: s.root,
+      env: { ...env, SHOJI9X9_SKILLS_IGNORE_USER_CONFIG: "1" },
+    });
+    expect(r.status, r.stderr).toBe(0);
+    expect(parse(r.stdout)).toEqual({ value: "copilot", source: "default" });
+  });
+
   test(`${name}: 設定ファイルがあって Node.js が無ければ、デフォルトとして扱わず exit 2 で止まる`, () => {
     const s = setup();
     s.write("repo", '{ "review_tool": "codex" }');

@@ -3146,6 +3146,25 @@ test.concurrent.each([
     /current\.stack\[\] = "typescript"/,
   ],
   ["キーを消す", '  "references": { "architecture": "" },\n', "", /<key: references>/],
+  // 空の配列は要素の単位を持たないので、型の単位が無いと書き換えても消える単位が無い
+  [
+    "空の配列を null にする",
+    '"may_change": []',
+    '"may_change": null',
+    /<array: intentional_diffs\.may_change>/,
+  ],
+  [
+    "空の配列を文字列にする",
+    '"may_change": []',
+    '"may_change": ""',
+    /<array: intentional_diffs\.may_change>/,
+  ],
+  [
+    "オブジェクトを配列にする",
+    '"references": { "architecture": "" }',
+    '"references": [{ "architecture": "" }]',
+    /<object: references>/,
+  ],
   ["コメントを消す", "  // 現行アプリ\n", "", /<comment> \/\/ 現行アプリ/],
   ["行末のコメントを消す", " // 測定の対象", "", /<comment> \/\/ 測定の対象/],
   ["keep の行末のコメント（鍵の注記）を消す", " // 変えない", "", /<comment> \/\/ 変えない/],

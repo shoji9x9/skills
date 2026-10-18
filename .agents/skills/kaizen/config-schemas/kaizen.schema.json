@@ -15,7 +15,7 @@
     },
     "foreign_sentinel_retention_days": {
       "description": "他のセッションのセンチネルを回収するまでの日数。never なら回収しない",
-      "anyOf": [{ "type": "integer", "minimum": 0 }, { "const": "never" }],
+      "anyOf": [{ "type": "integer", "minimum": 0, "maximum": 999999 }, { "const": "never" }],
       "default": 7,
       "x-layers": ["repo", "local", "user"]
     },

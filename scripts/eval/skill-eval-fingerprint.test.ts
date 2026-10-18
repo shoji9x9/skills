@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import {
   chmodSync,
+  existsSync,
   mkdirSync,
   readFileSync,
   readdirSync,
@@ -22,6 +23,8 @@ import {
   requiredSkillsForEval,
 } from "./skill-eval-fingerprint.ts";
 import { parseJsonAs } from "../lib/parse-as.ts";
+import { isRecord } from "../lib/guards.ts";
+import { isArray } from "../lib/is-array.ts";
 import { makeTempDir } from "../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../lib/testing/child-timeout.ts";
 
@@ -307,6 +310,29 @@ test("実リポジトリ: 配布スキルの直下の要素は、すべてイン
   const loops = [...runner.matchAll(/for (?:subject_part|part) in ([^;]+); do/gu)].map((m) => m[1]);
   expect(loops).toHaveLength(2);
   for (const parts of loops) expect(parts.split(" ")).toEqual(INSTALLED_SKILL_PARTS);
+});
+
+// 使わなくなった環境変数が開発者の環境に残っていると、eval の中で読み取りが止まり、結果が起動した人で変わる。
+test("実リポジトリ: ランナーが eval の前に消す環境変数は、スキルのスキーマの x-legacy.env の名前と一致する", () => {
+  const skillsRoot = join(here, "..", "..", "skills");
+  const legacy = new Set<string>();
+  for (const name of readdirSync(skillsRoot)) {
+    const dir = join(skillsRoot, name, "config-schemas");
+    if (!existsSync(dir)) continue;
+    for (const file of readdirSync(dir)) {
+      const schema: unknown = JSON.parse(readFileSync(join(dir, file), "utf8"));
+      const env = isRecord(schema) && isRecord(schema["x-legacy"]) ? schema["x-legacy"].env : [];
+      for (const e of isArray(env) ? env : [])
+        if (isRecord(e) && typeof e.name === "string") legacy.add(e.name);
+    }
+  }
+  expect(legacy.size).toBeGreaterThan(0);
+  const runner = readFileSync(join(here, "run-skill-eval.sh"), "utf8");
+  const unsets = [...runner.matchAll(/^\s*unset ((?:[^\n]*\\\n)*[^\n]*)$/gmu)].map((m) =>
+    m[1].replaceAll("\\\n", " ").trim().split(/\s+/u),
+  );
+  expect(unsets).toHaveLength(1);
+  expect([...unsets[0]].sort()).toEqual([...legacy].sort());
 });
 
 test("fixture の中のシンボリックリンクは、指紋にできないものとして失敗する", () => {
