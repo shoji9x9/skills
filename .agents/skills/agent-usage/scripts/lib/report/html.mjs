@@ -211,7 +211,8 @@ export function renderHtml(d) {
     d.statusByDay.map((s) => [s.status, s.byDay.reduce((a, b) => a + b, 0)]),
   );
   const statusColors = {
-    active: "var(--s6)",
+    // CI 待ち（緑）と見分けられ、ダークモード用の値もある色にする
+    active: "var(--s7)",
     idle: "var(--s1)",
     reviewing: "var(--s2)",
     "ci-wait": "var(--s3)",

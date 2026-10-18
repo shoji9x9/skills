@@ -26,7 +26,8 @@ import {
   classifySpan,
   endOfLocalDate,
   dateRange,
-  periodLabel,
+  formatPeriod,
+  periodBounds,
   runReport,
 } from "../../../skills/agent-usage/scripts/lib/report/report.mjs";
 import {
@@ -871,14 +872,16 @@ describe("停止の分類", () => {
         detail: "ok",
       },
     ];
-    // periodLabel の戻り値は、report の HTML に出す期間の表示になる。
-    expect(periodLabel(rows, { since: null, until: null, tz: "UTC" })).toBe(
-      "2026-10-01 〜 2026-10-03",
-    );
-    expect(periodLabel(rows, { since: "2026-09-01", until: null, tz: "UTC" })).toBe(
+    // periodBounds と formatPeriod で作る文字列は、report の HTML に出す期間の表示になる。
+    const label = (r: typeof rows, o: Parameters<typeof periodBounds>[1]) => {
+      const { from, to } = periodBounds(r, o);
+      return formatPeriod(from, to);
+    };
+    expect(label(rows, { since: null, until: null, tz: "UTC" })).toBe("2026-10-01 〜 2026-10-03");
+    expect(label(rows, { since: "2026-09-01", until: null, tz: "UTC" })).toBe(
       "2026-09-01 〜 2026-10-03",
     );
-    expect(periodLabel([], { since: null, until: null, tz: "UTC" })).toBe("記録なし");
+    expect(label([], { since: null, until: null, tz: "UTC" })).toBe("記録なし");
   });
 });
 
@@ -1419,8 +1422,9 @@ describe("日別のチャート", () => {
     expect(r.period).toBe("2026-10-01 〜 2026-10-02");
   });
 
-  test("人のタイムゾーンで until の翌日に入った稼働中も、日別の横軸に並べて数える", () => {
-    // report のタイムゾーンは UTC。東京の 10 月 1 日 19 時から 10 月 2 日 1 時まで動いた run（UTC では 10 月 1 日の中）
+  test("期間の終わりは、report のタイムゾーンではなく、人のタイムゾーンでの until の日の終わりにする（東）", () => {
+    // report のタイムゾーンは UTC。東京の人が、東京の 10 月 1 日 19 時から 10 月 2 日 1 時まで動いた（UTC では 10 月 1 日の中）。
+    // 東京の 10 月 1 日の終わり（UTC 15 時）で打ち切り、東京の 10 月 2 日に入った 1 時間は数えない
     const rows = [
       { ...coverage, tz: "Asia/Tokyo" },
       {
@@ -1435,10 +1439,10 @@ describe("日別のチャート", () => {
       },
     ];
     const r = buildReport(rows, options({ until: "2026-10-01" }));
-    expect(r.days).toEqual(["2026-10-01", "2026-10-02"]);
+    expect(r.days).toEqual(["2026-10-01"]);
     // 日別の稼働中を足すと、人ごとの稼働中と一致する
-    expect(r.statusByDay.find((s) => s.status === "active")?.byDay).toEqual([5, 1]);
-    expect(r.activeByPerson).toEqual({ "p-00000001": 6 });
+    expect(r.statusByDay.find((s) => s.status === "active")?.byDay).toEqual([5]);
+    expect(r.activeByPerson).toEqual({ "p-00000001": 5 });
   });
 
   test("--until に先の日付を渡しても、横軸は今日までにし、9999 年の終わりでも止まる", () => {
@@ -1452,9 +1456,10 @@ describe("日別のチャート", () => {
     expect(dateRange("9999-12-30", "9999-12-31")).toEqual(["9999-12-30", "9999-12-31"]);
   });
 
-  test("人のタイムゾーンで期間の終わりより後に始まる run があっても、停止は期間の終わりで打ち切る", () => {
-    // report のタイムゾーンは UTC で、期間の終わりは 10 月 2 日 0 時（UTC）。
-    // ロサンゼルスの 10 月 1 日 10〜11 時（UTC 17〜18 時）と 20〜21 時（UTC 10 月 2 日 3〜4 時）に動いた
+  test("期間の終わりは、report のタイムゾーンではなく、人のタイムゾーンでの until の日の終わりにする（西）", () => {
+    // report のタイムゾーンは UTC。ロサンゼルスの人が、ロサンゼルスの 10 月 1 日 10〜11 時（UTC 17〜18 時）と
+    // 20〜21 時（UTC 10 月 2 日 3〜4 時）に動いた。どちらもロサンゼルスの 10 月 1 日なので期間に入り、
+    // 費用・指示の数・稼働中・停止がどれも同じ期間を数える
     const la = (key: string, start: string, end: string) => ({
       ...run(key, "p-00000001", start, end, "2026-10-02T05:00:00.000Z"),
       tz: "America/Los_Angeles",
@@ -1463,17 +1468,19 @@ describe("日別のチャート", () => {
       coverage,
       la("a", "2026-10-01T17:00:00.000Z", "2026-10-01T18:00:00.000Z"),
       la("b", "2026-10-02T03:00:00.000Z", "2026-10-02T04:00:00.000Z"),
+      { ...usage("u", "2026-10-02T03:30:00.000Z", "5.0"), tz: "America/Los_Angeles" },
     ];
     const r = buildReport(rows, options({ until: "2026-10-01" }));
+    expect(r.usage.map((u) => u.cost_usd)).toEqual(["5.000000"]);
+    expect(r.runHistogram.reduce((a, b) => a + b, 0)).toBe(2);
+    expect(r.activeByPerson).toEqual({ "p-00000001": 2 });
+    // 停止は run の間と、最後に記録した時刻（UTC 5 時）までの隙間
     expect(
       r.intervals.filter((x) => x.type === "stop").map((x) => [x.start, x.end, x.category]),
-    ).toEqual([["2026-10-01T18:00:00.000Z", "2026-10-02T00:00:00.000Z", "idle"]]);
-    // 稼働中も同じ所で打ち切るので、2 つ目の run は数えない。指示の数・ヒストグラム・intervals.csv にも数えない
-    expect(r.activeByPerson).toEqual({ "p-00000001": 1 });
-    expect(r.intervals.filter((x) => x.type === "run").map((x) => x.start)).toEqual([
-      "2026-10-01T17:00:00.000Z",
+    ).toEqual([
+      ["2026-10-01T18:00:00.000Z", "2026-10-02T03:00:00.000Z", "idle"],
+      ["2026-10-02T04:00:00.000Z", "2026-10-02T05:00:00.000Z", "idle"],
     ]);
-    expect(r.runHistogram.reduce((a, b) => a + b, 0)).toBe(1);
   });
 
   test("人ごとの停止は、intervals.csv の丸めた分ではなく、丸める前の値から足す", () => {

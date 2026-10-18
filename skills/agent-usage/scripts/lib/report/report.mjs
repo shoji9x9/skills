@@ -8,7 +8,7 @@
 //     review-wait  直前に動いていたブランチの PR のレビューを待っている。
 //     unknown      GitHub の情報を取得できていない期間（coverage が ok でない）。
 //     idle         それ以外（未活用）。
-//   集計の期間の終わりは、until の日の終わりか、report を実行した時刻の早い方。
+//   集計の期間の終わりは、人ごとに、その人のタイムゾーンでの until の日の終わりか、report を実行した時刻の早い方。
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -135,16 +135,6 @@ function spansOf(rows) {
 }
 
 /**
- * mergeSpans の結果の区間の長さの合計（時）。end より後の部分は数えない。
- * @param {Span[]} merged
- * @param {number} end
- * @returns {number}
- */
-function activeHours(merged, end) {
-  return merged.reduce((a, [x, y]) => a + Math.max(0, Math.min(y, end) - x) / 3600000, 0);
-}
-
-/**
  * 時刻 t の前後 w ミリ秒の区間。
  * @param {number} t
  * @param {number} w
@@ -180,13 +170,11 @@ function isDate(date) {
 /**
  * 期間の最初の日と最後の日。指定が無い側は、記録のうち最も古い日付・最も新しい日付（行のタイムゾーンで切る）にする。
  * GitHub を取得した期間の行（coverage）は作業の記録ではないので数えない。
- * dates には、集計した値を置いた日付（停止が observed_at まで続いた日など）を渡す。指定が無い側は、この日付まで広げる。
  * @param {readonly Row[]} rows 期間で絞った後の行
  * @param {{ since: string | null; until: string | null; tz: string }} o
- * @param {readonly string[]} dates
  * @returns {{ from: string | null; to: string | null }}
  */
-export function periodBounds(rows, o, dates = []) {
+export function periodBounds(rows, o) {
   /** @type {string | null} */
   let first = null;
   /** @type {string | null} */
@@ -202,20 +190,7 @@ export function periodBounds(rows, o, dates = []) {
       if (t !== null) add(localParts(t, r.tz || o.tz).date);
     }
   }
-  for (const date of dates) add(date);
   return { from: o.since ?? first, to: o.until ?? last };
-}
-
-/**
- * 期間の表示。記録が無ければ「記録なし」とする。
- * @param {readonly Row[]} rows 期間で絞った後の行
- * @param {{ since: string | null; until: string | null; tz: string }} o
- * @param {readonly string[]} dates periodBounds と同じ
- * @returns {string}
- */
-export function periodLabel(rows, o, dates = []) {
-  const { from, to } = periodBounds(rows, o, dates);
-  return formatPeriod(from, to);
 }
 
 /**
@@ -404,7 +379,6 @@ export function buildReport(allRows, o) {
   });
 
   // 稼働と停止
-  const periodEnd = o.until ? Math.min(o.now, endOfLocalDate(o.until, o.tz)) : o.now;
   const windowMs = o.config.activityWindowMinutes * 60000;
   /** @type {Record<string, string>[]} */
   const intervals = [];
@@ -473,9 +447,6 @@ export function buildReport(allRows, o) {
         const s = spanOf(r);
         return s ? [{ row: r, span: s }] : [];
       })
-      // 人のタイムゾーンが report と違うと、期間の終わりより後に始まる run が期間に入りうる。
-      // 稼働中と停止に数えないので、指示の数・ヒストグラム・intervals.csv にも数えない
-      .filter((r) => r.span[0] < periodEnd)
       .sort((a, b) => a.span[0] - b.span[0]);
     for (const { row, span } of runs) {
       const minutes = (span[1] - span[0]) / 60000;
@@ -498,25 +469,49 @@ export function buildReport(allRows, o) {
     }
     if (runs.length === 0) continue;
     const tz = runs[0].row.tz || o.tz;
+    // 期間の終わりは、行を期間で絞るのと同じく、その人のタイムゾーンでの --until の日の終わりにする。
+    // 人の run が複数のタイムゾーンにまたがるなら、最も遅い終わりにする（期間に入れた run は、どれもこれより前に始まる）
+    const until = o.until;
+    const periodEnd = until
+      ? Math.min(
+          o.now,
+          Math.max(
+            ...[...new Set(runs.map((r) => r.row.tz || o.tz))].map((z) => endOfLocalDate(until, z)),
+          ),
+        )
+      : o.now;
     const merged = mergeSpans(runs.map((r) => r.span));
     // 稼働中は、重なる run をまとめた区間（停止はこの隙間なので、稼働中と停止は重ならない）。期間の終わりで打ち切る
+    let active = 0;
     for (const [a, b] of merged) {
-      if (Math.min(b, periodEnd) > a) addStatus("active", a, Math.min(b, periodEnd), tz);
+      const end = Math.min(b, periodEnd);
+      if (end <= a) continue;
+      addStatus("active", a, end, tz);
+      active += (end - a) / 3600000;
     }
-    activeByPerson[person] = activeHours(merged, periodEnd);
+    activeByPerson[person] = active;
     const myStops = new Map(STOP_CATEGORIES.map((c) => [c, 0]));
     stopByPerson[person] = myStops;
-    // Issue ごとの稼働中は、人ごとの稼働中を、その時間に動いていた Issue の数で等分して配る（Issue ごとの合計が人ごとの稼働中と一致する）
-    const cuts = [
-      ...new Set(runs.flatMap(({ span }) => [span[0], Math.min(span[1], periodEnd)])),
-    ].sort((a, b) => a - b);
-    for (let i = 0; i + 1 < cuts.length; i += 1) {
-      const [a, b] = [cuts[i], cuts[i + 1]];
-      const issues = new Set(
-        runs.filter((r) => r.span[0] <= a && r.span[1] >= b).map((r) => r.row.issue ?? ""),
-      );
-      for (const issue of issues)
-        activeByIssue[issue] = (activeByIssue[issue] ?? 0) + (b - a) / 3600000 / issues.size;
+    // Issue ごとの稼働中は、人ごとの稼働中を、その時間に動いていた Issue の数で等分して配る（Issue ごとの合計が人ごとの稼働中と一致する）。
+    // run の始まりと終わりを時刻の順に走査し、動いている run の数を Issue ごとに増減させる
+    /** @type {[number, number, string][]} */
+    const events = [];
+    for (const { row, span } of runs) {
+      const end = Math.min(span[1], periodEnd);
+      if (end > span[0]) events.push([span[0], 1, row.issue ?? ""], [end, -1, row.issue ?? ""]);
+    }
+    events.sort((x, y) => x[0] - y[0]);
+    /** @type {Map<string, number>} */
+    const running = new Map();
+    for (let i = 0; i < events.length; i += 1) {
+      const [t, delta, issue] = events[i];
+      const count = (running.get(issue) ?? 0) + delta;
+      if (count > 0) running.set(issue, count);
+      else running.delete(issue);
+      const next = i + 1 < events.length ? events[i + 1][0] : t;
+      if (next <= t || running.size === 0) continue;
+      for (const k of running.keys())
+        activeByIssue[k] = (activeByIssue[k] ?? 0) + (next - t) / 3600000 / running.size;
     }
     /** @type {Span[]} */
     const marks = [];
@@ -536,7 +531,7 @@ export function buildReport(allRows, o) {
       Number.NEGATIVE_INFINITY,
     );
     const personEnd = Number.isFinite(lastSeen) ? Math.min(periodEnd, lastSeen) : periodEnd;
-    // 期間の終わりより後に始まる run は先に除いたので、run の間の隙間は期間の終わりより前に収まる。
+    // 期間に入れた run は期間の終わりより前に始まるので、run の間の隙間は期間の終わりより前に収まる。
     // 最後の run の後の隙間も、personEnd（期間の終わりより後にならない）までである
     for (const gap of gaps(
       merged,
@@ -641,29 +636,23 @@ export function buildReport(allRows, o) {
     if (valueMin === null || date < valueMin) valueMin = date;
     if (valueMax === null || date > valueMax) valueMax = date;
   }
-  const valueEnds = valueMin !== null && valueMax !== null ? [valueMin, valueMax] : [];
-  const { from, to } = periodBounds(rows, o, valueEnds);
-  // 期間は行のタイムゾーンで絞るが、稼働状況は人のタイムゾーンで日に分けるので、--since・--until の外の日に値が置かれうる。
-  // 値を横軸から外すと、日別のチャートとタイルが人ごとの表・時刻ごとのチャートより小さくなるので、横軸を値のある日まで広げる。
-  // 終わりは今日（report のタイムゾーン）か値のある最後の日の遅い方までにする。値は report を実行した時刻より後に置かれないので、
+  const { from, to } = periodBounds(rows, o);
+  // 期間と横軸は、記録の日に、値を置いた日（停止が記録の最後の日より後まで続いた日など）を足した範囲にする。この 2 行の 1 か所で決める。
+  // --since・--until を指定した側も、横軸は値のある日まで広げる。人の run が複数のタイムゾーンにまたがると期間の外の日に値が置かれうるので、
+  // 外すと日別のチャートとタイルが、人ごとの表・時刻ごとのチャートより小さくなる。期間の表示は指定した日付のままにする
+  const first = from !== null && valueMin !== null && valueMin < from ? valueMin : from;
+  const widened = to !== null && valueMax !== null && valueMax > to ? valueMax : to;
+  // 横軸の終わりは今日（report のタイムゾーン）か値のある最後の日の遅い方までにする。値は report を実行した時刻より後に置かれないので、
   // --until に先の日付を渡しても、0 しか無い日を並べない
-  /** @type {string | null} */
-  let first = from;
-  /** @type {string | null} */
-  let last = to;
-  if (first !== null && last !== null && valueMin !== null && valueMax !== null) {
-    if (valueMin < first) first = valueMin;
-    if (valueMax > last) last = valueMax;
-  }
   const today = localParts(o.now, o.tz).date;
   const cap = valueMax !== null && valueMax > today ? valueMax : today;
-  if (last !== null && last > cap) last = cap;
+  const last = widened !== null && widened > cap ? cap : widened;
   const days = first !== null && last !== null ? dateRange(first, last) : [];
 
   return {
     generatedAt: toIso(o.now),
     tz: o.tz,
-    period: formatPeriod(from, to),
+    period: formatPeriod(o.since ?? first, o.until ?? widened),
     recordFiles: o.recordFiles,
     rows: rows.length,
     names,
