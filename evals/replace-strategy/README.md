@@ -41,7 +41,7 @@ scripts/eval/run-skill-eval.sh \
   fixture 無しでは「`setup` 未完了」で早期に停止し、判断材料の提示に到達しないので、fixture で到達できるようにしている
 - eval 15 は fixture 無しで、会話だけで判定できる取り決めを対象にする。
   設定キーの**書き手の区分**、作業中に増え続ける slug スコープの台帳を設定に置かないこと、`component_diffs` を設定側に残す根拠、
-  既存の設定ファイルへ追記するときの書き込みの決まり（同梱の `skill-config.mjs` の `set` / `append`）、の 4 つである
+  既存の設定ファイルへ追記するときの書き込みの決まり（同梱の `skill-config.mjs` の `set` / `append`）の 4 つである
 - eval 19 の fixture（`features-nonstandard-item`）は、**テンプレートに無いヘッダ項目（`スキーマ Issue: #47`）を利用者が足した features.md** を持つ。
   4 種に還元できない Issue の記録先（「その他の Issue（4 種以外）」表）・非破壊の更新の取り決め・`status` での扱いを検証する。
   fixture 側には、その項目がテンプレートの外である旨も、移設先も書かない（書くと baseline がそれを読んで assertion を満たす）

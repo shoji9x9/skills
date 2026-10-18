@@ -13,7 +13,14 @@
 // | 書き込み | 無いキー / 同じ値 / 違う値 / --replace / 配列が無い / 配列がある / --unique-by の一致・不一致 / 書いた後に検証で落ちる / ファイルが無い / gitignore されていない local |
 // | CLI | サブコマンドごとの正常系 / 引数の数 / 知らないオプション・サブコマンド / 値の無いオプション / 不正な名前 / JSON でない値 |
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { userInfo } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -622,6 +629,22 @@ describe.each(COPIES)("%s", (copy) => {
       await expect(
         w(s, { keyPath: ["list"], value: { id: "a" }, mode: "append", uniqueBy: "id" }),
       ).rejects.toThrow(/知らないキー "typo"/);
+    });
+
+    test("書き込み先かその途中のディレクトリがリポジトリの外を指すシンボリックリンクなら、外を書かずに止める", async () => {
+      const s = setup();
+      const outside = join(s.base, "outside");
+      mkdirSync(outside);
+      writeFileSync(join(outside, "t.jsonc"), "{}\n");
+      mkdirSync(join(s.root, ".config/skills/shoji9x9"), { recursive: true });
+      symlinkSync(join(outside, "t.jsonc"), s.paths.repo);
+      await expect(w(s, {})).rejects.toThrow(/シンボリックリンクには書かない/);
+      expect(readFileSync(join(outside, "t.jsonc"), "utf8")).toBe("{}\n");
+      const t = setup();
+      mkdirSync(join(t.root, ".config/skills"), { recursive: true });
+      symlinkSync(outside, join(t.root, ".config/skills/shoji9x9"));
+      await expect(w(t, {})).rejects.toThrow(/リポジトリの外を指している/);
+      expect(readFileSync(join(outside, "t.jsonc"), "utf8")).toBe("{}\n");
     });
 
     test("コメントと末尾のカンマと既にあるキーを残したまま、無いキーを足す", async () => {

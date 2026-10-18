@@ -10,7 +10,14 @@
 // 2=引数の誤り / 3=値が無い（get で、どの層にも無く、デフォルトも無い）。
 
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  writeFileSync,
+} from "node:fs";
 import { userInfo } from "node:os";
 import { dirname, isAbsolute, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -667,6 +674,7 @@ export function writeConfig(opts) {
   }
   const path = configPaths(root, opts.name, env)[opts.layer];
   if (opts.layer === "local") requireIgnored(root, path);
+  if (opts.layer !== "user") requireInsideRoot(root, path);
   const text = existsSync(path) ? readFileSync(path, "utf8") : "{}\n";
   const current = parseJsonc(text, path);
   const existing = valueAt(current, opts.keyPath);
@@ -871,6 +879,24 @@ function valueAt(root, keyPath) {
     if (cur === undefined) return undefined;
   }
   return cur;
+}
+
+/**
+ * リポジトリの層のファイルが、リポジトリの中の実体であることを確かめる。
+ * 書き込み先かその途中のディレクトリがシンボリックリンクでリポジトリの外を指すと、set と append がリポジトリの外のファイルを書き換えるので止める。
+ * @param {string} root
+ * @param {string} path
+ */
+function requireInsideRoot(root, path) {
+  if (existsSync(path) && lstatSync(path).isSymbolicLink())
+    throw new ConfigError(`${path}: シンボリックリンクには書かない（実体のファイルを置く）`);
+  let dir = dirname(path);
+  while (!existsSync(dir) && dirname(dir) !== dir) dir = dirname(dir);
+  const real = relative(realpathSync(root), realpathSync(dir));
+  if (real.startsWith("..") || isAbsolute(real))
+    throw new ConfigError(
+      `${path}: 置き場所のディレクトリがリポジトリの外を指している（${realpathSync(dir)}）。書かない`,
+    );
 }
 
 /**
