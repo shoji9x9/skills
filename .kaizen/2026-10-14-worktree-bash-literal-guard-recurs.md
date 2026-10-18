@@ -125,6 +125,8 @@ PR #656 のレビューで出た指摘である。上の Hook の条件の細部
   検索語やパスに `eval` の語を含む形（`grep ... scripts/eval/` など）にも当てる。ハーネスはこの形を `runs a string through eval` として拒否する。
 - `;`・`&&` と `node`・`bash` の起動の組は、ハーネスが通す正当な複合コマンド（定数の引数だけの `pnpm exec vitest run a.test.ts && node scripts/x.ts` など）にも当たる。ハーネスの拒否の理由（`computed at runtime`・`inside a construct too complex`）に対応する形に絞り、誤検知しないことを確かめる例を挙げる。
 - 新しい Hook を書かず、Bash の呼び出しをセグメントに分けて判定する既存の PreToolUse の Hook（`scripts/hooks/bash-command-guard.sh`）に足せるかを先に確かめる。
+- 2026-10-18、#676 の作業でも、README に 1 行を足す `printf ... >> README.md` と、続けて lint を `;` でつないだ処理が、引数に日本語の文を持つ `printf` として拒否された。Edit ツールで足す形に直して通した。
+  同じ作業で、benchmark.md に 1 行を足す `printf` も同じ理由で拒否された。1 回目の拒否で Edit ツールに直した後、次の追記でまた `printf` を書いた。
 - 2026-10-18、#651 の作業でも、`sha=$(gh pr view ...)` と `&&` でつないだ記録の投稿が `this command is too complex to verify` で拒否された。`gh` の出力を変数に入れて次のコマンドに渡す形も、条件に当てる。
 - 2026-10-18、#681 の作業でも、`for` ループの変数を `node -e` の引数に渡して eval の結果を読む処理が `runs node with a value computed at runtime` で拒否された。Read ツールでファイルを読む形に直して通した。
   同じ作業で、`scripts/eval/` のパスを grep する呼び出しも、`eval` の語で `runs a string through eval` として拒否された。
@@ -133,3 +135,6 @@ PR #656 のレビューで出た指摘である。上の Hook の条件の細部
   `for` ループの変数を `gh api` の URL に入れる形は `runs gh with a value computed at runtime` で拒否された。
   ほかは既知の形（`; echo rc=$?` と `bash` の起動の組、`scripts/eval/` の grep）だった。
   どれも、Write ツールでスクリプトにして絶対パスで実行するか、定数の引数だけの単独の呼び出しに分けて通した。
+- 2026-10-18、#676 の merge の前の作業でも、`kaizen-kedb-match.sh` の引数に `"eval"` を渡し、`; echo rc=$?` と `grep docs/...` をつないだ呼び出しが `runs a string through eval` で拒否された。
+  引数の語だけでも `eval` に当たる。単独の呼び出しに分けて通した。
+- 2026-10-18、#676 の記録の投稿でも、`sha=$(gh pr view ...)` と `git rev-parse`・`git status` を `&&` でつないだ呼び出しが `names git in a form too complex to verify` で拒否された。Write ツールでスクリプトにして通した。

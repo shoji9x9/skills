@@ -1,0 +1,170 @@
+{
+  "metadata": {
+    "skill_name": "issue-batch",
+    "skill_path": "<repo>/skills/issue-batch",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-18T02:58:58Z",
+    "evals_run": [26],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 26,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 51.972,
+        "tokens": 111504,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "#107 を外す候補として提案し、外すと #108 も外れることを、同じ 1 回の確認で選択肢の影響として示すと述べている",
+          "passed": true,
+          "evidence": "1 回だけの確認に #107 を載せ、「依存元の #108 は未着手なので、#108 も EXCLUDED になります」と外したときの影響を示している。"
+        },
+        {
+          "text": "#108 は #107 の兆候を足さずに数え、外す候補にしないと述べている",
+          "passed": true,
+          "evidence": "兆候の表で「#108：なし（#107 への依存は兆候に数えない）」「候補にしない」としている。"
+        },
+        {
+          "text": "利用者が #107 を外すと選んだら、#108 も EXCLUDED にすると述べている",
+          "passed": true,
+          "evidence": "外すと選んだ場合の表で、#108 を「EXCLUDED（依存先の表の 1 行目）」にしている。"
+        },
+        {
+          "text": "#108 の対象から外した理由に、依存先の #107 を書くと述べている",
+          "passed": true,
+          "evidence": "#108 の記録する理由を「外した依存先 #107」とし、最終報告の「対象から外した理由」の列に書くと述べている。"
+        },
+        {
+          "text": "#107 について答えが返らなかったら、#108 にも着手せず BLOCKED にすると述べている",
+          "passed": true,
+          "evidence": "答えが返らなかった場合の表で、#108 を「BLOCKED（依存先の表の 2 行目）」にし、branch・PR は「作成なし」としている。"
+        },
+        {
+          "text": "--stop-on-blocked でも、preflight で BLOCKED にした Issue があることを理由に run を止めないと述べている",
+          "passed": true,
+          "evidence": "「preflight で BLOCKED にした Issue があっても、--stop-on-blocked によって run 全体が止まることはありません」と述べている。"
+        },
+        {
+          "text": "#107 について答えが返らなかったときも、#109 は進めると述べている",
+          "passed": true,
+          "evidence": "答えが返らなかった場合の表で、#109 を「PREFLIGHTED にして、通常どおり進める」としている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 26,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5714,
+        "passed": 4,
+        "failed": 3,
+        "total": 7,
+        "time_seconds": 38.902,
+        "tokens": 20302,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "#107 を外す候補として提案し、外すと #108 も外れることを、同じ 1 回の確認で選択肢の影響として示すと述べている",
+          "passed": true,
+          "evidence": "1 回の問い合わせで、#107 をどうするかの問いの中に「#107 を外すと #108 も外れる」ことを明示すると述べている。"
+        },
+        {
+          "text": "#108 は #107 の兆候を足さずに数え、外す候補にしないと述べている",
+          "passed": false,
+          "evidence": "#108 を「単独では外す候補にしない」とするが、兆候を数えておらず、#107 の兆候を足さずに数えるとは述べていない。"
+        },
+        {
+          "text": "利用者が #107 を外すと選んだら、#108 も EXCLUDED にすると述べている",
+          "passed": true,
+          "evidence": "#107 を外すと選んだ場合に、#108 を「excluded（#107 に依存）」として一緒に外すと述べている。"
+        },
+        {
+          "text": "#108 の対象から外した理由に、依存先の #107 を書くと述べている",
+          "passed": true,
+          "evidence": "#108 の記録に「excluded（#107 に依存）」と、依存先の #107 を書くと述べている。"
+        },
+        {
+          "text": "#107 について答えが返らなかったら、#108 にも着手せず BLOCKED にすると述べている",
+          "passed": true,
+          "evidence": "答えが返らなかった場合に、#108 を「blocked（#107 に依存）」にすると述べている。"
+        },
+        {
+          "text": "--stop-on-blocked でも、preflight で BLOCKED にした Issue があることを理由に run を止めないと述べている",
+          "passed": false,
+          "evidence": "「preflight で blocked が出た時点で run を開始せずに止めるのが最も安全」とし、--stop-on-blocked で run を止めている。"
+        },
+        {
+          "text": "#107 について答えが返らなかったときも、#109 は進めると述べている",
+          "passed": false,
+          "evidence": "答えが返らなかった場合に、#109 は「着手しません」と述べている。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 51.972,
+        "stddev": 0,
+        "min": 51.972,
+        "max": 51.972
+      },
+      "tokens": {
+        "mean": 111504,
+        "stddev": 0,
+        "min": 111504,
+        "max": 111504
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.5714,
+        "stddev": 0,
+        "min": 0.5714,
+        "max": 0.5714
+      },
+      "time_seconds": {
+        "mean": 38.902,
+        "stddev": 0,
+        "min": 38.902,
+        "max": 38.902
+      },
+      "tokens": {
+        "mean": 20302,
+        "stddev": 0,
+        "min": 20302,
+        "max": 20302
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.43",
+      "time_seconds": "+13.1",
+      "tokens": "+91202"
+    }
+  },
+  "notes": [
+    "iteration-12 の後に依存の扱い（依存先の変更が base に入っているか）を書き換えたので、7854a2dc の版で eval 26 を実行し直した。eval の入力は変えていない。",
+    "without_skill は今回、#107 を外すと #108 も外れることを同じ問いで示し、#108 を blocked にしたので、iteration-12 より 1 つ多い 4/7 だった。--stop-on-blocked では preflight の時点で run を止め、#109 に着手しなかった。"
+  ]
+}
