@@ -9,7 +9,7 @@
 // 使い方は usage を参照。終了コード: 0=成功 / 1=設定の誤り（知らないキー・型の誤り・置けない層・旧い場所） /
 // 2=引数の誤り / 3=値が無い（get で、どの層にも無く、デフォルトも無い）。
 
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import {
   existsSync,
   lstatSync,
@@ -246,7 +246,12 @@ export function loadSchema(schemaDir, name) {
     throw new ConfigError(`${path}: 設定 ${JSON.stringify(name)} のスキーマが無い`);
   }
   /** @type {unknown} */
-  const raw = JSON.parse(readFileSync(path, "utf8"));
+  let raw;
+  try {
+    raw = JSON.parse(readFileSync(path, "utf8"));
+  } catch (e) {
+    throw new ConfigError(`${path}: JSON として読めない（${String(e)}）`);
+  }
   if (!isRecord(raw) || !isRecord(raw.properties)) {
     throw new ConfigError(`${path}: properties を持つオブジェクトでない`);
   }
@@ -489,7 +494,20 @@ export function parseJsonc(text, where) {
  */
 export function readLayer(schema, layer, path) {
   if (!existsSync(path)) return null;
-  return validateLayer(schema, layer, parseJsonc(stripBom(readFileSync(path, "utf8")), path), path);
+  return validateLayer(schema, layer, parseJsonc(stripBom(readText(path)), path), path);
+}
+
+/**
+ * 設定ファイルを読む。ディレクトリや読めないファイルは、スタックトレースで終わらずに ConfigError にする。
+ * @param {string} path
+ * @returns {string}
+ */
+function readText(path) {
+  try {
+    return readFileSync(path, "utf8");
+  } catch (e) {
+    throw new ConfigError(`${path}: 読めない（${e instanceof Error ? e.message : String(e)}）`);
+  }
 }
 
 /**
@@ -740,7 +758,7 @@ export function writeConfig(opts) {
   const path = configPaths(root, opts.name, env)[opts.layer];
   if (opts.layer === "local") requireIgnored(root, path);
   if (opts.layer !== "user") requireInsideRoot(root, path);
-  const raw = existsSync(path) ? readFileSync(path, "utf8") : "";
+  const raw = existsSync(path) ? readText(path) : "";
   // BOM は外して編集し、書くときに戻す（ファイルの他の部分と同じく、書き込みで変えない）
   const bom = raw.startsWith(BOM) ? BOM : "";
   // 中身の無いファイル（touch で作ったものなど）は、ファイルが無いときと同じく {} から書く。
@@ -774,10 +792,12 @@ export function writeConfig(opts) {
     const list = isArray(existing) ? existing : [];
     if (opts.uniqueBy !== undefined) {
       const key = opts.uniqueBy;
-      const want = isRecord(opts.value) ? opts.value[key] : undefined;
-      if (want === undefined) throw new UsageError(`--unique-by ${key}: 足す要素に ${key} が無い`);
-      // 文字列だけの要素は、key の欄だけを書いた要素の短い書き方として扱う（intentional_diffs の "文言" と {"item": "文言"} など）
+      // 文字列だけの要素は、key の欄だけを書いた要素の短い書き方として扱う（intentional_diffs の "文言" と {"item": "文言"} など）。
+      // 足す値が文字列のときも同じに扱う
       const keyOf = (/** @type {unknown} */ x) => (isRecord(x) ? x[key] : x);
+      const want =
+        isRecord(opts.value) || typeof opts.value === "string" ? keyOf(opts.value) : undefined;
+      if (want === undefined) throw new UsageError(`--unique-by ${key}: 足す要素に ${key} が無い`);
       if (list.some((x) => JSON.stringify(keyOf(x)) === JSON.stringify(want))) {
         return unchanged(`${key} が同じ要素が既にある`);
       }
@@ -962,7 +982,13 @@ function requireInsideRoot(root, path) {
   if (lstatSync(path, { throwIfNoEntry: false })?.isSymbolicLink())
     throw new ConfigError(`${path}: シンボリックリンクには書かない（実体のファイルを置く）`);
   let dir = dirname(path);
-  while (!existsSync(dir) && dirname(dir) !== dir) dir = dirname(dir);
+  // 途中のディレクトリも lstat でたどる。existsSync は指す先がまだ無いリンクを「無い」と答え、その上のディレクトリで確かめてしまう
+  while (lstatSync(dir, { throwIfNoEntry: false }) === undefined && dirname(dir) !== dir)
+    dir = dirname(dir);
+  if (!existsSync(dir))
+    throw new ConfigError(
+      `${path}: 置き場所の途中の ${dir} が、指す先の無いシンボリックリンクになっている。書かない`,
+    );
   const real = relative(realpathSync(root), realpathSync(dir));
   if (real.startsWith("..") || isAbsolute(real))
     throw new ConfigError(
@@ -976,17 +1002,21 @@ function requireInsideRoot(root, path) {
  * @param {string} path
  */
 function requireIgnored(root, path) {
-  try {
-    execFileSync("git", ["check-ignore", "-q", "--no-index", relative(root, path)], {
-      cwd: root,
-      stdio: "ignore",
-      timeout: 10_000,
-    });
-  } catch {
+  const r = spawnSync("git", ["check-ignore", "-q", "--no-index", relative(root, path)], {
+    cwd: root,
+    stdio: "ignore",
+    timeout: 10_000,
+  });
+  if (r.status === 0) return;
+  // 1 だけが「gitignore されていない」。git のリポジトリの外（128）や git の起動の失敗を、.gitignore に足せば直るものとして案内しない
+  if (r.status !== 1) {
     throw new ConfigError(
-      `${path} が gitignore されていない。.gitignore に /.config/skills/${NAMESPACE}/*.local.jsonc を足してから書く（references/config-files.md「人ごと・リポジトリ限定の層」）`,
+      `${path}: gitignore されているかを確かめられない（git check-ignore の終了コード ${r.status ?? "なし"}${r.error ? `、${r.error.message}` : ""}）。.local.jsonc は git のリポジトリの中にだけ書く`,
     );
   }
+  throw new ConfigError(
+    `${path} が gitignore されていない。.gitignore に /.config/skills/${NAMESPACE}/*.local.jsonc を足してから書く（references/config-files.md「人ごと・リポジトリ限定の層」）`,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -1062,6 +1092,20 @@ export function main(argv, io) {
     const [cmd, name, ...rest] = pos;
     if (cmd === undefined || name === undefined)
       throw new UsageError("サブコマンドと設定の名前が要る");
+    // サブコマンドに関係しないオプションは、無視せずに止める（set の --unique-by や get の --layer が反映されたと思わせない）
+    /** @type {Record<string, string[]>} */
+    const only = {
+      get: ["--raw", "--cli-value"],
+      set: ["--layer", "--replace"],
+      append: ["--layer", "--unique-by"],
+    };
+    for (const f of Object.keys(flags)) {
+      if (f === "--root" || f === "--schema-dir") continue;
+      if (Object.hasOwn(only, cmd) && !only[cmd].includes(f))
+        throw new UsageError(`${cmd} に ${f} は渡せない`);
+      if (!Object.hasOwn(only, cmd) && Object.values(only).some((l) => l.includes(f)))
+        throw new UsageError(`${cmd} に ${f} は渡せない`);
+    }
     if (!/^[a-z0-9][a-z0-9-]*$/.test(name))
       throw new UsageError(`設定の名前 ${JSON.stringify(name)} が小文字の英数字とハイフンでない`);
     const root = typeof flags["--root"] === "string" ? flags["--root"] : findRoot(io.cwd);
@@ -1131,7 +1175,13 @@ export function main(argv, io) {
       }
       case "paths": {
         expectArgs(0);
-        for (const [l, p] of Object.entries(configPaths(root, name, io.env))) io.out(`${l}=${p}\n`);
+        // 読まない人ごとの層のパスは出さない（そこに書いても読まれず、相対パスならリポジトリの層と取り違える）
+        const ignoreUser = ignoresUserLayer(io.env);
+        for (const [l, p] of Object.entries(configPaths(root, name, io.env))) {
+          if (l === "user" && ignoreUser)
+            io.err(`note: 人ごとの層（${p}）を読まない（${ignoreReason(io.env)}）\n`);
+          else io.out(`${l}=${p}\n`);
+        }
         return 0;
       }
       case "set":

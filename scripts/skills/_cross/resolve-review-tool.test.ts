@@ -249,11 +249,22 @@ for (const script of SCRIPTS) {
   test(`${name}: 設定ファイルがあって Node.js が無ければ、デフォルトとして扱わず exit 2 で止まる`, () => {
     const s = setup();
     s.write("repo", '{ "review_tool": "codex" }');
-    const r = run(script, { cwd: s.root, env: { ...s.env, PATH: pathWithoutNode(s.base) } });
+    const PATH = pathWithoutNode(s.base);
+    const r = run(script, { cwd: s.root, env: { ...s.env, PATH } });
     expect(r.status).toBe(2);
     expect(r.stdout).toBe("");
     expect(r.stderr).toMatch(
       /設定ファイル（.*common\.jsonc）があるのに Node\.js が無いので読めない/,
+    );
+    // --review-tool を渡しても、設定ファイルを検証できないので止まる。案内にも --review-tool を回避策として書かない
+    const cli = run(script, {
+      args: ["--review-tool", "copilot"],
+      cwd: s.root,
+      env: { ...s.env, PATH },
+    });
+    expect(cli.status).toBe(2);
+    expect(cli.stderr).toMatch(
+      /--review-tool を渡しても、設定ファイルを検証するために Node\.js が要る/,
     );
   });
 

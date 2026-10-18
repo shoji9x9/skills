@@ -127,7 +127,6 @@ export function skillsWithConfig(root: string): { withSchema: string[]; withRead
 
 export type Finding = { path: string; message: string };
 
-/** 食い違いを列挙する。fix なら vendor/ を書き直す。 */
 /** root からの相対パス rel の途中（rel 自身を含む）で、最初に見つかったシンボリックリンクの相対パス。無ければ null。 */
 export function symlinkOnPath(root: string, rel: string): string | null {
   const parts = rel.split("/");
@@ -140,6 +139,7 @@ export function symlinkOnPath(root: string, rel: string): string | null {
   return null;
 }
 
+/** 食い違いを列挙する。fix なら vendor/ を書き直す。 */
 export async function check(root: string, fix: boolean): Promise<Finding[]> {
   const { withSchema, withReader } = skillsWithConfig(root);
   if (withSchema.length === 0) throw new Error(`skills/*/${SCHEMA_DIR}/ を持つスキルが 0 件`);

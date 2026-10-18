@@ -132,10 +132,11 @@ const REPO_KEYS = /** @type {const} */ ([
 const USER_KEYS = /** @type {const} */ (["personId", "timeZone", "billing"]);
 
 /**
+ * 設定を読んで解決する。同じ起動の中で何度も読まないよう、呼び出し側は結果を loadRepoConfig と loadUserConfig に渡せる。
  * @param {string} root
  * @param {NodeJS.ProcessEnv} env
  */
-function resolved(root, env) {
+export function resolved(root, env) {
   return loadConfig({ name: CONFIG_NAME, root, env, schemaDir: SCHEMA_DIR });
 }
 
@@ -233,10 +234,11 @@ export function parseRepoConfig(raw, where = CONFIG_NAME) {
  * リポジトリの設定を読む。設定ファイルがどの層にも無ければデフォルト。
  * @param {string} root リポジトリのルート
  * @param {NodeJS.ProcessEnv} [env]
+ * @param {ReturnType<typeof resolved>} [r] 読み込み済みの設定（省くと読む）
  * @returns {RepoConfig}
  */
-export function loadRepoConfig(root, env = process.env) {
-  const { raw, where } = pick(resolved(root, env), REPO_KEYS);
+export function loadRepoConfig(root, env = process.env, r = resolved(root, env)) {
+  const { raw, where } = pick(r, REPO_KEYS);
   return parseRepoConfig(raw, where);
 }
 
@@ -285,10 +287,10 @@ export function hasPerson(env = process.env) {
  * タイムゾーンは、このリポジトリだけの値（.local.jsonc）、人ごとの値、マシンのタイムゾーンの順に決める。
  * @param {string} root
  * @param {NodeJS.ProcessEnv} [env]
+ * @param {ReturnType<typeof resolved>} [r] 読み込み済みの設定（省くと読む）
  * @returns {UserConfig | null}
  */
-export function loadUserConfig(root, env = process.env) {
-  const r = resolved(root, env);
+export function loadUserConfig(root, env = process.env, r = resolved(root, env)) {
   if (typeof r.personId?.value !== "string") return null;
   const { raw, where } = pick(r, USER_KEYS);
   return parseUserConfig(raw, where);
@@ -349,11 +351,12 @@ export function saveUserConfig(root, env, values) {
  * 人ごとの設定を読む。人の ID が無ければ作って人ごとの層に保存し、作ったことを返す。
  * @param {string} root
  * @param {NodeJS.ProcessEnv} [env]
+ * @param {ReturnType<typeof resolved>} [r] 読み込み済みの設定（省くと読む）
  * @returns {{ config: UserConfig; created: boolean; path: string }}
  */
-export function loadOrCreateUserConfig(root, env = process.env) {
+export function loadOrCreateUserConfig(root, env = process.env, r = resolved(root, env)) {
   const path = userConfigPath(env);
-  const existing = loadUserConfig(root, env);
+  const existing = loadUserConfig(root, env, r);
   if (existing !== null) return { config: existing, created: false, path };
   // タイムゾーンも書いておく（後でマシンのタイムゾーンが変わっても、記録の日付の区切りを変えない）
   saveUserConfig(root, env, { personId: newPersonId(), timeZone: systemTimeZone() });

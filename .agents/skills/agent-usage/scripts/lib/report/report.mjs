@@ -12,7 +12,7 @@
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { loadRepoConfig, loadUserConfig } from "../config.mjs";
+import { loadRepoConfig, loadUserConfig, resolved } from "../config.mjs";
 import { toCsv } from "../csv.mjs";
 import { RUN_BINS, STATUSES, STOP_CATEGORIES } from "./categories.mjs";
 import {
@@ -739,9 +739,10 @@ export function runReport(o) {
   if (o.since && o.until && o.since > o.until)
     throw new Error("--since が --until より後になっている");
   const dir = usageDir(o.root);
-  const config = loadRepoConfig(o.root, o.env);
+  const resolvedConfig = resolved(o.root, o.env);
+  const config = loadRepoConfig(o.root, o.env, resolvedConfig);
   // report は人の設定を読むだけで作らない（作ると、setup を通らずに乱数の ID ができる）
-  const tz = loadUserConfig(o.root, o.env)?.timeZone ?? systemTimeZone();
+  const tz = loadUserConfig(o.root, o.env, resolvedConfig)?.timeZone ?? systemTimeZone();
   const { rows, files } = readRecords(join(dir, "records"));
   if (files === 0) throw new Error(`${join(dir, "records")} に記録が無い。先に collect を実行する`);
   const data = buildReport(rows, {

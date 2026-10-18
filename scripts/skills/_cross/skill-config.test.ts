@@ -18,6 +18,7 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
+  rmSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -497,6 +498,14 @@ describe.each(COPIES)("%s", (copy) => {
       expect(() => m.loadSchema(s.schemaDir, "t")).toThrow(want);
     });
 
+    test("JSON として読めないスキーマは、SyntaxError ではなくスキーマの誤りにする", async () => {
+      const m = await load();
+      const s = setup();
+      writeFileSync(join(s.schemaDir, "t.schema.json"), "{ properties");
+      expect(() => m.loadSchema(s.schemaDir, "t")).toThrow(m.ConfigError);
+      expect(() => m.loadSchema(s.schemaDir, "t")).toThrow(/t\.schema\.json: JSON として読めない/);
+    });
+
     test("スキーマが無い名前はエラーにする", async () => {
       const m = await load();
       const s = setup();
@@ -727,6 +736,27 @@ describe.each(COPIES)("%s", (copy) => {
       expect(existsSync(target)).toBe(false);
     });
 
+    test("途中のディレクトリが指す先の無いシンボリックリンクなら、その上のディレクトリで確かめずに止める", async () => {
+      const s = setup();
+      const target = join(s.base, "outside-missing-dir");
+      mkdirSync(dirname(dirname(s.paths.repo)), { recursive: true });
+      symlinkSync(target, dirname(s.paths.repo));
+      await expect(w(s, {})).rejects.toThrow(
+        /指す先の無いシンボリックリンクになっている。書かない/,
+      );
+      expect(existsSync(target)).toBe(false);
+    });
+
+    test("層のパスがディレクトリなら、スタックトレースで終わらずに読めないとして止める", async () => {
+      const m = await load();
+      const s = setup();
+      mkdirSync(s.paths.repo, { recursive: true });
+      expect(() =>
+        m.loadConfig({ name: "t", root: s.root, env: s.env, schemaDir: s.schemaDir }),
+      ).toThrow(m.ConfigError);
+      await expect(w(s, {})).rejects.toThrow(/t\.jsonc: 読めない/);
+    });
+
     test("コメントと末尾のカンマと既にあるキーを残したまま、無いキーを足す", async () => {
       const s = setup();
       s.write("repo", '{\n  // 方針\n  "tool": "a", // 行末\n}\n');
@@ -909,6 +939,14 @@ describe.each(COPIES)("%s", (copy) => {
       ).toMatchObject({ changed: false });
     });
 
+    test("append の --unique-by は、足す値が文字列でも、その欄だけを書いた要素と同じに扱う", async () => {
+      const s = setup();
+      s.write("repo", '{ "list": [{ "id": "a" }] }');
+      expect(
+        await w(s, { keyPath: ["list"], value: "a", mode: "append", uniqueBy: "id" }),
+      ).toMatchObject({ changed: false, reason: "id が同じ要素が既にある" });
+    });
+
     test("append の先が配列でなければエラー", async () => {
       const s = setup();
       s.write("repo", '{ "map": { "k": 1 } }');
@@ -948,6 +986,20 @@ describe.each(COPIES)("%s", (copy) => {
       s.ignoreLocal();
       await w(s, { layer: "local", keyPath: ["tool"], value: "b" });
       expect(JSON.parse(readFileSync(s.paths.local, "utf8"))).toEqual({ tool: "b" });
+    });
+
+    test("git のリポジトリの外では、local の層に書かず、.gitignore に足す案内もしない", async () => {
+      const s = setup();
+      rmSync(join(s.root, ".git"), { recursive: true, force: true });
+      s.ignoreLocal();
+      const e = await w(s, { layer: "local", keyPath: ["tool"], value: "b" }).catch(
+        (x: unknown) => x,
+      );
+      expect(String(e)).toMatch(
+        /gitignore されているかを確かめられない（git check-ignore の終了コード 128/,
+      );
+      expect(String(e)).not.toMatch(/を足してから書く/);
+      expect(existsSync(s.paths.local)).toBe(false);
     });
 
     test("user の層には人ごとの置き場所に書く", async () => {
@@ -1108,6 +1160,17 @@ describe.each(COPIES)("%s", (copy) => {
         out: `ok: t の設定はスキーマに合う（repo=${s.paths.repo}）\n`,
       });
       expect(ignored.err).toMatch(/人ごとの層（.*）を読まない/);
+      // 人ごとの層を読まないときは、paths も人ごとの層のパスを出さず、読まないことを stderr に出す
+      const ignoredPaths = await cli(
+        ["paths", "t", ...args],
+        { ...s.env, SHOJI9X9_SKILLS_IGNORE_USER_CONFIG: "1" },
+        s.root,
+      );
+      expect(ignoredPaths).toMatchObject({
+        code: 0,
+        out: `local=${s.paths.local}\nrepo=${s.paths.repo}\n`,
+      });
+      expect(ignoredPaths.err).toMatch(/note: 人ごとの層（.*）を読まない/);
       expect(await cli(["paths", "t", ...args], s.env, s.root)).toMatchObject({
         code: 0,
         out: `local=${s.paths.local}\nuser=${s.paths.user}\nrepo=${s.paths.repo}\n`,
@@ -1188,6 +1251,13 @@ describe.each(COPIES)("%s", (copy) => {
       ["set の値が JSON でない", ["set", "t", "k", "x", "--layer", "repo"]],
       ["値を持つオプションを 2 回", ["set", "t", "k", "1", "--layer", "local", "--layer", "repo"]],
       ["値を持たないオプションを 2 回", ["get", "t", "k", "--raw", "--raw"]],
+      [
+        "set に関係しないオプション",
+        ["set", "t", "k", "1", "--layer", "repo", "--unique-by", "id"],
+      ],
+      ["append に関係しないオプション", ["append", "t", "k", "1", "--layer", "repo", "--replace"]],
+      ["get に関係しないオプション", ["get", "t", "k", "--layer", "repo"]],
+      ["dump に関係しないオプション", ["dump", "t", "--raw"]],
     ];
     test.each(usage)("%s は exit 2 で usage を出す", async (_name, argv) => {
       const s = setup();
@@ -1195,6 +1265,7 @@ describe.each(COPIES)("%s", (copy) => {
       expect(r.code).toBe(2);
       expect(r.err).toMatch(/^error: [\s\S]*usage:/);
       if (_name.endsWith("2 回")) expect(r.err).toMatch(/を 2 回渡している/);
+      if (_name.endsWith("関係しないオプション")) expect(r.err).toMatch(/に --[a-z-]+ は渡せない/);
     });
 
     test("--help は usage を出して exit 0", async () => {

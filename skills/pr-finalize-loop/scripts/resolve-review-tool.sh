@@ -153,8 +153,9 @@ if [ -z "${present}" ]; then
 	exit 0
 fi
 
+# --review-tool を渡したときも止める。設定ファイルの誤り（知らないキー・置けない層）を、CLI の値で隠さないため
 if ! command -v node >/dev/null 2>&1; then
-	echo "error: 設定ファイル（${present# }）があるのに Node.js が無いので読めない。Node.js を入れるか、--review-tool で渡す" >&2
+	echo "error: 設定ファイル（${present# }）があるのに Node.js が無いので読めない。Node.js を入れる（--review-tool を渡しても、設定ファイルを検証するために Node.js が要る）" >&2
 	exit 2
 fi
 
