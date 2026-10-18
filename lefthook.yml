@@ -186,7 +186,7 @@ pre-commit:
             run: node scripts/gates/packaging/copies/check-skills-sync.ts
           - name: skill-config-vendor
             # 配布スキルに同梱する jsonc-parser が devDependency の版から作った内容と一致するか。版を上げた commit でも確かめる。
-            glob: "{skills/*/config-schemas/*,skills/*/scripts/skill-config/**,package.json,pnpm-lock.yaml}"
+            glob: "{skills/*/config-schemas/*,skills/*/scripts/skill-config/**,skills/*/references/config-files.md,scripts/gates/packaging/copies/identical-copies.json,package.json,pnpm-lock.yaml}"
             run: node scripts/gates/packaging/check-skill-config-vendor.ts
           - name: skill-configs
             # このリポジトリのスキルの設定（.config/skills/shoji9x9/*.jsonc）が、各スキルのスキーマに合うか。

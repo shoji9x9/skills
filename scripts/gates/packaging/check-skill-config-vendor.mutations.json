@@ -1,0 +1,40 @@
+{
+  "$comment": [
+    "check-skill-config-vendor.test.ts の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。"
+  ],
+  "test_file": "scripts/gates/packaging/check-skill-config-vendor.test.ts",
+  "mutations": [
+    {
+      "id": "group-membership-unchecked",
+      "why": "組に載っていないコピーを挙げない",
+      "file": "scripts/gates/packaging/check-skill-config-vendor.ts",
+      "find": "  if (paths.length < 2) return [];\n",
+      "replace": "  if (paths.length > 0) return [];\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "check 複数のスキルが持つ読み取り・config-files.md・同じ名前のスキーマが 1 つの組に載っていなければ、載っていないパスを挙げる"
+      ]
+    },
+    {
+      "id": "group-best-ignored",
+      "why": "一番多く載っている組ではなく、どれか 1 つの組に載っていれば足りるとする",
+      "file": "scripts/gates/packaging/check-skill-config-vendor.ts",
+      "find": "    .filter((p) => !inGroup.includes(p))\n",
+      "replace": "    .filter((p) => !groups.some((files) => files.includes(p)))\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "check 複数のスキルが持つ読み取り・config-files.md・同じ名前のスキーマが 1 つの組に載っていなければ、載っていないパスを挙げる"
+      ]
+    },
+    {
+      "id": "shared-doc-unchecked",
+      "why": "config-files.md が無いスキルを挙げない",
+      "file": "scripts/gates/packaging/check-skill-config-vendor.ts",
+      "find": "    if (!existsSync(join(root, doc))) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["check スキーマを持つスキルの、読み取りと vendor/ の欠けをすべて挙げる"]
+    }
+  ]
+}

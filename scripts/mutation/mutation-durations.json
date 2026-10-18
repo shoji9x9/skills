@@ -17,6 +17,7 @@
     "scripts/gates/docs/check-kaizen-refs.mutations.json": 1.6,
     "scripts/gates/layout/check-dir-file-count.mutations.json": 1.0,
     "scripts/gates/packaging/check-skill-checks.mutations.json": 0.8,
+    "scripts/gates/packaging/check-skill-config-vendor.mutations.json": 3.3,
     "scripts/gates/packaging/check-skill-index.mutations.json": 0.7,
     "scripts/gates/prose/check-time-sensitive-prose.mutations.json": 0.8,
     "scripts/gates/prose/check-word-list.mutations.json": 0.5,
