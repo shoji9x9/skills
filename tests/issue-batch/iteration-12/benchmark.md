@@ -22,7 +22,7 @@ preflight で `BLOCKED` にした Issue は処理せず、残りの Issue は `c
 
 iteration-11 の eval 25 の with_skill は 7/8 で、「外した Issue は branch と worktree を作らない」に触れなかった。
 この iteration では同じ prompt・fixture・executor・model で 8/8 になり、その assertion も満たした。
-書き換え後の版で落ちていないので、7/8 は版の違いではなく 1 run のばらつきとして扱う。1 run ずつなので、分散は測っていない。
+書き換え後の版で下がっていないので、後退は無い。旧版をもう一度同じ条件で実行していないので、差が版の違いか 1 run のばらつきかは区別していない。1 run ずつなので、分散も測っていない。
 
 ## 備考
 

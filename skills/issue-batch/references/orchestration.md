@@ -47,27 +47,27 @@ branch や設定を変更する前に、すべての Issue について次を済
 5. 各 Issue の担当者を読む（`gh issue view <番号> --json assignees`。手順は `issue-start` の `references/assignee.md` で定義する）。
    自分以外が付いている Issue は、何かを変更する前に BLOCKED にして、担当者の login を残す。ここでは読むだけで、割り当てない（割り当ては着手の直前に行う）。
    担当者を判定できない Issue（自分の login や担当者を取得できない）も、同じく BLOCKED にして理由を残す。
-6. Issue の本文とコメントにある linked Issue と blocking relationship を確かめ、Issue の間の依存を決める。
+6. Issue の本文とコメントにある linked Issue・linked PR と blocking relationship を確かめ、依存を決める。
    Issue X の変更が Issue Y の変更を前提にするとき、X は Y に依存する（Y を依存先、X を依存元と呼ぶ）。片方向の依存も依存として扱う。
+   Issue に紐づかない PR（「別の PR の merge の後に着手」と書かれたものなど）が前提なら、その PR も依存先として扱う。
    依存は推移的にたどる。C が B に、B が A に依存するなら、C も A に依存する。
-   - 依存先が run の外にあり、その変更がまだ base に入っていなければ、run を始める前に全体を停止する。
-   - 依存先が同じ run の中にあり、その変更がまだ base に入っていなければ、入力の順で依存先が依存元より前にあることを確かめる。
+   依存先の変更がすでに base に入っていれば、その依存は満たされている。依存先の状態や入力の順に関わらず、依存元を進める。
+   - 変更が base に入っていない依存先が run の外にあれば、run を始める前に全体を停止する。
+   - 変更が base に入っていない依存先が同じ run の中にあれば、入力の順で依存先が依存元より前にあることを確かめる。
      後ろにあるときや、依存が循環しているときは、run を始める前に全体を停止し、入力の順を直すよう案内する。入力の順を無人で並べ替えない。
-   - 依存元に着手するのは、run の中の依存先のそれぞれが、`MERGED` かその後の状態に進んだか、解決済み（「issue-start への handoff」の 3）で `SKIPPED` になった後だけである。
-     依存先の 1 つは `MERGED`、別の 1 つは解決済みの `SKIPPED` という組み合わせでも、着手してよい。
-     merge の後に依存先が止まっても（deployment の失敗など）、依存元の前提はもう base にあるので、依存元はそのまま進める。
-   - 依存先が merge の前に止まったら、依存元には着手せず、次の表のとおりにする。依存元の PR がすでに `MERGED` なら、表を当てずに残りの作業を進める。
+   - 依存元に着手するのは、すべての依存先の変更が base に入った後だけである。merge の後に依存先が止まっても（deployment の失敗など）、依存元はそのまま進める。
+   - 依存先が、変更を base に入れないまま止まったら、依存元には着手せず、次の表のとおりにする。依存元の PR がすでに `MERGED` なら、表を当てずに残りの作業を進める。
      依存先が複数あり、1 つでも利用者が外した依存先があれば 1 行目を、無ければ 2 行目を当てる。
      C が B に、B が A に依存するとき、A が止まったら B と C の両方にこの表を当てる。
 
    | 依存先の状態 | 依存元が未着手 | 依存元が再開する Issue |
    | --- | --- | --- |
    | 10 の確認で利用者が外した（`EXCLUDED`） | `EXCLUDED`。対象から外した理由に依存先の番号を書く | `BLOCKED`。作った branch と PR を残す |
-   | `BLOCKED`（10 の判断が決まらなかった場合と、run の途中の場合を含む）・`FAILED`・解決済み以外の `SKIPPED` | `BLOCKED` | `BLOCKED`。作った branch と PR を残す |
+   | `BLOCKED`（10 の判断が決まらなかった場合と、run の途中の場合を含む）・`FAILED`・`SKIPPED` | `BLOCKED` | `BLOCKED`。作った branch と PR を残す |
 
    依存先のために `BLOCKED` にした依存元は、最終報告の停止の理由に依存先の番号と状態を書き、branch・PR の列に残したものを書く。
    依存先が判断待ちの `BLOCKED` なら、依存元に新しい判断待ちを作らない。依存先の判断待ちが決まれば、依存元も進められるからである。
-   この表は、`continue_on_blocked` の値に関わらず当てる。
+   run を続ける間は、この表を `continue_on_blocked` の値に関わらず当てる。
    依存元を外したときや、依存元の判断が決まらなかったときは、依存先の前提は変わらないので、依存先はそのまま進める。
 7. browser-test が要る可能性がある場合は、先に環境を決める。
    `auth: user`、設定されていない環境、ログインの待ち、禁止した操作の解除、課金・通知・データの作成や変更や削除の承認が要るなら、BLOCKED にする。
@@ -142,7 +142,7 @@ branch や設定を変更する前に、すべての Issue について次を済
     run を始めた後は、ここで挙げなかった判断も利用者に確認しない（「判断の扱い」）。
 
 preflight で `BLOCKED`・`SKIPPED`・`EXCLUDED` にした Issue は処理しない。残りの Issue は、`continue_on_blocked` の値に関わらず進める。
-`continue_on_blocked` を使うのは、run の途中で Issue が `BLOCKED` になったときだけである（「判断の扱い」）。
+`continue_on_blocked` を使うのは、run の途中で Issue が `BLOCKED` か `FAILED` になったときだけである（「判断の扱い」）。
 
 ## 判断の扱い
 
@@ -152,8 +152,8 @@ run を始めた後（全体 preflight を終え、manifest の作成などの�
 `pr-finalize-loop` の人の判断が要る指摘は、`--defer-decisions` を渡して判断待ちとして受け取る（「pr-finalize-loop への handoff」）。
 
 - 途中で利用者の判断が要る状態になったら、確認を送る代わりに、その Issue を BLOCKED（判断待ち）にして manifest に記録する。
-  そのうえで、`continue_on_blocked` に従う。true なら次の Issue に進み、false なら残りの Issue に着手せずに run を止めて最終報告を出す。
-  その Issue の依存元は、「全体 preflight」の 6 の表のとおりに扱う。
+  そのうえで、`continue_on_blocked` に従う。true なら次の Issue に進み、その Issue の依存元は「全体 preflight」の 6 の表のとおりに扱う。
+  false なら残りの Issue に着手せずに run を止めて、最終報告を出す。着手しなかった Issue（依存元を含む）は `PENDING` のまま表に載せ、停止の理由に止めた Issue の番号を書く。
   記録するのは、一意な `id`・論点・選択肢・それぞれの根拠と影響・推奨・決まった後に残る作業である（`id` は受け入れ条件の表の `decision_ref` が指す）。利用者が最終報告だけを読んで決められるようにする。
 - 1 つの変更から生じる判断は、1 つの判断待ちにまとめる。
   受け入れ条件を外す承認と似た Issue の見直しは、`issue-start` の `references/acceptance.md` の手順 3 のとおり、1 つの判断待ちに載せる。
