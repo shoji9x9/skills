@@ -11,7 +11,7 @@
 
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
-import { homedir, userInfo } from "node:os";
+import { userInfo } from "node:os";
 import { dirname, isAbsolute, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as jsonc from "./vendor/jsonc-parser.mjs";
@@ -89,14 +89,9 @@ function isStringArray(v) {
 export function userConfigHome(env) {
   const xdg = env.XDG_CONFIG_HOME;
   if (xdg && isAbsolute(xdg)) return xdg;
-  // HOME が空のとき、os.homedir() も空を返すので、ユーザーのデータベースのホームを使う（同梱のシェルも同じにする）
-  const home = env.HOME || homedir() || databaseHome();
-  if (!isAbsolute(home)) {
-    throw new ConfigError(
-      `人ごとの設定の置き場所を決められない（HOME: ${JSON.stringify(home)}）。HOME か XDG_CONFIG_HOME を絶対パスで渡す`,
-    );
-  }
-  return join(home, ".config");
+  // HOME が無いか空なら、ユーザーのデータベースのホームを使う。os.homedir() は渡した env ではなくプロセスの HOME を読むので使わない。
+  // 同梱のシェルも同じ規則で決める（HOME を外したサブシェルで ~ を展開する）。どちらでも決まらなければ、cwd からの相対パスになる
+  return join(env.HOME || databaseHome(), ".config");
 }
 
 /**

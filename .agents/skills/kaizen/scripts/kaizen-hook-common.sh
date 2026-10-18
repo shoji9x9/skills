@@ -343,20 +343,15 @@ kaizen_config_files() {
 	case "${user_home}" in
 	/*) ;;
 	*)
-		# HOME が無いか空なら、読み取り（Node の os.homedir()）と同じく、ユーザーのデータベースのホームを使う
+		# HOME が無いか空なら、読み取りと同じく、ユーザーのデータベースのホームを使う
 		home_dir="${HOME:-}"
 		[ -n "${home_dir}" ] || home_dir=$(
 			unset HOME
 			printf '%s' ~
 		)
-		# ユーザーのデータベースにエントリが無いと ~ が展開されずに残る。読み取りと同じく、絶対パスでなければ止める
-		case "${home_dir}" in
-		/*) ;;
-		*)
-			return 1
-			;;
-		esac
-		user_home="${home_dir}/.config"
+		# ユーザーのデータベースにエントリが無いと ~ が展開されずに残るので、空として扱う（読み取りと同じく、cwd からの相対パスになる）
+		[ "${home_dir}" != "~" ] || home_dir=""
+		user_home="${home_dir:+${home_dir}/}.config"
 		;;
 	esac
 	user_file="${user_home}/skills/shoji9x9/kaizen.jsonc"
@@ -401,10 +396,7 @@ kaizen_config_load() {
 		kaizen_config_fail "環境変数 SHOJI9X9_SKILLS_IGNORE_USER_CONFIG は 1 だけを受け付ける（$(printf '%q' "${SHOJI9X9_SKILLS_IGNORE_USER_CONFIG}")）。人ごとの層を読むなら変数を消す"
 		return 1
 	fi
-	if ! files=$(kaizen_config_files); then
-		kaizen_config_fail "人ごとの設定の置き場所を決められない（HOME: ${HOME:-空}）。HOME か XDG_CONFIG_HOME を絶対パスで渡す"
-		return 1
-	fi
+	files=$(kaizen_config_files)
 	if [ -z "${files}" ] && [ -z "${KAIZEN_SCHEDULE_MODE:-}${KAIZEN_SCHEDULE_AGENT:-}${KAIZEN_SCHEDULE_MODEL:-}${KAIZEN_SCHEDULE_EFFORT:-}" ]; then
 		while IFS= read -r line; do
 			kaizen_config_set "${line%%=*}" "${line#*=}" default

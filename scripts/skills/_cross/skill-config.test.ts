@@ -14,7 +14,7 @@
 // | CLI | サブコマンドごとの正常系 / 引数の数 / 知らないオプション・サブコマンド / 値の無いオプション / 不正な名前 / JSON でない値 |
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { homedir, userInfo } from "node:os";
+import { userInfo } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { describe, expect, test } from "vitest";
@@ -132,12 +132,18 @@ describe.each(COPIES)("%s", (copy) => {
       expect(m.userConfigHome({ XDG_CONFIG_HOME: "", HOME: "/h" })).toBe("/h/.config");
       expect(m.userConfigHome({ XDG_CONFIG_HOME: "rel", HOME: "/h" })).toBe("/h/.config");
       expect(m.userConfigHome({ HOME: "/h" })).toBe("/h/.config");
-      // HOME が空なら、os.homedir() も空を返しうるので、ユーザーのデータベースのホームを使う
-      expect(m.userConfigHome({ HOME: "" })).toBe(join(homedir() || userInfo().homedir, ".config"));
-      // 絶対パスにならない HOME では、置き場所を決められないので止める
-      expect(() => m.userConfigHome({ HOME: "rel" })).toThrow(
-        /人ごとの設定の置き場所を決められない/,
-      );
+      // HOME が無いか空なら、ユーザーのデータベースのホームを使う（同梱のシェルと同じ規則）
+      // プロセスの HOME を別の値にして、os.homedir()（プロセスの HOME を読む）を使う実装と区別する
+      const processHome = process.env.HOME;
+      process.env.HOME = "/process-home";
+      try {
+        expect(m.userConfigHome({ HOME: "" })).toBe(join(userInfo().homedir, ".config"));
+        expect(m.userConfigHome({})).toBe(join(userInfo().homedir, ".config"));
+      } finally {
+        process.env.HOME = processHome;
+      }
+      // 絶対パスでない HOME でも止めない（人ごとの層を使わない呼び出しまで止めないため）
+      expect(m.userConfigHome({ HOME: "rel" })).toBe(join("rel", ".config"));
       expect(m.configPaths("/r", "t", { XDG_CONFIG_HOME: "/x" })).toEqual({
         local: "/r/.config/skills/shoji9x9/t.local.jsonc",
         user: "/x/skills/shoji9x9/t.jsonc",

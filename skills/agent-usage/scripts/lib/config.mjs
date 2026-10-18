@@ -163,15 +163,21 @@ function pick(r, keys) {
  * @param {Record<string, unknown>} obj
  * @param {readonly string[]} allowed
  * @param {string} where
+ * @param {string} [layer] 置き場所の名前（人ごと など）。渡すと、スキーマにはあるが allowed に無いキーを、その層に置けないキーとして示す
  */
-function validateKeys(obj, allowed, where) {
+function validateKeys(obj, allowed, where, layer) {
   const schema = loadSchema(SCHEMA_DIR, CONFIG_NAME);
   /** @type {string[]} */
   const errors = [];
   for (const [k, v] of Object.entries(obj)) {
-    const prop = allowed.includes(k) ? schema.properties[k] : undefined;
-    if (prop === undefined) errors.push(`${where}: 知らないキー ${JSON.stringify(k)}`);
-    else errors.push(...validateValue(v, prop.schema, `${where}: ${k}`));
+    const known = Object.hasOwn(schema.properties, k) ? schema.properties[k] : undefined;
+    if (known !== undefined && allowed.includes(k))
+      errors.push(...validateValue(v, known.schema, `${where}: ${k}`));
+    else if (known !== undefined && layer !== undefined)
+      errors.push(
+        `${where}: ${k} は${layer}の層に置けない（置ける層: ${known.layers.join("・")}）`,
+      );
+    else errors.push(`${where}: 知らないキー ${JSON.stringify(k)}`);
   }
   if (errors.length > 0) throw new ConfigError(errors.join("\n"));
 }
@@ -311,17 +317,15 @@ export function saveUserConfig(root, env, values) {
   // キーごとに書くので、後のキーの誤りで止まると、前のキーだけを書いた設定が残る。
   // 書く前に、すべてのキーが人ごとの層に置けることと、値がスキーマに合うことを確かめる
   const schema = loadSchema(SCHEMA_DIR, CONFIG_NAME);
-  /** @type {string[]} */
-  const errors = [];
-  for (const [key, value] of Object.entries(values)) {
-    if (value === undefined) continue;
-    const prop = Object.hasOwn(schema.properties, key) ? schema.properties[key] : undefined;
-    if (prop === undefined) errors.push(`${path}: 知らないキー ${JSON.stringify(key)}`);
-    else if (!prop.layers.includes("user"))
-      errors.push(`${path}: ${key} は人ごとの層に置けない（置ける層: ${prop.layers.join("・")}）`);
-    else errors.push(...validateValue(value, prop.schema, `${path}: ${key}`));
-  }
-  if (errors.length > 0) throw new ConfigError(errors.join("\n"));
+  const userKeys = Object.keys(schema.properties).filter((k) =>
+    schema.properties[k].layers.includes("user"),
+  );
+  validateKeys(
+    Object.fromEntries(Object.entries(values).filter(([, v]) => v !== undefined)),
+    userKeys,
+    path,
+    "人ごと",
+  );
   for (const [key, value] of Object.entries(values)) {
     if (value === undefined) continue;
     path = writeConfig({

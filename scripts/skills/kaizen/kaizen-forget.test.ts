@@ -390,13 +390,15 @@ test("SHOJI9X9_SKILLS_IGNORE_USER_CONFIG は読み取りと同じく 1 だけを
   }
 });
 
-test("絶対パスにならない HOME では、人ごとの設定の置き場所を決められないので、忘却せずに止める", () => {
+test("HOME が空でも相対パスでも、設定ファイルが無ければ node なしでデフォルトの値で動く", () => {
   const dir = makeProject(CANDIDATES);
   try {
-    const { status, stderr } = run(dir, ["--auto"], { HOME: "rel", XDG_CONFIG_HOME: "" });
-    expect(status).toBe(1);
-    expect(stderr).toContain("人ごとの設定の置き場所を決められない");
-    expect(statusOf(dir, "old-low")).toBe("pending");
+    const noNode = { PATH: pathWithout(dir, ["node"], kaizenEnv(dir).PATH ?? "") };
+    for (const HOME of ["", "rel"]) {
+      const r = run(dir, ["--list"], { ...noNode, HOME, XDG_CONFIG_HOME: "" });
+      expect(r.status, r.stderr).toBe(0);
+      expect(r.stdout).toContain(".kaizen/old-low.md");
+    }
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

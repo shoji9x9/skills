@@ -21,21 +21,15 @@ xdg="${XDG_CONFIG_HOME:-}"
 case "${xdg}" in
 /*) ;;
 *)
-	# HOME が無いか空なら、読み取り（Node の os.homedir()）と同じく、ユーザーのデータベースのホームを使う
+	# HOME が無いか空なら、読み取りと同じく、ユーザーのデータベースのホームを使う
 	home_dir="${HOME:-}"
 	[ -n "${home_dir}" ] || home_dir=$(
 		unset HOME
 		printf '%s' ~
 	)
-	# ユーザーのデータベースにエントリが無いと ~ が展開されずに残る。読み取りと同じく、絶対パスでなければ止める
-	case "${home_dir}" in
-	/*) ;;
-	*)
-		echo "box-folder: 人ごとの設定の置き場所を決められない（HOME: ${home_dir:-空}）。HOME か XDG_CONFIG_HOME を絶対パスで渡す" >&2
-		exit 1
-		;;
-	esac
-	xdg="${home_dir}/.config"
+	# ユーザーのデータベースにエントリが無いと ~ が展開されずに残るので、空として扱う（読み取りと同じく、cwd からの相対パスになる）
+	[ "${home_dir}" != "~" ] || home_dir=""
+	xdg="${home_dir:+${home_dir}/}.config"
 	;;
 esac
 
