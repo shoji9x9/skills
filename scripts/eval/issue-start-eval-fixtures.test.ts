@@ -4,6 +4,7 @@ import { join, resolve } from "node:path";
 import { afterEach, expect, test } from "vitest";
 import { parseJsonAs } from "../lib/parse-as.ts";
 import { makeTempDir } from "../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../lib/testing/child-timeout.ts";
 
 const repository = resolve(import.meta.dirname, "..", "..");
 const fixturesRoot = join(repository, "evals", "issue-start", "fixtures");
@@ -19,13 +20,25 @@ function prepareFixture(name: string) {
   const directory = makeTempDir(`issue-start-${name}-`);
   temporaryDirectories.push(directory);
   cpSync(join(fixturesRoot, name), directory, { recursive: true });
-  execFileSync(join(directory, "setup.sh"), { cwd: directory, stdio: "pipe" });
-  execFileSync(join(directory, "setup.sh"), { cwd: directory, stdio: "pipe" });
+  execFileSync(join(directory, "setup.sh"), {
+    timeout: CHILD_TIMEOUT_MS,
+    cwd: directory,
+    stdio: "pipe",
+  });
+  execFileSync(join(directory, "setup.sh"), {
+    timeout: CHILD_TIMEOUT_MS,
+    cwd: directory,
+    stdio: "pipe",
+  });
   return directory;
 }
 
 function git(directory: string, ...args: string[]) {
-  return execFileSync("git", args, { cwd: directory, encoding: "utf8" }).trim();
+  return execFileSync("git", args, {
+    timeout: CHILD_TIMEOUT_MS,
+    cwd: directory,
+    encoding: "utf8",
+  }).trim();
 }
 
 test("behind fixture separates default main from one-commit-ahead PR base develop", () => {
@@ -50,13 +63,17 @@ test("current fixture puts PR base develop fully behind feature HEAD", () => {
 test("fetch-failure fixture has no usable remote PR base and fetch fails", () => {
   const directory = prepareFixture("pr-base-fetch-failure");
   const fetchResult = spawnSync("git", ["fetch", "origin", "develop"], {
+    timeout: CHILD_TIMEOUT_MS,
     cwd: directory,
     encoding: "utf8",
   });
 
   expect(fetchResult.status).not.toBe(0);
   expect(
-    spawnSync("git", ["rev-parse", "--verify", "origin/develop"], { cwd: directory }).status,
+    spawnSync("git", ["rev-parse", "--verify", "origin/develop"], {
+      timeout: CHILD_TIMEOUT_MS,
+      cwd: directory,
+    }).status,
   ).not.toBe(0);
 });
 

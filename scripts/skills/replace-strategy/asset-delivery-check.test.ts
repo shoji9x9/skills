@@ -8,7 +8,7 @@
 // 通さねばならない入力と落とす入力を、同じ数だけ置く。
 
 import { assert, expect, test, vi } from "vitest";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createServer } from "node:http";
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -17,6 +17,7 @@ import type { Fetcher } from "../../../skills/replace-strategy/scripts/asset-del
 import { parseJsonAs } from "../../lib/parse-as.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import * as checkModule from "../../../skills/replace-strategy/scripts/asset-delivery-check.mjs";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "skills/replace-strategy/scripts/asset-delivery-check.mjs");
@@ -943,28 +944,26 @@ test("CLI: node で起動し、ローカルの HTTP 配信物を実際に取得�
       );
       // spawnSync はイベントループを止めるので、同じプロセスのサーバーは応答できない。そのため非同期で起動する。
       return new Promise<{ status: number | null; stdout: string }>((resolveRun) => {
-        import("node:child_process").then(({ spawn }) => {
-          const child = spawn(
-            process.execPath,
-            [
-              script,
-              "--assets",
-              join(dir, "assets.md"),
-              "--record",
-              join(dir, "record.json"),
-              "--current-base",
-              base,
-              "--new-base",
-              base,
-              "--probe",
-              join(dir, "probe.json"),
-            ],
-            { stdio: ["ignore", "pipe", "pipe"] },
-          );
-          let stdout = "";
-          child.stdout.on("data", (d) => (stdout += d));
-          child.on("close", (status) => resolveRun({ status, stdout }));
-        });
+        const child = spawn(
+          process.execPath,
+          [
+            script,
+            "--assets",
+            join(dir, "assets.md"),
+            "--record",
+            join(dir, "record.json"),
+            "--current-base",
+            base,
+            "--new-base",
+            base,
+            "--probe",
+            join(dir, "probe.json"),
+          ],
+          { timeout: CHILD_TIMEOUT_MS, stdio: ["ignore", "pipe", "pipe"] },
+        );
+        let stdout = "";
+        child.stdout.on("data", (d) => (stdout += d));
+        child.on("close", (status) => resolveRun({ status, stdout }));
       });
     };
     const good = await runCli("/new/favicon.ico");
@@ -980,6 +979,7 @@ test("CLI: node で起動し、ローカルの HTTP 配信物を実際に取得�
 
 test("CLI: 引数が無ければ exit 2 と使い方を出す", () => {
   const r = spawnSync(process.execPath, [script], {
+    timeout: CHILD_TIMEOUT_MS,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });

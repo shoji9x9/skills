@@ -30,6 +30,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { coverageEnv } from "../../lib/testing/coverage-env.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const SCRIPT = join(repoRoot, "skills/pr-finalize-loop/scripts/local-review-record.sh");
@@ -38,7 +39,7 @@ const SCRIPT = join(repoRoot, "skills/pr-finalize-loop/scripts/local-review-reco
 const JQ = spawnSync("bash", ["-c", "mise which jq 2>/dev/null || command -v jq"], {
   cwd: repoRoot,
   encoding: "utf8",
-  timeout: 30_000,
+  timeout: CHILD_TIMEOUT_MS,
 }).stdout.trim();
 
 const FAKE_GH = `#!/usr/bin/env bash
@@ -127,7 +128,7 @@ function run(dir: string, args: string[]) {
   const r = spawnSync("bash", [SCRIPT, ...args], {
     encoding: "utf8",
     cwd: dir,
-    timeout: 30_000,
+    timeout: CHILD_TIMEOUT_MS,
     env: {
       PATH: `${join(dir, "bin")}:${process.env.PATH}`,
       HOME: dir,

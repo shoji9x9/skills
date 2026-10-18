@@ -15,6 +15,7 @@ import { copyFileSync, existsSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 
@@ -39,7 +40,12 @@ test.each(VENDORED_TOOLS)("%s は 1 ファイルだけコピーした先で impo
       "-e",
       "const m = await import(process.env.TOOL); process.stdout.write(Object.keys(m).join(','));",
     ],
-    { encoding: "utf8", env: { ...process.env, TOOL: dest }, stdio: ["ignore", "pipe", "pipe"] },
+    {
+      timeout: CHILD_TIMEOUT_MS,
+      encoding: "utf8",
+      env: { ...process.env, TOOL: dest },
+      stdio: ["ignore", "pipe", "pipe"],
+    },
   );
   expect(r.stderr).toBe("");
   expect(r.status).toBe(0);

@@ -29,6 +29,7 @@ import {
   toRepoPath,
 } from "./check-skill-checks.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "scripts/gates/packaging/check-skill-checks.ts");
@@ -547,7 +548,8 @@ test.each([
 });
 
 test("検出の確認（CLI）: 子プロセスとして起動しても、違反は exit 1、合格なら exit 0", () => {
-  const run = (root: string) => spawnSync(process.execPath, [script, root], { encoding: "utf8" });
+  const run = (root: string) =>
+    spawnSync(process.execPath, [script, root], { timeout: CHILD_TIMEOUT_MS, encoding: "utf8" });
   const bad = run(makeRepo({ unwired: { unwired: [] } }));
   expect(bad.status).toBe(1);
   expect(bad.stderr).toContain("組み込むか決まっていない");

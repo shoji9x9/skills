@@ -17,6 +17,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { checkSkillIndex, main } from "./check-skill-index.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "scripts/gates/packaging/check-skill-index.ts");
@@ -354,10 +355,14 @@ test("配布スキル 0 件は成功として扱わず exit 1", () => {
 });
 
 test("検出の確認（CLI）: 子プロセスとして起動しても、不一致は exit 1、一致なら exit 0", () => {
-  const good = spawnSync(process.execPath, [script, makeRepo()], { encoding: "utf8" });
+  const good = spawnSync(process.execPath, [script, makeRepo()], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  });
   expect(good.status, good.stderr).toBe(0);
   expect(good.stdout).toMatch(/skill-index: OK（配布 2 件・private 1 件）/);
   const bad = spawnSync(process.execPath, [script, makeRepo({ readme: ["alpha"] })], {
+    timeout: CHILD_TIMEOUT_MS,
     encoding: "utf8",
   });
   expect(bad.status).toBe(1);

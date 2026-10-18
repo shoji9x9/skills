@@ -19,6 +19,7 @@ import { copyFileSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const scriptsDir = join(repoRoot, "skills/kaizen/scripts");
@@ -55,7 +56,12 @@ test.each(targets)(
     copyFileSync(join(scriptsDir, name), join(dir, name));
     // 入力待ちで止まらないよう stdin を閉じ、引数なしで起動する。
     const { args = [], input = "" } = INVOCATION[name] ?? {};
-    const r = spawnSync("bash", [name, ...args], { cwd: dir, encoding: "utf8", input });
+    const r = spawnSync("bash", [name, ...args], {
+      timeout: CHILD_TIMEOUT_MS,
+      cwd: dir,
+      encoding: "utf8",
+      input,
+    });
     expect(r.stderr).toMatch(
       new RegExp(`${name}: 共通ライブラリを読めないため、機能を減らして動きます`),
     );
@@ -68,6 +74,7 @@ test.each(targets)(
   (name) => {
     const { args = [], input = "" } = INVOCATION[name] ?? {};
     const r = spawnSync("bash", [join(scriptsDir, name), ...args], {
+      timeout: CHILD_TIMEOUT_MS,
       cwd: repoRoot,
       encoding: "utf8",
       input,

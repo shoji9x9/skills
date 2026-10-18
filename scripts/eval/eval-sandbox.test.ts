@@ -12,10 +12,13 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { afterEach, expect, test } from "vitest";
 import { makeTempDir } from "../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../lib/testing/child-timeout.ts";
 
 const sourceScript = resolve(dirname(fileURLToPath(import.meta.url)), "eval-sandbox.sh");
 const temporaryDirectories: string[] = [];
-const hasBwrap = spawnSync("sh", ["-c", "command -v bwrap >/dev/null 2>&1"]).status === 0;
+const hasBwrap =
+  spawnSync("sh", ["-c", "command -v bwrap >/dev/null 2>&1"], { timeout: CHILD_TIMEOUT_MS })
+    .status === 0;
 
 afterEach(() => {
   for (const directory of temporaryDirectories.splice(0)) {
@@ -48,6 +51,7 @@ test("refuses to replace an existing managed Codex directory", () => {
   chmodSync(copiedScript, 0o755);
 
   const result = spawnSync(copiedScript, ["--version"], {
+    timeout: CHILD_TIMEOUT_MS,
     cwd: root,
     encoding: "utf8",
     env: {
@@ -94,6 +98,7 @@ echo CUSTOM_CODEX_HOME_OK
   chmodSync(fakeCodex, 0o755);
 
   const result = spawnSync(sourceScript, ["--version"], {
+    timeout: CHILD_TIMEOUT_MS,
     cwd: root,
     encoding: "utf8",
     env: {
@@ -147,6 +152,7 @@ printf '%s\\n' "$@" >"${capturedArgs}"
   );
 
   const result = spawnSync(copiedScript, ["--version"], {
+    timeout: CHILD_TIMEOUT_MS,
     cwd: project,
     encoding: "utf8",
     env: {
@@ -225,7 +231,7 @@ function sandbox(args: string[], options: SandboxOptions = {}) {
     for (const tool of ["readlink", "dirname", "basename", "realpath"]) {
       const real = spawnSync("bash", ["-c", `command -v ${tool}`], {
         encoding: "utf8",
-        timeout: 30_000,
+        timeout: CHILD_TIMEOUT_MS,
       });
       symlinkSync(real.stdout.trim(), join(bin, tool));
     }
@@ -247,7 +253,7 @@ function sandbox(args: string[], options: SandboxOptions = {}) {
     encoding: "utf8",
     env,
     stdio: ["ignore", "pipe", "pipe"],
-    timeout: 30_000,
+    timeout: CHILD_TIMEOUT_MS,
   });
   const bwrapArgs = (() => {
     try {

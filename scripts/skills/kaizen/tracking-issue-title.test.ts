@@ -6,6 +6,7 @@ import { dirname, join } from "node:path";
 import { loadYamlAs } from "../../lib/text/yaml-as.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { coverageEnv } from "../../lib/testing/coverage-env.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 // 週次ワークフローの追跡 Issue は、タイトルが固定文字列だと手動クローズのたびに
 // 同名の Issue が open / closed に並び、一覧で世代を区別できない（Issue #417）。
@@ -120,6 +121,7 @@ function runBash(script: string, ghScript: string, env: NodeJS.ProcessEnv) {
     const log = join(dir, "gh.log");
     writeFileSync(log, "");
     const res = spawnSync("bash", ["-eo", "pipefail", file], {
+      timeout: CHILD_TIMEOUT_MS,
       cwd: dir,
       encoding: "utf8",
       env: {
@@ -234,6 +236,7 @@ function runLocate(wfPath: string, cwd: string) {
     const file = join(dir, "locate.sh");
     writeFileSync(file, step(wfPath, LOCATE_STEP).run);
     const res = spawnSync("bash", ["-eo", "pipefail", file], {
+      timeout: CHILD_TIMEOUT_MS,
       cwd,
       encoding: "utf8",
       env: {
@@ -441,7 +444,10 @@ describe("照会の原本（tracking-issue-lib.sh）", () => {
   test.each([...WORKFLOWS.map((w) => w.prefix), "tool (a.b) [x]*"])(
     "jq 式が世代違いだけを拾う: 接頭辞 %s",
     (prefix) => {
-      const probe = spawnSync("bash", ["-c", "command -v jq"], { encoding: "utf8" });
+      const probe = spawnSync("bash", ["-c", "command -v jq"], {
+        timeout: CHILD_TIMEOUT_MS,
+        encoding: "utf8",
+      });
       // jq が無い環境を「該当なし＝合格」として扱わない。
       expect(probe.status, "jq が必要（このテストは jq 式を実行して区別できるかを測る）").toBe(0);
 
@@ -483,6 +489,7 @@ describe("照会の原本（tracking-issue-lib.sh）", () => {
           ),
         );
         const res = spawnSync("jq", ["-r", jqFilter(libSource()), fixture], {
+          timeout: CHILD_TIMEOUT_MS,
           encoding: "utf8",
           env: { ...process.env, ISSUE_TITLE_PREFIX: prefix },
         });

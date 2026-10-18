@@ -14,6 +14,7 @@ import { readFileSync, readdirSync, symlinkSync } from "node:fs";
 import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const skillsDir = join(repoRoot, "skills");
@@ -56,11 +57,18 @@ test.each(cliScripts.map((p) => [p.slice(repoRoot.length + 1), p]))(
     symlinkSync(join(skillsDir, skillName), join(linkDir, skillName));
     const link = join(linkDir, skillName, relative(join(skillsDir, skillName), scriptPath));
 
-    const viaLink = spawnSync(process.execPath, [link], { encoding: "utf8" });
-    const viaReal = spawnSync(process.execPath, [scriptPath], { encoding: "utf8" });
+    const viaLink = spawnSync(process.execPath, [link], {
+      timeout: CHILD_TIMEOUT_MS,
+      encoding: "utf8",
+    });
+    const viaReal = spawnSync(process.execPath, [scriptPath], {
+      timeout: CHILD_TIMEOUT_MS,
+      encoding: "utf8",
+    });
     // --preserve-symlinks-main（NODE_OPTIONS 経由でも付く）では import.meta.url も未解決になる。
     // 片側だけ実パスに解決していると、この起動でサイレント no-op に戻る。
     const viaLinkPreserve = spawnSync(process.execPath, ["--preserve-symlinks-main", link], {
+      timeout: CHILD_TIMEOUT_MS,
       encoding: "utf8",
     });
 

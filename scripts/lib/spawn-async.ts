@@ -6,10 +6,17 @@
 //
 // 書き換えを機械的に保つため、受け付けるオプションと返す形は、テストが使う `spawnSync` の部分に合わせる。
 // - オプション: `cwd`・`env`・`input`（文字列。渡さなければ stdin はすぐ閉じる）。出力は常に utf8 の文字列で返す
+// - `timeout` は必須にする。テストが起動する子プロセスにはタイムアウトを付ける（docs/testing.md「実行環境を固定する」、Issue #663）。
+//   時間を過ぎたら SIGTERM を送り、`spawnSync` と同じく `error`（`code: "ETIMEDOUT"`）を付けて返す
 // - 返す形: `pid`・`status`・`signal`・`stdout`・`stderr`・`error`（起動できなかったときだけ。`spawnSync` と同じく reject しない）
 import { spawn } from "node:child_process";
 
-export type SpawnAsyncOptions = { cwd?: string; env?: NodeJS.ProcessEnv; input?: string };
+export type SpawnAsyncOptions = {
+  cwd?: string;
+  env?: NodeJS.ProcessEnv;
+  input?: string;
+  timeout: number;
+};
 
 export type SpawnAsyncResult = {
   pid: number | undefined;
@@ -23,14 +30,26 @@ export type SpawnAsyncResult = {
 export function spawnAsync(
   command: string,
   args: readonly string[] = [],
-  options: SpawnAsyncOptions = {},
+  options: SpawnAsyncOptions,
 ): Promise<SpawnAsyncResult> {
-  const { input, ...spawnOptions } = options;
+  const { input, timeout, ...spawnOptions } = options;
   return new Promise((resolve) => {
+    // 子は vitest と同じプロセスグループで起動する。別のグループに入れると、Ctrl-C や worker の終了で子と孫が残る。
     const child = spawn(command, args, { ...spawnOptions, stdio: ["pipe", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     let error: Error | undefined;
+    // spawn の `timeout` は子に SIGTERM を送るだけで、孫プロセスが stdout・stderr を持っている間は `close` が来ない。
+    // そこで自分で止め、stdout・stderr を読むのをやめて、`spawnSync` と同じ時間で返す。
+    // 孫プロセスは止めない（`spawnSync` も子にだけ送る）。読むのをやめるので、孫が stdout を持ち続けても返る。
+    // 子が先に終わっても孫が stdout を持っていれば `close` は来ないので、タイマーは `close` まで止めない（`spawnSync` も同じく ETIMEDOUT を返す）。
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill("SIGTERM");
+      child.stdout.destroy();
+      child.stderr.destroy();
+    }, timeout);
     child.stdout.setEncoding("utf8").on("data", (chunk) => (stdout += chunk));
     child.stderr.setEncoding("utf8").on("data", (chunk) => (stderr += chunk));
     // stdin を読まずに終わる子へ書くと EPIPE になる。`spawnSync` と同じく、結果には数えない。
@@ -40,7 +59,10 @@ export function spawnAsync(
     child.on("error", (err) => (error = err));
     // 起動できなかったときの `close` は負の errno を終了コードとして渡すので、`spawnSync` と同じく null にする。
     // 起動できたかは `pid` で判定する。起動した後の `error`（kill の失敗など）で、子の終了コードを消さない。
-    child.on("close", (status, signal) =>
+    child.on("close", (status, signal) => {
+      clearTimeout(timer);
+      if (timedOut)
+        error = Object.assign(new Error(`spawnAsync ${command} ETIMEDOUT`), { code: "ETIMEDOUT" });
       resolve({
         pid: child.pid,
         status: child.pid === undefined ? null : status,
@@ -48,7 +70,7 @@ export function spawnAsync(
         stdout,
         stderr,
         ...(error ? { error } : {}),
-      }),
-    );
+      });
+    });
   });
 }

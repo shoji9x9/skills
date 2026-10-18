@@ -120,7 +120,18 @@ fixture も、原本（テンプレート・スキーマの文書・同梱の雛
   `scripts/lib/testing/vitest-git-env-setup.ts` が各テストファイルの前に `process.env` から外すので、子プロセスの環境は `process.env` から組み立てる。vitest の外で git を起動するランナーは、同じ変数を自分で外す
 - ネットワークに接続しない。時刻に依存する処理は、時刻を引数や環境変数で渡せるようにして、固定した値でテストする
 - 子プロセスの環境を明示した値だけで組み立てるときは、`coverageEnv()` を足す（「カバレッジ」の節）
-- 子プロセスにはタイムアウトを付ける。付けないと、止まった子プロセスを待つテストは `vitest.config.ts` の `testTimeout` まで待ってから失敗し、原因が出力に残らない
+- 子プロセスにはタイムアウトを付ける。付けないと、止まった子プロセスを待つテストは `vitest.config.ts` の `testTimeout` まで待ってから失敗し、原因が出力に残らない。
+  値は `scripts/lib/testing/child-timeout.ts` の `CHILD_TIMEOUT_MS` を使い、起動のオプションのオブジェクトに `timeout` のキーで書く。
+  付け忘れは `scripts/lib/testing/child-timeout.test.ts` が検出する。付けない理由がある呼び出しは、同じ行の末尾か、直前のコメントだけの行に `// child-timeout-ok: <理由>` を書く。
+  `child_process` は静的な `import` で読み込む。動的な `import()` と `require()` は、取り出した関数を追えないので検出の対象になる。
+  `scripts/lib/spawn-async.ts` の `spawnAsync` は `timeout` を必須にしていて、同じテストが検出の対象にする。
+  子プロセスの `timeout` は、テストの打ち切りより短くする。同じテストが、数値と `CHILD_TIMEOUT_MS` で書いた値を、呼び出しを囲むテストか Hook（`beforeAll`・`aroundEach`・`onTestFinished` など）の `timeout` と比べる。
+  テストが `timeout` を書いていなければ、囲む `describe`（`suite`）の `timeout` と比べる。
+  補助の関数の中の呼び出しは、どのテストから呼ばれるかを追えないので、`testTimeout` と比べる。
+  `testTimeout` と長さが違うテストから補助の関数を呼ぶときは、補助の関数に子プロセスの `timeout` を引数で渡し、`timeout: options.timeout ?? CHILD_TIMEOUT_MS` の形で受ける。
+  `timeout: 0` と `undefined` になりうる値（`undefined`・`void 0`・`x ?? undefined`・枝が `undefined` の条件式。Node ではタイムアウトなし）と、`timeout` のキーより後ろのスプレッドは、付いていないものとして検出する。
+  起動の関数を呼び出し以外で参照する書き方（変数への代入・`promisify`・名前空間の分割代入）と、`child_process` と spawn-async から起動の関数を再エクスポートする書き方（`export { spawnSync } from`・`export *`・`export import`）も検出する。
+  1 つのテストで順に起動する子プロセスの `timeout` の合計は比べないので、合計がテストの `timeout` を超えないようにする
 
 ## 並列実行
 

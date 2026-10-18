@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { makeTempDirFactory } from "../lib/testing/test-tmpdir.ts";
 import { spawnAsync } from "../lib/spawn-async.ts";
 import { parseJsonAs } from "../lib/parse-as.ts";
+import { CHILD_TIMEOUT_MS } from "../lib/testing/child-timeout.ts";
 
 // `build-skill-eval-benchmark.ts` は、**assertion テキストをキーにした入力だけを受理する**
 // 集計スクリプト（Issue #421）。位置で対応づけると、assertion の追加・削除・並べ替えで判定がずれ、
@@ -131,7 +132,7 @@ async function run(root: string, extra: string[] = []) {
       "--stdout",
       ...extra,
     ],
-    { cwd: repoRoot },
+    { timeout: CHILD_TIMEOUT_MS, cwd: repoRoot },
   );
   return { ...res, out: `${res.stdout}${res.stderr}` };
 }
@@ -334,7 +335,7 @@ describe.concurrent("集計（揃った iteration）", () => {
         "--analyzer-model",
         "manual",
       ],
-      { cwd: repoRoot },
+      { timeout: CHILD_TIMEOUT_MS, cwd: repoRoot },
     );
     expect(first.status, first.stderr).toBe(0);
     expect(existsSync(out)).toBe(true);
@@ -354,7 +355,7 @@ describe.concurrent("集計（揃った iteration）", () => {
         "--analyzer-model",
         "manual",
       ],
-      { cwd: repoRoot },
+      { timeout: CHILD_TIMEOUT_MS, cwd: repoRoot },
     );
     expect(overwrite.status, overwrite.stderr).toBe(2);
     expect(overwrite.stderr).toContain("--force");
@@ -925,7 +926,7 @@ describe.concurrent("受理しない入力（exit 2）", () => {
     ];
     // `--skill-name` を落とすケースは base に入れない（他は base に足す）。
     const argv = args[0] === "--skill-name" ? base : [...base, "--skill-name", "demo", ...args];
-    const res = await spawnAsync("node", argv, { cwd: repoRoot });
+    const res = await spawnAsync("node", argv, { timeout: CHILD_TIMEOUT_MS, cwd: repoRoot });
     expect(res.status, res.stderr).toBe(2);
     expect(res.stderr).toContain(message);
   });

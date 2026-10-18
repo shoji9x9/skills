@@ -17,13 +17,14 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { listSources, main } from "./run-on-sources.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "scripts/gates/tooling/run-on-sources.ts");
 
 function makeRepo(files: Record<string, string>) {
   const root = makeTempDir("run-on-sources-");
-  execFileSync("git", ["init", "-q", "-b", "main"], { cwd: root });
+  execFileSync("git", ["init", "-q", "-b", "main"], { timeout: CHILD_TIMEOUT_MS, cwd: root });
   for (const [path, text] of Object.entries(files)) {
     mkdirSync(dirname(join(root, path)), { recursive: true });
     writeFileSync(join(root, path), text);
@@ -31,7 +32,8 @@ function makeRepo(files: Record<string, string>) {
   return root;
 }
 
-const git = (root: string, ...args: string[]) => execFileSync("git", args, { cwd: root });
+const git = (root: string, ...args: string[]) =>
+  execFileSync("git", args, { timeout: CHILD_TIMEOUT_MS, cwd: root });
 
 test("実体（rule・private skill を含む）だけを選び、コピー・リンク・node_modules・ignore・削除済み・シンボリックリンク・拡張子違いは選ばない", () => {
   const root = makeRepo({
@@ -80,6 +82,7 @@ test("対象が 0 件・引数の誤り・コマンドを起動できないと�
 test("陽性（CLI）: 子プロセスとして起動しても、private skill のファイルをコマンドに渡す", () => {
   const root = makeRepo({ ".agents/skills/priv/p.sh": "" });
   const r = spawnSync(process.execPath, [script, "--ext", "sh", "--", "echo"], {
+    timeout: CHILD_TIMEOUT_MS,
     cwd: root,
     encoding: "utf8",
   });

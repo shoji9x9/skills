@@ -15,6 +15,7 @@ import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
 
 const script = join(dirname(fileURLToPath(import.meta.url)), "check-skills-sync.ts");
 
@@ -46,7 +47,7 @@ function makeRepo() {
 }
 
 const run = (cwd: string) =>
-  spawnSync(process.execPath, [script], { cwd, encoding: "utf8", timeout: 30_000 });
+  spawnSync(process.execPath, [script], { cwd, encoding: "utf8", timeout: CHILD_TIMEOUT_MS });
 
 test("陰性: インストールで書き換わる SKILL.md の frontmatter の違いだけなら OK で exit 0", () => {
   const r = run(makeRepo());

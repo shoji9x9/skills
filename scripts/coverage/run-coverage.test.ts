@@ -25,12 +25,17 @@ import {
   sweepFocusDirs,
   targetFiles,
 } from "./run-coverage.ts";
+import { CHILD_TIMEOUT_MS } from "../lib/testing/child-timeout.ts";
 
 const SCRIPT = fileURLToPath(new URL("run-coverage.ts", import.meta.url));
 const ROOT = fileURLToPath(new URL("../../", import.meta.url));
 
 const run = (args: string[]) =>
-  spawnSync(process.execPath, [SCRIPT, ...args], { encoding: "utf8", cwd: ROOT, timeout: 30_000 });
+  spawnSync(process.execPath, [SCRIPT, ...args], {
+    encoding: "utf8",
+    cwd: ROOT,
+    timeout: CHILD_TIMEOUT_MS,
+  });
 
 /**
  * ランナーを一時ディレクトリに置いたリポジトリにコピーし、前回の測定の結果（要約）を置いて、--reuse の CLI を起動する。
@@ -76,11 +81,11 @@ function runCopiedCli(pct: number) {
     "node_modules/.cache/coverage/shell-summary.json",
     JSON.stringify({ files: {}, unresolved: 0 }),
   );
-  expect(spawnSync("git", ["init", "-q"], { cwd: root, timeout: 30_000 }).status).toBe(0);
+  expect(spawnSync("git", ["init", "-q"], { cwd: root, timeout: CHILD_TIMEOUT_MS }).status).toBe(0);
   return spawnSync(process.execPath, [join(root, "scripts/coverage/run-coverage.ts"), "--reuse"], {
     encoding: "utf8",
     cwd: root,
-    timeout: 30_000,
+    timeout: CHILD_TIMEOUT_MS,
   });
 }
 
@@ -152,7 +157,7 @@ test("targetFiles: scripts/・skills/・private skill の下のソースを、ad
     writeFileSync(join(root, rel), "");
   }
   const git = (...args: string[]) =>
-    expect(spawnSync("git", args, { cwd: root, timeout: 30_000 }).status).toBe(0);
+    expect(spawnSync("git", args, { cwd: root, timeout: CHILD_TIMEOUT_MS }).status).toBe(0);
   git("init", "-q");
   writeFileSync(join(root, ".gitignore"), "scripts/ignored.ts\n");
   // private skill（.private-skill を持つもの）のスクリプトは測り、インストール済みのコピーは測らない。
@@ -172,7 +177,7 @@ test("targetFiles: scripts/・skills/・private skill の下のソースを、ad
 
 test("targetFiles: 対象が 0 件のときは、判定できないとして例外にする", () => {
   const root = makeTempDir("run-coverage-empty-");
-  expect(spawnSync("git", ["init", "-q"], { cwd: root, timeout: 30_000 }).status).toBe(0);
+  expect(spawnSync("git", ["init", "-q"], { cwd: root, timeout: CHILD_TIMEOUT_MS }).status).toBe(0);
   expect(() => targetFiles(root)).toThrow(/0 件/);
 });
 
@@ -185,7 +190,11 @@ test("coverageEnv: シェルの計測は SHELL_COVERAGE_DIR と BASH_ENV が両�
         "-e",
         `import { coverageEnv } from ${JSON.stringify(new URL("../lib/testing/coverage-env.ts", import.meta.url).href)}; console.log(JSON.stringify(coverageEnv()));`,
       ],
-      { encoding: "utf8", env: { PATH: process.env.PATH ?? "", ...env }, timeout: 30_000 },
+      {
+        encoding: "utf8",
+        env: { PATH: process.env.PATH ?? "", ...env },
+        timeout: CHILD_TIMEOUT_MS,
+      },
     ).stdout.trim();
   // Node は、環境を明示した子プロセスにも親の NODE_V8_COVERAGE を引き継ぐ。測る実行では、親の値が入る。
   const inherited = process.env.NODE_V8_COVERAGE
@@ -247,7 +256,7 @@ function miniRepo(body: string): string {
   );
   write("skills/x/s.sh", "echo one\necho two\n");
   write("tests/a.test.mjs", body);
-  expect(spawnSync("git", ["init", "-q"], { cwd: root, timeout: 30_000 }).status).toBe(0);
+  expect(spawnSync("git", ["init", "-q"], { cwd: root, timeout: CHILD_TIMEOUT_MS }).status).toBe(0);
   return root;
 }
 

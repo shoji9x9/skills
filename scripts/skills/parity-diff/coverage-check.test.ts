@@ -31,6 +31,7 @@ import {
   readDeclaration,
 } from "../../../skills/parity-diff/scripts/coverage-check.mjs";
 import { isArray } from "../../lib/is-array.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 // fixture の型。基準の fixture（full()・profiled() など）が置く正規の形を宣言する。
 // テストは fixture を書き換えて不正な入力を作る。型に合わない値を書く箇所は invalidInput を通し、
@@ -1173,7 +1174,7 @@ function runCli(metadata: unknown, coverage: AnyCoverage | null | undefined) {
   }
   const args = [script, "--metadata", metaPath];
   if (coverage !== undefined) args.push("--coverage", covPath);
-  return spawnSync(process.execPath, args, { encoding: "utf8" });
+  return spawnSync(process.execPath, args, { timeout: CHILD_TIMEOUT_MS, encoding: "utf8" });
 }
 
 const declared = {
@@ -1235,6 +1236,7 @@ test("CLI: declared: true で path も --coverage も無ければ判定した記
 
 test("CLI: 同じフラグの重複指定は後勝ちにせず exit 2", () => {
   const r = spawnSync(process.execPath, [script, "--metadata", "a.json", "--metadata", "b.json"], {
+    timeout: CHILD_TIMEOUT_MS,
     encoding: "utf8",
   });
   expect(r.status).toBe(2);

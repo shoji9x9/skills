@@ -20,6 +20,7 @@ import {
   validateIntentionalDiffs,
   countMatchesMissingCtx,
 } from "../../../skills/parity-diff/scripts/diff-normalize.mjs";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "skills/parity-diff/scripts/diff-normalize.mjs");
@@ -187,7 +188,7 @@ function runCli(
   const r = spawnSync(
     process.execPath,
     [script, input, "--registries", registries, "--slug", "demo", ...ctxArgs],
-    { encoding: "utf8" },
+    { timeout: CHILD_TIMEOUT_MS, encoding: "utf8" },
   );
   return { status: r.status, stderr: r.stderr, classified: parseJsonAs<Classified[]>(r.stdout) };
 }

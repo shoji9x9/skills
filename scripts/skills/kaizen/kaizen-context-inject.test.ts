@@ -4,6 +4,7 @@ import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "nod
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "skills/kaizen/scripts/kaizen-context-inject.sh");
@@ -17,7 +18,11 @@ function createRepo(summary: string) {
   const dir = makeTempDir("kaizen-context-inject-");
   workdirs.push(dir);
   mkdirSync(join(dir, ".kaizen"));
-  const init = spawnSync("git", ["init", "-q", "."], { cwd: dir, encoding: "utf8" });
+  const init = spawnSync("git", ["init", "-q", "."], {
+    timeout: CHILD_TIMEOUT_MS,
+    cwd: dir,
+    encoding: "utf8",
+  });
   expect(init.status, init.stderr).toBe(0);
   writeFileSync(
     join(dir, ".kaizen", "2026-09-01-note.md"),
@@ -30,6 +35,7 @@ function createRepo(summary: string) {
 // 「文字の途中で切れた」ことを検出できなくなる（この回帰テストで区別できなくなる）。
 function inject(dir: string, locale = "C.UTF-8") {
   const result = spawnSync("bash", [script], {
+    timeout: CHILD_TIMEOUT_MS,
     cwd: dir,
     env: { ...process.env, CLAUDE_PROJECT_DIR: dir, LANG: locale, LC_ALL: locale },
     input: "",

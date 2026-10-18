@@ -15,11 +15,12 @@ import {
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../lib/testing/child-timeout.ts";
 
 const script = join(dirname(fileURLToPath(import.meta.url)), "mutation-proof-shards.sh");
 
 function git(cwd: string, ...args: string[]): string {
-  const res = spawnSync("git", args, { cwd, encoding: "utf8" });
+  const res = spawnSync("git", args, { timeout: CHILD_TIMEOUT_MS, cwd, encoding: "utf8" });
   if (res.status !== 0) throw new Error(`git ${args.join(" ")}: ${res.stderr}`);
   return res.stdout;
 }
@@ -55,6 +56,7 @@ function run(
   const env: NodeJS.ProcessEnv = typeof last === "object" ? last : {};
   const scriptArgs = args.filter((a): a is string => typeof a === "string");
   const res = spawnSync("bash", [script, ...scriptArgs], {
+    timeout: CHILD_TIMEOUT_MS,
     cwd: repo,
     encoding: "utf8",
     env: { ...process.env, MUTATION_PROOF_SHARDS_DIR: shards, ...env },
@@ -315,7 +317,12 @@ test("リンクされた worktree から起動して、置き場所が元の作�
     // デフォルトの置き場所を使わせる（キーを消す。undefined を渡すと、文字列の "undefined" になりうる）。
     const env = { ...process.env, ...launchEnv(fx) };
     delete env.MUTATION_PROOF_SHARDS_DIR;
-    const res = spawnSync("bash", [script, "2"], { cwd: linked, encoding: "utf8", env });
+    const res = spawnSync("bash", [script, "2"], {
+      timeout: CHILD_TIMEOUT_MS,
+      cwd: linked,
+      encoding: "utf8",
+      env,
+    });
     const out = `${res.stdout}${res.stderr}`;
     expect(res.status, out).toBe(2);
     expect(out).toContain("がリポジトリの中にある");

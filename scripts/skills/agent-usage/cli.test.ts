@@ -35,6 +35,7 @@ import { localHourStart } from "../../../skills/agent-usage/scripts/lib/time.mjs
 import { coverageEnv } from "../../lib/testing/coverage-env.ts";
 import { parseJsonAs } from "../../lib/parse-as.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const SCRIPTS = join(import.meta.dirname, "../../../skills/agent-usage/scripts");
 const CLI = join(SCRIPTS, "agent-usage.mjs");
@@ -146,7 +147,12 @@ function setup() {
     GIT_COMMITTER_EMAIL: "t@example.com",
   };
   const git = (...args: string[]) => {
-    const r = spawnSync("git", args, { cwd: repo, env, encoding: "utf8" });
+    const r = spawnSync("git", args, {
+      timeout: CHILD_TIMEOUT_MS,
+      cwd: repo,
+      env,
+      encoding: "utf8",
+    });
     if (r.status !== 0) throw new Error(r.stderr);
     return r.stdout;
   };
@@ -199,10 +205,16 @@ function setup() {
   ];
   writeFileSync(join(dir, "s1.jsonl"), lines.map((l) => JSON.stringify(l)).join("\n"));
   const cliWith = (extra: NodeJS.ProcessEnv, ...args: string[]) =>
-    spawnSync("node", [CLI, ...args], { cwd: repo, env: { ...env, ...extra }, encoding: "utf8" });
+    spawnSync("node", [CLI, ...args], {
+      timeout: CHILD_TIMEOUT_MS,
+      cwd: repo,
+      env: { ...env, ...extra },
+      encoding: "utf8",
+    });
   const cli = (...args: string[]) => cliWith({}, ...args);
   const gate = (command: string, cwd = repo) =>
     spawnSync("bash", [GATE, "claude-code"], {
+      timeout: CHILD_TIMEOUT_MS,
       cwd,
       env,
       encoding: "utf8",
@@ -682,7 +694,9 @@ describe("agent-usage のコマンドと Hook", () => {
     git("commit", "-q", "-m", "records");
     // squash merge と同じく、今の内容を、このブランチの commit を祖先に持たない 1 つの commit として origin の main に入れる
     const origin = join(tmp, "origin.git");
-    expect(spawnSync("git", ["init", "-q", "--bare", origin], { timeout: 30_000 }).status).toBe(0);
+    expect(
+      spawnSync("git", ["init", "-q", "--bare", origin], { timeout: CHILD_TIMEOUT_MS }).status,
+    ).toBe(0);
     git("remote", "add", "origin", origin);
     const squash = git("commit-tree", "HEAD^{tree}", "-p", "main", "-m", "squash").trim();
     git("push", "-q", "origin", `${squash}:refs/heads/main`);
@@ -772,7 +786,9 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(cliWith({}, "collect", "--stage").status).toBe(0);
     git("commit", "-q", "-m", "records");
     const origin = join(tmp, "origin.git");
-    expect(spawnSync("git", ["init", "-q", "--bare", origin], { timeout: 30_000 }).status).toBe(0);
+    expect(
+      spawnSync("git", ["init", "-q", "--bare", origin], { timeout: CHILD_TIMEOUT_MS }).status,
+    ).toBe(0);
     git("remote", "add", "origin", origin);
     git("push", "-q", "origin", "HEAD:main");
     git("fetch", "-q", "origin");
@@ -1585,6 +1601,7 @@ describe("agent-usage のコマンドと Hook", () => {
     const { repo, cli } = setup();
     expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
     const r = spawnSync("node", [CLI, "gate", "--agent", "claude-code"], {
+      timeout: CHILD_TIMEOUT_MS,
       cwd: repo,
       env: { ...process.env, AGENT_USAGE_NOW: "not-a-time" },
       encoding: "utf8",
@@ -1619,7 +1636,9 @@ describe("agent-usage のコマンドの入力と状態", () => {
     // origin/HEAD があれば、それをデフォルトブランチとして表示する
     const origin = join(tmp, "origin.git");
     expect(
-      spawnSync("git", ["init", "-q", "--bare", "-b", "trunk", origin], { timeout: 30_000 }).status,
+      spawnSync("git", ["init", "-q", "--bare", "-b", "trunk", origin], {
+        timeout: CHILD_TIMEOUT_MS,
+      }).status,
     ).toBe(0);
     git("remote", "add", "origin", origin);
     git("push", "-q", "origin", "HEAD:trunk");
@@ -1642,7 +1661,9 @@ describe("agent-usage のコマンドの入力と状態", () => {
     expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
     const origin = join(tmp, "origin.git");
     expect(
-      spawnSync("git", ["init", "-q", "--bare", "-b", "trunk", origin], { timeout: 30_000 }).status,
+      spawnSync("git", ["init", "-q", "--bare", "-b", "trunk", origin], {
+        timeout: CHILD_TIMEOUT_MS,
+      }).status,
     ).toBe(0);
     git("remote", "add", "origin", origin);
     git("switch", "-q", "-c", "trunk");
@@ -1809,7 +1830,7 @@ describe("agent-usage のコマンドの入力と状態", () => {
     for (const tool of ["node", "git"]) {
       const real = spawnSync("bash", ["-c", `command -v ${tool}`], {
         encoding: "utf8",
-        timeout: 30_000,
+        timeout: CHILD_TIMEOUT_MS,
       }).stdout.trim();
       expect(real).not.toBe("");
       symlinkSync(real, join(bin, tool));
@@ -1827,7 +1848,7 @@ describe("precommit-gate.sh の、確認を実行できないとき", () => {
   const input = JSON.stringify({ cwd: "/tmp", tool_input: { command: "git commit -m x" } });
   const bash = spawnSync("bash", ["-c", "command -v bash"], {
     encoding: "utf8",
-    timeout: 30_000,
+    timeout: CHILD_TIMEOUT_MS,
   }).stdout.trim();
   /** precommit-gate.sh をコピーしたディレクトリ（同梱の agent-usage.mjs を置き換えられる）。 */
   function copied(mjs: string | null) {
@@ -1841,7 +1862,7 @@ describe("precommit-gate.sh の、確認を実行できないとき", () => {
       encoding: "utf8",
       input: stdin,
       env: { ...env, ...coverageEnv() },
-      timeout: 30_000,
+      timeout: CHILD_TIMEOUT_MS,
     });
 
   test("git commit を含まない入力は、同梱の agent-usage.mjs が無くても何も出さずに通す", () => {
@@ -1864,7 +1885,7 @@ describe("precommit-gate.sh の、確認を実行できないとき", () => {
     const bin = makeTempDir("agent-usage-nonode-");
     const dirname = spawnSync("bash", ["-c", "command -v dirname"], {
       encoding: "utf8",
-      timeout: 30_000,
+      timeout: CHILD_TIMEOUT_MS,
     }).stdout.trim();
     symlinkSync(dirname, join(bin, "dirname"));
     const r = run(copied("process.exit(2);\n"), { PATH: bin });

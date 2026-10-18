@@ -26,6 +26,7 @@ import {
   trackedTextFiles,
 } from "./check-control-chars.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "scripts/gates/code/check-control-chars.ts");
@@ -116,6 +117,7 @@ test("CLI: 引数で渡したテキストファイルの違反を exit 1 で報�
   writeFileSync(join(dir, "bad.md"), `# 見出し\n本文${NUL}\n`);
   writeFileSync(join(dir, "good.md"), "# 見出し\n本文\n");
   const r = spawnSync(process.execPath, [script, "bad.md", "good.md"], {
+    timeout: CHILD_TIMEOUT_MS,
     cwd: dir,
     encoding: "utf8",
   });
@@ -128,14 +130,22 @@ test("CLI: 引数で渡したテキストファイルの違反を exit 1 で報�
 test("CLI: 非テキスト拡張子だけを渡したら成功として扱わず exit 1", () => {
   const dir = makeTempDir("control-chars-");
   writeFileSync(join(dir, "image.png"), Buffer.from([0x89, 0x50, 0x00, 0x01]));
-  const r = spawnSync(process.execPath, [script, "image.png"], { cwd: dir, encoding: "utf8" });
+  const r = spawnSync(process.execPath, [script, "image.png"], {
+    timeout: CHILD_TIMEOUT_MS,
+    cwd: dir,
+    encoding: "utf8",
+  });
   expect(r.status).toBe(1);
   expect(r.stderr).toMatch(/テキスト拡張子のファイルが無い/);
   rmSync(dir, { recursive: true, force: true });
 });
 
 test("CLI: 引数なしで実リポジトリを走査すると exit 0 と走査件数を出す", () => {
-  const r = spawnSync(process.execPath, [script], { cwd: repoRoot, encoding: "utf8" });
+  const r = spawnSync(process.execPath, [script], {
+    timeout: CHILD_TIMEOUT_MS,
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
   expect(r.status).toBe(0);
   expect(r.stdout).toMatch(/control-chars: OK（\d+ 件）/);
 });

@@ -12,6 +12,7 @@ import {
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 // kaizen-forget.sh は **SessionStart フックから無人で実行され、追跡ファイルを書き換える**
 // （Issue #339）。判定が緩むと、まだ適用したい学びが警告なしに注入から消える。消えたことは
@@ -93,6 +94,7 @@ function makeProject(notes: Record<string, string>, config?: string) {
 
 function run(dir: string, args: string[]) {
   const result = spawnSync("bash", [script, ...args], {
+    timeout: CHILD_TIMEOUT_MS,
     cwd: dir,
     env: { ...process.env, CLAUDE_PROJECT_DIR: dir },
     encoding: "utf8",
@@ -389,6 +391,7 @@ test("忘却したノートは kaizen-status-check.sh を通る", () => {
   try {
     run(dir, ["--auto"]);
     const result = spawnSync("bash", [statusCheck], {
+      timeout: CHILD_TIMEOUT_MS,
       cwd: dir,
       env: { ...process.env, CLAUDE_PROJECT_DIR: dir },
       encoding: "utf8",
@@ -478,6 +481,7 @@ test.each(["--list", "--auto"])(
     try {
       copyFileSync(script, join(lonely, "kaizen-forget.sh"));
       const result = spawnSync("bash", [join(lonely, "kaizen-forget.sh"), mode], {
+        timeout: CHILD_TIMEOUT_MS,
         cwd: dir,
         env: { ...process.env, CLAUDE_PROJECT_DIR: dir },
         encoding: "utf8",

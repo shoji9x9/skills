@@ -21,6 +21,7 @@ import {
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "skills/kaizen/scripts/kaizen-stop-mark.sh");
@@ -53,6 +54,7 @@ function runStopMark(
   };
   const args = suffix ? [suffix] : [];
   return spawnSync("bash", [script, ...args], {
+    timeout: CHILD_TIMEOUT_MS,
     cwd,
     input: JSON.stringify(payload),
     encoding: "utf8",
@@ -170,6 +172,7 @@ describe("共通ライブラリが読めず機能を減らして動くときは 
       writeFileSync(transcript, "{}\n");
       const payload = { session_id: "d1", cwd, transcript_path: transcript };
       const result = spawnSync("bash", [join(degradedDir, "kaizen-stop-mark.sh")], {
+        timeout: CHILD_TIMEOUT_MS,
         cwd,
         input: JSON.stringify(payload),
         encoding: "utf8",

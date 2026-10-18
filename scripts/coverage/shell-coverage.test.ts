@@ -21,6 +21,7 @@ import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
 import { makeTempDir } from "../lib/testing/test-tmpdir.ts";
 import { executableLines, parseShell, parseTrace, shellCoverage } from "./shell-coverage.ts";
+import { CHILD_TIMEOUT_MS } from "../lib/testing/child-timeout.ts";
 
 const TRACE_ENV = fileURLToPath(new URL("bash-trace-env.sh", import.meta.url));
 
@@ -88,7 +89,7 @@ function runTraced(args: string[], opts: { cwd: string; traceDir: string; bashEn
       BASH_ENV: opts.bashEnv ?? TRACE_ENV,
       SHELL_COVERAGE_DIR: opts.traceDir,
     },
-    timeout: 30_000,
+    timeout: CHILD_TIMEOUT_MS,
   });
 }
 
@@ -181,7 +182,10 @@ test("bash-trace-env.sh: スクリプトの stdout・stderr・終了コードを
   const traceDir = join(dir, "trace");
   mkdirSync(traceDir);
   writeSample(dir, "e.sh", 'echo out\necho err >&2\nx=$(echo e2 >&2; echo v)\necho "$x"\nexit 3\n');
-  const plain = spawnSync("bash", [join(dir, "e.sh")], { encoding: "utf8", timeout: 30_000 });
+  const plain = spawnSync("bash", [join(dir, "e.sh")], {
+    encoding: "utf8",
+    timeout: CHILD_TIMEOUT_MS,
+  });
   const traced = runTraced([join(dir, "e.sh")], { cwd: dir, traceDir });
   const missing = runTraced([join(dir, "e.sh")], { cwd: dir, traceDir: join(dir, "no-such-dir") });
   for (const res of [traced, missing]) {
@@ -224,7 +228,7 @@ test("bash-trace-env.sh: 記録は 1 プロセス 1 ファイルで、起動し�
     readFileSync(
       join(
         traceDir,
-        spawnSync("ls", [traceDir], { encoding: "utf8", timeout: 30_000 }).stdout.trim(),
+        spawnSync("ls", [traceDir], { encoding: "utf8", timeout: CHILD_TIMEOUT_MS }).stdout.trim(),
       ),
       "utf8",
     ),
@@ -292,7 +296,7 @@ test("bash-trace-env.sh: リポジトリの scripts/・skills/ の下の原本�
     readFileSync(
       join(
         traceDir,
-        spawnSync("ls", [traceDir], { encoding: "utf8", timeout: 30_000 }).stdout.trim(),
+        spawnSync("ls", [traceDir], { encoding: "utf8", timeout: CHILD_TIMEOUT_MS }).stdout.trim(),
       ),
       "utf8",
     ),

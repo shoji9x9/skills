@@ -17,6 +17,7 @@ import { fileURLToPath } from "node:url";
 import { WORDS_PATH } from "../../lib/text/textlint-word-rule.ts";
 import { LIST_PATH, checkWordList, main, renderWordList } from "./check-word-list.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "scripts/gates/prose/check-word-list.ts");
@@ -122,7 +123,7 @@ test("main: 一致なら 0、食い違いは 1、作れなければ 2 を返す"
 test("検出の確認（CLI）: 子プロセスとして起動しても、食い違いは exit 1、--fix の後は exit 0", () => {
   const root = makeRepo({ list: "x\n" });
   const run = (...args: string[]) =>
-    spawnSync(process.execPath, [script, ...args], { encoding: "utf8" });
+    spawnSync(process.execPath, [script, ...args], { timeout: CHILD_TIMEOUT_MS, encoding: "utf8" });
   expect(run(root).status).toBe(1);
   expect(run("--fix", root).status).toBe(0);
   expect(run(root).status).toBe(0);

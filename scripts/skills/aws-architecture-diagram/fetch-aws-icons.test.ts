@@ -19,6 +19,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { deflateRawSync } from "node:zlib";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "skills/aws-architecture-diagram/assets/engine/fetch-aws-icons.mjs");
@@ -135,7 +136,7 @@ globalThis.fetch = async (url) => {
       cwd: dir,
       env: { ...process.env, DIAGRAM_DIR: dir, FAKE_FETCH_ROUTES: JSON.stringify(table) },
       encoding: "utf8",
-      timeout: 30_000,
+      timeout: CHILD_TIMEOUT_MS,
     },
   );
   if (result.error) throw result.error;

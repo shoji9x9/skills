@@ -46,6 +46,7 @@ import { spawnAsync } from "../../../lib/spawn-async.ts";
 import { removeField } from "../../../lib/testing/test-input.ts";
 import { parseJsonAs } from "../../../lib/parse-as.ts";
 import { isArray } from "../../../lib/is-array.ts";
+import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 
@@ -721,26 +722,27 @@ async function runBoth(p: Project, options: { carryTo?: string; newRepo?: boolea
   ];
   // 2 つのチェックは互いに独立なので、並べて起動する。
   const [health, comparison] = await Promise.all([
-    spawnAsync(process.execPath, [
-      healthCheck,
-      "--metadata",
-      join(p.slugDir, "metadata.json"),
-      "--target",
-      TARGET,
-      ...extra,
-    ]),
-    spawnAsync(process.execPath, [
-      comparisonCheck,
-      "--coverage",
-      join(p.slugDir, "component-coverage.json"),
-      "--comparison",
-      join(p.stageDir, "component-comparison.json"),
-      "--target",
-      TARGET,
-      "--replace-metadata",
-      join(p.stageDir, "replace-metadata.json"),
-      ...extra,
-    ]),
+    spawnAsync(
+      process.execPath,
+      [healthCheck, "--metadata", join(p.slugDir, "metadata.json"), "--target", TARGET, ...extra],
+      { timeout: CHILD_TIMEOUT_MS },
+    ),
+    spawnAsync(
+      process.execPath,
+      [
+        comparisonCheck,
+        "--coverage",
+        join(p.slugDir, "component-coverage.json"),
+        "--comparison",
+        join(p.stageDir, "component-comparison.json"),
+        "--target",
+        TARGET,
+        "--replace-metadata",
+        join(p.stageDir, "replace-metadata.json"),
+        ...extra,
+      ],
+      { timeout: CHILD_TIMEOUT_MS },
+    ),
   ]);
   return {
     health,

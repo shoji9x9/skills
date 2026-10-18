@@ -18,6 +18,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CONFIG_PATH, checkAgentsMdSize, main } from "./check-agents-md-size.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "scripts/gates/docs/check-agents-md-size.ts");
@@ -30,7 +31,7 @@ function write(root: string, path: string, text: string) {
 }
 
 const git = (root: string, ...args: string[]) =>
-  execFileSync("git", args, { cwd: root, encoding: "utf8" });
+  execFileSync("git", args, { timeout: CHILD_TIMEOUT_MS, cwd: root, encoding: "utf8" });
 
 /** AGENTS.md を size バイトにして stage する。commit なら commit もする。 */
 function put(root: string, size: number, { commit = true }: { commit?: boolean } = {}) {
@@ -181,6 +182,7 @@ test("検出の確認（CLI）: 子プロセスとして起動しても、超え
   put(root, LIMIT + 1);
   const run = () =>
     spawnSync(process.execPath, [script, "--pre-commit", "--base", "main"], {
+      timeout: CHILD_TIMEOUT_MS,
       cwd: root,
       encoding: "utf8",
     });

@@ -26,6 +26,7 @@ import { spawnAsync } from "../../lib/spawn-async.ts";
 import { parseJsonAs } from "../../lib/parse-as.ts";
 import { loadYamlAs } from "../../lib/text/yaml-as.ts";
 import { DASH_TERM } from "../../lib/text/textlint-word-rule.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "scripts/gates/prose/lint-prose.ts");
@@ -54,12 +55,12 @@ function makeRepo(files: Record<string, string>, pending: string[] | null = []) 
 
 /** `makeRepo` の中身を、作ったディレクトリ `root` に置く。 */
 function fillRepo(root: string, files: Record<string, string>, pending: string[] | null = []) {
-  spawnSync("git", ["init", "-q"], { cwd: root });
+  spawnSync("git", ["init", "-q"], { timeout: CHILD_TIMEOUT_MS, cwd: root });
   for (const [p, t] of Object.entries(files)) write(root, p, t);
   if (pending !== null) {
     write(root, PENDING_PATH, JSON.stringify({ reason: "書き換え前", files: pending }));
   }
-  spawnSync("git", ["add", "-A"], { cwd: root });
+  spawnSync("git", ["add", "-A"], { timeout: CHILD_TIMEOUT_MS, cwd: root });
 }
 
 // **CLI の子プロセスは、収集のときに起動しておき、最後のテストで終了を待つ**（Issue #590）。
@@ -72,7 +73,8 @@ const cliRuns = (() => {
   const run = (files: Record<string, string>) => {
     const root = makeSharedTempDir("lint-prose-cli-");
     fillRepo(root, files);
-    return spawnAsync(process.execPath, [script], { cwd: root });
+    // child-timeout-ok: 収集のときに起動し、60 秒の afterAll と CLI のテストで待つ。CPU が混むと 25 秒を超えるので、それより短い 50 秒にする
+    return spawnAsync(process.execPath, [script], { timeout: 50_000, cwd: root });
   };
   const dirty = run({ "a.md": DIRTY });
   const clean = run({ "a.md": CLEAN });
@@ -92,10 +94,10 @@ describe("単語帳: 各エントリの example が、そのエントリの mess
   const fileOf = (i: number) => `entry-${String(i).padStart(3, "0")}.md`;
   let violations: string[];
   beforeAll(async () => {
-    spawnSync("git", ["init", "-q"], { cwd: root });
+    spawnSync("git", ["init", "-q"], { timeout: CHILD_TIMEOUT_MS, cwd: root });
     words.entries.forEach((e, i) => write(root, fileOf(i), `# 例\n\n${e.example}\n`));
     write(root, PENDING_PATH, JSON.stringify({ reason: "書き換え前", files: [] }));
-    spawnSync("git", ["add", "-A"], { cwd: root });
+    spawnSync("git", ["add", "-A"], { timeout: CHILD_TIMEOUT_MS, cwd: root });
     ({ violations } = await lintProse({ root }));
   }, 120_000);
   test.each(words.entries.map((e, i): [string, string, number] => [e.example, e.message, i]))(
@@ -164,7 +166,7 @@ test("陰性: スキルのコピー・エージェント用のリンク・過去
     "notes.txt": DIRTY,
   });
   symlinkSync(join(root, "tests/x/result.md"), join(root, "link.md"));
-  spawnSync("git", ["add", "-A"], { cwd: root });
+  spawnSync("git", ["add", "-A"], { timeout: CHILD_TIMEOUT_MS, cwd: root });
   const result = await lintProse({ root });
   expect(result).toEqual({ checked: 2, pending: 0, violations: [], stale: [] });
 });
@@ -447,7 +449,10 @@ test("shfmt が無ければ、ファイルの指摘にせず例外にし、main 
   const root = makeRepo({ "a.sh": "# 説明。\n" });
   // git は要るので、git へのリンクだけを置いたディレクトリを PATH にする（shfmt の置き場所に依らない）。
   const bin = makeTempDir("git-only-");
-  const git = spawnSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).stdout.trim();
+  const git = spawnSync("sh", ["-c", "command -v git"], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  }).stdout.trim();
   symlinkSync(git, join(bin, "git"));
   const path = process.env.PATH;
   const cwd = process.cwd();

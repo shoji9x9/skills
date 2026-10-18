@@ -23,6 +23,7 @@ import {
 import { canonicalize } from "../../../skills/parity-diff/scripts/lib/json.mjs";
 import { parseJsonAs } from "../../lib/parse-as.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "skills/parity-diff/scripts/json-normalize-diff.mjs");
@@ -38,7 +39,7 @@ function runCli(currentJson: string, newJson: string, args: string[] = []) {
   writeFileSync(next, newJson);
   const r = spawnSync(process.execPath, [script, current, next, ...args], {
     encoding: "utf8",
-    timeout: 30_000,
+    timeout: CHILD_TIMEOUT_MS,
   });
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }
@@ -210,7 +211,10 @@ test("入力のファイルが 2 つでなければ、使い方を出して exit
   const dir = makeTempDir("json-normalize-diff-");
   const only = join(dir, "current.json");
   writeFileSync(only, "{}");
-  const r = spawnSync(process.execPath, [script, only], { encoding: "utf8", timeout: 30_000 });
+  const r = spawnSync(process.execPath, [script, only], {
+    encoding: "utf8",
+    timeout: CHILD_TIMEOUT_MS,
+  });
   expect(r.stderr).toContain("usage: node json-normalize-diff.mjs");
   expect(r.stdout).toBe("");
   expect(r.status).toBe(2);
@@ -230,7 +234,7 @@ test("入力のファイルが無ければ exit 2 にする", () => {
   const dir = makeTempDir("json-normalize-diff-");
   const r = spawnSync(process.execPath, [script, join(dir, "a.json"), join(dir, "b.json")], {
     encoding: "utf8",
-    timeout: 30_000,
+    timeout: CHILD_TIMEOUT_MS,
   });
   expect(r.stderr).toContain("error: cannot read inputs:");
   expect(r.status).toBe(2);
@@ -245,7 +249,7 @@ test.each([
   const code = `await import(${JSON.stringify(script)}); console.log("imported");`;
   const r = spawnSync(process.execPath, ["--input-type=module", "-e", code, ...extra], {
     encoding: "utf8",
-    timeout: 30_000,
+    timeout: CHILD_TIMEOUT_MS,
   });
   expect(r.stdout).toBe("imported\n");
   expect(r.stderr).not.toContain("usage:");

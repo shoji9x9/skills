@@ -20,6 +20,7 @@ import { loadYamlAs } from "../../lib/text/yaml-as.ts";
 import { removeField } from "../../lib/testing/test-input.ts";
 import oxfmtConfig, { assigned } from "../../../oxfmt.config.ts";
 import { isArray } from "../../lib/is-array.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const req = createRequire(join(repoRoot, "package.json"));
@@ -117,7 +118,7 @@ function run(root: string, bin: string, args: string[]) {
   const r = spawnSync(process.execPath, [bin, ...args], {
     cwd: root,
     encoding: "utf8",
-    timeout: 60_000,
+    timeout: CHILD_TIMEOUT_MS,
   });
   if (r.error) throw r.error;
   if (r.signal) throw new Error(`${bin} が ${r.signal} で終わった: ${r.stderr}`);

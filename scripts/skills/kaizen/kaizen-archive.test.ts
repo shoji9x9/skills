@@ -4,6 +4,7 @@ import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "skills/kaizen/scripts/kaizen-archive.sh");
@@ -17,7 +18,11 @@ function createRepo() {
   const dir = makeTempDir("kaizen-archive-");
   workdirs.push(dir);
   mkdirSync(join(dir, ".kaizen"));
-  const init = spawnSync("git", ["init", "-q", "."], { cwd: dir, encoding: "utf8" });
+  const init = spawnSync("git", ["init", "-q", "."], {
+    timeout: CHILD_TIMEOUT_MS,
+    cwd: dir,
+    encoding: "utf8",
+  });
   expect(init.status, init.stderr).toBe(0);
   return dir;
 }
@@ -73,6 +78,7 @@ function withGlibcStyleLocales(dir: string) {
 
 function archiveIn(dir: string, localeEnv: NodeJS.ProcessEnv, ...files: string[]) {
   return spawnSync("bash", [script, ...files], {
+    timeout: CHILD_TIMEOUT_MS,
     cwd: dir,
     env: { ...process.env, CLAUDE_PROJECT_DIR: "", ...localeEnv },
     encoding: "utf8",
@@ -87,7 +93,7 @@ test("../ で始まる Markdown 相対リンクを移動先の階層に合わせ
     "relative links",
     "\n[x](../docs/x.md) and ![image](../../assets/x.png) and [web](https://example.com)\n",
   );
-  spawnSync("git", ["add", ".kaizen"], { cwd: dir });
+  spawnSync("git", ["add", ".kaizen"], { timeout: CHILD_TIMEOUT_MS, cwd: dir });
 
   const result = archive(dir, note);
 
@@ -97,6 +103,7 @@ test("../ で始まる Markdown 相対リンクを移動先の階層に合わせ
   expect(archived).toContain("![image](../../../assets/x.png)");
   expect(archived).toContain("[web](https://example.com)");
   const staged = spawnSync("git", ["show", ":.kaizen/archive/2026-09-01-links.md"], {
+    timeout: CHILD_TIMEOUT_MS,
     cwd: dir,
     encoding: "utf8",
   });
@@ -104,6 +111,7 @@ test("../ で始まる Markdown 相対リンクを移動先の階層に合わせ
   expect(staged.stdout).toContain("[x](../../docs/x.md)");
   expect(staged.stdout).toContain("![image](../../../assets/x.png)");
   const unstaged = spawnSync("git", ["diff", "--", ".kaizen/archive/2026-09-01-links.md"], {
+    timeout: CHILD_TIMEOUT_MS,
     cwd: dir,
     encoding: "utf8",
   });
@@ -337,7 +345,7 @@ test.each([
 // そのロケールが入っていない環境では、このテストを飛ばす。
 // locale の一覧を取れない（起動の失敗・時間切れ）ことは、ロケールが無いことと同じに扱わない。
 // そのときはテストを飛ばさずに実行し、テストの中で失敗させる（ほかのテストの収集は止めない）。
-const localeList = spawnSync("locale", ["-a"], { encoding: "utf8", timeout: 30_000 });
+const localeList = spawnSync("locale", ["-a"], { encoding: "utf8", timeout: CHILD_TIMEOUT_MS });
 const localeListed = localeList.error === undefined && localeList.status === 0;
 const collatingLocale = localeListed
   ? localeList.stdout.split("\n").find((l) => /utf-?8$/i.test(l) && !/^(c|posix)\./i.test(l))

@@ -14,6 +14,7 @@ import { main, fitPlane } from "../../../../skills/parity-suite/scripts/dimensio
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 import { invalidInput, removeField } from "../../../lib/testing/test-input.ts";
 import { parseJsonAs } from "../../../lib/parse-as.ts";
+import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/dimension-fit.mjs");
@@ -852,22 +853,14 @@ test("CLI: シンボリックリンクでなく実パスで起動して exit コ
   const fit = spawnSync(
     process.execPath,
     [script, "fit", "--samples", "s.json", "--metadata", "m.json", "--write"],
-    {
-      cwd: dir,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    },
+    { timeout: CHILD_TIMEOUT_MS, cwd: dir, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
   );
   expect(fit.status).toBe(0);
   writeFileSync(join(dir, "n.json"), JSON.stringify(samplesOf(pinned)));
   const check = spawnSync(
     process.execPath,
     [script, "check", "--metadata", "m.json", "--current-samples", "s.json", "--samples", "n.json"],
-    {
-      cwd: dir,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    },
+    { timeout: CHILD_TIMEOUT_MS, cwd: dir, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
   );
   expect(check.status).toBe(1);
   expect(

@@ -10,6 +10,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const scriptsDir = join(repoRoot, "skills", "kaizen", "scripts");
@@ -21,7 +22,7 @@ function makeRepoWithWorktree(name = "wt") {
   const main = join(root, "main");
   mkdirSync(main);
   const git = (args: string[], cwd = main) => {
-    const r = spawnSync("git", args, { cwd, encoding: "utf8" });
+    const r = spawnSync("git", args, { timeout: CHILD_TIMEOUT_MS, cwd, encoding: "utf8" });
     expect(r.status, r.stderr).toBe(0);
     return r;
   };
@@ -60,7 +61,12 @@ function runExtractDone(cwd: string, projectDir: string, extraArgs: string[] = [
       SESSION,
       ...extraArgs,
     ],
-    { cwd, encoding: "utf8", env: { ...process.env, CLAUDE_PROJECT_DIR: projectDir } },
+    {
+      timeout: CHILD_TIMEOUT_MS,
+      cwd,
+      encoding: "utf8",
+      env: { ...process.env, CLAUDE_PROJECT_DIR: projectDir },
+    },
   );
 }
 
@@ -343,7 +349,12 @@ describe("忘却の自動掃引", () => {
         "--session-id",
         SESSION,
       ],
-      { cwd: main, encoding: "utf8", env: { ...process.env, CLAUDE_PROJECT_DIR: main } },
+      {
+        timeout: CHILD_TIMEOUT_MS,
+        cwd: main,
+        encoding: "utf8",
+        env: { ...process.env, CLAUDE_PROJECT_DIR: main },
+      },
     );
     expect(result.status).toBe(0);
     expect(result.stderr).toContain("could not write the note");
@@ -378,7 +389,12 @@ describe("忘却の自動掃引", () => {
         "--session-id",
         SESSION,
       ],
-      { cwd: main, encoding: "utf8", env: { ...process.env, CLAUDE_PROJECT_DIR: main } },
+      {
+        timeout: CHILD_TIMEOUT_MS,
+        cwd: main,
+        encoding: "utf8",
+        env: { ...process.env, CLAUDE_PROJECT_DIR: main },
+      },
     );
     expect(result.status).toBe(0);
     // センチネルは消えている（掃引の失敗に巻き込まれない）。

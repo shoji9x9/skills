@@ -35,6 +35,7 @@ import {
 import type { Rect } from "../../../skills/parity-diff/scripts/pixel-crops.mjs";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { decodePng, encodePng } from "../../lib/testing/fake-pngjs.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const SCRIPT = fileURLToPath(
   new URL("../../../skills/parity-diff/scripts/pixel-crops.mjs", import.meta.url),
@@ -96,7 +97,7 @@ function runFiles(
   const res = spawnSync(
     process.execPath,
     [...(fake ? ["--import", HOOKS] : []), SCRIPT, ...paths, "--out", out, ...args],
-    { encoding: "utf8", env: process.env, timeout: 30_000 },
+    { encoding: "utf8", env: process.env, timeout: CHILD_TIMEOUT_MS },
   );
   return { code: res.status, stdout: res.stdout, stderr: res.stderr, out };
 }
@@ -889,7 +890,7 @@ test.each([
 ])("引数が足りなければ使い方を出して exit 2（%s）", (_label, argv, message) => {
   const res = spawnSync(process.execPath, ["--import", HOOKS, SCRIPT, ...argv], {
     encoding: "utf8",
-    timeout: 30_000,
+    timeout: CHILD_TIMEOUT_MS,
   });
   expect(res.status).toBe(2);
   expect(res.stderr).toMatch(message);

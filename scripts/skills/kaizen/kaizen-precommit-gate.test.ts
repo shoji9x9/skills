@@ -23,6 +23,7 @@ import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeSharedTempDir, makeTempDirFactory } from "../../lib/testing/test-tmpdir.ts";
 import { spawnAsync } from "../../lib/spawn-async.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const scriptsDir = join(repoRoot, "skills", "kaizen", "scripts");
@@ -46,6 +47,8 @@ type RunOptions = {
   sessionId?: string;
   scripts?: string;
   env?: Record<string, string>;
+  // 子プロセスの timeout。testTimeout より短いテストから呼ぶときは、テストの timeout より短い値を渡す。
+  timeout?: number;
 };
 
 async function runScript(
@@ -54,6 +57,7 @@ async function runScript(
   { cwd, scripts = scriptsDir, env = {} }: RunOptions = {},
 ) {
   return await spawnAsync("bash", [join(scripts, script), ...args], {
+    timeout: CHILD_TIMEOUT_MS,
     cwd,
     env: { ...process.env, CLAUDE_PROJECT_DIR: cwd, ...env },
   });
@@ -62,7 +66,14 @@ async function runScript(
 /** PreToolUse Hook の入力を模して、チェックに 1 コマンドを判定させる。 */
 async function runGate(
   command: string,
-  { cwd, transcriptPath, sessionId, scripts = scriptsDir, env = {} }: RunOptions = {},
+  {
+    cwd,
+    transcriptPath,
+    sessionId,
+    scripts = scriptsDir,
+    env = {},
+    timeout = CHILD_TIMEOUT_MS,
+  }: RunOptions = {},
 ) {
   const input = JSON.stringify({
     tool_input: { command },
@@ -70,6 +81,7 @@ async function runGate(
     ...(sessionId ? { session_id: sessionId } : {}),
   });
   return await spawnAsync("bash", [join(scripts, "kaizen-precommit-gate.sh")], {
+    timeout,
     cwd,
     input,
     env: { ...process.env, CLAUDE_PROJECT_DIR: cwd, ...env },
@@ -110,12 +122,14 @@ function setupForeignScan(scannerBody: string) {
     `2099-01-01T00:00:00Z\n${transcript}\nclaude-code\n${FOREIGN_SCAN_FOREIGN}\n`,
   );
   const cache = join(cwd, ".kaizen", `.extract-checkpoint.${FOREIGN_SCAN_FOREIGN}.foreign-scan`);
-  const gate = async (env: Record<string, string> = {}) =>
+  // timeout は、1 つのテストで gate を何度も起動するときに、合計がテストの timeout を超えないように渡す。
+  const gate = async (env: Record<string, string> = {}, timeout?: number) =>
     await runGate("git commit -m x", {
       cwd,
       sessionId: FOREIGN_SCAN_OWN,
       scripts,
       env: { SCAN_COUNTER: counter, ...env },
+      timeout,
     });
   const scans = () =>
     existsSync(counter) ? readFileSync(counter, "utf8").split("\n").filter(Boolean).length : 0;
@@ -712,7 +726,9 @@ describe.concurrent("同一セッションの後続 commit も未処理範囲を
   test("古い .extract-done を削除できなくても checkpoint 後のセンチネル解除を続ける", async () => {
     const scripts = cloneScripts();
     const shimDir = tempDir("kaizen-rm-shim-");
-    const realRm = (await spawnAsync("bash", ["-c", "command -v rm"])).stdout.trim();
+    const realRm = (
+      await spawnAsync("bash", ["-c", "command -v rm"], { timeout: CHILD_TIMEOUT_MS })
+    ).stdout.trim();
     writeFileSync(
       join(shimDir, "rm"),
       `#!/usr/bin/env bash
@@ -820,10 +836,14 @@ describe.concurrent("スキャナの判定はチェックの外部コマンド�
   // GNU sed の --posix を BSD sed（POSIX BRE のみ）の代理にする。--posix を持たない sed の
   // 環境では代理を作れないので skip する（誤検出させない）。
   // 収集のときに 1 回だけ判定する（skipIf に渡すので同期で起動する）。
-  const realSed = spawnSync("bash", ["-c", "command -v sed"], { encoding: "utf8" }).stdout.trim();
+  const realSed = spawnSync("bash", ["-c", "command -v sed"], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  }).stdout.trim();
   const posixSedAvailable =
     realSed !== "" &&
-    spawnSync("bash", ["-c", `"${realSed}" --posix -n p </dev/null`]).status === 0;
+    spawnSync("bash", ["-c", `"${realSed}" --posix -n p </dev/null`], { timeout: CHILD_TIMEOUT_MS })
+      .status === 0;
 
   test.skipIf(!posixSedAvailable)(
     "POSIX BRE しか持たない sed でも候補ゼロは自動通過する",
@@ -1197,6 +1217,7 @@ describe.concurrent("コミット先のスコープ判定", () => {
     writeFileSync(join(main, ".kaizen", ".pending-extract"), "");
     const git = async (args: readonly string[], cwd: string) =>
       await spawnAsync("git", args, {
+        timeout: CHILD_TIMEOUT_MS,
         cwd,
         env: {
           ...process.env,
@@ -1261,6 +1282,7 @@ describe.concurrent("生 JSON だけで判定するときの commit 検出", () 
       "git",
     ]) {
       const path = spawnSync("bash", ["-c", `command -v ${tool}`], {
+        timeout: CHILD_TIMEOUT_MS,
         encoding: "utf8",
       }).stdout.trim();
       if (path) symlinkSync(path, join(dir, tool));
@@ -1275,6 +1297,7 @@ describe.concurrent("生 JSON だけで判定するときの commit 検出", () 
   test("PATH から jq / python3 が解決できないこと", async () => {
     for (const tool of ["jq", "python3", "python"]) {
       const probe = await spawnAsync("bash", ["-c", `command -v ${tool}`], {
+        timeout: CHILD_TIMEOUT_MS,
         env: { ...process.env, PATH: jqlessPath },
       });
       expect(probe.status).not.toBe(0);
@@ -1411,6 +1434,7 @@ describe.concurrent("lifecycle 検査", () => {
     // 検出されることの確認: この環境変数で bash が実際に stderr へ警告を出すことを確かめる。
     // 出ていなければ、この後の exit 0 は「雑音を無視できた」の証拠にならない。
     const noise = await spawnAsync("bash", ["-c", "true"], {
+      timeout: CHILD_TIMEOUT_MS,
       env: { ...process.env, LC_ALL: "xx_YY.UTF-8" },
     });
     expect(noise.stderr).toMatch(/setlocale/);
@@ -1448,11 +1472,7 @@ describe.concurrent("lifecycle 検査", () => {
     const gate = await spawnAsync(
       "bash",
       [join(scriptsDir, "kaizen-precommit-gate.sh"), "-copilot"],
-      {
-        cwd,
-        input,
-        env: { ...process.env, CLAUDE_PROJECT_DIR: cwd },
-      },
+      { timeout: CHILD_TIMEOUT_MS, cwd, input, env: { ...process.env, CLAUDE_PROJECT_DIR: cwd } },
     );
     expect(gate.status).toBe(0);
     expect(gate.stderr).toMatch(/warning: type is hook/);
@@ -1566,7 +1586,7 @@ describe.concurrent("チェックはリポジトリの全作業ツリーの .kai
     const main = join(root, "main");
     mkdirSync(main);
     const git = async (args: readonly string[], cwd = main) => {
-      const r = await spawnAsync("git", args, { cwd });
+      const r = await spawnAsync("git", args, { timeout: CHILD_TIMEOUT_MS, cwd });
       expect(r.status, r.stderr).toBe(0);
       return r;
     };
@@ -1599,6 +1619,7 @@ describe.concurrent("チェックはリポジトリの全作業ツリーの .kai
       tool_input: { command: "git commit -m x" },
     });
     return await spawnAsync("bash", [join(scriptsDir, "kaizen-precommit-gate.sh")], {
+      timeout: CHILD_TIMEOUT_MS,
       cwd,
       input,
       env: { ...process.env, CLAUDE_PROJECT_DIR: projectDir },
@@ -1646,6 +1667,7 @@ describe.concurrent("チェックはリポジトリの全作業ツリーの .kai
     // 覆っていることを先に確かめる（この後の 0 → 2 の変化が SessionStart によるものだと区別する）。
     expect((await runGateAt(worktree, main)).status).toBe(0);
     const inject = await spawnAsync("bash", [join(scriptsDir, "kaizen-context-inject.sh")], {
+      timeout: CHILD_TIMEOUT_MS,
       cwd: worktree,
       input: JSON.stringify({ session_id: SESSION, cwd: worktree, source: "resume" }),
       env: { ...process.env, CLAUDE_PROJECT_DIR: main },
@@ -1677,6 +1699,7 @@ describe.concurrent("チェックはリポジトリの全作業ツリーの .kai
     const marker = join(main, ".kaizen", `.extract-done.${SESSION}`);
     writeFileSync(marker, "2026-09-11T12:30:00Z\n");
     const inject = await spawnAsync("bash", [join(scriptsDir, "kaizen-context-inject.sh")], {
+      timeout: CHILD_TIMEOUT_MS,
       cwd: worktree,
       input: JSON.stringify({ session_id: SESSION, cwd: worktree, source: "compact" }),
       env: { ...process.env, CLAUDE_PROJECT_DIR: main },
@@ -1721,7 +1744,8 @@ describe("チェック全体の締め切り", () => {
 
   async function timedGate(options: RunOptions) {
     const started = Date.now();
-    const gate = await runGate("git commit -m x", options);
+    // テストの timeout（15 秒）より先に子プロセスを止め、どの子プロセスで止まったかを出力に残す。
+    const gate = await runGate("git commit -m x", { timeout: 10_000, ...options });
     return { gate, elapsed: Date.now() - started };
   }
 
@@ -1822,12 +1846,14 @@ describe("他セッション分の走査結果の再利用（使える秒数を�
     );
     // 使える秒数は SECONDS の境界で 1 秒揺れる。同じ締め切りの 2 回目は許容内（+1 秒）に、
     // 3 回目は確実に許容の外に収まる値を選ぶ。
-    await gate({ KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "3" });
+    // gate を 3 回順に起動するので、子プロセスの timeout の合計（28 秒）をテストの timeout（30 秒）より短くする。
+    // 締め切りに合わせて配り、どの回も締め切りより 5 秒の余裕を持たせる。
+    await gate({ KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "3" }, 8_000);
     expect(scans()).toBe(1);
-    const same = await gate({ KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "3" });
+    const same = await gate({ KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "3" }, 8_000);
     expect(scans()).toBe(1);
     expect(same.stderr).toMatch(/skipped re-scanning .*\(exit 124 after up to [12]s\)/);
-    await gate({ KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "7", SCAN_NO_WAIT: "1" });
+    await gate({ KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "7", SCAN_NO_WAIT: "1" }, 12_000);
     expect(scans()).toBe(2);
   }, 30000);
 });

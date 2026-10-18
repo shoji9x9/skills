@@ -28,6 +28,7 @@ import {
 } from "../../../../skills/parity-suite/scripts/coverage-expand.mjs";
 import { invalidInput, removeField } from "../../../lib/testing/test-input.ts";
 import { isArray } from "../../../lib/is-array.ts";
+import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/coverage-expand.mjs");
@@ -1447,7 +1448,10 @@ function runCli(
   return {
     root,
     paths,
-    ...spawnSync(process.execPath, [script, ...resolved], { encoding: "utf8" }),
+    ...spawnSync(process.execPath, [script, ...resolved], {
+      timeout: CHILD_TIMEOUT_MS,
+      encoding: "utf8",
+    }),
   };
 }
 
@@ -1651,7 +1655,9 @@ test("CLI --write は candidates と conformance を書き戻す（測定値に�
 });
 
 test("CLI: 引数不足・重複指定は exit 2", () => {
-  expect(spawnSync(process.execPath, [script], { encoding: "utf8" }).status).toBe(2);
+  expect(
+    spawnSync(process.execPath, [script], { timeout: CHILD_TIMEOUT_MS, encoding: "utf8" }).status,
+  ).toBe(2);
   const dup = runCli(
     ["--coverage", "component-coverage.json", "--coverage", "component-coverage.json"],
     {
@@ -1663,7 +1669,10 @@ test("CLI: 引数不足・重複指定は exit 2", () => {
 });
 
 test("CLI --list-profiles は同梱プロファイルを列挙する", () => {
-  const r = spawnSync(process.execPath, [script, "--list-profiles"], { encoding: "utf8" });
+  const r = spawnSync(process.execPath, [script, "--list-profiles"], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  });
   expect(r.status).toBe(0);
   expect(
     parseJsonAs<{ profiles: Array<{ id: string }> }>(r.stdout).profiles.map((p) => p.id),

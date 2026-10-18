@@ -18,6 +18,7 @@ import { invalidInput } from "../../../lib/testing/test-input.ts";
 import { errorMessage } from "../../../lib/errors.ts";
 import { parseJsonAs } from "../../../lib/parse-as.ts";
 import { isArray } from "../../../lib/is-array.ts";
+import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/header-normalize.mjs");
@@ -590,6 +591,7 @@ function runDiff(current: unknown, next: unknown) {
   writeFileSync(a, JSON.stringify(current));
   writeFileSync(b, JSON.stringify(next));
   const r = spawnSync(process.execPath, [diffScript, a, b], {
+    timeout: CHILD_TIMEOUT_MS,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -701,6 +703,7 @@ test("CLI: 正規化した JSON を出して exit 0（node で起動しても ma
     Date: "now",
   });
   const r = spawnSync(process.execPath, [script, "--header-list", listPath, headersPath], {
+    timeout: CHILD_TIMEOUT_MS,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });

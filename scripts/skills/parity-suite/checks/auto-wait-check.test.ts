@@ -6,6 +6,7 @@ import { writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
 
 /** ブロックコメントの literal。このファイル自身のコメントを閉じないよう組み立てる。 */
 const BLOCK_COMMENT = `/${"*"} c ${"*"}/`;
@@ -130,17 +131,26 @@ test("CLI は対象 0 件を成功扱いにせず、違反と正常入力を区�
   const bad = join(dir, "bad.spec.ts");
   const good = join(dir, "good.spec.ts");
   writeFileSync(bad, "await page.$('#save');\n");
-  let result = spawnSync(process.execPath, [script, dir], { encoding: "utf8" });
+  let result = spawnSync(process.execPath, [script, dir], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  });
   expect(result.status).toBe(1);
   expect(result.stderr).toMatch(/bad\.spec\.ts:1:\d+: query-handle/);
 
   writeFileSync(bad, "await expect(page.getByRole('button')).toBeVisible();\n");
   writeFileSync(good, "await expect(page.getByRole('row')).toHaveCount(2);\n");
-  result = spawnSync(process.execPath, [script, dir], { encoding: "utf8" });
+  result = spawnSync(process.execPath, [script, dir], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  });
   expect(result.status).toBe(0);
   expect(result.stdout).toMatch(/走査 2 ファイル/);
 
-  result = spawnSync(process.execPath, [script, join(dir, "missing")], { encoding: "utf8" });
+  result = spawnSync(process.execPath, [script, join(dir, "missing")], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  });
   expect(result.status).toBe(2);
   expect(result.stderr).toMatch(/読み込めない/);
 });
@@ -151,7 +161,10 @@ test("引数が重なっても走査ファイル数は重複を除いた実数�
   const dir = makeTempDir("auto-wait-check-dup-");
   const spec = join(dir, "suite.spec.ts");
   writeFileSync(spec, "await expect(page.getByRole('row')).toHaveCount(2);\n");
-  const result = spawnSync(process.execPath, [script, dir, spec, dir], { encoding: "utf8" });
+  const result = spawnSync(process.execPath, [script, dir, spec, dir], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  });
   expect(result.status).toBe(0);
   expect(result.stdout).toMatch(/走査 1 ファイル/);
 });
@@ -164,11 +177,17 @@ test("ディレクトリ走査では非対象ファイルを無視し、明示�
   writeFileSync(metadata, "{}\n");
   writeFileSync(join(dir, "README.md"), "# Suite\n");
 
-  let result = spawnSync(process.execPath, [script, dir], { encoding: "utf8" });
+  let result = spawnSync(process.execPath, [script, dir], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  });
   expect(result.status).toBe(0);
   expect(result.stdout).toMatch(/走査 1 ファイル/);
 
-  result = spawnSync(process.execPath, [script, metadata], { encoding: "utf8" });
+  result = spawnSync(process.execPath, [script, metadata], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  });
   expect(result.status).toBe(2);
   expect(result.stderr).toMatch(/対象外の拡張子/);
 });
@@ -695,14 +714,20 @@ test("CLI は判定不能を 0 件として扱わず、測れた量を出力す�
   const dir = makeTempDir("auto-wait-check-measured-");
   const spec = join(dir, "unresolved.spec.ts");
   writeFileSync(spec, "const total = await pagerValue(view).innerText();\n");
-  let result = spawnSync(process.execPath, [script, dir], { encoding: "utf8" });
+  let result = spawnSync(process.execPath, [script, dir], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  });
   expect(result.status).toBe(1);
   expect(result.stderr).toMatch(/unresolved\.spec\.ts:1:\d+: unresolved-receiver/);
   expect(result.stderr).toMatch(/受け側を解決できない呼び出しが 1 件/);
   expect(result.stderr).toMatch(/判定不能 1 件/);
 
   writeFileSync(spec, "function pagerValue(view: Page): Locator { return view.locator('.x'); }\n");
-  result = spawnSync(process.execPath, [script, dir], { encoding: "utf8" });
+  result = spawnSync(process.execPath, [script, dir], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  });
   expect(result.status).toBe(0);
   expect(result.stdout).toMatch(/判定不能 0 件/);
 });
@@ -784,7 +809,10 @@ test("走査不能なファイルは違反 0 件として扱わず exit 2 で落
     spec,
     "const locator = page.locator('.x');\nconst x = await! / d; const v = locator.textContent(); const y = a / e;\n",
   );
-  const result = spawnSync(process.execPath, [script, dir], { encoding: "utf8" });
+  const result = spawnSync(process.execPath, [script, dir], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  });
   expect(result.status).toBe(2);
   expect(result.stderr).toMatch(/走査不能/);
   expect(result.stderr).toMatch(/正規表現の開始.+除算/);
@@ -1211,7 +1239,10 @@ test("内訳が呼び出し数に満たなければ不一致として説明を�
 test("CLI は Playwright 以外と確定した件数を出力する", () => {
   const dir = makeTempDir("auto-wait-check-excluded-");
   writeFileSync(join(dir, "a.spec.ts"), "await Promise.all([a(), b()]);\n");
-  const result = spawnSync(process.execPath, [script, dir], { encoding: "utf8" });
+  const result = spawnSync(process.execPath, [script, dir], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  });
   expect(result.status).toBe(0);
   expect(result.stdout).toMatch(/Playwright 以外と確定 1 件/);
 });

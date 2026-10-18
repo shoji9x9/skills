@@ -11,6 +11,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 import { encodePng } from "../../../lib/testing/fake-pngjs.ts";
 import { parseJsonAs } from "../../../lib/parse-as.ts";
+import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/pixel-strict-count.mjs");
@@ -38,7 +39,7 @@ function run(argv: string[]) {
   const r = spawnSync(process.execPath, ["--import", pathToFileURL(HOOKS).href, script, ...argv], {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
-    timeout: 30_000,
+    timeout: CHILD_TIMEOUT_MS,
   });
   return { code: r.status, stdout: r.stdout, stderr: r.stderr };
 }

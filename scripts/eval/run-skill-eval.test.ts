@@ -13,6 +13,7 @@ import { assert, describe, expect, test } from "vitest";
 import { makeTempDirFactory } from "../lib/testing/test-tmpdir.ts";
 import { spawnAsync } from "../lib/spawn-async.ts";
 import { parseJsonAs } from "../lib/parse-as.ts";
+import { CHILD_TIMEOUT_MS } from "../lib/testing/child-timeout.ts";
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 // **テストは `describe.concurrent` で並べて実行する**（Issue #590）。どのテストも run-skill-eval.sh の子プロセスの終了を
@@ -163,6 +164,7 @@ async function runEval({
       repository,
     ],
     {
+      timeout: CHILD_TIMEOUT_MS,
       env: {
         ...process.env,
         PATH: `${dirname(stub)}:${process.env.PATH}`,
@@ -529,6 +531,7 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
           repository,
         ],
         {
+          timeout: CHILD_TIMEOUT_MS,
           env: {
             ...process.env,
             SKILL_EVAL_CLI_VERSION: "codex stub-version",
@@ -689,6 +692,7 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
         repository,
       ],
       {
+        timeout: CHILD_TIMEOUT_MS,
         env: {
           ...process.env,
           SKILL_EVAL_CLI_VERSION: "codex stub-version",
@@ -747,7 +751,7 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
         "--repo",
         repository,
       ],
-      { env },
+      { timeout: CHILD_TIMEOUT_MS, env },
     );
 
     expect(result.status).toBe(6);
@@ -792,6 +796,7 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
         repository,
       ],
       {
+        timeout: CHILD_TIMEOUT_MS,
         env: {
           ...process.env,
           SKILL_EVAL_CLI_VERSION: "codex stub-version",
@@ -848,12 +853,16 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
       }),
     ).rejects.toThrow();
     expect(existsSync(target)).toBe(false);
-    const result = await spawnAsync("node", [
-      join(repository, "scripts", "eval", "reuse-skill-eval-baseline.ts"),
-      source,
-      target,
-      join(source, "eval-fingerprint.json"),
-    ]);
+    const result = await spawnAsync(
+      "node",
+      [
+        join(repository, "scripts", "eval", "reuse-skill-eval-baseline.ts"),
+        source,
+        target,
+        join(source, "eval-fingerprint.json"),
+      ],
+      { timeout: CHILD_TIMEOUT_MS },
+    );
     expect(result.stderr).toMatch(errorPattern);
   });
 
@@ -1011,6 +1020,7 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
         repository,
       ],
       {
+        timeout: CHILD_TIMEOUT_MS,
         env: {
           ...process.env,
           SKILL_EVAL_CLI_VERSION: "codex stub-version",
@@ -1050,6 +1060,7 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
         repository,
       ],
       {
+        timeout: CHILD_TIMEOUT_MS,
         env: {
           ...process.env,
           SKILL_EVAL_CLI_VERSION: "codex stub-version",
@@ -1159,6 +1170,7 @@ printf '{"result":"%s","is_error":false,"num_turns":1,"usage":{"input_tokens":1,
         root,
       ],
       {
+        timeout: CHILD_TIMEOUT_MS,
         env: { ...process.env, SKILL_EVAL_RUNNER: stub, SKILL_EVAL_CLI_VERSION: "stub-version" },
       },
     );

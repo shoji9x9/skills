@@ -18,12 +18,18 @@ import { chmodSync, existsSync, writeFileSync } from "node:fs";
 import { delimiter, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeSharedTempDir } from "../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const script = join(repoRoot, "scripts/hooks/bash-command-guard.sh");
 
 const run = (payload: string) =>
-  spawnSync("bash", [script], { input: payload, encoding: "utf8", cwd: repoRoot });
+  spawnSync("bash", [script], {
+    timeout: CHILD_TIMEOUT_MS,
+    input: payload,
+    encoding: "utf8",
+    cwd: repoRoot,
+  });
 
 const hook = (command: string) => JSON.stringify({ tool_name: "Bash", tool_input: { command } });
 
@@ -538,7 +544,7 @@ test("危険語はあるが command を取り出せない payload は、検査�
 const jqOnlyEnv = (() => {
   const jq = spawnSync("bash", ["-c", "command -v jq"], {
     encoding: "utf8",
-    timeout: 30_000,
+    timeout: CHILD_TIMEOUT_MS,
   }).stdout.trim();
   const bin = makeSharedTempDir("bash-command-guard-jq-only-");
   // jq の実体（mise の shim のこともある）を絶対パスで呼ぶラッパーだけを置く。
@@ -553,7 +559,10 @@ const jqOnlyEnv = (() => {
 test("jq だけの環境を作れる（node が無く jq が在る。作れなければ以降の検証は無意味）", () => {
   expect(jqOnlyEnv.jq, "jq が必要（この検証は jq を使う処理の回帰テスト）").not.toBe("");
   const probe = (name: string) =>
-    spawnSync("bash", ["-c", `command -v ${name}`], { env: jqOnlyEnv.env, timeout: 30_000 }).status;
+    spawnSync("bash", ["-c", `command -v ${name}`], {
+      env: jqOnlyEnv.env,
+      timeout: CHILD_TIMEOUT_MS,
+    }).status;
   expect(probe("node")).not.toBe(0);
   expect(probe("jq")).toBe(0);
 });
@@ -573,7 +582,7 @@ test.each([
     encoding: "utf8",
     cwd: repoRoot,
     env: jqOnlyEnv.env,
-    timeout: 30_000,
+    timeout: CHILD_TIMEOUT_MS,
   });
   expect(r.stderr).not.toMatch(/検査していない/);
   expect(r.status).toBe(2);

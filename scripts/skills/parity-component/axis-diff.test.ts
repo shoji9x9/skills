@@ -18,6 +18,7 @@ import {
   diffAxes,
   flattenTraits,
 } from "../../../skills/parity-component/scripts/axis-diff.mjs";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "skills/parity-component/scripts/axis-diff.mjs");
@@ -224,7 +225,10 @@ function runCli(manifest: unknown, extraArgs: string[] = []) {
   const dir = makeTempDir("axis-diff-");
   const path = join(dir, "manifest.json");
   writeFileSync(path, JSON.stringify(manifest));
-  return spawnSync(process.execPath, [script, path, ...extraArgs], { encoding: "utf8" });
+  return spawnSync(process.execPath, [script, path, ...extraArgs], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  });
 }
 
 test("CLI: 問題が無ければ 0、あれば 1 で終わる", () => {
@@ -247,7 +251,7 @@ test("CLI: 問題が無ければ 0、あれば 1 で終わる", () => {
 });
 
 test("CLI: 引数が無ければ usage と exit 2", () => {
-  const r = spawnSync(process.execPath, [script], { encoding: "utf8" });
+  const r = spawnSync(process.execPath, [script], { timeout: CHILD_TIMEOUT_MS, encoding: "utf8" });
   expect(r.status).toBe(2);
   expect(r.stderr).toContain("usage:");
 });
@@ -266,7 +270,10 @@ test("CLI: 余った位置引数を警告なしに先勝ちにしない", () => 
   const first = join(dir, "one.json");
   const second = join(dir, "two.json");
   for (const p of [first, second]) writeFileSync(p, JSON.stringify({ instances: [] }));
-  const r = spawnSync(process.execPath, [script, first, second], { encoding: "utf8" });
+  const r = spawnSync(process.execPath, [script, first, second], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  });
   expect(r.status).toBe(2);
   expect(r.stderr).toContain("マニフェストは 1 つだけ");
 });
@@ -313,7 +320,10 @@ test("CLI: 読めないマニフェストを成功として扱わない", () => 
   const dir = makeTempDir("axis-diff-");
   const path = join(dir, "broken.json");
   writeFileSync(path, "{ not json");
-  const r = spawnSync(process.execPath, [script, path], { encoding: "utf8" });
+  const r = spawnSync(process.execPath, [script, path], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  });
   expect(r.status).toBe(2);
   expect(r.stderr).toContain("マニフェストを読めない");
 });
@@ -699,7 +709,10 @@ test("--baseline は採取物から決定論的にマニフェストを組み立
     repoRoot,
     "evals/parity-component/fixtures/catalog-unset/.replace/components/button",
   );
-  const r = spawnSync(process.execPath, [script, "--baseline", repoFixture], { encoding: "utf8" });
+  const r = spawnSync(process.execPath, [script, "--baseline", repoFixture], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  });
   expect(r.status).toBe(0);
   const generated = parseJsonAs<AxisOutput>(r.stdout);
   // 同梱の axes.json はこのコマンドの出力そのもの（手書きしない）。
@@ -725,7 +738,10 @@ test("--baseline は宣言の無い欠落を警告なしに除外しない", () 
     writeFileSync(join(dir, "baseline", inst, "default", "traits.json"), JSON.stringify(t));
   }
   // hover を 1 件も置かないまま実行する。
-  const r = spawnSync(process.execPath, [script, "--baseline", dir], { encoding: "utf8" });
+  const r = spawnSync(process.execPath, [script, "--baseline", dir], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  });
   expect(r.status).toBe(2);
   expect(r.stderr).toContain("採取物を読めない");
 });
@@ -734,7 +750,10 @@ test("--baseline とマニフェストの併用を拒否する", () => {
   const dir = makeTempDir("axis-diff-baseline-");
   const path = join(dir, "manifest.json");
   writeFileSync(path, JSON.stringify({ instances: [] }));
-  const r = spawnSync(process.execPath, [script, path, "--baseline", dir], { encoding: "utf8" });
+  const r = spawnSync(process.execPath, [script, path, "--baseline", dir], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  });
   expect(r.status).toBe(2);
   expect(r.stderr).toContain("併用しない");
 });
@@ -775,7 +794,10 @@ function makeBaseline({
 }
 
 const runBaseline = (dir: string) =>
-  spawnSync(process.execPath, [script, "--baseline", dir], { encoding: "utf8" });
+  spawnSync(process.execPath, [script, "--baseline", dir], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  });
 
 test("--baseline は id のパストラバーサルで baseline の外を読まない", () => {
   // 検出できることの確認: トラバーサル先に traits.json を実際に置く。検証が無ければこれを読んで

@@ -14,6 +14,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { violationOf } from "./check-js-extensions.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const script = join(dirname(fileURLToPath(import.meta.url)), "check-js-extensions.ts");
 const PRIVATE = ["private-one"];
@@ -79,7 +80,7 @@ test.each([
 function makeRepo(files: Record<string, "tracked" | "untracked" | "ignored">): string {
   const root = makeTempDir("js-extensions-");
   const git = (...args: string[]) => {
-    const r = spawnSync("git", args, { cwd: root, encoding: "utf8" });
+    const r = spawnSync("git", args, { timeout: CHILD_TIMEOUT_MS, cwd: root, encoding: "utf8" });
     if (r.status !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
   };
   git("init", "-q");
@@ -99,7 +100,11 @@ function makeRepo(files: Record<string, "tracked" | "untracked" | "ignored">): s
 }
 
 function runCli(cwd: string) {
-  const r = spawnSync(process.execPath, [script], { cwd, encoding: "utf8" });
+  const r = spawnSync(process.execPath, [script], {
+    timeout: CHILD_TIMEOUT_MS,
+    cwd,
+    encoding: "utf8",
+  });
   return { status: r.status, out: `${r.stdout}${r.stderr}` };
 }
 
@@ -143,6 +148,7 @@ test("CLI: private skill は skills/<name>/ が無いことで決め、公開ス
 test("CLI: git のリポジトリでなければ判定できないとして exit 2", () => {
   const root = makeTempDir("js-extensions-nogit-");
   const r = spawnSync(process.execPath, [script], {
+    timeout: CHILD_TIMEOUT_MS,
     cwd: root,
     encoding: "utf8",
     env: { ...process.env, GIT_CEILING_DIRECTORIES: dirname(root) },

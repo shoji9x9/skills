@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { lint } from "./lint-pagination.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 // markdown の bash コードブロックで囲む小さなヘルパ。
 const md = (body: string) => "# t\n\n```bash\n" + body + "\n```\n";
@@ -144,7 +145,10 @@ const OFFENDING =
 function makeRepo({ git = true } = {}) {
   const dir = makeTempDir("pagination-lint-");
   if (git) {
-    const init = spawnSync("git", ["-C", dir, "init", "-q", "-b", "main"], { encoding: "utf8" });
+    const init = spawnSync("git", ["-C", dir, "init", "-q", "-b", "main"], {
+      timeout: CHILD_TIMEOUT_MS,
+      encoding: "utf8",
+    });
     expect(init.status, init.stderr).toBe(0);
   }
   return dir;
@@ -158,7 +162,11 @@ function write(dir: string, rel: string, body: string) {
 }
 
 function runCli(cwd: string, args: string[] = []) {
-  return spawnSync(process.execPath, [script, ...args], { cwd, encoding: "utf8" });
+  return spawnSync(process.execPath, [script, ...args], {
+    timeout: CHILD_TIMEOUT_MS,
+    cwd,
+    encoding: "utf8",
+  });
 }
 
 test("除外の内と外に同じ違反を置くと、無視されていない側だけが指摘される（区別できることの確認）", () => {
@@ -286,7 +294,7 @@ test("対象は挙がったのに 1 件も読めなければ成功として扱�
         `process.exitCode = m.main([], { readFileSync: () => { throw new Error("ENOENT"); } });`,
       "--input-type=module",
     ],
-    { cwd: dir, encoding: "utf8" },
+    { timeout: CHILD_TIMEOUT_MS, cwd: dir, encoding: "utf8" },
   );
   expect(out.status).toBe(2);
   expect(out.stderr).toMatch(/1 件も読めなかった/);
@@ -297,7 +305,10 @@ test("除外判定は dir 相対で行う（リポジトリの外側のディレ
   const parent = makeTempDir("pagination-outer-");
   const nested = join(parent, "node_modules", "pkg");
   mkdirSync(nested, { recursive: true });
-  const init = spawnSync("git", ["-C", nested, "init", "-q", "-b", "main"], { encoding: "utf8" });
+  const init = spawnSync("git", ["-C", nested, "init", "-q", "-b", "main"], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  });
   expect(init.status, init.stderr).toBe(0);
   write(nested, "docs/guide.md", OFFENDING);
 
@@ -311,6 +322,7 @@ test("1 件でも読めなければ合格として扱わない", () => {
   write(dir, "ok.md", "# t\n");
   // 読めない対象は、引数で渡す方法で作る（列挙は実在するファイルしか返さないため）。
   const res = spawnSync(process.execPath, [script, join(dir, "ok.md"), join(dir, "missing.md")], {
+    timeout: CHILD_TIMEOUT_MS,
     cwd: dir,
     encoding: "utf8",
   });
@@ -323,6 +335,7 @@ test("全件読めれば従来どおり OK（読めない件数 0 を落とさ�
   const dir = makeRepo();
   write(dir, "ok.md", "# t\n");
   const res = spawnSync(process.execPath, [script, join(dir, "ok.md")], {
+    timeout: CHILD_TIMEOUT_MS,
     cwd: dir,
     encoding: "utf8",
   });
@@ -334,6 +347,7 @@ test("読めないファイルがあっても、読めたぶんの指摘は exit
   const dir = makeRepo();
   write(dir, "bad.md", OFFENDING);
   const res = spawnSync(process.execPath, [script, join(dir, "bad.md"), join(dir, "missing.md")], {
+    timeout: CHILD_TIMEOUT_MS,
     cwd: dir,
     encoding: "utf8",
   });

@@ -21,6 +21,7 @@ import {
   main,
 } from "../../../skills/parity-component/scripts/behavior-compare.mjs";
 import { loadBaseline } from "../../../skills/parity-component/scripts/lib/baseline.mjs";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "skills/parity-component/scripts/behavior-compare.mjs");
@@ -391,7 +392,10 @@ test("CLI: 揃った採取物と突き合わせ表で exit 0、行を欠くと e
     "--target",
     "preview",
   ];
-  const okRun = spawnSync(process.execPath, [script, ...args], { encoding: "utf8" });
+  const okRun = spawnSync(process.execPath, [script, ...args], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  });
   expect(okRun.status).toBe(0);
   const parsed = parseJsonAs<CliOutput>(okRun.stdout);
   expect(parsed).toMatchObject({ tool: "behavior-compare", version: VERSION, ok: true });
@@ -400,7 +404,10 @@ test("CLI: 揃った採取物と突き合わせ表で exit 0、行を欠くと e
   const partial = comparisonOf();
   partial.rows = partial.rows.slice(1);
   writeFileSync(join(dir, "new", "preview", "behavior-comparison.json"), JSON.stringify(partial));
-  const ngRun = spawnSync(process.execPath, [script, ...args], { encoding: "utf8" });
+  const ngRun = spawnSync(process.execPath, [script, ...args], {
+    timeout: CHILD_TIMEOUT_MS,
+    encoding: "utf8",
+  });
   expect(ngRun.status).toBe(1);
   expect(parseJsonAs<CliOutput>(ngRun.stdout).findings.map((f: Finding) => f.code)).toEqual([
     "behavior-uncompared",

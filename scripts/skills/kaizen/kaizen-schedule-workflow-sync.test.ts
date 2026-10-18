@@ -6,6 +6,7 @@ import { dirname, join } from "node:path";
 import { loadYamlAs } from "../../lib/text/yaml-as.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { coverageEnv } from "../../lib/testing/coverage-env.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 // kaizen の定期実行ワークフローは、配布スキルに同梱したテンプレート
 // （skills/kaizen/assets/kaizen-schedule.yml）を原本とし、本リポの
@@ -81,7 +82,7 @@ function appendReport(report: string) {
         GITHUB_RUN_ID: "1",
         ...coverageEnv(),
       },
-      timeout: 30_000,
+      timeout: CHILD_TIMEOUT_MS,
     });
     expect(res.status, res.stderr).toBe(0);
     return { body: readFileSync(join(dir, "body.md"), "utf8"), max };
