@@ -58,8 +58,9 @@ issue-batch run <Issue URL | 番号>... \
    - Kaizen が transcript を特定できるか、browser-test が安全か
    - setup の設定が base branch に入っているか
    - run の前に利用者の判断が要るもの（複数の案・決まっていない方針・試していない機構を約束した受け入れ条件・対象から外す候補にする不確実性の高い Issue）。1 回の確認にまとめて、変更の前に決めてもらう。全体を停止するときは確認せず、停止の報告に載せる
-2. `/tmp` に run manifest を作る。記録するのは、入力の順・Issue の URL・状態・branch・worktree・PR の URL・試験の結果・停止の理由・対象から外した理由・判断待ちの項目・自分で判断して進めたものだけである。秘密の値と、変わる環境の URL は書かない。
-3. preflight で `EXCLUDED`・`SKIPPED`・`BLOCKED` にした Issue は、この手順から後を行わない。`continue_on_blocked` が false なら、preflight で `BLOCKED` にした Issue があるときは、この手順に進まずに run を止める。
+2. `/tmp` に run manifest を作る。記録するのは、入力の順・Issue の URL・状態・branch・worktree・PR の URL・試験の結果・停止の理由・飛ばした理由・対象から外した理由・判断待ちの項目・自分で判断して進めたものだけである。秘密の値と、変わる環境の URL は書かない。
+3. preflight で `EXCLUDED`・`SKIPPED`・`BLOCKED` にした Issue は、この手順から後を行わない。残りの Issue は、`continue_on_blocked` の値に関わらず進める。
+   同じ run の中の Issue に依存する Issue は、`references/orchestration.md`「全体 preflight」の 6 の条件を満たしてから着手する。
    呼び出し元の worktree を checkout せず、Issue ごとに一意な隔離した worktree を `git-worktree` の取り決めで用意して、セッションを移す。
    branch を作る前に、その Issue の担当者を確かめ、自分を割り当てて読み直す（`references/orchestration.md`「issue-start への handoff」の 1。割り当てができなければ、branch も worktree も作らない）。
    置き場所は `git-worktree setup` の決定に従う。Issue ごとに worktree を移るので、リポジトリの中に置く必要がある。
@@ -79,7 +80,7 @@ issue-batch run <Issue URL | 番号>... \
 - ローカルレビューの上限: setup の値。最初の候補は 1
 - PR の収束の上限: setup の値。最初の候補は 5
 - CI の待機: setup の値。最初の候補は false（CI とレビューを並行して進める）
-- BLOCKED の後に続けるか: setup の値。最初の候補は true。`--stop-on-blocked` で、その run だけ止める側に上書きする
+- run の途中で BLOCKED になった後に続けるか: setup の値。最初の候補は true。`--stop-on-blocked` で、その run だけ止める側に上書きする。preflight で BLOCKED にした Issue には使わない
 - merge mode: setup の値。最初の候補は `auto`。`--merge-mode` で、その run だけ上書きする
 - merge の準備ができるまで待つ上限: setup の値（`merge_ready_timeout_minutes`）。`agent` mode でだけ使い、CLI での上書きは無い。`agent` に決まったのに設定に無ければ、推測せずに停止する
 - deployment の修正の上限: `--max-deployment-fix-iterations` があれば、その run だけ上書きする
@@ -106,8 +107,8 @@ BLOCKED や FAILED の影響が Issue の隔離した worktree の中だけで�
 
 ## 最終報告
 
-入力の順に並べた表で、Issue・最終状態・branch・worktree・PR・local review・tests・browser・Kaizen・merge・Issue close・deployment・cleanup・停止の理由を示す。
+入力の順に並べた表で、Issue・最終状態・branch・worktree・PR・local review・tests・browser・Kaizen・merge・Issue close・deployment・cleanup・停止の理由・飛ばした理由・対象から外した理由を示す。
 表の後に、「判断待ち」と「自分で判断して進めたもの」の一覧を必ず載せる。0 件でも、無いことを書く。
-`SKIPPED` と `EXCLUDED` の Issue も表に載せ、停止の理由の列に、飛ばした理由と外した理由（当たった兆候と利用者の選択）を書く。
+`SKIPPED` と `EXCLUDED` の Issue も表に載せる。`EXCLUDED` の対象から外した理由には、当たった兆候と利用者の選択か、外した依存先の番号を書く。
 判断待ちは、Issue ごとに論点・選択肢・推奨・決まった後に残る作業を示す。自分で判断して進めたものは、判断・根拠・覆すときに戻る工程を示す。
 `DONE` は、次のすべてを確かめた場合だけ使う。PR が `MERGED`、Issue が `CLOSED`、deployment が成功したか根拠があって対象外である、local と remote の branch を削除した。

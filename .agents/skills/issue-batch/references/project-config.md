@@ -51,7 +51,7 @@ skills:
 setup は設定だけを扱い、Issue・branch・PR・merge・deployment を操作しない。
 
 1. リポジトリで許されている merge method、branch protection と merge queue、規約の文書、`skills.browser-test` を読む。リモートの AI レビュアーは、handoff 先の pr-finalize-loop が決める。
-2. merge mode、merge method、local review の上限、PR の収束の上限、CI の待機、BLOCKED の後に続けるかの方針を、根拠を付けて確かめる。
+2. merge mode、merge method、local review の上限、PR の収束の上限、CI の待機、run の途中で BLOCKED になった後に続けるかの方針を、根拠を付けて確かめる。
    最初の候補は、merge mode が `auto`、local が 1、PR が 5、CI の待機が false、続けるかが true である。
    merge method はリポジトリで許された方法だけを示し、`squash` を推奨の候補にして、回答を保存する。
    merge mode は次の 2 つから選ぶ。**どちらを選んでも、`--admin` と、required check を避ける方法は使わない。**
