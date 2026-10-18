@@ -104,3 +104,4 @@ ci:39090829909:1,ci,2026-10-18T02:43:29.768Z,p-cdee4961,github-actions,,,,2026-1
 ci:39090145551:1,ci,2026-10-18T02:43:29.768Z,p-cdee4961,github-actions,,,,2026-10-18T02:27:26.000Z,2026-10-18T02:27:27.000Z,Asia/Tokyo,feature/676-propose-excluding-uncertain-issues,676,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 ci:39090145531:1,ci,2026-10-18T02:43:29.768Z,p-cdee4961,github-actions,,,,2026-10-18T02:27:26.000Z,2026-10-18T02:30:33.000Z,Asia/Tokyo,feature/676-propose-excluding-uncertain-issues,676,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-10-17T02:15:59.890Z:2026-10-18T02:43:29.768Z,coverage,2026-10-18T02:43:29.768Z,p-cdee4961,,,,,2026-10-17T02:15:59.890Z,2026-10-18T02:43:29.768Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-17T02:43:29.768Z:2026-10-18T02:44:39.349Z,coverage,2026-10-18T02:44:39.349Z,p-cdee4961,,,,,2026-10-17T02:43:29.768Z,2026-10-18T02:44:39.349Z,Asia/Tokyo,,,,,,,,,,,,ok,
