@@ -27,7 +27,7 @@ case "${xdg}" in
 		unset HOME
 		printf '%s' ~
 	)
-	# ユーザーのデータベースにエントリが無いと ~ が展開されずに残るので、空として扱う（読み取りと同じく、cwd からの相対パスになる）
+	# ユーザーのデータベースにエントリが無いと ~ が展開されずに残るので、空として扱う
 	[ "${home_dir}" != "~" ] || home_dir=""
 	xdg="${home_dir:+${home_dir}/}.config"
 	;;
@@ -44,6 +44,11 @@ if [ "${SHOJI9X9_SKILLS_IGNORE_USER_CONFIG+set}" = "set" ]; then
 	fi
 	user_file=""
 fi
+# 人ごとの層の置き場所が絶対パスに決まらなければ、読み取りと同じく人ごとの層を読まない（リポジトリのファイルと同じパスを指しうる）
+case "${xdg}" in
+/*) ;;
+*) user_file="" ;;
+esac
 needs_node=""
 for f in "${root}/.config/skills/shoji9x9/box.jsonc" "${root}/.config/skills/shoji9x9/box.local.jsonc" "${user_file}" "${root}/.config/skills/shoji9x9/skills.yml"; do
 	if [ -n "${f}" ] && [ -e "${f}" ]; then

@@ -147,9 +147,13 @@ describe.each(COPIES)("%s", (copy) => {
         expect(m.userConfigHome({ HOME: "" })).toBe(join(userInfo().homedir, ".config"));
         expect(m.userConfigHome({})).toBe(join(userInfo().homedir, ".config"));
       } finally {
-        process.env.HOME = processHome;
+        if (processHome === undefined) delete process.env.HOME;
+        else process.env.HOME = processHome;
       }
-      // 絶対パスでない HOME でも止めない（人ごとの層を使わない呼び出しまで止めないため）
+      // 絶対パスでない HOME でも止めない（人ごとの層を使わない呼び出しまで止めないため）。人ごとの層は読まない
+      expect(m.ignoresUserLayer({ HOME: "rel" })).toBe(true);
+      expect(m.ignoresUserLayer({ HOME: "rel", XDG_CONFIG_HOME: "/x" })).toBe(false);
+      expect(m.ignoresUserLayer({ HOME: "/h" })).toBe(false);
       expect(m.userConfigHome({ HOME: "rel" })).toBe(join("rel", ".config"));
       expect(m.configPaths("/r", "t", { XDG_CONFIG_HOME: "/x" })).toEqual({
         local: "/r/.config/skills/shoji9x9/t.local.jsonc",
@@ -645,6 +649,37 @@ describe.each(COPIES)("%s", (copy) => {
       symlinkSync(outside, join(t.root, ".config/skills/shoji9x9"));
       await expect(w(t, {})).rejects.toThrow(/リポジトリの外を指している/);
       expect(readFileSync(join(outside, "t.jsonc"), "utf8")).toBe("{}\n");
+    });
+
+    test("人ごとの層の置き場所が絶対パスに決まらなければ、人ごとの層を読まず、書かずに止める", async () => {
+      const m = await load();
+      const s = setup();
+      const env = { HOME: "rel" };
+      let note = "";
+      expect(() =>
+        m.loadConfig({
+          name: "t",
+          root: s.root,
+          env,
+          schemaDir: s.schemaDir,
+          warn: (x) => (note += x),
+        }),
+      ).not.toThrow();
+      expect(note).toContain("置き場所を絶対パスに決められない");
+      await expect(
+        w({ ...s, env }, { layer: "user", keyPath: ["count"], value: 2 }),
+      ).rejects.toThrow(
+        /人ごとの層に書かない（HOME と XDG_CONFIG_HOME から、置き場所を絶対パスに決められない）/,
+      );
+    });
+
+    test("指す先がまだ無いシンボリックリンクにも、リンクをたどって書かない", async () => {
+      const s = setup();
+      const target = join(s.base, "outside-missing", "t.jsonc");
+      mkdirSync(dirname(s.paths.repo), { recursive: true });
+      symlinkSync(target, s.paths.repo);
+      await expect(w(s, {})).rejects.toThrow(/シンボリックリンクには書かない/);
+      expect(existsSync(target)).toBe(false);
     });
 
     test("コメントと末尾のカンマと既にあるキーを残したまま、無いキーを足す", async () => {

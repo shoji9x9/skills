@@ -349,7 +349,7 @@ kaizen_config_files() {
 			unset HOME
 			printf '%s' ~
 		)
-		# ユーザーのデータベースにエントリが無いと ~ が展開されずに残るので、空として扱う（読み取りと同じく、cwd からの相対パスになる）
+		# ユーザーのデータベースにエントリが無いと ~ が展開されずに残るので、空として扱う
 		[ "${home_dir}" != "~" ] || home_dir=""
 		user_home="${home_dir:+${home_dir}/}.config"
 		;;
@@ -357,6 +357,11 @@ kaizen_config_files() {
 	user_file="${user_home}/skills/shoji9x9/kaizen.jsonc"
 	# 人ごとの層を読まない（SHOJI9X9_SKILLS_IGNORE_USER_CONFIG=1）なら、読み取りと同じく人ごとのファイルを数えない
 	[ "${SHOJI9X9_SKILLS_IGNORE_USER_CONFIG:-}" = 1 ] && user_file=""
+	# 置き場所が絶対パスに決まらなければ、読み取りと同じく人ごとの層を読まない（リポジトリのファイルと同じパスを指しうる）
+	case "${user_home}" in
+	/*) ;;
+	*) user_file="" ;;
+	esac
 	for f in "${root}/.config/skills/shoji9x9/kaizen.jsonc" \
 		"${root}/.config/skills/shoji9x9/kaizen.local.jsonc" \
 		"${user_file}"; do

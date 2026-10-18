@@ -161,21 +161,27 @@ function pick(r, keys) {
 /**
  * 値をスキーマで検証する（知らないキーと型の誤り）。
  * @param {Record<string, unknown>} obj
- * @param {readonly string[]} allowed
+ * @param {readonly string[] | null} allowed 許すキー。null なら、layer の層に置けるキー
  * @param {string} where
- * @param {string} [layer] 置き場所の名前（人ごと など）。渡すと、スキーマにはあるが allowed に無いキーを、その層に置けないキーとして示す
+ * @param {{ id: import("../skill-config/skill-config.mjs").FileLayer; label: string }} [layer] 置き場所。
+ *   渡すと、スキーマにはあるが許していないキーを、知らないキーではなく、その層に置けないキーとして示す
  */
 function validateKeys(obj, allowed, where, layer) {
   const schema = loadSchema(SCHEMA_DIR, CONFIG_NAME);
+  const keys =
+    allowed ??
+    Object.keys(schema.properties).filter((k) =>
+      layer === undefined ? true : schema.properties[k].layers.includes(layer.id),
+    );
   /** @type {string[]} */
   const errors = [];
   for (const [k, v] of Object.entries(obj)) {
     const known = Object.hasOwn(schema.properties, k) ? schema.properties[k] : undefined;
-    if (known !== undefined && allowed.includes(k))
+    if (known !== undefined && keys.includes(k))
       errors.push(...validateValue(v, known.schema, `${where}: ${k}`));
     else if (known !== undefined && layer !== undefined)
       errors.push(
-        `${where}: ${k} は${layer}の層に置けない（置ける層: ${known.layers.join("・")}）`,
+        `${where}: ${k} は${layer.label}の層に置けない（置ける層: ${known.layers.join("・")}）`,
       );
     else errors.push(`${where}: 知らないキー ${JSON.stringify(k)}`);
   }
@@ -316,15 +322,11 @@ export function saveUserConfig(root, env, values) {
   let path = userConfigPath(env);
   // キーごとに書くので、後のキーの誤りで止まると、前のキーだけを書いた設定が残る。
   // 書く前に、すべてのキーが人ごとの層に置けることと、値がスキーマに合うことを確かめる
-  const schema = loadSchema(SCHEMA_DIR, CONFIG_NAME);
-  const userKeys = Object.keys(schema.properties).filter((k) =>
-    schema.properties[k].layers.includes("user"),
-  );
   validateKeys(
     Object.fromEntries(Object.entries(values).filter(([, v]) => v !== undefined)),
-    userKeys,
+    null,
     path,
-    "人ごと",
+    { id: "user", label: "人ごと" },
   );
   for (const [key, value] of Object.entries(values)) {
     if (value === undefined) continue;

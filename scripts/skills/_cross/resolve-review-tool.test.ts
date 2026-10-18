@@ -225,6 +225,17 @@ for (const script of SCRIPTS) {
     expect(parse(r.stdout)).toEqual({ value: "copilot", source: "default" });
   });
 
+  test(`${name}: HOME が相対パスなら、その下（cwd からの相対パス）の common.jsonc を人ごとの層として数えない`, () => {
+    const s = setup();
+    const p = join(s.root, "rel", ".config", "skills", "shoji9x9", "common.jsonc");
+    mkdirSync(dirname(p), { recursive: true });
+    writeFileSync(p, '{ "review_tool": "codex" }');
+    const env = { ...s.env, PATH: pathWithoutNode(s.base), XDG_CONFIG_HOME: "", HOME: "rel" };
+    const r = run(script, { cwd: s.root, env });
+    expect(r.status, r.stderr).toBe(0);
+    expect(parse(r.stdout)).toEqual({ value: "copilot", source: "default" });
+  });
+
   test(`${name}: HOME が空でも相対パスでも、設定ファイルが無ければ Node.js なしでデフォルトを返す`, () => {
     const s = setup();
     const env = { ...s.env, PATH: pathWithoutNode(s.base), XDG_CONFIG_HOME: "" };

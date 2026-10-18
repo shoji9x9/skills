@@ -91,6 +91,15 @@ describe("box-folder.sh", () => {
     expect({ status: r.status, stdout: r.stdout }).toEqual({ status: 0, stdout: "0" });
   });
 
+  test("HOME が相対パスなら、その下（cwd からの相対パス）の box.jsonc を人ごとの層として数えない", () => {
+    const s = setup({ node: false });
+    const p = join(s.repo, "rel", ".config", "skills", "shoji9x9", "box.jsonc");
+    mkdirSync(dirname(p), { recursive: true });
+    writeFileSync(p, '{ "root_folder_id": "9" }\n');
+    const r = s.run({ HOME: "rel", XDG_CONFIG_HOME: "" });
+    expect({ status: r.status, stdout: r.stdout }).toEqual({ status: 0, stdout: "0" });
+  });
+
   test("HOME が空でも相対パスでも、設定ファイルが無ければ Node.js なしで 0 を出す", () => {
     const s = setup({ node: false });
     for (const HOME of ["", "rel"]) {

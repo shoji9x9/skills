@@ -113,7 +113,7 @@ case "${XDG_CONFIG_HOME:-}" in
 		unset HOME
 		printf '%s' ~
 	)
-	# ユーザーのデータベースにエントリが無いと ~ が展開されずに残るので、空として扱う（読み取りと同じく、cwd からの相対パスになる）
+	# ユーザーのデータベースにエントリが無いと ~ が展開されずに残るので、空として扱う
 	[ "${home_dir}" != "~" ] || home_dir=""
 	user_home="${home_dir:+${home_dir}/}.config"
 	;;
@@ -127,6 +127,11 @@ if [ "${SHOJI9X9_SKILLS_IGNORE_USER_CONFIG+set}" = "set" ]; then
 	fi
 	user_file=""
 fi
+# 人ごとの層の置き場所が絶対パスに決まらなければ、読み取りと同じく人ごとの層を読まない（リポジトリのファイルと同じパスを指しうる）
+case "${user_home}" in
+/*) ;;
+*) user_file="" ;;
+esac
 present=""
 for f in \
 	"${root}/.config/skills/${NAMESPACE}/common.local.jsonc" \

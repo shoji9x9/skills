@@ -390,6 +390,21 @@ test("SHOJI9X9_SKILLS_IGNORE_USER_CONFIG は読み取りと同じく 1 だけを
   }
 });
 
+test("HOME が相対パスなら、その下（cwd からの相対パス）の kaizen.jsonc を人ごとの層として数えない", () => {
+  const dir = makeProject(CANDIDATES);
+  try {
+    const noNode = { PATH: pathWithout(dir, ["node"], kaizenEnv(dir).PATH ?? "") };
+    const user = join(dir, "rel", ".config", "skills", "shoji9x9");
+    mkdirSync(user, { recursive: true });
+    writeFileSync(join(user, "kaizen.jsonc"), '{ "precommit_deadline_seconds": 9 }\n');
+    const r = run(dir, ["--list"], { ...noNode, HOME: "rel", XDG_CONFIG_HOME: "" });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toContain(".kaizen/old-low.md");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("HOME が空でも相対パスでも、設定ファイルが無ければ node なしでデフォルトの値で動く", () => {
   const dir = makeProject(CANDIDATES);
   try {

@@ -97,8 +97,18 @@ export function userConfigHome(env) {
   const xdg = env.XDG_CONFIG_HOME;
   if (xdg && isAbsolute(xdg)) return xdg;
   // HOME が無いか空なら、ユーザーのデータベースのホームを使う。os.homedir() は渡した env ではなくプロセスの HOME を読むので使わない。
-  // 同梱のシェルも同じ規則で決める（HOME を外したサブシェルで ~ を展開する）。どちらでも決まらなければ、cwd からの相対パスになる
+  // 同梱のシェルも同じ規則で決める（HOME を外したサブシェルで ~ を展開する）。
+  // どちらでも絶対パスにならなければ、人ごとの層は読まない（userHomeDecided・ignoresUserLayer）
   return join(env.HOME || databaseHome(), ".config");
+}
+
+/**
+ * 人ごとの層の置き場所が、絶対パスに決まるか。決まらないと cwd からの相対パスになり、リポジトリの層のファイルと同じパスを指しうる。
+ * @param {NodeJS.ProcessEnv} env
+ * @returns {boolean}
+ */
+function userHomeDecided(env) {
+  return isAbsolute(userConfigHome(env));
 }
 
 /**
@@ -117,7 +127,8 @@ function databaseHome() {
 export const IGNORE_USER_ENV = "SHOJI9X9_SKILLS_IGNORE_USER_CONFIG";
 
 /**
- * 人ごとの層を読まないか。値は 1 だけを受け付ける。
+ * 人ごとの層を読まないか。環境変数の値は 1 だけを受け付ける。
+ * 環境変数が無くても、人ごとの層の置き場所が絶対パスに決まらなければ読まない。
  * 置き場所を変える変数にすると、人ごとの層の置き場所が 2 つになるので、読まないことだけを表す。
  * 1 以外の値（空・0 など）を、読む・読まないのどちらかとして扱うと、隔離したつもりで隔離されないことがあるので止める。
  * @param {NodeJS.ProcessEnv} env
@@ -125,11 +136,22 @@ export const IGNORE_USER_ENV = "SHOJI9X9_SKILLS_IGNORE_USER_CONFIG";
  */
 export function ignoresUserLayer(env) {
   const v = env[IGNORE_USER_ENV];
-  if (v === undefined) return false;
+  if (v === undefined) return !userHomeDecided(env);
   if (v === "1") return true;
   throw new ConfigError(
     `環境変数 ${IGNORE_USER_ENV} は 1 だけを受け付ける（${JSON.stringify(v)}）。人ごとの層を読むなら変数を消す`,
   );
+}
+
+/**
+ * 人ごとの層を読まない理由。
+ * @param {NodeJS.ProcessEnv} env
+ * @returns {string}
+ */
+function ignoreReason(env) {
+  return env[IGNORE_USER_ENV] === "1"
+    ? `${IGNORE_USER_ENV}=1`
+    : "HOME と XDG_CONFIG_HOME から、置き場所を絶対パスに決められない";
 }
 
 /**
@@ -561,7 +583,7 @@ export function loadConfig(opts) {
   const ignoreUser = ignoresUserLayer(env);
   if (ignoreUser) {
     const warn = opts.warn ?? ((s) => process.stderr.write(s));
-    warn(`note: 人ごとの層（${paths.user}）を読まない（${IGNORE_USER_ENV}=1）\n`);
+    warn(`note: 人ごとの層（${paths.user}）を読まない（${ignoreReason(env)}）\n`);
   }
   for (const layer of FILE_LAYERS) {
     layers[layer] = layer === "user" && ignoreUser ? null : readLayer(schema, layer, paths[layer]);
@@ -670,7 +692,7 @@ export function writeConfig(opts) {
     );
   }
   if (opts.layer === "user" && ignoresUserLayer(env)) {
-    throw new ConfigError(`${IGNORE_USER_ENV}=1 のときは、人ごとの層に書かない`);
+    throw new ConfigError(`人ごとの層に書かない（${ignoreReason(env)}）`);
   }
   const path = configPaths(root, opts.name, env)[opts.layer];
   if (opts.layer === "local") requireIgnored(root, path);
@@ -888,7 +910,8 @@ function valueAt(root, keyPath) {
  * @param {string} path
  */
 function requireInsideRoot(root, path) {
-  if (existsSync(path) && lstatSync(path).isSymbolicLink())
+  // 指す先がまだ無いリンクも、書くとリンクをたどって先にファイルを作るので、existsSync ではなく lstat で確かめる
+  if (lstatSync(path, { throwIfNoEntry: false })?.isSymbolicLink())
     throw new ConfigError(`${path}: シンボリックリンクには書かない（実体のファイルを置く）`);
   let dir = dirname(path);
   while (!existsSync(dir) && dirname(dir) !== dir) dir = dirname(dir);
