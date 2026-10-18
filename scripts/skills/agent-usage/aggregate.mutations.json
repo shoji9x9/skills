@@ -202,8 +202,8 @@
       "id": "day-label-year-omitted",
       "why": "期間が年をまたいでも、日付の目盛りに年を書かない",
       "file": "skills/agent-usage/scripts/lib/report/html.mjs",
-      "find": "      ? l\n",
-      "replace": "      ? l.slice(5)\n",
+      "find": "  const dayLabel = (/** @type {string} */ l) => (spansYears ? l : l.slice(5));",
+      "replace": "  const dayLabel = (/** @type {string} */ l) => (false ? l : l.slice(5));",
       "occurrences": 1,
       "expect_failing": ["日別のチャート 期間が年をまたぐときは、日付の目盛りに年も書く"]
     },
@@ -348,12 +348,24 @@
       "id": "period-end-in-report-tz",
       "why": "期間の終わりを、人のタイムゾーンではなく report のタイムゾーンで決める",
       "file": "skills/agent-usage/scripts/lib/report/report.mjs",
-      "find": "            ...[...new Set(runs.map((r) => r.row.tz || o.tz))].map((z) => endOfLocalDate(until, z)),",
-      "replace": "            ...[o.tz].map((z) => endOfLocalDate(until, z)),",
+      "find": "    const periodEnd = o.until ? Math.min(o.now, endOfLocalDate(o.until, tz)) : o.now;",
+      "replace": "    const periodEnd = o.until ? Math.min(o.now, endOfLocalDate(o.until, o.tz)) : o.now;",
       "occurrences": 1,
       "expect_failing": [
         "日別のチャート 期間の終わりは、report のタイムゾーンではなく、人のタイムゾーンでの until の日の終わりにする（東）",
-        "日別のチャート 期間の終わりは、report のタイムゾーンではなく、人のタイムゾーンでの until の日の終わりにする（西）"
+        "日別のチャート 期間の終わりは、report のタイムゾーンではなく、人のタイムゾーンでの until の日の終わりにする（西）",
+        "日別のチャート 1 人の記録が複数のタイムゾーンにまたがっても、稼働状況は最初の run のタイムゾーンの期間で数える"
+      ]
+    },
+    {
+      "id": "status-runs-not-filtered",
+      "why": "最初の run のタイムゾーンで期間の終わりより後に始まる run も、稼働状況に数える",
+      "file": "skills/agent-usage/scripts/lib/report/report.mjs",
+      "find": "    const statusRuns = runs.filter((r) => r.span[0] < periodEnd);",
+      "replace": "    const statusRuns = runs.filter(() => true);",
+      "occurrences": 1,
+      "expect_failing": [
+        "日別のチャート 1 人の記録が複数のタイムゾーンにまたがっても、稼働状況は最初の run のタイムゾーンの期間で数える"
       ]
     }
   ]

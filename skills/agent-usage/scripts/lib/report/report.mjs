@@ -175,22 +175,34 @@ function isDate(date) {
  * @returns {{ from: string | null; to: string | null }}
  */
 export function periodBounds(rows, o) {
-  /** @type {string | null} */
-  let first = null;
-  /** @type {string | null} */
-  let last = null;
-  const add = (/** @type {string} */ date) => {
-    if (first === null || date < first) first = date;
-    if (last === null || date > last) last = date;
-  };
+  /** @type {string[]} */
+  const dates = [];
   for (const r of rows) {
     if (r.kind === "coverage") continue;
     for (const v of [r.start, r.end]) {
       const t = parseTime(v);
-      if (t !== null) add(localParts(t, r.tz || o.tz).date);
+      if (t !== null) dates.push(localParts(t, r.tz || o.tz).date);
     }
   }
-  return { from: o.since ?? first, to: o.until ?? last };
+  const { min, max } = dateBounds(dates);
+  return { from: o.since ?? min, to: o.until ?? max };
+}
+
+/**
+ * 日付（YYYY-MM-DD）の最初と最後。日付が無ければどちらも null にする。
+ * @param {readonly string[]} dates
+ * @returns {{ min: string | null; max: string | null }}
+ */
+export function dateBounds(dates) {
+  /** @type {string | null} */
+  let min = null;
+  /** @type {string | null} */
+  let max = null;
+  for (const date of dates) {
+    if (min === null || date < min) min = date;
+    if (max === null || date > max) max = date;
+  }
+  return { min, max };
 }
 
 /**
@@ -469,18 +481,14 @@ export function buildReport(allRows, o) {
     }
     if (runs.length === 0) continue;
     const tz = runs[0].row.tz || o.tz;
-    // 期間の終わりは、行を期間で絞るのと同じく、その人のタイムゾーンでの --until の日の終わりにする。
-    // 人の run が複数のタイムゾーンにまたがるなら、最も遅い終わりにする（期間に入れた run は、どれもこれより前に始まる）
-    const until = o.until;
-    const periodEnd = until
-      ? Math.min(
-          o.now,
-          Math.max(
-            ...[...new Set(runs.map((r) => r.row.tz || o.tz))].map((z) => endOfLocalDate(until, z)),
-          ),
-        )
-      : o.now;
-    const merged = mergeSpans(runs.map((r) => r.span));
+    // 稼働状況は、1 人を 1 つのタイムゾーン（その人の最初の run のタイムゾーン）で数える。日付の分け方も期間の終わりも、このタイムゾーンで決める。
+    // 期間の終わりは、行を期間で絞るのと同じく、そのタイムゾーンでの --until の日の終わりにする
+    const periodEnd = o.until ? Math.min(o.now, endOfLocalDate(o.until, tz)) : o.now;
+    // 記録が複数のタイムゾーンにまたがると、別のタイムゾーンの行として期間に入った run が、期間の終わりより後に始まりうる。
+    // その run は稼働状況（稼働中と停止）に数えない。指示の数とヒストグラムには、期間に入った行として数える
+    const statusRuns = runs.filter((r) => r.span[0] < periodEnd);
+    if (statusRuns.length === 0) continue;
+    const merged = mergeSpans(statusRuns.map((r) => r.span));
     // 稼働中は、重なる run をまとめた区間（停止はこの隙間なので、稼働中と停止は重ならない）。期間の終わりで打ち切る
     let active = 0;
     for (const [a, b] of merged) {
@@ -496,7 +504,7 @@ export function buildReport(allRows, o) {
     // run の始まりと終わりを時刻の順に走査し、動いている run の数を Issue ごとに増減させる
     /** @type {[number, number, string][]} */
     const events = [];
-    for (const { row, span } of runs) {
+    for (const { row, span } of statusRuns) {
       const end = Math.min(span[1], periodEnd);
       if (end > span[0]) events.push([span[0], 1, row.issue ?? ""], [end, -1, row.issue ?? ""]);
     }
@@ -541,7 +549,7 @@ export function buildReport(allRows, o) {
       // 直前に動いていた run は、隙間の前に最も遅く終わったもの（runs は始まりの順なので、末尾が最後に終わったとは限らない）
       /** @type {(typeof runs)[number] | undefined} */
       let before;
-      for (const r of runs) {
+      for (const r of statusRuns) {
         if (r.span[1] <= gap[0] && (!before || r.span[1] >= before.span[1])) before = r;
       }
       const branch = before ? (before.row.branch ?? "") : "";
@@ -627,22 +635,15 @@ export function buildReport(allRows, o) {
     ...dailyCost.map((x) => x.date),
     ...[...byDate.values()].flatMap((m) => [...m.keys()]),
   ];
-  // 値のある最初と最後の日は 1 回の走査で取り、期間と横軸の両方に使う
-  /** @type {string | null} */
-  let valueMin = null;
-  /** @type {string | null} */
-  let valueMax = null;
-  for (const date of valueDates) {
-    if (valueMin === null || date < valueMin) valueMin = date;
-    if (valueMax === null || date > valueMax) valueMax = date;
-  }
-  const { from, to } = periodBounds(rows, o);
-  // 期間と横軸は、記録の日に、値を置いた日（停止が記録の最後の日より後まで続いた日など）を足した範囲にする。この 2 行の 1 か所で決める。
-  // --since・--until を指定した側も、横軸は値のある日まで広げる。人の run が複数のタイムゾーンにまたがると期間の外の日に値が置かれうるので、
+  // 期間の表示と横軸は、ここから days までの式で決める。
+  // 範囲は、記録の日に、値を置いた日（停止が記録の最後の日より後まで続いた日など）を足したものにする。
+  // --since・--until を指定した側も、横軸は値のある日まで広げる。記録が複数のタイムゾーンにまたがると期間の外の日に値が置かれうるので、
   // 外すと日別のチャートとタイルが、人ごとの表・時刻ごとのチャートより小さくなる。期間の表示は指定した日付のままにする
+  const { min: valueMin, max: valueMax } = dateBounds(valueDates);
+  const { from, to } = periodBounds(rows, o);
   const first = from !== null && valueMin !== null && valueMin < from ? valueMin : from;
   const widened = to !== null && valueMax !== null && valueMax > to ? valueMax : to;
-  // 横軸の終わりは今日（report のタイムゾーン）か値のある最後の日の遅い方までにする。値は report を実行した時刻より後に置かれないので、
+  // 終わりは今日（report のタイムゾーン）か値のある最後の日の遅い方までにする。値は report を実行した時刻より後に置かれないので、
   // --until に先の日付を渡しても、0 しか無い日を並べない
   const today = localParts(o.now, o.tz).date;
   const cap = valueMax !== null && valueMax > today ? valueMax : today;
@@ -652,7 +653,8 @@ export function buildReport(allRows, o) {
   return {
     generatedAt: toIso(o.now),
     tz: o.tz,
-    period: formatPeriod(o.since ?? first, o.until ?? widened),
+    // --until を指定しない側は、横軸と同じ最後の日を出す
+    period: formatPeriod(o.since ?? first, o.until ?? last),
     recordFiles: o.recordFiles,
     rows: rows.length,
     names,

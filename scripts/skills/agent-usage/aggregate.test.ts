@@ -1483,6 +1483,43 @@ describe("日別のチャート", () => {
     ]);
   });
 
+  test("1 人の記録が複数のタイムゾーンにまたがっても、稼働状況は最初の run のタイムゾーンの期間で数える", () => {
+    // 最初の run は東京（東京の 10 月 1 日の終わりは UTC 15 時）。後の run はロサンゼルスの行で、
+    // ロサンゼルスの 10 月 1 日なので期間に入るが、UTC 10 月 2 日 3 時（東京の 10 月 2 日）に始まる
+    const rows = [
+      coverage,
+      {
+        ...run(
+          "t",
+          "p-00000001",
+          "2026-10-01T01:00:00.000Z",
+          "2026-10-01T02:00:00.000Z",
+          "2026-10-02T05:00:00.000Z",
+        ),
+        tz: "Asia/Tokyo",
+      },
+      {
+        ...run(
+          "l",
+          "p-00000001",
+          "2026-10-02T03:00:00.000Z",
+          "2026-10-02T04:00:00.000Z",
+          "2026-10-02T05:00:00.000Z",
+        ),
+        tz: "America/Los_Angeles",
+      },
+    ];
+    const r = buildReport(rows, options({ until: "2026-10-01" }));
+    // 後の run は稼働状況に数えず、停止も東京の 10 月 1 日の終わりで止まる
+    expect(r.activeByPerson).toEqual({ "p-00000001": 1 });
+    expect(
+      r.intervals.filter((x) => x.type === "stop").map((x) => [x.start, x.end, x.category]),
+    ).toEqual([["2026-10-01T02:00:00.000Z", "2026-10-01T15:00:00.000Z", "idle"]]);
+    expect(r.days).toEqual(["2026-10-01"]);
+    // 指示の数には、期間に入った行として数える
+    expect(r.runHistogram.reduce((a, b) => a + b, 0)).toBe(2);
+  });
+
   test("人ごとの停止は、intervals.csv の丸めた分ではなく、丸める前の値から足す", () => {
     // 10 秒の停止が 3 回。intervals.csv の minutes は 0.2 分に丸まる（足すと 0.6 分）が、実際は 0.5 分
     const s = (sec: number) =>

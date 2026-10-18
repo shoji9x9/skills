@@ -192,10 +192,9 @@ export function renderHtml(d) {
   }));
   const others = dates.map((date) => otherByDate.get(date) ?? 0);
   // 期間が年をまたぐときは、日付の目盛りに年も書く
-  const dayLabel = (/** @type {string} */ l) =>
-    dates.length > 0 && dates[0].slice(0, 4) !== dates[dates.length - 1].slice(0, 4)
-      ? l
-      : l.slice(5);
+  const spansYears =
+    dates.length > 0 && dates[0].slice(0, 4) !== dates[dates.length - 1].slice(0, 4);
+  const dayLabel = (/** @type {string} */ l) => (spansYears ? l : l.slice(5));
   if (others.some((v) => v > 0))
     modelSeries.push({ name: "その他", color: "var(--other)", values: others });
 
@@ -360,7 +359,7 @@ export function renderHtml(d) {
       unit: " 時間",
       note: `${ACTIVE_NOTE}判定不能は、GitHub の情報（CI・レビュー・自分の操作）を取得していない期間の停止です。collect が GitHub を取得するのは、初回は最大 60 日前からです。`,
     }),
-    `<section><h2>Issue ごと（稼働中の長い順に ${ISSUE_ROWS} 件まで。すべては intervals.csv）</h2><p class="muted small">同じ人が同時に複数の Issue の指示を動かした時間は、その Issue の数で等分して稼働中に数えます。未活用は、直前に動いていた指示の Issue に数えます。</p>${table(
+    `<section><h2>Issue ごと（稼働中の長い順に ${ISSUE_ROWS} 件まで。合計の行はすべての Issue を数える）</h2><p class="muted small">同じ人が同時に複数の Issue の指示を動かした時間は、その Issue の数で等分して稼働中に数えます。未活用は、直前に動いていた指示の Issue に数えます。</p>${table(
       ["Issue", "指示の数", `${STATUS_LABELS.active}（時間）`, `${STATUS_LABELS.idle}（時間）`],
       [...byIssue.entries()]
         .sort((a, b) => b[1].active - a[1].active)
