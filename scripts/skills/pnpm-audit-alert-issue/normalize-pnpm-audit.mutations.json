@@ -300,6 +300,7 @@
         "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（空白で区切った 2 つの id）",
         "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（前が ASCII の外の英字）",
         "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（後ろが ASCII の外の英字）",
+        "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（前が全角の英字）",
         "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（前が全角の数字）",
         "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（前が全角のハイフン）",
         "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（後ろが全角の英字）",
@@ -485,25 +486,27 @@
     },
     {
       "id": "ghsa-boundary-non-ascii-before",
-      "why": "前の判定だけに ASCII の外の文字（é・全角の数字とハイフン）を足し、前後の文字の集合を食い違わせる",
+      "why": "前の判定だけに ASCII の外の文字（é・全角の英字・数字・ハイフン）を足し、前後の文字の集合を食い違わせる",
       "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
       "find": "(?<![0-9a-z_-])",
-      "replace": "(?<![0-9a-z_é０-９－-])",
+      "replace": "(?<![0-9a-z_éＡ-Ｚ０-９－-])",
       "occurrences": 1,
       "expect_failing": [
         "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（前が ASCII の外の英字）",
+        "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（前が全角の英字）",
         "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（前が全角の数字）",
         "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（前が全角のハイフン）"
       ]
     },
     {
       "id": "ghsa-boundary-fullwidth-after",
-      "why": "後ろの判定だけに全角の英字・数字・ハイフンを足し、前後の文字の集合を食い違わせる",
+      "why": "後ろの判定だけに ASCII の外の文字（é・全角の英字・数字・ハイフン）を足し、前後の文字の集合を食い違わせる",
       "file": ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts",
       "find": "(?![0-9a-z_-])",
-      "replace": "(?![0-9a-z_Ａ-Ｚ０-９－-])",
+      "replace": "(?![0-9a-z_éＡ-Ｚ０-９－-])",
       "occurrences": 1,
       "expect_failing": [
+        "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（後ろが ASCII の外の英字）",
         "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（後ろが全角の英字）",
         "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（後ろが全角の数字）",
         "fromAdvisory（古い形の advisories の 1 件） title の GHSA の境界（後ろが全角のハイフン）"

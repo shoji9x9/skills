@@ -141,6 +141,7 @@ describe("fromAdvisory（古い形の advisories の 1 件）", () => {
     ["接頭辞が小文字", "ghsa-238p-pmpm-9mq7", ID],
     ["前が ASCII の外の英字", "éGHSA-238P-PMPM-9MQ7", ID],
     ["後ろが ASCII の外の英字", "GHSA-238P-PMPM-9MQ7é", ID],
+    ["前が全角の英字", "ＡGHSA-238P-PMPM-9MQ7", ID],
     ["前が全角の数字", "１GHSA-238P-PMPM-9MQ7", ID],
     ["前が全角のハイフン", "npm－GHSA-238P-PMPM-9MQ7", ID],
     ["後ろが全角の英字", "GHSA-238P-PMPM-9MQ7Ａ", ID],
@@ -330,7 +331,8 @@ describe("findingsFromVulnerability（新しい形の vulnerabilities の 1 件�
   });
 
   // - で語が付いた id は、どの欄からも取り出さない。
-  // id の欄から取り出せなければ、ghsa には id の欄の文字列をそのまま入れる（id の形でない識別子を残すため）。url・source・title の行は "" になる。
+  // id の欄と url のどちらからも取り出せなければ、ghsa には id の欄の文字列をそのまま入れる（id の形でない識別子を残すため）。
+  // url・source・title の行は id の欄が無いので "" になる。url に id があるときと、source・title より先に使うことは、下の 2 つのテストで確かめる。
   test.each([
     ["ghsa", "npm-GHSA-238P-PMPM-9MQ7", "npm-GHSA-238P-PMPM-9MQ7"],
     ["ghsa_id", "npm-GHSA-238P-PMPM-9MQ7", "npm-GHSA-238P-PMPM-9MQ7"],
