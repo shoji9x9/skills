@@ -293,7 +293,7 @@
       "id": "axis-not-capped-at-today",
       "why": "--until に先の日付を渡すと、0 しか無い日まで横軸に並べる",
       "file": "skills/agent-usage/scripts/lib/report/report.mjs",
-      "find": "  const last = widened !== null && widened > cap ? cap : widened;",
+      "find": "  const last = o.until !== null && widened !== null && widened > cap ? cap : widened;",
       "replace": "  const last = widened;",
       "occurrences": 1,
       "expect_failing": [
@@ -366,6 +366,28 @@
       "occurrences": 1,
       "expect_failing": [
         "日別のチャート 1 人の記録が複数のタイムゾーンにまたがっても、稼働状況は最初の run のタイムゾーンの期間で数える"
+      ]
+    },
+    {
+      "id": "axis-capped-without-until",
+      "why": "--until を指定しないときも横軸と期間の表示の終わりを今日で打ち切る",
+      "file": "skills/agent-usage/scripts/lib/report/report.mjs",
+      "find": "  const last = o.until !== null && widened !== null && widened > cap ? cap : widened;",
+      "replace": "  const last = widened !== null && widened > cap ? cap : widened;",
+      "occurrences": 1,
+      "expect_failing": [
+        "日別のチャート --until を指定しないときは、別のタイムゾーンの行で今日より後の日付になっても、期間の終わりを始まりより前にしない"
+      ]
+    },
+    {
+      "id": "person-zero-dropped",
+      "why": "稼働状況に数える run が無い人を、人ごとの稼働中に入れない",
+      "file": "skills/agent-usage/scripts/lib/report/report.mjs",
+      "find": "    activeByPerson[person] = 0;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "日別のチャート 稼働状況に数える run が無い人も、人ごとの稼働中と停止は 0 として持つ"
       ]
     }
   ]

@@ -1445,6 +1445,45 @@ describe("日別のチャート", () => {
     expect(r.activeByPerson).toEqual({ "p-00000001": 5 });
   });
 
+  test("--until を指定しないときは、別のタイムゾーンの行で今日より後の日付になっても、期間の終わりを始まりより前にしない", () => {
+    // report のタイムゾーンはロサンゼルスで、今日はロサンゼルスの 10 月 1 日。東京の行のレビューは東京の 10 月 2 日
+    const rows = [
+      {
+        key: "rv",
+        kind: "review",
+        observed_at: "2026-10-02T04:00:00.000Z",
+        person: "p-00000001",
+        tz: "Asia/Tokyo",
+        agent: "copilot",
+        start: "2026-10-02T04:00:00.000Z",
+        end: "2026-10-02T04:00:00.000Z",
+        detail: "pr=1",
+      },
+    ];
+    const r = buildReport(
+      rows,
+      options({ tz: "America/Los_Angeles", now: Date.parse("2026-10-02T05:00:00Z") }),
+    );
+    expect(r.period).toBe("2026-10-02 〜 2026-10-02");
+    expect(r.days).toEqual(["2026-10-02"]);
+  });
+
+  test("稼働状況に数える run が無い人も、人ごとの稼働中と停止は 0 として持つ", () => {
+    // report を実行した時刻（10 月 10 日）より後に始まる run だけを持つ人（時計がずれたマシンの記録など）
+    const rows = [
+      run(
+        "f",
+        "p-00000001",
+        "2026-10-11T01:00:00.000Z",
+        "2026-10-11T02:00:00.000Z",
+        "2026-10-11T02:00:00.000Z",
+      ),
+    ];
+    const r = buildReport(rows, options());
+    expect(r.activeByPerson).toEqual({ "p-00000001": 0 });
+    expect([...(r.stopByPerson["p-00000001"]?.values() ?? [])]).toEqual([0, 0, 0, 0, 0]);
+  });
+
   test("--until に先の日付を渡しても、横軸は今日までにし、9999 年の終わりでも止まる", () => {
     const r = buildReport(
       [usage("u1", "2026-10-08T01:00:00.000Z", "1.0")],

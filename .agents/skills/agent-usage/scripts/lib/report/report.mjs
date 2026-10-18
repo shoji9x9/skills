@@ -481,12 +481,15 @@ export function buildReport(allRows, o) {
     }
     if (runs.length === 0) continue;
     const tz = runs[0].row.tz || o.tz;
-    // 稼働状況は、1 人を 1 つのタイムゾーン（その人の最初の run のタイムゾーン）で数える。日付の分け方も期間の終わりも、このタイムゾーンで決める。
-    // 期間の終わりは、行を期間で絞るのと同じく、そのタイムゾーンでの --until の日の終わりにする
+    // 稼働状況は、1 人を 1 つのタイムゾーン（期間で絞った後の、その人の最初の run のタイムゾーン）で数える。
+    // 日付の分け方も期間の終わり（そのタイムゾーンでの --until の日の終わり）も、このタイムゾーンで決める
     const periodEnd = o.until ? Math.min(o.now, endOfLocalDate(o.until, tz)) : o.now;
-    // 記録が複数のタイムゾーンにまたがると、別のタイムゾーンの行として期間に入った run が、期間の終わりより後に始まりうる。
-    // その run は稼働状況（稼働中と停止）に数えない。指示の数とヒストグラムには、期間に入った行として数える
+    // 行を期間で絞るのは行ごとのタイムゾーンなので、記録が複数のタイムゾーンにまたがると、別のタイムゾーンの行として期間に入った run が
+    // 期間の終わりより後に始まりうる。その run は稼働状況（稼働中と停止）に数えない。指示の数とヒストグラムには、期間に入った行として数える
     const statusRuns = runs.filter((r) => r.span[0] < periodEnd);
+    // 稼働状況に数える run が無い人も、人ごとの稼働中と停止は 0 として持つ
+    activeByPerson[person] = 0;
+    stopByPerson[person] = new Map(STOP_CATEGORIES.map((c) => [c, 0]));
     if (statusRuns.length === 0) continue;
     const merged = mergeSpans(statusRuns.map((r) => r.span));
     // 稼働中は、重なる run をまとめた区間（停止はこの隙間なので、稼働中と停止は重ならない）。期間の終わりで打ち切る
@@ -643,11 +646,12 @@ export function buildReport(allRows, o) {
   const { from, to } = periodBounds(rows, o);
   const first = from !== null && valueMin !== null && valueMin < from ? valueMin : from;
   const widened = to !== null && valueMax !== null && valueMax > to ? valueMax : to;
-  // 終わりは今日（report のタイムゾーン）か値のある最後の日の遅い方までにする。値は report を実行した時刻より後に置かれないので、
-  // --until に先の日付を渡しても、0 しか無い日を並べない
+  // --until を指定したときは、終わりを今日（report のタイムゾーン）か値のある最後の日の遅い方までにする。
+  // 値は report を実行した時刻より後に置かれないので、--until に先の日付を渡しても、0 しか無い日を並べない。
+  // 指定しないときの終わりは記録と値の日なので打ち切らない（別のタイムゾーンの行で今日より後の日付になっても、期間の表示の始まりより前にならない）
   const today = localParts(o.now, o.tz).date;
   const cap = valueMax !== null && valueMax > today ? valueMax : today;
-  const last = widened !== null && widened > cap ? cap : widened;
+  const last = o.until !== null && widened !== null && widened > cap ? cap : widened;
   const days = first !== null && last !== null ? dateRange(first, last) : [];
 
   return {
