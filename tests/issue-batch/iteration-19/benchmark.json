@@ -1,0 +1,699 @@
+{
+  "metadata": {
+    "skill_name": "issue-batch",
+    "skill_path": "<repo>/skills/issue-batch",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-18T13:06:24Z",
+    "evals_run": [1, 4, 6, 9, 14, 16, 17, 18, 19, 20, 21, 22, 23, 25, 26, 27],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 53.675,
+        "tokens": 286537,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "2 Issue を入力順に保持し、1 Issue 1 worktree / branch / PR で直列処理すると述べている",
+          "passed": true,
+          "evidence": "「101 が終わってから 102 に入ります」、Issue ごとに feature/101-… の branch・worktree・PR。"
+        },
+        {
+          "text": "変更前に repo 一致、OPEN、本文と全コメント、依存関係、既存 branch / PR / worktree、設定、権限を全件確認する",
+          "passed": false,
+          "evidence": "preflight 表に Issue の全コメントの確認が無い（本文を読めないとだけ記載）。"
+        },
+        {
+          "text": "呼び出し元を checkout せず /tmp の隔離 worktree と秘密値を含まない manifest を使う",
+          "passed": false,
+          "evidence": "worktree を「リポジトリの中の場所」に作るとし、/tmp・呼び出し元を checkout しない・秘密値に触れない。"
+        },
+        {
+          "text": "DONE を MERGED、CLOSED、exact-SHA deployment、local / remote branch 削除の全成立後だけ付ける",
+          "passed": true,
+          "evidence": "DONE を「MERGED、CLOSED、deployment が not-configured、branch 削除のすべてを確かめた後」とする。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 14,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 45.536,
+        "tokens": 151863,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "max PR 3、CI 待機 false、merge rebase を当該 run の解決値にする",
+          "passed": true,
+          "evidence": "解決表で max_pr_iterations 3・wait_ci false・merge_method rebase を source=cli とする。"
+        },
+        {
+          "text": "pr-finalize-loop --max-iterations 3 へ転送する",
+          "passed": true,
+          "evidence": "「3（pr-finalize-loop --max-iterations 3 に渡す）」。"
+        },
+        {
+          "text": "CLI override で設定ファイルを書き換えない",
+          "passed": true,
+          "evidence": "「設定ファイルは書き換わりません（実行の前後で md5 が…のままです）」。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 16,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 63.666,
+        "tokens": 169330,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定から merge mode agent を解決し、gh pr merge に --auto を付けずに merge する",
+          "passed": true,
+          "evidence": "設定表で merge_mode agent を示し、`gh pr merge ... --squash --match-head-commit`（--auto も --admin も付けない）と書いている。"
+        },
+        {
+          "text": "gh pr checks --required の bucket と PR の mergeable / mergeStateStatus を実測してから merge する",
+          "passed": true,
+          "evidence": "`gh pr checks --required --json name,bucket,...` と `gh pr view --json mergeable,mergeStateStatus` の取得を merge 前に置いている。"
+        },
+        {
+          "text": "required check の pending は merge_ready_timeout_minutes を上限に再取得し、超過したら merge せず BLOCKED にする",
+          "passed": true,
+          "evidence": "扱い A で「10 分を上限に…取得をやり直し」「超えたら merge のコマンドを送らずに BLOCKED」と述べている。"
+        },
+        {
+          "text": "mergeStateStatus BEHIND は rebase / force push / 別 branch を使わず同じ feature branch に最新 base を merge して収束へ戻す",
+          "passed": true,
+          "evidence": "扱い B で「rebase、force push、別の branch はどれも使いません。同じ feature branch に最新の base を merge」と述べている。"
+        },
+        {
+          "text": "必須でない check だけの失敗（UNSTABLE）は required が全て pass なら merge してよく、失敗した check を判断根拠として残す",
+          "passed": true,
+          "evidence": "扱い C で必須 check がすべて pass なら merge してよく、失敗した check を self_decisions に根拠として残すと述べている。"
+        },
+        {
+          "text": "merge コマンドの成功終了ではなく PR MERGED を再取得して確認する",
+          "passed": true,
+          "evidence": "「コマンドが成功したことは完了の根拠にしません。…PR を取り直し、state: MERGED を確かめます」と述べている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 17,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 43.64,
+        "tokens": 201933,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "CLI の --merge-mode agent を当該 run の解決値にし、設定ファイルを書き換えない",
+          "passed": true,
+          "evidence": "merge_mode を「CLI（--merge-mode agent）。設定の auto をこの run だけ上書き」とし、設定ファイルへの影響は「ありません」と述べている。"
+        },
+        {
+          "text": "agent mode では PR の状況を自分で実測してから merge するため auto-merge の許可を前提にしない",
+          "passed": true,
+          "evidence": "allow_auto_merge の確認は「決まった mode が auto のときだけ」とし、agent では --auto なしで送る前提で扱っている。"
+        },
+        {
+          "text": "設定どおりの auto mode では repository の allow_auto_merge を preflight で実測する",
+          "passed": true,
+          "evidence": "auto の場合の追加実測として `gh api repos/{owner}/{repo} --jq .allow_auto_merge` が true かを挙げている。"
+        },
+        {
+          "text": "allow_auto_merge が false なら repository 設定を無人で変更せず、全体を停止して setup か --merge-mode agent を案内する",
+          "passed": true,
+          "evidence": "false なら「設定を無人で書き換えず…全体を停止して、issue-batch setup を案内」し、--merge-mode agent の案も示している。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 18,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 53.052,
+        "tokens": 170258,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "gh pr checks --required の非 0 終了を取得失敗と混同せず、必須チェック 0 件であることを区別する",
+          "passed": true,
+          "evidence": "「終了コードが 0 以外でも、すぐ「失敗」とは扱いません」とし stderr で必須 0 件と取得失敗を分ける"
+        },
+        {
+          "text": "必須チェック 0 件では required の pass を merge 根拠にせず、--required なしの全 check の bucket に同じ規則を当てる",
+          "passed": true,
+          "evidence": "必須 0 件では「merge の根拠にしません」とし `--required` なしの全 check の bucket に同じ規則を当てる"
+        },
+        {
+          "text": "必須チェック 0 件では UNSTABLE（必須でない check の失敗）の免除を適用しない",
+          "passed": true,
+          "evidence": "「`UNSTABLE` の免除は当てません」"
+        },
+        {
+          "text": "全 check も 0 件なら pass 扱いにせず、check を根拠にしていないことを manifest に明示する",
+          "passed": true,
+          "evidence": "CI 未設定でも「pass したことにはしません」、manifest に check を根拠にしていないと明記する"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 19,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 28.468,
+        "tokens": 129231,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定に merge_ready_timeout_minutes が無いことを検出する",
+          "passed": true,
+          "evidence": "「issue-batch.jsonc を…読みました…しかし merge_ready_timeout_minutes がありません」と検出している。"
+        },
+        {
+          "text": "待機上限を推測値や既定値で補わない",
+          "passed": true,
+          "evidence": "「このキーを推測で補ってはならず、ここで停止すると決められています」と述べ、値を補っていない。"
+        },
+        {
+          "text": "--merge-mode の指定だけでは agent mode に必要な待機上限は埋まらないと述べる",
+          "passed": true,
+          "evidence": "「--merge-mode agent を渡しても、待つ上限は決まりません」と述べている。"
+        },
+        {
+          "text": "branch / PR / merge を変更する前に停止して issue-batch setup を案内する",
+          "passed": true,
+          "evidence": "preflight で全体停止し branch・PR を変更せず、「issue-batch setup を実行して…追加してください」と案内している。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 20,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 49.637,
+        "tokens": 221560,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR URL と解決済みの max_pr_iterations を pr-finalize-loop <PR URL> --max-iterations 5 に渡す",
+          "passed": true,
+          "evidence": "渡す値として `pr-finalize-loop <PR101_URL> --max-iterations 5 --defer-decisions` を示している。"
+        },
+        {
+          "text": "CI・全 reviewer の thread / review body・再レビュー依頼は pr-finalize-loop が受け持ち、issue-batch 自身から review_tool への再レビュー依頼を出さない",
+          "passed": true,
+          "evidence": "pr-finalize-loop が CI・全レビュアーのスレッドとレビュー本文・再レビュー依頼を担い、issue-batch は「リモートの AI レビューを自分から依頼」しないと述べている。"
+        },
+        {
+          "text": "wait_ci_before_review が true のときだけ --wait-ci-before-review を足す（設定は false なので今回は付けない）",
+          "passed": true,
+          "evidence": "「--wait-ci-before-review：設定が false なので付けません」とし、true なら加わると述べている。"
+        },
+        {
+          "text": "収束しなければ BLOCKED / FAILED とし、隔離できるなら continue_on_blocked の方針に従って次 Issue へ進む",
+          "passed": true,
+          "evidence": "収束しなければ BLOCKED か FAILED にし、依存しない後続は continue_on_blocked: true で次へ進むと述べている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 21,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 32.277,
+        "tokens": 135695,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "#101 は自分以外が担当者なので、変更前の全体 preflight で BLOCKED にし、担当者の login を残して自分を割り当てないと述べている",
+          "passed": true,
+          "evidence": "preflight 5 で carol を見て「BLOCKED。停止の理由に `assignee: carol` を残す」、割り当てない"
+        },
+        {
+          "text": "#102 は着手の直前に自分を割り当ててから担当者を読み直し、自分以外も付いていたら BLOCKED にして自分を無人で外さないと述べている",
+          "passed": true,
+          "evidence": "#102 は割り当て後に読み直し、自分以外も付いていたら「BLOCKED…自分を無人では外しません」"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（担当者の変更・branch 作成を行っていない）",
+          "passed": true,
+          "evidence": "冒頭で「dry-run の説明です…Issue や branch を変更したりはしていません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 22,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 39.75,
+        "tokens": 137601,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "#103 は再開対象の PR の作成者でも担当者でもないので、その Issue を BLOCKED にして pr-finalize-loop へ渡さない（無人で push・resolve しない）と述べている",
+          "passed": true,
+          "evidence": "#103 は `not-owner` で BLOCKED、「他の人の PR に無人で push や resolve はしません」"
+        },
+        {
+          "text": "#104 は自分が再開対象の PR の担当者に含まれるので、作成者が dave でも持ち主の判定を通過し、その PR を再開できると述べている（作成者だけを見て止めていない）",
+          "passed": true,
+          "evidence": "#104 は「作成者は dave でも担当者に自分が入っているので `owner`」で再開する"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（担当者の変更・push・resolve を行っていない）",
+          "passed": true,
+          "evidence": "「dry-run の説明だけで…branch・worktree の操作はしていません」「変更したファイルはありません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 23,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 9,
+        "failed": 0,
+        "total": 9,
+        "time_seconds": 63.627,
+        "tokens": 180762,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "満たせない条件について、run の途中で利用者に確認を送らないと述べている",
+          "passed": true,
+          "evidence": "「run を始めた後は利用者に確認を送らないので、ここでも質問はしません」"
+        },
+        {
+          "text": "#101 を判断待ち（BLOCKED）として manifest に記録すると述べている",
+          "passed": true,
+          "evidence": "「#101 を `BLOCKED`（判断待ち）にする」、manifest の pending_decisions に pd-101-1 を記録する"
+        },
+        {
+          "text": "#101 を判断待ちにした後、#102 に進むと述べている",
+          "passed": true,
+          "evidence": "「#102 に進む…run は止めず、#102 を入力の順どおり最後まで進めます」"
+        },
+        {
+          "text": "条件を外す承認と #108 の見直しを、1 つの判断待ちにまとめると述べている",
+          "passed": true,
+          "evidence": "「外す承認と似た Issue の見直しは、同じ変更から生じるので 1 件にまとめます」"
+        },
+        {
+          "text": "#101 を push しないと述べている",
+          "passed": true,
+          "evidence": "「push、PR の作成、`pr-finalize-loop`、merge には進みません」"
+        },
+        {
+          "text": "最終報告の判断待ちに、推奨を示すと述べている",
+          "passed": true,
+          "evidence": "判断待ち pd-101-1 に「推奨:」を書いている"
+        },
+        {
+          "text": "最終報告の判断待ちに、決まった後に残る作業を示すと述べている",
+          "passed": true,
+          "evidence": "判断待ち pd-101-1 に「決まった後に残る作業:」を書いている"
+        },
+        {
+          "text": "ファイルを読んで満たしたと判断した条件を、最終報告の「自分で判断して進めたもの」の一覧に載せると述べている",
+          "passed": true,
+          "evidence": "「自分で判断して進めたもの」の others に、他の受け入れ条件を `met`（strength: read）にした判断を載せる"
+        },
+        {
+          "text": "回答の中で、run の途中で利用者に確認して返答を待つ進め方を併記していない",
+          "passed": true,
+          "evidence": "run の途中で確認して待つ進め方は書いていない。補足は preflight 10 で承認済みの場合だけ"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 25,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 8,
+        "failed": 0,
+        "total": 8,
+        "time_seconds": 68.732,
+        "tokens": 146509,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "#105 を、run の対象から外すことを提案すると述べている",
+          "passed": true,
+          "evidence": "#105 を「対象から外す候補にする」、推奨は「A: 外す（`EXCLUDED`）」"
+        },
+        {
+          "text": "#105 の提案に、当たった兆候（決まっていない論点が複数・試していない機構への依存など）と、その根拠の記述を添えると述べている",
+          "passed": true,
+          "evidence": "兆候 2 つ（決まっていない論点が 2 つ以上・試していない機構）と、その根拠の記述を添える"
+        },
+        {
+          "text": "#105 を残すと選んだときに決める論点（置き場所・一覧を宣言する場所など）も、同じ確認に並べると述べている",
+          "passed": true,
+          "evidence": "「B のとき」の置き場所・一覧を宣言する場所を同じ確認の表に並べる"
+        },
+        {
+          "text": "#106 は、不確実性の兆候が 1 つ（導入していないツール）だけなので、対象から外す候補にしないと述べている",
+          "passed": true,
+          "evidence": "#106 は「当たる兆候は…1 つだけなので、外す候補にはしません」"
+        },
+        {
+          "text": "対象から外すかは、何かを変更する前の 1 回の確認で利用者が決め、確認なしに外さないと述べている",
+          "passed": true,
+          "evidence": "「利用者への確認（1 回にまとめる）」で選ばせ、外すのは利用者が選んだ場合だけ"
+        },
+        {
+          "text": "利用者が外すと選んだ Issue は、EXCLUDED の状態にし、branch と worktree を作らないと述べている",
+          "passed": true,
+          "evidence": "「#105 を外すと選んだ場合：`EXCLUDED`…branch・worktree は一切作りません」"
+        },
+        {
+          "text": "外した Issue と理由を、manifest と最終報告に残すと述べている",
+          "passed": true,
+          "evidence": "manifest に「対象から外した理由」を記録し、最終報告の表の「対象から外した理由」の列に書く"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（branch 作成・Issue の変更を行っていない）",
+          "passed": true,
+          "evidence": "「コマンドは実行しておらず…ファイルも変更していません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 26,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 56.333,
+        "tokens": 96097,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "#107 を外す候補として提案し、外すと #108 も外れることを、同じ 1 回の確認で選択肢の影響として示すと述べている",
+          "passed": true,
+          "evidence": "確認の表で #107 を外す選択肢に「依存元の #108 も `EXCLUDED`」と影響を示す"
+        },
+        {
+          "text": "#108 は #107 の兆候を足さずに数え、外す候補にしないと述べている",
+          "passed": true,
+          "evidence": "#108 は「0（書く内容は決まっている。#107 の兆候は足さない）」で候補にしない"
+        },
+        {
+          "text": "利用者が #107 を外すと選んだら、#108 も EXCLUDED にすると述べている",
+          "passed": true,
+          "evidence": "ケース A で #108 は「`EXCLUDED`（未着手の依存元）」"
+        },
+        {
+          "text": "#108 の対象から外した理由に、依存先の #107 を書くと述べている",
+          "passed": true,
+          "evidence": "#108 の理由に「外した依存先 #107」を書く"
+        },
+        {
+          "text": "#107 について答えが返らなかったら、#108 にも着手せず BLOCKED にすると述べている",
+          "passed": true,
+          "evidence": "ケース B で #108 は「`BLOCKED`」、停止の理由に「依存先 #107 が判断待ち」"
+        },
+        {
+          "text": "--stop-on-blocked でも、preflight で BLOCKED にした Issue があることを理由に run を止めないと述べている",
+          "passed": true,
+          "evidence": "「preflight で `BLOCKED` にした Issue は止める理由にならず」、run は止まらない"
+        },
+        {
+          "text": "#107 について答えが返らなかったときも、#109 は進めると述べている",
+          "passed": true,
+          "evidence": "ケース B で #109 は「`PREFLIGHTED` → 進める」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 27,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8333,
+        "passed": 5,
+        "failed": 1,
+        "total": 6,
+        "time_seconds": 47.333,
+        "tokens": 79175,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "「自分で判断して進めたもの」に、守っていない規約（eval を実行しなかったこと）とその理由を載せている",
+          "passed": true,
+          "evidence": "欄 1「守っていない規約」に #101 で eval を実行しなかったことと「時間を優先した」を載せる"
+        },
+        {
+          "text": "「自分で判断して進めたもの」に、反復の回数を理由に直さなかった指摘（文章の書き方の指摘と、エラーを握りつぶす分岐の指摘）を載せている",
+          "passed": true,
+          "evidence": "欄 2 に #102 のエラーを握りつぶす分岐の指摘と #101 の文章の書き方の指摘を載せる"
+        },
+        {
+          "text": "「自分で判断して進めたもの」に、見送った指摘のうち Issue にしていないもの（別のファイルの同じ不具合）を載せている",
+          "passed": true,
+          "evidence": "欄 3 に #102 の別のファイルの同じ不具合を「Issue はまだ作っていません」と載せる"
+        },
+        {
+          "text": "Issue の対象から外した形の欄を設け、該当が無いことを書いている",
+          "passed": false,
+          "evidence": "欄 4 は設けたが #101 を「〈要確認〉」とし、該当が無いとは書き切っていない（#102 だけ 0 件）"
+        },
+        {
+          "text": "反復の回数を理由に直さなかった指摘の欄で、エラーを握りつぶす分岐の指摘を、文章の書き方の指摘より先に並べている",
+          "passed": true,
+          "evidence": "欄 2 で #102 のエラーを握りつぶす分岐（中）を #101 の文章（小）より先に並べる"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（Issue の作成・PR の変更を行っていない）",
+          "passed": true,
+          "evidence": "「コマンドの実行、ファイルの変更、GitHub への書き込みはしていません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 28.909,
+        "tokens": 120777,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "正規化後の Issue 重複を全体 preflight で検出する",
+          "passed": true,
+          "evidence": "「`101`, `101` → 正規化すると `#101`, `#101`…重複しているので拒否しました」"
+        },
+        {
+          "text": "branch / worktree / PR を作る前に全体を停止する",
+          "passed": true,
+          "evidence": "「何かを変える前の段階で、run 全体を止めました」とし、branch / worktree / manifest を作っていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 39.398,
+        "tokens": 162358,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "auth: user と禁止されたデータ変更を preflight で検出する",
+          "passed": true,
+          "evidence": "preflight 7 の表で「auth: user」を ❌ とし、forbidden_actions の data update を制約として扱う"
+        },
+        {
+          "text": "ログインや禁止操作解除を求めず当該 Issue を BLOCKED にする",
+          "passed": true,
+          "evidence": "「auth: user だけで、規則 7 により #101 は何かを変更する前に BLOCKED」とし、ログインを求めていない"
+        },
+        {
+          "text": "browser-test handoff 後に設定ファイルを再読させない取り決めに言及する",
+          "passed": true,
+          "evidence": "「handoff の後に設定ファイルを読み直させません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 37.086,
+        "tokens": 185234,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "デフォルトでは隔離可能な BLOCKED 後も Issue 102 を続行する",
+          "passed": true,
+          "evidence": "既定の行で Issue 102 を「続けて着手し、DONE まで進める」"
+        },
+        {
+          "text": "--stop-on-blocked では Issue 101 で停止する",
+          "passed": true,
+          "evidence": "--stop-on-blocked の行で「101 の後で run を止め」、102 は着手しない"
+        },
+        {
+          "text": "共有認証失敗は option にかかわらず全体停止する",
+          "passed": true,
+          "evidence": "認証の失敗は「option に関わらず全体を停止する」"
+        },
+        {
+          "text": "既定の続行方針は setup 済みの continue_on_blocked で定義され、--stop-on-blocked は当該 run だけ上書きし設定ファイルを書き換えない",
+          "passed": true,
+          "evidence": "continue_on_blocked は setup で確定し、--stop-on-blocked は「その run だけ…設定ファイルは書き換えません」"
+        },
+        {
+          "text": "BLOCKED の Issue 101 の worktree を削除せず、絶対パスと残作業を最終報告に残す",
+          "passed": true,
+          "evidence": "「dirty か BLOCKED の worktree は削除しません」「worktree の絶対パスと残りの作業を最終報告に書きます」"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.9583,
+        "stddev": 0.1291,
+        "min": 0.5,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 46.9449,
+        "stddev": 12.4133,
+        "min": 28.468,
+        "max": 68.732
+      },
+      "tokens": {
+        "mean": 160932.5,
+        "stddev": 49835.3795,
+        "min": 79175,
+        "max": 286537
+      }
+    }
+  },
+  "notes": []
+}

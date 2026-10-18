@@ -1,0 +1,147 @@
+{
+  "metadata": {
+    "skill_name": "parity-component",
+    "skill_path": "<repo>/skills/parity-component",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-18T13:06:24Z",
+    "evals_run": [1],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 16.776,
+        "tokens": 99454,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "replace-strategy の設定（.config/skills/shoji9x9/replace-strategy.jsonc）と .replace/components.md が無いことを検出している",
+          "passed": true,
+          "evidence": "表で「replace-strategy.jsonc と .replace/features.md 両方ない」「.replace/components.md ない」と検出"
+        },
+        {
+          "text": "採取物・metadata・部品インベントリを捏造せず停止している",
+          "passed": true,
+          "evidence": "「何も作成・変更していません」と述べ、tree も .claude のみ"
+        },
+        {
+          "text": "replace-strategy setup の実行（および共通部品インベントリの作成）を促している",
+          "passed": true,
+          "evidence": "進め方 2 で「replace-strategy setup を実行」し components.md ができると案内"
+        },
+        {
+          "text": "対象の部品 slug を自分で採番・推測していない",
+          "passed": true,
+          "evidence": "slug は「.replace/components.md に書かれた名前を使ってください」とし採番していない"
+        },
+        {
+          "text": "回答内で、停止の判断と矛盾する結論（前提が揃っているかのような記述・推測で埋めた値）を述べていない",
+          "passed": true,
+          "evidence": "前提がどれも揃っていないとし、推測の値を述べていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 18.498,
+        "tokens": 60300,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "replace-strategy の設定（.config/skills/shoji9x9/replace-strategy.jsonc）と .replace/components.md が無いことを検出している",
+          "passed": false,
+          "evidence": "replace-strategy.jsonc や components.md に触れず、ディレクトリが空とだけ述べる"
+        },
+        {
+          "text": "採取物・metadata・部品インベントリを捏造せず停止している",
+          "passed": true,
+          "evidence": "「推測でファイルを作ったり…せず、確認だけにとどめました」"
+        },
+        {
+          "text": "replace-strategy setup の実行（および共通部品インベントリの作成）を促している",
+          "passed": false,
+          "evidence": "replace-strategy setup の実行を促していない（SKILL.md の配置を求める）"
+        },
+        {
+          "text": "対象の部品 slug を自分で採番・推測していない",
+          "passed": true,
+          "evidence": "slug を採番していない"
+        },
+        {
+          "text": "回答内で、停止の判断と矛盾する結論（前提が揃っているかのような記述・推測で埋めた値）を述べていない",
+          "passed": true,
+          "evidence": "実行できなかったとし、矛盾する結論は無い"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 16.776,
+        "stddev": 0,
+        "min": 16.776,
+        "max": 16.776
+      },
+      "tokens": {
+        "mean": 99454,
+        "stddev": 0,
+        "min": 99454,
+        "max": 99454
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.6,
+        "stddev": 0,
+        "min": 0.6,
+        "max": 0.6
+      },
+      "time_seconds": {
+        "mean": 18.498,
+        "stddev": 0,
+        "min": 18.498,
+        "max": 18.498
+      },
+      "tokens": {
+        "mean": 60300,
+        "stddev": 0,
+        "min": 60300,
+        "max": 60300
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.40",
+      "time_seconds": "-1.7",
+      "tokens": "+39154"
+    }
+  },
+  "notes": []
+}

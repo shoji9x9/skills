@@ -1,0 +1,157 @@
+{
+  "metadata": {
+    "skill_name": "issue-batch",
+    "skill_path": "<repo>/skills/issue-batch",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-18T13:06:24Z",
+    "evals_run": [24],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 24,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 41.892,
+        "tokens": 94060,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "commit していない設定は、Issue ごとの worktree に届かないと述べている",
+          "passed": true,
+          "evidence": "「作業ツリーにしかない設定は Issue ごとの worktree に届きません」"
+        },
+        {
+          "text": "設定が base branch に入っていないので、run を始めずに停止すると述べている",
+          "passed": true,
+          "evidence": "「だから run を始めずに全体を停止します」"
+        },
+        {
+          "text": "設定を無人で commit・push しないと述べている",
+          "passed": true,
+          "evidence": "「設定を無人で commit・push しません。」"
+        },
+        {
+          "text": "#102 の案 A・B の選択を、この run では確認せず、全体を止める停止の報告に載せると述べている",
+          "passed": true,
+          "evidence": "全体を停止する場合は「利用者に確認しません。停止の報告に判断が要る項目として載せるだけです」"
+        },
+        {
+          "text": "#102 の案 A・B の選択を、やり直した run の preflight（何かを変更する前）で利用者に決めてもらうと述べている",
+          "passed": true,
+          "evidence": "やり直した run の preflight で「手順 10 の 1 回だけの確認で、案 A と案 B のどちらにするかを決めてもらいます」"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（commit・branch 作成・Issue の変更を行っていない）",
+          "passed": true,
+          "evidence": "「コマンドの実行、ファイルの変更、GitHub への読み書きはしていません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 24,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 3,
+        "failed": 3,
+        "total": 6,
+        "time_seconds": 29.906,
+        "tokens": 19508,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "commit していない設定は、Issue ごとの worktree に届かないと述べている",
+          "passed": true,
+          "evidence": "「未コミットの設定は新しいツリーに入りません」"
+        },
+        {
+          "text": "設定が base branch に入っていないので、run を始めずに停止すると述べている",
+          "passed": false,
+          "evidence": "停止の根拠が base に無いことではなく dirty と判断待ちで、commit しないまま進める案も示している"
+        },
+        {
+          "text": "設定を無人で commit・push しないと述べている",
+          "passed": true,
+          "evidence": "「commit、stash、移動、削除はどれもしません」"
+        },
+        {
+          "text": "#102 の案 A・B の選択を、この run では確認せず、全体を止める停止の報告に載せると述べている",
+          "passed": false,
+          "evidence": "#102 を「バッチから外します。#101 は…そのまま続けます」とし、全体停止の報告に載せていない"
+        },
+        {
+          "text": "#102 の案 A・B の選択を、やり直した run の preflight（何かを変更する前）で利用者に決めてもらうと述べている",
+          "passed": false,
+          "evidence": "案が決まった後に「issue-batch run 102 を単独で実行し直します」とし、やり直した preflight で決める形ではない"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（commit・branch 作成・Issue の変更を行っていない）",
+          "passed": true,
+          "evidence": "「コマンドは実行せず、ファイルも開いたり変更したりしていません」"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 41.892,
+        "stddev": 0,
+        "min": 41.892,
+        "max": 41.892
+      },
+      "tokens": {
+        "mean": 94060,
+        "stddev": 0,
+        "min": 94060,
+        "max": 94060
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.5,
+        "stddev": 0,
+        "min": 0.5,
+        "max": 0.5
+      },
+      "time_seconds": {
+        "mean": 29.906,
+        "stddev": 0,
+        "min": 29.906,
+        "max": 29.906
+      },
+      "tokens": {
+        "mean": 19508,
+        "stddev": 0,
+        "min": 19508,
+        "max": 19508
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.50",
+      "time_seconds": "+12.0",
+      "tokens": "+74552"
+    }
+  },
+  "notes": []
+}

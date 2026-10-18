@@ -1,0 +1,385 @@
+{
+  "metadata": {
+    "skill_name": "pr-finalize-loop",
+    "skill_path": "<repo>/skills/pr-finalize-loop",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-18T13:05:56Z",
+    "evals_run": [9, 10, 13, 17],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 10,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 17.131,
+        "tokens": 113491,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "common の review_tool の設定（none）を参照している",
+          "passed": true,
+          "evidence": "「`review_tool` は、指定どおり `none`（再レビューを依頼しない）として扱う予定でした」"
+        },
+        {
+          "text": "AI レビュアーへの再レビュー依頼を一切行わない方針である",
+          "passed": true,
+          "evidence": "「none（再レビューを依頼しない）」とし、再実行例も `--review-tool none` にしている"
+        },
+        {
+          "text": "収束・完了判定から「HEAD がレビュー済み」条件を外し、CI 全成功かつ未解決スレッド無しで完了とする方針である",
+          "passed": false,
+          "evidence": "前提不一致で止まり、完了の条件から HEAD のレビュー済みを外すことを述べていない"
+        },
+        {
+          "text": "未解決スレッドの返信・解決は通常どおり行う方針である",
+          "passed": false,
+          "evidence": "未解決スレッドへの返信・解決を通常どおり行う方針を述べていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 13,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 37.281,
+        "tokens": 100602,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "トップレベルの PR コメント（issues/<番号>/comments）を指摘の収集対象として読む方針である（スレッドと reviews[].body の 2 系統だけで指摘なしと結論していない）",
+          "passed": true,
+          "evidence": "「`gh api --paginate repos/<owner>/<repo>/issues/6/comments`」を読むとしている"
+        },
+        {
+          "text": "レビュアーが総評・軽微な指摘をトップレベルコメントに置く形を挙げている（スレッド 0 件・reviews[].body 空を根拠に「指摘なし・収束」と結論していない）",
+          "passed": true,
+          "evidence": "「Claude の GitHub Action は、総評と軽い指摘を PR のトップレベルコメントに置き」"
+        },
+        {
+          "text": "トップレベルコメントは切り詰めずに全文読む（進行中検出の .body[:200] の取得を指摘収集に使い回さない）と述べている",
+          "passed": true,
+          "evidence": "「次を切り詰めずに読む必要があります」"
+        },
+        {
+          "text": "収束・完了判定の条件に「トップレベルコメントに未対応の指摘が無い」を含めている",
+          "passed": true,
+          "evidence": "収束条件の表に「レビュー本文とトップレベルコメントに未対応の指摘が無い」を挙げている"
+        },
+        {
+          "text": "トップレベルコメントの指摘には返信先スレッドが無く resolve もできないため、自分のトップレベルコメントを唯一の証跡として判断と根拠を残す方針である",
+          "passed": false,
+          "evidence": "トップレベルコメントの指摘に自分のトップレベルコメントで証跡を残す方針が書かれていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 17,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 35.988,
+        "tokens": 191223,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "pr-finalize-loop 6 --review-tool none を今回の実行方法として示している",
+          "passed": true,
+          "evidence": "「pr-finalize-loop 6 --review-tool none」を実行し直す方法として示している"
+        },
+        {
+          "text": "次回 CLI 指定が無ければ common.local.jsonc の codex を使うと説明している",
+          "passed": true,
+          "evidence": "「次回の通常実行は `common.local.jsonc` の `codex`（出所 local）になります」"
+        },
+        {
+          "text": ".config/skills/shoji9x9/common.jsonc と common.local.jsonc を変更しない方針である",
+          "passed": true,
+          "evidence": "「設定ファイルは作成も変更もしていません」"
+        },
+        {
+          "text": "今回の CLI 指定が common.local.jsonc より優先し、次回は common.local.jsonc が共有の common.jsonc より優先すると説明している",
+          "passed": false,
+          "evidence": "local が共有より優先とはあるが、今回の CLI 指定が common.local.jsonc より優先とは明示していない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 27.036,
+        "tokens": 164408,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "common の review_tool の設定（codex）を参照して依頼先ツールを決めている",
+          "passed": true,
+          "evidence": "resolve-review-tool.sh で設定を読み、codex が読めないことを報告したうえで codex の処理を示す"
+        },
+        {
+          "text": "依頼は requested_reviewers ではなくトップレベル PR コメントへの @codex review 投稿で行う方針である",
+          "passed": true,
+          "evidence": "「どれも無いときだけ、`@codex review` を 1 回だけ投稿します」"
+        },
+        {
+          "text": "Copilot 専用の login（copilot-pull-request-reviewer[bot]）や review_requested タイムラインに依存しない方針である",
+          "passed": true,
+          "evidence": "判定は非著者レビュー・check-run・Reviewed commit のコメントで、Copilot 専用の手段を使わない"
+        },
+        {
+          "text": "レビュー到着・進行中は非著者レビューや bot コメント等の汎用シグナルで判定する方針である",
+          "passed": true,
+          "evidence": "「作成者以外のレビューで…」「進行中の Codex のコメントや check-run があるときも依頼を保留」"
+        },
+        {
+          "text": "mention は非冪等のため、現在の HEAD の push 以降に投稿された（投稿者を問わない）@codex review コメントがあれば再投稿せず、重複レビュー起動を避ける方針である",
+          "passed": true,
+          "evidence": "「push…より後に、誰かが `@codex review`…を投稿していれば、依頼済みとして扱います」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 10,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 17.859,
+        "tokens": 83673,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "common の review_tool の設定（none）を参照している",
+          "passed": true,
+          "evidence": "「`review_tool: none`（外部レビューツールを使わない）で…実行できます」"
+        },
+        {
+          "text": "AI レビュアーへの再レビュー依頼を一切行わない方針である",
+          "passed": true,
+          "evidence": "「外部レビューツールを使わない」と述べている"
+        },
+        {
+          "text": "収束・完了判定から「HEAD がレビュー済み」条件を外し、CI 全成功かつ未解決スレッド無しで完了とする方針である",
+          "passed": false,
+          "evidence": "完了の条件に触れていない"
+        },
+        {
+          "text": "未解決スレッドの返信・解決は通常どおり行う方針である",
+          "passed": false,
+          "evidence": "未解決スレッドへの返信・解決に触れていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 13,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 23.689,
+        "tokens": 60277,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "トップレベルの PR コメント（issues/<番号>/comments）を指摘の収集対象として読む方針である（スレッドと reviews[].body の 2 系統だけで指摘なしと結論していない）",
+          "passed": true,
+          "evidence": "「`gh api repos/{owner}/{repo}/issues/6/comments` を見て…指摘が残っていないか確認」"
+        },
+        {
+          "text": "レビュアーが総評・軽微な指摘をトップレベルコメントに置く形を挙げている（スレッド 0 件・reviews[].body 空を根拠に「指摘なし・収束」と結論していない）",
+          "passed": true,
+          "evidence": "「Claude…のレビュー結果は…PR の会話欄のコメント（issue comment）に書かれることがよく」"
+        },
+        {
+          "text": "トップレベルコメントは切り詰めずに全文読む（進行中検出の .body[:200] の取得を指摘収集に使い回さない）と述べている",
+          "passed": false,
+          "evidence": "コメントを切り詰めずに全文読むことに触れていない"
+        },
+        {
+          "text": "収束・完了判定の条件に「トップレベルコメントに未対応の指摘が無い」を含めている",
+          "passed": true,
+          "evidence": "「1〜4 がすべて問題なければ、収束と判定」とし、1 が issue comments の指摘の確認"
+        },
+        {
+          "text": "トップレベルコメントの指摘には返信先スレッドが無く resolve もできないため、自分のトップレベルコメントを唯一の証跡として判断と根拠を残す方針である",
+          "passed": false,
+          "evidence": "自分のトップレベルコメントを証跡として残す方針が無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 17,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 30.315,
+        "tokens": 105539,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "pr-finalize-loop 6 --review-tool none を今回の実行方法として示している",
+          "passed": false,
+          "evidence": "「その実行限りの引数など」とだけあり、--review-tool none を示していない"
+        },
+        {
+          "text": "次回 CLI 指定が無ければ common.local.jsonc の codex を使うと説明している",
+          "passed": false,
+          "evidence": "common.local.jsonc に触れず、「一般的な仕組みを前提にした見込み」に留まる"
+        },
+        {
+          "text": ".config/skills/shoji9x9/common.jsonc と common.local.jsonc を変更しない方針である",
+          "passed": true,
+          "evidence": "「設定ファイルの作成や変更もしていません」"
+        },
+        {
+          "text": "今回の CLI 指定が common.local.jsonc より優先し、次回は common.local.jsonc が共有の common.jsonc より優先すると説明している",
+          "passed": false,
+          "evidence": "CLI と common.local.jsonc・common.jsonc の優先順位を説明していない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 25.971,
+        "tokens": 82365,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "common の review_tool の設定（codex）を参照して依頼先ツールを決めている",
+          "passed": false,
+          "evidence": "「review_tool: codex の設定を確認できません」で止まり、依頼先を決めていない"
+        },
+        {
+          "text": "依頼は requested_reviewers ではなくトップレベル PR コメントへの @codex review 投稿で行う方針である",
+          "passed": false,
+          "evidence": "@codex review をトップレベル PR コメントに投稿する方針が無い"
+        },
+        {
+          "text": "Copilot 専用の login（copilot-pull-request-reviewer[bot]）や review_requested タイムラインに依存しない方針である",
+          "passed": false,
+          "evidence": "Copilot 専用の login や review_requested への依存について触れていない"
+        },
+        {
+          "text": "レビュー到着・進行中は非著者レビューや bot コメント等の汎用シグナルで判定する方針である",
+          "passed": false,
+          "evidence": "レビューの到着・進行中を判定するシグナルに触れていない"
+        },
+        {
+          "text": "mention は非冪等のため、現在の HEAD の push 以降に投稿された（投稿者を問わない）@codex review コメントがあれば再投稿せず、重複レビュー起動を避ける方針である",
+          "passed": false,
+          "evidence": "@codex review の重複投稿を避ける方針が無い"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.7625,
+        "stddev": 0.2056,
+        "min": 0.5,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 29.359,
+        "stddev": 9.3385,
+        "min": 17.131,
+        "max": 37.281
+      },
+      "tokens": {
+        "mean": 142431,
+        "stddev": 42625.6442,
+        "min": 100602,
+        "max": 191223
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.3375,
+        "stddev": 0.2689,
+        "min": 0,
+        "max": 0.6
+      },
+      "time_seconds": {
+        "mean": 24.4585,
+        "stddev": 5.1875,
+        "min": 17.859,
+        "max": 30.315
+      },
+      "tokens": {
+        "mean": 82963.5,
+        "stddev": 18485.9593,
+        "min": 60277,
+        "max": 105539
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.42",
+      "time_seconds": "+4.9",
+      "tokens": "+59468"
+    }
+  },
+  "notes": []
+}

@@ -1,0 +1,460 @@
+{
+  "metadata": {
+    "skill_name": "parity-component",
+    "skill_path": "<repo>/skills/parity-component",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-18T13:06:24Z",
+    "evals_run": [2, 3, 4, 5, 6, 7, 8, 9],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 21.929,
+        "tokens": 146261,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "print-preview のインスタンスが 1 件しか挙がっていないことを検出している",
+          "passed": true,
+          "evidence": "「print-preview の行には、インスタンスが 1 件だけ書かれています」"
+        },
+        {
+          "text": "インスタンスが 1 件では固定の軸と可変の軸を区別できないことを、採取へ進まない理由として述べている",
+          "passed": true,
+          "evidence": "「どの値が全ページ共通で…2 か所以上を比べないと区別できません」を停止理由に挙げる"
+        },
+        {
+          "text": "共通部品として先に作る対象から外し、その機能の実装時に parity-replace が作るよう提案している",
+          "passed": true,
+          "evidence": "「先に作らない部品」に移し order 実装時に「parity-replace が作ります」と提案"
+        },
+        {
+          "text": "「今後 2 つ目の利用箇所が出る見込み」等の推測でインスタンスを補って採取へ進んでいない",
+          "passed": true,
+          "evidence": "「今後増える見込み」があっても同じ扱いとし、採取に進んでいない"
+        },
+        {
+          "text": "対象を勝手に button（インスタンスが 2 件ある部品）へ差し替えていない",
+          "passed": true,
+          "evidence": "button は選択肢として示すだけで、対象を差し替えて採取していない"
+        },
+        {
+          "text": "回答内で、停止の判断と矛盾する結論（前提が揃っているかのような記述・推測で埋めた値）を述べていない",
+          "passed": true,
+          "evidence": "前提の表でインスタンス「ない（1 件）」とし、矛盾する結論は無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 32.646,
+        "tokens": 187119,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "component-coverage.json が数えているのは操作と状態の有無だけで、色・寸法・余白などの見た目を見ていないことを指摘している",
+          "passed": true,
+          "evidence": "「操作や状態があるかどうかを数える表…色・寸法・余白・角丸・フォントは測っていません」"
+        },
+        {
+          "text": "unmeasured 0 を「見た目が現行と一致している」根拠として受け入れていない",
+          "passed": true,
+          "evidence": "「この表から『見た目が現行と一致している』とは言えず」"
+        },
+        {
+          "text": "capture を飛ばさず、現行アプリから部品インスタンスごとに見た目の基準を採る必要があると述べている",
+          "passed": true,
+          "evidence": "capture 必須とし「現行から採った…スクリーンショット・計算後スタイル」と baseline/<instance> を挙げる"
+        },
+        {
+          "text": "スキルを使わず直接実装する等の、スキル外の代替を提案していない",
+          "passed": true,
+          "evidence": "次の手順は capture→build のスキル内の手順だけで、直接実装の提案は無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 53.657,
+        "tokens": 339319,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "ゴールデンデータセットの投入先（current-staging）と採取対象の target（current-test）が一致しないことを検出している",
+          "passed": true,
+          "evidence": "「current.target は current-staging です。今回の current-test とは一致しません」と検出している。"
+        },
+        {
+          "text": "現行の画面から抜いた行を、出所を確認できないままカタログの見本の入力に使わないと述べている",
+          "passed": true,
+          "evidence": "「投入されていない環境の行をカタログに持ち込むことになります。そのため…実データ（data.json）は採れません」と述べている。"
+        },
+        {
+          "text": "golden-dataset のフェーズ A を採取対象の target に対して実施する（または target を揃える）よう促している",
+          "passed": true,
+          "evidence": "対処として「golden-dataset で current-test に投入し直すか、採取先を投入済みの環境に変えて」と促している。"
+        },
+        {
+          "text": "データ依存の部品であるのに、抽出データ無しのまま採取を完了扱いにしていない",
+          "passed": true,
+          "evidence": "手順 1 で停止し「採取はしておらず、ファイルも作っていません」と述べ、project-tree に components/data-grid/ が無い。"
+        },
+        {
+          "text": "回答内で、停止の判断と矛盾する結論（前提が揃っているかのような記述・推測で埋めた値）を述べていない",
+          "passed": true,
+          "evidence": "前提の不足をすべて停止理由として挙げ、揃っているかのような記述や推測した値を書いていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 47.82,
+        "tokens": 411052,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "部品カタログの取り決めを書いた文書（references.component_catalog）と baseURL（targets[].catalog_url / catalog_url_command）が設定に無いことを検出している",
+          "passed": true,
+          "evidence": "応答の表 1・2 で references.component_catalog（source=unset）と local-dev の catalog_url 欠如を検出"
+        },
+        {
+          "text": "実装・見本の作成へ進まず停止している",
+          "passed": true,
+          "evidence": "応答「実装には入っていません。ファイルの作成・変更…は一切していません」"
+        },
+        {
+          "text": "カタログの実体を自分で選んでいない（Storybook 等を既定として決め打ちしていない）",
+          "passed": true,
+          "evidence": "応答「実体は推測で決めません」。Storybook は例として挙げただけ"
+        },
+        {
+          "text": "カタログの宣言（取り決めを書いた文書のパスと新側 target の baseURL）を設定へ整備するよう促している",
+          "passed": true,
+          "evidence": "取り決めの文書を設定に追加し、catalog_url か catalog_url_command を local-dev に足すよう案内"
+        },
+        {
+          "text": "capture 成果物（axes.json / component-api.md / baseline）の実体を確認したうえで、capture は完了済みと認識している",
+          "passed": true,
+          "evidence": "capture.complete: true と 8 組の必須 4 点（element.png など）が揃うことを確認したと記載"
+        },
+        {
+          "text": "回答内で、停止の判断と矛盾する結論（前提が揃っているかのような記述・推測で埋めた値）を述べていない",
+          "passed": true,
+          "evidence": "「問題が無かった項目」も前提の一部としてだけ述べ、停止と矛盾する結論は無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 43.146,
+        "tokens": 277437,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "既存の引数の削除・改名・意味の変更が破壊的変更に当たると判断している",
+          "passed": true,
+          "evidence": "「variant の値 primary をなくして type に移すのは、既存の引数の削除・改名・意味の変更です」と破壊的変更と判断している。"
+        },
+        {
+          "text": "自分で決めずにユーザーの判断を求めている",
+          "passed": true,
+          "evidence": "「決めていただきたいこと」として意図・引数名・variant の扱いをユーザーに尋ねている。"
+        },
+        {
+          "text": "影響範囲（その部品を使っている箇所と、変更後に出力が変わる見本）を示している",
+          "passed": true,
+          "evidence": "利用箇所 2 つ（/orders・/users）と、出力が変わる見本 `components-button--orders-search-*` の 4 本を示している。"
+        },
+        {
+          "text": "引数を足して既定値を据え置く形で解けるかという代替案を示している",
+          "passed": true,
+          "evidence": "代替案 (A)「新しい引数を足し、variant はデフォルトを据え置いたまま非推奨の別名として残します」を示している。"
+        },
+        {
+          "text": "承認を得ないまま variant から primary を削除する実装を行っていない",
+          "passed": true,
+          "evidence": "「今回は実装を変更していません」と述べ、project-tree にも実装の変更が無い。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 8,
+        "failed": 0,
+        "total": 8,
+        "time_seconds": 93.139,
+        "tokens": 758592,
+        "tool_calls": 15,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "orders-search の css-rules.json で width の宣言が競合していること（インラインの 10px・.searchbox-btn の 40px・.searchbox-btn の 60px !important）を挙げている",
+          "passed": true,
+          "evidence": "勝ち 60px !important、負け .searchbox-btn 40px とインラインの width: 10px を列挙"
+        },
+        {
+          "text": "width の最終値として 60px を採っており、インラインの 10px も先に現れる 40px も採用していない",
+          "passed": true,
+          "evidence": "「勝ち：.searchbox-btn { width: 60px !important }」とし 10px・40px は「転記しない」"
+        },
+        {
+          "text": "インラインの非 !important 宣言が !important 付きの規則に負けることを、60px を採る理由として述べている",
+          "passed": true,
+          "evidence": "負けにインライン「width: 10px（!important なし）」、勝ちに 60px !important を対置"
+        },
+        {
+          "text": "letter-spacing の最終値として 1px を採っており、先に現れる normal を採用していない",
+          "passed": true,
+          "evidence": "「勝ち：.btn { letter-spacing: 1px }」「負け：…normal（order 8）」"
+        },
+        {
+          "text": "letter-spacing について、後から読み込まれるスタイルシートが同じセレクタ・同じプロパティを再宣言して上書きしていることを述べている",
+          "passed": true,
+          "evidence": "「同じセレクタを後のテーマが再宣言して上書きする形です」"
+        },
+        {
+          "text": "css-rules.json の inline_declarations と matched の両方を読んでいる（片方だけを根拠に値を決めていない）",
+          "passed": true,
+          "evidence": "「インラインだけを見ると 10px、matched の最初の宣言だけを見ると 40px」と両方を確認"
+        },
+        {
+          "text": "orders-search の幅は CSS の宣言で決まっており、users-create の文言に追従する幅とは別の扱いだと判断している",
+          "passed": true,
+          "evidence": "「users-create は文言に合わせて伸び縮み」、幅は「ページ内の配置と判断しました」"
+        },
+        {
+          "text": "回答内で、採った最終値と矛盾する記述（10px / 40px / normal を新側の実装値として示す記述）を残していない",
+          "passed": true,
+          "evidence": "10px・40px・normal はいずれも負けた値・使わない値としてだけ記載"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 11,
+        "failed": 0,
+        "total": 11,
+        "time_seconds": 120.93,
+        "tokens": 408199,
+        "tool_calls": 9,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現行の feedback-message.js が掛ける動き（出るときの slide 600ms と閉じるときの slide 500ms）を、採取すべき遷移として数えている",
+          "passed": true,
+          "evidence": "transitions に enter「上から 600ms」と exit-click「500ms で閉じます」を挙げる"
+        },
+        {
+          "text": "数えた動きを metadata.json の capture.motions（source_scan / transitions）に記録すると述べている",
+          "passed": true,
+          "evidence": "「capture.motions.source_scan に…書きます」と transitions[] の案を記載"
+        },
+        {
+          "text": "動きのある遷移は同梱の motion-probe.mjs で時系列を採り、baseline/<instance>/motions.json に書くと述べている",
+          "passed": true,
+          "evidence": "このスキルの motion-probe.mjs を用意し「baseline/<instance>/motions.json の results[].runs に積みます」"
+        },
+        {
+          "text": "同じ遷移を同じ条件で 2 回（以上）採ると述べている",
+          "passed": true,
+          "evidence": "「各遷移をインスタンスごとに同じ初期状態から 2 回採り」"
+        },
+        {
+          "text": "2 回の時系列が大きく食い違ったら、許容差を広げず、遷移の手順か初期状態を揃えて採り直すと述べている",
+          "passed": true,
+          "evidence": "揺れが上限を超えたら「手順をそろえて採り直します」とし、許容差を広げる案は無い"
+        },
+        {
+          "text": "動きの時系列を採るあいだはアニメーションを止めない（見た目の採取とは別の開き方にする）と述べている",
+          "passed": true,
+          "evidence": "「プローブで採る間はアニメーションを止めません」、見た目は animations: disabled"
+        },
+        {
+          "text": "出た後に閉じるボタンへフォーカスを移す処理を、操作（capture.operations）として挙げ、遷移の on_complete で結ぶと述べている",
+          "passed": true,
+          "evidence": "操作 focus-after-show を挙げ、enter の「on_complete は focus-after-show」"
+        },
+        {
+          "text": "info / success で 15 秒後に自動で閉じる時間を、プローブで閉じる遷移の遅れとして測ると述べている",
+          "passed": true,
+          "evidence": "exit-auto を「何もしない trigger で採り、timeoutMs は 20000 程度」とプローブで測る"
+        },
+        {
+          "text": "自動で閉じる時間（時間の値）を behaviors.json の観測値にしていない",
+          "passed": true,
+          "evidence": "「時間の値（15 秒そのもの）は観測値に入れません」"
+        },
+        {
+          "text": "「アニメーションは対象外」を理由に動きを採らない計画にしていない",
+          "passed": true,
+          "evidence": "動きを採る計画になっており、対象外とはしていない"
+        },
+        {
+          "text": "motion-probe.mjs のコピー元を parity-suite ではなく parity-component 自身の scripts/ とし、版を capture.tools.motion_probe_version に記録すると述べている",
+          "passed": true,
+          "evidence": "「このスキルの scripts/motion-probe.mjs」をコピーし capture.tools に motion_probe_version を記録"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.9091,
+        "passed": 10,
+        "failed": 1,
+        "total": 11,
+        "time_seconds": 65.22,
+        "tokens": 198568,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Button.tsx が市販部品の initialized で命令的に処理を結び、effect の片付けで外す形であることを根拠に、一生の順番で起きる不具合の実行パスの検査の対象だと判断している",
+          "passed": true,
+          "evidence": "handleInitialized が初期化時に 1 回だけ結び、effect の片付けで外す形を根拠に対象と判断"
+        },
+        {
+          "text": "開発時の結び直し（StrictMode の 付ける → 片付ける → 付ける）で bindEnterKey の結び付けが不具合を起こしうる実行パスを名指ししている",
+          "passed": true,
+          "evidence": "strict-rebind「付ける → 片付ける → 付ける」で Enter キーで押せなくなると名指し"
+        },
+        {
+          "text": "初期化の後に disabled が変わっても setEnabled が呼び直されない実行パスを名指ししている",
+          "passed": true,
+          "evidence": "prop-change-after-init「setEnabled が呼ばれないので反映されません」"
+        },
+        {
+          "text": "実行パスごとに順番を強制する見本を置き、実行パスに入った回数を data-* 属性で出すと述べている",
+          "passed": true,
+          "evidence": "実行パスごとに順番を強制する見本を置き「data-* 属性で…入った回数」"
+        },
+        {
+          "text": "検査は実行パスに入ったことを先に確かめてから症状を見る（入らないまま症状だけを見ない）と述べている",
+          "passed": true,
+          "evidence": "「入った回数が 1 以上」を確かめてから症状を見る"
+        },
+        {
+          "text": "順番を強制する見本を catalog.stories の対応表に載せないと述べている",
+          "passed": true,
+          "evidence": "「順番の見本は、catalog.stories にも…入れません」"
+        },
+        {
+          "text": "順番を強制する見本を、基準の無い見本（parity.unbaselined_stories）に数えないと述べている",
+          "passed": true,
+          "evidence": "「unbaselined_stories にも入れません」"
+        },
+        {
+          "text": "直した処理を外すとその実行パスの検査だけが落ちることを確かめると述べている",
+          "passed": false,
+          "evidence": "「直した処理を外すと検査が失敗する」とだけあり、その実行パスの検査だけが落ちるとは述べない"
+        },
+        {
+          "text": "見本の照合と操作の突き合わせが一致していることだけを根拠に、完了判定へ進んでよいとしていない",
+          "passed": true,
+          "evidence": "冒頭「まだ完了判定（手順 8）には進めません」"
+        },
+        {
+          "text": "対象かどうかの判定と根拠を build-metadata.json の lifecycle（applies / reason）に記録すると述べている",
+          "passed": true,
+          "evidence": "「lifecycle（applies・reason・paths[]・not_applicable_paths[]）を記録し」"
+        },
+        {
+          "text": "不具合を起こす処理を名指しできない実行パスを、理由付きで not_applicable_paths に回すと述べている",
+          "passed": true,
+          "evidence": "remount を「名指しできる不具合は見当たりません。not_applicable_paths[] に理由を付けて」"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.9886,
+        "stddev": 0.0321,
+        "min": 0.9091,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 59.8109,
+        "stddev": 32.7499,
+        "min": 21.929,
+        "max": 120.93
+      },
+      "tokens": {
+        "mean": 340818.375,
+        "stddev": 196300.9346,
+        "min": 146261,
+        "max": 758592
+      }
+    }
+  },
+  "notes": []
+}

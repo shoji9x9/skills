@@ -1,0 +1,283 @@
+{
+  "metadata": {
+    "skill_name": "kaizen",
+    "skill_path": "<repo>/skills/kaizen",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-18T13:05:55Z",
+    "evals_run": [19, 25],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 19,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 8,
+        "failed": 0,
+        "total": 8,
+        "time_seconds": 80.109,
+        "tokens": 430363,
+        "tool_calls": 10,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "claude-internal-records-no-candidate.jsonl は exit 1、claude-internal-records-candidate.jsonl は exit 0、unknown-type-with-message.jsonl は exit 2 という実測結果を示している",
+          "passed": true,
+          "evidence": "表で no-candidate は 1、candidate は 0、unknown-type-with-message は 2 の実測を示す。"
+        },
+        {
+          "text": "終了コードの差を決めているのは type 名の allowlist ではなく、未知のレコードが会話を運ぶ入れ物（message / payload / content）を持つかどうかであり、持たない内部レコードは読み飛ばすと説明している",
+          "passed": true,
+          "evidence": "「判定は種類の名前ではなく、レコードの構造」「message・payload・content のどれも持たなければ…読み飛ばします」。"
+        },
+        {
+          "text": "コミット前のチェックが commit を止める根拠にするのは自セッションのセンチネル（.kaizen/.pending-extract<suffix>.<session key>）だけで、他セッションのぶんは exit 1 の警告に留まり commit は通ると説明している",
+          "passed": true,
+          "evidence": "「commit を止めるのは、自分のセッションのセンチネルだけ」「exit 1 で警告し、commit は通します」。"
+        },
+        {
+          "text": "他セッションのぶんを遮断に使わない理由として、そのセッションで何が起きたかを知らない主体が抽出すると記録の担保が推測に変わる（止めた相手が解消できない）ことを挙げている",
+          "passed": true,
+          "evidence": "「記録の裏付けが『読んだ人の推測』に変わります」「止めた相手が解消できないなら…」。"
+        },
+        {
+          "text": "戻ってこないセッションのセンチネルはセンチネル 1 行目の UTC タイムスタンプを基準に、保持期間を過ぎたものをコミット前のチェックが自動で削除すると説明している",
+          "passed": true,
+          "evidence": "「センチネルの 1 行目の UTC タイムスタンプから数えます…保持期間以上になったら…削除します」。"
+        },
+        {
+          "text": "削除されるのは「未抽出である」という印だけで transcript は残り、後から kaizen extract で読み直せるため学びは失われないと説明している（対応する checkpoint も消さない）",
+          "passed": true,
+          "evidence": "「消えるのは『未抽出である』という印だけで、transcript は残り」「対応する checkpoint は残します」。"
+        },
+        {
+          "text": "保持期間は kaizen の設定ファイル（.config/skills/shoji9x9/kaizen.jsonc など）の foreign_sentinel_retention_days で変更でき、既定は 7 日だと具体的なキー名と値で示している",
+          "passed": true,
+          "evidence": "キー foreign_sentinel_retention_days、既定値 7 日、置き場所に .config/skills/shoji9x9/kaizen.jsonc。"
+        },
+        {
+          "text": "恒久ブロックの回避策として .kaizen/.pending-extract* の一括削除や .extract-done の先置きを勧めていない",
+          "passed": true,
+          "evidence": "一括削除や .extract-done の先置きは勧めていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 25,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 48.457,
+        "tokens": 209112,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "忘却の対象は 2026-01-05-stale-low.md と 2026-01-06-stale-medium.md の 2 件だけであることを、バンドルされたツールの出力と照合して示している",
+          "passed": true,
+          "evidence": "`kaizen-forget.sh --list` の出力に stale-low と stale-medium の 2 件だけが出ており、「この 2 件です」と照合している。"
+        },
+        {
+          "text": "2026-01-10-stale-high.md は priority が既定の閾値（medium）を超えるため対象外だと説明している",
+          "passed": true,
+          "evidence": "stale-high について「priority: high で、上限の medium を超えています」と説明している。"
+        },
+        {
+          "text": "2026-01-07-stale-no-priority.md と 2026-01-08-stale-bad-date.md は priority / date を読めないため対象外であり、判定材料が読めないものは忘れない側として扱う設計だと説明している",
+          "passed": true,
+          "evidence": "no-priority と bad-date を読めないため対象外とし、「判断に必要な情報を読めないノートは忘れない」方針だと説明している。"
+        },
+        {
+          "text": "2026-01-09-stale-applied.md は status が pending でないため対象外で、片付けるなら忘却ではなくアーカイブだと述べている",
+          "passed": true,
+          "evidence": "stale-applied は「忘却の対象は pending だけ」で、片付けるなら `/kaizen archive --applied` を使うと述べている。"
+        },
+        {
+          "text": "忘却はファイルを移動せず frontmatter の status を forgotten に書き換えるだけで、本文は top-level に残るため KEDB 照合では引き続き全文が照合されると述べている",
+          "passed": true,
+          "evidence": "「status: pending → forgotten の 1 行だけ」「移動も削除もされず、本文もそのまま .kaizen/ 直下に残ります」「KEDB 照合ではこれまでどおり見つかります」と述べている。"
+        },
+        {
+          "text": "再発して KEDB 照合が forgotten のノートにヒットしたら status を pending へ戻し、新しい事象を追記して priority を上げると述べている",
+          "passed": true,
+          "evidence": "forgotten に一致したら「status: pending に戻す／新しい事象を追記／priority を上げる」の 3 つを挙げている。"
+        },
+        {
+          "text": "kaizen の設定ファイル（.config/skills/shoji9x9/kaizen.jsonc）の forget_after_days / forget_max_priority で閾値を変え、forget_auto を false にして自動忘却を止められると述べている",
+          "passed": true,
+          "evidence": "`.config/skills/shoji9x9/kaizen.jsonc` の forget_after_days / forget_max_priority と「forget_auto: false で自動忘却を止める」を示している。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 19,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.125,
+        "passed": 1,
+        "failed": 7,
+        "total": 8,
+        "time_seconds": 145.116,
+        "tokens": 329211,
+        "tool_calls": 11,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "claude-internal-records-no-candidate.jsonl は exit 1、claude-internal-records-candidate.jsonl は exit 0、unknown-type-with-message.jsonl は exit 2 という実測結果を示している",
+          "passed": false,
+          "evidence": "「fixture 3 件の終了コード: 未実行」。"
+        },
+        {
+          "text": "終了コードの差を決めているのは type 名の allowlist ではなく、未知のレコードが会話を運ぶ入れ物（message / payload / content）を持つかどうかであり、持たない内部レコードは読み飛ばすと説明している",
+          "passed": false,
+          "evidence": "終了コードの差は「スキャナのコードがないので確認できません」。"
+        },
+        {
+          "text": "コミット前のチェックが commit を止める根拠にするのは自セッションのセンチネル（.kaizen/.pending-extract<suffix>.<session key>）だけで、他セッションのぶんは exit 1 の警告に留まり commit は通ると説明している",
+          "passed": false,
+          "evidence": "センチネルの範囲は「確認できません」。"
+        },
+        {
+          "text": "他セッションのぶんを遮断に使わない理由として、そのセッションで何が起きたかを知らない主体が抽出すると記録の担保が推測に変わる（止めた相手が解消できない）ことを挙げている",
+          "passed": false,
+          "evidence": "他セッションのぶんを遮断に使わない理由に触れていない。"
+        },
+        {
+          "text": "戻ってこないセッションのセンチネルはセンチネル 1 行目の UTC タイムスタンプを基準に、保持期間を過ぎたものをコミット前のチェックが自動で削除すると説明している",
+          "passed": false,
+          "evidence": "戻らないセッションのセンチネルの扱いは「同上」で説明が無い。"
+        },
+        {
+          "text": "削除されるのは「未抽出である」という印だけで transcript は残り、後から kaizen extract で読み直せるため学びは失われないと説明している（対応する checkpoint も消さない）",
+          "passed": false,
+          "evidence": "transcript が残り学びが失われないことに触れていない。"
+        },
+        {
+          "text": "保持期間は kaizen の設定ファイル（.config/skills/shoji9x9/kaizen.jsonc など）の foreign_sentinel_retention_days で変更でき、既定は 7 日だと具体的なキー名と値で示している",
+          "passed": false,
+          "evidence": "設定のキー名と既定値は「書いていません」。"
+        },
+        {
+          "text": "恒久ブロックの回避策として .kaizen/.pending-extract* の一括削除や .extract-done の先置きを勧めていない",
+          "passed": true,
+          "evidence": "一括削除や .extract-done の先置きを勧めていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 25,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 7,
+        "total": 7,
+        "time_seconds": 85.784,
+        "tokens": 265020,
+        "tool_calls": 10,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "忘却の対象は 2026-01-05-stale-low.md と 2026-01-06-stale-medium.md の 2 件だけであることを、バンドルされたツールの出力と照合して示している",
+          "passed": false,
+          "evidence": "ツールが見つからず推測で、対象を 2026-01-05-stale-low.md の 1 件としている。"
+        },
+        {
+          "text": "2026-01-10-stale-high.md は priority が既定の閾値（medium）を超えるため対象外だと説明している",
+          "passed": false,
+          "evidence": "high は「外れる？（重要な学びなので守る）」と推測だけで、既定の閾値に触れていない。"
+        },
+        {
+          "text": "2026-01-07-stale-no-priority.md と 2026-01-08-stale-bad-date.md は priority / date を読めないため対象外であり、判定材料が読めないものは忘れない側として扱う設計だと説明している",
+          "passed": false,
+          "evidence": "07・08 は「外れる？」の推測だけで、ツールの設計として説明していない。"
+        },
+        {
+          "text": "2026-01-09-stale-applied.md は status が pending でないため対象外で、片付けるなら忘却ではなくアーカイブだと述べている",
+          "passed": false,
+          "evidence": "applied は推測で、アーカイブで片付けると述べていない。"
+        },
+        {
+          "text": "忘却はファイルを移動せず frontmatter の status を forgotten に書き換えるだけで、本文は top-level に残るため KEDB 照合では引き続き全文が照合されると述べている",
+          "passed": false,
+          "evidence": "忘却時の処理は「ツールの実装を見ないと分かりません」。"
+        },
+        {
+          "text": "再発して KEDB 照合が forgotten のノートにヒットしたら status を pending へ戻し、新しい事象を追記して priority を上げると述べている",
+          "passed": false,
+          "evidence": "再発時の扱いは「分かりません」。"
+        },
+        {
+          "text": "kaizen の設定ファイル（.config/skills/shoji9x9/kaizen.jsonc）の forget_after_days / forget_max_priority で閾値を変え、forget_auto を false にして自動忘却を止められると述べている",
+          "passed": false,
+          "evidence": "設定ファイルとキー名に触れていない。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 64.283,
+        "stddev": 22.3813,
+        "min": 48.457,
+        "max": 80.109
+      },
+      "tokens": {
+        "mean": 319737.5,
+        "stddev": 156448.0824,
+        "min": 209112,
+        "max": 430363
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.0625,
+        "stddev": 0.0884,
+        "min": 0,
+        "max": 0.125
+      },
+      "time_seconds": {
+        "mean": 115.45,
+        "stddev": 41.9541,
+        "min": 85.784,
+        "max": 145.116
+      },
+      "tokens": {
+        "mean": 297115.5,
+        "stddev": 45389.8914,
+        "min": 265020,
+        "max": 329211
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.94",
+      "time_seconds": "-51.2",
+      "tokens": "+22622"
+    }
+  },
+  "notes": []
+}

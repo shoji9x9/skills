@@ -1,0 +1,944 @@
+{
+  "metadata": {
+    "skill_name": "replace-strategy",
+    "skill_path": "<repo>/skills/replace-strategy",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-18T13:06:25Z",
+    "evals_run": [6, 7, 8, 9, 10, 19, 20, 21, 22, 23, 25, 26, 29, 30, 31, 32, 33, 34, 35, 36, 38],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 10,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 44.815,
+        "tokens": 304228,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現行と同じ表示に必要な再現条件（フォントなら版とヒンティング命令の有無）を要件として先に確定し、それを満たす配布だけを候補にする順序を示している",
+          "passed": true,
+          "evidence": "手順 1「要件を書き出す」を先頭に置き、フォントの版とヒンティングの有無が字形に影響すると説明"
+        },
+        {
+          "text": "配布元の素性（公式配布か第三者による再配布か）とライセンスを、バンドルサイズ等の詳細比較より先に確認する順序を示している（素性確認を後回しにしていない）",
+          "passed": true,
+          "evidence": "「4 配布元とライセンスで候補を絞る」を「5 比べる」より前に置き、後回しにしないと明記"
+        },
+        {
+          "text": "ダウンロード数だけを根拠に決めず、判断材料（ライセンス／メンテナンス状況／採用規模／配布元の素性／バンドルサイズ／型定義／代替候補と不採用理由）を確認・記録する工程を示している",
+          "passed": true,
+          "evidence": "ライセンス・配布元・メンテナンス状況・ダウンロード数・サイズ・型定義を取得し dependencies.md にまとめると記載"
+        },
+        {
+          "text": "設定に references.dependency_policy が無い（未確認）ことを踏まえ、ライセンス方針・供給網ポリシーの要否そのものをユーザーに確認する方針を示している（スキル既定の拒否リスト・閾値・待機日数を持ち込んでいない）",
+          "passed": true,
+          "evidence": "「依存の方針の有無…方針を持たないなら none と教えてください」と方針の要否を確認"
+        },
+        {
+          "text": "決定と判断材料を .replace/dependencies.md に記録する方針を示している（記録のないままパッケージを導入・インストールしていない）",
+          "passed": true,
+          "evidence": "「比べた結果を .replace/dependencies.md の案にまとめ、承認をもらってから導入」。導入もファイル変更もなし"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 19,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 44.758,
+        "tokens": 170480,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "記録先として .replace/features.md の「その他の Issue（4 種以外）」表を示し、ヘッダへの独自項目追記ではなくその表の行として置くよう案内している",
+          "passed": true,
+          "evidence": "記録先を「その他の Issue（4 種以外）」表とし、ヘッダ項目は承認後に表へ移すと案内"
+        },
+        {
+          "text": "その行に書く項目として「4 種に当てはまらない理由」と行ごとの「依存順」（先頭／ゴールデンデータセットより前 等）を挙げている（4 種は種類で依存順が決まるがその他 Issue は行ごとに違うと区別している）",
+          "passed": true,
+          "evidence": "列に「依存順」「4 種に当てはまらない理由」を挙げ「依存順は種類では決まらないので、行に明記」"
+        },
+        {
+          "text": "slug を機能・横断 API・バッチと同じ名前空間でインベントリ全体に一意な ASCII kebab-case として採る必要を示している",
+          "passed": true,
+          "evidence": "「ASCII の kebab-case…一意性は機能・横断 API・バッチと同じ名前空間全体で保ちます」"
+        },
+        {
+          "text": "features.md の更新は非破壊であり、テンプレートは初期生成の雛形で更新時の項目の上限ではないため、テンプレートに無いヘッダ項目・節・列・行を書き直しで削除しないと説明している",
+          "passed": true,
+          "evidence": "「書き直しのときにテンプレートに無い項目も消してはいけない」と非破壊の規約を説明"
+        },
+        {
+          "text": "status モードはその他の Issue の行を Issue 状態・依存順・影響範囲として報告し、.replace/parity/<slug>/ の成果物を持たないためスイート強度・ベースライン・フェーズ B・差分は「対象外」として未着手と区別すると説明している",
+          "passed": true,
+          "evidence": "status の「その他の Issue」節に Issue 状態・依存順・影響範囲を出し、強度等は「対象外」で未着手と区別"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 20,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 86.079,
+        "tokens": 441441,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "3 ページすべてが使う GET /api/db-context をリソース単位で横断 API 表に分類し、fan-out に 3 機能の slug を記録している",
+          "passed": true,
+          "evidence": "横断 API 表に slug db-context、fan-out「db-list, search, role-admin」"
+        },
+        {
+          "text": "横断 API の行に参照テーブルとして MST_DB_ADMIN・MST_DB_ACCESS・MST_URL の 3 つすべてを記録している",
+          "passed": true,
+          "evidence": "db-context 行の参照テーブル列「MST_DB_ADMIN, MST_DB_ACCESS, MST_URL」"
+        },
+        {
+          "text": "MST_DB_ADMIN・MST_DB_ACCESS・MST_URL のどれも取りこぼさず、features.md のいずれかの表に記録している（本文の散文だけの言及で済ませていない）",
+          "passed": true,
+          "evidence": "3 テーブルとも横断 API 表の参照テーブル列に記録"
+        },
+        {
+          "text": "各画面だけが使う API（/api/dbs・/api/search・/api/roles）を横断 API 表に載せず、機能行の新規実装 API に含めている",
+          "passed": true,
+          "evidence": "/api/dbs・/api/search・/api/roles は各機能行の新規実装 API にあり、横断 API 表は db-context のみ"
+        },
+        {
+          "text": "機能一覧の「テーブル」列は各機能が所有するテーブル（DBS / SEARCH_INDEX / ROLES）で、MST_ 3 テーブルを所有者として機能行に付け替えていない",
+          "passed": true,
+          "evidence": "機能行のテーブル列は DBS / SEARCH_INDEX / ROLES で、MST_ は付け替えていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 21,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 27.68,
+        "tokens": 205661,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定に current.origin キーが無いことを「未確認」ではなく managed（既存の管理済みテスト環境）として扱い、setup の再実行や由来の作り直しを要求していない",
+          "passed": false,
+          "evidence": "「current.origin が書かれていません…人が決める必要があります」と未決として扱い、managed とみなしていない"
+        },
+        {
+          "text": "current-environment-bootstrap へ委譲せず、.replace/bootstrap/ の成果物も生成していない（動作可能な current target がある従来フローのまま進めている）",
+          "passed": true,
+          "evidence": "current-environment-bootstrap への委譲も .replace/bootstrap/ の生成も無い（tree に .replace 自体なし）"
+        },
+        {
+          "text": "従来どおり前提スキルと chrome-devtools MCP の確認を行い、MCP が無効・未設定なため測定へ進まず停止している",
+          "passed": true,
+          "evidence": "前提スキルと MCP を確認し「chrome-devtools MCP 未設定…手順 1 の時点で止めました」"
+        },
+        {
+          "text": "現行環境の由来を推測で received-assets に切り替えていない",
+          "passed": true,
+          "evidence": "origin を received-assets に切り替えず、人の決定に委ねている"
+        },
+        {
+          "text": "fixture の設定（replace-strategy.jsonc）の既存のキー・値を書き換えていない",
+          "passed": true,
+          "evidence": "「設定ファイルも読んだだけです」。Write/Edit の呼び出しなし"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 22,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 25.778,
+        "tokens": 204522,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "current.origin: received-assets を読み取り、現行テスト環境がまだ存在しない（current target の url が none）ことを検出している",
+          "passed": true,
+          "evidence": "「current.origin: \"received-assets\"」を読み、「targets[current-rebuilt].url が \"none\"」と検出"
+        },
+        {
+          "text": "測定（セマンティクス測定・DB 復元可否・ファイル入出力の到達性）へ進まず、先に current-environment-bootstrap へ委譲する順序を示している",
+          "passed": true,
+          "evidence": "「current-environment-bootstrap に再構築を任せ、status: handed-off になってから測定に進みます」"
+        },
+        {
+          "text": "再構築を自分で代行せず、受領資産からのスキーマ復元・暫定データ作成・環境構築を自分の手順として実行していない",
+          "passed": true,
+          "evidence": "「再構築を推測で代わりに行うことはスキルで禁じられている」。Write も構築コマンドも無い"
+        },
+        {
+          "text": "引き渡し完了（.replace/bootstrap/metadata.json の status: handed-off）を測定開始の条件として示している",
+          "passed": true,
+          "evidence": "handed-off になっていないので測定と戦略には進めないと条件を示す"
+        },
+        {
+          "text": ".replace/survey.md や .replace/strategy.md を推測で生成していない",
+          "passed": true,
+          "evidence": "tree に .replace/ が無く、survey.md・strategy.md を生成していない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 23,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 43.561,
+        "tokens": 216265,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "ページ一覧から order / report を同一ページ束として示し、実依存 order → report を保った連続順を提案している",
+          "passed": true,
+          "evidence": "「order と report は、どちらも /dashboard に乗る1つのページ束」とし order→report の連続順"
+        },
+        {
+          "text": "order は後続の report が green になったとき 1 回再実行し、その回が最後のマスクを外す全面比較になること、および束の合計が 1 回であることを提示している",
+          "passed": true,
+          "evidence": "order は report が green のとき 1 回「この1回の再実行が全面比較」、「束の合計 1 回」"
+        },
+        {
+          "text": "ページ束の都合で横断 API や明示された実依存を逆転させていない",
+          "passed": true,
+          "evidence": "「束を優先して依存の順を逆にすることはしていません」、user を機能より前に置く"
+        },
+        {
+          "text": "明示承認が無いため Issue を作成せず、features.md も更新していない",
+          "passed": true,
+          "evidence": "起票せず「どのファイルも書き換えていません」。features.md は fixture と差分なし"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 25,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 89.037,
+        "tokens": 541416,
+        "tool_calls": 9,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "ヘッダの「会員登録」ボタンを features.md の表の行として記録し、そのページに乗る機能のどれが実装フェーズで配置するかという形で所有者を扱っている（ボタンのために独立した機能行・Issue を立てて、どの機能のフェーズでも配置されない状態にしていない）",
+          "passed": true,
+          "evidence": "「ページ要素の帰属」表の行に記録し、候補 shipment / inquiry のどちらが配置するかとして扱う"
+        },
+        {
+          "text": "新側で作り込まない方針であることを理由にこのボタンを記録から落とさず、「要素として画面に配置する」ことと「その先の挙動（会員登録）は作らない」ことを扱いとして書き分けている",
+          "passed": true,
+          "evidence": "扱い「スコープ外（配置のみ）」で、配置と遷移先 URL は同じにし遷移後は比べないと書き分け"
+        },
+        {
+          "text": "配置の所有者として書いた slug（未確定なら候補として挙げた slug）が、ページ一覧で /shipments に乗る機能として列挙した slug の範囲に収まっている",
+          "passed": true,
+          "evidence": "候補 slug は shipment / inquiry で、ページ一覧の /shipments に乗る機能と一致"
+        },
+        {
+          "text": "どの機能も配置を担当しない可視要素が残っていないことを確かめており、所有者を決められない要素があれば着手前にユーザーへ確認するとしている",
+          "passed": true,
+          "evidence": "survey のセクションから要素を確かめ、所有者未確定のボタンを「決めていただきたいこと」で確認"
+        },
+        {
+          "text": "配置の所有者を確定した要素にはその選定根拠を示し、確定できない要素は所有者を空欄のまま残して候補 slug と確認事項を示している（根拠の無い暫定値を確定した所有者として記録していない）",
+          "passed": true,
+          "evidence": "所有者を空欄のまま「所有者未確定（候補: shipment / inquiry…）着手の前に確定させる」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 26,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 62.146,
+        "tokens": 428117,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "各 Issue の状態を features.md の「状態」列から読み取らず、表に記録された Issue 番号（横断 API #102・機能 #103 / #104）でトラッカーへ問い合わせようとしている",
+          "passed": true,
+          "evidence": "gh auth status を実行し、#102〜#104 の番号で問い合わせようとして認証切れを報告"
+        },
+        {
+          "text": "トラッカーへ問い合わせられなかった番号を「判定不能」として示し、open / closed のどちらとしても扱っていない（features.md の記述で代替していない）",
+          "passed": true,
+          "evidence": "表で #103・#104・#102 をすべて「判定不能」とし、open/closed として扱っていない"
+        },
+        {
+          "text": "「状態」列に書かれた値（order・notice の open、user の closed）をその Issue の現況として報告していない",
+          "passed": true,
+          "evidence": "「古い『状態』列（open/closed）は…状態の根拠に使っていません」"
+        },
+        {
+          "text": "features.md の「状態」列を警告なしに書き換え・削除していない",
+          "passed": true,
+          "evidence": "Write/Edit の呼び出しがなく、features.md は fixture と差分なし"
+        },
+        {
+          "text": "Issue 状態が判定不能でも成果物からの導出は続け、order のスイート強度（素通り・未検証種別）と gaps.md の未検証領域を報告している",
+          "passed": true,
+          "evidence": "order の強度「捕捉 2、素通り 1…未検証 1」と gaps.md の未検証（CSV 本文・確認メール等）を報告"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 29,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 90.104,
+        "tokens": 506024,
+        "tool_calls": 10,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "/plans の GET について、起点となるクエリから母集合（MST_PLAN のうち archived = false）と問い合わせの行の単位（REL_PLAN_MEMBER への LEFT JOIN があるため計画 1 件ではなく（計画, メンバー）の組）を読み取って記録しつつ、それだけで API の外部単位が決まるとはしていない（応答への変換＝マッパー／シリアライザが未確認であることを残し、GET の要求単位を実測として確定していない）",
+          "passed": true,
+          "evidence": "「母集合=MST_PLAN の archived = false…1 行=(計画, 割当メンバー) の組」を記し「応答で…まとめられるかは未確認」で推定"
+        },
+        {
+          "text": "/plans の REL_PLAN_MEMBER 更新・削除を GET とは別のエントリとして記録し、それぞれ要求単位が未確定であることを残している（GET の根拠エントリに書き込み系の口を含めていない。根拠が同じ書き込み系の口どうしを 1 エントリにまとめるのは取り決め上可）",
+          "passed": true,
+          "evidence": "更新・削除を GET と別のエントリ（→ 推定: …要求単位は未確定）として記録"
+        },
+        {
+          "text": "/assignments の口の「要求単位の根拠」を推定として記録し、起点となるクエリが未読であることを残している（実測と書いていない・空欄で済ませていない）",
+          "passed": true,
+          "evidence": "GET /api/assignments → 推定（起点の問い合わせを含むモジュールが受領資産に無い）"
+        },
+        {
+          "text": "REL_PLAN_MEMBER の同じ主キーを触ることを根拠に、/assignments の更新・削除 API の形（選んだ行を 1 要求でまとめて送るか、:id をパスに持つ子ごとに呼ぶか）を確定していない",
+          "passed": true,
+          "evidence": "「同じ表・同じ主キー…を触るが、要求単位が同じ根拠にしない」「plan の書き込みの口と同じ形と仮定しない」"
+        },
+        {
+          "text": "起点となるクエリが読めないことを理由に機能インベントリの作成を止めず、推定として記録したうえで両機能の行を書いている",
+          "passed": true,
+          "evidence": "推定のまま plan / assignment の 2 行を書いた features.md を作成"
+        },
+        {
+          "text": "GET /api/plans と GET /api/assignments をそれぞれの機能行の新規実装 API に含め、横断 API 表に載せていない（どちらもその画面だけが使う）",
+          "passed": true,
+          "evidence": "両 GET は各機能行の新規実装 API にあり、横断 API は「なし」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 30,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8571,
+        "passed": 6,
+        "failed": 1,
+        "total": 7,
+        "time_seconds": 68.116,
+        "tokens": 347191,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".replace/features.md の Issue 列が埋まっていること（notification-banner の #102）を引き受けの根拠にせず、各 Issue の受け入れ条件に現れた slug との差分で引き受けを判定している",
+          "passed": true,
+          "evidence": "「番号はありますが、#102 の受け入れ条件には order しか出てきません」と受け入れ条件の slug で判定"
+        },
+        {
+          "text": "notification-banner がどの Issue の受け入れ条件にも現れない落ちた行だと名指しし、塞ぎ方として notification-banner 専用の Issue を起こすことを示している（#102 の受け入れ条件へ足して order と Issue 番号を共有させる案を推さない。下流は slug ごとに行の Issue 番号で着手するため）",
+          "passed": true,
+          "evidence": "notification-banner を落ちた行とし専用 Issue を起票、「#102 に追記するだけでは直りません」（slug ごとにブランチ）"
+        },
+        {
+          "text": "横断 API user の fan-out のうち order（#102）の受け入れ条件に「この機能から user を呼ぶ」項が無いことを届いていない呼び出しとして検出し、同項を持つ report（#103）は届いていない呼び出しとして挙げていない",
+          "passed": true,
+          "evidence": "order は「呼び出し未達: user」、report は「user の呼び出しも届いています」"
+        },
+        {
+          "text": "横断 API Issue（#101）の「全機能から使われる」という記述は消費側の完了の条件にならず、消費側の受け入れ条件に入って初めて届くと説明している",
+          "passed": true,
+          "evidence": "「#101 の『全機能から使われる』は、order 側の完了条件になりません」と説明"
+        },
+        {
+          "text": "既存 Issue の本文追記は外向きの副作用なので差分を提示して承認を得てから行うとし、承認の無いまま gh issue edit を実行していない",
+          "passed": true,
+          "evidence": "追記する項を示し「どれも GitHub への書き込みです。承認をいただければ」。gh issue edit は未実行"
+        },
+        {
+          "text": "突き合わせの結果を features.md の「受け入れ条件」列へ書き分けている。notification-banner は 未対応（空欄＝未突き合わせと同じ表記にしていない）、report は引き受けた Issue 番号、order は番号に届いていない呼び出しの併記（呼び出し未達: user）を添えている",
+          "passed": false,
+          "evidence": "report の列が「#103（未対応: /report, GET /api/reports）」で、引き受けた Issue 番号だけになっていない"
+        },
+        {
+          "text": "order と notification-banner が同じ #102 を Issue 列に持っていることを、下流が同じブランチ・PR へ畳む要確認状態として挙げている",
+          "passed": true,
+          "evidence": "「order と notification-banner が #102 を共有…2 機能が同じ PR にまとまる」と要確認に挙げる"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 31,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 54.185,
+        "tokens": 353018,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "引き受けの判定を slug の一致で終わらせず、行が所有する部分の集合差分も取っている。母集合をページだけに絞らず新規実装 API の口も含め、#210 が名指ししていない /orders/:id と GET /api/orders/:id を落ちた部分として挙げている",
+          "passed": true,
+          "evidence": "order を「#210（未対応: /orders/:id, GET /api/orders/:id）」と、ページと API の口の差分で判定"
+        },
+        {
+          "text": "部分が覆えている report（/report・GET /api/reports は #212 が名指し）を落ちた部分として挙げていない",
+          "passed": true,
+          "evidence": "report は呼び出し未達だけで、/report・GET /api/reports を落ちた部分に挙げていない"
+        },
+        {
+          "text": "notification-banner が #210 に「対象外」として現れるだけで引き受けられていないため、出現を引き受けに数えず落ちた行（未対応）として名指ししている",
+          "passed": true,
+          "evidence": "「#210 には『notification-banner は対象外』とあるだけ」で未対応（落ちた行）と名指し"
+        },
+        {
+          "text": "横断 API user の fan-out のうち #212（report）に「この機能から user を呼ぶ」項が無いことを届いていない呼び出しとして検出し、呼び出しの項のある #210（order）は届いていない呼び出しとして挙げていない",
+          "passed": true,
+          "evidence": "report は「呼び出し未達: user」、order には「#210 で届いている」"
+        },
+        {
+          "text": "突き合わせの結果を .replace/features.md の「受け入れ条件」列へ書き分けている。order は #210 に覆われない部分の併記（例 #210（未対応: /orders/:id, GET /api/orders/:id））、report は #212 に呼び出し未達の併記、notification-banner は 未対応、user は #201 としている",
+          "passed": true,
+          "evidence": "features.md の列が order「#210（未対応: …）」report「#212（呼び出し未達: user）」banner「未対応」user「#201」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 32,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 42.408,
+        "tokens": 231412,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "POST /api/plans の根拠だけを実測へ更新し、同じセルの他のエントリ（GET / PATCH / DELETE）・assignment の行・横断 API user の行を書き換えていない（口の単位で非破壊に更新している）",
+          "passed": true,
+          "evidence": "fixture との差分は POST のエントリと最終更新だけで、GET・PATCH・DELETE・他の行は同一"
+        },
+        {
+          "text": "PATCH /api/plans/:id を実測へ昇格させず推定のまま残し、欠けているのがハンドラの受け取り・トランザクション境界であることを名指ししている（画面側の要求の組み立てを読めたことを確定の根拠にしていない）",
+          "passed": true,
+          "evidence": "PATCH は推定のまま「受け側のハンドラが読めていません…ハンドラの受け取りとトランザクションの範囲まで」"
+        },
+        {
+          "text": "削除について、確定した単位（チェックした複数件を 1 要求で送り、1 件でも失敗すれば全件を戻す）が API 列の DELETE /api/plans/:id（1 件ずつ呼ぶ形）で再現できないことを指摘し、根拠だけを実測へ書き換えて済ませていない",
+          "passed": true,
+          "evidence": "DELETE は「台帳の『ID 1 つをパスに入れる』形と食い違います…根拠だけ実測にすると…口ごと残しました」"
+        },
+        {
+          "text": "その食い違いを features.md の更新だけで閉じず、口そのものの見直し（Issue #210 の受け入れ条件・パリティスイート・新側実装へ波及すること）として扱っている",
+          "passed": true,
+          "evidence": "「口そのものの変更なので」#210 の突き合わせ・parity-suite の見直しへ続くと扱う"
+        },
+        {
+          "text": "残った未確定の口（PATCH と DELETE）を宿題として名指しで報告し、着手中に確定できなかった口を放置すると未検証領域の報告に残り続けることを示している（「反映した」だけで終えていない）",
+          "passed": false,
+          "evidence": "PATCH・DELETE を宿題に挙げ gap-check と完了チェックには触れるが、未検証領域の報告に残り続けるとは述べない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 33,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 30.926,
+        "tokens": 177000,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "洗い出しの対象を UI ライブラリ・フォント等の基盤の種類だけにせず、入力・操作・表示・通知・骨組みの区分で個々の UI プリミティブ（セレクト・ページネーション・モーダルダイアログ・トースト通知など）を種類として列挙している",
+          "passed": true,
+          "evidence": "「入力・操作・表示・通知・割り込み・骨組みの約 25 種」とセレクト・ページネーション・モーダル・トースト等を挙げる"
+        },
+        {
+          "text": "種類ごとに現行アプリのページを実際に開いて確認する手順にし、ソースの grep だけで済ませていない（ライブラリが描く部品はアプリのマークアップに現れないことを理由に挙げている）",
+          "passed": true,
+          "evidence": "「ページを実際に開いて、種類を 1 つずつ確かめる」「ライブラリが描く部品は、アプリのマークアップに出てきません」"
+        },
+        {
+          "text": "該当が無いと確かめた種類も「該当なし」として記録し、空欄のままにしていない（空欄では未確認と区別が付かないことを示している）",
+          "passed": true,
+          "evidence": "確かめた種類は必ず 1 行残し `該当なし` 等で記録、「行が無い種類は『まだ見ていない』という意味」"
+        },
+        {
+          "text": "データグリッドに内蔵されうる部品（行選択のチェックボックス・グリッド内蔵のページネーション等）について、内蔵かどうかは現行の実装ではなく新側で採る候補で決まるとし、採否が未定のうちは内蔵と決めつけないと述べている",
+          "passed": true,
+          "evidence": "「今の時点で `内蔵` と書いてはいけません。内蔵かどうかは、新側で採用する候補で決まる」"
+        },
+        {
+          "text": "列挙した種類の一覧を網羅とみなさず、ページを開いた結果として見つかった部品を足すと述べている（一覧を通したことを実機確認の代替にしていない）",
+          "passed": true,
+          "evidence": "「この一覧は網羅ではありません。開いたページで見つけた部品は追加します」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 34,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 45.073,
+        "tokens": 231698,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "未実測の 2 件を「保留」として intentional_diffs.pending に置き、自分で keep / may_change へ入れていない",
+          "passed": true,
+          "evidence": "2 件とも intentional_diffs.pending に入れ「keep / may_change には入れない」"
+        },
+        {
+          "text": "要素を item / slug / added_by / added_at の 4 キーのオブジェクトで書くとし、散文の文字列だけで足していない（item が照合キーであることを示している）",
+          "passed": true,
+          "evidence": "item/slug/added_by/added_at の 4 キーで示し「--unique-by item 同じ item の要素があれば足されない」"
+        },
+        {
+          "text": "added_by に自分の名前（replace-strategy）を書くとしており、欄を空ける・unknown と書く・下流のスキル名を書くのいずれもしていない",
+          "passed": true,
+          "evidence": "\"added_by\": \"replace-strategy\" と書いている"
+        },
+        {
+          "text": "slug は cross-cutting にするとし、機能 slug がまだ採番されていないことを理由にしている（採番前の slug を推測で書いていない）",
+          "passed": true,
+          "evidence": "slug は cross-cutting。「機能の slug は手順 9 で振るので…書ける slug がありません」"
+        },
+        {
+          "text": "確定させるのは後の工程であることを示している。測定後に人が keep / may_change へ移す棚卸しに載ると述べ、スキルが自分で確定させていない",
+          "passed": true,
+          "evidence": "parity-diff の棚卸しで「keep / may_change へ移す」か持ち越すかを選ぶと、後の工程で確定させる"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 35,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 58.917,
+        "tokens": 290515,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "確認ダイアログを「該当なし」と書かず、確かめられていない種類として台帳に残すとしている（確かめるのに要る条件を添えている）",
+          "passed": true,
+          "evidence": "確認ダイアログは「未確認」とし「確かめるには、削除の承認か、削除が許可された target が要る」"
+        },
+        {
+          "text": "行選択チェックボックスをデータグリッドに含まれる部品として台帳に残し、単体の部品としては実装しないとしている",
+          "passed": true,
+          "evidence": "行選択チェックボックスは「内蔵」example-grid@4.5.0、「単体では実装しない」"
+        },
+        {
+          "text": "印刷プレビューの採否を setup では決めず、その機能の実装フェーズ前に決める扱いとして台帳に残すとしている",
+          "passed": true,
+          "evidence": "印刷プレビューは「機能固有」、「採るかどうかは、order の parity-replace が実装の前に決める」"
+        },
+        {
+          "text": "3 件とも台帳の行として残すとしており、報告だけで行を作らない（台帳に書かない）扱いにしていない",
+          "passed": true,
+          "evidence": "「3 件とも、.replace/dependencies.md に行を足して記録する」と 3 行の案を提示"
+        },
+        {
+          "text": "確かめられなかった種類を自律実行の保留（pending_decisions）へ落とさず、setup の完了を妨げないとしている",
+          "passed": true,
+          "evidence": "「人に聞く保留（strategy-pending.json）に回すものはありません」「setup は未確認のまま完了でき」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 36,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 79.003,
+        "tokens": 370537,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "order の Issue 本文ドラフトの受け入れ条件に、parity-replace と同じ target で parity-diff を回し diff-metadata.json の converged: true まで進める項を入れている",
+          "passed": true,
+          "evidence": "受け入れ条件に「parity-replace と同じ target で parity-diff を実行し…converged: true になるまで進める」"
+        },
+        {
+          "text": "スイートが見るのは値・ラベル・役割で、余白・幅・罫線・背景などの見た目は parity-diff だけが見るため、スイート green を見た目の一致の根拠にできないと説明している",
+          "passed": true,
+          "evidence": "「見るのは、値・ラベル・役割だけです。余白・幅・罫線・背景を比べるのは parity-diff だけ」"
+        },
+        {
+          "text": "承認が無いため Issue を起票せず、.replace/features.md の Issue 列も書き換えていない",
+          "passed": true,
+          "evidence": "起票せず「ファイルも書き換えていません」。features.md は fixture と差分なし"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 38,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 85.621,
+        "tokens": 598234,
+        "tool_calls": 9,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "order-list を、プロジェクト側で足した軸 PC-001（一覧が 0 件のときの表示）の当て直しが未判断のまま残っている機能として挙げている",
+          "passed": true,
+          "evidence": "order-list の行に「PC-001（0 件表示、置き場 #231）も未判断」"
+        },
+        {
+          "text": "order-list を、改訂番号を記録していない（procedure_revision の無い）成果物として parity-suite#1 の対象に挙げ、見直し中（#240）の記録を解決済みに数えていない",
+          "passed": true,
+          "evidence": "order-list（改訂番号なし）「parity-suite#1 は見直し中（#240）」を未解決に数える"
+        },
+        {
+          "text": "order-edit の PC-001 は当て直し済み（PR #235）として、再確認が要る側に数えていない",
+          "passed": true,
+          "evidence": "「PC-001 は『当て直し済み』（PR #235）」と解決済みに数える"
+        },
+        {
+          "text": "order-export（バッチ）を PC-001 の当て直しの対象にしていない（PC-001 の対象の種類が feature だけのため）",
+          "passed": true,
+          "evidence": "order-export（batch）は「未解決なし」で PC-001 の対象にしていない"
+        },
+        {
+          "text": "Issue が閉じていることや parity-diff が収束済みであることを理由に、旧手順で閉じた機能が無いと結論していない",
+          "passed": true,
+          "evidence": "「旧手順で閉じた機能の未解決 13 件…Issue が closed でも要再確認」"
+        },
+        {
+          "text": "旧手順で閉じた機能を成果物の目視で比べず、replace-strategy 同梱の procedure-staleness-check.mjs で導出している（応答で判定）",
+          "passed": true,
+          "evidence": "procedure-staleness-check.mjs を実行し「exit 1」の結果から導出"
+        },
+        {
+          "text": "fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）を書き換えていない",
+          "passed": true,
+          "evidence": "Write/Edit の呼び出しなし、.replace/ は fixture と差分なし"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 40.476,
+        "tokens": 352222,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "新側の状態を target（環境）ごとに分けて報告している（local-dev と develop を別々の状態として示している）",
+          "passed": true,
+          "evidence": "表で local-dev と develop を別行に分け「target」列で状態を分けている"
+        },
+        {
+          "text": "local-dev を差分検出まで実施済み（収束済み）、develop をその環境では未実施として区別している",
+          "passed": true,
+          "evidence": "local-dev は「収束済み（1 回目…）」、develop は「新側 未実施／差分 未実施」と区別"
+        },
+        {
+          "text": "db を持たない develop を「フェーズ B 未実施の疑い」として報告していない（投入対象外として扱っている）",
+          "passed": true,
+          "evidence": "develop のフェーズ B を「対象外（DB の定義なし）」と記載し、未実施の疑いとしていない"
+        },
+        {
+          "text": "差し戻しループの状態（loop.iterations 1 / max_iterations 5）を報告に含めている",
+          "passed": false,
+          "evidence": "「1 回目」とあるが max_iterations 5（上限）への言及が応答に無い"
+        },
+        {
+          "text": "fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）を書き換えていない",
+          "passed": true,
+          "evidence": "Write/Edit の呼び出しが無く、.replace/ は fixture と差分なし"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 82.842,
+        "tokens": 552884,
+        "tool_calls": 10,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".replace/features.md から未起票候補（ゴールデンデータセット・横断 API リソース user・機能 order / report）を列挙している",
+          "passed": true,
+          "evidence": "候補表に ゴールデンデータセット・user・order・report を列挙"
+        },
+        {
+          "text": "ゴールデンデータセット Issue を最初の起票対象として提案している（全 Issue の前提のため先頭）",
+          "passed": true,
+          "evidence": "依存順の表で #1 をゴールデンデータセット（すべての Issue の前提）としている"
+        },
+        {
+          "text": "候補の依存関係（横断 API → 機能の順）と各 Issue の本文ドラフトを提示している",
+          "passed": true,
+          "evidence": "依存列（user→order/report）を示し、本文ドラフトを .replace/issues-drafts.md に作成"
+        },
+        {
+          "text": "明示承認が得られない（非対話・利用者不在）ため gh issue create も issue-create への委譲も実行せず、承認待ちであることを明示して停止している",
+          "passed": true,
+          "evidence": "「承認が無いので、gh issue create も issue-create への委譲もしていません」"
+        },
+        {
+          "text": ".replace/features.md の Issue 列を書き換えていない（すべて未起票のまま）",
+          "passed": true,
+          "evidence": "features.md は fixture と差分なし（新規は issues-drafts.md のみ）"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 100.19,
+        "tokens": 712749,
+        "tool_calls": 11,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "注文一覧と注文詳細（複数ページ）を 1 機能 1 行にまとめ、ページごとに機能行を分けていない",
+          "passed": true,
+          "evidence": "features.draft.md で order 行が「/orders, /orders/:id」を 1 行にまとめている"
+        },
+        {
+          "text": "単一機能からしか使われない GET /api/orders 系を横断 API 表に載せず、機能行の新規実装 API に含めている",
+          "passed": true,
+          "evidence": "GET /api/orders 系は order 行の新規実装 API にあり、横断 API 表は user だけ"
+        },
+        {
+          "text": "2 機能が使う GET /api/users をリソース単位（slug: user 等）で横断 API 表に分類し fan-out（利用機能 slug）を記録している",
+          "passed": true,
+          "evidence": "横断 API 表に slug user、fan-out「order, report」を記録"
+        },
+        {
+          "text": "slug が ASCII kebab-case でインベントリ全体で一意（日本語の転写でない）",
+          "passed": true,
+          "evidence": "slug は order・report・user で ASCII kebab-case かつ一意"
+        },
+        {
+          "text": "features-template の表構成（機能一覧・横断 API・Issue 列「未起票」）に従っている",
+          "passed": true,
+          "evidence": "機能一覧・横断 API の表があり Issue 列はすべて「未起票」（正規名でなく draft として作成）"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 59.342,
+        "tokens": 424684,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "表示セクション（一覧・追加フォーム・絞り込み・完了済み）ごとに機能行を分割せず、利用者目的とデータ境界（tasks）に基づき 1 機能 1 行にまとめている",
+          "passed": true,
+          "evidence": "features.md は task の 1 行だけで、セクションごとに分けない理由をコメントに記載"
+        },
+        {
+          "text": "単一機能のみが使う API を横断 API にしていない（横断 API 表が空または該当なし）",
+          "passed": true,
+          "evidence": "横断 API 表は「なし（…利用する機能は task の 1 つだけ）」"
+        },
+        {
+          "text": "slug が ASCII kebab-case（日本語の転写でない）",
+          "passed": true,
+          "evidence": "slug は task"
+        },
+        {
+          "text": "features-template の表構成に従い Issue 列を「未起票」としている",
+          "passed": true,
+          "evidence": "テンプレートの表構成で task 行の Issue 列は「未起票」"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.9646,
+        "stddev": 0.0755,
+        "min": 0.8,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 60.0503,
+        "stddev": 22.8008,
+        "min": 25.778,
+        "max": 100.19
+      },
+      "tokens": {
+        "mean": 364776.0952,
+        "stddev": 152804.397,
+        "min": 170480,
+        "max": 712749
+      }
+    }
+  },
+  "notes": []
+}

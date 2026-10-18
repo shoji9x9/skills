@@ -1,0 +1,74 @@
+{
+  "metadata": {
+    "skill_name": "git-worktree",
+    "skill_path": "<repo>/skills/git-worktree",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-18T13:05:55Z",
+    "evals_run": [9],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 29.646,
+        "tokens": 95534,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "散文の指示だけでは守られないとして、同梱の `scripts/git-worktree-branch-guard.sh` を PreToolUse に組み込む手順（`references/branch-guard-hook.md`）を示している",
+          "passed": false,
+          "evidence": "同梱の git-worktree-branch-guard.sh を PreToolUse に組み込む例はあるが、括弧の references/branch-guard-hook.md の名前が無い"
+        },
+        {
+          "text": "ブロックではなく通知に留める理由（Issue に紐づかない worktree にも正当な用途がある）を述べている",
+          "passed": true,
+          "evidence": "「呼び出しは止めず、通知するだけです…Issue と関係ない worktree…にも正しい用途があるため」"
+        },
+        {
+          "text": "Claude Code の matcher は Bash 以外の組み込みツールにも一致するため `EnterWorktree` を捕捉できるが、Codex / Copilot では `git worktree add` の呼び出しだけになると述べている",
+          "passed": true,
+          "evidence": "matcher「EnterWorktree|Bash」とし、「Codex と Copilot では…`git worktree add` しか捕まえられません」"
+        },
+        {
+          "text": "組み込んだ後の確認で「通知が出ないこと」を成功の根拠にせず、捕捉されるはずの入力を通して通知が出ることを実測すると述べている",
+          "passed": true,
+          "evidence": "「「通知が出ない」ことは、設定できた根拠になりません」、通知が出る呼び出しで確かめると述べる"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.75,
+        "stddev": 0,
+        "min": 0.75,
+        "max": 0.75
+      },
+      "time_seconds": {
+        "mean": 29.646,
+        "stddev": 0,
+        "min": 29.646,
+        "max": 29.646
+      },
+      "tokens": {
+        "mean": 95534,
+        "stddev": 0,
+        "min": 95534,
+        "max": 95534
+      }
+    }
+  },
+  "notes": []
+}

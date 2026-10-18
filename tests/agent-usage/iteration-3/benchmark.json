@@ -1,0 +1,137 @@
+{
+  "metadata": {
+    "skill_name": "agent-usage",
+    "skill_path": "<repo>/skills/agent-usage",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-18T13:05:54Z",
+    "evals_run": [3],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 29.355,
+        "tokens": 134531,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "単価表にそのモデルが無いので、記録の時点で費用を空欄にしてトークン数だけを記録していると説明している",
+          "passed": true,
+          "evidence": "collect は単価の分からないモデルでも費用を空欄にしてトークン数を記録（cost_source は unknown）と説明"
+        },
+        {
+          "text": "リポジトリの設定（.config/skills/shoji9x9/agent-usage.jsonc）の pricing に、そのモデルの単価（input と output は必須）を足すと答えている",
+          "passed": true,
+          "evidence": "「.config/skills/shoji9x9/agent-usage.jsonc に、pricing を足します…input と output は必須」"
+        },
+        {
+          "text": "単価を足して report を実行し直せば、記録されたトークン数から費用を計算し直すと答えている",
+          "passed": true,
+          "evidence": "「report はこの空欄の行を、その時点の単価表で計算し直します」"
+        },
+        {
+          "text": "ログが消えていても、トークン数が記録に残っているので計算できると答えている",
+          "passed": true,
+          "evidence": "「records/ に残っているトークン数なので、ログが消えていても費用に入ります」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 4,
+        "total": 4,
+        "time_seconds": 30.992,
+        "tokens": 60972,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "単価表にそのモデルが無いので、記録の時点で費用を空欄にしてトークン数だけを記録していると説明している",
+          "passed": false,
+          "evidence": "「0 円扱い」と述べ、記録の時点で費用を空欄にすることに触れていない"
+        },
+        {
+          "text": "リポジトリの設定（.config/skills/shoji9x9/agent-usage.jsonc）の pricing に、そのモデルの単価（input と output は必須）を足すと答えている",
+          "passed": false,
+          "evidence": "「設定ファイルやスクリプト内の辞書など」と一般論で、agent-usage.jsonc の pricing を挙げていない"
+        },
+        {
+          "text": "単価を足して report を実行し直せば、記録されたトークン数から費用を計算し直すと答えている",
+          "passed": false,
+          "evidence": "report の実行し直しを挙げず、機能が無ければ手で計算するとしている"
+        },
+        {
+          "text": "ログが消えていても、トークン数が記録に残っているので計算できると答えている",
+          "passed": false,
+          "evidence": "「CSV にトークン数の列があれば」と条件付きで、記録に残ることを答えていない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 29.355,
+        "stddev": 0,
+        "min": 29.355,
+        "max": 29.355
+      },
+      "tokens": {
+        "mean": 134531,
+        "stddev": 0,
+        "min": 134531,
+        "max": 134531
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0,
+        "stddev": 0,
+        "min": 0,
+        "max": 0
+      },
+      "time_seconds": {
+        "mean": 30.992,
+        "stddev": 0,
+        "min": 30.992,
+        "max": 30.992
+      },
+      "tokens": {
+        "mean": 60972,
+        "stddev": 0,
+        "min": 60972,
+        "max": 60972
+      }
+    },
+    "delta": {
+      "pass_rate": "+1.00",
+      "time_seconds": "-1.6",
+      "tokens": "+73559"
+    }
+  },
+  "notes": []
+}

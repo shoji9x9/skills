@@ -1,0 +1,233 @@
+{
+  "metadata": {
+    "skill_name": "replace-strategy",
+    "skill_path": "<repo>/skills/replace-strategy",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-18T13:06:24Z",
+    "evals_run": [15, 16],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 15,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 57.741,
+        "tokens": 215637,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定ファイルは人間が確定させた方針の置き場所で、作業中に件数が増え続ける slug スコープの台帳は設定に置かず .replace/parity/<slug>/ の成果物へ置く方針を示している（新しい設定キーを足す提案を採らない）",
+          "passed": true,
+          "evidence": "「機能ごとの許容記録」は最上位に足さず .replace/parity/<slug>/ に置くと結論"
+        },
+        {
+          "text": "設定から出すかの判断と、載せるキーを書き手（人間が確定させる方針 / スキルが作業中に追記する記録）で区別する判断を別段として扱い、書き手がスキルであること自体は設定から出す理由にならないと区別している",
+          "passed": true,
+          "evidence": "段 1（増え続ける slug 台帳か）と段 2（書き手）を分け、「書き手がスキルだから出す」を混同と指摘"
+        },
+        {
+          "text": "intentional_diffs.pending は slug 成果物へ出さず設定側に残すと答え、その根拠（keep / may_change と同じ 3 分類の一員で昇格が同一キー内での人間の作業、かつ slug 横断で置くべき slug ディレクトリが無い）を示している",
+          "passed": true,
+          "evidence": "pending は keep / may_change と同じ 3 分類で人が同じキー内で移し、機能をまたぐので置く場所が無いと説明"
+        },
+        {
+          "text": "component_diffs も設定側に残すと答え、その根拠（component × property で slug 横断で有効になり 1 回の宣言が component に合致する全 slug・全インスタンスに反映されるため、slug ごとに分けると同じ宣言が複製される）を示している",
+          "passed": true,
+          "evidence": "component_diffs は component × property ですべての機能に当たり、分けると複製になると説明"
+        },
+        {
+          "text": "既存ファイルへの追記は同梱の skill-config.mjs の set / append で行い、既にあるキーの値を変えない（変えるのは人が確かめた後に --replace を付けるときだけ）と述べている",
+          "passed": true,
+          "evidence": "「skill-config.mjs の set / append」「既にある値を変えるのは…確かめた後だけ…--replace」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 16,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 31.791,
+        "tokens": 273391,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "実行基盤と利用マネージドサービスは references.architecture の決定記録に含めると答え、別キーに切らない理由（読むスキル・工程・未整備のときの挙動が architecture と同じで、分けると同じ決定が 2 ファイルに散る）を示している",
+          "passed": true,
+          "evidence": "「実行基盤…は、このキーに含める。別のキーには分けない」と、読む工程が同じで 2 ファイルに散る理由を引用"
+        },
+        {
+          "text": "コーディング規約は references.coding_conventions という別キーで受け取ると答え、architecture が骨格（どこに何を置くか）・coding_conventions が骨格の上の書き方という境界を示している",
+          "passed": true,
+          "evidence": "coding_conventions は「骨格の上の書き方」で、骨格を扱う architecture とは別のキーと説明"
+        },
+        {
+          "text": "未整備のときの挙動が両者で違うこと（architecture は parity-replace が部品の採否・実装工程に入らず停止する／coding_conventions は停止しない）を示している",
+          "passed": false,
+          "evidence": "未整備のときに architecture は parity-replace が停止し、coding_conventions は停止しないという違いに触れていない"
+        },
+        {
+          "text": "references にキーを足すときは references 表へ「読むスキルと工程」「整備されていないときの動作」を併せて追記する取り決めに触れ、キーだけ足しても下流スキルは読まないと述べている",
+          "passed": true,
+          "evidence": "「キーを足しただけでは誰も読まない」と、表へ「読むスキルと工程」「整備されていないときの動作」を足す取り決めを挙げる"
+        },
+        {
+          "text": "実行基盤を別ファイルに書きたい場合は architecture の決定記録からリンクする形を示している（新キーを足す提案を採っていない）",
+          "passed": true,
+          "evidence": "「別ファイルにしたい場合は、architecture のドキュメントからリンクします」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 15,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 42.792,
+        "tokens": 104909,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定ファイルは人間が確定させた方針の置き場所で、作業中に件数が増え続ける slug スコープの台帳は設定に置かず .replace/parity/<slug>/ の成果物へ置く方針を示している（新しい設定キーを足す提案を採らない）",
+          "passed": false,
+          "evidence": "置き場所は「<slug>/accepted-diffs.jsonc」で .replace/parity/<slug>/ を示していない"
+        },
+        {
+          "text": "設定から出すかの判断と、載せるキーを書き手（人間が確定させる方針 / スキルが作業中に追記する記録）で区別する判断を別段として扱い、書き手がスキルであること自体は設定から出す理由にならないと区別している",
+          "passed": false,
+          "evidence": "「誰が書くか」を slug 側へ出す判断軸の 1 つにしており、2 段を区別していない"
+        },
+        {
+          "text": "intentional_diffs.pending は slug 成果物へ出さず設定側に残すと答え、その根拠（keep / may_change と同じ 3 分類の一員で昇格が同一キー内での人間の作業、かつ slug 横断で置くべき slug ディレクトリが無い）を示している",
+          "passed": false,
+          "evidence": "「intentional_diffs.pending → 出すべきです」と逆の結論"
+        },
+        {
+          "text": "component_diffs も設定側に残すと答え、その根拠（component × property で slug 横断で有効になり 1 回の宣言が component に合致する全 slug・全インスタンスに反映されるため、slug ごとに分けると同じ宣言が複製される）を示している",
+          "passed": false,
+          "evidence": "component_diffs は「中身によります」で、設定側に残すと答えていない"
+        },
+        {
+          "text": "既存ファイルへの追記は同梱の skill-config.mjs の set / append で行い、既にあるキーの値を変えない（変えるのは人が確かめた後に --replace を付けるときだけ）と述べている",
+          "passed": false,
+          "evidence": "jsonc-parser の modify を勧め、skill-config.mjs の set / append と --replace に触れていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 16,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 24.884,
+        "tokens": 83456,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "実行基盤と利用マネージドサービスは references.architecture の決定記録に含めると答え、別キーに切らない理由（読むスキル・工程・未整備のときの挙動が architecture と同じで、分けると同じ決定が 2 ファイルに散る）を示している",
+          "passed": false,
+          "evidence": "「どこに書くか」は特定できずと回答し、references.architecture に触れていない"
+        },
+        {
+          "text": "コーディング規約は references.coding_conventions という別キーで受け取ると答え、architecture が骨格（どこに何を置くか）・coding_conventions が骨格の上の書き方という境界を示している",
+          "passed": false,
+          "evidence": "references.coding_conventions というキー名も骨格との境界も示していない"
+        },
+        {
+          "text": "未整備のときの挙動が両者で違うこと（architecture は parity-replace が部品の採否・実装工程に入らず停止する／coding_conventions は停止しない）を示している",
+          "passed": false,
+          "evidence": "未整備のときの挙動の違いに触れていない"
+        },
+        {
+          "text": "references にキーを足すときは references 表へ「読むスキルと工程」「整備されていないときの動作」を併せて追記する取り決めに触れ、キーだけ足しても下流スキルは読まないと述べている",
+          "passed": false,
+          "evidence": "「黙って無視されるおそれ」と推測のみで、references 表へ追記する取り決めに触れていない"
+        },
+        {
+          "text": "実行基盤を別ファイルに書きたい場合は architecture の決定記録からリンクする形を示している（新キーを足す提案を採っていない）",
+          "passed": false,
+          "evidence": "「references がパスや URL の一覧なら、そこに 2 つ追加するのが自然」と新キー案を残す"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.9,
+        "stddev": 0.1414,
+        "min": 0.8,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 44.766,
+        "stddev": 18.3494,
+        "min": 31.791,
+        "max": 57.741
+      },
+      "tokens": {
+        "mean": 244514,
+        "stddev": 40838.245,
+        "min": 215637,
+        "max": 273391
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0,
+        "stddev": 0,
+        "min": 0,
+        "max": 0
+      },
+      "time_seconds": {
+        "mean": 33.838,
+        "stddev": 12.6629,
+        "min": 24.884,
+        "max": 42.792
+      },
+      "tokens": {
+        "mean": 94182.5,
+        "stddev": 15169.5618,
+        "min": 83456,
+        "max": 104909
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.90",
+      "time_seconds": "+10.9",
+      "tokens": "+150332"
+    }
+  },
+  "notes": []
+}
