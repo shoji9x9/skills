@@ -81,3 +81,7 @@ ci:39096416600:1,ci,2026-10-18T04:19:08.877Z,p-cdee4961,github-actions,,,,2026-1
 ci:39096416625:1,ci,2026-10-18T04:19:08.877Z,p-cdee4961,github-actions,,,,2026-10-18T04:14:43.000Z,2026-10-18T04:17:23.000Z,Asia/Tokyo,feature/680-report-unfollowed-rules-and-skips,680,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-10-17T04:12:47.258Z:2026-10-18T04:19:08.877Z,coverage,2026-10-18T04:19:08.877Z,p-cdee4961,,,,,2026-10-17T04:12:47.258Z,2026-10-18T04:19:08.877Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-17T04:19:08.877Z:2026-10-18T04:19:37.519Z,coverage,2026-10-18T04:19:37.519Z,p-cdee4961,,,,,2026-10-17T04:19:08.877Z,2026-10-18T04:19:37.519Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:39096813596:1,ci,2026-10-18T04:27:46.521Z,p-cdee4961,github-actions,,,,2026-10-18T04:21:39.000Z,2026-10-18T04:21:40.000Z,Asia/Tokyo,feature/680-report-unfollowed-rules-and-skips,680,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:39096813589:1,ci,2026-10-18T04:27:46.521Z,p-cdee4961,github-actions,,,,2026-10-18T04:21:39.000Z,2026-10-18T04:24:52.000Z,Asia/Tokyo,feature/680-report-unfollowed-rules-and-skips,680,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-17T04:19:37.519Z:2026-10-18T04:27:46.521Z,coverage,2026-10-18T04:27:46.521Z,p-cdee4961,,,,,2026-10-17T04:19:37.519Z,2026-10-18T04:27:46.521Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-17T04:27:46.521Z:2026-10-18T04:28:19.527Z,coverage,2026-10-18T04:28:19.527Z,p-cdee4961,,,,,2026-10-17T04:27:46.521Z,2026-10-18T04:28:19.527Z,Asia/Tokyo,,,,,,,,,,,,ok,
