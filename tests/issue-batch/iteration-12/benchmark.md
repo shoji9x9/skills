@@ -24,6 +24,8 @@ iteration-11 の eval 25 の with_skill は 7/8 で、「外した Issue は bra
 この iteration では同じ prompt・fixture・executor・model で 8/8 になり、その assertion も満たした。
 書き換え後の版で下がっていないので、後退は無い。旧版をもう一度同じ条件で実行していないので、差が版の違いか 1 run のばらつきかは区別していない。1 run ずつなので、分散も測っていない。
 
+この iteration は 3b432da1 の版で測った。0c0f228f 以降の commit で依存の扱い（依存先の変更が base に入っているか）を書き換えたが、eval の入力は変えていないので、実行し直していない。
+
 ## 備考
 
 - eval 25 の without_skill は、iteration-11 の run を再利用できなかった。iteration-11 は `--reasoning-effort` を付けずに実行しており、再利用には空でない値が要るためである。同じ条件（effort なし）で新しく実行した。
