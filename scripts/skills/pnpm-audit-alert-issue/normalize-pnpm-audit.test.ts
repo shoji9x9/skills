@@ -113,8 +113,8 @@ describe("fromAdvisory（古い形の advisories の 1 件）", () => {
     expect(fromAdvisory({ module_name: "x", url }).ghsa).toBe("GHSA-238p-pmpm-9mq7");
   });
 
-  // 境界の表（#662）。前後に識別子の文字（英数字・_・-）が付けば、長い識別子の一部として id を取り出さない。
-  // 記号と文字列の端は区切りとして扱う。前と後ろで同じ文字の集合を使う。
+  // 境界の表（#662）。前後に識別子の文字（ASCII の英数字・_・-）が付けば、長い識別子の一部として id を取り出さない。
+  // 記号・ASCII の外の文字・文字列の端は区切りとして扱う。前と後ろで同じ文字の集合を使う。
   test.each([
     ["前が文字列の端", "GHSA-238P-PMPM-9MQ7", ID],
     ["前が空白", "fix GHSA-238P-PMPM-9MQ7", ID],
@@ -139,12 +139,14 @@ describe("fromAdvisory（古い形の advisories の 1 件）", () => {
     ["前に英字が付く識別子の中の 2 つ目の GHSA-", "XGHSA-abcd-efgh-ijkl-GHSA-238P-PMPM-9MQ7", ""],
     ["空白で区切った 2 つの id", "GHSA-238P-PMPM-9MQ7 GHSA-2345-6789-2345", ID],
     ["接頭辞が小文字", "ghsa-238p-pmpm-9mq7", ID],
-    ["前が ASCII でない英字", "éGHSA-238P-PMPM-9MQ7", ""],
-    ["後ろが ASCII でない英字", "GHSA-238P-PMPM-9MQ7é", ""],
-    ["前が全角の数字", "１GHSA-238P-PMPM-9MQ7", ""],
-    ["後ろが全角の英字", "GHSA-238P-PMPM-9MQ7Ａ", ""],
+    ["前が ASCII の外の英字", "éGHSA-238P-PMPM-9MQ7", ID],
+    ["後ろが ASCII の外の英字", "GHSA-238P-PMPM-9MQ7é", ID],
+    ["前が全角の数字", "１GHSA-238P-PMPM-9MQ7", ID],
+    ["前が全角のハイフン", "npm－GHSA-238P-PMPM-9MQ7", ID],
     ["前後が全角の括弧", "（GHSA-238P-PMPM-9MQ7）", ID],
     ["前後が漢字とかな", "脆弱性GHSA-238P-PMPM-9MQ7です", ID],
+    ["本体に ASCII の外の英字", "GHSA-ſ38P-PMPM-9MQ7", ""],
+    ["接頭辞に ASCII の外の英字", "GHſA-238P-PMPM-9MQ7", ""],
   ])("title の GHSA の境界（%s）", (_label, title, expected) => {
     expect(fromAdvisory({ module_name: "x", title }).ghsa).toBe(expected);
   });
@@ -305,7 +307,9 @@ describe("findingsFromVulnerability（新しい形の vulnerabilities の 1 件�
     ["全体が小文字の id の形", "ghsa-238p-pmpm-9mq7"],
   ])("via の文字列（%s）は、パッケージ名として扱い、advisory として読まない", (_label, via) => {
     const results = findingsFromVulnerability("x", { via: [via] }, undefined);
-    expect(results.map((result) => [result.ghsa, result.advisory_url])).toEqual([["", ""]]);
+    expect(results.map((result) => [result.ghsa, result.advisory_url, result.title])).toEqual([
+      ["", "", ""],
+    ]);
   });
 
   // 境界は呼び出し元によらず同じである。古い形の advisory と、新しい形の via のオブジェクトの両方で、どの欄も確かめる。
@@ -322,7 +326,7 @@ describe("findingsFromVulnerability（新しい形の vulnerabilities の 1 件�
     expect(result.ghsa).toBe(ID);
   });
 
-  // id の欄は、id を取り出せなければ受け取った文字列をそのまま使う（id の形でない識別子を残すため）。
+  // 6 つの欄のどれからも id を取り出せなければ、id の欄の文字列をそのまま使う（id の形でない識別子を残すため）。
   test.each([
     ["ghsa", "npm-GHSA-238P-PMPM-9MQ7", "npm-GHSA-238P-PMPM-9MQ7"],
     ["ghsa_id", "npm-GHSA-238P-PMPM-9MQ7", "npm-GHSA-238P-PMPM-9MQ7"],
@@ -351,6 +355,23 @@ describe("findingsFromVulnerability（新しい形の vulnerabilities の 1 件�
       expect([old.ghsa, old.advisory_url]).toEqual([ID, url]);
       const [result] = findingsFromVulnerability("x", { via: [{ url, ...fields }] }, undefined);
       expect([result.ghsa, result.advisory_url]).toEqual([ID, url]);
+    },
+  );
+
+  test.each([
+    ["source", { source: `github ${GHSA}` }],
+    ["title", { title: `Superseded by ${GHSA}` }],
+  ])(
+    "id の欄から id を取り出せなくても、%s の中の別の id より id の欄の文字列を使う",
+    (_label, fields) => {
+      const raw = "npm-GHSA-238P-PMPM-9MQ7";
+      expect(fromAdvisory({ module_name: "x", ghsa_id: raw, ...fields }).ghsa).toBe(raw);
+      const [result] = findingsFromVulnerability(
+        "x",
+        { via: [{ ghsa_id: raw, ...fields }] },
+        undefined,
+      );
+      expect(result.ghsa).toBe(raw);
     },
   );
 
