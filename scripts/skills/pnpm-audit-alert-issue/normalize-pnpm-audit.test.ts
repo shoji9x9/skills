@@ -33,6 +33,8 @@ const script = join(skillDir, "scripts/normalize-pnpm-audit.ts");
 // 大文字と小文字の扱いを分けて確かめるため、ほとんどのテストは数字だけの id を使う。
 const GHSA = "GHSA-2345-6789-2345";
 const GHSA_URL = `https://github.com/advisories/${GHSA}`;
+// 英字を含む id（GHSA-238P-PMPM-9MQ7）を、GitHub の表記にそろえた値。境界と表記のテストで使う。
+const ID = "GHSA-238p-pmpm-9mq7";
 
 /** 型の合わない入力（audit の JSON は形を確かめずに読む）を、CLI と同じ読み方で作る。 */
 function auditJson(value: unknown): AuditJson {
@@ -111,32 +113,35 @@ describe("fromAdvisory（古い形の advisories の 1 件）", () => {
     expect(fromAdvisory({ module_name: "x", url }).ghsa).toBe("GHSA-238p-pmpm-9mq7");
   });
 
+  // 境界の表（#662）。前後に識別子の文字（英数字・_・-）が付けば、長い識別子の一部として id を取り出さない。
+  // 記号と文字列の端は区切りとして扱う。前と後ろで同じ文字の集合を使う。
   test.each([
-    ["最後のかたまりが 5 文字", "GHSA-abcd-efgh-ijklm"],
-    ["最後のかたまりに数字が続く", "GHSA-2345-6789-23456"],
-    ["前に英字が付く", "XGHSA-abcd-efgh-ijkl"],
-    ["前に数字が付く", "1GHSA-2345-6789-2345"],
-    ["後ろに - で続く", "GHSA-abcd-efgh-ijkl-mnop"],
-  ])("GHSA の形に収まらない id（%s）からは、切り詰めた id を取り出さない", (_label, id) => {
-    expect(fromAdvisory({ module_name: "x", title: id }).ghsa).toBe("");
+    ["前が文字列の端", "GHSA-238P-PMPM-9MQ7", ID],
+    ["前が空白", "fix GHSA-238P-PMPM-9MQ7", ID],
+    ["前が /", "advisories/GHSA-238P-PMPM-9MQ7", ID],
+    ["前が :", "ref:GHSA-238P-PMPM-9MQ7", ID],
+    ["前が英字", "XGHSA-238P-PMPM-9MQ7", ""],
+    ["前が数字", "1GHSA-238P-PMPM-9MQ7", ""],
+    ["前が _", "github_GHSA-238P-PMPM-9MQ7", ""],
+    ["前が -", "npm-GHSA-238P-PMPM-9MQ7", ""],
+    ["後ろが空白", "GHSA-238P-PMPM-9MQ7 fixed", ID],
+    ["後ろが .", "GHSA-238P-PMPM-9MQ7.", ID],
+    ["後ろが :", "GHSA-238P-PMPM-9MQ7: prototype pollution", ID],
+    ["後ろが /", "GHSA-238P-PMPM-9MQ7/", ID],
+    ["後ろが ?", "GHSA-238P-PMPM-9MQ7?tab=1", ID],
+    ["後ろが #", "GHSA-238P-PMPM-9MQ7#refs", ID],
+    ["後ろが英字", "GHSA-238P-PMPM-9MQ7X", ""],
+    ["後ろが数字", "GHSA-238P-PMPM-9MQ71", ""],
+    ["後ろが _", "GHSA-238P-PMPM-9MQ7_x", ""],
+    ["後ろが -", "GHSA-238P-PMPM-9MQ7-mnop", ""],
+    ["前が - で後ろも -", "npm-GHSA-238P-PMPM-9MQ7-mnop", ""],
+    ["長い識別子の中の 2 つ目の GHSA-", "GHSA-abcd-efgh-ijkl-GHSA-238P-PMPM-9MQ7", ""],
+    ["前に英字が付く識別子の中の 2 つ目の GHSA-", "XGHSA-abcd-efgh-ijkl-GHSA-238P-PMPM-9MQ7", ""],
+    ["空白で区切った 2 つの id", "GHSA-238P-PMPM-9MQ7 GHSA-2345-6789-2345", ID],
+    ["接頭辞が小文字", "ghsa-238p-pmpm-9mq7", ID],
+  ])("title の GHSA の境界（%s）", (_label, title, expected) => {
+    expect(fromAdvisory({ module_name: "x", title }).ghsa).toBe(expected);
   });
-
-  test.each([
-    ["前に _ が付く", "github_GHSA-abcd-efgh-2345"],
-    ["後ろに _ が続く", "GHSA-abcd-efgh-2345_x"],
-  ])("%s GHSA の id は取り出す（_ は英数字として扱わない）", (_label, id) => {
-    expect(fromAdvisory({ module_name: "x", title: id }).ghsa).toBe("GHSA-abcd-efgh-2345");
-  });
-
-  test.each([
-    ["title", { title: "npm-GHSA-238P-PMPM-9MQ7" }],
-    ["ghsa_id", { ghsa_id: "npm-GHSA-238P-PMPM-9MQ7" }],
-  ])(
-    "前に - で語が付いた GHSA の id も、%s から取り出して GitHub の表記にそろえる",
-    (_label, fields) => {
-      expect(fromAdvisory({ module_name: "x", ...fields }).ghsa).toBe("GHSA-238p-pmpm-9mq7");
-    },
-  );
 
   test.each([
     ["url", { url: GHSA_URL }],
@@ -267,14 +272,58 @@ describe("findingsFromVulnerability（新しい形の vulnerabilities の 1 件�
     ]);
   });
 
-  test("via の文字列の GHSA の前に - で語が付いていても、advisory として読む", () => {
-    const [result] = findingsFromVulnerability(
-      "x",
-      { via: ["advisory-GHSA-238P-PMPM-9MQ7"] },
-      undefined,
-    );
-    expect(result.ghsa).toBe("GHSA-238p-pmpm-9mq7");
+  // via の文字列は、全体が id のときか URL のときだけ advisory として読む。
+  // それ以外は依存を指すパッケージ名で、名前の中に ghsa-xxxx-xxxx-xxxx の形を含みうる。
+  test.each([
+    ["全体が id", "GHSA-238P-PMPM-9MQ7", ID],
+    ["advisory の URL", "https://github.com/advisories/GHSA-238P-PMPM-9MQ7", ID],
+  ])("via の文字列（%s）は、advisory として読み、id を title にする", (_label, via, expected) => {
+    const results = findingsFromVulnerability("x", { via: [via] }, undefined);
+    expect(results.map((result) => [result.ghsa, result.title])).toEqual([[expected, expected]]);
   });
+
+  test.each([
+    ["- の後ろに id の形", "my-ghsa-238p-pmpm-9mq7"],
+    ["/ の後ろに id の形", "@scope/ghsa-238p-pmpm-9mq7"],
+    ["/ と - の後ろに id の形", "@scope/fix-ghsa-238p-pmpm-9mq7"],
+    ["- で語が付いた id", "advisory-GHSA-238P-PMPM-9MQ7"],
+    ["id の後ろに語", "GHSA-238P-PMPM-9MQ7 x"],
+    ["全体が小文字の id の形", "ghsa-238p-pmpm-9mq7"],
+  ])("via の文字列（%s）は、パッケージ名として扱い、advisory として読まない", (_label, via) => {
+    const results = findingsFromVulnerability("x", { via: [via] }, undefined);
+    expect(results.map((result) => [result.ghsa, result.advisory_url])).toEqual([["", ""]]);
+  });
+
+  // 境界は呼び出し元によらず同じである。古い形の advisory と、新しい形の via のオブジェクトの両方で、どの欄も確かめる。
+  test.each([
+    ["ghsa", "GHSA-238P-PMPM-9MQ7"],
+    ["ghsa_id", "GHSA-238P-PMPM-9MQ7"],
+    ["github_advisory_id", "GHSA-238P-PMPM-9MQ7"],
+    ["url", "https://github.com/advisories/GHSA-238P-PMPM-9MQ7"],
+    ["source", "github GHSA-238P-PMPM-9MQ7"],
+    ["title", "GHSA-238P-PMPM-9MQ7: prototype pollution"],
+  ])("%s の GHSA の id は、古い形でも via のオブジェクトでも取り出す", (field, value) => {
+    expect(fromAdvisory({ module_name: "x", [field]: value }).ghsa).toBe(ID);
+    const [result] = findingsFromVulnerability("x", { via: [{ [field]: value }] }, undefined);
+    expect(result.ghsa).toBe(ID);
+  });
+
+  // id の欄は、id を取り出せなければ受け取った文字列をそのまま使う（id の形でない識別子を残すため）。
+  test.each([
+    ["ghsa", "npm-GHSA-238P-PMPM-9MQ7", "npm-GHSA-238P-PMPM-9MQ7"],
+    ["ghsa_id", "npm-GHSA-238P-PMPM-9MQ7", "npm-GHSA-238P-PMPM-9MQ7"],
+    ["github_advisory_id", "npm-GHSA-238P-PMPM-9MQ7", "npm-GHSA-238P-PMPM-9MQ7"],
+    ["url", "https://github.com/advisories/npm-GHSA-238P-PMPM-9MQ7", ""],
+    ["source", "npm-GHSA-238P-PMPM-9MQ7", ""],
+    ["title", "npm-GHSA-238P-PMPM-9MQ7", ""],
+  ])(
+    "%s の - で語が付いた id は、古い形でも via のオブジェクトでも取り出さない",
+    (field, value, expected) => {
+      expect(fromAdvisory({ module_name: "x", [field]: value }).ghsa).toBe(expected);
+      const [result] = findingsFromVulnerability("x", { via: [{ [field]: value }] }, undefined);
+      expect(result.ghsa).toBe(expected);
+    },
+  );
 
   test("via の advisory に severity が無ければ、パッケージの severity を使う", () => {
     const [result] = findingsFromVulnerability(

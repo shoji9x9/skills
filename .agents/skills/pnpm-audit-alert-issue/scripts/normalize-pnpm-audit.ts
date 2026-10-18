@@ -102,18 +102,31 @@ function isUrl(value: unknown): boolean {
  * 既存の Issue・PR の検索（GitHub の search API）は大文字と小文字を区別しない。
  * 検索で見つけた Issue との比べ方と、却下のルールとの照合は、dependabot-alert-issue の SKILL.md が大文字と小文字の扱いを決めていない。
  * そのため、findings の側で、Dependabot alerts の ghsa_id と同じ表記にそろえる。
- * 前に英数字が付く文字列（`XGHSA-...`）と、後ろに英数字か `-` が続く文字列（`GHSA-abcd-efgh-ijkl-mnop`）は、もっと長い識別子の一部として扱い、id を取り出さない。
- * 前と後ろで `-` の扱いが違うのは、`-` の役割が違うからである。
- * 前の `-` は、`npm-GHSA-...` のように id の前に語をつなぐ区切りなので、id を取り出す。
- * 後ろの `-` は、id のかたまりの区切りと同じ文字なので、続く文字列を含めて別の形の識別子として扱う。
- * `\b` を使わないのは、`\b` が `_` を英数字と同じに扱い、`-` の後ろでも前でも成り立つからである。
+ *
+ * id は、前後に識別子の文字（英数字・`_`・`-`）が付かない 1 語のときだけ取り出す。
+ * 前後のどちらかに付く文字列（`XGHSA-...`・`npm-GHSA-...`・`GHSA-abcd-efgh-ijkl-mnop`・`GHSA-..._x`）は、もっと長い識別子の一部として扱う。
+ * 前と後ろで同じ文字の集合を使う。片側だけを変えると前後の扱いが食い違うので、変えるときは両方を変える。
+ * 空白・`/`・`:`・`.`・`?`・`#` などの記号と、文字列の端は区切りとして扱う（URL の `/advisories/GHSA-...` を含む）。
+ * `\b` を使わないのは、`\b` が `-` の前後でも成り立つからである。
  */
-function ghsaFrom(value: unknown): string {
+const GHSA_BODY = "[0-9A-Za-z]{4}-[0-9A-Za-z]{4}-[0-9A-Za-z]{4}";
+const GHSA_IN_TEXT = new RegExp(`(?<![0-9a-z_-])GHSA-(${GHSA_BODY})(?![0-9a-z_-])`, "i");
+// 接頭辞は大文字だけを受け付ける。npm のパッケージ名は小文字なので、ghsa-xxxx-xxxx-xxxx という名前のパッケージを id として読まない。
+const GHSA_WHOLE = new RegExp(`^GHSA-(${GHSA_BODY})$`);
+
+function ghsaFrom(value: unknown, pattern: RegExp = GHSA_IN_TEXT): string {
   if (typeof value !== "string") return "";
-  const match = value.match(
-    /(?<![0-9a-z])GHSA-([0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4})(?![0-9a-z-])/i,
-  );
+  const match = value.match(pattern);
   return match ? `GHSA-${match[1].toLowerCase()}` : "";
+}
+
+/**
+ * `via` の文字列は、advisory の id・URL か、依存を指すパッケージ名（`@scope/name` を含む）である。
+ * パッケージ名は `-` や `/` の後ろに `ghsa-xxxx-xxxx-xxxx` の形を含みうるので、全体が id のときだけ id として読む。
+ * URL はパッケージ名にならないので、ほかの欄と同じく中の id を取り出す。
+ */
+function ghsaFromVia(via: string): string {
+  return isUrl(via) ? ghsaFrom(via) : ghsaFrom(via, GHSA_WHOLE);
 }
 
 function normalizeGhsa(value: unknown): string {
@@ -161,7 +174,7 @@ function advisoryFromVia(via: unknown): AuditRecord {
   if (isObjectLike(via)) return via;
   if (typeof via !== "string") return {};
 
-  const ghsa = ghsaFrom(via);
+  const ghsa = ghsaFromVia(via);
   if (!ghsa && !isUrl(via)) return {};
 
   return {
@@ -294,7 +307,7 @@ export function findingsFromVulnerability(
 ): Finding[] {
   const advisories = asArray(vulnerability.via).filter((via) => {
     if (typeof via === "object" && via) return true;
-    return typeof via === "string" && (ghsaFrom(via) || isUrl(via));
+    return typeof via === "string" && (ghsaFromVia(via) || isUrl(via));
   });
   if (advisories.length === 0) return [fromVulnerability(packageName, vulnerability, {}, packages)];
   return advisories.map((advisory) =>

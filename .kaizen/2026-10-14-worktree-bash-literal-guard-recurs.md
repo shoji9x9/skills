@@ -106,6 +106,12 @@ python の heredoc の 1 回は、本文の文字列に `git` の語があった
 どれも、単独の呼び出しに分けるか、Write ツールでスクリプトにして絶対パスで実行する形に直して通した。
 1 回目から 3 回目は、`git` の語を含まずに拒否された。提案の Hook の条件には、`gh` に変数の引数を渡す形、heredoc を含む複合コマンド、`eval` の語を含む形も含める。8 つ目のセッションでの再発である。
 
+2026-10-18、#662 の PR #691 を利用者の決定 B で仕上げる作業で、worktree に入った後の Bash の呼び出しが 2 回拒否された。
+1 回目は、python の quoted heredoc で mutations.json を表示し、続けて `sed -n` を 2 回つないだ処理である（`this command is too complex to verify`）。
+2 回目は、`oxfmt` に続けて `echo rc=$?` と `git diff --stat` を `;` でつないだ処理である（`names git in a form too complex to verify`）。
+どちらも、Write ツールでスクリプトにして絶対パスで実行するか、git の操作を単独の呼び出しに分けて通した。
+同じセッションの #692 でこの記録に追記した直後でも、worktree に入った後の最初の複合コマンドで同じ形を書いた。
+
 ## 根本原因
 
 1. なぜ拒否されたか → 隔離セッションのガードは字面で判定し、本文・引数・パスに `git` を含む複合コマンドや heredoc を拒否する。
