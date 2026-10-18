@@ -1,20 +1,20 @@
 // report: records/ の行を集計し、report/<yyyyMMdd>/ に HTML と 3 つの CSV を書く。
 //
-// 停止の分類（人ごと）:
-//   人の稼働の区間（run）をすべてのセッション・エージェントで合わせ、その隙間を停止とする。
+// 稼働状況（人ごと）:
+//   人の稼働の区間（run）をすべてのセッション・エージェントで合わせ、その区間を稼働中、隙間を停止とする。
 //   停止の各部分を、次の順で最初に当たったものに分類する。
 //     reviewing    人の活動（指示・人を待った区間の終わり・人の commit・GitHub での自分の操作）の前後 activityWindowMinutes 分。
 //     ci-wait      直前に動いていたブランチの CI が実行中。
 //     review-wait  直前に動いていたブランチの PR のレビューを待っている。
 //     unknown      GitHub の情報を取得できていない期間（coverage が ok でない）。
 //     idle         それ以外（未活用）。
-//   集計の期間の終わりは、until の日の終わりか、report を実行した時刻の早い方。
+//   集計の期間の終わりは、人ごとに、その人のタイムゾーンでの until の日の終わりか、report を実行した時刻の早い方。
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { loadRepoConfig, loadUserConfig } from "../config.mjs";
 import { toCsv } from "../csv.mjs";
-import { RUN_BINS, STOP_CATEGORIES } from "./categories.mjs";
+import { RUN_BINS, STATUSES, STOP_CATEGORIES } from "./categories.mjs";
 import {
   costOf,
   loadBundledPricing,
@@ -36,6 +36,7 @@ import {
 /** @typedef {import("../rows.mjs").Row} Row */
 /** @typedef {import("../config.mjs").RepoConfig} RepoConfig */
 /** @typedef {import("./categories.mjs").StopCategory} StopCategory */
+/** @typedef {import("./categories.mjs").Status} Status */
 
 /** @typedef {[number, number]} Span */
 
@@ -160,35 +161,75 @@ export function endOfLocalDate(date, tz) {
  * @returns {boolean}
  */
 function isDate(date) {
-  return date !== null && /^\d{4}-\d{2}-\d{2}$/.test(date);
+  if (date === null || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+  // 形だけでは、月が 0 の日付や 2 月 30 日が通るので、暦に在る日付かを往復で確かめる
+  const t = Date.parse(`${date}T00:00:00Z`);
+  return !Number.isNaN(t) && new Date(t).toISOString().slice(0, 10) === date;
 }
 
 /**
- * 期間の表示。指定が無い側は、記録のうち最も古い日付・最も新しい日付（行のタイムゾーンで切る）にする。
- * GitHub を取得した期間の行（coverage）は作業の記録ではないので数えない。記録が無ければ「記録なし」とする。
+ * 期間の最初の日と最後の日。指定が無い側は、記録のうち最も古い日付・最も新しい日付（行のタイムゾーンで切る）にする。
+ * GitHub を取得した期間の行（coverage）は作業の記録ではないので数えない。
  * @param {readonly Row[]} rows 期間で絞った後の行
  * @param {{ since: string | null; until: string | null; tz: string }} o
- * @returns {string}
+ * @returns {{ from: string | null; to: string | null }}
  */
-export function periodLabel(rows, o) {
-  /** @type {string | null} */
-  let first = null;
-  /** @type {string | null} */
-  let last = null;
+export function periodBounds(rows, o) {
+  /** @type {string[]} */
+  const dates = [];
   for (const r of rows) {
     if (r.kind === "coverage") continue;
     for (const v of [r.start, r.end]) {
       const t = parseTime(v);
-      if (t === null) continue;
-      const date = localParts(t, r.tz || o.tz).date;
-      if (first === null || date < first) first = date;
-      if (last === null || date > last) last = date;
+      if (t !== null) dates.push(localParts(t, r.tz || o.tz).date);
     }
   }
-  const from = o.since ?? first;
-  const to = o.until ?? last;
+  const { min, max } = dateBounds(dates);
+  return { from: o.since ?? min, to: o.until ?? max };
+}
+
+/**
+ * 日付（YYYY-MM-DD）の最初と最後。日付が無ければどちらも null にする。
+ * @param {readonly string[]} dates
+ * @returns {{ min: string | null; max: string | null }}
+ */
+export function dateBounds(dates) {
+  /** @type {string | null} */
+  let min = null;
+  /** @type {string | null} */
+  let max = null;
+  for (const date of dates) {
+    if (min === null || date < min) min = date;
+    if (max === null || date > max) max = date;
+  }
+  return { min, max };
+}
+
+/**
+ * 期間の最初の日と最後の日から、期間の表示を作る。どちらかが無ければ「記録なし」とする。
+ * @param {string | null} from
+ * @param {string | null} to
+ * @returns {string}
+ */
+export function formatPeriod(from, to) {
   if (from === null || to === null) return "記録なし";
   return `${from} 〜 ${to}`;
+}
+
+/**
+ * from から to までのすべての日付（両端を含む）。暦の日付なので、タイムゾーンに依らない。
+ * @param {string} from YYYY-MM-DD
+ * @param {string} to YYYY-MM-DD
+ * @returns {string[]}
+ */
+export function dateRange(from, to) {
+  const out = [];
+  // 文字列で比べると、10000 年からの toISOString（+010000-...）が to より後にならず終わらないので、時刻で比べる
+  const end = Date.parse(`${to}T00:00:00Z`);
+  for (let t = Date.parse(`${from}T00:00:00Z`); t <= end; t += 86400000) {
+    out.push(new Date(t).toISOString().slice(0, 10));
+  }
+  return out;
 }
 
 /**
@@ -202,7 +243,13 @@ export function periodLabel(rows, o) {
  * @property {Record<string, string>[]} usage usage.csv の行
  * @property {Record<string, string>[]} intervals intervals.csv の行
  * @property {Record<string, string>[]} reviews reviews.csv の行
- * @property {{ category: StopCategory; byHour: number[] }[]} stopByHour 停止の時間（時）を、時刻（0〜23 時）ごとに
+ * @property {{ status: Status; byHour: number[] }[]} statusByHour 稼働中と停止の時間（時）を、時刻（0〜23 時）ごとに
+ * @property {string[]} days 期間のすべての日付（記録の無い日を含む）。日別のチャートの横軸にする
+ * @property {{ status: Status; byDay: number[] }[]} statusByDay 稼働中と停止の時間（時）を、days の日ごとに
+ * @property {Record<string, number>} activeByPerson 人の ID → 稼働中の時間（時）
+ * @property {Record<string, number>} activeByIssue Issue（無ければ空文字）→ 稼働中の時間（時）。同時に動いていた Issue の数で等分した値
+ * @property {Record<string, number>} idleByIssue Issue（無ければ空文字）→ 直前に動いていた指示がその Issue だった未活用の時間（時。丸める前の値）
+ * @property {Record<string, Map<StopCategory, number>>} stopByPerson 人の ID → 停止の分類ごとの時間（時。丸める前の値）
  * @property {number[]} runHistogram RUN_BINS ごとの件数
  * @property {{ date: string; model: string; cost: number }[]} dailyCost
  * @property {number} unknownCostBuckets 費用が単価不明の usage の行の数
@@ -344,13 +391,31 @@ export function buildReport(allRows, o) {
   });
 
   // 稼働と停止
-  const periodEnd = o.until ? Math.min(o.now, endOfLocalDate(o.until, o.tz)) : o.now;
   const windowMs = o.config.activityWindowMinutes * 60000;
   /** @type {Record<string, string>[]} */
   const intervals = [];
   const runHistogram = RUN_BINS.map(() => 0);
-  /** @type {Map<StopCategory, number[]>} */
-  const byHour = new Map(STOP_CATEGORIES.map((c) => [c, Array.from({ length: 24 }, () => 0)]));
+  /** @type {Map<Status, number[]>} */
+  const byHour = new Map(STATUSES.map((c) => [c, Array.from({ length: 24 }, () => 0)]));
+  /** @type {Map<Status, Map<string, number>>} */
+  const byDate = new Map(STATUSES.map((c) => [c, new Map()]));
+  /**
+   * 区間を時刻ごとと日ごとに足す。どちらも同じ正時の区切りで分ける（日をまたぐ区間は、それぞれの日に入る）。
+   * @param {Status} status
+   * @param {number} start
+   * @param {number} end
+   * @param {string} tz
+   */
+  const addStatus = (status, start, end, tz) => {
+    for (const h of splitByLocalHour(start, end, tz)) {
+      const hours = (h.end - h.start) / 3600000;
+      const arr = byHour.get(status);
+      if (arr) arr[h.hour] += hours;
+      const days = byDate.get(status);
+      const date = h.date;
+      if (days) days.set(date, (days.get(date) ?? 0) + hours);
+    }
+  };
   // coverage は期間で絞る前の行から取る（期間の初めの停止に、前日までの取得が当たる）
   const coverageAll = mergeSpans(
     spansOf(latest.filter((r) => r.kind === "coverage" && r.detail === "ok")),
@@ -378,6 +443,14 @@ export function buildReport(allRows, o) {
   const people = [
     ...new Set(rows.filter((r) => r.kind === "run").map((r) => alias(r.person))),
   ].sort();
+  /** @type {Record<string, number>} */
+  const activeByPerson = {};
+  /** @type {Record<string, number>} */
+  const activeByIssue = {};
+  /** @type {Record<string, Map<StopCategory, number>>} */
+  const stopByPerson = {};
+  /** @type {Record<string, number>} */
+  const idleByIssue = {};
   for (const person of people) {
     const mine = rows.filter((r) => alias(r.person) === person);
     const runs = mine
@@ -408,7 +481,49 @@ export function buildReport(allRows, o) {
     }
     if (runs.length === 0) continue;
     const tz = runs[0].row.tz || o.tz;
-    const merged = mergeSpans(runs.map((r) => r.span));
+    // 稼働状況は、1 人を 1 つのタイムゾーン（期間で絞った後の、その人の最初の run のタイムゾーン）で数える。
+    // 日付の分け方も期間の終わり（そのタイムゾーンでの --until の日の終わり）も、このタイムゾーンで決める
+    const periodEnd = o.until ? Math.min(o.now, endOfLocalDate(o.until, tz)) : o.now;
+    // 行を期間で絞るのは行ごとのタイムゾーンなので、記録が複数のタイムゾーンにまたがると、別のタイムゾーンの行として期間に入った run が
+    // 期間の終わりより後に始まりうる。その run は稼働状況（稼働中と停止）に数えない。指示の数とヒストグラムには、期間に入った行として数える
+    const statusRuns = runs.filter((r) => r.span[0] < periodEnd);
+    // 稼働状況に数える run が無い人も、人ごとの稼働中と停止は 0 として持つ
+    activeByPerson[person] = 0;
+    stopByPerson[person] = new Map(STOP_CATEGORIES.map((c) => [c, 0]));
+    if (statusRuns.length === 0) continue;
+    const merged = mergeSpans(statusRuns.map((r) => r.span));
+    // 稼働中は、重なる run をまとめた区間（停止はこの隙間なので、稼働中と停止は重ならない）。期間の終わりで打ち切る
+    let active = 0;
+    for (const [a, b] of merged) {
+      const end = Math.min(b, periodEnd);
+      if (end <= a) continue;
+      addStatus("active", a, end, tz);
+      active += (end - a) / 3600000;
+    }
+    activeByPerson[person] = active;
+    const myStops = new Map(STOP_CATEGORIES.map((c) => [c, 0]));
+    stopByPerson[person] = myStops;
+    // Issue ごとの稼働中は、人ごとの稼働中を、その時間に動いていた Issue の数で等分して配る（Issue ごとの合計が人ごとの稼働中と一致する）。
+    // run の始まりと終わりを時刻の順に走査し、動いている run の数を Issue ごとに増減させる
+    /** @type {[number, number, string][]} */
+    const events = [];
+    for (const { row, span } of statusRuns) {
+      const end = Math.min(span[1], periodEnd);
+      if (end > span[0]) events.push([span[0], 1, row.issue ?? ""], [end, -1, row.issue ?? ""]);
+    }
+    events.sort((x, y) => x[0] - y[0]);
+    /** @type {Map<string, number>} */
+    const running = new Map();
+    for (let i = 0; i < events.length; i += 1) {
+      const [t, delta, issue] = events[i];
+      const count = (running.get(issue) ?? 0) + delta;
+      if (count > 0) running.set(issue, count);
+      else running.delete(issue);
+      const next = i + 1 < events.length ? events[i + 1][0] : t;
+      if (next <= t || running.size === 0) continue;
+      for (const k of running.keys())
+        activeByIssue[k] = (activeByIssue[k] ?? 0) + (next - t) / 3600000 / running.size;
+    }
     /** @type {Span[]} */
     const marks = [];
     for (const r of mine) {
@@ -427,6 +542,8 @@ export function buildReport(allRows, o) {
       Number.NEGATIVE_INFINITY,
     );
     const personEnd = Number.isFinite(lastSeen) ? Math.min(periodEnd, lastSeen) : periodEnd;
+    // 期間に入れた run は期間の終わりより前に始まるので、run の間の隙間は期間の終わりより前に収まる。
+    // 最後の run の後の隙間も、personEnd（期間の終わりより後にならない）までである
     for (const gap of gaps(
       merged,
       merged[0][0],
@@ -435,7 +552,7 @@ export function buildReport(allRows, o) {
       // 直前に動いていた run は、隙間の前に最も遅く終わったもの（runs は始まりの順なので、末尾が最後に終わったとは限らない）
       /** @type {(typeof runs)[number] | undefined} */
       let before;
-      for (const r of runs) {
+      for (const r of statusRuns) {
         if (r.span[1] <= gap[0] && (!before || r.span[1] >= before.span[1])) before = r;
       }
       const branch = before ? (before.row.branch ?? "") : "";
@@ -467,9 +584,12 @@ export function buildReport(allRows, o) {
           branch,
           issue: before ? (before.row.issue ?? "") : "",
         });
-        for (const h of splitByLocalHour(p.start, p.end, tz)) {
-          const arr = byHour.get(p.category);
-          if (arr) arr[h.hour] += (h.end - h.start) / 3600000;
+        addStatus(p.category, p.start, p.end, tz);
+        // 人ごとの表と Issue ごとの表も、丸める前の値から足す（intervals.csv の minutes は小数第 1 位に丸めてある）
+        myStops.set(p.category, (myStops.get(p.category) ?? 0) + (p.end - p.start) / 3600000);
+        if (p.category === "idle") {
+          const issue = before ? (before.row.issue ?? "") : "";
+          idleByIssue[issue] = (idleByIssue[issue] ?? 0) + (p.end - p.start) / 3600000;
         }
       }
     }
@@ -513,17 +633,48 @@ export function buildReport(allRows, o) {
     })
     .sort((a, b) => a.date.localeCompare(b.date) || a.tool.localeCompare(b.tool));
 
+  // 日別のチャートの横軸。停止は observed_at まで続くので、記録の最後の日より後の日にも置かれうる
+  const valueDates = [
+    ...dailyCost.map((x) => x.date),
+    ...[...byDate.values()].flatMap((m) => [...m.keys()]),
+  ];
+  // 期間の表示と横軸は、ここから days までの式で決める。
+  // 範囲は、記録の日に、値を置いた日（停止が記録の最後の日より後まで続いた日など）を足したものにする。
+  // --since・--until を指定した側も、横軸は値のある日まで広げる。記録が複数のタイムゾーンにまたがると期間の外の日に値が置かれうるので、
+  // 外すと日別のチャートとタイルが、人ごとの表・時刻ごとのチャートより小さくなる。期間の表示は指定した日付のままにする
+  const { min: valueMin, max: valueMax } = dateBounds(valueDates);
+  const { from, to } = periodBounds(rows, o);
+  const first = from !== null && valueMin !== null && valueMin < from ? valueMin : from;
+  const widened = to !== null && valueMax !== null && valueMax > to ? valueMax : to;
+  // --until を指定したときは、終わりを今日（report のタイムゾーン）か値のある最後の日の遅い方までにする。
+  // 値は report を実行した時刻より後に置かれないので、--until に先の日付を渡しても、0 しか無い日を並べない。
+  // 指定しないときの終わりは記録と値の日なので打ち切らない（別のタイムゾーンの行で今日より後の日付になっても、期間の表示の始まりより前にならない）
+  const today = localParts(o.now, o.tz).date;
+  const cap = valueMax !== null && valueMax > today ? valueMax : today;
+  const last = o.until !== null && widened !== null && widened > cap ? cap : widened;
+  const days = first !== null && last !== null ? dateRange(first, last) : [];
+
   return {
     generatedAt: toIso(o.now),
     tz: o.tz,
-    period: periodLabel(rows, o),
+    // --until を指定しない側は、横軸と同じ最後の日を出す
+    period: formatPeriod(o.since ?? first, o.until ?? last),
     recordFiles: o.recordFiles,
     rows: rows.length,
     names,
     usage: usageOut,
     intervals,
     reviews,
-    stopByHour: STOP_CATEGORIES.map((c) => ({ category: c, byHour: byHour.get(c) ?? [] })),
+    statusByHour: STATUSES.map((c) => ({ status: c, byHour: byHour.get(c) ?? [] })),
+    days,
+    statusByDay: STATUSES.map((c) => ({
+      status: c,
+      byDay: days.map((date) => byDate.get(c)?.get(date) ?? 0),
+    })),
+    activeByPerson,
+    activeByIssue,
+    stopByPerson,
+    idleByIssue,
     runHistogram,
     dailyCost,
     unknownCostBuckets,

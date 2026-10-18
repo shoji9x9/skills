@@ -71,7 +71,11 @@
       "replace": "    const personEnd = periodEnd;",
       "occurrences": 1,
       "expect_failing": [
-        "停止の分類 report: 人ごとの停止は、その人が最後に記録した時刻（observed_at）で打ち切る"
+        "停止の分類 report: 人ごとの停止は、その人が最後に記録した時刻（observed_at）で打ち切る",
+        "日別のチャート 稼働中と停止を日ごと・時刻ごとに分けて積み上げ、使わなかった日は人数 × 24 時間の未活用にし、使い始める前の日は数えない",
+        "日別のチャート 停止は人のタイムゾーンの日付で分け、記録の最後の日より後に続いた停止の日も並べる",
+        "日別のチャート 人ごとの停止は、intervals.csv の丸めた分ではなく、丸める前の値から足す",
+        "日別のチャート 期間の終わりは、report のタイムゾーンではなく、人のタイムゾーンでの until の日の終わりにする（西）"
       ]
     },
     {
@@ -151,6 +155,245 @@
       "occurrences": 1,
       "expect_failing": [
         "費用 1 時間の途中でブランチを切り替えたら、切り替えた後のメッセージを切り替えた後のブランチに入れる。最初のブランチの行は元の key のまま"
+      ]
+    },
+    {
+      "id": "daily-axis-recorded-days-only",
+      "why": "日別のチャートの横軸を、費用の記録がある日だけにする",
+      "file": "skills/agent-usage/scripts/lib/report/html.mjs",
+      "find": "  const dates = d.days;",
+      "replace": "  const dates = d.days.filter((x) => d.dailyCost.some((c) => c.date === x));",
+      "occurrences": 1,
+      "expect_failing": [
+        "日別のチャート 記録の無い日も、日別の費用のチャートと表に 0 として並べる",
+        "日別のチャート since・until を指定したら、端の日に記録が無くても、その範囲のすべての日を並べる",
+        "日別のチャート 稼働中と停止を日ごと・時刻ごとに分けて積み上げ、使わなかった日は人数 × 24 時間の未活用にし、使い始める前の日は数えない"
+      ]
+    },
+    {
+      "id": "daily-axis-drops-values-outside-period",
+      "why": "人のタイムゾーンで --until の外の日に置かれた値を、日別の横軸から外す",
+      "file": "skills/agent-usage/scripts/lib/report/report.mjs",
+      "find": "  const widened = to !== null && valueMax !== null && valueMax > to ? valueMax : to;",
+      "replace": "  const widened = to;",
+      "occurrences": 1,
+      "expect_failing": [
+        "日別のチャート 停止は人のタイムゾーンの日付で分け、記録の最後の日より後に続いた停止の日も並べる"
+      ]
+    },
+    {
+      "id": "daily-stop-not-split-by-day",
+      "why": "日をまたぐ区間を、始まりの日にまとめて数える",
+      "file": "skills/agent-usage/scripts/lib/report/report.mjs",
+      "find": "      const date = h.date;",
+      "replace": "      const date = localParts(start, tz).date;",
+      "occurrences": 1,
+      "expect_failing": [
+        "日別のチャート 稼働中と停止を日ごと・時刻ごとに分けて積み上げ、使わなかった日は人数 × 24 時間の未活用にし、使い始める前の日は数えない",
+        "日別のチャート 停止は人のタイムゾーンの日付で分け、記録の最後の日より後に続いた停止の日も並べる"
+      ]
+    },
+    {
+      "id": "daily-stop-utc-days",
+      "why": "稼働状況の日付を、人のタイムゾーンではなく UTC で切る",
+      "file": "skills/agent-usage/scripts/lib/report/report.mjs",
+      "find": "      const date = h.date;",
+      "replace": "      const date = localParts(h.start, \"UTC\").date;",
+      "occurrences": 1,
+      "expect_failing": [
+        "日別のチャート 停止は人のタイムゾーンの日付で分け、記録の最後の日より後に続いた停止の日も並べる"
+      ]
+    },
+    {
+      "id": "day-label-year-omitted",
+      "why": "期間が年をまたいでも、日付の目盛りに年を書かない",
+      "file": "skills/agent-usage/scripts/lib/report/html.mjs",
+      "find": "  const dayLabel = (/** @type {string} */ l) => (spansYears ? l : l.slice(5));",
+      "replace": "  const dayLabel = (/** @type {string} */ l) => (false ? l : l.slice(5));",
+      "occurrences": 1,
+      "expect_failing": ["日別のチャート 期間が年をまたぐときは、日付の目盛りに年も書く"]
+    },
+    {
+      "id": "active-not-counted",
+      "why": "稼働中の時間を数えない",
+      "file": "skills/agent-usage/scripts/lib/report/report.mjs",
+      "find": "      addStatus(\"active\", a, end, tz);",
+      "replace": "      if (false) addStatus(\"active\", a, end, tz);",
+      "occurrences": 1,
+      "expect_failing": [
+        "停止の分類 HTML: 人ごとの表に、人ごとの費用・指示の数・稼働状況の内訳と、合計の行を出し、上部の稼働状況と同じ値にする",
+        "日別のチャート 稼働中と停止を日ごと・時刻ごとに分けて積み上げ、使わなかった日は人数 × 24 時間の未活用にし、使い始める前の日は数えない",
+        "日別のチャート 稼働中は、期間の終わりで打ち切る",
+        "日別のチャート 期間の終わりは、report のタイムゾーンではなく、人のタイムゾーンでの until の日の終わりにする（東）"
+      ]
+    },
+    {
+      "id": "active-not-clipped",
+      "why": "稼働中を、期間の終わりで打ち切らない",
+      "file": "skills/agent-usage/scripts/lib/report/report.mjs",
+      "find": "      const end = Math.min(b, periodEnd);",
+      "replace": "      const end = b;",
+      "occurrences": 1,
+      "expect_failing": [
+        "日別のチャート 稼働中は、期間の終わりで打ち切る",
+        "日別のチャート 期間の終わりは、report のタイムゾーンではなく、人のタイムゾーンでの until の日の終わりにする（東）"
+      ]
+    },
+    {
+      "id": "issue-active-not-split",
+      "why": "Issue ごとの稼働中で、同時に動いた Issue の数で等分しない",
+      "file": "skills/agent-usage/scripts/lib/report/report.mjs",
+      "find": "        activeByIssue[k] = (activeByIssue[k] ?? 0) + (next - t) / 3600000 / running.size;",
+      "replace": "        activeByIssue[k] = (activeByIssue[k] ?? 0) + (next - t) / 3600000;",
+      "occurrences": 1,
+      "expect_failing": [
+        "停止の分類 HTML: Issue ごとの表の稼働中は、外部待ちを含め、同時に動いた Issue の数で等分し、未活用は直前の指示の Issue に数える"
+      ]
+    },
+    {
+      "id": "issue-active-not-shown",
+      "why": "Issue ごとの表に稼働中を出さない",
+      "file": "skills/agent-usage/scripts/lib/report/html.mjs",
+      "find": "    issueOf(issue || \"(なし)\").active += hours;",
+      "replace": "    issueOf(issue || \"(なし)\").active += 0;",
+      "occurrences": 1,
+      "expect_failing": [
+        "停止の分類 HTML: Issue ごとの表の稼働中は、外部待ちを含め、同時に動いた Issue の数で等分し、未活用は直前の指示の Issue に数える"
+      ]
+    },
+    {
+      "id": "person-active-not-shown",
+      "why": "人ごとの表に稼働中を出さない",
+      "file": "skills/agent-usage/scripts/lib/report/html.mjs",
+      "find": "  for (const [id, hours] of Object.entries(d.activeByPerson)) addTo(id, \"active\", hours);",
+      "replace": "  for (const [id, hours] of Object.entries(d.activeByPerson)) addTo(id, \"active\", 0);",
+      "occurrences": 1,
+      "expect_failing": [
+        "停止の分類 HTML: 人ごとの表に、人ごとの費用・指示の数・稼働状況の内訳と、合計の行を出し、上部の稼働状況と同じ値にする"
+      ]
+    },
+    {
+      "id": "status-tile-not-from-chart",
+      "why": "上部の稼働状況に、チャートと同じ値を出さない",
+      "file": "skills/agent-usage/scripts/lib/report/html.mjs",
+      "find": "    d.statusByDay.map((s) => [s.status, s.byDay.reduce((a, b) => a + b, 0)]),",
+      "replace": "    d.statusByDay.map((s) => [s.status, 0]),",
+      "occurrences": 1,
+      "expect_failing": [
+        "停止の分類 HTML: 人ごとの表に、人ごとの費用・指示の数・稼働状況の内訳と、合計の行を出し、上部の稼働状況と同じ値にする"
+      ]
+    },
+    {
+      "id": "date-shape-only",
+      "why": "--since・--until が暦に在る日付かを確かめず、形だけで受け付ける",
+      "file": "skills/agent-usage/scripts/lib/report/report.mjs",
+      "find": "  return !Number.isNaN(t) && new Date(t).toISOString().slice(0, 10) === date;",
+      "replace": "  return true;",
+      "occurrences": 1,
+      "expect_failing": [
+        "runReport の入力の誤り --since（月が 0） の形が違えばエラーにする",
+        "runReport の入力の誤り --until（2 月 30 日） の形が違えばエラーにする"
+      ]
+    },
+    {
+      "id": "axis-not-capped-at-today",
+      "why": "--until に先の日付を渡すと、0 しか無い日まで横軸に並べる",
+      "file": "skills/agent-usage/scripts/lib/report/report.mjs",
+      "find": "  const last = o.until !== null && widened !== null && widened > cap ? cap : widened;",
+      "replace": "  const last = widened;",
+      "occurrences": 1,
+      "expect_failing": [
+        "日別のチャート --until に先の日付を渡しても、横軸は今日までにし、9999 年の終わりでも止まる"
+      ]
+    },
+    {
+      "id": "person-stop-rounded",
+      "why": "人ごとの停止を、intervals.csv と同じく小数第 1 位の分に丸めた値から足す",
+      "file": "skills/agent-usage/scripts/lib/report/report.mjs",
+      "find": "        myStops.set(p.category, (myStops.get(p.category) ?? 0) + (p.end - p.start) / 3600000);",
+      "replace": "        myStops.set(p.category, (myStops.get(p.category) ?? 0) + Number(((p.end - p.start) / 60000).toFixed(1)) / 60);",
+      "occurrences": 1,
+      "expect_failing": [
+        "日別のチャート 人ごとの停止は、intervals.csv の丸めた分ではなく、丸める前の値から足す"
+      ]
+    },
+    {
+      "id": "person-stop-not-shown",
+      "why": "人ごとの表に停止の時間を出さない",
+      "file": "skills/agent-usage/scripts/lib/report/html.mjs",
+      "find": "    for (const [c, hours] of stops) addTo(id, c, hours);",
+      "replace": "    for (const [c, hours] of stops) addTo(id, c, 0);",
+      "occurrences": 1,
+      "expect_failing": [
+        "停止の分類 HTML: 人ごとの表に、人ごとの費用・指示の数・稼働状況の内訳と、合計の行を出し、上部の稼働状況と同じ値にする"
+      ]
+    },
+    {
+      "id": "issue-idle-rounded",
+      "why": "Issue ごとの未活用を、intervals.csv と同じく小数第 1 位の分に丸めた値から足す",
+      "file": "skills/agent-usage/scripts/lib/report/report.mjs",
+      "find": "          idleByIssue[issue] = (idleByIssue[issue] ?? 0) + (p.end - p.start) / 3600000;",
+      "replace": "          idleByIssue[issue] = (idleByIssue[issue] ?? 0) + Number(((p.end - p.start) / 60000).toFixed(1)) / 60;",
+      "occurrences": 1,
+      "expect_failing": [
+        "日別のチャート 人ごとの停止は、intervals.csv の丸めた分ではなく、丸める前の値から足す"
+      ]
+    },
+    {
+      "id": "issue-idle-not-shown",
+      "why": "Issue ごとの表に未活用を出さない",
+      "file": "skills/agent-usage/scripts/lib/report/html.mjs",
+      "find": "    issueOf(issue || \"(なし)\").idle += hours;",
+      "replace": "    issueOf(issue || \"(なし)\").idle += 0;",
+      "occurrences": 1,
+      "expect_failing": [
+        "停止の分類 HTML: Issue ごとの表の稼働中は、外部待ちを含め、同時に動いた Issue の数で等分し、未活用は直前の指示の Issue に数える"
+      ]
+    },
+    {
+      "id": "period-end-in-report-tz",
+      "why": "期間の終わりを、人のタイムゾーンではなく report のタイムゾーンで決める",
+      "file": "skills/agent-usage/scripts/lib/report/report.mjs",
+      "find": "    const periodEnd = o.until ? Math.min(o.now, endOfLocalDate(o.until, tz)) : o.now;",
+      "replace": "    const periodEnd = o.until ? Math.min(o.now, endOfLocalDate(o.until, o.tz)) : o.now;",
+      "occurrences": 1,
+      "expect_failing": [
+        "日別のチャート 期間の終わりは、report のタイムゾーンではなく、人のタイムゾーンでの until の日の終わりにする（東）",
+        "日別のチャート 期間の終わりは、report のタイムゾーンではなく、人のタイムゾーンでの until の日の終わりにする（西）",
+        "日別のチャート 1 人の記録が複数のタイムゾーンにまたがっても、稼働状況は最初の run のタイムゾーンの期間で数える"
+      ]
+    },
+    {
+      "id": "status-runs-not-filtered",
+      "why": "最初の run のタイムゾーンで期間の終わりより後に始まる run も、稼働状況に数える",
+      "file": "skills/agent-usage/scripts/lib/report/report.mjs",
+      "find": "    const statusRuns = runs.filter((r) => r.span[0] < periodEnd);",
+      "replace": "    const statusRuns = runs.filter(() => true);",
+      "occurrences": 1,
+      "expect_failing": [
+        "日別のチャート 1 人の記録が複数のタイムゾーンにまたがっても、稼働状況は最初の run のタイムゾーンの期間で数える"
+      ]
+    },
+    {
+      "id": "axis-capped-without-until",
+      "why": "--until を指定しないときも横軸と期間の表示の終わりを今日で打ち切る",
+      "file": "skills/agent-usage/scripts/lib/report/report.mjs",
+      "find": "  const last = o.until !== null && widened !== null && widened > cap ? cap : widened;",
+      "replace": "  const last = widened !== null && widened > cap ? cap : widened;",
+      "occurrences": 1,
+      "expect_failing": [
+        "日別のチャート --until を指定しないときは、別のタイムゾーンの行で今日より後の日付になっても、期間の終わりを始まりより前にしない"
+      ]
+    },
+    {
+      "id": "person-zero-dropped",
+      "why": "稼働状況に数える run が無い人を、人ごとの稼働中に入れない",
+      "file": "skills/agent-usage/scripts/lib/report/report.mjs",
+      "find": "    activeByPerson[person] = 0;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "日別のチャート 稼働状況に数える run が無い人も、人ごとの稼働中と停止は 0 として持つ"
       ]
     }
   ]
