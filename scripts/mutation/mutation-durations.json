@@ -81,6 +81,7 @@
     "scripts/hooks/response-word-check.mutations.json": 1.4,
     "scripts/lib/text/textlint-word-rule.mutations.json": 0.9,
     "scripts/gates/packaging/copies/check-rule-symlinks.mutations.json": 0.8,
+    "scripts/gates/packaging/copies/check-skills-sync.mutations.json": 2.2,
     "scripts/lib/text/frontmatter.mutations.json": 0.7,
     "scripts/lib/text/yaml-as.mutations.json": 0.7,
     "scripts/hooks/stop-marker.mutations.json": 0.6,

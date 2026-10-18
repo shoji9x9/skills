@@ -15,29 +15,36 @@
       "expect_failing": [
         "同じとみなす: キーの順だけが違う",
         "違うとみなす: 集合（!!set）の中身が違う",
-        "違うとみなす: 日付と、同じ ISO 8601 の文字列"
+        "違うとみなす: 日付と、同じ ISO 8601 の文字列",
+        "同じとみなす: 自分自身を参照する配列のエイリアス",
+        "同じとみなす: 自分自身を参照するマッピングのエイリアス"
       ]
     },
     {
       "id": "SS-LOCAL-PATH",
       "why": "`gh skill install` が足す metadata.local-path を除かない（インストールしただけで差分として報告する）",
       "file": "scripts/lib/text/frontmatter.ts",
-      "find": "delete obj.metadata[\"local-path\"];",
+      "find": "delete metadata[\"local-path\"];",
       "replace": "void 0;",
       "occurrences": 1,
       "expect_failing": [
         "同じとみなす: コピーにだけ metadata.local-path がある",
-        "同じとみなす: local-path 以外の metadata は残る"
+        "同じとみなす: local-path 以外の metadata は残る",
+        "同じとみなす: metadata が null と、gh skill install が local-path だけを足したコピー",
+        "同じとみなす: metadata がエイリアスで、アンカー側にも local-path がある"
       ]
     },
     {
       "id": "SS-EMPTY-METADATA",
       "why": "local-path を除いて空になった metadata を残す（metadata の無い原本と違うと報告する）",
       "file": "scripts/lib/text/frontmatter.ts",
-      "find": "if (Object.keys(obj.metadata).length === 0) delete obj.metadata;",
+      "find": "if (Object.keys(metadata).length === 0) delete obj.metadata;",
       "replace": "if (false) delete obj.metadata;",
       "occurrences": 1,
-      "expect_failing": ["同じとみなす: コピーにだけ metadata.local-path がある"]
+      "expect_failing": [
+        "同じとみなす: コピーにだけ metadata.local-path がある",
+        "同じとみなす: metadata が null と、gh skill install が local-path だけを足したコピー"
+      ]
     },
     {
       "id": "SS-METADATA-ANY-OBJECT",
@@ -56,6 +63,92 @@
       "replace": "(fmText) || {};",
       "occurrences": 1,
       "expect_failing": ["違うとみなす: スカラーの false と空"]
+    },
+    {
+      "id": "SS-ALIAS-IN-PLACE",
+      "why": "metadata を浅くコピーせずその場で local-path を消す（エイリアスのアンカー側の値からも消える。#651）",
+      "file": "scripts/lib/text/frontmatter.ts",
+      "find": "const metadata = { ...obj.metadata };",
+      "replace": "const metadata = obj.metadata;",
+      "occurrences": 1,
+      "expect_failing": [
+        "同じとみなす: metadata がエイリアスで、アンカー側にも local-path がある",
+        "違うとみなす: metadata がエイリアスで、アンカー側の local-path だけが違う"
+      ]
+    },
+    {
+      "id": "SS-NULL-METADATA-KEPT",
+      "why": "null の metadata を除かない（gh skill install が local-path だけを足したコピーと違うと報告する。#651）",
+      "file": "scripts/lib/text/frontmatter.ts",
+      "find": "if (isPlainObject(obj) && obj.metadata === null) delete obj.metadata;",
+      "replace": "if (false) delete obj.metadata;",
+      "occurrences": 1,
+      "expect_failing": [
+        "同じとみなす: metadata が null（`~`）と、metadata が無い",
+        "同じとみなす: metadata が null と、gh skill install が local-path だけを足したコピー"
+      ]
+    },
+    {
+      "id": "SS-NEGATIVE-ZERO-KEPT",
+      "why": "負のゼロを 0 にそろえない（-0 と 0 を違うと報告する。#651）",
+      "file": "scripts/lib/text/frontmatter.ts",
+      "find": "if (Object.is(value, -0)) return 0;",
+      "replace": "if (false) return 0;",
+      "occurrences": 1,
+      "expect_failing": [
+        "同じとみなす: metadata の中と配列の中の -0 と 0",
+        "同じとみなす: スカラーの -0 と 0",
+        "同じとみなす: 数値の -0 と 0",
+        "同じとみなす: 浮動小数点数の -0.0 と 0.0",
+        "同じとみなす: 自分自身を参照するマッピングのエイリアス"
+      ]
+    },
+    {
+      "id": "SS-NEGATIVE-ZERO-TOP-ONLY",
+      "why": "配列の要素の負のゼロをたどらない（配列の中の -0 と 0 を違うと報告する）",
+      "file": "scripts/lib/text/frontmatter.ts",
+      "find": "if (!isArray(value) && !isPlainObject(value)) return value;",
+      "replace": "if (!isPlainObject(value)) return value;",
+      "occurrences": 1,
+      "expect_failing": ["同じとみなす: metadata の中と配列の中の -0 と 0"]
+    },
+    {
+      "id": "SS-NEGATIVE-ZERO-NO-SEEN",
+      "why": "訪れた値を覚えない（自分自身を参照するエイリアスで再帰が止まらず、例外にする）",
+      "file": "scripts/lib/text/frontmatter.ts",
+      "find": "if (seen.has(value)) return value;",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "同じとみなす: 自分自身を参照する配列のエイリアス",
+        "同じとみなす: 自分自身を参照するマッピングのエイリアス"
+      ]
+    },
+    {
+      "id": "SS-METADATA-COPY-NOT-STORED",
+      "why": "local-path を除いた metadata のコピーを戻さない（元の local-path 付きの metadata が残り、インストールしただけで差分として報告する）",
+      "file": "scripts/lib/text/frontmatter.ts",
+      "find": "else obj.metadata = metadata;",
+      "replace": "else void 0;",
+      "occurrences": 1,
+      "expect_failing": [
+        "同じとみなす: local-path 以外の metadata は残る",
+        "同じとみなす: metadata がエイリアスで、アンカー側にも local-path がある"
+      ]
+    },
+    {
+      "id": "SS-NEGATIVE-ZERO-NOT-STORED",
+      "why": "入れ子の負のゼロを 0 にした結果を書き戻さない（マッピングと配列の中の -0 と 0 を違うと報告する）",
+      "file": "scripts/lib/text/frontmatter.ts",
+      "find": "Reflect.set(value, key, zeroNegativeZeros(item, seen));",
+      "replace": "zeroNegativeZeros(item, seen);",
+      "occurrences": 1,
+      "expect_failing": [
+        "同じとみなす: 数値の -0 と 0",
+        "同じとみなす: metadata の中と配列の中の -0 と 0",
+        "同じとみなす: 浮動小数点数の -0.0 と 0.0",
+        "同じとみなす: 自分自身を参照するマッピングのエイリアス"
+      ]
     }
   ]
 }
