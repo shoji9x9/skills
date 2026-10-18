@@ -20,5 +20,5 @@ eval 27 の assertion は変えず、1453ff99 の版で with_skill だけを実�
 ## 備考
 
 - with_skill は iteration-16・17 と同じく 6/6 で、項目の書き方を直した後も下がっていない。
-- この run の後の commit は、承認を得た形を利用者の決定として `approval.ref`・`tracked_in` 付きで欄の最後に並べることと、SKILL.md にその 1 文を足すことだけである。
+- この run の後の commit は、承認を得た形に `approval.ref`（`deferred` なら `tracked_in` も）を添える 1 文だけである。
   eval 27 の場面には承認を得た形が無く、結論は変わらないので、実行し直していない。
