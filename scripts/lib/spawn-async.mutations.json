@@ -36,7 +36,6 @@
         "spawnAsync 起動できなければ reject せず、error を持つ結果を返す（spawnSync と同じ）",
         "spawnAsync timeout を過ぎたら、孫プロセスが stdout を持っていても止めて ETIMEDOUT を返す（spawnSync と同じ）",
         "spawnAsync 子が先に終わっても、孫プロセスが stdout を持ったまま timeout を過ぎたら ETIMEDOUT を返す（spawnSync と同じ）",
-        "spawnAsync timeout で止めるときは、stdout を持つ孫プロセスも止める",
         "spawnAsync 別のプロセスグループの孫が stdout を持っていても、timeout で返す"
       ]
     },
@@ -68,12 +67,11 @@
       "id": "timeout-not-killed",
       "why": "timeout を過ぎても子を止めない",
       "file": "scripts/lib/spawn-async.ts",
-      "find": "        if (child.pid !== undefined) process.kill(-child.pid, \"SIGTERM\");",
+      "find": "      child.kill(\"SIGTERM\");",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "spawnAsync timeout を過ぎたら、孫プロセスが stdout を持っていても止めて ETIMEDOUT を返す（spawnSync と同じ）",
-        "spawnAsync timeout で止めるときは、stdout を持つ孫プロセスも止める"
+        "spawnAsync timeout を過ぎたら、孫プロセスが stdout を持っていても止めて ETIMEDOUT を返す（spawnSync と同じ）"
       ]
     },
     {
@@ -84,7 +82,9 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "spawnAsync 別のプロセスグループの孫が stdout を持っていても、timeout で返す"
+        "spawnAsync 別のプロセスグループの孫が stdout を持っていても、timeout で返す",
+        "spawnAsync timeout を過ぎたら、孫プロセスが stdout を持っていても止めて ETIMEDOUT を返す（spawnSync と同じ）",
+        "spawnAsync 子が先に終わっても、孫プロセスが stdout を持ったまま timeout を過ぎたら ETIMEDOUT を返す（spawnSync と同じ）"
       ]
     },
     {
@@ -97,27 +97,8 @@
       "expect_failing": [
         "spawnAsync timeout を過ぎたら、孫プロセスが stdout を持っていても止めて ETIMEDOUT を返す（spawnSync と同じ）",
         "spawnAsync 子が先に終わっても、孫プロセスが stdout を持ったまま timeout を過ぎたら ETIMEDOUT を返す（spawnSync と同じ）",
-        "spawnAsync timeout で止めるときは、stdout を持つ孫プロセスも止める",
         "spawnAsync 別のプロセスグループの孫が stdout を持っていても、timeout で返す"
       ]
-    },
-    {
-      "id": "group-not-killed",
-      "why": "timeout のときに子だけを止め、孫プロセスを残す",
-      "file": "scripts/lib/spawn-async.ts",
-      "find": "        if (child.pid !== undefined) process.kill(-child.pid, \"SIGTERM\");",
-      "replace": "        child.kill(\"SIGTERM\");",
-      "occurrences": 1,
-      "expect_failing": ["spawnAsync timeout で止めるときは、stdout を持つ孫プロセスも止める"]
-    },
-    {
-      "id": "not-detached",
-      "why": "自分のプロセスグループで起動しない",
-      "file": "scripts/lib/spawn-async.ts",
-      "find": "      detached: true,\n",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": ["spawnAsync timeout で止めるときは、stdout を持つ孫プロセスも止める"]
     }
   ]
 }

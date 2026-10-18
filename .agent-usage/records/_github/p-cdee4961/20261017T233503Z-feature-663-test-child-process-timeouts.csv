@@ -84,3 +84,7 @@ coverage:github:2026-10-17T00:17:40.630Z:2026-10-18T00:38:42.644Z,coverage,2026-
 coverage:github:2026-10-17T00:38:42.644Z:2026-10-18T00:39:11.631Z,coverage,2026-10-18T00:39:11.631Z,p-cdee4961,,,,,2026-10-17T00:38:42.644Z,2026-10-18T00:39:11.631Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-17T00:39:11.631Z:2026-10-18T00:40:04.731Z,coverage,2026-10-18T00:40:04.731Z,p-cdee4961,,,,,2026-10-17T00:39:11.631Z,2026-10-18T00:40:04.731Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-17T00:40:04.731Z:2026-10-18T00:41:07.253Z,coverage,2026-10-18T00:41:07.253Z,p-cdee4961,,,,,2026-10-17T00:40:04.731Z,2026-10-18T00:41:07.253Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:39083800518:1,ci,2026-10-18T00:59:49.915Z,p-cdee4961,github-actions,,,,2026-10-18T00:43:13.000Z,2026-10-18T00:43:14.000Z,Asia/Tokyo,feature/663-test-child-process-timeouts,663,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:39083800634:1,ci,2026-10-18T00:59:49.915Z,p-cdee4961,github-actions,,,,2026-10-18T00:43:13.000Z,2026-10-18T00:56:58.000Z,Asia/Tokyo,feature/663-test-child-process-timeouts,663,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-17T00:41:07.253Z:2026-10-18T00:59:49.915Z,coverage,2026-10-18T00:59:49.915Z,p-cdee4961,,,,,2026-10-17T00:41:07.253Z,2026-10-18T00:59:49.915Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-17T00:59:49.915Z:2026-10-18T01:04:06.631Z,coverage,2026-10-18T01:04:06.631Z,p-cdee4961,,,,,2026-10-17T00:59:49.915Z,2026-10-18T01:04:06.631Z,Asia/Tokyo,,,,,,,,,,,,ok,

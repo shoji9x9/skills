@@ -212,6 +212,61 @@ describe("findUntimedChildCalls", () => {
       ["1: export（再エクスポート）"],
     ],
     ["export *", 'export * from "node:child_process";', ["1: export（再エクスポート）"]],
+    [
+      "default の再エクスポート",
+      'export { default as cp } from "node:child_process";',
+      ["1: export（再エクスポート）"],
+    ],
+    [
+      "test.beforeEach の hookTimeout 以上",
+      `${IMPORT}test.beforeEach(() => {\n  spawnSync("node", [], { timeout: CHILD_TIMEOUT_MS });\n});`,
+      ["3: spawnSync（timeout 25000 がテストの timeout 10000 以上）"],
+    ],
+    [
+      "ctx.onTestFinished の hookTimeout 以上",
+      `${IMPORT}test("t", (ctx) => {\n  ctx.onTestFinished(() => {\n    spawnSync("node", [], { timeout: CHILD_TIMEOUT_MS });\n  });\n});`,
+      ["4: spawnSync（timeout 25000 がテストの timeout 10000 以上）"],
+    ],
+    [
+      "test.suite の timeout 以上",
+      `${IMPORT}test.suite("d", { timeout: 5_000 }, () => {\n  test("t", () => {\n    spawnSync("node", [], { timeout: CHILD_TIMEOUT_MS });\n  });\n});`,
+      ["4: spawnSync（timeout 25000 がテストの timeout 5000 以上）"],
+    ],
+    [
+      "括弧の中の undefined",
+      `${IMPORT}spawnSync("node", [], { timeout: (undefined) });`,
+      ["2: spawnSync"],
+    ],
+    [
+      "型の表明を付けた undefined",
+      `${IMPORT}spawnSync("node", [], { timeout: undefined as unknown as number });`,
+      ["2: spawnSync"],
+    ],
+    [
+      "条件式の枝の undefined",
+      `${IMPORT}spawnSync("node", [], { timeout: slow ? undefined : 1000 });`,
+      ["2: spawnSync"],
+    ],
+    [
+      "|| undefined",
+      `${IMPORT}spawnSync("node", [], { timeout: limit || undefined });`,
+      ["2: spawnSync"],
+    ],
+    [
+      "括弧の中の testTimeout 以上",
+      `${IMPORT}spawnSync("node", [], { timeout: (30_000) });`,
+      ["2: spawnSync（timeout 30000 がテストの timeout 30000 以上）"],
+    ],
+    [
+      "名前空間の別名",
+      'import * as cp from "node:child_process";\nimport cp2 = cp;\ncp2.spawnSync("node", []);',
+      ["3: spawnSync"],
+    ],
+    [
+      "import より前に書いた別名",
+      'import run = cp.spawnSync;\nimport * as cp from "node:child_process";\nrun("node", []);',
+      ["3: spawnSync"],
+    ],
   ])("タイムアウトの無い起動（%s）を拾う", (_, source, expected) => {
     expect(findUntimedChildCalls(source)).toEqual(expected);
   });
@@ -302,6 +357,10 @@ describe("findUntimedChildCalls", () => {
       'export { SpawnAsyncResult } from "./spawn-async.ts";',
     ],
     ["type を付けた名前の再エクスポート", 'export { type spawnSync } from "node:child_process";'],
+    [
+      "test.suite の本体の直下の起動は、describe の timeout と比べない",
+      `${IMPORT}test.suite("d", { timeout: 5_000 }, () => {\n  spawnSync("node", [], { timeout: CHILD_TIMEOUT_MS });\n});`,
+    ],
   ])("拾わない（%s）", (_, source) => {
     expect(findUntimedChildCalls(source)).toEqual([]);
   });
@@ -338,7 +397,8 @@ test("CHILD_TIMEOUT_MS は vitest の testTimeout より短く、TEST_TIMEOUT_MS
     Number(m[1].replaceAll("_", "")),
   );
   // 数値で書いていない hookTimeout（変数など）は読めないので、書いた数だけ数値で読めることも確かめる。
-  expect(hooks.length).toBe(config.match(/hookTimeout/gu)?.length ?? 0);
+  // コメントの中の語は数えないよう、キーの形（`hookTimeout:`）で数える。
+  expect(hooks.length).toBe(config.match(/hookTimeout\s*:/gu)?.length ?? 0);
   for (const hook of hooks.length > 0 ? hooks : [10_000]) expect(HOOK_TIMEOUT_MS).toBe(hook);
 });
 

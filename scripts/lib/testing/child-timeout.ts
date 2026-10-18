@@ -88,7 +88,8 @@ const SPAWN_ASYNC_MEMBERS: ReadonlySet<string> = new Set(["spawnAsync"]);
 function childProcessNames(source: ts.SourceFile): SpawnerNames {
   const functions = new Map<string, string>();
   const namespaces = new Map<string, ReadonlySet<string>>();
-  for (const statement of source.statements) {
+  // 別名（`import run = cp.spawnSync`）は、元の import より前に書いても読めるよう、文を 2 回たどる。
+  for (const statement of [...source.statements, ...source.statements]) {
     // `import cp = require("node:child_process")` は名前空間の import と同じに扱う。
     if (
       ts.isImportEqualsDeclaration(statement) &&
@@ -97,6 +98,12 @@ function childProcessNames(source: ts.SourceFile): SpawnerNames {
     ) {
       const members = membersOf(statement.moduleReference.expression.text);
       if (members !== undefined) namespaces.set(statement.name.text, members);
+      continue;
+    }
+    // `import cp2 = cp` は、名前空間の別名として扱う。
+    if (ts.isImportEqualsDeclaration(statement) && ts.isIdentifier(statement.moduleReference)) {
+      const aliased = namespaces.get(statement.moduleReference.text);
+      if (aliased !== undefined) namespaces.set(statement.name.text, aliased);
       continue;
     }
     // `import run = cp.spawnSync` は、名前空間のメンバーの別名として扱う。
@@ -225,21 +232,40 @@ function childTimeout(call: ts.CallExpression): number | null | undefined {
   return undefined;
 }
 
+/** 括弧と型の表明（`(x)`・`x as T`・`<T>x`・`x!`・`x satisfies T`）を外した式。値は変わらない。 */
+function unwrap(expression: ts.Expression): ts.Expression {
+  let e = expression;
+  while (
+    ts.isParenthesizedExpression(e) ||
+    ts.isAsExpression(e) ||
+    ts.isTypeAssertionExpression(e) ||
+    ts.isNonNullExpression(e) ||
+    ts.isSatisfiesExpression(e)
+  )
+    e = e.expression;
+  return e;
+}
+
 /**
- * `undefined` になる値か（`undefined`・`void 0`・右辺がそれらの `x ?? y`）。Node は `timeout: undefined` をタイムアウトなしとして扱う。
+ * `undefined` になりうる値か。Node は `timeout: undefined` をタイムアウトなしとして扱う。
+ * 括弧と型の表明（`as`・`!`・`satisfies`）を外して読み、`x ?? y`・`x || y` は y を、条件式はどちらかの枝を見る。
  */
 function isUndefined(expression: ts.Expression): boolean {
-  if (ts.isIdentifier(expression)) return expression.text === "undefined";
-  if (ts.isVoidExpression(expression)) return true;
+  const e = unwrap(expression);
+  if (ts.isIdentifier(e)) return e.text === "undefined";
+  if (ts.isVoidExpression(e)) return true;
+  if (ts.isConditionalExpression(e)) return isUndefined(e.whenTrue) || isUndefined(e.whenFalse);
   return (
-    ts.isBinaryExpression(expression) &&
-    expression.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken &&
-    isUndefined(expression.right)
+    ts.isBinaryExpression(e) &&
+    (e.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken ||
+      e.operatorToken.kind === ts.SyntaxKind.BarBarToken) &&
+    isUndefined(e.right)
   );
 }
 
 /** 数値のリテラルか `CHILD_TIMEOUT_MS` のミリ秒。`x ?? y` は y の値を返す。それ以外の式は null。 */
-function msOf(expression: ts.Expression): number | null {
+function msOf(outer: ts.Expression): number | null {
+  const expression = unwrap(outer);
   if (ts.isNumericLiteral(expression)) return Number(expression.text);
   if (ts.isIdentifier(expression) && expression.text === "CHILD_TIMEOUT_MS")
     return CHILD_TIMEOUT_MS;
@@ -255,8 +281,9 @@ function msOf(expression: ts.Expression): number | null {
 const TEST_CALLEE = /^(test|it)(\.\w+|<[^]*>|\([^]*\))*$/u;
 
 /** vitest の Hook を登録する呼び出しの名前。Hook は testTimeout ではなく hookTimeout で打ち切られる。 */
+// `test.beforeEach`・`ctx.onTestFinished` のように、オブジェクトのメンバーとして呼ぶ形も含める。
 const HOOK_CALLEE =
-  /^(beforeAll|beforeEach|afterAll|afterEach|aroundAll|aroundEach|onTestFinished|onTestFailed)$/u;
+  /^(\w+\.)?(beforeAll|beforeEach|afterAll|afterEach|aroundAll|aroundEach|onTestFinished|onTestFailed)$/u;
 
 /** vitest の hookTimeout のデフォルト（ミリ秒）。vitest.config.ts が hookTimeout を書かないときの値。 */
 export const HOOK_TIMEOUT_MS = 10_000;
@@ -276,7 +303,8 @@ function enclosingTestTimeout(node: ts.Node, source: ts.SourceFile): number | nu
     if (!ts.isCallExpression(current)) continue;
     const callee = current.expression.getText(source);
     const hook = HOOK_CALLEE.test(callee);
-    if (!hook && !TEST_CALLEE.test(callee)) continue;
+    // `test.suite` は describe なので、テストとして読まない（describe の timeout は describeTimeout が読む）。
+    if (!hook && (DESCRIBE_CALLEE.test(callee) || !TEST_CALLEE.test(callee))) continue;
     // テストの名前や each の表の中ではなく、本体の関数の中にあるときだけ、そのテストで打ち切られる。
     const body = current.arguments.find((arg) => ts.isFunctionLike(arg));
     if (body === undefined || node.pos < body.pos || node.end > body.end) continue;
@@ -306,7 +334,7 @@ function writtenTimeout(call: ts.CallExpression, body: ts.Expression): number | 
 }
 
 /** vitest の describe を登録する呼び出しの名前（`describe`・別名の `suite` と、`.concurrent`・`.each(...)`・型引数などを付けた形）。 */
-const DESCRIBE_CALLEE = /^(describe|suite)(\.\w+|<[^]*>|\([^]*\))*$/u;
+const DESCRIBE_CALLEE = /^((test|it)\.)?(describe|suite)(\.\w+|<[^]*>|\([^]*\))*$/u;
 
 /** テストを囲む describe のうち、いちばん内側で timeout を書いたものの timeout（書いたものが無ければ undefined）。 */
 function describeTimeout(test: ts.Node, source: ts.SourceFile): number | null | undefined {
@@ -360,7 +388,11 @@ function isSpawnerReexport(node: ts.Node, names: SpawnerNames): boolean {
   // `export * from` と `export * as ns from` は、起動の関数をすべて含む。
   if (clause === undefined || ts.isNamespaceExport(clause)) return true;
   return clause.elements.some(
-    (element) => !element.isTypeOnly && members.has((element.propertyName ?? element.name).text),
+    // default は名前空間と同じに扱う（default import を名前空間として読むのと同じ）。
+    (element) => {
+      const name = (element.propertyName ?? element.name).text;
+      return !element.isTypeOnly && (members.has(name) || name === "default");
+    },
   );
 }
 

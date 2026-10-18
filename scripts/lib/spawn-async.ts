@@ -34,28 +34,19 @@ export function spawnAsync(
 ): Promise<SpawnAsyncResult> {
   const { input, timeout, ...spawnOptions } = options;
   return new Promise((resolve) => {
-    // 自分のプロセスグループで起動し、timeout のときに孫プロセスまで止められるようにする。
-    const child = spawn(command, args, {
-      ...spawnOptions,
-      detached: true,
-      stdio: ["pipe", "pipe", "pipe"],
-    });
+    // 子は vitest と同じプロセスグループで起動する。別のグループに入れると、Ctrl-C や worker の終了で子と孫が残る。
+    const child = spawn(command, args, { ...spawnOptions, stdio: ["pipe", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     let error: Error | undefined;
     // spawn の `timeout` は子に SIGTERM を送るだけで、孫プロセスが stdout・stderr を持っている間は `close` が来ない。
     // そこで自分で止め、stdout・stderr を読むのをやめて、`spawnSync` と同じ時間で返す。
-    // 読むのをやめるのは、別のプロセスグループに入った孫（setsid など）が stdout を持ち続ける場合のためである。
+    // 孫プロセスは止めない（`spawnSync` も子にだけ送る）。読むのをやめるので、孫が stdout を持ち続けても返る。
     // 子が先に終わっても孫が stdout を持っていれば `close` は来ないので、タイマーは `close` まで止めない（`spawnSync` も同じく ETIMEDOUT を返す）。
     let timedOut = false;
     const timer = setTimeout(() => {
       timedOut = true;
-      // 子が先に終わっていても、stdout を持つ孫が残るので、プロセスグループに送る。グループが無ければ子だけに送る。
-      try {
-        if (child.pid !== undefined) process.kill(-child.pid, "SIGTERM");
-      } catch {
-        child.kill("SIGTERM");
-      }
+      child.kill("SIGTERM");
       child.stdout.destroy();
       child.stderr.destroy();
     }, timeout);

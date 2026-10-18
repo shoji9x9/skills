@@ -129,7 +129,7 @@ fixture も、原本（テンプレート・スキーマの文書・同梱の雛
   テストが `timeout` を書いていなければ、囲む `describe`（`suite`）の `timeout` と比べる。
   補助の関数の中の呼び出しは、どのテストから呼ばれるかを追えないので、`testTimeout` と比べる。
   `testTimeout` と長さが違うテストから補助の関数を呼ぶときは、補助の関数に子プロセスの `timeout` を引数で渡し、`timeout: options.timeout ?? CHILD_TIMEOUT_MS` の形で受ける。
-  `timeout: 0` と `undefined` になる値（`undefined`・`void 0`・`x ?? undefined`。Node ではタイムアウトなし）と、`timeout` のキーより後ろのスプレッドは、付いていないものとして検出する。
+  `timeout: 0` と `undefined` になりうる値（`undefined`・`void 0`・`x ?? undefined`・枝が `undefined` の条件式。Node ではタイムアウトなし）と、`timeout` のキーより後ろのスプレッドは、付いていないものとして検出する。
   起動の関数を呼び出し以外で参照する書き方（変数への代入・`promisify`・名前空間の分割代入）と、`child_process` と spawn-async から起動の関数を再エクスポートする書き方（`export { spawnSync } from`・`export *`・`export import`）も検出する。
   1 つのテストで順に起動する子プロセスの `timeout` の合計は比べないので、合計がテストの `timeout` を超えないようにする
 
