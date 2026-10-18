@@ -79,7 +79,7 @@ git status --short --untracked-files=all -- ':/.agent-usage/records'
 
 ## 記録と集計の取り決め
 
-記録のファイルの構成、行の種類、費用の決め方、稼働と停止の分類、重複の除き方は [`references/records.md`](references/records.md) で定義する。
+記録のファイルの構成、行の種類、費用の決め方、稼働状況（稼働中の時間と、分類した停止の時間）、重複の除き方は [`references/records.md`](references/records.md) で定義する。
 ここには書き写さない。集計の結果を説明するときや、記録を手で直すときは読む。
 
 PR のレビューの費用（自分の GitHub Actions で実行するレビュー・Copilot・`@codex review`）の扱いと、Actions に足す手順の雛形は [`references/reviews.md`](references/reviews.md) にある。

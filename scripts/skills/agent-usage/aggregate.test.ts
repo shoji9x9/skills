@@ -25,10 +25,17 @@ import {
   buildReport,
   classifySpan,
   endOfLocalDate,
-  periodLabel,
+  dateRange,
+  formatPeriod,
+  periodBounds,
   runReport,
 } from "../../../skills/agent-usage/scripts/lib/report/report.mjs";
-import { renderHtml, STOP_LABELS } from "../../../skills/agent-usage/scripts/lib/report/html.mjs";
+import {
+  renderHtml,
+  STATUS_LABELS,
+  STOP_LABELS,
+} from "../../../skills/agent-usage/scripts/lib/report/html.mjs";
+import { STATUSES } from "../../../skills/agent-usage/scripts/lib/report/categories.mjs";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { emptySummary } from "../../../skills/agent-usage/scripts/lib/sources/session.mjs";
 import {
@@ -676,7 +683,81 @@ describe("停止の分類", () => {
     ]);
   });
 
-  test("HTML: 人ごとの表に、人ごとの費用・指示の数・停止の内訳と、合計の行を出す", () => {
+  test("HTML: Issue ごとの表の稼働中は、外部待ちを含め、同時に動いた Issue の数で等分し、未活用は直前の指示の Issue に数える", () => {
+    const base = {
+      observed_at: "2026-10-01T05:00:00.000Z",
+      person: "p-00000001",
+      tz: "UTC",
+      kind: "run",
+      detail: "prompt",
+    };
+    const rows = [
+      // Issue 1 の指示が 2 つ重なる（1〜3 時と 2 時半〜3 時半）。最初の指示には 1 時間の外部待ちがある
+      {
+        ...base,
+        key: "a",
+        issue: "1",
+        start: "2026-10-01T01:00:00.000Z",
+        end: "2026-10-01T03:00:00.000Z",
+        wait_ms: "3600000",
+      },
+      {
+        ...base,
+        key: "b",
+        issue: "1",
+        start: "2026-10-01T02:30:00.000Z",
+        end: "2026-10-01T03:30:00.000Z",
+      },
+      // 同じ人が同時に動かした Issue 2 の指示（2〜4 時）
+      {
+        ...base,
+        key: "c",
+        issue: "2",
+        start: "2026-10-01T02:00:00.000Z",
+        end: "2026-10-01T04:00:00.000Z",
+      },
+      // 4〜5 時は止まっていた（GitHub は取得済みなので未活用）。直前に動いていたのは Issue 2 の指示
+      {
+        key: "cov",
+        kind: "coverage",
+        observed_at: "2026-10-01T05:00:00.000Z",
+        person: "p-00000001",
+        tz: "UTC",
+        start: "2026-10-01T00:00:00.000Z",
+        end: "2026-10-01T06:00:00.000Z",
+        detail: "ok",
+      },
+    ];
+    const r = buildReport(rows, {
+      config: parseRepoConfig({}),
+      bundledPricing: {},
+      bundledReviewPricing: {},
+      tz: "UTC",
+      now: Date.parse("2026-10-01T05:00:00Z"),
+      since: null,
+      until: null,
+      recordFiles: 1,
+    });
+    // 1〜2 時は Issue 1 だけ、2〜3 時半は 2 つの Issue で等分、3 時半〜4 時は Issue 2 だけ
+    expect(r.activeByIssue).toEqual({ "1": 1.75, "2": 1.25 });
+    // Issue ごとの合計は、人ごとの稼働中と一致する
+    expect(r.activeByPerson).toEqual({ "p-00000001": 3 });
+    expect(r.idleByIssue).toEqual({ "2": 1 });
+    const html = renderHtml(r);
+    const start = html.indexOf("<h2>Issue ごと");
+    const section = html.slice(start, html.indexOf("</section>", start));
+    const rowsOf = [...section.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)].map((m) =>
+      [...m[1].matchAll(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/g)].map((c) => c[1]),
+    );
+    expect(rowsOf).toEqual([
+      ["Issue", "指示の数", `${STATUS_LABELS.active}（時間）`, `${STOP_LABELS.idle}（時間）`],
+      ["1", "2", "1.8", "0.0"],
+      ["2", "1", "1.3", "1.0"],
+      ["合計（すべての Issue）", "3", "3.0", "1.0"],
+    ]);
+  });
+
+  test("HTML: 人ごとの表に、人ごとの費用・指示の数・稼働状況の内訳と、合計の行を出し、上部の稼働状況と同じ値にする", () => {
     const base = { observed_at: "2026-10-02T00:00:00.000Z", tz: "UTC" };
     const rows = [
       {
@@ -710,6 +791,7 @@ describe("停止の分類", () => {
         person: "p-00000001",
         start: "2026-10-01T01:00:00.000Z",
         end: "2026-10-01T02:00:00.000Z",
+        wait_ms: "1800000",
         detail: "prompt",
       },
     ];
@@ -738,18 +820,31 @@ describe("停止の分類", () => {
     expect(byId.get("p-00000002")).toMatchObject({
       表示名: "花子",
       費用: "$2.50",
-      稼働の回数: "0",
+      指示の数: "0",
     });
-    // p-00000001 は 1〜2 時に稼働し、2〜3 時は GitHub を取得していないので「取得していない」の停止になる
+    // p-00000001 は 1〜2 時に稼働し、2〜3 時は GitHub を取得していないので「判定不能」の停止になる。
+    // 稼働中は稼働状況のチャートと同じ定義なので、指示の中の外部待ち（30 分）も含めて 1 時間になる
     expect(byId.get("p-00000001")).toMatchObject({
       表示名: "p-00000001",
       費用: "$1.50",
-      稼働の回数: "1",
-      "稼働（時間）": "1.0",
+      指示の数: "1",
+      [`${STATUS_LABELS.active}（時間）`]: "1.0",
       [`${STOP_LABELS.idle}（時間）`]: "0.0",
       [`${STOP_LABELS.unknown}（時間）`]: "1.0",
     });
-    expect(byId.get("合計")).toMatchObject({ 費用: "$4.00", 稼働の回数: "1" });
+    expect(byId.get("合計")).toMatchObject({
+      費用: "$4.00",
+      指示の数: "1",
+      [`${STATUS_LABELS.active}（時間）`]: "1.0",
+    });
+    // 上部の稼働状況のタイルも、同じ値を出す
+    const tile = html.slice(
+      html.indexOf("<h2>稼働状況</h2>"),
+      html.indexOf("</dl>", html.indexOf("<h2>稼働状況</h2>")),
+    );
+    expect(tile).toContain("<dt>稼働中</dt><dd>1.0 時間</dd>");
+    expect(tile).toContain(`<dt>${STOP_LABELS.unknown}</dt><dd>1.0 時間</dd>`);
+    expect(tile).toContain('<span class="v">2.0 時間</span>');
   });
 
   test("期間の表示: 指定が無い側は記録の最も古い日付・新しい日付にし、coverage の行は数えない", () => {
@@ -777,14 +872,16 @@ describe("停止の分類", () => {
         detail: "ok",
       },
     ];
-    // periodLabel の戻り値は、report の HTML に出す期間の表示になる。
-    expect(periodLabel(rows, { since: null, until: null, tz: "UTC" })).toBe(
-      "2026-10-01 〜 2026-10-03",
-    );
-    expect(periodLabel(rows, { since: "2026-09-01", until: null, tz: "UTC" })).toBe(
+    // periodBounds と formatPeriod で作る文字列は、report の HTML に出す期間の表示になる。
+    const label = (r: typeof rows, o: Parameters<typeof periodBounds>[1]) => {
+      const { from, to } = periodBounds(r, o);
+      return formatPeriod(from, to);
+    };
+    expect(label(rows, { since: null, until: null, tz: "UTC" })).toBe("2026-10-01 〜 2026-10-03");
+    expect(label(rows, { since: "2026-09-01", until: null, tz: "UTC" })).toBe(
       "2026-09-01 〜 2026-10-03",
     );
-    expect(periodLabel([], { since: null, until: null, tz: "UTC" })).toBe("記録なし");
+    expect(label([], { since: null, until: null, tz: "UTC" })).toBe("記録なし");
   });
 });
 
@@ -1088,6 +1185,401 @@ describe("report の集計（欄の欠け・期間・時刻）", () => {
   });
 });
 
+// 日別のチャートの横軸と、日別・時刻ごとの稼働状況（稼働中と停止の分類）。
+//   期間       since・until の指定なし（記録の最初と最後の日）/ 指定あり（端の日に記録が無い）/ 年をまたぐ。
+//   記録       記録の無い日が途中にある / 停止が observed_at まで続き、記録の最後の日より後に置かれる。
+//   停止       日をまたぐ（UTC と UTC 以外のタイムゾーン）/ 期間の途中で使い始めた人。
+//   稼働中     複数の人の run / 期間の終わりをまたぐ run。
+describe("日別のチャート", () => {
+  const options = (over: Partial<Parameters<typeof buildReport>[1]> = {}) => ({
+    config: parseRepoConfig({}),
+    bundledPricing: {},
+    bundledReviewPricing: {},
+    tz: "UTC",
+    now: Date.parse("2026-10-10T00:00:00Z"),
+    since: null,
+    until: null,
+    recordFiles: 1,
+    ...over,
+  });
+  const usage = (key: string, start: string, cost: string, model = "m") => ({
+    key,
+    kind: "usage",
+    observed_at: start,
+    person: "p-00000001",
+    tz: "UTC",
+    agent: "codex",
+    model,
+    start,
+    end: start,
+    cost_usd: cost,
+    cost_source: "bundled",
+  });
+  const run = (key: string, person: string, start: string, end: string, observedAt: string) => ({
+    key,
+    kind: "run",
+    observed_at: observedAt,
+    person,
+    tz: "UTC",
+    start,
+    end,
+    branch: "a",
+    detail: "prompt",
+  });
+  // GitHub を取得した期間。停止を「判定不能」にしないために置く
+  const coverage = {
+    key: "cov",
+    kind: "coverage",
+    observed_at: "2026-10-01T00:00:00.000Z",
+    person: "p-00000001",
+    tz: "UTC",
+    start: "2026-09-01T00:00:00.000Z",
+    end: "2026-11-01T00:00:00.000Z",
+    detail: "ok",
+  };
+  // チャートの figure から、「表で見る」の表の行を取り出す
+  const tableOf = (html: string, title: string) => {
+    const start = html.indexOf(`<figcaption>${title}</figcaption>`);
+    expect(start).toBeGreaterThan(-1);
+    const figure = html.slice(start, html.indexOf("</figure>", start));
+    return [...figure.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)].map((m) =>
+      [...m[1].matchAll(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/g)].map((c) => c[1]),
+    );
+  };
+  const axisLabels = (html: string, title: string) => {
+    const start = html.indexOf(`<figcaption>${title}</figcaption>`);
+    const svg = html.slice(start, html.indexOf("</svg>", start));
+    return [...svg.matchAll(/<text class="axis"[^>]*text-anchor="middle">([^<]*)<\/text>/g)].map(
+      (m) => m[1],
+    );
+  };
+
+  test("記録の無い日も、日別の費用のチャートと表に 0 として並べる", () => {
+    const r = buildReport(
+      [
+        usage("u1", "2026-10-01T01:00:00.000Z", "1.0"),
+        usage("u3", "2026-10-03T01:00:00.000Z", "2.0"),
+      ],
+      options(),
+    );
+    expect(r.days).toEqual(["2026-10-01", "2026-10-02", "2026-10-03"]);
+    const html = renderHtml(r);
+    expect(tableOf(html, "日別の費用（モデル別）")).toEqual([
+      ["項目", "m", "合計"],
+      ["2026-10-01", "$1.00", "$1.00"],
+      ["2026-10-02", "$0.00", "$0.00"],
+      ["2026-10-03", "$2.00", "$2.00"],
+      ["合計", "$3.00", "$3.00"],
+    ]);
+    expect(axisLabels(html, "日別の費用（モデル別）")).toEqual(["10-01", "10-02", "10-03"]);
+  });
+
+  test("since・until を指定したら、端の日に記録が無くても、その範囲のすべての日を並べる", () => {
+    const r = buildReport(
+      [usage("u3", "2026-10-03T01:00:00.000Z", "2.0")],
+      options({ since: "2026-10-01", until: "2026-10-05" }),
+    );
+    expect(r.days).toEqual(["2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04", "2026-10-05"]);
+    expect(tableOf(renderHtml(r), "日別の費用（モデル別）").map((row) => row[0])).toEqual([
+      "項目",
+      "2026-10-01",
+      "2026-10-02",
+      "2026-10-03",
+      "2026-10-04",
+      "2026-10-05",
+      "合計",
+    ]);
+  });
+
+  test("期間が年をまたぐときは、日付の目盛りに年も書く", () => {
+    const r = buildReport(
+      [
+        usage("u1", "2026-12-31T01:00:00.000Z", "1.0"),
+        usage("u2", "2027-01-01T01:00:00.000Z", "1.0"),
+      ],
+      options({ now: Date.parse("2027-01-02T00:00:00Z") }),
+    );
+    expect(axisLabels(renderHtml(r), "日別の費用（モデル別）")).toEqual([
+      "2026-12-31",
+      "2027-01-01",
+    ]);
+  });
+
+  test("稼働中と停止を日ごと・時刻ごとに分けて積み上げ、使わなかった日は人数 × 24 時間の未活用にし、使い始める前の日は数えない", () => {
+    const rows = [
+      coverage,
+      // p1 は 10 月 1 日と 3 日に使い、2 日は使わない。最後に記録したのは 3 日の 3 時
+      run(
+        "a1",
+        "p-00000001",
+        "2026-10-01T22:00:00.000Z",
+        "2026-10-01T23:00:00.000Z",
+        "2026-10-03T03:00:00.000Z",
+      ),
+      run(
+        "a3",
+        "p-00000001",
+        "2026-10-03T01:00:00.000Z",
+        "2026-10-03T02:00:00.000Z",
+        "2026-10-03T03:00:00.000Z",
+      ),
+      // p2 は 3 日に使い始める
+      run(
+        "b3",
+        "p-00000002",
+        "2026-10-03T01:00:00.000Z",
+        "2026-10-03T02:00:00.000Z",
+        "2026-10-03T04:00:00.000Z",
+      ),
+    ];
+    const r = buildReport(rows, options());
+    expect(r.days).toEqual(["2026-10-01", "2026-10-02", "2026-10-03"]);
+    const byStatus = Object.fromEntries(r.statusByDay.map((s) => [s.status, s.byDay]));
+    // 稼働中: 1 日は p1 の 22〜23 時。3 日は p1 と p2 の 1〜2 時
+    expect(byStatus.active).toEqual([1, 0, 2]);
+    // 未活用: 1 日は p1 の 23〜24 時。2 日は p1 の 24 時間（p2 はまだ使っていない）。3 日は p1 の 0〜1 時と 2〜3 時、p2 の 2〜4 時
+    expect(byStatus.idle).toEqual([1, 24, 4]);
+    for (const c of ["reviewing", "ci-wait", "review-wait", "unknown"]) {
+      expect(byStatus[c]).toEqual([0, 0, 0]);
+    }
+    // 日別の停止を全日で足すと、停止の分類ごとの合計（intervals の停止）と一致する
+    for (const s of r.statusByDay.filter((x) => x.status !== "active")) {
+      const total = r.intervals
+        .filter((x) => x.type === "stop" && x.category === s.status)
+        .reduce((a, x) => a + Number(x.minutes) / 60, 0);
+      expect(s.byDay.reduce((a, b) => a + b, 0)).toBeCloseTo(total, 6);
+    }
+    // 時刻ごとも同じ区間を数える。全時刻で足すと、全日で足した値と一致する
+    const hourly = Object.fromEntries(r.statusByHour.map((s) => [s.status, s.byHour]));
+    expect(hourly.active[22]).toBe(1);
+    expect(hourly.active[1]).toBe(2);
+    for (const s of r.statusByDay) {
+      expect(hourly[s.status].reduce((a, b) => a + b, 0)).toBeCloseTo(
+        s.byDay.reduce((a, b) => a + b, 0),
+        6,
+      );
+    }
+    const html = renderHtml(r);
+    // 日別の費用のチャートの下に、日別の稼働状況のチャートがある
+    expect(html.indexOf("<figcaption>日別の稼働状況（時間）</figcaption>")).toBeGreaterThan(
+      html.indexOf("<figcaption>日別の費用（モデル別）</figcaption>"),
+    );
+    const header = ["項目", ...STATUSES.map((c) => STATUS_LABELS[c]), "合計"];
+    expect(header.slice(1, 3)).toEqual(["稼働中", STOP_LABELS.idle]);
+    const table = tableOf(html, "日別の稼働状況（時間）");
+    expect(table[0]).toEqual(header);
+    expect(table.slice(1).map((row) => [row[0], row[1], row[2], row[row.length - 1]])).toEqual([
+      ["2026-10-01", "1.0", "1.0", "2.0"],
+      ["2026-10-02", "0.0", "24.0", "24.0"],
+      ["2026-10-03", "2.0", "4.0", "6.0"],
+      ["合計", "3.0", "29.0", "32.0"],
+    ]);
+    const hourTable = tableOf(html, "時刻ごとの稼働状況（時間）");
+    expect(hourTable[0]).toEqual(header);
+    expect(hourTable[hourTable.length - 1].slice(1, 3)).toEqual(["3.0", "29.0"]);
+  });
+
+  test("稼働中は、期間の終わりで打ち切る", () => {
+    // until の日の 23 時から翌日の 1 時まで動いた run
+    const rows = [
+      coverage,
+      run(
+        "a1",
+        "p-00000001",
+        "2026-10-02T23:00:00.000Z",
+        "2026-10-03T01:00:00.000Z",
+        "2026-10-03T01:00:00.000Z",
+      ),
+    ];
+    const r = buildReport(rows, options({ since: "2026-10-02", until: "2026-10-02" }));
+    expect(r.days).toEqual(["2026-10-02"]);
+    const active = r.statusByHour.find((s) => s.status === "active")?.byHour ?? [];
+    expect(active.reduce((a, b) => a + b, 0)).toBe(1);
+    expect(r.statusByDay.find((s) => s.status === "active")?.byDay).toEqual([1]);
+    // 人ごとと Issue ごとの稼働中も、同じ所で打ち切る
+    expect(r.activeByPerson).toEqual({ "p-00000001": 1 });
+    expect(r.activeByIssue).toEqual({ "": 1 });
+  });
+
+  test("停止は人のタイムゾーンの日付で分け、記録の最後の日より後に続いた停止の日も並べる", () => {
+    const rows = [
+      { ...coverage, tz: "Asia/Tokyo" },
+      // 東京の 10 月 1 日 22〜23 時に使い、最後に記録したのは東京の 10 月 2 日 1 時
+      {
+        ...run(
+          "t1",
+          "p-00000001",
+          "2026-10-01T13:00:00.000Z",
+          "2026-10-01T14:00:00.000Z",
+          "2026-10-01T16:00:00.000Z",
+        ),
+        tz: "Asia/Tokyo",
+      },
+    ];
+    const r = buildReport(rows, options({ tz: "Asia/Tokyo" }));
+    expect(r.days).toEqual(["2026-10-01", "2026-10-02"]);
+    expect(r.statusByDay.find((s) => s.status === "idle")?.byDay).toEqual([1, 1]);
+    expect(r.period).toBe("2026-10-01 〜 2026-10-02");
+  });
+
+  test("期間の終わりは、report のタイムゾーンではなく、人のタイムゾーンでの until の日の終わりにする（東）", () => {
+    // report のタイムゾーンは UTC。東京の人が、東京の 10 月 1 日 19 時から 10 月 2 日 1 時まで動いた（UTC では 10 月 1 日の中）。
+    // 東京の 10 月 1 日の終わり（UTC 15 時）で打ち切り、東京の 10 月 2 日に入った 1 時間は数えない
+    const rows = [
+      { ...coverage, tz: "Asia/Tokyo" },
+      {
+        ...run(
+          "t1",
+          "p-00000001",
+          "2026-10-01T10:00:00.000Z",
+          "2026-10-01T16:00:00.000Z",
+          "2026-10-01T16:00:00.000Z",
+        ),
+        tz: "Asia/Tokyo",
+      },
+    ];
+    const r = buildReport(rows, options({ until: "2026-10-01" }));
+    expect(r.days).toEqual(["2026-10-01"]);
+    // 日別の稼働中を足すと、人ごとの稼働中と一致する
+    expect(r.statusByDay.find((s) => s.status === "active")?.byDay).toEqual([5]);
+    expect(r.activeByPerson).toEqual({ "p-00000001": 5 });
+  });
+
+  test("--until を指定しないときは、別のタイムゾーンの行で今日より後の日付になっても、期間の終わりを始まりより前にしない", () => {
+    // report のタイムゾーンはロサンゼルスで、今日はロサンゼルスの 10 月 1 日。東京の行のレビューは東京の 10 月 2 日
+    const rows = [
+      {
+        key: "rv",
+        kind: "review",
+        observed_at: "2026-10-02T04:00:00.000Z",
+        person: "p-00000001",
+        tz: "Asia/Tokyo",
+        agent: "copilot",
+        start: "2026-10-02T04:00:00.000Z",
+        end: "2026-10-02T04:00:00.000Z",
+        detail: "pr=1",
+      },
+    ];
+    const r = buildReport(
+      rows,
+      options({ tz: "America/Los_Angeles", now: Date.parse("2026-10-02T05:00:00Z") }),
+    );
+    expect(r.period).toBe("2026-10-02 〜 2026-10-02");
+    expect(r.days).toEqual(["2026-10-02"]);
+  });
+
+  test("稼働状況に数える run が無い人も、人ごとの稼働中と停止は 0 として持つ", () => {
+    // report を実行した時刻（10 月 10 日）より後に始まる run だけを持つ人（時計がずれたマシンの記録など）
+    const rows = [
+      run(
+        "f",
+        "p-00000001",
+        "2026-10-11T01:00:00.000Z",
+        "2026-10-11T02:00:00.000Z",
+        "2026-10-11T02:00:00.000Z",
+      ),
+    ];
+    const r = buildReport(rows, options());
+    expect(r.activeByPerson).toEqual({ "p-00000001": 0 });
+    expect([...(r.stopByPerson["p-00000001"]?.values() ?? [])]).toEqual([0, 0, 0, 0, 0]);
+  });
+
+  test("--until に先の日付を渡しても、横軸は今日までにし、9999 年の終わりでも止まる", () => {
+    const r = buildReport(
+      [usage("u1", "2026-10-08T01:00:00.000Z", "1.0")],
+      options({ until: "2099-12-31" }),
+    );
+    // now は options の既定のままなので、横軸は now の日で終わる
+    expect(r.days).toEqual(["2026-10-08", "2026-10-09", "2026-10-10"]);
+    expect(r.period).toBe("2026-10-08 〜 2099-12-31");
+    expect(dateRange("9999-12-30", "9999-12-31")).toEqual(["9999-12-30", "9999-12-31"]);
+  });
+
+  test("期間の終わりは、report のタイムゾーンではなく、人のタイムゾーンでの until の日の終わりにする（西）", () => {
+    // report のタイムゾーンは UTC。ロサンゼルスの人が、ロサンゼルスの 10 月 1 日 10〜11 時（UTC 17〜18 時）と
+    // 20〜21 時（UTC 10 月 2 日 3〜4 時）に動いた。どちらもロサンゼルスの 10 月 1 日なので期間に入り、
+    // 費用・指示の数・稼働中・停止がどれも同じ期間を数える
+    const la = (key: string, start: string, end: string) => ({
+      ...run(key, "p-00000001", start, end, "2026-10-02T05:00:00.000Z"),
+      tz: "America/Los_Angeles",
+    });
+    const rows = [
+      coverage,
+      la("a", "2026-10-01T17:00:00.000Z", "2026-10-01T18:00:00.000Z"),
+      la("b", "2026-10-02T03:00:00.000Z", "2026-10-02T04:00:00.000Z"),
+      { ...usage("u", "2026-10-02T03:30:00.000Z", "5.0"), tz: "America/Los_Angeles" },
+    ];
+    const r = buildReport(rows, options({ until: "2026-10-01" }));
+    expect(r.usage.map((u) => u.cost_usd)).toEqual(["5.000000"]);
+    expect(r.runHistogram.reduce((a, b) => a + b, 0)).toBe(2);
+    expect(r.activeByPerson).toEqual({ "p-00000001": 2 });
+    // 停止は run の間と、最後に記録した時刻（UTC 5 時）までの隙間
+    expect(
+      r.intervals.filter((x) => x.type === "stop").map((x) => [x.start, x.end, x.category]),
+    ).toEqual([
+      ["2026-10-01T18:00:00.000Z", "2026-10-02T03:00:00.000Z", "idle"],
+      ["2026-10-02T04:00:00.000Z", "2026-10-02T05:00:00.000Z", "idle"],
+    ]);
+  });
+
+  test("1 人の記録が複数のタイムゾーンにまたがっても、稼働状況は最初の run のタイムゾーンの期間で数える", () => {
+    // 最初の run は東京（東京の 10 月 1 日の終わりは UTC 15 時）。後の run はロサンゼルスの行で、
+    // ロサンゼルスの 10 月 1 日なので期間に入るが、UTC 10 月 2 日 3 時（東京の 10 月 2 日）に始まる
+    const rows = [
+      coverage,
+      {
+        ...run(
+          "t",
+          "p-00000001",
+          "2026-10-01T01:00:00.000Z",
+          "2026-10-01T02:00:00.000Z",
+          "2026-10-02T05:00:00.000Z",
+        ),
+        tz: "Asia/Tokyo",
+      },
+      {
+        ...run(
+          "l",
+          "p-00000001",
+          "2026-10-02T03:00:00.000Z",
+          "2026-10-02T04:00:00.000Z",
+          "2026-10-02T05:00:00.000Z",
+        ),
+        tz: "America/Los_Angeles",
+      },
+    ];
+    const r = buildReport(rows, options({ until: "2026-10-01" }));
+    // 後の run は稼働状況に数えず、停止も東京の 10 月 1 日の終わりで止まる
+    expect(r.activeByPerson).toEqual({ "p-00000001": 1 });
+    expect(
+      r.intervals.filter((x) => x.type === "stop").map((x) => [x.start, x.end, x.category]),
+    ).toEqual([["2026-10-01T02:00:00.000Z", "2026-10-01T15:00:00.000Z", "idle"]]);
+    expect(r.days).toEqual(["2026-10-01"]);
+    // 指示の数には、期間に入った行として数える
+    expect(r.runHistogram.reduce((a, b) => a + b, 0)).toBe(2);
+  });
+
+  test("人ごとの停止は、intervals.csv の丸めた分ではなく、丸める前の値から足す", () => {
+    // 10 秒の停止が 3 回。intervals.csv の minutes は 0.2 分に丸まる（足すと 0.6 分）が、実際は 0.5 分
+    const s = (sec: number) =>
+      new Date(Date.parse("2026-10-01T01:00:00.000Z") + sec * 1000).toISOString();
+    const rows = [
+      coverage,
+      run("a", "p-00000001", s(0), s(60), s(250)),
+      run("b", "p-00000001", s(70), s(130), s(250)),
+      run("c", "p-00000001", s(140), s(200), s(250)),
+      run("d", "p-00000001", s(210), s(250), s(250)),
+    ];
+    const r = buildReport(rows, options());
+    const idle = r.stopByPerson["p-00000001"].get("idle") ?? 0;
+    expect(idle * 60).toBeCloseTo(0.5, 9);
+    const byDay = r.statusByDay.find((x) => x.status === "idle")?.byDay ?? [];
+    expect(byDay.reduce((a, b) => a + b, 0)).toBeCloseTo(idle, 12);
+    // Issue ごとの未活用も、丸める前の値から足す
+    expect((r.idleByIssue[""] ?? 0) * 60).toBeCloseTo(0.5, 9);
+  });
+});
+
 describe("runReport の入力の誤り", () => {
   const run = (over: Partial<Parameters<typeof runReport>[0]>) => {
     const root = makeTempDir("agent-usage-report-");
@@ -1098,6 +1590,9 @@ describe("runReport の入力の誤り", () => {
   test.each([
     ["--since", { since: "10/01" }, /--since は YYYY-MM-DD で書く/],
     ["--until", { until: "2026-1-1" }, /--until は YYYY-MM-DD で書く/],
+    // 形は合っていても、暦に無い日付（月が 0、2 月 30 日）
+    ["--since（月が 0）", { since: "2026-00-15" }, /--since は YYYY-MM-DD で書く/],
+    ["--until（2 月 30 日）", { until: "2026-02-30" }, /--until は YYYY-MM-DD で書く/],
   ])("%s の形が違えばエラーにする", (_name, over, message) => {
     expect(run(over)).toThrow(message);
   });

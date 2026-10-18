@@ -11,7 +11,7 @@ node <このスキル>/scripts/agent-usage.mjs setup --time-zone Asia/Tokyo
 - 人の ID（`p-` と 16 進数 8 桁）は、初めての実行で作る。置き場所は `${XDG_CONFIG_HOME:-~/.config}/agent-usage/config.json` で、マシンのすべてのリポジトリが同じ ID を使う
 - 別のマシンで同じ人として数えたいときは、そのマシンでも `--person-id <既存の ID>` を付けて実行する
 - 後から同じ人だと分かった ID は、リポジトリの設定の `aliases` でまとめる（下の「リポジトリの設定」）
-- タイムゾーンを省くと、マシンのタイムゾーンを使う。日別の集計の日付と、時刻ごとの停止の時間はこのタイムゾーンで切る
+- タイムゾーンを省くと、マシンのタイムゾーンを使う。日別の集計の日付と、時刻ごとの稼働状況はこのタイムゾーンで切る
 - `--billing user` を付けると、collect が個人のプランの premium request の実額（GitHub の課金 API）も記録する（[`reviews.md`](reviews.md)）
 - setup が作った人の設定に `"defaultDecision": "record"`（または `"decline"`）を手で書き足すと、コミットの前の確認の Hook は、判断の無いブランチのコミットを止めずに、その値に従う。
   人の設定の値は、リポジトリの設定の同じキーより優先する。setup を実行し直しても、この値は残る
