@@ -87,7 +87,7 @@ issue-batch run <Issue URL | 番号>... \
 - deployment の修正の上限: `--max-deployment-fix-iterations` があれば、その run だけ上書きする
 
 BLOCKED や FAILED の影響が Issue の隔離した worktree の中だけで済む場合は、デフォルトの方針に従って次の Issue に進む。
-その Issue に依存する Issue は、`references/orchestration.md`「全体 preflight」の 6 の表のとおりに扱い、それを理由に全体を停止しない。
+続けるとき、その Issue に依存する Issue は、`references/orchestration.md`「全体 preflight」の 6 の表のとおりに扱い、それを理由に全体を停止しない。
 認証、権限、repo の不一致、共有の設定の誤りなど、全体に影響する失敗では、option に関わらず全体を停止する。
 
 ## 安全制約
@@ -103,7 +103,7 @@ BLOCKED や FAILED の影響が Issue の隔離した worktree の中だけで�
 - dirty か BLOCKED の worktree は削除しない。絶対パスと残りの作業を、最終報告に残す。
 - run を始めた後は、利用者に確認を送らない。前提スキル（`issue-start`・`pr-finalize-loop`）が「利用者に確認する」と定める箇所も同じである。
   `pr-finalize-loop` には `--defer-decisions` を渡し、人の判断が要る指摘を判断待ちとして受け取る（`references/orchestration.md`「pr-finalize-loop への handoff」）。
-  判断が要るものを「無人実行」を理由に飛ばさず、結果を作り上げず、BLOCKED（判断待ち）として記録し、`continue_on_blocked` に従って次の Issue に進むか run を止める（`references/orchestration.md`「全体 preflight」の最後の段落）。
+  判断が要るものを「無人実行」を理由に飛ばさず、結果を作り上げず、BLOCKED（判断待ち）として記録し、`continue_on_blocked` に従って次の Issue に進むか run を止める。記録の形は `references/orchestration.md`「判断の扱い」に、続けるかは同じ文書の「全体 preflight」の最後の段落にある。
 - `kaizen extract --current --record-pending` が現在の transcript を特定できないエージェントでは、候補が 0 件であることを確かめられない。
   transcript を提供しないエージェント（例: Copilot）はこれに当たるので、run が何かを変更する前に BLOCKED にする。検出できるふりをして続けない。
 

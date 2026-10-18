@@ -8,7 +8,8 @@
 
 iteration-12（3b432da1 の版）の後、PR #694 のレビューを受けて、依存の扱いを書き換えた。
 依存元に着手する条件を「依存先の変更が base に入っているか」の 1 つにし、表の行の選び方・外す候補の確認・`continue_on_blocked` の適用範囲をそれにそろえた。
-eval 26 はこの扱いを測るので、7854a2dc の版で実行し直した。eval の入力は変えていない。
+eval 26 が測る場面（未着手の依存元の 2 行と、preflight の `BLOCKED` で run を止めないこと）が後退していないかを見るため、7854a2dc の版で実行し直した。eval の入力は変えていない。
+base に入っているかの判定・`continue_on_blocked` が false のときの扱い・`PREFLIGHTED` にする時点は、eval 26 では測っていない。
 
 ## Summary
 
