@@ -288,7 +288,8 @@
         "unclosedFenceLine は、末尾まで閉じないフェンスを開いた行の番号を返す: 情報文字列の付いた行で閉じたつもりのフェンス",
         "features.md の閉じないコードフェンスは、構造の不備として合格にしない",
         "design.md の閉じないコードフェンスは、構造の不備として合格にしない",
-        "verification.md の閉じないコードフェンスは、表が無いときと同じく、開いた行の番号を付けて報告する"
+        "verification.md の閉じないコードフェンスは、表が無いときと同じく、開いた行の番号を付けて報告する",
+        "verification.md の閉じないフェンスの後ろにある実測表は、表が無いとは報告しない"
       ]
     },
     {
@@ -358,9 +359,11 @@
       "expect_failing": [
         "unclosedFenceLine は、末尾まで閉じないフェンスを開いた行の番号を返す: 情報文字列の付いた行で閉じたつもりのフェンス",
         "unclosedFenceLine は、末尾まで閉じないフェンスを開いた行の番号を返す: 閉じた後に開き直したフェンス",
+        "unclosedFenceLine は、末尾まで閉じないフェンスを開いた行の番号を返す: 4 文字字下げした閉じる行",
         "features.md の閉じないコードフェンスは、構造の不備として合格にしない",
         "design.md の閉じないコードフェンスは、構造の不備として合格にしない",
-        "verification.md の閉じないコードフェンスは、表が無いときと同じく、開いた行の番号を付けて報告する"
+        "verification.md の閉じないコードフェンスは、表が無いときと同じく、開いた行の番号を付けて報告する",
+        "verification.md の閉じないフェンスの後ろにある実測表は、表が無いとは報告しない"
       ]
     },
     {
@@ -412,7 +415,30 @@
       "replace": "    if (false) {",
       "occurrences": 1,
       "expect_failing": [
-        "verification.md の閉じないコードフェンスは、表が無いときと同じく、開いた行の番号を付けて報告する"
+        "verification.md の閉じないコードフェンスは、表が無いときと同じく、開いた行の番号を付けて報告する",
+        "verification.md の閉じないフェンスの後ろにある実測表は、表が無いとは報告しない"
+      ]
+    },
+    {
+      "id": "fence-close-indent-unbounded",
+      "why": "閉じる行の字下げの上限（半角の空白 3 個）を外し、4 個以上字下げした行でもフェンスを閉じる",
+      "file": "skills/golden-dataset/scripts/lib/fence.mjs",
+      "find": "/^ {0,3}(`{3,}|~{3,})[ \\t]*$/u",
+      "replace": "/^ *(`{3,}|~{3,})[ \\t]*$/u",
+      "occurrences": 1,
+      "expect_failing": [
+        "unclosedFenceLine は、末尾まで閉じないフェンスを開いた行の番号を返す: 4 文字字下げした閉じる行"
+      ]
+    },
+    {
+      "id": "verification-table-missing-despite-fence",
+      "why": "閉じないフェンスの後ろに実測表があっても、表が無いと報告する",
+      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
+      "find": "      if (verificationUnclosed === null) {",
+      "replace": "      if (true) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "verification.md の閉じないフェンスの後ろにある実測表は、表が無いとは報告しない"
       ]
     }
   ]

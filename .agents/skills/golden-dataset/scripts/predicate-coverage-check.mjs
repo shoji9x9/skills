@@ -28,7 +28,7 @@
 import { readFileSync, realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { stepFence } from "./lib/fence.mjs";
+import { stepFence, unclosedFenceMessage } from "./lib/fence.mjs";
 import { isArray } from "./lib/is-array.mjs";
 
 /**
@@ -132,17 +132,6 @@ function fenceLines(lines) {
  */
 export function unclosedFenceLine(markdown) {
   return fenceLines(String(markdown ?? "").split(/\r?\n/)).unclosed;
-}
-
-/**
- * 閉じないフェンスの finding の文（features.md・design.md・verification.md で同じ文にする）。
- *
- * @param {string} file
- * @param {number} line
- * @returns {string}
- */
-function unclosedFenceMessage(file, line) {
-  return `${file} の ${line} 行目で開いたコードフェンスが末尾まで閉じていない。以降の表は読まれない。閉じる行は、字下げを 3 文字までにし、開いた記号と同じ文字を開いた数か、それより多く並べ、後ろには空白のほかに何も書かない`;
 }
 
 /**
@@ -435,7 +424,7 @@ export function collectConsumers(featuresMarkdown) {
     structural = true;
     findings.push({
       code: "features-fence-unclosed",
-      message: unclosedFenceMessage("features.md", unclosed),
+      message: `features.md の ${unclosedFenceMessage(unclosed)}`,
     });
   }
   const sources = [
@@ -509,7 +498,7 @@ export function checkPredicateCoverage(input) {
     structural = true;
     findings.push({
       code: "design-fence-unclosed",
-      message: unclosedFenceMessage("design.md", designUnclosed),
+      message: `design.md の ${unclosedFenceMessage(designUnclosed)}`,
     });
   }
   const targetTable = findTable(designTables, "対象テーブル", [
@@ -1130,7 +1119,7 @@ export function checkPredicateCoverage(input) {
       // verification.md の表が無いとき（verification-table-missing）と同じく、構造の不備にはしない。
       findings.push({
         code: "verification-fence-unclosed",
-        message: unclosedFenceMessage("verification.md", verificationUnclosed),
+        message: `verification.md の ${unclosedFenceMessage(verificationUnclosed)}`,
       });
     }
     const measured = findTable(verificationTables, "述語ごとの該当行数", [
@@ -1139,11 +1128,14 @@ export function checkPredicateCoverage(input) {
       "偽の実測行数",
     ]);
     if (!measured) {
-      findings.push({
-        code: "verification-table-missing",
-        message:
-          "verification.md に「述語ごとの該当行数」表（述語 id / 真の実測行数 / 偽の実測行数）が無い（投入後に 0 件・1 件が報告に出ない）",
-      });
+      // 閉じないフェンスの後ろの表は読めないので、表が無いとは報告しない（すでにある表を足すよう案内しない）。
+      if (verificationUnclosed === null) {
+        findings.push({
+          code: "verification-table-missing",
+          message:
+            "verification.md に「述語ごとの該当行数」表（述語 id / 真の実測行数 / 偽の実測行数）が無い（投入後に 0 件・1 件が報告に出ない）",
+        });
+      }
     } else {
       /** @type {Map<string, Record<string,string>>} */
       const measuredById = new Map();

@@ -1,6 +1,6 @@
 // Markdown の表とコードフェンスを読む helper。このスキルの台帳の表を読むスクリプトが共通に使う。
 
-import { stepFence } from "./fence.mjs";
+import { stepFence, unclosedFenceMessage } from "./fence.mjs";
 
 /**
  * 空白を 1 つに畳み、前後を除く（Markdown の表はフォーマッタが桁を詰め直すため素の比較では揺れる）。
@@ -243,15 +243,6 @@ function parseTables(text, options = {}) {
     i = j - 1;
   }
   return { tables, strayRows, unclosedFence: state.unclosedFence };
-}
-
-/**
- * 閉じないフェンスを、利用者に返すエラー文にする（3 つのスクリプトで同じ文にする）。
- * @param {number} line
- * @returns {string}
- */
-function unclosedFenceMessage(line) {
-  return `${line} 行目で開いたコードフェンスが末尾まで閉じていない。以降の表は読まれない。閉じる行は、字下げを 3 文字までにし、開いた記号と同じ文字を開いた数か、それより多く並べ、後ろには空白のほかに何も書かない`;
 }
 
 export { blankComments, opensHtmlBlock, collapse, parseTables, splitRow, unclosedFenceMessage };

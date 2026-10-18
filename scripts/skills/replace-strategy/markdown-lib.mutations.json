@@ -410,6 +410,7 @@
         "parseTables は、末尾まで閉じないフェンスを開いた行の番号を返す: 情報文字列の付いた行で閉じたつもりのフェンス",
         "parseTables は、末尾まで閉じないフェンスを開いた行の番号を返す: 閉じた後に開き直したフェンス",
         "parseTables は、末尾まで閉じないフェンスを開いた行の番号を返す: 4 文字字下げした閉じる行",
+        "parseTables は、末尾まで閉じないフェンスを開いた行の番号を返す: タブで字下げした閉じる行",
         "parseTables は、末尾まで閉じないフェンスを開いた行の番号を返す: 字下げした `~~~` のフェンス",
         "asset-delivery-check: 閉じないコードフェンスは、開いた行の番号を付けて止める",
         "evidence-gap-check: 閉じないコードフェンスは、開いた行の番号を付けて止める",
@@ -480,6 +481,18 @@
       "expect_failing": [
         "procedure-staleness-check: 閉じないコードフェンスは、開いた行の番号を付けて止める",
         "procedure-staleness-check: 閉じないフェンスが表を読めなくしたときは、表が無いエラーより先にフェンスを報告する"
+      ]
+    },
+    {
+      "id": "fence-close-indent-unbounded",
+      "why": "閉じる行の字下げの上限（半角の空白 3 個）を外し、4 個以上字下げした行でもフェンスを閉じる",
+      "file": "skills/replace-strategy/scripts/lib/fence.mjs",
+      "find": "/^ {0,3}(`{3,}|~{3,})[ \\t]*$/u",
+      "replace": "/^ *(`{3,}|~{3,})[ \\t]*$/u",
+      "occurrences": 1,
+      "expect_failing": [
+        "stepFence: 開いている・字下げ 4 文字は閉じない",
+        "parseTables は、末尾まで閉じないフェンスを開いた行の番号を返す: 4 文字字下げした閉じる行"
       ]
     }
   ]
