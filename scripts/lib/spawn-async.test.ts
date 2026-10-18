@@ -82,6 +82,27 @@ describe.concurrent("spawnAsync", () => {
     expect(r.error).toMatchObject({ code: "ETIMEDOUT" });
   });
 
+  test("timeout で止めるときは、stdout を持つ孫プロセスも止める", async () => {
+    // 孫の pid を stderr に書く。stderr は timeout のときに閉じるが、それより前に書いた分は残る。
+    const r = await spawnAsync("bash", ["-c", "sleep 30 & echo $! >&2; echo done"], {
+      timeout: 300,
+    });
+    expect(r.error).toMatchObject({ code: "ETIMEDOUT" });
+    const pid = Number(r.stderr.trim());
+    expect(pid).toBeGreaterThan(0);
+    // SIGTERM が届いてから終わるまで少し待つ。
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(() => process.kill(pid, 0)).toThrow();
+  });
+
+  test("別のプロセスグループの孫が stdout を持っていても、timeout で返す", async () => {
+    const started = Date.now();
+    // setsid で起動した孫は、子のプロセスグループに送った SIGTERM では止まらない。
+    const r = await spawnAsync("bash", ["-c", "setsid sleep 5 & echo done"], { timeout: 300 });
+    expect(Date.now() - started).toBeLessThan(3000);
+    expect(r.error).toMatchObject({ code: "ETIMEDOUT" });
+  });
+
   test("timeout より前に終わった子は、error を付けずに返す", async () => {
     const r = await spawnAsync("bash", ["-c", "sleep 0.2; echo done"], {
       timeout: CHILD_TIMEOUT_MS,

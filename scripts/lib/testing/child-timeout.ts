@@ -52,7 +52,7 @@ function exemptLines(source: ts.SourceFile, sourceText: string, fileName: string
 }
 
 /**
- * `import("node:child_process")` か `require("node:child_process")` か。
+ * 起動の関数を持つモジュール（child_process と spawn-async）を `import()` か `require()` で読み込む呼び出しか。
  * 取り出した関数を追えないので、読み込む呼び出しそのものを返す。
  */
 function isDynamicImport(call: ts.CallExpression): boolean {
@@ -65,7 +65,7 @@ function isDynamicImport(call: ts.CallExpression): boolean {
     dynamic &&
     specifier !== undefined &&
     ts.isStringLiteralLike(specifier) &&
-    MODULES.has(specifier.text)
+    membersOf(specifier.text) !== undefined
   );
 }
 
@@ -97,6 +97,18 @@ function childProcessNames(source: ts.SourceFile): SpawnerNames {
     ) {
       const members = membersOf(statement.moduleReference.expression.text);
       if (members !== undefined) namespaces.set(statement.name.text, members);
+      continue;
+    }
+    // `import run = cp.spawnSync` は、名前空間のメンバーの別名として扱う。
+    if (
+      ts.isImportEqualsDeclaration(statement) &&
+      ts.isQualifiedName(statement.moduleReference) &&
+      ts.isIdentifier(statement.moduleReference.left) &&
+      namespaces
+        .get(statement.moduleReference.left.text)
+        ?.has(statement.moduleReference.right.text) === true
+    ) {
+      functions.set(statement.name.text, statement.moduleReference.right.text);
       continue;
     }
     if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier))
@@ -213,9 +225,17 @@ function childTimeout(call: ts.CallExpression): number | null | undefined {
   return undefined;
 }
 
-/** `undefined` と書いた値か。Node は `timeout: undefined` をタイムアウトなしとして扱う。 */
+/**
+ * `undefined` になる値か（`undefined`・`void 0`・右辺がそれらの `x ?? y`）。Node は `timeout: undefined` をタイムアウトなしとして扱う。
+ */
 function isUndefined(expression: ts.Expression): boolean {
-  return ts.isIdentifier(expression) && expression.text === "undefined";
+  if (ts.isIdentifier(expression)) return expression.text === "undefined";
+  if (ts.isVoidExpression(expression)) return true;
+  return (
+    ts.isBinaryExpression(expression) &&
+    expression.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken &&
+    isUndefined(expression.right)
+  );
 }
 
 /** 数値のリテラルか `CHILD_TIMEOUT_MS` のミリ秒。`x ?? y` は y の値を返す。それ以外の式は null。 */
@@ -235,9 +255,10 @@ function msOf(expression: ts.Expression): number | null {
 const TEST_CALLEE = /^(test|it)(\.\w+|<[^]*>|\([^]*\))*$/u;
 
 /** vitest の Hook を登録する呼び出しの名前。Hook は testTimeout ではなく hookTimeout で打ち切られる。 */
-const HOOK_CALLEE = /^(beforeAll|beforeEach|afterAll|afterEach)$/u;
+const HOOK_CALLEE =
+  /^(beforeAll|beforeEach|afterAll|afterEach|aroundAll|aroundEach|onTestFinished|onTestFailed)$/u;
 
-/** vitest の hookTimeout のデフォルト（ミリ秒）。vitest.config.ts は hookTimeout を書かない。 */
+/** vitest の hookTimeout のデフォルト（ミリ秒）。vitest.config.ts が hookTimeout を書かないときの値。 */
 export const HOOK_TIMEOUT_MS = 10_000;
 
 /** テストか Hook の timeout の値。0 と読めない式は null（比べない）。 */
@@ -284,8 +305,8 @@ function writtenTimeout(call: ts.CallExpression, body: ts.Expression): number | 
   return undefined;
 }
 
-/** vitest の describe を登録する呼び出しの名前（`describe` と、`.concurrent`・`.each(...)`・型引数などを付けた形）。 */
-const DESCRIBE_CALLEE = /^describe(\.\w+|<[^]*>|\([^]*\))*$/u;
+/** vitest の describe を登録する呼び出しの名前（`describe`・別名の `suite` と、`.concurrent`・`.each(...)`・型引数などを付けた形）。 */
+const DESCRIBE_CALLEE = /^(describe|suite)(\.\w+|<[^]*>|\([^]*\))*$/u;
 
 /** テストを囲む describe のうち、いちばん内側で timeout を書いたものの timeout（書いたものが無ければ undefined）。 */
 function describeTimeout(test: ts.Node, source: ts.SourceFile): number | null | undefined {
@@ -314,6 +335,33 @@ function timeoutProblem(
   const limit = enclosing === undefined ? TEST_TIMEOUT_MS : enclosing;
   if (child === null || limit === null || child < limit) return undefined;
   return `（timeout ${child} がテストの timeout ${limit} 以上）`;
+}
+
+/**
+ * 起動の関数を再エクスポートする宣言か。型だけの再エクスポートと、起動の関数を含まない名前の再エクスポートは子プロセスを起動しないので数えない。
+ */
+function isSpawnerReexport(node: ts.Node, names: SpawnerNames): boolean {
+  if (ts.isImportEqualsDeclaration(node)) {
+    const exported = node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) === true;
+    return (
+      exported && (names.namespaces.has(node.name.text) || names.functions.has(node.name.text))
+    );
+  }
+  if (
+    !ts.isExportDeclaration(node) ||
+    node.isTypeOnly ||
+    node.moduleSpecifier === undefined ||
+    !ts.isStringLiteral(node.moduleSpecifier)
+  )
+    return false;
+  const members = membersOf(node.moduleSpecifier.text);
+  if (members === undefined) return false;
+  const clause = node.exportClause;
+  // `export * from` と `export * as ns from` は、起動の関数をすべて含む。
+  if (clause === undefined || ts.isNamespaceExport(clause)) return true;
+  return clause.elements.some(
+    (element) => !element.isTypeOnly && members.has((element.propertyName ?? element.name).text),
+  );
 }
 
 /**
@@ -347,17 +395,12 @@ export function findUntimedChildCalls(sourceText: string, fileName = "input.ts")
     if (!exempt) found.push(`${line + 1}: ${text}`);
   };
   const visit = (node: ts.Node): void => {
-    if (ts.isImportDeclaration(node) || ts.isImportEqualsDeclaration(node)) return;
-    // 再エクスポート（`export { spawnSync } from "node:child_process"`）は、export した先の呼び出しを追えない。
-    if (
-      ts.isExportDeclaration(node) &&
-      node.moduleSpecifier !== undefined &&
-      ts.isStringLiteral(node.moduleSpecifier) &&
-      membersOf(node.moduleSpecifier.text) !== undefined
-    ) {
+    // 再エクスポート（`export { spawnSync } from "node:child_process"`・`export import cp = require(...)`）は、export した先の呼び出しを追えない。
+    if (isSpawnerReexport(node, names)) {
       report(node, "export（再エクスポート）");
       return;
     }
+    if (ts.isImportDeclaration(node) || ts.isImportEqualsDeclaration(node)) return;
     if (ts.isCallExpression(node)) {
       const dynamic = isDynamicImport(node);
       const spawner = dynamic ? "import" : spawnerOf(node, names);

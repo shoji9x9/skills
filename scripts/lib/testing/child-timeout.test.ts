@@ -175,6 +175,43 @@ describe("findUntimedChildCalls", () => {
       `${IMPORT}describe("d", { timeout: 5_000 }, () => {\n  test("t", () => {\n    spawnSync("node", [], { timeout: CHILD_TIMEOUT_MS });\n  });\n});`,
       ["4: spawnSync（timeout 25000 がテストの timeout 5000 以上）"],
     ],
+    [
+      "名前空間のメンバーの import =",
+      'import * as cp from "node:child_process";\nimport run = cp.spawnSync;\nrun("node", []);',
+      ["3: spawnSync"],
+    ],
+    [
+      "spawn-async の require",
+      'const { spawnAsync } = require("./spawn-async.ts");',
+      ["1: import"],
+    ],
+    [
+      "aroundEach の hookTimeout 以上",
+      `${IMPORT}aroundEach(async (run) => {\n  spawnSync("node", [], { timeout: CHILD_TIMEOUT_MS });\n  await run();\n});`,
+      ["3: spawnSync（timeout 25000 がテストの timeout 10000 以上）"],
+    ],
+    [
+      "onTestFinished の hookTimeout 以上",
+      `${IMPORT}onTestFinished(() => {\n  spawnSync("node", [], { timeout: CHILD_TIMEOUT_MS });\n});`,
+      ["3: spawnSync（timeout 25000 がテストの timeout 10000 以上）"],
+    ],
+    [
+      "suite の timeout 以上",
+      `${IMPORT}suite("d", { timeout: 5_000 }, () => {\n  test("t", () => {\n    spawnSync("node", [], { timeout: CHILD_TIMEOUT_MS });\n  });\n});`,
+      ["4: spawnSync（timeout 25000 がテストの timeout 5000 以上）"],
+    ],
+    [
+      "?? undefined",
+      `${IMPORT}spawnSync("node", [], { timeout: options.timeout ?? undefined });`,
+      ["2: spawnSync"],
+    ],
+    ["void 0", `${IMPORT}spawnSync("node", [], { timeout: void 0 });`, ["2: spawnSync"]],
+    [
+      "export import",
+      'export import cp = require("node:child_process");',
+      ["1: export（再エクスポート）"],
+    ],
+    ["export *", 'export * from "node:child_process";', ["1: export（再エクスポート）"]],
   ])("タイムアウトの無い起動（%s）を拾う", (_, source, expected) => {
     expect(findUntimedChildCalls(source)).toEqual(expected);
   });
@@ -259,6 +296,12 @@ describe("findUntimedChildCalls", () => {
       `${IMPORT}describe("d", { timeout: 5_000 }, () => {\n  test("t", () => {\n    spawnSync("node", [], { timeout: CHILD_TIMEOUT_MS });\n  }, 60_000);\n});`,
     ],
     ["child_process 以外からの再エクスポート", `${IMPORT}export { helper } from "./other.ts";`],
+    ["型だけの再エクスポート", 'export type { spawnSync } from "node:child_process";'],
+    [
+      "起動の関数ではない名前の再エクスポート",
+      'export { SpawnAsyncResult } from "./spawn-async.ts";',
+    ],
+    ["type を付けた名前の再エクスポート", 'export { type spawnSync } from "node:child_process";'],
   ])("拾わない（%s）", (_, source) => {
     expect(findUntimedChildCalls(source)).toEqual([]);
   });
@@ -294,6 +337,8 @@ test("CHILD_TIMEOUT_MS は vitest の testTimeout より短く、TEST_TIMEOUT_MS
   const hooks = [...config.matchAll(/hookTimeout:\s*([\d_]+)/gu)].map((m) =>
     Number(m[1].replaceAll("_", "")),
   );
+  // 数値で書いていない hookTimeout（変数など）は読めないので、書いた数だけ数値で読めることも確かめる。
+  expect(hooks.length).toBe(config.match(/hookTimeout/gu)?.length ?? 0);
   for (const hook of hooks.length > 0 ? hooks : [10_000]) expect(HOOK_TIMEOUT_MS).toBe(hook);
 });
 
