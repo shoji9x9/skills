@@ -1,0 +1,54 @@
+{
+  "$comment": [
+    "check-skills-sync.test.ts が、本番の SKILL.md の frontmatter の比べ方（正規化した値を型と中身で比べる）を固定していることを示す変異の一覧（#651）。",
+    "比べ方を JSON の文字列や参照の一致に変えると、キーの順と local-path だけが違うコピーを drift と報告する。"
+  ],
+  "test_file": "scripts/gates/packaging/copies/check-skills-sync.test.ts",
+  "mutations": [
+    {
+      "id": "SYNC-FM-JSON-COMPARE",
+      "why": "正規化した frontmatter を JSON の文字列で比べる（キーの順を区別する）",
+      "file": "scripts/gates/packaging/copies/check-skills-sync.ts",
+      "find": "!sameNormalizedFrontmatter(fmA, fmB)",
+      "replace": "JSON.stringify(fmA) !== JSON.stringify(fmB)",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: インストールで書き換わる SKILL.md の frontmatter の違いだけなら OK で exit 0",
+        "陰性: 印のある private skill は skills/ に無くても、リンクが正しければ OK"
+      ]
+    },
+    {
+      "id": "SYNC-FM-REF-COMPARE",
+      "why": "正規化した frontmatter を参照の一致で比べる（別々に読んだ値は常に違うので、すべてのコピーを drift と報告する）",
+      "file": "scripts/gates/packaging/copies/check-skills-sync.ts",
+      "find": "!sameNormalizedFrontmatter(fmA, fmB)",
+      "replace": "fmA !== fmB",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: インストールで書き換わる SKILL.md の frontmatter の違いだけなら OK で exit 0",
+        "陰性: 印のある private skill は skills/ に無くても、リンクが正しければ OK"
+      ]
+    },
+    {
+      "id": "SYNC-FM-RAW-COMPARE",
+      "why": "正規化した値ではなく frontmatter の生のテキストを比べる（インストールで書き換わる違いを drift と報告する）",
+      "file": "scripts/gates/packaging/copies/check-skills-sync.ts",
+      "find": "!sameNormalizedFrontmatter(fmA, fmB)",
+      "replace": "A.fm !== B.fm",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: インストールで書き換わる SKILL.md の frontmatter の違いだけなら OK で exit 0",
+        "陰性: 印のある private skill は skills/ に無くても、リンクが正しければ OK"
+      ]
+    },
+    {
+      "id": "SYNC-FM-IGNORED",
+      "why": "frontmatter を比べない（値の違うコピーを見逃す）",
+      "file": "scripts/gates/packaging/copies/check-skills-sync.ts",
+      "find": "!sameNormalizedFrontmatter(fmA, fmB)",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": ["陽性: SKILL.md の frontmatter の値が違うなら drift として exit 1"]
+    }
+  ]
+}
