@@ -419,3 +419,83 @@ test("バックスラッシュが 2 つ続く `\\\\<!--` とバッククォー�
     ["2", "\\\\` <!-- z --> `"],
   ]);
 });
+
+// 閉じないコードフェンス（#679 の利用者の決定 A）。閉じる行に情報文字列を付けると（` ```sh ` など）フェンスは閉じず、
+// 文書の末尾までフェンスの中になる。後ろの表を警告なしに読まずに通さないよう、開いた行の番号を返して、各スクリプトが止める。
+test.each([
+  [
+    "閉じたフェンス",
+    lines("```bash", "cmd", "```", "", "| a | b |", "|---|---|", "| 1 | 2 |"),
+    null,
+  ],
+  [
+    "情報文字列の付いた行で閉じたつもりのフェンス",
+    lines("```bash", "cmd", "```sh", "", "| a | b |", "|---|---|", "| 1 | 2 |"),
+    1,
+  ],
+  ["閉じた後に開き直したフェンス", lines("```", "x", "```", "", "```", "y"), 5],
+  ["字下げした `~~~` のフェンス", lines("説明", "   ~~~", "x"), 2],
+  ["閉じない HTML コメントの中のフェンス行", lines("<!--", "```", "x"), null],
+  ["閉じた HTML コメントの中のフェンス行", lines("<!--", "```", "-->"), null],
+  ["フェンスが無い", lines("| a | b |", "|---|---|", "| 1 | 2 |"), null],
+])(
+  "parseTables は、末尾まで閉じないフェンスを開いた行の番号を返す: %s",
+  (_name, text, expected) => {
+    expect(parseTables(text).unclosedFence).toBe(expected);
+  },
+);
+
+test.each([
+  [
+    "asset-delivery-check",
+    () => readAssetLedger(lines(ASSET, "|---|---|---|", COPY("新"), "", "```bash", "cmd", "```sh")),
+  ],
+  [
+    "evidence-gap-check",
+    () => readRow(lines(FEATURE, D6, PLAN("GET /a"), "", "```bash", "cmd", "```sh"), "plan"),
+  ],
+  [
+    "procedure-staleness-check",
+    () =>
+      procedureIds(lines(CHANGE, D6, PC("PC-001"), "", RECORD, D6, "", "```bash", "cmd", "```sh")),
+  ],
+])("%s: 閉じないコードフェンスは、開いた行の番号を付けて止める", (name, read) => {
+  const line = name === "procedure-staleness-check" ? 8 : 5;
+  expect(read).toThrow(`${line} 行目で開いたコードフェンスが閉じていない`);
+});
+
+test("procedure-staleness-check: 閉じないフェンスが表を読めなくしたときは、表が無いエラーより先にフェンスを報告する", () => {
+  const r = readProcedureLedger(
+    lines("```bash", "cmd", "```sh", "", CHANGE, D6, PC("PC-001")),
+    new Set(),
+  );
+  expect(r.ok).toBe(false);
+  if (r.ok) return;
+  expect(r.errors[0]).toContain("1 行目で開いたコードフェンスが閉じていない");
+  expect(r.errors.join("\n")).toContain("表が無い");
+});
+
+test.each([
+  [
+    "asset-delivery-check",
+    () =>
+      readAssetLedger(
+        lines(ASSET, "|---|---|---|", COPY("新"), "", "```bash", "cmd", "```"),
+      ).copyRows.map((r) => r.kind),
+    ["新"],
+  ],
+  [
+    "evidence-gap-check",
+    () =>
+      readRow(lines(FEATURE, D6, PLAN("GET /a"), "", "```bash", "cmd", "```"), "plan").endpoints,
+    ["GET /a"],
+  ],
+  [
+    "procedure-staleness-check",
+    () =>
+      procedureIds(lines(CHANGE, D6, PC("PC-001"), "", RECORD, D6, "", "```bash", "cmd", "```")),
+    ["PC-001"],
+  ],
+])("誤検知しないことの確認: %s は、閉じたコードフェンスでは止めない", (_name, read, expected) => {
+  expect(read()).toEqual(expected);
+});

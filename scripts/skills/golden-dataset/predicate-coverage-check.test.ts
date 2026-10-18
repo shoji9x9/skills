@@ -13,6 +13,7 @@ import {
   checkPredicateCoverage,
   filterColumn,
   parseTables,
+  unclosedFenceLine,
 } from "../../../skills/golden-dataset/scripts/predicate-coverage-check.mjs";
 
 /** 欠陥の無い features.md（3 表とも在り、参照テーブルが埋まっている）。 */
@@ -1260,4 +1261,63 @@ test("`<!-->` と `<!--->` はそれだけでコメントを閉じ、後ろの�
     );
     expect(tables.map((t) => t.headers)).toEqual([["b"]]);
   }
+});
+
+// 閉じないコードフェンス（#679 の利用者の決定 A。replace-strategy の台帳と同じ扱い）。
+// 閉じる行に情報文字列を付けるとフェンスは閉じず、後ろの表がすべて読まれないので、開いた行の番号を返して構造の不備にする。
+test.each([
+  ["閉じたフェンス", md("```bash", "cmd", "```", "", "| b |", "|---|", "| 2 |"), null],
+  ["情報文字列の付いた行で閉じたつもりのフェンス", md("```bash", "cmd", "```sh", "", "| b |"), 1],
+  ["閉じた後に開き直したフェンス", md("```", "x", "```", "", "```", "y"), 5],
+  ["閉じない HTML コメントの中のフェンス行", md("<!--", "```", "x"), null],
+  ["フェンスが無い", md("| b |", "|---|", "| 2 |"), null],
+])(
+  "unclosedFenceLine は、末尾まで閉じないフェンスを開いた行の番号を返す: %s",
+  (_name, text, expected) => {
+    expect(unclosedFenceLine(text)).toBe(expected);
+  },
+);
+
+test.each([
+  [
+    "features.md",
+    "features-fence-unclosed",
+    { features: `${FEATURES}\n\`\`\`bash\ncmd\n\`\`\`sh\n`, design: designOf() },
+  ],
+  [
+    "design.md",
+    "design-fence-unclosed",
+    { features: FEATURES, design: `${designOf()}\n\`\`\`bash\ncmd\n\`\`\`sh\n` },
+  ],
+])("%s の閉じないコードフェンスは、構造の不備として合格にしない", (_name, code, input) => {
+  const result = checkPredicateCoverage({
+    featuresMarkdown: input.features,
+    designMarkdown: input.design,
+    verificationMarkdown: null,
+  });
+  expect(result.findings.map((f) => f.code)).toContain(code);
+  expect(result.structural).toBe(true);
+});
+
+test("verification.md の閉じないコードフェンスは、開いた行の番号を付けて報告する", () => {
+  const result = checkPredicateCoverage({
+    featuresMarkdown: FEATURES,
+    designMarkdown: designOf(),
+    verificationMarkdown: "# 検証\n\n```bash\ncmd\n```sh\n",
+  });
+  const finding = result.findings.find((f) => f.code === "verification-fence-unclosed");
+  expect(finding?.message).toContain(
+    "verification.md の 3 行目で開いたコードフェンスが閉じていない",
+  );
+});
+
+test("誤検知しないことの確認: 閉じたコードフェンスは、構造の不備にしない", () => {
+  const codes = codesOf({
+    features: `${FEATURES}\n\`\`\`bash\ncmd\n\`\`\`\n`,
+    design: `${designOf()}\n\`\`\`bash\ncmd\n\`\`\`\n`,
+    verification: "# 検証\n\n```bash\ncmd\n```\n",
+  });
+  expect(codes).not.toContain("features-fence-unclosed");
+  expect(codes).not.toContain("design-fence-unclosed");
+  expect(codes).not.toContain("verification-fence-unclosed");
 });

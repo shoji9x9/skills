@@ -141,21 +141,26 @@ function opensHtmlBlock(line) {
  * fenced を渡すと、各行がフェンスの記号の行かフェンスの中か（true）を入れる。
  * フェンスは置き換える前の行で判定するので、呼び出し側は置き換えた後の行でフェンスを判定し直さず、fenced を使う。
  * 置き換えた後の行で判定し直すと、` ```<!-- ` --> ` のようにコメントを空白にして初めてフェンスに見える行で開いてしまう。
+ * state を渡すと、末尾まで閉じないフェンスを開いた行の番号（1 始まり。閉じていれば null）を unclosedFence に入れる。
  * @param {string[]} lines
  * @param {boolean[]} [fenced]
+ * @param {{ unclosedFence: number | null }} [state]
  * @returns {string[]}
  */
-function blankComments(lines, fenced) {
+function blankComments(lines, fenced, state) {
   /** @type {string | null} */
   let fence = null;
+  /** @type {number | null} */
+  let openedAt = null;
   let block = false;
-  return lines.map((line, index) => {
+  const blanked = lines.map((line, index) => {
     if (fenced !== undefined) fenced[index] = false;
     if (block) {
       if (line.includes("-->")) block = false;
       return " ".repeat(line.length);
     }
     const step = stepFence(fence, line);
+    if (fence === null && step.fence !== null) openedAt = index + 1;
     fence = step.fence;
     if (step.marker || fence !== null) {
       if (fenced !== undefined) fenced[index] = true;
@@ -167,6 +172,8 @@ function blankComments(lines, fenced) {
     }
     return blankInlineComments(line);
   });
+  if (state !== undefined) state.unclosedFence = fence === null ? null : openedAt;
+  return blanked;
 }
 
 /**
@@ -183,17 +190,21 @@ function blankComments(lines, fenced) {
  *
  * 表に属さないのに `|` を含む行は、警告なしに捨てず、行番号・セル数・行頭の `|` の有無を strayRows に返す
  * （GFM は行頭・行末の `|` を省けるので、行頭の `|` だけでは表の行を見分けられない）。
+ * 末尾まで閉じないフェンス（閉じる行に情報文字列を付けた ` ```sh ` など）は、開いた行の番号を unclosedFence に返す。
+ * フェンスの後ろの表はすべて読まれないので、呼び出し側は台帳を読まずに止める。
  * @param {string} text
  * @param {{ normalizeHeader?: (cell: string) => string, consumed?: Set<number> }} [options]
  *   normalizeHeader は見出しのセルの正規化（デフォルトは collapse）。consumed を渡すと、表として読んだ行（見出し・区切り・行）の行番号（0 始まり）を入れる
- * @returns {{ tables: { headers: string[], rows: string[][], rowLines: number[] }[], strayRows: StrayRow[] }}
+ * @returns {{ tables: { headers: string[], rows: string[][], rowLines: number[] }[], strayRows: StrayRow[], unclosedFence: number | null }}
  *   rowLines は各行のファイル上の行番号（1 始まり。エラー文で行を指せるように）
  */
 function parseTables(text, options = {}) {
   const { normalizeHeader = collapse, consumed } = options;
   /** @type {boolean[]} */
   const fenced = [];
-  const lines = blankComments(text.split(/\r?\n/u), fenced);
+  /** @type {{ unclosedFence: number | null }} */
+  const state = { unclosedFence: null };
+  const lines = blankComments(text.split(/\r?\n/u), fenced, state);
   /** @type {{ headers: string[], rows: string[][], rowLines: number[] }[]} */
   const tables = [];
   /** @type {StrayRow[]} */
@@ -231,7 +242,16 @@ function parseTables(text, options = {}) {
     if (consumed !== undefined) for (let k = i; k < j; k += 1) consumed.add(k);
     i = j - 1;
   }
-  return { tables, strayRows };
+  return { tables, strayRows, unclosedFence: state.unclosedFence };
 }
 
-export { blankComments, opensHtmlBlock, collapse, parseTables, splitRow };
+/**
+ * 閉じないフェンスを、利用者に返すエラー文にする（3 つのスクリプトで同じ文にする）。
+ * @param {number} line
+ * @returns {string}
+ */
+function unclosedFenceMessage(line) {
+  return `${line} 行目で開いたコードフェンスが閉じていない（閉じる行に情報文字列を付けると閉じない。以降の表が読まれない）`;
+}
+
+export { blankComments, opensHtmlBlock, collapse, parseTables, splitRow, unclosedFenceMessage };

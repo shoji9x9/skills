@@ -33,7 +33,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
-import { collapse, parseTables } from "./lib/markdown.mjs";
+import { collapse, parseTables, unclosedFenceMessage } from "./lib/markdown.mjs";
 
 /** ツールのバージョン（このファイルで定義する）。判定のロジックや出力の形を変えたら上げる。 */
 export const VERSION = "4";
@@ -205,7 +205,9 @@ export function classifyTable(headers) {
  * @returns {{ endpointCell: string, endpoints: string[], entries: { endpoints: string[], verdict: string, raw: string }[] }}
  */
 export function readRow(text, slug) {
-  const { tables, strayRows } = parseTables(text);
+  const { tables, strayRows, unclosedFence } = parseTables(text);
+  if (unclosedFence !== null)
+    throw new UsageError(`features.md の ${unclosedFenceMessage(unclosedFence)}`);
   /** @type {{ endpointCell: string, endpoints: string[], entries: ReturnType<typeof parseEvidenceEntries> }[]} */
   const matched = [];
   // 判定できない行は理由の別で数える。同じ終了コードへ畳むと、呼び出し側が

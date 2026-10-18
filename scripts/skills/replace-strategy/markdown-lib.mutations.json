@@ -23,20 +23,20 @@
       "id": "comments-read-as-tables",
       "why": "HTML コメントを空白に置き換えず、コメントの中の表を台帳として読む",
       "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "  const lines = blankComments(text.split(/\\r?\\n/u), fenced);",
-      "replace": "  const lines = text.split(/\\r?\\n/u);\n  blankComments(lines, fenced);",
+      "find": "  const lines = blankComments(text.split(/\\r?\\n/u), fenced, state);",
+      "replace": "  const lines = text.split(/\\r?\\n/u);\n  blankComments(lines, fenced, state);",
       "occurrences": 1,
       "expect_failing": [
         "HTML コメントの中の表は読まない（行頭で開いた複数行のコメントと、行の途中で開いて同じ行で閉じたコメント）",
         "閉じないバッククォートの後ろの `<!-- -->` は、コメントとして消す",
         "`<!-->` と `<!--->` は、それだけで閉じたコメントとして消す（CommonMark 0.31）",
-        "evidence-gap-check: 表の途中の HTML コメントの行で表が切れたら、行が無いというエラーに表の外の行番号を添える",
-        "行頭の閉じない `<!--` は、末尾までコメントとして読む（字下げ 3 文字まで）",
         "asset-delivery-check: HTML コメントの中の表の行を台帳として読まない",
         "evidence-gap-check: HTML コメントの中の表の行を台帳として読まない",
         "procedure-staleness-check: HTML コメントの中の表の行を台帳として読まない",
-        "HTML ブロックを閉じる行は、`-->` の後ろもブロックに入るので表の行として読まない",
+        "evidence-gap-check: 表の途中の HTML コメントの行で表が切れたら、行が無いというエラーに表の外の行番号を添える",
+        "行頭の閉じない `<!--` は、末尾までコメントとして読む（字下げ 3 文字まで）",
         "バックスラッシュを付けた `\\<!--` と `` \\` `` は、コメントとコードスパンの始まりにしない",
+        "HTML ブロックを閉じる行は、`-->` の後ろもブロックに入るので表の行として読まない",
         "バックスラッシュが 2 つ続く `\\\\<!--` とバッククォートは、エスケープにならない"
       ]
     },
@@ -60,7 +60,9 @@
       "replace": "    if (block && stepFence(null, line).fence === null) {",
       "occurrences": 1,
       "expect_failing": [
-        "誤検知しないことの確認: コメントの中のフェンス行はフェンスを開かず、コメントの後の表を読む"
+        "誤検知しないことの確認: コメントの中のフェンス行はフェンスを開かず、コメントの後の表を読む",
+        "parseTables は、末尾まで閉じないフェンスを開いた行の番号を返す: 閉じない HTML コメントの中のフェンス行",
+        "parseTables は、末尾まで閉じないフェンスを開いた行の番号を返す: 閉じた HTML コメントの中のフェンス行"
       ]
     },
     {
@@ -153,11 +155,13 @@
       "expect_failing": [
         "HTML コメントの中の表は読まない（行頭で開いた複数行のコメントと、行の途中で開いて同じ行で閉じたコメント）",
         "誤検知しないことの確認: コメントの中のフェンス行はフェンスを開かず、コメントの後の表を読む",
-        "行頭の閉じない `<!--` は、末尾までコメントとして読む（字下げ 3 文字まで）",
         "asset-delivery-check: HTML コメントの中の表の行を台帳として読まない",
         "evidence-gap-check: HTML コメントの中の表の行を台帳として読まない",
         "procedure-staleness-check: HTML コメントの中の表の行を台帳として読まない",
-        "HTML ブロックを閉じる行は、`-->` の後ろもブロックに入るので表の行として読まない"
+        "行頭の閉じない `<!--` は、末尾までコメントとして読む（字下げ 3 文字まで）",
+        "HTML ブロックを閉じる行は、`-->` の後ろもブロックに入るので表の行として読まない",
+        "parseTables は、末尾まで閉じないフェンスを開いた行の番号を返す: 閉じない HTML コメントの中のフェンス行",
+        "parseTables は、末尾まで閉じないフェンスを開いた行の番号を返す: 閉じた HTML コメントの中のフェンス行"
       ]
     },
     {
@@ -283,7 +287,12 @@
         "情報文字列の付いた行でフェンスを閉じず、フェンスの中の表と HTML コメントを読まない",
         "asset-delivery-check: 情報文字列の付いた行でフェンスを閉じず、フェンスの中の表を読まない",
         "evidence-gap-check: 情報文字列の付いた行でフェンスを閉じず、フェンスの中の表を読まない",
-        "procedure-staleness-check: 情報文字列の付いた行でフェンスを閉じず、フェンスの中の表を読まない"
+        "procedure-staleness-check: 情報文字列の付いた行でフェンスを閉じず、フェンスの中の表を読まない",
+        "parseTables は、末尾まで閉じないフェンスを開いた行の番号を返す: 情報文字列の付いた行で閉じたつもりのフェンス",
+        "asset-delivery-check: 閉じないコードフェンスは、開いた行の番号を付けて止める",
+        "evidence-gap-check: 閉じないコードフェンスは、開いた行の番号を付けて止める",
+        "procedure-staleness-check: 閉じないコードフェンスは、開いた行の番号を付けて止める",
+        "procedure-staleness-check: 閉じないフェンスが表を読めなくしたときは、表が無いエラーより先にフェンスを報告する"
       ]
     },
     {
@@ -389,6 +398,88 @@
       "replace": "(.*)$/u.exec(line);",
       "occurrences": 1,
       "expect_failing": ["stepFence: 開いていない・情報文字列に行区切りの文字があっても開く"]
+    },
+    {
+      "id": "unclosed-fence-opened-at-not-tracked",
+      "why": "フェンスを開いた行を覚えず、閉じないフェンスを報告しない（#679 の決定 A）",
+      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
+      "find": "    if (fence === null && step.fence !== null) openedAt = index + 1;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "parseTables は、末尾まで閉じないフェンスを開いた行の番号を返す: 情報文字列の付いた行で閉じたつもりのフェンス",
+        "parseTables は、末尾まで閉じないフェンスを開いた行の番号を返す: 閉じた後に開き直したフェンス",
+        "parseTables は、末尾まで閉じないフェンスを開いた行の番号を返す: 字下げした `~~~` のフェンス",
+        "asset-delivery-check: 閉じないコードフェンスは、開いた行の番号を付けて止める",
+        "evidence-gap-check: 閉じないコードフェンスは、開いた行の番号を付けて止める",
+        "procedure-staleness-check: 閉じないコードフェンスは、開いた行の番号を付けて止める",
+        "procedure-staleness-check: 閉じないフェンスが表を読めなくしたときは、表が無いエラーより先にフェンスを報告する"
+      ]
+    },
+    {
+      "id": "unclosed-fence-opened-at-first-only",
+      "why": "最初に開いたフェンスの行だけを覚え、閉じた後に開き直したフェンスの行を指さない",
+      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
+      "find": "    if (fence === null && step.fence !== null) openedAt = index + 1;",
+      "replace": "    if (openedAt === null && step.fence !== null) openedAt = index + 1;",
+      "occurrences": 1,
+      "expect_failing": [
+        "parseTables は、末尾まで閉じないフェンスを開いた行の番号を返す: 閉じた後に開き直したフェンス"
+      ]
+    },
+    {
+      "id": "unclosed-fence-ignores-closed",
+      "why": "末尾でフェンスが閉じていても、開いた行を閉じないフェンスとして返す",
+      "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
+      "find": "state.unclosedFence = fence === null ? null : openedAt;",
+      "replace": "state.unclosedFence = openedAt;",
+      "occurrences": 1,
+      "expect_failing": [
+        "asset-delivery-check: 表の直後の `|` を含むフェンス行で表を終える",
+        "evidence-gap-check: 表の直後の `|` を含むフェンス行で表を終える",
+        "procedure-staleness-check: 表の直後の `|` を含むフェンス行で表を終える",
+        "asset-delivery-check: 情報文字列の付いた行でフェンスを閉じず、フェンスの中の表を読まない",
+        "evidence-gap-check: 情報文字列の付いた行でフェンスを閉じず、フェンスの中の表を読まない",
+        "procedure-staleness-check: 情報文字列の付いた行でフェンスを閉じず、フェンスの中の表を読まない",
+        "parseTables は、末尾まで閉じないフェンスを開いた行の番号を返す: 閉じたフェンス",
+        "誤検知しないことの確認: asset-delivery-check は、閉じたコードフェンスでは止めない",
+        "誤検知しないことの確認: evidence-gap-check は、閉じたコードフェンスでは止めない",
+        "誤検知しないことの確認: procedure-staleness-check は、閉じたコードフェンスでは止めない"
+      ]
+    },
+    {
+      "id": "asset-delivery-unclosed-fence-unchecked",
+      "why": "asset-delivery-check が閉じないフェンスで止めず、後ろの表を読まないまま判定する",
+      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "find": "  if (unclosedFence !== null) throw new UsageError(",
+      "replace": "  if (false) throw new UsageError(",
+      "occurrences": 1,
+      "expect_failing": [
+        "asset-delivery-check: 閉じないコードフェンスは、開いた行の番号を付けて止める"
+      ]
+    },
+    {
+      "id": "evidence-gap-unclosed-fence-unchecked",
+      "why": "evidence-gap-check が閉じないフェンスで止めず、後ろの表を読まないまま判定する",
+      "file": "skills/replace-strategy/scripts/evidence-gap-check.mjs",
+      "find": "  if (unclosedFence !== null)\n    throw new UsageError(`features.md の",
+      "replace": "  if (false)\n    throw new UsageError(`features.md の",
+      "occurrences": 1,
+      "expect_failing": [
+        "evidence-gap-check: 閉じないコードフェンスは、開いた行の番号を付けて止める"
+      ]
+    },
+    {
+      "id": "procedure-staleness-unclosed-fence-unchecked",
+      "why": "procedure-staleness-check が閉じないフェンスで止めず、後ろの表を読まないまま判定する",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "  if (unclosedFence !== null) errors.push(",
+      "replace": "  if (false) errors.push(",
+      "occurrences": 1,
+      "expect_failing": [
+        "procedure-staleness-check: 閉じないコードフェンスは、開いた行の番号を付けて止める",
+        "procedure-staleness-check: 閉じないフェンスが表を読めなくしたときは、表が無いエラーより先にフェンスを報告する"
+      ]
     }
   ]
 }

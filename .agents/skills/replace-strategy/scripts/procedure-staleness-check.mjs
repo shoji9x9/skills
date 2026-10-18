@@ -34,7 +34,14 @@ import { isCliEntry } from "./lib/cli.mjs";
 import { errorMessage } from "./lib/errors.mjs";
 import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 import { stepFence } from "./lib/fence.mjs";
-import { blankComments, collapse, opensHtmlBlock, parseTables, splitRow } from "./lib/markdown.mjs";
+import {
+  blankComments,
+  collapse,
+  opensHtmlBlock,
+  parseTables,
+  splitRow,
+  unclosedFenceMessage,
+} from "./lib/markdown.mjs";
 
 /**
  * ツールのバージョン（このファイルで定義する）。判定の規則や出力の形を変えたら上げる。
@@ -293,7 +300,9 @@ export function readProcedureLedger(text, skillChangeIds) {
   const errors = [];
   /** @type {Set<number>} */
   const consumed = new Set();
-  const { tables } = parseTables(text, { consumed });
+  const { tables, unclosedFence } = parseTables(text, { consumed });
+  // 閉じないフェンスは後ろの表をすべて読めなくするので、表が無いなどのエラーより先に、原因として出す。
+  if (unclosedFence !== null) errors.push(`台帳の ${unclosedFenceMessage(unclosedFence)}`);
   const changeTable = findTable(tables, CHANGE_HEADERS);
   const recordTable = findTable(tables, RECORD_HEADERS);
   // 表の不在を「変更なし」「記録なし」と読まない。列名を書き換えた台帳も同じ（警告なしに 0 件になる）。

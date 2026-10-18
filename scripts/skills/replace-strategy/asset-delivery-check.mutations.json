@@ -114,8 +114,8 @@
       "id": "comment-strip-off",
       "why": "HTML コメント内の例示の表を本物の台帳として読む",
       "file": "skills/replace-strategy/scripts/lib/markdown.mjs",
-      "find": "  const lines = blankComments(text.split(/\\r?\\n/u), fenced);",
-      "replace": "  const lines = text.split(/\\r?\\n/u);\n  blankComments(lines, fenced);",
+      "find": "  const lines = blankComments(text.split(/\\r?\\n/u), fenced, state);",
+      "replace": "  const lines = text.split(/\\r?\\n/u);\n  blankComments(lines, fenced, state);",
       "occurrences": 1,
       "expect_failing": ["台帳: HTML コメントとコードフェンスの中の表は台帳として読まない"]
     },
