@@ -43,7 +43,7 @@ function stepFence(fence, line) {
  * @returns {string}
  */
 function unclosedFenceMessage(line) {
-  return `${line} 行目で開いたコードフェンスが末尾まで閉じていない。フェンスの後ろの表を読めない。閉じる行は、字下げを半角の空白 3 個までにし、開いた記号と同じ文字を開いた数か、それより多く並べ、後ろには空白のほかに何も書かない`;
+  return `${line} 行目で開いたコードフェンスが末尾まで閉じていない。フェンスの後ろの表を読めない。閉じる行は、字下げを半角の空白 3 個までにし、開いた記号と同じ文字を開いた数か、それより多く並べ、後ろには半角の空白とタブのほかに何も書かない`;
 }
 
 export { stepFence, unclosedFenceMessage };

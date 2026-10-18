@@ -1128,14 +1128,11 @@ export function checkPredicateCoverage(input) {
       "偽の実測行数",
     ]);
     if (!measured) {
-      // 閉じないフェンスの後ろの表は読めないので、表が無いとは報告しない（すでにある表を足すよう案内しない）。
-      if (verificationUnclosed === null) {
-        findings.push({
-          code: "verification-table-missing",
-          message:
-            "verification.md に「述語ごとの該当行数」表（述語 id / 真の実測行数 / 偽の実測行数）が無い（投入後に 0 件・1 件が報告に出ない）",
-        });
-      }
+      findings.push({
+        code: "verification-table-missing",
+        message:
+          "verification.md に「述語ごとの該当行数」表（述語 id / 真の実測行数 / 偽の実測行数）が無い（投入後に 0 件・1 件が報告に出ない）",
+      });
     } else {
       /** @type {Map<string, Record<string,string>>} */
       const measuredById = new Map();

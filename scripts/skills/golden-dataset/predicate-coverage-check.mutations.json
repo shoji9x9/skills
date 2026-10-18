@@ -289,7 +289,7 @@
         "features.md の閉じないコードフェンスは、構造の不備として合格にしない",
         "design.md の閉じないコードフェンスは、構造の不備として合格にしない",
         "verification.md の閉じないコードフェンスは、表が無いときと同じく、開いた行の番号を付けて報告する",
-        "verification.md の閉じないフェンスの後ろにある実測表は、表が無いとは報告しない"
+        "verification.md の閉じないフェンスの後ろにある実測表は読めないので、表が無いことも報告する（replace-strategy の台帳と同じ）"
       ]
     },
     {
@@ -303,7 +303,8 @@
         "コードフェンスの中の表と見出しを読まない",
         "情報文字列の付いた行でフェンスを閉じず、フェンスの中の表を読まない",
         "誤検知しないことの確認: フェンスの中の `<!--` はコメントを開かず、フェンスの後ろのフェンスの中の表を読まない",
-        "`<!-->` と `<!--->` はそれだけでコメントを閉じ、後ろのフェンスの中の表を読まない"
+        "`<!-->` と `<!--->` はそれだけでコメントを閉じ、後ろのフェンスの中の表を読まない",
+        "verification.md の閉じないフェンスの後ろにある実測表は読めないので、表が無いことも報告する（replace-strategy の台帳と同じ）"
       ]
     },
     {
@@ -360,10 +361,11 @@
         "unclosedFenceLine は、末尾まで閉じないフェンスを開いた行の番号を返す: 情報文字列の付いた行で閉じたつもりのフェンス",
         "unclosedFenceLine は、末尾まで閉じないフェンスを開いた行の番号を返す: 閉じた後に開き直したフェンス",
         "unclosedFenceLine は、末尾まで閉じないフェンスを開いた行の番号を返す: 4 文字字下げした閉じる行",
+        "unclosedFenceLine は、末尾まで閉じないフェンスを開いた行の番号を返す: タブで字下げした閉じる行",
         "features.md の閉じないコードフェンスは、構造の不備として合格にしない",
         "design.md の閉じないコードフェンスは、構造の不備として合格にしない",
         "verification.md の閉じないコードフェンスは、表が無いときと同じく、開いた行の番号を付けて報告する",
-        "verification.md の閉じないフェンスの後ろにある実測表は、表が無いとは報告しない"
+        "verification.md の閉じないフェンスの後ろにある実測表は読めないので、表が無いことも報告する（replace-strategy の台帳と同じ）"
       ]
     },
     {
@@ -416,7 +418,7 @@
       "occurrences": 1,
       "expect_failing": [
         "verification.md の閉じないコードフェンスは、表が無いときと同じく、開いた行の番号を付けて報告する",
-        "verification.md の閉じないフェンスの後ろにある実測表は、表が無いとは報告しない"
+        "verification.md の閉じないフェンスの後ろにある実測表は読めないので、表が無いことも報告する（replace-strategy の台帳と同じ）"
       ]
     },
     {
@@ -428,17 +430,6 @@
       "occurrences": 1,
       "expect_failing": [
         "unclosedFenceLine は、末尾まで閉じないフェンスを開いた行の番号を返す: 4 文字字下げした閉じる行"
-      ]
-    },
-    {
-      "id": "verification-table-missing-despite-fence",
-      "why": "閉じないフェンスの後ろに実測表があっても、表が無いと報告する",
-      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
-      "find": "      if (verificationUnclosed === null) {",
-      "replace": "      if (true) {",
-      "occurrences": 1,
-      "expect_failing": [
-        "verification.md の閉じないフェンスの後ろにある実測表は、表が無いとは報告しない"
       ]
     }
   ]

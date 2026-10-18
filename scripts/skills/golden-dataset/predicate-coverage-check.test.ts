@@ -1265,12 +1265,13 @@ test("`<!-->` と `<!--->` はそれだけでコメントを閉じ、後ろの�
 
 // 閉じないコードフェンス（#679 の利用者の決定 A。replace-strategy の台帳と同じ扱い）。
 // 閉じる行の形が合わないとフェンスは閉じず、後ろの表がすべて読まれないので、開いた行の番号を返す。
-// features.md と design.md では構造の不備（exit 2）に、verification.md では表が無いときと同じ finding（exit 1）にする。
+// features.md と design.md では構造の不備（exit 2）にする。verification.md では、表が無いときと同じく構造の不備にせず、exit 1 の finding にする。
 test.each([
   ["閉じたフェンス", md("```bash", "cmd", "```", "", "| b |", "|---|", "| 2 |"), null],
   ["情報文字列の付いた行で閉じたつもりのフェンス", md("```bash", "cmd", "```sh", "", "| b |"), 1],
   ["閉じた後に開き直したフェンス", md("```", "x", "```", "", "```", "y"), 5],
   ["4 文字字下げした閉じる行", md("```", "x", "    ```"), 1],
+  ["タブで字下げした閉じる行", md("```", "x", "\t```"), 1],
   ["閉じない HTML コメントの中のフェンス行", md("<!--", "```", "x"), null],
   ["フェンスが無い", md("| b |", "|---|", "| 2 |"), null],
 ])(
@@ -1309,18 +1310,18 @@ test("verification.md の閉じないコードフェンスは、表が無いと�
   });
   const finding = result.findings.find((f) => f.code === "verification-fence-unclosed");
   expect(finding?.message).toContain(
-    "verification.md の 3 行目で開いたコードフェンスが末尾まで閉じていない。フェンスの後ろの表を読めない。閉じる行は、字下げを半角の空白 3 個までにし、開いた記号と同じ文字を開いた数か、それより多く並べ、後ろには空白のほかに何も書かない",
+    "verification.md の 3 行目で開いたコードフェンスが末尾まで閉じていない。フェンスの後ろの表を読めない。閉じる行は、字下げを半角の空白 3 個までにし、開いた記号と同じ文字を開いた数か、それより多く並べ、後ろには半角の空白とタブのほかに何も書かない",
   );
   expect(result.structural).toBe(false);
 });
 
-test("verification.md の閉じないフェンスの後ろにある実測表は、表が無いとは報告しない", () => {
+test("verification.md の閉じないフェンスの後ろにある実測表は読めないので、表が無いことも報告する（replace-strategy の台帳と同じ）", () => {
   const codes = codesOf({
     verification:
       "# 検証\n\n```bash\ncmd\n```sh\n\n## 述語ごとの該当行数\n\n| 述語 id | 真の実測行数 | 偽の実測行数 |\n|---|---|---|\n",
   });
   expect(codes).toContain("verification-fence-unclosed");
-  expect(codes).not.toContain("verification-table-missing");
+  expect(codes).toContain("verification-table-missing");
 });
 
 test("誤検知しないことの確認: 閉じたコードフェンスは、構造の不備にしない", () => {
