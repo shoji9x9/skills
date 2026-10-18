@@ -14,6 +14,7 @@
 // | CLI | サブコマンドごとの正常系 / 引数の数 / 知らないオプション・サブコマンド / 値の無いオプション / 不正な名前 / JSON でない値 |
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { homedir, userInfo } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { describe, expect, test } from "vitest";
@@ -131,6 +132,12 @@ describe.each(COPIES)("%s", (copy) => {
       expect(m.userConfigHome({ XDG_CONFIG_HOME: "", HOME: "/h" })).toBe("/h/.config");
       expect(m.userConfigHome({ XDG_CONFIG_HOME: "rel", HOME: "/h" })).toBe("/h/.config");
       expect(m.userConfigHome({ HOME: "/h" })).toBe("/h/.config");
+      // HOME が空なら、os.homedir() も空を返しうるので、ユーザーのデータベースのホームを使う
+      expect(m.userConfigHome({ HOME: "" })).toBe(join(homedir() || userInfo().homedir, ".config"));
+      // 絶対パスにならない HOME では、置き場所を決められないので止める
+      expect(() => m.userConfigHome({ HOME: "rel" })).toThrow(
+        /人ごとの設定の置き場所を決められない/,
+      );
       expect(m.configPaths("/r", "t", { XDG_CONFIG_HOME: "/x" })).toEqual({
         local: "/r/.config/skills/shoji9x9/t.local.jsonc",
         user: "/x/skills/shoji9x9/t.jsonc",
@@ -602,6 +609,9 @@ describe.each(COPIES)("%s", (copy) => {
       // 同じ値が既にあって書かずに返す場合も、ファイルの誤りで止める
       s.write("repo", '{ "method": "m", "typo": 1 }\n');
       await expect(w(s, {})).rejects.toThrow(/知らないキー "typo"/);
+      // set で同じ値が既にあるときは、その値の誤りでも止める（書いたつもりで誤った設定を残さない）
+      s.write("repo", '{ "count": "x" }\n');
+      await expect(w(s, { keyPath: ["count"], value: "x" })).rejects.toThrow(/count/);
       s.write("repo", '{ "list": [{ "id": "a" }], "typo": 1 }\n');
       await expect(
         w(s, { keyPath: ["list"], value: { id: "a" }, mode: "append", uniqueBy: "id" }),

@@ -113,6 +113,14 @@ case "${XDG_CONFIG_HOME:-}" in
 		unset HOME
 		printf '%s' ~
 	)
+	# ユーザーのデータベースにエントリが無いと ~ が展開されずに残る。読み取りと同じく、絶対パスでなければ止める
+	case "${home_dir}" in
+	/*) ;;
+	*)
+		echo "error: 人ごとの設定の置き場所を決められない（HOME: ${home_dir:-空}）。HOME か XDG_CONFIG_HOME を絶対パスで渡す" >&2
+		exit 2
+		;;
+	esac
 	user_home="${home_dir}/.config"
 	;;
 esac

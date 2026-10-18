@@ -826,7 +826,8 @@
       "replace": "`,",
       "occurrences": 1,
       "expect_failing": [
-        "agent-usage のコマンドと Hook defaultDecision が読めない値なら、コミットを止めて理由を返す。どちらの設定にも無ければ確かめる"
+        "agent-usage のコマンドと Hook defaultDecision が読めない値なら、コミットを止めて理由を返す。どちらの設定にも無ければ確かめる",
+        "agent-usage のコマンドと Hook 記録すると決めたブランチで人ごとの設定を読めなければ、記録せずにコミットを止めて理由を返す"
       ]
     },
     {

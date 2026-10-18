@@ -225,6 +225,15 @@ for (const script of SCRIPTS) {
     expect(parse(r.stdout)).toEqual({ value: "copilot", source: "default" });
   });
 
+  test(`${name}: HOME が空ならユーザーのデータベースのホームを使い、絶対パスにならない HOME なら exit 2`, () => {
+    const s = setup();
+    const env = { ...s.env, PATH: pathWithoutNode(s.base), XDG_CONFIG_HOME: "" };
+    expect(run(script, { cwd: s.root, env: { ...env, HOME: "" } }).status).toBe(0);
+    const r = run(script, { cwd: s.root, env: { ...env, HOME: "rel" } });
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain("人ごとの設定の置き場所を決められない");
+  });
+
   test(`${name}: 設定ファイルがあって Node.js が無ければ、デフォルトとして扱わず exit 2 で止まる`, () => {
     const s = setup();
     s.write("repo", '{ "review_tool": "codex" }');

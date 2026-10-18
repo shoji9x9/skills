@@ -91,6 +91,14 @@ describe("box-folder.sh", () => {
     expect({ status: r.status, stdout: r.stdout }).toEqual({ status: 0, stdout: "0" });
   });
 
+  test("HOME が空ならユーザーのデータベースのホームを使い、絶対パスにならない HOME なら止める", () => {
+    const s = setup({ node: false });
+    expect(s.run({ HOME: "", XDG_CONFIG_HOME: "" }).status).toBe(0);
+    const r = s.run({ HOME: "rel", XDG_CONFIG_HOME: "" });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain("人ごとの設定の置き場所を決められない");
+  });
+
   test("git の外でも、cwd の下に設定が無ければ 0 を出す", () => {
     const s = setup({ node: false });
     const outside = join(s.dir, "outside");

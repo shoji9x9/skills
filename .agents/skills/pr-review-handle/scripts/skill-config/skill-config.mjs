@@ -11,7 +11,7 @@
 
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
+import { homedir, userInfo } from "node:os";
 import { dirname, isAbsolute, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as jsonc from "./vendor/jsonc-parser.mjs";
@@ -89,7 +89,26 @@ function isStringArray(v) {
 export function userConfigHome(env) {
   const xdg = env.XDG_CONFIG_HOME;
   if (xdg && isAbsolute(xdg)) return xdg;
-  return join(env.HOME || homedir(), ".config");
+  // HOME が空のとき、os.homedir() も空を返すので、ユーザーのデータベースのホームを使う（同梱のシェルも同じにする）
+  const home = env.HOME || homedir() || databaseHome();
+  if (!isAbsolute(home)) {
+    throw new ConfigError(
+      `人ごとの設定の置き場所を決められない（HOME: ${JSON.stringify(home)}）。HOME か XDG_CONFIG_HOME を絶対パスで渡す`,
+    );
+  }
+  return join(home, ".config");
+}
+
+/**
+ * ユーザーのデータベース（passwd）のホーム。エントリが無ければ空文字。
+ * @returns {string}
+ */
+function databaseHome() {
+  try {
+    return userInfo().homedir;
+  } catch {
+    return "";
+  }
 }
 
 /** 人ごとの層を読まないことを、プログラムが子プロセスに伝える環境変数（eval のランナーの隔離に使う）。 */
@@ -658,8 +677,11 @@ export function writeConfig(opts) {
   const existing = valueAt(current, opts.keyPath);
   // 書かずに返すとき（同じ値が既にある・--unique-by の要素が既にある）も、書こうとしたキーの外の誤りは見逃さない。
   // 書く前のファイル全体は検証しない。誤った状態を書き込みで直す操作（空の配列に最初の要素を足すなど）を止めるからである
+  // set で同じ値が既にあるなら、その値も含めてファイル全体を検証する。
+  // append で同じ要素が既にあるなら、書こうとした最上位のキーは外す（その配列には、正規の書き込みで直す途中の状態がありうる）
   const unchanged = (/** @type {string} */ reason) => {
-    if (isRecord(current)) {
+    if (opts.mode === "set") validateLayer(schema, opts.layer, current, path);
+    else if (isRecord(current)) {
       const { [top]: _written, ...others } = current;
       validateLayer(schema, opts.layer, others, path);
     }

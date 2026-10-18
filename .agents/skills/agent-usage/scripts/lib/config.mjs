@@ -311,14 +311,17 @@ export function saveUserConfig(root, env, values) {
   // キーごとに書くので、後のキーの誤りで止まると、前のキーだけを書いた設定が残る。
   // 書く前に、すべてのキーが人ごとの層に置けることと、値がスキーマに合うことを確かめる
   const schema = loadSchema(SCHEMA_DIR, CONFIG_NAME);
-  const userKeys = Object.keys(schema.properties).filter((k) =>
-    schema.properties[k].layers.includes("user"),
-  );
-  validateKeys(
-    Object.fromEntries(Object.entries(values).filter(([, v]) => v !== undefined)),
-    userKeys,
-    path,
-  );
+  /** @type {string[]} */
+  const errors = [];
+  for (const [key, value] of Object.entries(values)) {
+    if (value === undefined) continue;
+    const prop = Object.hasOwn(schema.properties, key) ? schema.properties[key] : undefined;
+    if (prop === undefined) errors.push(`${path}: 知らないキー ${JSON.stringify(key)}`);
+    else if (!prop.layers.includes("user"))
+      errors.push(`${path}: ${key} は人ごとの層に置けない（置ける層: ${prop.layers.join("・")}）`);
+    else errors.push(...validateValue(value, prop.schema, `${path}: ${key}`));
+  }
+  if (errors.length > 0) throw new ConfigError(errors.join("\n"));
   for (const [key, value] of Object.entries(values)) {
     if (value === undefined) continue;
     path = writeConfig({

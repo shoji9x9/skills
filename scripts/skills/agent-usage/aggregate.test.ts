@@ -413,7 +413,9 @@ describe("設定ファイルの層", () => {
     expect(existsSync(a.userPath)).toBe(false);
     // 人ごとの層に置けないキーが後ろにあっても、前のキーを書かない（呼び出し側の値は型で絞られないことがある）
     const withRepoKey = { personId: "p-0123abcd", activityWindowMinutes: 5 };
-    expect(() => saveUserConfig(a.root, a.env, withRepoKey)).toThrow(/activityWindowMinutes/);
+    expect(() => saveUserConfig(a.root, a.env, withRepoKey)).toThrow(
+      /activityWindowMinutes は人ごとの層に置けない/,
+    );
     expect(existsSync(a.userPath)).toBe(false);
   });
 

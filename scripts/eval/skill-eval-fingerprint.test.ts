@@ -315,7 +315,7 @@ test("実リポジトリ: 配布スキルの直下の要素は、すべてイン
 // スキーマが挙げる環境変数（x-env と x-legacy.env）が開発者の環境にあると、eval の結果が起動した人で変わる。
 test("実リポジトリ: ランナーが eval の前に消す環境変数は、スキルのスキーマの x-env と x-legacy.env の名前と一致する", () => {
   const skillsRoot = join(here, "..", "..", "skills");
-  const legacy = new Set<string>();
+  const schemaEnvNames = new Set<string>();
   for (const name of readdirSync(skillsRoot)) {
     const dir = join(skillsRoot, name, "config-schemas");
     if (!existsSync(dir)) continue;
@@ -323,19 +323,19 @@ test("実リポジトリ: ランナーが eval の前に消す環境変数は、
       const schema: unknown = JSON.parse(readFileSync(join(dir, file), "utf8"));
       const env = isRecord(schema) && isRecord(schema["x-legacy"]) ? schema["x-legacy"].env : [];
       for (const e of isArray(env) ? env : [])
-        if (isRecord(e) && typeof e.name === "string") legacy.add(e.name);
+        if (isRecord(e) && typeof e.name === "string") schemaEnvNames.add(e.name);
       const props = isRecord(schema) && isRecord(schema.properties) ? schema.properties : {};
       for (const prop of Object.values(props))
-        if (isRecord(prop) && typeof prop["x-env"] === "string") legacy.add(prop["x-env"]);
+        if (isRecord(prop) && typeof prop["x-env"] === "string") schemaEnvNames.add(prop["x-env"]);
     }
   }
-  expect(legacy.size).toBeGreaterThan(0);
+  expect(schemaEnvNames.size).toBeGreaterThan(0);
   const runner = readFileSync(join(here, "run-skill-eval.sh"), "utf8");
   const unsets = [...runner.matchAll(/^\s*unset ((?:[^\n]*\\\n)*[^\n]*)$/gmu)].map((m) =>
     m[1].replaceAll("\\\n", " ").trim().split(/\s+/u),
   );
   expect(unsets).toHaveLength(1);
-  expect([...unsets[0]].sort()).toEqual([...legacy].sort());
+  expect([...unsets[0]].sort()).toEqual([...schemaEnvNames].sort());
 });
 
 test("fixture の中のシンボリックリンクは、指紋にできないものとして失敗する", () => {

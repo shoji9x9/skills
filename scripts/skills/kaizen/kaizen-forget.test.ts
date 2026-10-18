@@ -390,6 +390,18 @@ test("SHOJI9X9_SKILLS_IGNORE_USER_CONFIG は読み取りと同じく 1 だけを
   }
 });
 
+test("絶対パスにならない HOME では、人ごとの設定の置き場所を決められないので、忘却せずに止める", () => {
+  const dir = makeProject(CANDIDATES);
+  try {
+    const { status, stderr } = run(dir, ["--auto"], { HOME: "rel", XDG_CONFIG_HOME: "" });
+    expect(status).toBe(1);
+    expect(stderr).toContain("人ごとの設定の置き場所を決められない");
+    expect(statusOf(dir, "old-low")).toBe("pending");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 // --- 明示指示 ---------------------------------------------------------------
 test("明示指示は閾値に関わらず pending を忘却する", () => {
   const dir = makeProject({ "recent-high": note({ date: daysAgo(1), priority: "high" }) });
