@@ -35,22 +35,27 @@ dependabot-merge                   （対象の指定なし）--all と同じ。
 - 前提スキル: なし
 - MCP: なし
 - シェル: bash（POSIX 互換のシェル）。コマンド例は bash を前提にしているので、Windows では WSL や Git Bash などの bash の環境で実行する
-- node・pnpm・python などのランタイムは要らない。
+- Node.js は、設定ファイル（`.config/skills/shoji9x9/dependabot-merge.jsonc` など）を読むときだけ要る（同梱の `scripts/skill-config/skill-config.mjs` で読む）。
+  設定ファイルがどの層にも無ければ、Node.js なしでデフォルトの `squash` を使う。設定ファイルがあって Node.js が無ければ、設定を読めないとして止まる。pnpm や python は要らない。
 
 ## セットアップ（マージ方式の選択）
 
-マージ方式（`squash` / `merge` / `rebase`）は、利用者やリポジトリで好みが違う。一度決めたら使い続けることが多いので、スキルを導入したときに一度選び、`.config/skills/shoji9x9/skills.yml` の `skills.dependabot-merge.merge_method` に保存する。
+マージ方式（`squash` / `merge` / `rebase`）は、リポジトリで好みが違う。一度決めたら使い続けることが多いので、スキルを導入したときに一度選び、`.config/skills/shoji9x9/dependabot-merge.jsonc` の `merge_method` に保存する。
+リポジトリで揃える値なので、リポジトリの層だけに置ける（層と置き場所の決まりは [`references/config-files.md`](references/config-files.md)）。
 スキルは、マージするたびにこの設定を読む。
 
-```yaml
-version: 1
-skills:
-  dependabot-merge:
-    merge_method: squash   # squash | merge | rebase
+```jsonc
+{
+  "merge_method": "squash", // squash | merge | rebase
+}
 ```
 
-- 作成と追記では、既にある内容を変えない。ファイルが無ければ `.config/skills/shoji9x9/` ごと作り、`skills.dependabot-merge.merge_method` だけを書く。
-  ファイルがあれば、欠けているキーだけを該当するセクション（無ければ親も）に足す。既にあるキー・値・コメントは変えず、既にある設定は上書きしない。
+- 書くときは、同梱の読み取りの `set` を使う。キーが既にあれば値を変えずに止まる（[`references/config-files.md`](references/config-files.md)「書き込みの決まり」）。
+
+  ```bash
+  node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mjs set dependabot-merge merge_method '"squash"' --layer repo
+  ```
+
 - インストール先に設定が無ければ、ユーザーに方式を確認してから書く。設定が無いまま起動した場合は、デフォルトの `squash` を使い、そのことをユーザーに伝える（次回のために設定を作るよう促してよい）。
 - リポジトリで許されたマージ方式（`gh repo view --json squashMergeAllowed,mergeCommitAllowed,rebaseMergeAllowed`）と合わない場合は、許された方式を案内して確認する。
 
@@ -216,7 +221,13 @@ rm -f "$body_file"
 
 ### マージ
 
-設定 `.config/skills/shoji9x9/skills.yml` の `skills.dependabot-merge.merge_method` に従う（デフォルトは `squash`）。
+設定 `dependabot-merge` の `merge_method` に従う（デフォルトは `squash`）。値は同梱の読み取りで取得する。
+
+```bash
+node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mjs get dependabot-merge merge_method --raw
+```
+
+exit 1（設定の誤りか、旧い場所の設定が残っている）なら、マージせずにエラーの内容を利用者に示して止まる。
 
 ```bash
 gh pr merge --squash <番号> --repo <owner>/<repo>   # または --merge / --rebase

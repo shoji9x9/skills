@@ -38,6 +38,7 @@ if [[ "$args" == *EXPECT_EXECUTOR_AND_NORMALIZER_FAIL* ]]; then
   exit 7
 fi
 if [[ "$args" == *EXPECT_REVIEW_ENV_CLEARED* ]]; then test -z "\${SKILLS_REVIEW_TOOL+x}"; fi
+if [[ "$args" == *EXPECT_USER_CONFIG_IGNORED* ]]; then test "\${SHOJI9X9_SKILLS_IGNORE_USER_CONFIG-}" = 1; fi
 if [[ "$args" == *EXPECT_CREATE_FILE* ]]; then printf 'generated\n' >generated.txt; fi
 if [[ "$args" == *EXPECT_WITH_SKILL* ]]; then
   if [ "$1" = "exec" ]; then test -f .agents/skills/box/SKILL.md; else test -f .claude/skills/box/SKILL.md; fi
@@ -212,6 +213,19 @@ function readJson<T = Record<string, unknown>>(path: string): T {
 }
 
 describe.concurrent("run-skill-eval executor compatibility", () => {
+  test("tells the skill config reader not to read the operator's personal config layer", async () => {
+    const { directory, stub } = makeStub();
+    const output = join(directory, "iteration-1", "eval-1", "with_skill", "run-1");
+    await runEval({
+      executor: "codex",
+      config: "with_skill",
+      prompt: "EXPECT_WITH_SKILL EXPECT_USER_CONFIG_IGNORED",
+      output,
+      stub,
+    });
+    expect(readJson(join(output, "result.json")).status).toBe("succeeded");
+  });
+
   test("does not leak an operator-local reviewer override into eval runs", async () => {
     const { directory, stub } = makeStub();
     const output = join(directory, "iteration-1", "eval-1", "with_skill", "run-1");

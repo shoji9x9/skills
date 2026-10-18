@@ -38,7 +38,7 @@ browser-test setup
 - 環境がどこまで分かれているか（ローカル環境が専用のデータを持つか、リモートの DB や外部 API などの共有のリソースを参照するか）は、プロジェクトごとに違う。
   分かれていることを確かめられない限り、書き込みと課金の操作は共有の環境に影響する前提で承認を求める。
 - 呼び出し元のスキルから環境を渡されたときは、渡された環境だけを使う。
-  設定ファイル（`skills.browser-test.environments`）を開かず、存在も確かめず、内容にも触れない。
+  設定ファイル（`browser-test` の設定の `environments`）を開かず、存在も確かめず、内容にも触れない。
   「参照していない」ことを示す目的でも読まない。読んだ内容が判断や応答に入り込むのを防ぐためである。
   受け渡しの取り決めは [`references/project-config.md`](references/project-config.md) で定義する。
 
@@ -64,11 +64,13 @@ browser-test setup
     revision は Playwright の版ごとに変わるので、`playwright-core/browsers.json` の `chromium-headless-shell` の `revision` から組み立てる
 - WSL で実行する場合は、Chrome 本体と CJK フォント（`fonts-noto-cjk`。日本語の文字化けを防ぐ）が要る。
 - ツール: `git`（確認のスコープを導く）、`curl`（ローカル環境が動いているかを確かめる）
+- Node.js: 設定ファイルを読み書きするときだけ要る（同梱の `scripts/skill-config/skill-config.mjs`）。設定ファイルが 1 つでもあるのに Node.js が無ければ、推定に進まずに止まる
 
 ## プロジェクト設定の解決
 
 環境（名前・URL・認証・デフォルト・禁止操作）とローカルの起動方法は、リポジトリごとに違う。
-解決の手順（設定ファイル、リポジトリの探索、ユーザーへの確認の順）と、設定ファイル `.config/skills/shoji9x9/skills.yml` の扱いは [`references/project-config.md`](references/project-config.md) にある。
+解決の手順（設定ファイル、リポジトリの探索、ユーザーへの確認の順）と、設定ファイル（`.config/skills/shoji9x9/browser-test.jsonc` など）の扱いは [`references/project-config.md`](references/project-config.md) にある。
+設定ファイルの置き場所・層・書き込みの決まりは [`references/config-files.md`](references/config-files.md) で定義する。
 セットアップモード（`browser-test setup`。この解決を対話で先に行い、設定ファイルに記録する）の手順も同じファイルにある。
 
 ## フロー

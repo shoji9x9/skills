@@ -7,11 +7,14 @@
 //   停止の分類       人の活動の幅・CI・レビュー待ち・取得していない期間の優先順位／どれにも当たらない（未活用）。
 
 import { describe, expect, test } from "vitest";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { formulaSafe, parseCsv, toCsv } from "../../../skills/agent-usage/scripts/lib/csv.mjs";
 import { classifyingFailuresOf } from "../../../skills/agent-usage/scripts/lib/run-collect.mjs";
 import {
+  defaultDecisionOf,
+  loadRepoConfig,
+  loadUserConfig,
   parseRepoConfig,
   parseUserConfig,
 } from "../../../skills/agent-usage/scripts/lib/config.mjs";
@@ -288,14 +291,25 @@ describe("CSV", () => {
 
 describe("設定", () => {
   test("知らないキーと型の誤りはエラーにする", () => {
-    expect(() => parseRepoConfig({ pricng: {} })).toThrow(/知らないキー/);
-    expect(() => parseRepoConfig({ ci: { external: "yes" } })).toThrow(/true か false/);
-    expect(() => parseRepoConfig({ pricing: { x: { input: 1 } } })).toThrow(/input と output/);
-    expect(() => parseRepoConfig({ aliases: { a: "b", b: "c" } })).toThrow(/別名/);
-    expect(() => parseRepoConfig({ aliases: { "p-00000001": "../x" } })).toThrow(/16 進数/);
+    expect(() => parseRepoConfig({ pricng: {} })).toThrow(/知らないキー "pricng"/);
+    expect(() => parseRepoConfig({ ci: { external: "yes" } })).toThrow(
+      /ci\.external: 型が "boolean" でない/,
+    );
+    expect(() => parseRepoConfig({ pricing: { x: { input: 1 } } })).toThrow(
+      /pricing\.x: output が無い/,
+    );
+    expect(() => parseRepoConfig({ aliases: { a: "b", b: "c" } })).toThrow(/p-\[0-9a-f\]\{8\}/);
+    expect(() =>
+      parseRepoConfig({ aliases: { "p-00000001": "p-00000002", "p-00000002": "p-00000003" } }),
+    ).toThrow(/先がさらに別名になっている/);
+    expect(() => parseRepoConfig({ aliases: { "p-00000001": "../x" } })).toThrow(
+      /aliases\.p-00000001/,
+    );
     expect(parseRepoConfig({ aliases: { "p-00000001": "p-00000002" } }).aliases).toEqual({
       "p-00000001": "p-00000002",
     });
+    // 人ごとの層のキーは、リポジトリの設定として読まない
+    expect(() => parseRepoConfig({ personId: "p-0123abcd" })).toThrow(/知らないキー "personId"/);
   });
 
   test("省いたキーはデフォルトにする", () => {
@@ -304,36 +318,92 @@ describe("設定", () => {
       ci: { external: false },
       defaultDecision: null,
     });
-    expect(parseUserConfig({ personId: "p-0123abcd" }, "u").defaultDecision).toBeUndefined();
+    expect(parseUserConfig({ personId: "p-0123abcd" }, "u")).toMatchObject({ billing: "none" });
   });
 
   test("defaultDecision は record か decline だけを受け付ける", () => {
     expect(parseRepoConfig({ defaultDecision: "record" }).defaultDecision).toBe("record");
     expect(parseRepoConfig({ defaultDecision: "decline" }).defaultDecision).toBe("decline");
-    expect(
-      parseUserConfig({ personId: "p-0123abcd", defaultDecision: "decline" }, "u").defaultDecision,
-    ).toBe("decline");
     // null は置いていないのと同じに扱う
     expect(parseRepoConfig({ defaultDecision: null }).defaultDecision).toBeNull();
-    expect(
-      parseUserConfig({ personId: "p-0123abcd", defaultDecision: null }, "u").defaultDecision,
-    ).toBeUndefined();
     for (const v of ["ask", "", true, ["record"]]) {
-      expect(() => parseRepoConfig({ defaultDecision: v })).toThrow(/record か decline/);
-      expect(() => parseUserConfig({ personId: "p-0123abcd", defaultDecision: v }, "u")).toThrow(
-        /record か decline/,
-      );
+      expect(() => parseRepoConfig({ defaultDecision: v })).toThrow(/defaultDecision: /);
     }
   });
 
   test("人の ID の形とタイムゾーンを確かめる", () => {
     expect(() => parseUserConfig({ personId: "alice" }, "u")).toThrow(/personId/);
+    expect(() => parseUserConfig({}, "u")).toThrow(/personId が無い/);
     expect(() => parseUserConfig({ personId: "p-0123abcd", timeZone: "Mars/Base" }, "u")).toThrow(
       /timeZone/,
     );
+    expect(() => parseUserConfig({ personId: "p-0123abcd", billing: "team" }, "u")).toThrow(
+      /billing/,
+    );
     expect(parseUserConfig({ personId: "p-0123abcd", timeZone: "Asia/Tokyo" }, "u")).toMatchObject({
       billing: "none",
+      timeZone: "Asia/Tokyo",
     });
+  });
+});
+
+describe("設定ファイルの層", () => {
+  /** リポジトリの層・.local.jsonc・人ごとの層に、それぞれ text を置く（null なら置かない）。 */
+  const layers = (repo: string | null, local: string | null, user: string | null) => {
+    const root = makeTempDir("agent-usage-layers-");
+    const env = { XDG_CONFIG_HOME: join(root, "xdg"), HOME: join(root, "home") };
+    const dir = join(root, ".config", "skills", "shoji9x9");
+    const userDir = join(root, "xdg", "skills", "shoji9x9");
+    mkdirSync(dir, { recursive: true });
+    mkdirSync(userDir, { recursive: true });
+    if (repo !== null) writeFileSync(join(dir, "agent-usage.jsonc"), repo);
+    if (local !== null) writeFileSync(join(dir, "agent-usage.local.jsonc"), local);
+    if (user !== null) writeFileSync(join(userDir, "agent-usage.jsonc"), user);
+    return {
+      root,
+      env,
+      repoPath: join(dir, "agent-usage.jsonc"),
+      userPath: join(userDir, "agent-usage.jsonc"),
+    };
+  };
+
+  test("defaultDecision は .local.jsonc・人ごと・リポジトリの順に探し、null の層は飛ばして下の層を見る", () => {
+    const a = layers(
+      '{ "defaultDecision": "record" }',
+      null,
+      '{ "personId": "p-0123abcd", "defaultDecision": null }',
+    );
+    expect(defaultDecisionOf(a.root, a.env)).toEqual({ decision: "record", source: a.repoPath });
+    const b = layers(
+      '{ "defaultDecision": "record" }',
+      null,
+      '{ "personId": "p-0123abcd", "defaultDecision": "decline" }',
+    );
+    expect(defaultDecisionOf(b.root, b.env)).toEqual({ decision: "decline", source: b.userPath });
+    const c = layers('{ "defaultDecision": null }', null, null);
+    expect(defaultDecisionOf(c.root, c.env)).toBeNull();
+  });
+
+  test("リポジトリの設定と人ごとの設定を、それぞれの層から読む。人の ID が無ければ人の設定は null", () => {
+    const a = layers(
+      '// 方針\n{ "activityWindowMinutes": 5 }',
+      '{ "timeZone": "Asia/Tokyo" }',
+      '{ "personId": "p-0123abcd", "timeZone": "UTC" }',
+    );
+    expect(loadRepoConfig(a.root, a.env).activityWindowMinutes).toBe(5);
+    expect(loadUserConfig(a.root, a.env)).toEqual({
+      personId: "p-0123abcd",
+      timeZone: "Asia/Tokyo",
+      billing: "none",
+    });
+    const b = layers(null, null, null);
+    expect(loadUserConfig(b.root, b.env)).toBeNull();
+    expect(loadRepoConfig(b.root, b.env).activityWindowMinutes).toBe(15);
+  });
+
+  test("人の ID をリポジトリの設定に書いたら、置けない層としてエラーにする", () => {
+    const a = layers('{ "personId": "p-0123abcd" }', null, null);
+    expect(() => loadUserConfig(a.root, a.env)).toThrow(/personId は リポジトリ の層に置けない/);
   });
 });
 
@@ -1091,7 +1161,7 @@ describe("report の集計（欄の欠け・期間・時刻）", () => {
 describe("runReport の入力の誤り", () => {
   const run = (over: Partial<Parameters<typeof runReport>[0]>) => {
     const root = makeTempDir("agent-usage-report-");
-    const env = { AGENT_USAGE_CONFIG_DIR: join(root, "user") };
+    const env = { XDG_CONFIG_HOME: join(root, "user") };
     return () => runReport({ root, now: H(1), env, since: null, until: null, out: null, ...over });
   };
 
@@ -1113,7 +1183,7 @@ describe("runReport の入力の誤り", () => {
       runReport({
         root,
         now: H(1),
-        env: { AGENT_USAGE_CONFIG_DIR: join(root, "user") },
+        env: { XDG_CONFIG_HOME: join(root, "user") },
         since: null,
         until: null,
         out: null,

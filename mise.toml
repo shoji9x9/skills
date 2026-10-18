@@ -4,9 +4,6 @@ lockfile = true
 # 採用しない（ファジー指定の解決・mise upgrade/lock 時に適用。厳密ピンは対象外）。
 minimum_release_age = "7d"
 
-[env]
-_.file = ".env.local"
-
 [tools]
 node = "26.11.1"
 pnpm = "12.10.1"

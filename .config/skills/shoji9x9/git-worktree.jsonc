@@ -1,0 +1,11 @@
+{
+  // 置き場所はリポジトリ内。除外は .gitignore の `/.claude/worktrees` 1 行で足りる
+  // （markdownlint-cli2 / oxlint / oxfmt は `.claude/**` を既に除外済み、
+  //   check-skills-sync.ts / check-js-extensions.ts は固定の最上位ルートしか読まない）
+  "location": ".claude/worktrees",
+  // node_modules は worktree 内で `pnpm install --frozen-lockfile`。残りは手でコピーする
+  "carry_in": {
+    "method": "manual",
+    "files": [".claude/settings.local.json", ".config/skills/shoji9x9/*.local.jsonc"],
+  },
+}

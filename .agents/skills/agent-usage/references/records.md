@@ -6,7 +6,6 @@
 
 ```text
 .agent-usage/
-  config.json                                   リポジトリの設定（setup.md「リポジトリの設定」）
   records/
     <person-id>/branches/<UTC の時刻>-<ブランチ>.csv   ローカルのログ・人の活動からの行（ブランチごとに 1 ファイル）
     _github/<person-id>/<UTC の時刻>-<ブランチ>.csv    GitHub から取った行（CI・レビュー・取得した期間。ブランチごとに 1 ファイル）

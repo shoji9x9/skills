@@ -69,11 +69,37 @@
       "prompt": "現行と新側で font-family も版も送り幅も一致しているのに、特定のウェイトの見出しだけ画素差が出る。系統的な原因なので component_diffs に 1 回宣言して全インスタンスで吸収させたい。どう書けばいい？ 書いておけば次の実行から差分ツールが自動で吸収してくれるんだよね？",
       "assertions": [
         "component_diffs は特性照合（computed style の値比較）にしか機能せず、両側の値が一致し画素の比較だけで出る差には照合キーが無いため吸収されないと説明している",
-        "置き場所は .replace/parity/<slug>/component-diff-exceptions.json（設定ファイルの skills.yml ではない）で、property に pixel を入れてインスタンス単位に書くと示している",
+        "置き場所は .replace/parity/<slug>/component-diff-exceptions.json（設定ファイルの replace-strategy.jsonc ではない）で、property に pixel を入れてインスタンス単位に書くと示している",
         "系統的な原因でも 1 回の宣言にできないのは形式上の制約だと述べ、原因は component_diff_exception_causes に 1 回だけ定義して各インスタンスから cause で参照すると示している（reason をインスタンスへ複製しない）",
         "レジストリへ書くのはユーザー承認済みのものだけだと述べている",
         "property: pixel の例外は diff-normalize.mjs では吸収されない（同スクリプトの入力は特性照合の Diff だけで画素候補は通らない）ため本スキルが画素候補へ適用すると説明し、取り違えると承認済みでも次の実行で同じ crop が unexplained として再浮上すると述べている",
         "しきい値で潰す・インスタンス単位の無視リストで飲み込む、といった代替を勧めていない"
+      ],
+      "reachability": [
+        {
+          "assertion": "component_diffs は特性照合（computed style の値比較）にしか機能せず、両側の値が一致し画素の比較だけで出る差には照合キーが無いため吸収されないと説明している",
+          "prompt_quote": "どう書けばいい？"
+        },
+        {
+          "assertion": "置き場所は .replace/parity/<slug>/component-diff-exceptions.json（設定ファイルの replace-strategy.jsonc ではない）で、property に pixel を入れてインスタンス単位に書くと示している",
+          "prompt_quote": "どう書けばいい？"
+        },
+        {
+          "assertion": "系統的な原因でも 1 回の宣言にできないのは形式上の制約だと述べ、原因は component_diff_exception_causes に 1 回だけ定義して各インスタンスから cause で参照すると示している（reason をインスタンスへ複製しない）",
+          "prompt_quote": "系統的な原因なので component_diffs に 1 回宣言して全インスタンスで吸収させたい"
+        },
+        {
+          "assertion": "レジストリへ書くのはユーザー承認済みのものだけだと述べている",
+          "prompt_quote": "どう書けばいい？"
+        },
+        {
+          "assertion": "property: pixel の例外は diff-normalize.mjs では吸収されない（同スクリプトの入力は特性照合の Diff だけで画素候補は通らない）ため本スキルが画素候補へ適用すると説明し、取り違えると承認済みでも次の実行で同じ crop が unexplained として再浮上すると述べている",
+          "prompt_quote": "書いておけば次の実行から差分ツールが自動で吸収してくれるんだよね？"
+        },
+        {
+          "assertion": "しきい値で潰す・インスタンス単位の無視リストで飲み込む、といった代替を勧めていない",
+          "prompt_quote": "全インスタンスで吸収させたい"
+        }
       ]
     },
     {
@@ -123,12 +149,38 @@
       "prompt": "parity-diff --feature order-list --target local-dev",
       "fixture": "fixtures/legacy-exceptions-key",
       "assertions": [
-        "設定ファイルの skills.replace-strategy 直下に component_diff_exceptions が残っていることを旧キーとして検出している",
+        "設定ファイル（replace-strategy.jsonc）の最上位に component_diff_exceptions が残っていることを旧キーとして検出している",
         "旧キーをフォールバックとして読まず（値で暗黙に代替せず）差分検出へ進まずに停止している",
         "移行先が .replace/parity/order-list/component-diff-exceptions.json であることと、移行手順の原本が replace-strategy の references/project-config.md「移行」であることを示している",
         "3 インスタンスに複製されている同一原因の reason を component_diff_exception_causes の 1 件へ畳み、各インスタンスは cause で参照する形へ移すと示している",
         "インスタンスは 3 件のまま残す（件数を畳まない・ワイルドカードで 1 エントリにまとめない）と示している",
         "設定ファイルを自動で書き換えて移行を代行していない（対応表を示して停止している）"
+      ],
+      "reachability": [
+        {
+          "assertion": "設定ファイル（replace-strategy.jsonc）の最上位に component_diff_exceptions が残っていることを旧キーとして検出している",
+          "prompt_quote": "parity-diff --feature order-list --target local-dev"
+        },
+        {
+          "assertion": "旧キーをフォールバックとして読まず（値で暗黙に代替せず）差分検出へ進まずに停止している",
+          "prompt_quote": "parity-diff --feature order-list --target local-dev"
+        },
+        {
+          "assertion": "移行先が .replace/parity/order-list/component-diff-exceptions.json であることと、移行手順の原本が replace-strategy の references/project-config.md「移行」であることを示している",
+          "prompt_quote": "parity-diff --feature order-list --target local-dev"
+        },
+        {
+          "assertion": "3 インスタンスに複製されている同一原因の reason を component_diff_exception_causes の 1 件へ畳み、各インスタンスは cause で参照する形へ移すと示している",
+          "prompt_quote": "parity-diff --feature order-list --target local-dev"
+        },
+        {
+          "assertion": "インスタンスは 3 件のまま残す（件数を畳まない・ワイルドカードで 1 エントリにまとめない）と示している",
+          "prompt_quote": "parity-diff --feature order-list --target local-dev"
+        },
+        {
+          "assertion": "設定ファイルを自動で書き換えて移行を代行していない（対応表を示して停止している）",
+          "prompt_quote": "parity-diff --feature order-list --target local-dev"
+        }
       ]
     },
     {

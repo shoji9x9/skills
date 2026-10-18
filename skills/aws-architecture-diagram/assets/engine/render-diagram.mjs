@@ -1,9 +1,9 @@
 // 構成図の SVG を生成する（スキルが持つエンジン。コピーせず、スキルの場所から実行する）。
-// DIAGRAM_DIR=<図ディレクトリ> を指定すれば、cd しなくてよい。
+// 図のディレクトリを設定（aws-architecture-diagram.jsonc の diagram_dir）に書くか --dir で渡せば、cd しなくてよい。
 //
 //     cd <プロジェクトの図ディレクトリ> && node <skill>/assets/engine/render-diagram.mjs [--env a,b]
 //
-// プロジェクトが持つファイル（DIAGRAM_DIR に置く。デフォルトは cwd）は次のとおりである。
+// プロジェクトが持つファイル（図のディレクトリに置く。デフォルトは cwd）は次のとおりである。
 //
 // - `environments.mjs`: 環境レジストリ。在るべき環境を定義する唯一の場所で、`.js` でもよい。
 // - `architecture-spec.mjs`: 環境レジストリが読む base 仕様。レジストリから相対パスで import するので、
@@ -12,28 +12,30 @@
 // - `out/`: SVG の出力先。
 //
 // 対象の環境は、--env を省略すると環境レジストリの全環境、`--env a,b` なら指定した環境だけになる。
-// 場所は DIAGRAM_DIR・DIAGRAM_ICON_DIR・DIAGRAM_OUT_DIR で上書きできる。
+// 場所の決め方（--dir・--icon-dir・--out-dir と設定のキー）は diagram-config.mjs にある。
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { diagramConfig } from "./diagram-config.mjs";
 import { renderDiagram } from "./diagram-engine.mjs";
 
-const DIAGRAM_DIR = process.env.DIAGRAM_DIR ?? process.cwd();
-const ICON_DIR = process.env.DIAGRAM_ICON_DIR ?? join(DIAGRAM_DIR, "icons");
-const OUT_DIR = process.env.DIAGRAM_OUT_DIR ?? join(DIAGRAM_DIR, "out");
+const config = diagramConfig(process.argv.slice(2));
+const diagramDir = config.dir;
+const ICON_DIR = config.iconDir;
+const OUT_DIR = config.outDir;
 
 // 環境レジストリの拡張子は決め打ちしない。"type": "module" のプロジェクトでは .js がデフォルトで ESM に
 // なるため、リポジトリの拡張子規約に合わせて environments.js で置けるようにする（.mjs 優先なので
 // 既存プロジェクトの挙動は変わらない）。どちらも無いときは ERR_MODULE_NOT_FOUND ではなく、探した
 // 候補を示すエラーで止める（「レジストリの中身を間違えた」との誤診を防ぐ）。
 const REGISTRY_CANDIDATES = ["environments.mjs", "environments.js"];
-const found = REGISTRY_CANDIDATES.map((name) => join(DIAGRAM_DIR, name)).filter((p) =>
+const found = REGISTRY_CANDIDATES.map((name) => join(diagramDir, name)).filter((p) =>
   existsSync(p),
 );
 const registryPath = found[0];
 if (!registryPath) {
   throw new Error(
-    `環境レジストリが見つかりません: ${DIAGRAM_DIR} に ${REGISTRY_CANDIDATES.join(" か ")} を置いてください。`,
+    `環境レジストリが見つかりません: ${diagramDir} に ${REGISTRY_CANDIDATES.join(" か ")} を置いてください。`,
   );
 }
 // 両方あると、先に見つかった方を使い、もう片方は警告なしに無視される。「編集したのに図に反映されない」が起きる
@@ -70,7 +72,7 @@ function specFor(name) {
 // --env の指定を取り出す（--env a,b / --env=a,b いずれも受ける）。
 // フラグの有無と値を区別する（--env を付けたのに値が空、を全環境と取り違えないため）。
 function envArg() {
-  const argv = process.argv.slice(2);
+  const argv = config.rest;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--env") return { present: true, value: argv[i + 1] };

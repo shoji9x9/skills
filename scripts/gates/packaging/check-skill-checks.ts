@@ -36,7 +36,8 @@ const CHECK_RE = /-check\.[A-Za-z0-9]+$/;
 const STAGES = new Set(["pre-commit", "ci"]);
 const RUNTIMES = new Set(["node", "bash"]);
 const ID_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
-const CONFIG_KEY_RE = /^skills\.[a-z0-9-]+(\.[A-Za-z0-9_-]+)+$/;
+// config_key は <設定の名前>.<キーのパス>（.config/skills/<owner>/<設定の名前>.jsonc のキー）。設定の名前はスキル名か common。
+const CONFIG_KEY_RE = /^[a-z0-9][a-z0-9-]*(\.[A-Za-z0-9_-]+)+$/;
 const PLACEHOLDER_RE = /\{([^{}]*)\}/g;
 const TOP_KEYS = new Set(["$comment", "version", "skill", "wire"]);
 const ENTRY_KEYS = new Set([
@@ -160,6 +161,33 @@ function placeholders(text: string): string[] {
  * 1 スキルの `checks.json` を検査する。
  * @returns {{ scripts: string[], violations: string[] }} 宣言した検査（リポジトリ相対）と違反
  */
+/**
+ * config_key が、そのスキルの同梱するスキーマ（config-schemas/<設定の名前>.schema.json）の最上位のキーを指すか。
+ * スキーマに無いキーを指すと、利用者が設定を書いても読み取りが知らないキーとして止まる。
+ */
+function configKeyViolations(
+  root: string,
+  skill: string,
+  configKey: string,
+  pat: string,
+): string[] {
+  const [name, key] = configKey.split(".");
+  const rel = `skills/${skill}/config-schemas/${name}.schema.json`;
+  const path = join(root, rel);
+  if (!existsSync(path)) return [`${pat}: config_key ${configKey} のスキーマ ${rel} が無い`];
+  let schema: unknown;
+  try {
+    schema = JSON.parse(readFileSync(path, "utf8"));
+  } catch (e) {
+    return [`${pat}: ${rel} を JSON として読めない（${errorMessage(e)}）`];
+  }
+  const props = isRecord(schema) ? schema.properties : undefined;
+  if (!isRecord(props) || !(key in props)) {
+    return [`${pat}: config_key ${configKey} の ${key} が ${rel} の properties に無い`];
+  }
+  return [];
+}
+
 export function checkDeclaration(
   root: string,
   skill: string,
@@ -252,8 +280,14 @@ export function checkDeclaration(
       } else {
         if (!isText(p.config_key) || !CONFIG_KEY_RE.test(p.config_key)) {
           v.push(
-            `${pat}: config_key は skills.<スキル名>.<キー> の形にする（実行箇所ごとの値なら by_stage）`,
+            `${pat}: config_key は <設定の名前>.<キー> の形にする（実行箇所ごとの値なら by_stage）`,
           );
+        } else if (p.config_key.startsWith("skills.")) {
+          v.push(
+            `${pat}: config_key ${p.config_key} は旧い skills.yml の書き方。先頭の skills. を外す`,
+          );
+        } else {
+          v.push(...configKeyViolations(root, skill, p.config_key, pat));
         }
         if ("default" in p && !isText(p.default)) v.push(`${pat}: default は空でない文字列にする`);
         for (const k of keys) {

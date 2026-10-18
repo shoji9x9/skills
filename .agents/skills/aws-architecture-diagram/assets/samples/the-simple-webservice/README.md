@@ -27,9 +27,9 @@ starter には影響せず、この 1 ディレクトリだけで完結する。
 
 ```bash
 SKILL=../../..        # 本スキルルート（assets/engine を含む）
-DIAGRAM_DIR=. node "$SKILL/assets/engine/fetch-aws-icons.mjs" --only api-gateway,lambda,dynamodb
-DIAGRAM_DIR=. DIAGRAM_OUT_DIR=. node "$SKILL/assets/engine/render-diagram.mjs"
-DIAGRAM_DIR=. DIAGRAM_OUT_DIR=. node "$SKILL/assets/engine/preview-diagram.mjs" prod
+node "$SKILL/assets/engine/fetch-aws-icons.mjs" --dir . --only api-gateway,lambda,dynamodb
+node "$SKILL/assets/engine/render-diagram.mjs" --dir . --out-dir .
+node "$SKILL/assets/engine/preview-diagram.mjs" prod --dir . --out-dir .
 ```
 
 生成した SVG には AWS 公式アイコンが埋め込まれる。扱いは [NOTICE.md](NOTICE.md) にある（AWS がアーキテクチャ図を作るために許諾している範囲）。

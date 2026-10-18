@@ -423,9 +423,12 @@ esac
 started_at="$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"
 started_ms="$(date +%s%3N)"
 rc=0
-# 操作する人の手元のレビュアーの上書きで、eval の振る舞いが起動した人によって変わってはいけない。
-# 環境変数の優先順位を試すシナリオは、その入力を eval の prompt に書く。
-# 開発者の `.env.local` を、どちらの config にも持ち込まない。
+# 操作する人の手元のスキルの設定で、eval の振る舞いが起動した人によって変わってはいけない。
+# 人ごとの層（~/.config/skills/shoji9x9/）は SHOJI9X9_SKILLS_IGNORE_USER_CONFIG=1 で読ませない。
+# XDG_CONFIG_HOME は差し替えない。executor が使う gh・git・mise の設定も読めなくなるためである。
+# 人ごと・リポジトリ限定の層（.local.jsonc）は fixture のディレクトリで読むので、開発者のものは入らない。
+# 外した SKILLS_REVIEW_TOOL を開発者が残していると、読み取りが移行の手順を示して止まるので、ここで消す。
+# 層の優先順位を試すシナリオは、その入力を eval の prompt と fixture に書く。
 # stdin は必ず /dev/null にする。プロンプトは引数で渡しているが、executor は stdin も読もうとする。
 # 呼び出し側の stdin が EOF にならないパイプ（バックグラウンド実行・エージェント経由）だと、
 # `Reading additional input from stdin...` のまま無限に待つ。raw trace は 0 バイトのままで、
@@ -433,6 +436,7 @@ rc=0
 (
 	cd "${proj}"
 	unset SKILLS_REVIEW_TOOL
+	export SHOJI9X9_SKILLS_IGNORE_USER_CONFIG=1
 	EVAL_SANDBOX_CLI="${executor_binary}" EVAL_SANDBOX_VENDOR="${executor}" "${runner}" "${executor_args[@]}"
 ) </dev/null >"${raw_trace}" 2>"${out}/stderr.log" || rc=$?
 ended_ms="$(date +%s%3N)"

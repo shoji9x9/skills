@@ -377,7 +377,7 @@ if [ "${mode}" = "complete" ] && [ -n "${script_dir}" ] && [ -r "${script_dir}/k
 				printf '  %s\n' "${forgotten_note}"
 			done <<<"${forgotten_notes}"
 			printf '本文は残るので KEDB 照合では見つかります。再発したら status を pending へ戻してください。\n'
-			printf '閾値は .kaizen/config の forget_after_days / forget_max_priority、停止は forget_auto=off です。\n'
+			printf '閾値は kaizen.jsonc の forget_after_days / forget_max_priority、停止は forget_auto: false です。\n'
 		} >&2
 	fi
 fi

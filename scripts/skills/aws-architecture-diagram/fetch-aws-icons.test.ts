@@ -134,7 +134,11 @@ globalThis.fetch = async (url) => {
     ["--import", pathToFileURL(preload).href, script, ...(opts.args ?? [])],
     {
       cwd: dir,
-      env: { ...process.env, DIAGRAM_DIR: dir, FAKE_FETCH_ROUTES: JSON.stringify(table) },
+      env: {
+        ...process.env,
+        XDG_CONFIG_HOME: join(dir, "xdg"),
+        FAKE_FETCH_ROUTES: JSON.stringify(table),
+      },
       encoding: "utf8",
       timeout: CHILD_TIMEOUT_MS,
     },

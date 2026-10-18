@@ -30,12 +30,32 @@
     },
     {
       "id": "GATE-DEADLINE-MIN",
-      "why": "締め切り 1 秒を受け付ける（lifecycle 検査に時間が残らず、毎回 fail closed で止まる）",
-      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
-      "find": "\"$((10#${gate_deadline_raw}))\" -ge 2 ] &&",
-      "replace": "\"$((10#${gate_deadline_raw}))\" -ge 1 ] &&",
+      "why": "締め切り 1 秒を受け付ける（lifecycle 検査に時間が残らず、毎回判定できないとして止まる）。下限はスキーマが決める",
+      "file": "skills/kaizen/config-schemas/kaizen.schema.json",
+      "find": "\"minimum\": 2,",
+      "replace": "\"minimum\": 1,",
       "occurrences": 1,
-      "expect_failing": ["チェック全体の締め切り 不正な締め切り 1 はデフォルト値に戻して知らせる"]
+      "expect_failing": ["チェック全体の締め切り 不正な締め切り 1 はコミットを止めて知らせる"]
+    },
+    {
+      "id": "GATE-CONFIG-ERROR-PASSES",
+      "why": "設定を読めなくてもコミットを止めない（不正な値・旧い場所の設定のまま、デフォルトの値で判定する）",
+      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
+      "find": "if ! kaizen_config_load; then\n\tprintf 'kaizen-precommit-gate: %s\\n'",
+      "replace": "if false; then\n\tprintf 'kaizen-precommit-gate: %s\\n'",
+      "occurrences": 1,
+      "expect_failing": [
+        "チェック全体の締め切り 不正な締め切り \"abc\" はコミットを止めて知らせる",
+        "チェック全体の締め切り 不正な締め切り 0 はコミットを止めて知らせる",
+        "チェック全体の締め切り 不正な締め切り 1 はコミットを止めて知らせる",
+        "チェック全体の締め切り 不正な締め切り 3601 はコミットを止めて知らせる",
+        "チェック全体の締め切り 不正な締め切り -5 はコミットを止めて知らせる",
+        "チェック全体の締め切り 不正な締め切り 8.5 はコミットを止めて知らせる",
+        "kaizen の設定を読めないときはコミットを止める 使わなくなった環境変数 KAIZEN_PRECOMMIT_DEADLINE_SECONDS は、移行の手順を示して止める",
+        "kaizen の設定を読めないときはコミットを止める 旧い .kaizen/config は、node が無くても移行の手順を示して止める",
+        "kaizen の設定を読めないときはコミットを止める 設定ファイルがあるのに node が無ければ止め、設定ファイルが無ければ node なしで通す",
+        "kaizen の設定を読めないときはコミットを止める 人ごとの設定（XDG_CONFIG_HOME）の締め切りも読む"
+      ]
     },
     {
       "id": "FOREIGN-CACHE-NEVER-READ",

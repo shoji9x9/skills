@@ -43,7 +43,7 @@ const entry = (over: Record<string, unknown> = {}) => ({
   id: "a-wait",
   script: "scripts/a-check.mjs",
   command: ["node", "{script}", "{dir}/parity/"],
-  params: { dir: { config_key: "skills.s.dir", default: "e2e/" } },
+  params: { dir: { config_key: "s.dir", default: "e2e/" } },
   applies_when: { exists: ["{dir}/parity/"] },
   appears_after: "feature モードの後",
   run_from: "リポジトリのルート",
@@ -64,6 +64,11 @@ function makeRepo({
   write(root, "skills/s/SKILL.md", "---\nname: s\n---\n");
   write(root, "skills/s/scripts/a-check.mjs", "");
   write(root, "skills/s/scripts/b-check.mjs", "");
+  write(
+    root,
+    "skills/s/config-schemas/s.schema.json",
+    JSON.stringify({ properties: { dir: { "x-layers": ["repo"] }, o: { "x-layers": ["repo"] } } }),
+  );
   for (const [p, t] of Object.entries(extraFiles)) write(root, p, t);
   const d = decl === undefined ? { version: 1, skill: "s", wire: [entry()] } : decl;
   if (d !== null)
@@ -413,31 +418,42 @@ test.each([
   ],
   [
     "未使用の params",
-    { params: { dir: { config_key: "skills.s.dir" }, other: { config_key: "skills.s.o" } } },
+    { params: { dir: { config_key: "s.dir" }, other: { config_key: "s.o" } } },
     "params.other がどこからも参照されていない",
   ],
   [
     "config_key の形",
     { params: { dir: { config_key: "dir" } } },
-    "config_key は skills.<スキル名>.<キー>",
+    "config_key は <設定の名前>.<キー>",
   ],
   [
-    "default の型",
-    { params: { dir: { config_key: "skills.s.dir", default: "" } } },
-    "default は空でない",
+    "config_key の旧い skills.yml の書き方",
+    { params: { dir: { config_key: "skills.s.dir" } } },
+    "旧い skills.yml の書き方",
   ],
+  [
+    "config_key のスキーマが無い",
+    { params: { dir: { config_key: "other.dir" } } },
+    "skills/s/config-schemas/other.schema.json が無い",
+  ],
+  [
+    "config_key のキーがスキーマに無い",
+    { params: { dir: { config_key: "s.nope" } } },
+    "s.nope の nope が skills/s/config-schemas/s.schema.json の properties に無い",
+  ],
+  ["default の型", { params: { dir: { config_key: "s.dir", default: "" } } }, "default は空でない"],
   [
     "params の未知のキー",
-    { params: { dir: { config_key: "skills.s.dir", x: 1 } } },
+    { params: { dir: { config_key: "s.dir", x: 1 } } },
     "params.dir: 未知のキー x",
   ],
-  ["params 名に script", { params: { script: { config_key: "skills.s.dir" } } }, "script は予約語"],
+  ["params 名に script", { params: { script: { config_key: "s.dir" } } }, "script は予約語"],
   [
     "by_stage と config_key の併用",
     {
       params: {
         dir: {
-          config_key: "skills.s.dir",
+          config_key: "s.dir",
           by_stage: { "pre-commit": { value: "a" }, ci: { value: "b" } },
         },
       },

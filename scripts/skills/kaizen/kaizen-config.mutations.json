@@ -1,0 +1,37 @@
+{
+  "$comment": [
+    "kaizen-config.test.ts（共通ライブラリの設定の読み取り）の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/skills/kaizen/kaizen-config.test.ts",
+  "mutations": [
+    {
+      "id": "KC-DEFAULT-DRIFT",
+      "why": "設定ファイルが無いときの値をスキーマの default からずらす（設定ファイルの有無だけで動きが変わる）",
+      "file": "skills/kaizen/scripts/kaizen-hook-common.sh",
+      "find": "\t\tforget_after_days=30 \\\n",
+      "replace": "\t\tforget_after_days=31 \\\n",
+      "occurrences": 1,
+      "expect_failing": ["設定ファイルが無いときに bash が使う値は、スキーマの default と一致する"]
+    },
+    {
+      "id": "KC-LOAD-NOT-CACHED",
+      "why": "2 回目の kaizen_config_load で前の結果を使わない（呼ぶたびに node を起動する）",
+      "file": "skills/kaizen/scripts/kaizen-hook-common.sh",
+      "find": "\tif [ -n \"${kaizen_config_loaded}\" ]; then\n",
+      "replace": "\tif false; then\n",
+      "occurrences": 1,
+      "expect_failing": ["2 回目の kaizen_config_load は node を起動せず、前の結果を返す"]
+    },
+    {
+      "id": "KC-ERROR-NOT-KEPT",
+      "why": "誤りの結果を 2 回目に返さない（2 回目の呼び出しが設定の誤りを見逃す）",
+      "file": "skills/kaizen/scripts/kaizen-hook-common.sh",
+      "find": "\t\treturn \"${kaizen_config_status}\"\n",
+      "replace": "\t\treturn 0\n",
+      "occurrences": 1,
+      "expect_failing": ["誤りの結果も 2 回目に同じ理由で返す"]
+    }
+  ]
+}

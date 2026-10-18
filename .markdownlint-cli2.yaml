@@ -20,6 +20,8 @@ globs:
 # `**/*.!(md)` にしない。名前にドットを 2 つ以上含む Markdown（`README.ja.md`）まで外れる（実測）。
 ignores:
   - "**/!(*.md)"
+  # 外部のパッケージから作った生成物（同梱した jsonc-parser のライセンスの文書。scripts/lib/source-scope.ts の VENDORED_GLOBS）
+  - "skills/*/scripts/skill-config/vendor/**"
 
 config:
   extends: .markdownlint.yaml

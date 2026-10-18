@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "複数のスキルが使う設定（.config/skills/shoji9x9/common.jsonc ほか）",
+  "description": "置き場所・層・解決の順序は references/config-files.md にある。x-layers はそのキーを置ける層。",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "conventions_doc": {
+      "description": "ブランチ運用と commit の規約を書いたドキュメントの、リポジトリのルートからのパス。issue-start・pr-review-handle・pr-finalize-loop・dependabot-alert-issue・issue-batch が読む",
+      "type": "string",
+      "minLength": 1,
+      "x-layers": ["repo"]
+    },
+    "review_tool": {
+      "description": "pr-review-handle と pr-finalize-loop が再レビューを依頼するツール。リポジトリの方針はリポジトリの層に、このリポジトリでだけ自分が変えたい値は .local.jsonc に、自分のすべてのリポジトリで使う値は人ごとの層に置く",
+      "enum": ["copilot", "claude-code", "codex", "local", "none"],
+      "default": "copilot",
+      "x-layers": ["repo", "local", "user"]
+    }
+  },
+  "x-legacy": {
+    "env": [
+      {
+        "name": "SKILLS_REVIEW_TOOL",
+        "steps": "値を common.local.jsonc（このリポジトリの自分だけ）か人ごとの common.jsonc（自分のすべてのリポジトリ）の review_tool に移し、環境変数を .env などから消す。1 回だけ変えるなら、--review-tool で渡す"
+      }
+    ]
+  }
+}

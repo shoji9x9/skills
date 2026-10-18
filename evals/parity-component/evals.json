@@ -5,11 +5,33 @@
       "id": 1,
       "prompt": "parity-component capture",
       "assertions": [
-        "replace-strategy の設定（.config/skills/shoji9x9/skills.yml）と .replace/components.md が無いことを検出している",
+        "replace-strategy の設定（.config/skills/shoji9x9/replace-strategy.jsonc）と .replace/components.md が無いことを検出している",
         "採取物・metadata・部品インベントリを捏造せず停止している",
         "replace-strategy setup の実行（および共通部品インベントリの作成）を促している",
         "対象の部品 slug を自分で採番・推測していない",
         "回答内で、停止の判断と矛盾する結論（前提が揃っているかのような記述・推測で埋めた値）を述べていない"
+      ],
+      "reachability": [
+        {
+          "assertion": "replace-strategy の設定（.config/skills/shoji9x9/replace-strategy.jsonc）と .replace/components.md が無いことを検出している",
+          "prompt_quote": "parity-component capture"
+        },
+        {
+          "assertion": "採取物・metadata・部品インベントリを捏造せず停止している",
+          "prompt_quote": "parity-component capture"
+        },
+        {
+          "assertion": "replace-strategy setup の実行（および共通部品インベントリの作成）を促している",
+          "prompt_quote": "parity-component capture"
+        },
+        {
+          "assertion": "対象の部品 slug を自分で採番・推測していない",
+          "prompt_quote": "parity-component capture"
+        },
+        {
+          "assertion": "回答内で、停止の判断と矛盾する結論（前提が揃っているかのような記述・推測で埋めた値）を述べていない",
+          "prompt_quote": "parity-component capture"
+        }
       ]
     },
     {

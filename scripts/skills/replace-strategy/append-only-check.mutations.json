@@ -387,6 +387,67 @@
         "pinned_values の書き方が誤っていれば合格として扱わない（exit 2）: history が arrays と同じ",
         "pinned_values の書き方が誤っていれば合格として扱わない（exit 2）: paths が arrays の祖先"
       ]
+    },
+    {
+      "id": "AO-JT-COMMENT",
+      "why": "jsonc-tree でコメントを単位にしない（コメントを消しても通る）",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "    if (body !== \"\") add(`<comment> ${body}`);",
+      "replace": "    if (false) add(`<comment> ${body}`);",
+      "occurrences": 1,
+      "expect_failing": [
+        "jsonc-tree: コメントを消す は落とす",
+        "jsonc-tree: 行末のコメントを消す は落とす",
+        "jsonc-tree: keep の行末のコメント（鍵の注記）を消す は落とす"
+      ]
+    },
+    {
+      "id": "AO-JT-SKIP-RANGE",
+      "why": "jsonc-tree で registry の配列の中のコメントも単位にする（pending から keep へ移すと、要素の行末コメントが失われたと判定される）",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "    if (skipped.some(([start, end]) => offset >= start && offset < end)) continue;",
+      "replace": "    if (false) continue;",
+      "occurrences": 1,
+      "expect_failing": [
+        "jsonc-tree: pending の文言を keep へ移す（付随する欄と、要素の行末コメントは移動先に無い） は通す"
+      ]
+    },
+    {
+      "id": "AO-JT-SCALAR",
+      "why": "jsonc-tree でスカラの値を単位にしない（値を書き換えても通る）",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "    add(`${path} = ${JSON.stringify(v)}`);",
+      "replace": "    void path;",
+      "occurrences": 1,
+      "expect_failing": [
+        "jsonc-tree: スカラの値を書き換える は落とす",
+        "jsonc-tree: target の値を書き換える は落とす",
+        "jsonc-tree: 配列の要素を消す は落とす",
+        "対照: --exclude なしでは設定ファイルの既存の値の書き換えを縮小として落とす"
+      ]
+    },
+    {
+      "id": "AO-JT-BLOCKS",
+      "why": "jsonc-tree で mutable_blocks の配下を外さない",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "        if (exact && blockSet.has(p)) continue;",
+      "replace": "        if (false) continue;",
+      "occurrences": 1,
+      "expect_failing": [
+        "jsonc-tree: 一覧の registry_groups・growable_containers・mutable_blocks を受け付け、mutable_blocks の配下を単位から外す"
+      ]
+    },
+    {
+      "id": "AO-JT-REGISTRY",
+      "why": "jsonc-tree で registry_groups を展開しない（pending の文言を keep へ移すと縮小と判定される）",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "        const group = exact ? registryOf.get(p) : undefined;",
+      "replace": "        const group = undefined;",
+      "occurrences": 1,
+      "expect_failing": [
+        "jsonc-tree: pending の文言を keep へ移す（付随する欄と、要素の行末コメントは移動先に無い） は通す",
+        "jsonc-tree: pending の要素を消す（どの鍵にも移さない） は落とす"
+      ]
     }
   ]
 }

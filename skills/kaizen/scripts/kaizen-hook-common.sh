@@ -7,7 +7,7 @@
 #   - `.kaizen/` を解決するプロジェクトルートを決める（worktree 対応）
 #   - リポジトリの全作業ツリーの `.kaizen/` を列挙し、制御ファイルをそこから探す
 #   - センチネル / checkpoint / 抽出完了マーカーのパス組み立てと、名前からの復号
-#   - `.kaizen/config`（`KEY=VALUE` 形式のプロジェクト設定）から値を読む
+#   - kaizen の設定（`.config/skills/shoji9x9/kaizen.jsonc` ほか）から値を読む
 #   - 暦日を 1970-01-01 からの日数へ変換する（保持期間・忘却の閾値判定で使う）
 #
 # 制御ファイルは **session 単位**にする。agent 単位のままだと、同じプロジェクトで
@@ -282,37 +282,171 @@ kaizen_sentinel_key_of() { # $1: センチネルのパス
 	esac
 }
 
-# `.kaizen/config` から設定値を読む。`KEY=VALUE` の 1 行 1 設定で、`#` から行末はコメント、
-# キーと値の前後の空白は除く。同じキーが複数あれば**最後の定義**を採る（最初の定義を採ると、
-# 追記で上書きしたつもりの値が警告なしに無視される）。定義が無ければ 1 を返し、呼び出し側がデフォルトの値を使う。
+# kaizen の設定を読む。設定は 3 つの層のファイルにあり、同梱の `scripts/skill-config/skill-config.mjs` で読む。
+# リポジトリの層は `.config/skills/shoji9x9/kaizen.jsonc`、このリポジトリの自分だけの層は `kaizen.local.jsonc` である。
+# 人ごとの層は `${XDG_CONFIG_HOME:-~/.config}/skills/shoji9x9/kaizen.jsonc` である。
+# 置き場所と解決の順序は references/config-files.md にある。
 #
-# YAML ではなくこの形式にしているのは、読み手がコミット前のチェックと lifecycle のチェックという
-# bash だけで動くフックであり、`yq` / `jq` 無しでも設定を読める必要があるため
-# （`jq` はセンチネル走査の前提だが、設定の読み取りまで依存させない）。
+# 読み方は 3 通りに分かれる。
+#   - 旧い置き場所（`.kaizen/config`・`.config/skills/*/skills.yml`）か、使わなくなった環境変数
+#     （`KAIZEN_PRECOMMIT_DEADLINE_SECONDS`）が残っている: node を使わずに検出し、移行の手順を示して誤りにする。
+#     旧い設定を警告なしに無視すると、デフォルトの値で動いてしまうためである。
+#   - 設定ファイルが 1 つも無く、値を受け取る環境変数（`KAIZEN_SCHEDULE_*`）も空: node を起動せずに、
+#     下の kaizen_config_defaults の値を使う。node の無い環境でもコミット前のチェックを動かすためである。
+#   - それ以外: node で 1 回だけ読み、全キーの値と出所を変数に置く。node が無ければ、デフォルトの値で動かずに誤りにする
+#     （書いた設定を警告なしに無視しないため）。不正な値（知らないキー・型の誤り・置けない層）も誤りにする。
 #
+# kaizen_config_load はシェルの変数に結果を置くので、`$( )` の中ではなく、呼び出し側のシェルで先に 1 回呼ぶ。
+# 戻り値は 0=読めた / 1=誤り（理由は kaizen_config_error に入れる）。2 回目以降は前の結果を返す。
 # パスは相対。呼び出し側は先にプロジェクトルートへ cd している前提（全 kaizen スクリプト共通）。
+
+kaizen_lib_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd -P || true)
+kaizen_config_loaded=""
+kaizen_config_status=0
+kaizen_config_error=""
+
+# node を起動しないときに使う値。スキーマ（config-schemas/kaizen.schema.json）の default と同じにする
+# （配布元のテストが一致を確かめる）。default の無いキーは挙げない。
+kaizen_config_defaults() {
+	printf '%s\n' \
+		precommit_deadline_seconds=8 \
+		foreign_sentinel_retention_days=7 \
+		forget_auto=true \
+		forget_after_days=30 \
+		forget_max_priority=medium \
+		schedule_enabled=false \
+		schedule_mode=notify \
+		schedule_agent=claude
+}
+
+# 旧い置き場所と、使わなくなった環境変数を挙げる（1 行 1 件）。
+kaizen_config_legacy() {
+	local root yml
+	if [ -e .kaizen/config ]; then
+		printf '%s\n' "- .kaizen/config が残っている。KEY=VALUE の各行を .config/skills/shoji9x9/kaizen.jsonc の同じ名前のキーに移す（on と off は true と false に、数は数のまま書く）。移したら .kaizen/config を消す"
+	fi
+	if [ "${KAIZEN_PRECOMMIT_DEADLINE_SECONDS+set}" = set ]; then
+		printf '%s\n' "- 環境変数 KAIZEN_PRECOMMIT_DEADLINE_SECONDS は使わなくなった。値を kaizen.jsonc（全員に同じ値）か kaizen.local.jsonc（このリポジトリの自分だけ）か人ごとの kaizen.jsonc（自分のすべてのリポジトリ）の precommit_deadline_seconds に移し、環境変数を消す"
+	fi
+	root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+	for yml in "${root}"/.config/skills/*/skills.yml; do
+		[ -e "${yml}" ] || continue
+		printf '%s\n' "- ${yml} が残っている。skills.<スキル名> の節を .config/skills/<名前空間>/<スキル名>.jsonc に、skills.common の節を common.jsonc に移し、skills.yml を消す"
+	done
+}
+
+# 在る設定ファイルのパスを挙げる（1 行 1 件）。
+kaizen_config_files() {
+	local root user_home f
+	root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+	user_home=${XDG_CONFIG_HOME:-}
+	case "${user_home}" in
+	/*) ;;
+	*) user_home="${HOME}/.config" ;;
+	esac
+	for f in "${root}/.config/skills/shoji9x9/kaizen.jsonc" \
+		"${root}/.config/skills/shoji9x9/kaizen.local.jsonc" \
+		"${user_home}/skills/shoji9x9/kaizen.jsonc"; do
+		[ -e "${f}" ] && printf '%s\n' "${f}"
+	done
+	return 0
+}
+
+# 1 つのキーの値と出所を変数に置く。キー名は変数名の一部になるので、英小文字・数字・`_` だけを受け付ける。
+kaizen_config_set() { # $1: キー名 $2: 値 $3: 出所
+	[[ "$1" =~ ^[a-z_][a-z0-9_]*$ ]] || return 1
+	printf -v "kaizen_cfg__$1" '%s' "$2"
+	printf -v "kaizen_cfg_src__$1" '%s' "$3"
+}
+
+# 読み取りを誤りとして終える。理由は kaizen_config_error に置き、呼び出し側が出力する。
+kaizen_config_fail() { # $1: 理由
+	# shellcheck disable=SC2034 # 呼び出し側のスクリプトが読む
+	kaizen_config_error=$1
+	kaizen_config_status=1
+	return 1
+}
+
+kaizen_config_load() {
+	if [ -n "${kaizen_config_loaded}" ]; then
+		return "${kaizen_config_status}"
+	fi
+	kaizen_config_loaded=1
+	local legacy files line key value reader out rc node_bin
+	legacy=$(kaizen_config_legacy)
+	if [ -n "${legacy}" ]; then
+		kaizen_config_fail "旧い場所の設定が残っているので止める（kaizen の references/config-files.md「移行」）。"$'\n'"${legacy}"
+		return 1
+	fi
+	files=$(kaizen_config_files)
+	if [ -z "${files}" ] && [ -z "${KAIZEN_SCHEDULE_MODE:-}${KAIZEN_SCHEDULE_AGENT:-}${KAIZEN_SCHEDULE_MODEL:-}${KAIZEN_SCHEDULE_EFFORT:-}" ]; then
+		while IFS= read -r line; do
+			kaizen_config_set "${line%%=*}" "${line#*=}" default
+		done <<<"$(kaizen_config_defaults)"
+		return 0
+	fi
+	reader="${kaizen_lib_dir}/skill-config/skill-config.mjs"
+	node_bin=$(command -v node || true)
+	if [ -z "${node_bin}" ]; then
+		kaizen_config_fail "kaizen の設定を読むには node が要るが、見つからない（設定ファイル: $(printf '%s' "${files:-なし。KAIZEN_SCHEDULE_* が設定されている}" | tr '\n' ' ')）。node を入れるか、設定ファイルを外してデフォルトの値で動かす"
+		return 1
+	fi
+	if [ -z "${kaizen_lib_dir}" ] || [ ! -r "${reader}" ]; then
+		kaizen_config_fail "同梱の設定の読み取り（scripts/skill-config/skill-config.mjs）を読めない: ${reader}"
+		return 1
+	fi
+	# 1 回の起動で全キーを読む。値は 1 行に収まる（スキーマが改行を含む値を許さない）。
+	# 最初の引数に読み取りのパスを置かない。`node -e` では process.argv[1] が最初の引数になり、
+	# 読み取りが自分を CLI として起動されたと判定して main を実行してしまう。
+	# 出力は「キー<TAB>出所<TAB>値」で、文字列はそのまま、それ以外は JSON にする。
+	rc=0
+	# shellcheck disable=SC2016 # 本文は node に渡す JavaScript で、シェルに展開させない
+	out=$("${node_bin}" --input-type=module -e '
+const reader = process.argv[2];
+const { pathToFileURL } = await import("node:url");
+const m = await import(pathToFileURL(reader).href);
+try {
+  const r = m.loadConfig({ name: "kaizen" });
+  for (const [k, v] of Object.entries(r)) {
+    const s = typeof v.value === "string" ? v.value : JSON.stringify(v.value);
+    process.stdout.write(`${k}\t${v.source}\t${s}\n`);
+  }
+} catch (e) {
+  if (!(e instanceof m.ConfigError)) throw e;
+  process.stderr.write(`${e.message}\n`);
+  process.exit(1);
+}
+' -- "kaizen-config" "${reader}" 2>&1 </dev/null) || rc=$?
+	if [ "${rc}" -ne 0 ]; then
+		kaizen_config_fail "kaizen の設定を読めない（設定ファイル: $(printf '%s' "${files:-なし}" | tr '\n' ' ')）。"$'\n'"${out}"
+		return 1
+	fi
+	while IFS=$'\t' read -r key line value; do
+		[ -n "${key}" ] || continue
+		kaizen_config_set "${key}" "${value}" "${line}" ||
+			{
+				kaizen_config_fail "kaizen の設定の読み取りが、変数名にできないキーを返した: ${key}"
+				return 1
+			}
+	done <<<"${out}"
+	return 0
+}
+
+# キーの値を出力する。0=値がある / 1=値もデフォルトも無い / 2=設定の誤り（理由は kaizen_config_error）。
+# 先に呼び出し側のシェルで kaizen_config_load を呼んでおく（`$( )` の中で初めて呼ぶと、node を毎回起動する）。
 kaizen_config_value() { # $1: キー名
-	local config=.kaizen/config line key value found="" found_any=""
-	[ -r "${config}" ] || return 1
-	# 最終行に改行が無くても読み落とさない。
-	while IFS= read -r line || [ -n "${line}" ]; do
-		line=${line%%#*}
-		case "${line}" in
-		*=*) ;;
-		*) continue ;;
-		esac
-		key=${line%%=*}
-		value=${line#*=}
-		key=${key#"${key%%[![:space:]]*}"}
-		key=${key%"${key##*[![:space:]]}"}
-		value=${value#"${value%%[![:space:]]*}"}
-		value=${value%"${value##*[![:space:]]}"}
-		[ "${key}" = "$1" ] || continue
-		found=${value}
-		found_any=1
-	done <"${config}"
-	[ -n "${found_any}" ] || return 1
-	printf '%s' "${found}"
+	kaizen_config_load || return 2
+	local var="kaizen_cfg__$1"
+	[ "${!var+set}" = set ] || return 1
+	printf '%s' "${!var}"
+}
+
+# キーの値の出所（default・repo・local・user・env）を出力する。値が無ければ 1。
+kaizen_config_source() { # $1: キー名
+	kaizen_config_load || return 2
+	local var="kaizen_cfg_src__$1"
+	[ "${!var+set}" = set ] || return 1
+	printf '%s' "${!var}"
 }
 
 # 民生暦 (y, m, d) を 1970-01-01 からの日数へ変換する（Howard Hinnant の days_from_civil）。

@@ -33,7 +33,7 @@ pr-finalize-loop <PR URL> [--max-iterations <N>] [--wait-ci-before-review] [--re
   デフォルト（オフ）では、push の直後に CI の完了を待たずに依頼し、CI とレビューを並行して進める。収束が速くなる。
   レビューが進行中なら（設定したツールの自動レビューでも、別のエージェントのレビューでも）依頼を保留する。
   失敗している HEAD にレビューを始めさせたくないときだけ指定する。
-- `--review-tool <tool>`（任意）: この実行だけ、`copilot`・`claude-code`・`codex`・`local`・`none` のどれかを使う。共有の設定を変えずに、クレジットの状況などに一時的に対応できる。
+- `--review-tool <tool>`（任意）: この実行だけ、`copilot`・`claude-code`・`codex`・`local`・`none` のどれかを使う。設定ファイルを変えずに、クレジットの状況などに一時的に対応できる。
 - `--defer-decisions`（任意。デフォルトはオフ）: 人の判断が要る指摘を利用者に確認せず、判断待ちとして残す。利用者が不在の自律実行の呼び出し元（`issue-batch` の run など）が付ける。
   付けたときの扱いは「自律性ポリシー」で定義する。単独で使うときは付けず、従来どおり確認する。
 - ループの間は、利用者に確認せずに自律して進める。
@@ -49,19 +49,21 @@ pr-finalize-loop <PR URL> [--max-iterations <N>] [--wait-ci-before-review] [--re
 - 前提スキル: なし。レビューへの対応のやり方は [[pr-review-handle]] と同じだが、このスキルは自律して動く版を中に持ち、単独で動く
 - MCP: なし
 - シェル: bash（POSIX 互換シェル）。コマンド例は bash で書いているので、Windows では WSL や Git Bash などの bash 環境で実行する
-- ランタイム: 要らない（node・pnpm・python など）。ただし、CI を直すときに、対象のリポジトリのランタイムが要ることはある
+- ランタイム: pnpm や python は要らない。ただし、CI を直すときに、対象のリポジトリのランタイムが要ることはある
+- Node.js は、設定ファイル（`.config/skills/shoji9x9/common.jsonc` など）を読むときだけ要る（同梱の `scripts/skill-config/skill-config.mjs` で読む）。
+  設定ファイルがどの層にも無ければ、Node.js なしでデフォルトの値を使う。設定ファイルがあって Node.js が無ければ、設定を読めないとして止まる（`review_tool` のデフォルトは `copilot`）
 
 ## ブランチ運用・commit 規約の参照
 
 ブランチ運用と commit の規約はリポジトリごとに違う。
-決め方（設定ファイル、よく使われる文書の探索、利用者への確認の順）と、設定ファイル `.config/skills/shoji9x9/skills.yml` の扱いは、[`references/conventions.md`](references/conventions.md) にある。
+決め方（設定ファイル、よく使われる文書の探索、利用者への確認の順）と、設定 `common` の `conventions_doc` の扱いは、[`references/conventions.md`](references/conventions.md) にある。
 どの規約に決まっても、次の操作の決まりは常に守る。`--amend` と force push をしない。関係するファイルだけを stage する。長い commit の本文は `git commit -F <file>` で渡す。
 
 ## レビューツールの選択
 
-push の後などに再レビューを依頼する AI レビュアーは、CLI のオプション、環境変数、共有の設定から選ぶ。
+push の後などに再レビューを依頼する AI レビュアーは、CLI のオプションと、設定ファイルの 3 つの層（このリポジトリの自分だけ・自分のすべてのリポジトリ・リポジトリの全員）から選ぶ。
 選ぶ順序と、ツールごとの依頼の方法と成立の確かめ方は、[`references/review-tool.md`](references/review-tool.md) にある。
-依頼先は同梱のスクリプト `scripts/resolve-review-tool.sh` で決め、値と、それがどの層（cli・env・config・default）から来たかを報告してから使う。
+依頼先は同梱のスクリプト `scripts/resolve-review-tool.sh` で決め、値と、それがどの層（cli・local・user・repo・default）から来たかを報告してから使う。
 決める順序を推測すると層を取り違え、設定してある値を「未設定」と判定して、別のツールに依頼してしまう。手順は [`references/review-tool.md`](references/review-tool.md) にある。
 
 値は `copilot`・`claude-code`・`codex`・`local`・`none` のどれかである。

@@ -5,7 +5,7 @@
 呼び出し元のスキルから環境を渡されたときは、この解決をしない。
 他のスキル（`parity-suite`・`parity-replace`・`parity-diff` など）が解決済みの環境を渡してこのスキルを起動したときは、渡された環境をそのまま使う。
 設定ファイルの参照、リポジトリの探索、ユーザーへの確認は、どれもしない。
-`skills.browser-test.environments` との対応づけもしない。
+`browser-test` の設定（`environments`）との対応づけもしない。
 このとき、設定ファイルを開かず、存在も確かめず、内容にも触れない。
 「参照していない」ことを示す目的でも読まない。読んだ内容が判断や応答に入り込むのを、元から防ぐためである。
 
@@ -17,56 +17,79 @@
   `url_command` そのものは渡さず、このスキルは受け取った `url` をそのまま使う。
 - `auth` は渡さない。認証は、呼び出し元が済ませてから渡すか、ユーザーがログインする（このスキルから見ると `auth: user` と同じ）。
 - このスキルの環境エントリと `replace-strategy` の `targets` は、`auth` の型が違う（このスキルは `none | user`、`replace-strategy` はロールの構造）。
-  そのため、エントリを互いにコピーしない。
+  そのため、エントリを互いにコピーせず、それぞれの設定ファイル（`browser-test.jsonc` と `replace-strategy.jsonc`）に別々に書く。
 
-1. 設定ファイル: `.config/skills/shoji9x9/skills.yml` に `skills.browser-test` があれば、その設定に従う。
+1. 設定ファイル: `browser-test` の設定に `environments` があれば、その設定に従う（読み方は下の「設定ファイル」）。
 2. リポジトリの探索: 設定が無ければ、次から推定する。推定した内容（URL・起動コマンド・認証）は、ユーザーに確かめてから使う。
    - `package.json` の scripts（`dev`・`start`）
    - dev サーバーの設定（`vite.config`・`next.config` などの port）
    - `README.md`・`AGENTS.md`・`CLAUDE.md`・`CONTRIBUTING.md` にある起動の手順と環境の一覧
 3. 解決できなければユーザーに確かめる: 環境の URL、起動の方法、認証の有無、環境ごとの禁止操作（`forbidden_actions`）を確かめる。
-   確かめた後、「`.config/skills/shoji9x9/skills.yml` の `skills.browser-test` に記録すれば、次回からその設定を参照する」ことを伝える。
-   了承を得たら、下の方法で既存の内容を変えずに追記する。
+   確かめた後、「`.config/skills/shoji9x9/browser-test.jsonc` の `environments` に記録すれば、次回からその設定を参照する」ことを伝える。
+   了承を得たら、下の「記録する」に従って書く。
 
-## 設定ファイル（`.config/skills/shoji9x9/skills.yml`）
+## 設定ファイル
 
-`shoji9x9/skills` の配布物が、インストール先で参照するプロジェクトの設定である。
-人が編集でき、`gh skill update` はスキルのディレクトリの外にあるこのファイルに触れないので、設定は残る。
+設定は `browser-test` の名前の設定ファイルに書く。置き場所・層・解決の順序・書き込みの決まりは [`config-files.md`](config-files.md) で定義する。
+キーは `environments` だけで、型はスキーマ（`config-schemas/browser-test.schema.json`）で定義する。
+全員が使う環境はリポジトリの層（`.config/skills/shoji9x9/browser-test.jsonc`）に置く。
+このリポジトリで自分だけが使う環境（手元のポートなど）は、人ごと・リポジトリ限定の層（`browser-test.local.jsonc`）に置ける。
+`.local.jsonc` の `environments` は、リポジトリの層の一覧を丸ごと置き換える（要素ごとには混ぜない）。
 
-```yaml
-version: 1
-skills:
-  browser-test:
-    environments:
-      - name: local # 環境名（ユーザーへの提示に使う）
-        url: http://localhost:5173
-        auth: none # none | user（user = ユーザーがログインを実施）
-        pre_commands: [] # 任意。start の前提となる環境準備コマンド列（build 等）。起動が必要なときだけ実行し、失敗したら停止する
-        start: pnpm run dev # ローカル起動コマンド（稼働していないとき提示する）
-        check_urls: # 稼働確認に使う URL（省略時は url のみ）
-          - http://localhost:5173/
-          - http://localhost:3001/
-        default: true # 既定の環境
-        forbidden_actions: [] # この環境で実施しない操作。空 = すべて実施可（副作用を伴う操作は承認制）
-      - name: dev
-        url: https://dev.example.com
-        auth: user
-        forbidden_actions: # forbidden_actions が未定義の環境は読み取り専用として扱う
-          - データの作成・変更・削除
-          - 分析ジョブの開始（課金を伴う）
-      - name: preview
-        url_command: <コマンド> # url と排他。標準出力に URL を 1 行出す（ブランチ連動のプレビュー環境等、URL を固定文字列で書けない環境向け）。実行のたび解決し、失敗・空出力は停止
-        auth: user
-        forbidden_actions:
-          - データの作成・変更・削除
+読むときは、同梱の読み取りを使う。読み取りが exit 1（設定の誤り）で終わったら、推定に進まずにエラーを示して止まる。
+exit 3（どの層にも無い）なら、上の解決の手順の 2 に進む。
+Node.js が無いときは、3 つの層のファイルを確かめる。どれも無ければ手順の 2 に進み、1 つでもあれば止まる。
+3 つの層のファイルは、`.config/skills/shoji9x9/browser-test.jsonc`・`browser-test.local.jsonc`・`${XDG_CONFIG_HOME:-~/.config}/skills/shoji9x9/browser-test.jsonc` である。
+
+```bash
+node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mjs get browser-test environments --raw
 ```
 
-### 作成・追記は非破壊
+```jsonc
+// .config/skills/shoji9x9/browser-test.jsonc
+{
+  "environments": [
+    {
+      "name": "local", // 環境名（ユーザーへの提示に使う）
+      "url": "http://localhost:5173",
+      "auth": "none", // none | user（user = ユーザーがログインを実施）
+      "pre_commands": [], // 任意。start の前提となる環境準備コマンド列（build 等）。起動が必要なときだけ実行し、失敗したら停止する
+      "start": "pnpm run dev", // ローカル起動コマンド（稼働していないとき提示する）
+      // 稼働確認に使う URL（省略時は url のみ）
+      "check_urls": ["http://localhost:5173/", "http://localhost:3001/"],
+      "default": true, // 既定の環境
+      "forbidden_actions": [], // この環境で実施しない操作。空 = すべて実施可（副作用を伴う操作は承認制）
+    },
+    {
+      "name": "dev",
+      "url": "https://dev.example.com",
+      "auth": "user",
+      // forbidden_actions が未定義の環境は読み取り専用として扱う
+      "forbidden_actions": ["データの作成・変更・削除", "分析ジョブの開始（課金を伴う）"],
+    },
+    {
+      "name": "preview",
+      // url と排他。標準出力に URL を 1 行出す（ブランチ連動のプレビュー環境等、URL を固定文字列で書けない環境向け）。実行のたび解決し、失敗・空出力は停止
+      "url_command": "<コマンド>",
+      "auth": "user",
+      "forbidden_actions": ["データの作成・変更・削除"],
+    },
+  ],
+}
+```
 
-- ファイルが無ければ `.config/skills/shoji9x9/` ごと作り、このスキルが使うキー（`skills.browser-test`）だけを書く。
+### 記録する
+
 - 書く値は、探索かユーザーへの確認で得た、実在する環境と起動方法にする。上の URL・ポート・コマンド・禁止操作は例なので、そのままコピーしない。
-- ファイルがすでにあれば、欠けているキーだけを該当するセクションに追記する（セクションが無ければ親も足す）。
-  既存のキー・値・コメントは変えない。値がすでにあれば、それを使い、上書きしない。
+- `environments` が無ければ、`set` で一覧ごと書く。既にあれば、同じ `name` の無い環境だけを `append --unique-by name` で足す。
+  既にある環境の値は変えない。変えるのは、今の値と新しい値を示してユーザーの了承を得た後だけにする（`--replace`）。
+- 書き込みの決まり（コメントと整形を残す・書いた後に検証する・`.local.jsonc` は gitignore を確かめる）は、[`config-files.md`](config-files.md)「書き込みの決まり」で定義する。
+
+```bash
+CFG=<このスキルのディレクトリ>/scripts/skill-config/skill-config.mjs
+node "$CFG" set browser-test environments '[{"name":"local","url":"http://localhost:5173","auth":"none","forbidden_actions":[]}]' --layer repo
+node "$CFG" append browser-test environments '{"name":"dev","url":"https://dev.example.com","auth":"user"}' --layer repo --unique-by name
+```
 
 ### 環境エントリの実行順
 
@@ -103,5 +126,5 @@ skills:
    - 環境の一覧（名前・URL・認証の有無と方法・デフォルトの環境）
    - 起動に必要な事前のコマンド（`pre_commands`。build など。不要なら空にする）、ローカルの起動コマンド、稼働の確認に使う URL
    - 環境ごとの禁止操作（`forbidden_actions`。その環境で実施しない画面の操作。すべて実施してよいなら空にする）
-3. 確かめた結果を `skills.browser-test` に書き込む。新しく作るときと欠けたキーを追記するときは、上の「作成・追記は非破壊」に従う。
-   既存の値と違う回答を得たキーは、今の値と新しい値を示し、ユーザーの了承を得てから更新する（他のスキルのキーとコメントには触れない）。
+3. 確かめた結果を、上の「記録する」に従って `browser-test` の設定ファイルに書く。全員が使う環境はリポジトリの層に、自分だけの環境は `.local.jsonc` に書く。
+   既存の値と違う回答を得た環境は、今の値と新しい値を示し、ユーザーの了承を得てから更新する（他のスキルの設定ファイルには触れない）。

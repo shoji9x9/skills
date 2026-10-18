@@ -48,8 +48,10 @@ IaC が大きいときは主要なリソースと依存を優先し、粒度を�
   - SVG を PNG に変換する Chrome または Chromium（headless）。`preview-diagram.mjs` が使う。
     見つからないときは `PUPPETEER_EXECUTABLE_PATH` か `CHROME_PATH` を設定する。
   - Chrome のサンドボックスはデフォルトで有効にしている。
-    root やコンテナでサンドボックスが使えず起動に失敗するときだけ、`DIAGRAM_CHROME_NO_SANDBOX=1` を設定する。
-  - PNG への変換はデフォルトで 120 秒で打ち切る。大きな図で足りなければ `DIAGRAM_CHROME_TIMEOUT_MS` で延ばす。
+    root やコンテナでサンドボックスが使えず起動に失敗するときだけ、人ごとの設定の `chrome_no_sandbox` を `true` にする（1 回だけなら `--no-sandbox` を付ける）。
+  - PNG への変換はデフォルトで 120 秒で打ち切る。大きな図で足りなければ、人ごとの設定の `chrome_timeout_ms` で延ばす（1 回だけなら `--timeout-ms <ミリ秒>`）。
+- 設定: 図のディレクトリや出力先を置く `aws-architecture-diagram.jsonc`（下の「同梱物と配置の方針」）。同梱の `scripts/skill-config/skill-config.mjs` で読む。
+  置き場所・層・解決の順序・書き込みの決まりは [`references/config-files.md`](references/config-files.md) にある
 - ネットワークは、AWS 公式アイコンを取得するとき（`fetch-aws-icons.mjs`）だけ使う。
 - MCP は使わない。
 
@@ -73,9 +75,26 @@ IaC が大きいときは主要なリソースと依存を優先し、粒度を�
 - `preview-diagram.mjs`: SVG を PNG にラスタライズする（目視確認用）
 - `fetch-aws-icons.mjs`: AWS 公式アイコンを取得する
 
-エンジンは、プロジェクトの図のディレクトリを `DIAGRAM_DIR`（デフォルトは実行時の cwd）で受け取る。
-そのディレクトリの `architecture-spec.mjs`・`environments.mjs`・`icon-manifest.json`・`icons/` を読む。
+エンジンは、プロジェクトの図のディレクトリ（デフォルトは実行時の cwd）の `architecture-spec.mjs`・`environments.mjs`・`icon-manifest.json`・`icons/` を読む。
 そのため、図のディレクトリで実行するだけでよい。`$SKILL` はこのスキルの導入先（例: `.claude/skills/aws-architecture-diagram`）を指す。
+
+場所を cwd 以外にするときは、リポジトリの設定（`.config/skills/shoji9x9/aws-architecture-diagram.jsonc`）に、リポジトリのルートからの相対パスで書く。
+設定に書けば、リポジトリのどこから実行しても同じ場所を読む。1 回だけ変えるときは、CLI のオプションで渡す（cwd からの相対パス）。
+
+| 値 | 設定のキー（置ける層） | CLI のオプション | どちらも無いとき |
+| --- | --- | --- | --- |
+| 図のディレクトリ | `diagram_dir`（リポジトリ） | `--dir` | cwd |
+| アイコン | `icon_dir`（リポジトリ） | `--icon-dir` | `<図のディレクトリ>/icons` |
+| SVG の出力先 | `out_dir`（リポジトリ・`.local.jsonc`） | `--out-dir` | `<図のディレクトリ>/out` |
+| Chrome のサンドボックスを無効にする | `chrome_no_sandbox`（`.local.jsonc`・人ごと） | `--no-sandbox` | 有効のまま |
+| PNG への変換を打ち切る時間（ミリ秒） | `chrome_timeout_ms`（`.local.jsonc`・人ごと） | `--timeout-ms` | 120000 |
+
+```jsonc
+// .config/skills/shoji9x9/aws-architecture-diagram.jsonc
+{ "diagram_dir": "docs/diagrams" }
+```
+
+使わなくなった環境変数（`DIAGRAM_DIR`・`DIAGRAM_ICON_DIR`・`DIAGRAM_OUT_DIR`・`DIAGRAM_CHROME_NO_SANDBOX`・`DIAGRAM_CHROME_TIMEOUT_MS`）が残っていると、エンジンは移行の手順を示して止まる。
 
 ```bash
 cd docs/diagrams                                   # 図ディレクトリ（テンプレを置いた場所）

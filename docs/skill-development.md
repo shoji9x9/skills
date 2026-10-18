@@ -21,6 +21,22 @@
      公開済みの既存のスキルで同じコマンドを実行し、license などの warning の差分を比べて、実際の問題だけを扱う。
 7. PR を作り、レビューを受けてマージする。リリースは CD が自動で行う。
 
+## スキルの設定を足す
+
+スキルが読む設定は、置き場所・形式・解決の順序をすべてのスキルでそろえる。
+取り決めの原本は配布スキルに同梱する `references/config-files.md`（例: `skills/kaizen/references/config-files.md`）で、利用者が読む文書でもある。ここへ転記しない。
+
+1. キーを足すスキルの `config-schemas/<設定の名前>.schema.json` に、型・デフォルトと、置ける層（`x-layers`）を書く。
+   置ける層は、`skills/kaizen/references/config-files.md` の「どの層に置くか」の基準で決める。環境変数から値を受け取るキー（`x-env`）は、「環境変数にする値」の 3 種類に当たるものだけにする。
+   複数のスキルが同じ値を読むなら、`common.schema.json` に置くか、そのキーを持つスキルのスキーマを、読む側のスキルにもコピーする。
+2. 設定を初めて読むスキルには、`scripts/skill-config/`（読み取りと同梱のパーサ）と `references/config-files.md` を、既にあるスキルからコピーする。
+   `node scripts/gates/packaging/check-skill-config-vendor.ts` で、同梱物がそろったことを確かめる。
+   コピーとスキーマを `scripts/gates/packaging/copies/identical-copies.json` の組に足す。
+3. スキルの文書には、キーの意味と、`skill-config.mjs` の `get`・`set`・`append` での読み書きを書く。層の選び方と書き込みの決まりは `config-files.md` を参照させ、書き写さない。
+4. このリポジトリの設定（`.config/skills/shoji9x9/<設定の名前>.jsonc`）を変えたら、`node scripts/gates/packaging/check-skill-configs.ts` で確かめる。
+
+キーの名前や置き場所を変えて旧い設定を読まなくするときは、スキーマの `x-legacy` に旧いファイルか環境変数と移行の手順を書く。読み取りは、それが残っていると手順を示して止まる。
+
 ## push 前の整合パス
 
 ドキュメントやスキルを push する前に、次の項目を突き合わせて、文書の中と文書の間の食い違いを直す。レビューに任せない。

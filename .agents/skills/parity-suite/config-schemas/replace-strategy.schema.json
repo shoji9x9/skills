@@ -1,0 +1,440 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "replace-strategy とその姉妹スキルの設定（.config/skills/shoji9x9/replace-strategy.jsonc）",
+  "description": "キーの意味の原本は replace-strategy の references/project-config.md、置き場所・層・解決の順序は references/config-files.md にある。どのキーも人が確定させるリポジトリの方針なので、リポジトリの層にだけ置ける。値の組み合わせの条件（url と url_command のどちらか一方など）は、各スキルが target を解決するときに確かめる。旧いキー（current.url など）は知らないキーとしてエラーになるので、project-config.md の「移行」に従って移す。",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "current": {
+      "description": "現行アプリ（URL・DB・認証・禁止操作は targets の side: current が持つ）",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repo": {
+          "description": "owner/repo・ローカルパス・none",
+          "type": "string"
+        },
+        "stack": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "origin": {
+          "enum": ["managed", "received-assets"]
+        },
+        "received_assets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "feedback_calls": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "regex", "kind", "example"],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "regex": {
+                "type": "string",
+                "minLength": 1
+              },
+              "kind": {
+                "type": "string",
+                "minLength": 1
+              },
+              "example": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      },
+      "x-layers": ["repo"]
+    },
+    "new": {
+      "description": "新側のアプリ（URL・DB・認証・禁止操作は targets の side: new が持つ）",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repo": {
+          "type": "string"
+        },
+        "stack": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "x-layers": ["repo"]
+    },
+    "targets": {
+      "description": "現行と新側の実行対象環境。各スキルの --target <name> で選ぶ",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "side"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+          },
+          "side": {
+            "enum": ["current", "new"]
+          },
+          "url": {
+            "type": "string",
+            "minLength": 1
+          },
+          "url_command": {
+            "type": "string",
+            "minLength": 1
+          },
+          "api_url": {
+            "type": "string",
+            "minLength": 1
+          },
+          "browser": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "cdp_url": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "db": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "env_vars": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "seedable": {
+                "type": "boolean"
+              }
+            }
+          },
+          "storage": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "env_vars": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "write_scope": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "seedable": {
+                "type": "boolean"
+              },
+              "upload_route": {
+                "enum": ["direct", "presigned", "none"]
+              }
+            }
+          },
+          "auth": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "roles": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            }
+          },
+          "forbidden_actions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "pre_commands": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "start": {
+            "type": "string",
+            "minLength": 1
+          },
+          "check_urls": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "default": {
+            "type": "boolean"
+          },
+          "catalog_url": {
+            "type": "string",
+            "minLength": 1
+          },
+          "catalog_url_command": {
+            "type": "string",
+            "minLength": 1
+          },
+          "commit_check": {
+            "type": "string",
+            "minLength": 1
+          },
+          "on_diff": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "x-layers": ["repo"]
+    },
+    "secrets": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "wrapper": {
+          "type": "string"
+        }
+      },
+      "x-layers": ["repo"]
+    },
+    "parity_suite_dir": {
+      "type": "string",
+      "minLength": 1,
+      "default": "e2e/",
+      "x-layers": ["repo"]
+    },
+    "dataset_tool_dir": {
+      "type": "string",
+      "minLength": 1,
+      "default": "seed/",
+      "x-layers": ["repo"]
+    },
+    "bootstrap_tool_dir": {
+      "type": "string",
+      "minLength": 1,
+      "default": "bootstrap/",
+      "x-layers": ["repo"]
+    },
+    "dataset_mode": {
+      "enum": ["db", "static"],
+      "default": "db",
+      "x-layers": ["repo"]
+    },
+    "dataset_static_paths": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "x-layers": ["repo"]
+    },
+    "uses_storage": {
+      "type": "boolean",
+      "default": false,
+      "x-layers": ["repo"]
+    },
+    "verification_commands": {
+      "description": "検証コマンド。full（全体の走査）と diff（変更したファイルだけ）の 2 列。旧い形（コマンドの配列）も読めるが、扱いは project-config.md の「verification_commands の形の変更」に従う",
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "full": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "diff": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      ],
+      "x-layers": ["repo"]
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "retention": {
+          "enum": ["latest"]
+        },
+        "storage": {
+          "enum": ["local", "git", "git-lfs"]
+        },
+        "size_threshold_mb": {
+          "type": "number",
+          "minimum": 0
+        },
+        "overrides": {
+          "type": "object",
+          "additionalProperties": {
+            "enum": ["local", "git", "git-lfs"]
+          }
+        }
+      },
+      "x-layers": ["repo"]
+    },
+    "references": {
+      "description": "知識の注入（パスだけを持つ）。キーは足せる（project-config.md「references の拡張」）。dependency_policy はパスか none で、キーの有無が未確認を表す",
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "x-layers": ["repo"]
+    },
+    "intentional_diffs": {
+      "description": "意図的差異レジストリ。pending だけはスキルが追記する",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "keep": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["item"],
+                "properties": {
+                  "item": {
+                    "type": "string"
+                  },
+                  "match": {
+                    "type": "object"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "may_change": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["item"],
+                "properties": {
+                  "item": {
+                    "type": "string"
+                  },
+                  "match": {
+                    "type": "object"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "pending": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "item": {
+                    "type": "string"
+                  },
+                  "slug": {
+                    "type": "string"
+                  },
+                  "added_by": {
+                    "type": "string"
+                  },
+                  "added_at": {
+                    "type": "string"
+                  },
+                  "match": {
+                    "type": "object"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "x-layers": ["repo"]
+    },
+    "component_diffs": {
+      "description": "コンポーネントの系統差のレジストリ。要素は { component, property, current, new, reason }",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "component": {
+            "type": "string"
+          },
+          "property": {
+            "type": "string"
+          },
+          "current": {
+            "type": "string"
+          },
+          "new": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "x-layers": ["repo"]
+    }
+  }
+}

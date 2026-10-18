@@ -64,6 +64,11 @@ jobs:
         run: pnpm run typecheck
       - name: JSON lint
         run: node scripts/gates/tooling/run-on-sources.ts --ext json -- pnpm exec jsonlint --quiet --continue --no-duplicate-keys
+      # .jsonc はスキルの設定ファイル。コメントと末尾のカンマを受け付けて読み（-C -T）、キーの重複と整形の崩れを検出する。
+      - name: JSONC lint
+        run: node scripts/gates/tooling/run-on-sources.ts --ext jsonc -- pnpm exec jsonlint -C -T --quiet --continue --no-duplicate-keys
+      - name: JSONC format check
+        run: node scripts/gates/tooling/run-on-sources.ts --ext jsonc -- pnpm exec oxfmt --check
       # js-yaml の API で全ファイルを 1 プロセスで読む（ファイルごとに `pnpm exec js-yaml` を起動すると
       # 66 件で 44 秒かかっていた。Issue #507）。対象 0 件は成功として扱わない（スクリプト側で exit 1）。
       - name: YAML lint
@@ -72,6 +77,10 @@ jobs:
         run: node scripts/gates/code/lint-pagination.ts
       - name: Skills sync (skills/ vs .agents/skills/)
         run: node scripts/gates/packaging/copies/check-skills-sync.ts
+      - name: Skill config vendor (jsonc-parser bundled in skills/)
+        run: node scripts/gates/packaging/check-skill-config-vendor.ts
+      - name: Skill configs (.config/skills/shoji9x9/*.jsonc vs schemas)
+        run: node scripts/gates/packaging/check-skill-configs.ts
       - name: Files per directory (scripts/gates/layout/dir-file-count.json)
         run: node scripts/gates/layout/check-dir-file-count.ts
       - name: JS extensions (skills/ => .mjs, scripts/ => .ts)

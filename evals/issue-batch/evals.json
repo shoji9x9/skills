@@ -85,8 +85,30 @@
         "デフォルトでは隔離可能な BLOCKED 後も Issue 102 を続行する",
         "--stop-on-blocked では Issue 101 で停止する",
         "共有認証失敗は option にかかわらず全体停止する",
-        "既定の続行方針は setup 済みの continue_on_blocked で定義され、--stop-on-blocked は当該 run だけ上書きし skills.yml を書き換えない",
+        "既定の続行方針は setup 済みの continue_on_blocked で定義され、--stop-on-blocked は当該 run だけ上書きし設定ファイルを書き換えない",
         "BLOCKED の Issue 101 の worktree を削除せず、絶対パスと残作業を最終報告に残す"
+      ],
+      "reachability": [
+        {
+          "assertion": "デフォルトでは隔離可能な BLOCKED 後も Issue 102 を続行する",
+          "prompt_quote": "既定時と --stop-on-blocked 時"
+        },
+        {
+          "assertion": "--stop-on-blocked では Issue 101 で停止する",
+          "prompt_quote": "Issue 101 が人間判断を要するレビューで BLOCKED"
+        },
+        {
+          "assertion": "共有認証失敗は option にかかわらず全体停止する",
+          "prompt_quote": "共有 GitHub 認証が失敗した時の違いを報告して"
+        },
+        {
+          "assertion": "既定の続行方針は setup 済みの continue_on_blocked で定義され、--stop-on-blocked は当該 run だけ上書きし設定ファイルを書き換えない",
+          "prompt_quote": "既定の続行方針がどの設定で決まるか、--stop-on-blocked が設定ファイルに与える影響"
+        },
+        {
+          "assertion": "BLOCKED の Issue 101 の worktree を削除せず、絶対パスと残作業を最終報告に残す",
+          "prompt_quote": "BLOCKED になった Issue 101 の worktree と最終報告の扱いも述べて"
+        }
       ]
     },
     {
@@ -138,7 +160,21 @@
       "assertions": [
         "max PR 3、CI 待機 false、merge rebase を当該 run の解決値にする",
         "pr-finalize-loop --max-iterations 3 へ転送する",
-        "CLI override で skills.yml を書き換えない"
+        "CLI override で設定ファイルを書き換えない"
+      ],
+      "reachability": [
+        {
+          "assertion": "max PR 3、CI 待機 false、merge rebase を当該 run の解決値にする",
+          "prompt_quote": "--max-pr-iterations 3 --no-wait-ci-before-review --merge-method rebase"
+        },
+        {
+          "assertion": "pr-finalize-loop --max-iterations 3 へ転送する",
+          "prompt_quote": "--max-pr-iterations 3"
+        },
+        {
+          "assertion": "CLI override で設定ファイルを書き換えない",
+          "prompt_quote": "CLI override と設定ファイルの関係を報告して"
+        }
       ]
     },
     {
@@ -168,10 +204,28 @@
       "fixture": "fixtures/preflight-ready",
       "prompt": "issue-batch run 101 --merge-mode agent を dry-run し、当該 run の解決値と設定ファイルへの影響を報告して。あわせて、この option を付けずに設定どおりの merge mode で実行する場合、preflight で repository について何を追加で実測する必要があるか、その結果が否だったときにどうするかも述べて。",
       "assertions": [
-        "CLI の --merge-mode agent を当該 run の解決値にし、skills.yml を書き換えない",
+        "CLI の --merge-mode agent を当該 run の解決値にし、設定ファイルを書き換えない",
         "agent mode では PR の状況を自分で実測してから merge するため auto-merge の許可を前提にしない",
         "設定どおりの auto mode では repository の allow_auto_merge を preflight で実測する",
         "allow_auto_merge が false なら repository 設定を無人で変更せず、全体を停止して setup か --merge-mode agent を案内する"
+      ],
+      "reachability": [
+        {
+          "assertion": "CLI の --merge-mode agent を当該 run の解決値にし、設定ファイルを書き換えない",
+          "prompt_quote": "当該 run の解決値と設定ファイルへの影響を報告して"
+        },
+        {
+          "assertion": "agent mode では PR の状況を自分で実測してから merge するため auto-merge の許可を前提にしない",
+          "prompt_quote": "--merge-mode agent を dry-run し"
+        },
+        {
+          "assertion": "設定どおりの auto mode では repository の allow_auto_merge を preflight で実測する",
+          "prompt_quote": "preflight で repository について何を追加で実測する必要があるか"
+        },
+        {
+          "assertion": "allow_auto_merge が false なら repository 設定を無人で変更せず、全体を停止して setup か --merge-mode agent を案内する",
+          "prompt_quote": "その結果が否だったときにどうするかも述べて"
+        }
       ]
     },
     {
@@ -315,7 +369,7 @@
     {
       "id": 24,
       "fixture": "fixtures/preflight-ready",
-      "prompt": "issue-batch run 101 102 の preflight を、コマンドの実行やファイルの変更はせずに dry-run として説明して。`skills.issue-batch` の設定は setup で書いたが、共有ツリーで commit していない。#102 の本文の提案には案 A と案 B が並んでいて、どちらを採るかは書かれていない。それぞれをいつ、どう扱うかを述べて。",
+      "prompt": "issue-batch run 101 102 の preflight を、コマンドの実行やファイルの変更はせずに dry-run として説明して。`issue-batch` の設定は setup で書いたが、共有ツリーで commit していない。#102 の本文の提案には案 A と案 B が並んでいて、どちらを採るかは書かれていない。それぞれをいつ、どう扱うかを述べて。",
       "assertions": [
         "commit していない設定は、Issue ごとの worktree に届かないと述べている",
         "設定が base branch に入っていないので、run を始めずに停止すると述べている",

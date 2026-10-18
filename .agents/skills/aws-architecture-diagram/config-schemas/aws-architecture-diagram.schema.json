@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "aws-architecture-diagram の設定（.config/skills/shoji9x9/aws-architecture-diagram.jsonc ほか）",
+  "description": "置き場所・層・解決の順序は references/config-files.md にある。パスはリポジトリのルートからの相対パス（絶対パスも書ける）。1 回だけ変えるときは、エンジンの CLI のオプション（--dir・--icon-dir・--out-dir・--no-sandbox・--timeout-ms）で渡す。",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "diagram_dir": {
+      "description": "図のディレクトリ（environments.mjs・icon-manifest.json・icons/ を置く場所）。省くと、エンジンを実行した cwd",
+      "type": "string",
+      "minLength": 1,
+      "x-layers": ["repo"]
+    },
+    "icon_dir": {
+      "description": "アイコンのディレクトリ。省くと <diagram_dir>/icons",
+      "type": "string",
+      "minLength": 1,
+      "x-layers": ["repo"]
+    },
+    "out_dir": {
+      "description": "SVG の出力先。省くと <diagram_dir>/out。確認用の出力を自分だけ別の場所に出すなら .local.jsonc に置く",
+      "type": "string",
+      "minLength": 1,
+      "x-layers": ["repo", "local"]
+    },
+    "chrome_no_sandbox": {
+      "description": "PNG に変換する Chrome のサンドボックスを無効にするか。root やコンテナなど、サンドボックスを使えないマシンでだけ true にする",
+      "type": "boolean",
+      "default": false,
+      "x-layers": ["local", "user"]
+    },
+    "chrome_timeout_ms": {
+      "description": "PNG への変換を打ち切るまでの時間（ミリ秒）。大きな図や遅いマシンで足りなければ延ばす",
+      "type": "integer",
+      "minimum": 1,
+      "default": 120000,
+      "x-layers": ["local", "user"]
+    }
+  },
+  "x-legacy": {
+    "env": [
+      {
+        "name": "DIAGRAM_DIR",
+        "steps": "図のディレクトリは aws-architecture-diagram.jsonc の diagram_dir（リポジトリのルートからの相対パス）に書くか、1 回だけなら --dir で渡す。環境変数を消す"
+      },
+      {
+        "name": "DIAGRAM_ICON_DIR",
+        "steps": "aws-architecture-diagram.jsonc の icon_dir に書くか、1 回だけなら --icon-dir で渡す。環境変数を消す"
+      },
+      {
+        "name": "DIAGRAM_OUT_DIR",
+        "steps": "aws-architecture-diagram.jsonc（全員）か aws-architecture-diagram.local.jsonc（自分だけ）の out_dir に書くか、1 回だけなら --out-dir で渡す。環境変数を消す"
+      },
+      {
+        "name": "DIAGRAM_CHROME_NO_SANDBOX",
+        "steps": "人ごとの aws-architecture-diagram.jsonc（このマシンのすべてのリポジトリ）か .local.jsonc の chrome_no_sandbox に true と書くか、1 回だけなら --no-sandbox を付ける。環境変数を消す"
+      },
+      {
+        "name": "DIAGRAM_CHROME_TIMEOUT_MS",
+        "steps": "人ごとの aws-architecture-diagram.jsonc か .local.jsonc の chrome_timeout_ms に数で書くか、1 回だけなら --timeout-ms で渡す。環境変数を消す"
+      }
+    ]
+  }
+}

@@ -330,8 +330,8 @@ function ghLoginError(host, env) {
 export function runCollect(o) {
   const { repo, now, env } = o;
   const dir = usageDir(repo.root);
-  const repoConfig = loadRepoConfig(join(dir, "config.json"));
-  const user = loadOrCreateUserConfig(env);
+  const repoConfig = loadRepoConfig(repo.root, env);
+  const user = loadOrCreateUserConfig(repo.root, env);
   const person = repoConfig.aliases[user.config.personId] ?? user.config.personId;
   const tz = user.config.timeZone;
   const bundledPricing = loadBundledPricing();

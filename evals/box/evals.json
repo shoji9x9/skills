@@ -6,10 +6,32 @@
       "prompt": "Box の対象フォルダにあるファイルを一覧して",
       "assertions": [
         "box-token.sh でアクセストークンを取得しようとしている",
-        "BOX_ROOT_FOLDER_ID（未設定なら 0）を対象フォルダに使っている",
+        "box-folder.sh で取得した設定の root_folder_id（設定が無ければ 0）を対象フォルダに使っている",
         "https://api.box.com/2.0/folders/<id>/items を curl で叩いている",
         "Authorization: Bearer ヘッダを付けている",
         "marker ベース（usemarker=true / next_marker）で全ページを辿ることに触れている"
+      ],
+      "reachability": [
+        {
+          "assertion": "box-token.sh でアクセストークンを取得しようとしている",
+          "prompt_quote": "Box の対象フォルダにあるファイルを一覧して"
+        },
+        {
+          "assertion": "box-folder.sh で取得した設定の root_folder_id（設定が無ければ 0）を対象フォルダに使っている",
+          "prompt_quote": "対象フォルダ"
+        },
+        {
+          "assertion": "https://api.box.com/2.0/folders/<id>/items を curl で叩いている",
+          "prompt_quote": "ファイルを一覧して"
+        },
+        {
+          "assertion": "Authorization: Bearer ヘッダを付けている",
+          "prompt_quote": "Box の対象フォルダにあるファイルを一覧して"
+        },
+        {
+          "assertion": "marker ベース（usemarker=true / next_marker）で全ページを辿ることに触れている",
+          "prompt_quote": "ファイルを一覧して"
+        }
       ]
     },
     {

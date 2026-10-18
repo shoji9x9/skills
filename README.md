@@ -68,70 +68,43 @@ gh skill update --all
 
 ## スキルの設定
 
-次のスキルは、インストール先のプロジェクトの設定を `.config/skills/<owner>/<repo>.yml` から読む。
+設定を読むスキルは、設定を JSONC（コメントを書ける JSON）のファイルから、すべて同じ置き場所と順序で読む。
 
-- Issue と PR: issue-start、issue-batch、git-worktree、pr-review-handle、pr-finalize-loop
-- 依存の更新: dependabot-merge、dependabot-alert-issue
-- ブラウザでの確認: browser-test
-- リプレイス: replace-strategy、current-environment-bootstrap、golden-dataset、parity-component、parity-suite、parity-replace、parity-diff
+| 層 | 置き場所 | 値を適用する範囲 | commit |
+| --- | --- | --- | --- |
+| リポジトリ | `.config/skills/shoji9x9/<名前>.jsonc` | このリポジトリの全員 | する |
+| 人ごと・リポジトリ限定 | `.config/skills/shoji9x9/<名前>.local.jsonc` | このリポジトリの自分だけ | しない（gitignore） |
+| 人ごと | `${XDG_CONFIG_HOME:-~/.config}/skills/shoji9x9/<名前>.jsonc` | このマシンの自分の、すべてのリポジトリ | しない |
 
-`<owner>/<repo>` には、インストール先のリポジトリ名ではなく、配布元の owner/repo が入る。このリポジトリのスキルなら、常に `.config/skills/shoji9x9/skills.yml` になる。
-設定ファイルは、設定を作るスキル（`replace-strategy setup`、`browser-test setup`、各スキルの規約の解決の手順など）が、実行時に自動で作るか追記する。
-そのとき、既にあるキー・値・コメントは変えない。設定ファイルはスキルのディレクトリの外にあるので、`gh skill update` を実行しても残る。
-共通の設定を読むだけのスキル（golden-dataset・parity-suite など）は設定を作らない。設定が無ければ、設定を作るスキル（`replace-strategy setup`）を実行するよう促して止まる。
+`<名前>` はスキル名か、複数のスキルが使うキーをまとめた `common` である。`shoji9x9` は配布元の名前で、インストール先のリポジトリ名ではない。
+値は、CLI のオプション → 環境変数（プログラムが渡す値だけ）→ 人ごと・リポジトリ限定 → 人ごと → リポジトリ → デフォルトの順に探す。
+キーごとに置ける層が決まっていて、リポジトリで揃える値（マージの方式など）はリポジトリの層にだけ置ける。
+環境変数は、秘密の情報、プログラムが子プロセスに渡す値、他のツールが名前を決めている変数だけに使う。それ以外の値を `.env` などに置かない。
 
-```yaml
-version: 1
-skills:
-  common:
-    # 導入先に実在する規約ドキュメントを指定（例: AGENTS.md / CLAUDE.md / CONTRIBUTING.md）
-    conventions_doc: AGENTS.md
-    review_tool: copilot # 再レビュー依頼先。copilot | claude-code | codex | local | none
-  dependabot-merge:
-    merge_method: squash # squash | merge | rebase
-  issue-batch:
-    # issue-batch setup が repository の許可方式と実測 workflow から対話的に確定する
-    merge_mode: auto # auto | agent
-    merge_method: squash
-    # merge_ready_timeout_minutes: 10 # merge_mode: agent のとき必須
-    max_local_review_iterations: 1
-    max_pr_iterations: 5
-    wait_ci_before_review: false
-    continue_on_blocked: true
-    deployment:
-      workflows: [] # 対象なしも空配列で明示する
-      registration_timeout_minutes: 5
-      completion_timeout_minutes: 20
-      max_fix_iterations: 3
-  dependabot-alert-issue:
-    minimum_release_age_days: 3 # 任意。解決バージョン公開からこの日数未満は「すぐ着手できない」扱い
-    ignore: [] # 任意。Issue も dismiss もしない alert の条件（自由記述）
-    dismiss: [] # 任意。却下する alert（ghsa か package[+ecosystem] で限定／reason／comment）
-  browser-test:
-    environments: # 確認対象の環境（URL・認証・起動コマンド・既定・禁止操作）
-      - name: local
-        url: http://localhost:5173
-        auth: none # none | user（user = ユーザーがログインを実施）
-        start: pnpm run dev
-        default: true
-        forbidden_actions: [] # この環境で実施しない操作。空 = すべて実施可、未定義 = 読み取り専用
+読み書きは、各スキルに同梱した `scripts/skill-config/skill-config.mjs` で行う（Node.js が要る）。知らないキー・型の誤り・置けない層に書いたキーはエラーになる。
+層の選び方・読み方・書き込みの決まり・旧い置き場所からの移行は、各スキルの `references/config-files.md` にある。キーの意味は、各スキルの文書とスキーマ（`config-schemas/`）にある。
+
+設定ファイルは、設定を作るスキル（`replace-strategy setup`、`browser-test setup`、`issue-batch setup` など）が、既にあるキーとコメントを変えずに作るか追記する。
+設定ファイルはスキルのディレクトリの外にあるので、`gh skill update` を実行しても残る。
+
+| 名前 | 読むスキル | 主なキー |
+| --- | --- | --- |
+| `common` | issue-start・issue-batch・pr-review-handle・pr-finalize-loop・dependabot-alert-issue | `conventions_doc`（ブランチ運用と commit の規約のドキュメント）、`review_tool`（再レビューの依頼先） |
+| `dependabot-merge` | dependabot-merge | `merge_method` |
+| `dependabot-alert-issue` | dependabot-alert-issue | `minimum_release_age_days`・`ignore`・`dismiss` |
+| `issue-batch` | issue-batch | 反復の上限・CI の待機・merge・deployment の監視 |
+| `git-worktree` | git-worktree | worktree の置き場所とファイルを運ぶ方法 |
+| `browser-test` | browser-test・issue-batch | 確認する環境と禁止する操作 |
+| `replace-strategy` | replace-strategy・current-environment-bootstrap・golden-dataset・parity-component・parity-suite・parity-replace・parity-diff | リプレイスの対象・環境・成果物の方針・意図的差異のレジストリ |
+| `kaizen` | kaizen | 忘却・定期実行・コミット前のチェックの時間の上限 |
+| `agent-usage` | agent-usage | 単価・人の ID・判断の無いブランチの扱い |
+| `box` | box | 操作の対象のフォルダ |
+| `aws-architecture-diagram` | aws-architecture-diagram | 図のディレクトリ・出力先・Chrome の起動 |
+
+例えば、このリポジトリでだけ自分が再レビューを Codex に頼むなら、`.config/skills/shoji9x9/common.local.jsonc` に次のように書く。1 回だけ変えるなら、`pr-finalize-loop 6 --review-tool codex` のように CLI で渡す。
+
+```jsonc
+{
+  "review_tool": "codex",
+}
 ```
-
-- `skills.common.conventions_doc`: ブランチ運用と commit の規約を書いた、インストール先に実在するドキュメント。上の `AGENTS.md` は例なので、そのままコピーしない。
-  未設定なら、スキルはよく使われるドキュメント（`AGENTS.md`・`CLAUDE.md`・`.github/copilot-instructions.md`・`CONTRIBUTING.md` など）を探し、見つからなければユーザーに確認する。
-- `skills.common.review_tool`: pr-review-handle / pr-finalize-loop が再レビューを依頼する AI レビュアー。`copilot`（デフォルト）・`claude-code`・`codex`・`local`・`none` のどれかを書く。
-  `copilot` には `requested_reviewers` API で、`claude-code` と `codex` には PR のトップレベルのコメントでの mention（`@claude review`・`@codex review`）で依頼する。`local` なら依頼せず、エージェント自身が手元でレビューし、レビューした HEAD の SHA と指摘の件数を PR のコメントに記録する。
-  `none` なら再レビューを依頼しない。未設定なら `copilot` を使う。
-  このリポジトリで一時的に個人の設定を変えるときは、Git で管理しない `.env.local` に `SKILLS_REVIEW_TOOL=codex` のように書く。
-  ルートの `mise.toml` がこのファイルを読み込み、環境変数は共通の設定ファイルより優先される。
-  ルートの mise の設定はインストール先に配布されないので、インストール先では `export SKILLS_REVIEW_TOOL=codex` を実行するか、そのプロジェクトの環境変数の管理の仕組みで設定する。
-  1 回だけ変える場合は `pr-finalize-loop 6 --review-tool <tool>` のように対象 PR も指定する。
-- `skills.dependabot-merge.merge_method`: dependabot-merge のマージ方式（デフォルトは `squash`）。
-- `skills.issue-batch.*`: 複数の Issue を処理するときの、ローカルのレビューと PR の収束の反復の上限、CI の待機、BLOCKED の後に続けるか、merge、deployment の監視を決める。
-  例の値をそのままコピーせず、`issue-batch setup` で対話しながら作る。スキーマはスキルの `references/project-config.md` にある。
-- `skills.dependabot-alert-issue.*`: dependabot-alert-issue が読む特別な処理の設定（公開されてからの日数のしきい値・無視・dismiss）。すべて任意。
-- `skills.browser-test.*`: browser-test が読む、環境と禁止する操作の設定。上の値は例なので、そのままコピーしない。
-  未設定なら、スキルはリポジトリを探し、ユーザーに確認して決める。`browser-test setup` で対話しながら作成・更新できる。詳細はスキルの `references/project-config.md` にある。
-- `skills.replace-strategy.*`: リプレイス対象（現・新）・DB 接続の環境変数名・成果物方針・意図的差異レジストリ・references（利用者が選ぶ UI ライブラリ／DB 意味論／環境変数の用意方法のドキュメントパス）。
-  姉妹スキル（golden-dataset・parity-suite など）が直接読む共通の設定で、`replace-strategy setup` が対話しながら作る。スキーマはスキルの `references/project-config.md` にある。
-  golden-dataset と parity-suite は専用のキーを持たず、この共通の設定だけを読む。

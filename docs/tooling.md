@@ -32,6 +32,7 @@ mise の shim は、cwd の設定の階層からツールの版を決める。
 | Markdown（`*.md`） | `markdownlint-cli2` | `markdownlint-cli2` | `scripts/gates/code/lint-pagination.ts` が shell のコードブロックの `gh api` のページネーションを、`scripts/gates/prose/lint-prose.ts` が人が読む文章を textlint でチェックする |
 | JavaScript・TypeScript（`*.js`、`*.mjs`、`*.ts` など） | `oxlint` | `oxfmt` | `tsc`（`pnpm run typecheck`）が `.ts`・`.tsx` の型を検査する（下の「型の検査」）。`scripts/gates/prose/lint-prose.ts` がコメントの文章を textlint で、文字列（テスト名・メッセージ）を使わない語の規則でチェックする |
 | JSON（`*.json`） | `jsonlint` | `oxfmt` | 重複したキーもチェックする。`scripts/gates/prose/lint-prose.ts` が `evals/<name>/evals.json` の文字列を使わない語の規則でチェックする |
+| JSONC（`*.jsonc`。スキルの設定ファイル） | `jsonlint -C -T`（コメントと末尾のカンマを受け付けて読む） | `oxfmt` | 重複したキーもチェックする。CI は整形されていないファイルも検出する（`JSONC format check`） |
 | YAML（`*.yml`、`*.yaml`） | `js-yaml`（`scripts/gates/code/lint-yaml.ts` が API で 1 つのプロセスにまとめて読む） | `oxfmt` | `scripts/gates/prose/lint-prose.ts` がコメントの文章を textlint でチェックする |
 | シェル（`*.sh`） | `shellcheck` | `shfmt` | `scripts/gates/code/lint-pagination.ts` が `gh api` のページネーションを、`scripts/gates/prose/lint-prose.ts` がコメントの文章をチェックする |
 | GitHub Actions（`.github/workflows/*.{yml,yaml}`） | `actionlint` と `ghalint` | `oxfmt` | `pinact` が SHA の固定を確かめる |
@@ -63,6 +64,8 @@ GitHub Actions は、`actionlint` で構文を、`ghalint` で `permissions`・`
 | `code/lint-pagination.ts` | `gh api` などの一覧の取得のページネーション |
 | `docs/check-kaizen-refs.ts` | `.kaizen/` の学びへの参照の実在。意図して実在しないものは `scripts/gates/docs/kaizen-refs-exemptions.json` に書く |
 | `packaging/copies/check-identical-copies.ts` | 同じ内容であるべきコピー。組は `scripts/gates/packaging/copies/identical-copies.json` に書く。`region` を持つ組は、印 `// <region>:begin` と `// <region>:end` の間だけを比べる |
+| `packaging/check-skill-config-vendor.ts` | 配布スキルに同梱する設定の読み取り（`scripts/skill-config/`）。同梱した jsonc-parser（`vendor/`）が devDependency の版から作った内容と一致するか。版を上げたら `--fix` で作り直す |
+| `packaging/check-skill-configs.ts` | このリポジトリのスキルの設定（`.config/skills/shoji9x9/*.jsonc`）が、各スキルのスキーマ（`skills/<name>/config-schemas/`）に合うか |
 | `packaging/check-skill-checks.ts` | 配布スキルのチェック（`*-check.*`）の分類。利用者の pre-commit・CI に組み込むもの（`skills/<name>/checks.json`）か、組み込まないもの（理由を付けて `scripts/gates/packaging/skill-checks-unwired.json`）のどちらかにする |
 | `prose/check-time-sensitive-prose.ts` | 日付・「現状は」「当面」を Tier 1〜3 の文書とコメントに書いていないか。変異の件数や全件の実測値は `mutation-proof.yml` だけに書く |
 | `docs/check-doc-tiers.ts` | 文書の階層。原本は `scripts/gates/docs/doc-tiers.json` で、`.agents/rules/doc-altitude.md` の表は `--fix` で生成する |
@@ -323,6 +326,9 @@ fixture の検査も strict のままにする。型が足りない fixture は�
 そこに在る `.ts` は private skill のもので、Node が直接実行するので `tsconfig.repo.json` で検査する。
 
 ### チェックの対象から外すもの
+
+配布スキルに同梱した jsonc-parser（`skills/*/scripts/skill-config/vendor/**`）は、外部のパッケージから作った生成物なので、lint・整形・型の検査・カバレッジ・文章の規約の対象から外す。
+範囲は `scripts/lib/source-scope.ts` の `VENDORED_GLOBS` で定義する。原本との一致は `check-skill-config-vendor.ts` が確かめる。
 
 `tests/**` は、リントと整形の対象に含める。`.agents/skills/**` と `.claude/**` は、インストール済みのコピーとエージェント用のシンボリックリンクなので、対象から外す。
 型の検査は、エディタで開く雛形のコピーとリンクを対象にする（上の「型の検査」）。

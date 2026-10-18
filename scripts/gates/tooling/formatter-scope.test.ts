@@ -58,12 +58,14 @@ const OXFMT_EXTS = (() => {
 const OXFMT_BODY = {
   script: "const x = 1  *  2\n",
   json: '{"a":1,\n"b":   2}\n',
+  jsonc: '{\n  // c\n    "a":1,\n}\n',
   yaml: "a:   1\n",
 };
 /** 拡張子から内容の種類を導く（拡張子の一覧を assigned と別に持たない）。導けない種類は undefined。 */
 function kindOf(ext: string) {
   if (/^[cm]?[jt]sx?$/.test(ext)) return "script";
   if (ext === "json") return "json";
+  if (ext === "jsonc") return "jsonc";
   if (ext === "yml" || ext === "yaml") return "yaml";
   return undefined;
 }

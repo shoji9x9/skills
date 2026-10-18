@@ -6,7 +6,8 @@ AWS 公式アイコンは、再配布を避けるためにスキルに同梱せ�
 ## AWS 公式アイコン（取得スクリプトで用意）
 
 スキルに同梱のエンジン `assets/engine/fetch-aws-icons.mjs` が、[AWS Architecture Icons](https://aws.amazon.com/architecture/icons/) の公式パッケージを取得する。
-そして、プロジェクトの `icon-manifest.json`（`DIAGRAM_DIR`、デフォルトは cwd）の対応に従って、`icons/aws-icons/<id>.svg` を書き出す。
+そして、プロジェクトの `icon-manifest.json`（図のディレクトリ。デフォルトは cwd）の対応に従って、`icons/aws-icons/<id>.svg` を書き出す。
+アイコンのディレクトリを設定の `icon_dir` か `--icon-dir` で変えたら、その下の `aws-icons/` に書き出す。
 図のディレクトリで実行する（`$SKILL` は導入先）。
 
 ```bash
@@ -48,7 +49,7 @@ spec の `icon` には、拡張子の無いパス（例: `"internet"`）で指�
 
 ## アイコンの参照方法（spec 側）
 
-`node.icon` は、iconDir（プロジェクトの `icons/`、つまり `DIAGRAM_DIR/icons`）からの相対パス（拡張子なし）で書く。
+`node.icon` は、iconDir（プロジェクトの `icons/`、つまり `<図のディレクトリ>/icons`。設定の `icon_dir` で変えられる）からの相対パス（拡張子なし）で書く。
 
 - AWS: `"aws-icons/lambda"`、`"aws-icons/dynamodb"` など（`fetch-aws-icons.mjs` の出力）
 - AWS 以外: `"browser"`、`"internet"`

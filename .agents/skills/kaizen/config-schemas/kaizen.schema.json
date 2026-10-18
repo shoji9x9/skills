@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "kaizen の設定（.config/skills/shoji9x9/kaizen.jsonc ほか）",
+  "description": "置き場所・層・解決の順序は references/config-files.md にある。x-layers はそのキーを置ける層、x-env は値を受け取る環境変数（プログラムが渡す値だけ）。",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "precommit_deadline_seconds": {
+      "description": "コミット前のチェックが transcript を読む時間の上限（秒）。マシンの速さとリポジトリの大きさで決まる",
+      "type": "integer",
+      "minimum": 2,
+      "maximum": 3600,
+      "default": 8,
+      "x-layers": ["repo", "local", "user"]
+    },
+    "foreign_sentinel_retention_days": {
+      "description": "他のセッションのセンチネルを回収するまでの日数。never なら回収しない",
+      "anyOf": [{ "type": "integer", "minimum": 0 }, { "const": "never" }],
+      "default": 7,
+      "x-layers": ["repo", "local", "user"]
+    },
+    "forget_auto": {
+      "description": "抽出のときに、古い学びを自動で忘却するか",
+      "type": "boolean",
+      "default": true,
+      "x-layers": ["repo"]
+    },
+    "forget_after_days": {
+      "description": "適用されないまま再発もしていない学びを忘却するまでの日数",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 999999,
+      "default": 30,
+      "x-layers": ["repo"]
+    },
+    "forget_max_priority": {
+      "description": "自動で忘却する学びの priority の上限",
+      "enum": ["low", "medium", "high"],
+      "default": "medium",
+      "x-layers": ["repo"]
+    },
+    "schedule_enabled": {
+      "description": "定期実行（kaizen-schedule.yml）を有効にするか。opt-in",
+      "type": "boolean",
+      "default": false,
+      "x-layers": ["repo"]
+    },
+    "schedule_mode": {
+      "description": "定期実行の動き。notify は通知の Issue だけ、agent はエージェントに分析させる",
+      "enum": ["notify", "agent"],
+      "default": "notify",
+      "x-layers": ["repo"],
+      "x-env": "KAIZEN_SCHEDULE_MODE"
+    },
+    "schedule_agent": {
+      "description": "定期実行で分析させるエージェント",
+      "enum": ["claude", "codex", "copilot"],
+      "default": "claude",
+      "x-layers": ["repo"],
+      "x-env": "KAIZEN_SCHEDULE_AGENT"
+    },
+    "schedule_model": {
+      "description": "定期実行のエージェントに渡すモデル。省くとエージェントのデフォルト",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,63}$",
+      "x-layers": ["repo"],
+      "x-env": "KAIZEN_SCHEDULE_MODEL"
+    },
+    "schedule_effort": {
+      "description": "定期実行のエージェントに渡す推論の強さ。省くとエージェントのデフォルト",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$",
+      "x-layers": ["repo"],
+      "x-env": "KAIZEN_SCHEDULE_EFFORT"
+    }
+  },
+  "x-legacy": {
+    "files": [
+      {
+        "path": "{root}/.kaizen/config",
+        "steps": "KEY=VALUE の各行を .config/skills/shoji9x9/kaizen.jsonc の同じ名前のキーに移す（on と off は true と false に、数は数のまま書く）。移したら .kaizen/config を消す"
+      }
+    ],
+    "env": [
+      {
+        "name": "KAIZEN_PRECOMMIT_DEADLINE_SECONDS",
+        "steps": "値を kaizen.jsonc（全員に同じ値）か kaizen.local.jsonc（このリポジトリの自分だけ）か人ごとの kaizen.jsonc（自分のすべてのリポジトリ）の precommit_deadline_seconds に移し、環境変数を消す"
+      }
+    ]
+  }
+}

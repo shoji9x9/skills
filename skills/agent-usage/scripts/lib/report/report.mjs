@@ -588,9 +588,9 @@ export function runReport(o) {
   if (o.since && o.until && o.since > o.until)
     throw new Error("--since が --until より後になっている");
   const dir = usageDir(o.root);
-  const config = loadRepoConfig(join(dir, "config.json"));
+  const config = loadRepoConfig(o.root, o.env);
   // report は人の設定を読むだけで作らない（作ると、setup を通らずに乱数の ID ができる）
-  const tz = loadUserConfig(o.env)?.timeZone ?? systemTimeZone();
+  const tz = loadUserConfig(o.root, o.env)?.timeZone ?? systemTimeZone();
   const { rows, files } = readRecords(join(dir, "records"));
   if (files === 0) throw new Error(`${join(dir, "records")} に記録が無い。先に collect を実行する`);
   const data = buildReport(rows, {

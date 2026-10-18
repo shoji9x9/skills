@@ -118,7 +118,7 @@ const FULL_RE = new RegExp(`^\\.kaizen/(?:archive/${NAME}\\.md|${DATED})$`);
 // 行末で切れた参照。切れ目は名前の途中に限らない。日付の途中（`2026-09-`）や、
 // `.kaizen/` / `.kaizen/archive/` の直後でも切れうる。日付を丸ごと要求すると、それより手前で
 // 切れた参照は「参照」とも「復元できない折り返し」とも判定されず、警告なしに通ってしまう。
-// 直下は日付で始まる名前だけを拾う（`.kaizen/config` のような制御ファイルへの言及を巻き込まない）。
+// 直下は日付で始まる名前だけを拾う（`.kaizen/.pending-extract-*` のような制御ファイルへの言及を巻き込まない）。
 const TRUNCATED_RE = new RegExp(
   `${LEAD}(\\.kaizen/(?:archive/${NAME}|archive/|\\d[A-Za-z0-9_-]*)?)$`,
 );

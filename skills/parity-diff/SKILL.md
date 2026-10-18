@@ -26,7 +26,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
 - 1 回の実行で扱うのは 1 機能である。複数の機能を並行して進めない。
   例外は下記の `--component-change` の一括再検証だけで、そこでも機能は 1 つずつ順に処理する。
 - `slug` は `.replace/features.md` が採番したものを使い、自分では採番しない。省略したときは、features.md の未着手の機能から対話で選ぶ。
-- `--target` は、差分を検出する新側の環境である（`skills.replace-strategy.targets` のうち `side: new` のもの）。
+- `--target` は、差分を検出する新側の環境である（`replace-strategy.jsonc` の `targets` のうち `side: new` のもの）。
   このスキルが対象とする側は、ここで定義する。
   省略したときのデフォルト・候補の提示・存在しない名前や側の違いでの停止といった選択規則は、`replace-strategy` の `references/project-config.md`「実行対象環境」の「選択規則」に従う（ここへ転記しない）。
   成果物は環境ごとに分かれる（下記「成果物」）。
@@ -91,7 +91,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
 - コンポーネントの差分を、インスタンス単位の無視リストで吸収しない。クラスやトークンの単位の系統差 T（`component_diffs`）で宣言し、T から外れたものを検出する。
   ただし、画素の検出でしか出ない差（computed style は一致し、描画だけが違う）には T の照合キーが無く、`component_diffs` では吸収されない。
   その差を置ける場所は、インスタンス例外（`property: pixel`）だけである（レジストリごとにどの比較方法に使われるかは [`references/normalize.md`](references/normalize.md) で定義する）。
-- インスタンス例外を設定ファイル（`.config/skills/shoji9x9/skills.yml`）へ書かない。
+- インスタンス例外を設定ファイル（`.config/skills/shoji9x9/replace-strategy.jsonc`）へ書かない。
   slug の範囲の台帳なので、`.replace/parity/<slug>/component-diff-exceptions.json` に書く（古いキーが残っていたら、移行を案内して停止する）。
 - 同じ原因の複数のインスタンスに、同じ `reason` を複製しない。原因は `component_diff_exception_causes[]` に 1 回だけ定義し、`cause` で参照する（インスタンスに `reason` を持たせない）。
 - 例外のインスタンスの件数をまとめない。`page`・`element`・`bbox` にワイルドカードを置いて、1 つのエントリで N 箇所を吸収させない。
@@ -156,7 +156,9 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
 
 ## プロジェクト設定の解決
 
-設定ファイル `.config/skills/shoji9x9/skills.yml` の `skills.replace-strategy.*` を直接読む（転記しない）。
+設定ファイル `.config/skills/shoji9x9/replace-strategy.jsonc` を直接読む（転記しない）。
+値は同梱の `scripts/skill-config/skill-config.mjs` で読み書きする。読むときは `node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mjs get replace-strategy <キー>`、書くときは `set` か `append` を使う。
+置き場所・層・書き込みの決まりの原本は [`references/config-files.md`](references/config-files.md) である。読み取りがエラー（終了コード 1）を返したら、デフォルトの値で続けずに止まる。
 スキーマは `replace-strategy` の `references/project-config.md` で定義する。このスキルが読み書きするキーは次のとおりである。
 
 | キー | 読/書 | 用途 |

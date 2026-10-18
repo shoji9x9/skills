@@ -44,6 +44,13 @@
 //   要素を追記し、その最後の要素が変えた後の値を記録しているときだけにする。
 //   履歴の既存の要素は、消すことも書き換えることもできない（先頭からの並びが比較元と一致することを求める）。
 //
+// - jsonc-tree: JSONC（コメントと末尾のカンマを許す JSON。スキルの設定ファイル）を、値の木として読む。
+//   単位は、キーがあること（`<key: パス>`）・スカラの値（`パス = 値`。配列の添字は `[]` に畳む）・コメントの本文である。
+//   値を消すか書き換えるか、コメントを消すと失敗にする。キー・値・配列の要素・コメントを足すのは通る。
+//   配列の添字を畳むのは、lines の行の多重集合と同じく、要素を足しても既にある単位を数え直させないためである。
+//   registry_groups・growable_containers・mutable_blocks は lines と同じ意味で、キーパスは最上位からの完全なパスで書く。
+//   registry_groups と mutable_blocks の配列の中のコメントは、単位にしない（鍵をまたいで要素を移すと、移動先に置き場所が無い）。
+//
 // 行の突き合わせは、空白を畳んでから（連続する空白を 1 つにし、前後を除いてから）行う。
 // Markdown の表は、フォーマッタが桁を詰め直すので、素の文字列で比べると整形だけで失敗する。
 // 空行は比べない（節の間隔は決定ではない）。
@@ -70,18 +77,20 @@ import { fileURLToPath } from "node:url";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
+import { ConfigError, parseJsonc } from "./skill-config/skill-config.mjs";
+import * as jsonc from "./skill-config/vendor/jsonc-parser.mjs";
 
 /**
  * ツールのバージョン（このファイルで定義する）。判定のロジックや出力の形を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "14";
+export const VERSION = "15";
 
 /** 走査で辿らないディレクトリ名。 */
 const SKIP_DIRS = new Set([".git", "node_modules"]);
 
 /** 突き合わせの単位（一覧の unit）。 */
-export const UNITS = ["lines", "markdown-structure", "json-arrays"];
+export const UNITS = ["lines", "markdown-structure", "json-arrays", "jsonc-tree"];
 
 /**
  * 一覧に書くキーパスの形（ルートからの完全なパス）。`-` だけのセグメントは
@@ -1323,6 +1332,92 @@ function lastSegment(path) {
 }
 
 /**
+ * JSONC の値の木を単位に分ける（unit: jsonc-tree）。
+ * @param {string} text
+ * @param {string[]} blocks 配下を単位から外すキーパス
+ * @param {string[]} growable 要素ごとの単位に展開するキーパス（追記だけを許す配列）
+ * @param {{ id: string, itemKey: string, paths: string[] }[]} registryGroups 鍵をまたぐ移動を許すグループ
+ * @param {string} label 失敗メッセージ用（ファイル名＋版）
+ * @returns {Map<string, number>}
+ */
+export function jsoncTreeUnits(text, blocks, growable, registryGroups, label) {
+  /** @type {unknown} */
+  let value;
+  try {
+    value = parseJsonc(text, label);
+  } catch (e) {
+    if (!(e instanceof ConfigError)) throw e;
+    throw new UsageError(`JSONC として読めないため追記であることを確かめられない: ${e.message}`);
+  }
+  /** @type {Map<string, number>} */
+  const counts = new Map();
+  /** @param {string} unit */
+  const add = (unit) => counts.set(unit, (counts.get(unit) ?? 0) + 1);
+  const blockSet = new Set(blocks);
+  const growableSet = new Set(growable);
+  /** @type {Map<string, { id: string, itemKey: string }>} */
+  const registryOf = new Map();
+  for (const g of registryGroups) for (const path of g.paths) registryOf.set(path, g);
+  /**
+   * @param {unknown} v
+   * @param {string} path 添字を `[]` に畳んだパス
+   * @param {boolean} exact 添字を含まない（一覧のキーパスと突き合わせられる）
+   */
+  const walk = (v, path, exact) => {
+    if (isPlainObject(v)) {
+      for (const [k, child] of Object.entries(v)) {
+        const p = path === "" ? k : `${path}.${k}`;
+        add(`<key: ${p}>`);
+        if (exact && blockSet.has(p)) continue;
+        const group = exact ? registryOf.get(p) : undefined;
+        if (exact && (growableSet.has(p) || group !== undefined) && isArray(child)) {
+          for (const element of child) {
+            if (group === undefined) {
+              add(`${GROWABLE_ITEM_PREFIX}${p}> ${canonicalJson(element)}`);
+              continue;
+            }
+            const item =
+              typeof element === "string"
+                ? element.trim()
+                : isPlainObject(element) && typeof element[group.itemKey] === "string"
+                  ? String(element[group.itemKey]).trim()
+                  : canonicalJson(element);
+            add(`${REGISTRY_ITEM_PREFIX}${group.id}> ${item}`);
+          }
+          continue;
+        }
+        walk(child, p, exact);
+      }
+      return;
+    }
+    if (isArray(v)) {
+      for (const element of v) walk(element, `${path}[]`, false);
+      return;
+    }
+    add(`${path} = ${JSON.stringify(v)}`);
+  };
+  walk(value, "", true);
+  // コメント。registry_groups と mutable_blocks の配列の中にあるものは数えない。
+  const tree = jsonc.parseTree(text, [], { allowTrailingComma: true });
+  /** @type {[number, number][]} */
+  const skipped = [];
+  for (const path of [...blocks, ...registryGroups.flatMap((g) => g.paths)]) {
+    const node = tree === undefined ? undefined : jsonc.findNodeAtLocation(tree, path.split("."));
+    if (node !== undefined) skipped.push([node.offset, node.offset + node.length]);
+  }
+  const scanner = jsonc.createScanner(text, false);
+  for (let kind = scanner.scan(); kind !== jsonc.SyntaxKind.EOF; kind = scanner.scan()) {
+    if (kind !== jsonc.SyntaxKind.LineCommentTrivia && kind !== jsonc.SyntaxKind.BlockCommentTrivia)
+      continue;
+    const offset = scanner.getTokenOffset();
+    if (skipped.some(([start, end]) => offset >= start && offset < end)) continue;
+    const body = normalizeLine(text.slice(offset, offset + scanner.getTokenLength()));
+    if (body !== "") add(`<comment> ${body}`);
+  }
+  return counts;
+}
+
+/**
  * 一覧の unit に従って単位を数える。
  * @param {string} text
  * @param {{ unit: string, arrays: string[], key?: string | null, mutableColumns?: string[], fillOnlyColumns?: string[], mutableBullets?: string[], mutableBlocks?: string[], growableContainers?: string[], registryGroups?: { id: string, itemKey: string, paths: string[] }[] }} artifact
@@ -1342,6 +1437,15 @@ export function unitsOf(text, artifact, label, wrappedOut = []) {
   }
   if (artifact.unit === "json-arrays") {
     return jsonArrayUnits(text, artifact.arrays, label, artifact.key ?? null);
+  }
+  if (artifact.unit === "jsonc-tree") {
+    return jsoncTreeUnits(
+      text,
+      artifact.mutableBlocks ?? [],
+      artifact.growableContainers ?? [],
+      artifact.registryGroups ?? [],
+      label,
+    );
   }
   return normalizeLines(
     text,
@@ -1612,7 +1716,7 @@ export function readManifest(manifestPath) {
         }
       }
       if (a.registry_groups !== undefined && a.registry_groups !== null) {
-        if (unit !== "lines") {
+        if (unit !== "lines" && unit !== "jsonc-tree") {
           throw new UsageError(`artifacts[${i}] の unit が ${unit} なのに registry_groups がある`);
         }
         if (!isArray(a.registry_groups)) {
@@ -1664,7 +1768,7 @@ export function readManifest(manifestPath) {
         registryGroups = groups;
       }
       if (a.growable_containers !== undefined && a.growable_containers !== null) {
-        if (unit !== "lines") {
+        if (unit !== "lines" && unit !== "jsonc-tree") {
           throw new UsageError(
             `artifacts[${i}] の unit が ${unit} なのに growable_containers がある`,
           );
@@ -1684,7 +1788,7 @@ export function readManifest(manifestPath) {
         growableContainers = a.growable_containers.map((x) => String(x).trim());
       }
       if (a.mutable_blocks !== undefined && a.mutable_blocks !== null) {
-        if (unit !== "lines") {
+        if (unit !== "lines" && unit !== "jsonc-tree") {
           throw new UsageError(`artifacts[${i}] の unit が ${unit} なのに mutable_blocks がある`);
         }
         if (!isArray(a.mutable_blocks)) {

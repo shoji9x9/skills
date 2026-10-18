@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "git-worktree の設定（.config/skills/shoji9x9/git-worktree.jsonc）",
+  "description": "置き場所・層・解決の順序は references/config-files.md にある。setup で決めた内容を書く。",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "location": {
+      "description": "worktree の置き場所。リポジトリの中なら、ルートからの相対パス（例: .claude/worktrees）。リポジトリの外（一時ディレクトリの下）なら outside。リポジトリの中に置くと、すべてのチェックに除外が要るので、全員が同じ値を使う",
+      "anyOf": [
+        { "const": "outside" },
+        { "type": "string", "pattern": "^(?!/)(?!.*(^|/)\\.\\.(/|$)).+$" }
+      ],
+      "x-layers": ["repo"]
+    },
+    "carry_in": {
+      "description": "gitignore の対象のうち worktree で要るファイルを運ぶ方法と、その一覧",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["method"],
+      "properties": {
+        "method": {
+          "description": "worktreeinclude は新しく作るときに .worktreeinclude で自動でコピーする。manual は手で運ぶ。none は運ぶものが無い",
+          "enum": ["worktreeinclude", "manual", "none"]
+        },
+        "files": {
+          "description": "運ぶファイル（リポジトリのルートからのパスか、.gitignore と同じ書式のパターン）",
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      },
+      "x-layers": ["repo"]
+    }
+  }
+}

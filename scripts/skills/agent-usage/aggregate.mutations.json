@@ -109,21 +109,27 @@
     },
     {
       "id": "invalid-default-decision-accepted",
-      "why": "defaultDecision の値を確かめず、record と decline 以外も受け付ける",
+      "why": "スキーマで値を確かめず、record と decline 以外の defaultDecision（と型の誤った値）も受け付ける",
       "file": "skills/agent-usage/scripts/lib/config.mjs",
-      "find": "  if (v !== \"record\" && v !== \"decline\") throw",
-      "replace": "  if (false) throw",
+      "find": "    else errors.push(...validateValue(v, prop.schema, `${where}: ${k}`));",
+      "replace": "    else void v;",
       "occurrences": 1,
-      "expect_failing": ["設定 defaultDecision は record か decline だけを受け付ける"]
+      "expect_failing": [
+        "設定 知らないキーと型の誤りはエラーにする",
+        "設定 defaultDecision は record か decline だけを受け付ける",
+        "設定 人の ID の形とタイムゾーンを確かめる"
+      ]
     },
     {
       "id": "user-default-null-rejected",
-      "why": "人の設定の defaultDecision: null を、置いていないのと同じに扱わずに読めない設定として止める",
+      "why": "人の設定の defaultDecision: null を置いていないのと同じに扱わず、下の層（リポジトリの設定）の値を隠す",
       "file": "skills/agent-usage/scripts/lib/config.mjs",
-      "find": "  if (obj.defaultDecision !== undefined && obj.defaultDecision !== null) {\n    config.defaultDecision",
-      "replace": "  if (obj.defaultDecision !== undefined) {\n    config.defaultDecision",
+      "find": "    if (d === \"record\" || d === \"decline\") return { decision: d, source: paths[layer] };",
+      "replace": "    if (d !== undefined) return { decision: /** @type {DefaultDecision} */ (d), source: paths[layer] };",
       "occurrences": 1,
-      "expect_failing": ["設定 defaultDecision は record か decline だけを受け付ける"]
+      "expect_failing": [
+        "設定ファイルの層 defaultDecision は .local.jsonc・人ごと・リポジトリの順に探し、null の層は飛ばして下の層を見る"
+      ]
     },
     {
       "id": "hour-not-split-by-branch",

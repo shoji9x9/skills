@@ -14,11 +14,11 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "notify（通知 Issue のみ） | agent（エージェントに分析させる）。空なら .kaizen/config → 既定 notify"
+        description: "notify（通知 Issue のみ） | agent（エージェントに分析させる）。空なら kaizen の設定ファイル（kaizen.jsonc）→ 既定 notify"
         required: false
         default: ""
       agent:
-        description: "claude | codex | copilot。空なら .kaizen/config → 既定 claude"
+        description: "claude | codex | copilot。空なら kaizen の設定ファイル（kaizen.jsonc）→ 既定 claude"
         required: false
         default: ""
       model:
@@ -70,7 +70,7 @@ jobs:
       # スクリプトが見つからないリポジトリでは `Locate` の exit 1 が先に起き、
       # 「止めたい状況でノイズになる」その場合に、停止スイッチが機能しない。
       #
-      # ここで見るのはリポジトリ変数だけ。`.kaizen/config` の `schedule_enabled` は
+      # ここで見るのはリポジトリ変数だけ。kaizen.jsonc の `schedule_enabled` は
       # スクリプトが読む（設定を読む実装を 2 つに増やさないため）ので、そちらを反映するには
       # スキル本体がリポジトリに在る必要がある。スクリプトごと欠けている構成を止めたいときは
       # このリポジトリ変数を使う。
@@ -120,6 +120,10 @@ jobs:
           echo "kaizen-schedule-report.sh と tracking-issue-lib.sh が揃ったディレクトリが無い（kaizen を再インストールする）" >&2
           exit 1
 
+      # 設定ファイル（kaizen.jsonc）は、スキルに同梱した読み取りが Node.js で読む。GitHub がホストする
+      # ubuntu-latest のランナーには Node.js が入っている。Node.js の無いランナー（self-hosted など）では
+      # スクリプトが設定を読めずに exit 1 で止まるので、このステップの前に actions/setup-node を足す。
+      # 設定の誤り（不正な値・旧い .kaizen/config）も exit 1 で止まる。pipefail（shell: bash）なので tee を通しても失敗が残る。
       - name: Resolve settings
         id: settings
         if: steps.pause.outputs.skip != 'true'
@@ -132,7 +136,7 @@ jobs:
         run: |
           bash "${{ steps.locate.outputs.script }}" config | tee -a "$GITHUB_OUTPUT"
 
-      # 理由は `.kaizen/config` / リポジトリ変数に由来する外部入力。`${{ }}` で run へ
+      # 理由は kaizen.jsonc / リポジトリ変数に由来する外部入力。`${{ }}` で run へ
       # 直挿しすると値がシェルとして解釈されるので、env 経由で渡して展開させない。
       - name: Report skip
         if: steps.pause.outputs.skip == 'true' || steps.settings.outputs.skip == 'true'

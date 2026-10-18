@@ -52,13 +52,35 @@
     {
       "id": 5,
       "prompt": "うちは lodash を本番では使ってないので、その alert は Issue にせず dismiss したい。dependabot-alert-issue でできる？",
-      "expected_output": ".config/skills/shoji9x9/skills.yml の skills.dependabot-alert-issue.dismiss に lodash の dismiss 設定（reason/comment）を非破壊で書き、該当 alert は Issue 化せず、ユーザー承認後に gh api で Dismissal comment 付きで dismiss する。",
+      "expected_output": ".config/skills/shoji9x9/dependabot-alert-issue.jsonc の dismiss に lodash の dismiss 設定（reason/comment）を非破壊で書き、該当 alert は Issue 化せず、ユーザー承認後に gh api で Dismissal comment 付きで dismiss する。",
       "assertions": [
-        "dismiss 対象は引数ではなく .config/skills/shoji9x9/skills.yml の skills.dependabot-alert-issue に書く方針である",
+        "dismiss 対象は引数ではなく .config/skills/shoji9x9/dependabot-alert-issue.jsonc に書く方針である",
         "設定ファイルへの書き込みは非破壊（既存のキー・値・コメントを変更しない）である",
         "dismiss 該当 alert は Issue 化対象から外す方針である",
         "gh api --method PATCH で state=dismissed・dismissed_reason・dismissed_comment を渡して却下する方針である",
         "dismiss も承認を得てから実行する方針である"
+      ],
+      "reachability": [
+        {
+          "assertion": "dismiss 対象は引数ではなく .config/skills/shoji9x9/dependabot-alert-issue.jsonc に書く方針である",
+          "prompt_quote": "Issue にせず dismiss したい"
+        },
+        {
+          "assertion": "設定ファイルへの書き込みは非破壊（既存のキー・値・コメントを変更しない）である",
+          "prompt_quote": "Issue にせず dismiss したい"
+        },
+        {
+          "assertion": "dismiss 該当 alert は Issue 化対象から外す方針である",
+          "prompt_quote": "その alert は Issue にせず"
+        },
+        {
+          "assertion": "gh api --method PATCH で state=dismissed・dismissed_reason・dismissed_comment を渡して却下する方針である",
+          "prompt_quote": "dismiss したい"
+        },
+        {
+          "assertion": "dismiss も承認を得てから実行する方針である",
+          "prompt_quote": "dependabot-alert-issue でできる？"
+        }
       ]
     },
     {

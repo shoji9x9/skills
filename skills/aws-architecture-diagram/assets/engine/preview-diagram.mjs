@@ -4,21 +4,23 @@
 //
 // 使い方は次のとおりである。出力した PNG の絶対パスを表示する。
 //
-//     node preview-diagram.mjs <env名 | SVGファイル名>
+//     node preview-diagram.mjs <env名 | SVGファイル名> [--no-sandbox] [--timeout-ms <ミリ秒>]
 //     node preview-diagram.mjs local
 //     node preview-diagram.mjs architecture-prod.svg
 //
-// SVG の場所は render-diagram.mjs と同じ規則で決める（DIAGRAM_DIR/out。DIAGRAM_OUT_DIR で上書きできる）。
+// SVG の場所は render-diagram.mjs と同じ規則で決める（<図のディレクトリ>/out。--out-dir か設定の out_dir で変えられる）。
+// Chrome のサンドボックスと打ち切りの時間も、オプションか設定（chrome_no_sandbox・chrome_timeout_ms）で決める（diagram-config.mjs）。
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { diagramConfig } from "./diagram-config.mjs";
 
-const DIAGRAM_DIR = process.env.DIAGRAM_DIR ?? process.cwd();
-const OUT_DIR = process.env.DIAGRAM_OUT_DIR ?? join(DIAGRAM_DIR, "out");
+const config = diagramConfig(process.argv.slice(2));
+const OUT_DIR = config.outDir;
 
-const arg = process.argv[2];
+const arg = config.rest[0];
 if (!arg) {
   console.error("usage: node preview-diagram.mjs <env名 | SVGファイル名>");
   process.exit(1);
@@ -68,12 +70,11 @@ const height = Math.round(Number(dimAttr("height") ?? vb?.[2] ?? 900));
 const work = mkdtempSync(join(tmpdir(), "diagram-preview-"));
 const out = join(tmpdir(), `${basename(svgPath, ".svg")}-preview.png`);
 // Chrome のサンドボックスはデフォルトで有効にする（ローカルの安全性を下げない）。root やコンテナなど、
-// サンドボックスを使えない環境でだけ、DIAGRAM_CHROME_NO_SANDBOX=1 で無効にする。
-const noSandbox = process.env.DIAGRAM_CHROME_NO_SANDBOX === "1";
-// 応答が返らない（ハングする）ケースを検出可能な失敗に変える。DIAGRAM_CHROME_TIMEOUT_MS で調整。
-// 不正な値（数でない・0 以下）はデフォルトの値として扱う（NaN を渡すと timeout が無効になり、元のハングに戻るため）。
-const timeoutEnv = Number(process.env.DIAGRAM_CHROME_TIMEOUT_MS);
-const timeoutMs = Number.isFinite(timeoutEnv) && timeoutEnv > 0 ? timeoutEnv : 120000;
+// サンドボックスを使えない環境でだけ、--no-sandbox か設定の chrome_no_sandbox: true で無効にする。
+const noSandbox = config.noSandbox;
+// 応答が返らない（ハングする）ケースを検出可能な失敗に変える。--timeout-ms か設定の chrome_timeout_ms で調整する。
+// 数でない値と 0 以下は、diagram-config.mjs とスキーマがエラーにする（受け付けると打ち切りが無効になり、元のハングに戻る）。
+const timeoutMs = config.timeoutMs;
 // work は preview.html 置き場。out（PNG）は tmpdir 直下なのでクリーンアップの影響を受けない。
 // 任意の SVG（ファイル名指定も可）を Chrome で開くため、埋め込み前に <script>/on* を
 // 除去する（diagram-engine のアイコン埋め込みと同型の多層防御。自前生成の SVG では no-op）。
@@ -158,8 +159,8 @@ if (failure) {
       "（共有メモリ回避の --disable-dev-shm-usage はデフォルトで付与済み）。" +
       (noSandbox
         ? ""
-        : "サンドボックスが使えない環境では DIAGRAM_CHROME_NO_SANDBOX=1 を設定する。") +
-      "応答待ちで中断した場合は DIAGRAM_CHROME_TIMEOUT_MS で延長する。",
+        : "サンドボックスが使えない環境では --no-sandbox を付けるか、人ごとの設定の chrome_no_sandbox を true にする。") +
+      "応答待ちで中断した場合は --timeout-ms か設定の chrome_timeout_ms で延長する。",
   );
   process.exit(1);
 }

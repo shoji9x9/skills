@@ -11,6 +11,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
+import { kaizenEnv } from "./kaizen-config-env.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const scriptsDir = join(repoRoot, "skills", "kaizen", "scripts");
@@ -65,7 +66,7 @@ function runExtractDone(cwd: string, projectDir: string, extraArgs: string[] = [
       timeout: CHILD_TIMEOUT_MS,
       cwd,
       encoding: "utf8",
-      env: { ...process.env, CLAUDE_PROJECT_DIR: projectDir },
+      env: kaizenEnv(projectDir, { CLAUDE_PROJECT_DIR: projectDir }),
     },
   );
 }
@@ -280,7 +281,7 @@ describe("忘却の自動掃引", () => {
     expect(result.stderr).toContain("忘却しました");
     expect(result.stderr).toContain("stale.md");
     // 戻し方と止め方を案内する（気づいても直せないと意味がない）。
-    expect(result.stderr).toContain("forget_auto=off");
+    expect(result.stderr).toContain("forget_auto: false");
   });
 
   test("忘却する候補が無ければ何も出さない", () => {
@@ -353,7 +354,7 @@ describe("忘却の自動掃引", () => {
         timeout: CHILD_TIMEOUT_MS,
         cwd: main,
         encoding: "utf8",
-        env: { ...process.env, CLAUDE_PROJECT_DIR: main },
+        env: kaizenEnv(main, { CLAUDE_PROJECT_DIR: main }),
       },
     );
     expect(result.status).toBe(0);
@@ -393,7 +394,7 @@ describe("忘却の自動掃引", () => {
         timeout: CHILD_TIMEOUT_MS,
         cwd: main,
         encoding: "utf8",
-        env: { ...process.env, CLAUDE_PROJECT_DIR: main },
+        env: kaizenEnv(main, { CLAUDE_PROJECT_DIR: main }),
       },
     );
     expect(result.status).toBe(0);

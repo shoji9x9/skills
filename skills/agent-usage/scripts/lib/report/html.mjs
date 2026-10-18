@@ -294,7 +294,7 @@ export function renderHtml(d) {
       )
       .join("")}</section>`,
     d.unknownCostBuckets > 0
-      ? `<p class="note">単価が分からず費用を数えていない記録が ${d.unknownCostBuckets} 件あります（usage.csv の cost_unknown_buckets）。.agent-usage/config.json の pricing に単価を足して report を実行し直すと、費用に入ります。</p>`
+      ? `<p class="note">単価が分からず費用を数えていない記録が ${d.unknownCostBuckets} 件あります（usage.csv の cost_unknown_buckets）。.config/skills/shoji9x9/agent-usage.jsonc の pricing に単価を足して report を実行し直すと、費用に入ります。</p>`
       : "",
     stackedBars({
       title: "日別の費用（モデル別）",

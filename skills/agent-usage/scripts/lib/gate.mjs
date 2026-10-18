@@ -9,8 +9,8 @@
 // デフォルトブランチが分からない（origin/HEAD が無い）ときは、main と master をデフォルトブランチとして扱う。
 
 import { existsSync } from "node:fs";
-import { join, resolve } from "node:path";
-import { defaultDecisionOf, isRecord, userConfigPath } from "./config.mjs";
+import { resolve } from "node:path";
+import { defaultDecisionOf, hasPerson, isRecord, userConfigPath } from "./config.mjs";
 import { decisionFor } from "./decisions.mjs";
 import { git, isDecisionBranch, repoInfo } from "./repo.mjs";
 import { usageDir } from "./records.mjs";
@@ -263,13 +263,13 @@ function askMessage(agent, script) {
     `- 記録する: node "${script}" collect --stage を実行してから、もう一度コミットする`,
     `- 記録しない: node "${script}" decline を実行してから、もう一度コミットする`,
     // 人の設定が無いまま collect を実行すると新しい ID を作るので、既存の ID を持つ人には setup を先に案内する
-    ...(existsSync(userConfigPath(process.env))
+    ...(hasPerson(process.env)
       ? []
       : [
           `人の設定（${userConfigPath(process.env)}）がまだ無いので、記録すると collect が新しい人の ID を作ります。利用者が別のマシンや前の設定で人の ID を持っているなら、先に node "${script}" setup --person-id <その ID> を実行します。`,
         ]),
     "確認はブランチごとに 1 回です。利用者に確認できない（無人の実行）ときは、記録しない側を選ばず、止まった理由を報告してください。",
-    "無人の実行で止めたくないときは、利用者が前もって、人の設定かリポジトリの .agent-usage/config.json に defaultDecision（record か decline）を置きます。リポジトリの設定の値は、人の設定（setup が作る人の ID）がある人にだけ当たります。エージェントはこの値を自分で書き足さないでください。",
+    "無人の実行で止めたくないときは、利用者が前もって、agent-usage.jsonc（人ごとの設定か、リポジトリの .config/skills/shoji9x9/ の設定）に defaultDecision（record か decline）を置きます。リポジトリの設定の値は、人の設定（setup が作る人の ID）がある人にだけ当たります。エージェントはこの値を自分で書き足さないでください。",
     `（agent: ${agent}）`,
   ].join("\n");
 }
@@ -339,7 +339,7 @@ export function gateDecision(input, fallbackCwd, now, script, agent) {
     /** @type {{ decision: import("./config.mjs").DefaultDecision; source: string } | null} */
     let fallback;
     try {
-      fallback = defaultDecisionOf(join(usageDir(repo.root), "config.json"), process.env);
+      fallback = defaultDecisionOf(repo.root, process.env);
     } catch (e) {
       return {
         exit: 2,
@@ -352,16 +352,14 @@ export function gateDecision(input, fallbackCwd, now, script, agent) {
     if (fallback === null) return { exit: 2, message: askMessage(agent, script) };
     // リポジトリの defaultDecision は、人の設定（setup が作る人の ID）がある人にだけ当てる。
     // 無い人に当てると、使い捨ての環境では実行のたびに別の ID で記録され、HOME に書けない環境では毎回止まる
-    if (!existsSync(userConfigPath(process.env)))
-      return { exit: 2, message: setupMessage(agent, script) };
+    if (!hasPerson(process.env)) return { exit: 2, message: setupMessage(agent, script) };
     decision = fallback.decision;
     note = `（このブランチの判断は無いので、${fallback.source} の defaultDecision: ${fallback.decision} に従った）`;
   }
   if (decision === "decline")
     return { exit: 0, message: note === "" ? "" : `agent-usage: 記録しない${note}` };
   // Hook からは人の ID を作らない（collect は人の設定が無いと ID を作るので、その前に止める）
-  if (!existsSync(userConfigPath(process.env)))
-    return { exit: 2, message: setupMessage(agent, script) };
+  if (!hasPerson(process.env)) return { exit: 2, message: setupMessage(agent, script) };
   try {
     const r = runCollect({ repo, now, env: process.env, github: true, gh: null });
     // 今回書いたファイルに加えて、前回書いて stage されなかった（index.lock などで失敗した、手動の collect で書いた）記録も入れる

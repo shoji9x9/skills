@@ -39,7 +39,7 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
 
 ## 前提
 
-- ツール: `git`、Node.js（Playwright の実行環境）。`gh` は要らない（このスキルは Issue を操作しない）
+- ツール: `git`、Node.js（Playwright の実行環境と、設定ファイルを読む `scripts/skill-config/skill-config.mjs` の実行に使う）。`gh` は要らない（このスキルは Issue を操作しない）
 - 前提スキル: `replace-strategy`（`setup` が完了していること）、`golden-dataset`（フェーズ A が完了していること）
 - 前提スキルがインストールされていない場合: `gh skill install shoji9x9/skills <name>` で導入してから実行する。
   設定のスキーマと成果物の様式は、`replace-strategy` の `references/` と `assets/` で定義する。そのため、このスキルだけでは動かない（同時に導入されていることを前提にする）
@@ -183,7 +183,9 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
 
 ## プロジェクト設定の解決
 
-設定ファイル `.config/skills/shoji9x9/skills.yml` の `skills.replace-strategy.*` を直接読む（転記しない）。
+設定ファイル `.config/skills/shoji9x9/replace-strategy.jsonc` を直接読む（転記しない）。
+値は同梱の `scripts/skill-config/skill-config.mjs` で読み書きする。読むときは `node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mjs get replace-strategy <キー>`、書くときは `set` か `append` を使う。
+置き場所・層・書き込みの決まりの原本は [`references/config-files.md`](references/config-files.md) である。読み取りがエラー（終了コード 1）を返したら、デフォルトの値で続けずに止まる。
 スキーマは `replace-strategy` の `references/project-config.md` で定義する（以下、スキーマ文書と呼ぶ）。このスキルが読み書きするキーは次のとおりである。
 
 | キー | 用途 |

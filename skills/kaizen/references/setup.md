@@ -248,16 +248,17 @@ Copilot では、lifecycle の検査の警告が届かない（既知の制約�
 - 基準は時間だけにする。「判定できないので消す」にはしない。実際に未抽出の学びがある場合と区別できなくなるからである。
 - 対応する checkpoint は消さない。持ち主が戻ってきたときの差分の走査の起点で、消すと全体の走査に戻る。
 
-保持期間のデフォルトは 7 日である（1 週間あれば、持ち主が自分で抽出する機会があるという想定）。プロジェクトの `.kaizen/config` で変えられる。
+保持期間のデフォルトは 7 日である（1 週間あれば、持ち主が自分で抽出する機会があるという想定）。kaizen の設定ファイル（リポジトリの `.config/skills/shoji9x9/kaizen.jsonc` など）の `foreign_sentinel_retention_days` で変えられる。
 
-```ini
-# 他セッションのセンチネルを回収するまでの日数。既定 7。`never` で回収しない。
-foreign_sentinel_retention_days = 14
+```jsonc
+{
+  // 他セッションのセンチネルを回収するまでの日数。既定 7。"never" で回収しない。
+  "foreign_sentinel_retention_days": 14,
+}
 ```
 
-- 1 行に 1 つ `KEY=VALUE` で書く。`#` から行末まではコメントで、前後の空白は無視する。同じキーが複数あれば、最後の定義を使う。
-- 不正な値はデフォルトの値として扱い、そのことを stderr に出す（警告なしに扱うと、設定したつもりの日数で回収されていると読めてしまうため）。
-- このファイルは制御ファイルではなくプロジェクトの設定なので、`.gitignore` に入れずにコミットする。
+- 設定ファイルの層・置き場所・読み書きの決まりは `references/config-files.md` にある。このキーは、3 つの層（リポジトリ・人ごと・リポジトリ限定・人ごと）のどれにも置ける。
+- 不正な値（知らないキー・型の誤り）を書くと、コミット前のチェックはデフォルトの値で判定せずにコミットを止める（exit 2）。設定したつもりの日数で回収されていると読めてしまうのを避けるためである。
 
 ##### 解消コマンドの案内
 
@@ -318,8 +319,9 @@ foreign_sentinel_retention_days = 14
 そのためチェックは、lifecycle の検査、自分のセッションの分の走査、他のセッションの分の走査を、開始からの経過時間で 1 つの締め切りに収める。
 
 - 自分のセッションの分までで締め切りに当たったら、判定できないものとして止める（exit 2）。他のセッションの分は、打ち切ったことを出力して残す（もともと止めない処理である）。
-- 締め切りのデフォルトは 8 秒で、環境変数 `KAIZEN_PRECOMMIT_DEADLINE_SECONDS`（2〜3600 の整数。不正な値はデフォルトとして扱い、stderr に出す）で変えられる。
-  フックのコマンドの前に、`KAIZEN_PRECOMMIT_DEADLINE_SECONDS=20 bash <KAIZEN_SCRIPTS_DIR>/kaizen-precommit-gate.sh` のように付ける。
+- 締め切りのデフォルトは 8 秒で、kaizen の設定ファイルの `precommit_deadline_seconds`（2〜3600 の整数）で変えられる。
+  マシンの速さとリポジトリの大きさで決まる値なので、全員に同じ値ならリポジトリの `kaizen.jsonc` に、自分だけの値なら `kaizen.local.jsonc` か人ごとの `kaizen.jsonc` に書く（`references/config-files.md`）。
+  不正な値を書くと、デフォルトの値で判定せずにコミットを止める。
 
 フックに timeout を付けるなら、締め切りより十分に長くする（目安は締め切りに 10 秒以上を足した値で、デフォルトの 8 秒なら 20 秒以上）。
 
@@ -410,7 +412,7 @@ Claude Code 2.1.302 で、使い捨てのリポジトリに Hook を置いて測
 > - 第 1 引数の `-copilot` は必須である。Copilot は timeout 以外の 0 以外をすべて拒否するので、これが無いと「他のセッションのセンチネルが残っている」だけの警告（exit 1）でも commit が拒否される。
 > - Copilot の matcher はツールの名前までで、コマンドの文字列では絞れないので、スクリプトの中の事前の絞り込みを使う。
 > - `timeoutSec` は、チェックの締め切りより十分に長くする。デフォルトの締め切り 8 秒に、締め切りの後に残る処理の余裕を足して 20 秒にしてある（上の「チェックの締め切りとフックの timeout」）。
->   `KAIZEN_PRECOMMIT_DEADLINE_SECONDS` で締め切りを延ばしたら、`timeoutSec` も同じだけ延ばす。
+>   `precommit_deadline_seconds` で締め切りを延ばしたら、`timeoutSec` も同じだけ延ばす。
 > - Copilot の `preToolUse` は timeout のときだけ通し、ほかの 0 以外は拒否する（[GitHub Copilot Hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference)）。
 >   短すぎる `timeoutSec` は、チェックを警告なしに通り抜けさせるので、止める動作が機能しなくなる。
 > - 今の camelCase の `preToolUse` の payload は `toolArgs` を渡すが、`transcriptPath` を渡さない。そのため、commit でない呼び出しの速い絞り込みと commit の判定は機能するが、候補 0 件のときに通す動作は使わず、`kaizen --current` を促して止める動作になる。
@@ -523,15 +525,17 @@ Hook を新たに設定する必要はない。4-1〜4-3 の 3 つの Hook は�
   その差分はステージされないまま残り、clean を確かめる工程（`git-worktree` の後片付け、`issue-batch` の収束）を止める。
 - 抽出の完了時なら、呼び出し側はこの後に `.kaizen/` を stage して commit を実行し直すので、忘却の差分も新しいノートと同じ commit に入る。
 
-判定の条件と呼び戻しの手順は、`references/housekeeping.md`「忘却」で定義する。閾値は、プロジェクトの `.kaizen/config` で変えられる。
+判定の条件と呼び戻しの手順は、`references/housekeeping.md`「忘却」で定義する。閾値は、リポジトリの `.config/skills/shoji9x9/kaizen.jsonc` で変えられる（リポジトリの層だけに置けるキー）。
 
-```ini
-# 自動忘却の有効・無効。既定 on。
-forget_auto = on
-# 記録からこの日数が過ぎた pending を候補にする。既定 30。
-forget_after_days = 30
-# この優先度までを候補にする（low | medium | high）。既定 medium。
-forget_max_priority = medium
+```jsonc
+{
+  // 自動忘却の有効・無効。既定 true。
+  "forget_auto": true,
+  // 記録からこの日数が過ぎた pending を候補にする。既定 30。
+  "forget_after_days": 30,
+  // この優先度までを候補にする（low | medium | high）。既定 medium。
+  "forget_max_priority": "medium",
+}
 ```
 
 ### 5. `.gitignore` に制御ファイルを追加する
@@ -547,7 +551,7 @@ kaizen の Hook（タスク終了時のセンチネルの記録・抽出完了�
 ```
 
 - `.kaizen/` ディレクトリそのものはコミットの対象で（学びの共有と履歴の追跡のため。`references/apply.md`「`.kaizen/` の Git 管理」参照）、除くのはこの 3 種類の制御ファイルだけである。
-- `.kaizen/config`（コミット前のチェックのセンチネルの保持期間と、自動の忘却の閾値を置くプロジェクトの設定）は、除かずにコミットする。
+- kaizen の設定は `.kaizen/` に置かない（`.config/skills/shoji9x9/kaizen.jsonc`。`references/config-files.md`）。リポジトリの `kaizen.jsonc` は除かずにコミットし、自分だけの `kaizen.local.jsonc` は gitignore する。
 - すでにこの 3 行を入れてあるプロジェクトは、追記しなくてよい。
 
 `.extract-checkpoint.<session key>` は 4 行で、セッションをまたいで差分の走査を成り立たせる。1 行目が処理した transcript のパス、2 行目がバイト位置、3 行目が見分けたエージェント（空でもよい）、4 行目が処理した行数である。
@@ -609,35 +613,24 @@ else
 fi
 ```
 
-コピーしただけでは動かない。定期実行は opt-in で、`.kaizen/config` に `schedule_enabled=on` を書いて初めて週に 1 回実行される（デフォルトは `off`）。
+コピーしただけでは動かない。定期実行は opt-in で、リポジトリの `.config/skills/shoji9x9/kaizen.jsonc` に `"schedule_enabled": true` を書いて初めて週に 1 回実行される（デフォルトは `false`）。
 ワークフローを置いただけ、または配られただけで、入れた覚えのない定期実行が始まらないようにするためである。
 
-```bash
-# `.kaizen/` がまだ無いリポジトリでも通す。
-mkdir -p .kaizen
+キーは、同梱の読み取りの `set` で足す（`references/config-files.md`「書き込みの決まり」。Node.js が要る）。
 
-# **既存の値を無条件に上書きしない。** 意図して `schedule_enabled=off` で凍結している
-# リポジトリで追記すると（同じキーは後勝ちなので）無言で解除される。再実行のたびに
-# 同じ行も増える。既にキーがあるなら人が読んで決める。
-if grep -q '^[[:space:]]*schedule_enabled[[:space:]]*=' .kaizen/config 2>/dev/null; then
-  echo "既に schedule_enabled がある。値を確認して手で直す:" >&2
-  grep -n '^[[:space:]]*schedule_enabled[[:space:]]*=' .kaizen/config >&2
-else
-  # 最終行に改行が無いまま追記すると前の行と連結して**そのキーと schedule_enabled の
-  # 両方**が壊れる（`kaizen_config_value` は行単位で読む）ので、先に改行を補う。
-  if [ -s .kaizen/config ] && [ -n "$(tail -c1 .kaizen/config)" ]; then
-    printf '\n' >>.kaizen/config
-  fi
-  printf 'schedule_enabled=on\n' >>.kaizen/config
-fi
+```bash
+# 既存の値は変えない。意図して false で凍結しているリポジトリで上書きすると、警告なしに解除される。
+# 既に別の値があれば exit 1 で止まるので、人が読んで決める。
+node <KAIZEN_SKILL_DIR>/scripts/skill-config/skill-config.mjs set kaizen schedule_enabled true --layer repo
 ```
 
-書いていないリポジトリでは、run は成功で終わり、step summary に `.kaizen/config に schedule_enabled=on が無い（定期実行は opt-in）` と理由が出る。
+`<KAIZEN_SKILL_DIR>` は kaizen スキルのディレクトリ（`.claude/skills/kaizen` など）である。
 
-> このワークフローをすでに入れているリポジトリでスキルを更新するときも、同じ 1 行が要る。
-> `schedule_enabled` のデフォルトは以前は `on` だったので、キーを書かずに動いていたリポジトリは、スキルを更新した後の最初の月曜から警告なしに止まる。
-> run は成功で終わり、理由はスキップした run の step summary にしか出ないので、Issue が更新されなくなって初めて気づく。
-> 更新するときは、先に `.kaizen/config` に `schedule_enabled=on` を入れてコミットする。
+書いていないリポジトリでは、run は成功で終わり、step summary に `kaizen.jsonc に "schedule_enabled": true が無い（定期実行は opt-in）` と理由が出る。
+設定ファイルに誤り（知らないキー・型の誤り・旧い `.kaizen/config` の残り）があると、設定を読む step が exit 1 で失敗し、後の step は実行されない。
+
+> ワークフローは、設定ファイルを Node.js で読む。GitHub がホストする `ubuntu-latest` のランナーには Node.js が入っている。
+> Node.js の無いランナー（self-hosted など）では、設定を読む step の前に `actions/setup-node` を足す。
 
 このワークフローは、リポジトリを変えない。pending の一覧（エージェントを使う場合はその分析も）を 1 つの Issue にまとめ、既存の追跡 Issue があれば本文を更新する。pending が 0 件になれば、その Issue を閉じる。
 
@@ -677,29 +670,31 @@ fi
 
 上の層ほど優先する。どの層の値を使ったかは、実行ログ（stderr）に 1 行ずつ出るので、「設定したつもりの値で動いていない」ことを run のログだけで切り分けられる。
 
-1. `workflow_dispatch` の入力（`mode` / `agent` / `model` / `effort`）。その 1 回だけの上書きで、手で試すときに使う
-2. `.kaizen/config` の `schedule_*` キー。リポジトリの意思で、コミットされてレビューを通る
-3. デフォルトの値。`schedule_enabled=off`（opt-in）/ `mode=notify` / `agent=claude` で、model と effort はエージェントのデフォルトになる
+1. `workflow_dispatch` の入力（`mode` / `agent` / `model` / `effort`）。ワークフローが環境変数 `KAIZEN_SCHEDULE_MODE` などで渡す、その 1 回だけの上書きで、手で試すときに使う
+2. リポジトリの `kaizen.jsonc` の `schedule_*` キー。リポジトリの意思で、コミットされてレビューを通る（`schedule_*` はリポジトリの層だけに置ける）
+3. デフォルトの値。`schedule_enabled: false`（opt-in）/ `schedule_mode: "notify"` / `schedule_agent: "claude"` で、model と effort はエージェントのデフォルトになる
 
-```ini
-schedule_enabled=on       # 定期実行の有効・無効（**既定 off**。この 1 行が無いと走らない）
-schedule_mode=notify      # notify | agent（既定 notify）
-schedule_agent=claude     # claude | codex | copilot（既定 claude）
-schedule_model=           # 空ならエージェント側の既定モデル
-schedule_effort=          # codex のみ有効
+```jsonc
+{
+  "schedule_enabled": true, // 定期実行の有効・無効（**既定 false**。これが無いと実行されない）
+  "schedule_mode": "notify", // notify | agent（既定 notify）
+  "schedule_agent": "claude", // claude | codex | copilot（既定 claude）
+  // "schedule_model": "...",  // 省くとエージェント側の既定モデル
+  // "schedule_effort": "...", // codex のみ有効
+}
 ```
 
-不正な値はデフォルトの値として扱い、そのことを stderr に出す（`.kaizen/config` のほかのキーと同じ方針）。
-`schedule_enabled` はデフォルトが `off` なので、キーが無い場合も不正な値の場合も止まる（打ち間違えた設定が、有効にした証拠にならないようにする）。
+不正な値（設定ファイルの値も、`workflow_dispatch` の入力も）は、デフォルトの値で動かずに、設定を読む step を exit 1 で失敗させる。
+打ち間違えた設定が、デフォルトの値のまま定期実行を続けさせたり、有効にした証拠になったりしないようにする。
 
 #### 止め方（凍結したプロジェクト・レートリミットに近いとき）
 
 止め方は 2 つあり、どちらかが当てはまれば止まる（一時停止は上書きではなく、追加の安全策である）。
 
 - リポジトリ変数 `KAIZEN_SCHEDULE_SKIP`（`true` / `on` / `1` 等）。コミットを伴わない一時停止で、`gh variable set KAIZEN_SCHEDULE_SKIP --body true` で設定し、`gh variable delete KAIZEN_SCHEDULE_SKIP` で戻す
-- `.kaizen/config` の `schedule_enabled=off`（または行ごと消す）。凍結したプロジェクトなど、止めた状態をリポジトリに残したいときに使う。デフォルトが `off` なので、行を消すだけでも止まる
+- `kaizen.jsonc` の `"schedule_enabled": false`（またはキーごと消す）。凍結したプロジェクトなど、止めた状態をリポジトリに残したいときに使う。デフォルトが `false` なので、キーを消すだけでも止まる
 
-`schedule_skip` のような、意味が逆のキーは足していない。`schedule_enabled=off` と並ぶと二重の否定になり、どちらが有効かを読み違える。止めるのは `schedule_enabled` の側にまとめる。
+`schedule_skip` のような、意味が逆のキーは足していない。`schedule_enabled: false` と並ぶと二重の否定になり、どちらが有効かを読み違える。止めるのは `schedule_enabled` の側にまとめる。
 
 スキップした run は Issue を作らず、理由を step summary に出して成功で終わる（失敗にすると通知が飛び、止めたい状況で邪魔になる）。
 

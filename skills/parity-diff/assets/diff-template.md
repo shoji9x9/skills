@@ -6,7 +6,7 @@
 <!-- 各行と各値は例である。実際の検出結果・分類・根拠で置き換える。 -->
 
 - 対象 slug: （features.md の slug）
-- 対象 target: （skills.replace-strategy.targets のうち side: new の環境名）
+- 対象 target: （replace-strategy.jsonc の targets のうち side: new の環境名）
 - モード: （feature | api-resource | batch）
 - 実施日時: （ISO 8601）
 - 読んだ同 target の replace-metadata.json の loop.iterations: （数値）

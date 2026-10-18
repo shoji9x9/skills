@@ -10,5 +10,6 @@
       "playwright": ["./types/skill-runtime/playwright.ts"]
     }
   },
-  "include": ["skills/*/**/*.mjs", "types/strict-json.ts", "types/skill-runtime/*.ts"]
+  "include": ["skills/*/**/*.mjs", "types/strict-json.ts", "types/skill-runtime/*.ts"],
+  "exclude": ["skills/*/scripts/skill-config/vendor/**"]
 }

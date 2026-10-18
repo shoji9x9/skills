@@ -39,6 +39,8 @@
    - 再構築で決まった `url`（`none` から実際の URL へ）を、既存の値を壊さずに埋め、`side: current` のデフォルトとして `default: true` を付ける。
    - `default: true` は、側ごとに 1 つだけ付けられる。すでに別の current target に付いているなら、どちらをデフォルトにするかを利用者に確かめる。
    - このスキルが設定に書くのはこの 1 か所だけで、値は利用者に確かめてから書く。
+     `url` は既にある値（`none`）を変えるので、`skill-config.mjs set replace-strategy targets.<添字>.url '"<URL>"' --layer repo --replace` で書く。
+     `default` は無いキーを足すので、`--replace` を付けずに `set ... targets.<添字>.default true --layer repo` で書く（書き込みの決まりの原本は [`config-files.md`](config-files.md)「書き込みの決まり」）。
 2. `metadata.json` を書く。`status` を `handed-off` にし、次の項目を記録する
    - 復元の方法（受領 DDL／マイグレーションの適用／ORM による生成）と、埋まらなかった領域
    - `semantics` の確定済みと確認待ちの件数と、確認待ちが影響する機能

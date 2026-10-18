@@ -3,179 +3,227 @@
 現行と新側のリポジトリと URL、DB 接続、環境、禁止操作、成果物の方針、意図的差異レジストリ、references は、リポジトリごとに違う。
 そのため、次の順で解決する。デフォルト値はスキルに埋め込まない。
 
-1. 設定ファイル: `.config/skills/shoji9x9/skills.yml` に `skills.replace-strategy` があれば、その設定に従う。
+1. 設定ファイル: `.config/skills/shoji9x9/replace-strategy.jsonc` があれば、その設定に従う。
 2. リポジトリの探索: 設定が無ければ、`README.md`・`AGENTS.md`・`CLAUDE.md`・`CONTRIBUTING.md` から、現行アプリの URL・リポジトリ・DB の手がかりを推定する。推定した内容は、ユーザーに確認してから使う。
 3. ユーザーへの確認: 解決できなければユーザーに確認する。`setup` モードの対話セットアップは、この確認を先に行い、結果を設定ファイルに記録する。
 
-## 設定ファイル（`.config/skills/shoji9x9/skills.yml`）
+## 設定ファイル（`.config/skills/shoji9x9/replace-strategy.jsonc`）
 
 `shoji9x9/skills` の配布物が、インストール先で読むプロジェクトの設定である。
+置き場所・形式（JSONC）・層・解決の順序・書き込みの決まりの原本は、[`config-files.md`](config-files.md) である（ここには転記しない）。
+このスキルのキーは、どれもリポジトリの層（`replace-strategy.jsonc`）にだけ置ける。人ごとの層（`.local.jsonc` と `${XDG_CONFIG_HOME:-~/.config}` の下）に書いたキーは、読み取りがエラーにする。
 このファイルは、人が確定させた方針の置き場所である。`gh skill update` はスキルのディレクトリの外にあるこのファイルに触れないので、設定は更新の後も残る。
 スキルが書くキーは限られている（下記「キーの書き手とライフサイクル」）。作業中に件数が増え続ける台帳は、ここに置かない。
 
-このキーは、姉妹スキル（`current-environment-bootstrap`・`golden-dataset`・`parity-suite`・`parity-replace`・`parity-diff`・`parity-component`）が直接読む共通の取り決めである。
-キーの名前や構造を変えるときは、姉妹スキル側の参照も一緒に更新する。
+このファイルは、姉妹スキル（`current-environment-bootstrap`・`golden-dataset`・`parity-suite`・`parity-replace`・`parity-diff`・`parity-component`）が直接読む共通の取り決めである。
+キーの名前や構造を変えるときは、姉妹スキル側の参照と、各スキルに同梱したスキーマ（`config-schemas/replace-strategy.schema.json`。7 つのスキルで同じ内容）も一緒に更新する。
 
-```yaml
-version: 1
-skills:
-  replace-strategy:
-    current: # 現行アプリ（URL・DB・認証・禁止操作は、targets の side: current が持つ）
-      repo: <owner/repo | ローカルパス | none> # コードを入手できるか。無ければ none
-      stack: [] # 現行のスタック（バックエンドの言語・フロントのフレームワーク）。測定や対話で分かった値を記録する
-      origin: managed # 現行のテスト環境の由来。managed（管理済みの既存環境。デフォルトで、キーが無いときも managed）| received-assets（受領した資産から自社で再構築する。下記「現行環境の由来」）
-      received_assets: [] # origin: received-assets のときは必須（1 つ以上のパス）。受領した資産の置き場所。current-environment-bootstrap が棚卸しの入力として読む
-      feedback_calls: # 移行元で、利用者に見える副作用を出す呼び出しの一覧（下記「フィードバック呼び出し」）。キーが無い＝未確認（parity-suite が確認して 1 回記録する）
-        - id: toast # パターンの id（一意）
-          regex: '\bshowMessage\s*\(' # 呼び出しの字面に一致する JavaScript の正規表現（ファイル全体に複数行モードで照合する。^ / $ は行頭・行末）
-          kind: toast # 利用者に見える副作用の種類（toast / script / dialog など）
-          example: "showMessage('Saved', 'success')" # regex が一致すべき実際の呼び出しの字面（検出されることの確認に使う）
-    new: # 新側のアプリ（URL・DB・認証・禁止操作は、targets の side: new が持つ）
-      repo: <owner/repo | ローカルパス> # 骨格をスキャフォールド済みのリポジトリ（骨格の選定はスキル群の対象外。下記「新側アーキテクチャ」）
-      stack: [] # 新側のスタック（フレームワーク・バックエンドの構成・ORM など）。事前に決まっているものを、setup の対話で記録する（current.stack と対称）
-    targets: # 現行と新側の実行対象環境。複数を定義し、各スキルの --target <name> で選ぶ（下記「実行対象環境」）
-      - name: current-test # 環境名。小文字の英数字とハイフンで書き、全 target を通して一意にする（--target の指定と成果物のディレクトリ名に使う）
-        side: current # current | new。必須（省略したときのデフォルトは無い。無ければ停止する）
-        url: <URL> # UI の baseURL。current 側では、測定と特性化の対象環境（本番ではないテスト環境）
-        api_url: <URL> # API の baseURL。UI と別の origin のときだけ書く（省略すると url を使う）
-        # browser: # 利用者環境で起動したブラウザ（デバッグのポートを開いた Chromium 系）に接続して撮るときだけ書く（下記「実行対象環境」の browser）
-        #   cdp_url: http://<利用者環境のホスト>:9222/ # 省略すると、Playwright が起動したブラウザで撮る
-        db:
-          env_vars: [CURRENT_DB_URL] # この環境の DB の接続情報を持つ環境変数の「名前」。値は書かない。書いた target だけ、スキルが接続を読んでよい（書かない target の DB には、スキルは一切触れない）
-          seedable: true # true のときだけ golden-dataset の投入先になる。省略か false なら読み取り専用の接続（接続は読むが、削除と投入はしない）
-        storage: # この環境のファイルストレージ（アップロード先・ファイルの出力先）。書かなければ、この target のストレージにスキルは一切触れない（下記「ファイルストレージ」）
-          env_vars: [CURRENT_STORAGE_ENDPOINT] # 接続情報を持つ環境変数の「名前」。値は書かない（db と同じ決まり）
-          write_scope: [] # 削除・生成してよい範囲（パス、または <bucket>/<prefix>）。空か未定義なら書き込めない
-          seedable: false # ゴールデンデータの投入を設定で許すか（デフォルトは許さない）。true でも投入はしない（投入はスコープ外）
-          upload_route: direct # direct（アプリサーバを通る multipart）| presigned（ブラウザがストレージに直接 PUT する）| none（アップロードの方法が無い）。省略は未確認で、推測せずに確認する
-        auth: # この環境の認証情報。ロールごとに環境変数の「名前」を持つ（認証が要らない環境では省略する。ロールが 1 つならそれだけでよい）
-          roles:
-            admin:
-              user_name_env: CURRENT_ADMIN_USER # ユーザー名を持つ環境変数の名前
-              password_env: CURRENT_ADMIN_PASS # パスワードを持つ環境変数の名前。他の要素は <論理名>_env で足せる（例: totp_secret_env）
-            approver:
-              user_name_env: CURRENT_APPROVER_USER
-              password_env: CURRENT_APPROVER_PASS
-        forbidden_actions: # この環境で行わない UI / API の操作（db.seedable を通る投入ツールには当てない。空リスト = すべて行ってよい、未定義 = 読み取り専用）
-          - データの削除
-        default: true # --target を省いたときに使う target。側ごとに 1 つ（同じ側に複数あれば停止する）
-      - name: local-dev
-        side: new
-        url: <URL> # UI の baseURL。開発の前は none でもよい。その場合は、この例の下にある default: true を外す（url: none の target に default を付けない）
-        api_url: <URL>
-        db:
-          env_vars: [NEW_DB_URL]
-          seedable: true
-        storage:
-          env_vars: [NEW_STORAGE_ENDPOINT]
-          write_scope: []
-          seedable: false
-          upload_route: presigned # 現行側とアップロードの方法が違う場合は、保存 path の命名規則の差も含めて、意図的差異レジストリの対象になる（下記「ファイルストレージ」）
-        auth:
-          roles:
-            admin:
-              user_name_env: NEW_ADMIN_USER
-              password_env: NEW_ADMIN_PASS
-        forbidden_actions: []
-        pre_commands: [] # start の前に要る環境準備のコマンド（build など）。起動が要るときだけ実行し、失敗したら停止する
-        start: <コマンド> # 長く動き続ける起動コマンド（稼働していないときだけ実行する。稼働の判定は check_urls で行う）
-        check_urls: [] # 稼働の確認に使う URL（省略すると url だけを使う）
-        default: true
-      - name: develop # 例: PR のマージの後に自動でデプロイされる環境（実体は開発環境。実データを持つなら seedable を書かず、読み取り専用にする）
-        side: new
-        url: <URL>
-        db:
-          env_vars: [DEVELOP_DB_URL] # seedable を書かない＝読み取り専用。バッチの出力の一致の検証などで DB の状態は読むが、削除と投入はしない
-        auth:
-          roles:
-            admin:
-              user_name_env: DEVELOP_ADMIN_USER
-              password_env: DEVELOP_ADMIN_PASS
-        catalog_url: <URL> # 任意（side: new だけ。catalog_url_command と同時には書けない）。部品カタログの baseURL（固定の文字列）。parity-component の build が読み、どちらも無ければ推測せずに停止する
-        # catalog_url_command: <コマンド> # catalog_url と同時には書けない。標準出力に URL を 1 行出す（url_command と同じ解決と記録の規則）
-        commit_check: <コマンド> # 任意。稼働中の新側のコミットの SHA を標準出力に出す（start を持たない配信型の target で、parity-replace が軽い判定に使う）
-        on_diff: <path> # 任意。この target で要対応の差分が出たときの対応手順を書いた Markdown のパス（下記「on_diff」。無ければデフォルトの動作）
-      - name: preview # 例: ブランチに連動するプレビュー環境（URL がブランチ名で変わり、固定の文字列で書けない）
-        side: new
-        url_command: <コマンド> # url と同時には書けない。標準出力に URL を 1 行出す（意味の原本は browser-test。parity 系での解決と記録の規則は下記「URL の引き渡し」）
-        auth:
-          roles:
-            admin:
-              user_name_env: PREVIEW_ADMIN_USER
-              password_env: PREVIEW_ADMIN_PASS
-        forbidden_actions: []
-        commit_check: <コマンド>
-    secrets:
-      wrapper: "" # 任意の起動ラッパー（例: aws-vault exec dev --）。シークレットが要るコマンドの前に付ける
-    parity_suite_dir: e2e/ # パリティスイートの置き場所（parity-suite が読む。省略すると e2e/）
-    dataset_tool_dir: seed/ # golden-dataset の投入ツールの置き場所（golden-dataset が読む。省略すると seed/）
-    bootstrap_tool_dir: bootstrap/ # current-environment-bootstrap の再構築ツールと暫定の起動データの投入ツールの置き場所（省略すると bootstrap/）。current.origin: received-assets のときだけ使う
-    dataset_mode: db # ゴールデンデータセットの実体（下記「データセットの実体」）。db（デフォルトで、省略してよい）| static
-    dataset_static_paths: [] # dataset_mode: static のときは必須。投入ツールが生成・削除してよいパス（これ以外に書いたら停止する）
-    uses_storage: true # アプリがファイルストレージ（オブジェクトストレージ・共有ファイルシステム）を使うか。デフォルトは false で、false か省略なら targets の storage も書かない（下記「ファイルストレージ」）。dataset_mode とは独立した別の軸
-    verification_commands: # 検証コマンド（静的解析・単体テスト・統合テストなど。固有のツール名は設定の側に置く）。実行する範囲で 2 列に分ける（下記「検証コマンド」）
-      full: # 全体の走査。リポジトリ全体を見るコマンドだけを置く（引数の有無は問わない。全体を走査するかで判断する）。parity-replace の完了判定はこの列で行うので、setup で必ず確定する
-        - <コマンド> # 環境の準備・起動・URL の解決は含めない（それらは targets の pre_commands / start / check_urls）。環境に依存しないコードの検証なので、どの target でも同じコマンドを実行する
-      diff: # 任意（無ければ省略するか空リスト）。変更したファイルだけを受け取る安い列。実装の反復と、敵対的レビューの前の早い検出にだけ使い、完了判定には使わない
-        - <コマンド> {changed_files} # {changed_files} は、実行するスキルが変更したファイルの一覧に展開する
-    artifacts:
-      retention: latest # 作業ツリーには最新だけを置く。履歴は Git が持つ
-      storage: local # local（デフォルトで、コミットしない）| git | git-lfs — 大きなバイナリのデフォルトの保存先
-      size_threshold_mb: 50 # 超えたら警告する
-      overrides: {} # 機能ごとの上書き（例: order: git-lfs）
-    references: # 利用者が選ぶ知識の注入。パスだけを持つ（本文はファイルの側）。setup がすべてのキーを作り、決まらないキーは空の値で残す（下記「references（知識の注入）」）
-      architecture: "" # 新側のアプリの骨格の決定記録（レイヤとディレクトリの構成・API の設計方針・ホスティングとリリースの構成・実行基盤と使うマネージドサービス）。事前に決めてあることが前提で、setup は下書きを作らない（parity-replace / parity-component が実装の工程の前に読む。下記「新側アーキテクチャ」）
-      coding_conventions: "" # 生成先のリポジトリのコーディング規約（命名・エラー処理・テストの書き方・レビューの観点）。骨格の「上」の書き方で、architecture とは別（parity-replace / parity-component / golden-dataset / parity-suite が生成物を書くときに読む。生成物ごとの読む先は下記「コーディング規約」）
-      ui_library: "" # 新しい UI ライブラリの設定と、旧→新の design token の対応づけ（parity-replace / parity-diff / parity-component が読む）
-      component_catalog: "" # 部品カタログの取り決め（実体・見本の書き方・URL の決まり方・データの注入方法）。共通部品を画面より先に作る方針のときだけ使う（parity-component の build が読む。下記「部品カタログ」）
-      db_semantics: "" # 現行 DB から新 DB への型の対応と意味の差、および移植で踏む方言の差の点検表（parity-replace が実装の前に読み、golden-dataset / parity-suite / parity-diff が比較で読み、current-environment-bootstrap が整備済みのときに復元した項目の突き合わせで読む。下記「DB 意味論」）
-      env_setup: "" # 環境変数の用意の仕方（全スキルが、接続の確認に失敗したときの案内先にする）
-      dependency_policy: <path | none> # 依存を入れるときの方針（ライセンス・供給網・バンドルサイズの上限など）。方針が無いことをユーザーに確認済みなら none（下記「依存導入の方針」）
-      # キーは足せる（下記「references の拡張」の取り決めに従う）
-    intentional_diffs: # 意図的差異レジストリ
-      keep: [] # 変えない（例: テーブル名、項目名、API のエンドポイント、関数名）
-      may_change: [] # 変えてよい（例: ディレクトリ名・ファイル名、HTML の id/name、型の変換に伴う差、静的資産を同等のもので置き換えたときに残る差〈.replace/assets.md の宣言の列と同じ文言〉）
-      pending: [] # 保留（測定の結果で決める）。setup では、キーを必ず空リストとして作る（スキルが追記する記録なので、初めは空。キーだけを書いて値を省くと null になり、判定ツールが「配列でない」として失敗する）。設定ファイルの中で唯一、スキルが作業中に追記する記録である（下記「キーの書き手とライフサイクル」）。確認の後に、人が keep / may_change へ移す。**setup 自身が書き出す保留（手順 8 の「保留（測定結果で決める）」）も、このキーに下の 4 キーの形で追記する**（空リストはキーの初めの値の決まりで、setup が何も書かないという決まりではない。added_by: replace-strategy / slug: cross-cutting）
-        # 追記する要素は、追記元が分かる形で書く（要素の形の原本は下記「意図的差異レジストリ」の「`pending` 要素の形」）。素の文字列も読めるが、帰属が分からないものとして扱われる
-        # - item: <散文の宣言>                 # keep / may_change へ移すときは、この文言を移す（要素を突き合わせる鍵）
-        #   slug: <機能 slug | cross-cutting>  # 追記した機能。帰属できるなら slug を書き、1 つの機能に帰属させられないときだけ cross-cutting にする（部品の slug は書かない。parity-component と replace-strategy は必ず cross-cutting）
-        #   added_by: <replace-strategy | golden-dataset | parity-suite | parity-replace | parity-component>
-        #   added_at: <YYYY-MM-DD>
-        #   match: { element: <論理名 | glob>, property: <プロパティ | glob> }  # 任意。特性照合の差分に当てる照合キー（下記「照合キー（`match`）」）
-      # keep / may_change の要素も「- item: <散文> ＋ match: {...}」のオブジェクトにできる（照合キーを持たない散文は、理由を添えても差分に当たらない）
-      # ↑ 書き手がスキルであることは、設定から出す理由にならない（slug をまたぐので、ここに残る。同じ節の段 1 と段 2 を参照）
-      # append-only-check.mjs に同梱の一覧は、keep / may_change / pending を 1 つのグループとして、
-      #   要素の単位に展開する（registry_groups。照合キーは item）。棚卸しで人が pending の文言を
-      #   keep / may_change へ移すのは通るが、**どの鍵にも無くなった要素は失敗にする**（警告なしに消せない）。
-      #   キーごと消しても失敗にする。付随するフィールド（slug / added_by / added_at）は、移動先に無いので単位から外れる。
-      #   **一覧をプロジェクトにコピーして --manifest で渡している場合は、コピーにも同じ registry_groups を入れる**
-      #   （入っていないと、棚卸しのたびに exit 1 になる）。そのときも **[] を元に戻してはならない**。
-      #   元に戻すと、記録した保留が消える。検査の指摘を報告して先へ進み、一覧のコピーを直す。
-      #   フロー形式のコンテナ（[...] / {...}）は **1 行で書く**。折り返す場合も、閉じ括弧までを同じキーの
-      #   ブロックに収める（読み手が続きの行をつなげるのは、名指しした鍵の値だけ。途中の空行とコメント行は
-      #   またぐが、閉じないまま兄弟のキーやリストの要素に出る形と、文書が終わる形は読めない）。読めないと行のまま
-      #   突き合わせるので、**要素を足しただけの編集が縮小として判定される**。
-      #   そう指摘されたときも **[] を元に戻さず、閉じ括弧を足して閉じ直す**（1 行に畳まない。
-      #   component_diffs は要素の行の注記も単位なので、畳むとその単位が消えて失敗にする）。
-      #   **比較元（commit 済みの版）に閉じていないコンテナがあると、どう直しても通らない**。
-      #   検査はその旨を出すので、表記を直したうえで、内容を人が確かめて通す
-      #   （今の版で別の鍵のコンテナも閉じていなければ、そちらは閉じ直す案内として一緒に出る）。
-      #   折り返したときの**注記は、鍵の行か閉じる行に置く**。keep / may_change / pending は、要素の行に付いた
-      #   行末の注記を単位にしない（移動先に置き場所が無く、ブロック形式でも単位にしていない）ので、
-      #   鍵の注記を要素の行に移すと、単位が 1 件減って失敗にする。独立したコメント行は、どちらでも単位に残る。
-    component_diffs: [] # コンポーネントの系統差のレジストリ。クラス/トークン × プロパティの単位の系統差 T（旧値→新側で期待される値）。parity-replace がテーマで消せない構造の差をユーザーの確認を経て宣言し、parity-diff が比較の正規化に使う（特性照合にだけ当たる。当てる対象の原本は parity-diff の references/normalize.md）。要素の形の原本はこのファイルで、{ component, property, current, new, reason } である。component は照合キーで、対象の要素の論理名（`*` を含めれば glob）を書く。無いか空の値は、すべてに合うものではなく不一致として扱い、照合に使わない（照合の方法の原本は parity-diff の references/normalize.md）
-    # ↑ component_diffs も要素ごとの単位に展開されるので、フロー形式の書き方は intentional_diffs と同じ制約に従う
-    #   （1 行で書く。折り返すなら、閉じ括弧までを同じキーのブロックに収める。上の注記を参照）
-    # T を当てられない箇所のインスタンス単位の例外は、設定ファイルに置かない（slug スコープの台帳なので .replace/parity/<slug>/component-diff-exceptions.json に置く。スキーマの原本は parity-diff の references/normalize.md）
+値は、同梱の `scripts/skill-config/skill-config.mjs` で読む。知らないキーと型の誤りは、読み取りがエラーにする（終了コード 1）。エラーが出たら、デフォルトの値で続けずに止まり、内容を利用者に示す。
+
+```bash
+CFG="<このスキルのディレクトリ>/scripts/skill-config/skill-config.mjs"
+node "$CFG" get replace-strategy parity_suite_dir --raw   # 1 つのキー（無ければデフォルトか、exit 3）
+node "$CFG" dump replace-strategy                         # すべてのキーと出所
+```
+
+次は、すべてのキーを書いた例である。URL・変数名・コマンドは例なので、そのままコピーしない。
+
+```jsonc
+{
+  "current": {
+    // 現行アプリ（URL・DB・認証・禁止操作は、targets の side: current が持つ）
+    "repo": "<owner/repo | ローカルパス | none>", // コードを入手できるか。無ければ none
+    "stack": [], // 現行のスタック（バックエンドの言語・フロントのフレームワーク）。測定や対話で分かった値を記録する
+    "origin": "managed", // 現行のテスト環境の由来。managed（管理済みの既存環境。デフォルトで、キーが無いときも managed）| received-assets（受領した資産から自社で再構築する。下記「現行環境の由来」）
+    "received_assets": [], // origin: received-assets のときは必須（1 つ以上のパス）。受領した資産の置き場所。current-environment-bootstrap が棚卸しの入力として読む
+    // 移行元で、利用者に見える副作用を出す呼び出しの一覧（下記「フィードバック呼び出し」）。キーが無い＝未確認（parity-suite が確認して 1 回記録する）
+    "feedback_calls": [
+      {
+        "id": "toast", // パターンの id（一意）
+        "regex": "\\bshowMessage\\s*\\(", // 呼び出しの字面に一致する JavaScript の正規表現（JSON の文字列なので \\ を 2 つ重ねる）。ファイル全体に複数行モードで照合する。^ / $ は行頭・行末
+        "kind": "toast", // 利用者に見える副作用の種類（toast / script / dialog など）
+        "example": "showMessage('Saved', 'success')", // regex が一致すべき実際の呼び出しの字面（検出されることの確認に使う）
+      },
+    ],
+  },
+  "new": {
+    // 新側のアプリ（URL・DB・認証・禁止操作は、targets の side: new が持つ）
+    "repo": "<owner/repo | ローカルパス>", // 骨格をスキャフォールド済みのリポジトリ（骨格の選定はスキル群の対象外。下記「新側アーキテクチャ」）
+    "stack": [], // 新側のスタック（フレームワーク・バックエンドの構成・ORM など）。事前に決まっているものを、setup の対話で記録する（current.stack と対称）
+  },
+  // 現行と新側の実行対象環境。複数を定義し、各スキルの --target <name> で選ぶ（下記「実行対象環境」）
+  "targets": [
+    {
+      "name": "current-test", // 環境名。小文字の英数字とハイフンで書き、全 target を通して一意にする（--target の指定と成果物のディレクトリ名に使う）
+      "side": "current", // current | new。必須（省略したときのデフォルトは無い。無ければ停止する）
+      "url": "<URL>", // UI の baseURL。current 側では、測定と特性化の対象環境（本番ではないテスト環境）
+      "api_url": "<URL>", // API の baseURL。UI と別の origin のときだけ書く（省略すると url を使う）
+      // 利用者環境で起動したブラウザ（デバッグのポートを開いた Chromium 系）に接続して撮るときだけ書く（下記「実行対象環境」の browser）
+      // "browser": { "cdp_url": "http://<利用者環境のホスト>:9222/" }, // 省略すると、Playwright が起動したブラウザで撮る
+      "db": {
+        "env_vars": ["CURRENT_DB_URL"], // この環境の DB の接続情報を持つ環境変数の「名前」。値は書かない。書いた target だけ、スキルが接続を読んでよい（書かない target の DB には、スキルは一切触れない）
+        "seedable": true, // true のときだけ golden-dataset の投入先になる。省略か false なら読み取り専用の接続（接続は読むが、削除と投入はしない）
+      },
+      // この環境のファイルストレージ（アップロード先・ファイルの出力先）。書かなければ、この target のストレージにスキルは一切触れない（下記「ファイルストレージ」）
+      "storage": {
+        "env_vars": ["CURRENT_STORAGE_ENDPOINT"], // 接続情報を持つ環境変数の「名前」。値は書かない（db と同じ決まり）
+        "write_scope": [], // 削除・生成してよい範囲（パス、または <bucket>/<prefix>）。空か未定義なら書き込めない
+        "seedable": false, // ゴールデンデータの投入を設定で許すか（デフォルトは許さない）。true でも投入はしない（投入はスコープ外）
+        "upload_route": "direct", // direct（アプリサーバを通る multipart）| presigned（ブラウザがストレージに直接 PUT する）| none（アップロードの方法が無い）。省略は未確認で、推測せずに確認する
+      },
+      // この環境の認証情報。ロールごとに環境変数の「名前」を持つ（認証が要らない環境では省略する。ロールが 1 つならそれだけでよい）
+      "auth": {
+        "roles": {
+          "admin": {
+            "user_name_env": "CURRENT_ADMIN_USER", // ユーザー名を持つ環境変数の名前
+            "password_env": "CURRENT_ADMIN_PASS", // パスワードを持つ環境変数の名前。他の要素は <論理名>_env で足せる（例: totp_secret_env）
+          },
+          "approver": {
+            "user_name_env": "CURRENT_APPROVER_USER",
+            "password_env": "CURRENT_APPROVER_PASS",
+          },
+        },
+      },
+      // この環境で行わない UI / API の操作（db.seedable を通る投入ツールには当てない。空リスト = すべて行ってよい、未定義 = 読み取り専用）
+      "forbidden_actions": ["データの削除"],
+      "default": true, // --target を省いたときに使う target。側ごとに 1 つ（同じ側に複数あれば停止する）
+    },
+    {
+      "name": "local-dev",
+      "side": "new",
+      "url": "<URL>", // UI の baseURL。開発の前は none でもよい。その場合は、この例の下にある default: true を外す（url: none の target に default を付けない）
+      "api_url": "<URL>",
+      "db": { "env_vars": ["NEW_DB_URL"], "seedable": true },
+      "storage": {
+        "env_vars": ["NEW_STORAGE_ENDPOINT"],
+        "write_scope": [],
+        "seedable": false,
+        "upload_route": "presigned", // 現行側とアップロードの方法が違う場合は、保存 path の命名規則の差も含めて、意図的差異レジストリの対象になる（下記「ファイルストレージ」）
+      },
+      "auth": {
+        "roles": {
+          "admin": { "user_name_env": "NEW_ADMIN_USER", "password_env": "NEW_ADMIN_PASS" },
+        },
+      },
+      "forbidden_actions": [],
+      "pre_commands": [], // start の前に要る環境準備のコマンド（build など）。起動が要るときだけ実行し、失敗したら停止する
+      "start": "<コマンド>", // 長く動き続ける起動コマンド（稼働していないときだけ実行する。稼働の判定は check_urls で行う）
+      "check_urls": [], // 稼働の確認に使う URL（省略すると url だけを使う）
+      "default": true,
+    },
+    {
+      "name": "develop", // 例: PR のマージの後に自動でデプロイされる環境（実体は開発環境。実データを持つなら seedable を書かず、読み取り専用にする）
+      "side": "new",
+      "url": "<URL>",
+      "db": {
+        "env_vars": ["DEVELOP_DB_URL"], // seedable を書かない＝読み取り専用。バッチの出力の一致の検証などで DB の状態は読むが、削除と投入はしない
+      },
+      "auth": {
+        "roles": {
+          "admin": { "user_name_env": "DEVELOP_ADMIN_USER", "password_env": "DEVELOP_ADMIN_PASS" },
+        },
+      },
+      "catalog_url": "<URL>", // 任意（side: new だけ。catalog_url_command と同時には書けない）。部品カタログの baseURL（固定の文字列）。parity-component の build が読み、どちらも無ければ推測せずに停止する
+      // "catalog_url_command": "<コマンド>", // catalog_url と同時には書けない。標準出力に URL を 1 行出す（url_command と同じ解決と記録の規則）
+      "commit_check": "<コマンド>", // 任意。稼働中の新側のコミットの SHA を標準出力に出す（start を持たない配信型の target で、parity-replace が軽い判定に使う）
+      "on_diff": "<path>", // 任意。この target で要対応の差分が出たときの対応手順を書いた Markdown のパス（下記「on_diff」。無ければデフォルトの動作）
+    },
+    {
+      "name": "preview", // 例: ブランチに連動するプレビュー環境（URL がブランチ名で変わり、固定の文字列で書けない）
+      "side": "new",
+      "url_command": "<コマンド>", // url と同時には書けない。標準出力に URL を 1 行出す（意味の原本は browser-test。parity 系での解決と記録の規則は下記「URL の引き渡し」）
+      "auth": {
+        "roles": {
+          "admin": { "user_name_env": "PREVIEW_ADMIN_USER", "password_env": "PREVIEW_ADMIN_PASS" },
+        },
+      },
+      "forbidden_actions": [],
+      "commit_check": "<コマンド>",
+    },
+  ],
+  "secrets": {
+    "wrapper": "", // 任意の起動ラッパー（例: aws-vault exec dev --）。シークレットが要るコマンドの前に付ける
+  },
+  "parity_suite_dir": "e2e/", // パリティスイートの置き場所（parity-suite が読む。省略すると e2e/）
+  "dataset_tool_dir": "seed/", // golden-dataset の投入ツールの置き場所（golden-dataset が読む。省略すると seed/）
+  "bootstrap_tool_dir": "bootstrap/", // current-environment-bootstrap の再構築ツールと暫定の起動データの投入ツールの置き場所（省略すると bootstrap/）。current.origin: received-assets のときだけ使う
+  "dataset_mode": "db", // ゴールデンデータセットの実体（下記「データセットの実体」）。db（デフォルトで、省略してよい）| static
+  "dataset_static_paths": [], // dataset_mode: static のときは必須。投入ツールが生成・削除してよいパス（これ以外に書いたら停止する）
+  "uses_storage": true, // アプリがファイルストレージ（オブジェクトストレージ・共有ファイルシステム）を使うか。デフォルトは false で、false か省略なら targets の storage も書かない（下記「ファイルストレージ」）。dataset_mode とは独立した別の軸
+  // 検証コマンド（静的解析・単体テスト・統合テストなど。固有のツール名は設定の側に置く）。実行する範囲で 2 列に分ける（下記「検証コマンド」）
+  "verification_commands": {
+    // 全体の走査。リポジトリ全体を見るコマンドだけを置く（引数の有無は問わない。全体を走査するかで判断する）。parity-replace の完了判定はこの列で行うので、setup で必ず確定する
+    // 環境の準備・起動・URL の解決は含めない（それらは targets の pre_commands / start / check_urls）。環境に依存しないコードの検証なので、どの target でも同じコマンドを実行する
+    "full": ["<コマンド>"],
+    // 任意（無ければ省略するか空リスト）。変更したファイルだけを受け取る安い列。実装の反復と、敵対的レビューの前の早い検出にだけ使い、完了判定には使わない
+    // {changed_files} は、実行するスキルが変更したファイルの一覧に展開する
+    "diff": ["<コマンド> {changed_files}"],
+  },
+  "artifacts": {
+    "retention": "latest", // 作業ツリーには最新だけを置く。履歴は Git が持つ
+    "storage": "local", // local（デフォルトで、コミットしない）| git | git-lfs — 大きなバイナリのデフォルトの保存先
+    "size_threshold_mb": 50, // 超えたら警告する
+    "overrides": {}, // 機能ごとの上書き（例: "order": "git-lfs"）
+  },
+  // 利用者が選ぶ知識の注入。パスだけを持つ（本文はファイルの側）。setup がすべてのキーを作り、決まらないキーは空の値で残す（下記「references（知識の注入）」）
+  "references": {
+    "architecture": "", // 新側のアプリの骨格の決定記録（レイヤとディレクトリの構成・API の設計方針・ホスティングとリリースの構成・実行基盤と使うマネージドサービス）。事前に決めてあることが前提で、setup は下書きを作らない（parity-replace / parity-component が実装の工程の前に読む。下記「新側アーキテクチャ」）
+    "coding_conventions": "", // 生成先のリポジトリのコーディング規約（命名・エラー処理・テストの書き方・レビューの観点）。骨格の「上」の書き方で、architecture とは別（parity-replace / parity-component / golden-dataset / parity-suite が生成物を書くときに読む。生成物ごとの読む先は下記「コーディング規約」）
+    "ui_library": "", // 新しい UI ライブラリの設定と、旧→新の design token の対応づけ（parity-replace / parity-diff / parity-component が読む）
+    "component_catalog": "", // 部品カタログの取り決め（実体・見本の書き方・URL の決まり方・データの注入方法）。共通部品を画面より先に作る方針のときだけ使う（parity-component の build が読む。下記「部品カタログ」）
+    "db_semantics": "", // 現行 DB から新 DB への型の対応と意味の差、および移植で踏む方言の差の点検表（parity-replace が実装の前に読み、golden-dataset / parity-suite / parity-diff が比較で読み、current-environment-bootstrap が整備済みのときに復元した項目の突き合わせで読む。下記「DB 意味論」）
+    "env_setup": "", // 環境変数の用意の仕方（全スキルが、接続の確認に失敗したときの案内先にする）
+    "dependency_policy": "<path | none>", // 依存を入れるときの方針（ライセンス・供給網・バンドルサイズの上限など）。方針が無いことをユーザーに確認済みなら none（下記「依存導入の方針」）
+    // キーは足せる（下記「references の拡張」の取り決めに従う）
+  },
+  // 意図的差異レジストリ
+  "intentional_diffs": {
+    "keep": [], // 変えない（例: テーブル名、項目名、API のエンドポイント、関数名）
+    "may_change": [], // 変えてよい（例: ディレクトリ名・ファイル名、HTML の id/name、型の変換に伴う差、静的資産を同等のもので置き換えたときに残る差〈.replace/assets.md の宣言の列と同じ文言〉）
+    // 保留（測定の結果で決める）。setup では、キーを必ず空リストとして作る（スキルが追記する記録なので、初めは空。判定ツールは配列でない値を失敗にする）。
+    // 設定ファイルの中で唯一、スキルが作業中に追記する記録である（下記「キーの書き手とライフサイクル」）。確認の後に、人が keep / may_change へ移す。
+    // setup 自身が書き出す保留（手順 8 の「保留（測定結果で決める）」）も、このキーに下の 4 キーの形で追記する（added_by: replace-strategy / slug: cross-cutting）
+    "pending": [
+      // 追記する要素は、追記元が分かる形で書く（要素の形の原本は下記「意図的差異レジストリ」の「pending 要素の形」）。素の文字列も読めるが、帰属が分からないものとして扱われる
+      // {
+      //   "item": "<散文の宣言>", // keep / may_change へ移すときは、この文言を移す（要素を突き合わせる鍵）
+      //   "slug": "<機能 slug | cross-cutting>", // 追記した機能。1 つの機能に帰属させられないときだけ cross-cutting にする（部品の slug は書かない。parity-component と replace-strategy は必ず cross-cutting）
+      //   "added_by": "<replace-strategy | golden-dataset | parity-suite | parity-replace | parity-component>",
+      //   "added_at": "<YYYY-MM-DD>",
+      //   "match": { "element": "<論理名 | glob>", "property": "<プロパティ | glob>" }, // 任意。特性照合の差分に当てる照合キー（下記「照合キー（match）」）
+      // },
+    ],
+    // keep / may_change の要素も { "item": "<散文>", "match": {...} } のオブジェクトにできる（照合キーを持たない散文は、理由を添えても差分に当たらない）
+  },
+  // コンポーネントの系統差のレジストリ。クラス/トークン × プロパティの単位の系統差 T（旧値→新側で期待される値）。
+  // parity-replace がテーマで消せない構造の差をユーザーの確認を経て宣言し、parity-diff が比較の正規化に使う（特性照合にだけ当たる。当てる対象の原本は parity-diff の references/normalize.md）。
+  // 要素の形の原本はこのファイルで、{ component, property, current, new, reason } である。component は照合キーで、対象の要素の論理名（* を含めれば glob）を書く。
+  // 無いか空の値は、すべてに合うものではなく不一致として扱い、照合に使わない（照合の方法の原本は parity-diff の references/normalize.md）
+  // T を当てられない箇所のインスタンス単位の例外は、設定ファイルに置かない（slug スコープの台帳なので .replace/parity/<slug>/component-diff-exceptions.json に置く。スキーマの原本は parity-diff の references/normalize.md）
+  "component_diffs": [],
+}
 ```
 
 references の扱いは、下記「references（知識の注入）」に従う。
 
-### 作成・追記は非破壊
+### 書き込み
 
-ファイルが無ければ、`.config/skills/shoji9x9/` ごと作り、このスキルが使うキー（`skills.replace-strategy`）だけを書く。
-書く値は、探索かユーザーへの確認で得た実在の値にする。上の URL・変数名・コマンドは例なので、そのままコピーしない。
-ファイルが既にあれば、欠けたキーだけを該当する節に追記し、既にあるキー・値・コメントは変えない。値が既にあれば、それを尊重して上書きしない。
+ファイルが無ければ、このスキルが使うキーだけで作る。書く値は、探索かユーザーへの確認で得た実在の値にする。
+書き込みの決まり（欠けたキーだけを足す・既にある値を変えない・コメントを残す・書いた後に検証する）の原本は、[`config-files.md`](config-files.md)「書き込みの決まり」である（ここには転記しない）。
+このスキル群では、次のように書く。
+
+```bash
+node "$CFG" set replace-strategy references.dependency_policy '"none"' --layer repo          # 欠けたキーを足す
+node "$CFG" append replace-strategy intentional_diffs.pending '<要素の JSON>' --layer repo \
+  --unique-by item                                                                           # 同じ item の要素が既にあれば足さない
+node "$CFG" append replace-strategy component_diffs '<要素の JSON>' --layer repo              # 承認済みの宣言を足す
+```
+
+- `references` の空の値（`""`）を実際のパスで埋めるのは、上書きに当たらない（下記「references（知識の注入）」）。`set` に `--replace` を付けて書く。空でない値を変えるときは、利用者が確かめてからにする。
+- 追記専用の検査（`append-only-check.mjs`）は、このファイルを `jsonc-tree` の単位で比べる。
+  `intentional_diffs` の `keep` / `may_change` / `pending` は 1 つのグループとして要素の単位に展開し、鍵をまたぐ移動（棚卸しで人が `pending` の文言を `keep` / `may_change` へ移す）だけを許す。
+  どの鍵にも無くなった要素は失敗にする。`component_diffs` は要素ごとの単位に展開し、追記だけを許す。
+  それ以外の値とコメントは、消すか書き換えると失敗にする（一覧の原本は [`../assets/append-only-manifest.json`](../assets/append-only-manifest.json) の `project-config`、単位の規約は [`append-only.md`](append-only.md)）。
 
 ## キーの書き手とライフサイクル
 
@@ -209,24 +257,11 @@ references の扱いは、下記「references（知識の注入）」に従う�
   （下流のスキルの成果物の形式は、各スキルが定める。[`../SKILL.md`](../SKILL.md)「成果物」）。
   例として、`parity-diff` のインスタンス単位の例外は、設定のキーから `.replace/parity/<slug>/component-diff-exceptions.json` へ移した（下記「移行」）。
 
-## 設定ファイルの共有と YAML アンカー
+## browser-test の `environments` との関係
 
-設定ファイルは、すべてのスキルが 1 つのファイルを共有する（`skills.<スキル名>` で、スキルごとのキーに分かれる）。
-スキルのキーをまたいで YAML のアンカーを共有することは認める。
-同じ URL・環境変数名・環境の定義を複数のスキルに書き写すと、二重に管理することになるからである
-（例: `skills.replace-strategy.targets` と `skills.browser-test.environments` で、同じ環境の定義を共有する）。
-
-ただし、アンカーはファイルの中でしか解決できない。そのため、共有には次の制約がある。
-設定ファイルの分割や置き場所の変更を提案・実施するときは、先にこの制約を確かめる。
-
-- スキルのキーをまたいでアンカーを共有している間は、設定ファイルをスキルごとのファイルに分割できない（alias の解決先が無くなる）。
-  分割するなら、先に共有をやめて、それぞれの場所に実体を書く。
-- アンカーは、参照より前に定義しておく必要がある。
-  「作成・追記は非破壊」に従って追記するときは、アンカーを定義した位置を動かしたり消したりしない（末尾に足すだけなら安全である）。
-- アンカーの定義を持つスキルのキーを削除・移動するときは、先に参照する側を実体にする（削除して初めて動かなくなることを避ける）。
-- 値の意味は、参照する側のスキーマに従う。
-  アンカーを通して他のスキルのキーの値を読むことになるが、定義した側のスキルの意味を持ち込まない
-  （例: `browser-test` の `auth: none | user` と、このファイルの `auth.roles` は別のものである。原本はそれぞれ参照する側にある）。
+`browser-test` の環境（`browser-test.jsonc` の `environments`）と、このファイルの `targets` は、別々のファイルに別々に書く。
+同じ環境を指していても、片方の値をもう片方へコピーして共有しない。値の意味は、それぞれのスキーマに従う
+（例: `browser-test` の `auth: none | user` と、このファイルの `auth.roles` は別のものである。原本はそれぞれのスキルにある）。
 
 ## references（知識の注入）
 
@@ -243,7 +278,7 @@ references の扱いは、下記「references（知識の注入）」に従う�
 - `dependency_policy` は空の値で作らない。
   このキーだけは、キーの有無が「未確認」を表す三値である。空の値の枠を置くと、下流の「キーが無い＝未確認なら確認する」が二度と起きない。
   `setup` は、方針が要るかをユーザーに確認し、パスか `none` を書く。確認まで進まなければ、キーごと書かない（下記「依存導入の方針」）。
-- 空の値の references のキーは、未設定の枠である。上の「作成・追記は非破壊」の言う既にある値には当たらない。
+- 空の値の references のキーは、未設定の枠である。上の「書き込み」の言う既にある値には当たらない。
   実際のパスが決まった時点で、空の値を実際のパスで埋めるのは、上書きに当たらない（非破壊で守るのは実際の値で、空の枠ではない）。
 - キーが無い、空の値、解決できないパスは、どれも「整備されていない」として扱う。
   そのキーを前提にする工程は、内容をでっち上げず、下の表の「整備されていないときの動作」に従う。
@@ -559,7 +594,7 @@ local-dev・local-production・preview・develop など、同じスイートを�
     （設定の段階では、どの target どうしを比べるかが決まらないので、照合しない）。
 - 選択規則の原本は、下記の「選択規則」の節である（各スキルは自分の対象の側だけを宣言し、規則の全文はここだけが持つ）。
 - `db`・`auth`・`forbidden_actions` は、target ごとに定義する。
-  側ごとのデフォルトや代わりの値は持たない。複数の target で同じ値になる場合も、各エントリに書く。共有したければ YAML のアンカーを使ってよい（スキルのキーをまたいだ共有の可否と制約は、上記「設定ファイルの共有と YAML アンカー」）。
+  側ごとのデフォルトや代わりの値は持たない。複数の target で同じ値になる場合も、各エントリに書く。
 - `auth` はロールの構造である。`roles.<ロール名>` の下に `user_name_env` と `password_env` を置く（値は環境変数の名前。他の要素は `<論理名>_env` で足せる）。
   認可はそれ自体が仕様で、ロールごとの代表のユーザーと storageState の扱いの原本は、`parity-suite` の `references/auth.md` である。認証が要らない環境では、`auth` ごと省略する。
 - ノイズの基準値は、現行側の 1 つの環境で測った値である。
@@ -755,13 +790,16 @@ Playwright の `current` / `new` プロジェクトの baseURL と、API の req
 
 古いスキーマ（URL が 1 つ、側ごとの DB と認証、禁止操作が 1 つのリスト、`static_analysis`、設定の側のインスタンス単位の例外）からは、次の対応で移行する。
 スキルは、古いキーを代わりの値として読まない。古いキーを見つけたら、この移行の手順を示して止まる。
+設定ファイルは、スキーマに無いキーを知らないキーとしてエラーにする（`skill-config.mjs` の終了コード 1）。
+エラーの知らないキーが下の一覧にあれば、デフォルトの値で続けずに、この移行の手順を示して止まる。
+旧い置き場所（`skills.yml` の `skills.replace-strategy` の節）からファイルを移す手順は、[`config-files.md`](config-files.md)「移行」にある。キーの名前と値は変わらない。
 
 検出する古いキーの一覧は次のとおりである（各スキルはこの一覧を見て検出する）。
 `current:` のブロックそのものは新しいスキーマにもある（`repo`・`stack`）ので、ブロックではなくキーの単位で検出する。
 
 - `current.url`・`new.url`・`current.db`・`new.db`・`auth.current`・`auth.new`・`static_analysis`
-- `forbidden_actions`（`skills.replace-strategy` の直下の、1 つのリスト。`targets[].forbidden_actions` は新しいスキーマの正しいキーで、検出の対象ではない）
-- `component_diff_exceptions`（`skills.replace-strategy` の直下。slug の成果物に移した。`component_diffs` は新しいスキーマの正しいキーで、検出の対象ではない）
+- `forbidden_actions`（最上位の、1 つのリスト。`targets[].forbidden_actions` は新しいスキーマの正しいキーで、検出の対象ではない）
+- `component_diff_exceptions`（最上位。slug の成果物に移した。`component_diffs` は新しいスキーマの正しいキーで、検出の対象ではない）
 
 キーの名前が変わらない移行は、一覧では検出できないので、値の形で検出する。
 
@@ -780,7 +818,7 @@ Playwright の `current` / `new` プロジェクトの baseURL と、API の req
 | `auth.current` / `auth.new` | 対応する側の各 target の `auth.roles.<ロール名>.{user_name_env,password_env}` に移す。古い平らなリストのどの変数がユーザー名かパスワードかは、名前から推測せず、ユーザーに確認する。古い `auth.new` が空リストだった場合は、`auth` を省いたまま移さず、`setup` で新側の認証情報を確認して埋める |
 | `forbidden_actions`（1 つのリスト） | `side: current` の target の `forbidden_actions` に移す。新側の target には、`forbidden_actions: []` を明示的に置く（空リスト＝すべて行ってよい。未定義＝読み取り専用とは意味が違う） |
 | `static_analysis` | `verification_commands.full` に移す（環境の準備や起動が含まれていたら、target の `pre_commands` / `start` に移す）。移す前に、各コマンドが全体を走査するかを確かめる。差分に限るものは `full` に入れずに `diff` に置き、全体を走査する起動の形を `setup` で確認する（上記「実行する範囲」） |
-| `component_diff_exceptions`（設定の側の 1 つのリスト） | 要素の `slug` ごとに、`.replace/parity/<slug>/component-diff-exceptions.json` に分ける。同じ原因の要素は、`reason` の重複をまとめて `component_diff_exception_causes[]` に 1 件立て、各インスタンスは `reason` を捨てて `cause` で参照する（インスタンスの件数は減らさない）。原因の調べた経緯（YAML のコメントなどに溜まっているもの）は、同じディレクトリの `component-diff-exceptions.md` の原因の節に移し、`causes[].evidence` にその節を指させる。移行の後、設定の側のキーは削除する。スキーマの原本は `parity-diff` の `references/normalize.md`、2 つのファイルの様式は `parity-diff` の `assets/component-diff-exceptions-template.{json,md}` |
+| `component_diff_exceptions`（設定の側の 1 つのリスト） | 要素の `slug` ごとに、`.replace/parity/<slug>/component-diff-exceptions.json` に分ける。同じ原因の要素は、`reason` の重複をまとめて `component_diff_exception_causes[]` に 1 件立て、各インスタンスは `reason` を捨てて `cause` で参照する（インスタンスの件数は減らさない）。原因の調べた経緯（設定ファイルのコメントなどに溜まっているもの）は、同じディレクトリの `component-diff-exceptions.md` の原因の節に移し、`causes[].evidence` にその節を指させる。移行の後、設定の側のキーは削除する。スキーマの原本は `parity-diff` の `references/normalize.md`、2 つのファイルの様式は `parity-diff` の `assets/component-diff-exceptions-template.{json,md}` |
 | 成果物のレイアウト: `.replace/parity/<slug>/` の直下の `replace-metadata.json`・`diff.md`・`diff-metadata.json`・`baseline-new/` | `.replace/parity/<slug>/new/<target>/` に移す。`<target>` は、古い `new.url` から移行で作った `side: new` の target 名である。移した後、`replace-metadata.json` の `new` に `target: <その名前>` を追記する |
 
 - target 名は、一度決めたら変えない。
@@ -904,10 +942,13 @@ DB の接続情報もアプリの認証情報も、スキルは環境変数か�
 理由・測定の対象・決めた人を添えた文は、`parity-diff` の正規化（`diff-normalize.mjs`）で、差分の論理名とプロパティに一度も当たらない。
 特性照合の差分（計算後のスタイル・相対の幾何）に当てる宣言は、要素を `item`（人が読む散文）と `match`（照合キー）のオブジェクトにする。
 
-```yaml
-may_change:
-  - item: "見出しの border-style: 現行 none・新側 solid。幅は両側 0px で描かれない"
-    match: { element: heading, property: border-*-style }
+```jsonc
+"may_change": [
+  {
+    "item": "見出しの border-style: 現行 none・新側 solid。幅は両側 0px で描かれない",
+    "match": { "element": "heading", "property": "border-*-style" },
+  },
+],
 ```
 
 - `match` は、`element`（論理名。`*` で glob）と `property`（`*` で glob）が必須で、`page`・`state`・`viewport` が任意である。

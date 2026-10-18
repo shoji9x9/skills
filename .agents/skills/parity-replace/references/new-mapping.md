@@ -35,7 +35,7 @@
 ## `new` プロジェクトの green 化
 
 - Playwright の `projects` は、`current` と `new` の 2 つを `parity-suite` が定義している。`new` の baseURL の解決と引き渡し、新側に対する green 化は、このスキルが担う
-- baseURL は、選んだ target（設定 `skills.replace-strategy.targets` の `side: new`）から解決し、環境変数 `PARITY_NEW_UI_URL`・`PARITY_NEW_API_URL` に入れて渡す（`api_url` を省いたときは `url`）。
+- baseURL は、選んだ target（設定 `replace-strategy.jsonc` の `targets` の `side: new`）から解決し、環境変数 `PARITY_NEW_UI_URL`・`PARITY_NEW_API_URL` に入れて渡す（`api_url` を省いたときは `url`）。
   `url_command` の target は、コマンドを実行して解決する。解決の規則の原本は `replace-strategy` の `references/project-config.md`「URL の引き渡し」、設定の原本は `parity-suite` である
 - 寸法の採取（`parity-suite` の `dimension/` の測定スペック）は、`PARITY_DIMENSION_CAPTURE=1` と `PARITY_NEW_TARGET`（選んだ target の名前）を渡した実行でだけ行う。
   書き先は `new/<target>/dimension-samples.json` である。

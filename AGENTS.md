@@ -23,6 +23,7 @@ Claude Code・Codex・GitHub Copilot に対応した、マルチエージェン�
 | Markdown | `markdownlint-cli2`、文章は textlint（`scripts/gates/prose/lint-prose.ts`） | `markdownlint-cli2` |
 | JavaScript・TypeScript | `oxlint`、型は `tsc`（`pnpm run typecheck`） | `oxfmt` |
 | JSON | `jsonlint` | `oxfmt` |
+| JSONC（スキルの設定ファイル） | `jsonlint -C -T` | `oxfmt` |
 | YAML | `js-yaml`（`scripts/gates/code/lint-yaml.ts`） | `oxfmt` |
 | シェル | `shellcheck` | `shfmt` |
 | GitHub Actions | `actionlint` と `ghalint`、SHA の固定は `pinact` | `oxfmt` |
@@ -42,6 +43,7 @@ skills/<name>/          スキルの実体（gh skill publish の対象）
   SKILL.md              スキルのメインの指示
   references/           SKILL.md から必要なときに読む補助ドキュメント
   checks.json           利用者の pre-commit・CI に組み込むべきチェックの宣言（scripts/ に *-check.* を持つスキルだけ）
+  config-schemas/       設定のスキーマ（設定を読むスキルだけ。読み取りは scripts/skill-config/ に同梱する）
 evals/<name>/           回帰テスト（配布しないので skills/<name>/ の外に置く）
   evals.json            回帰テストの定義
   README.md             テストの実行手順

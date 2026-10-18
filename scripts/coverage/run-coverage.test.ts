@@ -49,7 +49,7 @@ function runCopiedCli(pct: number) {
     "coverage/check-coverage.ts",
     "coverage/shell-coverage.ts",
   ];
-  const LIB = ["lib/errors.ts", "lib/guards.ts", "lib/is-array.ts"];
+  const LIB = ["lib/errors.ts", "lib/guards.ts", "lib/is-array.ts", "lib/source-scope.ts"];
   for (const rel of [...RUNNER, ...LIB]) {
     mkdirSync(dirname(join(root, "scripts", rel)), { recursive: true });
     copyFileSync(join(ROOT, "scripts", rel), join(root, "scripts", rel));

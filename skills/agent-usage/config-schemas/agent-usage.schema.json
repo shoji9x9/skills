@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "agent-usage の設定（.config/skills/shoji9x9/agent-usage.jsonc ほか）",
+  "description": "置き場所・層・解決の順序は references/config-files.md にある。x-layers はそのキーを置ける層。",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "pricing": {
+      "description": "モデルごとの単価（USD / 100 万トークン）。同梱の単価より優先する",
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["input", "output"],
+        "properties": {
+          "input": { "type": "number", "minimum": 0 },
+          "output": { "type": "number", "minimum": 0 },
+          "cacheRead": { "type": "number", "minimum": 0 },
+          "cacheWrite5m": { "type": "number", "minimum": 0 },
+          "cacheWrite1h": { "type": "number", "minimum": 0 }
+        }
+      },
+      "default": {},
+      "x-layers": ["repo"]
+    },
+    "reviewPricing": {
+      "description": "レビューツールごとの 1 回あたりの推定額（USD）。同梱の値より優先する",
+      "type": "object",
+      "additionalProperties": { "type": "number", "minimum": 0 },
+      "default": {},
+      "x-layers": ["repo"]
+    },
+    "ci": {
+      "description": "CI の費用の扱い。external: true なら、CI を外部の実行環境で動かしている",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "external": { "type": "boolean" } },
+      "default": { "external": false },
+      "x-layers": ["repo"]
+    },
+    "activityWindowMinutes": {
+      "description": "人の活動の前後に「人がいた」とみなす幅（分）",
+      "type": "number",
+      "minimum": 0,
+      "default": 15,
+      "x-layers": ["repo"]
+    },
+    "reviewTools": {
+      "description": "レビューの作者の login → ツール",
+      "type": "object",
+      "additionalProperties": { "type": "string", "minLength": 1 },
+      "default": {},
+      "x-layers": ["repo"]
+    },
+    "people": {
+      "description": "人の ID → 表示名",
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name"],
+        "properties": { "name": { "type": "string", "minLength": 1 } }
+      },
+      "default": {},
+      "x-layers": ["repo"]
+    },
+    "aliases": {
+      "description": "人の ID → 同じ人としてまとめる先の ID（先は別名にしない）",
+      "type": "object",
+      "additionalProperties": { "type": "string", "pattern": "^p-[0-9a-f]{8}$" },
+      "default": {},
+      "x-layers": ["repo"]
+    },
+    "defaultDecision": {
+      "description": "判断の無いブランチの扱い。null は置いていないのと同じ（コミットの前に止めて確かめる）",
+      "enum": ["record", "decline", null],
+      "x-layers": ["repo", "local", "user"]
+    },
+    "personId": {
+      "description": "人の ID（記録のパスに使う）。setup か最初の collect が作る",
+      "type": "string",
+      "pattern": "^p-[0-9a-f]{8}$",
+      "x-layers": ["user"]
+    },
+    "timeZone": {
+      "description": "記録と集計に使う IANA のタイムゾーンの名前。省くとマシンのタイムゾーン",
+      "type": "string",
+      "minLength": 1,
+      "x-layers": ["user", "local"]
+    },
+    "billing": {
+      "description": "課金 API の実額を記録するか（user は個人のプランの premium request usage）",
+      "enum": ["none", "user"],
+      "default": "none",
+      "x-layers": ["user"]
+    }
+  },
+  "x-legacy": {
+    "files": [
+      {
+        "path": "{root}/.agent-usage/config.json",
+        "steps": "中身を .config/skills/shoji9x9/agent-usage.jsonc に移す（キーの名前と値は変わらない。$comment はコメントにする）。移したら .agent-usage/config.json を消す"
+      },
+      {
+        "path": "{user_config_home}/agent-usage/config.json",
+        "steps": "中身を ${XDG_CONFIG_HOME:-~/.config}/skills/shoji9x9/agent-usage.jsonc に移す（キーの名前と値は変わらない）。移したら旧いファイルを消す"
+      }
+    ],
+    "env": [
+      {
+        "name": "AGENT_USAGE_CONFIG_DIR",
+        "steps": "人ごとの設定の置き場所は XDG_CONFIG_HOME で変える（${XDG_CONFIG_HOME}/skills/shoji9x9/agent-usage.jsonc）。設定を移し、環境変数を消す"
+      }
+    ]
+  }
+}

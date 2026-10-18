@@ -15,14 +15,16 @@ import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  CONFIG_NAME,
   PERSON_ID_RE,
   defaultDecisionOf,
+  hasPerson,
   loadUserConfig,
   newPersonId,
-  parseUserConfig,
   saveUserConfig,
   userConfigPath,
 } from "./lib/config.mjs";
+import { configPaths } from "./skill-config/skill-config.mjs";
 import { decisionFor, saveDecision } from "./lib/decisions.mjs";
 import { gateDecision, readHookInput } from "./lib/gate.mjs";
 import { git, isDecisionBranch, repoInfo } from "./lib/repo.mjs";
@@ -118,17 +120,17 @@ function branchDecisionText(repo, set) {
   try {
     const decided = decisionFor(repo.commonDir, repo.branch);
     // gateDecision と同じく、判断が「記録する」でも人の設定が無ければ止める
-    if (decided === "record" && !existsSync(userConfigPath()))
+    if (decided === "record" && !hasPerson())
       return "record（人の設定が無いので、コミットの前の確認は止めて setup を求める）";
     if (decided !== null) return decided;
   } catch (e) {
     return `判断の記録を読めない: ${e instanceof Error ? e.message : String(e)}`;
   }
   try {
-    const fallback = defaultDecisionOf(join(usageDir(repo.root), "config.json"));
+    const fallback = defaultDecisionOf(repo.root);
     if (fallback === null) return "未決定";
     // gateDecision と同じく、人の設定が無ければ defaultDecision を当てずに止める
-    if (!existsSync(userConfigPath()))
+    if (!hasPerson())
       return `未決定（defaultDecision: ${fallback.decision}、${fallback.source}。人の設定が無いので、コミットの前の確認は止めて setup を求める）`;
     return `未決定（defaultDecision: ${fallback.decision}、${fallback.source}）`;
   } catch (e) {
@@ -150,8 +152,7 @@ export function main(argv, cwd = process.cwd()) {
       const a = parseArgs(rest, [], ["--person-id", "--time-zone", "--billing"]);
       const repo = repoInfo(cwd);
       // 引数を確かめる前に人の設定を作らない。打ち間違いで止まったときに、乱数の ID の設定が残らないようにする
-      const path = userConfigPath();
-      const config = loadUserConfig();
+      const config = loadUserConfig(repo.root);
       const created = config === null;
       const personId = a.options.get("--person-id") ?? config?.personId ?? newPersonId();
       if (!PERSON_ID_RE.test(personId))
@@ -162,20 +163,19 @@ export function main(argv, cwd = process.cwd()) {
       const billing = a.options.get("--billing") ?? config?.billing ?? "none";
       if (billing !== "none" && billing !== "user")
         throw new UsageError("--billing は none か user にする");
-      const next = parseUserConfig(
-        { personId, timeZone, billing, defaultDecision: config?.defaultDecision },
-        path,
-      );
-      saveUserConfig(path, next);
+      // 書くのは人ごとの層の 3 つのキーだけで、defaultDecision など他のキーは変えない
+      const path = saveUserConfig(repo.root, process.env, { personId, timeZone, billing });
       const dir = usageDir(repo.root);
       mkdirSync(join(dir, "records"), { recursive: true });
-      const cfg = join(dir, "config.json");
-      if (!existsSync(cfg)) writeFileSync(cfg, `${JSON.stringify({}, null, 2)}\n`);
+      // .agent-usage/ を commit できるよう、空のファイルを置く。.agent-usage/ があることがこのリポジトリでスキルを使う印なので、
+      // commit されないと、clone した先や worktree では Hook が何もしない
+      const keep = join(dir, "records", ".gitkeep");
+      if (!existsSync(keep)) writeFileSync(keep, "");
       console.log(`${created ? "作った" : "更新した"}: ${path}`);
+      console.log(`人の ID: ${personId} / タイムゾーン: ${timeZone} / 課金 API: ${billing}`);
       console.log(
-        `人の ID: ${next.personId} / タイムゾーン: ${next.timeZone} / 課金 API: ${next.billing}`,
+        `リポジトリの設定: ${configPaths(repo.root, CONFIG_NAME, process.env).repo}（無ければデフォルト）`,
       );
-      console.log(`リポジトリの設定: ${cfg}`);
       console.log(`Hook のスクリプト: ${join(SCRIPT, "..", "precommit-gate.sh")}`);
       return 0;
     }

@@ -1,0 +1,8 @@
+// shoji9x9/skills の複数のスキルが使う設定。人手で編集し、PR でレビューする。
+// 置き場所・層・書き込みの決まりは、各スキルの references/config-files.md にある。
+{
+  // ブランチ運用・commit 規約を記したドキュメント
+  "conventions_doc": "AGENTS.md",
+  // pr-review-handle / pr-finalize-loop の再レビュー依頼先。copilot | claude-code | codex | local | none
+  "review_tool": "copilot",
+}

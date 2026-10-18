@@ -40,12 +40,14 @@ pr-review-handle <PR URL | 番号 | レビュー URL> [--push]
 - 前提スキル: なし
 - MCP: なし
 - シェル: bash（POSIX 互換シェル）。コマンド例は bash で書いているので、Windows では WSL や Git Bash などの bash 環境で実行する
-- ランタイム: 要らない（node・pnpm・python など）
+- ランタイム: pnpm や python は要らない
+- Node.js は、設定ファイル（`.config/skills/shoji9x9/common.jsonc` など）を読むときだけ要る（同梱の `scripts/skill-config/skill-config.mjs` で読む）。
+  設定ファイルがどの層にも無ければ、Node.js なしでデフォルトの値を使う。設定ファイルがあって Node.js が無ければ、設定を読めないとして止まる（`review_tool` のデフォルトは `copilot`）
 
 ## ブランチ運用・commit 規約の参照
 
 ブランチ運用と commit の規約はリポジトリごとに違う。
-決め方（設定ファイル、よく使われる文書の探索、利用者への確認の順）と、設定ファイル `.config/skills/shoji9x9/skills.yml` の扱いは、[`references/conventions.md`](references/conventions.md) にある。
+決め方（設定ファイル、よく使われる文書の探索、利用者への確認の順）と、設定 `common` の `conventions_doc` の扱いは、[`references/conventions.md`](references/conventions.md) にある。
 どの規約に決まっても、次の操作の決まりは常に守る。`--amend` と force push をしない。関係するファイルだけを stage する。長い commit の本文は `git commit -F <file>` で渡す。
 
 ## 基本フロー
@@ -235,7 +237,7 @@ mutation {
 
 レビューへの対応（返信と解決）を終えたら、設定したレビューツールに再レビューを依頼するか、いつ依頼するかを利用者に確認する。
 依頼先のツールを決める規則と、ツールごとの依頼の方法と成立の確かめ方は、[`references/review-tool.md`](references/review-tool.md) にある。
-依頼先は同梱のスクリプト `scripts/resolve-review-tool.sh` で決め、値と、それがどの層（cli・env・config・default）から来たかを報告してから使う。
+依頼先は同梱のスクリプト `scripts/resolve-review-tool.sh` で決め、値と、それがどの層（cli・local・user・repo・default）から来たかを報告してから使う。
 決める順序を推測すると層を取り違え、設定してある値を「未設定」と判定して、別のツールに依頼してしまう。手順は [`references/review-tool.md`](references/review-tool.md) にある。
 
 GitHub の側で自動レビューを設定していても、push の後にレビューが始まらないことがある。

@@ -1,7 +1,7 @@
 node_modules/
 
-# mise が読み込む開発者固有の環境変数（共有既定はリポジトリ設定に置く）
-.env.local
+# スキルの設定のうち、このリポジトリの自分だけの値（人ごと・リポジトリ限定の層）
+/.config/skills/shoji9x9/*.local.jsonc
 
 # テスト実行結果の詳細は除外、サマリーは保持
 tests/*/iteration-*/eval-*/

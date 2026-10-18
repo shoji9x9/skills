@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "box の設定（.config/skills/shoji9x9/box.jsonc ほか）",
+  "description": "置き場所・層・解決の順序は references/config-files.md にある。秘密の情報（トークン・client secret・refresh token）は設定ファイルに書かず、環境変数かリポジトリの外のファイルに置く。",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "root_folder_id": {
+      "description": "操作の対象のフォルダの ID（Web UI でフォルダを開いたときの URL の末尾）。全員が同じ共有フォルダを使うならリポジトリの層に、自分だけのフォルダなら .local.jsonc に置く。0 は Box のルート",
+      "type": "string",
+      "pattern": "^[0-9]+$",
+      "default": "0",
+      "x-layers": ["repo", "local"]
+    }
+  },
+  "x-legacy": {
+    "env": [
+      {
+        "name": "BOX_ROOT_FOLDER_ID",
+        "steps": "値を box.jsonc（全員が同じ共有フォルダを使う）か box.local.jsonc（このリポジトリの自分だけ）の root_folder_id に文字列で移し、環境変数を .env などから消す"
+      }
+    ]
+  }
+}

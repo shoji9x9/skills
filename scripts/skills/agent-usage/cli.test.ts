@@ -20,7 +20,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { commitCwd, isGitCommit } from "../../../skills/agent-usage/scripts/lib/gate.mjs";
 import { parseCsv, toCsv } from "../../../skills/agent-usage/scripts/lib/csv.mjs";
@@ -124,13 +124,27 @@ describe("commitCwd", () => {
   });
 });
 
+/** リポジトリの設定のファイル。書く前にディレクトリを作る。 */
+function repoConfigOf(repo: string): string {
+  const path = join(repo, ".config", "skills", "shoji9x9", "agent-usage.jsonc");
+  mkdirSync(dirname(path), { recursive: true });
+  return path;
+}
+
+/** 人ごとの設定のファイル（setup の XDG_CONFIG_HOME の下）。 */
+function userConfigOf(tmp: string): string {
+  return join(tmp, "xdg", "skills", "shoji9x9", "agent-usage.jsonc");
+}
+
 function setup() {
   const tmp = makeTempDir("agent-usage-cli-");
   const repo = join(tmp, "repo");
   mkdirSync(repo);
   const env = {
     ...process.env,
-    AGENT_USAGE_CONFIG_DIR: join(tmp, "user"),
+    // 人ごとの設定は一時ディレクトリに置く（手元の設定を読まない）。旧い置き場所の変数は消す
+    XDG_CONFIG_HOME: join(tmp, "xdg"),
+    AGENT_USAGE_CONFIG_DIR: undefined,
     AGENT_USAGE_CLAUDE_PROJECTS: join(tmp, "claude"),
     AGENT_USAGE_CODEX_SESSIONS: join(tmp, "codex"),
     AGENT_USAGE_NOW: "2026-10-01T12:00:00Z",
@@ -253,8 +267,8 @@ describe("agent-usage のコマンドと Hook", () => {
     const { tmp, repo, git, cli, gate } = setup();
     expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
     git("switch", "-q", "-c", "feature/5-x");
-    const repoConfig = join(repo, ".agent-usage", "config.json");
-    const userConfig = join(tmp, "user", "config.json");
+    const repoConfig = repoConfigOf(repo);
+    const userConfig = userConfigOf(tmp);
     const user = parseJsonAs<Record<string, unknown>>(readFileSync(userConfig, "utf8"));
     const staged = () => git("diff", "--cached", "--name-only").trim();
 
@@ -298,13 +312,10 @@ describe("agent-usage のコマンドと Hook", () => {
   test("リポジトリの defaultDecision は、人の設定が無い人には当てずに止めて setup を求め、人の ID を作らない。デフォルトブランチの status は対象外と出す", () => {
     const { tmp, repo, git, cli, gate } = setup();
     expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
-    writeFileSync(
-      join(repo, ".agent-usage", "config.json"),
-      JSON.stringify({ defaultDecision: "record" }),
-    );
+    writeFileSync(repoConfigOf(repo), JSON.stringify({ defaultDecision: "record" }));
     expect(cli("status").stdout).toMatch(/このブランチの判断: 対象外（デフォルトブランチ/);
     git("switch", "-q", "-c", "feature/5-x");
-    const userConfig = join(tmp, "user", "config.json");
+    const userConfig = userConfigOf(tmp);
     rmSync(userConfig);
     const staged = () => git("diff", "--cached", "--name-only").trim();
     // status も、人の設定が無い人には defaultDecision を当てないと出す
@@ -321,10 +332,7 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(staged()).toBe("");
 
     // decline も同じく当てない
-    writeFileSync(
-      join(repo, ".agent-usage", "config.json"),
-      JSON.stringify({ defaultDecision: "decline" }),
-    );
+    writeFileSync(repoConfigOf(repo), JSON.stringify({ defaultDecision: "decline" }));
     const declined = gate("git commit -m x");
     expect(declined.status).toBe(2);
     expect(declined.stderr).toContain(`人の設定（${userConfig}）が無い`);
@@ -341,7 +349,7 @@ describe("agent-usage のコマンドと Hook", () => {
     git("switch", "-q", "-c", "feature/5-x");
     expect(cli("collect", "--stage", "--no-github").status).toBe(0);
     git("reset", "-q");
-    const userConfig = join(tmp, "user", "config.json");
+    const userConfig = userConfigOf(tmp);
     rmSync(userConfig);
     expect(cli("status").stdout).toMatch(
       /^このブランチの判断: record（人の設定が無いので、コミットの前の確認は止めて setup を求める）$/m,
@@ -361,7 +369,7 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
     git("switch", "-q", "-c", "feature/5-x");
     expect(cli("collect", "--no-github").status).toBe(0);
-    const userConfig = join(tmp, "user", "config.json");
+    const userConfig = userConfigOf(tmp);
     rmSync(userConfig);
 
     // どの設定にも defaultDecision が無ければ確かめる。collect が新しい ID を作る前に、既存の ID を使う方法を案内する
@@ -397,14 +405,16 @@ describe("agent-usage のコマンドと Hook", () => {
     const { tmp, repo, git, cli, gate } = setup();
     expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
     git("switch", "-q", "-c", "feature/5-x");
-    const repoConfig = join(repo, ".agent-usage", "config.json");
-    const userConfig = join(tmp, "user", "config.json");
+    const repoConfig = repoConfigOf(repo);
+    const userConfig = userConfigOf(tmp);
     const user = parseJsonAs<Record<string, unknown>>(readFileSync(userConfig, "utf8"));
 
     writeFileSync(repoConfig, JSON.stringify({ defaultDecision: "yes" }));
     const badRepo = gate("git commit -m x");
     expect(badRepo.status).toBe(2);
-    expect(badRepo.stderr).toMatch(/設定を読めない: .*defaultDecision: record か decline でない/);
+    expect(badRepo.stderr).toMatch(
+      /設定を読めない: .*defaultDecision: "(yes|ask)" は "record"・"decline"・null のどれでもない/,
+    );
     // 設定を読めなくても、記録しない側で先へ進める方法を案内する
     expect(badRepo.stderr).toMatch(/decline を実行してからコミット/);
     // status は設定を読めなくても止まらず、理由をブランチの判断の行に出す
@@ -417,7 +427,9 @@ describe("agent-usage のコマンドと Hook", () => {
     writeFileSync(userConfig, JSON.stringify({ ...user, defaultDecision: "ask" }));
     const badUser = gate("git commit -m x");
     expect(badUser.status).toBe(2);
-    expect(badUser.stderr).toMatch(/設定を読めない: .*defaultDecision: record か decline でない/);
+    expect(badUser.stderr).toMatch(
+      /設定を読めない: .*defaultDecision: "(yes|ask)" は "record"・"decline"・null のどれでもない/,
+    );
 
     writeFileSync(userConfig, JSON.stringify(user));
     const ask = gate("git commit -m x");
@@ -1216,10 +1228,7 @@ describe("agent-usage のコマンドと Hook", () => {
       }));
       writeFileSync(file, toCsv([...COLUMNS], rows));
     }
-    writeFileSync(
-      join(repo, ".agent-usage", "config.json"),
-      JSON.stringify({ aliases: { "p-00000001": person } }),
-    );
+    writeFileSync(repoConfigOf(repo), JSON.stringify({ aliases: { "p-00000001": person } }));
     expect(total()).toBe(before);
     expect(cli("setup", "--time-zone", "Asia/Kolkata").status).toBe(0);
     const again = cli("collect");
@@ -1723,7 +1732,7 @@ describe("agent-usage のコマンドの入力と状態", () => {
     const { tmp, git, cli, logDir, logLines } = setup();
     expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
     git("switch", "-q", "-c", "feature/5-x");
-    rmSync(join(tmp, "user"), { recursive: true });
+    rmSync(join(tmp, "xdg"), { recursive: true });
     writeFileSync(
       join(logDir, "s1.jsonl"),
       [...logLines.map((l) => JSON.stringify(l)), "{ not json"].join("\n"),

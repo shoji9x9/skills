@@ -1,14 +1,14 @@
 // AWS の公式アイコン（AWS Architecture Icons）を取得し、icon-manifest.json の対応表に従って
 // aws-icons/<id>.svg として書き出す（スキルが持つエンジン。コピーせず、スキルの場所から実行する）。
 // SVG そのものはスキルに同梱せず、使う人が公式のパッケージから取得する（再配布を避けるため）。
-// DIAGRAM_DIR を指定すれば cd しなくてよい。--out で出力先を直接指定できる。
+// 図のディレクトリを設定（diagram_dir）に書くか --dir で渡せば cd しなくてよい。--out で出力先を直接指定できる。
 //
 //     cd <図ディレクトリ> && node <skill>/assets/engine/fetch-aws-icons.mjs [--only id,...]
 //
-// プロジェクトが持つファイル（DIAGRAM_DIR に置く。デフォルトは cwd）は次のとおりである。
+// プロジェクトが持つファイル（図のディレクトリに置く。デフォルトは cwd）は次のとおりである。
 //
 // - `icon-manifest.json`: id から AWS のサービス名への対応表。ここに追記してアイコンを増やす。
-// - `icons/aws-icons/`: デフォルトの出力先。
+// - `icons/aws-icons/`: デフォルトの出力先（アイコンのディレクトリを --icon-dir か設定の icon_dir で変えたら、その下の aws-icons/）。
 //
 // パッケージの URL は四半期ごとに変わるので固定しない。公式ページ（https://aws.amazon.com/architecture/icons/）から、
 // 現行の Icon-package_*.zip を動的に取得する。ZIP は Node の zlib だけで展開する（unzip や python に依存しない）。
@@ -18,15 +18,17 @@
 import { inflateRawSync } from "node:zlib";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { diagramConfig } from "./diagram-config.mjs";
 
-const DIAGRAM_DIR = process.env.DIAGRAM_DIR ?? process.cwd();
+const config = diagramConfig(process.argv.slice(2));
+const diagramDir = config.dir;
 const ICONS_PAGE = "https://aws.amazon.com/architecture/icons/";
 
 // フラグが在ることと値を区別する。値が無いときや、次が別のフラグ（--）のときは、エラーにする。
 // 警告なしに次のフラグを値として扱ったり、全件の取得として扱ったりしない。
 /** @param {string} name */
 function arg(name) {
-  const argv = process.argv.slice(2);
+  const argv = config.rest;
   const eq = argv.find((a) => a.startsWith(`${name}=`));
   if (eq) {
     const v = eq.slice(name.length + 1);
@@ -42,7 +44,7 @@ function arg(name) {
   return v;
 }
 
-const OUT_DIR = arg("--out") ?? join(DIAGRAM_DIR, "icons/aws-icons");
+const OUT_DIR = arg("--out") ?? join(config.iconDir, "aws-icons");
 const only = arg("--only")
   ?.split(",")
   .map((s) => s.trim())
@@ -53,7 +55,7 @@ if (only && !only.length) {
   throw new Error("--only に有効な id がありません（例: --only lambda,dynamodb）");
 }
 
-const manifest = JSON.parse(readFileSync(join(DIAGRAM_DIR, "icon-manifest.json"), "utf8"));
+const manifest = JSON.parse(readFileSync(join(diagramDir, "icon-manifest.json"), "utf8"));
 // null の manifest は、aws を読む前に TypeError で止める（元の `manifest.aws` の読み取りと同じ振る舞い）。
 if (manifest === null) throw new TypeError("Cannot read properties of null (reading 'aws')");
 const awsMap = typeof manifest === "object" && "aws" in manifest ? manifest.aws : undefined;

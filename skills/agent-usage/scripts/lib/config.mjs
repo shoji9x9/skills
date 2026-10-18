@@ -1,12 +1,25 @@
-// 設定の読み込み。リポジトリの設定（.agent-usage/config.json）と、人ごとの設定（ユーザーの設定ディレクトリ）を分ける。
-// どちらも、知らないキーと型の誤りをエラーにする。綴りを誤ったキーが警告なしにデフォルトとして扱われるのを防ぐ。
+// 設定の読み込み。設定は shoji9x9/skills の共通の置き場所（references/config-files.md）の agent-usage.jsonc に置き、
+// 同梱の skill-config.mjs で読み書きする。知らないキー・型の誤り・置けない層は、skill-config.mjs がスキーマ
+// （config-schemas/agent-usage.schema.json）でエラーにする。ここでは、スキーマで表せない検証だけを行う。
 
 import { randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { isArray } from "./is-array.mjs";
 import { isValidTimeZone, systemTimeZone } from "./time.mjs";
+import {
+  ConfigError,
+  FILE_LAYERS,
+  configPaths,
+  loadConfig,
+  readLayer,
+  loadSchema,
+  validateValue,
+  writeConfig,
+} from "../skill-config/skill-config.mjs";
+
+/** 設定の名前（`.config/skills/shoji9x9/<名前>.jsonc`）。 */
+export const CONFIG_NAME = "agent-usage";
 
 /** 人の ID の形。setup で入力された ID もこの形でなければ受け付けない（記録のパスに使うため）。 */
 export const PERSON_ID_RE = /^p-[0-9a-f]{8}$/;
@@ -41,7 +54,6 @@ export const PRICE_FIELDS = /** @type {const} */ ([
  * @property {string} personId
  * @property {string} timeZone
  * @property {"none" | "user"} billing 課金 API の実額を記録するか（user は個人のプランの premium request usage）
- * @property {DefaultDecision} [defaultDecision] 判断の無いブランチの扱い。リポジトリの設定より優先する
  */
 
 /** @returns {RepoConfig} */
@@ -75,49 +87,22 @@ function isNonNegative(v) {
 }
 
 /**
- * @param {unknown} v
- * @param {string} where
- * @returns {DefaultDecision}
- */
-function parseDefaultDecision(v, where) {
-  if (v !== "record" && v !== "decline") throw new Error(`${where}: record か decline でない`);
-  return v;
-}
-
-/**
- * @param {Record<string, unknown>} obj
- * @param {readonly string[]} allowed
- * @param {string} where
- */
-function rejectUnknownKeys(obj, allowed, where) {
-  for (const k of Object.keys(obj)) {
-    if (!allowed.includes(k)) throw new Error(`${where}: 知らないキー ${JSON.stringify(k)}`);
-  }
-}
-
-/**
- * @param {unknown} v
- * @param {string} where
- * @returns {Record<string, unknown>}
- */
-function requireRecord(v, where) {
-  if (!isRecord(v)) throw new Error(`${where}: オブジェクトでない`);
-  return v;
-}
-
-/**
+ * 単価を検証する。同梱の単価（assets/pricing.json）を読むのに使う。設定ファイルの単価はスキーマが検証する。
  * @param {unknown} v
  * @param {string} where
  * @returns {Price}
  */
 export function parsePrice(v, where) {
-  const obj = requireRecord(v, where);
-  rejectUnknownKeys(obj, PRICE_FIELDS, where);
+  if (!isRecord(v)) throw new Error(`${where}: オブジェクトでない`);
+  for (const k of Object.keys(v)) {
+    if (!PRICE_FIELDS.some((f) => f === k))
+      throw new Error(`${where}: 知らないキー ${JSON.stringify(k)}`);
+  }
   /** @type {Price} */
   const price = {};
   for (const f of PRICE_FIELDS) {
-    if (!(f in obj)) continue;
-    const n = obj[f];
+    if (!(f in v)) continue;
+    const n = v[f];
     if (!isNonNegative(n)) throw new Error(`${where}.${f}: 0 以上の数でない`);
     price[f] = n;
   }
@@ -127,137 +112,170 @@ export function parsePrice(v, where) {
   return price;
 }
 
+const SCHEMA_DIR = fileURLToPath(new URL("../../config-schemas", import.meta.url));
+
+/** リポジトリの設定（記録と集計の方針）のキー。defaultDecision はどの層にも置ける。 */
+const REPO_KEYS = /** @type {const} */ ([
+  "pricing",
+  "reviewPricing",
+  "ci",
+  "activityWindowMinutes",
+  "reviewTools",
+  "people",
+  "aliases",
+  "defaultDecision",
+]);
+
+/** 人ごとの設定のキー。 */
+const USER_KEYS = /** @type {const} */ (["personId", "timeZone", "billing"]);
+
 /**
- * リポジトリの設定を検証して返す。省いたキーはデフォルトにする。
- * @param {unknown} raw
+ * @param {string} root
+ * @param {NodeJS.ProcessEnv} env
+ */
+function resolved(root, env) {
+  return loadConfig({ name: CONFIG_NAME, root, env, schemaDir: SCHEMA_DIR });
+}
+
+/**
+ * 解決した値のうち、keys のものだけをオブジェクトにする。値の出所（最初に見つかったファイル）も返す。
+ * @param {ReturnType<typeof resolved>} r
+ * @param {readonly string[]} keys
+ * @returns {{ raw: Record<string, unknown>; where: string }}
+ */
+function pick(r, keys) {
+  /** @type {Record<string, unknown>} */
+  const raw = {};
+  let where = CONFIG_NAME;
+  for (const k of keys) {
+    const v = r[k];
+    if (v === undefined || v.source === "default") continue;
+    raw[k] = v.value;
+    if (v.path !== null) where = v.path;
+  }
+  return { raw, where };
+}
+
+/**
+ * 値をスキーマで検証する（知らないキーと型の誤り）。
+ * @param {Record<string, unknown>} obj
+ * @param {readonly string[]} allowed
  * @param {string} where
+ */
+function validateKeys(obj, allowed, where) {
+  const schema = loadSchema(SCHEMA_DIR, CONFIG_NAME);
+  /** @type {string[]} */
+  const errors = [];
+  for (const [k, v] of Object.entries(obj)) {
+    const prop = allowed.includes(k) ? schema.properties[k] : undefined;
+    if (prop === undefined) errors.push(`${where}: 知らないキー ${JSON.stringify(k)}`);
+    else errors.push(...validateValue(v, prop.schema, `${where}: ${k}`));
+  }
+  if (errors.length > 0) throw new ConfigError(errors.join("\n"));
+}
+
+/**
+ * リポジトリの設定の値を検証して返す。省いたキーはデフォルトにする。
+ * 知らないキーと型の誤りはスキーマで、スキーマで表せない誤り（別名の先がさらに別名）はここで検出する。
+ * @param {unknown} raw
+ * @param {string} [where]
  * @returns {RepoConfig}
  */
-export function parseRepoConfig(raw, where = "config.json") {
-  const obj = requireRecord(raw, where);
-  rejectUnknownKeys(
-    obj,
-    [
-      "$comment",
-      "pricing",
-      "reviewPricing",
-      "ci",
-      "activityWindowMinutes",
-      "reviewTools",
-      "people",
-      "aliases",
-      "defaultDecision",
-    ],
-    where,
-  );
+export function parseRepoConfig(raw, where = CONFIG_NAME) {
+  if (!isRecord(raw)) throw new ConfigError(`${where}: オブジェクトでない`);
+  validateKeys(raw, REPO_KEYS, where);
   const cfg = defaultRepoConfig();
-  if (obj.pricing !== undefined) {
-    for (const [model, p] of Object.entries(requireRecord(obj.pricing, `${where}.pricing`))) {
-      cfg.pricing[model] = parsePrice(p, `${where}.pricing.${model}`);
-    }
+  if (isRecord(raw.pricing)) {
+    for (const [model, p] of Object.entries(raw.pricing))
+      cfg.pricing[model] = parsePrice(p, `${where}: pricing.${model}`);
   }
-  if (obj.reviewPricing !== undefined) {
-    for (const [tool, n] of Object.entries(
-      requireRecord(obj.reviewPricing, `${where}.reviewPricing`),
-    )) {
-      if (!isNonNegative(n)) throw new Error(`${where}.reviewPricing.${tool}: 0 以上の数でない`);
-      cfg.reviewPricing[tool] = n;
-    }
+  if (isRecord(raw.reviewPricing)) {
+    for (const [k, n] of Object.entries(raw.reviewPricing))
+      if (isNonNegative(n)) cfg.reviewPricing[k] = n;
   }
-  if (obj.ci !== undefined) {
-    const ci = requireRecord(obj.ci, `${where}.ci`);
-    rejectUnknownKeys(ci, ["external"], `${where}.ci`);
-    if (ci.external !== undefined) {
-      if (typeof ci.external !== "boolean")
-        throw new Error(`${where}.ci.external: true か false でない`);
-      cfg.ci.external = ci.external;
-    }
-  }
-  if (obj.activityWindowMinutes !== undefined) {
-    const n = obj.activityWindowMinutes;
-    if (!isNonNegative(n)) throw new Error(`${where}.activityWindowMinutes: 0 以上の数でない`);
-    cfg.activityWindowMinutes = n;
-  }
+  if (isRecord(raw.ci) && typeof raw.ci.external === "boolean") cfg.ci.external = raw.ci.external;
+  if (isNonNegative(raw.activityWindowMinutes))
+    cfg.activityWindowMinutes = raw.activityWindowMinutes;
   for (const key of /** @type {const} */ (["reviewTools", "aliases"])) {
-    if (obj[key] === undefined) continue;
-    for (const [k, v] of Object.entries(requireRecord(obj[key], `${where}.${key}`))) {
-      if (typeof v !== "string" || v === "")
-        throw new Error(`${where}.${key}.${k}: 空でない文字列でない`);
-      cfg[key][k] = v;
-    }
+    const v = raw[key];
+    if (isRecord(v))
+      for (const [k, s] of Object.entries(v)) if (typeof s === "string") cfg[key][k] = s;
   }
-  if (obj.people !== undefined) {
-    for (const [id, p] of Object.entries(requireRecord(obj.people, `${where}.people`))) {
-      const person = requireRecord(p, `${where}.people.${id}`);
-      rejectUnknownKeys(person, ["name"], `${where}.people.${id}`);
-      if (typeof person.name !== "string" || person.name === "") {
-        throw new Error(`${where}.people.${id}.name: 空でない文字列でない`);
-      }
-      cfg.people[id] = { name: person.name };
-    }
+  if (isRecord(raw.people)) {
+    for (const [id, p] of Object.entries(raw.people))
+      if (isRecord(p) && typeof p.name === "string") cfg.people[id] = { name: p.name };
   }
   // null は、置いていないのと同じに扱う（値を外すつもりで null を書いた設定で止めない）
-  if (obj.defaultDecision !== undefined && obj.defaultDecision !== null) {
-    cfg.defaultDecision = parseDefaultDecision(obj.defaultDecision, `${where}.defaultDecision`);
-  }
+  if (raw.defaultDecision === "record" || raw.defaultDecision === "decline")
+    cfg.defaultDecision = raw.defaultDecision;
   for (const [from, to] of Object.entries(cfg.aliases)) {
     if (cfg.aliases[to] !== undefined)
-      throw new Error(`${where}.aliases: ${from} → ${to} の先がさらに別名になっている`);
-  }
-  // 別名の先は記録のディレクトリ名（records/<person>/）になるので、人の ID の形だけを受け付ける
-  for (const [from, to] of Object.entries(cfg.aliases)) {
-    if (!PERSON_ID_RE.test(to))
-      throw new Error(`${where}.aliases.${from}: ${to} が p- と 16 進数 8 桁の形でない`);
+      throw new ConfigError(`${where}: aliases: ${from} → ${to} の先がさらに別名になっている`);
   }
   return cfg;
 }
 
 /**
- * リポジトリの設定を読む。ファイルが無ければデフォルト。
- * @param {string} path
+ * リポジトリの設定を読む。設定ファイルがどの層にも無ければデフォルト。
+ * @param {string} root リポジトリのルート
+ * @param {NodeJS.ProcessEnv} [env]
  * @returns {RepoConfig}
  */
-export function loadRepoConfig(path) {
-  if (!existsSync(path)) return defaultRepoConfig();
-  return parseRepoConfig(JSON.parse(readFileSync(path, "utf8")), path);
+export function loadRepoConfig(root, env = process.env) {
+  const { raw, where } = pick(resolved(root, env), REPO_KEYS);
+  return parseRepoConfig(raw, where);
 }
 
 /**
- * 人ごとの設定の置き場所。`AGENT_USAGE_CONFIG_DIR` があればそれを使う（テストと、置き場所を変えたい人のため）。
- * @param {NodeJS.ProcessEnv} env
+ * 人ごとの設定の値を検証して返す。人の ID は必須で、タイムゾーンは省くとマシンのタイムゾーンにする。
+ * @param {unknown} raw
+ * @param {string} [where]
+ * @returns {UserConfig}
+ */
+export function parseUserConfig(raw, where = CONFIG_NAME) {
+  if (!isRecord(raw)) throw new ConfigError(`${where}: オブジェクトでない`);
+  validateKeys(raw, USER_KEYS, where);
+  if (typeof raw.personId !== "string") throw new ConfigError(`${where}: personId が無い`);
+  const timeZone = raw.timeZone === undefined ? systemTimeZone() : raw.timeZone;
+  if (typeof timeZone !== "string" || !isValidTimeZone(timeZone))
+    throw new ConfigError(`${where}: timeZone が IANA のタイムゾーンの名前でない`);
+  return { personId: raw.personId, timeZone, billing: raw.billing === "user" ? "user" : "none" };
+}
+
+/**
+ * 人ごとの設定のファイル（`${XDG_CONFIG_HOME:-~/.config}/skills/shoji9x9/agent-usage.jsonc`）。
+ * @param {NodeJS.ProcessEnv} [env]
  * @returns {string}
  */
 export function userConfigPath(env = process.env) {
-  const base = env.AGENT_USAGE_CONFIG_DIR
-    ? env.AGENT_USAGE_CONFIG_DIR
-    : join(env.XDG_CONFIG_HOME || join(homedir(), ".config"), "agent-usage");
-  return join(base, "config.json");
+  // 人ごとの層の場所はリポジトリに依らないので、ルートには何を渡してもよい
+  return configPaths("/", CONFIG_NAME, env).user;
 }
 
 /**
- * @param {unknown} raw
- * @param {string} where
- * @returns {UserConfig}
+ * 人の設定（人の ID）があるか。人の ID は人ごとの層にだけ置けるので、そのファイルだけを読む。
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {boolean}
  */
-export function parseUserConfig(raw, where) {
-  const obj = requireRecord(raw, where);
-  rejectUnknownKeys(obj, ["personId", "timeZone", "billing", "defaultDecision"], where);
-  if (typeof obj.personId !== "string" || !PERSON_ID_RE.test(obj.personId)) {
-    throw new Error(`${where}.personId: p- と 16 進数 8 桁の形でない`);
-  }
-  const timeZone = obj.timeZone === undefined ? systemTimeZone() : obj.timeZone;
-  if (typeof timeZone !== "string" || !isValidTimeZone(timeZone)) {
-    throw new Error(`${where}.timeZone: IANA のタイムゾーンの名前でない`);
-  }
-  const billing = obj.billing === undefined ? "none" : obj.billing;
-  if (billing !== "none" && billing !== "user")
-    throw new Error(`${where}.billing: none か user でない`);
-  /** @type {UserConfig} */
-  const config = { personId: obj.personId, timeZone, billing };
-  if (obj.defaultDecision !== undefined && obj.defaultDecision !== null) {
-    config.defaultDecision = parseDefaultDecision(obj.defaultDecision, `${where}.defaultDecision`);
-  }
-  return config;
+export function hasPerson(env = process.env) {
+  const path = userConfigPath(env);
+  if (!existsSync(path)) return false;
+  const v = readLayer(loadSchema(SCHEMA_DIR, CONFIG_NAME), "user", path);
+  return v !== null && typeof v.personId === "string";
+}
+
+/**
+ * 人ごとの設定を読む。人の ID が無ければ null（作らない）。
+ * タイムゾーンは、このリポジトリだけの値（.local.jsonc）、人ごとの値、マシンのタイムゾーンの順に決める。
+ * @param {string} root
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {UserConfig | null}
+ */
+export function loadUserConfig(root, env = process.env) {
+  const r = resolved(root, env);
+  if (typeof r.personId?.value !== "string") return null;
+  const { raw, where } = pick(r, USER_KEYS);
+  return parseUserConfig(raw, where);
 }
 
 /** @returns {string} */
@@ -266,65 +284,65 @@ export function newPersonId() {
 }
 
 /**
- * 人ごとの設定を読む。ファイルが無ければ null（作らない）。
- * @param {string} path
- * @returns {UserConfig | null}
+ * 人ごとの層に値を書く。setup が利用者の指定した値で書くので、既にある値も置き換える。
+ * @param {string} root
+ * @param {NodeJS.ProcessEnv} env
+ * @param {Partial<UserConfig>} values
+ * @returns {string} 書いたファイル
  */
-function readUserConfig(path) {
-  if (!existsSync(path)) return null;
-  return parseUserConfig(JSON.parse(readFileSync(path, "utf8")), path);
+export function saveUserConfig(root, env, values) {
+  let path = userConfigPath(env);
+  for (const [key, value] of Object.entries(values)) {
+    if (value === undefined) continue;
+    path = writeConfig({
+      name: CONFIG_NAME,
+      root,
+      env,
+      schemaDir: SCHEMA_DIR,
+      layer: "user",
+      keyPath: [key],
+      value,
+      mode: "set",
+      replace: true,
+    }).path;
+  }
+  return path;
 }
 
 /**
- * 人ごとの設定を読む。無ければ null を返し、作らない。
- * @param {NodeJS.ProcessEnv} env
- * @returns {UserConfig | null}
- */
-export function loadUserConfig(env = process.env) {
-  return readUserConfig(userConfigPath(env));
-}
-
-/**
- * 人ごとの設定を読む。無ければ ID を作って保存し、作ったことを返す。
- * @param {NodeJS.ProcessEnv} env
+ * 人ごとの設定を読む。人の ID が無ければ作って人ごとの層に保存し、作ったことを返す。
+ * @param {string} root
+ * @param {NodeJS.ProcessEnv} [env]
  * @returns {{ config: UserConfig; created: boolean; path: string }}
  */
-export function loadOrCreateUserConfig(env = process.env) {
+export function loadOrCreateUserConfig(root, env = process.env) {
   const path = userConfigPath(env);
-  const existing = readUserConfig(path);
+  const existing = loadUserConfig(root, env);
   if (existing !== null) return { config: existing, created: false, path };
-  const config = {
-    personId: newPersonId(),
-    timeZone: systemTimeZone(),
-    billing: /** @type {const} */ ("none"),
-  };
-  saveUserConfig(path, config);
+  // タイムゾーンも書いておく（後でマシンのタイムゾーンが変わっても、記録の日付の区切りを変えない）
+  saveUserConfig(root, env, { personId: newPersonId(), timeZone: systemTimeZone() });
+  const config = loadUserConfig(root, env);
+  if (config === null) throw new ConfigError(`${path}: 人の ID を書いたのに読めない`);
   return { config, created: true, path };
 }
 
 /**
- * 判断の無いブランチの扱いと、それを決めた設定のパス。人の設定、リポジトリの設定の順に見る。どちらにも無ければ null。
- * 人の設定は読むだけで、無くても作らない（コミットの前の確認から呼ぶため）。
- * @param {string} repoConfigPath
- * @param {NodeJS.ProcessEnv} env
+ * 判断の無いブランチの扱いと、それを決めた設定のファイル。どの層にも無ければ null。
+ * 層の順は共通の解決の順序（.local.jsonc → 人ごと → リポジトリ）に従う。
+ * ただし null は置いていないのと同じに扱い、下の層を見る（値を外すつもりで null を書いた層で、下の層の値を隠さない）。
+ * 人の設定は読むだけで作らない。
+ * @param {string} root
+ * @param {NodeJS.ProcessEnv} [env]
  * @returns {{ decision: DefaultDecision; source: string } | null}
  */
-export function defaultDecisionOf(repoConfigPath, env = process.env) {
-  const userPath = userConfigPath(env);
-  const user = readUserConfig(userPath);
-  if (user !== null && user.defaultDecision !== undefined)
-    return { decision: user.defaultDecision, source: userPath };
-  const repo = loadRepoConfig(repoConfigPath);
-  return repo.defaultDecision === null
-    ? null
-    : { decision: repo.defaultDecision, source: repoConfigPath };
-}
-
-/**
- * @param {string} path
- * @param {UserConfig} config
- */
-export function saveUserConfig(path, config) {
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`);
+export function defaultDecisionOf(root, env = process.env) {
+  // すべての層の検証と、旧い置き場所の確認
+  resolved(root, env);
+  const schema = loadSchema(SCHEMA_DIR, CONFIG_NAME);
+  const paths = configPaths(root, CONFIG_NAME, env);
+  for (const layer of FILE_LAYERS) {
+    const d = readLayer(schema, layer, paths[layer])?.defaultDecision;
+    if (d === "record" || d === "decline") return { decision: d, source: paths[layer] };
+  }
+  return null;
 }

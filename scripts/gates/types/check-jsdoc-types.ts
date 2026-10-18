@@ -17,6 +17,7 @@ import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { listFiles, repoRoot } from "../code/check-js-extensions.ts";
 import { errorMessage } from "../../lib/errors.ts";
+import { isVendored } from "../../lib/source-scope.ts";
 
 const TARGET_RE = /^skills\/[^/]+\/.*\.mjs$/;
 // TypeScript が指示として読む位置の @ts-*。行コメントは先頭、ブロックコメントは最後の行の先頭だけを読む
@@ -76,7 +77,8 @@ function anyDefaultArity(name: ts.Node, checker: ts.TypeChecker): number {
 }
 
 /** 検査の対象のパス（リポジトリのルートからの `/` 区切り）か。 */
-export const isTarget = (path: string): boolean => TARGET_RE.test(path);
+// 外部のパッケージから作った生成物（同梱した jsonc-parser）は、tsconfig.skills.json の対象から外しているので見ない。
+export const isTarget = (path: string): boolean => TARGET_RE.test(path) && !isVendored(path);
 
 /** JSDoc の型のうち、`any` として扱われるものなら、その書き方を返す。 */
 function anyLike(node: ts.Node, sf: ts.SourceFile, checker: () => ts.TypeChecker): string | null {
