@@ -6,7 +6,12 @@ import { describe, expect, test } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { CHILD_TIMEOUT_MS, TEST_TIMEOUT_MS, findUntimedChildCalls } from "./child-timeout.ts";
+import {
+  CHILD_TIMEOUT_MS,
+  HOOK_TIMEOUT_MS,
+  TEST_TIMEOUT_MS,
+  findUntimedChildCalls,
+} from "./child-timeout.ts";
 
 // 走査の起点は `scripts/` 全体（このファイルは `scripts/lib/testing/` にあるので 2 段上がる）。
 const scriptsDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -140,6 +145,36 @@ describe("findUntimedChildCalls", () => {
       'import * as sa from "./spawn-async.ts";\nawait sa.spawnAsync("node", []);',
       ["2: spawnAsync"],
     ],
+    [
+      "timeout: undefined",
+      `${IMPORT}spawnSync("node", [], { timeout: undefined });`,
+      ["2: spawnSync"],
+    ],
+    [
+      "import = require",
+      'import cp = require("node:child_process");\ncp.spawnSync("node", []);',
+      ["2: spawnSync"],
+    ],
+    [
+      "spawn-async の名前空間の参照",
+      'import * as sa from "./spawn-async.ts";\nconst run = sa;',
+      ["2: sa（呼び出し以外で参照）"],
+    ],
+    [
+      "インスタンス化式",
+      `${IMPORT}const run = spawnSync<never>;`,
+      ["2: spawnSync（呼び出し以外で参照）"],
+    ],
+    [
+      "再エクスポート",
+      'export { spawnSync } from "node:child_process";',
+      ["1: export（再エクスポート）"],
+    ],
+    [
+      "describe の timeout 以上",
+      `${IMPORT}describe("d", { timeout: 5_000 }, () => {\n  test("t", () => {\n    spawnSync("node", [], { timeout: CHILD_TIMEOUT_MS });\n  });\n});`,
+      ["4: spawnSync（timeout 25000 がテストの timeout 5000 以上）"],
+    ],
   ])("タイムアウトの無い起動（%s）を拾う", (_, source, expected) => {
     expect(findUntimedChildCalls(source)).toEqual(expected);
   });
@@ -219,6 +254,11 @@ describe("findUntimedChildCalls", () => {
       "テストの timeout が 0（比べない）",
       `${IMPORT}test("t", () => {\n  spawnSync("node", [], { timeout: CHILD_TIMEOUT_MS });\n}, 0);`,
     ],
+    [
+      "テストに書いた timeout は describe の timeout より優先する",
+      `${IMPORT}describe("d", { timeout: 5_000 }, () => {\n  test("t", () => {\n    spawnSync("node", [], { timeout: CHILD_TIMEOUT_MS });\n  }, 60_000);\n});`,
+    ],
+    ["child_process 以外からの再エクスポート", `${IMPORT}export { helper } from "./other.ts";`],
   ])("拾わない（%s）", (_, source) => {
     expect(findUntimedChildCalls(source)).toEqual([]);
   });
@@ -239,7 +279,7 @@ function targets(dir: string): string[] {
   });
 }
 
-test("CHILD_TIMEOUT_MS は vitest の testTimeout より短い", () => {
+test("CHILD_TIMEOUT_MS は vitest の testTimeout より短く、TEST_TIMEOUT_MS と HOOK_TIMEOUT_MS は設定と一致する", () => {
   const config = readFileSync(join(scriptsDir, "..", "vitest.config.ts"), "utf8");
   const timeouts = [...config.matchAll(/testTimeout:\s*([\d_]+)/gu)].map((m) =>
     Number(m[1].replaceAll("_", "")),
@@ -250,6 +290,11 @@ test("CHILD_TIMEOUT_MS は vitest の testTimeout より短い", () => {
     // 囲むテストが timeout を書いていない呼び出しは、TEST_TIMEOUT_MS で打ち切られるとみなして比べる。
     expect(TEST_TIMEOUT_MS).toBe(timeout);
   }
+  // Hook の中の呼び出しは HOOK_TIMEOUT_MS と比べる。設定が hookTimeout を書かなければ、vitest のデフォルトの 10 秒になる。
+  const hooks = [...config.matchAll(/hookTimeout:\s*([\d_]+)/gu)].map((m) =>
+    Number(m[1].replaceAll("_", "")),
+  );
+  for (const hook of hooks.length > 0 ? hooks : [10_000]) expect(HOOK_TIMEOUT_MS).toBe(hook);
 });
 
 test("テストの子プロセスの起動にタイムアウトが付いている（実リポジトリ）", () => {

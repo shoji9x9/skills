@@ -1846,13 +1846,14 @@ describe("他セッション分の走査結果の再利用（使える秒数を�
     );
     // 使える秒数は SECONDS の境界で 1 秒揺れる。同じ締め切りの 2 回目は許容内（+1 秒）に、
     // 3 回目は確実に許容の外に収まる値を選ぶ。
-    // gate を 3 回順に起動するので、子プロセスの timeout の合計（27 秒）をテストの timeout（30 秒）より短くする。
-    await gate({ KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "3" }, 9_000);
+    // gate を 3 回順に起動するので、子プロセスの timeout の合計（28 秒）をテストの timeout（30 秒）より短くする。
+    // 締め切りに合わせて配り、どの回も締め切りより 4 秒以上の余裕を持たせる。
+    await gate({ KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "3" }, 7_000);
     expect(scans()).toBe(1);
-    const same = await gate({ KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "3" }, 9_000);
+    const same = await gate({ KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "3" }, 7_000);
     expect(scans()).toBe(1);
     expect(same.stderr).toMatch(/skipped re-scanning .*\(exit 124 after up to [12]s\)/);
-    await gate({ KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "7", SCAN_NO_WAIT: "1" }, 9_000);
+    await gate({ KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "7", SCAN_NO_WAIT: "1" }, 14_000);
     expect(scans()).toBe(2);
   }, 30000);
 });

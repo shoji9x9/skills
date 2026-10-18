@@ -28,3 +28,11 @@ PR #682 で、型ガードの絞る型を検査する `check-type-guard-brands.t
 
 - 適用先候補: `.agents/rules/state-space-and-mutation-proof.md` の「ソースコードのコメント・文字列・構文を判定するチェックは、既存のパーサで読む」に、型の情報（型述語・別名の解決）が要るなら型チェッカーで読むことを足す
 - `check-type-guard-brands.ts` は、PR #682 の反復 4 で型チェッカーで読む形に変えた（リポジトリ全体で約 4 秒）
+
+## 再発（PR #698、Issue #663）
+
+テストの子プロセスのタイムアウトを検出する `scripts/lib/testing/child-timeout.ts` を、構文木を自分でたどる形で書いた。
+レビューは 2 巡続けて、起動の関数を受け取る書き方の抜けを指摘した。
+1 巡目は分割代入・変数への代入・`promisify`・要素アクセス・名前空間の import で、2 巡目は `import cp = require(...)`・インスタンス化式・再エクスポートだった。
+1 巡目では、追う書き方を足すのをやめ、呼び出し以外の参照をすべて検出する許可リストの形に変えた。それでも、名前を集める側（import の形）と型の位置の判定に、同じ種類の抜けが残った。
+型チェッカーの `getSymbolAtLocation` と `getAliasedSymbol` で、呼び出し先が `child_process` の宣言に解決されるかを見れば、別名と再エクスポートを TypeScript 自身が解決する。

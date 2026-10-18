@@ -39,18 +39,15 @@ export function spawnAsync(
     let stderr = "";
     let error: Error | undefined;
     // spawn の `timeout` は子に SIGTERM を送るだけで、孫プロセスが stdout・stderr を持っている間は `close` が来ない。
-    // そこで自分で止め、子が終わったら stdout・stderr を読むのをやめて、`spawnSync` と同じ時間で返す。
+    // そこで自分で止め、stdout・stderr を読むのをやめて、`spawnSync` と同じ時間で返す。
+    // 子が先に終わっても孫が stdout を持っていれば `close` は来ないので、タイマーは `close` まで止めない（`spawnSync` も同じく ETIMEDOUT を返す）。
     let timedOut = false;
     const timer = setTimeout(() => {
       timedOut = true;
       child.kill("SIGTERM");
-    }, timeout);
-    child.on("exit", () => {
-      clearTimeout(timer);
-      if (!timedOut) return;
       child.stdout.destroy();
       child.stderr.destroy();
-    });
+    }, timeout);
     child.stdout.setEncoding("utf8").on("data", (chunk) => (stdout += chunk));
     child.stderr.setEncoding("utf8").on("data", (chunk) => (stderr += chunk));
     // stdin を読まずに終わる子へ書くと EPIPE になる。`spawnSync` と同じく、結果には数えない。

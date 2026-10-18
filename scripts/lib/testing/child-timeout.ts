@@ -70,21 +70,38 @@ function isDynamicImport(call: ts.CallExpression): boolean {
 }
 
 /** 起動の関数を import した名前。関数の別名は元の関数名を、名前空間は呼び出せる関数名の集合を持つ。 */
-type SpawnerNames = { functions: Map<string, string>; namespaces: Map<string, Set<string>> };
+type SpawnerNames = {
+  functions: Map<string, string>;
+  namespaces: Map<string, ReadonlySet<string>>;
+};
+
+/** モジュールが持つ起動の関数（起動の関数を持つモジュールでなければ undefined）。 */
+function membersOf(module: string): ReadonlySet<string> | undefined {
+  if (MODULES.has(module)) return SPAWNERS;
+  return SPAWN_ASYNC_MODULE.test(module) ? SPAWN_ASYNC_MEMBERS : undefined;
+}
+
+/** spawn-async が持つ起動の関数。 */
+const SPAWN_ASYNC_MEMBERS: ReadonlySet<string> = new Set(["spawnAsync"]);
 
 /** node:child_process と spawn-async から import した名前（関数の別名と名前空間）を集める。 */
 function childProcessNames(source: ts.SourceFile): SpawnerNames {
   const functions = new Map<string, string>();
-  const namespaces = new Map<string, Set<string>>();
+  const namespaces = new Map<string, ReadonlySet<string>>();
   for (const statement of source.statements) {
+    // `import cp = require("node:child_process")` は名前空間の import と同じに扱う。
+    if (
+      ts.isImportEqualsDeclaration(statement) &&
+      ts.isExternalModuleReference(statement.moduleReference) &&
+      ts.isStringLiteral(statement.moduleReference.expression)
+    ) {
+      const members = membersOf(statement.moduleReference.expression.text);
+      if (members !== undefined) namespaces.set(statement.name.text, members);
+      continue;
+    }
     if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier))
       continue;
-    const module = statement.moduleSpecifier.text;
-    const members = MODULES.has(module)
-      ? SPAWNERS
-      : SPAWN_ASYNC_MODULE.test(module)
-        ? new Set(["spawnAsync"])
-        : undefined;
+    const members = membersOf(statement.moduleSpecifier.text);
     if (members === undefined) continue;
     const defaultName = statement.importClause?.name;
     if (defaultName !== undefined) namespaces.set(defaultName.text, members);
@@ -136,7 +153,8 @@ function isDeclarationName(id: ts.Identifier): boolean {
 /** 型の中の参照か（`typeof spawnSync` など）。子プロセスを起動しない。 */
 function inTypePosition(node: ts.Node): boolean {
   for (let current = node.parent; current !== undefined; current = current.parent) {
-    if (ts.isTypeNode(current)) return true;
+    // `spawnSync<never>` のようなインスタンス化式は、型引数を付けた値の参照なので型の中に数えない。
+    if (ts.isTypeNode(current) && !ts.isExpressionWithTypeArguments(current)) return true;
     if (ts.isStatement(current)) return false;
   }
   return false;
@@ -178,7 +196,7 @@ function timeoutProperty(
 /**
  * 起動の引数に付けた `timeout` の値。付いていなければ undefined、値を読めなければ null を返す。
  * 読めるのは、数値のリテラル（`_` の区切りを含む）と `CHILD_TIMEOUT_MS` と、`x ?? <読める値>` である。
- * Node は `timeout: 0` をタイムアウトなしとして扱うので、0 は付いていないものとして返す。
+ * Node は `timeout: 0` と `timeout: undefined` をタイムアウトなしとして扱うので、付いていないものとして返す。
  * `timeout` の後ろにスプレッドがあると、スプレッドの中の `timeout`（`undefined` や 0 を含む）が上書きしうるので、付いていないものとして返す。
  */
 function childTimeout(call: ts.CallExpression): number | null | undefined {
@@ -188,10 +206,16 @@ function childTimeout(call: ts.CallExpression): number | null | undefined {
     if (property === undefined) continue;
     const index = arg.properties.indexOf(property);
     if (arg.properties.slice(index + 1).some((p) => ts.isSpreadAssignment(p))) return undefined;
+    if (ts.isPropertyAssignment(property) && isUndefined(property.initializer)) return undefined;
     const ms = ts.isPropertyAssignment(property) ? msOf(property.initializer) : null;
     return ms === 0 ? undefined : ms;
   }
   return undefined;
+}
+
+/** `undefined` と書いた値か。Node は `timeout: undefined` をタイムアウトなしとして扱う。 */
+function isUndefined(expression: ts.Expression): boolean {
+  return ts.isIdentifier(expression) && expression.text === "undefined";
 }
 
 /** 数値のリテラルか `CHILD_TIMEOUT_MS` のミリ秒。`x ?? y` は y の値を返す。それ以外の式は null。 */
@@ -235,16 +259,43 @@ function enclosingTestTimeout(node: ts.Node, source: ts.SourceFile): number | nu
     // テストの名前や each の表の中ではなく、本体の関数の中にあるときだけ、そのテストで打ち切られる。
     const body = current.arguments.find((arg) => ts.isFunctionLike(arg));
     if (body === undefined || node.pos < body.pos || node.end > body.end) continue;
-    // timeout は、本体の前のオプションのオブジェクト（`test(name, { timeout }, fn)`）か、本体の後ろの引数（`test(name, fn, ms)`）に書く。
-    const index = current.arguments.indexOf(body);
-    const after = current.arguments[index + 1];
-    if (after !== undefined && !ts.isObjectLiteralExpression(after)) return limitOf(after);
-    for (const arg of [...current.arguments.slice(0, index), ...(after ? [after] : [])]) {
-      const property = ts.isObjectLiteralExpression(arg) ? timeoutProperty(arg) : undefined;
-      if (property !== undefined)
-        return ts.isPropertyAssignment(property) ? limitOf(property.initializer) : null;
-    }
-    return hook ? HOOK_TIMEOUT_MS : TEST_TIMEOUT_MS;
+    const own = writtenTimeout(current, body);
+    if (own !== undefined) return own;
+    if (hook) return HOOK_TIMEOUT_MS;
+    // vitest は describe のオプションの timeout を中のテストに引き継ぐ。
+    return describeTimeout(current, source) ?? TEST_TIMEOUT_MS;
+  }
+  return undefined;
+}
+
+/**
+ * テスト・Hook・describe の呼び出しに書いた timeout。書いていなければ undefined、読めなければ null を返す。
+ * timeout は、本体の前のオプションのオブジェクト（`test(name, { timeout }, fn)`）か、本体の後ろの引数（`test(name, fn, ms)`）に書く。
+ */
+function writtenTimeout(call: ts.CallExpression, body: ts.Expression): number | null | undefined {
+  const index = call.arguments.indexOf(body);
+  const after = call.arguments[index + 1];
+  if (after !== undefined && !ts.isObjectLiteralExpression(after)) return limitOf(after);
+  for (const arg of [...call.arguments.slice(0, index), ...(after ? [after] : [])]) {
+    const property = ts.isObjectLiteralExpression(arg) ? timeoutProperty(arg) : undefined;
+    if (property !== undefined)
+      return ts.isPropertyAssignment(property) ? limitOf(property.initializer) : null;
+  }
+  return undefined;
+}
+
+/** vitest の describe を登録する呼び出しの名前（`describe` と、`.concurrent`・`.each(...)`・型引数などを付けた形）。 */
+const DESCRIBE_CALLEE = /^describe(\.\w+|<[^]*>|\([^]*\))*$/u;
+
+/** テストを囲む describe のうち、いちばん内側で timeout を書いたものの timeout（書いたものが無ければ undefined）。 */
+function describeTimeout(test: ts.Node, source: ts.SourceFile): number | null | undefined {
+  for (let current = test.parent; current !== undefined; current = current.parent) {
+    if (!ts.isCallExpression(current) || !DESCRIBE_CALLEE.test(current.expression.getText(source)))
+      continue;
+    const body = current.arguments.find((arg) => ts.isFunctionLike(arg));
+    if (body === undefined || test.pos < body.pos || test.end > body.end) continue;
+    const written = writtenTimeout(current, body);
+    if (written !== undefined) return written;
   }
   return undefined;
 }
@@ -275,10 +326,11 @@ function timeoutProblem(
  *   どちらにも囲まれない呼び出し（補助の関数の中など）は、testTimeout で打ち切られるとみなす。
  *   どちらかの値を読めなければ（変数や式）、比べずに通す。
  * - `行番号: 名前（呼び出し以外で参照）`: 起動の関数を、呼び出し以外で参照している。参照した先の呼び出しを追えない。
+ * - `行番号: export（再エクスポート）`: 起動の関数を持つモジュールから再エクスポートしている。
  * 1 つのテストの中で順に起動する子プロセスの timeout の合計は比べない。
  */
 export function findUntimedChildCalls(sourceText: string, fileName = "input.ts"): string[] {
-  if (!sourceText.includes("child_process") && !sourceText.includes("spawnAsync")) return [];
+  if (!sourceText.includes("child_process") && !sourceText.includes("spawn-async")) return [];
   const source = ts.createSourceFile(
     fileName,
     sourceText,
@@ -295,7 +347,17 @@ export function findUntimedChildCalls(sourceText: string, fileName = "input.ts")
     if (!exempt) found.push(`${line + 1}: ${text}`);
   };
   const visit = (node: ts.Node): void => {
-    if (ts.isImportDeclaration(node)) return;
+    if (ts.isImportDeclaration(node) || ts.isImportEqualsDeclaration(node)) return;
+    // 再エクスポート（`export { spawnSync } from "node:child_process"`）は、export した先の呼び出しを追えない。
+    if (
+      ts.isExportDeclaration(node) &&
+      node.moduleSpecifier !== undefined &&
+      ts.isStringLiteral(node.moduleSpecifier) &&
+      membersOf(node.moduleSpecifier.text) !== undefined
+    ) {
+      report(node, "export（再エクスポート）");
+      return;
+    }
     if (ts.isCallExpression(node)) {
       const dynamic = isDynamicImport(node);
       const spawner = dynamic ? "import" : spawnerOf(node, names);
