@@ -58,9 +58,11 @@ issue-batch run <Issue URL | 番号>... \
    - 設定、認証と権限、レビュー機能
    - Kaizen が transcript を特定できるか、browser-test が安全か
    - setup の設定が base branch に入っているか
-   - run の前に利用者の判断が要るもの（複数の案・決まっていない方針・試していない機構を約束した受け入れ条件）。1 回の確認にまとめて、変更の前に決めてもらう。全体を停止するときは確認せず、停止の報告に載せる
-2. `/tmp` に run manifest を作る。記録するのは、入力の順・Issue の URL・状態・branch・worktree・PR の URL・試験の結果・停止の理由・判断待ちの項目・自分で判断して進めたものだけである。秘密の値と、変わる環境の URL は書かない。
-3. 呼び出し元の worktree を checkout せず、Issue ごとに一意な隔離した worktree を `git-worktree` の取り決めで用意して、セッションを移す。
+   - run の前に利用者の判断が要るもの（複数の案・決まっていない方針・試していない機構を約束した受け入れ条件・対象から外す候補にする不確実性の高い Issue）。1 回の確認にまとめて、変更の前に決めてもらう。全体を停止するときは確認せず、停止の報告に載せる
+2. `/tmp` に run manifest を作る。記録するのは、入力の順・Issue の URL・状態・branch・worktree・PR の URL・試験の結果・停止の理由・飛ばした理由・対象から外した理由・判断待ちの項目・自分で判断して進めたものだけである。秘密の値と、変わる環境の URL は書かない。
+3. preflight で `EXCLUDED`・`SKIPPED`・`BLOCKED` にした Issue は、この手順から後を行わず、残りの Issue を進める（`references/orchestration.md`「全体 preflight」の最後の段落）。
+   依存のある Issue は、同じ文書の「全体 preflight」の 6 の条件を満たしてから着手する。
+   呼び出し元の worktree を checkout せず、Issue ごとに一意な隔離した worktree を `git-worktree` の取り決めで用意して、セッションを移す。
    branch を作る前に、その Issue の担当者を確かめ、自分を割り当てて読み直す（`references/orchestration.md`「issue-start への handoff」の 1。割り当てができなければ、branch も worktree も作らない）。
    置き場所は `git-worktree setup` の決定に従う。Issue ごとに worktree を移るので、リポジトリの中に置く必要がある。
 4. 各 Issue を入力の順に `issue-start` の取り決めで実装し、次に進める。
@@ -79,12 +81,13 @@ issue-batch run <Issue URL | 番号>... \
 - ローカルレビューの上限: setup の値。最初の候補は 1
 - PR の収束の上限: setup の値。最初の候補は 5
 - CI の待機: setup の値。最初の候補は false（CI とレビューを並行して進める）
-- BLOCKED の後に続けるか: setup の値。最初の候補は true。`--stop-on-blocked` で、その run だけ止める側に上書きする
+- run の途中で BLOCKED や FAILED になった後に続けるか: setup の値。最初の候補は true。`--stop-on-blocked` で、その run だけ止める側に上書きする。使う場面は `references/orchestration.md`「全体 preflight」の最後の段落で定義する
 - merge mode: setup の値。最初の候補は `auto`。`--merge-mode` で、その run だけ上書きする
 - merge の準備ができるまで待つ上限: setup の値（`merge_ready_timeout_minutes`）。`agent` mode でだけ使い、CLI での上書きは無い。`agent` に決まったのに設定に無ければ、推測せずに停止する
 - deployment の修正の上限: `--max-deployment-fix-iterations` があれば、その run だけ上書きする
 
 BLOCKED や FAILED の影響が Issue の隔離した worktree の中だけで済む場合は、デフォルトの方針に従って次の Issue に進む。
+止まった Issue に依存する Issue は、`references/orchestration.md`「全体 preflight」の 6 のとおりに扱う。依存先を理由に `BLOCKED` にした Issue では、全体も run も止めない。
 認証、権限、repo の不一致、共有の設定の誤りなど、全体に影響する失敗では、option に関わらず全体を停止する。
 
 ## 安全制約
@@ -100,13 +103,14 @@ BLOCKED や FAILED の影響が Issue の隔離した worktree の中だけで�
 - dirty か BLOCKED の worktree は削除しない。絶対パスと残りの作業を、最終報告に残す。
 - run を始めた後は、利用者に確認を送らない。前提スキル（`issue-start`・`pr-finalize-loop`）が「利用者に確認する」と定める箇所も同じである。
   `pr-finalize-loop` には `--defer-decisions` を渡し、人の判断が要る指摘を判断待ちとして受け取る（`references/orchestration.md`「pr-finalize-loop への handoff」）。
-  判断が要るものを「無人実行」を理由に飛ばさず、結果を作り上げず、BLOCKED（判断待ち）として記録し、`continue_on_blocked` に従って次の Issue に進む（`references/orchestration.md`「判断の扱い」）。
+  判断が要るものを「無人実行」を理由に飛ばさず、結果を作り上げず、BLOCKED（判断待ち）として記録し、`continue_on_blocked` に従って次の Issue に進むか run を止める（依存先を理由に BLOCKED にした Issue では止めない）。記録の形は `references/orchestration.md`「判断の扱い」に、続けるかは同じ文書の「全体 preflight」の最後の段落にある。
 - `kaizen extract --current --record-pending` が現在の transcript を特定できないエージェントでは、候補が 0 件であることを確かめられない。
   transcript を提供しないエージェント（例: Copilot）はこれに当たるので、run が何かを変更する前に BLOCKED にする。検出できるふりをして続けない。
 
 ## 最終報告
 
-入力の順に並べた表で、Issue・最終状態・branch・worktree・PR・local review・tests・browser・Kaizen・merge・Issue close・deployment・cleanup・停止の理由を示す。
+入力の順に並べた表で、Issue・最終状態・branch・worktree・PR・local review・tests・browser・Kaizen・merge・Issue close・deployment・cleanup・停止の理由・飛ばした理由・対象から外した理由を示す。
 表の後に、「判断待ち」と「自分で判断して進めたもの」の一覧を必ず載せる。0 件でも、無いことを書く。
+`SKIPPED` と `EXCLUDED` の Issue も表に載せる。`EXCLUDED` の対象から外した理由には、当たった兆候と利用者の選択か、外した依存先の番号を書く。
 判断待ちは、Issue ごとに論点・選択肢・推奨・決まった後に残る作業を示す。自分で判断して進めたものは、判断・根拠・覆すときに戻る工程を示す。
 `DONE` は、次のすべてを確かめた場合だけ使う。PR が `MERGED`、Issue が `CLOSED`、deployment が成功したか根拠があって対象外である、local と remote の branch を削除した。
