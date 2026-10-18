@@ -143,6 +143,9 @@ describe("fromAdvisory（古い形の advisories の 1 件）", () => {
     ["後ろが ASCII の外の英字", "GHSA-238P-PMPM-9MQ7é", ID],
     ["前が全角の数字", "１GHSA-238P-PMPM-9MQ7", ID],
     ["前が全角のハイフン", "npm－GHSA-238P-PMPM-9MQ7", ID],
+    ["後ろが全角の英字", "GHSA-238P-PMPM-9MQ7Ａ", ID],
+    ["後ろが全角の数字", "GHSA-238P-PMPM-9MQ7１", ID],
+    ["後ろが全角のハイフン", "GHSA-238P-PMPM-9MQ7－x", ID],
     ["前後が全角の括弧", "（GHSA-238P-PMPM-9MQ7）", ID],
     ["前後が漢字とかな", "脆弱性GHSA-238P-PMPM-9MQ7です", ID],
     ["本体に ASCII の外の英字", "GHSA-ſ38P-PMPM-9MQ7", ""],
@@ -326,7 +329,8 @@ describe("findingsFromVulnerability（新しい形の vulnerabilities の 1 件�
     expect(result.ghsa).toBe(ID);
   });
 
-  // 6 つの欄のどれからも id を取り出せなければ、id の欄の文字列をそのまま使う（id の形でない識別子を残すため）。
+  // id の欄と url から id を取り出せなければ、id の欄の文字列をそのまま使う（id の形でない識別子を残すため）。
+  // source と title の id より先に使う（下の「別の id より id の欄の文字列を使う」テスト）。
   test.each([
     ["ghsa", "npm-GHSA-238P-PMPM-9MQ7", "npm-GHSA-238P-PMPM-9MQ7"],
     ["ghsa_id", "npm-GHSA-238P-PMPM-9MQ7", "npm-GHSA-238P-PMPM-9MQ7"],

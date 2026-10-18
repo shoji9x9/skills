@@ -117,9 +117,9 @@ const GHSA_IN_TEXT = new RegExp(`(?<![0-9a-z_-])GHSA-(${GHSA_BODY})(?![0-9a-z_-]
 // ghsa-xxxx-xxxx-xxxx という名前のパッケージを id として読まない。大文字の GHSA- で始まるパッケージ名は確かめていない。
 const GHSA_WHOLE = new RegExp(`^GHSA-(${GHSA_BODY})$`);
 
-function ghsaFrom(value: unknown, pattern: RegExp = GHSA_IN_TEXT): string {
+function ghsaFrom(value: unknown): string {
   if (typeof value !== "string") return "";
-  const match = value.match(pattern);
+  const match = value.match(GHSA_IN_TEXT);
   return match ? `GHSA-${match[1].toLowerCase()}` : "";
 }
 
