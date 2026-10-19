@@ -444,8 +444,8 @@ describe.concurrent("Claude Code の api-request-blob レコード", () => {
 });
 
 // エージェントの作業中に利用者が送った発話は、`user` レコードにならず `attachment` の `queued_command` に残る（Issue #710）。
-// 人の発話（`origin.kind: "human"`）の修正語は候補にし、サブエージェントの報告（`peer`）と注入した本文（`isMeta`）、
-// task-notification のような他の `commandMode` は候補にしないことを、同じ修正語で確かめる。
+// 読み飛ばすのは閉じた集合（注入した本文の `isMeta`、task-notification、サブエージェントの報告の `peer`）だけで、
+// 知らない `commandMode` と `origin.kind` は発話として読み、型が違う値は判定不能にすることを、同じ修正語で確かめる。
 describe.concurrent("Claude Code の queued_command の attachment", () => {
   const assistantWorking =
     '{"type":"assistant","message":{"content":[{"type":"text","text":"作業しています"}]}}';
@@ -472,14 +472,29 @@ describe.concurrent("Claude Code の queued_command の attachment", () => {
     ["commandMode が無い注入した本文は読み飛ばす", queued('"isMeta":true'), 1],
     ["task-notification は候補にしない", queued('"commandMode":"task-notification"'), 1],
     [
-      "知らない commandMode は判定不能",
+      "知らない commandMode の発話も候補にする",
       queued('"commandMode":"bash","origin":{"kind":"human"}'),
+      0,
+    ],
+    ["commandMode が無い発話も候補にする", queued('"origin":{"kind":"human"}'), 0],
+    [
+      "知らない origin.kind の発話も候補にする",
+      queued('"commandMode":"prompt","origin":{"kind":"remote"}'),
+      0,
+    ],
+    [
+      "prompt が文字列でも配列でもないものは判定不能",
+      '{"type":"attachment","attachment":{"type":"queued_command","commandMode":"prompt","origin":{"kind":"human"},"prompt":{"text":"違う、やり直してください"}}}',
       2,
     ],
-    ["commandMode が無い発話は判定不能", queued('"origin":{"kind":"human"}'), 2],
     [
-      "知らない origin.kind は判定不能",
-      queued('"commandMode":"prompt","origin":{"kind":"remote"}'),
+      "isMeta が真偽値でないものは判定不能",
+      queued('"commandMode":"prompt","origin":{"kind":"human"},"isMeta":"true"'),
+      2,
+    ],
+    [
+      "最上位の isMeta が真偽値でないものは判定不能",
+      '{"type":"attachment","isMeta":"true","attachment":{"type":"queued_command","commandMode":"prompt","origin":{"kind":"human"},"prompt":"違う、やり直してください"}}',
       2,
     ],
     [

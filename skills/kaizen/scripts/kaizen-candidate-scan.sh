@@ -218,20 +218,23 @@ if ! jq -Rr '
 	      $j.type == "inter_agent_communication_metadata") then "D", "R"
 	# エージェントが作業している間に利用者が送った発話は、`user` レコードにならず、`attachment` の
 	# `queued_command`（`commandMode: "prompt"`）として残る。これを読み飛ばすと、作業中に送った修正の指示が
-	# 候補から外れる。値は閉じた集合で扱い、知らない値は判定できないとして扱う。
-	# 注入した本文（`isMeta`）と task-notification は発話ではないので読み飛ばす。
-	# `prompt` のうち、`origin.kind` が `human` のものと `origin` が無いものは発話として読み、
-	# サブエージェントの報告（`origin.kind: "peer"`）は読み飛ばす。
+	# 候補から外れる。読み飛ばすのは、発話ではないと分かっている閉じた集合（注入した本文の `isMeta`、
+	# `commandMode: "task-notification"`、サブエージェントの報告の `origin.kind: "peer"`）だけにする。
+	# それ以外の `commandMode` と `origin.kind`（欠落を含む）は発話として読む。知らない値で判定不能にすると、
+	# その値を書くセッションでは commit がずっと止まり、読み飛ばすと修正の指示を取りこぼすからである。
+	# 型が違う値（真偽値でない `isMeta`、オブジェクトでない `origin`、文字列でも配列でもない `prompt`）は、
+	# 発話かを決められないので判定できないとして扱う。
 	elif $j.type == "attachment" and ($j.attachment | type) == "object" and
 	     $j.attachment.type == "queued_command" then
 		"C", "R",
 		($j.attachment as $a |
-		 if (($j.isMeta // false) == true or ($a.isMeta // false) == true) then empty
+		 if ([$j.isMeta, $a.isMeta] | any(. != null and type != "boolean")) then "X"
+		 elif ($j.isMeta == true or $a.isMeta == true) then empty
 		 elif $a.commandMode == "task-notification" then empty
-		 elif $a.commandMode != "prompt" then "X"
-		 elif $a.origin == null or (($a.origin | type) == "object" and $a.origin.kind == "human") then
-			(($a.prompt // "") | user_text | clean | select(length > 0) | "U\t" + .)
-		 elif ($a.origin | type) == "object" and $a.origin.kind == "peer" then empty
+		 elif $a.origin != null and ($a.origin | type) != "object" then "X"
+		 elif $a.origin.kind? == "peer" then empty
+		 elif ($a.prompt | type) == "string" or ($a.prompt | type) == "array" then
+			($a.prompt | user_text | clean | select(length > 0) | "U\t" + .)
 		 else "X" end)
 	elif ($j.type == "ai-title" or $j.type == "attachment" or $j.type == "file-history-delta" or
 	      $j.type == "file-history-snapshot" or $j.type == "last-prompt" or $j.type == "mode" or

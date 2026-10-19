@@ -381,7 +381,7 @@
     },
     {
       "id": "SCAN-CLAUDE-QUEUED-COMMAND",
-      "why": "queued_command を読まない（作業中に送った修正の指示が候補から外れ、知らない値も読み飛ばす）",
+      "why": "queued_command を読まない（作業中に送った修正の指示が候補から外れ、型の違う値も読み飛ばす）",
       "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
       "find": "$j.attachment.type == \"queued_command\" then",
       "replace": "false then",
@@ -389,15 +389,18 @@
       "expect_failing": [
         "Claude Code の queued_command の attachment 人の発話は候補にする",
         "Claude Code の queued_command の attachment origin が無い発話も候補にする",
-        "Claude Code の queued_command の attachment 知らない commandMode は判定不能",
-        "Claude Code の queued_command の attachment commandMode が無い発話は判定不能",
-        "Claude Code の queued_command の attachment 知らない origin.kind は判定不能",
-        "Claude Code の queued_command の attachment origin がオブジェクトでないものは判定不能"
+        "Claude Code の queued_command の attachment 知らない commandMode の発話も候補にする",
+        "Claude Code の queued_command の attachment commandMode が無い発話も候補にする",
+        "Claude Code の queued_command の attachment 知らない origin.kind の発話も候補にする",
+        "Claude Code の queued_command の attachment origin がオブジェクトでないものは判定不能",
+        "Claude Code の queued_command の attachment prompt が文字列でも配列でもないものは判定不能",
+        "Claude Code の queued_command の attachment isMeta が真偽値でないものは判定不能",
+        "Claude Code の queued_command の attachment 最上位の isMeta が真偽値でないものは判定不能"
       ]
     },
     {
       "id": "SCAN-CLAUDE-QUEUED-COMMAND-OBJECT",
-      "why": "attachment がオブジェクトかを確かめない（文字列の attachment で jq がエラーになり、走査全体が判定不能になる）",
+      "why": "attachment がオブジェクトかを確かめない（最後の行の文字列の attachment で jq がエラーになり、判定不能になる）",
       "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
       "find": "($j.attachment | type) == \"object\" and\n\t     $j.attachment.type == \"queued_command\"",
       "replace": "true and\n\t     $j.attachment.type == \"queued_command\"",
@@ -407,11 +410,23 @@
       ]
     },
     {
+      "id": "SCAN-CLAUDE-QUEUED-COMMAND-META-TYPE",
+      "why": "isMeta の型を確かめない（文字列の isMeta を発話として読む）",
+      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
+      "find": "any(. != null and type != \"boolean\")) then \"X\"",
+      "replace": "any(false)) then \"X\"",
+      "occurrences": 1,
+      "expect_failing": [
+        "Claude Code の queued_command の attachment isMeta が真偽値でないものは判定不能",
+        "Claude Code の queued_command の attachment 最上位の isMeta が真偽値でないものは判定不能"
+      ]
+    },
+    {
       "id": "SCAN-CLAUDE-QUEUED-COMMAND-TOP-META",
       "why": "レコードの最上位の isMeta を確かめない（注入した本文を発話として読む）",
       "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "if (($j.isMeta // false) == true or ($a.isMeta",
-      "replace": "if (false or ($a.isMeta",
+      "find": "elif ($j.isMeta == true or",
+      "replace": "elif (false or",
       "occurrences": 1,
       "expect_failing": [
         "Claude Code の queued_command の attachment レコードの最上位の isMeta も候補にしない"
@@ -421,8 +436,8 @@
       "id": "SCAN-CLAUDE-QUEUED-COMMAND-META",
       "why": "attachment の isMeta を確かめない（注入した本文を発話として読む）",
       "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "($a.isMeta // false) == true) then empty",
-      "replace": "false) then empty",
+      "find": "or $a.isMeta == true) then empty",
+      "replace": "or false) then empty",
       "occurrences": 1,
       "expect_failing": [
         "Claude Code の queued_command の attachment 注入した本文は候補にしない",
@@ -431,7 +446,7 @@
     },
     {
       "id": "SCAN-CLAUDE-QUEUED-COMMAND-NOTIFICATION",
-      "why": "task-notification を読み飛ばす値として扱わない（判定不能になる）",
+      "why": "task-notification を読み飛ばさない（通知の本文を発話として読む）",
       "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
       "find": "elif $a.commandMode == \"task-notification\" then empty",
       "replace": "elif false then empty",
@@ -441,33 +456,21 @@
       ]
     },
     {
-      "id": "SCAN-CLAUDE-QUEUED-COMMAND-MODE",
-      "why": "prompt 以外の commandMode を判定不能にしない（知らない値の発話を読む）",
+      "id": "SCAN-CLAUDE-QUEUED-COMMAND-ORIGIN-TYPE",
+      "why": "origin の型を確かめない（文字列の origin を発話として読む）",
       "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "elif $a.commandMode != \"prompt\" then \"X\"",
+      "find": "elif $a.origin != null and ($a.origin | type) != \"object\" then \"X\"",
       "replace": "elif false then \"X\"",
       "occurrences": 1,
       "expect_failing": [
-        "Claude Code の queued_command の attachment 知らない commandMode は判定不能",
-        "Claude Code の queued_command の attachment commandMode が無い発話は判定不能"
-      ]
-    },
-    {
-      "id": "SCAN-CLAUDE-QUEUED-COMMAND-NO-ORIGIN",
-      "why": "origin が無い発話を読まない（判定不能になる）",
-      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "elif $a.origin == null or",
-      "replace": "elif false or",
-      "occurrences": 1,
-      "expect_failing": [
-        "Claude Code の queued_command の attachment origin が無い発話も候補にする"
+        "Claude Code の queued_command の attachment origin がオブジェクトでないものは判定不能"
       ]
     },
     {
       "id": "SCAN-CLAUDE-QUEUED-COMMAND-PEER",
-      "why": "peer を読み飛ばす値として扱わない（サブエージェントの報告で判定不能になる）",
+      "why": "peer を読み飛ばさない（サブエージェントの報告を発話として読む）",
       "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "elif ($a.origin | type) == \"object\" and $a.origin.kind == \"peer\" then empty",
+      "find": "elif $a.origin.kind? == \"peer\" then empty",
       "replace": "elif false then empty",
       "occurrences": 1,
       "expect_failing": [
@@ -475,15 +478,14 @@
       ]
     },
     {
-      "id": "SCAN-CLAUDE-QUEUED-COMMAND-UNKNOWN-ORIGIN",
-      "why": "知らない origin を判定不能にしない（警告なしに読み飛ばす）",
+      "id": "SCAN-CLAUDE-QUEUED-COMMAND-PROMPT-TYPE",
+      "why": "prompt の型を確かめない（オブジェクトの prompt を警告なしに読み飛ばす）",
       "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "\"peer\" then empty\n\t\t else \"X\" end)",
-      "replace": "\"peer\" then empty\n\t\t else empty end)",
+      "find": "elif ($a.prompt | type) == \"string\" or ($a.prompt | type) == \"array\" then",
+      "replace": "elif true then",
       "occurrences": 1,
       "expect_failing": [
-        "Claude Code の queued_command の attachment 知らない origin.kind は判定不能",
-        "Claude Code の queued_command の attachment origin がオブジェクトでないものは判定不能"
+        "Claude Code の queued_command の attachment prompt が文字列でも配列でもないものは判定不能"
       ]
     }
   ]
