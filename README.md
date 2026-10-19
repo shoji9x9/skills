@@ -9,6 +9,7 @@ Claude Code・Codex・GitHub Copilot に対応した、マルチエージェン�
 |-------|------|
 | [multiagent-setup](./skills/multiagent-setup/) | スキル・ルール・Hooks・ドキュメントをマルチエージェント対応構造でセットアップ |
 | [kaizen](./skills/kaizen/) | セッションから失敗・修正・エラーを抽出し根本原因を分析。スキル・ルール・Hooks・ドキュメントへ反映して同じ失敗の再発を防ぐ |
+| [writing-style](./skills/writing-style/) | 人が読む日本語の文章を、読み手が補わずに意味を取れる書き方の規則で書き、Issue と PR のタイトル・commit message の 1 行目などの要約の文を外に出す前に読み直す。他の配布スキルがタイトルや本文を書いた後に参照する |
 | [issue-create](./skills/issue-create/) | 短い説明から GitHub Issue を作成。重複チェック・`.github/ISSUE_TEMPLATE/` 参照・ドラフト承認を経て起票 |
 | [issue-start](./skills/issue-start/) | GitHub Issue を起点に branch 作成・実装・commit・PR 作成までを標準化 |
 | [git-worktree](./skills/git-worktree/) | git worktree で作業を隔離する。渡された branch に worktree を用意してセッションをそこへ移し、`.gitignore` の対象のファイルの持ち込み、チェックツールからの除外、clean を確かめてからの後片付けまでを標準化する。worktree を作るだけでは、subagent・fork・バックグラウンドで動く Bash が共有の作業ツリーで動くので、隔離にならない。branch の作成と Issue との紐付けは呼び出し側（issue-start・issue-batch など）が行う。`setup`・`enter`・`cleanup` の 3 つのモードを持つ |
@@ -39,6 +40,7 @@ Claude Code・Codex・GitHub Copilot に対応した、マルチエージェン�
 ```bash
 gh skill install shoji9x9/skills multiagent-setup
 gh skill install shoji9x9/skills kaizen
+gh skill install shoji9x9/skills writing-style
 gh skill install shoji9x9/skills issue-create
 gh skill install shoji9x9/skills issue-start
 gh skill install shoji9x9/skills issue-batch
@@ -94,6 +96,7 @@ gh skill update --all
 | `dependabot-alert-issue` | dependabot-alert-issue | `minimum_release_age_days`・`ignore`・`dismiss` |
 | `issue-batch` | issue-batch | 反復の上限・CI の待機・merge・deployment の監視 |
 | `git-worktree` | git-worktree | worktree の置き場所とファイルを運ぶ方法 |
+| `writing-style` | writing-style | `style_docs`（プロジェクトの文章の規約）・`word_list`（使わない語の一覧）・`lint_command`（文章のリンター） |
 | `browser-test` | browser-test・issue-batch | 確認する環境と禁止する操作 |
 | `replace-strategy` | replace-strategy・current-environment-bootstrap・golden-dataset・parity-component・parity-suite・parity-replace・parity-diff | リプレイスの対象・環境・成果物の方針・意図的差異のレジストリ |
 | `kaizen` | kaizen | 忘却・定期実行・コミット前のチェックの時間の上限 |

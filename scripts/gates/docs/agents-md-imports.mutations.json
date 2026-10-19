@@ -39,6 +39,17 @@
       ]
     },
     {
+      "id": "AI-WRITING-RULES",
+      "why": "文章の規則（配布スキル writing-style の rules.md）の取り込みを消す",
+      "file": "AGENTS.md",
+      "find": "@skills/writing-style/references/rules.md\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "作業の原則の詳細・文章の規約・使わない語の一覧を、行頭の @path で取り込んでいる"
+      ]
+    },
+    {
       "id": "AI-MISSING",
       "why": "実在しないファイルを取り込む",
       "file": "AGENTS.md",

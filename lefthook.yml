@@ -44,6 +44,7 @@ pre-commit:
               - ".agents/skills/pr-finalize-loop/**"
               - ".agents/skills/pr-review-handle/**"
               - ".agents/skills/replace-strategy/**"
+              - ".agents/skills/writing-style/**"
             run: shfmt -w {staged_files}
             stage_fixed: true
           - name: oxfmt-js
@@ -77,6 +78,7 @@ pre-commit:
               - ".agents/skills/pr-finalize-loop/**"
               - ".agents/skills/pr-review-handle/**"
               - ".agents/skills/replace-strategy/**"
+              - ".agents/skills/writing-style/**"
               - "skills/*/scripts/skill-config/vendor/**"
             run: pnpm exec oxfmt {staged_files}
             stage_fixed: true
@@ -116,6 +118,7 @@ pre-commit:
               - ".agents/skills/pr-finalize-loop/**"
               - ".agents/skills/pr-review-handle/**"
               - ".agents/skills/replace-strategy/**"
+              - ".agents/skills/writing-style/**"
             run: pnpm exec oxfmt {staged_files}
             stage_fixed: true
           - name: gha-pinact

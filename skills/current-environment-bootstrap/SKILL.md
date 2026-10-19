@@ -132,7 +132,8 @@ current-environment-bootstrap [--target <name>] [--resume] [--autonomous]
    判断できない項目は、デフォルト値で補わず、不足として停止する（禁止事項 5）。詳細: [`references/schema-restoration.md`](references/schema-restoration.md)
 4. データの意味論の根拠を集める: コードの値・状態遷移・業務のシナリオの根拠を、確定の根拠として使える情報源から集める。
    確定できないものは、「確認待ち」として台帳（`semantics.md`）に記録する。詳細: [`references/data-semantics.md`](references/data-semantics.md)
-5. 質問票と追加の資産の依頼を作る: 不足する資産と確認待ちの意味論を、先方や SME が答えられる形の質問票にする。答えが無いときの影響まで書く。詳細: [`references/questionnaire.md`](references/questionnaire.md)
+5. 質問票と追加の資産の依頼を作る: 不足する資産と確認待ちの意味論を、先方や SME が答えられる形の質問票にする。答えが無いときの影響まで書く。詳細: [`references/questionnaire.md`](references/questionnaire.md)。
+   質問の見出しと本文は、先方に渡す前に `writing-style` スキルの手順で読み直す（スキルが無ければ省く）。作り直しのツールを commit するときの message の 1 行目も同じに読み直す
 6. 暫定の起動データを作る: 根拠を確かめられた範囲で、起動・ログイン・主要な画面への到達に要る最小限を作る。
    起動に欠かせない項目の意味を確かめられない場合は、でっち上げずに停止する（工程 5 の質問票を示す）。詳細: [`references/provisional-data.md`](references/provisional-data.md)
 7. 起動と到達の検証: 現行のアプリを起動し、疎通・認証・主要な画面への到達を実測する。詳細: [`references/verification-handoff.md`](references/verification-handoff.md)

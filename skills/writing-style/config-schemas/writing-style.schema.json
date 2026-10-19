@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "writing-style の設定（.config/skills/shoji9x9/writing-style.jsonc）",
+  "description": "置き場所・層・解決の順序は references/config-files.md にある。プロジェクトの規約で、スキルの規則を拡張する。",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "style_docs": {
+      "description": "スキルの規則に加えて従う、プロジェクトの文章の規約を書いた文書の、リポジトリのルートからのパス。規則を当てる対象・対象外、用語、規則の追加や上書きを書く。スキルの規則と食い違えば、この文書を優先する",
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "x-layers": ["repo"]
+    },
+    "word_list": {
+      "description": "プロジェクトが使わない語と言い換え先の一覧の、リポジトリのルートからのパス。規則 2・8 で、エージェントがこの一覧の語を言い換える",
+      "type": "string",
+      "minLength": 1,
+      "x-layers": ["repo"]
+    },
+    "lint_command": {
+      "description": "ファイルの文章をチェックするコマンド（例: npx textlint）。エージェントは、読み直したファイルのパスを引数に付けて実行し、指摘を直す。リポジトリのルートで実行する",
+      "type": "string",
+      "minLength": 1,
+      "x-layers": ["repo"]
+    }
+  }
+}

@@ -1,0 +1,119 @@
+{
+  "metadata": {
+    "skill_name": "writing-style",
+    "skill_path": "skills/writing-style",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-19T01:28:26Z",
+    "evals_run": [2],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 29.92,
+        "tokens": 65513,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "読み直しの 3 つの問い（「〜を」の係り先・名詞句の指す対象・総称の例）をタイトルに当てた結果を述べている",
+          "passed": true,
+          "evidence": "「〜を」の係り先・名詞句が何を指すか・総称で書いた語の 3 つの問いへの答えを並べている"
+        },
+        {
+          "text": "タイトルを書き直さず、直す箇所が無いと報告している",
+          "passed": true,
+          "evidence": "「直す必要はありません。」書き直しはしていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 1,
+        "failed": 1,
+        "total": 2,
+        "time_seconds": 17.855,
+        "tokens": 35003,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "読み直しの 3 つの問い（「〜を」の係り先・名詞句の指す対象・総称の例）をタイトルに当てた結果を述べている",
+          "passed": false,
+          "evidence": "一般的な基準（書式・伝わるか・スペース）で見ており、3 つの問いは当てていない"
+        },
+        {
+          "text": "タイトルを書き直さず、直す箇所が無いと報告している",
+          "passed": true,
+          "evidence": "「直さなくても問題ありません。」直す案は任意として添えただけで、結論は直さない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 29.92,
+        "stddev": 0,
+        "min": 29.92,
+        "max": 29.92
+      },
+      "tokens": {
+        "mean": 65513,
+        "stddev": 0,
+        "min": 65513,
+        "max": 65513
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.5,
+        "stddev": 0,
+        "min": 0.5,
+        "max": 0.5
+      },
+      "time_seconds": {
+        "mean": 17.855,
+        "stddev": 0,
+        "min": 17.855,
+        "max": 17.855
+      },
+      "tokens": {
+        "mean": 35003,
+        "stddev": 0,
+        "min": 35003,
+        "max": 35003
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.50",
+      "time_seconds": "+12.1",
+      "tokens": "+30510"
+    }
+  },
+  "notes": [
+    "iteration-1 の eval 2 の入力を、割り込む句の無いタイトルに直して eval 2 だけを実行し直した。"
+  ]
+}

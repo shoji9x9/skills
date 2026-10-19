@@ -235,7 +235,7 @@ export async function main(argv: string[]): Promise<number> {
   if (violations.length || stale.length) {
     console.error(
       `lint-prose: ${checked} 件（うち保留 ${pending} 件）を見て、指摘 ${violations.length} 件・古い保留 ${stale.length} 件。` +
-        "語の言い換え先は .textlint/words.json の message を見る。文章の書き方は docs/writing-style.md に従う。",
+        "語の言い換え先は .textlint/words.json の message を見る。文章の書き方は skills/writing-style/references/rules.md に、このリポジトリでの対象と対象外は docs/writing-style.md に従う。",
     );
     return 1;
   }

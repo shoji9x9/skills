@@ -156,6 +156,8 @@ bash <スキル>/scripts/kaizen-status-check.sh
 - このブランチで作業を続ける。コミットして次の作業へ進む
 - Issue を作る。グループ（＝対策）ごとに 1 つの Issue を作り、別のブランチで詳細を詰める
 
+コミットの message の 1 行目と、Issue のタイトルと本文は、外に出す前に `writing-style` スキルの手順で読み直す（スキルが無ければ省く）。
+
 ## 適用しないまま古くなった学び（忘却）
 
 適用されないまま閾値の日数が過ぎ、優先度も上がらなかった（＝再発していない）pending は、`status: forgotten` にして SessionStart の注入から外す。

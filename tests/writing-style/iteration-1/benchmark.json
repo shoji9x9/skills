@@ -1,0 +1,159 @@
+{
+  "metadata": {
+    "skill_name": "writing-style",
+    "skill_path": "skills/writing-style",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-19T01:28:33Z",
+    "evals_run": [1],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 24.46,
+        "tokens": 66393,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "1 の文で、「テストを」が割り込んだ句の動詞（「再実行する」）に係るように読めることを指摘している",
+          "passed": true,
+          "evidence": "「「テストを」と述語の「直す」の間に「CI で再実行する」が割り込んでいます。そのため「テストを CI で再実行する」と読めてしまいます」"
+        },
+        {
+          "text": "1 の直した文では、「テストを」の直後に本当の述語が来るか、文が分かれていて、割り込む句が無い",
+          "passed": true,
+          "evidence": "直した文「失敗したテストを直す手順で、…」で「テストを」の直後に「直す」が来る"
+        },
+        {
+          "text": "2 の文で、「残り」が何の残りか（件数か箇所か）が文の中に無いことを指摘している",
+          "passed": true,
+          "evidence": "「「適用の残り」では、何が残っているのかが文の中にありません」"
+        },
+        {
+          "text": "3 の直した文では、「危ない書き方」の後に括弧などで具体的な例（コマンドや構文）を挙げている",
+          "passed": true,
+          "evidence": "直した文「シェルスクリプトの危ない書き方（`eval`・クォートしない変数展開など）を lint で禁止する」"
+        },
+        {
+          "text": "3 つとも、直した文が conventional commits の接頭辞（docs: / fix(kaizen): / feat:）を保っている",
+          "passed": true,
+          "evidence": "3 つとも docs: / fix(kaizen): / feat: を保っている"
+        },
+        {
+          "text": "直した箇所ごとに、元の文・直した文・当たった規則か問いを並べて報告している",
+          "passed": true,
+          "evidence": "各項目に「元の文」「直した文」「当たった問い」を並べている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 3,
+        "failed": 3,
+        "total": 6,
+        "time_seconds": 20.956,
+        "tokens": 35821,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "1 の文で、「テストを」が割り込んだ句の動詞（「再実行する」）に係るように読めることを指摘している",
+          "passed": false,
+          "evidence": "「「直す」がどこにかかるのかが分かりにくい」とだけ述べ、「テストを」が「再実行する」に係る読みは指摘していない"
+        },
+        {
+          "text": "1 の直した文では、「テストを」の直後に本当の述語が来るか、文が分かれていて、割り込む句が無い",
+          "passed": true,
+          "evidence": "直した文「テストが失敗したら CI を再実行する前に原因を調べる手順にする」に「テストを」と割り込む句が無い"
+        },
+        {
+          "text": "2 の文で、「残り」が何の残りか（件数か箇所か）が文の中に無いことを指摘している",
+          "passed": true,
+          "evidence": "「「適用の残り」が何を指すのか、1 行目だけでは分かりません」"
+        },
+        {
+          "text": "3 の直した文では、「危ない書き方」の後に括弧などで具体的な例（コマンドや構文）を挙げている",
+          "passed": false,
+          "evidence": "直した文「シェルスクリプトの危険な書き方を lint で検出する」に例が無い（例は別案として本文で触れただけ）"
+        },
+        {
+          "text": "3 つとも、直した文が conventional commits の接頭辞（docs: / fix(kaizen): / feat:）を保っている",
+          "passed": true,
+          "evidence": "3 つとも接頭辞を保っている"
+        },
+        {
+          "text": "直した箇所ごとに、元の文・直した文・当たった規則か問いを並べて報告している",
+          "passed": false,
+          "evidence": "直した文と理由は書いたが、元の文を項目ごとに並べておらず、当たった規則か問いの名前も無い"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 24.46,
+        "stddev": 0,
+        "min": 24.46,
+        "max": 24.46
+      },
+      "tokens": {
+        "mean": 66393,
+        "stddev": 0,
+        "min": 66393,
+        "max": 66393
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.5,
+        "stddev": 0,
+        "min": 0.5,
+        "max": 0.5
+      },
+      "time_seconds": {
+        "mean": 20.956,
+        "stddev": 0,
+        "min": 20.956,
+        "max": 20.956
+      },
+      "tokens": {
+        "mean": 35821,
+        "stddev": 0,
+        "min": 35821,
+        "max": 35821
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.50",
+      "time_seconds": "+3.5",
+      "tokens": "+30572"
+    }
+  },
+  "notes": [
+    "eval 2 は入力のタイトル（Issue のタイトルと本文を、利用者に見せる前に読み直す）が規則 10 の 1 つ目の形に当たっていたので、assertion が原本と合わず採点から外した。入力を直して iteration-2 で実行し直した。"
+  ]
+}

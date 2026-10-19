@@ -1,0 +1,3 @@
+{
+  "lint_command": "node tools/lint-docs.mjs"
+}

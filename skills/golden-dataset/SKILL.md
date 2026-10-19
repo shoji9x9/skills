@@ -187,6 +187,7 @@ UI に固有のページ送りの機能は UI で確定し、どこまで上げ�
      `verification.md` の「意味論が未確定の機能」に slug の単位で記録する。`parity-suite` はこの記録を読んで、始めてよいかを判断する。捏造で埋めて「確認済み」にしない
 7. 成果物の記録。`design.md` / `verification.md` / `metadata.json` を生成し、投入ツールとデータをコミットする。
    本番に由来せず PII を含まないからである。大きなバイナリをコミットしないという規約は視覚のベースラインの話で、ここには当てはまらない。
+   コミットの message の 1 行目は、コミットする前に `writing-style` スキルの手順で読み直す（スキルが無ければ省く）。
    初回は `changes` に version 1 を、再実行では新しい version と、実際に変えたテーブルや静的データの単位の `affects` を追記し、過去の履歴を残す。
    `metadata.json` の `mode` に `dataset_mode` の値を記録したうえで、次のように書く。
    - `db`: `current.target` に、投入先の current の target 名を記録する（`parity-suite` がベースラインの採取のときに自分の選んだ target と照らし合わせ、一致しなければ止まる）

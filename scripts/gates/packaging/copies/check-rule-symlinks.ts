@@ -40,8 +40,9 @@ export const WIRINGS = [
 //
 // symlink だけでは Copilot は読まない。文書の frontmatter の applyTo が PR の変更ファイルに当たるときだけ読むので、
 // applyTo を持つことも確かめる。applyTo の範囲は文書ごとに決める。
-// writing-style は lint-prose の対象に合わせ、writing-style-apply-to.test.ts が一致を確かめる。
-// `**` と `*` がドットで始まる名前に当たらない glob の実装もあるので、`**/.*/**/*.<ext>` と `**/.*.<ext>` の形も並べる。
+// writing-style の規則と、このリポジトリでの対象（writing-style-scope）は人が読む文章すべてに当てるので、applyTo はすべてのファイルにする。
+// lint-prose の対象をすべて含むことは、writing-style-apply-to.test.ts が確かめる。
+// `**` と `*` がドットで始まる名前に当たらない glob の実装もあるので、`**/.*/**` と `**/.*` の形も並べる。
 // Copilot のコードレビューは instructions の先頭 4,000 文字しか読まない
 // （https://docs.github.com/en/copilot/how-tos/copilot-on-github/use-copilot-agents/copilot-code-review）。
 // そのため、レビューで確かめる節を文書の前に置き、その後に続く最初の見出し（reviewedUntil）が 4,000 文字の内側にあることを確かめる。
@@ -49,9 +50,16 @@ export type DocInstruction = { name: string; canon: string; reason: string; revi
 export const DOC_INSTRUCTIONS: DocInstruction[] = [
   {
     name: "writing-style",
-    canon: "docs/writing-style.md",
+    canon: "skills/writing-style/references/rules.md",
     reason: "文章の規約は人への応答にも当てるので常に要り、rule にしない",
     reviewedUntil: "## 書き換えで変えないもの",
+  },
+  {
+    name: "writing-style-scope",
+    canon: "docs/writing-style.md",
+    reason:
+      "規則を当てる対象と対象外はこのリポジトリだけの拡張なので、配布する規則の文書とは別に読ませる",
+    reviewedUntil: "## 規則と読み直しの手順",
   },
 ];
 

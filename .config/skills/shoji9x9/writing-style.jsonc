@@ -1,0 +1,8 @@
+{
+  // このリポジトリで規則を当てる対象と対象外を書いた文書
+  "style_docs": ["docs/writing-style.md"],
+  // .textlint/words.json から生成した一覧。エージェントがそのまま読める Markdown の表にしている
+  "word_list": ".textlint/word-list.md",
+  // pre-commit と CI と同じ textlint の設定で、渡したファイルをチェックする
+  "lint_command": "node scripts/gates/prose/lint-prose.ts"
+}

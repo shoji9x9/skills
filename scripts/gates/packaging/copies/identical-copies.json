@@ -158,7 +158,8 @@
         "skills/parity-suite/scripts/skill-config/skill-config.mjs",
         "skills/pr-finalize-loop/scripts/skill-config/skill-config.mjs",
         "skills/pr-review-handle/scripts/skill-config/skill-config.mjs",
-        "skills/replace-strategy/scripts/skill-config/skill-config.mjs"
+        "skills/replace-strategy/scripts/skill-config/skill-config.mjs",
+        "skills/writing-style/scripts/skill-config/skill-config.mjs"
       ],
       "reason": "設定の読み取り（層の解決・検証・旧い場所での停止・書き込み）。スキルごとに読み方が食い違うと、同じ設定ファイルをスキルによって違う値として読むか、片方だけがエラーにする"
     },
@@ -182,7 +183,8 @@
         "skills/parity-suite/references/config-files.md",
         "skills/pr-finalize-loop/references/config-files.md",
         "skills/pr-review-handle/references/config-files.md",
-        "skills/replace-strategy/references/config-files.md"
+        "skills/replace-strategy/references/config-files.md",
+        "skills/writing-style/references/config-files.md"
       ],
       "reason": "設定ファイルの扱い（層・置き場所を選ぶ基準・解決の順序・書き込みの決まり・移行）。利用者がどのスキルの文書を読んでも、同じ置き場所と同じ決まりを読む"
     },
