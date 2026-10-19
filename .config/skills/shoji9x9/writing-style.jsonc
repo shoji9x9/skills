@@ -1,5 +1,5 @@
 {
-  // 対象のファイル・機械的なチェック・このリポジトリで決めた用語の扱いを書いた文書
+  // このリポジトリで規則を当てる対象と対象外、.kaizen/ の扱いを書いた文書
   "style_docs": ["docs/writing-style.md"],
   // .textlint/words.json から生成した一覧。エージェントがそのまま読める Markdown の表にしている
   "word_list": ".textlint/word-list.md",
