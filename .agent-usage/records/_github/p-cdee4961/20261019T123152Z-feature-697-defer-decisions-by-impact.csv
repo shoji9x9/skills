@@ -45,3 +45,6 @@ ci:39255876062:1,ci,2026-10-19T13:25:53.459Z,p-cdee4961,github-actions,,,,2026-1
 ci:39255876061:1,ci,2026-10-19T13:25:53.459Z,p-cdee4961,github-actions,,,,2026-10-19T12:55:37.000Z,2026-10-19T12:59:12.000Z,Asia/Tokyo,feature/697-defer-decisions-by-impact,697,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-10-18T12:53:22.372Z:2026-10-19T13:25:53.459Z,coverage,2026-10-19T13:25:53.459Z,p-cdee4961,,,,,2026-10-18T12:53:22.372Z,2026-10-19T13:25:53.459Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-18T13:25:53.459Z:2026-10-19T13:26:27.237Z,coverage,2026-10-19T13:26:27.237Z,p-cdee4961,,,,,2026-10-18T13:25:53.459Z,2026-10-19T13:26:27.237Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:39260490042:1,ci,2026-10-19T13:29:30.250Z,p-cdee4961,github-actions,,,,2026-10-19T13:28:43.000Z,2026-10-19T13:29:30.250Z,Asia/Tokyo,feature/697-defer-decisions-by-impact,697,,,,,,,,,,CI;pull_request;open,
+ci:39260489729:1,ci,2026-10-19T13:29:30.250Z,p-cdee4961,github-actions,,,,2026-10-19T13:28:43.000Z,2026-10-19T13:28:44.000Z,Asia/Tokyo,feature/697-defer-decisions-by-impact,697,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+coverage:github:2026-10-18T13:26:27.237Z:2026-10-19T13:29:30.250Z,coverage,2026-10-19T13:29:30.250Z,p-cdee4961,,,,,2026-10-18T13:26:27.237Z,2026-10-19T13:29:30.250Z,Asia/Tokyo,,,,,,,,,,,,ok,
