@@ -44,10 +44,46 @@ export function readHookInput(text) {
 }
 
 /** コマンドの前に来るシェルの予約語（`if x; then git commit; fi` の then など）。 */
-const SHELL_PREFIXES = ["if", "then", "elif", "else", "while", "until", "do", "{", "!", "time"];
+const SHELL_PREFIXES = ["if", "then", "elif", "else", "while", "until", "do", "{", "!"];
 
-/** 後ろのコマンドを実行するコマンド。値を取らないオプション（`-` で始まる語）だけを読み飛ばす。 */
-const COMMAND_WRAPPERS = ["env", "command", "exec", "nohup", "nice", "sudo", "xargs"];
+/**
+ * @typedef {object} CommandWrapper
+ * @property {readonly string[]} valueOptions 値を次の語に取るオプション。`--opt=value`・`-n5` の形は 1 語なので、ここに無くてよい
+ * @property {number} operands オプションの後に取る引数の数（`timeout 60` の 60）
+ */
+
+/**
+ * 後ろのコマンドを実行するコマンド（ラッパー）。`-` で始まる語と、valueOptions の値と、operands の数の引数を読み飛ばす。
+ * 一覧は、Claude Code が `if` の照合の前に取り除くもの（timeout・time・nice・nohup・stdbuf・command・builtin。
+ * https://code.claude.com/docs/en/permissions の Wrappers の節）に、sudo・env・xargs・exec を足したもの。
+ * 7 つだけにすると `sudo git commit` を見逃す。kaizen の kaizen-precommit-gate.sh も同じ一覧を持つ。
+ * @type {ReadonlyMap<string, CommandWrapper>}
+ */
+const COMMAND_WRAPPERS = new Map([
+  ["builtin", { valueOptions: [], operands: 0 }],
+  ["command", { valueOptions: [], operands: 0 }],
+  ["env", { valueOptions: ["-u", "--unset", "-C", "--chdir"], operands: 0 }],
+  ["exec", { valueOptions: ["-a"], operands: 0 }],
+  ["nice", { valueOptions: ["-n", "--adjustment"], operands: 0 }],
+  ["nohup", { valueOptions: [], operands: 0 }],
+  ["stdbuf", { valueOptions: ["-i", "-o", "-e", "--input", "--output", "--error"], operands: 0 }],
+  [
+    "sudo",
+    {
+      valueOptions: ["-u", "--user", "-g", "--group", "-C", "--close-from", "-D", "--chdir"],
+      operands: 0,
+    },
+  ],
+  ["time", { valueOptions: ["-f", "--format", "-o", "--output"], operands: 0 }],
+  ["timeout", { valueOptions: ["-s", "--signal", "-k", "--kill-after"], operands: 1 }],
+  [
+    "xargs",
+    {
+      valueOptions: ["-a", "--arg-file", "-d", "--delimiter", "-E", "-I", "-L", "-n", "-P", "-s"],
+      operands: 0,
+    },
+  ],
+]);
 
 /** 値を次の語に取る git のグローバルのオプション（`git --help` の OPTIONS）。`--opt=value` の形は 1 語なので、ここに無くてよい。 */
 const GIT_VALUE_OPTIONS = [
@@ -169,7 +205,7 @@ function substitutionAt(command, pos) {
  * `git`（パス付きを含む）の後にグローバルのオプション（値を取るものはその値も）だけを挟んで `commit` が来るかを見る。
  * 前に来るシェルの予約語（SHELL_PREFIXES）と、後ろのコマンドを実行するコマンド（COMMAND_WRAPPERS）は読み飛ばす。
  * 次の場所の git commit は検出しない: エイリアス、変数、`sh -c` の中、スクリプトの中。
- * 値を取るラッパーのオプション（`sudo -u x` など）の後も検出しない。
+ * COMMAND_WRAPPERS の valueOptions に無い、値を次の語に取るラッパーのオプション（`sudo -h <host>` など）の後も検出しない。
  * 引用符が閉じていないなど語に分けられないときは、`git` と `commit` の語を含むかで判定する（止めすぎの側に寄せる）。
  * @param {string} command
  * @returns {boolean}
@@ -197,9 +233,14 @@ function commitDirsOf(words) {
       i += 1;
       continue;
     }
-    if (i < words.length && COMMAND_WRAPPERS.includes(words[i])) {
+    const wrapper = i < words.length ? COMMAND_WRAPPERS.get(words[i]) : undefined;
+    if (wrapper !== undefined) {
       i += 1;
-      while (i < words.length && words[i].startsWith("-")) i += 1;
+      // `--`（オプションの終わり）も `-` で始まる語として読み飛ばす
+      while (i < words.length && words[i].startsWith("-")) {
+        i += wrapper.valueOptions.includes(words[i]) ? 2 : 1;
+      }
+      i += wrapper.operands;
       continue;
     }
     break;

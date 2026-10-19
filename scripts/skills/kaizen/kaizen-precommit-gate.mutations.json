@@ -331,6 +331,110 @@
         "Codex の token usage / review mode 補助レコード 補助レコードだけなら候補ゼロ",
         "Codex の token usage / review mode 補助レコード 補助レコードはツール失敗候補を隠さない"
       ]
+    },
+    {
+      "id": "GATE-WRAPPERS-OLD",
+      "why": "ラッパーの一覧を Issue #678 の前に戻す（timeout・stdbuf・builtin・exec の後ろの git commit を見逃す）",
+      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
+      "find": "wrappers='(sudo|env|command|builtin|exec|nohup|nice|time|timeout|stdbuf|xargs)'",
+      "replace": "wrappers='(sudo|env|command|nohup|nice|time|xargs)'",
+      "occurrences": 1,
+      "expect_failing": [
+        "チェックの commit 検出 timeout 60 git commit -m x => exit 2",
+        "チェックの commit 検出 timeout -s KILL 60 git commit -m x => exit 2",
+        "チェックの commit 検出 stdbuf -oL git commit -m x => exit 2",
+        "チェックの commit 検出 stdbuf -o L git commit -m x => exit 2",
+        "チェックの commit 検出 builtin git commit -m x => exit 2",
+        "チェックの commit 検出 exec git commit -m x => exit 2",
+        "チェックの commit 検出 timeout 60 /usr/bin/git commit -m x => exit 2",
+        "チェックの commit 検出 cd /tmp && stdbuf -oL git commit -m x => exit 2",
+        "コミット先のスコープ判定 プロジェクト宛て・判定不能: timeout 60 git -C {P} commit -m x => exit 2",
+        "生 JSON だけで判定するときの commit 検出 生 JSON: timeout 60 git commit -m x => exit 2",
+        "生 JSON だけで判定するときの commit 検出 生 JSON: cd /tmp && stdbuf -oL git commit -m x => exit 2",
+        "生 JSON だけで判定するときの commit 検出 生 JSON: exec git commit -m x => exit 2"
+      ]
+    },
+    {
+      "id": "GATE-GITBIN-NO-PATH",
+      "why": "パスを付けた git（/usr/bin/git commit）を git として読まない（Issue #678）",
+      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
+      "find": "gitbin='([^[:space:];&|(){}`\"'\"'\"']*/)?git'",
+      "replace": "gitbin='(NEVER-MATCH/)?git'",
+      "occurrences": 1,
+      "expect_failing": [
+        "チェックの commit 検出 /usr/bin/git commit -m x => exit 2",
+        "チェックの commit 検出 timeout 60 /usr/bin/git commit -m x => exit 2",
+        "チェックの commit 検出 /usr/bin/git -C {P} commit -m x => exit 2",
+        "コミット先のスコープ判定 プロジェクト宛て・判定不能: /usr/bin/git -C {P} commit -m x => exit 2",
+        "生 JSON だけで判定するときの commit 検出 生 JSON: /usr/bin/git commit -m x => exit 2"
+      ]
+    },
+    {
+      "id": "GATE-SCOPE-GIT-NO-PATH",
+      "why": "コミット先のスコープ判定で、パスを付けた git を読まない（外部宛ての /usr/bin/git -C <dir> commit を止める）",
+      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
+      "find": "local git_head_re='(^|[[:space:]]|[;&|(){`])'\"${gitbin}\"'[[:space:]]+(.*)$'",
+      "replace": "local git_head_re='(^|[[:space:]]|[;&|(){`])()git[[:space:]]+(.*)$'",
+      "occurrences": 1,
+      "expect_failing": ["コミット先のスコープ判定 外部宛て（パスを付けた git）=> exit 0"]
+    },
+    {
+      "id": "GATE-PREFILTER-WHOLE-INPUT",
+      "why": "事前の絞り込みで、入力の全体（cwd・transcript_path を含む）を見る（Issue #678）",
+      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
+      "find": "if hook_tool_text \"${input}\"; then",
+      "replace": "if false; then",
+      "occurrences": 1,
+      "expect_failing": [
+        "事前の絞り込みはツールの名前と入力だけを見る cwd だけに語がある: jq・python3・git を起動せずに通す",
+        "事前の絞り込みはツールの名前と入力だけを見る transcript_path だけに語がある: jq・python3・git を起動せずに通す",
+        "事前の絞り込みはツールの名前と入力だけを見る cwd と transcript_path の両方に語がある: jq・python3・git を起動せずに通す",
+        "事前の絞り込みはツールの名前と入力だけを見る Copilot の toolArgs（JSON の文字列）: jq・python3・git を起動せずに通す"
+      ]
+    },
+    {
+      "id": "GATE-PREFILTER-UNICODE-ESCAPE",
+      "why": "\\u を含む入力も絞り込みに使う（\\u で書いたキーの command を見つけられず、commit を通す）",
+      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
+      "find": "\t*'\\u'*) return 1 ;;",
+      "replace": "\t*'\\u'*) ;;",
+      "occurrences": 1,
+      "expect_failing": [
+        "事前の絞り込みはツールの名前と入力だけを見る \\u を含む入力は、入力の全体で判定する"
+      ]
+    },
+    {
+      "id": "GATE-PREFILTER-NO-KEYS",
+      "why": "対象のキーが 1 つも無い入力も、取り出せたとして絞り込みに使う",
+      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
+      "find": "\treturn \"${found}\"",
+      "replace": "\treturn 0",
+      "occurrences": 1,
+      "expect_failing": [
+        "事前の絞り込みはツールの名前と入力だけを見る 対象のキーが無い入力は、入力の全体で判定する"
+      ]
+    },
+    {
+      "id": "GATE-FIELDS-BEFORE-DETECTION",
+      "why": "session_id・cwd の取り出し（jq）を、commit の判定より前に行う（Issue #678）",
+      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
+      "find": "# jq で取り出せたか。transcript_path を python3 で読み直すかを、後で同じ条件で決める。",
+      "replace": "kaizen_hook_fields \"${input}\" >/dev/null\n# jq で取り出せたか。",
+      "occurrences": 1,
+      "expect_failing": [
+        "事前の絞り込みはツールの名前と入力だけを見る コマンドに語があれば次の段に進み、commit でなければ jq を 1 回だけ起動して通す"
+      ]
+    },
+    {
+      "id": "GATE-ROOT-BEFORE-DETECTION",
+      "why": "git rev-parse によるプロジェクトの直下の解決を、commit の判定より前に行う（Issue #678）",
+      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
+      "find": "# jq で取り出せたか。transcript_path を python3 で読み直すかを、後で同じ条件で決める。",
+      "replace": "kaizen_resolve_project_root \"\" >/dev/null\n# jq で取り出せたか。",
+      "occurrences": 1,
+      "expect_failing": [
+        "事前の絞り込みはツールの名前と入力だけを見る コマンドに語があれば次の段に進み、commit でなければ jq を 1 回だけ起動して通す"
+      ]
     }
   ]
 }

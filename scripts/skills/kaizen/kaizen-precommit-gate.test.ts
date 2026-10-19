@@ -1123,6 +1123,35 @@ describe.concurrent("チェックの commit 検出", () => {
     ['echo "$(printf %s \'case x in\')" "; git commit -m x"', 0],
     // `for .. in` は `case` を持たないので当たらない。
     ['echo "$(for i in 1 2; do echo $i; done)"', 0],
+    // Claude Code が `if` の照合の前に取り除くラッパー（timeout・time・nice・nohup・stdbuf・command・builtin）と
+    // exec・パスを付けた git（Issue #678）。ラッパーの種類 × 値を取るオプションと引数 × 連なり × パス付きの git。
+    ["timeout 60 git commit -m x", 2],
+    ["timeout -s KILL 60 git commit -m x", 2],
+    ["nice -n 5 git commit -m x", 2],
+    ["stdbuf -oL git commit -m x", 2],
+    ["stdbuf -o L git commit -m x", 2],
+    ["builtin git commit -m x", 2],
+    ["exec git commit -m x", 2],
+    ["nohup nice -n 5 timeout 60 git commit -m x", 2],
+    ["/usr/bin/git commit -m x", 2],
+    ["timeout 60 /usr/bin/git commit -m x", 2],
+    ["/usr/bin/git -C {P} commit -m x", 2],
+    ["cd /tmp && stdbuf -oL git commit -m x", 2],
+    ["sudo -u alice git commit -m x", 2],
+    // 同じラッパーとパスの形で、commit を実行しないもの（止めすぎの回帰）。
+    ["timeout 60 git commit-tree abc", 0],
+    ["timeout 60 git log --grep commit", 0],
+    ["echo timeout git commit", 0],
+    ["nice -n 5 git status", 0],
+    ["stdbuf -oL git log commit", 0],
+    ["builtin echo 'git commit'", 0],
+    ["echo exec git commit", 0],
+    ["exec git log commit", 0],
+    ["/usr/bin/git log commit", 0],
+    ["/usr/bin/gitk commit", 0],
+    ["echo /usr/bin/git commit", 0],
+    ["timeout 60 git commit-graph write", 0],
+    ["stdbuf -oL echo 'git commit'", 0],
   ];
 
   test.each(cases)("%s => exit %i", async (command, expected) => {
@@ -1188,6 +1217,18 @@ describe.concurrent("コミット先のスコープ判定", () => {
     expect((await runGate(command, { cwd })).status).toBe(0);
   });
 
+  // パスを付けた git とラッパーの後ろでも、コミット先を読む（Issue #678。下の blocked に同形の対がある）。
+  // テストの名前には、フィクスチャのパス（pid を含む）ではなく形の名前を入れる。
+  // ミューテーションテストの定義が、名前でこのテストを指すためである。
+  test.each([
+    ["パスを付けた git", `/usr/bin/git -C ${FIXTURE} commit -m x`],
+    ["timeout の後ろの git", `timeout 60 git -C ${FIXTURE} commit -m x`],
+  ])("外部宛て（%s）=> exit 0", async (_name, command) => {
+    const cwd = makeProject();
+    writeFileSync(join(cwd, ".kaizen", ".pending-extract"), "");
+    expect((await runGate(command, { cwd })).status).toBe(0);
+  });
+
   const blocked = [
     // コミット先を指定しない＝コマンド行からは決まらない（従来どおりブロック）。
     "git commit -m x",
@@ -1232,6 +1273,9 @@ describe.concurrent("コミット先のスコープ判定", () => {
     `git -c user.name=A*B -C ${FIXTURE} commit -m a && git commit -m b`,
     `git -c user.name=A?B -C ${FIXTURE} commit -m a && git commit -m b`,
     `git -c user.name=A[b]B -C ${FIXTURE} commit -m a && git commit -m b`,
+    // 上の external のパス付きの git・ラッパーの形と同形で、プロジェクトを指すもの。
+    "/usr/bin/git -C {P} commit -m x",
+    "timeout 60 git -C {P} commit -m x",
   ];
 
   test.each(blocked)("プロジェクト宛て・判定不能: %s => exit 2", async (command) => {
@@ -1378,6 +1422,15 @@ describe.concurrent("生 JSON だけで判定するときの commit 検出", () 
     ["cd /tmp && git --no-pager grep commit", 0],
     ["git --no-pager log commit", 0],
     ["git help commit", 0],
+    // ラッパーとパス付きの git（Issue #678）。構造化した入力を読む処理と同じ結論になること。
+    ["timeout 60 git commit -m x", 2],
+    ["cd /tmp && stdbuf -oL git commit -m x", 2],
+    ["exec git commit -m x", 2],
+    ["/usr/bin/git commit -m x", 2],
+    ["timeout 60 git log --grep commit", 0],
+    ["echo exec git commit", 0],
+    ["/usr/bin/gitk commit", 0],
+    ["nice -n 5 git status; echo commit", 0],
   ];
 
   test.each(cases)("生 JSON: %s => exit %i", async (command, expected) => {
@@ -1392,6 +1445,110 @@ describe.concurrent("生 JSON だけで判定するときの commit 検出", () 
       expect(result.stderr).not.toMatch(/unavailable|command not found/);
       expect(result.stderr).toContain("kaizen --current");
     }
+  });
+});
+
+// 事前の絞り込みは、Hook の入力のうちツールの名前と入力（`tool_name`・`tool_input`・Copilot の `toolArgs`）だけを見る（Issue #678）。
+// 入力の全体を見ると、パスに `git` と `commit` を含む worktree の中のセッションでは、`cwd`・`transcript_path` の語で
+// すべての呼び出しが次の段（jq / python3 / git rev-parse）に進む。終了コードはどちらも 0 なので、
+// jq・python3・git を、起動を記録してから実体を実行するスクリプトに差し替えて、起動したかで確かめる。
+describe.concurrent("事前の絞り込みはツールの名前と入力だけを見る", () => {
+  function makeTracingPath(trace: string) {
+    const dir = tempDir("kaizen-trace-");
+    for (const tool of ["jq", "python3", "git"]) {
+      const real = spawnSync("bash", ["-c", `command -v ${tool}`], {
+        timeout: CHILD_TIMEOUT_MS,
+        encoding: "utf8",
+      }).stdout.trim();
+      assert(real !== "", `${tool} が PATH に無い`);
+      writeFileSync(
+        join(dir, tool),
+        `#!/bin/sh\necho "${tool} $1" >>"${trace}"\nexec "${real}" "$@"\n`,
+      );
+      chmodSync(join(dir, tool), 0o755);
+    }
+    return dir;
+  }
+
+  async function runWithTrace(payload: string) {
+    const cwd = makeProject();
+    writeFileSync(join(cwd, ".kaizen", ".pending-extract"), "");
+    const trace = join(cwd, "trace");
+    const input = payload.replaceAll("{P}", cwd);
+    const result = await spawnAsync("bash", [join(scriptsDir, "kaizen-precommit-gate.sh")], {
+      timeout: CHILD_TIMEOUT_MS,
+      cwd,
+      input,
+      env: kaizenEnv(cwd, {
+        CLAUDE_PROJECT_DIR: cwd,
+        PATH: `${makeTracingPath(trace)}:${dirname(process.execPath)}:${process.env.PATH ?? ""}`,
+      }),
+    });
+    const lines = existsSync(trace) ? readFileSync(trace, "utf8").trim().split("\n") : [];
+    return { status: result.status, stderr: result.stderr, lines };
+  }
+
+  const wordyCwd = JSON.stringify("/home/u/repo/.claude/worktrees/git-commit-fix");
+  const wordyTranscript = JSON.stringify("/home/u/.claude/projects/git-commit/s.jsonl");
+
+  // 次の段に進まないもの。語は cwd か transcript_path の値にだけある。
+  const stopped: [string, string][] = [
+    [
+      "cwd だけに語がある",
+      `{"session_id":"s","cwd":${wordyCwd},"tool_name":"Bash","tool_input":{"command":"ls -la"}}`,
+    ],
+    [
+      "transcript_path だけに語がある",
+      `{"session_id":"s","transcript_path":${wordyTranscript},"tool_name":"Bash","tool_input":{"command":"ls -la"}}`,
+    ],
+    [
+      "cwd と transcript_path の両方に語がある",
+      `{"session_id":"s","transcript_path":${wordyTranscript},"cwd":${wordyCwd},"tool_name":"Bash","tool_input":{"command":"git status","description":"commit の前に確かめる"}}`,
+    ],
+    [
+      "Copilot の toolArgs（JSON の文字列）",
+      `{"cwd":${wordyCwd},"toolName":"bash","toolArgs":${JSON.stringify(JSON.stringify({ command: "ls -la" }))}}`,
+    ],
+  ];
+
+  test.each(stopped)("%s: jq・python3・git を起動せずに通す", async (_name, payload) => {
+    const { status, lines } = await runWithTrace(payload);
+    expect(status).toBe(0);
+    expect(lines).toEqual([]);
+  });
+
+  // 次の段に進むもの（上と同じ cwd・transcript_path を持つ）。
+  test("コマンドに語があれば次の段に進み、commit でなければ jq を 1 回だけ起動して通す", async () => {
+    const { status, lines } = await runWithTrace(
+      `{"session_id":"s","transcript_path":${wordyTranscript},"cwd":${wordyCwd},"tool_name":"Bash","tool_input":{"command":"git log --grep commit"}}`,
+    );
+    expect(status).toBe(0);
+    // transcript_path・session_id・cwd の取り出しと git rev-parse は、commit と判定した後に行う。
+    expect(lines).toEqual(["jq -r"]);
+  });
+
+  test("Copilot の toolArgs の中の git commit は、cwd に語があっても止める", async () => {
+    const { status, lines, stderr } = await runWithTrace(
+      `{"cwd":"{P}","toolName":"bash","toolArgs":${JSON.stringify(JSON.stringify({ command: "git commit -m x" }))}}`,
+    );
+    expect(status).toBe(2);
+    expect(stderr).toContain("kaizen --current");
+    expect(lines).toContain("jq -r");
+  });
+
+  // JSON はキーも `\u` で書ける。絞り込みはそのキーを見つけられないが、jq はコマンドとして読む。
+  test("\\u を含む入力は、入力の全体で判定する", async () => {
+    const { status, lines } = await runWithTrace(
+      `{"cwd":"{P}","tool_name":"Bash","tool_input":{"comm\\u0061nd":"git commit -m x"}}`,
+    );
+    expect(status).toBe(2);
+    expect(lines).toContain("jq -r");
+  });
+
+  test("対象のキーが無い入力は、入力の全体で判定する", async () => {
+    const { status, lines } = await runWithTrace(`{"cwd":${wordyCwd},"other":"x"}`);
+    expect(status).toBe(0);
+    expect(lines).toContain("jq -r");
   });
 });
 
