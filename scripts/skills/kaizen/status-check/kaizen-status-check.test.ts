@@ -686,5 +686,22 @@ test("コロンの後に空白が無い形と重なったキーを、1 回の実
   );
   expect(stderr).toContain("confidence needs a space after the colon");
   expect(stderr).toContain("confidence is declared 2 times");
+  expect(stderr).toContain("unknown confidence: bogus");
+  expect(exitCode).toBe(2);
+});
+
+test("重なったキーの前の不正な値も報告する", () => {
+  const { status: exitCode, stderr } = runCheck(
+    noteWithConfidence("confidence: bogus\nconfidence: high"),
+  );
+  expect(stderr).toContain("confidence is declared 2 times");
+  expect(stderr).toContain("unknown confidence: bogus");
+  expect(exitCode).toBe(2);
+});
+
+test("コロンの後に空白が無い不正な値は、空白と値の両方を報告する", () => {
+  const { status: exitCode, stderr } = runCheck(noteWithConfidence("confidence:bogus"));
+  expect(stderr).toContain("confidence needs a space after the colon");
+  expect(stderr).toContain("unknown confidence: bogus");
   expect(exitCode).toBe(2);
 });

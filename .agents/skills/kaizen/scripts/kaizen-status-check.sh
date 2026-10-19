@@ -62,8 +62,9 @@ frontmatter_state() {
 			# メッセージに出る値が書いた文字と見た目で対応するように、半角の `/` などの別の文字にはしない。
 			gsub(/\|/, "｜", status)
 			gsub(/\|/, "｜", type)
-			gsub(/\|/, "｜", confidence)
 			# confidence は、出てきた回数と、コロンの後に空白が無い形があったか（0 か 1）を別のフィールドで渡す。
+			if (conf_bad_seen) confidence = conf_bad
+			gsub(/\|/, "｜", confidence)
 			printf "%s|%s|%s|%s|%s|%s|%s|%s\n", status, present, nonempty, type, conf_count, conf_nospace, confidence, out
 		}
 		# ブロックシーケンスの 1 項目を flow 配列と同じ表記へ畳み込む。要素の分類にしか
@@ -76,7 +77,7 @@ frontmatter_state() {
 			if (item == "") return
 			applied_value = (applied_value == "" ? item : applied_value "," item)
 		}
-		BEGIN { fm = 0; present = 0; nonempty = 0; status = ""; type = ""; conf_count = 0; conf_nospace = 0; confidence = ""; in_applied = 0; applied_value = "" }
+		BEGIN { fm = 0; present = 0; nonempty = 0; status = ""; type = ""; conf_count = 0; conf_nospace = 0; conf_bad = ""; conf_bad_seen = 0; confidence = ""; in_applied = 0; applied_value = "" }
 		/^---[[:space:]]*$/ {
 			fm++
 			if (fm == 2) {
@@ -118,6 +119,11 @@ frontmatter_state() {
 			gsub(/^[[:space:]]+|[[:space:]]+$/, "", confidence)
 			# 落とすのは対になった引用符だけにする。片側だけの引用符（`"high`）は不正な値として止める。
 			if (confidence ~ /^".*"$/ || confidence ~ /^'"'"'.*'"'"'$/) confidence = substr(confidence, 2, length(confidence) - 2)
+			# キーが重なったときに前の不正な値を見逃さないよう、最初に見つけた不正な値を残す。
+			if (!conf_bad_seen && confidence != "high" && confidence != "medium" && confidence != "low") {
+				conf_bad = confidence
+				conf_bad_seen = 1
+			}
 			in_applied = 0
 			next
 		}
@@ -262,7 +268,9 @@ for note in .kaizen/*.md .kaizen/archive/*.md; do
 		if [ "${conf_count}" -gt 1 ]; then
 			echo "kaizen-status-check: ${note}: confidence is declared ${conf_count} times (declare it once)" >&2
 			errors=$((errors + 1))
-		elif [ "${conf_count}" = "1" ] && [ "${conf_nospace}" = "0" ]; then
+		fi
+		# 値は、重なりや空白の問題と並べて確かめる（読み取りは、最初の不正な値か、最後の値を渡す）。
+		if [ "${conf_count}" -ge 1 ]; then
 			case "${confidence}" in
 			high | medium | low) ;;
 			*)

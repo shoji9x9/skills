@@ -30,3 +30,6 @@ ci:39239427208:1,ci,2026-10-19T10:51:49.691Z,p-cdee4961,github-actions,,,,2026-1
 ci:39239427238:1,ci,2026-10-19T10:51:49.691Z,p-cdee4961,github-actions,,,,2026-10-19T10:43:00.000Z,2026-10-19T10:46:47.000Z,Asia/Tokyo,feature/701-kaizen-evidence-confidence,701,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-10-18T10:40:55.363Z:2026-10-19T10:51:49.691Z,coverage,2026-10-19T10:51:49.691Z,p-cdee4961,,,,,2026-10-18T10:40:55.363Z,2026-10-19T10:51:49.691Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-18T10:51:49.691Z:2026-10-19T10:52:28.324Z,coverage,2026-10-19T10:52:28.324Z,p-cdee4961,,,,,2026-10-18T10:51:49.691Z,2026-10-19T10:52:28.324Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:39240802899:1,ci,2026-10-19T11:04:57.343Z,p-cdee4961,github-actions,,,,2026-10-19T10:54:31.000Z,2026-10-19T10:54:32.000Z,Asia/Tokyo,feature/701-kaizen-evidence-confidence,701,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:39240802916:1,ci,2026-10-19T11:04:57.343Z,p-cdee4961,github-actions,,,,2026-10-19T10:54:31.000Z,2026-10-19T10:58:10.000Z,Asia/Tokyo,feature/701-kaizen-evidence-confidence,701,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-18T10:52:28.324Z:2026-10-19T11:04:57.343Z,coverage,2026-10-19T11:04:57.343Z,p-cdee4961,,,,,2026-10-18T10:52:28.324Z,2026-10-19T11:04:57.343Z,Asia/Tokyo,,,,,,,,,,,,ok,

@@ -23,7 +23,10 @@
         "confidence の値を拒否する: コメントだけの値",
         "confidence の値を拒否する: キーとコロンの間に空白がある不正な値",
         "confidence の値を拒否する: 引用符で囲んだキーの不正な値",
-        "confidence の値を拒否する: 単引用符で囲んだキーの不正な値"
+        "confidence の値を拒否する: 単引用符で囲んだキーの不正な値",
+        "重なったキーの前の不正な値も報告する",
+        "コロンの後に空白が無い不正な値は、空白と値の両方を報告する",
+        "コロンの後に空白が無い形と重なったキーを、1 回の実行でまとめて報告する"
       ]
     },
     {
@@ -77,7 +80,8 @@
       "occurrences": 1,
       "expect_failing": [
         "confidence の値を拒否する: 重なったキー（前の値が不正）",
-        "コロンの後に空白が無い形と重なったキーを、1 回の実行でまとめて報告する"
+        "コロンの後に空白が無い形と重なったキーを、1 回の実行でまとめて報告する",
+        "重なったキーの前の不正な値も報告する"
       ]
     },
     {
@@ -89,7 +93,8 @@
       "occurrences": 1,
       "expect_failing": [
         "confidence の値を拒否する: コロンの後に空白が無い値",
-        "コロンの後に空白が無い形と重なったキーを、1 回の実行でまとめて報告する"
+        "コロンの後に空白が無い形と重なったキーを、1 回の実行でまとめて報告する",
+        "コロンの後に空白が無い不正な値は、空白と値の両方を報告する"
       ]
     },
     {
@@ -139,6 +144,38 @@
       "replace": "/^(\"confidence\"|confidence)[[:space:]]*:/ {",
       "occurrences": 1,
       "expect_failing": ["confidence の値を拒否する: 単引用符で囲んだキーの不正な値"]
+    },
+    {
+      "id": "CONF-FIRST-BAD-DROPPED",
+      "why": "重なったキーで最初の不正な値を残さない（後の正しい値だけを確かめ、前の不正な値を見逃す）",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "\t\t\tif (conf_bad_seen) confidence = conf_bad",
+      "replace": "\t\t\tif (0) confidence = conf_bad",
+      "occurrences": 1,
+      "expect_failing": ["重なったキーの前の不正な値も報告する"]
+    },
+    {
+      "id": "CONF-VALUE-CHECK-SKIPPED",
+      "why": "confidence の値を確かめない（不正な値を通す）",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "\t\tif [ \"${conf_count}\" -ge 1 ]; then",
+      "replace": "\t\tif false; then",
+      "occurrences": 1,
+      "expect_failing": [
+        "confidence の値を拒否する: 未知の値",
+        "confidence の値を拒否する: 大文字",
+        "confidence の値を拒否する: 空の値",
+        "confidence の値を拒否する: 空白だけの値",
+        "confidence の値を拒否する: 片側だけの引用符",
+        "confidence の値を拒否する: 区切りの | を含む値",
+        "confidence の値を拒否する: コメントだけの値",
+        "confidence の値を拒否する: キーとコロンの間に空白がある不正な値",
+        "confidence の値を拒否する: 引用符で囲んだキーの不正な値",
+        "confidence の値を拒否する: 単引用符で囲んだキーの不正な値",
+        "重なったキーの前の不正な値も報告する",
+        "コロンの後に空白が無い不正な値は、空白と値の両方を報告する",
+        "コロンの後に空白が無い形と重なったキーを、1 回の実行でまとめて報告する"
+      ]
     }
   ]
 }
