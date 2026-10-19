@@ -625,6 +625,7 @@ test.each([
   ["行末のコメント", "confidence: medium # 1 回の観測"],
   ["キーとコロンの間の空白", "confidence : high"],
   ["引用符で囲んだキー", '"confidence": high'],
+  ["単引用符で囲んだキー", "'confidence': low"],
   ["欄が無い（欄を足す前のノート）", "kedb: none"],
 ])("confidence を受け付ける: %s", (_name, line) => {
   const { status: exitCode, stderr } = runCheck(noteWithConfidence(line));
@@ -643,6 +644,7 @@ test.each([
   ["キーとコロンの間に空白がある不正な値", "confidence : bogus", "unknown confidence: bogus"],
   ["コロンの後に空白が無い値", "confidence:high", "confidence needs a space after the colon"],
   ["引用符で囲んだキーの不正な値", '"confidence": bogus', "unknown confidence: bogus"],
+  ["単引用符で囲んだキーの不正な値", "'confidence': bogus", "unknown confidence: bogus"],
   [
     "重なったキー（前の値が不正）",
     "confidence: bogus\nconfidence: high",
@@ -654,7 +656,7 @@ test.each([
   expect(exitCode).toBe(2);
 });
 
-// status と type の値の `|` は、read のフィールドをずらすので `/` に置き換える（confidence と同じ）。
+// status と type の値の `|` は、read のフィールドをずらすので全角の `｜` に置き換える（confidence と同じ）。
 test("status の値の | で後ろのフィールドがずれない", () => {
   const { status: exitCode, stderr } = runCheck(note("pending|x", " []"));
   expect(stderr).toContain("unknown status: pending｜x");
@@ -676,4 +678,13 @@ test("本文に書いた confidence: は frontmatter として読まない", () 
   const { status: exitCode, stderr } = runCheck(content);
   expect(stderr).toBe("");
   expect(exitCode).toBe(0);
+});
+
+test("コロンの後に空白が無い形と重なったキーを、1 回の実行でまとめて報告する", () => {
+  const { status: exitCode, stderr } = runCheck(
+    noteWithConfidence("confidence:high\nconfidence: bogus"),
+  );
+  expect(stderr).toContain("confidence needs a space after the colon");
+  expect(stderr).toContain("confidence is declared 2 times");
+  expect(exitCode).toBe(2);
 });

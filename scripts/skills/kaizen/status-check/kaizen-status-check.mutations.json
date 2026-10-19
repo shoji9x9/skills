@@ -22,7 +22,8 @@
         "confidence の値を拒否する: 区切りの | を含む値",
         "confidence の値を拒否する: コメントだけの値",
         "confidence の値を拒否する: キーとコロンの間に空白がある不正な値",
-        "confidence の値を拒否する: 引用符で囲んだキーの不正な値"
+        "confidence の値を拒否する: 引用符で囲んだキーの不正な値",
+        "confidence の値を拒否する: 単引用符で囲んだキーの不正な値"
       ]
     },
     {
@@ -69,12 +70,15 @@
     },
     {
       "id": "CONF-DUPLICATE-ALLOWED",
-      "why": "重なった confidence のキーを止めない（前の不正な値を見逃す）",
+      "why": "confidence のキーの回数を数えない（重なったキーの前の不正な値を見逃す）",
       "file": "skills/kaizen/scripts/kaizen-status-check.sh",
-      "find": "\t[2-9] | [1-9][0-9]*)",
-      "replace": "\tnever-a-count)",
+      "find": "\t\t\tconf_count++",
+      "replace": "\t\t\tconf_count = 1",
       "occurrences": 1,
-      "expect_failing": ["confidence の値を拒否する: 重なったキー（前の値が不正）"]
+      "expect_failing": [
+        "confidence の値を拒否する: 重なったキー（前の値が不正）",
+        "コロンの後に空白が無い形と重なったキーを、1 回の実行でまとめて報告する"
+      ]
     },
     {
       "id": "CONF-NO-SPACE-ALLOWED",
@@ -83,7 +87,10 @@
       "find": "if (confidence ~ /^[^[:space:]]/) conf_nospace = 1",
       "replace": "if (0) conf_nospace = 1",
       "occurrences": 1,
-      "expect_failing": ["confidence の値を拒否する: コロンの後に空白が無い値"]
+      "expect_failing": [
+        "confidence の値を拒否する: コロンの後に空白が無い値",
+        "コロンの後に空白が無い形と重なったキーを、1 回の実行でまとめて報告する"
+      ]
     },
     {
       "id": "CONF-SPACED-KEY-IGNORED",
@@ -119,7 +126,19 @@
       "find": "/^(\"confidence\"|'\"'\"'confidence'\"'\"'|confidence)[[:space:]]*:/ {",
       "replace": "/^confidence[[:space:]]*:/ {",
       "occurrences": 1,
-      "expect_failing": ["confidence の値を拒否する: 引用符で囲んだキーの不正な値"]
+      "expect_failing": [
+        "confidence の値を拒否する: 引用符で囲んだキーの不正な値",
+        "confidence の値を拒否する: 単引用符で囲んだキーの不正な値"
+      ]
+    },
+    {
+      "id": "CONF-SINGLE-QUOTED-KEY-IGNORED",
+      "why": "単引用符で囲んだ confidence のキーを読まない",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "/^(\"confidence\"|'\"'\"'confidence'\"'\"'|confidence)[[:space:]]*:/ {",
+      "replace": "/^(\"confidence\"|confidence)[[:space:]]*:/ {",
+      "occurrences": 1,
+      "expect_failing": ["confidence の値を拒否する: 単引用符で囲んだキーの不正な値"]
     }
   ]
 }

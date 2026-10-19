@@ -63,9 +63,8 @@ frontmatter_state() {
 			gsub(/\|/, "｜", status)
 			gsub(/\|/, "｜", type)
 			gsub(/\|/, "｜", confidence)
-			# confidence の状態は、出てきた回数か、コロンの後に空白が無い形を表す `nospace` で渡す。
-			conf_state = (conf_nospace ? "nospace" : conf_count)
-			printf "%s|%s|%s|%s|%s|%s|%s\n", status, present, nonempty, type, conf_state, confidence, out
+			# confidence は、出てきた回数と、コロンの後に空白が無い形があったか（0 か 1）を別のフィールドで渡す。
+			printf "%s|%s|%s|%s|%s|%s|%s|%s\n", status, present, nonempty, type, conf_count, conf_nospace, confidence, out
 		}
 		# ブロックシーケンスの 1 項目を flow 配列と同じ表記へ畳み込む。要素の分類にしか
 		# 使わないので、flow 側と同じく内部の空白は落とす（値の復元には使わない）。
@@ -247,34 +246,32 @@ for note in .kaizen/*.md .kaizen/archive/*.md; do
 		continue
 	fi
 	# entries は最後の変数なので、要素に `|` が含まれても前のフィールドはずれない。
-	IFS='|' read -r status present nonempty type conf_present confidence entries <<<"${state}"
+	IFS='|' read -r status present nonempty type conf_count conf_nospace confidence entries <<<"${state}"
 
 	# confidence は欠けていても通す（欄を足す前に書いたノートには無い）。在るなら 1 回だけ、3 つの値だけを受け付ける。
-	case "${conf_present}" in
-	0) ;;
-	1)
-		case "${confidence}" in
-		high | medium | low) ;;
-		*)
-			echo "kaizen-status-check: ${note}: unknown confidence: ${confidence:-<empty>} (expected high, medium or low)" >&2
-			errors=$((errors + 1))
-			;;
-		esac
-		;;
-	nospace)
-		echo "kaizen-status-check: ${note}: confidence needs a space after the colon (confidence: <value>)" >&2
-		errors=$((errors + 1))
-		;;
-	[2-9] | [1-9][0-9]*)
-		echo "kaizen-status-check: ${note}: confidence is declared ${conf_present} times (declare it once)" >&2
-		errors=$((errors + 1))
-		;;
-	*)
+	# 当てはまる問題はまとめて報告し、直すたびに別の問題で止まり直さないようにする。
+	if ! [[ "${conf_count}" =~ ^[0-9]+$ && "${conf_nospace}" =~ ^[01]$ ]]; then
 		# 読み取りの出力の形が変わったときに、検査を飛ばして exit 0 にしない。
-		echo "kaizen-status-check: ${note}: could not read the confidence state: ${conf_present}" >&2
+		echo "kaizen-status-check: ${note}: could not read the confidence state: count=${conf_count} nospace=${conf_nospace}" >&2
 		errors=$((errors + 1))
-		;;
-	esac
+	else
+		if [ "${conf_nospace}" = "1" ]; then
+			echo "kaizen-status-check: ${note}: confidence needs a space after the colon (confidence: <value>)" >&2
+			errors=$((errors + 1))
+		fi
+		if [ "${conf_count}" -gt 1 ]; then
+			echo "kaizen-status-check: ${note}: confidence is declared ${conf_count} times (declare it once)" >&2
+			errors=$((errors + 1))
+		elif [ "${conf_count}" = "1" ] && [ "${conf_nospace}" = "0" ]; then
+			case "${confidence}" in
+			high | medium | low) ;;
+			*)
+				echo "kaizen-status-check: ${note}: unknown confidence: ${confidence:-<empty>} (expected high, medium or low)" >&2
+				errors=$((errors + 1))
+				;;
+			esac
+		fi
+	fi
 
 	# 折り返し検査の対象は、参照注入が実際に読む集合（archive を除く `.kaizen/*.md` のうち
 	# status: pending）に揃える。archive と applied / rejected / forgotten は注入されないので、
