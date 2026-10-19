@@ -968,6 +968,7 @@ if [ "${extracted}" -eq 1 ]; then
 	# 潰れており、プロジェクト内外の判定ができない。
 	scan=${cmd}
 	scan_masked=${cmd_masked}
+	scan_sep_glob=$'[;&|(){`\n]'
 	all_external=1
 	while [[ ${scan_masked} =~ ${commit_re} ]]; do
 		matched_masked=${BASH_REMATCH[0]}
@@ -976,11 +977,18 @@ if [ "${extracted}" -eq 1 ]; then
 		match_off=${#head_part}
 		match_len=${#matched_masked}
 		matched=${scan:${match_off}:${match_len}}
-		# 次は一致の終わりからではなく、一致の始まりの直後から探す。ラッパーの引数の置換の中
-		# （`timeout "$( git commit -m b)" git -C <外部> commit`）の commit は、外側の一致の中にあり、
-		# 終わりから探すと読まずに通す。始まりの直後から探せば、置換を開く `(`・`{`・`` ` `` の後ろの一致として判定する。
-		scan=${scan:$((match_off + 1))}
-		scan_masked=${scan_masked:$((match_off + 1))}
+		# 次は一致の終わりからではなく、一致の始まりより後ろにある最初の区切り（commit_re の区切りと同じ集合）から探す。
+		# ラッパーの引数の置換の中（`timeout "$( git commit -m b)" git -C <外部> commit`）の commit は、外側の一致の中にあり、
+		# 終わりから探すと読まずに通す。区切りから探せば、置換を開く `(`・`{`・`` ` `` の後ろの一致として判定する。
+		# 1 文字ずつずらさないのは、同じコマンドが語の途中から何度も一致し、そのたびにコミット先を判定するからである
+		# （`GIT_AUTHOR_NAME=a git -C <外部> commit` で 15 回。実測）。
+		rest_masked=${scan_masked:$((match_off + 1))}
+		# scan_sep_glob は glob のパターンとして照合するので引用しない
+		# shellcheck disable=SC2295
+		before_sep=${rest_masked%%${scan_sep_glob}*}
+		next_off=$((match_off + 1 + ${#before_sep}))
+		scan=${scan:${next_off}}
+		scan_masked=${scan_masked:${next_off}}
 		if ! commit_target_is_external "${matched}"; then
 			all_external=0
 			break

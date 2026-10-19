@@ -362,8 +362,8 @@
       "id": "GATE-SCAN-FROM-MATCH-END",
       "why": "一致を探し直す位置を、前の一致の終わりにする（外側の一致の中にある置換の中のプロジェクト宛ての commit を読まずに通す）",
       "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
-      "find": "\t\tscan=${scan:$((match_off + 1))}\n\t\tscan_masked=${scan_masked:$((match_off + 1))}\n",
-      "replace": "\t\tscan=${scan:$((match_off + match_len))}\n\t\tscan_masked=${scan_masked:$((match_off + match_len))}\n",
+      "find": "\t\tnext_off=$((match_off + 1 + ${#before_sep}))\n",
+      "replace": "\t\tnext_off=$((match_off + match_len))\n",
       "occurrences": 1,
       "expect_failing": [
         "コミット先のスコープ判定 ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（timeout と引用符の中の $(）=> exit 2",
@@ -372,6 +372,17 @@
         "コミット先のスコープ判定 ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（timeout と <(）=> exit 2",
         "コミット先のスコープ判定 ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（timeout と関数置換 ${ と空白）=> exit 2",
         "コミット先のスコープ判定 ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（timeout と関数置換 ${ とタブ）=> exit 2"
+      ]
+    },
+    {
+      "id": "GATE-SCAN-ONE-CHAR",
+      "why": "一致を探し直す位置を、次の区切りではなく 1 文字後ろにする（同じコマンドが語の途中から何度も一致し、そのたびにコミット先を判定する）",
+      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
+      "find": "\t\tnext_off=$((match_off + 1 + ${#before_sep}))\n",
+      "replace": "\t\tnext_off=$((match_off + 1))\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "事前の絞り込みはツールの名前と入力だけを見る 代入やパスを前に付けた外部宛ての commit も、コミット先を 1 回だけ判定する"
       ]
     },
     {
@@ -425,7 +436,8 @@
         "チェックの commit 検出 timeout 60 /usr/bin/git commit -m x => exit 2",
         "チェックの commit 検出 /usr/bin/git -C {P} commit -m x => exit 2",
         "コミット先のスコープ判定 プロジェクト宛て・判定不能: /usr/bin/git -C {P} commit -m x => exit 2",
-        "生 JSON だけで判定するときの commit 検出 生 JSON: /usr/bin/git commit -m x => exit 2"
+        "生 JSON だけで判定するときの commit 検出 生 JSON: /usr/bin/git commit -m x => exit 2",
+        "事前の絞り込みはツールの名前と入力だけを見る 代入やパスを前に付けた外部宛ての commit も、コミット先を 1 回だけ判定する"
       ]
     },
     {
@@ -435,7 +447,10 @@
       "find": "local git_head_re='(^|[[:space:]]|[;&|(){`])'\"${gitbin}\"'[[:space:]]+(.*)$'",
       "replace": "local git_head_re='(^|[[:space:]]|[;&|(){`])()git[[:space:]]+(.*)$'",
       "occurrences": 1,
-      "expect_failing": ["コミット先のスコープ判定 外部宛て（パスを付けた git）=> exit 0"]
+      "expect_failing": [
+        "コミット先のスコープ判定 外部宛て（パスを付けた git）=> exit 0",
+        "事前の絞り込みはツールの名前と入力だけを見る 代入やパスを前に付けた外部宛ての commit も、コミット先を 1 回だけ判定する"
+      ]
     },
     {
       "id": "GATE-PREFILTER-WHOLE-INPUT",

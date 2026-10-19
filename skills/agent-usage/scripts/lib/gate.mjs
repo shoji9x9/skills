@@ -66,7 +66,7 @@ const COMMAND_WRAPPERS = new Map([
   [
     "env",
     {
-      valueOptions: ["-u", "--unset", "-C", "--chdir"],
+      valueOptions: ["-u", "--unset", "-C", "--chdir", "-a", "--argv0"],
       operands: 0,
       chdirOptions: ["-C", "--chdir"],
     },
@@ -101,6 +101,10 @@ const COMMAND_WRAPPERS = new Map([
         "--chroot",
         "-h",
         "--host",
+        "-a",
+        "--auth-type",
+        "-c",
+        "--login-class",
       ],
       operands: 0,
       chdirOptions: ["-D", "--chdir"],

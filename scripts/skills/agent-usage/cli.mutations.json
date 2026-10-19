@@ -140,7 +140,10 @@
         "isGitCommit env -iC/o git commit → true",
         "isGitCommit env -iu HOME git commit → true",
         "isGitCommit sudo -Eu alice git commit → true",
-        "isGitCommit sudo -h host git commit → true"
+        "isGitCommit sudo -h host git commit → true",
+        "isGitCommit sudo -c class git commit → true",
+        "isGitCommit sudo -a type git commit → true",
+        "isGitCommit env -a name git commit → true"
       ]
     },
     {
@@ -171,7 +174,10 @@
         "isGitCommit sudo -Eu alice git commit → true",
         "isGitCommit env -iC git commit → false",
         "commitCwd env -iC /o git commit → /o",
-        "commitCwd sudo -ED /o git commit → /o"
+        "commitCwd sudo -ED /o git commit → /o",
+        "isGitCommit sudo -c class git commit → true",
+        "isGitCommit sudo -a type git commit → true",
+        "isGitCommit env -a name git commit → true"
       ]
     },
     {

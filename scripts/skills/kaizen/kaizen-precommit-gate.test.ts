@@ -1597,6 +1597,37 @@ describe.concurrent("事前の絞り込みはツールの名前と入力だけ�
     expect(lines).toEqual(["jq -r"]);
   });
 
+  // 外部宛ての commit は、一致ごとにコミット先を判定する（commit_target_is_external）。一致を探し直す位置を
+  // 1 文字ずつずらすと、代入やパスを前に付けた形が語の途中から何度も一致し、そのたびに判定する
+  // （Issue #678 の PR #716 で 15〜33 回。実測）。呼んだ回数は `bash -x` のトレースで数える。
+  test("代入やパスを前に付けた外部宛ての commit も、コミット先を 1 回だけ判定する", async () => {
+    const ext = tempDir("kaizen-gate-ext-");
+    spawnSync("git", ["init", "-q", ext], { timeout: CHILD_TIMEOUT_MS });
+    const judgeCalls = async (command: string) => {
+      const cwd = makeProject();
+      writeFileSync(join(cwd, ".kaizen", ".pending-extract"), "");
+      const result = await spawnAsync(
+        "bash",
+        ["-x", join(scriptsDir, "kaizen-precommit-gate.sh")],
+        {
+          timeout: CHILD_TIMEOUT_MS,
+          cwd,
+          input: JSON.stringify({ cwd, tool_name: "Bash", tool_input: { command } }),
+          env: kaizenEnv(cwd, { CLAUDE_PROJECT_DIR: cwd }),
+        },
+      );
+      expect(result.status, command).toBe(0);
+      return result.stderr
+        .split("\n")
+        .filter((line) => /^\++ commit_target_is_external /.test(line)).length;
+    };
+    expect(await judgeCalls(`git -C ${ext} commit -m x`)).toBe(1);
+    expect(
+      await judgeCalls(`GIT_AUTHOR_NAME=a GIT_COMMITTER_NAME=b git -C ${ext} commit -m x`),
+    ).toBe(1);
+    expect(await judgeCalls(`/home/u/.local/share/bin/git -C ${ext} commit -m x`)).toBe(1);
+  });
+
   test("Copilot の toolArgs の中の git commit は、cwd に語があっても止める", async () => {
     const { status, lines, stderr } = await runWithTrace(
       `{"cwd":"{P}","toolName":"bash","toolArgs":${JSON.stringify(JSON.stringify({ command: "git commit -m x" }))}}`,

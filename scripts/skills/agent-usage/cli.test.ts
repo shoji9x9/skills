@@ -120,6 +120,9 @@ describe("isGitCommit", () => {
     ["xargs --max-args 1 git commit", true],
     // 短いオプションをまとめた形（getopt と同じく、値を取る最初のオプションの後ろをその値として読む）
     ["sudo -h host git commit", true],
+    ["sudo -c class git commit", true],
+    ["sudo -a type git commit", true],
+    ["env -a name git commit", true],
     ["env -iC /o git commit", true],
     ["env -iC/o git commit", true],
     ["env -iu HOME git commit", true],
