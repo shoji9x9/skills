@@ -24,10 +24,11 @@ issue-batch の #701 で、`kaizen-status-check.sh` に `confidence:` の値を�
 
 ## 根拠
 
-1 つのセッションの観測で、原因（文法が許す形を挙げなかった）を 1 つに絞れたので medium。KEDB 照合で一致した学びは applied で、その提案（規約）があっても起きたので、再発は提案が正しい証拠にしない。
+1 つのセッションの観測で、原因（文法が許す形を挙げなかった）を 1 つに絞れたので medium。再現したのは指摘された入力での症状で、根本原因そのものは再現していないので high に当たらない。KEDB 照合で一致した学びは applied で、その提案（規約）があっても起きたので、再発は提案が正しい証拠にしない。
 ローカルレビューで 2 件、PR #713 の 1 回目の手元のレビューで 4 件、frontmatter の値の読み方を指摘された。どれも一時ディレクトリのノートに検査を当てて再現した。
 KEDB 照合: 「YAML」+「文法」で、applied の学び 2 件に一致した。
-`.kaizen/2026-10-08-embed-into-markup-enumerate-grammar.md` と `.kaizen/2026-09-21-check-written-to-fit-the-fixture.md` である。\napplied なので追記せず、この記録を新しく作った。
+`.kaizen/2026-10-08-embed-into-markup-enumerate-grammar.md` と `.kaizen/2026-09-21-check-written-to-fit-the-fixture.md` である。
+applied なので追記せず、この記録を新しく作った。
 
 ## 提案
 
