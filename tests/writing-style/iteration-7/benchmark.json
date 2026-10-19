@@ -1,0 +1,147 @@
+{
+  "metadata": {
+    "skill_name": "writing-style",
+    "skill_path": "skills/writing-style",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-19T04:47:12Z",
+    "evals_run": [1, 2, 3],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 24.989,
+        "tokens": 69683,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "1 の文で、「テストを」が割り込んだ句の動詞（「再実行する」）に係るように読めることを指摘している",
+          "passed": true,
+          "evidence": "「「テストを」と「直す」の間に「CI で再実行する前ではなく」が入っています」"
+        },
+        {
+          "text": "1 の直した文では、「テストを」の直後に本当の述語が来るか、文が分かれていて、割り込む句が無い",
+          "passed": true,
+          "evidence": "「テストが失敗したら、…原因を調べて直す」"
+        },
+        {
+          "text": "2 の文で、「残り」が何の残りか（件数か箇所か）が文の中に無いことを指摘している",
+          "passed": true,
+          "evidence": "「「適用の残り」だけでは、何の残りかが書かれていません」"
+        },
+        {
+          "text": "3 の直した文では、「危ない書き方」の後に括弧などで具体的な例（コマンドや構文）を挙げている",
+          "passed": true,
+          "evidence": "「（`eval`・クォートしない変数展開）」"
+        },
+        {
+          "text": "3 つとも、直した文が conventional commits の接頭辞（docs: / fix(kaizen): / feat:）を保っている",
+          "passed": true,
+          "evidence": "3 つとも接頭辞を保っている"
+        },
+        {
+          "text": "直した箇所ごとに、元の文・直した文・当たった規則か問いを並べて報告している",
+          "passed": true,
+          "evidence": "項目ごとに直した文と当たった問い・規則を挙げている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 23.04,
+        "tokens": 62327,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "読み直しの 3 つの問い（「〜を」の係り先・名詞句の指す対象・総称の例）をタイトルに当てた結果を述べている",
+          "passed": true,
+          "evidence": "3 つの問いの答えを並べている"
+        },
+        {
+          "text": "タイトルを書き直さず、直す箇所が無いと報告している",
+          "passed": true,
+          "evidence": "「直す必要はありません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 16.793,
+        "tokens": 95925,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "「修正する」を、プロジェクトの使わない語の一覧の言い換え先「直す」に書き換えている",
+          "passed": true,
+          "evidence": "「修正する → 直す」、docs/words.md"
+        },
+        {
+          "text": "スコープに、商品一覧画面を表す英語の kebab-case の名前（product-list など）を足している",
+          "passed": true,
+          "evidence": "「fix(product-list):」"
+        },
+        {
+          "text": "直した理由として、プロジェクトの規約（docs/style.md か docs/words.md）を挙げている",
+          "passed": true,
+          "evidence": "docs/style.md と docs/words.md を挙げている"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 21.6073,
+        "stddev": 4.2817,
+        "min": 16.793,
+        "max": 24.989
+      },
+      "tokens": {
+        "mean": 75978.3333,
+        "stddev": 17661.535,
+        "min": 62327,
+        "max": 95925
+      }
+    }
+  },
+  "notes": [
+    "PR #709 の 2 回目のレビューの指摘を直した後の実行。eval 1〜3 を with_skill だけ実行した（新しい eval 4 は iteration-8）。"
+  ]
+}

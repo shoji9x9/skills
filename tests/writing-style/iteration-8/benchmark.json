@@ -1,0 +1,119 @@
+{
+  "metadata": {
+    "skill_name": "writing-style",
+    "skill_path": "skills/writing-style",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-19T04:47:12Z",
+    "evals_run": [4],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 22.336,
+        "tokens": 88132,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定の lint_command（node tools/lint-docs.mjs）に notes/release-notes.txt を渡して実行したことを報告している",
+          "passed": true,
+          "evidence": "「node tools/lint-docs.mjs notes/release-notes.txt を実行しました」"
+        },
+        {
+          "text": "リンターの出力が 0 件で、notes/release-notes.txt はリンターでチェックしていないと報告している（OK を合格の根拠にしていない）",
+          "passed": true,
+          "evidence": "「指摘は 0 件ですが、チェックしたファイルも 0 件です。…リンターではチェックできていません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 24.45,
+        "tokens": 83356,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定の lint_command（node tools/lint-docs.mjs）に notes/release-notes.txt を渡して実行したことを報告している",
+          "passed": true,
+          "evidence": "「node tools/lint-docs.mjs notes/release-notes.txt を実行した結果は lint-docs: OK（0 件）」"
+        },
+        {
+          "text": "リンターの出力が 0 件で、notes/release-notes.txt はリンターでチェックしていないと報告している（OK を合格の根拠にしていない）",
+          "passed": true,
+          "evidence": "「「0 件」はチェックした件数がゼロという意味です。このファイルに問題がないことを示す結果ではありません」"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 22.336,
+        "stddev": 0,
+        "min": 22.336,
+        "max": 22.336
+      },
+      "tokens": {
+        "mean": 88132,
+        "stddev": 0,
+        "min": 88132,
+        "max": 88132
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 24.45,
+        "stddev": 0,
+        "min": 24.45,
+        "max": 24.45
+      },
+      "tokens": {
+        "mean": 83356,
+        "stddev": 0,
+        "min": 83356,
+        "max": 83356
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.00",
+      "time_seconds": "-2.1",
+      "tokens": "+4776"
+    }
+  },
+  "notes": [
+    "手順 5 の、リンターが渡したファイルをチェックしたかを確かめる取り決めを検査する eval 4 を、両方の config で実行した。without_skill も 0 件に気づくので、回帰の確認として置く。"
+  ]
+}

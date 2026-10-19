@@ -93,7 +93,7 @@ scripts/                リポジトリ内のツールとテスト（配布し�
 人が読む文章（Markdown・コードコメント・利用者に表示するメッセージ・人への応答）は、文章の規約に従って書く。
 要点は、行為者を主語にする・名詞を「の」で連ねない・否定と対比で演出しない・時間がたつと正しくなくなる記述を書かない・読み手が補わずに意味を取れるように書く、の 5 つである。
 差分をレビューするときは、差分の中の人が読む文章がこの規約に従うかも確かめる。
-規則の本文は配布スキル `writing-style` の `references/rules.md` に、このリポジトリ向けの拡張（対象と対象外・`.kaizen/` の扱い）は `docs/writing-style.md` にある。
+規則の本文は配布スキル `writing-style` の `references/rules.md` に、このリポジトリ向けの拡張（対象と対象外）は `docs/writing-style.md` にある。
 Claude Code はセッション開始時に両方を読み込み、Copilot のレビューは `.github/instructions/` の symlink から規則を読む。他のエージェントはこの 2 つのファイルを開いて従う。
 
 @skills/writing-style/references/rules.md
