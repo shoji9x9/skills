@@ -548,17 +548,18 @@ mask_quoted() { # $1: コマンド文字列
 # ラッパーの後ろは任意の語の連なりを読み飛ばすので、値を取るオプション（`timeout 60`・`nice -n 5`・`sudo -u x`）の値も読み飛ばす。
 # 引数に `git` と `commit` を書いただけのラッパー（`timeout 5 echo git commit`）も commit として扱う（止める側）。
 # ラッパーの後ろの語は、区切り（`;`・`&`・`|`・改行）を越えて読み飛ばさない。越えると、
-# `timeout 60 git -C <外部> commit -m a && git commit -m b` の 1 件目から 2 件目までが 1 つの一致になる。
-# コミット先の判定は 1 件目の `-C <外部>` だけを読み、2 件目のプロジェクト宛ての commit をチェックなしに通す（実測）。
-# 同じ理由で、コマンド置換とプロセス置換の始まり（`$(`・`` ` ``・`<(`）も越えない。
-# `{`・`}` は越える。外すと `xargs -I{} git commit -m {}` を検出しなくなる。
+# `timeout 60 git -C <外部> commit -m a && git commit -m b` の 1 件目から 2 件目までが 1 つの一致になり、
+# コミット先の判定は 1 件目の `-C <外部>` だけを読む。2 件目は、下の `scan` のループが区切りの後ろの別の一致として
+# 判定するので、越えても通しはしない。それでも越えないのは、1 つの一致を 1 つのコマンドに保つためである。
+# 置換（`$(`・`` ` ``・`<(`・`${ cmd; }`）は語の中に含めて読み飛ばす。引数そのものが置換の形
+# （`sudo -u "$(id -un)" git commit`）を見逃さないためである。置換の中の commit は、一致を探し直す位置を
+# 前の一致の始まりの直後にすることで、別の一致として判定する（下の `scan` のループ）。
 wrappers='(sudo|env|command|builtin|exec|nohup|nice|time|timeout|stdbuf|xargs)'
 assign='[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*'
-# bash 5.3 の関数置換（`${ cmd; }`）の始まりも越えない。`$` を語から外すと `timeout $T git commit` を見逃すので、
-# `$` は後ろに `{` か空白以外が続くとき、`${` は後ろに空白以外が続くとき（`${T}`）だけ語に含める。
+# bash 5.3 の関数置換（`${ cmd; }`）は中に `;` を持つので、閉じた形を 1 語として読む（`env ${ true; } git commit`）。
 # `$` は正規表現の文字として書いているので、展開しない（SC2016 は当たらない）。
 # shellcheck disable=SC2016
-wrapper_arg='([^[:space:];&|(`$]|\$[^[:space:];&|(`{]|\$\{[^[:space:];&|(`])+'
+wrapper_arg='(\$\{[[:blank:]][^{}]*\}|[^[:space:];&|])+'
 prefix="(${assign}[[:space:]]+)*(${wrappers}[[:blank:]]+(${wrapper_arg}[[:blank:]]+)*)*"
 # パスを付けた git（`/usr/bin/git`・`./git`）も git として扱う。パスには区切り文字・引用符・空白を含めない。
 gitbin='([^[:space:];&|(){}`"'"'"']*/)?git'
@@ -975,8 +976,11 @@ if [ "${extracted}" -eq 1 ]; then
 		match_off=${#head_part}
 		match_len=${#matched_masked}
 		matched=${scan:${match_off}:${match_len}}
-		scan=${scan:$((match_off + match_len))}
-		scan_masked=${scan_masked:$((match_off + match_len))}
+		# 次は一致の終わりからではなく、一致の始まりの直後から探す。ラッパーの引数の置換の中
+		# （`timeout "$( git commit -m b)" git -C <外部> commit`）の commit は、外側の一致の中にあり、
+		# 終わりから探すと読まずに通す。始まりの直後から探せば、置換を開く `(`・`{`・`` ` `` の後ろの一致として判定する。
+		scan=${scan:$((match_off + 1))}
+		scan_masked=${scan_masked:$((match_off + 1))}
 		if ! commit_target_is_external "${matched}"; then
 			all_external=0
 			break

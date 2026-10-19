@@ -1145,6 +1145,14 @@ describe.concurrent("チェックの commit 検出", () => {
     ["timeout $T git commit -m x", 2],
     ["timeout ${T} git commit -m x", 2],
     ["timeout $1 git commit -m x", 2],
+    // ラッパーの引数そのものが置換の形（引用符で囲んだもの・関数置換）でも、後ろの git commit を読む。
+    ['sudo -u "$(id -un)" git commit -m x', 2],
+    ['sudo -u "`id -un`" git commit -m x', 2],
+    ['env A="$(date)" git commit -m x', 2],
+    ['env "A=$(date)" git commit -m x', 2],
+    ['nice -n "$(echo 5)" git commit -m x', 2],
+    ['timeout "$(cat t)" git commit -m x', 2],
+    ["env ${ true; } git commit -m x", 2],
     // 同じラッパーとパスの形で、commit を実行しないもの（止めすぎの回帰）。
     ["timeout 60 git commit-tree abc", 0],
     ["timeout 60 git log --grep commit", 0],
@@ -1266,6 +1274,27 @@ describe.concurrent("コミット先のスコープ判定", () => {
       expect((await runGate(command, { cwd })).status).toBe(2);
     },
   );
+
+  // ラッパーの引数の置換の中にあるプロジェクト宛ての commit は、外側の一致の中にある。
+  // 一致を探し直す位置が外側の一致の終わりだと、外側の `-C <外部>` だけを読んで通す。
+  test.each([
+    ["timeout の引数の $( の中", `timeout "$( git commit -m b)" git -C ${FIXTURE} commit -m a`],
+    ["env の引数の関数置換の中", `env \${ git commit -m b; } git -C ${FIXTURE} commit -m a`],
+  ])("ラッパーの引数の置換の中のプロジェクト宛て（%s）=> exit 2", async (_name, command) => {
+    const cwd = makeProject();
+    writeFileSync(join(cwd, ".kaizen", ".pending-extract"), "");
+    expect((await runGate(command, { cwd })).status).toBe(2);
+  });
+
+  // 置換を引数に持つラッパーの後ろでも、外部宛てだけの commit は通す（止めすぎの回帰）。
+  test.each([
+    ["sudo -u と $(", `sudo -u "$(id -un)" git -C ${FIXTURE} commit -m x`],
+    ["timeout と関数置換", `timeout \${ echo 5; } git -C ${FIXTURE} commit -m x`],
+  ])("置換を引数に持つラッパーの後ろの外部宛て（%s）=> exit 0", async (_name, command) => {
+    const cwd = makeProject();
+    writeFileSync(join(cwd, ".kaizen", ".pending-extract"), "");
+    expect((await runGate(command, { cwd })).status).toBe(0);
+  });
 
   const blocked = [
     // コミット先を指定しない＝コマンド行からは決まらない（従来どおりブロック）。

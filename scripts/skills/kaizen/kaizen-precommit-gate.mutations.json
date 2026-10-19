@@ -354,21 +354,18 @@
         "生 JSON だけで判定するときの commit 検出 生 JSON: exec git commit -m x => exit 2",
         "チェックの commit 検出 timeout $1 git commit -m x => exit 2",
         "チェックの commit 検出 timeout $T git commit -m x => exit 2",
-        "チェックの commit 検出 timeout ${T} git commit -m x => exit 2"
+        "チェックの commit 検出 timeout ${T} git commit -m x => exit 2",
+        "チェックの commit 検出 timeout \"$(cat t)\" git commit -m x => exit 2"
       ]
     },
     {
-      "id": "GATE-WRAPPER-WORDS-CROSS-SEPARATOR",
-      "why": "ラッパーの後ろの語の読み飛ばしで区切り（; & | 改行）を越える（1 件目の外部宛ての後のプロジェクト宛ての commit を通す）",
+      "id": "GATE-SCAN-FROM-MATCH-END",
+      "why": "一致を探し直す位置を、前の一致の終わりにする（外側の一致の中にある置換の中のプロジェクト宛ての commit を読まずに通す）",
       "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
-      "find": "prefix=\"(${assign}[[:space:]]+)*(${wrappers}[[:blank:]]+(${wrapper_arg}[[:blank:]]+)*)*\"",
-      "replace": "prefix=\"(${assign}[[:space:]]+)*(${wrappers}[[:space:]]+([^[:space:]]+[[:space:]]+)*)*\"",
+      "find": "\t\tscan=${scan:$((match_off + 1))}\n\t\tscan_masked=${scan_masked:$((match_off + 1))}\n",
+      "replace": "\t\tscan=${scan:$((match_off + match_len))}\n\t\tscan_masked=${scan_masked:$((match_off + match_len))}\n",
       "occurrences": 1,
       "expect_failing": [
-        "コミット先のスコープ判定 ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（timeout と &&）=> exit 2",
-        "コミット先のスコープ判定 ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（nice と ;）=> exit 2",
-        "コミット先のスコープ判定 ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（sudo -u と ||）=> exit 2",
-        "コミット先のスコープ判定 ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（nice と改行）=> exit 2",
         "コミット先のスコープ判定 ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（timeout と引用符の中の $(）=> exit 2",
         "コミット先のスコープ判定 ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（timeout と引用符の無い $(）=> exit 2",
         "コミット先のスコープ判定 ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（stdbuf とバッククォート）=> exit 2",
@@ -378,44 +375,30 @@
       ]
     },
     {
-      "id": "GATE-WRAPPER-WORDS-CROSS-SUBSTITUTION",
-      "why": "ラッパーの後ろの語の読み飛ばしでコマンド置換・プロセス置換の始まり（$( ` <(）を越える（置換の中のプロジェクト宛ての commit を通す）",
+      "id": "GATE-WRAPPER-ARG-NO-FUNSUB",
+      "why": "閉じた関数置換（${ cmd; }）をラッパーの引数の 1 語として読まない（env ${ true; } git commit を見逃す）",
       "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
-      "find": "wrapper_arg='([^[:space:];&|(`$]|\\$[^[:space:];&|(`{]|\\$\\{[^[:space:];&|(`])+'",
+      "find": "wrapper_arg='(\\$\\{[[:blank:]][^{}]*\\}|[^[:space:];&|])+'",
       "replace": "wrapper_arg='[^[:space:];&|]+'",
       "occurrences": 1,
-      "expect_failing": [
-        "コミット先のスコープ判定 ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（timeout と引用符の中の $(）=> exit 2",
-        "コミット先のスコープ判定 ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（timeout と引用符の無い $(）=> exit 2",
-        "コミット先のスコープ判定 ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（stdbuf とバッククォート）=> exit 2",
-        "コミット先のスコープ判定 ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（timeout と <(）=> exit 2",
-        "コミット先のスコープ判定 ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（timeout と関数置換 ${ と空白）=> exit 2",
-        "コミット先のスコープ判定 ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（timeout と関数置換 ${ とタブ）=> exit 2"
-      ]
+      "expect_failing": ["チェックの commit 検出 env ${ true; } git commit -m x => exit 2"]
     },
     {
-      "id": "GATE-WRAPPER-WORDS-CROSS-FUNSUB",
-      "why": "ラッパーの後ろの語の読み飛ばしで、bash 5.3 の関数置換の始まり（${ と空白）を越える（置換の中のプロジェクト宛ての commit を通す）",
+      "id": "GATE-WRAPPER-ARG-NO-DOLLAR",
+      "why": "ラッパーの引数の語から $ を外す（timeout $T・sudo -u \"$(id -un)\" の後ろの git commit を見逃す）",
       "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
-      "find": "wrapper_arg='([^[:space:];&|(`$]|\\$[^[:space:];&|(`{]|\\$\\{[^[:space:];&|(`])+'",
-      "replace": "wrapper_arg='[^[:space:];&|(`]+'",
-      "occurrences": 1,
-      "expect_failing": [
-        "コミット先のスコープ判定 ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（timeout と関数置換 ${ と空白）=> exit 2",
-        "コミット先のスコープ判定 ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（timeout と関数置換 ${ とタブ）=> exit 2"
-      ]
-    },
-    {
-      "id": "GATE-WRAPPER-WORDS-NO-DOLLAR",
-      "why": "ラッパーの後ろの語から $ を外す（timeout $T git commit のような変数の展開を引数として読み飛ばさず、commit を見逃す）",
-      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
-      "find": "wrapper_arg='([^[:space:];&|(`$]|\\$[^[:space:];&|(`{]|\\$\\{[^[:space:];&|(`])+'",
-      "replace": "wrapper_arg='[^[:space:];&|(`$]+'",
+      "find": "wrapper_arg='(\\$\\{[[:blank:]][^{}]*\\}|[^[:space:];&|])+'",
+      "replace": "wrapper_arg='(\\$\\{[[:blank:]][^{}]*\\}|[^[:space:];&|$])+'",
       "occurrences": 1,
       "expect_failing": [
         "チェックの commit 検出 timeout $T git commit -m x => exit 2",
         "チェックの commit 検出 timeout ${T} git commit -m x => exit 2",
-        "チェックの commit 検出 timeout $1 git commit -m x => exit 2"
+        "チェックの commit 検出 timeout \"$(cat t)\" git commit -m x => exit 2",
+        "チェックの commit 検出 timeout $1 git commit -m x => exit 2",
+        "チェックの commit 検出 sudo -u \"$(id -un)\" git commit -m x => exit 2",
+        "チェックの commit 検出 env A=\"$(date)\" git commit -m x => exit 2",
+        "チェックの commit 検出 env \"A=$(date)\" git commit -m x => exit 2",
+        "チェックの commit 検出 nice -n \"$(echo 5)\" git commit -m x => exit 2"
       ]
     },
     {
