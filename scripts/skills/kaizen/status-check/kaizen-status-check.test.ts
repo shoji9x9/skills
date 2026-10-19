@@ -623,6 +623,7 @@ test.each([
   ["二重引用符で囲んだ値", 'confidence: "high"'],
   ["単引用符で囲んだ値", "confidence: 'low'"],
   ["行末のコメント", "confidence: medium # 1 回の観測"],
+  ["キーとコロンの間の空白", "confidence : high"],
   ["欄が無い（欄を足す前のノート）", "kedb: none"],
 ])("confidence を受け付ける: %s", (_name, line) => {
   const { status: exitCode, stderr } = runCheck(noteWithConfidence(line));
@@ -637,10 +638,36 @@ test.each([
   ["空白だけの値", "confidence:   ", "unknown confidence: <empty>"],
   ["片側だけの引用符", 'confidence: "high', 'unknown confidence: "high'],
   ["区切りの | を含む値", "confidence: low|high", "unknown confidence: low/high"],
+  ["コメントだけの値", "confidence: # 後で決める", "unknown confidence: <empty>"],
+  ["キーとコロンの間に空白がある不正な値", "confidence : bogus", "unknown confidence: bogus"],
+  [
+    "コロンの後に空白が無い値",
+    "confidence:high",
+    "unknown confidence: (no space after the colon) high",
+  ],
+  [
+    "重なったキー（前の値が不正）",
+    "confidence: bogus\nconfidence: high",
+    "confidence is declared 2 times",
+  ],
 ])("confidence の値を拒否する: %s", (_name, line, message) => {
   const { status: exitCode, stderr } = runCheck(noteWithConfidence(line));
   expect(stderr).toContain(message);
   expect(exitCode).toBe(2);
+});
+
+// status と type の値の `|` は、read のフィールドをずらすので `/` に置き換える（confidence と同じ）。
+test("status の値の | で後ろのフィールドがずれない", () => {
+  const { status: exitCode, stderr } = runCheck(note("pending|x", " []"));
+  expect(stderr).toContain("unknown status: pending/x");
+  expect(exitCode).toBe(2);
+});
+
+test("type の値の | で後ろのフィールドがずれない", () => {
+  const content = note("applied", ' ["docs/a.md"]').replace("type: doc", "type: hook|x");
+  const { status: exitCode, stderr } = runCheck(content);
+  expect(stderr).toBe("");
+  expect(exitCode).toBe(0);
 });
 
 test("本文に書いた confidence: は frontmatter として読まない", () => {

@@ -104,11 +104,15 @@ frontmatter_state() {
 		}
 		# confidence は任意の欄。この欄を足す前に書いたノートには無いので、在るときだけ値を検査する。
 		# YAML では引用符で囲んだ値も同じ値なので、前後の引用符は落とす。
-		/^confidence:/ {
-			conf_present = 1
+		# キーが重なると後の値だけが YAML の値になり、前の不正な値を見逃すので、出てきた回数を数える。
+		# コロンの後に空白が無い形（`confidence:high`）は YAML の mapping にならないので、不正な値として止める。
+		/^confidence[[:space:]]*:/ {
+			conf_present++
 			confidence = $0
-			sub(/^confidence:[[:space:]]*/, "", confidence)
-			sub(/[[:space:]]+#.*$/, "", confidence)
+			sub(/^confidence[[:space:]]*:/, "", confidence)
+			if (confidence ~ /^[^[:space:]]/) confidence = "(no space after the colon) " confidence
+			sub(/^[[:space:]]+/, "", confidence)
+			sub(/(^|[[:space:]]+)#.*$/, "", confidence)
 			gsub(/^[[:space:]]+|[[:space:]]+$/, "", confidence)
 			# 落とすのは対になった引用符だけにする。片側だけの引用符（`"high`）は不正な値として止める。
 			if (confidence ~ /^".*"$/ || confidence ~ /^'"'"'.*'"'"'$/) confidence = substr(confidence, 2, length(confidence) - 2)
@@ -243,7 +247,10 @@ for note in .kaizen/*.md .kaizen/archive/*.md; do
 	IFS='|' read -r status present nonempty type conf_present confidence entries <<<"${state}"
 
 	# confidence は欠けていても通す（欄を足す前のノートは書き換えない方針）。在るなら 3 つの値だけを受け付ける。
-	if [ "${conf_present}" = "1" ]; then
+	if [ "${conf_present}" -gt 1 ]; then
+		echo "kaizen-status-check: ${note}: confidence is declared ${conf_present} times (declare it once)" >&2
+		errors=$((errors + 1))
+	elif [ "${conf_present}" = "1" ]; then
 		case "${confidence}" in
 		high | medium | low) ;;
 		*)

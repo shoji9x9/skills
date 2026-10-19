@@ -19,7 +19,10 @@
         "confidence の値を拒否する: 空の値",
         "confidence の値を拒否する: 空白だけの値",
         "confidence の値を拒否する: 片側だけの引用符",
-        "confidence の値を拒否する: 区切りの | を含む値"
+        "confidence の値を拒否する: 区切りの | を含む値",
+        "confidence の値を拒否する: コメントだけの値",
+        "confidence の値を拒否する: コロンの後に空白が無い値",
+        "confidence の値を拒否する: キーとコロンの間に空白がある不正な値"
       ]
     },
     {
@@ -38,10 +41,13 @@
       "id": "CONF-COMMENT-KEPT",
       "why": "行末のコメントを落とさない（コメント付きの正しい値を未知の値として止める）",
       "file": "skills/kaizen/scripts/kaizen-status-check.sh",
-      "find": "\t\t\tsub(/[[:space:]]+#.*$/, \"\", confidence)",
+      "find": "\t\t\tsub(/(^|[[:space:]]+)#.*$/, \"\", confidence)",
       "replace": "\t\t\tconfidence = confidence",
       "occurrences": 1,
-      "expect_failing": ["confidence を受け付ける: 行末のコメント"]
+      "expect_failing": [
+        "confidence を受け付ける: 行末のコメント",
+        "confidence の値を拒否する: コメントだけの値"
+      ]
     },
     {
       "id": "CONF-PIPE-KEPT",
@@ -60,6 +66,51 @@
       "replace": "\t\t\tgsub(/^[\"'\"'\"']|[\"'\"'\"']$/, \"\", confidence)",
       "occurrences": 1,
       "expect_failing": ["confidence の値を拒否する: 片側だけの引用符"]
+    },
+    {
+      "id": "CONF-DUPLICATE-ALLOWED",
+      "why": "重なった confidence のキーを止めない（前の不正な値を見逃す）",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "if [ \"${conf_present}\" -gt 1 ]; then",
+      "replace": "if false; then",
+      "occurrences": 1,
+      "expect_failing": ["confidence の値を拒否する: 重なったキー（前の値が不正）"]
+    },
+    {
+      "id": "CONF-NO-SPACE-ALLOWED",
+      "why": "コロンの後に空白が無い形を止めない（YAML の mapping にならない値を通す）",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "if (confidence ~ /^[^[:space:]]/) confidence =",
+      "replace": "if (0) confidence =",
+      "occurrences": 1,
+      "expect_failing": ["confidence の値を拒否する: コロンの後に空白が無い値"]
+    },
+    {
+      "id": "CONF-SPACED-KEY-IGNORED",
+      "why": "キーとコロンの間の空白を許さない（`confidence : bogus` を検査しない）",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "/^confidence[[:space:]]*:/ {",
+      "replace": "/^confidence:/ {",
+      "occurrences": 1,
+      "expect_failing": ["confidence の値を拒否する: キーとコロンの間に空白がある不正な値"]
+    },
+    {
+      "id": "STATUS-PIPE-KEPT",
+      "why": "status の値の | を置き換えない（read のフィールドがずれる）",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "\t\t\tgsub(/\\|/, \"/\", status)",
+      "replace": "\t\t\tstatus = status",
+      "occurrences": 1,
+      "expect_failing": ["status の値の | で後ろのフィールドがずれない"]
+    },
+    {
+      "id": "TYPE-PIPE-KEPT",
+      "why": "type の値の | を置き換えない（read のフィールドがずれる）",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "\t\t\tgsub(/\\|/, \"/\", type)",
+      "replace": "\t\t\ttype = type",
+      "occurrences": 1,
+      "expect_failing": ["type の値の | で後ろのフィールドがずれない"]
     }
   ]
 }
