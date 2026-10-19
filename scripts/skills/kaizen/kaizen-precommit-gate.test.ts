@@ -464,7 +464,29 @@ describe.concurrent("Claude Code の queued_command の attachment", () => {
       queued('"commandMode":"prompt","origin":{"kind":"human"},"isMeta":true'),
       1,
     ],
+    [
+      "レコードの最上位の isMeta も候補にしない",
+      `{"type":"attachment","isMeta":true,"attachment":{"type":"queued_command","commandMode":"prompt","origin":{"kind":"human"},"prompt":"違う、やり直してください"}}`,
+      1,
+    ],
+    ["commandMode が無い注入した本文は読み飛ばす", queued('"isMeta":true'), 1],
     ["task-notification は候補にしない", queued('"commandMode":"task-notification"'), 1],
+    [
+      "知らない commandMode は判定不能",
+      queued('"commandMode":"bash","origin":{"kind":"human"}'),
+      2,
+    ],
+    ["commandMode が無い発話は判定不能", queued('"origin":{"kind":"human"}'), 2],
+    [
+      "知らない origin.kind は判定不能",
+      queued('"commandMode":"prompt","origin":{"kind":"remote"}'),
+      2,
+    ],
+    [
+      "origin がオブジェクトでないものは判定不能",
+      queued('"commandMode":"prompt","origin":"human"'),
+      2,
+    ],
   ])("%s", async (_label, record, expectedStatus) => {
     const cwd = makeProject();
     const transcript = join(cwd, "t.jsonl");
@@ -479,6 +501,23 @@ describe.concurrent("Claude Code の queued_command の attachment", () => {
 
     expect(scan.status).toBe(expectedStatus);
     if (expectedStatus === 0) expect(scan.stdout).toMatch(/^user correction: transcript line 2$/m);
+  });
+
+  // jq は最後の入力のエラーだけを終了コードに出すので、文字列の attachment を最後の行に置く。
+  // 型を確かめずに `.type` を参照すると、jq のエラーで走査全体が判定不能（exit 2）になる。
+  test("attachment がオブジェクトでないものは読み飛ばす（jq のエラーにしない）", async () => {
+    const cwd = makeProject();
+    const transcript = join(cwd, "t.jsonl");
+    writeFileSync(transcript, `${assistantWorking}\n{"type":"attachment","attachment":"x"}\n`);
+    const scan = await runScript(
+      "kaizen-candidate-scan.sh",
+      [transcript, join(cwd, "no-checkpoint")],
+      {
+        cwd,
+      },
+    );
+
+    expect(scan.status).toBe(1);
   });
 });
 

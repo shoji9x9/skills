@@ -218,14 +218,21 @@ if ! jq -Rr '
 	      $j.type == "inter_agent_communication_metadata") then "D", "R"
 	# エージェントが作業している間に利用者が送った発話は、`user` レコードにならず、`attachment` の
 	# `queued_command`（`commandMode: "prompt"`）として残る。これを読み飛ばすと、作業中に送った修正の指示が
-	# 候補から外れる。サブエージェントの報告（`origin.kind: "peer"`）と注入した本文（`isMeta`）は発話ではないので除く。
-	# `origin` が無い古い形は、発話として扱う（候補を取りこぼす側に寄せない）。
+	# 候補から外れる。値は閉じた集合で扱い、知らない値は判定できないとして扱う。
+	# 注入した本文（`isMeta`）と task-notification は発話ではないので読み飛ばす。
+	# `prompt` のうち、`origin.kind` が `human` のものと `origin` が無いものは発話として読み、
+	# サブエージェントの報告（`origin.kind: "peer"`）は読み飛ばす。
 	elif $j.type == "attachment" and ($j.attachment | type) == "object" and
-	     $j.attachment.type == "queued_command" and $j.attachment.commandMode == "prompt" then
+	     $j.attachment.type == "queued_command" then
 		"C", "R",
-		(if (($j.isMeta // false) == true or ($j.attachment.isMeta // false) == true or
-		     (($j.attachment.origin.kind? // "human") != "human")) then empty
-		 else (($j.attachment.prompt // "") | user_text | clean | select(length > 0) | "U\t" + .) end)
+		($j.attachment as $a |
+		 if (($j.isMeta // false) == true or ($a.isMeta // false) == true) then empty
+		 elif $a.commandMode == "task-notification" then empty
+		 elif $a.commandMode != "prompt" then "X"
+		 elif $a.origin == null or (($a.origin | type) == "object" and $a.origin.kind == "human") then
+			(($a.prompt // "") | user_text | clean | select(length > 0) | "U\t" + .)
+		 elif ($a.origin | type) == "object" and $a.origin.kind == "peer" then empty
+		 else "X" end)
 	elif ($j.type == "ai-title" or $j.type == "attachment" or $j.type == "file-history-delta" or
 	      $j.type == "file-history-snapshot" or $j.type == "last-prompt" or $j.type == "mode" or
 	      $j.type == "permission-mode" or $j.type == "pr-link" or $j.type == "queue-operation" or

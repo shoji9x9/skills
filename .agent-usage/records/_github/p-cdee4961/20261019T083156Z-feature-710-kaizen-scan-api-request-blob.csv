@@ -11,3 +11,6 @@ ci:39223993216:1,ci,2026-10-19T08:52:22.760Z,p-cdee4961,github-actions,,,,2026-1
 coverage:github:2026-10-18T08:33:20.678Z:2026-10-19T08:52:22.760Z,coverage,2026-10-19T08:52:22.760Z,p-cdee4961,,,,,2026-10-18T08:33:20.678Z,2026-10-19T08:52:22.760Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-18T08:52:22.760Z:2026-10-19T08:53:13.096Z,coverage,2026-10-19T08:53:13.096Z,p-cdee4961,,,,,2026-10-18T08:52:22.760Z,2026-10-19T08:53:13.096Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-18T08:53:13.096Z:2026-10-19T08:53:46.642Z,coverage,2026-10-19T08:53:46.642Z,p-cdee4961,,,,,2026-10-18T08:53:13.096Z,2026-10-19T08:53:46.642Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:39226296509:1,ci,2026-10-19T09:15:34.275Z,p-cdee4961,github-actions,,,,2026-10-19T08:55:57.000Z,2026-10-19T08:55:58.000Z,Asia/Tokyo,feature/710-kaizen-scan-api-request-blob,710,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:39226296513:1,ci,2026-10-19T09:15:34.275Z,p-cdee4961,github-actions,,,,2026-10-19T08:55:57.000Z,2026-10-19T08:59:24.000Z,Asia/Tokyo,feature/710-kaizen-scan-api-request-blob,710,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-18T08:53:46.642Z:2026-10-19T09:15:34.275Z,coverage,2026-10-19T09:15:34.275Z,p-cdee4961,,,,,2026-10-18T08:53:46.642Z,2026-10-19T09:15:34.275Z,Asia/Tokyo,,,,,,,,,,,,ok,
