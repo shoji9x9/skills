@@ -41,3 +41,8 @@ ci:39246503258:1,ci,2026-10-19T11:46:33.578Z,p-cdee4961,github-actions,,,,2026-1
 coverage:github:2026-10-18T11:44:08.213Z:2026-10-19T11:46:33.578Z,coverage,2026-10-19T11:46:33.578Z,p-cdee4961,,,,,2026-10-18T11:44:08.213Z,2026-10-19T11:46:33.578Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-18T11:46:33.578Z:2026-10-19T11:52:10.893Z,coverage,2026-10-19T11:52:10.893Z,p-cdee4961,,,,,2026-10-18T11:46:33.578Z,2026-10-19T11:52:10.893Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-18T11:52:10.893Z:2026-10-19T11:52:33.533Z,coverage,2026-10-19T11:52:33.533Z,p-cdee4961,,,,,2026-10-18T11:52:10.893Z,2026-10-19T11:52:33.533Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:39248054228:1,ci,2026-10-19T11:57:47.777Z,p-cdee4961,github-actions,,,,2026-10-19T11:54:38.000Z,2026-10-19T11:54:44.000Z,Asia/Tokyo,feature/689-carry-records-before-cleanup,689,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:39248054250:1,ci,2026-10-19T11:57:47.777Z,p-cdee4961,github-actions,,,,2026-10-19T11:54:38.000Z,2026-10-19T11:57:47.777Z,Asia/Tokyo,feature/689-carry-records-before-cleanup,689,,,,,,,,,,CI;pull_request;open,
+coverage:github:2026-10-18T11:52:33.533Z:2026-10-19T11:57:47.777Z,coverage,2026-10-19T11:57:47.777Z,p-cdee4961,,,,,2026-10-18T11:52:33.533Z,2026-10-19T11:57:47.777Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:39248054250:1,ci,2026-10-19T12:01:52.134Z,p-cdee4961,github-actions,,,,2026-10-19T11:54:38.000Z,2026-10-19T11:58:22.000Z,Asia/Tokyo,feature/689-carry-records-before-cleanup,689,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-18T11:57:47.777Z:2026-10-19T12:01:52.134Z,coverage,2026-10-19T12:01:52.134Z,p-cdee4961,,,,,2026-10-18T11:57:47.777Z,2026-10-19T12:01:52.134Z,Asia/Tokyo,,,,,,,,,,,,ok,
