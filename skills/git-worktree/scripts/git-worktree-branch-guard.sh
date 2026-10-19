@@ -35,6 +35,43 @@ case "${input}" in
 *) exit 0 ;;
 esac
 
+# Hook の入力のうち、ツールの名前と入力に当たる文字列の値だけを、改行でつないで hook_tool_text_out に入れる。
+# 対象のキーは `tool_name`・`toolName`・`tool_input`・`toolArgs`・`input`・`command` である。
+# 下の抽出（jq・python3）が判定に使う値（ツールの名前とコマンド）は、すべてこのキーの値か、その中にある。
+# EnterWorktree の `name`・`path` はツールの名前で判定するので、ここでは読まない。
+#
+# 生の JSON で `"command"` のように引用符で挟まれたキーは、文字列の値の中には現れない（値の中の `"` は `\"` になる）。
+# そのため、`cwd`・`transcript_path` の値に入った語（`.claude/worktrees/<name>` など）を、ツールの入力として読まない。
+# 取り出せないときは 1 を返し、呼び出し側に入力の全体で判定させる。
+# 取り出せないのは、対象のキーが 1 つも無いときと、`\u` を含むときである。JSON はキーも `\u` で書けるので、
+# `"command"` のようなキーをここでは見つけられないが、jq はそれをコマンドとして読む。
+# 外部のコマンドもサブシェルも起動しない（結果を変数で返すのはそのため）。
+hook_tool_text() { # $1: Hook の JSON
+	local rest="${1:-}" head found=1
+	local re='"(tool_name|toolName|tool_input|toolArgs|input|command)"[[:space:]]*:[[:space:]]*"(([^"\\]|\\.)*)"'
+	hook_tool_text_out=""
+	case "${rest}" in
+	*'\u'*) return 1 ;;
+	esac
+	while [[ ${rest} =~ ${re} ]]; do
+		hook_tool_text_out+="${BASH_REMATCH[2]}"$'\n'
+		found=0
+		# 一致した文字列が最初に現れる位置は、正規表現の一致の位置と同じである（同じ文字列は同じ式に一致する）。
+		head=${rest%%"${BASH_REMATCH[0]}"*}
+		rest=${rest:$((${#head} + ${#BASH_REMATCH[0]}))}
+	done
+	return "${found}"
+}
+
+# 入力の全体に語があっても、`cwd`・`transcript_path` の値にあるだけなら、jq / python3 を起動せずに終える。
+# パスにこの語を含む worktree の中のセッションでは、上の照合はすべての呼び出しで通るためである。
+if hook_tool_text "${input}"; then
+	case "${hook_tool_text_out}" in
+	*worktree* | *Worktree*) ;;
+	*) exit 0 ;;
+	esac
+fi
+
 # --- payload の取り出し ---------------------------------------------------------
 # tool 名とコマンド文字列を取る。Copilot 判定に使うので、どちらのキー名で取れたかを覚えておく。
 tool_name=""

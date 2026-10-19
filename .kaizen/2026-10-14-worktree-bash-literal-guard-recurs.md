@@ -164,3 +164,14 @@ python の quoted heredoc で置換スクリプトを渡した呼び出し、`ca
 kaizen のチェックが示した解消のコマンド（共有ツリー側の `kaizen-extract-done.sh` を `; echo` でつないだもの）と、`cd <worktree> &&` で始めた `git commit` も拒否された。
 前者は worktree の中のコピーを絶対パスで、後者は `git commit` を単独で実行して通した。
 どれも、Write ツールでスクリプトにして絶対パスで実行するか、`git` の操作を単独の呼び出しに分けて通した。
+
+### 再発の記録（#678）
+
+2026-10-19、issue-batch の #678 の作業で、単独の `git add` が 2 回拒否された（`names git more than once`）。
+引数のパス `scripts/skills/git-worktree` の語 `git` を、2 回目の git の起動として数えたためである。
+1 回目は `git commit` を同じレスポンスで並行して送っていたので、commit だけが実行され、記録の CSV 2 件だけの commit ができた。`--amend` は使えないので、コードの変更は別の commit に入れた。
+glob（`'scripts/skills/*-worktree/'`）に変えた 3 回目は、git が pathspec を解決できずに失敗した。`git add scripts/skills` とパスを広げて通した。
+`git add` と `git commit` は同じレスポンスで並行して送らず、`git add` の成功を確かめてから `git commit` を送る。
+同じ作業の PR #716 の反復 1 でも、`for` の変数を `sed -n "${n}p"` に渡して transcript を読む呼び出しが `sed with a program computed at runtime` で拒否された。
+この形は同じセッションで 2 回目である。python のスクリプトにして通した。
+反復 2 でも、scratchpad のパスを変数 `d` に入れて `bash $d/reply.sh` を `&&` でつないだ返信の呼び出しが `runs bash in a plain command` で拒否された。パスをそのまま書いた単独の呼び出しに分けて通した。
