@@ -550,9 +550,11 @@ mask_quoted() { # $1: コマンド文字列
 # ラッパーの後ろの語は、区切り（`;`・`&`・`|`・改行）を越えて読み飛ばさない。越えると、
 # `timeout 60 git -C <外部> commit -m a && git commit -m b` の 1 件目から 2 件目までが 1 つの一致になる。
 # コミット先の判定は 1 件目の `-C <外部>` だけを読み、2 件目のプロジェクト宛ての commit をチェックなしに通す（実測）。
+# 同じ理由で、コマンド置換とプロセス置換の始まり（`$(`・`` ` ``・`<(`）も越えない。
+# `{`・`}` は越える。外すと `xargs -I{} git commit -m {}` を検出しなくなる。
 wrappers='(sudo|env|command|builtin|exec|nohup|nice|time|timeout|stdbuf|xargs)'
 assign='[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*'
-prefix="(${assign}[[:space:]]+)*(${wrappers}[[:blank:]]+([^[:space:];&|]+[[:blank:]]+)*)*"
+prefix="(${assign}[[:space:]]+)*(${wrappers}[[:blank:]]+([^[:space:];&|(\`]+[[:blank:]]+)*)*"
 # パスを付けた git（`/usr/bin/git`・`./git`）も git として扱う。パスには区切り文字・引用符・空白を含めない。
 gitbin='([^[:space:];&|(){}`"'"'"']*/)?git'
 # `git` と `commit` の間に入る git のグローバルオプション（`git -C <path> commit`,

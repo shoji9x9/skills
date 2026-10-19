@@ -172,3 +172,5 @@ kaizen のチェックが示した解消のコマンド（共有ツリー側の 
 1 回目は `git commit` を同じレスポンスで並行して送っていたので、commit だけが実行され、記録の CSV 2 件だけの commit ができた。`--amend` は使えないので、コードの変更は別の commit に入れた。
 glob（`'scripts/skills/*-worktree/'`）に変えた 3 回目は、git が pathspec を解決できずに失敗した。`git add scripts/skills` とパスを広げて通した。
 `git add` と `git commit` は同じレスポンスで並行して送らず、`git add` の成功を確かめてから `git commit` を送る。
+同じ作業の PR #716 の反復 1 でも、`for` の変数を `sed -n "${n}p"` に渡して transcript を読む呼び出しが `sed with a program computed at runtime` で拒否された。
+この形は同じセッションで 2 回目である。python のスクリプトにして通した。

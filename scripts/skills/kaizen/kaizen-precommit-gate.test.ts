@@ -1138,6 +1138,9 @@ describe.concurrent("チェックの commit 検出", () => {
     ["/usr/bin/git -C {P} commit -m x", 2],
     ["cd /tmp && stdbuf -oL git commit -m x", 2],
     ["sudo -u alice git commit -m x", 2],
+    // 置換の始まり（`(`・バッククォート）は読み飛ばさないが、`{}` と置換の後ろの git は読む。
+    ["xargs -I{} git commit -m {}", 2],
+    ["timeout $(cat t) git commit -m x", 2],
     // 同じラッパーとパスの形で、commit を実行しないもの（止めすぎの回帰）。
     ["timeout 60 git commit-tree abc", 0],
     ["timeout 60 git log --grep commit", 0],
@@ -1231,13 +1234,18 @@ describe.concurrent("コミット先のスコープ判定", () => {
     expect((await runGate(command, { cwd })).status).toBe(0);
   });
 
-  // ラッパーの後ろの語の読み飛ばしは、区切りを越えない。越えると 1 件目の外部宛てだけを読み、
-  // 2 件目のプロジェクト宛ての commit を通す。
+  // ラッパーの後ろの語の読み飛ばしは、区切りとコマンド置換・プロセス置換の始まりを越えない。
+  // 越えると 1 件目の外部宛てだけを読み、2 件目のプロジェクト宛ての commit を通す。
   test.each([
     ["timeout と &&", `timeout 60 git -C ${FIXTURE} commit -m a && git commit -m b`],
     ["nice と ;", `nice git -C ${FIXTURE} commit -m a; git commit -m b`],
     ["sudo -u と ||", `sudo -u x git -C ${FIXTURE} commit -m a || git commit -m b`],
     ["nice と改行", `nice git -C ${FIXTURE} commit -m a\ngit commit -m b`],
+    ["timeout と引用符の中の $(", `timeout 60 git -C ${FIXTURE} commit -m "$( git commit -m b)"`],
+    ["timeout と引用符の無い $(", `timeout 60 git -C ${FIXTURE} commit -m $( git commit -m b)`],
+    // バッククォートの直後に空白が無い形（`` `git commit` ``）は、修正の前から別の一致で止まる。
+    ["stdbuf とバッククォート", `stdbuf -oL git -C ${FIXTURE} commit -m a\` git commit -m b\``],
+    ["timeout と <(", `timeout 60 git -C ${FIXTURE} commit -F <( git commit -m b)`],
   ])(
     "ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（%s）=> exit 2",
     async (_name, command) => {

@@ -358,14 +358,32 @@
       "id": "GATE-WRAPPER-WORDS-CROSS-SEPARATOR",
       "why": "ラッパーの後ろの語の読み飛ばしで区切り（; & | 改行）を越える（1 件目の外部宛ての後のプロジェクト宛ての commit を通す）",
       "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
-      "find": "prefix=\"(${assign}[[:space:]]+)*(${wrappers}[[:blank:]]+([^[:space:];&|]+[[:blank:]]+)*)*\"",
+      "find": "prefix=\"(${assign}[[:space:]]+)*(${wrappers}[[:blank:]]+([^[:space:];&|(\\`]+[[:blank:]]+)*)*\"",
       "replace": "prefix=\"(${assign}[[:space:]]+)*(${wrappers}[[:space:]]+([^[:space:]]+[[:space:]]+)*)*\"",
       "occurrences": 1,
       "expect_failing": [
         "コミット先のスコープ判定 ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（timeout と &&）=> exit 2",
         "コミット先のスコープ判定 ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（nice と ;）=> exit 2",
         "コミット先のスコープ判定 ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（sudo -u と ||）=> exit 2",
-        "コミット先のスコープ判定 ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（nice と改行）=> exit 2"
+        "コミット先のスコープ判定 ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（nice と改行）=> exit 2",
+        "コミット先のスコープ判定 ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（timeout と引用符の中の $(）=> exit 2",
+        "コミット先のスコープ判定 ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（timeout と引用符の無い $(）=> exit 2",
+        "コミット先のスコープ判定 ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（stdbuf とバッククォート）=> exit 2",
+        "コミット先のスコープ判定 ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（timeout と <(）=> exit 2"
+      ]
+    },
+    {
+      "id": "GATE-WRAPPER-WORDS-CROSS-SUBSTITUTION",
+      "why": "ラッパーの後ろの語の読み飛ばしでコマンド置換・プロセス置換の始まり（$( ` <(）を越える（置換の中のプロジェクト宛ての commit を通す）",
+      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
+      "find": "prefix=\"(${assign}[[:space:]]+)*(${wrappers}[[:blank:]]+([^[:space:];&|(\\`]+[[:blank:]]+)*)*\"",
+      "replace": "prefix=\"(${assign}[[:space:]]+)*(${wrappers}[[:blank:]]+([^[:space:];&|]+[[:blank:]]+)*)*\"",
+      "occurrences": 1,
+      "expect_failing": [
+        "コミット先のスコープ判定 ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（timeout と引用符の中の $(）=> exit 2",
+        "コミット先のスコープ判定 ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（timeout と引用符の無い $(）=> exit 2",
+        "コミット先のスコープ判定 ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（stdbuf とバッククォート）=> exit 2",
+        "コミット先のスコープ判定 ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（timeout と <(）=> exit 2"
       ]
     },
     {

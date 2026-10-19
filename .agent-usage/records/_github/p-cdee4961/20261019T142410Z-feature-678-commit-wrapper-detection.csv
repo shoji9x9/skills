@@ -49,3 +49,8 @@ coverage:github:2026-10-18T06:34:03.351Z:2026-10-19T14:24:10.488Z,coverage,2026-
 coverage:github:2026-10-18T14:24:10.488Z:2026-10-19T14:24:57.765Z,coverage,2026-10-19T14:24:57.765Z,p-cdee4961,,,,,2026-10-18T14:24:10.488Z,2026-10-19T14:24:57.765Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-18T14:24:57.765Z:2026-10-19T15:40:02.028Z,coverage,2026-10-19T15:40:02.028Z,p-cdee4961,,,,,2026-10-18T14:24:57.765Z,2026-10-19T15:40:02.028Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-18T15:40:02.028Z:2026-10-19T15:44:35.239Z,coverage,2026-10-19T15:44:35.239Z,p-cdee4961,,,,,2026-10-18T15:40:02.028Z,2026-10-19T15:44:35.239Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:39280602273:1,ci,2026-10-19T16:13:29.275Z,p-cdee4961,github-actions,,,,2026-10-19T15:47:18.000Z,2026-10-19T16:13:29.275Z,Asia/Tokyo,feature/678-commit-wrapper-detection,678,,,,,,,,,,CI;pull_request;open,
+ci:39280602226:1,ci,2026-10-19T16:13:29.275Z,p-cdee4961,github-actions,,,,2026-10-19T15:47:18.000Z,2026-10-19T16:09:44.000Z,Asia/Tokyo,feature/678-commit-wrapper-detection,678,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+coverage:github:2026-10-18T15:44:35.239Z:2026-10-19T16:13:29.275Z,coverage,2026-10-19T16:13:29.275Z,p-cdee4961,,,,,2026-10-18T15:44:35.239Z,2026-10-19T16:13:29.275Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:39280602273:1,ci,2026-10-19T16:14:43.789Z,p-cdee4961,github-actions,,,,2026-10-19T15:47:18.000Z,2026-10-19T16:14:04.000Z,Asia/Tokyo,feature/678-commit-wrapper-detection,678,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-18T16:13:29.275Z:2026-10-19T16:14:43.789Z,coverage,2026-10-19T16:14:43.789Z,p-cdee4961,,,,,2026-10-18T16:13:29.275Z,2026-10-19T16:14:43.789Z,Asia/Tokyo,,,,,,,,,,,,ok,
