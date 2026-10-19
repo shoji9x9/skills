@@ -58,11 +58,14 @@ frontmatter_state() {
 				out = (out == "" ? item : out "," item)
 			}
 			# 区切りの `|` を値に含むと、read が後ろのフィールドをずらす（`confidence: low|high` が
-			# low として通る）。最後の applied-to 以外の文字列の値では `|` を `/` に置き換える。
-			gsub(/\|/, "/", status)
-			gsub(/\|/, "/", type)
-			gsub(/\|/, "/", confidence)
-			printf "%s|%s|%s|%s|%s|%s|%s\n", status, present, nonempty, type, conf_present, confidence, out
+			# low として通る）。最後の applied-to 以外の文字列の値では `|` を全角の `｜` に置き換える。
+			# メッセージに出る値が書いた文字と見た目で対応するように、半角の `/` などの別の文字にはしない。
+			gsub(/\|/, "｜", status)
+			gsub(/\|/, "｜", type)
+			gsub(/\|/, "｜", confidence)
+			# confidence の状態は、出てきた回数か、コロンの後に空白が無い形を表す `nospace` で渡す。
+			conf_state = (conf_nospace ? "nospace" : conf_count)
+			printf "%s|%s|%s|%s|%s|%s|%s\n", status, present, nonempty, type, conf_state, confidence, out
 		}
 		# ブロックシーケンスの 1 項目を flow 配列と同じ表記へ畳み込む。要素の分類にしか
 		# 使わないので、flow 側と同じく内部の空白は落とす（値の復元には使わない）。
@@ -74,7 +77,7 @@ frontmatter_state() {
 			if (item == "") return
 			applied_value = (applied_value == "" ? item : applied_value "," item)
 		}
-		BEGIN { fm = 0; present = 0; nonempty = 0; status = ""; type = ""; conf_present = 0; confidence = ""; in_applied = 0; applied_value = "" }
+		BEGIN { fm = 0; present = 0; nonempty = 0; status = ""; type = ""; conf_count = 0; conf_nospace = 0; confidence = ""; in_applied = 0; applied_value = "" }
 		/^---[[:space:]]*$/ {
 			fm++
 			if (fm == 2) {
@@ -103,16 +106,16 @@ frontmatter_state() {
 			next
 		}
 		# confidence は任意の欄。この欄を足す前に書いたノートには無いので、在るときだけ値を検査する。
-		# YAML では引用符で囲んだ値も同じ値なので、前後の引用符は落とす。
-		# キーが重なると後の値だけが YAML の値になり、前の不正な値を見逃すので、出てきた回数を数える。
-		# コロンの後に空白が無い形（`confidence:high`）は YAML の mapping にならないので、不正な値として止める。
-		/^confidence[[:space:]]*:/ {
-			conf_present++
+		# YAML では引用符で囲んだキーと値も同じキーと値なので、キーの引用符を許し、値の前後の引用符は落とす。
+		# キーの重なりは YAML として正しくない（実装によってエラーになるか、どちらかの値を採る）ので、
+		# 出てきた回数を数えて止める。コロンの後に空白が無い形（`confidence:high`）は YAML の mapping に
+		# ならないので止める。
+		/^("confidence"|'"'"'confidence'"'"'|confidence)[[:space:]]*:/ {
+			conf_count++
 			confidence = $0
-			sub(/^confidence[[:space:]]*:/, "", confidence)
-			if (confidence ~ /^[^[:space:]]/) confidence = "(no space after the colon) " confidence
-			sub(/^[[:space:]]+/, "", confidence)
-			sub(/(^|[[:space:]]+)#.*$/, "", confidence)
+			sub(/^("confidence"|'"'"'confidence'"'"'|confidence)[[:space:]]*:/, "", confidence)
+			if (confidence ~ /^[^[:space:]]/) conf_nospace = 1
+			sub(/[[:space:]]+#.*$/, "", confidence)
 			gsub(/^[[:space:]]+|[[:space:]]+$/, "", confidence)
 			# 落とすのは対になった引用符だけにする。片側だけの引用符（`"high`）は不正な値として止める。
 			if (confidence ~ /^".*"$/ || confidence ~ /^'"'"'.*'"'"'$/) confidence = substr(confidence, 2, length(confidence) - 2)
@@ -246,11 +249,10 @@ for note in .kaizen/*.md .kaizen/archive/*.md; do
 	# entries は最後の変数なので、要素に `|` が含まれても前のフィールドはずれない。
 	IFS='|' read -r status present nonempty type conf_present confidence entries <<<"${state}"
 
-	# confidence は欠けていても通す（欄を足す前のノートは書き換えない方針）。在るなら 3 つの値だけを受け付ける。
-	if [ "${conf_present}" -gt 1 ]; then
-		echo "kaizen-status-check: ${note}: confidence is declared ${conf_present} times (declare it once)" >&2
-		errors=$((errors + 1))
-	elif [ "${conf_present}" = "1" ]; then
+	# confidence は欠けていても通す（欄を足す前に書いたノートには無い）。在るなら 1 回だけ、3 つの値だけを受け付ける。
+	case "${conf_present}" in
+	0) ;;
+	1)
 		case "${confidence}" in
 		high | medium | low) ;;
 		*)
@@ -258,7 +260,21 @@ for note in .kaizen/*.md .kaizen/archive/*.md; do
 			errors=$((errors + 1))
 			;;
 		esac
-	fi
+		;;
+	nospace)
+		echo "kaizen-status-check: ${note}: confidence needs a space after the colon (confidence: <value>)" >&2
+		errors=$((errors + 1))
+		;;
+	[2-9] | [1-9][0-9]*)
+		echo "kaizen-status-check: ${note}: confidence is declared ${conf_present} times (declare it once)" >&2
+		errors=$((errors + 1))
+		;;
+	*)
+		# 読み取りの出力の形が変わったときに、検査を飛ばして exit 0 にしない。
+		echo "kaizen-status-check: ${note}: could not read the confidence state: ${conf_present}" >&2
+		errors=$((errors + 1))
+		;;
+	esac
 
 	# 折り返し検査の対象は、参照注入が実際に読む集合（archive を除く `.kaizen/*.md` のうち
 	# status: pending）に揃える。archive と applied / rejected / forgotten は注入されないので、

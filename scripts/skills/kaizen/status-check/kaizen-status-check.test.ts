@@ -624,6 +624,7 @@ test.each([
   ["単引用符で囲んだ値", "confidence: 'low'"],
   ["行末のコメント", "confidence: medium # 1 回の観測"],
   ["キーとコロンの間の空白", "confidence : high"],
+  ["引用符で囲んだキー", '"confidence": high'],
   ["欄が無い（欄を足す前のノート）", "kedb: none"],
 ])("confidence を受け付ける: %s", (_name, line) => {
   const { status: exitCode, stderr } = runCheck(noteWithConfidence(line));
@@ -637,14 +638,11 @@ test.each([
   ["空の値", "confidence:", "unknown confidence: <empty>"],
   ["空白だけの値", "confidence:   ", "unknown confidence: <empty>"],
   ["片側だけの引用符", 'confidence: "high', 'unknown confidence: "high'],
-  ["区切りの | を含む値", "confidence: low|high", "unknown confidence: low/high"],
+  ["区切りの | を含む値", "confidence: low|high", "unknown confidence: low｜high"],
   ["コメントだけの値", "confidence: # 後で決める", "unknown confidence: <empty>"],
   ["キーとコロンの間に空白がある不正な値", "confidence : bogus", "unknown confidence: bogus"],
-  [
-    "コロンの後に空白が無い値",
-    "confidence:high",
-    "unknown confidence: (no space after the colon) high",
-  ],
+  ["コロンの後に空白が無い値", "confidence:high", "confidence needs a space after the colon"],
+  ["引用符で囲んだキーの不正な値", '"confidence": bogus', "unknown confidence: bogus"],
   [
     "重なったキー（前の値が不正）",
     "confidence: bogus\nconfidence: high",
@@ -659,7 +657,7 @@ test.each([
 // status と type の値の `|` は、read のフィールドをずらすので `/` に置き換える（confidence と同じ）。
 test("status の値の | で後ろのフィールドがずれない", () => {
   const { status: exitCode, stderr } = runCheck(note("pending|x", " []"));
-  expect(stderr).toContain("unknown status: pending/x");
+  expect(stderr).toContain("unknown status: pending｜x");
   expect(exitCode).toBe(2);
 });
 
