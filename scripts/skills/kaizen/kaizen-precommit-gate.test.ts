@@ -328,6 +328,106 @@ describe.concurrent("Claude Code の atis-latch 補助レコード", () => {
   });
 });
 
+// Claude Code の api-request-blob は、API に送ったメッセージのコピー（Issue #710）。
+// コピーの中の修正語で候補を出さないことと、コピーがあっても本物の発話の候補は残ることを、対で確かめる。
+// 知らない形（hash が無い・message がオブジェクトでない）は、これまでどおり判定できないとして扱う。
+// transcript は eval の fixture（candidate-scan）に置かず、ここで組み立てる。eval 15 などは
+// candidate-scan の JSONL をすべて入力にするので、ファイルを足すと eval の入力が変わる。
+describe.concurrent("Claude Code の api-request-blob レコード", () => {
+  const userTask = '{"type":"user","message":{"content":"ドキュメントの表を整えてください"}}';
+  const assistantDone =
+    '{"type":"assistant","message":{"content":[{"type":"text","text":"整えました"}]}}';
+  const userCorrection = '{"type":"user","message":{"content":"違う、やり直してください"}}';
+  const blob = (fields: string) =>
+    `{"type":"api-request-blob",${fields},"sessionId":"test-session"}`;
+  const blobWithCorrectionWord = blob(
+    '"hash":"0f3c","message":{"role":"user","content":[{"type":"text","text":"<system-reminder>違う形式の出力は使わず、やり直しの指示に従う</system-reminder>"}]}',
+  );
+  test.each([
+    [
+      "コピーの中の修正語だけなら候補ゼロ",
+      [
+        userTask,
+        blobWithCorrectionWord,
+        '{"type":"api-request","id":"r1","params":{},"sessionId":"test-session"}',
+        assistantDone,
+      ],
+      1,
+      null,
+    ],
+    [
+      "コピーは本物の発話の候補を隠さない",
+      [
+        assistantDone,
+        blob(
+          '"hash":"7a1e","message":{"role":"user","content":[{"type":"text","text":"違う、やり直してください"}]}',
+        ),
+        userCorrection,
+      ],
+      0,
+      /^user correction: transcript line 3$/m,
+    ],
+    [
+      "hash が無いコピーは判定不能",
+      [
+        userTask,
+        blob('"message":{"role":"user","content":[{"type":"text","text":"hash の無いコピー"}]}'),
+        assistantDone,
+      ],
+      2,
+      null,
+    ],
+    [
+      "hash が文字列でないコピーは判定不能",
+      [
+        userTask,
+        blob(
+          '"hash":0,"message":{"role":"user","content":[{"type":"text","text":"形の違うコピー"}]}',
+        ),
+        assistantDone,
+      ],
+      2,
+      null,
+    ],
+    [
+      "message が文字列のコピーは判定不能",
+      [userTask, blob('"hash":"9b2d","message":"コピーの形が違う"'), assistantDone],
+      2,
+      null,
+    ],
+  ])("%s", async (_label, records, expectedStatus, evidence) => {
+    const cwd = makeProject();
+    const transcript = join(cwd, "t.jsonl");
+    writeFileSync(transcript, `${records.join("\n")}\n`);
+    const scan = await runScript(
+      "kaizen-candidate-scan.sh",
+      [transcript, join(cwd, "no-checkpoint")],
+      {
+        cwd,
+      },
+    );
+
+    expect(scan.status).toBe(expectedStatus);
+    if (evidence) expect(scan.stdout).toMatch(evidence);
+    // コピーは 2 行目に置く。コピーの本文から候補を出していないことを、行番号で確かめる。
+    expect(scan.stdout).not.toMatch(/transcript line 2$/m);
+  });
+
+  test("他の未知の type で message を持つものは判定不能", async () => {
+    const cwd = makeProject();
+    const transcript = join(fixturesDir, "unknown-type-with-message.jsonl");
+    const scan = await runScript(
+      "kaizen-candidate-scan.sh",
+      [transcript, join(cwd, "no-checkpoint")],
+      {
+        cwd,
+      },
+    );
+
+    expect(scan.status).toBe(2);
+  });
+});
+
 // Claude Code はスキルの本文などを `type: "user"`・`isMeta: true` のレコードで注入する。
 // 本文の修正語で実在しない user correction を出さないことと、`isMeta` が無い・false の
 // 本物の発話は引き続き候補になることを、同じ修正語を持つ fixture の対で確かめる。

@@ -331,6 +331,41 @@
         "Codex の token usage / review mode 補助レコード 補助レコードだけなら候補ゼロ",
         "Codex の token usage / review mode 補助レコード 補助レコードはツール失敗候補を隠さない"
       ]
+    },
+    {
+      "id": "SCAN-CLAUDE-API-REQUEST-BLOB",
+      "why": "api-request-blob を既知のレコードとして扱わない（api-request-blob を書く Claude Code の transcript がすべて判定不能になる。Issue #710）",
+      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
+      "find": "$j.type == \"api-request-blob\" and",
+      "replace": "false and",
+      "occurrences": 1,
+      "expect_failing": [
+        "Claude Code の api-request-blob レコード コピーの中の修正語だけなら候補ゼロ",
+        "Claude Code の api-request-blob レコード コピーは本物の発話の候補を隠さない"
+      ]
+    },
+    {
+      "id": "SCAN-CLAUDE-API-REQUEST-BLOB-HASH",
+      "why": "api-request-blob の hash が文字列かを確かめない（知らない形のコピーを読み飛ばす）",
+      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
+      "find": "($j.hash | type) == \"string\" and",
+      "replace": "true and",
+      "occurrences": 1,
+      "expect_failing": [
+        "Claude Code の api-request-blob レコード hash が無いコピーは判定不能",
+        "Claude Code の api-request-blob レコード hash が文字列でないコピーは判定不能"
+      ]
+    },
+    {
+      "id": "SCAN-CLAUDE-API-REQUEST-BLOB-MESSAGE",
+      "why": "api-request-blob の message がオブジェクトかを確かめない（知らない形のコピーを読み飛ばす）",
+      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
+      "find": "($j.message | type) == \"object\" then \"R\"",
+      "replace": "true then \"R\"",
+      "occurrences": 1,
+      "expect_failing": [
+        "Claude Code の api-request-blob レコード message が文字列のコピーは判定不能"
+      ]
     }
   ]
 }

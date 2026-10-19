@@ -222,6 +222,12 @@ if ! jq -Rr '
 	      $j.type == "system" or $j.type == "agent-name" or $j.type == "started" or
 	      $j.type == "atis-latch") then "R"
 	elif $j.type == "result" and $j.agentId? != null and $j.key? != null and $j.result? != null then "R"
+	# Claude Code の `api-request-blob` は、API に送ったメッセージ（system・user・assistant）を hash ごとに
+	# 1 回だけ残すコピーである。user と assistant の本文は同じセッションの `user` / `assistant` のレコードと重なり、
+	# 重ならない分はシステムが注入した本文（`<system-reminder>` など）なので、候補の判定には使わない。
+	# コピーを読むと、注入した本文の修正語を拾ったり同じ発話を二重に数えたりして、実在しない候補が出る。
+	# hash が文字列でないものと message がオブジェクトでないものは、知らない形なので下の判定に残す。
+	elif $j.type == "api-request-blob" and ($j.hash | type) == "string" and ($j.message | type) == "object" then "R"
 	# 未知の `type` は、名前ではなく**構造**で区別する。会話を運ぶ入れ物（`message` / `payload` /
 	# `content`）を持たないレコードは候補の判定に関係しないので読み飛ばし、持つものだけ、これまでどおり
 	# 判定できないとして扱う。型名を 1 つずつ許可する形にすると、エージェントが内部レコードを 1 種類
