@@ -1141,6 +1141,10 @@ describe.concurrent("チェックの commit 検出", () => {
     // 置換の始まり（`(`・バッククォート）は読み飛ばさないが、`{}` と置換の後ろの git は読む。
     ["xargs -I{} git commit -m {}", 2],
     ["timeout $(cat t) git commit -m x", 2],
+    // 変数の展開（`$T`・`${T}`・`$1`）は、関数置換と違ってラッパーの引数として読み飛ばす。
+    ["timeout $T git commit -m x", 2],
+    ["timeout ${T} git commit -m x", 2],
+    ["timeout $1 git commit -m x", 2],
     // 同じラッパーとパスの形で、commit を実行しないもの（止めすぎの回帰）。
     ["timeout 60 git commit-tree abc", 0],
     ["timeout 60 git log --grep commit", 0],
@@ -1246,6 +1250,14 @@ describe.concurrent("コミット先のスコープ判定", () => {
     // バッククォートの直後に空白が無い形（`` `git commit` ``）は、修正の前から別の一致で止まる。
     ["stdbuf とバッククォート", `stdbuf -oL git -C ${FIXTURE} commit -m a\` git commit -m b\``],
     ["timeout と <(", `timeout 60 git -C ${FIXTURE} commit -F <( git commit -m b)`],
+    [
+      "timeout と関数置換 ${ と空白",
+      `timeout 60 git -C ${FIXTURE} commit -m \${ git commit -m b; }`,
+    ],
+    [
+      "timeout と関数置換 ${ とタブ",
+      `timeout 60 git -C ${FIXTURE} commit -m \${\tgit commit -m b; }`,
+    ],
   ])(
     "ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（%s）=> exit 2",
     async (_name, command) => {

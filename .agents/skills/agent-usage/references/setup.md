@@ -61,6 +61,8 @@ GitHub は `linguist-generated` の付いたファイルを、PR の差分で最
   ドキュメントによると、照合は前方一致なので、パスを付けた git（`/usr/bin/git commit`）と、照合の前に取り除かれないコマンドの後ろの git（`env A=1 git commit`・`sudo git commit`・`exec git commit`）にも当たらない。
   取り除かれるのは `timeout`・`time`・`nice`・`nohup`・`stdbuf`・`command`・`builtin` で、この後ろの git には当たる（[Claude Code permissions](https://code.claude.com/docs/en/permissions) の Wrappers の節）。
   スクリプトは、この 7 つと `sudo`・`env`・`xargs`・`exec` を、値を取るオプションと引数（`timeout 60`・`nice -n 5`・`sudo -u <user>`）ごと読み飛ばし、後ろの `git commit` をコミットと判定する。
+  短いオプションをまとめた形（`env -iC <dir>`・`sudo -Eu <user>`）も、getopt と同じく、値を取る最初のオプションの後ろをその値として読む。
+  スクリプトが値を取ると知らないオプション（ラッパーごとに一覧を持つ）の値は、後ろのコマンドとして読むので、その後ろの `git commit` をコミットと判定しない。
   `if` に当たらないコミットではスクリプトが起動しないので、その時点の記録は作られず、判断の無いブランチでも確認を求めない。記録は、次にスクリプトが起動したコミットの collect がまとめて作る。ブランチの最後のコミットがこの形だと、その分の記録は PR に入らない。
   `if` を外すとこれらも検出できるが、スクリプトは heredoc の本文を読み飛ばさないので、git を実行しない heredoc（`cat > f <<'EOF'` の本文の行頭の `git commit`）もコミットと判定し、判断の無いブランチで止めるか、コミットしない呼び出しで記録を stage する。
   `if` を付けると、Claude Code がコマンドを解析できる呼び出しでは、この誤検知は git のサブコマンドを含む呼び出しに限られる（`git add f && cat > g <<'EOF'` の本文に `git commit` があれば、まだ誤検知する）。そのため `if` を付ける。

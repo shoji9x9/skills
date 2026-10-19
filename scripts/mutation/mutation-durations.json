@@ -37,6 +37,7 @@
     "scripts/lib/testing/test-tmpdir.mutations.json": 0.6,
     "scripts/lib/testing/vitest-git-env-setup.mutations.json": 0.9,
     "scripts/mutation/check-mutation-proof.mutations.json": 7.0,
+    "scripts/skills/_cross/commit-wrapper-list-sync.mutations.json": 0.6,
     "scripts/skills/_cross/skill-script-cli-entry.mutations.json": 2.9,
     "scripts/skills/_cross/vendored-tool-standalone.mutations.json": 0.6,
     "scripts/skills/git-worktree/git-worktree-branch-guard.mutations.json": 2.1,

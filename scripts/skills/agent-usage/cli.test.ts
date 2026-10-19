@@ -118,7 +118,14 @@ describe("isGitCommit", () => {
     ["sudo -p pw: git commit", true],
     ["sudo -r role -t type git commit", true],
     ["xargs --max-args 1 git commit", true],
+    // 短いオプションをまとめた形（getopt と同じく、値を取る最初のオプションの後ろをその値として読む）
+    ["sudo -h host git commit", true],
+    ["env -iC /o git commit", true],
+    ["env -iC/o git commit", true],
+    ["env -iu HOME git commit", true],
+    ["sudo -Eu alice git commit", true],
     // 同じラッパーと値の形で、commit を実行しないもの
+    ["env -iC git commit", false],
     ["timeout 60 git commit-tree abc", false],
     ["timeout 60 git log --grep commit", false],
     ["echo timeout git commit", false],
@@ -167,6 +174,9 @@ describe("commitCwd", () => {
     ["env -Csub git commit", "/w/sub"],
     ["sudo -D /o git commit", "/o"],
     ["sudo --chdir /o git -C x commit", "/o/x"],
+    ["env -iC /o git commit", "/o"],
+    ["env -iCsub git commit", "/w/sub"],
+    ["sudo -ED /o git commit", "/o"],
     // sudo の -C は作業ディレクトリではない（close-from）
     ["sudo -C 3 git commit", "/w"],
     ["env -u HOME git commit", "/w"],

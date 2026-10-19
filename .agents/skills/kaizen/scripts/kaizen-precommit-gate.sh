@@ -554,7 +554,12 @@ mask_quoted() { # $1: コマンド文字列
 # `{`・`}` は越える。外すと `xargs -I{} git commit -m {}` を検出しなくなる。
 wrappers='(sudo|env|command|builtin|exec|nohup|nice|time|timeout|stdbuf|xargs)'
 assign='[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*'
-prefix="(${assign}[[:space:]]+)*(${wrappers}[[:blank:]]+([^[:space:];&|(\`]+[[:blank:]]+)*)*"
+# bash 5.3 の関数置換（`${ cmd; }`）の始まりも越えない。`$` を語から外すと `timeout $T git commit` を見逃すので、
+# `$` は後ろに `{` か空白以外が続くとき、`${` は後ろに空白以外が続くとき（`${T}`）だけ語に含める。
+# `$` は正規表現の文字として書いているので、展開しない（SC2016 は当たらない）。
+# shellcheck disable=SC2016
+wrapper_arg='([^[:space:];&|(`$]|\$[^[:space:];&|(`{]|\$\{[^[:space:];&|(`])+'
+prefix="(${assign}[[:space:]]+)*(${wrappers}[[:blank:]]+(${wrapper_arg}[[:blank:]]+)*)*"
 # パスを付けた git（`/usr/bin/git`・`./git`）も git として扱う。パスには区切り文字・引用符・空白を含めない。
 gitbin='([^[:space:];&|(){}`"'"'"']*/)?git'
 # `git` と `commit` の間に入る git のグローバルオプション（`git -C <path> commit`,

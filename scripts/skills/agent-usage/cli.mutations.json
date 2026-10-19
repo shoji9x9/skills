@@ -132,14 +132,22 @@
         "commitCwd env --chdir=sub git -C x commit → /w/sub/x",
         "commitCwd env -Csub git commit → /w/sub",
         "commitCwd sudo -D /o git commit → /o",
-        "commitCwd sudo --chdir /o git -C x commit → /o/x"
+        "commitCwd sudo --chdir /o git -C x commit → /o/x",
+        "commitCwd env -iC /o git commit → /o",
+        "commitCwd env -iCsub git commit → /w/sub",
+        "commitCwd sudo -ED /o git commit → /o",
+        "isGitCommit env -iC /o git commit → true",
+        "isGitCommit env -iC/o git commit → true",
+        "isGitCommit env -iu HOME git commit → true",
+        "isGitCommit sudo -Eu alice git commit → true",
+        "isGitCommit sudo -h host git commit → true"
       ]
     },
     {
       "id": "wrapper-value-option-not-skipped",
       "why": "ラッパーの値を取るオプション（nice -n 5 など）の値を読み飛ばさない（Issue #678）",
       "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "        i += wrapper.valueOptions.includes(words[i]) ? 2 : 1;",
+      "find": "        i += option.width;",
       "replace": "        i += 1;",
       "occurrences": 1,
       "expect_failing": [
@@ -156,22 +164,49 @@
         "isGitCommit xargs --max-args 1 git commit → true",
         "commitCwd env -C /o git commit → /o",
         "commitCwd sudo -D /o git commit → /o",
-        "commitCwd sudo --chdir /o git -C x commit → /o/x"
+        "commitCwd sudo --chdir /o git -C x commit → /o/x",
+        "isGitCommit sudo -h host git commit → true",
+        "isGitCommit env -iC /o git commit → true",
+        "isGitCommit env -iu HOME git commit → true",
+        "isGitCommit sudo -Eu alice git commit → true",
+        "isGitCommit env -iC git commit → false",
+        "commitCwd env -iC /o git commit → /o",
+        "commitCwd sudo -ED /o git commit → /o"
       ]
     },
     {
       "id": "wrapper-chdir-ignored",
       "why": "ラッパーが作業ディレクトリを変える形（env -C・sudo -D）を、コミットする作業ディレクトリに当てない",
       "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "        if (dir !== null) dirs.push(dir);",
-      "replace": "        if (false) dirs.push(dir);",
+      "find": "        if (option.dir !== null) dirs.push(option.dir);",
+      "replace": "        if (false) dirs.push(option.dir);",
       "occurrences": 1,
       "expect_failing": [
         "commitCwd env -C /o git commit → /o",
         "commitCwd env --chdir=sub git -C x commit → /w/sub/x",
         "commitCwd env -Csub git commit → /w/sub",
         "commitCwd sudo -D /o git commit → /o",
-        "commitCwd sudo --chdir /o git -C x commit → /o/x"
+        "commitCwd sudo --chdir /o git -C x commit → /o/x",
+        "commitCwd env -iC /o git commit → /o",
+        "commitCwd env -iCsub git commit → /w/sub",
+        "commitCwd sudo -ED /o git commit → /o"
+      ]
+    },
+    {
+      "id": "wrapper-short-option-cluster-not-read",
+      "why": "ラッパーの短いオプションをまとめた形（env -iC <dir>・sudo -Eu <user>）で、2 文字目より後ろの値を取るオプションを読まない",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "    if (!wrapper.valueOptions.includes(name)) continue;",
+      "replace": "    if (k > 1 || !wrapper.valueOptions.includes(name)) continue;",
+      "occurrences": 1,
+      "expect_failing": [
+        "isGitCommit env -iC /o git commit → true",
+        "isGitCommit env -iu HOME git commit → true",
+        "isGitCommit sudo -Eu alice git commit → true",
+        "isGitCommit env -iC git commit → false",
+        "commitCwd env -iC /o git commit → /o",
+        "commitCwd env -iCsub git commit → /w/sub",
+        "commitCwd sudo -ED /o git commit → /o"
       ]
     },
     {
