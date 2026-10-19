@@ -1,0 +1,159 @@
+{
+  "metadata": {
+    "skill_name": "kaizen",
+    "skill_path": "<repo>/skills/kaizen",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-19T08:06:50Z",
+    "evals_run": [26],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 26,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 59.204,
+        "tokens": 245262,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "1 つ目の学びを新しいファイルに書き、frontmatter の confidence を medium か low にしている（high にしていない）",
+          "passed": true,
+          "evidence": "2026-10-19-gh-api-flags-differ-from-subcommands.md を新しく作り、frontmatter は confidence: medium。"
+        },
+        {
+          "text": "2 つ目は fixture の既存ノート 2026-09-01-hook-cwd-project-root.md を更新し、その frontmatter に confidence: high を書いている",
+          "passed": true,
+          "evidence": "既存の 2026-09-01-hook-cwd-project-root.md を更新し、frontmatter に confidence: high を足した。"
+        },
+        {
+          "text": "2 つ目のノートの ## 根拠 に、KEDB 照合で既存の学びと一致した（同じ原因での再発である）ことを書いている",
+          "passed": true,
+          "evidence": "## 根拠 の 1 行目に「同じ原因での再発を KEDB 照合で確かめたので high」、箇条に「このファイル（status=pending）と一致した」。"
+        },
+        {
+          "text": "1 つ目のノートに ## 根拠 の節があり、確信度の理由を書いている",
+          "passed": true,
+          "evidence": "1 つ目のノートに ## 根拠 があり、1 行目が「原因は 1 つに絞れているが再現しておらず、KEDB にも一致が無いため medium」。"
+        },
+        {
+          "text": "書いたノートのどれにも、エラーの出力 `unknown flag: --body-file` と利用者の発言「また同じところで止まった」をそのまま書いていない",
+          "passed": true,
+          "evidence": "2 つのノートのどちらにも `unknown flag: --body-file` と「また同じところで止まった」の字句は無い（「フラグの解析で失敗した」「利用者から再発の指摘」と要約）。"
+        },
+        {
+          "text": "バンドルされた kaizen-status-check.sh を実行し、exit 0 を示している",
+          "passed": true,
+          "evidence": "kaizen-status-check.sh を実行し、終了コード 0 を示した。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 26,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 6,
+        "total": 6,
+        "time_seconds": 53.999,
+        "tokens": 246347,
+        "tool_calls": 9,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "1 つ目の学びを新しいファイルに書き、frontmatter の confidence を medium か low にしている（high にしていない）",
+          "passed": false,
+          "evidence": "新しいファイルは作ったが、frontmatter に confidence が無い（本文の ## 確度 に書いただけ）。"
+        },
+        {
+          "text": "2 つ目は fixture の既存ノート 2026-09-01-hook-cwd-project-root.md を更新し、その frontmatter に confidence: high を書いている",
+          "passed": false,
+          "evidence": "既存ノートは更新したが、frontmatter に confidence が無い。"
+        },
+        {
+          "text": "2 つ目のノートの ## 根拠 に、KEDB 照合で既存の学びと一致した（同じ原因での再発である）ことを書いている",
+          "passed": false,
+          "evidence": "## 根拠 の節が無い（## 再発 と ## 確度 を足した）。"
+        },
+        {
+          "text": "1 つ目のノートに ## 根拠 の節があり、確信度の理由を書いている",
+          "passed": false,
+          "evidence": "1 つ目のノートに ## 根拠 の節が無い（## 確度 という別の見出し）。"
+        },
+        {
+          "text": "書いたノートのどれにも、エラーの出力 `unknown flag: --body-file` と利用者の発言「また同じところで止まった」をそのまま書いていない",
+          "passed": false,
+          "evidence": "1 つ目のノートの ## 事象 に `unknown flag: --body-file`、2 つ目のノートに「また同じところで止まった」をそのまま書いた。"
+        },
+        {
+          "text": "バンドルされた kaizen-status-check.sh を実行し、exit 0 を示している",
+          "passed": false,
+          "evidence": "検査スクリプトが見つからないとして、lifecycle 検査を実行していない。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 59.204,
+        "stddev": 0,
+        "min": 59.204,
+        "max": 59.204
+      },
+      "tokens": {
+        "mean": 245262,
+        "stddev": 0,
+        "min": 245262,
+        "max": 245262
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0,
+        "stddev": 0,
+        "min": 0,
+        "max": 0
+      },
+      "time_seconds": {
+        "mean": 53.999,
+        "stddev": 0,
+        "min": 53.999,
+        "max": 53.999
+      },
+      "tokens": {
+        "mean": 246347,
+        "stddev": 0,
+        "min": 246347,
+        "max": 246347
+      }
+    },
+    "delta": {
+      "pass_rate": "+1.00",
+      "time_seconds": "+5.2",
+      "tokens": "-1085"
+    }
+  },
+  "notes": [
+    "変更確認の範囲（Issue #701 で足した eval 26 を with_skill と without_skill で 1 run ずつ）。1 run なので Delta の値は扱わず、差が残っているかだけを見る。"
+  ]
+}

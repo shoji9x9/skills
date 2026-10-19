@@ -81,7 +81,7 @@ bash <スキル>/scripts/kaizen-forget.sh <対象ファイル...>  # 閾値に�
 KEDB 照合が `status=forgotten` のノートを返したら、その事象は再発している。忘却の前提（再発していない）が成り立たなくなったので、次の手順で pending に戻す。
 
 1. そのノートの frontmatter を `status: pending` に戻す
-2. 新しい事象を「## 事象」に追記し、`priority` を上げる（`references/extract.md`「KEDB 照合」の pending と同じ扱い）
+2. 新しい事象を「## 事象」に追記し、`priority` を上げる。同じ原因での再発なら、`confidence` も上げる（`references/extract.md`「KEDB 照合」の pending と同じ扱い）
 3. 優先度が上がるので、同じ閾値では再び忘却されない
 
 ## アーカイブ・削除の呼び出し方（動詞 ＋ 対象フラグ）

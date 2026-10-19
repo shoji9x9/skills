@@ -1424,7 +1424,7 @@ describe.concurrent("lifecycle 検査", () => {
   );
 
   // applied-to の形（1 行・折り返し・ブロックシーケンス・空配列）と status の組み合わせは、
-  // kaizen-status-check.test.ts の ACCEPTED と REJECTED が確かめる。ここでは、検査が
+  // status-check/kaizen-status-check.test.ts の ACCEPTED と REJECTED が確かめる。ここでは、検査が
   // 不整合で exit 2 を返したときに、チェックがその理由を出して commit を止めることを確かめる。
   test("lifecycle 検査の不整合は、理由を出して commit を止める", async () => {
     const cwd = makeProject();

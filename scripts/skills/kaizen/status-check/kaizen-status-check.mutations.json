@@ -1,0 +1,65 @@
+{
+  "$comment": [
+    "kaizen-status-check.test.ts のうち、confidence の値の検査（Issue #701）を守るテストの検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/skills/kaizen/status-check/kaizen-status-check.test.ts",
+  "mutations": [
+    {
+      "id": "CONF-ACCEPT-ANY",
+      "why": "confidence の値を確かめずに通す（綴りの誤り・大文字・空の値が通る）",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "\t\thigh | medium | low) ;;",
+      "replace": "\t\t*) ;;",
+      "occurrences": 1,
+      "expect_failing": [
+        "confidence の値を拒否する: 未知の値",
+        "confidence の値を拒否する: 大文字",
+        "confidence の値を拒否する: 空の値",
+        "confidence の値を拒否する: 空白だけの値",
+        "confidence の値を拒否する: 片側だけの引用符",
+        "confidence の値を拒否する: 区切りの | を含む値"
+      ]
+    },
+    {
+      "id": "CONF-QUOTES-KEPT",
+      "why": "引用符で囲んだ値の引用符を落とさない（YAML では同じ値なのに未知の値として止める）",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "\t\t\tif (confidence ~ /^\".*\"$/ || confidence ~ /^'\"'\"'.*'\"'\"'$/) confidence = substr(confidence, 2, length(confidence) - 2)",
+      "replace": "\t\t\tconfidence = confidence",
+      "occurrences": 1,
+      "expect_failing": [
+        "confidence を受け付ける: 二重引用符で囲んだ値",
+        "confidence を受け付ける: 単引用符で囲んだ値"
+      ]
+    },
+    {
+      "id": "CONF-COMMENT-KEPT",
+      "why": "行末のコメントを落とさない（コメント付きの正しい値を未知の値として止める）",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "\t\t\tsub(/[[:space:]]+#.*$/, \"\", confidence)",
+      "replace": "\t\t\tconfidence = confidence",
+      "occurrences": 1,
+      "expect_failing": ["confidence を受け付ける: 行末のコメント"]
+    },
+    {
+      "id": "CONF-PIPE-KEPT",
+      "why": "confidence の値の | を置き換えない（read がフィールドをずらし、low|high が low として通る）",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "\t\t\tgsub(/\\|/, \"/\", confidence)",
+      "replace": "\t\t\tconfidence = confidence",
+      "occurrences": 1,
+      "expect_failing": ["confidence の値を拒否する: 区切りの | を含む値"]
+    },
+    {
+      "id": "CONF-UNPAIRED-QUOTE",
+      "why": "片側だけの引用符も落とす（\"high のような不正な値が high として通る）",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "\t\t\tif (confidence ~ /^\".*\"$/ || confidence ~ /^'\"'\"'.*'\"'\"'$/) confidence = substr(confidence, 2, length(confidence) - 2)",
+      "replace": "\t\t\tgsub(/^[\"'\"'\"']|[\"'\"'\"']$/, \"\", confidence)",
+      "occurrences": 1,
+      "expect_failing": ["confidence の値を拒否する: 片側だけの引用符"]
+    }
+  ]
+}

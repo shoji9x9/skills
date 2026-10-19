@@ -39,10 +39,10 @@ frontmatter_state() {
 		# 空配列は `[]` だけでなく `[ ]` のような空白入りでも、フォーマッタによる折り返しでも
 		# 書かれる。内部の空白を落とし、折り返し分を連結してから判定しないと、pending は
 		# 誤ってブロック（空なのに「適用先あり」）し、applied / rejected はチェックの抜け（空なのにそのまま通る）になる。
-		# 4 つ目のフィールドは applied-to の要素を `,` で連ねたもの（括弧と引用符は落とす）。
+		# 最後のフィールドは applied-to の要素を `,` で連ねたもの（括弧と引用符は落とす）。
 		# 「空か否か」だけでは、決定論的な対策を提案したノートが doc だけで閉じられたことを
 		# 判定できない。要素は read の最後の変数へ丸ごと渡すため `|` を含んでも
-		# 前 3 フィールドはずれない。
+		# 前のフィールドはずれない。
 		function emit(  merged, body, n, i, parts, item, out) {
 			merged = applied_value
 			if (merged != "" && merged != "[]" && merged != "null" && merged != "~") nonempty = 1
@@ -57,7 +57,12 @@ frontmatter_state() {
 				if (item == "" || item == "null" || item == "~") continue
 				out = (out == "" ? item : out "," item)
 			}
-			printf "%s|%s|%s|%s|%s\n", status, present, nonempty, type, out
+			# 区切りの `|` を値に含むと、read が後ろのフィールドをずらす（`confidence: low|high` が
+			# low として通る）。最後の applied-to 以外の文字列の値では `|` を `/` に置き換える。
+			gsub(/\|/, "/", status)
+			gsub(/\|/, "/", type)
+			gsub(/\|/, "/", confidence)
+			printf "%s|%s|%s|%s|%s|%s|%s\n", status, present, nonempty, type, conf_present, confidence, out
 		}
 		# ブロックシーケンスの 1 項目を flow 配列と同じ表記へ畳み込む。要素の分類にしか
 		# 使わないので、flow 側と同じく内部の空白は落とす（値の復元には使わない）。
@@ -69,7 +74,7 @@ frontmatter_state() {
 			if (item == "") return
 			applied_value = (applied_value == "" ? item : applied_value "," item)
 		}
-		BEGIN { fm = 0; present = 0; nonempty = 0; status = ""; type = ""; in_applied = 0; applied_value = "" }
+		BEGIN { fm = 0; present = 0; nonempty = 0; status = ""; type = ""; conf_present = 0; confidence = ""; in_applied = 0; applied_value = "" }
 		/^---[[:space:]]*$/ {
 			fm++
 			if (fm == 2) {
@@ -94,6 +99,19 @@ frontmatter_state() {
 			sub(/^type:[[:space:]]*/, "", type)
 			sub(/[[:space:]]+#.*$/, "", type)
 			gsub(/^[[:space:]]+|[[:space:]]+$/, "", type)
+			in_applied = 0
+			next
+		}
+		# confidence は任意の欄。この欄を足す前に書いたノートには無いので、在るときだけ値を検査する。
+		# YAML では引用符で囲んだ値も同じ値なので、前後の引用符は落とす。
+		/^confidence:/ {
+			conf_present = 1
+			confidence = $0
+			sub(/^confidence:[[:space:]]*/, "", confidence)
+			sub(/[[:space:]]+#.*$/, "", confidence)
+			gsub(/^[[:space:]]+|[[:space:]]+$/, "", confidence)
+			# 落とすのは対になった引用符だけにする。片側だけの引用符（`"high`）は不正な値として止める。
+			if (confidence ~ /^".*"$/ || confidence ~ /^'"'"'.*'"'"'$/) confidence = substr(confidence, 2, length(confidence) - 2)
 			in_applied = 0
 			next
 		}
@@ -221,8 +239,19 @@ for note in .kaizen/*.md .kaizen/archive/*.md; do
 		errors=$((errors + 1))
 		continue
 	fi
-	# entries は最後の変数なので、要素に `|` が含まれても前 3 フィールドはずれない。
-	IFS='|' read -r status present nonempty type entries <<<"${state}"
+	# entries は最後の変数なので、要素に `|` が含まれても前のフィールドはずれない。
+	IFS='|' read -r status present nonempty type conf_present confidence entries <<<"${state}"
+
+	# confidence は欠けていても通す（欄を足す前のノートは書き換えない方針）。在るなら 3 つの値だけを受け付ける。
+	if [ "${conf_present}" = "1" ]; then
+		case "${confidence}" in
+		high | medium | low) ;;
+		*)
+			echo "kaizen-status-check: ${note}: unknown confidence: ${confidence:-<empty>} (expected high, medium or low)" >&2
+			errors=$((errors + 1))
+			;;
+		esac
+	fi
 
 	# 折り返し検査の対象は、参照注入が実際に読む集合（archive を除く `.kaizen/*.md` のうち
 	# status: pending）に揃える。archive と applied / rejected / forgotten は注入されないので、

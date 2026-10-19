@@ -1,0 +1,7 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+ci:39217963994:1,ci,2026-10-19T08:09:42.097Z,p-cdee4961,github-actions,,,,2026-10-19T07:44:45.000Z,2026-10-19T07:45:12.000Z,Asia/Tokyo,main,,,,,,,,,,,Release;push;success,
+ci:39217963954:1,ci,2026-10-19T08:09:42.097Z,p-cdee4961,github-actions,,,,2026-10-19T07:44:45.000Z,2026-10-19T07:48:23.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:39210871178:1,ci,2026-10-19T08:09:42.097Z,p-cdee4961,github-actions,,,,2026-10-19T06:36:14.000Z,2026-10-19T06:39:35.000Z,Asia/Tokyo,feature/649-writing-style-skill,649,,,,,,,,,,CI;pull_request;success,
+ci:39210871184:1,ci,2026-10-19T08:09:42.097Z,p-cdee4961,github-actions,,,,2026-10-19T06:36:14.000Z,2026-10-19T06:36:15.000Z,Asia/Tokyo,feature/649-writing-style-skill,649,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+coverage:github:2026-10-18T06:34:03.351Z:2026-10-19T08:09:42.097Z,coverage,2026-10-19T08:09:42.097Z,p-cdee4961,,,,,2026-10-18T06:34:03.351Z,2026-10-19T08:09:42.097Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-18T08:09:42.097Z:2026-10-19T08:11:33.875Z,coverage,2026-10-19T08:11:33.875Z,p-cdee4961,,,,,2026-10-18T08:09:42.097Z,2026-10-19T08:11:33.875Z,Asia/Tokyo,,,,,,,,,,,,ok,

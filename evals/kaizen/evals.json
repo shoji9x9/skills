@@ -432,6 +432,45 @@
           "prompt_quote": "閾値を変えたい場合と、自動で動かしたくない場合の方法も教えて"
         }
       ]
+    },
+    {
+      "id": 26,
+      "fixture": "fixtures/confidence-recurrence",
+      "prompt": "このセッションで起きた 2 つの失敗を、kaizen の学びとして fixture の .kaizen に記録して。記録は承認済みなので、確認せずに書き込んでよい。1 つ目: gh api で Issue にコメントを投稿しようとして --body-file を渡し、`unknown flag: --body-file` で失敗した。gh issue comment と同じフラグが使えると思い込んでいた。初めて起きた失敗で、原因を再現して確かめてはいない。2 つ目: サブディレクトリ scripts/ から pre-commit の Hook を動かしたら、制御ファイルが scripts/.kaizen/ の下に作られた。Hook が git root を解決せず、起動時の cwd をプロジェクトのルートとして使っていた。利用者は「また同じところで止まった」と言った。それぞれの学びをどれだけ確かだと判断したかと、その根拠を説明して。最後に、バンドルされた lifecycle 検査を実行して終了コードを示して。",
+      "assertions": [
+        "1 つ目の学びを新しいファイルに書き、frontmatter の confidence を medium か low にしている（high にしていない）",
+        "2 つ目は fixture の既存ノート 2026-09-01-hook-cwd-project-root.md を更新し、その frontmatter に confidence: high を書いている",
+        "2 つ目のノートの ## 根拠 に、KEDB 照合で既存の学びと一致した（同じ原因での再発である）ことを書いている",
+        "1 つ目のノートに ## 根拠 の節があり、確信度の理由を書いている",
+        "書いたノートのどれにも、エラーの出力 `unknown flag: --body-file` と利用者の発言「また同じところで止まった」をそのまま書いていない",
+        "バンドルされた kaizen-status-check.sh を実行し、exit 0 を示している"
+      ],
+      "reachability": [
+        {
+          "assertion": "1 つ目の学びを新しいファイルに書き、frontmatter の confidence を medium か low にしている（high にしていない）",
+          "prompt_quote": "初めて起きた失敗で、原因を再現して確かめてはいない。"
+        },
+        {
+          "assertion": "2 つ目は fixture の既存ノート 2026-09-01-hook-cwd-project-root.md を更新し、その frontmatter に confidence: high を書いている",
+          "prompt_quote": "利用者は「また同じところで止まった」と言った。"
+        },
+        {
+          "assertion": "2 つ目のノートの ## 根拠 に、KEDB 照合で既存の学びと一致した（同じ原因での再発である）ことを書いている",
+          "prompt_quote": "それぞれの学びをどれだけ確かだと判断したかと、その根拠を説明して。"
+        },
+        {
+          "assertion": "1 つ目のノートに ## 根拠 の節があり、確信度の理由を書いている",
+          "prompt_quote": "それぞれの学びをどれだけ確かだと判断したかと、その根拠を説明して。"
+        },
+        {
+          "assertion": "書いたノートのどれにも、エラーの出力 `unknown flag: --body-file` と利用者の発言「また同じところで止まった」をそのまま書いていない",
+          "prompt_quote": "kaizen の学びとして fixture の .kaizen に記録して。"
+        },
+        {
+          "assertion": "バンドルされた kaizen-status-check.sh を実行し、exit 0 を示している",
+          "prompt_quote": "バンドルされた lifecycle 検査を実行して終了コードを示して。"
+        }
+      ]
     }
   ]
 }
