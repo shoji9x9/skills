@@ -1613,7 +1613,8 @@ describe.concurrent("事前の絞り込みはツールの名前と入力だけ�
           timeout: CHILD_TIMEOUT_MS,
           cwd,
           input: JSON.stringify({ cwd, tool_name: "Bash", tool_input: { command } }),
-          env: kaizenEnv(cwd, { CLAUDE_PROJECT_DIR: cwd }),
+          // カバレッジの実行は BASH_ENV で xtrace の出力先と形式を変えるので、この子プロセスでは読ませない
+          env: kaizenEnv(cwd, { CLAUDE_PROJECT_DIR: cwd, BASH_ENV: undefined, PS4: "+ " }),
         },
       );
       expect(result.status, command).toBe(0);
