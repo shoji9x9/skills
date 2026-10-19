@@ -147,10 +147,28 @@
       "id": 13,
       "prompt": "deployment は成功したが worktree が dirty で、remote に main、feature/101-fix、feature/101-fix-old がある。branch cleanup の判定と、3 つの ref それぞれを削除対象にするかどうかを報告して。削除は実行しないで。",
       "assertions": [
-        "dirty worktree のため cleanup せず BLOCKED にする",
+        "dirty worktree のため cleanup せず、変更が commit を記録する Hook の記録だけなら次の Issue の branch に引き継ぎ、それ以外の変更があれば BLOCKED にする",
         "clean な場合も worktree を先に解除し、解除済みを確認してから local branch を削除する",
         "検証済み完全一致 ref だけを対象とし glob を使わない",
         "default / protected branch と似た別 branch を削除対象にしない"
+      ],
+      "reachability": [
+        {
+          "assertion": "dirty worktree のため cleanup せず、変更が commit を記録する Hook の記録だけなら次の Issue の branch に引き継ぎ、それ以外の変更があれば BLOCKED にする",
+          "prompt_quote": "deployment は成功したが worktree が dirty で"
+        },
+        {
+          "assertion": "clean な場合も worktree を先に解除し、解除済みを確認してから local branch を削除する",
+          "prompt_quote": "branch cleanup の判定"
+        },
+        {
+          "assertion": "検証済み完全一致 ref だけを対象とし glob を使わない",
+          "prompt_quote": "3 つの ref それぞれを削除対象にするかどうかを報告して"
+        },
+        {
+          "assertion": "default / protected branch と似た別 branch を削除対象にしない",
+          "prompt_quote": "3 つの ref それぞれを削除対象にするかどうかを報告して"
+        }
       ]
     },
     {

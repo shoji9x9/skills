@@ -205,6 +205,7 @@ manifest に書いてよいのは、次のものだけである。
 - 状態、branch、worktree、PR URL
 - 検証名・結果・証拠 URL / SHA
 - BLOCKED / FAILED の停止の理由と残作業
+- `BRANCH_CLEANUP` のまま残した worktree の、引き継ぐファイルの一覧（「worktree に残った記録の引き継ぎ」）
 - SKIPPED の飛ばした理由
 - EXCLUDED の対象から外した理由（当たった兆候と利用者の選択、または外した依存先の番号）
 - 判断待ちの項目と、自分で判断して進めたもの（「判断の扱い」の 4 つの欄を含む）。
@@ -304,6 +305,11 @@ merge の実行方法だけが、`merge_mode` で分かれる。head の SHA の
    exit 2（判定できない）は、間隔を空けて数回取得し直し（`merge_ready_timeout_minutes` があれば、それを上限にする）、0 か 1 にならなければ BLOCKED にする。
    出力の `findings` は、見送った指摘も数えるので、merge の条件に使わない。指摘への対応は、`pr-finalize-loop` の収束（解決していないスレッドが無いこと）で確かめる。
    `merge_mode: auto` でも省かない。GitHub の auto-merge はこの記録を見ないので、ここで確かめないと、直した commit を手元でレビューしないまま merge される。
+   `READY_TO_MERGE` にする前に、その Issue の worktree の `git status --porcelain=v1 --untracked-files=all` が空であることも確かめる。
+   commit を記録する Hook（`agent-usage` の利用実績の記録など）は、commit が別の Hook や pre-commit に止められたときも記録を stage するので、止められた commit の後に記録が残ることがある。
+   残っているのが、その Hook が定める、記録を置く場所にあるファイルだけなら、PR の branch に commit し、「Kaizen、commit、PR」の受け入れ条件の突き合わせを通してから push して、`FINALIZING` に戻す（戻した回数は `max_pr_iterations` に含める）。
+   記録だけの commit でも HEAD が進むので、前の表は `stale-commit` で失敗する。
+   それ以外の変更があれば、merge せずに BLOCKED にする。
 2. 決まった `merge_mode` で merge する。
    - `auto`: `gh pr merge <PR URL> --auto --<method> --match-head-commit <headRefOid>`。条件を満たしたかの判定は GitHub に任せる（[gh pr merge](https://cli.github.com/manual/gh_pr_merge)）。
    - `agent`: 下の「agent mode の merge 前判定」を通してから、`gh pr merge <PR URL> --<method> --match-head-commit <headRefOid>` を実行する（`--auto` を付けない）。
@@ -312,6 +318,9 @@ merge の実行方法だけが、`merge_mode` で分かれる。head の SHA の
    required check を通っていなければ auto-merge に、通っていれば queue への投入になる（`gh pr merge --help` に書かれている）。
    `agent` mode でも、すぐに merge されると決めつけず、`MERGE_QUEUED` を通ることがあるものとして扱う。
 3. 上限を決めて PR を取得し直し、`MERGED` を確かめる。auto-merge の要求の作成、queue への投入、merge のコマンドの成功は、どれも完了の根拠にしない。
+   merge の後は、その Issue の worktree で `git commit` を実行しない（止められる commit と、`git commit` の文字列を含むだけのコマンドも含む）。
+   commit を記録する Hook は、コマンドの文字列で commit かどうかを判定し、merge 済みの branch の worktree に記録を書き足すからである。
+   ただし、「deployment 修復」で同じ branch に follow-up の commit を作る場合は除く。その commit は follow-up PR に入り、上の 1 の確認を通る。
 4. Issue の `state` と linked PR を取得し直し、`CLOSED` を確かめる。OPEN なら、手で close して隠さず、BLOCKED にする。
 5. PR から merge commit の OID と mergedAt を取得する。workflow ごとに
    `gh run list --workflow <file> --commit <OID> --event <event> --limit <N> --json ...` を使い、`headSha == OID`、event、base branch をすべて照合する（[gh run list](https://cli.github.com/manual/gh_run_list)）。
@@ -401,3 +410,23 @@ branch protection の無いリポジトリは常にこの状態で、「required
 manifest の worktree と branch が期待する Issue と完全一致し、branch がデフォルトでも保護されてもおらず、`feature/<Issue番号>-` で始まることを確かめ直す。
 解除と削除は、`git-worktree cleanup` と同じ取り決めに従う。clean を確かめ、解除し、`git worktree list` をもう一度実行して確かめ、完全一致した local branch、remote ref の順に削除する。
 glob と `gh pr merge --delete-branch` は使わない。解除か削除のどちらかが失敗したら BLOCKED にする。
+`git worktree remove --force` は使わない。dirty な worktree を消す判断は、次の「worktree に残った記録の引き継ぎ」で clean にするか、利用者が決める。
+
+### worktree に残った記録の引き継ぎ
+
+merge の後に worktree が dirty になっていることがある。commit を記録する Hook（`agent-usage` の利用実績の記録など）が、merge の後にその worktree で試みた commit で、記録を stage したときに起きる。
+変更をすべて挙げ（`git status --porcelain=v1 --untracked-files=all`）、すべてがその Hook が定める、記録を置く場所にあるファイルなら、次の手順で次の Issue の branch に引き継ぐ。
+それ以外の変更が 1 つでもあれば、引き継がずに BLOCKED にし、worktree を残す。
+`agent-usage` は、別のブランチの明細があるときはコミットせずに利用者に確かめると定めている。run の中では、この節の手順をその確認の代わりにする（「判断の扱い」）。
+
+1. この Issue の片付けは後に回し、worktree を残したまま次の Issue に進む。manifest には、状態を `BRANCH_CLEANUP` のまま、引き継ぐファイルの一覧を残りの作業として記録する。
+2. 次の Issue の worktree に入った後、次の commit の前に、その branch がこの Issue の merge commit を含むことを `git merge-base --is-ancestor <merge commit の OID> HEAD` で確かめる。
+   含まない branch（再開した branch など）に複製すると、base との merge で競合するので、その Issue には引き継がずに、さらに次の Issue に回す。
+   含むなら、引き継ぐファイルを同じ相対パスに複製する。
+3. 複製したファイルは、次の Issue の作業の commit に入れる。記録だけの branch と PR は作らない。
+   次の Issue が commit を作らずに終わったとき（`SKIPPED`・`BLOCKED`・`FAILED`）は、その worktree で複製したファイルを複製の前の状態に戻し、さらに次の Issue に回す。
+4. 次の Issue の branch の commit に入った内容が元のファイルと一致することを、ファイルごとに `git show <commit>:<パス>` の出力と元の worktree のファイルを `cmp` で比べて確かめる。
+   一致したら、元の worktree に `path` で入り直す（`git-worktree` の取り決めでは、移った後は前の worktree に書き込めない）。
+   複製したファイルだけを戻す。HEAD か index にあるファイル（stage しただけの新しいファイルを含む）は `git restore --staged --worktree -- <パス>`、`??` のファイルは削除する。
+   元の worktree が clean になったことを確かめてから、この節の手順で片付け、次の Issue の worktree に `path` で戻る。
+5. run の最後の Issue のように引き継ぐ先の branch が無いときは、worktree を消さずに残し、絶対パスと残りの作業（記録を次の作業の branch に入れる）を最終報告に書く。
