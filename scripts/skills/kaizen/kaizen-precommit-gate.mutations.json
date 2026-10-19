@@ -341,7 +341,8 @@
       "occurrences": 1,
       "expect_failing": [
         "Claude Code の api-request-blob レコード コピーの中の修正語だけなら候補ゼロ",
-        "Claude Code の api-request-blob レコード コピーは本物の発話の候補を隠さない"
+        "Claude Code の api-request-blob レコード コピーは本物の発話の候補を隠さない",
+        "Claude Code の api-request-blob レコード checkpoint 後の差分が api-request-blob だけでも検証済みゼロ"
       ]
     },
     {
@@ -366,6 +367,60 @@
       "expect_failing": [
         "Claude Code の api-request-blob レコード message が文字列のコピーは判定不能"
       ]
+    },
+    {
+      "id": "SCAN-CLAUDE-API-REQUEST-BLOB-TYPENAME",
+      "why": "api-request-blob の型名を確かめない（hash と message の形が同じ未知のレコードを読み飛ばす）",
+      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
+      "find": "$j.type == \"api-request-blob\" and",
+      "replace": "true and",
+      "occurrences": 1,
+      "expect_failing": [
+        "Claude Code の api-request-blob レコード 型名が違う未知のレコードは、hash と message の形が同じでも判定不能"
+      ]
+    },
+    {
+      "id": "SCAN-CLAUDE-QUEUED-COMMAND",
+      "why": "queued_command の発話を読まない（作業中に送った修正の指示が候補から外れる）",
+      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
+      "find": "$j.attachment.type == \"queued_command\" and",
+      "replace": "false and",
+      "occurrences": 1,
+      "expect_failing": [
+        "Claude Code の queued_command の attachment 人の発話は候補にする",
+        "Claude Code の queued_command の attachment origin が無い発話も候補にする"
+      ]
+    },
+    {
+      "id": "SCAN-CLAUDE-QUEUED-COMMAND-MODE",
+      "why": "queued_command の commandMode を確かめない（task-notification の本文を発話として読む）",
+      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
+      "find": "$j.attachment.commandMode == \"prompt\" then",
+      "replace": "true then",
+      "occurrences": 1,
+      "expect_failing": [
+        "Claude Code の queued_command の attachment task-notification は候補にしない"
+      ]
+    },
+    {
+      "id": "SCAN-CLAUDE-QUEUED-COMMAND-PEER",
+      "why": "queued_command の origin を確かめない（サブエージェントの報告を発話として読む）",
+      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
+      "find": "(($j.attachment.origin.kind? // \"human\") != \"human\")",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": [
+        "Claude Code の queued_command の attachment サブエージェントの報告は候補にしない"
+      ]
+    },
+    {
+      "id": "SCAN-CLAUDE-QUEUED-COMMAND-META",
+      "why": "queued_command の isMeta を確かめない（注入した本文を発話として読む）",
+      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
+      "find": "($j.attachment.isMeta // false) == true or",
+      "replace": "false or",
+      "occurrences": 1,
+      "expect_failing": ["Claude Code の queued_command の attachment 注入した本文は候補にしない"]
     }
   ]
 }

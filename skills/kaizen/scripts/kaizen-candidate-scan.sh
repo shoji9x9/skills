@@ -216,6 +216,16 @@ if ! jq -Rr '
 	      $j.payload.type == "web_search_end") then "D", "R"
 	elif ($j.type == "compacted" or $j.type == "turn_context" or $j.type == "world_state" or
 	      $j.type == "inter_agent_communication_metadata") then "D", "R"
+	# エージェントが作業している間に利用者が送った発話は、`user` レコードにならず、`attachment` の
+	# `queued_command`（`commandMode: "prompt"`）として残る。これを読み飛ばすと、作業中に送った修正の指示が
+	# 候補から外れる。サブエージェントの報告（`origin.kind: "peer"`）と注入した本文（`isMeta`）は発話ではないので除く。
+	# `origin` が無い古い形は、発話として扱う（候補を取りこぼす側に寄せない）。
+	elif $j.type == "attachment" and ($j.attachment | type) == "object" and
+	     $j.attachment.type == "queued_command" and $j.attachment.commandMode == "prompt" then
+		"C", "R",
+		(if (($j.isMeta // false) == true or ($j.attachment.isMeta // false) == true or
+		     (($j.attachment.origin.kind? // "human") != "human")) then empty
+		 else (($j.attachment.prompt // "") | user_text | clean | select(length > 0) | "U\t" + .) end)
 	elif ($j.type == "ai-title" or $j.type == "attachment" or $j.type == "file-history-delta" or
 	      $j.type == "file-history-snapshot" or $j.type == "last-prompt" or $j.type == "mode" or
 	      $j.type == "permission-mode" or $j.type == "pr-link" or $j.type == "queue-operation" or
@@ -223,9 +233,10 @@ if ! jq -Rr '
 	      $j.type == "atis-latch") then "R"
 	elif $j.type == "result" and $j.agentId? != null and $j.key? != null and $j.result? != null then "R"
 	# Claude Code の `api-request-blob` は、API に送ったメッセージ（system・user・assistant）を hash ごとに
-	# 1 回だけ残すコピーである。user と assistant の本文は同じセッションの `user` / `assistant` のレコードと重なり、
-	# 重ならない分はシステムが注入した本文（`<system-reminder>` など）なので、候補の判定には使わない。
-	# コピーを読むと、注入した本文の修正語を拾ったり同じ発話を二重に数えたりして、実在しない候補が出る。
+	# 1 回だけ残すコピーである。本文は、同じセッションの `user` / `assistant` のレコードか、作業中に送った発話の
+	# `queued_command`（上の分岐で読む）と重なり、残りはシステムが注入した本文（`<system-reminder>` など）なので、
+	# 候補の判定には使わない。コピーを読むと、注入した本文の修正語を拾ったり同じ発話を二重に数えたりして、
+	# 実在しない候補が出る。
 	# hash が文字列でないものと message がオブジェクトでないものは、知らない形なので下の判定に残す。
 	elif $j.type == "api-request-blob" and ($j.hash | type) == "string" and ($j.message | type) == "object" then "R"
 	# 未知の `type` は、名前ではなく**構造**で区別する。会話を運ぶ入れ物（`message` / `payload` /

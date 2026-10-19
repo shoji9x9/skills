@@ -395,6 +395,17 @@ describe.concurrent("Claude Code の api-request-blob レコード", () => {
       2,
       null,
     ],
+    [
+      // hash と message の形が同じでも、型名が違えば読み飛ばさない（型名の条件を固定する）。
+      "型名が違う未知のレコードは、hash と message の形が同じでも判定不能",
+      [
+        userTask,
+        '{"type":"future-conversation-record","hash":"5c1d","message":{"role":"user","content":[{"type":"text","text":"未知のレコード"}]},"sessionId":"test-session"}',
+        assistantDone,
+      ],
+      2,
+      null,
+    ],
   ])("%s", async (_label, records, expectedStatus, evidence) => {
     const cwd = makeProject();
     const transcript = join(cwd, "t.jsonl");
@@ -413,9 +424,51 @@ describe.concurrent("Claude Code の api-request-blob レコード", () => {
     expect(scan.stdout).not.toMatch(/transcript line 2$/m);
   });
 
-  test("他の未知の type で message を持つものは判定不能", async () => {
+  test("checkpoint 後の差分が api-request-blob だけでも検証済みゼロ", async () => {
     const cwd = makeProject();
-    const transcript = join(fixturesDir, "unknown-type-with-message.jsonl");
+    const transcript = join(cwd, "t.jsonl");
+    const checkpoint = join(cwd, ".kaizen", ".extract-checkpoint");
+    const initial = readFileSync(join(fixturesDir, "claude-no-candidate.jsonl"), "utf8");
+    writeFileSync(transcript, initial);
+    writeFileSync(
+      checkpoint,
+      `${transcript}\n${Buffer.byteLength(initial)}\nclaude-code\n${initial.split("\n").length - 1}\n`,
+    );
+    appendFileSync(transcript, `${blobWithCorrectionWord}\n`);
+
+    const scan = await runScript("kaizen-candidate-scan.sh", [transcript, checkpoint], { cwd });
+
+    expect(scan.status).toBe(1);
+    expect(scan.stdout).toMatch(/^kaizen-candidate-scan: agent=claude-code$/m);
+  });
+});
+
+// エージェントの作業中に利用者が送った発話は、`user` レコードにならず `attachment` の `queued_command` に残る（Issue #710）。
+// 人の発話（`origin.kind: "human"`）の修正語は候補にし、サブエージェントの報告（`peer`）と注入した本文（`isMeta`）、
+// task-notification のような他の `commandMode` は候補にしないことを、同じ修正語で確かめる。
+describe.concurrent("Claude Code の queued_command の attachment", () => {
+  const assistantWorking =
+    '{"type":"assistant","message":{"content":[{"type":"text","text":"作業しています"}]}}';
+  const queued = (fields: string) =>
+    `{"type":"attachment","attachment":{"type":"queued_command",${fields},"prompt":"違う、やり直してください"}}`;
+  test.each([
+    ["人の発話は候補にする", queued('"commandMode":"prompt","origin":{"kind":"human"}'), 0],
+    ["origin が無い発話も候補にする", queued('"commandMode":"prompt"'), 0],
+    [
+      "サブエージェントの報告は候補にしない",
+      queued('"commandMode":"prompt","origin":{"kind":"peer"}'),
+      1,
+    ],
+    [
+      "注入した本文は候補にしない",
+      queued('"commandMode":"prompt","origin":{"kind":"human"},"isMeta":true'),
+      1,
+    ],
+    ["task-notification は候補にしない", queued('"commandMode":"task-notification"'), 1],
+  ])("%s", async (_label, record, expectedStatus) => {
+    const cwd = makeProject();
+    const transcript = join(cwd, "t.jsonl");
+    writeFileSync(transcript, `${assistantWorking}\n${record}\n${assistantWorking}\n`);
     const scan = await runScript(
       "kaizen-candidate-scan.sh",
       [transcript, join(cwd, "no-checkpoint")],
@@ -424,7 +477,8 @@ describe.concurrent("Claude Code の api-request-blob レコード", () => {
       },
     );
 
-    expect(scan.status).toBe(2);
+    expect(scan.status).toBe(expectedStatus);
+    if (expectedStatus === 0) expect(scan.stdout).toMatch(/^user correction: transcript line 2$/m);
   });
 });
 
