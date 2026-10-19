@@ -444,7 +444,8 @@ describe.concurrent("Claude Code の api-request-blob レコード", () => {
 });
 
 // エージェントの作業中に利用者が送った発話は、`user` レコードにならず `attachment` の `queued_command` に残る（Issue #710）。
-// 読み飛ばすのは閉じた集合（注入した本文の `isMeta`、task-notification、サブエージェントの報告の `peer`）だけで、
+// 読み飛ばすのは閉じた集合だけである。注入した本文の `isMeta`、`commandMode` の task-notification、
+// `origin.kind` の peer・coordinator・task-notification がこれに当たる。
 // 知らない `commandMode` と `origin.kind` は発話として読み、型が違う値は判定不能にすることを、同じ修正語で確かめる。
 describe.concurrent("Claude Code の queued_command の attachment", () => {
   const assistantWorking =
@@ -481,6 +482,32 @@ describe.concurrent("Claude Code の queued_command の attachment", () => {
       "知らない origin.kind の発話も候補にする",
       queued('"commandMode":"prompt","origin":{"kind":"remote"}'),
       0,
+    ],
+    ["coordinator の本文は候補にしない", queued('"origin":{"kind":"coordinator"}'), 1],
+    [
+      "origin.kind が task-notification の本文は候補にしない",
+      queued('"origin":{"kind":"task-notification"}'),
+      1,
+    ],
+    [
+      "prompt が配列の発話も候補にする",
+      '{"type":"attachment","attachment":{"type":"queued_command","commandMode":"prompt","origin":{"kind":"human"},"prompt":["違う、やり直してください"]}}',
+      0,
+    ],
+    [
+      "prompt が無いものは候補を出さない",
+      '{"type":"attachment","attachment":{"type":"queued_command","commandMode":"image","origin":{"kind":"human"},"content":"x"}}',
+      1,
+    ],
+    [
+      "commandMode が文字列でないものは判定不能",
+      queued('"commandMode":1,"origin":{"kind":"human"}'),
+      2,
+    ],
+    [
+      "origin.kind が文字列でないものは判定不能",
+      queued('"commandMode":"prompt","origin":{"kind":{"name":"peer"}}'),
+      2,
     ],
     [
       "prompt が文字列でも配列でもないものは判定不能",
