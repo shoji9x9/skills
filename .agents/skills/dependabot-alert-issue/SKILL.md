@@ -34,45 +34,56 @@ dependabot-alert-issue [--repo <owner>/<repo>] [--source <name> --input <finding
 - 前提スキル: なし（起票後の着手は `issue-start` に引き継ぐが、必須ではない）
 - MCP: なし
 - シェル: bash（POSIX 互換のシェル）。コマンド例は bash を前提にしているので、Windows では WSL や Git Bash などの bash の環境で実行する
-- node・pnpm・python などのランタイムは要らない。
+- Node.js は、設定ファイル（`.config/skills/shoji9x9/dependabot-alert-issue.jsonc`・`common.jsonc` など）を読むときだけ要る（同梱の `scripts/skill-config/skill-config.mjs` で読む）。
+  設定ファイルがどの層にも無ければ、Node.js なしで設定が無いものとして進める。設定ファイルがあって Node.js が無ければ、設定を読めないとして止まる。pnpm や python は要らない。
 
 ## ブランチ運用・commit 規約の参照
 
 Issue のタイトルの規約（conventional commits に似た接頭辞など）は、リポジトリごとに異なる。
-解決の手順（設定ファイル、標準のドキュメントの探索、ユーザーへの確認の順）と、設定ファイル `.config/skills/shoji9x9/skills.yml` の扱いは [`references/conventions.md`](references/conventions.md) にある。
+解決の手順（設定ファイル、標準のドキュメントの探索、ユーザーへの確認の順）と、設定 `common` の `conventions_doc` の扱いは [`references/conventions.md`](references/conventions.md) にある。
 
 ## セットアップ（特別処理・リリース年齢の設定）
 
 「このパッケージは使っていないので dismiss する」「この alert は無視する」のようなリポジトリ固有の特別処理は、長い文になることがある。
-そのため、スキルの引数ではなく `.config/skills/shoji9x9/skills.yml` の `skills.dependabot-alert-issue.*` に書く。スキルは起動するたびにこの設定を読む。
+そのため、スキルの引数ではなく `.config/skills/shoji9x9/dependabot-alert-issue.jsonc` に書く。スキルは起動するたびにこの設定を読む。
+どのキーもリポジトリで揃える値なので、リポジトリの層だけに置ける（層と置き場所の決まりは [`references/config-files.md`](references/config-files.md)）。
 
-```yaml
-version: 1
-skills:
-  dependabot-alert-issue:
-    # 解決バージョンが公開されてから着手するまでの最小の経過日数（任意）。
-    # pnpm の pnpm.minimumReleaseAge などに当たる一般的な考え方。
-    # 設定すると、解決バージョンの公開からの経過がこれより短い alert を「すぐ着手できない」に分類する。
-    minimum_release_age_days: 3
-    # 無視する alert（Issue を作らず、dismiss もしない）。条件を自由に書く。
-    ignore:
-      - "テストでしか使わない <pkg> の low は見送る"
-    # dismiss する alert（Dismissal comment を付けて却下する）。理由は GitHub の dismissed_reason に合わせる。
-    # 照合に使うキー（package / ecosystem / ghsa）は AND で評価し、書いたキーがすべて一致した alert だけを却下の対象にする。
-    dismiss:
-      # 特定の advisory 1 件だけが無関係なら、ghsa で絞る（もっとも狭い。推奨）
-      - ghsa: "GHSA-xxxx-xxxx-xxxx"
-        reason: "tolerable_risk"   # fix_started | inaccurate | no_bandwidth | not_used | tolerable_risk
-        comment: "影響箇所を使っていないため許容する"
-      # パッケージそのものを使っていないなら、package で指定する（ecosystem でさらに絞れる）
-      - package: "<pkg>"
-        ecosystem: "npm"           # 任意。別のエコシステムにある同名のパッケージを巻き込みたくないときに指定する
-        reason: "not_used"
-        comment: "このパッケージは本番の処理で使っていないため却下する"
+```jsonc
+{
+  // 解決バージョンが公開されてから着手するまでの最小の経過日数（任意）。
+  // pnpm の pnpm.minimumReleaseAge などに当たる一般的な考え方。
+  // 設定すると、解決バージョンの公開からの経過がこれより短い alert を「すぐ着手できない」に分類する。
+  "minimum_release_age_days": 3,
+  // 無視する alert（Issue を作らず、dismiss もしない）。条件を自由に書く。
+  "ignore": ["テストでしか使わない <pkg> の low は見送る"],
+  // dismiss する alert（Dismissal comment を付けて却下する）。理由は GitHub の dismissed_reason に合わせる。
+  // 照合に使うキー（package / ecosystem / ghsa）は AND で評価し、書いたキーがすべて一致した alert だけを却下の対象にする。
+  "dismiss": [
+    // 特定の advisory 1 件だけが無関係なら、ghsa で絞る（もっとも狭い。推奨）
+    {
+      "ghsa": "GHSA-xxxx-xxxx-xxxx",
+      "reason": "tolerable_risk", // fix_started | inaccurate | no_bandwidth | not_used | tolerable_risk
+      "comment": "影響箇所を使っていないため許容する"
+    },
+    // パッケージそのものを使っていないなら、package で指定する（ecosystem でさらに絞れる）
+    {
+      "package": "<pkg>",
+      "ecosystem": "npm", // 任意。別のエコシステムにある同名のパッケージを巻き込みたくないときに指定する
+      "reason": "not_used",
+      "comment": "このパッケージは本番の処理で使っていないため却下する"
+    }
+  ]
+}
 ```
 
-- 作成と追記では、既にある内容を変えない。ファイルが無ければ `.config/skills/shoji9x9/` ごと作り、このスキルが使うキーだけを書く。
-  ファイルがあれば、欠けているキーだけを該当するセクション（無ければ親も）に足す。既にあるキー・値・コメントは変えず、上書きしない。
+- 設定は、同梱の読み取りで取得する。exit 1（設定の誤りか、旧い場所の設定が残っている）なら、エラーの内容を利用者に示して止まる。
+
+  ```bash
+  node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mjs dump dependabot-alert-issue
+  ```
+
+- 書くときは、読み取りの `set` と `append` を使い、既にあるキー・値・コメントを変えずに足す（作成と追記は非破壊）。既にあるキーは変えずに止まる（[`references/config-files.md`](references/config-files.md)「書き込みの決まり」）。
+  `dismiss` に 1 件足すなら、`append dependabot-alert-issue dismiss '<要素の JSON>' --layer repo --unique-by ghsa` のように、同じ advisory を重ねて足さない。
 - 設定が無くても動く。そのときは `ignore`・`dismiss`・`minimum_release_age_days` が無いものとして、open な alert をすべて Issue にする対象にする。
 
 ## 基本フロー

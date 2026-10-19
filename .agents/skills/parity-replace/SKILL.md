@@ -40,7 +40,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 
 ## 前提
 
-- ツール: `git`、Node.js（`parity-suite` と `replace-strategy` の同梱のスクリプトを実行する）。ブランチ作成・commit・push・PR は `issue-start` が行う（このスキルは実装の流れを作り直さない）
+- ツール: `git`、Node.js（`parity-suite` と `replace-strategy` の同梱のスクリプトと、設定ファイルを読む `scripts/skill-config/skill-config.mjs` を実行する）。ブランチ作成・commit・push・PR は `issue-start` が行う（このスキルは実装の流れを作り直さない）
 - 前提スキル: `issue-start`（実装の流れと受け入れ条件の突き合わせの委譲先）、`replace-strategy`（`setup` の完了）、`golden-dataset`（フェーズ A の完了）、対象 slug の `parity-suite`（完了）
 - 前提スキルがインストールされていない場合: `gh skill install shoji9x9/skills <name>` で導入してから実行する。
   このスキルは設定スキーマ・成果物の様式の原本を `replace-strategy` と `parity-suite` の `references/`・`assets/` に置いているので、単体では動かない（同時に導入されている前提である）
@@ -53,7 +53,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
   起動できない場合は、差分だけを人間のレビュアーへ渡してレビューを受け、記録を `review.md` に残す（レビュー役が人間だったことを書く）。
   この代わりの方法も取れないときでも、レビューは省略しない（手順は [`references/adversarial-review.md`](references/adversarial-review.md)）
 - 前提の判定（無ければ止まり、該当するスキルの実行を促す。成果物を捏造しない）:
-  - `replace-strategy setup` の完了は、設定 `.config/skills/shoji9x9/skills.yml` の `skills.replace-strategy` と `.replace/features.md` があることで判定する
+  - `replace-strategy setup` の完了は、設定 `.config/skills/shoji9x9/replace-strategy.jsonc` と `.replace/features.md` があることで判定する
   - `golden-dataset` のフェーズ A の完了は、`.replace/dataset/metadata.json` があることで判定する（`version` は 1 から始まる整数）
   - 対象 slug の `parity-suite` の完了は、`.replace/parity/<slug>/metadata.json` があることで判定する。
     `suite.current_green` と `differ.validated_by_strength_gate` がどちらも `true` であることも求める（`parity-diff` の前提確認と同じ条件）
@@ -128,7 +128,9 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 
 ## プロジェクト設定の解決
 
-設定ファイル `.config/skills/shoji9x9/skills.yml` の `skills.replace-strategy.*` を直接読む（転記しない）。
+設定ファイル `.config/skills/shoji9x9/replace-strategy.jsonc` を直接読む（転記しない）。
+値は同梱の `scripts/skill-config/skill-config.mjs` で読み書きする。読むときは `node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mjs get replace-strategy <キー>`、書くときは `set` か `append` を使う。
+置き場所・層・書き込みの決まりの原本は [`references/config-files.md`](references/config-files.md) である。読み取りがエラー（終了コード 1）を返したら、デフォルトの値で続けずに止まる。
 スキーマの原本は `replace-strategy` の `references/project-config.md` である。このスキルが読み書きするキーは次の表のとおりである。
 
 | キー | 用途 |
@@ -450,7 +452,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 | 静的資産の新側の突き合わせ（feature モード。環境別） | `.replace/parity/<slug>/new/<target>/asset-delivery.json` と、新側の画面のプローブの出力 `new/<target>/asset-probe/` | [`assets/asset-delivery-template.json`](assets/asset-delivery-template.json)（検査の原本は `replace-strategy` の `scripts/asset-delivery-check.mjs`） |
 | メタデータ（環境別） | `.replace/parity/<slug>/new/<target>/replace-metadata.json` | [`assets/metadata-template.json`](assets/metadata-template.json) |
 | 受け入れ条件の突き合わせ表（環境別） | `.replace/parity/<slug>/new/<target>/acceptance.json` | 様式と検査の原本は `issue-start` の `assets/acceptance-template.json` と `scripts/acceptance-check.mjs` |
-| レジストリへの追記 | `.config/skills/shoji9x9/skills.yml` の次のキー。`intentional_diffs`・`component_diffs`・`references.dependency_policy`（未確認だった場合の、ユーザーへの確認の結果）・`new.stack`（空や欠けていたときに確認した結果）・`references.architecture`（既存の実装から読み取り、ユーザーが確定させた決定記録のパス） | 原本は `replace-strategy` の `references/project-config.md` |
+| レジストリへの追記 | `.config/skills/shoji9x9/replace-strategy.jsonc` の次のキー。`intentional_diffs`・`component_diffs`・`references.dependency_policy`（未確認だった場合の、ユーザーへの確認の結果）・`new.stack`（空や欠けていたときに確認した結果）・`references.architecture`（既存の実装から読み取り、ユーザーが確定させた決定記録のパス） | 原本は `replace-strategy` の `references/project-config.md` |
 | 依存の決定記録 | `.replace/dependencies.md` へ、機能に固有の依存と実装の途中で足した依存を非破壊で追記する（無ければテンプレートから作る）。`内蔵`・`機能固有`・`未確認`・`該当なし` を引き受けて決めた結果も、古い行の `状態` を `取り消し済み` にして、新しい行を追記する | 様式の原本は `replace-strategy` の `assets/dependencies-template.md` |
 | 現行の弱点の追記 | 敵対的レビューで台帳に無い弱点が見つかったとき、`.replace/weaknesses.md` へ仕分けを空欄にした行を非破壊で追記し（無ければテンプレートから作る）、基準から導いた案の宣言を `intentional_diffs.pending` へ回す（仕分けは人が行う。`未確認` の基準が残るなら、案を出さず `pending` にも回さない。規則の原本は `replace-strategy` の `references/security.md`）。新側に反映した弱点の露出を広げる差異は、同じ台帳の「露出を広げた差異」列へ書く | 様式の原本は `replace-strategy` の `assets/weaknesses-template.md` |
 | 静的資産の台帳への追記 | `.replace/assets.md` へ、台帳に無い資産を方針を空欄にして非破壊で追記し、ユーザーが決めた方針を記録する（無ければテンプレートから作る）。`同等物を作る` なら、ユーザーが承認した宣言を `intentional_diffs.may_change` へ追記する | 様式の原本は `replace-strategy` の `assets/assets-template.md` |

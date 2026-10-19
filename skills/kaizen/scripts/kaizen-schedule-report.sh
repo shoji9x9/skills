@@ -10,22 +10,22 @@
 #   kaizen-schedule-report.sh issue    通知 Issue の本文（Markdown）を出力する。
 #   kaizen-schedule-report.sh prompt   エージェントへ渡す指示（Markdown）を出力する。
 #
-# 設定の解決順（上が優先）。**どの層の値を採ったかを stderr に出す**ので、
+# 設定は kaizen の設定ファイル（`.config/skills/shoji9x9/kaizen.jsonc` の schedule_* キー。references/config-files.md）
+# から、同梱の読み取りで読む。解決の順序は、環境変数 KAIZEN_SCHEDULE_MODE・AGENT・MODEL・EFFORT（workflow が渡す一時的な上書き）、
+# 設定ファイル、スキーマのデフォルトである。**どの層の値を採ったかを stderr に出す**ので、
 # 「設定したつもりの値で動いていない」を実行ログから切り分けられる。
-#   1. 環境変数 KAIZEN_SCHEDULE_* = 一時的な上書き
-#   2. `.kaizen/config` の schedule_* キー = リポジトリの意思（コミットされる）
-#   3. 既定値
 #
-# 同梱のワークフローが第 1 層へ渡すのは、`workflow_dispatch` の入力（mode / agent / model /
+# 同梱のワークフローが環境変数へ渡すのは、`workflow_dispatch` の入力（mode / agent / model /
 # effort）と、リポジトリ変数 `vars.KAIZEN_SCHEDULE_SKIP` だけである。**`inputs.*` は schedule
 # イベントでは常に空**なので、定期実行で有効になる上書きは KAIZEN_SCHEDULE_SKIP に限られる。
-# mode / agent / model / effort を定期実行にも反映したいなら、`.kaizen/config` に書く
-# （リポジトリ変数を増やすと `.kaizen/config` と範囲が重なるので、足していない）。
+# mode / agent / model / effort を定期実行にも反映したいなら、kaizen.jsonc に書く
+# （リポジトリ変数を増やすと kaizen.jsonc と範囲が重なるので、足していない）。
 #
-# 不正な値はデフォルトの値として扱い、そう扱ったことを stderr に出す（`.kaizen/config` の既存のキーと同じ方針）。
+# 不正な値（設定ファイルと環境変数のどちらも）は、デフォルトの値で動かずに exit 1 で止める。
+# 定期実行が失敗として記録されるので、設定を直す人が気付ける。
 #
-# **定期実行そのものは opt-in**（`schedule_enabled` の既定は off）。有効化するには
-# `.kaizen/config` に `schedule_enabled=on` を書く。理由は `DEFAULT_SCHEDULE_ENABLED` の注記。
+# **定期実行そのものは opt-in**（`schedule_enabled` のデフォルトは false）。有効にするには
+# kaizen.jsonc に `"schedule_enabled": true` を書く。理由はスキーマの schedule_enabled の注記と、下の resolve_config にある。
 set -euo pipefail
 
 kaizen_lib="$(dirname "${BASH_SOURCE[0]}")/kaizen-hook-common.sh"
@@ -36,37 +36,20 @@ if [ -r "${kaizen_lib}" ]; then
 else
 	printf '%s: 共通ライブラリを読めないため、機能を減らして動きます: %s\n' "$(basename "${BASH_SOURCE[0]}")" "${kaizen_lib}" >&2
 fi
-# 共通ライブラリを読めないときに、機能を減らして動く処理。**停止スイッチだけは、読めなければ止める側として扱う。**
-# mode / agent がデフォルトの値になるのは「動き方が変わる」だけである。しかし `schedule_enabled=off` を
+# 共通ライブラリを読めないときは、設定を読めない。**停止スイッチだけは、読めなければ止める側として扱う。**
+# mode / agent がデフォルトの値になるのは「動き方が変わる」だけである。しかし `schedule_enabled: false` を
 # 読み落とすと、「止めたはずのリポジトリが毎週動く」ことになる（凍結したプロジェクトや、
 # レートリミットに近いときに止めるという、この停止スイッチがある理由そのものに反する）。
-# 設定ファイルが在るのに読めないときは、ここで止める。**そもそも無い場合は
-# ここでは扱わない。** `schedule_enabled` のデフォルトは off（opt-in）なので、下の `resolve_config` が
-# 「キーが無い」として止める（「読めない」という理由と重ねないため）。
-#
-# 「読めない」のは、ライブラリが無いときだけではない。`kaizen_config_value` は設定ファイルを
-# 読めないときもキーが無いときも同じ 1 を返すので、**パーミッションなどでファイルそのものを
-# 読めない場合も、同じ抜けになる**。どちらも「在るのに読めない」として扱う。
-config_unreadable=""
-if [ -e .kaizen/config ] && [ ! -r .kaizen/config ]; then
-	config_unreadable=".kaizen/config が在るのに読めない（パーミッション等）"
-fi
-if ! declare -f kaizen_config_value >/dev/null 2>&1; then
+# schedule_enabled のデフォルトは false なので、読めないときに止めても、設定していないリポジトリの動きは変わらない。
+config_unloadable=""
+if ! declare -f kaizen_config_load >/dev/null 2>&1; then
 	# 機能を減らして動いたことを、必ず出力する（その実行と本番の構成の実行を、出力で区別できるようにする）。
-	echo "kaizen-schedule-report: kaizen-hook-common.sh を読めないため .kaizen/config を読めない" >&2
+	config_unloadable="kaizen-hook-common.sh を読めないため、kaizen の設定を読めない"
+	echo "kaizen-schedule-report: ${config_unloadable}" >&2
+	kaizen_config_load() { return 0; }
 	kaizen_config_value() { return 1; }
-	if [ -e .kaizen/config ] && [ -z "${config_unreadable}" ]; then
-		config_unreadable=".kaizen/config が在るのに読めない（共通ライブラリの欠落）"
-	fi
+	kaizen_config_source() { return 1; }
 fi
-
-readonly DEFAULT_MODE=notify
-readonly DEFAULT_AGENT=claude
-# 定期実行は **opt-in**。`schedule_enabled` を書いていないリポジトリは動かさない。
-# 既定を on にすると、テンプレートを `.github/workflows/` へ置いた（あるいは置かれた）
-# だけで週次実行が始まり、配布先は「入れた覚えのない定期実行」に驚く。
-# 逆極性のキー（`schedule_skip` 等）は足さない。二重の否定になって読み違えやすい。
-readonly DEFAULT_SCHEDULE_ENABLED=off
 
 # Issue 本文に載せる表の最大行数と、1 行の要約の最大文字数。
 # GitHub の Issue 本文は 65,536 文字が上限で、超えると `gh issue create/edit` が失敗し、
@@ -96,23 +79,20 @@ if grep -qi 'utf-\{0,1\}8' <<<"$(locale charmap 2>/dev/null)"; then
 	utf8_locale=1
 fi
 
-# 値を「環境変数 → .kaizen/config → 既定」の順で解決し、採った層を stderr に出す。
-# $1: 環境変数名 $2: config キー名 $3: 既定値 $4: 表示名
+# キーの値を出力し、採った層を stderr に出す。値が無ければ空を出力する。
+# $1: キー名 $2: 表示名
 resolve_value() {
-	local env_name=$1 config_key=$2 fallback=$3 label=$4 value
-	value=${!env_name-}
-	if [ -n "${value}" ]; then
-		warn "${label}=${value}（環境変数 ${env_name}）"
-		printf '%s' "${value}"
-		return 0
-	fi
-	if value=$(kaizen_config_value "${config_key}") && [ -n "${value}" ]; then
-		warn "${label}=${value}（.kaizen/config の ${config_key}）"
-		printf '%s' "${value}"
-		return 0
-	fi
-	warn "${label}=${fallback}（既定）"
-	printf '%s' "${fallback}"
+	local key=$1 label=$2 value source where
+	value=$(kaizen_config_value "${key}") || value=""
+	source=$(kaizen_config_source "${key}") || source=""
+	case "${source}" in
+	env) where="環境変数 KAIZEN_SCHEDULE_$(printf '%s' "${key#schedule_}" | tr '[:lower:]' '[:upper:]')" ;;
+	default) where="既定" ;;
+	"") where="未設定" ;;
+	*) where="kaizen の設定ファイル（${source} の層）の ${key}" ;;
+	esac
+	warn "${label}=${value}（${where}）"
+	printf '%s' "${value}"
 }
 
 # 真偽値の解釈。on/true/yes/1 を真、off/false/no/0 を偽とし、それ以外は 2 を返して
@@ -220,20 +200,27 @@ summary_of() {
 # ---- 設定解決 ----------------------------------------------------------------
 
 resolve_config() {
-	local enabled_raw enabled_source skip_raw mode agent model effort bool_status
+	local enabled enabled_source skip_raw mode agent model effort bool_status
 
 	skip="false"
 	skip_reason=""
 
-	if [ -n "${config_unreadable}" ]; then
+	# 設定を読めないとき（不正な値・旧い場所の設定・node が無いのに設定ファイルがある）は止める。
+	# 定期実行は CI で動くので、失敗として記録して設定を直してもらう。
+	if ! kaizen_config_load; then
+		warn "${kaizen_config_error:-}"
+		warn "kaizen の設定を読めないので止める（設定を直してから実行し直す）"
+		exit 1
+	fi
+	if [ -n "${config_unloadable}" ]; then
 		skip="true"
-		skip_reason="${config_unreadable}。停止する側として扱った"
+		skip_reason="${config_unloadable}。停止する側として扱った"
 		warn "${skip_reason}"
 	fi
 
 	# 一時停止（環境変数 KAIZEN_SCHEDULE_SKIP）とリポジトリの意思（schedule_enabled）は
 	# 別の軸。**どちらかが止めれば止まる**。一時停止は上書きではなく追加の安全弁なので、
-	# 「環境変数が優先だから schedule_enabled=off を無視する」にはしない。
+	# 「環境変数が優先だから schedule_enabled: false を無視する」にはしない。
 	skip_raw=${KAIZEN_SCHEDULE_SKIP-}
 	if [ -n "${skip_raw}" ]; then
 		parse_bool "${skip_raw}" && bool_status=0 || bool_status=$?
@@ -249,63 +236,29 @@ resolve_config() {
 		esac
 	fi
 
-	# **判定点は 1 つだけ。** 「値の決定（どの層から採ったか）」と「その値で止めるか」を分け、
-	# 既定値は他の層と同じく `enabled_raw` へ入れてから同じ判定へ通す。
-	# 分岐ごとに `skip="true"` を書くと `DEFAULT_SCHEDULE_ENABLED` が実際の既定を決めなくなり、
-	# 定数を on にしても挙動は止まったまま**メッセージだけが「既定 on」と嘘をつく**（実測）。
-	#
-	# 設定ファイルを読めないケースは上で既に停止済みなので、理由を重ねない
-	# （「読めない」のに「キーが無い」とは言えない）。
-	if [ -z "${config_unreadable}" ]; then
-		if enabled_raw=$(kaizen_config_value schedule_enabled) && [ -n "${enabled_raw}" ]; then
-			enabled_source=".kaizen/config の schedule_enabled=${enabled_raw}"
-			parse_bool "${enabled_raw}" && bool_status=0 || bool_status=$?
-			if [ "${bool_status}" = 2 ]; then
-				# 不正な値を有効として扱うと、typo した `.kaizen/config` が opt-in の根拠になってしまう。
-				warn "schedule_enabled=${enabled_raw} は真偽値として読めない。既定 ${DEFAULT_SCHEDULE_ENABLED} として扱う"
-				enabled_source="${enabled_source} を真偽値として読めない（既定 ${DEFAULT_SCHEDULE_ENABLED}）"
-				enabled_raw=${DEFAULT_SCHEDULE_ENABLED}
-			fi
-		else
-			# キーが無い＝既定。既定が off なのでここで止まる（opt-in）。
-			enabled_raw=${DEFAULT_SCHEDULE_ENABLED}
-			enabled_source=".kaizen/config に schedule_enabled=on が無い（定期実行は opt-in）"
-		fi
-		if ! parse_bool "${enabled_raw}"; then
+	# schedule_enabled は、スキーマが真偽値に限り、デフォルトを false にしている（opt-in）。
+	# テンプレートを `.github/workflows/` へ置いただけで週次実行が始まると、配布先は「入れた覚えのない定期実行」に驚く。
+	# 逆極性のキー（`schedule_skip` 等）は足さない。二重の否定になって読み違えやすい。
+	if [ -z "${config_unloadable}" ]; then
+		enabled=$(kaizen_config_value schedule_enabled) || enabled=false
+		if [ "${enabled}" != true ]; then
 			skip="true"
+			if [ "$(kaizen_config_source schedule_enabled || true)" = default ]; then
+				enabled_source="kaizen.jsonc に \"schedule_enabled\": true が無い（定期実行は opt-in）"
+			else
+				enabled_source="kaizen の設定ファイルの schedule_enabled が false"
+			fi
 			skip_reason="${skip_reason:+${skip_reason} / }${enabled_source}"
 		fi
 	fi
 
-	mode=$(resolve_value KAIZEN_SCHEDULE_MODE schedule_mode "${DEFAULT_MODE}" mode)
-	case "${mode}" in
-	notify | agent) ;;
-	*)
-		warn "mode=${mode} は notify | agent のいずれでもない。既定 ${DEFAULT_MODE} として扱う"
-		mode=${DEFAULT_MODE}
-		;;
-	esac
-
-	agent=$(resolve_value KAIZEN_SCHEDULE_AGENT schedule_agent "${DEFAULT_AGENT}" agent)
-	case "${agent}" in
-	claude | codex | copilot) ;;
-	*)
-		warn "agent=${agent} は claude | codex | copilot のいずれでもない。既定 ${DEFAULT_AGENT} として扱う"
-		agent=${DEFAULT_AGENT}
-		;;
-	esac
-
-	model=$(resolve_value KAIZEN_SCHEDULE_MODEL schedule_model "" model)
-	if [ -n "${model}" ] && ! [[ "${model}" =~ ^[A-Za-z0-9][A-Za-z0-9._:/-]{0,63}$ ]]; then
-		warn "model=${model} は識別子として受理できない形。既定（エージェント側の既定モデル）として扱う"
-		model=""
-	fi
-
-	effort=$(resolve_value KAIZEN_SCHEDULE_EFFORT schedule_effort "" effort)
-	if [ -n "${effort}" ] && ! [[ "${effort}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$ ]]; then
-		warn "effort=${effort} は識別子として受理できない形。既定として扱う"
-		effort=""
-	fi
+	# 値の形（mode・agent の選択肢、model・effort の識別子の形）は、スキーマが検証している。
+	mode=$(resolve_value schedule_mode mode)
+	[ -n "${mode}" ] || mode=notify
+	agent=$(resolve_value schedule_agent agent)
+	[ -n "${agent}" ] || agent=claude
+	model=$(resolve_value schedule_model model)
+	effort=$(resolve_value schedule_effort effort)
 	# effort を受け取るのは codex だけ（openai/codex-action の `effort` 入力）。
 	# claude-code-action / Copilot CLI には対応する入力が無いので、警告なしに捨てずに知らせる。
 	if [ -n "${effort}" ] && [ "${agent}" != "codex" ]; then

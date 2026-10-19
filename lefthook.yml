@@ -50,11 +50,39 @@ pre-commit:
             # oxlint / oxfmt は JS/TS ファミリ全体を対象にする。CI は引数なし実行（= 既定の探索範囲）
             # なので、ここを js,mjs だけに絞ると .ts が手元で検査されず CI でだけ落ちる。
             glob: "*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}"
-            exclude: *agent-copies
+            # 外部のパッケージから作った生成物（scripts/lib/source-scope.ts の VENDORED_GLOBS）も除く。
+            # oxfmt と oxlint は設定の ignorePatterns で除くが、渡したファイルがすべて除かれると exit 2 で止まるため、ここでも除く。
+            exclude: &agent-copies-and-vendored
+              - ".claude/rules/**"
+              - ".claude/skills/**"
+              - ".github/instructions/**"
+              - ".agents/skills/agent-usage/**"
+              - ".agents/skills/aws-architecture-diagram/**"
+              - ".agents/skills/box/**"
+              - ".agents/skills/browser-test/**"
+              - ".agents/skills/current-environment-bootstrap/**"
+              - ".agents/skills/dependabot-alert-issue/**"
+              - ".agents/skills/dependabot-merge/**"
+              - ".agents/skills/git-worktree/**"
+              - ".agents/skills/golden-dataset/**"
+              - ".agents/skills/issue-batch/**"
+              - ".agents/skills/issue-create/**"
+              - ".agents/skills/issue-start/**"
+              - ".agents/skills/kaizen/**"
+              - ".agents/skills/multiagent-setup/**"
+              - ".agents/skills/parity-component/**"
+              - ".agents/skills/parity-diff/**"
+              - ".agents/skills/parity-replace/**"
+              - ".agents/skills/parity-suite/**"
+              - ".agents/skills/pr-finalize-loop/**"
+              - ".agents/skills/pr-review-handle/**"
+              - ".agents/skills/replace-strategy/**"
+              - "skills/*/scripts/skill-config/vendor/**"
             run: pnpm exec oxfmt {staged_files}
             stage_fixed: true
           - name: oxfmt-json
-            glob: "*.json"
+            # .jsonc（スキルの設定ファイル）も整形する。oxfmt.config.ts の assigned と同じ種類にする。
+            glob: "*.{json,jsonc}"
             exclude: *agent-copies
             run: pnpm exec oxfmt {staged_files}
             stage_fixed: true
@@ -106,7 +134,7 @@ pre-commit:
             run: shellcheck {staged_files}
           - name: oxlint
             glob: "*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}"
-            exclude: *agent-copies
+            exclude: *agent-copies-and-vendored
             run: pnpm exec oxlint {staged_files}
           - name: typecheck
             # tsconfig.json が束ねる .ts・.tsx 全体と、配布スキルの .mjs（tsconfig.skills.json の checkJs）の型。
@@ -121,6 +149,11 @@ pre-commit:
             glob: "*.json"
             exclude: *agent-copies
             run: pnpm exec jsonlint --quiet --continue --no-duplicate-keys {staged_files}
+          - name: jsonlint-jsonc
+            # .jsonc はコメントと末尾のカンマを受け付けて読む（-C -T）。キーの重複は .json と同じく誤りにする。
+            glob: "*.jsonc"
+            exclude: *agent-copies
+            run: pnpm exec jsonlint -C -T --quiet --continue --no-duplicate-keys {staged_files}
           - name: js-yaml
             glob: "*.{yml,yaml}"
             exclude: *agent-copies
@@ -151,6 +184,14 @@ pre-commit:
             # Repo-wide drift check (skills/ vs .agents/skills/). Fast and deterministic,
             # so it runs on every commit rather than relying on path-glob matching.
             run: node scripts/gates/packaging/copies/check-skills-sync.ts
+          - name: skill-config-vendor
+            # 配布スキルに同梱する jsonc-parser が devDependency の版から作った内容と一致するか。版を上げた commit でも確かめる。
+            glob: "{skills/*/config-schemas/*,skills/*/scripts/skill-config/**,skills/*/references/config-files.md,scripts/gates/packaging/copies/identical-copies.json,package.json,pnpm-lock.yaml}"
+            run: node scripts/gates/packaging/check-skill-config-vendor.ts
+          - name: skill-configs
+            # このリポジトリのスキルの設定（.config/skills/shoji9x9/*.jsonc）が、各スキルのスキーマに合うか。
+            glob: "{.config/skills/**,skills/*/config-schemas/*}"
+            run: node scripts/gates/packaging/check-skill-configs.ts
           - name: dir-file-count
             # 各ディレクトリの直下のファイル数を閾値以下に保つ（scripts/gates/layout/dir-file-count.json）。
             # ファイルを足したディレクトリはどこでもよいので、glob で絞らずに毎回実行する（git ls-files を数えるだけで数十 ms）。

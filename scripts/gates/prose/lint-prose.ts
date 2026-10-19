@@ -36,7 +36,7 @@ import {
   type CommentMarkdown,
 } from "../../lib/text/code-comments.ts";
 import { hasStrings, stringMarkdown } from "../../lib/text/code-strings.ts";
-import { isAgentCopy } from "../../lib/source-scope.ts";
+import { isAgentCopy, isVendored } from "../../lib/source-scope.ts";
 import { errorMessage } from "../../lib/errors.ts";
 import { isNonEmptyString, isRecord } from "../../lib/guards.ts";
 import { isArray } from "../../lib/is-array.ts";
@@ -89,6 +89,8 @@ export function isTarget(root: string, rel: string): boolean {
   if (!rel.endsWith(".md") && !hasComments(rel) && !hasStrings(rel)) return false;
   if (EXCLUDED_PREFIXES.some((p) => rel.startsWith(p))) return false;
   if (isAgentCopy(root, rel)) return false;
+  // 外部のパッケージから作った生成物（上流のコードとライセンスの文書）は、このリポジトリの文章の規約の対象ではない
+  if (isVendored(rel)) return false;
   const abs = join(root, rel);
   if (!existsSync(abs)) return false;
   return !lstatSync(abs).isSymbolicLink();

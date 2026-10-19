@@ -1,0 +1,261 @@
+// 配布スキルに同梱する設定の読み取りのチェック（check-skill-config-vendor.ts）のテスト。
+//
+// 状態空間の軸と、各セルに置いた入力:
+//
+// | 軸 | 値 |
+// | --- | --- |
+// | スキーマを持つスキル | 0 件 / 1 件 / 複数 |
+// | 読み取り（skill-config.mjs） | ある / 無い / スキーマが無いのにある |
+// | vendor/ の 3 つ | 生成した内容と同じ / 無い / 中身が違う |
+// | config-files.md | ある / 無い |
+// | 複数のスキルが持つファイルの組 | 1 つの組に全部 / 一部が外れる / 組が無い / 2 つの組に分かれる / 1 スキルだけが持つ |
+// | identical-copies.json | 読める / groups が配列でない / files が文字列の配列でない |
+// | --fix | 無し（報告だけ）/ 有り（作り直す。読み取りは作らない） |
+// | --fix の書き込み先 | 通常のファイル / ファイルがシンボリックリンク / 途中のディレクトリがシンボリックリンク |
+// | 引数 | 無し / --fix / 知らない引数 |
+import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { describe, expect, test, vi } from "vitest";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import {
+  COPIES_CONFIG,
+  READER,
+  SHARED_DOC,
+  VENDOR_DIR,
+  VENDOR_FILES,
+  check,
+  jsoncParserPackage,
+  main,
+  renderVendor,
+} from "./check-skill-config-vendor.ts";
+
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+
+/** jsonc-parser を解決できる一時リポジトリ（node_modules は実リポジトリへのリンク）。 */
+function makeRepo() {
+  const root = makeTempDir("skill-config-vendor-");
+  writeFileSync(join(root, "package.json"), "{}\n");
+  symlinkSync(join(repoRoot, "node_modules"), join(root, "node_modules"));
+  mkdirSync(join(root, "skills"));
+  mkdirSync(join(root, "scripts/gates/packaging/copies"), { recursive: true });
+  writeFileSync(join(root, COPIES_CONFIG), '{ "groups": [] }\n');
+  const put = (rel: string, text = "") => {
+    mkdirSync(dirname(join(root, rel)), { recursive: true });
+    writeFileSync(join(root, rel), text);
+  };
+  return { root, put };
+}
+
+/** stdout と stderr を集めて main を呼ぶ。 */
+async function runMain(argv: string[], root: string) {
+  let out = "";
+  let err = "";
+  const o = vi.spyOn(process.stdout, "write").mockImplementation((s) => {
+    out += String(s);
+    return true;
+  });
+  const e = vi.spyOn(process.stderr, "write").mockImplementation((s) => {
+    err += String(s);
+    return true;
+  });
+  try {
+    return { code: await main(argv, root), out, err };
+  } finally {
+    o.mockRestore();
+    e.mockRestore();
+  }
+}
+
+describe("check", () => {
+  test("スキーマを持つスキルが 0 件なら、判定できないとして例外にする", async () => {
+    const { root } = makeRepo();
+    await expect(check(root, false)).rejects.toThrow(/config-schemas\/ を持つスキルが 0 件/);
+  });
+
+  test("スキーマを持つスキルの、読み取りと vendor/ の欠けをすべて挙げる", async () => {
+    const { root, put } = makeRepo();
+    put("skills/a/config-schemas/a.schema.json", "{}");
+    const findings = await check(root, false);
+    expect(findings).toEqual([
+      { path: `skills/a/${READER}`, message: "無い（他のスキルの skill-config.mjs をコピーする）" },
+      {
+        path: `skills/a/${SHARED_DOC}`,
+        message: "無い（他のスキルの config-files.md をコピーする）",
+      },
+      ...VENDOR_FILES.map((f) => ({ path: `skills/a/${VENDOR_DIR}/${f}`, message: "無い" })),
+    ]);
+  });
+
+  test("--fix は vendor/ を作り直し、読み取りは作らない。作り直した後は vendor/ の指摘が無い", async () => {
+    const { root, put } = makeRepo();
+    put("skills/a/config-schemas/a.schema.json", "{}");
+    put(`skills/a/${SHARED_DOC}`);
+    expect(await check(root, true)).toEqual([
+      { path: `skills/a/${READER}`, message: "無い（他のスキルの skill-config.mjs をコピーする）" },
+    ]);
+    const expected = await renderVendor(root);
+    for (const f of VENDOR_FILES) {
+      expect(readFileSync(join(root, "skills/a", VENDOR_DIR, f), "utf8")).toBe(expected[f]);
+    }
+    put(`skills/a/${READER}`);
+    put(`skills/a/${SHARED_DOC}`);
+    expect(await check(root, false)).toEqual([]);
+  });
+
+  test.each([
+    ["ファイル", (dir: string) => `${dir}/${VENDOR_FILES[0]}`],
+    ["途中のディレクトリ", (dir: string) => dir],
+  ])(
+    "--fix は、書き込み先の%sがシンボリックリンクなら、リンク先を書き換えずに挙げる",
+    async (_name, linkOf) => {
+      const { root, put } = makeRepo();
+      put("skills/a/config-schemas/a.schema.json", "{}");
+      put(`skills/a/${READER}`);
+      put(`skills/a/${SHARED_DOC}`);
+      const outside = makeTempDir("skill-config-vendor-outside-");
+      writeFileSync(join(outside, VENDOR_FILES[0]), "outside\n");
+      const dir = `skills/a/${VENDOR_DIR}`;
+      const link = linkOf(dir);
+      mkdirSync(dirname(join(root, link)), { recursive: true });
+      symlinkSync(link === dir ? outside : join(outside, VENDOR_FILES[0]), join(root, link));
+      const findings = await check(root, true);
+      expect(findings).toContainEqual({
+        path: `${dir}/${VENDOR_FILES[0]}`,
+        message: `${link} がシンボリックリンクなので --fix で書かない`,
+      });
+      expect(readFileSync(join(outside, VENDOR_FILES[0]), "utf8")).toBe("outside\n");
+    },
+  );
+
+  test("vendor/ の中身が生成した内容と 1 バイトでも違えば挙げる", async () => {
+    const { root, put } = makeRepo();
+    put("skills/a/config-schemas/a.schema.json", "{}");
+    put(`skills/a/${READER}`);
+    put(`skills/a/${SHARED_DOC}`);
+    await check(root, true);
+    const path = join(root, "skills/a", VENDOR_DIR, "jsonc-parser.mjs");
+    writeFileSync(path, `${readFileSync(path, "utf8")} `);
+    expect(await check(root, false)).toEqual([
+      {
+        path: `skills/a/${VENDOR_DIR}/jsonc-parser.mjs`,
+        message: "devDependency の jsonc-parser から作った内容と一致しない",
+      },
+    ]);
+  });
+
+  test("複数のスキルが持つ読み取り・config-files.md・同じ名前のスキーマが 1 つの組に載っていなければ、載っていないパスを挙げる", async () => {
+    const { root, put } = makeRepo();
+    for (const n of ["a", "b", "c"]) {
+      put(`skills/${n}/config-schemas/common.schema.json`, "{}");
+      put(`skills/${n}/${READER}`);
+      put(`skills/${n}/${SHARED_DOC}`);
+    }
+    put("skills/c/config-schemas/only-c.schema.json", "{}");
+    await check(root, true);
+    const paths = (rel: string, names: string[]) => names.map((n) => `skills/${n}/${rel}`);
+    const write = (groups: string[][]) =>
+      writeFileSync(
+        join(root, COPIES_CONFIG),
+        JSON.stringify({ groups: groups.map((files) => ({ files, reason: "r" })) }),
+      );
+    // c だけが組から外れている（新しいスキルにコピーして組に足し忘れた形）
+    write([
+      paths(READER, ["a", "b"]),
+      paths(SHARED_DOC, ["a", "b"]),
+      paths("config-schemas/common.schema.json", ["a", "b"]),
+    ]);
+    expect((await check(root, false)).map((f) => f.path)).toEqual([
+      `skills/c/${READER}`,
+      `skills/c/${SHARED_DOC}`,
+      "skills/c/config-schemas/common.schema.json",
+    ]);
+    // 組が 1 つも無いときは、すべてのパスを挙げる。1 つのスキルだけが持つスキーマは比べる相手が無いので挙げない
+    write([]);
+    expect(await check(root, false)).toHaveLength(9);
+    expect((await check(root, false))[0]?.message).toMatch(
+      /identical-copies\.json の .* の組に無い/,
+    );
+    // 2 つの組に分かれているのも、1 つの組に載っていないとして挙げる
+    write([
+      paths(READER, ["a", "b"]),
+      paths(READER, ["c"]),
+      paths(SHARED_DOC, ["a", "b", "c"]),
+      paths("config-schemas/common.schema.json", ["a", "b", "c"]),
+    ]);
+    expect((await check(root, false)).map((f) => f.path)).toEqual([`skills/c/${READER}`]);
+    write([
+      paths(READER, ["a", "b", "c"]),
+      paths(SHARED_DOC, ["a", "b", "c"]),
+      paths("config-schemas/common.schema.json", ["a", "b", "c"]),
+    ]);
+    expect(await check(root, false)).toEqual([]);
+  });
+
+  test("identical-copies.json を読めなければ、判定できないとして例外にする", async () => {
+    const { root, put } = makeRepo();
+    put("skills/a/config-schemas/a.schema.json", "{}");
+    writeFileSync(join(root, COPIES_CONFIG), '{ "groups": {} }');
+    await expect(check(root, false)).rejects.toThrow(/groups が配列でない/);
+    writeFileSync(join(root, COPIES_CONFIG), '{ "groups": [{ "files": [1] }] }');
+    await expect(check(root, false)).rejects.toThrow(/files が文字列の配列でない/);
+  });
+
+  test("スキーマが無いのに scripts/skill-config/ を持つスキルを挙げる", async () => {
+    const { root, put } = makeRepo();
+    put("skills/a/config-schemas/a.schema.json", "{}");
+    put(`skills/a/${READER}`);
+    put(`skills/a/${SHARED_DOC}`);
+    put(`skills/b/${READER}`);
+    await check(root, true);
+    expect(await check(root, false)).toEqual([
+      {
+        path: "skills/b/scripts/skill-config",
+        message: "config-schemas/ が無いのに同梱している（設定を読まないなら消す）",
+      },
+    ]);
+  });
+});
+
+describe("renderVendor", () => {
+  test("生成物の先頭に版を書き、型とライセンスは jsonc-parser のファイルそのものにする", async () => {
+    const { dir, version } = jsoncParserPackage(repoRoot);
+    const v = await renderVendor(repoRoot);
+    expect(v["jsonc-parser.mjs"].split("\n")[0]).toContain(`jsonc-parser ${version}（MIT`);
+    expect(v["jsonc-parser.mjs"]).toMatch(/export \{[\s\S]*parseTree[\s\S]*\}/);
+    expect(v["jsonc-parser.d.mts"]).toBe(readFileSync(join(dir, "lib/esm/main.d.ts"), "utf8"));
+    expect(v["LICENSE.md"]).toBe(readFileSync(join(dir, "LICENSE.md"), "utf8"));
+  });
+});
+
+describe("main", () => {
+  test("食い違いがあれば exit 1 で、--fix で作り直すよう案内する", async () => {
+    const { root, put } = makeRepo();
+    put("skills/a/config-schemas/a.schema.json", "{}");
+    const r = await runMain([], root);
+    expect(r.code).toBe(1);
+    expect(r.err).toContain("vendor/ は --fix で作り直す");
+  });
+
+  test("食い違いが無ければ exit 0 で、スキルの数と版を出す", async () => {
+    const { root, put } = makeRepo();
+    put("skills/a/config-schemas/a.schema.json", "{}");
+    put(`skills/a/${READER}`);
+    put(`skills/a/${SHARED_DOC}`);
+    const fixed = await runMain(["--fix"], root);
+    expect(fixed.code).toBe(0);
+    expect(fixed.out).toMatch(/OK（1 スキル、jsonc-parser [0-9.]+、vendor\/ を作り直した）/);
+    expect((await runMain([], root)).out).toMatch(/OK（1 スキル、jsonc-parser [0-9.]+）\n$/);
+  });
+
+  test("判定できないときは exit 2、知らない引数も exit 2", async () => {
+    const { root } = makeRepo();
+    expect((await runMain([], root)).code).toBe(2);
+    const r = await runMain(["--check"], root);
+    expect(r).toMatchObject({ code: 2, err: expect.stringContaining("知らない引数: --check") });
+  });
+
+  test("実リポジトリ: 同梱物は devDependency の版と一致している", async () => {
+    expect((await runMain([], repoRoot)).code).toBe(0);
+  });
+});

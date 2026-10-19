@@ -1,0 +1,213 @@
+{
+  "metadata": {
+    "skill_name": "pr-review-handle",
+    "skill_path": "<repo>/skills/pr-review-handle",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-18T13:05:56Z",
+    "evals_run": [7, 8],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2,
+        "passed": 1,
+        "failed": 4,
+        "total": 5,
+        "time_seconds": 21.902,
+        "tokens": 108571,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "common の review_tool の設定（codex）を参照して依頼先ツールを決めている",
+          "passed": true,
+          "evidence": "resolve-review-tool.sh を実行し、設定が無いので copilot になる、置けば codex になると報告"
+        },
+        {
+          "text": "push 後に再レビュー依頼のタイミングをユーザーに確認する（今すぐ / CI 完了後 / 依頼しない）",
+          "passed": false,
+          "evidence": "前提確認で止まり、push 後に再レビューのタイミングを確認する手順に触れていない"
+        },
+        {
+          "text": "依頼は requested_reviewers ではなくトップレベル PR コメントへの @codex review 投稿で行う方針である",
+          "passed": false,
+          "evidence": "@codex review をトップレベル PR コメントに投稿する方針に触れていない"
+        },
+        {
+          "text": "Copilot 専用の login（copilot-pull-request-reviewer[bot]）は使わない方針である",
+          "passed": false,
+          "evidence": "Copilot 専用の login を使わない方針に触れていない"
+        },
+        {
+          "text": "mention は非冪等のため、現在の HEAD の push 以降に投稿された（投稿者を問わない）@codex review コメントの有無を確認し、既にあれば再投稿せず重複レビュー起動を避ける方針である",
+          "passed": false,
+          "evidence": "@codex review の重複投稿を避ける方針に触れていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 21.12,
+        "tokens": 78103,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "common の review_tool の設定（none）を参照している",
+          "passed": true,
+          "evidence": "「`review_tool: none` の指定に従い、再レビューを依頼するかの確認は省きます」"
+        },
+        {
+          "text": "未解決スレッドへの返信・解決は通常どおり行う手順になっている",
+          "passed": true,
+          "evidence": "再実行時の手順に「書き込みが許可されていれば、返信してから resolve する」がある"
+        },
+        {
+          "text": "AI レビュアーへの再レビュー依頼をせず、その要否確認も省略して完了する方針である",
+          "passed": true,
+          "evidence": "「`review_tool: none` なので、再レビューの確認はせずに完了とします」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 14.272,
+        "tokens": 60818,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "common の review_tool の設定（codex）を参照して依頼先ツールを決めている",
+          "passed": false,
+          "evidence": "「review_tool: codex の設定も読めませんでした」で止まり、依頼先を決めていない"
+        },
+        {
+          "text": "push 後に再レビュー依頼のタイミングをユーザーに確認する（今すぐ / CI 完了後 / 依頼しない）",
+          "passed": false,
+          "evidence": "再レビュー依頼のタイミングの確認に触れていない"
+        },
+        {
+          "text": "依頼は requested_reviewers ではなくトップレベル PR コメントへの @codex review 投稿で行う方針である",
+          "passed": false,
+          "evidence": "@codex review の投稿に触れず、「codex でレビューする」とだけ書いている"
+        },
+        {
+          "text": "Copilot 専用の login（copilot-pull-request-reviewer[bot]）は使わない方針である",
+          "passed": false,
+          "evidence": "Copilot 専用の login について触れていない"
+        },
+        {
+          "text": "mention は非冪等のため、現在の HEAD の push 以降に投稿された（投稿者を問わない）@codex review コメントの有無を確認し、既にあれば再投稿せず重複レビュー起動を避ける方針である",
+          "passed": false,
+          "evidence": "重複投稿を避ける方針が無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 3,
+        "total": 3,
+        "time_seconds": 19.277,
+        "tokens": 103964,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "common の review_tool の設定（none）を参照している",
+          "passed": false,
+          "evidence": "「review_tool: none が何を意味するか…が分からない」として設定を扱っていない"
+        },
+        {
+          "text": "未解決スレッドへの返信・解決は通常どおり行う手順になっている",
+          "passed": false,
+          "evidence": "返信案の作成と投稿には触れるが、スレッドの解決（resolve）に触れていない"
+        },
+        {
+          "text": "AI レビュアーへの再レビュー依頼をせず、その要否確認も省略して完了する方針である",
+          "passed": false,
+          "evidence": "再レビュー依頼をしない方針に触れていない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.6,
+        "stddev": 0.5657,
+        "min": 0.2,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 21.511,
+        "stddev": 0.553,
+        "min": 21.12,
+        "max": 21.902
+      },
+      "tokens": {
+        "mean": 93337,
+        "stddev": 21544.1294,
+        "min": 78103,
+        "max": 108571
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0,
+        "stddev": 0,
+        "min": 0,
+        "max": 0
+      },
+      "time_seconds": {
+        "mean": 16.7745,
+        "stddev": 3.5391,
+        "min": 14.272,
+        "max": 19.277
+      },
+      "tokens": {
+        "mean": 82391,
+        "stddev": 30508.8292,
+        "min": 60818,
+        "max": 103964
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.60",
+      "time_seconds": "+4.7",
+      "tokens": "+10946"
+    }
+  },
+  "notes": []
+}

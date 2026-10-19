@@ -35,7 +35,7 @@ branch や設定を変更する前に、すべての Issue について次を済
    再開するときは、次のことを実際の状態から確かめられれば、CLOSED の Issue も受け付ける。
    一意に決まる linked PR が MERGED で、Issue がその merge で CLOSED になり、残りの作業が deployment と cleanup だけである。
    それ以外の CLOSED の Issue は、SKIPPED か BLOCKED にする。本文とすべてのコメントを取得し、最新の決定を優先する。
-3. 規約の文書、base branch、`skills.issue-batch`（`merge_mode` と `merge_method` を含む）、エージェントごとのローカルレビューの機能、Kaizen が読む現在の transcript を決める。
+3. 規約の文書、base branch、`issue-batch` の設定（`merge_mode` と `merge_method` を含む）、エージェントごとのローカルレビューの機能、Kaizen が読む現在の transcript を決める。
    リモートの AI レビュアーはここでは固定せず、pr-finalize-loop の決め方に任せる。
    `--record-pending` が transcript を特定できないエージェントでは、候補が 0 件であることを確かめられないので、何かを変更する前に BLOCKED にする。
    transcript を提供しないエージェント（例: Copilot）は、この方法を使えない。
@@ -70,30 +70,41 @@ branch や設定を変更する前に、すべての Issue について次を済
    無ければ `agent` に要る待機の上限が決まらず、やり直しても preflight で止まる（設定を読んで、どちらかを案内する）。
    `agent` でも、base で merge queue が必須なら、`gh pr merge` は queue への投入（条件を満たしていなければ auto-merge の有効化）になる。
    その base では、同じ確認をする。共有の障害では全体を停止する。
-9. setup の設定（`skills.issue-batch`）が base branch に入っていることを確かめる。
+9. setup の設定が base branch に入っていることを確かめる。
    worktree は base から作るので、共有ツリーにだけある設定（commit・push・merge していない）は worktree に届かず、run の途中で設定の扱いを決める判断が要る。
+   比べるのは、issue-batch が読むリポジトリの層のファイルである。`issue-batch.jsonc` は必須で、`common.jsonc` と `browser-test.jsonc` は在れば比べる。
 
    `<base>` は 3 で決めた base branch である。
 
    ```bash
-   cfg=.config/skills/shoji9x9/skills.yml
    top=$(git rev-parse --show-toplevel) || { echo '判定不能: リポジトリの直下を特定できない' >&2; exit 1; }
    git fetch --quiet origin '+refs/heads/<base>:refs/remotes/origin/<base>' || { echo '判定不能: base を取得できない' >&2; exit 1; }
-   base_blob=$(git rev-parse --verify --quiet "origin/<base>:$cfg") || base_blob=''
-   work_blob=$(git -C "$top" hash-object --path="$cfg" "$cfg" 2>/dev/null) || work_blob=''
-   if [ -n "$base_blob" ] && [ "$base_blob" = "$work_blob" ]; then
-     echo '設定は base に入っている'
-   else
-     echo '設定が base と作業ツリーで一致しない（どちらかに無いか、内容が違う）'
-   fi
+   for cfg in .config/skills/shoji9x9/issue-batch.jsonc .config/skills/shoji9x9/common.jsonc .config/skills/shoji9x9/browser-test.jsonc; do
+     base_blob=$(git rev-parse --verify --quiet "origin/<base>:$cfg") || base_blob=''
+     work_blob=''
+     if [ -e "$top/$cfg" ]; then
+       work_blob=$(git -C "$top" hash-object --path="$cfg" "$cfg") || { echo "判定不能: $cfg を読めない" >&2; exit 1; }
+     fi
+     if [ -z "$base_blob" ] && [ -z "$work_blob" ]; then
+       case "$cfg" in
+       */issue-batch.jsonc) echo "$cfg: base にも作業ツリーにも無い（issue-batch setup が要る）" ;;
+       *) echo "$cfg: base にも作業ツリーにも無い（比べるものが無い）" ;;
+       esac
+     elif [ "$base_blob" = "$work_blob" ]; then
+       echo "$cfg: base に入っている"
+     else
+       echo "$cfg: base と作業ツリーで一致しない（どちらかに無いか、内容が違う）"
+     fi
+   done
    ```
 
-   判定の結果は出力の行で読む。入っていない状態は期待される結果の 1 つなので、終了コードを 0 以外にしない。exit 1 は判定できない場合だけである。
+   判定の結果は、ファイルごとの出力の行で読む。入っていない状態は期待される結果の 1 つなので、終了コードを 0 以外にしない。exit 1 は判定できない場合だけである。
    refspec を明示するのは、single-branch の clone でも `origin/<base>` を更新するためである。
    作業ツリーのファイルをリポジトリの直下から `git hash-object --path` で base の blob と同じ変換（改行・filter）にかけて比べるので、サブディレクトリから実行しても、追跡されていない同じ内容のファイルでも、`core.autocrlf` の環境でも正しく判定する。
-   入っていなければ、run を始めずに全体を停止し、設定を base に入れるよう案内する。設定を無人で commit・push しない。
-   比べるのはファイル全体なので、他のスキルの設定だけが違っても止まる。worktree の設定が共有ツリーと違うことに変わりはないので、同じく base に入れてもらう。
+   1 つでも「一致しない」か、`issue-batch.jsonc` が「無い」なら、run を始めずに全体を停止し、設定を base に入れるよう案内する。設定を無人で commit・push しない。
    base を取得できず判定できないときも、入っているとは扱わずに全体を停止する。
+   人ごと・リポジトリ限定の層（`*.local.jsonc`）は commit しないので、ここでは比べない。
+   共有ツリーにあれば、worktree に入った後に、`git-worktree` の carry-in で運ばれて同じ内容であることを確かめる。運ばれていないと、worktree の中ではリポジトリの層の値が警告なしに使われる。
 10. run の前に利用者の判断が要るものを、すべての Issue について洗い出す。本文とすべてのコメントを読み、次のものを挙げる。
     - 提案に複数の案が並んでいて、どれを採るかが書かれていない
     - 方針や範囲が書かれていない。本文とコメントの決定が食い違い、どれに従うかを決められない

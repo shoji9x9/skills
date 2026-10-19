@@ -2,11 +2,13 @@
 
 ## 設定の置き場所と原本
 
-issue-batch だけが使う設定は、`.config/skills/shoji9x9/skills.yml` の `skills.issue-batch` で定義する。次のものは、別の場所で定義する。
+issue-batch だけが使う設定は、`issue-batch` の設定ファイル（リポジトリの層の `.config/skills/shoji9x9/issue-batch.jsonc`）で定義する。
+置き場所・層・解決の順序・書き込みの決まりは [`config-files.md`](config-files.md) で定義する。キーはすべてリポジトリの層だけに置ける。
+次のものは、別の場所で定義する。
 
 - リモートの AI レビューの依頼先は、pr-finalize-loop の決め方に任せる
-- ブラウザの環境は `skills.browser-test`
-- branch と commit の規約は、`skills.common.conventions_doc` とその参照先
+- ブラウザの環境は `browser-test` の設定の `environments`
+- branch と commit の規約は、`common` の設定の `conventions_doc` とその参照先
 
 決まったレビューツールは、`pr-finalize-loop` が PR で再レビューを依頼する相手で、ローカルレビューをする主体ではない。
 ローカルレビューは、設定の値に関わらず、常に今使っているエージェント自身の機能で行う（`references/orchestration.md`「ローカルレビュー」）。
@@ -14,28 +16,33 @@ issue-batch だけが使う設定は、`.config/skills/shoji9x9/skills.yml` の 
 同じように、Kaizen の `--record-pending` が BLOCKED になるのは、実行中のエージェントが現在の transcript を特定できない場合である。
 `review_tool: copilot` はレビュアーの指定にすぎず、BLOCKED の条件ではない。この 2 つを取り違えて、正常な場合を停止させない。
 
-これらを `skills.issue-batch` に書き写さない。設定ファイルが無い場合は、必要な親と `skills.issue-batch` だけを作る。
-既存のファイルには、欠けたキーだけを追記し、既存の値・コメント・他のスキルのキーを変えない。既存の値を変える場合は、今の値と提案する値、その根拠を示して承認を得る。
+これらを `issue-batch` の設定に書き写さない。
+書くときは [`config-files.md`](config-files.md)「書き込みの決まり」に従う。既存の値を変える場合は、今の値と提案する値、その根拠を示して承認を得る。
+
+設定は同梱の読み取りで読む（`node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mjs dump issue-batch`）。
+exit 1（知らないキー・型の誤り・旧い場所の設定）なら、何かを変更する前に停止して、エラーを示す。
 
 ## schema
 
-```yaml
-version: 1
-skills:
-  issue-batch:
-    merge_mode: auto
-    merge_method: squash
-    merge_ready_timeout_minutes: 10
-    max_local_review_iterations: 1
-    max_pr_iterations: 5
-    wait_ci_before_review: false
-    continue_on_blocked: true
-    deployment:
-      workflows:
-        - .github/workflows/release.yml
-      registration_timeout_minutes: 5
-      completion_timeout_minutes: 20
-      max_fix_iterations: 3
+型はスキーマ（`config-schemas/issue-batch.schema.json`）で定義する。
+
+```jsonc
+// .config/skills/shoji9x9/issue-batch.jsonc
+{
+  "merge_mode": "auto",
+  "merge_method": "squash",
+  "merge_ready_timeout_minutes": 10,
+  "max_local_review_iterations": 1,
+  "max_pr_iterations": 5,
+  "wait_ci_before_review": false,
+  "continue_on_blocked": true,
+  "deployment": {
+    "workflows": [".github/workflows/release.yml"],
+    "registration_timeout_minutes": 5,
+    "completion_timeout_minutes": 20,
+    "max_fix_iterations": 3
+  }
+}
 ```
 
 これは形の例で、値のデフォルトではない。workflow と timeout を、確かめずにそのままコピーしない。
@@ -50,7 +57,7 @@ skills:
 
 setup は設定だけを扱い、Issue・branch・PR・merge・deployment を操作しない。
 
-1. リポジトリで許されている merge method、branch protection と merge queue、規約の文書、`skills.browser-test` を読む。リモートの AI レビュアーは、handoff 先の pr-finalize-loop が決める。
+1. リポジトリで許されている merge method、branch protection と merge queue、規約の文書、`browser-test` の設定を読む。リモートの AI レビュアーは、handoff 先の pr-finalize-loop が決める。
 2. merge mode、merge method、local review の上限、PR の収束の上限、CI の待機、run の途中で BLOCKED や FAILED になった後に続けるかの方針を、根拠を付けて確かめる。
    最初の候補は、merge mode が `auto`、local が 1、PR が 5、CI の待機が false、続けるかが true である。
    merge method はリポジトリで許された方法だけを示し、`squash` を推奨の候補にして、回答を保存する。
@@ -71,8 +78,8 @@ setup は設定だけを扱い、Issue・branch・PR・merge・deployment を操
    該当するものが無い場合も、空の配列として明示して保存する。
    複雑な `if` や外部の deployment で、対象かどうかを決められないものは、無人の対象に含めず、BLOCKED の条件として記録する。
 4. 登録の待ち時間（registration timeout）、完了の待ち時間（completion timeout）、修正の上限を確かめる。最近の run の作成までの待ちと実行の時間を、判断の材料にする。履歴が無ければ、推測した値で決めずに質問する。
-5. 提案する YAML と、既存のファイルへの最小の差分を示し、利用者が確定した後に、既存の内容を壊さずに保存する。
-6. YAML を解析し、すべてのキー、型、正の整数、workflow のパスが在ること、merge method が許されていること、merge mode の値（`auto` \| `agent`）を確かめ直す。
+5. 提案する値と、既存のファイルへの最小の差分を示し、利用者が確定した後に、`skill-config.mjs set issue-batch <キー> '<JSON>' --layer repo` で保存する。
+6. `skill-config.mjs validate issue-batch` で、すべてのキーと型（merge mode の値 `auto` \| `agent`・正の整数を含む）を確かめ直す。あわせて、workflow のパスが在ること、merge method が許されていることを確かめる。
    あわせて、`agent` を選んだ場合は `merge_ready_timeout_minutes`（正の整数）が在ること、`auto` を選んだ場合は `allow_auto_merge: true` であることを確かめて、setup を完了にする。
 
 ## run option の解決
@@ -86,7 +93,7 @@ setup は設定だけを扱い、Issue・branch・PR・merge・deployment を操
 | `--wait-ci-before-review` / `--no-wait-ci-before-review` | `wait_ci_before_review` | 両方の同時の指定を拒否する |
 | `--stop-on-blocked` | `continue_on_blocked` | その run だけ false として扱う |
 | `--max-deployment-fix-iterations` | `deployment.max_fix_iterations` | 正の整数だけ |
-| `--browser-test-env` | `skills.browser-test.environments` | 名前が 1 つだけ在ること |
+| `--browser-test-env` | `browser-test` の `environments` | 名前が 1 つだけ在ること |
 
 CLI で上書きしても、設定ファイルは書き換えない。知らない option、重ねて指定されて矛盾する option、0・負の数・数でない上限は、preflight で拒否する。
 `merge_ready_timeout_minutes` には CLI での上書きが無い。`--merge-mode agent` でその run だけ `agent` にする場合も、設定にこのキーが無ければ、

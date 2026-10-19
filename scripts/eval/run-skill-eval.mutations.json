@@ -41,6 +41,17 @@
       "expect_failing": [
         "run-skill-eval executor compatibility calls a codex baseline CHECK-BROKEN when its contamination surface is empty"
       ]
+    },
+    {
+      "id": "install-drops-config-schemas",
+      "why": "配布先には届く config-schemas/ と checks.json を、eval のプロジェクトにコピーしない",
+      "file": "scripts/eval/run-skill-eval.sh",
+      "find": "\t\tfor subject_part in SKILL.md references assets scripts config-schemas checks.json; do\n",
+      "replace": "\t\tfor subject_part in SKILL.md references assets scripts; do\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "run-skill-eval required sibling skills installs config-schemas/ and checks.json with the subject, as gh skill install does"
+      ]
     }
   ]
 }

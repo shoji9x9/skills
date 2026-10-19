@@ -42,17 +42,21 @@
 | `priority` が閾値以下 | `medium` 以下（low / medium） | KEDB 照合で再発が見つかった pending は、`references/extract.md` の取り決めで優先度を上げて追記される。high に上がっていないことが、くり返し起きていない証跡になる |
 | `date` からの経過日数が閾値以上 | 30 日 | 適用する機会が十分にあったとみなす期間 |
 
-### 設定（`.kaizen/config`）
+### 設定（`kaizen.jsonc`）
 
-1 行に 1 つ `KEY=VALUE` で書く（コミット前のチェックの `foreign_sentinel_retention_days` と同じファイル）。YAML にしないのは、読み手が bash のフックやスクリプトで、`yq` に依存させられないからである。
+リポジトリの `.config/skills/shoji9x9/kaizen.jsonc` に書く（層・置き場所・読み書きの決まりは `references/config-files.md`）。
+忘却の 3 つのキーは、リポジトリの層だけに置ける。学びはリポジトリで共有するので、人によって忘れる閾値が変わらないようにするためである。
 
-```ini
-forget_auto=on              # 自動忘却の有効・無効（既定 on）
-forget_after_days=30        # 記録からこの日数が過ぎたら候補（既定 30）
-forget_max_priority=medium  # この優先度までを候補にする（low | medium | high。既定 medium）
+```jsonc
+{
+  "forget_auto": true, // 自動忘却の有効・無効（既定 true）
+  "forget_after_days": 30, // 記録からこの日数が過ぎたら候補（既定 30）
+  "forget_max_priority": "medium", // この優先度までを候補にする（low | medium | high。既定 medium）
+}
 ```
 
-不正な値はデフォルトの値として扱い、そうしたことを stderr に出す。出さないと、設定したつもりの閾値で動いていると読めてしまう。
+不正な値（知らないキー・型の誤り・選択肢の外）を書くと、デフォルトの値で忘却せずに、何もしないで exit 1 で止まる（抽出の完了は止めず、理由を stderr に出す）。
+設定したつもりの閾値と違う値で学びを忘れるのを避けるためである。
 
 ### 実行
 

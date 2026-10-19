@@ -5,7 +5,7 @@
 
 ## 対象 target の解決（前提確認より先）
 
-成果物のパスも疎通先も target で決まるので、最初に対象の環境を決める。候補は、`skills.replace-strategy.targets` のうち `side: new` のものだけである。
+成果物のパスも疎通先も target で決まるので、最初に対象の環境を決める。候補は、`replace-strategy.jsonc` の `targets` のうち `side: new` のものだけである。
 
 - 選び方（`--target` を省いたときのデフォルト、候補の提示、存在しない名前や側が違う名前で止まること）は、`replace-strategy` の `references/project-config.md`「実行対象環境」の「選択規則」に従う。ここへ転記しない
 - `url_command` の target は、ここで 1 回だけコマンドを実行して URL を解決する（失敗したときと、出力が空のときは止まる）。後の工程（疎通・撮影・API の呼び出し）は、解決した値を使い回す
@@ -31,7 +31,7 @@
 
 | 前提 | 確認するパスとキー | 欠けているか偽のときの差し戻し先 |
 |---|---|---|
-| replace-strategy setup | `.config/skills/shoji9x9/skills.yml` に `skills.replace-strategy` があり、`.replace/features.md` がある | `replace-strategy setup` |
+| replace-strategy setup | `.config/skills/shoji9x9/replace-strategy.jsonc` があり、`.replace/features.md` がある | `replace-strategy setup` |
 | slug が正しい | `slug` が `.replace/features.md` に載っている（自分で番号を振らない） | 止まる（番号が無ければ `replace-strategy` へ） |
 | parity-suite の完了 | `.replace/parity/<slug>/metadata.json` の `suite.current_green: true` と `differ.validated_by_strength_gate: true` | 対象の slug の `parity-suite` |
 | 前提スキルの未解決の保留 | setup・`golden-dataset` のフェーズ A・選んだ target のフェーズ B・対象の slug の `parity-suite`・選んだ target の `parity-replace` について、範囲が一致する未解決の保留が無い。`.replace/parity/<slug>/new/<target>/pending-decisions.json` も含める。ファイルが無ければ保留は無い。`resolution` があっても、`blocks` の工程が済んでいなければ未解決である。見る記録先と範囲の原本は、`replace-strategy` の `references/autonomy.md`「下流の前提判定」である。数え方の原本は、同じファイルの「保留の状態」の `pending-decisions-check.mjs` である | 保留を抱えたスキル |

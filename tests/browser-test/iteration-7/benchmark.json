@@ -1,0 +1,74 @@
+{
+  "metadata": {
+    "skill_name": "browser-test",
+    "skill_path": "<repo>/skills/browser-test",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-18T13:06:24Z",
+    "evals_run": [7],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 20.857,
+        "tokens": 71362,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "渡された環境の URL（http://localhost:5173）を対象にし、設定ファイルの環境（http://localhost:9999 / 環境名 local）を参照も言及もしていない（呼び出し元から環境を渡されたときは設定解決を行わない取り決めに従っている）",
+          "passed": true,
+          "evidence": "「環境は parity-replace から渡された値だけを使いました」。:9999 に触れていない"
+        },
+        {
+          "text": "check_urls（http://localhost:5173/）の疎通確認で稼働判定を先に行い、落ちているときだけ pre_commands（npm run build）→ start（npm run dev）を扱う方針を示している（稼働中なら npm run build を実行しない・build を無条件に実行するとは述べていない）",
+          "passed": true,
+          "evidence": "curl で 5173 の疎通を先に確かめ、落ちているので build と dev を扱う"
+        },
+        {
+          "text": "渡された forbidden_actions（データの削除）を今回の確認に適用する方針を示している",
+          "passed": true,
+          "evidence": "「データの削除は forbidden_actions なので実行せず」"
+        },
+        {
+          "text": "chrome-devtools MCP が無く中断する際、環境が整った後に実施する確認内容（対象ページと確認観点）を残している",
+          "passed": true,
+          "evidence": "環境が整ったら行う確認の表（対象ページと観点）を残した"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 20.857,
+        "stddev": 0,
+        "min": 20.857,
+        "max": 20.857
+      },
+      "tokens": {
+        "mean": 71362,
+        "stddev": 0,
+        "min": 71362,
+        "max": 71362
+      }
+    }
+  },
+  "notes": []
+}

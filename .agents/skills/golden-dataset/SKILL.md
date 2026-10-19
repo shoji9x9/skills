@@ -39,14 +39,14 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>] [--autono
 
 ## 前提
 
-- ツール: `git`、`node`（同梱のスクリプト [`scripts/predicate-coverage-check.mjs`](scripts/predicate-coverage-check.mjs) の実行に使う。依存パッケージは要らない）。投入ツールを実行する手段（DB クライアント・言語ランタイム）は、プロジェクト側で用意する
+- ツール: `git`、`node`（同梱のスクリプト [`scripts/predicate-coverage-check.mjs`](scripts/predicate-coverage-check.mjs) と、設定ファイルを読む `scripts/skill-config/skill-config.mjs` の実行に使う。依存パッケージは要らない）。投入ツールを実行する手段（DB クライアント・言語ランタイム）は、プロジェクト側で用意する
 - 前提スキル: `replace-strategy`（`setup` が完了していること）。`current.origin: received-assets` のプロジェクトでは、さらに `current-environment-bootstrap` の引き渡しが完了していること（`.replace/bootstrap/metadata.json` の `status: handed-off`）
 - 前提スキルがインストールされていない場合: `gh skill install shoji9x9/skills replace-strategy` で導入してから実行する。
   このスキルは、設定のスキーマと成果物の様式を `replace-strategy` の `references/` と `assets/` で定義しているので、単体では動かない（同時に導入されている前提）
 - MCP: 要らない
 - 技術スタック: 投入ツールは、デフォルトでは TypeScript で書く。難しければ SQL（まとめてコミットできる形）で書く
 
-設定（`skills.replace-strategy.*`）か `.replace/features.md` が無ければ、成果物を捏造せずに止まり、`replace-strategy setup` を促す。
+設定（`.config/skills/shoji9x9/replace-strategy.jsonc`）か `.replace/features.md` が無ければ、成果物を捏造せずに止まり、`replace-strategy setup` を促す。
 `.replace/strategy-pending.json` に `setup` の未解決の保留があるときも、同じく止まる。どの保留を見るかは、`replace-strategy` の `references/autonomy.md`「下流の前提判定」で定義する。
 
 ## 厳守の制約（禁止事項）
@@ -91,7 +91,10 @@ UI に固有のページ送りの機能は UI で確定し、どこまで上げ�
 
 ## プロジェクト設定の解決
 
-設定ファイル `.config/skills/shoji9x9/skills.yml` の `skills.replace-strategy.*` を直接読む（転記しない）。スキーマは `replace-strategy` の `references/project-config.md` で定義する。
+設定ファイル `.config/skills/shoji9x9/replace-strategy.jsonc` を直接読む（転記しない）。
+値は同梱の `scripts/skill-config/skill-config.mjs` で読み書きする。読むときは `node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mjs get replace-strategy <キー>`、書くときは `set` か `append` を使う。
+置き場所・層・書き込みの決まりの原本は [`references/config-files.md`](references/config-files.md) である。読み取りがエラー（終了コード 1）を返したら、デフォルトの値で続けずに止まる。
+スキーマは `replace-strategy` の `references/project-config.md` で定義する。
 このスキルが読み書きするキーは次のとおりである。
 
 | キー | 用途 |

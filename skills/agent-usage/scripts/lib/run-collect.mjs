@@ -4,7 +4,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { writeFileAtomic } from "./atomic.mjs";
 import { fileURLToPath } from "node:url";
-import { isRecord, loadOrCreateUserConfig, loadRepoConfig } from "./config.mjs";
+import { isRecord, loadOrCreateUserConfig, loadRepoConfig, resolved } from "./config.mjs";
 import { collectLocal } from "./collect.mjs";
 import { collectGitHub, commitActivityRows, makeGh, withoutEnvTokens } from "./sources/github.mjs";
 import { loadBundledPricing, loadBundledReviewPricing } from "./pricing.mjs";
@@ -330,8 +330,10 @@ function ghLoginError(host, env) {
 export function runCollect(o) {
   const { repo, now, env } = o;
   const dir = usageDir(repo.root);
-  const repoConfig = loadRepoConfig(join(dir, "config.json"));
-  const user = loadOrCreateUserConfig(env);
+  // 設定は 1 回だけ読む（旧い置き場所の確認・層の検証・人ごとの層を読まない旨の note を繰り返さない）
+  const config = resolved(repo.root, env);
+  const repoConfig = loadRepoConfig(repo.root, env, config);
+  const user = loadOrCreateUserConfig(repo.root, env, config);
   const person = repoConfig.aliases[user.config.personId] ?? user.config.personId;
   const tz = user.config.timeZone;
   const bundledPricing = loadBundledPricing();

@@ -1,0 +1,409 @@
+{
+  "metadata": {
+    "skill_name": "dependabot-merge",
+    "skill_path": "<repo>/skills/dependabot-merge",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-18T13:05:55Z",
+    "evals_run": [1, 2, 10],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.875,
+        "passed": 7,
+        "failed": 1,
+        "total": 8,
+        "time_seconds": 26.37,
+        "tokens": 123265,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR URL から owner/repo/PR番号を抽出している",
+          "passed": true,
+          "evidence": "「shoji9x9/skills のリポジトリではない」と PR の owner/repo を取り出している"
+        },
+        {
+          "text": "現在の repo と PR の owner/repo の一致を確認している",
+          "passed": true,
+          "evidence": "「今いる repo と PR の repo が一致しないときは中断して確認」"
+        },
+        {
+          "text": "PR の著者が Dependabot か確認している",
+          "passed": true,
+          "evidence": "未確認の項目に「作成者が Dependabot か」を挙げ、再開時に確かめるとしている"
+        },
+        {
+          "text": "gh pr checks で CI の成功を確認しようとしている",
+          "passed": true,
+          "evidence": "「gh pr view / gh pr checks は … で失敗しました」と CI の確認を試みた"
+        },
+        {
+          "text": "changelog/release notes など更新内容から影響を確認する方針を示している",
+          "passed": true,
+          "evidence": "「vitest 4.1.7 → 4.2.0 のリリースノートと…使い方への影響」を確認する方針"
+        },
+        {
+          "text": "マージ前に判断の根拠を PR コメントに記録する方針を示している",
+          "passed": true,
+          "evidence": "「確認 → 判断を PR コメントに記録 → マージ、の順に進めます」"
+        },
+        {
+          "text": ".config/skills/shoji9x9/dependabot-merge.jsonc の merge_method を参照し、無ければ squash をデフォルトにする方針である",
+          "passed": true,
+          "evidence": "「設定ファイル .config/skills/shoji9x9/dependabot-merge.jsonc が無ければデフォルトの squash」"
+        },
+        {
+          "text": "安全と判断した場合に gh pr merge でマージしようとしている",
+          "passed": false,
+          "evidence": "マージするとだけ述べ、gh pr merge を挙げていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 10,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 10,
+        "failed": 0,
+        "total": 10,
+        "time_seconds": 41.268,
+        "tokens": 49762,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "6.0.3 から 7.0.2 への更新を major の更新と認識し、破壊的な変更を含むことを前提に扱っている",
+          "passed": true,
+          "evidence": "「major 更新なので、破壊的変更を含む前提で扱います」"
+        },
+        {
+          "text": "changelog か移行ガイドから破壊的な変更を挙げ、リポジトリの中で使っている箇所に当たるかを確かめる方針を示している",
+          "passed": true,
+          "evidence": "Release notes と移行ガイドから破壊的変更を挙げ、使用箇所と照合する表"
+        },
+        {
+          "text": "使っている箇所に当たる破壊的な変更が無いことを、マージしてよい条件にしている",
+          "passed": true,
+          "evidence": "「上の表のどれにも当たらず…場合」をマージしてよい条件にしている"
+        },
+        {
+          "text": "使っている箇所に当たる破壊的な変更があれば、マージしない方針である",
+          "passed": true,
+          "evidence": "当たったら「マージせず」と止める場合の扱い"
+        },
+        {
+          "text": "使っている箇所に当たる破壊的な変更があれば、必要な修正を PR コメントに書く方針である",
+          "passed": true,
+          "evidence": "「課題と解決策を PR コメントに残し」"
+        },
+        {
+          "text": "使っている箇所に当たる破壊的な変更があれば、ユーザーに確認する方針である",
+          "passed": true,
+          "evidence": "「ユーザーに報告」「進め方をユーザーに確認する」"
+        },
+        {
+          "text": "使っている箇所に当たるかを判断できないときも、マージせずにユーザーに確認する方針である",
+          "passed": true,
+          "evidence": "「判断の材料が足りない…ユーザーの判断を仰ぐ」"
+        },
+        {
+          "text": "マージ方式を .config/skills/shoji9x9/dependabot-merge.jsonc の merge_method（無ければ squash）から決める方針を示している",
+          "passed": true,
+          "evidence": "「merge_method は .config/skills/shoji9x9/dependabot-merge.jsonc から読みます。設定が無ければ squash」"
+        },
+        {
+          "text": "判断の根拠を PR コメントに記録する方針である",
+          "passed": true,
+          "evidence": "「何を確かめ、なぜ安全と判断したかを PR コメントに残します」"
+        },
+        {
+          "text": "回答の中で、CI が通っていることだけを根拠に major の更新をマージしてよいとする食い違った判断をしていない",
+          "passed": true,
+          "evidence": "「CI 成功 → そのままマージ」にはしないと明言"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 4,
+        "failed": 2,
+        "total": 6,
+        "time_seconds": 22.189,
+        "tokens": 123585,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR番号のみのため現在の repo を対象にしている",
+          "passed": true,
+          "evidence": "「対象リポジトリの中から実行するか、PR URL で指定する」と現在の repo を対象にしている"
+        },
+        {
+          "text": "0.x のマイナー更新は破壊的変更があり得ると認識している",
+          "passed": true,
+          "evidence": "「0.x のマイナー更新は破壊的変更がありえるので」"
+        },
+        {
+          "text": "changelog/release notes で破壊的変更（API変更・削除・挙動変更）の有無を確認する方針を示している",
+          "passed": true,
+          "evidence": "「0.52.0 → 0.53.0 の release notes / changelog に破壊的変更があるか」を確認する"
+        },
+        {
+          "text": "判断の根拠を PR コメントに記録しようとしている",
+          "passed": true,
+          "evidence": "「判断の根拠を PR コメントに残し」"
+        },
+        {
+          "text": "リスクあり/判断不能ならマージせず、課題と解決策をコメントに残して停止する方針である",
+          "passed": false,
+          "evidence": "判断できないときに課題と解決策をコメントに残して止まる方針を述べていない"
+        },
+        {
+          "text": "マージ方式を、リポジトリ規約からの推測ではなく設定 .config/skills/shoji9x9/dependabot-merge.jsonc の merge_method（無ければ squash 既定）から決める方針を示している",
+          "passed": false,
+          "evidence": "マージ方式と dependabot-merge.jsonc の merge_method に触れていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 4,
+        "failed": 4,
+        "total": 8,
+        "time_seconds": 12.815,
+        "tokens": 38540,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR URL から owner/repo/PR番号を抽出している",
+          "passed": true,
+          "evidence": "`gh pr checks 42 -R shoji9x9/skills` と owner/repo・番号を取り出して使っている"
+        },
+        {
+          "text": "現在の repo と PR の owner/repo の一致を確認している",
+          "passed": false,
+          "evidence": "現在の repo と PR の owner/repo の一致を確かめる手順が無い"
+        },
+        {
+          "text": "PR の著者が Dependabot か確認している",
+          "passed": false,
+          "evidence": "作成者が Dependabot かを確かめる手順が無い"
+        },
+        {
+          "text": "gh pr checks で CI の成功を確認しようとしている",
+          "passed": true,
+          "evidence": "`gh pr checks 42 -R shoji9x9/skills        # CI の確認`"
+        },
+        {
+          "text": "changelog/release notes など更新内容から影響を確認する方針を示している",
+          "passed": true,
+          "evidence": "「vitest 4.2.0 のリリースノートに…破壊的な変更がないこと」を確認項目にしている"
+        },
+        {
+          "text": "マージ前に判断の根拠を PR コメントに記録する方針を示している",
+          "passed": false,
+          "evidence": "判断の根拠を PR コメントに記録する方針が無い"
+        },
+        {
+          "text": ".config/skills/shoji9x9/dependabot-merge.jsonc の merge_method を参照し、無ければ squash をデフォルトにする方針である",
+          "passed": false,
+          "evidence": "`--squash` を決め打ちし、dependabot-merge.jsonc の merge_method に触れていない"
+        },
+        {
+          "text": "安全と判断した場合に gh pr merge でマージしようとしている",
+          "passed": true,
+          "evidence": "確認後の手順として `gh pr merge 42 -R shoji9x9/skills --squash` を示している"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 10,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.7,
+        "passed": 7,
+        "failed": 3,
+        "total": 10,
+        "time_seconds": 33.919,
+        "tokens": 19727,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "6.0.3 から 7.0.2 への更新を major の更新と認識し、破壊的な変更を含むことを前提に扱っている",
+          "passed": true,
+          "evidence": "「メジャー更新（6 → 7）：semver 上、破壊的変更を含む前提で扱います」"
+        },
+        {
+          "text": "changelog か移行ガイドから破壊的な変更を挙げ、リポジトリの中で使っている箇所に当たるかを確かめる方針を示している",
+          "passed": true,
+          "evidence": "「リリースノートと移行ガイド…TS 7.0 の破壊的変更が、自分の tsconfig*.json の設定に当たらない」"
+        },
+        {
+          "text": "使っている箇所に当たる破壊的な変更が無いことを、マージしてよい条件にしている",
+          "passed": true,
+          "evidence": "確認項目がすべて OK のときだけ人の判断でマージするとしている"
+        },
+        {
+          "text": "使っている箇所に当たる破壊的な変更があれば、マージしない方針である",
+          "passed": true,
+          "evidence": "「tsconfig の削除済みオプションでエラー」「ビルド・テストが実際に失敗：マージしません」"
+        },
+        {
+          "text": "使っている箇所に当たる破壊的な変更があれば、必要な修正を PR コメントに書く方針である",
+          "passed": false,
+          "evidence": "PR に残すのは理由・ブロッカー・再開の条件で、必要な修正を PR コメントに書く方針が無い"
+        },
+        {
+          "text": "使っている箇所に当たる破壊的な変更があれば、ユーザーに確認する方針である",
+          "passed": true,
+          "evidence": "「人がレビューして承認したうえで」「実行は担当者の判断で」と人に判断を返している"
+        },
+        {
+          "text": "使っている箇所に当たるかを判断できないときも、マージせずにユーザーに確認する方針である",
+          "passed": true,
+          "evidence": "「判断材料が足りないので保留します」"
+        },
+        {
+          "text": "マージ方式を .config/skills/shoji9x9/dependabot-merge.jsonc の merge_method（無ければ squash）から決める方針を示している",
+          "passed": false,
+          "evidence": "「通常のマージ方式（squash など）」とし、dependabot-merge.jsonc の merge_method に触れない"
+        },
+        {
+          "text": "判断の根拠を PR コメントに記録する方針である",
+          "passed": false,
+          "evidence": "PR への記録は止める場合だけで、マージする判断の根拠を PR コメントに残す方針が無い"
+        },
+        {
+          "text": "回答の中で、CI が通っていることだけを根拠に major の更新をマージしてよいとする食い違った判断をしていない",
+          "passed": true,
+          "evidence": "「『CI が通った』だけでは自動マージの根拠になりません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 2,
+        "failed": 4,
+        "total": 6,
+        "time_seconds": 32.024,
+        "tokens": 127426,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR番号のみのため現在の repo を対象にしている",
+          "passed": false,
+          "evidence": "「PR #51 がどのリポジトリのものか特定できません」とし、現在の repo を対象にしていない"
+        },
+        {
+          "text": "0.x のマイナー更新は破壊的変更があり得ると認識している",
+          "passed": true,
+          "evidence": "「0.x 系はマイナーアップデートでも破壊的変更が入ることがあります」"
+        },
+        {
+          "text": "changelog/release notes で破壊的変更（API変更・削除・挙動変更）の有無を確認する方針を示している",
+          "passed": true,
+          "evidence": "リリースノートの変更点と、オプションの名前変更・廃止を確かめると述べている"
+        },
+        {
+          "text": "判断の根拠を PR コメントに記録しようとしている",
+          "passed": false,
+          "evidence": "判断の根拠を PR コメントに記録する方針が無い"
+        },
+        {
+          "text": "リスクあり/判断不能ならマージせず、課題と解決策をコメントに残して停止する方針である",
+          "passed": false,
+          "evidence": "リスクがあるときは再整形して同じ PR に含めるとし、コメントを残して止める方針が無い"
+        },
+        {
+          "text": "マージ方式を、リポジトリ規約からの推測ではなく設定 .config/skills/shoji9x9/dependabot-merge.jsonc の merge_method（無ければ squash 既定）から決める方針を示している",
+          "passed": false,
+          "evidence": "マージ方式に触れず、dependabot-merge.jsonc の merge_method も出てこない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.8472,
+        "stddev": 0.1684,
+        "min": 0.6667,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 29.9423,
+        "stddev": 10.0286,
+        "min": 22.189,
+        "max": 41.268
+      },
+      "tokens": {
+        "mean": 98870.6667,
+        "stddev": 42529.6538,
+        "min": 49762,
+        "max": 123585
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.5111,
+        "stddev": 0.1836,
+        "min": 0.3333,
+        "max": 0.7
+      },
+      "time_seconds": {
+        "mean": 26.2527,
+        "stddev": 11.6759,
+        "min": 12.815,
+        "max": 33.919
+      },
+      "tokens": {
+        "mean": 61897.6667,
+        "stddev": 57523.5091,
+        "min": 19727,
+        "max": 127426
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.34",
+      "time_seconds": "+3.7",
+      "tokens": "+36973"
+    }
+  },
+  "notes": []
+}

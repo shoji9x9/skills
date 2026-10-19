@@ -33,7 +33,7 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
 
 ## 前提
 
-- ツール: `git` と Node.js（Playwright の実行環境）。
+- ツール: `git` と Node.js（Playwright の実行環境と、設定ファイルを読む `scripts/skill-config/skill-config.mjs` の実行に使う）。
   `build` には `gh`（GitHub CLI）も要る。手順 1 で `issue-start` に任せてブランチを作り、手順 8 で部品の Issue を再取得して受け入れ条件を突き合わせるためである。`capture` は Issue を操作しないので要らない。
 - 前提スキル: `replace-strategy`（`setup` が完了していること）、`golden-dataset`（フェーズ A が完了していること）、`parity-suite`。
   `parity-suite` は、同梱の差分ツールと、撮影条件を定義した原本を読むために使う。対象の slug で `parity-suite` を実行しておく必要は無い。
@@ -46,7 +46,7 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
   機能単位の `parity-suite` は部品より後に実行されるので、その結果を前提にすると部品を先に作れなくなる。
 - 部品カタログが要る（`build` だけ）。実体は問わないが、取り決めを満たしていること。取り決めと設定の解決は [`references/catalog.md`](references/catalog.md) にある。
 - 前提を次のように判定する。無ければ停止し、該当するスキルの実行を促す。無いものを作り出さない。
-  - `replace-strategy setup` の完了は、設定 `.config/skills/shoji9x9/skills.yml` の `skills.replace-strategy` と `.replace/features.md` が在ることで判定する。
+  - `replace-strategy setup` の完了は、設定 `.config/skills/shoji9x9/replace-strategy.jsonc` と `.replace/features.md` が在ることで判定する。
   - 部品インベントリは、`.replace/components.md` が在り、対象の slug の行にインスタンスが 2 つ以上挙がっていることで判定する（[`references/instances.md`](references/instances.md)）。
   - `golden-dataset` のフェーズ A の完了は、`.replace/dataset/metadata.json` が在ることで判定する。
   - setup とフェーズ A は、まだ解決していない保留があれば、証拠があっても完了していないものとして扱う。どの保留を見るかは、`replace-strategy` の `references/autonomy.md`「下流の前提判定」で定義する。
@@ -116,7 +116,9 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
 
 ## プロジェクト設定の解決
 
-設定ファイル `.config/skills/shoji9x9/skills.yml` の `skills.replace-strategy.*` を直接読む（転記しない）。
+設定ファイル `.config/skills/shoji9x9/replace-strategy.jsonc` を直接読む（転記しない）。
+値は同梱の `scripts/skill-config/skill-config.mjs` で読み書きする。読むときは `node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mjs get replace-strategy <キー>`、書くときは `set` か `append` を使う。
+置き場所・層・書き込みの決まりの原本は [`references/config-files.md`](references/config-files.md) である。読み取りがエラー（終了コード 1）を返したら、デフォルトの値で続けずに止まる。
 スキーマの原本は `replace-strategy` の `references/project-config.md` である。このスキルが読み書きするキーは次のとおりである。
 
 | キー | 用途 |

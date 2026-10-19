@@ -1,0 +1,147 @@
+{
+  "metadata": {
+    "skill_name": "box",
+    "skill_path": "<repo>/skills/box",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-18T13:05:54Z",
+    "evals_run": [1],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4,
+        "passed": 2,
+        "failed": 3,
+        "total": 5,
+        "time_seconds": 19.089,
+        "tokens": 92332,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "box-token.sh でアクセストークンを取得しようとしている",
+          "passed": true,
+          "evidence": "box-token.sh を実行し「token rc=1」を確認、応答でもエラー理由を報告している"
+        },
+        {
+          "text": "box-folder.sh で取得した設定の root_folder_id（設定が無ければ 0）を対象フォルダに使っている",
+          "passed": true,
+          "evidence": "box-folder.sh で ID を取得し「設定ファイル…も無いのでルート（ID 0）を対象」と報告"
+        },
+        {
+          "text": "https://api.box.com/2.0/folders/<id>/items を curl で叩いている",
+          "passed": false,
+          "evidence": "トークン取得に失敗した時点で止まり、folders/<id>/items への curl は実行も提示もしていない"
+        },
+        {
+          "text": "Authorization: Bearer ヘッダを付けている",
+          "passed": false,
+          "evidence": "Authorization: Bearer ヘッダの付与に触れた箇所が無い"
+        },
+        {
+          "text": "marker ベース（usemarker=true / next_marker）で全ページを辿ることに触れている",
+          "passed": false,
+          "evidence": "「全ページを取得して」とだけあり、usemarker=true / next_marker に触れていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 20.877,
+        "tokens": 83840,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "box-token.sh でアクセストークンを取得しようとしている",
+          "passed": false,
+          "evidence": "box-token.sh に触れず、Box CLI・MCP の有無だけを確かめている"
+        },
+        {
+          "text": "box-folder.sh で取得した設定の root_folder_id（設定が無ければ 0）を対象フォルダに使っている",
+          "passed": false,
+          "evidence": "box-folder.sh も root_folder_id も出てこない。フォルダ ID をユーザーに尋ねている"
+        },
+        {
+          "text": "https://api.box.com/2.0/folders/<id>/items を curl で叩いている",
+          "passed": false,
+          "evidence": "folders/<id>/items への curl は無く、`box folders:items` を案内している"
+        },
+        {
+          "text": "Authorization: Bearer ヘッダを付けている",
+          "passed": false,
+          "evidence": "Authorization: Bearer ヘッダの記述が無い"
+        },
+        {
+          "text": "marker ベース（usemarker=true / next_marker）で全ページを辿ることに触れている",
+          "passed": false,
+          "evidence": "marker ベースのページングに触れていない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.4,
+        "stddev": 0,
+        "min": 0.4,
+        "max": 0.4
+      },
+      "time_seconds": {
+        "mean": 19.089,
+        "stddev": 0,
+        "min": 19.089,
+        "max": 19.089
+      },
+      "tokens": {
+        "mean": 92332,
+        "stddev": 0,
+        "min": 92332,
+        "max": 92332
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0,
+        "stddev": 0,
+        "min": 0,
+        "max": 0
+      },
+      "time_seconds": {
+        "mean": 20.877,
+        "stddev": 0,
+        "min": 20.877,
+        "max": 20.877
+      },
+      "tokens": {
+        "mean": 83840,
+        "stddev": 0,
+        "min": 83840,
+        "max": 83840
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.40",
+      "time_seconds": "-1.8",
+      "tokens": "+8492"
+    }
+  },
+  "notes": []
+}

@@ -98,14 +98,36 @@
     },
     {
       "id": 9,
-      "prompt": "pr-finalize-loop 6（.config/skills/shoji9x9/skills.yml で skills.common.review_tool: codex）— push 後に新しい HEAD が未レビュー",
+      "prompt": "pr-finalize-loop 6（.config/skills/shoji9x9/common.jsonc で review_tool: codex）— push 後に新しい HEAD が未レビュー",
       "expected_output": "新しい HEAD が未レビューなら、requested_reviewers ではなくトップレベル PR コメントに @codex review を投稿して依頼し、進行中・到着を汎用シグナルで確認してループを続ける。",
       "assertions": [
-        "skills.common.review_tool の設定（codex）を参照して依頼先ツールを決めている",
+        "common の review_tool の設定（codex）を参照して依頼先ツールを決めている",
         "依頼は requested_reviewers ではなくトップレベル PR コメントへの @codex review 投稿で行う方針である",
         "Copilot 専用の login（copilot-pull-request-reviewer[bot]）や review_requested タイムラインに依存しない方針である",
         "レビュー到着・進行中は非著者レビューや bot コメント等の汎用シグナルで判定する方針である",
         "mention は非冪等のため、現在の HEAD の push 以降に投稿された（投稿者を問わない）@codex review コメントがあれば再投稿せず、重複レビュー起動を避ける方針である"
+      ],
+      "reachability": [
+        {
+          "assertion": "common の review_tool の設定（codex）を参照して依頼先ツールを決めている",
+          "prompt_quote": "common.jsonc で review_tool: codex"
+        },
+        {
+          "assertion": "依頼は requested_reviewers ではなくトップレベル PR コメントへの @codex review 投稿で行う方針である",
+          "prompt_quote": "review_tool: codex"
+        },
+        {
+          "assertion": "Copilot 専用の login（copilot-pull-request-reviewer[bot]）や review_requested タイムラインに依存しない方針である",
+          "prompt_quote": "review_tool: codex"
+        },
+        {
+          "assertion": "レビュー到着・進行中は非著者レビューや bot コメント等の汎用シグナルで判定する方針である",
+          "prompt_quote": "push 後に新しい HEAD が未レビュー"
+        },
+        {
+          "assertion": "mention は非冪等のため、現在の HEAD の push 以降に投稿された（投稿者を問わない）@codex review コメントがあれば再投稿せず、重複レビュー起動を避ける方針である",
+          "prompt_quote": "push 後に新しい HEAD が未レビュー"
+        }
       ]
     },
     {
@@ -113,10 +135,28 @@
       "prompt": "pr-finalize-loop 6（review_tool: none）",
       "expected_output": "AI レビュアーへの再依頼をせず、CI 全成功かつ未解決スレッド無しで完了とする（HEAD レビュー済みを条件にしない）。",
       "assertions": [
-        "skills.common.review_tool の設定（none）を参照している",
+        "common の review_tool の設定（none）を参照している",
         "AI レビュアーへの再レビュー依頼を一切行わない方針である",
         "収束・完了判定から「HEAD がレビュー済み」条件を外し、CI 全成功かつ未解決スレッド無しで完了とする方針である",
         "未解決スレッドの返信・解決は通常どおり行う方針である"
+      ],
+      "reachability": [
+        {
+          "assertion": "common の review_tool の設定（none）を参照している",
+          "prompt_quote": "review_tool: none"
+        },
+        {
+          "assertion": "AI レビュアーへの再レビュー依頼を一切行わない方針である",
+          "prompt_quote": "review_tool: none"
+        },
+        {
+          "assertion": "収束・完了判定から「HEAD がレビュー済み」条件を外し、CI 全成功かつ未解決スレッド無しで完了とする方針である",
+          "prompt_quote": "review_tool: none"
+        },
+        {
+          "assertion": "未解決スレッドの返信・解決は通常どおり行う方針である",
+          "prompt_quote": "pr-finalize-loop 6"
+        }
       ]
     },
     {
@@ -143,7 +183,7 @@
     },
     {
       "id": 13,
-      "prompt": "pr-finalize-loop 6（.config/skills/shoji9x9/skills.yml で skills.common.review_tool: claude-code）— CI は必須チェックすべて成功、未解決レビュースレッドは 0 件、reviews[].body も空（state は COMMENTED）だよ。これで収束と判定していい？",
+      "prompt": "pr-finalize-loop 6（.config/skills/shoji9x9/common.jsonc で review_tool: claude-code）— CI は必須チェックすべて成功、未解決レビュースレッドは 0 件、reviews[].body も空（state は COMMENTED）だよ。これで収束と判定していい？",
       "expected_output": "スレッドとレビュー本文だけを根拠に収束と判定せず、トップレベルの PR コメント（issues/<番号>/comments）を切り詰めずに読んで未対応の指摘を探す。指摘があればスレッドが無いため自分のトップレベルコメントで判断と根拠を返し、対応済みになるまで完了と判定しない。",
       "assertions": [
         "トップレベルの PR コメント（issues/<番号>/comments）を指摘の収集対象として読む方針である（スレッドと reviews[].body の 2 系統だけで指摘なしと結論していない）",
@@ -151,6 +191,28 @@
         "トップレベルコメントは切り詰めずに全文読む（進行中検出の .body[:200] の取得を指摘収集に使い回さない）と述べている",
         "収束・完了判定の条件に「トップレベルコメントに未対応の指摘が無い」を含めている",
         "トップレベルコメントの指摘には返信先スレッドが無く resolve もできないため、自分のトップレベルコメントを唯一の証跡として判断と根拠を残す方針である"
+      ],
+      "reachability": [
+        {
+          "assertion": "トップレベルの PR コメント（issues/<番号>/comments）を指摘の収集対象として読む方針である（スレッドと reviews[].body の 2 系統だけで指摘なしと結論していない）",
+          "prompt_quote": "reviews[].body も空"
+        },
+        {
+          "assertion": "レビュアーが総評・軽微な指摘をトップレベルコメントに置く形を挙げている（スレッド 0 件・reviews[].body 空を根拠に「指摘なし・収束」と結論していない）",
+          "prompt_quote": "reviews[].body も空"
+        },
+        {
+          "assertion": "トップレベルコメントは切り詰めずに全文読む（進行中検出の .body[:200] の取得を指摘収集に使い回さない）と述べている",
+          "prompt_quote": "review_tool: claude-code"
+        },
+        {
+          "assertion": "収束・完了判定の条件に「トップレベルコメントに未対応の指摘が無い」を含めている",
+          "prompt_quote": "これで収束と判定していい？"
+        },
+        {
+          "assertion": "トップレベルコメントの指摘には返信先スレッドが無く resolve もできないため、自分のトップレベルコメントを唯一の証跡として判断と根拠を残す方針である",
+          "prompt_quote": "未解決レビュースレッドは 0 件"
+        }
       ]
     },
     {
@@ -192,13 +254,31 @@
     },
     {
       "id": 17,
-      "prompt": "PR #6 の収束だけ AI レビューを止めたい。普段の一時設定は Codex、プロジェクトの共有既定は Copilot。共有ファイルは変えずに今回を実行し、次回の通常実行へ何が残るかも報告して。",
-      "expected_output": "今回だけ --review-tool none を使い、次回は一時環境設定の SKILLS_REVIEW_TOOL=codex が共有 YAML より優先される。共有 YAML は変更しない。",
+      "prompt": "PR #6 の収束だけ AI レビューを止めたい。このリポジトリでの自分の普段の設定は Codex、プロジェクトの共有既定は Copilot。設定ファイルは変えずに今回を実行し、次回の通常実行へ何が残るかも報告して。",
+      "expected_output": "今回だけ --review-tool none を使い、次回は自分だけの設定（.config/skills/shoji9x9/common.local.jsonc の review_tool: codex）が共有の common.jsonc より優先される。どちらの設定ファイルも変更しない。",
       "assertions": [
         "pr-finalize-loop 6 --review-tool none を今回の実行方法として示している",
-        "次回 CLI 指定が無ければ SKILLS_REVIEW_TOOL の codex を使うと説明している",
-        ".config/skills/shoji9x9/skills.yml を変更しない方針である",
-        "今回の CLI 指定が環境変数より優先し、次回は環境変数が共有 YAML より優先すると説明している"
+        "次回 CLI 指定が無ければ common.local.jsonc の codex を使うと説明している",
+        ".config/skills/shoji9x9/common.jsonc と common.local.jsonc を変更しない方針である",
+        "今回の CLI 指定が common.local.jsonc より優先し、次回は common.local.jsonc が共有の common.jsonc より優先すると説明している"
+      ],
+      "reachability": [
+        {
+          "assertion": "pr-finalize-loop 6 --review-tool none を今回の実行方法として示している",
+          "prompt_quote": "PR #6 の収束だけ AI レビューを止めたい"
+        },
+        {
+          "assertion": "次回 CLI 指定が無ければ common.local.jsonc の codex を使うと説明している",
+          "prompt_quote": "このリポジトリでの自分の普段の設定は Codex"
+        },
+        {
+          "assertion": ".config/skills/shoji9x9/common.jsonc と common.local.jsonc を変更しない方針である",
+          "prompt_quote": "設定ファイルは変えずに今回を実行し"
+        },
+        {
+          "assertion": "今回の CLI 指定が common.local.jsonc より優先し、次回は common.local.jsonc が共有の common.jsonc より優先すると説明している",
+          "prompt_quote": "次回の通常実行へ何が残るかも報告して"
+        }
       ]
     },
     {

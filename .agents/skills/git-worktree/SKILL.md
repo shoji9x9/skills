@@ -34,6 +34,7 @@ git-worktree cleanup [<worktree パス>]
 - 前提スキル: なし
 - シェル: bash。Windows では WSL や Git Bash などを使う
 - 任意: `jq` か `python3`。同梱の Hook（`scripts/git-worktree-branch-guard.sh`）が入力を構造として読むのに使い、どちらも無ければ通知しない
+- Node.js: 設定ファイル（`location`・`carry_in`）を読み書きするときだけ要る（同梱の `scripts/skill-config/skill-config.mjs`）
 
 セッションを移す機能が無いエージェントでは、隔離は成り立たない。`git worktree add` だけを実行して
 「隔離した」と報告せず、その旨を述べて停止する（理由は [`references/isolation.md`](references/isolation.md)）。
@@ -74,7 +75,19 @@ worktree を作る手段（`git worktree add -b` や `EnterWorktree` の `name`�
 1. 置き場所を決める。この判断が後の手順を決めるので、最初に確定する（判断の材料は下の表）。
 2. 置き場所がリポジトリの中なら、worktree のディレクトリをすべてのチェックから除外する。`.gitignore` の 1 か所では足りない。
 3. `.gitignore` の対象のうち worktree で要るファイル（`.env`・受領物・ベンダーの配布物）を挙げ、運ぶ方法を選ぶ。
-4. 決めた内容を設定ファイル（`.config/skills/shoji9x9/skills.yml` など。リポジトリの慣行に従う）に記録する。
+4. 決めた内容を、`git-worktree` の設定ファイル（リポジトリの層の `.config/skills/shoji9x9/git-worktree.jsonc`）の `location` と `carry_in` に記録する。
+   キーの型はスキーマ（`config-schemas/git-worktree.schema.json`）で、書き込みの決まりは [`references/config-files.md`](references/config-files.md) で定義する。
+   `location` は、リポジトリの中ならルートからの相対パス（例: `.claude/worktrees`）、リポジトリの外なら `outside` にする。
+   `carry_in` は、運ぶ方法（`method`: `worktreeinclude`・`manual`・`none`）と、運ぶファイル（`files`）にする。
+
+   ```bash
+   CFG=<このスキルのディレクトリ>/scripts/skill-config/skill-config.mjs
+   node "$CFG" set git-worktree location '".claude/worktrees"' --layer repo
+   node "$CFG" set git-worktree carry_in '{"method":"manual","files":[".env.local"]}' --layer repo
+   ```
+
+   既にある値は変えない。変えるのは、今の値と新しい値を示して利用者の了承を得た後だけにする（`--replace`）。
+   `enter` は、この設定が在れば置き場所と運ぶファイルをここから決める（`get git-worktree location`）。無ければ、呼び出し側か利用者に確かめる。
    エージェントが自分の設定ファイルを書けない場合は、一時ファイルに書き出して、利用者に適用を依頼する。
 5. 同梱の branch guard hook（`scripts/git-worktree-branch-guard.sh`）を、各エージェントの PreToolUse に設定する。
    手順は [`references/branch-guard-hook.md`](references/branch-guard-hook.md) にある。

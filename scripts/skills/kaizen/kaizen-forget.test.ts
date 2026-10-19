@@ -12,6 +12,7 @@ import {
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { kaizenEnv, pathWithout, writeKaizenConfig } from "./kaizen-config-env.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 // kaizen-forget.sh は **SessionStart フックから無人で実行され、追跡ファイルを書き換える**
@@ -30,8 +31,9 @@ import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 // **読めない材料は候補にしない**（忘れない側として扱う）。忘却は「消える側」の操作なので、
 // priority や date を書き忘れただけの学びが自動で忘れられてはならない。
 //
-// 設定（`.kaizen/config`）の軸: forget_auto / forget_after_days / forget_max_priority、
-// および各キーの不正値（デフォルトの値として扱い、そう扱ったことを stderr に出す）。
+// 設定（`.config/skills/shoji9x9/kaizen.jsonc`）の軸は、forget_auto・forget_after_days・forget_max_priority の値である。
+// 読めない設定の軸も持つ。各キーの不正値と旧い `.kaizen/config` は、忘却せずに exit 1 で止める。
+// 設定ファイルがあるのに node が無いときも止め、設定ファイルが無ければ node なしでデフォルトの値を使う。
 //
 // モードの軸: `--list`（変更しない） / `--auto`（閾値で掃引） / 明示（閾値に関わらず忘却）。
 //
@@ -88,15 +90,15 @@ function makeProject(notes: Record<string, string>, config?: string) {
   for (const [name, content] of Object.entries(notes)) {
     writeFileSync(join(dir, ".kaizen", `${name}.md`), content);
   }
-  if (config !== undefined) writeFileSync(join(dir, ".kaizen", "config"), config);
+  if (config !== undefined) writeKaizenConfig(dir, config);
   return dir;
 }
 
-function run(dir: string, args: string[]) {
+function run(dir: string, args: string[], extra: Record<string, string | undefined> = {}) {
   const result = spawnSync("bash", [script, ...args], {
     timeout: CHILD_TIMEOUT_MS,
     cwd: dir,
-    env: { ...process.env, CLAUDE_PROJECT_DIR: dir },
+    env: kaizenEnv(dir, { CLAUDE_PROJECT_DIR: dir, ...extra }),
     encoding: "utf8",
   });
   return { status: result.status, stdout: result.stdout ?? "", stderr: result.stderr ?? "" };
@@ -245,13 +247,13 @@ priority: low
   }
 });
 
-// --- 設定（.kaizen/config） -------------------------------------------------
-test("forget_auto=off で自動忘却を止める", () => {
-  const dir = makeProject(CANDIDATES, "forget_auto=off\n");
+// --- 設定（kaizen.jsonc） ---------------------------------------------------
+test("forget_auto: false で自動忘却を止める", () => {
+  const dir = makeProject(CANDIDATES, '{ "forget_auto": false }\n');
   try {
     const { status, stderr } = run(dir, ["--auto"]);
     expect(status).toBe(0);
-    expect(stderr).toContain("forget_auto=off");
+    expect(stderr).toContain("forget_auto: false");
     expect(statusOf(dir, "old-low")).toBe("pending");
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -263,7 +265,7 @@ test("forget_after_days で閾値を変えられる", () => {
   try {
     // デフォルトの 30 日では候補にならない（誤検知しないことの確認。設定で動いたと言えるようにする）。
     expect(run(dir, ["--list"]).stdout.trim()).toBe("");
-    writeFileSync(join(dir, ".kaizen", "config"), "forget_after_days = 10\n");
+    writeKaizenConfig(dir, '{\n  // コメントを書ける\n  "forget_after_days": 10,\n}\n');
     expect(run(dir, ["--list"]).stdout).toContain(".kaizen/mid-low.md");
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -276,7 +278,7 @@ test("forget_max_priority で対象の優先度を広げられる", () => {
     // デフォルトの medium では、high は候補にならない（誤検知しないことの確認）。
     expect(run(dir, ["--list"]).stdout.trim()).toBe("");
     // high まで広げると high も対象に入る（境界の向きを固定する）。
-    writeFileSync(join(dir, ".kaizen", "config"), "forget_max_priority = high\n");
+    writeKaizenConfig(dir, '{ "forget_max_priority": "high" }\n');
     expect(run(dir, ["--list"]).stdout).toContain(".kaizen/old-high.md");
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -284,35 +286,138 @@ test("forget_max_priority で対象の優先度を広げられる", () => {
 });
 
 const BAD_CONFIGS = [
-  { name: "forget_auto", config: "forget_auto = yes\n", message: "forget_auto が不正です" },
+  { name: "forget_auto の型", config: '{ "forget_auto": "yes" }\n', message: "forget_auto: 型が" },
   {
-    name: "forget_after_days",
-    config: "forget_after_days = soon\n",
-    message: "forget_after_days が不正です",
+    name: "forget_after_days の型",
+    config: '{ "forget_after_days": "soon" }\n',
+    message: "forget_after_days: 型が",
   },
   {
-    name: "forget_max_priority",
-    config: "forget_max_priority = urgent\n",
-    message: "forget_max_priority が不正です",
+    name: "forget_max_priority の選択肢",
+    config: '{ "forget_max_priority": "urgent" }\n',
+    message: '"urgent" は "low"・"medium"・"high" のどれでもない',
+  },
+  {
+    name: "知らないキー",
+    config: '{ "forget_auto_x": true }\n',
+    message: '知らないキー "forget_auto_x"',
   },
 ];
 
 test.each(BAD_CONFIGS)(
-  "不正な設定値はデフォルト値に戻し、戻したことを出す: $name",
+  "不正な設定は、デフォルトの値で忘却せずに exit 1 で止める: $name",
   ({ config, message }) => {
-    // 警告なしにデフォルトの値として扱うと、「設定したつもりの閾値で動いている」と読めてしまう。
+    // デフォルトの値で忘れると、設定したつもりの閾値と違う値で学びが消える（消える側の操作）。
     const dir = makeProject(CANDIDATES, config);
     try {
       const { status, stderr } = run(dir, ["--auto"]);
       expect(stderr).toContain(message);
-      expect(status).toBe(0);
-      // 既定へ倒った結果、既定の閾値での判定は通常どおり行われる。
-      expect(statusOf(dir, "old-low")).toBe("forgotten");
+      expect(stderr).toContain("kaizen の設定を読めないので、忘却しません");
+      expect(status).toBe(1);
+      expect(statusOf(dir, "old-low")).toBe("pending");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   },
 );
+
+test("旧い .kaizen/config が残っていれば、移行の手順を示して忘却せずに止める", () => {
+  const dir = makeProject(CANDIDATES);
+  try {
+    writeFileSync(join(dir, ".kaizen", "config"), "forget_auto=off\n");
+    const { status, stderr } = run(dir, ["--auto"]);
+    expect(status).toBe(1);
+    expect(stderr).toContain(
+      ".kaizen/config が残っている。KEY=VALUE の各行を .config/skills/shoji9x9/kaizen.jsonc",
+    );
+    expect(statusOf(dir, "old-low")).toBe("pending");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("設定ファイルがあるのに node が無ければ、忘却せずに止める。無ければ node なしでデフォルトの値を使う", () => {
+  const dir = makeProject(CANDIDATES);
+  try {
+    // node だけを除いた PATH。設定ファイルが無ければ、デフォルトの閾値で忘却する。
+    const noNode = { PATH: pathWithout(dir, ["node"], kaizenEnv(dir).PATH ?? "") };
+    const none = run(dir, ["--list"], noNode);
+    expect(none.status).toBe(0);
+    expect(none.stdout).toContain(".kaizen/old-low.md");
+    writeKaizenConfig(dir, '{ "forget_after_days": 10 }\n');
+    const { status, stderr } = run(dir, ["--auto"], noNode);
+    expect(status).toBe(1);
+    expect(stderr).toContain("kaizen の設定を読むには node が要るが、見つからない");
+    expect(statusOf(dir, "old-low")).toBe("pending");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("人ごとの設定（XDG_CONFIG_HOME）の forget_* は置けない層なので止める", () => {
+  const dir = makeProject(CANDIDATES);
+  try {
+    const user = join(dir, ".test-xdg", "skills", "shoji9x9");
+    mkdirSync(user, { recursive: true });
+    writeFileSync(join(user, "kaizen.jsonc"), '{ "forget_auto": false }\n');
+    const { status, stderr } = run(dir, ["--auto"]);
+    expect(status).toBe(1);
+    expect(stderr).toContain("forget_auto は 人ごと の層に置けない");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("SHOJI9X9_SKILLS_IGNORE_USER_CONFIG は読み取りと同じく 1 だけを受け付け、1 なら人ごとの設定を数えずに node なしで動く", () => {
+  const dir = makeProject(CANDIDATES);
+  try {
+    const noNode = { PATH: pathWithout(dir, ["node"], kaizenEnv(dir).PATH ?? "") };
+    // 設定ファイルが無くても、1 以外の値なら止める
+    const bad = run(dir, ["--auto"], { ...noNode, SHOJI9X9_SKILLS_IGNORE_USER_CONFIG: "0" });
+    expect(bad.status).toBe(1);
+    expect(bad.stderr).toContain("SHOJI9X9_SKILLS_IGNORE_USER_CONFIG は 1 だけを受け付ける");
+    expect(statusOf(dir, "old-low")).toBe("pending");
+    // 人ごとの設定だけがあっても、1 なら読まないので node は要らない
+    const user = join(dir, ".test-xdg", "skills", "shoji9x9");
+    mkdirSync(user, { recursive: true });
+    writeFileSync(join(user, "kaizen.jsonc"), '{ "precommit_deadline_seconds": 9 }\n');
+    expect(run(dir, ["--list"], noNode).status).toBe(1);
+    const ok = run(dir, ["--list"], { ...noNode, SHOJI9X9_SKILLS_IGNORE_USER_CONFIG: "1" });
+    expect(ok.status, ok.stderr).toBe(0);
+    expect(ok.stdout).toContain(".kaizen/old-low.md");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("HOME が相対パスなら、その下（cwd からの相対パス）の kaizen.jsonc を人ごとの層として数えない", () => {
+  const dir = makeProject(CANDIDATES);
+  try {
+    const noNode = { PATH: pathWithout(dir, ["node"], kaizenEnv(dir).PATH ?? "") };
+    const user = join(dir, "rel", ".config", "skills", "shoji9x9");
+    mkdirSync(user, { recursive: true });
+    writeFileSync(join(user, "kaizen.jsonc"), '{ "precommit_deadline_seconds": 9 }\n');
+    const r = run(dir, ["--list"], { ...noNode, HOME: "rel", XDG_CONFIG_HOME: "" });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toContain(".kaizen/old-low.md");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("HOME が空でも相対パスでも、設定ファイルが無ければ node なしでデフォルトの値で動く", () => {
+  const dir = makeProject(CANDIDATES);
+  try {
+    const noNode = { PATH: pathWithout(dir, ["node"], kaizenEnv(dir).PATH ?? "") };
+    for (const HOME of ["", "rel"]) {
+      const r = run(dir, ["--list"], { ...noNode, HOME, XDG_CONFIG_HOME: "" });
+      expect(r.status, r.stderr).toBe(0);
+      expect(r.stdout).toContain(".kaizen/old-low.md");
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 // --- 明示指示 ---------------------------------------------------------------
 test("明示指示は閾値に関わらず pending を忘却する", () => {
@@ -393,7 +498,7 @@ test("忘却したノートは kaizen-status-check.sh を通る", () => {
     const result = spawnSync("bash", [statusCheck], {
       timeout: CHILD_TIMEOUT_MS,
       cwd: dir,
-      env: { ...process.env, CLAUDE_PROJECT_DIR: dir },
+      env: kaizenEnv(dir, { CLAUDE_PROJECT_DIR: dir }),
       encoding: "utf8",
     });
     expect(result.stderr ?? "").not.toContain("unknown status");
@@ -483,7 +588,7 @@ test.each(["--list", "--auto"])(
       const result = spawnSync("bash", [join(lonely, "kaizen-forget.sh"), mode], {
         timeout: CHILD_TIMEOUT_MS,
         cwd: dir,
-        env: { ...process.env, CLAUDE_PROJECT_DIR: dir },
+        env: kaizenEnv(dir, { CLAUDE_PROJECT_DIR: dir }),
         encoding: "utf8",
       });
       expect(result.stderr ?? "").toContain("共通ライブラリ kaizen-hook-common.sh");

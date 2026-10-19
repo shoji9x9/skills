@@ -48,10 +48,12 @@
       "id": "LS-OXLINT",
       "why": "oxlint が .agents/ を丸ごと除く（rule と private skill の実体を lint しない）",
       "file": "oxlint.config.ts",
-      "find": "ignorePatterns: agentCopyGlobs(import.meta.dirname),",
-      "replace": "ignorePatterns: [\".agents/**\", \".claude/**\"],",
+      "find": "ignorePatterns: [...agentCopyGlobs(import.meta.dirname), ...VENDORED_GLOBS],",
+      "replace": "ignorePatterns: [\".agents/**\", \".claude/**\", ...VENDORED_GLOBS],",
       "occurrences": 1,
-      "expect_failing": ["oxlint の ignorePatterns は、エージェント用のコピーとリンクだけを除く"]
+      "expect_failing": [
+        "oxlint の ignorePatterns は、エージェント用のコピーとリンクと、外部のパッケージから作った生成物だけを除く"
+      ]
     },
     {
       "id": "LS-OXFMT",
@@ -84,20 +86,30 @@
       "occurrences": 1,
       "expect_failing": [
         "lefthook の shfmt は、エージェント用のコピーとリンクをすべて除く",
-        "lefthook の oxfmt-js は、エージェント用のコピーとリンクをすべて除く",
         "lefthook の oxfmt-json は、エージェント用のコピーとリンクをすべて除く",
         "lefthook の shellcheck は、エージェント用のコピーとリンクをすべて除く",
-        "lefthook の oxlint は、エージェント用のコピーとリンクをすべて除く",
         "lefthook の jsonlint は、エージェント用のコピーとリンクをすべて除く",
         "lefthook の js-yaml は、エージェント用のコピーとリンクをすべて除く",
         "lefthook の pagination は、エージェント用のコピーとリンクをすべて除く"
       ]
     },
     {
+      "id": "LS-LH-COPY-VENDORED",
+      "why": "lefthook の oxfmt-js と oxlint の除外（生成物も除く組）から、コピーを 1 つ挙げ忘れる",
+      "file": "lefthook.yml",
+      "find": "            exclude: &agent-copies-and-vendored\n              - \".claude/rules/**\"\n              - \".claude/skills/**\"\n              - \".github/instructions/**\"\n              - \".agents/skills/agent-usage/**\"\n",
+      "replace": "            exclude: &agent-copies-and-vendored\n              - \".claude/rules/**\"\n              - \".claude/skills/**\"\n              - \".github/instructions/**\"\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "lefthook の oxfmt-js は、エージェント用のコピーとリンクをすべて除く",
+        "lefthook の oxlint は、エージェント用のコピーとリンクをすべて除く"
+      ]
+    },
+    {
       "id": "LS-LH-JOB",
       "why": "lefthook の oxlint ジョブが除外を持たない（コピーだけの commit で対象 0 件になり失敗する）",
       "file": "lefthook.yml",
-      "find": "          - name: oxlint\n            glob: \"*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}\"\n            exclude: *agent-copies\n",
+      "find": "          - name: oxlint\n            glob: \"*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}\"\n            exclude: *agent-copies-and-vendored\n",
       "replace": "          - name: oxlint\n            glob: \"*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}\"\n",
       "occurrences": 1,
       "expect_failing": ["lefthook の oxlint は、エージェント用のコピーとリンクをすべて除く"]
@@ -117,8 +129,8 @@
       "id": "LS-OXFMT-ASSIGNED",
       "why": "oxfmt の許可リストが lefthook の割り当てとずれる（.yaml を外す）",
       "file": "oxfmt.config.ts",
-      "find": "const assigned = \"js,mjs,cjs,jsx,ts,tsx,mts,cts,json,yml,yaml\";",
-      "replace": "const assigned = \"js,mjs,cjs,jsx,ts,tsx,mts,cts,json,yml\";",
+      "find": "const assigned = \"js,mjs,cjs,jsx,ts,tsx,mts,cts,json,jsonc,yml,yaml\";",
+      "replace": "const assigned = \"js,mjs,cjs,jsx,ts,tsx,mts,cts,json,jsonc,yml\";",
       "occurrences": 1,
       "expect_failing": [
         "oxfmt の許可リストの種類は、lefthook の oxfmt-* のジョブが渡す種類と一致する"

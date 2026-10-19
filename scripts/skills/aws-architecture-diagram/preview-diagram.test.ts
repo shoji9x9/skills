@@ -8,7 +8,7 @@
 //   - 引数: 無い / 環境名 / SVG のファイル名（ディレクトリ付き）/ 指す SVG が無い / SVG に <svg> が無い
 //   - 大きさ: width と height / 単位 px / 引用符なし / 100% のような px 以外の単位（viewBox へ戻る）/ どちらも無い
 //   - SVG の中身: <script> と on* の属性（HTML に入れる前に取り除く）
-//   - サンドボックス: デフォルト（有効）/ DIAGRAM_CHROME_NO_SANDBOX=1
+//   - サンドボックス: デフォルト（有効）/ --no-sandbox / 設定の chrome_no_sandbox: true
 //   - Chrome の失敗: 0 以外の終了 / signal での終了 / 時間切れ
 //   - 後片付け: HTML を置いた一時ディレクトリは、成功しても失敗しても消す
 
@@ -49,7 +49,14 @@ case "\${FAKE_CHROME_MODE:-ok}" in
 esac
 `;
 
-type Run = { args?: string[]; svg?: string | null; svgName?: string; env?: Record<string, string> };
+type Run = {
+  args?: string[];
+  svg?: string | null;
+  svgName?: string;
+  env?: Record<string, string>;
+  /** 人ごとの設定（${XDG_CONFIG_HOME}/skills/shoji9x9/aws-architecture-diagram.jsonc）の中身 */
+  userConfig?: string;
+};
 
 function run(opts: Run) {
   const dir = makeTempDir("preview-");
@@ -57,6 +64,11 @@ function run(opts: Run) {
   const tmp = join(dir, "tmp");
   const log = join(dir, "log");
   for (const d of [out, tmp, log]) mkdirSync(d);
+  if (opts.userConfig !== undefined) {
+    const userDir = join(dir, "xdg", "skills", "shoji9x9");
+    mkdirSync(userDir, { recursive: true });
+    writeFileSync(join(userDir, "aws-architecture-diagram.jsonc"), opts.userConfig);
+  }
   if (opts.svg !== null) {
     writeFileSync(
       join(out, opts.svgName ?? "architecture-prod.svg"),
@@ -66,20 +78,24 @@ function run(opts: Run) {
   const chrome = join(dir, "fake-chrome");
   writeFileSync(chrome, FAKE_CHROME);
   chmodSync(chrome, 0o755);
-  const result = spawnSync(process.execPath, [script, ...(opts.args ?? ["prod"])], {
-    env: {
-      ...process.env,
-      DIAGRAM_DIR: dir,
-      DIAGRAM_OUT_DIR: out,
-      PUPPETEER_EXECUTABLE_PATH: chrome,
-      DIAGRAM_CHROME_NO_SANDBOX: "",
-      TMPDIR: tmp,
-      FAKE_CHROME_LOG: log,
-      ...opts.env,
+  const result = spawnSync(
+    process.execPath,
+    [script, ...(opts.args ?? ["prod"]), "--out-dir", out],
+    {
+      // 手元の設定ファイルを読まないよう、git の外の一時ディレクトリで実行し、人ごとの設定の置き場所も一時ディレクトリにする
+      cwd: dir,
+      env: {
+        ...process.env,
+        XDG_CONFIG_HOME: join(dir, "xdg"),
+        PUPPETEER_EXECUTABLE_PATH: chrome,
+        TMPDIR: tmp,
+        FAKE_CHROME_LOG: log,
+        ...opts.env,
+      },
+      encoding: "utf8",
+      timeout: 20000,
     },
-    encoding: "utf8",
-    timeout: 20000,
-  });
+  );
   if (result.error) throw result.error;
   const argsFile = join(log, "args.txt");
   const chromeArgs = existsSync(argsFile) ? readFileSync(argsFile, "utf8").trim().split("\n") : [];
@@ -163,8 +179,8 @@ test("SVG の <script> と on* の属性は、Chrome に渡す HTML に入れな
   expect(r.page).toContain('<rect width="3"/>');
 });
 
-test("DIAGRAM_CHROME_NO_SANDBOX=1 のときだけ --no-sandbox を付ける", () => {
-  const r = run({ env: { DIAGRAM_CHROME_NO_SANDBOX: "1" } });
+test("--no-sandbox を付けたときだけ、Chrome に --no-sandbox を付ける", () => {
+  const r = run({ args: ["prod", "--no-sandbox"] });
   expect(r.status).toBe(0);
   expect(r.chromeArgs).toContain("--no-sandbox");
 });
@@ -200,15 +216,17 @@ test("Chrome が 0 以外で終わったら、終了コードと stderr の末�
   expect(r.stderr).not.toContain("line 1\n");
   expect(r.stderr).not.toContain("dbus");
   // サンドボックスが有効なときだけ、無効にする方法を案内する。
-  expect(r.stderr).toContain("DIAGRAM_CHROME_NO_SANDBOX=1 を設定する");
+  expect(r.stderr).toContain(
+    "--no-sandbox を付けるか、人ごとの設定の chrome_no_sandbox を true にする",
+  );
   expect(r.leftovers).toEqual([]);
 });
 
 test("サンドボックスを無効にしているときは、無効にする案内を出さない", () => {
-  const r = run({ env: { FAKE_CHROME_MODE: "fail", DIAGRAM_CHROME_NO_SANDBOX: "1" } });
+  const r = run({ args: ["prod", "--no-sandbox"], env: { FAKE_CHROME_MODE: "fail" } });
   expect(r.status).toBe(1);
   expect(r.stderr).toContain("（exit 3）");
-  expect(r.stderr).not.toContain("DIAGRAM_CHROME_NO_SANDBOX=1 を設定する");
+  expect(r.stderr).not.toContain("--no-sandbox を付けるか");
 });
 
 test("Chrome が signal で終わったら、signal の名前を示す", () => {
@@ -218,9 +236,65 @@ test("Chrome が signal で終わったら、signal の名前を示す", () => {
   expect(r.leftovers).toEqual([]);
 });
 
-test("Chrome が DIAGRAM_CHROME_TIMEOUT_MS の間に応答しなければ止めて、時間切れとして示す", () => {
-  const r = run({ env: { FAKE_CHROME_MODE: "hang", DIAGRAM_CHROME_TIMEOUT_MS: "300" } });
+test("Chrome が --timeout-ms の間に応答しなければ止めて、時間切れとして示す", () => {
+  const r = run({ args: ["prod", "--timeout-ms", "300"], env: { FAKE_CHROME_MODE: "hang" } });
   expect(r.status).toBe(1);
   expect(r.stderr).toContain("（300ms 応答なしで中断）");
   expect(r.leftovers).toEqual([]);
+});
+
+test("人ごとの設定の chrome_no_sandbox と chrome_timeout_ms を使う", () => {
+  const r = run({
+    userConfig:
+      '{\n  // このマシンはコンテナ\n  "chrome_no_sandbox": true,\n  "chrome_timeout_ms": 300,\n}\n',
+    env: { FAKE_CHROME_MODE: "hang" },
+  });
+  expect(r.status).toBe(1);
+  expect(r.chromeArgs).toContain("--no-sandbox");
+  expect(r.stderr).toContain("（300ms 応答なしで中断）");
+});
+
+test("CLI の --timeout-ms は設定より優先する", () => {
+  const r = run({
+    userConfig: '{ "chrome_timeout_ms": 100000 }',
+    args: ["prod", "--timeout-ms", "300"],
+    env: { FAKE_CHROME_MODE: "hang" },
+  });
+  expect(r.stderr).toContain("（300ms 応答なしで中断）");
+});
+
+test.each([
+  ["型の誤り", '{ "chrome_timeout_ms": "300" }', /chrome_timeout_ms: 型が "integer" でない/],
+  ["0 以下", '{ "chrome_timeout_ms": 0 }', /chrome_timeout_ms: 1 より小さい/],
+  [
+    "置けない層（図のディレクトリは全員が同じ）",
+    '{ "diagram_dir": "docs" }',
+    /diagram_dir は 人ごと の層に置けない/,
+  ],
+])("設定の%sは、Chrome を起動せずに 1 で止める", (_name, userConfig, message) => {
+  const r = run({ userConfig });
+  expect(r.status).toBe(1);
+  expect(r.stderr).toMatch(message);
+  expect(r.chromeArgs).toEqual([]);
+});
+
+test.each([
+  ["--timeout-ms", "abc"],
+  ["--timeout-ms", "0"],
+])("CLI の %s %s は、Chrome を起動せずにエラーにする", (flag, value) => {
+  const r = run({ args: ["prod", flag, value] });
+  expect(r.status).not.toBe(0);
+  expect(r.stderr).toContain("--timeout-ms には 1 以上の整数を指定してください");
+  expect(r.chromeArgs).toEqual([]);
+});
+
+test.each([
+  ["DIAGRAM_CHROME_NO_SANDBOX", "1"],
+  ["DIAGRAM_CHROME_TIMEOUT_MS", "300"],
+  ["DIAGRAM_OUT_DIR", "/x"],
+])("使わなくなった環境変数 %s が残っていれば、移行の手順を示して 1 で止める", (name, value) => {
+  const r = run({ env: { [name]: value } });
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain(`環境変数 ${name} は使わなくなった。`);
+  expect(r.chromeArgs).toEqual([]);
 });

@@ -41,7 +41,7 @@
         "skills/pr-review-handle/references/conventions.md",
         "skills/pr-finalize-loop/references/conventions.md"
       ],
-      "reason": "ブランチ運用・commit 規約の解決手順。同じ設定キー（skills.common.conventions_doc）を読むスキル間で解決順が食い違わないようにする"
+      "reason": "ブランチ運用・commit 規約の解決手順。同じ設定キー（common の conventions_doc）を読むスキル間で解決順が食い違わないようにする"
     },
     {
       "files": [
@@ -76,7 +76,8 @@
       "files": [
         "skills/parity-suite/scripts/lib/is-array.mjs",
         "skills/parity-suite/scripts/trait-compare.mjs",
-        "skills/parity-suite/scripts/header-normalize.mjs"
+        "skills/parity-suite/scripts/header-normalize.mjs",
+        "skills/kaizen/scripts/skill-config/skill-config.mjs"
       ],
       "region": "is-array-js",
       "reason": "trait-compare.mjs と header-normalize.mjs は利用者のプロジェクトへ 1 ファイルだけコピーして使い、隣のファイルを import できないので、配布スキルの .mjs の isArray と同じ関数を持つ。片方だけを直すと、コピーの側の絞り込みの型が食い違う"
@@ -94,7 +95,8 @@
       "files": [
         "skills/parity-suite/scripts/lib/cli.mjs",
         "skills/parity-suite/scripts/trait-compare.mjs",
-        "skills/parity-suite/scripts/header-normalize.mjs"
+        "skills/parity-suite/scripts/header-normalize.mjs",
+        "skills/kaizen/scripts/skill-config/skill-config.mjs"
       ],
       "region": "cli-entry-js",
       "reason": "trait-compare.mjs と header-normalize.mjs は利用者のプロジェクトへ 1 ファイルだけコピーして使い、隣のファイルを import できないので、lib/cli.mjs の isCliEntry と同じ関数を持つ。片方だけを直すと、コピーの側だけがシンボリックリンクからの起動で何もせずに終わる"
@@ -135,6 +137,83 @@
         "skills/replace-strategy/scripts/lib/errors.mjs"
       ],
       "reason": "catch した値の message を読む errorMessage。同じ名前・同じ説明の helper がスキルごとに違う値を返さないように、内容を一致させる"
+    },
+    {
+      "files": [
+        "skills/agent-usage/scripts/skill-config/skill-config.mjs",
+        "skills/aws-architecture-diagram/scripts/skill-config/skill-config.mjs",
+        "skills/box/scripts/skill-config/skill-config.mjs",
+        "skills/browser-test/scripts/skill-config/skill-config.mjs",
+        "skills/current-environment-bootstrap/scripts/skill-config/skill-config.mjs",
+        "skills/dependabot-alert-issue/scripts/skill-config/skill-config.mjs",
+        "skills/dependabot-merge/scripts/skill-config/skill-config.mjs",
+        "skills/git-worktree/scripts/skill-config/skill-config.mjs",
+        "skills/golden-dataset/scripts/skill-config/skill-config.mjs",
+        "skills/issue-batch/scripts/skill-config/skill-config.mjs",
+        "skills/issue-start/scripts/skill-config/skill-config.mjs",
+        "skills/kaizen/scripts/skill-config/skill-config.mjs",
+        "skills/parity-component/scripts/skill-config/skill-config.mjs",
+        "skills/parity-diff/scripts/skill-config/skill-config.mjs",
+        "skills/parity-replace/scripts/skill-config/skill-config.mjs",
+        "skills/parity-suite/scripts/skill-config/skill-config.mjs",
+        "skills/pr-finalize-loop/scripts/skill-config/skill-config.mjs",
+        "skills/pr-review-handle/scripts/skill-config/skill-config.mjs",
+        "skills/replace-strategy/scripts/skill-config/skill-config.mjs"
+      ],
+      "reason": "設定の読み取り（層の解決・検証・旧い場所での停止・書き込み）。スキルごとに読み方が食い違うと、同じ設定ファイルをスキルによって違う値として読むか、片方だけがエラーにする"
+    },
+    {
+      "files": [
+        "skills/agent-usage/references/config-files.md",
+        "skills/aws-architecture-diagram/references/config-files.md",
+        "skills/box/references/config-files.md",
+        "skills/browser-test/references/config-files.md",
+        "skills/current-environment-bootstrap/references/config-files.md",
+        "skills/dependabot-alert-issue/references/config-files.md",
+        "skills/dependabot-merge/references/config-files.md",
+        "skills/git-worktree/references/config-files.md",
+        "skills/golden-dataset/references/config-files.md",
+        "skills/issue-batch/references/config-files.md",
+        "skills/issue-start/references/config-files.md",
+        "skills/kaizen/references/config-files.md",
+        "skills/parity-component/references/config-files.md",
+        "skills/parity-diff/references/config-files.md",
+        "skills/parity-replace/references/config-files.md",
+        "skills/parity-suite/references/config-files.md",
+        "skills/pr-finalize-loop/references/config-files.md",
+        "skills/pr-review-handle/references/config-files.md",
+        "skills/replace-strategy/references/config-files.md"
+      ],
+      "reason": "設定ファイルの扱い（層・置き場所を選ぶ基準・解決の順序・書き込みの決まり・移行）。利用者がどのスキルの文書を読んでも、同じ置き場所と同じ決まりを読む"
+    },
+    {
+      "files": [
+        "skills/dependabot-alert-issue/config-schemas/common.schema.json",
+        "skills/issue-batch/config-schemas/common.schema.json",
+        "skills/issue-start/config-schemas/common.schema.json",
+        "skills/pr-finalize-loop/config-schemas/common.schema.json",
+        "skills/pr-review-handle/config-schemas/common.schema.json"
+      ],
+      "reason": "複数のスキルが読む common の設定のスキーマ。食い違うと、同じ common.jsonc を片方のスキルだけが知らないキーや置けない層としてエラーにする"
+    },
+    {
+      "files": [
+        "skills/browser-test/config-schemas/browser-test.schema.json",
+        "skills/issue-batch/config-schemas/browser-test.schema.json"
+      ],
+      "reason": "browser-test の設定のスキーマ。issue-batch も --browser-test-env で environments を読むので、受け付ける形を browser-test と食い違わせない"
+    },
+    {
+      "files": [
+        "skills/current-environment-bootstrap/config-schemas/replace-strategy.schema.json",
+        "skills/golden-dataset/config-schemas/replace-strategy.schema.json",
+        "skills/parity-component/config-schemas/replace-strategy.schema.json",
+        "skills/parity-diff/config-schemas/replace-strategy.schema.json",
+        "skills/parity-replace/config-schemas/replace-strategy.schema.json",
+        "skills/parity-suite/config-schemas/replace-strategy.schema.json",
+        "skills/replace-strategy/config-schemas/replace-strategy.schema.json"
+      ],
+      "reason": "replace-strategy の設定のスキーマ。姉妹スキルがすべて replace-strategy.jsonc を直接読むので、受け付けるキーと型を食い違わせない"
     }
   ]
 }

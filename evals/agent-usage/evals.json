@@ -77,10 +77,10 @@
     {
       "id": 3,
       "prompt": "agent-usage の usage.csv で、出たばかりのモデルの費用が 0 で cost_unknown_buckets が数えられている。どうすれば費用に入る？ ログはもう消えているかもしれない。コマンドの実行やファイルの変更はせず、答えだけ教えて。",
-      "expected_output": "同梱の単価表にそのモデルが無いので、記録の時点で費用を空欄（cost_source が unknown）にし、トークン数だけを記録している。リポジトリの .agent-usage/config.json の pricing に、そのモデルの単価（USD / 100 万トークン、input と output は必須、cacheRead などは任意）を足して report を実行し直せば、記録されたトークン数から費用を計算し直す（cost_sources は repo@report）。ログが消えていても、トークン数は記録に残っているので計算できる。モデル名の末尾の [1m] と日付は除いて引く。",
+      "expected_output": "同梱の単価表にそのモデルが無いので、記録の時点で費用を空欄（cost_source が unknown）にし、トークン数だけを記録している。リポジトリの設定（.config/skills/shoji9x9/agent-usage.jsonc）の pricing に、そのモデルの単価（USD / 100 万トークン、input と output は必須、cacheRead などは任意）を足して report を実行し直せば、記録されたトークン数から費用を計算し直す（cost_sources は repo@report）。ログが消えていても、トークン数は記録に残っているので計算できる。モデル名の末尾の [1m] と日付は除いて引く。",
       "assertions": [
         "単価表にそのモデルが無いので、記録の時点で費用を空欄にしてトークン数だけを記録していると説明している",
-        ".agent-usage/config.json の pricing に、そのモデルの単価（input と output は必須）を足すと答えている",
+        "リポジトリの設定（.config/skills/shoji9x9/agent-usage.jsonc）の pricing に、そのモデルの単価（input と output は必須）を足すと答えている",
         "単価を足して report を実行し直せば、記録されたトークン数から費用を計算し直すと答えている",
         "ログが消えていても、トークン数が記録に残っているので計算できると答えている"
       ],
@@ -90,7 +90,7 @@
           "prompt_quote": "出たばかりのモデルの費用が 0 で cost_unknown_buckets が数えられている"
         },
         {
-          "assertion": ".agent-usage/config.json の pricing に、そのモデルの単価（input と output は必須）を足すと答えている",
+          "assertion": "リポジトリの設定（.config/skills/shoji9x9/agent-usage.jsonc）の pricing に、そのモデルの単価（input と output は必須）を足すと答えている",
           "prompt_quote": "どうすれば費用に入る？"
         },
         {

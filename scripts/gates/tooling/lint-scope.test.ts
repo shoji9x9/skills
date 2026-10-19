@@ -15,7 +15,12 @@ import { assert, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
 import { dirname, join, posix } from "node:path";
 import { fileURLToPath } from "node:url";
-import { agentCopyGlobs, copySkillNames, sourceSkillNames } from "../../lib/source-scope.ts";
+import {
+  VENDORED_GLOBS,
+  agentCopyGlobs,
+  copySkillNames,
+  sourceSkillNames,
+} from "../../lib/source-scope.ts";
 import oxlintConfig from "../../../oxlint.config.ts";
 import oxfmtConfig, { assigned as oxfmtAssigned } from "../../../oxfmt.config.ts";
 import { errorMessage } from "../../lib/errors.ts";
@@ -58,8 +63,8 @@ test("含め直しは除外より後に書く（前に書くと除外に打ち�
 
 // ---- oxlint・oxfmt ----
 
-test("oxlint の ignorePatterns は、エージェント用のコピーとリンクだけを除く", () => {
-  expect(oxlintConfig.ignorePatterns).toEqual(expected);
+test("oxlint の ignorePatterns は、エージェント用のコピーとリンクと、外部のパッケージから作った生成物だけを除く", () => {
+  expect(oxlintConfig.ignorePatterns).toEqual([...expected, ...VENDORED_GLOBS]);
 });
 
 // oxfmt は、割り当てた種類の許可リストの後に、エージェント用のコピーとリンクを除く。
@@ -79,7 +84,7 @@ const oxfmtCopies = oxfmtAllowIndex < 0 ? [] : oxfmtPatterns.slice(oxfmtAllowInd
 test("oxfmt の ignorePatterns は、許可リストの後にエージェント用のコピーとリンクだけを除く", () => {
   // 後の行が優先されるので、コピーの除外を最後に置く（割り当てた種類でもコピーの中は除いたままにする）。
   expect(oxfmtAllowed).toHaveLength(1);
-  expect(oxfmtCopies).toEqual(expected);
+  expect(oxfmtCopies).toEqual([...expected, ...VENDORED_GLOBS]);
   // すべてを除いてから、ディレクトリと割り当てた種類を戻す。
   const deny = oxfmtHead.indexOf("**/*.*");
   expect(deny).toBeGreaterThanOrEqual(0);

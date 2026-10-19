@@ -21,6 +21,22 @@
      公開済みの既存のスキルで同じコマンドを実行し、license などの warning の差分を比べて、実際の問題だけを扱う。
 7. PR を作り、レビューを受けてマージする。リリースは CD が自動で行う。
 
+## スキルの設定を足す
+
+スキルが読む設定は、置き場所・形式・解決の順序をすべてのスキルでそろえる。
+取り決めの原本は配布スキルに同梱する `references/config-files.md`（例: `skills/kaizen/references/config-files.md`）で、利用者が読む文書でもある。ここへ転記しない。
+
+1. キーを足すスキルの `config-schemas/<設定の名前>.schema.json` に、型・デフォルトと、置ける層（`x-layers`）を書く。
+   置ける層は、`skills/kaizen/references/config-files.md` の「どの層に置くか」の基準で決める。環境変数から値を受け取るキー（`x-env`）は、「環境変数にする値」の 3 種類に当たるものだけにする。
+   複数のスキルが同じ値を読むなら、`common.schema.json` に置くか、そのキーを持つスキルのスキーマを、読む側のスキルにもコピーする。
+2. 設定を初めて読むスキルには、`scripts/skill-config/`（読み取りと同梱のパーサ）と `references/config-files.md` を、既にあるスキルからコピーする。
+   `node scripts/gates/packaging/check-skill-config-vendor.ts` で、同梱物がそろったことを確かめる。
+   コピーとスキーマを `scripts/gates/packaging/copies/identical-copies.json` の組に足す。
+3. スキルの文書には、キーの意味と、`skill-config.mjs` の `get`・`set`・`append` での読み書きを書く。層の選び方と書き込みの決まりは `config-files.md` を参照させ、書き写さない。
+4. このリポジトリの設定（`.config/skills/shoji9x9/<設定の名前>.jsonc`）を変えたら、`node scripts/gates/packaging/check-skill-configs.ts` で確かめる。
+
+キーの名前や置き場所を変えて旧い設定を読まなくするときは、スキーマの `x-legacy` に旧いファイルか環境変数と移行の手順を書く。読み取りは、それが残っていると手順を示して止まる。
+
 ## push 前の整合パス
 
 ドキュメントやスキルを push する前に、次の項目を突き合わせて、文書の中と文書の間の食い違いを直す。レビューに任せない。
@@ -205,7 +221,9 @@ eval の prompt は、スキル・ルール・Hook・`AGENTS.md` などのファ
 このランチャーは cwd を固定したヘッドレスの executor を、`/tmp` の下の使い捨ての空のプロジェクトで実行する。相対パスの操作も cwd のリセットも、そのディレクトリの中で起きる。
 `with_skill` は executor がスキルを読む場所にスキルを置き、`without_skill` は置かない。
 スキルを置かないだけでは、公平なベースラインにならない。CLI はマシンの任意のパスを読めるので、読み取りの遮断と汚染の判定まで揃って、初めて Delta が意味を持つ（後述）。
-被験体にコピーするのは `SKILL.md`・`references/`・`assets/`・`scripts/` など実行に要る成果物だけにし、`evals/` の assertion・採点の基準・トピックの表は含めない。
+被験体にコピーするのは `SKILL.md`・`references/`・`assets/`・`scripts/`・`config-schemas/`・`checks.json` など実行に要る成果物だけにし、`evals/` の assertion・採点の基準・トピックの表は含めない。
+配布先の `gh skill install` はスキルのディレクトリをすべて配るので、スキルの直下に足した要素がこの一覧から外れると、eval の中でだけ同梱物が欠ける。
+`scripts/eval/skill-eval-fingerprint.test.ts` が、配布スキルの直下の要素とこの一覧の一致を確かめる。
 
 Claude Code と Codex の選び方、共通の成果物のスキーマ、executor がスキルを見つける仕組み、NVIDIA SkillEvaluator を試すかの判断は、[`skill-eval-executors.md`](skill-eval-executors.md) で定義する。
 

@@ -1,0 +1,170 @@
+{
+  "metadata": {
+    "skill_name": "parity-diff",
+    "skill_path": "<repo>/skills/parity-diff",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-18T13:06:25Z",
+    "evals_run": [4, 7, 14],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 14,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8333,
+        "passed": 5,
+        "failed": 1,
+        "total": 6,
+        "time_seconds": 67.321,
+        "tokens": 431678,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "前回の blocked_by や前回の有効マスク集合を引き継がず、features.md のページ一覧と同じ target の各 replace-metadata.json を読み直している",
+          "passed": true,
+          "evidence": "「前回の集合や blocked_by は使わず」features.md と preview の各 replace-metadata.json を読み直した"
+        },
+        {
+          "text": "同じページで suite.new_green が false または証跡が無い grid-settings / export だけを共同居住マスクの有効集合にし、別 target や green の slug を含めていない",
+          "passed": true,
+          "evidence": "new_green=false の grid-settings と証跡の無い export だけを集合にし、他 target の証跡は使わない"
+        },
+        {
+          "text": "新側 root の欠落を停止理由や blocked_by の根拠にせず、現側ベースラインで測定済みの page × state × viewport の bbox を同じ座標で両作業画像へ適用し、適用詳細を capture_conditions_verified.cofeature_masks（恒久 masks とは別キー）へ記録する扱いを示している",
+          "passed": true,
+          "evidence": "root 欠落を「止める理由にも blocked_by の根拠にもしません」、同じ座標で両作業用コピーへ当て capture_conditions_verified.cofeature_masks に記録"
+        },
+        {
+          "text": "対象撮影組の bbox 欠落・不正・画像外・所有領域の曖昧さを blocked_by や片側マスクで通さず parity-suite へ戻して停止すると示している",
+          "passed": false,
+          "evidence": "「止める条件の確認（すべて通過）」と結果だけを示し、bbox 欠落等なら parity-suite へ戻して止めるとは述べない"
+        },
+        {
+          "text": "特性と aria は現側 root 配下を除外し、新側 root が無ければ欠落自体を差分にせず、存在する場合だけ対応配下と bbox 整合を確認すると説明している",
+          "passed": true,
+          "evidence": "特性・aria は現側 root を外し、新側 root は「現れたときだけ確かめ」"
+        },
+        {
+          "text": "依存先が green になった次回はマスクを外して全面比較し、マスク済み領域を差分件数や blocked_by に数えないと説明している",
+          "passed": true,
+          "evidence": "「両方が外れた後の最後の実行は…画面全体で比べます」「差分の件数にも blocked_by にも数えません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 28.852,
+        "tokens": 182931,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "develop の new/develop/replace-metadata.json が無いことを検出し「その環境ではまだ green 証跡が無い」として停止している",
+          "passed": true,
+          "evidence": "new/develop/replace-metadata.json「ファイルがありません」とし手順 1 で停止"
+        },
+        {
+          "text": "同じ --target develop での parity-replace の実行を案内している",
+          "passed": true,
+          "evidence": "「parity-replace --feature order-list --target develop を実行して」"
+        },
+        {
+          "text": "local-dev の green 証跡・新側ベースラインを develop 用に流用・複製・捏造していない",
+          "passed": true,
+          "evidence": "「local-dev の証跡を develop の代わりには使えません」とし何も作っていない"
+        },
+        {
+          "text": "develop が db を持たない target であることの扱い（データセットバージョン三者整合の免除、またはデータ依存差分が未検証になる旨）に触れている",
+          "passed": true,
+          "evidence": "db の定義が無く「phase B との整合は免除…データに依存する差分は…未検証」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8333,
+        "passed": 5,
+        "failed": 1,
+        "total": 6,
+        "time_seconds": 50.242,
+        "tokens": 194067,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "component_diffs は特性照合（computed style の値比較）にしか機能せず、両側の値が一致し画素の比較だけで出る差には照合キーが無いため吸収されないと説明している",
+          "passed": true,
+          "evidence": "「両側の値が同じなので照合に使える値がありません。…また unexplained として出てきます」"
+        },
+        {
+          "text": "置き場所は .replace/parity/<slug>/component-diff-exceptions.json（設定ファイルの replace-strategy.jsonc ではない）で、property に pixel を入れてインスタンス単位に書くと示している",
+          "passed": true,
+          "evidence": ".replace/parity/<slug>/component-diff-exceptions.json に property: \"pixel\" でインスタンスを 1 件ずつ書く例"
+        },
+        {
+          "text": "系統的な原因でも 1 回の宣言にできないのは形式上の制約だと述べ、原因は component_diff_exception_causes に 1 回だけ定義して各インスタンスから cause で参照すると示している（reason をインスタンスへ複製しない）",
+          "passed": true,
+          "evidence": "ワイルドカード不可で 1 件ずつ書き、原因は 1 回定義し「インスタンスに reason は持たせません」"
+        },
+        {
+          "text": "レジストリへ書くのはユーザー承認済みのものだけだと述べている",
+          "passed": true,
+          "evidence": "「承認を得て、次の書き方で例外にします」「承認は原因ごとに 1 回です」"
+        },
+        {
+          "text": "property: pixel の例外は diff-normalize.mjs では吸収されない（同スクリプトの入力は特性照合の Diff だけで画素候補は通らない）ため本スキルが画素候補へ適用すると説明し、取り違えると承認済みでも次の実行で同じ crop が unexplained として再浮上すると述べている",
+          "passed": false,
+          "evidence": "diff-normalize.mjs が pixel を見ないとは述べるが、取り違えると承認済みでも crop が再浮上する点に触れない"
+        },
+        {
+          "text": "しきい値で潰す・インスタンス単位の無視リストで飲み込む、といった代替を勧めていない",
+          "passed": true,
+          "evidence": "しきい値や無視リストを勧めず、ヒンティング差は配信で消すよう勧める"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.8889,
+        "stddev": 0.0962,
+        "min": 0.8333,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 48.805,
+        "stddev": 19.2747,
+        "min": 28.852,
+        "max": 67.321
+      },
+      "tokens": {
+        "mean": 269558.6667,
+        "stddev": 140509.8264,
+        "min": 182931,
+        "max": 431678
+      }
+    }
+  },
+  "notes": []
+}

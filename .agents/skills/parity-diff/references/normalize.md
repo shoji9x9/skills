@@ -52,10 +52,13 @@
 「文全体が差分の `"<name> <prop>"` に含まれるか」で照合すると、理由を添えた宣言は一度も当たらない。登録した差分が `unexplained` のまま残り、人が分類を手で書き直すことになる。
 特性照合の差分に当てる宣言は、要素をオブジェクトにして、照合キーを構造で持たせる。
 
-```yaml
-may_change:
-  - item: "font-family の大文字小文字: 現行の計算後スタイルは Roboto（大文字）、新側は roboto。描画は同じ書体"
-    match: { element: "grid-header-*", property: font-family }
+```jsonc
+"may_change": [
+  {
+    "item": "font-family の大文字小文字: 現行の計算後スタイルは Roboto（大文字）、新側は roboto。描画は同じ書体",
+    "match": { "element": "grid-header-*", "property": "font-family" }
+  }
+],
 ```
 
 | `match` のキー | 必須 | 照合 |
@@ -120,7 +123,7 @@ DOM のクラスは解決しない。宣言の側が、論理名で要素を表�
 
 ## インスタンス例外の置き場所（slug 成果物。設定ファイルではない）
 
-`component_diff_exceptions` は slug の範囲のデータなので、slug の成果物の側に置く。設定ファイル（`.config/skills/shoji9x9/skills.yml`）には置かない。
+`component_diff_exceptions` は slug の範囲のデータなので、slug の成果物の側に置く。設定ファイル（`.config/skills/shoji9x9/replace-strategy.jsonc`）には置かない。
 設定は、人が決めた方針を置く場所である。このスキルが承認の後に追記し続ける台帳をそこに入れると、PR の diff で「環境の設定の変更」と「差分を許容した記録」を区別できない。
 機能のブランチを並行させると、同じファイルの末尾で衝突もする（キーの書き手の区分の原本は、`replace-strategy` の `references/project-config.md`「キーの書き手とライフサイクル」）。
 
@@ -133,7 +136,7 @@ DOM のクラスは解決しない。宣言の側が、論理名で要素を表�
   承認した（説明して許容した）根拠を置くと未検証のものと混在し、節の位置によって収束の判定の見え方が変わる
 - 例外は環境に依存しない（`new/<target>/` の下に置かない）。slug の直下に置き、`gaps.md` や `porting.md` と同じように扱う。
   特定の target でだけ出る差は、例外ではなく環境の差である。ノイズの基準値と新側の自己ノイズ（[`capture-new.md`](capture-new.md)）で扱う
-- 旧スキーマ（設定ファイルの `skills.replace-strategy.component_diff_exceptions`）は、代わりに読むことをしない。見つけたら移行の手順を示して止まる
+- 旧スキーマ（設定ファイル `replace-strategy.jsonc` の最上位の `component_diff_exceptions`）は、代わりに読むことをしない。見つけたら移行の手順を示して止まる
   （原本は `replace-strategy` の `references/project-config.md`「移行」。両方を読むことも、自動で移すこともしない）
 
 ## インスタンス例外のスキーマ（原本）
@@ -220,7 +223,7 @@ node <スキルディレクトリ>/scripts/diff-normalize.mjs <trait-diffs.json>
 ```
 
 - `<trait-diffs.json>` は、`trait-compare.mjs` の出力（Diff の配列）である
-- `--registries <registries.json>`: 下の「registries.json の組み立て」で作ったものを渡す（YAML のパーサを同梱しないため。skills.yml も例外のファイルも、直接は渡さない）
+- `--registries <registries.json>`: 下の「registries.json の組み立て」で作ったものを渡す（設定ファイルも例外のファイルも、直接は渡さない。2 つの元を 1 つの入力にまとめるため）
 - `--noise <metadata.json>`: `noise_baseline[]` を読むために、`parity-suite` の `metadata.json` を渡す
 - 出力は、各 Diff に `classification` と `matched_rule` を付けた JSON である。
   `classification` は `absorbed_registry`・`absorbed_T`・`deviates_T`・`absorbed_exception`・`noise_candidate`・`pending_review`・`unexplained` のどれかである。
@@ -242,11 +245,19 @@ node <スキルディレクトリ>/scripts/diff-normalize.mjs <trait-diffs.json>
 ### registries.json の組み立て
 
 2 つの元から、キーを名前を変えずに集めるだけにする。対応表は書かない。名前を付け替える工程は、結合を誤る原因になる。
+設定ファイルの値は、同梱の `skill-config.mjs` で取得する（JSONC のコメントと末尾のカンマを読み、スキーマで検証する。終了コード 1 なら組み立てずに止まる）。
+キーが無いとき（終了コード 3）は、空の値（`intentional_diffs` は `{}`、`component_diffs` は `[]`）にする。
+
+```bash
+CFG="<このスキルのディレクトリ>/scripts/skill-config/skill-config.mjs"
+node "$CFG" get replace-strategy intentional_diffs --raw   # registries.json の intentional_diffs
+node "$CFG" get replace-strategy component_diffs --raw     # registries.json の component_diffs
+```
 
 | registries.json のキー | 元 |
 |---|---|
-| `intentional_diffs` | 設定ファイルの `skills.replace-strategy.intentional_diffs` |
-| `component_diffs` | 同じく `skills.replace-strategy.component_diffs` |
+| `intentional_diffs` | 設定ファイル `replace-strategy.jsonc` の `intentional_diffs` |
+| `component_diffs` | 同じく `component_diffs` |
 | `component_diff_exception_causes` | `.replace/parity/<slug>/component-diff-exceptions.json` の同じ名前のキー |
 | `component_diff_exceptions` | 同じファイルの同じ名前のキー |
 

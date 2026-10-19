@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "browser-test の設定（.config/skills/shoji9x9/browser-test.jsonc ほか）",
+  "description": "置き場所・層・解決の順序は references/config-files.md にある。各項目の意味と実行順は references/project-config.md にある。",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "environments": {
+      "description": "確認する環境の一覧。全員が使う環境はリポジトリの層に、このリポジトリで自分だけが使う環境（手元のポートなど）は .local.jsonc に置く。.local.jsonc に置くと、リポジトリの層の一覧を丸ごと置き換える",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "auth"],
+        "oneOf": [{ "required": ["url"] }, { "required": ["url_command"] }],
+        "properties": {
+          "name": {
+            "description": "環境名（ユーザーへの提示に使う）",
+            "type": "string",
+            "minLength": 1
+          },
+          "url": { "type": "string", "minLength": 1 },
+          "url_command": {
+            "description": "url と排他。標準出力に URL を 1 行出すコマンド",
+            "type": "string",
+            "minLength": 1
+          },
+          "auth": { "description": "user はユーザーがログインする", "enum": ["none", "user"] },
+          "pre_commands": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+          "start": { "type": "string", "minLength": 1 },
+          "check_urls": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "default": { "type": "boolean" },
+          "forbidden_actions": {
+            "description": "この環境で実施しない操作。空の配列はすべて実施してよい。キーが無い環境は読み取り専用として扱う（デフォルトの値を持たない）",
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 }
+          }
+        }
+      },
+      "x-layers": ["repo", "local"]
+    }
+  }
+}

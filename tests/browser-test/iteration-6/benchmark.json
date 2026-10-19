@@ -1,0 +1,203 @@
+{
+  "metadata": {
+    "skill_name": "browser-test",
+    "skill_path": "<repo>/skills/browser-test",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-18T13:06:24Z",
+    "evals_run": [1, 5],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 41.969,
+        "tokens": 135953,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "プロジェクト設定（設定ファイル → リポジトリ探索 → ユーザー確認）の解決を試みている",
+          "passed": true,
+          "evidence": "設定ファイルが無いことを確かめ、package.json・README を探して推定できないと報告"
+        },
+        {
+          "text": "chrome-devtools MCP が無効・未設定なことを検出し、有効化を促して中断している",
+          "passed": true,
+          "evidence": "「chrome-devtools MCP を有効にする」を再開の条件に挙げて中断"
+        },
+        {
+          "text": "データの作成・変更・削除や課金操作を行っていない",
+          "passed": true,
+          "evidence": "「ブラウザは開いておらず、ファイルの変更やサーバー・ビルドの実行もしていません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 20.15,
+        "tokens": 112567,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "リポジトリ探索（package.json の scripts・dev サーバ設定・README 等）から環境・起動コマンドの候補を推定している",
+          "passed": true,
+          "evidence": "package.json・dev サーバーの設定・README を探して、推定できないと報告"
+        },
+        {
+          "text": "環境 URL・認証・起動方法・環境ごとの禁止操作（forbidden_actions）をユーザーに確認しようとしている",
+          "passed": true,
+          "evidence": "環境の一覧・起動方法・禁止操作を確認する項目として挙げた"
+        },
+        {
+          "text": ".config/skills/shoji9x9/browser-test.jsonc の environments だけを非破壊に書こうとしている（既存の他のキー・値・コメントを変更しない）",
+          "passed": false,
+          "evidence": "set environments を示すだけで、既存の他のキー・値・コメントを変えないことに触れていない"
+        },
+        {
+          "text": "回帰確認（ページ巡回）を始めていない",
+          "passed": true,
+          "evidence": "ページ巡回を始めていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 1,
+        "failed": 2,
+        "total": 3,
+        "time_seconds": 14.927,
+        "tokens": 61336,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "プロジェクト設定（設定ファイル → リポジトリ探索 → ユーザー確認）の解決を試みている",
+          "passed": false,
+          "evidence": "package.json とスキルの有無を見ただけで、設定ファイルを読む段を踏んでいない。"
+        },
+        {
+          "text": "chrome-devtools MCP が無効・未設定なことを検出し、有効化を促して中断している",
+          "passed": false,
+          "evidence": "chrome-devtools MCP に触れず、ヘッドレスブラウザで進めると述べている。"
+        },
+        {
+          "text": "データの作成・変更・削除や課金操作を行っていない",
+          "passed": true,
+          "evidence": "空のディレクトリで何も作らず「新しくアプリを作ったりはしていません」。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 181.065,
+        "tokens": 178499,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "リポジトリ探索（package.json の scripts・dev サーバ設定・README 等）から環境・起動コマンドの候補を推定している",
+          "passed": false,
+          "evidence": "作業ディレクトリが空として Playwright の雛形を作り、環境の候補を推定していない。"
+        },
+        {
+          "text": "環境 URL・認証・起動方法・環境ごとの禁止操作（forbidden_actions）をユーザーに確認しようとしている",
+          "passed": false,
+          "evidence": "環境 URL・認証・forbidden_actions をユーザーに確認する内容が無い。"
+        },
+        {
+          "text": ".config/skills/shoji9x9/browser-test.jsonc の environments だけを非破壊に書こうとしている（既存の他のキー・値・コメントを変更しない）",
+          "passed": false,
+          "evidence": "browser-test.jsonc ではなく package.json・playwright.config.js などを作っている。"
+        },
+        {
+          "text": "回帰確認（ページ巡回）を始めていない",
+          "passed": true,
+          "evidence": "テストは実行できておらず、ページ巡回は始めていない。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.875,
+        "stddev": 0.1768,
+        "min": 0.75,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 31.0595,
+        "stddev": 15.4284,
+        "min": 20.15,
+        "max": 41.969
+      },
+      "tokens": {
+        "mean": 124260,
+        "stddev": 16536.3992,
+        "min": 112567,
+        "max": 135953
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.2916,
+        "stddev": 0.0589,
+        "min": 0.25,
+        "max": 0.3333
+      },
+      "time_seconds": {
+        "mean": 97.996,
+        "stddev": 117.4773,
+        "min": 14.927,
+        "max": 181.065
+      },
+      "tokens": {
+        "mean": 119917.5,
+        "stddev": 82846.7518,
+        "min": 61336,
+        "max": 178499
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.58",
+      "time_seconds": "-66.9",
+      "tokens": "+4343"
+    }
+  },
+  "notes": []
+}

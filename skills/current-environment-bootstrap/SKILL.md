@@ -37,14 +37,14 @@ current-environment-bootstrap [--target <name>] [--resume] [--autonomous]
 
 ## 前提
 
-- ツール: `git`。DB クライアント・言語のランタイム・コンテナの実行環境は、プロジェクト側の前提である（受け取った資産が求めるもの）。
+- ツール: `git`、Node.js（設定ファイル `replace-strategy.jsonc` を、同梱の `scripts/skill-config/skill-config.mjs` で読む。依存パッケージは要らない）。DB クライアント・言語のランタイム・コンテナの実行環境は、プロジェクト側の前提である（受け取った資産が求めるもの）。
 - 前提スキル: `replace-strategy`（`setup` の対話のセットアップまで済み、`current.origin: received-assets` が記録されていること）。
 - 前提スキルがインストールされていない場合は、`gh skill install shoji9x9/skills replace-strategy` で入れてから実行する。
   このスキルは設定のスキーマの原本を `replace-strategy` の `references/project-config.md` に持つので、単独では動かない（同時に入っている前提である）。
 - MCP: 要らない。起動と画面への到達の確認は、ブラウザでも `curl` に当たるものでもよい。実測であることだけが条件である。
 - 対応する範囲の一覧は、`replace-strategy` の `references/scope.md` で定義する。このスキルは実行時の行動を持ち、一覧を転記しない。
 
-設定（`skills.replace-strategy.*`）が無ければ、成果物をでっち上げずに停止し、`replace-strategy setup` を促す。
+設定（`.config/skills/shoji9x9/replace-strategy.jsonc`）が無ければ、成果物をでっち上げずに停止し、`replace-strategy setup` を促す。
 `current.origin` が `received-assets` でなければ（`managed` か、キーが欠けている）、このスキルの出番ではないことを説明して停止する。既にある管理済みの環境に対して、作り直しを実行しない。
 
 ## 厳守の制約（禁止事項）
@@ -77,7 +77,9 @@ current-environment-bootstrap [--target <name>] [--resume] [--autonomous]
 
 ## プロジェクト設定の解決
 
-設定ファイル `.config/skills/shoji9x9/skills.yml` の `skills.replace-strategy.*` を直接読む（転記しない）。
+設定ファイル `.config/skills/shoji9x9/replace-strategy.jsonc` を直接読む（転記しない）。
+値は同梱の `scripts/skill-config/skill-config.mjs` で読み書きする。読むときは `node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mjs get replace-strategy <キー>`、書くときは `set` か `append` を使う。
+置き場所・層・書き込みの決まりの原本は [`references/config-files.md`](references/config-files.md) である。読み取りがエラー（終了コード 1）を返したら、デフォルトの値で続けずに止まる。
 スキーマの原本は、`replace-strategy` の `references/project-config.md` である。このスキルが読み書きするキーは次のとおりである。
 
 | キー | 用途 |
@@ -99,7 +101,7 @@ current-environment-bootstrap [--target <name>] [--resume] [--autonomous]
 - 原本の「移行」の節に並んだ古いキーは、代わりの値として読まない。見つけたら、その節を示して停止する。
   一律に停止するのは、キー名が変わった古いキーだけである。`verification_commands` がリストのような、キー名の変わらない移行は、上の表のとおりに扱う。
 - このスキルが設定に書くのは、引き渡しの 1 か所だけである。
-  作り直しが済んだ current の target の `url`（`none` から実際の URL へ）と `default: true` を、利用者に確かめたうえで、既存の内容を消さずに追記する（[`references/verification-handoff.md`](references/verification-handoff.md)）。
+  作り直しが済んだ current の target の `url`（`none` から実際の URL へ）と `default: true` を、利用者に確かめたうえで書く。他のキーは消さない（[`references/verification-handoff.md`](references/verification-handoff.md)）。
 
 ## 自律実行（`--autonomous`）
 

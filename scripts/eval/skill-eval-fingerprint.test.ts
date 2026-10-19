@@ -1,5 +1,14 @@
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, expect, test } from "vitest";
@@ -10,9 +19,12 @@ import {
   formatError as formatFingerprintError,
   hashFixture,
   hashInstalledSkill,
+  INSTALLED_SKILL_PARTS,
   requiredSkillsForEval,
 } from "./skill-eval-fingerprint.ts";
 import { parseJsonAs } from "../lib/parse-as.ts";
+import { isRecord } from "../lib/guards.ts";
+import { isArray } from "../lib/is-array.ts";
 import { makeTempDir } from "../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../lib/testing/child-timeout.ts";
 
@@ -278,6 +290,52 @@ test("インストールするスキルの hash は、SKILL.md が無ければ�
   mkdirSync(join(directory, "s", "references"));
   writeFileSync(join(directory, "s", "references", "r.md"), "r", "utf8");
   expect(hashInstalledSkill(join(directory, "s"))).not.toBe(initial);
+});
+
+// gh skill install はスキルのディレクトリのすべてのファイルを配る。eval が一部しかコピーしないと、
+// 配布先にはある同梱物（config-schemas/ など）が eval の中だけ欠け、スキルの手順が失敗する。
+// git だけが読み、スキルの実行では読まないファイル。eval にコピーしなくても run は変わらない。
+const NOT_READ_AT_RUN_TIME = new Set([".gitignore"]);
+test("実リポジトリ: 配布スキルの直下の要素は、すべてインストールする部分に入っていて、ランナーも同じ部分をコピーする", () => {
+  const skillsRoot = join(here, "..", "..", "skills");
+  const names = readdirSync(skillsRoot);
+  expect(names.length).toBeGreaterThan(0);
+  const outside = names.flatMap((name) =>
+    readdirSync(join(skillsRoot, name))
+      .filter((entry) => !INSTALLED_SKILL_PARTS.includes(entry) && !NOT_READ_AT_RUN_TIME.has(entry))
+      .map((entry) => `${name}/${entry}`),
+  );
+  expect(outside).toEqual([]);
+  const runner = readFileSync(join(here, "run-skill-eval.sh"), "utf8");
+  const loops = [...runner.matchAll(/for (?:subject_part|part) in ([^;]+); do/gu)].map((m) => m[1]);
+  expect(loops).toHaveLength(2);
+  for (const parts of loops) expect(parts.split(" ")).toEqual(INSTALLED_SKILL_PARTS);
+});
+
+// スキーマが挙げる環境変数（x-env と x-legacy.env）が開発者の環境にあると、eval の結果が起動した人で変わる。
+test("実リポジトリ: ランナーが eval の前に消す環境変数は、スキルのスキーマの x-env と x-legacy.env の名前と一致する", () => {
+  const skillsRoot = join(here, "..", "..", "skills");
+  const schemaEnvNames = new Set<string>();
+  for (const name of readdirSync(skillsRoot)) {
+    const dir = join(skillsRoot, name, "config-schemas");
+    if (!existsSync(dir)) continue;
+    for (const file of readdirSync(dir)) {
+      const schema: unknown = JSON.parse(readFileSync(join(dir, file), "utf8"));
+      const env = isRecord(schema) && isRecord(schema["x-legacy"]) ? schema["x-legacy"].env : [];
+      for (const e of isArray(env) ? env : [])
+        if (isRecord(e) && typeof e.name === "string") schemaEnvNames.add(e.name);
+      const props = isRecord(schema) && isRecord(schema.properties) ? schema.properties : {};
+      for (const prop of Object.values(props))
+        if (isRecord(prop) && typeof prop["x-env"] === "string") schemaEnvNames.add(prop["x-env"]);
+    }
+  }
+  expect(schemaEnvNames.size).toBeGreaterThan(0);
+  const runner = readFileSync(join(here, "run-skill-eval.sh"), "utf8");
+  const unsets = [...runner.matchAll(/^\s*unset ((?:[^\n]*\\\n)*[^\n]*)$/gmu)].map((m) =>
+    m[1].replaceAll("\\\n", " ").trim().split(/\s+/u),
+  );
+  expect(unsets).toHaveLength(1);
+  expect([...unsets[0]].sort()).toEqual([...schemaEnvNames].sort());
 });
 
 test("fixture の中のシンボリックリンクは、指紋にできないものとして失敗する", () => {

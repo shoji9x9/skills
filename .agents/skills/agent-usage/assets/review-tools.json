@@ -1,6 +1,6 @@
 {
   "$comment": [
-    "PR のレビューの作者（GitHub の login）から、レビューツールを決める対応表。リポジトリの .agent-usage/config.json の reviewTools が同じ login を持てば、そちらを優先する。",
+    "PR のレビューの作者（GitHub の login）から、レビューツールを決める対応表。リポジトリの設定（.config/skills/shoji9x9/agent-usage.jsonc）の reviewTools が同じ login を持てば、そちらを優先する。",
     "login は GraphQL の author.login と REST の user.login のどちらの形でも引けるよう、末尾の [bot] を除いて比べる。",
     "自分の GitHub Actions で実行するレビュー（Claude Code の Action・Codex の Action）は、workflow が使うトークンの持ち主が作者になる。対応は利用者が config に足す。"
   ],

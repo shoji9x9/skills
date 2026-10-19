@@ -47,6 +47,7 @@ import {
   loadConfig,
 } from "./check-coverage.ts";
 import { shellCoverage } from "./shell-coverage.ts";
+import { VENDORED_GLOBS, isVendored } from "../lib/source-scope.ts";
 
 const CACHE = "node_modules/.cache/coverage";
 
@@ -83,7 +84,9 @@ export function targetFiles(root: string): string[] {
     encoding: "utf8",
   });
   if (res.status !== 0) throw new Error(`git ls-files に失敗した: ${res.stderr}`);
-  const files = [...new Set(res.stdout.split("\0"))].filter((f) => f !== "" && kindOf(f) !== null);
+  const files = [...new Set(res.stdout.split("\0"))].filter(
+    (f) => f !== "" && kindOf(f) !== null && !isVendored(f),
+  );
   if (files.length === 0) throw new Error("測る対象のファイルが 0 件である");
   return files.sort();
 }
@@ -167,7 +170,8 @@ function measure(
       "skills/**/*.ts",
       ...privates.flatMap((dir) => [`${dir}**/*.mjs`, `${dir}**/*.ts`]),
     ].flatMap((p) => ["--include", p]),
-    ...["**/*.test.ts", "**/*.d.ts"].flatMap((p) => ["--exclude", p]),
+    // 外部のパッケージから作った生成物（scripts/lib/source-scope.ts の VENDORED_GLOBS）は、このリポジトリのテストの対象ではない。
+    ...["**/*.test.ts", "**/*.d.ts", ...VENDORED_GLOBS].flatMap((p) => ["--exclude", p]),
     "--temp-directory",
     join(cache, "v8"),
     "--report-dir",

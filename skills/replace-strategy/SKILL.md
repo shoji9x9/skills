@@ -38,7 +38,7 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
 
 ## 前提
 
-- ツール: `gh`（GitHub CLI）、`git`、Node.js（同梱のスクリプト `scripts/*.mjs` の実行に使う。依存パッケージは要らない）
+- ツール: `gh`（GitHub CLI）、`git`、Node.js（同梱のスクリプト `scripts/*.mjs` と、設定ファイルを読む `scripts/skill-config/skill-config.mjs` の実行に使う。依存パッケージは要らない）
 - 前提スキル:
   - `issue-create`（`issues` モードで起票を任せる先）
   - `browser-test`（現行アプリのブラウザ操作の作法）
@@ -101,9 +101,10 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
 ## プロジェクト設定の解決
 
 次のものは、リポジトリごとに異なる。現・新のリポジトリ、実行対象の環境（`targets`。環境の名前で複数定義し、`--target` で選ぶ）、DB の接続の環境変数の名前、成果物の保存の方針、意図的差異レジストリ、references（利用者が選ぶ知識の注入）である。
-設定ファイル `.config/skills/shoji9x9/skills.yml` の `skills.replace-strategy` のスキーマと解決の手順は、[`references/project-config.md`](references/project-config.md) にある。
+設定ファイル `.config/skills/shoji9x9/replace-strategy.jsonc` のキーと解決の手順は、[`references/project-config.md`](references/project-config.md) にある。
+値は同梱の `scripts/skill-config/skill-config.mjs` で読み書きし、置き場所・層・書き込みの決まりの原本は [`references/config-files.md`](references/config-files.md) である。
 
-設定は対象のプロジェクトに 1 つで、すべてのスキルが読める。そのため、下流のスキル（姉妹スキル）はこのキーを直接読む（転記しない）。
+設定は対象のプロジェクトに 1 つで、すべてのスキルが読める。そのため、下流のスキル（姉妹スキル）はこのファイルを直接読む（転記しない）。
 
 ## 自律実行（`--autonomous`）
 
@@ -270,6 +271,7 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
      - `item` に照合のキーの文言、`added_by: replace-strategy`、`added_at` に追記した日を書く。
      - `slug` は `cross-cutting` にする。機能の slug は次の手順 9 で採番するので、この時点では書ける機能の slug が無い。
      - 書く前に既存の `pending` を読み、同じ `item` の要素があれば追記しない。
+       `skill-config.mjs append replace-strategy intentional_diffs.pending <要素> --layer repo --unique-by item` で書けば、同じ `item` の要素は足されない。
        `setup` の再実行（`--resume` を含む）で同じ文言が 2 件になると、`pending-triage-check.mjs` が「同じ文言が複数ある」として失敗にする。
        重複を消すのは既存の値の削除なので、追記専用のチェックにも当たる（どちらの取り決めにも反せずに直すことはできない）。
      - 次の書き方は、どれも帰属が分からないと判定され、すべての機能の棚卸しに出続ける。`added_by` を空にする。`unknown` と書く。採番の前の slug を推測で書く。
@@ -451,7 +453,7 @@ Issue の種類は 6 つある。ゴールデンデータセット／横断 API�
 
 | 成果物 | 場所 | 内容 |
 |---|---|---|
-| 設定 | `.config/skills/shoji9x9/skills.yml` | 現・新のリポジトリとスタック（`new.stack` は事前に決まった骨格の記録）／現行環境の由来（`current.origin` / `current.received_assets` / `bootstrap_tool_dir`）／実行対象の環境（`targets`。環境ごとの URL・DB（`env_vars` と `seedable`）・ストレージ（`storage`）・認証・禁止操作・起動・`on_diff`）／データセットの実体（`dataset_mode` / `dataset_static_paths`）／ファイルストレージを使うか（`uses_storage`）／起動のラッパー／検証コマンド（`verification_commands` の `full` / `diff` の 2 列）／成果物の保持の方針・保存先・容量の閾値／パリティスイートの配置／意図的差異レジストリ／references |
+| 設定 | `.config/skills/shoji9x9/replace-strategy.jsonc` | 現・新のリポジトリとスタック（`new.stack` は事前に決まった骨格の記録）／現行環境の由来（`current.origin` / `current.received_assets` / `bootstrap_tool_dir`）／実行対象の環境（`targets`。環境ごとの URL・DB（`env_vars` と `seedable`）・ストレージ（`storage`）・認証・禁止操作・起動・`on_diff`）／データセットの実体（`dataset_mode` / `dataset_static_paths`）／ファイルストレージを使うか（`uses_storage`）／起動のラッパー／検証コマンド（`verification_commands` の `full` / `diff` の 2 列）／成果物の保持の方針・保存先・容量の閾値／パリティスイートの配置／意図的差異レジストリ／references |
 | 測定レポート | `.replace/survey.md` | セマンティクスの測定値、DB を復元できるか、コードを入手できるか、副作用の棚卸し、既存のテストの評価。すべて実測値（横断の応答ヘッダーは、下の一覧を指すだけ） |
 | 横断の応答ヘッダーの一覧 | `.replace/response-headers.json` | 採った応答、ヘッダーごとの分類・値・付く応答・付ける側・持ち主の slug・サーバーの設定を引き受ける slug（形式の原本: [`assets/response-headers-template.json`](assets/response-headers-template.json)。`parity-suite` の `header-normalize.mjs` が読む） |
 | 戦略書 | `.replace/strategy.md` | 非対称な設計、パリティスイートの戦略、ゴールデンデータセットの方針、未検証の領域の扱い |
@@ -480,7 +482,7 @@ Issue の種類は 6 つある。ゴールデンデータセット／横断 API�
     プロジェクト側の置き場所がデフォルトと違うなら、一覧をプロジェクトにコピーして書き換え、`--manifest` で渡す（スキルの中の原本は書き換えない）。
   - 工程の外で入った変更のために、プロジェクトの pre-commit と CI にも組み込む。
     呼び出し元ごとの比較元の版と、組み込める時期は [`checks.json`](checks.json) にある。
-    呼び出し元では、プロジェクトの設定を `--exclude project-config` で外す。すべてのスキルの設定を持つので、他のスキルの設定を直す正当な編集まで止まるからである。
+    呼び出し元では、プロジェクトの設定を `--exclude project-config` で外す。設定ファイルは人が方針を直す（値を書き換える）ことがあり、その正当な編集まで止まるからである。設定ファイルの縮小は、`parity-diff` の収束の判定が見る。
 
 ## 姉妹スキルと依存順
 

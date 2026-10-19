@@ -7,7 +7,7 @@
 # exit 2 + stderr でブロックし、従来の kaizen --current にフォールバックする。
 #
 # **止めるのは自分のセッションのセンチネルだけ**。他セッションのぶんは
-# 「知らせるだけ」（exit 1）で、保持期間（既定 7 日、`.kaizen/config` で変更可）を過ぎたものは回収する。
+# 「知らせるだけ」（exit 1）で、保持期間（既定 7 日、kaizen.jsonc で変更可）を過ぎたものは回収する。
 # 終了コード: 0=通す / 1=通すが警告あり / 2=ブロック。
 #
 # 第 1 引数 $1: エージェントのサフィックス（例: -codex / -copilot）。省略時は空（Claude Code 用）。
@@ -90,8 +90,9 @@ if ! declare -f kaizen_sentinel_key_of >/dev/null 2>&1; then
 		printf '%s' ".kaizen/$2"
 	}
 	# 設定を読む関数も共通ライブラリの側にある。読めないときは「定義なし」を返し、呼び出し側の
-	# デフォルトの値を使う（`.kaizen/config` で調整した値は反映されなくなるが、デフォルトの値は止める側なので
+	# デフォルトの値を使う（kaizen.jsonc で調整した値は反映されなくなるが、デフォルトの値は止める側なので
 	# 止める条件は緩まない）。
+	kaizen_config_load() { return 0; }
 	kaizen_config_value() { return 1; }
 fi
 
@@ -924,17 +925,19 @@ fi
 # 残りは 1 秒を差し引いて割り当て、実際の時間で締め切りを超えないようにする。
 # 締め切りの後に残る処理（checkpoint の記録・センチネルの列挙・案内の出力）は、走査を伴わない決まった
 # 少量の処理で、上限はこの分を足した値になる（setup.md の設定例は、その余裕を含めた timeout を案内する）。
+#
+# 締め切りは kaizen の設定（kaizen.jsonc ほか）の precommit_deadline_seconds で変えられる。
+# 設定を読めないとき（不正な値・旧い場所の設定・node が無いのに設定ファイルがある）は、デフォルトの値で
+# 判定せずにコミットを止める。設定したつもりの値と違う値でチェックしたことに気付けないためである。
 gate_deadline=8
-gate_deadline_raw=${KAIZEN_PRECOMMIT_DEADLINE_SECONDS:-}
-if [ -n "${gate_deadline_raw}" ]; then
-	if [[ "${gate_deadline_raw}" =~ ^[0-9]{1,4}$ ]] && [ "$((10#${gate_deadline_raw}))" -ge 2 ] &&
-		[ "$((10#${gate_deadline_raw}))" -le 3600 ]; then
-		gate_deadline=$((10#${gate_deadline_raw}))
-	else
-		# 不正な値はデフォルトの値として扱う。警告なしに扱うと、設定したつもりの締め切りで動いていると読めてしまう。
-		printf 'kaizen-precommit-gate: KAIZEN_PRECOMMIT_DEADLINE_SECONDS が不正です（%q。2〜3600 の整数）。既定の %s 秒を使います。\n' \
-			"${gate_deadline_raw:0:40}" "${gate_deadline}" >&2
-	fi
+if ! kaizen_config_load; then
+	printf 'kaizen-precommit-gate: %s\n' "${kaizen_config_error:-}" >&2
+	echo "kaizen-precommit-gate: kaizen の設定を読めないので、コミットを止めます。設定を直してからコミットし直してください。" >&2
+	exit 2
+fi
+# 値はスキーマで 2〜3600 の整数に限ってある（2 未満では、下の配分で lifecycle 検査にも時間が残らない）。
+if raw=$(kaizen_config_value precommit_deadline_seconds); then
+	gate_deadline=$((10#${raw}))
 fi
 # 最小は 2 秒。残りは 1 秒差し引いて配るので、1 秒では lifecycle 検査にも時間が残らず、
 # センチネルの有無に関わらず、毎回締め切りを過ぎて止まる。
@@ -969,7 +972,7 @@ set -e
 if [ "${status_rc}" -ne 0 ]; then
 	[ -n "${status_output}" ] && printf '%s\n' "${status_output}" >&2
 	if [ "${status_rc}" -eq 124 ]; then
-		printf 'kaizen-precommit-gate: lifecycle 検査がチェックの締め切り（%s 秒）までに終わりませんでした（判定できないのでブロックします）。KAIZEN_PRECOMMIT_DEADLINE_SECONDS で延ばせます（フックの timeout はそれより長くする）。\n' \
+		printf 'kaizen-precommit-gate: lifecycle 検査がチェックの締め切り（%s 秒）までに終わりませんでした（判定できないのでブロックします）。kaizen.jsonc の precommit_deadline_seconds で延ばせます（フックの timeout はそれより長くする）。\n' \
 			"${gate_deadline}" >&2
 	fi
 	exit 2
@@ -1142,8 +1145,9 @@ resolve_retention_days() {
 		foreign_retention_days=$((10#${raw}))
 		return 0
 	fi
-	# 不正な値はデフォルトの値として扱う。警告なしに扱うと「設定したつもりの日数で回収されている」と読めてしまうので、出力する。
-	printf 'kaizen-precommit-gate: .kaizen/config の foreign_sentinel_retention_days が不正です（%q）。既定の %s 日を使います。\n' "${raw:0:40}" "${foreign_retention_days}" >&2
+	# 値はスキーマで 0 以上の整数か never に限ってあるので、ここには来ない。来たら、回収しない側として扱って出力する。
+	foreign_retention_days=never
+	printf 'kaizen-precommit-gate: kaizen.jsonc の foreign_sentinel_retention_days を読めません（%q）。回収しません。\n' "${raw:0:40}" >&2
 }
 
 # 保持期間を過ぎた**他セッションの**センチネルを回収する。
@@ -1458,13 +1462,13 @@ if [ "${own_pending}" -eq 1 ] && [ -n "${transcript}" ] && [ -r "${script_dir}/k
 	set +e
 	own_slice=$(gate_remaining)
 	if [ "${has_timeout}" -eq 1 ] && [ "${own_slice}" -lt 1 ]; then
-		scan_output="kaizen-precommit-gate: no time left before the gate deadline (${gate_deadline}s) to scan the transcript; set KAIZEN_PRECOMMIT_DEADLINE_SECONDS higher (and the hook timeout above it)"
+		scan_output="kaizen-precommit-gate: no time left before the gate deadline (${gate_deadline}s) to scan the transcript; set precommit_deadline_seconds in kaizen.jsonc higher (and the hook timeout above it)"
 		scan_rc=2
 	elif [ "${has_timeout}" -eq 1 ]; then
 		scan_output=$(timeout "${own_slice}" bash "${script_dir}/kaizen-candidate-scan.sh" "${transcript}" "${checkpoint_path}" 2>&1)
 		scan_rc=$?
 		if [ "${scan_rc}" -eq 124 ]; then
-			scan_output="${scan_output:+${scan_output}$'\n'}kaizen-precommit-gate: the transcript scan hit the gate deadline (${gate_deadline}s, ${own_slice}s left for the scan); set KAIZEN_PRECOMMIT_DEADLINE_SECONDS higher (and the hook timeout above it)"
+			scan_output="${scan_output:+${scan_output}$'\n'}kaizen-precommit-gate: the transcript scan hit the gate deadline (${gate_deadline}s, ${own_slice}s left for the scan); set precommit_deadline_seconds in kaizen.jsonc higher (and the hook timeout above it)"
 		fi
 	else
 		scan_output="kaizen-precommit-gate: timeout command is unavailable; automatic transcript scan is disabled"
@@ -1573,9 +1577,9 @@ warn_foreign_sentinels() {
 	{
 		echo "他セッションの未抽出センチネルが残っています（コミットは止めません）:"
 		if [ "${foreign_retention_days}" = "never" ]; then
-			echo "保持期間による自動回収は無効です（.kaizen/config の foreign_sentinel_retention_days=never）。"
+			echo "保持期間による自動回収は無効です（kaizen.jsonc の foreign_sentinel_retention_days が never）。"
 		else
-			echo "立ってから ${foreign_retention_days} 日を過ぎたものは、次のコミット前のチェックが自動で回収します（消えるのは「未抽出である」という印だけで、transcript は残り kaizen extract で読み直せます）。日数は .kaizen/config の foreign_sentinel_retention_days で変えられます。"
+			echo "立ってから ${foreign_retention_days} 日を過ぎたものは、次のコミット前のチェックが自動で回収します（消えるのは「未抽出である」という印だけで、transcript は残り kaizen extract で読み直せます）。日数は kaizen.jsonc の foreign_sentinel_retention_days で変えられます。"
 		fi
 		echo "いま解消できるのは、そのセッションの transcript から抽出できる主体だけです。引き受ける場合のコマンド:"
 	} >&2

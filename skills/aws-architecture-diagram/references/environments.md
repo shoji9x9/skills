@@ -26,7 +26,7 @@
 ## 「あるべき環境」の管理（単一ソース）
 
 `environments.mjs` の `environments` オブジェクトのキーが、このリポジトリにあるべき環境の一覧である。
-ここが唯一の定義なので、`skills.yml` などに環境の一覧を二重に持たない（一方だけが古くなるのを避ける）。
+ここが唯一の定義なので、設定ファイル（`aws-architecture-diagram.jsonc` など）に環境の一覧を二重に持たない（一方だけが古くなるのを避ける）。
 
 ```js
 // environments.mjs（抜粋）。環境 → spec の解決はエンジンが行うので、ここは定義だけ。
@@ -72,4 +72,4 @@ node "$SKILL/assets/engine/render-diagram.mjs" --env prod,local
 ## 出力
 
 環境ごとに `architecture-<env>.svg` を出力する。
-出力先はデフォルトでは starter の中の `out/` で、`DIAGRAM_OUT_DIR` で変えられる。ドキュメントには、各環境の SVG を埋め込む。
+出力先はデフォルトでは図のディレクトリの中の `out/` で、設定の `out_dir` か `--out-dir` で変えられる（`SKILL.md`「同梱物と配置の方針」）。ドキュメントには、各環境の SVG を埋め込む。

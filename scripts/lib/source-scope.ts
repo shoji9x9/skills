@@ -52,3 +52,13 @@ export function isAgentCopy(root: string, rel: string): boolean {
   const m = /^\.agents\/skills\/([^/]+)\//.exec(rel);
   return m !== null && existsSync(join(root, "skills", m[1]));
 }
+
+// 外部のパッケージから作った生成物（配布スキルに同梱する jsonc-parser。.d.mts と LICENSE.md を含む）。
+// 中身は上流のコードと文書なので、このリポジトリの lint・整形・型の検査・カバレッジ・文章の規約を当てない。
+// 原本との一致は scripts/gates/packaging/check-skill-config-vendor.ts が確かめる。
+export const VENDORED_GLOBS = ["skills/*/scripts/skill-config/vendor/**"];
+
+/** リポジトリ相対パス rel が、外部のパッケージから作った生成物か。 */
+export function isVendored(rel: string): boolean {
+  return /^skills\/[^/]+\/scripts\/skill-config\/vendor\//.test(rel);
+}

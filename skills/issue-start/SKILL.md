@@ -49,12 +49,15 @@ issue-start https://github.com/<owner>/<repo>/issues/220 --pr
 - MCP: なし
 - シェル: bash（POSIX 互換のシェル）。コマンドの例は bash を前提にしているので、Windows では WSL や Git Bash などの bash の環境で実行する
 - Node.js は、受け入れ条件の突き合わせ（`--acceptance` と、`--pr` の push の前）でだけ要る（同梱の [`scripts/acceptance-check.mjs`](scripts/acceptance-check.mjs) を実行する）。
-  無ければ、突き合わせを合格として扱わずに止まる。それ以外のモードは、pnpm や python を含めて、ランタイムが要らない。
+  無ければ、突き合わせを合格として扱わずに止まる。
+- 設定ファイル（`.config/skills/shoji9x9/common.jsonc` など）を読むときも Node.js が要る（同梱の `scripts/skill-config/skill-config.mjs` で読む）。
+  設定ファイルがどの層にも無ければ、Node.js なしで規約の文書を探す。設定ファイルがあって Node.js が無ければ、設定を読めないとして止まる。
+  pnpm や python は、どのモードでも要らない。
 
 ## ブランチ運用・commit 規約の参照
 
 ブランチの運用と commit の規約は、リポジトリごとに違う。
-決め方（設定ファイル、標準のドキュメントの探索、利用者への確認の順）と、設定ファイル `.config/skills/shoji9x9/skills.yml` の扱いは、[`references/conventions.md`](references/conventions.md) にある。
+決め方（設定ファイル、標準のドキュメントの探索、利用者への確認の順）と、設定 `common` の `conventions_doc` の扱いは、[`references/conventions.md`](references/conventions.md) にある。
 規約を決めた結果に関わらず、次の操作の決まりは常に守る。`--amend` と force push をしない。関連するファイルだけを stage する。長い commit の本文は `git commit -F <file>` で渡す。
 
 ## 基本フロー

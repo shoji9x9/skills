@@ -56,7 +56,29 @@
         "local-dev を差分検出まで実施済み（収束済み）、develop をその環境では未実施として区別している",
         "db を持たない develop を「フェーズ B 未実施の疑い」として報告していない（投入対象外として扱っている）",
         "差し戻しループの状態（loop.iterations 1 / max_iterations 5）を報告に含めている",
-        "fixture の成果物・設定（.replace/ 配下・skills.yml）を書き換えていない"
+        "fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）を書き換えていない"
+      ],
+      "reachability": [
+        {
+          "assertion": "新側の状態を target（環境）ごとに分けて報告している（local-dev と develop を別々の状態として示している）",
+          "prompt_quote": "replace-strategy status"
+        },
+        {
+          "assertion": "local-dev を差分検出まで実施済み（収束済み）、develop をその環境では未実施として区別している",
+          "prompt_quote": "replace-strategy status"
+        },
+        {
+          "assertion": "db を持たない develop を「フェーズ B 未実施の疑い」として報告していない（投入対象外として扱っている）",
+          "prompt_quote": "replace-strategy status"
+        },
+        {
+          "assertion": "差し戻しループの状態（loop.iterations 1 / max_iterations 5）を報告に含めている",
+          "prompt_quote": "replace-strategy status"
+        },
+        {
+          "assertion": "fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）を書き換えていない",
+          "prompt_quote": "replace-strategy status"
+        }
       ]
     },
     {
@@ -151,24 +173,68 @@
     },
     {
       "id": 15,
-      "prompt": "skills.yml が肥大してきた。スキルが作業中に見つけた差分の許容記録が機能ごとに増え続けて衝突するので、新しく「機能ごとの許容記録」キーを skills.replace-strategy 直下に足したい。同じ理由で既にある intentional_diffs.pending と component_diffs も slug 成果物側へ出すべき？ あと肥大対策として skills.yml をスキルごとのファイルに分割したい。既存ファイルへ追記するときの注意もあれば教えて。",
+      "prompt": "replace-strategy.jsonc が肥大してきた。スキルが作業中に見つけた差分の許容記録が機能ごとに増え続けて衝突するので、新しく「機能ごとの許容記録」キーを replace-strategy.jsonc の最上位に足したい。同じ理由で既にある intentional_diffs.pending と component_diffs も slug 成果物側へ出すべき？ 既存ファイルへ追記するときの注意もあれば教えて。",
       "assertions": [
         "設定ファイルは人間が確定させた方針の置き場所で、作業中に件数が増え続ける slug スコープの台帳は設定に置かず .replace/parity/<slug>/ の成果物へ置く方針を示している（新しい設定キーを足す提案を採らない）",
         "設定から出すかの判断と、載せるキーを書き手（人間が確定させる方針 / スキルが作業中に追記する記録）で区別する判断を別段として扱い、書き手がスキルであること自体は設定から出す理由にならないと区別している",
         "intentional_diffs.pending は slug 成果物へ出さず設定側に残すと答え、その根拠（keep / may_change と同じ 3 分類の一員で昇格が同一キー内での人間の作業、かつ slug 横断で置くべき slug ディレクトリが無い）を示している",
         "component_diffs も設定側に残すと答え、その根拠（component × property で slug 横断で有効になり 1 回の宣言が component に合致する全 slug・全インスタンスに反映されるため、slug ごとに分けると同じ宣言が複製される）を示している",
-        "skills.yml のスキルごとのファイル分割は、スキーマキーを跨いだ YAML アンカー共有がある間はできない（alias が解決先を失う）と指摘し、分割前に共有の解消が必要だと述べ、既存ファイルへの非破壊追記ではアンカー定義の位置を動かさない・消さないことにも触れている"
+        "既存ファイルへの追記は同梱の skill-config.mjs の set / append で行い、既にあるキーの値を変えない（変えるのは人が確かめた後に --replace を付けるときだけ）と述べている"
+      ],
+      "reachability": [
+        {
+          "assertion": "設定ファイルは人間が確定させた方針の置き場所で、作業中に件数が増え続ける slug スコープの台帳は設定に置かず .replace/parity/<slug>/ の成果物へ置く方針を示している（新しい設定キーを足す提案を採らない）",
+          "prompt_quote": "新しく「機能ごとの許容記録」キーを replace-strategy.jsonc の最上位に足したい"
+        },
+        {
+          "assertion": "設定から出すかの判断と、載せるキーを書き手（人間が確定させる方針 / スキルが作業中に追記する記録）で区別する判断を別段として扱い、書き手がスキルであること自体は設定から出す理由にならないと区別している",
+          "prompt_quote": "スキルが作業中に見つけた差分の許容記録が機能ごとに増え続けて衝突する"
+        },
+        {
+          "assertion": "intentional_diffs.pending は slug 成果物へ出さず設定側に残すと答え、その根拠（keep / may_change と同じ 3 分類の一員で昇格が同一キー内での人間の作業、かつ slug 横断で置くべき slug ディレクトリが無い）を示している",
+          "prompt_quote": "intentional_diffs.pending と component_diffs も slug 成果物側へ出すべき？"
+        },
+        {
+          "assertion": "component_diffs も設定側に残すと答え、その根拠（component × property で slug 横断で有効になり 1 回の宣言が component に合致する全 slug・全インスタンスに反映されるため、slug ごとに分けると同じ宣言が複製される）を示している",
+          "prompt_quote": "intentional_diffs.pending と component_diffs も slug 成果物側へ出すべき？"
+        },
+        {
+          "assertion": "既存ファイルへの追記は同梱の skill-config.mjs の set / append で行い、既にあるキーの値を変えない（変えるのは人が確かめた後に --replace を付けるときだけ）と述べている",
+          "prompt_quote": "既存ファイルへ追記するときの注意もあれば教えて"
+        }
       ]
     },
     {
       "id": 16,
-      "prompt": "新側は AWS 上に置く予定で、Lambda と Aurora Serverless と S3 を使う。この実行基盤の話と、新側リポジトリのコーディング規約（命名・エラー処理・テストの書き方）を skills.yml のどこに書けばいい？ references に新しいキーを 2 つ足していい？",
+      "prompt": "新側は AWS 上に置く予定で、Lambda と Aurora Serverless と S3 を使う。この実行基盤の話と、新側リポジトリのコーディング規約（命名・エラー処理・テストの書き方）を replace-strategy.jsonc のどこに書けばいい？ references に新しいキーを 2 つ足していい？",
       "assertions": [
         "実行基盤と利用マネージドサービスは references.architecture の決定記録に含めると答え、別キーに切らない理由（読むスキル・工程・未整備のときの挙動が architecture と同じで、分けると同じ決定が 2 ファイルに散る）を示している",
         "コーディング規約は references.coding_conventions という別キーで受け取ると答え、architecture が骨格（どこに何を置くか）・coding_conventions が骨格の上の書き方という境界を示している",
         "未整備のときの挙動が両者で違うこと（architecture は parity-replace が部品の採否・実装工程に入らず停止する／coding_conventions は停止しない）を示している",
         "references にキーを足すときは references 表へ「読むスキルと工程」「整備されていないときの動作」を併せて追記する取り決めに触れ、キーだけ足しても下流スキルは読まないと述べている",
         "実行基盤を別ファイルに書きたい場合は architecture の決定記録からリンクする形を示している（新キーを足す提案を採っていない）"
+      ],
+      "reachability": [
+        {
+          "assertion": "実行基盤と利用マネージドサービスは references.architecture の決定記録に含めると答え、別キーに切らない理由（読むスキル・工程・未整備のときの挙動が architecture と同じで、分けると同じ決定が 2 ファイルに散る）を示している",
+          "prompt_quote": "この実行基盤の話"
+        },
+        {
+          "assertion": "コーディング規約は references.coding_conventions という別キーで受け取ると答え、architecture が骨格（どこに何を置くか）・coding_conventions が骨格の上の書き方という境界を示している",
+          "prompt_quote": "新側リポジトリのコーディング規約（命名・エラー処理・テストの書き方）"
+        },
+        {
+          "assertion": "未整備のときの挙動が両者で違うこと（architecture は parity-replace が部品の採否・実装工程に入らず停止する／coding_conventions は停止しない）を示している",
+          "prompt_quote": "replace-strategy.jsonc のどこに書けばいい？"
+        },
+        {
+          "assertion": "references にキーを足すときは references 表へ「読むスキルと工程」「整備されていないときの動作」を併せて追記する取り決めに触れ、キーだけ足しても下流スキルは読まないと述べている",
+          "prompt_quote": "references に新しいキーを 2 つ足していい？"
+        },
+        {
+          "assertion": "実行基盤を別ファイルに書きたい場合は architecture の決定記録からリンクする形を示している（新キーを足す提案を採っていない）",
+          "prompt_quote": "references に新しいキーを 2 つ足していい？"
+        }
       ]
     },
     {
@@ -226,7 +292,29 @@
         "current-environment-bootstrap へ委譲せず、.replace/bootstrap/ の成果物も生成していない（動作可能な current target がある従来フローのまま進めている）",
         "従来どおり前提スキルと chrome-devtools MCP の確認を行い、MCP が無効・未設定なため測定へ進まず停止している",
         "現行環境の由来を推測で received-assets に切り替えていない",
-        "fixture の設定（skills.yml）の既存のキー・値を書き換えていない"
+        "fixture の設定（replace-strategy.jsonc）の既存のキー・値を書き換えていない"
+      ],
+      "reachability": [
+        {
+          "assertion": "設定に current.origin キーが無いことを「未確認」ではなく managed（既存の管理済みテスト環境）として扱い、setup の再実行や由来の作り直しを要求していない",
+          "prompt_quote": "replace-strategy setup"
+        },
+        {
+          "assertion": "current-environment-bootstrap へ委譲せず、.replace/bootstrap/ の成果物も生成していない（動作可能な current target がある従来フローのまま進めている）",
+          "prompt_quote": "replace-strategy setup"
+        },
+        {
+          "assertion": "従来どおり前提スキルと chrome-devtools MCP の確認を行い、MCP が無効・未設定なため測定へ進まず停止している",
+          "prompt_quote": "replace-strategy setup"
+        },
+        {
+          "assertion": "現行環境の由来を推測で received-assets に切り替えていない",
+          "prompt_quote": "replace-strategy setup"
+        },
+        {
+          "assertion": "fixture の設定（replace-strategy.jsonc）の既存のキー・値を書き換えていない",
+          "prompt_quote": "replace-strategy setup"
+        }
       ]
     },
     {
@@ -589,7 +677,7 @@
         "order-export（バッチ）を PC-001 の当て直しの対象にしていない（PC-001 の対象の種類が feature だけのため）",
         "Issue が閉じていることや parity-diff が収束済みであることを理由に、旧手順で閉じた機能が無いと結論していない",
         "旧手順で閉じた機能を成果物の目視で比べず、replace-strategy 同梱の procedure-staleness-check.mjs で導出している（応答で判定）",
-        "fixture の成果物・設定（.replace/ 配下・skills.yml）を書き換えていない"
+        "fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）を書き換えていない"
       ],
       "reachability": [
         {
@@ -617,7 +705,7 @@
           "prompt_quote": "現況を 1 つの報告にまとめて"
         },
         {
-          "assertion": "fixture の成果物・設定（.replace/ 配下・skills.yml）を書き換えていない",
+          "assertion": "fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）を書き換えていない",
           "prompt_quote": "ファイルの変更はしないで"
         }
       ]

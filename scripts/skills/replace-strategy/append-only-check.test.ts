@@ -229,6 +229,51 @@ function writeManifest(root: string, artifacts: unknown[]): string {
   return path;
 }
 
+/**
+ * 同梱の一覧の project-config を、YAML の設定ファイル（skills.yml）を lines で守る項目に替えた一覧。
+ * 同梱の一覧は JSONC の設定ファイルを jsonc-tree で守る。lines の registry_groups・growable_containers・mutable_blocks は、
+ * 一覧をコピーして YAML の成果物を守る利用者のために残しているので、その機能をこの一覧で確かめる。
+ * @param {string} root
+ * @returns {string}
+ */
+function yamlConfigManifest(root: string): string {
+  const bundled = parseJsonAs<{ artifacts: { id: string }[] }>(
+    readFileSync(
+      join(repoRoot, "skills/replace-strategy/assets/append-only-manifest.json"),
+      "utf8",
+    ),
+  );
+  const artifacts = bundled.artifacts.map((a) =>
+    a.id !== "project-config"
+      ? a
+      : {
+          id: "project-config",
+          pattern: ".config/skills/*/skills.yml",
+          unit: "lines",
+          registry_groups: [
+            {
+              id: "intentional-diffs",
+              item_key: "item",
+              paths: [
+                "skills.replace-strategy.intentional_diffs.keep",
+                "skills.replace-strategy.intentional_diffs.may_change",
+                "skills.replace-strategy.intentional_diffs.pending",
+              ],
+            },
+          ],
+          growable_containers: ["skills.replace-strategy.component_diffs"],
+        },
+  );
+  const path = join(root, "yaml-config-manifest.json");
+  writeFileSync(path, JSON.stringify({ version: "2", artifacts }));
+  return path;
+}
+
+/** YAML の設定ファイルを lines で守る一覧で実行する。 */
+async function runYaml(root: string, extra: string[] = []) {
+  return run(root, ["--manifest", yamlConfigManifest(root), ...extra]);
+}
+
 test.concurrent("誤検知しないことの確認: 追記だけなら exit 0", async () => {
   const root = await makeRepo();
   appendFileSync(join(root, ".replace/features.md"), "| order-detail | 注文詳細 | 未 | 未起票 |\n");
@@ -1048,7 +1093,7 @@ test.concurrent("空リストのキーへ最初の要素をブロック形式で
     root,
     readConfig(root).replace("      pending: [] # 保留（測定結果で決める）\n", PENDING_BLOCK),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
@@ -1063,7 +1108,7 @@ test.concurrent("フロー形式のコンテナへ要素を足した行の書き
       '      may_change: ["新しい宣言"] # 変えてよい（例: ディレクトリ・ファイル名）',
     ),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
@@ -1080,7 +1125,7 @@ test.concurrent("棚卸しで pending の要素を keep へ移しても縮小に
       )
       .replace(PENDING_BLOCK, "      pending: [] # 保留（測定結果で決める）\n"),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
@@ -1092,7 +1137,7 @@ test.concurrent("pending の要素の中身を書き換えても通る（配下�
     root,
     readConfig(root).replace("added_by: replace-strategy", "added_by: parity-suite"),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
@@ -1101,7 +1146,7 @@ test.concurrent("pending の要素の中身を書き換えても通る（配下�
 test.concurrent("pending をキーごと消せば落ちる（鍵の存在は別の単位で守る）", async () => {
   const root = await makeConfigRepoWithPending();
   writeConfig(root, readConfig(root).replace(PENDING_BLOCK, ""));
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/<registry: skills\.replace-strategy\.intentional_diffs\.pending>/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -1115,7 +1160,7 @@ test.concurrent("棚卸しを経ずに pending の要素を消せば落ちる（
     root,
     readConfig(root).replace(PENDING_BLOCK, "      pending: [] # 保留（測定結果で決める）\n"),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/<registry-item: intentional-diffs> 一覧の並び順が変わる/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -1158,7 +1203,7 @@ test.concurrent("match を持つ pending の要素を match ごと may_change �
       )
       .replace(MATCH_PENDING_BLOCK, "      pending: [] # 保留（測定結果で決める）\n"),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
@@ -1178,7 +1223,7 @@ test.concurrent("散文だけの keep の要素に match を書き足しても�
       ].join("\n"),
     ),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
@@ -1198,7 +1243,7 @@ test.concurrent("警告に従って match の値を書き直しても縮小に�
       "            property: border-top-style\n            page: order-list\n",
     ),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
@@ -1215,7 +1260,7 @@ test.concurrent("match を持つ要素を棚卸しを経ずに消せば落ちる
     root,
     readConfig(root).replace(MATCH_PENDING_BLOCK, "      pending: [] # 保留（測定結果で決める）\n"),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(
     /<registry-item: intentional-diffs> 見出しの border-style が現行 none・新側 solid。幅は両側 0px/,
   );
@@ -1232,7 +1277,7 @@ test.concurrent("keep の既存要素を消せば落ちる（コンテナが育�
       "      keep: [] # 変えない（例: テーブル名、項目名）",
     ),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -1247,7 +1292,7 @@ test.concurrent("keep の要素を別物へ差し替えれば落ちる", async (
       '      keep: ["別の宣言"] # 変えない（例: テーブル名、項目名）',
     ),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -1262,7 +1307,7 @@ test.concurrent("外した領域の後ろに続くコメントを消せば落ち
       "",
     ),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -1299,7 +1344,7 @@ test.concurrent("同じ鍵のコンテナが片方だけ育っても、もう片
         "      - name: new-dev\n        forbidden_actions: []",
       ),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -1316,7 +1361,7 @@ test.concurrent("名指ししていない鍵は、同名の兄弟が両方とも
       "forbidden_actions: [delete, update]",
     ),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -1409,7 +1454,7 @@ test.concurrent("決定を覆すとき状態列の更新 ＋ 新しい行の追�
       `${OVERTURNED_ROW}\n| 確認ダイアログ | 自前実装 | — | 全機能 | 有効 | order-list の実装前 | 承認を得て現行で確かめ在ることを確認した |`,
     ),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
@@ -1424,7 +1469,7 @@ test.concurrent("覆った行を消せば落ちる（状態列を取り消し済
       "",
     ),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -1436,7 +1481,7 @@ test.concurrent("決定列をその場で書き換えれば落ちる（mutable �
     root,
     readDependencies(root).replace("| 確認ダイアログ | 未確認 |", "| 確認ダイアログ | 自前実装 |"),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/決定=未確認/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -1451,7 +1496,7 @@ test.concurrent("理由・引き取り手列をその場で書き換えれば落
       "別の理由に差し替えた",
     ),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -1476,7 +1521,7 @@ test.concurrent("行末コメント付きの空コンテナへ最初の要素を
       '      may_change: ["HTML の id"] # 変えてよい（例: ディレクトリ・ファイル名）',
     ),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
@@ -1487,7 +1532,7 @@ test.concurrent("growable_containers に挙げていないキーは、要素を�
   // 編集まで通る）。名指ししていないキーは一覧の requirement どおり「値を変更しない」が掛かる。
   const root = await makeConfigRepo();
   writeConfig(root, readConfig(root).replace("    bare_list: []", '    bare_list: ["x"]'));
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -1502,7 +1547,7 @@ test.concurrent("要素を足すついでに行末コメントを消せば落ち
       '      may_change: ["HTML の id"]',
     ),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -1514,7 +1559,7 @@ test.concurrent("mutable_blocks で外したキー行の行末コメントを消
     root,
     readConfig(root).replace("      pending: [] # 保留（測定結果で決める）", "      pending: []"),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -1547,7 +1592,7 @@ test.concurrent("中身の違う兄弟でも、育った側を根拠に別の兄
         "        forbidden_actions: [update]\n    intentional_diffs:",
       ),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -1566,7 +1611,7 @@ test.concurrent("兄弟の間で要素が移動しただけの編集も落ちる
         "        forbidden_actions: [delete, update, create]\n    intentional_diffs:",
       ),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -1598,7 +1643,7 @@ test.concurrent("同じ鍵の空コンテナが 2 つあり片方を消せば落
       "      - name: current-staging\n        side: current\n",
     ),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -1689,7 +1734,7 @@ test.concurrent("リスト要素の配下にある同名キーは外れない（
       "        pending:\n",
     ),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -1721,7 +1766,7 @@ test.concurrent("プレーンスカラーのアポストロフィがあっても
       "      keep: [don't rename tables, keep api paths] #",
     ),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
@@ -1733,7 +1778,7 @@ test.concurrent("アポストロフィ入りの要素を消せば落ちる（緩
     root,
     readConfig(root).replace("      keep: [don't rename tables] #", "      keep: [] #"),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -1748,7 +1793,7 @@ test.concurrent("引用符つきの値の中のカンマで要素を分割しな
       '      keep: [don\'t rename tables, "a, b"] #',
     ),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
@@ -1763,7 +1808,7 @@ test.concurrent("growable の鍵の注記を上の行へ移しても通る（mut
       "    # コンポーネント系統差レジストリ\n    component_diffs: []\n",
     ),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
@@ -1778,7 +1823,7 @@ test.concurrent("growable の鍵の注記を消せば落ちる", async () => {
       "    component_diffs: []\n",
     ),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -1820,7 +1865,7 @@ test.concurrent("引用符つきの要素がある行へ、引用符の無い要
     root,
     readConfig(root).replace('      keep: ["a, b"] #', '      keep: ["a, b", don\'t] #'),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
@@ -1861,7 +1906,7 @@ test.concurrent("照合キーが 1 行目に無い要素も棚卸しで移せる
       .replace(KEY_ORDER_ITEM, "")
       .replace("keep: [] #", 'keep: ["キー順が違う要素"] #'),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
@@ -1876,7 +1921,7 @@ test.concurrent("照合キーが 1 行目に無い要素の文言を差し替え
       "          item: 別物へ差し替えた",
     ),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -1897,7 +1942,7 @@ test.concurrent("registry の鍵の配下がリストでなければ行のまま
     ].join("\n"),
   );
   writeConfig(root, readConfig(root).replace("        a: 1\n        b: 2\n", "        a: 1\n"));
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -1929,7 +1974,7 @@ test.concurrent("フロー形式のマッピング要素も照合キーで棚卸
       .replace(FLOW_PENDING, "      pending: [] # 保留（測定結果で決める）\n")
       .replace("      may_change: [] #", "      may_change: [合計の丸め] #"),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
@@ -1941,7 +1986,7 @@ test.concurrent("フロー形式のマッピング要素を棚卸しせず消せ
     root,
     readConfig(root).replace(FLOW_PENDING, "      pending: [] # 保留（測定結果で決める）\n"),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/<registry-item: intentional-diffs> 合計の丸め/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -1950,7 +1995,7 @@ test.concurrent("フロー形式のマッピング要素を棚卸しせず消せ
 test.concurrent("フロー形式で照合キーの値を差し替えれば落ちる", async () => {
   const root = await makeConfigRepoWithFlowPending();
   writeConfig(root, readConfig(root).replace("item: 合計の丸め", "item: 別物へ差し替えた"));
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -1998,7 +2043,7 @@ test.concurrent("プレーン多行スカラーの要素を丸ごと消せば落
       "",
     ),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -2010,7 +2055,7 @@ test.concurrent("ブロックスカラーの本文を差し替えれば落ちる
     root,
     readConfig(root).replace("確認ダイアログを出さない", "確認ダイアログを必ず出す"),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -2034,7 +2079,7 @@ test.concurrent("閉じない引用符の値の続きの行も単位から落と
   await commit(root, "pending に閉じない引用符");
   // 畳むと単位は `"閉じていない` だけになり、続きの行は kept へ戻らないので差し替えが無音で通る。
   writeConfig(root, readConfig(root).replace("引用符の続きの行", "別物へ差し替えた"));
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -2069,7 +2114,7 @@ test.concurrent("マッピングの値の引用符も開く（値の中のカン
         'keep: ["テーブル名を保つ", "順序は id, 名前の順"] #',
       ),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
@@ -2078,7 +2123,7 @@ test.concurrent("マッピングの値の引用符も開く（値の中のカン
 test.concurrent("引用符の中にカンマを持つ文言の差し替えは無音で通らない", async () => {
   const root = await makeConfigRepoWithQuotedFlowPending();
   writeConfig(root, readConfig(root).replace("名前の順", "逆順に変更"));
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/<registry-item: intentional-diffs> 順序は id, 名前の順/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -2210,7 +2255,7 @@ test.concurrent("折り返したコンテナへ追記しただけなら通る（
       '        "項目名を保つ",\n        "並び順を保つ"\n',
     ),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
@@ -2225,7 +2270,7 @@ test.concurrent("折り返したコンテナを 1 行へ書き直せば、要素
       '      keep: ["テーブル名を保つ", "項目名を保つ", "並び順を保つ"] # 変えない（例: テーブル名、項目名）',
     ),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
@@ -2240,7 +2285,7 @@ test.concurrent("折り返したコンテナから要素を消せば、1 行へ�
       '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
     ),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/項目名を保つ/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -2259,7 +2304,7 @@ test.concurrent("1 行のコンテナを折り返しても通る（折り返し 
       ].join("\n"),
     ),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
@@ -2275,7 +2320,7 @@ test.concurrent("連結しても閉じないコンテナは読めたことにせ
       "      keep: [",
     ),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.status).toBe(1);
   expect(r.stdout).toMatch(
     /閉じていないフロー形式のコンテナがある: skills\.replace-strategy\.intentional_diffs\.keep/,
@@ -2287,7 +2332,7 @@ test.concurrent("区別: 折り返しが無ければ案内を出さない", asyn
   const root = await makeConfigRepo();
   // 1 行のコンテナから要素を消す（同じ「縮小」でも折り返しは関係しない）。
   writeConfig(root, readConfig(root).replace('"テーブル名を保つ"', ""));
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.status).toBe(1);
   // 実際に出る文言と同じ綴りで照合する（別の綴りにすると常に不一致になり、案内が出ていても通る）。
   expect(r.stdout).not.toMatch(/閉じていないフロー形式のコンテナがある/);
@@ -2401,7 +2446,7 @@ test.concurrent("空行を挟んだ折り返しでも、追記と 1 行への書
       '        "テーブル名を保つ",\n        "項目名を保つ"\n',
     ),
   );
-  const added = await run(root);
+  const added = await runYaml(root);
   expect(added.stdout).toMatch(/^ok: /m);
   expect(added.status).toBe(0);
   // 1 行へ書き直す（keep は要素行の注記を単位にしないので、畳んでも単位は減らない）。
@@ -2412,7 +2457,7 @@ test.concurrent("空行を挟んだ折り返しでも、追記と 1 行への書
       '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
     ),
   );
-  const rewritten = await run(root);
+  const rewritten = await runYaml(root);
   expect(rewritten.stdout).toMatch(/^ok: /m);
   expect(rewritten.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
@@ -2435,7 +2480,7 @@ test.concurrent("読めないコンテナがあっても、無関係な鍵の削
       "    component_diffs: []",
     ),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.status).toBe(1);
   expect(r.stdout).toMatch(/component_diffs/);
   expect(r.stdout).not.toMatch(/閉じていないフロー形式のコンテナがある/);
@@ -2445,7 +2490,7 @@ test.concurrent("読めないコンテナがあっても、無関係な鍵の削
 test.concurrent("検出されることの確認: 読めないコンテナ由来の消失には案内を出す", async () => {
   const root = await makeConfigRepo(UNREADABLE_CONFIG);
   writeConfig(root, readConfig(root).replace("      keep: [\n", ""));
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.status).toBe(1);
   expect(r.stdout).toMatch(
     /閉じていないフロー形式のコンテナがある: skills\.replace-strategy\.intentional_diffs\.keep/,
@@ -2459,7 +2504,7 @@ test.concurrent("連結を打ち切らせた行（コンテナの外）の削除
     UNREADABLE_CONFIG.replace("      keep: [\n", "      keep: [\n      note_line: 無関係なメモ\n"),
   );
   writeConfig(root, readConfig(root).replace("      note_line: 無関係なメモ\n", ""));
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.status).toBe(1);
   expect(r.stdout).toMatch(/note_line/);
   expect(r.stdout).not.toMatch(/閉じていないフロー形式のコンテナがある/);
@@ -2475,7 +2520,7 @@ test.concurrent("registry のグループ共通の単位が消えても、別の
     root,
     readConfig(root).replace(PENDING_BLOCK, "      pending: [] # 保留（測定結果で決める）\n"),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.status).toBe(1);
   expect(r.stdout).toMatch(/一覧の並び順が変わる/);
   expect(r.stdout).not.toMatch(/閉じていないフロー形式のコンテナがある/);
@@ -2503,7 +2548,7 @@ test.concurrent("鍵と開き括弧の間に空行・コメント行があって
       '          "テーブル名を保つ",\n          "項目名を保つ"\n',
     ),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
@@ -2515,7 +2560,7 @@ test.concurrent("読めないコンテナの後ろにあるコメント行の削
     UNREADABLE_CONFIG.replace("      keep: [\n", "      keep: [\n      # 無関係な注記\n"),
   );
   writeConfig(root, readConfig(root).replace("      # 無関係な注記\n", ""));
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.status).toBe(1);
   expect(r.stdout).toMatch(/無関係な注記/);
   expect(r.stdout).not.toMatch(/閉じていないフロー形式のコンテナがある/);
@@ -2544,7 +2589,7 @@ test.concurrent("折り返した registry の要素行の注記は単位にし�
         '      keep: ["テーブル名を保つ", "一覧の並び順が変わる"] #',
       ),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
@@ -2555,7 +2600,7 @@ test.concurrent("折り返した registry でも、閉じる行の注記（鍵�
     CONFIG.replace("      pending: [] # 保留（測定結果で決める）", WRAPPED_PENDING),
   );
   writeConfig(root, readConfig(root).replace("      ] # 保留（測定結果で決める）", "      ]"));
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.status).toBe(1);
   expect(r.stdout).toMatch(/保留（測定結果で決める）/);
   rmSync(root, { recursive: true, force: true });
@@ -2569,7 +2614,7 @@ test.concurrent("区別: 育つコンテナは折り返した要素行の注記�
   ].join("\n");
   const root = await makeConfigRepo(CONFIG.replace("    component_diffs: []", wrapped));
   writeConfig(root, readConfig(root).replace(", property: color}, # 注記", ", property: color},"));
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.status).toBe(1);
   expect(r.stdout).toMatch(/注記/);
   rmSync(root, { recursive: true, force: true });
@@ -2587,7 +2632,7 @@ test.concurrent("折り返したコンテナの中の独立したコメント行
     CONFIG.replace("      pending: [] # 保留（測定結果で決める）", wrapped),
   );
   writeConfig(root, readConfig(root).replace("        # 大事な注記\n", ""));
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/大事な注記/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -2612,7 +2657,7 @@ test.concurrent("要素が鍵と同じインデントに並ぶ折り返しも読
       '      "テーブル名を保つ",\n      "項目名を保つ"\n',
     ),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
@@ -2625,7 +2670,7 @@ test.concurrent("比較元に読めないコンテナがあるときは「直せ
     root,
     readConfig(root).replace("      keep: [\n", '      keep: ["テーブル名を保つ"] # 変えない\n'),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.status).toBe(1);
   expect(r.stdout).toMatch(/比較元 .+ に閉じていないフロー形式のコンテナがある/);
   expect(r.stdout).toMatch(/判定できない/);
@@ -2642,7 +2687,7 @@ test.concurrent("現在側だけが読めないときは閉じ括弧を補うよ
       "      keep: [",
     ),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.status).toBe(1);
   expect(r.stdout).toMatch(/復元せず閉じ括弧を補う/);
   // 1 行へ畳むは示さない（growable_containers では要素行の注記の単位が消えて落ちる）。
@@ -2938,7 +2983,7 @@ test.concurrent("入れ子の要素自身を折り返しても単位は変わら
       ].join("\n"),
     ),
   );
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
@@ -2952,7 +2997,7 @@ test.concurrent("区別: 入れ子の要素の中身を差し替えれば落ち�
     ),
   );
   writeConfig(root, readConfig(root).replace('property: "color"', 'property: "font"'));
-  const r = await run(root);
+  const r = await runYaml(root);
   expect(r.stdout).toMatch(/grid/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
@@ -2977,19 +3022,280 @@ test.concurrent("mutable_blocks で鍵を丸ごと消しても「人が確認し
   rmSync(root, { recursive: true, force: true });
 });
 
+// ---------------------------------------------------------------------------
+// JSONC の設定ファイル（project-config。unit: jsonc-tree）
+//
+// 同梱の一覧は .config/skills/*/replace-strategy.jsonc を jsonc-tree で守る。
+// 通す側（キー・要素・コメントを足す、pending の文言を keep へ移す）と、
+// 落とす側（値の書き換え・キーの削除・要素の削除・コメントの削除・読めない JSONC）を両方測る。
+// ---------------------------------------------------------------------------
+
+const JSONC_CONFIG = [
+  "{",
+  "  // 現行アプリ",
+  '  "current": { "repo": "none", "stack": ["typescript"] },',
+  '  "targets": [',
+  '    { "name": "current-test", "side": "current", "url": "http://localhost:8080" }, // 測定の対象',
+  "  ],",
+  '  "references": { "architecture": "" },',
+  '  "intentional_diffs": {',
+  '    "keep": ["テーブル名を保つ"], // 変えない',
+  '    "may_change": [],',
+  '    "pending": [',
+  '      { "item": "一覧の並び順が変わる", "slug": "cross-cutting", "added_by": "replace-strategy", "added_at": "2026-09-21" }, // 測定で決める',
+  "    ],",
+  "  },",
+  '  "component_diffs": [{ "component": "heading", "property": "border-style", "current": "none", "new": "solid", "reason": "テーマ" }],',
+  "}",
+  "",
+].join("\n");
+
+/** @param {string} root */
+function jsoncPath(root: string) {
+  return join(root, ".config/skills/shoji9x9/replace-strategy.jsonc");
+}
+
+/** JSONC の設定ファイルを持つプロジェクトを作る（比較元にも在る状態で commit 済み）。 */
+async function makeJsoncRepo(text = JSONC_CONFIG) {
+  const root = await makeRepo();
+  mkdirSync(dirname(jsoncPath(root)), { recursive: true });
+  writeFileSync(jsoncPath(root), text);
+  await commit(root, "jsonc config");
+  return root;
+}
+
+/**
+ * @param {string} from
+ * @param {string} to
+ */
+async function runJsoncEdit(from: string, to: string) {
+  const root = await makeJsoncRepo();
+  const before = readFileSync(jsoncPath(root), "utf8");
+  if (!before.includes(from)) throw new Error(`置換元が無い: ${from}`);
+  writeFileSync(jsoncPath(root), before.replace(from, to));
+  const r = await run(root);
+  rmSync(root, { recursive: true, force: true });
+  return r;
+}
+
+test.concurrent.each([
+  [
+    "キーを足す",
+    '  "references": { "architecture": "" },',
+    '  "references": { "architecture": "" },\n  "uses_storage": true,',
+  ],
+  ["配列に要素を足す", '"stack": ["typescript"]', '"stack": ["typescript", "react"]'],
+  [
+    "target を足す",
+    '  ],\n  "references"',
+    '    { "name": "local-dev", "side": "new" },\n  ],\n  "references"',
+  ],
+  ["コメントを足す", "  // 現行アプリ", "  // 現行アプリ\n  // 追記した注記"],
+  [
+    "pending に要素を足す",
+    '    "pending": [',
+    '    "pending": [\n      { "item": "新しい保留", "slug": "order-list", "added_by": "parity-suite", "added_at": "2026-10-01" },',
+  ],
+  [
+    "pending の文言を keep へ移す（付随する欄と、要素の行末コメントは移動先に無い）",
+    '      { "item": "一覧の並び順が変わる", "slug": "cross-cutting", "added_by": "replace-strategy", "added_at": "2026-09-21" }, // 測定で決める',
+    "",
+  ],
+  [
+    "component_diffs に要素を足す",
+    '"reason": "テーマ" }]',
+    '"reason": "テーマ" }, { "component": "button", "property": "color" }]',
+  ],
+  [
+    "整形だけを変える（複数行に開く）",
+    '"current": { "repo": "none", "stack": ["typescript"] },',
+    '"current": {\n    "repo": "none",\n    "stack": ["typescript"],\n  },',
+  ],
+])("jsonc-tree: %s は通す", async (name, from, to) => {
+  let r;
+  if (name.startsWith("pending の文言を keep へ移す")) {
+    const root = await makeJsoncRepo();
+    const text = readFileSync(jsoncPath(root), "utf8")
+      .replace(from, to)
+      .replace(
+        '"keep": ["テーブル名を保つ"]',
+        '"keep": ["テーブル名を保つ", "一覧の並び順が変わる"]',
+      );
+    writeFileSync(jsoncPath(root), text);
+    r = await run(root);
+    rmSync(root, { recursive: true, force: true });
+  } else {
+    r = await runJsoncEdit(from, to);
+  }
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+});
+
+test.concurrent.each([
+  ["スカラの値を書き換える", '"repo": "none"', '"repo": "acme/app"', /current\.repo = "none"/],
+  [
+    "target の値を書き換える",
+    '"url": "http://localhost:8080"',
+    '"url": "http://localhost:9090"',
+    /targets\[\]\.url/,
+  ],
+  [
+    "配列の要素を消す",
+    '"stack": ["typescript"]',
+    '"stack": []',
+    /current\.stack\[\] = "typescript"/,
+  ],
+  ["キーを消す", '  "references": { "architecture": "" },\n', "", /<key: references>/],
+  // 空の配列は要素の単位を持たないので、型の単位が無いと書き換えても消える単位が無い
+  [
+    "空の配列を null にする",
+    '"may_change": []',
+    '"may_change": null',
+    /<array: intentional_diffs\.may_change>/,
+  ],
+  [
+    "空の配列を文字列にする",
+    '"may_change": []',
+    '"may_change": ""',
+    /<array: intentional_diffs\.may_change>/,
+  ],
+  [
+    "オブジェクトを配列にする",
+    '"references": { "architecture": "" }',
+    '"references": [{ "architecture": "" }]',
+    /<object: references>/,
+  ],
+  ["コメントを消す", "  // 現行アプリ\n", "", /<comment> \/\/ 現行アプリ/],
+  ["行末のコメントを消す", " // 測定の対象", "", /<comment> \/\/ 測定の対象/],
+  ["keep の行末のコメント（鍵の注記）を消す", " // 変えない", "", /<comment> \/\/ 変えない/],
+  [
+    "pending の要素を消す（どの鍵にも移さない）",
+    '      { "item": "一覧の並び順が変わる", "slug": "cross-cutting", "added_by": "replace-strategy", "added_at": "2026-09-21" }, // 測定で決める\n',
+    "",
+    /registry-item: intentional-diffs> 一覧の並び順が変わる/,
+  ],
+  [
+    "pending をキーごと消す",
+    '    "pending": [',
+    '    "pending_x": [',
+    /<key: intentional_diffs\.pending>/,
+  ],
+  [
+    "component_diffs の要素を消す",
+    '[{ "component": "heading", "property": "border-style", "current": "none", "new": "solid", "reason": "テーマ" }]',
+    "[]",
+    /<item: component_diffs>/,
+  ],
+])("jsonc-tree: %s は落とす", async (_name, from, to, unit) => {
+  const r = await runJsoncEdit(from, to);
+  expect(r.stdout).toMatch(/replace-strategy\.jsonc/);
+  expect(r.stdout).toMatch(unit);
+  expect(r.status).toBe(1);
+});
+
+test.concurrent.each(["[]", "null"])(
+  "jsonc-tree: 最上位の空のオブジェクトを %s にする書き換えは落とす",
+  async (to) => {
+    const root = await makeJsoncRepo("{}\n");
+    writeFileSync(jsoncPath(root), `${to}\n`);
+    const r = await run(root);
+    rmSync(root, { recursive: true, force: true });
+    expect(r.stdout).toMatch(/<object: <最上位>>/);
+    expect(r.status).toBe(1);
+  },
+);
+
+// . を含むキーを入れ子のパスと同じ単位にすると、入れ子の値を消して同じ字面のキーを足す書き換えが通る
+test.concurrent.each([
+  ["入れ子の値を消し、同じ字面の . を含むキーを足す", '{ "a": { "b": {}, "b.c": 1 } }\n', 1],
+  ["入れ子の値を残して、. を含むキーを足す", '{ "a": { "b": { "c": 1 }, "b.c": 1 } }\n', 0],
+])("jsonc-tree: %s", async (_name, after, status) => {
+  const root = await makeJsoncRepo('{ "a": { "b": { "c": 1 } } }\n');
+  writeFileSync(jsoncPath(root), after);
+  const r = await run(root);
+  rmSync(root, { recursive: true, force: true });
+  if (status === 1) expect(r.stdout).toMatch(/a\.b\.c = 1/);
+  expect(r.status).toBe(status);
+});
+
+test.concurrent("jsonc-tree: 作業ツリーの JSONC が読めなければ、判定できないとして exit 2", async () => {
+  const r = await runJsoncEdit('"repo": "none",', '"repo": "none" "x": 1,');
+  expect(r.stderr).toMatch(/JSONC として読めないため追記であることを確かめられない/);
+  expect(r.status).toBe(2);
+});
+
+test.concurrent("jsonc-tree: .local.jsonc（commit しない人ごとの層）は対象にしない", async () => {
+  const root = await makeJsoncRepo();
+  const local = join(root, ".config/skills/shoji9x9/replace-strategy.local.jsonc");
+  writeFileSync(local, "{}\n");
+  await commit(root, "local");
+  rmSync(local);
+  const r = await run(root);
+  expect(r.stdout).not.toMatch(/local\.jsonc/);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test.concurrent("jsonc-tree: 一覧の registry_groups・growable_containers・mutable_blocks を受け付け、mutable_blocks の配下を単位から外す", async () => {
+  const root = await makeJsoncRepo();
+  const manifest = writeManifest(root, [
+    {
+      id: "project-config",
+      pattern: ".config/skills/*/replace-strategy.jsonc",
+      unit: "jsonc-tree",
+      mutable_blocks: ["references"],
+      growable_containers: ["component_diffs"],
+      registry_groups: [{ id: "g", item_key: "item", paths: ["intentional_diffs.keep"] }],
+    },
+  ]);
+  writeFileSync(
+    jsoncPath(root),
+    JSONC_CONFIG.replace('"architecture": ""', '"architecture": "docs/arch.md"'),
+  );
+  const ok = await run(root, ["--manifest", manifest]);
+  expect(ok.status).toBe(0);
+  writeFileSync(
+    jsoncPath(root),
+    JSONC_CONFIG.replace('  "references": { "architecture": "" },\n', ""),
+  );
+  const ng = await run(root, ["--manifest", manifest]);
+  expect(ng.stdout).toMatch(/<key: references>/);
+  expect(ng.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test.concurrent("jsonc-tree: mutable_columns など他の unit のオプションは exit 2", async () => {
+  const root = await makeJsoncRepo();
+  const manifest = writeManifest(root, [
+    {
+      id: "c",
+      pattern: ".config/skills/*/replace-strategy.jsonc",
+      unit: "jsonc-tree",
+      mutable_columns: ["x"],
+    },
+  ]);
+  const r = await run(root, ["--manifest", manifest]);
+  expect(r.stderr).toMatch(/jsonc-tree なのに mutable_columns がある/);
+  expect(r.status).toBe(2);
+  rmSync(root, { recursive: true, force: true });
+});
+
 // ---- --exclude（利用者の pre-commit・CI へ組み込むとき、設定ファイルを外す。#540）----
 
 /** 設定ファイルの既存の値を書き換えた作業ツリー（他スキルの設定を直す正当な編集に当たる）。 */
 async function makeConfigRepoWithEditedValue() {
-  const root = await makeConfigRepo();
-  writeConfig(root, readConfig(root).replace("stack: [typescript]", "stack: [javascript]"));
+  const root = await makeJsoncRepo();
+  writeFileSync(
+    jsoncPath(root),
+    JSONC_CONFIG.replace('"stack": ["typescript"]', '"stack": ["javascript"]'),
+  );
   return root;
 }
 
 test.concurrent("対照: --exclude なしでは設定ファイルの既存の値の書き換えを縮小として落とす", async () => {
   const root = await makeConfigRepoWithEditedValue();
   const r = await run(root);
-  expect(r.stdout).toMatch(/skills\.yml/);
+  expect(r.stdout).toMatch(/replace-strategy\.jsonc/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
@@ -3011,7 +3317,7 @@ test.concurrent("--exclude project-config でも残りの項目（features.md �
   );
   const r = await run(root, ["--exclude", "project-config"]);
   expect(r.stdout).toMatch(/order-edit/);
-  expect(r.stdout).not.toMatch(/skills\.yml/);
+  expect(r.stdout).not.toMatch(/replace-strategy\.jsonc/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });

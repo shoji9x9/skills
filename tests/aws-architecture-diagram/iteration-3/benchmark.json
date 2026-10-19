@@ -1,0 +1,74 @@
+{
+  "metadata": {
+    "skill_name": "aws-architecture-diagram",
+    "skill_path": "<repo>/skills/aws-architecture-diagram",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-18T13:05:54Z",
+    "evals_run": [3],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 21.83,
+        "tokens": 96422,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "情報源が Terraform でも同様に機能する（エージェントが読んで spec に反映）ことを踏まえている",
+          "passed": true,
+          "evidence": "Terraform を情報源にして「spec に SQS のノードと…エッジを足し」生成し直す手順を述べる"
+        },
+        {
+          "text": "SQS ノード/エッジを spec に追加し、conventions.md の作図ルール（進入位置のずらし等）を維持している",
+          "passed": false,
+          "evidence": "fixture に spec も Terraform も無く、SQS のノード/エッジを spec に追加していない"
+        },
+        {
+          "text": "icon-manifest.json に SQS があることを確認し、無ければ fetch-aws-icons.mjs で aws-icons/ に取得する",
+          "passed": false,
+          "evidence": "icon-manifest.json が無いと述べるだけで、SQS の有無の確認も fetch-aws-icons.mjs の取得もしていない"
+        },
+        {
+          "text": "render → PNG 目視確認のループで仕上げている",
+          "passed": false,
+          "evidence": "render と PNG での目視確認を実行していない（今後の手順として触れるだけ）"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.25,
+        "stddev": 0,
+        "min": 0.25,
+        "max": 0.25
+      },
+      "time_seconds": {
+        "mean": 21.83,
+        "stddev": 0,
+        "min": 21.83,
+        "max": 21.83
+      },
+      "tokens": {
+        "mean": 96422,
+        "stddev": 0,
+        "min": 96422,
+        "max": 96422
+      }
+    }
+  },
+  "notes": []
+}

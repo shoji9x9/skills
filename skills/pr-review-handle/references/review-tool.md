@@ -8,10 +8,13 @@
 次の優先順位で、最初に設定されている値を使う。
 受け付ける値は `copilot`・`claude-code`・`codex`・`local`・`none` の 5 つだけで、それ以外の値なら、警告なしにデフォルトの値を使うことはせず止まる。
 
-1. pr-finalize-loop の `--review-tool <tool>`
-2. 環境変数 `SKILLS_REVIEW_TOOL`
-3. `.config/skills/shoji9x9/skills.yml` の `skills.common.review_tool`
-4. デフォルトの `copilot`
+1. pr-finalize-loop の `--review-tool <tool>`（その 1 回だけ変える）
+2. `.config/skills/shoji9x9/common.local.jsonc` の `review_tool`（このリポジトリで、自分だけが使う値）
+3. `${XDG_CONFIG_HOME:-~/.config}/skills/shoji9x9/common.jsonc` の `review_tool`（自分のすべてのリポジトリで使う値）
+4. `.config/skills/shoji9x9/common.jsonc` の `review_tool`（リポジトリの全員が使う値）
+5. デフォルトの `copilot`
+
+層と置き場所の決まりは [`config-files.md`](config-files.md) にある。
 
 | 値 | 意味 |
 | --- | --- |
@@ -22,25 +25,26 @@
 | `none` | AI レビュアーに再レビューを依頼しない。人だけがレビューするリポジトリ向け |
 
 - どれも設定されていなければ、デフォルトの `copilot` を使い、そのことを利用者に知らせる。
-- pr-review-handle は CLI のオプションを持たないが、環境変数から下は同じ優先順位を使う。
-- 設定ファイルを作ったり追記したりするのは、利用者の了承を得てからにし、既存の内容は変えない（`references/conventions.md` の設定ファイルの扱いと同じ）。
-  ファイルを作るのは副作用なので、まず知らせ、了承を得てから、作るか追記する。
-  設定が無いまま起動したときは、デフォルトの `copilot` で進めながら設定を作るかを確かめ、確かめずに書き込まない。
-- 了承を得たら、ファイルが無ければ `.config/skills/shoji9x9/` ごと作り、`skills.common.review_tool` だけを書く。
-  ファイルがあれば、欠けているキーだけを `common` の節に追記する。節が無ければ親の節も足す。
-  既存のキー・値・コメントは変えない。値が既にあればそれに従い、上書きしない。
-- 共有のデフォルトを変えるときだけ、原本の `.config/skills/shoji9x9/skills.yml` を編集する。一時的に切り替えるなら、CLI のオプションか環境変数を使う。
+- pr-review-handle は CLI のオプションを持たないが、ファイルの層から下は同じ優先順位を使う。
+- 環境変数 `SKILLS_REVIEW_TOOL` は使わない。設定されていると（空の値でも）、解決は移行の手順を示して止まる。値を `common.local.jsonc` か人ごとの `common.jsonc` へ移し、環境変数を消す。
+- 設定を書くのは、利用者の了承を得てからにする。設定が無いまま起動したときは、デフォルトの `copilot` で進めながら設定を作るかを確かめ、確かめずに書き込まない。
+- 了承を得たら、どの層に書くかを利用者に確かめ、読み取りの `set` で書く。キーが既にあれば値を変えずに止まる（[`config-files.md`](config-files.md)「書き込みの決まり」）。
+  リポジトリの全員の値は `--layer repo`、このリポジトリで自分だけが変える値は `--layer local`（`.gitignore` に `/.config/skills/shoji9x9/*.local.jsonc` が要る）、自分のすべてのリポジトリの値は `--layer user` にする。
 
-```yaml
-version: 1
-skills:
-  common:
-    review_tool: copilot # copilot | claude-code | codex | local | none
+  ```bash
+  node <このスキルのディレクトリ>/scripts/skill-config/skill-config.mjs set common review_tool '"copilot"' --layer local
+  ```
+
+```jsonc
+// .config/skills/shoji9x9/common.jsonc（リポジトリの全員の値）
+{
+  "review_tool": "copilot", // copilot | claude-code | codex | local | none
+}
 ```
 
 ### 解決は同梱スクリプトで行う（値と出所を表示してから使う）
 
-何層もある解決の順序を頭の中でたどると、原本を読む前に環境変数の名前を推測して「未設定」と判定してしまう。
+何層もある解決の順序を頭の中でたどると、原本を読む前に設定の名前を推測して「未設定」と判定してしまう。
 実際に、別のツールへ 3 回依頼したことがある。
 着手したら同梱スクリプトを実行し、値と、それがどの層から来たかを報告してから使う。
 
@@ -50,8 +54,9 @@ bash .agents/skills/<skill>/scripts/resolve-review-tool.sh [--review-tool <tool>
 bash ~/.claude/skills/<skill>/scripts/resolve-review-tool.sh [--review-tool <tool>]
 ```
 
-出力は `value=<tool>` と `source=<cli|env|config|default>` の 2 行である。
-受け付けない値なら、デフォルトの値を使わずに exit 2 で止まる。そのときは、値がどの層から来たかを添えて報告する。
+出力は `value=<tool>` と `source=<cli|local|user|repo|default>` の 2 行である。
+受け付けない値、設定の誤り、旧い場所の設定（`skills.yml` や `SKILLS_REVIEW_TOOL`）が残っているときは、デフォルトの値を使わずに exit 2 で止まる。そのときは、エラーの内容を添えて報告する。
+設定ファイルがあるのに Node.js が無いときも、exit 2 で止まる。設定ファイルが 1 つも無ければ、Node.js なしでデフォルトの `copilot` を返す。
 `source=default` のときは、上に書いたとおり、デフォルトの値を使うことを利用者に知らせる。
 
 ## ツールごとの再レビュー依頼

@@ -1,0 +1,147 @@
+{
+  "metadata": {
+    "skill_name": "dependabot-alert-issue",
+    "skill_path": "<repo>/skills/dependabot-alert-issue",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-18T13:05:55Z",
+    "evals_run": [5],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 31.757,
+        "tokens": 78414,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "dismiss 対象は引数ではなく .config/skills/shoji9x9/dependabot-alert-issue.jsonc に書く方針である",
+          "passed": true,
+          "evidence": "「引数で…渡す形ではありません。…dependabot-alert-issue.jsonc に書く方式」"
+        },
+        {
+          "text": "設定ファイルへの書き込みは非破壊（既存のキー・値・コメントを変更しない）である",
+          "passed": false,
+          "evidence": "「既存のキーを変えずに追記する」とだけで、値・コメントに触れていない"
+        },
+        {
+          "text": "dismiss 該当 alert は Issue 化対象から外す方針である",
+          "passed": true,
+          "evidence": "「lodash の alert は Issue の対象から外れ」"
+        },
+        {
+          "text": "gh api --method PATCH で state=dismissed・dismissed_reason・dismissed_comment を渡して却下する方針である",
+          "passed": false,
+          "evidence": "gh api で state=dismissed に更新とだけで、--method PATCH と dismissed_comment を挙げていない"
+        },
+        {
+          "text": "dismiss も承認を得てから実行する方針である",
+          "passed": true,
+          "evidence": "「承認すると…更新されます。承認しなければ dismiss されません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4,
+        "passed": 2,
+        "failed": 3,
+        "total": 5,
+        "time_seconds": 28.275,
+        "tokens": 82078,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "dismiss 対象は引数ではなく .config/skills/shoji9x9/dependabot-alert-issue.jsonc に書く方針である",
+          "passed": false,
+          "evidence": "設定ファイルに書く方針は無く、gh api で直接 dismiss する手順だけを示している"
+        },
+        {
+          "text": "設定ファイルへの書き込みは非破壊（既存のキー・値・コメントを変更しない）である",
+          "passed": false,
+          "evidence": "設定ファイルへの書き込み自体に触れていない"
+        },
+        {
+          "text": "dismiss 該当 alert は Issue 化対象から外す方針である",
+          "passed": false,
+          "evidence": "Issue 化対象から外す話は無く、GitHub の Auto-triage rules を勧めている"
+        },
+        {
+          "text": "gh api --method PATCH で state=dismissed・dismissed_reason・dismissed_comment を渡して却下する方針である",
+          "passed": true,
+          "evidence": "`gh api -X PATCH …` に state=dismissed・dismissed_reason・dismissed_comment を渡している"
+        },
+        {
+          "text": "dismiss も承認を得てから実行する方針である",
+          "passed": true,
+          "evidence": "「PATCH の実行…はリモートへの書き込みになるので行っていません。実行してよければ…」"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.6,
+        "stddev": 0,
+        "min": 0.6,
+        "max": 0.6
+      },
+      "time_seconds": {
+        "mean": 31.757,
+        "stddev": 0,
+        "min": 31.757,
+        "max": 31.757
+      },
+      "tokens": {
+        "mean": 78414,
+        "stddev": 0,
+        "min": 78414,
+        "max": 78414
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.4,
+        "stddev": 0,
+        "min": 0.4,
+        "max": 0.4
+      },
+      "time_seconds": {
+        "mean": 28.275,
+        "stddev": 0,
+        "min": 28.275,
+        "max": 28.275
+      },
+      "tokens": {
+        "mean": 82078,
+        "stddev": 0,
+        "min": 82078,
+        "max": 82078
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.20",
+      "time_seconds": "+3.5",
+      "tokens": "-3664"
+    }
+  },
+  "notes": []
+}

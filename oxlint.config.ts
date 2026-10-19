@@ -1,6 +1,6 @@
 import { defineConfig } from "oxlint";
 import { IS_ARRAY_HOLDERS, IS_ARRAY_RESTRICTION } from "./scripts/lib/is-array-holders.ts";
-import { agentCopyGlobs } from "./scripts/lib/source-scope.ts";
+import { VENDORED_GLOBS, agentCopyGlobs } from "./scripts/lib/source-scope.ts";
 
 // 禁じるプロパティ。型ガード isArray を持つファイル（IS_ARRAY_HOLDERS）では、`Array.isArray` だけを除いた一覧を当てる。
 // 規則ごと "off" にしないのは、ここに足した他の禁止まで、そのファイルで外れてしまうからである。
@@ -12,7 +12,7 @@ export default defineConfig({
     correctness: "error",
   },
   // エージェント用のコピーとリンクだけを除く。.agents/ を丸ごと除くと rule と private skill の実体も外れる。
-  ignorePatterns: agentCopyGlobs(import.meta.dirname),
+  ignorePatterns: [...agentCopyGlobs(import.meta.dirname), ...VENDORED_GLOBS],
   rules: {},
   overrides: [
     {

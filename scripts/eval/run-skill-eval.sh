@@ -205,8 +205,9 @@ fi
 # eval fingerprint, and `--reuse-baseline` only accepts a baseline whose fingerprint
 # matches — /3 is the stream-json switch (raw/claude-code.jsonl + per-tool records +
 # result.json `skill_usage`), so a baseline captured under /2 can no longer be paired
-# with a with_skill run that has those fields.
-harness_version="run-skill-eval/4"
+# with a with_skill run that has those fields. /5 also installs config-schemas/ and
+# checks.json, without which skill-config.mjs failed inside every run.
+harness_version="run-skill-eval/5"
 
 metadata_eval_id="${eval_id}"
 eval_dir="$(dirname -- "$(dirname -- "${out}")")"
@@ -357,7 +358,7 @@ if [ "${#installed_skills[@]}" -gt 0 ]; then
 	for installed_skill in "${installed_skills[@]}"; do
 		installed_src="${repo}/skills/${installed_skill}"
 		mkdir -p -- "${skill_home}/${installed_skill}"
-		for subject_part in SKILL.md references assets scripts; do
+		for subject_part in SKILL.md references assets scripts config-schemas checks.json; do
 			[ -e "${installed_src}/${subject_part}" ] || continue
 			cp -R -- "${installed_src}/${subject_part}" "${skill_home}/${installed_skill}/"
 		done
@@ -423,16 +424,24 @@ esac
 started_at="$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"
 started_ms="$(date +%s%3N)"
 rc=0
-# 操作する人の手元のレビュアーの上書きで、eval の振る舞いが起動した人によって変わってはいけない。
-# 環境変数の優先順位を試すシナリオは、その入力を eval の prompt に書く。
-# 開発者の `.env.local` を、どちらの config にも持ち込まない。
+# 操作する人の手元のスキルの設定で、eval の振る舞いが起動した人によって変わってはいけない。
+# 人ごとの層（~/.config/skills/shoji9x9/）は SHOJI9X9_SKILLS_IGNORE_USER_CONFIG=1 で読ませない。
+# XDG_CONFIG_HOME は差し替えない。executor が使う gh・git・mise の設定も読めなくなるためである。
+# 人ごと・リポジトリ限定の層（.local.jsonc）は fixture のディレクトリで読むので、開発者のものは入らない。
+# スキルのスキーマが挙げる環境変数も消す。x-env（環境変数の層）は開発者の値がファイルより優先して eval に入り、
+# x-legacy.env（使わなくなった環境変数）は読み取りを移行の手順で止める。どちらも起動した人で結果が変わる。
+# 一覧はスキーマとの一致をテストで確かめる。
+# 層の優先順位を試すシナリオは、その入力を eval の prompt と fixture に書く。
 # stdin は必ず /dev/null にする。プロンプトは引数で渡しているが、executor は stdin も読もうとする。
 # 呼び出し側の stdin が EOF にならないパイプ（バックグラウンド実行・エージェント経由）だと、
 # `Reading additional input from stdin...` のまま無限に待つ。raw trace は 0 バイトのままで、
 # timeout でしか終わらない（実測で codex が 7 分以上止まった）。
 (
 	cd "${proj}"
-	unset SKILLS_REVIEW_TOOL
+	unset AGENT_USAGE_CONFIG_DIR BOX_ROOT_FOLDER_ID DIAGRAM_CHROME_NO_SANDBOX DIAGRAM_CHROME_TIMEOUT_MS \
+		DIAGRAM_DIR DIAGRAM_ICON_DIR DIAGRAM_OUT_DIR KAIZEN_PRECOMMIT_DEADLINE_SECONDS SKILLS_REVIEW_TOOL \
+		KAIZEN_SCHEDULE_AGENT KAIZEN_SCHEDULE_EFFORT KAIZEN_SCHEDULE_MODE KAIZEN_SCHEDULE_MODEL
+	export SHOJI9X9_SKILLS_IGNORE_USER_CONFIG=1
 	EVAL_SANDBOX_CLI="${executor_binary}" EVAL_SANDBOX_VENDOR="${executor}" "${runner}" "${executor_args[@]}"
 ) </dev/null >"${raw_trace}" 2>"${out}/stderr.log" || rc=$?
 ended_ms="$(date +%s%3N)"
@@ -578,7 +587,8 @@ if [ "${config}" = "without_skill" ]; then
 	markers=()
 	while IFS= read -r rel; do
 		[ -n "${rel}" ] && markers+=("${rel}")
-	done < <(cd "${src}" && find references assets scripts -mindepth 1 -maxdepth 1 -printf '%p\n' 2>/dev/null | sort -u)
+		# checks.json is a file, not a directory, so it has no entries to key markers on.
+	done < <(cd "${src}" && find references assets scripts config-schemas -mindepth 1 -maxdepth 1 -printf '%p\n' 2>/dev/null | sort -u)
 	# The bare source path `skills/<name>` is NOT a marker. A baseline that correctly
 	# reports the skill is absent routinely names where it would live ("install it at
 	# ~/.claude/skills/<name>/SKILL.md", "show me skills/<name>/ and I will retrace"),
@@ -607,7 +617,7 @@ if [ "${config}" = "without_skill" ]; then
 				sibling_hit=1
 				break
 			fi
-			for part in SKILL.md references assets scripts; do
+			for part in SKILL.md references assets scripts config-schemas checks.json; do
 				if [ -e "${required_src}/${part}" ] && grep -rqIF -e "${m}" -- "${required_src}/${part}" 2>/dev/null; then
 					sibling_hit=1
 					break 2

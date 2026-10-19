@@ -38,6 +38,7 @@ if [[ "$args" == *EXPECT_EXECUTOR_AND_NORMALIZER_FAIL* ]]; then
   exit 7
 fi
 if [[ "$args" == *EXPECT_REVIEW_ENV_CLEARED* ]]; then test -z "\${SKILLS_REVIEW_TOOL+x}"; fi
+if [[ "$args" == *EXPECT_USER_CONFIG_IGNORED* ]]; then test "\${SHOJI9X9_SKILLS_IGNORE_USER_CONFIG-}" = 1; fi
 if [[ "$args" == *EXPECT_CREATE_FILE* ]]; then printf 'generated\n' >generated.txt; fi
 if [[ "$args" == *EXPECT_WITH_SKILL* ]]; then
   if [ "$1" = "exec" ]; then test -f .agents/skills/box/SKILL.md; else test -f .claude/skills/box/SKILL.md; fi
@@ -212,6 +213,19 @@ function readJson<T = Record<string, unknown>>(path: string): T {
 }
 
 describe.concurrent("run-skill-eval executor compatibility", () => {
+  test("tells the skill config reader not to read the operator's personal config layer", async () => {
+    const { directory, stub } = makeStub();
+    const output = join(directory, "iteration-1", "eval-1", "with_skill", "run-1");
+    await runEval({
+      executor: "codex",
+      config: "with_skill",
+      prompt: "EXPECT_WITH_SKILL EXPECT_USER_CONFIG_IGNORED",
+      output,
+      stub,
+    });
+    expect(readJson(join(output, "result.json")).status).toBe("succeeded");
+  });
+
   test("does not leak an operator-local reviewer override into eval runs", async () => {
     const { directory, stub } = makeStub();
     const output = join(directory, "iteration-1", "eval-1", "with_skill", "run-1");
@@ -247,7 +261,7 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
         model: "model-stub",
         reasoning_effort: "low",
         cli_version: `${executor} stub-version`,
-        harness_version: "run-skill-eval/4",
+        harness_version: "run-skill-eval/5",
       },
       status: "succeeded",
       exit_code: 0,
@@ -373,7 +387,7 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
         executor: "codex",
         model: "model-stub",
         reasoning_effort: "low",
-        harness_version: "run-skill-eval/4",
+        harness_version: "run-skill-eval/5",
       },
     });
   });
@@ -482,7 +496,7 @@ describe.concurrent("run-skill-eval executor compatibility", () => {
       executor: "codex",
       model: "model-stub",
       reasoning_effort: "low",
-      harness_version: "run-skill-eval/4",
+      harness_version: "run-skill-eval/5",
     });
     expect(readJson(join(target, "eval-fingerprint.json"))).toEqual(
       readJson(join(source, "eval-fingerprint.json")),
@@ -1109,6 +1123,10 @@ describe.concurrent("run-skill-eval required sibling skills", () => {
     writeFileSync(join(subject, "assets", "shared-template.json"), "{}\n", "utf8");
     // A subject path the sibling's own text names: the baseline can read it there.
     writeFileSync(join(subject, "references", "handoff.md"), "handoff\n", "utf8");
+    // 配布先には届く同梱物。設定を読むスキルは、run の中で config-schemas/ を読む。
+    mkdirSync(join(subject, "config-schemas"));
+    writeFileSync(join(subject, "config-schemas", "subject-skill.schema.json"), "{}\n", "utf8");
+    writeFileSync(join(subject, "checks.json"), "{}\n", "utf8");
     writeFileSync(
       join(subjectEvals, "evals.json"),
       `${JSON.stringify({ evals: [{ id: 1, prompt: "p", assertions: ["a"], ...evalDefinition }] })}\n`,
@@ -1127,11 +1145,13 @@ describe.concurrent("run-skill-eval required sibling skills", () => {
 
     const stub = join(root, "stub.sh");
     const installedLog = join(root, "installed");
+    const installedFilesLog = join(root, "installed-files");
     writeFileSync(
       stub,
       `#!/usr/bin/env bash
 set -euo pipefail
 { find .claude/skills -name SKILL.md 2>/dev/null || true; } | LC_ALL=C sort >${JSON.stringify(installedLog)}
+{ find .claude/skills -type f 2>/dev/null || true; } | LC_ALL=C sort >${JSON.stringify(installedFilesLog)}
 text="stub response"
 if [[ "$*" == *CITE_SIBLING* ]]; then text="ran scripts/sibling-tool.mjs with assets/shared-template.json"; fi
 if [[ "$*" == *CITE_SUBJECT* ]]; then text="read references/subject-guide.md"; fi
@@ -1140,7 +1160,7 @@ printf '{"result":"%s","is_error":false,"num_turns":1,"usage":{"input_tokens":1,
       "utf8",
     );
     chmodSync(stub, 0o755);
-    return { installedLog, root, sibling, stub };
+    return { installedFilesLog, installedLog, root, sibling, stub };
   }
 
   async function run(
@@ -1207,6 +1227,20 @@ printf '{"result":"%s","is_error":false,"num_turns":1,"usage":{"input_tokens":1,
       readJson<FingerprintFile>(join(baseline.output, "eval-fingerprint.json")).inputs
         .required_skills,
     ).toEqual([recorded]);
+  });
+
+  test("installs config-schemas/ and checks.json with the subject, as gh skill install does", async () => {
+    // Copying only SKILL.md/references/assets/scripts made skill-config.mjs fail with a
+    // missing schema inside every with_skill run, which the distributed skill never sees.
+    const fixture = makeRepository({});
+    const { result } = await run(fixture, "with_skill");
+
+    expect(result.status, result.stderr).toBe(0);
+    const installed = readFileSync(fixture.installedFilesLog, "utf8").split("\n");
+    expect(installed).toContain(
+      ".claude/skills/subject-skill/config-schemas/subject-skill.schema.json",
+    );
+    expect(installed).toContain(".claude/skills/subject-skill/checks.json");
   });
 
   test("changes the fingerprint when an installed sibling changes", async () => {

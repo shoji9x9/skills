@@ -18,6 +18,5 @@ AWS はアイコンを四半期ごとに更新し、見た目が変わること�
 
 ```bash
 SKILL=../../..    # 本スキルルート（assets/engine を含む）
-DIAGRAM_DIR="$SKILL/assets/starter" DIAGRAM_OUT_DIR=. \
-  node "$SKILL/assets/engine/render-diagram.mjs"
+node "$SKILL/assets/engine/render-diagram.mjs" --dir "$SKILL/assets/starter" --icon-dir "$SKILL/assets/starter/icons" --out-dir .
 ```

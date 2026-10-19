@@ -13,6 +13,7 @@ Box のファイルとフォルダを、Box REST API で直接操作する。MCP
 
 - ツール: `curl`、`jq`、bash（同梱のスクリプトは `set -o pipefail` などの bash の機能を使うので、POSIX sh では動かない）
 - 認証情報: Dev Token（`BOX_ACCESS_TOKEN`）か、OAuth refresh 用の `BOX_CLIENT_ID` / `BOX_CLIENT_SECRET` と refresh token
+- 設定: 対象のフォルダを設定ファイル（`box.jsonc`）に置くときだけ、読むのに Node.js が要る。設定ファイルが 1 つも無ければ Node.js は要らない（下の「対象フォルダ」）
 - コマンド例は bash を前提にしている。Windows では WSL や Git Bash などの bash の環境で実行する
 
 以下の `<skill>` は、インストール先のスキルのディレクトリ（同梱のスクリプトの起点）を表す。
@@ -48,11 +49,22 @@ curl -sSf "https://api.box.com/2.0/users/me" \
 
 ## 対象フォルダ
 
-操作の対象のフォルダはプロジェクトごとに違うので、環境変数 `BOX_ROOT_FOLDER_ID` で指定する（`.env` などで設定する）。設定が無ければ、Box のルート（`0`）を使う。
+操作の対象のフォルダはプロジェクトごとに違うので、設定ファイルの `root_folder_id` で指定する。
+全員が同じ共有フォルダを使うならリポジトリの設定（`.config/skills/shoji9x9/box.jsonc`）に、自分だけのフォルダなら `.config/skills/shoji9x9/box.local.jsonc` に、文字列で書く。
+どちらにも無ければ、Box のルート（`0`）を使う。置き場所・層・書き込みの決まりは [`references/config-files.md`](references/config-files.md) にある。
+
+```jsonc
+// .config/skills/shoji9x9/box.jsonc
+{ "root_folder_id": "123456789" }
+```
+
+ID は同梱のスクリプトで取得する。設定の誤りや、使わなくなった環境変数 `BOX_ROOT_FOLDER_ID` が残っているときは、理由を stderr に出して 1 で終わるので、そのまま止まる。
 
 ```bash
-FOLDER="${BOX_ROOT_FOLDER_ID:-0}"
+FOLDER="$(bash <skill>/scripts/box-folder.sh)" || exit 1
 ```
+
+設定ファイルが 1 つも無ければ、スクリプトは Node.js を使わずに `0` を出す。設定ファイルがあって Node.js が無ければ、`0` で続けずに止まる。
 
 フォルダ ID は、Box の Web UI でフォルダを開いたときの URL の末尾（`.../folder/<ID>` の `<ID>` の部分）である。共有リンクしか無いフォルダには、「注意」にある `BoxApi` ヘッダも付ける。
 

@@ -12,8 +12,42 @@
         "gh pr checks で CI の成功を確認しようとしている",
         "changelog/release notes など更新内容から影響を確認する方針を示している",
         "マージ前に判断の根拠を PR コメントに記録する方針を示している",
-        ".config/skills/shoji9x9/skills.yml の skills.dependabot-merge.merge_method を参照し、無ければ squash をデフォルトにする方針である",
+        ".config/skills/shoji9x9/dependabot-merge.jsonc の merge_method を参照し、無ければ squash をデフォルトにする方針である",
         "安全と判断した場合に gh pr merge でマージしようとしている"
+      ],
+      "reachability": [
+        {
+          "assertion": "PR URL から owner/repo/PR番号を抽出している",
+          "prompt_quote": "https://github.com/shoji9x9/skills/pull/42"
+        },
+        {
+          "assertion": "現在の repo と PR の owner/repo の一致を確認している",
+          "prompt_quote": "https://github.com/shoji9x9/skills/pull/42"
+        },
+        {
+          "assertion": "PR の著者が Dependabot か確認している",
+          "prompt_quote": "Dependabot PR"
+        },
+        {
+          "assertion": "gh pr checks で CI の成功を確認しようとしている",
+          "prompt_quote": "をマージして"
+        },
+        {
+          "assertion": "changelog/release notes など更新内容から影響を確認する方針を示している",
+          "prompt_quote": "vitest を 4.1.7 から 4.2.0 に上げる"
+        },
+        {
+          "assertion": "マージ前に判断の根拠を PR コメントに記録する方針を示している",
+          "prompt_quote": "をマージして"
+        },
+        {
+          "assertion": ".config/skills/shoji9x9/dependabot-merge.jsonc の merge_method を参照し、無ければ squash をデフォルトにする方針である",
+          "prompt_quote": "をマージして"
+        },
+        {
+          "assertion": "安全と判断した場合に gh pr merge でマージしようとしている",
+          "prompt_quote": "をマージして"
+        }
       ]
     },
     {
@@ -26,7 +60,33 @@
         "changelog/release notes で破壊的変更（API変更・削除・挙動変更）の有無を確認する方針を示している",
         "判断の根拠を PR コメントに記録しようとしている",
         "リスクあり/判断不能ならマージせず、課題と解決策をコメントに残して停止する方針である",
-        "マージ方式を、リポジトリ規約からの推測ではなく設定 .config/skills/shoji9x9/skills.yml の skills.dependabot-merge.merge_method（無ければ squash 既定）から決める方針を示している"
+        "マージ方式を、リポジトリ規約からの推測ではなく設定 .config/skills/shoji9x9/dependabot-merge.jsonc の merge_method（無ければ squash 既定）から決める方針を示している"
+      ],
+      "reachability": [
+        {
+          "assertion": "PR番号のみのため現在の repo を対象にしている",
+          "prompt_quote": "dependabot-merge 51"
+        },
+        {
+          "assertion": "0.x のマイナー更新は破壊的変更があり得ると認識している",
+          "prompt_quote": "0.x なので影響をよく見てから判断して"
+        },
+        {
+          "assertion": "changelog/release notes で破壊的変更（API変更・削除・挙動変更）の有無を確認する方針を示している",
+          "prompt_quote": "影響をよく見てから判断して"
+        },
+        {
+          "assertion": "判断の根拠を PR コメントに記録しようとしている",
+          "prompt_quote": "影響をよく見てから判断して"
+        },
+        {
+          "assertion": "リスクあり/判断不能ならマージせず、課題と解決策をコメントに残して停止する方針である",
+          "prompt_quote": "影響をよく見てから判断して"
+        },
+        {
+          "assertion": "マージ方式を、リポジトリ規約からの推測ではなく設定 .config/skills/shoji9x9/dependabot-merge.jsonc の merge_method（無ければ squash 既定）から決める方針を示している",
+          "prompt_quote": "dependabot-merge 51"
+        }
       ]
     },
     {
@@ -122,7 +182,7 @@
         "使っている箇所に当たる破壊的な変更があれば、必要な修正を PR コメントに書く方針である",
         "使っている箇所に当たる破壊的な変更があれば、ユーザーに確認する方針である",
         "使っている箇所に当たるかを判断できないときも、マージせずにユーザーに確認する方針である",
-        "マージ方式を .config/skills/shoji9x9/skills.yml の skills.dependabot-merge.merge_method（無ければ squash）から決める方針を示している",
+        "マージ方式を .config/skills/shoji9x9/dependabot-merge.jsonc の merge_method（無ければ squash）から決める方針を示している",
         "判断の根拠を PR コメントに記録する方針である",
         "回答の中で、CI が通っていることだけを根拠に major の更新をマージしてよいとする食い違った判断をしていない"
       ],
@@ -156,7 +216,7 @@
           "prompt_quote": "止まる場合の扱い"
         },
         {
-          "assertion": "マージ方式を .config/skills/shoji9x9/skills.yml の skills.dependabot-merge.merge_method（無ければ squash）から決める方針を示している",
+          "assertion": "マージ方式を .config/skills/shoji9x9/dependabot-merge.jsonc の merge_method（無ければ squash）から決める方針を示している",
           "prompt_quote": "マージまで進める"
         },
         {

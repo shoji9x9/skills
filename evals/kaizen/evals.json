@@ -237,8 +237,42 @@
         "他セッションのぶんを遮断に使わない理由として、そのセッションで何が起きたかを知らない主体が抽出すると記録の担保が推測に変わる（止めた相手が解消できない）ことを挙げている",
         "戻ってこないセッションのセンチネルはセンチネル 1 行目の UTC タイムスタンプを基準に、保持期間を過ぎたものをコミット前のチェックが自動で削除すると説明している",
         "削除されるのは「未抽出である」という印だけで transcript は残り、後から kaizen extract で読み直せるため学びは失われないと説明している（対応する checkpoint も消さない）",
-        "保持期間は .kaizen/config の foreign_sentinel_retention_days で変更でき、既定は 7 日だと具体的なキー名と値で示している",
+        "保持期間は kaizen の設定ファイル（.config/skills/shoji9x9/kaizen.jsonc など）の foreign_sentinel_retention_days で変更でき、既定は 7 日だと具体的なキー名と値で示している",
         "恒久ブロックの回避策として .kaizen/.pending-extract* の一括削除や .extract-done の先置きを勧めていない"
+      ],
+      "reachability": [
+        {
+          "assertion": "claude-internal-records-no-candidate.jsonl は exit 1、claude-internal-records-candidate.jsonl は exit 0、unknown-type-with-message.jsonl は exit 2 という実測結果を示している",
+          "prompt_quote": "ファイルごとの終了コードと"
+        },
+        {
+          "assertion": "終了コードの差を決めているのは type 名の allowlist ではなく、未知のレコードが会話を運ぶ入れ物（message / payload / content）を持つかどうかであり、持たない内部レコードは読み飛ばすと説明している",
+          "prompt_quote": "その差が何で決まるのかを示して"
+        },
+        {
+          "assertion": "コミット前のチェックが commit を止める根拠にするのは自セッションのセンチネル（.kaizen/.pending-extract<suffix>.<session key>）だけで、他セッションのぶんは exit 1 の警告に留まり commit は通ると説明している",
+          "prompt_quote": "コミット前のチェックが遮断の根拠にするセンチネルの範囲"
+        },
+        {
+          "assertion": "他セッションのぶんを遮断に使わない理由として、そのセッションで何が起きたかを知らない主体が抽出すると記録の担保が推測に変わる（止めた相手が解消できない）ことを挙げている",
+          "prompt_quote": "その範囲にした理由"
+        },
+        {
+          "assertion": "戻ってこないセッションのセンチネルはセンチネル 1 行目の UTC タイムスタンプを基準に、保持期間を過ぎたものをコミット前のチェックが自動で削除すると説明している",
+          "prompt_quote": "戻ってこないセッションのセンチネルの扱い"
+        },
+        {
+          "assertion": "削除されるのは「未抽出である」という印だけで transcript は残り、後から kaizen extract で読み直せるため学びは失われないと説明している（対応する checkpoint も消さない）",
+          "prompt_quote": "学びが失われないか"
+        },
+        {
+          "assertion": "保持期間は kaizen の設定ファイル（.config/skills/shoji9x9/kaizen.jsonc など）の foreign_sentinel_retention_days で変更でき、既定は 7 日だと具体的なキー名と値で示している",
+          "prompt_quote": "その扱いを変える設定の場所と既定値"
+        },
+        {
+          "assertion": "恒久ブロックの回避策として .kaizen/.pending-extract* の一括削除や .extract-done の先置きを勧めていない",
+          "prompt_quote": "戻ってこないセッションのセンチネルの扱い"
+        }
       ]
     },
     {
@@ -366,7 +400,37 @@
         "2026-01-09-stale-applied.md は status が pending でないため対象外で、片付けるなら忘却ではなくアーカイブだと述べている",
         "忘却はファイルを移動せず frontmatter の status を forgotten に書き換えるだけで、本文は top-level に残るため KEDB 照合では引き続き全文が照合されると述べている",
         "再発して KEDB 照合が forgotten のノートにヒットしたら status を pending へ戻し、新しい事象を追記して priority を上げると述べている",
-        ".kaizen/config の forget_after_days / forget_max_priority で閾値を変え、forget_auto=off で自動忘却を止められると述べている"
+        "kaizen の設定ファイル（.config/skills/shoji9x9/kaizen.jsonc）の forget_after_days / forget_max_priority で閾値を変え、forget_auto を false にして自動忘却を止められると述べている"
+      ],
+      "reachability": [
+        {
+          "assertion": "忘却の対象は 2026-01-05-stale-low.md と 2026-01-06-stale-medium.md の 2 件だけであることを、バンドルされたツールの出力と照合して示している",
+          "prompt_quote": "どれが忘却の対象になるかをバンドルされたツールで確認し"
+        },
+        {
+          "assertion": "2026-01-10-stale-high.md は priority が既定の閾値（medium）を超えるため対象外だと説明している",
+          "prompt_quote": "対象にならないものはなぜ外れるのかを 1 件ずつ説明して"
+        },
+        {
+          "assertion": "2026-01-07-stale-no-priority.md と 2026-01-08-stale-bad-date.md は priority / date を読めないため対象外であり、判定材料が読めないものは忘れない側として扱う設計だと説明している",
+          "prompt_quote": "対象にならないものはなぜ外れるのかを 1 件ずつ説明して"
+        },
+        {
+          "assertion": "2026-01-09-stale-applied.md は status が pending でないため対象外で、片付けるなら忘却ではなくアーカイブだと述べている",
+          "prompt_quote": "対象にならないものはなぜ外れるのかを 1 件ずつ説明して"
+        },
+        {
+          "assertion": "忘却はファイルを移動せず frontmatter の status を forgotten に書き換えるだけで、本文は top-level に残るため KEDB 照合では引き続き全文が照合されると述べている",
+          "prompt_quote": "忘却すると実体に何が起きるのか"
+        },
+        {
+          "assertion": "再発して KEDB 照合が forgotten のノートにヒットしたら status を pending へ戻し、新しい事象を追記して priority を上げると述べている",
+          "prompt_quote": "そのあと再び同じ失敗をしたらどうなるのか"
+        },
+        {
+          "assertion": "kaizen の設定ファイル（.config/skills/shoji9x9/kaizen.jsonc）の forget_after_days / forget_max_priority で閾値を変え、forget_auto を false にして自動忘却を止められると述べている",
+          "prompt_quote": "閾値を変えたい場合と、自動で動かしたくない場合の方法も教えて"
+        }
       ]
     }
   ]

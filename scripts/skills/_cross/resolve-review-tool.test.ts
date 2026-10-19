@@ -2,47 +2,84 @@
 //
 // 状態空間の軸と、各セルに置いた入力:
 //
-// | 軸       | 値                                                                       |
-// | -------- | ------------------------------------------------------------------------ |
-// | 層       | CLI / 環境変数 / 設定ファイル / 既定（優先順位どおりに上書きされるか）    |
-// | 値       | 受理する 5 値 / 未知値 / 空文字                                           |
-// | 設定内容 | 正常 / 行末コメント付き / 引用符付き / 別セクションの同名キー / キー欠落 / ファイル不在 |
-// | 引数     | 正常 / 値の無い --review-tool / 不明な引数                                |
+// | 軸 | 値 |
+// | --- | --- |
+// | 層 | CLI / common.local.jsonc / 人ごとの common.jsonc / common.jsonc / デフォルト（優先順位どおりに上書きされるか） |
+// | 値 | 受理する 5 値 / 未知の値 / キーが無い |
+// | 設定ファイル | 3 つとも無い / どれかがある / 知らないキー / 構文の誤り |
+// | 人ごとの層の場所 | XDG_CONFIG_HOME が絶対パス / 相対パス（HOME/.config を使う） |
+// | Node.js | ある / 無い（ファイルが無ければ要らない、あれば止まる） |
+// | 旧い場所 | SKILLS_REVIEW_TOOL（値あり・空）/ skills.yml |
+// | 引数 | 正常 / 値の無い・空の --review-tool と --root / 不明な引数 / --help |
+// | 起動する場所 | リポジトリのルート / サブディレクトリ / git の外 |
 //
-// 誤検知しないことの確認として、**リポジトリの実設定**も 1 件読む（合成 YAML だけだと、
-// 実ファイルの書き方〈行末コメント〉と解析がずれていても緑のまま通る）。
-import { test, expect } from "vitest";
-import { spawnSync } from "node:child_process";
-import { rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+// 誤検知しないことの確認として、リポジトリの実設定も 1 件読む（合成の設定だけだと、
+// 実ファイルの書き方と読み取りがずれていても緑のまま通る）。
+import { execFileSync, spawnSync } from "node:child_process";
+import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
-import { coverageEnv } from "../../lib/testing/coverage-env.ts";
+import { expect, test } from "vitest";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
+import { coverageEnv } from "../../lib/testing/coverage-env.ts";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const SCRIPTS = [
   "skills/pr-finalize-loop/scripts/resolve-review-tool.sh",
   "skills/pr-review-handle/scripts/resolve-review-tool.sh",
 ];
+const NODE_DIR = dirname(process.execPath);
 
-type RunOptions = {
-  args?: string[];
-  env?: Record<string, string>;
-  config?: string;
-  cwd?: string;
-};
+/** node を含まない PATH（bash・git・dirname だけ）。 */
+function pathWithoutNode(base: string): string {
+  const bin = join(base, "bin-no-node");
+  mkdirSync(bin);
+  for (const tool of ["bash", "git", "dirname"]) {
+    const real = execFileSync("bash", ["-c", `command -v ${tool}`], {
+      encoding: "utf8",
+      timeout: CHILD_TIMEOUT_MS,
+    }).trim();
+    symlinkSync(real, join(bin, tool));
+  }
+  return bin;
+}
 
-function run(scriptRel: string, { args = [], env = {}, config, cwd = repoRoot }: RunOptions = {}) {
-  const argv = [join(repoRoot, scriptRel), ...args];
-  if (config !== undefined) argv.push("--config", config);
-  return spawnSync("bash", argv, {
+type Env = Record<string, string>;
+
+/** git のリポジトリと、人ごとの設定の置き場所を作る。 */
+function setup() {
+  const base = makeTempDir("review-tool-");
+  const root = join(base, "repo");
+  mkdirSync(root);
+  execFileSync("git", ["init", "-q"], { cwd: root, timeout: CHILD_TIMEOUT_MS });
+  const xdg = join(base, "xdg");
+  const files = {
+    repo: join(root, ".config/skills/shoji9x9/common.jsonc"),
+    local: join(root, ".config/skills/shoji9x9/common.local.jsonc"),
+    user: join(xdg, "skills/shoji9x9/common.jsonc"),
+  };
+  const write = (layer: keyof typeof files, text: string) => {
+    mkdirSync(dirname(files[layer]), { recursive: true });
+    writeFileSync(files[layer], text);
+  };
+  const env: Env = {
+    PATH: `${NODE_DIR}:${process.env.PATH ?? ""}`,
+    HOME: join(base, "home"),
+    XDG_CONFIG_HOME: xdg,
+  };
+  return { base, root, files, write, env };
+}
+
+type RunOptions = { args?: string[]; env: Env; cwd: string };
+
+function run(scriptRel: string, { args = [], env, cwd }: RunOptions) {
+  // 呼び出し側の SKILLS_REVIEW_TOOL や XDG_CONFIG_HOME に左右されないよう、毎回明示的に組み立てる。
+  return spawnSync("bash", [join(repoRoot, scriptRel), ...args], {
     timeout: CHILD_TIMEOUT_MS,
     encoding: "utf8",
     cwd,
-    // 呼び出し側の SKILLS_REVIEW_TOOL に左右されないよう、毎回明示的に組み立てる。
-    env: { PATH: process.env.PATH, HOME: process.env.HOME, ...coverageEnv(), ...env },
+    env: { ...coverageEnv(), ...env },
   });
 }
 
@@ -55,193 +92,298 @@ const parse = (stdout: string) =>
       .map((l: string) => l.split("=")),
   );
 
-function withConfig(body: string, fn: (path: string) => void) {
-  const dir = makeTempDir("review-tool-");
-  const path = join(dir, "skills.yml");
-  writeFileSync(path, body);
-  try {
-    fn(path);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-}
-
-const CONFIG = `version: 1
-skills:
-  common:
-    conventions_doc: AGENTS.md # 規約ドキュメント
-    review_tool: codex # copilot | claude-code | codex | none
-  git-worktree:
-    review_tool: copilot # 別セクションの同名キー（拾ってはいけない）
-`;
-
 for (const script of SCRIPTS) {
   const name = script.split("/")[1];
 
-  test(`${name}: 設定ファイルから読み、出所を config と報告する（行末コメントを落とす）`, () => {
-    withConfig(CONFIG, (path) => {
-      const r = run(script, { config: path });
-      expect(r.status).toBe(0);
-      expect(parse(r.stdout)).toEqual({ value: "codex", source: "config" });
-    });
-  });
-
-  test(`${name}: 環境変数は設定ファイルより優先する`, () => {
-    withConfig(CONFIG, (path) => {
-      const r = run(script, { config: path, env: { SKILLS_REVIEW_TOOL: "none" } });
-      expect(parse(r.stdout)).toEqual({ value: "none", source: "env" });
-    });
-  });
-
-  test(`${name}: CLI は環境変数より優先する`, () => {
-    withConfig(CONFIG, (path) => {
-      const r = run(script, {
-        config: path,
-        env: { SKILLS_REVIEW_TOOL: "none" },
-        args: ["--review-tool", "claude-code"],
-      });
-      expect(parse(r.stdout)).toEqual({ value: "claude-code", source: "cli" });
-    });
-  });
-
-  test(`${name}: どの層にも無ければ既定 copilot（出所 default）`, () => {
-    const r = run(script, { config: join(tmpdir(), "does-not-exist.yml") });
-    expect(r.status).toBe(0);
+  test(`${name}: 設定ファイルが無ければ Node.js なしでデフォルト copilot を返し、参照先を stderr に残す`, () => {
+    const s = setup();
+    const r = run(script, { cwd: s.root, env: { ...s.env, PATH: pathWithoutNode(s.base) } });
+    expect(r.status, r.stderr).toBe(0);
     expect(parse(r.stdout)).toEqual({ value: "copilot", source: "default" });
-    // 設定ファイルが無いのは正常系なので、解析ツールのエラーは出さない。
-    expect(r.stderr).not.toMatch(/awk|error:/);
-    // ただし警告は出す。`--config` のパスを渡し間違えたときこそ、既定として扱った理由と
-    // 参照先が残らないと「ファイルが無い」と「キーが無い」が同じ default に潰れる。
-    expect(r.stderr).toMatch(/見つからないため既定を使う（参照: .*does-not-exist\.yml）/);
-  });
-
-  test(`${name}: ファイルはあるがキーが無い場合は「見つからない」と区別して残す`, () => {
-    withConfig("version: 1\nskills:\n  common:\n    conventions_doc: AGENTS.md\n", (path) => {
-      const r = run(script, { config: path });
-      expect(r.status).toBe(0);
-      expect(parse(r.stdout).source).toBe("default");
-      expect(r.stderr).toMatch(/review_tool が無いため既定を使う/);
-      expect(r.stderr).not.toMatch(/見つからない/);
-    });
-  });
-
-  test(`${name}: SKILLS_REVIEW_TOOL が空なら env 層を飛ばしたことを残す`, () => {
-    // `VAR= cmd` は env 層の無効化として使われるので落とさない。ただし警告なしに下の層へ
-    // 進むと、指定したつもりの層と報告される層がずれたことに気づけない。
-    withConfig("version: 1\nskills:\n  common:\n    review_tool: codex\n", (path) => {
-      const r = run(script, { config: path, env: { SKILLS_REVIEW_TOOL: "" } });
-      expect(r.status).toBe(0);
-      expect(parse(r.stdout)).toEqual({ value: "codex", source: "config" });
-      expect(r.stderr).toMatch(/SKILLS_REVIEW_TOOL が空のため env 層を飛ばす/);
-    });
-  });
-
-  test(`${name}: --review-tool の値が空なら下の層へ落とさず usage エラーで落ちる`, () => {
-    // 空文字を「未指定」と同じに扱うと、CLI 指定が警告なしに env / config へ移り、
-    // 指定したつもりの層と報告される層がずれる（実測で source=config になった）。
-    withConfig("version: 1\nskills:\n  common:\n    review_tool: codex\n", (path) => {
-      const r = run(script, { config: path, args: ["--review-tool", ""] });
-      expect(r.status).toBe(64);
-      expect(r.stderr).toMatch(/--review-tool の値が空/);
-    });
-  });
-
-  test(`${name}: --config の値が空ならデフォルトとして扱わず usage エラーで落ちる`, () => {
-    // 空文字を「未指定」と同じに扱うと、渡したつもりのパスが警告なしにリポジトリルートの
-    // 既定へ差し替わり、source=default を正しい解決結果として報告してしまう。
-    const r = run(script, { args: ["--config", ""] });
-    expect(r.status).toBe(64);
-    expect(r.stderr).toMatch(/--config の値が空/);
-  });
-
-  test(`${name}: common に review_tool が無ければ別セクションを拾わず既定へ`, () => {
-    withConfig(
-      "version: 1\nskills:\n  common:\n    conventions_doc: AGENTS.md\n  git-worktree:\n    review_tool: codex\n",
-      (path) => {
-        expect(parse(run(script, { config: path }).stdout)).toEqual({
-          value: "copilot",
-          source: "default",
-        });
-      },
+    expect(r.stderr).toMatch(
+      /common の設定ファイルが無いため既定を使う（参照: .*common\.jsonc ほか）/,
     );
   });
 
-  test(`${name}: 引用符付きの値も読む`, () => {
-    withConfig('version: 1\nskills:\n  common:\n    review_tool: "none"\n', (path) => {
-      expect(parse(run(script, { config: path }).stdout)).toEqual({
-        value: "none",
-        source: "config",
-      });
+  test(`${name}: 設定ファイルが無ければ、CLI の値を Node.js なしで返す`, () => {
+    const s = setup();
+    const r = run(script, {
+      cwd: s.root,
+      env: { ...s.env, PATH: pathWithoutNode(s.base) },
+      args: ["--review-tool", "codex"],
+    });
+    expect(r.status, r.stderr).toBe(0);
+    expect(parse(r.stdout)).toEqual({ value: "codex", source: "cli" });
+  });
+
+  test(`${name}: common.jsonc から読み、出所を repo と報告する（コメントと末尾のカンマを読む）`, () => {
+    const s = setup();
+    s.write("repo", '{\n  "conventions_doc": "AGENTS.md",\n  "review_tool": "codex", // 共有\n}\n');
+    const r = run(script, { cwd: s.root, env: s.env });
+    expect(r.status, r.stderr).toBe(0);
+    expect(parse(r.stdout)).toEqual({ value: "codex", source: "repo" });
+  });
+
+  test(`${name}: 人ごとの設定は common.jsonc より、common.local.jsonc は人ごとの設定より優先する`, () => {
+    const s = setup();
+    s.write("repo", '{ "review_tool": "codex" }');
+    s.write("user", '{ "review_tool": "none" }');
+    expect(parse(run(script, { cwd: s.root, env: s.env }).stdout)).toEqual({
+      value: "none",
+      source: "user",
+    });
+    s.write("local", '{ "review_tool": "local" }');
+    expect(parse(run(script, { cwd: s.root, env: s.env }).stdout)).toEqual({
+      value: "local",
+      source: "local",
     });
   });
 
-  test(`${name}: 未知値は警告なしにデフォルトとして扱わず exit 2 で停止し、出所を添える`, () => {
-    withConfig("version: 1\nskills:\n  common:\n    review_tool: gemini\n", (path) => {
-      const r = run(script, { config: path });
+  test(`${name}: CLI はすべてのファイルの層より優先する`, () => {
+    const s = setup();
+    s.write("local", '{ "review_tool": "local" }');
+    const r = run(script, { cwd: s.root, env: s.env, args: ["--review-tool", "claude-code"] });
+    expect(r.status, r.stderr).toBe(0);
+    expect(parse(r.stdout)).toEqual({ value: "claude-code", source: "cli" });
+  });
+
+  test(`${name}: XDG_CONFIG_HOME が相対パスなら HOME/.config の下の人ごとの設定を読む`, () => {
+    const s = setup();
+    const userHome = join(s.env.HOME, ".config/skills/shoji9x9");
+    mkdirSync(userHome, { recursive: true });
+    writeFileSync(join(userHome, "common.jsonc"), '{ "review_tool": "none" }');
+    const r = run(script, { cwd: s.root, env: { ...s.env, XDG_CONFIG_HOME: "relative" } });
+    expect(r.status, r.stderr).toBe(0);
+    expect(parse(r.stdout)).toEqual({ value: "none", source: "user" });
+  });
+
+  test(`${name}: ファイルはあるがキーが無い場合は、無い場合と区別して参照したファイルを残す`, () => {
+    const s = setup();
+    s.write("repo", '{ "conventions_doc": "AGENTS.md" }');
+    const r = run(script, { cwd: s.root, env: s.env });
+    expect(r.status, r.stderr).toBe(0);
+    expect(parse(r.stdout)).toEqual({ value: "copilot", source: "default" });
+    expect(r.stderr).toMatch(
+      /common の設定ファイルに review_tool が無いため既定を使う（参照: .*common\.jsonc）/,
+    );
+    expect(r.stderr).not.toMatch(/設定ファイルが無い/);
+  });
+
+  test.each([
+    [
+      "未知の値",
+      '{ "review_tool": "gemini" }',
+      /"gemini" は "copilot"・"claude-code"・"codex"・"local"・"none" のどれでもない/,
+    ],
+    ["知らないキー", '{ "review_tol": "codex" }', /知らないキー "review_tol"/],
+    ["構文の誤り", '{ "review_tool": "codex" "x": 1 }', /JSONC として読めない/],
+  ])(
+    `${name}: 設定ファイルの%sは警告なしにデフォルトとして扱わず exit 2 で止まる`,
+    (_label, text, want) => {
+      const s = setup();
+      s.write("repo", text);
+      const r = run(script, { cwd: s.root, env: s.env });
       expect(r.status).toBe(2);
-      expect(r.stderr).toMatch(/受理しない review_tool: 'gemini'（出所: config）/);
-    });
-  });
-
-  test(`${name}: 環境変数の未知値も停止する（出所は env）`, () => {
-    const r = run(script, { env: { SKILLS_REVIEW_TOOL: "bogus" } });
-    expect(r.status).toBe(2);
-    expect(r.stderr).toMatch(/出所: env/);
-  });
-
-  test.each(["copilot", "claude-code", "codex", "local", "none"])(
-    `${name}: 受理する値 %s を CLI から受け取る`,
-    (value) => {
-      const r = run(script, { args: ["--review-tool", value] });
-      expect(r.status, r.stderr).toBe(0);
-      expect(parse(r.stdout)).toEqual({ value, source: "cli" });
+      expect(r.stdout).toBe("");
+      expect(r.stderr).toMatch(want);
+      expect(r.stderr).toMatch(/review_tool を決められない（skill-config\.mjs の終了コード 1）/);
     },
   );
 
-  test(`${name}: 引数不正は exit 64`, () => {
-    expect(run(script, { args: ["--review-tool"] }).status).toBe(64);
-    expect(run(script, { args: ["--nope"] }).status).toBe(64);
+  test(`${name}: 使わない層のファイルの誤りも止める（CLI の値があっても）`, () => {
+    const s = setup();
+    s.write("user", '{ "review_tool": "bogus" }');
+    const r = run(script, { cwd: s.root, env: s.env, args: ["--review-tool", "codex"] });
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/"bogus"/);
   });
 
-  // 既定の共有設定パスは cwd 相対だと、サブディレクトリから起動しただけで config 層が
-  // 警告なしに飛ばされ、`source=default` を正しい解決結果として報告する（誤報そのもの）。
-  // リポジトリルート基準で解決していることを、ルートとサブディレクトリの両方で測る。
-  test.each([
-    ["リポジトリルート", repoRoot],
-    ["サブディレクトリ", join(repoRoot, "docs")],
-    ["深いサブディレクトリ", join(repoRoot, "skills/pr-finalize-loop/scripts")],
-  ])(`${name}: --config 無しでも %s から同じ層を読む`, (_where, cwd) => {
-    const r = run(script, { cwd });
+  test.each(["", "0"])(
+    `${name}: SHOJI9X9_SKILLS_IGNORE_USER_CONFIG が 1 以外（%j）なら、設定ファイルが無くても読み取りと同じく exit 2`,
+    (value) => {
+      const s = setup();
+      const r = run(script, {
+        cwd: s.root,
+        env: { ...s.env, PATH: pathWithoutNode(s.base), SHOJI9X9_SKILLS_IGNORE_USER_CONFIG: value },
+      });
+      expect(r.status).toBe(2);
+      expect(r.stdout).toBe("");
+      expect(r.stderr).toContain("SHOJI9X9_SKILLS_IGNORE_USER_CONFIG は 1 だけを受け付ける");
+    },
+  );
+
+  test(`${name}: SHOJI9X9_SKILLS_IGNORE_USER_CONFIG=1 なら人ごとの設定を数えず、Node.js なしでデフォルトを返す`, () => {
+    const s = setup();
+    s.write("user", '{ "review_tool": "codex" }');
+    const env = { ...s.env, PATH: pathWithoutNode(s.base) };
+    expect(run(script, { cwd: s.root, env }).status).toBe(2);
+    const r = run(script, {
+      cwd: s.root,
+      env: { ...env, SHOJI9X9_SKILLS_IGNORE_USER_CONFIG: "1" },
+    });
     expect(r.status, r.stderr).toBe(0);
-    expect(parse(r.stdout).source).toBe("config");
+    expect(parse(r.stdout)).toEqual({ value: "copilot", source: "default" });
   });
 
-  test(`${name}: git の外ではデフォルトとして扱うが、参照したパスを stderr に残す`, () => {
-    const dir = makeTempDir("review-tool-nogit-");
-    try {
-      const r = run(script, { cwd: dir });
+  test(`${name}: HOME が相対パスなら、その下（cwd からの相対パス）の common.jsonc を人ごとの層として数えない`, () => {
+    const s = setup();
+    const p = join(s.root, "rel", ".config", "skills", "shoji9x9", "common.jsonc");
+    mkdirSync(dirname(p), { recursive: true });
+    writeFileSync(p, '{ "review_tool": "codex" }');
+    const env = { ...s.env, PATH: pathWithoutNode(s.base), XDG_CONFIG_HOME: "", HOME: "rel" };
+    const r = run(script, { cwd: s.root, env });
+    expect(r.status, r.stderr).toBe(0);
+    expect(parse(r.stdout)).toEqual({ value: "copilot", source: "default" });
+  });
+
+  test(`${name}: HOME が空でも相対パスでも、設定ファイルが無ければ Node.js なしでデフォルトを返す`, () => {
+    const s = setup();
+    const env = { ...s.env, PATH: pathWithoutNode(s.base), XDG_CONFIG_HOME: "" };
+    for (const HOME of ["", "rel"]) {
+      const r = run(script, { cwd: s.root, env: { ...env, HOME } });
       expect(r.status, r.stderr).toBe(0);
       expect(parse(r.stdout)).toEqual({ value: "copilot", source: "default" });
-      expect(r.stderr).toMatch(/参照: .*skills\.yml/);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
     }
   });
 
-  test(`${name}: 誤検知しないことの確認（実データ）: リポジトリの実設定を解決できる`, () => {
-    const r = run(script, { config: join(repoRoot, ".config/skills/shoji9x9/skills.yml") });
+  test(`${name}: 設定ファイルがあって Node.js が無ければ、デフォルトとして扱わず exit 2 で止まる`, () => {
+    const s = setup();
+    s.write("repo", '{ "review_tool": "codex" }');
+    const PATH = pathWithoutNode(s.base);
+    const r = run(script, { cwd: s.root, env: { ...s.env, PATH } });
+    expect(r.status).toBe(2);
+    expect(r.stdout).toBe("");
+    expect(r.stderr).toMatch(
+      /設定ファイル（.*common\.jsonc）があるのに Node\.js が無いので読めない/,
+    );
+    // --review-tool を渡しても、設定ファイルを検証できないので止まる。案内にも --review-tool を回避策として書かない
+    const cli = run(script, {
+      args: ["--review-tool", "copilot"],
+      cwd: s.root,
+      env: { ...s.env, PATH },
+    });
+    expect(cli.status).toBe(2);
+    expect(cli.stderr).toMatch(
+      /--review-tool を渡しても、設定ファイルを検証するために Node\.js が要る/,
+    );
+  });
+
+  test.each([
+    ["値のある", "codex"],
+    ["空の", ""],
+  ])(
+    `${name}: %s SKILLS_REVIEW_TOOL は、Node.js が無くても移行の手順を示して止まる`,
+    (_label, value) => {
+      const s = setup();
+      for (const env of [s.env, { ...s.env, PATH: pathWithoutNode(s.base) }]) {
+        const r = run(script, { cwd: s.root, env: { ...env, SKILLS_REVIEW_TOOL: value } });
+        expect(r.status).toBe(2);
+        expect(r.stdout).toBe("");
+        expect(r.stderr).toMatch(
+          /旧い場所の設定が残っているので止める[\s\S]*環境変数 SKILLS_REVIEW_TOOL は使わなくなった。値を common\.local\.jsonc/,
+        );
+      }
+    },
+  );
+
+  test(`${name}: この配布元の skills.yml は、移行の手順を示して止まる`, () => {
+    const s = setup();
+    mkdirSync(join(s.root, ".config/skills/shoji9x9"), { recursive: true });
+    writeFileSync(
+      join(s.root, ".config/skills/shoji9x9/skills.yml"),
+      "version: 1\nskills:\n  common:\n    review_tool: codex\n",
+    );
+    const r = run(script, { cwd: s.root, env: s.env });
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/skills\.yml が残っている。skills\.common の節を common\.jsonc に/);
+  });
+
+  test(`${name}: CLI の未知の値は、設定を読まずに exit 2 で止まり、出所を添える`, () => {
+    const s = setup();
+    const r = run(script, { cwd: s.root, env: s.env, args: ["--review-tool", "gemini"] });
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/受理しない review_tool: 'gemini'（出所: cli）/);
+  });
+
+  test.each(["copilot", "claude-code", "codex", "local", "none"])(
+    `${name}: 受理する値 %s を CLI からも設定ファイルからも受け取る`,
+    (value) => {
+      const s = setup();
+      const cli = run(script, { cwd: s.root, env: s.env, args: ["--review-tool", value] });
+      expect(cli.status, cli.stderr).toBe(0);
+      expect(parse(cli.stdout)).toEqual({ value, source: "cli" });
+      s.write("repo", JSON.stringify({ review_tool: value }));
+      const file = run(script, { cwd: s.root, env: s.env });
+      expect(file.status, file.stderr).toBe(0);
+      expect(parse(file.stdout)).toEqual({ value, source: "repo" });
+    },
+  );
+
+  test.each([
+    ["値の無い --review-tool", ["--review-tool"], /--review-tool に値がない/],
+    ["空の --review-tool", ["--review-tool", ""], /--review-tool の値が空/],
+    ["値の無い --root", ["--root"], /--root に値がない/],
+    ["空の --root", ["--root", ""], /--root の値が空/],
+    ["不明な引数", ["--config", "x"], /不明な引数: --config/],
+  ])(`${name}: %s は下の層へ進まず exit 64`, (_label, args, want) => {
+    const s = setup();
+    const r = run(script, { cwd: s.root, env: s.env, args });
+    expect(r.status).toBe(64);
+    expect(r.stderr).toMatch(want);
+  });
+
+  test(`${name}: --help は usage を出して exit 0`, () => {
+    const s = setup();
+    const r = run(script, { cwd: s.root, env: s.env, args: ["--help"] });
     expect(r.status).toBe(0);
+    expect(r.stderr).toMatch(/usage: resolve-review-tool\.sh/);
+  });
+
+  test(`${name}: --root で渡したリポジトリの設定を読む`, () => {
+    const s = setup();
+    s.write("repo", '{ "review_tool": "none" }');
+    const r = run(script, { cwd: s.base, env: s.env, args: ["--root", s.root] });
+    expect(r.status, r.stderr).toBe(0);
+    expect(parse(r.stdout)).toEqual({ value: "none", source: "repo" });
+  });
+
+  // cwd からの相対で探すと、サブディレクトリから起動しただけでファイルの層が警告なしに飛ばされ、
+  // `source=default` を正しい結果として報告する。リポジトリのルートを基準にしていることを測る。
+  test(`${name}: サブディレクトリから起動しても、リポジトリのルートの設定を読む`, () => {
+    const s = setup();
+    s.write("repo", '{ "review_tool": "codex" }');
+    const sub = join(s.root, "a/b");
+    mkdirSync(sub, { recursive: true });
+    const r = run(script, { cwd: sub, env: s.env });
+    expect(r.status, r.stderr).toBe(0);
+    expect(parse(r.stdout)).toEqual({ value: "codex", source: "repo" });
+  });
+
+  test(`${name}: git の外ではデフォルトとして扱うが、参照したパスを stderr に残す`, () => {
+    const s = setup();
+    const outside = join(s.base, "outside");
+    mkdirSync(outside);
+    const r = run(script, { cwd: outside, env: s.env });
+    expect(r.status, r.stderr).toBe(0);
+    expect(parse(r.stdout)).toEqual({ value: "copilot", source: "default" });
+    expect(r.stderr).toMatch(/参照: .*outside\/\.config\/skills\/shoji9x9\/common\.jsonc/);
+  });
+
+  test(`${name}: 誤検知しないことの確認（実リポジトリ）: リポジトリの実設定を解決できる`, () => {
+    // 実リポジトリの common.jsonc を一時リポジトリへコピーして読む。リポジトリのルートで実行すると、
+    // 開発者の手元の common.local.jsonc（gitignore される人ごと・リポジトリ限定の層）が先に読まれ、結果が人によって変わる。
+    const s = setup();
+    s.write("repo", readFileSync(join(repoRoot, ".config/skills/shoji9x9/common.jsonc"), "utf8"));
+    const r = run(script, { cwd: s.root, env: s.env });
+    expect(r.status, r.stderr).toBe(0);
     const out = parse(r.stdout);
-    expect(out.source).toBe("config");
+    expect(out.source).toBe("repo");
     expect(["copilot", "claude-code", "codex", "local", "none"]).toContain(out.value);
   });
 }
 
 test("2 スキルの同梱コピーは同一内容（配布境界をまたいで drift させない）", () => {
-  const [a, b] = SCRIPTS.map(
-    (s) =>
-      spawnSync("cat", [join(repoRoot, s)], { timeout: CHILD_TIMEOUT_MS, encoding: "utf8" }).stdout,
-  );
+  const [a, b] = SCRIPTS.map((s) => readFileSync(join(repoRoot, s), "utf8"));
   expect(a).toBe(b);
   expect(a.length).toBeGreaterThan(0);
 });

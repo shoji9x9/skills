@@ -21,10 +21,10 @@
 #     `references/extract.md` の取り決めで優先度が上がる。low のままなら「再発していない」根拠になる。
 #   - `date` から閾値の日数以上が過ぎている（日付を読めないノートは対象外で、忘れない）
 #
-# 設定は `.kaizen/config` の `KEY=VALUE` で書く。デフォルトの値はこのスクリプトが持つ。
-#   forget_auto=on|off              --auto の有効・無効（デフォルトは on）。
-#   forget_after_days=<整数>        記録からこの日数が過ぎたら候補にする（デフォルトは 30）。
-#   forget_max_priority=low|medium|high  この優先度までを候補にする（デフォルトは medium）。
+# 設定は kaizen の設定ファイル（`.config/skills/shoji9x9/kaizen.jsonc`。references/config-files.md）に書く。
+#   forget_auto: true|false              --auto の有効・無効（デフォルトは true）。
+#   forget_after_days: <整数>            記録からこの日数が過ぎたら候補にする（デフォルトは 30）。
+#   forget_max_priority: low|medium|high この優先度までを候補にする（デフォルトは medium）。
 #
 # 詳細手順は references/housekeeping.md を参照。
 set -euo pipefail
@@ -80,30 +80,24 @@ frontmatter_field() { # $1: ノート $2: キー
 	' "$1" 2>/dev/null || true
 }
 
-config_value() { # $1: キー名
-	declare -f kaizen_config_value >/dev/null 2>&1 || return 1
-	kaizen_config_value "$1"
-}
-
 # --- 設定の解決 -------------------------------------------------------------
 #
-# 不正な値はデフォルトの値として扱い、そのことを stderr に出す（出さないと、設定したつもりの閾値で
-# 動いていると読めてしまう。kaizen-precommit-gate.sh の resolve_retention_days と同じ方針）。
+# 値はスキーマ（config-schemas/kaizen.schema.json）で検証済みのものを受け取る。設定を読めないとき
+# （不正な値・旧い場所の設定・node が無いのに設定ファイルがある）は、デフォルトの値で忘却せずに止める。
+# 「消える側」の操作なので、設定したつもりの閾値と違う値で忘れることを避ける。
+# 共通ライブラリを読めないときだけは、設定を読まずにデフォルトの値を使う（機能を減らして動く）。
 forget_auto=on
-if raw=$(config_value forget_auto); then
-	case "${raw}" in
-	on | off) forget_auto=${raw} ;;
-	*) printf 'kaizen-forget: .kaizen/config の forget_auto が不正です（%q）。既定の %s を使います。\n' "${raw:0:40}" "${forget_auto}" >&2 ;;
-	esac
-fi
-
 forget_after_days=30
-if raw=$(config_value forget_after_days); then
-	if [[ "${raw}" =~ ^[0-9]{1,6}$ ]]; then
-		forget_after_days=$((10#${raw}))
-	else
-		printf 'kaizen-forget: .kaizen/config の forget_after_days が不正です（%q）。既定の %s 日を使います。\n' "${raw:0:40}" "${forget_after_days}" >&2
+forget_max_priority=medium
+if declare -f kaizen_config_load >/dev/null 2>&1; then
+	if ! kaizen_config_load; then
+		printf 'kaizen-forget: %s\n' "${kaizen_config_error:-}" >&2
+		echo "kaizen-forget: kaizen の設定を読めないので、忘却しません（設定を直してから実行し直す）。" >&2
+		exit 1
 	fi
+	raw=$(kaizen_config_value forget_auto) && { [ "${raw}" = false ] && forget_auto=off || forget_auto=on; }
+	raw=$(kaizen_config_value forget_after_days) && forget_after_days=$((10#${raw}))
+	raw=$(kaizen_config_value forget_max_priority) && forget_max_priority=${raw}
 fi
 
 # priority の順位。数が大きいほど低い優先度（kaizen-context-inject.sh の rank と揃える）。
@@ -119,16 +113,7 @@ priority_rank() { # $1: priority
 	esac
 }
 
-forget_max_priority=medium
-forget_max_rank=1
-if raw=$(config_value forget_max_priority); then
-	if rank=$(priority_rank "${raw}"); then
-		forget_max_rank=${rank}
-		forget_max_priority=${raw}
-	else
-		printf 'kaizen-forget: .kaizen/config の forget_max_priority が不正です（%q）。既定の %s を使います。\n' "${raw:0:40}" "${forget_max_priority}" >&2
-	fi
-fi
+forget_max_rank=$(priority_rank "${forget_max_priority}")
 
 # --- 候補判定 ---------------------------------------------------------------
 today_days=""
@@ -290,7 +275,7 @@ list)
 	;;
 auto)
 	if [ "${forget_auto}" = "off" ]; then
-		echo "kaizen-forget: 自動忘却は無効です（.kaizen/config の forget_auto=off）" >&2
+		echo "kaizen-forget: 自動忘却は無効です（kaizen.jsonc の forget_auto: false）" >&2
 		exit 0
 	fi
 	require_today_days || exit 1

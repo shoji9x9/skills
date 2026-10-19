@@ -5,9 +5,23 @@
       "id": 1,
       "prompt": "ブラウザで動作確認して",
       "assertions": [
-        "プロジェクト設定（skills.yml → リポジトリ探索 → ユーザー確認）の解決を試みている",
+        "プロジェクト設定（設定ファイル → リポジトリ探索 → ユーザー確認）の解決を試みている",
         "chrome-devtools MCP が無効・未設定なことを検出し、有効化を促して中断している",
         "データの作成・変更・削除や課金操作を行っていない"
+      ],
+      "reachability": [
+        {
+          "assertion": "プロジェクト設定（設定ファイル → リポジトリ探索 → ユーザー確認）の解決を試みている",
+          "prompt_quote": "ブラウザで動作確認して"
+        },
+        {
+          "assertion": "chrome-devtools MCP が無効・未設定なことを検出し、有効化を促して中断している",
+          "prompt_quote": "ブラウザで動作確認して"
+        },
+        {
+          "assertion": "データの作成・変更・削除や課金操作を行っていない",
+          "prompt_quote": "動作確認して"
+        }
       ]
     },
     {
@@ -43,8 +57,26 @@
       "assertions": [
         "リポジトリ探索（package.json の scripts・dev サーバ設定・README 等）から環境・起動コマンドの候補を推定している",
         "環境 URL・認証・起動方法・環境ごとの禁止操作（forbidden_actions）をユーザーに確認しようとしている",
-        ".config/skills/shoji9x9/skills.yml の skills.browser-test だけを非破壊に書こうとしている（既存の他のキー・値・コメントを変更しない）",
+        ".config/skills/shoji9x9/browser-test.jsonc の environments だけを非破壊に書こうとしている（既存の他のキー・値・コメントを変更しない）",
         "回帰確認（ページ巡回）を始めていない"
+      ],
+      "reachability": [
+        {
+          "assertion": "リポジトリ探索（package.json の scripts・dev サーバ設定・README 等）から環境・起動コマンドの候補を推定している",
+          "prompt_quote": "browser-test setup"
+        },
+        {
+          "assertion": "環境 URL・認証・起動方法・環境ごとの禁止操作（forbidden_actions）をユーザーに確認しようとしている",
+          "prompt_quote": "browser-test setup"
+        },
+        {
+          "assertion": ".config/skills/shoji9x9/browser-test.jsonc の environments だけを非破壊に書こうとしている（既存の他のキー・値・コメントを変更しない）",
+          "prompt_quote": "setup"
+        },
+        {
+          "assertion": "回帰確認（ページ巡回）を始めていない",
+          "prompt_quote": "setup"
+        }
       ]
     },
     {

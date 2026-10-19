@@ -41,6 +41,11 @@ export function violationOf(path: string, privateSkills: readonly string[]): str
   const upper = (allowed: readonly string[]) =>
     allowed.find((a) => lower.endsWith(a) && !path.endsWith(a));
   if (parts[0] === "skills") {
+    // 同梱した jsonc-parser の型（vendor/jsonc-parser.d.mts）だけは .mts を許す。
+    // TypeScript は `./vendor/jsonc-parser.mjs` の import の型を隣の .d.mts から読む（.d.ts は .mjs の型として読まない）。
+    // 生成物なので、check-skill-config-vendor.ts が原本との一致を確かめる。
+    if (/^skills\/[^/]+\/scripts\/skill-config\/vendor\/jsonc-parser\.d\.mts$/.test(path))
+      return null;
     const bad = ext(DISTRIBUTED_BANNED);
     if (bad) return `skills/ では ${bad} を使わない（配布物 → .mjs にする）`;
     // 置き場所の規約を先に見る。大文字の拡張子を小文字に直すよう案内しても、置けない場所なら直した後に別の違反になる。

@@ -1,0 +1,157 @@
+{
+  "metadata": {
+    "skill_name": "parity-diff",
+    "skill_path": "<repo>/skills/parity-diff",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-18T13:06:24Z",
+    "evals_run": [12],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 12,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 31.703,
+        "tokens": 190917,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定ファイル（replace-strategy.jsonc）の最上位に component_diff_exceptions が残っていることを旧キーとして検出している",
+          "passed": true,
+          "evidence": "replace-strategy.jsonc の「一番外側の階層に component_diff_exceptions」を古い形式のキーとして検出"
+        },
+        {
+          "text": "旧キーをフォールバックとして読まず（値で暗黙に代替せず）差分検出へ進まずに停止している",
+          "passed": true,
+          "evidence": "「代わりに読むことも自動で移すこともせず、移行を案内して止まる」"
+        },
+        {
+          "text": "移行先が .replace/parity/order-list/component-diff-exceptions.json であることと、移行手順の原本が replace-strategy の references/project-config.md「移行」であることを示している",
+          "passed": true,
+          "evidence": "移行先 component-diff-exceptions.json と「正式な手順書は replace-strategy の references/project-config.md『移行』」"
+        },
+        {
+          "text": "3 インスタンスに複製されている同一原因の reason を component_diff_exception_causes の 1 件へ畳み、各インスタンスは cause で参照する形へ移すと示している",
+          "passed": true,
+          "evidence": "「原因は component_diff_exception_causes[] に 1 件だけ定義し、各インスタンスからは cause で参照」"
+        },
+        {
+          "text": "インスタンスは 3 件のまま残す（件数を畳まない・ワイルドカードで 1 エントリにまとめない）と示している",
+          "passed": true,
+          "evidence": "各インスタンスが cause で参照する形を示し、件数を畳む・ワイルドカード化の案は無い"
+        },
+        {
+          "text": "設定ファイルを自動で書き換えて移行を代行していない（対応表を示して停止している）",
+          "passed": true,
+          "evidence": "「設定の自動移行…はしていません」、移行は「実施は人が判断してください」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 12,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.1667,
+        "passed": 1,
+        "failed": 5,
+        "total": 6,
+        "time_seconds": 43.493,
+        "tokens": 97368,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定ファイル（replace-strategy.jsonc）の最上位に component_diff_exceptions が残っていることを旧キーとして検出している",
+          "passed": false,
+          "evidence": "component_diff_exceptions を有効な例外として範囲を検討しており、旧キーとして検出していない"
+        },
+        {
+          "text": "旧キーをフォールバックとして読まず（値で暗黙に代替せず）差分検出へ進まずに停止している",
+          "passed": false,
+          "evidence": "停止理由は e2e/・new-app・ベースラインの欠如で、旧キーを有効な宣言として読んでいる"
+        },
+        {
+          "text": "移行先が .replace/parity/order-list/component-diff-exceptions.json であることと、移行手順の原本が replace-strategy の references/project-config.md「移行」であることを示している",
+          "passed": false,
+          "evidence": "移行先 component-diff-exceptions.json と project-config.md「移行」への言及が無い"
+        },
+        {
+          "text": "3 インスタンスに複製されている同一原因の reason を component_diff_exception_causes の 1 件へ畳み、各インスタンスは cause で参照する形へ移すと示している",
+          "passed": false,
+          "evidence": "component_diff_exception_causes や cause への言及が無い"
+        },
+        {
+          "text": "インスタンスは 3 件のまま残す（件数を畳まない・ワイルドカードで 1 エントリにまとめない）と示している",
+          "passed": false,
+          "evidence": "インスタンスの件数の扱いに触れず、header だけに絞ることを勧めている"
+        },
+        {
+          "text": "設定ファイルを自動で書き換えて移行を代行していない（対応表を示して停止している）",
+          "passed": true,
+          "evidence": "「ファイルの作成・変更…は一切していません」"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 31.703,
+        "stddev": 0,
+        "min": 31.703,
+        "max": 31.703
+      },
+      "tokens": {
+        "mean": 190917,
+        "stddev": 0,
+        "min": 190917,
+        "max": 190917
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.1667,
+        "stddev": 0,
+        "min": 0.1667,
+        "max": 0.1667
+      },
+      "time_seconds": {
+        "mean": 43.493,
+        "stddev": 0,
+        "min": 43.493,
+        "max": 43.493
+      },
+      "tokens": {
+        "mean": 97368,
+        "stddev": 0,
+        "min": 97368,
+        "max": 97368
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.83",
+      "time_seconds": "-11.8",
+      "tokens": "+93549"
+    }
+  },
+  "notes": []
+}

@@ -31,6 +31,7 @@ agent-usage status
 ## 前提
 
 - ツール: `git`、Node.js（22 以上）、`bash`（Hook のスクリプト）
+- 設定: `agent-usage.jsonc`（リポジトリ・`.local.jsonc`・人ごとの 3 つの層）。同梱の `scripts/skill-config/skill-config.mjs` で読み書きする。置き場所・解決の順序・書き込みの決まりは [`references/config-files.md`](references/config-files.md) にある
 - GitHub の情報（CI・レビュー・自分の操作）を取るときだけ `gh`（GitHub CLI）。リポジトリの読み取りの権限で足りる。`gh` が無いか失敗したら、その期間の停止を「判定不能」として記録し、collect は続ける。失敗した段は collect の出力に「GitHub の取得に失敗」として出る。
   GitHub を取得するのは、origin が `<ホスト>/<owner>/<name>` の形のときだけである。
   ホストは、github.com・`GH_HOST`・`gh auth login --hostname <ホスト>` でログインしたホストのどれかに限る。
@@ -53,7 +54,7 @@ Hook（PreToolUse）が、デフォルトブランチ以外の `git commit` を�
 利用者に確かめられない実行（無人の実行）では、どちらも選ばずに止まり、理由を報告する。記録しない側を勝手に選ばない。
 
 無人の実行のように、ブランチを作るたびに確かめられない使い方では、利用者が前もって `defaultDecision`（`record` か `decline`）を設定に置く。
-判断の無いブランチでは、Hook は止めずにその値に従う。置き場所は、人の設定とリポジトリの `.agent-usage/config.json` で、両方にあれば人の設定を使う（[`references/setup.md`](references/setup.md)）。
+判断の無いブランチでは、Hook は止めずにその値に従う。置き場所は `agent-usage.jsonc`（人ごと・`.local.jsonc`・リポジトリのどの層にも置ける）で、`.local.jsonc`・人ごと・リポジトリの順に最初の値を使う（[`references/setup.md`](references/setup.md)）。
 人の設定（setup が作る人の ID）が無い人のコミットは、リポジトリの設定に値があっても止めて setup を求める。Hook は人の ID を作らない。
 エージェントがこの値を自分で書き足さない。
 
@@ -90,4 +91,4 @@ PR のレビューの費用（自分の GitHub Actions で実行するレビュ�
 - 費用は API の料金に換算した推定で、サブスクリプションの請求額とは一致しない
 - Claude Code は、デフォルトで 30 日を過ぎたローカルのログを消す。間が空くと記録が欠けるので、長く作業しないときは手動で `collect` する
 - 2 つのブランチで同じ日に `report` を実行すると、merge で `report/<yyyyMMdd>/` が競合する。merge した後の `records/` で `report` を実行し直して解消する
-- 記録に残るのは人の ID（ランダムな値）だけである。表示名は、各自が任意で `.agent-usage/config.json` の `people` に書く
+- 記録に残るのは人の ID（ランダムな値）だけである。表示名は、各自が任意でリポジトリの設定（`.config/skills/shoji9x9/agent-usage.jsonc`）の `people` に書く

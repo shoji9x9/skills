@@ -9,7 +9,7 @@
 // レジストリの探し方（.mjs と .js）は render-diagram-registry.test.ts が確かめる。
 
 import { expect, test } from "vitest";
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import {
   copyFileSync,
   existsSync,
@@ -52,18 +52,30 @@ function diagramDir(envs: string): string {
   return dir;
 }
 
-function render(dir: string, args: string[], env: Record<string, string> = {}) {
-  const result = spawnSync(process.execPath, [renderScript, ...args], {
-    env: {
-      ...process.env,
-      DIAGRAM_DIR: dir,
-      DIAGRAM_ICON_DIR: starterIcons,
-      DIAGRAM_OUT_DIR: join(dir, "out"),
-      ...env,
+/** 場所は CLI のオプションで渡す。extra は後ろに付けるので、同じオプションを上書きする。 */
+function render(dir: string, args: string[], extra: string[] = []) {
+  const cwd = makeTempDir("diagram-cli-cwd-");
+  const result = spawnSync(
+    process.execPath,
+    [
+      renderScript,
+      ...args,
+      "--dir",
+      dir,
+      "--icon-dir",
+      starterIcons,
+      "--out-dir",
+      join(dir, "out"),
+      ...extra,
+    ],
+    {
+      // 手元の設定ファイルを読まないよう、git の外の一時ディレクトリで実行し、人ごとの設定の置き場所も一時ディレクトリにする
+      cwd,
+      env: { ...process.env, XDG_CONFIG_HOME: join(cwd, "xdg") },
+      encoding: "utf8",
+      timeout: CHILD_TIMEOUT_MS,
     },
-    encoding: "utf8",
-    timeout: CHILD_TIMEOUT_MS,
-  });
+  );
   if (result.error) throw result.error;
   return result;
 }
@@ -178,10 +190,11 @@ test("同梱の見本は、spec から生成した図が commit してある SVG
   for (const id of ["api-gateway", "lambda", "dynamodb"]) {
     writeFileSync(join(icons, "aws-icons", `${id}.svg`), '<svg viewBox="0 0 64 64"><rect/></svg>');
   }
-  const { status, stderr } = render(sampleDir, [], {
-    DIAGRAM_ICON_DIR: icons,
-    DIAGRAM_OUT_DIR: join(work, "out"),
-  });
+  const { status, stderr } = render(
+    sampleDir,
+    [],
+    ["--icon-dir", icons, "--out-dir", join(work, "out")],
+  );
   expect(stderr).toBe("");
   expect(status).toBe(0);
   expect(readdirSync(join(work, "out"))).toEqual(["architecture-prod.svg"]);
@@ -195,4 +208,50 @@ test("同梱の見本は、spec から生成した図が commit してある SVG
   // アイコンが 4 つ（browser と AWS の 3 つ）埋め込まれていることを先に確かめ、置き換えが当たっていることを示す。
   expect(committed.match(/<icon /g)).toHaveLength(4);
   expect(generated).toBe(committed);
+});
+
+test("リポジトリの設定の diagram_dir・icon_dir・out_dir を、リポジトリのルートからの相対パスとして読む", () => {
+  const repo = makeTempDir("diagram-config-");
+  execFileSync("git", ["init", "-q"], { cwd: repo, timeout: CHILD_TIMEOUT_MS });
+  const dir = join(repo, "docs", "diagrams");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "package.json"), JSON.stringify({ type: "module" }));
+  writeFileSync(join(dir, "environments.mjs"), registry(`{ prod: { title: "P" } }`));
+  mkdirSync(join(repo, ".config", "skills", "shoji9x9"), { recursive: true });
+  writeFileSync(
+    join(repo, ".config", "skills", "shoji9x9", "aws-architecture-diagram.jsonc"),
+    JSON.stringify({
+      diagram_dir: "docs/diagrams",
+      icon_dir: starterIcons,
+      out_dir: "build/diagrams",
+    }),
+  );
+  // サブディレクトリから実行しても、リポジトリのルートを基準に読む
+  const sub = join(repo, "src");
+  mkdirSync(sub);
+  const r = spawnSync(process.execPath, [renderScript], {
+    cwd: sub,
+    env: { ...process.env, XDG_CONFIG_HOME: join(repo, "xdg") },
+    encoding: "utf8",
+    timeout: CHILD_TIMEOUT_MS,
+  });
+  expect(r.stderr).toBe("");
+  expect(r.status).toBe(0);
+  expect(readdirSync(join(repo, "build", "diagrams"))).toEqual(["architecture-prod.svg"]);
+});
+
+test("使わなくなった環境変数 DIAGRAM_DIR が残っていれば、移行の手順を示して 1 で止める", () => {
+  const dir = diagramDir(threeEnvs);
+  const { status, stderr } = render(dir, [], []);
+  expect(status).toBe(0);
+  const cwd = makeTempDir("diagram-cli-cwd-");
+  const r = spawnSync(process.execPath, [renderScript, "--dir", dir], {
+    cwd,
+    env: { ...process.env, XDG_CONFIG_HOME: join(cwd, "xdg"), DIAGRAM_DIR: dir },
+    encoding: "utf8",
+    timeout: CHILD_TIMEOUT_MS,
+  });
+  expect(stderr).toBe("");
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain("環境変数 DIAGRAM_DIR は使わなくなった。");
 });

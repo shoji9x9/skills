@@ -50,7 +50,12 @@ Claude Code には、ファイルを運ぶ方法が 2 つある。`.worktreeincl
 .env
 .env.local
 config/secrets.local.json
+.config/skills/shoji9x9/*.local.jsonc
 ```
+
+shoji9x9/skills の配布スキルの人ごと・リポジトリ限定の設定（`.config/skills/shoji9x9/*.local.jsonc`）も、gitignore されるので運ぶ対象になる。
+運ばないと、worktree の中ではその設定が無いので、リポジトリの層の値が警告なしに使われる（例: このリポジトリでだけ自分が変えたレビューツール）。
+手で運ぶ場合（`carry_in.method: manual`）も、`carry_in.files` に入れる。
 
 ## `worktree.symlinkDirectories`（リンク）
 

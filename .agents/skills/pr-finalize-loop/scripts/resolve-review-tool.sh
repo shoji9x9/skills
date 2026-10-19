@@ -1,69 +1,62 @@
 #!/usr/bin/env bash
 # review_tool の値を決定論的に決め、値と**出所の層**を出力する。
 #
-# なぜ要るか: 決める順序（CLI → 環境変数 → 共有 YAML → デフォルト）を人が頭の中でたどると、
-# 原本を読む前に環境変数名を推測して「未設定」と判定し、別のツールへ 3 回依頼したことがある。
-# このスクリプトは原本（references/review-tool.md）の順序をそのまま実行し、**どの層から来た値か**を
-# 表示する。利用者はそれを見てから値を使う。
+# なぜ要るか: 決める順序（references/review-tool.md「設定の解決」）を人が頭の中でたどると、
+# 原本を読む前に設定の名前を推測して「未設定」と判定し、別のツールへ 3 回依頼したことがある。
+# このスキルは順序をそのまま実行し、**どの層から来た値か**を表示する。利用者はそれを見てから値を使う。
 #
 # 使い方:
-#   resolve-review-tool.sh [--review-tool <tool>] [--config <path>]
+#   resolve-review-tool.sh [--review-tool <tool>] [--root <dir>]
 #
-# `--config` を省いたときの共有設定のパスは、cwd ではなく `git rev-parse --show-toplevel` を基準に
-# 決める（どこから起動しても同じ層を読む）。
+# 層は CLI → common.local.jsonc → 人ごとの common.jsonc → common.jsonc → デフォルト copilot の順で、
+# ファイルの層の読み取りと検証は同梱の skill-config.mjs（Node.js）に任せる。
+# `--root` を省いたときのリポジトリのルートは、cwd ではなく `git rev-parse --show-toplevel` で決める
+# （どこから起動しても同じ層を読む）。git の外なら cwd を使う。
+#
+# 設定ファイルが 1 つも無ければ、Node.js なしで決める（CLI の値か、デフォルト）。
+# 設定ファイルがあって Node.js が無ければ、書いた設定を警告なしに無視しないように止まる。
 #
 # 出力（key=value の 2 行。パースして使う）:
 #   value=<copilot|claude-code|codex|local|none>
-#   source=<cli|env|config|default>
+#   source=<cli|local|user|repo|default>
 #
-# 終了コード: 0=値を決められた / 2=受理しない値（警告なしにデフォルトとして扱わず、止まる） / 64=引数が不正。
+# 終了コード: 0=値を決められた / 2=決められない（受け付けない値・設定の誤り・旧い場所の設定・Node.js が無い）/
+# 64=引数が不正。
 set -euo pipefail
 
 ACCEPTED="copilot claude-code codex local none"
 DEFAULT_TOOL="copilot"
-# 共有設定のデフォルトのパスは、**リポジトリルートを基準**に決める。cwd からの相対パスのままだと、
-# サブディレクトリから起動しただけで config 層が警告なしに飛ばされ、`source=default` を
-# 正しい結果として報告してしまう（このスクリプトが防ぐはずの誤った報告そのもの）。
-CONFIG_REL=".config/skills/shoji9x9/skills.yml"
-config_path=""
-config_explicit=""
+NAMESPACE="shoji9x9"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+READER="${SCRIPT_DIR}/skill-config/skill-config.mjs"
+root=""
 cli_value=""
+cli_given=""
 
 usage() {
-	echo "usage: resolve-review-tool.sh [--review-tool <tool>] [--config <path>]" >&2
+	echo "usage: resolve-review-tool.sh [--review-tool <tool>] [--root <dir>]" >&2
 }
 
 while [ "$#" -gt 0 ]; do
 	case "$1" in
-	--review-tool)
+	--review-tool | --root)
 		[ "$#" -ge 2 ] || {
-			echo "error: --review-tool に値がない" >&2
+			echo "error: $1 に値がない" >&2
 			usage
 			exit 64
 		}
-		# 空文字は「未指定」と同じに扱われ、CLI の指定が警告なしに下の層（env / config）の値になる。
-		# 指定したつもりの層と報告される層がずれるので、ここでエラーにする。
+		# 空文字を「未指定」と同じに扱うと、指定したつもりの層と報告される層がずれる。ここでエラーにする。
 		[ -n "$2" ] || {
-			echo "error: --review-tool の値が空" >&2
+			echo "error: $1 の値が空" >&2
 			usage
 			exit 64
 		}
-		cli_value="$2"
-		shift 2
-		;;
-	--config)
-		[ "$#" -ge 2 ] || {
-			echo "error: --config に値がない" >&2
-			usage
-			exit 64
-		}
-		[ -n "$2" ] || {
-			echo "error: --config の値が空" >&2
-			usage
-			exit 64
-		}
-		config_path="$2"
-		config_explicit="1"
+		if [ "$1" = "--review-tool" ]; then
+			cli_value="$2"
+			cli_given="1"
+		else
+			root="$2"
+		fi
 		shift 2
 		;;
 	-h | --help)
@@ -78,18 +71,6 @@ while [ "$#" -gt 0 ]; do
 	esac
 done
 
-# --config が無ければ、リポジトリルートを基準にしたデフォルトのパスを使う。git の外なら cwd からの相対パスにする。
-# 判定には「--config が渡されたか」を使う。空文字は上でエラーにしてあるが、
-# 値が空かどうかで分けると、`--config ""` のような入力が警告なしにデフォルトとして扱われる形に戻りやすい。
-if [ -z "${config_explicit}" ]; then
-	repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
-	if [ -n "${repo_root}" ]; then
-		config_path="${repo_root}/${CONFIG_REL}"
-	else
-		config_path="${CONFIG_REL}"
-	fi
-fi
-
 is_accepted() {
 	local candidate="$1" accepted
 	for accepted in ${ACCEPTED}; do
@@ -98,76 +79,113 @@ is_accepted() {
 	return 1
 }
 
-# skills.common.review_tool を読む。インデントで階層を追い、行末コメントと引用符を落とす。
-# 深さを見ずに `review_tool:` を拾うと、別セクションの同名キーを掴む。
-read_config() {
-	[ -f "${config_path}" ] || return 1
-	awk '
-		function strip(v) {
-			sub(/#.*/, "", v)
-			gsub(/^[ \t]+|[ \t]+$/, "", v)
-			gsub(/^["'"'"']|["'"'"']$/, "", v)
-			return v
-		}
-		{
-			line = $0
-			sub(/\r$/, "", line)
-			if (line ~ /^[ \t]*(#|$)/) next
-			match(line, /^[ \t]*/)
-			indent = RLENGTH
-			key = line
-			sub(/^[ \t]*/, "", key)
-			sub(/:.*$/, "", key)
-			rest = line
-			sub(/^[^:]*:/, "", rest)
+if [ -z "${root}" ]; then
+	root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+fi
 
-			if (indent == 0) { in_skills = (key == "skills"); in_common = 0; next }
-			if (!in_skills) next
-			if (key == "common") { in_common = 1; common_indent = indent; next }
-			if (in_common && indent <= common_indent) { in_common = 0 }
-			if (in_common && key == "review_tool") { print strip(rest); exit }
-		}
-	' "${config_path}"
-}
+if [ -n "${cli_given}" ] && ! is_accepted "${cli_value}"; then
+	echo "error: 受理しない review_tool: '${cli_value}'（出所: cli）。受理するのは ${ACCEPTED}" >&2
+	exit 2
+fi
 
+# 旧い場所の設定は、Node.js が無くても検出する（読み取りも同じものを検出するが、Node.js が無いと届かない）。
+legacy=""
+if [ "${SKILLS_REVIEW_TOOL+set}" = "set" ]; then
+	legacy="${legacy}
+- 環境変数 SKILLS_REVIEW_TOOL は使わなくなった。値を common.local.jsonc（このリポジトリの自分だけ）か人ごとの common.jsonc（自分のすべてのリポジトリ）の review_tool に移し、環境変数を .env などから消す。1 回だけ変えるなら、--review-tool で渡す"
+fi
+yml="${root}/.config/skills/shoji9x9/skills.yml"
+if [ -e "${yml}" ]; then
+	legacy="${legacy}
+- ${yml} が残っている。skills.common の節を common.jsonc に、skills.<スキル名> の節を <スキル名>.jsonc に移し、skills.yml を消す"
+fi
+if [ -n "${legacy}" ]; then
+	echo "error: 旧い場所の設定が残っているので止める（references/config-files.md「移行」）。${legacy}" >&2
+	exit 2
+fi
+
+case "${XDG_CONFIG_HOME:-}" in
+/*) user_home="${XDG_CONFIG_HOME}" ;;
+*)
+	# HOME が無いか空なら、読み取りと同じく、ユーザーのデータベースのホームを使う
+	home_dir="${HOME:-}"
+	[ -n "${home_dir}" ] || home_dir=$(
+		unset HOME
+		printf '%s' ~
+	)
+	# ユーザーのデータベースにエントリが無いと ~ が展開されずに残るので、空として扱う
+	[ "${home_dir}" != "~" ] || home_dir=""
+	user_home="${home_dir:+${home_dir}/}.config"
+	;;
+esac
+# 人ごとの層を読まない指定は、読み取りと同じく 1 だけを受け付ける。設定ファイルが無いときも同じ結果にするため、ここでも確かめる
+user_file="${user_home}/skills/${NAMESPACE}/common.jsonc"
+if [ "${SHOJI9X9_SKILLS_IGNORE_USER_CONFIG+set}" = "set" ]; then
+	if [ "${SHOJI9X9_SKILLS_IGNORE_USER_CONFIG}" != "1" ]; then
+		printf 'error: 環境変数 SHOJI9X9_SKILLS_IGNORE_USER_CONFIG は 1 だけを受け付ける（%q）。人ごとの層を読むなら変数を消す\n' "${SHOJI9X9_SKILLS_IGNORE_USER_CONFIG}" >&2
+		exit 2
+	fi
+	user_file=""
+fi
+# 人ごとの層の置き場所が絶対パスに決まらなければ、読み取りと同じく人ごとの層を読まない（リポジトリのファイルと同じパスを指しうる）
+case "${user_home}" in
+/*) ;;
+*) user_file="" ;;
+esac
+present=""
+for f in \
+	"${root}/.config/skills/${NAMESPACE}/common.local.jsonc" \
+	"${user_file}" \
+	"${root}/.config/skills/${NAMESPACE}/common.jsonc"; do
+	[ -n "${f}" ] && [ -e "${f}" ] && present="${present} ${f}"
+done
+
+if [ -z "${present}" ]; then
+	if [ -n "${cli_given}" ]; then
+		echo "value=${cli_value}"
+		echo "source=cli"
+		exit 0
+	fi
+	# デフォルトを使った理由と参照先を必ず残す。残さないと、ルートを取り違えたときも source=default を正しい結果として報告する。
+	echo "note: common の設定ファイルが無いため既定を使う（参照: ${root}/.config/skills/${NAMESPACE}/common.jsonc ほか）" >&2
+	echo "value=${DEFAULT_TOOL}"
+	echo "source=default"
+	exit 0
+fi
+
+# --review-tool を渡したときも止める。設定ファイルの誤り（知らないキー・置けない層）を、CLI の値で隠さないため
+if ! command -v node >/dev/null 2>&1; then
+	echo "error: 設定ファイル（${present# }）があるのに Node.js が無いので読めない。Node.js を入れる（--review-tool を渡しても、設定ファイルを検証するために Node.js が要る）" >&2
+	exit 2
+fi
+
+args=(get common review_tool --root "${root}")
+[ -n "${cli_given}" ] && args+=(--cli-value "\"${cli_value}\"")
+rc=0
+out="$(node "${READER}" "${args[@]}")" || rc=$?
+if [ "${rc}" -ne 0 ]; then
+	# 読み取りが理由を stderr に出している。exit 3（値が無い）はデフォルトがあるので起きない
+	echo "error: review_tool を決められない（skill-config.mjs の終了コード ${rc}）" >&2
+	exit 2
+fi
 value=""
 source=""
-
-if [ -n "${cli_value}" ]; then
-	value="${cli_value}"
-	source="cli"
-elif [ -n "${SKILLS_REVIEW_TOOL:-}" ]; then
-	value="${SKILLS_REVIEW_TOOL}"
-	source="env"
-else
-	# env が「設定したのに空」のまま次の層へ進むと、指定したつもりの層と報告される層がずれる。
-	# ただし `SKILLS_REVIEW_TOOL= cmd` は env 層を無効にするよく使われる書き方なので、CLI の空の値
-	# （exit 64）とは扱いを分ける。飛ばしたことを出力に残してから、下の層へ進む。
-	if [ "${SKILLS_REVIEW_TOOL+set}" = "set" ]; then
-		echo "note: SKILLS_REVIEW_TOOL が空のため env 層を飛ばす（無効化として扱う）" >&2
-	fi
-	config_value="$(read_config || true)"
-	if [ -n "${config_value}" ]; then
-		value="${config_value}"
-		source="config"
-	else
-		value="${DEFAULT_TOOL}"
-		source="default"
-		# デフォルトを使った理由と参照先を必ず残す。`--config` を指定したときも出す。
-		# パスを渡し間違えたときに出さないと、「ファイルが無い」と「キーが無い」が同じ
-		# `source=default` になり、誤ったパスを警告なしに受け入れることになる。
-		if [ -f "${config_path}" ]; then
-			echo "note: 共有設定に review_tool が無いため既定を使う（参照: ${config_path}）" >&2
-		else
-			echo "note: 共有設定が見つからないため既定を使う（参照: ${config_path}）" >&2
-		fi
-	fi
-fi
+while IFS= read -r line; do
+	case "${line}" in
+	value=*) value="${line#value=}" ;;
+	source=*) source="${line#source=}" ;;
+	esac
+done <<<"${out}"
+# 値は JSON の文字列（"copilot"）なので、引用符を外す。受け付ける値は引用符もエスケープも含まない
+value="${value#\"}"
+value="${value%\"}"
 
 if ! is_accepted "${value}"; then
 	echo "error: 受理しない review_tool: '${value}'（出所: ${source}）。受理するのは ${ACCEPTED}" >&2
 	exit 2
 fi
-
+if [ "${source}" = "default" ]; then
+	echo "note: common の設定ファイルに review_tool が無いため既定を使う（参照: ${present# }）" >&2
+fi
 echo "value=${value}"
 echo "source=${source}"

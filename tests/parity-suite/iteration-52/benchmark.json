@@ -1,0 +1,198 @@
+{
+  "metadata": {
+    "skill_name": "parity-suite",
+    "skill_path": "<repo>/skills/parity-suite",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-18T13:05:56Z",
+    "evals_run": [6, 7, 18, 19],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 18,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 20.473,
+        "tokens": 170760,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "対象 slug（order-list）の必須データ意味論が確認待ちであることを検出し、スイート構築（authoring）へ進まず停止している",
+          "passed": true,
+          "evidence": "応答「order-list のパリティスイートは作成を始めずに停止しました」"
+        },
+        {
+          "text": "確定できていない意味論（orders.status の意味・正常系遷移・初期値）と質問票の該当項目（Q-2）を挙げ、回答が返るまで開始できないと報告している",
+          "passed": true,
+          "evidence": "orders.status の意味・正常系遷移・初期値と Q-2 を表に挙げ、回答を受け取るよう再開条件に記載"
+        },
+        {
+          "text": "推測でシナリオ・状態・期待値を埋めてスイートを書き始めていない（何が正解かが決まっていないため合否判定基準を作れないと述べている）",
+          "passed": true,
+          "evidence": "応答「何が正解なのかが決まっていないので、推測でシナリオを埋めることはしていません」"
+        },
+        {
+          "text": "e2e/ 配下にスペック・ロケータマッピング層・aria スナップショットを生成していない",
+          "passed": true,
+          "evidence": "project-tree に e2e/ が無い"
+        },
+        {
+          "text": "fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）を書き換えていない",
+          "passed": true,
+          "evidence": ".replace/ は fixture と差分なし、Write・Edit の呼び出しも無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 19,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 108.496,
+        "tokens": 282688,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "customer-list の意味論は確定済みであることを確認し、意味論の確認待ちを理由には停止していない（order-list の Q-2 を customer-list の停止理由に持ち込んでいない）",
+          "passed": true,
+          "evidence": "「確認待ち・未確定のものは order-list だけ。customer-list に要る意味論…は確定済み」とし、意味論を停止理由にしていない。"
+        },
+        {
+          "text": "current.origin: received-assets であること自体を停止理由にしていない（受領資産由来の環境でもスイート構築は成立すると扱っている）",
+          "passed": true,
+          "evidence": "received-assets を意味論の確認の条件として扱っただけで、停止理由には挙げていない。"
+        },
+        {
+          "text": "停止する場合の理由が Playwright / Node の不在または現行アプリ（current-test）へ到達できないことであり、その旨を明示している",
+          "passed": true,
+          "evidence": "停止理由の 1・2 に「現行アプリに接続できない（curl exit 7）」「Playwright が使えない」を明示している。"
+        },
+        {
+          "text": "到達できていない現行アプリの挙動を「確認済み」として strength.md / metadata.json に記録していない",
+          "passed": true,
+          "evidence": "「成果物（.replace/parity/customer-list/ 以下）…はまだ何も作っていません」と述べ、project-tree にも strength.md が無い。"
+        },
+        {
+          "text": "fixture の成果物・設定（.replace/ 配下・replace-strategy.jsonc）を書き換えていない",
+          "passed": true,
+          "evidence": "「ファイルの作成・書き換え…は行っていません」と述べ、project-tree の .replace/ と replace-strategy.jsonc は fixture のままである。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 29.577,
+        "tokens": 208882,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".replace/dataset/metadata.json の current.target（current-staging）と選択した target（current-test）が一致しないことを検出している",
+          "passed": true,
+          "evidence": "応答「current.target は current-staging…今回指定された --target は current-test」"
+        },
+        {
+          "text": "「ベースラインとシードの環境不一致」として停止し、ベースライン採取（スクリーンショット・computed style・aria スナップショット）へ進んでいない",
+          "passed": true,
+          "evidence": "「ベースラインとシードの環境が一致しない」を停止理由に挙げ、ベースライン採取に進んでいない"
+        },
+        {
+          "text": "解決策として current-staging を選び直すか current-test へ再シード（golden-dataset フェーズ A）するかを提示している",
+          "passed": true,
+          "evidence": "current-staging で実行し直すか、golden-dataset フェーズ A で current-test に投入し直す 2 案を提示"
+        },
+        {
+          "text": "スイート・ベースライン・.replace/parity/order-list/metadata.json を生成していない（project-files に存在しない）",
+          "passed": true,
+          "evidence": "project-tree に e2e/・.replace/parity/ が無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 35.241,
+        "tokens": 274455,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".replace/dataset/metadata.json の current.target が null であることを理由に「ベースラインとシードの環境不一致」として停止していない",
+          "passed": true,
+          "evidence": "current.target: null を「照合は要りません」とし、不一致を停止理由にしていない"
+        },
+        {
+          "text": "dataset_mode: static ではゴールデンデータが特定環境に紐づかないため current.target の照合を行わない取り決めに触れている",
+          "passed": true,
+          "evidence": "応答「データはリポジトリ内の静的データで…投入先の環境との照合は要りません」"
+        },
+        {
+          "text": "スイート・ベースライン・.replace/parity/works-list/ の成果物を捏造していない（project-files に存在しない）",
+          "passed": true,
+          "evidence": "project-tree に e2e/・.replace/parity/works-list/ が無い"
+        },
+        {
+          "text": "停止する場合はデータセットの target 照合ではなく別の前提（現行アプリへの疎通・Playwright の可否など）が理由であることを明示している",
+          "passed": true,
+          "evidence": "停止理由は current-test が起動していないことと replace-strategy が入っていないことだと明示"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 48.4467,
+        "stddev": 40.4924,
+        "min": 20.473,
+        "max": 108.496
+      },
+      "tokens": {
+        "mean": 234196.25,
+        "stddev": 53656.8909,
+        "min": 170760,
+        "max": 282688
+      }
+    }
+  },
+  "notes": []
+}

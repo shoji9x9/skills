@@ -1,0 +1,223 @@
+{
+  "metadata": {
+    "skill_name": "golden-dataset",
+    "skill_path": "<repo>/skills/golden-dataset",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-18T13:05:55Z",
+    "evals_run": [6, 7, 8, 13],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 13,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 35.652,
+        "tokens": 237767,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "current.origin: received-assets を踏まえ .replace/bootstrap/metadata.json の status: handed-off を確認してからフェーズ A に入っている",
+          "passed": false,
+          "evidence": "status: handed-off は確認したが、replace-strategy が無いことなどを理由に止め、フェーズ A に入っていない"
+        },
+        {
+          "text": "handoff.boot_requirements の起動要件（ADMIN / OPERATOR の app_users、customers 1 件以上）をフェーズ A のデータ設計に含めている（事前削除で暫定起動データが置き換わるため）",
+          "passed": false,
+          "evidence": "ADMIN / OPERATOR 各 1 件と得意先 1 件以上を「設計に含めないと」と述べるが design.md を作っていない"
+        },
+        {
+          "text": "bootstrap/seed.sh の暫定起動データやそのツールを流用・改造せず、dataset_tool_dir（seed/）に本スキルの投入ツールを作る方針を示している",
+          "passed": true,
+          "evidence": "応答「今ある bootstrap/seed.sh は使いません。…seed/ に別のツールを一から作ります」"
+        },
+        {
+          "text": "確認待ちの orders.status の意味・遷移・初期値を推測や一般論で確定させず、確定済みの意味論だけを設計の根拠にしている",
+          "passed": true,
+          "evidence": "orders.status は Q-2 の確認待ちとし「推測で決めず」と述べ、確定済みの情報だけで設計する見込み"
+        },
+        {
+          "text": "確認待ちのため最低限のシナリオを確定できない機能（order-list）を verification.md の「意味論が未確定の機能」へ slug 単位で記録する方針を示している（値を捏造して埋めていない）",
+          "passed": true,
+          "evidence": "order-list を「意味論が未確定の機能」として記録する扱いと slug 単位で示し、値を作っていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 25.647,
+        "tokens": 147399,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "develop が db.env_vars を持たないため投入対象にできないことを検出して停止している",
+          "passed": true,
+          "evidence": "応答「develop には…db の設定がありません（…seedable も env_vars もない）」で止めた"
+        },
+        {
+          "text": "db を持つ side: new の target（local-dev）を選ぶか develop に db.env_vars を足すよう案内している",
+          "passed": true,
+          "evidence": "応答で --target local-dev か、develop に db.env_vars と db.seedable: true を足す案を示している"
+        },
+        {
+          "text": "勝手に local-dev へ読み替えて変換・投入を進めていない",
+          "passed": true,
+          "evidence": "tool 呼び出しは読み取りだけで、local-dev への変換・投入はしていない"
+        },
+        {
+          "text": "metadata.json の phase_b 記録・投入ツールを生成していない",
+          "passed": true,
+          "evidence": "metadata.json は fixture と差分なし、seed/ も生成していない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 30.198,
+        "tokens": 157112,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "develop は db.env_vars を持つが db.seedable が無いため読み取り専用であり投入対象外だと判定して停止している",
+          "passed": true,
+          "evidence": "応答「db.env_vars: [\"DEVELOP_DB_URL\"] だけで、db.seedable: true がありません。つまり読み取り専用」"
+        },
+        {
+          "text": "接続情報を知っていること（env_vars がある）を投入してよいことと同一視していない",
+          "passed": true,
+          "evidence": "env_vars があっても読み取り専用の接続として扱い、削除も投入もできないと判定"
+        },
+        {
+          "text": "投入したいなら設定に db.seedable: true を足すのはユーザーの判断だと示し、スキル自身が replace-strategy.jsonc へ seedable: true を書き足していない",
+          "passed": true,
+          "evidence": "応答「ご自身で設定に \"seedable\": true を追加する」。Write・Edit の呼び出しは無い"
+        },
+        {
+          "text": "develop の DB に対する削除・投入を実行していない",
+          "passed": true,
+          "evidence": "tool 呼び出しは読み取りだけで、DB への削除・投入をしていない"
+        },
+        {
+          "text": "metadata.json の phase_b 記録を作っていない",
+          "passed": true,
+          "evidence": "metadata.json は fixture と差分なし（phase_b の追加なし）"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4444,
+        "passed": 4,
+        "failed": 5,
+        "total": 9,
+        "time_seconds": 293.114,
+        "tokens": 1708878,
+        "tool_calls": 22,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "db を持つ target が 1 つも無いことを理由に停止していない",
+          "passed": true,
+          "evidence": "db の target が無いことでは停止せず、design.md と seed/src/main.ts の更新まで進めている"
+        },
+        {
+          "text": "設定の dataset_mode: static を読み、投入先を target の DB ではなく dataset_static_paths（content/works）配下だと判定している",
+          "passed": true,
+          "evidence": "design.md の affects「content/works（静的データ）」、pending-decisions に dataset_static_paths を投入先と記載"
+        },
+        {
+          "text": "current-site/src/works-list.ts を読み、ページサイズ 6、publishedAt 降順＋id 同値順、tag 絞り込み、tag 変更時の page 保持を消費側パラメータの根拠にしている",
+          "passed": true,
+          "evidence": "応答に works-list.ts を根拠としてページ 6 件・公開日の降順で同日は id 順・タグ絞り込み・page 保持"
+        },
+        {
+          "text": "gaps.md の 2 件（ページ送り・空状態）を design.md へ追記し、投入ツール（seed/src/main.ts）を更新して再生成している",
+          "passed": false,
+          "evidence": "design.md と main.ts は更新したが、content/works は 001・002 のままで再生成していない"
+        },
+        {
+          "text": "生成・削除の対象が dataset_static_paths 配下に収まっており、その外のファイルを書き換えていない",
+          "passed": true,
+          "evidence": "content/works 以外の書き込みは seed/src/main.ts と .replace/dataset/ の記録だけ"
+        },
+        {
+          "text": "metadata.json の version を 1 から 2 へ上げている",
+          "passed": false,
+          "evidence": "metadata.json の version は 1 のまま（fixture と同じ）"
+        },
+        {
+          "text": "metadata.json の changes に version 2 と、実際に変更した静的データ単位だけを affects として追記し、過去版の履歴を保持している",
+          "passed": false,
+          "evidence": "metadata.json の changes は version 1 だけで version 2 の追記が無い"
+        },
+        {
+          "text": "metadata.json の current.fingerprint を再計算して更新し、current.target と current.seeded_at は null のままにしている",
+          "passed": false,
+          "evidence": "metadata.json の current.fingerprint は fixture の値のまま"
+        },
+        {
+          "text": "version 2 の affects と各 slug の実効参照データを照合し、影響する parity-suite だけのベースライン再取得を案内している",
+          "passed": false,
+          "evidence": "「works-list の parity-suite を実行し直して」とだけあり、affects と slug の参照データを照合していない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.7611,
+        "stddev": 0.2831,
+        "min": 0.4444,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 96.1527,
+        "stddev": 131.3712,
+        "min": 25.647,
+        "max": 293.114
+      },
+      "tokens": {
+        "mean": 562789,
+        "stddev": 765132.2275,
+        "min": 147399,
+        "max": 1708878
+      }
+    }
+  },
+  "notes": []
+}

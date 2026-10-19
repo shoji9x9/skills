@@ -1,0 +1,89 @@
+{
+  "metadata": {
+    "skill_name": "issue-start",
+    "skill_path": "<repo>/skills/issue-start",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-18T13:05:55Z",
+    "evals_run": [1],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4286,
+        "passed": 3,
+        "failed": 4,
+        "total": 7,
+        "time_seconds": 15.77,
+        "tokens": 76659,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Issue URL から owner/repo/issue番号を抽出している",
+          "passed": true,
+          "evidence": "「Issue #12」「`shoji9x9/skills` と一致するか」と owner/repo と番号を取り出している"
+        },
+        {
+          "text": "現在の repo と Issue の owner/repo の一致を確認している",
+          "passed": true,
+          "evidence": "`git rev-parse` と `gh repo view` で一致を確かめようとし、判定できず止めた"
+        },
+        {
+          "text": "gh issue view で Issue 内容を確認しようとしている",
+          "passed": false,
+          "evidence": "「一致すると確認できるまでは、Issue の取得（`gh issue view`）…はしない」とし実行していない"
+        },
+        {
+          "text": "feature/12-<英語の短い説明> 形式のブランチ名を決めている",
+          "passed": false,
+          "evidence": "「`feature/12-<短い英語の説明>` の作成」とあるだけで説明の部分を決めていない"
+        },
+        {
+          "text": "同番号ブランチの重複を local/remote で確認している",
+          "passed": false,
+          "evidence": "「既存ブランチの確認」と書くだけで local / remote の確認をしていない"
+        },
+        {
+          "text": "gh issue develop --base <規約から解決したベースブランチ> --checkout でブランチを作成しようとしている（ベースブランチを main に固定せず、リポジトリの規約から解決した値を使っている）",
+          "passed": false,
+          "evidence": "`gh issue develop` での作成も、規約から base を解決することも示していない"
+        },
+        {
+          "text": "モード未指定なので commit/push/PR は行っていない",
+          "passed": true,
+          "evidence": "「commit・push・PR はしない」既定のモードとして扱い、何も作っていない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.4286,
+        "stddev": 0,
+        "min": 0.4286,
+        "max": 0.4286
+      },
+      "time_seconds": {
+        "mean": 15.77,
+        "stddev": 0,
+        "min": 15.77,
+        "max": 15.77
+      },
+      "tokens": {
+        "mean": 76659,
+        "stddev": 0,
+        "min": 76659,
+        "max": 76659
+      }
+    }
+  },
+  "notes": []
+}

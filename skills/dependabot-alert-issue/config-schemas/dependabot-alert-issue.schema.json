@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "dependabot-alert-issue の設定（.config/skills/shoji9x9/dependabot-alert-issue.jsonc）",
+  "description": "置き場所・層・解決の順序は references/config-files.md にある。キーの意味は SKILL.md「セットアップ」にある。x-layers はそのキーを置ける層。",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "minimum_release_age_days": {
+      "description": "解決バージョンが公開されてから着手するまでの最小の経過日数。経過がこれより短い alert は「すぐ着手できない」に分類する",
+      "type": "integer",
+      "minimum": 0,
+      "x-layers": ["repo"]
+    },
+    "ignore": {
+      "description": "無視する alert の条件（Issue を作らず、dismiss もしない）。条件は自由に書く",
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "x-layers": ["repo"]
+    },
+    "dismiss": {
+      "description": "dismiss する alert。照合のキー（ghsa・package・ecosystem）は AND で評価する。ghsa か package のどちらかは要る",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["reason", "comment"],
+        "properties": {
+          "ghsa": { "type": "string", "pattern": "^GHSA(-[23456789cfghjmpqrvwx]{4}){3}$" },
+          "package": { "type": "string", "minLength": 1 },
+          "ecosystem": { "type": "string", "minLength": 1 },
+          "reason": {
+            "enum": ["fix_started", "inaccurate", "no_bandwidth", "not_used", "tolerable_risk"]
+          },
+          "comment": { "type": "string", "minLength": 1 }
+        },
+        "anyOf": [{ "required": ["ghsa"] }, { "required": ["package"] }]
+      },
+      "x-layers": ["repo"]
+    }
+  }
+}

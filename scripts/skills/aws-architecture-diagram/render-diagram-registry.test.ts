@@ -57,16 +57,17 @@ function diagramDir(files: Record<string, string>) {
 
 /** レンダリングを子プロセスで実行し、終了コードと stderr まで見えるようにする。 */
 function render(dir: string) {
-  const result = spawnSync(process.execPath, [renderScript], {
-    timeout: CHILD_TIMEOUT_MS,
-    env: {
-      ...process.env,
-      DIAGRAM_DIR: dir,
-      DIAGRAM_ICON_DIR: iconDir,
-      DIAGRAM_OUT_DIR: join(dir, "out"),
+  const result = spawnSync(
+    process.execPath,
+    [renderScript, "--dir", dir, "--icon-dir", iconDir, "--out-dir", join(dir, "out")],
+    {
+      timeout: CHILD_TIMEOUT_MS,
+      // 手元の設定ファイルを読まないよう、git の外の図のディレクトリで実行し、人ごとの設定の置き場所も一時ディレクトリにする
+      cwd: dir,
+      env: { ...process.env, XDG_CONFIG_HOME: join(dir, "xdg") },
+      encoding: "utf8",
     },
-    encoding: "utf8",
-  });
+  );
   if (result.error) throw result.error;
   return result;
 }

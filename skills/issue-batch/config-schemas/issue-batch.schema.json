@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "issue-batch の設定（.config/skills/shoji9x9/issue-batch.jsonc）",
+  "description": "置き場所・層・解決の順序は references/config-files.md にある。値のデフォルトは持たない（setup で根拠を付けて確かめた値だけを書く）。必須の条件は references/project-config.md にある。",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "merge_mode": {
+      "description": "merge の方式。auto は GitHub の auto-merge に任せ、agent はエージェントが条件を確かめてから merge する",
+      "enum": ["auto", "agent"],
+      "x-layers": ["repo"]
+    },
+    "merge_method": {
+      "description": "merge の方法。リポジトリで許された方法だけを書く",
+      "enum": ["squash", "merge", "rebase"],
+      "x-layers": ["repo"]
+    },
+    "merge_ready_timeout_minutes": {
+      "description": "merge_mode が agent のときに、merge の条件が揃うまで待つ上限（分）。agent では必須",
+      "type": "integer",
+      "minimum": 1,
+      "x-layers": ["repo"]
+    },
+    "max_local_review_iterations": {
+      "description": "PR を作る前のローカルレビューの上限の回数",
+      "type": "integer",
+      "minimum": 1,
+      "x-layers": ["repo"]
+    },
+    "max_pr_iterations": {
+      "description": "pr-finalize-loop の --max-iterations に渡す上限の回数",
+      "type": "integer",
+      "minimum": 1,
+      "x-layers": ["repo"]
+    },
+    "wait_ci_before_review": {
+      "description": "ローカルレビューの前に CI を待つか",
+      "type": "boolean",
+      "x-layers": ["repo"]
+    },
+    "continue_on_blocked": {
+      "description": "Issue が BLOCKED や FAILED になった後に、次の Issue へ進むか",
+      "type": "boolean",
+      "x-layers": ["repo"]
+    },
+    "deployment": {
+      "description": "merge の後に確かめる deployment や release の workflow",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workflows",
+        "registration_timeout_minutes",
+        "completion_timeout_minutes",
+        "max_fix_iterations"
+      ],
+      "properties": {
+        "workflows": {
+          "description": "workflow のファイルのパス（リポジトリのルートから）。該当するものが無ければ空の配列",
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "registration_timeout_minutes": { "type": "integer", "minimum": 1 },
+        "completion_timeout_minutes": { "type": "integer", "minimum": 1 },
+        "max_fix_iterations": { "type": "integer", "minimum": 1 }
+      },
+      "x-layers": ["repo"]
+    }
+  }
+}

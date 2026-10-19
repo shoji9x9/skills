@@ -1,0 +1,246 @@
+{
+  "metadata": {
+    "skill_name": "parity-replace",
+    "skill_path": "<repo>/skills/parity-replace",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-18T13:05:56Z",
+    "evals_run": [6, 14, 15, 20, 22],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 14,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 35.312,
+        "tokens": 220004,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定の verification_commands の値がコマンドのリストで、実行される範囲（全体走査か差分限定か）が宣言されていないことを検出している",
+          "passed": true,
+          "evidence": "応答「verification_commands が古い形式（リスト）のまま…実行する範囲（full / diff）が宣言されていない」"
+        },
+        {
+          "text": "未宣言を「全体走査」として扱わず、実装工程に入らず停止して full / diff の 2 列への移行をユーザーに促している",
+          "passed": true,
+          "evidence": "手順 1 で止め、full と diff の 2 列への書き換えを促している"
+        },
+        {
+          "text": "リストの中身を自分で full / diff へ振り分けず、移行の原本（replace-strategy の references/project-config.md）を示してユーザーに委ねている",
+          "passed": false,
+          "evidence": "例として full に既存の 2 コマンドをそのまま移す案を示しており、原本の「機械的に full に移さない」に反する"
+        },
+        {
+          "text": "完了判定（新側 green ＋検証コマンド）が verification_commands.full で行われるため、full が確定しないと完了判定が成立しないことを理由に挙げている",
+          "passed": false,
+          "evidence": "「完了の判定が成り立ちません」とあるが、完了判定が verification_commands.full で行われる点を理由にしていない"
+        },
+        {
+          "text": "実装・porting.md・replace-metadata.json を捏造せず、検証コマンドを自分で推測して補っていない",
+          "passed": true,
+          "evidence": "実装・porting.md・replace-metadata.json を作らず（project-tree に無い）、新しいコマンドも補っていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 15,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 28.295,
+        "tokens": 116342,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "差分限定（verification_commands.diff）が緑でも完了判定にはならず、手順 8 では verification_commands.full を回すと述べている",
+          "passed": true,
+          "evidence": "「pre-commit が緑なのは手順 7 の段階が通ったというだけ」「完了の判定では…full を必ず実行」と述べ、手順 8 の判定として挙げている。"
+        },
+        {
+          "text": "design token の削除で参照エラーになる相手が変更集合の外のファイルにいるため、変更ファイルだけを渡す検査では原理的に捕まらないと理由を述べている",
+          "passed": true,
+          "evidence": "「壊れるのは変更しなかったファイル…変更ファイルしか渡していなければ、こうした箇所は検査の対象に入りません」と理由を述べている。"
+        },
+        {
+          "text": "削除・改名を含む変更では敵対的レビュー前（手順 7）の検査も full へ前倒しすると述べている",
+          "passed": true,
+          "evidence": "「定義元の削除や改名を含む差分は、レビューの前の段階でも full を前倒しで実行する」と述べている。"
+        },
+        {
+          "text": "実行した列（full / diff）を replace-metadata.json の証跡に記録すると述べている",
+          "passed": false,
+          "evidence": "「結果を replace-metadata.json の verification に記録します」とあるだけで、実行した列（full / diff）を記録するとは述べていない。"
+        },
+        {
+          "text": "full を回す前に完了・green を名乗らず、完了判定を済んだことにしていない",
+          "passed": true,
+          "evidence": "結論を「まだ完了にはできません」とし、full を回す前に完了・green を名乗っていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 20,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 41.414,
+        "tokens": 178396,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "共有された型への必須プロパティの追加は、その型のリテラルを書いている変更集合の外のファイルを壊すため、敵対的レビュー前（手順 7）でも verification_commands.full へ前倒しすると述べている",
+          "passed": true,
+          "evidence": "「必須プロパティの追加も明示して含めています」「差分限定の列には原理的に入りません」とし full を前倒し"
+        },
+        {
+          "text": "前倒しの判断を操作名（削除・改名）の一覧ではなく、変更集合の外にあるファイルの判定を変えるか（型検査など判定が他ファイルに依存する検査）で行うと述べている",
+          "passed": true,
+          "evidence": "「判断の基準は操作の種類ではありません。『変更集合の外の利用側の判定を変えるか』で決めます」"
+        },
+        {
+          "text": "別パッケージのテストが緑であることを前倒し不要の根拠にせず、スタブに足りないプロパティが undefined になって古い形の assertion が通りうると述べている",
+          "passed": false,
+          "evidence": "型検査しないランナーで通るとだけ述べ、スタブの欠けたプロパティが undefined で古い assertion が通る点に触れない"
+        },
+        {
+          "text": "前倒しして full を回したことを replace-metadata.json の検証証跡（escalated_to_full と実行した列）に記録すると述べている",
+          "passed": true,
+          "evidence": "verification.diff_run に commands（回した diff 列）と escalated_to_full: true を記録"
+        },
+        {
+          "text": "回答内で、削除・改名が無いので差分限定のまま敵対的レビューへ進んでよいと矛盾する結論を併記していない",
+          "passed": true,
+          "evidence": "結論は一貫して「まだ渡さないでください。先に full を流す」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 22,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 88.987,
+        "tokens": 228281,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "行選択チェックボックスを単体で実装せず、採用済みのデータグリッド（example-grid@4.5.0）が描くものとして使うと答えている",
+          "passed": true,
+          "evidence": "「内蔵の部品は単体では実装しません」「example-grid@4.5.0 が描く」"
+        },
+        {
+          "text": "印刷プレビューの採否はこのフェーズで決めるものだと答えている（setup で決定済みとして飛ばしていない）",
+          "passed": true,
+          "evidence": "「② 印刷プレビュー（機能固有・適用範囲 order-list）：この機能で決める」"
+        },
+        {
+          "text": "確認ダイアログの新しい決定を、既存行を書き換えるのではなく新しい行の追記として台帳へ反映すると答えている",
+          "passed": true,
+          "evidence": "(b)「表の末尾に行を追記」とし「決定セルをその場で自前実装に書き換えること」を禁じる"
+        },
+        {
+          "text": "覆した既存行は消さず、状態を「取り消し済み」に変えて残すと答えている",
+          "passed": true,
+          "evidence": "(a) 既存行の状態を「有効 → 取り消し済み」にし「履歴として残す」"
+        },
+        {
+          "text": "新しい行の決定時期を setup ではなくこのフェーズ（order-list の実装前）として書き分けると答えている",
+          "passed": true,
+          "evidence": "追記行の決定時期を「order-list 実装前」と書く"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 40.886,
+        "tokens": 275354,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "develop が start を持たない配信型 target であることを踏まえ、軽量な手順を確認なしに自動適用していない",
+          "passed": true,
+          "evidence": "「develop は start のない、自動デプロイで更新される環境」とし、軽量な手順を当てずに止めている。"
+        },
+        {
+          "text": "develop に commit_check が無いため、稼働中のコードが commit abc1234def5678 かをユーザーに確認する必要がある旨を述べている",
+          "passed": true,
+          "evidence": "「commit_check が設定されていません…commit abc1234def5678 がデプロイされているかをあなたに確認してから当てる」と述べている。"
+        },
+        {
+          "text": "local-dev の green 証跡（.replace/parity/order-list/new/local-dev/replace-metadata.json）を develop の green 証跡として流用していない",
+          "passed": true,
+          "evidence": "local-dev の記録は確認項目に挙げただけで、「develop で green 化も証跡の記録もしていません」と述べている。"
+        },
+        {
+          "text": ".replace/parity/order-list/new/develop/replace-metadata.json を捏造していない（project-files に存在しない）",
+          "passed": true,
+          "evidence": "project-tree に .replace/parity/order-list/new/develop/ が無く、「develop の replace-metadata.json も…作っていません」と述べている。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.84,
+        "stddev": 0.1673,
+        "min": 0.6,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 46.9788,
+        "stddev": 24.0727,
+        "min": 28.295,
+        "max": 88.987
+      },
+      "tokens": {
+        "mean": 203675.4,
+        "stddev": 59741.2154,
+        "min": 116342,
+        "max": 275354
+      }
+    }
+  },
+  "notes": []
+}

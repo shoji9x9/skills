@@ -6,6 +6,7 @@ import { dirname, join } from "node:path";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { coverageEnv } from "../../lib/testing/coverage-env.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
+import { kaizenEnv, pathWithout, writeKaizenConfig } from "./kaizen-config-env.ts";
 
 // kaizen-schedule-report.sh は **CI から無人で実行され、出力がそのまま Issue になる**。
 // 判定が狂っても人が見ているのは結果の Issue だけなので、狂ったこと自体は出力に現れない。
@@ -17,24 +18,23 @@ import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 // | 軸          | 値                                                              |
 // |-------------|-----------------------------------------------------------------|
 // | skip(env)   | true / false / 不正 / 未設定                                     |
-// | skip(config)| on / off / 不正 / キーなし / ファイルなし                          |
-// | mode        | notify / agent / 不正 / 未設定                                   |
+// | skip(config)| true / false / 不正 / キーなし / ファイルなし                      |
+// | mode        | notify / agent / 不正（設定ファイル・環境変数） / 未設定             |
 // | agent       | claude / codex / copilot / 不正 / 未設定                          |
 // | model       | 妥当 / 不正（空白入り） / 未設定                                  |
 // | effort      | codex に指定 / codex 以外に指定 / 不正 / 未設定                   |
 // | pending     | 0 件 / 1 件 / 複数件（priority 降順・日付昇順）                    |
-// | 機能を減らす | 共通ライブラリ欠落 × .kaizen/config あり / なし                   |
+// | 機能を減らす | 共通ライブラリ欠落 × kaizen.jsonc あり / なし                       |
+// | 読めない設定 | 旧い .kaizen/config / パーミッション / node が無い × 設定ファイルあり・なし |
 //
-// **`schedule_enabled` の既定は off（opt-in）。** 書いていないリポジトリは止まる。
-// 既定が on へ戻ると、テンプレートを置いただけの配布先が週次で実行し始める（Issue #417）。
-// 機能を減らす場合とパーミッションの検体は、`schedule_enabled=on` で採る。`off` だと、「読めないときに停止する処理が
-// 機能した」のか「既定の off として扱われただけ」なのかを区別できず、変異で赤くならない。
+// 設定は `.config/skills/shoji9x9/kaizen.jsonc`（JSONC）に書く。不正な値と読めない設定は exit 1 で止める。
 //
-// ミューテーションテストで検出できることを、次のように確かめた（実測。いずれも狙った assertion が失敗することを確認した）。
-//   1. `config_unreadable` の skip 代入を消す → 機能を減らす場合とパーミッションの、読めないときに停止する各テストが fail
-//   2. schedule_enabled の `1)` 分岐から skip 代入を消す → config での停止が機能せず fail
-//   3. pending 0 件で `resolved_mode=notify` として扱う処理を消す → 1 件 fail
-//   4. キーなしの `else` 分岐から skip 代入を消す → opt-in の既定が fail
+// **`schedule_enabled` の既定は false（opt-in）。** 書いていないリポジトリは止まる。
+// 既定が true へ戻ると、テンプレートを置いただけの配布先が週次で実行し始める（Issue #417）。
+// 機能を減らす場合の検体は、`"schedule_enabled": true` で採る。false だと、「読めないときに停止する処理が
+// 機能した」のか「既定の false として扱われただけ」なのかを区別できず、変異で赤くならない。
+//
+// 判定の行を無効にした変異で赤くなることは、kaizen-schedule-report.mutations.json が確かめる。
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const scriptDir = join(repoRoot, "skills/kaizen/scripts");
 const script = join(scriptDir, "kaizen-schedule-report.sh");
@@ -80,7 +80,7 @@ function note({
   ].join("\n");
 }
 
-/** 一時プロジェクトを作って cb に渡す。notes は {name: noteOptions}、config は .kaizen/config の中身。 */
+/** 一時プロジェクトを作って cb に渡す。notes は {name: noteOptions}、config は kaizen.jsonc の中身。 */
 function withProject<T>(
   {
     notes = {},
@@ -99,7 +99,7 @@ function withProject<T>(
     for (const [name, opts] of Object.entries(notes)) {
       writeFileSync(join(dir, ".kaizen", `${name}.md`), note({ slug: name, ...opts }));
     }
-    if (config !== null) writeFileSync(join(dir, ".kaizen", "config"), config);
+    if (config !== null) writeKaizenConfig(dir, config);
     let target = script;
     if (degraded) {
       // 共通ライブラリを持たない場所へスクリプト単体を置く（配布物の部分展開の再現）。
@@ -123,7 +123,16 @@ function run({ dir, target }: Project, args: string[], env: NodeJS.ProcessEnv = 
     // 紛れ込むと env 層のテストが本来の層を測らなくなるので、明示したものだけを渡す。
     // ロケールだけは明示する。最小 env は C ロケールになり、要約の切り詰めが
     // 機能を減らす分岐で処理される。CI のランナー（UTF-8）と違う条件で測らないよう既定を揃える。
-    env: { PATH: process.env.PATH, HOME: dir, LC_ALL: "C.UTF-8", ...coverageEnv(), ...env },
+    // 人ごとの設定（XDG_CONFIG_HOME）は一時ディレクトリの中に向ける。設定ファイルを node で読むので、
+    // テストを実行している node を PATH の先頭に置く（kaizen-config-env.ts）。
+    env: {
+      PATH: kaizenEnv(dir).PATH,
+      HOME: dir,
+      XDG_CONFIG_HOME: join(dir, ".test-xdg"),
+      LC_ALL: "C.UTF-8",
+      ...coverageEnv(),
+      ...env,
+    },
   });
   const settings = Object.fromEntries(
     res.stdout
@@ -136,7 +145,7 @@ function run({ dir, target }: Project, args: string[], env: NodeJS.ProcessEnv = 
 
 describe("設定解決（層・デフォルト値への置き換え）", () => {
   test("有効化済みで他の指定が無ければ既定（notify / claude）で動く", () => {
-    withProject({ notes: { a: {} }, config: "schedule_enabled=on\n" }, (p) => {
+    withProject({ notes: { a: {} }, config: '{ "schedule_enabled": true }\n' }, (p) => {
       const { status, settings } = run(p, ["config"]);
       expect(status).toBe(0);
       expect(settings).toMatchObject({
@@ -148,34 +157,75 @@ describe("設定解決（層・デフォルト値への置き換え）", () => {
     });
   });
 
-  test("env は config より優先される", () => {
-    withProject({ notes: { a: {} }, config: "schedule_mode=notify\n" }, (p) => {
-      const { settings } = run(p, ["config"], { KAIZEN_SCHEDULE_MODE: "agent" });
+  test("env は設定ファイルより優先され、採った層を stderr に出す", () => {
+    withProject({ notes: { a: {} }, config: '{ "schedule_mode": "notify" }\n' }, (p) => {
+      const { settings, stderr } = run(p, ["config"], { KAIZEN_SCHEDULE_MODE: "agent" });
       expect(settings.mode).toBe("agent");
+      expect(stderr).toContain("mode=agent（環境変数 KAIZEN_SCHEDULE_MODE）");
+      expect(run(p, ["config"]).stderr).toContain(
+        "mode=notify（kaizen の設定ファイル（repo の層）の schedule_mode）",
+      );
     });
   });
 
-  test("不正値はデフォルト値に戻し、戻したことを stderr に出す", () => {
-    const config =
-      "schedule_mode=bogus\nschedule_agent=gemini\nschedule_model=has space\nschedule_effort=!!\n";
-    withProject({ notes: { a: {} }, config }, (p) => {
-      const { settings, stderr } = run(p, ["config"]);
-      expect(settings).toMatchObject({ mode: "notify", agent: "claude", model: "", effort: "" });
-      for (const key of ["mode=bogus", "agent=gemini", "model=has space", "effort=!!"]) {
-        expect(stderr).toContain(key);
-      }
+  // 不正な値をデフォルトの値として扱うと、設定したつもりの動きと違う定期実行が警告なしに続く。
+  test.each([
+    ['{ "schedule_mode": "bogus" }', '"bogus" は "notify"・"agent" のどれでもない'],
+    ['{ "schedule_agent": "gemini" }', '"gemini" は "claude"・"codex"・"copilot" のどれでもない'],
+    ['{ "schedule_model": "has space" }', "schedule_model"],
+    ['{ "schedule_effort": "!!" }', "schedule_effort"],
+    ['{ "schedule_enabled": "maybe" }', 'schedule_enabled: 型が "boolean" でない'],
+    ['{ "schedule_mod": "agent" }', '知らないキー "schedule_mod"'],
+  ])("不正な設定 %s は exit 1 で止め、理由を stderr に出す", (config, message) => {
+    withProject({ notes: { a: {} }, config: `${config}\n` }, (p) => {
+      const { status, stdout, stderr } = run(p, ["config"]);
+      expect(status).toBe(1);
+      expect(stderr).toContain(message);
+      expect(stderr).toContain("kaizen の設定を読めないので止める");
+      // 判定の材料を出力しない（workflow が skip=false と読んで先へ進まないようにする）
+      expect(stdout).not.toContain("skip=");
+    });
+  });
+
+  test("環境変数の不正な値も exit 1 で止める", () => {
+    withProject({ notes: { a: {} }, config: '{ "schedule_enabled": true }\n' }, (p) => {
+      const { status, stderr } = run(p, ["config"], { KAIZEN_SCHEDULE_AGENT: "gemini" });
+      expect(status).toBe(1);
+      expect(stderr).toContain("環境変数 KAIZEN_SCHEDULE_AGENT");
+    });
+  });
+
+  test("旧い .kaizen/config が残っていれば、移行の手順を示して止める", () => {
+    withProject({ notes: { a: {} } }, (p) => {
+      writeFileSync(join(p.dir, ".kaizen", "config"), "schedule_enabled=on\n");
+      const { status, stderr } = run(p, ["config"]);
+      expect(status).toBe(1);
+      expect(stderr).toContain(".kaizen/config が残っている");
+    });
+  });
+
+  test("設定ファイルがあるのに node が無ければ止め、無ければ node なしで opt-in の判定まで進む", () => {
+    withProject({ notes: { a: {} } }, (p) => {
+      const noNode = { PATH: pathWithout(p.dir, ["node"], kaizenEnv(p.dir).PATH ?? "") };
+      const none = run(p, ["config"], noNode);
+      expect(none.status).toBe(0);
+      expect(none.settings.skip_reason).toContain('"schedule_enabled": true が無い');
+      writeKaizenConfig(p.dir, '{ "schedule_enabled": true }\n');
+      const { status, stderr } = run(p, ["config"], noNode);
+      expect(status).toBe(1);
+      expect(stderr).toContain("kaizen の設定を読むには node が要るが、見つからない");
     });
   });
 
   test("effort を受け取るのは codex だけ", () => {
     withProject(
-      { notes: { a: {} }, config: "schedule_agent=codex\nschedule_effort=high\n" },
+      { notes: { a: {} }, config: '{ "schedule_agent": "codex", "schedule_effort": "high" }\n' },
       (p) => {
         expect(run(p, ["config"]).settings.effort).toBe("high");
       },
     );
     withProject(
-      { notes: { a: {} }, config: "schedule_agent=claude\nschedule_effort=high\n" },
+      { notes: { a: {} }, config: '{ "schedule_agent": "claude", "schedule_effort": "high" }\n' },
       (p) => {
         const { settings, stderr } = run(p, ["config"]);
         expect(settings.effort).toBe("");
@@ -188,100 +238,77 @@ describe("設定解決（層・デフォルト値への置き換え）", () => {
 // 定期実行は opt-in。ワークフローを置いた（配られた）だけで週次実行が始まらないよう、
 // `schedule_enabled` を書いていないリポジトリは止める。理由まで固定するのは、
 // 「止まった」と「そもそも動かなかった」を step summary で区別させるため。
-describe("opt-in（schedule_enabled の既定は off）", () => {
+describe("opt-in（schedule_enabled の既定は false）", () => {
   test("config がそもそも無ければ止まり、opt-in であることを理由に出す", () => {
     withProject({ notes: { a: {} } }, (p) => {
       const { settings } = run(p, ["config"]);
       expect(settings.skip).toBe("true");
-      expect(settings.skip_reason).toContain("schedule_enabled=on が無い");
+      expect(settings.skip_reason).toContain('"schedule_enabled": true が無い');
     });
   });
 
   test("config はあっても schedule_enabled が無ければ止まる", () => {
-    withProject({ notes: { a: {} }, config: "schedule_mode=agent\n" }, (p) => {
+    withProject({ notes: { a: {} }, config: '{ "schedule_mode": "agent" }\n' }, (p) => {
       const { settings } = run(p, ["config"]);
       expect(settings.skip).toBe("true");
-      expect(settings.skip_reason).toContain("schedule_enabled=on が無い");
+      expect(settings.skip_reason).toContain('"schedule_enabled": true が無い');
     });
   });
 
-  test("schedule_enabled=on を書けば動く（誤検知しないことの確認）", () => {
-    withProject({ notes: { a: {} }, config: "schedule_enabled=on\n" }, (p) => {
+  test("schedule_enabled: true を書けば動く（誤検知しないことの確認）", () => {
+    withProject({ notes: { a: {} }, config: '{ "schedule_enabled": true }\n' }, (p) => {
       const { settings } = run(p, ["config"]);
       expect(settings.skip).toBe("false");
       expect(settings.skip_reason).toBe("");
     });
   });
 
-  // 既定を決める定数（DEFAULT_SCHEDULE_ENABLED）と、それを使う 2 か所の判定点を差し替えたときに
-  // 上と下のテストが落ちることは、kaizen-schedule-report.mutations.json の SR-* が確かめる。
-
-  // 不正値を有効として扱うと、typo した `.kaizen/config` が「有効化した証拠」になってしまう。
-  test("schedule_enabled が真偽値として読めなければデフォルトの off として扱って止まる", () => {
-    withProject({ notes: { a: {} }, config: "schedule_enabled=maybe\n" }, (p) => {
-      const { settings, stderr } = run(p, ["config"]);
-      expect(settings.skip).toBe("true");
-      expect(stderr).toContain("真偽値として読めない");
-      expect(stderr).toContain("既定 off として扱う");
-      expect(settings.skip_reason).toContain("schedule_enabled=maybe");
-    });
-  });
+  // デフォルトの値（スキーマと共通ライブラリの kaizen_config_defaults）を true にしたときに
+  // 上のテストが落ちることは、kaizen-schedule-report.mutations.json が確かめる。
 });
 
 describe("skip（どちらかが立てば止まる）", () => {
   test("env の一時停止で止まる", () => {
-    withProject({ notes: { a: {} }, config: "schedule_enabled=on\n" }, (p) => {
+    withProject({ notes: { a: {} }, config: '{ "schedule_enabled": true }\n' }, (p) => {
       const { settings } = run(p, ["config"], { KAIZEN_SCHEDULE_SKIP: "true" });
       expect(settings.skip).toBe("true");
       expect(settings.skip_reason).toContain("KAIZEN_SCHEDULE_SKIP");
     });
   });
 
-  test("config の schedule_enabled=off で止まる", () => {
-    withProject({ notes: { a: {} }, config: "schedule_enabled=off\n" }, (p) => {
+  test("設定ファイルの schedule_enabled: false で止まる", () => {
+    withProject({ notes: { a: {} }, config: '{ "schedule_enabled": false }\n' }, (p) => {
       const { settings } = run(p, ["config"]);
       expect(settings.skip).toBe("true");
       expect(settings.skip_reason).toContain("schedule_enabled");
     });
   });
 
-  test("env=false でも config=off なら止まる（上書きではなく追加の安全弁）", () => {
-    withProject({ notes: { a: {} }, config: "schedule_enabled=off\n" }, (p) => {
+  test("env=false でも schedule_enabled: false なら止まる（上書きではなく追加の安全弁）", () => {
+    withProject({ notes: { a: {} }, config: '{ "schedule_enabled": false }\n' }, (p) => {
       expect(run(p, ["config"], { KAIZEN_SCHEDULE_SKIP: "false" }).settings.skip).toBe("true");
     });
   });
 
   // 理由は step summary と要約に出る唯一の手がかり。上書きにすると、先に立った理由
   // （読めないときの停止など）が消えて「停止の実態」と「表示された理由」がずれる。
-  //
-  // 判別できるのは **config_unreadable が先に立ったとき**だけ。`schedule_enabled` 側は
-  // env より後に評価されるので、env を上書きにしても後勝ちで両方残ってしまい、
-  // この分岐へ到達しない（最初に書いたテストがまさにそれで、変異で赤くならなかった）。
+  // 先に立つ理由は、共通ライブラリを読めないときの停止で作る（schedule_enabled の側は env より後に評価される）。
   test("先に立った停止の理由が env skip で消えない", () => {
-    // 検体は `on`。`off` だと「読めないので止めた」のか「既定の off として扱われた」のかを
-    // 区別できず、読めないときの停止を消す変異で赤くならない。
-    withProject({ notes: { a: {} }, config: "schedule_enabled=on\n" }, (p) => {
-      const configPath = join(p.dir, ".kaizen", "config");
-      chmodSync(configPath, 0o000);
-      let readable = true;
-      try {
-        readFileSync(configPath);
-      } catch {
-        readable = false;
-      }
-      expect(readable).toBe(false);
-      const { settings } = run(p, ["config"], { KAIZEN_SCHEDULE_SKIP: "true" });
-      chmodSync(configPath, 0o600);
-      expect(settings.skip).toBe("true");
-      expect(settings.skip_reason).toContain("読めない");
-      expect(settings.skip_reason).toContain("KAIZEN_SCHEDULE_SKIP");
-    });
+    withProject(
+      { notes: { a: {} }, config: '{ "schedule_enabled": true }\n', degraded: true },
+      (p) => {
+        const { settings } = run(p, ["config"], { KAIZEN_SCHEDULE_SKIP: "true" });
+        expect(settings.skip).toBe("true");
+        expect(settings.skip_reason).toContain("読めない");
+        expect(settings.skip_reason).toContain("KAIZEN_SCHEDULE_SKIP");
+      },
+    );
   });
 
   // 一時停止レバーの既定は「止めない」。こちらは opt-in の軸と逆なので、不正値を
   // 止める側として扱うと、typo したリポジトリ変数が、警告のない停止になってしまう。
   test("KAIZEN_SCHEDULE_SKIP が真偽値として読めなければ一時停止しない", () => {
-    withProject({ notes: { a: {} }, config: "schedule_enabled=on\n" }, (p) => {
+    withProject({ notes: { a: {} }, config: '{ "schedule_enabled": true }\n' }, (p) => {
       const { settings, stderr } = run(p, ["config"], { KAIZEN_SCHEDULE_SKIP: "perhaps" });
       expect(settings.skip).toBe("false");
       expect(stderr).toContain("真偽値として読めない");
@@ -290,34 +317,29 @@ describe("skip（どちらかが立てば止まる）", () => {
 });
 
 describe("機能を減らして動く場合（共通ライブラリを読めない）", () => {
-  // 検体は `on`。有効化したつもりのリポジトリを、読めないという理由で止める処理を測る。
-  // `off` だと既定の off として扱われただけでも緑になり、読めないときの停止を消しても赤くならない。
-  test("config が在るのに読めないなら停止として扱う", () => {
-    withProject({ notes: { a: {} }, config: "schedule_enabled=on\n", degraded: true }, (p) => {
-      const { settings } = run(p, ["config"]);
-      expect(settings.skip).toBe("true");
-      expect(settings.skip_reason).toContain("読めない");
-      // 読めない以上「キーが無い」とは言えないので、opt-in の理由を重ねない。
-      expect(settings.skip_reason).not.toContain("schedule_enabled=on が無い");
-    });
+  // 検体は true。有効化したつもりのリポジトリを、読めないという理由で止める処理を測る。
+  // false だと既定の false として扱われただけでも緑になり、読めないときの停止を消しても赤くならない。
+  test("設定ファイルが在っても読めないので停止として扱う", () => {
+    withProject(
+      { notes: { a: {} }, config: '{ "schedule_enabled": true }\n', degraded: true },
+      (p) => {
+        const { status, settings, stderr } = run(p, ["config"]);
+        expect(status).toBe(0);
+        expect(settings.skip).toBe("true");
+        expect(settings.skip_reason).toContain("読めない");
+        // 読めない以上「キーが無い」とは言えないので、opt-in の理由を重ねない。
+        expect(settings.skip_reason).not.toContain('"schedule_enabled": true が無い');
+        // 機能を減らして動いたことを、本番の構成と出力で区別できる。
+        expect(stderr).toContain("kaizen-hook-common.sh を読めないため");
+      },
+    );
   });
+});
 
-  test("config がそもそも無ければ opt-in のデフォルトで止まる（機能を減らしたことが理由ではない）", () => {
-    withProject({ notes: { a: {} }, degraded: true }, (p) => {
-      const { settings } = run(p, ["config"]);
-      expect(settings.skip).toBe("true");
-      expect(settings.skip_reason).toContain("schedule_enabled=on が無い");
-      expect(settings.skip_reason).not.toContain("読めない");
-    });
-  });
-
-  // ライブラリが読めても、`.kaizen/config` 自体が読めなければ同じ抜けになる。
-  // kaizen_config_value は「読めない」と「キーが無い」を同じ 1 で返すため、
-  // 区別しないと schedule_enabled=off を読み落とし、判定できないのに実行してしまう。
-  test("config がパーミッションで読めないときも停止として扱う", () => {
-    // 同じ理由で検体は `on`（`off` では既定の off と区別できない）。
-    withProject({ notes: { a: {} }, config: "schedule_enabled=on\n" }, (p) => {
-      const configPath = join(p.dir, ".kaizen", "config");
+describe("設定ファイルを読めない場合", () => {
+  test("設定ファイルがパーミッションで読めないときは exit 1 で止める", () => {
+    withProject({ notes: { a: {} }, config: '{ "schedule_enabled": true }\n' }, (p) => {
+      const configPath = join(p.dir, ".config", "skills", "shoji9x9", "kaizen.jsonc");
       chmodSync(configPath, 0o000);
       // root で実行すると 000 でも読めてしまい、この分岐へ到達しない（到達しない実行を緑にしない）。
       let readable = true;
@@ -327,10 +349,11 @@ describe("機能を減らして動く場合（共通ライブラリを読めな�
         readable = false;
       }
       expect(readable).toBe(false);
-      const { settings } = run(p, ["config"]);
-      expect(settings.skip).toBe("true");
-      expect(settings.skip_reason).toContain("読めない");
+      const { status, stdout, stderr } = run(p, ["config"]);
       chmodSync(configPath, 0o600);
+      expect(status).toBe(1);
+      expect(stderr).toContain("kaizen の設定を読めない");
+      expect(stdout).not.toContain("skip=");
     });
   });
 });
@@ -350,7 +373,7 @@ describe("pending の数え方と並び", () => {
 
   test("0 件のとき agent は notify として扱われる（エージェントへ渡す材料が無い）", () => {
     withProject(
-      { notes: { done: { status: "applied" } }, config: "schedule_mode=agent\n" },
+      { notes: { done: { status: "applied" } }, config: '{ "schedule_mode": "agent" }\n' },
       (p) => {
         const { settings, stderr } = run(p, ["config"]);
         expect(settings).toMatchObject({ pending_count: "0", mode: "notify" });

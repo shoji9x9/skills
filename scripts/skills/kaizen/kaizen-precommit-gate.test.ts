@@ -10,6 +10,7 @@ import {
   appendFileSync,
   chmodSync,
   copyFileSync,
+  cpSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -24,6 +25,7 @@ import { fileURLToPath } from "node:url";
 import { makeSharedTempDir, makeTempDirFactory } from "../../lib/testing/test-tmpdir.ts";
 import { spawnAsync } from "../../lib/spawn-async.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
+import { kaizenEnv, pathWithout, writeKaizenConfig } from "./kaizen-config-env.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const scriptsDir = join(repoRoot, "skills", "kaizen", "scripts");
@@ -59,7 +61,7 @@ async function runScript(
   return await spawnAsync("bash", [join(scripts, script), ...args], {
     timeout: CHILD_TIMEOUT_MS,
     cwd,
-    env: { ...process.env, CLAUDE_PROJECT_DIR: cwd, ...env },
+    env: kaizenEnv(cwd ?? tmpdir(), { CLAUDE_PROJECT_DIR: cwd, ...env }),
   });
 }
 
@@ -84,14 +86,19 @@ async function runGate(
     timeout,
     cwd,
     input,
-    env: { ...process.env, CLAUDE_PROJECT_DIR: cwd, ...env },
+    env: kaizenEnv(cwd ?? tmpdir(), { CLAUDE_PROJECT_DIR: cwd, ...env }),
   });
 }
 
 /** スクリプト一式を一時ディレクトリへ複製する（1 本だけスタブに差し替えるため）。 */
 function cloneScripts() {
-  const dir = tempDir("kaizen-scripts-");
-  for (const name of readdirSync(scriptsDir)) copyFileSync(join(scriptsDir, name), join(dir, name));
+  // 設定の読み取り（scripts/skill-config/）と、それが読むスキーマ（../config-schemas/）も、スキルと同じ配置で複製する。
+  const base = tempDir("kaizen-scripts-");
+  const dir = join(base, "scripts");
+  cpSync(scriptsDir, dir, { recursive: true });
+  cpSync(join(scriptsDir, "..", "config-schemas"), join(base, "config-schemas"), {
+    recursive: true,
+  });
   return dir;
 }
 
@@ -123,14 +130,19 @@ function setupForeignScan(scannerBody: string) {
   );
   const cache = join(cwd, ".kaizen", `.extract-checkpoint.${FOREIGN_SCAN_FOREIGN}.foreign-scan`);
   // timeout は、1 つのテストで gate を何度も起動するときに、合計がテストの timeout を超えないように渡す。
-  const gate = async (env: Record<string, string> = {}, timeout?: number) =>
-    await runGate("git commit -m x", {
+  // deadline は kaizen.jsonc の precommit_deadline_seconds に書く。
+  const gate = async (env: Record<string, string> = {}, timeout?: number, deadline?: number) => {
+    if (deadline !== undefined) {
+      writeKaizenConfig(cwd, `{ "precommit_deadline_seconds": ${deadline} }\n`);
+    }
+    return await runGate("git commit -m x", {
       cwd,
       sessionId: FOREIGN_SCAN_OWN,
       scripts,
       env: { SCAN_COUNTER: counter, ...env },
       timeout,
     });
+  };
   const scans = () =>
     existsSync(counter) ? readFileSync(counter, "utf8").split("\n").filter(Boolean).length : 0;
   return { scripts, cwd, transcript, cache, gate, scans };
@@ -234,6 +246,34 @@ describe.concurrent("他セッション分の走査結果の再利用", () => {
     expect(result.status, result.stderr).toBe(0);
     expect(existsSync(cache)).toBe(false);
   });
+
+  test("kaizen.jsonc の foreign_sentinel_retention_days が never なら、保持期間を過ぎても回収しない", async () => {
+    const { cwd, gate, transcript } = setup("exit 0");
+    const sentinel = join(cwd, ".kaizen", `.pending-extract.${FOREIGN}`);
+    writeFileSync(sentinel, `2000-01-01T00:00:00Z\n${transcript}\nclaude-code\n${FOREIGN}\n`);
+    writeKaizenConfig(cwd, '{ "foreign_sentinel_retention_days": "never" }\n');
+    const result = await gate();
+    expect(result.status, result.stderr).toBe(1);
+    expect(result.stdout + result.stderr).toContain("foreign_sentinel_retention_days が never");
+    expect(existsSync(sentinel)).toBe(true);
+  });
+
+  // スキーマの上限は、日数を数として読むシェルの桁の上限（6 桁）と同じにする
+  test.each([
+    [999999, false],
+    [1000000, true],
+  ])(
+    "kaizen.jsonc の foreign_sentinel_retention_days が %i なら、設定の誤りか（%s）",
+    async (days, invalid) => {
+      const { cwd, gate } = setup("exit 0");
+      writeKaizenConfig(cwd, `{ "foreign_sentinel_retention_days": ${days} }\n`);
+      const result = await gate();
+      const output = result.stdout + result.stderr;
+      expect(output).not.toContain("回収しません");
+      if (invalid) expect(output).toMatch(/foreign_sentinel_retention_days[\s\S]*999999/);
+      else expect(output).not.toMatch(/foreign_sentinel_retention_days[\s\S]*999999/);
+    },
+  );
 });
 
 describe.concurrent("Claude Code の atis-latch 補助レコード", () => {
@@ -1755,13 +1795,13 @@ describe("チェック全体の締め切り", () => {
     const transcript = join(cwd, "t.jsonl");
     writeFileSync(transcript, "{}\n");
     writeSentinel(cwd, OWN, transcript);
+    writeKaizenConfig(cwd, '{ "precommit_deadline_seconds": 3 }\n');
 
     const { gate, elapsed } = await timedGate({
       cwd,
       transcriptPath: transcript,
       sessionId: OWN,
       scripts,
-      env: { KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "3" },
     });
     expect(gate.status, gate.stderr).toBe(2);
     expect(gate.stderr).toMatch(/the transcript scan hit the gate deadline \(3s/);
@@ -1778,12 +1818,12 @@ describe("チェック全体の締め切り", () => {
     const scripts = stubScripts({
       "kaizen-status-check.sh": `: > '${started}'\nexec sleep 30`,
     });
+    writeKaizenConfig(cwd, '{ "precommit_deadline_seconds": 3 }\n');
 
     const { gate, elapsed } = await timedGate({
       cwd,
       sessionId: OWN,
       scripts,
-      env: { KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "3" },
     });
     expect(gate.status, gate.stderr).toBe(2);
     expect(gate.stderr).toMatch(
@@ -1803,37 +1843,75 @@ describe("チェック全体の締め切り", () => {
   });
 
   // 締め切りの値を読むだけのテストは、時間で判定しないので互いに並べる（締め切りに当てる 2 本とは並べない）。
-  test.concurrent.each([["abc"], ["0"], ["1"], ["3601"], ["-5"], ["8.5"]])(
-    "不正な締め切り %s はデフォルト値に戻して知らせる",
+  // 不正な値は、デフォルトの値で判定せずにコミットを止める（設定したつもりの締め切りで動いていると読めてしまう）。
+  test.concurrent.each([['"abc"'], ["0"], ["1"], ["3601"], ["-5"], ["8.5"]])(
+    "不正な締め切り %s はコミットを止めて知らせる",
     async (raw) => {
       const cwd = makeProject();
-      const gate = await runGate("git commit -m x", {
-        cwd,
-        sessionId: OWN,
-        env: { KAIZEN_PRECOMMIT_DEADLINE_SECONDS: raw },
-      });
-      expect(gate.status, gate.stderr).toBe(0);
-      expect(gate.stderr).toMatch(
-        /KAIZEN_PRECOMMIT_DEADLINE_SECONDS が不正です.*既定の 8 秒を使います/,
-      );
+      writeKaizenConfig(cwd, `{ "precommit_deadline_seconds": ${raw} }\n`);
+      const gate = await runGate("git commit -m x", { cwd, sessionId: OWN });
+      expect(gate.status, gate.stderr).toBe(2);
+      expect(gate.stderr).toContain("precommit_deadline_seconds");
+      expect(gate.stderr).toContain("kaizen の設定を読めないので、コミットを止めます");
     },
   );
 
-  test.concurrent.each([["2"], ["20"], ["3600"], ["08"]])(
+  test.concurrent.each([["2"], ["20"], ["3600"]])(
     "正しい締め切り %s は警告なしに受け付ける",
     async (raw) => {
       const cwd = makeProject();
-      const gate = await runGate("git commit -m x", {
-        cwd,
-        sessionId: OWN,
-        env: { KAIZEN_PRECOMMIT_DEADLINE_SECONDS: raw },
-      });
+      writeKaizenConfig(cwd, `{ "precommit_deadline_seconds": ${raw} }\n`);
+      const gate = await runGate("git commit -m x", { cwd, sessionId: OWN });
       // 受け付けたかだけを見る。最小の 2 秒では lifecycle 検査の持ち時間が 1 秒しかなく、負荷の高い
       // 並列実行では、締め切りで失敗として扱われうる（それ自体は仕様どおり）。
-      expect(gate.stderr).not.toMatch(/不正です/);
+      expect(gate.stderr).not.toMatch(/設定を読めない/);
       expect([0, 2]).toContain(gate.status);
     },
   );
+});
+
+describe.concurrent("kaizen の設定を読めないときはコミットを止める", () => {
+  test("使わなくなった環境変数 KAIZEN_PRECOMMIT_DEADLINE_SECONDS は、移行の手順を示して止める", async () => {
+    const cwd = makeProject();
+    const gate = await runGate("git commit -m x", {
+      cwd,
+      sessionId: FOREIGN_SCAN_OWN,
+      env: { KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "20" },
+    });
+    expect(gate.status, gate.stderr).toBe(2);
+    expect(gate.stderr).toContain("環境変数 KAIZEN_PRECOMMIT_DEADLINE_SECONDS は使わなくなった");
+    expect(gate.stderr).toContain("precommit_deadline_seconds に移し");
+  });
+
+  test("旧い .kaizen/config は、node が無くても移行の手順を示して止める", async () => {
+    const cwd = makeProject();
+    writeFileSync(join(cwd, ".kaizen", "config"), "foreign_sentinel_retention_days=14\n");
+    const env = { PATH: pathWithout(cwd, ["node"], kaizenEnv(cwd).PATH ?? "") };
+    const gate = await runGate("git commit -m x", { cwd, sessionId: FOREIGN_SCAN_OWN, env });
+    expect(gate.status, gate.stderr).toBe(2);
+    expect(gate.stderr).toContain(".kaizen/config が残っている");
+  });
+
+  test("設定ファイルがあるのに node が無ければ止め、設定ファイルが無ければ node なしで通す", async () => {
+    const cwd = makeProject();
+    const env = { PATH: pathWithout(cwd, ["node"], kaizenEnv(cwd).PATH ?? "") };
+    const none = await runGate("git commit -m x", { cwd, sessionId: FOREIGN_SCAN_OWN, env });
+    expect(none.status, none.stderr).toBe(0);
+    writeKaizenConfig(cwd, '{ "precommit_deadline_seconds": 20 }\n');
+    const gate = await runGate("git commit -m x", { cwd, sessionId: FOREIGN_SCAN_OWN, env });
+    expect(gate.status, gate.stderr).toBe(2);
+    expect(gate.stderr).toContain("kaizen の設定を読むには node が要るが、見つからない");
+  });
+
+  test("人ごとの設定（XDG_CONFIG_HOME）の締め切りも読む", async () => {
+    const cwd = makeProject();
+    const user = join(cwd, ".test-xdg", "skills", "shoji9x9");
+    mkdirSync(user, { recursive: true });
+    writeFileSync(join(user, "kaizen.jsonc"), '{ "precommit_deadline_seconds": "x" }\n');
+    const gate = await runGate("git commit -m x", { cwd, sessionId: FOREIGN_SCAN_OWN });
+    expect(gate.status, gate.stderr).toBe(2);
+    expect(gate.stderr).toContain(join(user, "kaizen.jsonc"));
+  });
 });
 
 // 使える秒数を前回と比べるので、締め切りの describe と同じく並べずに、ファイルの最後で実行する。
@@ -1848,12 +1926,12 @@ describe("他セッション分の走査結果の再利用（使える秒数を�
     // 3 回目は確実に許容の外に収まる値を選ぶ。
     // gate を 3 回順に起動するので、子プロセスの timeout の合計（28 秒）をテストの timeout（30 秒）より短くする。
     // 締め切りに合わせて配り、どの回も締め切りより 5 秒の余裕を持たせる。
-    await gate({ KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "3" }, 8_000);
+    await gate({}, 8_000, 3);
     expect(scans()).toBe(1);
-    const same = await gate({ KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "3" }, 8_000);
+    const same = await gate({}, 8_000, 3);
     expect(scans()).toBe(1);
     expect(same.stderr).toMatch(/skipped re-scanning .*\(exit 124 after up to [12]s\)/);
-    await gate({ KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "7", SCAN_NO_WAIT: "1" }, 12_000);
+    await gate({ SCAN_NO_WAIT: "1" }, 12_000, 7);
     expect(scans()).toBe(2);
   }, 30000);
 });

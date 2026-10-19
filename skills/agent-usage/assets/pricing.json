@@ -1,9 +1,9 @@
 {
   "$comment": [
-    "同梱の単価表。単価は USD / 100 万トークン。リポジトリの .agent-usage/config.json の pricing が同じモデルを持てば、そちらを優先する。",
+    "同梱の単価表。単価は USD / 100 万トークン。リポジトリの設定（.config/skills/shoji9x9/agent-usage.jsonc）の pricing が同じモデルを持てば、そちらを優先する。",
     "モデル名は、ログの名前から末尾の [1m] などの括弧と -YYYYMMDD の日付を除いた形で引く（scripts/lib/pricing.mjs の normalizeModel）。",
     "Anthropic のキャッシュの読み取りは cacheRead、書き込みは cacheWrite5m と cacheWrite1h。OpenAI のキャッシュ済みの入力は cacheRead に置く（書き込みの単価は無い）。",
-    "reviews は、レビューツールごとの 1 回あたりの推定額（USD）。リポジトリの .agent-usage/config.json の reviewPricing が同じツールを持てば、そちらを優先する。",
+    "reviews は、レビューツールごとの 1 回あたりの推定額（USD）。リポジトリの設定（.config/skills/shoji9x9/agent-usage.jsonc）の reviewPricing が同じツールを持てば、そちらを優先する。",
     "Claude Haiku 5.5 は 100,000 トークンを超えるプロンプトの単価が上がるが、ここでは 100,000 トークン以下の単価だけを持つ。OpenAI の gpt-5.6-sol と gpt-5.6-terra も、272K を超える入力の単価は持たない。"
   ],
   "retrieved": "2026-10-14",

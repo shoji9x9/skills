@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "dependabot-merge の設定（.config/skills/shoji9x9/dependabot-merge.jsonc）",
+  "description": "置き場所・層・解決の順序は references/config-files.md にある。x-layers はそのキーを置ける層。",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "merge_method": {
+      "description": "PR をマージする方式。リポジトリで揃えるので、リポジトリの層だけに置ける",
+      "enum": ["squash", "merge", "rebase"],
+      "default": "squash",
+      "x-layers": ["repo"]
+    }
+  }
+}

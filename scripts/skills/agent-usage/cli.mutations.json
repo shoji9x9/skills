@@ -753,10 +753,10 @@
     },
     {
       "id": "user-default-not-preferred",
-      "why": "人の設定の defaultDecision を読まず、リポジトリの設定だけに従う",
+      "why": "人の設定の defaultDecision より、リポジトリの設定を先に見る",
       "file": "skills/agent-usage/scripts/lib/config.mjs",
-      "find": "  if (user !== null && user.defaultDecision !== undefined)",
-      "replace": "  if (false)",
+      "find": "  const layers = FILE_LAYERS.filter(",
+      "replace": "  const layers = [...FILE_LAYERS].reverse().filter(",
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook 判断の無いブランチでは、defaultDecision に従って止めずに通す。人の設定がリポジトリの設定より優先する"
@@ -766,8 +766,8 @@
       "id": "user-decline-not-preferred",
       "why": "人の設定の record だけを優先し、人の decline よりリポジトリの record に従う",
       "file": "skills/agent-usage/scripts/lib/config.mjs",
-      "find": "  if (user !== null && user.defaultDecision !== undefined)",
-      "replace": "  if (user !== null && user.defaultDecision === \"record\")",
+      "find": "    if (d === \"record\" || d === \"decline\") return { decision: d, source: paths[layer] };",
+      "replace": "    if (d === \"record\" || (d === \"decline\" && layer !== \"user\")) return { decision: d, source: paths[layer] };",
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook 判断の無いブランチでは、defaultDecision に従って止めずに通す。人の設定がリポジトリの設定より優先する"
@@ -777,12 +777,11 @@
       "id": "repo-default-unread",
       "why": "リポジトリの設定の defaultDecision を読まない",
       "file": "skills/agent-usage/scripts/lib/config.mjs",
-      "find": "  if (obj.defaultDecision !== undefined && obj.defaultDecision !== null) {\n    cfg.defaultDecision",
-      "replace": "  if (false) {\n    cfg.defaultDecision",
+      "find": "    const d = value?.defaultDecision;",
+      "replace": "    const d = layer === \"repo\" ? undefined : value?.defaultDecision;",
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook 判断の無いブランチでは、defaultDecision に従って止めずに通す。人の設定がリポジトリの設定より優先する",
-        "agent-usage のコマンドと Hook defaultDecision が読めない値なら、コミットを止めて理由を返す。どちらの設定にも無ければ確かめる",
         "agent-usage のコマンドと Hook リポジトリの defaultDecision は、人の設定が無い人には当てずに止めて setup を求め、人の ID を作らない。デフォルトブランチの status は対象外と出す"
       ]
     },
@@ -790,8 +789,8 @@
       "id": "setup-drops-default-decision",
       "why": "setup をやり直すと、人の設定の defaultDecision が消える",
       "file": "skills/agent-usage/scripts/agent-usage.mjs",
-      "find": "defaultDecision: config?.defaultDecision",
-      "replace": "defaultDecision: undefined",
+      "find": "saveUserConfig(repo.root, process.env, { personId, timeZone, billing })",
+      "replace": "saveUserConfig(repo.root, process.env, { personId, timeZone, billing, defaultDecision: null })",
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook 判断の無いブランチでは、defaultDecision に従って止めずに通す。人の設定がリポジトリの設定より優先する"
@@ -827,15 +826,16 @@
       "replace": "`,",
       "occurrences": 1,
       "expect_failing": [
-        "agent-usage のコマンドと Hook defaultDecision が読めない値なら、コミットを止めて理由を返す。どちらの設定にも無ければ確かめる"
+        "agent-usage のコマンドと Hook defaultDecision が読めない値なら、コミットを止めて理由を返す。どちらの設定にも無ければ確かめる",
+        "agent-usage のコマンドと Hook 記録すると決めたブランチで人ごとの設定を読めなければ、記録せずにコミットを止めて理由を返す"
       ]
     },
     {
       "id": "repo-default-null-rejected",
-      "why": "リポジトリの設定の defaultDecision: null を、置いていないのと同じに扱わずに読めない設定として止める",
+      "why": "リポジトリの設定の defaultDecision: null を、置いていないのと同じに扱わない",
       "file": "skills/agent-usage/scripts/lib/config.mjs",
-      "find": "  if (obj.defaultDecision !== undefined && obj.defaultDecision !== null) {\n    cfg.defaultDecision",
-      "replace": "  if (obj.defaultDecision !== undefined) {\n    cfg.defaultDecision",
+      "find": "    if (d === \"record\" || d === \"decline\") return { decision: d, source: paths[layer] };",
+      "replace": "    if (d !== undefined) return { decision: /** @type {DefaultDecision} */ (d), source: paths[layer] };",
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook defaultDecision が読めない値なら、コミットを止めて理由を返す。どちらの設定にも無ければ確かめる"
@@ -879,7 +879,7 @@
       "id": "repo-default-applied-without-user",
       "why": "リポジトリの defaultDecision を、人の設定が無い人にも当てる",
       "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "    if (!existsSync(userConfigPath(process.env)))\n      return { exit: 2, message: setupMessage(agent, script) };\n    decision = fallback.decision;",
+      "find": "    person = personOf(script);\n    if (person !== true)\n      return person === false ? { exit: 2, message: setupMessage(agent, script) } : person;\n    decision = fallback.decision;",
       "replace": "    decision = fallback.decision;",
       "occurrences": 1,
       "expect_failing": [
@@ -890,22 +890,35 @@
       "id": "gate-creates-person",
       "why": "記録するときに人の設定が無くても止めず、collect が人の ID を作る",
       "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "  if (!existsSync(userConfigPath(process.env)))\n    return { exit: 2, message: setupMessage(agent, script) };\n  try {",
+      "find": "  person ??= personOf(script);\n  if (person !== true)\n    return person === false ? { exit: 2, message: setupMessage(agent, script) } : person;\n  try {",
       "replace": "  try {",
       "occurrences": 1,
       "expect_failing": [
-        "agent-usage のコマンドと Hook ブランチの判断が「記録する」でも、人の設定が無ければ止めて、Hook からは人の ID を作らない。status も止めると出す"
+        "agent-usage のコマンドと Hook ブランチの判断が「記録する」でも、人の設定が無ければ止めて、Hook からは人の ID を作らない。status も止めると出す",
+        "agent-usage のコマンドと Hook 記録すると決めたブランチで人ごとの設定を読めなければ、記録せずにコミットを止めて理由を返す"
+      ]
+    },
+    {
+      "id": "person-config-error-hidden",
+      "why": "人ごとの設定を読めないことを、人の設定が無いことと同じに扱う（設定の誤りを示さない）",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "    return hasPerson(process.env);\n  } catch (e) {\n    return configErrorResult(e, script);",
+      "replace": "    return hasPerson(process.env);\n  } catch {\n    return false;",
+      "occurrences": 1,
+      "expect_failing": [
+        "agent-usage のコマンドと Hook 記録すると決めたブランチで人ごとの設定を読めなければ、記録せずにコミットを止めて理由を返す"
       ]
     },
     {
       "id": "status-record-ignores-missing-user",
       "why": "判断が「記録する」で人の設定が無いとき、status が record とだけ出し、Hook が止めることと食い違う",
       "file": "skills/agent-usage/scripts/agent-usage.mjs",
-      "find": "    if (decided === \"record\" && !existsSync(userConfigPath()))",
-      "replace": "    if (false)",
+      "find": "      if (!hasPerson())\n        return \"record（人の設定が無いので",
+      "replace": "      if (false)\n        return \"record（人の設定が無いので",
       "occurrences": 1,
       "expect_failing": [
-        "agent-usage のコマンドと Hook ブランチの判断が「記録する」でも、人の設定が無ければ止めて、Hook からは人の ID を作らない。status も止めると出す"
+        "agent-usage のコマンドと Hook ブランチの判断が「記録する」でも、人の設定が無ければ止めて、Hook からは人の ID を作らない。status も止めると出す",
+        "agent-usage のコマンドと Hook 記録すると決めたブランチで人ごとの設定を読めなければ、記録せずにコミットを止めて理由を返す"
       ]
     },
     {
@@ -923,7 +936,7 @@
       "id": "status-default-ignores-missing-user",
       "why": "人の設定が無くても、status が defaultDecision に従うと読める表示を出し、Hook の判断と食い違う",
       "file": "skills/agent-usage/scripts/agent-usage.mjs",
-      "find": "    if (!existsSync(userConfigPath()))\n      return `未決定（defaultDecision:",
+      "find": "    if (!hasPerson())\n      return `未決定（defaultDecision:",
       "replace": "    if (false)\n      return `未決定（defaultDecision:",
       "occurrences": 1,
       "expect_failing": [
@@ -934,8 +947,8 @@
       "id": "setup-creates-before-validate",
       "why": "setup が引数を確かめる前に人の設定を作り、打ち間違いで止まっても乱数の ID の設定が残る",
       "file": "skills/agent-usage/scripts/agent-usage.mjs",
-      "find": "      const config = loadUserConfig();",
-      "replace": "      const config =\n        loadUserConfig() ??\n        (saveUserConfig(path, { personId: newPersonId(), timeZone: systemTimeZone(), billing: \"none\" }),\n        loadUserConfig());",
+      "find": "      const config = loadUserConfig(repo.root);",
+      "replace": "      const config =\n        loadUserConfig(repo.root) ??\n        (saveUserConfig(repo.root, process.env, { personId: newPersonId(), timeZone: systemTimeZone() }),\n        loadUserConfig(repo.root));",
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook 人の設定が無いとき、引数を誤った setup と report は人の設定を作らず、判断を確かめる案内は setup --person-id を示す"
@@ -945,8 +958,8 @@
       "id": "report-creates-user-config",
       "why": "report が人の設定を作り、setup を通らずに乱数の ID ができる",
       "file": "skills/agent-usage/scripts/lib/report/report.mjs",
-      "find": "import { loadRepoConfig, loadUserConfig } from \"../config.mjs\";",
-      "replace": "import { loadRepoConfig, loadOrCreateUserConfig } from \"../config.mjs\";\nconst loadUserConfig = (/** @type {NodeJS.ProcessEnv} */ env) => loadOrCreateUserConfig(env).config;",
+      "find": "import { loadRepoConfig, loadUserConfig, resolved } from \"../config.mjs\";",
+      "replace": "import { loadRepoConfig, loadOrCreateUserConfig, resolved } from \"../config.mjs\";\nconst loadUserConfig = (/** @type {string} */ root, /** @type {NodeJS.ProcessEnv} */ env, /** @type {ReturnType<typeof resolved>} */ r) => loadOrCreateUserConfig(root, env, r).config;",
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook 人の設定が無いとき、引数を誤った setup と report は人の設定を作らず、判断を確かめる案内は setup --person-id を示す"
@@ -956,7 +969,7 @@
       "id": "ask-no-person-id-hint",
       "why": "人の設定が無い人に、collect が新しい ID を作る前に setup --person-id を案内しない",
       "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "    ...(existsSync(userConfigPath(process.env))",
+      "find": "    ...(hasPerson(process.env)",
       "replace": "    ...(true",
       "occurrences": 1,
       "expect_failing": [
@@ -967,7 +980,7 @@
       "id": "ask-person-id-hint-always",
       "why": "人の設定がある人にも、人の設定がまだ無いと案内する",
       "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "    ...(existsSync(userConfigPath(process.env))",
+      "find": "    ...(hasPerson(process.env)",
       "replace": "    ...(false",
       "occurrences": 1,
       "expect_failing": [
