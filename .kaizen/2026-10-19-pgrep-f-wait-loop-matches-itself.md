@@ -18,14 +18,14 @@ eval のバックグラウンド実行の完了を待つために、`until ! pgr
 ## 根本原因
 
 - なぜ終わらなかったか: `pgrep -f` のパターンが、同じ呼び出しのコマンドライン（`bash -c "until ! pgrep -f ..."`）に含まれていた
-- なぜそう書いたか: 「pkill -f は自分のシェルにも一致する」は、終了させる操作の規則としてだけ書かれ、存在を確かめる `pgrep -f`（待つループ）には当てていなかった。
-  2026-09-11-pkill-f-matches-own-command-line の再発で、対称な反対側を当てていない
-- なぜ防げなかったか: 文書の規則だけで、同じ呼び出しの中で自分に一致するパターンを止める決定論的なチェックが無い
+- なぜそう書いたか: `docs/agent-workflow.md` の「待つ処理は、フォアグラウンドの Bash のループに置かない」と、
+  「`pkill -f` は自分のシェルにも一致する」を、存在を確かめる `pgrep -f` に当てなかった。
+  2026-09-11-pkill-f-matches-own-command-line の再発で、終了させる側だけに書いた規則を、対称な反対側（確かめる側）に当てていない
+- なぜ防げなかったか: `scripts/hooks/bash-command-guard.sh` は `pkill -f` と `killall -f` を止めるが、`pgrep -f` を対象にしていない
 
 ## 提案
 
-`pgrep -f`・`pkill -f` のパターンが、同じコマンドの中で自分に一致する形を、Bash の PreToolUse の Hook で止める。
+`scripts/hooks/bash-command-guard.sh` が `pkill -f` を止める検査を、同じパターンの `pgrep -f` にも広げる。
 
-- `scripts/hooks/bash-command-guard.sh` に、`pgrep -f` / `pkill -f` の引数がエスケープの無い字面のままコマンドに含まれる形（`[r]un` のような、自分に一致しない書き方にしていないもの）を検出して止める
-- `AGENTS.md` の「プロセスは、起動時に保存した PID で終了させる」に、存在の確認と待つループも同じだと足す
-- run_in_background で起動した処理は、完了の通知を待つ。フォアグラウンドのループで待たない
+- `pgrep -f <パターン>` も、同じ呼び出しのコマンドラインに一致するので、パターンを自分に一致しない書き方（`[r]un-ws` など）にしていなければ常に 1 件以上を返す
+- 規則の文（`docs/agent-workflow.md` の 2 か所）は既にあるので足さない。足りないのは Hook の対象だけである
