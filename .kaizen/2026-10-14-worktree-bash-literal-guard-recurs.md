@@ -164,3 +164,12 @@ python の quoted heredoc で置換スクリプトを渡した呼び出し、`ca
 kaizen のチェックが示した解消のコマンド（共有ツリー側の `kaizen-extract-done.sh` を `; echo` でつないだもの）と、`cd <worktree> &&` で始めた `git commit` も拒否された。
 前者は worktree の中のコピーを絶対パスで、後者は `git commit` を単独で実行して通した。
 どれも、Write ツールでスクリプトにして絶対パスで実行するか、`git` の操作を単独の呼び出しに分けて通した。
+
+### 再発の記録（#701・#710）
+
+2026-10-19、issue-batch の #701 と #710 の作業で、worktree に入った後の Bash の呼び出しが 10 回以上拒否された。
+新しく出た形は 2 つある。1 つは、`cat evals/README.md` や `scripts/eval/*.sh` のように、パスに `eval` の語を含む読み取りの呼び出しである（`runs a string through eval`）。
+もう 1 つは、`for` ループの変数を `find` の引数に渡す呼び出しである（`runs find with a value computed at runtime`）。
+ほかは既知の形（準備の処理を `;` でつないだもの、`bash` の起動と `; echo rc=$?` の組、`cat >>` の heredoc でテストに追記するもの、変数に入れたパスで `python3` を起動するもの）だった。
+どれも、Write ツールでスクリプトにして絶対パスで実行するか、Edit ツールで編集するか、定数の引数だけの単独の呼び出しに分けて通した。
+この学びはセッション開始時に注入され、preflight の間も文脈にあったが、worktree に入った後の最初の準備の処理で同じ形を書いた。
