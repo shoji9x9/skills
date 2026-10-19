@@ -488,4 +488,5 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 - `issue-start` への委譲: ブランチの作成は、着手のときに features.md の Issue 番号で `issue-start <番号> --branch-only` を 1 回実行する。
   - 完了の判定（手順 8）の受け入れ条件の突き合わせは、`issue-start <番号> --acceptance --out <new/<target>/acceptance.json>`（実装を含まないモード）で行う
   - 実装はこのスキルが行うので、モードの指定なしと `--commit`・`--pr`（どれも実装を含む）は使わない
-  - commit は、issue-start が解決した規約に従い、ページのフェーズの単位で行う（issue-start の実装のステップへ入り直さない）
+  - commit は、issue-start が解決した規約に従い、ページのフェーズの単位で行う（issue-start の実装のステップへ入り直さない）。
+    commit message の 1 行目は、commit する前に `writing-style` スキルの手順で読み直す（スキルが無ければ省く）

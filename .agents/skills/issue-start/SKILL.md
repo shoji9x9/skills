@@ -184,6 +184,7 @@ issue-start https://github.com/<owner>/<repo>/issues/220 --pr
 ## commit / PR の扱い
 
 - commit message は、「ブランチ運用・commit 規約の参照」で決めた規約に従う。commit-msg のチェック（commitlint や lefthook など）がリポジトリにあれば、それにも従う
+- commit message の 1 行目、PR のタイトルと本文、Issue へのコメントは、外に出す前に `writing-style` スキルの手順で読み直す（スキルが無ければ省く）
 - 関係の無い変更を同じ commit に含めない。関連するファイルだけを stage する
 - 既存の worktree に関係の無い差分がある場合は、巻き込まずに、対象のファイルだけを扱う
 - commit のときに、pre-commit の hook（lefthook など）や kaizen の commit 前のチェックが設定されていれば、それが実行される。

@@ -202,6 +202,8 @@ gh api --paginate repos/<owner>/<repo>/issues/<番号>/comments \
 
 ### 判断の記録（PR コメント）
 
+コメントの本文は、投稿する前に `writing-style` スキルの手順で読み直す（スキルが無ければ省く）。
+
 本文はバッククォートや `$` を含みうる。そのため、quoted heredoc（かファイルを書くツール）でファイルに書き、`--body-file` で渡す。
 
 ```bash

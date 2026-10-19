@@ -61,6 +61,8 @@ SKILL.md と同じディレクトリの `references/` にある、対応する�
 - Hooks の設定 → `references/hooks.md`
 - ドキュメントの整備 → `references/docs.md`
 
+書いた文書の見出しと本文（`SKILL.md` の `description` を除く）は、書き終えたら `writing-style` スキルの手順で読み直す（スキルが無ければ省く）。
+
 コンポーネントのファイルは、SKILL.md と同じディレクトリの `references/` の下にある。インストール先に応じて、次の場所を順に試す。
 
 - `~/.claude/skills/multiagent-setup/references/<file>.md`

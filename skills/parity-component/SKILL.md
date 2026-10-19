@@ -310,6 +310,7 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
 
    実行した検証コマンドと結果、反復の回数を、`.replace/components/<slug>/new/<target>/build-metadata.json`（環境ごと）に記録する。
    commit・push・PR は、`issue-start` が解決した規約に従う。`issue-start` の実装の手順には入り直さない。
+   commit message の 1 行目と PR のタイトルは、外に出す前に `writing-style` スキルの手順で読み直す（スキルが無ければ省く）。
 
 ## 成果物
 

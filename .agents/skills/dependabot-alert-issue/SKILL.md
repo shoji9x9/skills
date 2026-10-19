@@ -103,6 +103,7 @@ Issue のタイトルの規約（conventional commits に似た接頭辞など�
 7. タイトルと本文の下書きを作り、ユーザーに見せる
    - タイトルは規約の接頭辞に、severity を含める（例: `fix(deps): [critical] bump <pkg> to <ver> to resolve advisories`）
    - 本文は後述「Issue 本文の規約」に従う
+   - タイトルと本文は、ユーザーに見せる前に `writing-style` スキルの手順で読み直す（スキルが無ければ省く）
    - dismiss の候補があれば、何をなぜ dismiss するかも一覧で見せる
    - 承認を求める確認の画面そのものに、判断に要るもの（下書きの全文と dismiss の候補の一覧）を入れる。
      その直前の通常のテキストが確認のダイアログと同時に見えるとは限らないからである（Claude Code の AskUserQuestion では、選択肢の preview フィールドに入れる）

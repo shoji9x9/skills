@@ -263,6 +263,7 @@ console、主要な要素、Network と API、副作用の無い操作を確か�
 transcript を特定できないエージェントでは、何もしないで進むことにせず、BLOCKED にする。
 
 学びが作られた場合は、実装の変更とは別の commit にする。関連するファイルだけを stage し、規約どおりに commit する。
+commit message の 1 行目、PR のタイトルと本文、Issue へのコメントは、外に出す前に `writing-style` スキルの手順で読み直す（スキルが無ければ省く）。
 **すべての commit の後、push の直前に**、`issue-start` の受け入れ条件の突き合わせ（基本フローの step 10。手順は `issue-start` の `references/acceptance.md` で定義する）を通す。
 ローカルレビューは commit していない差分を対象にし、レビューの修正や Kaizen の commit で HEAD が進む。
 そのため、それより前に作った表は、`commit-missing` か `stale-commit` で失敗する。
