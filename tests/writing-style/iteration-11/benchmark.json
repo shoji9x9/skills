@@ -1,0 +1,129 @@
+{
+  "metadata": {
+    "skill_name": "writing-style",
+    "skill_path": "skills/writing-style",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-19T05:46:06Z",
+    "evals_run": [4],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 30.059,
+        "tokens": 88891,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定の lint_command（node tools/lint-docs.mjs）に notes/release-notes.txt を渡して実行したことを報告している",
+          "passed": true,
+          "evidence": "「node tools/lint-docs.mjs notes/release-notes.txt を実行し」"
+        },
+        {
+          "text": "リンターの出力から notes/release-notes.txt をチェックしたかを確かめられないと報告している（指摘 0 件を合格の根拠にしていない）",
+          "passed": true,
+          "evidence": "「この 0 件はファイルをチェックした結果ではありません。このファイルはリンターでチェックしていません。」"
+        },
+        {
+          "text": "直した文から「件数が多いときではなく」の対比の形を外し、元の文の意味を保っている",
+          "passed": true,
+          "evidence": "3 行目が「検索の結果を、常に並べ替えて返すようにした。これまでは、件数が多いときだけ並べ替えていた。」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 28.89,
+        "tokens": 84820,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定の lint_command（node tools/lint-docs.mjs）に notes/release-notes.txt を渡して実行したことを報告している",
+          "passed": true,
+          "evidence": "「node tools/lint-docs.mjs notes/release-notes.txt を実行し」"
+        },
+        {
+          "text": "リンターの出力から notes/release-notes.txt をチェックしたかを確かめられないと報告している（指摘 0 件を合格の根拠にしていない）",
+          "passed": true,
+          "evidence": "「.txt には何も検査していません。この結果は確認になりません」"
+        },
+        {
+          "text": "直した文から「件数が多いときではなく」の対比の形を外し、元の文の意味を保っている",
+          "passed": true,
+          "evidence": "3 行目が「検索結果を、常に並べ替えて返すようにした。これまでは、件数が多いときだけ並べ替えていた。」"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 30.059,
+        "stddev": 0,
+        "min": 30.059,
+        "max": 30.059
+      },
+      "tokens": {
+        "mean": 88891,
+        "stddev": 0,
+        "min": 88891,
+        "max": 88891
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 28.89,
+        "stddev": 0,
+        "min": 28.89,
+        "max": 28.89
+      },
+      "tokens": {
+        "mean": 84820,
+        "stddev": 0,
+        "min": 84820,
+        "max": 84820
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.00",
+      "time_seconds": "+1.2",
+      "tokens": "+4071"
+    }
+  },
+  "notes": [
+    "eval 4 の fixture のリンターから、答えを書いたコメントを消し、.md の長い行を実際に数える処理にした後の実行。without_skill もリンターのソースを読んで .txt が対象外だと気づくので、差は出ない。回帰の確認として置く。"
+  ]
+}
