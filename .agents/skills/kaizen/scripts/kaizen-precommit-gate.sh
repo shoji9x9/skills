@@ -547,9 +547,12 @@ mask_quoted() { # $1: コマンド文字列
 # 7 つだけにすると `sudo git commit` を見逃す。agent-usage の gate.mjs も同じ一覧を持つ。
 # ラッパーの後ろは任意の語の連なりを読み飛ばすので、値を取るオプション（`timeout 60`・`nice -n 5`・`sudo -u x`）の値も読み飛ばす。
 # 引数に `git` と `commit` を書いただけのラッパー（`timeout 5 echo git commit`）も commit として扱う（止める側）。
+# ラッパーの後ろの語は、区切り（`;`・`&`・`|`・改行）を越えて読み飛ばさない。越えると、
+# `timeout 60 git -C <外部> commit -m a && git commit -m b` の 1 件目から 2 件目までが 1 つの一致になる。
+# コミット先の判定は 1 件目の `-C <外部>` だけを読み、2 件目のプロジェクト宛ての commit をチェックなしに通す（実測）。
 wrappers='(sudo|env|command|builtin|exec|nohup|nice|time|timeout|stdbuf|xargs)'
 assign='[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*'
-prefix="(${assign}[[:space:]]+)*(${wrappers}[[:space:]]+([^[:space:]]+[[:space:]]+)*)*"
+prefix="(${assign}[[:space:]]+)*(${wrappers}[[:blank:]]+([^[:space:];&|]+[[:blank:]]+)*)*"
 # パスを付けた git（`/usr/bin/git`・`./git`）も git として扱う。パスには区切り文字・引用符・空白を含めない。
 gitbin='([^[:space:];&|(){}`"'"'"']*/)?git'
 # `git` と `commit` の間に入る git のグローバルオプション（`git -C <path> commit`,
@@ -827,7 +830,7 @@ path_is_within() { # $1: 正準パス $2: 正準の親
 # commit_re がマッチした部分文字列から、コミット先がプロジェクト外だと確定できるかを返す
 # （0 = 外部宛て、1 = プロジェクト宛て or 判定不能）。
 commit_target_is_external() { # $1: マッチした部分文字列
-	local seg="${1}" opt val tok cdir="" gitdir="" worktree="" abs base t tcommon rel_used=0
+	local seg="${1}" opt val tok cdir="" gitdir="" worktree="" abs base t tcommon rel_used=0 wrapper_part wrapper_chdir=0
 	local -a targets=()
 	# `git` の直後から `commit` の直前までがグローバルオプション列。
 	seg=${seg%commit*}
@@ -840,7 +843,14 @@ commit_target_is_external() { # $1: マッチした部分文字列
 	# パスを付けた git（`/usr/bin/git -C <外部> commit`）も、commit_re と同じ gitbin で読む。
 	local git_head_re='(^|[[:space:]]|[;&|(){`])'"${gitbin}"'[[:space:]]+(.*)$'
 	[[ ${seg} =~ ${git_head_re} ]] || return 1
+	# git より前（ラッパーとその引数）に、作業ディレクトリを変えるオプション（`env -C <dir>`・`sudo -D <dir>`・`--chdir`）
+	# があれば、git の相対パスの基準は Hook の cwd と一致しない。`cd` と同じく、相対パスを使うときは判定できないとして扱う。
+	# 文字で近似するので、`sudo -C <数>` のような別の意味のオプションも含む（止める側）。
+	wrapper_part=${seg%%"${BASH_REMATCH[0]}"*}
 	seg=${BASH_REMATCH[3]}
+	if [[ ${wrapper_part} =~ (^|[[:space:]])(--chdir|-[A-Za-z]*[CD]) ]]; then
+		wrapper_chdir=1
+	fi
 	while [ -n "${seg}" ]; do
 		seg=${seg#"${seg%%[![:space:]]*}"}
 		[ -n "${seg}" ] || break
@@ -891,7 +901,7 @@ commit_target_is_external() { # $1: マッチした部分文字列
 	# コマンド行に `cd` が含まれると、`git` が実際に実行される cwd は Hook の payload の cwd と
 	# 一致しない。相対パスを解決する基準が変わり、プロジェクト宛てを外部宛てと読み違えうるので、
 	# 判定できないとして扱う（`cd <dir> && git commit` を判定できないとするのと同じ理由）。
-	if [ "${rel_used}" -eq 1 ] && [ "${cmd_cwd_uncertain}" -eq 1 ]; then
+	if [ "${rel_used}" -eq 1 ] && { [ "${cmd_cwd_uncertain}" -eq 1 ] || [ "${wrapper_chdir}" -eq 1 ]; }; then
 		return 1
 	fi
 	base=${cdir:-${base_dir}}

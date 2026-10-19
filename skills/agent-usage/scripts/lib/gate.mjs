@@ -50,6 +50,7 @@ const SHELL_PREFIXES = ["if", "then", "elif", "else", "while", "until", "do", "{
  * @typedef {object} CommandWrapper
  * @property {readonly string[]} valueOptions 値を次の語に取るオプション。`--opt=value`・`-n5` の形は 1 語なので、ここに無くてよい
  * @property {number} operands オプションの後に取る引数の数（`timeout 60` の 60）
+ * @property {readonly string[]} [chdirOptions] 後ろのコマンドの作業ディレクトリを変えるオプション（`env -C <dir>`）。valueOptions にも入れる
  */
 
 /**
@@ -62,7 +63,14 @@ const SHELL_PREFIXES = ["if", "then", "elif", "else", "while", "until", "do", "{
 const COMMAND_WRAPPERS = new Map([
   ["builtin", { valueOptions: [], operands: 0 }],
   ["command", { valueOptions: [], operands: 0 }],
-  ["env", { valueOptions: ["-u", "--unset", "-C", "--chdir"], operands: 0 }],
+  [
+    "env",
+    {
+      valueOptions: ["-u", "--unset", "-C", "--chdir"],
+      operands: 0,
+      chdirOptions: ["-C", "--chdir"],
+    },
+  ],
   ["exec", { valueOptions: ["-a"], operands: 0 }],
   ["nice", { valueOptions: ["-n", "--adjustment"], operands: 0 }],
   ["nohup", { valueOptions: [], operands: 0 }],
@@ -70,8 +78,30 @@ const COMMAND_WRAPPERS = new Map([
   [
     "sudo",
     {
-      valueOptions: ["-u", "--user", "-g", "--group", "-C", "--close-from", "-D", "--chdir"],
+      valueOptions: [
+        "-u",
+        "--user",
+        "-g",
+        "--group",
+        "-C",
+        "--close-from",
+        "-D",
+        "--chdir",
+        "-p",
+        "--prompt",
+        "-r",
+        "--role",
+        "-t",
+        "--type",
+        "-U",
+        "--other-user",
+        "-T",
+        "--command-timeout",
+        "-R",
+        "--chroot",
+      ],
       operands: 0,
+      chdirOptions: ["-D", "--chdir"],
     },
   ],
   ["time", { valueOptions: ["-f", "--format", "-o", "--output"], operands: 0 }],
@@ -79,7 +109,22 @@ const COMMAND_WRAPPERS = new Map([
   [
     "xargs",
     {
-      valueOptions: ["-a", "--arg-file", "-d", "--delimiter", "-E", "-I", "-L", "-n", "-P", "-s"],
+      valueOptions: [
+        "-a",
+        "--arg-file",
+        "-d",
+        "--delimiter",
+        "-E",
+        "-I",
+        "-L",
+        "-n",
+        "--max-args",
+        "-P",
+        "--max-procs",
+        "-s",
+        "--max-chars",
+        "--process-slot-var",
+      ],
       operands: 0,
     },
   ],
@@ -221,12 +266,15 @@ export function isGitCommit(command) {
 }
 
 /**
- * 単純なコマンド（語の列）が git commit なら、`-C` で指定したディレクトリを指定の順に返す。git commit でなければ null。
+ * 単純なコマンド（語の列）が git commit なら、ラッパーの `env -C`・`sudo -D` と git の `-C` で指定したディレクトリを指定の順に返す。
+ * git commit でなければ null。
  * @param {readonly string[]} words
  * @returns {string[] | null}
  */
 function commitDirsOf(words) {
   let i = 0;
+  /** @type {string[]} */
+  const dirs = [];
   for (;;) {
     while (i < words.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[i])) i += 1;
     if (i < words.length && SHELL_PREFIXES.includes(words[i])) {
@@ -238,6 +286,9 @@ function commitDirsOf(words) {
       i += 1;
       // `--`（オプションの終わり）も `-` で始まる語として読み飛ばす
       while (i < words.length && words[i].startsWith("-")) {
+        // 作業ディレクトリを変えるオプション（`env -C <dir>`・`sudo -D <dir>`）は、git の -C より先に当たる
+        const dir = wrapperChdir(wrapper, words, i);
+        if (dir !== null) dirs.push(dir);
         i += wrapper.valueOptions.includes(words[i]) ? 2 : 1;
       }
       i += wrapper.operands;
@@ -247,8 +298,6 @@ function commitDirsOf(words) {
   }
   if (i >= words.length || words[i].split("/").pop() !== "git") return null;
   i += 1;
-  /** @type {string[]} */
-  const dirs = [];
   while (i < words.length && words[i].startsWith("-")) {
     if (words[i] === "-C" && i + 1 < words.length) dirs.push(words[i + 1]);
     i += GIT_VALUE_OPTIONS.includes(words[i]) ? 2 : 1;
@@ -257,7 +306,26 @@ function commitDirsOf(words) {
 }
 
 /**
- * git commit を実行する作業ディレクトリ。最初の git commit の `-C` を、git と同じく cwd から順に解決する（相対パスは前の -C に続ける）。
+ * ラッパーの words[i] が作業ディレクトリを変えるオプションなら、そのディレクトリ。`-C <dir>`・`--chdir=<dir>`・`-C<dir>` の形を読む。
+ * 他のオプションとまとめた形（`env -iC <dir>`）は読まない（valueOptions にも無いので、<dir> をコマンドとして読み、git commit と判定しない）。
+ * @param {CommandWrapper} wrapper
+ * @param {readonly string[]} words
+ * @param {number} i
+ * @returns {string | null}
+ */
+function wrapperChdir(wrapper, words, i) {
+  for (const opt of wrapper.chdirOptions ?? []) {
+    if (words[i] === opt) return i + 1 < words.length ? words[i + 1] : null;
+    if (opt.startsWith("--") && words[i].startsWith(`${opt}=`))
+      return words[i].slice(opt.length + 1);
+    if (!opt.startsWith("--") && words[i].startsWith(opt)) return words[i].slice(opt.length);
+  }
+  return null;
+}
+
+/**
+ * git commit を実行する作業ディレクトリ。最初の git commit のラッパーの `env -C`・`sudo -D` と git の `-C` を、
+ * git と同じく cwd から順に解決する（相対パスは前の指定に続ける）。
  * その前の `cd <dir>`（同じ呼び出しの中で git commit より前のもの）も順に当てる。語に分けられないときは cwd。
  * 区切り（`&&`・`;`・`||`・サブシェル）は区別しないので、`(cd x) && git commit` の cd も当てる。
  * @param {string} command

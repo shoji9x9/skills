@@ -355,6 +355,32 @@
       ]
     },
     {
+      "id": "GATE-WRAPPER-WORDS-CROSS-SEPARATOR",
+      "why": "ラッパーの後ろの語の読み飛ばしで区切り（; & | 改行）を越える（1 件目の外部宛ての後のプロジェクト宛ての commit を通す）",
+      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
+      "find": "prefix=\"(${assign}[[:space:]]+)*(${wrappers}[[:blank:]]+([^[:space:];&|]+[[:blank:]]+)*)*\"",
+      "replace": "prefix=\"(${assign}[[:space:]]+)*(${wrappers}[[:space:]]+([^[:space:]]+[[:space:]]+)*)*\"",
+      "occurrences": 1,
+      "expect_failing": [
+        "コミット先のスコープ判定 ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（timeout と &&）=> exit 2",
+        "コミット先のスコープ判定 ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（nice と ;）=> exit 2",
+        "コミット先のスコープ判定 ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（sudo -u と ||）=> exit 2",
+        "コミット先のスコープ判定 ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（nice と改行）=> exit 2"
+      ]
+    },
+    {
+      "id": "GATE-WRAPPER-CHDIR-IGNORED",
+      "why": "ラッパーが作業ディレクトリを変える形（env -C・--chdir）でも、git -C の相対パスを Hook の cwd から解決する",
+      "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",
+      "find": "\t\twrapper_chdir=1",
+      "replace": "\t\twrapper_chdir=0",
+      "occurrences": 1,
+      "expect_failing": [
+        "コミット先のスコープ判定 プロジェクト宛て・判定不能: env -C {P}/sub git -C .. commit -m x => exit 2",
+        "コミット先のスコープ判定 プロジェクト宛て・判定不能: env --chdir={P}/sub git -C .. commit -m x => exit 2"
+      ]
+    },
+    {
       "id": "GATE-GITBIN-NO-PATH",
       "why": "パスを付けた git（/usr/bin/git commit）を git として読まない（Issue #678）",
       "file": "skills/kaizen/scripts/kaizen-precommit-gate.sh",

@@ -115,6 +115,9 @@ describe("isGitCommit", () => {
     ["nohup nice -n 5 timeout 60 git commit", true],
     ["timeout 60 /usr/bin/git commit", true],
     ["cd /r && timeout 60 git -C sub commit", true],
+    ["sudo -p pw: git commit", true],
+    ["sudo -r role -t type git commit", true],
+    ["xargs --max-args 1 git commit", true],
     // 同じラッパーと値の形で、commit を実行しないもの
     ["timeout 60 git commit-tree abc", false],
     ["timeout 60 git log --grep commit", false],
@@ -158,6 +161,15 @@ describe("commitCwd", () => {
     ['cd "$(git rev-parse --show-toplevel)" && git commit', "/w"],
     ["cd ~/x && git commit", "/w"],
     ["cd /r && cd $WT && git commit", "/w"],
+    // ラッパーが作業ディレクトリを変える形（env -C・sudo -D）は、git の -C より先に当てる
+    ["env -C /o git commit", "/o"],
+    ["env --chdir=sub git -C x commit", "/w/sub/x"],
+    ["env -Csub git commit", "/w/sub"],
+    ["sudo -D /o git commit", "/o"],
+    ["sudo --chdir /o git -C x commit", "/o/x"],
+    // sudo の -C は作業ディレクトリではない（close-from）
+    ["sudo -C 3 git commit", "/w"],
+    ["env -u HOME git commit", "/w"],
   ])("%s → %s", (cmd, expected) => {
     expect(commitCwd(cmd, "/w")).toBe(expected);
   });

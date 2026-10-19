@@ -1223,11 +1223,29 @@ describe.concurrent("コミット先のスコープ判定", () => {
   test.each([
     ["パスを付けた git", `/usr/bin/git -C ${FIXTURE} commit -m x`],
     ["timeout の後ろの git", `timeout 60 git -C ${FIXTURE} commit -m x`],
+    // 作業ディレクトリを変えるラッパーでも、git -C が絶対パスなら基準に依存しない。
+    ["env -C の後ろの絶対パスの git -C", `env -C ${tmpdir()} git -C ${FIXTURE} commit -m x`],
   ])("外部宛て（%s）=> exit 0", async (_name, command) => {
     const cwd = makeProject();
     writeFileSync(join(cwd, ".kaizen", ".pending-extract"), "");
     expect((await runGate(command, { cwd })).status).toBe(0);
   });
+
+  // ラッパーの後ろの語の読み飛ばしは、区切りを越えない。越えると 1 件目の外部宛てだけを読み、
+  // 2 件目のプロジェクト宛ての commit を通す。
+  test.each([
+    ["timeout と &&", `timeout 60 git -C ${FIXTURE} commit -m a && git commit -m b`],
+    ["nice と ;", `nice git -C ${FIXTURE} commit -m a; git commit -m b`],
+    ["sudo -u と ||", `sudo -u x git -C ${FIXTURE} commit -m a || git commit -m b`],
+    ["nice と改行", `nice git -C ${FIXTURE} commit -m a\ngit commit -m b`],
+  ])(
+    "ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（%s）=> exit 2",
+    async (_name, command) => {
+      const cwd = makeProject();
+      writeFileSync(join(cwd, ".kaizen", ".pending-extract"), "");
+      expect((await runGate(command, { cwd })).status).toBe(2);
+    },
+  );
 
   const blocked = [
     // コミット先を指定しない＝コマンド行からは決まらない（従来どおりブロック）。
@@ -1276,6 +1294,9 @@ describe.concurrent("コミット先のスコープ判定", () => {
     // 上の external のパス付きの git・ラッパーの形と同形で、プロジェクトを指すもの。
     "/usr/bin/git -C {P} commit -m x",
     "timeout 60 git -C {P} commit -m x",
+    // ラッパーが作業ディレクトリを変えると、git -C の相対パスの基準は Hook の cwd と一致しない（判定不能）。
+    "env -C {P}/sub git -C .. commit -m x",
+    "env --chdir={P}/sub git -C .. commit -m x",
   ];
 
   test.each(blocked)("プロジェクト宛て・判定不能: %s => exit 2", async (command) => {

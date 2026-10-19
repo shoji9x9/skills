@@ -62,7 +62,9 @@
         "commitCwd git -C /other commit -m x → /other",
         "commitCwd git -C sub -C deeper commit → /w/sub/deeper",
         "commitCwd git -C ../o -c a=b commit → /o",
-        "commitCwd cd /r; git -C sub commit → /r/sub"
+        "commitCwd cd /r; git -C sub commit → /r/sub",
+        "commitCwd env --chdir=sub git -C x commit → /w/sub/x",
+        "commitCwd sudo --chdir /o git -C x commit → /o/x"
       ]
     },
     {
@@ -122,7 +124,15 @@
         "isGitCommit sudo -- git commit → true",
         "isGitCommit nohup nice -n 5 timeout 60 git commit → true",
         "isGitCommit timeout 60 /usr/bin/git commit → true",
-        "isGitCommit cd /r && timeout 60 git -C sub commit → true"
+        "isGitCommit cd /r && timeout 60 git -C sub commit → true",
+        "isGitCommit sudo -p pw: git commit → true",
+        "isGitCommit sudo -r role -t type git commit → true",
+        "isGitCommit xargs --max-args 1 git commit → true",
+        "commitCwd env -C /o git commit → /o",
+        "commitCwd env --chdir=sub git -C x commit → /w/sub/x",
+        "commitCwd env -Csub git commit → /w/sub",
+        "commitCwd sudo -D /o git commit → /o",
+        "commitCwd sudo --chdir /o git -C x commit → /o/x"
       ]
     },
     {
@@ -140,7 +150,28 @@
         "isGitCommit env -u HOME git commit → true",
         "isGitCommit xargs -n 1 git commit → true",
         "isGitCommit nohup nice -n 5 timeout 60 git commit → true",
-        "isGitCommit sudo -u git commit → false"
+        "isGitCommit sudo -u git commit → false",
+        "isGitCommit sudo -p pw: git commit → true",
+        "isGitCommit sudo -r role -t type git commit → true",
+        "isGitCommit xargs --max-args 1 git commit → true",
+        "commitCwd env -C /o git commit → /o",
+        "commitCwd sudo -D /o git commit → /o",
+        "commitCwd sudo --chdir /o git -C x commit → /o/x"
+      ]
+    },
+    {
+      "id": "wrapper-chdir-ignored",
+      "why": "ラッパーが作業ディレクトリを変える形（env -C・sudo -D）を、コミットする作業ディレクトリに当てない",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "        if (dir !== null) dirs.push(dir);",
+      "replace": "        if (false) dirs.push(dir);",
+      "occurrences": 1,
+      "expect_failing": [
+        "commitCwd env -C /o git commit → /o",
+        "commitCwd env --chdir=sub git -C x commit → /w/sub/x",
+        "commitCwd env -Csub git commit → /w/sub",
+        "commitCwd sudo -D /o git commit → /o",
+        "commitCwd sudo --chdir /o git -C x commit → /o/x"
       ]
     },
     {
