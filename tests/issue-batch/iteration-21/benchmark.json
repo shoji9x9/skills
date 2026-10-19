@@ -4,7 +4,7 @@
     "skill_path": "<repo>/skills/issue-batch",
     "executor_model": "opus",
     "analyzer_model": "claude-opus-5-5",
-    "timestamp": "2026-10-19T11:24:24Z",
+    "timestamp": "2026-10-19T11:38:07Z",
     "evals_run": [13],
     "runs_per_configuration": 1
   },
@@ -15,34 +15,49 @@
       "run_number": 1,
       "result": {
         "pass_rate": 1,
-        "passed": 4,
+        "passed": 7,
         "failed": 0,
-        "total": 4,
-        "time_seconds": 23.575,
-        "tokens": 101825,
+        "total": 7,
+        "time_seconds": 30.07,
+        "tokens": 103664,
         "tool_calls": 3,
         "errors": 0
       },
       "expectations": [
         {
-          "text": "dirty worktree のため cleanup せず、変更が commit を記録する Hook の記録だけなら次の Issue の branch に引き継ぎ、それ以外の変更があれば BLOCKED にする",
+          "text": "変更が Hook の記録だけなので BLOCKED にせず、#101 の片付けを後に回し、記録を次の Issue #102 の branch に引き継ぐ",
           "passed": true,
-          "evidence": "cleanup に進まず、変更が Hook の記録だけなら次の Issue の branch に引き継ぎ、それ以外の変更が 1 つでもあれば BLOCKED にすると書いた。"
+          "evidence": "BLOCKED にせず BRANCH_CLEANUP のまま #101 の片付けを後に回し、#102 の branch に引き継ぐと書いた。"
+        },
+        {
+          "text": "#102 の branch が #101 の merge commit を含むことを確かめてから、記録を複製する",
+          "passed": true,
+          "evidence": "#102 の worktree で git merge-base --is-ancestor <#101 の merge commit の OID> HEAD を確かめてから複製すると書いた。"
+        },
+        {
+          "text": "#102 の commit が remote に入ったことと、内容が元のファイルと一致すること（cmp など）を確かめてから、#101 の worktree の記録を戻す",
+          "passed": true,
+          "evidence": "push の後に git branch -r --contains と、git show と cmp の比較で確かめてから、#101 の worktree の記録を戻すと書いた。"
+        },
+        {
+          "text": "git worktree remove --force を使わない",
+          "passed": true,
+          "evidence": "git worktree remove を --force なしで使うと書いた。"
         },
         {
           "text": "clean な場合も worktree を先に解除し、解除済みを確認してから local branch を削除する",
           "passed": true,
-          "evidence": "条件がそろったら worktree を解除し、git worktree list で解除を確かめてから、local branch、remote ref の順に削除すると書いた。"
+          "evidence": "#102 に戻ってから git worktree remove で解除し、git worktree list で確かめ、local branch、remote ref の順に削除すると書いた。"
         },
         {
           "text": "検証済み完全一致 ref だけを対象とし glob を使わない",
           "passed": true,
-          "evidence": "manifest の branch と完全一致する ref だけを扱い、glob や前方一致では消さないと書いた。"
+          "evidence": "glob を使わず、manifest と PR の branch と完全一致する ref だけを扱うと書いた。"
         },
         {
           "text": "default / protected branch と似た別 branch を削除対象にしない",
           "passed": true,
-          "evidence": "main はデフォルト branch として対象外、feature/101-fix-old は完全一致しないので対象外とした。"
+          "evidence": "main はデフォルト branch として対象外、feature/101-fix-old は完全一致しないので残すとした。"
         }
       ],
       "notes": []
@@ -52,35 +67,50 @@
       "configuration": "without_skill",
       "run_number": 1,
       "result": {
-        "pass_rate": 0.25,
-        "passed": 1,
-        "failed": 3,
-        "total": 4,
-        "time_seconds": 16.535,
-        "tokens": 35431,
+        "pass_rate": 0.2857,
+        "passed": 2,
+        "failed": 5,
+        "total": 7,
+        "time_seconds": 35.41,
+        "tokens": 37104,
         "tool_calls": 1,
         "errors": 0
       },
       "expectations": [
         {
-          "text": "dirty worktree のため cleanup せず、変更が commit を記録する Hook の記録だけなら次の Issue の branch に引き継ぎ、それ以外の変更があれば BLOCKED にする",
+          "text": "変更が Hook の記録だけなので BLOCKED にせず、#101 の片付けを後に回し、記録を次の Issue #102 の branch に引き継ぐ",
           "passed": false,
-          "evidence": "cleanup は保留にしたが、記録だけなら引き継ぐ扱いも BLOCKED も書かず、人が決めて clean にするとだけ書いた。"
+          "evidence": "記録をバックアップ用のディレクトリなどに退避すると書き、#102 の branch に引き継ぐとは書いていない。"
+        },
+        {
+          "text": "#102 の branch が #101 の merge commit を含むことを確かめてから、記録を複製する",
+          "passed": false,
+          "evidence": "#102 の branch が #101 の merge commit を含むかを確かめる手順が無い。"
+        },
+        {
+          "text": "#102 の commit が remote に入ったことと、内容が元のファイルと一致すること（cmp など）を確かめてから、#101 の worktree の記録を戻す",
+          "passed": false,
+          "evidence": "退避先の件数やサイズの一致だけを確かめ、remote に入ったことは確かめていない。"
+        },
+        {
+          "text": "git worktree remove --force を使わない",
+          "passed": true,
+          "evidence": "git worktree remove を --force なしで実行すると書いた。"
         },
         {
           "text": "clean な場合も worktree を先に解除し、解除済みを確認してから local branch を削除する",
           "passed": false,
-          "evidence": "feature/101-fix を削除できる条件は書いたが、worktree を先に解除して解除を確かめてから local branch を消す順序は書いていない。"
+          "evidence": "worktree の解除の後に local branch を消す順序は書いたが、解除できたことを確かめる手順が無い。"
         },
         {
           "text": "検証済み完全一致 ref だけを対象とし glob を使わない",
           "passed": false,
-          "evidence": "feature/101-fix-old を名前が似ているだけとして外したが、完全一致の ref だけを扱うことや glob を使わないことは書いていない。"
+          "evidence": "feature/101-fix-old を名前が似ているだけとして残したが、完全一致の ref だけを扱うことと glob を使わないことは書いていない。"
         },
         {
           "text": "default / protected branch と似た別 branch を削除対象にしない",
           "passed": true,
-          "evidence": "origin/main を保護されたデフォルト branch として対象外にし、feature/101-fix-old も対象にしなかった。"
+          "evidence": "main を残し、feature/101-fix-old も削除対象に入れなかった。"
         }
       ],
       "notes": []
@@ -95,42 +125,42 @@
         "max": 1
       },
       "time_seconds": {
-        "mean": 23.575,
+        "mean": 30.07,
         "stddev": 0,
-        "min": 23.575,
-        "max": 23.575
+        "min": 30.07,
+        "max": 30.07
       },
       "tokens": {
-        "mean": 101825,
+        "mean": 103664,
         "stddev": 0,
-        "min": 101825,
-        "max": 101825
+        "min": 103664,
+        "max": 103664
       }
     },
     "without_skill": {
       "pass_rate": {
-        "mean": 0.25,
+        "mean": 0.2857,
         "stddev": 0,
-        "min": 0.25,
-        "max": 0.25
+        "min": 0.2857,
+        "max": 0.2857
       },
       "time_seconds": {
-        "mean": 16.535,
+        "mean": 35.41,
         "stddev": 0,
-        "min": 16.535,
-        "max": 16.535
+        "min": 35.41,
+        "max": 35.41
       },
       "tokens": {
-        "mean": 35431,
+        "mean": 37104,
         "stddev": 0,
-        "min": 35431,
-        "max": 35431
+        "min": 37104,
+        "max": 37104
       }
     },
     "delta": {
-      "pass_rate": "+0.75",
-      "time_seconds": "+7.0",
-      "tokens": "+66394"
+      "pass_rate": "+0.71",
+      "time_seconds": "-5.3",
+      "tokens": "+66560"
     }
   },
   "notes": [
