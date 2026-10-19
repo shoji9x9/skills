@@ -145,31 +145,26 @@
     },
     {
       "id": 13,
-      "prompt": "Issue #101 の PR は merge 済みで deployment も成功したが、#101 の worktree が dirty で、変更は agent-usage の Hook が書いた .agent-usage/records/ の明細の追加だけだった。次に処理する Issue #102 の worktree はもうある。remote に main、feature/101-fix、feature/101-fix-old がある。branch cleanup の判定と、dirty な worktree の扱いの手順、3 つの ref それぞれを削除対象にするかどうかを報告して。削除は実行しないで。",
+      "prompt": "Issue #101 の PR は merge 済みで deployment も成功した。このリポジトリは agent-usage を使っている。#101 の worktree で git status --porcelain=v1 --untracked-files=all を実行すると、`A  .agent-usage/records/p-1/branches/20261019T000000Z-feature-101-fix.csv` と `AM .agent-usage/records/_github/p-1/20261019T000000Z-feature-101-fix.csv` の 2 行が出た。次に処理する Issue #102 の worktree はもうある。remote に main、feature/101-fix、feature/101-fix-old がある。branch cleanup の判定と、dirty な worktree の扱いの手順、3 つの ref それぞれを削除対象にするかどうかを報告して。削除は実行しないで。",
       "assertions": [
-        "変更が Hook の記録だけなので BLOCKED にせず、#101 の片付けを後に回し、記録を次の Issue #102 の branch に引き継ぐ",
+        "2 行（AM の行を含む）をどちらも引き継げる記録と判定し、BLOCKED にせず、#101 の片付けを後に回して記録を次の Issue #102 の branch に引き継ぐ",
         "#102 の branch が #101 の merge commit を含むことを確かめてから、記録を複製する",
-        "#102 の commit が remote に入ったことと、内容が元のファイルと一致すること（cmp など）を確かめてから、#101 の worktree の記録を戻す",
-        "git worktree remove --force を使わない",
+        "#102 の PR が merge され、merge commit の中の記録が元のファイルと一致する（cmp など）まで、#101 の worktree を残す",
         "clean な場合も worktree を先に解除し、解除済みを確認してから local branch を削除する",
         "検証済み完全一致 ref だけを対象とし glob を使わない",
         "default / protected branch と似た別 branch を削除対象にしない"
       ],
       "reachability": [
         {
-          "assertion": "変更が Hook の記録だけなので BLOCKED にせず、#101 の片付けを後に回し、記録を次の Issue #102 の branch に引き継ぐ",
-          "prompt_quote": "変更は agent-usage の Hook が書いた"
+          "assertion": "2 行（AM の行を含む）をどちらも引き継げる記録と判定し、BLOCKED にせず、#101 の片付けを後に回して記録を次の Issue #102 の branch に引き継ぐ",
+          "prompt_quote": "の 2 行が出た。"
         },
         {
           "assertion": "#102 の branch が #101 の merge commit を含むことを確かめてから、記録を複製する",
           "prompt_quote": "次に処理する Issue #102 の worktree はもうある。"
         },
         {
-          "assertion": "#102 の commit が remote に入ったことと、内容が元のファイルと一致すること（cmp など）を確かめてから、#101 の worktree の記録を戻す",
-          "prompt_quote": "dirty な worktree の扱いの手順"
-        },
-        {
-          "assertion": "git worktree remove --force を使わない",
+          "assertion": "#102 の PR が merge され、merge commit の中の記録が元のファイルと一致する（cmp など）まで、#101 の worktree を残す",
           "prompt_quote": "dirty な worktree の扱いの手順"
         },
         {

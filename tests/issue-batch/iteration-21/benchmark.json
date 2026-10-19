@@ -4,7 +4,7 @@
     "skill_path": "<repo>/skills/issue-batch",
     "executor_model": "opus",
     "analyzer_model": "claude-opus-5-5",
-    "timestamp": "2026-10-19T11:38:07Z",
+    "timestamp": "2026-10-19T11:51:28Z",
     "evals_run": [13],
     "runs_per_configuration": 1
   },
@@ -15,44 +15,39 @@
       "run_number": 1,
       "result": {
         "pass_rate": 1,
-        "passed": 7,
+        "passed": 6,
         "failed": 0,
-        "total": 7,
-        "time_seconds": 30.07,
-        "tokens": 103664,
-        "tool_calls": 3,
+        "total": 6,
+        "time_seconds": 41.394,
+        "tokens": 124022,
+        "tool_calls": 4,
         "errors": 0
       },
       "expectations": [
         {
-          "text": "変更が Hook の記録だけなので BLOCKED にせず、#101 の片付けを後に回し、記録を次の Issue #102 の branch に引き継ぐ",
+          "text": "2 行（AM の行を含む）をどちらも引き継げる記録と判定し、BLOCKED にせず、#101 の片付けを後に回して記録を次の Issue #102 の branch に引き継ぐ",
           "passed": true,
-          "evidence": "BLOCKED にせず BRANCH_CLEANUP のまま #101 の片付けを後に回し、#102 の branch に引き継ぐと書いた。"
+          "evidence": "2 行の状態を index の列と作業ツリーの列に分けて判定し（AM の行を含む）、BLOCKED にせず #102 の branch に引き継ぐとした。"
         },
         {
           "text": "#102 の branch が #101 の merge commit を含むことを確かめてから、記録を複製する",
           "passed": true,
-          "evidence": "#102 の worktree で git merge-base --is-ancestor <#101 の merge commit の OID> HEAD を確かめてから複製すると書いた。"
+          "evidence": "#102 の worktree で git merge-base --is-ancestor <#101 の merge commit の OID> HEAD を確かめてから複製するとした。"
         },
         {
-          "text": "#102 の commit が remote に入ったことと、内容が元のファイルと一致すること（cmp など）を確かめてから、#101 の worktree の記録を戻す",
+          "text": "#102 の PR が merge され、merge commit の中の記録が元のファイルと一致する（cmp など）まで、#101 の worktree を残す",
           "passed": true,
-          "evidence": "push の後に git branch -r --contains と、git show と cmp の比較で確かめてから、#101 の worktree の記録を戻すと書いた。"
-        },
-        {
-          "text": "git worktree remove --force を使わない",
-          "passed": true,
-          "evidence": "git worktree remove を --force なしで使うと書いた。"
+          "evidence": "#102 の PR が MERGED になった後に git show と cmp で比べ、一致してから #101 の worktree を戻すとした。"
         },
         {
           "text": "clean な場合も worktree を先に解除し、解除済みを確認してから local branch を削除する",
           "passed": true,
-          "evidence": "#102 に戻ってから git worktree remove で解除し、git worktree list で確かめ、local branch、remote ref の順に削除すると書いた。"
+          "evidence": "worktree から出て git worktree remove、git worktree list で確かめ、local branch、remote ref の順に削除するとした。"
         },
         {
           "text": "検証済み完全一致 ref だけを対象とし glob を使わない",
           "passed": true,
-          "evidence": "glob を使わず、manifest と PR の branch と完全一致する ref だけを扱うと書いた。"
+          "evidence": "完全一致を確かめた ref だけを扱い、glob で消さないとした。"
         },
         {
           "text": "default / protected branch と似た別 branch を削除対象にしない",
@@ -67,20 +62,20 @@
       "configuration": "without_skill",
       "run_number": 1,
       "result": {
-        "pass_rate": 0.2857,
-        "passed": 2,
+        "pass_rate": 0.1667,
+        "passed": 1,
         "failed": 5,
-        "total": 7,
-        "time_seconds": 35.41,
-        "tokens": 37104,
+        "total": 6,
+        "time_seconds": 34.825,
+        "tokens": 40829,
         "tool_calls": 1,
         "errors": 0
       },
       "expectations": [
         {
-          "text": "変更が Hook の記録だけなので BLOCKED にせず、#101 の片付けを後に回し、記録を次の Issue #102 の branch に引き継ぐ",
+          "text": "2 行（AM の行を含む）をどちらも引き継げる記録と判定し、BLOCKED にせず、#101 の片付けを後に回して記録を次の Issue #102 の branch に引き継ぐ",
           "passed": false,
-          "evidence": "記録をバックアップ用のディレクトリなどに退避すると書き、#102 の branch に引き継ぐとは書いていない。"
+          "evidence": "記録を repo の外に退避して agent-usage の手順で取り込むとし、#102 へのコピーはしないと書いた。"
         },
         {
           "text": "#102 の branch が #101 の merge commit を含むことを確かめてから、記録を複製する",
@@ -88,29 +83,24 @@
           "evidence": "#102 の branch が #101 の merge commit を含むかを確かめる手順が無い。"
         },
         {
-          "text": "#102 の commit が remote に入ったことと、内容が元のファイルと一致すること（cmp など）を確かめてから、#101 の worktree の記録を戻す",
+          "text": "#102 の PR が merge され、merge commit の中の記録が元のファイルと一致する（cmp など）まで、#101 の worktree を残す",
           "passed": false,
-          "evidence": "退避先の件数やサイズの一致だけを確かめ、remote に入ったことは確かめていない。"
-        },
-        {
-          "text": "git worktree remove --force を使わない",
-          "passed": true,
-          "evidence": "git worktree remove を --force なしで実行すると書いた。"
+          "evidence": "#102 の PR の merge を待つ手順が無く、退避の後に clean を確かめて片付けるとした。"
         },
         {
           "text": "clean な場合も worktree を先に解除し、解除済みを確認してから local branch を削除する",
           "passed": false,
-          "evidence": "worktree の解除の後に local branch を消す順序は書いたが、解除できたことを確かめる手順が無い。"
+          "evidence": "worktree remove の後に branch -d に進むとしたが、解除できたことを確かめる手順が無い。"
         },
         {
           "text": "検証済み完全一致 ref だけを対象とし glob を使わない",
           "passed": false,
-          "evidence": "feature/101-fix-old を名前が似ているだけとして残したが、完全一致の ref だけを扱うことと glob を使わないことは書いていない。"
+          "evidence": "前方一致するだけでは消す理由にならないとしたが、完全一致の ref だけを扱うことと glob を使わないことは書いていない。"
         },
         {
           "text": "default / protected branch と似た別 branch を削除対象にしない",
           "passed": true,
-          "evidence": "main を残し、feature/101-fix-old も削除対象に入れなかった。"
+          "evidence": "main を対象外にし、feature/101-fix-old も対象に入れなかった。"
         }
       ],
       "notes": []
@@ -125,42 +115,42 @@
         "max": 1
       },
       "time_seconds": {
-        "mean": 30.07,
+        "mean": 41.394,
         "stddev": 0,
-        "min": 30.07,
-        "max": 30.07
+        "min": 41.394,
+        "max": 41.394
       },
       "tokens": {
-        "mean": 103664,
+        "mean": 124022,
         "stddev": 0,
-        "min": 103664,
-        "max": 103664
+        "min": 124022,
+        "max": 124022
       }
     },
     "without_skill": {
       "pass_rate": {
-        "mean": 0.2857,
+        "mean": 0.1667,
         "stddev": 0,
-        "min": 0.2857,
-        "max": 0.2857
+        "min": 0.1667,
+        "max": 0.1667
       },
       "time_seconds": {
-        "mean": 35.41,
+        "mean": 34.825,
         "stddev": 0,
-        "min": 35.41,
-        "max": 35.41
+        "min": 34.825,
+        "max": 34.825
       },
       "tokens": {
-        "mean": 37104,
+        "mean": 40829,
         "stddev": 0,
-        "min": 37104,
-        "max": 37104
+        "min": 40829,
+        "max": 40829
       }
     },
     "delta": {
-      "pass_rate": "+0.71",
-      "time_seconds": "-5.3",
-      "tokens": "+66560"
+      "pass_rate": "+0.83",
+      "time_seconds": "+6.6",
+      "tokens": "+83193"
     }
   },
   "notes": [
