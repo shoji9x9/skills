@@ -26,6 +26,10 @@ issue-batch の run で、#632 の worktree（`.claude/worktrees/632`）から #
 transcript は `-issue-662/` から `-issue-651/` の projects のディレクトリに移り、#662 の worktree の処理位置は移す前のパスを指していた。
 `kaizen extract --current --record-pending` の手順で走査ツールを呼ぶ前に、処理位置の 1 行目を移した後のパスに書き換えた複製を #651 の worktree に置いて、処理済みの範囲を読み直さないようにした。
 
+2026-10-19、issue-batch の run で、#710 の worktree から #701 の worktree へ戻ったときにも同じことが起きた。
+処理位置は #710 の worktree にあり、`-710-kaizen-scan-api-request-blob/` の transcript を指していたので、走査ツールは先頭から読んで 42 件の候補を挙げた。
+上の #651 のときと同じく、1 行目を今の transcript のパスに書き換えた複製を #701 の worktree に置くと、候補は 2 件になった。
+
 ## 根本原因
 
 - なぜ処理済みの候補で止まったか → 走査（`kaizen-candidate-scan.sh`）が、処理位置を使わずに transcript の先頭から読んだ
