@@ -93,8 +93,10 @@ scripts/                リポジトリ内のツールとテスト（配布し�
 人が読む文章（Markdown・コードコメント・利用者に表示するメッセージ・人への応答）は、文章の規約に従って書く。
 要点は、行為者を主語にする・名詞を「の」で連ねない・否定と対比で演出しない・時間がたつと正しくなくなる記述を書かない・読み手が補わずに意味を取れるように書く、の 5 つである。
 差分をレビューするときは、差分の中の人が読む文章がこの規約に従うかも確かめる。
-規約は次のファイルにある（Claude Code はセッション開始時に読み込む。Copilot のレビューは `.github/instructions/` の symlink から読む。他のエージェントはこのファイルを開いて従う）。
+規則の本文は配布スキル `writing-style` の `references/rules.md` に、このリポジトリ向けの拡張（対象・用語の扱い）は `docs/writing-style.md` にある。
+Claude Code はセッション開始時に両方を読み込み、Copilot のレビューは `.github/instructions/` の symlink から規則を読む。他のエージェントはこの 2 つのファイルを開いて従う。
 
+@skills/writing-style/references/rules.md
 @docs/writing-style.md
 
 人への応答は日本語で書く。ツールの出力や通知が英語でも、応答の言語を切り替えない。
@@ -233,6 +235,7 @@ rule は、対象のファイルを触るときに自動で読み込まれる。
 - `multiagent-setup`: スキル・ルール・Hooks・ドキュメントを、マルチエージェントに対応した構成でセットアップする
 - `kaizen`: セッションから学びを抽出し、根本原因を分析して、スキルやルールなどに反映する
 - `git-worktree`: git worktree で作業を隔離する（セッションの移動・ファイルの持ち込み・チェックからの除外・後片付け）。branch の作成と Issue との紐付けは呼び出し側が行う
+- `writing-style`: 人が読む日本語の文章を規則に沿って書き、要約の文（タイトル・commit message の 1 行目・見出し）を外に出す前に読み直す。要約の文や本文を書く他の配布スキルから参照する
 - `issue-create`: 短い説明から、重複の確認と下書きの承認を経て GitHub Issue を作る
 - `issue-start`: GitHub Issue を起点に、branch の作成から実装・commit・PR の作成・受け入れ条件の確認までを標準化する
 - `issue-batch`: 複数の Issue を、隔離した worktree と独立した PR で順に処理し、merge・Issue の close・deployment・後片付けまで追う

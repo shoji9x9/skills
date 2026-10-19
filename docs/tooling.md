@@ -51,7 +51,7 @@ GitHub Actions は、`actionlint` で構文を、`ghalint` で `permissions`・`
 
 | スクリプト（`scripts/gates/` からのパス） | チェックする内容 |
 | --- | --- |
-| `packaging/copies/check-rule-symlinks.ts` | rule を各エージェントから読むためのシンボリックリンクと、Copilot のレビューに読ませる文書（`docs/writing-style.md`）へのシンボリックリンク。その文書が applyTo を持つことと、レビューで確かめる節が Copilot の読む先頭 4,000 文字に収まることも確かめる |
+| `packaging/copies/check-rule-symlinks.ts` | rule を各エージェントから読むためのシンボリックリンクと、Copilot のレビューに読ませる文書（`skills/writing-style/references/rules.md` と `docs/writing-style.md`）へのシンボリックリンク。その文書が applyTo を持つことと、レビューで確かめる節が Copilot の読む先頭 4,000 文字に収まることも確かめる |
 | `code/check-control-chars.ts` | テキストの拡張子のファイルに入った制御文字 |
 | `packaging/check-eval-reachability.ts` | eval の assertion と prompt の対応 |
 | `packaging/copies/check-skills-sync.ts` | `skills/<name>/` とインストール済みのコピー `.agents/skills/<name>/` の一致 |
@@ -187,6 +187,36 @@ Markdown の整形は `markdownlint-cli2 --fix` で行う。
 200 桁を超えた行のうち、200 桁より後に半角スペース（改行できる位置）が残る行だけを違反にする。
 日本語だけの長い行は空白で区切らないので通るが、英数字やツール名など半角スペースを含む語を長い行に足すと失敗する。
 日本語の長い行に英数字を足したら、200 桁以内に収めるか、200 桁より後に半角スペースが残らないように折り返す。
+
+### 文章のチェック
+
+文章の規則（配布スキル `writing-style` の `references/rules.md` の規則 1〜10）のうち、規則 2・4・6・7・8 の一部は `scripts/gates/prose/lint-prose.ts` が textlint でチェックする（pre-commit と CI）。
+設定は `.textlintrc.json`、使わない語の一覧は `.textlint/words.json` に置く。
+Markdown に加えて、JavaScript・TypeScript・シェル・YAML のコメントもチェックする。
+コメントは日本語を含む段落だけを見て、文字列（利用者に表示するメッセージ）は見ない。メッセージは、書いた人とレビューする人が確かめる。
+
+- 書き換えがまだ済んでいないファイルは `scripts/gates/prose/prose-lint-pending.json` に載っていて、指摘を数えない。
+  ファイルを書き換えて指摘が 0 件になったら、一覧から外す。
+- 語を一覧に足すときは、言い換え先を `message` に、検出されることを確かめる文を `example` に書く。
+  `scripts/gates/prose/lint-prose.test.ts` が全エントリの `example` で検出されることを確かめる。
+- 読みやすさの規則を例の文から語の並びとして lint にするかを決めるときは、例と同じ語の並びを持つ自然な文を 1 つ以上書き、その文を検出しないかを確かめる。
+  分かりにくさが語そのものではなく、係り受けや指す対象のような意味から来る規則は、lint にしない。
+  lint にするなら、その文を `scripts/gates/prose/lint-prose.test.ts` の、誤検知しないことを確かめるテストに入れる。
+  どの部分が分かりにくいかの判断が分かれる形は、依頼した人に確かめてから決める。
+  足した規則に既存の文書が当たっても、規則を作った人の判断だけで書き換えない。自然に読める可能性がある箇所は、例として依頼した人に示す。
+- 図の線のように字義どおりの意味で使う語は、その箇所だけ `<!-- textlint-disable -->` で除外する。
+  コメントでは、`textlint-disable` と `textlint-enable` だけを書いたコメントの行で囲む。
+
+規則 5 のダッシュでつないだ強調（`——` と、字形の違う `――`・`──`・`－－`）は、`lint-prose.ts` と応答の Stop の Hook が検出する。
+規則 9 の時期の語（「現状は」「当面」など）と日付は、`scripts/gates/prose/check-time-sensitive-prose.ts` が検出する。
+それ以外の形を含め、規則 1・3・5・9・10 は機械では判定しきれない。書いた人とレビューする人が確かめる。
+規則 10 の分かりにくさは意味から来るので、語の並びで検出すると誤検知と見逃しが避けられない。そのため lint にしない。
+
+人への応答はファイルではないので、pre-commit と CI の textlint ではチェックできない。
+代わりに、Claude Code の Stop の Hook（`scripts/hooks/response-word-check.ts`）が、応答を確定する前に同じ辞書で使わない語を確かめ、見つかれば書き直させる。
+使わない語の一覧 `.textlint/word-list.md` は `AGENTS.md` から `@` で取り込み、Claude Code がセッション開始時に読み込むようにしている。
+`@` での取り込みは Claude Code だけが処理するので、他のエージェントには `AGENTS.md` の文で一覧を開くよう指示している。
+この一覧は `.textlint/words.json` の `term` と `instead` から `scripts/gates/prose/check-word-list.ts --fix` で生成し、一致をチェックしている。
 
 ### JavaScript の拡張子
 

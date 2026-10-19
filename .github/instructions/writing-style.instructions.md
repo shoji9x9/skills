@@ -1,1 +1,1 @@
-../../docs/writing-style.md
+../../skills/writing-style/references/rules.md

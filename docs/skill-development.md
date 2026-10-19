@@ -150,6 +150,9 @@ scripts/tools/reinstall-skill.sh <name>
 この一覧の各項目は eval の指紋（prompt と assertions のハッシュ）を持つ。その eval を書き換えると一覧から外れたものとして扱われ、`reachability` が必要になる。
 そのため、触った eval から順に `reachability` が埋まる。新しい eval をこの一覧に足さない。
 
+配布スキルのうちエージェントが読む文書（`SKILL.md`・`references/`・`assets/`）を規則に合わせて書き換えたら、eval の入力が変わっていなくても、そのスキルの eval を `with_skill` で実行する。
+前回から下がったものは、書き換え前の版と同じ条件で比べる。コメントの行だけを変えたとき（スクリプトや `assets/` の設定ファイルのコメントなど）は対象にしない。
+
 ### 実走の既定スコープ（変更確認と benchmark を分ける）
 
 LLM の eval を最初のデバッグに使わない。

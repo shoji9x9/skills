@@ -1,16 +1,16 @@
-// docs/writing-style.md の applyTo（GitHub Copilot のレビューがこの規約を読み込むファイル）が、
-// lint-prose が文章を見るファイルと一致することの回帰テスト。
+// Copilot のレビューに読ませる 2 つの文書の applyTo が、lint-prose が文章を見るファイルをすべて含むことの回帰テスト。
+// 2 つの文書は、文章の規則（skills/writing-style/references/rules.md）と、このリポジトリでの対象（docs/writing-style.md）である。
+// applyTo は、GitHub Copilot のレビューがその文書を読み込むファイルを決める。
 //
-// lint-prose に拡張子を足しても applyTo は変わらず、そのファイルだけを変える PR では Copilot がこの規約を読み込まない。
-// エラーは出ないので、ここで両方向の一致を確かめる。
+// applyTo を狭めると、外れたファイルだけを変える PR では Copilot が規則を読み込まない。エラーは出ないので、ここで確かめる。
+// 規則は人が読む文章すべてに当てるので、applyTo が lint-prose の対象より広いことは許す。
 // - lint-prose の対象の見本（拡張子ごとに、ドットで始まるディレクトリ・途中のドットのディレクトリ・ドットで始まるファイルを含む 4 件と、evals.json）が、applyTo のどれかの glob に当たる
 // - 実リポジトリの lint-prose の対象が、どれも applyTo のどれかの glob に当たる
-// - applyTo の各 glob が、lint-prose の対象の見本のどれかに当たる（対象でない種類を足していない）
 // 見本の拡張子は lint-prose が使う一覧から作る。拡張子で決まらない対象（evals.json）は、見本を手で書いて hasStrings で対象であることを確かめる。
 import { readFileSync } from "node:fs";
 import { dirname, join, matchesGlob } from "node:path";
 import { fileURLToPath } from "node:url";
-import { expect, test } from "vitest";
+import { describe, expect, test } from "vitest";
 import { COMMENT_EXTENSIONS, hasComments } from "../../lib/text/code-comments.ts";
 import { JS_EXTENSIONS, hasStrings } from "../../lib/text/code-strings.ts";
 import { splitFrontmatter } from "../../lib/text/frontmatter.ts";
@@ -41,7 +41,8 @@ const samples = [
   "evals/name/evals.json",
 ];
 
-const globs = applyToGlobs(readFileSync(join(repoRoot, "docs/writing-style.md"), "utf8"));
+// Copilot に読ませる 2 つの文書。規則（配布スキル）と、このリポジトリでの対象と対象外。
+const DOCS = ["skills/writing-style/references/rules.md", "docs/writing-style.md"];
 
 test("見本はどれも lint-prose の対象である", () => {
   for (const s of samples) {
@@ -49,23 +50,22 @@ test("見本はどれも lint-prose の対象である", () => {
   }
 });
 
-test("実リポジトリ: docs/writing-style.md の applyTo を読める", () => {
-  expect(globs.length).toBeGreaterThan(0);
-});
+describe.each(DOCS)("%s", (doc) => {
+  const globs = applyToGlobs(readFileSync(join(repoRoot, doc), "utf8"));
 
-test("実リポジトリ: lint-prose の対象は、どれも applyTo の glob に当たる", () => {
-  const missing = samples.filter((s) => !globs.some((g) => matchesGlob(s, g)));
-  expect(missing).toEqual([]);
-});
+  test("実リポジトリ: applyTo を読める", () => {
+    expect(globs.length).toBeGreaterThan(0);
+  });
 
-test("実リポジトリ: lint-prose が実際に見るファイルは、どれも applyTo の glob に当たる", () => {
-  const targets = listTargets(repoRoot);
-  expect(targets.length).toBeGreaterThan(100);
-  const missing = targets.filter((s) => !globs.some((g) => matchesGlob(s, g)));
-  expect(missing).toEqual([]);
-});
+  test("実リポジトリ: lint-prose の対象は、どれも applyTo の glob に当たる", () => {
+    const missing = samples.filter((s) => !globs.some((g) => matchesGlob(s, g)));
+    expect(missing).toEqual([]);
+  });
 
-test("実リポジトリ: applyTo の glob は、どれも lint-prose の対象に当たる", () => {
-  const extra = globs.filter((g) => !samples.some((s) => matchesGlob(s, g)));
-  expect(extra).toEqual([]);
+  test("実リポジトリ: lint-prose が実際に見るファイルは、どれも applyTo の glob に当たる", () => {
+    const targets = listTargets(repoRoot);
+    expect(targets.length).toBeGreaterThan(100);
+    const missing = targets.filter((s) => !globs.some((g) => matchesGlob(s, g)));
+    expect(missing).toEqual([]);
+  });
 });

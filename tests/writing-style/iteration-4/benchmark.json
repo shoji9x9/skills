@@ -1,0 +1,129 @@
+{
+  "metadata": {
+    "skill_name": "writing-style",
+    "skill_path": "skills/writing-style",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-19T01:33:43Z",
+    "evals_run": [3],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 21.784,
+        "tokens": 95206,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "「修正する」を、プロジェクトの使わない語の一覧の言い換え先「直す」に書き換えている",
+          "passed": true,
+          "evidence": "表で「修正する → 直す」、根拠に docs/words.md"
+        },
+        {
+          "text": "スコープに、商品一覧画面を表す英語の kebab-case の名前（product-list など）を足している",
+          "passed": true,
+          "evidence": "「fix(product-list): 商品一覧の並び順を直す」"
+        },
+        {
+          "text": "直した理由として、プロジェクトの規約（docs/style.md か docs/words.md）を挙げている",
+          "passed": true,
+          "evidence": "docs/style.md と docs/words.md を当たった規則に挙げている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 10.932,
+        "tokens": 60486,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "「修正する」を、プロジェクトの使わない語の一覧の言い換え先「直す」に書き換えている",
+          "passed": true,
+          "evidence": "「「修正する」を「直す」にした: docs/words.md で…」"
+        },
+        {
+          "text": "スコープに、商品一覧画面を表す英語の kebab-case の名前（product-list など）を足している",
+          "passed": true,
+          "evidence": "「fix(product-list): 商品一覧の並び順を直す」"
+        },
+        {
+          "text": "直した理由として、プロジェクトの規約（docs/style.md か docs/words.md）を挙げている",
+          "passed": true,
+          "evidence": "docs/style.md と docs/words.md を挙げている"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 21.784,
+        "stddev": 0,
+        "min": 21.784,
+        "max": 21.784
+      },
+      "tokens": {
+        "mean": 95206,
+        "stddev": 0,
+        "min": 95206,
+        "max": 95206
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 10.932,
+        "stddev": 0,
+        "min": 10.932,
+        "max": 10.932
+      },
+      "tokens": {
+        "mean": 60486,
+        "stddev": 0,
+        "min": 60486,
+        "max": 60486
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.00",
+      "time_seconds": "+10.9",
+      "tokens": "+34720"
+    }
+  },
+  "notes": [
+    "iteration-3 の with_skill の失敗（スキルのディレクトリで設定を読み取った）を、SKILL.md の手順 2 で直した後の実行。without_skill も fixture の設定ファイルを自分で見つけて従うので、この eval は差を測るものではなく、設定による拡張が効くことの回帰を確かめるものである。"
+  ]
+}

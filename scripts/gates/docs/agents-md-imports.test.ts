@@ -16,6 +16,7 @@ test("作業の原則の詳細・文章の規約・使わない語の一覧を�
     expect.arrayContaining([
       "docs/agent-workflow.md",
       "docs/writing-style.md",
+      "skills/writing-style/references/rules.md",
       ".textlint/word-list.md",
     ]),
   );
