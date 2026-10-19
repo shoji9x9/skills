@@ -87,7 +87,8 @@
       "fixture": "fixtures/lint-skips-file",
       "assertions": [
         "設定の lint_command（node tools/lint-docs.mjs）に notes/release-notes.txt を渡して実行したことを報告している",
-        "リンターの出力が 0 件で、notes/release-notes.txt はリンターでチェックしていないと報告している（OK を合格の根拠にしていない）"
+        "リンターの出力から notes/release-notes.txt をチェックしたかを確かめられないと報告している（指摘 0 件を合格の根拠にしていない）",
+        "直した文から「件数が多いときではなく」の対比の形を外し、元の文の意味を保っている"
       ],
       "reachability": [
         {
@@ -95,8 +96,12 @@
           "prompt_quote": "何で確かめたかを 1 つの報告にまとめて。"
         },
         {
-          "assertion": "リンターの出力が 0 件で、notes/release-notes.txt はリンターでチェックしていないと報告している（OK を合格の根拠にしていない）",
+          "assertion": "リンターの出力から notes/release-notes.txt をチェックしたかを確かめられないと報告している（指摘 0 件を合格の根拠にしていない）",
           "prompt_quote": "writing-style で notes/release-notes.txt を読み直して、ファイルを直して。"
+        },
+        {
+          "assertion": "直した文から「件数が多いときではなく」の対比の形を外し、元の文の意味を保っている",
+          "prompt_quote": "ファイルを直して。"
         }
       ]
     }
