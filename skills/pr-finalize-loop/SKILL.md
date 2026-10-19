@@ -166,9 +166,10 @@ push の後などに再レビューを依頼する AI レビュアーは、CLI �
       - 指摘が PR の範囲の外にある。範囲は、PR が閉じる Issue と、PR の変更（変更した行と、その変更が影響する箇所）である。影響する箇所の例は、変えた関数の呼び出し元、変えた手順を参照する文書、変えた設定を読むテストである。
         元の Issue の受け入れ条件のうちまだ満たしていない項目と、この PR の変更が生んだ問題は、範囲の中として同じ PR で直す。
         別の Issue に回してよいのは、受け入れ条件の外にあり、この PR の前からある問題（レビューで見つかった既存の不具合など）だけである。
-        変更が影響する箇所（変えた関数の呼び出し元など）にある問題でも、この PR の前からあり受け入れ条件の外のものは、別の Issue に回してよい。この基準を、上の範囲の定義より優先する
+        変更が影響する箇所（変えた関数の呼び出し元など）にある問題でも、この PR の前からあり受け入れ条件の外のものは、別の Issue に回してよい。
+        ただし、この PR の変更で新しく起きるようになった問題（変えた関数の新しい戻り値で、前からある呼び出し元が失敗するなど）は、この PR の変更が生んだ問題として同じ PR で直す
       - 直すかに人の判断が要る（手順 4 の 5）。文書に書かれていない設計の意図を理由に見送りたいときも、ここに当たる
-      - `--defer-decisions` で、人の判断が要る形の指摘のうち、影響が小さく後で覆せると判断して推奨の案を見送りにしたもの（「自律性ポリシー」）
+      - `--defer-decisions` で、人の判断が要る形の指摘のうち、影響が小さく後で覆せると判断し、推奨の案に従って見送ったもの（「自律性ポリシー」）
 
       残っている反復の回数が少ないこと（`--max-iterations` の上限に近いこと）は、直さない根拠にしない。
       リポジトリの文書が定める書き方や手順（規約）に反するという指摘も、妥当なら直す。
@@ -218,9 +219,9 @@ push の後などに再レビューを依頼する AI レビュアーは、CLI �
 - 段階の回数を使い切ったときに、CI の失敗か判断待ちが残っていれば、effort を下げずに「最大反復到達」で止まる。effort を下げても、CI と判断待ちは片付かないからである。
 
 effort を指定できるのは、`review_tool: local` で Claude Code の `/code-review <effort>` を使う場合だけである。effort は高い順に max・xhigh・high・medium・low である。
-それ以外の依頼の方法（Copilot の `requested_reviewers`、`@claude review`・`@codex review` の mention、`codex review`、Copilot CLI）は effort を渡せないので、effort を指定できないツールとして扱う。
-mention に `review` 以外の語を足すと別の動作になるので、effort の語を足さない（`references/review-tool.md`）。
-Copilot のレビューの effort（Balanced・Lite）も、この依頼の方法では指定できない。
+それ以外の依頼の方法は、effort を指定できないツールとして扱う。Copilot の `requested_reviewers`、`@claude review`・`@codex review` の mention、`codex review`、Copilot CLI がこれに当たる。
+`references/review-tool.md` の依頼の手順に、これらに effort を渡す方法が無いからである。
+手順に無い語を依頼に足して effort を渡そうとしない（`@codex review` に `review` 以外の語を足すと別の動作になることは、同じファイルに書いてある）。
 一番下の effort（`low`）で始めた場合と、effort を指定できないツールの場合は、最初の段階が終わったら止まる。
 
 | `--max-iterations` | 反復（`/code-review` を high で始めた場合） | 合計 |
@@ -231,7 +232,8 @@ Copilot のレビューの effort（Balanced・Lite）も、この依頼の方�
 
 回数は段階ごとに半分になるので、合計は `--max-iterations` の 2 倍より少ない。
 止まったときの報告には、段階ごとの effort と反復の回数（例: high 5 回 → medium 2 回 → low 1 回）を書く。
-`review_tool: local` の記録を投稿するときは、`--reviewer` に effort を含める（例: `--reviewer '/code-review medium'`）。コンテキストの圧縮で進み具合のメモを失っても、PR の記録から今の段階を導き直せる。
+`review_tool: local` の記録を投稿するときは、`--reviewer` に effort を含める（例: `--reviewer '/code-review medium'`）。コンテキストの圧縮で進み具合のメモを失ったら、最後の記録の effort を今の段階とする。
+記録は push した反復でしか増えないので、段階の中で残っている回数は記録の数から導けない。導き直せないときは、その段階の残りを 1 回として扱い、上限を超えて反復しない側に寄せる。
 
 ## 停止条件
 
