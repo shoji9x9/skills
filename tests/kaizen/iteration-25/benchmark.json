@@ -1,0 +1,612 @@
+{
+  "metadata": {
+    "skill_name": "kaizen",
+    "skill_path": "<repo>/skills/kaizen",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-20T02:54:55Z",
+    "evals_run": [4, 20],
+    "runs_per_configuration": 3
+  },
+  "runs": [
+    {
+      "eval_id": 20,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 4,
+        "failed": 2,
+        "total": 6,
+        "time_seconds": 73.498,
+        "tokens": 630578,
+        "tool_calls": 12,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Claude Code・Codex・Copilot のどれも handler の if で絞らず（Claude Code の if は git -C <dir> commit や heredoc の中の git commit で起動しないため）、スクリプト内の Bash prefilter で非 commit の呼び出しを速く終える",
+          "passed": true,
+          "evidence": "「Claude Code の handler に if: \"Bash(git commit *)\" は付けません。付けると git -C <dir> commit や heredoc の中の commit でゲートが起動せず」、冒頭の絞り込みで commit 以外を終える"
+        },
+        {
+          "text": "非 commit の prefilter は jq・python・git を起動せず終了すると説明している",
+          "passed": true,
+          "evidence": "(1)「bash の組み込みの照合（case）だけで exit 0 して終わります。jq・python3・git も…起動しません」"
+        },
+        {
+          "text": "transcript_path と自セッションの .kaizen/.extract-checkpoint.<session key> の間だけを走査し、検証済み候補ゼロなら checkpoint と自セッションのセンチネルだけを更新して .extract-done.<session key> は作らず commit を通す",
+          "passed": false,
+          "evidence": "(2) で checkpoint を scanned-bytes まで進め、自セッションのセンチネルだけを消し、.extract-done を作らないとは述べる。しかし transcript_path と自セッションの .extract-checkpoint.<session key> の間だけを走査することを述べておらず、走査の範囲が書かれていない"
+        },
+        {
+          "text": "Codex と Copilot のセンチネルが同時にある状態で Codex の候補ゼロ transcript を走査すると、Codex のセンチネルだけを削除し Copilot のぶんは残す。残った Copilot 分が自セッション（または key を持たない旧形式）なら exit 2 でブロックし、別セッションのものなら警告に留めて commit は通すと区別している",
+          "passed": true,
+          "evidence": "(3) Codex 側だけが消え Copilot 側は残る。key があれば他セッションとして exit 1 で commit は通り、key の無い古い形式なら exit 2 で止める"
+        },
+        {
+          "text": "候補あり、既知 container の未知・欠損 subtype、不正な JSON、読めない transcript、jq 不在、内部 timeout は失敗として扱って kaizen --current を促すと説明している",
+          "passed": false,
+          "evidence": "(4) で候補あり・形式が読めない・jq が無い・締め切りは挙げたが、既知 container の未知・欠損 subtype、不正な JSON、読めない transcript を個別に挙げていない"
+        },
+        {
+          "text": "コミットの既定クリティカルパスは抽出・記録と extract-done までで、apply は明示選択時だけ続ける",
+          "passed": true,
+          "evidence": "(5) kaizen --current・extract-done・git add・再 commit までで、「apply: デフォルトでは後回しにします。ユーザーが『今すぐ適用』を選んだ場合だけ続けます」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 20,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 4,
+        "failed": 2,
+        "total": 6,
+        "time_seconds": 106.519,
+        "tokens": 812534,
+        "tool_calls": 14,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Claude Code・Codex・Copilot のどれも handler の if で絞らず（Claude Code の if は git -C <dir> commit や heredoc の中の git commit で起動しないため）、スクリプト内の Bash prefilter で非 commit の呼び出しを速く終える",
+          "passed": true,
+          "evidence": "「if で絞らない。\"if\": \"Bash(git commit *)\" を付けると、git -C <dir> commit や heredoc の中の commit でスクリプトが起動しません」、冒頭の bash の組み込みの照合で終える"
+        },
+        {
+          "text": "非 commit の prefilter は jq・python・git を起動せず終了すると説明している",
+          "passed": true,
+          "evidence": "(1)「jq / python3 / git（git rev-parse も含む）」を起動しないと列挙"
+        },
+        {
+          "text": "transcript_path と自セッションの .kaizen/.extract-checkpoint.<session key> の間だけを走査し、検証済み候補ゼロなら checkpoint と自セッションのセンチネルだけを更新して .extract-done.<session key> は作らず commit を通す",
+          "passed": false,
+          "evidence": "(2) で checkpoint を scanned-bytes まで進め、自セッションのセンチネルだけを消し、.extract-done を作らないとは述べる。しかし transcript_path と自セッションの .extract-checkpoint.<session key> の間だけを走査することを述べておらず、走査の範囲が書かれていない"
+        },
+        {
+          "text": "Codex と Copilot のセンチネルが同時にある状態で Codex の候補ゼロ transcript を走査すると、Codex のセンチネルだけを削除し Copilot のぶんは残す。残った Copilot 分が自セッション（または key を持たない旧形式）なら exit 2 でブロックし、別セッションのものなら警告に留めて commit は通すと区別している",
+          "passed": true,
+          "evidence": "(3) .pending-extract-codex.<key> だけを消し Copilot 側は残る。commit は警告付きの exit 1 で通り、key の無い古い形式なら exit 2 で止まる"
+        },
+        {
+          "text": "候補あり、既知 container の未知・欠損 subtype、不正な JSON、読めない transcript、jq 不在、内部 timeout は失敗として扱って kaizen --current を促すと説明している",
+          "passed": false,
+          "evidence": "(4) で候補あり・形式が分からない・jq が無い・締め切りは挙げたが、既知 container の未知・欠損 subtype、不正な JSON、読めない transcript を個別に挙げていない"
+        },
+        {
+          "text": "コミットの既定クリティカルパスは抽出・記録と extract-done までで、apply は明示選択時だけ続ける",
+          "passed": true,
+          "evidence": "(5)「デフォルトで必要なのは抽出・記録・extract-done までです。apply は、ユーザーが『今すぐ適用』を選んだ場合だけ行います」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 20,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 4,
+        "failed": 2,
+        "total": 6,
+        "time_seconds": 99.545,
+        "tokens": 775084,
+        "tool_calls": 13,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Claude Code・Codex・Copilot のどれも handler の if で絞らず（Claude Code の if は git -C <dir> commit や heredoc の中の git commit で起動しないため）、スクリプト内の Bash prefilter で非 commit の呼び出しを速く終える",
+          "passed": true,
+          "evidence": "「handler に if: \"Bash(git commit *)\" を付けてはいけません…速く抜ける判定はスクリプトの中で行う」"
+        },
+        {
+          "text": "非 commit の prefilter は jq・python・git を起動せず終了すると説明している",
+          "passed": true,
+          "evidence": "(1)「jq / python3 / git（git rev-parse を含む）」がどれも起動しないと説明"
+        },
+        {
+          "text": "transcript_path と自セッションの .kaizen/.extract-checkpoint.<session key> の間だけを走査し、検証済み候補ゼロなら checkpoint と自セッションのセンチネルだけを更新して .extract-done.<session key> は作らず commit を通す",
+          "passed": false,
+          "evidence": "(2) で checkpoint を scanned-bytes まで進め、自セッションのセンチネルを消し、.extract-done を作らないとは述べる。しかし transcript_path と自セッションの .extract-checkpoint.<session key> の間だけを走査することを述べておらず、走査の範囲が書かれていない"
+        },
+        {
+          "text": "Codex と Copilot のセンチネルが同時にある状態で Codex の候補ゼロ transcript を走査すると、Codex のセンチネルだけを削除し Copilot のぶんは残す。残った Copilot 分が自セッション（または key を持たない旧形式）なら exit 2 でブロックし、別セッションのものなら警告に留めて commit は通すと区別している",
+          "passed": true,
+          "evidence": "(3) Codex のセンチネルだけが消え Copilot 分は残る。別セッションの key なら exit 1 で知らせるだけで commit は通り、key の無い古い形式なら exit 2 で止まる"
+        },
+        {
+          "text": "候補あり、既知 container の未知・欠損 subtype、不正な JSON、読めない transcript、jq 不在、内部 timeout は失敗として扱って kaizen --current を促すと説明している",
+          "passed": false,
+          "evidence": "(4) で候補あり・形式が分からない・不正な JSON・jq が無い・締め切りは挙げたが、既知 container の未知・欠損 subtype と読めない transcript を挙げていない"
+        },
+        {
+          "text": "コミットの既定クリティカルパスは抽出・記録と extract-done までで、apply は明示選択時だけ続ける",
+          "passed": true,
+          "evidence": "(5)「apply は要りません。ユーザーが『今すぐ適用』を選んだ場合だけ続けます」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 57.637,
+        "tokens": 433212,
+        "tool_calls": 13,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".claude/settings.json の hooks セクションに Stop イベントの設定が追加されている",
+          "passed": true,
+          "evidence": "project-files/.claude/settings.json の hooks に Stop がある"
+        },
+        {
+          "text": "Stop Hook がバンドルされた kaizen-stop-mark スクリプトを呼び出し、session 単位の未抽出センチネル .kaizen/.pending-extract<agent suffix>.<session key> を作成する設定になっている",
+          "passed": true,
+          "evidence": "Stop の command が kaizen-stop-mark.sh を呼び、project-tree.txt に .kaizen/.pending-extract.<session id> がある"
+        },
+        {
+          "text": "Stop Hook に echo によるリマインダー出力が含まれていない",
+          "passed": true,
+          "evidence": "Stop の command は kaizen-stop-mark.sh の起動だけで echo を含まない"
+        },
+        {
+          "text": "PreToolUse Hook（matcher が Bash）が設定され、handler に if が無く、kaizen-precommit-gate スクリプトを呼び出している",
+          "passed": true,
+          "evidence": "PreToolUse の matcher が Bash で、handler に if が無く、kaizen-precommit-gate.sh を呼ぶ"
+        },
+        {
+          "text": "コミット前のチェックは未抽出センチネルがある時に git commit をブロックして kaizen --current の実行を促す設計になっている",
+          "passed": true,
+          "evidence": "応答で、ダミーの記録で git commit が止まり kaizen --current を促す案内が出たと報告し、印が残っていれば候補を探して止める設計と説明"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 61.319,
+        "tokens": 471221,
+        "tool_calls": 12,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".claude/settings.json の hooks セクションに Stop イベントの設定が追加されている",
+          "passed": true,
+          "evidence": "project-files/.claude/settings.json の hooks に Stop がある"
+        },
+        {
+          "text": "Stop Hook がバンドルされた kaizen-stop-mark スクリプトを呼び出し、session 単位の未抽出センチネル .kaizen/.pending-extract<agent suffix>.<session key> を作成する設定になっている",
+          "passed": true,
+          "evidence": "Stop の command が kaizen-stop-mark.sh を呼び、project-tree.txt に .kaizen/.pending-extract.<session id> がある"
+        },
+        {
+          "text": "Stop Hook に echo によるリマインダー出力が含まれていない",
+          "passed": true,
+          "evidence": "Stop の command は kaizen-stop-mark.sh の起動だけで echo を含まない"
+        },
+        {
+          "text": "PreToolUse Hook（matcher が Bash）が設定され、handler に if が無く、kaizen-precommit-gate スクリプトを呼び出している",
+          "passed": true,
+          "evidence": "PreToolUse の matcher が Bash で、handler に if が無く、kaizen-precommit-gate.sh を呼ぶ"
+        },
+        {
+          "text": "コミット前のチェックは未抽出センチネルがある時に git commit をブロックして kaizen --current の実行を促す設計になっている",
+          "passed": true,
+          "evidence": "応答で「終了時に『未抽出』の印ができ、git commit は止められました」「kaizen --current を実行するよう案内が出ました」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 52.467,
+        "tokens": 295389,
+        "tool_calls": 9,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".claude/settings.json の hooks セクションに Stop イベントの設定が追加されている",
+          "passed": true,
+          "evidence": "project-files/.claude/settings.json の hooks に Stop がある"
+        },
+        {
+          "text": "Stop Hook がバンドルされた kaizen-stop-mark スクリプトを呼び出し、session 単位の未抽出センチネル .kaizen/.pending-extract<agent suffix>.<session key> を作成する設定になっている",
+          "passed": true,
+          "evidence": "Stop の command が kaizen-stop-mark.sh を呼び、project-tree.txt に .kaizen/.pending-extract.<session id> がある"
+        },
+        {
+          "text": "Stop Hook に echo によるリマインダー出力が含まれていない",
+          "passed": true,
+          "evidence": "Stop の command は kaizen-stop-mark.sh の起動だけで echo を含まない"
+        },
+        {
+          "text": "PreToolUse Hook（matcher が Bash）が設定され、handler に if が無く、kaizen-precommit-gate スクリプトを呼び出している",
+          "passed": true,
+          "evidence": "PreToolUse の matcher が Bash で、handler に if が無く、kaizen-precommit-gate.sh を呼ぶ"
+        },
+        {
+          "text": "コミット前のチェックは未抽出センチネルがある時に git commit をブロックして kaizen --current の実行を促す設計になっている",
+          "passed": true,
+          "evidence": "応答で「修正を足した後の git commit は止まり（終了コード 2）、kaizen --current を促す案内」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 20,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 6,
+        "total": 6,
+        "time_seconds": 50.065,
+        "tokens": 245135,
+        "tool_calls": 9,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Claude Code・Codex・Copilot のどれも handler の if で絞らず（Claude Code の if は git -C <dir> commit や heredoc の中の git commit で起動しないため）、スクリプト内の Bash prefilter で非 commit の呼び出しを速く終える",
+          "passed": false,
+          "evidence": "Claude Code の handler に if: \"Bash(git commit*)\" を付ける形を示した"
+        },
+        {
+          "text": "非 commit の prefilter は jq・python・git を起動せず終了すると説明している",
+          "passed": false,
+          "evidence": "実装が見つからないとして (1) に答えていない"
+        },
+        {
+          "text": "transcript_path と自セッションの .kaizen/.extract-checkpoint.<session key> の間だけを走査し、検証済み候補ゼロなら checkpoint と自セッションのセンチネルだけを更新して .extract-done.<session key> は作らず commit を通す",
+          "passed": false,
+          "evidence": "(2) に答えていない"
+        },
+        {
+          "text": "Codex と Copilot のセンチネルが同時にある状態で Codex の候補ゼロ transcript を走査すると、Codex のセンチネルだけを削除し Copilot のぶんは残す。残った Copilot 分が自セッション（または key を持たない旧形式）なら exit 2 でブロックし、別セッションのものなら警告に留めて commit は通すと区別している",
+          "passed": false,
+          "evidence": "(3) に答えていない"
+        },
+        {
+          "text": "候補あり、既知 container の未知・欠損 subtype、不正な JSON、読めない transcript、jq 不在、内部 timeout は失敗として扱って kaizen --current を促すと説明している",
+          "passed": false,
+          "evidence": "(4) に答えていない"
+        },
+        {
+          "text": "コミットの既定クリティカルパスは抽出・記録と extract-done までで、apply は明示選択時だけ続ける",
+          "passed": false,
+          "evidence": "(5) に答えていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 20,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 6,
+        "total": 6,
+        "time_seconds": 119.182,
+        "tokens": 268002,
+        "tool_calls": 10,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Claude Code・Codex・Copilot のどれも handler の if で絞らず（Claude Code の if は git -C <dir> commit や heredoc の中の git commit で起動しないため）、スクリプト内の Bash prefilter で非 commit の呼び出しを速く終える",
+          "passed": false,
+          "evidence": "Claude Code の handler に if: \"Bash(git commit*)\" を付ける形を示した"
+        },
+        {
+          "text": "非 commit の prefilter は jq・python・git を起動せず終了すると説明している",
+          "passed": false,
+          "evidence": "実装が見つからないとして (1) に答えていない"
+        },
+        {
+          "text": "transcript_path と自セッションの .kaizen/.extract-checkpoint.<session key> の間だけを走査し、検証済み候補ゼロなら checkpoint と自セッションのセンチネルだけを更新して .extract-done.<session key> は作らず commit を通す",
+          "passed": false,
+          "evidence": "(2) に答えていない"
+        },
+        {
+          "text": "Codex と Copilot のセンチネルが同時にある状態で Codex の候補ゼロ transcript を走査すると、Codex のセンチネルだけを削除し Copilot のぶんは残す。残った Copilot 分が自セッション（または key を持たない旧形式）なら exit 2 でブロックし、別セッションのものなら警告に留めて commit は通すと区別している",
+          "passed": false,
+          "evidence": "(3) に答えていない"
+        },
+        {
+          "text": "候補あり、既知 container の未知・欠損 subtype、不正な JSON、読めない transcript、jq 不在、内部 timeout は失敗として扱って kaizen --current を促すと説明している",
+          "passed": false,
+          "evidence": "(4) に答えていない"
+        },
+        {
+          "text": "コミットの既定クリティカルパスは抽出・記録と extract-done までで、apply は明示選択時だけ続ける",
+          "passed": false,
+          "evidence": "(5) に答えていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 20,
+      "configuration": "without_skill",
+      "run_number": 4,
+      "result": {
+        "pass_rate": 0.1667,
+        "passed": 1,
+        "failed": 5,
+        "total": 6,
+        "time_seconds": 74.55,
+        "tokens": 240806,
+        "tool_calls": 9,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Claude Code・Codex・Copilot のどれも handler の if で絞らず（Claude Code の if は git -C <dir> commit や heredoc の中の git commit で起動しないため）、スクリプト内の Bash prefilter で非 commit の呼び出しを速く終える",
+          "passed": false,
+          "evidence": "Claude Code の handler に if: \"Bash(git commit*)\" を付ける形を示した"
+        },
+        {
+          "text": "非 commit の prefilter は jq・python・git を起動せず終了すると説明している",
+          "passed": true,
+          "evidence": "(1)「git・python や node などのインタプリタ・jq…のどれも起動せず、exit 0 で終わります」（実装を読まずに組み立てた推奨設計として）"
+        },
+        {
+          "text": "transcript_path と自セッションの .kaizen/.extract-checkpoint.<session key> の間だけを走査し、検証済み候補ゼロなら checkpoint と自セッションのセンチネルだけを更新して .extract-done.<session key> は作らず commit を通す",
+          "passed": false,
+          "evidence": "「走査したエージェント本人のセンチネルを消し…走査位置を進めます」と一般論で、.extract-checkpoint.<session key> と .extract-done を挙げていない"
+        },
+        {
+          "text": "Codex と Copilot のセンチネルが同時にある状態で Codex の候補ゼロ transcript を走査すると、Codex のセンチネルだけを削除し Copilot のぶんは残す。残った Copilot 分が自セッション（または key を持たない旧形式）なら exit 2 でブロックし、別セッションのものなら警告に留めて commit は通すと区別している",
+          "passed": false,
+          "evidence": "Codex のセンチネルだけが消えて commit は通るとしたが、残った Copilot 分が自セッションか key の無い旧形式なら exit 2 で止めることを区別していない"
+        },
+        {
+          "text": "候補あり、既知 container の未知・欠損 subtype、不正な JSON、読めない transcript、jq 不在、内部 timeout は失敗として扱って kaizen --current を促すと説明している",
+          "passed": false,
+          "evidence": "候補あり・transcript が読めない・パースに失敗を挙げたが、未知・欠損 subtype、jq 不在、内部 timeout と kaizen --current を促すことに触れていない"
+        },
+        {
+          "text": "コミットの既定クリティカルパスは抽出・記録と extract-done までで、apply は明示選択時だけ続ける",
+          "passed": false,
+          "evidence": "「候補を kaizen の記録先に書き込むところまで」とし、extract-done に触れず、apply を明示選択時だけ続けることも書いていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 105.413,
+        "tokens": 995425,
+        "tool_calls": 14,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".claude/settings.json の hooks セクションに Stop イベントの設定が追加されている",
+          "passed": false,
+          "evidence": "project-tree.txt に .claude/settings.json が無い（kaizen-hook/ にスクリプトとスニペットだけを置き、~/.claude/settings.json への書き込みは失敗）"
+        },
+        {
+          "text": "Stop Hook がバンドルされた kaizen-stop-mark スクリプトを呼び出し、session 単位の未抽出センチネル .kaizen/.pending-extract<agent suffix>.<session key> を作成する設定になっている",
+          "passed": false,
+          "evidence": "Stop Hook も kaizen-stop-mark も無く、自作の kaizen-pre-commit.sh だけ"
+        },
+        {
+          "text": "Stop Hook に echo によるリマインダー出力が含まれていない",
+          "passed": false,
+          "evidence": "Stop Hook を設定していないので、満たす対象が無い"
+        },
+        {
+          "text": "PreToolUse Hook（matcher が Bash）が設定され、handler に if が無く、kaizen-precommit-gate スクリプトを呼び出している",
+          "passed": false,
+          "evidence": ".claude/settings.json が無く、kaizen-precommit-gate も呼んでいない"
+        },
+        {
+          "text": "コミット前のチェックは未抽出センチネルがある時に git commit をブロックして kaizen --current の実行を促す設計になっている",
+          "passed": false,
+          "evidence": "未抽出センチネルを使わず、.kaizen/ のステージの有無で止める自作の設計"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 107.713,
+        "tokens": 1085552,
+        "tool_calls": 15,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".claude/settings.json の hooks セクションに Stop イベントの設定が追加されている",
+          "passed": false,
+          "evidence": "project-tree.txt にファイルが 1 つも無く、~/.claude/settings.json への書き込みも失敗した"
+        },
+        {
+          "text": "Stop Hook がバンドルされた kaizen-stop-mark スクリプトを呼び出し、session 単位の未抽出センチネル .kaizen/.pending-extract<agent suffix>.<session key> を作成する設定になっている",
+          "passed": false,
+          "evidence": "Stop Hook も kaizen-stop-mark も無い"
+        },
+        {
+          "text": "Stop Hook に echo によるリマインダー出力が含まれていない",
+          "passed": false,
+          "evidence": "Stop Hook を設定していないので、満たす対象が無い"
+        },
+        {
+          "text": "PreToolUse Hook（matcher が Bash）が設定され、handler に if が無く、kaizen-precommit-gate スクリプトを呼び出している",
+          "passed": false,
+          "evidence": "プロジェクトに設定が無く、kaizen-precommit-gate も呼んでいない"
+        },
+        {
+          "text": "コミット前のチェックは未抽出センチネルがある時に git commit をブロックして kaizen --current の実行を促す設計になっている",
+          "passed": false,
+          "evidence": "未抽出センチネルを使わず、.kaizen/ のステージの有無で一度だけ止める自作の設計"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 71.13,
+        "tokens": 1065590,
+        "tool_calls": 13,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".claude/settings.json の hooks セクションに Stop イベントの設定が追加されている",
+          "passed": false,
+          "evidence": ".claude/settings.json の hooks は PreToolUse だけで Stop が無い"
+        },
+        {
+          "text": "Stop Hook がバンドルされた kaizen-stop-mark スクリプトを呼び出し、session 単位の未抽出センチネル .kaizen/.pending-extract<agent suffix>.<session key> を作成する設定になっている",
+          "passed": false,
+          "evidence": "Stop Hook も kaizen-stop-mark も無い"
+        },
+        {
+          "text": "Stop Hook に echo によるリマインダー出力が含まれていない",
+          "passed": false,
+          "evidence": "Stop Hook を設定していないので、満たす対象が無い"
+        },
+        {
+          "text": "PreToolUse Hook（matcher が Bash）が設定され、handler に if が無く、kaizen-precommit-gate スクリプトを呼び出している",
+          "passed": false,
+          "evidence": "matcher は Bash だが handler に if: \"Bash(*git*commit*)\" があり、自作の kaizen-pre-commit.sh を呼ぶ"
+        },
+        {
+          "text": "コミット前のチェックは未抽出センチネルがある時に git commit をブロックして kaizen --current の実行を促す設計になっている",
+          "passed": false,
+          "evidence": "未抽出センチネルを使わず、session ID とステージの内容で一度だけ止める自作の設計"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.8333,
+        "stddev": 0.1826,
+        "min": 0.6667,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 75.1642,
+        "stddev": 22.7788,
+        "min": 52.467,
+        "max": 106.519
+      },
+      "tokens": {
+        "mean": 569669.6667,
+        "stddev": 204171.828,
+        "min": 295389,
+        "max": 812534
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.0278,
+        "stddev": 0.0681,
+        "min": 0,
+        "max": 0.1667
+      },
+      "time_seconds": {
+        "mean": 88.0088,
+        "stddev": 26.7159,
+        "min": 50.065,
+        "max": 119.182
+      },
+      "tokens": {
+        "mean": 650085,
+        "stddev": 437953.6163,
+        "min": 240806,
+        "max": 1085552
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.81",
+      "time_seconds": "-12.8",
+      "tokens": "-80415"
+    }
+  },
+  "notes": [
+    "Issue #690 の benchmark（3 run × 2 config）。比べる記録は iteration-22（eval 4・20 とも 1 run）である。",
+    "eval 20 の without_skill の run-1 は contamination.txt が CONTAMINATED（exit 4）だったので、grading.json を置かずに集計から外した（tests/kaizen/iteration-25/eval-20/without_skill/run-1）。同じ条件の run-4 を足した。",
+    "run-1 はスキルの下のファイルを読んでおらず（skill_usage.unexpected_read は false）、応答に「~/.claude.json にあるファイル名 kaizen-precommit-gate.sh」を挙げたことで目印に当たった。サンドボックスは ~/.claude.json を読めるので、スクリプトの名前がそこから baseline に伝わる。",
+    "eval 20 の with_skill: 「transcript_path と自セッションの .extract-checkpoint の間だけを走査し…」と「候補あり、既知 container の未知・欠損 subtype…を失敗として扱う」が 3 run すべてで落ちた。iteration-22 の 1 run でも同じ 2 項目が落ちているので、後退ではなく常に落ちる項目である。"
+  ]
+}

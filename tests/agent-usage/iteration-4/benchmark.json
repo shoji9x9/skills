@@ -1,0 +1,841 @@
+{
+  "metadata": {
+    "skill_name": "agent-usage",
+    "skill_path": "<repo>/skills/agent-usage",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-20T02:54:14Z",
+    "evals_run": [1, 2, 3],
+    "runs_per_configuration": 3
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 18.688,
+        "tokens": 43033,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "記録するかを自分で決めず、利用者に確かめると答えている",
+          "passed": true,
+          "evidence": "「利用者に確かめる: 『このブランチの作業の利用実績を記録してコミットするか』を聞きます」"
+        },
+        {
+          "text": "記録する場合は collect --stage を実行してから、もう一度コミットすると答えている",
+          "passed": true,
+          "evidence": "「記録する → collect --stage」の後に「もう一度 git commit を実行する」"
+        },
+        {
+          "text": "記録しない場合は decline を実行してから、もう一度コミットすると答えている",
+          "passed": true,
+          "evidence": "「記録しない → decline」の後に「もう一度 git commit を実行する」"
+        },
+        {
+          "text": "確認はブランチごとに 1 回で、記録すると決めたブランチでは以降のコミットで Hook が collect して stage すると説明している",
+          "passed": true,
+          "evidence": "decline で「このブランチではコミットの前に確認されなくなります」、記録するなら「これ以降は、このブランチでコミットするたびに Hook が collect を実行し、増えた明細を stage します」"
+        },
+        {
+          "text": "利用者に確かめられない無人の実行では、記録しない側を選ばずに止まって報告すると答えている",
+          "passed": true,
+          "evidence": "「collect --stage も decline も実行せずに止まる。『記録しない』を勝手に選んではいけません」「止まった理由を報告する」"
+        },
+        {
+          "text": "無人の実行でも止まらずに進めるには、利用者が前もって defaultDecision を設定に置くと答えている",
+          "passed": true,
+          "evidence": "「利用者が前もって、設定ファイル agent-usage.jsonc に defaultDecision（\"record\" か \"decline\"）を書きます」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 20.823,
+        "tokens": 66820,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "記録するかを自分で決めず、利用者に確かめると答えている",
+          "passed": true,
+          "evidence": "「記録するかを利用者に確かめます」"
+        },
+        {
+          "text": "記録する場合は collect --stage を実行してから、もう一度コミットすると答えている",
+          "passed": true,
+          "evidence": "記録する場合に collect --stage を示し、手順 3 で「同じ git commit をもう一度実行します」"
+        },
+        {
+          "text": "記録しない場合は decline を実行してから、もう一度コミットすると答えている",
+          "passed": true,
+          "evidence": "記録しない場合に decline を示し、手順 3 で再コミット"
+        },
+        {
+          "text": "確認はブランチごとに 1 回で、記録すると決めたブランチでは以降のコミットで Hook が collect して stage すると説明している",
+          "passed": true,
+          "evidence": "「以後このブランチでは、コミットの前に確認されません」「『記録する』にしたブランチでは、以後のコミットのたびに Hook が collect を実行し、増えた明細を stage します」"
+        },
+        {
+          "text": "利用者に確かめられない無人の実行では、記録しない側を選ばずに止まって報告すると答えている",
+          "passed": true,
+          "evidence": "「collect --stage も decline も実行しません。コミットせずにそこで止まり、理由を報告します」「記録しない側（decline）を勝手に選んではいけません」"
+        },
+        {
+          "text": "無人の実行でも止まらずに進めるには、利用者が前もって defaultDecision を設定に置くと答えている",
+          "passed": true,
+          "evidence": "「利用者が前もって設定します。agent-usage.jsonc に \"defaultDecision\": \"record\"（または \"decline\"）を置きます」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 20.931,
+        "tokens": 64740,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "記録するかを自分で決めず、利用者に確かめると答えている",
+          "passed": true,
+          "evidence": "「利用者に確かめる：『このブランチの作業の利用実績を記録してコミットするか』を聞きます」"
+        },
+        {
+          "text": "記録する場合は collect --stage を実行してから、もう一度コミットすると答えている",
+          "passed": true,
+          "evidence": "「記録するなら collect --stage」の後に「同じコミットをもう一度実行する」"
+        },
+        {
+          "text": "記録しない場合は decline を実行してから、もう一度コミットすると答えている",
+          "passed": true,
+          "evidence": "「記録しないなら decline」の後に再コミット"
+        },
+        {
+          "text": "確認はブランチごとに 1 回で、記録すると決めたブランチでは以降のコミットで Hook が collect して stage すると説明している",
+          "passed": true,
+          "evidence": "「以後、このブランチではコミット前に止まりません」「『記録する』にしたブランチでは、コミットのたびに Hook が collect を実行し、増えた明細を stage します」"
+        },
+        {
+          "text": "利用者に確かめられない無人の実行では、記録しない側を選ばずに止まって報告すると答えている",
+          "passed": true,
+          "evidence": "「collect --stage も decline も実行せずに止まります…と報告します」「『記録しない』を勝手に選ぶことはしません」"
+        },
+        {
+          "text": "無人の実行でも止まらずに進めるには、利用者が前もって defaultDecision を設定に置くと答えている",
+          "passed": true,
+          "evidence": "「設定の agent-usage.jsonc に \"defaultDecision\": \"record\"（または \"decline\"）を置いておくと…利用者が自分で行います」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 48.579,
+        "tokens": 284158,
+        "tool_calls": 9,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "判定不能は GitHub の情報を取得していない期間（coverage が ok でない期間）の停止だと説明している",
+          "passed": true,
+          "evidence": "「判定不能: GitHub の取得に成功した期間（coverage 行で detail=ok のもの）に入っていない時間」"
+        },
+        {
+          "text": "初めての取得は最大 60 日前からなので、それより前の期間は判定不能になると説明している",
+          "passed": true,
+          "evidence": "「GitHub は最大で 60 日前までしかさかのぼりません…古いログから作った run の間の停止は埋まりません」"
+        },
+        {
+          "text": "gh が無い・認証できない・取得に失敗した期間も判定不能になり、collect の出力に失敗した段が出ると説明している",
+          "passed": false,
+          "evidence": "gh が無い・認証切れ・段の失敗で failed:<段> になり判定不能になることと、collect の出力に「GitHub の取得に失敗」と出ることは書いたが、出力に失敗した段の名前が出るとは書いていない（段は records の coverage 行で見るとしている）"
+        },
+        {
+          "text": "gh を使える状態で collect を実行し直すと、前回の取得の終わりから（1 日さかのぼって）取得されると答えている",
+          "passed": true,
+          "evidence": "「次の collect は、最後に成功した取得の終わりの 1 日前から取り直します」"
+        },
+        {
+          "text": "report の --since で、取得していない古い期間を集計から外せると答えている",
+          "passed": true,
+          "evidence": "「report では --since を coverage の始まり以降にすると、判定不能が混ざりません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 44.563,
+        "tokens": 75988,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "判定不能は GitHub の情報を取得していない期間（coverage が ok でない期間）の停止だと説明している",
+          "passed": true,
+          "evidence": "「判定不能: その期間の GitHub の情報が取れていない（coverage の行が ok でない）」"
+        },
+        {
+          "text": "初めての取得は最大 60 日前からなので、それより前の期間は判定不能になると説明している",
+          "passed": true,
+          "evidence": "「初めての取得より 60 日以上前の期間を集計している。初めての取得は、最大 60 日前までしか遡りません」"
+        },
+        {
+          "text": "gh が無い・認証できない・取得に失敗した期間も判定不能になり、collect の出力に失敗した段が出ると説明している",
+          "passed": true,
+          "evidence": "「gh が無い、ログインしていない、または途中で失敗した…coverage が failed:<段> になります」「collect を実行したときの出力に『GitHub の取得に失敗（段）』…が出ていないかを見ます」"
+        },
+        {
+          "text": "gh を使える状態で collect を実行し直すと、前回の取得の終わりから（1 日さかのぼって）取得されると答えている",
+          "passed": true,
+          "evidence": "「次の collect は、最後に成功した取得の終わりの 1 日前から取り直し」"
+        },
+        {
+          "text": "report の --since で、取得していない古い期間を集計から外せると答えている",
+          "passed": true,
+          "evidence": "「60 日より前の期間は、report --since <YYYY-MM-DD> で範囲を絞る」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 41.353,
+        "tokens": 145545,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "判定不能は GitHub の情報を取得していない期間（coverage が ok でない期間）の停止だと説明している",
+          "passed": true,
+          "evidence": "「GitHub の情報を取れた期間とは、coverage 行の detail が ok の期間…この期間の外にある停止は…判定不能」"
+        },
+        {
+          "text": "初めての取得は最大 60 日前からなので、それより前の期間は判定不能になると説明している",
+          "passed": true,
+          "evidence": "「初回の取得は最大 60 日前までです…最初の collect より 60 日以上前の作業…ずっと判定不能のまま残ります」"
+        },
+        {
+          "text": "gh が無い・認証できない・取得に失敗した期間も判定不能になり、collect の出力に失敗した段が出ると説明している",
+          "passed": false,
+          "evidence": "gh が無い・未ログイン・段の失敗（failed:<段>）で判定不能になることと、collect の出力に「GitHub の取得に失敗」が出ることは書いたが、出力に失敗した段が出るとは書いていない（段は records の coverage 行で見るとしている）"
+        },
+        {
+          "text": "gh を使える状態で collect を実行し直すと、前回の取得の終わりから（1 日さかのぼって）取得されると答えている",
+          "passed": true,
+          "evidence": "「2 回目以降は、最後に成功した取得の 1 日前から取り直します」"
+        },
+        {
+          "text": "report の --since で、取得していない古い期間を集計から外せると答えている",
+          "passed": true,
+          "evidence": "「取り戻せない昔の期間は、report --since で取得できた日以降に絞ると、表示から外せます」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 31.3,
+        "tokens": 147175,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "単価表にそのモデルが無いので、記録の時点で費用を空欄にしてトークン数だけを記録していると説明している",
+          "passed": true,
+          "evidence": "「記録の時点で費用（cost_usd）を空欄にし、cost_source=unknown としてトークン数だけを残しています」"
+        },
+        {
+          "text": "リポジトリの設定（.config/skills/shoji9x9/agent-usage.jsonc）の pricing に、そのモデルの単価（input と output は必須）を足すと答えている",
+          "passed": true,
+          "evidence": "「.config/skills/shoji9x9/agent-usage.jsonc の pricing に…input と output は必須です」"
+        },
+        {
+          "text": "単価を足して report を実行し直せば、記録されたトークン数から費用を計算し直すと答えている",
+          "passed": true,
+          "evidence": "「report は、費用が空欄の行を実行のたびに今の単価表で計算し直します」「agent-usage report をもう一度実行します」"
+        },
+        {
+          "text": "ログが消えていても、トークン数が記録に残っているので計算できると答えている",
+          "passed": true,
+          "evidence": "「材料は記録に残ったトークン数なので、ローカルのログが消えていても計算できます」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 35.887,
+        "tokens": 108988,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "単価表にそのモデルが無いので、記録の時点で費用を空欄にしてトークン数だけを記録していると説明している",
+          "passed": true,
+          "evidence": "「記録にはトークン数が残っています。費用の欄（cost_source=unknown）が空になっているだけです」"
+        },
+        {
+          "text": "リポジトリの設定（.config/skills/shoji9x9/agent-usage.jsonc）の pricing に、そのモデルの単価（input と output は必須）を足すと答えている",
+          "passed": true,
+          "evidence": "「.config/skills/shoji9x9/agent-usage.jsonc の pricing に…input と output は必須です」"
+        },
+        {
+          "text": "単価を足して report を実行し直せば、記録されたトークン数から費用を計算し直すと答えている",
+          "passed": true,
+          "evidence": "「費用は report を実行するときに単価表から計算される」「report を実行し直します」"
+        },
+        {
+          "text": "ログが消えていても、トークン数が記録に残っているので計算できると答えている",
+          "passed": true,
+          "evidence": "「ログが消えていても大丈夫です…記録にはトークン数が残っています…ログも要りません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 28.112,
+        "tokens": 132612,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "単価表にそのモデルが無いので、記録の時点で費用を空欄にしてトークン数だけを記録していると説明している",
+          "passed": true,
+          "evidence": "「記録にはトークン数が残っています（費用は空欄、cost_source は unknown）」"
+        },
+        {
+          "text": "リポジトリの設定（.config/skills/shoji9x9/agent-usage.jsonc）の pricing に、そのモデルの単価（input と output は必須）を足すと答えている",
+          "passed": true,
+          "evidence": "「.config/skills/shoji9x9/agent-usage.jsonc の pricing に…input と output は必ず書きます」"
+        },
+        {
+          "text": "単価を足して report を実行し直せば、記録されたトークン数から費用を計算し直すと答えている",
+          "passed": true,
+          "evidence": "「report は実行のたびに、費用が空欄の行をその時点の単価表で計算し直します」"
+        },
+        {
+          "text": "ログが消えていても、トークン数が記録に残っているので計算できると答えている",
+          "passed": true,
+          "evidence": "「使うのは記録済みのトークン数だけなので、元のログは要りません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 2,
+        "failed": 4,
+        "total": 6,
+        "time_seconds": 27.389,
+        "tokens": 57346,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "記録するかを自分で決めず、利用者に確かめると答えている",
+          "passed": true,
+          "evidence": "「利用者に『このブランチでエージェントの利用実績を記録するか』を確かめる…エージェントが勝手に決めてよいものではありません」"
+        },
+        {
+          "text": "記録する場合は collect --stage を実行してから、もう一度コミットすると答えている",
+          "passed": false,
+          "evidence": "「Hook が案内する方法で『記録する』を登録」と一般論で、collect --stage に触れていない"
+        },
+        {
+          "text": "記録しない場合は decline を実行してから、もう一度コミットすると答えている",
+          "passed": false,
+          "evidence": "decline に触れていない"
+        },
+        {
+          "text": "確認はブランチごとに 1 回で、記録すると決めたブランチでは以降のコミットで Hook が collect して stage すると説明している",
+          "passed": false,
+          "evidence": "「判断はブランチごとに一度だけ」はあるが、以降のコミットで Hook が collect して stage することを書いていない"
+        },
+        {
+          "text": "利用者に確かめられない無人の実行では、記録しない側を選ばずに止まって報告すると答えている",
+          "passed": true,
+          "evidence": "「代わりに決めない」「commit はしない。止まったままにしておきます」「最終報告に次の内容を書く」"
+        },
+        {
+          "text": "無人の実行でも止まらずに進めるには、利用者が前もって defaultDecision を設定に置くと答えている",
+          "passed": false,
+          "evidence": "前もって決める例外は CLAUDE.md・メモリ・実行時の指示で、defaultDecision の設定に触れていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 2,
+        "failed": 4,
+        "total": 6,
+        "time_seconds": 21.318,
+        "tokens": 39479,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "記録するかを自分で決めず、利用者に確かめると答えている",
+          "passed": true,
+          "evidence": "「記録するかどうかを利用者に聞く…エージェントが代わりに決めてはいけません」"
+        },
+        {
+          "text": "記録する場合は collect --stage を実行してから、もう一度コミットすると答えている",
+          "passed": false,
+          "evidence": "「Hook が案内する方法でブランチに登録」と一般論で、collect --stage に触れていない"
+        },
+        {
+          "text": "記録しない場合は decline を実行してから、もう一度コミットすると答えている",
+          "passed": false,
+          "evidence": "decline に触れていない"
+        },
+        {
+          "text": "確認はブランチごとに 1 回で、記録すると決めたブランチでは以降のコミットで Hook が collect して stage すると説明している",
+          "passed": false,
+          "evidence": "「ブランチ単位で残る方針」とだけ書き、Hook が以降のコミットで collect して stage することに触れていない"
+        },
+        {
+          "text": "利用者に確かめられない無人の実行では、記録しない側を選ばずに止まって報告すると答えている",
+          "passed": true,
+          "evidence": "「記録する／しないを勝手に選ばない」「コミットせずにそこで止める」「結果を報告する」"
+        },
+        {
+          "text": "無人の実行でも止まらずに進めるには、利用者が前もって defaultDecision を設定に置くと答えている",
+          "passed": false,
+          "evidence": "「CLAUDE.md、プロジェクト設定、Hook 自体の既定動作など」と一般論で、defaultDecision に触れていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 2,
+        "failed": 4,
+        "total": 6,
+        "time_seconds": 25.043,
+        "tokens": 39867,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "記録するかを自分で決めず、利用者に確かめると答えている",
+          "passed": true,
+          "evidence": "「記録するかどうかを利用者（ブランチの持ち主）に確認する。これはエージェントではなく人が決めることです」"
+        },
+        {
+          "text": "記録する場合は collect --stage を実行してから、もう一度コミットすると答えている",
+          "passed": false,
+          "evidence": "「Hook が指定する方法でそのブランチに登録」と一般論で、collect --stage に触れていない"
+        },
+        {
+          "text": "記録しない場合は decline を実行してから、もう一度コミットすると答えている",
+          "passed": false,
+          "evidence": "decline に触れていない"
+        },
+        {
+          "text": "確認はブランチごとに 1 回で、記録すると決めたブランチでは以降のコミットで Hook が collect して stage すると説明している",
+          "passed": false,
+          "evidence": "「ブランチごとに一度決めればよい設定のはず」と推測だけで、Hook が以降のコミットで collect して stage することに触れていない"
+        },
+        {
+          "text": "利用者に確かめられない無人の実行では、記録しない側を選ばずに止まって報告すると答えている",
+          "passed": true,
+          "evidence": "「記録するかどうかを勝手に決めない」「コミットせずに止める」「止まったことを結果として報告する」"
+        },
+        {
+          "text": "無人の実行でも止まらずに進めるには、利用者が前もって defaultDecision を設定に置くと答えている",
+          "passed": false,
+          "evidence": "「ドキュメントで決められている場合や事前の指示」と一般論で、defaultDecision に触れていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 149.167,
+        "tokens": 191573,
+        "tool_calls": 9,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "判定不能は GitHub の情報を取得していない期間（coverage が ok でない期間）の停止だと説明している",
+          "passed": false,
+          "evidence": "判定不能をトランスクリプトの stop_reason の欠落などと推測し、GitHub の取得の期間に触れていない"
+        },
+        {
+          "text": "初めての取得は最大 60 日前からなので、それより前の期間は判定不能になると説明している",
+          "passed": false,
+          "evidence": "60 日に触れていない"
+        },
+        {
+          "text": "gh が無い・認証できない・取得に失敗した期間も判定不能になり、collect の出力に失敗した段が出ると説明している",
+          "passed": false,
+          "evidence": "gh の失敗に触れていない"
+        },
+        {
+          "text": "gh を使える状態で collect を実行し直すと、前回の取得の終わりから（1 日さかのぼって）取得されると答えている",
+          "passed": false,
+          "evidence": "collect の取得の期間に触れていない"
+        },
+        {
+          "text": "report の --since で、取得していない古い期間を集計から外せると答えている",
+          "passed": false,
+          "evidence": "--since に触れていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 31.408,
+        "tokens": 84409,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "判定不能は GitHub の情報を取得していない期間（coverage が ok でない期間）の停止だと説明している",
+          "passed": false,
+          "evidence": "判定不能を stop_reason が null の行などと推測し、GitHub の取得の期間に触れていない"
+        },
+        {
+          "text": "初めての取得は最大 60 日前からなので、それより前の期間は判定不能になると説明している",
+          "passed": false,
+          "evidence": "60 日に触れていない"
+        },
+        {
+          "text": "gh が無い・認証できない・取得に失敗した期間も判定不能になり、collect の出力に失敗した段が出ると説明している",
+          "passed": false,
+          "evidence": "gh の失敗に触れていない"
+        },
+        {
+          "text": "gh を使える状態で collect を実行し直すと、前回の取得の終わりから（1 日さかのぼって）取得されると答えている",
+          "passed": false,
+          "evidence": "collect の取得の期間に触れていない"
+        },
+        {
+          "text": "report の --since で、取得していない古い期間を集計から外せると答えている",
+          "passed": false,
+          "evidence": "--since に触れていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 186.708,
+        "tokens": 55843,
+        "tool_calls": 10,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "判定不能は GitHub の情報を取得していない期間（coverage が ok でない期間）の停止だと説明している",
+          "passed": false,
+          "evidence": "原因はコードが無く特定できないとし、stop_reason が null の行などと推測している。GitHub の取得の期間に触れていない"
+        },
+        {
+          "text": "初めての取得は最大 60 日前からなので、それより前の期間は判定不能になると説明している",
+          "passed": false,
+          "evidence": "60 日に触れていない"
+        },
+        {
+          "text": "gh が無い・認証できない・取得に失敗した期間も判定不能になり、collect の出力に失敗した段が出ると説明している",
+          "passed": false,
+          "evidence": "gh の失敗に触れていない"
+        },
+        {
+          "text": "gh を使える状態で collect を実行し直すと、前回の取得の終わりから（1 日さかのぼって）取得されると答えている",
+          "passed": false,
+          "evidence": "collect の取得の期間に触れていない"
+        },
+        {
+          "text": "report の --since で、取得していない古い期間を集計から外せると答えている",
+          "passed": false,
+          "evidence": "--since に触れていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 4,
+        "total": 4,
+        "time_seconds": 27.949,
+        "tokens": 60269,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "単価表にそのモデルが無いので、記録の時点で費用を空欄にしてトークン数だけを記録していると説明している",
+          "passed": false,
+          "evidence": "「トークン数だけ記録して費用を 0 にし」と 0 として扱うと説明し、記録の時点で費用を空欄にすることに触れていない"
+        },
+        {
+          "text": "リポジトリの設定（.config/skills/shoji9x9/agent-usage.jsonc）の pricing に、そのモデルの単価（input と output は必須）を足すと答えている",
+          "passed": false,
+          "evidence": "「pricing の設定ファイルやオプション」と一般論で、agent-usage.jsonc の pricing を挙げていない"
+        },
+        {
+          "text": "単価を足して report を実行し直せば、記録されたトークン数から費用を計算し直すと答えている",
+          "passed": false,
+          "evidence": "「元ログから再集計して初めて費用が入ります」と、記録されたトークン数から report が計算し直すことを答えていない"
+        },
+        {
+          "text": "ログが消えていても、トークン数が記録に残っているので計算できると答えている",
+          "passed": false,
+          "evidence": "「usage.csv の各行にトークン数の列が残っていれば…自分で計算」と条件付きの手計算で、記録に残ることを答えていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 4,
+        "total": 4,
+        "time_seconds": 21.689,
+        "tokens": 39138,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "単価表にそのモデルが無いので、記録の時点で費用を空欄にしてトークン数だけを記録していると説明している",
+          "passed": false,
+          "evidence": "「費用は 0 になり…トークン数自体は記録されています」と 0 として扱うと説明し、費用を空欄にすることに触れていない"
+        },
+        {
+          "text": "リポジトリの設定（.config/skills/shoji9x9/agent-usage.jsonc）の pricing に、そのモデルの単価（input と output は必須）を足すと答えている",
+          "passed": false,
+          "evidence": "「料金設定ファイルや環境変数など」と一般論で、agent-usage.jsonc の pricing を挙げていない"
+        },
+        {
+          "text": "単価を足して report を実行し直せば、記録されたトークン数から費用を計算し直すと答えている",
+          "passed": false,
+          "evidence": "「単価を入れたら再集計し」と一般論で、report の実行し直しに触れていない"
+        },
+        {
+          "text": "ログが消えていても、トークン数が記録に残っているので計算できると答えている",
+          "passed": false,
+          "evidence": "「usage.csv にトークン数の列が残っている場合」と条件付きの手計算で、記録に残ることを答えていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 4,
+        "total": 4,
+        "time_seconds": 21.576,
+        "tokens": 39224,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "単価表にそのモデルが無いので、記録の時点で費用を空欄にしてトークン数だけを記録していると説明している",
+          "passed": false,
+          "evidence": "「費用は 0 になり…トークン数自体は記録されていて」と 0 として扱うと説明し、費用を空欄にすることに触れていない"
+        },
+        {
+          "text": "リポジトリの設定（.config/skills/shoji9x9/agent-usage.jsonc）の pricing に、そのモデルの単価（input と output は必須）を足すと答えている",
+          "passed": false,
+          "evidence": "「pricing ファイルや設定オプションなど」と一般論で、agent-usage.jsonc の pricing を挙げていない"
+        },
+        {
+          "text": "単価を足して report を実行し直せば、記録されたトークン数から費用を計算し直すと答えている",
+          "passed": false,
+          "evidence": "「再集計する。出力済みの usage.csv が自動で書き換わるとは限りません」と、report が記録から計算し直すことを答えていない"
+        },
+        {
+          "text": "ログが消えていても、トークン数が記録に残っているので計算できると答えている",
+          "passed": false,
+          "evidence": "「トークン数の列が残っていれば…手計算」と条件付きで、記録に残ることを答えていない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.9556,
+        "stddev": 0.0882,
+        "min": 0.8,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 32.2484,
+        "stddev": 11.0396,
+        "min": 18.688,
+        "max": 48.579
+      },
+      "tokens": {
+        "mean": 118784.3333,
+        "stddev": 72757.0082,
+        "min": 43033,
+        "max": 284158
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.1111,
+        "stddev": 0.1666,
+        "min": 0,
+        "max": 0.3333
+      },
+      "time_seconds": {
+        "mean": 56.9163,
+        "stddev": 63.7287,
+        "min": 21.318,
+        "max": 186.708
+      },
+      "tokens": {
+        "mean": 67460.8889,
+        "stddev": 48892.7154,
+        "min": 39138,
+        "max": 191573
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.84",
+      "time_seconds": "-24.7",
+      "tokens": "+51323"
+    }
+  },
+  "notes": [
+    "Issue #690 の benchmark（3 run × 2 config）。比べる記録は iteration-3（eval 3 だけ、1 run）と、commit していない手元の変更確認の run（eval 1・2）である。",
+    "eval 1 の with_skill: 6 項目すべてが 3/3 で通った。前回の変更確認で落ちた「無人の実行では止まって報告する」も 3 run すべてで通ったので、前回の失敗はばらつきとして扱う。",
+    "eval 2 の with_skill: 「gh が無い・認証できない・取得に失敗した期間も判定不能になり、collect の出力に失敗した段が出る」が 3 run のうち 2 run（run-1・run-3）で落ちた。前回の変更確認でも 2 run のうち 1 run が同じ理由で落ちている（5 run のうち 3 run で落ちる、ばらつきのある項目）。前回の変更確認も #633・#657・#675 の後の版を測ったので、変更の前の版の記録は無い。落ちた理由に当たる SKILL.md の文は 3 つの変更で変えていないので、後退ではないと判断する。",
+    "原因: SKILL.md は「失敗した段は collect の出力に『GitHub の取得に失敗』として出る」と書き、段の名前が出力に出ることをはっきり書いていない。落ちた run は見出しの文言だけを挙げ、段は records の coverage 行で見ると答えた。assertion は 2 つの主張（判定不能になること・出力に段が出ること）を束ねている。",
+    "eval 3 の with_skill の run-1・run-2 は、prompt の「コマンドの実行はせず」に対して読み取りの grep を実行したと応答で述べた。assertion の対象ではないので採点には含めない。"
+  ]
+}
