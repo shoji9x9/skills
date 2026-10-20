@@ -238,10 +238,12 @@ Issue ごとの専用の worktree で、`issue-start <Issue URL> --pr` と同じ
 - Codex: `codex review --uncommitted`。staged・unstaged・untracked が対象であることを、ローカルの `--help` でも確かめる（[OpenAI Developers](https://developers.openai.com/codex/cli/reference)）。
 - Claude Code: 現在の差分か branch をレビューする、組み込みの `/code-review high` を使う。
   非対話の `claude -p` で呼ぶ方法は、今の CLI で実際に実行して動いた場合だけ使う。動かなければ BLOCKED にする（[Claude Code commands](https://code.claude.com/docs/en/commands)）。
-- GitHub Copilot CLI: 次のコマンドを使う（[GitHub Docs](https://docs.github.com/en/copilot/how-tos/copilot-cli/automate-copilot-cli/run-cli-programmatically#code-review-a-branch)）。
+  追跡されていないファイルが `/code-review` の対象に入るかは文書に書かれていないので、レビューの前に、追跡されていないファイルを `git add --intent-to-add <path>` で追跡に加える。
+- GitHub Copilot CLI: `/review` の後に、レビューの対象を文で書いて渡す（[GitHub Docs](https://docs.github.com/en/copilot/how-tos/copilot-cli/automate-copilot-cli/run-cli-programmatically#code-review-a-branch)）。
+  文書は対象を指定する構文を定めていないので、commit していない差分には次のコマンドを使う。
 
   ```bash
-  copilot -p '/review the changes on this branch compared to <base>. Focus on bugs and security issues.' -s --allow-tool='shell(git:*)'
+  copilot -p '/review the uncommitted changes (staged, unstaged, and untracked files). Focus on bugs and security issues.' -s --allow-tool='shell(git:*)'
   ```
 
 ローカルレビューは、変更の大きさに関わらず、push の前に必ず行う。
@@ -256,10 +258,16 @@ Issue ごとの専用の worktree で、`issue-start <Issue URL> --pr` と同じ
 base branch との差分は、エージェントごとに次の方法でレビューする。
 
 - Codex: `codex review --base <base>`（`--help` の「Review changes against the given base branch」）
-- Claude Code: `/code-review high` で branch を指定する
-- GitHub Copilot CLI: 上の `copilot -p` のコマンド
+- Claude Code: `/code-review high` に branch を指定する
+- GitHub Copilot CLI: 次のコマンドを使う。
 
-base branch との差分をレビューできないエージェントでは、その Issue を BLOCKED にする。
+  ```bash
+  copilot -p '/review the changes on this branch compared to <base>. Focus on bugs and security issues.' -s --allow-tool='shell(git:*)'
+  ```
+
+Claude Code は branch を指定できるが、比べる相手（base か upstream か）を文書で定めていない。Copilot CLI は、対象を文で渡すだけで、指定する構文を持たない。
+そのため、どちらのレビューでも、出力に挙がったファイルと範囲を見る。指定した対象（commit していない差分か、`<base>` との差分）に当たっていることを確かめる。
+当たっていることを確かめられないときと、base branch との差分をレビューできないエージェントでは、その Issue を BLOCKED にする。
 
 省いたときは、manifest の `self_decisions` の `unfollowed_rules`（「判断の扱い」の守っていない規約の欄）に、当たった条件を添えて記録する。
 
