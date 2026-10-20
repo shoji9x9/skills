@@ -217,9 +217,9 @@ pre-commit:
             run: node scripts/gates/types/check-jsdoc-types.ts
           - name: type-guard-brands
             # 絞る型の値にも false を返す型ガード（空文字を除く `v is string` など）を、ブランド型に絞らせる。
-            # 型チェッカーを作るので約 4 秒かかる。JavaScript・TypeScript が staged のときだけ実行する。
+            # stage したファイルだけを起点に型チェッカーを作る（import 先はディスクから読む）。全件は CI で検査する。
             glob: "{scripts,skills,.agents}/**/*.{mjs,ts}"
-            run: node scripts/gates/types/check-type-guard-brands.ts
+            run: node scripts/gates/types/check-type-guard-brands.ts {staged_files}
           - name: kaizen-refs
             # .kaizen/ の学びへの参照の実在。参照される側（.kaizen/ の archive への移動）で
             # 参照する側のリンクが切れるので、path glob で絞らず毎コミット全走査する。

@@ -14,7 +14,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { findViolations, isTarget } from "./check-type-guard-brands.ts";
+import { findViolations, isTarget, normalizeArgs } from "./check-type-guard-brands.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
@@ -148,8 +148,8 @@ function makeRepo(files: Record<string, string>): string {
   return root;
 }
 
-function runCli(cwd: string) {
-  const r = spawnSync(process.execPath, [script], {
+function runCli(cwd: string, args: string[] = []) {
+  const r = spawnSync(process.execPath, [script, ...args], {
     timeout: CHILD_TIMEOUT_MS,
     cwd,
     encoding: "utf8",
@@ -182,6 +182,66 @@ test("CLI: 対象のファイルが 0 件なら判定できないので exit 2",
   const root = makeRepo({ "docs/a.md": "x\n" });
   const r = runCli(root);
   expect(r.status).toBe(2);
+});
+
+const BAD_MJS =
+  '/**\n * @param {unknown} v\n * @returns {v is string}\n */\nexport function f(v) { return typeof v === "string" && v !== ""; }\n';
+
+test("CLI: 引数で渡したファイルだけを検査し、渡していない違反は報告しない", () => {
+  const root = makeRepo({
+    "skills/demo/scripts/bad.mjs": BAD_MJS,
+    "scripts/ok.ts": 'export const g = (v: unknown): v is string => typeof v === "string";\n',
+  });
+  const only = runCli(root, ["scripts/ok.ts"]);
+  expect(only.status).toBe(0);
+  expect(only.out).toContain("type-guard-brands: OK（1 件）");
+  const bad = runCli(root, ["scripts/ok.ts", "skills/demo/scripts/bad.mjs"]);
+  expect(bad.status).toBe(1);
+  expect(bad.out).toContain("skills/demo/scripts/bad.mjs:5: f は string の値にも false");
+});
+
+test("CLI: 引数のファイルが import する別のファイルの型ガードを読む", () => {
+  const root = makeRepo({
+    "scripts/guard.ts":
+      'export const isS = (x: unknown): x is string => typeof x === "string" && x !== "";\n',
+    "scripts/use.ts":
+      'import { isS } from "./guard.ts";\nconst isArray = Array.isArray;\nexport const f = (v: unknown): v is string[] => isArray(v) && v.every(isS);\n',
+  });
+  const r = runCli(root, ["scripts/use.ts"]);
+  expect(r.status).toBe(1);
+  expect(r.out).toContain("scripts/use.ts:3: f は string[]");
+  expect(r.out).not.toContain("scripts/guard.ts");
+});
+
+test("CLI: 引数のファイルがすべて対象の外なら、検査するものが無いので exit 0", () => {
+  const root = makeRepo({ "scripts/ok.ts": "export const a = 1;\n", "docs/a.md": "x\n" });
+  const r = runCli(root, ["docs/a.md", "."]);
+  expect(r.status).toBe(0);
+  expect(r.out).toContain("渡された 2 件に対象のファイルが無い");
+});
+
+test("CLI: 渡されたファイルが無ければ、パスの誤りとして exit 2", () => {
+  const root = makeRepo({ "scripts/ok.ts": "export const a = 1;\n" });
+  const r = runCli(root, ["scripts/ok.ts", "scripts/gone.ts"]);
+  expect(r.status).toBe(2);
+  expect(r.out).toContain("渡されたファイルが無い: scripts/gone.ts");
+});
+
+test("CLI: リポジトリの外のファイルを渡されたら exit 2", () => {
+  const root = makeRepo({ "scripts/ok.ts": "export const a = 1;\n" });
+  const r = runCli(root, ["../outside.ts"]);
+  expect(r.status).toBe(2);
+  expect(r.out).toContain("外のファイルを渡された");
+});
+
+test.each([
+  ["直下からの相対パス", "/r", ["scripts/a.ts"], ["scripts/a.ts"]],
+  ["サブディレクトリからの相対パス", "/r/scripts", ["a.ts"], ["scripts/a.ts"]],
+  ["絶対パス", "/x", ["/r/skills/b.mjs"], ["skills/b.mjs"]],
+  ["リポジトリの外", "/r", ["../a.ts"], null],
+  ["リポジトリの直下そのもの（対象の外として扱う）", "/r", ["."], [""]],
+])("引数のパスをリポジトリの直下からのパスにする: %s", (_name, cwd, args, expected) => {
+  expect(normalizeArgs(args, cwd, "/r")).toEqual(expected);
 });
 
 test.each([
@@ -352,6 +412,94 @@ test.each([
 ])("判定が型と一致する型ガードを誤って検出しない: %s", (_name, text) => {
   expect(ts(text)).toEqual([]);
 });
+
+test.each([
+  [
+    "関数の宣言",
+    'function isS(x: unknown): x is string { return typeof x === "string"; }\nconst f = (v: unknown): v is string[] => isArray(v) && v.every(isS);\n',
+  ],
+  [
+    "アロー関数で初期化した変数",
+    'const isS = (x: unknown): x is string => typeof x === "string";\nconst f = (v: unknown): v is string[] => isArray(v) && v.every(isS);\n',
+  ],
+  [
+    "null も受ける要素の型ガード",
+    'const isS = (x: unknown): x is string | null => x === null || typeof x === "string";\nfunction f(v: unknown): v is (string | null)[] { return isArray(v) && v.every(isS); }\n',
+  ],
+  [
+    "括弧で包んだ名前",
+    'const isS = (x: unknown): x is string => typeof x === "string";\nconst f = (v: unknown): v is string[] => isArray(v) && v.every((isS));\n',
+  ],
+])("every に名前で渡した型ガードの判定が型と一致すれば違反にしない: %s", (_name, text) => {
+  expect(ts(text)).toEqual([]);
+});
+
+test.each([
+  ["import", 'import { isS } from "./g.ts";\n'],
+  ["別名の import", 'import { isStrDecl as isS } from "./g.ts";\n'],
+])("every に名前で渡した型ガードを import の先までたどる: %s", (_name, head) => {
+  const guard = (body: string) => ({
+    "scripts/g.ts": `export const isS = (x: unknown): x is string => ${body};\nexport function isStrDecl(x: unknown): x is string { return ${body}; }\n`,
+  });
+  const text = `${head}const f = (v: unknown): v is string[] => isArray(v) && v.every(isS);\n`;
+  expect(findViolations(text, "scripts/a.ts", guard('typeof x === "string"'))).toEqual([]);
+  expect(findViolations(text, "scripts/a.ts", guard('typeof x === "string" && x !== ""'))).toEqual([
+    expect.stringContaining("ブランド型に絞っていない"),
+  ]);
+});
+
+test.each([
+  [
+    "追加の条件を持つ要素の型ガード",
+    'const isS = (x: unknown): x is string => typeof x === "string" && x !== "";\nconst f = (v: unknown): v is string[] => isArray(v) && v.every(isS);\n',
+    "ブランド型に絞っていない",
+  ],
+  [
+    "ブランド型に絞る要素の型ガード",
+    'type S = string & { readonly __s: true };\nconst isS = (x: unknown): x is S => typeof x === "string" && x !== "";\nconst f = (v: unknown): v is string[] => isArray(v) && v.every(isS);\n',
+    "ブランド型に絞っていない",
+  ],
+  [
+    "絞る型と違う種類の要素の型ガード",
+    'const isN = (x: unknown): x is number => typeof x === "number";\nconst f = (v: unknown): v is string[] => isArray(v) && v.every(isN);\n',
+    "に無い種類の値にも true を返す",
+  ],
+  [
+    "宣言をたどれない引数の関数",
+    "function f(isS: (x: unknown) => x is string, v: unknown): v is string[] { return isArray(v) && v.every(isS); }\n",
+    "ブランド型に絞っていない",
+  ],
+  [
+    "自分自身を渡す型ガード",
+    "function f(v: unknown): v is string[] { return isArray(v) && v.every(f); }\n",
+    "ブランド型に絞っていない",
+  ],
+  [
+    "型述語の無い関数",
+    'const isS = (x: unknown): boolean => typeof x === "string";\nconst f = (v: unknown): v is string[] => isArray(v) && v.every(isS);\n',
+    "ブランド型に絞っていない",
+  ],
+  [
+    "引数の型から null を除く否定の要素の型ガード（要素はどの種類でもありうる）",
+    "const isS = (x: string | null): x is string => x !== null;\nconst f = (v: unknown): v is string[] => isArray(v) && v.every(isS);\n",
+    "ブランド型に絞っていない",
+  ],
+  [
+    "後から別の関数を代入できる let の変数",
+    'let isS = (x: unknown): x is string => typeof x === "string";\nconst f = (v: unknown): v is string[] => isArray(v) && v.every(isS);\n',
+    "ブランド型に絞っていない",
+  ],
+])(
+  "every に名前で渡した型ガードの判定が型と一致しなければ違反にする: %s",
+  (_name, text, message) => {
+    // 追加の条件を持つ要素の型ガードは、それ自体も違反として報告される。ここでは配列の型ガード f の報告を見る。
+    const lines = text.split("\n");
+    const fLine = lines.findIndex((l) => /\bf\b.*v is string\[\]/.test(l)) + 1;
+    expect(ts(text)).toContainEqual(
+      expect.stringMatching(new RegExp(`^${fLine}: f は .*${message}`)),
+    );
+  },
+);
 
 test("== null は undefined にも true を返すので、v is null には判定を直すよう報告する", () => {
   expect(ts("const f = (v: unknown): v is null => v == null;\n")).toEqual([

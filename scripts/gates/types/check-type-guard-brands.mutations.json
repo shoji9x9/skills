@@ -41,7 +41,18 @@
         "JSDoc の型の書き方を型チェッカーで読む: JSDoc の ?string",
         "ブランドでない交差と、すべてのオーバーロードを検査する: 印の無い交差 string & {}",
         "ブランドでない交差と、すべてのオーバーロードを検査する: 後ろのオーバーロードの型述語",
-        "絞る型より狭い配列だけを受ける本体は、ブランド型の不足として報告する"
+        "絞る型より狭い配列だけを受ける本体は、ブランド型の不足として報告する",
+        "CLI: 引数で渡したファイルだけを検査し、渡していない違反は報告しない",
+        "CLI: 引数のファイルが import する別のファイルの型ガードを読む",
+        "every に名前で渡した型ガードの判定が型と一致しなければ違反にする: ブランド型に絞る要素の型ガード",
+        "every に名前で渡した型ガードの判定が型と一致しなければ違反にする: 型述語の無い関数",
+        "every に名前で渡した型ガードの判定が型と一致しなければ違反にする: 宣言をたどれない引数の関数",
+        "every に名前で渡した型ガードの判定が型と一致しなければ違反にする: 自分自身を渡す型ガード",
+        "every に名前で渡した型ガードの判定が型と一致しなければ違反にする: 追加の条件を持つ要素の型ガード",
+        "every に名前で渡した型ガードを import の先までたどる: import",
+        "every に名前で渡した型ガードを import の先までたどる: 別名の import",
+        "every に名前で渡した型ガードの判定が型と一致しなければ違反にする: 引数の型から null を除く否定の要素の型ガード（要素はどの種類でもありうる）",
+        "every に名前で渡した型ガードの判定が型と一致しなければ違反にする: 後から別の関数を代入できる let の変数"
       ]
     },
     {
@@ -65,7 +76,8 @@
       "occurrences": 1,
       "expect_failing": [
         "絞る型に無い種類にも true を返す本体は、ブランド型ではなく判定を直すよう報告する",
-        "== null は undefined にも true を返すので、v is null には判定を直すよう報告する"
+        "== null は undefined にも true を返すので、v is null には判定を直すよう報告する",
+        "every に名前で渡した型ガードの判定が型と一致しなければ違反にする: 絞る型と違う種類の要素の型ガード"
       ]
     },
     {
@@ -81,12 +93,13 @@
       "id": "OR-LEFT-ONLY",
       "why": "|| の右側の種類を数えない",
       "file": "scripts/gates/types/check-type-guard-brands.ts",
-      "find": "return union([acceptedKinds(e.left, name, params), acceptedKinds(e.right, name, params)]);",
-      "replace": "return acceptedKinds(e.left, name, params);",
+      "find": "acceptedKinds(e.right, name, params, checker, seen),",
+      "replace": "new Set<string>(),",
       "occurrences": 1,
       "expect_failing": [
         "判定が型と一致するものと対象外のものは検出しない（TypeScript）: typeof と null",
-        "絞る型に無い種類にも true を返す本体は、ブランド型ではなく判定を直すよう報告する"
+        "絞る型に無い種類にも true を返す本体は、ブランド型ではなく判定を直すよう報告する",
+        "every に名前で渡した型ガードの判定が型と一致すれば違反にしない: null も受ける要素の型ガード"
       ]
     },
     {
@@ -173,7 +186,18 @@
       "expect_failing": [
         "ブランド型でない型ガードの余分な条件を検出する（TypeScript）: 空でない string[]",
         "種類の集合が絞る型と違う本体を検出する: Array<string> の長さ",
-        "絞る型より狭い配列だけを受ける本体は、ブランド型の不足として報告する"
+        "絞る型より狭い配列だけを受ける本体は、ブランド型の不足として報告する",
+        "CLI: 引数のファイルが import する別のファイルの型ガードを読む",
+        "every に名前で渡した型ガードの判定が型と一致しなければ違反にする: ブランド型に絞る要素の型ガード",
+        "every に名前で渡した型ガードの判定が型と一致しなければ違反にする: 型述語の無い関数",
+        "every に名前で渡した型ガードの判定が型と一致しなければ違反にする: 宣言をたどれない引数の関数",
+        "every に名前で渡した型ガードの判定が型と一致しなければ違反にする: 自分自身を渡す型ガード",
+        "every に名前で渡した型ガードの判定が型と一致しなければ違反にする: 追加の条件を持つ要素の型ガード",
+        "every に名前で渡した型ガードの判定が型と一致しなければ違反にする: 絞る型と違う種類の要素の型ガード",
+        "every に名前で渡した型ガードを import の先までたどる: import",
+        "every に名前で渡した型ガードを import の先までたどる: 別名の import",
+        "every に名前で渡した型ガードの判定が型と一致しなければ違反にする: 引数の型から null を除く否定の要素の型ガード（要素はどの種類でもありうる）",
+        "every に名前で渡した型ガードの判定が型と一致しなければ違反にする: 後から別の関数を代入できる let の変数"
       ]
     },
     {
@@ -213,8 +237,8 @@
       "id": "PARAM-BY-NAME",
       "why": "型述語の引数を、位置ではなく型述語に書いた名前で本体に対応づける",
       "file": "scripts/gates/types/check-type-guard-brands.ts",
-      "find": "acceptedKinds(body, param.name.text, params)",
-      "replace": "acceptedKinds(body, pred.parameterName, params)",
+      "find": "acceptedKinds(body, param.name.text, params, checker, new Set([node]))",
+      "replace": "acceptedKinds(body, pred.parameterName, params, checker, new Set([node]))",
       "occurrences": 1,
       "expect_failing": [
         "判定が型と一致する型ガードを誤って検出しない: 文脈の型の引数名が実装と違う",
@@ -249,6 +273,114 @@
       "replace": "if (false) {",
       "occurrences": 1,
       "expect_failing": ["CLI: 対象のファイルが 0 件なら判定できないので exit 2"]
+    },
+    {
+      "id": "NAMED-NOT-READ",
+      "why": "every に名前で渡した型ガードの判定を読まず、種類を求められない形として扱う（#687 の前の振る舞い）",
+      "file": "scripts/gates/types/check-type-guard-brands.ts",
+      "find": "if (ts.isIdentifier(cb)) return namedGuardKinds(cb, checker, seen);",
+      "replace": "if (ts.isIdentifier(cb)) return null;",
+      "occurrences": 1,
+      "expect_failing": [
+        "every に名前で渡した型ガードの判定が型と一致すれば違反にしない: 関数の宣言",
+        "every に名前で渡した型ガードの判定が型と一致すれば違反にしない: アロー関数で初期化した変数",
+        "every に名前で渡した型ガードの判定が型と一致すれば違反にしない: null も受ける要素の型ガード",
+        "every に名前で渡した型ガードの判定が型と一致すれば違反にしない: 括弧で包んだ名前",
+        "every に名前で渡した型ガードを import の先までたどる: import",
+        "every に名前で渡した型ガードを import の先までたどる: 別名の import",
+        "every に名前で渡した型ガードの判定が型と一致しなければ違反にする: 絞る型と違う種類の要素の型ガード"
+      ]
+    },
+    {
+      "id": "NAMED-NO-SAMESET",
+      "why": "名前で渡した型ガードが追加の条件を持っていても、型述語の種類をそのまま使う",
+      "file": "scripts/gates/types/check-type-guard-brands.ts",
+      "find": "return accepted !== null && sameSet(accepted, target) ? target : null;",
+      "replace": "return target;",
+      "occurrences": 1,
+      "expect_failing": [
+        "every に名前で渡した型ガードの判定が型と一致しなければ違反にする: 追加の条件を持つ要素の型ガード",
+        "every に名前で渡した型ガードを import の先までたどる: import",
+        "every に名前で渡した型ガードを import の先までたどる: 別名の import",
+        "CLI: 引数のファイルが import する別のファイルの型ガードを読む",
+        "every に名前で渡した型ガードの判定が型と一致しなければ違反にする: 引数の型から null を除く否定の要素の型ガード（要素はどの種類でもありうる）"
+      ]
+    },
+    {
+      "id": "NAMED-NO-SEEN",
+      "why": "自分自身を名前で渡す型ガードで、読み終えられない判定を止めない。変異を入れると再帰が終わらずに RangeError で落ちる。観測できる違いはこれだけなので、狙った assertion ではなく例外で落ちる",
+      "file": "scripts/gates/types/check-type-guard-brands.ts",
+      "find": "if (fn === null || seen.has(fn) || fn.parameters.length !== 1) return null;",
+      "replace": "if (fn === null || fn.parameters.length !== 1) return null;",
+      "occurrences": 1,
+      "expect_failing": [
+        "every に名前で渡した型ガードの判定が型と一致しなければ違反にする: 自分自身を渡す型ガード"
+      ]
+    },
+    {
+      "id": "ARGS-IGNORED",
+      "why": "引数で渡したファイルを無視して、すべての対象のファイルを検査する",
+      "file": "scripts/gates/types/check-type-guard-brands.ts",
+      "find": "    candidates = given;",
+      "replace": "    void given;",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI: 引数で渡したファイルだけを検査し、渡していない違反は報告しない",
+        "CLI: 引数のファイルがすべて対象の外なら、検査するものが無いので exit 0",
+        "CLI: 引数のファイルが import する別のファイルの型ガードを読む"
+      ]
+    },
+    {
+      "id": "ARGS-OUTSIDE-ACCEPTED",
+      "why": "リポジトリの外を指す引数を拒否しない",
+      "file": "scripts/gates/types/check-type-guard-brands.ts",
+      "find": "if (rel.startsWith(\"../\") || rel === \"..\" || /^[A-Za-z]:\\//.test(rel)) return null;",
+      "replace": "if (false) return null;",
+      "occurrences": 1,
+      "expect_failing": [
+        "引数のパスをリポジトリの直下からのパスにする: リポジトリの外",
+        "CLI: リポジトリの外のファイルを渡されたら exit 2"
+      ]
+    },
+    {
+      "id": "ARGS-NO-TARGET-FAILS",
+      "why": "引数のファイルがすべて対象の外のとき、検査するものが無いことを合格にしない",
+      "file": "scripts/gates/types/check-type-guard-brands.ts",
+      "find": "if (args.length > 0 && targets.length === 0) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["CLI: 引数のファイルがすべて対象の外なら、検査するものが無いので exit 0"]
+    },
+    {
+      "id": "NAMED-LET-READ",
+      "why": "let・var の変数の初期化式を、名前で渡した型ガードの宣言として読む",
+      "file": "scripts/gates/types/check-type-guard-brands.ts",
+      "find": "(ts.getCombinedNodeFlags(d) & ts.NodeFlags.Const) !== 0",
+      "replace": "true",
+      "occurrences": 1,
+      "expect_failing": [
+        "every に名前で渡した型ガードの判定が型と一致しなければ違反にする: 後から別の関数を代入できる let の変数"
+      ]
+    },
+    {
+      "id": "NAMED-NEGATION-BY-PARAM",
+      "why": "名前で渡した型ガードの否定を、その型ガードの引数の宣言した型から差し引いて読む",
+      "file": "scripts/gates/types/check-type-guard-brands.ts",
+      "find": "acceptedKinds(body, param.name.text, null, checker, new Set([...seen, fn]))",
+      "replace": "acceptedKinds(body, param.name.text, new Set([\"string\", \"null\"]), checker, new Set([...seen, fn]))",
+      "occurrences": 1,
+      "expect_failing": [
+        "every に名前で渡した型ガードの判定が型と一致しなければ違反にする: 引数の型から null を除く否定の要素の型ガード（要素はどの種類でもありうる）"
+      ]
+    },
+    {
+      "id": "ARGS-MISSING-ACCEPTED",
+      "why": "渡されたファイルが無くても、パスの誤りとして止めない",
+      "file": "scripts/gates/types/check-type-guard-brands.ts",
+      "find": "if (missing.length > 0) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["CLI: 渡されたファイルが無ければ、パスの誤りとして exit 2"]
     }
   ]
 }

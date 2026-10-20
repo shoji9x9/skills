@@ -22,10 +22,14 @@
 //   - `typeof x === "<型>"`（string・number・bigint・boolean・symbol・undefined）
 //   - `x === null`・`x === undefined`
 //   - `isArray(x) && x.every((e) => <同じ形の式>)`（`Array.isArray` も）
+//   - `isArray(x) && x.every(isS)`。`isS` は名前で渡した型ガードで、型チェッカーで宣言をたどり（import の別名も）、
+//     その判定が型述語と一致するときだけ、型述語の種類を要素の種類にする
 // これ以外の条件（`x !== ""`・`x.trim()`・`Number.isFinite(x)`・否定・他の関数の呼び出し）を持つ本体は、
 // 絞る型の値にも false を返しうるので、ブランド型でなければ違反にする。
+// 名前で渡した型ガードが追加の条件を持つ・ブランド型に絞る・宣言をたどれない（引数・let と var の変数・
+// 解決できない import・互いに名前で渡し合う型ガード）ときも、種類を求められない形として扱い、違反にする。
+// 名前で渡した型ガードの否定（`x !== null`）は、要素がどの種類の値でもありうるので、引数の宣言した型から差し引かない。
 // 絞る型に無い種類にも true を返す本体は、ブランド型にしても直らないので、判定か絞る型を直すよう別の言葉で報告する。
-// `x.every(isS)` のように関数を名前で渡す本体は、その関数の判定を読まないので、種類を求められない形として扱う。
 // 否定（`!==`・`!=`）は、引数の宣言した型の種類から差し引いて読む。`== null` は null と undefined の両方に当たる。
 // ブランド型と他の型を並べた union（`(string & { readonly __f: true }) | number`）は、対象にしない。
 //
@@ -34,8 +38,12 @@
 //   - 呼び出しの引数に直接渡した関数（filter・find・every など、関数をそのまま返すラッパーを含む）。false の側を使うかは呼び出し先が決め、
 //     配列のメソッドは false の側で元の配列を絞らない
 // 対象のファイルは、scripts/ と skills/ の .ts・.mjs と、private skill の .ts・.mjs である。
+//
+// 引数にファイルを渡すと（lefthook の pre-commit が stage したファイルを渡す）、そのうち対象のファイルだけを
+// 検査する。型チェッカーは渡したファイルだけを起点に作り、import 先はディスクから読むので、全件を読むより速い。
+// 引数が無ければ（CI）、すべての対象のファイルを検査する。
 import { existsSync, readFileSync, realpathSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { listFiles, privateSkillNames, repoRoot } from "../code/check-js-extensions.ts";
@@ -141,18 +149,86 @@ function isArrayCall(e: ts.Expression, name: string): boolean {
   );
 }
 
-/** `x.every((e) => <式>)` の要素の種類の集合。この形でなければ null。 */
-function everyKinds(e: ts.Expression, name: string): Set<string> | null {
+/** `x.every((e) => <式>)` か `x.every(<関数名>)` の要素の種類の集合。この形でなければ null。 */
+function everyKinds(
+  e: ts.Expression,
+  name: string,
+  checker: ts.TypeChecker | null,
+  seen: ReadonlySet<ts.Node>,
+): Set<string> | null {
   const u = unwrap(e);
   if (!ts.isCallExpression(u) || u.arguments.length !== 1) return null;
   const callee = u.expression;
   if (!ts.isPropertyAccessExpression(callee) || callee.name.text !== "every") return null;
   if (!isParam(callee.expression, name)) return null;
-  const cb = u.arguments[0];
+  const cb = unwrap(u.arguments[0]);
+  if (ts.isIdentifier(cb)) return namedGuardKinds(cb, checker, seen);
   if (!ts.isArrowFunction(cb) || cb.parameters.length !== 1) return null;
   const p = cb.parameters[0].name;
   const body = bodyExpression(cb);
-  return ts.isIdentifier(p) && body !== null ? acceptedKinds(body, p.text) : null;
+  return ts.isIdentifier(p) && body !== null
+    ? acceptedKinds(body, p.text, null, checker, seen)
+    : null;
+}
+
+/**
+ * 名前が指す関数の宣言（関数の宣言か、関数式・アロー関数で初期化した const の変数）。import の別名もたどる。
+ * let・var の変数は、後から別の関数を代入できるので、初期化式を宣言として読まない。
+ */
+function functionDeclarationOf(
+  id: ts.Identifier,
+  checker: ts.TypeChecker,
+): ts.SignatureDeclaration | null {
+  let sym = checker.getSymbolAtLocation(id);
+  if (sym !== undefined && (sym.flags & ts.SymbolFlags.Alias) !== 0) {
+    sym = checker.getAliasedSymbol(sym);
+  }
+  const decls = sym?.declarations ?? [];
+  if (decls.length !== 1) return null;
+  const d = decls[0];
+  if (ts.isFunctionDeclaration(d)) return d;
+  if (
+    ts.isVariableDeclaration(d) &&
+    d.initializer !== undefined &&
+    (ts.getCombinedNodeFlags(d) & ts.NodeFlags.Const) !== 0
+  ) {
+    const init = unwrap(d.initializer);
+    if (ts.isArrowFunction(init) || ts.isFunctionExpression(init)) return init;
+  }
+  return null;
+}
+
+/**
+ * `every` に名前で渡した型ガードが絞る種類の集合。
+ * 判定が絞る型と一致するとき（本体が true を返す種類と、型述語の種類が同じとき）だけ返し、
+ * 追加の条件を持つ・ブランド型に絞る・種類を求められないときは null を返す。
+ */
+function namedGuardKinds(
+  id: ts.Identifier,
+  checker: ts.TypeChecker | null,
+  seen: ReadonlySet<ts.Node>,
+): Set<string> | null {
+  if (checker === null) return null;
+  const fn = functionDeclarationOf(id, checker);
+  // 互いに名前で渡し合う型ガードは、判定を読み終えられないので、種類を求められない形として扱う。
+  if (fn === null || seen.has(fn) || fn.parameters.length !== 1) return null;
+  const param = fn.parameters[0];
+  if (!ts.isIdentifier(param.name)) return null;
+  // 関数の宣言は、宣言そのもののシグネチャと名前の型のシグネチャで同じ型述語が 2 回集まる。
+  // 型述語が 1 つも無いか、絞る種類が型述語ごとに違えば、種類を決められない。
+  const targets = predicatesOf(fn, checker)
+    .filter((p) => p.parameterIndex === 0)
+    .map((p) => typeKinds(p.type, checker));
+  if (targets.length === 0) return null;
+  const target = targets[0];
+  if (target === null || target === BRANDED) return null;
+  if (!targets.every((t) => t !== null && t !== BRANDED && sameSet(t, target))) return null;
+  const body = bodyExpression(fn);
+  if (body === null) return null;
+  // every に渡る要素は、isArray が unknown を any[] に絞るので、どの種類の値でもありうる。
+  // そのため、否定（`!==`・`!=`）を型ガードの引数の宣言した型から差し引いて読まない（params に null を渡す）。
+  const accepted = acceptedKinds(body, param.name.text, null, checker, new Set([...seen, fn]));
+  return accepted !== null && sameSet(accepted, target) ? target : null;
 }
 
 /** 集合 a から b の要素を除いた集合。a が null なら null。 */
@@ -175,16 +251,21 @@ function acceptedKinds(
   expr: ts.Expression,
   name: string,
   params: ReadonlySet<string> | null = null,
+  checker: ts.TypeChecker | null = null,
+  seen: ReadonlySet<ts.Node> = new Set(),
 ): Set<string> | null {
   const e = unwrap(expr);
   if (!ts.isBinaryExpression(e)) return null;
   const op = e.operatorToken.kind;
   if (op === ts.SyntaxKind.BarBarToken) {
-    return union([acceptedKinds(e.left, name, params), acceptedKinds(e.right, name, params)]);
+    return union([
+      acceptedKinds(e.left, name, params, checker, seen),
+      acceptedKinds(e.right, name, params, checker, seen),
+    ]);
   }
   if (op === ts.SyntaxKind.AmpersandAmpersandToken) {
     if (!isArrayCall(e.left, name)) return null;
-    const inner = everyKinds(e.right, name);
+    const inner = everyKinds(e.right, name, checker, seen);
     return inner === null ? null : new Set([arrayKind(inner)]);
   }
   if (!EQ_KINDS.has(op)) return null;
@@ -320,7 +401,10 @@ function violationsIn(sf: ts.SourceFile, checker: ts.TypeChecker): string[] {
         const declared = typeKinds(checker.getTypeAtLocation(param), checker);
         const params = declared === BRANDED ? null : declared;
         const body = bodyExpression(node);
-        const accepted = body === null ? null : acceptedKinds(body, param.name.text, params);
+        const accepted =
+          body === null
+            ? null
+            : acceptedKinds(body, param.name.text, params, checker, new Set([node]));
         const { line } = sf.getLineAndCharacterOfPosition(node.getStart(sf));
         const where = `${line + 1}: ${nameOf(node)} は ${checker.typeToString(pred.type)}`;
         let message: string | null = null;
@@ -348,6 +432,12 @@ const diskSourceFiles = new Map<string, ts.SourceFile | undefined>();
 /** 名前と中身を渡したファイルだけを読む Program を作る（標準ライブラリはディスクから読む）。 */
 function virtualProgram(files: ReadonlyMap<string, string>): ts.Program {
   const base = ts.createCompilerHost(COMPILER_OPTIONS);
+  // 渡したファイルの祖先のディレクトリ。import の解決で、ディスクに無い置き場所（テストの /virtual/）も
+  // ディレクトリとして扱うのに使う。呼ばれるたびに全件を調べないよう、先に 1 回だけ作る。
+  const dirs = new Set<string>();
+  for (const f of files.keys()) {
+    for (let d = dirname(f); !dirs.has(d) && d !== dirname(d); d = dirname(d)) dirs.add(d);
+  }
   const host: ts.CompilerHost = {
     ...base,
     getSourceFile: (name, lang) => {
@@ -357,15 +447,27 @@ function virtualProgram(files: ReadonlyMap<string, string>): ts.Program {
       return diskSourceFiles.get(name);
     },
     fileExists: (name) => files.has(name) || base.fileExists(name),
+    // 渡したファイルの置き場所がディスクに無くても（テストの /virtual/）、import の解決でディレクトリとして扱う。
+    directoryExists: (dir) => dirs.has(dir) || (base.directoryExists?.(dir) ?? false),
     readFile: (name) => files.get(name) ?? base.readFile(name),
   };
   return ts.createProgram([...files.keys()], COMPILER_OPTIONS, host);
 }
 
 /** ソースの中で、ブランド型に絞っていない型ガードのうち、判定が型と一致しないもの。`<行>: <説明>` の一覧。 */
-export function findViolations(text: string, fileName: string): string[] {
+export function findViolations(
+  text: string,
+  fileName: string,
+  others: Readonly<Record<string, string>> = {},
+): string[] {
   const name = `/virtual/${fileName}`;
-  const program = virtualProgram(new Map([[name, text]]));
+  // others は、検査するソースが import する別のファイル（名前は /virtual/ からのパス）。検査はしない。
+  const program = virtualProgram(
+    new Map([
+      [name, text],
+      ...Object.entries(others).map(([f, t]): [string, string] => [`/virtual/${f}`, t]),
+    ]),
+  );
   const sf = program.getSourceFile(name);
   if (sf === undefined) throw new Error(`${fileName} を読めない`);
   return violationsIn(sf, program.getTypeChecker());
@@ -379,7 +481,21 @@ export function isTarget(file: string, privateSkills: ReadonlySet<string>): bool
   return m !== null && privateSkills.has(m[1]);
 }
 
-function main(): number {
+/**
+ * 引数で渡したファイルを、リポジトリの直下からのパスにする。リポジトリの外を指すものは null。
+ * lefthook はリポジトリの直下から相対パスで渡すが、cwd がサブディレクトリでも同じ結果にする。
+ */
+export function normalizeArgs(args: readonly string[], cwd: string, root: string): string[] | null {
+  const out: string[] = [];
+  for (const a of args) {
+    const rel = relative(root, resolve(cwd, a)).split("\\").join("/");
+    if (rel.startsWith("../") || rel === ".." || /^[A-Za-z]:\//.test(rel)) return null;
+    out.push(rel);
+  }
+  return out;
+}
+
+function main(args: readonly string[]): number {
   let root: string;
   let files: string[];
   try {
@@ -390,10 +506,30 @@ function main(): number {
     return 2;
   }
   const privateSkills = new Set(privateSkillNames(files));
+  let candidates = files;
+  if (args.length > 0) {
+    const given = normalizeArgs(args, process.cwd(), root);
+    if (given === null) {
+      console.error(`type-guard-brands: リポジトリ（${root}）の外のファイルを渡された`);
+      return 2;
+    }
+    // lefthook の {staged_files} は消したファイルを含まないので、無いファイルはパスの誤りとして扱う。
+    const missing = given.filter((f) => !existsSync(join(root, f)));
+    if (missing.length > 0) {
+      console.error(`type-guard-brands: 渡されたファイルが無い: ${missing.join(", ")}`);
+      return 2;
+    }
+    candidates = given;
+  }
   // 作業ツリーから消して、まだ index に残っているファイルは、消す途中なので読まない。
-  const targets = files
+  const targets = candidates
     .filter((f) => isTarget(f, privateSkills))
     .filter((f) => existsSync(join(root, f)));
+  if (args.length > 0 && targets.length === 0) {
+    // stage したファイルが対象の外（インストール済みのコピーなど）だけなら、検査するものが無い。
+    console.log(`type-guard-brands: 渡された ${args.length} 件に対象のファイルが無い`);
+    return 0;
+  }
   if (targets.length === 0) {
     console.error(
       `type-guard-brands: 対象のファイルが 0 件（${root}）。判定できないので失敗にする`,
@@ -437,4 +573,4 @@ function isCliEntry() {
   }
 }
 
-if (isCliEntry()) process.exit(main());
+if (isCliEntry()) process.exit(main(process.argv.slice(2)));
