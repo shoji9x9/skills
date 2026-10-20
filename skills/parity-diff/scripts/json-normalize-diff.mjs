@@ -136,26 +136,22 @@ export function sortArrayAtPath(node, segs) {
  * @param {Array<{ path:string, current:unknown, new:unknown }>} out
  */
 export function deepDiff(a, b, path, out) {
-  const aObj = a !== null && typeof a === "object";
-  const bObj = b !== null && typeof b === "object";
-  if (aObj && bObj && isArray(a) === isArray(b)) {
-    // 外側の条件で a と b の配列かどうかは揃っている。
-    if (isArray(a) && isArray(b)) {
-      const len = Math.max(a.length, b.length);
-      for (let i = 0; i < len; i += 1) {
-        const childPath = path ? `${path}.${i}` : String(i);
-        deepDiff(i < a.length ? a[i] : ABSENT, i < b.length ? b[i] : ABSENT, childPath, out);
-      }
-      return;
+  // 両方が配列か、両方が JSON オブジェクトのときだけ中へ進む。片方だけが配列なら、下で値ごと比べる。
+  if (isArray(a) && isArray(b)) {
+    const len = Math.max(a.length, b.length);
+    for (let i = 0; i < len; i += 1) {
+      const childPath = path ? `${path}.${i}` : String(i);
+      deepDiff(i < a.length ? a[i] : ABSENT, i < b.length ? b[i] : ABSENT, childPath, out);
     }
-    if (isPlainObject(a) && isPlainObject(b)) {
-      const keys = [...new Set([...Object.keys(a), ...Object.keys(b)])].sort();
-      for (const key of keys) {
-        const childPath = path ? `${path}.${key}` : key;
-        const av = Object.prototype.hasOwnProperty.call(a, key) ? a[key] : ABSENT;
-        const bv = Object.prototype.hasOwnProperty.call(b, key) ? b[key] : ABSENT;
-        deepDiff(av, bv, childPath, out);
-      }
+    return;
+  }
+  if (isPlainObject(a) && isPlainObject(b)) {
+    const keys = [...new Set([...Object.keys(a), ...Object.keys(b)])].sort();
+    for (const key of keys) {
+      const childPath = path ? `${path}.${key}` : key;
+      const av = Object.prototype.hasOwnProperty.call(a, key) ? a[key] : ABSENT;
+      const bv = Object.prototype.hasOwnProperty.call(b, key) ? b[key] : ABSENT;
+      deepDiff(av, bv, childPath, out);
     }
     return;
   }

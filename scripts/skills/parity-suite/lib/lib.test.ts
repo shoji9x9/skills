@@ -45,15 +45,26 @@ test("isCliEntry: シンボリックリンクから起動しても、実パス�
   expect(isCliEntry(pathToFileURL(join(dir, "other.mjs")).href)).toBe(false);
 });
 
-test("errorMessage: 例外の message を返し、偽の値はそのまま、プリミティブは undefined を返す", () => {
+test("errorMessage: Error なら message を返し、Error でない値は String() で文字列にする", () => {
   expect(errorMessage(new Error("読めない"))).toBe("読めない");
-  expect(errorMessage({ message: "オブジェクトの message" })).toBe("オブジェクトの message");
+  expect(errorMessage(new TypeError("型が違う"))).toBe("型が違う");
+  // Error でないオブジェクトは、message を持っていても String() で文字列にする。
+  expect(errorMessage({ message: "オブジェクトの message" })).toBe("[object Object]");
+  expect(errorMessage({})).toBe("[object Object]");
   const fn = Object.assign(() => undefined, { message: "関数の message" });
-  expect(errorMessage(fn)).toBe("関数の message");
-  expect(errorMessage({})).toBeUndefined();
-  for (const falsy of [null, undefined, 0, "", false]) expect(errorMessage(falsy)).toBe(falsy);
-  for (const primitive of ["文字列の例外", 42, true])
-    expect(errorMessage(primitive)).toBeUndefined();
+  expect(errorMessage(fn)).toBe(String(fn));
+  // 偽の値と真のプリミティブも、常に文字列を返す。
+  const values = [null, undefined, 0, "", false, "文字列の例外", 42, true];
+  expect(values.map(errorMessage)).toEqual([
+    "null",
+    "undefined",
+    "0",
+    "",
+    "false",
+    "文字列の例外",
+    "42",
+    "true",
+  ]);
 });
 
 test("realPathOf: 存在しないパスも、実在する祖先の実パスに残りを継ぎ足して返す", () => {

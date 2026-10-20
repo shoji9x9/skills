@@ -469,7 +469,7 @@ function strongest(candidates) {
       continue;
     }
     if (bySpec < 0) continue;
-    // null は数値の比較で 0 として扱われる（`?? 0` は元の `c.order > best.order` と同じ結果）。
+    // order が null か無い宣言は、order を 0 として比べる。
     if ((c.order ?? 0) > (best.order ?? 0)) {
       best = c;
       continue;

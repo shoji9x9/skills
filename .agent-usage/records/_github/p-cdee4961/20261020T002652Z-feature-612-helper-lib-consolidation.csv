@@ -1,0 +1,6 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+ci:39339691028:1,ci,2026-10-20T00:26:52.933Z,p-cdee4961,github-actions,,,,2026-10-19T23:08:38.000Z,2026-10-19T23:12:29.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:39339690996:1,ci,2026-10-20T00:26:52.933Z,p-cdee4961,github-actions,,,,2026-10-19T23:08:38.000Z,2026-10-19T23:09:02.000Z,Asia/Tokyo,main,,,,,,,,,,,Release;push;success,
+ci:39307051301:1,ci,2026-10-20T00:26:52.933Z,p-cdee4961,github-actions,,,,2026-10-19T18:58:36.000Z,2026-10-19T19:05:56.000Z,Asia/Tokyo,feature/678-commit-wrapper-detection,678,,,,,,,,,,CI;pull_request;success,
+ci:39307051249:1,ci,2026-10-20T00:26:52.933Z,p-cdee4961,github-actions,,,,2026-10-19T18:58:36.000Z,2026-10-19T18:58:37.000Z,Asia/Tokyo,feature/678-commit-wrapper-detection,678,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+coverage:github:2026-10-18T18:55:55.793Z:2026-10-20T00:26:52.933Z,coverage,2026-10-20T00:26:52.933Z,p-cdee4961,,,,,2026-10-18T18:55:55.793Z,2026-10-20T00:26:52.933Z,Asia/Tokyo,,,,,,,,,,,,ok,

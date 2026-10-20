@@ -587,7 +587,7 @@ export function readDeclaration(metadata) {
   if (decl === undefined || decl === null) {
     return skip("旧成果物: metadata.json に component_coverage キーが無い（判定に入れない）");
   }
-  // 直前で undefined と null を返しているので、isPlainObject は元の判定と同じ範囲を弾く。
+  // undefined と null は直前で扱ったので、ここではそれ以外のオブジェクトでない値と配列を弾く。
   if (!isPlainObject(decl)) {
     return bad("component_coverage が JSON オブジェクトではない（型崩れ）");
   }

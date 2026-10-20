@@ -76,12 +76,7 @@ export const ID_SEPARATOR = "#";
  * @returns {value is string & { readonly __idPartIsSafe: true }}
  */
 export function idPartIsSafe(value) {
-  return (
-    typeof value === "string" &&
-    value.trim() !== "" &&
-    !value.includes(KEY_SEPARATOR) &&
-    !value.includes(ID_SEPARATOR)
-  );
+  return nonEmptyString(value) && !value.includes(KEY_SEPARATOR) && !value.includes(ID_SEPARATOR);
 }
 
 /**
@@ -1743,7 +1738,7 @@ export function main(argv, deps = {}) {
   try {
     metadata = JSON.parse(readFile(resolve(cwd, metadataPath)));
   } catch (error) {
-    // 元の `error && error.message` と同じ表示にする（偽値はそのまま、オブジェクトでない真の値は undefined）
+    // オブジェクトなら message を表示する。偽の値はそのまま、オブジェクトでない真の値は undefined と表示する。
     const reason = isObjectLike(error) ? error.message : error && undefined;
     return fail(`${metadataPath} を読めない: ${reason}`);
   }
