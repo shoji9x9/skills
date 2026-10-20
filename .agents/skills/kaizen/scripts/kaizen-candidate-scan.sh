@@ -138,7 +138,11 @@ if ! jq -Rr '
 		else "" end;
 	(try fromjson catch null) as $j |
 	("N\t" + (input_line_number | tostring)),
-	(if $j == null then (if test("^\\s*$") then "B" else "X" end)
+	# レコードの判定で jq が実行時のエラーを出したら、判定できないとして扱う（"X"）。
+	# jq は途中の入力のエラーを終了コードに出さず、その行の残りの出力を捨てて次の行へ進む。
+	# 包まないと、型が想定と違うレコード（オブジェクトでない JSON・text がオブジェクトの要素など）の本文を
+	# 読まないまま、検証済みゼロ（exit 1）を返す。
+	(try (if $j == null then (if test("^\\s*$") then "B" else "X" end)
 	elif $j.type == "assistant" then
 		"C", "A",
 		(($j.message.content // []) | if type == "array" then .[] else empty end |
@@ -256,7 +260,7 @@ if ! jq -Rr '
 	# 候補の判定には使わない。コピーを読むと、注入した本文の修正語を拾ったり同じ発話を二重に数えたりして、
 	# 実在しない候補が出る。
 	# hash が文字列でないものと message がオブジェクトでないものは、知らない形なので下の判定に残す。
-	elif $j.type == "api-request-blob" and ($j.hash | type) == "string" and ($j.message | type) == "object" then "R"
+	elif $j.type == "api-request-blob" and ($j.hash | type) == "string" and ($j.message | type) == "object" then "C", "R"
 	# 未知の `type` は、名前ではなく**構造**で区別する。会話を運ぶ入れ物（`message` / `payload` /
 	# `content`）を持たないレコードは候補の判定に関係しないので読み飛ばし、持つものだけ、これまでどおり
 	# 判定できないとして扱う。型名を 1 つずつ許可する形にすると、エージェントが内部レコードを 1 種類
@@ -266,7 +270,7 @@ if ! jq -Rr '
 	# こちらの想定外なので、subtype が欠けた場合と同じく、判定できないとして扱う。
 	elif ($j.type | type) == "string" and $j.type != "response_item" and $j.type != "event_msg" and
 	     $j.message == null and $j.payload == null and $j.content == null then "R"
-	else "X" end)
+	else "X" end) catch "X")
 ' "${slice}" >"${records}"; then
 	echo "kaizen-candidate-scan: transcript JSONL could not be parsed" >&2
 	exit 2

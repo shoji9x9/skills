@@ -441,6 +441,22 @@ describe.concurrent("Claude Code の api-request-blob レコード", () => {
     expect(scan.status).toBe(1);
     expect(scan.stdout).toMatch(/^kaizen-candidate-scan: agent=claude-code$/m);
   });
+
+  // api-request-blob を書くのは Claude Code だけなので、checkpoint がエージェントを持たなくても識別できる。
+  test("checkpoint が無く差分が api-request-blob だけでも Claude Code と識別する", async () => {
+    const cwd = makeProject();
+    const transcript = join(cwd, "t.jsonl");
+    writeFileSync(transcript, `${blobWithCorrectionWord}\n`);
+
+    const scan = await runScript(
+      "kaizen-candidate-scan.sh",
+      [transcript, join(cwd, "no-checkpoint")],
+      { cwd },
+    );
+
+    expect(scan.status).toBe(1);
+    expect(scan.stdout).toMatch(/^kaizen-candidate-scan: agent=claude-code$/m);
+  });
 });
 
 // エージェントの作業中に利用者が送った発話は、`user` レコードにならず `attachment` の `queued_command` に残る（Issue #710）。
@@ -541,6 +557,12 @@ describe.concurrent("Claude Code の queued_command の attachment", () => {
       2,
     ],
     [
+      // 配列の要素の text がオブジェクトだと、本文を連結するところで jq が実行時のエラーを出す。
+      "prompt の要素の text が文字列でないものは判定不能",
+      '{"type":"attachment","attachment":{"type":"queued_command","commandMode":"prompt","origin":{"kind":"human"},"prompt":[{"type":"text","text":{"value":"違う、やり直してください"}}]}}',
+      2,
+    ],
+    [
       "isMeta が真偽値でないものは判定不能",
       queued('"commandMode":"prompt","origin":{"kind":"human"},"isMeta":"true"'),
       2,
@@ -571,8 +593,7 @@ describe.concurrent("Claude Code の queued_command の attachment", () => {
     if (expectedStatus === 0) expect(scan.stdout).toMatch(/^user correction: transcript line 2$/m);
   });
 
-  // jq は最後の入力のエラーだけを終了コードに出すので、文字列の attachment を最後の行に置く。
-  // 型を確かめずに `.type` を参照すると、jq のエラーで走査全体が判定不能（exit 2）になる。
+  // 型を確かめずに `.type` を参照すると、jq が実行時のエラーを出し、走査は判定不能（exit 2）になる。
   test("attachment がオブジェクトでないものは読み飛ばす（jq のエラーにしない）", async () => {
     const cwd = makeProject();
     const transcript = join(cwd, "t.jsonl");
@@ -586,6 +607,32 @@ describe.concurrent("Claude Code の queued_command の attachment", () => {
     );
 
     expect(scan.status).toBe(1);
+  });
+});
+
+// jq は途中の行で出た実行時のエラーを終了コードに出さず、その行の残りの出力を捨てて次の行へ進む。
+// 判定でエラーになったレコードを、本文を読まないまま検証済みゼロにしないことを、途中の行に置いて確かめる。
+describe.concurrent("jq の実行時のエラー", () => {
+  const assistantWorking =
+    '{"type":"assistant","message":{"content":[{"type":"text","text":"作業しています"}]}}';
+  test.each([
+    ["オブジェクトでない JSON の行は判定不能", '"違う、やり直してください"'],
+    [
+      "user レコードの text が文字列でないものは判定不能",
+      '{"type":"user","message":{"content":[{"type":"text","text":{"value":"違う、やり直してください"}}]}}',
+    ],
+  ])("%s", async (_label, record) => {
+    const cwd = makeProject();
+    const transcript = join(cwd, "t.jsonl");
+    writeFileSync(transcript, `${assistantWorking}\n${record}\n${assistantWorking}\n`);
+    const scan = await runScript(
+      "kaizen-candidate-scan.sh",
+      [transcript, join(cwd, "no-checkpoint")],
+      { cwd },
+    );
+
+    expect(scan.status).toBe(2);
+    expect(scan.stderr).toMatch(/unsupported or malformed record/);
   });
 });
 

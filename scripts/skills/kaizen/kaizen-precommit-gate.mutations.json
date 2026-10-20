@@ -333,6 +333,19 @@
       ]
     },
     {
+      "id": "SCAN-RECORD-RUNTIME-ERROR",
+      "why": "レコードの判定で jq が出した実行時のエラーを判定不能にしない（途中の行のエラーは終了コードに出ないので、本文を読まずに検証済みゼロを返す）",
+      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
+      "find": "else \"X\" end) catch \"X\")",
+      "replace": "else \"X\" end) catch empty)",
+      "occurrences": 1,
+      "expect_failing": [
+        "Claude Code の queued_command の attachment prompt の要素の text が文字列でないものは判定不能",
+        "jq の実行時のエラー オブジェクトでない JSON の行は判定不能",
+        "jq の実行時のエラー user レコードの text が文字列でないものは判定不能"
+      ]
+    },
+    {
       "id": "SCAN-CLAUDE-API-REQUEST-BLOB",
       "why": "api-request-blob を既知のレコードとして扱わない（api-request-blob を書く Claude Code の transcript がすべて判定不能になる。Issue #710）",
       "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
@@ -342,7 +355,8 @@
       "expect_failing": [
         "Claude Code の api-request-blob レコード コピーの中の修正語だけなら候補ゼロ",
         "Claude Code の api-request-blob レコード コピーは本物の発話の候補を隠さない",
-        "Claude Code の api-request-blob レコード checkpoint 後の差分が api-request-blob だけでも検証済みゼロ"
+        "Claude Code の api-request-blob レコード checkpoint 後の差分が api-request-blob だけでも検証済みゼロ",
+        "Claude Code の api-request-blob レコード checkpoint が無く差分が api-request-blob だけでも Claude Code と識別する"
       ]
     },
     {
@@ -361,8 +375,8 @@
       "id": "SCAN-CLAUDE-API-REQUEST-BLOB-MESSAGE",
       "why": "api-request-blob の message がオブジェクトかを確かめない（知らない形のコピーを読み飛ばす）",
       "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "($j.message | type) == \"object\" then \"R\"",
-      "replace": "true then \"R\"",
+      "find": "($j.message | type) == \"object\" then \"C\", \"R\"",
+      "replace": "true then \"C\", \"R\"",
       "occurrences": 1,
       "expect_failing": [
         "Claude Code の api-request-blob レコード message が文字列のコピーは判定不能"
@@ -377,6 +391,17 @@
       "occurrences": 1,
       "expect_failing": [
         "Claude Code の api-request-blob レコード 型名が違う未知のレコードは、hash と message の形が同じでも判定不能"
+      ]
+    },
+    {
+      "id": "SCAN-CLAUDE-API-REQUEST-BLOB-AGENT",
+      "why": "api-request-blob で Claude Code の transcript と識別しない（checkpoint の無い blob だけの差分が、エージェントを識別できず判定不能になる）",
+      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
+      "find": "== \"object\" then \"C\", \"R\"",
+      "replace": "== \"object\" then \"R\"",
+      "occurrences": 1,
+      "expect_failing": [
+        "Claude Code の api-request-blob レコード checkpoint が無く差分が api-request-blob だけでも Claude Code と識別する"
       ]
     },
     {
@@ -398,7 +423,8 @@
         "Claude Code の queued_command の attachment isMeta が真偽値でないものは判定不能",
         "Claude Code の queued_command の attachment 最上位の isMeta が真偽値でないものは判定不能",
         "Claude Code の queued_command の attachment commandMode が文字列でないものは判定不能",
-        "Claude Code の queued_command の attachment origin.kind が文字列でないものは判定不能"
+        "Claude Code の queued_command の attachment origin.kind が文字列でないものは判定不能",
+        "Claude Code の queued_command の attachment prompt の要素の text が文字列でないものは判定不能"
       ]
     },
     {
@@ -475,17 +501,6 @@
         "Claude Code の queued_command の attachment 注入した本文は候補にしない",
         "Claude Code の queued_command の attachment commandMode が無い注入した本文は読み飛ばす",
         "Claude Code の queued_command の attachment 注入した本文は origin がオブジェクトでなくても読み飛ばす"
-      ]
-    },
-    {
-      "id": "SCAN-CLAUDE-QUEUED-COMMAND-ORIGIN-TYPE",
-      "why": "origin の型を確かめない（文字列の origin を警告なしに読み飛ばす）",
-      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "elif $a.origin != null and ($a.origin | type) != \"object\" then \"X\"",
-      "replace": "elif false then \"X\"",
-      "occurrences": 1,
-      "expect_failing": [
-        "Claude Code の queued_command の attachment origin がオブジェクトでないものは判定不能"
       ]
     },
     {
@@ -570,17 +585,6 @@
         "Claude Code の queued_command の attachment coordinator の本文は候補にしない",
         "Claude Code の queued_command の attachment origin.kind が task-notification の本文は候補にしない",
         "Claude Code の queued_command の attachment サブエージェントの報告は prompt の型が違っても読み飛ばす"
-      ]
-    },
-    {
-      "id": "SCAN-CLAUDE-QUEUED-COMMAND-SKIP-ORIGIN-OBJECT",
-      "why": "origin.kind で読み飛ばす前に origin がオブジェクトかを確かめない（文字列の origin で jq がエラーになり、判定不能にならない）",
-      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "(($a.origin | type) == \"object\" and\n\t\t        ($a.origin.kind == \"peer\"",
-      "replace": "(true and\n\t\t        ($a.origin.kind == \"peer\"",
-      "occurrences": 1,
-      "expect_failing": [
-        "Claude Code の queued_command の attachment origin がオブジェクトでないものは判定不能"
       ]
     },
     {
