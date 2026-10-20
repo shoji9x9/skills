@@ -39,6 +39,80 @@
       "expect_failing": [
         "オブジェクトでない規則（配列）があれば、読み飛ばさずに判定できないとして止める"
       ]
+    },
+    {
+      "id": "unordered-tie-picked",
+      "why": "同じ詳細度に order が null の規則が並んでも、判定できないとせずに勝者を選ぶ（#723 の前の振る舞い）",
+      "file": "skills/parity-component/scripts/cascade-resolve.mjs",
+      "find": "if (unordered !== null) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "同じ詳細度で order が null の規則が並ぶなら、勝者を選ばずに undecidable にする: order が null の規則と order が 0 の規則",
+        "同じ詳細度で order が null の規則が並ぶなら、勝者を選ばずに undecidable にする: order が 0 の規則と order が null の規則（並びが逆）",
+        "同じ詳細度で order が null の規則が並ぶなら、勝者を選ばずに undecidable にする: order が両方 null の別の規則",
+        "有限の数でない order（NaN）は、読めない order として扱う"
+      ]
+    },
+    {
+      "id": "outrank-null-order-as-zero",
+      "why": "追い越しの判定で、order が null の規則を同じ詳細度でも判定できないとしない（null を数値として比べる）",
+      "file": "skills/parity-component/scripts/cascade-resolve.mjs",
+      "find": "if (c.order === null || won.order === null) return \"unknown-order\";",
+      "replace": "if (false) return \"unknown-order\";",
+      "occurrences": 1,
+      "expect_failing": [
+        "勝者と同じ詳細度の条件付きの候補の order が null なら、追い越しを判定できないので undecidable にする",
+        "勝者の order が null で、同じ詳細度の条件付きの候補に order があっても、追い越しを判定できないので undecidable にする",
+        "勝者と同じ詳細度の`all` の候補の order が null なら、order が無いことを理由に undecidable にする",
+        "勝者と同じ詳細度の状態が不明な候補の order が null なら、order が無いことを理由に undecidable にする"
+      ]
+    },
+    {
+      "id": "unknown-order-rivals-unreported",
+      "why": "条件付き等の候補との追い越しを order が無くて判定できないとき、order が無いことを理由にしない",
+      "file": "skills/parity-component/scripts/cascade-resolve.mjs",
+      "find": "if (unknownOrderRivals.length > 0) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "勝者と同じ詳細度の条件付きの候補の order が null なら、追い越しを判定できないので undecidable にする",
+        "勝者の order が null で、同じ詳細度の条件付きの候補に order があっても、追い越しを判定できないので undecidable にする",
+        "勝者と同じ詳細度の`all` の候補の order が null なら、order が無いことを理由に undecidable にする",
+        "勝者と同じ詳細度の状態が不明な候補の order が null なら、order が無いことを理由に undecidable にする"
+      ]
+    },
+    {
+      "id": "same-rule-outrank-by-order",
+      "why": "同じ規則の宣言どうしの追い越しも order で比べ、order が無いと判定できないとする",
+      "file": "skills/parity-component/scripts/cascade-resolve.mjs",
+      "find": "if (c.rule_index !== won.rule_index) {",
+      "replace": "if (true) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "order が null の 1 つの規則の中の後の `all` は、order ではなく `all` を理由に undecidable にする"
+      ]
+    },
+    {
+      "id": "same-rule-tie-unordered",
+      "why": "1 つの規則の中の宣言だけが並ぶ同点も、order が無ければ判定できないとする",
+      "file": "skills/parity-component/scripts/cascade-resolve.mjs",
+      "find": "if (new Set(tied.map((c) => c.rule_index)).size < 2) return null;",
+      "replace": "if (false) return null;",
+      "occurrences": 1,
+      "expect_failing": [
+        "order が null の 1 つの規則の中で同じプロパティを 2 回書いたなら、後に書いた宣言を勝者にする",
+        "order が null の規則でも、詳細度で勝ち負けが決まるなら resolved にする"
+      ]
+    },
+    {
+      "id": "nan-order-accepted",
+      "why": "有限の数でない order（NaN）を読める order として扱う",
+      "file": "skills/parity-component/scripts/cascade-resolve.mjs",
+      "find": "typeof rule.order === \"number\" && Number.isFinite(rule.order) ? rule.order : null",
+      "replace": "typeof rule.order === \"number\" ? rule.order : null",
+      "occurrences": 1,
+      "expect_failing": ["有限の数でない order（NaN）は、読めない order として扱う"]
     }
   ]
 }

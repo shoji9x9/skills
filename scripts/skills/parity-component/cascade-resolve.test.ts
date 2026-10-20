@@ -32,7 +32,8 @@ type Decl = { property: string; value: string; important: boolean };
 // CLI の出力のうち、テストが読む欄（形は expect で確かめる）。
 type CliReport = { results: { winner: { value: unknown } }[]; counts: { undecidable: number } };
 type RuleInput = {
-  order?: number;
+  // 省くと並び順の番号を入れる。null を渡すと、order を読めない規則（cascade-resolve.mjs が null にする）を作る。
+  order?: number | null;
   selector: string;
   states?: string[];
   pseudo_element?: string | null;
@@ -71,7 +72,7 @@ function doc({
     name: "component@instance",
     tool_version: "4",
     matched: matched.map((rule, index) => ({
-      order: rule.order ?? index,
+      order: rule.order === undefined ? index : rule.order,
       selector: rule.selector,
       original_selector: rule.selector,
       states: rule.states ?? [],
@@ -111,7 +112,7 @@ function winnerOf(result: CascadeResult) {
 }
 
 test("VERSION を持つ", () => {
-  expect(VERSION).toBe("2");
+  expect(VERSION).toBe("3");
 });
 
 test("button: !important 付き規則がインラインの非 !important に勝つ", () => {
@@ -256,6 +257,166 @@ test("擬似要素は要素自身と別に解決し、インラインは擬似�
   expect(winnerOf(own).value).toBe("red");
   expect(winnerOf(after).value).toBe("green");
   expect(winnerOf(after).source).toBe("rule");
+});
+
+test.each([
+  [
+    "order が null の規則と order が 0 の規則",
+    [
+      { order: null, selector: ".btn", declarations: [decl("color", "blue")] },
+      { order: 0, selector: ".btn", declarations: [decl("color", "green")] },
+    ],
+  ],
+  [
+    "order が 0 の規則と order が null の規則（並びが逆）",
+    [
+      { order: 0, selector: ".btn", declarations: [decl("color", "green")] },
+      { order: null, selector: ".btn", declarations: [decl("color", "blue")] },
+    ],
+  ],
+  [
+    "order が両方 null の別の規則",
+    [
+      { order: null, selector: ".btn", declarations: [decl("color", "blue")] },
+      { order: null, selector: ".btn", declarations: [decl("color", "green")] },
+    ],
+  ],
+])(
+  "同じ詳細度で order が null の規則が並ぶなら、勝者を選ばずに undecidable にする: %s",
+  (_name, matched) => {
+    const result = resolve(doc({ matched }), "color");
+    expect(result.status).toBe("undecidable");
+    expect(result.reasons.join(" ")).toMatch(/rule order of .* is missing/);
+  },
+);
+
+test("order が null の規則でも、詳細度で勝ち負けが決まるなら resolved にする", () => {
+  const stronger = resolve(
+    doc({
+      matched: [
+        { order: 0, selector: ".btn", declarations: [decl("color", "green")] },
+        { order: null, selector: "#ok", declarations: [decl("color", "blue")] },
+      ],
+    }),
+    "color",
+  );
+  expect(winnerOf(stronger).value).toBe("blue");
+  const weaker = resolve(
+    doc({
+      matched: [
+        { order: null, selector: ".btn", declarations: [decl("color", "blue")] },
+        { order: 0, selector: "#ok", declarations: [decl("color", "green")] },
+      ],
+    }),
+    "color",
+  );
+  expect(winnerOf(weaker).value).toBe("green");
+});
+
+test("勝者と同じ詳細度の条件付きの候補の order が null なら、追い越しを判定できないので undecidable にする", () => {
+  const input = doc({
+    matched: [
+      { order: 1, selector: ".btn", declarations: [decl("color", "blue")] },
+      {
+        order: null,
+        selector: ".btn",
+        conditions: ["(min-width: 768px)"],
+        declarations: [decl("color", "green")],
+      },
+    ],
+  });
+  const result = resolve(input, "color");
+  expect(result.status).toBe("undecidable");
+  // 条件が成り立つかではなく、order が無いことを理由に書く（利用者が @media を調べに行かないように）。
+  expect(result.reasons.join(" ")).toMatch(/rule order of .*\.btn.* is missing/);
+  expect(result.reasons.join(" ")).not.toMatch(/conditional/);
+});
+
+test("勝者の order が null で、同じ詳細度の条件付きの候補に order があっても、追い越しを判定できないので undecidable にする", () => {
+  const input = doc({
+    matched: [
+      { order: null, selector: ".btn", declarations: [decl("color", "blue")] },
+      {
+        order: 3,
+        selector: ".btn",
+        conditions: ["(min-width: 768px)"],
+        declarations: [decl("color", "green")],
+      },
+    ],
+  });
+  const result = resolve(input, "color");
+  expect(result.status).toBe("undecidable");
+  expect(result.reasons.join(" ")).toMatch(/rule order of .* is missing/);
+});
+
+test("有限の数でない order（NaN）は、読めない order として扱う", () => {
+  const input = doc({
+    matched: [
+      { order: Number.NaN, selector: ".btn", declarations: [decl("color", "blue")] },
+      { order: 0, selector: ".btn", declarations: [decl("color", "green")] },
+    ],
+  });
+  const result = resolve(input, "color");
+  expect(result.status).toBe("undecidable");
+  expect(result.reasons.join(" ")).toMatch(/rule order of .* is missing/);
+});
+
+test.each([
+  [
+    "`all` の候補",
+    [
+      { order: 1, selector: ".btn", declarations: [decl("color", "blue")] },
+      { order: null, selector: ".btn", declarations: [decl("all", "unset")] },
+    ],
+  ],
+  [
+    "状態が不明な候補",
+    [
+      { order: 1, selector: ".a.btn", declarations: [decl("color", "blue")] },
+      {
+        order: null,
+        selector: ".btn:enabled",
+        states: ["enabled"],
+        declarations: [decl("color", "green")],
+      },
+    ],
+  ],
+])(
+  "勝者と同じ詳細度の%sの order が null なら、order が無いことを理由に undecidable にする",
+  (_name, matched) => {
+    const result = resolve(doc({ matched }), "color");
+    expect(result.status).toBe("undecidable");
+    expect(result.reasons.join(" ")).toMatch(/rule order of .* is missing/);
+  },
+);
+
+test("order が null の 1 つの規則の中で同じプロパティを 2 回書いたなら、後に書いた宣言を勝者にする", () => {
+  const input = doc({
+    matched: [
+      {
+        order: null,
+        selector: ".x",
+        declarations: [decl("color", "red"), decl("color", "blue")],
+      },
+    ],
+  });
+  expect(winnerOf(resolve(input, "color")).value).toBe("blue");
+});
+
+test("order が null の 1 つの規則の中の後の `all` は、order ではなく `all` を理由に undecidable にする", () => {
+  const input = doc({
+    matched: [
+      {
+        order: null,
+        selector: ".x",
+        declarations: [decl("color", "red"), decl("all", "unset")],
+      },
+    ],
+  });
+  const result = resolve(input, "color");
+  expect(result.status).toBe("undecidable");
+  expect(result.reasons.join(" ")).toMatch(/`all`/);
+  expect(result.reasons.join(" ")).not.toMatch(/rule order of/);
 });
 
 test("条件付き（@media）の候補が勝ちうるなら undecidable にする", () => {
