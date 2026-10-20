@@ -3,7 +3,7 @@
 // SVG そのものはスキルに同梱せず、使う人が公式のパッケージから取得する（再配布を避けるため）。
 // 図のディレクトリを設定（diagram_dir）に書くか --dir で渡せば cd しなくてよい。--out で出力先を直接指定できる。
 //
-//     cd <図ディレクトリ> && node <skill>/assets/engine/fetch-aws-icons.mjs [--only id,...]
+//     cd <図ディレクトリ> && node <skill>/scripts/fetch-aws-icons.mjs [--only id,...]
 //
 // プロジェクトが持つファイル（図のディレクトリに置く。デフォルトは cwd）は次のとおりである。
 //

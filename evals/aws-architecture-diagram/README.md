@@ -26,7 +26,7 @@
 
 ## 前提条件
 
-- Node.js 18 以上（描画・取得スクリプト `assets/engine/*.mjs` の実行に使う）。
+- Node.js 18 以上（描画・取得スクリプト `skills/aws-architecture-diagram/scripts/*.mjs` の実行に使う）。
   `fetch-aws-icons.mjs` がグローバルの `fetch` を使うので、18 未満では動かない
 - Chrome か Chromium（headless。SVG→PNG 変換 `preview-diagram.mjs` に使う）。見つからない場合は
   `PUPPETEER_EXECUTABLE_PATH` か `CHROME_PATH` を設定する

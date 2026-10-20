@@ -27,7 +27,7 @@ import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const script = join(repoRoot, "skills/aws-architecture-diagram/assets/engine/preview-diagram.mjs");
+const script = join(repoRoot, "skills/aws-architecture-diagram/scripts/preview-diagram.mjs");
 
 const FAKE_CHROME = `#!/usr/bin/env bash
 printf '%s\\n' "$@" > "$FAKE_CHROME_LOG/args.txt"

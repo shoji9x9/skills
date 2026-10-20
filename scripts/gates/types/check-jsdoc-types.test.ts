@@ -228,7 +228,7 @@ test("行番号は違反の位置を指す", () => {
 test.each([
   ["skills/demo/scripts/a.mjs", true],
   ["skills/demo/scripts/nested/a.mjs", true],
-  ["skills/demo/assets/engine/a.mjs", true],
+  ["skills/demo/assets/lib/a.mjs", true],
   ["skills/demo/references/a.mjs", true],
   ["skills/demo/hooks/a.mjs", true],
   ["skills/a.mjs", false],

@@ -26,11 +26,11 @@ starter には影響せず、この 1 ディレクトリだけで完結する。
 ## 生成し直す手順
 
 ```bash
-SKILL=../../..        # 本スキルルート（assets/engine を含む）
+SKILL=../../..        # 本スキルのルート（scripts/ を含む）
 # --icon-dir も渡す。渡さないと、呼び出し元のリポジトリの設定の icon_dir が当たり、アイコンの置き場所がこのディレクトリの外になる
-node "$SKILL/assets/engine/fetch-aws-icons.mjs" --dir . --icon-dir ./icons --only api-gateway,lambda,dynamodb
-node "$SKILL/assets/engine/render-diagram.mjs" --dir . --icon-dir ./icons --out-dir .
-node "$SKILL/assets/engine/preview-diagram.mjs" prod --dir . --icon-dir ./icons --out-dir .
+node "$SKILL/scripts/fetch-aws-icons.mjs" --dir . --icon-dir ./icons --only api-gateway,lambda,dynamodb
+node "$SKILL/scripts/render-diagram.mjs" --dir . --icon-dir ./icons --out-dir .
+node "$SKILL/scripts/preview-diagram.mjs" prod --dir . --icon-dir ./icons --out-dir .
 ```
 
 生成した SVG には AWS 公式アイコンが埋め込まれる。扱いは [NOTICE.md](NOTICE.md) にある（AWS がアーキテクチャ図を作るために許諾している範囲）。

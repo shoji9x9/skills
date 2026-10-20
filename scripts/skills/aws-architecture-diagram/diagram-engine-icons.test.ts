@@ -9,8 +9,8 @@
 import { expect, test } from "vitest";
 import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { renderDiagram } from "../../../skills/aws-architecture-diagram/assets/engine/diagram-engine.mjs";
-import type { DiagramSpec } from "../../../skills/aws-architecture-diagram/assets/engine/diagram-engine.mjs";
+import { renderDiagram } from "../../../skills/aws-architecture-diagram/scripts/diagram-engine.mjs";
+import type { DiagramSpec } from "../../../skills/aws-architecture-diagram/scripts/diagram-engine.mjs";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 /** アイコンを files（名前 → 中身）で置いた iconDir を作る。 */
