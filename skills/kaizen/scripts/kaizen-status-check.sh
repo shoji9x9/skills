@@ -397,7 +397,7 @@ if [ "${errors}" -gt 0 ]; then
 	else
 		reindex_cmd="バンドルされた kaizen-archive.sh を --reindex 付きで実行"
 	fi
-	echo "kaizen-status-check: ${errors} problem(s); fix status/applied-to or the reported note text, or ${reindex_cmd}" >&2
+	echo "kaizen-status-check: ${errors} problem(s); fix status/applied-to/confidence or the reported note text, or ${reindex_cmd}" >&2
 	exit 2
 fi
 
