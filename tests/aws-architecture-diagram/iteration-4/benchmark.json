@@ -4,7 +4,7 @@
     "skill_path": "<repo>/skills/aws-architecture-diagram",
     "executor_model": "opus",
     "analyzer_model": "claude-opus-5-5",
-    "timestamp": "2026-10-20T10:53:21Z",
+    "timestamp": "2026-10-20T11:13:55Z",
     "evals_run": [1, 2, 3, 4],
     "runs_per_configuration": 1
   },
@@ -18,36 +18,36 @@
         "passed": 5,
         "failed": 0,
         "total": 5,
-        "time_seconds": 83.005,
-        "tokens": 371669,
-        "tool_calls": 9,
+        "time_seconds": 83.832,
+        "tokens": 441427,
+        "tool_calls": 13,
         "errors": 0
       },
       "expectations": [
         {
           "text": "未導入なので setup（対話的セットアップ）で進めようとしている",
           "passed": true,
-          "evidence": "応答と project-tree.txt: starter kit を docs/diagrams/ に置き、未導入からの導入（setup の流れ）で進めた"
+          "evidence": "応答と project-tree.txt: starter 一式を docs/diagrams/ に置き、未導入からの導入（setup の流れ）で進めた"
         },
         {
           "text": "starter kit を図の置き場所へ導入し、fetch-aws-icons.mjs で AWS 公式アイコンを取得しようとしている",
           "passed": true,
-          "evidence": "応答: fetch-aws-icons.mjs を実行し getaddrinfo EAI_AGAIN で取得に失敗したと報告。project-tree.txt に icons/ と icon-manifest.json がある"
+          "evidence": "応答: fetch-aws-icons.mjs が EAI_AGAIN で失敗し、仮のアイコンを icons/aws-icons/ に置いたと報告。取得を試みている"
         },
         {
           "text": "CDK のソース（または cdk synth 出力）を情報源として読み、spec（nodes/edges/groups）を手で起こす方針になっている",
           "passed": true,
-          "evidence": "応答: CDK が無いので仮の構成を置き、CDK のスタックか cdk synth の出力を渡せば実際のリソースに置き換えると述べている"
+          "evidence": "応答: CDK が無いので仮の構成を置き、CDK の stack か cdk synth の出力を読んで architecture-spec.mjs を書き換えると述べている"
         },
         {
           "text": "references/conventions.md の作図ルール（交差最小・線の直交・軸整列）に従おうとしている",
           "passed": true,
-          "evidence": "応答: 作図ルールの確認項目（a〜j）を満たし、交差なしと述べている。raw で references/conventions.md を 13 回参照"
+          "evidence": "応答: 線の交差・アイコンを貫く線・ラベルに重なる線が無いことを確かめた。raw で references/conventions.md を 15 回参照"
         },
         {
           "text": "render-diagram.mjs で生成し preview-diagram.mjs で PNG 化して目視確認する流れになっている",
           "passed": true,
-          "evidence": "project-tree.txt に out/architecture-prod.svg。応答: PNG に変換して目で確かめ、ラベルの位置を直した"
+          "evidence": "project-tree.txt に out/architecture-prod.svg。応答: PNG に変換して目で確かめ、CloudFront→S3 の線を 1 回直した"
         }
       ],
       "notes": []
@@ -61,36 +61,36 @@
         "passed": 5,
         "failed": 0,
         "total": 5,
-        "time_seconds": 32.816,
-        "tokens": 199753,
-        "tool_calls": 6,
+        "time_seconds": 52.033,
+        "tokens": 246044,
+        "tool_calls": 8,
         "errors": 0
       },
       "expectations": [
         {
           "text": "単一ベース spec ＋ 変換で環境を出し分ける方針を採っている",
           "passed": true,
-          "evidence": "応答と environments.mjs: prod と local で共有する base と、local 用の差分（transform）で出し分ける"
+          "evidence": "応答: prod は共通の構成をそのまま描き、local はその差分だけを変換で表す。共通構成を直せば両方に反映される"
         },
         {
           "text": "「あるべき環境」は environments.mjs の environments で管理する（単一ソース）ことを説明している",
           "passed": true,
-          "evidence": "応答: 持つ環境は environments.mjs に登録すると説明。environments.mjs の冒頭のコメントも同じ"
+          "evidence": "応答: environments.mjs に prod と local の 2 環境が入っており、両方の図を持つことはこれで満たせると説明"
         },
         {
           "text": "environments.mjs に prod（base）と local（transform）を定義している",
           "passed": true,
-          "evidence": "project-files/docs/diagrams/environments.mjs: prod: { title }（base のまま）と local: { transform: toLocal }"
+          "evidence": "project-files/docs/diagrams/environments.mjs は starter のコピーで、prod（base のまま）と local（transform）を定義している"
         },
         {
           "text": "今回の更新は --env local で local だけに絞る（既定は全環境）ことを示している",
           "passed": true,
-          "evidence": "応答: --env local で local だけを作り直すと示し、render-diagram.mjs --env local の手順を載せている"
+          "evidence": "応答: render-diagram.mjs --env local で local だけを生成する手順と、prod が要るときは --env prod か省略で両方と示している"
         },
         {
           "text": "1 つの既定環境しか持てない旧来の default_env 方式に依存していない",
           "passed": true,
-          "evidence": "応答・成果物とも default_env を使っていない。環境は environments.mjs のレジストリで扱う"
+          "evidence": "応答・成果物とも default_env を使っていない"
         }
       ],
       "notes": []
@@ -104,8 +104,8 @@
         "passed": 1,
         "failed": 3,
         "total": 4,
-        "time_seconds": 19.754,
-        "tokens": 124923,
+        "time_seconds": 22.67,
+        "tokens": 123387,
         "tool_calls": 4,
         "errors": 0
       },
@@ -113,7 +113,7 @@
         {
           "text": "情報源が Terraform でも同様に機能する（エージェントが読んで spec に反映）ことを踏まえている",
           "passed": true,
-          "evidence": "応答: Terraform の差分を既存の spec に反映する update の手順として扱っている"
+          "evidence": "応答: Terraform の aws_sqs_queue などを読んで図の元データに SQS を加える流れを示し、Terraform を情報源として扱っている"
         },
         {
           "text": "SQS ノード/エッジを spec に追加し、conventions.md の作図ルール（進入位置のずらし等）を維持している",
@@ -138,45 +138,45 @@
       "configuration": "with_skill",
       "run_number": 1,
       "result": {
-        "pass_rate": 0.8333,
-        "passed": 5,
-        "failed": 1,
+        "pass_rate": 0.6667,
+        "passed": 4,
+        "failed": 2,
         "total": 6,
-        "time_seconds": 37.766,
-        "tokens": 242332,
-        "tool_calls": 8,
+        "time_seconds": 352.672,
+        "tokens": 1175477,
+        "tool_calls": 22,
         "errors": 0
       },
       "expectations": [
         {
           "text": "conventions.md の線の直交・ラベル配置・進入位置のルールを参照している",
           "passed": true,
-          "evidence": "応答: 直交（waypoints を前後の点と揃える・±20px）、lp、ラベル位置の規則を示している。raw で references/conventions.md を 9 回参照"
+          "evidence": "応答: 作図ルールに沿って原因を整理。raw で references/conventions.md を 27 回参照"
         },
         {
           "text": "waypoints で直交化し、lp（ノードのラベル位置）を線の出ていない辺へ移す方針を示している",
-          "passed": true,
-          "evidence": "応答の表: waypoints を前後の点と x か y で揃え、lp を隣のノードも線も無い辺に変える"
+          "passed": false,
+          "evidence": "応答は lp: \"auto\" の追加と入る位置のずらしを示すが、waypoints で直交化する方針は示していない"
         },
         {
           "text": "斜めのエッジは diagram-engine.mjs がエラーで止める（目視ではなく生成時に検出される）ことを踏まえている",
           "passed": true,
-          "evidence": "応答: 斜めの区間があるとエラーで止まる（scripts/diagram-engine.mjs:229-239）"
+          "evidence": "応答: 斜めの線そのものはエンジンが止める。直した後も今までどおりエラーで止まる"
         },
         {
           "text": "エッジラベルは屈曲点を避けて自動配置されるため waypoints でラベルを動かす必要が無く、位置を明示するときは labelAt を使うと示している",
-          "passed": true,
-          "evidence": "応答: 曲がり角に当たると隣の直線部分の中点へずらす。labelAt を指定していると自動でずらさないので、座標を直すか labelAt を消す。ラベルのために waypoints を足さない"
+          "passed": false,
+          "evidence": "応答はエッジのラベルの自動配置を広げたと述べるが、waypoints でラベルを動かす必要が無いことと labelAt で位置を明示することは示していない"
         },
         {
           "text": "再生成 → PNG 目視確認のループで直そうとしている",
           "passed": true,
-          "evidence": "応答: 描き直したら PNG にして画像で確認し、崩れがなくなるまで繰り返すと述べている"
+          "evidence": "応答: 作業用のコピーで再生成と PNG の目視を繰り返し、警告 0 件まで直した"
         },
         {
           "text": "推測で断定せず PNG を実際に確認して判断している",
-          "passed": false,
-          "evidence": "直す対象の図が無く、PNG を実際に確認していない（raw に .png の読み取りが無い）。断定はしていないが、PNG で確かめて判断した記録は無い"
+          "passed": true,
+          "evidence": "raw に PNG の読み取りが 22 回あり、応答も PNG を目視して重なりが無いことを確かめたと述べている"
         }
       ],
       "notes": []
@@ -185,22 +185,22 @@
   "run_summary": {
     "with_skill": {
       "pass_rate": {
-        "mean": 0.7708,
+        "mean": 0.7292,
         "stddev": 0.356,
         "min": 0.25,
         "max": 1
       },
       "time_seconds": {
-        "mean": 43.3352,
-        "stddev": 27.5163,
-        "min": 19.754,
-        "max": 83.005
+        "mean": 127.8018,
+        "stddev": 151.9798,
+        "min": 22.67,
+        "max": 352.672
       },
       "tokens": {
-        "mean": 234669.25,
-        "stddev": 103426.3557,
-        "min": 124923,
-        "max": 371669
+        "mean": 496583.75,
+        "stddev": 471163.2033,
+        "min": 123387,
+        "max": 1175477
       }
     }
   },
