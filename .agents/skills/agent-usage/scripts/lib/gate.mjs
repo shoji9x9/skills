@@ -44,10 +44,97 @@ export function readHookInput(text) {
 }
 
 /** コマンドの前に来るシェルの予約語（`if x; then git commit; fi` の then など）。 */
-const SHELL_PREFIXES = ["if", "then", "elif", "else", "while", "until", "do", "{", "!", "time"];
+const SHELL_PREFIXES = ["if", "then", "elif", "else", "while", "until", "do", "{", "!"];
 
-/** 後ろのコマンドを実行するコマンド。値を取らないオプション（`-` で始まる語）だけを読み飛ばす。 */
-const COMMAND_WRAPPERS = ["env", "command", "exec", "nohup", "nice", "sudo", "xargs"];
+/**
+ * @typedef {object} CommandWrapper
+ * @property {readonly string[]} valueOptions 値を次の語に取るオプション。`--opt=value`・`-n5` の形は 1 語なので、ここに無くてよい
+ * @property {number} operands オプションの後に取る引数の数（`timeout 60` の 60）
+ * @property {readonly string[]} [chdirOptions] 後ろのコマンドの作業ディレクトリを変えるオプション（`env -C <dir>`）。valueOptions にも入れる
+ */
+
+/**
+ * 後ろのコマンドを実行するコマンド（ラッパー）。`-` で始まる語と、valueOptions の値と、operands の数の引数を読み飛ばす。
+ * 一覧は、Claude Code が `if` の照合の前に取り除くもの（timeout・time・nice・nohup・stdbuf・command・builtin。
+ * https://code.claude.com/docs/en/permissions の Wrappers の節）に、sudo・env・xargs・exec を足したもの。
+ * 7 つだけにすると `sudo git commit` を見逃す。kaizen の kaizen-precommit-gate.sh も同じ一覧を持つ。
+ * @type {ReadonlyMap<string, CommandWrapper>}
+ */
+const COMMAND_WRAPPERS = new Map([
+  ["builtin", { valueOptions: [], operands: 0 }],
+  ["command", { valueOptions: [], operands: 0 }],
+  [
+    "env",
+    {
+      valueOptions: ["-u", "--unset", "-C", "--chdir", "-a", "--argv0"],
+      operands: 0,
+      chdirOptions: ["-C", "--chdir"],
+    },
+  ],
+  ["exec", { valueOptions: ["-a"], operands: 0 }],
+  ["nice", { valueOptions: ["-n", "--adjustment"], operands: 0 }],
+  ["nohup", { valueOptions: [], operands: 0 }],
+  ["stdbuf", { valueOptions: ["-i", "-o", "-e", "--input", "--output", "--error"], operands: 0 }],
+  [
+    "sudo",
+    {
+      valueOptions: [
+        "-u",
+        "--user",
+        "-g",
+        "--group",
+        "-C",
+        "--close-from",
+        "-D",
+        "--chdir",
+        "-p",
+        "--prompt",
+        "-r",
+        "--role",
+        "-t",
+        "--type",
+        "-U",
+        "--other-user",
+        "-T",
+        "--command-timeout",
+        "-R",
+        "--chroot",
+        "-h",
+        "--host",
+        "-a",
+        "--auth-type",
+        "-c",
+        "--login-class",
+      ],
+      operands: 0,
+      chdirOptions: ["-D", "--chdir"],
+    },
+  ],
+  ["time", { valueOptions: ["-f", "--format", "-o", "--output"], operands: 0 }],
+  ["timeout", { valueOptions: ["-s", "--signal", "-k", "--kill-after"], operands: 1 }],
+  [
+    "xargs",
+    {
+      valueOptions: [
+        "-a",
+        "--arg-file",
+        "-d",
+        "--delimiter",
+        "-E",
+        "-I",
+        "-L",
+        "-n",
+        "--max-args",
+        "-P",
+        "--max-procs",
+        "-s",
+        "--max-chars",
+        "--process-slot-var",
+      ],
+      operands: 0,
+    },
+  ],
+]);
 
 /** 値を次の語に取る git のグローバルのオプション（`git --help` の OPTIONS）。`--opt=value` の形は 1 語なので、ここに無くてよい。 */
 const GIT_VALUE_OPTIONS = [
@@ -169,7 +256,7 @@ function substitutionAt(command, pos) {
  * `git`（パス付きを含む）の後にグローバルのオプション（値を取るものはその値も）だけを挟んで `commit` が来るかを見る。
  * 前に来るシェルの予約語（SHELL_PREFIXES）と、後ろのコマンドを実行するコマンド（COMMAND_WRAPPERS）は読み飛ばす。
  * 次の場所の git commit は検出しない: エイリアス、変数、`sh -c` の中、スクリプトの中。
- * 値を取るラッパーのオプション（`sudo -u x` など）の後も検出しない。
+ * COMMAND_WRAPPERS の valueOptions に無い、値を次の語に取るラッパーのオプションの後も検出しない。
  * 引用符が閉じていないなど語に分けられないときは、`git` と `commit` の語を含むかで判定する（止めすぎの側に寄せる）。
  * @param {string} command
  * @returns {boolean}
@@ -185,29 +272,38 @@ export function isGitCommit(command) {
 }
 
 /**
- * 単純なコマンド（語の列）が git commit なら、`-C` で指定したディレクトリを指定の順に返す。git commit でなければ null。
+ * 単純なコマンド（語の列）が git commit なら、ラッパーの `env -C`・`sudo -D` と git の `-C` で指定したディレクトリを指定の順に返す。
+ * git commit でなければ null。
  * @param {readonly string[]} words
  * @returns {string[] | null}
  */
 function commitDirsOf(words) {
   let i = 0;
+  /** @type {string[]} */
+  const dirs = [];
   for (;;) {
     while (i < words.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[i])) i += 1;
     if (i < words.length && SHELL_PREFIXES.includes(words[i])) {
       i += 1;
       continue;
     }
-    if (i < words.length && COMMAND_WRAPPERS.includes(words[i])) {
+    const wrapper = i < words.length ? COMMAND_WRAPPERS.get(words[i]) : undefined;
+    if (wrapper !== undefined) {
       i += 1;
-      while (i < words.length && words[i].startsWith("-")) i += 1;
+      // `--`（オプションの終わり）も `-` で始まる語として読み飛ばす
+      while (i < words.length && words[i].startsWith("-")) {
+        // 作業ディレクトリを変えるオプション（`env -C <dir>`・`sudo -D <dir>`）は、git の -C より先に当たる
+        const option = readWrapperOption(wrapper, words, i);
+        if (option.dir !== null) dirs.push(option.dir);
+        i += option.width;
+      }
+      i += wrapper.operands;
       continue;
     }
     break;
   }
   if (i >= words.length || words[i].split("/").pop() !== "git") return null;
   i += 1;
-  /** @type {string[]} */
-  const dirs = [];
   while (i < words.length && words[i].startsWith("-")) {
     if (words[i] === "-C" && i + 1 < words.length) dirs.push(words[i + 1]);
     i += GIT_VALUE_OPTIONS.includes(words[i]) ? 2 : 1;
@@ -216,7 +312,42 @@ function commitDirsOf(words) {
 }
 
 /**
- * git commit を実行する作業ディレクトリ。最初の git commit の `-C` を、git と同じく cwd から順に解決する（相対パスは前の -C に続ける）。
+ * ラッパーの words[i]（`-` で始まる語）を getopt と同じ規則で読み、読み飛ばす語の数（値を次の語に取るなら 2）と、
+ * 作業ディレクトリを変えるオプション（chdirOptions）の値を返す。
+ * 長いオプションは `--opt <value>`・`--opt=<value>` を読む。短いオプションは、他のオプションとまとめた形（`env -iC <dir>`）と、
+ * 値を続けて書いた形（`-C<dir>`・`nice -n5`）を読む。まとめた形では、値を取る最初のオプションより後ろの文字をその値として読む。
+ * @param {CommandWrapper} wrapper
+ * @param {readonly string[]} words
+ * @param {number} i
+ * @returns {{ width: number, dir: string | null }}
+ */
+function readWrapperOption(wrapper, words, i) {
+  const word = words[i];
+  const chdir = wrapper.chdirOptions ?? [];
+  const next = i + 1 < words.length ? words[i + 1] : null;
+  if (word.startsWith("--")) {
+    const eq = word.indexOf("=");
+    if (eq !== -1) {
+      return { width: 1, dir: chdir.includes(word.slice(0, eq)) ? word.slice(eq + 1) : null };
+    }
+    const takesValue = wrapper.valueOptions.includes(word);
+    return { width: takesValue ? 2 : 1, dir: takesValue && chdir.includes(word) ? next : null };
+  }
+  for (let k = 1; k < word.length; k += 1) {
+    const name = `-${word[k]}`;
+    if (!wrapper.valueOptions.includes(name)) continue;
+    const rest = word.slice(k + 1);
+    return {
+      width: rest === "" ? 2 : 1,
+      dir: chdir.includes(name) ? (rest === "" ? next : rest) : null,
+    };
+  }
+  return { width: 1, dir: null };
+}
+
+/**
+ * git commit を実行する作業ディレクトリ。最初の git commit のラッパーの `env -C`・`sudo -D` と git の `-C` を、
+ * git と同じく cwd から順に解決する（相対パスは前の指定に続ける）。
  * その前の `cd <dir>`（同じ呼び出しの中で git commit より前のもの）も順に当てる。語に分けられないときは cwd。
  * 区切り（`&&`・`;`・`||`・サブシェル）は区別しないので、`(cd x) && git commit` の cd も当てる。
  * @param {string} command
