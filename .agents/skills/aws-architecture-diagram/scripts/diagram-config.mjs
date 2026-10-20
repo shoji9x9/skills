@@ -11,7 +11,7 @@
 // | Chrome のサンドボックスを無効にする | --no-sandbox | chrome_no_sandbox | 有効のまま |
 // | PNG への変換を打ち切る時間（ミリ秒） | --timeout-ms | chrome_timeout_ms | 120000 |
 import { join, resolve } from "node:path";
-import { ConfigError, findRoot, loadConfig } from "../../scripts/skill-config/skill-config.mjs";
+import { ConfigError, findRoot, loadConfig } from "./skill-config/skill-config.mjs";
 
 const VALUED = ["--dir", "--icon-dir", "--out-dir", "--timeout-ms"];
 

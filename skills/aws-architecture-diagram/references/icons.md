@@ -5,7 +5,7 @@ AWS 公式アイコンは、再配布を避けるためにスキルに同梱せ�
 
 ## AWS 公式アイコン（取得スクリプトで用意）
 
-スキルに同梱のエンジン `assets/engine/fetch-aws-icons.mjs` が、[AWS Architecture Icons](https://aws.amazon.com/architecture/icons/) の公式パッケージを取得する。
+スキルに同梱のエンジン `scripts/fetch-aws-icons.mjs` が、[AWS Architecture Icons](https://aws.amazon.com/architecture/icons/) の公式パッケージを取得する。
 そして、プロジェクトの `icon-manifest.json`（図のディレクトリ。デフォルトは cwd）の対応に従って、`icons/aws-icons/<id>.svg` を書き出す。
 アイコンのディレクトリを設定の `icon_dir` か `--icon-dir` で変えたら、その下の `aws-icons/` に書き出す。
 図のディレクトリで実行する（`$SKILL` は導入先）。
@@ -13,11 +13,11 @@ AWS 公式アイコンは、再配布を避けるためにスキルに同梱せ�
 ```bash
 cd docs/diagrams                                          # 図ディレクトリ
 # 全件取得（icons/aws-icons へ）
-node "$SKILL/assets/engine/fetch-aws-icons.mjs"
+node "$SKILL/scripts/fetch-aws-icons.mjs"
 
 # 一部だけ / 出力先を直接指定
-node "$SKILL/assets/engine/fetch-aws-icons.mjs" --only lambda,dynamodb,s3
-node "$SKILL/assets/engine/fetch-aws-icons.mjs" --out path/to/icons/aws-icons
+node "$SKILL/scripts/fetch-aws-icons.mjs" --only lambda,dynamodb,s3
+node "$SKILL/scripts/fetch-aws-icons.mjs" --out path/to/icons/aws-icons
 ```
 
 - パッケージの URL は四半期ごとに変わるので固定しない。公式ページから、その時点の `Icon-package_*.zip` を見つけて使う。

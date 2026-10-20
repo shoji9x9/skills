@@ -63,11 +63,11 @@ spec を編集し、図を生成し直し、PNG にラスタライズして目�
 cd docs/diagrams   # 図ディレクトリ（$SKILL は本スキルの導入先）
 
 # 1. SVG を生成（既定=全環境。環境選択は environments.md を参照）
-node "$SKILL/assets/engine/render-diagram.mjs"
+node "$SKILL/scripts/render-diagram.mjs"
 
 # 2. PNG にラスタライズ（出力パスが表示される）
-node "$SKILL/assets/engine/preview-diagram.mjs" prod
-node "$SKILL/assets/engine/preview-diagram.mjs" local
+node "$SKILL/scripts/preview-diagram.mjs" prod
+node "$SKILL/scripts/preview-diagram.mjs" local
 ```
 
 出力された PNG を画像として読み、次の観点で確かめる。1 つでも崩れていたら、座標か `waypoints` を直して生成し直す。

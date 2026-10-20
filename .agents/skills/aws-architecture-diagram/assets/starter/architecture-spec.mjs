@@ -1,5 +1,5 @@
 // 構成図の「単一ソース」となる base 仕様。この配列だけを編集して図を更新する。
-// 描画はスキル同梱のエンジン（assets/engine/diagram-engine.mjs）、環境ごとの派生は
+// 描画は aws-architecture-diagram スキル同梱のエンジン（スキルの scripts/diagram-engine.mjs）、環境ごとの派生は
 // environments.mjs。作図ルールは references/conventions.md を参照。base は各環境で共有する
 // 正規の構成で、環境ごとの差分は environments.mjs の transform で表現する（base を直せば
 // 全環境が追従）。どの環境が base と同じかは対象システム次第（例: prod は base そのまま、

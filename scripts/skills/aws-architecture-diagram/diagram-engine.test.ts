@@ -11,11 +11,11 @@
 import { assert, test, expect } from "vitest";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { renderDiagram } from "../../../skills/aws-architecture-diagram/assets/engine/diagram-engine.mjs";
+import { renderDiagram } from "../../../skills/aws-architecture-diagram/scripts/diagram-engine.mjs";
 import type {
   DiagramSpec as EngineSpec,
   Point,
-} from "../../../skills/aws-architecture-diagram/assets/engine/diagram-engine.mjs";
+} from "../../../skills/aws-architecture-diagram/scripts/diagram-engine.mjs";
 import {
   environments,
   baseSpec,

@@ -62,11 +62,11 @@ base の仕様（`architecture-spec.mjs`）はレジストリから相対パス�
 cd docs/diagrams   # 図ディレクトリ
 
 # 既定: あるべき環境すべてを再生成（更新の要否は差分で判断）
-node "$SKILL/assets/engine/render-diagram.mjs"
+node "$SKILL/scripts/render-diagram.mjs"
 
 # 一部だけ更新（その場限り）
-node "$SKILL/assets/engine/render-diagram.mjs" --env local
-node "$SKILL/assets/engine/render-diagram.mjs" --env prod,local
+node "$SKILL/scripts/render-diagram.mjs" --env local
+node "$SKILL/scripts/render-diagram.mjs" --env prod,local
 ```
 
 ## 出力

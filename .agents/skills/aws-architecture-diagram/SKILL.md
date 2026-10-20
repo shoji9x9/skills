@@ -67,12 +67,14 @@ IaC が大きいときは主要なリソースと依存を優先し、粒度を�
 - `icon-manifest.json`: アイコンの id から AWS のサービス名への対応（サービスを増やすときに編集する）
 - `icons/browser.svg`・`icons/internet.svg`（と `NOTICE.md`）: AWS 以外の汎用アイコン（再配布できる）
 
-スキルから実行するものは、次の `assets/engine/` のファイルである。コピーせず、`gh skill update` で自動で更新される。
+スキルから実行するものは、次の `scripts/` のファイルである。コピーせず、`gh skill update` で自動で更新される。
 
 - `diagram-engine.mjs`: spec から SVG を生成する純関数（描画エンジン）
 - `render-diagram.mjs`: 対象の環境の SVG を生成する（デフォルトはすべての環境）
 - `preview-diagram.mjs`: SVG を PNG にラスタライズする（目視確認用）
 - `fetch-aws-icons.mjs`: AWS 公式アイコンを取得する
+- `diagram-config.mjs`: 設定ファイルから図の置き場所などを決める（上の 3 つの実行用スクリプトが読む）
+- `skill-config/`: 設定ファイルの読み取り（`diagram-config.mjs` が読む）
 
 エンジンは、プロジェクトの図のディレクトリ（デフォルトは実行時の cwd）の `architecture-spec.mjs`・`environments.mjs`・`icon-manifest.json`・`icons/` を読む。
 そのため、図のディレクトリで実行するだけでよい。`$SKILL` はこのスキルの導入先（例: `.claude/skills/aws-architecture-diagram`）を指す。
@@ -97,7 +99,7 @@ IaC が大きいときは主要なリソースと依存を優先し、粒度を�
 
 ```bash
 cd docs/diagrams                                   # 図ディレクトリ（テンプレを置いた場所）
-node "$SKILL/assets/engine/render-diagram.mjs"     # 既定=全環境。--env prod で一部だけ
+node "$SKILL/scripts/render-diagram.mjs"           # 既定=全環境。--env prod で一部だけ
 ```
 
 サンプルは `assets/samples/` にあり、各ディレクトリが独立した出力の例になっている。
@@ -107,7 +109,7 @@ node "$SKILL/assets/engine/render-diagram.mjs"     # 既定=全環境。--env pr
 ## スキル更新の取り込み（update 運用）
 
 1. `gh skill update aws-architecture-diagram` でスキル本体を更新する。
-   エンジン（`assets/engine/`）はスキルの側にあるので、これだけで最新になる。プロジェクトへコピーしていないので、上書きの衝突は起きない。
+   エンジン（`scripts/` のスクリプト）はスキルの側にあるので、これだけで最新になる。プロジェクトへコピーしていないので、上書きの衝突は起きない。
 2. テンプレート（`architecture-spec.mjs`・`environments.mjs`・`icon-manifest.json`・`icons/`）はユーザーのものなので、自動では変わらない。
    スキル側のテンプレート（`assets/starter/`）に役立つ変更があれば、差分を確かめて必要な部分だけを手で取り込む（既存のファイルを上書きしない）。
 
@@ -120,7 +122,7 @@ node "$SKILL/assets/engine/render-diagram.mjs"     # 既定=全環境。--env pr
    - エンジンはコピーせず、スキルから実行する。
    - 同じ種類の仕組みがすでにあればそれに合わせ、無いときだけ同梱物を使う。既存のファイルは上書きしない。
 2. アイコンの取得
-   - 図のディレクトリで `node "$SKILL/assets/engine/fetch-aws-icons.mjs"` を実行し、AWS 公式アイコンを `icons/aws-icons/` に用意する。
+   - 図のディレクトリで `node "$SKILL/scripts/fetch-aws-icons.mjs"` を実行し、AWS 公式アイコンを `icons/aws-icons/` に用意する。
    - 同梱の `browser` と `internet` はそのまま使える。出典と追加の方法は [`references/icons.md`](references/icons.md) にある。
 3. あるべき環境の確定
    - どの環境の図を持つか（例: prod だけ、prod と local など）をユーザーと決め、`environments.mjs` の `environments` に反映する。
@@ -139,9 +141,9 @@ node "$SKILL/assets/engine/render-diagram.mjs"     # 既定=全環境。--env pr
    - 情報源（IaC か説明）と今の spec を突き合わせ、追加・削除・変更されたリソースと依存を `architecture-spec.mjs` に反映する。
      必要なら `environments.mjs` の transform も直す。作図ルールは保つ。
 2. 生成
-   - 図のディレクトリで `node "$SKILL/assets/engine/render-diagram.mjs" [--env a,b]` を実行し、SVG を生成する（省くとすべての環境）。
+   - 図のディレクトリで `node "$SKILL/scripts/render-diagram.mjs" [--env a,b]` を実行し、SVG を生成する（省くとすべての環境）。
 3. 目視確認と反復
-   - `node "$SKILL/assets/engine/preview-diagram.mjs" <env>` で PNG にし、出力された PNG を画像として読む。
+   - `node "$SKILL/scripts/preview-diagram.mjs" <env>` で PNG にし、出力された PNG を画像として読む。
    - conventions.md の確認観点（a〜j）で確かめ、崩れていれば座標と `waypoints` を直して生成し直す。
    - 画像を読むツールは SVG を直接描画できないので、必ず PNG への変換を挟む。
 

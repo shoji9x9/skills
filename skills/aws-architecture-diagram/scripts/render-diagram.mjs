@@ -1,7 +1,7 @@
 // 構成図の SVG を生成する（スキルが持つエンジン。コピーせず、スキルの場所から実行する）。
 // 図のディレクトリを設定（aws-architecture-diagram.jsonc の diagram_dir）に書くか --dir で渡せば、cd しなくてよい。
 //
-//     cd <プロジェクトの図ディレクトリ> && node <skill>/assets/engine/render-diagram.mjs [--env a,b]
+//     cd <プロジェクトの図ディレクトリ> && node <skill>/scripts/render-diagram.mjs [--env a,b]
 //
 // プロジェクトが持つファイル（図のディレクトリに置く。デフォルトは cwd）は次のとおりである。
 //

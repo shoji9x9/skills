@@ -22,7 +22,7 @@ import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const script = join(repoRoot, "skills/aws-architecture-diagram/assets/engine/fetch-aws-icons.mjs");
+const script = join(repoRoot, "skills/aws-architecture-diagram/scripts/fetch-aws-icons.mjs");
 const ICONS_PAGE = "https://aws.amazon.com/architecture/icons/";
 const PACKAGE_URL =
   "https://d1.awsstatic.com/webteam/architecture-icons/q3-2026/Icon-package_07312026.zip";

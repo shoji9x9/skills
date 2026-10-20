@@ -16,7 +16,7 @@ import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const skillDir = join(repoRoot, "skills/aws-architecture-diagram");
-const renderScript = join(skillDir, "assets/engine/render-diagram.mjs");
+const renderScript = join(skillDir, "scripts/render-diagram.mjs");
 const iconDir = join(skillDir, "assets/starter/icons");
 
 const createdDirs: string[] = [];
