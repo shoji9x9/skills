@@ -25,6 +25,8 @@
 //     `layers` の名前だけからは前後を決められない）
 //   - 条件付き（`@media` / `@supports` / `@container`）の候補が勝ちうる。css-rules-capture.mjs は
 //     条件を**評価せず記録するだけ**なので、当たっているかどうかはこの入力から決まらない
+//   - 最も強い詳細度で競う別々の規則のどれかに、出現順（`order`）が無い。どちらが後に書かれたかを
+//     決められない（勝者を選ぶときも、条件付き等の候補が追い越すかを判定するときも同じ）
 //   - 恒常状態（`:enabled` / `:valid` / `:read-only` 等）を条件とする候補が勝ちうる。これらは
 //     要素の性質であって採取ディレクトリ名からは決まらない（下記 TRANSIENT_STATES）
 //   - 競合が**無名レイヤ**にある。無名 `@layer` の名前は空文字で記録されるため、別々のレイヤが
@@ -52,7 +54,7 @@ import { isObjectLike, isPlainObject } from "./lib/guards.mjs";
  * ツールのバージョン（このスクリプトで定義する）。優先順位の規則・出力の形・判定できないとする条件を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "2";
+export const VERSION = "3";
 
 /** 入力として受け付ける css-rules-capture.mjs の `tool_version`（採取スキーマが違う入力は読まない）。 */
 export const SUPPORTED_CSS_RULES_VERSIONS = ["4"];
@@ -118,6 +120,7 @@ export class UndecidableSelector extends Error {}
  *   specificity: [number, number, number] | null,
  *   specificity_error: string | null,
  *   order: number | null,
+ *   rule_index: number | null,
  *   declaration_index: number,
  *   layers: unknown[],
  *   conditions: unknown[],
@@ -469,19 +472,56 @@ function strongest(candidates) {
       continue;
     }
     if (bySpec < 0) continue;
-    // この `>` の比較だけは、order が null か無い宣言を order 0 として比べる。
-    // 次の同点の判定は null と 0 を別の order として扱う。null と 0 の宣言が並ぶと、後勝ちの判定に進まず、先に見た宣言が残る。
-    if ((c.order ?? 0) > (best.order ?? 0)) {
+    // 規則の候補で、最も強い詳細度に order を読めない（null の）規則が並ぶ入力は、呼び出し側が
+    // unorderedTie で判定できないとして先に返すので、別の規則どうしの同点では order は数値である。
+    // インラインの候補は規則ではないので order を持たず（null）、どれも同じ null として次の判定に進む。
+    if (c.order !== null && best.order !== null && c.order > best.order) {
       best = c;
       continue;
     }
-    // 同じ規則（同じ order）なら、後に書いた宣言が勝つ。
-    // order が両方 null の宣言は、別の規則どうしでもここに進み、それぞれの規則の中の位置（declaration_index）で比べる。
+    // 同じ規則（同じ order）か、インラインどうしなら、後に書いた宣言が勝つ。
     if (c.order === best.order && (c.declaration_index ?? 0) >= (best.declaration_index ?? 0)) {
       best = c;
     }
   }
   return best;
+}
+
+/**
+ * 規則の候補のうち、最も強い詳細度に別々の規則の宣言が並び、その中に order を読めない（null の）規則がある場合の、
+ * order の無い宣言の一覧。無ければ null。同じ規則の宣言だけが並ぶなら declaration_index で決まるので null を返す。
+ * インラインの候補（規則でなく order を持たない）は数えない。
+ * @param {CascadeCandidate[]} candidates
+ * @returns {CascadeCandidate[] | null}
+ */
+function unorderedTie(candidates) {
+  /** @type {{ c: CascadeCandidate, spec: [number, number, number] }[]} */
+  const rules = [];
+  for (const c of candidates) {
+    if (c.source === "rule" && c.specificity !== null) rules.push({ c, spec: c.specificity });
+  }
+  if (rules.length < 2) return null;
+  const top = rules.reduce((a, r) => (compareSpecificity(r.spec, a.spec) > 0 ? r : a)).spec;
+  const tied = rules.filter((r) => compareSpecificity(r.spec, top) === 0).map((r) => r.c);
+  if (new Set(tied.map((c) => c.rule_index)).size < 2) return null;
+  const unknown = tied.filter((c) => c.order === null);
+  return unknown.length > 0 ? unknown : null;
+}
+
+/**
+ * 同じ詳細度で競う規則の order が無いときの理由。order の無い規則のセレクタを挙げる。
+ * @param {string} tierName
+ * @param {CascadeCandidate[]} candidates - 競う宣言（order の無いものを含む）
+ * @returns {string}
+ */
+function unknownOrderReason(tierName, candidates) {
+  const missing = [
+    ...new Set(candidates.filter((c) => c.order === null).map((c) => JSON.stringify(c.selector))),
+  ];
+  return (
+    `competing ${tierName} declarations share the highest specificity, but the rule order of ` +
+    `${missing.join(", ")} is missing from css-rules.json; which one was written later cannot be decided`
+  );
 }
 
 /**
@@ -593,7 +633,8 @@ export function resolveCascade(document, options) {
     }
     rules.push(rule);
   }
-  for (const rule of rules) {
+  for (let ruleIndex = 0; ruleIndex < rules.length; ruleIndex += 1) {
+    const rule = rules[ruleIndex];
     // 状態の名前は css-rules-capture.mjs が文字列で記録する（形はここでは検査しない）。
     // 文字列でない要素は成否を決められないので、名前の判定には入れず「不明」として持つ。
     const declaredStates = isArray(rule.states) ? rule.states : [];
@@ -646,7 +687,10 @@ export function resolveCascade(document, options) {
         important: Boolean(decl.important),
         specificity: spec,
         specificity_error: specError,
-        order: typeof rule.order === "number" ? rule.order : null,
+        // 有限の数でない order（NaN など）は、比較がすべて偽になり順を決められないので、読めないもの（null）にする。
+        order: typeof rule.order === "number" && Number.isFinite(rule.order) ? rule.order : null,
+        // どの規則の宣言か（matched の位置）。order が無くても、同じ規則の宣言どうしは declaration_index で比べられる。
+        rule_index: ruleIndex,
         // 同じ規則の中では後に書いた宣言が勝つ。`order` は規則単位なので、規則内の順序を別に持たないと
         // `.x { color: red; all: unset }` のように同一規則で競合する形が同点になる。
         declaration_index: declIndex,
@@ -684,6 +728,7 @@ export function resolveCascade(document, options) {
       specificity: null,
       specificity_error: null,
       order: null,
+      rule_index: null,
       // `style` 属性の中も後に書いた宣言が勝つ。規則側と同じく並び順を持たせる
       // （持たせないと `style="color: red; all: unset"` が同点になる）。
       declaration_index: i,
@@ -899,6 +944,14 @@ function decide(entry, wildcard = []) {
       );
       return out;
     }
+    // 規則の order は、書かれた順を表す。order を読めない規則（null）が、最も強い詳細度に別の宣言と並ぶと、
+    // どちらが後に書かれたかを決められない。null を 0 として比べると規則をまたいで宣言の位置を比べることになり、
+    // 勝者が正しく決まる保証が無いので、判定できないとして扱う（追い越しの判定の couldOutrank も同じ規則にする）。
+    const unordered = unorderedTie(tier.candidates);
+    if (unordered !== null) {
+      reasons.push(unknownOrderReason(tier.name, unordered));
+      return out;
+    }
     winner = strongest(tier.candidates);
     winningTier = tier.name;
     break;
@@ -913,8 +966,12 @@ function decide(entry, wildcard = []) {
 
   // 条件付きの候補が、決まった勝者より強い段にいるなら結論を出せない。
   const tierRank = tiers.findIndex((t) => t.name === winningTier);
-  /** @param {CascadeCandidate} c */
-  const couldOutrank = (c) => {
+  /**
+   * 候補が勝者を追い越しうるか。同じ詳細度で別々の規則のどちらかに order が無く、決められないときは "unknown-order"。
+   * @param {CascadeCandidate} c
+   * @returns {boolean | "unknown-order"}
+   */
+  const outrank = (c) => {
     // 段（tiers）の並びに合わせて候補の段を決める。候補が規則である前提で書くと、
     // インラインの候補（インラインの `all` 等）が常に下の段と判定されて追い越しを見落とす。
     const rank = c.source === "inline" ? (c.important ? 0 : 2) : c.important ? 1 : 3;
@@ -932,11 +989,25 @@ function decide(entry, wildcard = []) {
     if (won.specificity === null) throw new TypeError("winner has no specificity");
     const bySpec = compareSpecificity(c.specificity, won.specificity);
     if (bySpec !== 0) return bySpec > 0;
-    const byOrder = (c.order ?? 0) - (won.order ?? 0);
-    if (byOrder !== 0) return byOrder > 0;
+    if (c.rule_index !== won.rule_index) {
+      // 同じ詳細度で、別々の規則のどちらかの order を読めなければ、どちらが後に書かれたかを決められない。
+      // 勝者を選ぶときと同じく、判定できないとして呼び出し側に返す（理由も order が無いことを書く）。
+      if (c.order === null || won.order === null) return "unknown-order";
+      const byOrder = c.order - won.order;
+      if (byOrder !== 0) return byOrder > 0;
+    }
     // 同じ規則の中では後に書いた宣言が勝つ（`.x { color: red; all: unset }` の形）。
     return (c.declaration_index ?? 0) > (won.declaration_index ?? 0);
   };
+  const unknownOrderRivals = [...entry.conditional, ...wildcard, ...entry.state_unknown].filter(
+    (c) => outrank(c) === "unknown-order",
+  );
+  if (unknownOrderRivals.length > 0) {
+    reasons.push(unknownOrderReason(winningTier, [won, ...unknownOrderRivals]));
+    return out;
+  }
+  /** @param {CascadeCandidate} c */
+  const couldOutrank = (c) => outrank(c) === true;
   if (entry.conditional.some(couldOutrank)) {
     reasons.push(
       "a conditional (@media / @supports / @container) declaration would outrank the winner if its " +
