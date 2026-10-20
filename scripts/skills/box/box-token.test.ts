@@ -36,6 +36,7 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   chmodSync,
+  copyFileSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -354,6 +355,16 @@ describe("box-token.sh", () => {
     expect(r.stdout).toBe("dev-token");
     expect(r.log).toBe("");
     expect(existsSync(join(s.home, ".config")), "保存先のディレクトリを作った").toBe(false);
+  });
+
+  test("BOX_ACCESS_TOKEN があれば、共通の lib/home.sh が無い置き場所に box-token.sh だけを置いても、それを出す", () => {
+    const s = setup("box-token-");
+    const alone = join(s.home, "alone", "box-token.sh");
+    mkdirSync(dirname(alone), { recursive: true });
+    copyFileSync(TOKEN_SCRIPT, alone);
+    const r = run(alone, s, { env: { BOX_ACCESS_TOKEN: "dev-token" } });
+    expect(r.status).toBe(0);
+    expect(r.stdout).toBe("dev-token");
   });
 
   test.each([

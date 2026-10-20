@@ -16,20 +16,31 @@ if [ "${BOX_ROOT_FOLDER_ID+set}" = "set" ]; then
 fi
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# ホームを決める処理と保存先の判定は、3 つのスクリプトで共通の lib/home.sh に置く（スキルの中に置いたまま source する）
+# 外部のコマンド（dirname など）を使わずにスクリプトの置き場所を決める。PATH が限られた環境でも source できるようにする
+box_script_dir="${BASH_SOURCE[0]%/*}"
+[ "${box_script_dir}" != "${BASH_SOURCE[0]}" ] || box_script_dir=.
+# shellcheck source=./lib/home.sh disable=SC1091
+. "${box_script_dir}/lib/home.sh"
 root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 xdg="${XDG_CONFIG_HOME:-}"
 case "${xdg}" in
 /*) ;;
 *)
-	# HOME が無いか空なら、読み取りと同じく、ユーザーのデータベースのホームを使う
-	home_dir="${HOME:-}"
-	[ -n "${home_dir}" ] || home_dir=$(
-		unset HOME
-		printf '%s' ~
-	)
-	# ユーザーのデータベースにエントリが無いと ~ が展開されずに残るので、空として扱う
-	[ "${home_dir}" != "~" ] || home_dir=""
-	xdg="${home_dir:+${home_dir}/}.config"
+	# HOME が無いか空なら、読み取りと同じく、OS に登録されたホームを使う（box-token.sh と共通の lib/home.sh）。
+	# OS に登録が無ければホームは空になり、xdg は相対パスになるので、下で人ごとの層を読まない
+	box_home_dir="" box_home_status=""
+	box_resolve_home
+	# id が PATH に無いと登録を確かめられない。読み取り（skill-config.mjs）は OS の登録からホームを決めるので、
+	# 人ごとの層を数えないと、書いた設定を警告なしに無視しうる。~ の展開に戻し、登録が無いときの / だけを空にする
+	if [ "${box_home_status}" = "no_id" ]; then
+		box_home_dir=$(
+			unset HOME
+			printf '%s' ~
+		)
+		[ "${box_home_dir}" != "/" ] || box_home_dir=""
+	fi
+	xdg="${box_home_dir:+${box_home_dir}/}.config"
 	;;
 esac
 

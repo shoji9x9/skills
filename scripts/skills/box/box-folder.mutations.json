@@ -1,0 +1,43 @@
+{
+  "$comment": [
+    "box-folder.test.ts のうち、ホームを決める処理（lib/home.sh の box_resolve_home）と、box-folder.sh がそれを使うことの検出能力を示す変異の一覧（Issue #724）。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。"
+  ],
+  "test_file": "scripts/skills/box/box-folder.test.ts",
+  "mutations": [
+    {
+      "id": "FOLDER-TILDE-ONLY",
+      "why": "box-folder.sh が OS の登録を確かめず、~ の展開だけでホームを決める（#724 の前の振る舞い）",
+      "file": "skills/box/scripts/box-folder.sh",
+      "find": "\tbox_resolve_home\n",
+      "replace": "\tbox_home_dir=$(\n\t\tunset HOME\n\t\tprintf '%s' ~\n\t)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "box-folder.sh HOME が空で、OS に登録が無いなら、id で登録を確かめて 0 を出す"
+      ]
+    },
+    {
+      "id": "LIB-NO-ENTRY-CHECK",
+      "why": "OS に登録が無いこと（id -un の失敗）を見分けず、~ の展開した値をホームにする",
+      "file": "skills/box/scripts/lib/home.sh",
+      "find": "elif id -un >/dev/null 2>&1; then",
+      "replace": "elif true; then",
+      "occurrences": 1,
+      "expect_failing": [
+        "box-folder.sh HOME が空で、OS に登録が無いなら、id で登録を確かめて 0 を出す",
+        "lib/home.sh の box_resolve_home HOME が空で OS に登録が無ければ（id -un が失敗）、ホームを空にして理由を書く"
+      ]
+    },
+    {
+      "id": "LIB-NO-ID-CHECK",
+      "why": "id が PATH に無いことを、OS に登録が無いことと分けない",
+      "file": "skills/box/scripts/lib/home.sh",
+      "find": "if ! command -v id >/dev/null 2>&1; then",
+      "replace": "if false; then",
+      "occurrences": 1,
+      "expect_failing": [
+        "lib/home.sh の box_resolve_home HOME が空で id が PATH に無ければ、ホームを空にして確かめられないことを書く"
+      ]
+    }
+  ]
+}
