@@ -9,10 +9,13 @@
       "id": "diffs-elements-not-checked",
       "why": "Diff の配列の要素が object かを確かめない（null の要素で分類が例外を投げる）",
       "file": "skills/parity-diff/scripts/diff-normalize.mjs",
-      "find": "if (!isArray(diffs) || !diffs.every(isObjectLike)) {",
+      "find": "if (!isArray(diffs) || !diffs.every(isPlainObject)) {",
       "replace": "if (!isArray(diffs)) {",
       "occurrences": 1,
-      "expect_failing": ["CLI: object でない要素を含む Diff の配列は入力エラー（exit 2）にする"]
+      "expect_failing": [
+        "CLI: object でない要素を含む Diff の配列は入力エラー（exit 2）にする",
+        "CLI: 配列の要素を含む Diff の配列は入力エラー（exit 2）にする"
+      ]
     },
     {
       "id": "exceptions-not-filtered",
@@ -49,6 +52,52 @@
         "ノイズ基準値の object でない行（文字列）は照合に使わず、後ろの行で照合を続ける",
         "ノイズ基準値の object でない行（配列）は照合に使わず、後ろの行で照合を続ける"
       ]
+    },
+    {
+      "id": "noise-only-null-rejected",
+      "why": "--noise の metadata.json で null だけを入力エラーにし、配列・数値・文字列・真偽値を基準値 0 件として続ける（#719 の前の振る舞い）",
+      "file": "skills/parity-diff/scripts/diff-normalize.mjs",
+      "find": "if (!isPlainObject(meta)) {",
+      "replace": "if (meta === null) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI: --noise の metadata.json がオブジェクトでない（配列）なら入力エラー（exit 2）にする",
+        "CLI: --noise の metadata.json がオブジェクトでない（数値）なら入力エラー（exit 2）にする",
+        "CLI: --noise の metadata.json がオブジェクトでない（文字列）なら入力エラー（exit 2）にする",
+        "CLI: --noise の metadata.json がオブジェクトでない（真偽値）なら入力エラー（exit 2）にする"
+      ]
+    },
+    {
+      "id": "noise-baseline-type-unchecked",
+      "why": "noise_baseline が配列でないとき、基準値 0 件として続ける（#719 の前の振る舞い）",
+      "file": "skills/parity-diff/scripts/diff-normalize.mjs",
+      "find": "if (declared !== undefined && !isArray(declared)) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI: --noise の noise_baseline が配列でない（オブジェクト）なら入力エラー（exit 2）にする",
+        "CLI: --noise の noise_baseline が配列でない（文字列）なら入力エラー（exit 2）にする"
+      ]
+    },
+    {
+      "id": "registries-array-accepted",
+      "why": "--registries の配列をオブジェクトとして通す（#719 の前の振る舞い）",
+      "file": "skills/parity-diff/scripts/diff-normalize.mjs",
+      "find": "if (!isPlainObject(registries)) {",
+      "replace": "if (!isObjectLike(registries)) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI: --registries がオブジェクトでない（配列）なら入力エラー（exit 2）にする"
+      ]
+    },
+    {
+      "id": "diffs-array-element-accepted",
+      "why": "Diff の配列の要素が配列でも、object として通す（#719 の前の振る舞い）",
+      "file": "skills/parity-diff/scripts/diff-normalize.mjs",
+      "find": "if (!isArray(diffs) || !diffs.every(isPlainObject)) {",
+      "replace": "if (!isArray(diffs) || !diffs.every(isObjectLike)) {",
+      "occurrences": 1,
+      "expect_failing": ["CLI: 配列の要素を含む Diff の配列は入力エラー（exit 2）にする"]
     }
   ]
 }

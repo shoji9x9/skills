@@ -429,8 +429,9 @@ export function diffAxes(manifest) {
       if (!isPlainObject(computed) || Object.keys(computed).length === 0) {
         missing.push("computed");
       } else {
-        if (badValues(computed) > 0) {
-          missing.push(`computed の値（非空の文字列でないものが ${badValues(computed)} 件）`);
+        const bad = badValues(computed);
+        if (bad > 0) {
+          missing.push(`computed の値（非空の文字列でないものが ${bad} 件）`);
         }
         missing.push(...keyProblems(computed, "computed"));
       }

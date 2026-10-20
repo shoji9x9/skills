@@ -35,7 +35,7 @@ import { intentionalEntryText } from "./lib/intentional.mjs";
  *
  * @type {string}
  */
-export const VERSION = "6";
+export const VERSION = "7";
 
 /**
  * trait-compare の Diff のうち、分類が読む欄。ほかの欄は読まずに出力へ持ち越す。
@@ -705,6 +705,8 @@ export function main(argv) {
   }
   let diffs;
   let registries;
+  /** @param {unknown} v JSON の値 */
+  const jsonKind = (v) => (v === null ? "null" : isArray(v) ? "array" : typeof v);
   /** @type {unknown[]} */
   let noiseBaseline = [];
   try {
@@ -712,26 +714,35 @@ export function main(argv) {
     registries = JSON.parse(readFileSync(opts.registries, "utf8"));
     if (opts.noise) {
       const meta = JSON.parse(readFileSync(opts.noise, "utf8"));
-      // JSON の値のうち、プロパティを読むと TypeError になるのは null だけなので、null だけを下の catch で入力エラーにする。
-      // 数値・文字列・真偽値・配列はプロパティを読めて undefined になるので、noise_baseline が無いものとして読む。
-      if (meta === null) {
-        throw new TypeError("Cannot read properties of null (reading 'noise_baseline')");
+      // metadata.json はオブジェクトである。それ以外（null・配列・数値・文字列・真偽値）を基準値 0 件として
+      // 読むと、渡したファイルの誤りに気づけないので、下の catch で入力エラーにする。
+      if (!isPlainObject(meta)) {
+        throw new TypeError(`--noise must be a JSON object (got ${jsonKind(meta)})`);
       }
-      const declared = isObjectLike(meta) ? meta.noise_baseline : undefined;
-      noiseBaseline = isArray(declared) ? declared : [];
+      // noise_baseline が無い metadata.json は、基準値をまだ採っていない成果物なので 0 件として読む。
+      // 在るのに配列でなければ、基準値を読めないことに気づけるよう入力エラーにする。
+      const declared = meta.noise_baseline;
+      if (declared !== undefined && !isArray(declared)) {
+        throw new TypeError(
+          `--noise noise_baseline must be a JSON array (got ${jsonKind(declared)})`,
+        );
+      }
+      noiseBaseline = declared ?? [];
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     process.stderr.write(`error: cannot read inputs: ${message}\n`);
     return 2;
   }
-  // 要素が object でない Diff は分類する欄を持たないので、配列でない入力と同じ入力エラーにする。
-  if (!isArray(diffs) || !diffs.every(isObjectLike)) {
+  // 要素が object でない（配列を含む）Diff は分類する欄を持たないので、配列でない入力と同じ入力エラーにする。
+  if (!isArray(diffs) || !diffs.every(isPlainObject)) {
     process.stderr.write("error: <trait-diffs.json> must be a JSON array of trait diffs\n");
     return 2;
   }
-  if (!isObjectLike(registries)) {
-    process.stderr.write("error: --registries must be a JSON object\n");
+  if (!isPlainObject(registries)) {
+    process.stderr.write(
+      `error: --registries must be a JSON object (got ${jsonKind(registries)})\n`,
+    );
     return 2;
   }
   const ctx = { slug: opts.slug, page: opts.page, state: opts.state, viewport: opts.viewport };

@@ -1,0 +1,20 @@
+{
+  "$comment": [
+    "evidence-gap-check.test.ts のうち、未確認の口の宣言（metadata.json）が object かを確かめる判定（Issue #719）の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。"
+  ],
+  "test_file": "scripts/skills/replace-strategy/evidence-gap-check.test.ts",
+  "mutations": [
+    {
+      "id": "array-accepted-as-legacy",
+      "why": "配列の metadata.json を object として通し、unmeasured の無い旧成果物（宣言ゼロ）として数える（#719 の前の振る舞い）",
+      "file": "skills/replace-strategy/scripts/evidence-gap-check.mjs",
+      "find": "if (!isPlainObject(parsed)) {",
+      "replace": "if (typeof parsed !== \"object\" || parsed === null) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "object でない成果物（配列）は不備（exit 2）で、値の型を表示する（旧成果物として数えない）"
+      ]
+    }
+  ]
+}

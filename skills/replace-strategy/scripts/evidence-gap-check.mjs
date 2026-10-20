@@ -32,12 +32,24 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
+import { isPlainObject } from "./lib/guards.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import { parseJsonOrThrow } from "./lib/json.mjs";
 import { collapse, parseTables, unclosedFenceMessage } from "./lib/markdown.mjs";
 
+/**
+ * JSON の値の型を、利用者に表示する名前で返す（object や配列でない値を報告するときに使う）。
+ * @param {unknown} value
+ * @returns {string}
+ */
+function valueKind(value) {
+  if (value === null) return "null";
+  if (isArray(value)) return "配列";
+  return typeof value;
+}
+
 /** ツールのバージョン（このファイルで定義する）。判定のロジックや出力の形を変えたら上げる。 */
-export const VERSION = "4";
+export const VERSION = "5";
 
 /** 使い方の誤り・入力の不備（exit 2）。 */
 export class UsageError extends Error {}
@@ -322,8 +334,10 @@ export function readDeclaredEndpoints(text, path) {
     text,
     (message) => new UsageError(`${path} を JSON として読めない: ${message}`),
   );
-  if (typeof parsed !== "object" || parsed === null)
-    throw new UsageError(`${path} が object でない`);
+  // 配列も typeof が "object" なので、別に拒否する。通すと unmeasured が無いとして旧成果物に数えてしまう。
+  if (!isPlainObject(parsed)) {
+    throw new UsageError(`${path} が object でない（${valueKind(parsed)}）`);
+  }
   const unmeasured = "unmeasured" in parsed ? parsed.unmeasured : undefined;
   if (unmeasured === undefined) {
     // 宣言の置き場所そのものが無い成果物なので、未確認の口は 1 つも宣言されていない。
@@ -337,8 +351,8 @@ export function readDeclaredEndpoints(text, path) {
       emptyEndpoints: 0,
     };
   }
-  if (typeof unmeasured !== "object" || unmeasured === null || isArray(unmeasured)) {
-    throw new UsageError(`${path} の unmeasured が object でない`);
+  if (!isPlainObject(unmeasured)) {
+    throw new UsageError(`${path} の unmeasured が object でない（${valueKind(unmeasured)}）`);
   }
   // declared の扱いは parity-suite の artifact-health-check.mjs と揃える。向こうは
   // declared: false で節ごと判定せず entries の妥当性も見ない。ここだけが entries を
@@ -366,7 +380,9 @@ export function readDeclaredEndpoints(text, path) {
       invalidEntries: 0,
       emptyEndpoints: 0,
     };
-  if (!isArray(entries)) throw new UsageError(`${path} の unmeasured.entries が配列でない`);
+  if (!isArray(entries)) {
+    throw new UsageError(`${path} の unmeasured.entries が配列でない（${valueKind(entries)}）`);
+  }
   /** @type {Set<string>} */
   const declared = new Set();
   // 型が違う endpoint は宣言に数えないが、警告なしに捨てない。`artifact-health-check.mjs` は

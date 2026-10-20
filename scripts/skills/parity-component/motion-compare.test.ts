@@ -227,6 +227,39 @@ function run({
   });
 }
 
+test.each([
+  ["文字列", "x", "string"],
+  ["数値", 42, "number"],
+  ["配列", [], "配列"],
+])(
+  "motions.json がオブジェクトでない（%s）なら、値の型を書いて instance の不一致として報告する",
+  (_label, value, kind) => {
+    const result = run({ motions: { orders: baselineOf("orders"), stock: value } });
+    expect(result.findings).toContainEqual(
+      expect.objectContaining({
+        code: "motion-baseline-instance-mismatch",
+        instance: "stock",
+        detail: `motions.json がオブジェクトでない（${kind}）`,
+      }),
+    );
+  },
+);
+
+test.each([
+  ["文字列", "x", "string"],
+  ["配列", [], "配列"],
+])(
+  "突き合わせ表がオブジェクトでない（%s）なら、値の型を書いて target の不一致として報告する",
+  (_label, value, kind) => {
+    const findings = run({ comparison: value }).findings;
+    for (const code of ["comparison-target-mismatch", "comparison-component-mismatch"]) {
+      expect(findings).toContainEqual(
+        expect.objectContaining({ code, detail: `突き合わせ表がオブジェクトでない（${kind}）` }),
+      );
+    }
+  },
+);
+
 /** finding の differing（食い違った測り方の一覧）から measure を取り出す。無ければテストを失敗させる。 */
 function measuresOf(finding: ReturnType<typeof compareMotions>["findings"][number] | undefined) {
   assert.exists(finding, "finding が無い");
