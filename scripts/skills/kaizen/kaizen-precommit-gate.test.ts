@@ -368,6 +368,21 @@ describe.concurrent("Claude Code の api-request-blob レコード", () => {
       /^user correction: transcript line 3$/m,
     ],
     [
+      // 作業中に送った発話は user レコードにならず、queued_command と blob にだけ残る。
+      // blob を読み飛ばしても、queued_command の側で候補になることを確かめる。
+      "コピーは作業中に送った発話の候補を隠さない",
+      [
+        assistantDone,
+        blob(
+          '"hash":"5c2d","message":{"role":"user","content":[{"type":"text","text":"<system-reminder>違う、やり直してください</system-reminder>"}]}',
+        ),
+        '{"type":"attachment","attachment":{"type":"queued_command","commandMode":"prompt","origin":{"kind":"human"},"prompt":"違う、やり直してください"}}',
+        assistantDone,
+      ],
+      0,
+      /^user correction: transcript line 3$/m,
+    ],
+    [
       "hash が無いコピーは判定不能",
       [
         userTask,
@@ -632,7 +647,26 @@ describe.concurrent("jq の実行時のエラー", () => {
     );
 
     expect(scan.status).toBe(2);
-    expect(scan.stderr).toMatch(/unsupported or malformed record/);
+    expect(scan.stderr).toMatch(/unsupported or malformed record \(first at transcript line 2\)$/m);
+    expect(scan.stderr).toMatch(/^kaizen-candidate-scan: jq error: \S/m);
+  });
+
+  // 型の判定で判定不能にしたレコードは jq のエラーではないので、行番号だけを出す。
+  test("型の判定で判定不能にしたレコードは、jq のエラーの行を出さない", async () => {
+    const cwd = makeProject();
+    const transcript = join(cwd, "t.jsonl");
+    const record =
+      '{"type":"attachment","attachment":{"type":"queued_command","commandMode":"prompt","isMeta":"true","prompt":"違う、やり直してください"}}';
+    writeFileSync(transcript, `${assistantWorking}\n${record}\n${assistantWorking}\n`);
+    const scan = await runScript(
+      "kaizen-candidate-scan.sh",
+      [transcript, join(cwd, "no-checkpoint")],
+      { cwd },
+    );
+
+    expect(scan.status).toBe(2);
+    expect(scan.stderr).toMatch(/unsupported or malformed record \(first at transcript line 2\)$/m);
+    expect(scan.stderr).not.toMatch(/jq error/);
   });
 });
 
