@@ -469,12 +469,14 @@ function strongest(candidates) {
       continue;
     }
     if (bySpec < 0) continue;
-    // order が null か無い宣言は、order を 0 として比べる。
+    // この `>` の比較だけは、order が null か無い宣言を order 0 として比べる。
+    // 次の同点の判定は null と 0 を別の order として扱う。null と 0 の宣言が並ぶと、後勝ちの判定に進まず、先に見た宣言が残る。
     if ((c.order ?? 0) > (best.order ?? 0)) {
       best = c;
       continue;
     }
     // 同じ規則（同じ order）なら、後に書いた宣言が勝つ。
+    // order が両方 null の宣言は、別の規則どうしでもここに進み、それぞれの規則の中の位置（declaration_index）で比べる。
     if (c.order === best.order && (c.declaration_index ?? 0) >= (best.declaration_index ?? 0)) {
       best = c;
     }

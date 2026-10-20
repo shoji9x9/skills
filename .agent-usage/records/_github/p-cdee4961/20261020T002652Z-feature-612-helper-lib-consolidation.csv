@@ -29,3 +29,4 @@ ci:39393371723:1,ci,2026-10-20T08:29:45.272Z,p-cdee4961,github-actions,,,,2026-1
 ci:39392874223:1,ci,2026-10-20T08:29:45.272Z,p-cdee4961,github-actions,,,,2026-10-20T08:22:02.000Z,2026-10-20T08:22:10.000Z,Asia/Tokyo,feature/697-defer-decisions-by-impact,697,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 ci:39392874299:1,ci,2026-10-20T08:29:45.272Z,p-cdee4961,github-actions,,,,2026-10-20T08:22:02.000Z,2026-10-20T08:25:30.000Z,Asia/Tokyo,feature/697-defer-decisions-by-impact,697,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-10-19T08:19:50.086Z:2026-10-20T08:29:45.272Z,coverage,2026-10-20T08:29:45.272Z,p-cdee4961,,,,,2026-10-19T08:19:50.086Z,2026-10-20T08:29:45.272Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-19T08:29:45.272Z:2026-10-20T08:33:40.515Z,coverage,2026-10-20T08:33:40.515Z,p-cdee4961,,,,,2026-10-19T08:29:45.272Z,2026-10-20T08:33:40.515Z,Asia/Tokyo,,,,,,,,,,,,ok,
