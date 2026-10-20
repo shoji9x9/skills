@@ -32,6 +32,7 @@ transcript は `-home-shoji9x9-projects-skills--claude-worktrees-697-defer-decis
 移った後のパスを `find ~/.claude/projects -name '<session id>*'` で探し、そのパスで `kaizen-extract-done.sh` を実行して解消した。
 続けて PR #718 の worktree へ移った後も、同じ形で起きる。
 PR #722 の worktree へ移った後の最初の commit でも、処理位置が #718 の worktree と一緒に消えていたので、走査は transcript の先頭から 37 件の候補を挙げて止めた。
+PR #720 の worktree でも同じく、最初の `git commit` で先頭から 42 件を挙げて止めた（`git merge` の merge commit は、`git commit` の語を含まないのでチェックを通った）。
 
 ## 根本原因
 
