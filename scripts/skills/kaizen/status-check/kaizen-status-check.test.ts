@@ -3,8 +3,8 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
-import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
+import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
 
 // kaizen-status-check.sh は awk で frontmatter の applied-to を読む。値が
 // 折り返された flow 配列（.kaizen/*.md にフォーマッタを掛けると applied-to が
@@ -14,7 +14,7 @@ import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 // エラーにならずに誤った結果を返しうるので、受理側と拒否側の両方を決定論的に固定する。
 // 検査対象は配布する原本だけである。.agents/ 配下のインストール済みコピーは
 // skill-reinstall ルールで同期される。
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 const script = join(repoRoot, "skills/kaizen/scripts/kaizen-status-check.sh");
 
 function note(status: string, appliedTo: string) {
@@ -593,5 +593,133 @@ test("forgotten なのに applied-to があれば止める", () => {
 test("未知の status は依然として止める（受理集合を広げすぎていない）", () => {
   const { status: exitCode, stderr } = runCheck(note("forgoten", " []"));
   expect(stderr).toContain("unknown status: forgoten");
+  expect(exitCode).toBe(2);
+});
+
+// --- confidence（Issue #701） ---
+//
+// confidence は後から足した任意の欄で、足す前に書いたノートは書き換えない。欠けていても通し、
+// 在るときだけ high / medium / low のどれであるかを確かめる。値の取り違え（綴りの誤り・空・大文字）を
+// 通すと、確信度で提案の広さを決める取り決めが読めない値で動くので、受理側と拒否側の両方を固定する。
+function noteWithConfidence(confidenceLine: string) {
+  return `---
+date: 2026-10-19
+type: doc
+priority: medium
+${confidenceLine}
+status: pending
+applied-to: []
+session: claude-code
+---
+
+学びの本文。
+`;
+}
+
+test.each([
+  ["high", "confidence: high"],
+  ["medium", "confidence: medium"],
+  ["low", "confidence: low"],
+  ["二重引用符で囲んだ値", 'confidence: "high"'],
+  ["単引用符で囲んだ値", "confidence: 'low'"],
+  ["行末のコメント", "confidence: medium # 1 回の観測"],
+  ["キーとコロンの間の空白", "confidence : high"],
+  ["引用符で囲んだキー", '"confidence": high'],
+  ["単引用符で囲んだキー", "'confidence': low"],
+  ["欄が無い（欄を足す前のノート）", "kedb: none"],
+])("confidence を受け付ける: %s", (_name, line) => {
+  const { status: exitCode, stderr } = runCheck(noteWithConfidence(line));
+  expect(stderr).toBe("");
+  expect(exitCode).toBe(0);
+});
+
+test.each([
+  ["未知の値", "confidence: certain", "unknown confidence: certain"],
+  ["大文字", "confidence: High", "unknown confidence: High"],
+  ["空の値", "confidence:", "unknown confidence: <empty>"],
+  ["空白だけの値", "confidence:   ", "unknown confidence: <empty>"],
+  ["片側だけの引用符", 'confidence: "high', 'unknown confidence: "high'],
+  ["区切りの | を含む値", "confidence: low|high", "unknown confidence: low｜high"],
+  ["コメントだけの値", "confidence: # 後で決める", "unknown confidence: <empty>"],
+  ["キーとコロンの間に空白がある不正な値", "confidence : bogus", "unknown confidence: bogus"],
+  ["コロンの後に空白が無い値", "confidence:high", "confidence needs a space after the colon"],
+  ["引用符で囲んだキーの不正な値", '"confidence": bogus', "unknown confidence: bogus"],
+  ["単引用符で囲んだキーの不正な値", "'confidence': bogus", "unknown confidence: bogus"],
+  [
+    "重なったキー（前の値が不正）",
+    "confidence: bogus\nconfidence: high",
+    "confidence is declared 2 times",
+  ],
+])("confidence の値を拒否する: %s", (_name, line, message) => {
+  const { status: exitCode, stderr } = runCheck(noteWithConfidence(line));
+  expect(stderr).toContain(message);
+  expect(exitCode).toBe(2);
+});
+
+// status と type の値の `|` は、read のフィールドをずらすので全角の `｜` に置き換える（confidence と同じ）。
+test("status の値の | で後ろのフィールドがずれない", () => {
+  const { status: exitCode, stderr } = runCheck(note("pending|x", " []"));
+  expect(stderr).toContain("unknown status: pending｜x");
+  expect(exitCode).toBe(2);
+});
+
+test("type の値の | で後ろのフィールドがずれない", () => {
+  const content = note("applied", ' ["docs/a.md"]').replace("type: doc", "type: hook|x");
+  const { status: exitCode, stderr } = runCheck(content);
+  expect(stderr).toBe("");
+  expect(exitCode).toBe(0);
+});
+
+test("本文に書いた confidence: は frontmatter として読まない", () => {
+  const content = noteWithConfidence("confidence: low").replace(
+    "学びの本文。",
+    "学びの本文。\nconfidence: unknown-in-body",
+  );
+  const { status: exitCode, stderr } = runCheck(content);
+  expect(stderr).toBe("");
+  expect(exitCode).toBe(0);
+});
+
+test("コロンの後に空白が無い形と重なったキーを、1 回の実行でまとめて報告する", () => {
+  const { status: exitCode, stderr } = runCheck(
+    noteWithConfidence("confidence:high\nconfidence: bogus"),
+  );
+  expect(stderr).toContain("confidence needs a space after the colon");
+  expect(stderr).toContain("confidence is declared 2 times");
+  expect(stderr).toContain("unknown confidence: bogus");
+  expect(exitCode).toBe(2);
+});
+
+test("重なったキーの前の不正な値も報告する", () => {
+  const { status: exitCode, stderr } = runCheck(
+    noteWithConfidence("confidence: bogus\nconfidence: high"),
+  );
+  expect(stderr).toContain("confidence is declared 2 times");
+  expect(stderr).toContain("unknown confidence: bogus");
+  expect(exitCode).toBe(2);
+});
+
+test("重なったキーの不正な値は、すべてを 1 回の実行で報告する", () => {
+  const { status: exitCode, stderr } = runCheck(
+    noteWithConfidence("confidence: bogus\nconfidence: other"),
+  );
+  expect(stderr).toContain("confidence is declared 2 times");
+  expect(stderr).toContain("unknown confidence: bogus, other");
+  expect(exitCode).toBe(2);
+});
+
+test("重なったキーの前の空の値も報告する", () => {
+  const { status: exitCode, stderr } = runCheck(
+    noteWithConfidence("confidence:\nconfidence: high"),
+  );
+  expect(stderr).toContain("confidence is declared 2 times");
+  expect(stderr).toContain("unknown confidence: <empty>");
+  expect(exitCode).toBe(2);
+});
+
+test("コロンの後に空白が無い不正な値は、空白と値の両方を報告する", () => {
+  const { status: exitCode, stderr } = runCheck(noteWithConfidence("confidence:bogus"));
+  expect(stderr).toContain("confidence needs a space after the colon");
+  expect(stderr).toContain("unknown confidence: bogus");
   expect(exitCode).toBe(2);
 });

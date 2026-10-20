@@ -39,10 +39,10 @@ frontmatter_state() {
 		# 空配列は `[]` だけでなく `[ ]` のような空白入りでも、フォーマッタによる折り返しでも
 		# 書かれる。内部の空白を落とし、折り返し分を連結してから判定しないと、pending は
 		# 誤ってブロック（空なのに「適用先あり」）し、applied / rejected はチェックの抜け（空なのにそのまま通る）になる。
-		# 4 つ目のフィールドは applied-to の要素を `,` で連ねたもの（括弧と引用符は落とす）。
+		# 最後のフィールドは applied-to の要素を `,` で連ねたもの（括弧と引用符は落とす）。
 		# 「空か否か」だけでは、決定論的な対策を提案したノートが doc だけで閉じられたことを
 		# 判定できない。要素は read の最後の変数へ丸ごと渡すため `|` を含んでも
-		# 前 3 フィールドはずれない。
+		# 前のフィールドはずれない。
 		function emit(  merged, body, n, i, parts, item, out) {
 			merged = applied_value
 			if (merged != "" && merged != "[]" && merged != "null" && merged != "~") nonempty = 1
@@ -57,7 +57,16 @@ frontmatter_state() {
 				if (item == "" || item == "null" || item == "~") continue
 				out = (out == "" ? item : out "," item)
 			}
-			printf "%s|%s|%s|%s|%s\n", status, present, nonempty, type, out
+			# 不正な値が 1 つでもあれば、最後の値ではなく、不正な値をすべて連ねたものを渡す。重なったキーの値を 1 回の実行でまとめて報告するためである。
+			if (conf_bad != "") confidence = conf_bad
+			# 区切りの `|` を値に含むと、read が後ろのフィールドをずらす（`confidence: low|high` が
+			# low として通る）。最後の applied-to 以外の文字列の値では `|` を全角の `｜` に置き換える。
+			# メッセージに出る値が書いた文字と見た目で対応するように、半角の `/` などの別の文字にはしない。
+			gsub(/\|/, "｜", status)
+			gsub(/\|/, "｜", type)
+			gsub(/\|/, "｜", confidence)
+			# confidence は、出てきた回数と、コロンの後に空白が無い形があったか（0 か 1）を別のフィールドで渡す。
+			printf "%s|%s|%s|%s|%s|%s|%s|%s\n", status, present, nonempty, type, conf_count, conf_nospace, confidence, out
 		}
 		# ブロックシーケンスの 1 項目を flow 配列と同じ表記へ畳み込む。要素の分類にしか
 		# 使わないので、flow 側と同じく内部の空白は落とす（値の復元には使わない）。
@@ -69,7 +78,7 @@ frontmatter_state() {
 			if (item == "") return
 			applied_value = (applied_value == "" ? item : applied_value "," item)
 		}
-		BEGIN { fm = 0; present = 0; nonempty = 0; status = ""; type = ""; in_applied = 0; applied_value = "" }
+		BEGIN { fm = 0; present = 0; nonempty = 0; status = ""; type = ""; conf_count = 0; conf_nospace = 0; conf_bad = ""; confidence = ""; in_applied = 0; applied_value = "" }
 		/^---[[:space:]]*$/ {
 			fm++
 			if (fm == 2) {
@@ -94,6 +103,28 @@ frontmatter_state() {
 			sub(/^type:[[:space:]]*/, "", type)
 			sub(/[[:space:]]+#.*$/, "", type)
 			gsub(/^[[:space:]]+|[[:space:]]+$/, "", type)
+			in_applied = 0
+			next
+		}
+		# confidence は任意の欄。この欄を足す前に書いたノートには無いので、在るときだけ値を検査する。
+		# YAML では引用符で囲んだキーと値も同じキーと値なので、キーの引用符を許し、値の前後の引用符は落とす。
+		# キーの重なりは YAML として正しくない（実装によってエラーになるか、どちらかの値を採る）ので、
+		# 出てきた回数を数えて止める。コロンの後に空白が無い形（`confidence:high`）は YAML の mapping に
+		# ならないので止める。
+		/^("confidence"|'"'"'confidence'"'"'|confidence)[[:space:]]*:/ {
+			conf_count++
+			confidence = $0
+			sub(/^("confidence"|'"'"'confidence'"'"'|confidence)[[:space:]]*:/, "", confidence)
+			if (confidence ~ /^[^[:space:]]/) conf_nospace = 1
+			sub(/[[:space:]]+#.*$/, "", confidence)
+			gsub(/^[[:space:]]+|[[:space:]]+$/, "", confidence)
+			# 落とすのは対になった引用符だけにする。片側だけの引用符（`"high`）は不正な値として止める。
+			if (confidence ~ /^".*"$/ || confidence ~ /^'"'"'.*'"'"'$/) confidence = substr(confidence, 2, length(confidence) - 2)
+			# キーが重なったときに前の不正な値を見逃さないよう、不正な値はすべて「, 」で連ねて残す。空の値は <empty> と書く。
+			if (confidence != "high" && confidence != "medium" && confidence != "low") {
+				bad = (confidence == "" ? "<empty>" : confidence)
+				conf_bad = (conf_bad == "" ? bad : conf_bad ", " bad)
+			}
 			in_applied = 0
 			next
 		}
@@ -221,8 +252,35 @@ for note in .kaizen/*.md .kaizen/archive/*.md; do
 		errors=$((errors + 1))
 		continue
 	fi
-	# entries は最後の変数なので、要素に `|` が含まれても前 3 フィールドはずれない。
-	IFS='|' read -r status present nonempty type entries <<<"${state}"
+	# entries は最後の変数なので、要素に `|` が含まれても前のフィールドはずれない。
+	IFS='|' read -r status present nonempty type conf_count conf_nospace confidence entries <<<"${state}"
+
+	# confidence は欠けていても通す（欄を足す前に書いたノートには無い）。在るなら 1 回だけ、3 つの値だけを受け付ける。
+	# 当てはまる問題はまとめて報告し、直すたびに別の問題で止まり直さないようにする。
+	if ! [[ "${conf_count}" =~ ^[0-9]+$ && "${conf_nospace}" =~ ^[01]$ ]]; then
+		# 読み取りの出力の形が変わったときに、検査を飛ばして exit 0 にしない。
+		echo "kaizen-status-check: ${note}: could not read the confidence state: count=${conf_count} nospace=${conf_nospace}" >&2
+		errors=$((errors + 1))
+	else
+		if [ "${conf_nospace}" = "1" ]; then
+			echo "kaizen-status-check: ${note}: confidence needs a space after the colon (confidence: <value>)" >&2
+			errors=$((errors + 1))
+		fi
+		if [ "${conf_count}" -gt 1 ]; then
+			echo "kaizen-status-check: ${note}: confidence is declared ${conf_count} times (declare it once)" >&2
+			errors=$((errors + 1))
+		fi
+		# 値は、重なりや空白の問題と並べて確かめる（`frontmatter_state` は、不正な値があればそれをすべて連ねたものを、無ければ最後の値を渡す）。
+		if [ "${conf_count}" -ge 1 ]; then
+			case "${confidence}" in
+			high | medium | low) ;;
+			*)
+				echo "kaizen-status-check: ${note}: unknown confidence: ${confidence:-<empty>} (expected high, medium or low)" >&2
+				errors=$((errors + 1))
+				;;
+			esac
+		fi
+	fi
 
 	# 折り返し検査の対象は、参照注入が実際に読む集合（archive を除く `.kaizen/*.md` のうち
 	# status: pending）に揃える。archive と applied / rejected / forgotten は注入されないので、
@@ -339,7 +397,7 @@ if [ "${errors}" -gt 0 ]; then
 	else
 		reindex_cmd="バンドルされた kaizen-archive.sh を --reindex 付きで実行"
 	fi
-	echo "kaizen-status-check: ${errors} problem(s); fix status/applied-to or the reported note text, or ${reindex_cmd}" >&2
+	echo "kaizen-status-check: ${errors} problem(s); fix status/applied-to/confidence or the reported note text, or ${reindex_cmd}" >&2
 	exit 2
 fi
 

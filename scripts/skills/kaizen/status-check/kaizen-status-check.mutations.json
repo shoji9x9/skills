@@ -1,0 +1,209 @@
+{
+  "$comment": [
+    "kaizen-status-check.test.ts のうち、confidence の値の検査（Issue #701）を守るテストの検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/skills/kaizen/status-check/kaizen-status-check.test.ts",
+  "mutations": [
+    {
+      "id": "CONF-ACCEPT-ANY",
+      "why": "confidence の値を確かめずに通す（綴りの誤り・大文字・空の値が通る）",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "\t\thigh | medium | low) ;;",
+      "replace": "\t\t*) ;;",
+      "occurrences": 1,
+      "expect_failing": [
+        "confidence の値を拒否する: 未知の値",
+        "confidence の値を拒否する: 大文字",
+        "confidence の値を拒否する: 空の値",
+        "confidence の値を拒否する: 空白だけの値",
+        "confidence の値を拒否する: 片側だけの引用符",
+        "confidence の値を拒否する: 区切りの | を含む値",
+        "confidence の値を拒否する: コメントだけの値",
+        "confidence の値を拒否する: キーとコロンの間に空白がある不正な値",
+        "confidence の値を拒否する: 引用符で囲んだキーの不正な値",
+        "confidence の値を拒否する: 単引用符で囲んだキーの不正な値",
+        "重なったキーの前の不正な値も報告する",
+        "コロンの後に空白が無い不正な値は、空白と値の両方を報告する",
+        "コロンの後に空白が無い形と重なったキーを、1 回の実行でまとめて報告する",
+        "重なったキーの不正な値は、すべてを 1 回の実行で報告する",
+        "重なったキーの前の空の値も報告する"
+      ]
+    },
+    {
+      "id": "CONF-QUOTES-KEPT",
+      "why": "引用符で囲んだ値の引用符を落とさない（YAML では同じ値なのに未知の値として止める）",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "\t\t\tif (confidence ~ /^\".*\"$/ || confidence ~ /^'\"'\"'.*'\"'\"'$/) confidence = substr(confidence, 2, length(confidence) - 2)",
+      "replace": "\t\t\tconfidence = confidence",
+      "occurrences": 1,
+      "expect_failing": [
+        "confidence を受け付ける: 二重引用符で囲んだ値",
+        "confidence を受け付ける: 単引用符で囲んだ値"
+      ]
+    },
+    {
+      "id": "CONF-COMMENT-KEPT",
+      "why": "行末のコメントを落とさない（コメント付きの正しい値を未知の値として止める）",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "\t\t\tsub(/[[:space:]]+#.*$/, \"\", confidence)",
+      "replace": "\t\t\tconfidence = confidence",
+      "occurrences": 1,
+      "expect_failing": [
+        "confidence を受け付ける: 行末のコメント",
+        "confidence の値を拒否する: コメントだけの値"
+      ]
+    },
+    {
+      "id": "CONF-PIPE-KEPT",
+      "why": "confidence の値の | を置き換えない（read がフィールドをずらし、low|high が low として通る）",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "\t\t\tgsub(/\\|/, \"｜\", confidence)",
+      "replace": "\t\t\tconfidence = confidence",
+      "occurrences": 1,
+      "expect_failing": ["confidence の値を拒否する: 区切りの | を含む値"]
+    },
+    {
+      "id": "CONF-UNPAIRED-QUOTE",
+      "why": "片側だけの引用符も落とす（\"high のような不正な値が high として通る）",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "\t\t\tif (confidence ~ /^\".*\"$/ || confidence ~ /^'\"'\"'.*'\"'\"'$/) confidence = substr(confidence, 2, length(confidence) - 2)",
+      "replace": "\t\t\tgsub(/^[\"'\"'\"']|[\"'\"'\"']$/, \"\", confidence)",
+      "occurrences": 1,
+      "expect_failing": ["confidence の値を拒否する: 片側だけの引用符"]
+    },
+    {
+      "id": "CONF-DUPLICATE-ALLOWED",
+      "why": "confidence のキーの回数を数えない（キーが重なっていることを報告しない）",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "\t\t\tconf_count++",
+      "replace": "\t\t\tconf_count = 1",
+      "occurrences": 1,
+      "expect_failing": [
+        "confidence の値を拒否する: 重なったキー（前の値が不正）",
+        "コロンの後に空白が無い形と重なったキーを、1 回の実行でまとめて報告する",
+        "重なったキーの前の不正な値も報告する",
+        "重なったキーの不正な値は、すべてを 1 回の実行で報告する",
+        "重なったキーの前の空の値も報告する"
+      ]
+    },
+    {
+      "id": "CONF-NO-SPACE-ALLOWED",
+      "why": "コロンの後に空白が無い形を止めない（YAML の mapping にならない値を通す）",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "if (confidence ~ /^[^[:space:]]/) conf_nospace = 1",
+      "replace": "if (0) conf_nospace = 1",
+      "occurrences": 1,
+      "expect_failing": [
+        "confidence の値を拒否する: コロンの後に空白が無い値",
+        "コロンの後に空白が無い形と重なったキーを、1 回の実行でまとめて報告する",
+        "コロンの後に空白が無い不正な値は、空白と値の両方を報告する"
+      ]
+    },
+    {
+      "id": "CONF-SPACED-KEY-IGNORED",
+      "why": "キーとコロンの間の空白を許さない（`confidence : bogus` を検査しない）",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "/^(\"confidence\"|'\"'\"'confidence'\"'\"'|confidence)[[:space:]]*:/ {",
+      "replace": "/^(\"confidence\"|'\"'\"'confidence'\"'\"'|confidence):/ {",
+      "occurrences": 1,
+      "expect_failing": ["confidence の値を拒否する: キーとコロンの間に空白がある不正な値"]
+    },
+    {
+      "id": "STATUS-PIPE-KEPT",
+      "why": "status の値の | を置き換えない（read のフィールドがずれる）",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "\t\t\tgsub(/\\|/, \"｜\", status)",
+      "replace": "\t\t\tstatus = status",
+      "occurrences": 1,
+      "expect_failing": ["status の値の | で後ろのフィールドがずれない"]
+    },
+    {
+      "id": "TYPE-PIPE-KEPT",
+      "why": "type の値の | を置き換えない（read のフィールドがずれる）",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "\t\t\tgsub(/\\|/, \"｜\", type)",
+      "replace": "\t\t\ttype = type",
+      "occurrences": 1,
+      "expect_failing": ["type の値の | で後ろのフィールドがずれない"]
+    },
+    {
+      "id": "CONF-QUOTED-KEY-IGNORED",
+      "why": "引用符で囲んだ confidence のキーを読まない（\"confidence\": bogus を検査しない）",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "/^(\"confidence\"|'\"'\"'confidence'\"'\"'|confidence)[[:space:]]*:/ {",
+      "replace": "/^confidence[[:space:]]*:/ {",
+      "occurrences": 1,
+      "expect_failing": [
+        "confidence の値を拒否する: 引用符で囲んだキーの不正な値",
+        "confidence の値を拒否する: 単引用符で囲んだキーの不正な値"
+      ]
+    },
+    {
+      "id": "CONF-SINGLE-QUOTED-KEY-IGNORED",
+      "why": "単引用符で囲んだ confidence のキーを読まない",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "/^(\"confidence\"|'\"'\"'confidence'\"'\"'|confidence)[[:space:]]*:/ {",
+      "replace": "/^(\"confidence\"|confidence)[[:space:]]*:/ {",
+      "occurrences": 1,
+      "expect_failing": ["confidence の値を拒否する: 単引用符で囲んだキーの不正な値"]
+    },
+    {
+      "id": "CONF-FIRST-BAD-DROPPED",
+      "why": "不正な値を連ねたものを渡さない（重なったキーで後の正しい値だけを確かめ、前の不正な値を見逃す）",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "\t\t\tif (conf_bad != \"\") confidence = conf_bad",
+      "replace": "\t\t\tif (0) confidence = conf_bad",
+      "occurrences": 1,
+      "expect_failing": [
+        "重なったキーの前の不正な値も報告する",
+        "重なったキーの不正な値は、すべてを 1 回の実行で報告する",
+        "重なったキーの前の空の値も報告する"
+      ]
+    },
+    {
+      "id": "CONF-VALUE-CHECK-SKIPPED",
+      "why": "confidence の値を確かめない（不正な値を通す）",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "\t\tif [ \"${conf_count}\" -ge 1 ]; then",
+      "replace": "\t\tif false; then",
+      "occurrences": 1,
+      "expect_failing": [
+        "confidence の値を拒否する: 未知の値",
+        "confidence の値を拒否する: 大文字",
+        "confidence の値を拒否する: 空の値",
+        "confidence の値を拒否する: 空白だけの値",
+        "confidence の値を拒否する: 片側だけの引用符",
+        "confidence の値を拒否する: 区切りの | を含む値",
+        "confidence の値を拒否する: コメントだけの値",
+        "confidence の値を拒否する: キーとコロンの間に空白がある不正な値",
+        "confidence の値を拒否する: 引用符で囲んだキーの不正な値",
+        "confidence の値を拒否する: 単引用符で囲んだキーの不正な値",
+        "重なったキーの前の不正な値も報告する",
+        "コロンの後に空白が無い不正な値は、空白と値の両方を報告する",
+        "コロンの後に空白が無い形と重なったキーを、1 回の実行でまとめて報告する",
+        "重なったキーの不正な値は、すべてを 1 回の実行で報告する",
+        "重なったキーの前の空の値も報告する"
+      ]
+    },
+    {
+      "id": "CONF-ONLY-LAST-BAD",
+      "why": "不正な値を連ねず、最後の不正な値だけを残す（重なったキーの前の不正な値を報告しない）",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "\t\t\t\tconf_bad = (conf_bad == \"\" ? bad : conf_bad \", \" bad)",
+      "replace": "\t\t\t\tconf_bad = bad",
+      "occurrences": 1,
+      "expect_failing": ["重なったキーの不正な値は、すべてを 1 回の実行で報告する"]
+    },
+    {
+      "id": "CONF-EMPTY-BAD-DROPPED",
+      "why": "空の不正な値を <empty> と書かずに連ねる（重なったキーで前の空の値が消え、後の正しい値だけを確かめる）",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "\t\t\t\tbad = (confidence == \"\" ? \"<empty>\" : confidence)",
+      "replace": "\t\t\t\tbad = confidence",
+      "occurrences": 1,
+      "expect_failing": ["重なったキーの前の空の値も報告する"]
+    }
+  ]
+}
