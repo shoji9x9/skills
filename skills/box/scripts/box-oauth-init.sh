@@ -17,13 +17,13 @@ if [ "$#" -gt 0 ]; then
 	exit 2
 fi
 
-# HOME が無いか空なら、box-folder.sh と同じく、ユーザーのデータベースのホームを使う
+# HOME が無いか空なら、box-folder.sh と同じく、passwd に登録されたホームを使う
 home_dir="${HOME:-}"
 [ -n "${home_dir}" ] || home_dir=$(
 	unset HOME
 	printf '%s' ~
 )
-# ユーザーのデータベースにエントリが無いと ~ が展開されずに残る。~ は絶対パスでないので、下の case が止める
+# passwd にエントリが無いと ~ が展開されずに残る。~ は絶対パスでないので、下の case が止める
 # 置き場所のデフォルトは ~/.config/box/refresh_token。
 # env/dotenv 経由の値は ~ が展開されないため、先頭 ~/ も上で決めたホームの下に直す
 token_file="${BOX_REFRESH_TOKEN_FILE:-}"
@@ -38,8 +38,8 @@ if [ -z "$token_file" ] || [ "$stripped" != "$token_file" ]; then
 		token_src="保存先は HOME から決めた。"
 		home_reason="$(printf 'HOME=%q が絶対パスでない。' "${HOME}")"
 	else
-		token_src="${home_state}。保存先は、ユーザーのデータベースのホームから決めた。"
-		home_reason="$(printf '%s。ユーザーのデータベースのホーム %q も絶対パスでない。' "${home_state}" "${home_dir}")"
+		token_src="${home_state}。保存先は、passwd に登録されたホームから決めた。"
+		home_reason="$(printf '%s。passwd に登録されたホーム %q も絶対パスでない。' "${home_state}" "${home_dir}")"
 	fi
 	# ホームが絶対パスに決まらないまま交換すると、受け取った refresh token を保存できず、認可からやり直すことになる。
 	# 認可コードは 1 回しか使えないので、認可コードを読む前に止める
@@ -54,9 +54,9 @@ if [ -z "$token_file" ] || [ "$stripped" != "$token_file" ]; then
 fi
 # 保存先のディレクトリを先に作り、書き込めるかを確かめる。ホームが書き込めない場所（/nonexistent など）でも、
 # BOX_REFRESH_TOKEN_FILE に書き込めない場所を指定しても、交換した後に保存できず認可からやり直すことになるので、
-# 認可コードを読む前に止める
+# 認可コードを読む前に止める。保存はファイルへ直接書くので、ファイルが在ればファイルに、無ければディレクトリに書き込めるかを見る
 token_dir="$(dirname "$token_file")"
-if ! (umask 077 && mkdir -p "$token_dir") || [ ! -w "$token_dir" ] || { [ -e "$token_file" ] && [ ! -w "$token_file" ]; }; then
+if ! (umask 077 && mkdir -p "$token_dir") || { [ -e "$token_file" ] && [ ! -w "$token_file" ]; } || { [ ! -e "$token_file" ] && [ ! -w "$token_dir" ]; }; then
 	printf 'box-oauth-init: refresh token の保存先 %q に書き込めない（ディレクトリを作れないか、書き込む権限が無い）。%sBox の API を呼ぶ前に止める。BOX_REFRESH_TOKEN_FILE に書き込める絶対パスを設定する（例: export BOX_REFRESH_TOKEN_FILE=/path/to/refresh_token）\n' "$token_file" "$token_src" >&2
 	exit 1
 fi

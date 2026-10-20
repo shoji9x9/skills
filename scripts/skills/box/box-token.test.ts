@@ -11,7 +11,7 @@
 // | 必須の環境変数 | そろう / BOX_CLIENT_ID が無い / BOX_CLIENT_SECRET が無い            |
 // | 保存先の書き方 | 指定なし / 絶対パス / 相対パス / 先頭が ~/                          |
 // | HOME           | 絶対パス / 無い / 空 / 相対パス                                     |
-// | 保存先に書けるか | 書ける / ディレクトリを作れない / ディレクトリに書けない / ファイルに書けない |
+// | 保存先に書けるか | 書ける / ディレクトリを作れない / ディレクトリに書けない / ファイルに書けない / ディレクトリに書けないがファイルに書ける |
 // | API の応答     | 成功（新しい refresh token あり・なし） / invalid_client / その他の error / token が無い |
 // | TMPDIR         | 通常 / `=` を含む                                                   |
 // | 認可コード     | stdin で渡す / 空 / 引数で渡す                                      |
@@ -206,7 +206,7 @@ function expectStoppedAtRealHome(r: ReturnType<typeof run>, realDir: string, hom
   ).toBe(true);
   expect(r.stderr.includes("に書き込めない"), "書き込めないことを示さない").toBe(true);
   expect(
-    r.stderr.includes(`${homeState}保存先は、ユーザーのデータベースのホームから決めた。`),
+    r.stderr.includes(`${homeState}保存先は、passwd に登録されたホームから決めた。`),
     "HOME の状態と、保存先を決めた方法を示さない",
   ).toBe(true);
 }
@@ -268,6 +268,7 @@ describe("box-token.sh", () => {
     expect(r.status).toBe(0);
     expect(r.stdout).toBe("dev-token");
     expect(r.log).toBe("");
+    expect(existsSync(join(s.home, ".config")), "保存先のディレクトリを作った").toBe(false);
   });
 
   test.each([
@@ -288,6 +289,7 @@ describe("box-token.sh", () => {
     expect(r.stderr).toMatch(/refresh token が無い/);
     expect(r.stderr).toContain(join(s.home, ".config/box/refresh_token"));
     expect(r.log).toBe("");
+    expect(existsSync(join(s.home, ".config")), "保存先のディレクトリを作った").toBe(false);
   });
 
   test("環境変数の refresh token の空白を除き、秘密の値を引数に載せずに送る。新しい refresh token を 0600 で保存する", () => {
@@ -372,7 +374,7 @@ describe("box-token.sh", () => {
       expect(r.stderr).toContain(
         "refresh token の置き場所を絶対パスに決められない。HOME=rel が絶対パスでない。BOX_REFRESH_TOKEN_FILE に絶対パスを設定する",
       );
-      expect(r.stderr).not.toMatch(/ユーザーのデータベース/);
+      expect(r.stderr).not.toMatch(/passwd に登録されたホーム/);
     },
   );
 
@@ -416,6 +418,31 @@ describe("box-token.sh", () => {
       expect(r.stderr).toContain(
         `${source}Box の API を呼ぶ前に止める。BOX_REFRESH_TOKEN_FILE に書き込める絶対パスを設定する`,
       );
+    },
+  );
+
+  // 保存はファイルへ直接書くので、ファイルに書ければディレクトリに書けなくてもよい（main の振る舞いと同じ）
+  test.skipIf(IS_ROOT)(
+    "BOX_REFRESH_TOKEN_FILE のファイルに書ければ、ディレクトリに書けなくても読んで保存する",
+    () => {
+      const s = setup("box-token-");
+      const dir = join(s.dir, "ro-dir");
+      mkdirSync(dir);
+      const tokenFile = join(dir, "rt");
+      writeFileSync(tokenFile, "rt-file\n");
+      chmodSync(dir, 0o555);
+      const r = run(TOKEN_SCRIPT, s, {
+        env: {
+          ...CLIENT,
+          BOX_REFRESH_TOKEN_FILE: tokenFile,
+          STUB_RESPONSE: JSON.stringify({ access_token: "at-10", refresh_token: "rt-new" }),
+        },
+      });
+      chmodSync(dir, 0o755);
+      expect(r.status, r.stderr).toBe(0);
+      expect(r.stdout).toBe("at-10");
+      expect(r.log).toContain("file:refresh=rt-file");
+      expect(readFileSync(tokenFile, "utf8")).toBe("rt-new");
     },
   );
 
@@ -597,7 +624,7 @@ describe("box-oauth-init.sh", () => {
       expect(r.stderr).toContain(
         "refresh token の置き場所を絶対パスに決められない。HOME=rel が絶対パスでない。BOX_REFRESH_TOKEN_FILE に絶対パスを設定する",
       );
-      expect(r.stderr).not.toMatch(/ユーザーのデータベース/);
+      expect(r.stderr).not.toMatch(/passwd に登録されたホーム/);
       expect(r.stderr).not.toMatch(/認可コードが空です/);
     },
   );
@@ -643,6 +670,31 @@ describe("box-oauth-init.sh", () => {
         `${source}Box の API を呼ぶ前に止める。BOX_REFRESH_TOKEN_FILE に書き込める絶対パスを設定する`,
       );
       expect(r.stderr).not.toMatch(/認可コードが空です/);
+    },
+  );
+
+  // 保存はファイルへ直接書くので、ファイルに書ければディレクトリに書けなくてもよい（main の振る舞いと同じ）
+  test.skipIf(IS_ROOT)(
+    "BOX_REFRESH_TOKEN_FILE のファイルに書ければ、ディレクトリに書けなくても保存する",
+    () => {
+      const s = setup("box-init-");
+      const dir = join(s.dir, "ro-dir");
+      mkdirSync(dir);
+      const tokenFile = join(dir, "rt");
+      writeFileSync(tokenFile, "rt-old");
+      chmodSync(dir, 0o555);
+      const r = run(INIT_SCRIPT, s, {
+        env: {
+          ...CLIENT,
+          BOX_REFRESH_TOKEN_FILE: tokenFile,
+          STUB_RESPONSE: JSON.stringify({ access_token: "a", refresh_token: "rt-init" }),
+        },
+        input: "code-x\n",
+      });
+      chmodSync(dir, 0o755);
+      expect(r.status, r.stderr).toBe(0);
+      expect(readFileSync(tokenFile, "utf8")).toBe("rt-init");
+      expect(r.stdout).toContain(`refresh_token を ${tokenFile} に保存しました`);
     },
   );
 

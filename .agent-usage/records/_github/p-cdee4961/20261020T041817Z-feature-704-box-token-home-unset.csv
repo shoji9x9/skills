@@ -40,3 +40,6 @@ coverage:github:2026-10-19T04:18:17.756Z:2026-10-20T04:32:15.970Z,coverage,2026-
 ci:39370306959:1,ci,2026-10-20T04:52:27.746Z,p-cdee4961,github-actions,,,,2026-10-20T04:34:36.000Z,2026-10-20T04:34:37.000Z,Asia/Tokyo,feature/704-box-token-home-unset,704,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 ci:39370306940:1,ci,2026-10-20T04:52:27.746Z,p-cdee4961,github-actions,,,,2026-10-20T04:34:36.000Z,2026-10-20T04:38:25.000Z,Asia/Tokyo,feature/704-box-token-home-unset,704,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-10-19T04:32:15.970Z:2026-10-20T04:52:27.746Z,coverage,2026-10-20T04:52:27.746Z,p-cdee4961,,,,,2026-10-19T04:32:15.970Z,2026-10-20T04:52:27.746Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:39372077291:1,ci,2026-10-20T05:08:12.699Z,p-cdee4961,github-actions,,,,2026-10-20T04:54:52.000Z,2026-10-20T04:54:53.000Z,Asia/Tokyo,feature/704-box-token-home-unset,704,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:39372077275:1,ci,2026-10-20T05:08:12.699Z,p-cdee4961,github-actions,,,,2026-10-20T04:54:52.000Z,2026-10-20T04:58:35.000Z,Asia/Tokyo,feature/704-box-token-home-unset,704,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-19T04:52:27.746Z:2026-10-20T05:08:12.699Z,coverage,2026-10-20T05:08:12.699Z,p-cdee4961,,,,,2026-10-19T04:52:27.746Z,2026-10-20T05:08:12.699Z,Asia/Tokyo,,,,,,,,,,,,ok,

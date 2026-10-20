@@ -159,10 +159,10 @@
     },
     {
       "id": "TOKEN-NO-WRITABLE-DIR-CHECK",
-      "why": "保存先のディレクトリに書き込めるかを確かめない（API を呼んだ後に新しい refresh token を失う）",
+      "why": "ファイルが無いときに、保存先のディレクトリに書き込めるかを確かめない（API を呼んだ後に新しい refresh token を失う）",
       "file": "skills/box/scripts/box-token.sh",
-      "find": "[ ! -w \"$token_dir\" ] ||",
-      "replace": "false ||",
+      "find": "[ ! -w \"$token_dir\" ]",
+      "replace": "false",
       "occurrences": 1,
       "expect_failing": [
         "box-token.sh BOX_REFRESH_TOKEN_FILE のディレクトリに書き込めないなら、API を呼ばずに理由と BOX_REFRESH_TOKEN_FILE の設定を案内して止まる"
@@ -177,6 +177,28 @@
       "occurrences": 1,
       "expect_failing": [
         "box-token.sh BOX_REFRESH_TOKEN_FILE のファイルに書き込めないなら、API を呼ばずに理由と BOX_REFRESH_TOKEN_FILE の設定を案内して止まる"
+      ]
+    },
+    {
+      "id": "TOKEN-CHECK-DIR-WITH-FILE",
+      "why": "ファイルが在っても、ディレクトリに書き込めるかを確かめる（書き込めるファイルが書き込めないディレクトリにあると止まる。main では成功していた）",
+      "file": "skills/box/scripts/box-token.sh",
+      "find": "{ [ ! -e \"$token_file\" ] && [ ! -w \"$token_dir\" ]; }",
+      "replace": "[ ! -w \"$token_dir\" ]",
+      "occurrences": 1,
+      "expect_failing": [
+        "box-token.sh BOX_REFRESH_TOKEN_FILE のファイルに書ければ、ディレクトリに書けなくても読んで保存する"
+      ]
+    },
+    {
+      "id": "TOKEN-MKDIR-BEFORE-REFRESH-CHECK",
+      "why": "refresh token が在るかを判定する前に、保存先のディレクトリを作る（refresh token が無くて止まる実行でも ~/.config/box/ を作る。main では作らない）",
+      "file": "skills/box/scripts/box-token.sh",
+      "find": "[ -n \"$refresh_in_file\" ] || : \"${refresh:?$refresh_missing}\"",
+      "replace": "[ -n \"$refresh_in_file\" ] || [ -n \"$refresh\" ] || mkdir -p \"$(dirname \"$token_file\")\"; [ -n \"$refresh_in_file\" ] || : \"${refresh:?$refresh_missing}\"",
+      "occurrences": 1,
+      "expect_failing": [
+        "box-token.sh refresh token がどこにも無ければ失敗し、参照したファイルを示す"
       ]
     },
     {
@@ -233,10 +255,10 @@
     },
     {
       "id": "INIT-NO-WRITABLE-DIR-CHECK",
-      "why": "保存先のディレクトリに書き込めるかを確かめない（認可コードを交換した後に refresh token を保存できない）",
+      "why": "ファイルが無いときに、保存先のディレクトリに書き込めるかを確かめない（認可コードを交換した後に refresh token を保存できない）",
       "file": "skills/box/scripts/box-oauth-init.sh",
-      "find": "[ ! -w \"$token_dir\" ] ||",
-      "replace": "false ||",
+      "find": "[ ! -w \"$token_dir\" ]",
+      "replace": "false",
       "occurrences": 1,
       "expect_failing": [
         "box-oauth-init.sh BOX_REFRESH_TOKEN_FILE のディレクトリに書き込めないなら、認可コードを読む前に理由と BOX_REFRESH_TOKEN_FILE の設定を案内して止まる"
@@ -251,6 +273,17 @@
       "occurrences": 1,
       "expect_failing": [
         "box-oauth-init.sh BOX_REFRESH_TOKEN_FILE のファイルに書き込めないなら、認可コードを読む前に理由と BOX_REFRESH_TOKEN_FILE の設定を案内して止まる"
+      ]
+    },
+    {
+      "id": "INIT-CHECK-DIR-WITH-FILE",
+      "why": "ファイルが在っても、ディレクトリに書き込めるかを確かめる（書き込めるファイルが書き込めないディレクトリにあると止まる。main では成功していた）",
+      "file": "skills/box/scripts/box-oauth-init.sh",
+      "find": "{ [ ! -e \"$token_file\" ] && [ ! -w \"$token_dir\" ]; }",
+      "replace": "[ ! -w \"$token_dir\" ]",
+      "occurrences": 1,
+      "expect_failing": [
+        "box-oauth-init.sh BOX_REFRESH_TOKEN_FILE のファイルに書ければ、ディレクトリに書けなくても保存する"
       ]
     }
   ]
