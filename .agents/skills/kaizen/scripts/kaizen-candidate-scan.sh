@@ -270,7 +270,7 @@ if ! jq -Rr '
 	# こちらの想定外なので、subtype が欠けた場合と同じく、判定できないとして扱う。
 	elif ($j.type | type) == "string" and $j.type != "response_item" and $j.type != "event_msg" and
 	     $j.message == null and $j.payload == null and $j.content == null then "R"
-	else "X" end) catch ("X\t" + (tostring | gsub("[\\r\\n\\t]+"; " ") | .[0:200])))
+	else "X" end) catch "X")
 ' "${slice}" >"${records}"; then
 	echo "kaizen-candidate-scan: transcript JSONL could not be parsed" >&2
 	exit 2
@@ -284,7 +284,6 @@ fi
 recognized=0
 invalid=0
 invalid_line=0
-invalid_reason=""
 blank=0
 saw_claude=0
 saw_codex=0
@@ -300,14 +299,11 @@ while IFS= read -r record; do
 		record_line=$((base_line + ${record#*$'\t'}))
 		continue
 		;;
-	X | X$'\t'*)
-		# 利用者が原因の行を探せるように、最初に判定できなかった行と、jq のエラーがあればその本文を残す。
+	X)
+		# 利用者が原因の行を探せるように、最初に判定できなかった行の番号を残す。
+		# jq のエラーの本文はレコードの値の一部を含むので、出さない（上の「1 文字も出さない」）。
 		if [ "${invalid}" -eq 0 ]; then
 			invalid_line=${record_line}
-			invalid_reason=""
-			case "${record}" in
-			X$'\t'*) invalid_reason=${record#*$'\t'} ;;
-			esac
 		fi
 		invalid=1
 		;;
@@ -372,9 +368,6 @@ done <"${records}"
 
 if [ "${invalid}" -eq 1 ]; then
 	echo "kaizen-candidate-scan: transcript contains an unsupported or malformed record (first at transcript line ${invalid_line})" >&2
-	if [ -n "${invalid_reason}" ]; then
-		echo "kaizen-candidate-scan: jq error: ${invalid_reason}" >&2
-	fi
 	exit 2
 fi
 if [ "${recognized}" -eq 0 ] && [ "${blank}" -gt 0 ]; then

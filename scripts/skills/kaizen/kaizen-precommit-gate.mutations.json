@@ -336,7 +336,7 @@
       "id": "SCAN-RECORD-RUNTIME-ERROR",
       "why": "レコードの判定で jq が出した実行時のエラーを判定不能にしない（途中の行のエラーは終了コードに出ないので、本文を読まずに検証済みゼロを返す）",
       "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "else \"X\" end) catch (\"X\\t\" + (tostring | gsub(\"[\\\\r\\\\n\\\\t]+\"; \" \") | .[0:200])))",
+      "find": "else \"X\" end) catch \"X\")",
       "replace": "else \"X\" end) catch empty)",
       "occurrences": 1,
       "expect_failing": [
@@ -355,30 +355,7 @@
       "expect_failing": [
         "jq の実行時のエラー オブジェクトでない JSON の行は判定不能",
         "jq の実行時のエラー user レコードの text が文字列でないものは判定不能",
-        "jq の実行時のエラー 型の判定で判定不能にしたレコードは、jq のエラーの行を出さない"
-      ]
-    },
-    {
-      "id": "SCAN-INVALID-REASON",
-      "why": "jq のエラーの本文を報告に出さない（判定できなかった原因の型を特定できない）",
-      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "X$'\\t'*) invalid_reason=${record#*$'\\t'} ;;",
-      "replace": "X$'\\t'*) invalid_reason=\"\" ;;",
-      "occurrences": 1,
-      "expect_failing": [
-        "jq の実行時のエラー オブジェクトでない JSON の行は判定不能",
-        "jq の実行時のエラー user レコードの text が文字列でないものは判定不能"
-      ]
-    },
-    {
-      "id": "SCAN-INVALID-REASON-ALWAYS",
-      "why": "jq のエラーでない判定不能にも、jq のエラーの行を出す（型の判定で止めたものを jq のエラーと誤って報告する）",
-      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "\tif [ -n \"${invalid_reason}\" ]; then\n",
-      "replace": "\tif true; then\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "jq の実行時のエラー 型の判定で判定不能にしたレコードは、jq のエラーの行を出さない"
+        "jq の実行時のエラー 型の判定で判定不能にしたレコードも、最初の行の番号を出す"
       ]
     },
     {
@@ -463,7 +440,7 @@
         "Claude Code の queued_command の attachment origin.kind が文字列でないものは判定不能",
         "Claude Code の queued_command の attachment prompt の要素の text が文字列でないものは判定不能",
         "Claude Code の api-request-blob レコード コピーは作業中に送った発話の候補を隠さない",
-        "jq の実行時のエラー 型の判定で判定不能にしたレコードは、jq のエラーの行を出さない"
+        "jq の実行時のエラー 型の判定で判定不能にしたレコードも、最初の行の番号を出す"
       ]
     },
     {
@@ -487,7 +464,7 @@
       "expect_failing": [
         "Claude Code の queued_command の attachment isMeta が真偽値でないものは判定不能",
         "Claude Code の queued_command の attachment 最上位の isMeta が真偽値でないものは判定不能",
-        "jq の実行時のエラー 型の判定で判定不能にしたレコードは、jq のエラーの行を出さない"
+        "jq の実行時のエラー 型の判定で判定不能にしたレコードも、最初の行の番号を出す"
       ]
     },
     {

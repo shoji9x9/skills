@@ -648,11 +648,12 @@ describe.concurrent("jq の実行時のエラー", () => {
 
     expect(scan.status).toBe(2);
     expect(scan.stderr).toMatch(/unsupported or malformed record \(first at transcript line 2\)$/m);
-    expect(scan.stderr).toMatch(/^kaizen-candidate-scan: jq error: \S/m);
+    // jq のエラーの本文はレコードの値を含むので、transcript の本文を 1 文字も出さない。
+    expect(scan.stderr).not.toMatch(/違う/);
   });
 
-  // 型の判定で判定不能にしたレコードは jq のエラーではないので、行番号だけを出す。
-  test("型の判定で判定不能にしたレコードは、jq のエラーの行を出さない", async () => {
+  // 型の判定で判定不能にしたレコードも、jq のエラーと同じように最初の行の番号を出す。
+  test("型の判定で判定不能にしたレコードも、最初の行の番号を出す", async () => {
     const cwd = makeProject();
     const transcript = join(cwd, "t.jsonl");
     const record =
@@ -666,7 +667,7 @@ describe.concurrent("jq の実行時のエラー", () => {
 
     expect(scan.status).toBe(2);
     expect(scan.stderr).toMatch(/unsupported or malformed record \(first at transcript line 2\)$/m);
-    expect(scan.stderr).not.toMatch(/jq error/);
+    expect(scan.stderr).not.toMatch(/違う/);
   });
 });
 
