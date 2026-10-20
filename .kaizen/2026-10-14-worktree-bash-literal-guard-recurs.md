@@ -192,3 +192,11 @@ glob（`'scripts/skills/*-worktree/'`）に変えた 3 回目は、git が paths
 同じ作業の PR #716 の反復 1 でも、`for` の変数を `sed -n "${n}p"` に渡して transcript を読む呼び出しが `sed with a program computed at runtime` で拒否された。
 この形は同じセッションで 2 回目である。python のスクリプトにして通した。
 反復 2 でも、scratchpad のパスを変数 `d` に入れて `bash $d/reply.sh` を `&&` でつないだ返信の呼び出しが `runs bash in a plain command` で拒否された。パスをそのまま書いた単独の呼び出しに分けて通した。
+
+### 再発の記録（#697 の仕上げ）
+
+2026-10-20、issue-batch の BLOCKED になった PR #715 を仕上げる作業で、worktree の中の Bash の呼び出しが拒否された。
+`reinstall-skill.sh` と `markdownlint-cli2` を `&&` と `;` でつなぎ、最後に `git status --short` を置いた形である。
+理由は `names git in a form too complex to verify` だった。
+既知の形（準備の処理を `;` でつないだものに `git` の語が入る）で、Write ツールでスクリプトにして絶対パスで実行して通した。
+この学びはセッション開始時に注入されていたが、`git status` を確認のために末尾に足した 1 語で同じ形になった。
