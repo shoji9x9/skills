@@ -712,8 +712,8 @@ export function main(argv) {
     registries = JSON.parse(readFileSync(opts.registries, "utf8"));
     if (opts.noise) {
       const meta = JSON.parse(readFileSync(opts.noise, "utf8"));
-      // meta が null なら TypeError を投げ、下の catch で入力エラーとして扱う。
-      // 数値・文字列・真偽値は、noise_baseline が無いものとして読む。
+      // JSON の値のうち、プロパティを読むと TypeError になるのは null だけなので、null だけを下の catch で入力エラーにする。
+      // 数値・文字列・真偽値・配列はプロパティを読めて undefined になるので、noise_baseline が無いものとして読む。
       if (meta === null) {
         throw new TypeError("Cannot read properties of null (reading 'noise_baseline')");
       }
