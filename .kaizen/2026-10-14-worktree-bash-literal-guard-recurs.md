@@ -165,6 +165,14 @@ kaizen のチェックが示した解消のコマンド（共有ツリー側の 
 前者は worktree の中のコピーを絶対パスで、後者は `git commit` を単独で実行して通した。
 どれも、Write ツールでスクリプトにして絶対パスで実行するか、`git` の操作を単独の呼び出しに分けて通した。
 
+### 再発の記録（#697）
+
+2026-10-19、issue-batch の #697 の作業で、別の worktree にある `kaizen-candidate-scan.sh` を `bash` で起動した呼び出しが拒否された。
+出力をファイルに書いて `; echo rc=$?; tail` をつないだ形で、理由は `runs bash inside a construct too complex to verify` だった。
+既知の形（`bash` の起動と `; echo` の組）で、Write ツールでスクリプトにして絶対パスで実行して通した。
+同じ作業で、`for` ループの変数を `sed -n "${n}p"` に渡して transcript の行を読む呼び出しも、`runs sed with a program computed at runtime` で拒否された。
+python のスクリプトを Write ツールで書き、行番号を引数で渡して通した。
+
 ### 再発の記録（#701・#710）
 
 2026-10-19、issue-batch の #701 と #710 の作業で、worktree に入った後の Bash の呼び出しが 10 回以上拒否された。
@@ -184,3 +192,11 @@ glob（`'scripts/skills/*-worktree/'`）に変えた 3 回目は、git が paths
 同じ作業の PR #716 の反復 1 でも、`for` の変数を `sed -n "${n}p"` に渡して transcript を読む呼び出しが `sed with a program computed at runtime` で拒否された。
 この形は同じセッションで 2 回目である。python のスクリプトにして通した。
 反復 2 でも、scratchpad のパスを変数 `d` に入れて `bash $d/reply.sh` を `&&` でつないだ返信の呼び出しが `runs bash in a plain command` で拒否された。パスをそのまま書いた単独の呼び出しに分けて通した。
+
+### 再発の記録（#697 の仕上げ）
+
+2026-10-20、issue-batch の BLOCKED になった PR #715 を仕上げる作業で、worktree の中の Bash の呼び出しが拒否された。
+`reinstall-skill.sh` と `markdownlint-cli2` を `&&` と `;` でつなぎ、最後に `git status --short` を置いた形である。
+理由は `names git in a form too complex to verify` だった。
+既知の形（準備の処理を `;` でつないだものに `git` の語が入る）で、Write ツールでスクリプトにして絶対パスで実行して通した。
+この学びはセッション開始時に注入されていたが、`git status` を確認のために末尾に足した 1 語で同じ形になった。
