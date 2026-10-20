@@ -1,0 +1,147 @@
+{
+  "metadata": {
+    "skill_name": "issue-batch",
+    "skill_path": "<repo>/skills/issue-batch",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-20T01:39:39Z",
+    "evals_run": [28],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 28,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 33.497,
+        "tokens": 105157,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "#101 のローカルレビューを、差分が設定ファイルの 1 行と記録だけであることを理由に省かず、実行すると述べている",
+          "passed": true,
+          "evidence": "「#101: ローカルレビューを実行する」。「差分が設定の 1 行だけ」は省いてはいけない理由として挙がっていると述べ、`/code-review high` で差分をレビューする手順を書いている"
+        },
+        {
+          "text": "ローカルレビューを省いてよい条件を、利用者が明示して省くよう指示した場合と、差分が 0 行の場合の 2 つに限っている",
+          "passed": true,
+          "evidence": "「ローカルレビューを省いてよい場合（この 2 つだけ）」に、利用者の明示の指示と差分が 0 行の 2 つだけを挙げている"
+        },
+        {
+          "text": "#102 は利用者が明示して省くよう指示したので、省いてよい条件に当たると述べている",
+          "passed": true,
+          "evidence": "「省いてよい 1 つ目の条件に当たります。『利用者が、run の指示か preflight 10 の確認で、その Issue のローカルレビューを省くよう明示した』」"
+        },
+        {
+          "text": "#102 でローカルレビューを省いた場合に、そのことを最終報告の「自分で判断して進めたもの」の守っていない規約の欄（`unfollowed_rules`）に載せると述べている",
+          "passed": true,
+          "evidence": "「`self_decisions.unfollowed_rules`（守っていない規約）に…記録します」と、最終報告の「自分で判断して進めたもの」の「守っていない規約とその理由」欄に #102 の項目を載せると述べている"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（レビュー・commit・push を行っていない）",
+          "passed": true,
+          "evidence": "「dry-run の説明だけで、コマンドの実行もファイルの変更もしていません」。project-tree.txt に fixture 以外の生成物は無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 28,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 33.728,
+        "tokens": 37514,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "#101 のローカルレビューを、差分が設定ファイルの 1 行と記録だけであることを理由に省かず、実行すると述べている",
+          "passed": true,
+          "evidence": "「#101：ローカルレビューを実行する」「差分が小さいことは、省く理由にならない」"
+        },
+        {
+          "text": "ローカルレビューを省いてよい条件を、利用者が明示して省くよう指示した場合と、差分が 0 行の場合の 2 つに限っている",
+          "passed": false,
+          "evidence": "省いてよい場合に、利用者の明示の指示と差分が無いときに加えて「リポジトリの規約が…免除を明文で定めているとき」を挙げており、2 つに限っていない"
+        },
+        {
+          "text": "#102 は利用者が明示して省くよう指示したので、省いてよい条件に当たると述べている",
+          "passed": true,
+          "evidence": "「run を始めるときに、利用者が『#102 はローカルレビューを省いてよい』と、issue を名指しで明示しています」として省くと述べている"
+        },
+        {
+          "text": "#102 でローカルレビューを省いた場合に、そのことを最終報告の「自分で判断して進めたもの」の守っていない規約の欄（`unfollowed_rules`）に載せると述べている",
+          "passed": false,
+          "evidence": "最終報告には表の列と「省略・未実施の事項」の節に載せると述べ、「自分で判断して進めたもの」の守っていない規約の欄（`unfollowed_rules`）には触れていない"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（レビュー・commit・push を行っていない）",
+          "passed": true,
+          "evidence": "「dry-run なので、コマンドの実行、ファイルの変更、commit、push はどれも行いません」"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 33.497,
+        "stddev": 0,
+        "min": 33.497,
+        "max": 33.497
+      },
+      "tokens": {
+        "mean": 105157,
+        "stddev": 0,
+        "min": 105157,
+        "max": 105157
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.6,
+        "stddev": 0,
+        "min": 0.6,
+        "max": 0.6
+      },
+      "time_seconds": {
+        "mean": 33.728,
+        "stddev": 0,
+        "min": 33.728,
+        "max": 33.728
+      },
+      "tokens": {
+        "mean": 37514,
+        "stddev": 0,
+        "min": 37514,
+        "max": 37514
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.40",
+      "time_seconds": "-0.2",
+      "tokens": "+67643"
+    }
+  },
+  "notes": []
+}
