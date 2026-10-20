@@ -361,6 +361,35 @@ test("有限の数でない order（NaN）は、読めない order として扱�
   expect(result.reasons.join(" ")).toMatch(/rule order of .* is missing/);
 });
 
+test.each([
+  [
+    "`all` の候補",
+    [
+      { order: 1, selector: ".btn", declarations: [decl("color", "blue")] },
+      { order: null, selector: ".btn", declarations: [decl("all", "unset")] },
+    ],
+  ],
+  [
+    "状態が不明な候補",
+    [
+      { order: 1, selector: ".a.btn", declarations: [decl("color", "blue")] },
+      {
+        order: null,
+        selector: ".btn:enabled",
+        states: ["enabled"],
+        declarations: [decl("color", "green")],
+      },
+    ],
+  ],
+])(
+  "勝者と同じ詳細度の%sの order が null なら、order が無いことを理由に undecidable にする",
+  (_name, matched) => {
+    const result = resolve(doc({ matched }), "color");
+    expect(result.status).toBe("undecidable");
+    expect(result.reasons.join(" ")).toMatch(/rule order of .* is missing/);
+  },
+);
+
 test("order が null の 1 つの規則の中で同じプロパティを 2 回書いたなら、後に書いた宣言を勝者にする", () => {
   const input = doc({
     matched: [

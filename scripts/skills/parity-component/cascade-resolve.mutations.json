@@ -63,7 +63,9 @@
       "occurrences": 1,
       "expect_failing": [
         "勝者と同じ詳細度の条件付きの候補の order が null なら、追い越しを判定できないので undecidable にする",
-        "勝者の order が null で、同じ詳細度の条件付きの候補に order があっても、追い越しを判定できないので undecidable にする"
+        "勝者の order が null で、同じ詳細度の条件付きの候補に order があっても、追い越しを判定できないので undecidable にする",
+        "勝者と同じ詳細度の`all` の候補の order が null なら、order が無いことを理由に undecidable にする",
+        "勝者と同じ詳細度の状態が不明な候補の order が null なら、order が無いことを理由に undecidable にする"
       ]
     },
     {
@@ -75,7 +77,9 @@
       "occurrences": 1,
       "expect_failing": [
         "勝者と同じ詳細度の条件付きの候補の order が null なら、追い越しを判定できないので undecidable にする",
-        "勝者の order が null で、同じ詳細度の条件付きの候補に order があっても、追い越しを判定できないので undecidable にする"
+        "勝者の order が null で、同じ詳細度の条件付きの候補に order があっても、追い越しを判定できないので undecidable にする",
+        "勝者と同じ詳細度の`all` の候補の order が null なら、order が無いことを理由に undecidable にする",
+        "勝者と同じ詳細度の状態が不明な候補の order が null なら、order が無いことを理由に undecidable にする"
       ]
     },
     {
