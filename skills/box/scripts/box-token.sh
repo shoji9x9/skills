@@ -11,10 +11,31 @@ fi
 : "${BOX_CLIENT_ID:?BOX_ACCESS_TOKEN か BOX_CLIENT_ID/BOX_CLIENT_SECRET が必要}"
 : "${BOX_CLIENT_SECRET:?BOX_CLIENT_SECRET が未設定}"
 
-token_file="${BOX_REFRESH_TOKEN_FILE:-$HOME/.config/box/refresh_token}"
-# env/dotenv 経由の値は ~ が展開されないため、先頭 ~/ を $HOME/ に正規化する
+# HOME が無いか空なら、box-folder.sh と同じく、ユーザーのデータベースのホームを使う
+home_dir="${HOME:-}"
+[ -n "${home_dir}" ] || home_dir=$(
+	unset HOME
+	printf '%s' ~
+)
+# ユーザーのデータベースにエントリが無いと ~ が展開されずに残るので、空として扱う
+[ "${home_dir}" != "~" ] || home_dir=""
+# 置き場所のデフォルトは ~/.config/box/refresh_token。
+# env/dotenv 経由の値は ~ が展開されないため、先頭 ~/ も上で決めたホームの下に直す
+token_file="${BOX_REFRESH_TOKEN_FILE:-}"
 stripped="${token_file#\~/}"
-[ "$stripped" != "$token_file" ] && token_file="$HOME/$stripped"
+if [ -z "$token_file" ] || [ "$stripped" != "$token_file" ]; then
+	[ -n "$token_file" ] || stripped=".config/box/refresh_token"
+	# ホームが絶対パスに決まらないまま進むと、更新した後に新しい refresh token を保存できず、その値を失う。
+	# Box は更新に使った古い refresh token を無効にするので、API を呼ぶ前に止める
+	case "${home_dir}" in
+	/*) ;;
+	*)
+		printf 'box-token: refresh token の置き場所を絶対パスに決められない（HOME=%q。HOME が無いか空なら、ユーザーのデータベースのホームも見た）。BOX_REFRESH_TOKEN_FILE に絶対パスを設定する（例: export BOX_REFRESH_TOKEN_FILE=/path/to/refresh_token）\n' "${HOME-}" >&2
+		exit 1
+		;;
+	esac
+	token_file="${home_dir}/$stripped"
+fi
 refresh="${BOX_REFRESH_TOKEN:-}"
 if [ -z "$refresh" ] && [ -f "$token_file" ]; then
 	refresh="$(<"$token_file")"

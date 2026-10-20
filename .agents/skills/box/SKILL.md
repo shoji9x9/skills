@@ -30,13 +30,16 @@ TOKEN="$(bash <skill>/scripts/box-token.sh)"
 | Dev Token     | `BOX_ACCESS_TOKEN`                                    | Box Developer Console で発行する、60 分有効なトークン。すぐ使え、管理者の承認は要らない。期限が切れるたびに発行し直す |
 | OAuth refresh | `BOX_CLIENT_ID` / `BOX_CLIENT_SECRET` / refresh token | refresh token から access token をそのつど取得する。長く使える。refresh token は使うたびに変わるので、自動で保存する |
 
-OAuth refresh の refresh token は、`BOX_REFRESH_TOKEN` か `BOX_REFRESH_TOKEN_FILE`（デフォルトは `$HOME/.config/box/refresh_token`）から読む。`BOX_ACCESS_TOKEN` が設定されていれば、そちらを優先する。
+OAuth refresh の refresh token は、`BOX_REFRESH_TOKEN` か `BOX_REFRESH_TOKEN_FILE`（デフォルトは `~/.config/box/refresh_token`）から読む。`BOX_ACCESS_TOKEN` が設定されていれば、そちらを優先する。
+`~` は `HOME` のディレクトリで、`HOME` が無いか空なら、ユーザーのデータベース（passwd）のホームを使う。
+置き場所がデフォルトか `~/` で始まり、ホームが絶対パスに決まらなければ、スクリプトは API を呼ぶ前に止まる。そのときは `BOX_REFRESH_TOKEN_FILE` に絶対パスを設定する。
+`BOX_REFRESH_TOKEN_FILE` の相対パスは、スクリプトを実行したディレクトリからのパスとして扱う。リポジトリの中に保存しないよう、絶対パスで設定する。
 
 OAuth refresh を使う場合は、最初の 1 回だけ、Client ID と Client Secret の取得と、認可コードの交換が要る。手順は [`references/oauth-setup.md`](references/oauth-setup.md) にある。
 
 必要な環境変数は、同梱のテンプレート [`assets/.env.example`](assets/.env.example) を `.env` にコピーして設定する（インストール先に同じ種類の設定があれば、それを優先する）。
 
-トークン・client secret・refresh token は秘密の情報なので、リポジトリに commit しない。環境変数（direnv など）か、リポジトリの外のファイル（デフォルトの `$HOME/.config/box/`）で管理する。
+トークン・client secret・refresh token は秘密の情報なので、リポジトリに commit しない。環境変数（direnv など）か、リポジトリの外のファイル（デフォルトの `~/.config/box/`）で管理する。
 値をログ・標準出力・成果物に出さない。ユーザーが値を示してきた場合も、その値を**繰り返して書かない**（コマンド例や説明では、プレースホルダや環境変数名に置き換える）。
 
 接続できるかは、次のコマンドで確かめる。

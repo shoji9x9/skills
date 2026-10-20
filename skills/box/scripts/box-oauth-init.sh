@@ -7,7 +7,7 @@
 #          削除は trap EXIT で行う。`; rm -f` でつなぐと、set -e のシェルでは交換に失敗したときに実行されず、認可コードが残る。
 # 認可コードを引数で渡さないのは、実行中に ps/proc から他プロセスへ露出させないため。
 # 必要env: BOX_CLIENT_ID, BOX_CLIENT_SECRET
-# 任意env: BOX_REDIRECT_URI（既定 https://app.box.com）, BOX_REFRESH_TOKEN_FILE（既定 $HOME/.config/box/refresh_token）
+# 任意env: BOX_REDIRECT_URI（既定 https://app.box.com）, BOX_REFRESH_TOKEN_FILE（既定 ~/.config/box/refresh_token）
 set -euo pipefail
 
 # 以前の `box-oauth-init.sh <code>` 形式をエラーにする。引数で渡すと ps/proc に値が出るうえ、
@@ -15,6 +15,32 @@ set -euo pipefail
 if [ "$#" -gt 0 ]; then
 	echo "エラー: 認可コードは引数で渡しません（ps/proc 露出を避けるため）。引数なしで実行してプロンプトに貼り付けるか、mktemp で作った 0600 の一時ファイルに書いて stdin で渡してください（CWD の code.txt は既定 umask では 0644 になるため使わない）。" >&2
 	exit 2
+fi
+
+# HOME が無いか空なら、box-folder.sh と同じく、ユーザーのデータベースのホームを使う
+home_dir="${HOME:-}"
+[ -n "${home_dir}" ] || home_dir=$(
+	unset HOME
+	printf '%s' ~
+)
+# ユーザーのデータベースにエントリが無いと ~ が展開されずに残るので、空として扱う
+[ "${home_dir}" != "~" ] || home_dir=""
+# 置き場所のデフォルトは ~/.config/box/refresh_token。
+# env/dotenv 経由の値は ~ が展開されないため、先頭 ~/ も上で決めたホームの下に直す
+token_file="${BOX_REFRESH_TOKEN_FILE:-}"
+stripped="${token_file#\~/}"
+if [ -z "$token_file" ] || [ "$stripped" != "$token_file" ]; then
+	[ -n "$token_file" ] || stripped=".config/box/refresh_token"
+	# ホームが絶対パスに決まらないまま交換すると、受け取った refresh token を保存できず、認可からやり直すことになる。
+	# 認可コードは 1 回しか使えないので、認可コードを読む前に止める
+	case "${home_dir}" in
+	/*) ;;
+	*)
+		printf 'box-oauth-init: refresh token の置き場所を絶対パスに決められない（HOME=%q。HOME が無いか空なら、ユーザーのデータベースのホームも見た）。BOX_REFRESH_TOKEN_FILE に絶対パスを設定する（例: export BOX_REFRESH_TOKEN_FILE=/path/to/refresh_token）\n' "${HOME-}" >&2
+		exit 1
+		;;
+	esac
+	token_file="${home_dir}/$stripped"
 fi
 
 # 認可コードは引数で受け取らずプロンプト（TTY）または stdin（パイプ）から読む。
@@ -29,10 +55,6 @@ code="$(printf '%s' "$code" | tr -d '[:space:]')"
 : "${BOX_CLIENT_SECRET:?BOX_CLIENT_SECRET が未設定}"
 
 redirect_uri="${BOX_REDIRECT_URI:-https://app.box.com}"
-token_file="${BOX_REFRESH_TOKEN_FILE:-$HOME/.config/box/refresh_token}"
-# env/dotenv 経由の値は ~ が展開されないため、先頭 ~/ を $HOME/ に正規化する
-stripped="${token_file#\~/}"
-[ "$stripped" != "$token_file" ] && token_file="$HOME/$stripped"
 
 # 認可コードと client_secret は、curl の argv（ps/proc）に載せず、umask 077 の一時ファイルで渡す。
 # --data-urlencode name@file では、curl がファイルの中身を読んで URL エンコードするので、argv にはファイル名しか現れない。
