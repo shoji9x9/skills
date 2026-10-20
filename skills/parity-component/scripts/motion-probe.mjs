@@ -185,7 +185,7 @@ export function installSampler({ selector, settleMs, timeoutMs, epsilon, maxSamp
     } catch (error) {
       // 不正なセレクタ等で投げたまま抜けると done が偽のまま残り、同じページの採り直しが
       // 「another motion probe is still running」で永久に弾かれる（rAF の中なら待つ側も上限まで待つ）。
-      // message の読み方は `error && error.message` と同じ（オブジェクトでなければ undefined）。
+      // message は、message を持つオブジェクトからだけ読む。読めないか偽の値（空文字など）なら、String(error) を表示する。
       const message =
         typeof error === "object" && error !== null && "message" in error
           ? error.message

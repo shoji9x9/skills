@@ -138,7 +138,11 @@ if ! jq -Rr '
 		else "" end;
 	(try fromjson catch null) as $j |
 	("N\t" + (input_line_number | tostring)),
-	(if $j == null then (if test("^\\s*$") then "B" else "X" end)
+	# レコードの判定で jq が実行時のエラーを出したら、判定できないとして扱う（"X"）。
+	# jq は途中の入力のエラーを終了コードに出さず、その行の残りの出力を捨てて次の行へ進む。
+	# 包まないと、型が想定と違うレコード（オブジェクトでない JSON・text がオブジェクトの要素など）の本文を
+	# 読まないまま、検証済みゼロ（exit 1）を返す。
+	(try (if $j == null then (if test("^\\s*$") then "B" else "X" end)
 	elif $j.type == "assistant" then
 		"C", "A",
 		(($j.message.content // []) | if type == "array" then .[] else empty end |
@@ -216,12 +220,47 @@ if ! jq -Rr '
 	      $j.payload.type == "web_search_end") then "D", "R"
 	elif ($j.type == "compacted" or $j.type == "turn_context" or $j.type == "world_state" or
 	      $j.type == "inter_agent_communication_metadata") then "D", "R"
+	# エージェントが作業している間に利用者が送った発話は、`user` レコードにならず、`attachment` の
+	# `queued_command`（`commandMode: "prompt"`）として残る。これを読み飛ばすと、作業中に送った修正の指示が
+	# 候補から外れる。読み飛ばすのは、発話ではないと分かっている閉じた集合だけにする。
+	# 注入した本文の `isMeta`、通知の `commandMode: "task-notification"`、`origin.kind` の
+	# `peer`（サブエージェントの報告）・`coordinator`・`task-notification` である。
+	# それ以外の `commandMode` と `origin.kind`（欠落を含む）は発話として読む。知らない値で判定不能にすると、
+	# その値を書くセッションでは commit がずっと止まり、読み飛ばすと修正の指示を取りこぼすからである。
+	# `!` で入力したシェルのコマンドに付く `commandMode` の値は transcript の記録で確かめていないので、
+	# 読み飛ばす集合に入れていない。
+	# `prompt` が無いものは、読む本文が無いので候補を出さない。
+	# 型が違う値（真偽値でない `isMeta`、オブジェクトでない `origin`、文字列でない `commandMode` と
+	# `origin.kind`、文字列でも配列でもない `prompt`）は、発話かを決められないので判定できないとして扱う。
+	# ただし、読み飛ばす集合に当たるレコードは本文を読まないので、他のフィールドの型は確かめずに読み飛ばす。
+	# 真偽値の `isMeta` だけは、集合に当たるかをその値で決めるので、先に型を確かめる。
+	elif $j.type == "attachment" and ($j.attachment | type) == "object" and
+	     $j.attachment.type == "queued_command" then
+		"C", "R",
+		($j.attachment as $a |
+		 if ([$j.isMeta, $a.isMeta] | any(. != null and type != "boolean")) then "X"
+		 elif ($j.isMeta == true or $a.isMeta == true) then empty
+		 elif ($a.commandMode == "task-notification" or
+		       (($a.origin | type) == "object" and
+		        ($a.origin.kind == "peer" or $a.origin.kind == "coordinator" or
+		         $a.origin.kind == "task-notification"))) then empty
+		 elif $a.origin != null and ($a.origin | type) != "object" then "X"
+		 elif ([$a.commandMode, $a.origin.kind] | any(. != null and type != "string")) then "X"
+		 elif ($a.prompt != null and ($a.prompt | type) != "string" and ($a.prompt | type) != "array") then "X"
+		 else ($a.prompt | user_text | clean | select(length > 0) | "U\t" + .) end)
 	elif ($j.type == "ai-title" or $j.type == "attachment" or $j.type == "file-history-delta" or
 	      $j.type == "file-history-snapshot" or $j.type == "last-prompt" or $j.type == "mode" or
 	      $j.type == "permission-mode" or $j.type == "pr-link" or $j.type == "queue-operation" or
 	      $j.type == "system" or $j.type == "agent-name" or $j.type == "started" or
 	      $j.type == "atis-latch") then "R"
 	elif $j.type == "result" and $j.agentId? != null and $j.key? != null and $j.result? != null then "R"
+	# Claude Code の `api-request-blob` は、API に送ったメッセージ（system・user・assistant）を hash ごとに
+	# 1 回だけ残すコピーである。本文は、同じセッションの `user` / `assistant` のレコードか、作業中に送った発話の
+	# `queued_command`（上の分岐で読む）と重なり、残りはシステムが注入した本文（`<system-reminder>` など）なので、
+	# 候補の判定には使わない。コピーを読むと、注入した本文の修正語を拾ったり同じ発話を二重に数えたりして、
+	# 実在しない候補が出る。
+	# hash が文字列でないものと message がオブジェクトでないものは、知らない形なので下の判定に残す。
+	elif $j.type == "api-request-blob" and ($j.hash | type) == "string" and ($j.message | type) == "object" then "C", "R"
 	# 未知の `type` は、名前ではなく**構造**で区別する。会話を運ぶ入れ物（`message` / `payload` /
 	# `content`）を持たないレコードは候補の判定に関係しないので読み飛ばし、持つものだけ、これまでどおり
 	# 判定できないとして扱う。型名を 1 つずつ許可する形にすると、エージェントが内部レコードを 1 種類
@@ -231,7 +270,7 @@ if ! jq -Rr '
 	# こちらの想定外なので、subtype が欠けた場合と同じく、判定できないとして扱う。
 	elif ($j.type | type) == "string" and $j.type != "response_item" and $j.type != "event_msg" and
 	     $j.message == null and $j.payload == null and $j.content == null then "R"
-	else "X" end)
+	else "X" end) catch "X")
 ' "${slice}" >"${records}"; then
 	echo "kaizen-candidate-scan: transcript JSONL could not be parsed" >&2
 	exit 2
@@ -244,6 +283,7 @@ fi
 #（読むのは自分のセッションの transcript なので、位置さえ分かれば内容は自分で取得できる）。
 recognized=0
 invalid=0
+invalid_line=0
 blank=0
 saw_claude=0
 saw_codex=0
@@ -259,7 +299,14 @@ while IFS= read -r record; do
 		record_line=$((base_line + ${record#*$'\t'}))
 		continue
 		;;
-	X) invalid=1 ;;
+	X)
+		# 利用者が原因の行を探せるように、最初に判定できなかった行の番号を残す。
+		# jq のエラーの本文はレコードの値の一部を含むので、出さない（上の「1 文字も出さない」）。
+		if [ "${invalid}" -eq 0 ]; then
+			invalid_line=${record_line}
+		fi
+		invalid=1
+		;;
 	B) blank=$((blank + 1)) ;;
 	C) saw_claude=1 ;;
 	D) saw_codex=1 ;;
@@ -320,7 +367,7 @@ while IFS= read -r record; do
 done <"${records}"
 
 if [ "${invalid}" -eq 1 ]; then
-	echo "kaizen-candidate-scan: transcript contains an unsupported or malformed record" >&2
+	echo "kaizen-candidate-scan: transcript contains an unsupported or malformed record (first at transcript line ${invalid_line})" >&2
 	exit 2
 fi
 if [ "${recognized}" -eq 0 ] && [ "${blank}" -gt 0 ]; then

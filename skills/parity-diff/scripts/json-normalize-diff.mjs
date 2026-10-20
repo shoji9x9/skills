@@ -26,10 +26,16 @@ import { canonicalize } from "./lib/json.mjs";
  *
  * @type {string}
  */
-export const VERSION = "2";
+export const VERSION = "3";
 
-/** 値が存在しない（キー欠落）ことを示すセンチネル文字列。 */
+/** 値が存在しない（キーや要素が無い）ことを、出力の current・new に書く表記。 */
 export const ABSENT = "(absent)";
+
+/**
+ * 比べる間だけ使う、値が存在しないことの印。
+ * JSON の値には Symbol が現れないので、本当の値が "(absent)" という文字列でも欠落と区別できる。
+ */
+const MISSING = Symbol("absent");
 
 /**
  * ドット記法パスのセグメント配列を返す。"data.*.updated_at" → ["data","*","updated_at"]。
@@ -136,31 +142,28 @@ export function sortArrayAtPath(node, segs) {
  * @param {Array<{ path:string, current:unknown, new:unknown }>} out
  */
 export function deepDiff(a, b, path, out) {
-  const aObj = a !== null && typeof a === "object";
-  const bObj = b !== null && typeof b === "object";
-  if (aObj && bObj && isArray(a) === isArray(b)) {
-    // 外側の条件で a と b の配列かどうかは揃っている。
-    if (isArray(a) && isArray(b)) {
-      const len = Math.max(a.length, b.length);
-      for (let i = 0; i < len; i += 1) {
-        const childPath = path ? `${path}.${i}` : String(i);
-        deepDiff(i < a.length ? a[i] : ABSENT, i < b.length ? b[i] : ABSENT, childPath, out);
-      }
-      return;
-    }
-    if (isPlainObject(a) && isPlainObject(b)) {
-      const keys = [...new Set([...Object.keys(a), ...Object.keys(b)])].sort();
-      for (const key of keys) {
-        const childPath = path ? `${path}.${key}` : key;
-        const av = Object.prototype.hasOwnProperty.call(a, key) ? a[key] : ABSENT;
-        const bv = Object.prototype.hasOwnProperty.call(b, key) ? b[key] : ABSENT;
-        deepDiff(av, bv, childPath, out);
-      }
+  // 両方が配列か、両方が JSON オブジェクトのときだけ中へ進む。片方だけが配列なら、下で値ごと比べる。
+  if (isArray(a) && isArray(b)) {
+    const len = Math.max(a.length, b.length);
+    for (let i = 0; i < len; i += 1) {
+      const childPath = path ? `${path}.${i}` : String(i);
+      deepDiff(i < a.length ? a[i] : MISSING, i < b.length ? b[i] : MISSING, childPath, out);
     }
     return;
   }
+  if (isPlainObject(a) && isPlainObject(b)) {
+    const keys = [...new Set([...Object.keys(a), ...Object.keys(b)])].sort();
+    for (const key of keys) {
+      const childPath = path ? `${path}.${key}` : key;
+      const av = Object.prototype.hasOwnProperty.call(a, key) ? a[key] : MISSING;
+      const bv = Object.prototype.hasOwnProperty.call(b, key) ? b[key] : MISSING;
+      deepDiff(av, bv, childPath, out);
+    }
+    return;
+  }
+  // JSON.stringify(MISSING) は undefined なので、片側だけに無い値は、もう片方が "(absent)" という文字列でも差分になる。
   if (JSON.stringify(a) !== JSON.stringify(b)) {
-    out.push({ path, current: a, new: b });
+    out.push({ path, current: a === MISSING ? ABSENT : a, new: b === MISSING ? ABSENT : b });
   }
 }
 

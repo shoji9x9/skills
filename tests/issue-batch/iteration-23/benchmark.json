@@ -1,0 +1,159 @@
+{
+  "metadata": {
+    "skill_name": "issue-batch",
+    "skill_path": "<repo>/skills/issue-batch",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-19T11:51:28Z",
+    "evals_run": [13],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 13,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 41.394,
+        "tokens": 124022,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "2 行（AM の行を含む）をどちらも引き継げる記録と判定し、BLOCKED にせず、#101 の片付けを後に回して記録を次の Issue #102 の branch に引き継ぐ",
+          "passed": true,
+          "evidence": "2 行の状態を index の列と作業ツリーの列に分けて判定し（AM の行を含む）、BLOCKED にせず #102 の branch に引き継ぐとした。"
+        },
+        {
+          "text": "#102 の branch が #101 の merge commit を含むことを確かめてから、記録を複製する",
+          "passed": true,
+          "evidence": "#102 の worktree で git merge-base --is-ancestor <#101 の merge commit の OID> HEAD を確かめてから複製するとした。"
+        },
+        {
+          "text": "#102 の PR が merge され、merge commit の中の記録が元のファイルと一致する（cmp など）まで、#101 の worktree を残す",
+          "passed": true,
+          "evidence": "#102 の PR が MERGED になった後に git show と cmp で比べ、一致してから #101 の worktree を戻すとした。"
+        },
+        {
+          "text": "clean な場合も worktree を先に解除し、解除済みを確認してから local branch を削除する",
+          "passed": true,
+          "evidence": "worktree から出て git worktree remove、git worktree list で確かめ、local branch、remote ref の順に削除するとした。"
+        },
+        {
+          "text": "検証済み完全一致 ref だけを対象とし glob を使わない",
+          "passed": true,
+          "evidence": "完全一致を確かめた ref だけを扱い、glob で消さないとした。"
+        },
+        {
+          "text": "default / protected branch と似た別 branch を削除対象にしない",
+          "passed": true,
+          "evidence": "main はデフォルト branch として対象外、feature/101-fix-old は完全一致しないので残すとした。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 13,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.1667,
+        "passed": 1,
+        "failed": 5,
+        "total": 6,
+        "time_seconds": 34.825,
+        "tokens": 40829,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "2 行（AM の行を含む）をどちらも引き継げる記録と判定し、BLOCKED にせず、#101 の片付けを後に回して記録を次の Issue #102 の branch に引き継ぐ",
+          "passed": false,
+          "evidence": "記録を repo の外に退避して agent-usage の手順で取り込むとし、#102 へのコピーはしないと書いた。"
+        },
+        {
+          "text": "#102 の branch が #101 の merge commit を含むことを確かめてから、記録を複製する",
+          "passed": false,
+          "evidence": "#102 の branch が #101 の merge commit を含むかを確かめる手順が無い。"
+        },
+        {
+          "text": "#102 の PR が merge され、merge commit の中の記録が元のファイルと一致する（cmp など）まで、#101 の worktree を残す",
+          "passed": false,
+          "evidence": "#102 の PR の merge を待つ手順が無く、退避の後に clean を確かめて片付けるとした。"
+        },
+        {
+          "text": "clean な場合も worktree を先に解除し、解除済みを確認してから local branch を削除する",
+          "passed": false,
+          "evidence": "worktree remove の後に branch -d に進むとしたが、解除できたことを確かめる手順が無い。"
+        },
+        {
+          "text": "検証済み完全一致 ref だけを対象とし glob を使わない",
+          "passed": false,
+          "evidence": "前方一致するだけでは消す理由にならないとしたが、完全一致の ref だけを扱うことと glob を使わないことは書いていない。"
+        },
+        {
+          "text": "default / protected branch と似た別 branch を削除対象にしない",
+          "passed": true,
+          "evidence": "main を対象外にし、feature/101-fix-old も対象に入れなかった。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 41.394,
+        "stddev": 0,
+        "min": 41.394,
+        "max": 41.394
+      },
+      "tokens": {
+        "mean": 124022,
+        "stddev": 0,
+        "min": 124022,
+        "max": 124022
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.1667,
+        "stddev": 0,
+        "min": 0.1667,
+        "max": 0.1667
+      },
+      "time_seconds": {
+        "mean": 34.825,
+        "stddev": 0,
+        "min": 34.825,
+        "max": 34.825
+      },
+      "tokens": {
+        "mean": 40829,
+        "stddev": 0,
+        "min": 40829,
+        "max": 40829
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.83",
+      "time_seconds": "+6.6",
+      "tokens": "+83193"
+    }
+  },
+  "notes": [
+    "変更確認の範囲（Issue #689 で assertion を変えた eval 13 を with_skill と without_skill で 1 run ずつ）。1 run なので Delta の値は扱わず、差が残っているかだけを見る。"
+  ]
+}

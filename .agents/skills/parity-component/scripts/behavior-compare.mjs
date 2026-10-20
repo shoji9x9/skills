@@ -320,7 +320,7 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
   for (const id of instanceIds) {
     const raw = behaviors[id];
     if (raw === null || raw === undefined) continue; // 欠落は下の未採取で数える
-    // オブジェクトでない値の欄は undefined として読む（プロパティアクセスと同じ）。
+    // オブジェクトでない値は空の表として読む。どの欄も undefined になるので、直後の instance の照合で不一致として報告する。
     /** @type {Record<string, unknown>} */
     const doc = isObjectLike(raw) ? raw : {};
     if (doc.instance !== id) {
@@ -389,7 +389,7 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
     counts.uncompared = population.size;
     return { structural: false, judged: true, findings, counts };
   }
-  // オブジェクトでない値の欄は undefined として読む（プロパティアクセスと同じ）。
+  // オブジェクトでない値は空の表として読む。どの欄も undefined になるので、直後の target の照合で不一致として報告する。
   /** @type {Record<string, unknown>} */
   const table = isObjectLike(comparison) ? comparison : {};
   if (table.target !== target) {

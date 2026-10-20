@@ -58,10 +58,13 @@
         "isGitCommit git -C /repo commit -m x → true",
         "isGitCommit git -c user.name=x commit → true",
         "isGitCommit git -C commit status → false",
+        "isGitCommit cd /r && timeout 60 git -C sub commit → true",
         "commitCwd git -C /other commit -m x → /other",
         "commitCwd git -C sub -C deeper commit → /w/sub/deeper",
         "commitCwd git -C ../o -c a=b commit → /o",
-        "commitCwd cd /r; git -C sub commit → /r/sub"
+        "commitCwd cd /r; git -C sub commit → /r/sub",
+        "commitCwd env --chdir=sub git -C x commit → /w/sub/x",
+        "commitCwd sudo --chdir /o git -C x commit → /o/x"
       ]
     },
     {
@@ -85,7 +88,6 @@
         "isGitCommit for i in 1; do git commit; done → true",
         "isGitCommit { git commit; } → true",
         "isGitCommit ! git commit → true",
-        "isGitCommit time git commit → true",
         "isGitCommit if git commit -m x; then echo ok; fi → true",
         "isGitCommit while git commit; do :; done → true",
         "isGitCommit until git commit -m y; do :; done → true"
@@ -95,15 +97,187 @@
       "id": "wrapper-not-skipped",
       "why": "コマンドを実行するコマンドを読み飛ばさない",
       "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "    if (i < words.length && COMMAND_WRAPPERS.includes(words[i])) {",
+      "find": "    if (wrapper !== undefined) {",
       "replace": "    if (false) {",
       "occurrences": 1,
       "expect_failing": [
+        "isGitCommit time git commit → true",
         "isGitCommit env FOO=1 git commit → true",
         "isGitCommit env -i git commit → true",
         "isGitCommit command git commit → true",
         "isGitCommit sudo git commit → true",
-        "isGitCommit xargs -0 git commit → true"
+        "isGitCommit xargs -0 git commit → true",
+        "isGitCommit timeout 60 git commit -m x → true",
+        "isGitCommit timeout -s KILL 60 git commit → true",
+        "isGitCommit timeout --signal=KILL 1m git commit → true",
+        "isGitCommit nice -n 5 git commit → true",
+        "isGitCommit nice git commit → true",
+        "isGitCommit stdbuf -oL git commit → true",
+        "isGitCommit stdbuf -o L git commit → true",
+        "isGitCommit builtin git commit → true",
+        "isGitCommit exec git commit -m x → true",
+        "isGitCommit nohup git commit → true",
+        "isGitCommit time -p git commit → true",
+        "isGitCommit sudo -u alice git commit → true",
+        "isGitCommit env -u HOME git commit → true",
+        "isGitCommit xargs -n 1 git commit → true",
+        "isGitCommit sudo -- git commit → true",
+        "isGitCommit nohup nice -n 5 timeout 60 git commit → true",
+        "isGitCommit timeout 60 /usr/bin/git commit → true",
+        "isGitCommit cd /r && timeout 60 git -C sub commit → true",
+        "isGitCommit sudo -p pw: git commit → true",
+        "isGitCommit sudo -r role -t type git commit → true",
+        "isGitCommit xargs --max-args 1 git commit → true",
+        "commitCwd env -C /o git commit → /o",
+        "commitCwd env --chdir=sub git -C x commit → /w/sub/x",
+        "commitCwd env -Csub git commit → /w/sub",
+        "commitCwd sudo -D /o git commit → /o",
+        "commitCwd sudo --chdir /o git -C x commit → /o/x",
+        "commitCwd env -iC /o git commit → /o",
+        "commitCwd env -iCsub git commit → /w/sub",
+        "commitCwd sudo -ED /o git commit → /o",
+        "isGitCommit env -iC /o git commit → true",
+        "isGitCommit env -iC/o git commit → true",
+        "isGitCommit env -iu HOME git commit → true",
+        "isGitCommit sudo -Eu alice git commit → true",
+        "isGitCommit sudo -h host git commit → true",
+        "isGitCommit sudo -c class git commit → true",
+        "isGitCommit sudo -a type git commit → true",
+        "isGitCommit env -a name git commit → true"
+      ]
+    },
+    {
+      "id": "wrapper-value-option-not-skipped",
+      "why": "ラッパーの値を取るオプション（nice -n 5 など）の値を読み飛ばさない（Issue #678）",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "        i += option.width;",
+      "replace": "        i += 1;",
+      "occurrences": 1,
+      "expect_failing": [
+        "isGitCommit timeout -s KILL 60 git commit → true",
+        "isGitCommit nice -n 5 git commit → true",
+        "isGitCommit stdbuf -o L git commit → true",
+        "isGitCommit sudo -u alice git commit → true",
+        "isGitCommit env -u HOME git commit → true",
+        "isGitCommit xargs -n 1 git commit → true",
+        "isGitCommit nohup nice -n 5 timeout 60 git commit → true",
+        "isGitCommit sudo -u git commit → false",
+        "isGitCommit sudo -p pw: git commit → true",
+        "isGitCommit sudo -r role -t type git commit → true",
+        "isGitCommit xargs --max-args 1 git commit → true",
+        "commitCwd env -C /o git commit → /o",
+        "commitCwd sudo -D /o git commit → /o",
+        "commitCwd sudo --chdir /o git -C x commit → /o/x",
+        "isGitCommit sudo -h host git commit → true",
+        "isGitCommit env -iC /o git commit → true",
+        "isGitCommit env -iu HOME git commit → true",
+        "isGitCommit sudo -Eu alice git commit → true",
+        "isGitCommit env -iC git commit → false",
+        "commitCwd env -iC /o git commit → /o",
+        "commitCwd sudo -ED /o git commit → /o",
+        "isGitCommit sudo -c class git commit → true",
+        "isGitCommit sudo -a type git commit → true",
+        "isGitCommit env -a name git commit → true"
+      ]
+    },
+    {
+      "id": "wrapper-chdir-ignored",
+      "why": "ラッパーが作業ディレクトリを変える形（env -C・sudo -D）を、コミットする作業ディレクトリに当てない",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "        if (option.dir !== null) dirs.push(option.dir);",
+      "replace": "        if (false) dirs.push(option.dir);",
+      "occurrences": 1,
+      "expect_failing": [
+        "commitCwd env -C /o git commit → /o",
+        "commitCwd env --chdir=sub git -C x commit → /w/sub/x",
+        "commitCwd env -Csub git commit → /w/sub",
+        "commitCwd sudo -D /o git commit → /o",
+        "commitCwd sudo --chdir /o git -C x commit → /o/x",
+        "commitCwd env -iC /o git commit → /o",
+        "commitCwd env -iCsub git commit → /w/sub",
+        "commitCwd sudo -ED /o git commit → /o"
+      ]
+    },
+    {
+      "id": "wrapper-short-option-cluster-not-read",
+      "why": "ラッパーの短いオプションをまとめた形（env -iC <dir>・sudo -Eu <user>）で、2 文字目より後ろの値を取るオプションを読まない",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "    if (!wrapper.valueOptions.includes(name)) continue;",
+      "replace": "    if (k > 1 || !wrapper.valueOptions.includes(name)) continue;",
+      "occurrences": 1,
+      "expect_failing": [
+        "isGitCommit env -iC /o git commit → true",
+        "isGitCommit env -iu HOME git commit → true",
+        "isGitCommit sudo -Eu alice git commit → true",
+        "isGitCommit env -iC git commit → false",
+        "commitCwd env -iC /o git commit → /o",
+        "commitCwd env -iCsub git commit → /w/sub",
+        "commitCwd sudo -ED /o git commit → /o"
+      ]
+    },
+    {
+      "id": "wrapper-operand-not-skipped",
+      "why": "timeout の引数（timeout 60 の 60）を読み飛ばさない（Issue #678）",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "      i += wrapper.operands;",
+      "replace": "      i += 0;",
+      "occurrences": 1,
+      "expect_failing": [
+        "isGitCommit timeout 60 git commit -m x → true",
+        "isGitCommit timeout -s KILL 60 git commit → true",
+        "isGitCommit timeout --signal=KILL 1m git commit → true",
+        "isGitCommit nohup nice -n 5 timeout 60 git commit → true",
+        "isGitCommit timeout 60 /usr/bin/git commit → true",
+        "isGitCommit cd /r && timeout 60 git -C sub commit → true"
+      ]
+    },
+    {
+      "id": "timeout-not-wrapper",
+      "why": "timeout をラッパーとして扱わない（Issue #678）",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "  [\"timeout\", {",
+      "replace": "  [\"timeout-x\", {",
+      "occurrences": 1,
+      "expect_failing": [
+        "isGitCommit timeout 60 git commit -m x → true",
+        "isGitCommit timeout -s KILL 60 git commit → true",
+        "isGitCommit timeout --signal=KILL 1m git commit → true",
+        "isGitCommit nohup nice -n 5 timeout 60 git commit → true",
+        "isGitCommit timeout 60 /usr/bin/git commit → true",
+        "isGitCommit cd /r && timeout 60 git -C sub commit → true"
+      ]
+    },
+    {
+      "id": "stdbuf-not-wrapper",
+      "why": "stdbuf をラッパーとして扱わない（Issue #678）",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "  [\"stdbuf\", {",
+      "replace": "  [\"stdbuf-x\", {",
+      "occurrences": 1,
+      "expect_failing": [
+        "isGitCommit stdbuf -oL git commit → true",
+        "isGitCommit stdbuf -o L git commit → true"
+      ]
+    },
+    {
+      "id": "builtin-not-wrapper",
+      "why": "builtin をラッパーとして扱わない（Issue #678）",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "  [\"builtin\", {",
+      "replace": "  [\"builtin-x\", {",
+      "occurrences": 1,
+      "expect_failing": ["isGitCommit builtin git commit → true"]
+    },
+    {
+      "id": "time-not-wrapper",
+      "why": "time をラッパーとして扱わない（time -p のオプションを読み飛ばさない。Issue #678）",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "  [\"time\", {",
+      "replace": "  [\"time-x\", {",
+      "occurrences": 1,
+      "expect_failing": [
+        "isGitCommit time git commit → true",
+        "isGitCommit time -p git commit → true"
       ]
     },
     {

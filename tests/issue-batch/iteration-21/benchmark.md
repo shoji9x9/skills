@@ -1,23 +1,27 @@
 # Skill Benchmark: issue-batch
 
-**Model**: claude-code / opus
-**Date**: 2026-10-19
+**Model**: claude-code / opus（harness `run-skill-eval/5`）
+**Date**: 2026-10-20
 **Evals**: 1（`with_skill` と `without_skill` を 1 run ずつ）
 
 ## 何を変えたか
 
-Issue #689 で、merge の後に commit を記録する Hook（agent-usage など）が worktree に足した記録を、片付けの前に次の Issue の branch へ引き継ぐ手順を `references/orchestration.md` に足した。
-片付けで `git worktree remove --force` を使わないことも書いた。
+Issue #688 で、push の前のローカルレビューを変更の大きさで省かないことと、省いてよい条件の閉じた一覧（利用者が明示して省くよう指示した・差分が 0 行）を、`references/orchestration.md`「ローカルレビュー」に足した。
+省いたときは、「判断の扱い」の守っていない規約の欄（`unfollowed_rules`）に記録する。SKILL.md の手順 4 からは、この節を参照する。
 
-eval 13 の prompt に、dirty な worktree の `git status` の出力（agent-usage の記録の 2 行、`AM` を含む）と次の Issue の worktree を足し、引き継ぎの手順の中身を検査する assertion に替えた。入力が変わったのはこの eval だけである。
+入力が変わったのは、新しく足した eval 28 である。
 
 ## Summary
 
 | eval | 入力の変更 | with_skill | without_skill | 前回の with_skill |
 | --- | --- | --- | --- | --- |
-| 13 | prompt・assertion | 6/6 | 1/6 | iteration-3（入力が違う） |
+| 28 | 新規 | 5/5 | 3/5 | 無し |
 
-without_skill は、記録を repo の外に退避して agent-usage の手順で取り込むと答え、次の Issue の branch への引き継ぎ、merge commit を含むかの確認、次の PR の merge を待つことを書かなかった。
+with_skill の平均 pass_rate は 1.00、without_skill は 0.60。
+
+without_skill が落としたのは、省いてよい条件を 2 つに限ること（リポジトリの規約による免除を 3 つ目に足した）と、省いたことを守っていない規約の欄に載せること（「省略・未実施の事項」という別の節を作った）の 2 本である。
+without_skill も、#101 を省かずにレビューすることと、#102 が省いてよい条件に当たることは満たした。
+この 2 本は prompt が事実を挙げているので差が出ず、取り決めが消えた後退の検出のために置く（`evals/issue-batch/README.md`）。
 
 ## with_skill で満たさなかった assertion
 
@@ -25,7 +29,7 @@ without_skill は、記録を repo の外に退避して agent-usage の手順�
 
 ## 実行し直した run
 
-- PR #714 の前の 2 つの版の eval 13 で 1 回ずつ実行したが、レビューの指摘で prompt と assertion を直したので捨てた
+- 無し
 
 ## 集計から外したもの
 

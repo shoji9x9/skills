@@ -172,7 +172,8 @@ run を始めた後（全体 preflight を終え、manifest の作成などの�
   1 つの事柄は 1 つの欄にだけ載せ、どの欄にも当たらなければ `others` に載せる。
   複数の欄に当たりうる境目の事柄は、どの欄に置くかを自分で判断し、その判断を項目に書く。
   指摘の URL が無いもの（ローカルレビューの指摘）は、URL の代わりにファイルと行と指摘の要旨を書く。
-  - 守っていない規約: 指摘を受けずに守らなかった、リポジトリの文書が定める書き方や手順と、その理由
+  - 守っていない規約: 指摘を受けずに守らなかった、リポジトリの文書が定める書き方や手順と、その理由。
+    利用者の指示でローカルレビューを省いたことも、ここに載せる。省いてよい条件と、記録に添える内容は「ローカルレビュー」で定義する
   - 速度や反復の回数を理由に直さなかった指摘: 指摘の URL と、直さなかった理由。欄は指摘の種類ではなく直さなかった理由で決めるので、規約に反するという指摘もここに入る
   - 見送った指摘のうち Issue にしていないもの: 速度や反復の回数以外の理由（範囲の外など）で見送った指摘の URL と、Issue にしなかった理由
   - Issue の対象から外した形: Issue が挙げた範囲や形（対象のファイル・入力の種類・書き方の変種など）のうち、扱わなかったもので、受け入れ条件に入っていないか、外すこと（`waived`）か別の作業に回すこと（`deferred`）に承認を得たもの。
@@ -238,11 +239,43 @@ Issue ごとの専用の worktree で、`issue-start <Issue URL> --pr` と同じ
 - Codex: `codex review --uncommitted`。staged・unstaged・untracked が対象であることを、ローカルの `--help` でも確かめる（[OpenAI Developers](https://developers.openai.com/codex/cli/reference)）。
 - Claude Code: 現在の差分か branch をレビューする、組み込みの `/code-review high` を使う。
   非対話の `claude -p` で呼ぶ方法は、今の CLI で実際に実行して動いた場合だけ使う。動かなければ BLOCKED にする（[Claude Code commands](https://code.claude.com/docs/en/commands)）。
-- GitHub Copilot CLI: 次のコマンドを使う（[GitHub Docs](https://docs.github.com/en/copilot/how-tos/copilot-cli/automate-copilot-cli/run-cli-programmatically#code-review-a-branch)）。
+  追跡されていないファイルが `/code-review` の対象に入るかは文書に書かれていないので、レビューの前に、追跡されていないファイルを `git add --intent-to-add <path>` で追跡に加える。
+  レビューの後に commit しないと決めたファイルは、`git reset -- <path>` で追跡から外す。
+- GitHub Copilot CLI: `/review` の後に、レビューの対象を文で書いて渡す（[GitHub Docs](https://docs.github.com/en/copilot/how-tos/copilot-cli/automate-copilot-cli/run-cli-programmatically#code-review-a-branch)）。
+  文書は対象を指定する構文を定めていないので、commit していない差分には次のコマンドを使う。
 
   ```bash
-  copilot -p '/review the changes on this branch compared to <base>. Focus on bugs and security issues.' -s --allow-tool='shell(git:*)'
+  copilot -p '/review the uncommitted changes (staged, unstaged, and untracked files). Focus on bugs and security issues. List the files you reviewed.' -s --allow-tool='shell(git:*)'
   ```
+
+ローカルレビューは、変更の大きさに関わらず、push の前に必ず行う。
+差分が設定の 1 行だけ・記録や文書だけ・機械的な置換だけといった理由で省かない。
+省いてよいのは、次のどちらかに当たる場合だけである。この 2 つ以外の理由では省かない。
+
+- 利用者が、run の指示か preflight 10 の確認への回答で、その Issue のローカルレビューを省くよう明示した
+- base branch に入っていない変更が 0 行である。commit していない差分（staged・unstaged・追跡されていないファイル）と、base branch に入っていない commit（push 済みのものを含む）をすべて数える。
+  比べる相手は、取得し直した remote の base branch（`git fetch` の後の `origin/<base>` など）にする。ローカルの base branch は、remote より古いか、push していない commit を持つことがある
+
+ローカルレビューは、commit する前に、commit していない差分（staged・unstaged・追跡されていないファイル）を対象にして、上のエージェントごとのコマンドで行う。
+ローカルレビューを始める時点で、再開した Issue のように base branch に入っていない commit が残っているときは、そのレビューに加えて、base branch との差分を対象にするレビューも行う。
+レビューの修正や Kaizen の記録をその後に commit しても、この判定はやり直さない。
+base branch との差分は、エージェントごとに次の方法でレビューする。
+
+- Codex: `codex review --base <base>`（`--help` の「Review changes against the given base branch」）
+- Claude Code: `/code-review high` に branch を指定する
+- GitHub Copilot CLI: 次のコマンドを使う。
+
+  ```bash
+  copilot -p '/review the changes on this branch compared to <base>. Focus on bugs and security issues. List the files you reviewed.' -s --allow-tool='shell(git:*)'
+  ```
+
+Claude Code は branch を指定できるが、比べる相手（base か upstream か）を文書で定めていない。Copilot CLI は、対象を文で渡すだけで、指定する構文を持たない。
+そのため、どちらのレビューでも、出力が示すレビューの範囲（Claude Code は比べた base か commit、Copilot CLI は指示で挙げさせたレビューしたファイル）を見る。
+指摘が 0 件の出力でも範囲は示されるので、指摘の有無ではなく範囲で、指定した対象（commit していない差分か、`<base>` との差分）に当たっていることを確かめる。
+範囲が示されないか対象に当たっていないときと、base branch との差分をレビューできないエージェントでは、その Issue を BLOCKED にする。
+
+利用者の指示で省いたときは、manifest の `self_decisions` の `unfollowed_rules`（「判断の扱い」の守っていない規約の欄）に、その指示を添えて記録する。
+変更が 0 行で省いたときは、レビューする対象が無いだけで規約には従っているので、この欄には載せない。
 
 指摘をコードと実測に照らして 1 件ずつ判断し、妥当なものだけ直す。直した後は、検証とレビューをやり直す。
 直さなかった指摘は、その時点で、「判断の扱い」の 4 つの欄か `others` のうち当たるものに manifest へ記録する。
@@ -266,7 +299,7 @@ transcript を特定できないエージェントでは、何もしないで進
 学びが作られた場合は、実装の変更とは別の commit にする。関連するファイルだけを stage し、規約どおりに commit する。
 commit message の 1 行目、PR のタイトルと本文、Issue へのコメントは、外に出す前に `writing-style` スキルの手順で読み直す（スキルが無ければ省く）。
 **すべての commit の後、push の直前に**、`issue-start` の受け入れ条件の突き合わせ（基本フローの step 10。手順は `issue-start` の `references/acceptance.md` で定義する）を通す。
-ローカルレビューは commit していない差分を対象にし、レビューの修正や Kaizen の commit で HEAD が進む。
+commit していない差分のローカルレビューは commit の前に行い（「ローカルレビュー」）、レビューの修正や Kaizen の commit で HEAD が進む。
 そのため、それより前に作った表は、`commit-missing` か `stale-commit` で失敗する。
 次のどれかに当たれば `BLOCKED` にする。
 
@@ -293,6 +326,15 @@ issue-batch の run では、常に `--defer-decisions` を付けて渡す。`pr
 返った判断待ち（指摘の URL・選択肢とそれぞれの根拠と影響・推奨）には、issue-batch の側で `id`・論点・決まった後に残る作業（判断を反映して PR を収束させ、merge する）を補う。
 そのうえで manifest に記録し、その Issue を BLOCKED（判断待ち）にして merge に進まない。
 pr-finalize-loop が指摘を採らずに根拠を返信して解決したものも、PR のスレッドの返信から集め、「自分で判断して進めたもの」として manifest に記録する。
+`--defer-decisions` で判断待ちにするかは、利用者への影響の大きさと後で覆せるかで決まる（`pr-finalize-loop` の「自律性ポリシー」）。
+影響が小さく覆せるとして推奨の案で進めた指摘も、pr-finalize-loop の報告の一覧から、選んだ案と根拠を「自分で判断して進めたもの」に記録する。
+pr-finalize-loop がレビューの effort を下げて反復を足したときは、「判断の扱い」の `others` の項目として記録する。
+記録するのは、段階ごとの effort と反復の回数（例: high 5 回 → medium 2 回 → low 1 回）と、段階を下げた時点ごとの HEAD の完全な SHA である。
+手戻りの大きさは中とする。低い effort のレビューが指摘しなかった不具合が、見送った指摘として PR に残らないまま merge されることがあるからである。
+根拠は最初の段階で収束しなかったことで、覆すときに戻る工程は、最初に段階を下げた時点の SHA から PR の HEAD までの差分を、最初の effort でレビューし直すことである。
+pr-finalize-loop が進み具合のメモを失って段階が分からなくなったと報告したときも、`others` に記録する。
+記録するのは、報告にある段階ごとの回数と SHA、上限を 1 回超えて反復したかである。手戻りの大きさは中とし、根拠はメモを失ってどの effort でレビューを終えたかを確かめられないことである。
+覆すときに戻る工程は、報告に段階を下げた時点の SHA があればその最初の SHA から、無ければ PR の base から、HEAD までの差分を最初の effort でレビューし直すことである。
 返信の根拠が速度や反復の回数であるものと、Issue にしていない見送りは、「判断の扱い」の該当する欄に記録する。
 
 ## merge、close、deployment

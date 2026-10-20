@@ -26,6 +26,14 @@ issue-batch の run で、#632 の worktree（`.claude/worktrees/632`）から #
 transcript は `-issue-662/` から `-issue-651/` の projects のディレクトリに移り、#662 の worktree の処理位置は移す前のパスを指していた。
 `kaizen extract --current --record-pending` の手順で走査ツールを呼ぶ前に、処理位置の 1 行目を移した後のパスに書き換えた複製を #651 の worktree に置いて、処理済みの範囲を読み直さないようにした。
 
+2026-10-20、BLOCKED になった PR を順に仕上げる作業で、main のチェックアウトから #715 の worktree へ移ったときにも起きた。
+main で立ったセンチネルは `-home-shoji9x9-projects-skills/` の transcript を指したままで、チェックは「transcript が実在しない」と案内した。
+transcript は `-home-shoji9x9-projects-skills--claude-worktrees-697-defer-decisions-by-impact/` に移っており、処理位置も無いので、走査は先頭から候補を挙げた。
+移った後のパスを `find ~/.claude/projects -name '<session id>*'` で探し、そのパスで `kaizen-extract-done.sh` を実行して解消した。
+続けて PR #718 の worktree へ移った後も、同じ形で起きる。
+PR #722 の worktree へ移った後の最初の commit でも、処理位置が #718 の worktree と一緒に消えていたので、走査は transcript の先頭から 37 件の候補を挙げて止めた。
+PR #720 の worktree でも同じく、最初の `git commit` で先頭から 42 件を挙げて止めた（`git merge` の merge commit は、`git commit` の語を含まないのでチェックを通った）。
+
 ## 根本原因
 
 - なぜ処理済みの候補で止まったか → 走査（`kaizen-candidate-scan.sh`）が、処理位置を使わずに transcript の先頭から読んだ

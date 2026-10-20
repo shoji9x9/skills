@@ -1,15 +1,12 @@
 // catch した値を扱う helper。
 
 /**
- * 例外の message を読む。`error && error.message` と同じ値を返す（偽の値はそのまま、プリミティブは undefined）。
+ * 例外の message を文字列で返す。Error なら message を返す。Error でない値（文字列・オブジェクト・偽の値）は、String() で文字列にして返す。
  * @param {unknown} error
- * @returns {unknown}
+ * @returns {string}
  */
 function errorMessage(error) {
-  if (!error) return error;
-  return typeof error === "object" || typeof error === "function"
-    ? Reflect.get(error, "message")
-    : undefined;
+  return error instanceof Error ? error.message : String(error);
 }
 
 export { errorMessage };
