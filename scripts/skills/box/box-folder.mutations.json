@@ -17,6 +17,17 @@
       ]
     },
     {
+      "id": "FOLDER-NO-ID-AS-NO-ENTRY",
+      "why": "id が PATH に無いときも、OS に登録が無いときと同じく人ごとの層を読まない（読み取りは OS の登録からホームを決めるので、書いた設定を警告なしに無視しうる）",
+      "file": "skills/box/scripts/box-folder.sh",
+      "find": "if [ \"${box_home_status}\" = \"no_id\" ]; then",
+      "replace": "if false; then",
+      "occurrences": 1,
+      "expect_failing": [
+        "box-folder.sh HOME が空で id が PATH に無ければ、~ の展開で決めたホームの下を人ごとの層にする"
+      ]
+    },
+    {
       "id": "LIB-NO-ENTRY-CHECK",
       "why": "OS に登録が無いこと（id -un の失敗）を見分けず、~ の展開した値をホームにする",
       "file": "skills/box/scripts/lib/home.sh",
@@ -36,6 +47,7 @@
       "replace": "if false; then",
       "occurrences": 1,
       "expect_failing": [
+        "box-folder.sh HOME が空で id が PATH に無ければ、~ の展開で決めたホームの下を人ごとの層にする",
         "lib/home.sh の box_resolve_home HOME が空で id が PATH に無ければ、ホームを空にして確かめられないことを書く"
       ]
     }

@@ -207,6 +207,21 @@ describe("box-folder.sh", () => {
     });
     expect(existsSync(log)).toBe(true);
   });
+
+  // id が PATH に無いと登録を確かめられないので、box-folder.sh は ~ の展開に戻し、人ごとの層を本物のホームの下に置く。
+  // 本物のホームにファイルを置けないので、決めた置き場所（xdg）を bash -x の出力で確かめる（setup の PATH に id は無い）。
+  test("HOME が空で id が PATH に無ければ、~ の展開で決めたホームの下を人ごとの層にする", () => {
+    const s = setup({ node: false });
+    const r = spawnSync(BASH, ["-x", SCRIPT], {
+      cwd: s.repo,
+      env: { ...coverageEnv(), PATH: join(s.dir, "bin"), HOME: "", XDG_CONFIG_HOME: "" },
+      encoding: "utf8",
+      timeout: CHILD_TIMEOUT_MS,
+    });
+    expect(r.status).toBe(0);
+    expect(r.stdout).toBe("0");
+    expect(r.stderr.split("\n")).toContain(`+ xdg=${userInfo().homedir}/.config`);
+  });
 });
 
 /** lib/home.sh を source して box_resolve_home を呼び、決まったホームと理由を返す。 */
