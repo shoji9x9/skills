@@ -1,0 +1,169 @@
+{
+  "metadata": {
+    "skill_name": "issue-batch",
+    "skill_path": "<repo>/skills/issue-batch",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-20T15:52:32Z",
+    "evals_run": [29],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 29,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 40.569,
+        "tokens": 106629,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "base branch に入っていない commit が残っている再開した Issue なので、commit していない差分のレビューに加えて、base branch との差分を対象にするレビューも行うと述べている",
+          "passed": true,
+          "evidence": "②で、再開した Issue で push 済みの 2 commit が main に入っていないので、①に加えて origin/main との差分をレビューすると述べている"
+        },
+        {
+          "text": "レビューが指定した対象に当たったことを、出力が示すレビューの範囲（比べた base か commit）で確かめると述べている",
+          "passed": true,
+          "evidence": "「出力に示されるレビューの範囲（比べた base か commit）を見ます」と述べている"
+        },
+        {
+          "text": "出力にレビューの範囲が示されないか、指定した対象に当たっていないときは、#101 を BLOCKED にすると述べている",
+          "passed": true,
+          "evidence": "範囲が出力に無いか対象に当たっていなければ #101 を BLOCKED にすると述べている"
+        },
+        {
+          "text": "変更が 0 行かを判断するとき、commit していない差分に加えて、push 済みのものを含む base branch に入っていない commit も数えると述べている",
+          "passed": true,
+          "evidence": "数えるものに「base に入っていない commit（push 済みのものを含む）」とある"
+        },
+        {
+          "text": "比べる相手を、取得し直した remote の base branch（`git fetch` の後の `origin/main` など）にし、ローカルの main を使わないと述べている",
+          "passed": true,
+          "evidence": "「git fetch で取得し直した origin/main です。ローカルの main とは比べません」"
+        },
+        {
+          "text": "Kaizen の記録を、実装の commit の後・記録の commit の前に、記録の差分を含めてローカルレビューにかけると述べている",
+          "passed": true,
+          "evidence": "③で、実装の commit の後、記録の commit の前に、範囲に記録の差分が入っていることを確かめてレビューすると述べている"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（レビュー・commit・push を行っていない）",
+          "passed": true,
+          "evidence": "「コマンドの実行、ファイルの変更、commit・push はしていません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 29,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.7143,
+        "passed": 5,
+        "failed": 2,
+        "total": 7,
+        "time_seconds": 51.609,
+        "tokens": 43549,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "base branch に入っていない commit が残っている再開した Issue なので、commit していない差分のレビューに加えて、base branch との差分を対象にするレビューも行うと述べている",
+          "passed": true,
+          "evidence": "R1 で今回の実装を、R4 で origin/main との PR 全体の差分を、別にレビューすると述べている"
+        },
+        {
+          "text": "レビューが指定した対象に当たったことを、出力が示すレビューの範囲（比べた base か commit）で確かめると述べている",
+          "passed": false,
+          "evidence": "レビュー結果に出るファイルや行を git の numstat と照合すると述べているが、出力が示すレビューの範囲（比べた base か commit）で確かめるとは述べていない"
+        },
+        {
+          "text": "出力にレビューの範囲が示されないか、指定した対象に当たっていないときは、#101 を BLOCKED にすると述べている",
+          "passed": true,
+          "evidence": "確かめられなければ push せず、#101 を BLOCKED のまま残すと述べている"
+        },
+        {
+          "text": "変更が 0 行かを判断するとき、commit していない差分に加えて、push 済みのものを含む base branch に入っていない commit も数えると述べている",
+          "passed": true,
+          "evidence": "PR 全体の範囲（merge-base origin/main..HEAD）で、前の run の 2 commit の差分も数えると述べている"
+        },
+        {
+          "text": "比べる相手を、取得し直した remote の base branch（`git fetch` の後の `origin/main` など）にし、ローカルの main を使わないと述べている",
+          "passed": true,
+          "evidence": "「比較元は remote の origin/main（fetch した後のもの）…ローカルの main は使いません」"
+        },
+        {
+          "text": "Kaizen の記録を、実装の commit の後・記録の commit の前に、記録の差分を含めてローカルレビューにかけると述べている",
+          "passed": false,
+          "evidence": "Kaizen の記録を commit した後に、その commit（HEAD）をレビューすると述べていて、記録の commit の前にレビューしていない"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（レビュー・commit・push を行っていない）",
+          "passed": true,
+          "evidence": "「コマンドの実行、ファイルの変更、commit、push、リモートへの書き込みはしていません」"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 40.569,
+        "stddev": 0,
+        "min": 40.569,
+        "max": 40.569
+      },
+      "tokens": {
+        "mean": 106629,
+        "stddev": 0,
+        "min": 106629,
+        "max": 106629
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.7143,
+        "stddev": 0,
+        "min": 0.7143,
+        "max": 0.7143
+      },
+      "time_seconds": {
+        "mean": 51.609,
+        "stddev": 0,
+        "min": 51.609,
+        "max": 51.609
+      },
+      "tokens": {
+        "mean": 43549,
+        "stddev": 0,
+        "min": 43549,
+        "max": 43549
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.29",
+      "time_seconds": "-11.0",
+      "tokens": "+63080"
+    }
+  },
+  "notes": [
+    "変更確認（Issue #725、PR #734 の 3 回目のレビューの後）。eval 29 の範囲の確かめ方の assertion から、prompt が引き出さない「指摘の件数では判断しない」を外したので、eval 29 だけを with_skill と without_skill で 1 run ずつ実行し直した。"
+  ]
+}
