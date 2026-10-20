@@ -42,7 +42,7 @@
 // 引数にファイルを渡すと（lefthook の pre-commit が stage したファイルを渡す）、そのうち対象のファイルだけを
 // 検査する。型チェッカーは渡したファイルだけを起点に作り、import 先はディスクから読むので、全件を読むより速い。
 // 引数が無ければ（CI）、すべての対象のファイルを検査する。
-import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
@@ -519,10 +519,17 @@ function main(args: readonly string[]): number {
       console.error(`type-guard-brands: リポジトリ（${root}）の外のファイルを渡された`);
       return 2;
     }
-    // lefthook の {staged_files} は消したファイルを含まないので、無いファイルはパスの誤りとして扱う。
+    // lefthook の {staged_files} は消したファイルとディレクトリを含まないので、無いファイルとディレクトリは
+    // パスの誤りとして扱う。
     const missing = given.filter((f) => !existsSync(join(root, f)));
     if (missing.length > 0) {
       console.error(`type-guard-brands: 渡されたファイルが無い: ${missing.join(", ")}`);
+      return 2;
+    }
+    const dirs = given.filter((f) => !statSync(join(root, f)).isFile());
+    if (dirs.length > 0) {
+      const shown = dirs.map((f) => (f === "" ? "." : f)).join(", ");
+      console.error(`type-guard-brands: ファイルではないものを渡された: ${shown}`);
       return 2;
     }
     candidates = given;

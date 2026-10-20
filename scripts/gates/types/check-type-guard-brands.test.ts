@@ -214,10 +214,25 @@ test("CLI: 引数のファイルが import する別のファイルの型ガー�
 });
 
 test("CLI: 引数のファイルがすべて対象の外なら、検査するものが無いので exit 0", () => {
-  const root = makeRepo({ "scripts/ok.ts": "export const a = 1;\n", "docs/a.md": "x\n" });
-  const r = runCli(root, ["docs/a.md", "."]);
+  // .d.ts は対象の外である。
+  const root = makeRepo({
+    "scripts/ok.ts": "export const a = 1;\n",
+    "docs/a.md": "x\n",
+    "scripts/a.d.ts": "export declare const a: number;\n",
+  });
+  const r = runCli(root, ["docs/a.md", "scripts/a.d.ts"]);
   expect(r.status).toBe(0);
   expect(r.out).toContain("渡された 2 件に対象のファイルが無い");
+});
+
+test.each([
+  ["リポジトリの直下", ".", "."],
+  ["サブディレクトリ", "scripts", "scripts"],
+])("CLI: ディレクトリを渡されたら、ファイルではないので exit 2: %s", (_name, arg, shown) => {
+  const root = makeRepo({ "scripts/ok.ts": "export const a = 1;\n" });
+  const r = runCli(root, [arg]);
+  expect(r.status).toBe(2);
+  expect(r.out).toContain(`ファイルではないものを渡された: ${shown}`);
 });
 
 test("CLI: 渡されたファイルが無ければ、パスの誤りとして exit 2", () => {
@@ -491,6 +506,11 @@ test.each([
   [
     "型述語が食い違うオーバーロード",
     'function isS(x: unknown): x is number;\nfunction isS(x: unknown): x is string;\nfunction isS(x: unknown) { return typeof x === "string"; }\nconst f = (v: unknown): v is string[] => isArray(v) && v.every(isS);\n',
+    "ブランド型に絞っていない",
+  ],
+  [
+    "後から別の関数を代入できる var の変数",
+    'var isS = (x: unknown): x is string => typeof x === "string";\nconst f = (v: unknown): v is string[] => isArray(v) && v.every(isS);\n',
     "ブランド型に絞っていない",
   ],
   [
