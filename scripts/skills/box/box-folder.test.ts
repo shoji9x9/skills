@@ -9,8 +9,15 @@
 // | Node.js | ある / 無い |
 // | 値 | 数字の文字列 / 数字でない |
 // | 起動する場所 | リポジトリの中 / git の外 |
+// | HOME | 絶対パス / 相対パス / 空 |
+// | OS の登録（HOME が空のとき） | ある / 無い（id -un が失敗） / 確かめられない（id が PATH に無い） |
+//
+// OS の登録が無いときに人ごとの層を読まないことは、box-folder.sh の外から観測できない（/.config や本物のホームに
+// ファイルを置けない）。そのため、ホームを決める処理（lib/home.sh の box_resolve_home）を単体で確かめ、
+// box-folder.sh がその処理を使うこと（id の偽物が呼ばれること）を別に確かめる。
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
+import { userInfo } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vitest";
@@ -181,4 +188,88 @@ describe("box-folder.sh", () => {
       expect(r.stderr).toMatch(/BOX_ROOT_FOLDER_ID は使わなくなった。.*box\.jsonc.*root_folder_id/);
     },
   );
+
+  // OS にユーザーの登録が無い状態は、id -un を失敗させる偽物で作る（box-token.test.ts と同じ）。
+  // このとき bash の ~ は本物のホームを返すので、~ の展開だけで決めると、人ごとの層を本物のホームの下から読む。
+  // /.config やテストの外のホームにファイルを置けないので、id が呼ばれて失敗したら人ごとの層を読まないことを、
+  // id の偽物が呼ばれた記録と出力で確かめる（共通の lib/home.sh の判定は、下の box_resolve_home のテストで確かめる）。
+  test("HOME が空で、OS に登録が無いなら、id で登録を確かめて 0 を出す", () => {
+    const s = setup({ node: false });
+    const log = join(s.dir, "id-called");
+    const bin = join(s.dir, "bin");
+    writeFileSync(join(bin, "id"), `#!${BASH}\necho called >>${JSON.stringify(log)}\nexit 1\n`);
+    chmodSync(join(bin, "id"), 0o755);
+    const r = s.run({ HOME: "", XDG_CONFIG_HOME: "" });
+    expect({ status: r.status, stdout: r.stdout, stderr: r.stderr }).toEqual({
+      status: 0,
+      stdout: "0",
+      stderr: "",
+    });
+    expect(existsSync(log)).toBe(true);
+  });
+
+  // id が PATH に無いと登録を確かめられないので、box-folder.sh は ~ の展開に戻し、人ごとの層を本物のホームの下に置く。
+  // 本物のホームにファイルを置けないので、決めた置き場所（xdg）を bash -x の出力で確かめる（setup の PATH に id は無い）。
+  // シェルのカバレッジの測定は BASH_ENV で xtrace の出力先と PS4 を変えるので、この実行には coverageEnv を渡さない。
+  test("HOME が空で id が PATH に無ければ、~ の展開で決めたホームの下を人ごとの層にする", () => {
+    const s = setup({ node: false });
+    const r = spawnSync(BASH, ["-x", SCRIPT], {
+      cwd: s.repo,
+      env: { PATH: join(s.dir, "bin"), HOME: "", XDG_CONFIG_HOME: "" },
+      encoding: "utf8",
+      timeout: CHILD_TIMEOUT_MS,
+    });
+    expect(r.status).toBe(0);
+    expect(r.stdout).toBe("0");
+    expect(r.stderr.split("\n")).toContain(`+ xdg=${userInfo().homedir}/.config`);
+  });
+});
+
+/** lib/home.sh を source して box_resolve_home を呼び、決まったホームと理由を返す。 */
+function resolveHome(env: Record<string, string>, idScript: string | null) {
+  const dir = makeTempDir("box-home-");
+  const bin = join(dir, "bin");
+  mkdirSync(bin);
+  if (idScript !== null) {
+    writeFileSync(join(bin, "id"), idScript);
+    chmodSync(join(bin, "id"), 0o755);
+  }
+  const lib = join(repoRoot, "skills/box/scripts/lib/home.sh");
+  const r = spawnSync(
+    BASH,
+    [
+      "-c",
+      `. ${JSON.stringify(lib)}; box_resolve_home; printf '%s\\n%s\\n' "$box_home_dir" "$box_home_reason"`,
+    ],
+    { env: { ...coverageEnv(), PATH: bin, ...env }, encoding: "utf8", timeout: CHILD_TIMEOUT_MS },
+  );
+  const [home, reason] = r.stdout.split("\n");
+  return { status: r.status, home, reason };
+}
+
+describe("lib/home.sh の box_resolve_home", () => {
+  test("HOME があれば、その値をホームにする", () => {
+    expect(resolveHome({ HOME: "/h" }, null).home).toBe("/h");
+  });
+
+  test("HOME が空で OS に登録があれば、OS に登録されたホームにする", () => {
+    const r = resolveHome({ HOME: "" }, `#!${BASH}\necho user\n`);
+    expect(r.status).toBe(0);
+    // bash が登録の無いときに返す / ではなく、OS に登録されたホームそのものになる
+    expect(r.home).toBe(userInfo().homedir);
+  });
+
+  test("HOME が空で OS に登録が無ければ（id -un が失敗）、ホームを空にして理由を書く", () => {
+    const r = resolveHome({ HOME: "" }, `#!${BASH}\nexit 1\n`);
+    expect(r.home).toBe("");
+    expect(r.reason).toBe("HOME が空である。OS にこのユーザーの登録が無く、ホームを決められない。");
+  });
+
+  test("HOME が空で id が PATH に無ければ、ホームを空にして確かめられないことを書く", () => {
+    const r = resolveHome({ HOME: "" }, null);
+    expect(r.home).toBe("");
+    expect(r.reason).toBe(
+      "HOME が空である。id コマンドが無く、OS に登録されたホームを確かめられない。",
+    );
+  });
 });

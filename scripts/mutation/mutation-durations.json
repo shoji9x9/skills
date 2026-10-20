@@ -40,6 +40,7 @@
     "scripts/skills/_cross/commit-wrapper-list-sync.mutations.json": 0.6,
     "scripts/skills/_cross/skill-script-cli-entry.mutations.json": 2.9,
     "scripts/skills/_cross/vendored-tool-standalone.mutations.json": 0.6,
+    "scripts/skills/box/box-folder.mutations.json": 4.0,
     "scripts/skills/box/box-token.mutations.json": 1.7,
     "scripts/skills/git-worktree/git-worktree-branch-guard.mutations.json": 2.1,
     "scripts/skills/golden-dataset/predicate-coverage-check.mutations.json": 0.6,
