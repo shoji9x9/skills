@@ -35,7 +35,7 @@ import { intentionalEntryText } from "./lib/intentional.mjs";
  *
  * @type {string}
  */
-export const VERSION = "6";
+export const VERSION = "7";
 
 /**
  * trait-compare の Diff のうち、分類が読む欄。ほかの欄は読まずに出力へ持ち越す。

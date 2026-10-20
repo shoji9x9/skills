@@ -49,7 +49,7 @@ function valueKind(value) {
 }
 
 /** ツールのバージョン（このファイルで定義する）。判定のロジックや出力の形を変えたら上げる。 */
-export const VERSION = "4";
+export const VERSION = "5";
 
 /** 使い方の誤り・入力の不備（exit 2）。 */
 export class UsageError extends Error {}

@@ -53,7 +53,7 @@ import {
 } from "./lib/guards.mjs";
 
 /** ツールのバージョン（このスクリプトで定義する）。判定の規則・許容差・出力の形を変えたら上げる。 */
-export const VERSION = "1";
+export const VERSION = "2";
 
 /** 突き合わせ表の行がとりうる扱いの語彙（このスクリプトで定義する）。null は「比べた」。 */
 export const DISPOSITIONS = ["accepted"];
