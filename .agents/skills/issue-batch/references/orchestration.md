@@ -249,7 +249,11 @@ Issue ごとの専用の worktree で、`issue-start <Issue URL> --pr` と同じ
 省いてよいのは、次のどちらかに当たる場合だけである。この 2 つ以外の理由では省かない。
 
 - 利用者が、run の指示か preflight 10 の確認への回答で、その Issue のローカルレビューを省くよう明示した
-- base branch に入っていない変更が 0 行である。commit していない差分と、push していない commit の両方を数える
+- base branch に入っていない変更が 0 行である。commit していない差分と、base branch に入っていない commit（push 済みのものを含む）の両方を数える
+
+ローカルレビューは、commit する前に、commit していない差分を対象にして行う。
+再開した Issue のように、base branch に入っていない commit が残っている状態でレビューするときは、その commit も対象にする（base branch との差分をレビューする指定を使う）。
+今使っているエージェントの機能で base branch との差分をレビューできなければ、BLOCKED にする。
 
 省いたときは、manifest の `self_decisions` の `unfollowed_rules`（「判断の扱い」の守っていない規約の欄）に、当たった条件を添えて記録する。
 

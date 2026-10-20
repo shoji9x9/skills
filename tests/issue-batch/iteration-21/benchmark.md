@@ -1,6 +1,6 @@
 # Skill Benchmark: issue-batch
 
-**Model**: claude-code / opus（harness `run-skill-eval/4`）
+**Model**: claude-code / opus（harness `run-skill-eval/5`）
 **Date**: 2026-10-20
 **Evals**: 1（`with_skill` と `without_skill` を 1 run ずつ）
 

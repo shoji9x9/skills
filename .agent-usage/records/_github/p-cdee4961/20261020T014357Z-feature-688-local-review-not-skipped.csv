@@ -19,3 +19,6 @@ ci:39355360505:1,ci,2026-10-20T01:52:41.717Z,p-cdee4961,github-actions,,,,2026-1
 ci:39355360388:1,ci,2026-10-20T01:52:41.717Z,p-cdee4961,github-actions,,,,2026-10-20T01:47:17.000Z,2026-10-20T01:50:37.000Z,Asia/Tokyo,feature/688-local-review-not-skipped,688,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-10-19T01:44:40.868Z:2026-10-20T01:52:41.717Z,coverage,2026-10-20T01:52:41.717Z,p-cdee4961,,,,,2026-10-19T01:44:40.868Z,2026-10-20T01:52:41.717Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-19T01:52:41.717Z:2026-10-20T01:53:23.675Z,coverage,2026-10-20T01:53:23.675Z,p-cdee4961,,,,,2026-10-19T01:52:41.717Z,2026-10-20T01:53:23.675Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:39356108610:1,ci,2026-10-20T02:03:48.554Z,p-cdee4961,github-actions,,,,2026-10-20T01:55:35.000Z,2026-10-20T01:55:46.000Z,Asia/Tokyo,feature/688-local-review-not-skipped,688,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:39356108539:1,ci,2026-10-20T02:03:48.554Z,p-cdee4961,github-actions,,,,2026-10-20T01:55:35.000Z,2026-10-20T01:59:15.000Z,Asia/Tokyo,feature/688-local-review-not-skipped,688,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-19T01:53:23.675Z:2026-10-20T02:03:48.554Z,coverage,2026-10-20T02:03:48.554Z,p-cdee4961,,,,,2026-10-19T01:53:23.675Z,2026-10-20T02:03:48.554Z,Asia/Tokyo,,,,,,,,,,,,ok,
