@@ -184,6 +184,12 @@ function functionDeclarationOf(
     sym = checker.getAliasedSymbol(sym);
   }
   const decls = sym?.declarations ?? [];
+  // オーバーロードを持つ関数の宣言は、シグネチャだけの宣言と本体を持つ宣言が並ぶ。本体を持つ宣言を読む。
+  // 型述語は、predicatesOf が名前の型のシグネチャ（オーバーロード）からも集める。
+  if (decls.length > 1 && decls.every(ts.isFunctionDeclaration)) {
+    const impls = decls.filter((x) => x.body !== undefined);
+    return impls.length === 1 ? impls[0] : null;
+  }
   if (decls.length !== 1) return null;
   const d = decls[0];
   if (ts.isFunctionDeclaration(d)) return d;

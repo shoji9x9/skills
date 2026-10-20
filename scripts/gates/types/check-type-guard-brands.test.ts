@@ -427,6 +427,10 @@ test.each([
     'const isS = (x: unknown): x is string | null => x === null || typeof x === "string";\nfunction f(v: unknown): v is (string | null)[] { return isArray(v) && v.every(isS); }\n',
   ],
   [
+    "オーバーロードを持つ関数の宣言",
+    'function isS(x: unknown): x is string;\nfunction isS(x: unknown): x is string { return typeof x === "string"; }\nconst f = (v: unknown): v is string[] => isArray(v) && v.every(isS);\n',
+  ],
+  [
     "括弧で包んだ名前",
     'const isS = (x: unknown): x is string => typeof x === "string";\nconst f = (v: unknown): v is string[] => isArray(v) && v.every((isS));\n',
   ],
@@ -482,6 +486,11 @@ test.each([
   [
     "引数の型から null を除く否定の要素の型ガード（要素はどの種類でもありうる）",
     "const isS = (x: string | null): x is string => x !== null;\nconst f = (v: unknown): v is string[] => isArray(v) && v.every(isS);\n",
+    "ブランド型に絞っていない",
+  ],
+  [
+    "型述語が食い違うオーバーロード",
+    'function isS(x: unknown): x is number;\nfunction isS(x: unknown): x is string;\nfunction isS(x: unknown) { return typeof x === "string"; }\nconst f = (v: unknown): v is string[] => isArray(v) && v.every(isS);\n',
     "ブランド型に絞っていない",
   ],
   [
