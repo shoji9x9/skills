@@ -259,7 +259,7 @@ Issue ごとの専用の worktree で、`issue-start <Issue URL> --pr` と同じ
 ローカルレビューは、commit する前に、commit していない差分（staged・unstaged・追跡されていないファイル）を対象にして、上のエージェントごとのコマンドで行う。
 ローカルレビューを始める時点で、再開した Issue のように base branch に入っていない commit が残っているときは、そのレビューに加えて、base branch との差分を対象にするレビューも行う。
 レビューの修正や Kaizen の記録をその後に commit しても、この判定はやり直さない。
-Kaizen の記録は、この判定とは関係なく、commit する前に記録の差分だけをレビューする（「Kaizen、commit、PR」）。
+Kaizen の記録は、この判定とは関係なく、commit する前に記録の差分を含む範囲をレビューする（「Kaizen、commit、PR」）。
 base branch との差分は、エージェントごとに次の方法でレビューする。
 
 - Codex: `codex review --base <base>`（`--help` の「Review changes against the given base branch」）
@@ -297,9 +297,10 @@ console、主要な要素、Network と API、副作用の無い操作を確か�
 候補が 0 件のときは、現在の transcript とスキャナの検出能力を確かめたうえで、何もしないで進む。
 transcript を特定できないエージェントでは、何もしないで進むことにせず、BLOCKED にする。
 
-学びが作られた場合は、実装の変更とは別の commit にする。関連するファイルだけを stage し、規約どおりに commit する。
+学びが作られた場合は、実装の変更とは別の commit にする。
+順序は、実装の commit、記録のレビュー（指摘への対応とやり直しを含む）、記録の commit である。記録の commit では、関連するファイルだけを stage し、規約どおりに commit する。
 記録はローカルレビューの後に作るので、そのままでは push の前のどのレビューの対象にも入らない。
-そこで、実装の変更を commit した後、記録を commit する前に、記録の差分だけをローカルレビューにかける。
+そこで、実装の変更を commit した後、記録を commit する前に、記録の差分をローカルレビューにかける。
 このとき commit していない差分は記録だけなので、「ローカルレビュー」の commit していない差分のレビューを、同じコマンドでそのまま当てる。
 指摘の扱いは「ローカルレビュー」に従う。
 出力が示すレビューの範囲では、記録の差分が含まれることを確かめる。
