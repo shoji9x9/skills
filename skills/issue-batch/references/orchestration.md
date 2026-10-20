@@ -259,6 +259,7 @@ Issue ごとの専用の worktree で、`issue-start <Issue URL> --pr` と同じ
 ローカルレビューは、commit する前に、commit していない差分（staged・unstaged・追跡されていないファイル）を対象にして、上のエージェントごとのコマンドで行う。
 ローカルレビューを始める時点で、再開した Issue のように base branch に入っていない commit が残っているときは、そのレビューに加えて、base branch との差分を対象にするレビューも行う。
 レビューの修正や Kaizen の記録をその後に commit しても、この判定はやり直さない。
+Kaizen の記録は、この判定とは関係なく、commit する前に記録の差分を含む範囲をレビューする（「Kaizen、commit、PR」）。
 base branch との差分は、エージェントごとに次の方法でレビューする。
 
 - Codex: `codex review --base <base>`（`--help` の「Review changes against the given base branch」）
@@ -296,7 +297,21 @@ console、主要な要素、Network と API、副作用の無い操作を確か�
 候補が 0 件のときは、現在の transcript とスキャナの検出能力を確かめたうえで、何もしないで進む。
 transcript を特定できないエージェントでは、何もしないで進むことにせず、BLOCKED にする。
 
-学びが作られた場合は、実装の変更とは別の commit にする。関連するファイルだけを stage し、規約どおりに commit する。
+学びが作られた場合は、実装の変更とは別の commit にする。
+順序は、実装の commit、記録のレビュー（指摘への対応とやり直しを含む）、記録の commit である。記録の commit では、関連するファイルだけを stage し、規約どおりに commit する。
+記録はローカルレビューの後に作るので、そのままでは push の前のどのレビューの対象にも入らない。
+そこで、実装の変更を commit した後、記録を commit する前に、記録の差分をローカルレビューにかける。
+このとき commit していない差分は記録だけなので、「ローカルレビュー」の commit していない差分のレビューを、同じコマンドでそのまま当てる。
+指摘の扱いは「ローカルレビュー」に従う。
+出力が示すレビューの範囲では、記録の差分が含まれることを確かめる。
+エージェントのレビューの機能によっては、記録だけに絞れず、実装の commit や base branch との差分も範囲に入る（Claude Code の `/code-review` は、upstream が無ければローカルの base branch との差分も対象にする）。
+記録以外の変更が範囲に入るのは構わず、それらへの指摘は実装のローカルレビューの指摘と同じに扱う。
+記録の差分が範囲に含まれることを確かめられないときは、その Issue を BLOCKED にする。
+記録のレビューの 1 回目は、ローカルレビューの上限（`max_local_review_iterations`）の回数に数えない。指摘を直した後のやり直しにだけ、上限を当てる。
+記録をローカルレビューの前に作らないのは、ローカルレビューで見つかった学びを記録に入れるためである。
+commit の前のチェック（kaizen の Hook など）が commit を止め、`kaizen --current` で記録を作ったときも、その記録を commit する前に同じようにレビューする。
+利用者がその Issue のローカルレビューを省くよう明示したときは、このレビューも省く（記録は「ローカルレビュー」の 1 つ目の条件と同じ）。
+学びが作られなかったときは、このレビューも行わない。
 commit message の 1 行目、PR のタイトルと本文、Issue へのコメントは、外に出す前に `writing-style` スキルの手順で読み直す（スキルが無ければ省く）。
 **すべての commit の後、push の直前に**、`issue-start` の受け入れ条件の突き合わせ（基本フローの step 10。手順は `issue-start` の `references/acceptance.md` で定義する）を通す。
 commit していない差分のローカルレビューは commit の前に行い（「ローカルレビュー」）、レビューの修正や Kaizen の commit で HEAD が進む。

@@ -24,3 +24,6 @@ scripts/eval/run-skill-eval.sh \
 - eval 26 の「#108 の外した理由に #107 を書く」「#109 を進める」「`--stop-on-blocked` でも止めない」は、prompt の問い方から答えられるので without_skill も pass する。依存元の理由の書き方と、preflight の `BLOCKED` で `continue_on_blocked` を使わない取り決めが消えた後退を検出するために置く。
 - eval 27 の 1〜3 本目（守っていない規約・反復を理由に直さなかった指摘・Issue にしていない見送りを載せる）と「説明に留める」は、prompt が事実を挙げているので without_skill も pass する。4 つの欄の取り決めが消えた後退を検出するために置く。
 - eval 28 の「#101 を省かずに実行する」「#102 は省いてよい条件に当たる」は、prompt が事実を挙げているので without_skill も pass する。ローカルレビューを変更の大きさで省かない取り決めと、省いてよい条件の一覧が消えた後退を検出するために置く。
+- eval 29 の 6 本は、prompt が事実を挙げているので without_skill も pass しうる。
+  「base branch との差分もレビューする」「出力の範囲で確かめる」「確かめられなければ BLOCKED にする」「push 済みの commit も数える」「`origin/main` と比べる」「説明に留める」である。
+  このうち「base branch との差分もレビューする」「出力の範囲で確かめる」「push 済みの commit も数える」「`origin/main` と比べる」は、#688 の変更を逆に当てた版で失敗したので、#688 の取り決めが消えた後退を検出する。
