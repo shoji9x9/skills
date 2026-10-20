@@ -116,7 +116,8 @@ merge 済みのブランチかは、次の順に決める。どちらにも当�
 
 1. HEAD が、リモートのデフォルトブランチ（`origin/<デフォルトブランチ>`）の祖先で、HEAD がこのブランチで作った commit である。
    作った直後のブランチや、fast-forward（`git pull`・`git merge --ff-only`）や reset でデフォルトブランチの commit に移っただけのブランチも、HEAD が祖先になる。
-   そこで、ブランチの reflog の最新の行が commit か merge commit を作った行であることも確かめる。reflog が無ければ、この方法では決めない
+   そこで、ブランチの reflog の最新の行が、commit を作った行（`git commit`・`git cherry-pick`・`git revert`・merge commit）であることも確かめる。
+   rebase した後や reflog が無いときは、この方法では決めない
 2. `gh` で、このブランチを head にした PR のうち、merge 済みで head の commit が HEAD と同じものがある（squash merge と rebase merge では、HEAD がデフォルトブランチの祖先にならないため）。
    origin が GitHub でない・`gh` が無い・取得に失敗したときは、この方法では決めない。
    PR は origin のリポジトリでだけ探すので、fork から上流のリポジトリへ出した PR は見つからない

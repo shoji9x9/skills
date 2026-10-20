@@ -2298,6 +2298,42 @@ describe("merge 済みのブランチの Hook", () => {
     expect(staged(s)).toBe("");
   });
 
+  test.each([
+    ["cherry-pick で作った commit", "pick"],
+    ["衝突を解いて commit した cherry-pick", "pick-continue"],
+    ["revert で作った commit", "revert"],
+  ])("HEAD が %s で、merge commit で取り込んだブランチも、記録しない", (_name, kind) => {
+    const s = setup();
+    recordByDefault(s);
+    s.git("switch", "-q", "-c", "other");
+    writeFileSync(join(s.repo, "c.txt"), "other\n");
+    s.git("add", "c.txt");
+    s.git("commit", "-q", "-m", "other");
+    s.git("switch", "-q", "-c", "feature/5-x", "main");
+    if (kind === "pick") s.git("cherry-pick", "other");
+    else if (kind === "revert") {
+      ownCommit(s);
+      s.git("revert", "--no-edit", "HEAD");
+    } else {
+      writeFileSync(join(s.repo, "c.txt"), "mine\n");
+      s.git("add", "c.txt");
+      s.git("commit", "-q", "-m", "mine");
+      // 衝突するので cherry-pick は 0 以外で止まる。解いて commit すると「commit (cherry-pick): 」を書く
+      expect(() => s.git("cherry-pick", "other")).toThrow();
+      writeFileSync(join(s.repo, "c.txt"), "both\n");
+      s.git("add", "c.txt");
+      s.git("commit", "-q", "--no-edit");
+    }
+    s.git("switch", "-q", "main");
+    s.git("merge", "-q", "--no-ff", "-m", "merge", "feature/5-x");
+    setOriginMain(s, "main");
+    s.git("switch", "-q", "feature/5-x");
+    const r = s.gate("git commit -m x");
+    expect(r.status).toBe(0);
+    expect(r.stderr + r.stdout).toMatch(/merge 済み（HEAD が origin\/main に含まれる）/);
+    expect(staged(s)).toBe("");
+  });
+
   test("status は、記録すると決めた merge 済みのブランチで、コミットの前の確認が記録しないことを出す", () => {
     const s = setup();
     recordByDefault(s);

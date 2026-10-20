@@ -58,8 +58,10 @@ function mergedByAncestry(repo, head) {
 
 /**
  * ブランチの reflog の最新の行が、このブランチで commit か merge commit を作った行か。reflog が無ければ false。
- * git commit は「commit: 」「commit (amend): 」、git merge と git pull で作った merge commit は「merge <名前>: Merge made by 」「pull: Merge made by 」を書く。
+ * git commit は「commit: 」「commit (amend): 」「commit (cherry-pick): 」を書き、git cherry-pick と git revert は「cherry-pick: 」「revert: 」を書く。
+ * git merge と git pull で作った merge commit は「merge <名前>: Merge made by 」「pull: Merge made by 」を書く。
  * fast-forward は「: Fast-forward」、ブランチの作成は「branch: 」、reset は「reset: 」を書くので、当たらない。
+ * rebase の「rebase (finish): 」も当てない。git pull --rebase で、移っただけのブランチにも書くからである（PR で決める方法に任せる）。
  * @param {import("./repo.mjs").RepoInfo} repo
  * @returns {boolean}
  */
@@ -70,7 +72,8 @@ function tipCommittedHere(repo) {
   );
   const subject = (log ?? "").split("\n")[0] ?? "";
   return (
-    /^commit( \([a-z]+\))?: /.test(subject) ||
+    /^commit( \([a-z-]+\))?: /.test(subject) ||
+    /^(cherry-pick|revert): /.test(subject) ||
     /^(merge [^:]*|pull[^:]*): Merge made by /.test(subject)
   );
 }

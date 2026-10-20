@@ -931,7 +931,10 @@
         "merge 済みのブランチの Hook 自分の commit を merge commit で取り込んだブランチでは、collect も stage もせずに、merge 済みと出して通す",
         "merge 済みのブランチの Hook HEAD がデフォルトブランチの祖先でも、fast-forward でデフォルトブランチの commit に移っただけ のブランチは merge 済みとせずに記録する",
         "merge 済みのブランチの Hook HEAD がデフォルトブランチの祖先でも、ブランチの reflog が無い のブランチは merge 済みとせずに記録する",
-        "merge 済みのブランチの Hook デフォルトブランチを merge commit で取り込んだ後に merge したブランチも、記録しない"
+        "merge 済みのブランチの Hook デフォルトブランチを merge commit で取り込んだ後に merge したブランチも、記録しない",
+        "merge 済みのブランチの Hook HEAD が cherry-pick で作った commit で、merge commit で取り込んだブランチも、記録しない",
+        "merge 済みのブランチの Hook HEAD が 衝突を解いて commit した cherry-pick で、merge commit で取り込んだブランチも、記録しない",
+        "merge 済みのブランチの Hook HEAD が revert で作った commit で、merge commit で取り込んだブランチも、記録しない"
       ]
     },
     {
@@ -1191,7 +1194,10 @@
       "expect_failing": [
         "merge 済みのブランチの Hook 自分の commit を merge commit で取り込んだブランチでは、collect も stage もせずに、merge 済みと出して通す",
         "merge 済みのブランチの Hook デフォルトブランチを merge commit で取り込んだ後に merge したブランチも、記録しない",
-        "merge 済みのブランチの Hook status は、記録すると決めた merge 済みのブランチで、コミットの前の確認が記録しないことを出す"
+        "merge 済みのブランチの Hook status は、記録すると決めた merge 済みのブランチで、コミットの前の確認が記録しないことを出す",
+        "merge 済みのブランチの Hook HEAD が cherry-pick で作った commit で、merge commit で取り込んだブランチも、記録しない",
+        "merge 済みのブランチの Hook HEAD が 衝突を解いて commit した cherry-pick で、merge commit で取り込んだブランチも、記録しない",
+        "merge 済みのブランチの Hook HEAD が revert で作った commit で、merge commit で取り込んだブランチも、記録しない"
       ]
     },
     {
@@ -1237,7 +1243,10 @@
       "expect_failing": [
         "merge 済みのブランチの Hook 自分の commit を merge commit で取り込んだブランチでは、collect も stage もせずに、merge 済みと出して通す",
         "merge 済みのブランチの Hook squash merge のように HEAD が祖先でなくても、head の commit が HEAD と同じ merge 済みの PR があれば記録しない",
-        "merge 済みのブランチの Hook デフォルトブランチを merge commit で取り込んだ後に merge したブランチも、記録しない"
+        "merge 済みのブランチの Hook デフォルトブランチを merge commit で取り込んだ後に merge したブランチも、記録しない",
+        "merge 済みのブランチの Hook HEAD が cherry-pick で作った commit で、merge commit で取り込んだブランチも、記録しない",
+        "merge 済みのブランチの Hook HEAD が 衝突を解いて commit した cherry-pick で、merge commit で取り込んだブランチも、記録しない",
+        "merge 済みのブランチの Hook HEAD が revert で作った commit で、merge commit で取り込んだブランチも、記録しない"
       ]
     },
     {
@@ -1288,6 +1297,29 @@
       "occurrences": 1,
       "expect_failing": [
         "merge 済みのブランチの Hook status は、記録すると決めた merge 済みのブランチで、コミットの前の確認が記録しないことを出す"
+      ]
+    },
+    {
+      "id": "merged-tip-commit-kind-no-hyphen",
+      "why": "「commit (cherry-pick): 」のようにハイフンを含む commit の種類を、このブランチで作った commit として扱わない",
+      "file": "skills/agent-usage/scripts/lib/merged.mjs",
+      "find": "/^commit( \\([a-z-]+\\))?: /",
+      "replace": "/^commit( \\([a-z]+\\))?: /",
+      "occurrences": 1,
+      "expect_failing": [
+        "merge 済みのブランチの Hook HEAD が 衝突を解いて commit した cherry-pick で、merge commit で取り込んだブランチも、記録しない"
+      ]
+    },
+    {
+      "id": "merged-tip-ignores-pick-revert",
+      "why": "cherry-pick と revert で作った commit を、このブランチで作った commit として扱わない",
+      "file": "skills/agent-usage/scripts/lib/merged.mjs",
+      "find": "/^(cherry-pick|revert): /.test(subject)",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": [
+        "merge 済みのブランチの Hook HEAD が cherry-pick で作った commit で、merge commit で取り込んだブランチも、記録しない",
+        "merge 済みのブランチの Hook HEAD が revert で作った commit で、merge commit で取り込んだブランチも、記録しない"
       ]
     }
   ]
