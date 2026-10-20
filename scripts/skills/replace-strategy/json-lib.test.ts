@@ -1,7 +1,7 @@
 // replace-strategy の lib/json.mjs の parseJsonOrThrow のテスト。
 //
 // parseJsonOrThrow は JSON を読み、読めなければ構文エラーの message を toError に渡して、返った例外を投げる。
-// append-only-check.mjs と asset-delivery-check.mjs は、toError で自分の UsageError と文言を作る。
+// append-only-check.mjs・asset-delivery-check.mjs・evidence-gap-check.mjs は、toError で自分の UsageError と文言を作る。
 
 import { expect, test, vi } from "vitest";
 import { parseJsonOrThrow } from "../../../skills/replace-strategy/scripts/lib/json.mjs";

@@ -9,3 +9,7 @@ ci:39348140415:1,ci,2026-10-20T00:50:29.188Z,p-cdee4961,github-actions,,,,2026-1
 ci:39348140383:1,ci,2026-10-20T00:50:29.188Z,p-cdee4961,github-actions,,,,2026-10-20T00:31:22.000Z,2026-10-20T00:31:23.000Z,Asia/Tokyo,feature/612-helper-lib-consolidation,612,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 coverage:github:2026-10-19T00:27:46.611Z:2026-10-20T00:50:29.188Z,coverage,2026-10-20T00:50:29.188Z,p-cdee4961,,,,,2026-10-19T00:27:46.611Z,2026-10-20T00:50:29.188Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-19T00:50:29.188Z:2026-10-20T00:51:01.567Z,coverage,2026-10-20T00:51:01.567Z,p-cdee4961,,,,,2026-10-19T00:50:29.188Z,2026-10-20T00:51:01.567Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:39350310987:1,ci,2026-10-20T01:01:38.266Z,p-cdee4961,github-actions,,,,2026-10-20T00:53:30.000Z,2026-10-20T00:53:37.000Z,Asia/Tokyo,feature/612-helper-lib-consolidation,612,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:39350310981:1,ci,2026-10-20T01:01:38.266Z,p-cdee4961,github-actions,,,,2026-10-20T00:53:30.000Z,2026-10-20T00:57:22.000Z,Asia/Tokyo,feature/612-helper-lib-consolidation,612,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-19T00:51:01.567Z:2026-10-20T01:01:38.266Z,coverage,2026-10-20T01:01:38.266Z,p-cdee4961,,,,,2026-10-19T00:51:01.567Z,2026-10-20T01:01:38.266Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-19T01:01:38.266Z:2026-10-20T01:02:08.545Z,coverage,2026-10-20T01:02:08.545Z,p-cdee4961,,,,,2026-10-19T01:01:38.266Z,2026-10-20T01:02:08.545Z,Asia/Tokyo,,,,,,,,,,,,ok,
