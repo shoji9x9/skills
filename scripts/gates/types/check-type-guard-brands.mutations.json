@@ -312,13 +312,15 @@
     },
     {
       "id": "NAMED-NO-SEEN",
-      "why": "自分自身を名前で渡す型ガードで、読み終えられない判定を止めない。変異を入れると再帰が終わらずに RangeError で落ちる。観測できる違いはこれだけなので、狙った assertion ではなく例外で落ちる",
+      "why": "自分自身や互いに名前で渡し合う型ガードで、読み終えられない判定を止めない（再帰が終わらずに例外を出す）",
       "file": "scripts/gates/types/check-type-guard-brands.ts",
       "find": "if (fn === null || seen.has(fn) || fn.parameters.length !== 1) return null;",
       "replace": "if (fn === null || fn.parameters.length !== 1) return null;",
       "occurrences": 1,
       "expect_failing": [
-        "every に名前で渡した型ガードの判定が型と一致しなければ違反にする: 自分自身を渡す型ガード"
+        "every に名前で渡した型ガードの判定が型と一致しなければ違反にする: 自分自身を渡す型ガード",
+        "every に名前で渡し合う型ガードでも、例外を出さずに判定を終える: 自分自身",
+        "every に名前で渡し合う型ガードでも、例外を出さずに判定を終える: 互いに渡し合う 2 つ"
       ]
     },
     {

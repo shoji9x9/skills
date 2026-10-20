@@ -510,6 +510,16 @@ test.each([
   },
 );
 
+test.each([
+  ["自分自身", "function f(v: unknown): v is string[] { return isArray(v) && v.every(f); }\n"],
+  [
+    "互いに渡し合う 2 つ",
+    "function f(v: unknown): v is string[] { return isArray(v) && v.every(g); }\nfunction g(v: unknown): v is string[] { return isArray(v) && v.every(f); }\n",
+  ],
+])("every に名前で渡し合う型ガードでも、例外を出さずに判定を終える: %s", (_name, text) => {
+  expect(() => ts(text)).not.toThrow();
+});
+
 test("== null は undefined にも true を返すので、v is null には判定を直すよう報告する", () => {
   expect(ts("const f = (v: unknown): v is null => v == null;\n")).toEqual([
     expect.stringContaining("に無い種類の値にも true を返す"),
