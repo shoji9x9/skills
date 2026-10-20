@@ -259,6 +259,7 @@ Issue ごとの専用の worktree で、`issue-start <Issue URL> --pr` と同じ
 ローカルレビューは、commit する前に、commit していない差分（staged・unstaged・追跡されていないファイル）を対象にして、上のエージェントごとのコマンドで行う。
 ローカルレビューを始める時点で、再開した Issue のように base branch に入っていない commit が残っているときは、そのレビューに加えて、base branch との差分を対象にするレビューも行う。
 レビューの修正や Kaizen の記録をその後に commit しても、この判定はやり直さない。
+Kaizen の記録は、この判定とは関係なく、commit する前に記録の差分だけをレビューする（「Kaizen、commit、PR」）。
 base branch との差分は、エージェントごとに次の方法でレビューする。
 
 - Codex: `codex review --base <base>`（`--help` の「Review changes against the given base branch」）
@@ -297,6 +298,14 @@ console、主要な要素、Network と API、副作用の無い操作を確か�
 transcript を特定できないエージェントでは、何もしないで進むことにせず、BLOCKED にする。
 
 学びが作られた場合は、実装の変更とは別の commit にする。関連するファイルだけを stage し、規約どおりに commit する。
+記録はローカルレビューの後に作るので、そのままでは push の前のどのレビューの対象にも入らない。
+そこで、実装の変更を commit した後、記録を commit する前に、記録の差分だけをローカルレビューにかける。
+このとき commit していない差分は記録だけなので、「ローカルレビュー」の commit していない差分のレビューを、同じコマンドでそのまま当てる。
+出力の範囲で対象に当たったことを確かめる方法・指摘の扱い・反復の上限（実装のレビューと合わせて数える）も、「ローカルレビュー」に従う。
+記録をローカルレビューの前に作らないのは、ローカルレビューで見つかった学びを記録に入れるためである。
+commit の前のチェック（kaizen の Hook など）が commit を止め、`kaizen --current` で記録を作ったときも、その記録を commit する前に同じようにレビューする。
+利用者がその Issue のローカルレビューを省くよう明示したときは、このレビューも省く（記録は「ローカルレビュー」の 1 つ目の条件と同じ）。
+学びが作られなかったときは、このレビューも行わない。
 commit message の 1 行目、PR のタイトルと本文、Issue へのコメントは、外に出す前に `writing-style` スキルの手順で読み直す（スキルが無ければ省く）。
 **すべての commit の後、push の直前に**、`issue-start` の受け入れ条件の突き合わせ（基本フローの step 10。手順は `issue-start` の `references/acceptance.md` で定義する）を通す。
 commit していない差分のローカルレビューは commit の前に行い（「ローカルレビュー」）、レビューの修正や Kaizen の commit で HEAD が進む。
