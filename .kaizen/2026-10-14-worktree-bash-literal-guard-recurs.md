@@ -113,6 +113,10 @@ python の heredoc の 1 回は、本文の文字列に `git` の語があった
 同じセッションの #692 でこの記録に追記した直後でも、worktree に入った後の最初の複合コマンドで同じ形を書いた。
 同じ日の #651 と #681 の再発は、「### apply のときに確かめること」の、#651 と #681 を名指しした箇条に書いてある。
 
+2026-10-19、issue-batch の #689 の作業でも、`kaizen-extract-done.sh` の起動と `; echo rc=$?` をつないだ呼び出しが、`runs bash inside a construct too complex to verify` で拒否された。
+単独の呼び出しに分けて通した。同じ形（`bash` の起動と `; echo rc=$?` の組）は、この記録の #655 の箇条に既に書いてある。
+同じ作業で、python の quoted heredoc で benchmark.md を置換し、続けて `git add` と `git status` をつないだ呼び出しも、`feeds python text naming git in a plain command` で拒否された。Write ツールで書き直して通した。
+
 ## 根本原因
 
 1. なぜ拒否されたか → 隔離セッションのガードは字面で判定し、本文・引数・パスに `git` を含む複合コマンドや heredoc を拒否する。

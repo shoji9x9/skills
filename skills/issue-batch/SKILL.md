@@ -102,7 +102,8 @@ BLOCKED や FAILED の影響が Issue の隔離した worktree の中だけで�
 - `agent` mode でも、required check が完了して成功したことと、mergeable であることを確かめてから merge する。
   完了していない check を待たずに merge しない。`--admin` や、branch protection を一時的に外すことで、無理に merge しない。
 - merge・close・deployment の条件がすべて成り立つ前に、branch を削除しない。glob ではなく、確かめた完全一致の ref だけを扱う。
-- dirty か BLOCKED の worktree は削除しない。絶対パスと残りの作業を、最終報告に残す。
+- dirty か BLOCKED の worktree は削除しない。`git worktree remove --force` も使わない。絶対パスと残りの作業を、最終報告に残す。
+  commit を記録する Hook が書いた記録だけで dirty なら、次の Issue の branch に引き継いで clean にしてから片付ける（`references/orchestration.md`「worktree に残った記録の引き継ぎ」）。
 - run を始めた後は、利用者に確認を送らない。前提スキル（`issue-start`・`pr-finalize-loop`）が「利用者に確認する」と定める箇所も同じである。
   `pr-finalize-loop` には `--defer-decisions` を渡し、人の判断が要る指摘を判断待ちとして受け取る（`references/orchestration.md`「pr-finalize-loop への handoff」）。
   判断が要るものを「無人実行」を理由に飛ばさず、結果を作り上げず、BLOCKED（判断待ち）として記録し、`continue_on_blocked` に従って次の Issue に進むか run を止める（依存先を理由に BLOCKED にした Issue では止めない）。記録の形は `references/orchestration.md`「判断の扱い」に、続けるかは同じ文書の「全体 preflight」の最後の段落にある。
@@ -123,3 +124,5 @@ preflight で Issue ごと外した `EXCLUDED` は、表の「対象から外し
 どの欄にも当たらない判断は、4 つの欄の後に、Issue の番号と手戻りの大きさを添えて同じ並べ方で載せる。
 これらの欄は、run の間に manifest の同じ欄へ記録したものから作る（`references/orchestration.md`「判断の扱い」）。
 `DONE` は、次のすべてを確かめた場合だけ使う。PR が `MERGED`、Issue が `CLOSED`、deployment が成功したか根拠があって対象外である、local と remote の branch を削除した。
+worktree に残った記録の引き継ぎ先が merge されずに run が終わると、その Issue は `BRANCH_CLEANUP` のまま残る（`references/orchestration.md`「worktree に残った記録の引き継ぎ」の 5）。
+その Issue は `DONE` にせず `BLOCKED` として載せ、worktree の絶対パスと残りの作業を書く。
