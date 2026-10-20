@@ -17,7 +17,7 @@ Claude Code・Codex・GitHub Copilot に対応した、マルチエージェン�
 | [pr-review-handle](./skills/pr-review-handle/) | PR のレビューコメント（全レビュアー対象）を確認・妥当性判断・必要時のみ修正・返信・解決。`--push` で commit・push・CI 確認後の再レビュー依頼（依頼先は `review_tool` で選択: Copilot/Claude Code/Codex/none）まで |
 | [dependabot-merge](./skills/dependabot-merge/) | Dependabot PR の CI 確認・影響レビュー・判断のコメント記録・マージを標準化。PR 単体または `--all` で open な全 PR を処理（0.x や自動マージ未設定リポジトリ向け） |
 | [dependabot-alert-issue](./skills/dependabot-alert-issue/) | Dependabot alerts を確認し解消 Issue を作成。着手可否で分類し severity・パッケージ単位でグルーピング、着手不能なものは着手可能条件を明記。設定で特定 alert の無視・dismiss も指定可 |
-| [pr-finalize-loop](./skills/pr-finalize-loop/) | 作成済み PR の CI エラー解消とレビュー指摘対応を、CI 成功かつ未解決スレッドなしになるまで自律ループで反復。再レビュー依頼先は `review_tool` で選択（Copilot/Claude Code/Codex/none）。`--max-iterations`（既定 5）で停止し、人間判断を要する指摘だけ確認して反映後に復帰 |
+| [pr-finalize-loop](./skills/pr-finalize-loop/) | 作成済み PR の CI エラー解消とレビュー指摘対応を、CI 成功かつ未解決スレッドなしになるまで自律ループで反復。再レビュー依頼先は `review_tool` で選択（Copilot/Claude Code/Codex/none）。`--max-iterations`（既定 5。使い切ったらレビューの effort を下げて半分の回数を足す）で停止し、人間判断を要する指摘だけ確認して反映後に復帰 |
 | [browser-test](./skills/browser-test/) | フロント／バックエンドの変更を実ブラウザ（chrome-devtools MCP）で回帰確認。実施できる操作は環境ごとの設定（`forbidden_actions`）に従い、副作用を伴う操作は承認制（未設定の環境は読み取り専用）。変更の範囲から影響するページを割り出し、描画・console・API 応答を確認して課題をクロス環境で切り分け。`setup` で対話的に設定を記録 |
 | [aws-architecture-diagram](./skills/aws-architecture-diagram/) | AWS 構成図を IaC（CDK / Terraform 等）や説明から spec に起こし SVG として生成・更新。作図ルール（線の交差を減らす・線を直角に曲げる・軸をそろえる）に従い、環境（prod・local など）ごとの図を 1 つの基本の spec と変換で出し分け、PNG 化して目視確認しながら反復。初回は `setup` で対話導入、以降は `update` |
 | [box](./skills/box/) | Box のファイル/フォルダを Box REST API（`curl` + `jq`）で参照・検索・更新。フォルダ一覧・メタ取得・ダウンロード・検索・アップロード・新バージョン作成を、Dev Token または OAuth refresh のトークンで実行。MCP・SDK 不要 |

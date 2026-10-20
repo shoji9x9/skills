@@ -7,7 +7,7 @@
 #          削除は trap EXIT で行う。`; rm -f` でつなぐと、set -e のシェルでは交換に失敗したときに実行されず、認可コードが残る。
 # 認可コードを引数で渡さないのは、実行中に ps/proc から他プロセスへ露出させないため。
 # 必要env: BOX_CLIENT_ID, BOX_CLIENT_SECRET
-# 任意env: BOX_REDIRECT_URI（既定 https://app.box.com）, BOX_REFRESH_TOKEN_FILE（既定 $HOME/.config/box/refresh_token）
+# 任意env: BOX_REDIRECT_URI（既定 https://app.box.com）, BOX_REFRESH_TOKEN_FILE（既定 ~/.config/box/refresh_token）
 set -euo pipefail
 
 # 以前の `box-oauth-init.sh <code>` 形式をエラーにする。引数で渡すと ps/proc に値が出るうえ、
@@ -15,6 +15,98 @@ set -euo pipefail
 if [ "$#" -gt 0 ]; then
 	echo "エラー: 認可コードは引数で渡しません（ps/proc 露出を避けるため）。引数なしで実行してプロンプトに貼り付けるか、mktemp で作った 0600 の一時ファイルに書いて stdin で渡してください（CWD の code.txt は既定 umask では 0644 になるため使わない）。" >&2
 	exit 2
+fi
+
+# 認可コード以外の設定は、保存先のディレクトリを作る前に確かめる。設定が無くて止まる実行では、ディレクトリを作らない
+: "${BOX_CLIENT_ID:?BOX_CLIENT_ID が未設定}"
+: "${BOX_CLIENT_SECRET:?BOX_CLIENT_SECRET が未設定}"
+
+# 置き場所のデフォルトは ~/.config/box/refresh_token。
+# env/dotenv 経由の値は ~ が展開されないため、先頭 ~/ も下で決めるホームの下に直す
+token_file="${BOX_REFRESH_TOKEN_FILE:-}"
+stripped="${token_file#\~/}"
+token_src="保存先は BOX_REFRESH_TOKEN_FILE で指定した。"
+if [ -z "$token_file" ] || [ "$stripped" != "$token_file" ]; then
+	[ -n "$token_file" ] || stripped=".config/box/refresh_token"
+	# HOME が無いか空なら、box-folder.sh と同じく、OS に登録されたホーム（/etc/passwd や LDAP などに登録された、
+	# そのユーザーのホーム）を使う。OS にそのユーザーの登録が無いと、bash は ~ を / にする（実測 bash 5.2）。
+	# そのため、登録が無いことは id -un が失敗することで見分け、ホームを空にして下の case で止める。
+	# id が PATH に無いと、登録が無いときと同じく失敗するので、先に分けて「確かめられない」と示す
+	home_dir="${HOME:-}"
+	no_entry=""
+	no_id=""
+	if [ -z "${home_dir}" ]; then
+		if ! command -v id >/dev/null 2>&1; then
+			no_id=1
+		elif id -un >/dev/null 2>&1; then
+			home_dir=$(
+				unset HOME
+				printf '%s' ~
+			)
+		else
+			no_entry=1
+		fi
+	fi
+	# HOME が無いときと空のときを、表示で区別する（%q は、どちらも '' と表示する）
+	home_state="HOME が無い"
+	[ "${HOME+set}" != "set" ] || home_state="HOME が空である"
+	if [ -n "${HOME:-}" ]; then
+		token_src="保存先は HOME から決めた。"
+		home_reason="$(printf 'HOME=%q が絶対パスでない。' "${HOME}")"
+	elif [ -n "${no_id}" ]; then
+		home_reason="${home_state}。id コマンドが無く、OS に登録されたホームを確かめられない。"
+	elif [ -n "${no_entry}" ]; then
+		home_reason="${home_state}。OS にこのユーザーの登録が無く、ホームを決められない。"
+	else
+		token_src="${home_state}。保存先は、OS に登録されたホームから決めた。"
+		home_reason="$(printf '%s。OS に登録されたホーム %q も絶対パスでない。' "${home_state}" "${home_dir}")"
+	fi
+	# ホームが絶対パスに決まらないまま交換すると、受け取った refresh token を保存できず、認可からやり直すことになる。
+	# 認可コードは 1 回しか使えないので、認可コードを読む前に止める
+	case "${home_dir}" in
+	/*) ;;
+	*)
+		printf 'box-oauth-init: refresh token の置き場所を絶対パスに決められない。%sBOX_REFRESH_TOKEN_FILE に絶対パスを設定する（例: export BOX_REFRESH_TOKEN_FILE=/path/to/refresh_token）\n' "${home_reason}" >&2
+		exit 1
+		;;
+	esac
+	token_file="${home_dir}/$stripped"
+fi
+# 保存先に書き込めるかを返す。保存はファイルへ直接書くので、ファイルが在ればファイルに、無ければディレクトリに書き込めるかを見る。
+# 保存先がディレクトリなら、書き込めてもファイルとして保存できない。
+# 行き先の無いシンボリックリンクに書くと行き先にファイルができるので、リンクをたどった先のディレクトリに書き込めるかを見る
+can_save() {
+	[ ! -d "$1" ] || return 1
+	if [ -e "$1" ]; then
+		[ -w "$1" ]
+		return
+	fi
+	local target="$1" hops=0 next
+	while :; do
+		# 末尾が / のパスは、ディレクトリを指すのでファイルとして保存できない。
+		# 指定したパスにも、シンボリックリンクの行き先にも当てる
+		case "$target" in
+		*/) return 1 ;;
+		esac
+		[ -L "$target" ] || break
+		# 循環するシンボリックリンクには書き込めない
+		[ "$hops" -lt 40 ] || return 1
+		next="$(readlink "$target")"
+		case "$next" in
+		/*) target="$next" ;;
+		*) target="$(dirname "$target")/$next" ;;
+		esac
+		hops=$((hops + 1))
+	done
+	[ -w "$(dirname "$target")" ]
+}
+# 保存先のディレクトリを先に作り、書き込めるかを確かめる。ホームが書き込めない場所（/nonexistent など）でも、
+# BOX_REFRESH_TOKEN_FILE に書き込めない場所を指定しても、交換した後に保存できず認可からやり直すことになるので、
+# 認可コードを読む前に止める
+token_dir="$(dirname "$token_file")"
+if ! (umask 077 && mkdir -p "$token_dir") || ! can_save "$token_file"; then
+	printf 'box-oauth-init: refresh token の保存先 %q に書き込めない（ディレクトリを作れないか、保存先がディレクトリか、書き込む権限が無い）。%sBox の API を呼ぶ前に止める。BOX_REFRESH_TOKEN_FILE に書き込める絶対パスを設定する（例: export BOX_REFRESH_TOKEN_FILE=/path/to/refresh_token）\n' "$token_file" "$token_src" >&2
+	exit 1
 fi
 
 # 認可コードは引数で受け取らずプロンプト（TTY）または stdin（パイプ）から読む。
@@ -25,14 +117,8 @@ IFS= read -r code || true
 # 貼り付け時に混入し得る前後の空白/改行/CR を除去する（認可コードは非空白のみ）。
 code="$(printf '%s' "$code" | tr -d '[:space:]')"
 : "${code:?認可コードが空です（プロンプトに貼り付けるか stdin で渡してください）}"
-: "${BOX_CLIENT_ID:?BOX_CLIENT_ID が未設定}"
-: "${BOX_CLIENT_SECRET:?BOX_CLIENT_SECRET が未設定}"
 
 redirect_uri="${BOX_REDIRECT_URI:-https://app.box.com}"
-token_file="${BOX_REFRESH_TOKEN_FILE:-$HOME/.config/box/refresh_token}"
-# env/dotenv 経由の値は ~ が展開されないため、先頭 ~/ を $HOME/ に正規化する
-stripped="${token_file#\~/}"
-[ "$stripped" != "$token_file" ] && token_file="$HOME/$stripped"
 
 # 認可コードと client_secret は、curl の argv（ps/proc）に載せず、umask 077 の一時ファイルで渡す。
 # --data-urlencode name@file では、curl がファイルの中身を読んで URL エンコードするので、argv にはファイル名しか現れない。
@@ -79,6 +165,7 @@ fi
 
 (
 	umask 077
+	# ディレクトリは API を呼ぶ前に作ってある。その後に消された場合に備えて、ここでも作る
 	mkdir -p "$(dirname "$token_file")"
 	printf '%s' "$refresh" >"$token_file"
 )

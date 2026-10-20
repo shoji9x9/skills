@@ -26,6 +26,7 @@ import { readFileSync, renameSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
+import { errorMessage } from "./lib/errors.mjs";
 import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 
 class UsageError extends Error {}
@@ -250,7 +251,7 @@ export function main(argv, deps = {}) {
     try {
       table = JSON.parse(readFile(path));
     } catch (e) {
-      throw new UsageError(`表を読めない: ${opts.file}（${e instanceof Error ? e.message : e}）`);
+      throw new UsageError(`表を読めない: ${opts.file}（${errorMessage(e)}）`);
     }
     if (!isPlainObject(table)) throw new UsageError(`表がオブジェクトでない: ${opts.file}`);
     const arr = resolveArray(table, opts.array, command === "upsert");
@@ -268,16 +269,14 @@ export function main(argv, deps = {}) {
       try {
         probe = JSON.parse(text);
       } catch (e) {
-        throw new UsageError(
-          `断片を読めない: ${opts.from}（${e instanceof Error ? e.message : e}）`,
-        );
+        throw new UsageError(`断片を読めない: ${opts.from}（${errorMessage(e)}）`);
       }
       if (!isPlainObject(probe)) throw new UsageError("断片が 1 要素のオブジェクトでない");
     } else {
       try {
         probe = JSON.parse(opts.match);
       } catch (e) {
-        throw new UsageError(`--match を読めない（${e instanceof Error ? e.message : e}）`);
+        throw new UsageError(`--match を読めない（${errorMessage(e)}）`);
       }
       if (!isPlainObject(probe)) throw new UsageError("--match がオブジェクトでない");
     }
@@ -321,7 +320,7 @@ export function main(argv, deps = {}) {
     );
     return 0;
   } catch (e) {
-    process.stderr.write(`error: ${e instanceof Error ? e.message : e}\n${usage}\n`);
+    process.stderr.write(`error: ${errorMessage(e)}\n${usage}\n`);
     return 2;
   }
 }

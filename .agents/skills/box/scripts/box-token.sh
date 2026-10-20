@@ -11,18 +11,114 @@ fi
 : "${BOX_CLIENT_ID:?BOX_ACCESS_TOKEN か BOX_CLIENT_ID/BOX_CLIENT_SECRET が必要}"
 : "${BOX_CLIENT_SECRET:?BOX_CLIENT_SECRET が未設定}"
 
-token_file="${BOX_REFRESH_TOKEN_FILE:-$HOME/.config/box/refresh_token}"
-# env/dotenv 経由の値は ~ が展開されないため、先頭 ~/ を $HOME/ に正規化する
+# 置き場所のデフォルトは ~/.config/box/refresh_token。
+# env/dotenv 経由の値は ~ が展開されないため、先頭 ~/ も下で決めるホームの下に直す
+token_file="${BOX_REFRESH_TOKEN_FILE:-}"
 stripped="${token_file#\~/}"
-[ "$stripped" != "$token_file" ] && token_file="$HOME/$stripped"
+token_src="保存先は BOX_REFRESH_TOKEN_FILE で指定した。"
+if [ -z "$token_file" ] || [ "$stripped" != "$token_file" ]; then
+	[ -n "$token_file" ] || stripped=".config/box/refresh_token"
+	# HOME が無いか空なら、box-folder.sh と同じく、OS に登録されたホーム（/etc/passwd や LDAP などに登録された、
+	# そのユーザーのホーム）を使う。OS にそのユーザーの登録が無いと、bash は ~ を / にする（実測 bash 5.2）。
+	# そのため、登録が無いことは id -un が失敗することで見分け、ホームを空にして下の case で止める。
+	# id が PATH に無いと、登録が無いときと同じく失敗するので、先に分けて「確かめられない」と示す
+	home_dir="${HOME:-}"
+	no_entry=""
+	no_id=""
+	if [ -z "${home_dir}" ]; then
+		if ! command -v id >/dev/null 2>&1; then
+			no_id=1
+		elif id -un >/dev/null 2>&1; then
+			home_dir=$(
+				unset HOME
+				printf '%s' ~
+			)
+		else
+			no_entry=1
+		fi
+	fi
+	# HOME が無いときと空のときを、表示で区別する（%q は、どちらも '' と表示する）
+	home_state="HOME が無い"
+	[ "${HOME+set}" != "set" ] || home_state="HOME が空である"
+	if [ -n "${HOME:-}" ]; then
+		token_src="保存先は HOME から決めた。"
+		home_reason="$(printf 'HOME=%q が絶対パスでない。' "${HOME}")"
+	elif [ -n "${no_id}" ]; then
+		home_reason="${home_state}。id コマンドが無く、OS に登録されたホームを確かめられない。"
+	elif [ -n "${no_entry}" ]; then
+		home_reason="${home_state}。OS にこのユーザーの登録が無く、ホームを決められない。"
+	else
+		token_src="${home_state}。保存先は、OS に登録されたホームから決めた。"
+		home_reason="$(printf '%s。OS に登録されたホーム %q も絶対パスでない。' "${home_state}" "${home_dir}")"
+	fi
+	# ホームが絶対パスに決まらないまま進むと、更新した後に新しい refresh token を保存できず、その値を失う。
+	# Box は更新に使った古い refresh token を無効にするので、API を呼ぶ前に止める
+	case "${home_dir}" in
+	/*) ;;
+	*)
+		printf 'box-token: refresh token の置き場所を絶対パスに決められない。%sBOX_REFRESH_TOKEN_FILE に絶対パスを設定する（例: export BOX_REFRESH_TOKEN_FILE=/path/to/refresh_token）\n' "${home_reason}" >&2
+		exit 1
+		;;
+	esac
+	token_file="${home_dir}/$stripped"
+fi
+# 環境変数に refresh token が無ければ、保存してあるファイルから読む。
+# ここではファイルが在るかだけを見て、中身は書き込めるかを確かめた後に読む
 refresh="${BOX_REFRESH_TOKEN:-}"
+refresh_in_file=""
 if [ -z "$refresh" ] && [ -f "$token_file" ]; then
-	refresh="$(<"$token_file")"
+	refresh_in_file=1
 fi
 # 手で export や保存をしたときに入りうる改行・CR・空白を除く（token は空白を含まない）。
 # 環境変数とファイルのどちらから読んでも、同じ正規化を当てて同じ振る舞いにする。
 refresh="$(printf '%s' "$refresh" | tr -d '[:space:]')"
-: "${refresh:?refresh token が無い（BOX_REFRESH_TOKEN か $token_file を設定）}"
+refresh_missing="refresh token が無い（BOX_REFRESH_TOKEN か $token_file を設定）"
+# refresh token がどこにも無ければ、保存先のディレクトリを作らずに止める
+[ -n "$refresh_in_file" ] || : "${refresh:?$refresh_missing}"
+# 保存先に書き込めるかを返す。保存はファイルへ直接書くので、ファイルが在ればファイルに、無ければディレクトリに書き込めるかを見る。
+# 保存先がディレクトリなら、書き込めてもファイルとして保存できない。
+# 行き先の無いシンボリックリンクに書くと行き先にファイルができるので、リンクをたどった先のディレクトリに書き込めるかを見る
+can_save() {
+	[ ! -d "$1" ] || return 1
+	if [ -e "$1" ]; then
+		[ -w "$1" ]
+		return
+	fi
+	local target="$1" hops=0 next
+	while :; do
+		# 末尾が / のパスは、ディレクトリを指すのでファイルとして保存できない。
+		# 指定したパスにも、シンボリックリンクの行き先にも当てる
+		case "$target" in
+		*/) return 1 ;;
+		esac
+		[ -L "$target" ] || break
+		# 循環するシンボリックリンクには書き込めない
+		[ "$hops" -lt 40 ] || return 1
+		next="$(readlink "$target")"
+		case "$next" in
+		/*) target="$next" ;;
+		*) target="$(dirname "$target")/$next" ;;
+		esac
+		hops=$((hops + 1))
+	done
+	[ -w "$(dirname "$target")" ]
+}
+# 保存先のディレクトリを先に作り、書き込めるかを確かめる。ホームが書き込めない場所（/nonexistent など）でも、
+# BOX_REFRESH_TOKEN_FILE に書き込めない場所を指定しても、更新した後に保存できず新しい refresh token を失うので、
+# API を呼ぶ前に止める。
+# 応答に新しい refresh token が無ければ保存しないので、書き込めない保存先でも成功するはずの実行も、ここで止まる。
+# Box は更新のたびに新しい refresh token を返し、使った古い値を無効にする
+# （https://developer.box.com/guides/authentication/tokens/refresh/ ）ので、Box の応答で refresh token が欠けることは無い
+token_dir="$(dirname "$token_file")"
+if ! (umask 077 && mkdir -p "$token_dir") || ! can_save "$token_file"; then
+	printf 'box-token: refresh token の保存先 %q に書き込めない（ディレクトリを作れないか、保存先がディレクトリか、書き込む権限が無い）。%sBox の API を呼ぶ前に止める。BOX_REFRESH_TOKEN_FILE に書き込める絶対パスを設定する（例: export BOX_REFRESH_TOKEN_FILE=/path/to/refresh_token）\n' "$token_file" "$token_src" >&2
+	exit 1
+fi
+if [ -n "$refresh_in_file" ]; then
+	refresh="$(<"$token_file")"
+	refresh="$(printf '%s' "$refresh" | tr -d '[:space:]')"
+	: "${refresh:?$refresh_missing}"
+fi
 
 # refresh_token と client_secret は、curl の argv（ps/proc）に載せず、umask 077 の一時ファイルで渡す。
 # --data-urlencode name@file では、curl がファイルの中身を読んで URL エンコードするので、argv にはファイル名しか現れない。
@@ -70,6 +166,7 @@ fi
 if [ -n "$new_refresh" ]; then
 	(
 		umask 077
+		# ディレクトリは API を呼ぶ前に作ってある。その後に消された場合に備えて、ここでも作る
 		mkdir -p "$(dirname "$token_file")"
 		printf '%s' "$new_refresh" >"$token_file"
 	)

@@ -28,7 +28,7 @@
       "x-layers": ["repo"]
     },
     "max_pr_iterations": {
-      "description": "pr-finalize-loop の --max-iterations に渡す上限の回数",
+      "description": "pr-finalize-loop の --max-iterations に渡す回数（最初の effort で反復する回数）。merge の準備から収束に戻る回数の上限にも使う",
       "type": "integer",
       "minimum": 1,
       "x-layers": ["repo"]

@@ -23,3 +23,4 @@ scripts/eval/run-skill-eval.sh \
 - eval 25 の「兆候と根拠を添える」「manifest と最終報告に残す」「説明に留める」は、prompt の問い方から答えられるので without_skill も pass する。兆候の数え方と記録の項目が消えた後退を検出するために置く。
 - eval 26 の「#108 の外した理由に #107 を書く」「#109 を進める」「`--stop-on-blocked` でも止めない」は、prompt の問い方から答えられるので without_skill も pass する。依存元の理由の書き方と、preflight の `BLOCKED` で `continue_on_blocked` を使わない取り決めが消えた後退を検出するために置く。
 - eval 27 の 1〜3 本目（守っていない規約・反復を理由に直さなかった指摘・Issue にしていない見送りを載せる）と「説明に留める」は、prompt が事実を挙げているので without_skill も pass する。4 つの欄の取り決めが消えた後退を検出するために置く。
+- eval 28 の「#101 を省かずに実行する」「#102 は省いてよい条件に当たる」は、prompt が事実を挙げているので without_skill も pass する。ローカルレビューを変更の大きさで省かない取り決めと、省いてよい条件の一覧が消えた後退を検出するために置く。
