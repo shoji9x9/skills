@@ -278,7 +278,7 @@ export function githubTarget(remote, env, loginError) {
  * @param {NodeJS.ProcessEnv} env GH_HOST の判定と同じ環境変数で確かめる
  * @returns {string}
  */
-function ghLoginError(host, env) {
+export function ghLoginError(host, env) {
   const r = spawnSync("gh", ["auth", "token", "--hostname", host], {
     env: withoutEnvTokens(env),
     // ネットワークに問い合わせないので通常は数十 ms で終わる。keyring が応答しないときに、コミットを長く止めない

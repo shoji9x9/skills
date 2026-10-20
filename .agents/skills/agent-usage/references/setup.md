@@ -104,12 +104,25 @@ GitHub は `linguist-generated` の付いたファイルを、PR の差分で最
 | 人の設定が無く、リポジトリの設定の `defaultDecision` に従う場合か、判断が「記録する」場合 | 止める（exit 2）。stderr で、setup を実行して人の ID を作るか、`decline` を実行するよう求める。Hook からは人の ID を作らない |
 | ブランチの判断が無く、設定を読めない（どれかの層の知らないキー・型の誤り・置けない層のキー、旧い置き場所の設定） | 止める（exit 2）。stderr で、読めない理由と、設定を直すか `decline` を実行するよう案内する。値を使わない層の誤りでも止める |
 | 判断が「記録しない」 | 通す |
+| 判断が「記録する」で、ブランチが merge 済み | collect も stage もせずに通し、merge 済みと決めた方法を stderr に出す。決め方は下の表の後に書く |
 | 判断が「記録する」 | collect を実行し、`.agent-usage/records/` を stage して通す（前に書いて stage されなかった記録も入る）。collect が失敗したら止める。Hook の collect は常に GitHub も取得する（`--no-github` は手動の collect だけ）。コミットが実行されなかったときに stage が残る場合の扱いは、[SKILL.md「コミットの前の確認」](../SKILL.md)にある |
 | Node.js が無い・同梱のスクリプトを読めない・想定外の失敗 | 確認をせずに通し、その旨を stderr に出す（記録の仕組みの不具合で作業を止めない） |
 
 判断と collect は、git commit を実行する作業ディレクトリ（`-C <dir>` と前の `cd <dir>` を当てた先）のリポジトリで行う。
 デフォルトブランチは、`origin/HEAD` から決める。分からなければ `main` と `master` をデフォルトブランチとして扱う。
 判断はリポジトリに入れず、git の共通のディレクトリ（`git rev-parse --git-common-dir` の下の `agent-usage/decisions.json`）に置く。worktree でも共有する。
+
+merge 済みのブランチかは、次の順に決める。どちらにも当たらなければ、merge 済みとせずに collect する。
+
+1. HEAD が、リモートのデフォルトブランチ（`origin/<デフォルトブランチ>`）の祖先で、HEAD がこのブランチで作った commit である。
+   作った直後のブランチや、fast-forward（`git pull`・`git merge --ff-only`）や reset でデフォルトブランチの commit に移っただけのブランチも、HEAD が祖先になる。
+   そこで、ブランチの reflog の最新の行が commit か merge commit を作った行であることも確かめる。reflog が無ければ、この方法では決めない
+2. `gh` で、このブランチを head にした PR のうち、merge 済みで head の commit が HEAD と同じものがある（squash merge と rebase merge では、HEAD がデフォルトブランチの祖先にならないため）。
+   origin が GitHub でない・`gh` が無い・取得に失敗したときは、この方法では決めない。
+   PR は origin のリポジトリでだけ探すので、fork から上流のリポジトリへ出した PR は見つからない
+
+merge の後にそのブランチで commit を足していれば、HEAD が変わるので merge 済みとしない。新しい作業として記録する。
+merge 済みのブランチで Hook が通しても、前に stage された明細は index に残る（SKILL.md「コミットの前の確認」）。
 
 ## 3. 動作を確かめる
 

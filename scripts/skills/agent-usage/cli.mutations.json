@@ -922,7 +922,16 @@
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook 判断の無いブランチでは、defaultDecision に従って止めずに通す。人の設定がリポジトリの設定より優先する",
-        "agent-usage のコマンドと Hook リポジトリの defaultDecision は、人の設定が無い人には当てずに止めて setup を求め、人の ID を作らない。デフォルトブランチの status は対象外と出す"
+        "agent-usage のコマンドと Hook リポジトリの defaultDecision は、人の設定が無い人には当てずに止めて setup を求め、人の ID を作らない。デフォルトブランチの status は対象外と出す",
+        "merge 済みのブランチの Hook PR で merge 済みと決められないとき（gh が失敗する）は、記録する",
+        "merge 済みのブランチの Hook PR で merge 済みと決められないとき（merge されずに閉じた）は、記録する",
+        "merge 済みのブランチの Hook PR で merge 済みと決められないとき（merge の後に commit を足して、head の commit が HEAD と違う）は、記録する",
+        "merge 済みのブランチの Hook squash merge のように HEAD が祖先でなくても、head の commit が HEAD と同じ merge 済みの PR があれば記録しない",
+        "merge 済みのブランチの Hook 作った直後で自分の commit が無いブランチは、HEAD がデフォルトブランチの祖先でも merge 済みとせずに記録する",
+        "merge 済みのブランチの Hook 自分の commit を merge commit で取り込んだブランチでは、collect も stage もせずに、merge 済みと出して通す",
+        "merge 済みのブランチの Hook HEAD がデフォルトブランチの祖先でも、fast-forward でデフォルトブランチの commit に移っただけ のブランチは merge 済みとせずに記録する",
+        "merge 済みのブランチの Hook HEAD がデフォルトブランチの祖先でも、ブランチの reflog が無い のブランチは merge 済みとせずに記録する",
+        "merge 済みのブランチの Hook デフォルトブランチを merge commit で取り込んだ後に merge したブランチも、記録しない"
       ]
     },
     {
@@ -1064,8 +1073,8 @@
       "id": "gate-creates-person",
       "why": "記録するときに人の設定が無くても止めず、collect が人の ID を作る",
       "file": "skills/agent-usage/scripts/lib/gate.mjs",
-      "find": "  person ??= personOf(script);\n  if (person !== true)\n    return person === false ? { exit: 2, message: setupMessage(agent, script) } : person;\n  try {",
-      "replace": "  try {",
+      "find": "  person ??= personOf(script);\n  if (person !== true)\n    return person === false ? { exit: 2, message: setupMessage(agent, script) } : person;\n  // merge 済みのブランチ",
+      "replace": "  // merge 済みのブランチ",
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook ブランチの判断が「記録する」でも、人の設定が無ければ止めて、Hook からは人の ID を作らない。status も止めると出す",
@@ -1170,6 +1179,115 @@
       "occurrences": 1,
       "expect_failing": [
         "agent-usage のコマンドと Hook 人の設定が無いとき、引数を誤った setup と report は人の設定を作らず、判断を確かめる案内は setup --person-id を示す"
+      ]
+    },
+    {
+      "id": "merged-no-ancestry",
+      "why": "HEAD がデフォルトブランチの祖先かを見ない（merge commit で取り込んだブランチに記録を足す）",
+      "file": "skills/agent-usage/scripts/lib/merged.mjs",
+      "find": "  if (byAncestry !== \"\") return { merged: true, how: byAncestry };",
+      "replace": "  if (false) return { merged: true, how: byAncestry };",
+      "occurrences": 1,
+      "expect_failing": [
+        "merge 済みのブランチの Hook 自分の commit を merge commit で取り込んだブランチでは、collect も stage もせずに、merge 済みと出して通す",
+        "merge 済みのブランチの Hook デフォルトブランチを merge commit で取り込んだ後に merge したブランチも、記録しない",
+        "merge 済みのブランチの Hook status は、記録すると決めた merge 済みのブランチで、コミットの前の確認が記録しないことを出す"
+      ]
+    },
+    {
+      "id": "merged-no-pull-request",
+      "why": "PR で merge 済みかを見ない（squash merge したブランチに記録を足す）",
+      "file": "skills/agent-usage/scripts/lib/merged.mjs",
+      "find": "  if (byPr !== \"\") return { merged: true, how: byPr };",
+      "replace": "  if (false) return { merged: true, how: byPr };",
+      "occurrences": 1,
+      "expect_failing": [
+        "merge 済みのブランチの Hook squash merge のように HEAD が祖先でなくても、head の commit が HEAD と同じ merge 済みの PR があれば記録しない"
+      ]
+    },
+    {
+      "id": "merged-pr-ignores-head",
+      "why": "PR の head の commit と HEAD を比べない（merge の後に足した commit を記録しない）",
+      "file": "skills/agent-usage/scripts/lib/merged.mjs",
+      "find": " && pr.head.sha === head)",
+      "replace": ")",
+      "occurrences": 1,
+      "expect_failing": [
+        "merge 済みのブランチの Hook PR で merge 済みと決められないとき（merge の後に commit を足して、head の commit が HEAD と違う）は、記録する"
+      ]
+    },
+    {
+      "id": "merged-pr-ignores-merged-at",
+      "why": "PR が merge 済みかを見ない（merge せずに閉じた PR のブランチを記録しない）",
+      "file": "skills/agent-usage/scripts/lib/merged.mjs",
+      "find": "typeof pr.merged_at === \"string\" && pr.merged_at !== \"\" && ",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "merge 済みのブランチの Hook PR で merge 済みと決められないとき（merge されずに閉じた）は、記録する"
+      ]
+    },
+    {
+      "id": "gate-ignores-merged",
+      "why": "Hook が merge 済みの判定を使わない",
+      "file": "skills/agent-usage/scripts/lib/gate.mjs",
+      "find": "  if (merged.merged)\n",
+      "replace": "  if (false)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "merge 済みのブランチの Hook 自分の commit を merge commit で取り込んだブランチでは、collect も stage もせずに、merge 済みと出して通す",
+        "merge 済みのブランチの Hook squash merge のように HEAD が祖先でなくても、head の commit が HEAD と同じ merge 済みの PR があれば記録しない",
+        "merge 済みのブランチの Hook デフォルトブランチを merge commit で取り込んだ後に merge したブランチも、記録しない"
+      ]
+    },
+    {
+      "id": "report-counts-duplicate-keys",
+      "why": "report が同じ key の行を 1 行にまとめない",
+      "file": "skills/agent-usage/scripts/lib/report/report.mjs",
+      "find": "[...latestByKey(allRows).values()]",
+      "replace": "[...allRows]",
+      "occurrences": 1,
+      "expect_failing": [
+        "merge 済みのブランチの Hook 同じ key の行が別のブランチのファイルにもあっても、report は二重に数えない",
+        "agent-usage のコマンドと Hook collect は範囲より古いファイルを読まず、範囲の外の key を書き直しても report の結果は変わらない",
+        "agent-usage のコマンドと Hook サブエージェントのログだけが消えたセッションの使用量は、区切り方が変わっても打ち消さない",
+        "agent-usage のコマンドと Hook 別名で記録した行と、observed_at が今より後の行も打ち消し、report は二重に数えない",
+        "agent-usage のコマンドと Hook 区切り方が変わった記録済みの行は打ち消し、report は二重に数えない"
+      ]
+    },
+    {
+      "id": "merged-no-tip-check",
+      "why": "HEAD がこのブランチで作った commit かを見ない（作った直後・fast-forward・reflog の無いブランチを記録しない）",
+      "file": "skills/agent-usage/scripts/lib/merged.mjs",
+      "find": "  if (!tipCommittedHere(repo)) return \"\";",
+      "replace": "  if (false) return \"\";",
+      "occurrences": 1,
+      "expect_failing": [
+        "merge 済みのブランチの Hook 作った直後で自分の commit が無いブランチは、HEAD がデフォルトブランチの祖先でも merge 済みとせずに記録する",
+        "merge 済みのブランチの Hook HEAD がデフォルトブランチの祖先でも、fast-forward でデフォルトブランチの commit に移っただけ のブランチは merge 済みとせずに記録する",
+        "merge 済みのブランチの Hook HEAD がデフォルトブランチの祖先でも、ブランチの reflog が無い のブランチは merge 済みとせずに記録する"
+      ]
+    },
+    {
+      "id": "merged-tip-ignores-merge-commit",
+      "why": "ブランチで作った merge commit を、このブランチで作った commit として扱わない",
+      "file": "skills/agent-usage/scripts/lib/merged.mjs",
+      "find": "/^(merge [^:]*|pull[^:]*): Merge made by /.test(subject)",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": [
+        "merge 済みのブランチの Hook デフォルトブランチを merge commit で取り込んだ後に merge したブランチも、記録しない"
+      ]
+    },
+    {
+      "id": "status-ignores-merged",
+      "why": "status が、merge 済みのブランチでコミットの前の確認が記録しないことを出さない",
+      "file": "skills/agent-usage/scripts/agent-usage.mjs",
+      "find": "  return m.merged ?",
+      "replace": "  return false ?",
+      "occurrences": 1,
+      "expect_failing": [
+        "merge 済みのブランチの Hook status は、記録すると決めた merge 済みのブランチで、コミットの前の確認が記録しないことを出す"
       ]
     }
   ]

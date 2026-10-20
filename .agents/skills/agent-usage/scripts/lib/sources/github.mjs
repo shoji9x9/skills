@@ -102,7 +102,7 @@ function getJson(gh, path) {
  * @param {(page: unknown) => unknown} pick
  * @returns {unknown[]}
  */
-function getAll(gh, path, pick) {
+export function getAll(gh, path, pick) {
   const pages = JSON.parse(gh(["--paginate", "--slurp", path], {}).toString("utf8"));
   if (!isArray(pages)) throw new Error(`${path}: ページの配列でない`);
   /** @type {unknown[]} */
