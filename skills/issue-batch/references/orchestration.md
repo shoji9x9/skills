@@ -252,7 +252,10 @@ Issue ごとの専用の worktree で、`issue-start <Issue URL> --pr` と同じ
 - base branch に入っていない変更が 0 行である。commit していない差分と、base branch に入っていない commit（push 済みのものを含む）の両方を数える
 
 ローカルレビューは、commit する前に、commit していない差分を対象にして行う。
-再開した Issue のように、base branch に入っていない commit が残っている状態でレビューするときは、その commit も対象にする（base branch との差分をレビューする指定を使う）。
+再開した Issue のように、base branch に入っていない commit が残っている状態でレビューするときは、その commit も対象にする。
+エージェントごとの指定は次のとおりである。
+Codex は `codex review --base <base>`（`--help` の「Review changes against the given base branch」）を使う。commit していない差分も対象にするかは確かめていないので、`codex review --uncommitted` も続けて実行する。
+Claude Code の `/code-review high` と GitHub Copilot CLI の上のコマンドは、branch を base と比べてレビューするので、そのまま使う。
 今使っているエージェントの機能で base branch との差分をレビューできなければ、BLOCKED にする。
 
 省いたときは、manifest の `self_decisions` の `unfollowed_rules`（「判断の扱い」の守っていない規約の欄）に、当たった条件を添えて記録する。
@@ -279,7 +282,7 @@ transcript を特定できないエージェントでは、何もしないで進
 学びが作られた場合は、実装の変更とは別の commit にする。関連するファイルだけを stage し、規約どおりに commit する。
 commit message の 1 行目、PR のタイトルと本文、Issue へのコメントは、外に出す前に `writing-style` スキルの手順で読み直す（スキルが無ければ省く）。
 **すべての commit の後、push の直前に**、`issue-start` の受け入れ条件の突き合わせ（基本フローの step 10。手順は `issue-start` の `references/acceptance.md` で定義する）を通す。
-ローカルレビューは commit していない差分を対象にし、レビューの修正や Kaizen の commit で HEAD が進む。
+ローカルレビューは commit の前に行い（「ローカルレビュー」）、レビューの修正や Kaizen の commit で HEAD が進む。
 そのため、それより前に作った表は、`commit-missing` か `stale-commit` で失敗する。
 次のどれかに当たれば `BLOCKED` にする。
 

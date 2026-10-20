@@ -7,7 +7,9 @@
 ## 何を変えたか
 
 PR #720 で、`references/orchestration.md`「ローカルレビュー」の省いてよい条件「差分が 0 行」について、数える範囲を base branch に入っていない変更のすべて（commit していない差分と、push 済みを含む base branch に入っていない commit）に変えた。
+同じ変更で、base branch に入っていない commit が残っているときはその commit もレビューの対象にすることと、base branch との差分をレビューできなければ BLOCKED にすることを足した。
 iteration-21 はこの変更の前の版で測ったので、eval 28 を今の版で測り直した。eval 28 の prompt・fixture・assertion は変えていない（`eval-fingerprint.json` は iteration-21 と同じ値）。
+eval 28 の assertion は数える範囲とレビューの対象を区別しないので、この 5/5 は変更で後退していないことを示すだけで、変更そのものの検証にはならない。
 
 ## Summary
 
