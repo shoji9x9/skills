@@ -31,6 +31,7 @@ main で立ったセンチネルは `-home-shoji9x9-projects-skills/` の transc
 transcript は `-home-shoji9x9-projects-skills--claude-worktrees-697-defer-decisions-by-impact/` に移っており、処理位置も無いので、走査は先頭から候補を挙げた。
 移った後のパスを `find ~/.claude/projects -name '<session id>*'` で探し、そのパスで `kaizen-extract-done.sh` を実行して解消した。
 続けて PR #718 の worktree へ移った後も、同じ形で起きる。
+PR #722 の worktree へ移った後の最初の commit でも、処理位置が #718 の worktree と一緒に消えていたので、走査は transcript の先頭から 37 件の候補を挙げて止めた。
 
 ## 根本原因
 

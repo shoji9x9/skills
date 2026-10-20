@@ -21,34 +21,40 @@ fi
 : "${BOX_CLIENT_ID:?BOX_CLIENT_ID が未設定}"
 : "${BOX_CLIENT_SECRET:?BOX_CLIENT_SECRET が未設定}"
 
-# HOME が無いか空なら、box-folder.sh と同じく、OS に登録されたホーム（/etc/passwd や LDAP などに登録された、
-# そのユーザーのホーム）を使う。OS にそのユーザーの登録が無いと、bash は ~ を / にする（実測 bash 5.2）。
-# そのため、登録が無いことは id -un が失敗することで見分け、ホームを空にして下の case で止める
-home_dir="${HOME:-}"
-no_entry=""
-if [ -z "${home_dir}" ]; then
-	if id -un >/dev/null 2>&1; then
-		home_dir=$(
-			unset HOME
-			printf '%s' ~
-		)
-	else
-		no_entry=1
-	fi
-fi
 # 置き場所のデフォルトは ~/.config/box/refresh_token。
-# env/dotenv 経由の値は ~ が展開されないため、先頭 ~/ も上で決めたホームの下に直す
+# env/dotenv 経由の値は ~ が展開されないため、先頭 ~/ も下で決めるホームの下に直す
 token_file="${BOX_REFRESH_TOKEN_FILE:-}"
 stripped="${token_file#\~/}"
 token_src="保存先は BOX_REFRESH_TOKEN_FILE で指定した。"
 if [ -z "$token_file" ] || [ "$stripped" != "$token_file" ]; then
 	[ -n "$token_file" ] || stripped=".config/box/refresh_token"
+	# HOME が無いか空なら、box-folder.sh と同じく、OS に登録されたホーム（/etc/passwd や LDAP などに登録された、
+	# そのユーザーのホーム）を使う。OS にそのユーザーの登録が無いと、bash は ~ を / にする（実測 bash 5.2）。
+	# そのため、登録が無いことは id -un が失敗することで見分け、ホームを空にして下の case で止める。
+	# id が PATH に無いと、登録が無いときと同じく失敗するので、先に分けて「確かめられない」と示す
+	home_dir="${HOME:-}"
+	no_entry=""
+	no_id=""
+	if [ -z "${home_dir}" ]; then
+		if ! command -v id >/dev/null 2>&1; then
+			no_id=1
+		elif id -un >/dev/null 2>&1; then
+			home_dir=$(
+				unset HOME
+				printf '%s' ~
+			)
+		else
+			no_entry=1
+		fi
+	fi
 	# HOME が無いときと空のときを、表示で区別する（%q は、どちらも '' と表示する）
 	home_state="HOME が無い"
 	[ "${HOME+set}" != "set" ] || home_state="HOME が空である"
 	if [ -n "${HOME:-}" ]; then
 		token_src="保存先は HOME から決めた。"
 		home_reason="$(printf 'HOME=%q が絶対パスでない。' "${HOME}")"
+	elif [ -n "${no_id}" ]; then
+		home_reason="${home_state}。id コマンドが無く、OS に登録されたホームを確かめられない。"
 	elif [ -n "${no_entry}" ]; then
 		home_reason="${home_state}。OS にこのユーザーの登録が無く、ホームを決められない。"
 	else
@@ -76,7 +82,13 @@ can_save() {
 		return
 	fi
 	local target="$1" hops=0 next
-	while [ -L "$target" ]; do
+	while :; do
+		# 末尾が / のパスは、ディレクトリを指すのでファイルとして保存できない。
+		# 指定したパスにも、シンボリックリンクの行き先にも当てる
+		case "$target" in
+		*/) return 1 ;;
+		esac
+		[ -L "$target" ] || break
 		# 循環するシンボリックリンクには書き込めない
 		[ "$hops" -lt 40 ] || return 1
 		next="$(readlink "$target")"

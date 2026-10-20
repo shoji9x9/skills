@@ -284,6 +284,25 @@ const UNWRITABLE_CASES: [string, Unwritable, string][] = [
     "保存先は BOX_REFRESH_TOKEN_FILE で指定した。",
   ],
   [
+    "BOX_REFRESH_TOKEN_FILE の末尾が / で、そのディレクトリが無い",
+    (s) => {
+      // 親（s.dir）に書き込めても、末尾が / のパスにはファイルとして保存できない
+      const file = `${join(s.dir, "rt-missing-dir")}/`;
+      return { env: { BOX_REFRESH_TOKEN_FILE: file }, file };
+    },
+    "保存先は BOX_REFRESH_TOKEN_FILE で指定した。",
+  ],
+  [
+    "BOX_REFRESH_TOKEN_FILE が、行き先の末尾が / のシンボリックリンク",
+    (s) => {
+      // 行き先はディレクトリを指す形なので、たどった先の親（s.dir）に書き込めても、ファイルとして保存できない
+      const file = join(s.dir, "rt-slash");
+      symlinkSync("missing-sub/", file);
+      return { env: { BOX_REFRESH_TOKEN_FILE: file }, file };
+    },
+    "保存先は BOX_REFRESH_TOKEN_FILE で指定した。",
+  ],
+  [
     "BOX_REFRESH_TOKEN_FILE が、循環するシンボリックリンク",
     (s) => {
       const file = join(s.dir, "rt-loop-a");
@@ -304,6 +323,20 @@ function danglingLinkToExistingDir(s: Setup): { file: string; target: string } {
   symlinkSync("../mid/rt-next", file);
   symlinkSync("../store/rt", join(s.dir, "mid", "rt-next"));
   return { file, target: join(s.dir, "store", "rt") };
+}
+
+// id が PATH に無い状態。bash だけを置いたディレクトリを作り、PATH をそこと偽物のディレクトリだけにする。
+// HOME が無いと、スクリプトは OS の登録を確かめる前に止まるので、bash のほかのコマンドは要らない
+function pathWithoutId(s: Setup): string {
+  const only = join(s.dir, "only-bash");
+  mkdirSync(only);
+  const bash = (process.env.PATH ?? "")
+    .split(":")
+    .map((d) => join(d, "bash"))
+    .find((p) => existsSync(p));
+  if (!bash) throw new Error("PATH に bash が無い");
+  symlinkSync(bash, join(only, "bash"));
+  return `${s.bin}:${only}`;
 }
 
 // BOX_REFRESH_TOKEN_FILE に絶対パスを指定すれば、HOME を使わない状態
@@ -632,6 +665,28 @@ describe("box-token.sh", () => {
   });
 });
 
+describe("box-token.sh（id が PATH に無い）", () => {
+  test("HOME が無く、id が PATH に無ければ、API を呼ばずに、登録を確かめられないことを示して止まる", () => {
+    const s = setup("box-token-noid-");
+    const r = run(TOKEN_SCRIPT, s, {
+      env: {
+        ...CLIENT,
+        HOME: undefined,
+        PATH: pathWithoutId(s),
+        BOX_REFRESH_TOKEN: "rt-env",
+        STUB_RESPONSE: JSON.stringify({ access_token: "at-13", refresh_token: "rt-new" }),
+      },
+    });
+    expect(r.status).toBe(1);
+    expect(r.stdout).toBe("");
+    expect(r.log).toBe("");
+    expect(r.stderr).toContain(
+      "box-token: refresh token の置き場所を絶対パスに決められない。HOME が無い。id コマンドが無く、OS に登録されたホームを確かめられない。",
+    );
+    expect(r.stderr).not.toContain("OS にこのユーザーの登録が無く");
+  });
+});
+
 describe("box-oauth-init.sh", () => {
   test("引数で認可コードを渡すとエラーにし、API を呼ばない", () => {
     const s = setup("box-init-");
@@ -916,5 +971,27 @@ describe("box-oauth-init.sh", () => {
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/refresh_token を取得できませんでした/);
     expect(existsSync(tokenFile)).toBe(false);
+  });
+});
+
+describe("box-oauth-init.sh（id が PATH に無い）", () => {
+  test("HOME が無く、id が PATH に無ければ、認可コードを読む前に、登録を確かめられないことを示して止まる", () => {
+    const s = setup("box-init-noid-");
+    const r = run(INIT_SCRIPT, s, {
+      env: {
+        ...CLIENT,
+        HOME: undefined,
+        PATH: pathWithoutId(s),
+        STUB_RESPONSE: JSON.stringify({ access_token: "a", refresh_token: "rt-new" }),
+      },
+      input: "code-x\n",
+    });
+    expect(r.status).toBe(1);
+    expect(r.stdout).toBe("");
+    expect(r.log).toBe("");
+    expect(r.stderr).toContain(
+      "box-oauth-init: refresh token の置き場所を絶対パスに決められない。HOME が無い。id コマンドが無く、OS に登録されたホームを確かめられない。",
+    );
+    expect(r.stderr).not.toContain("OS にこのユーザーの登録が無く");
   });
 });
