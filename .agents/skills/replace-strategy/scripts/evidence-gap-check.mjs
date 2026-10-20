@@ -33,7 +33,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
-import { errorMessage } from "./lib/errors.mjs";
+import { parseJsonOrThrow } from "./lib/json.mjs";
 import { collapse, parseTables, unclosedFenceMessage } from "./lib/markdown.mjs";
 
 /** ツールのバージョン（このファイルで定義する）。判定のロジックや出力の形を変えたら上げる。 */
@@ -318,13 +318,10 @@ export function readRow(text, slug) {
  * @returns {{ declared: Set<string>, legacyArtifact: boolean, invalidEndpoints: number, invalidEntries: number, emptyEndpoints: number }}
  */
 export function readDeclaredEndpoints(text, path) {
-  /** @type {unknown} */
-  let parsed;
-  try {
-    parsed = JSON.parse(text);
-  } catch (e) {
-    throw new UsageError(`${path} を JSON として読めない: ${errorMessage(e)}`);
-  }
+  const parsed = parseJsonOrThrow(
+    text,
+    (message) => new UsageError(`${path} を JSON として読めない: ${message}`),
+  );
   if (typeof parsed !== "object" || parsed === null)
     throw new UsageError(`${path} が object でない`);
   const unmeasured = "unmeasured" in parsed ? parsed.unmeasured : undefined;

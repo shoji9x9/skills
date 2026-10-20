@@ -365,6 +365,28 @@ test("unmeasured.declared: false の entries は宣言に数えない（誰も�
   });
 });
 
+test("JSON として読めない成果物は不備（exit 2）で、構文エラーの理由を表示する", () => {
+  let reason = "";
+  try {
+    JSON.parse("{");
+  } catch (e) {
+    reason = e instanceof Error ? e.message : "";
+  }
+  expect(reason).not.toBe("");
+  withDir((dir) => {
+    const r = run(dir, { "features.md": ONE_ESTIMATED, "metadata.json": "{" }, [
+      "--features",
+      "features.md",
+      "--slug",
+      "plan",
+      "--unmeasured",
+      "metadata.json",
+    ]);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain(`metadata.json を JSON として読めない: ${reason}`);
+  });
+});
+
 test("unmeasured.declared が真偽値でない成果物は不備（exit 2）", () => {
   withDir((dir) => {
     const r = run(

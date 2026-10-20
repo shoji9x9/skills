@@ -41,6 +41,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
+import { errorMessage } from "./lib/errors.mjs";
 import {
   isInteger,
   isObjectLike,
@@ -1738,9 +1739,7 @@ export function main(argv, deps = {}) {
   try {
     metadata = JSON.parse(readFile(resolve(cwd, metadataPath)));
   } catch (error) {
-    // オブジェクトなら message を表示する。偽の値はそのまま、オブジェクトでない真の値は undefined と表示する。
-    const reason = isObjectLike(error) ? error.message : error && undefined;
-    return fail(`${metadataPath} を読めない: ${reason}`);
+    return fail(`${metadataPath} を読めない: ${errorMessage(error)}`);
   }
   const result = checkCaptureScope(metadata);
   if (result.structural) {
