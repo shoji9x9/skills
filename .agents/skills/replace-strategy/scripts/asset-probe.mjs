@@ -274,7 +274,7 @@ export const assetProbe = () => {
   const walk = (rules, sheetHref, base) => {
     for (const rule of Array.from(rules)) {
       if (rule.type === CSSRule.FONT_FACE_RULE) {
-        // @font-face の規則（CSSFontFaceRule）は必ず style を持つ。無ければ、元の `rule.style.…` の読み取りと同じく TypeError で止める。
+        // @font-face の規則（CSSFontFaceRule）は必ず style を持つ。無ければ TypeError を投げて止める。
         const ruleStyle = rule.style;
         if (!ruleStyle) throw new TypeError("@font-face の規則に style がありません");
         fontFaces.push({

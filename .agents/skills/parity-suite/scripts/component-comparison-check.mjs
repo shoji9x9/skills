@@ -351,7 +351,7 @@ export function checkComponentComparison(input) {
     }
   }
   const expectedFingerprint = fingerprintOf(presentKeys);
-  // source_coverage が falsy・プリミティブのときは、元の `x && x.fingerprint` と同じく文字列でない値になる
+  // source_coverage がオブジェクトでなければ fingerprint を undefined として読み、下で fingerprint が無いと報告する。
   const sourceCoverage = comparison.source_coverage;
   const recorded = isObjectLike(sourceCoverage) ? sourceCoverage.fingerprint : undefined;
   if (!nonEmptyString(recorded)) {
