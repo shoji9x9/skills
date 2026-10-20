@@ -57,14 +57,15 @@ frontmatter_state() {
 				if (item == "" || item == "null" || item == "~") continue
 				out = (out == "" ? item : out "," item)
 			}
+			# 不正な値が 1 つでもあれば、最後の値ではなく、不正な値をすべて連ねたものを渡す。重なったキーの値を 1 回の実行でまとめて報告するためである。
+			if (conf_bad != "") confidence = conf_bad
 			# 区切りの `|` を値に含むと、read が後ろのフィールドをずらす（`confidence: low|high` が
 			# low として通る）。最後の applied-to 以外の文字列の値では `|` を全角の `｜` に置き換える。
 			# メッセージに出る値が書いた文字と見た目で対応するように、半角の `/` などの別の文字にはしない。
 			gsub(/\|/, "｜", status)
 			gsub(/\|/, "｜", type)
-			# confidence は、出てきた回数と、コロンの後に空白が無い形があったか（0 か 1）を別のフィールドで渡す。
-			if (conf_bad_seen) confidence = conf_bad
 			gsub(/\|/, "｜", confidence)
+			# confidence は、出てきた回数と、コロンの後に空白が無い形があったか（0 か 1）を別のフィールドで渡す。
 			printf "%s|%s|%s|%s|%s|%s|%s|%s\n", status, present, nonempty, type, conf_count, conf_nospace, confidence, out
 		}
 		# ブロックシーケンスの 1 項目を flow 配列と同じ表記へ畳み込む。要素の分類にしか
@@ -77,7 +78,7 @@ frontmatter_state() {
 			if (item == "") return
 			applied_value = (applied_value == "" ? item : applied_value "," item)
 		}
-		BEGIN { fm = 0; present = 0; nonempty = 0; status = ""; type = ""; conf_count = 0; conf_nospace = 0; conf_bad = ""; conf_bad_seen = 0; confidence = ""; in_applied = 0; applied_value = "" }
+		BEGIN { fm = 0; present = 0; nonempty = 0; status = ""; type = ""; conf_count = 0; conf_nospace = 0; conf_bad = ""; confidence = ""; in_applied = 0; applied_value = "" }
 		/^---[[:space:]]*$/ {
 			fm++
 			if (fm == 2) {
@@ -119,10 +120,10 @@ frontmatter_state() {
 			gsub(/^[[:space:]]+|[[:space:]]+$/, "", confidence)
 			# 落とすのは対になった引用符だけにする。片側だけの引用符（`"high`）は不正な値として止める。
 			if (confidence ~ /^".*"$/ || confidence ~ /^'"'"'.*'"'"'$/) confidence = substr(confidence, 2, length(confidence) - 2)
-			# キーが重なったときに前の不正な値を見逃さないよう、最初に見つけた不正な値を残す。
-			if (!conf_bad_seen && confidence != "high" && confidence != "medium" && confidence != "low") {
-				conf_bad = confidence
-				conf_bad_seen = 1
+			# キーが重なったときに前の不正な値を見逃さないよう、不正な値はすべて「, 」で連ねて残す。空の値は <empty> と書く。
+			if (confidence != "high" && confidence != "medium" && confidence != "low") {
+				bad = (confidence == "" ? "<empty>" : confidence)
+				conf_bad = (conf_bad == "" ? bad : conf_bad ", " bad)
 			}
 			in_applied = 0
 			next
@@ -269,7 +270,7 @@ for note in .kaizen/*.md .kaizen/archive/*.md; do
 			echo "kaizen-status-check: ${note}: confidence is declared ${conf_count} times (declare it once)" >&2
 			errors=$((errors + 1))
 		fi
-		# 値は、重なりや空白の問題と並べて確かめる（読み取りは、最初の不正な値か、最後の値を渡す）。
+		# 値は、重なりや空白の問題と並べて確かめる（`frontmatter_state` は、不正な値があればそれをすべて連ねたものを、無ければ最後の値を渡す）。
 		if [ "${conf_count}" -ge 1 ]; then
 			case "${confidence}" in
 			high | medium | low) ;;

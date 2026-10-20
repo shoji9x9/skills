@@ -26,7 +26,9 @@
         "confidence の値を拒否する: 単引用符で囲んだキーの不正な値",
         "重なったキーの前の不正な値も報告する",
         "コロンの後に空白が無い不正な値は、空白と値の両方を報告する",
-        "コロンの後に空白が無い形と重なったキーを、1 回の実行でまとめて報告する"
+        "コロンの後に空白が無い形と重なったキーを、1 回の実行でまとめて報告する",
+        "重なったキーの不正な値は、すべてを 1 回の実行で報告する",
+        "重なったキーの前の空の値も報告する"
       ]
     },
     {
@@ -73,7 +75,7 @@
     },
     {
       "id": "CONF-DUPLICATE-ALLOWED",
-      "why": "confidence のキーの回数を数えない（重なったキーの前の不正な値を見逃す）",
+      "why": "confidence のキーの回数を数えない（キーが重なっていることを報告しない）",
       "file": "skills/kaizen/scripts/kaizen-status-check.sh",
       "find": "\t\t\tconf_count++",
       "replace": "\t\t\tconf_count = 1",
@@ -81,7 +83,9 @@
       "expect_failing": [
         "confidence の値を拒否する: 重なったキー（前の値が不正）",
         "コロンの後に空白が無い形と重なったキーを、1 回の実行でまとめて報告する",
-        "重なったキーの前の不正な値も報告する"
+        "重なったキーの前の不正な値も報告する",
+        "重なったキーの不正な値は、すべてを 1 回の実行で報告する",
+        "重なったキーの前の空の値も報告する"
       ]
     },
     {
@@ -147,12 +151,16 @@
     },
     {
       "id": "CONF-FIRST-BAD-DROPPED",
-      "why": "重なったキーで最初の不正な値を残さない（後の正しい値だけを確かめ、前の不正な値を見逃す）",
+      "why": "不正な値を連ねたものを渡さない（重なったキーで後の正しい値だけを確かめ、前の不正な値を見逃す）",
       "file": "skills/kaizen/scripts/kaizen-status-check.sh",
-      "find": "\t\t\tif (conf_bad_seen) confidence = conf_bad",
+      "find": "\t\t\tif (conf_bad != \"\") confidence = conf_bad",
       "replace": "\t\t\tif (0) confidence = conf_bad",
       "occurrences": 1,
-      "expect_failing": ["重なったキーの前の不正な値も報告する"]
+      "expect_failing": [
+        "重なったキーの前の不正な値も報告する",
+        "重なったキーの不正な値は、すべてを 1 回の実行で報告する",
+        "重なったキーの前の空の値も報告する"
+      ]
     },
     {
       "id": "CONF-VALUE-CHECK-SKIPPED",
@@ -174,8 +182,28 @@
         "confidence の値を拒否する: 単引用符で囲んだキーの不正な値",
         "重なったキーの前の不正な値も報告する",
         "コロンの後に空白が無い不正な値は、空白と値の両方を報告する",
-        "コロンの後に空白が無い形と重なったキーを、1 回の実行でまとめて報告する"
+        "コロンの後に空白が無い形と重なったキーを、1 回の実行でまとめて報告する",
+        "重なったキーの不正な値は、すべてを 1 回の実行で報告する",
+        "重なったキーの前の空の値も報告する"
       ]
+    },
+    {
+      "id": "CONF-ONLY-LAST-BAD",
+      "why": "不正な値を連ねず、最後の不正な値だけを残す（重なったキーの前の不正な値を報告しない）",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "\t\t\t\tconf_bad = (conf_bad == \"\" ? bad : conf_bad \", \" bad)",
+      "replace": "\t\t\t\tconf_bad = bad",
+      "occurrences": 1,
+      "expect_failing": ["重なったキーの不正な値は、すべてを 1 回の実行で報告する"]
+    },
+    {
+      "id": "CONF-EMPTY-BAD-DROPPED",
+      "why": "空の不正な値を <empty> と書かずに連ねる（重なったキーで前の空の値が消え、後の正しい値だけを確かめる）",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "\t\t\t\tbad = (confidence == \"\" ? \"<empty>\" : confidence)",
+      "replace": "\t\t\t\tbad = confidence",
+      "occurrences": 1,
+      "expect_failing": ["重なったキーの前の空の値も報告する"]
     }
   ]
 }
