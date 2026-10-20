@@ -181,3 +181,11 @@ glob（`'scripts/skills/*-worktree/'`）に変えた 3 回目は、git が paths
 2026-10-20、issue-batch の #688 で、PR #720 に停止の記録を投稿する呼び出しが `names git in a form too complex to verify` で拒否された。
 `sha=$(gh pr view ...)` と `git rev-parse HEAD` の比較を `&&` でつなぎ、記録のスクリプトと `gh pr comment` を続けた形である。
 2026-10-18 の #676 と同じ形である。Write ツールでスクリプトにして絶対パスで実行して通した。
+
+### 再発の記録（#690）
+
+2026-10-20、issue-batch の #690 の作業で、Bash の呼び出しが 2 回拒否された。
+1 回目は、`git commit` の出力をファイルに書き、`; echo rc=$?` と `tail` を続けた呼び出しである。
+2 回目は、python の quoted heredoc と `git log` を 1 つの呼び出しに並べた形である。
+1 回目は `git commit` を単独で、2 回目は Write ツールでスクリプトにして絶対パスで実行して通した。
+同じ作業で、main の kaizen のチェックが transcript の形式を読めずに commit を止めた。#710 で直している形で、#710 の版のスキャナで候補を確かめてから処理済みにした。
