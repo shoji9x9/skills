@@ -445,7 +445,12 @@
         "Claude Code の queued_command の attachment prompt が無いものは候補を出さない",
         "Claude Code の queued_command の attachment commandMode が無い注入した本文は読み飛ばす",
         "Claude Code の queued_command の attachment レコードの最上位の isMeta も候補にしない",
-        "Claude Code の queued_command の attachment 注入した本文は候補にしない"
+        "Claude Code の queued_command の attachment 注入した本文は候補にしない",
+        "Claude Code の queued_command の attachment task-notification は prompt の型が違っても読み飛ばす",
+        "Claude Code の queued_command の attachment task-notification は origin がオブジェクトでなくても読み飛ばす",
+        "Claude Code の queued_command の attachment サブエージェントの報告は prompt の型が違っても読み飛ばす",
+        "Claude Code の queued_command の attachment 注入した本文は origin がオブジェクトでなくても読み飛ばす",
+        "Claude Code の queued_command の attachment commandMode が prompt でも prompt が無いものは候補を出さない"
       ]
     },
     {
@@ -468,7 +473,8 @@
       "occurrences": 1,
       "expect_failing": [
         "Claude Code の queued_command の attachment 注入した本文は候補にしない",
-        "Claude Code の queued_command の attachment commandMode が無い注入した本文は読み飛ばす"
+        "Claude Code の queued_command の attachment commandMode が無い注入した本文は読み飛ばす",
+        "Claude Code の queued_command の attachment 注入した本文は origin がオブジェクトでなくても読み飛ばす"
       ]
     },
     {
@@ -484,14 +490,13 @@
     },
     {
       "id": "SCAN-CLAUDE-QUEUED-COMMAND-ORIGIN-NULL",
-      "why": "origin の欠落を許さない（origin の無い発話と通知が判定不能になる）",
+      "why": "origin の欠落を許さない（origin の無い発話が判定不能になる）",
       "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
       "find": "elif $a.origin != null and",
       "replace": "elif true and",
       "occurrences": 1,
       "expect_failing": [
-        "Claude Code の queued_command の attachment origin が無い発話も候補にする",
-        "Claude Code の queued_command の attachment task-notification は候補にしない"
+        "Claude Code の queued_command の attachment origin が無い発話も候補にする"
       ]
     },
     {
@@ -536,31 +541,46 @@
       "replace": "elif (true and",
       "occurrences": 1,
       "expect_failing": [
-        "Claude Code の queued_command の attachment prompt が無いものは候補を出さない"
+        "Claude Code の queued_command の attachment prompt が無いものは候補を出さない",
+        "Claude Code の queued_command の attachment commandMode が prompt でも prompt が無いものは候補を出さない"
       ]
     },
     {
       "id": "SCAN-CLAUDE-QUEUED-COMMAND-NOTIFICATION",
       "why": "task-notification を読み飛ばさない（通知の本文を発話として読む）",
       "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "elif $a.commandMode == \"task-notification\" then empty",
-      "replace": "elif false then empty",
+      "find": "elif ($a.commandMode == \"task-notification\" or",
+      "replace": "elif (false or",
       "occurrences": 1,
       "expect_failing": [
-        "Claude Code の queued_command の attachment task-notification は候補にしない"
+        "Claude Code の queued_command の attachment task-notification は候補にしない",
+        "Claude Code の queued_command の attachment task-notification は prompt の型が違っても読み飛ばす",
+        "Claude Code の queued_command の attachment task-notification は origin がオブジェクトでなくても読み飛ばす"
       ]
     },
     {
       "id": "SCAN-CLAUDE-QUEUED-COMMAND-KIND-SET",
       "why": "origin.kind の peer・coordinator・task-notification を読み飛ばさない（報告や通知の本文を発話として読む）",
       "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
-      "find": "IN(\"peer\", \"coordinator\", \"task-notification\")",
-      "replace": "IN(\"never\")",
+      "find": "($a.origin.kind == \"peer\" or $a.origin.kind == \"coordinator\" or\n\t\t         $a.origin.kind == \"task-notification\")",
+      "replace": "(false)",
       "occurrences": 1,
       "expect_failing": [
         "Claude Code の queued_command の attachment サブエージェントの報告は候補にしない",
         "Claude Code の queued_command の attachment coordinator の本文は候補にしない",
-        "Claude Code の queued_command の attachment origin.kind が task-notification の本文は候補にしない"
+        "Claude Code の queued_command の attachment origin.kind が task-notification の本文は候補にしない",
+        "Claude Code の queued_command の attachment サブエージェントの報告は prompt の型が違っても読み飛ばす"
+      ]
+    },
+    {
+      "id": "SCAN-CLAUDE-QUEUED-COMMAND-SKIP-ORIGIN-OBJECT",
+      "why": "origin.kind で読み飛ばす前に origin がオブジェクトかを確かめない（文字列の origin で jq がエラーになり、判定不能にならない）",
+      "file": "skills/kaizen/scripts/kaizen-candidate-scan.sh",
+      "find": "(($a.origin | type) == \"object\" and\n\t\t        ($a.origin.kind == \"peer\"",
+      "replace": "(true and\n\t\t        ($a.origin.kind == \"peer\"",
+      "occurrences": 1,
+      "expect_failing": [
+        "Claude Code の queued_command の attachment origin がオブジェクトでないものは判定不能"
       ]
     },
     {

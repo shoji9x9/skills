@@ -474,7 +474,7 @@ describe.concurrent("Claude Code の queued_command の attachment", () => {
     ["task-notification は候補にしない", queued('"commandMode":"task-notification"'), 1],
     [
       "知らない commandMode の発話も候補にする",
-      queued('"commandMode":"bash","origin":{"kind":"human"}'),
+      queued('"commandMode":"unknown-mode","origin":{"kind":"human"}'),
       0,
     ],
     ["commandMode が無い発話も候補にする", queued('"origin":{"kind":"human"}'), 0],
@@ -496,7 +496,33 @@ describe.concurrent("Claude Code の queued_command の attachment", () => {
     ],
     [
       "prompt が無いものは候補を出さない",
-      '{"type":"attachment","attachment":{"type":"queued_command","commandMode":"image","origin":{"kind":"human"},"content":"x"}}',
+      '{"type":"attachment","attachment":{"type":"queued_command","commandMode":"image","origin":{"kind":"human"},"content":"違う、やり直してください"}}',
+      1,
+    ],
+    [
+      "commandMode が prompt でも prompt が無いものは候補を出さない",
+      '{"type":"attachment","attachment":{"type":"queued_command","commandMode":"prompt","origin":{"kind":"human"},"content":"違う、やり直してください"}}',
+      1,
+    ],
+    // 読み飛ばす集合に当たるレコードは本文を読まないので、他のフィールドの型が違っても判定不能にしない。
+    [
+      "task-notification は prompt の型が違っても読み飛ばす",
+      '{"type":"attachment","attachment":{"type":"queued_command","commandMode":"task-notification","prompt":{"text":"違う、やり直してください"}}}',
+      1,
+    ],
+    [
+      "task-notification は origin がオブジェクトでなくても読み飛ばす",
+      queued('"commandMode":"task-notification","origin":"x"'),
+      1,
+    ],
+    [
+      "サブエージェントの報告は prompt の型が違っても読み飛ばす",
+      '{"type":"attachment","attachment":{"type":"queued_command","commandMode":"prompt","origin":{"kind":"peer"},"prompt":{"text":"違う、やり直してください"}}}',
+      1,
+    ],
+    [
+      "注入した本文は origin がオブジェクトでなくても読み飛ばす",
+      queued('"commandMode":"prompt","origin":"x","isMeta":true'),
       1,
     ],
     [

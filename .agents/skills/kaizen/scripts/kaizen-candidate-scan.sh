@@ -223,21 +223,27 @@ if ! jq -Rr '
 	# `peer`（サブエージェントの報告）・`coordinator`・`task-notification` である。
 	# それ以外の `commandMode` と `origin.kind`（欠落を含む）は発話として読む。知らない値で判定不能にすると、
 	# その値を書くセッションでは commit がずっと止まり、読み飛ばすと修正の指示を取りこぼすからである。
+	# `!` で入力したシェルのコマンドに付く `commandMode` の値は transcript の記録で確かめていないので、
+	# 読み飛ばす集合に入れていない。
 	# `prompt` が無いものは、読む本文が無いので候補を出さない。
 	# 型が違う値（真偽値でない `isMeta`、オブジェクトでない `origin`、文字列でない `commandMode` と
 	# `origin.kind`、文字列でも配列でもない `prompt`）は、発話かを決められないので判定できないとして扱う。
+	# ただし、読み飛ばす集合に当たるレコードは本文を読まないので、他のフィールドの型は確かめずに読み飛ばす。
+	# 真偽値の `isMeta` だけは、集合に当たるかをその値で決めるので、先に型を確かめる。
 	elif $j.type == "attachment" and ($j.attachment | type) == "object" and
 	     $j.attachment.type == "queued_command" then
 		"C", "R",
 		($j.attachment as $a |
 		 if ([$j.isMeta, $a.isMeta] | any(. != null and type != "boolean")) then "X"
 		 elif ($j.isMeta == true or $a.isMeta == true) then empty
+		 elif ($a.commandMode == "task-notification" or
+		       (($a.origin | type) == "object" and
+		        ($a.origin.kind == "peer" or $a.origin.kind == "coordinator" or
+		         $a.origin.kind == "task-notification"))) then empty
 		 elif $a.origin != null and ($a.origin | type) != "object" then "X"
-		 elif ([$a.commandMode, $a.origin.kind?] | any(. != null and type != "string")) then "X"
+		 elif ([$a.commandMode, $a.origin.kind] | any(. != null and type != "string")) then "X"
 		 elif ($a.prompt != null and ($a.prompt | type) != "string" and ($a.prompt | type) != "array") then "X"
-		 elif $a.commandMode == "task-notification" then empty
-		 elif ($a.origin.kind? | IN("peer", "coordinator", "task-notification")) then empty
-		 else ($a.prompt // "" | user_text | clean | select(length > 0) | "U\t" + .) end)
+		 else ($a.prompt | user_text | clean | select(length > 0) | "U\t" + .) end)
 	elif ($j.type == "ai-title" or $j.type == "attachment" or $j.type == "file-history-delta" or
 	      $j.type == "file-history-snapshot" or $j.type == "last-prompt" or $j.type == "mode" or
 	      $j.type == "permission-mode" or $j.type == "pr-link" or $j.type == "queue-operation" or
