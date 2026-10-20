@@ -320,7 +320,7 @@ export function fitModel(samples, opts) {
       const points = windows.map((w) => {
         const rect = rects.get(windowKey(w));
         // hidden が空なので、どの窓の矩形も null でない（indexElements が全窓の矩形を求める）。
-        // 元の書き方でも null の矩形を読むと TypeError になる
+        // 矩形が無いときは、入力の誤りではなくこのスクリプトの不具合なので TypeError にする
         if (!rect) throw new TypeError(`窓 ${windowKey(w)} の矩形が無い`);
         return { W: w.width, H: w.height, v: rect[property] };
       });

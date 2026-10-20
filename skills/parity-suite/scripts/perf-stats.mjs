@@ -776,7 +776,7 @@ export function compare(metadata, samplesDoc, opts) {
   for (const key of ["floors", "relative_floors"]) {
     const table = perf[key];
     // 直前で floors・relative_floors がオブジェクトであることを確かめているので、ここには到達しない。
-    // 元の実装と同じく欄を読めない誤りにする（UsageError にすると、直前の確かめを外しても同じ出口で通ってしまう）
+    // 到達したらこのスクリプトの不具合なので、TypeError にする（UsageError にすると、直前の確かめを外しても同じ出口で通ってしまう）
     if (!isPlainObject(table)) throw new TypeError(`performance.${key} の欄を読めない`);
     for (const m of METRICS) {
       const f = table[m];

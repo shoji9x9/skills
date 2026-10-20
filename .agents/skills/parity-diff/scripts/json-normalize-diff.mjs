@@ -161,10 +161,8 @@ export function deepDiff(a, b, path, out) {
     }
     return;
   }
-  // 片側だけに無い値は、もう片方が "(absent)" という文字列でも差分にする。
-  const differs =
-    a === MISSING || b === MISSING ? a !== b : JSON.stringify(a) !== JSON.stringify(b);
-  if (differs) {
+  // JSON.stringify(MISSING) は undefined なので、片側だけに無い値は、もう片方が "(absent)" という文字列でも差分になる。
+  if (JSON.stringify(a) !== JSON.stringify(b)) {
     out.push({ path, current: a === MISSING ? ABSENT : a, new: b === MISSING ? ABSENT : b });
   }
 }
