@@ -1,6 +1,6 @@
 ---
 date: 2026-10-20
-type: doc
+type: skill
 priority: medium
 status: pending
 applied-to: []
@@ -28,7 +28,7 @@ exit 1 の対処（今の HEAD をレビューし直してから記録する）�
 
 ## 提案
 
-手元のレビューの記録には、レビューの前に取得した SHA を付ける。指摘を直した commit は、記録を付けてから push する。
+手元のレビューの記録には、レビューの前に取得した SHA を付け、`--open` には直すと決めた指摘の数を書く。指摘を直した commit は、記録を付けてから push する。
 
 - `--sha` には、`review-tool.md` の「local」の手順 1 でレビューの前に取得した SHA を渡す。push の後に取得し直した SHA を渡さない。
 - 手順 1 は、手元の HEAD が PR の HEAD と一致し、commit していない変更が無いことを、レビューの前に確かめる。この条件を満たさないままレビューした結果は、記録しない。
