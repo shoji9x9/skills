@@ -39,3 +39,6 @@ ci:39364687264:1,ci,2026-10-20T03:39:52.027Z,p-cdee4961,github-actions,,,,2026-1
 ci:39364687269:1,ci,2026-10-20T03:39:52.027Z,p-cdee4961,github-actions,,,,2026-10-20T03:30:51.000Z,2026-10-20T03:34:37.000Z,Asia/Tokyo,feature/690-eval-benchmark-records,690,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-10-19T03:28:37.580Z:2026-10-20T03:39:52.027Z,coverage,2026-10-20T03:39:52.027Z,p-cdee4961,,,,,2026-10-19T03:28:37.580Z,2026-10-20T03:39:52.027Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-19T03:39:52.027Z:2026-10-20T03:40:21.602Z,coverage,2026-10-20T03:40:21.602Z,p-cdee4961,,,,,2026-10-19T03:39:52.027Z,2026-10-20T03:40:21.602Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:39365725247:1,ci,2026-10-20T03:49:43.529Z,p-cdee4961,github-actions,,,,2026-10-20T03:42:48.000Z,2026-10-20T03:42:49.000Z,Asia/Tokyo,feature/690-eval-benchmark-records,690,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:39365725161:1,ci,2026-10-20T03:49:43.529Z,p-cdee4961,github-actions,,,,2026-10-20T03:42:48.000Z,2026-10-20T03:46:08.000Z,Asia/Tokyo,feature/690-eval-benchmark-records,690,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-19T03:40:21.602Z:2026-10-20T03:49:43.529Z,coverage,2026-10-20T03:49:43.529Z,p-cdee4961,,,,,2026-10-19T03:40:21.602Z,2026-10-20T03:49:43.529Z,Asia/Tokyo,,,,,,,,,,,,ok,
