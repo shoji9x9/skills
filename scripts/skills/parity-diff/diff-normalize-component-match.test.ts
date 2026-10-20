@@ -261,3 +261,71 @@ test("CLI: object でない要素を含む Diff の配列は入力エラー（ex
   expect(r.stderr).toContain("<trait-diffs.json> must be a JSON array of trait diffs");
   expect(r.status).toBe(2);
 });
+
+/** --noise に渡す metadata.json（JSON の文字列）を書いて CLI を実行する。 */
+function runWithNoise(meta: string) {
+  const dir = makeTempDir("diff-normalize-noise-");
+  const path = join(dir, "metadata.json");
+  writeFileSync(path, meta);
+  return runRaw(
+    { component_diffs: [popupT] },
+    [diff("filter-popup", "2px")],
+    [...CTX_ARGS, "--noise", path],
+  );
+}
+
+test.each([
+  ["null", "null", "null"],
+  ["配列", "[]", "array"],
+  ["数値", "42", "number"],
+  ["文字列", '"x"', "string"],
+  ["真偽値", "true", "boolean"],
+])(
+  "CLI: --noise の metadata.json がオブジェクトでない（%s）なら入力エラー（exit 2）にする",
+  (_label, meta, kind) => {
+    const r = runWithNoise(meta);
+    expect(r.stderr).toContain(`--noise must be a JSON object (got ${kind})`);
+    expect(r.status).toBe(2);
+  },
+);
+
+test("CLI: --noise の metadata.json に noise_baseline が無ければ、基準値 0 件として続ける", () => {
+  // --noise を渡さない実行と、終了コード・分類が同じになることで確かめる（クラッシュや時間切れを合格にしない）。
+  const withoutNoise = runRaw({ component_diffs: [popupT] }, [diff("filter-popup", "2px")]);
+  expect([0, 1]).toContain(withoutNoise.status);
+  const r = runWithNoise('{"dataset_version": 3}');
+  expect(r.status).toBe(withoutNoise.status);
+  expect(parseJsonAs<Classified[]>(r.stdout)).toEqual(
+    parseJsonAs<Classified[]>(withoutNoise.stdout),
+  );
+});
+
+test.each([
+  ["オブジェクト", '{"noise_baseline": {"x": 1}}', "object"],
+  ["文字列", '{"noise_baseline": "x"}', "string"],
+])(
+  "CLI: --noise の noise_baseline が配列でない（%s）なら入力エラー（exit 2）にする",
+  (_label, meta, kind) => {
+    const r = runWithNoise(meta);
+    expect(r.stderr).toContain(`--noise noise_baseline must be a JSON array (got ${kind})`);
+    expect(r.status).toBe(2);
+  },
+);
+
+test.each([
+  ["配列", [], "array"],
+  ["null", null, "null"],
+])(
+  "CLI: --registries がオブジェクトでない（%s）なら入力エラー（exit 2）にする",
+  (_label, registries, kind) => {
+    const r = runRaw(registries, [diff("filter-popup", "2px")]);
+    expect(r.stderr).toContain(`--registries must be a JSON object (got ${kind})`);
+    expect(r.status).toBe(2);
+  },
+);
+
+test("CLI: 配列の要素を含む Diff の配列は入力エラー（exit 2）にする", () => {
+  const r = runRaw({ component_diffs: [popupT] }, [diff("filter-popup", "2px"), []], []);
+  expect(r.stderr).toContain("<trait-diffs.json> must be a JSON array of trait diffs");
+  expect(r.status).toBe(2);
+});

@@ -387,6 +387,54 @@ test("JSON として読めない成果物は不備（exit 2）で、構文エラ
   });
 });
 
+test.each([
+  ["配列", "[]", "配列"],
+  ["数値", "42", "number"],
+  ["null", "null", "null"],
+])(
+  "object でない成果物（%s）は不備（exit 2）で、値の型を表示する（旧成果物として数えない）",
+  (_label, body, kind) => {
+    withDir((dir) => {
+      const r = run(dir, { "features.md": ONE_ESTIMATED, "metadata.json": body }, [
+        "--features",
+        "features.md",
+        "--slug",
+        "plan",
+        "--unmeasured",
+        "metadata.json",
+      ]);
+      expect(r.stderr).toContain(`metadata.json が object でない（${kind}）`);
+      expect(r.status).toBe(2);
+    });
+  },
+);
+
+test.each([
+  [
+    "unmeasured が配列",
+    JSON.stringify({ unmeasured: [] }),
+    " の unmeasured が object でない（配列）",
+  ],
+  [
+    "unmeasured.entries が文字列",
+    JSON.stringify({ unmeasured: { declared: true, entries: "x", reason: null } }),
+    " の unmeasured.entries が配列でない（string）",
+  ],
+])("%s の成果物は不備（exit 2）で、値の型を表示する", (_label, body, message) => {
+  withDir((dir) => {
+    const r = run(dir, { "features.md": ONE_ESTIMATED, "metadata.json": body }, [
+      "--features",
+      "features.md",
+      "--slug",
+      "plan",
+      "--unmeasured",
+      "metadata.json",
+    ]);
+    expect(r.stderr).toContain(`metadata.json${message}`);
+    expect(r.status).toBe(2);
+  });
+});
+
 test("unmeasured.declared が真偽値でない成果物は不備（exit 2）", () => {
   withDir((dir) => {
     const r = run(

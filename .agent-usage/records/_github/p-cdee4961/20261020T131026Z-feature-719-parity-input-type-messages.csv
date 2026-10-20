@@ -1,0 +1,8 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+review:5585143816,review,2026-10-20T13:10:26.717Z,p-cdee4961,copilot,,,,2026-10-20T12:44:31.000Z,2026-10-20T12:44:31.000Z,Asia/Tokyo,feature/687-speed-up-type-guard-brands-check,687,,,,,,,0.520000,estimate-bundled,,pr=729;author=shoji9x9;state=commented,
+review-wait:729:copilot:2026-10-20T12:37:45.000Z,review-wait,2026-10-20T13:10:26.717Z,p-cdee4961,copilot,,,,2026-10-20T12:37:45.000Z,2026-10-20T12:44:31.000Z,Asia/Tokyo,feature/687-speed-up-type-guard-brands-check,687,,,,,,,,,,pr=729,
+ci:39424711122:1,ci,2026-10-20T13:10:26.717Z,p-cdee4961,github-actions,,,,2026-10-20T12:45:07.000Z,2026-10-20T12:47:39.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:39423752023:1,ci,2026-10-20T13:10:26.717Z,p-cdee4961,github-actions,,,,2026-10-20T12:37:52.000Z,2026-10-20T12:44:33.000Z,Asia/Tokyo,feature/687-speed-up-type-guard-brands-check,687,,,,,,,,,,Running Copilot Code Review;dynamic;success,
+ci:39423735441:1,ci,2026-10-20T13:10:26.717Z,p-cdee4961,github-actions,,,,2026-10-20T12:37:45.000Z,2026-10-20T12:37:46.000Z,Asia/Tokyo,feature/687-speed-up-type-guard-brands-check,687,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:39423735296:1,ci,2026-10-20T13:10:26.717Z,p-cdee4961,github-actions,,,,2026-10-20T12:37:44.000Z,2026-10-20T12:41:36.000Z,Asia/Tokyo,feature/687-speed-up-type-guard-brands-check,687,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-19T12:35:21.789Z:2026-10-20T13:10:26.717Z,coverage,2026-10-20T13:10:26.717Z,p-cdee4961,,,,,2026-10-19T12:35:21.789Z,2026-10-20T13:10:26.717Z,Asia/Tokyo,,,,,,,,,,,,ok,

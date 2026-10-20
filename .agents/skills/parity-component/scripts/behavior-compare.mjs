@@ -99,6 +99,17 @@ export function cellKey(operation, instance) {
 }
 
 /**
+ * 入力の値の型を、利用者に表示する名前で返す（オブジェクトでない採取物や表を報告するときに使う）。
+ * @param {unknown} value
+ * @returns {string}
+ */
+export function valueKind(value) {
+  if (value === null) return "null";
+  if (isArray(value)) return "配列";
+  return typeof value;
+}
+
+/**
  * キーを整列した正規形の JSON。オブジェクトのキー順だけが違う観測値を不一致にしない。
  * 配列は順序ごと比べる（行の並び・選択範囲の順は観測の内容そのもの）。
  * @param {unknown} value
@@ -320,9 +331,16 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
   for (const id of instanceIds) {
     const raw = behaviors[id];
     if (raw === null || raw === undefined) continue; // 欠落は下の未採取で数える
-    // オブジェクトでない値は空の表として読む。どの欄も undefined になるので、直後の instance の照合で不一致として報告する。
-    /** @type {Record<string, unknown>} */
-    const doc = isObjectLike(raw) ? raw : {};
+    // オブジェクトでない値は、instance の不一致として報告する。instance を書き忘れた採取物と見分けられるよう、値の型を書く。
+    if (!isPlainObject(raw)) {
+      findings.push({
+        code: "behavior-baseline-instance-mismatch",
+        instance: id,
+        detail: `behaviors.json がオブジェクトでない（${valueKind(raw)}）`,
+      });
+      continue;
+    }
+    const doc = raw;
     if (doc.instance !== id) {
       findings.push({
         code: "behavior-baseline-instance-mismatch",
@@ -390,18 +408,24 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
     return { structural: false, judged: true, findings, counts };
   }
   // オブジェクトでない値は空の表として読む。どの欄も undefined になるので、直後の target の照合で不一致として報告する。
+  // target を書き忘れた表と見分けられるよう、オブジェクトでないときは値の型を書く。
+  const isTable = isPlainObject(comparison);
   /** @type {Record<string, unknown>} */
-  const table = isObjectLike(comparison) ? comparison : {};
+  const table = isTable ? comparison : {};
   if (table.target !== target) {
     findings.push({
       code: "comparison-target-mismatch",
-      detail: `突き合わせ表の target が ${JSON.stringify(table.target)}（判定対象は ${JSON.stringify(target)}）`,
+      detail: isTable
+        ? `突き合わせ表の target が ${JSON.stringify(table.target)}（判定対象は ${JSON.stringify(target)}）`
+        : `突き合わせ表がオブジェクトでない（${valueKind(comparison)}）`,
     });
   }
   if (table.component !== metadata.slug) {
     findings.push({
       code: "comparison-component-mismatch",
-      detail: `突き合わせ表の component が ${JSON.stringify(table.component)}（採取は ${JSON.stringify(metadata.slug)}）`,
+      detail: isTable
+        ? `突き合わせ表の component が ${JSON.stringify(table.component)}（採取は ${JSON.stringify(metadata.slug)}）`
+        : `突き合わせ表がオブジェクトでない（${valueKind(comparison)}）`,
     });
   }
   const rows = isArray(table.rows) ? table.rows : [];

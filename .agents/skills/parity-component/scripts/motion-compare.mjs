@@ -40,7 +40,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 
-import { cellKey, isoDateTime } from "./behavior-compare.mjs";
+import { cellKey, isoDateTime, valueKind } from "./behavior-compare.mjs";
 import { loadBaseline } from "./lib/baseline.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
 import {
@@ -555,9 +555,16 @@ export function compareMotions({ metadata, motions, comparison, target }) {
   for (const id of instanceIds) {
     const raw = motions[id];
     if (raw === null || raw === undefined) continue;
-    // オブジェクトでない値は空の表として読む。どの欄も undefined になるので、直後の instance の照合で不一致として報告する。
-    /** @type {Record<string, unknown>} */
-    const doc = isObjectLike(raw) ? raw : {};
+    // オブジェクトでない値は、instance の不一致として報告する。instance を書き忘れた採取物と見分けられるよう、値の型を書く。
+    if (!isPlainObject(raw)) {
+      findings.push({
+        code: "motion-baseline-instance-mismatch",
+        instance: id,
+        detail: `motions.json がオブジェクトでない（${valueKind(raw)}）`,
+      });
+      continue;
+    }
+    const doc = raw;
     if (doc.instance !== id) {
       findings.push({
         code: "motion-baseline-instance-mismatch",
@@ -677,18 +684,24 @@ export function compareMotions({ metadata, motions, comparison, target }) {
     return { structural: false, judged: true, findings, counts };
   }
   // オブジェクトでない値は空の表として読む。どの欄も undefined になるので、直後の target の照合で不一致として報告する。
+  // target を書き忘れた表と見分けられるよう、オブジェクトでないときは値の型を書く。
+  const isTable = isPlainObject(comparison);
   /** @type {Record<string, unknown>} */
-  const table = isObjectLike(comparison) ? comparison : {};
+  const table = isTable ? comparison : {};
   if (table.target !== target) {
     findings.push({
       code: "comparison-target-mismatch",
-      detail: `突き合わせ表の target が ${JSON.stringify(table.target)}（判定対象は ${JSON.stringify(target)}）`,
+      detail: isTable
+        ? `突き合わせ表の target が ${JSON.stringify(table.target)}（判定対象は ${JSON.stringify(target)}）`
+        : `突き合わせ表がオブジェクトでない（${valueKind(comparison)}）`,
     });
   }
   if (table.component !== metadata.slug) {
     findings.push({
       code: "comparison-component-mismatch",
-      detail: `突き合わせ表の component が ${JSON.stringify(table.component)}（採取は ${JSON.stringify(metadata.slug)}）`,
+      detail: isTable
+        ? `突き合わせ表の component が ${JSON.stringify(table.component)}（採取は ${JSON.stringify(metadata.slug)}）`
+        : `突き合わせ表がオブジェクトでない（${valueKind(comparison)}）`,
     });
   }
   const rows = isArray(table.rows) ? table.rows : [];

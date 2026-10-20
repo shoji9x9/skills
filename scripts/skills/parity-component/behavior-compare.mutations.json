@@ -142,6 +142,31 @@
       "replace": "if (false) {",
       "occurrences": 1,
       "expect_failing": ["操作の導出源が無い・プレースホルダ・語彙外なら型崩れ"]
+    },
+    {
+      "id": "baseline-not-object-as-missing-instance",
+      "why": "オブジェクトでない behaviors.json を、型を書かずに instance の不一致として報告する（#719 の前の振る舞い）",
+      "file": "skills/parity-component/scripts/behavior-compare.mjs",
+      "find": "if (!isPlainObject(raw)) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "behaviors.json がオブジェクトでない（文字列）なら、値の型を書いて instance の不一致として報告する",
+        "behaviors.json がオブジェクトでない（数値）なら、値の型を書いて instance の不一致として報告する",
+        "behaviors.json がオブジェクトでない（配列）なら、値の型を書いて instance の不一致として報告する"
+      ]
+    },
+    {
+      "id": "comparison-not-object-as-missing-target",
+      "why": "オブジェクトでない突き合わせ表を、型を書かずに target と component の不一致として報告する（#719 の前の振る舞い）",
+      "file": "skills/parity-component/scripts/behavior-compare.mjs",
+      "find": ": `突き合わせ表がオブジェクトでない（${valueKind(comparison)}）`,",
+      "replace": ": `突き合わせ表の target が ${JSON.stringify(table.target)}（判定対象は ${JSON.stringify(target)}）`,",
+      "occurrences": 2,
+      "expect_failing": [
+        "突き合わせ表がオブジェクトでない（文字列）なら、値の型を書いて target の不一致として報告する",
+        "突き合わせ表がオブジェクトでない（配列）なら、値の型を書いて target の不一致として報告する"
+      ]
     }
   ]
 }

@@ -12,6 +12,7 @@ import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseJsonAs } from "../../lib/parse-as.ts";
+import { invalidInput } from "../../lib/testing/test-input.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import {
   VERSION,
@@ -457,6 +458,42 @@ test("behaviors.json の instance が別インスタンスを指すなら基準�
     "behavior-baseline-missing",
   ]);
 });
+
+test.each([
+  ["文字列", "x", "string"],
+  ["数値", 42, "number"],
+  ["配列", [], "配列"],
+])(
+  "behaviors.json がオブジェクトでない（%s）なら、値の型を書いて instance の不一致として報告する",
+  (_label, value, kind) => {
+    const behaviors = invalidInput<Record<string, BehaviorDoc | null>>({
+      ...behaviorsOf(),
+      stock: value,
+    });
+    expect(run({ behaviors }).findings).toContainEqual(
+      expect.objectContaining({
+        code: "behavior-baseline-instance-mismatch",
+        instance: "stock",
+        detail: `behaviors.json がオブジェクトでない（${kind}）`,
+      }),
+    );
+  },
+);
+
+test.each([
+  ["文字列", "x", "string"],
+  ["配列", [], "配列"],
+])(
+  "突き合わせ表がオブジェクトでない（%s）なら、値の型を書いて target の不一致として報告する",
+  (_label, value, kind) => {
+    const findings = run({ comparison: value }).findings;
+    for (const code of ["comparison-target-mismatch", "comparison-component-mismatch"]) {
+      expect(findings).toContainEqual(
+        expect.objectContaining({ code, detail: `突き合わせ表がオブジェクトでない（${kind}）` }),
+      );
+    }
+  },
+);
 
 test("到達できないと宣言した操作に現行の結果があれば behavior-baseline-unknown", () => {
   const metadata = metadataOf({
