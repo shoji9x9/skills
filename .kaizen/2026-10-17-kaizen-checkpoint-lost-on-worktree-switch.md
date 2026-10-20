@@ -37,6 +37,10 @@ transcript は `-home-shoji9x9-projects-skills--claude-worktrees-697-defer-decis
 PR #722 の worktree へ移った後の最初の commit でも、処理位置が #718 の worktree と一緒に消えていたので、走査は transcript の先頭から 37 件の候補を挙げて止めた。
 PR #720 の worktree でも同じく、最初の `git commit` で先頭から 42 件を挙げて止めた（`git merge` の merge commit は、`git commit` の語を含まないのでチェックを通った）。
 同じ日のうちに PR #714・#721・#713 の worktree でも同じく止まった。移るたびに起きるので、run で Issue を 1 つ進めるごとに、最初の commit で 1 回止まる。
+2026-10-20、issue-batch の run で、main のチェックアウトから #653 の worktree へ、続けて #687 の worktree へ移ったときにも起きた。
+処理位置は main のチェックアウトの `.kaizen/` にあり、1 行目が移す前の transcript のパスを指していた。
+Issue #653 では、走査ツールに移す前のパスを渡して「transcript が無い」で exit 2 になり、移った後のパスを探して渡し直した。
+Issue #687 では、移った後のパスを渡すと、処理位置を使わずに先頭から 37 件を挙げた。処理位置の 1 行目を移った後のパスに書き換えると、28 件になった。
 
 ## 根本原因
 
