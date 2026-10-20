@@ -25,3 +25,4 @@ ci:39307051301:1,ci,2026-10-20T03:05:46.845Z,p-cdee4961,github-actions,,,,2026-1
 ci:39307051249:1,ci,2026-10-20T03:05:46.845Z,p-cdee4961,github-actions,,,,2026-10-19T18:58:36.000Z,2026-10-19T18:58:37.000Z,Asia/Tokyo,feature/678-commit-wrapper-detection,678,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 coverage:github:2026-10-18T18:55:55.793Z:2026-10-20T03:05:46.845Z,coverage,2026-10-20T03:05:46.845Z,p-cdee4961,,,,,2026-10-18T18:55:55.793Z,2026-10-20T03:05:46.845Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-19T03:05:46.845Z:2026-10-20T03:06:08.661Z,coverage,2026-10-20T03:06:08.661Z,p-cdee4961,,,,,2026-10-19T03:05:46.845Z,2026-10-20T03:06:08.661Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-19T03:06:08.661Z:2026-10-20T03:06:39.226Z,coverage,2026-10-20T03:06:39.226Z,p-cdee4961,,,,,2026-10-19T03:06:08.661Z,2026-10-20T03:06:39.226Z,Asia/Tokyo,,,,,,,,,,,,ok,

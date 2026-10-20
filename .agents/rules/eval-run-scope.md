@@ -8,8 +8,12 @@ applyTo: "evals/**"
 
 eval の実行には費用がかかるので、起動する前に目的と範囲を述べてから実行する。
 デフォルトの範囲は、入力が変わった eval だけを `with_skill` と `without_skill` で 1 run ずつ実行する変更確認である。
-`benchmark.json` を更新する 3 run × 2 config に広げるのは、そう決めたときだけにする。
+3 run × 2 config の benchmark に広げるのは、そう決めたときだけにする。
 前の iteration が benchmark だったことは、範囲を広げる理由にしない。
+変更確認の結果も `benchmark.json` に残す（`runs_per_configuration: 1`）。
+前から在る eval で、比べる記録（前の iteration の `benchmark.json`）がまだ無いときも、止まらずに変更確認のまま進める。
+with_skill の結果が下がったかを判断できないことを PR の本文に書き（`issue-batch` では最終報告にも載せる）、benchmark の実行を残りの作業として挙げる。
+新しく足した eval には下がりうる前の結果が無いので、PR に書くことも、benchmark の実行を残りの作業にすることも要らない。
 
 LLM の run の前に行う決定論的な検証と、`without_skill` の baseline の再利用は、下に挙げる原本の preflight と fingerprint のチェックを通す。
 
