@@ -178,11 +178,9 @@ eval の実行には 2 つの目的があり、必要な run の数が大きく�
 - 変更確認の結果も、benchmark と同じ集計で `tests/<name>/iteration-N/benchmark.json` に残す（`runs_per_configuration: 1`）。
   実行した run を集計するだけなので、run の数は増えない。次の変更確認で、少なくとも前回の 1 run と比べられる。
   集計スクリプトは、1 つの iteration の中で eval × configuration ごとの run の数が揃っていないと exit 2 で止まる。1 run の記録と 3 run の記録は、別の iteration に分ける。
-  実行し直した run は、集計から外した run の代わりとして数え、run の数を揃える（「集計から外したもの」に経緯を書く）。
-  比べるのは、比べる記録と文が同じ assertion の、with_skill の合否である。入力を変えた assertion は比べない。
-  比べる記録で通っていた assertion が変更確認の 1 run で落ちたときは、1 run ではばらつきと区別できないことを PR の本文に書き、benchmark の実行を残りの作業として挙げる。
-- 前から在る eval で、比べる記録がまだ無いときも、止まって依頼者に確認せず、変更確認のまま進める。
-  比べる記録とは、それより前の iteration のうち、その eval の結果を含む最も新しい `benchmark.json` である。どの iteration もその eval を含まなければ、比べる記録は無いものとして扱う。
+- 変更確認の結果と比べる記録は、それより前の iteration のうち、その eval の結果を含む最も新しい `benchmark.json` である。
+  どの iteration もその eval を含まなければ、比べる記録は無いものとして扱う。
+  前から在る eval で比べる記録がまだ無いときも、止まって依頼者に確認せず、変更確認のまま進める。
   「比べる記録が無いので、with_skill の結果が下がったかを判断できない」ことを PR の本文に書き、benchmark の実行を残りの作業として挙げる。`issue-batch` では、最終報告にも同じことを載せる。
   新しく足した eval は、それより前の iteration に結果が無いので、PR に書くことも、benchmark の実行を残りの作業にすることも要らない。
 - 起動する前に、どの eval のどの入力が変わったかと、run の総数を書き出してから実行する。
