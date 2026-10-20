@@ -172,3 +172,23 @@ kaizen のチェックが示した解消のコマンド（共有ツリー側の 
 既知の形（`bash` の起動と `; echo` の組）で、Write ツールでスクリプトにして絶対パスで実行して通した。
 同じ作業で、`for` ループの変数を `sed -n "${n}p"` に渡して transcript の行を読む呼び出しも、`runs sed with a program computed at runtime` で拒否された。
 python のスクリプトを Write ツールで書き、行番号を引数で渡して通した。
+
+### 再発の記録（#701・#710）
+
+2026-10-19、issue-batch の #701 と #710 の作業で、worktree に入った後の Bash の呼び出しが 10 回以上拒否された。
+新しく出た形は 2 つある。1 つは、`cat evals/README.md` や `scripts/eval/*.sh` のように、パスに `eval` の語を含む読み取りの呼び出しである（`runs a string through eval`）。
+もう 1 つは、`for` ループの変数を `find` の引数に渡す呼び出しである（`runs find with a value computed at runtime`）。
+ほかは既知の形（準備の処理を `;` でつないだもの、`bash` の起動と `; echo rc=$?` の組、`cat >>` の heredoc でテストに追記するもの、変数に入れたパスで `python3` を起動するもの）だった。
+どれも、Write ツールでスクリプトにして絶対パスで実行するか、Edit ツールで編集するか、定数の引数だけの単独の呼び出しに分けて通した。
+この学びはセッション開始時に注入され、preflight の間も文脈にあったが、worktree に入った後の最初の準備の処理で同じ形を書いた。
+
+### 再発の記録（#678）
+
+2026-10-19、issue-batch の #678 の作業で、単独の `git add` が 2 回拒否された（`names git more than once`）。
+引数のパス `scripts/skills/git-worktree` の語 `git` を、2 回目の git の起動として数えたためである。
+1 回目は `git commit` を同じレスポンスで並行して送っていたので、commit だけが実行され、記録の CSV 2 件だけの commit ができた。`--amend` は使えないので、コードの変更は別の commit に入れた。
+glob（`'scripts/skills/*-worktree/'`）に変えた 3 回目は、git が pathspec を解決できずに失敗した。`git add scripts/skills` とパスを広げて通した。
+`git add` と `git commit` は同じレスポンスで並行して送らず、`git add` の成功を確かめてから `git commit` を送る。
+同じ作業の PR #716 の反復 1 でも、`for` の変数を `sed -n "${n}p"` に渡して transcript を読む呼び出しが `sed with a program computed at runtime` で拒否された。
+この形は同じセッションで 2 回目である。python のスクリプトにして通した。
+反復 2 でも、scratchpad のパスを変数 `d` に入れて `bash $d/reply.sh` を `&&` でつないだ返信の呼び出しが `runs bash in a plain command` で拒否された。パスをそのまま書いた単独の呼び出しに分けて通した。

@@ -1,9 +1,11 @@
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
+import { chmodSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { parseJsonAs } from "../../lib/parse-as.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 // git-worktree-branch-guard.sh は「worktree の作成手段が branch を作る呼び出し方」だけを通知する。
 // 通知のみでブロックしないため、取りこぼしは警告なしに起き、誤検知は通知の信頼を
@@ -204,6 +206,90 @@ test("Copilot の camelCase payload には ask で通知する", () => {
   expect(parsed.permissionDecision).toBe("ask");
   expect(parsed.permissionDecisionReason).toContain("gh issue develop");
   expect(parsed.hookSpecificOutput).toBeUndefined();
+});
+
+// 事前の絞り込みは、Hook の入力のうちツールの名前と入力（`tool_name`・`tool_input`・Copilot の `toolArgs`）だけを見る（Issue #678）。
+// 入力の全体を見ると、`.claude/worktrees/<name>` の中のセッションでは、`cwd` の語ですべての呼び出しが jq / python3 まで進む。
+// 出力はどちらも空なので、jq と python3 を、起動を記録してから実体を実行するスクリプトに差し替えて、起動したかで確かめる。
+function runGuardWithTrace(input: string) {
+  const dir = makeTempDir("worktree-guard-trace-");
+  const trace = join(dir, "trace");
+  for (const tool of ["jq", "python3"]) {
+    const real = spawnSync("bash", ["-c", `command -v ${tool}`], {
+      timeout: CHILD_TIMEOUT_MS,
+      encoding: "utf8",
+    }).stdout.trim();
+    expect(real, `${tool} が PATH に無い`).not.toBe("");
+    writeFileSync(join(dir, tool), `#!/bin/sh\necho "${tool}" >>"${trace}"\nexec "${real}" "$@"\n`);
+    chmodSync(join(dir, tool), 0o755);
+  }
+  const result = spawnSync("bash", [script], {
+    timeout: CHILD_TIMEOUT_MS,
+    input,
+    encoding: "utf8",
+    env: { ...process.env, PATH: `${dir}:${process.env.PATH ?? ""}` },
+  });
+  const lines = existsSync(trace) ? readFileSync(trace, "utf8").trim().split("\n") : [];
+  return { status: result.status, stdout: (result.stdout ?? "").trim(), lines };
+}
+
+const wordyCwd = JSON.stringify("/home/u/repo/.claude/worktrees/678-x");
+const wordyTranscript = JSON.stringify("/home/u/.claude/projects/repo--claude-worktrees-x/s.jsonl");
+
+// jq / python3 まで進まないもの。語は cwd か transcript_path の値にだけある。
+test.each([
+  {
+    name: "cwd だけに語がある",
+    input: `{"session_id":"s","cwd":${wordyCwd},"tool_name":"Bash","tool_input":{"command":"ls -la"}}`,
+  },
+  {
+    name: "transcript_path だけに語がある",
+    input: `{"session_id":"s","transcript_path":${wordyTranscript},"tool_name":"Bash","tool_input":{"command":"ls -la"}}`,
+  },
+  {
+    name: "cwd と transcript_path の両方に語がある",
+    input: `{"transcript_path":${wordyTranscript},"cwd":${wordyCwd},"tool_name":"Bash","tool_input":{"command":"git status","description":"worktree の状態を見る"}}`,
+  },
+  {
+    name: "Copilot の toolArgs（JSON の文字列）",
+    input: `{"cwd":${wordyCwd},"toolName":"bash","toolArgs":${JSON.stringify(JSON.stringify({ command: "ls -la" }))}}`,
+  },
+])("事前の絞り込みで終える: $name", ({ input }) => {
+  const { status, stdout, lines } = runGuardWithTrace(input);
+  expect(status).toBe(0);
+  expect(stdout).toBe("");
+  expect(lines).toEqual([]);
+});
+
+// 次の段に進むもの（上と同じ cwd を持つ）。
+test("コマンドに語があれば次の段に進み、branch を作らない形なら通知しない", () => {
+  const { stdout, lines } = runGuardWithTrace(
+    `{"cwd":${wordyCwd},"tool_name":"Bash","tool_input":{"command":"git worktree list"}}`,
+  );
+  expect(stdout).toBe("");
+  expect(lines).toContain("jq");
+});
+
+test("EnterWorktree はツールの名前で次の段に進み、cwd に語があっても通知する", () => {
+  const { stdout, lines } = runGuardWithTrace(
+    `{"cwd":${wordyCwd},"tool_name":"EnterWorktree","tool_input":{"name":"feature/x"}}`,
+  );
+  expect(stdout).toContain("gh issue develop");
+  expect(lines).toContain("jq");
+});
+
+// JSON はキーも `\u` で書ける。絞り込みはそのキーを見つけられないが、jq はコマンドとして読む。
+test("\\u を含む入力は、入力の全体で判定する", () => {
+  const { stdout } = runGuardWithTrace(
+    `{"cwd":${wordyCwd},"tool_name":"Bash","tool_input":{"comm\\u0061nd":"git worktree add -b x /tmp/wt"}}`,
+  );
+  expect(stdout).toContain("gh issue develop");
+});
+
+test("対象のキーが無い入力は、入力の全体で判定する", () => {
+  const { status, lines } = runGuardWithTrace(`{"cwd":${wordyCwd},"other":"x"}`);
+  expect(status).toBe(0);
+  expect(lines).toContain("jq");
 });
 
 // Copilot の preToolUse は、非 0 終了を拒否（deny）として扱う。通知目的のフックが
