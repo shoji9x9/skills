@@ -22,21 +22,37 @@ home_dir="${HOME:-}"
 # env/dotenv 経由の値は ~ が展開されないため、先頭 ~/ も上で決めたホームの下に直す
 token_file="${BOX_REFRESH_TOKEN_FILE:-}"
 stripped="${token_file#\~/}"
+token_src="保存先は BOX_REFRESH_TOKEN_FILE で指定した。"
 if [ -z "$token_file" ] || [ "$stripped" != "$token_file" ]; then
 	[ -n "$token_file" ] || stripped=".config/box/refresh_token"
+	# HOME が無いときと空のときを、表示で区別する（%q は、どちらも '' と表示する）
+	home_state="HOME が無い"
+	[ "${HOME+set}" != "set" ] || home_state="HOME が空である"
+	if [ -n "${HOME:-}" ]; then
+		token_src="保存先は HOME から決めた。"
+		home_reason="$(printf 'HOME=%q が絶対パスでない。' "${HOME}")"
+	else
+		token_src="${home_state}。保存先は、ユーザーのデータベースのホームから決めた。"
+		home_reason="$(printf '%s。ユーザーのデータベースのホーム %q も絶対パスでない。' "${home_state}" "${home_dir}")"
+	fi
 	# ホームが絶対パスに決まらないまま進むと、更新した後に新しい refresh token を保存できず、その値を失う。
 	# Box は更新に使った古い refresh token を無効にするので、API を呼ぶ前に止める
 	case "${home_dir}" in
 	/*) ;;
 	*)
-		# HOME が無いときと空のときを、表示で区別する（%q は、どちらも '' と表示する）
-		home_shown="HOME が無い"
-		[ "${HOME+set}" != "set" ] || home_shown="$(printf 'HOME=%q' "${HOME}")"
-		printf 'box-token: refresh token の置き場所を絶対パスに決められない（%s。HOME が無いか空なら、ユーザーのデータベースのホームも見た）。BOX_REFRESH_TOKEN_FILE に絶対パスを設定する（例: export BOX_REFRESH_TOKEN_FILE=/path/to/refresh_token）\n' "${home_shown}" >&2
+		printf 'box-token: refresh token の置き場所を絶対パスに決められない。%sBOX_REFRESH_TOKEN_FILE に絶対パスを設定する（例: export BOX_REFRESH_TOKEN_FILE=/path/to/refresh_token）\n' "${home_reason}" >&2
 		exit 1
 		;;
 	esac
 	token_file="${home_dir}/$stripped"
+fi
+# 保存先のディレクトリを先に作り、書き込めるかを確かめる。ホームが書き込めない場所（/nonexistent など）でも、
+# BOX_REFRESH_TOKEN_FILE に書き込めない場所を指定しても、更新した後に保存できず新しい refresh token を失うので、
+# API を呼ぶ前に止める。保存してある refresh token を読むより前に確かめる
+token_dir="$(dirname "$token_file")"
+if ! (umask 077 && mkdir -p "$token_dir") || [ ! -w "$token_dir" ] || { [ -e "$token_file" ] && [ ! -w "$token_file" ]; }; then
+	printf 'box-token: refresh token の保存先 %q に書き込めない（ディレクトリを作れないか、書き込む権限が無い）。%sBox の API を呼ぶ前に止める。BOX_REFRESH_TOKEN_FILE に書き込める絶対パスを設定する（例: export BOX_REFRESH_TOKEN_FILE=/path/to/refresh_token）\n' "$token_file" "$token_src" >&2
+	exit 1
 fi
 refresh="${BOX_REFRESH_TOKEN:-}"
 if [ -z "$refresh" ] && [ -f "$token_file" ]; then
@@ -93,6 +109,7 @@ fi
 if [ -n "$new_refresh" ]; then
 	(
 		umask 077
+		# ディレクトリは API を呼ぶ前に作ってある。その後に消された場合に備えて、ここでも作る
 		mkdir -p "$(dirname "$token_file")"
 		printf '%s' "$new_refresh" >"$token_file"
 	)

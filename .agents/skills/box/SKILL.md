@@ -33,6 +33,7 @@ TOKEN="$(bash <skill>/scripts/box-token.sh)"
 OAuth refresh の refresh token は、`BOX_REFRESH_TOKEN` か `BOX_REFRESH_TOKEN_FILE`（デフォルトは `~/.config/box/refresh_token`）から読む。`BOX_ACCESS_TOKEN` が設定されていれば、そちらを優先する。
 `~` は `HOME` のディレクトリで、`HOME` が無いか空なら、ユーザーのデータベース（passwd）のホームを使う。
 置き場所がデフォルトか `~/` で始まり、ホームが絶対パスに決まらなければ、スクリプトは API を呼ぶ前に止まる。そのときは `BOX_REFRESH_TOKEN_FILE` に絶対パスを設定する。
+スクリプトは API を呼ぶ前に保存先のディレクトリを作り、ディレクトリを作れないか、保存先に書き込めなければ止まる。`BOX_REFRESH_TOKEN_FILE` を指定したときも同じである。そのときは、書き込める場所を `BOX_REFRESH_TOKEN_FILE` に設定する。
 `BOX_REFRESH_TOKEN_FILE` の相対パスは、スクリプトを実行したディレクトリからのパスとして扱う。リポジトリの中に保存しないよう、絶対パスで設定する。
 
 OAuth refresh を使う場合は、最初の 1 回だけ、Client ID と Client Secret の取得と、認可コードの交換が要る。手順は [`references/oauth-setup.md`](references/oauth-setup.md) にある。
