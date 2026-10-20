@@ -328,6 +328,349 @@ describe.concurrent("Claude Code の atis-latch 補助レコード", () => {
   });
 });
 
+// Claude Code の api-request-blob は、API に送ったメッセージのコピー（Issue #710）。
+// コピーの中の修正語で候補を出さないことと、コピーがあっても本物の発話の候補は残ることを、対で確かめる。
+// 知らない形（hash が無い・message がオブジェクトでない）は、これまでどおり判定できないとして扱う。
+// transcript は eval の fixture（candidate-scan）に置かず、ここで組み立てる。eval 15 などは
+// candidate-scan の JSONL をすべて入力にするので、ファイルを足すと eval の入力が変わる。
+describe.concurrent("Claude Code の api-request-blob レコード", () => {
+  const userTask = '{"type":"user","message":{"content":"ドキュメントの表を整えてください"}}';
+  const assistantDone =
+    '{"type":"assistant","message":{"content":[{"type":"text","text":"整えました"}]}}';
+  const userCorrection = '{"type":"user","message":{"content":"違う、やり直してください"}}';
+  const blob = (fields: string) =>
+    `{"type":"api-request-blob",${fields},"sessionId":"test-session"}`;
+  const blobWithCorrectionWord = blob(
+    '"hash":"0f3c","message":{"role":"user","content":[{"type":"text","text":"<system-reminder>違う形式の出力は使わず、やり直しの指示に従う</system-reminder>"}]}',
+  );
+  test.each([
+    [
+      "コピーの中の修正語だけなら候補ゼロ",
+      [
+        userTask,
+        blobWithCorrectionWord,
+        '{"type":"api-request","id":"r1","params":{},"sessionId":"test-session"}',
+        assistantDone,
+      ],
+      1,
+      null,
+    ],
+    [
+      "コピーは本物の発話の候補を隠さない",
+      [
+        assistantDone,
+        blob(
+          '"hash":"7a1e","message":{"role":"user","content":[{"type":"text","text":"違う、やり直してください"}]}',
+        ),
+        userCorrection,
+      ],
+      0,
+      /^user correction: transcript line 3$/m,
+    ],
+    [
+      // 作業中に送った発話は user レコードにならず、queued_command と blob にだけ残る。
+      // blob を読み飛ばしても、queued_command の側で候補になることを確かめる。
+      "コピーは作業中に送った発話の候補を隠さない",
+      [
+        assistantDone,
+        blob(
+          '"hash":"5c2d","message":{"role":"user","content":[{"type":"text","text":"<system-reminder>違う、やり直してください</system-reminder>"}]}',
+        ),
+        '{"type":"attachment","attachment":{"type":"queued_command","commandMode":"prompt","origin":{"kind":"human"},"prompt":"違う、やり直してください"}}',
+        assistantDone,
+      ],
+      0,
+      /^user correction: transcript line 3$/m,
+    ],
+    [
+      "hash が無いコピーは判定不能",
+      [
+        userTask,
+        blob('"message":{"role":"user","content":[{"type":"text","text":"hash の無いコピー"}]}'),
+        assistantDone,
+      ],
+      2,
+      null,
+    ],
+    [
+      "hash が文字列でないコピーは判定不能",
+      [
+        userTask,
+        blob(
+          '"hash":0,"message":{"role":"user","content":[{"type":"text","text":"形の違うコピー"}]}',
+        ),
+        assistantDone,
+      ],
+      2,
+      null,
+    ],
+    [
+      "message が文字列のコピーは判定不能",
+      [userTask, blob('"hash":"9b2d","message":"コピーの形が違う"'), assistantDone],
+      2,
+      null,
+    ],
+    [
+      // hash と message の形が同じでも、型名が違えば読み飛ばさない（型名の条件を固定する）。
+      "型名が違う未知のレコードは、hash と message の形が同じでも判定不能",
+      [
+        userTask,
+        '{"type":"future-conversation-record","hash":"5c1d","message":{"role":"user","content":[{"type":"text","text":"未知のレコード"}]},"sessionId":"test-session"}',
+        assistantDone,
+      ],
+      2,
+      null,
+    ],
+  ])("%s", async (_label, records, expectedStatus, evidence) => {
+    const cwd = makeProject();
+    const transcript = join(cwd, "t.jsonl");
+    writeFileSync(transcript, `${records.join("\n")}\n`);
+    const scan = await runScript(
+      "kaizen-candidate-scan.sh",
+      [transcript, join(cwd, "no-checkpoint")],
+      {
+        cwd,
+      },
+    );
+
+    expect(scan.status).toBe(expectedStatus);
+    if (evidence) expect(scan.stdout).toMatch(evidence);
+    // コピーは 2 行目に置く。コピーの本文から候補を出していないことを、行番号で確かめる。
+    expect(scan.stdout).not.toMatch(/transcript line 2$/m);
+  });
+
+  test("checkpoint 後の差分が api-request-blob だけでも検証済みゼロ", async () => {
+    const cwd = makeProject();
+    const transcript = join(cwd, "t.jsonl");
+    const checkpoint = join(cwd, ".kaizen", ".extract-checkpoint");
+    const initial = readFileSync(join(fixturesDir, "claude-no-candidate.jsonl"), "utf8");
+    writeFileSync(transcript, initial);
+    writeFileSync(
+      checkpoint,
+      `${transcript}\n${Buffer.byteLength(initial)}\nclaude-code\n${initial.split("\n").length - 1}\n`,
+    );
+    appendFileSync(transcript, `${blobWithCorrectionWord}\n`);
+
+    const scan = await runScript("kaizen-candidate-scan.sh", [transcript, checkpoint], { cwd });
+
+    expect(scan.status).toBe(1);
+    expect(scan.stdout).toMatch(/^kaizen-candidate-scan: agent=claude-code$/m);
+  });
+
+  // api-request-blob を書くのは Claude Code だけなので、checkpoint がエージェントを持たなくても識別できる。
+  test("checkpoint が無く差分が api-request-blob だけでも Claude Code と識別する", async () => {
+    const cwd = makeProject();
+    const transcript = join(cwd, "t.jsonl");
+    writeFileSync(transcript, `${blobWithCorrectionWord}\n`);
+
+    const scan = await runScript(
+      "kaizen-candidate-scan.sh",
+      [transcript, join(cwd, "no-checkpoint")],
+      { cwd },
+    );
+
+    expect(scan.status).toBe(1);
+    expect(scan.stdout).toMatch(/^kaizen-candidate-scan: agent=claude-code$/m);
+  });
+});
+
+// エージェントの作業中に利用者が送った発話は、`user` レコードにならず `attachment` の `queued_command` に残る（Issue #710）。
+// 読み飛ばすのは閉じた集合だけである。注入した本文の `isMeta`、`commandMode` の task-notification、
+// `origin.kind` の peer・coordinator・task-notification がこれに当たる。
+// 知らない `commandMode` と `origin.kind` は発話として読み、型が違う値は判定不能にすることを、同じ修正語で確かめる。
+describe.concurrent("Claude Code の queued_command の attachment", () => {
+  const assistantWorking =
+    '{"type":"assistant","message":{"content":[{"type":"text","text":"作業しています"}]}}';
+  const queued = (fields: string) =>
+    `{"type":"attachment","attachment":{"type":"queued_command",${fields},"prompt":"違う、やり直してください"}}`;
+  test.each([
+    ["人の発話は候補にする", queued('"commandMode":"prompt","origin":{"kind":"human"}'), 0],
+    ["origin が無い発話も候補にする", queued('"commandMode":"prompt"'), 0],
+    [
+      "サブエージェントの報告は候補にしない",
+      queued('"commandMode":"prompt","origin":{"kind":"peer"}'),
+      1,
+    ],
+    [
+      "注入した本文は候補にしない",
+      queued('"commandMode":"prompt","origin":{"kind":"human"},"isMeta":true'),
+      1,
+    ],
+    [
+      "レコードの最上位の isMeta も候補にしない",
+      `{"type":"attachment","isMeta":true,"attachment":{"type":"queued_command","commandMode":"prompt","origin":{"kind":"human"},"prompt":"違う、やり直してください"}}`,
+      1,
+    ],
+    ["commandMode が無い注入した本文は読み飛ばす", queued('"isMeta":true'), 1],
+    ["task-notification は候補にしない", queued('"commandMode":"task-notification"'), 1],
+    [
+      "知らない commandMode の発話も候補にする",
+      queued('"commandMode":"unknown-mode","origin":{"kind":"human"}'),
+      0,
+    ],
+    ["commandMode が無い発話も候補にする", queued('"origin":{"kind":"human"}'), 0],
+    [
+      "知らない origin.kind の発話も候補にする",
+      queued('"commandMode":"prompt","origin":{"kind":"remote"}'),
+      0,
+    ],
+    ["coordinator の本文は候補にしない", queued('"origin":{"kind":"coordinator"}'), 1],
+    [
+      "origin.kind が task-notification の本文は候補にしない",
+      queued('"origin":{"kind":"task-notification"}'),
+      1,
+    ],
+    [
+      "prompt が配列の発話も候補にする",
+      '{"type":"attachment","attachment":{"type":"queued_command","commandMode":"prompt","origin":{"kind":"human"},"prompt":["違う、やり直してください"]}}',
+      0,
+    ],
+    [
+      "prompt が無いものは候補を出さない",
+      '{"type":"attachment","attachment":{"type":"queued_command","commandMode":"image","origin":{"kind":"human"},"content":"違う、やり直してください"}}',
+      1,
+    ],
+    [
+      "commandMode が prompt でも prompt が無いものは候補を出さない",
+      '{"type":"attachment","attachment":{"type":"queued_command","commandMode":"prompt","origin":{"kind":"human"},"content":"違う、やり直してください"}}',
+      1,
+    ],
+    // 読み飛ばす集合に当たるレコードは本文を読まないので、他のフィールドの型が違っても判定不能にしない。
+    [
+      "task-notification は prompt の型が違っても読み飛ばす",
+      '{"type":"attachment","attachment":{"type":"queued_command","commandMode":"task-notification","prompt":{"text":"違う、やり直してください"}}}',
+      1,
+    ],
+    [
+      "task-notification は origin がオブジェクトでなくても読み飛ばす",
+      queued('"commandMode":"task-notification","origin":"x"'),
+      1,
+    ],
+    [
+      "サブエージェントの報告は prompt の型が違っても読み飛ばす",
+      '{"type":"attachment","attachment":{"type":"queued_command","commandMode":"prompt","origin":{"kind":"peer"},"prompt":{"text":"違う、やり直してください"}}}',
+      1,
+    ],
+    [
+      "注入した本文は origin がオブジェクトでなくても読み飛ばす",
+      queued('"commandMode":"prompt","origin":"x","isMeta":true'),
+      1,
+    ],
+    [
+      "commandMode が文字列でないものは判定不能",
+      queued('"commandMode":1,"origin":{"kind":"human"}'),
+      2,
+    ],
+    [
+      "origin.kind が文字列でないものは判定不能",
+      queued('"commandMode":"prompt","origin":{"kind":{"name":"peer"}}'),
+      2,
+    ],
+    [
+      "prompt が文字列でも配列でもないものは判定不能",
+      '{"type":"attachment","attachment":{"type":"queued_command","commandMode":"prompt","origin":{"kind":"human"},"prompt":{"text":"違う、やり直してください"}}}',
+      2,
+    ],
+    [
+      // 配列の要素の text がオブジェクトだと、本文を連結するところで jq が実行時のエラーを出す。
+      "prompt の要素の text が文字列でないものは判定不能",
+      '{"type":"attachment","attachment":{"type":"queued_command","commandMode":"prompt","origin":{"kind":"human"},"prompt":[{"type":"text","text":{"value":"違う、やり直してください"}}]}}',
+      2,
+    ],
+    [
+      "isMeta が真偽値でないものは判定不能",
+      queued('"commandMode":"prompt","origin":{"kind":"human"},"isMeta":"true"'),
+      2,
+    ],
+    [
+      "最上位の isMeta が真偽値でないものは判定不能",
+      '{"type":"attachment","isMeta":"true","attachment":{"type":"queued_command","commandMode":"prompt","origin":{"kind":"human"},"prompt":"違う、やり直してください"}}',
+      2,
+    ],
+    [
+      "origin がオブジェクトでないものは判定不能",
+      queued('"commandMode":"prompt","origin":"human"'),
+      2,
+    ],
+  ])("%s", async (_label, record, expectedStatus) => {
+    const cwd = makeProject();
+    const transcript = join(cwd, "t.jsonl");
+    writeFileSync(transcript, `${assistantWorking}\n${record}\n${assistantWorking}\n`);
+    const scan = await runScript(
+      "kaizen-candidate-scan.sh",
+      [transcript, join(cwd, "no-checkpoint")],
+      {
+        cwd,
+      },
+    );
+
+    expect(scan.status).toBe(expectedStatus);
+    if (expectedStatus === 0) expect(scan.stdout).toMatch(/^user correction: transcript line 2$/m);
+  });
+
+  // 型を確かめずに `.type` を参照すると、jq が実行時のエラーを出し、走査は判定不能（exit 2）になる。
+  test("attachment がオブジェクトでないものは読み飛ばす（jq のエラーにしない）", async () => {
+    const cwd = makeProject();
+    const transcript = join(cwd, "t.jsonl");
+    writeFileSync(transcript, `${assistantWorking}\n{"type":"attachment","attachment":"x"}\n`);
+    const scan = await runScript(
+      "kaizen-candidate-scan.sh",
+      [transcript, join(cwd, "no-checkpoint")],
+      {
+        cwd,
+      },
+    );
+
+    expect(scan.status).toBe(1);
+  });
+});
+
+// jq は途中の行で出た実行時のエラーを終了コードに出さず、その行の残りの出力を捨てて次の行へ進む。
+// 判定でエラーになったレコードを、本文を読まないまま検証済みゼロにしないことを、途中の行に置いて確かめる。
+describe.concurrent("jq の実行時のエラー", () => {
+  const assistantWorking =
+    '{"type":"assistant","message":{"content":[{"type":"text","text":"作業しています"}]}}';
+  test.each([
+    ["オブジェクトでない JSON の行は判定不能", '"違う、やり直してください"'],
+    [
+      "user レコードの text が文字列でないものは判定不能",
+      '{"type":"user","message":{"content":[{"type":"text","text":{"value":"違う、やり直してください"}}]}}',
+    ],
+  ])("%s", async (_label, record) => {
+    const cwd = makeProject();
+    const transcript = join(cwd, "t.jsonl");
+    writeFileSync(transcript, `${assistantWorking}\n${record}\n${assistantWorking}\n`);
+    const scan = await runScript(
+      "kaizen-candidate-scan.sh",
+      [transcript, join(cwd, "no-checkpoint")],
+      { cwd },
+    );
+
+    expect(scan.status).toBe(2);
+    expect(scan.stderr).toMatch(/unsupported or malformed record \(first at transcript line 2\)$/m);
+    // jq のエラーの本文はレコードの値を含むので、transcript の本文を 1 文字も出さない。
+    expect(scan.stderr).not.toMatch(/違う/);
+  });
+
+  // 型の判定で判定不能にしたレコードも、jq のエラーと同じように最初の行の番号を出す。
+  test("型の判定で判定不能にしたレコードも、最初の行の番号を出す", async () => {
+    const cwd = makeProject();
+    const transcript = join(cwd, "t.jsonl");
+    const record =
+      '{"type":"attachment","attachment":{"type":"queued_command","commandMode":"prompt","isMeta":"true","prompt":"違う、やり直してください"}}';
+    writeFileSync(transcript, `${assistantWorking}\n${record}\n${assistantWorking}\n`);
+    const scan = await runScript(
+      "kaizen-candidate-scan.sh",
+      [transcript, join(cwd, "no-checkpoint")],
+      { cwd },
+    );
+
+    expect(scan.status).toBe(2);
+    expect(scan.stderr).toMatch(/unsupported or malformed record \(first at transcript line 2\)$/m);
+    expect(scan.stderr).not.toMatch(/違う/);
+  });
+});
+
 // Claude Code はスキルの本文などを `type: "user"`・`isMeta: true` のレコードで注入する。
 // 本文の修正語で実在しない user correction を出さないことと、`isMeta` が無い・false の
 // 本物の発話は引き続き候補になることを、同じ修正語を持つ fixture の対で確かめる。

@@ -22,6 +22,7 @@ import { readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs";
 import { isAbsolute, resolve, sep } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
+import { errorMessage } from "./lib/errors.mjs";
 import { isPlainObject, nonEmptyString, nonNegativeNumber } from "./lib/guards.mjs";
 
 /**
@@ -775,7 +776,7 @@ export function compare(metadata, samplesDoc, opts) {
   for (const key of ["floors", "relative_floors"]) {
     const table = perf[key];
     // 直前で floors・relative_floors がオブジェクトであることを確かめているので、ここには到達しない。
-    // 元の実装と同じく欄を読めない誤りにする（UsageError にすると、直前の確かめを外しても同じ出口で通ってしまう）
+    // 到達したらこのスクリプトの不具合なので、TypeError にする（UsageError にすると、直前の確かめを外しても同じ出口で通ってしまう）
     if (!isPlainObject(table)) throw new TypeError(`performance.${key} の欄を読めない`);
     for (const m of METRICS) {
       const f = table[m];
@@ -1045,9 +1046,7 @@ export function main(argv, deps = {}) {
     try {
       metadata = JSON.parse(readFile(metadataPath));
     } catch (e) {
-      throw new UsageError(
-        `metadata.json を読めない: ${opts.metadata}（${e instanceof Error ? e.message : e}）`,
-      );
+      throw new UsageError(`metadata.json を読めない: ${opts.metadata}（${errorMessage(e)}）`);
     }
     if (!isPlainObject(metadata)) throw new UsageError("metadata.json がオブジェクトでない");
     // summarize は記録したパスを別の機械の compare がルートから読み、compare は新側のパスを diff-metadata.json に残す。
@@ -1066,17 +1065,13 @@ export function main(argv, deps = {}) {
     try {
       samplesText = readFile(resolve(cwd, opts.samples));
     } catch (e) {
-      throw new UsageError(
-        `採取を読めない: ${opts.samples}（${e instanceof Error ? e.message : e}）`,
-      );
+      throw new UsageError(`採取を読めない: ${opts.samples}（${errorMessage(e)}）`);
     }
     let samplesDoc;
     try {
       samplesDoc = JSON.parse(samplesText);
     } catch (e) {
-      throw new UsageError(
-        `採取が JSON でない: ${opts.samples}（${e instanceof Error ? e.message : e}）`,
-      );
+      throw new UsageError(`採取が JSON でない: ${opts.samples}（${errorMessage(e)}）`);
     }
 
     if (command === "summarize") {
@@ -1153,7 +1148,7 @@ export function main(argv, deps = {}) {
         diffMetadata = JSON.parse(readFile(diffPath));
       } catch (e) {
         throw new UsageError(
-          `diff-metadata.json を読めない（今回の実行の diff-metadata.json を手順 3 で書いてから通す）: ${opts.write}（${e instanceof Error ? e.message : e}）`,
+          `diff-metadata.json を読めない（今回の実行の diff-metadata.json を手順 3 で書いてから通す）: ${opts.write}（${errorMessage(e)}）`,
         );
       }
       if (!isPlainObject(diffMetadata))
@@ -1200,7 +1195,7 @@ export function main(argv, deps = {}) {
     }
     return 0;
   } catch (e) {
-    stderr(`error: ${e instanceof Error ? e.message : e}\n${usage}\n`);
+    stderr(`error: ${errorMessage(e)}\n${usage}\n`);
     return 2;
   }
 }

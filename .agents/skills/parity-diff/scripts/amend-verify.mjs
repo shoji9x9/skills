@@ -67,7 +67,7 @@ export function parseRegion(text) {
  */
 export function regionFromJson(value) {
   if (isArray(value)) return parseRegion(value.join(","));
-  // 配列は直前で返しているので、isPlainObject は元の「truthy なオブジェクト」の判定と同じ範囲を通す。
+  // 配列の表記は直前で扱ったので、ここでは `{x,y,width,height}` の表記を読む。
   if (isPlainObject(value)) {
     const r = value;
     if ([r.x, r.y, r.width, r.height].some((v) => typeof v !== "number")) return null;
@@ -410,7 +410,7 @@ export async function main(argv) {
       process.stderr.write(`error: cannot read existing --out record: ${message}\n`);
       return 2;
     }
-    // 配列は pairs を持たないので、isPlainObject で弾いても元の判定と同じ範囲を弾く。
+    // 既存の記録は、pairs の配列を持つ JSON オブジェクトだけを受け付ける（配列と null は弾く）。
     if (!isPlainObject(read) || !isArray(read.pairs)) {
       process.stderr.write("error: existing --out record has no pairs array\n");
       return 2;

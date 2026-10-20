@@ -30,6 +30,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
+import { errorMessage } from "./lib/errors.mjs";
 import { isFiniteNumber, isPlainObject, nonEmptyString } from "./lib/guards.mjs";
 
 /**
@@ -319,7 +320,7 @@ export function fitModel(samples, opts) {
       const points = windows.map((w) => {
         const rect = rects.get(windowKey(w));
         // hidden が空なので、どの窓の矩形も null でない（indexElements が全窓の矩形を求める）。
-        // 元の書き方でも null の矩形を読むと TypeError になる
+        // 矩形が無いときは、入力の誤りではなくこのスクリプトの不具合なので TypeError にする
         if (!rect) throw new TypeError(`窓 ${windowKey(w)} の矩形が無い`);
         return { W: w.width, H: w.height, v: rect[property] };
       });
@@ -595,7 +596,7 @@ export function checkModel(metadata, loadSamples, loadCurrentSamplesText) {
     });
   } catch (e) {
     throw new UsageError(
-      `現側 dimension-samples.json から式を当てはめ直せない: ${e instanceof Error ? e.message : e}`,
+      `現側 dimension-samples.json から式を当てはめ直せない: ${errorMessage(e)}`,
     );
   }
   /**
@@ -854,7 +855,7 @@ export function main(argv, deps = {}) {
     }
     return 0;
   } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
+    const message = errorMessage(e);
     process.stderr.write(`error: ${message}\n${usage}\n`);
     // 前回の ok: true を残したまま exit 2 で終わらせない（記録から古い合格と見分けられなくなる）
     for (const path of mode === "check" ? checkWritePaths : []) {
@@ -873,7 +874,7 @@ export function main(argv, deps = {}) {
         );
       } catch (writeError) {
         process.stderr.write(
-          `error: 失敗の記録も書けない（${path}）: ${writeError instanceof Error ? writeError.message : writeError}\n`,
+          `error: 失敗の記録も書けない（${path}）: ${errorMessage(writeError)}\n`,
         );
       }
     }

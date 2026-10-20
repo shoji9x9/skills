@@ -38,6 +38,7 @@ import { isArray } from "./lib/is-array.mjs";
 
 import { EVIDENCE_CARRY_FILE, judgeCarry } from "./evidence-carry.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
+import { errorMessage } from "./lib/errors.mjs";
 import { isPlainObject, nonEmptyString, toIterationCount } from "./lib/guards.mjs";
 import { realPathOf } from "./lib/paths.mjs";
 
@@ -147,16 +148,12 @@ function readJson(path, label) {
   try {
     text = readFileSync(path, "utf8");
   } catch (e) {
-    throw new UsageError(
-      `${label} を読めない: ${path}（${e instanceof Error ? e.message : String(e)}）`,
-    );
+    throw new UsageError(`${label} を読めない: ${path}（${errorMessage(e)}）`);
   }
   try {
     return JSON.parse(text);
   } catch (e) {
-    throw new UsageError(
-      `${label} が JSON として不正: ${path}（${e instanceof Error ? e.message : String(e)}）`,
-    );
+    throw new UsageError(`${label} が JSON として不正: ${path}（${errorMessage(e)}）`);
   }
 }
 
@@ -538,7 +535,7 @@ export function checkArtifacts(metadata, ctx) {
           text = readFileSync(specPath, "utf8");
         } catch (e) {
           findings.push(
-            `read_by が指すスペックを読めない: ${String(reader).trim()}（${e instanceof Error ? e.message : String(e)}）`,
+            `read_by が指すスペックを読めない: ${String(reader).trim()}（${errorMessage(e)}）`,
           );
           continue;
         }
