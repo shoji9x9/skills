@@ -1,0 +1,202 @@
+{
+  "metadata": {
+    "skill_name": "pr-finalize-loop",
+    "skill_path": "<repo>/skills/pr-finalize-loop",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-19T12:52:50Z",
+    "evals_run": [20, 21, 22],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 20,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 8,
+        "failed": 0,
+        "total": 8,
+        "time_seconds": 36.723,
+        "tokens": 91904,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "スレッド B について、利用者に確認を送らないと述べている",
+          "passed": true,
+          "evidence": "スレッド B は利用者に確認せず、判断待ちとして残すとした。"
+        },
+        {
+          "text": "スレッド B を直さず、解決もせずに残すと述べている",
+          "passed": true,
+          "evidence": "スレッド B を直さず、解決もせず、印の返信だけを投稿するとした。"
+        },
+        {
+          "text": "スレッド A は直して、返信してから解決すると述べている",
+          "passed": true,
+          "evidence": "スレッド A は直して、返信してから解決するとした。"
+        },
+        {
+          "text": "残りがスレッド B だけになったら、--max-iterations を待たずにループを止めると述べている",
+          "passed": true,
+          "evidence": "残りが判断待ちの B だけになった反復 2 の収束判定で止まり、--max-iterations の上限までは回さないとした。"
+        },
+        {
+          "text": "スレッド A の修正を push した後の HEAD が再レビューされたことを確かめてから止めると述べている",
+          "passed": true,
+          "evidence": "push した新しい HEAD の Copilot のレビューが届くのを待ち、新しい指摘が無いことを確かめてから止めるとした。"
+        },
+        {
+          "text": "止まった理由を「完了」ではなく、判断待ちで終えたことを表す理由として報告すると述べている",
+          "passed": true,
+          "evidence": "止まった理由を「判断待ちで終了」とし、「完了」にはしないとした。"
+        },
+        {
+          "text": "判断待ちの報告に、スレッド B の選択肢（案 X・案 Y）と推奨を載せると述べている",
+          "passed": true,
+          "evidence": "判断待ちの一覧に、スレッド B の案 X と案 Y の根拠・影響と推奨を載せるとした。"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "コマンドの実行もファイルの変更もしていないと明記した。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 21,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 37.128,
+        "tokens": 139595,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "反復の残りが少ないこと（最後の反復であること）を、指摘を見送る理由にしないと述べている",
+          "passed": true,
+          "evidence": "反復の残りが少ないことは直さない根拠にならないとした。"
+        },
+        {
+          "text": "この指摘を直し、スレッドに返信してから解決すると述べている",
+          "passed": true,
+          "evidence": "指摘を直し、スレッドに返信してから解決するとした。"
+        },
+        {
+          "text": "指摘を直さずに見送ってよい根拠を、事実と違う・範囲の外・人の判断が要る、の 3 つに限ると述べている",
+          "passed": true,
+          "evidence": "直さない根拠を、事実と違う・PR の範囲の外・人の判断が要るの 3 つに限るとした。"
+        },
+        {
+          "text": "この指摘は、見送ってよい根拠のどれにも当たらないと述べている",
+          "passed": true,
+          "evidence": "この指摘は 3 つのどれにも当たらないとした。"
+        },
+        {
+          "text": "止まった理由を「完了」ではなく「最大反復到達」として報告すると述べている",
+          "passed": true,
+          "evidence": "止まった理由を「最大反復到達」とし、「完了」にはしないとした。"
+        },
+        {
+          "text": "直して push した HEAD がレビューを受けていないことを報告に書くと述べている",
+          "passed": true,
+          "evidence": "新しい HEAD がまだレビューされていないことを報告に明記するとした。"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "実行はせず手順の説明に留めた。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 22,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 38.527,
+        "tokens": 67240,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "スレッド A を判断待ちにせず、推奨の案で直すか見送り、選んだ案と根拠を返信に書いて解決すると述べている",
+          "passed": true,
+          "evidence": "スレッド A を判断待ちにせず、推奨の案を選んで根拠を返信し、解決するとした。"
+        },
+        {
+          "text": "スレッド B は直さず解決もせず、判断待ちの印（<!-- pr-finalize-loop:deferred -->）を付けた返信を残すと述べている",
+          "passed": true,
+          "evidence": "スレッド B は直さず解決もせず、<!-- pr-finalize-loop:deferred --> を付けた返信を残すとした。"
+        },
+        {
+          "text": "判断待ちにするかを、利用者への影響の大きさと、merge の後に覆せるかで分けたと述べている",
+          "passed": true,
+          "evidence": "判断待ちにするかを、利用者への影響と、後で覆せるかで分けるとした。"
+        },
+        {
+          "text": "5 回の反復の後、effort を medium に下げて 2 回反復すると述べている",
+          "passed": true,
+          "evidence": "high 5 回の後、CI の再実行を待ってから medium に下げて 2 回反復するとした。"
+        },
+        {
+          "text": "medium の 2 回でも残れば、effort を low に下げて 1 回反復すると述べている",
+          "passed": true,
+          "evidence": "medium 2 回の後、low に下げて 1 回反復するとした。"
+        },
+        {
+          "text": "low の 1 回でも残れば、それより下げずに最大反復到達で止まると述べている",
+          "passed": true,
+          "evidence": "low より下が無いので最大反復到達で止まるとした。"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "コマンドの実行もファイルの変更もしていないと明記した。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 37.4593,
+        "stddev": 0.9465,
+        "min": 36.723,
+        "max": 38.527
+      },
+      "tokens": {
+        "mean": 99579.6667,
+        "stddev": 36783.1266,
+        "min": 67240,
+        "max": 139595
+      }
+    }
+  },
+  "notes": [
+    "Issue #697 で --defer-decisions の判断待ちの基準と「反復の段階と effort」を PR #715 のレビューで直したので、入力を変えていない eval 20・21・22 を、後退が無いかを見るために with_skill だけで 1 run ずつ実行した。without_skill は入力が変わらないので実行していない。"
+  ]
+}

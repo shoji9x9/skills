@@ -57,6 +57,46 @@ case "${input}" in
 *) exit 0 ;;
 esac
 
+# Hook の入力のうち、ツールの名前と入力に当たる文字列の値だけを、改行でつないで hook_tool_text_out に入れる。
+# 対象のキーは `tool_name`・`toolName`・`tool_input`・`toolArgs`・`input`・`command` である。
+# 下の抽出（jq・python3・生の JSON）がコマンドを読むキーをすべて含むので、ここで語が見つからなければ、
+# 下の段でも commit と判定されない。
+# 値は JSON のエスケープを残したまま返す（行継続は、上と同じ `\\` ＋ `\n` の形のまま照合できる）。
+#
+# 生の JSON で `"command"` のように引用符で挟まれたキーは、文字列の値の中には現れない（値の中の `"` は `\"` になる）。
+# そのため、`cwd`・`transcript_path` の値に入った語や、コマンドの文字列の中に書かれた `"command":` を、キーとして読まない。
+# 取り出せないときは 1 を返し、呼び出し側に入力の全体で判定させる（判定できないときに通さない）。
+# 取り出せないのは、対象のキーが 1 つも無いときと、`\u` を含むときである。JSON はキーも `\u` で書けるので、
+# `"command"` のようなキーをここでは見つけられないが、jq はそれをコマンドとして読む。
+# 外部のコマンドもサブシェルも起動しない（結果を変数で返すのはそのため）。
+hook_tool_text() { # $1: Hook の JSON
+	local rest="${1:-}" head found=1
+	local re='"(tool_name|toolName|tool_input|toolArgs|input|command)"[[:space:]]*:[[:space:]]*"(([^"\\]|\\.)*)"'
+	hook_tool_text_out=""
+	case "${rest}" in
+	*'\u'*) return 1 ;;
+	esac
+	while [[ ${rest} =~ ${re} ]]; do
+		hook_tool_text_out+="${BASH_REMATCH[2]}"$'\n'
+		found=0
+		# 一致した文字列が最初に現れる位置は、正規表現の一致の位置と同じである（同じ文字列は同じ式に一致する）。
+		head=${rest%%"${BASH_REMATCH[0]}"*}
+		rest=${rest:$((${#head} + ${#BASH_REMATCH[0]}))}
+	done
+	return "${found}"
+}
+
+# 入力の全体に語があっても、`cwd`・`transcript_path` の値（`.../worktrees/git-commit-x` のようなパス）に
+# あるだけなら、jq / python3 / git を起動せずに終える。パスにこの語を含む worktree の中のセッションでは、
+# 上の照合はすべての呼び出しで通るためである。
+if hook_tool_text "${input}"; then
+	case "${hook_tool_text_out}" in
+	*git*commit*) ;;
+	*'\\\n'*) ;;
+	*) exit 0 ;;
+	esac
+fi
+
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || true)
 
 kaizen_lib="${script_dir}/kaizen-hook-common.sh"
@@ -96,22 +136,28 @@ if ! declare -f kaizen_sentinel_key_of >/dev/null 2>&1; then
 	kaizen_config_value() { return 1; }
 fi
 
-# Hook の入力から command と transcript_path を取り出す。jq が無い・正しく動かない環境では
+# Hook の入力から command を取り出す。jq が無い・正しく動かない環境では
 # python3 を使い、それも無ければ生の JSON の command フィールドで判定する（機能を減らして動く）。
+# transcript_path・session_id・cwd と、git rev-parse によるプロジェクトの直下は、commit と判定した後で求める。
+# commit でない呼び出しで、jq と git を何度も起動しないためである。
 cmd=""
-transcript=""
 extracted=0
-if command -v jq >/dev/null 2>&1; then
+has_jq=0
+has_python3=0
+command -v jq >/dev/null 2>&1 && has_jq=1
+command -v python3 >/dev/null 2>&1 && has_python3=1
+if [ "${has_jq}" -eq 1 ]; then
 	cmd=$(printf '%s' "${input}" | jq -r '
 		.tool_input.command // .toolArgs.command //
 		(try (.toolArgs | fromjson | .command) catch empty) //
 		.command // .input.command // empty
 	' 2>/dev/null || true)
-	transcript=$(printf '%s' "${input}" | jq -r '.transcript_path // .transcriptPath // .tool_input.transcript_path // .input.transcript_path // empty' 2>/dev/null || true)
 	[ -n "${cmd}" ] && extracted=1
 fi
 
-if [ "${extracted}" -eq 0 ] && command -v python3 >/dev/null 2>&1; then
+# jq で取り出せたか。transcript_path を python3 で読み直すかを、後で同じ条件で決める。
+extracted_by_jq=${extracted}
+if [ "${extracted}" -eq 0 ] && [ "${has_python3}" -eq 1 ]; then
 	cmd=$(printf '%s' "${input}" | python3 -c 'import json, sys
 try:
     data = json.load(sys.stdin)
@@ -131,36 +177,8 @@ for key in ("tool_input", "toolArgs", "input"):
 if not command and isinstance(data.get("command"), str):
     command = data["command"]
 sys.stdout.write(command)' 2>/dev/null || true)
-	transcript=$(printf '%s' "${input}" | python3 -c 'import json, sys
-try:
-    data = json.load(sys.stdin)
-except Exception:
-    sys.exit(1)
-transcript = data.get("transcript_path", data.get("transcriptPath", ""))
-if isinstance(transcript, str):
-    sys.stdout.write(transcript)' 2>/dev/null || true)
 	[ -n "${cmd}" ] && extracted=1
 fi
-
-# session_id / cwd（と transcript の予備）はトップレベル限定の抽出で取る。生 JSON の最初の一致を
-# 採ると、`tool_input.command` に `"session_id": "..."` を含むコマンドで値を乗っ取られ得る。
-# transcript は上の抽出（tool_input 側のフォールバックを含む）が取れていればそちらを優先する。
-session_id=""
-hook_transcript=""
-payload_cwd=""
-{
-	IFS= read -r session_id
-	IFS= read -r hook_transcript
-	IFS= read -r payload_cwd
-} <<<"$(kaizen_hook_fields "${input}")" || true
-session_key=$(kaizen_session_key "${session_id}")
-[ -n "${transcript}" ] || transcript=${hook_transcript}
-
-# `.kaizen/` の場所は、**コミットが実行される作業ツリー**を基準に決める。$CLAUDE_PROJECT_DIR を
-# 最優先にすると、セッションの起点がリポジトリ本体で作業が git worktree のとき、チェックが見る
-# `.kaizen/` と、抽出したセッションが書く `.kaizen/` が別のディレクトリになる。
-project_root=$(kaizen_resolve_project_root "${payload_cwd}")
-[ -n "${project_root}" ] && cd "${project_root}" 2>/dev/null || true
 
 # コマンド文字列の**引用の内側**とコメントを、同じ長さの `_` に置き換えたコピーを返す。
 # 区切り文字（`;` `&` `|` `(` ・改行）が引用の内側にあるとき、シェルはそこでコマンドを
@@ -524,9 +542,27 @@ mask_quoted() { # $1: コマンド文字列
 # ラッパー（sudo / env / nice 等とその引数）を挟んだ `git commit` も捕捉する。
 # 区切りを単なる空白まで広げると `echo "... git commit ..."` や `man git commit` まで
 # ブロックしてしまうため、先頭に置ける語を列挙する方式にしている。
-wrappers='(sudo|env|command|nohup|nice|time|xargs)'
+# ラッパーの一覧は、Claude Code が `if` の照合の前に取り除くもの（`timeout`・`time`・`nice`・`nohup`・`stdbuf`・
+# `command`・`builtin`。https://code.claude.com/docs/en/permissions の Wrappers の節）に、`sudo`・`env`・`xargs`・`exec` を足したものである。
+# 7 つだけにすると `sudo git commit` を見逃す。agent-usage の gate.mjs も同じ一覧を持つ。
+# ラッパーの後ろは任意の語の連なりを読み飛ばすので、値を取るオプション（`timeout 60`・`nice -n 5`・`sudo -u x`）の値も読み飛ばす。
+# 引数に `git` と `commit` を書いただけのラッパー（`timeout 5 echo git commit`）も commit として扱う（止める側）。
+# ラッパーの後ろの語は、区切り（`;`・`&`・`|`・改行）を越えて読み飛ばさない。越えると、
+# `timeout 60 git -C <外部> commit -m a && git commit -m b` の 1 件目から 2 件目までが 1 つの一致になり、
+# コミット先の判定は 1 件目の `-C <外部>` だけを読む。2 件目は、下の `scan` のループが区切りの後ろの別の一致として
+# 判定するので、越えても通しはしない。それでも越えないのは、1 つの一致を 1 つのコマンドに保つためである。
+# 置換（`$(`・`` ` ``・`<(`・`${ cmd; }`）は語の中に含めて読み飛ばす。引数そのものが置換の形
+# （`sudo -u "$(id -un)" git commit`）を見逃さないためである。置換の中の commit は、一致を探し直す位置を
+# 前の一致の始まりの直後にすることで、別の一致として判定する（下の `scan` のループ）。
+wrappers='(sudo|env|command|builtin|exec|nohup|nice|time|timeout|stdbuf|xargs)'
 assign='[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*'
-prefix="(${assign}[[:space:]]+)*(${wrappers}[[:space:]]+([^[:space:]]+[[:space:]]+)*)*"
+# bash 5.3 の関数置換（`${ cmd; }`）は中に `;` を持つので、閉じた形を 1 語として読む（`env ${ true; } git commit`）。
+# `$` は正規表現の文字として書いているので、展開しない（SC2016 は当たらない）。
+# shellcheck disable=SC2016
+wrapper_arg='(\$\{[[:blank:]][^{}]*\}|[^[:space:];&|])+'
+prefix="(${assign}[[:space:]]+)*(${wrappers}[[:blank:]]+(${wrapper_arg}[[:blank:]]+)*)*"
+# パスを付けた git（`/usr/bin/git`・`./git`）も git として扱う。パスには区切り文字・引用符・空白を含めない。
+gitbin='([^[:space:];&|(){}`"'"'"']*/)?git'
 # `git` と `commit` の間に入る git のグローバルオプション（`git -C <path> commit`,
 # `git --no-pager commit`, `git -c k=v commit` など）も検出する。オプションの語とその引数を
 # 許す形にとどめ、`git help commit` のようなオプションでない語では止まるようにする（止めすぎを避ける）。
@@ -570,7 +606,7 @@ gitopts="((${gitoptval_opt}[[:space:]]+${gitoptval}|-[^[:space:]=]+=${gitoptval}
 # 生の JSON で判定するときは、行継続を取り除いた**コピー**も同じ式で判定する（`extracted` が 1 のときは空のまま）。
 cmd_continuation_stripped=""
 if [ "${extracted}" -eq 1 ]; then
-	commit_re=$'(^|[;&|(){`\n])[[:space:]]*'"${prefix}"'git[[:space:]]+'"${gitopts}"'commit([[:space:]]|$)'
+	commit_re=$'(^|[;&|(){`\n])[[:space:]]*'"${prefix}${gitbin}"'[[:space:]]+'"${gitopts}"'commit([[:space:]]|$)'
 else
 	cmd=${input}
 	# **機能を減らして動くときも、行継続で分かれたトークンを見つける。** `gi\<改行>t commit` はシェルが
@@ -590,7 +626,7 @@ else
 	# またがないので、走査は command の値の中にとどまる（値の外の別のフィールドを拾わない）。
 	# JSON では改行が `\n` の 2 文字として現れるので、リテラルの区切り ``;&|(` `` に加えて、その形も区切りに含める。
 	raw_sep='([;&|(){`]|\\[nr])'
-	commit_re='"command"[[:space:]]*:[[:space:]]*"('"${dqbody}${raw_sep}"')?[[:space:]]*'"${prefix}"'git[[:space:]]+'"${gitopts}"'commit([[:space:]]|"|$)'
+	commit_re='"command"[[:space:]]*:[[:space:]]*"('"${dqbody}${raw_sep}"')?[[:space:]]*'"${prefix}${gitbin}"'[[:space:]]+'"${gitopts}"'commit([[:space:]]|"|$)'
 fi
 # 引用の内側の区切り文字で誤って検出しないように、判定は置き換えたコピーに対して行う。
 # 生の JSON で判定するとき（jq / python3 が無い）は、コマンド行を構造として取り出せておらず、
@@ -618,6 +654,42 @@ if [[ ! "${cmd_masked}" =~ ${commit_re} ]]; then
 		exit 0
 	fi
 fi
+
+# ここから先は commit と判定した呼び出しだけが通る。transcript_path を取り出す（jq が無い・取り出せないときは python3）。
+transcript=""
+if [ "${has_jq}" -eq 1 ]; then
+	transcript=$(printf '%s' "${input}" | jq -r '.transcript_path // .transcriptPath // .tool_input.transcript_path // .input.transcript_path // empty' 2>/dev/null || true)
+fi
+if [ "${extracted_by_jq}" -eq 0 ] && [ "${has_python3}" -eq 1 ]; then
+	transcript=$(printf '%s' "${input}" | python3 -c 'import json, sys
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    sys.exit(1)
+transcript = data.get("transcript_path", data.get("transcriptPath", ""))
+if isinstance(transcript, str):
+    sys.stdout.write(transcript)' 2>/dev/null || true)
+fi
+
+# session_id / cwd（と transcript の予備）はトップレベル限定の抽出で取る。生 JSON の最初の一致を
+# 採ると、`tool_input.command` に `"session_id": "..."` を含むコマンドで値を乗っ取られ得る。
+# transcript は上の抽出（tool_input 側のフォールバックを含む）が取れていればそちらを優先する。
+session_id=""
+hook_transcript=""
+payload_cwd=""
+{
+	IFS= read -r session_id
+	IFS= read -r hook_transcript
+	IFS= read -r payload_cwd
+} <<<"$(kaizen_hook_fields "${input}")" || true
+session_key=$(kaizen_session_key "${session_id}")
+[ -n "${transcript}" ] || transcript=${hook_transcript}
+
+# `.kaizen/` の場所は、**コミットが実行される作業ツリー**を基準に決める。$CLAUDE_PROJECT_DIR を
+# 最優先にすると、セッションの起点がリポジトリ本体で作業が git worktree のとき、チェックが見る
+# `.kaizen/` と、抽出したセッションが書く `.kaizen/` が別のディレクトリになる。
+project_root=$(kaizen_resolve_project_root "${payload_cwd}")
+[ -n "${project_root}" ] && cd "${project_root}" 2>/dev/null || true
 
 # コマンド行から**コミット先がプロジェクトの外のリポジトリだと分かる**呼び出しは、チェックの対象に
 # しない。テストのフィクスチャとして、使い捨ての一時リポジトリにコミットする形
@@ -766,7 +838,7 @@ path_is_within() { # $1: 正準パス $2: 正準の親
 # commit_re がマッチした部分文字列から、コミット先がプロジェクト外だと確定できるかを返す
 # （0 = 外部宛て、1 = プロジェクト宛て or 判定不能）。
 commit_target_is_external() { # $1: マッチした部分文字列
-	local seg="${1}" opt val tok cdir="" gitdir="" worktree="" abs base t tcommon rel_used=0
+	local seg="${1}" opt val tok cdir="" gitdir="" worktree="" abs base t tcommon rel_used=0 wrapper_part wrapper_chdir=0
 	local -a targets=()
 	# `git` の直後から `commit` の直前までがグローバルオプション列。
 	seg=${seg%commit*}
@@ -776,9 +848,17 @@ commit_target_is_external() { # $1: マッチした部分文字列
 	# **区切りの集合は、commit_re と同じものを持たせる。** 片方だけ広げると、広げた側で
 	# 一致した形をこちらが解析できない。その結果、外部宛ての免除が機能しないまま誤ってブロックする
 	# （実測: 以前の形式のコマンド置換の直後に外部宛ての呼び出しを置いた形で、exit 2 になった）。
-	local git_head_re='(^|[[:space:]]|[;&|(){`])git[[:space:]]+(.*)$'
+	# パスを付けた git（`/usr/bin/git -C <外部> commit`）も、commit_re と同じ gitbin で読む。
+	local git_head_re='(^|[[:space:]]|[;&|(){`])'"${gitbin}"'[[:space:]]+(.*)$'
 	[[ ${seg} =~ ${git_head_re} ]] || return 1
-	seg=${BASH_REMATCH[2]}
+	# git より前（ラッパーとその引数）に、作業ディレクトリを変えるオプション（`env -C <dir>`・`sudo -D <dir>`・`--chdir`）
+	# があれば、git の相対パスの基準は Hook の cwd と一致しない。`cd` と同じく、相対パスを使うときは判定できないとして扱う。
+	# 文字で近似するので、`sudo -C <数>` のような別の意味のオプションも含む（止める側）。
+	wrapper_part=${seg%%"${BASH_REMATCH[0]}"*}
+	seg=${BASH_REMATCH[3]}
+	if [[ ${wrapper_part} =~ (^|[[:space:]])(--chdir|-[A-Za-z]*[CD]) ]]; then
+		wrapper_chdir=1
+	fi
 	while [ -n "${seg}" ]; do
 		seg=${seg#"${seg%%[![:space:]]*}"}
 		[ -n "${seg}" ] || break
@@ -829,7 +909,7 @@ commit_target_is_external() { # $1: マッチした部分文字列
 	# コマンド行に `cd` が含まれると、`git` が実際に実行される cwd は Hook の payload の cwd と
 	# 一致しない。相対パスを解決する基準が変わり、プロジェクト宛てを外部宛てと読み違えうるので、
 	# 判定できないとして扱う（`cd <dir> && git commit` を判定できないとするのと同じ理由）。
-	if [ "${rel_used}" -eq 1 ] && [ "${cmd_cwd_uncertain}" -eq 1 ]; then
+	if [ "${rel_used}" -eq 1 ] && { [ "${cmd_cwd_uncertain}" -eq 1 ] || [ "${wrapper_chdir}" -eq 1 ]; }; then
 		return 1
 	fi
 	base=${cdir:-${base_dir}}
@@ -888,6 +968,7 @@ if [ "${extracted}" -eq 1 ]; then
 	# 潰れており、プロジェクト内外の判定ができない。
 	scan=${cmd}
 	scan_masked=${cmd_masked}
+	scan_sep_glob=$'[;&|(){`\n]'
 	all_external=1
 	while [[ ${scan_masked} =~ ${commit_re} ]]; do
 		matched_masked=${BASH_REMATCH[0]}
@@ -896,8 +977,18 @@ if [ "${extracted}" -eq 1 ]; then
 		match_off=${#head_part}
 		match_len=${#matched_masked}
 		matched=${scan:${match_off}:${match_len}}
-		scan=${scan:$((match_off + match_len))}
-		scan_masked=${scan_masked:$((match_off + match_len))}
+		# 次は一致の終わりからではなく、一致の始まりより後ろにある最初の区切り（commit_re の区切りと同じ集合）から探す。
+		# ラッパーの引数の置換の中（`timeout "$( git commit -m b)" git -C <外部> commit`）の commit は、外側の一致の中にあり、
+		# 終わりから探すと読まずに通す。区切りから探せば、置換を開く `(`・`{`・`` ` `` の後ろの一致として判定する。
+		# 1 文字ずつずらさないのは、同じコマンドが語の途中から何度も一致し、そのたびにコミット先を判定するからである
+		# （`GIT_AUTHOR_NAME=a git -C <外部> commit` で 15 回。実測）。
+		rest_masked=${scan_masked:$((match_off + 1))}
+		# scan_sep_glob は glob のパターンとして照合するので引用しない
+		# shellcheck disable=SC2295
+		before_sep=${rest_masked%%${scan_sep_glob}*}
+		next_off=$((match_off + 1 + ${#before_sep}))
+		scan=${scan:${next_off}}
+		scan_masked=${scan_masked:${next_off}}
 		if ! commit_target_is_external "${matched}"; then
 			all_external=0
 			break

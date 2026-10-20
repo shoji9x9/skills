@@ -101,6 +101,25 @@ test("値の違い・片側に無いキー・長さの違う配列を、パス�
   expect(r.status).toBe(1);
 });
 
+test.each([
+  ['{"a":"(absent)"}', "{}", [{ path: "a", current: "(absent)", new: "(absent)" }]],
+  ["{}", '{"a":"(absent)"}', [{ path: "a", current: "(absent)", new: "(absent)" }]],
+  ['[1,"(absent)"]', "[1]", [{ path: "1", current: "(absent)", new: "(absent)" }]],
+])(
+  '値が "(absent)" という文字列でも、片側に無いキーや要素と区別して差分にする（exit 1）: %s と %s',
+  (currentJson, newJson, expected) => {
+    const r = runCli(currentJson, newJson);
+    expect(diffsOf(r.stdout)).toEqual(expected);
+    expect(r.status).toBe(1);
+  },
+);
+
+test('両側の値が "(absent)" という同じ文字列なら、差分にしない（exit 0）', () => {
+  const r = runCli('{"a":"(absent)","l":["(absent)"]}', '{"a":"(absent)","l":["(absent)"]}');
+  expect(diffsOf(r.stdout)).toEqual([]);
+  expect(r.status).toBe(0);
+});
+
 test("配列とオブジェクトのように型が違う値は、その位置を 1 件の差分にする", () => {
   const r = runCli('{"v":[1]}', '{"v":{"0":1}}');
   expect(diffsOf(r.stdout)).toEqual([{ path: "v", current: [1], new: { 0: 1 } }]);

@@ -28,6 +28,7 @@ import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
+import { errorMessage } from "./lib/errors.mjs";
 import { isPlainObject } from "./lib/guards.mjs";
 import { realPathOf } from "./lib/paths.mjs";
 
@@ -202,7 +203,7 @@ function readRecord(path) {
   try {
     return JSON.parse(readFileSync(path, "utf8"));
   } catch (e) {
-    throw new UsageError(`${RECORD_NAME} を読めない（${e instanceof Error ? e.message : e}）`);
+    throw new UsageError(`${RECORD_NAME} を読めない（${errorMessage(e)}）`);
   }
 }
 
@@ -498,7 +499,7 @@ export function main(argv, deps = {}) {
     );
     return 0;
   } catch (e) {
-    err(`error: ${e instanceof Error ? e.message : e}\n${usage}\n`);
+    err(`error: ${errorMessage(e)}\n${usage}\n`);
     return 2;
   }
 }

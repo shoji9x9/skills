@@ -328,6 +328,349 @@ describe.concurrent("Claude Code の atis-latch 補助レコード", () => {
   });
 });
 
+// Claude Code の api-request-blob は、API に送ったメッセージのコピー（Issue #710）。
+// コピーの中の修正語で候補を出さないことと、コピーがあっても本物の発話の候補は残ることを、対で確かめる。
+// 知らない形（hash が無い・message がオブジェクトでない）は、これまでどおり判定できないとして扱う。
+// transcript は eval の fixture（candidate-scan）に置かず、ここで組み立てる。eval 15 などは
+// candidate-scan の JSONL をすべて入力にするので、ファイルを足すと eval の入力が変わる。
+describe.concurrent("Claude Code の api-request-blob レコード", () => {
+  const userTask = '{"type":"user","message":{"content":"ドキュメントの表を整えてください"}}';
+  const assistantDone =
+    '{"type":"assistant","message":{"content":[{"type":"text","text":"整えました"}]}}';
+  const userCorrection = '{"type":"user","message":{"content":"違う、やり直してください"}}';
+  const blob = (fields: string) =>
+    `{"type":"api-request-blob",${fields},"sessionId":"test-session"}`;
+  const blobWithCorrectionWord = blob(
+    '"hash":"0f3c","message":{"role":"user","content":[{"type":"text","text":"<system-reminder>違う形式の出力は使わず、やり直しの指示に従う</system-reminder>"}]}',
+  );
+  test.each([
+    [
+      "コピーの中の修正語だけなら候補ゼロ",
+      [
+        userTask,
+        blobWithCorrectionWord,
+        '{"type":"api-request","id":"r1","params":{},"sessionId":"test-session"}',
+        assistantDone,
+      ],
+      1,
+      null,
+    ],
+    [
+      "コピーは本物の発話の候補を隠さない",
+      [
+        assistantDone,
+        blob(
+          '"hash":"7a1e","message":{"role":"user","content":[{"type":"text","text":"違う、やり直してください"}]}',
+        ),
+        userCorrection,
+      ],
+      0,
+      /^user correction: transcript line 3$/m,
+    ],
+    [
+      // 作業中に送った発話は user レコードにならず、queued_command と blob にだけ残る。
+      // blob を読み飛ばしても、queued_command の側で候補になることを確かめる。
+      "コピーは作業中に送った発話の候補を隠さない",
+      [
+        assistantDone,
+        blob(
+          '"hash":"5c2d","message":{"role":"user","content":[{"type":"text","text":"<system-reminder>違う、やり直してください</system-reminder>"}]}',
+        ),
+        '{"type":"attachment","attachment":{"type":"queued_command","commandMode":"prompt","origin":{"kind":"human"},"prompt":"違う、やり直してください"}}',
+        assistantDone,
+      ],
+      0,
+      /^user correction: transcript line 3$/m,
+    ],
+    [
+      "hash が無いコピーは判定不能",
+      [
+        userTask,
+        blob('"message":{"role":"user","content":[{"type":"text","text":"hash の無いコピー"}]}'),
+        assistantDone,
+      ],
+      2,
+      null,
+    ],
+    [
+      "hash が文字列でないコピーは判定不能",
+      [
+        userTask,
+        blob(
+          '"hash":0,"message":{"role":"user","content":[{"type":"text","text":"形の違うコピー"}]}',
+        ),
+        assistantDone,
+      ],
+      2,
+      null,
+    ],
+    [
+      "message が文字列のコピーは判定不能",
+      [userTask, blob('"hash":"9b2d","message":"コピーの形が違う"'), assistantDone],
+      2,
+      null,
+    ],
+    [
+      // hash と message の形が同じでも、型名が違えば読み飛ばさない（型名の条件を固定する）。
+      "型名が違う未知のレコードは、hash と message の形が同じでも判定不能",
+      [
+        userTask,
+        '{"type":"future-conversation-record","hash":"5c1d","message":{"role":"user","content":[{"type":"text","text":"未知のレコード"}]},"sessionId":"test-session"}',
+        assistantDone,
+      ],
+      2,
+      null,
+    ],
+  ])("%s", async (_label, records, expectedStatus, evidence) => {
+    const cwd = makeProject();
+    const transcript = join(cwd, "t.jsonl");
+    writeFileSync(transcript, `${records.join("\n")}\n`);
+    const scan = await runScript(
+      "kaizen-candidate-scan.sh",
+      [transcript, join(cwd, "no-checkpoint")],
+      {
+        cwd,
+      },
+    );
+
+    expect(scan.status).toBe(expectedStatus);
+    if (evidence) expect(scan.stdout).toMatch(evidence);
+    // コピーは 2 行目に置く。コピーの本文から候補を出していないことを、行番号で確かめる。
+    expect(scan.stdout).not.toMatch(/transcript line 2$/m);
+  });
+
+  test("checkpoint 後の差分が api-request-blob だけでも検証済みゼロ", async () => {
+    const cwd = makeProject();
+    const transcript = join(cwd, "t.jsonl");
+    const checkpoint = join(cwd, ".kaizen", ".extract-checkpoint");
+    const initial = readFileSync(join(fixturesDir, "claude-no-candidate.jsonl"), "utf8");
+    writeFileSync(transcript, initial);
+    writeFileSync(
+      checkpoint,
+      `${transcript}\n${Buffer.byteLength(initial)}\nclaude-code\n${initial.split("\n").length - 1}\n`,
+    );
+    appendFileSync(transcript, `${blobWithCorrectionWord}\n`);
+
+    const scan = await runScript("kaizen-candidate-scan.sh", [transcript, checkpoint], { cwd });
+
+    expect(scan.status).toBe(1);
+    expect(scan.stdout).toMatch(/^kaizen-candidate-scan: agent=claude-code$/m);
+  });
+
+  // api-request-blob を書くのは Claude Code だけなので、checkpoint がエージェントを持たなくても識別できる。
+  test("checkpoint が無く差分が api-request-blob だけでも Claude Code と識別する", async () => {
+    const cwd = makeProject();
+    const transcript = join(cwd, "t.jsonl");
+    writeFileSync(transcript, `${blobWithCorrectionWord}\n`);
+
+    const scan = await runScript(
+      "kaizen-candidate-scan.sh",
+      [transcript, join(cwd, "no-checkpoint")],
+      { cwd },
+    );
+
+    expect(scan.status).toBe(1);
+    expect(scan.stdout).toMatch(/^kaizen-candidate-scan: agent=claude-code$/m);
+  });
+});
+
+// エージェントの作業中に利用者が送った発話は、`user` レコードにならず `attachment` の `queued_command` に残る（Issue #710）。
+// 読み飛ばすのは閉じた集合だけである。注入した本文の `isMeta`、`commandMode` の task-notification、
+// `origin.kind` の peer・coordinator・task-notification がこれに当たる。
+// 知らない `commandMode` と `origin.kind` は発話として読み、型が違う値は判定不能にすることを、同じ修正語で確かめる。
+describe.concurrent("Claude Code の queued_command の attachment", () => {
+  const assistantWorking =
+    '{"type":"assistant","message":{"content":[{"type":"text","text":"作業しています"}]}}';
+  const queued = (fields: string) =>
+    `{"type":"attachment","attachment":{"type":"queued_command",${fields},"prompt":"違う、やり直してください"}}`;
+  test.each([
+    ["人の発話は候補にする", queued('"commandMode":"prompt","origin":{"kind":"human"}'), 0],
+    ["origin が無い発話も候補にする", queued('"commandMode":"prompt"'), 0],
+    [
+      "サブエージェントの報告は候補にしない",
+      queued('"commandMode":"prompt","origin":{"kind":"peer"}'),
+      1,
+    ],
+    [
+      "注入した本文は候補にしない",
+      queued('"commandMode":"prompt","origin":{"kind":"human"},"isMeta":true'),
+      1,
+    ],
+    [
+      "レコードの最上位の isMeta も候補にしない",
+      `{"type":"attachment","isMeta":true,"attachment":{"type":"queued_command","commandMode":"prompt","origin":{"kind":"human"},"prompt":"違う、やり直してください"}}`,
+      1,
+    ],
+    ["commandMode が無い注入した本文は読み飛ばす", queued('"isMeta":true'), 1],
+    ["task-notification は候補にしない", queued('"commandMode":"task-notification"'), 1],
+    [
+      "知らない commandMode の発話も候補にする",
+      queued('"commandMode":"unknown-mode","origin":{"kind":"human"}'),
+      0,
+    ],
+    ["commandMode が無い発話も候補にする", queued('"origin":{"kind":"human"}'), 0],
+    [
+      "知らない origin.kind の発話も候補にする",
+      queued('"commandMode":"prompt","origin":{"kind":"remote"}'),
+      0,
+    ],
+    ["coordinator の本文は候補にしない", queued('"origin":{"kind":"coordinator"}'), 1],
+    [
+      "origin.kind が task-notification の本文は候補にしない",
+      queued('"origin":{"kind":"task-notification"}'),
+      1,
+    ],
+    [
+      "prompt が配列の発話も候補にする",
+      '{"type":"attachment","attachment":{"type":"queued_command","commandMode":"prompt","origin":{"kind":"human"},"prompt":["違う、やり直してください"]}}',
+      0,
+    ],
+    [
+      "prompt が無いものは候補を出さない",
+      '{"type":"attachment","attachment":{"type":"queued_command","commandMode":"image","origin":{"kind":"human"},"content":"違う、やり直してください"}}',
+      1,
+    ],
+    [
+      "commandMode が prompt でも prompt が無いものは候補を出さない",
+      '{"type":"attachment","attachment":{"type":"queued_command","commandMode":"prompt","origin":{"kind":"human"},"content":"違う、やり直してください"}}',
+      1,
+    ],
+    // 読み飛ばす集合に当たるレコードは本文を読まないので、他のフィールドの型が違っても判定不能にしない。
+    [
+      "task-notification は prompt の型が違っても読み飛ばす",
+      '{"type":"attachment","attachment":{"type":"queued_command","commandMode":"task-notification","prompt":{"text":"違う、やり直してください"}}}',
+      1,
+    ],
+    [
+      "task-notification は origin がオブジェクトでなくても読み飛ばす",
+      queued('"commandMode":"task-notification","origin":"x"'),
+      1,
+    ],
+    [
+      "サブエージェントの報告は prompt の型が違っても読み飛ばす",
+      '{"type":"attachment","attachment":{"type":"queued_command","commandMode":"prompt","origin":{"kind":"peer"},"prompt":{"text":"違う、やり直してください"}}}',
+      1,
+    ],
+    [
+      "注入した本文は origin がオブジェクトでなくても読み飛ばす",
+      queued('"commandMode":"prompt","origin":"x","isMeta":true'),
+      1,
+    ],
+    [
+      "commandMode が文字列でないものは判定不能",
+      queued('"commandMode":1,"origin":{"kind":"human"}'),
+      2,
+    ],
+    [
+      "origin.kind が文字列でないものは判定不能",
+      queued('"commandMode":"prompt","origin":{"kind":{"name":"peer"}}'),
+      2,
+    ],
+    [
+      "prompt が文字列でも配列でもないものは判定不能",
+      '{"type":"attachment","attachment":{"type":"queued_command","commandMode":"prompt","origin":{"kind":"human"},"prompt":{"text":"違う、やり直してください"}}}',
+      2,
+    ],
+    [
+      // 配列の要素の text がオブジェクトだと、本文を連結するところで jq が実行時のエラーを出す。
+      "prompt の要素の text が文字列でないものは判定不能",
+      '{"type":"attachment","attachment":{"type":"queued_command","commandMode":"prompt","origin":{"kind":"human"},"prompt":[{"type":"text","text":{"value":"違う、やり直してください"}}]}}',
+      2,
+    ],
+    [
+      "isMeta が真偽値でないものは判定不能",
+      queued('"commandMode":"prompt","origin":{"kind":"human"},"isMeta":"true"'),
+      2,
+    ],
+    [
+      "最上位の isMeta が真偽値でないものは判定不能",
+      '{"type":"attachment","isMeta":"true","attachment":{"type":"queued_command","commandMode":"prompt","origin":{"kind":"human"},"prompt":"違う、やり直してください"}}',
+      2,
+    ],
+    [
+      "origin がオブジェクトでないものは判定不能",
+      queued('"commandMode":"prompt","origin":"human"'),
+      2,
+    ],
+  ])("%s", async (_label, record, expectedStatus) => {
+    const cwd = makeProject();
+    const transcript = join(cwd, "t.jsonl");
+    writeFileSync(transcript, `${assistantWorking}\n${record}\n${assistantWorking}\n`);
+    const scan = await runScript(
+      "kaizen-candidate-scan.sh",
+      [transcript, join(cwd, "no-checkpoint")],
+      {
+        cwd,
+      },
+    );
+
+    expect(scan.status).toBe(expectedStatus);
+    if (expectedStatus === 0) expect(scan.stdout).toMatch(/^user correction: transcript line 2$/m);
+  });
+
+  // 型を確かめずに `.type` を参照すると、jq が実行時のエラーを出し、走査は判定不能（exit 2）になる。
+  test("attachment がオブジェクトでないものは読み飛ばす（jq のエラーにしない）", async () => {
+    const cwd = makeProject();
+    const transcript = join(cwd, "t.jsonl");
+    writeFileSync(transcript, `${assistantWorking}\n{"type":"attachment","attachment":"x"}\n`);
+    const scan = await runScript(
+      "kaizen-candidate-scan.sh",
+      [transcript, join(cwd, "no-checkpoint")],
+      {
+        cwd,
+      },
+    );
+
+    expect(scan.status).toBe(1);
+  });
+});
+
+// jq は途中の行で出た実行時のエラーを終了コードに出さず、その行の残りの出力を捨てて次の行へ進む。
+// 判定でエラーになったレコードを、本文を読まないまま検証済みゼロにしないことを、途中の行に置いて確かめる。
+describe.concurrent("jq の実行時のエラー", () => {
+  const assistantWorking =
+    '{"type":"assistant","message":{"content":[{"type":"text","text":"作業しています"}]}}';
+  test.each([
+    ["オブジェクトでない JSON の行は判定不能", '"違う、やり直してください"'],
+    [
+      "user レコードの text が文字列でないものは判定不能",
+      '{"type":"user","message":{"content":[{"type":"text","text":{"value":"違う、やり直してください"}}]}}',
+    ],
+  ])("%s", async (_label, record) => {
+    const cwd = makeProject();
+    const transcript = join(cwd, "t.jsonl");
+    writeFileSync(transcript, `${assistantWorking}\n${record}\n${assistantWorking}\n`);
+    const scan = await runScript(
+      "kaizen-candidate-scan.sh",
+      [transcript, join(cwd, "no-checkpoint")],
+      { cwd },
+    );
+
+    expect(scan.status).toBe(2);
+    expect(scan.stderr).toMatch(/unsupported or malformed record \(first at transcript line 2\)$/m);
+    // jq のエラーの本文はレコードの値を含むので、transcript の本文を 1 文字も出さない。
+    expect(scan.stderr).not.toMatch(/違う/);
+  });
+
+  // 型の判定で判定不能にしたレコードも、jq のエラーと同じように最初の行の番号を出す。
+  test("型の判定で判定不能にしたレコードも、最初の行の番号を出す", async () => {
+    const cwd = makeProject();
+    const transcript = join(cwd, "t.jsonl");
+    const record =
+      '{"type":"attachment","attachment":{"type":"queued_command","commandMode":"prompt","isMeta":"true","prompt":"違う、やり直してください"}}';
+    writeFileSync(transcript, `${assistantWorking}\n${record}\n${assistantWorking}\n`);
+    const scan = await runScript(
+      "kaizen-candidate-scan.sh",
+      [transcript, join(cwd, "no-checkpoint")],
+      { cwd },
+    );
+
+    expect(scan.status).toBe(2);
+    expect(scan.stderr).toMatch(/unsupported or malformed record \(first at transcript line 2\)$/m);
+    expect(scan.stderr).not.toMatch(/違う/);
+  });
+});
+
 // Claude Code はスキルの本文などを `type: "user"`・`isMeta: true` のレコードで注入する。
 // 本文の修正語で実在しない user correction を出さないことと、`isMeta` が無い・false の
 // 本物の発話は引き続き候補になることを、同じ修正語を持つ fixture の対で確かめる。
@@ -1123,6 +1466,50 @@ describe.concurrent("チェックの commit 検出", () => {
     ['echo "$(printf %s \'case x in\')" "; git commit -m x"', 0],
     // `for .. in` は `case` を持たないので当たらない。
     ['echo "$(for i in 1 2; do echo $i; done)"', 0],
+    // Claude Code が `if` の照合の前に取り除くラッパー（timeout・time・nice・nohup・stdbuf・command・builtin）と
+    // exec・パスを付けた git（Issue #678）。ラッパーの種類 × 値を取るオプションと引数 × 連なり × パス付きの git。
+    ["timeout 60 git commit -m x", 2],
+    ["timeout -s KILL 60 git commit -m x", 2],
+    ["nice -n 5 git commit -m x", 2],
+    ["stdbuf -oL git commit -m x", 2],
+    ["stdbuf -o L git commit -m x", 2],
+    ["builtin git commit -m x", 2],
+    ["exec git commit -m x", 2],
+    ["nohup nice -n 5 timeout 60 git commit -m x", 2],
+    ["/usr/bin/git commit -m x", 2],
+    ["timeout 60 /usr/bin/git commit -m x", 2],
+    ["/usr/bin/git -C {P} commit -m x", 2],
+    ["cd /tmp && stdbuf -oL git commit -m x", 2],
+    ["sudo -u alice git commit -m x", 2],
+    // 置換の始まり（`(`・バッククォート）は読み飛ばさないが、`{}` と置換の後ろの git は読む。
+    ["xargs -I{} git commit -m {}", 2],
+    ["timeout $(cat t) git commit -m x", 2],
+    // 変数の展開（`$T`・`${T}`・`$1`）は、関数置換と違ってラッパーの引数として読み飛ばす。
+    ["timeout $T git commit -m x", 2],
+    ["timeout ${T} git commit -m x", 2],
+    ["timeout $1 git commit -m x", 2],
+    // ラッパーの引数そのものが置換の形（引用符で囲んだもの・関数置換）でも、後ろの git commit を読む。
+    ['sudo -u "$(id -un)" git commit -m x', 2],
+    ['sudo -u "`id -un`" git commit -m x', 2],
+    ['env A="$(date)" git commit -m x', 2],
+    ['env "A=$(date)" git commit -m x', 2],
+    ['nice -n "$(echo 5)" git commit -m x', 2],
+    ['timeout "$(cat t)" git commit -m x', 2],
+    ["env ${ true; } git commit -m x", 2],
+    // 同じラッパーとパスの形で、commit を実行しないもの（止めすぎの回帰）。
+    ["timeout 60 git commit-tree abc", 0],
+    ["timeout 60 git log --grep commit", 0],
+    ["echo timeout git commit", 0],
+    ["nice -n 5 git status", 0],
+    ["stdbuf -oL git log commit", 0],
+    ["builtin echo 'git commit'", 0],
+    ["echo exec git commit", 0],
+    ["exec git log commit", 0],
+    ["/usr/bin/git log commit", 0],
+    ["/usr/bin/gitk commit", 0],
+    ["echo /usr/bin/git commit", 0],
+    ["timeout 60 git commit-graph write", 0],
+    ["stdbuf -oL echo 'git commit'", 0],
   ];
 
   test.each(cases)("%s => exit %i", async (command, expected) => {
@@ -1188,6 +1575,70 @@ describe.concurrent("コミット先のスコープ判定", () => {
     expect((await runGate(command, { cwd })).status).toBe(0);
   });
 
+  // パスを付けた git とラッパーの後ろでも、コミット先を読む（Issue #678。下の blocked に同形の対がある）。
+  // テストの名前には、フィクスチャのパス（pid を含む）ではなく形の名前を入れる。
+  // ミューテーションテストの定義が、名前でこのテストを指すためである。
+  test.each([
+    ["パスを付けた git", `/usr/bin/git -C ${FIXTURE} commit -m x`],
+    ["timeout の後ろの git", `timeout 60 git -C ${FIXTURE} commit -m x`],
+    // 作業ディレクトリを変えるラッパーでも、git -C が絶対パスなら基準に依存しない。
+    ["env -C の後ろの絶対パスの git -C", `env -C ${tmpdir()} git -C ${FIXTURE} commit -m x`],
+  ])("外部宛て（%s）=> exit 0", async (_name, command) => {
+    const cwd = makeProject();
+    writeFileSync(join(cwd, ".kaizen", ".pending-extract"), "");
+    expect((await runGate(command, { cwd })).status).toBe(0);
+  });
+
+  // ラッパーの後ろの語の読み飛ばしは、区切りとコマンド置換・プロセス置換の始まりを越えない。
+  // 越えると 1 件目の外部宛てだけを読み、2 件目のプロジェクト宛ての commit を通す。
+  test.each([
+    ["timeout と &&", `timeout 60 git -C ${FIXTURE} commit -m a && git commit -m b`],
+    ["nice と ;", `nice git -C ${FIXTURE} commit -m a; git commit -m b`],
+    ["sudo -u と ||", `sudo -u x git -C ${FIXTURE} commit -m a || git commit -m b`],
+    ["nice と改行", `nice git -C ${FIXTURE} commit -m a\ngit commit -m b`],
+    ["timeout と引用符の中の $(", `timeout 60 git -C ${FIXTURE} commit -m "$( git commit -m b)"`],
+    ["timeout と引用符の無い $(", `timeout 60 git -C ${FIXTURE} commit -m $( git commit -m b)`],
+    // バッククォートの直後に空白が無い形（`` `git commit` ``）は、修正の前から別の一致で止まる。
+    ["stdbuf とバッククォート", `stdbuf -oL git -C ${FIXTURE} commit -m a\` git commit -m b\``],
+    ["timeout と <(", `timeout 60 git -C ${FIXTURE} commit -F <( git commit -m b)`],
+    [
+      "timeout と関数置換 ${ と空白",
+      `timeout 60 git -C ${FIXTURE} commit -m \${ git commit -m b; }`,
+    ],
+    [
+      "timeout と関数置換 ${ とタブ",
+      `timeout 60 git -C ${FIXTURE} commit -m \${\tgit commit -m b; }`,
+    ],
+  ])(
+    "ラッパーの後ろの外部宛ての後に続くプロジェクト宛て（%s）=> exit 2",
+    async (_name, command) => {
+      const cwd = makeProject();
+      writeFileSync(join(cwd, ".kaizen", ".pending-extract"), "");
+      expect((await runGate(command, { cwd })).status).toBe(2);
+    },
+  );
+
+  // ラッパーの引数の置換の中にあるプロジェクト宛ての commit は、外側の一致の中にある。
+  // 一致を探し直す位置が外側の一致の終わりだと、外側の `-C <外部>` だけを読んで通す。
+  test.each([
+    ["timeout の引数の $( の中", `timeout "$( git commit -m b)" git -C ${FIXTURE} commit -m a`],
+    ["env の引数の関数置換の中", `env \${ git commit -m b; } git -C ${FIXTURE} commit -m a`],
+  ])("ラッパーの引数の置換の中のプロジェクト宛て（%s）=> exit 2", async (_name, command) => {
+    const cwd = makeProject();
+    writeFileSync(join(cwd, ".kaizen", ".pending-extract"), "");
+    expect((await runGate(command, { cwd })).status).toBe(2);
+  });
+
+  // 置換を引数に持つラッパーの後ろでも、外部宛てだけの commit は通す（止めすぎの回帰）。
+  test.each([
+    ["sudo -u と $(", `sudo -u "$(id -un)" git -C ${FIXTURE} commit -m x`],
+    ["timeout と関数置換", `timeout \${ echo 5; } git -C ${FIXTURE} commit -m x`],
+  ])("置換を引数に持つラッパーの後ろの外部宛て（%s）=> exit 0", async (_name, command) => {
+    const cwd = makeProject();
+    writeFileSync(join(cwd, ".kaizen", ".pending-extract"), "");
+    expect((await runGate(command, { cwd })).status).toBe(0);
+  });
+
   const blocked = [
     // コミット先を指定しない＝コマンド行からは決まらない（従来どおりブロック）。
     "git commit -m x",
@@ -1232,6 +1683,12 @@ describe.concurrent("コミット先のスコープ判定", () => {
     `git -c user.name=A*B -C ${FIXTURE} commit -m a && git commit -m b`,
     `git -c user.name=A?B -C ${FIXTURE} commit -m a && git commit -m b`,
     `git -c user.name=A[b]B -C ${FIXTURE} commit -m a && git commit -m b`,
+    // 上の external のパス付きの git・ラッパーの形と同形で、プロジェクトを指すもの。
+    "/usr/bin/git -C {P} commit -m x",
+    "timeout 60 git -C {P} commit -m x",
+    // ラッパーが作業ディレクトリを変えると、git -C の相対パスの基準は Hook の cwd と一致しない（判定不能）。
+    "env -C {P}/sub git -C .. commit -m x",
+    "env --chdir={P}/sub git -C .. commit -m x",
   ];
 
   test.each(blocked)("プロジェクト宛て・判定不能: %s => exit 2", async (command) => {
@@ -1378,6 +1835,15 @@ describe.concurrent("生 JSON だけで判定するときの commit 検出", () 
     ["cd /tmp && git --no-pager grep commit", 0],
     ["git --no-pager log commit", 0],
     ["git help commit", 0],
+    // ラッパーとパス付きの git（Issue #678）。構造化した入力を読む処理と同じ結論になること。
+    ["timeout 60 git commit -m x", 2],
+    ["cd /tmp && stdbuf -oL git commit -m x", 2],
+    ["exec git commit -m x", 2],
+    ["/usr/bin/git commit -m x", 2],
+    ["timeout 60 git log --grep commit", 0],
+    ["echo exec git commit", 0],
+    ["/usr/bin/gitk commit", 0],
+    ["nice -n 5 git status; echo commit", 0],
   ];
 
   test.each(cases)("生 JSON: %s => exit %i", async (command, expected) => {
@@ -1392,6 +1858,142 @@ describe.concurrent("生 JSON だけで判定するときの commit 検出", () 
       expect(result.stderr).not.toMatch(/unavailable|command not found/);
       expect(result.stderr).toContain("kaizen --current");
     }
+  });
+});
+
+// 事前の絞り込みは、Hook の入力のうちツールの名前と入力（`tool_name`・`tool_input`・Copilot の `toolArgs`）だけを見る（Issue #678）。
+// 入力の全体を見ると、パスに `git` と `commit` を含む worktree の中のセッションでは、`cwd`・`transcript_path` の語で
+// すべての呼び出しが次の段（jq / python3 / git rev-parse）に進む。終了コードはどちらも 0 なので、
+// jq・python3・git を、起動を記録してから実体を実行するスクリプトに差し替えて、起動したかで確かめる。
+describe.concurrent("事前の絞り込みはツールの名前と入力だけを見る", () => {
+  function makeTracingPath(trace: string) {
+    const dir = tempDir("kaizen-trace-");
+    for (const tool of ["jq", "python3", "git"]) {
+      const real = spawnSync("bash", ["-c", `command -v ${tool}`], {
+        timeout: CHILD_TIMEOUT_MS,
+        encoding: "utf8",
+      }).stdout.trim();
+      assert(real !== "", `${tool} が PATH に無い`);
+      writeFileSync(
+        join(dir, tool),
+        `#!/bin/sh\necho "${tool} $1" >>"${trace}"\nexec "${real}" "$@"\n`,
+      );
+      chmodSync(join(dir, tool), 0o755);
+    }
+    return dir;
+  }
+
+  async function runWithTrace(payload: string) {
+    const cwd = makeProject();
+    writeFileSync(join(cwd, ".kaizen", ".pending-extract"), "");
+    const trace = join(cwd, "trace");
+    const input = payload.replaceAll("{P}", cwd);
+    const result = await spawnAsync("bash", [join(scriptsDir, "kaizen-precommit-gate.sh")], {
+      timeout: CHILD_TIMEOUT_MS,
+      cwd,
+      input,
+      env: kaizenEnv(cwd, {
+        CLAUDE_PROJECT_DIR: cwd,
+        PATH: `${makeTracingPath(trace)}:${dirname(process.execPath)}:${process.env.PATH ?? ""}`,
+      }),
+    });
+    const lines = existsSync(trace) ? readFileSync(trace, "utf8").trim().split("\n") : [];
+    return { status: result.status, stderr: result.stderr, lines };
+  }
+
+  const wordyCwd = JSON.stringify("/home/u/repo/.claude/worktrees/git-commit-fix");
+  const wordyTranscript = JSON.stringify("/home/u/.claude/projects/git-commit/s.jsonl");
+
+  // 次の段に進まないもの。語は cwd か transcript_path の値にだけある。
+  const stopped: [string, string][] = [
+    [
+      "cwd だけに語がある",
+      `{"session_id":"s","cwd":${wordyCwd},"tool_name":"Bash","tool_input":{"command":"ls -la"}}`,
+    ],
+    [
+      "transcript_path だけに語がある",
+      `{"session_id":"s","transcript_path":${wordyTranscript},"tool_name":"Bash","tool_input":{"command":"ls -la"}}`,
+    ],
+    [
+      "cwd と transcript_path の両方に語がある",
+      `{"session_id":"s","transcript_path":${wordyTranscript},"cwd":${wordyCwd},"tool_name":"Bash","tool_input":{"command":"git status","description":"commit の前に確かめる"}}`,
+    ],
+    [
+      "Copilot の toolArgs（JSON の文字列）",
+      `{"cwd":${wordyCwd},"toolName":"bash","toolArgs":${JSON.stringify(JSON.stringify({ command: "ls -la" }))}}`,
+    ],
+  ];
+
+  test.each(stopped)("%s: jq・python3・git を起動せずに通す", async (_name, payload) => {
+    const { status, lines } = await runWithTrace(payload);
+    expect(status).toBe(0);
+    expect(lines).toEqual([]);
+  });
+
+  // 次の段に進むもの（上と同じ cwd・transcript_path を持つ）。
+  test("コマンドに語があれば次の段に進み、commit でなければ jq を 1 回だけ起動して通す", async () => {
+    const { status, lines } = await runWithTrace(
+      `{"session_id":"s","transcript_path":${wordyTranscript},"cwd":${wordyCwd},"tool_name":"Bash","tool_input":{"command":"git log --grep commit"}}`,
+    );
+    expect(status).toBe(0);
+    // transcript_path・session_id・cwd の取り出しと git rev-parse は、commit と判定した後に行う。
+    expect(lines).toEqual(["jq -r"]);
+  });
+
+  // 外部宛ての commit は、一致ごとにコミット先を判定する（commit_target_is_external）。一致を探し直す位置を
+  // 1 文字ずつずらすと、代入やパスを前に付けた形が語の途中から何度も一致し、そのたびに判定する
+  // （Issue #678 の PR #716 で 15〜33 回。実測）。呼んだ回数は `bash -x` のトレースで数える。
+  test("代入やパスを前に付けた外部宛ての commit も、コミット先を 1 回だけ判定する", async () => {
+    const ext = tempDir("kaizen-gate-ext-");
+    spawnSync("git", ["init", "-q", ext], { timeout: CHILD_TIMEOUT_MS });
+    const judgeCalls = async (command: string) => {
+      const cwd = makeProject();
+      writeFileSync(join(cwd, ".kaizen", ".pending-extract"), "");
+      const result = await spawnAsync(
+        "bash",
+        ["-x", join(scriptsDir, "kaizen-precommit-gate.sh")],
+        {
+          timeout: CHILD_TIMEOUT_MS,
+          cwd,
+          input: JSON.stringify({ cwd, tool_name: "Bash", tool_input: { command } }),
+          // カバレッジの実行は BASH_ENV で xtrace の出力先と形式を変えるので、この子プロセスでは読ませない
+          env: kaizenEnv(cwd, { CLAUDE_PROJECT_DIR: cwd, BASH_ENV: undefined, PS4: "+ " }),
+        },
+      );
+      expect(result.status, command).toBe(0);
+      return result.stderr
+        .split("\n")
+        .filter((line) => /^\++ commit_target_is_external /.test(line)).length;
+    };
+    expect(await judgeCalls(`git -C ${ext} commit -m x`)).toBe(1);
+    expect(
+      await judgeCalls(`GIT_AUTHOR_NAME=a GIT_COMMITTER_NAME=b git -C ${ext} commit -m x`),
+    ).toBe(1);
+    expect(await judgeCalls(`/home/u/.local/share/bin/git -C ${ext} commit -m x`)).toBe(1);
+  });
+
+  test("Copilot の toolArgs の中の git commit は、cwd に語があっても止める", async () => {
+    const { status, lines, stderr } = await runWithTrace(
+      `{"cwd":"{P}","toolName":"bash","toolArgs":${JSON.stringify(JSON.stringify({ command: "git commit -m x" }))}}`,
+    );
+    expect(status).toBe(2);
+    expect(stderr).toContain("kaizen --current");
+    expect(lines).toContain("jq -r");
+  });
+
+  // JSON はキーも `\u` で書ける。絞り込みはそのキーを見つけられないが、jq はコマンドとして読む。
+  test("\\u を含む入力は、入力の全体で判定する", async () => {
+    const { status, lines } = await runWithTrace(
+      `{"cwd":"{P}","tool_name":"Bash","tool_input":{"comm\\u0061nd":"git commit -m x"}}`,
+    );
+    expect(status).toBe(2);
+    expect(lines).toContain("jq -r");
+  });
+
+  test("対象のキーが無い入力は、入力の全体で判定する", async () => {
+    const { status, lines } = await runWithTrace(`{"cwd":${wordyCwd},"other":"x"}`);
+    expect(status).toBe(0);
+    expect(lines).toContain("jq -r");
   });
 });
 

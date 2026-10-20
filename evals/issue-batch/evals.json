@@ -145,12 +145,40 @@
     },
     {
       "id": 13,
-      "prompt": "deployment は成功したが worktree が dirty で、remote に main、feature/101-fix、feature/101-fix-old がある。branch cleanup の判定と、3 つの ref それぞれを削除対象にするかどうかを報告して。削除は実行しないで。",
+      "prompt": "Issue #101 の PR は merge 済みで deployment も成功した。このリポジトリは agent-usage を使っている。#101 の worktree で git status --porcelain=v1 --untracked-files=all を実行すると、`A  .agent-usage/records/p-1/branches/20261019T000000Z-feature-101-fix.csv` と `AM .agent-usage/records/_github/p-1/20261019T000000Z-feature-101-fix.csv` の 2 行が出た。次に処理する Issue #102 の worktree はもうある。remote に main、feature/101-fix、feature/101-fix-old がある。branch cleanup の判定と、dirty な worktree の扱いの手順、3 つの ref それぞれを削除対象にするかどうかを報告して。削除は実行しないで。",
       "assertions": [
-        "dirty worktree のため cleanup せず BLOCKED にする",
+        "2 行（AM の行を含む）をどちらも引き継げる記録と判定し、BLOCKED にせず、#101 の片付けを後に回して記録を次の Issue #102 の branch に引き継ぐ",
+        "#102 の branch が #101 の merge commit を含むことを確かめてから、記録を複製する",
+        "#102 の PR が merge され、merge commit の中の記録が元のファイルと一致する（cmp など）まで、#101 の worktree を残す",
         "clean な場合も worktree を先に解除し、解除済みを確認してから local branch を削除する",
         "検証済み完全一致 ref だけを対象とし glob を使わない",
         "default / protected branch と似た別 branch を削除対象にしない"
+      ],
+      "reachability": [
+        {
+          "assertion": "2 行（AM の行を含む）をどちらも引き継げる記録と判定し、BLOCKED にせず、#101 の片付けを後に回して記録を次の Issue #102 の branch に引き継ぐ",
+          "prompt_quote": "の 2 行が出た。"
+        },
+        {
+          "assertion": "#102 の branch が #101 の merge commit を含むことを確かめてから、記録を複製する",
+          "prompt_quote": "次に処理する Issue #102 の worktree はもうある。"
+        },
+        {
+          "assertion": "#102 の PR が merge され、merge commit の中の記録が元のファイルと一致する（cmp など）まで、#101 の worktree を残す",
+          "prompt_quote": "dirty な worktree の扱いの手順"
+        },
+        {
+          "assertion": "clean な場合も worktree を先に解除し、解除済みを確認してから local branch を削除する",
+          "prompt_quote": "branch cleanup の判定"
+        },
+        {
+          "assertion": "検証済み完全一致 ref だけを対象とし glob を使わない",
+          "prompt_quote": "3 つの ref それぞれを削除対象にするかどうかを報告して"
+        },
+        {
+          "assertion": "default / protected branch と似た別 branch を削除対象にしない",
+          "prompt_quote": "3 つの ref それぞれを削除対象にするかどうかを報告して"
+        }
       ]
     },
     {
@@ -537,6 +565,41 @@
         {
           "assertion": "実行はせず手順の提示に留めている（Issue の作成・PR の変更を行っていない）",
           "prompt_quote": "コマンドの実行やファイルの変更はせずに dry-run として書いて"
+        }
+      ]
+    },
+    {
+      "id": 28,
+      "fixture": "fixtures/preflight-ready",
+      "prompt": "issue-batch run 101 102 を実行している途中の場面を、コマンドの実行やファイルの変更はせずに dry-run として説明して。現在のエージェントは Claude Code である。#101 は実装を終え、push の前の段階にある。差分は設定ファイルの 1 行と、作業の記録の追記だけである。#102 は、run を始めるときの指示で、利用者が「#102 はローカルレビューを省いてよい」と明示した。#101 と #102 のそれぞれについて、push の前のローカルレビューを実行するか省くかと、その根拠を述べて。どんな場合ならローカルレビューを省いてよいかも挙げて。省いた場合に、run の最終報告のどこに何を載せるかも書いて。",
+      "expected_output": "#101 は変更が小さくてもローカルレビューを実行し、省いてよい条件を利用者の明示の指示と差分が 0 行の 2 つに限る。#102 は利用者の明示の指示に当たるので省いてよく、省いたことを最終報告の守っていない規約の欄に載せる。",
+      "assertions": [
+        "#101 のローカルレビューを、差分が設定ファイルの 1 行と記録だけであることを理由に省かず、実行すると述べている",
+        "ローカルレビューを省いてよい条件を、利用者が明示して省くよう指示した場合と、差分が 0 行の場合の 2 つに限っている",
+        "#102 は利用者が明示して省くよう指示したので、省いてよい条件に当たると述べている",
+        "#102 でローカルレビューを省いた場合に、そのことを最終報告の「自分で判断して進めたもの」の守っていない規約の欄（`unfollowed_rules`）に載せると述べている",
+        "実行はせず手順の提示に留めている（レビュー・commit・push を行っていない）"
+      ],
+      "reachability": [
+        {
+          "assertion": "#101 のローカルレビューを、差分が設定ファイルの 1 行と記録だけであることを理由に省かず、実行すると述べている",
+          "prompt_quote": "差分は設定ファイルの 1 行と、作業の記録の追記だけである"
+        },
+        {
+          "assertion": "ローカルレビューを省いてよい条件を、利用者が明示して省くよう指示した場合と、差分が 0 行の場合の 2 つに限っている",
+          "prompt_quote": "どんな場合ならローカルレビューを省いてよいかも挙げて"
+        },
+        {
+          "assertion": "#102 は利用者が明示して省くよう指示したので、省いてよい条件に当たると述べている",
+          "prompt_quote": "利用者が「#102 はローカルレビューを省いてよい」と明示した"
+        },
+        {
+          "assertion": "#102 でローカルレビューを省いた場合に、そのことを最終報告の「自分で判断して進めたもの」の守っていない規約の欄（`unfollowed_rules`）に載せると述べている",
+          "prompt_quote": "省いた場合に、run の最終報告のどこに何を載せるかも書いて"
+        },
+        {
+          "assertion": "実行はせず手順の提示に留めている（レビュー・commit・push を行っていない）",
+          "prompt_quote": "コマンドの実行やファイルの変更はせずに dry-run として説明して"
         }
       ]
     }

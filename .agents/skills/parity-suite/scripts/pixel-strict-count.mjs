@@ -16,6 +16,7 @@
 
 import { readFileSync } from "node:fs";
 import { isCliEntry } from "./lib/cli.mjs";
+import { errorMessage } from "./lib/errors.mjs";
 
 /**
  * ツールのバージョン（原本）。計数規則・出力形状を変えたら上げる。
@@ -184,7 +185,7 @@ export async function main(argv) {
     second = PNG.sync.read(readFileSync(positionals[1]));
     if (diffPath) diff = PNG.sync.read(readFileSync(diffPath));
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = errorMessage(err);
     process.stderr.write(`error: cannot read PNG inputs: ${message}\n`);
     return 2;
   }
@@ -211,7 +212,7 @@ if (isCliEntry(import.meta.url)) {
   main(process.argv.slice(2))
     .then((code) => process.exit(code))
     .catch((err) => {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = errorMessage(err);
       process.stderr.write(`error: ${message}\n`);
       process.exit(2);
     });

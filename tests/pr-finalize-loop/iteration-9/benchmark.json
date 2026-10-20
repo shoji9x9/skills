@@ -1,0 +1,169 @@
+{
+  "metadata": {
+    "skill_name": "pr-finalize-loop",
+    "skill_path": "<repo>/skills/pr-finalize-loop",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-19T12:30:59Z",
+    "evals_run": [22],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 22,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 43.946,
+        "tokens": 92618,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "スレッド A を判断待ちにせず、推奨の案で直すか見送り、選んだ案と根拠を返信に書いて解決すると述べている",
+          "passed": true,
+          "evidence": "スレッド A は影響が小さく後で変えられるので判断待ちにせず、推奨の案を選んで、選んだ案と根拠を返信してから解決するとした。"
+        },
+        {
+          "text": "スレッド B は直さず解決もせず、判断待ちの印（<!-- pr-finalize-loop:deferred -->）を付けた返信を残すと述べている",
+          "passed": true,
+          "evidence": "スレッド B は直さず解決もせず、<!-- pr-finalize-loop:deferred --> で始まる返信を残すとした。"
+        },
+        {
+          "text": "判断待ちにするかを、利用者への影響の大きさと、merge の後に覆せるかで分けたと述べている",
+          "passed": true,
+          "evidence": "判断待ちにするかを、利用者への影響の大きさと、merge の後に別の Issue で変えられるかの 2 つの軸で決めるとした。"
+        },
+        {
+          "text": "5 回の反復の後、effort を medium に下げて 2 回反復すると述べている",
+          "passed": true,
+          "evidence": "high 5 回の後、medium に下げて 2 回（5 を半分にして切り下げ）反復するとした。"
+        },
+        {
+          "text": "medium の 2 回でも残れば、effort を low に下げて 1 回反復すると述べている",
+          "passed": true,
+          "evidence": "medium 2 回の後、low に下げて 1 回反復するとした。"
+        },
+        {
+          "text": "low の 1 回でも残れば、それより下げずに最大反復到達で止まると述べている",
+          "passed": true,
+          "evidence": "low より下が無いので、最大反復到達で止まるとした。"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "何も実行・変更していないと明記した。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 22,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4286,
+        "passed": 3,
+        "failed": 4,
+        "total": 7,
+        "time_seconds": 33.068,
+        "tokens": 41265,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "スレッド A を判断待ちにせず、推奨の案で直すか見送り、選んだ案と根拠を返信に書いて解決すると述べている",
+          "passed": true,
+          "evidence": "スレッド A を保留にせず、命名規則などで選んで理由を返信し、解決するとした。"
+        },
+        {
+          "text": "スレッド B は直さず解決もせず、判断待ちの印（<!-- pr-finalize-loop:deferred -->）を付けた返信を残すと述べている",
+          "passed": false,
+          "evidence": "スレッド B を保留リストに回すとしたが、判断待ちの印（目印のコメント）は書いていない。"
+        },
+        {
+          "text": "判断待ちにするかを、利用者への影響の大きさと、merge の後に覆せるかで分けたと述べている",
+          "passed": true,
+          "evidence": "影響の大きさと、後から戻せるかで分けるとした。"
+        },
+        {
+          "text": "5 回の反復の後、effort を medium に下げて 2 回反復すると述べている",
+          "passed": false,
+          "evidence": "5 回の後に effort を下げる手順は無く、指摘を仕分けて止まるとした。"
+        },
+        {
+          "text": "medium の 2 回でも残れば、effort を low に下げて 1 回反復すると述べている",
+          "passed": false,
+          "evidence": "low に下げて 1 回反復する手順は無い。"
+        },
+        {
+          "text": "low の 1 回でも残れば、それより下げずに最大反復到達で止まると述べている",
+          "passed": false,
+          "evidence": "最大反復到達で止まるとは書かず、マージできる状態で止まるとした。"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "コマンドの実行やファイルの変更はしていないと明記した。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 43.946,
+        "stddev": 0,
+        "min": 43.946,
+        "max": 43.946
+      },
+      "tokens": {
+        "mean": 92618,
+        "stddev": 0,
+        "min": 92618,
+        "max": 92618
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.4286,
+        "stddev": 0,
+        "min": 0.4286,
+        "max": 0.4286
+      },
+      "time_seconds": {
+        "mean": 33.068,
+        "stddev": 0,
+        "min": 33.068,
+        "max": 33.068
+      },
+      "tokens": {
+        "mean": 41265,
+        "stddev": 0,
+        "min": 41265,
+        "max": 41265
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.57",
+      "time_seconds": "+10.9",
+      "tokens": "+51353"
+    }
+  },
+  "notes": [
+    "変更確認の範囲（Issue #697 で足した eval 22 を with_skill と without_skill で 1 run ずつ）。1 run なので Delta の値は扱わず、差が残っているかだけを見る。"
+  ]
+}

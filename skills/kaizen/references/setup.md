@@ -187,8 +187,10 @@ Claude Code / Codex / Copilot のどれも、ツールの実行前に起動し�
 
 判定は、スキルに同梱した `kaizen-precommit-gate.sh` が行う。
 
-- Hook の入力の JSON 全体（`cwd`・`transcript_path` を含む）に、文字列 `git` と `commit` がこの順で現れず、行継続（`\` と改行）も無い呼び出しは、Bash の組み込みの事前の絞り込みだけで終わる。jq / python / git は起動しない。
-  現れれば（`grep -rn 'git commit' docs` など）、commit でなくても jq か python3 で入力を読み、`git rev-parse` でプロジェクトの直下を求めてから判定する。
+- 事前の絞り込みは、Hook の入力のうち、ツールの名前と入力（`tool_name`・`toolName`・`tool_input`・`toolArgs`・`input`・`command` の文字列の値）を見る。
+  そこに文字列 `git` と `commit` がこの順で現れず、行継続（`\` と改行）も無い呼び出しは、Bash の組み込みの照合だけで終わる。jq / python / git は起動しない。
+  `cwd`・`transcript_path` の値にだけ語がある呼び出し（パスに語を含む worktree の中のセッション）も、ここで終わる。入力が `\u` を含むときと、これらのキーが 1 つも無いときは、入力の全体で同じ照合をする。
+  現れれば（`grep -rn 'git commit' docs` など）、commit でなくても jq か python3 でコマンドを読んで判定する。`transcript_path` などの取り出しと、`git rev-parse` でプロジェクトの直下を求める処理は、commit と判定した後に行う。
 - commit のときだけ `kaizen-status-check.sh` を実行し、未抽出のセンチネルがあるときだけ `kaizen-candidate-scan.sh` が `transcript_path` の未処理の範囲を走査する。
 - 時間は、チェック全体で 1 つの締め切り（デフォルトは 8 秒）で区切る（後の「チェックの締め切りとフックの timeout」）。
 - 走査の結果は、`0` が候補あり、`1` が検証したうえで 0 件、`2` が不明である。`1` のときだけそのまま通し、候補あり・読めない形式・jq が無い・timeout のときは、exit code 2 と stderr で止める。
@@ -361,7 +363,10 @@ Claude Code 2.1.302 で、使い捨てのリポジトリに Hook を置いて測
 
 スクリプトはこの 2 つの形を止める（`git -C <dir> commit` は、`<dir>` がプロジェクトの中を指すときだけ止め、外を指すときは通す）。`bash -c "git commit …"` の中は引用の内側として読むので、`if` の有無に関わらず止めない。
 代わりに、すべての Bash の呼び出しでスクリプトが起動する。事前の絞り込みで終わるのは、この節（4-2）の最初の箇条に書いた条件の呼び出しだけである。
-スクリプトは、`timeout 60 git commit`・`stdbuf -oL git commit`・`exec git commit`・`/usr/bin/git commit` を commit と判定しないので、`if` の有無に関わらず止めない。
+スクリプトは、ラッパー（`timeout`・`time`・`nice`・`nohup`・`stdbuf`・`command`・`builtin`・`sudo`・`env`・`xargs`・`exec`）の後ろの `git commit` と、パスを付けた git（`/usr/bin/git commit`）も commit と判定して止める。
+ラッパーの後ろの語は、値を取るオプションかどうかを区別せずに読み飛ばす。そのため、引数に `git commit` と書いただけの呼び出し（`timeout 5 echo git commit`）も止める。読み飛ばすのは同じコマンドの中の語だけで、区切り（`;`・`&`・`|`・改行）は越えない。
+置換を含む引数（`sudo -u "$(id -un)"`・`env ${ true; }`）は 1 つの語として読み飛ばし、置換の中の `git commit` は別のコマンドとして判定する。
+ラッパーが作業ディレクトリを変える形（`env -C <dir>`・`sudo -D <dir>`）で `git -C` に相対パスを渡すと、`cd` と同じく判定できないとして止める。
 スクリプトは、引用の範囲を確定できない呼び出しでは、引用を外さずに元の文字列で判定する。確定できない入力には、`<<` の 2 文字があるもの（heredoc・here-string のほか、`$((1<<2))` や引用の中の `<<` も含む）、コマンド置換の中に `case … in` の構文があるもの、引用やコマンド置換（`$(`・バッククォート）が閉じていないもの、末尾が `\` のものなどがある。
 `jq` も `python3` も無い環境でも、Hook の入力の生の JSON を、引用を外さずに判定する。
 どちらの場合も、git を実行しない呼び出しで、引用の中の区切り（改行・`;`・`&`・`|` など）の後ろの `git commit` を commit として読む。そのため、`cat > f <<'EOF'` で本文の行頭に `git commit` がある手順書を書く呼び出しも、未抽出のセンチネルがあれば止める。

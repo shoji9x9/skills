@@ -49,6 +49,7 @@ import { isArray } from "./lib/is-array.mjs";
 
 import { pageForUrl, pageKey, resolvePages } from "./page-identity.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
+import { errorMessage } from "./lib/errors.mjs";
 import {
   isInteger,
   isPlaceholder,
@@ -611,7 +612,7 @@ export function specsFingerprint(owners, testIndex, rootDir, readFile) {
       contents.push([file, readFile(resolve(rootDir, file))]);
     } catch (e) {
       problems.push(
-        `スペック ${file} を一覧の rootDir（${rootDir}）から読めない（${e instanceof Error ? e.message : e}）`,
+        `スペック ${file} を一覧の rootDir（${rootDir}）から読めない（${errorMessage(e)}）`,
       );
     }
   }
@@ -1809,9 +1810,7 @@ function compilePatterns(patterns, patIds, label, problems) {
       // ファイル全体に照合するので、^ / $ が行頭・行末に一致するよう複数行モードにする（行ごとに照合していたときの意味を保つ）
       re = new RegExp(p.regex, "gm");
     } catch (e) {
-      throw new UsageError(
-        `${label}["${p.id}"]: regex が不正（${e instanceof Error ? e.message : e}）`,
-      );
+      throw new UsageError(`${label}["${p.id}"]: regex が不正（${errorMessage(e)}）`);
     }
     // 検出されることの確認: 実際の呼び出しの字面に一致しないパターンは、走査 0 件を「呼び出しが無い」と区別できない
     if (!nonEmptyString(p.example)) {
@@ -2129,7 +2128,7 @@ export function scanSources(root, paths, patterns, label = "feedback_calls.sourc
     try {
       visit(abs);
     } catch (e) {
-      throw new UsageError(`${label} を読めない: ${p}（${e instanceof Error ? e.message : e}）`);
+      throw new UsageError(`${label} を読めない: ${p}（${errorMessage(e)}）`);
     }
   }
   const unique = [...new Set(files)].sort();
@@ -2872,7 +2871,7 @@ export function readCoverageCaptures(metadata, pageNames, readFile, cwd) {
     return {
       captures: [],
       skipped: 0,
-      problem: `部品網羅表を読めない: ${decl.path}（${e instanceof Error ? e.message : e}。表をまたいだ撮る状態の使い回しを照合できない）`,
+      problem: `部品網羅表を読めない: ${decl.path}（${errorMessage(e)}。表をまたいだ撮る状態の使い回しを照合できない）`,
     };
   }
   const rows =
@@ -3020,9 +3019,7 @@ export function main(argv, deps = {}) {
       try {
         report = JSON.parse(readFile(resolve(cwd, testsPath)));
       } catch (e) {
-        throw new UsageError(
-          `--tests を JSON として読めない: ${testsPath}（${e instanceof Error ? e.message : e}）`,
-        );
+        throw new UsageError(`--tests を JSON として読めない: ${testsPath}（${errorMessage(e)}）`);
       }
       testIndex = indexTestList(report);
       // indexTestList がオブジェクトでない report を落とすので、isPlainObject(report) は常に成り立つ（型を絞るために書く）
@@ -3047,9 +3044,7 @@ export function main(argv, deps = {}) {
       table = JSON.parse(readFile(tablePath));
     } catch (e) {
       out({ judged: true, reason: null, ok: false, unmeasured_operations: null });
-      stderr(
-        `error: 反応の網羅表を読めない: ${decl.path}（${e instanceof Error ? e.message : e}）\n`,
-      );
+      stderr(`error: 反応の網羅表を読めない: ${decl.path}（${errorMessage(e)}）\n`);
       return 1;
     }
     // declared: true の照合は撮影状態・slug・target を必須にする（欠落を照合のスキップとして扱うと、存在しない状態名や取り違えた表が通る）
@@ -3147,7 +3142,7 @@ export function main(argv, deps = {}) {
     }
     return ok ? 0 : 1;
   } catch (e) {
-    stderr(`error: ${e instanceof Error ? e.message : e}\n${usage}\n`);
+    stderr(`error: ${errorMessage(e)}\n${usage}\n`);
     return 2;
   }
 }

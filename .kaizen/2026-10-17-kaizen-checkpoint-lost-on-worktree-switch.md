@@ -29,6 +29,14 @@ transcript は `-issue-662/` から `-issue-651/` の projects のディレク�
 2026-10-19、issue-batch の run で、#710 の worktree から #701 の worktree へ戻ったときにも同じことが起きた。
 処理位置は #710 の worktree にあり、`-710-kaizen-scan-api-request-blob/` の transcript を指していたので、走査ツールは先頭から読んで 42 件の候補を挙げた。
 上の #651 のときと同じく、1 行目を今の transcript のパスに書き換えた複製を #701 の worktree に置くと、候補は 2 件になった。
+2026-10-20、BLOCKED になった PR を順に仕上げる作業で、main のチェックアウトから #715 の worktree へ移ったときにも起きた。
+main で立ったセンチネルは `-home-shoji9x9-projects-skills/` の transcript を指したままで、チェックは「transcript が実在しない」と案内した。
+transcript は `-home-shoji9x9-projects-skills--claude-worktrees-697-defer-decisions-by-impact/` に移っており、処理位置も無いので、走査は先頭から候補を挙げた。
+移った後のパスを `find ~/.claude/projects -name '<session id>*'` で探し、そのパスで `kaizen-extract-done.sh` を実行して解消した。
+続けて PR #718 の worktree へ移った後も、同じ形で起きる。
+PR #722 の worktree へ移った後の最初の commit でも、処理位置が #718 の worktree と一緒に消えていたので、走査は transcript の先頭から 37 件の候補を挙げて止めた。
+PR #720 の worktree でも同じく、最初の `git commit` で先頭から 42 件を挙げて止めた（`git merge` の merge commit は、`git commit` の語を含まないのでチェックを通った）。
+同じ日のうちに PR #714・#721・#713 の worktree でも同じく止まった。移るたびに起きるので、run で Issue を 1 つ進めるごとに、最初の commit で 1 回止まる。
 
 ## 根本原因
 

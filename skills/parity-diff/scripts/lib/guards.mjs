@@ -16,6 +16,16 @@ function isPlainObject(v) {
 }
 // is-plain-object-js:end
 
+/**
+ * null でないオブジェクト（配列を含む）か。プロパティを読む前の型の絞り込みに使う。
+ * 配列の名前付きの欄は読むと undefined なので、Record として読んでよい。配列を除く isPlainObject とは別の名前にする。
+ * @param {unknown} v
+ * @returns {v is Record<string, unknown>}
+ */
+function isObjectLike(v) {
+  return typeof v === "object" && v !== null;
+}
+
 // non-empty-string-js:begin
 /**
  * 空でない文字列か（空白だけの文字列は空として扱う）。
@@ -27,4 +37,4 @@ function nonEmptyString(v) {
 }
 // non-empty-string-js:end
 
-export { isPlainObject, nonEmptyString };
+export { isObjectLike, isPlainObject, nonEmptyString };
