@@ -26,7 +26,7 @@
 import { readFileSync } from "node:fs";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
-import { isPlainObject } from "./lib/guards.mjs";
+import { isObjectLike, isPlainObject } from "./lib/guards.mjs";
 import { intentionalEntryText } from "./lib/intentional.mjs";
 
 /**
@@ -77,19 +77,8 @@ export const VERSION = "6";
  */
 
 /**
- * null でないオブジェクト（配列を含む）かを返す（型の絞り込みに使う）。
- * 配列の名前付きの欄は読むと undefined なので、Record として読んでよい。
- *
- * @param {unknown} v
- * @returns {v is Record<string, unknown>}
- */
-function isObjectLike(v) {
-  return v !== null && typeof v === "object";
-}
-
-/**
  * 意図的差異レジストリの 1 群の要素を返す。レジストリか群が配列でなければ空配列。
- * レジストリがオブジェクトでなければ、元の `registry?.[group]` と同じく群は無いものとして扱う。
+ * レジストリがオブジェクトでなければ、群は無いものとして扱う。
  *
  * @param {unknown} registry
  * @param {"keep" | "may_change" | "pending"} group
@@ -455,7 +444,7 @@ export function resolveExceptionCause(ex, causes) {
   if (!ex) return null;
   const { cause } = ex;
   if (typeof cause !== "string" || cause.length === 0) return null;
-  // object でない要素は id を持たないので、元の `c && c.id === cause` と同じく当たらない。
+  // オブジェクトでない要素は id を持たないので、どの cause にも当たらない。
   const found = list.filter(isObjectLike).find((c) => c.id === cause);
   if (!found) return null;
   const evidence = typeof found.evidence === "string" ? found.evidence.trim() : "";
@@ -723,8 +712,8 @@ export function main(argv) {
     registries = JSON.parse(readFileSync(opts.registries, "utf8"));
     if (opts.noise) {
       const meta = JSON.parse(readFileSync(opts.noise, "utf8"));
-      // 元の `meta.noise_baseline` は、meta が null のとき TypeError を投げ、下の catch で入力エラーになる。
-      // 型を絞るために欄を読む前に分岐するので、同じ例外を投げて同じ扱いを保つ。
+      // JSON の値のうち、プロパティを読むと TypeError になるのは null だけなので、null だけを下の catch で入力エラーにする。
+      // 数値・文字列・真偽値・配列はプロパティを読めて undefined になるので、noise_baseline が無いものとして読む。
       if (meta === null) {
         throw new TypeError("Cannot read properties of null (reading 'noise_baseline')");
       }

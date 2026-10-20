@@ -43,6 +43,24 @@ export const VERSION = "2";
 const SEPARATOR = String.fromCharCode(31);
 
 /**
+ * 空でない文字列か（前後の空白は削らずに見る）。
+ * @param {unknown} v
+ * @returns {boolean}
+ */
+function nonEmptyUntrimmedString(v) {
+  return typeof v === "string" && v !== "";
+}
+
+/**
+ * 表の値のうち、空でない文字列でないものの件数を返す。
+ * @param {Record<string, unknown>} record
+ * @returns {number}
+ */
+function badValues(record) {
+  return Object.values(record).filter((v) => !nonEmptyUntrimmedString(v)).length;
+}
+
+/**
  * 1 つの採取物（trait-capture.mjs の返り値の形）を「軸名 → 値」の平坦な表にまとめる。
  * まとめるのは computed / before / after / rect だけである。
  * `child_inline_styles`（trait-capture.mjs VERSION 3 以降）は照合に使わない診断用の情報なので、**意図して読まない**。
@@ -382,11 +400,6 @@ export function diffAxes(manifest) {
       // `{}` や `""` は採取物ではない。ここを通すと flattenTraits がそのまま軸の値にし、
       // オブジェクトは同一性比較で必ず「割れている」と判定されて**偽の可変軸**になる
       // （引数として実装へ渡るところまで行く）。キーの有無だけを見る検証では止まらない。
-      /** @param {unknown} v */
-      const nonEmptyUntrimmedString = (v) => typeof v === "string" && v !== "";
-      /** @param {Record<string, unknown>} record */
-      const badValues = (record) =>
-        Object.values(record).filter((v) => !nonEmptyUntrimmedString(v)).length;
       // 値だけでなく**キー（軸名）**も見る。`{ "": "x" }` は値の検証を通り、空の軸名が
       // 可変軸として ok: true の axes.json に載る。CSS のプロパティ名は空白を含まないので、
       // 空文字と空白を含む名前を弾く。集合が渡されていれば、その集合との一致まで求める。

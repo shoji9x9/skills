@@ -39,7 +39,9 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
+import { errorMessage } from "./lib/errors.mjs";
 import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
+import { parseJsonOrThrow } from "./lib/json.mjs";
 import { parseTables, unclosedFenceMessage } from "./lib/markdown.mjs";
 
 /** ツールのバージョン（このファイルで定義する）。判定の規則や出力の形を変えたら上げる。 */
@@ -330,7 +332,7 @@ export function defaultFetcher(timeoutMs) {
         ok: false,
         status: 0,
         bytes: null,
-        error: e instanceof Error ? e.message : String(e),
+        error: errorMessage(e),
       };
     }
   };
@@ -740,9 +742,7 @@ export async function main(argv, deps = {}) {
           writeFile,
         );
       } catch (we) {
-        process.stderr.write(
-          `error: --write の先へ失敗を記録できない: ${we instanceof Error ? we.message : String(we)}\n`,
-        );
+        process.stderr.write(`error: --write の先へ失敗を記録できない: ${errorMessage(we)}\n`);
       }
     }
     return 2;
@@ -755,13 +755,10 @@ export async function main(argv, deps = {}) {
  * @returns {unknown}
  */
 function parseJson(text, path) {
-  try {
-    return JSON.parse(text);
-  } catch (e) {
-    throw new UsageError(
-      `JSON として読めない: ${path}（${e instanceof Error ? e.message : String(e)}）`,
-    );
-  }
+  return parseJsonOrThrow(
+    text,
+    (message) => new UsageError(`JSON として読めない: ${path}（${message}）`),
+  );
 }
 
 if (isCliEntry(import.meta.url)) {

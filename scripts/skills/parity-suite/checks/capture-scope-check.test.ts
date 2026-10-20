@@ -888,6 +888,26 @@ test("capture_conditions が無い・JSON として読めない入力は exit 2"
   expect(run(["--metadata", "m.json"], { "/w/m.json": "{" }).code).toBe(2);
 });
 
+test.each([
+  ["Error", new Error("ENOENT"), "ENOENT"],
+  ["文字列", "権限が無い", "権限が無い"],
+  ["数値", 42, "42"],
+])("metadata を読めない理由は、%s が投げられても表示する（exit 2）", (_label, thrown, reason) => {
+  let stderr = "";
+  const code = main(["--metadata", "m.json"], {
+    cwd: "/w",
+    readFile: () => {
+      throw thrown;
+    },
+    write: () => undefined,
+    writeErr: (s) => {
+      stderr += s;
+    },
+  });
+  expect(code).toBe(2);
+  expect(stderr).toContain(`error: m.json を読めない: ${reason}\n`);
+});
+
 test("引数の誤り・読めない入力は exit 2", () => {
   expect(run([], {}).code).toBe(2);
   expect(run(["--metadata"], {}).code).toBe(2);

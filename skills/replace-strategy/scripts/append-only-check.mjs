@@ -76,7 +76,9 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
+import { errorMessage } from "./lib/errors.mjs";
 import { isPlainObject, nonEmptyString } from "./lib/guards.mjs";
+import { parseJsonOrThrow } from "./lib/json.mjs";
 import { ConfigError, parseJsonc } from "./skill-config/skill-config.mjs";
 import * as jsonc from "./skill-config/vendor/jsonc-parser.mjs";
 
@@ -1227,13 +1229,13 @@ function keyedElements(text, path, key, label) {
  * @returns {unknown}
  */
 function parseJsonForAppendCheck(text, label) {
-  try {
-    return JSON.parse(text);
-  } catch (e) {
-    throw new UsageError(
-      `JSON として読めないため追記であることを確かめられない: ${label}（${e instanceof Error ? e.message : String(e)}）`,
-    );
-  }
+  return parseJsonOrThrow(
+    text,
+    (message) =>
+      new UsageError(
+        `JSON として読めないため追記であることを確かめられない: ${label}（${message}）`,
+      ),
+  );
 }
 
 /**
@@ -1564,9 +1566,7 @@ export function readManifest(manifestPath) {
   try {
     parsed = JSON.parse(readFileSync(manifestPath, "utf8"));
   } catch (e) {
-    throw new UsageError(
-      `一覧を JSON として読めない: ${manifestPath}（${e instanceof Error ? e.message : String(e)}）`,
-    );
+    throw new UsageError(`一覧を JSON として読めない: ${manifestPath}（${errorMessage(e)}）`);
   }
   if (!isPlainObject(parsed) || !isArray(parsed.artifacts)) {
     throw new UsageError(`一覧に artifacts 配列が無い: ${manifestPath}`);
