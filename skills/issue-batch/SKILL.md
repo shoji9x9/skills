@@ -124,3 +124,5 @@ preflight で Issue ごと外した `EXCLUDED` は、表の「対象から外し
 どの欄にも当たらない判断は、4 つの欄の後に、Issue の番号と手戻りの大きさを添えて同じ並べ方で載せる。
 これらの欄は、run の間に manifest の同じ欄へ記録したものから作る（`references/orchestration.md`「判断の扱い」）。
 `DONE` は、次のすべてを確かめた場合だけ使う。PR が `MERGED`、Issue が `CLOSED`、deployment が成功したか根拠があって対象外である、local と remote の branch を削除した。
+worktree に残った記録の引き継ぎ先が merge されずに run が終わると、その Issue は `BRANCH_CLEANUP` のまま残る（`references/orchestration.md`「worktree に残った記録の引き継ぎ」の 5）。
+その Issue は `DONE` にせず `BLOCKED` として載せ、worktree の絶対パスと残りの作業を書く。
