@@ -23,8 +23,7 @@ home_dir="${HOME:-}"
 	unset HOME
 	printf '%s' ~
 )
-# ユーザーのデータベースにエントリが無いと ~ が展開されずに残るので、空として扱う
-[ "${home_dir}" != "~" ] || home_dir=""
+# ユーザーのデータベースにエントリが無いと ~ が展開されずに残る。~ は絶対パスでないので、下の case が止める
 # 置き場所のデフォルトは ~/.config/box/refresh_token。
 # env/dotenv 経由の値は ~ が展開されないため、先頭 ~/ も上で決めたホームの下に直す
 token_file="${BOX_REFRESH_TOKEN_FILE:-}"
@@ -36,7 +35,10 @@ if [ -z "$token_file" ] || [ "$stripped" != "$token_file" ]; then
 	case "${home_dir}" in
 	/*) ;;
 	*)
-		printf 'box-oauth-init: refresh token の置き場所を絶対パスに決められない（HOME=%q。HOME が無いか空なら、ユーザーのデータベースのホームも見た）。BOX_REFRESH_TOKEN_FILE に絶対パスを設定する（例: export BOX_REFRESH_TOKEN_FILE=/path/to/refresh_token）\n' "${HOME-}" >&2
+		# HOME が無いときと空のときを、表示で区別する（%q は、どちらも '' と表示する）
+		home_shown="HOME が無い"
+		[ "${HOME+set}" != "set" ] || home_shown="$(printf 'HOME=%q' "${HOME}")"
+		printf 'box-oauth-init: refresh token の置き場所を絶対パスに決められない（%s。HOME が無いか空なら、ユーザーのデータベースのホームも見た）。BOX_REFRESH_TOKEN_FILE に絶対パスを設定する（例: export BOX_REFRESH_TOKEN_FILE=/path/to/refresh_token）\n' "${home_shown}" >&2
 		exit 1
 		;;
 	esac

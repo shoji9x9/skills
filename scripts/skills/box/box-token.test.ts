@@ -18,9 +18,13 @@
 // HOME が無いか空のときは、ユーザーのデータベースのホーム（テストを実行する人の本物のホーム）を使う。
 // そこにある本物の refresh token を読み書きしないよう、refresh token は環境変数で渡し、mkdir を
 // 引数を記録して失敗する偽物に差し替える。保存の手前で止まるので、置き場所は mkdir の引数で確かめる。
+// 偽物の mkdir が保存を止めることは、本物のホームで実行する前に、一時ディレクトリの HOME で毎回確かめる。
+// スクリプトが mkdir を呼ばない形に変わったら、本物のホームで実行せずにテストが失敗する。
+// 本物のファイルの有無と中身は、実行の前後でハッシュを比べて確かめる。中身そのものは表示しない。
 // ユーザーのデータベースにエントリが無い状態は、テストで作れないので測っていない。
 import { describe, test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   chmodSync,
   existsSync,
@@ -83,8 +87,16 @@ function failMkdir(s: Setup) {
   chmodSync(join(s.bin, "mkdir"), 0o755);
 }
 
-// HOME が無いか空のときにスクリプトが使う、ユーザーのデータベースのホーム
-const DATABASE_HOME = userInfo().homedir;
+// HOME が無いか空のときにスクリプトが使う、ユーザーのデータベースのホーム。
+// ユーザーのデータベースにエントリが無いと userInfo() は例外を投げるので、使うテストの中でだけ求める
+function databaseHome(): string {
+  return userInfo().homedir;
+}
+
+// ファイルの有無と中身のハッシュ。本物の refresh token を比べるときに、中身を表示しないために使う
+function fingerprint(path: string): string | null {
+  return existsSync(path) ? createHash("sha256").update(readFileSync(path)).digest("hex") : null;
+}
 
 function run(
   script: string,
@@ -125,15 +137,34 @@ test("jq の実体を解決できる（解決できないと、以下のテス�
 });
 
 test("ユーザーのデータベースのホームが絶対パスに決まる（決まらないと、HOME が無いか空のテストが置き場所を確かめられない）", () => {
-  expect(isAbsolute(DATABASE_HOME)).toBe(true);
+  expect(isAbsolute(databaseHome())).toBe(true);
 });
 
-// HOME が無いか空でも、ユーザーのデータベースのホームの下に置く状態
+// HOME が無いか空でも、ユーザーのデータベースのホームの下に置く状態。最後の値はホームからの置き場所
 const DATABASE_HOME_CASES: [string, string | undefined, string | undefined, string][] = [
-  ["HOME が無く、保存先の指定も無い", undefined, undefined, ".config/box"],
-  ["HOME が空で、保存先の指定も無い", "", undefined, ".config/box"],
-  ["HOME が空で、保存先が ~/ で始まる", "", "~/cfg/rt", "cfg"],
+  ["HOME が無く、保存先の指定も無い", undefined, undefined, ".config/box/refresh_token"],
+  ["HOME が空で、保存先の指定も無い", "", undefined, ".config/box/refresh_token"],
+  ["HOME が空で、保存先が ~/ で始まる", "", "~/cfg/rt", "cfg/rt"],
 ];
+
+// 本物のホームで実行する前に、同じ環境で HOME だけを一時ディレクトリに替えて実行し、
+// 偽物の mkdir が保存を止めることを確かめる。保存先のディレクトリを先に作っておき、
+// mkdir を呼ばずに書き込む形に変わったら、ここで失敗させる
+function expectFakeMkdirStopsSave(
+  script: string,
+  prefix: string,
+  env: Record<string, string | undefined>,
+  input: string,
+  relPath: string,
+) {
+  const g = setup(prefix);
+  failMkdir(g);
+  const target = join(g.home, relPath);
+  mkdirSync(dirname(target), { recursive: true });
+  const r = run(script, g, { env: { ...env, HOME: g.home }, input });
+  expect(r.log, "偽物の mkdir が呼ばれない").toContain(`mkdir:${dirname(target)}\n`);
+  expect(existsSync(target), "偽物の mkdir が失敗しても保存した").toBe(false);
+}
 
 // 置き場所が絶対パスに決まらない状態
 const UNDECIDED_CASES: [string, string | undefined][] = [
@@ -221,23 +252,25 @@ describe("box-token.sh", () => {
 
   test.each(DATABASE_HOME_CASES)(
     "%sなら、ユーザーのデータベースのホームの下に保存する",
-    (_label, home, file, dir) => {
+    (_label, home, file, relPath) => {
+      const env = {
+        ...CLIENT,
+        BOX_REFRESH_TOKEN: "rt-env",
+        BOX_REFRESH_TOKEN_FILE: file,
+        STUB_RESPONSE: JSON.stringify({ access_token: "at-5", refresh_token: "rt-new" }),
+      };
+      expectFakeMkdirStopsSave(TOKEN_SCRIPT, "box-token-", env, "", relPath);
+      const real = join(databaseHome(), relPath);
+      const before = fingerprint(real);
       const s = setup("box-token-");
       failMkdir(s);
-      const r = run(TOKEN_SCRIPT, s, {
-        env: {
-          ...CLIENT,
-          HOME: home,
-          BOX_REFRESH_TOKEN: "rt-env",
-          BOX_REFRESH_TOKEN_FILE: file,
-          STUB_RESPONSE: JSON.stringify({ access_token: "at-5", refresh_token: "rt-new" }),
-        },
-      });
+      const r = run(TOKEN_SCRIPT, s, { env: { ...env, HOME: home } });
       // 偽物の mkdir が失敗するので、保存の手前で止まる
       expect(r.status).not.toBe(0);
       expect(r.stdout).toBe("");
       expect(r.log).toContain("arg:grant_type=refresh_token");
-      expect(r.log).toContain(`mkdir:${join(DATABASE_HOME, dir)}\n`);
+      expect(r.log).toContain(`mkdir:${dirname(real)}\n`);
+      expect(fingerprint(real), "本物の refresh token が変わった").toBe(before);
     },
   );
 
@@ -257,7 +290,7 @@ describe("box-token.sh", () => {
       expect(r.status).toBe(1);
       expect(r.stdout).toBe("");
       expect(r.log).toBe("");
-      expect(r.stderr).toMatch(/refresh token の置き場所を絶対パスに決められない/);
+      expect(r.stderr).toMatch(/refresh token の置き場所を絶対パスに決められない（HOME=rel。/);
       expect(r.stderr).toMatch(/BOX_REFRESH_TOKEN_FILE に絶対パスを設定する/);
     },
   );
@@ -423,23 +456,24 @@ describe("box-oauth-init.sh", () => {
 
   test.each(DATABASE_HOME_CASES)(
     "%sなら、ユーザーのデータベースのホームの下に保存する",
-    (_label, home, file, dir) => {
+    (_label, home, file, relPath) => {
+      const env = {
+        ...CLIENT,
+        BOX_REFRESH_TOKEN_FILE: file,
+        STUB_RESPONSE: JSON.stringify({ access_token: "a", refresh_token: "rt-init" }),
+      };
+      expectFakeMkdirStopsSave(INIT_SCRIPT, "box-init-", env, "code-x\n", relPath);
+      const real = join(databaseHome(), relPath);
+      const before = fingerprint(real);
       const s = setup("box-init-");
       failMkdir(s);
-      const r = run(INIT_SCRIPT, s, {
-        env: {
-          ...CLIENT,
-          HOME: home,
-          BOX_REFRESH_TOKEN_FILE: file,
-          STUB_RESPONSE: JSON.stringify({ access_token: "a", refresh_token: "rt-init" }),
-        },
-        input: "code-x\n",
-      });
+      const r = run(INIT_SCRIPT, s, { env: { ...env, HOME: home }, input: "code-x\n" });
       // 偽物の mkdir が失敗するので、保存の手前で止まる
       expect(r.status).not.toBe(0);
       expect(r.stdout).toBe("");
       expect(r.log).toContain("arg:grant_type=authorization_code");
-      expect(r.log).toContain(`mkdir:${join(DATABASE_HOME, dir)}\n`);
+      expect(r.log).toContain(`mkdir:${dirname(real)}\n`);
+      expect(fingerprint(real), "本物の refresh token が変わった").toBe(before);
     },
   );
 
@@ -459,7 +493,7 @@ describe("box-oauth-init.sh", () => {
       });
       expect(r.status).toBe(1);
       expect(r.log).toBe("");
-      expect(r.stderr).toMatch(/refresh token の置き場所を絶対パスに決められない/);
+      expect(r.stderr).toMatch(/refresh token の置き場所を絶対パスに決められない（HOME=rel。/);
       expect(r.stderr).toMatch(/BOX_REFRESH_TOKEN_FILE に絶対パスを設定する/);
       expect(r.stderr).not.toMatch(/認可コードが空です/);
     },

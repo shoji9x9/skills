@@ -34,3 +34,6 @@ ci:39339690996:1,ci,2026-10-20T04:18:17.756Z,p-cdee4961,github-actions,,,,2026-1
 ci:39307051301:1,ci,2026-10-20T04:18:17.756Z,p-cdee4961,github-actions,,,,2026-10-19T18:58:36.000Z,2026-10-19T19:05:56.000Z,Asia/Tokyo,feature/678-commit-wrapper-detection,678,,,,,,,,,,CI;pull_request;success,
 ci:39307051249:1,ci,2026-10-20T04:18:17.756Z,p-cdee4961,github-actions,,,,2026-10-19T18:58:36.000Z,2026-10-19T18:58:37.000Z,Asia/Tokyo,feature/678-commit-wrapper-detection,678,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 coverage:github:2026-10-18T18:55:55.793Z:2026-10-20T04:18:17.756Z,coverage,2026-10-20T04:18:17.756Z,p-cdee4961,,,,,2026-10-18T18:55:55.793Z,2026-10-20T04:18:17.756Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:39369131743:1,ci,2026-10-20T04:32:15.970Z,p-cdee4961,github-actions,,,,2026-10-20T04:21:22.000Z,2026-10-20T04:21:23.000Z,Asia/Tokyo,feature/704-box-token-home-unset,704,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:39369131664:1,ci,2026-10-20T04:32:15.970Z,p-cdee4961,github-actions,,,,2026-10-20T04:21:22.000Z,2026-10-20T04:25:13.000Z,Asia/Tokyo,feature/704-box-token-home-unset,704,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-19T04:18:17.756Z:2026-10-20T04:32:15.970Z,coverage,2026-10-20T04:32:15.970Z,p-cdee4961,,,,,2026-10-19T04:18:17.756Z,2026-10-20T04:32:15.970Z,Asia/Tokyo,,,,,,,,,,,,ok,
