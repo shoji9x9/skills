@@ -165,6 +165,23 @@ kaizen のチェックが示した解消のコマンド（共有ツリー側の 
 前者は worktree の中のコピーを絶対パスで、後者は `git commit` を単独で実行して通した。
 どれも、Write ツールでスクリプトにして絶対パスで実行するか、`git` の操作を単独の呼び出しに分けて通した。
 
+### 再発の記録（#697）
+
+2026-10-19、issue-batch の #697 の作業で、別の worktree にある `kaizen-candidate-scan.sh` を `bash` で起動した呼び出しが拒否された。
+出力をファイルに書いて `; echo rc=$?; tail` をつないだ形で、理由は `runs bash inside a construct too complex to verify` だった。
+既知の形（`bash` の起動と `; echo` の組）で、Write ツールでスクリプトにして絶対パスで実行して通した。
+同じ作業で、`for` ループの変数を `sed -n "${n}p"` に渡して transcript の行を読む呼び出しも、`runs sed with a program computed at runtime` で拒否された。
+python のスクリプトを Write ツールで書き、行番号を引数で渡して通した。
+
+### 再発の記録（#701・#710）
+
+2026-10-19、issue-batch の #701 と #710 の作業で、worktree に入った後の Bash の呼び出しが 10 回以上拒否された。
+新しく出た形は 2 つある。1 つは、`cat evals/README.md` や `scripts/eval/*.sh` のように、パスに `eval` の語を含む読み取りの呼び出しである（`runs a string through eval`）。
+もう 1 つは、`for` ループの変数を `find` の引数に渡す呼び出しである（`runs find with a value computed at runtime`）。
+ほかは既知の形（準備の処理を `;` でつないだもの、`bash` の起動と `; echo rc=$?` の組、`cat >>` の heredoc でテストに追記するもの、変数に入れたパスで `python3` を起動するもの）だった。
+どれも、Write ツールでスクリプトにして絶対パスで実行するか、Edit ツールで編集するか、定数の引数だけの単独の呼び出しに分けて通した。
+この学びはセッション開始時に注入され、preflight の間も文脈にあったが、worktree に入った後の最初の準備の処理で同じ形を書いた。
+
 ### 再発の記録（#678）
 
 2026-10-19、issue-batch の #678 の作業で、単独の `git add` が 2 回拒否された（`names git more than once`）。
@@ -180,3 +197,11 @@ PR #716 の merge の前後でも 3 回拒否された。新しい形は 3 つ�
 `powershell.exe` の起動（Windows のイベントログを読むもの）は `runs powershell in a plain command` で拒否され、利用者に `!` で実行してもらった。
 `until` のループで `gh ... --jq '"\(.state) ..."'` を回す待機は `inside a construct too complex to verify` で拒否された。
 前の 2 つは Write ツールのスクリプトにして通した。`sleep` と後続のコマンドの組は、ハーネスが Monitor かバックグラウンドの実行を使うよう求めて止めた。
+
+### 再発の記録（#697 の仕上げ）
+
+2026-10-20、issue-batch の BLOCKED になった PR #715 を仕上げる作業で、worktree の中の Bash の呼び出しが拒否された。
+`reinstall-skill.sh` と `markdownlint-cli2` を `&&` と `;` でつなぎ、最後に `git status --short` を置いた形である。
+理由は `names git in a form too complex to verify` だった。
+既知の形（準備の処理を `;` でつないだものに `git` の語が入る）で、Write ツールでスクリプトにして絶対パスで実行して通した。
+この学びはセッション開始時に注入されていたが、`git status` を確認のために末尾に足した 1 語で同じ形になった。
