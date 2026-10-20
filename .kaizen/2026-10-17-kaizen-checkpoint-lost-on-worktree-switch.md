@@ -33,6 +33,7 @@ transcript は `-home-shoji9x9-projects-skills--claude-worktrees-697-defer-decis
 続けて PR #718 の worktree へ移った後も、同じ形で起きる。
 PR #722 の worktree へ移った後の最初の commit でも、処理位置が #718 の worktree と一緒に消えていたので、走査は transcript の先頭から 37 件の候補を挙げて止めた。
 PR #720 の worktree でも同じく、最初の `git commit` で先頭から 42 件を挙げて止めた（`git merge` の merge commit は、`git commit` の語を含まないのでチェックを通った）。
+同じ日のうちに PR #714・#721 の worktree でも同じく止まった。移るたびに起きるので、run で Issue を 1 つ進めるごとに、最初の commit で 1 回止まる。
 
 ## 根本原因
 
