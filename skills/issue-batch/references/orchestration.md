@@ -249,14 +249,17 @@ Issue ごとの専用の worktree で、`issue-start <Issue URL> --pr` と同じ
 省いてよいのは、次のどちらかに当たる場合だけである。この 2 つ以外の理由では省かない。
 
 - 利用者が、run の指示か preflight 10 の確認への回答で、その Issue のローカルレビューを省くよう明示した
-- base branch に入っていない変更が 0 行である。commit していない差分と、base branch に入っていない commit（push 済みのものを含む）の両方を数える
+- base branch に入っていない変更が 0 行である。commit していない差分（staged・unstaged・追跡されていないファイル）と、base branch に入っていない commit（push 済みのものを含む）をすべて数える
 
-ローカルレビューは、commit する前に、commit していない差分を対象にして行う。
-再開した Issue のように、base branch に入っていない commit が残っている状態でレビューするときは、その commit も対象にする。
-エージェントごとの指定は次のとおりである。
-Codex は `codex review --base <base>`（`--help` の「Review changes against the given base branch」）を使う。commit していない差分も対象にするかは確かめていないので、`codex review --uncommitted` も続けて実行する。
-Claude Code の `/code-review high` と GitHub Copilot CLI の上のコマンドは、branch を base と比べてレビューするので、そのまま使う。
-今使っているエージェントの機能で base branch との差分をレビューできなければ、BLOCKED にする。
+ローカルレビューは、commit する前に、commit していない差分（staged・unstaged・追跡されていないファイル）を対象にして、上のエージェントごとのコマンドで行う。
+再開した Issue のように、base branch に入っていない commit が残っているときは、そのレビューに加えて、base branch との差分を対象にするレビューも行う。
+base branch との差分は、エージェントごとに次の方法でレビューする。
+
+- Codex: `codex review --base <base>`（`--help` の「Review changes against the given base branch」）
+- Claude Code: `/code-review high` で branch を指定する
+- GitHub Copilot CLI: 上の `copilot -p` のコマンド
+
+base branch との差分をレビューできないエージェントでは、その Issue を BLOCKED にする。
 
 省いたときは、manifest の `self_decisions` の `unfollowed_rules`（「判断の扱い」の守っていない規約の欄）に、当たった条件を添えて記録する。
 
