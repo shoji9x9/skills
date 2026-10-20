@@ -604,9 +604,9 @@
     }
   },
   "notes": [
-    "Issue #690 の benchmark（3 run × 2 config）。比べる記録は iteration-22（eval 4・20 とも 1 run）である。",
+    "Issue #690 の benchmark（3 run × 2 config）。比べる記録は iteration-22（eval 4・20 とも 1 run）である。iteration-22 の後に eval 4・20 の assertion がそれぞれ 1 本書き換わったので、pass_rate はその分だけ同じ assertion どうしの比較ではない。",
     "eval 20 の without_skill の run-1 は contamination.txt が CONTAMINATED（exit 4）だったので、grading.json を置かずに集計から外した（tests/kaizen/iteration-25/eval-20/without_skill/run-1）。同じ条件の run-4 を足した。",
     "run-1 はスキルの下のファイルを読んでおらず（skill_usage.unexpected_read は false）、応答に「~/.claude.json にあるファイル名 kaizen-precommit-gate.sh」を挙げたことで目印に当たった。サンドボックスは ~/.claude.json を読めるので、スクリプトの名前がそこから baseline に伝わる。",
-    "eval 20 の with_skill: 「transcript_path と自セッションの .extract-checkpoint の間だけを走査し…」と「候補あり、既知 container の未知・欠損 subtype…を失敗として扱う」が 3 run すべてで落ちた。iteration-22 の 1 run でも同じ 2 項目が落ちているので、後退ではなく常に落ちる項目である。"
+    "eval 20 の with_skill: 「transcript_path と自セッションの .extract-checkpoint の間だけを走査し…」と「候補あり、既知 container の未知・欠損 subtype…を失敗として扱う」が 3 run すべてで落ちた。iteration-22 の 1 run でも同じ 2 項目が落ちているので、後退ではなく常に落ちる項目である。原因は、2 本とも複数の主張を 1 本にまとめていて、応答が範囲や条件の一部を書かないと落ちることである。"
   ]
 }

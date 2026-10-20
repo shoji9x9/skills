@@ -27,3 +27,7 @@ coverage:github:2026-10-18T18:55:55.793Z:2026-10-20T03:05:46.845Z,coverage,2026-
 coverage:github:2026-10-19T03:05:46.845Z:2026-10-20T03:06:08.661Z,coverage,2026-10-20T03:06:08.661Z,p-cdee4961,,,,,2026-10-19T03:05:46.845Z,2026-10-20T03:06:08.661Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-19T03:06:08.661Z:2026-10-20T03:06:39.226Z,coverage,2026-10-20T03:06:39.226Z,p-cdee4961,,,,,2026-10-19T03:06:08.661Z,2026-10-20T03:06:39.226Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-19T03:06:39.226Z:2026-10-20T03:07:10.823Z,coverage,2026-10-20T03:07:10.823Z,p-cdee4961,,,,,2026-10-19T03:06:39.226Z,2026-10-20T03:07:10.823Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:39362834181:1,ci,2026-10-20T03:17:02.290Z,p-cdee4961,github-actions,,,,2026-10-20T03:09:51.000Z,2026-10-20T03:13:30.000Z,Asia/Tokyo,feature/690-eval-benchmark-records,690,,,,,,,,,,CI;pull_request;success,
+ci:39362834074:1,ci,2026-10-20T03:17:02.290Z,p-cdee4961,github-actions,,,,2026-10-20T03:09:51.000Z,2026-10-20T03:09:52.000Z,Asia/Tokyo,feature/690-eval-benchmark-records,690,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+coverage:github:2026-10-19T03:07:10.823Z:2026-10-20T03:17:02.290Z,coverage,2026-10-20T03:17:02.290Z,p-cdee4961,,,,,2026-10-19T03:07:10.823Z,2026-10-20T03:17:02.290Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-19T03:17:02.290Z:2026-10-20T03:17:54.239Z,coverage,2026-10-20T03:17:54.239Z,p-cdee4961,,,,,2026-10-19T03:17:02.290Z,2026-10-20T03:17:54.239Z,Asia/Tokyo,,,,,,,,,,,,ok,

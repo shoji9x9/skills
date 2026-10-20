@@ -178,9 +178,11 @@ eval の実行には 2 つの目的があり、必要な run の数が大きく�
 - 変更確認の結果も、benchmark と同じ集計で `tests/<name>/iteration-N/benchmark.json` に残す（`runs_per_configuration: 1`）。
   実行した run を集計するだけなので、run の数は増えない。次の変更確認で、少なくとも前回の 1 run と比べられる。
   集計スクリプトは、1 つの iteration の中で eval × configuration ごとの run の数が揃っていないと exit 2 で止まる。1 run の記録と 3 run の記録は、別の iteration に分ける。
-- 前から在る eval で、比べる記録（前の iteration の `benchmark.json`）がまだ無いときも、止まって依頼者に確認せず、変更確認のまま進める。
+  1 run どうしの比較で with_skill の結果が下がったときは、ばらつきと区別できないことを PR の本文に書き、benchmark の実行を残りの作業として挙げる。
+- 前から在る eval で、比べる記録がまだ無いときも、止まって依頼者に確認せず、変更確認のまま進める。
+  比べる記録とは、その eval の結果を含む前の iteration の `benchmark.json` である。前の iteration があっても、その eval を含まなければ、比べる記録は無いものとして扱う。
   「比べる記録が無いので、with_skill の結果が下がったかを判断できない」ことを PR の本文に書き、benchmark の実行を残りの作業として挙げる。`issue-batch` では、最終報告にも同じことを載せる。
-  新しく足した eval には下がりうる前の結果が無いので、PR に書くことも、benchmark の実行を残りの作業にすることも要らない。
+  新しく足した eval には比べる相手になる前の結果が無いので、PR に書くことも、benchmark の実行を残りの作業にすることも要らない。
 - 起動する前に、どの eval のどの入力が変わったかと、run の総数を書き出してから実行する。
   数えずに並列で起動すると、上限に達して最後まで実行できず、成功した run と失敗した run が混在した、集計できない iteration が残る。
 - executor は今作業しているエージェントに合わせ、`--executor` で指定する。Codex のセッションなら `codex`、Claude Code のセッションなら `claude-code` をデフォルトにする。
@@ -438,7 +440,7 @@ fixture に書いてよいのは、下流のプロジェクトに実際にあり
 4. 切り替えたことと、その理由を成果物に残す。
    `benchmark.md` と `benchmark.json` に、executor と切り替えた理由（利用上限に達した、など）を書く。
    前の iteration と executor が違うなら、その Delta を前の iteration と直接比べないことを書く。
-   変更確認（1 run）の記録にも同じことを書き、実行の報告にも executor と切り替えた理由を書く。
+   変更確認（1 run）でも、`benchmark.json` の `notes` に同じことを書き、実行の報告にも executor と切り替えた理由を書く。
 5. 切り替えた先でも上限に達すると考えて、run の数を数える。
    起動する前に run の総数を書き出し、「実走の既定スコープ」を超えるなら、実行する前に確認する。
 
