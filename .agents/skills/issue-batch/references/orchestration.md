@@ -365,7 +365,9 @@ merge の実行方法だけが、`merge_mode` で分かれる。head の SHA の
    commit を記録する Hook は、コマンドの文字列で commit かどうかを判定し、パスで指したリポジトリか、セッションが作業しているリポジトリに記録を書く。どちらに書くかは、その Hook を持つスキルの定め（`agent-usage` なら `agent-usage` の `references/setup.md`「Hook の振る舞い」）に従う。
    次の Issue の worktree に入るまでの間（deployment の確認と片付け）は、セッションを移せるエージェントでは呼び出し元の作業ツリーに移す（Claude Code なら `git-worktree` の後片付けと同じく `ExitWorktree` の `action: "keep"`）。移せないエージェントでは、上の禁止を守るだけにする。
    ただし、「deployment 修復」で同じ branch に follow-up の commit を作る場合は除く。
-   その commit は、セッションを merge した Issue の worktree に `path` で移してから作る（呼び出し元の作業ツリーから作ると、commit が呼び出し元の branch に入るおそれがある）。commit は follow-up PR に入り、上の 1 の確認を通る。
+   その commit は、セッションを merge した Issue の worktree に `path` で移してから作る。commit は follow-up PR に入り、上の 1 の確認を通る。
+   移るのは、worktree に隔離したセッションの git の操作を、ハーネスがその worktree の中に限ることがあるからである。Claude Code では、別の worktree を指す `git -C` の呼び出しが拒否された（実測）。
+   上の禁止の例外は、この follow-up の commit だけである。
 4. Issue の `state` と linked PR を取得し直し、`CLOSED` を確かめる。OPEN なら、手で close して隠さず、BLOCKED にする。
 5. PR から merge commit の OID と mergedAt を取得する。workflow ごとに
    `gh run list --workflow <file> --commit <OID> --event <event> --limit <N> --json ...` を使い、`headSha == OID`、event、base branch をすべて照合する（[gh run list](https://cli.github.com/manual/gh_run_list)）。
@@ -470,20 +472,27 @@ stage しただけの新しいファイル、stage した後に書き足した `
 1. この Issue の片付けは後に回し、worktree を残したまま次の Issue に進む。manifest には、状態を `BRANCH_CLEANUP` のまま、引き継ぐファイルの一覧を残りの作業として記録する。
 2. 次の Issue の worktree に入った後、最初の commit の前に、その branch がこの Issue の merge commit を含むことを `git merge-base --is-ancestor <merge commit の OID> HEAD` で確かめる。
    含まない branch（再開した branch など）に複製すると、base との merge で競合するので、その Issue には引き継がずに、さらに次の Issue に回す。
+   引き継がない branch でも、その Issue の commit で Hook が同じ応答の行を書くことがあり、後で引き継ぐと同じ行が 2 つのファイルに入る。この重なりは、その Hook を持つスキルの定め（`agent-usage` なら `agent-usage` の `references/records.md`「重複の扱い」）で扱う。
    含むなら、引き継ぐファイルを同じ相対パスに複製する。
 3. 複製したファイルは、次の Issue の作業の commit に入れる。記録だけの branch と PR は作らない。
    複製したファイルを commit に入れずに次の Issue が終わったとき（`SKIPPED` など）は、複製したファイルを複製の前の状態に戻し、さらに次の Issue に回す。
    一度 commit に入れたら、その Issue が後で止まっても、さらに次の Issue には回さない。同じ記録が 2 つの branch に入るのを避けるためである。
 4. 元の worktree は、記録を入れた次の Issue の PR が `MERGED` になるまで残す。
-   次の Issue の「merge、close、deployment」の 4 で Issue が `CLOSED` になったことを確かめた後、5 の deployment の確認に進む前に、元の worktree を次のように片付ける。
-   4 で BLOCKED になったときは片付けず、5 と同じく最終報告に書く。元の worktree が複数あるときは、1 つずつ片付ける。1 つが止まっても、残りは続ける。
+   次の Issue の「merge、close、deployment」の 3 で PR が `MERGED` になったことを確かめた後、4 の Issue の close の確認に進む前に、元の worktree を次のように片付ける。
+   PR が `MERGED` なら記録は base に入っているので、4 の結果（次の Issue が `CLOSED` になるか）は待たない。
+   元の worktree が複数あるときは、1 つずつ片付ける。1 つが止まったときも、セッションを呼び出し元の作業ツリーに移してから（Claude Code なら `ExitWorktree` の `action: "keep"`）、残りの元の worktree と 4 に進む。
+   - 比べる前に、次の Issue の PR から merge commit の OID を取得し（`gh pr view <PR URL> --json mergeCommit`）、`git fetch origin <OID>` でその commit を手元に取得する。merge commit は GitHub の側で作られるので、取得しないと手元に無い。
    - ファイルごとに `git show <次の Issue の PR の merge commit の OID>:<パス>` の出力と元の worktree のファイルを `cmp` で比べる。
+     `git show` か `git fetch` が失敗したときは、一致しないとは扱わず、判定できないとして元の worktree を残し、元の Issue を BLOCKED にする。最終報告には「merge commit の記録を読めない」と、一致しない場合とは別の理由で書く。
      1 つでも一致しなければ（引き継いだ後に元の worktree の記録が書き足された、など）、元の worktree を戻さずに残し、元の Issue を BLOCKED にする。
-     次の Issue は、そのまま deployment の確認に進む。最終報告には、元の worktree の絶対パスと、一致しなかったファイルと、残りの作業（違いを確かめてから戻して片付ける）を書く。
+     次の Issue は、そのまま 4 に進む。最終報告には、元の worktree の絶対パスと、一致しなかったファイルと、残りの作業（branch は merge 済みなので、違いを確かめてから戻して片付ける）を書く。
    - すべて一致したら、元の worktree に `path` で入り直し（`git-worktree` の取り決めでは、移った後は前の worktree に書き込めない）、引き継いだファイルだけを戻す。
      HEAD か index にあるファイル（stage しただけの新しいファイルを含む）は `git restore --staged --worktree -- <パス>` で、`??` のファイルは削除して戻す。
+   - 戻した後も `git status --porcelain=v1 --untracked-files=all` が空にならなければ、元の worktree を残し、元の Issue を BLOCKED にする。最終報告には残った行を書く。
    - 元の worktree が clean になったことを確かめたら、セッションを呼び出し元の作業ツリーに移してから（上の「merge、close、deployment」の 3 と同じ）、上の「branch cleanup」の手順で元の worktree を片付ける（中にいるまま解除しない）。
      片付けが済んだら、元の Issue を `DONE` にする。
-   セッションを移せないエージェントでは、この節の手順を行えないので、元の worktree を残して 5 と同じく最終報告に書く。
+   セッションを移せないエージェントでは、元の worktree に入り直さず、呼び出し元の作業ツリーから `git -C <元の worktree>` で同じ確かめ（比べる・戻す・clean を確かめる）を行い、「branch cleanup」の手順で片付ける。
+   戻す操作（`git restore` とファイルの削除）は commit ではないので、「merge、close、deployment」の 3 の禁止には当たらない。
+   ハーネスや sandbox が別の worktree を指す `git -C` を拒否したときは、元の worktree を残し、5 と同じく最終報告に書く。
 5. 次の Issue の PR が merge されずに run が終わったとき（BLOCKED・FAILED を含む）と、run の最後の Issue のように引き継ぐ先の branch が無いときは、元の worktree を消さずに残す。
    最終報告に、元の worktree の絶対パスと、記録を入れた branch（入れていれば）と、残りの作業（その branch の merge の後に元の worktree を戻して片付ける）を書く。
