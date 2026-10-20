@@ -28,6 +28,7 @@ import {
 import { configPaths } from "./skill-config/skill-config.mjs";
 import { decisionFor, saveDecision } from "./lib/decisions.mjs";
 import { gateDecision, readHookInput } from "./lib/gate.mjs";
+import { branchMerged } from "./lib/merged.mjs";
 import { git, isDecisionBranch, repoInfo } from "./lib/repo.mjs";
 import { usageDir } from "./lib/records.mjs";
 import { runCollect } from "./lib/run-collect.mjs";
@@ -133,6 +134,7 @@ function branchDecisionText(repo, set) {
     } catch (e) {
       return `record（設定を読めない: ${e instanceof Error ? e.message : String(e)}）`;
     }
+    return `record${mergedNote(repo)}`;
   }
   if (decided !== null) return decided;
   try {
@@ -141,10 +143,21 @@ function branchDecisionText(repo, set) {
     // gateDecision と同じく、人の設定が無ければ defaultDecision を当てずに止める
     if (!hasPerson())
       return `未決定（defaultDecision: ${fallback.decision}、${fallback.source}。人の設定が無いので、コミットの前の確認は止めて setup を求める）`;
-    return `未決定（defaultDecision: ${fallback.decision}、${fallback.source}）`;
+    const merged = fallback.decision === "record" ? mergedNote(repo) : "";
+    return `未決定（defaultDecision: ${fallback.decision}、${fallback.source}）${merged}`;
   } catch (e) {
     return `未決定（設定を読めない: ${e instanceof Error ? e.message : String(e)}）`;
   }
+}
+
+/**
+ * 記録する側のブランチが merge 済みなら、コミットの前の確認が記録しないことを添える（gateDecision と同じ判定）。
+ * @param {import("./lib/repo.mjs").RepoInfo} repo
+ * @returns {string}
+ */
+function mergedNote(repo) {
+  const m = branchMerged(repo, process.env);
+  return m.merged ? `（merge 済み（${m.how}）なので、コミットの前の確認は記録しない）` : "";
 }
 
 /**

@@ -37,6 +37,7 @@ agent-usage status
   ホストは、github.com・`GH_HOST`・`gh auth login --hostname <ホスト>` でログインしたホストのどれかに限る。
   github.com 以外のホストに、環境変数の token（`GH_TOKEN`・`GH_ENTERPRISE_TOKEN` など）だけで認証するなら `GH_HOST` を指定する。
   `GH_ENTERPRISE_TOKEN` は github.com 以外のどのホストにも返るので、環境変数の token はログインの判定に使わない。
+  Hook は、ブランチが squash merge か rebase merge で merge 済みかを確かめるときにも `gh` を使う。`gh` が無いか失敗したら、squash merge と rebase merge では merge 済みとせずに記録する。merge commit で取り込んだブランチは、`gh` を使わずに決める。
   ポートを含むホストは、`GH_HOST` で指定したか、そのホスト名（ポート付き）で gh にログインしたときだけ取得する。
   取得しなかったときは、collect と Hook の出力に「GitHub: 取得していない」と理由が出る
 - 前提スキル: なし
@@ -59,6 +60,7 @@ Hook（PreToolUse）が、デフォルトブランチ以外の `git commit` を�
 エージェントがこの値を自分で書き足さない。
 
 「記録する」と決めたブランチでは、Hook がコミットのたびに collect を実行して、増えた明細を stage する。デフォルトブランチ（`main` など）と、`.agent-usage/` の無いリポジトリでは何もしない。
+merge 済みのブランチでは、「記録する」と決めていても collect も stage もしない。merge の後の worktree に、どの PR にも入らない明細を足さないためである。merge 済みかの決め方は [`references/setup.md`](references/setup.md)「Hook の振る舞い」にある。
 
 この stage は、コミットが実行される前に Hook の中で行う。
 そのため、コミットが実行されなかったとき（同じコミットを別の Hook が止めた、git の `pre-commit` フックが失敗した、など）も、明細は stage されたまま残ることがある。
