@@ -12,11 +12,13 @@
 // | 保存先の書き方 | 指定なし / 絶対パス / 相対パス / 先頭が ~/                          |
 // | HOME           | 絶対パス / 無い / 空 / 相対パス                                     |
 // | 保存先に書けるか | 書ける / ディレクトリを作れない / ディレクトリに書けない / ファイルに書けない / ディレクトリに書けないがファイルに書ける |
+// | 保存先の種類   | ファイル / 無い / ディレクトリ / 行き先の無いシンボリックリンク（行き先のディレクトリが在る・無い） / 循環するシンボリックリンク |
+// | OS の登録      | ある / 無い（id -un が失敗する）                                    |
 // | API の応答     | 成功（新しい refresh token あり・なし） / invalid_client / その他の error / token が無い |
 // | TMPDIR         | 通常 / `=` を含む                                                   |
 // | 認可コード     | stdin で渡す / 空 / 引数で渡す                                      |
 //
-// HOME が無いか空のときは、ユーザーのデータベースのホーム（テストを実行する人の本物のホーム）を使う。
+// HOME が無いか空のときは、OS に登録されたホーム（テストを実行する人の本物のホーム）を使う。
 // そこにある本物の refresh token を読み書きしないよう、refresh token は環境変数で渡し、mkdir を
 // 引数を記録して失敗する偽物に差し替える。スクリプトは API を呼ぶ前に保存先のディレクトリを作るので、
 // 偽物の mkdir が失敗すると、保存してある refresh token を読む前と API を呼ぶ前に止まる。
@@ -27,7 +29,8 @@
 // 本物のホームで実行せずにテストが失敗する。
 // 本物のホームで実行した結果は真偽だけで比べ、curl と mkdir の記録や出力を assertion のメッセージに含めない。
 // 本物のファイルの有無と中身は、実行の前後でハッシュを比べて確かめる。中身そのものは表示しない。
-// ユーザーのデータベースにエントリが無い状態は、テストで作れないので測っていない。
+// OS にユーザーの登録が無い状態は、id -un を失敗する偽物に差し替えて作る。このとき bash の ~ は本物のホームを返すので、
+// 本物のホームで実行するテストと同じく、偽物の mkdir と目印の値で、止まることを先に確かめる。
 import { describe, test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -93,8 +96,14 @@ function failMkdir(s: Setup) {
   chmodSync(join(s.bin, "mkdir"), 0o755);
 }
 
-// HOME が無いか空のときにスクリプトが使う、ユーザーのデータベースのホーム。
-// ユーザーのデータベースにエントリが無いと userInfo() は例外を投げるので、使うテストの中でだけ求める
+// 失敗する id。OS にユーザーの登録が無い状態を作る
+function failId(s: Setup) {
+  writeFileSync(join(s.bin, "id"), "#!/usr/bin/env bash\nexit 1\n");
+  chmodSync(join(s.bin, "id"), 0o755);
+}
+
+// HOME が無いか空のときにスクリプトが使う、OS に登録されたホーム。
+// OS にユーザーの登録が無いと userInfo() は例外を投げるので、使うテストの中でだけ求める
 function databaseHome(): string {
   return userInfo().homedir;
 }
@@ -149,7 +158,7 @@ test("ユーザーのデータベースのホームが絶対パスに決まる�
   expect(isAbsolute(databaseHome())).toBe(true);
 });
 
-// HOME が無いか空でも、ユーザーのデータベースのホームの下に置く状態。
+// HOME が無いか空でも、OS に登録されたホームの下に置く状態。
 // 4 番目の値はホームからの置き場所、5 番目の値はスクリプトが表示する HOME の状態
 const DATABASE_HOME_CASES: [string, string | undefined, string | undefined, string, string][] = [
   [
@@ -200,13 +209,12 @@ function expectStoppedAtRealHome(r: ReturnType<typeof run>, realDir: string, hom
   expect(r.status === 1, "保存先を作れないのに exit 1 にならない").toBe(true);
   expect(r.stdout === "", "標準出力に何か出た").toBe(true);
   expect(/^arg:/m.test(r.log), "API を呼んだ").toBe(false);
-  expect(
-    r.log.includes(`mkdir:${realDir}\n`),
-    "ユーザーのデータベースのホームの下に作ろうとしない",
-  ).toBe(true);
+  expect(r.log.includes(`mkdir:${realDir}\n`), "OS に登録されたホームの下に作ろうとしない").toBe(
+    true,
+  );
   expect(r.stderr.includes("に書き込めない"), "書き込めないことを示さない").toBe(true);
   expect(
-    r.stderr.includes(`${homeState}保存先は、passwd に登録されたホームから決めた。`),
+    r.stderr.includes(`${homeState}保存先は、OS に登録されたホームから決めた。`),
     "HOME の状態と、保存先を決めた方法を示さない",
   ).toBe(true);
 }
@@ -252,7 +260,51 @@ const UNWRITABLE_CASES: [string, Unwritable, string][] = [
     },
     "保存先は BOX_REFRESH_TOKEN_FILE で指定した。",
   ],
+  [
+    "BOX_REFRESH_TOKEN_FILE が既存のディレクトリ",
+    (s) => {
+      const file = join(s.dir, "rt-dir");
+      mkdirSync(file);
+      return { env: { BOX_REFRESH_TOKEN_FILE: file }, file };
+    },
+    "保存先は BOX_REFRESH_TOKEN_FILE で指定した。",
+  ],
+  [
+    "保存先が ~/ だけで、ホームそのものを指す",
+    (s) => ({ env: { BOX_REFRESH_TOKEN_FILE: "~/" }, file: `${s.home}/` }),
+    "保存先は HOME から決めた。",
+  ],
+  [
+    "BOX_REFRESH_TOKEN_FILE が、行き先のディレクトリが無いシンボリックリンク",
+    (s) => {
+      const file = join(s.dir, "rt-link");
+      symlinkSync(join(s.dir, "missing-dir", "rt"), file);
+      return { env: { BOX_REFRESH_TOKEN_FILE: file }, file };
+    },
+    "保存先は BOX_REFRESH_TOKEN_FILE で指定した。",
+  ],
+  [
+    "BOX_REFRESH_TOKEN_FILE が、循環するシンボリックリンク",
+    (s) => {
+      const file = join(s.dir, "rt-loop-a");
+      symlinkSync("rt-loop-b", file);
+      symlinkSync("rt-loop-a", join(s.dir, "rt-loop-b"));
+      return { env: { BOX_REFRESH_TOKEN_FILE: file }, file };
+    },
+    "保存先は BOX_REFRESH_TOKEN_FILE で指定した。",
+  ],
 ];
+
+// 行き先の無いシンボリックリンクを、別のディレクトリへの相対パスで 2 段置き、たどった先のディレクトリは在る状態。
+// 書くと行き先にファイルができるので、保存できる（main の振る舞いと同じ）。保存先と、書かれる行き先を返す。
+// 相対パスをリンクの置き場所ではなく実行したディレクトリから読むと、行き先のディレクトリが見つからない
+function danglingLinkToExistingDir(s: Setup): { file: string; target: string } {
+  for (const d of ["links", "mid", "store"]) mkdirSync(join(s.dir, d));
+  const file = join(s.dir, "links", "rt");
+  symlinkSync("../mid/rt-next", file);
+  symlinkSync("../store/rt", join(s.dir, "mid", "rt-next"));
+  return { file, target: join(s.dir, "store", "rt") };
+}
 
 // BOX_REFRESH_TOKEN_FILE に絶対パスを指定すれば、HOME を使わない状態
 const EXPLICIT_FILE_CASES: [string, string | undefined][] = [
@@ -280,6 +332,7 @@ describe("box-token.sh", () => {
     expect(r.status).not.toBe(0);
     expect(r.stderr).toMatch(message);
     expect(r.log).toBe("");
+    expect(existsSync(join(s.home, ".config")), "保存先のディレクトリを作った").toBe(false);
   });
 
   test("refresh token がどこにも無ければ失敗し、参照したファイルを示す", () => {
@@ -355,6 +408,51 @@ describe("box-token.sh", () => {
     },
   );
 
+  test.each(DATABASE_HOME_CASES.slice(0, 2))(
+    "%sとき、OS にユーザーの登録が無ければ、API を呼ばずに登録が無いことを示して止まる",
+    (_label, home, file, relPath, homeState) => {
+      const env = {
+        ...CLIENT,
+        BOX_REFRESH_TOKEN: "rt-env",
+        BOX_REFRESH_TOKEN_FILE: file,
+        STUB_RESPONSE: JSON.stringify({ access_token: "at-11", refresh_token: "rt-new" }),
+      };
+      expectFakeMkdirStopsBeforeApi(TOKEN_SCRIPT, "box-token-", env, "", relPath);
+      const real = join(databaseHome(), relPath);
+      const before = fingerprint(real);
+      const s = setup("box-token-");
+      failMkdir(s);
+      failId(s);
+      const r = run(TOKEN_SCRIPT, s, { env: { ...env, HOME: home } });
+      expect(r.status === 1, "exit 1 にならない").toBe(true);
+      expect(r.stdout === "", "標準出力に何か出た").toBe(true);
+      expect(r.log === "", "保存先のディレクトリを作ろうとしたか、API を呼んだ").toBe(true);
+      expect(
+        r.stderr.includes(
+          `refresh token の置き場所を絶対パスに決められない。${homeState}OS にこのユーザーの登録が無く、ホームを決められない。BOX_REFRESH_TOKEN_FILE に絶対パスを設定する`,
+        ),
+        "登録が無いことを示さない",
+      ).toBe(true);
+      expect(fingerprint(real) === before, "本物の refresh token が変わった").toBe(true);
+    },
+  );
+
+  test("行き先の無いシンボリックリンクでも、たどった先のディレクトリに書ければ、行き先に保存する", () => {
+    const s = setup("box-token-");
+    const { file, target } = danglingLinkToExistingDir(s);
+    const r = run(TOKEN_SCRIPT, s, {
+      env: {
+        ...CLIENT,
+        BOX_REFRESH_TOKEN: "rt-env",
+        BOX_REFRESH_TOKEN_FILE: file,
+        STUB_RESPONSE: JSON.stringify({ access_token: "at-12", refresh_token: "rt-new" }),
+      },
+    });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toBe("at-12");
+    expect(readFileSync(target, "utf8")).toBe("rt-new");
+  });
+
   test.each(UNDECIDED_CASES)(
     "HOME が相対パスで%sなら、API を呼ばずに BOX_REFRESH_TOKEN_FILE の設定を案内して止まる",
     (_label, file) => {
@@ -374,7 +472,7 @@ describe("box-token.sh", () => {
       expect(r.stderr).toContain(
         "refresh token の置き場所を絶対パスに決められない。HOME=rel が絶対パスでない。BOX_REFRESH_TOKEN_FILE に絶対パスを設定する",
       );
-      expect(r.stderr).not.toMatch(/passwd に登録されたホーム/);
+      expect(r.stderr).not.toMatch(/OS に登録されたホーム/);
     },
   );
 
@@ -562,6 +660,17 @@ describe("box-oauth-init.sh", () => {
     expect(r.log).toBe("");
   });
 
+  test.each([
+    ["BOX_CLIENT_ID", { BOX_CLIENT_SECRET: "sec-1" }],
+    ["BOX_CLIENT_SECRET", { BOX_CLIENT_ID: "cid-1" }],
+  ])("%s が無ければ、保存先のディレクトリを作らずに止まる", (name, env) => {
+    const s = setup("box-init-");
+    const r = run(INIT_SCRIPT, s, { env, input: "code-x\n" });
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toContain(`${name} が未設定`);
+    expect(existsSync(join(s.home, ".config")), "保存先のディレクトリを作った").toBe(false);
+  });
+
   test("認可コードを引数に載せずに交換し、refresh token を ~/ の保存先へ 0600 で保存する", () => {
     const s = setup("box-init-");
     const r = run(INIT_SCRIPT, s, {
@@ -605,6 +714,50 @@ describe("box-oauth-init.sh", () => {
     },
   );
 
+  test.each(DATABASE_HOME_CASES.slice(0, 2))(
+    "%sとき、OS にユーザーの登録が無ければ、認可コードを読む前に登録が無いことを示して止まる",
+    (_label, home, file, relPath, homeState) => {
+      const env = {
+        ...CLIENT,
+        BOX_REFRESH_TOKEN_FILE: file,
+        STUB_RESPONSE: JSON.stringify({ access_token: "a", refresh_token: "rt-init" }),
+      };
+      expectFakeMkdirStopsBeforeApi(INIT_SCRIPT, "box-init-", env, "code-x\n", relPath);
+      const real = join(databaseHome(), relPath);
+      const before = fingerprint(real);
+      const s = setup("box-init-");
+      failMkdir(s);
+      failId(s);
+      // 認可コードを空にする。先に認可コードを読む実装なら、認可コードが空だというエラーで止まる
+      const r = run(INIT_SCRIPT, s, { env: { ...env, HOME: home }, input: "" });
+      expect(r.status === 1, "exit 1 にならない").toBe(true);
+      expect(r.log === "", "保存先のディレクトリを作ろうとしたか、API を呼んだ").toBe(true);
+      expect(
+        r.stderr.includes(
+          `refresh token の置き場所を絶対パスに決められない。${homeState}OS にこのユーザーの登録が無く、ホームを決められない。BOX_REFRESH_TOKEN_FILE に絶対パスを設定する`,
+        ),
+        "登録が無いことを示さない",
+      ).toBe(true);
+      expect(r.stderr.includes("認可コードが空です"), "認可コードを先に読んだ").toBe(false);
+      expect(fingerprint(real) === before, "本物の refresh token が変わった").toBe(true);
+    },
+  );
+
+  test("行き先の無いシンボリックリンクでも、たどった先のディレクトリに書ければ、行き先に保存する", () => {
+    const s = setup("box-init-");
+    const { file, target } = danglingLinkToExistingDir(s);
+    const r = run(INIT_SCRIPT, s, {
+      env: {
+        ...CLIENT,
+        BOX_REFRESH_TOKEN_FILE: file,
+        STUB_RESPONSE: JSON.stringify({ access_token: "a", refresh_token: "rt-init" }),
+      },
+      input: "code-x\n",
+    });
+    expect(r.status, r.stderr).toBe(0);
+    expect(readFileSync(target, "utf8")).toBe("rt-init");
+  });
+
   test.each(UNDECIDED_CASES)(
     "HOME が相対パスで%sなら、認可コードを読む前に BOX_REFRESH_TOKEN_FILE の設定を案内して止まる",
     (_label, file) => {
@@ -624,7 +777,7 @@ describe("box-oauth-init.sh", () => {
       expect(r.stderr).toContain(
         "refresh token の置き場所を絶対パスに決められない。HOME=rel が絶対パスでない。BOX_REFRESH_TOKEN_FILE に絶対パスを設定する",
       );
-      expect(r.stderr).not.toMatch(/passwd に登録されたホーム/);
+      expect(r.stderr).not.toMatch(/OS に登録されたホーム/);
       expect(r.stderr).not.toMatch(/認可コードが空です/);
     },
   );

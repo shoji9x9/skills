@@ -17,13 +17,25 @@ if [ "$#" -gt 0 ]; then
 	exit 2
 fi
 
-# HOME が無いか空なら、box-folder.sh と同じく、passwd に登録されたホームを使う
+# 認可コード以外の設定は、保存先のディレクトリを作る前に確かめる。設定が無くて止まる実行では、ディレクトリを作らない
+: "${BOX_CLIENT_ID:?BOX_CLIENT_ID が未設定}"
+: "${BOX_CLIENT_SECRET:?BOX_CLIENT_SECRET が未設定}"
+
+# HOME が無いか空なら、box-folder.sh と同じく、OS に登録されたホーム（/etc/passwd や LDAP などに登録された、
+# そのユーザーのホーム）を使う。OS にそのユーザーの登録が無いと、bash は ~ を / にする（実測 bash 5.2）。
+# そのため、登録が無いことは id -un が失敗することで見分け、ホームを空にして下の case で止める
 home_dir="${HOME:-}"
-[ -n "${home_dir}" ] || home_dir=$(
-	unset HOME
-	printf '%s' ~
-)
-# passwd にエントリが無いと ~ が展開されずに残る。~ は絶対パスでないので、下の case が止める
+no_entry=""
+if [ -z "${home_dir}" ]; then
+	if id -un >/dev/null 2>&1; then
+		home_dir=$(
+			unset HOME
+			printf '%s' ~
+		)
+	else
+		no_entry=1
+	fi
+fi
 # 置き場所のデフォルトは ~/.config/box/refresh_token。
 # env/dotenv 経由の値は ~ が展開されないため、先頭 ~/ も上で決めたホームの下に直す
 token_file="${BOX_REFRESH_TOKEN_FILE:-}"
@@ -37,9 +49,11 @@ if [ -z "$token_file" ] || [ "$stripped" != "$token_file" ]; then
 	if [ -n "${HOME:-}" ]; then
 		token_src="保存先は HOME から決めた。"
 		home_reason="$(printf 'HOME=%q が絶対パスでない。' "${HOME}")"
+	elif [ -n "${no_entry}" ]; then
+		home_reason="${home_state}。OS にこのユーザーの登録が無く、ホームを決められない。"
 	else
-		token_src="${home_state}。保存先は、passwd に登録されたホームから決めた。"
-		home_reason="$(printf '%s。passwd に登録されたホーム %q も絶対パスでない。' "${home_state}" "${home_dir}")"
+		token_src="${home_state}。保存先は、OS に登録されたホームから決めた。"
+		home_reason="$(printf '%s。OS に登録されたホーム %q も絶対パスでない。' "${home_state}" "${home_dir}")"
 	fi
 	# ホームが絶対パスに決まらないまま交換すると、受け取った refresh token を保存できず、認可からやり直すことになる。
 	# 認可コードは 1 回しか使えないので、認可コードを読む前に止める
@@ -52,12 +66,34 @@ if [ -z "$token_file" ] || [ "$stripped" != "$token_file" ]; then
 	esac
 	token_file="${home_dir}/$stripped"
 fi
+# 保存先に書き込めるかを返す。保存はファイルへ直接書くので、ファイルが在ればファイルに、無ければディレクトリに書き込めるかを見る。
+# 保存先がディレクトリなら、書き込めてもファイルとして保存できない。
+# 行き先の無いシンボリックリンクに書くと行き先にファイルができるので、リンクをたどった先のディレクトリに書き込めるかを見る
+can_save() {
+	[ ! -d "$1" ] || return 1
+	if [ -e "$1" ]; then
+		[ -w "$1" ]
+		return
+	fi
+	local target="$1" hops=0 next
+	while [ -L "$target" ]; do
+		# 循環するシンボリックリンクには書き込めない
+		[ "$hops" -lt 40 ] || return 1
+		next="$(readlink "$target")"
+		case "$next" in
+		/*) target="$next" ;;
+		*) target="$(dirname "$target")/$next" ;;
+		esac
+		hops=$((hops + 1))
+	done
+	[ -w "$(dirname "$target")" ]
+}
 # 保存先のディレクトリを先に作り、書き込めるかを確かめる。ホームが書き込めない場所（/nonexistent など）でも、
 # BOX_REFRESH_TOKEN_FILE に書き込めない場所を指定しても、交換した後に保存できず認可からやり直すことになるので、
-# 認可コードを読む前に止める。保存はファイルへ直接書くので、ファイルが在ればファイルに、無ければディレクトリに書き込めるかを見る
+# 認可コードを読む前に止める
 token_dir="$(dirname "$token_file")"
-if ! (umask 077 && mkdir -p "$token_dir") || { [ -e "$token_file" ] && [ ! -w "$token_file" ]; } || { [ ! -e "$token_file" ] && [ ! -w "$token_dir" ]; }; then
-	printf 'box-oauth-init: refresh token の保存先 %q に書き込めない（ディレクトリを作れないか、書き込む権限が無い）。%sBox の API を呼ぶ前に止める。BOX_REFRESH_TOKEN_FILE に書き込める絶対パスを設定する（例: export BOX_REFRESH_TOKEN_FILE=/path/to/refresh_token）\n' "$token_file" "$token_src" >&2
+if ! (umask 077 && mkdir -p "$token_dir") || ! can_save "$token_file"; then
+	printf 'box-oauth-init: refresh token の保存先 %q に書き込めない（ディレクトリを作れないか、保存先がディレクトリか、書き込む権限が無い）。%sBox の API を呼ぶ前に止める。BOX_REFRESH_TOKEN_FILE に書き込める絶対パスを設定する（例: export BOX_REFRESH_TOKEN_FILE=/path/to/refresh_token）\n' "$token_file" "$token_src" >&2
 	exit 1
 fi
 
@@ -69,8 +105,6 @@ IFS= read -r code || true
 # 貼り付け時に混入し得る前後の空白/改行/CR を除去する（認可コードは非空白のみ）。
 code="$(printf '%s' "$code" | tr -d '[:space:]')"
 : "${code:?認可コードが空です（プロンプトに貼り付けるか stdin で渡してください）}"
-: "${BOX_CLIENT_ID:?BOX_CLIENT_ID が未設定}"
-: "${BOX_CLIENT_SECRET:?BOX_CLIENT_SECRET が未設定}"
 
 redirect_uri="${BOX_REDIRECT_URI:-https://app.box.com}"
 
