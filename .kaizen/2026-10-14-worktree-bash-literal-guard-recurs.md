@@ -236,3 +236,6 @@ PR の HEAD を待つ `for` のループの中で `git rev-parse` を変数に�
 4 回目は、manifest を書き換える python の quoted heredoc と、eval のランナーを書く `cat >` の heredoc を 1 つの呼び出しに並べた形である（`this command is too complex to verify`）。
 どれも、Write ツールでスクリプトにして絶対パスで実行するか、`git mv` を単独の呼び出しに分けて通した。
 この学びはセッション開始時に注入されていたが、worktree に入った後の最初の一括の処理で同じ形を書いた。
+同じ作業の後半（PR #728 の受け入れ条件の検査・PR の作成・manifest の更新・eval の結果の確認）でも、4 回拒否された。
+URL の `github.com` を含む `node` の検査、`gh pr create` のタイトルに `refactor(...)` を含む複合コマンド、`git` の語を含む JSON を渡す python の連続の呼び出し、`for` ループの変数を `sed -n` に渡す形である。
+どれも、Write ツールでスクリプトにして、引数を定数にした単独の呼び出しで通した。
