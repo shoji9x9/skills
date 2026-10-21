@@ -55,7 +55,8 @@
       "replace": "if (staged === null) return { mode: \"all\" };",
       "occurrences": 1,
       "expect_failing": [
-        "checkPlan: staged が無ければ全体、きっかけのファイルがあれば全体、一覧と重なればそのファイル、どれでもなければ検査しない"
+        "checkPlan: staged が無ければ全体、きっかけのファイルがあれば全体、一覧と重なればそのファイル、どれでもなければ検査しない",
+        "CLI: stdin の staged のファイルから範囲を出し、検査しないなら何も出さない"
       ]
     },
     {
@@ -65,7 +66,10 @@
       "find": "if (fileName.startsWith(\".\"))",
       "replace": "if (true)",
       "occurrences": 1,
-      "expect_failing": ["importClosure: 相対 import をたどり、パッケージの import はたどらない"]
+      "expect_failing": [
+        "importClosure: 相対 import をたどり、パッケージの import はたどらない",
+        "CLI: stdin の staged のファイルから範囲を出し、検査しないなら何も出さない"
+      ]
     },
     {
       "id": "PD-UNLISTED-RULES",
