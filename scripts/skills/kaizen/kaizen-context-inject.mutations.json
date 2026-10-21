@@ -24,8 +24,7 @@
         "注入の行に確信度を出す: 引用符で囲んだ値",
         "注入の行に確信度を出す: YAML の null",
         "注入の行に確信度を出す: YAML の ~",
-        "キーを前方に含む別のキーは読まない",
-        "行末のコメントがある欄も、コメントを除いた値で読む"
+        "注入の行に確信度を出す: キーを前方に含む別のキーだけがある"
       ]
     },
     {
@@ -40,20 +39,20 @@
         "注入の行に確信度を出す: 値が空",
         "注入の行に確信度を出す: YAML の null",
         "注入の行に確信度を出す: YAML の ~",
-        "キーを前方に含む別のキーは読まない",
-        "行末のコメントがある欄も、コメントを除いた値で読む"
+        "注入の行に確信度を出す: キーを前方に含む別のキーだけがある"
       ]
     },
     {
       "id": "INJECT-KEY-FORMS-IGNORED",
-      "why": "引用符で囲んだキーの値を読まない",
+      "why": "引用符で囲んだキーとキーとコロンの間の空白を受け付けない",
       "file": "skills/kaizen/scripts/kaizen-context-inject.sh",
-      "find": "else if (index($0, \"\\\"\" key \"\\\"\") == 1 || index($0, q key q) == 1) rest",
-      "replace": "else if (0) rest",
+      "find": "\t\tfm == 1 && /^(\"confidence\"|'\"'\"'confidence'\"'\"'|confidence)[[:space:]]*:/ {",
+      "replace": "\t\tfm == 1 && /^confidence:/ {",
       "occurrences": 1,
       "expect_failing": [
         "注入の行に確信度を出す: 引用符で囲んだキー",
-        "注入の行に確信度を出す: 単引用符で囲んだキー"
+        "注入の行に確信度を出す: 単引用符で囲んだキー",
+        "注入の行に確信度を出す: キーとコロンの間の空白"
       ]
     },
     {
@@ -63,10 +62,7 @@
       "find": "\t\t\tsub(/[[:space:]]+#.*$/, \"\", value)\n",
       "replace": "",
       "occurrences": 1,
-      "expect_failing": [
-        "注入の行に確信度を出す: 行末のコメント",
-        "行末のコメントがある欄も、コメントを除いた値で読む"
-      ]
+      "expect_failing": ["注入の行に確信度を出す: 行末のコメント"]
     },
     {
       "id": "INJECT-QUOTES-KEPT",
@@ -75,19 +71,7 @@
       "find": "\t\t\tif (value ~ /^\".*\"$/ || value ~ /^'\"'\"'.*'\"'\"'$/) value = substr(value, 2, length(value) - 2)\n",
       "replace": "",
       "occurrences": 1,
-      "expect_failing": [
-        "注入の行に確信度を出す: 引用符で囲んだ値",
-        "行末のコメントがある欄も、コメントを除いた値で読む"
-      ]
-    },
-    {
-      "id": "INJECT-SPACE-BEFORE-COLON-IGNORED",
-      "why": "キーとコロンの間の空白を受け付けない",
-      "file": "skills/kaizen/scripts/kaizen-context-inject.sh",
-      "find": "\t\t\tsub(/^[[:space:]]*/, \"\", rest)\n",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": ["注入の行に確信度を出す: キーとコロンの間の空白"]
+      "expect_failing": ["注入の行に確信度を出す: 引用符で囲んだ値"]
     },
     {
       "id": "INJECT-NULL-KEPT",
@@ -100,15 +84,6 @@
         "注入の行に確信度を出す: YAML の null",
         "注入の行に確信度を出す: YAML の ~"
       ]
-    },
-    {
-      "id": "INJECT-KEY-PREFIX-READ",
-      "why": "キーを前方に含む別のキー（types:）の値を読む",
-      "file": "skills/kaizen/scripts/kaizen-context-inject.sh",
-      "find": "\t\t\tif (substr(rest, 1, 1) != \":\") next\n",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": ["キーを前方に含む別のキーは読まない"]
     }
   ]
 }

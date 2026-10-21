@@ -79,6 +79,7 @@ test.each([
   ["引用符で囲んだ値", "confidence: 'medium'\n", "confidence: medium"],
   ["YAML の null", "confidence: null\n", "confidence: unknown"],
   ["YAML の ~", "confidence: ~\n", "confidence: unknown"],
+  ["キーを前方に含む別のキーだけがある", "confidences: low\n", "confidence: unknown"],
 ])("注入の行に確信度を出す: %s", (_name, line, expected) => {
   const dir = createRepo("要約");
   const path = join(dir, ".kaizen", "2026-09-01-note.md");
@@ -88,31 +89,6 @@ test.each([
   );
   const meta = metaOf(inject(dir));
   expect(meta).toBe(`date: 2026-09-01 type: rule priority: high ${expected}`);
-});
-
-// status・type・priority も confidence と同じ読み方で読む。行末のコメントがある pending の学びを、注入から外さない。
-test("行末のコメントがある欄も、コメントを除いた値で読む", () => {
-  const dir = createRepo("要約");
-  const path = join(dir, ".kaizen", "2026-09-01-note.md");
-  writeFileSync(
-    path,
-    readFileSync(path, "utf8")
-      .replace("status: pending\n", "status: pending # メモ\n")
-      .replace("type: rule\n", "type: rule # メモ\n")
-      .replace("priority: high\n", "priority: 'high'\n"),
-  );
-  expect(metaOf(inject(dir))).toBe(
-    "date: 2026-09-01 type: rule priority: high confidence: unknown",
-  );
-});
-
-test("キーを前方に含む別のキーは読まない", () => {
-  const dir = createRepo("要約");
-  const path = join(dir, ".kaizen", "2026-09-01-note.md");
-  writeFileSync(path, readFileSync(path, "utf8").replace("type: rule\n", "types: x\ntype: rule\n"));
-  expect(metaOf(inject(dir))).toBe(
-    "date: 2026-09-01 type: rule priority: high confidence: unknown",
-  );
 });
 
 function isValidUtf8(buffer: Buffer) {

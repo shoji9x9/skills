@@ -86,7 +86,7 @@
         "重なったキーの前の不正な値も報告する",
         "重なったキーの不正な値は、すべてを 1 回の実行で報告する",
         "重なったキーの前の空の値も報告する",
-        "アンカーを付けた confidence のキーも、重なりとキーの形の誤りとして報告する"
+        "アンカーを付けた confidence のキーも、重なりとキーの属性として報告する"
       ]
     },
     {
@@ -442,7 +442,8 @@
         "status・type・applied-to の形を拒否する: アンカーを付けた status のキーの重なり",
         "status・type・applied-to の形を拒否する: タグを付けた type のキー",
         "属性を付けたキーの重なりを報告する: 属性を 2 つ付けた status",
-        "アンカーを付けた confidence のキーも、重なりとキーの形の誤りとして報告する"
+        "アンカーを付けた confidence のキーも、重なりとキーの属性として報告する",
+        "archive のノートでも、confidence のキーの属性は止める"
       ]
     },
     {
@@ -466,49 +467,15 @@
       "expect_failing": ["属性を付けたキーの重なりを報告する: 属性を 2 つ付けた status"]
     },
     {
-      "id": "STATUS-PLAIN-SKIPPED",
-      "why": "status の値の引用符を落とさず、YAML の空の値も空にしない",
-      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
-      "find": "\t\t\tstatus = plain(status)\n",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "status の値を引用符を落として読む: 引用符で囲んだ applied",
-        "status の値を引用符を落として読む: 単引用符で囲んだ pending と空でない applied-to",
-        "status の値を引用符を落として読む: YAML の null",
-        "status の値を引用符を落として読む: YAML の ~"
-      ]
-    },
-    {
-      "id": "TYPE-PLAIN-SKIPPED",
-      "why": "type の値の引用符を落とさない",
-      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
-      "find": "\t\t\ttype = plain(type)\n",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": ["引用符で囲んだ type: hook も、ドキュメントだけで閉じたときに警告する"]
-    },
-    {
-      "id": "PLAIN-NULL-KEPT",
-      "why": "status と type の YAML の空の値（null・~）を値として読む",
-      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
-      "find": "\t\t\tif (value == \"null\" || value == \"~\") return \"\"\n",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "status の値を引用符を落として読む: YAML の null",
-        "status の値を引用符を落として読む: YAML の ~"
-      ]
-    },
-    {
       "id": "CONF-KEY-ATTR-ACCEPTED",
-      "why": "アンカーやタグを付けた confidence のキーを、形の誤りとして止めない",
+      "why": "アンカーやタグを付けた confidence のキーを止めない",
       "file": "skills/kaizen/scripts/kaizen-status-check.sh",
-      "find": "if ($0 ~ /^[&!]/) bad_forms",
-      "replace": "if (0) bad_forms",
+      "find": "if ($0 ~ /^[&!]/) conf_attr = 1",
+      "replace": "if (0) conf_attr = 1",
       "occurrences": 1,
       "expect_failing": [
-        "アンカーを付けた confidence のキーも、重なりとキーの形の誤りとして報告する"
+        "アンカーを付けた confidence のキーも、重なりとキーの属性として報告する",
+        "archive のノートでも、confidence のキーの属性は止める"
       ]
     },
     {

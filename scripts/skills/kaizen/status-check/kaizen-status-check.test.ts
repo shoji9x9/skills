@@ -917,12 +917,12 @@ test.each([
   expect(exitCode).toBe(2);
 });
 
-test("アンカーを付けた confidence のキーも、重なりとキーの形の誤りとして報告する", () => {
+test("アンカーを付けた confidence のキーも、重なりとキーの属性として報告する", () => {
   const { status: exitCode, stderr } = runCheck(
     noteWithConfidence("confidence: high\n&k confidence: low"),
   );
   expect(stderr).toContain("confidence is declared 2 times");
-  expect(stderr).toContain("confidence key is quoted");
+  expect(stderr).toContain("confidence key has a YAML anchor or tag");
   expect(exitCode).toBe(2);
 });
 
@@ -933,42 +933,6 @@ test("applied-to が重なったとき、前のキーの値の形に関わらず
   expect(stderr).toContain("applied-to uses a YAML anchor or alias");
   expect(stderr).toContain("applied-to has an element with");
   expect(exitCode).toBe(2);
-});
-
-// status と type の値も、confidence と同じく対になった引用符を落とし、YAML の空の値を空として読む。
-// 参照の注入も同じ読み方をするので、pending かどうかの判定が 2 つのスクリプトでそろう。
-test.each([
-  [
-    "引用符で囲んだ applied",
-    { status: 'status: "applied"', appliedTo: 'applied-to: ["docs/a.md"]' },
-    0,
-    "",
-  ],
-  [
-    "単引用符で囲んだ pending と空でない applied-to",
-    { status: "status: 'pending'", appliedTo: 'applied-to: ["docs/a.md"]' },
-    2,
-    "applied-to is set but status is pending",
-  ],
-  ["YAML の null", { status: "status: null" }, 2, "applied-to is declared but status is missing"],
-  ["YAML の ~", { status: "status: ~" }, 2, "applied-to is declared but status is missing"],
-])("status の値を引用符を落として読む: %s", (_name, lines, code, message) => {
-  const { status: exitCode, stderr } = runCheck(noteWithKeys(lines));
-  if (message === "") expect(stderr).toBe("");
-  else expect(stderr).toContain(message);
-  expect(exitCode).toBe(code);
-});
-
-test("引用符で囲んだ type: hook も、ドキュメントだけで閉じたときに警告する", () => {
-  const { status: exitCode, stderr } = runCheck(
-    noteWithKeys({
-      type: 'type: "hook"',
-      status: "status: applied",
-      appliedTo: 'applied-to: ["docs/a.md"]',
-    }),
-  );
-  expect(stderr).toContain("warning: type is hook");
-  expect(exitCode).toBe(0);
 });
 
 // archive のノートは注入されず書き換えもしないので、キーの重なりと形のチェックを当てない。
@@ -1002,4 +966,11 @@ test("archive のノートには、キーの重なりと形のチェックを当
   const current = runCheck(content);
   expect(current.stderr).toContain("status is declared 2 times");
   expect(current.status).toBe(2);
+});
+
+// confidence のキーの属性は、confidence の他のチェックと同じく archive のノートにも当てる。
+test("archive のノートでも、confidence のキーの属性は止める", () => {
+  const { status: exitCode, stderr } = runCheckArchived(noteWithConfidence("&a confidence: high"));
+  expect(stderr).toContain("confidence key has a YAML anchor or tag");
+  expect(exitCode).toBe(2);
 });

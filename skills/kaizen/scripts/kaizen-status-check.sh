@@ -53,7 +53,7 @@ frontmatter_state() {
 			# 要素のアンカー・エイリアス・タグ（`- *ref`・`[&a docs/a.md]`・`[!!str x]`）も、値そのものと同じく 1 行の文字列として読めない。
 			# ブロックシーケンスの要素も collect_item が applied_value へ連ねるので、ここで両方の形を確かめる。
 			# 値そのものの形（`applied-to: *ref`）を記録したノートでは、同じ問題を 2 回数えない。
-			if (!applied_form_bad && element_has_marker(body)) bad_forms = (bad_forms == "" ? "" : bad_forms ",") "applied-to:item"
+			if (!applied_form_bad && element_has_marker(body)) add_bad("applied-to:item")
 			n = split(body, parts, ",")
 			for (i = 1; i <= n; i++) {
 				item = parts[i]
@@ -70,36 +70,33 @@ frontmatter_state() {
 			gsub(/\|/, "｜", type)
 			gsub(/\|/, "｜", confidence)
 			# confidence は、出てきた回数と、コロンの後に空白が無い形があったか（0 か 1）を別のフィールドで渡す。
+			# キーにアンカーやタグを付けた形があったか（0 か 1）も、別のフィールドで渡す。
 			# status・type・applied-to は、出てきた回数と、受け付けない形（「キー:種類」を「,」で連ねたもの）を渡す。
 			# 種類は block・tag・anchor（値）、key・nospace（キーの書き方）、item（applied-to の要素）である。
-			printf "%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s\n", status, present, nonempty, type, conf_count, conf_nospace, confidence, status_count, type_count, applied_count, bad_forms, out
+			printf "%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s\n", status, present, nonempty, type, conf_count, conf_nospace, conf_attr, confidence, status_count, type_count, applied_count, bad_forms, out
 		}
 		# ブロックスカラー（`|`・`>-` の次の行に値を書く形）とタグ（`!!str applied`）は、1 行の値として読めないので記録する。
 		# 値は、コメントと前後の空白を落とした後、引用符を落とす前のものを渡す（引用符で囲んだ `"|"` は文字列である）。
 		# アンカー（`&s pending`）とエイリアス（`*s`）も、1 行の値として読めないので記録する。
+		function add_bad(form) {
+			bad_forms = (bad_forms == "" ? "" : bad_forms ",") form
+		}
 		function note_form(key, value,  kind) {
 			kind = ""
 			if (value ~ /^[|>][-+0-9]*$/) kind = "block"
 			else if (value ~ /^!/) kind = "tag"
 			else if (value ~ /^[&*]/) kind = "anchor"
 			if (kind == "") return
-			bad_forms = (bad_forms == "" ? "" : bad_forms ",") key ":" kind
+			add_bad(key ":" kind)
 			if (key == "applied-to") applied_form_bad = 1
 		}
 		# 値を読むのは、引用符の無いキーの直後にコロンと空白を書いた形（`status: `）だけである。
-		# 参照の注入は他の形も読むが、ここで止めるので、読み方が食い違ったノートは commit されない。
+		# 参照の注入も、引用符の無いキーの直後にコロンを書いた行だけを読む。
 		# 引用符で囲んだキー・コロンの前の空白・キーに付けたアンカーやタグ（`&k status:`）は、数えはするが値を読まないので、形の誤りとして記録する。
 		# コロンの後に空白が無い形（`status:applied`）は YAML の mapping にならないので、confidence と同じく止める。
-		# 値の形を確かめた後に、対になった引用符を落とし、YAML の空の値（`null`・`~`）を空にする。
-		# 参照の注入（kaizen-context-inject.sh の frontmatter_field）も同じ読み方をするので、pending の判定がそろう。
-		function plain(value) {
-			if (value == "null" || value == "~") return ""
-			if (value ~ /^".*"$/ || value ~ /^'"'"'.*'"'"'$/) return substr(value, 2, length(value) - 2)
-			return value
-		}
 		function note_key(key, line) {
-			if (index(line, key ":") != 1) bad_forms = (bad_forms == "" ? "" : bad_forms ",") key ":key"
-			else if (substr(line, length(key) + 2) ~ /^[^[:space:]]/) bad_forms = (bad_forms == "" ? "" : bad_forms ",") key ":nospace"
+			if (index(line, key ":") != 1) add_bad(key ":key")
+			else if (substr(line, length(key) + 2) ~ /^[^[:space:]]/) add_bad(key ":nospace")
 		}
 		# flow 配列の本文（内部の空白は落としたもの）で、要素の先頭がアンカー・エイリアス・タグかを見る。
 		# 引用符の中の `,` は要素の区切りではないので、引用符の外だけを見る（`"docs/a, *b.md"` は 1 つの文字列である）。
@@ -134,7 +131,7 @@ frontmatter_state() {
 			if (item == "") return
 			applied_value = (applied_value == "" ? item : applied_value "," item)
 		}
-		BEGIN { fm = 0; present = 0; nonempty = 0; status = ""; type = ""; conf_count = 0; conf_nospace = 0; conf_bad = ""; confidence = ""; in_applied = 0; applied_value = ""; status_count = 0; type_count = 0; applied_count = 0; bad_forms = ""; applied_form_bad = 0 }
+		BEGIN { fm = 0; present = 0; nonempty = 0; status = ""; type = ""; conf_count = 0; conf_nospace = 0; conf_bad = ""; confidence = ""; in_applied = 0; applied_value = ""; status_count = 0; type_count = 0; applied_count = 0; bad_forms = ""; applied_form_bad = 0; conf_attr = 0 }
 		/^---[[:space:]]*$/ {
 			fm++
 			if (fm == 2) {
@@ -145,7 +142,7 @@ frontmatter_state() {
 		}
 		fm != 1 { next }
 		# キーの重なりは、confidence と同じく YAML として正しくない（実装によってエラーになるか、どちらかの値を採る）ので、
-		# 引用符で囲んだキーとアンカーやタグを付けたキー（`&a !!str status:` のように 2 つ付けた形も）を含めて出てきた回数を数える。値を読むのは、これまでどおり引用符の無いキーだけである。
+		# 引用符で囲んだキーとアンカーやタグを付けたキー（`&a !!str status:` のように 2 つ付けた形も）を含めて出てきた回数を数える。値を読むのは、引用符の無いキーだけである。
 		/^([&!][^[:space:]]*[[:space:]]+)*("status"|'"'"'status'"'"'|status)[[:space:]]*:/ { status_count++; note_key("status", $0) }
 		/^([&!][^[:space:]]*[[:space:]]+)*("type"|'"'"'type'"'"'|type)[[:space:]]*:/ { type_count++; note_key("type", $0) }
 		/^([&!][^[:space:]]*[[:space:]]+)*("applied-to"|'"'"'applied-to'"'"'|applied-to)[[:space:]]*:/ { applied_count++; note_key("applied-to", $0) }
@@ -155,7 +152,6 @@ frontmatter_state() {
 			sub(/[[:space:]]+#.*$/, "", status)
 			gsub(/^[[:space:]]+|[[:space:]]+$/, "", status)
 			note_form("status", status)
-			status = plain(status)
 			in_applied = 0
 			next
 		}
@@ -167,7 +163,6 @@ frontmatter_state() {
 			sub(/[[:space:]]+#.*$/, "", type)
 			gsub(/^[[:space:]]+|[[:space:]]+$/, "", type)
 			note_form("type", type)
-			type = plain(type)
 			in_applied = 0
 			next
 		}
@@ -180,7 +175,7 @@ frontmatter_state() {
 			conf_count++
 			confidence = $0
 			# 値を読む前に、キーに付けたアンカーやタグを記録する（引用符で囲んだキーとコロンの前の空白は、confidence では受け付ける）。
-			if ($0 ~ /^[&!]/) bad_forms = (bad_forms == "" ? "" : bad_forms ",") "confidence:key"
+			if ($0 ~ /^[&!]/) conf_attr = 1
 			sub(/^([&!][^[:space:]]*[[:space:]]+)*("confidence"|'"'"'confidence'"'"'|confidence)[[:space:]]*:/, "", confidence)
 			if (confidence ~ /^[^[:space:]]/) conf_nospace = 1
 			sub(/[[:space:]]+#.*$/, "", confidence)
@@ -324,12 +319,12 @@ for note in .kaizen/*.md .kaizen/archive/*.md; do
 		continue
 	fi
 	# entries は最後の変数なので、要素に `|` が含まれても前のフィールドはずれない。
-	IFS='|' read -r status present nonempty type conf_count conf_nospace confidence status_count type_count applied_count bad_forms entries <<<"${state}"
+	IFS='|' read -r status present nonempty type conf_count conf_nospace conf_attr confidence status_count type_count applied_count bad_forms entries <<<"${state}"
 
 	# status・type・applied-to も、confidence と同じく、キーの重なりと 1 行で読めない形（値とキーの書き方）を止める。
 	# 重なると、このチェックは最後の値を読むが、YAML の実装によってはエラーになるか、別の値を採る。
 	# archive のノートには当てない。注入されず書き換えもしない記録なので、下の折り返しのチェックと同じく、
-	# 過去の書き方を理由に commit を止めない（このチェックを足す前にアーカイブしたノートで、関係の無い commit が止まる）。
+	# 過去の書き方を理由に commit を止めない（アーカイブしたノートの書き方で、関係の無い commit が止まる）。
 	key_checks=1
 	case "${note}" in
 	.kaizen/archive/*) key_checks=0 ;;
@@ -362,13 +357,17 @@ for note in .kaizen/*.md .kaizen/archive/*.md; do
 
 	# confidence は欠けていても通す（欄を足す前に書いたノートには無い）。在るなら 1 回だけ、3 つの値だけを受け付ける。
 	# 当てはまる問題はまとめて報告し、直すたびに別の問題で止まり直さないようにする。
-	if ! [[ "${conf_count}" =~ ^[0-9]+$ && "${conf_nospace}" =~ ^[01]$ ]]; then
+	if ! [[ "${conf_count}" =~ ^[0-9]+$ && "${conf_nospace}" =~ ^[01]$ && "${conf_attr}" =~ ^[01]$ ]]; then
 		# 読み取りの出力の形が変わったときに、検査を飛ばして exit 0 にしない。
-		echo "kaizen-status-check: ${note}: could not read the confidence state: count=${conf_count} nospace=${conf_nospace}" >&2
+		echo "kaizen-status-check: ${note}: could not read the confidence state: count=${conf_count} nospace=${conf_nospace} attr=${conf_attr}" >&2
 		errors=$((errors + 1))
 	else
 		if [ "${conf_nospace}" = "1" ]; then
 			echo "kaizen-status-check: ${note}: confidence needs a space after the colon (confidence: <value>)" >&2
+			errors=$((errors + 1))
+		fi
+		if [ "${conf_attr}" = "1" ]; then
+			echo "kaizen-status-check: ${note}: confidence key has a YAML anchor or tag; write it as confidence: <value>" >&2
 			errors=$((errors + 1))
 		fi
 		if [ "${conf_count}" -gt 1 ]; then
