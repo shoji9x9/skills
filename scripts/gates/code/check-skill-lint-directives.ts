@@ -152,8 +152,8 @@ export function isArrayUses(entries: readonly { path: string; source: string }[]
     });
     // 起動と出力の読み方（終了コード・JSON・診断の形）は、oxlint-plugin/run-oxlint.ts と共有する。
     const uses = entries.map((): IsArrayUse[] => []);
-    // 本番のチェックなので、テストの子プロセス用の短い timeout ではなく、CI の負荷でも終わる長さにする。
-    for (const d of runOxlint(["-c", config, ...files], { timeout: 5 * 60 * 1000 })) {
+    // staged の内容に構文の誤りがあると、runOxlint は例外にする（exit 2）。読めないファイルの Array.isArray を 0 件として扱わないためである。
+    for (const d of runOxlint(["-c", config, ...files])) {
       if (d.rule !== RULE) continue;
       const index = files.indexOf(d.file);
       if (index === -1) throw new Error(`oxlint の診断のファイルが渡したものと合わない: ${d.file}`);

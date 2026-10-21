@@ -6,7 +6,13 @@ import { expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { checkPlan, importClosure, pendingSources } from "./oxlint-pending-check.ts";
+import {
+  type CheckPlan,
+  checkPlan,
+  importClosure,
+  parsePlan,
+  pendingSources,
+} from "./oxlint-pending-check.ts";
 import {
   PENDING_FIXES,
   pendingOverrides,
@@ -94,6 +100,12 @@ test("importClosure: 相対 import をたどり、パッケージの import は�
   ]);
 });
 
+test("parsePlan: CLI の出力を範囲に戻す", () => {
+  expect(parsePlan("")).toEqual({ mode: "none" });
+  expect(parsePlan("all\n")).toEqual({ mode: "all" });
+  expect(parsePlan("a.ts\nb.ts\n")).toEqual({ mode: "files", files: ["a.ts", "b.ts"] });
+});
+
 test("CLI: stdin の staged のファイルから範囲を出し、検査しないなら何も出さない", () => {
   const listed = Object.keys(PENDING_FIXES)[0] ?? "";
   const run = (input: string) => {
@@ -125,17 +137,21 @@ test("実リポジトリ: きっかけのファイルに、設定・プラグイ
     expect(sources.has(f), f).toBe(true);
 });
 
-// pre-commit は OXLINT_PENDING_STAGED に staged のファイル（削除を含む）を改行区切りで渡す。渡されなければ全体を検査する。
-const staged = process.env.OXLINT_PENDING_STAGED?.split("\n").filter((f) => f !== "") ?? null;
+// pre-commit は、oxlint-pending-check.ts の出力（範囲）を OXLINT_PENDING_PLAN で渡す。渡されなければ（CI）全体を検査する。
+const planEnv = process.env.OXLINT_PENDING_PLAN;
 
 test("実リポジトリ: 一覧と、一覧を外した oxlint の違反が一致する（直したのに残った組も、直さずに消した組も無い）", (ctx) => {
-  // 範囲はテストの中で決める。モジュールの読み込みで求めると、import をたどる処理の失敗でテストが 1 件も実行されない。
-  const plan = checkPlan(PENDING_FIXES, staged, pendingSources(REPO_DIR));
+  const plan: CheckPlan = planEnv === undefined ? { mode: "all" } : parsePlan(planEnv);
   if (plan.mode === "none") ctx.skip();
-  // 全体を検査するときは引数を渡さず、oxlint.config.ts の対象の範囲（ignorePatterns）に任せる。
+  // 削除したファイルは検査できないので除く（在ることは別のテストが確かめる）。残りが無ければ、全体を検査せずに終える。
   const files =
     plan.mode === "files" ? plan.files.filter((f) => existsSync(join(REPO_DIR, f))) : [];
-  const violations = runOxlint(files, { env: { OXLINT_IGNORE_PENDING: "1" } });
+  if (plan.mode === "files" && files.length === 0) ctx.skip();
+  // 全体を検査するときは引数を渡さず、oxlint.config.ts の対象の範囲（ignorePatterns）に任せる。
+  const violations = runOxlint(files, {
+    env: { OXLINT_IGNORE_PENDING: "1" },
+    timeout: CHILD_TIMEOUT_MS,
+  });
   const scope = plan.mode === "files" ? files : Object.keys(PENDING_FIXES);
   const pending = Object.fromEntries(scope.map((f) => [f, PENDING_FIXES[f] ?? []]));
   const stale = stalePending(pending, violations).map((s) => `${s.file} [${s.rule}]`);

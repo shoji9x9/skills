@@ -13,8 +13,17 @@ import { dirname, join, normalize, sep } from "node:path";
 import ts from "typescript";
 import { PENDING_FIXES, type PendingRule } from "./oxlint-pending.ts";
 
-/** ルールの判定を決めるファイルの起点。ここから相対 import をたどる。 */
-export const SOURCE_ENTRIES = ["oxlint.config.ts", "scripts/gates/code/oxlint-plugin/plugin.ts"];
+/**
+ * ルールの判定と、一覧との突き合わせの結果を決めるファイルの起点。ここから相対 import をたどる。
+ * 設定とプラグインに加えて、診断を読む run-oxlint.ts と範囲を決めるこのファイルを起点にする。
+ * 突き合わせのテスト自身はテストの補助（lib/testing/）も import するので、起点にしない（関係の無い commit でも全体を検査してしまう）。
+ */
+export const SOURCE_ENTRIES = [
+  "oxlint.config.ts",
+  "scripts/gates/code/oxlint-plugin/plugin.ts",
+  "scripts/gates/code/oxlint-plugin/run-oxlint.ts",
+  "scripts/gates/code/oxlint-pending-check.ts",
+];
 /** oxlint と依存の版を決めるファイル。 */
 export const VERSION_FILES = ["package.json", "pnpm-lock.yaml"];
 
@@ -25,7 +34,13 @@ export function importClosure(root: string, entries: readonly string[]): Set<str
   for (let file = queue.shift(); file !== undefined; file = queue.shift()) {
     if (seen.has(file)) continue;
     seen.add(file);
-    const text = readFileSync(join(root, file), "utf8");
+    // 解決できない import（拡張子を省いたものなど）は、判定できないので例外にする。oxlint の設定も読めない状態である。
+    let text: string;
+    try {
+      text = readFileSync(join(root, file), "utf8");
+    } catch (error) {
+      throw new Error(`oxlint-pending-check: import をたどれない（${file}）: ${String(error)}`);
+    }
     for (const { fileName } of ts.preProcessFile(text, true, true).importedFiles)
       if (fileName.startsWith("."))
         queue.push(
@@ -45,6 +60,15 @@ export function pendingSources(root: string): Set<string> {
 /** 検査する範囲。all はリポジトリ全体、files は一覧のファイルのうち staged と重なるもの。 */
 export type CheckPlan = { mode: "all" } | { mode: "files"; files: string[] } | { mode: "none" };
 
+/** CLI の出力（all か、ファイルの一覧か、空）を、範囲に戻す。 */
+export function parsePlan(output: string): CheckPlan {
+  const lines = output.split("\n").filter((l) => l !== "");
+  if (lines.length === 0) return { mode: "none" };
+  return lines.length === 1 && lines[0] === "all"
+    ? { mode: "all" }
+    : { mode: "files", files: lines };
+}
+
 /** staged（null ならすべてを検査する）から、検査する範囲を決める。 */
 export function checkPlan(
   pending: Readonly<Record<string, readonly PendingRule[]>>,
@@ -58,6 +82,7 @@ export function checkPlan(
 
 // pre-commit から起動する。stdin に staged のファイル（削除を含む）を 1 行に 1 つ受け取り、
 // 検査するなら範囲（all か、ファイルの一覧）を出し、検査しないなら何も出さない。
+// pre-commit はこの出力を OXLINT_PENDING_PLAN でテストに渡し、テストは範囲を求め直さない。
 if (import.meta.main) {
   const staged = readFileSync(0, "utf8")
     .split("\n")

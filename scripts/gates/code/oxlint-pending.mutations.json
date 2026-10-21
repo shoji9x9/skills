@@ -92,6 +92,15 @@
       "expect_failing": [
         "unlistedViolations: 一覧で外せるルールのうち、一覧に無い組の違反だけを返す"
       ]
+    },
+    {
+      "id": "PD-PARSE-ALL",
+      "why": "CLI の all を、all という名前のファイルとして読む",
+      "file": "scripts/gates/code/oxlint-pending-check.ts",
+      "find": "lines.length === 1 && lines[0] === \"all\"",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": ["parsePlan: CLI の出力を範囲に戻す"]
     }
   ]
 }

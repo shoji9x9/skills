@@ -6,7 +6,7 @@
 import { expect, test } from "vitest";
 import { join } from "node:path";
 import { directionViolation, isModuleArgument, resolveFromRoot } from "./import-direction.ts";
-import { runRule } from "./run-oxlint.ts";
+import { runRule } from "./run-rule.ts";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 
 const RULE = "skills-repo/import-direction";

@@ -1,14 +1,15 @@
-// oxlint を実物のまま起動し、診断を読む（oxlint-plugin/ のルールと oxlint-pending.ts のテスト、check-skill-lint-directives.ts が使う）。
+// oxlint を実物のまま起動し、診断を読む（check-skill-lint-directives.ts・oxlint-pending.ts のテスト・oxlint-plugin/ のテストが使う）。
+// 本番のチェックも使うので、テスト用の補助（lib/testing/）を import しない。テスト用の補助は run-rule.ts に置く。
 import { spawnSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname, join, relative } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isRecord } from "../../../lib/guards.ts";
 import { isArray } from "../../../lib/is-array.ts";
-import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
 
 export const REPO_DIR = join(dirname(fileURLToPath(import.meta.url)), "../../../..");
 export const PLUGIN_PATH = join(REPO_DIR, "scripts/gates/code/oxlint-plugin/plugin.ts");
+/** 本番のチェックの打ち切りの時間。CI の負荷でも終わる長さにする（テストは短い時間を渡す）。 */
+const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000;
 
 /**
  * oxlint の診断。rule は設定のキーと同じ字面（`max-params`・`skills-repo/import-direction`）。
@@ -69,7 +70,7 @@ export function runOxlint(
   {
     cwd = REPO_DIR,
     env = {},
-    timeout = CHILD_TIMEOUT_MS,
+    timeout = DEFAULT_TIMEOUT_MS,
   }: { cwd?: string; env?: Record<string, string>; timeout?: number } = {},
 ): Diagnostic[] {
   const res = spawnSync("pnpm", ["exec", "oxlint", "--format", "json", ...args], {
@@ -99,44 +100,4 @@ export function runOxlint(
   const diagnostics = isRecord(parsed) ? parsed.diagnostics : undefined;
   if (!isArray(diagnostics)) throw new Error(`oxlint の出力に diagnostics が無い: ${res.stdout}`);
   return diagnostics.map(toDiagnostic);
-}
-
-/**
- * dir の下に files（dir からのパス → 内容）を置き、rule だけを有効にした oxlint を 1 回実行する。
- * 診断の行を、files のパスごとに並べて返す（診断の無いファイルは空の配列）。
- */
-export function runRule({
-  dir,
-  rule,
-  option,
-  files,
-}: {
-  dir: string;
-  rule: string;
-  option?: unknown;
-  files: Record<string, string>;
-}): Record<string, number[]> {
-  const config = join(dir, "oxlintrc.json");
-  const setting = option === undefined ? "error" : ["error", option];
-  const oxlintrc = {
-    categories: { correctness: "off" },
-    jsPlugins: [PLUGIN_PATH],
-    rules: { [rule]: setting },
-  };
-  writeFileSync(config, JSON.stringify(oxlintrc));
-  const lines: Record<string, number[]> = {};
-  for (const [rel, content] of Object.entries(files)) {
-    mkdirSync(dirname(join(dir, rel)), { recursive: true });
-    writeFileSync(join(dir, rel), content);
-    lines[rel] = [];
-  }
-  for (const d of runOxlint(["-c", config, ...Object.keys(files).map((f) => join(dir, f))])) {
-    const rel = relative(dir, d.file);
-    const found = lines[rel];
-    if (d.rule !== rule || found === undefined)
-      throw new Error(`想定しない診断: ${rel} [${d.rule}]`);
-    found.push(d.line);
-  }
-  for (const found of Object.values(lines)) found.sort((a, b) => a - b);
-  return lines;
 }

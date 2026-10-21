@@ -144,11 +144,13 @@ pre-commit:
             # 直したのに一覧に残った組は、そのファイルに新しく入った同じ種類の違反を見逃す。直さずに一覧から消した組は、CI で初めて失敗する。
             # 検査する範囲は oxlint-pending-check.ts が staged のファイルから決め、範囲が空なら vitest を起動しない。
             # 削除したファイルも数えるため、glob で絞らず、staged のファイルを git から取る（{staged_files} は削除を含まない）。
+            # --no-renames は、名前を変えたファイルの古いパスも出すため。core.quotePath=false は、ASCII でないパスを引用符で囲ませないため。
+            # git の失敗を終了コードに残すため、パイプでつながずに変数で受ける。
             run: |
-              staged=$(git diff --cached --name-only) || exit 2
+              staged=$(git -c core.quotePath=false diff --cached --name-only --no-renames) || exit 2
               plan=$(printf '%s\n' "$staged" | node scripts/gates/code/oxlint-pending-check.ts) || exit 2
               if [ -n "$plan" ]; then
-                OXLINT_PENDING_STAGED="$staged" pnpm exec vitest run scripts/gates/code/oxlint-pending.test.ts
+                OXLINT_PENDING_PLAN="$plan" pnpm exec vitest run scripts/gates/code/oxlint-pending.test.ts
               fi
           - name: typecheck
             # tsconfig.json が束ねる .ts・.tsx 全体と、配布スキルの .mjs（tsconfig.skills.json の checkJs）の型。

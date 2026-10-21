@@ -5,7 +5,7 @@
 // oxlint の起動は時間がかかるので、デフォルトのオプションで確かめるケースはファイルを分けて置き、1 回の起動でまとめて判定する。
 import { beforeAll, expect, test } from "vitest";
 import { calleeRoot } from "./max-lines-except-describe.ts";
-import { runRule } from "./run-oxlint.ts";
+import { runRule } from "./run-rule.ts";
 import { makeSharedTempDir, makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 
 const RULE = "skills-repo/max-lines-per-function-except-describe";
@@ -187,6 +187,10 @@ test("max が 1 以上の整数でなければ、oxlint の実行を失敗にす
   const files = { "a.test.ts": "function a() {}\n" };
   expect(() =>
     runRule({ dir: makeTempDir("max-lines-option-"), rule: RULE, option: { max: 0 }, files }),
+  ).toThrow(/oxlint を実行できない/);
+  // 数だけの短縮形（["error", 30]）は schema が受け付けない。デフォルトの 50 行として扱わずに失敗にする。
+  expect(() =>
+    runRule({ dir: makeTempDir("max-lines-option-"), rule: RULE, option: 30, files }),
   ).toThrow(/oxlint を実行できない/);
 });
 

@@ -4,6 +4,7 @@ import { expect, test } from "vitest";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ruleOf, runOxlint, toDiagnostic, UNUSED_DIRECTIVE } from "./run-oxlint.ts";
+import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 
 test("ruleOf: 組み込みのルールは名前だけ、プラグインのルールは <プラグイン>/<名前> にし、読めない code は例外にする", () => {
@@ -46,13 +47,15 @@ test("toDiagnostic: 診断を読み、使われていない disable コメント
 test("runOxlint: 構文の誤りのファイルは、違反 0 件として扱わず、プラグインの例外と区別して例外にする", () => {
   const dir = makeTempDir("run-oxlint-");
   writeFileSync(join(dir, "a.ts"), "const z = 1;\nconst z = 2;\n");
-  expect(() => runOxlint([join(dir, "a.ts")])).toThrow(/構文の誤りなど/);
+  expect(() => runOxlint([join(dir, "a.ts")], { timeout: CHILD_TIMEOUT_MS })).toThrow(
+    /構文の誤りなど/,
+  );
 });
 
 test("runOxlint: 設定を読めずに exit 1・0 以外で終わったときは、違反 0 件として扱わず例外にする", () => {
   const dir = makeTempDir("run-oxlint-");
   writeFileSync(join(dir, "a.ts"), "export {};\n");
-  expect(() => runOxlint(["-c", join(dir, "missing.json"), join(dir, "a.ts")])).toThrow(
-    /oxlint を実行できない/,
-  );
+  expect(() =>
+    runOxlint(["-c", join(dir, "missing.json"), join(dir, "a.ts")], { timeout: CHILD_TIMEOUT_MS }),
+  ).toThrow(/oxlint を実行できない/);
 });
