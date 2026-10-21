@@ -1,4 +1,4 @@
-// テストから oxlint を実物のまま起動し、診断を読む（oxlint-plugin/ のルールと oxlint-pending.ts のテストが使う）。
+// oxlint を実物のまま起動し、診断を読む（oxlint-plugin/ のルールと oxlint-pending.ts のテスト、check-skill-lint-directives.ts が使う）。
 import { spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
@@ -10,8 +10,20 @@ import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
 export const REPO_DIR = join(dirname(fileURLToPath(import.meta.url)), "../../../..");
 export const PLUGIN_PATH = join(REPO_DIR, "scripts/gates/code/oxlint-plugin/plugin.ts");
 
-/** oxlint の診断。rule は設定のキーと同じ字面（`max-params`・`skills-repo/import-direction`）。 */
-export type Diagnostic = { file: string; rule: string; line: number; message: string };
+/**
+ * oxlint の診断。rule は設定のキーと同じ字面（`max-params`・`skills-repo/import-direction`）。
+ * offset はファイルの中の UTF-8 のバイト位置。
+ */
+export type Diagnostic = {
+  file: string;
+  rule: string;
+  line: number;
+  offset: number;
+  message: string;
+};
+
+/** 使われていない disable コメントの診断（reportUnusedDisableDirectives）の rule。oxlint は code を付けない。 */
+export const UNUSED_DIRECTIVE = "unused-disable-directive";
 
 /** 診断の code（`eslint(max-params)`・`skills-repo(import-direction)`）を、設定のキーの字面にする。 */
 export function ruleOf(code: string): string {
@@ -20,28 +32,32 @@ export function ruleOf(code: string): string {
   return m[1] === "eslint" ? m[2] : `${m[1]}/${m[2]}`;
 }
 
+/**
+ * code の無い診断の rule。使われていない disable コメントなら UNUSED_DIRECTIVE。
+ * それ以外（JS プラグインのルールが投げた例外・ファイルの構文の誤り）は、判定できないので実行の失敗として例外にする。
+ */
+function ruleWithoutCode(message: string): string {
+  if (/^Unused \S+-disable directive/.test(message)) return UNUSED_DIRECTIVE;
+  const cause = message.startsWith("Error running JS plugin")
+    ? "JS プラグインの例外"
+    : "構文の誤りなど";
+  throw new Error(`oxlint を実行できない（${cause}）: ${message}`);
+}
+
 /** oxlint の JSON の診断 1 件を読む。読めない形は、判定できないので例外にする。 */
 export function toDiagnostic(d: unknown): Diagnostic {
-  // code の無い診断は、ルールの違反ではない。JS プラグインのルールが投げた例外（Error running JS plugin）か、
-  // ファイルの構文の誤りである。どちらも判定できないので、実行の失敗として扱う。
-  if (isRecord(d) && d.code === undefined && typeof d.message === "string") {
-    const cause = d.message.startsWith("Error running JS plugin")
-      ? "JS プラグインの例外"
-      : "構文の誤りなど";
-    throw new Error(`oxlint を実行できない（${cause}）: ${d.message}`);
-  }
-  const label = isRecord(d) && isArray(d.labels) ? d.labels[0] : undefined;
+  if (!isRecord(d) || typeof d.message !== "string") throw new Error("oxlint の診断の形を読めない");
+  const rule = typeof d.code === "string" ? ruleOf(d.code) : ruleWithoutCode(d.message);
+  const label = isArray(d.labels) ? d.labels[0] : undefined;
   const span = isRecord(label) ? label.span : undefined;
   if (
-    !isRecord(d) ||
-    typeof d.code !== "string" ||
     typeof d.filename !== "string" ||
-    typeof d.message !== "string" ||
     !isRecord(span) ||
-    typeof span.line !== "number"
+    typeof span.line !== "number" ||
+    typeof span.offset !== "number"
   )
     throw new Error("oxlint の診断の形を読めない");
-  return { file: d.filename, rule: ruleOf(d.code), line: span.line, message: d.message };
+  return { file: d.filename, rule, line: span.line, offset: span.offset, message: d.message };
 }
 
 /**

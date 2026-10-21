@@ -18,8 +18,8 @@
       "id": "ID-SKILL-PREFIX",
       "why": "自分のディレクトリかを、/ を含めずに前方一致で判定する",
       "file": "scripts/gates/code/oxlint-plugin/import-direction.ts",
-      "find": "if (to.startsWith(`skills/${skill[1]}/`)) return null;",
-      "replace": "if (to.startsWith(`skills/${skill[1]}`)) return null;",
+      "find": "if (dir.startsWith(`skills/${skill[1]}/`)) return null;",
+      "replace": "if (dir.startsWith(`skills/${skill[1]}`)) return null;",
       "occurrences": 1,
       "expect_failing": ["skills/x/scripts/a.mjs → skills/xy/scripts/b.mjs は向きに反するか: true"]
     },
@@ -70,7 +70,8 @@
         "oxlint: import = require・テンプレート文字列の import()・createRequire の別名・JSDoc の型の参照も報告する",
         "oxlint: 正規表現の中のバッククォート・宣言より前の createRequire の別名・import した createRequire の別名でも報告し、同じ参照を 2 回報告しない",
         "oxlint: JSDoc の @example のコード・型の式（{…}）の外の文・JSDoc でないコメントは参照として扱わない",
-        "oxlint: JSDoc の @import・/// <reference path>・閉じていない { の後の型の参照と、同じ節点に付いた 2 つ目の JSDoc も報告する"
+        "oxlint: JSDoc の @import・/// <reference path>・閉じていない { の後の型の参照と、同じ節点に付いた 2 つ目の JSDoc も報告する",
+        "oxlint: new の引数とディレクトリへの参照も判定し、自分のスキルのディレクトリは報告しない"
       ]
     },
     {
@@ -159,7 +160,8 @@
       "expect_failing": [
         "oxlint: import・export from・import()・型の import と、相対パスの文字列を渡す呼び出しを報告し、向きに反しない参照は報告しない",
         "oxlint: import = require・テンプレート文字列の import()・createRequire の別名・JSDoc の型の参照も報告する",
-        "oxlint: 正規表現の中のバッククォート・宣言より前の createRequire の別名・import した createRequire の別名でも報告し、同じ参照を 2 回報告しない"
+        "oxlint: 正規表現の中のバッククォート・宣言より前の createRequire の別名・import した createRequire の別名でも報告し、同じ参照を 2 回報告しない",
+        "oxlint: new の引数とディレクトリへの参照も判定し、自分のスキルのディレクトリは報告しない"
       ]
     },
     {
@@ -233,6 +235,28 @@
       "expect_failing": [
         "oxlint: JSDoc の @import・/// <reference path>・閉じていない { の後の型の参照と、同じ節点に付いた 2 つ目の JSDoc も報告する",
         "oxlint: 配布スキルの .mjs の JSDoc の型が、自分のディレクトリの外を参照したら報告する"
+      ]
+    },
+    {
+      "id": "ID-NEW",
+      "why": "new の引数を見ない",
+      "file": "scripts/gates/code/oxlint-plugin/import-direction.ts",
+      "find": "      NewExpression: checkArguments,\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "oxlint: new の引数とディレクトリへの参照も判定し、自分のスキルのディレクトリは報告しない"
+      ]
+    },
+    {
+      "id": "ID-DIR-SLASH",
+      "why": "ディレクトリへの参照に / を足さずに照合する",
+      "file": "scripts/gates/code/oxlint-plugin/import-direction.ts",
+      "find": "const dir = extname(to) === \"\" && !to.endsWith(\"/\") ? `${to}/` : to;",
+      "replace": "const dir = to;",
+      "occurrences": 1,
+      "expect_failing": [
+        "oxlint: new の引数とディレクトリへの参照も判定し、自分のスキルのディレクトリは報告しない"
       ]
     }
   ]

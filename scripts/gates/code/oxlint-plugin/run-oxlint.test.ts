@@ -3,7 +3,7 @@
 import { expect, test } from "vitest";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ruleOf, runOxlint, toDiagnostic } from "./run-oxlint.ts";
+import { ruleOf, runOxlint, toDiagnostic, UNUSED_DIRECTIVE } from "./run-oxlint.ts";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 
 test("ruleOf: 組み込みのルールは名前だけ、プラグインのルールは <プラグイン>/<名前> にし、読めない code は例外にする", () => {
@@ -15,14 +15,26 @@ test("ruleOf: 組み込みのルールは名前だけ、プラグインのルー
 
 const SPAN = { offset: 0, length: 1, line: 3, column: 1 };
 
-test("toDiagnostic: 診断を読み、欄の欠けた診断と JS プラグインの例外は例外にする", () => {
+test("toDiagnostic: 診断を読み、使われていない disable コメントは専用の rule にし、欄の欠けた診断と JS プラグインの例外は例外にする", () => {
   const base = {
     code: "eslint(max-params)",
     filename: "a.ts",
     message: "m",
     labels: [{ span: SPAN }],
   };
-  expect(toDiagnostic(base)).toEqual({ file: "a.ts", rule: "max-params", line: 3, message: "m" });
+  expect(toDiagnostic(base)).toEqual({
+    file: "a.ts",
+    rule: "max-params",
+    line: 3,
+    offset: 0,
+    message: "m",
+  });
+  const unused = {
+    filename: "a.ts",
+    message: "Unused oxlint-disable directive (no problems were reported).",
+    labels: [{ span: SPAN }],
+  };
+  expect(toDiagnostic(unused).rule).toBe(UNUSED_DIRECTIVE);
   expect(() => toDiagnostic({ ...base, labels: [] })).toThrow(/形を読めない/);
   expect(() => toDiagnostic({ ...base, filename: 1 })).toThrow(/形を読めない/);
   expect(() => toDiagnostic(null)).toThrow(/形を読めない/);

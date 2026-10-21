@@ -67,7 +67,8 @@ test("pendingTargets: staged が無ければすべてを、一覧の外し方を
   ]);
 });
 
-test("実リポジトリ: oxlint.config.ts とプラグインが import するファイルは、すべて PENDING_SOURCES に当たる", () => {
+/** oxlint.config.ts とプラグインから、相対 import をたどって集めたファイル。 */
+function importClosure(): Set<string> {
   const seen = new Set<string>();
   const queue = ["oxlint.config.ts", "scripts/gates/code/oxlint-plugin/plugin.ts"];
   for (let file = queue.shift(); file !== undefined; file = queue.shift()) {
@@ -77,9 +78,29 @@ test("実リポジトリ: oxlint.config.ts とプラグインが import する�
     for (const { fileName } of ts.preProcessFile(text, true, true).importedFiles)
       if (fileName.startsWith(".")) queue.push(normalize(join(dirname(file), fileName)));
   }
+  return seen;
+}
+
+test("実リポジトリ: oxlint.config.ts とプラグインが import するファイルは、すべて PENDING_SOURCES に当たる", () => {
+  const seen = importClosure();
   expect(seen.size).toBeGreaterThan(5);
   const missing = [...seen].filter((f) => !PENDING_SOURCES.some((re) => re.test(f)));
   expect(missing, "PENDING_SOURCES に足す").toEqual([]);
+});
+
+test("実リポジトリ: lefthook の oxlint-all の glob は、import するファイルと oxlint の版を決めるファイルをすべて含む", () => {
+  const job = /- name: oxlint-all\n(?:\s*#.*\n)*\s*glob: "\{([^}]+)\}"/.exec(
+    readFileSync(join(REPO_DIR, "lefthook.yml"), "utf8"),
+  );
+  expect(job, "lefthook.yml に oxlint-all の glob が無い").not.toBeNull();
+  const globs = (job?.[1] ?? "").split(",");
+  const covered = (f: string) =>
+    globs.some((g) => g === f || (g.endsWith("/*") && dirname(f) === g.slice(0, -2)));
+  const required = [...importClosure(), "package.json", "pnpm-lock.yaml"];
+  expect(
+    required.filter((f) => !covered(f)),
+    "lefthook.yml の oxlint-all の glob に足す",
+  ).toEqual([]);
 });
 
 // pre-commit は OXLINT_PENDING_STAGED に staged のファイルを改行区切りで渡し、一覧と重なるファイルだけを検査させる。

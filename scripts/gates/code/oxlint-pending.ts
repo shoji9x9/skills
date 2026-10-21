@@ -512,3 +512,9 @@ export function pendingTargets(
   if (staged === null || staged.some((f) => PENDING_SOURCES.some((re) => re.test(f)))) return files;
   return files.filter((f) => staged.includes(f));
 }
+
+// pre-commit から、検査する一覧のファイルを 1 行に 1 つ出す（引数は staged のファイル）。
+// 出力が空なら、pre-commit は vitest を起動しない（起動だけで 1 秒近くかかる）。
+if (import.meta.main) {
+  for (const file of pendingTargets(PENDING_FIXES, process.argv.slice(2))) console.log(file);
+}

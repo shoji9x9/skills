@@ -34,14 +34,13 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, dirname, join } from "node:path";
+import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { jsCommentRanges } from "../../lib/text/code-comments.ts";
+import { runOxlint } from "./oxlint-plugin/run-oxlint.ts";
 import { errorMessage } from "../../lib/errors.ts";
-import { isRecord } from "../../lib/guards.ts";
 import { IS_ARRAY_HOLDERS, IS_ARRAY_RESTRICTION } from "../../lib/is-array-holders.ts";
-import { isArray } from "../../lib/is-array.ts";
 
 // 配布スキルで置ける JavaScript・TypeScript の拡張子だけを走査する（`.mjs` と雛形の `.ts`）。
 // 他の拡張子（`.js`・`.jsx`・`.tsx`・`.mts` など）は `check-js-extensions.ts` が配布スキルで禁じているので、
@@ -126,7 +125,6 @@ function guardRange(
 /** oxlint が検出した `Array.isArray` の位置（行は 1 始まり、offset は UTF-8 のバイト位置）。 */
 export type IsArrayUse = { line: number; offset: number };
 
-const REPO_DIR = join(dirname(fileURLToPath(import.meta.url)), "../../..");
 const RULE = "no-restricted-properties";
 
 /**
@@ -148,32 +146,13 @@ export function isArrayUses(entries: readonly { path: string; source: string }[]
       writeFileSync(file, e.source);
       return file;
     });
-    const res = spawnSync("pnpm", ["exec", "oxlint", "-c", config, "--format", "json", ...files], {
-      cwd: REPO_DIR,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    if (res.status !== 0 && res.status !== 1) {
-      throw new Error(`oxlint を実行できない（exit ${res.status}）: ${res.stderr}`);
-    }
-    const parsed: unknown = JSON.parse(res.stdout);
-    const diagnostics = isRecord(parsed) ? parsed.diagnostics : undefined;
-    if (!isArray(diagnostics)) throw new Error("oxlint の出力に diagnostics が無い");
+    // 起動と出力の読み方（終了コード・JSON・診断の形）は、oxlint-plugin/run-oxlint.ts と共有する。
     const uses = entries.map((): IsArrayUse[] => []);
-    for (const d of diagnostics) {
-      if (!isRecord(d) || typeof d.code !== "string" || !d.code.endsWith(`(${RULE})`)) continue;
-      const label = isArray(d.labels) ? d.labels[0] : undefined;
-      const span = isRecord(label) ? label.span : undefined;
-      const index = files.indexOf(typeof d.filename === "string" ? d.filename : "");
-      if (
-        !isRecord(span) ||
-        typeof span.line !== "number" ||
-        typeof span.offset !== "number" ||
-        index === -1
-      ) {
-        throw new Error("oxlint の診断の形を読めない");
-      }
-      uses[index].push({ line: span.line, offset: span.offset });
+    for (const d of runOxlint(["-c", config, ...files])) {
+      if (d.rule !== RULE) continue;
+      const index = files.indexOf(d.file);
+      if (index === -1) throw new Error(`oxlint の診断のファイルが渡したものと合わない: ${d.file}`);
+      uses[index].push({ line: d.line, offset: d.offset });
     }
     return uses;
   } finally {

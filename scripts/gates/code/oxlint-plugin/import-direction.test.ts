@@ -169,6 +169,21 @@ test("oxlint: JSDoc の @import・/// <reference path>・閉じていない { �
   ]);
 });
 
+test("oxlint: new の引数とディレクトリへの参照も判定し、自分のスキルのディレクトリは報告しない", () => {
+  const files = {
+    "skills/x/scripts/lib/a.mjs": [
+      'const u = new URL("../../../../scripts/lib/y.ts", import.meta.url);',
+      'const self = resolve(here, "../..");',
+      "",
+    ].join("\n"),
+    "scripts/lib/a.ts": 'const d = join(here, "../gates");\n',
+  };
+  expect(reported(files, (root) => ({ root }))).toEqual([
+    "scripts/lib/a.ts:1",
+    "skills/x/scripts/lib/a.mjs:1",
+  ]);
+});
+
 test("oxlint: 同じ内容でも、root の外のファイルとして読めば向きを当てない", () => {
   const lib = 'import { a } from "../gates/code/b.ts";\n';
   expect(reported({ "scripts/lib/a.ts": lib }, (root) => ({ root: join(root, "sub") }))).toEqual(

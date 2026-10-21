@@ -15,7 +15,7 @@
 // 1. 構文の参照は、ESTree と TypeScript の節点から集める。
 //    節点は ImportDeclaration・ExportNamedDeclaration・ExportAllDeclaration・ImportExpression・TSImportType・
 //    TSImportEqualsDeclaration である。
-// 2. 呼び出しの引数: 相対パス（`./`・`../`）の文字列を引数に渡す呼び出しは、関数に依らずすべて参照として扱う。
+// 2. 呼び出しの引数: 相対パス（`./`・`../`）の文字列を引数に渡す呼び出しと new は、関数に依らずすべて参照として扱う。
 //    require・createRequire の戻り値・vi.mock・vi.importActual を、名前を数えずに同じ規則で判定するためである。
 //    モジュールでないファイル（`.md` など）のパスは除く。拡張子が JS・TS・JSON か、拡張子の無いパスだけを数える。
 // 3. コメントの参照: JSDoc の型（`{import("…")}`）・`@import`・`/// <reference path>` は構文木に現れないので、
@@ -66,14 +66,16 @@ const UNRESTRICTED_SCRIPTS = ["skills"];
  * どちらもリポジトリのルートからの `/` 区切りのパス。to がルートの外なら `../` で始まる。
  */
 export function directionViolation(from: string, to: string): string | null {
+  // 拡張子の無い参照（`../..` が解決した skills/<name> などのディレクトリ）は、その中のファイルと同じに扱うため、末尾に / を足して照合する。
+  const dir = extname(to) === "" && !to.endsWith("/") ? `${to}/` : to;
   const skill = SKILL_RE.exec(from);
   if (skill) {
     if (from.startsWith(`skills/${skill[1]}/assets/`)) return null;
-    if (to.startsWith(`skills/${skill[1]}/`)) return null;
+    if (dir.startsWith(`skills/${skill[1]}/`)) return null;
     return `配布スキルは自分のディレクトリ（skills/${skill[1]}/）の外を import しない（${to}）`;
   }
   const category = SCRIPTS_RE.exec(from)?.[1];
-  const target = SCRIPTS_RE.exec(to)?.[1];
+  const target = SCRIPTS_RE.exec(dir)?.[1];
   if (category === undefined || target === undefined || target === category) return null;
   if (UNRESTRICTED_SCRIPTS.includes(category) || target === "lib") return null;
   const allowed = category === "lib" ? "scripts/lib/" : `scripts/${category}/ と scripts/lib/`;
@@ -179,6 +181,12 @@ export const importDirection = {
       if (message !== null) context.report({ node, message });
     };
     const checkSource = (node: AstNode) => check(node, node.source);
+    const checkArguments = (node: AstNode) => {
+      for (const arg of node.arguments ?? []) {
+        const path = staticString(arg);
+        if (path !== null && isModuleArgument(path)) check(arg, arg);
+      }
+    };
     return {
       ImportDeclaration: checkSource,
       ExportNamedDeclaration: checkSource,
@@ -189,12 +197,9 @@ export const importDirection = {
         const ref = node.moduleReference;
         if (ref?.type === "TSExternalModuleReference") check(node, ref.expression);
       },
-      CallExpression(node: AstNode) {
-        for (const arg of node.arguments ?? []) {
-          const path = staticString(arg);
-          if (path !== null && isModuleArgument(path)) check(arg, arg);
-        }
-      },
+      CallExpression: checkArguments,
+      // new URL("…", import.meta.url)・new Worker("…") も、呼び出しと同じに扱う。
+      NewExpression: checkArguments,
       "Program:exit"() {
         const comments = sourceCode.getAllComments();
         for (const ref of commentReferences(context.filename, sourceCode.text, comments)) {

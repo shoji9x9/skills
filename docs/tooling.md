@@ -71,7 +71,7 @@ vitest プラグインの correctness のルールのうち、このリポジト
 JS プラグインのルール `skills-repo/import-direction` が、import するファイルからの相対パスを解決して判定する。
 参照は、書き方を 1 つずつ挙げずに、次の 3 つの定義で集める。
 構文の参照は、モジュールを指す構文木の節点（`import`・`export from`・`import()`・`import x = require()`・型の `import("…")`）から集める。
-呼び出しの引数は、相対パスの文字列を渡す呼び出しを、関数に依らず参照として扱う（`require()`・`createRequire` の戻り値・`vi.mock` など）。ただし、拡張子が JS・TS・JSON か、拡張子の無いパスに限る。
+呼び出しと `new` の引数は、相対パスの文字列を渡すものを、関数に依らず参照として扱う（`require()`・`createRequire` の戻り値・`vi.mock`・`new URL` など）。ただし、拡張子が JS・TS・JSON か、拡張子の無いパスに限る。
 コメントの参照（JSDoc の型・`@import`・`/// <reference path>`）は、TypeScript のパーサで読む。`@example` のコードは参照として扱わない。
 式を埋め込んだテンプレート文字列のように、解決先を決められない参照は判定しない。
 組み込みの `no-restricted-imports` の `patterns` は書かれた specifier の字面で照合するので、`../../skills/` が `scripts/skills/` と `skills/` のどちらを指すかを区別できない。
@@ -88,6 +88,7 @@ JS プラグインのルール `skills-repo/import-direction` が、import す�
 一覧は後で直すものだけで、新しいファイルと一覧に無いルールは外さない。
 行の disable コメントで外さないのは、配布スキルのファイルが利用者のプロジェクトへ入り、そこでは使われない disable になるためである。
 直したら、そのルールを一覧から消す。直したのに一覧に残った組は、`oxlint-pending.test.ts` が pre-commit と CI で失敗にする。
+直さずに組を消した commit は、pre-commit の `oxlint-all` がリポジトリ全体に oxlint を当てて失敗にする。
 残すと、そのファイルに新しく入った同じ種類の違反を見逃すからである。
 
 これらのルールは、pre-commit と CI の両方で実行し、CI だけで実行するルールは置かない。

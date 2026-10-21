@@ -12,7 +12,7 @@
     "scripts/gates/packaging/copies/check-identical-copies.mutations.json": 0.5,
     "scripts/gates/code/check-js-extensions.mutations.json": 1.0,
     "scripts/gates/code/oxlint-pending.mutations.json": 2.4,
-    "scripts/gates/code/oxlint-plugin/import-direction.mutations.json": 4.9,
+    "scripts/gates/code/oxlint-plugin/import-direction.mutations.json": 5.1,
     "scripts/gates/code/oxlint-plugin/max-lines-except-describe.mutations.json": 2.7,
     "scripts/gates/types/check-jsdoc-types.mutations.json": 6.7,
     "scripts/gates/types/check-type-guard-brands.mutations.json": 71.3,
