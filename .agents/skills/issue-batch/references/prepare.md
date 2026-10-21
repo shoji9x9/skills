@@ -91,8 +91,10 @@ run の preflight は、次の条件をすべて満たすコメントだけを p
   [REST: Get repository permissions for a user](https://docs.github.com/en/rest/collaborators/collaborators#get-repository-permissions-for-a-user)）。
   公開リポジトリでは誰でもコメントを書けるので、目印だけでは決定として扱わない。権限を取得できなければ、そのコメントを決定として使わない
 
-コメントの作成者・作成日時・編集の有無・本文は、次の 1 回の取得で読む（`lastEditedAt` は REST と `gh issue view --json comments` では取得できない。
-[GraphQL: IssueComment](https://docs.github.com/en/graphql/reference/objects#issuecomment)）。
+コメントの作成者・作成日時・編集の有無・本文と、Issue の本文を最後に編集した時刻は、次の 1 回の取得で読む。
+`lastEditedAt` は、REST と `gh issue view --json comments` では取得できない（
+[GraphQL: IssueComment](https://docs.github.com/en/graphql/reference/objects#issuecomment)・
+[GraphQL: Issue](https://docs.github.com/en/graphql/reference/objects#issue)）。
 
 ```bash
 gh api graphql --paginate -f owner=<owner> -f name=<repo> -F number=<番号> \
@@ -104,7 +106,8 @@ gh api graphql --paginate -f owner=<owner> -f name=<repo> -F number=<番号> \
 
 同じ論点を記録した prepare のコメントが複数あれば、作成日時が新しいものを使う。`approval.at` にも、この作成日時を使う。
 使うコメントが作成された後に編集されていれば（`lastEditedAt` が `null` でない）、決めた時点と内容が合っていると確かめられないので、その論点を決まっていないものとして扱う。このとき、古いコメントの決定は使わない。
-編集や削除で prepare のコメントから論点か目印を消すと、そのコメントは記録として見えなくなり、前のコメントの決定が使われる。prepare は自分のコメントを編集も削除もせず、決定を変えるときは新しいコメントを投稿する。
+編集で論点か目印を消したコメントは、記録として見えなくなる。そのため、使う記録より後に作成された書き込める人のコメントが 1 件でも編集されていれば、目印の有無に関わらず、その Issue の記録をすべて決まっていないものとして扱う。
+削除したコメントは検出できないので、前のコメントの決定が使われる。prepare は自分のコメントを編集も削除もせず、決定を変えるときは新しいコメントを投稿する。
 
 次のどれかに当たる論点は、記録を使わず、決まっていない論点として扱う。run の preflight 10 は改めて確認に載せ、依存ではないという決定なら preflight 6 は記録が無いときと同じように依存を決める。
 
