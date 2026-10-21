@@ -1,0 +1,12 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+ci:39560737764:1,ci,2026-10-21T07:18:32.867Z,p-cdee4961,github-actions,,,,2026-10-21T07:15:38.000Z,2026-10-21T07:15:39.000Z,Asia/Tokyo,feature/733-local-review-kaizen-exception,733,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:39560737818:1,ci,2026-10-21T07:18:32.867Z,p-cdee4961,github-actions,,,,2026-10-21T07:15:38.000Z,2026-10-21T07:18:32.867Z,Asia/Tokyo,feature/733-local-review-kaizen-exception,733,,,,,,,,,,CI;pull_request;open,
+ci:39554973489:1,ci,2026-10-21T07:18:32.867Z,p-cdee4961,github-actions,,,,2026-10-21T06:22:10.000Z,2026-10-21T06:26:03.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:39554973591:1,ci,2026-10-21T07:18:32.867Z,p-cdee4961,github-actions,,,,2026-10-21T06:22:10.000Z,2026-10-21T06:22:33.000Z,Asia/Tokyo,main,,,,,,,,,,,Release;push;success,
+ci:39554542172:1,ci,2026-10-21T07:18:32.867Z,p-cdee4961,github-actions,,,,2026-10-21T06:17:52.000Z,2026-10-21T06:21:34.000Z,Asia/Tokyo,dependabot/github_actions/actions-a88f65ef26,,,,,,,,,,,CI;pull_request;success,
+ci:39554542125:1,ci,2026-10-21T07:18:32.867Z,p-cdee4961,github-actions,,,,2026-10-21T06:17:52.000Z,2026-10-21T06:18:05.000Z,Asia/Tokyo,dependabot/github_actions/actions-a88f65ef26,,,,,,,,,,,Dependabot auto-merge;pull_request;success,
+ci:39554321952:1,ci,2026-10-21T07:18:32.867Z,p-cdee4961,github-actions,,,,2026-10-21T06:15:38.000Z,2026-10-21T06:19:32.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:39553892729:1,ci,2026-10-21T07:18:32.867Z,p-cdee4961,github-actions,,,,2026-10-21T06:11:22.000Z,2026-10-21T06:11:32.000Z,Asia/Tokyo,dependabot/npm_and_yarn/oxfmt-25a273640f,,,,,,,,,,,Dependabot auto-merge;pull_request;success,
+ci:39553892813:1,ci,2026-10-21T07:18:32.867Z,p-cdee4961,github-actions,,,,2026-10-21T06:11:22.000Z,2026-10-21T06:15:14.000Z,Asia/Tokyo,dependabot/npm_and_yarn/oxfmt-25a273640f,,,,,,,,,,,CI;pull_request;success,
+ci:39553772966:1,ci,2026-10-21T07:18:32.867Z,p-cdee4961,github-actions,,,,2026-10-21T06:10:10.000Z,2026-10-21T06:11:18.000Z,Asia/Tokyo,main,,,,,,,,,,,npm_and_yarn in / for oxfmt - Update #1641735521;dynamic;success,
+coverage:github:2026-10-20T06:10:36.697Z:2026-10-21T07:18:32.867Z,coverage,2026-10-21T07:18:32.867Z,p-cdee4961,,,,,2026-10-20T06:10:36.697Z,2026-10-21T07:18:32.867Z,Asia/Tokyo,,,,,,,,,,,,ok,
