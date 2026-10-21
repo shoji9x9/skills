@@ -11,32 +11,31 @@
 //   scripts/lib/ は、scripts/ の他の分類を import しないので、共有ライブラリが上位のチェックやツールに依存しない。
 //   scripts/skills/ はスキルのスクリプトのテストと fixture の置き場所なので、この向きを当てない。
 //
-// 参照は、ESTree と TypeScript の構文木でモジュールを指す節点から集める。
-// 節点は ImportDeclaration・ExportNamedDeclaration・ExportAllDeclaration・ImportExpression・TSImportType・
-// TSImportEqualsDeclaration（`import x = require()`）である。加えて、`require` の呼び出しも集める。
-// `require` は構文ではないので、`require` という名前と、createRequire の戻り値を受けた名前の呼び出しを数える。
+// 参照は、閉じた定義で集める。書き方を 1 つずつ足していくと、足していない書き方を取りこぼすからである。
+// 1. 構文の参照は、ESTree と TypeScript の節点から集める。
+//    節点は ImportDeclaration・ExportNamedDeclaration・ExportAllDeclaration・ImportExpression・TSImportType・
+//    TSImportEqualsDeclaration である。
+// 2. 呼び出しの引数: 相対パス（`./`・`../`）の文字列を引数に渡す呼び出しは、関数に依らずすべて参照として扱う。
+//    require・createRequire の戻り値・vi.mock・vi.importActual を、名前を数えずに同じ規則で判定するためである。
+//    モジュールでないファイル（`.md` など）のパスは除く。拡張子が JS・TS・JSON か、拡張子の無いパスだけを数える。
+// 3. コメントの参照: JSDoc の型（`{import("…")}`）・`@import`・`/// <reference path>` は構文木に現れないので、
+//    TypeScript のパーサで読む。`@example` のコードは JSDoc の本文として扱われるので、参照にならない。
 // specifier が文字列でない参照（式を埋め込んだテンプレート文字列・変数）は、解決先を決められないので判定しない。
-// JSDoc の型（`@typedef {import("…").T}`）は構文木に現れないので、JSDoc のコメントの `{…}` の中だけを読む。
-import { isAbsolute, posix, relative, resolve, dirname, sep } from "node:path";
+import { extname, isAbsolute, posix, relative, resolve, dirname, sep } from "node:path";
+import ts from "typescript";
 import { isRecord } from "../../../lib/guards.ts";
+import { isArray } from "../../../lib/is-array.ts";
 
 export type Loc = { line: number; column: number };
-export type Comment = { type: string; value: string; range: readonly [number, number] };
+export type Comment = { type: string; value: string };
 /** ルールが読む AST の節点。oxlint は型を公開していないので、読む欄だけを書く。 */
 export type AstNode = {
   type: string;
-  name?: string;
   value?: unknown;
   source?: AstNode | null;
-  callee?: AstNode;
   arguments?: AstNode[];
-  id?: AstNode | null;
-  init?: AstNode | null;
   moduleReference?: AstNode;
   expression?: AstNode;
-  imported?: AstNode;
-  local?: AstNode;
-  specifiers?: AstNode[];
   quasis?: { value: { cooked?: string | null } }[];
   expressions?: AstNode[];
 };
@@ -44,14 +43,18 @@ export type AstNode = {
 type Context = {
   filename: string;
   options: readonly unknown[];
-  sourceCode: { getAllComments: () => Comment[]; getLocFromIndex: (index: number) => Loc };
+  sourceCode: {
+    text: string;
+    getAllComments: () => Comment[];
+    getLocFromIndex: (index: number) => Loc;
+  };
   report: (
     d: { node: AstNode; message: string } | { loc: { start: Loc; end: Loc }; message: string },
   ) => void;
 };
 
-/** JSDoc の中の型の参照と、コメントの中の位置（文字の index）。 */
-export type JsdocReference = { specifier: string; start: number; end: number };
+/** コメントの中の参照と、ファイルの中の位置（文字の index）。 */
+export type CommentReference = { specifier: string; start: number; end: number };
 
 const SKILL_RE = /^skills\/([^/]+)\//;
 const SCRIPTS_RE = /^scripts\/([^/]+)\//;
@@ -102,53 +105,51 @@ export function staticString(node: AstNode | null | undefined): string | null {
   return null;
 }
 
-/** JSDoc の本文から、`@example` の節を除く（コードの例は参照ではない）。次のタグか本文の終わりまでを除く。 */
-const withoutExamples = (text: string): string =>
-  text.replace(/@example[\s\S]*?(?=\n\s*\*\s*@|$)/g, (m) => " ".repeat(m.length));
-
-/** JSDoc のコメント（`/** … *\/`）の型の式（`{…}` の中）にある `import("…")`。位置はファイルの中の index。 */
-export function jsdocReferences(comments: readonly Comment[]): JsdocReference[] {
-  const found: JsdocReference[] = [];
-  for (const c of comments) {
-    if (c.type !== "Block" || !c.value.startsWith("*")) continue;
-    const text = withoutExamples(c.value);
-    let depth = 0;
-    let open = -1;
-    for (let i = 0; i < text.length; i++) {
-      if (text[i] === "{" && depth++ === 0) open = i;
-      if (text[i] !== "}" || depth === 0 || --depth !== 0) continue;
-      for (const m of text.slice(open, i).matchAll(/import\(\s*(["'`])([^"'`]+)\1\s*\)/g)) {
-        const start = c.range[0] + 2 + open + m.index;
-        found.push({ specifier: m[2], start, end: start + m[0].length });
-      }
-    }
-  }
-  return found;
+/** 呼び出しの引数として、モジュールへの参照とみなすパスか（相対パスで、拡張子が JS・TS・JSON か拡張子が無い）。 */
+export function isModuleArgument(path: string): boolean {
+  if (!path.startsWith("./") && !path.startsWith("../")) return false;
+  const ext = extname(path);
+  return ext === "" || /^\.(?:[cm]?[jt]sx?|json)$/.test(ext);
 }
 
-/** createRequire を import した名前（`import { createRequire as cr } from "node:module"` なら cr）。 */
-function createRequireNames(node: AstNode): string[] {
-  if (staticString(node.source) !== "node:module" && staticString(node.source) !== "module")
-    return [];
-  return (node.specifiers ?? [])
-    .filter((s) => s.imported?.name === "createRequire" && s.local?.name)
-    .map((s) => s.local?.name ?? "");
+/** TypeScript の節点が持つ JSDoc（内部の欄 `jsDoc`）。1 つの節点に複数の JSDoc が付くので、公開の API では取りこぼす。 */
+function jsDocOf(node: ts.Node): ts.Node[] {
+  const docs: unknown = Reflect.get(node, "jsDoc");
+  return isArray(docs) ? docs.filter((d): d is ts.Node => d instanceof Object && "kind" in d) : [];
 }
 
 /**
- * require の呼び出し。`require` という名前と、creators（createRequire を指す名前）の呼び出しの戻り値を受けた名前の呼び出しを返す。
- * declarators と calls は、ファイルの中の変数の宣言と、名前で呼ぶ呼び出しのすべて。
+ * コメントの中の参照（JSDoc の型の import("…")・@import・/// <reference path>）を、TypeScript のパーサで集める。
+ * コメントに `import(`・`@import`・`<reference` のどれも無ければ、パースせずに空を返す（全ファイルを 2 回パースしないため）。
  */
-export function requireCalls(
-  creators: ReadonlySet<string>,
-  declarators: readonly AstNode[],
-  calls: readonly AstNode[],
-): AstNode[] {
-  const requires = new Set(["require"]);
-  for (const { id, init } of declarators)
-    if (id?.type === "Identifier" && id.name && init?.type === "CallExpression")
-      if (creators.has(init.callee?.name ?? "")) requires.add(id.name);
-  return calls.filter((call) => requires.has(call.callee?.name ?? ""));
+export function commentReferences(
+  filename: string,
+  text: string,
+  comments: readonly Comment[],
+): CommentReference[] {
+  if (!comments.some((c) => /import\s*\(|@import|<reference/.test(c.value))) return [];
+  const kind = /\.[cm]?jsx?$/.test(filename) ? ts.ScriptKind.JS : ts.ScriptKind.TS;
+  const sf = ts.createSourceFile(filename, text, ts.ScriptTarget.ESNext, true, kind);
+  const found: CommentReference[] = sf.referencedFiles.map((r) => ({
+    specifier: r.fileName,
+    start: r.pos,
+    end: r.end,
+  }));
+  const literal = (lit: ts.Node) => {
+    if (ts.isStringLiteral(lit))
+      found.push({ specifier: lit.text, start: lit.getStart(sf), end: lit.end });
+  };
+  const inDoc = (n: ts.Node): void => {
+    if (ts.isImportTypeNode(n) && ts.isLiteralTypeNode(n.argument)) literal(n.argument.literal);
+    if (ts.isJSDocImportTag(n)) literal(n.moduleSpecifier);
+    ts.forEachChild(n, inDoc);
+  };
+  const visit = (n: ts.Node): void => {
+    jsDocOf(n).forEach(inDoc);
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return found;
 }
 
 export const importDirection = {
@@ -177,17 +178,9 @@ export const importDirection = {
       const message = violation(staticString(source));
       if (message !== null) context.report({ node, message });
     };
-    // require の呼び出しは、createRequire の別名を集め終えてから（Program:exit で）判定する。
-    // 宣言より前に書いた関数の中の呼び出しも、宣言の後の呼び出しと同じに扱うためである。
-    const creators = new Set(["createRequire"]);
-    const declarators: AstNode[] = [];
-    const calls: AstNode[] = [];
     const checkSource = (node: AstNode) => check(node, node.source);
     return {
-      ImportDeclaration(node: AstNode) {
-        checkSource(node);
-        createRequireNames(node).forEach((n) => creators.add(n));
-      },
+      ImportDeclaration: checkSource,
       ExportNamedDeclaration: checkSource,
       ExportAllDeclaration: checkSource,
       ImportExpression: checkSource,
@@ -196,16 +189,15 @@ export const importDirection = {
         const ref = node.moduleReference;
         if (ref?.type === "TSExternalModuleReference") check(node, ref.expression);
       },
-      VariableDeclarator(node: AstNode) {
-        declarators.push(node);
-      },
       CallExpression(node: AstNode) {
-        if (node.callee?.type === "Identifier") calls.push(node);
+        for (const arg of node.arguments ?? []) {
+          const path = staticString(arg);
+          if (path !== null && isModuleArgument(path)) check(arg, arg);
+        }
       },
       "Program:exit"() {
-        for (const call of requireCalls(creators, declarators, calls))
-          check(call, call.arguments?.[0]);
-        for (const ref of jsdocReferences(sourceCode.getAllComments())) {
+        const comments = sourceCode.getAllComments();
+        for (const ref of commentReferences(context.filename, sourceCode.text, comments)) {
           const message = violation(ref.specifier);
           if (message === null) continue;
           const start = sourceCode.getLocFromIndex(ref.start);

@@ -56,6 +56,7 @@ const GROUPING_MODIFIERS = [
 
 /**
  * 呼び出しの callee から、名前の根（`describe.each(t)` なら `describe`）をたどる。
+ * 名前空間の import の describe・suite（`v.describe.each(t)`）は、`v.describe` を根にする。
  * 途中のメンバーが describe の修飾でなければ（`suite.add`・`describe["each"]`）、根を決めずに null にする。
  */
 export function calleeRoot(callee: AstNode | undefined): string | null {
@@ -63,6 +64,8 @@ export function calleeRoot(callee: AstNode | undefined): string | null {
   while (node) {
     if (node.type === "Identifier") return node.name ?? null;
     if (node.type === "MemberExpression") {
+      const namespaced = namespacedGrouping(node);
+      if (namespaced !== null) return namespaced;
       if (!isGroupingModifier(node)) return null;
       node = node.object;
     } else if (node.type === "CallExpression") node = node.callee;
@@ -72,18 +75,31 @@ export function calleeRoot(callee: AstNode | undefined): string | null {
   return null;
 }
 
+/** `v.describe`・`v.suite` の形なら、その字面。名前空間の import（`import * as v from "vitest"`）の describe を指しうる。 */
+function namespacedGrouping(member: AstNode): string | null {
+  const { object, property } = member;
+  if (member.computed === true || object?.type !== "Identifier" || property?.type !== "Identifier")
+    return null;
+  return GROUPING_CALLEES.includes(property.name ?? "") ? `${object.name}.${property.name}` : null;
+}
+
 /** メンバーの参照が、計算しないプロパティ名で describe の修飾を指すか。 */
 const isGroupingModifier = (member: AstNode): boolean =>
   member.computed !== true &&
   member.property?.type === "Identifier" &&
   GROUPING_MODIFIERS.includes(member.property.name ?? "");
 
-/** ファイルの中で、vitest の describe・suite を指す名前（`import { describe as d } from "vitest"` なら d）。 */
+/**
+ * ファイルの中で、vitest の describe・suite を指す名前（`import { describe as d } from "vitest"` なら d）。
+ * 名前空間の import（`import * as v from "vitest"`）は、`v.describe` と `v.suite` を返す。
+ */
 export function groupingNames(body: readonly Statement[]): Set<string> {
   const names = new Set<string>();
   for (const stmt of body) {
     if (stmt.type !== "ImportDeclaration" || stmt.source?.value !== "vitest") continue;
     for (const spec of stmt.specifiers ?? []) {
+      if (spec.type === "ImportNamespaceSpecifier" && spec.local?.name)
+        for (const callee of GROUPING_CALLEES) names.add(`${spec.local.name}.${callee}`);
       const imported = spec.imported?.name;
       const local = spec.local?.name;
       if (

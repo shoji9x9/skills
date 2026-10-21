@@ -89,6 +89,14 @@ const CASES: Record<string, string> = {
     `describe("y", () => {${body(51)}});`,
     "",
   ].join("\n"),
+  // 名前空間で import した vitest の describe は外し、同じ名前空間の他の関数は数える。
+  "namespace.test.ts": [
+    'import * as v from "vitest";',
+    `v.describe("x", () => {${body(51)}});`,
+    `v.describe.skip("y", () => {${body(51)}});`,
+    `v.test("z", () => {${body(51)}});`,
+    "",
+  ].join("\n"),
   "boundary.test.ts": `function a() {${body(50)}}\nfunction b() {${body(51)}}\n`,
   "inside-describe.test.ts": [
     IMPORT,
@@ -141,6 +149,10 @@ test("別名で import した describe のコールバックは外し、import �
   expect(lines["alias.test.ts"]).toEqual([53]);
 });
 
+test("名前空間で import した describe のコールバックは外し、test のコールバックは数える", () => {
+  expect(lines["namespace.test.ts"]).toEqual([104]);
+});
+
 test("境界: 50 行の関数は報告せず、51 行の関数は報告する", () => {
   expect(lines["boundary.test.ts"]).toEqual([51]);
 });
@@ -187,5 +199,12 @@ test("calleeRoot: 名前の根を、メンバー・呼び出し・タグ付き�
   expect(calleeRoot({ type: "CallExpression", callee: member, loc })).toBe("describe");
   expect(calleeRoot({ type: "TaggedTemplateExpression", tag: member, loc })).toBe("describe");
   expect(calleeRoot({ type: "ThisExpression", loc })).toBeNull();
+  const ns = {
+    type: "MemberExpression",
+    object: { type: "Identifier", name: "v", loc },
+    property: { type: "Identifier", name: "describe", loc },
+    loc,
+  };
+  expect(calleeRoot({ type: "MemberExpression", object: ns, property, loc })).toBe("v.describe");
   expect(calleeRoot(undefined)).toBeNull();
 });

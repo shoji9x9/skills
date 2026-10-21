@@ -56,7 +56,7 @@ function reported(files: Record<string, string>, option: (root: string) => unkno
     .sort();
 }
 
-test("oxlint: import・export from・import()・require()・import 型の向きに反する参照を報告し、反しない参照は報告しない", () => {
+test("oxlint: import・export from・import()・型の import と、相対パスの文字列を渡す呼び出しを報告し、向きに反しない参照は報告しない", () => {
   const lib = [
     'import { a } from "../gates/code/b.ts";',
     'export { c } from "../gates/code/b.ts";',
@@ -64,21 +64,21 @@ test("oxlint: import・export from・import()・require()・import 型の向き�
     'const e = await import("../hooks/f.ts");',
     'const i = require("../gates/code/b.ts");',
     'export type J = typeof import("../eval/d.ts");',
+    'const l = load("../gates/code/b.ts");',
+    'const m = obj.require("../gates/code/b");',
+    'vi.mock("../hooks/f.ts");',
+    'const n = await vi.importActual("../eval/d.json");',
+    'const o = createRequire(import.meta.url)("../gates/code/b.ts");',
     'import { g } from "./text/h.ts";',
     'import { readFileSync } from "node:fs";',
     'const k = require("./text/h.ts");',
-    'const l = load("../gates/code/b.ts");',
-    'const m = obj.require("../gates/code/b.ts");',
+    'const p = readFileSync("../gates/docs/x.md");',
+    'const q = join(dir, "../gates/code");',
     "",
   ].join("\n");
-  expect(reported({ "scripts/lib/a.ts": lib }, (root) => ({ root }))).toEqual([
-    "scripts/lib/a.ts:1",
-    "scripts/lib/a.ts:2",
-    "scripts/lib/a.ts:3",
-    "scripts/lib/a.ts:4",
-    "scripts/lib/a.ts:5",
-    "scripts/lib/a.ts:6",
-  ]);
+  expect(reported({ "scripts/lib/a.ts": lib }, (root) => ({ root }))).toEqual(
+    [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 16].map((n) => `scripts/lib/a.ts:${n}`).sort(),
+  );
 });
 
 test("oxlint: import = require・テンプレート文字列の import()・createRequire の別名・JSDoc の型の参照も報告する", () => {
@@ -148,6 +148,24 @@ test("oxlint: JSDoc の @example のコード・型の式（{…}）の外の文
   ].join("\n");
   expect(reported({ "scripts/lib/a.ts": lib }, (root) => ({ root }))).toEqual([
     "scripts/lib/a.ts:3",
+  ]);
+});
+
+test("oxlint: JSDoc の @import・/// <reference path>・閉じていない { の後の型の参照と、同じ節点に付いた 2 つ目の JSDoc も報告する", () => {
+  const lib = [
+    '/// <reference path="../gates/code/ref.d.ts" />',
+    '/** @import { T } from "../eval/d.ts" */',
+    "/**",
+    " * 設定の例は { a: 1 のように書く。",
+    ' * @param {import("../gates/code/b.ts").T} t',
+    " */",
+    "export function f(t) {}",
+    "",
+  ].join("\n");
+  expect(reported({ "scripts/lib/a.mjs": lib }, (root) => ({ root }))).toEqual([
+    "scripts/lib/a.mjs:1",
+    "scripts/lib/a.mjs:2",
+    "scripts/lib/a.mjs:5",
   ]);
 });
 

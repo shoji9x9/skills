@@ -60,7 +60,8 @@ GitHub Actions は、`actionlint` で構文を、`ghalint` で `permissions`・`
 | `max-params` | 3 |
 | `max-nested-callbacks` | 10 |
 
-テストのファイル（`scripts/**/*.test.ts`）では、vitest から import した `describe` のコールバックだけを行数の上限から外す（`suite` と、`describe.skip`・`describe.each(表)` などの vitest の修飾を含む）。`describe` はファイルの大半を包むので、長くなってもよいとする。
+テストのファイル（`scripts/**/*.test.ts`）では、vitest から import した `describe` のコールバックだけを行数の上限から外す。
+`suite`・名前空間の import（`v.describe`）・vitest の修飾（`describe.skip`・`describe.each(表)` など）も `describe` として扱う。`describe` はファイルの大半を包むので、長くなってもよいとする。
 組み込みの `max-lines-per-function` は `describe` だけを外すオプションを持たないので、テストのファイルでは JS プラグインのルール `skills-repo/max-lines-per-function-except-describe` に替える。
 数え方は組み込みのルールと同じで、`test` のコールバックとヘルパー関数は 50 行を上限にする。
 テストを書く関数は `test` にそろえ、`vitest/consistent-test-it` が `it` を失敗にする。
@@ -68,8 +69,10 @@ vitest プラグインの correctness のルールのうち、このリポジト
 
 共有ライブラリが上位のチェックやツールに依存しないように、参照の向きを決める。
 JS プラグインのルール `skills-repo/import-direction` が、import するファイルからの相対パスを解決して判定する。
-参照は、構文木でモジュールを指す節点から集める（`import`・`export from`・`import()`・`import x = require()`・型の `import("…")`）。
-`require()` と、`createRequire` の戻り値を別の名前で受けた呼び出しも判定する。JSDoc の型の `import("…")` は、JSDoc の `{…}` の中だけを読む（`@example` のコードは読まない）。
+参照は、書き方を 1 つずつ挙げずに、次の 3 つの定義で集める。
+構文の参照は、モジュールを指す構文木の節点（`import`・`export from`・`import()`・`import x = require()`・型の `import("…")`）から集める。
+呼び出しの引数は、相対パスの文字列を渡す呼び出しを、関数に依らず参照として扱う（`require()`・`createRequire` の戻り値・`vi.mock` など）。ただし、拡張子が JS・TS・JSON か、拡張子の無いパスに限る。
+コメントの参照（JSDoc の型・`@import`・`/// <reference path>`）は、TypeScript のパーサで読む。`@example` のコードは参照として扱わない。
 式を埋め込んだテンプレート文字列のように、解決先を決められない参照は判定しない。
 組み込みの `no-restricted-imports` の `patterns` は書かれた specifier の字面で照合するので、`../../skills/` が `scripts/skills/` と `skills/` のどちらを指すかを区別できない。
 

@@ -82,8 +82,9 @@ test("実リポジトリ: oxlint.config.ts とプラグインが import する�
   expect(missing, "PENDING_SOURCES に足す").toEqual([]);
 });
 
-// pre-commit は OXLINT_PENDING_STAGED に staged のファイルを空白区切りで渡し、一覧と重なるファイルだけを検査させる。
-const staged = process.env.OXLINT_PENDING_STAGED?.split(/\s+/).filter((f) => f !== "") ?? null;
+// pre-commit は OXLINT_PENDING_STAGED に staged のファイルを改行区切りで渡し、一覧と重なるファイルだけを検査させる。
+// 空白を含むパスも 1 つのパスとして読むために、改行で区切る。
+const staged = process.env.OXLINT_PENDING_STAGED?.split("\n").filter((f) => f !== "") ?? null;
 const targets = pendingTargets(PENDING_FIXES, staged);
 
 test.skipIf(targets.length === 0)(

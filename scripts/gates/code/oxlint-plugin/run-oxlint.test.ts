@@ -31,6 +31,12 @@ test("toDiagnostic: 診断を読み、欄の欠けた診断と JS プラグイ�
   );
 });
 
+test("runOxlint: 構文の誤りのファイルは、違反 0 件として扱わず、プラグインの例外と区別して例外にする", () => {
+  const dir = makeTempDir("run-oxlint-");
+  writeFileSync(join(dir, "a.ts"), "const z = 1;\nconst z = 2;\n");
+  expect(() => runOxlint([join(dir, "a.ts")])).toThrow(/構文の誤りなど/);
+});
+
 test("runOxlint: 設定を読めずに exit 1・0 以外で終わったときは、違反 0 件として扱わず例外にする", () => {
   const dir = makeTempDir("run-oxlint-");
   writeFileSync(join(dir, "a.ts"), "export {};\n");

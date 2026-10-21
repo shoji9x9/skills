@@ -17,7 +17,8 @@
         "test のコールバック が 51 行なら、報告するか: true",
         "describe のコールバックの中の test とヘルパー関数は数える",
         "vitest から import していない suite に渡したコールバックは数える",
-        "別名で import した describe のコールバックは外し、import していない describe のコールバックは数える"
+        "別名で import した describe のコールバックは外し、import していない describe のコールバックは数える",
+        "describe という名前のプロパティの呼び出し が 51 行なら、報告するか: true"
       ]
     },
     {
@@ -34,7 +35,8 @@
         "describe.each(表) のコールバック が 51 行なら、報告するか: false",
         "describe.each`表` のコールバック が 51 行なら、報告するか: false",
         "describe のコールバックの中の test とヘルパー関数は数える",
-        "別名で import した describe のコールバックは外し、import していない describe のコールバックは数える"
+        "別名で import した describe のコールバックは外し、import していない describe のコールバックは数える",
+        "名前空間で import した describe のコールバックは外し、test のコールバックは数える"
       ]
     },
     {
@@ -90,7 +92,8 @@
         "describe.skip のコールバック が 51 行なら、報告するか: false",
         "describe.each(表) のコールバック が 51 行なら、報告するか: false",
         "describe.each`表` のコールバック が 51 行なら、報告するか: false",
-        "calleeRoot: 名前の根を、メンバー・呼び出し・タグ付きテンプレートの順にたどり、それ以外の形は null にする"
+        "calleeRoot: 名前の根を、メンバー・呼び出し・タグ付きテンプレートの順にたどり、それ以外の形は null にする",
+        "名前空間で import した describe のコールバックは外し、test のコールバックは数える"
       ]
     },
     {
@@ -148,7 +151,8 @@
       "occurrences": 1,
       "expect_failing": [
         "vitest から import していない suite に渡したコールバックは数える",
-        "別名で import した describe のコールバックは外し、import していない describe のコールバックは数える"
+        "別名で import した describe のコールバックは外し、import していない describe のコールバックは数える",
+        "名前空間で import した describe のコールバックは外し、test のコールバックは数える"
       ]
     },
     {
@@ -170,6 +174,29 @@
       "replace": "if (first === undefined) return DEFAULT_MAX;",
       "occurrences": 1,
       "expect_failing": ["max の無いオプション（{}）は、デフォルトの 50 行を上限にする"]
+    },
+    {
+      "id": "ML-NAMESPACE",
+      "why": "名前空間の import の v.describe を describe として扱わない",
+      "file": "scripts/gates/code/oxlint-plugin/max-lines-except-describe.ts",
+      "find": "if (namespaced !== null) return namespaced;",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "名前空間で import した describe のコールバックは外し、test のコールバックは数える",
+        "calleeRoot: 名前の根を、メンバー・呼び出し・タグ付きテンプレートの順にたどり、それ以外の形は null にする"
+      ]
+    },
+    {
+      "id": "ML-NAMESPACE-IMPORT",
+      "why": "名前空間の import を覚えない",
+      "file": "scripts/gates/code/oxlint-plugin/max-lines-except-describe.ts",
+      "find": "for (const callee of GROUPING_CALLEES) names.add(`${spec.local.name}.${callee}`);",
+      "replace": "void spec;",
+      "occurrences": 1,
+      "expect_failing": [
+        "名前空間で import した describe のコールバックは外し、test のコールバックは数える"
+      ]
     }
   ]
 }
