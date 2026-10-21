@@ -361,6 +361,23 @@
         "status・type・applied-to の形を拒否する: コロンの前に空白がある type のキー",
         "status・type・applied-to の形を拒否する: 単引用符で囲んだ applied-to のキー"
       ]
+    },
+    {
+      "id": "ITEM-FORM-ACCEPTED",
+      "why": "applied-to の要素のアンカー・エイリアス・タグを受け付ける",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "if (item ~ /^[&*!]/ && !item_bad) {",
+      "replace": "if (0) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "applied-to の要素の形を拒否する: ブロックシーケンスのエイリアス",
+        "applied-to の要素の形を拒否する: ブロックシーケンスのアンカー",
+        "applied-to の要素の形を拒否する: ブロックシーケンスのタグ",
+        "applied-to の要素の形を拒否する: 桁 0 のブロックシーケンスのエイリアス",
+        "applied-to の要素の形を拒否する: flow 配列のエイリアス",
+        "applied-to の要素の形を拒否する: flow 配列の 2 つ目の要素のアンカー",
+        "applied-to の要素の形を拒否する: flow 配列のタグ"
+      ]
     }
   ]
 }

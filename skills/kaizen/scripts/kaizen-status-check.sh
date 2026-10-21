@@ -53,6 +53,13 @@ frontmatter_state() {
 			n = split(body, parts, ",")
 			for (i = 1; i <= n; i++) {
 				item = parts[i]
+				# 要素のアンカー・エイリアス・タグ（`- *ref`・`[&a docs/a.md]`・`[!!str x]`）も、値そのものと同じく 1 行の文字列として読めない。
+				# ブロックシーケンスの要素も collect_item が applied_value へ連ねるので、ここで両方の形を確かめる。
+				# 引用符を落とす前に確かめる（`"*x"` は文字列である）。同じノートで 1 回だけ記録する。
+				if (item ~ /^[&*!]/ && !item_bad) {
+					item_bad = 1
+					bad_forms = (bad_forms == "" ? "" : bad_forms ",") "applied-to:item"
+				}
 				gsub(/^["'"'"']+|["'"'"']+$/, "", item)
 				if (item == "" || item == "null" || item == "~") continue
 				out = (out == "" ? item : out "," item)
@@ -298,6 +305,7 @@ for note in .kaizen/*.md .kaizen/archive/*.md; do
 			block) echo "kaizen-status-check: ${note}: ${bad_form%:*} uses a block scalar; write the value on the same line as the key" >&2 ;;
 			tag) echo "kaizen-status-check: ${note}: ${bad_form%:*} has a YAML tag; write the plain value without the tag" >&2 ;;
 			anchor) echo "kaizen-status-check: ${note}: ${bad_form%:*} uses a YAML anchor or alias; write the plain value" >&2 ;;
+			item) echo "kaizen-status-check: ${note}: ${bad_form%:*} has an element with a YAML anchor, alias or tag; write each element as a plain string" >&2 ;;
 			*) echo "kaizen-status-check: ${note}: ${bad_form%:*} key is quoted or has a space before the colon; write it as ${bad_form%:*}: <value>" >&2 ;;
 			esac
 			errors=$((errors + 1))

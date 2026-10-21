@@ -827,6 +827,34 @@ test.each([
   expect(exitCode).toBe(0);
 });
 
+// applied-to の要素も、ブロックシーケンスと flow 配列の両方の形で、アンカー・エイリアス・タグを止める。
+test.each([
+  ["ブロックシーケンスのエイリアス", "applied-to:\n  - *ref"],
+  ["ブロックシーケンスのアンカー", "applied-to:\n  - &a docs/a.md"],
+  ["ブロックシーケンスのタグ", "applied-to:\n  - !!str docs/a.md"],
+  ["桁 0 のブロックシーケンスのエイリアス", "applied-to:\n- *ref"],
+  ["flow 配列のエイリアス", "applied-to: [*ref]"],
+  ["flow 配列の 2 つ目の要素のアンカー", 'applied-to: ["docs/a.md", &a docs/b.md]'],
+  ["flow 配列のタグ", "applied-to: [!!str docs/a.md]"],
+])("applied-to の要素の形を拒否する: %s", (_name, appliedTo) => {
+  const { status: exitCode, stderr } = runCheck(
+    noteWithKeys({ status: "status: applied", appliedTo }),
+  );
+  expect(stderr).toContain("applied-to has an element with a YAML anchor, alias or tag");
+  expect(exitCode).toBe(2);
+});
+
+test.each([
+  ["引用符で囲んだ要素", 'applied-to: ["*x.md", "&y.md", "!z.md"]'],
+  ["引用符で囲んだブロックシーケンスの要素", "applied-to:\n  - '*x.md'"],
+])("applied-to の要素の形を受け付ける: %s", (_name, appliedTo) => {
+  const { status: exitCode, stderr } = runCheck(
+    noteWithKeys({ status: "status: applied", appliedTo }),
+  );
+  expect(stderr).toBe("");
+  expect(exitCode).toBe(0);
+});
+
 test("本文に書いた status: は、キーの重なりとして数えない", () => {
   const content = noteWithKeys({}).replace(
     "学びの本文。",
