@@ -77,7 +77,7 @@ test("oxlint: import・export from・import()・型の import と、相対パス
     "",
   ].join("\n");
   expect(reported({ "scripts/lib/a.ts": lib }, (root) => ({ root }))).toEqual(
-    [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 16].map((n) => `scripts/lib/a.ts:${n}`).sort(),
+    [1, 2, 3, 4, 5, 6, 7, 9, 10, 11].map((n) => `scripts/lib/a.ts:${n}`).sort(),
   );
 });
 
@@ -169,17 +169,19 @@ test("oxlint: JSDoc の @import・/// <reference path>・閉じていない { �
   ]);
 });
 
-test("oxlint: new の引数とディレクトリへの参照も判定し、自分のスキルのディレクトリは報告しない", () => {
+test("oxlint: new の引数を判定し、構文で import したディレクトリも判定し、ディレクトリを求める呼び出しは報告しない", () => {
   const files = {
     "skills/x/scripts/lib/a.mjs": [
       'const u = new URL("../../../../scripts/lib/y.ts", import.meta.url);',
-      'const self = resolve(here, "../..");',
+      'export * from "../..";',
+      'const root = join(import.meta.dirname, "../../../..");',
       "",
     ].join("\n"),
-    "scripts/lib/a.ts": 'const d = join(here, "../gates");\n',
-    "scripts/gates/code/a.ts": 'const e = createRequire(import.meta.url)("..");\n',
+    "scripts/lib/a.ts": ['export * from "../gates";', 'const d = join(here, "../gates");', ""].join(
+      "\n",
+    ),
   };
-  // scripts/gates/code/a.ts の ".." は scripts/gates（同じ分類）を指すので報告しない。"." と ".." も判定する対象である。
+  // skills/x/scripts/lib/a.mjs の "../.." は自分のスキル（skills/x）のディレクトリなので報告しない。
   expect(reported(files, (root) => ({ root }))).toEqual([
     "scripts/lib/a.ts:1",
     "skills/x/scripts/lib/a.mjs:1",
@@ -197,10 +199,10 @@ test("oxlint: .tsx の JSDoc の @import も読む", () => {
   ]);
 });
 
-test("isModuleArgument: 相対パスのうち、拡張子が JS・TS・JSON か無いものと、. と .. を参照として扱う", () => {
-  for (const p of [".", "..", "./a", "../a.ts", "../a.mjs", "../a.json", "../a.tsx"])
+test("isModuleArgument: 相対パスのうち、拡張子が JS・TS・JSON のものだけを参照として扱う", () => {
+  for (const p of ["./a.ts", "../a.ts", "../a.mjs", "../a.json", "../a.tsx"])
     expect(isModuleArgument(p), p).toBe(true);
-  for (const p of ["../a.md", "a.ts", "/abs/a.ts", "...", ".hidden"])
+  for (const p of [".", "..", "../..", "./a", "../a.md", "a.ts", "/abs/a.ts", "...", ".hidden"])
     expect(isModuleArgument(p), p).toBe(false);
 });
 

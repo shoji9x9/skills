@@ -51,8 +51,7 @@
       "replace": "if (category === undefined || target === undefined) return null;",
       "occurrences": 1,
       "expect_failing": [
-        "scripts/gates/code/a.ts → scripts/gates/docs/b.ts は向きに反するか: false",
-        "oxlint: new の引数とディレクトリへの参照も判定し、自分のスキルのディレクトリは報告しない"
+        "scripts/gates/code/a.ts → scripts/gates/docs/b.ts は向きに反するか: false"
       ]
     },
     {
@@ -72,7 +71,7 @@
         "oxlint: 正規表現の中のバッククォート・宣言より前の createRequire の別名・import した createRequire の別名でも報告し、同じ参照を 2 回報告しない",
         "oxlint: JSDoc の @example のコード・型の式（{…}）の外の文・JSDoc でないコメントは参照として扱わない",
         "oxlint: JSDoc の @import・/// <reference path>・閉じていない { の後の型の参照と、同じ節点に付いた 2 つ目の JSDoc も報告する",
-        "oxlint: new の引数とディレクトリへの参照も判定し、自分のスキルのディレクトリは報告しない",
+        "oxlint: new の引数を判定し、構文で import したディレクトリも判定し、ディレクトリを求める呼び出しは報告しない",
         "oxlint: .tsx の JSDoc の @import も読む"
       ]
     },
@@ -104,7 +103,8 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "oxlint: import・export from・import()・型の import と、相対パスの文字列を渡す呼び出しを報告し、向きに反しない参照は報告しない"
+        "oxlint: import・export from・import()・型の import と、相対パスの文字列を渡す呼び出しを報告し、向きに反しない参照は報告しない",
+        "oxlint: new の引数を判定し、構文で import したディレクトリも判定し、ディレクトリを求める呼び出しは報告しない"
       ]
     },
     {
@@ -163,19 +163,20 @@
         "oxlint: import・export from・import()・型の import と、相対パスの文字列を渡す呼び出しを報告し、向きに反しない参照は報告しない",
         "oxlint: import = require・テンプレート文字列の import()・createRequire の別名・JSDoc の型の参照も報告する",
         "oxlint: 正規表現の中のバッククォート・宣言より前の createRequire の別名・import した createRequire の別名でも報告し、同じ参照を 2 回報告しない",
-        "oxlint: new の引数とディレクトリへの参照も判定し、自分のスキルのディレクトリは報告しない"
+        "oxlint: new の引数を判定し、構文で import したディレクトリも判定し、ディレクトリを求める呼び出しは報告しない"
       ]
     },
     {
       "id": "ID-MODULE-EXT",
       "why": "モジュールでないファイル（.md など）のパスも参照として扱う",
       "file": "scripts/gates/code/oxlint-plugin/import-direction.ts",
-      "find": "return ext === \"\" || /^\\.(?:[cm]?[jt]sx?|json)$/.test(ext);",
+      "find": "return /^\\.(?:[cm]?[jt]sx?|json)$/.test(extname(path));",
       "replace": "return true;",
       "occurrences": 1,
       "expect_failing": [
         "oxlint: import・export from・import()・型の import と、相対パスの文字列を渡す呼び出しを報告し、向きに反しない参照は報告しない",
-        "isModuleArgument: 相対パスのうち、拡張子が JS・TS・JSON か無いものと、. と .. を参照として扱う"
+        "isModuleArgument: 相対パスのうち、拡張子が JS・TS・JSON のものだけを参照として扱う",
+        "oxlint: new の引数を判定し、構文で import したディレクトリも判定し、ディレクトリを求める呼び出しは報告しない"
       ]
     },
     {
@@ -250,7 +251,7 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "oxlint: new の引数とディレクトリへの参照も判定し、自分のスキルのディレクトリは報告しない"
+        "oxlint: new の引数を判定し、構文で import したディレクトリも判定し、ディレクトリを求める呼び出しは報告しない"
       ]
     },
     {
@@ -261,18 +262,20 @@
       "replace": "const dir = to;",
       "occurrences": 1,
       "expect_failing": [
-        "oxlint: new の引数とディレクトリへの参照も判定し、自分のスキルのディレクトリは報告しない"
+        "oxlint: new の引数を判定し、構文で import したディレクトリも判定し、ディレクトリを求める呼び出しは報告しない"
       ]
     },
     {
-      "id": "ID-DOT",
-      "why": ". と .. を参照として扱わない",
+      "id": "ID-EXTLESS",
+      "why": "拡張子の無いパスの引数も参照として扱う",
       "file": "scripts/gates/code/oxlint-plugin/import-direction.ts",
-      "find": "if (path !== \".\" && path !== \"..\" && !path.startsWith(\"./\") && !path.startsWith(\"../\"))",
-      "replace": "if (!path.startsWith(\"./\") && !path.startsWith(\"../\"))",
+      "find": "return /^\\.(?:[cm]?[jt]sx?|json)$/.test(extname(path));",
+      "replace": "return extname(path) === \"\" || /^\\.(?:[cm]?[jt]sx?|json)$/.test(extname(path));",
       "occurrences": 1,
       "expect_failing": [
-        "isModuleArgument: 相対パスのうち、拡張子が JS・TS・JSON か無いものと、. と .. を参照として扱う"
+        "isModuleArgument: 相対パスのうち、拡張子が JS・TS・JSON のものだけを参照として扱う",
+        "oxlint: new の引数を判定し、構文で import したディレクトリも判定し、ディレクトリを求める呼び出しは報告しない",
+        "oxlint: import・export from・import()・型の import と、相対パスの文字列を渡す呼び出しを報告し、向きに反しない参照は報告しない"
       ]
     }
   ]

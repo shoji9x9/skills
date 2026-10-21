@@ -17,7 +17,7 @@
 //    TSImportEqualsDeclaration である。
 // 2. 呼び出しの引数: 相対パス（`./`・`../`）の文字列を引数に渡す呼び出しと new は、関数に依らずすべて参照として扱う。
 //    require・createRequire の戻り値・vi.mock・vi.importActual を、名前を数えずに同じ規則で判定するためである。
-//    モジュールでないファイル（`.md` など）のパスは除く。拡張子が JS・TS・JSON か、拡張子の無いパスだけを数える。
+//    モジュールでないファイル（`.md` など）とディレクトリ（拡張子の無いパス）は除く。拡張子が JS・TS・JSON のパスだけを数える。
 // 3. コメントの参照: JSDoc の型（`{import("…")}`）・`@import`・`/// <reference path>` は構文木に現れないので、
 //    TypeScript のパーサで読む。`@example` のコードは JSDoc の本文として扱われるので、参照にならない。
 // specifier が文字列でない参照（式を埋め込んだテンプレート文字列・変数・`join(here, "..", "lib")` のように分けた引数）は、
@@ -109,12 +109,13 @@ export function staticString(node: AstNode | null | undefined): string | null {
   return null;
 }
 
-/** 呼び出しの引数として、モジュールへの参照とみなすパスか（相対パスで、拡張子が JS・TS・JSON か拡張子が無い）。 */
+/**
+ * 呼び出しの引数として、モジュールへの参照とみなすパスか（相対パスで、拡張子が JS・TS・JSON）。
+ * 拡張子の無いパス（`../..`）は、ディレクトリを求める呼び出し（プロジェクトのルートを探す join など）にも使うので数えない。
+ */
 export function isModuleArgument(path: string): boolean {
-  if (path !== "." && path !== ".." && !path.startsWith("./") && !path.startsWith("../"))
-    return false;
-  const ext = extname(path);
-  return ext === "" || /^\.(?:[cm]?[jt]sx?|json)$/.test(ext);
+  if (!path.startsWith("./") && !path.startsWith("../")) return false;
+  return /^\.(?:[cm]?[jt]sx?|json)$/.test(extname(path));
 }
 
 /** TypeScript の節点が持つ JSDoc（内部の欄 `jsDoc`）。1 つの節点に複数の JSDoc が付くので、公開の API では取りこぼす。 */

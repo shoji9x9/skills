@@ -489,15 +489,12 @@ export function stalePending(
 }
 
 /**
- * 一覧に無い違反（直さずに一覧から消した組と、新しい違反）。violations は一覧を外して実行した oxlint の違反で、
- * 一覧で外せるルール（PENDING_RULES）の違反だけを数える。
+ * 一覧で外していない違反（直さずに一覧から消した組と、それ以外のすべての違反）。violations は一覧を外して実行した oxlint の違反。
+ * ルールに依らず数える。設定やプラグインを厳しくした commit で、staged でないファイルに出た違反も見つけるためである。
  */
 export function unlistedViolations(
   pending: Readonly<Record<string, readonly PendingRule[]>>,
   violations: readonly { file: string; rule: string; line: number }[],
 ): { file: string; rule: string; line: number }[] {
-  const rules: readonly string[] = PENDING_RULES;
-  return violations.filter(
-    (v) => rules.includes(v.rule) && !(pending[v.file] ?? []).some((r) => r === v.rule),
-  );
+  return violations.filter((v) => !(pending[v.file] ?? []).some((r) => r === v.rule));
 }

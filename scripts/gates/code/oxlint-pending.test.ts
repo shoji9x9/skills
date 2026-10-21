@@ -58,7 +58,7 @@ test("実リポジトリ: 一覧のファイルはすべて在る", () => {
   expect(missing).toEqual([]);
 });
 
-test("unlistedViolations: 一覧で外せるルールのうち、一覧に無い組の違反だけを返す", () => {
+test("unlistedViolations: 一覧で外していない違反を、ルールに依らずすべて返す", () => {
   const pending = { "a.ts": ["complexity"] } as const;
   const violations = [
     { file: "a.ts", rule: "complexity", line: 1 },
@@ -69,16 +69,20 @@ test("unlistedViolations: 一覧で外せるルールのうち、一覧に無い
   expect(unlistedViolations(pending, violations)).toEqual([
     { file: "a.ts", rule: "max-params", line: 2 },
     { file: "b.ts", rule: "complexity", line: 3 },
+    { file: "b.ts", rule: "no-unused-vars", line: 4 },
   ]);
 });
 
-test("checkPlan: staged が無ければ全体、きっかけのファイルがあれば全体、一覧と重なればそのファイル、どれでもなければ検査しない", () => {
+test("checkPlan: staged が無ければ全体、きっかけのファイルかスキルの SKILL.md があれば全体、一覧と重なればそのファイル、どれでもなければ検査しない", () => {
   const pending = { "a.ts": ["complexity"], "b.ts": ["max-depth"] } as const;
   const sources = new Set(["oxlint.config.ts", "pnpm-lock.yaml"]);
   expect(checkPlan(pending, null, sources)).toEqual({ mode: "all" });
   expect(checkPlan(pending, ["pnpm-lock.yaml", "a.ts"], sources)).toEqual({ mode: "all" });
   expect(checkPlan(pending, ["b.ts", "c.ts"], sources)).toEqual({ mode: "files", files: ["b.ts"] });
   expect(checkPlan(pending, ["c.ts"], sources)).toEqual({ mode: "none" });
+  expect(checkPlan(pending, ["skills/new/SKILL.md"], sources)).toEqual({ mode: "all" });
+  expect(checkPlan(pending, [".agents/skills/new/SKILL.md"], sources)).toEqual({ mode: "all" });
+  expect(checkPlan(pending, ["skills/new/references/a.md"], sources)).toEqual({ mode: "none" });
 });
 
 test("importClosure: 相対 import をたどり、パッケージの import はたどらない", () => {
@@ -129,6 +133,7 @@ test("CLI: stdin の staged のファイルから範囲を出し、検査しな�
 test("実リポジトリ: きっかけのファイルに、設定・プラグイン・それらが import するファイル・版を決めるファイルが入る", () => {
   const sources = pendingSources(REPO_DIR);
   for (const f of [
+    "scripts/gates/code/oxlint-pending.test.ts",
     "oxlint.config.ts",
     "scripts/gates/code/oxlint-pending.ts",
     "scripts/lib/guards.ts",

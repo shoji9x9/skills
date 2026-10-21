@@ -24,8 +24,20 @@ export const SOURCE_ENTRIES = [
   "scripts/gates/code/oxlint-plugin/run-oxlint.ts",
   "scripts/gates/code/oxlint-pending-check.ts",
 ];
-/** oxlint と依存の版を決めるファイル。 */
-export const VERSION_FILES = ["package.json", "pnpm-lock.yaml"];
+/** oxlint と依存の版を決めるファイルと、突き合わせのテスト自身（テストの補助まで import はたどらない）。 */
+export const VERSION_FILES = [
+  "package.json",
+  "pnpm-lock.yaml",
+  "scripts/gates/code/oxlint-pending.test.ts",
+];
+/**
+ * 設定が実行時に読む入力を変えるファイル。oxlint.config.ts は skills/ と .agents/skills/ のディレクトリから対象の範囲を決めるので、
+ * スキルを足したり消したりした commit（SKILL.md が staged）も、全体を検査する。
+ */
+export const RUNTIME_INPUTS = [
+  /^skills\/[^/]+\/SKILL\.md$/,
+  /^\.agents\/skills\/[^/]+\/SKILL\.md$/,
+];
 
 /** root からのパスの entries から、相対 import をたどって集めたファイル（`/` 区切り）。 */
 export function importClosure(root: string, entries: readonly string[]): Set<string> {
@@ -75,7 +87,8 @@ export function checkPlan(
   staged: readonly string[] | null,
   sources: ReadonlySet<string>,
 ): CheckPlan {
-  if (staged === null || staged.some((f) => sources.has(f))) return { mode: "all" };
+  const triggers = (f: string) => sources.has(f) || RUNTIME_INPUTS.some((re) => re.test(f));
+  if (staged === null || staged.some(triggers)) return { mode: "all" };
   const files = Object.keys(pending).filter((f) => staged.includes(f));
   return files.length > 0 ? { mode: "files", files } : { mode: "none" };
 }

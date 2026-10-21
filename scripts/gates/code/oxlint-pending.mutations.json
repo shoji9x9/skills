@@ -51,11 +51,11 @@
       "id": "PD-PLAN-SOURCES",
       "why": "きっかけのファイルが staged でも、全体を検査しない",
       "file": "scripts/gates/code/oxlint-pending-check.ts",
-      "find": "if (staged === null || staged.some((f) => sources.has(f))) return { mode: \"all\" };",
+      "find": "if (staged === null || staged.some(triggers)) return { mode: \"all\" };",
       "replace": "if (staged === null) return { mode: \"all\" };",
       "occurrences": 1,
       "expect_failing": [
-        "checkPlan: staged が無ければ全体、きっかけのファイルがあれば全体、一覧と重なればそのファイル、どれでもなければ検査しない",
+        "checkPlan: staged が無ければ全体、きっかけのファイルかスキルの SKILL.md があれば全体、一覧と重なればそのファイル、どれでもなければ検査しない",
         "CLI: stdin の staged のファイルから範囲を出し、検査しないなら何も出さない"
       ]
     },
@@ -72,26 +72,13 @@
       ]
     },
     {
-      "id": "PD-UNLISTED-RULES",
-      "why": "一覧で外せないルールの違反も、一覧に無い違反として数える",
-      "file": "scripts/gates/code/oxlint-pending.ts",
-      "find": "(v) => rules.includes(v.rule) && !(pending[v.file] ?? []).some((r) => r === v.rule),",
-      "replace": "(v) => !(pending[v.file] ?? []).some((r) => r === v.rule),",
-      "occurrences": 1,
-      "expect_failing": [
-        "unlistedViolations: 一覧で外せるルールのうち、一覧に無い組の違反だけを返す"
-      ]
-    },
-    {
       "id": "PD-UNLISTED-PENDING",
       "why": "一覧にある組の違反も、一覧に無い違反として数える",
       "file": "scripts/gates/code/oxlint-pending.ts",
-      "find": "(v) => rules.includes(v.rule) && !(pending[v.file] ?? []).some((r) => r === v.rule),",
-      "replace": "(v) => rules.includes(v.rule),",
+      "find": "return violations.filter((v) => !(pending[v.file] ?? []).some((r) => r === v.rule));",
+      "replace": "return violations.filter(() => true);",
       "occurrences": 1,
-      "expect_failing": [
-        "unlistedViolations: 一覧で外せるルールのうち、一覧に無い組の違反だけを返す"
-      ]
+      "expect_failing": ["unlistedViolations: 一覧で外していない違反を、ルールに依らずすべて返す"]
     },
     {
       "id": "PD-PARSE-ALL",
@@ -101,6 +88,17 @@
       "replace": "false",
       "occurrences": 1,
       "expect_failing": ["parsePlan: CLI の出力を範囲に戻す"]
+    },
+    {
+      "id": "PD-RUNTIME-INPUTS",
+      "why": "スキルの SKILL.md が staged でも、全体を検査しない",
+      "file": "scripts/gates/code/oxlint-pending-check.ts",
+      "find": "sources.has(f) || RUNTIME_INPUTS.some((re) => re.test(f))",
+      "replace": "sources.has(f)",
+      "occurrences": 1,
+      "expect_failing": [
+        "checkPlan: staged が無ければ全体、きっかけのファイルかスキルの SKILL.md があれば全体、一覧と重なればそのファイル、どれでもなければ検査しない"
+      ]
     }
   ]
 }
