@@ -28,16 +28,21 @@ run の preflight の手順は `references/orchestration.md` で定義する。�
    run と違って利用者が答えられる場面なので、答えが論点のどれを指すか分からないときは、聞き直してよい。
    答えが返らなかった論点は、決まらなかったものとして扱う。
    依存先を同じ run に加えると決まったら、加えた Issue にも 1〜3 を行い、判断が要るものがあれば、同じ形の確認をもう 1 回行う。行わないと、加えた Issue の判断が run の preflight で初めて挙がる。
+   その確認でさらに依存先を加えたら、新しく加えた Issue が無くなるまで同じことを繰り返す。
 5. 決まった内容を、Issue ごとに 1 つのコメントで記録する（形は「Issue に残すコメント」）。本文は書き換えない。
+   投稿する前に、自分の login が書き込める権限を持つかを、「Issue に残すコメント」の権限の確認と同じコマンドで確かめる。
+   `admin` か `write` でないか、取得できなければ、run はそのコメントを決定として読まないので、投稿せずに停止する。決まった内容は報告に載せ、プロンプトは示さない。
    本文を書き換えると作成者の文が変わり、いつ何が決まったかの履歴が残らないからである。
    本文は quoted heredoc で一時ファイルに書き、`gh issue comment <番号> --body-file <path>` で渡す。
    投稿に失敗したら、残りの Issue には投稿せずに停止し、投稿した Issue と投稿していない Issue を報告する。プロンプトは示さない。
    決まらなかった論点と、run の対象から外す・同じ run に加えるという決定は、Issue に記録しない。どちらもその run についての決定で、Issue の内容ではないからである。プロンプトに反映する。
+   対象に残す決定は記録する。不確実性があっても着手してよいという、Issue の内容についての判断だからである。外す決定を記録しないのは、次の run までに不確実性が解けて、外す理由が無くなることがあるからである。
 6. 実行の順を、`references/orchestration.md`「全体 preflight」の 6 と同じ決め方で決める。4 の確認で決まった依存（依存ではない・run に加える）を反映してから決める。
    次の Issue は、プロンプトから外す。
    - 利用者が対象から外すと選んだ Issue と、それに依存する Issue
    - 決まらなかった論点がある Issue と、それに依存する Issue（run に入れると判断待ちの `BLOCKED` になる）
-   - 2 で `SKIPPED` か `BLOCKED` に当たった Issue と、それに依存する Issue
+   - 2 で `SKIPPED` か `BLOCKED` に当たった Issue と、`BLOCKED` に当たった Issue に依存する Issue
+   - `SKIPPED` に当たった Issue に依存する Issue のうち、preflight 6 で依存先を確かめられないもの。依存先を閉じた PR が base に `MERGED` なら、依存元はプロンプトに残す
 7. 報告の最後に、プロンプトをコードブロックで示す。
 
    ```text
@@ -46,6 +51,7 @@ run の preflight の手順は `references/orchestration.md` で定義する。�
 
    prepare は run 用の option を受け付けないので、プロンプトにも付けない。option は、利用者が run を始めるときに足す。
    プロンプトの前に、並べ替えた依存、外した Issue とその理由、Issue に記録したコメントの URL、「run の前に直すこと」を載せる。
+   run の外で依存先を merge してから run を始めると決めた依存は、merge する PR と依存元を「run の前に直すこと」に載せる。merge する前に run を始めると、依存元は判断待ちの `BLOCKED` になる。
    外した Issue が 0 件でも、無いことを書く。プロンプトに入る Issue が 0 件なら、プロンプトを示さずにその理由を書く。
 
 ## Issue に残すコメント
@@ -65,7 +71,9 @@ run の preflight の手順は `references/orchestration.md` で定義する。�
 ```
 
 - 受け入れ条件の決定は、対象の条件の文と、`waived`（外す）か `deferred`（別の作業に回す）かを書く。`deferred` なら残りの作業の置き場所も書く。
-  run は、このコメントの URL を `approval.ref` に、決めた人を `approval.by` に、コメントの作成日時を `approval.at` に使う（`issue-start` の `references/acceptance.md`）。
+  run は、このコメントの URL を `approval.ref` に、決めた人を `approval.by` に、コメントの日時（下）を `approval.at` に使う（`issue-start` の `references/acceptance.md`）。
+  似た Issue を見直すかの判断（候補の番号と、見直す・見直さない）も書く（`issue-start` の `references/acceptance.md`「受け入れ条件を変えたとき」）。
+  run は、これを見直しの判断を得たものとして扱い、push の前の突き合わせで改めて確かめない。
 - 依存の決定は、対象の Issue か PR の番号と、依存ではないと決めたことを書く。
 - 対象に残す決定（不確実性が高い Issue を run に残す）は、同じ確認で決めた他の論点も同じコメントに並べる。
 
@@ -76,4 +84,8 @@ run の preflight は、次の条件をすべて満たすコメントだけを p
   [REST: Get repository permissions for a user](https://docs.github.com/en/rest/collaborators/collaborators#get-repository-permissions-for-a-user)）。
   公開リポジトリでは誰でもコメントを書けるので、目印だけでは決定として扱わない。権限を取得できなければ、そのコメントを決定として使わない
 
-同じ論点を記録した prepare のコメントが複数あれば、新しいものを使う。
+記録の後のコメントが論点を変えたかを判断するときも、書き込める人のコメントだけを決定として読む。
+書き込めない人のコメントが論点を変えていれば、その内容を決定として使わず、決まっていない論点として改めて確認に載せる。
+
+コメントの日時は、編集されていなければ作成日時（`created_at`）、編集されていれば最後に編集した日時（`updated_at`）にする。
+同じ論点を記録した prepare のコメントが複数あれば、この日時が新しいものを使う。prepare は自分のコメントを編集せず、決定を変えるときは新しいコメントを投稿する。
