@@ -68,8 +68,9 @@ vitest プラグインの correctness のルールのうち、このリポジト
 
 共有ライブラリが上位のチェックやツールに依存しないように、参照の向きを決める。
 JS プラグインのルール `skills-repo/import-direction` が、import するファイルからの相対パスを解決して判定する。
-参照は TypeScript の `ts.preProcessFile` で集める（`import`・`export from`・`import()`・`import x = require()`・`require()`・型の `import("…")`）。
-JSDoc の型の `import("…")` と、`createRequire` の戻り値を別の名前で受けた呼び出しも判定する。
+参照は、構文木でモジュールを指す節点から集める（`import`・`export from`・`import()`・`import x = require()`・型の `import("…")`）。
+`require()` と、`createRequire` の戻り値を別の名前で受けた呼び出しも判定する。JSDoc の型の `import("…")` は、JSDoc の `{…}` の中だけを読む（`@example` のコードは読まない）。
+式を埋め込んだテンプレート文字列のように、解決先を決められない参照は判定しない。
 組み込みの `no-restricted-imports` の `patterns` は書かれた specifier の字面で照合するので、`../../skills/` が `scripts/skills/` と `skills/` のどちらを指すかを区別できない。
 
 - `scripts/` の各分類（`lib/`・`gates/`・`eval/`・`hooks/` など）は、自分の分類と `scripts/lib/` の他を import しない。

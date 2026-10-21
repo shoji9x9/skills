@@ -141,9 +141,9 @@ pre-commit:
             run: pnpm exec oxlint {staged_files}
           - name: oxlint-pending
             # 後で直す違反の一覧（scripts/gates/code/oxlint-pending.ts）に、直したのに残った組が無いか。
-            # 一覧のファイルを直した commit で残ると、そのファイルに新しく入った同じ種類の違反を見逃すので、JS・TS が staged のときに実行する。
+            # 一覧のファイルを直した commit で残ると、そのファイルに新しく入った同じ種類の違反を見逃すので、JS・TS と oxlint の版を決めるファイルが staged のときに実行する。
             # staged のファイルと一覧が重なるファイルだけに oxlint を当てる（一覧の外し方を変える設定とスクリプトが staged なら、一覧のすべて）。
-            glob: "*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}"
+            glob: "{*.{js,mjs,cjs,jsx,ts,tsx,mts,cts},package.json,pnpm-lock.yaml}"
             # lefthook は {staged_files} をファイルごとに引用符で囲むので、printf で空白区切りの 1 つの値にまとめて渡す。
             run: OXLINT_PENDING_STAGED="$(printf '%s ' {staged_files})" pnpm exec vitest run scripts/gates/code/oxlint-pending.test.ts
           - name: typecheck

@@ -488,10 +488,15 @@ export function stalePending(
   );
 }
 
-/** 一覧の外し方そのものを変えるファイル。staged にあれば、一覧のすべてのファイルを検査し直す。 */
-const PENDING_SOURCES = [
+/**
+ * 一覧の外し方とルールの判定を変えるファイル。staged にあれば、一覧のすべてのファイルを検査し直す。
+ * oxlint.config.ts とプラグイン、それらが import するファイル（oxlint-pending.test.ts がたどって確かめる）と、oxlint の版を決めるファイルである。
+ */
+export const PENDING_SOURCES = [
   /^oxlint\.config\.ts$/,
   /^scripts\/gates\/code\/oxlint-p(?:ending|lugin\/)/,
+  /^scripts\/lib\/(?:guards|is-array|is-array-holders|source-scope)\.ts$/,
+  /^(?:package\.json|pnpm-lock\.yaml)$/,
 ];
 
 /**

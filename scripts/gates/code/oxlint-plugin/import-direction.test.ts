@@ -113,6 +113,44 @@ test("oxlint: 配布スキルの .mjs の JSDoc の型が、自分のディレ�
   ]);
 });
 
+test("oxlint: 正規表現の中のバッククォート・宣言より前の createRequire の別名・import した createRequire の別名でも報告し、同じ参照を 2 回報告しない", () => {
+  const lib = [
+    'import { createRequire as cr } from "node:module";',
+    "const re = /`/;",
+    'import { a } from "../gates/code/b.ts";',
+    'function f() { return r("../eval/d.ts"); }',
+    "const r = cr(import.meta.url);",
+    "const require = createRequire(import.meta.url);",
+    'const g = require("../hooks/f.ts");',
+    "const h = await import(`../eval/sub/${name}.ts`);",
+    "",
+  ].join("\n");
+  expect(reported({ "scripts/lib/a.ts": lib }, (root) => ({ root }))).toEqual([
+    "scripts/lib/a.ts:3",
+    "scripts/lib/a.ts:4",
+    "scripts/lib/a.ts:7",
+  ]);
+});
+
+test("oxlint: JSDoc の @example のコード・型の式（{…}）の外の文・JSDoc でないコメントは参照として扱わない", () => {
+  const lib = [
+    "/**",
+    ' * 使い方の説明で import("../gates/code/b.ts") と書いた文。',
+    ' * @param {import("../gates/code/b.ts").T} t',
+    " * @example",
+    ' * import { a } from "../gates/code/b.ts";',
+    ' * const x = { y: import("../eval/d.ts") };',
+    " * @returns {void}",
+    " */",
+    "export function f(t) {}",
+    '/* JSDoc でないコメント {import("../gates/code/b.ts")} */',
+    "",
+  ].join("\n");
+  expect(reported({ "scripts/lib/a.ts": lib }, (root) => ({ root }))).toEqual([
+    "scripts/lib/a.ts:3",
+  ]);
+});
+
 test("oxlint: 同じ内容でも、root の外のファイルとして読めば向きを当てない", () => {
   const lib = 'import { a } from "../gates/code/b.ts";\n';
   expect(reported({ "scripts/lib/a.ts": lib }, (root) => ({ root: join(root, "sub") }))).toEqual(

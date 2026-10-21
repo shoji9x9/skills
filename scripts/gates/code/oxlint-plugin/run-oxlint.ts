@@ -53,6 +53,8 @@ export function runOxlint(
     env: { ...process.env, ...env },
     stdio: ["ignore", "pipe", "pipe"],
     timeout: CHILD_TIMEOUT_MS,
+    // 一覧のすべてを検査すると、JSON は数百 KB になる。デフォルトの 1 MiB を超えて status が null になるのを避ける。
+    maxBuffer: 64 * 1024 * 1024,
   });
   if (res.status !== 0 && res.status !== 1)
     throw new Error(`oxlint を実行できない（exit ${res.status}）: ${res.stderr}${res.stdout}`);

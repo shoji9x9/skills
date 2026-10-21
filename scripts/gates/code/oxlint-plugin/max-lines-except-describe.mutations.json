@@ -75,7 +75,8 @@
         "境界: 50 行の関数は報告せず、51 行の関数は報告する",
         "describe のコールバックの中の test とヘルパー関数は数える",
         "オプションの max を上限にする",
-        "メソッドと getter は、キーを含む行から数える"
+        "メソッドと getter は、キーを含む行から数える",
+        "max の無いオプション（{}）は、デフォルトの 50 行を上限にする"
       ]
     },
     {
@@ -160,6 +161,15 @@
       "expect_failing": [
         "別名で import した describe のコールバックは外し、import していない describe のコールバックは数える"
       ]
+    },
+    {
+      "id": "ML-DEFAULT-EMPTY",
+      "why": "max の無いオプション（{}）を、デフォルトではなく誤りとして扱う",
+      "file": "scripts/gates/code/oxlint-plugin/max-lines-except-describe.ts",
+      "find": "if (first === undefined || value === undefined) return DEFAULT_MAX;",
+      "replace": "if (first === undefined) return DEFAULT_MAX;",
+      "occurrences": 1,
+      "expect_failing": ["max の無いオプション（{}）は、デフォルトの 50 行を上限にする"]
     }
   ]
 }

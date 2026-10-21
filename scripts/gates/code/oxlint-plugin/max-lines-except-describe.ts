@@ -123,8 +123,8 @@ function countedNode(fn: AstNode): AstNode {
 /** オプション `{ max }` の上限。数でない値は、判定できないので例外にする。 */
 export function maxOf(options: readonly unknown[]): number {
   const first = options[0];
-  if (first === undefined) return DEFAULT_MAX;
   const value = isRecord(first) ? first.max : undefined;
+  if (first === undefined || value === undefined) return DEFAULT_MAX;
   if (typeof value !== "number" || !Number.isInteger(value) || value < 1)
     throw new Error("max-lines-per-function-except-describe: max は 1 以上の整数にする");
   return value;

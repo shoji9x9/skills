@@ -3,9 +3,16 @@
 // 一覧は、直したものから外していく。直したのに残った組は、そのファイルで新しく入った同じ種類の違反を見逃すので、失敗にする。
 // 実リポジトリの一覧は、oxlint.config.ts から一覧の除外だけを外した oxlint（OXLINT_IGNORE_PENDING=1）で確かめる。
 import { expect, test } from "vitest";
-import { existsSync } from "node:fs";
-import { join } from "node:path";
-import { PENDING_FIXES, pendingOverrides, pendingTargets, stalePending } from "./oxlint-pending.ts";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join, normalize } from "node:path";
+import ts from "typescript";
+import {
+  PENDING_FIXES,
+  PENDING_SOURCES,
+  pendingOverrides,
+  pendingTargets,
+  stalePending,
+} from "./oxlint-pending.ts";
 import { REPO_DIR, runOxlint } from "./oxlint-plugin/run-oxlint.ts";
 
 test("pendingOverrides: 同じルールの組を持つファイルを 1 つの override にまとめ、ルールを off にする", () => {
@@ -49,6 +56,7 @@ test("pendingTargets: staged が無ければすべてを、一覧の外し方を
   expect(pendingTargets(pending, ["b.ts", "c.ts"])).toEqual(["b.ts"]);
   expect(pendingTargets(pending, ["c.ts"])).toEqual([]);
   expect(pendingTargets(pending, ["oxlint.config.ts"])).toEqual(["a.ts", "b.ts"]);
+  expect(pendingTargets(pending, ["pnpm-lock.yaml"])).toEqual(["a.ts", "b.ts"]);
   expect(pendingTargets(pending, ["scripts/gates/code/oxlint-pending.ts"])).toEqual([
     "a.ts",
     "b.ts",
@@ -57,6 +65,21 @@ test("pendingTargets: staged が無ければすべてを、一覧の外し方を
     "a.ts",
     "b.ts",
   ]);
+});
+
+test("実リポジトリ: oxlint.config.ts とプラグインが import するファイルは、すべて PENDING_SOURCES に当たる", () => {
+  const seen = new Set<string>();
+  const queue = ["oxlint.config.ts", "scripts/gates/code/oxlint-plugin/plugin.ts"];
+  for (let file = queue.shift(); file !== undefined; file = queue.shift()) {
+    if (seen.has(file)) continue;
+    seen.add(file);
+    const text = readFileSync(join(REPO_DIR, file), "utf8");
+    for (const { fileName } of ts.preProcessFile(text, true, true).importedFiles)
+      if (fileName.startsWith(".")) queue.push(normalize(join(dirname(file), fileName)));
+  }
+  expect(seen.size).toBeGreaterThan(5);
+  const missing = [...seen].filter((f) => !PENDING_SOURCES.some((re) => re.test(f)));
+  expect(missing, "PENDING_SOURCES に足す").toEqual([]);
 });
 
 // pre-commit は OXLINT_PENDING_STAGED に staged のファイルを空白区切りで渡し、一覧と重なるファイルだけを検査させる。

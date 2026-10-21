@@ -11,38 +11,47 @@
 //   scripts/lib/ は、scripts/ の他の分類を import しないので、共有ライブラリが上位のチェックやツールに依存しない。
 //   scripts/skills/ はスキルのスクリプトのテストと fixture の置き場所なので、この向きを当てない。
 //
-// 参照の書き方は自分で列挙せず、TypeScript の `ts.preProcessFile` に集めさせる。
-// `import`・`export from`・`import()`（テンプレート文字列を含む）・`import x = require()`・`require()`・型の `import("…")` を拾い、
-// 文字列とコメントの中は読まない。JSDoc の型（`@typedef {import("…").T}`）は、JSDoc のコメントの本文に同じ関数を当てて拾う。
-// `preProcessFile` が拾わない `createRequire` の戻り値を別の名前で受けた呼び出しだけを、構文木で拾う。
+// 参照は、ESTree と TypeScript の構文木でモジュールを指す節点から集める。
+// 節点は ImportDeclaration・ExportNamedDeclaration・ExportAllDeclaration・ImportExpression・TSImportType・
+// TSImportEqualsDeclaration（`import x = require()`）である。加えて、`require` の呼び出しも集める。
+// `require` は構文ではないので、`require` という名前と、createRequire の戻り値を受けた名前の呼び出しを数える。
+// specifier が文字列でない参照（式を埋め込んだテンプレート文字列・変数）は、解決先を決められないので判定しない。
+// JSDoc の型（`@typedef {import("…").T}`）は構文木に現れないので、JSDoc のコメントの `{…}` の中だけを読む。
 import { isAbsolute, posix, relative, resolve, dirname, sep } from "node:path";
-import ts from "typescript";
 import { isRecord } from "../../../lib/guards.ts";
 
 export type Loc = { line: number; column: number };
 export type Comment = { type: string; value: string; range: readonly [number, number] };
-export type Expr = {
+/** ルールが読む AST の節点。oxlint は型を公開していないので、読む欄だけを書く。 */
+export type AstNode = {
   type: string;
   name?: string;
   value?: unknown;
-  callee?: Expr;
-  arguments?: Expr[];
+  source?: AstNode | null;
+  callee?: AstNode;
+  arguments?: AstNode[];
+  id?: AstNode | null;
+  init?: AstNode | null;
+  moduleReference?: AstNode;
+  expression?: AstNode;
+  imported?: AstNode;
+  local?: AstNode;
+  specifiers?: AstNode[];
+  quasis?: { value: { cooked?: string | null } }[];
+  expressions?: AstNode[];
 };
-export type Declarator = { id?: Expr; init?: Expr | null };
 
 type Context = {
   filename: string;
   options: readonly unknown[];
-  sourceCode: {
-    text: string;
-    getAllComments: () => Comment[];
-    getLocFromIndex: (index: number) => Loc;
-  };
-  report: (d: { loc: { start: Loc; end: Loc }; message: string }) => void;
+  sourceCode: { getAllComments: () => Comment[]; getLocFromIndex: (index: number) => Loc };
+  report: (
+    d: { node: AstNode; message: string } | { loc: { start: Loc; end: Loc }; message: string },
+  ) => void;
 };
 
-/** 参照の specifier と、ファイルの中の位置（文字の index）。 */
-export type ModuleReference = { specifier: string; start: number; end: number };
+/** JSDoc の中の型の参照と、コメントの中の位置（文字の index）。 */
+export type JsdocReference = { specifier: string; start: number; end: number };
 
 const SKILL_RE = /^skills\/([^/]+)\//;
 const SCRIPTS_RE = /^scripts\/([^/]+)\//;
@@ -85,22 +94,61 @@ export function resolveFromRoot(root: string, filename: string, specifier: strin
     .join(posix.sep);
 }
 
-/**
- * text の中のモジュールの参照を、`ts.preProcessFile` で集める。
- * `obj.require("…")` のようなメンバーの呼び出しは require 関数ではないので除く。
- */
-export function moduleReferences(text: string, offset = 0): ModuleReference[] {
-  return ts
-    .preProcessFile(text, true, true)
-    .importedFiles.filter((f) => !/\.\s*require\s*\(\s*["'`]?$/.test(text.slice(0, f.pos)))
-    .map((f) => ({ specifier: f.fileName, start: offset + f.pos, end: offset + f.end }));
+/** 文字列のリテラルか、式を埋め込まないテンプレート文字列なら、その値。それ以外は null。 */
+export function staticString(node: AstNode | null | undefined): string | null {
+  if (node?.type === "Literal" && typeof node.value === "string") return node.value;
+  if (node?.type === "TemplateLiteral" && node.expressions?.length === 0)
+    return node.quasis?.[0]?.value.cooked ?? null;
+  return null;
 }
 
-/** JSDoc のコメント（`/** … *\/`）の中の、型の `import("…")`。 */
-export function jsdocReferences(comments: readonly Comment[]): ModuleReference[] {
-  return comments
-    .filter((c) => c.type === "Block" && c.value.startsWith("*"))
-    .flatMap((c) => moduleReferences(c.value, c.range[0] + 2));
+/** JSDoc の本文から、`@example` の節を除く（コードの例は参照ではない）。次のタグか本文の終わりまでを除く。 */
+const withoutExamples = (text: string): string =>
+  text.replace(/@example[\s\S]*?(?=\n\s*\*\s*@|$)/g, (m) => " ".repeat(m.length));
+
+/** JSDoc のコメント（`/** … *\/`）の型の式（`{…}` の中）にある `import("…")`。位置はファイルの中の index。 */
+export function jsdocReferences(comments: readonly Comment[]): JsdocReference[] {
+  const found: JsdocReference[] = [];
+  for (const c of comments) {
+    if (c.type !== "Block" || !c.value.startsWith("*")) continue;
+    const text = withoutExamples(c.value);
+    let depth = 0;
+    let open = -1;
+    for (let i = 0; i < text.length; i++) {
+      if (text[i] === "{" && depth++ === 0) open = i;
+      if (text[i] !== "}" || depth === 0 || --depth !== 0) continue;
+      for (const m of text.slice(open, i).matchAll(/import\(\s*(["'`])([^"'`]+)\1\s*\)/g)) {
+        const start = c.range[0] + 2 + open + m.index;
+        found.push({ specifier: m[2], start, end: start + m[0].length });
+      }
+    }
+  }
+  return found;
+}
+
+/** createRequire を import した名前（`import { createRequire as cr } from "node:module"` なら cr）。 */
+function createRequireNames(node: AstNode): string[] {
+  if (staticString(node.source) !== "node:module" && staticString(node.source) !== "module")
+    return [];
+  return (node.specifiers ?? [])
+    .filter((s) => s.imported?.name === "createRequire" && s.local?.name)
+    .map((s) => s.local?.name ?? "");
+}
+
+/**
+ * require の呼び出し。`require` という名前と、creators（createRequire を指す名前）の呼び出しの戻り値を受けた名前の呼び出しを返す。
+ * declarators と calls は、ファイルの中の変数の宣言と、名前で呼ぶ呼び出しのすべて。
+ */
+export function requireCalls(
+  creators: ReadonlySet<string>,
+  declarators: readonly AstNode[],
+  calls: readonly AstNode[],
+): AstNode[] {
+  const requires = new Set(["require"]);
+  for (const { id, init } of declarators)
+    if (id?.type === "Identifier" && id.name && init?.type === "CallExpression")
+      if (creators.has(init.callee?.name ?? "")) requires.add(id.name);
+  return calls.filter((call) => requires.has(call.callee?.name ?? ""));
 }
 
 export const importDirection = {
@@ -120,36 +168,49 @@ export const importDirection = {
     const root = rootOf(context.options);
     const from = relative(root, context.filename).split(sep).join(posix.sep);
     const { sourceCode } = context;
-    const check = ({ specifier, start, end }: ModuleReference) => {
-      const to = resolveFromRoot(root, context.filename, specifier);
-      if (to === null) return;
-      const message = directionViolation(from, to);
-      if (message === null) return;
-      const loc = {
-        start: sourceCode.getLocFromIndex(start),
-        end: sourceCode.getLocFromIndex(end),
-      };
-      context.report({ loc, message: `${message}。向きは docs/tooling.md にある` });
+    const violation = (specifier: string | null) => {
+      const to = specifier === null ? null : resolveFromRoot(root, context.filename, specifier);
+      const message = to === null ? null : directionViolation(from, to);
+      return message === null ? null : `${message}。向きは docs/tooling.md にある`;
     };
-    // createRequire の戻り値を受けた名前（`const r = createRequire(import.meta.url)` の r）。
-    const requireAliases = new Set<string>();
+    const check = (node: AstNode, source: AstNode | null | undefined) => {
+      const message = violation(staticString(source));
+      if (message !== null) context.report({ node, message });
+    };
+    // require の呼び出しは、createRequire の別名を集め終えてから（Program:exit で）判定する。
+    // 宣言より前に書いた関数の中の呼び出しも、宣言の後の呼び出しと同じに扱うためである。
+    const creators = new Set(["createRequire"]);
+    const declarators: AstNode[] = [];
+    const calls: AstNode[] = [];
+    const checkSource = (node: AstNode) => check(node, node.source);
     return {
-      Program() {
-        moduleReferences(sourceCode.text).forEach(check);
-        jsdocReferences(sourceCode.getAllComments()).forEach(check);
+      ImportDeclaration(node: AstNode) {
+        checkSource(node);
+        createRequireNames(node).forEach((n) => creators.add(n));
       },
-      VariableDeclarator(node: Declarator) {
-        const { id, init } = node;
-        if (id?.type === "Identifier" && id.name && init?.type === "CallExpression")
-          if (init.callee?.type === "Identifier" && init.callee.name === "createRequire")
-            requireAliases.add(id.name);
+      ExportNamedDeclaration: checkSource,
+      ExportAllDeclaration: checkSource,
+      ImportExpression: checkSource,
+      TSImportType: checkSource,
+      TSImportEqualsDeclaration(node: AstNode) {
+        const ref = node.moduleReference;
+        if (ref?.type === "TSExternalModuleReference") check(node, ref.expression);
       },
-      CallExpression(node: Expr & { range: readonly [number, number] }) {
-        const { callee } = node;
-        if (callee?.type !== "Identifier" || !requireAliases.has(callee.name ?? "")) return;
-        const arg = node.arguments?.[0];
-        if (arg?.type !== "Literal" || typeof arg.value !== "string") return;
-        check({ specifier: arg.value, start: node.range[0], end: node.range[1] });
+      VariableDeclarator(node: AstNode) {
+        declarators.push(node);
+      },
+      CallExpression(node: AstNode) {
+        if (node.callee?.type === "Identifier") calls.push(node);
+      },
+      "Program:exit"() {
+        for (const call of requireCalls(creators, declarators, calls))
+          check(call, call.arguments?.[0]);
+        for (const ref of jsdocReferences(sourceCode.getAllComments())) {
+          const message = violation(ref.specifier);
+          if (message === null) continue;
+          const start = sourceCode.getLocFromIndex(ref.start);
+          context.report({ loc: { start, end: sourceCode.getLocFromIndex(ref.end) }, message });
+        }
       },
     };
   },

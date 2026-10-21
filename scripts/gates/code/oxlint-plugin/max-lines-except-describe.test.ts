@@ -165,6 +165,12 @@ test("オプションの max を上限にする", () => {
   expect(found["a.test.ts"]).toEqual([1]);
 });
 
+test("max の無いオプション（{}）は、デフォルトの 50 行を上限にする", () => {
+  const files = { "a.test.ts": `function a() {${body(51)}}\nfunction b() {${body(50)}}\n` };
+  const found = runRule({ dir: makeTempDir("max-lines-option-"), rule: RULE, option: {}, files });
+  expect(found["a.test.ts"]).toEqual([1]);
+});
+
 test("max が 1 以上の整数でなければ、oxlint の実行を失敗にする", () => {
   const files = { "a.test.ts": "function a() {}\n" };
   expect(() =>
