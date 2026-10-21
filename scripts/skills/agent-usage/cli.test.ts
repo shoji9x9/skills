@@ -290,15 +290,16 @@ function setup() {
       encoding: "utf8",
     });
   const cli = (...args: string[]) => cliWith({}, ...args);
-  const gate = (command: string, cwd = repo) =>
+  const gateWith = (extra: NodeJS.ProcessEnv, command: string, cwd = repo) =>
     spawnSync("bash", [GATE, "claude-code"], {
       timeout: CHILD_TIMEOUT_MS,
       cwd,
-      env,
+      env: { ...env, ...extra },
       encoding: "utf8",
       input: JSON.stringify({ cwd, tool_input: { command } }),
     });
-  return { tmp, repo, git, cli, cliWith, gate, logDir: dir, logLines: lines };
+  const gate = (command: string, cwd = repo) => gateWith({}, command, cwd);
+  return { tmp, repo, git, cli, cliWith, gate, gateWith, logDir: dir, logLines: lines };
 }
 
 describe("agent-usage のコマンドと Hook", () => {
@@ -2170,5 +2171,249 @@ describe("retractableRows", () => {
       { person: "p-1", lowerBound: W, canonical },
     );
     expect(rows.map((r) => r.key)).toEqual([inside.key, cost.key]);
+  });
+});
+
+// merge 済みのブランチで、Hook が記録を足さないこと（決め方は lib/merged.mjs）。
+// 判断はすべて人の設定の defaultDecision: record で決める（merge 済みの判定が無ければ、Hook は collect して stage する）。
+// 祖先で決める側の状態は 4 つある。
+// - 自分の commit を merge commit で取り込んだブランチは、記録しない。
+// - 作った直後で自分の commit が無いブランチは、記録する。
+// - fast-forward でデフォルトブランチの commit に移っただけのブランチは、記録する。
+// - ブランチの reflog が無ければ、記録する。
+// gh の PR で決める側の状態は 4 つある。
+// - head の commit が HEAD と同じ merge 済みの PR があれば、記録しない。
+// - merge の後に commit を足して、head の commit が HEAD と違うなら、記録する。
+// - PR が merge されずに閉じたなら、記録する。
+// - gh が失敗したら、記録する。
+describe("merge 済みのブランチの Hook", () => {
+  type Setup = ReturnType<typeof setup>;
+  function recordByDefault(s: Setup) {
+    expect(s.cli("setup", "--time-zone", "UTC").status).toBe(0);
+    const userConfig = userConfigOf(s.tmp);
+    const user = parseJsonAs<Record<string, unknown>>(readFileSync(userConfig, "utf8"));
+    writeFileSync(userConfig, JSON.stringify({ ...user, defaultDecision: "record" }));
+  }
+  function setOriginMain(s: Setup, ref: string) {
+    s.git("update-ref", "refs/remotes/origin/main", ref);
+    s.git("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main");
+  }
+  function ownCommit(s: Setup) {
+    writeFileSync(join(s.repo, "b.txt"), "b\n");
+    s.git("add", "b.txt");
+    s.git("commit", "-q", "-m", "b");
+  }
+  /** `gh api` の偽物。PR の一覧（--slurp のページの配列）には prs を返し、それ以外の API は失敗させる。prs が null なら常に失敗させる */
+  function fakeGh(s: Setup, prs: unknown[] | null) {
+    const bin = join(s.tmp, "bin");
+    mkdirSync(bin, { recursive: true });
+    const body =
+      prs === null
+        ? "echo fail >&2\nexit 1\n"
+        : `case "$*" in\n*pulls?state=closed*) printf '%s' '${JSON.stringify([prs])}' ;;\n*) echo fail >&2; exit 1 ;;\nesac\n`;
+    writeFileSync(join(bin, "gh"), `#!/bin/sh\n${body}`, { mode: 0o755 });
+    s.git("remote", "add", "origin", "https://github.com/o/r.git");
+    return { PATH: `${bin}:${process.env.PATH ?? ""}` };
+  }
+  const staged = (s: Setup) => s.git("diff", "--cached", "--name-only").trim();
+
+  test("自分の commit を merge commit で取り込んだブランチでは、collect も stage もせずに、merge 済みと出して通す", () => {
+    const s = setup();
+    recordByDefault(s);
+    s.git("switch", "-q", "-c", "feature/5-x");
+    ownCommit(s);
+    s.git("switch", "-q", "main");
+    s.git("merge", "-q", "--no-ff", "-m", "merge", "feature/5-x");
+    setOriginMain(s, "main");
+    s.git("switch", "-q", "feature/5-x");
+    const r = s.gate("git commit -m x");
+    expect(r.status).toBe(0);
+    expect(r.stderr + r.stdout).toMatch(
+      /merge 済み（HEAD が origin\/main に含まれる）なので、記録しない/,
+    );
+    expect(staged(s)).toBe("");
+  });
+
+  test("作った直後で自分の commit が無いブランチは、HEAD がデフォルトブランチの祖先でも merge 済みとせずに記録する", () => {
+    const s = setup();
+    recordByDefault(s);
+    setOriginMain(s, "main");
+    s.git("switch", "-q", "-c", "feature/5-x");
+    const r = s.gate("git commit -m x");
+    expect(r.status).toBe(0);
+    expect(r.stderr + r.stdout).not.toMatch(/merge 済み/);
+    expect(staged(s)).toMatch(/\.agent-usage\/records\//);
+  });
+
+  test.each([
+    ["fast-forward でデフォルトブランチの commit に移っただけ", "ff"],
+    ["ブランチの reflog が無い", "noreflog"],
+  ])(
+    "HEAD がデフォルトブランチの祖先でも、%s のブランチは merge 済みとせずに記録する",
+    (_name, kind) => {
+      const s = setup();
+      recordByDefault(s);
+      s.git("switch", "-q", "-c", "feature/5-x");
+      if (kind === "ff") {
+        // 古い main から作ったブランチを、進んだ origin/main に fast-forward する
+        s.git("switch", "-q", "main");
+        ownCommit(s);
+        setOriginMain(s, "main");
+        s.git("switch", "-q", "feature/5-x");
+        s.git("merge", "-q", "--ff-only", "origin/main");
+      } else {
+        ownCommit(s);
+        s.git("switch", "-q", "main");
+        s.git("merge", "-q", "--no-ff", "-m", "merge", "feature/5-x");
+        setOriginMain(s, "main");
+        s.git("switch", "-q", "feature/5-x");
+        s.git("reflog", "expire", "--expire=all", "refs/heads/feature/5-x");
+      }
+      const r = s.gate("git commit -m x");
+      expect(r.status).toBe(0);
+      expect(r.stderr + r.stdout).not.toMatch(/merge 済み/);
+      expect(staged(s)).toMatch(/\.agent-usage\/records\//);
+    },
+  );
+
+  test("デフォルトブランチを merge commit で取り込んだ後に merge したブランチも、記録しない", () => {
+    const s = setup();
+    recordByDefault(s);
+    s.git("switch", "-q", "-c", "feature/5-x");
+    ownCommit(s);
+    s.git("switch", "-q", "main");
+    writeFileSync(join(s.repo, "c.txt"), "c\n");
+    s.git("add", "c.txt");
+    s.git("commit", "-q", "-m", "c");
+    s.git("switch", "-q", "feature/5-x");
+    // ブランチの reflog の最新の行は「merge main: Merge made by ...」になる
+    s.git("merge", "-q", "--no-ff", "-m", "update", "main");
+    s.git("switch", "-q", "main");
+    s.git("merge", "-q", "--no-ff", "-m", "merge", "feature/5-x");
+    setOriginMain(s, "main");
+    s.git("switch", "-q", "feature/5-x");
+    const r = s.gate("git commit -m x");
+    expect(r.status).toBe(0);
+    expect(r.stderr + r.stdout).toMatch(/merge 済み（HEAD が origin\/main に含まれる）/);
+    expect(staged(s)).toBe("");
+  });
+
+  test.each([
+    ["cherry-pick で作った commit", "pick"],
+    ["衝突を解いて commit した cherry-pick", "pick-continue"],
+    ["revert で作った commit", "revert"],
+  ])("HEAD が %s で、merge commit で取り込んだブランチも、記録しない", (_name, kind) => {
+    const s = setup();
+    recordByDefault(s);
+    s.git("switch", "-q", "-c", "other");
+    writeFileSync(join(s.repo, "c.txt"), "other\n");
+    s.git("add", "c.txt");
+    s.git("commit", "-q", "-m", "other");
+    s.git("switch", "-q", "-c", "feature/5-x", "main");
+    if (kind === "pick") s.git("cherry-pick", "other");
+    else if (kind === "revert") {
+      ownCommit(s);
+      s.git("revert", "--no-edit", "HEAD");
+    } else {
+      writeFileSync(join(s.repo, "c.txt"), "mine\n");
+      s.git("add", "c.txt");
+      s.git("commit", "-q", "-m", "mine");
+      // 衝突するので cherry-pick は 0 以外で止まる。解いて commit すると「commit (cherry-pick): 」を書く
+      expect(() => s.git("cherry-pick", "other")).toThrow();
+      writeFileSync(join(s.repo, "c.txt"), "both\n");
+      s.git("add", "c.txt");
+      s.git("commit", "-q", "--no-edit");
+    }
+    s.git("switch", "-q", "main");
+    s.git("merge", "-q", "--no-ff", "-m", "merge", "feature/5-x");
+    setOriginMain(s, "main");
+    s.git("switch", "-q", "feature/5-x");
+    const r = s.gate("git commit -m x");
+    expect(r.status).toBe(0);
+    expect(r.stderr + r.stdout).toMatch(/merge 済み（HEAD が origin\/main に含まれる）/);
+    expect(staged(s)).toBe("");
+  });
+
+  test("status は、記録すると決めた merge 済みのブランチで、コミットの前の確認が記録しないことを出す", () => {
+    const s = setup();
+    recordByDefault(s);
+    s.git("switch", "-q", "-c", "feature/5-x");
+    ownCommit(s);
+    s.git("switch", "-q", "main");
+    s.git("merge", "-q", "--no-ff", "-m", "merge", "feature/5-x");
+    setOriginMain(s, "main");
+    s.git("switch", "-q", "feature/5-x");
+    const r = s.cli("status");
+    expect(r.status).toBe(0);
+    expect(r.stdout).toMatch(
+      /defaultDecision: record、[^\n]*（merge 済み（HEAD が origin\/main に含まれる）なので、コミットの前の確認は記録しない）/,
+    );
+  });
+
+  test("squash merge のように HEAD が祖先でなくても、head の commit が HEAD と同じ merge 済みの PR があれば記録しない", () => {
+    const s = setup();
+    recordByDefault(s);
+    setOriginMain(s, "main");
+    s.git("switch", "-q", "-c", "feature/5-x");
+    ownCommit(s);
+    const head = s.git("rev-parse", "HEAD").trim();
+    const env = fakeGh(s, [{ number: 7, merged_at: "2026-10-01T11:00:00Z", head: { sha: head } }]);
+    const r = s.gateWith(env, "git commit -m x");
+    expect(r.status).toBe(0);
+    expect(r.stderr + r.stdout).toMatch(/merge 済み（PR #7 が merge 済み）なので、記録しない/);
+    expect(staged(s)).toBe("");
+  });
+
+  // merge 済みの worktree に残った明細を別のブランチに引き継ぐと、同じ key の行が 2 つのファイルに入る
+  test("同じ key の行が別のブランチのファイルにもあっても、report は二重に数えない", () => {
+    const s = setup();
+    expect(s.cli("setup", "--time-zone", "UTC").status).toBe(0);
+    s.git("switch", "-q", "-c", "feature/5-x");
+    expect(s.cli("collect", "--no-github").status).toBe(0);
+    const out = join(s.repo, ".agent-usage", "report", "20261001");
+    const read = () =>
+      ["usage.csv", "intervals.csv"].map((f) => readFileSync(join(out, f), "utf8"));
+    expect(s.cli("report").status).toBe(0);
+    const before = read();
+    expect(before[1]?.split("\n").filter((l) => l.startsWith("run,"))).toHaveLength(2);
+    const records = join(s.repo, ".agent-usage", "records");
+    let copied = 0;
+    for (const person of readdirSync(records)) {
+      const dir = join(records, person, "branches");
+      if (!existsSync(dir)) continue;
+      for (const f of readdirSync(dir).filter((n) => n.endsWith(".csv"))) {
+        const other = f.replace(branchLabel("feature/5-x"), branchLabel("feature/9-other"));
+        expect(other, "別のブランチのファイル名にする").not.toBe(f);
+        writeFileSync(join(dir, other), readFileSync(join(dir, f)));
+        copied += 1;
+      }
+    }
+    expect(copied).toBeGreaterThan(0);
+    expect(s.cli("report").status).toBe(0);
+    expect(read()).toEqual(before);
+  });
+
+  test.each([
+    ["merge の後に commit を足して、head の commit が HEAD と違う", "other"],
+    ["merge されずに閉じた", "unmerged"],
+    ["gh が失敗する", "fail"],
+  ])("PR で merge 済みと決められないとき（%s）は、記録する", (_name, kind) => {
+    const s = setup();
+    recordByDefault(s);
+    setOriginMain(s, "main");
+    s.git("switch", "-q", "-c", "feature/5-x");
+    ownCommit(s);
+    const head = s.git("rev-parse", "HEAD").trim();
+    const prs =
+      kind === "fail"
+        ? null
+        : kind === "other"
+          ? [{ number: 7, merged_at: "2026-10-01T11:00:00Z", head: { sha: "0".repeat(40) } }]
+          : [{ number: 7, merged_at: null, head: { sha: head } }];
+    const env = fakeGh(s, prs);
+    const r = s.gateWith(env, "git commit -m x");
+    expect(r.status).toBe(0);
+    expect(r.stderr + r.stdout).not.toMatch(/merge 済み/);
+    expect(staged(s)).toMatch(/\.agent-usage\/records\//);
   });
 });

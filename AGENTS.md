@@ -238,7 +238,7 @@ rule は、対象のファイルを触るときに自動で読み込まれる。
 - `writing-style`: 人が読む日本語の文章を規則に沿って書き、要約の文（タイトル・commit message の 1 行目・見出し）を外に出す前に読み直す。要約の文や本文を書く他の配布スキルから参照する
 - `issue-create`: 短い説明から、重複の確認と下書きの承認を経て GitHub Issue を作る
 - `issue-start`: GitHub Issue を起点に、branch の作成から実装・commit・PR の作成・受け入れ条件の確認までを標準化する
-- `issue-batch`: 複数の Issue を、隔離した worktree と独立した PR で順に処理し、merge・Issue の close・deployment・後片付けまで追う
+- `issue-batch`: 複数の Issue を、隔離した worktree と独立した PR で依存先から順に処理し、merge・Issue の close・deployment・後片付けまで追う
 - `pr-review-handle`: PR のレビューコメントを確認し、妥当性を判断して、必要なときだけ修正し、返信して解決する
 - `pr-finalize-loop`: 作成済みの PR の CI エラーとレビューの指摘を、CI が成功して未解決が無くなるまで自律的に解消する
 - `dependabot-merge`: Dependabot の PR の CI の確認・影響のレビュー・判断の記録・マージを標準化する

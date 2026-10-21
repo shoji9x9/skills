@@ -6,12 +6,14 @@
 // 止めない場合: git commit でない・git のリポジトリでない・.agent-usage/ が無い（このリポジトリでは使っていない）・
 //               detached HEAD・デフォルトブランチ・判断が「記録しない」・判断が無く defaultDecision がある。
 //               最後の場合は、人の設定があるときに限る。
+// 判断が「記録する」でも、ブランチが merge 済みなら collect も stage もせずに通す（決め方は merged.mjs）。
 // デフォルトブランチが分からない（origin/HEAD が無い）ときは、main と master をデフォルトブランチとして扱う。
 
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { defaultDecisionOf, hasPerson, isRecord, userConfigPath } from "./config.mjs";
 import { decisionFor } from "./decisions.mjs";
+import { branchMerged } from "./merged.mjs";
 import { git, isDecisionBranch, repoInfo } from "./repo.mjs";
 import { usageDir } from "./records.mjs";
 import { runCollect } from "./run-collect.mjs";
@@ -491,6 +493,14 @@ export function gateDecision(input, fallbackCwd, now, script, agent) {
   person ??= personOf(script);
   if (person !== true)
     return person === false ? { exit: 2, message: setupMessage(agent, script) } : person;
+  // merge 済みのブランチ（merge の後の worktree で commit を試みた、など）には記録を足さない。
+  // 足すと、merge 済みのブランチの worktree に stage した記録が残り、どの PR にも入らない
+  const merged = branchMerged(repo, process.env);
+  if (merged.merged)
+    return {
+      exit: 0,
+      message: `agent-usage: このブランチは merge 済み（${merged.how}）なので、記録しない${note}`,
+    };
   try {
     const r = runCollect({ repo, now, env: process.env, github: true, gh: null });
     // 今回書いたファイルに加えて、前回書いて stage されなかった（index.lock などで失敗した、手動の collect で書いた）記録も入れる

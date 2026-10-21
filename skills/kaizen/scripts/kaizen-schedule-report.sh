@@ -106,27 +106,6 @@ parse_bool() {
 	esac
 }
 
-# frontmatter（最初の `---` ブロック）の 1 フィールドを取り出す。
-# `sed | head` を使わないのは、kaizen-context-inject.sh と同じ理由である（早く終わる読み手と
-# pipefail の組み合わせで、一致しているのに「一致しなかった」と読む形になる）。
-frontmatter_field() {
-	awk -v key="$2" '
-		BEGIN { fm = 0 }
-		/^---[[:space:]]*$/ {
-			fm++
-			if (fm == 2) exit
-			next
-		}
-		fm == 1 && index($0, key ":") == 1 {
-			value = substr($0, length(key) + 2)
-			sub(/^[[:space:]]+/, "", value)
-			sub(/[[:space:]]+$/, "", value)
-			print value
-			exit
-		}
-	' "$1" 2>/dev/null || true
-}
-
 # 指定見出し（例「## 提案」）直後の最初の非空行を返す。見出しは前方一致で判定する。
 first_line_under() {
 	awk -v h="$1" 'index($0, h) == 1 {f = 1; next} f && NF {print; exit}' "$2" 2>/dev/null || true
@@ -139,7 +118,13 @@ first_line_under() {
 # `9999-99-99` をそのまま表示に使うと、Issue の「記録日」列にありもしない日付が出る
 # （priority / type は `unknown` になるのに、date だけ誤った値になる）。列を分ける。
 build_pending_index() {
-	local index f priority date_value type_value rank sort_key
+	local index f status priority date_value type_value rank sort_key
+	# frontmatter の欄は、共通ライブラリの kaizen_frontmatter_values で読む（同梱のスクリプトで読み方を 1 つにする）。
+	# 共通ライブラリを読めないときは、どの学びが pending かを判定できないので、0 件と区別できるように止める。
+	if ! declare -f kaizen_frontmatter_values >/dev/null 2>&1; then
+		echo "kaizen-schedule-report: kaizen-hook-common.sh を読めないため、学びの status を読めない" >&2
+		return 1
+	fi
 	index=$(mktemp)
 	[ -d .kaizen ] || {
 		printf '%s' "${index}"
@@ -149,16 +134,19 @@ build_pending_index() {
 		[ -e "${f}" ] || continue
 		# status は frontmatter 限定で判定する。全文 grep だと本文やコードブロックの
 		# `status: pending` を拾い、決着済みのノートまで未適用として数える。
-		[ "$(frontmatter_field "${f}" status)" = "pending" ] || continue
-		priority=$(frontmatter_field "${f}" priority)
+		{
+			IFS= read -r status
+			IFS= read -r priority
+			IFS= read -r date_value
+			IFS= read -r type_value
+		} <<<"$(kaizen_frontmatter_values "${f}" status priority date type)" || true
+		[ "${status}" = "pending" ] || continue
 		case "${priority}" in
 		high) rank=0 ;;
 		medium) rank=1 ;;
 		low) rank=2 ;;
 		*) rank=3 ;;
 		esac
-		date_value=$(frontmatter_field "${f}" date)
-		type_value=$(frontmatter_field "${f}" type)
 		sort_key=${date_value:-9999-99-99}
 		printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
 			"${rank}" "${sort_key}" "${date_value:-unknown}" \
@@ -277,10 +265,17 @@ resolve_config() {
 cmd_config() {
 	local index count
 	resolve_config
-	index=$(build_pending_index)
-	count=$(wc -l <"${index}")
-	count=${count//[[:space:]]/}
-	rm -f "${index}"
+	if [ -n "${config_unloadable}" ]; then
+		# 共通ライブラリを読めないときは、学びの status を読めないので pending を数えられない。
+		# このときは設定も読めず、停止する側として扱っている（skip=true）ので、件数は使われない。
+		# workflow は pending_count を 10 進の件数として読むので、0 を書く。
+		count=0
+	else
+		index=$(build_pending_index)
+		count=$(wc -l <"${index}")
+		count=${count//[[:space:]]/}
+		rm -f "${index}"
+	fi
 	# pending が 0 件なら、エージェントを起動しても読む材料が無い。起動する前に notify に切り替える。
 	if [ "${count}" -eq 0 ] && [ "${resolved_mode}" = agent ]; then
 		warn "pending が 0 件なので mode=agent を notify に切り替える（エージェントへ渡す材料が無い）"

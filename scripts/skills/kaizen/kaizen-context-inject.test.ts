@@ -54,6 +54,39 @@ function summaryOf(stdout: Buffer) {
   return line.split(" — ").slice(2).join(" — ");
 }
 
+// 注入行の meta 部分（1 つ目と 2 つ目の em dash の間）を取り出す。
+function metaOf(stdout: Buffer) {
+  const line = stdout
+    .toString("utf8")
+    .split("\n")
+    .find((l) => l.startsWith("- `.kaizen/"));
+  assert(line, stdout.toString("utf8"));
+  return line.split(" — ")[1] ?? "";
+}
+
+// 確信度の低い学びを、高い学びと同じ見え方で注入しない（Issue #727）。
+// 欄が無い学びは、欄を足す前に書いたもので、確信度が分からないものとして unknown と出す。
+test.each([
+  ["high", "confidence: high\n", "confidence: high"],
+  ["low", "confidence: low\n", "confidence: low"],
+  ["欄が無い", "", "confidence: unknown"],
+  ["値が空", "confidence:\n", "confidence: unknown"],
+  ["キーを前方に含む別のキーだけがある", "confidences: low\n", "confidence: unknown"],
+  // 他の欄と同じく、共通ライブラリの kaizen_frontmatter_values の読み方で読む（Issue #744）。
+  // 引用符で囲んだキーは読まず、行末のコメントは値の一部として出す。どちらも kaizen-status-check.sh が止める。
+  ["引用符で囲んだキー", '"confidence": low\n', "confidence: unknown"],
+  ["行末のコメント", "confidence: low # 1 回の観測\n", "confidence: low # 1 回の観測"],
+])("注入の行に確信度を出す: %s", (_name, line, expected) => {
+  const dir = createRepo("要約");
+  const path = join(dir, ".kaizen", "2026-09-01-note.md");
+  writeFileSync(
+    path,
+    readFileSync(path, "utf8").replace("status: pending\n", `status: pending\n${line}`),
+  );
+  const meta = metaOf(inject(dir));
+  expect(meta).toBe(`date: 2026-09-01 type: rule priority: high ${expected}`);
+});
+
 function isValidUtf8(buffer: Buffer) {
   return Buffer.from(buffer.toString("utf8"), "utf8").equals(buffer);
 }

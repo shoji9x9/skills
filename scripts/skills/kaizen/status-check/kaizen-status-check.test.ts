@@ -620,12 +620,7 @@ test.each([
   ["high", "confidence: high"],
   ["medium", "confidence: medium"],
   ["low", "confidence: low"],
-  ["二重引用符で囲んだ値", 'confidence: "high"'],
-  ["単引用符で囲んだ値", "confidence: 'low'"],
-  ["行末のコメント", "confidence: medium # 1 回の観測"],
-  ["キーとコロンの間の空白", "confidence : high"],
-  ["引用符で囲んだキー", '"confidence": high'],
-  ["単引用符で囲んだキー", "'confidence': low"],
+  ["値の後の空白", "confidence: low   "],
   ["欄が無い（欄を足す前のノート）", "kedb: none"],
 ])("confidence を受け付ける: %s", (_name, line) => {
   const { status: exitCode, stderr } = runCheck(noteWithConfidence(line));
@@ -640,11 +635,20 @@ test.each([
   ["空白だけの値", "confidence:   ", "unknown confidence: <empty>"],
   ["片側だけの引用符", 'confidence: "high', 'unknown confidence: "high'],
   ["区切りの | を含む値", "confidence: low|high", "unknown confidence: low｜high"],
-  ["コメントだけの値", "confidence: # 後で決める", "unknown confidence: <empty>"],
+  ["コメントだけの値", "confidence: # 後で決める", "unknown confidence: # 後で決める"],
   ["キーとコロンの間に空白がある不正な値", "confidence : bogus", "unknown confidence: bogus"],
   ["コロンの後に空白が無い値", "confidence:high", "confidence needs a space after the colon"],
   ["引用符で囲んだキーの不正な値", '"confidence": bogus', "unknown confidence: bogus"],
   ["単引用符で囲んだキーの不正な値", "'confidence': bogus", "unknown confidence: bogus"],
+  // 同梱のスクリプト（kaizen_frontmatter_values）は、行末のコメントと引用符を値の一部として読み、
+  // 引用符で囲んだキーとコロンの前に空白を書いたキーを読まない。読み方を広げずに、ここで止める（Issue #744）。
+  ["二重引用符で囲んだ値", 'confidence: "high"', 'unknown confidence: "high"'],
+  ["単引用符で囲んだ値", "confidence: 'low'", "unknown confidence: 'low'"],
+  ["行末のコメント", "confidence: medium # 1 回の観測", "unknown confidence: medium # 1 回の観測"],
+  ["YAML の null", "confidence: null", "unknown confidence: null"],
+  ["キーとコロンの間の空白", "confidence : high", "confidence key is quoted"],
+  ["引用符で囲んだキー", '"confidence": high', "confidence key is quoted"],
+  ["単引用符で囲んだキー", "'confidence': low", "confidence key is quoted"],
   [
     "重なったキー（前の値が不正）",
     "confidence: bogus\nconfidence: high",
@@ -666,8 +670,10 @@ test("status の値の | で後ろのフィールドがずれない", () => {
 test("type の値の | で後ろのフィールドがずれない", () => {
   const content = note("applied", ' ["docs/a.md"]').replace("type: doc", "type: hook|x");
   const { status: exitCode, stderr } = runCheck(content);
-  expect(stderr).toBe("");
-  expect(exitCode).toBe(0);
+  // type は語でないので止めるが、フィールドがずれていなければ、報告はその 1 件だけになる
+  expect(stderr).toContain("type is not a plain word");
+  expect(stderr).toContain("1 problem(s)");
+  expect(exitCode).toBe(2);
 });
 
 test("本文に書いた confidence: は frontmatter として読まない", () => {
@@ -721,5 +727,504 @@ test("コロンの後に空白が無い不正な値は、空白と値の両方�
   const { status: exitCode, stderr } = runCheck(noteWithConfidence("confidence:bogus"));
   expect(stderr).toContain("confidence needs a space after the colon");
   expect(stderr).toContain("unknown confidence: bogus");
+  expect(exitCode).toBe(2);
+});
+
+// status・type・applied-to も、confidence と同じく、キーの重なりとブロックスカラー・タグの値を止める（Issue #727）。
+// 重なると、このチェックは最後の値を読むが、YAML の実装によってはエラーになるか、別の値を採る。
+// ブロックスカラーとタグは、1 行の値として読めない。applied-to の無い旧形式のノートも対象にする。
+function noteWithKeys(lines: {
+  status?: string;
+  type?: string;
+  appliedTo?: string;
+  priority?: string;
+  date?: string;
+}) {
+  return `---
+${lines.date ?? "date: 2026-10-21"}
+${lines.type ?? "type: doc"}
+${lines.priority ?? "priority: medium"}
+${lines.status ?? "status: pending"}
+${lines.appliedTo ?? "applied-to: []"}
+session: claude-code
+---
+
+学びの本文。
+`;
+}
+
+test.each([
+  ["status の重なり", { status: "status: pending\nstatus: applied" }, "status is declared 2 times"],
+  [
+    "引用符で囲んだキーと重なった status",
+    { status: 'status: pending\n"status": pending' },
+    "status is declared 2 times",
+  ],
+  [
+    "applied-to の無いノートの status の重なり",
+    { status: "status: pending\nstatus: pending", appliedTo: "kedb: none" },
+    "status is declared 2 times",
+  ],
+  ["type の重なり", { type: "type: doc\ntype: hook" }, "type is declared 2 times"],
+  [
+    "単引用符で囲んだキーと重なった type",
+    { type: "type: doc\n'type': doc" },
+    "type is declared 2 times",
+  ],
+  [
+    "applied-to の重なり",
+    { appliedTo: "applied-to: []\napplied-to: []" },
+    "applied-to is declared 2 times",
+  ],
+  [
+    "status のブロックスカラー（>-）",
+    { status: "status: >-\n  pending" },
+    "status uses a block scalar",
+  ],
+  [
+    "status のブロックスカラー（|）",
+    { status: "status: |\n  pending" },
+    "status uses a block scalar",
+  ],
+  [
+    "status のブロックスカラー（行末のコメント）",
+    { status: "status: >- # 折り返す\n  pending" },
+    "status is not a plain word",
+  ],
+  ["type のブロックスカラー（|2+）", { type: "type: |2+\n  doc" }, "type uses a block scalar"],
+  [
+    "applied-to のブロックスカラー",
+    { appliedTo: "applied-to: |\n  docs/a.md" },
+    "applied-to uses a block scalar",
+  ],
+  ["status のタグ", { status: "status: !!str pending" }, "status has a YAML tag"],
+  ["type のタグ", { type: "type: !custom doc" }, "type has a YAML tag"],
+  ["applied-to のタグ", { appliedTo: "applied-to: !!seq []" }, "applied-to has a YAML tag"],
+  ["status のアンカー", { status: "status: &s pending" }, "status uses a YAML anchor or alias"],
+  ["type のエイリアス", { type: "type: *t" }, "type uses a YAML anchor or alias"],
+  [
+    "applied-to のアンカー",
+    { appliedTo: "applied-to: &a []" },
+    "applied-to uses a YAML anchor or alias",
+  ],
+  ["引用符で囲んだ status のキー", { status: '"status": pending' }, "status key is quoted"],
+  ["コロンの前に空白がある type のキー", { type: "type : doc" }, "type key is quoted"],
+  [
+    "単引用符で囲んだ applied-to のキー",
+    { appliedTo: "'applied-to': []" },
+    "applied-to key is quoted",
+  ],
+  // キーにアンカーやタグを付けた行も、同じキーとして数え、形の誤りとして止める
+  [
+    "アンカーを付けた status のキーの重なり",
+    { status: "status: pending\n&k status: applied" },
+    "status is declared 2 times",
+  ],
+  ["タグを付けた type のキー", { type: "!!str type: doc" }, "type key is quoted"],
+  // コロンの後に空白が無い形は YAML の mapping にならない（confidence と同じ）
+  [
+    "コロンの後に空白が無い status",
+    { status: "status:pending" },
+    "status needs a space after the colon",
+  ],
+  ["コロンの後に空白が無い type", { type: "type:doc" }, "type needs a space after the colon"],
+  [
+    "コロンの後に空白が無い applied-to",
+    { appliedTo: "applied-to:[]" },
+    "applied-to needs a space after the colon",
+  ],
+  // 同梱のスクリプト（kaizen_frontmatter_values）は、行末のコメントと引用符を値の一部として読む。
+  // 読み方を広げずに、ここで止める（Issue #744）。
+  ["status の値の後のコメント", { status: "status: pending # メモ" }, "status is not a plain word"],
+  ["二重引用符で囲んだ status の値", { status: 'status: "pending"' }, "status is not a plain word"],
+  ["単引用符で囲んだ type の値", { type: "type: 'doc'" }, "type is not a plain word"],
+  [
+    "コメントに記号を書いた status の値",
+    { status: "status: pending # !! と | は値ではない" },
+    "status is not a plain word",
+  ],
+  // YAML の明示的なキーは、キーと値が別の行になり、1 行で読めない
+  ["明示的なキーの status", { status: "? status\n: pending" }, "uses a YAML explicit key"],
+  ["値の無い明示的なキー", { appliedTo: "applied-to: []\n?" }, "uses a YAML explicit key"],
+])("status・type・applied-to の形を拒否する: %s", (_name, lines, message) => {
+  const { status: exitCode, stderr } = runCheck(noteWithKeys(lines));
+  expect(stderr).toContain(message);
+  expect(exitCode).toBe(2);
+});
+
+test.each([
+  ["1 回ずつのキー", {}],
+  ["_ と - を含む語", { type: "type: rule_doc-1" }],
+  ["値の後の空白", { status: "status: pending  " }],
+  // `?` で始まっても、キーの名前の一部なら明示的なキーではない
+  ["? で始まる名前のキー", { appliedTo: "applied-to: []\n?x: 1" }],
+  ["flow 配列の applied-to", { status: "status: applied", appliedTo: 'applied-to: ["docs/a.md"]' }],
+])("status・type・applied-to の形を受け付ける: %s", (_name, lines) => {
+  const { status: exitCode, stderr } = runCheck(noteWithKeys(lines));
+  expect(stderr).toBe("");
+  expect(exitCode).toBe(0);
+});
+
+// priority と date も、status・type と同じく、キーの重なりと 1 行で読めない形を止める（Issue #744）。
+// 同梱のスクリプト（kaizen_frontmatter_values）は、行末のコメントと引用符を値の一部として読むので、
+// 読み方を広げずに、priority は語、date は YYYY-MM-DD の形だけを受け付ける。
+test.each([
+  [
+    "priority の重なり",
+    { priority: "priority: low\npriority: high" },
+    "priority is declared 2 times",
+  ],
+  ["date の重なり", { date: "date: 2026-10-21\ndate: 2026-10-22" }, "date is declared 2 times"],
+  [
+    "priority の値の後のコメント",
+    { priority: "priority: low # 後で見直す" },
+    "priority is not a plain word",
+  ],
+  [
+    "引用符で囲んだ priority の値",
+    { priority: 'priority: "high"' },
+    "priority is not a plain word",
+  ],
+  ["priority のタグ", { priority: "priority: !!str low" }, "priority has a YAML tag"],
+  [
+    "priority のブロックスカラー",
+    { priority: "priority: >-\n  low" },
+    "priority uses a block scalar",
+  ],
+  ["引用符で囲んだ priority のキー", { priority: '"priority": low' }, "priority key is quoted"],
+  [
+    "コロンの後に空白が無い priority",
+    { priority: "priority:low" },
+    "priority needs a space after the colon",
+  ],
+  [
+    "date の値の後のコメント",
+    { date: "date: 2026-10-21 # 記録日" },
+    "date is not a YYYY-MM-DD date",
+  ],
+  ["引用符で囲んだ date の値", { date: "date: '2026-10-21'" }, "date is not a YYYY-MM-DD date"],
+  ["/ で区切った date", { date: "date: 2026/10/21" }, "date is not a YYYY-MM-DD date"],
+  ["桁の足りない date", { date: "date: 2026-1-21" }, "date is not a YYYY-MM-DD date"],
+  ["時刻を含む date", { date: "date: 2026-10-21T10:00:00" }, "date is not a YYYY-MM-DD date"],
+  ["date のアンカー", { date: "date: &d 2026-10-21" }, "date uses a YAML anchor or alias"],
+  ["コロンの前に空白がある date のキー", { date: "date : 2026-10-21" }, "date key is quoted"],
+  ["明示的なキーの priority", { priority: "? priority\n: low" }, "uses a YAML explicit key"],
+])("priority と date の形を拒否する: %s", (_name, lines, message) => {
+  const { status: exitCode, stderr } = runCheck(noteWithKeys(lines));
+  expect(stderr).toContain(message);
+  expect(exitCode).toBe(2);
+});
+
+test.each([
+  ["語の priority", { priority: "priority: high" }],
+  ["空の priority", { priority: "priority:" }],
+  ["priority が無い", { priority: "kedb: none" }],
+  ["YYYY-MM-DD の date", { date: "date: 2026-01-09" }],
+  ["空の date", { date: "date:" }],
+  ["date が無い", { date: "kedb: none" }],
+])("priority と date の形を受け付ける: %s", (_name, lines) => {
+  const { status: exitCode, stderr } = runCheck(noteWithKeys(lines));
+  expect(stderr).toBe("");
+  expect(exitCode).toBe(0);
+});
+
+test("archive のノートには、priority と date の重なりと形のチェックを当てない", () => {
+  const content = noteWithKeys({
+    status: "status: applied",
+    priority: "priority: low # メモ\npriority: high",
+    date: "date: 2026/08/10",
+    appliedTo: 'applied-to: ["docs/a.md"]',
+  });
+  const archived = runCheckArchived(content);
+  expect(archived.stderr).toBe("");
+  expect(archived.status).toBe(0);
+  // 同じノートを archive の外に置くと止める（対照）
+  const current = runCheck(content);
+  expect(current.stderr).toContain("priority is declared 2 times");
+  expect(current.stderr).toContain("priority is not a plain word");
+  expect(current.stderr).toContain("date is not a YYYY-MM-DD date");
+  expect(current.status).toBe(2);
+});
+
+// date は形に加えて、暦の日付として読めるかを確かめる。忘却は読めない日付のノートを、報告せずに候補から外す。
+test.each([
+  ["13 月", "date: 2026-13-01"],
+  ["0 月", "date: 2026-00-10"],
+  ["0 日", "date: 2026-10-00"],
+  ["32 日", "date: 2026-10-32"],
+  ["2 月 31 日", "date: 2026-02-31"],
+  ["4 月 31 日", "date: 2026-04-31"],
+  ["うるう年でない年の 2 月 29 日", "date: 2025-02-29"],
+  ["400 で割り切れない 100 の倍数の年の 2 月 29 日", "date: 1900-02-29"],
+])("暦の日付として読めない date を拒否する: %s", (_name, date) => {
+  const { status: exitCode, stderr } = runCheck(noteWithKeys({ date }));
+  expect(stderr).toContain("date is not a real calendar date");
+  expect(exitCode).toBe(2);
+});
+
+test.each([
+  ["うるう年の 2 月 29 日", "date: 2024-02-29"],
+  ["400 で割り切れる年の 2 月 29 日", "date: 2000-02-29"],
+  ["12 月 31 日", "date: 2026-12-31"],
+])("暦の日付として読める date を受け付ける: %s", (_name, date) => {
+  const { status: exitCode, stderr } = runCheck(noteWithKeys({ date }));
+  expect(stderr).toBe("");
+  expect(exitCode).toBe(0);
+});
+
+// priority は high・medium・low のどれか。打ち間違いは、注入では末尾に回り、忘却では候補から外れ続ける。
+test.each([
+  ["打ち間違い", "priority: hgih"],
+  ["大文字", "priority: High"],
+])("priority の値を拒否する: %s", (_name, priority) => {
+  const { status: exitCode, stderr } = runCheck(noteWithKeys({ priority }));
+  expect(stderr).toContain("priority is not high, medium or low");
+  expect(exitCode).toBe(2);
+});
+
+test("形の誤った date は、暦の日付のチェックで重ねて報告しない", () => {
+  const { status: exitCode, stderr } = runCheck(noteWithKeys({ date: "date: 2026/13/01" }));
+  expect(stderr).toContain("date is not a YYYY-MM-DD date");
+  expect(stderr).not.toContain("date is not a real calendar date");
+  expect(stderr).toContain("1 problem(s)");
+  expect(exitCode).toBe(2);
+});
+
+// キーが重なったときは、同梱のスクリプト（kaizen_frontmatter_values）と同じく最初の値を使う。
+test("重なった status は、最初の値で applied-to との整合を確かめる", () => {
+  const { status: exitCode, stderr } = runCheck(
+    noteWithKeys({ status: "status: applied\nstatus: pending" }),
+  );
+  expect(stderr).toContain("status is declared 2 times");
+  expect(stderr).toContain("status is applied but applied-to is empty");
+  expect(exitCode).toBe(2);
+});
+
+test("重なった type は、最初の値で機構の宣言を確かめる", () => {
+  const { status: exitCode, stderr } = runCheck(
+    noteWithKeys({
+      status: "status: applied",
+      type: "type: hook\ntype: doc",
+      appliedTo: 'applied-to: ["docs/a.md"]',
+    }),
+  );
+  expect(stderr).toContain("type is declared 2 times");
+  expect(stderr).toContain("warning: type is hook");
+  expect(exitCode).toBe(2);
+});
+
+// archive のノートは注入されず、同梱のスクリプトも読まないので、過去の書き方（行末のコメント・引用符で囲んだ confidence）を理由に止めない。
+test("archive のノートは、status・type・confidence の行末のコメントと confidence の引用符を落として確かめる", () => {
+  const content = noteWithKeys({
+    status: "status: applied # 対策済み",
+    type: "type: doc # 文書で閉じた",
+    appliedTo: 'applied-to: ["docs/a.md"]\nconfidence: "low" # 1 回の観測',
+  });
+  const archived = runCheckArchived(content);
+  expect(archived.stderr).toBe("");
+  expect(archived.status).toBe(0);
+  // 同じノートを archive の外に置くと止める（対照）
+  const current = runCheck(content);
+  expect(current.stderr).toContain("status is not a plain word");
+  expect(current.stderr).toContain('unknown confidence: "low" # 1 回の観測');
+  expect(current.status).toBe(2);
+});
+
+test("archive のノートでも、コメントを落とした後の未知の値は止める", () => {
+  const content = noteWithKeys({
+    status: "status: done # 対策済み",
+    appliedTo: 'applied-to: ["docs/a.md"]\nconfidence: "certain"',
+  });
+  const archived = runCheckArchived(content);
+  expect(archived.stderr).toContain("unknown status: done");
+  expect(archived.stderr).toContain("unknown confidence: certain");
+  expect(archived.status).toBe(2);
+});
+
+// applied-to の要素も、ブロックシーケンスと flow 配列の両方の形で、アンカー・エイリアス・タグを止める。
+test.each([
+  ["ブロックシーケンスのエイリアス", "applied-to:\n  - *ref"],
+  ["ブロックシーケンスのアンカー", "applied-to:\n  - &a docs/a.md"],
+  ["ブロックシーケンスのタグ", "applied-to:\n  - !!str docs/a.md"],
+  ["桁 0 のブロックシーケンスのエイリアス", "applied-to:\n- *ref"],
+  ["flow 配列のエイリアス", "applied-to: [*ref]"],
+  ["flow 配列の 2 つ目の要素のアンカー", 'applied-to: ["docs/a.md", &a docs/b.md]'],
+  ["flow 配列のタグ", "applied-to: [!!str docs/a.md]"],
+])("applied-to の要素の形を拒否する: %s", (_name, appliedTo) => {
+  const { status: exitCode, stderr } = runCheck(
+    noteWithKeys({ status: "status: applied", appliedTo }),
+  );
+  expect(stderr).toContain("applied-to has an element with a YAML anchor, alias, tag");
+  expect(exitCode).toBe(2);
+});
+
+test.each([
+  ["引用符で囲んだ要素", 'applied-to: ["*x.md", "&y.md", "!z.md"]'],
+  ["引用符で囲んだブロックシーケンスの要素", "applied-to:\n  - '*x.md'"],
+  ["引用符の中の , の後に記号がある要素", 'applied-to: ["docs/a, *b.md"]'],
+  ["エスケープした引用符の後に , と記号がある要素", 'applied-to: ["docs/a\\", &b.md"]'],
+])("applied-to の要素の形を受け付ける: %s", (_name, appliedTo) => {
+  const { status: exitCode, stderr } = runCheck(
+    noteWithKeys({ status: "status: applied", appliedTo }),
+  );
+  expect(stderr).toBe("");
+  expect(exitCode).toBe(0);
+});
+
+test.each([
+  ["エイリアス", "applied-to: *ref", "uses a YAML anchor or alias"],
+  ["タグ", "applied-to: !!seq [docs/a.md]", "has a YAML tag"],
+])(
+  "値そのものに付けた applied-to の%sは、要素の問題として重ねて数えない",
+  (_name, appliedTo, message) => {
+    const { status: exitCode, stderr } = runCheck(
+      noteWithKeys({ status: "status: applied", appliedTo }),
+    );
+    expect(stderr).toContain(message);
+    expect(stderr).not.toContain("has an element with");
+    expect(stderr).toContain("1 problem(s)");
+    expect(exitCode).toBe(2);
+  },
+);
+
+test("本文に書いた status: は、キーの重なりとして数えない", () => {
+  const content = noteWithKeys({}).replace(
+    "学びの本文。",
+    "学びの本文。\nstatus: applied\ntype: hook",
+  );
+  const { status: exitCode, stderr } = runCheck(content);
+  expect(stderr).toBe("");
+  expect(exitCode).toBe(0);
+});
+
+test("キーの重なりと値の形を、1 回の実行でまとめて報告する", () => {
+  const { status: exitCode, stderr } = runCheck(
+    noteWithKeys({ status: "status: pending\nstatus: !!str pending", type: "type: >-\n  doc" }),
+  );
+  expect(stderr).toContain("status is declared 2 times");
+  expect(stderr).toContain("status has a YAML tag");
+  expect(stderr).toContain("type uses a block scalar");
+  expect(exitCode).toBe(2);
+});
+
+// キーに属性（アンカー・タグ）を 2 つ付けた行も、同じキーとして数える。confidence のキーも同じに数える。
+test.each([
+  [
+    "属性を 2 つ付けた status",
+    { status: "status: applied\n&a !!str status: pending" },
+    "status is declared 2 times",
+  ],
+])("属性を付けたキーの重なりを報告する: %s", (_name, lines, message) => {
+  const { status: exitCode, stderr } = runCheck(noteWithKeys(lines));
+  expect(stderr).toContain(message);
+  expect(exitCode).toBe(2);
+});
+
+test("アンカーを付けた confidence のキーも、重なりとキーの属性として報告する", () => {
+  const { status: exitCode, stderr } = runCheck(
+    noteWithConfidence("confidence: high\n&k confidence: low"),
+  );
+  expect(stderr).toContain("confidence is declared 2 times");
+  expect(stderr).toContain(
+    "confidence key is quoted, has a space before the colon, or has an anchor or tag",
+  );
+  expect(exitCode).toBe(2);
+});
+
+test("applied-to が重なったとき、前のキーの値の形に関わらず、後のキーの要素も確かめる", () => {
+  const { status: exitCode, stderr } = runCheck(
+    noteWithKeys({ status: "status: applied", appliedTo: "applied-to: *x\napplied-to: [*y]" }),
+  );
+  expect(stderr).toContain("applied-to uses a YAML anchor or alias");
+  expect(stderr).toContain("applied-to has an element with");
+  expect(exitCode).toBe(2);
+});
+
+// archive のノートは注入されず書き換えもしないので、キーの重なりと形のチェックを当てない。
+function runCheckArchived(content: string) {
+  const dir = makeTempDir("kaizen-status-check-");
+  try {
+    mkdirSync(join(dir, ".kaizen", "archive"), { recursive: true });
+    writeFileSync(join(dir, ".kaizen", "archive", "2026-08-10-note.md"), content);
+    writeFileSync(join(dir, ".kaizen", "archive", "INDEX.md"), "- `2026-08-10-note.md` — 学び\n");
+    const result = spawnSync("bash", [script], {
+      timeout: CHILD_TIMEOUT_MS,
+      env: { ...process.env, CLAUDE_PROJECT_DIR: dir },
+      encoding: "utf8",
+    });
+    return { status: result.status, stderr: result.stderr ?? "" };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test("archive のノートには、キーの重なりと形のチェックを当てない", () => {
+  const content = noteWithKeys({
+    status: "status: applied\nstatus:applied",
+    type: "type: >-\n  doc",
+    appliedTo: 'applied-to: ["docs/a.md"]',
+  });
+  const archived = runCheckArchived(content);
+  expect(archived.stderr).toBe("");
+  expect(archived.status).toBe(0);
+  // 同じノートを archive の外に置くと止める（対照）
+  const current = runCheck(content);
+  expect(current.stderr).toContain("status is declared 2 times");
+  expect(current.status).toBe(2);
+});
+
+// confidence のキーの形（引用符・コロンの前の空白・属性）は、status・type などのキーの形のチェックと同じく archive のノートには当てない。
+test.each([
+  ["属性を付けたキー", "&a confidence: high"],
+  ["引用符で囲んだキー", '"confidence": high'],
+])("archive のノートには、confidence のキーの形のチェックも当てない: %s", (_name, line) => {
+  const archived = runCheckArchived(noteWithConfidence(line));
+  expect(archived.stderr).toBe("");
+  expect(archived.status).toBe(0);
+  // 同じノートを archive の外に置くと止める（対照）
+  const current = runCheck(noteWithConfidence(line));
+  expect(current.stderr).toContain(
+    "confidence key is quoted, has a space before the colon, or has an anchor or tag",
+  );
+  expect(current.status).toBe(2);
+});
+
+// ブロックシーケンスの要素は 1 つの文字列なので、要素の中の , の後の記号は要素の先頭ではない
+test("ブロックシーケンスの要素の中にある , の後の記号では止めない", () => {
+  const { status: exitCode, stderr } = runCheck(
+    noteWithKeys({
+      status: "status: applied",
+      appliedTo: "applied-to:\n  - docs/a.md (rule, !important)",
+    }),
+  );
+  expect(stderr).toBe("");
+  expect(exitCode).toBe(0);
+});
+
+// status と type は 1 つの語なので、英数字・_・- だけの語のほかは、記号の種類に関わらず止める
+test.each([
+  ["flow の配列の type", { type: "type: [hook]" }],
+  ["flow の mapping の status", { status: "status: {a: b}" }],
+  ["@ で始まる type", { type: "type: @doc" }],
+  ["` で始まる status", { status: "status: `pending`" }],
+  ["% で始まる type", { type: "type: %rule" }],
+  ["引用符で囲んだ type", { type: 'type: "hook"' }],
+  ["片側だけの引用符の status", { status: "status: 'applied" }],
+  ["空白を含む type", { type: "type: rule doc" }],
+])("status と type の語でない値を拒否する: %s", (_name, lines) => {
+  const { status: exitCode, stderr } = runCheck(noteWithKeys(lines));
+  expect(stderr).toMatch(/(status|type) is not a plain word/);
+  expect(exitCode).toBe(2);
+});
+
+// ブロックシーケンスの要素の入れ子の集合とブロックスカラーも止める
+test.each([
+  ["入れ子の flow 配列", "applied-to:\n  - [*ref]"],
+  ["ブロックスカラー", "applied-to:\n  - |\n    docs/a.md"],
+])("ブロックシーケンスの要素の集合を拒否する: %s", (_name, appliedTo) => {
+  const { status: exitCode, stderr } = runCheck(
+    noteWithKeys({ status: "status: applied", appliedTo }),
+  );
+  expect(stderr).toContain("applied-to has an element with");
   expect(exitCode).toBe(2);
 });
