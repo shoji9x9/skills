@@ -52,8 +52,8 @@ import {
   fencedLines,
   loadPending,
   prunePending,
-  scannedFiles,
 } from "../../lib/doc-scan.ts";
+import { scannedFiles } from "../docs/doc-scan-files.ts";
 import { errorMessage } from "../../lib/errors.ts";
 
 // 対象: ルート直下のファイルと、配下を再帰で走査するディレクトリ。

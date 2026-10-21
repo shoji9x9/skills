@@ -1,8 +1,7 @@
-// 文書のチェック（check-doc-refs.ts・check-time-sensitive-prose.ts）が共有する、走査対象と保留の一覧。
+// 文書のチェック（check-doc-refs.ts・check-time-sensitive-prose.ts）が共有する、保留の一覧とテキストの読み方。
 //
-// 走査対象は、テキストの実体のファイル（コピーとリンクを除く。scripts/lib/source-scope.ts）のうち、
-// Tier 4（経過の記録）と階層の外（eval の入力）を除いたもの。階層は scripts/gates/docs/doc-tiers.json で決める。
-// Markdown は表の階層、それ以外のファイルはコードコメントとして Tier 3 に数える。
+// 走査対象は scripts/gates/docs/doc-scan-files.ts で決める（scripts/lib/ は scripts/gates/ を import しないので、
+// 階層の設定を読む部分だけを分けている）。
 //
 // 保留の一覧（scripts/gates/docs/doc-pending.json）には、次の 2 種類がある。
 // - pending: 今ある違反のうち、後の段階で直すもの。直したのに一覧に残ったもの（古い保留）は失敗にする。
@@ -12,9 +11,6 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { isRecord } from "./guards.ts";
-import { TEXT_EXTENSIONS } from "../gates/code/check-control-chars.ts";
-import { loadDocTiers, tierOf } from "../gates/docs/check-doc-tiers.ts";
-import { listSources } from "../gates/tooling/run-on-sources.ts";
 import { isArray } from "./is-array.ts";
 
 export const PENDING_PATH = "scripts/gates/docs/doc-pending.json";
@@ -31,9 +27,6 @@ export const KNOWN_RULES = [
 ];
 export const STAGES = ["3", "4", "5"];
 
-// eval の入力（prompt と期待値）は、eval が想定する別のリポジトリの状態を書いたものなので読まない。
-const EVAL_INPUT_RE = /^evals\/[^/]+\/evals\.json$/;
-
 /** 保留と許可が一覧と突き合わせる組（ファイル・規則・一致した文字列）。 */
 type EntryKey = { file: string; rule: string; text: string };
 export type PendingEntry = EntryKey & { stage: string };
@@ -41,29 +34,6 @@ export type AllowedEntry = EntryKey & { reason: string };
 export type PendingList = { pending: PendingEntry[]; allowed: AllowedEntry[] };
 /** チェックが見つけた違反。message があれば失敗の行に text の代わりに出す。 */
 export type Finding = EntryKey & { line: number; message?: string };
-export type ScannedFile = { file: string; tier: number; markdown: boolean };
-
-/**
- * 走査するファイルと階層。
- * options の exclude はチェック自身の fixture など、読まないファイル。
- */
-export function scannedFiles(
-  root: string,
-  { exclude = [] }: { exclude?: readonly string[] } = {},
-): ScannedFile[] {
-  const config = loadDocTiers(root);
-  const out: ScannedFile[] = [];
-  for (const file of listSources(root, TEXT_EXTENSIONS)) {
-    if (exclude.includes(file) || file === PENDING_PATH || EVAL_INPUT_RE.test(file)) continue;
-    const markdown = file.endsWith(".md");
-    const tier = tierOf(config, file);
-    // 階層の外（null）と Tier 4 は読まない。Markdown の階層が決まらない（undefined）ものは
-    // check-doc-tiers.ts が失敗させるので、ここでは Tier 3 として読む（読まずに通さない）。
-    if (tier === null || tier === 4) continue;
-    out.push({ file, tier: markdown && tier !== undefined ? tier : 3, markdown });
-  }
-  return out;
-}
 
 /** 配布スキルのファイルなら、スキルのディレクトリ（`skills/<name>`）。 */
 export const distributedSkillDir = (file: string): string | null =>

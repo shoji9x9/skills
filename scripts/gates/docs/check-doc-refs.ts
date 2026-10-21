@@ -29,8 +29,8 @@ import {
   fencedLines,
   loadPending,
   prunePending,
-  scannedFiles,
 } from "../../lib/doc-scan.ts";
+import { scannedFiles, type ScannedFile } from "./doc-scan-files.ts";
 import { errorMessage } from "../../lib/errors.ts";
 import { isRecord } from "../../lib/guards.ts";
 import { isArray } from "../../lib/is-array.ts";
@@ -53,7 +53,6 @@ export const SELF_FIXTURES = [
 
 type GeneratedEntry = { ref: string; template: string; skills?: string[] };
 export type DocRefsConfig = { repo: string; generated: GeneratedEntry[] };
-type ScannedFile = { file: string; tier: number; markdown: boolean };
 type Finding = { line: number; rule: string; text: string; message?: string };
 type SectionKind = "skill" | "link" | "code";
 

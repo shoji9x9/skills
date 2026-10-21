@@ -1,0 +1,12 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+ci:39575359027:1,ci,2026-10-21T10:23:12.330Z,p-cdee4961,github-actions,,,,2026-10-21T09:14:05.000Z,2026-10-21T09:17:47.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:39574781214:1,ci,2026-10-21T10:23:12.330Z,p-cdee4961,github-actions,,,,2026-10-21T09:09:34.000Z,2026-10-21T09:09:35.000Z,Asia/Tokyo,feature/752-bump-vite-and-mcp-server,752,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:39574781162:1,ci,2026-10-21T10:23:12.330Z,p-cdee4961,github-actions,,,,2026-10-21T09:09:34.000Z,2026-10-21T09:13:31.000Z,Asia/Tokyo,feature/752-bump-vite-and-mcp-server,752,,,,,,,,,,CI;pull_request;success,
+ci:39570029414:1,ci,2026-10-21T10:23:12.330Z,p-cdee4961,github-actions,,,,2026-10-21T08:32:21.000Z,2026-10-21T08:32:42.000Z,Asia/Tokyo,main,,,,,,,,,,,Release;push;success,
+ci:39570029370:1,ci,2026-10-21T10:23:12.330Z,p-cdee4961,github-actions,,,,2026-10-21T08:32:21.000Z,2026-10-21T08:36:18.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:39569542068:1,ci,2026-10-21T10:23:12.330Z,p-cdee4961,github-actions,,,,2026-10-21T08:28:35.000Z,2026-10-21T08:28:37.000Z,Asia/Tokyo,feature/733-local-review-kaizen-exception,733,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:39569542043:1,ci,2026-10-21T10:23:12.330Z,p-cdee4961,github-actions,,,,2026-10-21T08:28:35.000Z,2026-10-21T08:31:33.000Z,Asia/Tokyo,feature/733-local-review-kaizen-exception,733,,,,,,,,,,CI;pull_request;success,
+ci:39566612006:1,ci,2026-10-21T10:23:12.330Z,p-cdee4961,github-actions,,,,2026-10-21T08:05:05.000Z,2026-10-21T08:08:54.000Z,Asia/Tokyo,feature/733-local-review-kaizen-exception,733,,,,,,,,,,CI;pull_request;success,
+ci:39566612075:1,ci,2026-10-21T10:23:12.330Z,p-cdee4961,github-actions,,,,2026-10-21T08:05:05.000Z,2026-10-21T08:05:06.000Z,Asia/Tokyo,feature/733-local-review-kaizen-exception,733,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+coverage:github:2026-10-20T08:02:36.149Z:2026-10-21T10:23:12.330Z,coverage,2026-10-21T10:23:12.330Z,p-cdee4961,,,,,2026-10-20T08:02:36.149Z,2026-10-21T10:23:12.330Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-20T10:23:12.330Z:2026-10-21T10:27:25.105Z,coverage,2026-10-21T10:27:25.105Z,p-cdee4961,,,,,2026-10-20T10:23:12.330Z,2026-10-21T10:27:25.105Z,Asia/Tokyo,,,,,,,,,,,,ok,
