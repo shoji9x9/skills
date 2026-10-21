@@ -35,7 +35,7 @@ issue-batch run <Issue URL | 番号>... \
 
 - ツール: `gh`、`git` と、現在のコーディングエージェントの非対話のレビュー機能
 - 前提スキル: `git-worktree`、`issue-start`、`kaizen`、`pr-finalize-loop`。画面に影響がある場合は `browser-test`
-- 設定: `.config/skills/shoji9x9/issue-batch.jsonc`（扱いは `references/config-files.md`）。レビューツールの決定は pr-finalize-loop に任せる。`browser-test` の設定は参照するが、書き写さない
+- 設定: `.config/skills/shoji9x9/issue-batch.jsonc`（扱いは `references/config-files.md`）。レビューツールの決定は pr-finalize-loop に任せる（例外を当てるかを決めるために値を読むだけで、固定も受け渡しもしない）。`browser-test` の設定は参照するが、書き写さない
 - Node.js: 設定ファイルを読むのに使う（同梱の `scripts/skill-config/skill-config.mjs`）
 - シェル: bash。Windows では WSL や Git Bash などを使う
 
@@ -79,7 +79,7 @@ run の途中で判断待ちの `BLOCKED` にならないよう、run の前に�
    現在のエージェントのローカルレビュー、必要な検証、browser-test、`kaizen extract --current --record-pending`、commit・push・PR の作成である。
    Claude Code では、範囲を渡すために、ローカルレビューの前に変更を commit する（`references/orchestration.md`「ローカルレビュー」）。
    ローカルレビューは、変更が小さいことを理由に省かない。省いてよい条件の一覧と、省いたときの記録は、`references/orchestration.md`「ローカルレビュー」で定義する。
-   最後のローカルレビューの後に生じた変更も push の前にレビューする。Kaizen の学びと、Hook が commit のたびに足す記録は例外とし、PR のレビューに任せる。`review_tool` が `none` なら例外を当てない（`references/orchestration.md`「ローカルレビューの後に生じた変更」）。
+   最後のローカルレビューの後に生じた変更も push の前にレビューする。Kaizen の学びと、Hook が commit のたびに足す記録は例外とし、PR のレビューに任せる。`review_tool` が `none` か読めないときは例外を当てない（`references/orchestration.md`「ローカルレビューの後に生じた変更」）。
 5. PR は `pr-finalize-loop` に渡して収束させる。AI のレビューの依頼は、`pr-finalize-loop` にまとめる。
 6. head の SHA を固定し、決めた merge mode で merge する。`auto` は GitHub の auto-merge に任せ、`agent` は PR の状況を実際に確かめてから merge する。
    `pr-finalize-loop` が使った `review_tool` が `local` なら、どちらの mode でも、固定した SHA を手元でレビューした記録があることを確かめてから merge する（`references/orchestration.md`「merge、close、deployment」の 1）。
