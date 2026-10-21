@@ -90,6 +90,13 @@ frontmatter_state() {
 		# 参照の注入は他の形も読むが、ここで止めるので、読み方が食い違ったノートは commit されない。
 		# 引用符で囲んだキー・コロンの前の空白・キーに付けたアンカーやタグ（`&k status:`）は、数えはするが値を読まないので、形の誤りとして記録する。
 		# コロンの後に空白が無い形（`status:applied`）は YAML の mapping にならないので、confidence と同じく止める。
+		# 値の形を確かめた後に、対になった引用符を落とし、YAML の空の値（`null`・`~`）を空にする。
+		# 参照の注入（kaizen-context-inject.sh の frontmatter_field）も同じ読み方をするので、pending の判定がそろう。
+		function plain(value) {
+			if (value == "null" || value == "~") return ""
+			if (value ~ /^".*"$/ || value ~ /^'"'"'.*'"'"'$/) return substr(value, 2, length(value) - 2)
+			return value
+		}
 		function note_key(key, line) {
 			if (index(line, key ":") != 1) bad_forms = (bad_forms == "" ? "" : bad_forms ",") key ":key"
 			else if (substr(line, length(key) + 2) ~ /^[^[:space:]]/) bad_forms = (bad_forms == "" ? "" : bad_forms ",") key ":nospace"
@@ -138,16 +145,17 @@ frontmatter_state() {
 		}
 		fm != 1 { next }
 		# キーの重なりは、confidence と同じく YAML として正しくない（実装によってエラーになるか、どちらかの値を採る）ので、
-		# 引用符で囲んだキーとアンカーやタグを付けたキーも含めて出てきた回数を数える。値を読むのは、これまでどおり引用符の無いキーだけである。
-		/^([&!][^[:space:]]*[[:space:]]+)?("status"|'"'"'status'"'"'|status)[[:space:]]*:/ { status_count++; note_key("status", $0) }
-		/^([&!][^[:space:]]*[[:space:]]+)?("type"|'"'"'type'"'"'|type)[[:space:]]*:/ { type_count++; note_key("type", $0) }
-		/^([&!][^[:space:]]*[[:space:]]+)?("applied-to"|'"'"'applied-to'"'"'|applied-to)[[:space:]]*:/ { applied_count++; note_key("applied-to", $0) }
+		# 引用符で囲んだキーとアンカーやタグを付けたキー（`&a !!str status:` のように 2 つ付けた形も）を含めて出てきた回数を数える。値を読むのは、これまでどおり引用符の無いキーだけである。
+		/^([&!][^[:space:]]*[[:space:]]+)*("status"|'"'"'status'"'"'|status)[[:space:]]*:/ { status_count++; note_key("status", $0) }
+		/^([&!][^[:space:]]*[[:space:]]+)*("type"|'"'"'type'"'"'|type)[[:space:]]*:/ { type_count++; note_key("type", $0) }
+		/^([&!][^[:space:]]*[[:space:]]+)*("applied-to"|'"'"'applied-to'"'"'|applied-to)[[:space:]]*:/ { applied_count++; note_key("applied-to", $0) }
 		/^status:[[:space:]]*/ {
 			status = $0
 			sub(/^status:[[:space:]]*/, "", status)
 			sub(/[[:space:]]+#.*$/, "", status)
 			gsub(/^[[:space:]]+|[[:space:]]+$/, "", status)
 			note_form("status", status)
+			status = plain(status)
 			in_applied = 0
 			next
 		}
@@ -159,6 +167,7 @@ frontmatter_state() {
 			sub(/[[:space:]]+#.*$/, "", type)
 			gsub(/^[[:space:]]+|[[:space:]]+$/, "", type)
 			note_form("type", type)
+			type = plain(type)
 			in_applied = 0
 			next
 		}
@@ -167,10 +176,12 @@ frontmatter_state() {
 		# キーの重なりは YAML として正しくない（実装によってエラーになるか、どちらかの値を採る）ので、
 		# 出てきた回数を数えて止める。コロンの後に空白が無い形（`confidence:high`）は YAML の mapping に
 		# ならないので止める。
-		/^("confidence"|'"'"'confidence'"'"'|confidence)[[:space:]]*:/ {
+		/^([&!][^[:space:]]*[[:space:]]+)*("confidence"|'"'"'confidence'"'"'|confidence)[[:space:]]*:/ {
 			conf_count++
 			confidence = $0
-			sub(/^("confidence"|'"'"'confidence'"'"'|confidence)[[:space:]]*:/, "", confidence)
+			# 値を読む前に、キーに付けたアンカーやタグを記録する（引用符で囲んだキーとコロンの前の空白は、confidence では受け付ける）。
+			if ($0 ~ /^[&!]/) bad_forms = (bad_forms == "" ? "" : bad_forms ",") "confidence:key"
+			sub(/^([&!][^[:space:]]*[[:space:]]+)*("confidence"|'"'"'confidence'"'"'|confidence)[[:space:]]*:/, "", confidence)
 			if (confidence ~ /^[^[:space:]]/) conf_nospace = 1
 			sub(/[[:space:]]+#.*$/, "", confidence)
 			gsub(/^[[:space:]]+|[[:space:]]+$/, "", confidence)
@@ -190,6 +201,8 @@ frontmatter_state() {
 			sub(/^applied-to:[[:space:]]*/, "", value)
 			sub(/[[:space:]]+#.*$/, "", value)
 			gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+			# 要素を読むのは最後の applied-to だけなので、値そのものの形の記録もキーごとに戻す。
+			applied_form_bad = 0
 			note_form("applied-to", value)
 			gsub(/[[:space:]]/, "", value)
 			applied_value = value
@@ -313,12 +326,18 @@ for note in .kaizen/*.md .kaizen/archive/*.md; do
 	# entries は最後の変数なので、要素に `|` が含まれても前のフィールドはずれない。
 	IFS='|' read -r status present nonempty type conf_count conf_nospace confidence status_count type_count applied_count bad_forms entries <<<"${state}"
 
-	# status・type・applied-to も、confidence と同じく、キーの重なりとブロックスカラー・タグの値を止める。
+	# status・type・applied-to も、confidence と同じく、キーの重なりと 1 行で読めない形（値とキーの書き方）を止める。
 	# 重なると、このチェックは最後の値を読むが、YAML の実装によってはエラーになるか、別の値を採る。
+	# archive のノートには当てない。注入されず書き換えもしない記録なので、下の折り返しのチェックと同じく、
+	# 過去の書き方を理由に commit を止めない（このチェックを足す前にアーカイブしたノートで、関係の無い commit が止まる）。
+	key_checks=1
+	case "${note}" in
+	.kaizen/archive/*) key_checks=0 ;;
+	esac
 	if ! [[ "${status_count}" =~ ^[0-9]+$ && "${type_count}" =~ ^[0-9]+$ && "${applied_count}" =~ ^[0-9]+$ ]]; then
 		echo "kaizen-status-check: ${note}: could not read the key counts: status=${status_count} type=${type_count} applied-to=${applied_count}" >&2
 		errors=$((errors + 1))
-	else
+	elif [ "${key_checks}" = "1" ]; then
 		for key_count in "status:${status_count}" "type:${type_count}" "applied-to:${applied_count}"; do
 			if [ "${key_count##*:}" -gt 1 ]; then
 				echo "kaizen-status-check: ${note}: ${key_count%:*} is declared ${key_count##*:} times (declare it once)" >&2
@@ -326,7 +345,7 @@ for note in .kaizen/*.md .kaizen/archive/*.md; do
 			fi
 		done
 	fi
-	if [ -n "${bad_forms}" ]; then
+	if [ "${key_checks}" = "1" ] && [ -n "${bad_forms}" ]; then
 		IFS=',' read -r -a bad_form_list <<<"${bad_forms}"
 		for bad_form in "${bad_form_list[@]}"; do
 			case "${bad_form##*:}" in
