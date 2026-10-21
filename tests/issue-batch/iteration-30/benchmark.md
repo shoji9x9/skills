@@ -23,6 +23,9 @@ Kaizen の学びの commit も push の前にローカルレビューにかけ�
 書き換え前の取り決めが残っていると eval 29 が落ちることを確かめるため、main の版の `skills/issue-batch` で with_skill を 1 run 実行した。結果は 4/10 だった。
 commit していない差分と branch を別々にレビューすると答え、範囲を渡す 2 本・push 済みの commit を同じ範囲でレビューする・記録の `git diff` で確かめる・学びを PR に任せる・README の範囲の 6 本で落ちた。
 
+run は c47a864c の時点の手順で実行した。その後の commit は、`review_tool` が `none` の扱い・Hook の記録の見分け方・merge commit を含む範囲の扱いを変えた。
+この eval の fixture は `review_tool` が `copilot` で、範囲に merge commit も Hook の記録も無いので、測った振る舞いは変わらない。
+
 ## with_skill で満たさなかった assertion
 
 - 無し
