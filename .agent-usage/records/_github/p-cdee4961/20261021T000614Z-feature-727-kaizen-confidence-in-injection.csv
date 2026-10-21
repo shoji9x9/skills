@@ -21,3 +21,6 @@ ci:39520917583:1,ci,2026-10-21T00:37:14.984Z,p-cdee4961,github-actions,,,,2026-1
 ci:39520895539:1,ci,2026-10-21T00:37:14.984Z,p-cdee4961,github-actions,,,,2026-10-21T00:22:14.000Z,2026-10-21T00:22:15.000Z,Asia/Tokyo,feature/727-kaizen-confidence-in-injection,727,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 ci:39520895556:1,ci,2026-10-21T00:37:14.984Z,p-cdee4961,github-actions,,,,2026-10-21T00:22:14.000Z,2026-10-21T00:25:15.000Z,Asia/Tokyo,feature/727-kaizen-confidence-in-injection,727,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-10-20T00:19:23.987Z:2026-10-21T00:37:14.984Z,coverage,2026-10-21T00:37:14.984Z,p-cdee4961,,,,,2026-10-20T00:19:23.987Z,2026-10-21T00:37:14.984Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:39522667993:1,ci,2026-10-21T00:45:05.256Z,p-cdee4961,github-actions,,,,2026-10-21T00:39:50.000Z,2026-10-21T00:39:51.000Z,Asia/Tokyo,feature/727-kaizen-confidence-in-injection,727,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:39522667940:1,ci,2026-10-21T00:45:05.256Z,p-cdee4961,github-actions,,,,2026-10-21T00:39:50.000Z,2026-10-21T00:43:07.000Z,Asia/Tokyo,feature/727-kaizen-confidence-in-injection,727,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-20T00:37:14.984Z:2026-10-21T00:45:05.256Z,coverage,2026-10-21T00:45:05.256Z,p-cdee4961,,,,,2026-10-20T00:37:14.984Z,2026-10-21T00:45:05.256Z,Asia/Tokyo,,,,,,,,,,,,ok,

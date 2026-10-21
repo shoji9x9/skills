@@ -393,7 +393,10 @@
       "find": "\t\t\t\tif (c == \"\\\"\" || c == \"'\"'\"'\") q = c\n",
       "replace": "",
       "occurrences": 1,
-      "expect_failing": ["applied-to の要素の形を受け付ける: 引用符の中の , の後に記号がある要素"]
+      "expect_failing": [
+        "applied-to の要素の形を受け付ける: 引用符の中の , の後に記号がある要素",
+        "applied-to の要素の形を受け付ける: エスケープした引用符の後に , と記号がある要素"
+      ]
     },
     {
       "id": "ITEM-DOUBLE-COUNTED",
@@ -430,6 +433,17 @@
       "expect_failing": [
         "status・type・applied-to の形を拒否する: アンカーを付けた status のキーの重なり",
         "status・type・applied-to の形を拒否する: タグを付けた type のキー"
+      ]
+    },
+    {
+      "id": "ITEM-ESCAPE-IGNORED",
+      "why": "二重引用符の中の \\\" を引用符の終わりとして扱う",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "if (q == \"\\\"\" && c == \"\\\\\") i++",
+      "replace": "if (0) i++",
+      "occurrences": 1,
+      "expect_failing": [
+        "applied-to の要素の形を受け付ける: エスケープした引用符の後に , と記号がある要素"
       ]
     }
   ]

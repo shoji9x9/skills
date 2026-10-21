@@ -859,6 +859,7 @@ test.each([
   ["引用符で囲んだ要素", 'applied-to: ["*x.md", "&y.md", "!z.md"]'],
   ["引用符で囲んだブロックシーケンスの要素", "applied-to:\n  - '*x.md'"],
   ["引用符の中の , の後に記号がある要素", 'applied-to: ["docs/a, *b.md"]'],
+  ["エスケープした引用符の後に , と記号がある要素", 'applied-to: ["docs/a\\", &b.md"]'],
 ])("applied-to の要素の形を受け付ける: %s", (_name, appliedTo) => {
   const { status: exitCode, stderr } = runCheck(
     noteWithKeys({ status: "status: applied", appliedTo }),

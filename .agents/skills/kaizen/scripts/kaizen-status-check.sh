@@ -102,7 +102,9 @@ frontmatter_state() {
 			for (i = 1; i <= length(body); i++) {
 				c = substr(body, i, 1)
 				if (q != "") {
-					if (c == q) q = ""
+					# 二重引用符の中の `\"` は文字列の続きである（単引用符の中では `\` はエスケープにならない）。
+					if (q == "\"" && c == "\\") i++
+					else if (c == q) q = ""
 					continue
 				}
 				if (c == ",") {
