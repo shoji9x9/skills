@@ -2,6 +2,7 @@
 date: 2026-10-14
 type: rule
 priority: high
+confidence: high
 status: pending
 applied-to: []
 session: claude-code
@@ -19,11 +20,20 @@ assertion を主張ごとに分けたので、fingerprint が変わり、4 run �
 承認の後のレビューが、案が判断の軸を baseline に渡すことと、`--target` が無いことを指摘した。案を作り直して、もう一度承認を求めた。
 2 回目のレビューでも、fixture と assertion に指摘が続いた。
 
+再発（2026-10-21、Issue #741）: eval 30 を足し、reachability のチェックが通った後に、4 点のレビューを通さずに run を起動した。
+assertion「branch・worktree・PR・manifest を作らず、担当者を割り当てないと述べている」の prompt_quote は、その点を問わない文を指していた。
+with_skill が 7/8 になり、prompt に問いを足して eval 30 を実行し直した（iteration-28）。
+
 ## 根本原因
 
 - なぜ run をやり直したか → assertion を変えると、その run の採点も baseline の再利用もできない
 - なぜ assertion を変えたか → 1 つの assertion に複数の主張を束ねていた。`.agents/rules/eval-assertion-discrimination.md` は「1 つの assertion で 1 つのことを主張する」をレビューで確かめる項目に挙げている
 - なぜ束ねたまま run したか → 機械のチェック（`check-eval-reachability.ts`）は部分文字列の実在しか見ない。レビューで確かめる 4 点を、run の前に通す手順が無かった。レビューを run と並行に起動したので、指摘が届いたときには run が終わっていた
+
+## 根拠
+
+同じ原因での再発を確かめた（部分文字列のチェックだけを通し、引き出す文があるかのレビューを run の前に通さなかった）。
+2026-10-14 の事象（#623）と 2026-10-15 の事象（#614）に、2026-10-21 の事象（#741）が続く。
 
 ## 提案
 

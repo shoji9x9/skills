@@ -1,0 +1,263 @@
+{
+  "metadata": {
+    "skill_name": "issue-batch",
+    "skill_path": "<repo>/skills/issue-batch",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-21T00:25:24Z",
+    "evals_run": [30, 31],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 30,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.875,
+        "passed": 7,
+        "failed": 1,
+        "total": 8,
+        "time_seconds": 47.454,
+        "tokens": 135889,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "#110 の案の選択を、1 回の確認で利用者に決めてもらうと述べている",
+          "passed": true,
+          "evidence": "「確認（1 回にまとめる）: 確認に載るのは #110 の 1 論点だけです」"
+        },
+        {
+          "text": "決まった内容を #110 にコメントで記録し、Issue の本文は書き換えないと述べている",
+          "passed": true,
+          "evidence": "「コメントを書くのは #110 だけ で、1 件です。本文は書き換えません」"
+        },
+        {
+          "text": "コメントに、run が prepare の決定として見分けるための固定の目印を付けると述べている",
+          "passed": true,
+          "evidence": "「1 行目は、決まった目印 `<!-- issue-batch:prepare -->` にします」"
+        },
+        {
+          "text": "branch・worktree・PR・manifest を作らず、担当者を割り当てないと述べている",
+          "passed": false,
+          "evidence": "担当者は「読むだけで、割り当てない」と述べるが、prepare が branch・worktree・PR・manifest を作らないことは述べていない"
+        },
+        {
+          "text": "最後に示す issue-batch run のプロンプトで、Issue を 110 112 111 の順に並べると述べている",
+          "passed": true,
+          "evidence": "プロンプト `issue-batch run 110 112 111` を示している"
+        },
+        {
+          "text": "run の preflight は、記録したコメントを読み、#110 の案の選択を確認し直さないと述べている",
+          "passed": true,
+          "evidence": "「#110 の形式を『決まったもの』として扱います。確認には載せません」"
+        },
+        {
+          "text": "run の preflight は、書き込める権限を持たない人が書いた目印付きのコメントを決定として使わないと述べている",
+          "passed": true,
+          "evidence": "「コメントの作成者がリポジトリに admin か write の権限を持つ…満たさないコメントや、権限を取得できないコメントは使いません」"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（コメントの投稿・branch の作成を行っていない）",
+          "passed": true,
+          "evidence": "「dry-run なので、gh や git は実行していません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 31,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 56.41,
+        "tokens": 98056,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "処理の順を 121 → 122 → 120 にすると述べている",
+          "passed": true,
+          "evidence": "「実行の順は #121 → #122 → #120 です」"
+        },
+        {
+          "text": "#120 を、依存先の #122 が入力の順で後ろにあることを理由に BLOCKED にしないと述べている",
+          "passed": true,
+          "evidence": "#120 は番が来たら #122 の MERGED を確かめて着手し、確かめられない場合だけ BLOCKED にすると述べている"
+        },
+        {
+          "text": "#120 には、#122 の PR が base branch に MERGED だと着手の直前に確かめてから着手すると述べている",
+          "passed": true,
+          "evidence": "「番が来たら、GitHub から取得し直して…#122 を閉じた PR が main に MERGED になっていること」"
+        },
+        {
+          "text": "manifest に入力の順と実行の順の両方と、並べ替えた依存（#120 が #122 に依存する）を記録すると述べている",
+          "passed": true,
+          "evidence": "「入力の順 [120,121,122]、実行の順 [121,122,120] と並べ替えた依存（#120 → #122）」"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（branch の作成・Issue の変更を行っていない）",
+          "passed": true,
+          "evidence": "「コマンドの実行、ファイルの変更、GitHub への書き込みはしていません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 30,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 4,
+        "failed": 4,
+        "total": 8,
+        "time_seconds": 35.231,
+        "tokens": 38005,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "#110 の案の選択を、1 回の確認で利用者に決めてもらうと述べている",
+          "passed": false,
+          "evidence": "「確認の結果、利用者が JSON を選んだ」とあるが、run の前の 1 回の確認にまとめるとは述べていない"
+        },
+        {
+          "text": "決まった内容を #110 にコメントで記録し、Issue の本文は書き換えないと述べている",
+          "passed": true,
+          "evidence": "「記録は Issue 本文を書き換えず、コメントとして追記します」"
+        },
+        {
+          "text": "コメントに、run が prepare の決定として見分けるための固定の目印を付けると述べている",
+          "passed": true,
+          "evidence": "「prepare が書いたと分かる印を付けたコメント」`<!-- issue-batch:prepare v1 ... -->`"
+        },
+        {
+          "text": "branch・worktree・PR・manifest を作らず、担当者を割り当てないと述べている",
+          "passed": false,
+          "evidence": "担当者・branch・worktree・PR を作らないとは述べるが、manifest に触れていない"
+        },
+        {
+          "text": "最後に示す issue-batch run のプロンプトで、Issue を 110 112 111 の順に並べると述べている",
+          "passed": false,
+          "evidence": "示したコマンドは `issue-batch run 110 111 112` で、入力の順のまま"
+        },
+        {
+          "text": "run の preflight は、記録したコメントを読み、#110 の案の選択を確認し直さないと述べている",
+          "passed": true,
+          "evidence": "「decided=format:json を確定した仕様として扱い、JSON で実装します」"
+        },
+        {
+          "text": "run の preflight は、書き込める権限を持たない人が書いた目印付きのコメントを決定として使わないと述べている",
+          "passed": false,
+          "evidence": "書いた人が「prepare を実行した利用者または bot」かで見分けるとし、リポジトリに書き込める権限で判定していない"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（コメントの投稿・branch の作成を行っていない）",
+          "passed": true,
+          "evidence": "「何も実行しておらず、ファイルも変えていません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 31,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4,
+        "passed": 2,
+        "failed": 3,
+        "total": 5,
+        "time_seconds": 32.36,
+        "tokens": 19837,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "処理の順を 121 → 122 → 120 にすると述べている",
+          "passed": false,
+          "evidence": "順を #122 → #121 → #120 としている"
+        },
+        {
+          "text": "#120 を、依存先の #122 が入力の順で後ろにあることを理由に BLOCKED にしないと述べている",
+          "passed": false,
+          "evidence": "「この run の中では着手せず、blocked（#122 待ち）として残します」"
+        },
+        {
+          "text": "#120 には、#122 の PR が base branch に MERGED だと着手の直前に確かめてから着手すると述べている",
+          "passed": true,
+          "evidence": "「#122 の PR が main に merge された後に着手します」"
+        },
+        {
+          "text": "manifest に入力の順と実行の順の両方と、並べ替えた依存（#120 が #122 に依存する）を記録すると述べている",
+          "passed": false,
+          "evidence": "記録に依存関係は残すが、入力の順と実行の順は記録しない"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（branch の作成・Issue の変更を行っていない）",
+          "passed": true,
+          "evidence": "「コマンドの実行、ファイルの変更、commit / push / PR 作成はしていません」"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.9375,
+        "stddev": 0.0884,
+        "min": 0.875,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 51.932,
+        "stddev": 6.3328,
+        "min": 47.454,
+        "max": 56.41
+      },
+      "tokens": {
+        "mean": 116972.5,
+        "stddev": 26751.9709,
+        "min": 98056,
+        "max": 135889
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.45,
+        "stddev": 0.0707,
+        "min": 0.4,
+        "max": 0.5
+      },
+      "time_seconds": {
+        "mean": 33.7955,
+        "stddev": 2.0301,
+        "min": 32.36,
+        "max": 35.231
+      },
+      "tokens": {
+        "mean": 28921,
+        "stddev": 12846.716,
+        "min": 19837,
+        "max": 38005
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.49",
+      "time_seconds": "+18.1",
+      "tokens": "+88052"
+    }
+  },
+  "notes": []
+}
