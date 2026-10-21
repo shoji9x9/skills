@@ -1,18 +1,20 @@
 ---
 name: issue-batch
-description: 複数の GitHub Issue を入力順に、Issue ごとの隔離 worktree・独立 branch / PR で連続処理し、実装、ローカルレビュー、検証、必要なブラウザ回帰、Kaizen、PR 収束、merge（GitHub の auto-merge／エージェントが PR の状況を実測してから merge、のいずれかを選択）、Issue close、deployment、branch cleanup まで追跡するスキル。初回は `issue-batch setup` で無人実行ポリシーとマージ方式を確定する。「複数 Issue をまとめて処理」「Issue を順番に最後まで」「issue-batch」や `run` / `setup` を伴う依頼で必ず使う。
-argument-hint: "<setup | run <Issue URL | 番号>...> [options]"
+description: 複数の GitHub Issue を依存を考えた順（依存が無ければ入力順）に、Issue ごとの隔離 worktree・独立 branch / PR で連続処理し、実装、ローカルレビュー、検証、必要なブラウザ回帰、Kaizen、PR 収束、merge（GitHub の auto-merge／エージェントが PR の状況を実測してから merge、のいずれかを選択）、Issue close、deployment、branch cleanup まで追跡するスキル。初回は `issue-batch setup` で無人実行ポリシーとマージ方式を確定する。`issue-batch prepare` は run の前に判断を決めて Issue に記録し、実行順の run のプロンプトを示す。「複数 Issue をまとめて処理」「Issue を順番に最後まで」「issue-batch」や `run` / `setup` / `prepare` を伴う依頼で必ず使う。
+argument-hint: "<setup | prepare <Issue URL | 番号>... | run <Issue URL | 番号>...> [options]"
 license: MIT
 ---
 
 # Issue Batch
 
-複数の Issue を 1 件ずつ順に処理する。各 Issue は、独立した branch と PR、隔離した worktree を持つ。そのため、1 件が失敗しても、他の作業ツリーに影響しない。
+複数の Issue を 1 件ずつ順に処理する。依存先の Issue を依存元より先に処理し、依存の無い Issue の間では入力の順を保つ。各 Issue は、独立した branch と PR、隔離した worktree を持つ。そのため、1 件が失敗しても、他の作業ツリーに影響しない。
 
 ## 使い方
 
 ```text
 issue-batch setup
+
+issue-batch prepare <Issue URL | 番号>...
 
 issue-batch run <Issue URL | 番号>... \
   [--browser-test-env <環境名>] \
@@ -25,8 +27,8 @@ issue-batch run <Issue URL | 番号>... \
   [--stop-on-blocked]
 ```
 
-- 公開するサブコマンドは `setup` と `run` だけである。引数なしの呼び出し、サブコマンドを省いた Issue の指定、知らないサブコマンドでは、usage を示して、何も変更する前に停止する。
-- `setup` は、引数と `run` 用の option を受け付けない。`run` には 1 件以上の Issue が必要で、option は `run` の後ろでだけ解釈する。
+- 公開するサブコマンドは `setup`・`prepare`・`run` だけである。引数なしの呼び出し、サブコマンドを省いた Issue の指定、知らないサブコマンドでは、usage を示して、何も変更する前に停止する。
+- `setup` は、引数と `run` 用の option を受け付けない。`prepare` と `run` には 1 件以上の Issue が必要である。`prepare` は `run` 用の option を受け付けず、option は `run` の後ろでだけ解釈する。
 - URL と番号を混ぜて渡せるが、すべての Issue が現在のリポジトリと同じ owner/repo でなければならない。
 - 1 つの Issue に 1 つの branch と 1 つの PR を対応させる。stacked PR と、複数の Issue を 1 つの PR にまとめることは対象外である。
 
@@ -47,6 +49,12 @@ issue-batch run <Issue URL | 番号>... \
 `references/project-config.md` を読み、リポジトリごとの無人実行のポリシーを、対話で確定する。Issue・branch・PR・merge・deployment は操作しない。
 書いた設定は、run の前に base branch に入れる必要がある（preflight が確かめる）。そのことを利用者に案内し、設定を無人で commit・push しない。
 
+### prepare
+
+run の途中で判断待ちの `BLOCKED` にならないよう、run の前に利用者の判断が要るものを決めてもらい、決まった内容を Issue にコメントで記録する。
+最後に、実行の順に Issue を並べた `issue-batch run` のプロンプトを示す。branch・worktree・PR・manifest は作らず、担当者も割り当てない。
+手順・コメントの形・プロンプトの形は `references/prepare.md` で定義する。実行する前に、`references/prepare.md` と `references/orchestration.md` の両方を最後まで読む。
+
 ### run
 
 実行する前に、`references/project-config.md` と `references/orchestration.md` の両方を最後まで読む。次の順で進める。
@@ -59,14 +67,16 @@ issue-batch run <Issue URL | 番号>... \
    - 設定、認証と権限、レビュー機能
    - Kaizen が transcript を特定できるか、browser-test が安全か
    - setup の設定が base branch に入っているか
-   - run の前に利用者の判断が要るもの（複数の案・決まっていない方針・試していない機構を約束した受け入れ条件・対象から外す候補にする不確実性の高い Issue）。1 回の確認にまとめて、変更の前に決めてもらう。全体を停止するときは確認せず、停止の報告に載せる
-2. `/tmp` に run manifest を作る。記録するのは、入力の順・Issue の URL・状態・branch・worktree・PR の URL・試験の結果・停止の理由・飛ばした理由・対象から外した理由・判断待ちの項目・自分で判断して進めたもの（`self_decisions` の下の 4 つの欄と `others`）だけである。秘密の値と、変わる環境の URL は書かない。
+   - 依存から決める実行の順（依存先を先にし、依存の無い Issue の間では入力の順を保つ）
+   - run の前に利用者の判断が要るもの（複数の案・決まっていない方針・試していない機構を約束した受け入れ条件・対象から外す候補にする不確実性の高い Issue）。1 回の確認にまとめて、変更の前に決めてもらう。全体を停止するときは確認せず、停止の報告に載せる。
+     `prepare` が Issue に記録した決定は読んで使い、同じ判断を確認し直さない
+2. `/tmp` に run manifest を作る。記録するのは、入力の順・実行の順・Issue の URL・状態・branch・worktree・PR の URL・試験の結果・停止の理由・飛ばした理由・対象から外した理由・判断待ちの項目・自分で判断して進めたもの（`self_decisions` の下の 4 つの欄と `others`）だけである。秘密の値と、変わる環境の URL は書かない。
 3. preflight で `EXCLUDED`・`SKIPPED`・`BLOCKED` にした Issue は、この手順から後を行わず、残りの Issue を進める（`references/orchestration.md`「全体 preflight」の最後の段落）。
    依存のある Issue は、同じ文書の「全体 preflight」の 6 の条件を満たしてから着手する。
    呼び出し元の worktree を checkout せず、Issue ごとに一意な隔離した worktree を `git-worktree` の取り決めで用意して、セッションを移す。
    branch を作る前に、その Issue の担当者を確かめ、自分を割り当てて読み直す（`references/orchestration.md`「issue-start への handoff」の 1。割り当てができなければ、branch も worktree も作らない）。
    置き場所は `git-worktree setup` の決定に従う。Issue ごとに worktree を移るので、リポジトリの中に置く必要がある。
-4. 各 Issue を入力の順に `issue-start` の取り決めで実装し、次に進める。
+4. 各 Issue を実行の順に `issue-start` の取り決めで実装し、次に進める。
    現在のエージェントのローカルレビュー、必要な検証、browser-test、`kaizen extract --current --record-pending`、commit・push・PR の作成である。
    ローカルレビューは、変更が小さいことを理由に省かない。省いてよい条件の一覧と、省いたときの記録は、`references/orchestration.md`「ローカルレビュー」で定義する。
    Kaizen の記録も、実装の commit の後・記録の commit の前にレビューし、出力の範囲に記録の差分が含まれることを確かめる（`references/orchestration.md`「Kaizen、commit、PR」）。
@@ -113,7 +123,7 @@ BLOCKED や FAILED の影響が Issue の隔離した worktree の中だけで�
 
 ## 最終報告
 
-入力の順に並べた表で、Issue・最終状態・branch・worktree・PR・local review・tests・browser・Kaizen・merge・Issue close・deployment・cleanup・停止の理由・飛ばした理由・対象から外した理由を示す。
+実行の順に並べた表で、Issue・入力の順・最終状態・branch・worktree・PR・local review・tests・browser・Kaizen・merge・Issue close・deployment・cleanup・停止の理由・飛ばした理由・対象から外した理由を示す。
 表の後に、「判断待ち」と「自分で判断して進めたもの」の一覧を必ず載せる。0 件でも、無いことを書く。
 `SKIPPED` と `EXCLUDED` の Issue も表に載せる。`EXCLUDED` の対象から外した理由には、当たった兆候と利用者の選択か、外した依存先の番号を書く。
 判断待ちは、Issue ごとに論点・選択肢・推奨・決まった後に残る作業を示す。自分で判断して進めたものは、判断・根拠・覆すときに戻る工程を示す。

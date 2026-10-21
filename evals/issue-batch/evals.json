@@ -647,6 +647,91 @@
           "prompt_quote": "コマンドの実行やファイルの変更はせずに dry-run として説明して"
         }
       ]
+    },
+    {
+      "id": 30,
+      "fixture": "fixtures/preflight-ready",
+      "prompt": "issue-batch prepare 110 111 112 を、コマンドの実行やファイルの変更はせずに dry-run として説明して。3 件とも未着手で、担当者は付いておらず、既存の branch・PR・worktree は無い。#110 は「通知の本文の形式を足す」で、JSON と YAML の 2 案が並び、どちらにするかが書かれていない。#111 は「#112 で足す関数 parseY を使って CLI に option を足す」。#112 は「関数 parseY を足す」で、直し方と受け入れ条件が決まっている。確認で利用者は #110 に JSON を選んだ。何を確かめ、Issue に何をどの形で残し、prepare の間に何を作って何を作らないか（branch・worktree・PR・run の記録・担当者の割り当て）、最後に何を示すかと、後で run の preflight がその記録をどう扱うかを述べて。",
+      "expected_output": "#110 の案を確認で決めてもらい、目印付きのコメントで #110 に記録して本文は変えない。branch・worktree・PR・manifest は作らない。依存から 110 112 111 の順で run のプロンプトを示す。run は書き込める人の目印付きコメントだけを決定として読み、確認し直さない。",
+      "assertions": [
+        "#110 の案の選択を、1 回の確認で利用者に決めてもらうと述べている",
+        "決まった内容を #110 にコメントで記録し、Issue の本文は書き換えないと述べている",
+        "コメントに、run が prepare の決定として見分けるための固定の目印を付けると述べている",
+        "branch・worktree・PR・manifest を作らず、担当者を割り当てないと述べている",
+        "最後に示す issue-batch run のプロンプトで、Issue を 110 112 111 の順に並べると述べている",
+        "run の preflight は、記録したコメントを読み、#110 の案の選択を確認し直さないと述べている",
+        "run の preflight は、書き込める権限を持たない人が書いた目印付きのコメントを決定として使わないと述べている",
+        "実行はせず手順の提示に留めている（コメントの投稿・branch の作成を行っていない）"
+      ],
+      "reachability": [
+        {
+          "assertion": "#110 の案の選択を、1 回の確認で利用者に決めてもらうと述べている",
+          "prompt_quote": "JSON と YAML の 2 案が並び"
+        },
+        {
+          "assertion": "決まった内容を #110 にコメントで記録し、Issue の本文は書き換えないと述べている",
+          "prompt_quote": "Issue に何をどの形で残し"
+        },
+        {
+          "assertion": "コメントに、run が prepare の決定として見分けるための固定の目印を付けると述べている",
+          "prompt_quote": "どの形で残し"
+        },
+        {
+          "assertion": "branch・worktree・PR・manifest を作らず、担当者を割り当てないと述べている",
+          "prompt_quote": "prepare の間に何を作って何を作らないか（branch・worktree・PR・run の記録・担当者の割り当て）"
+        },
+        {
+          "assertion": "最後に示す issue-batch run のプロンプトで、Issue を 110 112 111 の順に並べると述べている",
+          "prompt_quote": "最後に何を示すか"
+        },
+        {
+          "assertion": "run の preflight は、記録したコメントを読み、#110 の案の選択を確認し直さないと述べている",
+          "prompt_quote": "後で run の preflight がその記録をどう扱うか"
+        },
+        {
+          "assertion": "run の preflight は、書き込める権限を持たない人が書いた目印付きのコメントを決定として使わないと述べている",
+          "prompt_quote": "その記録をどう扱うか"
+        },
+        {
+          "assertion": "実行はせず手順の提示に留めている（コメントの投稿・branch の作成を行っていない）",
+          "prompt_quote": "コマンドの実行やファイルの変更はせずに dry-run として説明して"
+        }
+      ]
+    },
+    {
+      "id": 31,
+      "fixture": "fixtures/preflight-ready",
+      "prompt": "issue-batch run 120 121 122 の preflight と処理の順を、コマンドの実行やファイルの変更はせずに dry-run として説明して。3 件とも未着手で、担当者は付いておらず、既存の branch・PR・worktree は無い。#120 は「#122 で足す設定の項目を README に書く」。#121 は「typo を直す」で、他の Issue と関係しない。#122 は「設定の項目を足す」。どの順で処理し、#120 にいつ着手するか、run の記録と最終報告に何を残すかを述べて。",
+      "expected_output": "#120 は #122 に依存するので、依存先を先にし、それ以外は入力の順を保って 121 → 122 → 120 で処理する。#120 は #122 の PR の merge を着手の直前に確かめてから進め、BLOCKED にしない。入力の順と実行の順を manifest に残す。",
+      "assertions": [
+        "処理の順を 121 → 122 → 120 にすると述べている",
+        "#120 を、依存先の #122 が入力の順で後ろにあることを理由に BLOCKED にしないと述べている",
+        "#120 には、#122 の PR が base branch に MERGED だと着手の直前に確かめてから着手すると述べている",
+        "manifest に入力の順と実行の順の両方と、並べ替えた依存（#120 が #122 に依存する）を記録すると述べている",
+        "実行はせず手順の提示に留めている（branch の作成・Issue の変更を行っていない）"
+      ],
+      "reachability": [
+        {
+          "assertion": "処理の順を 121 → 122 → 120 にすると述べている",
+          "prompt_quote": "どの順で処理し"
+        },
+        {
+          "assertion": "#120 を、依存先の #122 が入力の順で後ろにあることを理由に BLOCKED にしないと述べている",
+          "prompt_quote": "#120 は「#122 で足す設定の項目を README に書く」"
+        },
+        {
+          "assertion": "#120 には、#122 の PR が base branch に MERGED だと着手の直前に確かめてから着手すると述べている",
+          "prompt_quote": "#120 にいつ着手するか"
+        },
+        {
+          "assertion": "manifest に入力の順と実行の順の両方と、並べ替えた依存（#120 が #122 に依存する）を記録すると述べている",
+          "prompt_quote": "run の記録と最終報告に何を残すか"
+        },
+        {
+          "assertion": "実行はせず手順の提示に留めている（branch の作成・Issue の変更を行っていない）",
+          "prompt_quote": "コマンドの実行やファイルの変更はせずに dry-run として説明して"
+        }
+      ]
     }
   ]
 }
