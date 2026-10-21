@@ -25,9 +25,9 @@ run の preflight の手順は `references/orchestration.md` で定義する。�
    すでに prepare のコメントがある Issue は、そのコメントを先に読み、決まっている論点を挙げない。
    読み方（決定として読むコメントの条件・記録を覆す場合の扱い）は、run の preflight と同じく「Issue に残すコメント」に従う。
 
-   挙げた論点が 1 件以上あれば、4 の確認の前に、自分の login がリポジトリに書き込めるかを「Issue に残すコメント」の権限の確認と同じコマンドで確かめる。
-   `admin` か `write` でないか、取得できなければ、確認をせずに停止する。run はそのコメントを決定として読まないので、決めても記録に使えないからである。
-   停止の報告には、挙げた論点と、書き込める人が prepare を実行し直す必要があることを載せ、プロンプトは示さない。論点が 0 件なら、権限を確かめずに 6 へ進む。
+   挙げた論点に、Issue に記録する種類（「Issue に残すコメント」の種類）があれば、4 の確認の前に、自分の login がリポジトリに書き込めるかを同じ節の権限の確認と同じコマンドで確かめる。
+   `admin` か `write` でないか、取得できなければ、記録する種類の論点は確認に載せず、決まらなかった論点として扱う。run はそのコメントを決定として読まないので、決めても記録に使えないからである。
+   記録しない種類の決定（対象から外す・同じ run に加える・run の外で merge してから始める）は、そのまま確認に載せる。報告には、書き込める人が prepare を実行し直せば決められる論点を載せる。
 4. 挙げたものを 1 回の確認にまとめ、Issue ごとに論点・選択肢・根拠・推奨を並べる。決まった内容を Issue にコメントで記録することも、同じ確認に書く。
    run と違って利用者が答えられる場面なので、答えが論点のどれを指すか分からないときは、聞き直してよい。
    答えが返らなかった論点は、決まらなかったものとして扱う。
@@ -87,10 +87,24 @@ run の preflight は、次の条件をすべて満たすコメントだけを p
 - コメントの作成者が、リポジトリに書き込める（`gh api repos/{owner}/{repo}/collaborators/{login}/permission --jq .permission` が `admin` か `write`。
   [REST: Get repository permissions for a user](https://docs.github.com/en/rest/collaborators/collaborators#get-repository-permissions-for-a-user)）。
   公開リポジトリでは誰でもコメントを書けるので、目印だけでは決定として扱わない。権限を取得できなければ、そのコメントを決定として使わない
-同じ論点を記録した prepare のコメントが複数あれば、作成日時が新しいものを使う。`approval.at` にも、この作成日時を使う。
-編集されたコメントも作成日時で比べる。prepare は自分のコメントを編集せず、決定を変えるときは新しいコメントを投稿する。
 
-記録を覆すのは、書き込める人が記録より後に作成した、目印の無いコメントが論点を変えた場合だけである。
-そのときは記録を使わず、決まっていない論点として扱う。run の preflight 10 は改めて確認に載せ、依存ではないという決定なら preflight 6 は記録が無いときと同じように依存を決める。
-本文と、書き込めない人のコメントは、記録を覆す根拠にしない。誰が書いたかと、記録の前か後かを、コメントの作成者と作成日時だけで決められるようにするためである。
-本文を変えて決定をやり直すときは、書き込める人が prepare をもう一度実行する。
+コメントの作成者・作成日時・編集の有無・本文は、次の 1 回の取得で読む（`lastEditedAt` は REST と `gh issue view --json comments` では取得できない。
+[GraphQL: IssueComment](https://docs.github.com/en/graphql/reference/objects#issuecomment)）。
+
+```bash
+gh api graphql --paginate -f owner=<owner> -f name=<repo> -F number=<番号> \
+  -f query='query($owner: String!, $name: String!, $number: Int!, $endCursor: String) {
+    repository(owner: $owner, name: $name) { issue(number: $number) { comments(first: 100, after: $endCursor) {
+      pageInfo { hasNextPage endCursor } nodes { url author { login } createdAt lastEditedAt body } } } } }'
+```
+
+同じ論点を記録した prepare のコメントが複数あれば、作成日時が新しいものを使う。`approval.at` にも、この作成日時を使う。
+使うコメントが作成された後に編集されていれば（`lastEditedAt` が `null` でない）、決めた時点と内容が合っていると確かめられないので、その論点を決まっていないものとして扱う。
+古いコメントには戻らない。prepare は自分のコメントを編集せず、決定を変えるときは新しいコメントを投稿する。
+
+次のどれかに当たる論点は、記録を使わず、決まっていない論点として扱う。run の preflight 10 は改めて確認に載せ、依存ではないという決定なら preflight 6 は記録が無いときと同じように依存を決める。
+
+- 書き込める人が記録より後に作成した、目印の無いコメントが論点を変えた
+- 記録が今の本文と食い違う（記録した受け入れ条件の文が本文に無い、依存ではないとした関係を本文が依存として書いている）
+
+書き込めない人のコメントは、記録を覆す根拠にしない。
