@@ -1,19 +1,34 @@
 import { defineConfig } from "oxlint";
 import { IS_ARRAY_HOLDERS, IS_ARRAY_RESTRICTION } from "./scripts/lib/is-array-holders.ts";
 import { VENDORED_GLOBS, agentCopyGlobs } from "./scripts/lib/source-scope.ts";
+import { PENDING_FIXES, pendingOverrides } from "./scripts/gates/code/oxlint-pending.ts";
 
 // 禁じるプロパティ。型ガード isArray を持つファイル（IS_ARRAY_HOLDERS）では、`Array.isArray` だけを除いた一覧を当てる。
 // 規則ごと "off" にしないのは、ここに足した他の禁止まで、そのファイルで外れてしまうからである。
 const RESTRICTED_PROPERTIES = [IS_ARRAY_RESTRICTION];
 
 export default defineConfig({
-  plugins: ["typescript", "unicorn", "oxc"],
+  plugins: ["typescript", "unicorn", "oxc", "import"],
+  // 組み込みのルールで表せない規約（scripts/gates/code/oxlint-plugin/）。
+  jsPlugins: ["./scripts/gates/code/oxlint-plugin/plugin.ts"],
   categories: {
     correctness: "error",
   },
   // エージェント用のコピーとリンクだけを除く。.agents/ を丸ごと除くと rule と private skill の実体も外れる。
   ignorePatterns: [...agentCopyGlobs(import.meta.dirname), ...VENDORED_GLOBS],
-  rules: {},
+  rules: {
+    // 関数の大きさと分岐の数。閾値は oxlint のデフォルト（complexity 20・max-lines-per-function 50 行・max-depth 4・
+    // max-params 3・max-nested-callbacks 10）を使う。大きく分岐の多い関数は、テストとミューテーションテストで振る舞いを確かめにくい。
+    // max-lines-per-function は空行とコメントも数える。テストのファイルでは、後の override で describe のコールバックだけを外す。
+    complexity: "error",
+    "max-lines-per-function": "error",
+    "max-depth": "error",
+    "max-params": "error",
+    "max-nested-callbacks": "error",
+    // 循環参照と参照の向き（docs/tooling.md「関数の大きさ・参照の向き・循環参照」）。向きは import するファイルからの相対パスを解決して判定する。
+    "import/no-cycle": "error",
+    "skills-repo/import-direction": ["error", { root: import.meta.dirname }],
+  },
   overrides: [
     {
       // TypeScript 全体（scripts/・private skill・設定ファイル・types/・配布スキルの雛形・eval の fixture）。
@@ -64,6 +79,26 @@ export default defineConfig({
       },
     },
     {
+      // テストのファイル。describe はファイルの大半を包むので、describe のコールバックだけを行数の上限から外す。
+      // 組み込みのルールは describe だけを外すオプションを持たないので、同じ数え方の JS プラグインのルールに替える。
+      // テストを書く関数は test にそろえる（it を混ぜない）。
+      files: ["scripts/**/*.test.ts"],
+      plugins: ["vitest"],
+      rules: {
+        "max-lines-per-function": "off",
+        "skills-repo/max-lines-per-function-except-describe": "error",
+        "vitest/consistent-test-it": ["error", { fn: "test" }],
+        // vitest プラグインの correctness のルールのうち、このリポジトリのテストが違反するもの。
+        // consistent-test-it を使うためにプラグインを有効にしただけで、これらを採るかは決めていないので外す。
+        // valid-expect は vitest の expect の第 2 引数（失敗したときのメッセージ）を誤りとして扱う。
+        "vitest/valid-expect": "off",
+        "vitest/no-conditional-expect": "off",
+        "vitest/expect-expect": "off",
+        "vitest/require-to-throw-message": "off",
+        "vitest/require-mock-type-parameters": "off",
+      },
+    },
+    {
       // eval の fixture は、エージェントに渡す下流のプロジェクトの断片で、そのプロジェクトの書き方をそのまま持つ
       // （React の雛形の `createRoot(document.getElementById("root")!)` など）。書き換えると eval の入力が変わり、
       // eval を実行し直す必要がある（docs/skill-development.md）。non-null の表明だけを外し、他のルールは残す。
@@ -72,6 +107,9 @@ export default defineConfig({
         "typescript/no-non-null-assertion": "off",
       },
     },
+    // 既存の違反のうち、後で直すもの（ファイルごとに外すルール。scripts/gates/code/oxlint-pending.ts）。
+    // oxlint-pending.test.ts は、直したのに一覧に残ったものを見つけるため、OXLINT_IGNORE_PENDING=1 で一覧を外して実行する。
+    ...(process.env.OXLINT_IGNORE_PENDING === "1" ? [] : pendingOverrides(PENDING_FIXES)),
   ],
   options: {
     // 外した理由が無くなった disable のコメントを残さない（表明を消したのにコメントだけが残る、など）。

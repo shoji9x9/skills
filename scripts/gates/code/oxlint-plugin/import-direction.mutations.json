@@ -1,0 +1,148 @@
+{
+  "$comment": [
+    "import-direction.test.ts の検出能力を示す変異の一覧（Issue #658）。",
+    "散文コメントで持つと古くなるため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。"
+  ],
+  "test_file": "scripts/gates/code/oxlint-plugin/import-direction.test.ts",
+  "mutations": [
+    {
+      "id": "ID-ASSETS",
+      "why": "配布スキルの雛形にも向きを当てる",
+      "file": "scripts/gates/code/oxlint-plugin/import-direction.ts",
+      "find": "    if (from.startsWith(`skills/${skill[1]}/assets/`)) return null;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["skills/x/assets/a.template.ts → skills/lib/b.mjs は向きに反するか: false"]
+    },
+    {
+      "id": "ID-SKILL-PREFIX",
+      "why": "自分のディレクトリかを、/ を含めずに前方一致で判定する",
+      "file": "scripts/gates/code/oxlint-plugin/import-direction.ts",
+      "find": "if (to.startsWith(`skills/${skill[1]}/`)) return null;",
+      "replace": "if (to.startsWith(`skills/${skill[1]}`)) return null;",
+      "occurrences": 1,
+      "expect_failing": ["skills/x/scripts/a.mjs → skills/xy/scripts/b.mjs は向きに反するか: true"]
+    },
+    {
+      "id": "ID-UNRESTRICTED",
+      "why": "scripts/skills/ にも分類の間の向きを当てる",
+      "file": "scripts/gates/code/oxlint-plugin/import-direction.ts",
+      "find": "if (UNRESTRICTED_SCRIPTS.includes(category) || target === \"lib\") return null;",
+      "replace": "if (target === \"lib\") return null;",
+      "occurrences": 1,
+      "expect_failing": [
+        "scripts/skills/x/a.test.ts → scripts/gates/code/b.ts は向きに反するか: false"
+      ]
+    },
+    {
+      "id": "ID-TARGET-LIB",
+      "why": "分類から scripts/lib/ への参照も向きに反するとする",
+      "file": "scripts/gates/code/oxlint-plugin/import-direction.ts",
+      "find": "if (UNRESTRICTED_SCRIPTS.includes(category) || target === \"lib\") return null;",
+      "replace": "if (UNRESTRICTED_SCRIPTS.includes(category)) return null;",
+      "occurrences": 1,
+      "expect_failing": ["scripts/gates/code/a.ts → scripts/lib/b.ts は向きに反するか: false"]
+    },
+    {
+      "id": "ID-SAME-CATEGORY",
+      "why": "同じ分類の中の参照も向きに反するとする",
+      "file": "scripts/gates/code/oxlint-plugin/import-direction.ts",
+      "find": "if (category === undefined || target === undefined || target === category) return null;",
+      "replace": "if (category === undefined || target === undefined) return null;",
+      "occurrences": 1,
+      "expect_failing": [
+        "scripts/gates/code/a.ts → scripts/gates/docs/b.ts は向きに反するか: false"
+      ]
+    },
+    {
+      "id": "ID-CATEGORY",
+      "why": "scripts/ の分類の間（scripts/lib/ から他の分類への参照を含む）に向きを当てない",
+      "file": "scripts/gates/code/oxlint-plugin/import-direction.ts",
+      "find": "  return `scripts/${category}/ は、${allowed} の外の scripts/ を import しない（${to}）`;",
+      "replace": "  return null;",
+      "occurrences": 1,
+      "expect_failing": [
+        "scripts/gates/code/a.ts → scripts/eval/b.ts は向きに反するか: true",
+        "scripts/hooks/a.ts → scripts/gates/docs/b.ts は向きに反するか: true",
+        "scripts/lib/a.ts → scripts/gates/code/b.ts は向きに反するか: true",
+        "scripts/lib/text/a.ts → scripts/skills/x/b.ts は向きに反するか: true",
+        "oxlint: import・export from・import()・require()・import 型の向きに反する参照を報告し、反しない参照は報告しない"
+      ]
+    },
+    {
+      "id": "ID-EXPORT-ALL",
+      "why": "export * from を見ない",
+      "file": "scripts/gates/code/oxlint-plugin/import-direction.ts",
+      "find": "      ExportAllDeclaration: check,\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "oxlint: import・export from・import()・require()・import 型の向きに反する参照を報告し、反しない参照は報告しない"
+      ]
+    },
+    {
+      "id": "ID-DYNAMIC",
+      "why": "import() を見ない",
+      "file": "scripts/gates/code/oxlint-plugin/import-direction.ts",
+      "find": "      ImportExpression: check,\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "oxlint: import・export from・import()・require()・import 型の向きに反する参照を報告し、反しない参照は報告しない"
+      ]
+    },
+    {
+      "id": "ID-IMPORT-TYPE",
+      "why": "import 型（typeof import(\"…\")）を見ない",
+      "file": "scripts/gates/code/oxlint-plugin/import-direction.ts",
+      "find": "      TSImportType: check,\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "oxlint: import・export from・import()・require()・import 型の向きに反する参照を報告し、反しない参照は報告しない"
+      ]
+    },
+    {
+      "id": "ID-REQUIRE",
+      "why": "require() を見ない",
+      "file": "scripts/gates/code/oxlint-plugin/import-direction.ts",
+      "find": "      CallExpression: checkRequire,\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "oxlint: import・export from・import()・require()・import 型の向きに反する参照を報告し、反しない参照は報告しない"
+      ]
+    },
+    {
+      "id": "ID-REQUIRE-NAME",
+      "why": "require 以外の名前の呼び出しも参照として扱う",
+      "file": "scripts/gates/code/oxlint-plugin/import-direction.ts",
+      "find": "if (node.callee?.type !== \"Identifier\" || node.callee.name !== \"require\") return;",
+      "replace": "if (node.callee === undefined) return;",
+      "occurrences": 1,
+      "expect_failing": [
+        "oxlint: import・export from・import()・require()・import 型の向きに反する参照を報告し、反しない参照は報告しない"
+      ]
+    },
+    {
+      "id": "ID-BARE",
+      "why": "パッケージの名前も相対パスとして解決する",
+      "file": "scripts/gates/code/oxlint-plugin/import-direction.ts",
+      "find": "if (!specifier.startsWith(\".\") && !isAbsolute(specifier)) return null;",
+      "replace": "if (specifier === \"\") return null;",
+      "occurrences": 1,
+      "expect_failing": [
+        "resolveFromRoot: 相対パスはルートからのパスにし、パッケージの名前は null にする"
+      ]
+    },
+    {
+      "id": "ID-ROOT-ABSOLUTE",
+      "why": "root が絶対パスかを確かめない",
+      "file": "scripts/gates/code/oxlint-plugin/import-direction.ts",
+      "find": "if (typeof root !== \"string\" || !isAbsolute(root))",
+      "replace": "if (typeof root !== \"string\")",
+      "occurrences": 1,
+      "expect_failing": ["root のオプションが無いか絶対パスでなければ、oxlint の実行を失敗にする"]
+    }
+  ]
+}

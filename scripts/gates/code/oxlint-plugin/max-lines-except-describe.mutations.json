@@ -1,0 +1,139 @@
+{
+  "$comment": [
+    "max-lines-except-describe.test.ts の検出能力を示す変異の一覧（Issue #658）。",
+    "散文コメントで持つと古くなるため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。"
+  ],
+  "test_file": "scripts/gates/code/oxlint-plugin/max-lines-except-describe.test.ts",
+  "mutations": [
+    {
+      "id": "ML-ANY-CALLEE",
+      "why": "describe 以外の呼び出しの引数も外す",
+      "file": "scripts/gates/code/oxlint-plugin/max-lines-except-describe.ts",
+      "find": "return root !== null && GROUPING_CALLEES.includes(root);",
+      "replace": "return root !== null;",
+      "occurrences": 1,
+      "expect_failing": [
+        "describe 以外の呼び出しの引数 が 51 行なら、報告するか: true",
+        "test のコールバック が 51 行なら、報告するか: true",
+        "describe のコールバックの中の test とヘルパー関数は数える"
+      ]
+    },
+    {
+      "id": "ML-NO-GROUPING",
+      "why": "describe のコールバックも数える",
+      "file": "scripts/gates/code/oxlint-plugin/max-lines-except-describe.ts",
+      "find": "if (isIife(fn) || isGroupingCallback(fn)) return;",
+      "replace": "if (isIife(fn)) return;",
+      "occurrences": 1,
+      "expect_failing": [
+        "describe のコールバック が 51 行なら、報告するか: false",
+        "suite のコールバック が 51 行なら、報告するか: false",
+        "describe.skip のコールバック が 51 行なら、報告するか: false",
+        "describe.each(表) のコールバック が 51 行なら、報告するか: false",
+        "describe.each`表` のコールバック が 51 行なら、報告するか: false",
+        "describe のコールバックの中の test とヘルパー関数は数える"
+      ]
+    },
+    {
+      "id": "ML-IIFE",
+      "why": "即時実行の関数も数える",
+      "file": "scripts/gates/code/oxlint-plugin/max-lines-except-describe.ts",
+      "find": "fn.parent?.type === \"CallExpression\" && fn.parent.callee === fn;",
+      "replace": "false;",
+      "occurrences": 1,
+      "expect_failing": ["即時実行の関数 が 51 行なら、報告するか: false"]
+    },
+    {
+      "id": "ML-METHOD-KEY",
+      "why": "メソッドを、キーではなく引数の括弧の行から数える",
+      "file": "scripts/gates/code/oxlint-plugin/max-lines-except-describe.ts",
+      "find": "if (parent.type === \"MethodDefinition\") return parent;",
+      "replace": "if (parent.type === \"MethodDefinition\") return fn;",
+      "occurrences": 1,
+      "expect_failing": ["メソッドと getter は、キーを含む行から数える"]
+    },
+    {
+      "id": "ML-GETTER-KEY",
+      "why": "getter を、キーではなく引数の括弧の行から数える",
+      "file": "scripts/gates/code/oxlint-plugin/max-lines-except-describe.ts",
+      "find": "if (parent.type === \"Property\" && (parent.method === true || parent.kind !== \"init\"))",
+      "replace": "if (parent.type === \"Property\" && parent.method === true)",
+      "occurrences": 1,
+      "expect_failing": ["メソッドと getter は、キーを含む行から数える"]
+    },
+    {
+      "id": "ML-BOUNDARY",
+      "why": "上限と同じ行数の関数も報告する",
+      "file": "scripts/gates/code/oxlint-plugin/max-lines-except-describe.ts",
+      "find": "if (lines > max)",
+      "replace": "if (lines >= max)",
+      "occurrences": 1,
+      "expect_failing": [
+        "境界: 50 行の関数は報告せず、51 行の関数は報告する",
+        "describe のコールバックの中の test とヘルパー関数は数える",
+        "オプションの max を上限にする",
+        "メソッドと getter は、キーを含む行から数える"
+      ]
+    },
+    {
+      "id": "ML-MEMBER",
+      "why": "describe.skip などのメンバーの呼び出しを describe としない",
+      "file": "scripts/gates/code/oxlint-plugin/max-lines-except-describe.ts",
+      "find": "if (node.type === \"MemberExpression\") {",
+      "replace": "if (node.type === \"MemberExpression\") { return null;",
+      "occurrences": 1,
+      "expect_failing": [
+        "describe.skip のコールバック が 51 行なら、報告するか: false",
+        "describe.each(表) のコールバック が 51 行なら、報告するか: false",
+        "describe.each`表` のコールバック が 51 行なら、報告するか: false",
+        "calleeRoot: 名前の根を、メンバー・呼び出し・タグ付きテンプレートの順にたどり、それ以外の形は null にする"
+      ]
+    },
+    {
+      "id": "ML-TAGGED",
+      "why": "タグ付きテンプレートの describe.each を describe としない",
+      "file": "scripts/gates/code/oxlint-plugin/max-lines-except-describe.ts",
+      "find": "else if (node.type === \"TaggedTemplateExpression\") node = node.tag;",
+      "replace": "else if (node.type === \"TaggedTemplateExpression\") return null;",
+      "occurrences": 1,
+      "expect_failing": [
+        "describe.each`表` のコールバック が 51 行なら、報告するか: false",
+        "calleeRoot: 名前の根を、メンバー・呼び出し・タグ付きテンプレートの順にたどり、それ以外の形は null にする"
+      ]
+    },
+    {
+      "id": "ML-OPTION",
+      "why": "オプションの max を読まない",
+      "file": "scripts/gates/code/oxlint-plugin/max-lines-except-describe.ts",
+      "find": "  return value;\n}",
+      "replace": "  return DEFAULT_MAX;\n}",
+      "occurrences": 1,
+      "expect_failing": ["オプションの max を上限にする"]
+    },
+    {
+      "id": "ML-ANY-MEMBER",
+      "why": "describe の修飾でないメンバー（suite.add）も describe として扱う",
+      "file": "scripts/gates/code/oxlint-plugin/max-lines-except-describe.ts",
+      "find": "if (!isGroupingModifier(node)) return null;",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "suite のメソッドの呼び出しの引数 が 51 行なら、報告するか: true",
+        "describe の修飾でないメンバーの呼び出し が 51 行なら、報告するか: true",
+        "計算したプロパティの describe の呼び出し が 51 行なら、報告するか: true",
+        "変数で計算したプロパティの describe の呼び出し が 51 行なら、報告するか: true"
+      ]
+    },
+    {
+      "id": "ML-COMPUTED",
+      "why": "変数で計算したプロパティ（describe[skip]）も describe の修飾として扱う",
+      "file": "scripts/gates/code/oxlint-plugin/max-lines-except-describe.ts",
+      "find": "member.computed !== true &&",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "変数で計算したプロパティの describe の呼び出し が 51 行なら、報告するか: true"
+      ]
+    }
+  ]
+}

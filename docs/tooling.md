@@ -47,6 +47,46 @@ lefthook の glob と `format:js*` スクリプトの glob も、この範囲に
 GitHub Actions は、`actionlint` で構文を、`ghalint` で `permissions`・`timeout-minutes`・`persist-credentials` などの方針をチェックする。
 `ghalint` はリポジトリ全体を読むので pre-commit に入れず、CI の `GitHub Actions lint` だけで実行する。
 
+#### 関数の大きさ・参照の向き・循環参照
+
+大きく分岐の多い関数は、テストとミューテーションテストで振る舞いを確かめにくく、レビューでも読みにくい。
+そこで、`oxlint.config.ts` で関数の大きさを制限する。閾値は oxlint のデフォルトをそのまま使う。
+
+| ルール | 閾値 |
+| --- | --- |
+| `complexity` | 20 |
+| `max-lines-per-function` | 50 行（空行とコメントも数える） |
+| `max-depth` | 4 |
+| `max-params` | 3 |
+| `max-nested-callbacks` | 10 |
+
+テストのファイル（`scripts/**/*.test.ts`）では、`describe` のコールバックだけを行数の上限から外す（`suite` と、`describe.skip`・`describe.each(表)` などの vitest の修飾を含む）。`describe` はファイルの大半を包むので、長くなってもよいとする。
+組み込みの `max-lines-per-function` は `describe` だけを外すオプションを持たないので、テストのファイルでは JS プラグインのルール `skills-repo/max-lines-per-function-except-describe` に替える。
+数え方は組み込みのルールと同じで、`test` のコールバックとヘルパー関数は 50 行を上限にする。
+テストを書く関数は `test` にそろえ、`vitest/consistent-test-it` が `it` を失敗にする。
+vitest プラグインの correctness のルールのうち、このリポジトリのテストが違反するもの（`valid-expect` など）は、採るかを決めていないので外している。
+
+共有ライブラリが上位のチェックやツールに依存しないように、参照の向きを決める。
+JS プラグインのルール `skills-repo/import-direction` が、import するファイルからの相対パスを解決して判定する。
+判定する参照は、`import`・`export from`・`import()`・`require()`・型の `import("…")` である。
+組み込みの `no-restricted-imports` の `patterns` は書かれた specifier の字面で照合するので、`../../skills/` が `scripts/skills/` と `skills/` のどちらを指すかを区別できない。
+
+- `scripts/` の各分類（`lib/`・`gates/`・`eval/`・`hooks/` など）は、自分の分類と `scripts/lib/` の他を import しない。
+  そのため、`scripts/lib/` は `scripts/` の他の分類を import しない。
+  `scripts/skills/` はスキルのスクリプトのテストと fixture の置き場所なので、この向きを当てない。
+- 配布スキル（`skills/<name>/`）は、自分のディレクトリの外を import しない。利用者のプロジェクトには `skills/<name>/` だけが入るからである。
+  雛形（`skills/<name>/assets/`）は利用者のプロジェクトへコピーしてから使い、相対パスもコピー先で解決するので、対象にしない。
+
+循環参照は `import/no-cycle` が失敗にする。import をたどるので、pre-commit で 1 ファイルだけを渡しても循環を検出する。
+
+ルールを有効にしたときに既にあった違反は、`scripts/gates/code/oxlint-pending.ts` の一覧に、ファイルとルールの組で載せて外している。
+一覧は後で直すものだけで、新しいファイルと一覧に無いルールは外さない。
+行の disable コメントで外さないのは、配布スキルのファイルが利用者のプロジェクトへ入り、そこでは使われない disable になるためである。
+直したら、そのルールを一覧から消す。直したのに一覧に残った組は、`oxlint-pending.test.ts` が pre-commit と CI で失敗にする。
+残すと、そのファイルに新しく入った同じ種類の違反を見逃すからである。
+
+これらのルールは、pre-commit と CI の両方で実行し、CI だけで実行するルールは置かない。
+
 ファイルの種類に依らない横断のチェックは、pre-commit と CI の `Lint` ジョブで実行する。どのチェックも、対象が 0 件のときは成功にしない。
 
 | スクリプト（`scripts/gates/` からのパス） | チェックする内容 |
