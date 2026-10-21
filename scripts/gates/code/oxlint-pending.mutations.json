@@ -1,0 +1,104 @@
+{
+  "$comment": [
+    "oxlint-pending.test.ts の検出能力を示す変異の一覧（Issue #658）。",
+    "散文コメントで持つと古くなるため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。"
+  ],
+  "test_file": "scripts/gates/code/oxlint-pending.test.ts",
+  "mutations": [
+    {
+      "id": "PD-STALE-NONE",
+      "why": "直したのに残った組を返さない",
+      "file": "scripts/gates/code/oxlint-pending.ts",
+      "find": "rules.filter((rule) => !found.has(`${file}\\u0000${rule}`))",
+      "replace": "rules.filter(() => false)",
+      "occurrences": 1,
+      "expect_failing": [
+        "stalePending: 違反の無い組だけを返し、別のファイルや別のルールの違反を取り違えない"
+      ]
+    },
+    {
+      "id": "PD-STALE-FILE",
+      "why": "違反をルールだけで照合し、ファイルを見ない",
+      "file": "scripts/gates/code/oxlint-pending.ts",
+      "find": "const found = new Set(violations.map((v) => `${v.file}\\u0000${v.rule}`));",
+      "replace": "const found = new Set(violations.flatMap((v) => Object.keys(pending).map((f) => `${f}\\u0000${v.rule}`)));",
+      "occurrences": 1,
+      "expect_failing": [
+        "stalePending: 違反の無い組だけを返し、別のファイルや別のルールの違反を取り違えない"
+      ]
+    },
+    {
+      "id": "PD-GROUP-ORDER",
+      "why": "ルールの並びが違う組を別の override にする",
+      "file": "scripts/gates/code/oxlint-pending.ts",
+      "find": "const key = [...rules].sort().join(\" \");",
+      "replace": "const key = rules.join(\" \");",
+      "occurrences": 1,
+      "expect_failing": [
+        "pendingOverrides: 同じルールの組を持つファイルを 1 つの override にまとめ、ルールを off にする"
+      ]
+    },
+    {
+      "id": "PD-EMPTY",
+      "why": "ルールが空の組を受け付け、名前が空のルールの override を作る",
+      "file": "scripts/gates/code/oxlint-pending.ts",
+      "find": "if (rules.length === 0)",
+      "replace": "if (false)",
+      "occurrences": 1,
+      "expect_failing": ["pendingOverrides: ルールが空の組は、外すものが無いので例外にする"]
+    },
+    {
+      "id": "PD-PLAN-SOURCES",
+      "why": "きっかけのファイルが staged でも、全体を検査しない",
+      "file": "scripts/gates/code/oxlint-pending-check.ts",
+      "find": "if (staged === null || staged.some(triggers)) return { mode: \"all\" };",
+      "replace": "if (staged === null) return { mode: \"all\" };",
+      "occurrences": 1,
+      "expect_failing": [
+        "checkPlan: staged が無ければ全体、きっかけのファイルかスキルの SKILL.md があれば全体、一覧と重なればそのファイル、どれでもなければ検査しない",
+        "CLI: stdin の staged のファイルから範囲を出し、検査しないなら何も出さない"
+      ]
+    },
+    {
+      "id": "PD-CLOSURE-BARE",
+      "why": "パッケージの import もファイルとしてたどる",
+      "file": "scripts/gates/code/oxlint-pending-check.ts",
+      "find": "if (fileName.startsWith(\".\"))",
+      "replace": "if (true)",
+      "occurrences": 1,
+      "expect_failing": [
+        "importClosure: 相対 import をたどり、パッケージの import はたどらない",
+        "CLI: stdin の staged のファイルから範囲を出し、検査しないなら何も出さない"
+      ]
+    },
+    {
+      "id": "PD-UNLISTED-PENDING",
+      "why": "一覧にある組の違反も、一覧に無い違反として数える",
+      "file": "scripts/gates/code/oxlint-pending.ts",
+      "find": "return violations.filter((v) => !(pending[v.file] ?? []).some((r) => r === v.rule));",
+      "replace": "return violations.filter(() => true);",
+      "occurrences": 1,
+      "expect_failing": ["unlistedViolations: 一覧で外していない違反を、ルールに依らずすべて返す"]
+    },
+    {
+      "id": "PD-PARSE-ALL",
+      "why": "CLI の all を、all という名前のファイルとして読む",
+      "file": "scripts/gates/code/oxlint-pending-check.ts",
+      "find": "lines.length === 1 && lines[0] === \"all\"",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": ["parsePlan: CLI の出力を範囲に戻す"]
+    },
+    {
+      "id": "PD-RUNTIME-INPUTS",
+      "why": "スキルの SKILL.md が staged でも、全体を検査しない",
+      "file": "scripts/gates/code/oxlint-pending-check.ts",
+      "find": "sources.has(f) || RUNTIME_INPUTS.some((re) => re.test(f))",
+      "replace": "sources.has(f)",
+      "occurrences": 1,
+      "expect_failing": [
+        "checkPlan: staged が無ければ全体、きっかけのファイルかスキルの SKILL.md があれば全体、一覧と重なればそのファイル、どれでもなければ検査しない"
+      ]
+    }
+  ]
+}

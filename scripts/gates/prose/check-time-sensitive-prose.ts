@@ -3,7 +3,7 @@
 // 経過は Tier 4（.kaizen/・Issue・PR）に書く（.agents/rules/doc-altitude.md）。規則は 2 つの群からなる。
 //
 // 1. 時間の語と日付（規則 time-word・date）
-// - 対象は scripts/lib/doc-scan.ts の走査対象（Tier 1〜3）。Markdown はコードフェンスとインラインコードを除いた本文、
+// - 対象は scripts/gates/docs/doc-scan-files.ts の走査対象（Tier 1〜3）。Markdown はコードフェンスとインラインコードを除いた本文、
 //   それ以外のファイルはコメントの行（`//`・`/*`・`*`・`#` で始まる行と、行の途中の ` // `・`/*`・` # ` より後ろ）を読む。
 //   `*` で始まる行は、式の継続行でもコメントとして読む（日付と時間の語が式に現れることはまず無い）。
 // - time-word: 「現状は」「現状では」「現時点」「当面」「今のところ」「いまのところ」「目下」。
@@ -52,8 +52,8 @@ import {
   fencedLines,
   loadPending,
   prunePending,
-  scannedFiles,
 } from "../../lib/doc-scan.ts";
+import { scannedFiles } from "../docs/doc-scan-files.ts";
 import { errorMessage } from "../../lib/errors.ts";
 
 // 対象: ルート直下のファイルと、配下を再帰で走査するディレクトリ。

@@ -1,6 +1,6 @@
 {
   "$comment": [
-    "scripts/gates/docs/check-doc-refs.test.ts の検出能力を示す変異の一覧（参照のチェックと、scripts/lib/doc-scan.ts の走査対象・保留）。",
+    "scripts/gates/docs/check-doc-refs.test.ts の検出能力を示す変異の一覧（参照のチェックと、scripts/gates/docs/doc-scan-files.ts の走査対象・scripts/lib/doc-scan.ts の保留）。",
     "散文コメントで持つと古くなるため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。",
     "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
   ],
@@ -395,7 +395,7 @@
     {
       "id": "DS-TIER4",
       "why": "Tier 4 も読む",
-      "file": "scripts/lib/doc-scan.ts",
+      "file": "scripts/gates/docs/doc-scan-files.ts",
       "find": "if (tier === null || tier === 4) continue;",
       "replace": "if (tier === null) continue;",
       "occurrences": 1,
@@ -404,7 +404,7 @@
     {
       "id": "DS-OUTSIDE",
       "why": "階層の外も読む",
-      "file": "scripts/lib/doc-scan.ts",
+      "file": "scripts/gates/docs/doc-scan-files.ts",
       "find": "if (tier === null || tier === 4) continue;",
       "replace": "if (tier === 4) continue;",
       "occurrences": 1,
@@ -413,7 +413,7 @@
     {
       "id": "DS-EVALINPUT",
       "why": "eval の入力も読む",
-      "file": "scripts/lib/doc-scan.ts",
+      "file": "scripts/gates/docs/doc-scan-files.ts",
       "find": "|| EVAL_INPUT_RE.test(file)) continue;",
       "replace": ") continue;",
       "occurrences": 1,

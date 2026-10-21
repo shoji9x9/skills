@@ -1,7 +1,8 @@
 ---
 date: 2026-10-17
 type: rule
-priority: medium
+priority: high
+confidence: high
 status: pending
 applied-to: []
 session: claude-code
@@ -22,6 +23,11 @@ PR #682 で、型ガードの絞る型を検査する `check-type-guard-brands.t
 - なぜ形を変えなかったか → `.agents/rules/state-space-and-mutation-proof.md` の「レビューが同じ種類の誤りを 3 回以上指摘したら、入力の形式を疑う」を、2 巡目の時点で当てなかった
 - 代わりの方法 → 型チェッカーの `getSignatureFromDeclaration` と `getTypePredicateOfSignature` なら、別名・オーバーロード・文脈の型を TypeScript 自身が解決する
 
+## 根拠
+
+同じ原因での 3 件目の再発を、レビューの指摘とその修正で確かめた。
+PR #682（型述語）、PR #698（子プロセスの起動の参照）、Issue #658（モジュールの参照）の 3 件で、どれも書き方を思いついた順に列挙し、レビューが抜けを指摘した。
+
 ## 提案
 
 型述語のように書き方が多い宣言を読むチェックは、構文を自分でたどる前に、型チェッカーの API で読めるかを確かめる。
@@ -36,3 +42,10 @@ PR #682 で、型ガードの絞る型を検査する `check-type-guard-brands.t
 1 巡目は分割代入・変数への代入・`promisify`・要素アクセス・名前空間の import で、2 巡目は `import cp = require(...)`・インスタンス化式・再エクスポートだった。
 1 巡目では、追う書き方を足すのをやめ、呼び出し以外の参照をすべて検出する許可リストの形に変えた。それでも、名前を集める側（import の形）と型の位置の判定に、同じ種類の抜けが残った。
 型チェッカーの `getSymbolAtLocation` と `getAliasedSymbol` で、呼び出し先が `child_process` の宣言に解決されるかを見れば、別名と再エクスポートを TypeScript 自身が解決する。
+
+## 再発（Issue #658）
+
+参照の向きを判定する oxlint の JS プラグインのルール（`import-direction.ts`）で、モジュールを参照する書き方を思いついた順に挙げた（`import`・`export from`・`import()`）。
+レビューで `require()`（`createRequire` で作った関数を含む）と型の `import("…")` の抜けを指摘された。
+同じプラグインの `describe` の判定でも、名前の根だけを見たため `suite.add` の引数まで除外していた。
+原因は前の 2 件と同じで、構文の形を文法や型チェッカーから導かず、思いついた書き方から列挙したことである。

@@ -47,6 +47,54 @@ lefthook の glob と `format:js*` スクリプトの glob も、この範囲に
 GitHub Actions は、`actionlint` で構文を、`ghalint` で `permissions`・`timeout-minutes`・`persist-credentials` などの方針をチェックする。
 `ghalint` はリポジトリ全体を読むので pre-commit に入れず、CI の `GitHub Actions lint` だけで実行する。
 
+#### 関数の大きさ・参照の向き・循環参照
+
+大きく分岐の多い関数は、テストとミューテーションテストで振る舞いを確かめにくく、レビューでも読みにくい。
+そこで、`oxlint.config.ts` で関数の大きさを制限する。閾値は oxlint のデフォルトをそのまま使う。
+
+| ルール | 閾値 |
+| --- | --- |
+| `complexity` | 20 |
+| `max-lines-per-function` | 50 行（空行とコメントも数える） |
+| `max-depth` | 4 |
+| `max-params` | 3 |
+| `max-nested-callbacks` | 10 |
+
+テストのファイル（`scripts/**/*.test.ts`）では、vitest から import した `describe` のコールバックだけを行数の上限から外す。
+`suite`・名前空間の import（`v.describe`）・vitest の修飾（`describe.skip`・`describe.each(表)` など）も `describe` として扱う。`describe` はファイルの大半を包むので、長くなってもよいとする。
+組み込みの `max-lines-per-function` は `describe` だけを外すオプションを持たないので、テストのファイルでは JS プラグインのルール `skills-repo/max-lines-per-function-except-describe` に替える。
+数え方は組み込みのルールと同じで、`test` のコールバックとヘルパー関数は 50 行を上限にする。
+テストを書く関数は `test` にそろえ、`vitest/consistent-test-it` が `it` を失敗にする。
+vitest プラグインの correctness のルールのうち、このリポジトリのテストが違反するもの（`valid-expect` など）は外す。`consistent-test-it` を使うためにプラグインを有効にしただけで、これらのルールは対象にしていないからである。採るときは、そのルールの違反を直してから、`off` の行を消す。
+
+共有ライブラリが上位のチェックやツールに依存しないように、参照の向きを決める。
+JS プラグインのルール `skills-repo/import-direction` が、import するファイルからの相対パスを解決して判定する。
+参照は、書き方を 1 つずつ挙げずに、次の 3 つの定義で集める。
+構文の参照は、モジュールを指す構文木の節点（`import`・`export from`・`import()`・`import x = require()`・型の `import("…")`）から集める。
+呼び出しと `new` の引数は、相対パスの文字列を渡すものを、関数に依らず参照として扱う（`require()`・`createRequire` の戻り値・`vi.mock`・`new URL` など）。ただし、拡張子が JS・TS・JSON のパスに限る。拡張子の無いパス（`../..`）は、プロジェクトのルートを探す `join` のようにディレクトリを求める呼び出しにも使うので数えない。
+コメントの参照（JSDoc の型・`@import`・`/// <reference path>`）は、TypeScript のパーサで読む。`@example` のコードは参照として扱わない。
+式を埋め込んだテンプレート文字列や、`join(here, "..", "lib")` のように複数の引数に分けたパスは、組み合わせた先を決められないので判定しない。
+引数の相対パスは、書いたファイルからのパスとして解決する。cwd やリポジトリのルートを基準にした文字列で誤って報告されるときは、基準を変数にして渡す。
+組み込みの `no-restricted-imports` の `patterns` は書かれた specifier の字面で照合するので、`../../skills/` が `scripts/skills/` と `skills/` のどちらを指すかを区別できない。
+
+- `scripts/` の各分類（`lib/`・`gates/`・`eval/`・`hooks/` など）は、自分の分類と `scripts/lib/` の他を import しない。
+  そのため、`scripts/lib/` は `scripts/` の他の分類を import しない。
+  `scripts/skills/` はスキルのスクリプトのテストと fixture の置き場所なので、この向きを当てない。
+- 配布スキル（`skills/<name>/`）は、自分のディレクトリの外を import しない。利用者のプロジェクトには `skills/<name>/` だけが入るからである。
+  雛形（`skills/<name>/assets/`）は利用者のプロジェクトへコピーしてから使い、相対パスもコピー先で解決するので、対象にしない。
+
+循環参照は `import/no-cycle` が失敗にする。import をたどるので、pre-commit で 1 ファイルだけを渡しても循環を検出する。
+
+ルールを有効にしたときに既にあった違反は、`scripts/gates/code/oxlint-pending.ts` の一覧に、ファイルとルールの組で載せて外している。
+一覧は後で直すものだけで、新しいファイルと一覧に無いルールは外さない。
+行の disable コメントで外さないのは、配布スキルのファイルが利用者のプロジェクトへ入り、そこでは使われない disable になるためである。
+直したら、そのルールを一覧から消す。直したのに一覧に残った組は、`oxlint-pending.test.ts` が pre-commit と CI で失敗にする。
+残すと、そのファイルに新しく入った同じ種類の違反を見逃すからである。
+直さずに一覧から組を消した commit も、同じテストが失敗にする。一覧の外し方やルールの判定を変えるファイル（`oxlint.config.ts` とプラグインから import をたどったファイルと、`package.json`・`pnpm-lock.yaml`）が staged なら、リポジトリ全体を検査するからである。
+pre-commit の検査は、他のジョブと同じく作業ツリーの内容に oxlint を当てる。直したファイルを stage せずに一覧だけを commit すると pre-commit は通り、CI で失敗する。
+
+これらのルールは、pre-commit と CI の両方で実行し、CI だけで実行するルールは置かない。
+
 ファイルの種類に依らない横断のチェックは、pre-commit と CI の `Lint` ジョブで実行する。どのチェックも、対象が 0 件のときは成功にしない。
 
 | スクリプト（`scripts/gates/` からのパス） | チェックする内容 |
