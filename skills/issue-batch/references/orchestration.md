@@ -254,8 +254,8 @@ Issue ごとの専用の worktree で、`issue-start <Issue URL> --pr` と同じ
   範囲を省くと、upstream より先の commit と commit していない変更が対象になり、upstream が無ければローカルの `main` と比べる。
   ローカルの `main` が古いと、取り込み済みの他の PR の変更まで対象に入るので、範囲を必ず渡す。範囲を渡すために、レビューの前に変更を commit する。
   commit する前に `git status` で変更を挙げ、Issue の変更に関係するファイルだけを stage する。
-  レビューの後に要らないと分かったファイルは、消す commit を足す（`--amend` と force push は使わない）。
-  消す commit を足しても、ファイルの中身は push した履歴に残る。秘密を含むファイルを commit したときは push せず、その Issue を BLOCKED にする。
+  レビューの後に要らないと分かった変更は、新しいファイルなら消す commit を、既存のファイルの変更なら base の版に戻す commit を足す（`--amend` と force push は使わない）。
+  足した commit で戻しても、元の中身は履歴に残る。秘密を含むファイルを commit したときは push せず、その Issue を BLOCKED にして、履歴から取り除く方法を利用者に任せる。
   非対話の `claude -p` で呼ぶ方法は、今の CLI で実際に実行して動いた場合だけ使う。動かなければ BLOCKED にする（[Claude Code commands](https://code.claude.com/docs/en/commands)）。
 - GitHub Copilot CLI: `/review` の後に、レビューの対象を文で書いて渡す（[GitHub Docs](https://docs.github.com/en/copilot/how-tos/copilot-cli/automate-copilot-cli/run-cli-programmatically#code-review-a-branch)）。
   文書は対象を指定する構文を定めていないので、commit していない差分には次のコマンドを使う。
@@ -319,16 +319,16 @@ Claude Code では、直した変更を commit し、`<reviewed_through_sha の 
 `writing-style` の読み直しで直した文書や、レビューの後に足した修正がこれに当たる。
 次の 2 つは例外とし、ローカルレビューにかけない。
 
-- Kaizen の学び。範囲の `git diff --name-status` で、`.kaizen/` の直下にあり、次のどちらかに当たるファイルだけである。
-  状態が `A` で、`kaizen extract` が作った学び。状態が `M` で、同じ抽出の後の自動の忘却が `status` を `forgotten` に書き換えただけの学び。
-  それ以外の `.kaizen/` の変更（手で書いた変更・消したファイル・archive への移動・`status` をほかの値に変えた変更）は例外にしない
+- Kaizen の学び。`kaizen extract` とその後の自動の忘却が作るか書き換えた `.kaizen/` 直下のファイルだけである（新しい学び・再発で更新した学び・`status` を `forgotten` にした学び）。
+  抽出の前後で `git status` を比べて、抽出が変えたファイルを挙げる。それ以外の `.kaizen/` の変更（エージェントが手で書いた変更・消したファイル・archive への移動）は例外にしない
 - commit を記録する Hook が、commit のたびに自動で足す記録（利用実績の記録の行など）。ツールが生成するデータで、手で書いた変更を含まない。
   範囲の `git diff --name-status` で、状態が `A` か `M` で、パスがその Hook の定める記録の置き場所にあるファイルだけが当たる。消したファイル（`D`）や名前を変えたファイル（`R`）は例外にしない
 
 どちらも PR に入るので、`pr-finalize-loop` のレビューが merge の前に見る。
 学びをローカルレビューの後に作るのは、ローカルレビューで見つかった学びを記録に入れるためである。
 例外を当てる前に、`pr-finalize-loop` の `scripts/resolve-review-tool.sh` で `review_tool` を読む（値を読むだけで、固定も受け渡しもしない）。
-値が `none` のときと、exit 0 にならず値を読めなかったときは、PR のレビューが無いものとして例外を当てない。学びも Hook の記録も、ほかの変更と同じにレビューする。
+値が `none` のときは、PR のレビューが無いので例外を当てない。学びも Hook の記録も、ほかの変更と同じにレビューする。
+exit 0 にならず値を読めなかったときは、handoff でも同じ設定を読めずに止まるので、push の前にその Issue を BLOCKED にする。
 
 レビューする範囲は、`reviewed_through_sha` に記録した SHA から今の HEAD まで（`<reviewed_through_sha の SHA>..<HEAD の完全な SHA>`）にする。
 範囲を決めたら、次の順に当てる。
@@ -373,14 +373,14 @@ console、主要な要素、Network と API、副作用の無い操作を確か�
 transcript を特定できないエージェントでは、何もしないで進むことにせず、BLOCKED にする。
 
 学びが作られた場合は、実装の変更とは別の commit にする。
-記録の commit では、学びのファイルと、同じ抽出の後の自動の忘却が書き換えた学びだけを stage し、規約どおりに commit する。commit を記録する Hook がその commit に自動で足す記録は、そのまま入れてよい。
-学びはローカルレビューにかけず、PR のレビューに任せる。ただし、`review_tool` が `none` か読めないときは例外を当てない（「ローカルレビュー」の「ローカルレビューの後に生じた変更」）。
+記録の commit では、抽出とその後の自動の忘却が作るか書き換えた学び（新しい学び・再発で更新した学び・忘却した学び）だけを stage し、規約どおりに commit する。commit を記録する Hook がその commit に自動で足す記録は、そのまま入れてよい。
+学びはローカルレビューにかけず、PR のレビューに任せる。ただし、`review_tool` が `none` のときは例外を当てず、読めないときは push の前に BLOCKED にする（「ローカルレビュー」の「ローカルレビューの後に生じた変更」）。
 
 kaizen の commit の前のチェックが実装の commit を止めたときは、次の順にする。
 
 1. `kaizen extract --current --record-pending` で候補を確かめ、記録する。チェックが促す `kaizen --current` は利用者の承認を求めるので、run の中では使わない。
    `--record-pending` は、記録の後の `kaizen-extract-done.sh` まで行うので、同じ commit をもう一度実行すればチェックを通る。
-2. 学びのファイルと、同じ抽出の後の自動の忘却が書き換えた学びを stage から外し、実装の変更だけを commit し直す。
+2. 抽出とその後の自動の忘却が作るか書き換えた学びを stage から外し、実装の変更だけを commit し直す。
    止められた commit のために Hook が stage した記録（利用実績の記録など）は、stage したまま実装の commit に入れる。
 3. 2 で外した学びを、別の commit にする。
 

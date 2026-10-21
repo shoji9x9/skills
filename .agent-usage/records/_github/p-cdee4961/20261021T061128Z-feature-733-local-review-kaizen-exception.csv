@@ -60,3 +60,6 @@ coverage:github:2026-10-20T07:39:07.865Z:2026-10-21T07:47:48.376Z,coverage,2026-
 ci:39564809105:1,ci,2026-10-21T07:56:20.663Z,p-cdee4961,github-actions,,,,2026-10-21T07:50:19.000Z,2026-10-21T07:50:20.000Z,Asia/Tokyo,feature/733-local-review-kaizen-exception,733,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 ci:39564809085:1,ci,2026-10-21T07:56:20.663Z,p-cdee4961,github-actions,,,,2026-10-21T07:50:19.000Z,2026-10-21T07:54:18.000Z,Asia/Tokyo,feature/733-local-review-kaizen-exception,733,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-10-20T07:47:48.376Z:2026-10-21T07:56:20.663Z,coverage,2026-10-21T07:56:20.663Z,p-cdee4961,,,,,2026-10-20T07:47:48.376Z,2026-10-21T07:56:20.663Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:39565831918:1,ci,2026-10-21T08:02:36.149Z,p-cdee4961,github-actions,,,,2026-10-21T07:58:50.000Z,2026-10-21T07:58:51.000Z,Asia/Tokyo,feature/733-local-review-kaizen-exception,733,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:39565831979:1,ci,2026-10-21T08:02:36.149Z,p-cdee4961,github-actions,,,,2026-10-21T07:58:50.000Z,2026-10-21T08:02:30.000Z,Asia/Tokyo,feature/733-local-review-kaizen-exception,733,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-20T07:56:20.663Z:2026-10-21T08:02:36.149Z,coverage,2026-10-21T08:02:36.149Z,p-cdee4961,,,,,2026-10-20T07:56:20.663Z,2026-10-21T08:02:36.149Z,Asia/Tokyo,,,,,,,,,,,,ok,
