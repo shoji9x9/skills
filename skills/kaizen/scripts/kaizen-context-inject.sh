@@ -109,59 +109,17 @@ if [ ! -d .kaizen ]; then
 	exit 0
 fi
 
-# frontmatter（最初の `---` ブロック）の 1 フィールドを取り出す。
-# `sed ... | head -n 1` は使わない。大きなノートでは head が先に閉じて sed が SIGPIPE で死に、
-# pipefail 下でスクリプトごと 141 で落ちる（実測: 5.7MB のノートで再現）。awk なら自前で exit
-# するのでパイプが要らず、読めないファイルは `|| true` で空文字にできる。
-# 機構は `head` に限らない: **早く抜ける読み手 × pipefail × 終了コードを真偽値として読む**形は
-# すべて当たる（`grep -q` / `grep -Eq` も一致した時点で抜ける）。読み手が抜けた後に書き手が
+# 真偽を読む形の注意: **早く抜ける読み手 × pipefail × 終了コードを真偽値として読む**形は
+# すべて当たる（`head`・`grep -q`・`grep -Eq` は一致した時点で抜ける）。読み手が抜けた後に書き手が
 # 書けば EPIPE → SIGPIPE で 141 になり、**一致しているのに「一致しなかった」と読む。**
 # 落ちるかどうかは書き手の出力に内側の改行があるかに依るため、いま落ちないことを根拠にしない。
 # 真偽を読むならパイプを使わず herestring（`<<<`）かプロセス置換で渡す。
-# 本文中の `priority:` 等を拾わないよう、走査は frontmatter 内に限る。
-frontmatter_field() {
-	awk -v key="$2" '
-		BEGIN { fm = 0 }
-		/^---[[:space:]]*$/ {
-			fm++
-			if (fm == 2) exit
-			next
-		}
-		fm == 1 && index($0, key ":") == 1 {
-			value = substr($0, length(key) + 2)
-			sub(/^[[:space:]]+/, "", value)
-			sub(/[[:space:]]+$/, "", value)
-			print value
-			exit
-		}
-	' "$1" 2>/dev/null || true
-}
 
-# confidence は、kaizen-status-check.sh が通す書き方（1 回だけ書いたキーと high・medium・low の値）を、チェックと同じ値として読む。
-# 引用符で囲んだキー・キーとコロンの間の空白・行末のコメント・対になった引用符を受け付ける（`"confidence": 'low' # 1 回の観測` は low）。
-# チェックが止める書き方（キーの重なり・キーに付けたアンカーやタグ・`null` と `~`）は、commit されないので読み方をそろえていない。
-# ここでは最初の値を返し、`null` と `~` は空として unknown と出す。
-# 他の欄は、kaizen-forget.sh などと同じ取り決めの frontmatter_field で読む（読み方を変えるなら、すべてのスクリプトを同時に変える）。
-frontmatter_confidence() {
-	awk '
-		BEGIN { fm = 0 }
-		/^---[[:space:]]*$/ {
-			fm++
-			if (fm == 2) exit
-			next
-		}
-		fm == 1 && /^("confidence"|'"'"'confidence'"'"'|confidence)[[:space:]]*:/ {
-			value = $0
-			sub(/^("confidence"|'"'"'confidence'"'"'|confidence)[[:space:]]*:/, "", value)
-			sub(/[[:space:]]+#.*$/, "", value)
-			gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
-			if (value == "null" || value == "~") value = ""
-			if (value ~ /^".*"$/ || value ~ /^'"'"'.*'"'"'$/) value = substr(value, 2, length(value) - 2)
-			print value
-			exit
-		}
-	' "$1" 2>/dev/null || true
-}
+# frontmatter の欄は、共通ライブラリの kaizen_frontmatter_values で読む（同梱のスクリプトで読み方を 1 つにする）。
+# 共通ライブラリを読めないときは、どの学びが pending かを判定できないので、何も注入しない（警告は読み込みの箇所で出した）。
+if ! declare -f kaizen_frontmatter_values >/dev/null 2>&1; then
+	exit 0
+fi
 
 # pending な学びを priority 降順（high / medium / low / 不明）、同順位は日付昇順に並べる。
 # 未定義・未知の priority は既存ノートとの後方互換のため失敗させず末尾へ回す。
@@ -174,15 +132,18 @@ for f in .kaizen/*.md; do
 	[ -e "${f}" ] || continue
 	# status も frontmatter 限定で判定する。全文 grep だと本文やコードブロックの
 	# `status: pending` を拾い、frontmatter が applied / rejected / forgotten のノートまで注入してしまう。
-	[ "$(frontmatter_field "${f}" status)" = "pending" ] || continue
-	priority=$(frontmatter_field "${f}" priority)
+	{
+		IFS= read -r status
+		IFS= read -r priority
+		IFS= read -r date_value
+	} <<<"$(kaizen_frontmatter_values "${f}" status priority date)" || true
+	[ "${status}" = "pending" ] || continue
 	case "${priority}" in
 	high) rank=0 ;;
 	medium) rank=1 ;;
 	low) rank=2 ;;
 	*) rank=3 ;;
 	esac
-	date_value=$(frontmatter_field "${f}" date)
 	printf '%s\t%s\t%s\n' "${rank}" "${date_value:-9999-99-99}" "${f}" >>"${pending_index}" || exit 0
 done
 sort -t $'\t' -k1,1n -k2,2 -k3,3 "${pending_index}" -o "${pending_index}" 2>/dev/null || exit 0
@@ -218,8 +179,13 @@ while IFS=$'\t' read -r _rank _date f; do
 	# meta も frontmatter に限る。全文を grep すると、本文の `type:` などを拾って誤った値になる。
 	# confidence が無い学びは、欄を足す前に書いたもので、確信度が分からないものとして扱う（references/extract.md）。
 	# 確信度の低い学びを高い学びと同じ見え方にしないよう、無いときも unknown と出す。
-	confidence=$(frontmatter_confidence "$f")
-	meta="date: $(frontmatter_field "$f" date) type: $(frontmatter_field "$f" type) priority: $(frontmatter_field "$f" priority) confidence: ${confidence:-unknown} "
+	{
+		IFS= read -r date_value
+		IFS= read -r type_value
+		IFS= read -r priority
+		IFS= read -r confidence
+	} <<<"$(kaizen_frontmatter_values "$f" date type priority confidence)" || true
+	meta="date: ${date_value} type: ${type_value} priority: ${priority} confidence: ${confidence:-unknown} "
 	summary_src=$(first_line_under "## 提案" "$f")
 	[ -n "$summary_src" ] || summary_src=$(first_line_under "## 事象" "$f")
 	# 先頭の箇条書き記号と「`type: rule`。」のような接頭辞を落として読みやすくする。

@@ -1,0 +1,120 @@
+{
+  "$comment": [
+    "kaizen-frontmatter-values.test.ts のうち、学びのノートの frontmatter の読み方を同梱のスクリプトの間でそろえること（Issue #744）を守るテストの検出能力を示す変異の一覧。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/skills/kaizen/frontmatter/kaizen-frontmatter-values.test.ts",
+  "mutations": [
+    {
+      "id": "FM-LAST-DUPLICATE",
+      "why": "重なったキーで最後の値を返す（kaizen-forget.sh が書き換える最初の status の行と食い違う）",
+      "file": "skills/kaizen/scripts/kaizen-hook-common.sh",
+      "find": "if (!(i in seen) && index($0, key[i] \":\") == 1) {",
+      "replace": "if (index($0, key[i] \":\") == 1) {",
+      "occurrences": 1,
+      "expect_failing": ["共通の関数が欄を読む: 重なったキーは最初の値"]
+    },
+    {
+      "id": "FM-PREFIX-KEY",
+      "why": "キーの直後のコロンを確かめない（キーを前方に含む別のキーやコロンの前に空白を書いたキーを読む）",
+      "file": "skills/kaizen/scripts/kaizen-hook-common.sh",
+      "find": "if (!(i in seen) && index($0, key[i] \":\") == 1) {",
+      "replace": "if (!(i in seen) && index($0, key[i]) == 1) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "共通の関数が欄を読む: キーを前方に含む別のキー",
+        "共通の関数が欄を読む: コロンの前の空白"
+      ]
+    },
+    {
+      "id": "FM-TRAILING-KEPT",
+      "why": "値の後ろの空白を落とさない",
+      "file": "skills/kaizen/scripts/kaizen-hook-common.sh",
+      "find": "\t\t\t\t\tsub(/[[:space:]]+$/, \"\", value)\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "共通の関数が欄を読む: 前後の空白を落とす",
+        "共通の関数が欄を読む: CRLF の改行",
+        "status-check が通す書き方は、共通の関数が同じ値として読む: status の 値の後の空白",
+        "status-check が通す書き方は、共通の関数が同じ値として読む: type の 値の後の空白",
+        "status-check が通す書き方は、共通の関数が同じ値として読む: priority の 値の後の空白",
+        "status-check が通す書き方は、共通の関数が同じ値として読む: date の 値の後の空白"
+      ]
+    },
+    {
+      "id": "FM-BODY-READ",
+      "why": "frontmatter の外の行も読む",
+      "file": "skills/kaizen/scripts/kaizen-hook-common.sh",
+      "find": "\t\tfm == 1 {\n",
+      "replace": "\t\tfm >= 0 {\n",
+      "occurrences": 1,
+      "expect_failing": ["共通の関数が欄を読む: frontmatter が無い"]
+    },
+    {
+      "id": "FM-ORDER-REVERSED",
+      "why": "指定したキーの順に返さない",
+      "file": "skills/kaizen/scripts/kaizen-hook-common.sh",
+      "find": "for (i = 1; i <= n; i++) print found[i]",
+      "replace": "for (i = n; i >= 1; i--) print found[i]",
+      "occurrences": 1,
+      "expect_failing": [
+        "共通の関数が欄を読む: 指定したキーの順に返す",
+        "共通の関数が欄を読む: 本文の行は読まない",
+        "status: pending のノートは、どのスクリプトも pending として扱う（対照）",
+        "共通の関数が欄を読む: 重なったキーは最初の値"
+      ]
+    },
+    {
+      "id": "SC-STATUS-COMMENT-STRIPPED",
+      "why": "status-check が status の行末のコメントを落として読む（同梱のスクリプトが pending と読まないノートを通す）",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "sub(/^status:[[:space:]]*/, \"\", value)\n\t\t\tif (lenient)",
+      "replace": "sub(/^status:[[:space:]]*/, \"\", value)\n\t\t\tif (1)",
+      "occurrences": 1,
+      "expect_failing": [
+        "status-check が通す書き方は、共通の関数が同じ値として読む: status の 行末のコメント",
+        "pending と読めない status は、status-check が止め、どのスクリプトも pending として扱わない: 行末のコメント"
+      ]
+    },
+    {
+      "id": "SC-WORD-ACCEPTED",
+      "why": "status-check が status・type・priority の語でない値を通す",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "else if (key != \"applied-to\" && key != \"date\" && value != \"\" && value !~ /^[A-Za-z0-9][A-Za-z0-9_-]*$/) kind = \"word\"",
+      "replace": "else if (0) kind = \"word\"",
+      "occurrences": 1,
+      "expect_failing": [
+        "status-check が通す書き方は、共通の関数が同じ値として読む: type の 行末のコメント",
+        "status-check が通す書き方は、共通の関数が同じ値として読む: type の 二重引用符で囲んだ値",
+        "status-check が通す書き方は、共通の関数が同じ値として読む: type の 単引用符で囲んだ値",
+        "status-check が通す書き方は、共通の関数が同じ値として読む: priority の 行末のコメント",
+        "status-check が通す書き方は、共通の関数が同じ値として読む: priority の 二重引用符で囲んだ値",
+        "status-check が通す書き方は、共通の関数が同じ値として読む: priority の 単引用符で囲んだ値",
+        "pending と読めない status は、status-check が止め、どのスクリプトも pending として扱わない: 行末のコメント",
+        "pending と読めない status は、status-check が止め、どのスクリプトも pending として扱わない: 二重引用符で囲んだ値"
+      ]
+    },
+    {
+      "id": "INJECT-NOT-PENDING-READ",
+      "why": "注入が status を読まずにすべての学びを注入する",
+      "file": "skills/kaizen/scripts/kaizen-context-inject.sh",
+      "find": "\t[ \"${status}\" = \"pending\" ] || continue\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "pending と読めない status は、status-check が止め、どのスクリプトも pending として扱わない: 行末のコメント",
+        "pending と読めない status は、status-check が止め、どのスクリプトも pending として扱わない: 二重引用符で囲んだ値"
+      ]
+    },
+    {
+      "id": "REPORT-DEGRADED-COUNT-SKIPPED",
+      "why": "週次の報告が、共通ライブラリを読めるときも pending を数えない",
+      "file": "skills/kaizen/scripts/kaizen-schedule-report.sh",
+      "find": "\tif [ -n \"${config_unloadable}\" ]; then\n\t\t# 共通ライブラリを読めないときは",
+      "replace": "\tif true; then\n\t\t# 共通ライブラリを読めないときは",
+      "occurrences": 1,
+      "expect_failing": ["status: pending のノートは、どのスクリプトも pending として扱う（対照）"]
+    }
+  ]
+}

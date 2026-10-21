@@ -47,7 +47,7 @@
     "scripts/skills/issue-start/acceptance-check.mutations.json": 0.7,
     "scripts/skills/kaizen/kaizen-precommit-gate.mutations.json": 13.5,
     "scripts/skills/kaizen/kaizen-config.mutations.json": 1.5,
-    "scripts/skills/kaizen/kaizen-context-inject.mutations.json": 1.7,
+    "scripts/skills/kaizen/kaizen-context-inject.mutations.json": 2.1,
     "scripts/skills/kaizen/tracking-issue-title.mutations.json": 0.6,
     "scripts/skills/parity-component/behavior-compare.mutations.json": 0.7,
     "scripts/skills/parity-component/cascade-resolve.mutations.json": 0.9,
@@ -101,7 +101,8 @@
     "scripts/coverage/run-coverage.mutations.json": 6,
     "scripts/coverage/shell-coverage.mutations.json": 0.8,
     "scripts/skills/kaizen/kaizen-schedule-report.mutations.json": 2.9,
-    "scripts/skills/kaizen/status-check/kaizen-status-check.mutations.json": 3.5,
-    "scripts/skills/parity-component/css-rules-capture.mutations.json": 0.7
+    "scripts/skills/kaizen/status-check/kaizen-status-check.mutations.json": 10.6,
+    "scripts/skills/parity-component/css-rules-capture.mutations.json": 0.7,
+    "scripts/skills/kaizen/frontmatter/kaizen-frontmatter-values.mutations.json": 9.6
   }
 }

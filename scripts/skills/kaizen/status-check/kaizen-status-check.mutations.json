@@ -1,6 +1,6 @@
 {
   "$comment": [
-    "kaizen-status-check.test.ts のうち、confidence の値の検査（Issue #701）を守るテストの検出能力を示す変異の一覧。",
+    "kaizen-status-check.test.ts のうち、confidence の値の検査（Issue #701）と、status・type・priority・date・applied-to のキーと値の形の検査（Issue #727・#744）を守るテストの検出能力を示す変異の一覧。",
     "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。",
     "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
   ],
@@ -28,31 +28,38 @@
         "コロンの後に空白が無い不正な値は、空白と値の両方を報告する",
         "コロンの後に空白が無い形と重なったキーを、1 回の実行でまとめて報告する",
         "重なったキーの不正な値は、すべてを 1 回の実行で報告する",
-        "重なったキーの前の空の値も報告する"
+        "重なったキーの前の空の値も報告する",
+        "confidence の値を拒否する: 二重引用符で囲んだ値",
+        "confidence の値を拒否する: 単引用符で囲んだ値",
+        "confidence の値を拒否する: 行末のコメント",
+        "confidence の値を拒否する: YAML の null",
+        "archive のノートでも、コメントを落とした後の未知の値は止める",
+        "archive のノートは、status・type・confidence の行末のコメントと confidence の引用符を落として確かめる"
       ]
     },
     {
-      "id": "CONF-QUOTES-KEPT",
-      "why": "引用符で囲んだ値の引用符を落とさない（YAML では同じ値なのに未知の値として止める）",
+      "id": "CONF-COMMENT-STRIPPED",
+      "why": "confidence の値の行末のコメントを落として読む（同梱のスクリプトが `low # メモ` と読む値を low として通す）",
       "file": "skills/kaizen/scripts/kaizen-status-check.sh",
-      "find": "\t\t\tif (confidence ~ /^\".*\"$/ || confidence ~ /^'\"'\"'.*'\"'\"'$/) confidence = substr(confidence, 2, length(confidence) - 2)",
-      "replace": "\t\t\tconfidence = confidence",
+      "find": "\t\t\tif (confidence ~ /^[^[:space:]]/) conf_nospace = 1\n",
+      "replace": "\t\t\tif (confidence ~ /^[^[:space:]]/) conf_nospace = 1\n\t\t\tsub(/[[:space:]]+#.*$/, \"\", confidence)\n",
       "occurrences": 1,
       "expect_failing": [
-        "confidence を受け付ける: 二重引用符で囲んだ値",
-        "confidence を受け付ける: 単引用符で囲んだ値"
+        "confidence の値を拒否する: 行末のコメント",
+        "confidence の値を拒否する: コメントだけの値",
+        "archive のノートは、status・type・confidence の行末のコメントと confidence の引用符を落として確かめる"
       ]
     },
     {
-      "id": "CONF-COMMENT-KEPT",
-      "why": "行末のコメントを落とさない（コメント付きの正しい値を未知の値として止める）",
+      "id": "CONF-QUOTES-STRIPPED",
+      "why": "confidence の値の引用符を落として読む（同梱のスクリプトが `\"high\"` と読む値を high として通す）",
       "file": "skills/kaizen/scripts/kaizen-status-check.sh",
-      "find": "\t\t\tsub(/[[:space:]]+#.*$/, \"\", confidence)",
-      "replace": "\t\t\tconfidence = confidence",
+      "find": "\t\t\tif (confidence ~ /^[^[:space:]]/) conf_nospace = 1\n",
+      "replace": "\t\t\tif (confidence ~ /^[^[:space:]]/) conf_nospace = 1\n\t\t\tgsub(/^[[:space:]]+|[[:space:]]+$/, \"\", confidence)\n\t\t\tif (confidence ~ /^\".*\"$/ || confidence ~ /^'\"'\"'.*'\"'\"'$/) confidence = substr(confidence, 2, length(confidence) - 2)\n",
       "occurrences": 1,
       "expect_failing": [
-        "confidence を受け付ける: 行末のコメント",
-        "confidence の値を拒否する: コメントだけの値"
+        "confidence の値を拒否する: 二重引用符で囲んだ値",
+        "confidence の値を拒否する: 単引用符で囲んだ値"
       ]
     },
     {
@@ -63,15 +70,6 @@
       "replace": "\t\t\tconfidence = confidence",
       "occurrences": 1,
       "expect_failing": ["confidence の値を拒否する: 区切りの | を含む値"]
-    },
-    {
-      "id": "CONF-UNPAIRED-QUOTE",
-      "why": "片側だけの引用符も落とす（\"high のような不正な値が high として通る）",
-      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
-      "find": "\t\t\tif (confidence ~ /^\".*\"$/ || confidence ~ /^'\"'\"'.*'\"'\"'$/) confidence = substr(confidence, 2, length(confidence) - 2)",
-      "replace": "\t\t\tgsub(/^[\"'\"'\"']|[\"'\"'\"']$/, \"\", confidence)",
-      "occurrences": 1,
-      "expect_failing": ["confidence の値を拒否する: 片側だけの引用符"]
     },
     {
       "id": "CONF-DUPLICATE-ALLOWED",
@@ -109,7 +107,10 @@
       "find": "/^([&!][^[:space:]]*[[:space:]]+)*(\"confidence\"|'\"'\"'confidence'\"'\"'|confidence)[[:space:]]*:/ {",
       "replace": "/^([&!][^[:space:]]*[[:space:]]+)*(\"confidence\"|'\"'\"'confidence'\"'\"'|confidence):/ {",
       "occurrences": 1,
-      "expect_failing": ["confidence の値を拒否する: キーとコロンの間に空白がある不正な値"]
+      "expect_failing": [
+        "confidence の値を拒否する: キーとコロンの間に空白がある不正な値",
+        "confidence の値を拒否する: キーとコロンの間の空白"
+      ]
     },
     {
       "id": "STATUS-PIPE-KEPT",
@@ -120,7 +121,8 @@
       "occurrences": 1,
       "expect_failing": [
         "status の値の | で後ろのフィールドがずれない",
-        "status・type・applied-to の形を拒否する: status のブロックスカラー（|）"
+        "status・type・applied-to の形を拒否する: status のブロックスカラー（|）",
+        "status・type・applied-to の形を拒否する: コメントに記号を書いた status の値"
       ]
     },
     {
@@ -144,7 +146,10 @@
       "occurrences": 1,
       "expect_failing": [
         "confidence の値を拒否する: 引用符で囲んだキーの不正な値",
-        "confidence の値を拒否する: 単引用符で囲んだキーの不正な値"
+        "confidence の値を拒否する: 単引用符で囲んだキーの不正な値",
+        "confidence の値を拒否する: 引用符で囲んだキー",
+        "confidence の値を拒否する: 単引用符で囲んだキー",
+        "archive のノートには、confidence のキーの形のチェックも当てない: 引用符で囲んだキー"
       ]
     },
     {
@@ -154,7 +159,10 @@
       "find": "/^([&!][^[:space:]]*[[:space:]]+)*(\"confidence\"|'\"'\"'confidence'\"'\"'|confidence)[[:space:]]*:/ {",
       "replace": "/^([&!][^[:space:]]*[[:space:]]+)*(\"confidence\"|confidence)[[:space:]]*:/ {",
       "occurrences": 1,
-      "expect_failing": ["confidence の値を拒否する: 単引用符で囲んだキーの不正な値"]
+      "expect_failing": [
+        "confidence の値を拒否する: 単引用符で囲んだキーの不正な値",
+        "confidence の値を拒否する: 単引用符で囲んだキー"
+      ]
     },
     {
       "id": "CONF-FIRST-BAD-DROPPED",
@@ -191,7 +199,13 @@
         "コロンの後に空白が無い不正な値は、空白と値の両方を報告する",
         "コロンの後に空白が無い形と重なったキーを、1 回の実行でまとめて報告する",
         "重なったキーの不正な値は、すべてを 1 回の実行で報告する",
-        "重なったキーの前の空の値も報告する"
+        "重なったキーの前の空の値も報告する",
+        "confidence の値を拒否する: 二重引用符で囲んだ値",
+        "confidence の値を拒否する: 単引用符で囲んだ値",
+        "confidence の値を拒否する: 行末のコメント",
+        "confidence の値を拒否する: YAML の null",
+        "archive のノートでも、コメントを落とした後の未知の値は止める",
+        "archive のノートは、status・type・confidence の行末のコメントと confidence の引用符を落として確かめる"
       ]
     },
     {
@@ -229,7 +243,12 @@
         "キーの重なりと値の形を、1 回の実行でまとめて報告する",
         "status・type・applied-to の形を拒否する: アンカーを付けた status のキーの重なり",
         "archive のノートには、キーの重なりと形のチェックを当てない",
-        "属性を付けたキーの重なりを報告する: 属性を 2 つ付けた status"
+        "属性を付けたキーの重なりを報告する: 属性を 2 つ付けた status",
+        "priority と date の形を拒否する: priority の重なり",
+        "priority と date の形を拒否する: date の重なり",
+        "archive のノートには、priority と date の重なりと形のチェックを当てない",
+        "重なった status は、最初の値で applied-to との整合を確かめる",
+        "重なった type は、最初の値で機構の宣言を確かめる"
       ]
     },
     {
@@ -246,7 +265,8 @@
         "キーの重なりと値の形を、1 回の実行でまとめて報告する",
         "status・type・applied-to の形を拒否する: アンカーを付けた status のキーの重なり",
         "archive のノートには、キーの重なりと形のチェックを当てない",
-        "属性を付けたキーの重なりを報告する: 属性を 2 つ付けた status"
+        "属性を付けたキーの重なりを報告する: 属性を 2 つ付けた status",
+        "重なった status は、最初の値で applied-to との整合を確かめる"
       ]
     },
     {
@@ -258,7 +278,8 @@
       "occurrences": 1,
       "expect_failing": [
         "status・type・applied-to の形を拒否する: type の重なり",
-        "status・type・applied-to の形を拒否する: 単引用符で囲んだキーと重なった type"
+        "status・type・applied-to の形を拒否する: 単引用符で囲んだキーと重なった type",
+        "重なった type は、最初の値で機構の宣言を確かめる"
       ]
     },
     {
@@ -280,10 +301,10 @@
       "expect_failing": [
         "status・type・applied-to の形を拒否する: status のブロックスカラー（>-）",
         "status・type・applied-to の形を拒否する: status のブロックスカラー（|）",
-        "status・type・applied-to の形を拒否する: status のブロックスカラー（行末のコメント）",
         "status・type・applied-to の形を拒否する: type のブロックスカラー（|2+）",
         "status・type・applied-to の形を拒否する: applied-to のブロックスカラー",
-        "キーの重なりと値の形を、1 回の実行でまとめて報告する"
+        "キーの重なりと値の形を、1 回の実行でまとめて報告する",
+        "priority と date の形を拒否する: priority のブロックスカラー"
       ]
     },
     {
@@ -298,14 +319,15 @@
         "status・type・applied-to の形を拒否する: type のタグ",
         "status・type・applied-to の形を拒否する: applied-to のタグ",
         "キーの重なりと値の形を、1 回の実行でまとめて報告する",
-        "値そのものに付けた applied-to のタグは、要素の問題として重ねて数えない"
+        "値そのものに付けた applied-to のタグは、要素の問題として重ねて数えない",
+        "priority と date の形を拒否する: priority のタグ"
       ]
     },
     {
       "id": "STATUS-FORM-UNCHECKED",
       "why": "status の値の形を確かめない",
       "file": "skills/kaizen/scripts/kaizen-status-check.sh",
-      "find": "\t\t\tnote_form(\"status\", status)\n",
+      "find": "\t\t\tnote_form(\"status\", value)\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
@@ -317,14 +339,18 @@
         "status・type・applied-to の形を拒否する: status のアンカー",
         "status と type の語でない値を拒否する: flow の mapping の status",
         "status と type の語でない値を拒否する: ` で始まる status",
-        "status と type の語でない値を拒否する: 片側だけの引用符の status"
+        "status と type の語でない値を拒否する: 片側だけの引用符の status",
+        "status・type・applied-to の形を拒否する: status の値の後のコメント",
+        "status・type・applied-to の形を拒否する: 二重引用符で囲んだ status の値",
+        "status・type・applied-to の形を拒否する: コメントに記号を書いた status の値",
+        "archive のノートは、status・type・confidence の行末のコメントと confidence の引用符を落として確かめる"
       ]
     },
     {
       "id": "TYPE-FORM-UNCHECKED",
       "why": "type の値の形を確かめない",
       "file": "skills/kaizen/scripts/kaizen-status-check.sh",
-      "find": "\t\t\tnote_form(\"type\", type)\n",
+      "find": "\t\t\tnote_form(\"type\", value)\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
@@ -337,7 +363,8 @@
         "status と type の語でない値を拒否する: % で始まる type",
         "status と type の語でない値を拒否する: 引用符で囲んだ type",
         "status と type の語でない値を拒否する: 空白を含む type",
-        "type の値の | で後ろのフィールドがずれない"
+        "type の値の | で後ろのフィールドがずれない",
+        "status・type・applied-to の形を拒否する: 単引用符で囲んだ type の値"
       ]
     },
     {
@@ -368,7 +395,8 @@
         "status・type・applied-to の形を拒否する: type のエイリアス",
         "status・type・applied-to の形を拒否する: applied-to のアンカー",
         "値そのものに付けた applied-to のエイリアスは、要素の問題として重ねて数えない",
-        "applied-to が重なったとき、前のキーの値の形に関わらず、後のキーの要素も確かめる"
+        "applied-to が重なったとき、前のキーの値の形に関わらず、後のキーの要素も確かめる",
+        "priority と date の形を拒否する: date のアンカー"
       ]
     },
     {
@@ -382,7 +410,9 @@
         "status・type・applied-to の形を拒否する: 引用符で囲んだ status のキー",
         "status・type・applied-to の形を拒否する: コロンの前に空白がある type のキー",
         "status・type・applied-to の形を拒否する: 単引用符で囲んだ applied-to のキー",
-        "status・type・applied-to の形を拒否する: タグを付けた type のキー"
+        "status・type・applied-to の形を拒否する: タグを付けた type のキー",
+        "priority と date の形を拒否する: 引用符で囲んだ priority のキー",
+        "priority と date の形を拒否する: コロンの前に空白がある date のキー"
       ]
     },
     {
@@ -439,7 +469,8 @@
       "expect_failing": [
         "status・type・applied-to の形を拒否する: コロンの後に空白が無い status",
         "status・type・applied-to の形を拒否する: コロンの後に空白が無い type",
-        "status・type・applied-to の形を拒否する: コロンの後に空白が無い applied-to"
+        "status・type・applied-to の形を拒否する: コロンの後に空白が無い applied-to",
+        "priority と date の形を拒否する: コロンの後に空白が無い priority"
       ]
     },
     {
@@ -448,13 +479,13 @@
       "file": "skills/kaizen/scripts/kaizen-status-check.sh",
       "find": "/^([&!][^[:space:]]*[[:space:]]+)*(",
       "replace": "/^(",
-      "occurrences": 5,
+      "occurrences": 7,
       "expect_failing": [
         "status・type・applied-to の形を拒否する: アンカーを付けた status のキーの重なり",
         "status・type・applied-to の形を拒否する: タグを付けた type のキー",
         "属性を付けたキーの重なりを報告する: 属性を 2 つ付けた status",
         "アンカーを付けた confidence のキーも、重なりとキーの属性として報告する",
-        "archive のノートには、confidence のキーの属性のチェックも当てない"
+        "archive のノートには、confidence のキーの形のチェックも当てない: 属性を付けたキー"
       ]
     },
     {
@@ -478,15 +509,19 @@
       "expect_failing": ["属性を付けたキーの重なりを報告する: 属性を 2 つ付けた status"]
     },
     {
-      "id": "CONF-KEY-ATTR-ACCEPTED",
-      "why": "アンカーやタグを付けた confidence のキーを止めない",
+      "id": "CONF-KEY-FORM-ACCEPTED",
+      "why": "引用符で囲んだ confidence のキー・コロンの前の空白・アンカーやタグを付けたキーを止めない（同梱のスクリプトが読まないキーを通す）",
       "file": "skills/kaizen/scripts/kaizen-status-check.sh",
-      "find": "if ($0 ~ /^[&!]/) conf_attr = 1",
-      "replace": "if (0) conf_attr = 1",
+      "find": "if (index($0, \"confidence:\") != 1) conf_key = 1",
+      "replace": "if (0) conf_key = 1",
       "occurrences": 1,
       "expect_failing": [
         "アンカーを付けた confidence のキーも、重なりとキーの属性として報告する",
-        "archive のノートには、confidence のキーの属性のチェックも当てない"
+        "archive のノートには、confidence のキーの形のチェックも当てない: 属性を付けたキー",
+        "archive のノートには、confidence のキーの形のチェックも当てない: 引用符で囲んだキー",
+        "confidence の値を拒否する: キーとコロンの間の空白",
+        "confidence の値を拒否する: 引用符で囲んだキー",
+        "confidence の値を拒否する: 単引用符で囲んだキー"
       ]
     },
     {
@@ -509,17 +544,22 @@
       "occurrences": 1,
       "expect_failing": [
         "archive のノートには、キーの重なりと形のチェックを当てない",
-        "archive のノートには、confidence のキーの属性のチェックも当てない"
+        "archive のノートには、confidence のキーの形のチェックも当てない: 属性を付けたキー",
+        "archive のノートには、confidence のキーの形のチェックも当てない: 引用符で囲んだキー",
+        "archive のノートには、priority と date の重なりと形のチェックを当てない"
       ]
     },
     {
       "id": "CONF-ATTR-ARCHIVE-CHECKED",
-      "why": "archive のノートにも confidence のキーの属性のチェックを当てる",
+      "why": "archive のノートにも confidence のキーの形のチェックを当てる",
       "file": "skills/kaizen/scripts/kaizen-status-check.sh",
-      "find": "if [ \"${conf_attr}\" = \"1\" ] && [ \"${key_checks}\" = \"1\" ]; then",
-      "replace": "if [ \"${conf_attr}\" = \"1\" ]; then",
+      "find": "if [ \"${conf_key}\" = \"1\" ] && [ \"${key_checks}\" = \"1\" ]; then",
+      "replace": "if [ \"${conf_key}\" = \"1\" ]; then",
       "occurrences": 1,
-      "expect_failing": ["archive のノートには、confidence のキーの属性のチェックも当てない"]
+      "expect_failing": [
+        "archive のノートには、confidence のキーの形のチェックも当てない: 属性を付けたキー",
+        "archive のノートには、confidence のキーの形のチェックも当てない: 引用符で囲んだキー"
+      ]
     },
     {
       "id": "BLOCK-MARKER-IGNORED",
@@ -548,9 +588,9 @@
     },
     {
       "id": "WORD-ACCEPTED",
-      "why": "status と type の、英数字・_・- だけの語でない値を受け付ける",
+      "why": "status・type・priority の、英数字・_・- だけの語でない値を受け付ける",
       "file": "skills/kaizen/scripts/kaizen-status-check.sh",
-      "find": "else if (key != \"applied-to\" && value != \"\" && value !~ /^[A-Za-z0-9][A-Za-z0-9_-]*$/) kind = \"word\"",
+      "find": "else if (key != \"applied-to\" && key != \"date\" && value != \"\" && value !~ /^[A-Za-z0-9][A-Za-z0-9_-]*$/) kind = \"word\"",
       "replace": "else if (0) kind = \"word\"",
       "occurrences": 1,
       "expect_failing": [
@@ -562,8 +602,200 @@
         "status と type の語でない値を拒否する: % で始まる type",
         "status と type の語でない値を拒否する: 引用符で囲んだ type",
         "status と type の語でない値を拒否する: 空白を含む type",
-        "type の値の | で後ろのフィールドがずれない"
+        "type の値の | で後ろのフィールドがずれない",
+        "status・type・applied-to の形を拒否する: status のブロックスカラー（行末のコメント）",
+        "status・type・applied-to の形を拒否する: status の値の後のコメント",
+        "status・type・applied-to の形を拒否する: 二重引用符で囲んだ status の値",
+        "status・type・applied-to の形を拒否する: 単引用符で囲んだ type の値",
+        "status・type・applied-to の形を拒否する: コメントに記号を書いた status の値",
+        "priority と date の形を拒否する: priority の値の後のコメント",
+        "priority と date の形を拒否する: 引用符で囲んだ priority の値",
+        "archive のノートには、priority と date の重なりと形のチェックを当てない",
+        "archive のノートは、status・type・confidence の行末のコメントと confidence の引用符を落として確かめる"
       ]
+    },
+    {
+      "id": "STATUS-COMMENT-STRIPPED",
+      "why": "status の値の行末のコメントを落として読む（同梱のスクリプトが `pending # メモ` と読む値を pending として通す）",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "sub(/^status:[[:space:]]*/, \"\", value)\n\t\t\tif (lenient)",
+      "replace": "sub(/^status:[[:space:]]*/, \"\", value)\n\t\t\tif (1)",
+      "occurrences": 1,
+      "expect_failing": [
+        "status・type・applied-to の形を拒否する: status の値の後のコメント",
+        "status・type・applied-to の形を拒否する: コメントに記号を書いた status の値",
+        "status・type・applied-to の形を拒否する: status のブロックスカラー（行末のコメント）",
+        "archive のノートは、status・type・confidence の行末のコメントと confidence の引用符を落として確かめる"
+      ]
+    },
+    {
+      "id": "PRIORITY-COUNT-SKIPPED",
+      "why": "priority のキーを数えない",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "{ priority_count++; note_key(\"priority\", $0) }",
+      "replace": "{ note_key(\"priority\", $0) }",
+      "occurrences": 1,
+      "expect_failing": [
+        "priority と date の形を拒否する: priority の重なり",
+        "archive のノートには、priority と date の重なりと形のチェックを当てない"
+      ]
+    },
+    {
+      "id": "DATE-COUNT-SKIPPED",
+      "why": "date のキーを数えない",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "{ date_count++; note_key(\"date\", $0) }",
+      "replace": "{ note_key(\"date\", $0) }",
+      "occurrences": 1,
+      "expect_failing": ["priority と date の形を拒否する: date の重なり"]
+    },
+    {
+      "id": "PRIORITY-FORM-UNCHECKED",
+      "why": "priority の値の形を確かめない",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "\t\t\tnote_form(\"priority\", value)\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "priority と date の形を拒否する: priority の値の後のコメント",
+        "priority と date の形を拒否する: 引用符で囲んだ priority の値",
+        "priority と date の形を拒否する: priority のタグ",
+        "priority と date の形を拒否する: priority のブロックスカラー",
+        "archive のノートには、priority と date の重なりと形のチェックを当てない"
+      ]
+    },
+    {
+      "id": "DATE-FORM-UNCHECKED",
+      "why": "date の値の形を確かめない",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "\t\t\tnote_form(\"date\", value)\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "priority と date の形を拒否する: date の値の後のコメント",
+        "priority と date の形を拒否する: 引用符で囲んだ date の値",
+        "priority と date の形を拒否する: / で区切った date",
+        "priority と date の形を拒否する: 桁の足りない date",
+        "priority と date の形を拒否する: 時刻を含む date",
+        "priority と date の形を拒否する: date のアンカー",
+        "archive のノートには、priority と date の重なりと形のチェックを当てない",
+        "形の誤った date は、暦の日付のチェックで重ねて報告しない"
+      ]
+    },
+    {
+      "id": "DATE-ACCEPTED",
+      "why": "date の、YYYY-MM-DD の形でない値を受け付ける",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "else if (key == \"date\" && value != \"\" && value !~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/) kind = \"date\"",
+      "replace": "else if (0) kind = \"date\"",
+      "occurrences": 1,
+      "expect_failing": [
+        "priority と date の形を拒否する: date の値の後のコメント",
+        "priority と date の形を拒否する: 引用符で囲んだ date の値",
+        "priority と date の形を拒否する: / で区切った date",
+        "priority と date の形を拒否する: 桁の足りない date",
+        "priority と date の形を拒否する: 時刻を含む date",
+        "archive のノートには、priority と date の重なりと形のチェックを当てない",
+        "形の誤った date は、暦の日付のチェックで重ねて報告しない"
+      ]
+    },
+    {
+      "id": "EXPLICIT-KEY-ACCEPTED",
+      "why": "YAML の明示的なキー（`? status`）を止めない",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "/^\\?([[:space:]]|$)/ { add_bad(\"?:explicit\") }",
+      "replace": "/^\\?([[:space:]]|$)/ { }",
+      "occurrences": 1,
+      "expect_failing": [
+        "status・type・applied-to の形を拒否する: 明示的なキーの status",
+        "status・type・applied-to の形を拒否する: 値の無い明示的なキー",
+        "priority と date の形を拒否する: 明示的なキーの priority"
+      ]
+    },
+    {
+      "id": "EXPLICIT-KEY-NAME",
+      "why": "? で始まる名前のキー（`?x: 1`）も明示的なキーとして止める",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "/^\\?([[:space:]]|$)/ {",
+      "replace": "/^\\?/ {",
+      "occurrences": 1,
+      "expect_failing": ["status・type・applied-to の形を受け付ける: ? で始まる名前のキー"]
+    },
+    {
+      "id": "STATUS-LAST-VALUE",
+      "why": "重なった status で最後の値を使う（同梱のスクリプトが読む最初の値と食い違う）",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "if (!status_seen) status = value",
+      "replace": "status = value",
+      "occurrences": 1,
+      "expect_failing": ["重なった status は、最初の値で applied-to との整合を確かめる"]
+    },
+    {
+      "id": "TYPE-LAST-VALUE",
+      "why": "重なった type で最後の値を使う（同梱のスクリプトが読む最初の値と食い違う）",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "if (!type_seen) type = value",
+      "replace": "type = value",
+      "occurrences": 1,
+      "expect_failing": ["重なった type は、最初の値で機構の宣言を確かめる"]
+    },
+    {
+      "id": "ARCHIVE-LENIENT-OFF",
+      "why": "archive のノートでも、行末のコメントと confidence の引用符を値の一部として止める",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": ".kaizen/archive/*) lenient=1 ;;",
+      "replace": ".kaizen/archive/*) lenient=0 ;;",
+      "occurrences": 1,
+      "expect_failing": [
+        "archive のノートは、status・type・confidence の行末のコメントと confidence の引用符を落として確かめる",
+        "archive のノートでも、コメントを落とした後の未知の値は止める"
+      ]
+    },
+    {
+      "id": "ARCHIVE-CONF-QUOTES-KEPT",
+      "why": "archive のノートで confidence の引用符を落とさない",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "if (lenient && (confidence ~",
+      "replace": "if (0 && (confidence ~",
+      "occurrences": 1,
+      "expect_failing": [
+        "archive のノートは、status・type・confidence の行末のコメントと confidence の引用符を落として確かめる",
+        "archive のノートでも、コメントを落とした後の未知の値は止める"
+      ]
+    },
+    {
+      "id": "ARCHIVE-CONF-COMMENT-KEPT",
+      "why": "archive のノートで confidence の行末のコメントを落とさない",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "if (lenient) sub(/[[:space:]]+#.*$/, \"\", confidence)",
+      "replace": "if (0) sub(/[[:space:]]+#.*$/, \"\", confidence)",
+      "occurrences": 1,
+      "expect_failing": [
+        "archive のノートは、status・type・confidence の行末のコメントと confidence の引用符を落として確かめる"
+      ]
+    },
+    {
+      "id": "DATE-CALENDAR-UNCHECKED",
+      "why": "date が暦の日付として読めるかを確かめない",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "if [ -n \"${date_value}\" ] && ! kaizen_days_from_date \"${date_value}\" >/dev/null; then",
+      "replace": "if false; then",
+      "occurrences": 1,
+      "expect_failing": [
+        "暦の日付として読めない date を拒否する: 13 月",
+        "暦の日付として読めない date を拒否する: 0 月",
+        "暦の日付として読めない date を拒否する: 0 日",
+        "暦の日付として読めない date を拒否する: 32 日"
+      ]
+    },
+    {
+      "id": "DATE-CALENDAR-DOUBLE",
+      "why": "形の誤った date を、暦の日付のチェックでも重ねて報告する",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "[[ \",${bad_forms},\" != *\",date:\"* ]] && ",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["形の誤った date は、暦の日付のチェックで重ねて報告しない"]
     }
   ]
 }

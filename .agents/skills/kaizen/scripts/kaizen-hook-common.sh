@@ -9,6 +9,7 @@
 #   - センチネル / checkpoint / 抽出完了マーカーのパス組み立てと、名前からの復号
 #   - kaizen の設定（`.config/skills/shoji9x9/kaizen.jsonc` ほか）から値を読む
 #   - 暦日を 1970-01-01 からの日数へ変換する（保持期間・忘却の閾値判定で使う）
+#   - 学びのノートの frontmatter の欄を読む（参照の注入・忘却・週次の報告・KEDB 照合が使う）
 #
 # 制御ファイルは **session 単位**にする。agent 単位のままだと、同じプロジェクトで
 # 同じ agent のセッションを 2 つ動かしたときに、片方の抽出完了が他方の未抽出シグナルを
@@ -500,4 +501,46 @@ kaizen_days_from_date() { # $1: YYYY-MM-DD
 	[ "${mo}" -ge 1 ] && [ "${mo}" -le 12 ] || return 1
 	[ "${d}" -ge 1 ] && [ "${d}" -le 31 ] || return 1
 	kaizen_days_from_civil "${y}" "${mo}" "${d}"
+}
+
+# 学びのノートの frontmatter（最初の `---` ブロック）から、指定した欄の値を読む。
+# 同梱のスクリプト（参照の注入・忘却・週次の報告・KEDB 照合）は、すべてこの関数で読む。読み方をスクリプトごとに持たない。
+#
+# 読み方は 1 つだけである。キーの直後にコロンを書いた行（`status: pending`）の、コロンより後ろを、前後の空白を落として返す。
+# 行末のコメント・引用符・YAML の記号は、値の一部としてそのまま返す。そうした書き方は kaizen-status-check.sh が止めるので、
+# 読み方は広げない（広げると、同じノートを読むスクリプトの間で値が食い違う）。
+# キーが重なったノートでは最初の値を返す（重なりも kaizen-status-check.sh が止める）。
+#
+# 出力は、指定したキーの順に 1 行ずつの値である（無い欄は空行）。1 回の awk ですべての欄を読む。
+# 呼び出し側は、出力の行が足りないとき（ファイルを読めなかったとき）は、足りない欄を空として扱う。
+# `sed ... | head -n 1` は使わない。大きなノートでは head が先に閉じて sed が SIGPIPE で終わり、
+# pipefail の下で呼び出し側ごと 141 で終わる（5.7MB のノートで再現した）。
+kaizen_frontmatter_values() { # $1: ノート $2...: キー
+	local note=$1
+	shift
+	awk -v keys="$*" '
+		BEGIN { n = split(keys, key, " "); left = n; fm = 0 }
+		/^---[[:space:]]*$/ {
+			fm++
+			if (fm == 2) exit
+			next
+		}
+		fm == 1 {
+			for (i = 1; i <= n; i++) {
+				if (!(i in seen) && index($0, key[i] ":") == 1) {
+					value = substr($0, length(key[i]) + 2)
+					sub(/^[[:space:]]+/, "", value)
+					sub(/[[:space:]]+$/, "", value)
+					found[i] = value
+					seen[i] = 1
+					left--
+				}
+			}
+			# 指定したキーをすべて読んだら、残りの行を読まない（閉じの `---` が無い大きなノートでも、全体を読まずに済む）。
+			if (left == 0) exit
+		}
+		END {
+			for (i = 1; i <= n; i++) print found[i]
+		}
+	' "${note}" 2>/dev/null || true
 }
