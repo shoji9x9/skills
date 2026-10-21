@@ -1,0 +1,68 @@
+{
+  "$comment": [
+    "kaizen-context-inject.test.ts のうち、注入の行に確信度を出すこと（Issue #727）を守るテストの検出能力を示す変異の一覧。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/skills/kaizen/kaizen-context-inject.test.ts",
+  "mutations": [
+    {
+      "id": "INJECT-NO-CONFIDENCE",
+      "why": "注入の行に確信度を出さない",
+      "file": "skills/kaizen/scripts/kaizen-context-inject.sh",
+      "find": "priority: $(frontmatter_field \"$f\" priority) confidence: ${confidence:-unknown} ",
+      "replace": "priority: $(frontmatter_field \"$f\" priority) ",
+      "occurrences": 1,
+      "expect_failing": [
+        "注入の行に確信度を出す: high",
+        "注入の行に確信度を出す: low",
+        "注入の行に確信度を出す: 欄が無い",
+        "注入の行に確信度を出す: 値が空",
+        "注入の行に確信度を出す: 引用符で囲んだキー",
+        "注入の行に確信度を出す: 単引用符で囲んだキー",
+        "注入の行に確信度を出す: キーとコロンの間の空白",
+        "注入の行に確信度を出す: 行末のコメント",
+        "注入の行に確信度を出す: 引用符で囲んだ値"
+      ]
+    },
+    {
+      "id": "INJECT-NO-UNKNOWN",
+      "why": "確信度の欄が無い学びに unknown と出さない",
+      "file": "skills/kaizen/scripts/kaizen-context-inject.sh",
+      "find": "${confidence:-unknown}",
+      "replace": "${confidence}",
+      "occurrences": 1,
+      "expect_failing": ["注入の行に確信度を出す: 欄が無い", "注入の行に確信度を出す: 値が空"]
+    },
+    {
+      "id": "INJECT-KEY-FORMS-IGNORED",
+      "why": "引用符で囲んだキーとコロンの前に空白があるキーの確信度を読まない",
+      "file": "skills/kaizen/scripts/kaizen-context-inject.sh",
+      "find": "\t\tfm == 1 && /^(\"confidence\"|'\"'\"'confidence'\"'\"'|confidence)[[:space:]]*:/ {",
+      "replace": "\t\tfm == 1 && /^confidence:/ {",
+      "occurrences": 1,
+      "expect_failing": [
+        "注入の行に確信度を出す: 引用符で囲んだキー",
+        "注入の行に確信度を出す: 単引用符で囲んだキー",
+        "注入の行に確信度を出す: キーとコロンの間の空白"
+      ]
+    },
+    {
+      "id": "INJECT-COMMENT-KEPT",
+      "why": "確信度の行末のコメントを値に含める",
+      "file": "skills/kaizen/scripts/kaizen-context-inject.sh",
+      "find": "\t\t\tsub(/[[:space:]]+#.*$/, \"\", value)\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["注入の行に確信度を出す: 行末のコメント"]
+    },
+    {
+      "id": "INJECT-QUOTES-KEPT",
+      "why": "確信度の値の引用符を落とさない",
+      "file": "skills/kaizen/scripts/kaizen-context-inject.sh",
+      "find": "\t\t\tif (value ~ /^\".*\"$/ || value ~ /^'\"'\"'.*'\"'\"'$/) value = substr(value, 2, length(value) - 2)\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["注入の行に確信度を出す: 引用符で囲んだ値"]
+    }
+  ]
+}

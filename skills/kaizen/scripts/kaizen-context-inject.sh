@@ -137,6 +137,30 @@ frontmatter_field() {
 	' "$1" 2>/dev/null || true
 }
 
+# confidence は、kaizen-status-check.sh が受け付ける書き方をすべて同じ値として読む。
+# 引用符で囲んだキー・キーとコロンの間の空白・行末のコメント・対になった引用符を受け付け、
+# 値だけを返す（`"confidence": 'low' # 1 回の観測` は low）。読み方を変えるときは、チェックの側も同時に変える。
+# キーが重なったノートは、チェックが commit を止めるので、ここでは最初の値を返す。
+frontmatter_confidence() {
+	awk '
+		BEGIN { fm = 0 }
+		/^---[[:space:]]*$/ {
+			fm++
+			if (fm == 2) exit
+			next
+		}
+		fm == 1 && /^("confidence"|'"'"'confidence'"'"'|confidence)[[:space:]]*:/ {
+			value = $0
+			sub(/^("confidence"|'"'"'confidence'"'"'|confidence)[[:space:]]*:/, "", value)
+			sub(/[[:space:]]+#.*$/, "", value)
+			gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+			if (value ~ /^".*"$/ || value ~ /^'"'"'.*'"'"'$/) value = substr(value, 2, length(value) - 2)
+			print value
+			exit
+		}
+	' "$1" 2>/dev/null || true
+}
+
 # pending な学びを priority 降順（high / medium / low / 不明）、同順位は日付昇順に並べる。
 # 未定義・未知の priority は既存ノートとの後方互換のため失敗させず末尾へ回す。
 # ベストエフォート（常に exit 0）を守るため、一時ファイルの作成・追記・整列が失敗したら
@@ -173,6 +197,7 @@ echo "## kaizen: 未適用の学び（${count} 件）"
 echo ""
 echo "このプロジェクトには以下の未適用（status: pending）の学びがあります。"
 echo "関連する作業では内容を踏まえ、同じ失敗を繰り返さないこと（根本原因分析の KEDB 照合の起点）。"
+echo "confidence は根本原因と提案の確かさである。low の学びは、提案を適用する前に根本原因を確かめ直す。unknown は、確信度の欄を足す前に書いた学びである。"
 echo ""
 
 # 指定見出し（例「## 提案」）直後の最初の非空行を返す。見出しは前方一致で判定し、
@@ -181,7 +206,7 @@ first_line_under() {
 	awk -v h="$1" 'index($0, h) == 1 {f = 1; next} f && NF {print; exit}' "$2" 2>/dev/null || true
 }
 
-# 各ファイルの date / type / priority と 1 行要約を出す。全文は出さず、参照すべき
+# 各ファイルの date / type / priority / confidence と 1 行要約を出す。全文は出さず、参照すべき
 # ファイルパスと要約に留める（コンテキスト肥大を避ける）。
 # 要約は「## 提案」（＝一般化された行動規律）を優先する。事象（個別事案）の冒頭だけだと
 # 過去の特定インシデントとしか結び付かず、別文脈での再発を防ぐトリガーになりにくい。
@@ -189,7 +214,10 @@ first_line_under() {
 while IFS=$'\t' read -r _rank _date f; do
 	[ -n "$f" ] || continue
 	# meta も frontmatter に限る。全文を grep すると、本文の `type:` などを拾って誤った値になる。
-	meta="date: $(frontmatter_field "$f" date) type: $(frontmatter_field "$f" type) priority: $(frontmatter_field "$f" priority) "
+	# confidence が無い学びは、欄を足す前に書いたもので、確信度が分からないものとして扱う（references/extract.md）。
+	# 確信度の低い学びを高い学びと同じ見え方にしないよう、無いときも unknown と出す。
+	confidence=$(frontmatter_confidence "$f")
+	meta="date: $(frontmatter_field "$f" date) type: $(frontmatter_field "$f" type) priority: $(frontmatter_field "$f" priority) confidence: ${confidence:-unknown} "
 	summary_src=$(first_line_under "## 提案" "$f")
 	[ -n "$summary_src" ] || summary_src=$(first_line_under "## 事象" "$f")
 	# 先頭の箇条書き記号と「`type: rule`。」のような接頭辞を落として読みやすくする。

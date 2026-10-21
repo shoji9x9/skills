@@ -723,3 +723,126 @@ test("コロンの後に空白が無い不正な値は、空白と値の両方�
   expect(stderr).toContain("unknown confidence: bogus");
   expect(exitCode).toBe(2);
 });
+
+// status・type・applied-to も、confidence と同じく、キーの重なりとブロックスカラー・タグの値を止める（Issue #727）。
+// 重なると、このチェックは最後の値を読むが、YAML の実装によってはエラーになるか、別の値を採る。
+// ブロックスカラーとタグは、1 行の値として読めない。applied-to の無い旧形式のノートも対象にする。
+function noteWithKeys(lines: { status?: string; type?: string; appliedTo?: string }) {
+  return `---
+date: 2026-10-21
+${lines.type ?? "type: doc"}
+priority: medium
+${lines.status ?? "status: pending"}
+${lines.appliedTo ?? "applied-to: []"}
+session: claude-code
+---
+
+学びの本文。
+`;
+}
+
+test.each([
+  ["status の重なり", { status: "status: pending\nstatus: applied" }, "status is declared 2 times"],
+  [
+    "引用符で囲んだキーと重なった status",
+    { status: 'status: pending\n"status": pending' },
+    "status is declared 2 times",
+  ],
+  [
+    "applied-to の無いノートの status の重なり",
+    { status: "status: pending\nstatus: pending", appliedTo: "kedb: none" },
+    "status is declared 2 times",
+  ],
+  ["type の重なり", { type: "type: doc\ntype: hook" }, "type is declared 2 times"],
+  [
+    "単引用符で囲んだキーと重なった type",
+    { type: "type: doc\n'type': doc" },
+    "type is declared 2 times",
+  ],
+  [
+    "applied-to の重なり",
+    { appliedTo: "applied-to: []\napplied-to: []" },
+    "applied-to is declared 2 times",
+  ],
+  [
+    "status のブロックスカラー（>-）",
+    { status: "status: >-\n  pending" },
+    "status uses a block scalar",
+  ],
+  [
+    "status のブロックスカラー（|）",
+    { status: "status: |\n  pending" },
+    "status uses a block scalar",
+  ],
+  [
+    "status のブロックスカラー（行末のコメント）",
+    { status: "status: >- # 折り返す\n  pending" },
+    "status uses a block scalar",
+  ],
+  ["type のブロックスカラー（|2+）", { type: "type: |2+\n  doc" }, "type uses a block scalar"],
+  [
+    "applied-to のブロックスカラー",
+    { appliedTo: "applied-to: |\n  docs/a.md" },
+    "applied-to uses a block scalar",
+  ],
+  ["status のタグ", { status: "status: !!str pending" }, "status has a YAML tag"],
+  ["type のタグ", { type: "type: !custom doc" }, "type has a YAML tag"],
+  ["applied-to のタグ", { appliedTo: "applied-to: !!seq []" }, "applied-to has a YAML tag"],
+  ["status のアンカー", { status: "status: &s pending" }, "status uses a YAML anchor or alias"],
+  ["type のエイリアス", { type: "type: *t" }, "type uses a YAML anchor or alias"],
+  [
+    "applied-to のアンカー",
+    { appliedTo: "applied-to: &a []" },
+    "applied-to uses a YAML anchor or alias",
+  ],
+  [
+    "引用符で囲んだ status のキー",
+    { status: '"status": pending' },
+    "status key is quoted or has a space before the colon",
+  ],
+  [
+    "コロンの前に空白がある type のキー",
+    { type: "type : doc" },
+    "type key is quoted or has a space before the colon",
+  ],
+  [
+    "単引用符で囲んだ applied-to のキー",
+    { appliedTo: "'applied-to': []" },
+    "applied-to key is quoted or has a space before the colon",
+  ],
+])("status・type・applied-to の形を拒否する: %s", (_name, lines, message) => {
+  const { status: exitCode, stderr } = runCheck(noteWithKeys(lines));
+  expect(stderr).toContain(message);
+  expect(exitCode).toBe(2);
+});
+
+test.each([
+  ["1 回ずつのキー", {}],
+  ["引用符で囲んだ値（タグでもブロックスカラーでもない文字列）", { type: 'type: "!doc"' }],
+  ["値の後のコメントに書いた記号", { status: "status: pending # !! と | は値ではない" }],
+  ["flow 配列の applied-to", { status: "status: applied", appliedTo: 'applied-to: ["docs/a.md"]' }],
+])("status・type・applied-to の形を受け付ける: %s", (_name, lines) => {
+  const { status: exitCode, stderr } = runCheck(noteWithKeys(lines));
+  expect(stderr).toBe("");
+  expect(exitCode).toBe(0);
+});
+
+test("本文に書いた status: は、キーの重なりとして数えない", () => {
+  const content = noteWithKeys({}).replace(
+    "学びの本文。",
+    "学びの本文。\nstatus: applied\ntype: hook",
+  );
+  const { status: exitCode, stderr } = runCheck(content);
+  expect(stderr).toBe("");
+  expect(exitCode).toBe(0);
+});
+
+test("キーの重なりと値の形を、1 回の実行でまとめて報告する", () => {
+  const { status: exitCode, stderr } = runCheck(
+    noteWithKeys({ status: "status: pending\nstatus: !!str pending", type: "type: >-\n  doc" }),
+  );
+  expect(stderr).toContain("status is declared 2 times");
+  expect(stderr).toContain("status has a YAML tag");
+  expect(stderr).toContain("type uses a block scalar");
+  expect(exitCode).toBe(2);
+});

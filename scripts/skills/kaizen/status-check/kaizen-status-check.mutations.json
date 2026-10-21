@@ -117,7 +117,10 @@
       "find": "\t\t\tgsub(/\\|/, \"｜\", status)",
       "replace": "\t\t\tstatus = status",
       "occurrences": 1,
-      "expect_failing": ["status の値の | で後ろのフィールドがずれない"]
+      "expect_failing": [
+        "status の値の | で後ろのフィールドがずれない",
+        "status・type・applied-to の形を拒否する: status のブロックスカラー（|）"
+      ]
     },
     {
       "id": "TYPE-PIPE-KEPT",
@@ -126,7 +129,10 @@
       "find": "\t\t\tgsub(/\\|/, \"｜\", type)",
       "replace": "\t\t\ttype = type",
       "occurrences": 1,
-      "expect_failing": ["type の値の | で後ろのフィールドがずれない"]
+      "expect_failing": [
+        "type の値の | で後ろのフィールドがずれない",
+        "status・type・applied-to の形を拒否する: type のブロックスカラー（|2+）"
+      ]
     },
     {
       "id": "CONF-QUOTED-KEY-IGNORED",
@@ -204,6 +210,157 @@
       "replace": "\t\t\t\tbad = confidence",
       "occurrences": 1,
       "expect_failing": ["重なったキーの前の空の値も報告する"]
+    },
+    {
+      "id": "KEYS-DUP-IGNORED",
+      "why": "status・type・applied-to のキーの重なりを報告しない",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "\t\t\tif [ \"${key_count##*:}\" -gt 1 ]; then",
+      "replace": "\t\t\tif false; then",
+      "occurrences": 1,
+      "expect_failing": [
+        "status・type・applied-to の形を拒否する: status の重なり",
+        "status・type・applied-to の形を拒否する: 引用符で囲んだキーと重なった status",
+        "status・type・applied-to の形を拒否する: applied-to の無いノートの status の重なり",
+        "status・type・applied-to の形を拒否する: type の重なり",
+        "status・type・applied-to の形を拒否する: 単引用符で囲んだキーと重なった type",
+        "status・type・applied-to の形を拒否する: applied-to の重なり",
+        "キーの重なりと値の形を、1 回の実行でまとめて報告する"
+      ]
+    },
+    {
+      "id": "STATUS-COUNT-SKIPPED",
+      "why": "status のキーを数えない",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "{ status_count++; note_key(\"status\", $0) }",
+      "replace": "{ note_key(\"status\", $0) }",
+      "occurrences": 1,
+      "expect_failing": [
+        "status・type・applied-to の形を拒否する: status の重なり",
+        "status・type・applied-to の形を拒否する: 引用符で囲んだキーと重なった status",
+        "status・type・applied-to の形を拒否する: applied-to の無いノートの status の重なり",
+        "キーの重なりと値の形を、1 回の実行でまとめて報告する"
+      ]
+    },
+    {
+      "id": "TYPE-COUNT-SKIPPED",
+      "why": "type のキーを数えない",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "{ type_count++; note_key(\"type\", $0) }",
+      "replace": "{ note_key(\"type\", $0) }",
+      "occurrences": 1,
+      "expect_failing": [
+        "status・type・applied-to の形を拒否する: type の重なり",
+        "status・type・applied-to の形を拒否する: 単引用符で囲んだキーと重なった type"
+      ]
+    },
+    {
+      "id": "APPLIED-COUNT-SKIPPED",
+      "why": "applied-to のキーを数えない",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "{ applied_count++; note_key(\"applied-to\", $0) }",
+      "replace": "{ note_key(\"applied-to\", $0) }",
+      "occurrences": 1,
+      "expect_failing": ["status・type・applied-to の形を拒否する: applied-to の重なり"]
+    },
+    {
+      "id": "BLOCK-SCALAR-ACCEPTED",
+      "why": "ブロックスカラーの値を受け付ける",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "if (value ~ /^[|>][-+0-9]*$/)",
+      "replace": "if (0)",
+      "occurrences": 1,
+      "expect_failing": [
+        "status・type・applied-to の形を拒否する: status のブロックスカラー（>-）",
+        "status・type・applied-to の形を拒否する: status のブロックスカラー（|）",
+        "status・type・applied-to の形を拒否する: status のブロックスカラー（行末のコメント）",
+        "status・type・applied-to の形を拒否する: type のブロックスカラー（|2+）",
+        "status・type・applied-to の形を拒否する: applied-to のブロックスカラー",
+        "キーの重なりと値の形を、1 回の実行でまとめて報告する"
+      ]
+    },
+    {
+      "id": "TAG-ACCEPTED",
+      "why": "タグの付いた値を受け付ける",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "else if (value ~ /^!/)",
+      "replace": "else if (0)",
+      "occurrences": 1,
+      "expect_failing": [
+        "status・type・applied-to の形を拒否する: status のタグ",
+        "status・type・applied-to の形を拒否する: type のタグ",
+        "status・type・applied-to の形を拒否する: applied-to のタグ",
+        "キーの重なりと値の形を、1 回の実行でまとめて報告する"
+      ]
+    },
+    {
+      "id": "STATUS-FORM-UNCHECKED",
+      "why": "status の値の形を確かめない",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "\t\t\tnote_form(\"status\", status)\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "status・type・applied-to の形を拒否する: status のブロックスカラー（>-）",
+        "status・type・applied-to の形を拒否する: status のブロックスカラー（|）",
+        "status・type・applied-to の形を拒否する: status のブロックスカラー（行末のコメント）",
+        "status・type・applied-to の形を拒否する: status のタグ",
+        "キーの重なりと値の形を、1 回の実行でまとめて報告する",
+        "status・type・applied-to の形を拒否する: status のアンカー"
+      ]
+    },
+    {
+      "id": "TYPE-FORM-UNCHECKED",
+      "why": "type の値の形を確かめない",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "\t\t\tnote_form(\"type\", type)\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "status・type・applied-to の形を拒否する: type のブロックスカラー（|2+）",
+        "status・type・applied-to の形を拒否する: type のタグ",
+        "キーの重なりと値の形を、1 回の実行でまとめて報告する",
+        "status・type・applied-to の形を拒否する: type のエイリアス"
+      ]
+    },
+    {
+      "id": "APPLIED-FORM-UNCHECKED",
+      "why": "applied-to の値の形を確かめない",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "\t\t\tnote_form(\"applied-to\", value)\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "status・type・applied-to の形を拒否する: applied-to のブロックスカラー",
+        "status・type・applied-to の形を拒否する: applied-to のタグ",
+        "status・type・applied-to の形を拒否する: applied-to のアンカー"
+      ]
+    },
+    {
+      "id": "ANCHOR-ACCEPTED",
+      "why": "アンカーとエイリアスの値を受け付ける",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "else if (value ~ /^[&*]/)",
+      "replace": "else if (0)",
+      "occurrences": 1,
+      "expect_failing": [
+        "status・type・applied-to の形を拒否する: status のアンカー",
+        "status・type・applied-to の形を拒否する: type のエイリアス",
+        "status・type・applied-to の形を拒否する: applied-to のアンカー"
+      ]
+    },
+    {
+      "id": "KEY-FORM-ACCEPTED",
+      "why": "引用符で囲んだキーとコロンの前に空白があるキーを受け付ける",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "if (index(line, key \":\") != 1)",
+      "replace": "if (0)",
+      "occurrences": 1,
+      "expect_failing": [
+        "status・type・applied-to の形を拒否する: 引用符で囲んだ status のキー",
+        "status・type・applied-to の形を拒否する: コロンの前に空白がある type のキー",
+        "status・type・applied-to の形を拒否する: 単引用符で囲んだ applied-to のキー"
+      ]
     }
   ]
 }
