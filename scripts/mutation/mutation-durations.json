@@ -101,8 +101,8 @@
     "scripts/coverage/run-coverage.mutations.json": 6,
     "scripts/coverage/shell-coverage.mutations.json": 0.8,
     "scripts/skills/kaizen/kaizen-schedule-report.mutations.json": 2.9,
-    "scripts/skills/kaizen/status-check/kaizen-status-check.mutations.json": 10.6,
+    "scripts/skills/kaizen/status-check/kaizen-status-check.mutations.json": 9.2,
     "scripts/skills/parity-component/css-rules-capture.mutations.json": 0.7,
-    "scripts/skills/kaizen/frontmatter/kaizen-frontmatter-values.mutations.json": 9.6
+    "scripts/skills/kaizen/frontmatter/kaizen-frontmatter-values.mutations.json": 5.2
   }
 }

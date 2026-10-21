@@ -80,7 +80,8 @@ frontmatter_state() {
 			# キーを引用符で囲んだ形・コロンの前に空白を書いた形・アンカーやタグを付けた形があったか（0 か 1）も、別のフィールドで渡す。
 			# status・type・priority・date・applied-to は、出てきた回数と、受け付けない形（「キー:種類」を「,」で連ねたもの）を渡す。
 			# 種類は block・tag・anchor・word・date（値）、key・nospace・explicit（キーの書き方）、item（applied-to の要素）である。
-			printf "%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s\n", status, present, nonempty, type, conf_count, conf_nospace, conf_key, confidence, status_count, type_count, priority_count, date_count, applied_count, bad_forms, out
+			gsub(/\|/, "｜", date)
+			printf "%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s\n", status, present, nonempty, type, conf_count, conf_nospace, conf_key, confidence, status_count, type_count, priority_count, date_count, date, applied_count, bad_forms, out
 		}
 		# ブロックスカラー（`|`・`>-` の次の行に値を書く形）とタグ（`!!str applied`）は、1 行の値として読めないので記録する。
 		# 値は、コメントと前後の空白を落とした後、引用符を落とす前のものを渡す（引用符で囲んだ `"|"` は文字列である）。
@@ -99,6 +100,8 @@ frontmatter_state() {
 			# 同梱のスクリプト（kaizen_frontmatter_values）は、行末のコメントや引用符を値の一部として読む。ここで止めるので、読み方を広げずに済む。
 			else if (key == "date" && value != "" && value !~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/) kind = "date"
 			else if (key != "applied-to" && key != "date" && value != "" && value !~ /^[A-Za-z0-9][A-Za-z0-9_-]*$/) kind = "word"
+			# priority の打ち間違い（hgih）は、注入では末尾に回り、忘却では候補から外れ続けるので、3 つの値のほかを止める。
+			else if (key == "priority" && value != "" && value !~ /^(high|medium|low)$/) kind = "level"
 			if (kind == "") return
 			add_bad(key ":" kind)
 			if (key == "applied-to") applied_form_bad = 1
@@ -145,7 +148,7 @@ frontmatter_state() {
 			if (item == "") return
 			applied_value = (applied_value == "" ? item : applied_value "," item)
 		}
-		BEGIN { status_seen = 0; type_seen = 0; fm = 0; present = 0; nonempty = 0; status = ""; type = ""; conf_count = 0; conf_nospace = 0; conf_bad = ""; confidence = ""; in_applied = 0; applied_value = ""; status_count = 0; type_count = 0; priority_count = 0; date_count = 0; applied_count = 0; bad_forms = ""; applied_form_bad = 0; conf_key = 0; flow_value = ""; block_marker = 0 }
+		BEGIN { status_seen = 0; type_seen = 0; date_seen = 0; date = ""; fm = 0; present = 0; nonempty = 0; status = ""; type = ""; conf_count = 0; conf_nospace = 0; conf_bad = ""; confidence = ""; in_applied = 0; applied_value = ""; status_count = 0; type_count = 0; priority_count = 0; date_count = 0; applied_count = 0; bad_forms = ""; applied_form_bad = 0; conf_key = 0; flow_value = ""; block_marker = 0 }
 		/^---[[:space:]]*$/ {
 			fm++
 			if (fm == 2) {
@@ -203,6 +206,8 @@ frontmatter_state() {
 			sub(/^date:[[:space:]]*/, "", value)
 			gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
 			note_form("date", value)
+			if (!date_seen) date = value
+			date_seen = 1
 			in_applied = 0
 			next
 		}
@@ -366,7 +371,7 @@ for note in .kaizen/*.md .kaizen/archive/*.md; do
 		continue
 	fi
 	# entries は最後の変数なので、要素に `|` が含まれても前のフィールドはずれない。
-	IFS='|' read -r status present nonempty type conf_count conf_nospace conf_key confidence status_count type_count priority_count date_count applied_count bad_forms entries <<<"${state}"
+	IFS='|' read -r status present nonempty type conf_count conf_nospace conf_key confidence status_count type_count priority_count date_count date_value applied_count bad_forms entries <<<"${state}"
 
 	# status・type・priority・date・applied-to も、confidence と同じく、キーの重なりと 1 行で読めない形（値とキーの書き方）を止める。
 	# 重なると、このチェックは最後の値を読むが、YAML の実装によってはエラーになるか、別の値を採る。
@@ -396,6 +401,7 @@ for note in .kaizen/*.md .kaizen/archive/*.md; do
 			anchor) echo "kaizen-status-check: ${note}: ${bad_form%:*} uses a YAML anchor or alias; write the plain value" >&2 ;;
 			word) echo "kaizen-status-check: ${note}: ${bad_form%:*} is not a plain word (letters, digits, _ and - only); write it without quotes, comments or YAML syntax" >&2 ;;
 			date) echo "kaizen-status-check: ${note}: ${bad_form%:*} is not a YYYY-MM-DD date; write it without quotes, comments or YAML syntax" >&2 ;;
+			level) echo "kaizen-status-check: ${note}: ${bad_form%:*} is not high, medium or low" >&2 ;;
 			explicit) echo "kaizen-status-check: ${note}: uses a YAML explicit key (? key); write it as key: value on one line" >&2 ;;
 			item) echo "kaizen-status-check: ${note}: ${bad_form%:*} has an element with a YAML anchor, alias, tag or nested collection; write each element as a plain string" >&2 ;;
 			nospace) echo "kaizen-status-check: ${note}: ${bad_form%:*} needs a space after the colon (${bad_form%:*}: <value>)" >&2 ;;
@@ -407,8 +413,7 @@ for note in .kaizen/*.md .kaizen/archive/*.md; do
 
 	# date は形（YYYY-MM-DD）に加えて、暦の日付として読めるかを確かめる。13 月のような値は、忘却が日数に変換できず、
 	# 候補から外したことを報告しないまま pending に残る。形が誤っている値は、上で報告したので重ねない。
-	if [ "${key_checks}" = "1" ] && [[ ",${bad_forms}," != *",date:"* ]] && declare -f kaizen_days_from_date >/dev/null 2>&1 && declare -f kaizen_frontmatter_values >/dev/null 2>&1; then
-		date_value=$(kaizen_frontmatter_values "${note}" date)
+	if [ "${key_checks}" = "1" ] && [[ ",${bad_forms}," != *",date:"* ]] && declare -f kaizen_days_from_date >/dev/null 2>&1; then
 		if [ -n "${date_value}" ] && ! kaizen_days_from_date "${date_value}" >/dev/null; then
 			echo "kaizen-status-check: ${note}: date is not a real calendar date: ${date_value}" >&2
 			errors=$((errors + 1))

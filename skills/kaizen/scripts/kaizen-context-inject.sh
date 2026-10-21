@@ -117,7 +117,9 @@ fi
 
 # frontmatter の欄は、共通ライブラリの kaizen_frontmatter_values で読む（同梱のスクリプトで読み方を 1 つにする）。
 # 共通ライブラリを読めないときは、どの学びが pending かを判定できないので、何も注入しない（警告は読み込みの箇所で出した）。
+# 機能を減らして動いたことを、本番の構成の実行と出力で区別できるように 1 行出す。
 if ! declare -f kaizen_frontmatter_values >/dev/null 2>&1; then
+	printf '%s: 学びの status を読めないため、学びを注入しません\n' "$(basename "${BASH_SOURCE[0]}")" >&2
 	exit 0
 fi
 

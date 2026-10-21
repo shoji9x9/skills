@@ -491,9 +491,14 @@ test("--list / --auto にファイル引数を混ぜたら受け付けない", (
 
 test("忘却したノートは kaizen-status-check.sh を通る", () => {
   // 自動で実行される以上、掃引の結果がコミット前のチェックを止めてはならない。
-  // 日付の形が不正なノート（bad-date）は、忘却とは関係なく kaizen-status-check.sh が止めるので、ここでは置かない。
+  // 日付の形が不正なノート（bad-date）と未知の priority のノート（old-unknown-priority）は、
+  // 忘却とは関係なく kaizen-status-check.sh が止めるので、ここでは置かない。
   const statusCheck = join(repoRoot, "skills/kaizen/scripts/kaizen-status-check.sh");
-  const { "bad-date": _badDate, ...valid } = NON_CANDIDATES;
+  const {
+    "bad-date": _badDate,
+    "old-unknown-priority": _unknownPriority,
+    ...valid
+  } = NON_CANDIDATES;
   const dir = makeProject({ ...CANDIDATES, ...valid });
   try {
     run(dir, ["--auto"]);

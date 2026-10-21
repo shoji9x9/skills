@@ -661,7 +661,9 @@
         "priority と date の形を拒否する: 引用符で囲んだ priority の値",
         "priority と date の形を拒否する: priority のタグ",
         "priority と date の形を拒否する: priority のブロックスカラー",
-        "archive のノートには、priority と date の重なりと形のチェックを当てない"
+        "archive のノートには、priority と date の重なりと形のチェックを当てない",
+        "priority の値を拒否する: 打ち間違い",
+        "priority の値を拒否する: 大文字"
       ]
     },
     {
@@ -785,7 +787,11 @@
         "暦の日付として読めない date を拒否する: 13 月",
         "暦の日付として読めない date を拒否する: 0 月",
         "暦の日付として読めない date を拒否する: 0 日",
-        "暦の日付として読めない date を拒否する: 32 日"
+        "暦の日付として読めない date を拒否する: 32 日",
+        "暦の日付として読めない date を拒否する: 2 月 31 日",
+        "暦の日付として読めない date を拒否する: 4 月 31 日",
+        "暦の日付として読めない date を拒否する: うるう年でない年の 2 月 29 日",
+        "暦の日付として読めない date を拒否する: 400 で割り切れない 100 の倍数の年の 2 月 29 日"
       ]
     },
     {
@@ -796,6 +802,79 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": ["形の誤った date は、暦の日付のチェックで重ねて報告しない"]
+    },
+    {
+      "id": "MONTH-DAYS-IGNORED",
+      "why": "日をその月の日数で確かめない（2 月 31 日を通す）",
+      "file": "skills/kaizen/scripts/kaizen-hook-common.sh",
+      "find": "[ \"${d}\" -le \"${month_days}\" ]",
+      "replace": "[ \"${d}\" -le 31 ]",
+      "occurrences": 1,
+      "expect_failing": [
+        "暦の日付として読めない date を拒否する: 2 月 31 日",
+        "暦の日付として読めない date を拒否する: 4 月 31 日",
+        "暦の日付として読めない date を拒否する: うるう年でない年の 2 月 29 日",
+        "暦の日付として読めない date を拒否する: 400 で割り切れない 100 の倍数の年の 2 月 29 日"
+      ]
+    },
+    {
+      "id": "LEAP-YEAR-IGNORED",
+      "why": "うるう年の 2 月 29 日を止める",
+      "file": "skills/kaizen/scripts/kaizen-hook-common.sh",
+      "find": "\t\t\tmonth_days=29\n",
+      "replace": "\t\t\tmonth_days=28\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "暦の日付として読める date を受け付ける: うるう年の 2 月 29 日",
+        "暦の日付として読める date を受け付ける: 400 で割り切れる年の 2 月 29 日"
+      ]
+    },
+    {
+      "id": "LEAP-CENTURY-IGNORED",
+      "why": "100 の倍数の年もうるう年として扱う",
+      "file": "skills/kaizen/scripts/kaizen-hook-common.sh",
+      "find": "[ $((y % 100)) -ne 0 ]",
+      "replace": "true",
+      "occurrences": 1,
+      "expect_failing": [
+        "暦の日付として読めない date を拒否する: 400 で割り切れない 100 の倍数の年の 2 月 29 日"
+      ]
+    },
+    {
+      "id": "LEAP-400-IGNORED",
+      "why": "400 で割り切れる年をうるう年として扱わない",
+      "file": "skills/kaizen/scripts/kaizen-hook-common.sh",
+      "find": "[ $((y % 400)) -eq 0 ]",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": ["暦の日付として読める date を受け付ける: 400 で割り切れる年の 2 月 29 日"]
+    },
+    {
+      "id": "PRIORITY-LEVEL-ACCEPTED",
+      "why": "priority の high・medium・low でない語を通す",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "else if (key == \"priority\" && value != \"\" && value !~ /^(high|medium|low)$/) kind = \"level\"",
+      "replace": "else if (0) kind = \"level\"",
+      "occurrences": 1,
+      "expect_failing": ["priority の値を拒否する: 打ち間違い", "priority の値を拒否する: 大文字"]
+    },
+    {
+      "id": "DATE-FIRST-VALUE-DROPPED",
+      "why": "status-check が date の値を受け取らない（暦の日付を確かめない）",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "if (!date_seen) date = value",
+      "replace": "if (0) date = value",
+      "occurrences": 1,
+      "expect_failing": [
+        "暦の日付として読めない date を拒否する: 13 月",
+        "暦の日付として読めない date を拒否する: 0 月",
+        "暦の日付として読めない date を拒否する: 0 日",
+        "暦の日付として読めない date を拒否する: 32 日",
+        "暦の日付として読めない date を拒否する: 2 月 31 日",
+        "暦の日付として読めない date を拒否する: 4 月 31 日",
+        "暦の日付として読めない date を拒否する: うるう年でない年の 2 月 29 日",
+        "暦の日付として読めない date を拒否する: 400 で割り切れない 100 の倍数の年の 2 月 29 日"
+      ]
     }
   ]
 }

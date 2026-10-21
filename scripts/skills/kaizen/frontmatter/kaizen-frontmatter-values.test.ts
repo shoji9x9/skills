@@ -8,7 +8,7 @@
 //   - kaizen-status-check.sh が通す書き方は、共通の関数が意図した値として読む（止める書き方の集合も閉じている）
 //   - `status: pending # メモ` と `status: "pending"` を、status-check が止め、どのスクリプトも pending として扱わない
 import { spawnSync } from "node:child_process";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, expect, test } from "vitest";
@@ -102,6 +102,47 @@ test.each([
   ["明示的なキー", "---\n? status\n: pending\n---\n", ["status"], [""]],
 ])("共通の関数が欄を読む: %s", (_name, content, keys, expected) => {
   expect(readNote(content, keys)).toStrictEqual(expected);
+});
+
+// キーのつなぎ方を、呼び出し側の IFS で変えない（IFS が , のままだと、すべての欄が空で返る）。
+test("呼び出し側の IFS に関わらず、指定したキーを読む", () => {
+  const dir = project("---\nstatus: pending\ntype: doc\n---\n");
+  const res = spawnSync(
+    "bash",
+    [
+      "-c",
+      '. "$1"; IFS=,; kaizen_frontmatter_values "$2" status type',
+      "_",
+      lib,
+      join(dir, ".kaizen", NOTE_NAME),
+    ],
+    { encoding: "utf8", timeout: CHILD_TIMEOUT_MS, env: { ...process.env, ...coverageEnv() } },
+  );
+  expect(res.status, res.stderr).toBe(0);
+  expect(res.stdout).toBe("pending\ndoc\n");
+});
+
+// 共通ライブラリを読めないとき、注入は何も出さず、そのことを本番の構成と区別できる 1 行で stderr に出す。
+test("共通ライブラリを読めないとき、注入は学びを出さず、注入しないことを stderr に出す", () => {
+  const dir = project("---\nstatus: pending\n---\n\n## 提案\n\n要約\n");
+  const solo = join(dir, "solo");
+  mkdirSync(solo);
+  copyFileSync(
+    join(scriptsDir, "kaizen-context-inject.sh"),
+    join(solo, "kaizen-context-inject.sh"),
+  );
+  const res = spawnSync("bash", [join(solo, "kaizen-context-inject.sh")], {
+    timeout: CHILD_TIMEOUT_MS,
+    cwd: dir,
+    env: { ...process.env, CLAUDE_PROJECT_DIR: dir, ...coverageEnv() },
+    encoding: "utf8",
+    input: "",
+  });
+  expect(res.status).toBe(0);
+  expect(res.stdout).toBe("");
+  expect(res.stderr).toContain(
+    "kaizen-context-inject.sh: 学びの status を読めないため、学びを注入しません",
+  );
 });
 
 test("読めないファイルは、エラーにせず空の出力を返す", () => {

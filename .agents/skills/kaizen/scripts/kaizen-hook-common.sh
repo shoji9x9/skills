@@ -499,7 +499,18 @@ kaizen_days_from_date() { # $1: YYYY-MM-DD
 	mo=$((10#${BASH_REMATCH[2]}))
 	d=$((10#${BASH_REMATCH[3]}))
 	[ "${mo}" -ge 1 ] && [ "${mo}" -le 12 ] || return 1
-	[ "${d}" -ge 1 ] && [ "${d}" -le 31 ] || return 1
+	# 日はその月の日数まで受け付ける（2 月 31 日のような日付を、3 月の日付として数えない）。
+	local month_days=31
+	case "${mo}" in
+	4 | 6 | 9 | 11) month_days=30 ;;
+	2)
+		month_days=28
+		if [ $((y % 4)) -eq 0 ] && { [ $((y % 100)) -ne 0 ] || [ $((y % 400)) -eq 0 ]; }; then
+			month_days=29
+		fi
+		;;
+	esac
+	[ "${d}" -ge 1 ] && [ "${d}" -le "${month_days}" ] || return 1
 	kaizen_days_from_civil "${y}" "${mo}" "${d}"
 }
 
@@ -517,6 +528,8 @@ kaizen_days_from_date() { # $1: YYYY-MM-DD
 # pipefail の下で呼び出し側ごと 141 で終わる（5.7MB のノートで再現した）。
 kaizen_frontmatter_values() { # $1: ノート $2...: キー
 	local note=$1
+	# キーを空白でつなぐ。呼び出し側の IFS（空や `,`）でつなぎ方が変わらないよう、ここで固定する。
+	local IFS=' '
 	shift
 	awk -v keys="$*" '
 		BEGIN { n = split(keys, key, " "); left = n; fm = 0 }

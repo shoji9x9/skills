@@ -952,9 +952,33 @@ test.each([
   ["0 月", "date: 2026-00-10"],
   ["0 日", "date: 2026-10-00"],
   ["32 日", "date: 2026-10-32"],
+  ["2 月 31 日", "date: 2026-02-31"],
+  ["4 月 31 日", "date: 2026-04-31"],
+  ["うるう年でない年の 2 月 29 日", "date: 2025-02-29"],
+  ["400 で割り切れない 100 の倍数の年の 2 月 29 日", "date: 1900-02-29"],
 ])("暦の日付として読めない date を拒否する: %s", (_name, date) => {
   const { status: exitCode, stderr } = runCheck(noteWithKeys({ date }));
   expect(stderr).toContain("date is not a real calendar date");
+  expect(exitCode).toBe(2);
+});
+
+test.each([
+  ["うるう年の 2 月 29 日", "date: 2024-02-29"],
+  ["400 で割り切れる年の 2 月 29 日", "date: 2000-02-29"],
+  ["12 月 31 日", "date: 2026-12-31"],
+])("暦の日付として読める date を受け付ける: %s", (_name, date) => {
+  const { status: exitCode, stderr } = runCheck(noteWithKeys({ date }));
+  expect(stderr).toBe("");
+  expect(exitCode).toBe(0);
+});
+
+// priority は high・medium・low のどれか。打ち間違いは、注入では末尾に回り、忘却では候補から外れ続ける。
+test.each([
+  ["打ち間違い", "priority: hgih"],
+  ["大文字", "priority: High"],
+])("priority の値を拒否する: %s", (_name, priority) => {
+  const { status: exitCode, stderr } = runCheck(noteWithKeys({ priority }));
+  expect(stderr).toContain("priority is not high, medium or low");
   expect(exitCode).toBe(2);
 });
 
