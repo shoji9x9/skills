@@ -1,6 +1,7 @@
 // テストから oxlint を実物のまま起動し、診断を読む（oxlint-plugin/ のルールと oxlint-pending.ts のテストが使う）。
 import { spawnSync } from "node:child_process";
-import { dirname, join } from "node:path";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isRecord } from "../../../lib/guards.ts";
 import { isArray } from "../../../lib/is-array.ts";
@@ -65,4 +66,44 @@ export function runOxlint(
   const diagnostics = isRecord(parsed) ? parsed.diagnostics : undefined;
   if (!isArray(diagnostics)) throw new Error(`oxlint の出力に diagnostics が無い: ${res.stdout}`);
   return diagnostics.map(toDiagnostic);
+}
+
+/**
+ * dir の下に files（dir からのパス → 内容）を置き、rule だけを有効にした oxlint を 1 回実行する。
+ * 診断の行を、files のパスごとに並べて返す（診断の無いファイルは空の配列）。
+ */
+export function runRule({
+  dir,
+  rule,
+  option,
+  files,
+}: {
+  dir: string;
+  rule: string;
+  option?: unknown;
+  files: Record<string, string>;
+}): Record<string, number[]> {
+  const config = join(dir, "oxlintrc.json");
+  const setting = option === undefined ? "error" : ["error", option];
+  const oxlintrc = {
+    categories: { correctness: "off" },
+    jsPlugins: [PLUGIN_PATH],
+    rules: { [rule]: setting },
+  };
+  writeFileSync(config, JSON.stringify(oxlintrc));
+  const lines: Record<string, number[]> = {};
+  for (const [rel, content] of Object.entries(files)) {
+    mkdirSync(dirname(join(dir, rel)), { recursive: true });
+    writeFileSync(join(dir, rel), content);
+    lines[rel] = [];
+  }
+  for (const d of runOxlint(["-c", config, ...Object.keys(files).map((f) => join(dir, f))])) {
+    const rel = relative(dir, d.file);
+    const found = lines[rel];
+    if (d.rule !== rule || found === undefined)
+      throw new Error(`想定しない診断: ${rel} [${d.rule}]`);
+    found.push(d.line);
+  }
+  for (const found of Object.values(lines)) found.sort((a, b) => a - b);
+  return lines;
 }

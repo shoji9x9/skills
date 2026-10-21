@@ -21,13 +21,24 @@ export type AstNode = {
   kind?: string;
 };
 
+/** Program の直下の文のうち、import の宣言が読む欄。 */
+export type Statement = {
+  type: string;
+  source?: { value?: unknown };
+  specifiers?: { type: string; imported?: { name?: string }; local?: { name?: string } }[];
+};
+
 type Context = {
   options: readonly unknown[];
   report: (d: { node: AstNode; message: string }) => void;
 };
 
 export const DEFAULT_MAX = 50;
-/** `describe` と同じく、テストをまとめるだけの関数（vitest の `suite` は `describe` の別名）。 */
+/**
+ * `describe` と同じく、テストをまとめるだけの関数（vitest の `suite` は `describe` の別名）。
+ * vitest から import した名前だけを数える（別名の import は、ファイルの中の名前で数える）。
+ * 同じ名前の自前の関数（`const suite = ...`）に渡したコールバックまで外さないためである。
+ */
 const GROUPING_CALLEES = ["describe", "suite"];
 /** describe の修飾（`describe.skip`・`describe.each(t)` など）。これ以外のメンバー（`suite.add`）は describe として扱わない。 */
 const GROUPING_MODIFIERS = [
@@ -67,12 +78,32 @@ const isGroupingModifier = (member: AstNode): boolean =>
   member.property?.type === "Identifier" &&
   GROUPING_MODIFIERS.includes(member.property.name ?? "");
 
-/** 関数が `describe` の呼び出しの引数か。 */
-export function isGroupingCallback(fn: AstNode): boolean {
+/** ファイルの中で、vitest の describe・suite を指す名前（`import { describe as d } from "vitest"` なら d）。 */
+export function groupingNames(body: readonly Statement[]): Set<string> {
+  const names = new Set<string>();
+  for (const stmt of body) {
+    if (stmt.type !== "ImportDeclaration" || stmt.source?.value !== "vitest") continue;
+    for (const spec of stmt.specifiers ?? []) {
+      const imported = spec.imported?.name;
+      const local = spec.local?.name;
+      if (
+        spec.type === "ImportSpecifier" &&
+        imported &&
+        local &&
+        GROUPING_CALLEES.includes(imported)
+      )
+        names.add(local);
+    }
+  }
+  return names;
+}
+
+/** 関数が `describe` の呼び出しの引数か。names は groupingNames の結果。 */
+export function isGroupingCallback(fn: AstNode, names: ReadonlySet<string>): boolean {
   const parent = fn.parent;
   if (!parent || parent.type !== "CallExpression" || parent.callee === fn) return false;
   const root = calleeRoot(parent.callee);
-  return root !== null && GROUPING_CALLEES.includes(root);
+  return root !== null && names.has(root);
 }
 
 /** 即時実行の関数か（組み込みのルールのデフォルトは数えない）。 */
@@ -113,8 +144,9 @@ export const maxLinesExceptDescribe = {
   },
   create(context: Context) {
     const max = maxOf(context.options);
+    let names: ReadonlySet<string> = new Set();
     const check = (fn: AstNode) => {
-      if (isIife(fn) || isGroupingCallback(fn)) return;
+      if (isIife(fn) || isGroupingCallback(fn, names)) return;
       const { loc } = countedNode(fn);
       const lines = loc.end.line - loc.start.line + 1;
       if (lines > max)
@@ -124,6 +156,9 @@ export const maxLinesExceptDescribe = {
         });
     };
     return {
+      Program(node: { body: readonly Statement[] }) {
+        names = groupingNames(node.body);
+      },
       FunctionDeclaration: check,
       FunctionExpression: check,
       ArrowFunctionExpression: check,

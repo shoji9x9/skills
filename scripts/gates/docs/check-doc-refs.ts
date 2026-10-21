@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // 文書の参照をチェックする（lefthook pre-commit + CI）。
 //
-// 走査対象と階層は scripts/lib/doc-scan.ts で決める（Tier 4 と eval の入力は読まない）。
+// 走査対象と階層は scripts/gates/docs/doc-scan-files.ts で決める（Tier 4 と eval の入力は読まない）。
 // 規則:
 // - link: Markdown のリンク `[...](相対パス)` の先が在る。コードフェンスとインラインコードの中は読まない。
 // - section: バッククォートかリンクで書いたパス（.md）の直後の「節名」と、「`<スキル>` の」を前に付けた形の節名が、参照先の

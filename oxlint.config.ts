@@ -89,7 +89,7 @@ export default defineConfig({
         "skills-repo/max-lines-per-function-except-describe": "error",
         "vitest/consistent-test-it": ["error", { fn: "test" }],
         // vitest プラグインの correctness のルールのうち、このリポジトリのテストが違反するもの。
-        // consistent-test-it を使うためにプラグインを有効にしただけで、これらを採るかは決めていないので外す。
+        // consistent-test-it を使うためにプラグインを有効にしただけで、これらは対象にしていないので外す。採るときは、違反を直してから off の行を消す。
         // valid-expect は vitest の expect の第 2 引数（失敗したときのメッセージ）を誤りとして扱う。
         "vitest/valid-expect": "off",
         "vitest/no-conditional-expect": "off",

@@ -9,20 +9,22 @@
       "id": "ML-ANY-CALLEE",
       "why": "describe 以外の呼び出しの引数も外す",
       "file": "scripts/gates/code/oxlint-plugin/max-lines-except-describe.ts",
-      "find": "return root !== null && GROUPING_CALLEES.includes(root);",
+      "find": "return root !== null && names.has(root);",
       "replace": "return root !== null;",
       "occurrences": 1,
       "expect_failing": [
         "describe 以外の呼び出しの引数 が 51 行なら、報告するか: true",
         "test のコールバック が 51 行なら、報告するか: true",
-        "describe のコールバックの中の test とヘルパー関数は数える"
+        "describe のコールバックの中の test とヘルパー関数は数える",
+        "vitest から import していない suite に渡したコールバックは数える",
+        "別名で import した describe のコールバックは外し、import していない describe のコールバックは数える"
       ]
     },
     {
       "id": "ML-NO-GROUPING",
       "why": "describe のコールバックも数える",
       "file": "scripts/gates/code/oxlint-plugin/max-lines-except-describe.ts",
-      "find": "if (isIife(fn) || isGroupingCallback(fn)) return;",
+      "find": "if (isIife(fn) || isGroupingCallback(fn, names)) return;",
       "replace": "if (isIife(fn)) return;",
       "occurrences": 1,
       "expect_failing": [
@@ -31,7 +33,8 @@
         "describe.skip のコールバック が 51 行なら、報告するか: false",
         "describe.each(表) のコールバック が 51 行なら、報告するか: false",
         "describe.each`表` のコールバック が 51 行なら、報告するか: false",
-        "describe のコールバックの中の test とヘルパー関数は数える"
+        "describe のコールバックの中の test とヘルパー関数は数える",
+        "別名で import した describe のコールバックは外し、import していない describe のコールバックは数える"
       ]
     },
     {
@@ -133,6 +136,29 @@
       "occurrences": 1,
       "expect_failing": [
         "変数で計算したプロパティの describe の呼び出し が 51 行なら、報告するか: true"
+      ]
+    },
+    {
+      "id": "ML-BINDING",
+      "why": "vitest から import したかを見ず、名前だけで describe・suite と判定する",
+      "file": "scripts/gates/code/oxlint-plugin/max-lines-except-describe.ts",
+      "find": "return root !== null && names.has(root);",
+      "replace": "return root !== null && [\"describe\", \"suite\"].includes(root);",
+      "occurrences": 1,
+      "expect_failing": [
+        "vitest から import していない suite に渡したコールバックは数える",
+        "別名で import した describe のコールバックは外し、import していない describe のコールバックは数える"
+      ]
+    },
+    {
+      "id": "ML-ALIAS",
+      "why": "別名で import した名前ではなく、vitest の元の名前を覚える",
+      "file": "scripts/gates/code/oxlint-plugin/max-lines-except-describe.ts",
+      "find": "names.add(local);",
+      "replace": "names.add(imported);",
+      "occurrences": 1,
+      "expect_failing": [
+        "別名で import した describe のコールバックは外し、import していない describe のコールバックは数える"
       ]
     }
   ]

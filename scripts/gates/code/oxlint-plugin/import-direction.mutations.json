@@ -66,62 +66,8 @@
         "scripts/hooks/a.ts → scripts/gates/docs/b.ts は向きに反するか: true",
         "scripts/lib/a.ts → scripts/gates/code/b.ts は向きに反するか: true",
         "scripts/lib/text/a.ts → scripts/skills/x/b.ts は向きに反するか: true",
-        "oxlint: import・export from・import()・require()・import 型の向きに反する参照を報告し、反しない参照は報告しない"
-      ]
-    },
-    {
-      "id": "ID-EXPORT-ALL",
-      "why": "export * from を見ない",
-      "file": "scripts/gates/code/oxlint-plugin/import-direction.ts",
-      "find": "      ExportAllDeclaration: check,\n",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "oxlint: import・export from・import()・require()・import 型の向きに反する参照を報告し、反しない参照は報告しない"
-      ]
-    },
-    {
-      "id": "ID-DYNAMIC",
-      "why": "import() を見ない",
-      "file": "scripts/gates/code/oxlint-plugin/import-direction.ts",
-      "find": "      ImportExpression: check,\n",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "oxlint: import・export from・import()・require()・import 型の向きに反する参照を報告し、反しない参照は報告しない"
-      ]
-    },
-    {
-      "id": "ID-IMPORT-TYPE",
-      "why": "import 型（typeof import(\"…\")）を見ない",
-      "file": "scripts/gates/code/oxlint-plugin/import-direction.ts",
-      "find": "      TSImportType: check,\n",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "oxlint: import・export from・import()・require()・import 型の向きに反する参照を報告し、反しない参照は報告しない"
-      ]
-    },
-    {
-      "id": "ID-REQUIRE",
-      "why": "require() を見ない",
-      "file": "scripts/gates/code/oxlint-plugin/import-direction.ts",
-      "find": "      CallExpression: checkRequire,\n",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "oxlint: import・export from・import()・require()・import 型の向きに反する参照を報告し、反しない参照は報告しない"
-      ]
-    },
-    {
-      "id": "ID-REQUIRE-NAME",
-      "why": "require 以外の名前の呼び出しも参照として扱う",
-      "file": "scripts/gates/code/oxlint-plugin/import-direction.ts",
-      "find": "if (node.callee?.type !== \"Identifier\" || node.callee.name !== \"require\") return;",
-      "replace": "if (node.callee === undefined) return;",
-      "occurrences": 1,
-      "expect_failing": [
-        "oxlint: import・export from・import()・require()・import 型の向きに反する参照を報告し、反しない参照は報告しない"
+        "oxlint: import・export from・import()・require()・import 型の向きに反する参照を報告し、反しない参照は報告しない",
+        "oxlint: import = require・テンプレート文字列の import()・createRequire の別名・JSDoc の型の参照も報告する"
       ]
     },
     {
@@ -143,6 +89,74 @@
       "replace": "if (typeof root !== \"string\")",
       "occurrences": 1,
       "expect_failing": ["root のオプションが無いか絶対パスでなければ、oxlint の実行を失敗にする"]
+    },
+    {
+      "id": "ID-PREPROCESS",
+      "why": "ts.preProcessFile が集めた参照を見ない",
+      "file": "scripts/gates/code/oxlint-plugin/import-direction.ts",
+      "find": "        moduleReferences(sourceCode.text).forEach(check);\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "oxlint: import・export from・import()・require()・import 型の向きに反する参照を報告し、反しない参照は報告しない",
+        "oxlint: import = require・テンプレート文字列の import()・createRequire の別名・JSDoc の型の参照も報告する"
+      ]
+    },
+    {
+      "id": "ID-JSDOC",
+      "why": "JSDoc の型の参照を見ない",
+      "file": "scripts/gates/code/oxlint-plugin/import-direction.ts",
+      "find": "        jsdocReferences(sourceCode.getAllComments()).forEach(check);\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "oxlint: import = require・テンプレート文字列の import()・createRequire の別名・JSDoc の型の参照も報告する",
+        "oxlint: 配布スキルの .mjs の JSDoc の型が、自分のディレクトリの外を参照したら報告する"
+      ]
+    },
+    {
+      "id": "ID-JSDOC-LINE-COMMENT",
+      "why": "JSDoc でないコメント（// の行）の中の参照も拾う",
+      "file": "scripts/gates/code/oxlint-plugin/import-direction.ts",
+      "find": ".filter((c) => c.type === \"Block\" && c.value.startsWith(\"*\"))",
+      "replace": ".filter(() => true)",
+      "occurrences": 1,
+      "expect_failing": [
+        "oxlint: import = require・テンプレート文字列の import()・createRequire の別名・JSDoc の型の参照も報告する"
+      ]
+    },
+    {
+      "id": "ID-MEMBER-REQUIRE",
+      "why": "obj.require(...) も require 関数の呼び出しとして拾う",
+      "file": "scripts/gates/code/oxlint-plugin/import-direction.ts",
+      "find": ".importedFiles.filter((f) => !/\\.\\s*require\\s*\\(\\s*[\"'`]?$/.test(text.slice(0, f.pos)))",
+      "replace": ".importedFiles",
+      "occurrences": 1,
+      "expect_failing": [
+        "oxlint: import・export from・import()・require()・import 型の向きに反する参照を報告し、反しない参照は報告しない"
+      ]
+    },
+    {
+      "id": "ID-ALIAS",
+      "why": "createRequire の戻り値を受けた名前を覚えない",
+      "file": "scripts/gates/code/oxlint-plugin/import-direction.ts",
+      "find": "            requireAliases.add(id.name);",
+      "replace": "            void id;",
+      "occurrences": 1,
+      "expect_failing": [
+        "oxlint: import = require・テンプレート文字列の import()・createRequire の別名・JSDoc の型の参照も報告する"
+      ]
+    },
+    {
+      "id": "ID-ALIAS-ONLY",
+      "why": "createRequire の戻り値でない関数の呼び出しも参照として扱う",
+      "file": "scripts/gates/code/oxlint-plugin/import-direction.ts",
+      "find": "if (callee?.type !== \"Identifier\" || !requireAliases.has(callee.name ?? \"\")) return;",
+      "replace": "if (callee?.type !== \"Identifier\") return;",
+      "occurrences": 1,
+      "expect_failing": [
+        "oxlint: import・export from・import()・require()・import 型の向きに反する参照を報告し、反しない参照は報告しない"
+      ]
     }
   ]
 }

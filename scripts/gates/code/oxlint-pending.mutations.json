@@ -37,6 +37,37 @@
       "expect_failing": [
         "pendingOverrides: 同じルールの組を持つファイルを 1 つの override にまとめ、ルールを off にする"
       ]
+    },
+    {
+      "id": "PD-EMPTY",
+      "why": "ルールが空の組を受け付け、名前が空のルールの override を作る",
+      "file": "scripts/gates/code/oxlint-pending.ts",
+      "find": "if (rules.length === 0)",
+      "replace": "if (false)",
+      "occurrences": 1,
+      "expect_failing": ["pendingOverrides: ルールが空の組は、外すものが無いので例外にする"]
+    },
+    {
+      "id": "PD-TARGET-ALL",
+      "why": "staged があっても、重なるファイルに絞らず一覧のすべてを返す",
+      "file": "scripts/gates/code/oxlint-pending.ts",
+      "find": "return files.filter((f) => staged.includes(f));",
+      "replace": "return files;",
+      "occurrences": 1,
+      "expect_failing": [
+        "pendingTargets: staged が無ければすべてを、一覧の外し方を変えるファイルがあればすべてを、それ以外は重なるファイルだけを返す"
+      ]
+    },
+    {
+      "id": "PD-TARGET-SOURCES",
+      "why": "一覧の外し方を変えるファイルが staged でも、重なるファイルだけを返す",
+      "file": "scripts/gates/code/oxlint-pending.ts",
+      "find": "staged.some((f) => PENDING_SOURCES.some((re) => re.test(f)))",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": [
+        "pendingTargets: staged が無ければすべてを、一覧の外し方を変えるファイルがあればすべてを、それ以外は重なるファイルだけを返す"
+      ]
     }
   ]
 }

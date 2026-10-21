@@ -463,6 +463,9 @@ export function pendingOverrides(
 ): { files: string[]; rules: Record<string, "off"> }[] {
   const groups = new Map<string, string[]>();
   for (const [file, rules] of Object.entries(pending)) {
+    // 空の組は何も外さず、名前が空のルールの override になるので、直したものとして一覧から消させる。
+    if (rules.length === 0)
+      throw new Error(`oxlint-pending.ts: ${file} のルールが空（直したなら一覧から消す）`);
     const key = [...rules].sort().join(" ");
     const files = groups.get(key) ?? [];
     files.push(file);
@@ -483,4 +486,24 @@ export function stalePending(
   return Object.entries(pending).flatMap(([file, rules]) =>
     rules.filter((rule) => !found.has(`${file}\u0000${rule}`)).map((rule) => ({ file, rule })),
   );
+}
+
+/** 一覧の外し方そのものを変えるファイル。staged にあれば、一覧のすべてのファイルを検査し直す。 */
+const PENDING_SOURCES = [
+  /^oxlint\.config\.ts$/,
+  /^scripts\/gates\/code\/oxlint-p(?:ending|lugin\/)/,
+];
+
+/**
+ * 古い組を検査する一覧のファイル。staged が null（すべてを検査する）なら一覧のすべて。
+ * staged に一覧の外し方を変えるファイルがあれば一覧のすべて、そうでなければ一覧と staged が重なるファイルだけ。
+ * 関数の大きさのルールはファイルごとに判定するので、直さなかったファイルの組は古くならない。
+ */
+export function pendingTargets(
+  pending: Readonly<Record<string, readonly PendingRule[]>>,
+  staged: readonly string[] | null,
+): string[] {
+  const files = Object.keys(pending);
+  if (staged === null || staged.some((f) => PENDING_SOURCES.some((re) => re.test(f)))) return files;
+  return files.filter((f) => staged.includes(f));
 }

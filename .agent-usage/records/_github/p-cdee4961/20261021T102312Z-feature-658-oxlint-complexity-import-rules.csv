@@ -13,3 +13,8 @@ coverage:github:2026-10-20T10:23:12.330Z:2026-10-21T10:27:25.105Z,coverage,2026-
 coverage:github:2026-10-20T10:27:25.105Z:2026-10-21T10:28:06.785Z,coverage,2026-10-21T10:28:06.785Z,p-cdee4961,,,,,2026-10-20T10:27:25.105Z,2026-10-21T10:28:06.785Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-20T10:28:06.785Z:2026-10-21T10:28:55.812Z,coverage,2026-10-21T10:28:55.812Z,p-cdee4961,,,,,2026-10-20T10:28:06.785Z,2026-10-21T10:28:55.812Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-20T10:28:55.812Z:2026-10-21T10:34:39.582Z,coverage,2026-10-21T10:34:39.582Z,p-cdee4961,,,,,2026-10-20T10:28:55.812Z,2026-10-21T10:34:39.582Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:39585955209:1,ci,2026-10-21T10:55:18.032Z,p-cdee4961,github-actions,,,,2026-10-21T10:37:34.000Z,2026-10-21T10:37:35.000Z,Asia/Tokyo,feature/658-oxlint-complexity-import-rules,658,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:39585955575:1,ci,2026-10-21T10:55:18.032Z,p-cdee4961,github-actions,,,,2026-10-21T10:37:34.000Z,2026-10-21T10:41:30.000Z,Asia/Tokyo,feature/658-oxlint-complexity-import-rules,658,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-20T10:34:39.582Z:2026-10-21T10:55:18.032Z,coverage,2026-10-21T10:55:18.032Z,p-cdee4961,,,,,2026-10-20T10:34:39.582Z,2026-10-21T10:55:18.032Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-20T10:55:18.032Z:2026-10-21T11:20:31.403Z,coverage,2026-10-21T11:20:31.403Z,p-cdee4961,,,,,2026-10-20T10:55:18.032Z,2026-10-21T11:20:31.403Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-20T11:20:31.403Z:2026-10-21T11:21:43.476Z,coverage,2026-10-21T11:21:43.476Z,p-cdee4961,,,,,2026-10-20T11:20:31.403Z,2026-10-21T11:21:43.476Z,Asia/Tokyo,,,,,,,,,,,,ok,

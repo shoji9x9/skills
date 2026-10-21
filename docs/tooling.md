@@ -60,15 +60,16 @@ GitHub Actions は、`actionlint` で構文を、`ghalint` で `permissions`・`
 | `max-params` | 3 |
 | `max-nested-callbacks` | 10 |
 
-テストのファイル（`scripts/**/*.test.ts`）では、`describe` のコールバックだけを行数の上限から外す（`suite` と、`describe.skip`・`describe.each(表)` などの vitest の修飾を含む）。`describe` はファイルの大半を包むので、長くなってもよいとする。
+テストのファイル（`scripts/**/*.test.ts`）では、vitest から import した `describe` のコールバックだけを行数の上限から外す（`suite` と、`describe.skip`・`describe.each(表)` などの vitest の修飾を含む）。`describe` はファイルの大半を包むので、長くなってもよいとする。
 組み込みの `max-lines-per-function` は `describe` だけを外すオプションを持たないので、テストのファイルでは JS プラグインのルール `skills-repo/max-lines-per-function-except-describe` に替える。
 数え方は組み込みのルールと同じで、`test` のコールバックとヘルパー関数は 50 行を上限にする。
 テストを書く関数は `test` にそろえ、`vitest/consistent-test-it` が `it` を失敗にする。
-vitest プラグインの correctness のルールのうち、このリポジトリのテストが違反するもの（`valid-expect` など）は、採るかを決めていないので外している。
+vitest プラグインの correctness のルールのうち、このリポジトリのテストが違反するもの（`valid-expect` など）は外す。`consistent-test-it` を使うためにプラグインを有効にしただけで、これらのルールは対象にしていないからである。採るときは、そのルールの違反を直してから、`off` の行を消す。
 
 共有ライブラリが上位のチェックやツールに依存しないように、参照の向きを決める。
 JS プラグインのルール `skills-repo/import-direction` が、import するファイルからの相対パスを解決して判定する。
-判定する参照は、`import`・`export from`・`import()`・`require()`・型の `import("…")` である。
+参照は TypeScript の `ts.preProcessFile` で集める（`import`・`export from`・`import()`・`import x = require()`・`require()`・型の `import("…")`）。
+JSDoc の型の `import("…")` と、`createRequire` の戻り値を別の名前で受けた呼び出しも判定する。
 組み込みの `no-restricted-imports` の `patterns` は書かれた specifier の字面で照合するので、`../../skills/` が `scripts/skills/` と `skills/` のどちらを指すかを区別できない。
 
 - `scripts/` の各分類（`lib/`・`gates/`・`eval/`・`hooks/` など）は、自分の分類と `scripts/lib/` の他を import しない。

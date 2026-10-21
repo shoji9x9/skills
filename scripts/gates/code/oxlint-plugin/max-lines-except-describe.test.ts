@@ -1,40 +1,21 @@
 // describe のコールバックを除いて関数の行数を数えるルール（max-lines-except-describe.ts）のテスト（Issue #658）。
 //
 // 実物の oxlint に JS プラグインとして読ませて確かめる。行数は空行も数えるので、本体を空行で埋めて長さを決める。
-// 外すのは describe（と別名の suite）の呼び出しの引数だけで、他の呼び出しの引数・メソッド・ヘルパー関数は数える。
-import { expect, test } from "vitest";
-import { writeFileSync } from "node:fs";
-import { join } from "node:path";
+// 外すのは、vitest から import した describe（と別名の suite）の呼び出しの引数だけで、他の呼び出しの引数・メソッド・ヘルパー関数は数える。
+// oxlint の起動は時間がかかるので、デフォルトのオプションで確かめるケースはファイルを分けて置き、1 回の起動でまとめて判定する。
+import { beforeAll, expect, test } from "vitest";
 import { calleeRoot } from "./max-lines-except-describe.ts";
-import { PLUGIN_PATH, runOxlint } from "./run-oxlint.ts";
-import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
+import { runRule } from "./run-oxlint.ts";
+import { makeSharedTempDir, makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 
 const RULE = "skills-repo/max-lines-per-function-except-describe";
+const IMPORT = 'import { describe, suite, test } from "vitest";';
 
 /** 全体が lines 行になる関数の本体（開きと閉じの 2 行を除いた空行）。 */
 const body = (lines: number) => "\n".repeat(lines - 1);
 
-/** source を 1 ファイルに書き、ルールだけを有効にした oxlint の診断の行を返す。 */
-function reportedLines(source: string, option?: { max: number }): number[] {
-  const dir = makeTempDir("max-lines-except-describe-");
-  const config = join(dir, "oxlintrc.json");
-  const rule = option ? ["error", option] : "error";
-  writeFileSync(
-    config,
-    JSON.stringify({
-      categories: { correctness: "off" },
-      jsPlugins: [PLUGIN_PATH],
-      rules: { [RULE]: rule },
-    }),
-  );
-  writeFileSync(join(dir, "a.test.ts"), source);
-  return runOxlint(["-c", config, join(dir, "a.test.ts")]).map((d) => {
-    expect(d.rule).toBe(RULE);
-    return d.line;
-  });
-}
-
-test.each([
+/** 1 行目で vitest から import し、2 行目に 51 行の関数を置くケース。 */
+const TABLE = [
   { name: "test のコールバック", head: 'test("x", () => {', tail: "});", reported: true },
   { name: "関数の宣言", head: "function helper() {", tail: "}", reported: true },
   { name: "関数式", head: "const helper = function () {", tail: "};", reported: true },
@@ -91,30 +72,35 @@ test.each([
     reported: false,
   },
   { name: "即時実行の関数", head: "(() => {", tail: "})();", reported: false },
-])("$name が 51 行なら、報告するか: $reported", ({ head, tail, reported }) => {
-  expect(reportedLines(`${head}${body(51)}${tail}\n`)).toEqual(reported ? [1] : []);
-});
+].map((c, i) => ({ ...c, file: `table-${i}.test.ts` }));
 
-test("境界: 50 行の関数は報告せず、51 行の関数は報告する", () => {
-  const source = `function a() {${body(50)}}\nfunction b() {${body(51)}}\n`;
-  expect(reportedLines(source)).toEqual([51]);
-});
-
-test("describe のコールバックの中の test とヘルパー関数は数える", () => {
-  const source = [
+/** 1 つのファイルで確かめるケース（ファイル名 → 内容）。 */
+const CASES: Record<string, string> = {
+  // vitest から import していない同じ名前の関数は、describe として扱わない。
+  "local-suite.test.ts": [
+    "const suite = (name, fn) => fn();",
+    `suite("x", () => {${body(51)}});`,
+    "",
+  ].join("\n"),
+  // 別名で import した describe は、ファイルの中の名前で数える。
+  "alias.test.ts": [
+    'import { describe as group } from "vitest";',
+    `group("x", () => {${body(51)}});`,
+    `describe("y", () => {${body(51)}});`,
+    "",
+  ].join("\n"),
+  "boundary.test.ts": `function a() {${body(50)}}\nfunction b() {${body(51)}}\n`,
+  "inside-describe.test.ts": [
+    IMPORT,
     'describe("x", () => {',
     `  test("long", () => {${body(51)}});`,
     `  function helper() {${body(51)}}`,
     `  test("short", () => {${body(50)}});`,
     "});",
     "",
-  ].join("\n");
-  expect(reportedLines(source)).toEqual([2, 53]);
-});
-
-test("メソッドと getter は、キーを含む行から数える", () => {
+  ].join("\n"),
   // キー・引数の括弧・本体を別の行に置く。括弧から数えると 50 行で、キーから数えると 51 行になる。
-  const source = [
+  "methods.test.ts": [
     "const o = {",
     "  method",
     "  ()",
@@ -132,19 +118,58 @@ test("メソッドと getter は、キーを含む行から数える", () => {
     `  {${body(49)}}`,
     "}",
     "",
-  ].join("\n");
+  ].join("\n"),
+};
+
+const dir = makeSharedTempDir("max-lines-except-describe-");
+let lines: Record<string, number[]> = {};
+beforeAll(() => {
+  const files: Record<string, string> = { ...CASES };
+  for (const c of TABLE) files[c.file] = `${IMPORT}\n${c.head}${body(51)}${c.tail}\n`;
+  lines = runRule({ dir, rule: RULE, files });
+});
+
+test.each(TABLE)("$name が 51 行なら、報告するか: $reported", ({ file, reported }) => {
+  expect(lines[file]).toEqual(reported ? [2] : []);
+});
+
+test("vitest から import していない suite に渡したコールバックは数える", () => {
+  expect(lines["local-suite.test.ts"]).toEqual([2]);
+});
+
+test("別名で import した describe のコールバックは外し、import していない describe のコールバックは数える", () => {
+  expect(lines["alias.test.ts"]).toEqual([53]);
+});
+
+test("境界: 50 行の関数は報告せず、51 行の関数は報告する", () => {
+  expect(lines["boundary.test.ts"]).toEqual([51]);
+});
+
+test("describe のコールバックの中の test とヘルパー関数は数える", () => {
+  expect(lines["inside-describe.test.ts"]).toEqual([3, 54]);
+});
+
+test("メソッドと getter は、キーを含む行から数える", () => {
   // 報告の位置は、関数の始まり（引数の括弧の行）である。
-  expect(reportedLines(source)).toEqual([3, 54, 157]);
+  expect(lines["methods.test.ts"]).toEqual([3, 54, 157]);
 });
 
 test("オプションの max を上限にする", () => {
-  expect(
-    reportedLines(`function a() {${body(4)}}\nfunction b() {${body(3)}}\n`, { max: 3 }),
-  ).toEqual([1]);
+  const files = { "a.test.ts": `function a() {${body(4)}}\nfunction b() {${body(3)}}\n` };
+  const found = runRule({
+    dir: makeTempDir("max-lines-option-"),
+    rule: RULE,
+    option: { max: 3 },
+    files,
+  });
+  expect(found["a.test.ts"]).toEqual([1]);
 });
 
 test("max が 1 以上の整数でなければ、oxlint の実行を失敗にする", () => {
-  expect(() => reportedLines("function a() {}\n", { max: 0 })).toThrow(/oxlint を実行できない/);
+  const files = { "a.test.ts": "function a() {}\n" };
+  expect(() =>
+    runRule({ dir: makeTempDir("max-lines-option-"), rule: RULE, option: { max: 0 }, files }),
+  ).toThrow(/oxlint を実行できない/);
 });
 
 test("calleeRoot: 名前の根を、メンバー・呼び出し・タグ付きテンプレートの順にたどり、それ以外の形は null にする", () => {

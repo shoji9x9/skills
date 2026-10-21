@@ -1,12 +1,12 @@
 // 参照の向きのルール（import-direction.ts）のテスト（Issue #658）。
 //
 // 判定の表（directionViolation）は、向きごとに、反する参照と反しない参照を同じ数だけ置く。
-// ルール全体は実物の oxlint に読ませ、import の書き方（import・export from・import()）と相対パスの解決を確かめる。
+// ルール全体は実物の oxlint に読ませ、参照の書き方（ts.preProcessFile が集めるもの・createRequire の別名・JSDoc の型）と
+// 相対パスの解決を確かめる。
 import { expect, test } from "vitest";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { directionViolation, resolveFromRoot } from "./import-direction.ts";
-import { PLUGIN_PATH, runOxlint } from "./run-oxlint.ts";
+import { runRule } from "./run-oxlint.ts";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 
 const RULE = "skills-repo/import-direction";
@@ -50,21 +50,9 @@ test("resolveFromRoot: 相対パスはルートからのパスにし、パッケ
  */
 function reported(files: Record<string, string>, option: (root: string) => unknown): string[] {
   const root = makeTempDir("import-direction-");
-  const config = join(root, "oxlintrc.json");
-  writeFileSync(
-    config,
-    JSON.stringify({
-      categories: { correctness: "off" },
-      jsPlugins: [PLUGIN_PATH],
-      rules: { [RULE]: ["error", option(root)] },
-    }),
-  );
-  for (const [rel, content] of Object.entries(files)) {
-    mkdirSync(dirname(join(root, rel)), { recursive: true });
-    writeFileSync(join(root, rel), content);
-  }
-  return runOxlint(["-c", config, ...Object.keys(files).map((f) => join(root, f))])
-    .map((d) => `${d.file.slice(root.length + 1)}:${d.line}`)
+  const lines = runRule({ dir: root, rule: RULE, option: option(root), files });
+  return Object.entries(lines)
+    .flatMap(([file, found]) => found.map((line) => `${file}:${line}`))
     .sort();
 }
 
@@ -90,6 +78,38 @@ test("oxlint: import・export from・import()・require()・import 型の向き�
     "scripts/lib/a.ts:4",
     "scripts/lib/a.ts:5",
     "scripts/lib/a.ts:6",
+  ]);
+});
+
+test("oxlint: import = require・テンプレート文字列の import()・createRequire の別名・JSDoc の型の参照も報告する", () => {
+  const lib = [
+    'import a = require("../gates/code/b.ts");',
+    "const c = await import(`../eval/d.ts`);",
+    "const r = createRequire(import.meta.url);",
+    'const e = r("../hooks/f.ts");',
+    '/** @typedef {import("../gates/code/b.ts").T} T */',
+    "const s = 'import(\"../gates/code/b.ts\")';",
+    '// require("../gates/code/b.ts")',
+    'const t = r("./text/h.ts");',
+    "",
+  ].join("\n");
+  expect(reported({ "scripts/lib/a.ts": lib }, (root) => ({ root }))).toEqual([
+    "scripts/lib/a.ts:1",
+    "scripts/lib/a.ts:2",
+    "scripts/lib/a.ts:4",
+    "scripts/lib/a.ts:5",
+  ]);
+});
+
+test("oxlint: 配布スキルの .mjs の JSDoc の型が、自分のディレクトリの外を参照したら報告する", () => {
+  const mjs = [
+    '/** @typedef {import("../../../scripts/lib/x.ts").T} T */',
+    '/** @param {import("./lib/y.mjs").U} u */',
+    "export const f = (u) => u;",
+    "",
+  ].join("\n");
+  expect(reported({ "skills/x/scripts/a.mjs": mjs }, (root) => ({ root }))).toEqual([
+    "skills/x/scripts/a.mjs:1",
   ]);
 });
 

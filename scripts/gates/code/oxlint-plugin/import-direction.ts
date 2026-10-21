@@ -10,18 +10,39 @@
 // - scripts/ の各分類（lib/・gates/・eval/・hooks/ など）は、自分の分類と scripts/lib/ の他を import しない。
 //   scripts/lib/ は、scripts/ の他の分類を import しないので、共有ライブラリが上位のチェックやツールに依存しない。
 //   scripts/skills/ はスキルのスクリプトのテストと fixture の置き場所なので、この向きを当てない。
+//
+// 参照の書き方は自分で列挙せず、TypeScript の `ts.preProcessFile` に集めさせる。
+// `import`・`export from`・`import()`（テンプレート文字列を含む）・`import x = require()`・`require()`・型の `import("…")` を拾い、
+// 文字列とコメントの中は読まない。JSDoc の型（`@typedef {import("…").T}`）は、JSDoc のコメントの本文に同じ関数を当てて拾う。
+// `preProcessFile` が拾わない `createRequire` の戻り値を別の名前で受けた呼び出しだけを、構文木で拾う。
 import { isAbsolute, posix, relative, resolve, dirname, sep } from "node:path";
+import ts from "typescript";
 import { isRecord } from "../../../lib/guards.ts";
 
-type SourceNode = { type: string; value?: unknown };
-type ImportNode = { type: string; source?: SourceNode | null };
-type CallNode = ImportNode & { callee?: { type: string; name?: string }; arguments?: SourceNode[] };
+export type Loc = { line: number; column: number };
+export type Comment = { type: string; value: string; range: readonly [number, number] };
+export type Expr = {
+  type: string;
+  name?: string;
+  value?: unknown;
+  callee?: Expr;
+  arguments?: Expr[];
+};
+export type Declarator = { id?: Expr; init?: Expr | null };
 
 type Context = {
   filename: string;
   options: readonly unknown[];
-  report: (d: { node: ImportNode; message: string }) => void;
+  sourceCode: {
+    text: string;
+    getAllComments: () => Comment[];
+    getLocFromIndex: (index: number) => Loc;
+  };
+  report: (d: { loc: { start: Loc; end: Loc }; message: string }) => void;
 };
+
+/** 参照の specifier と、ファイルの中の位置（文字の index）。 */
+export type ModuleReference = { specifier: string; start: number; end: number };
 
 const SKILL_RE = /^skills\/([^/]+)\//;
 const SCRIPTS_RE = /^scripts\/([^/]+)\//;
@@ -64,6 +85,24 @@ export function resolveFromRoot(root: string, filename: string, specifier: strin
     .join(posix.sep);
 }
 
+/**
+ * text の中のモジュールの参照を、`ts.preProcessFile` で集める。
+ * `obj.require("…")` のようなメンバーの呼び出しは require 関数ではないので除く。
+ */
+export function moduleReferences(text: string, offset = 0): ModuleReference[] {
+  return ts
+    .preProcessFile(text, true, true)
+    .importedFiles.filter((f) => !/\.\s*require\s*\(\s*["'`]?$/.test(text.slice(0, f.pos)))
+    .map((f) => ({ specifier: f.fileName, start: offset + f.pos, end: offset + f.end }));
+}
+
+/** JSDoc のコメント（`/** … *\/`）の中の、型の `import("…")`。 */
+export function jsdocReferences(comments: readonly Comment[]): ModuleReference[] {
+  return comments
+    .filter((c) => c.type === "Block" && c.value.startsWith("*"))
+    .flatMap((c) => moduleReferences(c.value, c.range[0] + 2));
+}
+
 export const importDirection = {
   meta: {
     type: "problem",
@@ -80,28 +119,38 @@ export const importDirection = {
   create(context: Context) {
     const root = rootOf(context.options);
     const from = relative(root, context.filename).split(sep).join(posix.sep);
-    const check = (node: ImportNode, source = node.source) => {
-      const specifier = source?.value;
-      if (typeof specifier !== "string") return;
+    const { sourceCode } = context;
+    const check = ({ specifier, start, end }: ModuleReference) => {
       const to = resolveFromRoot(root, context.filename, specifier);
       if (to === null) return;
       const message = directionViolation(from, to);
-      if (message !== null)
-        context.report({ node, message: `${message}。向きは docs/tooling.md にある` });
+      if (message === null) return;
+      const loc = {
+        start: sourceCode.getLocFromIndex(start),
+        end: sourceCode.getLocFromIndex(end),
+      };
+      context.report({ loc, message: `${message}。向きは docs/tooling.md にある` });
     };
-    // require() は createRequire で作った関数でも名前が require なので、名前で拾う。
-    const checkRequire = (node: CallNode) => {
-      if (node.callee?.type !== "Identifier" || node.callee.name !== "require") return;
-      check(node, node.arguments?.[0]);
-    };
+    // createRequire の戻り値を受けた名前（`const r = createRequire(import.meta.url)` の r）。
+    const requireAliases = new Set<string>();
     return {
-      ImportDeclaration: check,
-      ExportNamedDeclaration: check,
-      ExportAllDeclaration: check,
-      ImportExpression: check,
-      // 型だけの参照（`typeof import("…")`）も、型の検査ではファイルを読むので向きを当てる。
-      TSImportType: check,
-      CallExpression: checkRequire,
+      Program() {
+        moduleReferences(sourceCode.text).forEach(check);
+        jsdocReferences(sourceCode.getAllComments()).forEach(check);
+      },
+      VariableDeclarator(node: Declarator) {
+        const { id, init } = node;
+        if (id?.type === "Identifier" && id.name && init?.type === "CallExpression")
+          if (init.callee?.type === "Identifier" && init.callee.name === "createRequire")
+            requireAliases.add(id.name);
+      },
+      CallExpression(node: Expr & { range: readonly [number, number] }) {
+        const { callee } = node;
+        if (callee?.type !== "Identifier" || !requireAliases.has(callee.name ?? "")) return;
+        const arg = node.arguments?.[0];
+        if (arg?.type !== "Literal" || typeof arg.value !== "string") return;
+        check({ specifier: arg.value, start: node.range[0], end: node.range[1] });
+      },
     };
   },
 };

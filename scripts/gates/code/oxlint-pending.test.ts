@@ -5,7 +5,7 @@
 import { expect, test } from "vitest";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { PENDING_FIXES, pendingOverrides, stalePending } from "./oxlint-pending.ts";
+import { PENDING_FIXES, pendingOverrides, pendingTargets, stalePending } from "./oxlint-pending.ts";
 import { REPO_DIR, runOxlint } from "./oxlint-plugin/run-oxlint.ts";
 
 test("pendingOverrides: 同じルールの組を持つファイルを 1 つの override にまとめ、ルールを off にする", () => {
@@ -18,6 +18,10 @@ test("pendingOverrides: 同じルールの組を持つファイルを 1 つの o
     { files: ["a.ts", "b.ts"], rules: { complexity: "off", "max-params": "off" } },
     { files: ["c.ts"], rules: { "max-depth": "off" } },
   ]);
+});
+
+test("pendingOverrides: ルールが空の組は、外すものが無いので例外にする", () => {
+  expect(() => pendingOverrides({ "a.ts": [] })).toThrow(/ルールが空/);
 });
 
 test("stalePending: 違反の無い組だけを返し、別のファイルや別のルールの違反を取り違えない", () => {
@@ -39,10 +43,32 @@ test("実リポジトリ: 一覧のファイルはすべて在る", () => {
   expect(missing).toEqual([]);
 });
 
-test("実リポジトリ: 一覧の組はすべて、一覧を外すと違反になる（直したものが残っていない）", () => {
-  const files = Object.keys(PENDING_FIXES);
-  expect(files.length).toBeGreaterThan(0);
-  const violations = runOxlint(files, { env: { OXLINT_IGNORE_PENDING: "1" } });
-  const stale = stalePending(PENDING_FIXES, violations).map((s) => `${s.file} [${s.rule}]`);
-  expect(stale, "直したルールは scripts/gates/code/oxlint-pending.ts から消す").toEqual([]);
+test("pendingTargets: staged が無ければすべてを、一覧の外し方を変えるファイルがあればすべてを、それ以外は重なるファイルだけを返す", () => {
+  const pending = { "a.ts": ["complexity"], "b.ts": ["max-depth"] } as const;
+  expect(pendingTargets(pending, null)).toEqual(["a.ts", "b.ts"]);
+  expect(pendingTargets(pending, ["b.ts", "c.ts"])).toEqual(["b.ts"]);
+  expect(pendingTargets(pending, ["c.ts"])).toEqual([]);
+  expect(pendingTargets(pending, ["oxlint.config.ts"])).toEqual(["a.ts", "b.ts"]);
+  expect(pendingTargets(pending, ["scripts/gates/code/oxlint-pending.ts"])).toEqual([
+    "a.ts",
+    "b.ts",
+  ]);
+  expect(pendingTargets(pending, ["scripts/gates/code/oxlint-plugin/plugin.ts"])).toEqual([
+    "a.ts",
+    "b.ts",
+  ]);
 });
+
+// pre-commit は OXLINT_PENDING_STAGED に staged のファイルを空白区切りで渡し、一覧と重なるファイルだけを検査させる。
+const staged = process.env.OXLINT_PENDING_STAGED?.split(/\s+/).filter((f) => f !== "") ?? null;
+const targets = pendingTargets(PENDING_FIXES, staged);
+
+test.skipIf(targets.length === 0)(
+  "実リポジトリ: 一覧の組はすべて、一覧を外すと違反になる（直したものが残っていない）",
+  () => {
+    const violations = runOxlint(targets, { env: { OXLINT_IGNORE_PENDING: "1" } });
+    const target = Object.fromEntries(targets.map((f) => [f, PENDING_FIXES[f] ?? []]));
+    const stale = stalePending(target, violations).map((s) => `${s.file} [${s.rule}]`);
+    expect(stale, "直したルールは scripts/gates/code/oxlint-pending.ts から消す").toEqual([]);
+  },
+);
