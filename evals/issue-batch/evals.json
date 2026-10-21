@@ -606,28 +606,34 @@
     {
       "id": 29,
       "fixture": "fixtures/preflight-ready",
-      "prompt": "issue-batch run 101 を実行している途中の場面を、コマンドの実行やファイルの変更はせずに dry-run として説明して。現在のエージェントは Claude Code である。#101 は前の run で BLOCKED になった Issue を再開したもので、feature branch には前の run で push 済みの commit が 2 つあり、base branch の main にはまだ入っていない。ローカルの main は、remote の main より古い。今回の実装で、設定ファイルの 1 行を変えた。まだ commit していない。実装の後の Kaizen の抽出で学びが 1 件作られ、その記録を実装とは別の commit にする。push の前に行うローカルレビューを、対象ごとに順に挙げて。それぞれについて、何を対象にし、どのコマンドで行うかと、レビューが指定した対象に当たったことを何で確かめ、確かめられなかったらどうするかを書いて。また、変更が 0 行なのでローカルレビューを省いてよい場合に当たるかを判断するとき、何を数え、何と比べるかも書いて。",
-      "expected_output": "commit していない差分のレビューに加えて、push 済みの commit が base branch に残っているので base branch との差分もレビューし、出力が示す範囲で対象に当たったことを確かめ、確かめられなければ BLOCKED にする。変更が 0 行かは base branch に入っていない commit も含めて、取得し直した origin/main と比べて数える。Kaizen の記録は、実装の commit の後・記録の commit の前に、記録の差分を含む範囲をレビューし、範囲に記録の差分が含まれることを確かめる。",
+      "prompt": "issue-batch run 101 を実行している途中の場面を、コマンドの実行やファイルの変更はせずに dry-run として説明して。現在のエージェントは Claude Code である。#101 は前の run で BLOCKED になった Issue を再開したもので、feature branch には前の run で push 済みの commit が 2 つあり、base branch の main にはまだ入っていない。ローカルの main は、remote の main より古い。今回の実装で、設定ファイルの 1 行を変えた。まだ commit していない。実装の後の Kaizen の抽出で学びが 1 件作られ、その記録を実装とは別の commit にする。また、ローカルレビューの後に、commit を記録する Hook が利用実績の記録を stage した commit を 1 つ作った。push の前に行うローカルレビューを、対象ごとに順に挙げて。それぞれについて、何を対象にし、どのコマンドで行うかと、レビューが指定した対象に当たったことを何で確かめ、確かめられなかったらどうするかを書いて。また、変更が 0 行なのでローカルレビューを省いてよい場合に当たるかを判断するとき、何を数え、何と比べるかも書いて。",
+      "expected_output": "実装を commit してから、取得し直した origin/main と HEAD の merge-base から HEAD までを範囲として /code-review に渡す。push 済みの commit もその範囲に入る。範囲は、レビューを実行したエージェントの記録に渡した範囲の git diff があることで確かめ、確かめられなければ BLOCKED にする。変更が 0 行かは base branch に入っていない commit も含めて、取得し直した origin/main と比べて数える。Kaizen の学びはローカルレビューにかけず PR のレビューに任せ、Hook の記録の commit は最後にレビューした SHA から HEAD までの範囲でレビューする。",
       "assertions": [
-        "base branch に入っていない commit が残っている再開した Issue なので、commit していない差分のレビューに加えて、base branch との差分を対象にするレビューも行うと述べている",
-        "レビューが指定した対象に当たったことを、出力が示すレビューの範囲（比べた base か commit）で確かめると述べている",
-        "出力にレビューの範囲が示されないか、指定した対象に当たっていないときは、#101 を BLOCKED にすると述べている",
+        "実装を commit してから、取得し直した `origin/main` と HEAD の merge-base から HEAD までの範囲を `/code-review` に渡してレビューすると述べている",
+        "push 済みの 2 つの commit を、merge-base から HEAD までの同じ範囲でレビューすると述べている",
+        "レビューが指定した範囲に当たったことを、`/code-review` の出力の本文ではなく、レビューを実行したエージェントの記録に渡した範囲の `git diff` があることで確かめると述べている",
+        "範囲を確かめられないか、指定した対象に当たっていないときは、#101 を BLOCKED にすると述べている",
         "変更が 0 行かを判断するとき、commit していない差分に加えて、push 済みのものを含む base branch に入っていない commit も数えると述べている",
         "比べる相手を、取得し直した remote の base branch（`git fetch` の後の `origin/main` など）にし、ローカルの main を使わないと述べている",
-        "Kaizen の記録を、実装の commit の後・記録の commit の前に、記録の差分を含めてローカルレビューにかけると述べている",
+        "Kaizen の学びの commit はローカルレビューにかけず、PR のレビュー（`pr-finalize-loop`）に任せると述べている",
+        "Hook が利用実績の記録を stage した commit を、push の前に、最後にレビューした SHA から HEAD までの範囲でレビューすると述べている",
         "実行はせず手順の提示に留めている（レビュー・commit・push を行っていない）"
       ],
       "reachability": [
         {
-          "assertion": "base branch に入っていない commit が残っている再開した Issue なので、commit していない差分のレビューに加えて、base branch との差分を対象にするレビューも行うと述べている",
+          "assertion": "実装を commit してから、取得し直した `origin/main` と HEAD の merge-base から HEAD までの範囲を `/code-review` に渡してレビューすると述べている",
+          "prompt_quote": "現在のエージェントは Claude Code である"
+        },
+        {
+          "assertion": "push 済みの 2 つの commit を、merge-base から HEAD までの同じ範囲でレビューすると述べている",
           "prompt_quote": "feature branch には前の run で push 済みの commit が 2 つあり、base branch の main にはまだ入っていない"
         },
         {
-          "assertion": "レビューが指定した対象に当たったことを、出力が示すレビューの範囲（比べた base か commit）で確かめると述べている",
+          "assertion": "レビューが指定した範囲に当たったことを、`/code-review` の出力の本文ではなく、レビューを実行したエージェントの記録に渡した範囲の `git diff` があることで確かめると述べている",
           "prompt_quote": "レビューが指定した対象に当たったことを何で確かめ"
         },
         {
-          "assertion": "出力にレビューの範囲が示されないか、指定した対象に当たっていないときは、#101 を BLOCKED にすると述べている",
+          "assertion": "範囲を確かめられないか、指定した対象に当たっていないときは、#101 を BLOCKED にすると述べている",
           "prompt_quote": "確かめられなかったらどうするかを書いて"
         },
         {
@@ -639,8 +645,12 @@
           "prompt_quote": "ローカルの main は、remote の main より古い"
         },
         {
-          "assertion": "Kaizen の記録を、実装の commit の後・記録の commit の前に、記録の差分を含めてローカルレビューにかけると述べている",
-          "prompt_quote": "実装の後の Kaizen の抽出で学びが 1 件作られ、その記録を実装とは別の commit にする。push の前に行うローカルレビューを、対象ごとに順に挙げて"
+          "assertion": "Kaizen の学びの commit はローカルレビューにかけず、PR のレビュー（`pr-finalize-loop`）に任せると述べている",
+          "prompt_quote": "実装の後の Kaizen の抽出で学びが 1 件作られ、その記録を実装とは別の commit にする"
+        },
+        {
+          "assertion": "Hook が利用実績の記録を stage した commit を、push の前に、最後にレビューした SHA から HEAD までの範囲でレビューすると述べている",
+          "prompt_quote": "ローカルレビューの後に、commit を記録する Hook が利用実績の記録を stage した commit を 1 つ作った"
         },
         {
           "assertion": "実行はせず手順の提示に留めている（レビュー・commit・push を行っていない）",
