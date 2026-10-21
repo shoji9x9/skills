@@ -300,12 +300,13 @@ base branch との差分は、Codex と Copilot CLI では次の方法でレビ�
 範囲を確かめられないか対象に当たっていないときと、base branch との差分をレビューできないエージェントでは、その Issue を BLOCKED にする。
 レビューした変更を含む commit の SHA を、manifest の `local_review` に記録する。「ローカルレビューの後に生じた変更」のレビューの範囲の起点にする。
 Claude Code では、渡した範囲の終わり（`<to>`）の SHA である。Codex と Copilot CLI では、レビューした差分だけを commit した直後の HEAD の SHA である。レビューの後に足した変更は、その commit に入れない。
-レビューの前の HEAD を記録すると、レビュー済みの実装の commit が次の範囲に入り、同じ変更をもう一度レビューすることになる。
+レビューした変更より前の commit を記録すると、レビュー済みの commit が次の範囲に入り、同じ変更をもう一度レビューすることになる。
 
 利用者の指示で省いたときは、manifest の `self_decisions` の `unfollowed_rules`（「判断の扱い」の守っていない規約の欄）に、その指示を添えて記録する。
 変更が 0 行で省いたときは、レビューする対象が無いだけで規約には従っているので、この欄には載せない。
 
 指摘をコードと実測に照らして 1 件ずつ判断し、妥当なものだけ直す。直した後は、検証とレビューをやり直す。
+Claude Code では、直した変更を commit し、`<local_review の SHA>..<HEAD の完全な SHA>` を範囲に渡してやり直し、`local_review` をその範囲の終わりに進める。
 直さなかった指摘は、その時点で、「判断の扱い」の 4 つの欄か `others` のうち当たるものに manifest へ記録する。
 上限までに収束しない場合、機能を使えない場合、人の判断が要る場合は BLOCKED にする。
 
@@ -325,14 +326,18 @@ Claude Code では、渡した範囲の終わり（`<to>`）の SHA である。
 値が `none` のときと、exit 0 にならず値を読めなかったときは、PR のレビューが無いものとして例外を当てない。学びも Hook の記録も、ほかの変更と同じにレビューする。
 
 レビューする範囲は、`local_review` に記録した SHA から今の HEAD まで（`<local_review の SHA>..<HEAD の完全な SHA>`）にする。
-範囲に merge commit があるとき（ローカルレビューの後に base branch を merge したときなど）は、範囲に取り込んだ base の変更が入るので、この範囲ではレビューしない。
-代わりに、ローカルレビューと同じ方法で、取得し直した `origin/<base>` との差分全体をレビューし直す（上限に数える）。
-範囲で変わったファイルがすべて例外のファイルなら、このレビューは行わない。例外でないファイルが 1 つでもあれば、範囲をそのままレビューし、例外のファイルが範囲に含まれても構わない。
+範囲を決めたら、次の順に当てる。
+
+1. 範囲に merge commit があるとき（ローカルレビューの後に base branch を merge したときなど）は、範囲に取り込んだ base の変更が入るので、この範囲ではレビューしない。
+   代わりに、ローカルレビューと同じ方法で、取得し直した `origin/<base>` との差分全体をレビューし直す（上限に数える）。
+2. 範囲で変わったファイルがすべて例外のファイルなら、このレビューは行わない。
+3. それ以外は、範囲をそのままレビューする。例外のファイルが範囲に含まれても構わない。
+
+3 のレビューは、エージェントごとに次の方法で行う。
 
 - Claude Code: `/code-review high` にこの範囲を渡す。
 - Codex: 範囲の commit ごとに `codex review --commit <SHA>` を実行する（`--help` の「Review the changes introduced by a commit」。[OpenAI Developers](https://developers.openai.com/codex/cli/reference)）。
-  ただし、merge commit は除く。例外を当てるときは、例外のファイルだけを変えた commit も除く。
-  merge commit を渡すと、取り込んだ base の変更までレビューするので除く。
+  例外を当てるときは、例外のファイルだけを変えた commit を除く。
 - GitHub Copilot CLI: 次のコマンドで範囲を文で渡し、レビューしたファイルを挙げさせる。
 
   ```bash
@@ -369,9 +374,9 @@ kaizen の commit の前のチェックが実装の commit を止めたときは
 
 1. `kaizen extract --current --record-pending` で候補を確かめ、記録する。チェックが促す `kaizen --current` は利用者の承認を求めるので、run の中では使わない。
    `--record-pending` は、記録の後の `kaizen-extract-done.sh` まで行うので、同じ commit をもう一度実行すればチェックを通る。
-2. 学びのファイルを stage から外し、実装の変更だけを commit し直す。
+2. 学びのファイルと、同じ抽出の後の自動の忘却が書き換えた学びを stage から外し、実装の変更だけを commit し直す。
    止められた commit のために Hook が stage した記録（利用実績の記録など）は、stage したまま実装の commit に入れる。
-3. 学びのファイルを、別の commit にする。
+3. 2 で外した学びを、別の commit にする。
 
 Claude Code では、ローカルレビューの前に実装を commit するので、このチェックはレビューの前に止めることがある。
 そのときに作った学びには、ローカルレビューで見つかったことが入らない。
