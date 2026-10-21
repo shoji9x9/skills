@@ -1,0 +1,177 @@
+{
+  "metadata": {
+    "skill_name": "issue-batch",
+    "skill_path": "<repo>/skills/issue-batch",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-21T03:46:40Z",
+    "evals_run": [32],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 32,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 8,
+        "failed": 0,
+        "total": 8,
+        "time_seconds": 46.758,
+        "tokens": 98223,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "#130 の記録を使い、受け入れ条件の waived を確認し直さないと述べている",
+          "passed": true,
+          "evidence": "「受け入れ条件「一覧を 1 秒以内に表示する」= `waived` は決まった論点として扱います。利用者には確認し直さず」"
+        },
+        {
+          "text": "@guest のコメントは、書き込める権限を持たない人のものなので記録を覆さないと述べている",
+          "passed": true,
+          "evidence": "「@guest は書き込める権限を持たないので、記録を覆す根拠になりません」"
+        },
+        {
+          "text": "自分の login が書き込めないので、#131 の案の選択を確認に載せないと述べている",
+          "passed": true,
+          "evidence": "「記録する選択肢（環境変数案・設定ファイル案）を確認から外します」「この論点は確認に載せず、決まらなかったものとして扱います」"
+        },
+        {
+          "text": "確認に載せる論点が無いので、利用者への確認を行わないと述べている",
+          "passed": true,
+          "evidence": "「確認に載せる論点は全体で 0 件になります。そのため、手順 4（利用者への確認）と 5（Issue への記録）は飛ばします」"
+        },
+        {
+          "text": "書き込める人が prepare を実行し直せば #131 を決められると報告すると述べている",
+          "passed": true,
+          "evidence": "「書き込める人（@maint など）が `issue-batch prepare 131` を実行し直して案を選びます」"
+        },
+        {
+          "text": "Issue にコメントを投稿しないと述べている",
+          "passed": true,
+          "evidence": "「どちらの Issue にも、何もコメントしません」"
+        },
+        {
+          "text": "最後に示す issue-batch run のプロンプトから #131 を外し、#130 だけにすると述べている",
+          "passed": true,
+          "evidence": "「外した Issue: #131」と、コードブロックの `issue-batch run 130`"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（コメントの投稿・branch の作成を行っていない）",
+          "passed": true,
+          "evidence": "「コマンドの実行、ファイルの変更、Issue への投稿はしていません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 32,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.375,
+        "passed": 3,
+        "failed": 5,
+        "total": 8,
+        "time_seconds": 36.684,
+        "tokens": 41628,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "#130 の記録を使い、受け入れ条件の waived を確認し直さないと述べている",
+          "passed": true,
+          "evidence": "「@maint の waived 記録はそのまま使います」「waived を改めて決め直す質問はしません」"
+        },
+        {
+          "text": "@guest のコメントは、書き込める権限を持たない人のものなので記録を覆さないと述べている",
+          "passed": true,
+          "evidence": "「@guest の「waived にすべきでない」は、書き込み権限が無い人の意見です。…記録を取り消したり上書きしたりする効力はありません」"
+        },
+        {
+          "text": "自分の login が書き込めないので、#131 の案の選択を確認に載せないと述べている",
+          "passed": false,
+          "evidence": "#131 について「利用者への確認: どちらにするかを尋ねます」と、確認に載せている"
+        },
+        {
+          "text": "確認に載せる論点が無いので、利用者への確認を行わないと述べている",
+          "passed": false,
+          "evidence": "#131 の案を利用者に尋ねると述べており、確認を行う"
+        },
+        {
+          "text": "書き込める人が prepare を実行し直せば #131 を決められると報告すると述べている",
+          "passed": false,
+          "evidence": "「書き込み権限を持つ人（例: @maint）が、目印付きのコメントでどちらかを記録するか、本文に決定を書き込みます」。書き込める人が prepare を実行し直すとは述べていない"
+        },
+        {
+          "text": "Issue にコメントを投稿しないと述べている",
+          "passed": false,
+          "evidence": "「目印の無い普通のコメントを 1 件残します」と、#131 にコメントを投稿する"
+        },
+        {
+          "text": "最後に示す issue-batch run のプロンプトから #131 を外し、#130 だけにすると述べている",
+          "passed": false,
+          "evidence": "issue-batch run のプロンプトを示さず、表で #130 を「準備可」とし、branch と worktree を作る予定を示している"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（コメントの投稿・branch の作成を行っていない）",
+          "passed": true,
+          "evidence": "「コマンドの実行、ファイルの変更、Issue への書き込みは一切していません」"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 46.758,
+        "stddev": 0,
+        "min": 46.758,
+        "max": 46.758
+      },
+      "tokens": {
+        "mean": 98223,
+        "stddev": 0,
+        "min": 98223,
+        "max": 98223
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.375,
+        "stddev": 0,
+        "min": 0.375,
+        "max": 0.375
+      },
+      "time_seconds": {
+        "mean": 36.684,
+        "stddev": 0,
+        "min": 36.684,
+        "max": 36.684
+      },
+      "tokens": {
+        "mean": 41628,
+        "stddev": 0,
+        "min": 41628,
+        "max": 41628
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.63",
+      "time_seconds": "+10.1",
+      "tokens": "+56595"
+    }
+  },
+  "notes": []
+}

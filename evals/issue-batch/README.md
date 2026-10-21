@@ -28,3 +28,4 @@ scripts/eval/run-skill-eval.sh \
   「base branch との差分もレビューする」「出力の範囲で確かめる」「確かめられなければ BLOCKED にする」「push 済みの commit も数える」「`origin/main` と比べる」「説明に留める」である。
   このうち「base branch との差分もレビューする」「出力の範囲で確かめる」「push 済みの commit も数える」「`origin/main` と比べる」は、#688 の変更を逆に当てた版で失敗したので、#688 の取り決めが消えた後退を検出する。
 - eval 30 の「branch・worktree・PR・manifest を作らず、担当者を割り当てない」「本文は書き換えない」「固定の目印を付ける」「説明に留める」は、prompt の問い方から答えられるので without_skill も pass する。prepare が変えるものを Issue のコメントだけに絞る取り決めが消えた後退を検出するために置く。
+- eval 32 の「#130 の記録を使う」「@guest のコメントは記録を覆さない」「コメントを投稿しない」「説明に留める」は、prompt に答えの材料があるので without_skill も pass しうる。記録を読む条件と、書き込めない login の扱いが消えた後退を検出するために置く。
