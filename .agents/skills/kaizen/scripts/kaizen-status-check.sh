@@ -50,16 +50,13 @@ frontmatter_state() {
 			sub(/^\[/, "", body)
 			sub(/\]$/, "", body)
 			out = ""
+			# 要素のアンカー・エイリアス・タグ（`- *ref`・`[&a docs/a.md]`・`[!!str x]`）も、値そのものと同じく 1 行の文字列として読めない。
+			# ブロックシーケンスの要素も collect_item が applied_value へ連ねるので、ここで両方の形を確かめる。
+			# 値そのものの形（`applied-to: *ref`）を記録したノートでは、同じ問題を 2 回数えない。
+			if (!applied_form_bad && element_has_marker(body)) bad_forms = (bad_forms == "" ? "" : bad_forms ",") "applied-to:item"
 			n = split(body, parts, ",")
 			for (i = 1; i <= n; i++) {
 				item = parts[i]
-				# 要素のアンカー・エイリアス・タグ（`- *ref`・`[&a docs/a.md]`・`[!!str x]`）も、値そのものと同じく 1 行の文字列として読めない。
-				# ブロックシーケンスの要素も collect_item が applied_value へ連ねるので、ここで両方の形を確かめる。
-				# 引用符を落とす前に確かめる（`"*x"` は文字列である）。同じノートで 1 回だけ記録する。
-				if (item ~ /^[&*!]/ && !item_bad) {
-					item_bad = 1
-					bad_forms = (bad_forms == "" ? "" : bad_forms ",") "applied-to:item"
-				}
 				gsub(/^["'"'"']+|["'"'"']+$/, "", item)
 				if (item == "" || item == "null" || item == "~") continue
 				out = (out == "" ? item : out "," item)
@@ -73,21 +70,50 @@ frontmatter_state() {
 			gsub(/\|/, "｜", type)
 			gsub(/\|/, "｜", confidence)
 			# confidence は、出てきた回数と、コロンの後に空白が無い形があったか（0 か 1）を別のフィールドで渡す。
-			# status・type・applied-to は、出てきた回数と、受け付けない値の形（「キー:block」「キー:tag」を「,」で連ねたもの）を渡す。
+			# status・type・applied-to は、出てきた回数と、受け付けない形（「キー:種類」を「,」で連ねたもの）を渡す。
+			# 種類は block・tag・anchor（値）、key・nospace（キーの書き方）、item（applied-to の要素）である。
 			printf "%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s\n", status, present, nonempty, type, conf_count, conf_nospace, confidence, status_count, type_count, applied_count, bad_forms, out
 		}
 		# ブロックスカラー（`|`・`>-` の次の行に値を書く形）とタグ（`!!str applied`）は、1 行の値として読めないので記録する。
 		# 値は、コメントと前後の空白を落とした後、引用符を落とす前のものを渡す（引用符で囲んだ `"|"` は文字列である）。
 		# アンカー（`&s pending`）とエイリアス（`*s`）も、1 行の値として読めないので記録する。
-		function note_form(key, value) {
-			if (value ~ /^[|>][-+0-9]*$/) bad_forms = (bad_forms == "" ? "" : bad_forms ",") key ":block"
-			else if (value ~ /^!/) bad_forms = (bad_forms == "" ? "" : bad_forms ",") key ":tag"
-			else if (value ~ /^[&*]/) bad_forms = (bad_forms == "" ? "" : bad_forms ",") key ":anchor"
+		function note_form(key, value,  kind) {
+			kind = ""
+			if (value ~ /^[|>][-+0-9]*$/) kind = "block"
+			else if (value ~ /^!/) kind = "tag"
+			else if (value ~ /^[&*]/) kind = "anchor"
+			if (kind == "") return
+			bad_forms = (bad_forms == "" ? "" : bad_forms ",") key ":" kind
+			if (key == "applied-to") applied_form_bad = 1
 		}
-		# 値を読むのは、引用符の無いキーの直後にコロンを書いた形（`status:`）だけである。参照の注入も同じ形だけを読む。
-		# 引用符で囲んだキーやコロンの前の空白は、数えはするが値を読まないので、形の誤りとして記録する。
+		# 値を読むのは、引用符の無いキーの直後にコロンと空白を書いた形（`status: `）だけである。
+		# 参照の注入は他の形も読むが、ここで止めるので、読み方が食い違ったノートは commit されない。
+		# 引用符で囲んだキー・コロンの前の空白・キーに付けたアンカーやタグ（`&k status:`）は、数えはするが値を読まないので、形の誤りとして記録する。
+		# コロンの後に空白が無い形（`status:applied`）は YAML の mapping にならないので、confidence と同じく止める。
 		function note_key(key, line) {
 			if (index(line, key ":") != 1) bad_forms = (bad_forms == "" ? "" : bad_forms ",") key ":key"
+			else if (substr(line, length(key) + 2) ~ /^[^[:space:]]/) bad_forms = (bad_forms == "" ? "" : bad_forms ",") key ":nospace"
+		}
+		# flow 配列の本文（内部の空白は落としたもの）で、要素の先頭がアンカー・エイリアス・タグかを見る。
+		# 引用符の中の `,` は要素の区切りではないので、引用符の外だけを見る（`"docs/a, *b.md"` は 1 つの文字列である）。
+		function element_has_marker(body,  i, c, q, start) {
+			q = ""
+			start = 1
+			for (i = 1; i <= length(body); i++) {
+				c = substr(body, i, 1)
+				if (q != "") {
+					if (c == q) q = ""
+					continue
+				}
+				if (c == ",") {
+					start = 1
+					continue
+				}
+				if (start && c ~ /[&*!]/) return 1
+				start = 0
+				if (c == "\"" || c == "'"'"'") q = c
+			}
+			return 0
 		}
 		# ブロックシーケンスの 1 項目を flow 配列と同じ表記へ畳み込む。要素の分類にしか
 		# 使わないので、flow 側と同じく内部の空白は落とす（値の復元には使わない）。
@@ -99,7 +125,7 @@ frontmatter_state() {
 			if (item == "") return
 			applied_value = (applied_value == "" ? item : applied_value "," item)
 		}
-		BEGIN { fm = 0; present = 0; nonempty = 0; status = ""; type = ""; conf_count = 0; conf_nospace = 0; conf_bad = ""; confidence = ""; in_applied = 0; applied_value = ""; status_count = 0; type_count = 0; applied_count = 0; bad_forms = "" }
+		BEGIN { fm = 0; present = 0; nonempty = 0; status = ""; type = ""; conf_count = 0; conf_nospace = 0; conf_bad = ""; confidence = ""; in_applied = 0; applied_value = ""; status_count = 0; type_count = 0; applied_count = 0; bad_forms = ""; applied_form_bad = 0 }
 		/^---[[:space:]]*$/ {
 			fm++
 			if (fm == 2) {
@@ -110,10 +136,10 @@ frontmatter_state() {
 		}
 		fm != 1 { next }
 		# キーの重なりは、confidence と同じく YAML として正しくない（実装によってエラーになるか、どちらかの値を採る）ので、
-		# 引用符で囲んだキーも含めて出てきた回数を数える。値を読むのは、これまでどおり引用符の無いキーだけである。
-		/^("status"|'"'"'status'"'"'|status)[[:space:]]*:/ { status_count++; note_key("status", $0) }
-		/^("type"|'"'"'type'"'"'|type)[[:space:]]*:/ { type_count++; note_key("type", $0) }
-		/^("applied-to"|'"'"'applied-to'"'"'|applied-to)[[:space:]]*:/ { applied_count++; note_key("applied-to", $0) }
+		# 引用符で囲んだキーとアンカーやタグを付けたキーも含めて出てきた回数を数える。値を読むのは、これまでどおり引用符の無いキーだけである。
+		/^([&!][^[:space:]]*[[:space:]]+)?("status"|'"'"'status'"'"'|status)[[:space:]]*:/ { status_count++; note_key("status", $0) }
+		/^([&!][^[:space:]]*[[:space:]]+)?("type"|'"'"'type'"'"'|type)[[:space:]]*:/ { type_count++; note_key("type", $0) }
+		/^([&!][^[:space:]]*[[:space:]]+)?("applied-to"|'"'"'applied-to'"'"'|applied-to)[[:space:]]*:/ { applied_count++; note_key("applied-to", $0) }
 		/^status:[[:space:]]*/ {
 			status = $0
 			sub(/^status:[[:space:]]*/, "", status)
@@ -306,7 +332,8 @@ for note in .kaizen/*.md .kaizen/archive/*.md; do
 			tag) echo "kaizen-status-check: ${note}: ${bad_form%:*} has a YAML tag; write the plain value without the tag" >&2 ;;
 			anchor) echo "kaizen-status-check: ${note}: ${bad_form%:*} uses a YAML anchor or alias; write the plain value" >&2 ;;
 			item) echo "kaizen-status-check: ${note}: ${bad_form%:*} has an element with a YAML anchor, alias or tag; write each element as a plain string" >&2 ;;
-			*) echo "kaizen-status-check: ${note}: ${bad_form%:*} key is quoted or has a space before the colon; write it as ${bad_form%:*}: <value>" >&2 ;;
+			nospace) echo "kaizen-status-check: ${note}: ${bad_form%:*} needs a space after the colon (${bad_form%:*}: <value>)" >&2 ;;
+			*) echo "kaizen-status-check: ${note}: ${bad_form%:*} key is quoted, has a space before the colon, or has an anchor or tag; write it as ${bad_form%:*}: <value>" >&2 ;;
 			esac
 			errors=$((errors + 1))
 		done

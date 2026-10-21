@@ -225,7 +225,8 @@
         "status・type・applied-to の形を拒否する: type の重なり",
         "status・type・applied-to の形を拒否する: 単引用符で囲んだキーと重なった type",
         "status・type・applied-to の形を拒否する: applied-to の重なり",
-        "キーの重なりと値の形を、1 回の実行でまとめて報告する"
+        "キーの重なりと値の形を、1 回の実行でまとめて報告する",
+        "status・type・applied-to の形を拒否する: アンカーを付けた status のキーの重なり"
       ]
     },
     {
@@ -239,7 +240,8 @@
         "status・type・applied-to の形を拒否する: status の重なり",
         "status・type・applied-to の形を拒否する: 引用符で囲んだキーと重なった status",
         "status・type・applied-to の形を拒否する: applied-to の無いノートの status の重なり",
-        "キーの重なりと値の形を、1 回の実行でまとめて報告する"
+        "キーの重なりと値の形を、1 回の実行でまとめて報告する",
+        "status・type・applied-to の形を拒否する: アンカーを付けた status のキーの重なり"
       ]
     },
     {
@@ -290,7 +292,8 @@
         "status・type・applied-to の形を拒否する: status のタグ",
         "status・type・applied-to の形を拒否する: type のタグ",
         "status・type・applied-to の形を拒否する: applied-to のタグ",
-        "キーの重なりと値の形を、1 回の実行でまとめて報告する"
+        "キーの重なりと値の形を、1 回の実行でまとめて報告する",
+        "値そのものに付けた applied-to のタグは、要素の問題として重ねて数えない"
       ]
     },
     {
@@ -333,7 +336,9 @@
       "expect_failing": [
         "status・type・applied-to の形を拒否する: applied-to のブロックスカラー",
         "status・type・applied-to の形を拒否する: applied-to のタグ",
-        "status・type・applied-to の形を拒否する: applied-to のアンカー"
+        "status・type・applied-to の形を拒否する: applied-to のアンカー",
+        "値そのものに付けた applied-to のエイリアスは、要素の問題として重ねて数えない",
+        "値そのものに付けた applied-to のタグは、要素の問題として重ねて数えない"
       ]
     },
     {
@@ -346,7 +351,8 @@
       "expect_failing": [
         "status・type・applied-to の形を拒否する: status のアンカー",
         "status・type・applied-to の形を拒否する: type のエイリアス",
-        "status・type・applied-to の形を拒否する: applied-to のアンカー"
+        "status・type・applied-to の形を拒否する: applied-to のアンカー",
+        "値そのものに付けた applied-to のエイリアスは、要素の問題として重ねて数えない"
       ]
     },
     {
@@ -359,15 +365,16 @@
       "expect_failing": [
         "status・type・applied-to の形を拒否する: 引用符で囲んだ status のキー",
         "status・type・applied-to の形を拒否する: コロンの前に空白がある type のキー",
-        "status・type・applied-to の形を拒否する: 単引用符で囲んだ applied-to のキー"
+        "status・type・applied-to の形を拒否する: 単引用符で囲んだ applied-to のキー",
+        "status・type・applied-to の形を拒否する: タグを付けた type のキー"
       ]
     },
     {
       "id": "ITEM-FORM-ACCEPTED",
       "why": "applied-to の要素のアンカー・エイリアス・タグを受け付ける",
       "file": "skills/kaizen/scripts/kaizen-status-check.sh",
-      "find": "if (item ~ /^[&*!]/ && !item_bad) {",
-      "replace": "if (0) {",
+      "find": "if (!applied_form_bad && element_has_marker(body))",
+      "replace": "if (0)",
       "occurrences": 1,
       "expect_failing": [
         "applied-to の要素の形を拒否する: ブロックシーケンスのエイリアス",
@@ -377,6 +384,52 @@
         "applied-to の要素の形を拒否する: flow 配列のエイリアス",
         "applied-to の要素の形を拒否する: flow 配列の 2 つ目の要素のアンカー",
         "applied-to の要素の形を拒否する: flow 配列のタグ"
+      ]
+    },
+    {
+      "id": "ITEM-QUOTES-IGNORED",
+      "why": "要素を探すときに引用符の中の , も区切りとして扱う",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "\t\t\t\tif (c == \"\\\"\" || c == \"'\"'\"'\") q = c\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["applied-to の要素の形を受け付ける: 引用符の中の , の後に記号がある要素"]
+    },
+    {
+      "id": "ITEM-DOUBLE-COUNTED",
+      "why": "値そのものの形を記録した applied-to でも、要素の問題を重ねて数える",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "\t\t\tif (key == \"applied-to\") applied_form_bad = 1\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "値そのものに付けた applied-to のエイリアスは、要素の問題として重ねて数えない",
+        "値そのものに付けた applied-to のタグは、要素の問題として重ねて数えない"
+      ]
+    },
+    {
+      "id": "KEY-NOSPACE-ACCEPTED",
+      "why": "コロンの後に空白が無いキー（status:applied）を受け付ける",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "else if (substr(line, length(key) + 2) ~ /^[^[:space:]]/)",
+      "replace": "else if (0)",
+      "occurrences": 1,
+      "expect_failing": [
+        "status・type・applied-to の形を拒否する: コロンの後に空白が無い status",
+        "status・type・applied-to の形を拒否する: コロンの後に空白が無い type",
+        "status・type・applied-to の形を拒否する: コロンの後に空白が無い applied-to"
+      ]
+    },
+    {
+      "id": "KEY-PREFIX-IGNORED",
+      "why": "アンカーやタグを付けたキーを数えない",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "/^([&!][^[:space:]]*[[:space:]]+)?(",
+      "replace": "/^(",
+      "occurrences": 3,
+      "expect_failing": [
+        "status・type・applied-to の形を拒否する: アンカーを付けた status のキーの重なり",
+        "status・type・applied-to の形を拒否する: タグを付けた type のキー"
       ]
     }
   ]

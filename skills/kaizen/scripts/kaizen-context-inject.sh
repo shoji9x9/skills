@@ -119,41 +119,30 @@ fi
 # 落ちるかどうかは書き手の出力に内側の改行があるかに依るため、いま落ちないことを根拠にしない。
 # 真偽を読むならパイプを使わず herestring（`<<<`）かプロセス置換で渡す。
 # 本文中の `priority:` 等を拾わないよう、走査は frontmatter 内に限る。
+# 値は kaizen-status-check.sh と同じ読み方で取り出す。引用符で囲んだキー・キーとコロンの間の空白・
+# 行末のコメント・対になった引用符を受け付け、YAML の空の値（`null`・`~`）は空として返す
+# （`"confidence": 'low' # 1 回の観測` は low、`status: pending # メモ` は pending）。
+# status と type の引用符で囲んだキーはチェックが commit を止めるが、読み方はすべての欄で同じにする。
+# キーが重なったノートも、チェックが commit を止めるので、ここでは最初の値を返す。
 frontmatter_field() {
 	awk -v key="$2" '
-		BEGIN { fm = 0 }
+		BEGIN { fm = 0; q = "'"'"'" }
 		/^---[[:space:]]*$/ {
 			fm++
 			if (fm == 2) exit
 			next
 		}
-		fm == 1 && index($0, key ":") == 1 {
-			value = substr($0, length(key) + 2)
-			sub(/^[[:space:]]+/, "", value)
-			sub(/[[:space:]]+$/, "", value)
-			print value
-			exit
-		}
-	' "$1" 2>/dev/null || true
-}
-
-# confidence は、kaizen-status-check.sh が受け付ける書き方をすべて同じ値として読む。
-# 引用符で囲んだキー・キーとコロンの間の空白・行末のコメント・対になった引用符を受け付け、
-# 値だけを返す（`"confidence": 'low' # 1 回の観測` は low）。読み方を変えるときは、チェックの側も同時に変える。
-# キーが重なったノートは、チェックが commit を止めるので、ここでは最初の値を返す。
-frontmatter_confidence() {
-	awk '
-		BEGIN { fm = 0 }
-		/^---[[:space:]]*$/ {
-			fm++
-			if (fm == 2) exit
-			next
-		}
-		fm == 1 && /^("confidence"|'"'"'confidence'"'"'|confidence)[[:space:]]*:/ {
-			value = $0
-			sub(/^("confidence"|'"'"'confidence'"'"'|confidence)[[:space:]]*:/, "", value)
+		fm == 1 {
+			if (index($0, key) == 1) rest = substr($0, length(key) + 1)
+			else if (index($0, "\"" key "\"") == 1 || index($0, q key q) == 1) rest = substr($0, length(key) + 3)
+			else next
+			sub(/^[[:space:]]*/, "", rest)
+			# `types:` のように、キーを前方に含む別のキーは読まない。
+			if (substr(rest, 1, 1) != ":") next
+			value = substr(rest, 2)
 			sub(/[[:space:]]+#.*$/, "", value)
 			gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+			if (value == "null" || value == "~") value = ""
 			if (value ~ /^".*"$/ || value ~ /^'"'"'.*'"'"'$/) value = substr(value, 2, length(value) - 2)
 			print value
 			exit
@@ -216,7 +205,7 @@ while IFS=$'\t' read -r _rank _date f; do
 	# meta も frontmatter に限る。全文を grep すると、本文の `type:` などを拾って誤った値になる。
 	# confidence が無い学びは、欄を足す前に書いたもので、確信度が分からないものとして扱う（references/extract.md）。
 	# 確信度の低い学びを高い学びと同じ見え方にしないよう、無いときも unknown と出す。
-	confidence=$(frontmatter_confidence "$f")
+	confidence=$(frontmatter_field "$f" confidence)
 	meta="date: $(frontmatter_field "$f" date) type: $(frontmatter_field "$f" type) priority: $(frontmatter_field "$f" priority) confidence: ${confidence:-unknown} "
 	summary_src=$(first_line_under "## 提案" "$f")
 	[ -n "$summary_src" ] || summary_src=$(first_line_under "## 事象" "$f")

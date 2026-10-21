@@ -795,20 +795,31 @@ test.each([
     { appliedTo: "applied-to: &a []" },
     "applied-to uses a YAML anchor or alias",
   ],
-  [
-    "引用符で囲んだ status のキー",
-    { status: '"status": pending' },
-    "status key is quoted or has a space before the colon",
-  ],
-  [
-    "コロンの前に空白がある type のキー",
-    { type: "type : doc" },
-    "type key is quoted or has a space before the colon",
-  ],
+  ["引用符で囲んだ status のキー", { status: '"status": pending' }, "status key is quoted"],
+  ["コロンの前に空白がある type のキー", { type: "type : doc" }, "type key is quoted"],
   [
     "単引用符で囲んだ applied-to のキー",
     { appliedTo: "'applied-to': []" },
-    "applied-to key is quoted or has a space before the colon",
+    "applied-to key is quoted",
+  ],
+  // キーにアンカーやタグを付けた行も、同じキーとして数え、形の誤りとして止める
+  [
+    "アンカーを付けた status のキーの重なり",
+    { status: "status: pending\n&k status: applied" },
+    "status is declared 2 times",
+  ],
+  ["タグを付けた type のキー", { type: "!!str type: doc" }, "type key is quoted"],
+  // コロンの後に空白が無い形は YAML の mapping にならない（confidence と同じ）
+  [
+    "コロンの後に空白が無い status",
+    { status: "status:pending" },
+    "status needs a space after the colon",
+  ],
+  ["コロンの後に空白が無い type", { type: "type:doc" }, "type needs a space after the colon"],
+  [
+    "コロンの後に空白が無い applied-to",
+    { appliedTo: "applied-to:[]" },
+    "applied-to needs a space after the colon",
   ],
 ])("status・type・applied-to の形を拒否する: %s", (_name, lines, message) => {
   const { status: exitCode, stderr } = runCheck(noteWithKeys(lines));
@@ -847,6 +858,7 @@ test.each([
 test.each([
   ["引用符で囲んだ要素", 'applied-to: ["*x.md", "&y.md", "!z.md"]'],
   ["引用符で囲んだブロックシーケンスの要素", "applied-to:\n  - '*x.md'"],
+  ["引用符の中の , の後に記号がある要素", 'applied-to: ["docs/a, *b.md"]'],
 ])("applied-to の要素の形を受け付ける: %s", (_name, appliedTo) => {
   const { status: exitCode, stderr } = runCheck(
     noteWithKeys({ status: "status: applied", appliedTo }),
@@ -854,6 +866,22 @@ test.each([
   expect(stderr).toBe("");
   expect(exitCode).toBe(0);
 });
+
+test.each([
+  ["エイリアス", "applied-to: *ref", "uses a YAML anchor or alias"],
+  ["タグ", "applied-to: !!seq [docs/a.md]", "has a YAML tag"],
+])(
+  "値そのものに付けた applied-to の%sは、要素の問題として重ねて数えない",
+  (_name, appliedTo, message) => {
+    const { status: exitCode, stderr } = runCheck(
+      noteWithKeys({ status: "status: applied", appliedTo }),
+    );
+    expect(stderr).toContain(message);
+    expect(stderr).not.toContain("has an element with");
+    expect(stderr).toContain("1 problem(s)");
+    expect(exitCode).toBe(2);
+  },
+);
 
 test("本文に書いた status: は、キーの重なりとして数えない", () => {
   const content = noteWithKeys({}).replace(
