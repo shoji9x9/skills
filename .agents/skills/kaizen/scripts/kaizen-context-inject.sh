@@ -137,11 +137,11 @@ frontmatter_field() {
 	' "$1" 2>/dev/null || true
 }
 
-# confidence は、kaizen-status-check.sh が confidence に当てる読み方と同じに読む。
-# 引用符で囲んだキー・キーとコロンの間の空白・行末のコメント・対になった引用符を受け付け、
-# YAML の空の値（`null`・`~`）は空として返す（`"confidence": 'low' # 1 回の観測` は low）。
+# confidence は、kaizen-status-check.sh が通す書き方（1 回だけ書いたキーと high・medium・low の値）を、チェックと同じ値として読む。
+# 引用符で囲んだキー・キーとコロンの間の空白・行末のコメント・対になった引用符を受け付ける（`"confidence": 'low' # 1 回の観測` は low）。
+# チェックが止める書き方（キーの重なり・キーに付けたアンカーやタグ・`null` と `~`）は、commit されないので読み方をそろえていない。
+# ここでは最初の値を返し、`null` と `~` は空として unknown と出す。
 # 他の欄は、kaizen-forget.sh などと同じ取り決めの frontmatter_field で読む（読み方を変えるなら、すべてのスクリプトを同時に変える）。
-# キーが重なったノートは、チェックが commit を止めるので、ここでは最初の値を返す。
 frontmatter_confidence() {
 	awk '
 		BEGIN { fm = 0 }

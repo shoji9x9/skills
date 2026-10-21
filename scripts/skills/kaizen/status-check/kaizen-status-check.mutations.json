@@ -314,7 +314,9 @@
         "status・type・applied-to の形を拒否する: status のブロックスカラー（行末のコメント）",
         "status・type・applied-to の形を拒否する: status のタグ",
         "キーの重なりと値の形を、1 回の実行でまとめて報告する",
-        "status・type・applied-to の形を拒否する: status のアンカー"
+        "status・type・applied-to の形を拒否する: status のアンカー",
+        "status と type の記号で始まる値を拒否する: ` で始まる status",
+        "status と type の記号で始まる値を拒否する: flow の mapping の status"
       ]
     },
     {
@@ -328,7 +330,9 @@
         "status・type・applied-to の形を拒否する: type のブロックスカラー（|2+）",
         "status・type・applied-to の形を拒否する: type のタグ",
         "キーの重なりと値の形を、1 回の実行でまとめて報告する",
-        "status・type・applied-to の形を拒否する: type のエイリアス"
+        "status・type・applied-to の形を拒否する: type のエイリアス",
+        "status と type の記号で始まる値を拒否する: @ で始まる type",
+        "status と type の記号で始まる値を拒否する: flow の配列の type"
       ]
     },
     {
@@ -380,7 +384,7 @@
       "id": "ITEM-FORM-ACCEPTED",
       "why": "applied-to の要素のアンカー・エイリアス・タグを受け付ける",
       "file": "skills/kaizen/scripts/kaizen-status-check.sh",
-      "find": "if (!applied_form_bad && element_has_marker(body))",
+      "find": "if (!applied_form_bad && (block_marker || element_has_marker(flow)))",
       "replace": "if (0)",
       "occurrences": 1,
       "expect_failing": [
@@ -443,7 +447,7 @@
         "status・type・applied-to の形を拒否する: タグを付けた type のキー",
         "属性を付けたキーの重なりを報告する: 属性を 2 つ付けた status",
         "アンカーを付けた confidence のキーも、重なりとキーの属性として報告する",
-        "archive のノートでも、confidence のキーの属性は止める"
+        "archive のノートには、confidence のキーの属性のチェックも当てない"
       ]
     },
     {
@@ -475,7 +479,7 @@
       "occurrences": 1,
       "expect_failing": [
         "アンカーを付けた confidence のキーも、重なりとキーの属性として報告する",
-        "archive のノートでも、confidence のキーの属性は止める"
+        "archive のノートには、confidence のキーの属性のチェックも当てない"
       ]
     },
     {
@@ -496,7 +500,56 @@
       "find": ".kaizen/archive/*) key_checks=0 ;;",
       "replace": ".kaizen/archive/*) key_checks=1 ;;",
       "occurrences": 1,
-      "expect_failing": ["archive のノートには、キーの重なりと形のチェックを当てない"]
+      "expect_failing": [
+        "archive のノートには、キーの重なりと形のチェックを当てない",
+        "archive のノートには、confidence のキーの属性のチェックも当てない"
+      ]
+    },
+    {
+      "id": "CONF-ATTR-ARCHIVE-CHECKED",
+      "why": "archive のノートにも confidence のキーの属性のチェックを当てる",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "if [ \"${conf_attr}\" = \"1\" ] && [ \"${key_checks}\" = \"1\" ]; then",
+      "replace": "if [ \"${conf_attr}\" = \"1\" ]; then",
+      "occurrences": 1,
+      "expect_failing": ["archive のノートには、confidence のキーの属性のチェックも当てない"]
+    },
+    {
+      "id": "BLOCK-MARKER-IGNORED",
+      "why": "ブロックシーケンスの要素のアンカー・エイリアス・タグを確かめない",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "if (item ~ /^[&*!]/) block_marker = 1",
+      "replace": "if (0) block_marker = 1",
+      "occurrences": 1,
+      "expect_failing": [
+        "applied-to の要素の形を拒否する: ブロックシーケンスのエイリアス",
+        "applied-to の要素の形を拒否する: ブロックシーケンスのアンカー",
+        "applied-to の要素の形を拒否する: ブロックシーケンスのタグ",
+        "applied-to の要素の形を拒否する: 桁 0 のブロックシーケンスのエイリアス"
+      ]
+    },
+    {
+      "id": "BLOCK-ITEMS-SPLIT-BY-COMMA",
+      "why": "ブロックシーケンスの要素も , で区切って先頭の記号を確かめる",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "element_has_marker(flow)",
+      "replace": "element_has_marker(body)",
+      "occurrences": 1,
+      "expect_failing": ["ブロックシーケンスの要素の中にある , の後の記号では止めない"]
+    },
+    {
+      "id": "INDICATOR-ACCEPTED",
+      "why": "status と type の、flow の集合と予約の記号で始まる値を受け付ける",
+      "file": "skills/kaizen/scripts/kaizen-status-check.sh",
+      "find": "else if (key != \"applied-to\" && value ~ /^[[{@`]/) kind = \"indicator\"",
+      "replace": "else if (0) kind = \"indicator\"",
+      "occurrences": 1,
+      "expect_failing": [
+        "status と type の記号で始まる値を拒否する: flow の配列の type",
+        "status と type の記号で始まる値を拒否する: flow の mapping の status",
+        "status と type の記号で始まる値を拒否する: @ で始まる type",
+        "status と type の記号で始まる値を拒否する: ` で始まる status"
+      ]
     }
   ]
 }

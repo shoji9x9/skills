@@ -51,9 +51,13 @@ frontmatter_state() {
 			sub(/\]$/, "", body)
 			out = ""
 			# 要素のアンカー・エイリアス・タグ（`- *ref`・`[&a docs/a.md]`・`[!!str x]`）も、値そのものと同じく 1 行の文字列として読めない。
-			# ブロックシーケンスの要素も collect_item が applied_value へ連ねるので、ここで両方の形を確かめる。
+			# ブロックシーケンスの要素は collect_item が 1 つずつ確かめる（要素の中の `,` は区切りではない）。
+			# flow 配列は、本文（折り返した行を含む）を element_has_marker で確かめる。
 			# 値そのものの形（`applied-to: *ref`）を記録したノートでは、同じ問題を 2 回数えない。
-			if (!applied_form_bad && element_has_marker(body)) add_bad("applied-to:item")
+			flow = flow_value
+			sub(/^\[/, "", flow)
+			sub(/\]$/, "", flow)
+			if (!applied_form_bad && (block_marker || element_has_marker(flow))) add_bad("applied-to:item")
 			n = split(body, parts, ",")
 			for (i = 1; i <= n; i++) {
 				item = parts[i]
@@ -86,6 +90,8 @@ frontmatter_state() {
 			if (value ~ /^[|>][-+0-9]*$/) kind = "block"
 			else if (value ~ /^!/) kind = "tag"
 			else if (value ~ /^[&*]/) kind = "anchor"
+			# status と type は 1 つの語なので、flow の集合（`[hook]`・`{a: b}`）と予約の記号（`@`・`` ` ``）で始まる値も読めない。
+			else if (key != "applied-to" && value ~ /^[[{@`]/) kind = "indicator"
 			if (kind == "") return
 			add_bad(key ":" kind)
 			if (key == "applied-to") applied_form_bad = 1
@@ -127,11 +133,12 @@ frontmatter_state() {
 			item = line
 			sub(/^[[:space:]]*-[[:space:]]*/, "", item)
 			sub(/[[:space:]]+#.*$/, "", item)
+			if (item ~ /^[&*!]/) block_marker = 1
 			gsub(/[[:space:]]/, "", item)
 			if (item == "") return
 			applied_value = (applied_value == "" ? item : applied_value "," item)
 		}
-		BEGIN { fm = 0; present = 0; nonempty = 0; status = ""; type = ""; conf_count = 0; conf_nospace = 0; conf_bad = ""; confidence = ""; in_applied = 0; applied_value = ""; status_count = 0; type_count = 0; applied_count = 0; bad_forms = ""; applied_form_bad = 0; conf_attr = 0 }
+		BEGIN { fm = 0; present = 0; nonempty = 0; status = ""; type = ""; conf_count = 0; conf_nospace = 0; conf_bad = ""; confidence = ""; in_applied = 0; applied_value = ""; status_count = 0; type_count = 0; applied_count = 0; bad_forms = ""; applied_form_bad = 0; conf_attr = 0; flow_value = ""; block_marker = 0 }
 		/^---[[:space:]]*$/ {
 			fm++
 			if (fm == 2) {
@@ -198,9 +205,11 @@ frontmatter_state() {
 			gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
 			# 要素を読むのは最後の applied-to だけなので、値そのものの形の記録もキーごとに戻す。
 			applied_form_bad = 0
+			block_marker = 0
 			note_form("applied-to", value)
 			gsub(/[[:space:]]/, "", value)
 			applied_value = value
+			flow_value = value
 			in_applied = 1
 			next
 		}
@@ -225,6 +234,7 @@ frontmatter_state() {
 			sub(/[[:space:]]+#.*$/, "", cont)
 			gsub(/[[:space:]]/, "", cont)
 			applied_value = applied_value cont
+			flow_value = flow_value cont
 			next
 		}
 		# ここへ来る桁 0 の行は applied-to の値の終わり（桁 0 に置ける継続行はブロック
@@ -347,6 +357,7 @@ for note in .kaizen/*.md .kaizen/archive/*.md; do
 			block) echo "kaizen-status-check: ${note}: ${bad_form%:*} uses a block scalar; write the value on the same line as the key" >&2 ;;
 			tag) echo "kaizen-status-check: ${note}: ${bad_form%:*} has a YAML tag; write the plain value without the tag" >&2 ;;
 			anchor) echo "kaizen-status-check: ${note}: ${bad_form%:*} uses a YAML anchor or alias; write the plain value" >&2 ;;
+			indicator) echo "kaizen-status-check: ${note}: ${bad_form%:*} starts with a YAML flow or reserved indicator ([, {, @ or a backquote); write a plain value" >&2 ;;
 			item) echo "kaizen-status-check: ${note}: ${bad_form%:*} has an element with a YAML anchor, alias or tag; write each element as a plain string" >&2 ;;
 			nospace) echo "kaizen-status-check: ${note}: ${bad_form%:*} needs a space after the colon (${bad_form%:*}: <value>)" >&2 ;;
 			*) echo "kaizen-status-check: ${note}: ${bad_form%:*} key is quoted, has a space before the colon, or has an anchor or tag; write it as ${bad_form%:*}: <value>" >&2 ;;
@@ -366,7 +377,8 @@ for note in .kaizen/*.md .kaizen/archive/*.md; do
 			echo "kaizen-status-check: ${note}: confidence needs a space after the colon (confidence: <value>)" >&2
 			errors=$((errors + 1))
 		fi
-		if [ "${conf_attr}" = "1" ]; then
+		# status・type・applied-to のキーの形のチェックと同じく、archive のノートには当てない（key_checks）。
+		if [ "${conf_attr}" = "1" ] && [ "${key_checks}" = "1" ]; then
 			echo "kaizen-status-check: ${note}: confidence key has a YAML anchor or tag; write it as confidence: <value>" >&2
 			errors=$((errors + 1))
 		fi

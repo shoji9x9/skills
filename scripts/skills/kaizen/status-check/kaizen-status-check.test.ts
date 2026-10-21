@@ -969,8 +969,48 @@ test("archive のノートには、キーの重なりと形のチェックを当
 });
 
 // confidence のキーの属性は、confidence の他のチェックと同じく archive のノートにも当てる。
-test("archive のノートでも、confidence のキーの属性は止める", () => {
-  const { status: exitCode, stderr } = runCheckArchived(noteWithConfidence("&a confidence: high"));
-  expect(stderr).toContain("confidence key has a YAML anchor or tag");
+test("archive のノートには、confidence のキーの属性のチェックも当てない", () => {
+  const archived = runCheckArchived(noteWithConfidence("&a confidence: high"));
+  expect(archived.stderr).toBe("");
+  expect(archived.status).toBe(0);
+  // 同じノートを archive の外に置くと止める（対照）
+  const current = runCheck(noteWithConfidence("&a confidence: high"));
+  expect(current.stderr).toContain("confidence key has a YAML anchor or tag");
+  expect(current.status).toBe(2);
+});
+
+// ブロックシーケンスの要素は 1 つの文字列なので、要素の中の , の後の記号は要素の先頭ではない
+test("ブロックシーケンスの要素の中にある , の後の記号では止めない", () => {
+  const { status: exitCode, stderr } = runCheck(
+    noteWithKeys({
+      status: "status: applied",
+      appliedTo: "applied-to:\n  - docs/a.md (rule, !important)",
+    }),
+  );
+  expect(stderr).toBe("");
+  expect(exitCode).toBe(0);
+});
+
+// status と type は 1 つの語なので、flow の集合と予約の記号で始まる値も止める
+test.each([
+  [
+    "flow の配列の type",
+    { type: "type: [hook]" },
+    "type starts with a YAML flow or reserved indicator",
+  ],
+  [
+    "flow の mapping の status",
+    { status: "status: {a: b}" },
+    "status starts with a YAML flow or reserved indicator",
+  ],
+  ["@ で始まる type", { type: "type: @doc" }, "type starts with a YAML flow or reserved indicator"],
+  [
+    "` で始まる status",
+    { status: "status: `pending`" },
+    "status starts with a YAML flow or reserved indicator",
+  ],
+])("status と type の記号で始まる値を拒否する: %s", (_name, lines, message) => {
+  const { status: exitCode, stderr } = runCheck(noteWithKeys(lines));
+  expect(stderr).toContain(message);
   expect(exitCode).toBe(2);
 });
