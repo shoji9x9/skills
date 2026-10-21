@@ -19,7 +19,8 @@ export function ruleOf(code: string): string {
   return m[1] === "eslint" ? m[2] : `${m[1]}/${m[2]}`;
 }
 
-function toDiagnostic(d: unknown): Diagnostic {
+/** oxlint の JSON の診断 1 件を読む。読めない形は、判定できないので例外にする。 */
+export function toDiagnostic(d: unknown): Diagnostic {
   // JS プラグインのルールが例外を投げると、code の無い診断（Error running JS plugin）になる。違反ではなく実行の失敗として扱う。
   if (isRecord(d) && d.code === undefined && typeof d.message === "string")
     throw new Error(`oxlint を実行できない（JS プラグインの例外）: ${d.message}`);
