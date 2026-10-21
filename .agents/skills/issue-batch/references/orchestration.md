@@ -215,6 +215,8 @@ manifest に書いてよいのは、次のものだけである。
 - run ID、入力順と実行順（並べ替えた依存）、Issue URL / 番号
 - 状態、branch、worktree、PR URL
 - 検証名・結果・証拠 URL / SHA
+- `reviewed_through_sha`: push の前のローカルレビューを最後に当てた範囲の終わりの commit の SHA（「ローカルレビュー」）。
+  `review_tool: local` の merge の前に確かめる記録（`local-review-record.sh`）とは別のもので、その代わりに使わない
 - BLOCKED / FAILED の停止の理由と残作業
 - `BRANCH_CLEANUP` のまま残した worktree の、引き継ぐファイルの一覧（「worktree に残った記録の引き継ぎ」）
 - SKIPPED の飛ばした理由
@@ -247,10 +249,14 @@ Issue ごとの専用の worktree で、`issue-start <Issue URL> --pr` と同じ
 実装したときの文脈から切り離したレビューを、今使っているエージェント自身の機能で行う。別のエージェントに自動で切り替えない。
 
 - Codex: `codex review --uncommitted`。staged・unstaged・untracked が対象であることを、ローカルの `--help` でも確かめる（[OpenAI Developers](https://developers.openai.com/codex/cli/reference)）。
-- Claude Code: 現在の差分か branch をレビューする、組み込みの `/code-review high` を使う。
+- Claude Code: 組み込みの `/code-review high` に、レビューする commit の範囲を `<from>..<to>` の形で渡す。
+  範囲の指定は文書に例がある（`/code-review HEAD~15..HEAD`。[Claude Code の文書](https://code.claude.com/docs/en/code-review-local.md)）。
+  範囲を省くと、upstream より先の commit と commit していない変更が対象になり、upstream が無ければローカルの `main` と比べる。
+  ローカルの `main` が古いと、取り込み済みの他の PR の変更まで対象に入るので、範囲を必ず渡す。範囲を渡すために、レビューの前に変更を commit する。
+  commit する前に `git status` で変更を挙げ、Issue の変更に関係するファイルだけを stage する。
+  レビューの後に要らないと分かった変更は、新しいファイルなら消す commit を、既存のファイルの変更なら base の版に戻す commit を足す（`--amend` と force push は使わない）。
+  足した commit で戻しても、元の中身は履歴に残る。秘密を含むファイルを commit したときは push せず、その Issue を BLOCKED にして、履歴から取り除く方法を利用者に任せる。
   非対話の `claude -p` で呼ぶ方法は、今の CLI で実際に実行して動いた場合だけ使う。動かなければ BLOCKED にする（[Claude Code commands](https://code.claude.com/docs/en/commands)）。
-  追跡されていないファイルが `/code-review` の対象に入るかは文書に書かれていないので、レビューの前に、追跡されていないファイルを `git add --intent-to-add <path>` で追跡に加える。
-  レビューの後に commit しないと決めたファイルは、`git reset -- <path>` で追跡から外す。
 - GitHub Copilot CLI: `/review` の後に、レビューの対象を文で書いて渡す（[GitHub Docs](https://docs.github.com/en/copilot/how-tos/copilot-cli/automate-copilot-cli/run-cli-programmatically#code-review-a-branch)）。
   文書は対象を指定する構文を定めていないので、commit していない差分には次のコマンドを使う。
 
@@ -266,31 +272,90 @@ Issue ごとの専用の worktree で、`issue-start <Issue URL> --pr` と同じ
 - base branch に入っていない変更が 0 行である。commit していない差分（staged・unstaged・追跡されていないファイル）と、base branch に入っていない commit（push 済みのものを含む）をすべて数える。
   比べる相手は、取得し直した remote の base branch（`git fetch` の後の `origin/<base>` など）にする。ローカルの base branch は、remote より古いか、push していない commit を持つことがある
 
-ローカルレビューは、commit する前に、commit していない差分（staged・unstaged・追跡されていないファイル）を対象にして、上のエージェントごとのコマンドで行う。
-ローカルレビューを始める時点で、再開した Issue のように base branch に入っていない commit が残っているときは、そのレビューに加えて、base branch との差分を対象にするレビューも行う。
-レビューの修正や Kaizen の記録をその後に commit しても、この判定はやり直さない。
-Kaizen の記録は、この判定とは関係なく、commit する前に記録の差分を含む範囲をレビューする（「Kaizen、commit、PR」）。
-base branch との差分は、エージェントごとに次の方法でレビューする。
+Codex と GitHub Copilot CLI では、commit する前に、commit していない差分（staged・unstaged・追跡されていないファイル）を対象にして、上のコマンドでレビューする。
+レビューの直後に、レビューした差分だけを commit する。検証の修正や整形の書き換えは、その後の別の commit にする。
+Claude Code では、変更を commit してから、`<base との merge-base>..<HEAD の完全な SHA>` を範囲に渡す。
+HEAD は後の commit で動くので、名前のまま渡さず、レビューの前に `git rev-parse HEAD` で SHA にする。
+merge-base は、取得し直した remote の base branch（`git fetch` の後の `origin/<base>`）と HEAD から `git merge-base` で求める。
+再開した Issue のように、ローカルレビューを始める時点で base branch に入っていない commit が残っていることがある。
+そのとき Codex と Copilot CLI では、上のレビューに加えて、base branch との差分を対象にするレビューも行う。
+Claude Code では、それらの commit は merge-base からの範囲に入っているので、別のレビューは要らない。
+base branch に入っていない commit が残っているかの判定は、ローカルレビューを始める時点で 1 回だけ行う。レビューの修正や Kaizen の記録をその後に commit しても、やり直さない。
+base branch との差分は、Codex と Copilot CLI では次の方法でレビューする。
 
-- Codex: `codex review --base <base>`（`--help` の「Review changes against the given base branch」）
-- Claude Code: `/code-review high` に branch を指定する
+- Codex: `codex review --base origin/<base>`（`--help` の「Review changes against the given base branch」）。`git fetch` で取得し直した remote の base branch を渡す。ローカルの base branch は古いことがある。
+  codex v0.153.4 は、`--base origin/main` を「changes against 'origin/main'」として受け付けた（実測）
 - GitHub Copilot CLI: 次のコマンドを使う。
 
   ```bash
-  copilot -p '/review the changes on this branch compared to <base>. Focus on bugs and security issues. List the files you reviewed.' -s --allow-tool='shell(git:*)'
+  copilot -p '/review the changes on this branch compared to origin/<base>. Focus on bugs and security issues. List the files you reviewed.' -s --allow-tool='shell(git:*)'
   ```
 
-Claude Code は branch を指定できるが、比べる相手（base か upstream か）を文書で定めていない。Copilot CLI は、対象を文で渡すだけで、指定する構文を持たない。
-そのため、どちらのレビューでも、出力が示すレビューの範囲（Claude Code は比べた base か commit、Copilot CLI は指示で挙げさせたレビューしたファイル）を見る。
-指摘が 0 件の出力でも範囲は示されるので、指摘の有無ではなく範囲で、指定した対象（commit していない差分か、`<base>` との差分）に当たっていることを確かめる。
-範囲が示されないか対象に当たっていないときと、base branch との差分をレビューできないエージェントでは、その Issue を BLOCKED にする。
+レビューが指定した対象に当たったことは、次の方法で確かめる。
+
+- Claude Code: `/code-review` の出力の本文は、レビューした範囲を示さない。
+  `/code-review` はレビューを別のエージェントでバックグラウンドに実行し、その記録を出力ファイルに残す（文書に記載は無く、実測による）。出力ファイルのパスは、レビューの完了の通知が示す。
+  その記録に、渡した範囲と同じ commit の組を指す `git diff` の実行があることを確かめる（短い SHA で書いた形も、同じ commit を指せば当たる）。
+  出力ファイルが無いか、そうした実行が無いときは、範囲を確かめられないとして扱う。
+- GitHub Copilot CLI: 対象を文で渡すだけで、指定する構文を持たないので、指示で挙げさせたレビューしたファイルを見る。
+
+指摘の有無ではなく範囲で、指定した対象に当たっていることを確かめる。指摘が 0 件の出力でも、範囲はこの方法で確かめられる。
+範囲を確かめられないか対象に当たっていないときと、base branch との差分をレビューできないエージェントでは、その Issue を BLOCKED にする。
+レビューした変更を含む commit の SHA を、manifest の `reviewed_through_sha` に記録する。BLOCKED から再開した Issue では、前の run の値を使わず、ローカルレビューを最初から行う。「ローカルレビューの後に生じた変更」のレビューの範囲の起点にする。
+Claude Code では、渡した範囲の終わり（`<to>`）の SHA である。Codex と Copilot CLI では、レビューした差分だけを commit した直後の HEAD の SHA である。レビューの後に足した変更は、その commit に入れない。
+レビューした変更より前の commit を記録すると、レビュー済みの commit が次の範囲に入り、同じ変更をもう一度レビューすることになる。
 
 利用者の指示で省いたときは、manifest の `self_decisions` の `unfollowed_rules`（「判断の扱い」の守っていない規約の欄）に、その指示を添えて記録する。
 変更が 0 行で省いたときは、レビューする対象が無いだけで規約には従っているので、この欄には載せない。
 
 指摘をコードと実測に照らして 1 件ずつ判断し、妥当なものだけ直す。直した後は、検証とレビューをやり直す。
+Claude Code では、直した変更を commit し、`<reviewed_through_sha の SHA>..<HEAD の完全な SHA>` を範囲に渡してやり直し、`reviewed_through_sha` をその範囲の終わりに進める。
 直さなかった指摘は、その時点で、「判断の扱い」の 4 つの欄か `others` のうち当たるものに manifest へ記録する。
 上限までに収束しない場合、機能を使えない場合、人の判断が要る場合は BLOCKED にする。
+
+### ローカルレビューの後に生じた変更
+
+最後のローカルレビューの後に生じた変更も、push の前にレビューする。
+`writing-style` の読み直しで直した文書や、レビューの後に足した修正がこれに当たる。
+次の 2 つは例外とし、ローカルレビューにかけない。
+
+- Kaizen の学び。`kaizen extract` とその後の自動の忘却が作るか書き換えた `.kaizen/` 直下のファイルだけである（新しい学び・再発で更新した学び・`status` を `forgotten` にした学び）。
+  抽出の前後で `git status` を比べて、抽出が変えたファイルを挙げる。それ以外の `.kaizen/` の変更（エージェントが手で書いた変更・消したファイル・archive への移動）は例外にしない
+- commit を記録する Hook が、commit のたびに自動で足す記録（利用実績の記録の行など）。ツールが生成するデータで、手で書いた変更を含まない。
+  範囲の `git diff --name-status` で、状態が `A` か `M` で、パスがその Hook の定める記録の置き場所にあるファイルだけが当たる。消したファイル（`D`）や名前を変えたファイル（`R`）は例外にしない
+
+どちらも PR に入るので、`pr-finalize-loop` のレビューが merge の前に見る。
+学びをローカルレビューの後に作るのは、ローカルレビューで見つかった学びを記録に入れるためである。
+例外を当てる前に、`pr-finalize-loop` の `scripts/resolve-review-tool.sh` で `review_tool` を読む（値を読むだけで、固定も受け渡しもしない）。
+値が `none` のときは、PR のレビューが無いので例外を当てない。学びも Hook の記録も、ほかの変更と同じにレビューする。
+exit 0 にならず値を読めなかったときは、handoff でも同じ設定を読めずに止まるので、push の前にその Issue を BLOCKED にする。
+
+レビューする範囲は、`reviewed_through_sha` に記録した SHA から今の HEAD まで（`<reviewed_through_sha の SHA>..<HEAD の完全な SHA>`）にする。
+範囲を決めたら、次の順に当てる。
+
+1. 範囲に merge commit があるとき（ローカルレビューの後に base branch を merge したときなど）は、範囲に取り込んだ base の変更が入るので、この範囲ではレビューしない。
+   代わりに、ローカルレビューと同じ方法で、取得し直した `origin/<base>` との差分全体をレビューし直す。このレビューの 1 回目も上限に数えない。
+2. 範囲で変わったファイルがすべて例外のファイルなら、このレビューは行わない。
+3. それ以外は、範囲をそのままレビューする。例外のファイルが範囲に含まれても構わない。
+
+3 のレビューは、エージェントごとに次の方法で行う。
+
+- Claude Code: `/code-review high` にこの範囲を渡す。
+- Codex: 範囲の commit ごとに `codex review --commit <SHA>` を実行する（`--help` の「Review the changes introduced by a commit」。[OpenAI Developers](https://developers.openai.com/codex/cli/reference)）。
+  例外を当てるときは、例外のファイルだけを変えた commit を除く。
+- GitHub Copilot CLI: 次のコマンドで範囲を文で渡し、レビューしたファイルを挙げさせる。
+
+  ```bash
+  copilot -p '/review the changes in the commit range <from>..<to>. Focus on bugs and security issues. List the files you reviewed.' -s --allow-tool='shell(git:*)'
+  ```
+
+範囲の確かめ方・指摘の扱い・BLOCKED の条件は、上のローカルレビューと同じにする。Codex では、除いた commit 以外のすべての SHA で実行したことを確かめる。
+レビューの後は、`reviewed_through_sha` を範囲の終わりの SHA に進める。指摘を直したら、その commit から HEAD までを同じ方法でレビューし直す。
+このレビューは、受け入れ条件の突き合わせ（「Kaizen、commit、PR」）の表を作る前に行う。表を作った後に指摘を直す commit を足すと、表が `stale-commit` で失敗する。
+表を作った後に変更を足したとき（PR の本文の読み直しで文書を直したときなど）は、このレビューをしてから表を作り直す。
+このレビューの 1 回目は、ローカルレビューの上限（`max_local_review_iterations`）の回数に数えない。指摘を直した後のやり直しにだけ、上限を当てる。
+利用者がその Issue のローカルレビューを省くよう明示したときは、このレビューも省く（記録は省いてよい条件の 1 つ目と同じ）。
+変更が 0 行でローカルレビューを省いた Issue に後から変更を足したときは、0 行ではなくなったので、`reviewed_through_sha` が無いものとして、上のローカルレビューの手順でレビューする。
 
 ## browser-test への handoff
 
@@ -308,23 +373,25 @@ console、主要な要素、Network と API、副作用の無い操作を確か�
 transcript を特定できないエージェントでは、何もしないで進むことにせず、BLOCKED にする。
 
 学びが作られた場合は、実装の変更とは別の commit にする。
-順序は、実装の commit、記録のレビュー（指摘への対応とやり直しを含む）、記録の commit である。記録の commit では、関連するファイルだけを stage し、規約どおりに commit する。
-記録はローカルレビューの後に作るので、そのままでは push の前のどのレビューの対象にも入らない。
-そこで、実装の変更を commit した後、記録を commit する前に、記録の差分をローカルレビューにかける。
-このとき commit していない差分は記録だけなので、「ローカルレビュー」の commit していない差分のレビューを、同じコマンドでそのまま当てる。
-指摘の扱いは「ローカルレビュー」に従う。
-出力が示すレビューの範囲では、記録の差分が含まれることを確かめる。
-エージェントのレビューの機能によっては、記録だけに絞れず、実装の commit や base branch との差分も範囲に入る（Claude Code の `/code-review` は、upstream が無ければローカルの base branch との差分も対象にする）。
-記録以外の変更が範囲に入るのは構わず、それらへの指摘は実装のローカルレビューの指摘と同じに扱う。
-記録の差分が範囲に含まれることを確かめられないときは、その Issue を BLOCKED にする。
-記録のレビューの 1 回目は、ローカルレビューの上限（`max_local_review_iterations`）の回数に数えない。指摘を直した後のやり直しにだけ、上限を当てる。
-記録をローカルレビューの前に作らないのは、ローカルレビューで見つかった学びを記録に入れるためである。
-commit の前のチェック（kaizen の Hook など）が commit を止め、`kaizen --current` で記録を作ったときも、その記録を commit する前に同じようにレビューする。
-利用者がその Issue のローカルレビューを省くよう明示したときは、このレビューも省く（記録は「ローカルレビュー」の 1 つ目の条件と同じ）。
-学びが作られなかったときは、このレビューも行わない。
+記録の commit では、抽出とその後の自動の忘却が作るか書き換えた学び（新しい学び・再発で更新した学び・忘却した学び）だけを stage し、規約どおりに commit する。commit を記録する Hook がその commit に自動で足す記録は、そのまま入れてよい。
+学びはローカルレビューにかけず、PR のレビューに任せる。ただし、`review_tool` が `none` のときは例外を当てず、読めないときは push の前に BLOCKED にする（「ローカルレビュー」の「ローカルレビューの後に生じた変更」）。
+
+kaizen の commit の前のチェックが実装の commit を止めたときは、次の順にする。
+
+1. `kaizen extract --current --record-pending` で候補を確かめ、記録する。チェックが促す `kaizen --current` は利用者の承認を求めるので、run の中では使わない。
+   `--record-pending` は、記録の後の `kaizen-extract-done.sh` まで行うので、同じ commit をもう一度実行すればチェックを通る。
+2. 抽出とその後の自動の忘却が作るか書き換えた学びを stage から外し、実装の変更だけを commit し直す。
+   止められた commit のために Hook が stage した記録（利用実績の記録など）は、stage したまま実装の commit に入れる。
+3. 2 で外した学びを、別の commit にする。
+
+Claude Code では、ローカルレビューの前に実装を commit するので、このチェックはレビューの前に止めることがある。
+そのときに作った学びには、ローカルレビューで見つかったことが入らない。
+そのため、チェックが止めて学びを記録した場合も、ローカルレビューの後の通常の抽出（この節の最初）は省かない。
+通常の抽出は、前の抽出の後の活動だけを走査するので、レビューで見つかったことがあれば、もう 1 件の学びになる。
+1 つの Issue で学びが 2 件になることはありうる。「候補は最大 1 件」は、1 回の抽出についての取り決めである。
 commit message の 1 行目、PR のタイトルと本文、Issue へのコメントは、外に出す前に `writing-style` スキルの手順で読み直す（スキルが無ければ省く）。
 **すべての commit の後、push の直前に**、`issue-start` の受け入れ条件の突き合わせ（基本フローの step 10。手順は `issue-start` の `references/acceptance.md` で定義する）を通す。
-commit していない差分のローカルレビューは commit の前に行い（「ローカルレビュー」）、レビューの修正や Kaizen の commit で HEAD が進む。
+ローカルレビューの修正や Kaizen の commit で HEAD が進む（「ローカルレビュー」）。
 そのため、それより前に作った表は、`commit-missing` か `stale-commit` で失敗する。
 次のどれかに当たれば `BLOCKED` にする。
 
@@ -342,7 +409,8 @@ exit 0 だけを見て push すると、確認がどこにも残らずに消え�
 ## pr-finalize-loop への handoff
 
 PR の URL と、決まった `max_pr_iterations` を、`pr-finalize-loop <PR URL> --max-iterations <N> --defer-decisions` に渡す。`wait_ci_before_review: true` の場合だけ、`--wait-ci-before-review` を足す。
-レビューツールは pr-finalize-loop が決めるので、issue-batch は値を先に固定したり渡したりしない。pr-finalize-loop の参照先を読めなければ、handoff の前に停止する。
+レビューツールは pr-finalize-loop が決めるので、issue-batch は値を先に固定したり渡したりしない。
+「ローカルレビューの後に生じた変更」で例外を当てるかを決めるために、同じスクリプトで値を読むことはある。読んだ値を pr-finalize-loop に渡さない。pr-finalize-loop の参照先を読めなければ、handoff の前に停止する。
 
 CI、すべてのレビュアーの thread と review の本文、再レビューの依頼は、`pr-finalize-loop` が扱う。issue-batch 自身からは、リモートの AI レビューを依頼しない。
 収束しなければ BLOCKED か FAILED にし、影響をその Issue の中に留められるなら、方針に従って次の Issue に進む。

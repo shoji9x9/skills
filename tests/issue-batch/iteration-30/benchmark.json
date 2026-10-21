@@ -1,0 +1,199 @@
+{
+  "metadata": {
+    "skill_name": "issue-batch",
+    "skill_path": "<repo>/skills/issue-batch",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-21T07:10:00Z",
+    "evals_run": [29],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 29,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 10,
+        "failed": 0,
+        "total": 10,
+        "time_seconds": 46.9,
+        "tokens": 112025,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "まだ commit していない実装を、ローカルレビューの前に commit すると述べている",
+          "passed": true,
+          "evidence": "「Claude Code では範囲を渡すために、レビューの前に設定変更を commit します」"
+        },
+        {
+          "text": "`/code-review` に、取得し直した `origin/main` と HEAD の merge-base から HEAD までの範囲を渡すと述べている",
+          "passed": true,
+          "evidence": "「`git merge-base origin/main HEAD` で `<MB>` を求めます」「`/code-review high <MB>..<HEAD の SHA>` を実行します」"
+        },
+        {
+          "text": "push 済みの 2 つの commit を、merge-base から HEAD までの同じ範囲でレビューすると述べている",
+          "passed": true,
+          "evidence": "「残っている 2 commit も merge-base からの範囲に入ります。そのため、base branch との差分を見る別のレビューは要りません」"
+        },
+        {
+          "text": "レビューが指定した範囲に当たったことを、`/code-review` の出力の本文ではなく、レビューを実行したエージェントの記録に渡した範囲の `git diff` があることで確かめると述べている",
+          "passed": true,
+          "evidence": "「`/code-review` の出力本文は、レビューした範囲を示しません」「そこに、`<MB>` と `<HEAD>` と同じ commit の組を指す `git diff` の実行があるかを確かめます」"
+        },
+        {
+          "text": "範囲を確かめられないか、指定した対象に当たっていないときは、#101 を BLOCKED にすると述べている",
+          "passed": true,
+          "evidence": "「出力ファイルが無い場合や、該当する `git diff` の実行が無い場合は、#101 を BLOCKED にします」"
+        },
+        {
+          "text": "変更が 0 行かを判断するとき、commit していない差分に加えて、push 済みのものを含む base branch に入っていない commit も数えると述べている",
+          "passed": true,
+          "evidence": "「base branch に入っていない commit。push 済みのものも含みます」"
+        },
+        {
+          "text": "比べる相手を、取得し直した remote の base branch（`git fetch` の後の `origin/main` など）にし、ローカルの main を使わないと述べている",
+          "passed": true,
+          "evidence": "「`git fetch origin` の後の `origin/main` です」「ローカルの `main` は remote より古いので、比べる相手にしません」"
+        },
+        {
+          "text": "Kaizen の学びの commit だけを対象にするローカルレビューは行わず、学びを PR のレビュー（`pr-finalize-loop`）に任せると述べている",
+          "passed": true,
+          "evidence": "「ローカルレビューの対象ではありません。学びは例外で、PR のレビューに任せます」「正式にレビューするのは、push 後の `pr-finalize-loop` です」"
+        },
+        {
+          "text": "README を直した commit を、push の前に、最後にレビューした範囲の終わりの SHA から HEAD までの範囲でレビューすると述べている",
+          "passed": true,
+          "evidence": "「対象: 範囲 `<local_review の SHA>..HEAD` です」「README を 1 行直した commit」"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（レビュー・commit・push を行っていない）",
+          "passed": true,
+          "evidence": "「コマンドの実行とファイルの変更はしていません」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 29,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 8,
+        "failed": 2,
+        "total": 10,
+        "time_seconds": 64.279,
+        "tokens": 116434,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "まだ commit していない実装を、ローカルレビューの前に commit すると述べている",
+          "passed": true,
+          "evidence": "「未 commit の設定ファイルの変更は、レビューの前に実装 commit にします」"
+        },
+        {
+          "text": "`/code-review` に、取得し直した `origin/main` と HEAD の merge-base から HEAD までの範囲を渡すと述べている",
+          "passed": true,
+          "evidence": "「`BASE=$(git merge-base origin/main HEAD)`」「`code-review` スキルにこの範囲を渡します」"
+        },
+        {
+          "text": "push 済みの 2 つの commit を、merge-base から HEAD までの同じ範囲でレビューすると述べている",
+          "passed": true,
+          "evidence": "「前の run の 2 commit は main に入っていないので、この基点より後ろに含まれます」と、① の範囲 `$BASE..<実装commit>` に入れる"
+        },
+        {
+          "text": "レビューが指定した範囲に当たったことを、`/code-review` の出力の本文ではなく、レビューを実行したエージェントの記録に渡した範囲の `git diff` があることで確かめると述べている",
+          "passed": false,
+          "evidence": "「レビューの出力にある対象 commit の数（3）、ファイル一覧、head SHA が、事前に記録した `--stat` / `log` と一致すること」と、出力の本文で確かめる"
+        },
+        {
+          "text": "範囲を確かめられないか、指定した対象に当たっていないときは、#101 を BLOCKED にすると述べている",
+          "passed": true,
+          "evidence": "「その Issue は理由を書いて **BLOCKED** にします」"
+        },
+        {
+          "text": "変更が 0 行かを判断するとき、commit していない差分に加えて、push 済みのものを含む base branch に入っていない commit も数えると述べている",
+          "passed": true,
+          "evidence": "「前の run で push した `origin/feature/101-...` を始点にしてはいけません。後者を始点にすると、前の run の 2 commit が数えられず」"
+        },
+        {
+          "text": "比べる相手を、取得し直した remote の base branch（`git fetch` の後の `origin/main` など）にし、ローカルの main を使わないと述べている",
+          "passed": true,
+          "evidence": "「比較先は `origin/main` にします。ローカルの `main` は古いので」"
+        },
+        {
+          "text": "Kaizen の学びの commit だけを対象にするローカルレビューは行わず、学びを PR のレビュー（`pr-finalize-loop`）に任せると述べている",
+          "passed": false,
+          "evidence": "「push 前のローカルレビュー②: Kaizen の commit だけを対象にします」と、学びをローカルレビューにかける"
+        },
+        {
+          "text": "README を直した commit を、push の前に、最後にレビューした範囲の終わりの SHA から HEAD までの範囲でレビューすると述べている",
+          "passed": true,
+          "evidence": "「README を 1 行直した commit … 範囲は `<Kaizen commit>..HEAD`」。直前にレビューした範囲の終わりから HEAD まで"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（レビュー・commit・push を行っていない）",
+          "passed": true,
+          "evidence": "「今回は dry-run なので、コマンドは何も実行していません」"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 46.9,
+        "stddev": 0,
+        "min": 46.9,
+        "max": 46.9
+      },
+      "tokens": {
+        "mean": 112025,
+        "stddev": 0,
+        "min": 112025,
+        "max": 112025
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.8,
+        "stddev": 0,
+        "min": 0.8,
+        "max": 0.8
+      },
+      "time_seconds": {
+        "mean": 64.279,
+        "stddev": 0,
+        "min": 64.279,
+        "max": 64.279
+      },
+      "tokens": {
+        "mean": 116434,
+        "stddev": 0,
+        "min": 116434,
+        "max": 116434
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.20",
+      "time_seconds": "-17.4",
+      "tokens": "-4409"
+    }
+  },
+  "notes": [
+    "main の版（81b1ec6e）の skills/issue-batch で with_skill を 1 run 実行し、4/10 だった。範囲を渡す 2 本・push 済みの commit を同じ範囲でレビューする・記録の git diff で確かめる・学びを PR に任せる・README を最後の範囲の終わりから HEAD でレビューする、の 6 本で落ちた。run の出力はリポジトリに入れていない"
+  ]
+}
