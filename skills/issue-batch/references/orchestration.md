@@ -215,7 +215,8 @@ manifest に書いてよいのは、次のものだけである。
 - run ID、入力順と実行順（並べ替えた依存）、Issue URL / 番号
 - 状態、branch、worktree、PR URL
 - 検証名・結果・証拠 URL / SHA
-- `local_review`: ローカルレビューを最後に当てた範囲の終わりの commit の SHA（「ローカルレビュー」）
+- `reviewed_through_sha`: push の前のローカルレビューを最後に当てた範囲の終わりの commit の SHA（「ローカルレビュー」）。
+  `review_tool: local` の merge の前に確かめる記録（`local-review-record.sh`）とは別のもので、その代わりに使わない
 - BLOCKED / FAILED の停止の理由と残作業
 - `BRANCH_CLEANUP` のまま残した worktree の、引き継ぐファイルの一覧（「worktree に残った記録の引き継ぎ」）
 - SKIPPED の飛ばした理由
@@ -298,7 +299,7 @@ base branch との差分は、Codex と Copilot CLI では次の方法でレビ�
 
 指摘の有無ではなく範囲で、指定した対象に当たっていることを確かめる。指摘が 0 件の出力でも、範囲はこの方法で確かめられる。
 範囲を確かめられないか対象に当たっていないときと、base branch との差分をレビューできないエージェントでは、その Issue を BLOCKED にする。
-レビューした変更を含む commit の SHA を、manifest の `local_review` に記録する。「ローカルレビューの後に生じた変更」のレビューの範囲の起点にする。
+レビューした変更を含む commit の SHA を、manifest の `reviewed_through_sha` に記録する。BLOCKED から再開した Issue では、前の run の値を使わず、ローカルレビューを最初から行う。「ローカルレビューの後に生じた変更」のレビューの範囲の起点にする。
 Claude Code では、渡した範囲の終わり（`<to>`）の SHA である。Codex と Copilot CLI では、レビューした差分だけを commit した直後の HEAD の SHA である。レビューの後に足した変更は、その commit に入れない。
 レビューした変更より前の commit を記録すると、レビュー済みの commit が次の範囲に入り、同じ変更をもう一度レビューすることになる。
 
@@ -306,7 +307,7 @@ Claude Code では、渡した範囲の終わり（`<to>`）の SHA である。
 変更が 0 行で省いたときは、レビューする対象が無いだけで規約には従っているので、この欄には載せない。
 
 指摘をコードと実測に照らして 1 件ずつ判断し、妥当なものだけ直す。直した後は、検証とレビューをやり直す。
-Claude Code では、直した変更を commit し、`<local_review の SHA>..<HEAD の完全な SHA>` を範囲に渡してやり直し、`local_review` をその範囲の終わりに進める。
+Claude Code では、直した変更を commit し、`<reviewed_through_sha の SHA>..<HEAD の完全な SHA>` を範囲に渡してやり直し、`reviewed_through_sha` をその範囲の終わりに進める。
 直さなかった指摘は、その時点で、「判断の扱い」の 4 つの欄か `others` のうち当たるものに manifest へ記録する。
 上限までに収束しない場合、機能を使えない場合、人の判断が要る場合は BLOCKED にする。
 
@@ -316,7 +317,9 @@ Claude Code では、直した変更を commit し、`<local_review の SHA>..<H
 `writing-style` の読み直しで直した文書や、レビューの後に足した修正がこれに当たる。
 次の 2 つは例外とし、ローカルレビューにかけない。
 
-- Kaizen の学び（`kaizen extract` が作る学びのファイルと、同じ抽出の後の自動の忘却が `status: forgotten` に書き換えた学び）
+- Kaizen の学び。範囲の `git diff --name-status` で、`.kaizen/` の直下にあり、次のどちらかに当たるファイルだけである。
+  状態が `A` で、`kaizen extract` が作った学び。状態が `M` で、同じ抽出の後の自動の忘却が `status` を `forgotten` に書き換えただけの学び。
+  それ以外の `.kaizen/` の変更（手で書いた変更・消したファイル・archive への移動・`status` をほかの値に変えた変更）は例外にしない
 - commit を記録する Hook が、commit のたびに自動で足す記録（利用実績の記録の行など）。ツールが生成するデータで、手で書いた変更を含まない。
   範囲の `git diff --name-status` で、状態が `A` か `M` で、パスがその Hook の定める記録の置き場所にあるファイルだけが当たる。消したファイル（`D`）や名前を変えたファイル（`R`）は例外にしない
 
@@ -325,7 +328,7 @@ Claude Code では、直した変更を commit し、`<local_review の SHA>..<H
 例外を当てる前に、`pr-finalize-loop` の `scripts/resolve-review-tool.sh` で `review_tool` を読む（値を読むだけで、固定も受け渡しもしない）。
 値が `none` のときと、exit 0 にならず値を読めなかったときは、PR のレビューが無いものとして例外を当てない。学びも Hook の記録も、ほかの変更と同じにレビューする。
 
-レビューする範囲は、`local_review` に記録した SHA から今の HEAD まで（`<local_review の SHA>..<HEAD の完全な SHA>`）にする。
+レビューする範囲は、`reviewed_through_sha` に記録した SHA から今の HEAD まで（`<reviewed_through_sha の SHA>..<HEAD の完全な SHA>`）にする。
 範囲を決めたら、次の順に当てる。
 
 1. 範囲に merge commit があるとき（ローカルレビューの後に base branch を merge したときなど）は、範囲に取り込んだ base の変更が入るので、この範囲ではレビューしない。
@@ -345,11 +348,11 @@ Claude Code では、直した変更を commit し、`<local_review の SHA>..<H
   ```
 
 範囲の確かめ方・指摘の扱い・BLOCKED の条件は、上のローカルレビューと同じにする。Codex では、除いた commit 以外のすべての SHA で実行したことを確かめる。
-レビューの後は、`local_review` を範囲の終わりの SHA に進める。指摘を直したら、その commit から HEAD までを同じ方法でレビューし直す。
+レビューの後は、`reviewed_through_sha` を範囲の終わりの SHA に進める。指摘を直したら、その commit から HEAD までを同じ方法でレビューし直す。
 このレビューは、受け入れ条件の突き合わせ（「Kaizen、commit、PR」）の表を作る前に行う。表を作った後に指摘を直す commit を足すと、表が `stale-commit` で失敗する。
 このレビューの 1 回目は、ローカルレビューの上限（`max_local_review_iterations`）の回数に数えない。指摘を直した後のやり直しにだけ、上限を当てる。
 利用者がその Issue のローカルレビューを省くよう明示したときは、このレビューも省く（記録は省いてよい条件の 1 つ目と同じ）。
-変更が 0 行でローカルレビューを省いた Issue に後から変更を足したときは、0 行ではなくなったので、`local_review` が無いものとして、上のローカルレビューの手順でレビューする。
+変更が 0 行でローカルレビューを省いた Issue に後から変更を足したときは、0 行ではなくなったので、`reviewed_through_sha` が無いものとして、上のローカルレビューの手順でレビューする。
 
 ## browser-test への handoff
 
@@ -368,7 +371,7 @@ transcript を特定できないエージェントでは、何もしないで進
 
 学びが作られた場合は、実装の変更とは別の commit にする。
 記録の commit では、学びのファイルと、同じ抽出の後の自動の忘却が書き換えた学びだけを stage し、規約どおりに commit する。commit を記録する Hook がその commit に自動で足す記録は、そのまま入れてよい。
-学びはローカルレビューにかけず、PR のレビューに任せる（「ローカルレビュー」の「ローカルレビューの後に生じた変更」）。
+学びはローカルレビューにかけず、PR のレビューに任せる。ただし、`review_tool` が `none` か読めないときは例外を当てない（「ローカルレビュー」の「ローカルレビューの後に生じた変更」）。
 
 kaizen の commit の前のチェックが実装の commit を止めたときは、次の順にする。
 
