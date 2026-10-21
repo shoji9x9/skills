@@ -35,29 +35,6 @@ fi
 
 [ -d .kaizen ] || exit 1
 
-# frontmatter（最初の `---` ブロック）の 1 フィールドを取り出す。
-# `sed ... | head -n 1` は使わない。大きなノートでは head が先に閉じて sed が SIGPIPE で死に、
-# pipefail 下でスクリプトごと 141 で落ちる（実測: 5.7MB のノートで再現）。awk なら自前で exit
-# するのでパイプが要らず、読めないファイルは `|| true` で空文字にできる。
-# 本文中の `priority:` 等を拾わないよう、走査は frontmatter 内に限る。
-frontmatter_field() {
-	awk -v key="$2" '
-		BEGIN { fm = 0 }
-		/^---[[:space:]]*$/ {
-			fm++
-			if (fm == 2) exit
-			next
-		}
-		fm == 1 && index($0, key ":") == 1 {
-			value = substr($0, length(key) + 2)
-			sub(/^[[:space:]]+/, "", value)
-			sub(/[[:space:]]+$/, "", value)
-			print value
-			exit
-		}
-	' "$1" 2>/dev/null || true
-}
-
 matches() {
 	local haystack=$1
 	local keyword
@@ -87,7 +64,12 @@ hit=0
 for note in .kaizen/*.md; do
 	[ -e "${note}" ] || continue
 	if file_matches "${note}" "$@"; then
-		status=$(frontmatter_field "${note}" status)
+		# frontmatter の欄は、共通ライブラリの kaizen_frontmatter_values で読む（同梱のスクリプトで読み方を 1 つにする）。
+		# 共通ライブラリを読めないときは、一致したノートを status=unknown として出す（照合そのものは続ける）。
+		status=""
+		if declare -f kaizen_frontmatter_values >/dev/null 2>&1; then
+			status=$(kaizen_frontmatter_values "${note}" status)
+		fi
 		printf '%s\tstatus=%s\n' "${note}" "${status:-unknown}"
 		hit=1
 	else

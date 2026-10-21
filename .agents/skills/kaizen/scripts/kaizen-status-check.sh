@@ -34,6 +34,9 @@ fi
 errors=0
 warnings=0
 
+# $1: ノート $2: 1 なら archive のノートとして読む。
+# archive のノートは注入されず、同梱のスクリプトも読まないので、status・type・confidence の行末のコメントと、
+# confidence の対になった引用符を落として値を確かめる（過去の書き方を理由に commit を止めない。キーの形のチェックを当てないのと同じ理由である）。
 frontmatter_state() {
 	awk '
 		# 空配列は `[]` だけでなく `[ ]` のような空白入りでも、フォーマッタによる折り返しでも
@@ -74,10 +77,11 @@ frontmatter_state() {
 			gsub(/\|/, "｜", type)
 			gsub(/\|/, "｜", confidence)
 			# confidence は、出てきた回数と、コロンの後に空白が無い形があったか（0 か 1）を別のフィールドで渡す。
-			# キーにアンカーやタグを付けた形があったか（0 か 1）も、別のフィールドで渡す。
-			# status・type・applied-to は、出てきた回数と、受け付けない形（「キー:種類」を「,」で連ねたもの）を渡す。
-			# 種類は block・tag・anchor（値）、key・nospace（キーの書き方）、item（applied-to の要素）である。
-			printf "%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s\n", status, present, nonempty, type, conf_count, conf_nospace, conf_attr, confidence, status_count, type_count, applied_count, bad_forms, out
+			# キーを引用符で囲んだ形・コロンの前に空白を書いた形・アンカーやタグを付けた形があったか（0 か 1）も、別のフィールドで渡す。
+			# status・type・priority・date・applied-to は、出てきた回数と、受け付けない形（「キー:種類」を「,」で連ねたもの）を渡す。
+			# 種類は block・tag・anchor・word・date（値）、key・nospace・explicit（キーの書き方）、item（applied-to の要素）である。
+			gsub(/\|/, "｜", date)
+			printf "%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s\n", status, present, nonempty, type, conf_count, conf_nospace, conf_key, confidence, status_count, type_count, priority_count, date_count, date, applied_count, bad_forms, out
 		}
 		# ブロックスカラー（`|`・`>-` の次の行に値を書く形）とタグ（`!!str applied`）は、1 行の値として読めないので記録する。
 		# 値は、コメントと前後の空白を落とした後、引用符を落とす前のものを渡す（引用符で囲んだ `"|"` は文字列である）。
@@ -90,15 +94,20 @@ frontmatter_state() {
 			if (value ~ /^[|>][-+0-9]*$/) kind = "block"
 			else if (value ~ /^!/) kind = "tag"
 			else if (value ~ /^[&*]/) kind = "anchor"
-			# status と type は 1 つの語なので、英数字・`_`・`-` だけの語（と空の値）を受け付け、それ以外の形はすべて止める。
-			# 記号を 1 つずつ拒否する形にすると、YAML の記号（`[`・`%`・引用符など）の数だけ抜けが残る。
-			else if (key != "applied-to" && value != "" && value !~ /^[A-Za-z0-9][A-Za-z0-9_-]*$/) kind = "word"
+			# status・type・priority は 1 つの語なので、英数字・`_`・`-` だけの語（と空の値）を受け付け、それ以外の形はすべて止める。
+			# date は `YYYY-MM-DD` の形（と空の値）だけを受け付ける。
+			# 記号を 1 つずつ拒否する形にすると、YAML の記号（`[`・`%`・引用符・行末のコメントなど）の数だけ抜けが残る。
+			# 同梱のスクリプト（kaizen_frontmatter_values）は、行末のコメントや引用符を値の一部として読む。ここで止めるので、読み方を広げずに済む。
+			else if (key == "date" && value != "" && value !~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/) kind = "date"
+			else if (key != "applied-to" && key != "date" && value != "" && value !~ /^[A-Za-z0-9][A-Za-z0-9_-]*$/) kind = "word"
+			# priority の打ち間違い（hgih）は、注入では末尾に回り、忘却では候補から外れ続けるので、3 つの値のほかを止める。
+			else if (key == "priority" && value != "" && value !~ /^(high|medium|low)$/) kind = "level"
 			if (kind == "") return
 			add_bad(key ":" kind)
 			if (key == "applied-to") applied_form_bad = 1
 		}
 		# 値を読むのは、引用符の無いキーの直後にコロンと空白を書いた形（`status: `）だけである。
-		# 参照の注入も、引用符の無いキーの直後にコロンを書いた行だけを読む。
+		# 同梱のスクリプト（kaizen_frontmatter_values）も、引用符の無いキーの直後にコロンを書いた行だけを読む。
 		# 引用符で囲んだキー・コロンの前の空白・キーに付けたアンカーやタグ（`&k status:`）は、数えはするが値を読まないので、形の誤りとして記録する。
 		# コロンの後に空白が無い形（`status:applied`）は YAML の mapping にならないので、confidence と同じく止める。
 		function note_key(key, line) {
@@ -139,7 +148,7 @@ frontmatter_state() {
 			if (item == "") return
 			applied_value = (applied_value == "" ? item : applied_value "," item)
 		}
-		BEGIN { fm = 0; present = 0; nonempty = 0; status = ""; type = ""; conf_count = 0; conf_nospace = 0; conf_bad = ""; confidence = ""; in_applied = 0; applied_value = ""; status_count = 0; type_count = 0; applied_count = 0; bad_forms = ""; applied_form_bad = 0; conf_attr = 0; flow_value = ""; block_marker = 0 }
+		BEGIN { status_seen = 0; type_seen = 0; date_seen = 0; date = ""; fm = 0; present = 0; nonempty = 0; status = ""; type = ""; conf_count = 0; conf_nospace = 0; conf_bad = ""; confidence = ""; in_applied = 0; applied_value = ""; status_count = 0; type_count = 0; priority_count = 0; date_count = 0; applied_count = 0; bad_forms = ""; applied_form_bad = 0; conf_key = 0; flow_value = ""; block_marker = 0 }
 		/^---[[:space:]]*$/ {
 			fm++
 			if (fm == 2) {
@@ -153,43 +162,71 @@ frontmatter_state() {
 		# 引用符で囲んだキーとアンカーやタグを付けたキー（`&a !!str status:` のように 2 つ付けた形も）を含めて出てきた回数を数える。値を読むのは、引用符の無いキーだけである。
 		/^([&!][^[:space:]]*[[:space:]]+)*("status"|'"'"'status'"'"'|status)[[:space:]]*:/ { status_count++; note_key("status", $0) }
 		/^([&!][^[:space:]]*[[:space:]]+)*("type"|'"'"'type'"'"'|type)[[:space:]]*:/ { type_count++; note_key("type", $0) }
+		/^([&!][^[:space:]]*[[:space:]]+)*("priority"|'"'"'priority'"'"'|priority)[[:space:]]*:/ { priority_count++; note_key("priority", $0) }
+		/^([&!][^[:space:]]*[[:space:]]+)*("date"|'"'"'date'"'"'|date)[[:space:]]*:/ { date_count++; note_key("date", $0) }
+		# YAML の明示的なキー（`? status` の次の行に `: applied`）は、キーと値が別の行になるので、1 行で読めない。
+		# どの欄のキーかに関わらず止める（キーの重なりとしても数えられない）。
+		/^\?([[:space:]]|$)/ { add_bad("?:explicit") }
 		/^([&!][^[:space:]]*[[:space:]]+)*("applied-to"|'"'"'applied-to'"'"'|applied-to)[[:space:]]*:/ { applied_count++; note_key("applied-to", $0) }
+		# キーが重なったときは、同梱のスクリプト（kaizen_frontmatter_values）と同じく最初の値を使う（type も同じ）。
 		/^status:[[:space:]]*/ {
-			status = $0
-			sub(/^status:[[:space:]]*/, "", status)
-			sub(/[[:space:]]+#.*$/, "", status)
-			gsub(/^[[:space:]]+|[[:space:]]+$/, "", status)
-			note_form("status", status)
+			value = $0
+			sub(/^status:[[:space:]]*/, "", value)
+			if (lenient) sub(/[[:space:]]+#.*$/, "", value)
+			gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+			note_form("status", value)
+			if (!status_seen) status = value
+			status_seen = 1
 			in_applied = 0
 			next
 		}
 		# type は「その学びが何で解決されるべきか」の宣言。`hook` は機構を要求する type なので、
 		# 適用先がドキュメントだけなら宣言と結果が食い違っている。
 		/^type:[[:space:]]*/ {
-			type = $0
-			sub(/^type:[[:space:]]*/, "", type)
-			sub(/[[:space:]]+#.*$/, "", type)
-			gsub(/^[[:space:]]+|[[:space:]]+$/, "", type)
-			note_form("type", type)
+			value = $0
+			sub(/^type:[[:space:]]*/, "", value)
+			if (lenient) sub(/[[:space:]]+#.*$/, "", value)
+			gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+			note_form("type", value)
+			if (!type_seen) type = value
+			type_seen = 1
+			in_applied = 0
+			next
+		}
+		/^priority:[[:space:]]*/ {
+			value = $0
+			sub(/^priority:[[:space:]]*/, "", value)
+			gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+			note_form("priority", value)
+			in_applied = 0
+			next
+		}
+		/^date:[[:space:]]*/ {
+			value = $0
+			sub(/^date:[[:space:]]*/, "", value)
+			gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+			note_form("date", value)
+			if (!date_seen) date = value
+			date_seen = 1
 			in_applied = 0
 			next
 		}
 		# confidence は任意の欄。この欄を足す前に書いたノートには無いので、在るときだけ値を検査する。
-		# YAML では引用符で囲んだキーと値も同じキーと値なので、キーの引用符を許し、値の前後の引用符は落とす。
+		# 同梱のスクリプト（kaizen_frontmatter_values）と同じく、引用符の無いキーの直後にコロンを書いた行の、コロンより後ろを値として読む。
+		# 行末のコメントと引用符は値の一部として読み、high・medium・low に当たらない値として止める。
+		# キーを引用符で囲んだ形・コロンの前に空白を書いた形・アンカーやタグを付けた形は、同梱のスクリプトが読まないので止める。
 		# キーの重なりは YAML として正しくない（実装によってエラーになるか、どちらかの値を採る）ので、
 		# 出てきた回数を数えて止める。コロンの後に空白が無い形（`confidence:high`）は YAML の mapping に
 		# ならないので止める。
 		/^([&!][^[:space:]]*[[:space:]]+)*("confidence"|'"'"'confidence'"'"'|confidence)[[:space:]]*:/ {
 			conf_count++
 			confidence = $0
-			# 値を読む前に、キーに付けたアンカーやタグを記録する（引用符で囲んだキーとコロンの前の空白は、confidence では受け付ける）。
-			if ($0 ~ /^[&!]/) conf_attr = 1
+			if (index($0, "confidence:") != 1) conf_key = 1
 			sub(/^([&!][^[:space:]]*[[:space:]]+)*("confidence"|'"'"'confidence'"'"'|confidence)[[:space:]]*:/, "", confidence)
 			if (confidence ~ /^[^[:space:]]/) conf_nospace = 1
-			sub(/[[:space:]]+#.*$/, "", confidence)
+			if (lenient) sub(/[[:space:]]+#.*$/, "", confidence)
 			gsub(/^[[:space:]]+|[[:space:]]+$/, "", confidence)
-			# 落とすのは対になった引用符だけにする。片側だけの引用符（`"high`）は不正な値として止める。
-			if (confidence ~ /^".*"$/ || confidence ~ /^'"'"'.*'"'"'$/) confidence = substr(confidence, 2, length(confidence) - 2)
+			if (lenient && (confidence ~ /^".*"$/ || confidence ~ /^'"'"'.*'"'"'$/)) confidence = substr(confidence, 2, length(confidence) - 2)
 			# キーが重なったときに前の不正な値を見逃さないよう、不正な値はすべて「, 」で連ねて残す。空の値は <empty> と書く。
 			if (confidence != "high" && confidence != "medium" && confidence != "low") {
 				bad = (confidence == "" ? "<empty>" : confidence)
@@ -248,7 +285,7 @@ frontmatter_state() {
 		END {
 			if (fm < 2) emit()
 		}
-	' "$1"
+	' lenient="${2:-0}" "$1"
 }
 
 # 参照注入（kaizen-context-inject.sh）が要約に使う節の**先頭段落**が、複数の物理行に
@@ -321,30 +358,34 @@ for note in .kaizen/*.md .kaizen/archive/*.md; do
 	# 1 件の読み取り失敗でループごと落とさない（set -e で残りのノートが未検査になり、
 	# 診断も awk のメッセージだけになって「何の不整合か分からないまま commit できない」状態になる）。
 	# 読めないノートはチェックできていないので、そのまま通さず、不整合として数えてブロックする。
-	if ! state=$(frontmatter_state "${note}" 2>/dev/null); then
+	lenient=0
+	case "${note}" in
+	.kaizen/archive/*) lenient=1 ;;
+	esac
+	if ! state=$(frontmatter_state "${note}" "${lenient}" 2>/dev/null); then
 		# 失敗理由は権限とは限らない（破損・awk の内部エラー等）。捨てると「何の不整合か
 		# 分からないまま commit できない」状態に戻るので、失敗時だけ読み直して診断を添える。
-		detail=$(frontmatter_state "${note}" 2>&1 >/dev/null | tr '\n' ' ') || true
+		detail=$(frontmatter_state "${note}" "${lenient}" 2>&1 >/dev/null | tr '\n' ' ') || true
 		echo "kaizen-status-check: ${note}: could not read the frontmatter: ${detail:-no diagnostics from awk}" >&2
 		errors=$((errors + 1))
 		continue
 	fi
 	# entries は最後の変数なので、要素に `|` が含まれても前のフィールドはずれない。
-	IFS='|' read -r status present nonempty type conf_count conf_nospace conf_attr confidence status_count type_count applied_count bad_forms entries <<<"${state}"
+	IFS='|' read -r status present nonempty type conf_count conf_nospace conf_key confidence status_count type_count priority_count date_count date_value applied_count bad_forms entries <<<"${state}"
 
-	# status・type・applied-to も、confidence と同じく、キーの重なりと 1 行で読めない形（値とキーの書き方）を止める。
-	# 重なると、このチェックは最後の値を読むが、YAML の実装によってはエラーになるか、別の値を採る。
+	# status・type・priority・date・applied-to も、confidence と同じく、キーの重なりと 1 行で読めない形（値とキーの書き方）を止める。
+	# 重なると、このチェックは status・type・date を同梱のスクリプトと同じく最初の値で読む（applied-to は最後の値）が、YAML の実装によってはエラーになるか、別の値を採る。
 	# archive のノートには当てない。注入されず書き換えもしない記録なので、下の折り返しのチェックと同じく、
 	# 過去の書き方を理由に commit を止めない（アーカイブしたノートの書き方で、関係の無い commit が止まる）。
 	key_checks=1
 	case "${note}" in
 	.kaizen/archive/*) key_checks=0 ;;
 	esac
-	if ! [[ "${status_count}" =~ ^[0-9]+$ && "${type_count}" =~ ^[0-9]+$ && "${applied_count}" =~ ^[0-9]+$ ]]; then
-		echo "kaizen-status-check: ${note}: could not read the key counts: status=${status_count} type=${type_count} applied-to=${applied_count}" >&2
+	if ! [[ "${status_count}" =~ ^[0-9]+$ && "${type_count}" =~ ^[0-9]+$ && "${priority_count}" =~ ^[0-9]+$ && "${date_count}" =~ ^[0-9]+$ && "${applied_count}" =~ ^[0-9]+$ ]]; then
+		echo "kaizen-status-check: ${note}: could not read the key counts: status=${status_count} type=${type_count} priority=${priority_count} date=${date_count} applied-to=${applied_count}" >&2
 		errors=$((errors + 1))
 	elif [ "${key_checks}" = "1" ]; then
-		for key_count in "status:${status_count}" "type:${type_count}" "applied-to:${applied_count}"; do
+		for key_count in "status:${status_count}" "type:${type_count}" "priority:${priority_count}" "date:${date_count}" "applied-to:${applied_count}"; do
 			if [ "${key_count##*:}" -gt 1 ]; then
 				echo "kaizen-status-check: ${note}: ${key_count%:*} is declared ${key_count##*:} times (declare it once)" >&2
 				errors=$((errors + 1))
@@ -358,7 +399,10 @@ for note in .kaizen/*.md .kaizen/archive/*.md; do
 			block) echo "kaizen-status-check: ${note}: ${bad_form%:*} uses a block scalar; write the value on the same line as the key" >&2 ;;
 			tag) echo "kaizen-status-check: ${note}: ${bad_form%:*} has a YAML tag; write the plain value without the tag" >&2 ;;
 			anchor) echo "kaizen-status-check: ${note}: ${bad_form%:*} uses a YAML anchor or alias; write the plain value" >&2 ;;
-			word) echo "kaizen-status-check: ${note}: ${bad_form%:*} is not a plain word (letters, digits, _ and - only); write it without quotes or YAML syntax" >&2 ;;
+			word) echo "kaizen-status-check: ${note}: ${bad_form%:*} is not a plain word (letters, digits, _ and - only); write it without quotes, comments or YAML syntax" >&2 ;;
+			date) echo "kaizen-status-check: ${note}: ${bad_form%:*} is not a YYYY-MM-DD date; write it without quotes, comments or YAML syntax" >&2 ;;
+			level) echo "kaizen-status-check: ${note}: ${bad_form%:*} is not high, medium or low" >&2 ;;
+			explicit) echo "kaizen-status-check: ${note}: uses a YAML explicit key (? key); write it as key: value on one line" >&2 ;;
 			item) echo "kaizen-status-check: ${note}: ${bad_form%:*} has an element with a YAML anchor, alias, tag or nested collection; write each element as a plain string" >&2 ;;
 			nospace) echo "kaizen-status-check: ${note}: ${bad_form%:*} needs a space after the colon (${bad_form%:*}: <value>)" >&2 ;;
 			*) echo "kaizen-status-check: ${note}: ${bad_form%:*} key is quoted, has a space before the colon, or has an anchor or tag; write it as ${bad_form%:*}: <value>" >&2 ;;
@@ -367,11 +411,20 @@ for note in .kaizen/*.md .kaizen/archive/*.md; do
 		done
 	fi
 
+	# date は形（YYYY-MM-DD）に加えて、暦の日付として読めるかを確かめる。13 月のような値は、忘却が日数に変換できず、
+	# 候補から外したことを報告しないまま pending に残る。形が誤っている値は、上で報告したので重ねない。
+	if [ "${key_checks}" = "1" ] && [[ ",${bad_forms}," != *",date:"* ]] && declare -f kaizen_days_from_date >/dev/null 2>&1; then
+		if [ -n "${date_value}" ] && ! kaizen_days_from_date "${date_value}" >/dev/null; then
+			echo "kaizen-status-check: ${note}: date is not a real calendar date: ${date_value}" >&2
+			errors=$((errors + 1))
+		fi
+	fi
+
 	# confidence は欠けていても通す（欄を足す前に書いたノートには無い）。在るなら 1 回だけ、3 つの値だけを受け付ける。
 	# 当てはまる問題はまとめて報告し、直すたびに別の問題で止まり直さないようにする。
-	if ! [[ "${conf_count}" =~ ^[0-9]+$ && "${conf_nospace}" =~ ^[01]$ && "${conf_attr}" =~ ^[01]$ ]]; then
+	if ! [[ "${conf_count}" =~ ^[0-9]+$ && "${conf_nospace}" =~ ^[01]$ && "${conf_key}" =~ ^[01]$ ]]; then
 		# 読み取りの出力の形が変わったときに、検査を飛ばして exit 0 にしない。
-		echo "kaizen-status-check: ${note}: could not read the confidence state: count=${conf_count} nospace=${conf_nospace} attr=${conf_attr}" >&2
+		echo "kaizen-status-check: ${note}: could not read the confidence state: count=${conf_count} nospace=${conf_nospace} key=${conf_key}" >&2
 		errors=$((errors + 1))
 	else
 		if [ "${conf_nospace}" = "1" ]; then
@@ -379,8 +432,8 @@ for note in .kaizen/*.md .kaizen/archive/*.md; do
 			errors=$((errors + 1))
 		fi
 		# status・type・applied-to のキーの形のチェックと同じく、archive のノートには当てない（key_checks）。
-		if [ "${conf_attr}" = "1" ] && [ "${key_checks}" = "1" ]; then
-			echo "kaizen-status-check: ${note}: confidence key has a YAML anchor or tag; write it as confidence: <value>" >&2
+		if [ "${conf_key}" = "1" ] && [ "${key_checks}" = "1" ]; then
+			echo "kaizen-status-check: ${note}: confidence key is quoted, has a space before the colon, or has an anchor or tag; write it as confidence: <value>" >&2
 			errors=$((errors + 1))
 		fi
 		if [ "${conf_count}" -gt 1 ]; then
@@ -514,7 +567,7 @@ if [ "${errors}" -gt 0 ]; then
 	else
 		reindex_cmd="バンドルされた kaizen-archive.sh を --reindex 付きで実行"
 	fi
-	echo "kaizen-status-check: ${errors} problem(s); fix status/type/applied-to/confidence or the reported note text, or ${reindex_cmd}" >&2
+	echo "kaizen-status-check: ${errors} problem(s); fix status/type/priority/date/applied-to/confidence or the reported note text, or ${reindex_cmd}" >&2
 	exit 2
 fi
 

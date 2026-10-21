@@ -59,26 +59,9 @@ resolve_path() {
 	esac
 }
 
-# frontmatter（最初の `---` ブロック）の 1 フィールドを取り出す。
-# 本文中の `status:` / `priority:` を拾わないよう範囲を frontmatter に限る
-# （kaizen-context-inject.sh の frontmatter_field と同じ取り決め）。
-frontmatter_field() { # $1: ノート $2: キー
-	awk -v key="$2" '
-		BEGIN { fm = 0 }
-		/^---[[:space:]]*$/ {
-			fm++
-			if (fm == 2) exit
-			next
-		}
-		fm == 1 && index($0, key ":") == 1 {
-			value = substr($0, length(key) + 2)
-			sub(/^[[:space:]]+/, "", value)
-			sub(/[[:space:]]+$/, "", value)
-			print value
-			exit
-		}
-	' "$1" 2>/dev/null || true
-}
+# frontmatter の欄は、共通ライブラリの kaizen_frontmatter_values で読む（同梱のスクリプトで読み方を 1 つにする）。
+# 共通ライブラリを読めないときは status を読めないので、どのモードでも何もせずに止める。
+# 読めないまま進めると、--list と --auto は 0 件と同じ出力になり、明示したノートは status が無いとして飛ばされる。
 
 # --- 設定の解決 -------------------------------------------------------------
 #
@@ -123,14 +106,17 @@ fi
 
 # 候補なら 0、そうでなければ 1 を返す。判定できない材料は候補から外す（忘れない側として扱う）。
 is_candidate() { # $1: ノート
-	local note="$1" status priority rank note_days age
-	status=$(frontmatter_field "${note}" status)
+	local note="$1" status priority date_value rank note_days age
+	{
+		IFS= read -r status
+		IFS= read -r priority
+		IFS= read -r date_value
+	} <<<"$(kaizen_frontmatter_values "${note}" status priority date)" || true
 	[ "${status}" = "pending" ] || return 1
-	priority=$(frontmatter_field "${note}" priority)
 	rank=$(priority_rank "${priority}") || return 1
 	[ "${rank}" -ge "${forget_max_rank}" ] || return 1
 	[ -n "${today_days}" ] || return 1
-	note_days=$(kaizen_days_from_date "$(frontmatter_field "${note}" date)") || return 1
+	note_days=$(kaizen_days_from_date "${date_value}") || return 1
 	age=$((today_days - note_days))
 	[ "${age}" -ge "${forget_after_days}" ] || return 1
 	return 0
@@ -138,14 +124,18 @@ is_candidate() { # $1: ノート
 
 # 候補の一覧を stdout へ（1 行 1 ファイル、タブ区切りで判断材料も出す）。
 list_candidates() {
-	local note age note_days
+	local note age note_days date_value priority
 	for note in .kaizen/*.md; do
 		[ -e "${note}" ] || continue
 		[ "$(basename "${note}")" = "INDEX.md" ] && continue
 		is_candidate "${note}" || continue
-		note_days=$(kaizen_days_from_date "$(frontmatter_field "${note}" date)") || continue
+		{
+			IFS= read -r date_value
+			IFS= read -r priority
+		} <<<"$(kaizen_frontmatter_values "${note}" date priority)" || true
+		note_days=$(kaizen_days_from_date "${date_value}") || continue
 		age=$((today_days - note_days))
-		printf '%s\t%s\t%s\t%s\n' "${note}" "$(frontmatter_field "${note}" date)" "$(frontmatter_field "${note}" priority)" "${age}"
+		printf '%s\t%s\t%s\t%s\n' "${note}" "${date_value}" "${priority}" "${age}"
 	done
 }
 
@@ -261,6 +251,11 @@ require_today_days() {
 	return 1
 }
 
+if ! declare -f kaizen_frontmatter_values >/dev/null 2>&1; then
+	echo "kaizen-forget: 学びの status を読めません（共通ライブラリ kaizen-hook-common.sh を読めていない可能性があります）。何もしません。" >&2
+	exit 1
+fi
+
 case "${mode}" in
 list)
 	require_today_days || exit 1
@@ -301,7 +296,7 @@ explicit)
 			echo "kaizen-forget: skip (not a file): ${arg}" >&2
 			continue
 		fi
-		status=$(frontmatter_field "${f}" status)
+		status=$(kaizen_frontmatter_values "${f}" status)
 		case "${status}" in
 		pending) ;;
 		forgotten)

@@ -71,15 +71,11 @@ test.each([
   ["low", "confidence: low\n", "confidence: low"],
   ["欄が無い", "", "confidence: unknown"],
   ["値が空", "confidence:\n", "confidence: unknown"],
-  // kaizen-status-check.sh が受け付ける書き方は、同じ値として出す
-  ["引用符で囲んだキー", '"confidence": low\n', "confidence: low"],
-  ["単引用符で囲んだキー", "'confidence': low\n", "confidence: low"],
-  ["キーとコロンの間の空白", "confidence : low\n", "confidence: low"],
-  ["行末のコメント", "confidence: low # 1 回の観測\n", "confidence: low"],
-  ["引用符で囲んだ値", "confidence: 'medium'\n", "confidence: medium"],
-  ["YAML の null", "confidence: null\n", "confidence: unknown"],
-  ["YAML の ~", "confidence: ~\n", "confidence: unknown"],
   ["キーを前方に含む別のキーだけがある", "confidences: low\n", "confidence: unknown"],
+  // 他の欄と同じく、共通ライブラリの kaizen_frontmatter_values の読み方で読む（Issue #744）。
+  // 引用符で囲んだキーは読まず、行末のコメントは値の一部として出す。どちらも kaizen-status-check.sh が止める。
+  ["引用符で囲んだキー", '"confidence": low\n', "confidence: unknown"],
+  ["行末のコメント", "confidence: low # 1 回の観測\n", "confidence: low # 1 回の観測"],
 ])("注入の行に確信度を出す: %s", (_name, line, expected) => {
   const dir = createRepo("要約");
   const path = join(dir, ".kaizen", "2026-09-01-note.md");
