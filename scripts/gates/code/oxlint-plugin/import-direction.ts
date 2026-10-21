@@ -20,7 +20,9 @@
 //    モジュールでないファイル（`.md` など）のパスは除く。拡張子が JS・TS・JSON か、拡張子の無いパスだけを数える。
 // 3. コメントの参照: JSDoc の型（`{import("…")}`）・`@import`・`/// <reference path>` は構文木に現れないので、
 //    TypeScript のパーサで読む。`@example` のコードは JSDoc の本文として扱われるので、参照にならない。
-// specifier が文字列でない参照（式を埋め込んだテンプレート文字列・変数）は、解決先を決められないので判定しない。
+// specifier が文字列でない参照（式を埋め込んだテンプレート文字列・変数・`join(here, "..", "lib")` のように分けた引数）は、
+// 解決先を決められないので判定しない。引数の相対パスは、書いたファイルからのパスとして解決する。
+// cwd やリポジトリのルートを基準にした文字列も同じに解決するので、その形で向きに反して見えるときは、基準を変数にして渡す。
 import { extname, isAbsolute, posix, relative, resolve, dirname, sep } from "node:path";
 import ts from "typescript";
 import { isRecord } from "../../../lib/guards.ts";
@@ -109,7 +111,8 @@ export function staticString(node: AstNode | null | undefined): string | null {
 
 /** 呼び出しの引数として、モジュールへの参照とみなすパスか（相対パスで、拡張子が JS・TS・JSON か拡張子が無い）。 */
 export function isModuleArgument(path: string): boolean {
-  if (!path.startsWith("./") && !path.startsWith("../")) return false;
+  if (path !== "." && path !== ".." && !path.startsWith("./") && !path.startsWith("../"))
+    return false;
   const ext = extname(path);
   return ext === "" || /^\.(?:[cm]?[jt]sx?|json)$/.test(ext);
 }
@@ -118,6 +121,13 @@ export function isModuleArgument(path: string): boolean {
 function jsDocOf(node: ts.Node): ts.Node[] {
   const docs: unknown = Reflect.get(node, "jsDoc");
   return isArray(docs) ? docs.filter((d): d is ts.Node => d instanceof Object && "kind" in d) : [];
+}
+
+/** ファイルの拡張子に合わせた TypeScript のパースの種類。JSX を含むファイルを TS として読むと構文の誤りになる。 */
+function scriptKindOf(filename: string): ts.ScriptKind {
+  if (filename.endsWith(".tsx")) return ts.ScriptKind.TSX;
+  if (filename.endsWith(".jsx")) return ts.ScriptKind.JSX;
+  return /\.[cm]?js$/.test(filename) ? ts.ScriptKind.JS : ts.ScriptKind.TS;
 }
 
 /**
@@ -130,7 +140,7 @@ export function commentReferences(
   comments: readonly Comment[],
 ): CommentReference[] {
   if (!comments.some((c) => /import\s*\(|@import|<reference/.test(c.value))) return [];
-  const kind = /\.[cm]?jsx?$/.test(filename) ? ts.ScriptKind.JS : ts.ScriptKind.TS;
+  const kind = scriptKindOf(filename);
   const sf = ts.createSourceFile(filename, text, ts.ScriptTarget.ESNext, true, kind);
   const found: CommentReference[] = sf.referencedFiles.map((r) => ({
     specifier: r.fileName,

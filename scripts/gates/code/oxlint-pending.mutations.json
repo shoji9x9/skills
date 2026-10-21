@@ -48,25 +48,45 @@
       "expect_failing": ["pendingOverrides: ルールが空の組は、外すものが無いので例外にする"]
     },
     {
-      "id": "PD-TARGET-ALL",
-      "why": "staged があっても、重なるファイルに絞らず一覧のすべてを返す",
-      "file": "scripts/gates/code/oxlint-pending.ts",
-      "find": "return files.filter((f) => staged.includes(f));",
-      "replace": "return files;",
+      "id": "PD-PLAN-SOURCES",
+      "why": "きっかけのファイルが staged でも、全体を検査しない",
+      "file": "scripts/gates/code/oxlint-pending-check.ts",
+      "find": "if (staged === null || staged.some((f) => sources.has(f))) return { mode: \"all\" };",
+      "replace": "if (staged === null) return { mode: \"all\" };",
       "occurrences": 1,
       "expect_failing": [
-        "pendingTargets: staged が無ければすべてを、一覧の外し方を変えるファイルがあればすべてを、それ以外は重なるファイルだけを返す"
+        "checkPlan: staged が無ければ全体、きっかけのファイルがあれば全体、一覧と重なればそのファイル、どれでもなければ検査しない"
       ]
     },
     {
-      "id": "PD-TARGET-SOURCES",
-      "why": "一覧の外し方を変えるファイルが staged でも、重なるファイルだけを返す",
+      "id": "PD-CLOSURE-BARE",
+      "why": "パッケージの import もファイルとしてたどる",
+      "file": "scripts/gates/code/oxlint-pending-check.ts",
+      "find": "if (fileName.startsWith(\".\"))",
+      "replace": "if (true)",
+      "occurrences": 1,
+      "expect_failing": ["importClosure: 相対 import をたどり、パッケージの import はたどらない"]
+    },
+    {
+      "id": "PD-UNLISTED-RULES",
+      "why": "一覧で外せないルールの違反も、一覧に無い違反として数える",
       "file": "scripts/gates/code/oxlint-pending.ts",
-      "find": "staged.some((f) => PENDING_SOURCES.some((re) => re.test(f)))",
-      "replace": "false",
+      "find": "(v) => rules.includes(v.rule) && !(pending[v.file] ?? []).some((r) => r === v.rule),",
+      "replace": "(v) => !(pending[v.file] ?? []).some((r) => r === v.rule),",
       "occurrences": 1,
       "expect_failing": [
-        "pendingTargets: staged が無ければすべてを、一覧の外し方を変えるファイルがあればすべてを、それ以外は重なるファイルだけを返す"
+        "unlistedViolations: 一覧で外せるルールのうち、一覧に無い組の違反だけを返す"
+      ]
+    },
+    {
+      "id": "PD-UNLISTED-PENDING",
+      "why": "一覧にある組の違反も、一覧に無い違反として数える",
+      "file": "scripts/gates/code/oxlint-pending.ts",
+      "find": "(v) => rules.includes(v.rule) && !(pending[v.file] ?? []).some((r) => r === v.rule),",
+      "replace": "(v) => rules.includes(v.rule),",
+      "occurrences": 1,
+      "expect_failing": [
+        "unlistedViolations: 一覧で外せるルールのうち、一覧に無い組の違反だけを返す"
       ]
     }
   ]

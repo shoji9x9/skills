@@ -489,32 +489,15 @@ export function stalePending(
 }
 
 /**
- * 一覧の外し方とルールの判定を変えるファイル。staged にあれば、一覧のすべてのファイルを検査し直す。
- * oxlint.config.ts とプラグイン、それらが import するファイル（oxlint-pending.test.ts がたどって確かめる）と、oxlint の版を決めるファイルである。
+ * 一覧に無い違反（直さずに一覧から消した組と、新しい違反）。violations は一覧を外して実行した oxlint の違反で、
+ * 一覧で外せるルール（PENDING_RULES）の違反だけを数える。
  */
-export const PENDING_SOURCES = [
-  /^oxlint\.config\.ts$/,
-  /^scripts\/gates\/code\/oxlint-p(?:ending|lugin\/)/,
-  /^scripts\/lib\/(?:guards|is-array|is-array-holders|source-scope)\.ts$/,
-  /^(?:package\.json|pnpm-lock\.yaml)$/,
-];
-
-/**
- * 古い組を検査する一覧のファイル。staged が null（すべてを検査する）なら一覧のすべて。
- * staged に一覧の外し方を変えるファイルがあれば一覧のすべて、そうでなければ一覧と staged が重なるファイルだけ。
- * 関数の大きさのルールはファイルごとに判定するので、直さなかったファイルの組は古くならない。
- */
-export function pendingTargets(
+export function unlistedViolations(
   pending: Readonly<Record<string, readonly PendingRule[]>>,
-  staged: readonly string[] | null,
-): string[] {
-  const files = Object.keys(pending);
-  if (staged === null || staged.some((f) => PENDING_SOURCES.some((re) => re.test(f)))) return files;
-  return files.filter((f) => staged.includes(f));
-}
-
-// pre-commit から、検査する一覧のファイルを 1 行に 1 つ出す（引数は staged のファイル）。
-// 出力が空なら、pre-commit は vitest を起動しない（起動だけで 1 秒近くかかる）。
-if (import.meta.main) {
-  for (const file of pendingTargets(PENDING_FIXES, process.argv.slice(2))) console.log(file);
+  violations: readonly { file: string; rule: string; line: number }[],
+): { file: string; rule: string; line: number }[] {
+  const rules: readonly string[] = PENDING_RULES;
+  return violations.filter(
+    (v) => rules.includes(v.rule) && !(pending[v.file] ?? []).some((r) => r === v.rule),
+  );
 }

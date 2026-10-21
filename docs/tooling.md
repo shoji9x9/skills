@@ -73,7 +73,8 @@ JS プラグインのルール `skills-repo/import-direction` が、import す�
 構文の参照は、モジュールを指す構文木の節点（`import`・`export from`・`import()`・`import x = require()`・型の `import("…")`）から集める。
 呼び出しと `new` の引数は、相対パスの文字列を渡すものを、関数に依らず参照として扱う（`require()`・`createRequire` の戻り値・`vi.mock`・`new URL` など）。ただし、拡張子が JS・TS・JSON か、拡張子の無いパスに限る。
 コメントの参照（JSDoc の型・`@import`・`/// <reference path>`）は、TypeScript のパーサで読む。`@example` のコードは参照として扱わない。
-式を埋め込んだテンプレート文字列のように、解決先を決められない参照は判定しない。
+式を埋め込んだテンプレート文字列や、`join(here, "..", "lib")` のように分けた引数は、解決先を決められないので判定しない。
+引数の相対パスは、書いたファイルからのパスとして解決する。cwd やリポジトリのルートを基準にした文字列で誤って報告されるときは、基準を変数にして渡す。
 組み込みの `no-restricted-imports` の `patterns` は書かれた specifier の字面で照合するので、`../../skills/` が `scripts/skills/` と `skills/` のどちらを指すかを区別できない。
 
 - `scripts/` の各分類（`lib/`・`gates/`・`eval/`・`hooks/` など）は、自分の分類と `scripts/lib/` の他を import しない。
@@ -88,7 +89,8 @@ JS プラグインのルール `skills-repo/import-direction` が、import す�
 一覧は後で直すものだけで、新しいファイルと一覧に無いルールは外さない。
 行の disable コメントで外さないのは、配布スキルのファイルが利用者のプロジェクトへ入り、そこでは使われない disable になるためである。
 直したら、そのルールを一覧から消す。直したのに一覧に残った組は、`oxlint-pending.test.ts` が pre-commit と CI で失敗にする。
-直さずに組を消した commit は、pre-commit の `oxlint-all` がリポジトリ全体に oxlint を当てて失敗にする。
+直さずに一覧から組を消した commit も、同じテストが失敗にする。一覧の外し方やルールの判定を変えるファイル（`oxlint.config.ts` とプラグインから import をたどったファイルと、`package.json`・`pnpm-lock.yaml`）が staged なら、リポジトリ全体を検査するからである。
+pre-commit の検査は、他のジョブと同じく作業ツリーの内容に oxlint を当てる。直したファイルを stage せずに一覧だけを commit すると pre-commit は通り、CI で失敗する。
 残すと、そのファイルに新しく入った同じ種類の違反を見逃すからである。
 
 これらのルールは、pre-commit と CI の両方で実行し、CI だけで実行するルールは置かない。

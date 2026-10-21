@@ -66,19 +66,29 @@ export function toDiagnostic(d: unknown): Diagnostic {
  */
 export function runOxlint(
   args: readonly string[],
-  { cwd = REPO_DIR, env = {} }: { cwd?: string; env?: Record<string, string> } = {},
+  {
+    cwd = REPO_DIR,
+    env = {},
+    timeout = CHILD_TIMEOUT_MS,
+  }: { cwd?: string; env?: Record<string, string>; timeout?: number } = {},
 ): Diagnostic[] {
   const res = spawnSync("pnpm", ["exec", "oxlint", "--format", "json", ...args], {
     cwd,
     encoding: "utf8",
     env: { ...process.env, ...env },
     stdio: ["ignore", "pipe", "pipe"],
-    timeout: CHILD_TIMEOUT_MS,
+    timeout,
     // 一覧のすべてを検査すると、JSON は数百 KB になる。デフォルトの 1 MiB を超えて status が null になるのを避ける。
     maxBuffer: 64 * 1024 * 1024,
   });
-  if (res.status !== 0 && res.status !== 1)
-    throw new Error(`oxlint を実行できない（exit ${res.status}）: ${res.stderr}${res.stdout}`);
+  // 打ち切り（signal）と起動の失敗（error）は status が null になるので、原因を出力に残す。
+  if (res.status !== 0 && res.status !== 1) {
+    const cause =
+      res.error?.message ?? (res.signal ? `signal ${res.signal}（timeout ${timeout} ms）` : "");
+    throw new Error(
+      `oxlint を実行できない（exit ${res.status}${cause ? `、${cause}` : ""}）: ${res.stderr}${res.stdout}`,
+    );
+  }
   // 設定の誤り（ルールのオプションの誤りなど）でも exit 1 で終わり、JSON ではない説明を出す。
   let parsed: unknown;
   try {

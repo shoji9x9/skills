@@ -140,23 +140,16 @@ pre-commit:
             exclude: *agent-copies-and-vendored
             run: pnpm exec oxlint {staged_files}
           - name: oxlint-pending
-            # 後で直す違反の一覧（scripts/gates/code/oxlint-pending.ts）に、直したのに残った組が無いか。
-            # 一覧のファイルを直した commit で残ると、そのファイルに新しく入った同じ種類の違反を見逃すので、JS・TS と oxlint の版を決めるファイルが staged のときに実行する。
-            # staged のファイルと一覧が重なるファイルだけに oxlint を当てる（一覧の外し方を変える設定とスクリプトが staged なら、一覧のすべて）。
-            # 検査するファイルが無ければ、vitest を起動しない。
-            glob: "{*.{js,mjs,cjs,jsx,ts,tsx,mts,cts},package.json,pnpm-lock.yaml}"
-            # lefthook は {staged_files} をファイルごとに引用符で囲むので、printf で改行区切りの 1 つの値にまとめて渡す（空白を含むパスを分けない）。
+            # 後で直す違反の一覧（scripts/gates/code/oxlint-pending.ts）と、一覧を外した oxlint の違反が一致するか。
+            # 直したのに一覧に残った組は、そのファイルに新しく入った同じ種類の違反を見逃す。直さずに一覧から消した組は、CI で初めて失敗する。
+            # 検査する範囲は oxlint-pending-check.ts が staged のファイルから決め、範囲が空なら vitest を起動しない。
+            # 削除したファイルも数えるため、glob で絞らず、staged のファイルを git から取る（{staged_files} は削除を含まない）。
             run: |
-              targets=$(node scripts/gates/code/oxlint-pending.ts {staged_files}) || exit 2
-              if [ -n "$targets" ]; then
-                OXLINT_PENDING_STAGED="$(printf '%s\n' {staged_files})" pnpm exec vitest run scripts/gates/code/oxlint-pending.test.ts
+              staged=$(git diff --cached --name-only) || exit 2
+              plan=$(printf '%s\n' "$staged" | node scripts/gates/code/oxlint-pending-check.ts) || exit 2
+              if [ -n "$plan" ]; then
+                OXLINT_PENDING_STAGED="$staged" pnpm exec vitest run scripts/gates/code/oxlint-pending.test.ts
               fi
-          - name: oxlint-all
-            # 一覧の外し方とルールの判定を変えるファイル（scripts/gates/code/oxlint-pending.ts の PENDING_SOURCES）が staged なら、
-            # リポジトリ全体に oxlint を当てる。一覧から組を消しただけの commit では、組を消したファイルが staged に無く、
-            # 上の oxlint のジョブも oxlint-pending のジョブもそのファイルを検査しないからである。
-            glob: "{oxlint.config.ts,scripts/gates/code/oxlint-pending.ts,scripts/gates/code/oxlint-plugin/*,scripts/lib/guards.ts,scripts/lib/is-array.ts,scripts/lib/is-array-holders.ts,scripts/lib/source-scope.ts,package.json,pnpm-lock.yaml}"
-            run: pnpm exec oxlint
           - name: typecheck
             # tsconfig.json が束ねる .ts・.tsx 全体と、配布スキルの .mjs（tsconfig.skills.json の checkJs）の型。
             # 設定ファイル・scripts・private skill・eval の fixture・配布スキルの雛形（インストール済みのコピーを含む）を検査する。

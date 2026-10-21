@@ -3,17 +3,19 @@
 // 一覧は、直したものから外していく。直したのに残った組は、そのファイルで新しく入った同じ種類の違反を見逃すので、失敗にする。
 // 実リポジトリの一覧は、oxlint.config.ts から一覧の除外だけを外した oxlint（OXLINT_IGNORE_PENDING=1）で確かめる。
 import { expect, test } from "vitest";
-import { existsSync, readFileSync } from "node:fs";
-import { dirname, join, normalize } from "node:path";
-import ts from "typescript";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { checkPlan, importClosure, pendingSources } from "./oxlint-pending-check.ts";
 import {
   PENDING_FIXES,
-  PENDING_SOURCES,
   pendingOverrides,
-  pendingTargets,
   stalePending,
+  unlistedViolations,
 } from "./oxlint-pending.ts";
 import { REPO_DIR, runOxlint } from "./oxlint-plugin/run-oxlint.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 test("pendingOverrides: 同じルールの組を持つファイルを 1 つの override にまとめ、ルールを off にする", () => {
   const overrides = pendingOverrides({
@@ -50,70 +52,96 @@ test("実リポジトリ: 一覧のファイルはすべて在る", () => {
   expect(missing).toEqual([]);
 });
 
-test("pendingTargets: staged が無ければすべてを、一覧の外し方を変えるファイルがあればすべてを、それ以外は重なるファイルだけを返す", () => {
+test("unlistedViolations: 一覧で外せるルールのうち、一覧に無い組の違反だけを返す", () => {
+  const pending = { "a.ts": ["complexity"] } as const;
+  const violations = [
+    { file: "a.ts", rule: "complexity", line: 1 },
+    { file: "a.ts", rule: "max-params", line: 2 },
+    { file: "b.ts", rule: "complexity", line: 3 },
+    { file: "b.ts", rule: "no-unused-vars", line: 4 },
+  ];
+  expect(unlistedViolations(pending, violations)).toEqual([
+    { file: "a.ts", rule: "max-params", line: 2 },
+    { file: "b.ts", rule: "complexity", line: 3 },
+  ]);
+});
+
+test("checkPlan: staged が無ければ全体、きっかけのファイルがあれば全体、一覧と重なればそのファイル、どれでもなければ検査しない", () => {
   const pending = { "a.ts": ["complexity"], "b.ts": ["max-depth"] } as const;
-  expect(pendingTargets(pending, null)).toEqual(["a.ts", "b.ts"]);
-  expect(pendingTargets(pending, ["b.ts", "c.ts"])).toEqual(["b.ts"]);
-  expect(pendingTargets(pending, ["c.ts"])).toEqual([]);
-  expect(pendingTargets(pending, ["oxlint.config.ts"])).toEqual(["a.ts", "b.ts"]);
-  expect(pendingTargets(pending, ["pnpm-lock.yaml"])).toEqual(["a.ts", "b.ts"]);
-  expect(pendingTargets(pending, ["scripts/gates/code/oxlint-pending.ts"])).toEqual([
-    "a.ts",
-    "b.ts",
-  ]);
-  expect(pendingTargets(pending, ["scripts/gates/code/oxlint-plugin/plugin.ts"])).toEqual([
-    "a.ts",
-    "b.ts",
-  ]);
+  const sources = new Set(["oxlint.config.ts", "pnpm-lock.yaml"]);
+  expect(checkPlan(pending, null, sources)).toEqual({ mode: "all" });
+  expect(checkPlan(pending, ["pnpm-lock.yaml", "a.ts"], sources)).toEqual({ mode: "all" });
+  expect(checkPlan(pending, ["b.ts", "c.ts"], sources)).toEqual({ mode: "files", files: ["b.ts"] });
+  expect(checkPlan(pending, ["c.ts"], sources)).toEqual({ mode: "none" });
 });
 
-/** oxlint.config.ts とプラグインから、相対 import をたどって集めたファイル。 */
-function importClosure(): Set<string> {
-  const seen = new Set<string>();
-  const queue = ["oxlint.config.ts", "scripts/gates/code/oxlint-plugin/plugin.ts"];
-  for (let file = queue.shift(); file !== undefined; file = queue.shift()) {
-    if (seen.has(file)) continue;
-    seen.add(file);
-    const text = readFileSync(join(REPO_DIR, file), "utf8");
-    for (const { fileName } of ts.preProcessFile(text, true, true).importedFiles)
-      if (fileName.startsWith(".")) queue.push(normalize(join(dirname(file), fileName)));
+test("importClosure: 相対 import をたどり、パッケージの import はたどらない", () => {
+  const root = makeTempDir("oxlint-pending-closure-");
+  const files: Record<string, string> = {
+    "entry.ts": 'import "./lib/a.ts";\nimport "typescript";\n',
+    "lib/a.ts": 'export * from "../shared/b.ts";\n',
+    "shared/b.ts": "export const b = 1;\n",
+    "unused.ts": "export {};\n",
+  };
+  for (const [rel, text] of Object.entries(files)) {
+    mkdirSync(dirname(join(root, rel)), { recursive: true });
+    writeFileSync(join(root, rel), text);
   }
-  return seen;
-}
-
-test("実リポジトリ: oxlint.config.ts とプラグインが import するファイルは、すべて PENDING_SOURCES に当たる", () => {
-  const seen = importClosure();
-  expect(seen.size).toBeGreaterThan(5);
-  const missing = [...seen].filter((f) => !PENDING_SOURCES.some((re) => re.test(f)));
-  expect(missing, "PENDING_SOURCES に足す").toEqual([]);
+  expect([...importClosure(root, ["entry.ts"])].sort()).toEqual([
+    "entry.ts",
+    "lib/a.ts",
+    "shared/b.ts",
+  ]);
 });
 
-test("実リポジトリ: lefthook の oxlint-all の glob は、import するファイルと oxlint の版を決めるファイルをすべて含む", () => {
-  const job = /- name: oxlint-all\n(?:\s*#.*\n)*\s*glob: "\{([^}]+)\}"/.exec(
-    readFileSync(join(REPO_DIR, "lefthook.yml"), "utf8"),
-  );
-  expect(job, "lefthook.yml に oxlint-all の glob が無い").not.toBeNull();
-  const globs = (job?.[1] ?? "").split(",");
-  const covered = (f: string) =>
-    globs.some((g) => g === f || (g.endsWith("/*") && dirname(f) === g.slice(0, -2)));
-  const required = [...importClosure(), "package.json", "pnpm-lock.yaml"];
-  expect(
-    required.filter((f) => !covered(f)),
-    "lefthook.yml の oxlint-all の glob に足す",
-  ).toEqual([]);
+test("CLI: stdin の staged のファイルから範囲を出し、検査しないなら何も出さない", () => {
+  const listed = Object.keys(PENDING_FIXES)[0] ?? "";
+  const run = (input: string) => {
+    const r = spawnSync(
+      process.execPath,
+      [join(REPO_DIR, "scripts/gates/code/oxlint-pending-check.ts")],
+      {
+        input,
+        encoding: "utf8",
+        timeout: CHILD_TIMEOUT_MS,
+      },
+    );
+    expect(r.status, r.stderr).toBe(0);
+    return r.stdout;
+  };
+  expect(run("docs/tooling.md\n")).toBe("");
+  expect(run(`docs/tooling.md\n${listed}\n`)).toBe(`${listed}\n`);
+  expect(run("pnpm-lock.yaml\n")).toBe("all\n");
 });
 
-// pre-commit は OXLINT_PENDING_STAGED に staged のファイルを改行区切りで渡し、一覧と重なるファイルだけを検査させる。
-// 空白を含むパスも 1 つのパスとして読むために、改行で区切る。
+test("実リポジトリ: きっかけのファイルに、設定・プラグイン・それらが import するファイル・版を決めるファイルが入る", () => {
+  const sources = pendingSources(REPO_DIR);
+  for (const f of [
+    "oxlint.config.ts",
+    "scripts/gates/code/oxlint-pending.ts",
+    "scripts/lib/guards.ts",
+    "pnpm-lock.yaml",
+  ])
+    expect(sources.has(f), f).toBe(true);
+});
+
+// pre-commit は OXLINT_PENDING_STAGED に staged のファイル（削除を含む）を改行区切りで渡す。渡されなければ全体を検査する。
 const staged = process.env.OXLINT_PENDING_STAGED?.split("\n").filter((f) => f !== "") ?? null;
-const targets = pendingTargets(PENDING_FIXES, staged);
 
-test.skipIf(targets.length === 0)(
-  "実リポジトリ: 一覧の組はすべて、一覧を外すと違反になる（直したものが残っていない）",
-  () => {
-    const violations = runOxlint(targets, { env: { OXLINT_IGNORE_PENDING: "1" } });
-    const target = Object.fromEntries(targets.map((f) => [f, PENDING_FIXES[f] ?? []]));
-    const stale = stalePending(target, violations).map((s) => `${s.file} [${s.rule}]`);
-    expect(stale, "直したルールは scripts/gates/code/oxlint-pending.ts から消す").toEqual([]);
-  },
-);
+test("実リポジトリ: 一覧と、一覧を外した oxlint の違反が一致する（直したのに残った組も、直さずに消した組も無い）", (ctx) => {
+  // 範囲はテストの中で決める。モジュールの読み込みで求めると、import をたどる処理の失敗でテストが 1 件も実行されない。
+  const plan = checkPlan(PENDING_FIXES, staged, pendingSources(REPO_DIR));
+  if (plan.mode === "none") ctx.skip();
+  // 全体を検査するときは引数を渡さず、oxlint.config.ts の対象の範囲（ignorePatterns）に任せる。
+  const files =
+    plan.mode === "files" ? plan.files.filter((f) => existsSync(join(REPO_DIR, f))) : [];
+  const violations = runOxlint(files, { env: { OXLINT_IGNORE_PENDING: "1" } });
+  const scope = plan.mode === "files" ? files : Object.keys(PENDING_FIXES);
+  const pending = Object.fromEntries(scope.map((f) => [f, PENDING_FIXES[f] ?? []]));
+  const stale = stalePending(pending, violations).map((s) => `${s.file} [${s.rule}]`);
+  expect(stale, "直したルールは scripts/gates/code/oxlint-pending.ts から消す").toEqual([]);
+  const unlisted = unlistedViolations(PENDING_FIXES, violations).map(
+    (v) => `${v.file}:${v.line} [${v.rule}]`,
+  );
+  expect(unlisted, "一覧から消した組の違反を直す（新しいコードの違反は直す）").toEqual([]);
+});

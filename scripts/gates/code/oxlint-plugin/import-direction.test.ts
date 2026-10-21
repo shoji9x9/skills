@@ -5,7 +5,7 @@
 // 相対パスの解決を確かめる。
 import { expect, test } from "vitest";
 import { join } from "node:path";
-import { directionViolation, resolveFromRoot } from "./import-direction.ts";
+import { directionViolation, isModuleArgument, resolveFromRoot } from "./import-direction.ts";
 import { runRule } from "./run-oxlint.ts";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 
@@ -177,11 +177,31 @@ test("oxlint: new の引数とディレクトリへの参照も判定し、自�
       "",
     ].join("\n"),
     "scripts/lib/a.ts": 'const d = join(here, "../gates");\n',
+    "scripts/gates/code/a.ts": 'const e = createRequire(import.meta.url)("..");\n',
   };
+  // scripts/gates/code/a.ts の ".." は scripts/gates（同じ分類）を指すので報告しない。"." と ".." も判定する対象である。
   expect(reported(files, (root) => ({ root }))).toEqual([
     "scripts/lib/a.ts:1",
     "skills/x/scripts/lib/a.mjs:1",
   ]);
+});
+
+test("oxlint: .tsx の JSDoc の @import も読む", () => {
+  const tsx = [
+    '/** @import { T } from "../gates/code/b.ts" */',
+    "export const C = () => <div />;",
+    "",
+  ].join("\n");
+  expect(reported({ "scripts/lib/a.tsx": tsx }, (root) => ({ root }))).toEqual([
+    "scripts/lib/a.tsx:1",
+  ]);
+});
+
+test("isModuleArgument: 相対パスのうち、拡張子が JS・TS・JSON か無いものと、. と .. を参照として扱う", () => {
+  for (const p of [".", "..", "./a", "../a.ts", "../a.mjs", "../a.json", "../a.tsx"])
+    expect(isModuleArgument(p), p).toBe(true);
+  for (const p of ["../a.md", "a.ts", "/abs/a.ts", "...", ".hidden"])
+    expect(isModuleArgument(p), p).toBe(false);
 });
 
 test("oxlint: 同じ内容でも、root の外のファイルとして読めば向きを当てない", () => {

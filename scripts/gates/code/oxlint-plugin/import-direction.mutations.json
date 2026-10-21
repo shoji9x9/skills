@@ -51,7 +51,8 @@
       "replace": "if (category === undefined || target === undefined) return null;",
       "occurrences": 1,
       "expect_failing": [
-        "scripts/gates/code/a.ts → scripts/gates/docs/b.ts は向きに反するか: false"
+        "scripts/gates/code/a.ts → scripts/gates/docs/b.ts は向きに反するか: false",
+        "oxlint: new の引数とディレクトリへの参照も判定し、自分のスキルのディレクトリは報告しない"
       ]
     },
     {
@@ -71,7 +72,8 @@
         "oxlint: 正規表現の中のバッククォート・宣言より前の createRequire の別名・import した createRequire の別名でも報告し、同じ参照を 2 回報告しない",
         "oxlint: JSDoc の @example のコード・型の式（{…}）の外の文・JSDoc でないコメントは参照として扱わない",
         "oxlint: JSDoc の @import・/// <reference path>・閉じていない { の後の型の参照と、同じ節点に付いた 2 つ目の JSDoc も報告する",
-        "oxlint: new の引数とディレクトリへの参照も判定し、自分のスキルのディレクトリは報告しない"
+        "oxlint: new の引数とディレクトリへの参照も判定し、自分のスキルのディレクトリは報告しない",
+        "oxlint: .tsx の JSDoc の @import も読む"
       ]
     },
     {
@@ -172,7 +174,8 @@
       "replace": "return true;",
       "occurrences": 1,
       "expect_failing": [
-        "oxlint: import・export from・import()・型の import と、相対パスの文字列を渡す呼び出しを報告し、向きに反しない参照は報告しない"
+        "oxlint: import・export from・import()・型の import と、相対パスの文字列を渡す呼び出しを報告し、向きに反しない参照は報告しない",
+        "isModuleArgument: 相対パスのうち、拡張子が JS・TS・JSON か無いものと、. と .. を参照として扱う"
       ]
     },
     {
@@ -186,7 +189,8 @@
         "oxlint: import = require・テンプレート文字列の import()・createRequire の別名・JSDoc の型の参照も報告する",
         "oxlint: 配布スキルの .mjs の JSDoc の型が、自分のディレクトリの外を参照したら報告する",
         "oxlint: JSDoc の @import・/// <reference path>・閉じていない { の後の型の参照と、同じ節点に付いた 2 つ目の JSDoc も報告する",
-        "oxlint: JSDoc の @example のコード・型の式（{…}）の外の文・JSDoc でないコメントは参照として扱わない"
+        "oxlint: JSDoc の @example のコード・型の式（{…}）の外の文・JSDoc でないコメントは参照として扱わない",
+        "oxlint: .tsx の JSDoc の @import も読む"
       ]
     },
     {
@@ -211,7 +215,8 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "oxlint: JSDoc の @import・/// <reference path>・閉じていない { の後の型の参照と、同じ節点に付いた 2 つ目の JSDoc も報告する"
+        "oxlint: JSDoc の @import・/// <reference path>・閉じていない { の後の型の参照と、同じ節点に付いた 2 つ目の JSDoc も報告する",
+        "oxlint: .tsx の JSDoc の @import も読む"
       ]
     },
     {
@@ -257,6 +262,17 @@
       "occurrences": 1,
       "expect_failing": [
         "oxlint: new の引数とディレクトリへの参照も判定し、自分のスキルのディレクトリは報告しない"
+      ]
+    },
+    {
+      "id": "ID-DOT",
+      "why": ". と .. を参照として扱わない",
+      "file": "scripts/gates/code/oxlint-plugin/import-direction.ts",
+      "find": "if (path !== \".\" && path !== \"..\" && !path.startsWith(\"./\") && !path.startsWith(\"../\"))",
+      "replace": "if (!path.startsWith(\"./\") && !path.startsWith(\"../\"))",
+      "occurrences": 1,
+      "expect_failing": [
+        "isModuleArgument: 相対パスのうち、拡張子が JS・TS・JSON か無いものと、. と .. を参照として扱う"
       ]
     }
   ]

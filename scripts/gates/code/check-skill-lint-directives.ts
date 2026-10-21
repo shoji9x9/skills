@@ -139,7 +139,11 @@ export function isArrayUses(entries: readonly { path: string; source: string }[]
     const config = join(dir, "oxlintrc.json");
     writeFileSync(
       config,
-      JSON.stringify({ categories: {}, rules: { [RULE]: ["error", IS_ARRAY_RESTRICTION] } }),
+      // 数えるのは RULE だけなので、デフォルトで有効な correctness のルールは外す（関係の無い診断で止めない）。
+      JSON.stringify({
+        categories: { correctness: "off" },
+        rules: { [RULE]: ["error", IS_ARRAY_RESTRICTION] },
+      }),
     );
     const files = entries.map((e, i) => {
       const file = join(dir, `${i}-${basename(e.path)}`);
@@ -148,7 +152,8 @@ export function isArrayUses(entries: readonly { path: string; source: string }[]
     });
     // 起動と出力の読み方（終了コード・JSON・診断の形）は、oxlint-plugin/run-oxlint.ts と共有する。
     const uses = entries.map((): IsArrayUse[] => []);
-    for (const d of runOxlint(["-c", config, ...files])) {
+    // 本番のチェックなので、テストの子プロセス用の短い timeout ではなく、CI の負荷でも終わる長さにする。
+    for (const d of runOxlint(["-c", config, ...files], { timeout: 5 * 60 * 1000 })) {
       if (d.rule !== RULE) continue;
       const index = files.indexOf(d.file);
       if (index === -1) throw new Error(`oxlint の診断のファイルが渡したものと合わない: ${d.file}`);
