@@ -666,8 +666,10 @@ test("status の値の | で後ろのフィールドがずれない", () => {
 test("type の値の | で後ろのフィールドがずれない", () => {
   const content = note("applied", ' ["docs/a.md"]').replace("type: doc", "type: hook|x");
   const { status: exitCode, stderr } = runCheck(content);
-  expect(stderr).toBe("");
-  expect(exitCode).toBe(0);
+  // type は語でないので止めるが、フィールドがずれていなければ、報告はその 1 件だけになる
+  expect(stderr).toContain("type is not a plain word");
+  expect(stderr).toContain("1 problem(s)");
+  expect(exitCode).toBe(2);
 });
 
 test("本文に書いた confidence: は frontmatter として読まない", () => {
@@ -829,7 +831,7 @@ test.each([
 
 test.each([
   ["1 回ずつのキー", {}],
-  ["引用符で囲んだ値（タグでもブロックスカラーでもない文字列）", { type: 'type: "!doc"' }],
+  ["_ と - を含む語", { type: "type: rule_doc-1" }],
   ["値の後のコメントに書いた記号", { status: "status: pending # !! と | は値ではない" }],
   ["flow 配列の applied-to", { status: "status: applied", appliedTo: 'applied-to: ["docs/a.md"]' }],
 ])("status・type・applied-to の形を受け付ける: %s", (_name, lines) => {
@@ -851,7 +853,7 @@ test.each([
   const { status: exitCode, stderr } = runCheck(
     noteWithKeys({ status: "status: applied", appliedTo }),
   );
-  expect(stderr).toContain("applied-to has an element with a YAML anchor, alias or tag");
+  expect(stderr).toContain("applied-to has an element with a YAML anchor, alias, tag");
   expect(exitCode).toBe(2);
 });
 
@@ -991,26 +993,30 @@ test("ブロックシーケンスの要素の中にある , の後の記号で�
   expect(exitCode).toBe(0);
 });
 
-// status と type は 1 つの語なので、flow の集合と予約の記号で始まる値も止める
+// status と type は 1 つの語なので、英数字・_・- だけの語のほかは、記号の種類に関わらず止める
 test.each([
-  [
-    "flow の配列の type",
-    { type: "type: [hook]" },
-    "type starts with a YAML flow or reserved indicator",
-  ],
-  [
-    "flow の mapping の status",
-    { status: "status: {a: b}" },
-    "status starts with a YAML flow or reserved indicator",
-  ],
-  ["@ で始まる type", { type: "type: @doc" }, "type starts with a YAML flow or reserved indicator"],
-  [
-    "` で始まる status",
-    { status: "status: `pending`" },
-    "status starts with a YAML flow or reserved indicator",
-  ],
-])("status と type の記号で始まる値を拒否する: %s", (_name, lines, message) => {
+  ["flow の配列の type", { type: "type: [hook]" }],
+  ["flow の mapping の status", { status: "status: {a: b}" }],
+  ["@ で始まる type", { type: "type: @doc" }],
+  ["` で始まる status", { status: "status: `pending`" }],
+  ["% で始まる type", { type: "type: %rule" }],
+  ["引用符で囲んだ type", { type: 'type: "hook"' }],
+  ["片側だけの引用符の status", { status: "status: 'applied" }],
+  ["空白を含む type", { type: "type: rule doc" }],
+])("status と type の語でない値を拒否する: %s", (_name, lines) => {
   const { status: exitCode, stderr } = runCheck(noteWithKeys(lines));
-  expect(stderr).toContain(message);
+  expect(stderr).toMatch(/(status|type) is not a plain word/);
+  expect(exitCode).toBe(2);
+});
+
+// ブロックシーケンスの要素の入れ子の集合とブロックスカラーも止める
+test.each([
+  ["入れ子の flow 配列", "applied-to:\n  - [*ref]"],
+  ["ブロックスカラー", "applied-to:\n  - |\n    docs/a.md"],
+])("ブロックシーケンスの要素の集合を拒否する: %s", (_name, appliedTo) => {
+  const { status: exitCode, stderr } = runCheck(
+    noteWithKeys({ status: "status: applied", appliedTo }),
+  );
+  expect(stderr).toContain("applied-to has an element with");
   expect(exitCode).toBe(2);
 });

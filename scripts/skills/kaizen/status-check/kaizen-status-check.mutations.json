@@ -315,8 +315,9 @@
         "status・type・applied-to の形を拒否する: status のタグ",
         "キーの重なりと値の形を、1 回の実行でまとめて報告する",
         "status・type・applied-to の形を拒否する: status のアンカー",
-        "status と type の記号で始まる値を拒否する: ` で始まる status",
-        "status と type の記号で始まる値を拒否する: flow の mapping の status"
+        "status と type の語でない値を拒否する: flow の mapping の status",
+        "status と type の語でない値を拒否する: ` で始まる status",
+        "status と type の語でない値を拒否する: 片側だけの引用符の status"
       ]
     },
     {
@@ -331,8 +332,12 @@
         "status・type・applied-to の形を拒否する: type のタグ",
         "キーの重なりと値の形を、1 回の実行でまとめて報告する",
         "status・type・applied-to の形を拒否する: type のエイリアス",
-        "status と type の記号で始まる値を拒否する: @ で始まる type",
-        "status と type の記号で始まる値を拒否する: flow の配列の type"
+        "status と type の語でない値を拒否する: flow の配列の type",
+        "status と type の語でない値を拒否する: @ で始まる type",
+        "status と type の語でない値を拒否する: % で始まる type",
+        "status と type の語でない値を拒否する: 引用符で囲んだ type",
+        "status と type の語でない値を拒否する: 空白を含む type",
+        "type の値の | で後ろのフィールドがずれない"
       ]
     },
     {
@@ -395,7 +400,9 @@
         "applied-to の要素の形を拒否する: flow 配列のエイリアス",
         "applied-to の要素の形を拒否する: flow 配列の 2 つ目の要素のアンカー",
         "applied-to の要素の形を拒否する: flow 配列のタグ",
-        "applied-to が重なったとき、前のキーの値の形に関わらず、後のキーの要素も確かめる"
+        "applied-to が重なったとき、前のキーの値の形に関わらず、後のキーの要素も確かめる",
+        "ブロックシーケンスの要素の集合を拒否する: 入れ子の flow 配列",
+        "ブロックシーケンスの要素の集合を拒否する: ブロックスカラー"
       ]
     },
     {
@@ -518,14 +525,16 @@
       "id": "BLOCK-MARKER-IGNORED",
       "why": "ブロックシーケンスの要素のアンカー・エイリアス・タグを確かめない",
       "file": "skills/kaizen/scripts/kaizen-status-check.sh",
-      "find": "if (item ~ /^[&*!]/) block_marker = 1",
+      "find": "if (item ~ /^[&*![{|>]/) block_marker = 1",
       "replace": "if (0) block_marker = 1",
       "occurrences": 1,
       "expect_failing": [
         "applied-to の要素の形を拒否する: ブロックシーケンスのエイリアス",
         "applied-to の要素の形を拒否する: ブロックシーケンスのアンカー",
         "applied-to の要素の形を拒否する: ブロックシーケンスのタグ",
-        "applied-to の要素の形を拒否する: 桁 0 のブロックシーケンスのエイリアス"
+        "applied-to の要素の形を拒否する: 桁 0 のブロックシーケンスのエイリアス",
+        "ブロックシーケンスの要素の集合を拒否する: 入れ子の flow 配列",
+        "ブロックシーケンスの要素の集合を拒否する: ブロックスカラー"
       ]
     },
     {
@@ -538,17 +547,22 @@
       "expect_failing": ["ブロックシーケンスの要素の中にある , の後の記号では止めない"]
     },
     {
-      "id": "INDICATOR-ACCEPTED",
-      "why": "status と type の、flow の集合と予約の記号で始まる値を受け付ける",
+      "id": "WORD-ACCEPTED",
+      "why": "status と type の、英数字・_・- だけの語でない値を受け付ける",
       "file": "skills/kaizen/scripts/kaizen-status-check.sh",
-      "find": "else if (key != \"applied-to\" && value ~ /^[[{@`]/) kind = \"indicator\"",
-      "replace": "else if (0) kind = \"indicator\"",
+      "find": "else if (key != \"applied-to\" && value != \"\" && value !~ /^[A-Za-z0-9][A-Za-z0-9_-]*$/) kind = \"word\"",
+      "replace": "else if (0) kind = \"word\"",
       "occurrences": 1,
       "expect_failing": [
-        "status と type の記号で始まる値を拒否する: flow の配列の type",
-        "status と type の記号で始まる値を拒否する: flow の mapping の status",
-        "status と type の記号で始まる値を拒否する: @ で始まる type",
-        "status と type の記号で始まる値を拒否する: ` で始まる status"
+        "status と type の語でない値を拒否する: flow の mapping の status",
+        "status と type の語でない値を拒否する: ` で始まる status",
+        "status と type の語でない値を拒否する: 片側だけの引用符の status",
+        "status と type の語でない値を拒否する: flow の配列の type",
+        "status と type の語でない値を拒否する: @ で始まる type",
+        "status と type の語でない値を拒否する: % で始まる type",
+        "status と type の語でない値を拒否する: 引用符で囲んだ type",
+        "status と type の語でない値を拒否する: 空白を含む type",
+        "type の値の | で後ろのフィールドがずれない"
       ]
     }
   ]

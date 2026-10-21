@@ -90,8 +90,9 @@ frontmatter_state() {
 			if (value ~ /^[|>][-+0-9]*$/) kind = "block"
 			else if (value ~ /^!/) kind = "tag"
 			else if (value ~ /^[&*]/) kind = "anchor"
-			# status と type は 1 つの語なので、flow の集合（`[hook]`・`{a: b}`）と予約の記号（`@`・`` ` ``）で始まる値も読めない。
-			else if (key != "applied-to" && value ~ /^[[{@`]/) kind = "indicator"
+			# status と type は 1 つの語なので、英数字・`_`・`-` だけの語（と空の値）を受け付け、それ以外の形はすべて止める。
+			# 記号を 1 つずつ拒否する形にすると、YAML の記号（`[`・`%`・引用符など）の数だけ抜けが残る。
+			else if (key != "applied-to" && value != "" && value !~ /^[A-Za-z0-9][A-Za-z0-9_-]*$/) kind = "word"
 			if (kind == "") return
 			add_bad(key ":" kind)
 			if (key == "applied-to") applied_form_bad = 1
@@ -133,7 +134,7 @@ frontmatter_state() {
 			item = line
 			sub(/^[[:space:]]*-[[:space:]]*/, "", item)
 			sub(/[[:space:]]+#.*$/, "", item)
-			if (item ~ /^[&*!]/) block_marker = 1
+			if (item ~ /^[&*![{|>]/) block_marker = 1
 			gsub(/[[:space:]]/, "", item)
 			if (item == "") return
 			applied_value = (applied_value == "" ? item : applied_value "," item)
@@ -357,8 +358,8 @@ for note in .kaizen/*.md .kaizen/archive/*.md; do
 			block) echo "kaizen-status-check: ${note}: ${bad_form%:*} uses a block scalar; write the value on the same line as the key" >&2 ;;
 			tag) echo "kaizen-status-check: ${note}: ${bad_form%:*} has a YAML tag; write the plain value without the tag" >&2 ;;
 			anchor) echo "kaizen-status-check: ${note}: ${bad_form%:*} uses a YAML anchor or alias; write the plain value" >&2 ;;
-			indicator) echo "kaizen-status-check: ${note}: ${bad_form%:*} starts with a YAML flow or reserved indicator ([, {, @ or a backquote); write a plain value" >&2 ;;
-			item) echo "kaizen-status-check: ${note}: ${bad_form%:*} has an element with a YAML anchor, alias or tag; write each element as a plain string" >&2 ;;
+			word) echo "kaizen-status-check: ${note}: ${bad_form%:*} is not a plain word (letters, digits, _ and - only); write it without quotes or YAML syntax" >&2 ;;
+			item) echo "kaizen-status-check: ${note}: ${bad_form%:*} has an element with a YAML anchor, alias, tag or nested collection; write each element as a plain string" >&2 ;;
 			nospace) echo "kaizen-status-check: ${note}: ${bad_form%:*} needs a space after the colon (${bad_form%:*}: <value>)" >&2 ;;
 			*) echo "kaizen-status-check: ${note}: ${bad_form%:*} key is quoted, has a space before the colon, or has an anchor or tag; write it as ${bad_form%:*}: <value>" >&2 ;;
 			esac
