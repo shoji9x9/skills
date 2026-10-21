@@ -269,7 +269,9 @@ Issue ごとの専用の worktree で、`issue-start <Issue URL> --pr` と同じ
   比べる相手は、取得し直した remote の base branch（`git fetch` の後の `origin/<base>` など）にする。ローカルの base branch は、remote より古いか、push していない commit を持つことがある
 
 Codex と GitHub Copilot CLI では、commit する前に、commit していない差分（staged・unstaged・追跡されていないファイル）を対象にして、上のコマンドでレビューする。
-Claude Code では、変更を commit してから、`<base との merge-base>..HEAD` を範囲に渡す。merge-base は、取得し直した remote の base branch（`git fetch` の後の `origin/<base>`）と HEAD から `git merge-base` で求める。
+Claude Code では、変更を commit してから、`<base との merge-base>..<HEAD の完全な SHA>` を範囲に渡す。
+HEAD は後の commit で動くので、名前のまま渡さず、レビューの前に `git rev-parse HEAD` で SHA にする。
+merge-base は、取得し直した remote の base branch（`git fetch` の後の `origin/<base>`）と HEAD から `git merge-base` で求める。
 再開した Issue のように、ローカルレビューを始める時点で base branch に入っていない commit が残っていることがある。
 そのとき Codex と Copilot CLI では、上のレビューに加えて、base branch との差分を対象にするレビューも行う。
 Claude Code では、それらの commit は merge-base からの範囲に入っているので、別のレビューは要らない。
@@ -286,7 +288,7 @@ base branch との差分は、Codex と Copilot CLI では次の方法でレビ�
 レビューが指定した対象に当たったことは、次の方法で確かめる。
 
 - Claude Code: `/code-review` の出力の本文は、レビューした範囲を示さない。
-  `/code-review` はレビューを別のエージェントでバックグラウンドに実行し、その記録を出力ファイルに残す。
+  `/code-review` はレビューを別のエージェントでバックグラウンドに実行し、その記録を出力ファイルに残す（文書に記載は無く、実測による）。
   その記録に、渡した範囲と同じ commit の組を指す `git diff` の実行があることを確かめる（短い SHA で書いた形も、同じ commit を指せば当たる）。
   出力ファイルが無いか、そうした実行が無いときは、範囲を確かめられないとして扱う。
 - GitHub Copilot CLI: 対象を文で渡すだけで、指定する構文を持たないので、指示で挙げさせたレビューしたファイルを見る。
@@ -311,13 +313,15 @@ Claude Code では、渡した範囲の終わり（`<to>`）の SHA である。
 次の 2 つは例外とし、ローカルレビューにかけない。
 
 - Kaizen の学び（`kaizen extract` が作る学びのファイル）
-- commit を記録する Hook が、commit のたびに自動で足す記録（利用実績の記録の行など）。ツールが生成するデータで、手で書いた変更を含まない
+- commit を記録する Hook が、commit のたびに自動で足す記録（利用実績の記録の行など）。ツールが生成するデータで、手で書いた変更を含まない。
+  当たるかは、「worktree に残った記録の引き継ぎ」が定める引き継げる記録と同じ基準（状態とパスの両方）で決める。当たらない変更は例外にしない
 
 どちらも PR に入るので、`pr-finalize-loop` のレビューが merge の前に見る。
 学びをローカルレビューの後に作るのは、ローカルレビューで見つかった学びを記録に入れるためである。
-`pr-finalize-loop` の `review_tool` が `none` のときは、PR のレビューが無いので、この例外を当てない。学びも Hook の記録も、ほかの変更と同じにレビューする。
+`review_tool` は `pr-finalize-loop` が PR を受け取った後に決めるので、push の前には分からない。
+`review_tool` が `none` で PR のレビューが無いときの扱いは、「merge、close、deployment」の 1 で定める。
 
-レビューする範囲は、最後にレビューした SHA から HEAD まで（`<最後にレビューした SHA>..HEAD`）にする。
+レビューする範囲は、最後にレビューした SHA から今の HEAD まで（`<最後にレビューした SHA>..<HEAD の完全な SHA>`）にする。
 Claude Code は `/code-review high` にこの範囲を渡す。
 Codex は、範囲の commit ごとに `codex review --commit <SHA>` を実行する（`--help` の「Review the changes introduced by a commit」。[OpenAI Developers](https://developers.openai.com/codex/cli/reference)）。
 Copilot CLI は、範囲を文で渡し、レビューしたファイルを挙げさせる。
@@ -409,6 +413,9 @@ merge の実行方法だけが、`merge_mode` で分かれる。head の SHA の
    exit 2（判定できない）は、間隔を空けて数回取得し直し（`merge_ready_timeout_minutes` があれば、それを上限にする）、0 か 1 にならなければ BLOCKED にする。
    出力の `findings` は、見送った指摘も数えるので、merge の条件に使わない。指摘への対応は、`pr-finalize-loop` の収束（解決していないスレッドが無いこと）で確かめる。
    `merge_mode: auto` でも省かない。GitHub の auto-merge はこの記録を見ないので、ここで確かめないと、直した commit を手元でレビューしないまま merge される。
+   報告された `review_tool` が `none` なら、PR のレビューが無いので、「ローカルレビューの後に生じた変更」の例外（Kaizen の学びと Hook の記録）を当てない。
+   `READY_TO_MERGE` にする前に、最後にローカルレビューを当てた範囲の終わりから固定した `headRefOid` までを、ローカルレビューと同じ方法でレビューする。
+   指摘を直したら push して `FINALIZING` に戻し、収束しなければ BLOCKED にする。
    `READY_TO_MERGE` にする前に、その Issue の worktree の `git status --porcelain=v1 --untracked-files=all` が空であることも確かめる。
    commit を記録する Hook（`agent-usage` の利用実績の記録など）は、commit が別の Hook や pre-commit に止められたときも記録を stage するので、止められた commit の後に記録が残ることがある。
    残っている行がすべて、下の「worktree に残った記録の引き継ぎ」が定める引き継げる記録（状態とパスの両方で決める）なら、PR の branch に commit し、「Kaizen、commit、PR」の受け入れ条件の突き合わせを通してから push して、`FINALIZING` に戻す（戻した回数は `max_pr_iterations` に含める）。

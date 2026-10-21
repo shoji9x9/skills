@@ -60,7 +60,7 @@
           "evidence": "「`git fetch origin` の後の `origin/main` です」「ローカルの `main` は remote より古いので、比べる相手にしません」"
         },
         {
-          "text": "Kaizen の学びの commit はローカルレビューにかけず、PR のレビュー（`pr-finalize-loop`）に任せると述べている",
+          "text": "Kaizen の学びの commit だけを対象にするローカルレビューは行わず、学びを PR のレビュー（`pr-finalize-loop`）に任せると述べている",
           "passed": true,
           "evidence": "「ローカルレビューの対象ではありません。学びは例外で、PR のレビューに任せます」「正式にレビューするのは、push 後の `pr-finalize-loop` です」"
         },
@@ -128,7 +128,7 @@
           "evidence": "「比較先は `origin/main` にします。ローカルの `main` は古いので」"
         },
         {
-          "text": "Kaizen の学びの commit はローカルレビューにかけず、PR のレビュー（`pr-finalize-loop`）に任せると述べている",
+          "text": "Kaizen の学びの commit だけを対象にするローカルレビューは行わず、学びを PR のレビュー（`pr-finalize-loop`）に任せると述べている",
           "passed": false,
           "evidence": "「push 前のローカルレビュー②: Kaizen の commit だけを対象にします」と、学びをローカルレビューにかける"
         },

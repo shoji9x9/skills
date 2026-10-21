@@ -616,7 +616,7 @@
         "範囲を確かめられないか、指定した対象に当たっていないときは、#101 を BLOCKED にすると述べている",
         "変更が 0 行かを判断するとき、commit していない差分に加えて、push 済みのものを含む base branch に入っていない commit も数えると述べている",
         "比べる相手を、取得し直した remote の base branch（`git fetch` の後の `origin/main` など）にし、ローカルの main を使わないと述べている",
-        "Kaizen の学びの commit はローカルレビューにかけず、PR のレビュー（`pr-finalize-loop`）に任せると述べている",
+        "Kaizen の学びの commit だけを対象にするローカルレビューは行わず、学びを PR のレビュー（`pr-finalize-loop`）に任せると述べている",
         "README を直した commit を、push の前に、最後にレビューした範囲の終わりの SHA から HEAD までの範囲でレビューすると述べている",
         "実行はせず手順の提示に留めている（レビュー・commit・push を行っていない）"
       ],
@@ -650,7 +650,7 @@
           "prompt_quote": "ローカルの main は、remote の main より古い"
         },
         {
-          "assertion": "Kaizen の学びの commit はローカルレビューにかけず、PR のレビュー（`pr-finalize-loop`）に任せると述べている",
+          "assertion": "Kaizen の学びの commit だけを対象にするローカルレビューは行わず、学びを PR のレビュー（`pr-finalize-loop`）に任せると述べている",
           "prompt_quote": "Kaizen の学びの commit が、merge までにどの工程でレビューされるかも書いて"
         },
         {

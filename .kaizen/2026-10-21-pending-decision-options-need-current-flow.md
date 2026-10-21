@@ -8,7 +8,7 @@ applied-to: []
 session: claude-code
 ---
 
-# issue-batch の判断待ちの選択肢を、Issue の語のまま示し、利用者が 3 回聞き返した
+# エージェントが issue-batch の判断待ちを Issue の語のまま示したので、利用者が選択肢の意味を 3 回聞き返した
 
 ## 事象
 
