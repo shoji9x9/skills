@@ -2,6 +2,7 @@
 date: 2026-10-14
 type: hook
 priority: high
+confidence: high
 status: pending
 applied-to: []
 session: claude-code
@@ -241,3 +242,13 @@ URL の `github.com` を含む `node` の検査、`gh pr create` のタイトル
 どれも、Write ツールでスクリプトにして、引数を定数にした単独の呼び出しで通した。
 同じ run の #687・#719 でも、テストに追記する `cat >>` の heredoc と、`for` ループの変数を `bash` や `node` の引数に渡す形が、それぞれ拒否された。Edit ツールとスクリプトに直して通した。
 同じ run の #724 でも、再インストールと同期の検査の後に `git status --short` をつないだ形が拒否された。`git` の操作を外した呼び出しにして通した。
+
+### 再発の記録（#762）
+
+2026-10-22、#762 の作業（issue-start から git-worktree enter）で、worktree に入った後の Bash の呼び出しが 3 回拒否された（`names git in a form too complex to verify`）。
+1 回目は、worktree に入った直後の準備で、`git rev-parse`・`for` ループの `cp`・`git status`・`mise trust` を `;` でつないだ形である。#669 の 1 つ目の箇条と同じ形である。
+2 回目は、`git diff` と検査のスクリプトを `;` でつないだ形である。
+3 回目は、`kaizen-kedb-match.sh` に `"git"` を引数で渡し、`; echo rc=$?; cat` をつないだ形である（#655 の 3 つ目の箇条と同じ）。
+どれも、Write ツールでスクリプトにして絶対パスで実行するか、単独の呼び出しに分けて通した。
+この学びはセッション開始時に注入されていたが、worktree に入った最初の準備の処理で同じ形を書いた。
+同じ原因の再発を確かめたので、confidence を high にした。
