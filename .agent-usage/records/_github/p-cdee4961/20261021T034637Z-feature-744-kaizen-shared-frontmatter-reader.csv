@@ -38,3 +38,7 @@ ci:39541014297:1,ci,2026-10-21T04:24:56.183Z,p-cdee4961,github-actions,,,,2026-1
 ci:39540698260:1,ci,2026-10-21T04:24:56.183Z,p-cdee4961,github-actions,,,,2026-10-21T03:49:40.000Z,2026-10-21T03:53:22.000Z,Asia/Tokyo,feature/741-issue-batch-prepare-and-order,741,,,,,,,,,,CI;pull_request;cancelled,
 coverage:github:2026-10-20T03:52:55.197Z:2026-10-21T04:24:56.183Z,coverage,2026-10-21T04:24:56.183Z,p-cdee4961,,,,,2026-10-20T03:52:55.197Z,2026-10-21T04:24:56.183Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-20T04:24:56.183Z:2026-10-21T04:25:18.877Z,coverage,2026-10-21T04:25:18.877Z,p-cdee4961,,,,,2026-10-20T04:24:56.183Z,2026-10-21T04:25:18.877Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:39544177227:1,ci,2026-10-21T04:34:35.128Z,p-cdee4961,github-actions,,,,2026-10-21T04:27:57.000Z,2026-10-21T04:27:58.000Z,Asia/Tokyo,feature/744-kaizen-shared-frontmatter-reader,744,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:39544177263:1,ci,2026-10-21T04:34:35.128Z,p-cdee4961,github-actions,,,,2026-10-21T04:27:57.000Z,2026-10-21T04:31:40.000Z,Asia/Tokyo,feature/744-kaizen-shared-frontmatter-reader,744,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-20T04:25:18.877Z:2026-10-21T04:34:35.128Z,coverage,2026-10-21T04:34:35.128Z,p-cdee4961,,,,,2026-10-20T04:25:18.877Z,2026-10-21T04:34:35.128Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-20T04:34:35.128Z:2026-10-21T04:34:55.760Z,coverage,2026-10-21T04:34:55.760Z,p-cdee4961,,,,,2026-10-20T04:34:35.128Z,2026-10-21T04:34:55.760Z,Asia/Tokyo,,,,,,,,,,,,ok,

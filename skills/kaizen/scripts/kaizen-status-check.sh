@@ -374,7 +374,7 @@ for note in .kaizen/*.md .kaizen/archive/*.md; do
 	IFS='|' read -r status present nonempty type conf_count conf_nospace conf_key confidence status_count type_count priority_count date_count date_value applied_count bad_forms entries <<<"${state}"
 
 	# status・type・priority・date・applied-to も、confidence と同じく、キーの重なりと 1 行で読めない形（値とキーの書き方）を止める。
-	# 重なると、このチェックは最後の値を読むが、YAML の実装によってはエラーになるか、別の値を採る。
+	# 重なると、このチェックは status・type・date を同梱のスクリプトと同じく最初の値で読む（applied-to は最後の値）が、YAML の実装によってはエラーになるか、別の値を採る。
 	# archive のノートには当てない。注入されず書き換えもしない記録なので、下の折り返しのチェックと同じく、
 	# 過去の書き方を理由に commit を止めない（アーカイブしたノートの書き方で、関係の無い commit が止まる）。
 	key_checks=1
