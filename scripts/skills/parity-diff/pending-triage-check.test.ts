@@ -61,11 +61,11 @@
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { parseJsonAs } from "../../lib/parse-as.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
+import { SLUG, run, script } from "./pending-triage-check-helpers.ts";
 
 /** pending-triage-check.mjs が stdout に出す要約のうち、テストが読む欄。 */
 type TriageSummary = {
@@ -76,61 +76,6 @@ type TriageSummary = {
   record_problems: string[];
   out_of_scope_problems: string[];
 };
-
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const script = join(repoRoot, "skills/parity-diff/scripts/pending-triage-check.mjs");
-
-const SLUG = "my-feature";
-
-/**
- * pending の要素と棚卸し記録を書いてスクリプトを 1 回実行する。
- * @param {{pending: unknown[], entries?: unknown[], record?: unknown, keep?: unknown[], may_change?: unknown[], slugs?: string[], features?: false}} input
- */
-function run(input: {
-  pending: unknown[];
-  entries?: unknown[];
-  /** 棚卸しの記録（intentional_diffs_pending）全体。渡すと entries より優先する。 */
-  record?: unknown;
-  keep?: unknown[];
-  may_change?: unknown[];
-  slugs?: string[];
-  features?: false;
-}) {
-  const work = makeTempDir("pending-triage-");
-  const registries = join(work, "registries.json");
-  const metadata = join(work, "diff-metadata.json");
-  const features = join(work, "features.md");
-  writeFileSync(
-    features,
-    [
-      "| slug | \u6a5f\u80fd\u540d |",
-      "|---|---|",
-      ...(input.slugs ?? [SLUG, "other-feature"]).map((s) => `| ${s} | x |`),
-      "",
-    ].join("\n"),
-  );
-  writeFileSync(
-    registries,
-    JSON.stringify({
-      intentional_diffs: {
-        keep: input.keep ?? [],
-        may_change: input.may_change ?? [],
-        pending: input.pending,
-      },
-    }),
-  );
-  writeFileSync(
-    metadata,
-    JSON.stringify({
-      slug: SLUG,
-      intentional_diffs_pending: input.record ?? { entries: input.entries ?? [] },
-    }),
-  );
-  const args = [script, "--registries", registries, "--metadata", metadata];
-  if (input.features !== false) args.push("--features", features);
-  const result = spawnSync(process.execPath, args, { timeout: CHILD_TIMEOUT_MS, encoding: "utf8" });
-  return { status: result.status, stderr: result.stderr, stdout: result.stdout };
-}
 
 /** 別機能に帰属する 1 件だけが pending に残り、この機能の対象は 0 件。 */
 const otherFeature = { item: "別機能の保留", slug: "other-feature", added_by: "parity-suite" };
@@ -538,47 +483,67 @@ const mine = {
 const carried = { item: mine.item, slug: SLUG, disposition: "carried_over", reason: "測定待ち" };
 
 test.each([
-  ["要素がオブジェクトでない", [mine], [carried, 5], /entries\[1\]: オブジェクトでない/],
-  [
-    "同じ item を二重に記録した",
-    [mine],
-    [carried, carried],
-    /entries\[1\]: 同じ item が二重に記録されている/,
-  ],
-  ["slug が文字列でない", [mine], [{ ...carried, slug: 5 }], /entries\[0\]: slug が文字列でない/],
-  [
-    "記録した帰属が pending の帰属と違う",
-    [mine],
-    [{ ...carried, slug: "cross-cutting" }],
-    /記録した帰属（cross-cutting）が設定ファイルの pending の帰属（my-feature）と違う/,
-  ],
-  [
-    "別の機能の slug で記録した",
-    [],
-    [{ item: "別機能の保留", slug: "other-feature", disposition: "keep" }],
-    /対象外の slug（other-feature）を棚卸しに記録している/,
-  ],
-  [
-    "処置が語彙の外",
-    [mine],
-    [{ ...carried, disposition: "done" }],
-    /disposition が .* のいずれでもない/,
-  ],
-  ["持ち越しの理由が空", [mine], [{ ...carried, reason: " " }], /持ち越しの理由が空/],
-  ["持ち越した要素が pending に無い", [], [carried], /持ち越しと記録されているが pending に無い/],
-  [
-    "移した後の文言が空",
-    [],
-    [{ item: mine.item, slug: SLUG, disposition: "keep", promoted_as: "" }],
-    /promoted_as が空文字列/,
-  ],
-  [
-    "移したと記録したのに pending に残っている",
-    [mine],
-    [{ item: mine.item, slug: SLUG, disposition: "keep" }],
-    /keep へ移したと記録されているが pending に残っている/,
-  ],
-])("記録の不備（%s）は記録側の error で exit 1", (_name, pending, entries, warn) => {
+  {
+    name: "要素がオブジェクトでない",
+    pending: [mine],
+    entries: [carried, 5],
+    warn: /entries\[1\]: オブジェクトでない/,
+  },
+  {
+    name: "同じ item を二重に記録した",
+    pending: [mine],
+    entries: [carried, carried],
+    warn: /entries\[1\]: 同じ item が二重に記録されている/,
+  },
+  {
+    name: "slug が文字列でない",
+    pending: [mine],
+    entries: [{ ...carried, slug: 5 }],
+    warn: /entries\[0\]: slug が文字列でない/,
+  },
+  {
+    name: "記録した帰属が pending の帰属と違う",
+    pending: [mine],
+    entries: [{ ...carried, slug: "cross-cutting" }],
+    warn: /記録した帰属（cross-cutting）が設定ファイルの pending の帰属（my-feature）と違う/,
+  },
+  {
+    name: "別の機能の slug で記録した",
+    pending: [],
+    entries: [{ item: "別機能の保留", slug: "other-feature", disposition: "keep" }],
+    warn: /対象外の slug（other-feature）を棚卸しに記録している/,
+  },
+  {
+    name: "処置が語彙の外",
+    pending: [mine],
+    entries: [{ ...carried, disposition: "done" }],
+    warn: /disposition が .* のいずれでもない/,
+  },
+  {
+    name: "持ち越しの理由が空",
+    pending: [mine],
+    entries: [{ ...carried, reason: " " }],
+    warn: /持ち越しの理由が空/,
+  },
+  {
+    name: "持ち越した要素が pending に無い",
+    pending: [],
+    entries: [carried],
+    warn: /持ち越しと記録されているが pending に無い/,
+  },
+  {
+    name: "移した後の文言が空",
+    pending: [],
+    entries: [{ item: mine.item, slug: SLUG, disposition: "keep", promoted_as: "" }],
+    warn: /promoted_as が空文字列/,
+  },
+  {
+    name: "移したと記録したのに pending に残っている",
+    pending: [mine],
+    entries: [{ item: mine.item, slug: SLUG, disposition: "keep" }],
+    warn: /keep へ移したと記録されているが pending に残っている/,
+  },
+])("記録の不備（$name）は記録側の error で exit 1", ({ pending, entries, warn }) => {
   const { status, stderr } = run({ pending, entries, keep: [mine.item] });
 
   expect(status).toBe(1);

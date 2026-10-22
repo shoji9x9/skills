@@ -1213,7 +1213,9 @@ require("node:module").syncBuiltinESMExports();
     expect(res.out).toContain("この差分に当たる宣言は無い");
     // 警告なしに成功にしない。注入を使ったことと、飛ばした宣言が出ていることを確かめる。
     expect(res.out).toContain("テスト用の注入");
-    expect(res.out).toContain("飛ばす: scripts/skills/kaizen/tracking-issue-title.mutations.json");
+    expect(res.out).toContain(
+      "飛ばす: scripts/skills/kaizen/schedule/tracking-issue-title.mutations.json",
+    );
   });
 
   test("ランナーが変わったら全宣言を測る", async () => {
@@ -1230,6 +1232,75 @@ require("node:module").syncBuiltinESMExports();
     );
     expect(res.out).not.toContain("飛ばす:");
     expect(res.out).toContain("シャード 2/2: 選んだ変異 1 件のうち 0 件を測る");
+  });
+
+  // テストの組み立てと表明は、test_file が import するヘルパーにもある。ヘルパーだけが変わる差分でも宣言を選ぶ。
+  // 測らずに選択だけを見るので `--list` で終える。
+  // `--shard` でこのシャードから外す形にすると、シャードの割り当てを変える変異でもこのテストが失敗する。
+  // 変異の判定は宣言したテストだけが失敗することを求めるので、その変異が FAIL になる。
+  test("test_file が import するヘルパーが変わったら、その宣言を測る", async () => {
+    const helper = "scripts/skills/kaizen/schedule/tracking-issue-title-helpers.ts";
+    const res = await runRunner("--changed-since", "origin/main", "--only", "D", "--list", {
+      MUTATION_PROOF_CHANGED_FILES: helper,
+    });
+    expect(res.status, res.out).toBe(0);
+    expect(res.out).toContain(
+      `測る: scripts/skills/kaizen/schedule/tracking-issue-title.mutations.json（当たった変更: ${helper}）`,
+    );
+  });
+
+  // import-direction.test.ts は run-oxlint.ts を直接は import せず、run-rule.ts を介して使う。
+  // run-oxlint.ts は変異の対象でもなく、名前も -helpers.ts で終わらない。
+  // そのため、ランナーが import を間接のものまでたどり、選ぶファイルを名前ではなく `scripts/` の下のパスで決めるときだけ、この宣言を選ぶ。
+  test("test_file から間接に import されるファイルが変わったら、その宣言を測る", async () => {
+    const support = "scripts/gates/code/oxlint-plugin/run-oxlint.ts";
+    const res = await runRunner("--changed-since", "origin/main", "--only", "ID-ASSETS", "--list", {
+      MUTATION_PROOF_CHANGED_FILES: support,
+    });
+    expect(res.status, res.out).toBe(0);
+    expect(res.out).toContain(
+      `測る: scripts/gates/code/oxlint-plugin/import-direction.mutations.json（当たった変更: ${support}）`,
+    );
+  });
+
+  // parity-component-fixtures.test.ts は、親のディレクトリの read-json-helpers.ts を `../` で import する。
+  test("test_file が親のディレクトリから import するファイルが変わったら、その宣言を測る", async () => {
+    const support = "scripts/eval/read-json-helpers.ts";
+    const res = await runRunner(
+      "--changed-since",
+      "origin/main",
+      "--only",
+      "shot-contract",
+      "--list",
+      { MUTATION_PROOF_CHANGED_FILES: support },
+    );
+    expect(res.status, res.out).toBe(0);
+    expect(res.out).toContain(
+      `測る: scripts/eval/fixtures/parity-component-fixtures.mutations.json（当たった変更: ${support}）`,
+    );
+  });
+
+  // import-direction.ts は ID-ASSETS の変異の対象で、test_file からも import される。
+  test("変異の対象を test_file も import するとき、当たった変更に 1 回だけ出す", async () => {
+    const target = "scripts/gates/code/oxlint-plugin/import-direction.ts";
+    const res = await runRunner("--changed-since", "origin/main", "--only", "ID-ASSETS", "--list", {
+      MUTATION_PROOF_CHANGED_FILES: target,
+    });
+    expect(res.status, res.out).toBe(0);
+    expect(res.out).toContain(
+      `測る: scripts/gates/code/oxlint-plugin/import-direction.mutations.json（当たった変更: ${target}）`,
+    );
+  });
+
+  // 共有のライブラリの変更で影響を受ける定義は、PR では選ばず、週次の全件の実行で確かめる（Issue #747）。
+  // repo-file.ts は check-doc-refs-helpers.ts が import する共有のファイルで、どの定義のヘルパーでも変異の対象でもない。
+  test("ヘルパーが import する共有のライブラリだけが変わっても、宣言を選ばない", async () => {
+    const res = await runRunner("--changed-since", "origin/main", "--only", "DR-LINK", {
+      MUTATION_PROOF_CHANGED_FILES: "scripts/lib/testing/repo-file.ts",
+    });
+    expect(res.status, res.out).toBe(0);
+    expect(res.out).toContain("この差分に当たる宣言は無い");
+    expect(res.out).toContain("飛ばす: scripts/gates/docs/check-doc-refs.mutations.json");
   });
 
   // 差分を取れないときは「変更なし」として扱わない（0 件と失敗が同じ空配列になる）。

@@ -8,33 +8,54 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "vitest";
 import { errorCodeOrMessage, errorMessage, isErrnoException } from "./errors.ts";
-
-function caught(body: () => unknown): unknown {
-  try {
-    body();
-  } catch (error) {
-    return error;
-  }
-  throw new Error("例外が投げられなかった");
-}
+import { caught } from "./errors-helpers.ts";
 
 const enoent = caught(() => readFileSync("/nonexistent/errors-test"));
 const withUndefinedCode = Object.assign(new Error("code が空"), { code: undefined });
 
 test.each([
-  ["Error", new Error("failure"), "failure", "failure", false],
-  [
-    "Node のシステムエラー",
-    enoent,
-    expect.stringMatching(/^ENOENT: no such file/u),
-    "ENOENT",
-    true,
-  ],
-  ["code が undefined の Error", withUndefinedCode, "code が空", "code が空", true],
-  ["文字列", "plain failure", "plain failure", "plain failure", false],
-  ["object", { reason: "x" }, "[object Object]", "[object Object]", false],
-])("%s を読む", (_label, value, message, codeOrMessage, errno) => {
+  {
+    label: "Error",
+    value: new Error("failure"),
+    message: "failure",
+    codeOrMessage: "failure",
+    errno: false,
+  },
+  {
+    label: "Node のシステムエラー",
+    value: enoent,
+    message: expect.stringMatching(/^ENOENT: no such file/u),
+    codeOrMessage: "ENOENT",
+    errno: true,
+  },
+  {
+    label: "code が undefined の Error",
+    value: withUndefinedCode,
+    message: "code が空",
+    codeOrMessage: "code が空",
+    errno: true,
+  },
+  {
+    label: "文字列",
+    value: "plain failure",
+    message: "plain failure",
+    codeOrMessage: "plain failure",
+    errno: false,
+  },
+  {
+    label: "object",
+    value: { reason: "x" },
+    message: "[object Object]",
+    codeOrMessage: "[object Object]",
+    errno: false,
+  },
+])("$label を読む", ({ value, message, codeOrMessage, errno }) => {
   expect(errorMessage(value)).toEqual(message);
   expect(errorCodeOrMessage(value)).toBe(codeOrMessage);
   expect(isErrnoException(value)).toBe(errno);
+});
+
+// caught は、body が例外を投げなければその場で失敗する（読む関数を、例外でない値で確かめてしまわないため）。
+test("caught は、例外が出なければ失敗する", () => {
+  expect(() => caught(() => undefined)).toThrow("例外が投げられなかった");
 });

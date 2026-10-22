@@ -824,13 +824,87 @@ function changedFiles(ref: string): string[] {
   return res.stdout.split("\n").filter(Boolean);
 }
 
+type PreProcess = (
+  source: string,
+  readImportFiles: boolean,
+  detectJavaScriptImports: boolean,
+) => { importedFiles: { fileName: string }[] };
+
 /**
- * 差分に当たる宣言だけを返す。当たり方は 3 通り:
+ * `test_file` が相対パスで import する `scripts/` の `.ts`（ヘルパー・fixture など、テストの組み立てに使うファイル）を、import をたどって返す。
+ * テストの組み立てと表明はそれらのファイルにもあり、そこが変わると検査が変わるからである。
+ * 共有のライブラリ（`scripts/lib/`）と `skills/` のコードはパスで外す。
+ * それらの変更で影響を受ける定義は、週次の全件の実行で確かめる（Issue #747）。
+ * import は TypeScript の構文の解析で取る（コメントや文字列の中の `from "..."` を数えない）。
+ * typescript は `--changed-since` のときだけ読む（このファイルだけをリポジトリの外へコピーして起動するテストがある）。
+ * 1 つのファイルの直接の import 先は、定義の間で `cache` に入れて共有し、解析を 1 回にする。
+ */
+function supportFiles(
+  testFile: string,
+  preProcess: PreProcess,
+  cache: Map<string, string[]>,
+): string[] {
+  const seen = new Set<string>();
+  const queue = [testFile];
+  while (queue.length > 0) {
+    const file = queue.pop() ?? "";
+    for (const support of directSupportFiles(file, preProcess, cache)) {
+      if (seen.has(support)) continue;
+      seen.add(support);
+      queue.push(support);
+    }
+  }
+  return [...seen];
+}
+
+/** file が相対パスで直接 import する、`scripts/lib/` の外の `scripts/` の `.ts`（リポジトリのルートからのパス）。 */
+function directSupportFiles(
+  file: string,
+  preProcess: PreProcess,
+  cache: Map<string, string[]>,
+): string[] {
+  const cached = cache.get(file);
+  if (cached) return cached;
+  let source: string;
+  try {
+    source = readFileSync(join(repoRoot, file), "utf8");
+  } catch (err) {
+    die(
+      `${file} を読めないので、そのファイルが import する scripts/ のファイルを決められない: ${errorMessage(err)}`,
+    );
+  }
+  const imported = preProcess(source, true, true)
+    .importedFiles.map(({ fileName }) => fileName)
+    .filter((name) => name.startsWith(".") && name.endsWith(".ts"))
+    .map((name) => relative(repoRoot, resolve(repoRoot, dirname(file), name)))
+    .filter((rel) => rel.startsWith("scripts/") && !rel.startsWith("scripts/lib/"));
+  cache.set(file, imported);
+  return imported;
+}
+
+function loadPreProcess(): PreProcess {
+  try {
+    const ts: { preProcessFile: PreProcess } = createRequire(join(repoRoot, "package.json"))(
+      "typescript",
+    );
+    return ts.preProcessFile;
+  } catch (err) {
+    die(`typescript を解決できない（pnpm install 済みか確かめる）: ${errorMessage(err)}`);
+  }
+}
+
+// 宣言を選ばなかったときに、差分選択が見たファイルを説明する文。
+const UNCHANGED_INPUTS =
+  "定義・test_file・変異の対象と、test_file から相対の import をたどった scripts/ の .ts（scripts/lib/ を除く）が変わっていない";
+
+/**
+ * 差分に当たる宣言だけを返す。当たり方は次の 3 通りである。
  *   - ランナー（このファイル）が変わった → **全宣言**（判定の仕組みが変わったので全部測り直す）
  *   - 宣言ファイル自身が変わった
- *   - その宣言の `test_file` か、いずれかの変異の対象ファイルが変わった
+ *   - その宣言の `test_file`、`test_file` から相対の import を間接のものまでたどった `scripts/` の `.ts`（`scripts/lib/` を除く。`supportFiles`）、いずれかの変異の対象ファイルが変わった
  *
- * それ以外は対象も検査も変わっていないので、前回の実証がそのまま有効。
+ * それ以外の宣言は PR では測らない。たどらないファイル（`scripts/lib/`・`scripts/` の外のコード・テストが import せずに実行時に読む fixture）や
+ * 依存の版の変更で検査が変わった宣言も含むので、週次の全件の実行で確かめる（docs/tooling.md）。
  * **選んだ／飛ばした理由は必ず出力する**（0 件を警告なしに成功にしない）。
  */
 function selectChangedSpecs(specs: Spec[], ref: string): Spec[] {
@@ -841,16 +915,22 @@ function selectChangedSpecs(specs: Spec[], ref: string): Spec[] {
     console.error(`ランナー（${runnerPath}）が変わったので全宣言を測る`);
     return specs;
   }
+  const preProcess = loadPreProcess();
+  const cache = new Map<string, string[]>();
   const selected: Spec[] = [];
   for (const spec of specs) {
     const specRel = relative(repoRoot, spec.specPath);
     const targets = [...new Set(spec.mutations.map((m) => m.file))];
-    const hits = [specRel, spec.testFile, ...targets].filter((f) => changed.has(f));
+    const supports = supportFiles(spec.testFile, preProcess, cache);
+    // 変異の対象が test_file から import されていると、supports と targets の両方に入るので、重ねて出さない。
+    const hits = [...new Set([specRel, spec.testFile, ...supports, ...targets])].filter((f) =>
+      changed.has(f),
+    );
     if (hits.length > 0) {
       console.error(`測る: ${specRel}（当たった変更: ${hits.join(", ")}）`);
       selected.push(spec);
     } else {
-      console.error(`飛ばす: ${specRel}（対象も検査も変わっていない）`);
+      console.error(`飛ばす: ${specRel}。${UNCHANGED_INPUTS}`);
     }
   }
   return selected;
@@ -1208,7 +1288,7 @@ function selectSpecs(files: string[], changedSince: string | null): Spec[] | nul
     if (selected.length === 0) {
       // **0 件は「測るものが無い」**（宣言 `specs.length` 件すべてが差分の外）。全件は定期実行が測る。
       console.log(
-        `mutation-proof: この差分に当たる宣言は無い（宣言 ${specs.length} 件はいずれも対象・検査が未変更）。` +
+        `mutation-proof: この差分に当たる宣言は無い。宣言 ${specs.length} 件はいずれも、${UNCHANGED_INPUTS}。` +
           "全件は定期実行（.github/workflows/mutation-proof.yml）で測る",
       );
       return null;

@@ -64,7 +64,7 @@
       "reason": "xtrace を有効にする前に実行し終わるので、自分の行は記録に残らない。振る舞いは shell-coverage.test.ts が確かめる"
     },
     {
-      "path": "scripts/eval/generate-parity-component-fixtures.ts",
+      "path": "scripts/eval/fixtures/generate-parity-component-fixtures.ts",
       "reason": "eval の fixture を実 Chrome で生成するツールで、テストの中では Chrome を起動しない"
     },
     {

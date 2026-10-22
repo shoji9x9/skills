@@ -5,181 +5,37 @@
 //
 // 通ることの確認（式を反映した新側が exit 0）を置く。これが無いと「常に落とす」実装と区別できない。
 
-import { test, expect, assert } from "vitest";
+import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { main, fitPlane } from "../../../../skills/parity-suite/scripts/dimension-fit.mjs";
+import { fitPlane } from "../../../../skills/parity-suite/scripts/dimension-fit.mjs";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 import { invalidInput, removeField } from "../../../lib/testing/test-input.ts";
 import { parseJsonAs } from "../../../lib/parse-as.ts";
 import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
+import {
+  type Win,
+  type Samples,
+  firstRect,
+  type Metadata,
+  type Fit,
+  type DimensionModel,
+  type FittedMetadata,
+  type Failure,
+  type Unfit,
+  WINDOWS,
+  formula,
+  pinned,
+  samplesOf,
+  metadataOf,
+  run,
+  fittedMetadata,
+} from "./dimension-fit-helpers.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/dimension-fit.mjs");
-
-type Win = { width: number; height: number };
-type Layout = (w: Win) => Record<string, Record<string, number> | null>;
-/** 当てはめに渡す samples の 1 要素。rect は窓で表示されなければ null。 */
-type SampleElement = {
-  page: string;
-  element: string;
-  rects: { window: Win; rect: Record<string, number> | null }[];
-};
-type Samples = { windows: Win[]; elements: SampleElement[] };
-
-/** samples の 1 つ目の要素の、1 つ目の窓の矩形（表示されている窓なので在る）。 */
-function firstRect(s: Samples): Record<string, number> {
-  const rect = s.elements[0].rects[0].rect;
-  assert.exists(rect, "1 つ目の要素の 1 つ目の窓に矩形が無い");
-  return rect;
-}
-type Metadata = {
-  slug: string;
-  capture_conditions: {
-    viewports: unknown[];
-    pages: { name: string; path: string }[];
-    dimension_model?: unknown;
-  };
-  traits: { elements: string[] };
-};
-/** dimension-fit.mjs が書く dimension_model のうち、テストが読み書きする欄。 */
-type Fit = {
-  page: string;
-  element: string;
-  property: string;
-  offset: number;
-  residual: number;
-  ratio: { width: number; height: number };
-};
-type DimensionModel = {
-  status?: string;
-  measured_at?: unknown;
-  tool_version?: string;
-  fits: Fit[];
-  unfit: unknown[];
-};
-type FittedMetadata = {
-  capture_conditions: { viewports: unknown[]; dimension_model: DimensionModel };
-};
-type Failure = {
-  element: string;
-  property: string;
-  reason: string;
-  window?: Win;
-  deviation: number;
-};
-/** CLI が stdout に出す JSON のうち、テストが読む欄（fit と check の両方）。 */
-type CliOutput = {
-  judged?: boolean;
-  ok?: boolean;
-  checked?: number;
-  reason?: string | null;
-  failures: Failure[];
-  unfit_to_note?: unknown[];
-  dimension_model: { unfit: Unfit[] };
-};
-/** fit が unfit に残す 1 件のうち、テストが読む欄。 */
-type Unfit = { element: string; property: string; reason: string };
-/** check --write が書く replace-metadata.json のうち、テストが読む欄。 */
-type WrittenCheck = { dimension_check: Record<string, unknown> };
-
-/** 幅と高さを独立に動かした 4 窓（撮影ビューポート 1366×768 を含む）。 */
-const WINDOWS = [
-  { width: 1366, height: 768 },
-  { width: 1600, height: 900 },
-  { width: 1280, height: 1024 },
-  { width: 1920, height: 800 },
-];
-
-/** 移行元の式: 操作ボタンはコンテナ（幅 W − 40 の 50%）＋ 12、グリッドの高さは H − 132。 */
-const formula = (w: Win) => ({
-  button: { x: 0.5 * (w.width - 40) + 12, y: 64, width: 96, height: 32 },
-  grid: { x: 20, y: 120, width: w.width - 40, height: w.height - 132 },
-});
-
-/** 1366×768 の実測 px をそのまま並べた版組（新側の失敗形）。 */
-const pinned = () => formula(WINDOWS[0]);
-
-/**
- * @param {(w: {width:number,height:number}) => Record<string, Record<string, number> | null>} layout
- * @param {{width:number,height:number}[]} [windows]
- */
-const samplesOf = (layout: Layout, windows: Win[] = WINDOWS): Samples => ({
-  windows,
-  elements: ["button", "grid"].map((element) => ({
-    page: "list",
-    element,
-    rects: windows.map((w) => ({ window: w, rect: layout(w)[element] })),
-  })),
-});
-
-const metadataOf = (
-  viewports: unknown[] = [{ width: 1366, height: 768, label: "desktop" }],
-): Metadata => ({
-  slug: "order-list",
-  capture_conditions: { viewports, pages: [{ name: "list", path: "/orders" }] },
-  traits: { elements: ["button", "grid"] },
-});
-
-/** メモリ上のファイルで main を回す。 */
-function run(argv: string[], files: Record<string, unknown>) {
-  // check が読む現側 samples は、明示しなければ直近の fittedMetadata が当てはめたもの
-  const fs = new Map(
-    Object.entries({ "/w/s.json": currentSamplesText, ...files }).map(
-      ([k, v]): [string, string] => [k, typeof v === "string" ? v : JSON.stringify(v)],
-    ),
-  );
-  let stdout = "";
-  let stderr = "";
-  const ow = process.stdout.write;
-  const ew = process.stderr.write;
-  process.stdout.write = (s) => ((stdout += s), true);
-  process.stderr.write = (s) => ((stderr += s), true);
-  let code;
-  try {
-    code = main(argv, {
-      cwd: "/w",
-      readFile: (p) => {
-        const text = fs.get(p);
-        if (text === undefined) throw new Error(`ENOENT ${p}`);
-        return text;
-      },
-      writeFile: (p, s) => fs.set(p, s),
-    });
-  } finally {
-    process.stdout.write = ow;
-    process.stderr.write = ew;
-  }
-  return {
-    code,
-    stdout,
-    stderr,
-    // stdout が空なら null（JSON.parse("null") と同じ値）。形は各テストの expect が確かめる
-    json: parseJsonAs<CliOutput>(stdout || "null"),
-    // 無いパスなら、テストを失敗させる
-    file: <T = WrittenCheck>(p: string): T => {
-      const text = fs.get(p);
-      assert.exists(text, `${p} が書かれていない`);
-      return parseJsonAs<T>(text);
-    },
-  };
-}
-
-/** 現側で fit して dimension_model を書いた metadata.json を返す。 */
-/** 直近の fittedMetadata が当てはめに使った現側 samples の本文（check の --current-samples に渡す。指紋が一致する） */
-let currentSamplesText = "";
-
-function fittedMetadata(layout: Layout = formula) {
-  currentSamplesText = JSON.stringify(samplesOf(layout));
-  const r = run(["fit", "--samples", "s.json", "--metadata", "m.json", "--write"], {
-    "/w/s.json": currentSamplesText,
-    "/w/m.json": metadataOf(),
-  });
-  expect(r.code).toBe(0);
-  return r.file<FittedMetadata>("/w/m.json");
-}
 
 test("fitPlane は幅と高さへの追従を分けて読む", () => {
   const f = fitPlane(
@@ -419,15 +275,25 @@ test("check: not_measured は理由付きで判定しない（judged: false）",
 });
 
 test.each([
-  ["not_measured に reason が無い", { status: "not_measured", reason: "" }, metadataOf(), /reason/],
-  [
-    "1 ビューポートで not_required",
-    { status: "not_required", reason: "複数で撮る" },
-    metadataOf(),
-    /1 つの撮影/,
-  ],
-  ["status が enum 外", { status: "skipped", reason: "x" }, metadataOf(), /status/],
-])("check: %s は exit 2", (_, dm, m, message) => {
+  {
+    label: "not_measured に reason が無い",
+    dm: { status: "not_measured", reason: "" },
+    m: metadataOf(),
+    message: /reason/,
+  },
+  {
+    label: "1 ビューポートで not_required",
+    dm: { status: "not_required", reason: "複数で撮る" },
+    m: metadataOf(),
+    message: /1 つの撮影/,
+  },
+  {
+    label: "status が enum 外",
+    dm: { status: "skipped", reason: "x" },
+    m: metadataOf(),
+    message: /status/,
+  },
+])("check: $label は exit 2", ({ dm, m, message }) => {
   m.capture_conditions.dimension_model = dm;
   const r = run(["check", "--metadata", "m.json"], { "/w/m.json": m });
   expect(r.code).toBe(2);
@@ -449,66 +315,71 @@ test("check: ビューポート 2 つ以上なら not_required を理由付き�
 });
 
 test.each([
-  [
-    "tool_version の不一致",
-    (m: FittedMetadata) => (m.capture_conditions.dimension_model.tool_version = "0"),
-    null,
-    /採り直す/,
-  ],
-  [
-    "fits と unfit がどちらも空",
-    (m: FittedMetadata) => (m.capture_conditions.dimension_model.fits = []),
-    null,
-    /どちらも空/,
-  ],
-  [
-    "新側に現側の測定窓が無い",
-    () => {},
-    samplesOf(formula, WINDOWS.slice(1).concat([{ width: 1440, height: 700 }])),
-    /測定窓/,
-  ],
-  ["新側 samples を渡さない", () => {}, undefined, /--samples/],
-  [
-    "unfit の形が崩れている",
-    (m: FittedMetadata) => (m.capture_conditions.dimension_model.unfit = [{}]),
-    null,
-    /unfit\[0\] の形/,
-  ],
-  [
-    "unfit が fits と同じ軸を持つ",
-    (m: FittedMetadata) => {
+  {
+    label: "tool_version の不一致",
+    mutate: (m: FittedMetadata) => (m.capture_conditions.dimension_model.tool_version = "0"),
+    newSamples: null,
+    message: /採り直す/,
+  },
+  {
+    label: "fits と unfit がどちらも空",
+    mutate: (m: FittedMetadata) => (m.capture_conditions.dimension_model.fits = []),
+    newSamples: null,
+    message: /どちらも空/,
+  },
+  {
+    label: "新側に現側の測定窓が無い",
+    mutate: () => {},
+    newSamples: samplesOf(formula, WINDOWS.slice(1).concat([{ width: 1440, height: 700 }])),
+    message: /測定窓/,
+  },
+  {
+    label: "新側 samples を渡さない",
+    mutate: () => {},
+    newSamples: undefined,
+    message: /--samples/,
+  },
+  {
+    label: "unfit の形が崩れている",
+    mutate: (m: FittedMetadata) => (m.capture_conditions.dimension_model.unfit = [{}]),
+    newSamples: null,
+    message: /unfit\[0\] の形/,
+  },
+  {
+    label: "unfit が fits と同じ軸を持つ",
+    mutate: (m: FittedMetadata) => {
       const { page, element, property } = m.capture_conditions.dimension_model.fits[0];
       m.capture_conditions.dimension_model.unfit = [{ page, element, property, reason: "x" }];
     },
-    null,
-    /fits にも在る/,
-  ],
-  [
-    "ある要素の軸を記録から消した",
-    (m: FittedMetadata) => {
+    newSamples: null,
+    message: /fits にも在る/,
+  },
+  {
+    label: "ある要素の軸を記録から消した",
+    mutate: (m: FittedMetadata) => {
       const dm = m.capture_conditions.dimension_model;
       dm.fits = dm.fits.filter((f: Fit) => !(f.element === "grid" && f.property !== "x"));
     },
-    null,
-    /\(list, grid\) に軸 y, width, height/,
-  ],
-  [
-    "traits.elements の論理名が記録から丸ごと無い",
-    (m: FittedMetadata) => {
+    newSamples: null,
+    message: /\(list, grid\) に軸 y, width, height/,
+  },
+  {
+    label: "traits.elements の論理名が記録から丸ごと無い",
+    mutate: (m: FittedMetadata) => {
       const dm = m.capture_conditions.dimension_model;
       dm.fits = dm.fits.filter((f: Fit) => f.element !== "grid");
     },
-    null,
-    /traits\.elements の論理名: grid/,
-  ],
-  [
-    "measured_at が撮影ビューポートを含まない",
-    (m: FittedMetadata) =>
+    newSamples: null,
+    message: /traits\.elements の論理名: grid/,
+  },
+  {
+    label: "measured_at が撮影ビューポートを含まない",
+    mutate: (m: FittedMetadata) =>
       (m.capture_conditions.viewports = [{ width: 1440, height: 700, label: "desktop" }]),
-    null,
-    /measured_at が capture_conditions\.viewports/,
-  ],
-])("check: %s は exit 2", (_, mutate, newSamples, message) => {
+    newSamples: null,
+    message: /measured_at が capture_conditions\.viewports/,
+  },
+])("check: $label は exit 2", ({ mutate, newSamples, message }) => {
   const m = fittedMetadata();
   mutate(m);
   const files: Record<string, unknown> = { "/w/m.json": m };

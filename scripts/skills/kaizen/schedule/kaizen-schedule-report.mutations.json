@@ -1,0 +1,80 @@
+{
+  "$comment": [
+    "kaizen-schedule-report.test.ts のうち、定期実行の opt-in（schedule_enabled の既定は false）と、設定を読めないときに止める処理を守るテストの検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/skills/kaizen/schedule/kaizen-schedule-report.test.ts",
+  "mutations": [
+    {
+      "id": "SR-DEFAULT-ON-BASH",
+      "why": "設定ファイルが無いときのデフォルトを true にする（ワークフローを置いただけで週次実行が始まる）",
+      "file": "skills/kaizen/scripts/kaizen-hook-common.sh",
+      "find": "\t\tschedule_enabled=false \\\n",
+      "replace": "\t\tschedule_enabled=true \\\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "opt-in（schedule_enabled の既定は false） config がそもそも無ければ止まり、opt-in であることを理由に出す",
+        "設定解決（層・デフォルト値への置き換え） 設定ファイルがあるのに node が無ければ止め、無ければ node なしで opt-in の判定まで進む"
+      ]
+    },
+    {
+      "id": "SR-DEFAULT-ON-SCHEMA",
+      "why": "設定ファイルがあるときのデフォルト（スキーマ）を true にする（schedule_enabled を書かずに他のキーだけを置いたリポジトリが動き始める）",
+      "file": "skills/kaizen/config-schemas/kaizen.schema.json",
+      "find": "\"default\": false,",
+      "replace": "\"default\": true,",
+      "occurrences": 1,
+      "expect_failing": [
+        "opt-in（schedule_enabled の既定は false） config はあっても schedule_enabled が無ければ止まる"
+      ]
+    },
+    {
+      "id": "SR-NOT-TRUE-RUNS",
+      "why": "schedule_enabled が true でなくても止めない（false で凍結したリポジトリが動く）",
+      "file": "skills/kaizen/scripts/kaizen-schedule-report.sh",
+      "find": "if [ \"${enabled}\" != true ]; then",
+      "replace": "if false; then",
+      "occurrences": 1,
+      "expect_failing": [
+        "opt-in（schedule_enabled の既定は false） config がそもそも無ければ止まり、opt-in であることを理由に出す",
+        "opt-in（schedule_enabled の既定は false） config はあっても schedule_enabled が無ければ止まる",
+        "skip（どちらかが立てば止まる） 設定ファイルの schedule_enabled: false で止まる",
+        "skip（どちらかが立てば止まる） env=false でも schedule_enabled: false なら止まる（上書きではなく追加の安全弁）",
+        "設定解決（層・デフォルト値への置き換え） 設定ファイルがあるのに node が無ければ止め、無ければ node なしで opt-in の判定まで進む"
+      ]
+    },
+    {
+      "id": "SR-CONFIG-ERROR-CONTINUES",
+      "why": "設定を読めなくても止めない（不正な値の設定のまま、デフォルトの値で定期実行を続ける）",
+      "file": "skills/kaizen/scripts/kaizen-schedule-report.sh",
+      "find": "\tif ! kaizen_config_load; then\n",
+      "replace": "\tif false; then\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "設定解決（層・デフォルト値への置き換え） 不正な設定 { \"schedule_mode\": \"bogus\" } は exit 1 で止め、理由を stderr に出す",
+        "設定解決（層・デフォルト値への置き換え） 不正な設定 { \"schedule_agent\": \"gemini\" } は exit 1 で止め、理由を stderr に出す",
+        "設定解決（層・デフォルト値への置き換え） 不正な設定 { \"schedule_model\": \"has space\" } は exit 1 で止め、理由を stderr に出す",
+        "設定解決（層・デフォルト値への置き換え） 不正な設定 { \"schedule_effort\": \"!!\" } は exit 1 で止め、理由を stderr に出す",
+        "設定解決（層・デフォルト値への置き換え） 不正な設定 { \"schedule_enabled\": \"maybe\" } は exit 1 で止め、理由を stderr に出す",
+        "設定解決（層・デフォルト値への置き換え） 不正な設定 { \"schedule_mod\": \"agent\" } は exit 1 で止め、理由を stderr に出す",
+        "設定解決（層・デフォルト値への置き換え） 環境変数の不正な値も exit 1 で止める",
+        "設定解決（層・デフォルト値への置き換え） 旧い .kaizen/config が残っていれば、移行の手順を示して止める",
+        "設定解決（層・デフォルト値への置き換え） 設定ファイルがあるのに node が無ければ止め、無ければ node なしで opt-in の判定まで進む",
+        "設定ファイルを読めない場合 設定ファイルがパーミッションで読めないときは exit 1 で止める"
+      ]
+    },
+    {
+      "id": "SR-UNLOADABLE-RUNS",
+      "why": "共通ライブラリを読めないときに止めない（schedule_enabled: false を読み落として動く）",
+      "file": "skills/kaizen/scripts/kaizen-schedule-report.sh",
+      "find": "\tif [ -n \"${config_unloadable}\" ]; then\n\t\tskip=\"true\"",
+      "replace": "\tif false; then\n\t\tskip=\"true\"",
+      "occurrences": 1,
+      "expect_failing": [
+        "skip（どちらかが立てば止まる） 先に立った停止の理由が env skip で消えない",
+        "機能を減らして動く場合（共通ライブラリを読めない） 設定ファイルが在っても読めないので停止として扱う"
+      ]
+    }
+  ]
+}

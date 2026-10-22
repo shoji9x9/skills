@@ -1,9 +1,10 @@
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { lint } from "./lint-pagination.ts";
+import { write } from "../../lib/testing/repo-file.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
@@ -152,13 +153,6 @@ function makeRepo({ git = true } = {}) {
     expect(init.status, init.stderr).toBe(0);
   }
   return dir;
-}
-
-function write(dir: string, rel: string, body: string) {
-  const abs = join(dir, rel);
-  mkdirSync(dirname(abs), { recursive: true });
-  writeFileSync(abs, body);
-  return abs;
 }
 
 function runCli(cwd: string, args: string[] = []) {
