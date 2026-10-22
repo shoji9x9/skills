@@ -1,0 +1,6 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+ci:39691018405:1,ci,2026-10-21T23:36:51.474Z,p-cdee4961,github-actions,,,,2026-10-21T23:04:54.000Z,2026-10-21T23:08:46.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:39609556457:1,ci,2026-10-21T23:36:51.474Z,p-cdee4961,github-actions,,,,2026-10-21T13:37:03.000Z,2026-10-21T13:37:04.000Z,Asia/Tokyo,feature/658-oxlint-complexity-import-rules,658,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:39609556527:1,ci,2026-10-21T23:36:51.474Z,p-cdee4961,github-actions,,,,2026-10-21T13:37:03.000Z,2026-10-21T13:40:32.000Z,Asia/Tokyo,feature/658-oxlint-complexity-import-rules,658,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-20T13:34:15.091Z:2026-10-21T23:36:51.474Z,coverage,2026-10-21T23:36:51.474Z,p-cdee4961,,,,,2026-10-20T13:34:15.091Z,2026-10-21T23:36:51.474Z,Asia/Tokyo,,,,,,,,,,,,ok,
+coverage:github:2026-10-20T23:36:51.474Z:2026-10-21T23:43:13.656Z,coverage,2026-10-21T23:43:13.656Z,p-cdee4961,,,,,2026-10-20T23:36:51.474Z,2026-10-21T23:43:13.656Z,Asia/Tokyo,,,,,,,,,,,,ok,
