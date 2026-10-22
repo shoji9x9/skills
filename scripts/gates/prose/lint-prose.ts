@@ -47,6 +47,8 @@ export const PENDING_PATH = "scripts/gates/prose/prose-lint-pending.json";
 const PARSE_RULE = "code-comments";
 /** 文字列に当てる規則（使わない語の一覧）。 */
 const EXCLUDED_PREFIXES = [".kaizen/archive/", "tests/", "node_modules/"];
+/** 英語で書く文書の置き場所。規則は日本語の文章向けなので当てない（docs/writing-style.md「対象」）。 */
+const ENGLISH_DOC_PREFIXES = ["docs/slides/storylines/en/", "docs/slides/prompts/"];
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 
 /** 指摘のうち、このスクリプトが読むフィールド。 */
@@ -88,6 +90,7 @@ function readPending(root: string): Set<string> {
 export function isTarget(root: string, rel: string): boolean {
   if (!rel.endsWith(".md") && !hasComments(rel) && !hasStrings(rel)) return false;
   if (EXCLUDED_PREFIXES.some((p) => rel.startsWith(p))) return false;
+  if (ENGLISH_DOC_PREFIXES.some((p) => rel.startsWith(p))) return false;
   if (isAgentCopy(root, rel)) return false;
   // 外部のパッケージから作った生成物（上流のコードとライセンスの文書）は、このリポジトリの文章の規約の対象ではない
   if (isVendored(rel)) return false;

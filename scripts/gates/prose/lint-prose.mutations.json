@@ -19,6 +19,24 @@
       ]
     },
     {
+      "id": "LP-ENGLISH-DOCS",
+      "why": "英語で書くスライドの文書を対象から外さない（日本語向けの規則で英文を指摘する）",
+      "file": "scripts/gates/prose/lint-prose.ts",
+      "find": "  if (ENGLISH_DOC_PREFIXES.some((p) => rel.startsWith(p))) return false;",
+      "replace": "  if (false) return false;",
+      "occurrences": 1,
+      "expect_failing": ["陰性: 英語で書くスライドの文書（英語のストーリーラインと指示）は見ない"]
+    },
+    {
+      "id": "LP-ENGLISH-PREFIX",
+      "why": "英語の置き場所を前方一致の区切りなしで照合し、名前の似た日本語の文書まで外す",
+      "file": "scripts/gates/prose/lint-prose.ts",
+      "find": "const ENGLISH_DOC_PREFIXES = [\"docs/slides/storylines/en/\", \"docs/slides/prompts/\"];",
+      "replace": "const ENGLISH_DOC_PREFIXES = [\"docs/slides/storylines/en\", \"docs/slides/prompts\"];",
+      "occurrences": 1,
+      "expect_failing": ["陽性: 英語の置き場所と名前の似た日本語の文書は見る"]
+    },
+    {
       "id": "LP-SYMLINK",
       "why": "シンボリックリンクを対象から外さない（リンク先と二重に見る）",
       "file": "scripts/gates/prose/lint-prose.ts",

@@ -23,6 +23,7 @@ applyTo: "**,**/.*/**,**/.*"
 - `SKILL.md` の `description`。エージェントがスキルを選ぶための文で、言い換えると呼び出しの精度が変わる
 - `.kaizen/archive/` の学びと `tests/` の結果。過去の記録として書き換えない
 - インストール済みのスキルのコピー（`.agents/skills/<name>/`）とエージェント用のリンク（`.claude/`）。`skills/` と同じ中身なので、`skills/` を直す
+- 英語で書くスライドの文書（`docs/slides/storylines/en/` と `docs/slides/prompts/`）。規則は日本語の文章向けである
 
 スクリプトが解析する見出し・列名や、eval の assertion が依存する節名を変えると、スクリプトや eval が動かなくなる。
 これらに当たる変更は、そのつど人に確認してから行う。
