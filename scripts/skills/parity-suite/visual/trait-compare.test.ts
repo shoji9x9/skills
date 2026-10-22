@@ -5,65 +5,32 @@
 import { expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import type {
-  Diff,
-  Scroll,
-  TextOwner,
-  Trait as ComparedTrait,
-} from "../../../../skills/parity-suite/scripts/trait-compare.mjs";
+import { join } from "node:path";
+import type { Diff, TextOwner } from "../../../../skills/parity-suite/scripts/trait-compare.mjs";
 import { invalidInput } from "../../../lib/testing/test-input.ts";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 import { parseJsonAs } from "../../../lib/parse-as.ts";
 import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
+import {
+  repoRoot,
+  font,
+  owner,
+  trait,
+  scrollOf,
+  webkitOf,
+  grid,
+  placed,
+  shift,
+  script,
+  runCli,
+} from "./trait-compare-helpers.ts";
 
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 const {
   VERSION,
   compareTraits,
 }: typeof import("../../../../skills/parity-suite/scripts/trait-compare.mjs") = await import(
   join(repoRoot, "skills/parity-suite/scripts/trait-compare.mjs")
 );
-
-// 特性には、採取（trait-capture.mjs）が書き compareTraits は読まない child_inline_styles も持たせる。
-type Trait = ComparedTrait & {
-  child_inline_styles: { index: number; tag: string; style: string }[];
-};
-
-const font = (overrides: Record<string, string> = {}) => ({
-  "font-family": "arial, sans-serif",
-  "font-size": "13.3333px",
-  "font-style": "normal",
-  "font-weight": "400",
-  "line-height": "normal",
-  ...overrides,
-});
-const owner = (
-  text: string,
-  style: Record<string, string>,
-  dims: Partial<TextOwner> = {},
-  path = "",
-): TextOwner => ({
-  path,
-  tag: path === "" ? "button" : "span",
-  text,
-  style,
-  advance: 26.65625,
-  glyph_height: 15,
-  lines: 1,
-  rect: { x: 16, y: 14, width: 26.65625, height: 15 },
-  ...dims,
-});
-const trait = (textOwners: TextOwner[] | undefined, name = "toolbar.settings"): Trait => ({
-  name,
-  computed: { "font-family": "arial, sans-serif", "font-size": "13.3333px" },
-  before: null,
-  after: null,
-  rect: { x: 10, y: 10, width: 40, height: 24 },
-  child_inline_styles: [],
-  ...(textOwners === undefined ? {} : { text_owners: textOwners }),
-});
 
 test("VERSION は 4（CLI が入れ子の欄まで型どおりでない要素を exit 2 にする）", () => {
   expect(VERSION).toBe("4");
@@ -73,12 +40,11 @@ test("VERSION は 4（CLI が入れ子の欄まで型どおりでない要素を
 // 要素自身の計算値は一致し、文字の持ち主だけが違った。
 test("要素の計算値が一致していても、文字を描く子孫の書体・大きさ・幅の差を出す", () => {
   const current = trait([
-    owner(
-      "設定",
-      font({ "font-family": "Roboto, sans-serif", "font-size": "12px" }),
-      { advance: 24.015625, glyph_height: 14 },
-      "div[0]>span[0]",
-    ),
+    owner("設定", font({ "font-family": "Roboto, sans-serif", "font-size": "12px" }), {
+      advance: 24.015625,
+      glyph_height: 14,
+      path: "div[0]>span[0]",
+    }),
   ]);
   const replacement = trait([owner("設定", font())]);
 
@@ -112,7 +78,10 @@ test("要素の計算値が一致していても、文字を描く子孫の書�
 
 test("入れ子の深さ（path）と外接矩形だけが違い、書体・寸法が同じなら差分にしない", () => {
   const current = trait([
-    owner("設定", font(), { rect: { x: 0, y: 0, width: 90, height: 40 } }, "div[0]>span[0]"),
+    owner("設定", font(), {
+      rect: { x: 0, y: 0, width: 90, height: 40 },
+      path: "div[0]>span[0]",
+    }),
   ]);
   const replacement = trait([owner("設定", font())]);
   expect(compareTraits([current], [replacement])).toEqual([]);
@@ -170,30 +139,30 @@ test("文字列が違う組は寸法を比べず、書体の差だけを出す",
 });
 
 test.each([
-  [
-    "新側に足りない",
-    [owner("前", font()), owner("後", font())],
-    [owner("前", font())],
-    { prop: "text[1]", expected: "present", actual: "absent", text: "後" },
-  ],
-  [
-    "新側に余分",
-    [owner("前", font())],
-    [owner("前", font()), owner("余", font())],
-    { prop: "text[1]", expected: "absent", actual: "present", text: "余" },
-  ],
-])("文字の持ち主の件数が違えば、はみ出した行を出す（%s）", (_name, base, cap, diff) => {
+  {
+    name: "新側に足りない",
+    base: [owner("前", font()), owner("後", font())],
+    cap: [owner("前", font())],
+    diff: { prop: "text[1]", expected: "present", actual: "absent", text: "後" },
+  },
+  {
+    name: "新側に余分",
+    base: [owner("前", font())],
+    cap: [owner("前", font()), owner("余", font())],
+    diff: { prop: "text[1]", expected: "absent", actual: "present", text: "余" },
+  },
+])("文字の持ち主の件数が違えば、はみ出した行を出す（$name）", ({ base, cap, diff }) => {
   expect(compareTraits([trait(base)], [trait(cap)])).toEqual([
     { name: "toolbar.settings", kind: "text", ...diff },
   ]);
 });
 
 test.each([
-  ["ベースラインだけが持つ", [], undefined, "present", "absent"],
-  ["採取だけが持つ", undefined, [], "absent", "present"],
+  { n: "ベースラインだけが持つ", b: [], c: undefined, e: "present", a: "absent" },
+  { n: "採取だけが持つ", b: undefined, c: [], e: "absent", a: "present" },
 ])(
-  "text_owners を片側だけが持つ（採取ツールの版違い）なら missing で出す（%s）",
-  (_n, b, c, e, a) => {
+  "text_owners を片側だけが持つ（採取ツールの版違い）なら missing で出す（$n）",
+  ({ b, c, e, a }) => {
     expect(compareTraits([trait(b)], [trait(c)])).toEqual([
       { name: "toolbar.settings", kind: "missing", prop: "text_owners", expected: e, actual: a },
     ]);
@@ -203,26 +172,6 @@ test.each([
 test("両側とも text_owners を持たない（旧版どうし）なら文字の照合はしない", () => {
   expect(compareTraits([trait(undefined)], [trait(undefined)])).toEqual([]);
 });
-
-// スクロールするコンテナ（Issue #495）。値は Chrome 149 の実測: 628×298 のコンテナ・中身 628 幅で、スクロールバーが場所を取る撮影では
-// 現行（overflow: auto）は縦横とも 15px、新側（overflow-x: hidden）は横のバーが出ない。
-const scrollOf = (overrides: Partial<Scroll> = {}): Scroll => ({
-  overflowing_x: true,
-  overflowing_y: true,
-  vertical_bar_px: 15,
-  horizontal_bar_px: 15,
-  style: { "scrollbar-width": "auto", "scrollbar-color": "auto", "scrollbar-gutter": "auto" },
-  webkit: webkitOf(),
-  ...overrides,
-});
-/** scrollOf の webkit（::-webkit-scrollbar 系を読めたブラウザの計算値）。 */
-function webkitOf() {
-  return {
-    "::-webkit-scrollbar": { width: "auto", "background-color": "rgba(0, 0, 0, 0)" },
-    "::-webkit-scrollbar-thumb": { width: "auto", "border-top-left-radius": "0px" },
-  };
-}
-const grid = (scroll: Scroll | null): Trait => ({ ...trait([], "dialog.grid"), scroll });
 
 test("横のバーが出るか出ないかの差を kind scroll で出す", () => {
   const diffs = compareTraits([grid(scrollOf())], [grid(scrollOf({ horizontal_bar_px: 0 }))]);
@@ -278,14 +227,19 @@ test("コンテナかどうかの差（片側だけ null）を出す", () => {
 });
 
 test.each([
-  ["片側だけ unsupported", scrollOf(), scrollOf({ webkit: "unsupported" }), ["scroll/webkit"]],
-  [
-    "両側 unsupported",
-    scrollOf({ webkit: "unsupported" }),
-    scrollOf({ webkit: "unsupported" }),
-    [],
-  ],
-])("::-webkit-scrollbar を読めない側がある（%s）", (_label, expected, actual, props) => {
+  {
+    label: "片側だけ unsupported",
+    expected: scrollOf(),
+    actual: scrollOf({ webkit: "unsupported" }),
+    props: ["scroll/webkit"],
+  },
+  {
+    label: "両側 unsupported",
+    expected: scrollOf({ webkit: "unsupported" }),
+    actual: scrollOf({ webkit: "unsupported" }),
+    props: [],
+  },
+])("::-webkit-scrollbar を読めない側がある（$label）", ({ expected, actual, props }) => {
   expect(compareTraits([grid(expected)], [grid(actual)]).map((d: Diff) => d.prop)).toEqual(props);
 });
 
@@ -374,15 +328,11 @@ test("同じ論理名が片側に 2 件以上あれば、どちらの側かと�
     { name: "toolbar.settings", kind: "duplicate", prop: "capture", expected: "1", actual: "3" },
   ]);
 });
-
-// --- 相対幾何（要素対の関係だけを比べる） ---
-
-type Box = { x: number; y: number; width: number; height: number };
-const placed = (name: string, rect: Box): Trait => ({ ...trait([], name), rect });
-const shift = (r: Box, dx: number, dy: number): Box => ({ ...r, x: r.x + dx, y: r.y + dy });
 // 検索欄の右に、同じ高さの送信ボタンが並ぶ
 const FIELD = { x: 0, y: 0, width: 100, height: 20 };
 const SUBMIT = { x: 120, y: 0, width: 100, height: 20 };
+
+// --- 相対幾何（要素対の関係だけを比べる） ---
 
 test("ページ全体がずれても、要素同士の関係が同じなら差分にしない", () => {
   const current = [placed("search.field", FIELD), placed("search.submit", SUBMIT)];
@@ -421,27 +371,18 @@ test("端揃えのずれが alignTolerance の内側なら関係は変わらな�
   ).toEqual(["vertical", "topAligned", "bottomAligned"]);
 });
 
-const script = join(repoRoot, "skills/parity-suite/scripts/trait-compare.mjs");
-
-/** CLI に 2 つの採取結果を渡して起動する。`extra` は 2 つのファイルの後ろに足す引数。 */
-function runCli(baseline: unknown, capture: unknown, extra: string[] = []) {
-  const dir = makeTempDir("trait-compare-");
-  const files = [join(dir, "baseline.json"), join(dir, "capture.json")];
-  writeFileSync(files[0], JSON.stringify(baseline));
-  writeFileSync(files[1], JSON.stringify(capture));
-  return spawnSync(process.execPath, [script, ...files, ...extra], {
-    encoding: "utf8",
-    timeout: CHILD_TIMEOUT_MS,
-  });
-}
-
 test.each([
-  ["baseline", [null], [trait([])], "baseline[0]"],
-  ["capture", [trait([])], [null], "capture[0]"],
-  ["capture の 2 件目", [trait([])], [trait([]), null], "capture[1]"],
+  { side: "baseline", baseline: [null], capture: [trait([])], at: "baseline[0]" },
+  { side: "capture", baseline: [trait([])], capture: [null], at: "capture[0]" },
+  {
+    side: "capture の 2 件目",
+    baseline: [trait([])],
+    capture: [trait([]), null],
+    at: "capture[1]",
+  },
 ])(
-  "CLI は %s の要素が採取結果の形でなければ、その位置を出して比較せず exit 2",
-  (_side, baseline, capture, at) => {
+  "CLI は $side の要素が採取結果の形でなければ、その位置を出して比較せず exit 2",
+  ({ baseline, capture, at }) => {
     const r = runCli(baseline, capture);
     expect(r.status).toBe(2);
     expect(r.stderr).toContain(`error: ${at} is not a trait entry`);

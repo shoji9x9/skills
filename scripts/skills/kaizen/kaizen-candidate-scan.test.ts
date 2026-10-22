@@ -1,100 +1,28 @@
 import { afterEach, describe, expect, test } from "vitest";
-import { spawnSync } from "node:child_process";
+import { appendFileSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import {
-  appendFileSync,
-  chmodSync,
-  mkdirSync,
-  readFileSync,
-  readdirSync,
-  rmSync,
-  symlinkSync,
-  writeFileSync,
-} from "node:fs";
-import { delimiter, dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
-import { coverageEnv } from "../../lib/testing/coverage-env.ts";
-import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
+  claudeAssistant,
+  claudeEdit,
+  claudeUser,
+  fixturesDir,
+  pathWith,
+  realCommand,
+  scan,
+  transcript,
+  workdir,
+  workdirs,
+} from "./kaizen-candidate-scan-helpers.ts";
 
 // kaizen-candidate-scan.sh の終了コードの取り決め（スクリプトの冒頭）を、入力の状態ごとに確かめる。
 //   exit 0: 候補あり / exit 1: 検証したうえで候補なし / exit 2: 判定できない
 // コミット前のチェックは exit 1 だけを「抽出しなくてよい」として扱う。判定できない入力や
 // 走査の失敗を exit 1 にすると、未抽出の学びを残したまま commit が通る。
 // 走査の結果ごとの候補の判定（注入の形・補助レコードなど）は kaizen-precommit-gate.test.ts が確かめる。
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const script = join(repoRoot, "skills/kaizen/scripts/kaizen-candidate-scan.sh");
-const fixturesDir = join(repoRoot, "evals/kaizen/fixtures/candidate-scan");
 
-const workdirs: string[] = [];
 afterEach(() => {
   for (const dir of workdirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
-
-function workdir() {
-  const dir = makeTempDir("kaizen-candidate-scan-");
-  workdirs.push(dir);
-  return dir;
-}
-
-function scan(args: string[], env: NodeJS.ProcessEnv = {}) {
-  return spawnSync("bash", [script, ...args], {
-    encoding: "utf8",
-    env: { ...process.env, ...coverageEnv(), ...env },
-    timeout: CHILD_TIMEOUT_MS,
-  });
-}
-
-/** 名前を挙げたコマンドだけを差し替えた PATH を返す。null を渡したコマンドは PATH から外す。 */
-function pathWith(dir: string, overrides: Record<string, string | null>) {
-  const bin = join(dir, "bin");
-  mkdirSync(bin, { recursive: true });
-  for (const [name, body] of Object.entries(overrides)) {
-    if (body === null) continue;
-    writeFileSync(join(bin, name), body);
-    chmodSync(join(bin, name), 0o755);
-  }
-  const removed = Object.entries(overrides)
-    .filter(([, body]) => body === null)
-    .map(([name]) => name);
-  if (removed.length === 0) return `${bin}${delimiter}${process.env.PATH}`;
-  // 外すコマンドがあるときは、PATH の各ディレクトリの実行ファイルをリンクで集め、外すものだけ除く。
-  for (const d of (process.env.PATH ?? "").split(delimiter)) {
-    let names: string[];
-    try {
-      names = readdirSync(d);
-    } catch {
-      continue;
-    }
-    for (const name of names) {
-      if (removed.includes(name) || name in overrides) continue;
-      try {
-        symlinkSync(join(d, name), join(bin, name));
-      } catch {
-        // 先に見つかった同名のコマンドを優先する（PATH の順と同じ）。
-      }
-    }
-  }
-  return bin;
-}
-
-const realCommand = (name: string) =>
-  spawnSync("bash", ["-c", `command -v ${name}`], {
-    encoding: "utf8",
-    timeout: CHILD_TIMEOUT_MS,
-  }).stdout.trim();
-
-const claudeUser = (text: string) =>
-  JSON.stringify({ type: "user", message: { role: "user", content: [{ type: "text", text }] } });
-const claudeAssistant = (content: unknown[]) =>
-  JSON.stringify({ type: "assistant", message: { role: "assistant", content } });
-const claudeEdit = (path: string) =>
-  claudeAssistant([{ type: "tool_use", name: "Edit", input: { file_path: path } }]);
-
-function transcript(dir: string, lines: string[]) {
-  const path = join(dir, "t.jsonl");
-  writeFileSync(path, `${lines.join("\n")}\n`);
-  return path;
-}
 
 describe("走査を始められない入力は判定できないとして扱う", () => {
   test.each([
@@ -243,7 +171,7 @@ describe("checkpoint からの差分", () => {
 
 // 同じパスの編集は 2 回までは正常に起きうる（Edit の一意性の制約）ので、3 回目から候補にする。
 describe("同じパスの繰り返しの編集", () => {
-  test.each([
+  test.for<[string, string[], number, number | null]>([
     ["Claude Code で 3 回", [1, 2, 3].map(() => claudeEdit("/tmp/a.md")), 0, 3],
     ["Claude Code で 2 回", [1, 2].map(() => claudeEdit("/tmp/a.md")), 1, null],
     [
@@ -252,7 +180,7 @@ describe("同じパスの繰り返しの編集", () => {
       1,
       null,
     ],
-  ])("%s", (_name, lines, status, line) => {
+  ])("%s", ([, lines, status, line]) => {
     const dir = workdir();
     const res = scan([transcript(dir, lines), join(dir, "no-checkpoint")]);
     expect(res.status, res.stderr).toBe(status);

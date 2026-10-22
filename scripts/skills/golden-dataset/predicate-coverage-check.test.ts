@@ -7,115 +7,21 @@
 // 欠陥は 1 件ずつ独立に注入し、注入した欠陥の code が出ることまで確かめる（件数が非ゼロなだけでは検出能力の証拠にならない）。
 
 import { assert, test, expect } from "vitest";
-import { parseJsonAs } from "../../lib/parse-as.ts";
 import {
-  main,
   checkPredicateCoverage,
   filterColumn,
   parseTables,
   unclosedFenceLine,
 } from "../../../skills/golden-dataset/scripts/predicate-coverage-check.mjs";
-
-/** 欠陥の無い features.md（3 表とも在り、参照テーブルが埋まっている）。 */
-const FEATURES = `# 機能インベントリ（features）
-
-## 機能一覧
-
-| slug | 機能名 | テーブル | Issue |
-|---|---|---|---|
-| order | 注文管理 | orders, order_items | 未起票 |
-| report | レポート | reports | 未起票 |
-
-## 横断 API（リソース単位）
-
-| slug | リソース | fan-out（利用機能 slug） | 参照テーブル | Issue |
-|---|---|---|---|---|
-| user | ユーザー | order, report | users, roles | 未起票 |
-
-## バッチ
-
-| slug | バッチ名 | 入力 | 参照テーブル | Issue |
-|---|---|---|---|---|
-| monthly-summary | 月次集計 | ゴールデンデータセット | orders | 未起票 |
-`;
-
-/**
- * 欠陥の無い design.md を組み立てる。差し替えたい行だけを渡す。
- * @param {{ targets?: string[], predicates?: string[], params?: string[], idRanges?: string[] | null }} [override]
- */
-function designOf(
-  override: {
-    targets?: string[];
-    predicates?: string[];
-    params?: string[];
-    idRanges?: string[] | null;
-  } = {},
-) {
-  const targets = override.targets ?? [
-    "| orders | order, monthly-summary | 41 | 投入する | FK 親 |",
-    "| order_items | order | 80 | 投入する | orders の子 |",
-    "| reports | report | 6 | 投入する | - |",
-    "| users | user | 4 | 投入する | - |",
-    "| roles | user | 3 | 投入する | - |",
-  ];
-  const predicates = override.predicates ?? [
-    "| orders-status | orders | order | status = 'shipped' | 画面の入力値（変換なし） | 3 | 38 | 踏める | - | /orders の SELECT を読了 |",
-    "| orders-month | orders | monthly-summary | ordered_at の月境界 | 画面の入力値（変換なし） | 12 | 29 | 踏める | - | バッチの入力条件 |",
-    "| items-order | order_items | order | order_id = :id | 画面の入力値（変換なし） | 4 | 76 | 踏める | - | 明細の絞り込み |",
-    "| reports-owner | reports | report | owner_id = :me | 画面の入力値（変換なし） | 2 | 4 | 踏める | - | 一覧の所有者条件 |",
-    "| users-active | users | user | active = true | 画面の入力値（変換なし） | 3 | 1 | 踏める | - | 共通ヘッダの利用者 |",
-    "| roles-admin | roles | user | role = 'admin' | 画面の入力値（変換なし） | 1 | 2 | 踏める | - | ロール表示 |",
-  ];
-  const params = override.params ?? [
-    "| order | orders | status | ordered_at DESC | 20 | 実測 |",
-    "| order | order_items | order_id | id ASC | - | 実測 |",
-    "| report | reports | owner_id | created_at DESC | 20 | 実測 |",
-    "| user | users | active | id ASC | - | 実測 |",
-    "| user | roles | role | id ASC | - | 実測 |",
-    "| monthly-summary | orders | ordered_at | - | - | 実測 |",
-  ];
-  // null は「表そのものが無い」（旧版テンプレートで作った design.md）。
-  const idRanges =
-    override.idRanges === undefined
-      ? [
-          "| orders | id | 900000000001〜900000000041（12 桁） | 1〜99999999（8 桁・BIGINT） | order, monthly-summary | 文字列のまま SQL のパラメータへ渡す（変換なし） | 届く | - | /orders の詳細と月次集計の入力を読了 |",
-          "| order_items | order_id | orders の帯と同じ | orders.id と同じ | order | - | 届く | - | 明細は親の id を文字列で受け取る |",
-          "| reports | id | 900001〜900006 | 1〜99999 | report | - | 届く | - | 一覧は id を受け取らない |",
-          "| users | id | 9001〜9004 | 1〜999 | user | int.Parse（32 ビット） | 届く | - | 共通ヘッダの利用者 |",
-          "| roles | id | 91〜93 | 1〜9 | user | - | 届く | - | ロールは名前で引く |",
-        ]
-      : override.idRanges;
-  const idRangeSection =
-    idRanges === null
-      ? ""
-      : `
-## 識別子の値の範囲
-
-| テーブル | 列 | データセットの値の範囲 | 実運用の値の範囲 | 消費側 slug | 受け取る型・変換 | 届くか | 扱い | 根拠 |
-|---|---|---|---|---|---|---|---|---|
-${idRanges.join("\n")}
-`;
-  return `# データ設計（design）
-
-## 対象テーブル
-
-| テーブル | features.md の機能／リソース | 件数 | 役割 | 備考（FK 親・必須項目） |
-|---|---|---|---|---|
-${targets.join("\n")}
-
-## 消費側パラメータ
-
-| 機能／リソース slug | テーブル | 絞り込み列・条件 | 並び替え列・方向・同値順 | ページサイズ／切替候補 | 根拠 |
-|---|---|---|---|---|---|
-${params.join("\n")}
-
-## 述語ごとの分岐網羅
-
-| 述語 id | テーブル | 消費側 slug | 述語（列・条件） | 値の出どころ | 真の行数 | 偽の行数 | 判定 | 扱い | 根拠 |
-|---|---|---|---|---|---:|---:|---|---|---|
-${predicates.join("\n")}
-${idRangeSection}`;
-}
+import {
+  designOf,
+  run,
+  codesOf,
+  idRangesWith,
+  predicatesWithOrderId,
+  FEATURES,
+} from "./predicate-coverage-check-helpers.ts";
+import { lines as md } from "../../lib/testing/text-lines.ts";
 
 /** 欠陥の無い verification.md（設計値と一致する実測）。 */
 const VERIFICATION = `# 検証レポート（verification）
@@ -133,54 +39,6 @@ const VERIFICATION = `# 検証レポート（verification）
 | users-active | 3 | 1 | 踏める | count(*) |
 | roles-admin | 1 | 2 | 踏める | count(*) |
 `;
-
-/** main が出す JSON の、テストで確かめる欄。 */
-type CheckOutput = {
-  ok: boolean;
-  structural?: boolean;
-  findings: { code: string; message: string }[];
-};
-
-/**
- * main をメモリ上のファイルで回す。
- * @param {string[]} argv
- * @param {Record<string, string>} files
- */
-function run(argv: string[], files: Record<string, string>) {
-  let output = "";
-  let errorOutput = "";
-  const code = main(argv, {
-    cwd: "/w",
-    readFile: (path) => {
-      if (!(path in files)) throw new Error("ENOENT");
-      return files[path];
-    },
-    write: (s) => {
-      output += s;
-    },
-    writeErr: (s) => {
-      errorOutput += s;
-    },
-  });
-  return {
-    code,
-    stderr: errorOutput,
-    result: output === "" ? null : parseJsonAs<CheckOutput>(output),
-  };
-}
-
-/**
- * 既定の入力で検査し、findings の code 一覧を返す。
- * @param {{ features?: string, design?: string, verification?: string | null }} [input]
- */
-function codesOf(input: { features?: string; design?: string; verification?: string | null } = {}) {
-  const result = checkPredicateCoverage({
-    featuresMarkdown: input.features ?? FEATURES,
-    designMarkdown: input.design ?? designOf(),
-    verificationMarkdown: input.verification ?? null,
-  });
-  return result.findings.map((f) => f.code);
-}
 
 test("区切り行の無い塊は表として読まない（描画で表にならない対象テーブルは無いものとして exit 2）", () => {
   // 区切り行（`|---|`）が無い塊は、Markdown の描画で表にならない。表として読むと、
@@ -282,18 +140,26 @@ test("features.md の (slug, テーブル) に消費側パラメータの行が�
 
 // 各行は、features.md の 1 つの表だけが持つ参照を対象テーブル表から消す。
 // 1 表しか読まない実装では、ほかの表だけが持つ参照の抜けを検出できない。
-test.each([
-  ["機能一覧", "| order_items | order | 80 | 投入する | orders の子 |\n", "copy-missing-table"],
-  ["横断 API", "| roles | user | 3 | 投入する | - |\n", "copy-missing-table"],
-  [
-    "バッチ",
-    "| orders | order, monthly-summary | 41 | 投入する | FK 親 |\n",
-    "copy-missing-slug",
-    "| orders | order | 41 | 投入する | FK 親 |\n",
-  ],
+test.each<{ label: string; removed: string; expected: string; replacement?: string }>([
+  {
+    label: "機能一覧",
+    removed: "| order_items | order | 80 | 投入する | orders の子 |\n",
+    expected: "copy-missing-table",
+  },
+  {
+    label: "横断 API",
+    removed: "| roles | user | 3 | 投入する | - |\n",
+    expected: "copy-missing-table",
+  },
+  {
+    label: "バッチ",
+    removed: "| orders | order, monthly-summary | 41 | 投入する | FK 親 |\n",
+    expected: "copy-missing-slug",
+    replacement: "| orders | order | 41 | 投入する | FK 親 |\n",
+  },
 ])(
-  "消費側は 3 表すべてから集める: %s の表だけが持つ参照の転記の抜けを検出する",
-  (_label, removed, expected, replacement = "") => {
+  "消費側は 3 表すべてから集める: $label の表だけが持つ参照の転記の抜けを検出する",
+  ({ removed, expected, replacement = "" }) => {
     const design = designOf().replace(removed, replacement);
     assert(design !== designOf(), "対象テーブル表の行を差し替えられていない");
     expect(codesOf({ design })).toContain(expected);
@@ -865,33 +731,6 @@ test("囲まれていない形・読めない形は従来どおり（対照）",
   expect(filterColumn("")).toBeNull();
 });
 
-// Issue #498: データセットが決めた識別子の値（採番帯）が消費側の変換で別の値になると、
-// 述語は設計どおり真でも消費側が引く行は 0 件になる。分岐の網羅は設計者の値で数えるので「踏める」のまま残る。
-
-/** 既定の識別子の値の範囲のうち、orders の行だけを差し替えた一覧。 */
-function idRangesWith(ordersRows: string[]) {
-  return [
-    ...ordersRows,
-    "| order_items | order_id | orders の帯と同じ | orders.id と同じ | order | - | 届く | - | 明細は親の id を文字列で受け取る |",
-    "| reports | id | 900001〜900006 | 1〜99999 | report | - | 届く | - | 一覧は id を受け取らない |",
-    "| users | id | 9001〜9004 | 1〜999 | user | int.Parse（32 ビット） | 届く | - | 共通ヘッダの利用者 |",
-    "| roles | id | 91〜93 | 1〜9 | user | - | 届く | - | ロールは名前で引く |",
-  ];
-}
-
-/** 既定の述語に、orders.id の述語を 1 行足した一覧。 */
-function predicatesWithOrderId(row: string) {
-  return [
-    "| orders-status | orders | order | status = 'shipped' | 画面の入力値（変換なし） | 3 | 38 | 踏める | - | /orders の SELECT を読了 |",
-    "| orders-month | orders | monthly-summary | ordered_at の月境界 | 画面の入力値（変換なし） | 12 | 29 | 踏める | - | バッチの入力条件 |",
-    "| items-order | order_items | order | order_id = :id | 画面の入力値（変換なし） | 4 | 76 | 踏める | - | 明細の絞り込み |",
-    "| reports-owner | reports | report | owner_id = :me | 画面の入力値（変換なし） | 2 | 4 | 踏める | - | 一覧の所有者条件 |",
-    "| users-active | users | user | active = true | 画面の入力値（変換なし） | 3 | 1 | 踏める | - | 共通ヘッダの利用者 |",
-    "| roles-admin | roles | user | role = 'admin' | 画面の入力値（変換なし） | 1 | 2 | 踏める | - | ロール表示 |",
-    row,
-  ];
-}
-
 const ORDERS_UNREACHED_GAPS =
   "| orders | id | 900000000001〜900000000041（12 桁） | 1〜99999999（8 桁） | order | Convert.ToInt32（超えると 0） | 届かない | gaps に記録 | 書き出しは 32 ビットを超える id で値を引かない |";
 const ORDERS_REACHED_MONTHLY =
@@ -1175,8 +1014,6 @@ test("変換の列の `-`（変換なし）は範囲の列と違い受ける（�
 });
 
 // コードフェンスの中は例示なので、表も見出しも読まない（Issue #679。replace-strategy の台帳と同じ読み方）。
-const md = (...xs: string[]) => [...xs, ""].join("\n");
-
 test("コードフェンスの中の表と見出しを読まない", () => {
   const tables = parseTables(
     md(

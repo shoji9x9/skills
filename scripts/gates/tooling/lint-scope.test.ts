@@ -11,10 +11,7 @@
 // | oxlint・oxfmt                  | 設定ファイルが source-scope.ts から計算する          |
 // | lefthook（ファイルを渡すジョブ） | exclude にコピーを名前で挙げる（否定パターンが無い）  |
 // | CI の Shell lint・JSON lint    | run-on-sources.ts が source-scope.ts で選ぶ          |
-import { assert, expect, test } from "vitest";
-import { readFileSync } from "node:fs";
-import { dirname, join, posix } from "node:path";
-import { fileURLToPath } from "node:url";
+import { expect, test } from "vitest";
 import {
   VENDORED_GLOBS,
   agentCopyGlobs,
@@ -23,11 +20,9 @@ import {
 } from "../../lib/source-scope.ts";
 import oxlintConfig from "../../../oxlint.config.ts";
 import oxfmtConfig, { assigned as oxfmtAssigned } from "../../../oxfmt.config.ts";
-import { errorMessage } from "../../lib/errors.ts";
 import { loadYamlAs } from "../../lib/text/yaml-as.ts";
+import { extsOf, read, repoImports, repoRoot } from "./lint-scope-helpers.ts";
 
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const read = (rel: string) => readFileSync(join(repoRoot, rel), "utf8");
 const expected = agentCopyGlobs(repoRoot);
 
 test("実リポジトリにコピーと private skill がそれぞれ 1 件以上ある（以下の比較が空集合どうしにならない）", () => {
@@ -148,14 +143,6 @@ test("CI の Shell lint と JSON lint は、run-on-sources.ts で対象を選ぶ
 
 // ---- oxfmt の割り当てと lefthook ----
 
-/** `*.{a,b}` / `*.a` / `!**\/*.{a,b}` から拡張子の一覧を取り出す。 */
-function extsOf(glob: string) {
-  const m = /\*\.(?:\{([a-z0-9,]+)\}|([a-z0-9]+))$/.exec(glob);
-  expect(m, glob).not.toBeNull();
-  assert.exists(m, glob);
-  return (m[1] ?? m[2]).split(",");
-}
-
 test("oxfmt の許可リストの種類は、lefthook の oxfmt-* のジョブが渡す種類と一致する", () => {
   // ジョブ名を固定せず oxfmt-* をすべて集める（ジョブを足して許可リストを変え忘れたら検出する）。
   const oxfmtJobs = Object.keys(byName).filter((name) => name.startsWith("oxfmt-"));
@@ -166,37 +153,6 @@ test("oxfmt の許可リストの種類は、lefthook の oxfmt-* のジョブ�
 });
 
 // ---- formatter-scope のジョブ ----
-
-/**
- * rel が相対パスで import するリポジトリ内のファイルを、import 先がさらに import するものまでたどって集める。
- * `from "./x"`・副作用だけの `import "./x"`・`import("./x")`・`require("./x")`・単引用符を拾う。
- * パッケージ名や `node:` の import はたどらない。コメントの中の一致もたどるが、無いファイルなら、どこから来たかを示す
- * 例外になる。テンプレートリテラルや、計算したパス（`import.meta.dirname` を基にした読み込みなど）はたどらないので、
- * oxfmt.config.ts でその形を使うときは、glob と inputs に手で足す。
- */
-function repoImports(
-  rel: string,
-  readFile: (rel: string) => string = read,
-  found = new Set<string>(),
-  from: string | null = null,
-): Set<string> {
-  let source;
-  try {
-    source = readFile(rel);
-  } catch (err) {
-    if (from === null) throw err;
-    throw new Error(
-      `${from} の import 先 ${rel} を読めない（コメントの中の一致か、拡張子を省いた import を疑う）: ${errorMessage(err)}`,
-    );
-  }
-  for (const m of source.matchAll(/\b(?:from|import|require)\s*\(?\s*["'](\.{1,2}\/[^"']+)["']/g)) {
-    const dep = posix.normalize(posix.join(posix.dirname(rel), m[1]));
-    if (found.has(dep)) continue;
-    found.add(dep);
-    repoImports(dep, readFile, found, rel);
-  }
-  return found;
-}
 
 test("repoImports は、import の書き方の違いと、import 先の import を拾う", () => {
   const fixture: Record<string, string> = {

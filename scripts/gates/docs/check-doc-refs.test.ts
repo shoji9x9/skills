@@ -20,88 +20,59 @@
 import { expect, test } from "vitest";
 import { parseJsonAs } from "../../lib/parse-as.ts";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { CONFIG_PATH, RULES, checkDocRefs, hasAnchor, main } from "./check-doc-refs.ts";
 import { KNOWN_RULES, PENDING_PATH } from "../../lib/doc-scan.ts";
-import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
+import { CONFIG, found, makeRepo, repoRoot, script } from "./check-doc-refs-helpers.ts";
 
 // 学びのパスは組み立てて書く（そのまま書くと check-kaizen-refs.ts が実在しない学びへの参照として数える）。
 const KZ = ".kaizen/";
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const script = join(repoRoot, "scripts/gates/docs/check-doc-refs.ts");
-
-const TIERS = readFileSync(join(repoRoot, "scripts/gates/docs/doc-tiers.json"), "utf8");
-const CONFIG = {
-  repo: "o/r",
-  generated: [
-    { ref: "gaps.md", skills: ["s"], template: "skills/s/assets/gaps-template.md" },
-    { ref: "other.md", skills: ["t"], template: "skills/s/assets/gaps-template.md" },
-  ],
-};
-
-function write(root: string, path: string, text: string) {
-  mkdirSync(dirname(join(root, path)), { recursive: true });
-  writeFileSync(join(root, path), text);
-}
-
-/** 階層の原本・設定・参照先を持つ一時リポジトリ。 */
-function makeRepo(
-  files: Record<string, string> = {},
-  { config = CONFIG, pending }: { config?: object; pending?: object } = {},
-) {
-  const root = makeTempDir("doc-refs-");
-  const all = {
-    "scripts/gates/docs/doc-tiers.json": TIERS,
-    [CONFIG_PATH]: JSON.stringify(config),
-    "AGENTS.md": "# Agents\n",
-    "docs/guide.md":
-      "# ガイド\n\n## 手順（補足）\n\n## 7. 定期実行\n\n- **規則は「要素」に付ける。** 本文\n\n| 列 | 値 |\n| --- | --- |\n| データ不足 | x |\n",
-    "skills/s/SKILL.md": "# S\n",
-    "skills/s/references/ref.md": "# Ref\n\n## 参照の節\n",
-    "skills/s/assets/gaps-template.md": "# Gaps\n\n## 特性化できなかった箇所\n",
-    ...files,
-  };
-  for (const [p, t] of Object.entries(all)) write(root, p, t);
-  if (pending) write(root, PENDING_PATH, JSON.stringify(pending));
-  const r = spawnSync("git", ["init", "-q"], {
-    timeout: CHILD_TIMEOUT_MS,
-    cwd: root,
-    encoding: "utf8",
-  });
-  if (r.status !== 0) throw new Error(r.stderr);
-  return root;
-}
-
-/** 見つけた違反（ファイル・行番号・規則・文字列）。 */
-const found = (root: string) =>
-  checkDocRefs(root).found.map((v) => `${v.file}:${v.line} ${v.rule} ${v.text}`);
 
 // ---- 節名の一致 ----
 
 // hasAnchor の戻り値は、節名の参照を違反として報告しないか（true）・報告するか（false）の判定と同じ意味を持つ。
 test.each([
-  ["完全一致", ["手順"], "手順", true],
-  ["末尾の括弧書き", ["手順（補足）"], "手順", true],
-  ["半角の括弧書き", ["手順 (補足)"], "手順", true],
-  ["括弧の前に空白の無い半角の括弧書き", ["手順(補足)"], "手順", true],
-  ["バッククォートの有無（集めた名前は正規化済み）", ["x の形"], "`x` の形", true],
-  ["『』と「」", ["a は「b」"], "a は『b』", true],
-  ["前方一致だが括弧でない", ["手順書"], "手順", false],
-  ["一部だけ", ["記述先（適用先）の選び方"], "記述先の選び方", false],
-])("hasAnchor: %s", (_, names, name, want) => {
+  { label: "完全一致", names: ["手順"], name: "手順", want: true },
+  { label: "末尾の括弧書き", names: ["手順（補足）"], name: "手順", want: true },
+  { label: "半角の括弧書き", names: ["手順 (補足)"], name: "手順", want: true },
+  { label: "括弧の前に空白の無い半角の括弧書き", names: ["手順(補足)"], name: "手順", want: true },
+  {
+    label: "バッククォートの有無（集めた名前は正規化済み）",
+    names: ["x の形"],
+    name: "`x` の形",
+    want: true,
+  },
+  { label: "『』と「」", names: ["a は「b」"], name: "a は『b』", want: true },
+  { label: "前方一致だが括弧でない", names: ["手順書"], name: "手順", want: false },
+  { label: "一部だけ", names: ["記述先（適用先）の選び方"], name: "記述先の選び方", want: false },
+])("hasAnchor: $label", ({ names, name, want }) => {
   expect(hasAnchor(new Set(names), name)).toBe(want);
 });
 
 // 参照先の文書（docs/target.md）の書き方と、参照に書いた節名の組。節名を集める規則を、checkDocRefs の結果で確かめる。
 test.each([
-  ["番号付きの見出しを番号ごと書いた形", "## 7. 定期実行\n", "7. 定期実行", true],
-  ["英字の付いた番号を除いた見出し", "## 6a. 判断待ち\n", "判断待ち", true],
-  ["バッククォートで囲んだ表のセル", "| 列 | `値` |\n| --- | --- |\n", "値", true],
-  ["フェンスの中の見出し", "```\n## フェンス\n```\n", "フェンス", false],
-])("節名の照合: %s", (_, target, name, ok) => {
+  {
+    label: "番号付きの見出しを番号ごと書いた形",
+    target: "## 7. 定期実行\n",
+    name: "7. 定期実行",
+    ok: true,
+  },
+  {
+    label: "英字の付いた番号を除いた見出し",
+    target: "## 6a. 判断待ち\n",
+    name: "判断待ち",
+    ok: true,
+  },
+  {
+    label: "バッククォートで囲んだ表のセル",
+    target: "| 列 | `値` |\n| --- | --- |\n",
+    name: "値",
+    ok: true,
+  },
+  { label: "フェンスの中の見出し", target: "```\n## フェンス\n```\n", name: "フェンス", ok: false },
+])("節名の照合: $label", ({ target, name, ok }) => {
   const root = makeRepo({
     "docs/target.md": `# T\n\n${target}`,
     "docs/a.md": `\`target.md\`「${name}」\n`,
@@ -157,75 +128,120 @@ test.each([
 });
 
 test.each([
-  ["見出しに無い", "docs/a.md", "`guide.md`「無い節」", "guide.md「無い節」"],
-  ["一部だけ一致", "docs/a.md", "`guide.md`「手順の補足」", "guide.md「手順の補足」"],
-  ["参照先が無い", "docs/a.md", "`nothing.md`「節」", "nothing.md「節」"],
-  [
-    "生成ファイルの宣言がスキルに当たらない",
-    "skills/s/SKILL.md",
-    "`other.md`「特性化できなかった箇所」",
-    "other.md「特性化できなかった箇所」",
-  ],
-  [
-    "生成ファイルのテンプレートに節が無い",
-    "skills/s/SKILL.md",
-    "`gaps.md`「無い節」",
-    "gaps.md「無い節」",
-  ],
-  [
-    "スキル名付きで節が無い",
-    "docs/a.md",
-    "`s` の `references/ref.md`「無い」",
-    "s/references/ref.md「無い」",
-  ],
-  ["フェンスの外のコメント", "scripts/a.js", "// `docs/guide.md`「無い」", "docs/guide.md「無い」"],
-  [
-    "ルートからのリンク",
-    "docs/sub/a.md",
-    "[g](/docs/guide.md)「無い節」",
-    "/docs/guide.md「無い節」",
-  ],
-  ["符号化したリンク", "docs/a.md", "[g](gui%64e.md)「無い節」", "gui%64e.md「無い節」"],
-])("陽性: %s", (_, file, line, text) => {
+  {
+    label: "見出しに無い",
+    file: "docs/a.md",
+    line: "`guide.md`「無い節」",
+    text: "guide.md「無い節」",
+  },
+  {
+    label: "一部だけ一致",
+    file: "docs/a.md",
+    line: "`guide.md`「手順の補足」",
+    text: "guide.md「手順の補足」",
+  },
+  {
+    label: "参照先が無い",
+    file: "docs/a.md",
+    line: "`nothing.md`「節」",
+    text: "nothing.md「節」",
+  },
+  {
+    label: "生成ファイルの宣言がスキルに当たらない",
+    file: "skills/s/SKILL.md",
+    line: "`other.md`「特性化できなかった箇所」",
+    text: "other.md「特性化できなかった箇所」",
+  },
+  {
+    label: "生成ファイルのテンプレートに節が無い",
+    file: "skills/s/SKILL.md",
+    line: "`gaps.md`「無い節」",
+    text: "gaps.md「無い節」",
+  },
+  {
+    label: "スキル名付きで節が無い",
+    file: "docs/a.md",
+    line: "`s` の `references/ref.md`「無い」",
+    text: "s/references/ref.md「無い」",
+  },
+  {
+    label: "フェンスの外のコメント",
+    file: "scripts/a.js",
+    line: "// `docs/guide.md`「無い」",
+    text: "docs/guide.md「無い」",
+  },
+  {
+    label: "ルートからのリンク",
+    file: "docs/sub/a.md",
+    line: "[g](/docs/guide.md)「無い節」",
+    text: "/docs/guide.md「無い節」",
+  },
+  {
+    label: "符号化したリンク",
+    file: "docs/a.md",
+    line: "[g](gui%64e.md)「無い節」",
+    text: "gui%64e.md「無い節」",
+  },
+])("陽性: $label", ({ file, line, text }) => {
   expect(found(makeRepo({ [file]: `${line}\n` }))).toEqual([`${file}:1 section ${text}`]);
 });
 
 test.each([
-  ["「の」を挟む形", "docs/a.md", "`guide.md` の「無い節」", "guide.md「無い節」"],
-  ["「の、」を挟む形", "docs/a.md", "`guide.md` の、「無い節」", "guide.md「無い節」"],
-  ["空白を挟む形", "docs/a.md", "`guide.md` 「無い節」", "guide.md「無い節」"],
-  ["リンクの後に「の」を挟む形", "docs/a.md", "[g](guide.md) の「無い節」", "guide.md「無い節」"],
-  [
-    "スキル名付きで「の」を挟む形",
-    "docs/a.md",
-    "`s` の `references/ref.md` の「無い」",
-    "s/references/ref.md「無い」",
-  ],
-  [
-    "節名をバッククォートで囲む形",
-    "docs/a.md",
-    "`guide.md` の「`無い節`」",
-    "guide.md「`無い節`」",
-  ],
-  [
-    "1 行に複数（後ろだけ無い）",
-    "docs/a.md",
-    "`guide.md`「手順」と `guide.md` の「無い節」",
-    "guide.md「無い節」",
-  ],
-  [
-    "/名前 で終わる生成ファイルに節が無い",
-    "skills/s/SKILL.md",
-    "`.replace/x/gaps.md`「無い節」",
-    ".replace/x/gaps.md「無い節」",
-  ],
-  [
-    "名前の一部だけ一致するパスは生成ファイルとして当てない",
-    "skills/s/SKILL.md",
-    "`xgaps.md`「特性化できなかった箇所」",
-    "xgaps.md「特性化できなかった箇所」",
-  ],
-])("陽性: 間に語を挟む形と生成ファイル（%s）", (_, file, line, text) => {
+  {
+    label: "「の」を挟む形",
+    file: "docs/a.md",
+    line: "`guide.md` の「無い節」",
+    text: "guide.md「無い節」",
+  },
+  {
+    label: "「の、」を挟む形",
+    file: "docs/a.md",
+    line: "`guide.md` の、「無い節」",
+    text: "guide.md「無い節」",
+  },
+  {
+    label: "空白を挟む形",
+    file: "docs/a.md",
+    line: "`guide.md` 「無い節」",
+    text: "guide.md「無い節」",
+  },
+  {
+    label: "リンクの後に「の」を挟む形",
+    file: "docs/a.md",
+    line: "[g](guide.md) の「無い節」",
+    text: "guide.md「無い節」",
+  },
+  {
+    label: "スキル名付きで「の」を挟む形",
+    file: "docs/a.md",
+    line: "`s` の `references/ref.md` の「無い」",
+    text: "s/references/ref.md「無い」",
+  },
+  {
+    label: "節名をバッククォートで囲む形",
+    file: "docs/a.md",
+    line: "`guide.md` の「`無い節`」",
+    text: "guide.md「`無い節`」",
+  },
+  {
+    label: "1 行に複数（後ろだけ無い）",
+    file: "docs/a.md",
+    line: "`guide.md`「手順」と `guide.md` の「無い節」",
+    text: "guide.md「無い節」",
+  },
+  {
+    label: "/名前 で終わる生成ファイルに節が無い",
+    file: "skills/s/SKILL.md",
+    line: "`.replace/x/gaps.md`「無い節」",
+    text: ".replace/x/gaps.md「無い節」",
+  },
+  {
+    label: "名前の一部だけ一致するパスは生成ファイルとして当てない",
+    file: "skills/s/SKILL.md",
+    line: "`xgaps.md`「特性化できなかった箇所」",
+    text: "xgaps.md「特性化できなかった箇所」",
+  },
+])("陽性: 間に語を挟む形と生成ファイル（$label）", ({ file, line, text }) => {
   expect(found(makeRepo({ [file]: `${line}\n` }))).toEqual([`${file}:1 section ${text}`]);
 });
 
@@ -297,16 +313,31 @@ test("陰性: Tier 4 と階層の外とスキルのコピーは読まない", ()
 // ---- 配布スキル ----
 
 test.each([
-  ["学び", "skills/s/SKILL.md", `${KZ}2026-09-01-a.md の学び`, `dist-kaizen ${KZ}2026-09-01-a.md`],
-  ["Issue 番号（Markdown）", "skills/s/SKILL.md", "Issue #485 で直した", "dist-issue #485"],
-  ["Issue 番号（コメント）", "skills/s/scripts/a.mjs", "// Issue #485", "dist-issue #485"],
-  [
-    "スキルの外のファイル",
-    "skills/s/scripts/a.mjs",
-    "// docs/guide.md を見る",
-    "dist-repo-path docs/guide.md",
-  ],
-])("陽性: 配布スキルから %s を参照すると落とす", (_, file, line, want) => {
+  {
+    label: "学び",
+    file: "skills/s/SKILL.md",
+    line: `${KZ}2026-09-01-a.md の学び`,
+    want: `dist-kaizen ${KZ}2026-09-01-a.md`,
+  },
+  {
+    label: "Issue 番号（Markdown）",
+    file: "skills/s/SKILL.md",
+    line: "Issue #485 で直した",
+    want: "dist-issue #485",
+  },
+  {
+    label: "Issue 番号（コメント）",
+    file: "skills/s/scripts/a.mjs",
+    line: "// Issue #485",
+    want: "dist-issue #485",
+  },
+  {
+    label: "スキルの外のファイル",
+    file: "skills/s/scripts/a.mjs",
+    line: "// docs/guide.md を見る",
+    want: "dist-repo-path docs/guide.md",
+  },
+])("陽性: 配布スキルから $label を参照すると落とす", ({ file, line, want }) => {
   expect(found(makeRepo({ [file]: `${line}\n` }))).toEqual([`${file}:1 ${want}`]);
 });
 

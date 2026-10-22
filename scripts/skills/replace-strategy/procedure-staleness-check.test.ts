@@ -11,139 +11,23 @@ import { join } from "node:path";
 import { assert, test, expect } from "vitest";
 import {
   countRowLikeLines,
-  main,
   readProcedureLedger,
   readRevisions,
   strayCommentMarkers,
 } from "../../../skills/replace-strategy/scripts/procedure-staleness-check.mjs";
 import { parseJsonAs } from "../../lib/parse-as.ts";
-import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
-
-/** CLI が stdout に出す JSON のうち、テストが読む項目。 */
-type Entry = {
-  change: string;
-  slug: string;
-  state: string;
-  placement: string;
-  record: string;
-  axis: string;
-  basis: string;
-  reason: string;
-};
-type Output = {
-  ledger_exists: boolean;
-  unresolved: Entry[];
-  resolved: Entry[];
-  handed_off: Entry[];
-  undeterminable: Entry[];
-  artifacts: Entry[];
-  stray: unknown[];
-  errors: string[];
-};
-/** readRevisions・readProcedureLedger が失敗したときの結果。各テストは直前に `ok` が false であることを確かめる。 */
-type Failed = { ok: false; errors: string[] };
-type ReadLedger = Extract<ReturnType<typeof readProcedureLedger>, { ok: true }>;
-
-/** 読み取りが失敗した結果として扱う。成功していたらテストを失敗させる。 */
-function failedOf(
-  result: ReturnType<typeof readProcedureLedger> | ReturnType<typeof readRevisions>,
-): Failed {
-  assert(!result.ok, "失敗するはずの読み取りが成功した");
-  return result;
-}
-
-/** 台帳の読み取りが成功した結果として扱う。失敗していたらテストを失敗させる。 */
-function ledgerOf(result: ReturnType<typeof readProcedureLedger>): ReadLedger {
-  assert(result.ok, `台帳の読み取りが失敗した: ${JSON.stringify(result)}`);
-  return result;
-}
-
-const REVISIONS = {
-  skill: "parity-suite",
-  revision: 2,
-  changes: [
-    { revision: 1, axis: "導入点", affects: ["feature", "api-resource", "batch"] },
-    { revision: 2, axis: "0 件の表示", affects: ["feature"] },
-  ],
-};
-
-const CHANGE_HEADER =
-  "| ID | 追加日 | 足した軸 | 由来 | 対象の種類 | 見直しの置き場 |\n|---|---|---|---|---|---|\n";
-const RECORD_HEADER =
-  "| 記録 ID | 変更 ID | slug | 判断 | 記録日 | 根拠・理由 |\n|---|---|---|---|---|---|\n";
-
-/**
- * 台帳の本文を組み立てる。
- * @param {string[]} changes 「観点の追加」表の行
- * @param {string[]} records 「既に閉じた機能への当て直し」表の行
- */
-function ledger(changes: string[], records: string[]) {
-  return (
-    "# 台帳\n\n## 観点の追加\n\n" +
-    CHANGE_HEADER +
-    changes.map((row) => `${row}\n`).join("") +
-    "\n## 既に閉じた機能への当て直し\n\n" +
-    RECORD_HEADER +
-    records.map((row) => `${row}\n`).join("")
-  );
-}
-
-/**
- * 作業ディレクトリを作る。
- * @param {{ revisions?: unknown, ledger?: string, artifacts?: Record<string, unknown> }} spec
- */
-function workspace(spec: {
-  revisions?: unknown;
-  ledger?: string;
-  artifacts?: Record<string, string | object | null>;
-}) {
-  const work = makeTempDir("procedure-staleness-");
-  writeFileSync(join(work, "revisions.json"), JSON.stringify(spec.revisions ?? REVISIONS));
-  mkdirSync(join(work, ".replace", "parity"), { recursive: true });
-  if (spec.ledger !== undefined)
-    writeFileSync(join(work, ".replace", "procedure-changes.md"), spec.ledger);
-  for (const [slug, meta] of Object.entries(spec.artifacts ?? {})) {
-    mkdirSync(join(work, ".replace", "parity", slug), { recursive: true });
-    if (meta !== null) {
-      writeFileSync(
-        join(work, ".replace", "parity", slug, "metadata.json"),
-        typeof meta === "string"
-          ? meta
-          : JSON.stringify(Object.hasOwn(meta, "slug") ? meta : { slug, ...meta }),
-      );
-    }
-  }
-  return work;
-}
-
-/**
- * 成果物の metadata.json を組み立てる。
- * @param {Record<string, unknown>} run
- * @param {string} [mode]
- */
-function meta(run: Record<string, unknown>, mode: string = "feature") {
-  return { mode, run: { finished_at: "2026-09-10T00:00:00Z", ...run } };
-}
-
-/**
- * CLI を直接呼ぶ。
- * @param {string} work
- * @param {string[]} [extra]
- */
-function run(work: string, extra: string[] = []) {
-  let stdout = "";
-  let stderr = "";
-  const code = main(["--revisions", "revisions.json", ...extra], {
-    cwd: work,
-    stdout: (s) => {
-      stdout += s;
-    },
-    stderr: (s) => {
-      stderr += s;
-    },
-  });
-  return { code, stdout, stderr, json: stdout ? parseJsonAs<Output>(stdout) : null };
-}
+import {
+  failedOf,
+  ledgerOf,
+  ledger,
+  workspace,
+  meta,
+  run,
+  CHANGE_HEADER,
+  RECORD_HEADER,
+  REVISIONS,
+  runFinishedAt,
+} from "./procedure-staleness-check-helpers.ts";
 
 test("改訂番号を持たない成果物は、スキルのすべての改訂について未判断として落とす", () => {
   const work = workspace({ artifacts: { order: meta({}) } });
@@ -275,70 +159,72 @@ test("対象でない組み合わせへの記録は落とさず stray として�
   expect(r.json.stray).toEqual([{ record: "R-001", change: "parity-suite#2", slug: "ordre" }]);
 });
 
+// 台帳の本文と、エラーに含まれるはずの文言の組。
+const BROKEN_LEDGERS = [
+  ["# 台帳\n\n" + CHANGE_HEADER, "表が無い"],
+  [ledger(["| PC-001 | 2026-09-20 | 軸 | 由来 | feature |  |"], []), "見直しの置き場"],
+  [ledger(["| PC-001 | 2026-02-30 | 軸 | 由来 | feature | #1 |"], []), "追加日"],
+  [ledger(["| PC-001 | 2026-09-20 | 軸 | 由来 | screen | #1 |"], []), "対象の種類"],
+  [ledger(["| PC#1 | 2026-09-20 | 軸 | 由来 | feature | #1 |"], []), "# を使わない"],
+  [
+    ledger(
+      [
+        "| PC-001 | 2026-09-20 | 軸 | 由来 | feature | #1 |",
+        "| PC-001 | 2026-09-21 | 軸 | 由来 | feature | #1 |",
+      ],
+      [],
+    ),
+    "ID が重複",
+  ],
+  [
+    ledger([], ["| R-001 | PC-009 | order | 当てない | 2026-09-21 | 理由 |"]),
+    "変更 ID が台帳にも改訂一覧にも無い",
+  ],
+  [ledger([], ["| R-001 | parity-suite#2 | order | 済み | 2026-09-21 | 理由 |"]), "判断が"],
+  [
+    ledger([], ["| R-001 | parity-suite#2 | order | 当てない | 2026-09-21 | - |"]),
+    "根拠・理由が空",
+  ],
+  [
+    ledger([], ["| R-001 | parity-suite#2 | order | 見直し中 | 2026-09-21 | 後で |"]),
+    "#<Issue 番号> で始まらない",
+  ],
+  [
+    ledger([], []).replace(
+      "|---|---|---|---|---|---|\n\n## 既に",
+      "|---|---|---|---|---|---|\n\n| PC-001 | 2026-09-20 | 軸 | 由来 | feature | #1 |\n\n## 既に",
+    ),
+    "表の外に表の行",
+  ],
+  // 外側の `|` を省いた表の行は `|` で始まらない。件数で差し引くと表の外の行を打ち消して通してしまう。
+  [
+    "# 台帳\n\n" +
+      "ID | 追加日 | 足した軸 | 由来 | 対象の種類 | 見直しの置き場\n---|---|---|---|---|---\n" +
+      "PC-001 | 2026-09-20 | 軸 | 由来 | feature | #1\n\n" +
+      "| PC-002 | 2026-09-20 | 軸 | 由来 | feature | #1 |\n\n" +
+      RECORD_HEADER,
+    "表の外に表の行",
+  ],
+  // 列が 1 つ欠けた行（5 セル）が表の外として扱われても数える。
+  [
+    ledger([], []).replace(
+      "|---|---|---|---|---|---|\n\n## 既に",
+      "|---|---|---|---|---|---|\n\n| PC-001 | 2026-09-20 | 軸 | 由来 | feature |\n\n## 既に",
+    ),
+    "表の外に表の行",
+  ],
+  // 表の外として扱われた行自身が外側の `|` を省いた形でも数える。
+  [
+    ledger([], []).replace(
+      "|---|---|---|---|---|---|\n\n## 既に",
+      "|---|---|---|---|---|---|\n\nPC-001 | 2026-09-20 | 軸 | 由来 | feature | #1\n\n## 既に",
+    ),
+    "表の外に表の行",
+  ],
+];
+
 test("台帳の表の欠落・語彙外の値・実在しない変更 ID・空の根拠・重複 ID は exit 2 で落とす", () => {
-  const cases = [
-    ["# 台帳\n\n" + CHANGE_HEADER, "表が無い"],
-    [ledger(["| PC-001 | 2026-09-20 | 軸 | 由来 | feature |  |"], []), "見直しの置き場"],
-    [ledger(["| PC-001 | 2026-02-30 | 軸 | 由来 | feature | #1 |"], []), "追加日"],
-    [ledger(["| PC-001 | 2026-09-20 | 軸 | 由来 | screen | #1 |"], []), "対象の種類"],
-    [ledger(["| PC#1 | 2026-09-20 | 軸 | 由来 | feature | #1 |"], []), "# を使わない"],
-    [
-      ledger(
-        [
-          "| PC-001 | 2026-09-20 | 軸 | 由来 | feature | #1 |",
-          "| PC-001 | 2026-09-21 | 軸 | 由来 | feature | #1 |",
-        ],
-        [],
-      ),
-      "ID が重複",
-    ],
-    [
-      ledger([], ["| R-001 | PC-009 | order | 当てない | 2026-09-21 | 理由 |"]),
-      "変更 ID が台帳にも改訂一覧にも無い",
-    ],
-    [ledger([], ["| R-001 | parity-suite#2 | order | 済み | 2026-09-21 | 理由 |"]), "判断が"],
-    [
-      ledger([], ["| R-001 | parity-suite#2 | order | 当てない | 2026-09-21 | - |"]),
-      "根拠・理由が空",
-    ],
-    [
-      ledger([], ["| R-001 | parity-suite#2 | order | 見直し中 | 2026-09-21 | 後で |"]),
-      "#<Issue 番号> で始まらない",
-    ],
-    [
-      ledger([], []).replace(
-        "|---|---|---|---|---|---|\n\n## 既に",
-        "|---|---|---|---|---|---|\n\n| PC-001 | 2026-09-20 | 軸 | 由来 | feature | #1 |\n\n## 既に",
-      ),
-      "表の外に表の行",
-    ],
-    // 外側の `|` を省いた表の行は `|` で始まらない。件数で差し引くと表の外の行を打ち消して通してしまう。
-    [
-      "# 台帳\n\n" +
-        "ID | 追加日 | 足した軸 | 由来 | 対象の種類 | 見直しの置き場\n---|---|---|---|---|---\n" +
-        "PC-001 | 2026-09-20 | 軸 | 由来 | feature | #1\n\n" +
-        "| PC-002 | 2026-09-20 | 軸 | 由来 | feature | #1 |\n\n" +
-        RECORD_HEADER,
-      "表の外に表の行",
-    ],
-    // 列が 1 つ欠けた行（5 セル）が表の外として扱われても数える。
-    [
-      ledger([], []).replace(
-        "|---|---|---|---|---|---|\n\n## 既に",
-        "|---|---|---|---|---|---|\n\n| PC-001 | 2026-09-20 | 軸 | 由来 | feature |\n\n## 既に",
-      ),
-      "表の外に表の行",
-    ],
-    // 表の外として扱われた行自身が外側の `|` を省いた形でも数える。
-    [
-      ledger([], []).replace(
-        "|---|---|---|---|---|---|\n\n## 既に",
-        "|---|---|---|---|---|---|\n\nPC-001 | 2026-09-20 | 軸 | 由来 | feature | #1\n\n## 既に",
-      ),
-      "表の外に表の行",
-    ],
-  ];
-  for (const [text, message] of cases) {
+  for (const [text, message] of BROKEN_LEDGERS) {
     const r = run(
       workspace({ ledger: text, artifacts: { order: meta({ procedure_revision: 2 }) } }),
     );
@@ -348,51 +234,36 @@ test("台帳の表の欠落・語彙外の値・実在しない変更 ID・空�
   }
 });
 
+// order の置き場に置く成果物と、判定不能の理由に含まれるはずの文言の組。
+const UNREADABLE_ARTIFACTS: [string | object, string][] = [
+  [meta({ procedure_revision: "1" }), "procedure_revision"],
+  [meta({ procedure_revision: 3 }), "改訂一覧が古い"],
+  [{ mode: "screen", run: { procedure_revision: 2 } }, "mode"],
+  // 別の機能の成果物が置き場を取り違えて置かれている。
+  [
+    { slug: "order-edit", ...meta({ procedure_revision: 2 }) },
+    "置き場の slug (order) と一致しない",
+  ],
+  [{ slug: null, ...meta({ procedure_revision: 2 }) }, "置き場の slug (order) と一致しない"],
+  ["{", "読めない"],
+];
+
 test("成果物を読めず対象かを決められない機能は合格として扱わず exit 3 にする", () => {
-  const cases: [string | object, string][] = [
-    [meta({ procedure_revision: "1" }), "procedure_revision"],
-    [meta({ procedure_revision: 3 }), "改訂一覧が古い"],
-    [{ mode: "screen", run: { procedure_revision: 2 } }, "mode"],
-    // 別の機能の成果物が置き場を取り違えて置かれている。
-    [
-      { slug: "order-edit", ...meta({ procedure_revision: 2 }) },
-      "置き場の slug (order) と一致しない",
-    ],
-    [{ slug: null, ...meta({ procedure_revision: 2 }) }, "置き場の slug (order) と一致しない"],
-    ["{", "読めない"],
-  ];
-  for (const [artifact, message] of cases) {
+  for (const [artifact, message] of UNREADABLE_ARTIFACTS) {
     const r = run(workspace({ artifacts: { order: artifact } }));
     expect(r.code, message).toBe(3);
     assert.exists(r.json);
     expect(r.json.undeterminable.map((u) => u.reason).join("\n"), message).toContain(message);
   }
-  const placeholder = run(
-    workspace({
-      ledger: ledger(["| PC-001 | 2026-09-20 | 軸 | 由来 | feature | #1 |"], []),
-      artifacts: { order: meta({ procedure_revision: 2, finished_at: "<ISO 8601 の終了日時>" }) },
-    }),
-  );
+  const placeholder = runFinishedAt("2026-09-20", "<ISO 8601 の終了日時>");
   expect(placeholder.code).toBe(3);
   assert.exists(placeholder.json);
   expect(placeholder.json.undeterminable[0]).toMatchObject({ slug: "order", change: "PC-001" });
   // Date.parse が 03-02 へ繰り上げて受理する実在しない日付も、日時として読まない。
-  const impossible = run(
-    workspace({
-      ledger: ledger(["| PC-001 | 2026-09-20 | 軸 | 由来 | feature | #1 |"], []),
-      artifacts: { order: meta({ procedure_revision: 2, finished_at: "2026-02-30T00:00:00Z" }) },
-    }),
-  );
+  const impossible = runFinishedAt("2026-09-20", "2026-02-30T00:00:00Z");
   expect(impossible.code).toBe(3);
   // UTC より遅れたオフセットの終了日時を換算して翌日として扱わない（同じ日の追加の対象に残す）。
-  const behindUtc = run(
-    workspace({
-      ledger: ledger(["| PC-001 | 2026-09-28 | 軸 | 由来 | feature | #1 |"], []),
-      artifacts: {
-        order: meta({ procedure_revision: 2, finished_at: "2026-09-28T20:00:00-05:00" }),
-      },
-    }),
-  );
+  const behindUtc = runFinishedAt("2026-09-28", "2026-09-28T20:00:00-05:00");
   expect(behindUtc.code).toBe(1);
   assert.exists(behindUtc.json);
   expect(behindUtc.json.unresolved.map((u) => u.change)).toEqual(["PC-001"]);

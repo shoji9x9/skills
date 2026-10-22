@@ -12,36 +12,58 @@
 import { test, expect } from "vitest";
 import { flowItems } from "../../../skills/replace-strategy/scripts/append-only-check.mjs";
 import { appendFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { makeTempDirFactory } from "../../lib/testing/test-tmpdir.ts";
+import { join } from "node:path";
 import { spawnAsync } from "../../lib/spawn-async.ts";
 import { parseJsonAs } from "../../lib/parse-as.ts";
 import { invalidInput, removeField } from "../../lib/testing/test-input.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
+import {
+  makeRepo,
+  run,
+  writeManifest,
+  runYaml,
+  commit,
+  readConfig,
+  writeConfig,
+  makeConfigRepo,
+  makeConfigRepoWithPending,
+  makeDependencyRepo,
+  readDependencies,
+  writeDependencies,
+  makeConfigRepoWithFlowPending,
+  makeConfigRepoWithMultilinePending,
+  makeConfigRepoWithQuotedFlowPending,
+  runKeepEdit,
+  makeWrappedConfigRepo,
+  makeHintRepo,
+  jsoncPath,
+  makeJsoncRepo,
+  runJsoncEdit,
+  makeConfigRepoWithEditedValue,
+  makeFillOnlyRepo,
+  replaceIn,
+  historyEntry,
+  makePerfRepo,
+  seededPerformance,
+  pinnedArtifact,
+  tempDir,
+  FEATURES,
+  GAPS,
+  ASSETS,
+  DEPENDENCIES,
+  CONFIG,
+  PENDING_BLOCK,
+  FLOW_PENDING,
+  QUOTED_COMMA_PENDING,
+  WRAPPED_KEEP,
+  JSONC_CONFIG,
+  WEAKNESS_BLANK,
+  WEAKNESS_NONE,
+  FLOORS,
+  RELATIVE_FLOORS,
+  type ParityMetadataDoc,
+} from "./append-only-check-helpers.ts";
 
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const script = join(repoRoot, "skills/replace-strategy/scripts/append-only-check.mjs");
-
-// **テストは `test.concurrent` で並べて実行する**（Issue #590）。どのテストも git とチェックの子プロセスの終了を待つだけなので、
-// 並べた分だけ 1 回の実行が縮み、ミューテーションテストでは変異の数だけ反映される。
-// そのため、テストの間で状態を共有しない。fixture はテストごとに別の一時ディレクトリに作る（`tempDir`）。
-const tempDir = makeTempDirFactory("append-only-check-");
-
-/** parity の metadata.json の未測定の項目（PARITY_METADATA の形）。 */
-type UnmeasuredEntry = {
-  item: string;
-  reason: string;
-  disposition: string;
-  approved_by: string | null;
-  approved_at: string | null;
-};
-/** parity の metadata.json（PARITY_METADATA の形）。 */
-type ParityMetadataDoc = {
-  slug: string;
-  unmeasured: { declared: boolean; entries: UnmeasuredEntry[]; reason: string | null };
-  performance?: unknown;
-};
 /** component-diff-exceptions.json（EXCEPTIONS の形）。 */
 type ExceptionsDoc = {
   component_diff_exceptions: { approved_at: string; [key: string]: unknown }[];
@@ -53,226 +75,6 @@ type DatasetDoc = {
   version_history?: { version: number }[];
   [key: string]: unknown;
 };
-
-const FEATURES = [
-  "# 機能一覧",
-  "",
-  "- 最終更新: 2026-09-01T00:00:00Z",
-  "",
-  "| slug | 名前 | 状態 | Issue |",
-  "|---|---|---|---|",
-  "| order-list | 注文一覧 | 済 | #11 |",
-  "| order-edit | 注文編集 | 未 | 未起票 |",
-  "",
-].join("\n");
-
-const DATASET = `${JSON.stringify({ version: 1, changes: [{ version: 1, affects: ["orders"] }] }, null, 2)}\n`;
-
-const EXCEPTIONS = `${JSON.stringify(
-  {
-    version: 1,
-    slug: "order-list",
-    component_diff_exception_causes: [
-      {
-        id: "font-subset",
-        reason: "サブセット差",
-        evidence: "component-diff-exceptions.md#font-subset",
-      },
-    ],
-    component_diff_exceptions: [
-      {
-        slug: "order-list",
-        page: "/orders",
-        element: "grid",
-        cause: "font-subset",
-        approved_at: "2026-09-01T00:00:00Z",
-      },
-      {
-        slug: "order-list",
-        page: "/users",
-        element: "grid",
-        cause: "font-subset",
-        approved_at: "2026-09-10T00:00:00Z",
-      },
-    ],
-  },
-  null,
-  2,
-)}\n`;
-
-const PARITY_METADATA = `${JSON.stringify(
-  {
-    slug: "order-list",
-    unmeasured: {
-      declared: true,
-      entries: [
-        {
-          item: "一覧の空状態",
-          reason: "シードが無い",
-          disposition: "blocking",
-          approved_by: null,
-          approved_at: null,
-        },
-        {
-          item: "モバイル幅",
-          reason: "撮っていない",
-          disposition: "blocking",
-          approved_by: null,
-          approved_at: null,
-        },
-      ],
-      reason: null,
-    },
-  },
-  null,
-  2,
-)}\n`;
-
-const ASSETS = [
-  "# 移行元の静的資産の台帳（assets）",
-  "",
-  "- 最終更新: 2026-09-01T00:00:00Z",
-  "",
-  "## 方針",
-  "",
-  "| 種類 | ファイル・出どころ | 方針 | 宣言 | 状態 | 決定日・決めた工程 | 理由 |",
-  "|---|---|---|---|---|---|---|",
-  "| ロゴ | `logo.png` | 実体をコピーする | - | 有効 | 2026-09-01・setup | 再配布可を確認済み |",
-  "| 本文の書体 | `body.woff2` | 実体をコピーする | - | 有効 | 2026-09-01・setup | 字形を一致させるため |",
-  "",
-].join("\n");
-
-const DEPENDENCIES = [
-  "# 依存パッケージの決定記録（dependencies）",
-  "",
-  "- 最終更新: 2026-09-01T00:00:00Z",
-  "- 方針の所在: 未確認",
-  "",
-  "## 本文フォント: example-font@1.2.3",
-  "",
-  "- 要件（現行と一致させる条件）: 版とヒンティング命令の有無が一致すること",
-  "- ライセンス: MIT",
-  "",
-].join("\n");
-
-const GAPS = [
-  "# 未検証領域",
-  "",
-  "| 箇所 | 種別 | 理由 |",
-  "|---|---|---|",
-  "| 一覧の空状態 | データ不足 | シードが無い |",
-  "",
-].join("\n");
-
-const EMPTY_EXCEPTIONS = `${JSON.stringify(
-  {
-    version: 1,
-    slug: "order-list",
-    component_diff_exception_causes: [],
-    component_diff_exceptions: [],
-  },
-  null,
-  2,
-)}\n`;
-
-/**
- * git が使えるコミット済みのプロジェクトを作る。
- * @param {{ emptyExceptions?: boolean }} [opts]
- */
-async function makeRepo(opts: { emptyExceptions?: boolean } = {}) {
-  const root = tempDir("append-only-");
-  mkdirSync(join(root, ".replace/parity/order-list"), { recursive: true });
-  mkdirSync(join(root, ".replace/dataset"), { recursive: true });
-  writeFileSync(join(root, ".replace/features.md"), FEATURES);
-  writeFileSync(join(root, ".replace/parity/order-list/gaps.md"), GAPS);
-  writeFileSync(join(root, ".replace/assets.md"), ASSETS);
-  writeFileSync(join(root, ".replace/dependencies.md"), DEPENDENCIES);
-  writeFileSync(join(root, ".replace/dataset/metadata.json"), DATASET);
-  writeFileSync(
-    join(root, ".replace/parity/order-list/component-diff-exceptions.json"),
-    opts.emptyExceptions === true ? EMPTY_EXCEPTIONS : EXCEPTIONS,
-  );
-  writeFileSync(join(root, ".replace/parity/order-list/metadata.json"), PARITY_METADATA);
-  for (const args of [
-    ["init", "-q", "."],
-    ["config", "user.email", "test@example.com"],
-    ["config", "user.name", "test"],
-    ["add", "-A"],
-    ["commit", "-qm", "seed"],
-  ]) {
-    const r = await spawnAsync("git", ["-C", root, ...args], { timeout: CHILD_TIMEOUT_MS });
-    if (r.status !== 0) throw new Error(`git ${args.join(" ")} failed: ${r.stderr}`);
-  }
-  return root;
-}
-
-/**
- * @param {string} root
- * @param {string[]} [extra]
- */
-async function run(root: string, extra: string[] = []) {
-  const r = await spawnAsync(process.execPath, [script, "--root", root, ...extra], {
-    timeout: CHILD_TIMEOUT_MS,
-  });
-  return { status: r.status, stdout: r.stdout, stderr: r.stderr };
-}
-
-/**
- * 一覧を差し替える（unit の語彙・組み合わせを測るため）。
- * @param {string} root
- * @param {unknown[]} artifacts
- * @returns {string}
- */
-function writeManifest(root: string, artifacts: unknown[]): string {
-  const path = join(root, "manifest.json");
-  writeFileSync(path, JSON.stringify({ version: "2", artifacts }));
-  return path;
-}
-
-/**
- * 同梱の一覧の project-config を、YAML の設定ファイル（skills.yml）を lines で守る項目に替えた一覧。
- * 同梱の一覧は JSONC の設定ファイルを jsonc-tree で守る。lines の registry_groups・growable_containers・mutable_blocks は、
- * 一覧をコピーして YAML の成果物を守る利用者のために残しているので、その機能をこの一覧で確かめる。
- * @param {string} root
- * @returns {string}
- */
-function yamlConfigManifest(root: string): string {
-  const bundled = parseJsonAs<{ artifacts: { id: string }[] }>(
-    readFileSync(
-      join(repoRoot, "skills/replace-strategy/assets/append-only-manifest.json"),
-      "utf8",
-    ),
-  );
-  const artifacts = bundled.artifacts.map((a) =>
-    a.id !== "project-config"
-      ? a
-      : {
-          id: "project-config",
-          pattern: ".config/skills/*/skills.yml",
-          unit: "lines",
-          registry_groups: [
-            {
-              id: "intentional-diffs",
-              item_key: "item",
-              paths: [
-                "skills.replace-strategy.intentional_diffs.keep",
-                "skills.replace-strategy.intentional_diffs.may_change",
-                "skills.replace-strategy.intentional_diffs.pending",
-              ],
-            },
-          ],
-          growable_containers: ["skills.replace-strategy.component_diffs"],
-        },
-  );
-  const path = join(root, "yaml-config-manifest.json");
-  writeFileSync(path, JSON.stringify({ version: "2", artifacts }));
-  return path;
-}
-
-/** YAML の設定ファイルを lines で守る一覧で実行する。 */
-async function runYaml(root: string, extra: string[] = []) {
-  return run(root, ["--manifest", yamlConfigManifest(root), ...extra]);
-}
 
 test.concurrent("誤検知しないことの確認: 追記だけなら exit 0", async () => {
   const root = await makeRepo();
@@ -994,99 +796,6 @@ test.concurrent("id が一意で突き合わせ方も同じなら、同じファ
   rmSync(root, { recursive: true, force: true });
 });
 
-// ---------------------------------------------------------------------------
-// 設定ファイル（project-config）の可変領域（Issue #426）
-//
-// intentional_diffs.pending は設定ファイル上で唯一スキルが追記する記録で、棚卸しで人が
-// keep / may_change へ文言を移す。行の多重集合で見ると、この正規の運用が誤って「行が失われた」と判定され、
-// 指示どおり復元すると記録した保留が消える（データを失う方向へ誘導される）。
-// 緩和の範囲が広すぎないことも、検出できることの確認で測る。キーごと消す・keep の要素を落とす・
-// 要素を別物へ差し替える、はいずれも落ちなければならない。
-// ---------------------------------------------------------------------------
-
-// **実在する設定ファイルの入れ子で測る**（`skills.<スキル名>.…`。原本は replace-strategy の
-// references/project-config.md）。mutable_blocks はルートからの完全なパスで探すので、
-// 平らな YAML の fixture では「外せているか」を一度も実証できない。平らな fixture では
-// パスが一致せず、検査が厳しい側と判定されるだけなので、緩和のテストが全部素通りする。
-const CONFIG = [
-  "skills:",
-  "  replace-strategy:",
-  "    new:",
-  "      stack: [typescript]",
-  "    intentional_diffs:",
-  '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
-  "      may_change: [] # 変えてよい（例: ディレクトリ・ファイル名）",
-  "      pending: [] # 保留（測定結果で決める）",
-  "      # ↑ 外した領域の後ろに続く注記（構造行ではないのでブロックを閉じない）",
-  "    component_diffs: []",
-  "    bare_list: []",
-  "",
-].join("\n");
-
-const PENDING_BLOCK = [
-  "      pending: # 保留（測定結果で決める）",
-  "        - item: 一覧の並び順が変わる",
-  "          slug: cross-cutting",
-  "          added_by: replace-strategy",
-  '          added_at: "2026-09-21"',
-  "",
-].join("\n");
-
-/**
- * @param {string} root
- * @param {string} message
- */
-async function commit(root: string, message: string) {
-  for (const args of [
-    ["add", "-A"],
-    ["commit", "-qm", message],
-  ]) {
-    const r = await spawnAsync("git", ["-C", root, ...args], { timeout: CHILD_TIMEOUT_MS });
-    if (r.status !== 0) throw new Error(`git ${args.join(" ")} failed: ${r.stderr}`);
-  }
-}
-
-/** @param {string} root */
-function configPath(root: string) {
-  return join(root, ".config/skills/acme/skills.yml");
-}
-
-/** @param {string} root */
-function readConfig(root: string) {
-  return readFileSync(configPath(root), "utf8");
-}
-
-/**
- * @param {string} root
- * @param {string} text
- */
-function writeConfig(root: string, text: string) {
-  writeFileSync(configPath(root), text);
-}
-
-/**
- * 設定ファイルを持つプロジェクトを作る（比較元にも在る状態で commit 済み）。
- * @param {string} [text]
- */
-async function makeConfigRepo(text = CONFIG) {
-  const root = await makeRepo();
-  mkdirSync(join(root, ".config/skills/acme"), { recursive: true });
-  writeConfig(root, text);
-  await commit(root, "config");
-  return root;
-}
-
-/** pending に 1 件積んだ状態を比較元にする。 */
-async function makeConfigRepoWithPending() {
-  const root = await makeConfigRepo();
-  writeConfig(
-    root,
-    readConfig(root).replace("      pending: [] # 保留（測定結果で決める）\n", PENDING_BLOCK),
-  );
-  await commit(root, "pending に 1 件");
-  return root;
-}
-
 test.concurrent("空リストのキーへ最初の要素をブロック形式で足しても縮小に数えない（Issue #426）", async () => {
   const root = await makeConfigRepo();
   writeConfig(
@@ -1399,51 +1108,8 @@ test.concurrent("unit が markdown-structure なのに mutable_blocks があれ�
   rmSync(root, { recursive: true, force: true });
 });
 
-// ---------------------------------------------------------------------------
-// 依存台帳の決定を覆す（Issue #428）
-//
-// 決定が覆ったら行を消さず「状態」列を 取り消し済み にして新しい行を追記する。
-// 状態列だけが mutable_columns なので、それ以外の列の書き換えと行の削除は落ちる。
-// ---------------------------------------------------------------------------
-
-const DEPENDENCY_TABLE = [
-  "# 依存パッケージの決定記録（dependencies）",
-  "",
-  "- 最終更新: 2026-09-01T00:00:00Z",
-  "- 方針の所在: 未確認",
-  "",
-  "## 一覧",
-  "",
-  "| 部品（用途） | 決定 | 採用したもの | 適用範囲 | 状態 | 決定時期 | 理由・引き取り手 |",
-  "|---|---|---|---|---|---|---|",
-  "| データグリッド | パッケージ採用 | example-grid@4.5.0 | 全機能 | 有効 | setup | - |",
-  "| 確認ダイアログ | 未確認 | — | — | 有効 | setup | 削除ボタンでしか出せず現行 target で削除が禁止されている |",
-  "",
-].join("\n");
-
 const OVERTURNED_ROW =
   "| 確認ダイアログ | 未確認 | — | — | 取り消し済み（2026-09-21 → 下の行） | setup | 削除ボタンでしか出せず現行 target で削除が禁止されている |";
-
-/** 依存台帳（表つき）を比較元に持つプロジェクトを作る。 */
-async function makeDependencyRepo() {
-  const root = await makeRepo();
-  writeFileSync(join(root, ".replace/dependencies.md"), DEPENDENCY_TABLE);
-  await commit(root, "dependencies 台帳");
-  return root;
-}
-
-/** @param {string} root */
-function readDependencies(root: string) {
-  return readFileSync(join(root, ".replace/dependencies.md"), "utf8");
-}
-
-/**
- * @param {string} root
- * @param {string} text
- */
-function writeDependencies(root: string, text: string) {
-  writeFileSync(join(root, ".replace/dependencies.md"), text);
-}
 
 test.concurrent("決定を覆すとき状態列の更新 ＋ 新しい行の追記なら通る（Issue #428）", async () => {
   const root = await makeDependencyRepo();
@@ -1948,24 +1614,6 @@ test.concurrent("registry の鍵の配下がリストでなければ行のまま
   rmSync(root, { recursive: true, force: true });
 });
 
-// ---------------------------------------------------------------------------
-// フロー形式の registry 要素・オプション間の入れ子（PR #429 のレビュー指摘・6 巡目）
-// ---------------------------------------------------------------------------
-
-const FLOW_PENDING =
-  "      pending: [{item: 合計の丸め, slug: cross-cutting, added_by: replace-strategy}] # 保留（測定結果で決める）\n";
-
-/** pending にフロー形式のマッピング要素を 1 件積んだ状態を比較元にする。 */
-async function makeConfigRepoWithFlowPending() {
-  const root = await makeConfigRepo();
-  writeConfig(
-    root,
-    readConfig(root).replace("      pending: [] # 保留（測定結果で決める）\n", FLOW_PENDING),
-  );
-  await commit(root, "pending にフロー形式で 1 件");
-  return root;
-}
-
 test.concurrent("フロー形式のマッピング要素も照合キーで棚卸しできる（追随フィールドを単位にしない）", async () => {
   const root = await makeConfigRepoWithFlowPending();
   writeConfig(
@@ -2000,33 +1648,6 @@ test.concurrent("フロー形式で照合キーの値を差し替えれば落ち
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
-
-// 1 行に収まらない照合キーの値（PR #429 のレビュー指摘・8 巡目）
-// ---------------------------------------------------------------------------
-
-const MULTILINE_PENDING = [
-  "      pending: # 保留（測定結果で決める）",
-  "        - item:",
-  "            合計の丸めが現行と違う",
-  "          slug: cross-cutting",
-  "          added_by: replace-strategy",
-  "        - item: >-",
-  "            確認ダイアログを出さない",
-  "          slug: cross-cutting",
-  "          added_by: parity-diff",
-  "",
-].join("\n");
-
-/** 照合キーの値が 1 行に収まらない要素（プレーン多行スカラー・ブロックスカラー）を比較元にする。 */
-async function makeConfigRepoWithMultilinePending() {
-  const root = await makeConfigRepo();
-  writeConfig(
-    root,
-    readConfig(root).replace("      pending: [] # 保留（測定結果で決める）\n", MULTILINE_PENDING),
-  );
-  await commit(root, "pending に 1 行に収まらない値の要素");
-  return root;
-}
 
 test.concurrent("プレーン多行スカラーの要素を丸ごと消せば落ちる（畳んで単位ゼロにしない）", async () => {
   const root = await makeConfigRepoWithMultilinePending();
@@ -2084,24 +1705,6 @@ test.concurrent("閉じない引用符の値の続きの行も単位から落と
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
-
-// ---------------------------------------------------------------------------
-const QUOTED_COMMA_PENDING =
-  '      pending: [{item: "順序は id, 名前の順", slug: cross-cutting}] # 保留（測定結果で決める）\n';
-
-/** 引用符の中にカンマを持つフロー形式のマッピング要素を比較元にする。 */
-async function makeConfigRepoWithQuotedFlowPending() {
-  const root = await makeConfigRepo();
-  writeConfig(
-    root,
-    readConfig(root).replace(
-      "      pending: [] # 保留（測定結果で決める）\n",
-      QUOTED_COMMA_PENDING,
-    ),
-  );
-  await commit(root, "pending に引用符つきカンマを含む要素");
-  return root;
-}
 
 test.concurrent("マッピングの値の引用符も開く（値の中のカンマでペアを割らない）", async () => {
   const root = await makeConfigRepoWithQuotedFlowPending();
@@ -2186,25 +1789,6 @@ test.concurrent("同じキーパスを 2 つのオプションに書けば合格
   rmSync(root, { recursive: true, force: true });
 });
 
-// --- 1 行で閉じないフロー形式のコンテナ（#430） ---
-//
-// `flowItems` は `raw.slice(1, -1)` で末尾 1 文字を閉じ括弧と決め打ちしていたため、折り返された
-// コンテナを「読めた」ことにしていた（`[` は空、`[ "a",` は要素 1 件）。読めたことにすると
-// 折り返しの中身が空に見え、要素を足しただけの編集が誤って縮小と判定される。
-
-/**
- * growable_containers に a.keep を名指しした設定で、比較元 before を after へ書き換えて実行する。
- * @param {string} before
- * @param {string} after
- */
-async function runKeepEdit(before: string, after: string) {
-  const { root, manifest } = await makeHintRepo({ growable_containers: ["a.keep"] }, before);
-  writeConfig(root, after);
-  const r = await run(root, ["--manifest", manifest]);
-  rmSync(root, { recursive: true, force: true });
-  return r;
-}
-
 test.concurrent("1 行で閉じないフロー形式のコンテナは読めたことにしない（null）", () => {
   // 折り返しの各形。`[` を空コンテナ（`[]`）、`[ "a",` を要素 1 件と読んだのが #430 の直接の原因。
   expect(flowItems("[")).toBeNull();
@@ -2227,24 +1811,6 @@ test.concurrent("誤検知しないことの確認: 1 行で閉じるコンテ�
   expect(flowItems('["a, b", c]')).toEqual(["a, b", "c"]);
   expect(flowItems('[{item: "a"}]')).toEqual(['{item: "a"}']);
 });
-
-/** keep を折り返した形で書いた設定ファイル。 */
-const WRAPPED_KEEP = [
-  "      keep: [",
-  '        "テーブル名を保つ",',
-  '        "項目名を保つ"',
-  "      ] # 変えない（例: テーブル名、項目名）",
-].join("\n");
-
-/** @param {string} root */
-async function makeWrappedConfigRepo() {
-  return await makeConfigRepo(
-    CONFIG.replace(
-      '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
-      WRAPPED_KEEP,
-    ),
-  );
-}
 
 test.concurrent("折り返したコンテナへ追記しただけなら通る（#430 の再現手順）", async () => {
   const root = await makeWrappedConfigRepo();
@@ -2716,18 +2282,6 @@ const HINT_CLOSED = HINT_BASE.replace('    "y"\n', '    "y",\n    "z"\n');
 /** 1 行へ畳んだ（要素行の注記の置き場所が無い）。 */
 const HINT_FOLDED = 'a:\n  keep: ["x", "y", "z"] # 鍵\n  next: 1\n';
 
-/**
- * @param {Record<string, unknown>} option
- * @param {string} before
- */
-async function makeHintRepo(option: Record<string, unknown>, before: string) {
-  const root = await makeConfigRepo(before);
-  const manifest = writeManifest(root, [
-    { id: "c", pattern: ".config/skills/*/skills.yml", unit: "lines", ...option },
-  ]);
-  return { root, manifest };
-}
-
 const HINT_OPTIONS: [string, Record<string, unknown>][] = [
   ["growable_containers", { growable_containers: ["a.keep"] }],
   ["registry_groups", { registry_groups: [{ id: "g", item_key: "item", paths: ["a.keep"] }] }],
@@ -3022,62 +2576,6 @@ test.concurrent("mutable_blocks で鍵を丸ごと消しても「人が確認し
   rmSync(root, { recursive: true, force: true });
 });
 
-// ---------------------------------------------------------------------------
-// JSONC の設定ファイル（project-config。unit: jsonc-tree）
-//
-// 同梱の一覧は .config/skills/*/replace-strategy.jsonc を jsonc-tree で守る。
-// 通す側（キー・要素・コメントを足す、pending の文言を keep へ移す）と、
-// 落とす側（値の書き換え・キーの削除・要素の削除・コメントの削除・読めない JSONC）を両方測る。
-// ---------------------------------------------------------------------------
-
-const JSONC_CONFIG = [
-  "{",
-  "  // 現行アプリ",
-  '  "current": { "repo": "none", "stack": ["typescript"] },',
-  '  "targets": [',
-  '    { "name": "current-test", "side": "current", "url": "http://localhost:8080" }, // 測定の対象',
-  "  ],",
-  '  "references": { "architecture": "" },',
-  '  "intentional_diffs": {',
-  '    "keep": ["テーブル名を保つ"], // 変えない',
-  '    "may_change": [],',
-  '    "pending": [',
-  '      { "item": "一覧の並び順が変わる", "slug": "cross-cutting", "added_by": "replace-strategy", "added_at": "2026-09-21" }, // 測定で決める',
-  "    ],",
-  "  },",
-  '  "component_diffs": [{ "component": "heading", "property": "border-style", "current": "none", "new": "solid", "reason": "テーマ" }],',
-  "}",
-  "",
-].join("\n");
-
-/** @param {string} root */
-function jsoncPath(root: string) {
-  return join(root, ".config/skills/shoji9x9/replace-strategy.jsonc");
-}
-
-/** JSONC の設定ファイルを持つプロジェクトを作る（比較元にも在る状態で commit 済み）。 */
-async function makeJsoncRepo(text = JSONC_CONFIG) {
-  const root = await makeRepo();
-  mkdirSync(dirname(jsoncPath(root)), { recursive: true });
-  writeFileSync(jsoncPath(root), text);
-  await commit(root, "jsonc config");
-  return root;
-}
-
-/**
- * @param {string} from
- * @param {string} to
- */
-async function runJsoncEdit(from: string, to: string) {
-  const root = await makeJsoncRepo();
-  const before = readFileSync(jsoncPath(root), "utf8");
-  if (!before.includes(from)) throw new Error(`置換元が無い: ${from}`);
-  writeFileSync(jsoncPath(root), before.replace(from, to));
-  const r = await run(root);
-  rmSync(root, { recursive: true, force: true });
-  return r;
-}
-
 test.concurrent.each([
   [
     "キーを足す",
@@ -3132,61 +2630,81 @@ test.concurrent.each([
 });
 
 test.concurrent.each([
-  ["スカラの値を書き換える", '"repo": "none"', '"repo": "acme/app"', /current\.repo = "none"/],
-  [
-    "target の値を書き換える",
-    '"url": "http://localhost:8080"',
-    '"url": "http://localhost:9090"',
-    /targets\[\]\.url/,
-  ],
-  [
-    "配列の要素を消す",
-    '"stack": ["typescript"]',
-    '"stack": []',
-    /current\.stack\[\] = "typescript"/,
-  ],
-  ["キーを消す", '  "references": { "architecture": "" },\n', "", /<key: references>/],
+  {
+    name: "スカラの値を書き換える",
+    from: '"repo": "none"',
+    to: '"repo": "acme/app"',
+    unit: /current\.repo = "none"/,
+  },
+  {
+    name: "target の値を書き換える",
+    from: '"url": "http://localhost:8080"',
+    to: '"url": "http://localhost:9090"',
+    unit: /targets\[\]\.url/,
+  },
+  {
+    name: "配列の要素を消す",
+    from: '"stack": ["typescript"]',
+    to: '"stack": []',
+    unit: /current\.stack\[\] = "typescript"/,
+  },
+  {
+    name: "キーを消す",
+    from: '  "references": { "architecture": "" },\n',
+    to: "",
+    unit: /<key: references>/,
+  },
   // 空の配列は要素の単位を持たないので、型の単位が無いと書き換えても消える単位が無い
-  [
-    "空の配列を null にする",
-    '"may_change": []',
-    '"may_change": null',
-    /<array: intentional_diffs\.may_change>/,
-  ],
-  [
-    "空の配列を文字列にする",
-    '"may_change": []',
-    '"may_change": ""',
-    /<array: intentional_diffs\.may_change>/,
-  ],
-  [
-    "オブジェクトを配列にする",
-    '"references": { "architecture": "" }',
-    '"references": [{ "architecture": "" }]',
-    /<object: references>/,
-  ],
-  ["コメントを消す", "  // 現行アプリ\n", "", /<comment> \/\/ 現行アプリ/],
-  ["行末のコメントを消す", " // 測定の対象", "", /<comment> \/\/ 測定の対象/],
-  ["keep の行末のコメント（鍵の注記）を消す", " // 変えない", "", /<comment> \/\/ 変えない/],
-  [
-    "pending の要素を消す（どの鍵にも移さない）",
-    '      { "item": "一覧の並び順が変わる", "slug": "cross-cutting", "added_by": "replace-strategy", "added_at": "2026-09-21" }, // 測定で決める\n',
-    "",
-    /registry-item: intentional-diffs> 一覧の並び順が変わる/,
-  ],
-  [
-    "pending をキーごと消す",
-    '    "pending": [',
-    '    "pending_x": [',
-    /<key: intentional_diffs\.pending>/,
-  ],
-  [
-    "component_diffs の要素を消す",
-    '[{ "component": "heading", "property": "border-style", "current": "none", "new": "solid", "reason": "テーマ" }]',
-    "[]",
-    /<item: component_diffs>/,
-  ],
-])("jsonc-tree: %s は落とす", async (_name, from, to, unit) => {
+  {
+    name: "空の配列を null にする",
+    from: '"may_change": []',
+    to: '"may_change": null',
+    unit: /<array: intentional_diffs\.may_change>/,
+  },
+  {
+    name: "空の配列を文字列にする",
+    from: '"may_change": []',
+    to: '"may_change": ""',
+    unit: /<array: intentional_diffs\.may_change>/,
+  },
+  {
+    name: "オブジェクトを配列にする",
+    from: '"references": { "architecture": "" }',
+    to: '"references": [{ "architecture": "" }]',
+    unit: /<object: references>/,
+  },
+  { name: "コメントを消す", from: "  // 現行アプリ\n", to: "", unit: /<comment> \/\/ 現行アプリ/ },
+  {
+    name: "行末のコメントを消す",
+    from: " // 測定の対象",
+    to: "",
+    unit: /<comment> \/\/ 測定の対象/,
+  },
+  {
+    name: "keep の行末のコメント（鍵の注記）を消す",
+    from: " // 変えない",
+    to: "",
+    unit: /<comment> \/\/ 変えない/,
+  },
+  {
+    name: "pending の要素を消す（どの鍵にも移さない）",
+    from: '      { "item": "一覧の並び順が変わる", "slug": "cross-cutting", "added_by": "replace-strategy", "added_at": "2026-09-21" }, // 測定で決める\n',
+    to: "",
+    unit: /registry-item: intentional-diffs> 一覧の並び順が変わる/,
+  },
+  {
+    name: "pending をキーごと消す",
+    from: '    "pending": [',
+    to: '    "pending_x": [',
+    unit: /<key: intentional_diffs\.pending>/,
+  },
+  {
+    name: "component_diffs の要素を消す",
+    from: '[{ "component": "heading", "property": "border-style", "current": "none", "new": "solid", "reason": "テーマ" }]',
+    to: "[]",
+    unit: /<item: component_diffs>/,
+  },
+])("jsonc-tree: $name は落とす", async ({ from, to, unit }) => {
   const r = await runJsoncEdit(from, to);
   expect(r.stdout).toMatch(/replace-strategy\.jsonc/);
   expect(r.stdout).toMatch(unit);
@@ -3280,18 +2798,6 @@ test.concurrent("jsonc-tree: mutable_columns など他の unit のオプショ�
   rmSync(root, { recursive: true, force: true });
 });
 
-// ---- --exclude（利用者の pre-commit・CI へ組み込むとき、設定ファイルを外す。#540）----
-
-/** 設定ファイルの既存の値を書き換えた作業ツリー（他スキルの設定を直す正当な編集に当たる）。 */
-async function makeConfigRepoWithEditedValue() {
-  const root = await makeJsoncRepo();
-  writeFileSync(
-    jsoncPath(root),
-    JSONC_CONFIG.replace('"stack": ["typescript"]', '"stack": ["javascript"]'),
-  );
-  return root;
-}
-
 test.concurrent("対照: --exclude なしでは設定ファイルの既存の値の書き換えを縮小として落とす", async () => {
   const root = await makeConfigRepoWithEditedValue();
   const r = await run(root);
@@ -3353,88 +2859,12 @@ test.concurrent.each([
   rmSync(root, { recursive: true, force: true });
 });
 
-// ---------------------------------------------------------------------------
-// 表の列の「空 → 非空だけ」（fill_only_columns。Issue #527）
-//
-// 空欄で追記し後で人が決定を埋める列は、mutable_columns に置くと決めた値の書き換えまで通り、
-// どちらにも置かないと、空欄を埋めるだけの正規の編集が誤って縮小と判定される。
-// 通す側（埋める）と落とす側（差し替え・消去）を両方測る。
-// 台帳は同梱の一覧（デフォルトの --manifest）で測る。一覧の列名がテンプレートの列名と食い違うと、緩和が一度も適用されない。
-// ---------------------------------------------------------------------------
-
-const WEAKNESS_HEADER =
-  "| 弱点 | 分類 | 攻撃の流れ | 基準（1 / 2 / 3） | 仕分け | 宣言 | 扱う設計作業 | 露出を広げた差異 | 状態 | 決定日・決めた工程 | 根拠 |";
-const WEAKNESS_DECIDED =
-  "| CSRF | A01 | `POST /api/orders` | 満 / 満 / 否 | 引き継ぐ | 書き込みの API は text/plain を受け付ける | #123 | - | 有効 | 2026-09-01・setup | 現行ソースのハンドラ |";
-const WEAKNESS_BLANK =
-  "| IDOR | A01 | `GET /api/orders/:id` | 満 / 満 / 満 |  |  |  | - | 有効 |  | 現行ソースのハンドラ |";
-const WEAKNESS_UNCONFIRMED =
-  "| XSS | A03 | `GET /settings` | 満 / 未確認 / 満 |  |  |  | - | 有効 |  | 保存した値を描画へ使う |";
-const WEAKNESS_NONE =
-  "| 該当なし（A04） | A04 | - | - | 該当なし | - | - | - | 有効 | 2026-09-01・setup | 探した場所 |";
-
-/** 弱点台帳と方針空欄の行を持つ資産台帳を比較元に持つプロジェクトを作る。 */
-async function makeFillOnlyRepo() {
-  const root = await makeRepo();
-  writeFileSync(
-    join(root, ".replace/weaknesses.md"),
-    [
-      "# 現行の弱点の仕分け（weaknesses）",
-      "",
-      "- 最終更新: 2026-09-01T00:00:00Z",
-      "",
-      "## 仕分け",
-      "",
-      WEAKNESS_HEADER,
-      "|---|---|---|---|---|---|---|---|---|---|---|",
-      WEAKNESS_DECIDED,
-      WEAKNESS_BLANK,
-      WEAKNESS_UNCONFIRMED,
-      WEAKNESS_NONE,
-      "",
-    ].join("\n"),
-  );
-  writeFileSync(
-    join(root, ".replace/assets.md"),
-    [
-      "# 移行元の静的資産の台帳（assets）",
-      "",
-      "- 最終更新: 2026-09-01T00:00:00Z",
-      "",
-      "## 方針",
-      "",
-      "| 種類 | ファイル・出どころ | 描き方と使われるページ | 方針 | 再配布の可否（根拠） | 同等物で残る差 | 宣言 | 状態 | 決定日・決めた工程 | 理由 |",
-      "|---|---|---|---|---|---|---|---|---|---|",
-      "| ロゴ | `logo.png` | `img`、ヘッダー | 実体をコピーする | 可（ライセンス・2026-09-01） | - | - | 有効 | 2026-09-01・setup | 字形を一致させるため |",
-      "| 状態アイコン | `close.png` | `::before` のグリフ、/orders |  | 未確認 |  |  | 有効 |  | 再配布の可否を確認中 |",
-      "",
-    ].join("\n"),
-  );
-  await commit(root, "fill-only 台帳");
-  return root;
-}
-
-/**
- * @param {string} root
- * @param {string} file
- * @param {string} from
- * @param {string} to
- */
-function replaceIn(root: string, file: string, from: string, to: string) {
-  const path = join(root, file);
-  const text = readFileSync(path, "utf8");
-  if (!text.includes(from)) throw new Error(`置換元が無い: ${from}`);
-  writeFileSync(path, text.replace(from, to));
-}
-
 test.concurrent("weaknesses.md の仕分け空欄の行の決定の列（空セル）をその場で埋めると通る（fill_only_columns）", async () => {
   const root = await makeFillOnlyRepo();
-  replaceIn(
-    root,
-    ".replace/weaknesses.md",
-    WEAKNESS_BLANK,
-    "| IDOR | A01 | `GET /api/orders/:id` | 満 / 満 / 満 | 直す | 注文の詳細 API は所有者以外に 404 を返す | #200 | - | 有効 | 2026-09-20・order-detail | 現行ソースのハンドラ |",
-  );
+  replaceIn(root, ".replace/weaknesses.md", {
+    from: WEAKNESS_BLANK,
+    to: "| IDOR | A01 | `GET /api/orders/:id` | 満 / 満 / 満 | 直す | 注文の詳細 API は所有者以外に 404 を返す | #200 | - | 有効 | 2026-09-20・order-detail | 現行ソースのハンドラ |",
+  });
   const r = await run(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
@@ -3443,7 +2873,7 @@ test.concurrent("weaknesses.md の仕分け空欄の行の決定の列（空セ�
 
 test.concurrent("weaknesses.md の決めた仕分けを書き換えると落ちる（引き継ぐ → 直す）", async () => {
   const root = await makeFillOnlyRepo();
-  replaceIn(root, ".replace/weaknesses.md", "/ 否 | 引き継ぐ |", "/ 否 | 直す |");
+  replaceIn(root, ".replace/weaknesses.md", { from: "/ 否 | 引き継ぐ |", to: "/ 否 | 直す |" });
   const r = await run(root);
   expect(r.stdout).toMatch(/CSRF@0\|仕分け=引き継ぐ/);
   expect(r.status).toBe(1);
@@ -3452,7 +2882,7 @@ test.concurrent("weaknesses.md の決めた仕分けを書き換えると落ち�
 
 test.concurrent("weaknesses.md の入っている値を未記入（-）へ戻すと落ちる", async () => {
   const root = await makeFillOnlyRepo();
-  replaceIn(root, ".replace/weaknesses.md", "| #123 |", "| - |");
+  replaceIn(root, ".replace/weaknesses.md", { from: "| #123 |", to: "| - |" });
   const r = await run(root);
   expect(r.stdout).toMatch(/CSRF@0\|扱う設計作業=#123/);
   expect(r.status).toBe(1);
@@ -3461,7 +2891,10 @@ test.concurrent("weaknesses.md の入っている値を未記入（-）へ戻す
 
 test.concurrent("weaknesses.md の基準の 未確認 は未記入とみなさない（書き換えると落ちる）", async () => {
   const root = await makeFillOnlyRepo();
-  replaceIn(root, ".replace/weaknesses.md", "| 満 / 未確認 / 満 |", "| 満 / 満 / 満 |");
+  replaceIn(root, ".replace/weaknesses.md", {
+    from: "| 満 / 未確認 / 満 |",
+    to: "| 満 / 満 / 満 |",
+  });
   const r = await run(root);
   expect(r.stdout).toMatch(/XSS@0\|基準（1 \/ 2 \/ 3）=満 \/ 未確認 \/ 満/);
   expect(r.status).toBe(1);
@@ -3470,12 +2903,10 @@ test.concurrent("weaknesses.md の基準の 未確認 は未記入とみなさ�
 
 test.concurrent("weaknesses.md の決めた「該当なし」（-）を値へ書き換えると落ちる（- は未記入ではない）", async () => {
   const root = await makeFillOnlyRepo();
-  replaceIn(
-    root,
-    ".replace/weaknesses.md",
-    WEAKNESS_NONE,
-    "| 該当なし（A04） | A04 | - | - | 該当なし | パスワードは平文で保存する | - | - | 有効 | 2026-09-01・setup | 探した場所 |",
-  );
+  replaceIn(root, ".replace/weaknesses.md", {
+    from: WEAKNESS_NONE,
+    to: "| 該当なし（A04） | A04 | - | - | 該当なし | パスワードは平文で保存する | - | - | 有効 | 2026-09-01・setup | 探した場所 |",
+  });
   const r = await run(root);
   expect(r.stdout).toMatch(/該当なし（A04）@0\|宣言=-/);
   expect(r.status).toBe(1);
@@ -3484,12 +2915,10 @@ test.concurrent("weaknesses.md の決めた「該当なし」（-）を値へ書
 
 test.concurrent("assets.md の決めた行の同等物で残る差（-）を値へ書き換えると落ちる（- は未記入ではない）", async () => {
   const root = await makeFillOnlyRepo();
-  replaceIn(
-    root,
-    ".replace/assets.md",
-    "| 可（ライセンス・2026-09-01） | - |",
-    "| 可（ライセンス・2026-09-01） | 字形が違う |",
-  );
+  replaceIn(root, ".replace/assets.md", {
+    from: "| 可（ライセンス・2026-09-01） | - |",
+    to: "| 可（ライセンス・2026-09-01） | 字形が違う |",
+  });
   const r = await run(root);
   expect(r.stdout).toMatch(/ロゴ@0\|同等物で残る差=-/);
   expect(r.status).toBe(1);
@@ -3498,12 +2927,10 @@ test.concurrent("assets.md の決めた行の同等物で残る差（-）を値�
 
 test.concurrent("assets.md の方針空欄の行を後から埋めると通る（fill_only_columns）", async () => {
   const root = await makeFillOnlyRepo();
-  replaceIn(
-    root,
-    ".replace/assets.md",
-    "| 状態アイコン | `close.png` | `::before` のグリフ、/orders |  | 未確認 |  |  | 有効 |  | 再配布の可否を確認中 |",
-    "| 状態アイコン | `close.png` | `::before` のグリフ、/orders | コピーしない | 未確認 | - | - | 有効 | 2026-09-20・order-list | 描いているのは書体のグリフ |",
-  );
+  replaceIn(root, ".replace/assets.md", {
+    from: "| 状態アイコン | `close.png` | `::before` のグリフ、/orders |  | 未確認 |  |  | 有効 |  | 再配布の可否を確認中 |",
+    to: "| 状態アイコン | `close.png` | `::before` のグリフ、/orders | コピーしない | 未確認 | - | - | 有効 | 2026-09-20・order-list | 描いているのは書体のグリフ |",
+  });
   const r = await run(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
@@ -3512,7 +2939,10 @@ test.concurrent("assets.md の方針空欄の行を後から埋めると通る�
 
 test.concurrent("assets.md の入っている方針を差し替えると落ちる", async () => {
   const root = await makeFillOnlyRepo();
-  replaceIn(root, ".replace/assets.md", "| 実体をコピーする | 可", "| 同等物を作る | 可");
+  replaceIn(root, ".replace/assets.md", {
+    from: "| 実体をコピーする | 可",
+    to: "| 同等物を作る | 可",
+  });
   const r = await run(root);
   expect(r.stdout).toMatch(/ロゴ@0\|方針=実体をコピーする/);
   expect(r.status).toBe(1);
@@ -3600,66 +3030,6 @@ test.concurrent("同じファイルに fill_only_columns の違う項目が当�
   expect(r.stderr).toMatch(/同じファイルに突き合わせ方の違う一覧の項目が当たっている/);
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
-});
-
-// pinned_values（Issue #582）。性能の許容幅の下限は利用者の決定で、採取から導けない。
-// 手で緩めると本物の回帰が許容幅の中に入るので、履歴（floor_history）を追記しない変更を落とす。
-// 落とす入力（追記なしの変更・記録と合わない追記・履歴の削除と書き換え）と同じ数だけ、通る入力
-// （履歴を追記した変更・初めて書く・下限を変えない採り直し・他の項目だけの変更）を置く。
-
-const FLOORS = { lcp: 100, cls: 0.01, tbt: 50, ttfb: 50 };
-const RELATIVE_FLOORS = { lcp: 0.2, cls: 0, tbt: 0.2, ttfb: 0.2 };
-
-/** 履歴の 1 件（perf-stats.mjs summarize --write が書く形）。 */
-const historyEntry = (
-  floors: Record<string, number> = FLOORS,
-  relativeFloors: Record<string, number> = RELATIVE_FLOORS,
-  sha = "a".repeat(64),
-) => ({
-  floors,
-  relative_floors: relativeFloors,
-  samples_sha256: sha,
-  measured_at: "2026-10-08T00:00:00.000Z",
-});
-
-/** parity の metadata.json の performance（seededPerformance の形）。 */
-type Performance = {
-  floors: Record<string, number>;
-  relative_floors: Record<string, number>;
-  floor_history: ReturnType<typeof historyEntry>[];
-  [key: string]: unknown;
-};
-
-/**
- * performance を持つ parity の metadata.json を commit したプロジェクトを作る。
- * @param {Record<string, unknown> | undefined} performance
- */
-async function makePerfRepo(performance: Record<string, unknown> | undefined) {
-  const root = await makeRepo();
-  const path = join(root, ".replace/parity/order-list/metadata.json");
-  const doc = parseJsonAs<ParityMetadataDoc>(readFileSync(path, "utf8"));
-  if (performance !== undefined) doc.performance = performance;
-  writeFileSync(path, `${JSON.stringify(doc, null, 2)}\n`);
-  const r = await spawnAsync("git", ["-C", root, "commit", "-qam", "perf"], {
-    timeout: CHILD_TIMEOUT_MS,
-  });
-  if (r.status !== 0 && performance !== undefined) throw new Error(r.stderr);
-  /** @param {(perf: Record<string, unknown>, doc: Record<string, unknown>) => void} edit */
-  const edit = (edit: (perf: Performance, doc: Record<string, unknown>) => void) => {
-    const now = parseJsonAs<{ performance: Performance; [key: string]: unknown }>(
-      readFileSync(path, "utf8"),
-    );
-    edit(now.performance, now);
-    writeFileSync(path, `${JSON.stringify(now, null, 2)}\n`);
-  };
-  return { root, edit };
-}
-
-const seededPerformance = () => ({
-  declared: true,
-  floors: { ...FLOORS },
-  relative_floors: { ...RELATIVE_FLOORS },
-  floor_history: [historyEntry()],
 });
 
 test.concurrent("履歴を追記せずに floors を緩めると落ちる", async () => {
@@ -3867,16 +3237,6 @@ test.concurrent("key を持たない json-arrays でも pinned_values で単独�
   expect(ok.stdout).toMatch(/^ok: /m);
   expect(ok.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
-});
-
-/** parity の metadata.json に当てる一覧の項目（pinned_values だけを差し替える）。 */
-const pinnedArtifact = (pinned: unknown) => ({
-  id: "parity-unmeasured",
-  pattern: ".replace/parity/*/metadata.json",
-  unit: "json-arrays",
-  arrays: ["unmeasured.entries"],
-  key: "item",
-  pinned_values: pinned,
 });
 
 test.concurrent.each([

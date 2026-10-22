@@ -15,16 +15,10 @@
 //   - amend-verify: null / 記録が無い / change_id 違い / 組が無い / pass でない / sha256 不一致 / 有効
 // git は本物のリポジトリを一時ディレクトリに作って使う（fixture は scripts/skills/parity-suite/evidence/evidence-carry-fixture.ts）。
 
-import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { assert, expect, test } from "vitest";
-import {
-  judgeCarry,
-  LEGACY_HINT,
-} from "../../../../skills/parity-suite/scripts/evidence-carry.mjs";
-import { fingerprintOf } from "../../../../skills/parity-suite/scripts/component-comparison-check.mjs";
+import { LEGACY_HINT } from "../../../../skills/parity-suite/scripts/evidence-carry.mjs";
 import {
   AFFECTED_PAIR,
   CHANGE_ID,
@@ -34,67 +28,31 @@ import {
   amendVerifyPair,
   type ChangeDeclaration,
   type ComponentMetadata,
-  type FeatureMetadata,
   changeDeclaration,
   commit,
   featureMetadata,
-  makeCarryProject,
   writeJson,
 } from "./evidence-carry-fixture.ts";
-import { makeTempDirFactory } from "../../../lib/testing/test-tmpdir.ts";
-import { spawnAsync } from "../../../lib/spawn-async.ts";
 import { removeField } from "../../../lib/testing/test-input.ts";
 import { parseJsonAs } from "../../../lib/parse-as.ts";
 import { isArray } from "../../../lib/is-array.ts";
-import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
-
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
+import {
+  type AmendRecord,
+  editRecordPair,
+  judge,
+  moveCurrent,
+  type Project,
+  project,
+  repoRoot,
+  runBoth,
+  writeCheckerInputs,
+} from "./evidence-carry-helpers.ts";
 
 // **テストは `test.concurrent` で並べて実行する**（Issue #590）。両チェックを CLI として起動するテストは子プロセスの
 // 終了を待つだけなので、その間に他のテストが進み、ミューテーションテストでは変異の数だけ反映される。
 // 判定を同じプロセスで呼ぶテストは同期なので 1 本ずつ進むが、子プロセスの待ちとは重なる。
-// そのため、テストの間で状態を共有しない。fixture はテストごとに別の一時ディレクトリに作り、ファイルの終わりに消す。
-const tempDir = makeTempDirFactory("evidence-carry-");
-
-/**
- * fixture を作る。
- * @param {Parameters<typeof makeCarryProject>[0]} [options]
- */
-function project(options?: Parameters<typeof makeCarryProject>[0]) {
-  return makeCarryProject({ ...options, makeDir: tempDir });
-}
-
-type Project = ReturnType<typeof project>;
-
-/** amend-verify の記録の 1 組。 */
-type RecordPair = ReturnType<typeof amendVerifyPair>;
-
-/** amend-verify の記録のうち、テストが書き換える欄。 */
-type AmendRecord = { tool: string; change_id: string; pairs: RecordPair[] };
-
-/** 機能の metadata.json のうち、テストが消す欄を持つ形。 */
-type FeatureMetadataFile = FeatureMetadata & { suite: Record<string, unknown> };
-
-/** component-comparison-check の CLI が stdout に書く結果のうち、テストが読む部分。 */
-type ComparisonResult = { findings: { code: string; message: string }[]; notes: string[] };
-
-/**
- * judgeCarry を fixture の既定値で呼ぶ。
- * @param {ReturnType<typeof project>} p
- * @param {Partial<Parameters<typeof judgeCarry>[0]>} [override]
- */
-function judge(p: Project, override: Partial<Parameters<typeof judgeCarry>[0]> = {}) {
-  return judgeCarry({
-    recordedCommit: p.commits.base,
-    wantedCommit: p.commits.component,
-    renderInputs: RENDER_INPUTS,
-    repo: p.repo,
-    evidenceCarryPath: p.evidenceCarryPath,
-    featureSlug: FEATURE,
-    replaceRoot: p.replaceRoot,
-    ...override,
-  });
-}
+// そのため、テストの間で状態を共有しない。fixture はテストごとに別の一時ディレクトリに作り、ファイルの終わりに消す
+// （evidence-carry-helpers.ts の project）。
 
 /** 同梱テンプレートの render_inputs（プレースホルダ）。 */
 const templateRenderInputs = parseJsonAs<{ new: { render_inputs: unknown } }>(
@@ -319,13 +277,6 @@ test.concurrent.each([
   },
 );
 
-/** 記録の組を書き換える。 */
-function editRecordPair(p: Project, edit: (entry: RecordPair) => void) {
-  const record = parseJsonAs<AmendRecord>(readFileSync(join(p.root, p.recordPath), "utf8"));
-  edit(record.pairs[0]);
-  writeJson(join(p.root, p.recordPath), record);
-}
-
 test.concurrent("影響あり・記録の margin が変更宣言の margin_px と違う: 持ち越さない", () => {
   const p = project();
   editRecordPair(p, (entry) => {
@@ -385,21 +336,6 @@ test.concurrent("影響あり・inputs.new が撮り直した組とは別のペ�
   expect(result.ok).toBe(false);
   expect(result.findings.join("\n")).toContain("inputs.new が撮り直した組の採取物");
 });
-
-/**
- * 記録の current を現側の基準の下の別のパスへ置き直す（ファイルも作り、sha256 を合わせる）。
- * @param {ReturnType<typeof project>} p
- * @param {string} rel `.replace/parity/<slug>/baseline/` からの相対パス
- */
-function moveCurrent(p: Project, rel: string) {
-  const path = `.replace/parity/${FEATURE}/baseline/${rel}`;
-  const body = `PNG current ${rel}\n`;
-  mkdirSync(dirname(join(p.root, path)), { recursive: true });
-  writeFileSync(join(p.root, path), body);
-  editRecordPair(p, (entry) => {
-    entry.inputs.current = { path, sha256: createHash("sha256").update(body).digest("hex") };
-  });
-}
 
 test.concurrent("影響あり・current が別の組の現側の基準（ハッシュは一致する）: 持ち越さない", () => {
   const p = project();
@@ -645,113 +581,6 @@ test.concurrent("--replace-root を決められない: 落とす", () => {
 });
 
 // 2 つのチェックが同じ fixture に同じ判定を出すこと（どちらも judgeCarry で判定する）。
-const healthCheck = join(repoRoot, "skills/parity-suite/scripts/artifact-health-check.mjs");
-const comparisonCheck = join(
-  repoRoot,
-  "skills/parity-suite/scripts/component-comparison-check.mjs",
-);
-
-/**
- * 両方のチェックが読む成果物を、記録の版 recorded・今の版 wanted で書く。
- * @param {ReturnType<typeof project>} p
- * @param {string} recorded
- * @param {string} wanted
- */
-function writeCheckerInputs(p: Project, recorded: string, wanted: string) {
-  // artifact-health-check の他の節（採取物・反復実行・未測定）はキーごと持たない旧成果物として判定させない
-  // （雛形のプレースホルダで落ちると、持ち越しの判定と区別できない）。
-  const metadata = parseJsonAs<FeatureMetadataFile>(
-    readFileSync(join(p.slugDir, "metadata.json"), "utf8"),
-  );
-  delete metadata.artifact_health;
-  delete metadata.unmeasured;
-  delete metadata.suite.state_mutating;
-  writeJson(join(p.slugDir, "metadata.json"), metadata);
-  writeJson(join(p.stageDir, "replace-metadata.json"), {
-    suite: { new_green: true },
-    new: { target: TARGET, commit: wanted, dirty: false, render_inputs: RENDER_INPUTS },
-    loop: { iterations: 2 },
-  });
-  writeJson(join(p.stageDir, "diff-metadata.json"), {
-    new: { target: TARGET, commit: recorded },
-    iteration: 2,
-    dataset_version: null,
-    dataset_version_exempt: "投入対象でない target",
-    converged: true,
-  });
-  const keys = ["grid|sort|grid@list"];
-  writeJson(join(p.slugDir, "component-coverage.json"), {
-    slug: FEATURE,
-    measured_target: "current",
-    cells: [
-      {
-        component: "grid",
-        item: "sort",
-        instance: "grid@list",
-        value: "present",
-        evidence: "読了",
-      },
-    ],
-  });
-  writeJson(join(p.stageDir, "component-comparison.json"), {
-    slug: FEATURE,
-    target: TARGET,
-    source_coverage: { path: "component-coverage.json", fingerprint: fingerprintOf(keys) },
-    new_implementation: { commit: recorded, dirty: false },
-    cells: [
-      {
-        component: "grid",
-        item: "sort",
-        instance: "grid@list",
-        compared: true,
-        evidence: { entry: "押せた", hit_area: "見出し全体", completion: "並んだ" },
-      },
-    ],
-  });
-}
-
-/**
- * 両方のチェックを CLI として回す。
- * @param {ReturnType<typeof project>} p
- * @param {{ carryTo?: string, newRepo?: boolean }} [options] carryTo は両方へ --carry-to で渡す。newRepo: false で --new-repo を渡さない
- */
-async function runBoth(p: Project, options: { carryTo?: string; newRepo?: boolean } = {}) {
-  const extra = [
-    ...(options.newRepo === false ? [] : ["--new-repo", p.repo]),
-    ...(options.carryTo === undefined ? [] : ["--carry-to", options.carryTo]),
-  ];
-  // 2 つのチェックは互いに独立なので、並べて起動する。
-  const [health, comparison] = await Promise.all([
-    spawnAsync(
-      process.execPath,
-      [healthCheck, "--metadata", join(p.slugDir, "metadata.json"), "--target", TARGET, ...extra],
-      { timeout: CHILD_TIMEOUT_MS },
-    ),
-    spawnAsync(
-      process.execPath,
-      [
-        comparisonCheck,
-        "--coverage",
-        join(p.slugDir, "component-coverage.json"),
-        "--comparison",
-        join(p.stageDir, "component-comparison.json"),
-        "--target",
-        TARGET,
-        "--replace-metadata",
-        join(p.stageDir, "replace-metadata.json"),
-        ...extra,
-      ],
-      { timeout: CHILD_TIMEOUT_MS },
-    ),
-  ]);
-  return {
-    health,
-    comparison,
-    // stdout が空なら null。使う側は assert.exists で絞ってから読む
-    comparisonResult:
-      comparison.stdout === "" ? null : parseJsonAs<ComparisonResult>(comparison.stdout),
-  };
-}
 
 test.concurrent("両チェックの一致: 持ち越せる fixture では両方とも合格", async () => {
   const p = project();

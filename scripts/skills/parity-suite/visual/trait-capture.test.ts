@@ -2,13 +2,8 @@
 // 併せて、採った対象が「画面に描かれているもの」かの判定と子の inline style の記録（Issue #386）、
 // 文字の持ち主（text_owners）の採取（Issue #459）、スクロールするコンテナの特性（scroll）の採取（Issue #495）。
 
-import { assert, expect, test } from "vitest";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
-const script = join(repoRoot, "skills/parity-suite/scripts/trait-capture.mjs");
-const {
+import { expect, test } from "vitest";
+import {
   FIXED_PROPERTIES,
   TEXT_OWNER_PROPERTIES,
   SCROLLBAR_PROPERTIES,
@@ -16,214 +11,22 @@ const {
   SCROLLBAR_PSEUDO_PROPERTIES,
   VERSION,
   captureTraits,
-}: typeof import("../../../../skills/parity-suite/scripts/trait-capture.mjs") = await import(
-  script
-);
-
-type Rect = { x: number; y: number; width: number; height: number };
-type Styles = Record<string, string>;
-// 偽の DOM のノード。テキストノードと要素で持つ項目が違い、テストごとに足す項目（getBoundingClientRect など）もあるので開いた形にする
-type FakeNode = { [key: string]: unknown; parentNode?: FakeNode; parentElement?: FakeNode };
-// Range が選ぶテキストノードの形（textNode が作る）
-type RangeTarget = { rect: Rect; fragments?: Rect[]; lead?: number; trail?: number };
-type FakeLocatorOptions = {
-  pseudoContent?: string;
-  pseudoStyles?: Styles;
-  origin?: string;
-  rect?: Rect;
-  scroll?: { x: number; y: number };
-  viewport?: { width: number; height: number };
-  documentSize?: { width: number; height: number };
-  children?: { tag?: string; style?: string }[];
-  childNodes?: FakeNode[];
-  shadowRoot?: { childNodes: FakeNode[] } | null;
-  rootTextStyle?: Styles | null;
-  box?: Record<string, number> | null;
-  pseudoStylesBy?: Record<string, Styles>;
-  webkitSupported?: boolean | null;
-};
-type FakeComputedStyle = { content: string; getPropertyValue: (prop: string) => string };
-// lib に DOM を入れていないので、偽ロケータが差し替えるブラウザの大域変数の型をここで宣言する
-type FakeBrowserGlobals = {
-  getComputedStyle: (
-    element: { textStyle?: Styles } | null | undefined,
-    pseudo?: string,
-  ) => FakeComputedStyle;
-  location: { origin: string };
-  document: { documentElement: { scrollWidth: number; scrollHeight: number } };
-  scrollX: number;
-  scrollY: number;
-  innerWidth: number;
-  innerHeight: number;
-  CSS: { supports: (query: string) => boolean } | undefined;
-};
-// oxlint-disable-next-line typescript/consistent-type-assertions -- テストが後から足す偽の大域変数は、globalThis の型に無いので宣言で足せない
-const browser = globalThis as typeof globalThis & FakeBrowserGlobals;
-
-/** captureTraits が返す 1 要素の特性。 */
-type CapturedTrait = Awaited<ReturnType<typeof captureTraits>>[number];
-
-/** スクロールするコンテナとして採った特性の scroll（コンテナでなければテストを失敗させる）。 */
-function scrollOf(trait: CapturedTrait) {
-  assert.exists(trait.scroll, `${trait.name} の scroll が null`);
-  return trait.scroll;
-}
-
-/** ::-webkit-scrollbar 系を読めたブラウザで採った webkit（unsupported ならテストを失敗させる）。 */
-function webkitOf(trait: CapturedTrait) {
-  const { webkit } = scrollOf(trait);
-  assert(webkit !== "unsupported", `${trait.name} の webkit が unsupported`);
-  return webkit;
-}
-
-// captureElement は locator.evaluate に文字列化して渡る純関数なので、
-// evaluate を「渡された関数をブラウザ相当のスタブへ当てる」偽ロケータで実行して検証する。
-function fakeLocator(
-  styles: Styles,
-  {
-    pseudoContent = "none",
-    pseudoStyles = styles,
-    origin = "http://legacy.example:8811",
-    rect = { x: 1, y: 2, width: 3, height: 4 },
-    scroll = { x: 0, y: 0 },
-    viewport = { width: 1280, height: 800 },
-    documentSize = { width: 1280, height: 800 },
-    children = [],
-    childNodes = [],
-    shadowRoot = null,
-    // el 自身が文字の持ち主になる場合の計算値（styles に重ねる。省略時は textStyle を持たない）
-    rootTextStyle = null,
-    // コンテナの寸法（offsetWidth 等）。省略時は offsetWidth を持たない（HTML 要素でない）扱いで scroll は null
-    box = null,
-    // 擬似要素ごとの計算値（::-webkit-scrollbar 系）。無い擬似要素は pseudoStyles を返す
-    pseudoStylesBy = {},
-    // CSS.supports("selector(::-webkit-scrollbar)") の答え。null なら CSS を置かない
-    webkitSupported = true,
-  }: FakeLocatorOptions = {},
-) {
-  return {
-    evaluate(fn: (el: unknown, props: unknown) => unknown, props: unknown) {
-      const el = {
-        getBoundingClientRect: () => rect,
-        children: children.map((child) => ({
-          tagName: (child.tag ?? "span").toUpperCase(),
-          getAttribute: (name: string) => (name === "style" ? (child.style ?? null) : null),
-        })),
-        tagName: "BUTTON",
-        textStyle: rootTextStyle ? { ...styles, ...rootTextStyle } : undefined,
-        childNodes,
-        shadowRoot,
-        ...box,
-        ownerDocument: {
-          // canvas の measureText は文字数 × 13 の幅と 12 + 3 の高さを返す偽（ボタンとして描く <input> 用）
-          // 大文字を含む文字列には 1000 を足し、letterSpacing は 1 文字ごとに足す（渡した形を区別するため）
-          createElement: () => ({
-            getContext: () => ({
-              font: "",
-              letterSpacing: "0px",
-              measureText(t: string) {
-                const spacing = parseFloat(this.letterSpacing) || 0;
-                return {
-                  width: t.length * 13 + spacing * t.length + (/[A-Z]/.test(t) ? 1000 : 0),
-                  fontBoundingBoxAscent: 12,
-                  fontBoundingBoxDescent: 3,
-                };
-              },
-            }),
-          }),
-          // Range は selectNodeContents したテキストノードの矩形（textNode の rect）を返す
-          createRange: () => {
-            let target: RangeTarget | null = null;
-            let start: number | null = null;
-            // captureElement は範囲を選んでから矩形を読むので、読む時点で target は入っている
-            const selected = (): RangeTarget => {
-              assert.exists(target, "範囲を選ぶ前に矩形を読んだ");
-              return target;
-            };
-            return {
-              selectNodeContents: (node: RangeTarget) => {
-                target = node;
-              },
-              // 部分範囲（端の空白の幅を測る）。先頭からの範囲は lead、それ以外は trail の幅を返す
-              setStart: (node: RangeTarget, offset: number) => {
-                target = node;
-                start = offset;
-              },
-              setEnd: () => {},
-              getBoundingClientRect: () => selected().rect,
-              // 行の断片。折り返す文字は fragments で複数を渡す（省略時は矩形 1 つ）
-              getClientRects: () =>
-                start === null
-                  ? (selected().fragments ?? [selected().rect])
-                  : [
-                      {
-                        x: 0,
-                        y: 0,
-                        width: (start === 0 ? selected().lead : selected().trail) ?? 0,
-                        height: 1,
-                      },
-                    ],
-            };
-          },
-        },
-      };
-      const previousStyle = browser.getComputedStyle;
-      const previousLocation = browser.location;
-      const previousDocument = browser.document;
-      const previousScrollX = browser.scrollX;
-      const previousScrollY = browser.scrollY;
-      const previousInnerWidth = browser.innerWidth;
-      const previousInnerHeight = browser.innerHeight;
-      const previousCSS = browser.CSS;
-      browser.getComputedStyle = (element, pseudo) => ({
-        content: pseudo ? pseudoContent : "normal",
-        getPropertyValue: (prop: string) =>
-          (element && element.textStyle
-            ? element.textStyle
-            : pseudo
-              ? (pseudoStylesBy[pseudo] ?? pseudoStyles)
-              : styles)[prop] ?? "",
-      });
-      browser.CSS =
-        webkitSupported === null
-          ? undefined
-          : {
-              supports: (query: string) =>
-                query === "selector(::-webkit-scrollbar)" && webkitSupported,
-            };
-      browser.location = { origin };
-      browser.document = {
-        documentElement: { scrollWidth: documentSize.width, scrollHeight: documentSize.height },
-      };
-      browser.scrollX = scroll.x;
-      browser.scrollY = scroll.y;
-      browser.innerWidth = viewport.width;
-      browser.innerHeight = viewport.height;
-      try {
-        return Promise.resolve(fn(el, props));
-      } finally {
-        browser.getComputedStyle = previousStyle;
-        browser.location = previousLocation;
-        browser.document = previousDocument;
-        browser.scrollX = previousScrollX;
-        browser.scrollY = previousScrollY;
-        browser.innerWidth = previousInnerWidth;
-        browser.innerHeight = previousInnerHeight;
-        browser.CSS = previousCSS;
-      }
-    },
-  };
-}
-
-// 実測（Chrome 経由）: cursor: url(cur.png) の計算値は自分のオリジンで絶対化され、
-// 同じ CSS が http://127.0.0.1:8811 と :8822 で別文字列になる。
-const cursorOn = (origin: string, path: string) => `url("${origin}/${path}"), pointer`;
-
-function allResolved(overrides: Styles = {}): Styles {
-  return Object.fromEntries(
-    FIXED_PROPERTIES.map((prop: string) => [prop, overrides[prop] ?? "0px"]),
-  );
-}
+  type Rect,
+  type Styles,
+  type FakeNode,
+  scrollOf,
+  webkitOf,
+  fakeLocator,
+  cursorOn,
+  allResolved,
+  textNode,
+  elementNode,
+  fontOf,
+  rootWith,
+  scrollStyles,
+  scrollbarPseudo,
+  gridBox,
+} from "./trait-capture-helpers.ts";
 
 test.each([
   // 操作の手応えを決めるが静止画に出ない
@@ -537,58 +340,7 @@ type TextOwner = {
   rect: Rect;
 };
 
-// 偽の DOM。要素は textStyle（その要素の計算値）を持ち、テキストノードは rect（Range の矩形）を持つ。
-// parentElement / parentNode は組み立て後に張る。
-function textNode(
-  value: string,
-  rect: Rect = { x: 0, y: 0, width: 24, height: 14 },
-  fragments?: Rect[],
-  edges: { lead?: number; trail?: number } = {},
-): FakeNode {
-  return { nodeType: 3, nodeValue: value, rect, fragments, ...edges };
-}
-function elementNode(
-  tag: string,
-  childNodes: FakeNode[] = [],
-  textStyle: Styles = {},
-  extra: Record<string, unknown> = {},
-): FakeNode {
-  const node: FakeNode = {
-    nodeType: 1,
-    tagName: tag.toUpperCase(),
-    childNodes,
-    textStyle,
-    ...extra,
-  };
-  for (const child of childNodes) {
-    child.parentNode = node;
-    child.parentElement = node;
-  }
-  return node;
-}
-function fontOf(overrides: Styles = {}): Styles {
-  return {
-    "font-family": "arial, sans-serif",
-    "font-size": "13.3333px",
-    "font-style": "normal",
-    "font-weight": "400",
-    "line-height": "normal",
-    visibility: "visible",
-    "overflow-x": "visible",
-    "overflow-y": "visible",
-    clip: "auto",
-    ...overrides,
-  };
-}
-// 名前を付けた要素自身。直下のテキストノードの親は el 自身なので、el と同じ計算値（styles）を返す偽を張る。
-function rootWith(childNodes: FakeNode[], rootStyle: Styles = fontOf()) {
-  const root: FakeNode = { textStyle: rootStyle, tagName: "BUTTON", nodeType: 1 };
-  for (const child of childNodes) {
-    child.parentNode = root;
-    child.parentElement = root;
-  }
-  return root;
-}
+// --- 文字の持ち主（Issue #459） ---
 
 test("文字の持ち主の固定集合と VERSION が対応している", () => {
   expect([...TEXT_OWNER_PROPERTIES]).toEqual([
@@ -713,11 +465,17 @@ test("同じ持ち主の文字は 1 行にまとめ、寸法は断片の合計�
 // 実ブラウザでは折り返した Text ノードの外接矩形が「1 行目の左端〜最終行の右端」まで広がる。
 // 比較に使う寸法は行の断片から出し、外接矩形の幅を使わない。
 test("折り返した文字の寸法は行の断片から出す（外接矩形の幅を使わない）", async () => {
-  const text = textNode("長い説明文", { x: 0, y: 0, width: 100, height: 32 }, [
-    { x: 0, y: 0, width: 100, height: 16 },
-    { x: 0, y: 16, width: 30, height: 16 },
-    { x: 30, y: 16, width: 0, height: 0 },
-  ]);
+  const text = textNode(
+    "長い説明文",
+    { x: 0, y: 0, width: 100, height: 32 },
+    {
+      fragments: [
+        { x: 0, y: 0, width: 100, height: 16 },
+        { x: 0, y: 16, width: 30, height: 16 },
+        { x: 30, y: 16, width: 0, height: 0 },
+      ],
+    },
+  );
   const span = elementNode("span", [text], fontOf());
   const locator = fakeLocator(allResolved(), { childNodes: [span] });
   rootWith([span]);
@@ -759,11 +517,17 @@ test("同じ持ち主の文字が複数のテキストノードに分かれて�
 // 行の断片の高さは行送りではなく書体の高さなので、line-height を詰めると上下の行の断片が重なる
 // （実測: 16px・line-height: 1 で断片の高さ 18、行送り 16）。重なりで数えると 3 行の折り返しが 1 行になる。
 test("line-height を詰めて行の断片が縦に重なっても、折り返した行を数える", async () => {
-  const text = textNode("長い説明文", { x: 0, y: 0, width: 100, height: 50 }, [
-    { x: 0, y: 0, width: 100, height: 18 },
-    { x: 0, y: 16, width: 100, height: 18 },
-    { x: 0, y: 32, width: 40, height: 18 },
-  ]);
+  const text = textNode(
+    "長い説明文",
+    { x: 0, y: 0, width: 100, height: 50 },
+    {
+      fragments: [
+        { x: 0, y: 0, width: 100, height: 18 },
+        { x: 0, y: 16, width: 100, height: 18 },
+        { x: 0, y: 32, width: 40, height: 18 },
+      ],
+    },
+  );
   const span = elementNode("span", [text], fontOf());
   const locator = fakeLocator(allResolved(), { childNodes: [span] });
   rootWith([span]);
@@ -773,7 +537,8 @@ test("line-height を詰めて行の断片が縦に重なっても、折り返�
 
 // 視覚的に隠した文字（sr-only）は矩形の面積も visibility も通常の文字と同じなので、祖先の切り抜きで判定する。
 // 数えると、現行の <span class="sr-only">閉じる</span> と新側の aria-label で見た目が同じでも件数差が出る。
-test.each([
+// 名前が長く $name では切り詰められるので、行を配列のまま 1 つの引数で受ける test.for にする。
+test.for<[string, { width: number; height: number }, Record<string, string>, string[]]>([
   ["1px の箱に overflow: hidden で閉じ込めた文字（sr-only）", { width: 1, height: 1 }, {}, []],
   [
     "clip: rect(0 0 0 0) の文字",
@@ -787,12 +552,14 @@ test.each([
     {},
     ["長い説明"],
   ],
-])("%s", async (_name, boxSize, clipStyle, expected) => {
+])("%s", async ([, boxSize, clipStyle, expected]) => {
   const text = textNode("長い説明", { x: 0, y: 0, width: 270, height: 17 });
-  const box = elementNode(
-    "span",
-    [text],
-    fontOf({ "overflow-x": "hidden", "overflow-y": "hidden", ...clipStyle }),
+  const box = Object.assign(
+    elementNode(
+      "span",
+      [text],
+      fontOf({ "overflow-x": "hidden", "overflow-y": "hidden", ...clipStyle }),
+    ),
     {
       getBoundingClientRect: () => ({ x: 0, y: 0, ...boxSize }),
     },
@@ -806,13 +573,13 @@ test.each([
 // <input type=submit value="検索"> はテキストノードを持たずに文字を描く。数えないと <button>検索</button> への
 // 置き換えで、見た目が同じでも件数の差が出る。
 test("ボタンとして描く <input> の value を文字の持ち主として採る", async () => {
-  const input = elementNode("input", [], fontOf(), {
+  const input = Object.assign(elementNode("input", [], fontOf()), {
     type: "submit",
     value: "検索",
     hasAttribute: (name: string) => name === "value",
     getBoundingClientRect: () => ({ x: 0, y: 0, width: 60, height: 24 }),
   });
-  const text = elementNode("input", [], fontOf(), {
+  const text = Object.assign(elementNode("input", [], fontOf()), {
     type: "text",
     value: "入力値",
     hasAttribute: (name: string) => name === "value",
@@ -844,14 +611,10 @@ test("持ち主の端の空白の幅は数えず、中の空白（空白だけ�
     return trait.text_owners.map((o: TextOwner) => [o.text, o.advance]);
   };
   const b = (text: string, width: number, edges?: { lead?: number; trail?: number }) =>
-    elementNode(
-      "b",
-      [textNode(text, { x: 0, y: 0, width, height: 14 }, undefined, edges)],
-      fontOf(),
-    );
+    elementNode("b", [textNode(text, { x: 0, y: 0, width, height: 14 }, { ...edges })], fontOf());
   // 境目の空白が p 側にある形と b 側にある形
   const trailing = await capture([
-    textNode("合計 ", { x: 0, y: 0, width: 36, height: 14 }, undefined, { trail: 4 }),
+    textNode("合計 ", { x: 0, y: 0, width: 36, height: 14 }, { trail: 4 }),
     b("3件", 25),
   ]);
   const leading = await capture([
@@ -866,7 +629,7 @@ test("持ち主の端の空白の幅は数えず、中の空白（空白だけ�
   // 空白だけのノードが中にある形は、1 ノードで描いた幅と同じになる
   const split = await capture([
     textNode("合計", { x: 0, y: 0, width: 32, height: 14 }),
-    textNode(" ", { x: 32, y: 0, width: 4, height: 14 }, undefined, { lead: 4, trail: 4 }),
+    textNode(" ", { x: 32, y: 0, width: 4, height: 14 }, { lead: 4, trail: 4 }),
     textNode("3", { x: 36, y: 0, width: 9, height: 14 }),
   ]);
   expect(split).toEqual([["合計 3", 45]]);
@@ -874,10 +637,8 @@ test("持ち主の端の空白の幅は数えず、中の空白（空白だけ�
 
 // canvas は text-transform と letter-spacing を当てないので、描く側と同じ形へ寄せてから測る。
 test("ボタンとして描く <input> の文字は text-transform と letter-spacing を当てて測る", async () => {
-  const input = elementNode(
-    "input",
-    [],
-    fontOf({ "text-transform": "uppercase", "letter-spacing": "1px" }),
+  const input = Object.assign(
+    elementNode("input", [], fontOf({ "text-transform": "uppercase", "letter-spacing": "1px" })),
     {
       type: "submit",
       value: "search",
@@ -896,13 +657,13 @@ test("ボタンとして描く <input> の文字は text-transform と letter-sp
 // value 属性の無い submit / reset は、ブラウザが既定の文言を描くが DOM から読めない。
 test("value 属性の無い submit は文字列を空にした行として数え、type=button は数えない", async () => {
   const box = () => ({ x: 0, y: 0, width: 60, height: 24 });
-  const submit = elementNode("input", [], fontOf(), {
+  const submit = Object.assign(elementNode("input", [], fontOf()), {
     type: "submit",
     value: "",
     hasAttribute: () => false,
     getBoundingClientRect: box,
   });
-  const button = elementNode("input", [], fontOf(), {
+  const button = Object.assign(elementNode("input", [], fontOf()), {
     type: "button",
     value: "",
     hasAttribute: () => false,
@@ -918,12 +679,7 @@ test("value 属性の無い submit は文字列を空にした行として数え
 test("NBSP と全角スペースは空白として畳まず、端の幅からも外さない", async () => {
   const span = elementNode(
     "span",
-    [
-      textNode("\u3000設定\u00a0", { x: 0, y: 0, width: 50, height: 14 }, undefined, {
-        lead: 16,
-        trail: 4,
-      }),
-    ],
+    [textNode("\u3000設定\u00a0", { x: 0, y: 0, width: 50, height: 14 }, { lead: 16, trail: 4 })],
     fontOf(),
   );
   const blank = elementNode(
@@ -943,7 +699,7 @@ test("NBSP と全角スペースは空白として畳まず、端の幅からも
 // 開いたシャドウルートは中を辿り、ライト DOM の子は <slot> に割り当てられた位置で数える（描かれる順）。
 test("シャドウルートの中と slot に割り当てられた文字を、描かれる順に採る", async () => {
   const label = elementNode("span", [textNode("ラベル")], fontOf());
-  const slot = elementNode("slot", [], fontOf(), { assignedNodes: () => [label] });
+  const slot = Object.assign(elementNode("slot", [], fontOf()), { assignedNodes: () => [label] });
   const before = elementNode("b", [textNode("前")], fontOf({ "font-size": "20px" }));
   const after = elementNode("i", [textNode("後")], fontOf());
   const shadowRoot = { childNodes: [before, slot, after] };
@@ -960,7 +716,7 @@ test("シャドウルートの中と slot に割り当てられた文字を、�
 // 実測: シャドウ内の <button style="font-size:30px"><slot> に割り当てた文字を parentElement で採ると、ホストの 16px が記録された。
 test("slot に割り当てられた文字の持ち主は、DOM の親ではなく slot になる", async () => {
   const label = textNode("ラベル");
-  const slot = elementNode("slot", [], fontOf({ "font-size": "30px" }), {
+  const slot = Object.assign(elementNode("slot", [], fontOf({ "font-size": "30px" })), {
     assignedNodes: () => [label],
   });
   const shadowRoot = { childNodes: [slot] };
@@ -990,43 +746,6 @@ test("文字の持ち主で解決しないプロパティ名は空文字で通�
 test("文字が無ければ空配列になる（キーの欠落と区別する）", async () => {
   const [trait] = await captureTraits([{ name: "x", locator: fakeLocator(allResolved()) }]);
   expect(trait.text_owners).toEqual([]);
-});
-
-// スクロールするコンテナ（Issue #495）。実例: ダイアログの中のデータグリッドで、現行は overflow: auto、新側は
-// overflow-x: hidden。スクロールバーが場所を取る撮影では、現行だけ縦のバーの 15px で中身がはみ出して横のバーが出る。
-// 値は Chrome 149 の実測（枠 0・コンテナ 628×298、中身 628 幅）に合わせている。
-function scrollStyles(overrides: Styles = {}): Styles {
-  // allResolved は固定集合のキーしか持たないので、スクロールバーの宣言は外で重ねる
-  return {
-    ...allResolved({
-      "overflow-x": "auto",
-      "overflow-y": "auto",
-      "border-top-width": "0px",
-      "border-right-width": "0px",
-      "border-bottom-width": "0px",
-      "border-left-width": "0px",
-    }),
-    "scrollbar-width": "auto",
-    "scrollbar-color": "auto",
-    "scrollbar-gutter": "auto",
-    ...overrides,
-  };
-}
-function scrollbarPseudo(overrides: Styles = {}): Styles {
-  return Object.fromEntries(
-    SCROLLBAR_PSEUDO_PROPERTIES.map((prop: string) => [
-      prop,
-      overrides[prop] ?? (prop.endsWith("color") ? "rgba(0, 0, 0, 0)" : "auto"),
-    ]),
-  );
-}
-const gridBox = (clientWidth: number, clientHeight: number) => ({
-  offsetWidth: 628,
-  offsetHeight: 298,
-  clientWidth,
-  clientHeight,
-  scrollWidth: 628,
-  scrollHeight: 900,
 });
 
 test("スクロールするコンテナの固定集合と VERSION が対応している", () => {

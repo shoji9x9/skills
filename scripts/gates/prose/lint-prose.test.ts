@@ -16,11 +16,12 @@
 // | 実行のしかた       | 全体（引数なし）/ ファイル指定（lefthook）/ 対象 0 件                          |
 import { afterAll, assert, beforeAll, describe, expect, test, vi } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PENDING_PATH, lintProse, loadPending, main } from "./lint-prose.ts";
 import { COMMENT_EXTENSIONS } from "../../lib/text/code-comments.ts";
+import { write } from "../../lib/testing/repo-file.ts";
 import { makeSharedTempDir, makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { spawnAsync } from "../../lib/spawn-async.ts";
 import { parseJsonAs } from "../../lib/parse-as.ts";
@@ -40,11 +41,6 @@ const CLEAN = "# 手順\n\nこの手順でファイルを確認する。\n";
 // textlint-disable
 const DIRTY = "# 手順\n\n一覧はこのファイルが正本である。\n";
 // textlint-enable
-
-function write(root: string, path: string, text: string) {
-  mkdirSync(dirname(join(root, path)), { recursive: true });
-  writeFileSync(join(root, path), text);
-}
 
 /** `files` を置いて git に登録し、`pending` を保留の一覧として書いた一時リポジトリ。 */
 function makeRepo(files: Record<string, string>, pending: string[] | null = []) {

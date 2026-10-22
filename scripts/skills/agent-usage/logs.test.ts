@@ -11,10 +11,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
-import {
-  classifyUserEntry,
-  parseClaudeSession,
-} from "../../../skills/agent-usage/scripts/lib/sources/claude-log.mjs";
+import { classifyUserEntry } from "../../../skills/agent-usage/scripts/lib/sources/claude-log.mjs";
 import {
   codexTokens,
   parseCodexLog,
@@ -30,40 +27,7 @@ import {
 } from "../../../skills/agent-usage/scripts/lib/sources/discover.mjs";
 import { isInside } from "../../../skills/agent-usage/scripts/lib/repo.mjs";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
-
-const T = (min: number) => `2026-10-01T00:${String(min).padStart(2, "0")}:00.000Z`;
-// 60 分以上は T の書式に収まらないので、0 分からの経過で求める
-const ms = (min: number) => Date.parse(T(0)) + min * 60000;
-const jsonl = (rows: object[]) => rows.map((r) => JSON.stringify(r)).join("\n");
-
-const human = (min: number, text = "やって") => ({
-  type: "user",
-  timestamp: T(min),
-  origin: { kind: "human" },
-  message: { role: "user", content: text },
-});
-const assistant = (min: number, id: string, usage: object, content: object[] = []) => ({
-  type: "assistant",
-  timestamp: T(min),
-  message: { id, model: "claude-opus-5-5", usage, content },
-});
-const turnEnd = (min: number) => ({ type: "system", subtype: "turn_duration", timestamp: T(min) });
-
-/** ログをファイルに書き、他のモジュールが使う parseClaudeSession で読む。sub はサブエージェントのファイル。 */
-function parseClaude(main: string | object[] | null, sub: object[][] = []) {
-  const dir = makeTempDir("agent-usage-claude-log-");
-  let mainPath: string | null = null;
-  if (main !== null) {
-    mainPath = join(dir, "s1.jsonl");
-    writeFileSync(mainPath, typeof main === "string" ? main : jsonl(main));
-  }
-  const subPaths = sub.map((rows, i) => {
-    const path = join(dir, `agent-${i}.jsonl`);
-    writeFileSync(path, jsonl(rows));
-    return path;
-  });
-  return parseClaudeSession("s1", mainPath, subPaths);
-}
+import { T, ms, jsonl, human, assistant, turnEnd, parseClaude } from "./logs-helpers.ts";
 
 // classifyUserEntry の戻り値は、user の行が prompt の行（human）になるか、自動の再開（auto）か、どちらでもない（other）かの判定と同じ意味を持つ。
 describe("classifyUserEntry", () => {
@@ -103,17 +67,21 @@ describe("Claude Code のログ", () => {
   test("同じ message.id の複数行は欄ごとの最大を取り、<synthetic> は数えない", () => {
     const s = parseClaude([
       assistant(1, "m1", {
-        input_tokens: 2,
-        output_tokens: 10,
-        cache_read_input_tokens: 100,
-        cache_creation: { ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 50 },
+        usage: {
+          input_tokens: 2,
+          output_tokens: 10,
+          cache_read_input_tokens: 100,
+          cache_creation: { ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 50 },
+        },
       }),
       assistant(1, "m1", {
-        input_tokens: 2,
-        output_tokens: 300,
-        cache_read_input_tokens: 100,
-        cache_creation: { ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 50 },
-        output_tokens_details: { thinking_tokens: 40 },
+        usage: {
+          input_tokens: 2,
+          output_tokens: 300,
+          cache_read_input_tokens: 100,
+          cache_creation: { ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 50 },
+          output_tokens_details: { thinking_tokens: 40 },
+        },
       }),
       {
         type: "assistant",
@@ -151,9 +119,10 @@ describe("Claude Code のログ", () => {
 
   test("AskUserQuestion と、人が判断した権限は人を待った区間にし、設定による許可は区間にしない", () => {
     const toolUse = (min: number, id: string, name: string) =>
-      assistant(min, `m${id}`, { output_tokens: 1 }, [
-        { type: "tool_use", id, name, input: { command: "ls" } },
-      ]);
+      assistant(min, `m${id}`, {
+        usage: { output_tokens: 1 },
+        content: [{ type: "tool_use", id, name, input: { command: "ls" } }],
+      });
     const result = (min: number, id: string, source: string | null) => ({
       type: "user",
       timestamp: T(min),
@@ -225,7 +194,10 @@ describe("Claude Code のログ", () => {
   });
 
   test("サブエージェントのファイルは使用量だけを数え、指示や完了を記録しない", () => {
-    const s = parseClaude([], [[human(0), assistant(1, "m1", { output_tokens: 5 }), turnEnd(2)]]);
+    const s = parseClaude(
+      [],
+      [[human(0), assistant(1, "m1", { usage: { output_tokens: 5 } }), turnEnd(2)]],
+    );
     expect(s.subagent).toBe(false);
     expect(s.messages.map((m) => m.key)).toEqual(["m1"]);
     expect(s.prompts).toEqual([]);

@@ -20,7 +20,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { commitCwd, isGitCommit } from "../../../skills/agent-usage/scripts/lib/gate.mjs";
 import { parseCsv, toCsv } from "../../../skills/agent-usage/scripts/lib/csv.mjs";
@@ -36,10 +36,15 @@ import { coverageEnv } from "../../lib/testing/coverage-env.ts";
 import { parseJsonAs } from "../../lib/parse-as.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
-
-const SCRIPTS = join(import.meta.dirname, "../../../skills/agent-usage/scripts");
-const CLI = join(SCRIPTS, "agent-usage.mjs");
-const GATE = join(SCRIPTS, "precommit-gate.sh");
+import {
+  repoConfigOf,
+  userConfigOf,
+  setup,
+  writeLogCopy,
+  continuedLogLines,
+  CLI,
+  GATE,
+} from "./cli-helpers.ts";
 
 describe("isGitCommit", () => {
   test.each([
@@ -187,120 +192,6 @@ describe("commitCwd", () => {
     expect(commitCwd(cmd, "/w")).toBe(expected);
   });
 });
-
-/** リポジトリの設定のファイル。書く前にディレクトリを作る。 */
-function repoConfigOf(repo: string): string {
-  const path = join(repo, ".config", "skills", "shoji9x9", "agent-usage.jsonc");
-  mkdirSync(dirname(path), { recursive: true });
-  return path;
-}
-
-/** 人ごとの設定のファイル（setup の XDG_CONFIG_HOME の下）。 */
-function userConfigOf(tmp: string): string {
-  return join(tmp, "xdg", "skills", "shoji9x9", "agent-usage.jsonc");
-}
-
-function setup() {
-  const tmp = makeTempDir("agent-usage-cli-");
-  const repo = join(tmp, "repo");
-  mkdirSync(repo);
-  const env = {
-    ...process.env,
-    // 人ごとの設定は一時ディレクトリに置く（手元の設定を読まない）。旧い置き場所の変数は消す
-    XDG_CONFIG_HOME: join(tmp, "xdg"),
-    AGENT_USAGE_CONFIG_DIR: undefined,
-    AGENT_USAGE_CLAUDE_PROJECTS: join(tmp, "claude"),
-    AGENT_USAGE_CODEX_SESSIONS: join(tmp, "codex"),
-    AGENT_USAGE_NOW: "2026-10-01T12:00:00Z",
-    // gh の認証は手元の設定に依らせない（token を持つホストは、テストが GH_ENTERPRISE_TOKEN で作る）
-    GH_CONFIG_DIR: join(tmp, "gh"),
-    GH_HOST: undefined,
-    GH_TOKEN: undefined,
-    GITHUB_TOKEN: undefined,
-    GH_ENTERPRISE_TOKEN: undefined,
-    GITHUB_ENTERPRISE_TOKEN: undefined,
-    GIT_AUTHOR_NAME: "t",
-    GIT_AUTHOR_EMAIL: "t@example.com",
-    GIT_COMMITTER_NAME: "t",
-    GIT_COMMITTER_EMAIL: "t@example.com",
-  };
-  const git = (...args: string[]) => {
-    const r = spawnSync("git", args, {
-      timeout: CHILD_TIMEOUT_MS,
-      cwd: repo,
-      env,
-      encoding: "utf8",
-    });
-    if (r.status !== 0) throw new Error(r.stderr);
-    return r.stdout;
-  };
-  git("init", "-q", "-b", "main");
-  writeFileSync(join(repo, "a.txt"), "a\n");
-  git("add", "a.txt");
-  git("commit", "-q", "-m", "init");
-  // Claude Code のログ: 2 回の指示と、その応答
-  const dir = join(tmp, "claude", encodeProjectPath(repo));
-  mkdirSync(dir, { recursive: true });
-  const at = (m: number) => `2026-10-01T10:${String(m).padStart(2, "0")}:00.000Z`;
-  const lines = [
-    {
-      type: "user",
-      timestamp: at(0),
-      cwd: repo,
-      gitBranch: "feature/5-x",
-      origin: { kind: "human" },
-      message: { content: "やって" },
-    },
-    {
-      type: "assistant",
-      timestamp: at(1),
-      cwd: repo,
-      message: {
-        id: "m1",
-        model: "claude-opus-5-5",
-        usage: { input_tokens: 1000000, output_tokens: 1000 },
-      },
-    },
-    { type: "system", subtype: "turn_duration", timestamp: at(2), cwd: repo },
-    {
-      type: "user",
-      timestamp: at(10),
-      cwd: repo,
-      origin: { kind: "human" },
-      message: { content: "次" },
-    },
-    {
-      type: "assistant",
-      timestamp: at(11),
-      cwd: repo,
-      message: {
-        id: "m2",
-        model: "claude-opus-5-5",
-        usage: { input_tokens: 10, output_tokens: 10 },
-      },
-    },
-    { type: "system", subtype: "turn_duration", timestamp: at(12), cwd: repo },
-  ];
-  writeFileSync(join(dir, "s1.jsonl"), lines.map((l) => JSON.stringify(l)).join("\n"));
-  const cliWith = (extra: NodeJS.ProcessEnv, ...args: string[]) =>
-    spawnSync("node", [CLI, ...args], {
-      timeout: CHILD_TIMEOUT_MS,
-      cwd: repo,
-      env: { ...env, ...extra },
-      encoding: "utf8",
-    });
-  const cli = (...args: string[]) => cliWith({}, ...args);
-  const gateWith = (extra: NodeJS.ProcessEnv, command: string, cwd = repo) =>
-    spawnSync("bash", [GATE, "claude-code"], {
-      timeout: CHILD_TIMEOUT_MS,
-      cwd,
-      env: { ...env, ...extra },
-      encoding: "utf8",
-      input: JSON.stringify({ cwd, tool_input: { command } }),
-    });
-  const gate = (command: string, cwd = repo) => gateWith({}, command, cwd);
-  return { tmp, repo, git, cli, cliWith, gate, gateWith, logDir: dir, logLines: lines };
-}
 
 describe("agent-usage のコマンドと Hook", () => {
   test("setup 前は Hook が何もせず通し、collect はセットアップを求めて失敗する", () => {
@@ -466,6 +357,10 @@ describe("agent-usage のコマンドと Hook", () => {
     );
   });
 
+  // defaultDecision の値を読めないときに、Hook が stderr に出す理由
+  const UNREADABLE_DEFAULT_DECISION =
+    /設定を読めない: .*defaultDecision: "(yes|ask)" は "record"・"decline"・null のどれでもない/;
+
   test("defaultDecision が読めない値なら、コミットを止めて理由を返す。どちらの設定にも無ければ確かめる", () => {
     const { tmp, repo, git, cli, gate } = setup();
     expect(cli("setup", "--time-zone", "UTC").status).toBe(0);
@@ -477,9 +372,7 @@ describe("agent-usage のコマンドと Hook", () => {
     writeFileSync(repoConfig, JSON.stringify({ defaultDecision: "yes" }));
     const badRepo = gate("git commit -m x");
     expect(badRepo.status).toBe(2);
-    expect(badRepo.stderr).toMatch(
-      /設定を読めない: .*defaultDecision: "(yes|ask)" は "record"・"decline"・null のどれでもない/,
-    );
+    expect(badRepo.stderr).toMatch(UNREADABLE_DEFAULT_DECISION);
     // 設定を読めなくても、記録しない側で先へ進める方法を案内する
     expect(badRepo.stderr).toMatch(/decline を実行してからコミット/);
     // status は設定を読めなくても止まらず、理由をブランチの判断の行に出す
@@ -492,9 +385,7 @@ describe("agent-usage のコマンドと Hook", () => {
     writeFileSync(userConfig, JSON.stringify({ ...user, defaultDecision: "ask" }));
     const badUser = gate("git commit -m x");
     expect(badUser.status).toBe(2);
-    expect(badUser.stderr).toMatch(
-      /設定を読めない: .*defaultDecision: "(yes|ask)" は "record"・"decline"・null のどれでもない/,
-    );
+    expect(badUser.stderr).toMatch(UNREADABLE_DEFAULT_DECISION);
 
     writeFileSync(userConfig, JSON.stringify(user));
     const ask = gate("git commit -m x");
@@ -991,14 +882,7 @@ describe("agent-usage のコマンドと Hook", () => {
     expect(saved[person]).toBe("2026-10-01T12:00:00.000Z");
     // 時計が進んでいたときに保存した、今より後の時刻は信じない（範囲の中で collect していないとして扱う）
     writeFileSync(state, JSON.stringify({ [person]: "2030-01-01T00:00:00.000Z" }));
-    const old0 = logLines.map((l) => ({
-      ...l,
-      timestamp: l.timestamp.replace("2026-10-01", "2026-07-10"),
-      ...(l.message && "id" in l.message
-        ? { message: { ...l.message, id: `future-${l.message.id}` } }
-        : {}),
-    }));
-    writeFileSync(join(logDir, "s-future.jsonl"), old0.map((l) => JSON.stringify(l)).join("\n"));
+    writeLogCopy(logDir, logLines, { tag: "future", date: "2026-07-10" });
     expect(cli("collect").status).toBe(0);
     expect(readState()[person]).toBe("2026-10-01T12:00:00.000Z");
     const branches0 = join(repo, ".agent-usage", "records", person, "branches");
@@ -1010,14 +894,7 @@ describe("agent-usage のコマンドと Hook", () => {
     // 最後に collect したのが範囲より前だったことにする
     writeFileSync(state, JSON.stringify({ [person]: "2026-07-01T00:00:00.000Z" }));
     // 前回の collect の後（範囲より前）のセッションのログを足す
-    const old = logLines.map((l) => ({
-      ...l,
-      timestamp: l.timestamp.replace("2026-10-01", "2026-07-15"),
-      ...(l.message && "id" in l.message
-        ? { message: { ...l.message, id: `old-${l.message.id}` } }
-        : {}),
-    }));
-    writeFileSync(join(logDir, "s-old.jsonl"), old.map((l) => JSON.stringify(l)).join("\n"));
+    writeLogCopy(logDir, logLines, { tag: "old", date: "2026-07-15" });
     expect(cli("collect").status).toBe(0);
     const branches = join(repo, ".agent-usage", "records", person, "branches");
     const text = readdirSync(branches)
@@ -1228,31 +1105,7 @@ describe("agent-usage のコマンドと Hook", () => {
     const original = join(logDir, "s1.jsonl");
     const aside = join(logDir, "..", "s1.jsonl.aside");
     renameSync(original, aside);
-    const extra = [
-      {
-        type: "user",
-        timestamp: "2026-10-01T10:20:00.000Z",
-        cwd: repo,
-        origin: { kind: "human" },
-        message: { content: "続き" },
-      },
-      {
-        type: "assistant",
-        timestamp: "2026-10-01T10:21:00.000Z",
-        cwd: repo,
-        message: {
-          id: "m3",
-          model: "claude-opus-5-5",
-          usage: { input_tokens: 3, output_tokens: 3 },
-        },
-      },
-      {
-        type: "system",
-        subtype: "turn_duration",
-        timestamp: "2026-10-01T10:22:00.000Z",
-        cwd: repo,
-      },
-    ];
+    const extra = continuedLogLines(repo);
     writeFileSync(
       join(logDir, "s2.jsonl"),
       [...logLines, ...extra].map((l) => JSON.stringify(l)).join("\n"),
@@ -1586,44 +1439,79 @@ describe("agent-usage のコマンドと Hook", () => {
 
   // githubTarget の reason は、collect が出す「GitHub: 取得していない（…）」の理由になる。
   test.each([
-    ["origin が無い", "", {}, "", "origin が無い", false],
-    ["owner/name の形でない", "gitlab.com/group/sub/repo", {}, "", "の形でない", false],
-    [
-      "ポート付きでログインしていなければ取得しない",
-      "ghe.invalid:7999/o/r",
-      {},
-      "x",
-      "ポートを含み",
-      false,
-    ],
-    ["ポート付きでもログインしていれば取得する", "ghe.invalid:8443/o/r", {}, "", "", true],
-    [
-      "ポート付きでも GH_HOST と一致すれば扱う",
-      "ghe.invalid:8443/o/r",
-      { GH_HOST: "ghe.invalid:8443" },
-      "x",
-      "",
-      false,
-    ],
-    ["github.com はログインを確かめない", "github.com/o/r", {}, "x", "", false],
-    [
-      "GH_HOST は大文字小文字を区別せずログインを確かめない",
-      "ghe.invalid/o/r",
-      { GH_HOST: "GHE.invalid" },
-      "x",
-      "",
-      false,
-    ],
-    ["ログインしたホストは viaLogin", "ghe.invalid/o/r", {}, "", "", true],
-    [
-      "ログインしていないホストは理由を返す",
-      "gitlab.com/o/r",
-      {},
-      "gh auth token が失敗した",
-      "gh auth token が失敗した",
-      false,
-    ],
-  ])("githubTarget: %s", (_case, remote, env, loginError, reason, viaLogin) => {
+    {
+      case: "origin が無い",
+      remote: "",
+      env: {},
+      loginError: "",
+      reason: "origin が無い",
+      viaLogin: false,
+    },
+    {
+      case: "owner/name の形でない",
+      remote: "gitlab.com/group/sub/repo",
+      env: {},
+      loginError: "",
+      reason: "の形でない",
+      viaLogin: false,
+    },
+    {
+      case: "ポート付きでログインしていなければ取得しない",
+      remote: "ghe.invalid:7999/o/r",
+      env: {},
+      loginError: "x",
+      reason: "ポートを含み",
+      viaLogin: false,
+    },
+    {
+      case: "ポート付きでもログインしていれば取得する",
+      remote: "ghe.invalid:8443/o/r",
+      env: {},
+      loginError: "",
+      reason: "",
+      viaLogin: true,
+    },
+    {
+      case: "ポート付きでも GH_HOST と一致すれば扱う",
+      remote: "ghe.invalid:8443/o/r",
+      env: { GH_HOST: "ghe.invalid:8443" },
+      loginError: "x",
+      reason: "",
+      viaLogin: false,
+    },
+    {
+      case: "github.com はログインを確かめない",
+      remote: "github.com/o/r",
+      env: {},
+      loginError: "x",
+      reason: "",
+      viaLogin: false,
+    },
+    {
+      case: "GH_HOST は大文字小文字を区別せずログインを確かめない",
+      remote: "ghe.invalid/o/r",
+      env: { GH_HOST: "GHE.invalid" },
+      loginError: "x",
+      reason: "",
+      viaLogin: false,
+    },
+    {
+      case: "ログインしたホストは viaLogin",
+      remote: "ghe.invalid/o/r",
+      env: {},
+      loginError: "",
+      reason: "",
+      viaLogin: true,
+    },
+    {
+      case: "ログインしていないホストは理由を返す",
+      remote: "gitlab.com/o/r",
+      env: {},
+      loginError: "gh auth token が失敗した",
+      reason: "gh auth token が失敗した",
+      viaLogin: false,
+    },
+  ])("githubTarget: $case", ({ remote, env, loginError, reason, viaLogin }) => {
     const t = githubTarget(remote, env, () => loginError);
     if (reason === "") expect(t.reason).toBe("");
     else expect(t.reason).toContain(reason);
@@ -2112,7 +2000,7 @@ describe("読む範囲の判定で、最後の行を判定できないブラン�
 describe("retractableRows", () => {
   const W = Date.parse("2026-10-01T10:20:00Z");
   const canonical = (p: string | undefined) => p ?? "";
-  const usage = (start: string, end: string, tz: string, input: number) => ({
+  const usage = (start: string, end: string, { tz, input }: { tz: string; input: number }) => ({
     key: `usage:claude-code:s1:claude-opus-5-5:${start}`,
     kind: "usage",
     person: "p-1",
@@ -2127,11 +2015,20 @@ describe("retractableRows", () => {
   const byKey = (rows: { key: string }[]) => new Map(rows.map((r) => [r.key, r]));
 
   test("範囲の下限より前に始まる前の区切りの行があるまとまりは打ち消さず、重なる新しい行を書かない", () => {
-    const o1 = usage("2026-10-01T10:00:00Z", "2026-10-01T11:00:00Z", "UTC", 10);
-    const o2 = usage("2026-10-01T11:00:00Z", "2026-10-01T12:00:00Z", "UTC", 10);
-    const n1 = usage("2026-10-01T09:30:00Z", "2026-10-01T10:30:00Z", "Asia/Kolkata", 5);
-    const n2 = usage("2026-10-01T10:30:00Z", "2026-10-01T11:30:00Z", "Asia/Kolkata", 10);
-    const n3 = usage("2026-10-01T11:30:00Z", "2026-10-01T12:30:00Z", "Asia/Kolkata", 5);
+    const o1 = usage("2026-10-01T10:00:00Z", "2026-10-01T11:00:00Z", { tz: "UTC", input: 10 });
+    const o2 = usage("2026-10-01T11:00:00Z", "2026-10-01T12:00:00Z", { tz: "UTC", input: 10 });
+    const n1 = usage("2026-10-01T09:30:00Z", "2026-10-01T10:30:00Z", {
+      tz: "Asia/Kolkata",
+      input: 5,
+    });
+    const n2 = usage("2026-10-01T10:30:00Z", "2026-10-01T11:30:00Z", {
+      tz: "Asia/Kolkata",
+      input: 10,
+    });
+    const n3 = usage("2026-10-01T11:30:00Z", "2026-10-01T12:30:00Z", {
+      tz: "Asia/Kolkata",
+      input: 5,
+    });
     const { rows, withheld } = retractableRows([o1, o2], byKey([o1, o2]), byKey([n1, n2, n3]), {
       person: "p-1",
       lowerBound: W,
@@ -2154,12 +2051,12 @@ describe("retractableRows", () => {
     const inside = run("2026-10-01T10:20:00Z");
     const before = run("2026-10-01T10:19:59Z");
     const cost = {
-      ...usage("2026-10-01T11:00:00Z", "2026-10-01T12:00:00Z", "UTC", 1),
+      ...usage("2026-10-01T11:00:00Z", "2026-10-01T12:00:00Z", { tz: "UTC", input: 1 }),
       detail: "cost-state",
     };
     // 範囲の前の cost-state の行は、作り直す行が無くても打ち消さない（使用量のまとまりとして扱わない）
     const costBefore = {
-      ...usage("2026-10-01T10:00:00Z", "2026-10-01T11:00:00Z", "UTC", 1),
+      ...usage("2026-10-01T10:00:00Z", "2026-10-01T11:00:00Z", { tz: "UTC", input: 1 }),
       key: "usage:claude-code:s1:claude-haiku-5-5:cost-state",
       model: "claude-haiku-5-5",
       detail: "cost-state",

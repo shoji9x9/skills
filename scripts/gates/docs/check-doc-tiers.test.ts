@@ -27,6 +27,7 @@ import {
   renderTable,
   tierOf,
 } from "./check-doc-tiers.ts";
+import { write } from "../../lib/testing/repo-file.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { invalidInput } from "../../lib/testing/test-input.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
@@ -49,11 +50,6 @@ const CONFIG = {
   ],
   outside: [{ glob: "evals/*/fixtures/**", note: "eval の入力" }],
 };
-
-function write(root: string, path: string, text: string) {
-  mkdirSync(dirname(join(root, path)), { recursive: true });
-  writeFileSync(join(root, path), text);
-}
 
 /** 原本と表を持つ一時リポジトリ。table を省くと生成した表を置く。 */
 function makeRepo(

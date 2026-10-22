@@ -16,7 +16,6 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { assert, expect, test } from "vitest";
 import {
   buildStrictMask,
@@ -32,169 +31,28 @@ import {
   absorbStrictIntoRegions,
   adjacentRegionIds,
 } from "../../../skills/parity-diff/scripts/pixel-crops.mjs";
-import type { Rect } from "../../../skills/parity-diff/scripts/pixel-crops.mjs";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { decodePng, encodePng } from "../../lib/testing/fake-pngjs.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
-
-const SCRIPT = fileURLToPath(
-  new URL("../../../skills/parity-diff/scripts/pixel-crops.mjs", import.meta.url),
-);
-const HOOKS = fileURLToPath(new URL("../../lib/testing/fake-pngjs-hooks.ts", import.meta.url));
-
-type Region = {
-  id: number;
-  bbox: Rect;
-  pixels: number;
-  strict_pixels: number;
-  threshold_bbox: Rect;
-  absorbed_strict_only_pixels: number;
-  crop_current: string;
-  crop_new: string;
-};
-type StrictRegion = {
-  id: string;
-  bbox: Rect;
-  strict_pixels: number;
-  overlaps_regions: number[];
-  crop_current: string;
-  crop_new: string;
-};
-type Output = {
-  summary: Record<string, number | null>;
-  regions: Region[];
-  strict_only_regions: StrictRegion[];
-};
-type Run = { code: number | null; stdout: string; stderr: string; out: string };
-
-function isOutput(value: unknown): value is Output {
-  if (typeof value !== "object" || value === null) return false;
-  return "summary" in value && "regions" in value && "strict_only_regions" in value;
-}
-
-/** stdout の JSON を読む。形が違えばテストを落とす。 */
-function parsed(run: Run): Output {
-  const value: unknown = JSON.parse(run.stdout);
-  assert(
-    isOutput(value),
-    `stdout が { summary, regions, strict_only_regions } でない: ${run.stdout}`,
-  );
-  return value;
-}
-
-/** 3 枚の画像のファイルを置いて CLI を実行する。fake を false にすると pngjs の無い環境で実行する。 */
-function runFiles(
-  dir: string,
-  files: { current: Buffer; next: Buffer; diff: Buffer },
-  args: string[] = [],
-  fake = true,
-): Run {
-  const paths = [join(dir, "current.png"), join(dir, "new.png"), join(dir, "diff.png")];
-  writeFileSync(paths[0] ?? "", files.current);
-  writeFileSync(paths[1] ?? "", files.next);
-  writeFileSync(paths[2] ?? "", files.diff);
-  const out = join(dir, "out");
-  const res = spawnSync(
-    process.execPath,
-    [...(fake ? ["--import", HOOKS] : []), SCRIPT, ...paths, "--out", out, ...args],
-    { encoding: "utf8", env: process.env, timeout: CHILD_TIMEOUT_MS },
-  );
-  return { code: res.status, stdout: res.stdout, stderr: res.stderr, out };
-}
-
-/** RGBA の画素の並び（[r,g,b,a] の配列）から 3 枚の画像を作って実行する。 */
-function runRaw(
-  width: number,
-  height: number,
-  images: { current: number[][]; next: number[][]; diff: number[][] },
-  args: string[] = [],
-): Run {
-  const png = (pixels: number[][]) => encodePng(width, height, Uint8Array.from(pixels.flat()));
-  return runFiles(
-    makeTempDir("pixel-crops-"),
-    { current: png(images.current), next: png(images.next), diff: png(images.diff) },
-    args,
-  );
-}
-
-const BASE = [162, 101, 36, 255];
-const SUBTLE = [162, 102, 36, 255]; // 緑だけ 1/255 違う
-const STRONG = [255, 255, 255, 255];
-const RED = [255, 0, 0, 255];
-const WHITE = [255, 255, 255, 255];
-
-/**
- * 差分の場面を画像にして実行する。
- * marked はツールが差分画像に印を付けた画素（new は current と大きく違う）、
- * subtle はしきい値の内側で 1/255 だけ違う画素（差分画像に印は無い）。
- */
-function runScene(
-  width: number,
-  height: number,
-  scene: { marked?: Uint8Array; subtle?: Uint8Array },
-  args: string[] = [],
-  dir = makeTempDir("pixel-crops-"),
-): Run {
-  const marked = scene.marked ?? new Uint8Array(width * height);
-  const subtle = scene.subtle ?? new Uint8Array(width * height);
-  const current = new Uint8Array(width * height * 4);
-  const next = new Uint8Array(width * height * 4);
-  const diff = new Uint8Array(width * height * 4);
-  for (let i = 0; i < width * height; i += 1) {
-    current.set(BASE, i * 4);
-    if (marked[i] === 1) next.set(STRONG, i * 4);
-    else if (subtle[i] === 1) next.set(SUBTLE, i * 4);
-    else next.set(BASE, i * 4);
-    diff.set(marked[i] === 1 ? RED : WHITE, i * 4);
-  }
-  return runFiles(
-    dir,
-    {
-      current: encodePng(width, height, current),
-      next: encodePng(width, height, next),
-      diff: encodePng(width, height, diff),
-    },
-    args,
-  );
-}
-
-/** width×height のマスクに、矩形（x, y, w, h）の輪郭か塗りを立てる。 */
-function maskWith(
-  width: number,
-  height: number,
-  rects: { x: number; y: number; w: number; h: number; ring?: boolean }[],
-) {
-  const mask = new Uint8Array(width * height);
-  for (const { x, y, w, h, ring } of rects) {
-    for (let yy = y; yy < y + h; yy += 1) {
-      for (let xx = x; xx < x + w; xx += 1) {
-        const edge = yy === y || yy === y + h - 1 || xx === x || xx === x + w - 1;
-        if (!ring || edge) mask[yy * width + xx] = 1;
-      }
-    }
-  }
-  return mask;
-}
-
-/** width×height のマスクに、点の並び [[x, y], ...] を立てる。 */
-function maskOfPoints(width: number, height: number, points: number[][]) {
-  const mask = new Uint8Array(width * height);
-  for (const [x, y] of points) mask[(y ?? 0) * width + (x ?? 0)] = 1;
-  return mask;
-}
+import {
+  BASE,
+  HOOKS,
+  SCRIPT,
+  RED,
+  STRONG,
+  SUBTLE,
+  WHITE,
+  candidates,
+  maskOfPoints,
+  maskWith,
+  parsed,
+  rgba,
+  runFiles,
+  runRaw,
+  runScene,
+} from "./pixel-crops-helpers.ts";
 
 // --- 関数の粒度: 画素の量を 2 本で報告する（Issue #384）---
-
-// RGBA バッファを作る。pixels は [r,g,b,a] の配列。
-/** candidates が返す領域。取り込みの有無で、しきい値の bbox と取り込んだ画素数の欄があるかが変わる。 */
-type CandidateRegion = {
-  pixels: number;
-  bbox: Rect;
-  threshold_bbox?: Rect;
-  absorbed_strict_only_pixels?: number;
-};
-
-const rgba = (pixels: number[][]) => Uint8Array.from(pixels.flat());
 
 // 実測（Issue #384）: 枠色が #a26524 と #a26624 で緑が 1/255 違うと、pixelmatch の threshold 0.1 が
 // 差を飲み、報告は 756 画素・0.0569% のまま 3,364 画素の色違いが隠れた。
@@ -351,7 +209,9 @@ test("しきい値の内側だけの差もクラスタになり、候補とし�
 });
 
 test("しきい値でマークされた画素は strict-only から外れる", () => {
-  const run = runScene(4, 1, {
+  const run = runScene({
+    width: 4,
+    height: 1,
     marked: maskOfPoints(4, 1, [[0, 0]]),
     subtle: maskOfPoints(4, 1, [[1, 0]]),
   });
@@ -397,7 +257,7 @@ test("近接した 1 画素の成分は、先にマージしてから下限に�
     [9, 0],
   ]);
 
-  const run = runScene(12, 1, { subtle });
+  const run = runScene({ width: 12, height: 1, subtle });
 
   const out = parsed(run);
   expect(out.strict_only_regions.map((r) => [r.bbox, r.strict_pixels])).toEqual([
@@ -499,33 +359,6 @@ test("候補の id は下限を下げても振り直されない（採番は両�
 // strict_only_regions に大きい bbox で 2 件出ていた。台帳（画素の例外）は bbox の一致で照合するので、
 // どちらを書いても片方が unexplained に残り、両方を書くと件数と承認の N が倍になる。
 
-/** main と同じ段取りで regions / strict-only を作る（PNG を読まない部分）。 */
-function candidates(
-  thresholdMask: Uint8Array,
-  strictOnlyMask: Uint8Array,
-  width: number,
-  height: number,
-  withAbsorb = true,
-  minCluster = 4,
-): {
-  regions: CandidateRegion[];
-  strict: ReturnType<typeof mergeThenFilter>;
-  absorbedPixels: number;
-} {
-  const thresholdRegions = filterAndMerge(clusterComponents(thresholdMask, width, height), 1, 8);
-  if (!withAbsorb) {
-    const strict = mergeThenFilter(clusterComponents(strictOnlyMask, width, height), minCluster, 8);
-    return { regions: thresholdRegions, strict, absorbedPixels: 0 };
-  }
-  const absorbed = absorbStrictIntoRegions(thresholdRegions, strictOnlyMask, width, height, 8);
-  const strict = mergeThenFilter(
-    clusterComponents(absorbed.remainingMask, width, height),
-    minCluster,
-    8,
-  );
-  return { regions: absorbed.regions, strict, absorbedPixels: absorbed.absorbedPixels };
-}
-
 // 実測の形: 漏斗の芯 6×9 がしきい値つき、そのまわりの 11×11 の縁がしきい値の内側。
 const W = 60;
 const H = 40;
@@ -538,7 +371,10 @@ test("芯と縁が重なる差は、外側の bbox を持つ 1 つの候補に�
   const thresholdMask = maskWith(W, H, [core]);
   const strictOnly = buildStrictOnlyMask(thresholdMask, maskWith(W, H, [core, halo]));
 
-  const { regions, strict, absorbedPixels } = candidates(thresholdMask, strictOnly, W, H);
+  const { regions, strict, absorbedPixels } = candidates(thresholdMask, strictOnly, {
+    width: W,
+    height: H,
+  });
 
   expect(regions).toHaveLength(1);
   expect(regions[0].bbox).toEqual({ x: 8, y: 10, width: 11, height: 11 });
@@ -551,10 +387,10 @@ test("芯と縁が重なる差は、外側の bbox を持つ 1 つの候補に�
 });
 
 test("--pad 0 では芯の外の縁を取り込まず、同じ差が 2 件に分かれて overlaps_regions で結ばれる", () => {
-  const run = runScene(W, H, { marked: maskWith(W, H, [core]), subtle: maskWith(W, H, [halo]) }, [
-    "--pad",
-    "0",
-  ]);
+  const run = runScene(
+    { width: W, height: H, marked: maskWith(W, H, [core]), subtle: maskWith(W, H, [halo]) },
+    { args: ["--pad", "0"] },
+  );
 
   const out = parsed(run);
   expect(out.regions.map((r) => r.bbox)).toEqual([{ x: 12, y: 11, width: 6, height: 9 }]);
@@ -569,8 +405,18 @@ test("しきい値つきの差が近くに無い領域だけが strict_only に�
   const thresholdMask = maskWith(W, H, [core]);
   const strictOnly = buildStrictOnlyMask(thresholdMask, maskWith(W, H, [core, halo, thumb]));
 
-  const strict = candidates(thresholdMask, strictOnly, W, H, true, 4).strict;
-  const loose = candidates(thresholdMask, strictOnly, W, H, true, 1).strict;
+  const strict = candidates(thresholdMask, strictOnly, {
+    width: W,
+    height: H,
+    withAbsorb: true,
+    minCluster: 4,
+  }).strict;
+  const loose = candidates(thresholdMask, strictOnly, {
+    width: W,
+    height: H,
+    withAbsorb: true,
+    minCluster: 1,
+  }).strict;
 
   expect(strict.kept.map((r) => [r.id, r.bbox])).toEqual([
     ["s1", { x: 45, y: 30, width: 9, height: 5 }],
@@ -589,7 +435,10 @@ test("取り込んだ縁は下限未満でも「捨てた」に数えない（�
     [12, 10],
   ]);
 
-  const { regions, strict, absorbedPixels } = candidates(thresholdMask, strictOnly, W, H);
+  const { regions, strict, absorbedPixels } = candidates(thresholdMask, strictOnly, {
+    width: W,
+    height: H,
+  });
 
   expect(strict.droppedClusters).toBe(0);
   expect(absorbedPixels).toBe(2);
@@ -605,7 +454,10 @@ test("芯を --pad だけ広げた範囲の外の画素は取り込まず、stri
     Array.from({ length: 19 }, (_, i) => [2 + i, 0]),
   );
 
-  const { regions, strict, absorbedPixels } = candidates(thresholdMask, strictOnly, W, H);
+  const { regions, strict, absorbedPixels } = candidates(thresholdMask, strictOnly, {
+    width: W,
+    height: H,
+  });
 
   expect(regions[0].bbox).toEqual({ x: 0, y: 0, width: 10, height: 2 });
   expect(absorbedPixels).toBe(8);
@@ -621,7 +473,10 @@ test("縁を取り込んだ領域同士が近接したら 1 つにまとめ、�
   const points = Array.from({ length: 13 }, (_, i) => [3 + i, 0]);
   const strictOnly = maskOfPoints(W, H, points);
 
-  const { regions, strict, absorbedPixels } = candidates(thresholdMask, strictOnly, W, H);
+  const { regions, strict, absorbedPixels } = candidates(thresholdMask, strictOnly, {
+    width: W,
+    height: H,
+  });
 
   expect(regions).toHaveLength(1);
   expect(regions[0].bbox).toEqual({ x: 0, y: 0, width: 18, height: 2 });
@@ -644,7 +499,7 @@ test("ページ全体に広がる 1 つの差が、離れた領域を画面大�
   const thresholdMask = maskWith(w, h, cores);
   const strictOnly = buildStrictOnlyMask(thresholdMask, new Uint8Array(w * h).fill(1));
 
-  const { regions, strict } = candidates(thresholdMask, strictOnly, w, h);
+  const { regions, strict } = candidates(thresholdMask, strictOnly, { width: w, height: h });
 
   expect(regions.map((r) => r.bbox)).toEqual([
     { x: 2, y: 2, width: 20, height: 20 },
@@ -667,7 +522,10 @@ test("疎に散った差は、芯から離れていれば取り込まない（�
   ]);
   const strictOnly = maskOfPoints(w, h, points);
 
-  const { regions, strict, absorbedPixels } = candidates(thresholdMask, strictOnly, w, h);
+  const { regions, strict, absorbedPixels } = candidates(thresholdMask, strictOnly, {
+    width: w,
+    height: h,
+  });
 
   expect(regions.map((r) => r.bbox)).toEqual([
     { x: 100, y: 100, width: 4, height: 4 },
@@ -759,7 +617,7 @@ test("CLI: 差が無ければ候補も警告も出さず exit 0", () => {
     [1, 2, 3, 255],
     [4, 5, 6, 255],
   ];
-  const run = runRaw(2, 1, { current: image, next: image, diff: [WHITE, WHITE] });
+  const run = runRaw({ width: 2, height: 1, current: image, next: image, diff: [WHITE, WHITE] });
 
   expect(run.code).toBe(0);
   expect(run.stderr).toBe("");
@@ -782,7 +640,9 @@ test("CLI: 差が無ければ候補も警告も出さず exit 0", () => {
 
 test("CLI: しきい値が飲んだ差は summary に数え、stderr に警告して exit 1", () => {
   // 記録済みツールの差分画像は、飲んだ 2 画素をマークせず 3 画素目だけを赤で出す。
-  const run = runRaw(3, 1, {
+  const run = runRaw({
+    width: 3,
+    height: 1,
     current: [BASE, BASE, [0, 0, 0, 255]],
     next: [SUBTLE, SUBTLE, STRONG],
     diff: [WHITE, WHITE, RED],
@@ -802,7 +662,11 @@ test("CLI: しきい値が飲んだ差は summary に数え、stderr に警告�
 
 test("CLI: しきい値の内側だけの差の候補は crop 対を書き出し、exit 1", () => {
   // 4x2。左上 2x2 がしきい値の内側で 1/255 違う。差分画像は 1 画素も出さない。
-  const run = runScene(4, 2, { subtle: maskWith(4, 2, [{ x: 0, y: 0, w: 2, h: 2 }]) });
+  const run = runScene({
+    width: 4,
+    height: 2,
+    subtle: maskWith(4, 2, [{ x: 0, y: 0, w: 2, h: 2 }]),
+  });
 
   expect(run.code).toBe(1);
   const out = parsed(run);
@@ -823,7 +687,7 @@ test("CLI: 下限に届かず候補にしなかった差が残れば、stderr �
     { x: 200, y: 200, w: 2, h: 1 },
   ]);
 
-  const run = runScene(210, 210, { subtle });
+  const run = runScene({ width: 210, height: 210, subtle });
 
   expect(run.code).toBe(1);
   const out = parsed(run);
@@ -837,15 +701,15 @@ test("CLI: 下限に届かず候補にしなかった差が残れば、stderr �
 
 test("crop 対は bbox を --crop-margin だけ広げ、画像の内側に切り詰めて current と new から切り出す", () => {
   const run = runScene(
-    10,
-    10,
     {
+      width: 10,
+      height: 10,
       marked: maskOfPoints(10, 10, [
         [0, 0],
         [7, 7],
       ]),
     },
-    ["--pad", "0", "--crop-margin", "2"],
+    { args: ["--pad", "0", "--crop-margin", "2"] },
   );
 
   const out = parsed(run);
@@ -871,9 +735,13 @@ test("crop 対は bbox を --crop-margin だけ広げ、画像の内側に切り
 
 test("--diff-color で印の色を変えると、その色の画素だけを差分として数える（# 付きも受け付ける）", () => {
   const run = runRaw(
-    2,
-    1,
-    { current: [BASE, BASE], next: [STRONG, STRONG], diff: [[0, 255, 0, 255], RED] },
+    {
+      width: 2,
+      height: 1,
+      current: [BASE, BASE],
+      next: [STRONG, STRONG],
+      diff: [[0, 255, 0, 255], RED],
+    },
     ["--diff-color", "#00ff00"],
   );
 
@@ -907,7 +775,7 @@ test.each([
   [["--strict-max-regions", "x"], /--strict-min-cluster and --strict-max-regions must be >= 1/],
   [["--diff-color", "red"], /--diff-color must be a 6-digit hex color/],
 ])("数値と色の引数の誤りは exit 2（%j）", (args, message) => {
-  const run = runRaw(1, 1, ONE_PIXEL, args);
+  const run = runRaw({ width: 1, height: 1, ...ONE_PIXEL }, args);
   expect(run.code).toBe(2);
   expect(run.stderr).toMatch(message);
   expect(run.stdout).toBe("");
@@ -918,8 +786,7 @@ test("pngjs が無ければ導入を確かめるよう促して exit 2（勝手�
   const run = runFiles(
     makeTempDir("pixel-crops-"),
     { current: png, next: png, diff: png },
-    [],
-    false,
+    { fake: false },
   );
 
   expect(run.code).toBe(2);
@@ -977,7 +844,7 @@ test.each([
   const dir = makeTempDir("pixel-crops-");
   // 書き出す先と同じ名前のディレクトリを置き、crop の書き込みを失敗させる。
   mkdirSync(join(dir, "out", blocked), { recursive: true });
-  const run = runScene(4, 4, scene, [], dir);
+  const run = runScene({ width: 4, height: 4, ...scene }, { dir });
 
   expect(run.code).toBe(2);
   expect(run.stderr).toMatch(/cannot write crops/);

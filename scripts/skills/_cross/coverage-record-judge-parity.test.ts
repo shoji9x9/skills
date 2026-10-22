@@ -1,17 +1,27 @@
 import { assert, test, expect } from "vitest";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { fillSetProvenance } from "../../lib/testing/coverage-set-provenance-fixture.ts";
 import { invalidInput, removeField } from "../../lib/testing/test-input.ts";
-import {
-  expandCandidates,
-  loadProfiles,
-  readEnumeration,
-  reconcile as reconcileRaw,
-} from "../../../skills/parity-suite/scripts/coverage-expand.mjs";
-import { countCoverage as countCoverageRaw } from "../../../skills/parity-diff/scripts/coverage-check.mjs";
 import * as expand from "../../../skills/parity-suite/scripts/coverage-expand.mjs";
 import * as check from "../../../skills/parity-diff/scripts/coverage-check.mjs";
+import {
+  counts,
+  enumeration,
+  fingerprintFixture,
+  type Fixture,
+  generic,
+  grid,
+  orders,
+  profiled,
+  profiles,
+  SLUG,
+  variant,
+} from "./coverage-record-judge-parity-helpers.ts";
+import {
+  componentInventory,
+  findOrFail,
+  instanceInventory,
+  reconcile,
+} from "./coverage-fixture-helpers.ts";
 
 // 網羅表の未測定は、記録側（parity-suite の coverage-expand.mjs の reconcile）と
 // 判定側（parity-diff の coverage-check.mjs の countCoverage）が独立に数える。
@@ -23,207 +33,6 @@ import * as check from "../../../skills/parity-diff/scripts/coverage-check.mjs";
 // - eq: 両者が同じ一次情報だけで数える分岐（採点せずに抜ける分岐・セル行の採点）。件数が一致する
 // - ge: 記録側だけがプロファイルを読んで展開し直せる分岐。記録側が判定側より多く数えてよいが、少なくはしない
 // どちらでも「判定側が未測定を数えるのに記録側が 0 件」は落ちる。
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-
-// 集合の出所（component_inventory / instance_inventory / components[].source）は、
-// このファイルの被験対象（件数の関係）ではないので、宣言が無い fixture にだけ補う。
-// 両側へ同じオブジェクトを渡すため、補うのは片方の呼び出しの前で足りる。
-// 網羅表の fixture の形。型は基準の fixture（generic・profiled）が置く正規の形にする。
-// 変異が欄を消す箇所は `removeField(x, "field")` で、型に合わない値を入れる箇所は
-// invalidInput で渡す（どちらも型の外の入力であることを呼び出し側に残す）。
-type EnumElement = { id: string; flags: Record<string, boolean> };
-type Enumeration = {
-  source: { kind: string; ref: string; version: string; extracted_at: string; condition: string };
-  complete: boolean;
-  elements: Record<string, EnumElement[]>;
-  incomplete_reason?: string;
-};
-type Candidate = { rule: string; axes: Record<string, string> };
-/** expandCandidates が返す候補。 */
-type ExpandedCandidate = Candidate & { id: string };
-/** fillSetProvenance の setInventory が書く形。 */
-type SetInventory = {
-  source: { kind: string; ref: string; version: string; condition: string };
-  complete: boolean;
-  incomplete_reason?: string;
-};
-/** fillSetProvenance の itemSource が書く形。 */
-type ItemSource = { kind: string; ref: string; retrieved_at: string };
-/** 集合の出所。fixture は書かず、fillSetProvenance が補う。 */
-type Provenance = { instance_inventory?: SetInventory; source?: ItemSource };
-type ProfiledItem = { id: string; candidate: Candidate };
-type ProfiledInstance = { id: string; enumeration: Enumeration; candidates: string[] };
-type ProfiledComponent = Provenance & {
-  id: string;
-  profile: string;
-  profile_version: string;
-  items: ProfiledItem[];
-  instances: ProfiledInstance[];
-};
-type GenericComponent = Provenance & {
-  id: string;
-  profile: string | null;
-  profile_absent_reason: string;
-  items: { id: string }[];
-  instances: { id: string }[];
-};
-type Cell = {
-  component: string;
-  item: string;
-  instance: string;
-  value: string;
-  evidence: string;
-  covered_by: string[];
-};
-type CoverageOf<C> = {
-  slug: string;
-  components: C[];
-  cells: Cell[];
-  component_inventory?: SetInventory;
-};
-type ProfiledFixture = CoverageOf<ProfiledComponent>;
-type GenericFixture = CoverageOf<GenericComponent>;
-type Fixture = ProfiledFixture | GenericFixture;
-
-/** 配列から条件に合う要素を取り出す。無ければ what を理由にテストを落とす。 */
-function findOrFail<T>(values: T[], predicate: (value: T) => boolean, what: string): T {
-  const found = values.find(predicate);
-  assert.exists(found, `${what} が無い`);
-  return found;
-}
-
-/** fillSetProvenance が埋めた component_inventory。 */
-function componentInventory(coverage: Fixture): SetInventory {
-  assert.exists(coverage.component_inventory, "component_inventory が無い");
-  return coverage.component_inventory;
-}
-
-/** fillSetProvenance が埋めた instance_inventory。 */
-function instanceInventory(component: Provenance & { id: string }): SetInventory {
-  assert.exists(component.instance_inventory, `部品 ${component.id} に instance_inventory が無い`);
-  return component.instance_inventory;
-}
-
-function reconcile(
-  coverage: Fixture,
-  profiles: Parameters<typeof reconcileRaw>[1],
-  metadata: Parameters<typeof reconcileRaw>[2] = null,
-) {
-  return reconcileRaw(fillSetProvenance(coverage), profiles, metadata);
-}
-function countCoverage(
-  coverage: Fixture,
-  slug: string,
-  captureNow?: Parameters<typeof countCoverageRaw>[2],
-) {
-  return countCoverageRaw(fillSetProvenance(coverage), slug, captureNow);
-}
-const { profiles } = loadProfiles(join(repoRoot, "skills/parity-suite/assets/coverage-profiles"));
-
-const SLUG = "order-list";
-
-/** DataGrid の列挙（列 2・複数列の並べ替えの組 1・行を選ぶ手段 1・メニュー対象 1・メニュー項目 2・条件 1）。 */
-function enumeration(): Enumeration {
-  const column = (id: string, filterable: boolean) => ({
-    id,
-    flags: {
-      initially_visible: true,
-      toggleable: false,
-      requires_horizontal_scroll: false,
-      filterable,
-      sortable: true,
-    },
-  });
-  return {
-    source: {
-      kind: "current-source",
-      ref: "src/grid/orderColumns.ts",
-      version: "rev-abc123",
-      extracted_at: "2026-09-03T00:00:00Z",
-      condition: "columns 配列の全要素",
-    },
-    complete: true,
-    elements: {
-      column: [column("price", true), column("name", false)],
-      "sort-combination": [{ id: "price-then-name", flags: {} }],
-      "row-selector": [{ id: "row-number", flags: {} }],
-      "menu-target": [{ id: "row", flags: { has_context_menu: true } }],
-      "menu-item": [
-        { id: "copy", flags: { enabled: true } },
-        { id: "delete", flags: { enabled: true } },
-      ],
-      "menu-condition": [{ id: "default", flags: {} }],
-    },
-  };
-}
-
-const presentCell = (component: string, item: string, instance: string): Cell => ({
-  component,
-  item,
-  instance,
-  value: "present",
-  evidence: "実 UI で操作し DOM 変化で発火を確認した",
-  covered_by: [`e2e/${SLUG}.spec.ts > ${item}`],
-});
-
-/** プロファイルを使う場合: 全候補を present で埋めた網羅表。 */
-function profiled(): ProfiledFixture {
-  const profile = profiles.get("datagrid");
-  assert.exists(profile, "同梱プロファイル datagrid が無い");
-  const { elements } = readEnumeration(enumeration(), profile, "t");
-  const candidates: ExpandedCandidate[] = expandCandidates(profile, elements);
-  return {
-    slug: SLUG,
-    components: [
-      {
-        id: "grid",
-        profile: "datagrid",
-        profile_version: String(profile.version),
-        items: candidates.map((c) => ({
-          id: c.id,
-          candidate: { rule: c.rule, axes: c.axes },
-        })),
-        instances: [
-          {
-            id: "orders",
-            enumeration: enumeration(),
-            candidates: candidates.map((c) => c.id),
-          },
-        ],
-      },
-    ],
-    cells: candidates.map((c) => presentCell("grid", c.id, "orders")),
-  };
-}
-
-/** 汎用の場合（profile: null）: 項目 2 × インスタンス 3 を present で埋めた網羅表。 */
-function generic(): GenericFixture {
-  const items = [{ id: "sort" }, { id: "filter" }];
-  const instances = [{ id: "orders" }, { id: "customers" }, { id: "invoices" }];
-  return {
-    slug: SLUG,
-    components: [
-      {
-        id: "toolbar",
-        profile: null,
-        profile_absent_reason: "適合する同梱プロファイルが無い",
-        items,
-        instances,
-      },
-    ],
-    cells: items.flatMap((i) => instances.map((n) => presentCell("toolbar", i.id, n.id))),
-  };
-}
-
-function variant<F extends Fixture>(base: () => F, mutate: (cov: F) => void): () => F {
-  return () => {
-    const cov = base();
-    mutate(cov);
-    return cov;
-  };
-}
-const grid = <C>(cov: CoverageOf<C>): C => cov.components[0];
-const orders = (cov: ProfiledFixture) => cov.components[0].instances[0];
 
 // 状態空間: 部品・インスタンス・項目・候補記録・列挙・セル行それぞれの キーの材料（id）と形の崩れ。
 const CASES: Array<[string, "eq" | "ge", () => Fixture]> = [
@@ -530,11 +339,6 @@ const CASES: Array<[string, "eq" | "ge", () => Fixture]> = [
   ],
 ];
 
-const counts = (make: () => Fixture) => ({
-  record: reconcile(make(), profiles).unmeasured,
-  judge: countCoverage(make(), SLUG).unmeasured,
-});
-
 test.each(CASES)("%s: 記録側の未測定が判定側と %s の関係にある", (_name, relation, make) => {
   const { record, judge } = counts(make);
   if (relation === "eq") expect(record).toBe(judge);
@@ -581,53 +385,7 @@ test("candidate.rule だけの不一致は両者とも未測定に数えず、�
 // 別ファイルに同じ計算を持つ。ずれると「記録側が書いた指紋を判定側が一致と認めない」
 // （またはその逆）が起きるので、実際に記録した値を判定側へ通して往復で固定する。
 test("撮影状態の指紋は記録側と判定側で一致する（別実装のずれを固定する）", () => {
-  // visual_state_coverage と conformance は、fillVisualStateRows と recordConformance が書き足す。
-  type RecordedComponent = Omit<GenericComponent, "items" | "instances"> & {
-    items: { id: string; visual_states: string[]; no_visual_state_reason: string | null }[];
-    instances: { id: string; page: string; locator: string }[];
-  };
-  type Recorded = CoverageOf<RecordedComponent> & {
-    visual_state_coverage?: { rows: { captured: string | null }[] };
-    conformance?: { visual_states: { table_fingerprint: unknown; capture_fingerprint: unknown } };
-  };
-  const coverage: Recorded = {
-    slug: SLUG,
-    components: [
-      {
-        id: "grid",
-        profile: null,
-        profile_absent_reason: "自作グリッドで適合プロファイルが無い",
-        items: [{ id: "filter", visual_states: ["opens-container"], no_visual_state_reason: null }],
-        instances: [{ id: "orders", page: "受注一覧", locator: "orders.grid" }],
-      },
-    ],
-    cells: [
-      {
-        component: "grid",
-        item: "filter",
-        instance: "orders",
-        value: "present",
-        evidence: "実 UI で開いた",
-        covered_by: ["e2e/order-list.spec.ts > filter"],
-      },
-    ],
-  };
-  const metadata = {
-    slug: SLUG,
-    capture_conditions: {
-      pages: [{ name: "受注一覧", path: "/orders" }],
-      states: ["default", "フィルタの吹き出しを開いた状態"],
-      popup_inventory: [
-        {
-          name: "フィルタ",
-          parent: null,
-          opened_by: "openFilter(orders.grid)",
-          captured: "フィルタの吹き出しを開いた状態",
-          reason: null,
-        },
-      ],
-    },
-  };
+  const { coverage, metadata } = fingerprintFixture();
 
   // 指紋は表の内容から取るので、集合の出所を補うのは行を起こす前（＝記録側に渡す前）にする。
   fillSetProvenance(coverage);

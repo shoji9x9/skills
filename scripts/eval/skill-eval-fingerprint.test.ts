@@ -1,4 +1,3 @@
-import { spawnSync } from "node:child_process";
 import {
   chmodSync,
   existsSync,
@@ -9,8 +8,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { afterEach, expect, test } from "vitest";
 import { formatError as formatReuseError } from "./reuse-skill-eval-baseline.ts";
 import {
@@ -25,41 +23,21 @@ import {
 import { parseJsonAs } from "../lib/parse-as.ts";
 import { isRecord } from "../lib/guards.ts";
 import { isArray } from "../lib/is-array.ts";
-import { makeTempDir } from "../lib/testing/test-tmpdir.ts";
-import { CHILD_TIMEOUT_MS } from "../lib/testing/child-timeout.ts";
-
-// CLI が stdout に出す指紋の JSON のうち、テストが読む部分。
-type FingerprintOutput = {
-  schema_version: number;
-  algorithm: string;
-  fingerprint: string;
-  inputs: Record<string, unknown>;
-};
-
-const here = dirname(fileURLToPath(import.meta.url));
-const FINGERPRINT_CLI = join(here, "skill-eval-fingerprint.ts");
-const REUSE_CLI = join(here, "reuse-skill-eval-baseline.ts");
-
-function runCli(script: string, args: string[]) {
-  return spawnSync(process.execPath, [script, ...args], {
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-    timeout: CHILD_TIMEOUT_MS,
-  });
-}
-
-const temporaryDirectories: string[] = [];
+import {
+  FINGERPRINT_CLI,
+  type FingerprintOutput,
+  here,
+  REUSE_CLI,
+  runCli,
+  temporaryDirectories,
+  temporaryDirectory,
+  writeSkill,
+} from "./skill-eval-fingerprint-helpers.ts";
 
 afterEach(() => {
   for (const directory of temporaryDirectories.splice(0))
     rmSync(directory, { recursive: true, force: true });
 });
-
-function temporaryDirectory() {
-  const directory = makeTempDir("skill-eval-fingerprint-");
-  temporaryDirectories.push(directory);
-  return directory;
-}
 
 test("fingerprint is insensitive to object key order but changes for input mutations", () => {
   const left = createFingerprint({ prompt: "same", nested: { model: "m", executor: "codex" } });
@@ -138,27 +116,27 @@ const BASE_ARGS = [
 
 // CLI の失敗は「<CLI 名>: <理由>」を stderr に出して exit 1 で終える（run-skill-eval.sh が読む）。
 test.each([
-  [
-    "フラグの値が無い",
-    FINGERPRINT_CLI,
-    ["--prompt"],
-    /^skill-eval-fingerprint: arguments must be --name value pairs$/mu,
-  ],
-  [
-    "必須の引数が無い",
-    FINGERPRINT_CLI,
-    ["--prompt", "p"],
-    /^skill-eval-fingerprint: missing --executor$/mu,
-  ],
-  [
-    "引数が足りない",
-    REUSE_CLI,
-    ["only-source"],
-    /^reuse-skill-eval-baseline: usage: reuse-skill-eval-baseline\.ts /mu,
-  ],
+  {
+    label: "フラグの値が無い",
+    script: FINGERPRINT_CLI,
+    args: ["--prompt"],
+    stderr: /^skill-eval-fingerprint: arguments must be --name value pairs$/mu,
+  },
+  {
+    label: "必須の引数が無い",
+    script: FINGERPRINT_CLI,
+    args: ["--prompt", "p"],
+    stderr: /^skill-eval-fingerprint: missing --executor$/mu,
+  },
+  {
+    label: "引数が足りない",
+    script: REUSE_CLI,
+    args: ["only-source"],
+    stderr: /^reuse-skill-eval-baseline: usage: reuse-skill-eval-baseline\.ts /mu,
+  },
 ])(
-  "CLI の失敗（%s）は、CLI 名と理由を stderr に出して exit 1 で終える",
-  (_label, script, args, stderr) => {
+  "CLI の失敗（$label）は、CLI 名と理由を stderr に出して exit 1 で終える",
+  ({ script, args, stderr }) => {
     const result = runCli(script, args);
     expect(result.status).toBe(1);
     expect(result.stdout).toBe("");
@@ -192,11 +170,6 @@ test("CLI は指紋の JSON を stdout に出し、入力に eval の assertion 
   expect(output.inputs.fixture_sha256).toBe(hashFixture(fixture));
   expect(output.inputs).not.toHaveProperty("required_skills");
 });
-
-function writeSkill(root: string, name: string, body: string) {
-  mkdirSync(join(root, name), { recursive: true });
-  writeFileSync(join(root, name, "SKILL.md"), body, "utf8");
-}
 
 test("requires_skills を宣言した eval は、兄弟のスキルの hash を指紋に入れ、--skills-root が無ければ失敗する", () => {
   const directory = temporaryDirectory();

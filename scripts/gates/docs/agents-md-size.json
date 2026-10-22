@@ -1,5 +1,0 @@
-{
-  "$comment": "scripts/gates/docs/check-agents-md-size.ts の設定。limit_bytes を超えたブランチでは、target_bytes 以下まで縮めることを求める。",
-  "limit_bytes": 30720,
-  "target_bytes": 24576
-}
