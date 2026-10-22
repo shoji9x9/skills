@@ -1249,20 +1249,16 @@ require("node:module").syncBuiltinESMExports();
     );
   });
 
-  // coverage-expand.test.ts は coverage-fixture-helpers.ts を直接は import せず、coverage-expand-helpers.ts を介して使う。
-  test("ヘルパーが import するヘルパーが変わったら、その宣言を測る", async () => {
-    const helper = "scripts/skills/_cross/coverage-fixture-helpers.ts";
-    const res = await runRunner(
-      "--changed-since",
-      "origin/main",
-      "--only",
-      "required-group-first-only",
-      "--list",
-      { MUTATION_PROOF_CHANGED_FILES: helper },
-    );
+  // import-direction.test.ts は run-oxlint.ts を直接は import せず、run-rule.ts を介して使う。
+  // run-oxlint.ts は変異の対象でもなく、名前も -helpers.ts で終わらないので、import をたどり、パスで選んだときだけ選ばれる。
+  test("test_file から間接に import されるファイルが変わったら、その宣言を測る", async () => {
+    const support = "scripts/gates/code/oxlint-plugin/run-oxlint.ts";
+    const res = await runRunner("--changed-since", "origin/main", "--only", "ID-ASSETS", "--list", {
+      MUTATION_PROOF_CHANGED_FILES: support,
+    });
     expect(res.status, res.out).toBe(0);
     expect(res.out).toContain(
-      `測る: scripts/skills/parity-suite/evidence/coverage-expand.mutations.json（当たった変更: ${helper}）`,
+      `測る: scripts/gates/code/oxlint-plugin/import-direction.mutations.json（当たった変更: ${support}）`,
     );
   });
 

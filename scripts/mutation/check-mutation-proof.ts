@@ -848,10 +848,10 @@ function supportFiles(
   const queue = [testFile];
   while (queue.length > 0) {
     const file = queue.pop() ?? "";
-    for (const helper of directSupportFiles(file, preProcess, cache)) {
-      if (seen.has(helper)) continue;
-      seen.add(helper);
-      queue.push(helper);
+    for (const support of directSupportFiles(file, preProcess, cache)) {
+      if (seen.has(support)) continue;
+      seen.add(support);
+      queue.push(support);
     }
   }
   return [...seen];
@@ -869,15 +869,17 @@ function directSupportFiles(
   try {
     source = readFileSync(join(repoRoot, file), "utf8");
   } catch (err) {
-    die(`${file} を読めないので、import するヘルパーを決められない: ${errorMessage(err)}`);
+    die(
+      `${file} を読めないので、そのファイルが import する scripts/ のファイルを決められない: ${errorMessage(err)}`,
+    );
   }
-  const helpers = preProcess(source, true, true)
+  const imported = preProcess(source, true, true)
     .importedFiles.map(({ fileName }) => fileName)
     .filter((name) => name.startsWith(".") && name.endsWith(".ts"))
     .map((name) => relative(repoRoot, resolve(repoRoot, dirname(file), name)))
     .filter((rel) => rel.startsWith("scripts/") && !rel.startsWith("scripts/lib/"));
-  cache.set(file, helpers);
-  return helpers;
+  cache.set(file, imported);
+  return imported;
 }
 
 function loadPreProcess(): PreProcess {
@@ -895,7 +897,7 @@ function loadPreProcess(): PreProcess {
  * 差分に当たる宣言だけを返す。当たり方は 3 通り:
  *   - ランナー（このファイル）が変わった → **全宣言**（判定の仕組みが変わったので全部測り直す）
  *   - 宣言ファイル自身が変わった
- *   - その宣言の `test_file`、`test_file` が import するテストの組み立てのファイル（`supportFiles`）、いずれかの変異の対象ファイルが変わった
+ *   - その宣言の `test_file`、`test_file` が import する `scripts/` のファイル（`scripts/lib/` を除く。`supportFiles`）、いずれかの変異の対象ファイルが変わった
  *
  * それ以外の宣言は PR では測らない。共有のライブラリや依存の版の変更で検査が変わった宣言も含むので、週次の全件の実行で確かめる。
  * **選んだ／飛ばした理由は必ず出力する**（0 件を警告なしに成功にしない）。
@@ -914,14 +916,17 @@ function selectChangedSpecs(specs: Spec[], ref: string): Spec[] {
   for (const spec of specs) {
     const specRel = relative(repoRoot, spec.specPath);
     const targets = [...new Set(spec.mutations.map((m) => m.file))];
-    const helpers = supportFiles(spec.testFile, preProcess, cache);
-    const hits = [specRel, spec.testFile, ...helpers, ...targets].filter((f) => changed.has(f));
+    const supports = supportFiles(spec.testFile, preProcess, cache);
+    // 変異の対象が test_file から import されていると、supports と targets の両方に入るので、重ねて出さない。
+    const hits = [...new Set([specRel, spec.testFile, ...supports, ...targets])].filter((f) =>
+      changed.has(f),
+    );
     if (hits.length > 0) {
       console.error(`測る: ${specRel}（当たった変更: ${hits.join(", ")}）`);
       selected.push(spec);
     } else {
       console.error(
-        `飛ばす: ${specRel}（定義・test_file・テストの組み立てのファイル・変異の対象が変わっていない）`,
+        `飛ばす: ${specRel}（定義・test_file・test_file が import する scripts/ のファイル（scripts/lib/ を除く）・変異の対象が変わっていない）`,
       );
     }
   }
@@ -1280,7 +1285,7 @@ function selectSpecs(files: string[], changedSince: string | null): Spec[] | nul
     if (selected.length === 0) {
       // **0 件は「測るものが無い」**（宣言 `specs.length` 件すべてが差分の外）。全件は定期実行が測る。
       console.log(
-        `mutation-proof: この差分に当たる宣言は無い（宣言 ${specs.length} 件はいずれも、定義・test_file・テストの組み立てのファイル・変異の対象が変わっていない）。` +
+        `mutation-proof: この差分に当たる宣言は無い（宣言 ${specs.length} 件はいずれも、定義・test_file・test_file が import する scripts/ のファイル（scripts/lib/ を除く）・変異の対象が変わっていない）。` +
           "全件は定期実行（.github/workflows/mutation-proof.yml）で測る",
       );
       return null;
