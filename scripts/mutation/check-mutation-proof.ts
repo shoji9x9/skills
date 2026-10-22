@@ -902,6 +902,10 @@ function loadPreProcess(): PreProcess {
  * それ以外の宣言は PR では測らない。共有のライブラリや依存の版の変更で検査が変わった宣言も含むので、週次の全件の実行で確かめる。
  * **選んだ／飛ばした理由は必ず出力する**（0 件を警告なしに成功にしない）。
  */
+// 差分選択が見るファイルを、選ばなかったときの表示に使う。
+const UNCHANGED_INPUTS =
+  "定義・test_file・変異の対象と、test_file から import をたどった scripts/ の .ts（scripts/lib/ を除く）が変わっていない";
+
 function selectChangedSpecs(specs: Spec[], ref: string): Spec[] {
   const changed = new Set(changedFiles(ref));
   const runnerPath = relative(repoRoot, fileURLToPath(import.meta.url));
@@ -925,9 +929,7 @@ function selectChangedSpecs(specs: Spec[], ref: string): Spec[] {
       console.error(`測る: ${specRel}（当たった変更: ${hits.join(", ")}）`);
       selected.push(spec);
     } else {
-      console.error(
-        `飛ばす: ${specRel}（定義・test_file・test_file が import する scripts/ のファイル（scripts/lib/ を除く）・変異の対象が変わっていない）`,
-      );
+      console.error(`飛ばす: ${specRel}。${UNCHANGED_INPUTS}`);
     }
   }
   return selected;
@@ -1285,7 +1287,7 @@ function selectSpecs(files: string[], changedSince: string | null): Spec[] | nul
     if (selected.length === 0) {
       // **0 件は「測るものが無い」**（宣言 `specs.length` 件すべてが差分の外）。全件は定期実行が測る。
       console.log(
-        `mutation-proof: この差分に当たる宣言は無い（宣言 ${specs.length} 件はいずれも、定義・test_file・test_file が import する scripts/ のファイル（scripts/lib/ を除く）・変異の対象が変わっていない）。` +
+        `mutation-proof: この差分に当たる宣言は無い。宣言 ${specs.length} 件はいずれも、${UNCHANGED_INPUTS}。` +
           "全件は定期実行（.github/workflows/mutation-proof.yml）で測る",
       );
       return null;

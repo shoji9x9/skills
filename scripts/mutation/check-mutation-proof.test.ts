@@ -1250,7 +1250,8 @@ require("node:module").syncBuiltinESMExports();
   });
 
   // import-direction.test.ts は run-oxlint.ts を直接は import せず、run-rule.ts を介して使う。
-  // run-oxlint.ts は変異の対象でもなく、名前も -helpers.ts で終わらないので、import をたどり、パスで選んだときだけ選ばれる。
+  // run-oxlint.ts は変異の対象でもなく、名前も -helpers.ts で終わらない。
+  // そのため、ランナーが import を間接のものまでたどり、選ぶファイルを名前ではなく `scripts/` の下のパスで決めるときだけ、この宣言を選ぶ。
   test("test_file から間接に import されるファイルが変わったら、その宣言を測る", async () => {
     const support = "scripts/gates/code/oxlint-plugin/run-oxlint.ts";
     const res = await runRunner("--changed-since", "origin/main", "--only", "ID-ASSETS", "--list", {
@@ -1259,6 +1260,35 @@ require("node:module").syncBuiltinESMExports();
     expect(res.status, res.out).toBe(0);
     expect(res.out).toContain(
       `測る: scripts/gates/code/oxlint-plugin/import-direction.mutations.json（当たった変更: ${support}）`,
+    );
+  });
+
+  // parity-component-fixtures.test.ts は、親のディレクトリの read-json-helpers.ts を `../` で import する。
+  test("test_file が親のディレクトリから import するファイルが変わったら、その宣言を測る", async () => {
+    const support = "scripts/eval/read-json-helpers.ts";
+    const res = await runRunner(
+      "--changed-since",
+      "origin/main",
+      "--only",
+      "shot-contract",
+      "--list",
+      { MUTATION_PROOF_CHANGED_FILES: support },
+    );
+    expect(res.status, res.out).toBe(0);
+    expect(res.out).toContain(
+      `測る: scripts/eval/fixtures/parity-component-fixtures.mutations.json（当たった変更: ${support}）`,
+    );
+  });
+
+  // import-direction.ts は ID-ASSETS の変異の対象で、test_file からも import される。
+  test("変異の対象を test_file も import するとき、当たった変更に 1 回だけ出す", async () => {
+    const target = "scripts/gates/code/oxlint-plugin/import-direction.ts";
+    const res = await runRunner("--changed-since", "origin/main", "--only", "ID-ASSETS", "--list", {
+      MUTATION_PROOF_CHANGED_FILES: target,
+    });
+    expect(res.status, res.out).toBe(0);
+    expect(res.out).toContain(
+      `測る: scripts/gates/code/oxlint-plugin/import-direction.mutations.json（当たった変更: ${target}）`,
     );
   });
 
