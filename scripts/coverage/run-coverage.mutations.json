@@ -51,7 +51,7 @@
       "id": "prepare-failure-uncaught",
       "why": "結果の置き場所を用意できない例外を、判定できない（exit 2）にせず投げ直す",
       "file": "scripts/coverage/run-coverage.ts",
-      "find": "      `run-coverage: 判定できない: 結果の置き場所を用意できない: ${errorMessage(error)}`,\n    );\n    return 2;",
+      "find": "      `run-coverage: 判定できない: 結果の置き場所を用意できない: ${errorMessage(error)}`,\n    );\n    return undefined;",
       "replace": "      `run-coverage: 判定できない: 結果の置き場所を用意できない: ${errorMessage(error)}`,\n    );\n    throw error;",
       "occurrences": 1,
       "expect_failing": ["main: 結果の置き場所を用意できなければ、判定できないとして exit 2"]

@@ -153,8 +153,8 @@ function isArrayCall(e: ts.Expression, name: string): boolean {
 function everyKinds(
   e: ts.Expression,
   name: string,
-  checker: ts.TypeChecker | null,
-  seen: ReadonlySet<ts.Node>,
+  // params は受け取らない。every のコールバックの判定は、型ガードの引数からの否定を差し引かない。
+  { checker = null, seen = new Set() }: Omit<KindContext, "params">,
 ): Set<string> | null {
   const u = unwrap(e);
   if (!ts.isCallExpression(u) || u.arguments.length !== 1) return null;
@@ -167,7 +167,7 @@ function everyKinds(
   const p = cb.parameters[0].name;
   const body = bodyExpression(cb);
   return ts.isIdentifier(p) && body !== null
-    ? acceptedKinds(body, p.text, null, checker, seen)
+    ? acceptedKinds(body, p.text, { checker, seen })
     : null;
 }
 
@@ -232,8 +232,8 @@ function namedGuardKinds(
   const body = bodyExpression(fn);
   if (body === null) return null;
   // every に渡る要素は、isArray が unknown を any[] に絞るので、どの種類の値でもありうる。
-  // そのため、否定（`!==`・`!=`）を型ガードの引数の宣言した型から差し引いて読まない（params に null を渡す）。
-  const accepted = acceptedKinds(body, param.name.text, null, checker, new Set([...seen, fn]));
+  // そのため、否定（`!==`・`!=`）を型ガードの引数の宣言した型から差し引いて読まない（params を渡さない。acceptedKinds の中で null として扱う）。
+  const accepted = acceptedKinds(body, param.name.text, { checker, seen: new Set([...seen, fn]) });
   return accepted !== null && sameSet(accepted, target) ? target : null;
 }
 
@@ -250,31 +250,44 @@ const EQ_KINDS = new Set([
 ]);
 
 /**
- * 本体の式が true を返す値の種類の集合。求められない形なら null。
+ * 種類の集合を求めるときに引き継ぐ値。
  * `params` は引数の宣言した型の種類の集合で、否定（`!==`・`!=`）を読むときに、そこから差し引く。
+ * `checker` は名前で渡した型ガードを読むのに使い、`seen` は読んでいる途中の関数の集合である。
  */
+type KindContext = {
+  params?: ReadonlySet<string> | null;
+  checker?: ts.TypeChecker | null;
+  seen?: ReadonlySet<ts.Node>;
+};
+
+/** 本体の式が true を返す値の種類の集合。求められない形なら null。 */
 function acceptedKinds(
   expr: ts.Expression,
   name: string,
-  params: ReadonlySet<string> | null = null,
-  checker: ts.TypeChecker | null = null,
-  seen: ReadonlySet<ts.Node> = new Set(),
+  ctx: KindContext = {},
 ): Set<string> | null {
   const e = unwrap(expr);
   if (!ts.isBinaryExpression(e)) return null;
   const op = e.operatorToken.kind;
   if (op === ts.SyntaxKind.BarBarToken) {
-    return union([
-      acceptedKinds(e.left, name, params, checker, seen),
-      acceptedKinds(e.right, name, params, checker, seen),
-    ]);
+    return union([acceptedKinds(e.left, name, ctx), acceptedKinds(e.right, name, ctx)]);
   }
   if (op === ts.SyntaxKind.AmpersandAmpersandToken) {
     if (!isArrayCall(e.left, name)) return null;
-    const inner = everyKinds(e.right, name, checker, seen);
+    const inner = everyKinds(e.right, name, ctx);
     return inner === null ? null : new Set([arrayKind(inner)]);
   }
   if (!EQ_KINDS.has(op)) return null;
+  return equalityKinds(e, name, ctx.params ?? null);
+}
+
+/** 比較の式（`===`・`!==`・`==`・`!=`）が true を返す値の種類の集合。求められない形なら null。 */
+function equalityKinds(
+  e: ts.BinaryExpression,
+  name: string,
+  params: ReadonlySet<string> | null,
+): Set<string> | null {
+  const op = e.operatorToken.kind;
   const negated =
     op === ts.SyntaxKind.ExclamationEqualsEqualsToken ||
     op === ts.SyntaxKind.ExclamationEqualsToken;
@@ -410,7 +423,7 @@ function violationsIn(sf: ts.SourceFile, checker: ts.TypeChecker): string[] {
         const accepted =
           body === null
             ? null
-            : acceptedKinds(body, param.name.text, params, checker, new Set([node]));
+            : acceptedKinds(body, param.name.text, { params, checker, seen: new Set([node]) });
         const { line } = sf.getLineAndCharacterOfPosition(node.getStart(sf));
         const where = `${line + 1}: ${nameOf(node)} は ${checker.typeToString(pred.type)}`;
         let message: string | null = null;
@@ -501,6 +514,50 @@ export function normalizeArgs(args: readonly string[], cwd: string, root: string
   return out;
 }
 
+/**
+ * 引数で渡したファイルを、リポジトリの直下からのパスにして返す。
+ * リポジトリの外のファイル・無いファイル・ディレクトリを渡されたら、理由を stderr に出して null を返す。
+ */
+function givenFiles(args: readonly string[], root: string): string[] | null {
+  const given = normalizeArgs(args, process.cwd(), root);
+  if (given === null) {
+    console.error(`type-guard-brands: リポジトリ（${root}）の外のファイルを渡された`);
+    return null;
+  }
+  // lefthook の {staged_files} は消したファイルとディレクトリを含まないので、無いファイルとディレクトリは
+  // パスの誤りとして扱う。
+  const missing = given.filter((f) => !existsSync(join(root, f)));
+  if (missing.length > 0) {
+    console.error(`type-guard-brands: 渡されたファイルが無い: ${missing.join(", ")}`);
+    return null;
+  }
+  const dirs = given.filter((f) => !statSync(join(root, f)).isFile());
+  if (dirs.length > 0) {
+    const shown = dirs.map((f) => (f === "" ? "." : f)).join(", ");
+    console.error(`type-guard-brands: ファイルではないものを渡された: ${shown}`);
+    return null;
+  }
+  return given;
+}
+
+/** 対象のファイルをまとめて型の検査にかけ、違反を `<ファイル>:<行>: <説明>` の一覧で返す。読めないファイルがあれば null。 */
+function collectViolations(root: string, targets: readonly string[]): string[] | null {
+  const program = virtualProgram(
+    new Map(targets.map((f) => [join(root, f), readFileSync(join(root, f), "utf8")])),
+  );
+  const checker = program.getTypeChecker();
+  const violations: string[] = [];
+  for (const file of targets) {
+    const sf = program.getSourceFile(join(root, file));
+    if (sf === undefined) {
+      console.error(`type-guard-brands: ${file} を読めない。判定できないので失敗にする`);
+      return null;
+    }
+    for (const v of violationsIn(sf, checker)) violations.push(`${file}:${v}`);
+  }
+  return violations;
+}
+
 function main(args: readonly string[]): number {
   let root: string;
   let files: string[];
@@ -514,24 +571,8 @@ function main(args: readonly string[]): number {
   const privateSkills = new Set(privateSkillNames(files));
   let candidates = files;
   if (args.length > 0) {
-    const given = normalizeArgs(args, process.cwd(), root);
-    if (given === null) {
-      console.error(`type-guard-brands: リポジトリ（${root}）の外のファイルを渡された`);
-      return 2;
-    }
-    // lefthook の {staged_files} は消したファイルとディレクトリを含まないので、無いファイルとディレクトリは
-    // パスの誤りとして扱う。
-    const missing = given.filter((f) => !existsSync(join(root, f)));
-    if (missing.length > 0) {
-      console.error(`type-guard-brands: 渡されたファイルが無い: ${missing.join(", ")}`);
-      return 2;
-    }
-    const dirs = given.filter((f) => !statSync(join(root, f)).isFile());
-    if (dirs.length > 0) {
-      const shown = dirs.map((f) => (f === "" ? "." : f)).join(", ");
-      console.error(`type-guard-brands: ファイルではないものを渡された: ${shown}`);
-      return 2;
-    }
+    const given = givenFiles(args, root);
+    if (given === null) return 2;
     candidates = given;
   }
   // 作業ツリーから消して、まだ index に残っているファイルは、消す途中なので読まない。
@@ -549,19 +590,8 @@ function main(args: readonly string[]): number {
     );
     return 2;
   }
-  const program = virtualProgram(
-    new Map(targets.map((f) => [join(root, f), readFileSync(join(root, f), "utf8")])),
-  );
-  const checker = program.getTypeChecker();
-  const violations: string[] = [];
-  for (const file of targets) {
-    const sf = program.getSourceFile(join(root, file));
-    if (sf === undefined) {
-      console.error(`type-guard-brands: ${file} を読めない。判定できないので失敗にする`);
-      return 2;
-    }
-    for (const v of violationsIn(sf, checker)) violations.push(`${file}:${v}`);
-  }
+  const violations = collectViolations(root, targets);
+  if (violations === null) return 2;
   if (violations.length) {
     console.error(
       "type-guard-brands: 絞る型の値にも false を返すのに、ブランド型に絞っていない型ガード:",

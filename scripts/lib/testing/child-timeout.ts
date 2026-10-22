@@ -86,56 +86,67 @@ const SPAWN_ASYNC_MEMBERS: ReadonlySet<string> = new Set(["spawnAsync"]);
 
 /** node:child_process と spawn-async から import した名前（関数の別名と名前空間）を集める。 */
 function childProcessNames(source: ts.SourceFile): SpawnerNames {
-  const functions = new Map<string, string>();
-  const namespaces = new Map<string, ReadonlySet<string>>();
+  const names: SpawnerNames = { functions: new Map(), namespaces: new Map() };
   // 別名（`import run = cp.spawnSync`）は、元の import より前に書いても読めるよう、文を 2 回たどる。
   for (const statement of [...source.statements, ...source.statements]) {
-    // `import cp = require("node:child_process")` は名前空間の import と同じに扱う。
-    if (
-      ts.isImportEqualsDeclaration(statement) &&
-      ts.isExternalModuleReference(statement.moduleReference) &&
-      ts.isStringLiteral(statement.moduleReference.expression)
-    ) {
-      const members = membersOf(statement.moduleReference.expression.text);
-      if (members !== undefined) namespaces.set(statement.name.text, members);
-      continue;
-    }
-    // `import cp2 = cp` は、名前空間の別名として扱う。
-    if (ts.isImportEqualsDeclaration(statement) && ts.isIdentifier(statement.moduleReference)) {
-      const aliased = namespaces.get(statement.moduleReference.text);
-      if (aliased !== undefined) namespaces.set(statement.name.text, aliased);
-      continue;
-    }
-    // `import run = cp.spawnSync` は、名前空間のメンバーの別名として扱う。
-    if (
-      ts.isImportEqualsDeclaration(statement) &&
-      ts.isQualifiedName(statement.moduleReference) &&
-      ts.isIdentifier(statement.moduleReference.left) &&
-      namespaces
-        .get(statement.moduleReference.left.text)
-        ?.has(statement.moduleReference.right.text) === true
-    ) {
-      functions.set(statement.name.text, statement.moduleReference.right.text);
-      continue;
-    }
-    if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier))
-      continue;
-    const members = membersOf(statement.moduleSpecifier.text);
-    if (members === undefined) continue;
-    const defaultName = statement.importClause?.name;
-    if (defaultName !== undefined) namespaces.set(defaultName.text, members);
-    const bindings = statement.importClause?.namedBindings;
-    if (bindings === undefined) continue;
-    if (ts.isNamespaceImport(bindings)) {
-      namespaces.set(bindings.name.text, members);
-      continue;
-    }
-    for (const element of bindings.elements) {
-      const imported = (element.propertyName ?? element.name).text;
-      if (members.has(imported)) functions.set(element.name.text, imported);
-    }
+    if (ts.isImportEqualsDeclaration(statement)) addImportEqualsNames(statement, names);
+    else if (ts.isImportDeclaration(statement)) addImportNames(statement, names);
   }
-  return { functions, namespaces };
+  return names;
+}
+
+/** `import x = ...` の文から、起動の関数を指す名前を `names` に足す。 */
+function addImportEqualsNames(
+  statement: ts.ImportEqualsDeclaration,
+  { functions, namespaces }: SpawnerNames,
+): void {
+  // `import cp = require("node:child_process")` は名前空間の import と同じに扱う。
+  if (
+    ts.isExternalModuleReference(statement.moduleReference) &&
+    ts.isStringLiteral(statement.moduleReference.expression)
+  ) {
+    const members = membersOf(statement.moduleReference.expression.text);
+    if (members !== undefined) namespaces.set(statement.name.text, members);
+    return;
+  }
+  // `import cp2 = cp` は、名前空間の別名として扱う。
+  if (ts.isIdentifier(statement.moduleReference)) {
+    const aliased = namespaces.get(statement.moduleReference.text);
+    if (aliased !== undefined) namespaces.set(statement.name.text, aliased);
+    return;
+  }
+  // `import run = cp.spawnSync` は、名前空間のメンバーの別名として扱う。
+  if (
+    ts.isQualifiedName(statement.moduleReference) &&
+    ts.isIdentifier(statement.moduleReference.left) &&
+    namespaces
+      .get(statement.moduleReference.left.text)
+      ?.has(statement.moduleReference.right.text) === true
+  ) {
+    functions.set(statement.name.text, statement.moduleReference.right.text);
+  }
+}
+
+/** `import ... from "<module>"` の文から、起動の関数を指す名前（デフォルト・名前空間・名前付き）を `names` に足す。 */
+function addImportNames(
+  statement: ts.ImportDeclaration,
+  { functions, namespaces }: SpawnerNames,
+): void {
+  if (!ts.isStringLiteral(statement.moduleSpecifier)) return;
+  const members = membersOf(statement.moduleSpecifier.text);
+  if (members === undefined) return;
+  const defaultName = statement.importClause?.name;
+  if (defaultName !== undefined) namespaces.set(defaultName.text, members);
+  const bindings = statement.importClause?.namedBindings;
+  if (bindings === undefined) return;
+  if (ts.isNamespaceImport(bindings)) {
+    namespaces.set(bindings.name.text, members);
+    return;
+  }
+  for (const element of bindings.elements) {
+    const imported = (element.propertyName ?? element.name).text;
+    if (members.has(imported)) functions.set(element.name.text, imported);
+  }
 }
 
 /** 呼び出しが起動する関数の名前（起動の呼び出しでなければ undefined）。 */

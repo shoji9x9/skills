@@ -72,8 +72,8 @@
       "id": "SC-PLACEHOLDER",
       "why": "解決できないプレースホルダを通す",
       "file": "scripts/gates/packaging/check-skill-checks.ts",
-      "find": "          if (paramNames.includes(name)) used.add(name);",
-      "replace": "          if (true) used.add(name);",
+      "find": "        if (paramNames.includes(name)) used.add(name);",
+      "replace": "        if (true) used.add(name);",
       "occurrences": 1,
       "expect_failing": [
         "陽性: wire の項目の誤り（未解決のプレースホルダ）を落とす",
@@ -84,8 +84,8 @@
       "id": "SC-UNUSED",
       "why": "どこからも参照されない params を通す",
       "file": "scripts/gates/packaging/check-skill-checks.ts",
-      "find": "      if (!used.has(name)) v.push(",
-      "replace": "      if (false) v.push(",
+      "find": "    if (!resolver.used.has(name)) v.push(",
+      "replace": "    if (false) v.push(",
       "occurrences": 1,
       "expect_failing": ["陽性: wire の項目の誤り（未使用の params）を落とす"]
     },
@@ -93,8 +93,8 @@
       "id": "SC-SCRIPT-EXISTS",
       "why": "宣言した script の不在を通す",
       "file": "scripts/gates/packaging/check-skill-checks.ts",
-      "find": "      if (!existsSync(path) || !statSync(path).isFile()) {",
-      "replace": "      if (false) {",
+      "find": "  if (!existsSync(path) || !statSync(path).isFile()) {",
+      "replace": "  if (false) {",
       "occurrences": 1,
       "expect_failing": ["陽性: wire の項目の誤り（script の不在）を落とす"]
     },
@@ -111,8 +111,8 @@
       "id": "SC-BY-STAGE",
       "why": "by_stage のキーと stages の不一致を通す",
       "file": "scripts/gates/packaging/check-skill-checks.ts",
-      "find": "        } else if (Object.keys(bs).sort().join(\",\") !== want) {",
-      "replace": "        } else if (false) {",
+      "find": "  } else if (Object.keys(bs).sort().join(\",\") !== want) {",
+      "replace": "  } else if (false) {",
       "occurrences": 1,
       "expect_failing": ["陽性: wire の項目の誤り（by_stage のキーが stages と不一致）を落とす"]
     },
@@ -120,8 +120,8 @@
       "id": "SC-APPLIES-EMPTY",
       "why": "applies_when に exists も exists_at_base も無い（対象が現れる契機を書いていない）宣言を通す",
       "file": "scripts/gates/packaging/check-skill-checks.ts",
-      "find": "    if (!isRecord(aw) || !awKeys.some((k) => k in aw)) {",
-      "replace": "    if (!isRecord(aw)) {",
+      "find": "  if (!isRecord(aw) || !awKeys.some((k) => k in aw)) {",
+      "replace": "  if (!isRecord(aw)) {",
       "occurrences": 1,
       "expect_failing": [
         "陽性: wire の項目の誤り（applies_when に exists も exists_at_base も無い）を落とす"
@@ -158,8 +158,8 @@
       "id": "SC-STAGE-STRING",
       "why": "by_stage の値に素の文字列を受理する（説明文がそのまま引数に渡る）",
       "file": "scripts/gates/packaging/check-skill-checks.ts",
-      "find": "        const stageValue = (sv: unknown) =>\n          isRecord(sv)",
-      "replace": "        const stageValue = (sv: unknown) =>\n          isText(sv) || isRecord(sv)",
+      "find": "  const stageValue = (sv: unknown) =>\n    isRecord(sv)",
+      "replace": "  const stageValue = (sv: unknown) =>\n    isText(sv) || isRecord(sv)",
       "occurrences": 1,
       "expect_failing": [
         "陽性: wire の項目の誤り（by_stage の値が素の文字列（説明文がそのまま引数に渡る））を落とす"
@@ -193,8 +193,8 @@
       "id": "SC-BASE-GUARD",
       "why": "配列でない applies_when の値を展開する（宣言の誤りが判定不能の例外に化ける）",
       "file": "scripts/gates/packaging/check-skill-checks.ts",
-      "find": "      const paths = awKeys.flatMap((k) => (isTextArray(aw[k]) ? aw[k] : []));",
-      "replace": "      const paths = awKeys.flatMap((k) => aw[k] ?? []);",
+      "find": "  const paths = awKeys.flatMap((k) => (isTextArray(aw[k]) ? aw[k] : []));",
+      "replace": "  const paths = awKeys.flatMap((k) => aw[k] ?? []);",
       "occurrences": 1,
       "expect_failing": [
         "陽性: wire の項目の誤り（exists_at_base が配列でない（展開できない値））を落とす"
@@ -226,8 +226,8 @@
       "id": "SC-APPLIES-ARRAY",
       "why": "applies_when の空配列を受理する",
       "file": "scripts/gates/packaging/check-skill-checks.ts",
-      "find": "        if (k in aw && !isTextArray(aw[k]))",
-      "replace": "        if (k in aw && !isArray(aw[k]))",
+      "find": "    if (k in aw && !isTextArray(aw[k]))",
+      "replace": "    if (k in aw && !isArray(aw[k]))",
       "occurrences": 1,
       "expect_failing": [
         "陽性: wire の項目の誤り（applies_when.exists が空）を落とす",
@@ -250,8 +250,8 @@
       "id": "SC-OUTSIDE-SCRIPT",
       "why": "スキルの外を指す script の宣言を通す（配布されない検査を配線させる）",
       "file": "scripts/gates/packaging/check-skill-checks.ts",
-      "find": "      } else if (!isInside(realpathSync(join(root, \"skills\", skill)), realpathSync(path))) {",
-      "replace": "      } else if (false) {",
+      "find": "  } else if (!isInside(realpathSync(join(root, \"skills\", skill)), realpathSync(path))) {",
+      "replace": "  } else if (false) {",
       "occurrences": 1,
       "expect_failing": [
         "陽性: 宣言した script がリンクでスキルの外を指していたら落とす（配布されない）"
@@ -315,8 +315,8 @@
       "id": "SC-OPT-KEYS",
       "why": "optional_args の要素の未知のキーを黙って無視する",
       "file": "scripts/gates/packaging/check-skill-checks.ts",
-      "find": "          } else if (Object.keys(o).some((k) => k !== \"args\" && k !== \"when_exists\")) {",
-      "replace": "          } else if (false) {",
+      "find": "    } else if (Object.keys(o).some((k) => k !== \"args\" && k !== \"when_exists\")) {",
+      "replace": "    } else if (false) {",
       "occurrences": 1,
       "expect_failing": ["陽性: wire の項目の誤り（optional_args の未知のキー）を落とす"]
     },
@@ -324,8 +324,8 @@
       "id": "SC-SCRIPT-EMBED",
       "why": "他の引数に埋め込んだ {script} を通す（利用者に壊れた引数が渡る）",
       "file": "scripts/gates/packaging/check-skill-checks.ts",
-      "find": "      if (e.command.some((t) => t !== \"{script}\" && placeholders(t).includes(\"script\"))) {",
-      "replace": "      if (false) {",
+      "find": "  if (command.some((t) => t !== \"{script}\" && placeholders(t).includes(\"script\"))) {",
+      "replace": "  if (false) {",
       "occurrences": 1,
       "expect_failing": ["陽性: wire の項目の誤り（{script} を他の引数に埋め込む）を落とす"]
     },

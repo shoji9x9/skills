@@ -43,7 +43,8 @@ export function formatError(error: unknown): string {
     : String(error);
 }
 
-export function validateReusableBaseline(source: string, expectedFingerprint: Fingerprint): void {
+/** 必須の成果物がそろい、どれもシンボリックリンクでないことを確かめる。 */
+function assertArtifactsPresent(source: string): void {
   for (const artifact of requiredArtifacts) {
     const artifactPath = resolve(source, artifact);
     if (!existsSync(artifactPath)) throw new Error(`baseline artifact missing: ${artifact}`);
@@ -51,6 +52,10 @@ export function validateReusableBaseline(source: string, expectedFingerprint: Fi
       throw new Error(`baseline artifact must not be a symlink: ${artifact}`);
     }
   }
+}
+
+/** baseline の fingerprint が期待した fingerprint と同じ形式・同じ値であることを確かめる。 */
+function assertFingerprintMatches(source: string, expectedFingerprint: Fingerprint): void {
   const actualFingerprint = readJson<Fingerprint>(
     resolve(source, "eval-fingerprint.json"),
     "baseline fingerprint",
@@ -68,6 +73,10 @@ export function validateReusableBaseline(source: string, expectedFingerprint: Fi
       `baseline fingerprint mismatch: expected ${expectedFingerprint.fingerprint}, got ${actualFingerprint.fingerprint ?? "missing"}`,
     );
   }
+}
+
+/** baseline の実行が成功し、raw_trace が source の中にある空でない通常のファイルを指すことを確かめる。 */
+function assertSucceededWithRawTrace(source: string): void {
   const result = readJson<{ status?: unknown; exit_code?: unknown; raw_trace?: unknown }>(
     resolve(source, "result.json"),
     "baseline result",
@@ -94,6 +103,10 @@ export function validateReusableBaseline(source: string, expectedFingerprint: Fi
   ) {
     throw new Error(`baseline raw trace missing or empty: ${result.raw_trace}`);
   }
+}
+
+/** 汚染の判定が clean で、読み取りの隔離が信頼できる sandbox のものであることを確かめる。 */
+function assertCleanAndIsolated(source: string): void {
   if (!/^verdict: clean$/mu.test(readFileSync(resolve(source, "contamination.txt"), "utf8"))) {
     throw new Error("baseline contamination verdict is not clean");
   }
@@ -106,6 +119,13 @@ export function validateReusableBaseline(source: string, expectedFingerprint: Fi
   ) {
     throw new Error("baseline read isolation is not trusted");
   }
+}
+
+export function validateReusableBaseline(source: string, expectedFingerprint: Fingerprint): void {
+  assertArtifactsPresent(source);
+  assertFingerprintMatches(source, expectedFingerprint);
+  assertSucceededWithRawTrace(source);
+  assertCleanAndIsolated(source);
 }
 
 export function reuseBaseline(

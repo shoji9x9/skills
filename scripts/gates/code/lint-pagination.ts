@@ -307,19 +307,8 @@ export function listFiles(dir = ".", deps: Deps = {}) {
   return gitFiles(dir, deps) ?? walkFiles(dir, deps);
 }
 
-export function main(argv = process.argv.slice(2), deps: Deps = {}) {
-  const read: (path: string, encoding: "utf8") => string = deps.readFileSync ?? readFileSync;
-  const log = deps.log ?? console.log;
-  const err = deps.error ?? console.error;
-  // 引数ありは「これを見ろ」という明示なので、無視規則を当てない（lefthook が staged file を渡すとき）。
-  const targets = (argv.length ? argv : listFiles(".", deps)).filter(isLintable);
-  // 対象 0 件を成功として扱わない。列挙が失敗すると、「指摘 0 件」と見分けが付かなくなる。
-  if (targets.length === 0) {
-    err(
-      `error: 走査対象が 0 件（cwd: ${process.cwd()}）。列挙に失敗したか、対象の *.sh / *.md が無い`,
-    );
-    return 2;
-  }
+/** 対象を 1 件ずつ読んで lint し、指摘と、走査できた件数・読めなかった件数を返す。 */
+function scanTargets(targets: string[], read: (path: string, encoding: "utf8") => string) {
   const findings: ReturnType<typeof lint> = [];
   let scanned = 0;
   let unreadable = 0;
@@ -334,6 +323,23 @@ export function main(argv = process.argv.slice(2), deps: Deps = {}) {
     scanned += 1;
     findings.push(...lint(path, content));
   }
+  return { findings, scanned, unreadable };
+}
+
+export function main(argv = process.argv.slice(2), deps: Deps = {}) {
+  const read: (path: string, encoding: "utf8") => string = deps.readFileSync ?? readFileSync;
+  const log = deps.log ?? console.log;
+  const err = deps.error ?? console.error;
+  // 引数ありは「これを見ろ」という明示なので、無視規則を当てない（lefthook が staged file を渡すとき）。
+  const targets = (argv.length ? argv : listFiles(".", deps)).filter(isLintable);
+  // 対象 0 件を成功として扱わない。列挙が失敗すると、「指摘 0 件」と見分けが付かなくなる。
+  if (targets.length === 0) {
+    err(
+      `error: 走査対象が 0 件（cwd: ${process.cwd()}）。列挙に失敗したか、対象の *.sh / *.md が無い`,
+    );
+    return 2;
+  }
+  const { findings, scanned, unreadable } = scanTargets(targets, read);
   // 読めなかったファイルは走査していない。**1 件でも読めなければ、合格として扱わない**。
   // その中の違反は「無い」のではなく「見ていない」のであり、OK と出力した時点で見分けが付かなくなる。
   // 全件が読めない場合は、列挙かパスの解決が失敗しているので、理由を分けて出す。

@@ -146,16 +146,13 @@ export function readC8Summary(root: string, value: unknown): Map<string, FileMea
   return measures;
 }
 
-function measure(
-  root: string,
+/** c8 に渡す引数。測る対象・除く対象・結果の置き場所・レポートの形式を並べ、最後に vitest の起動を続ける。 */
+function c8Args(
+  privates: readonly string[],
   cache: string,
-  files: readonly string[],
   vitestArgs: readonly string[],
-): number {
-  const privates = privateSkillDirs(root);
-  const traceDir = join(cache, "shell-trace");
-  mkdirSync(traceDir, { recursive: true });
-  const c8Args = [
+): string[] {
+  return [
     "exec",
     "c8",
     "--all",
@@ -186,7 +183,23 @@ function measure(
     "run",
     ...vitestArgs,
   ];
-  const res = spawnSync("pnpm", c8Args, {
+}
+
+/** `measure` が受け取る、リポジトリの直下・結果の置き場所・測る対象のファイル・vitest に渡す引数。 */
+interface MeasureOptions {
+  root: string;
+  cache: string;
+  files: readonly string[];
+  vitestArgs: readonly string[];
+}
+
+/** c8 で vitest を実行して測り、シェルの記録を集計して shell-summary.json に書く。テストの終了コードを返す。 */
+function measure({ root, cache, files, vitestArgs }: MeasureOptions): number {
+  // private skill の列挙で例外が出ても空のディレクトリを残さないよう、shell-trace（と、まだ無ければ cache）を作る前に求める。
+  const privates = privateSkillDirs(root);
+  const traceDir = join(cache, "shell-trace");
+  mkdirSync(traceDir, { recursive: true });
+  const res = spawnSync("pnpm", c8Args(privates, cache, vitestArgs), {
     cwd: root,
     stdio: ["ignore", "inherit", "inherit"],
     env: {
@@ -213,14 +226,17 @@ function measure(
   }
 }
 
+/** `reportFocus` が受け取る、閾値の設定・対象のファイル・測定値・--focus の接頭辞・結果の置き場所。 */
+interface FocusReport {
+  config: Config;
+  files: readonly string[];
+  measures: ReadonlyMap<string, FileMeasure>;
+  focus: readonly string[];
+  cache: string;
+}
+
 /** --focus の実行の結果を出す。対象のファイルごとの値と、閾値を下回るものを出す。 */
-function reportFocus(
-  config: Config,
-  files: readonly string[],
-  measures: ReadonlyMap<string, FileMeasure>,
-  focus: readonly string[],
-  cache: string,
-): number {
+function reportFocus({ config, files, measures, focus, cache }: FocusReport): number {
   const inFocus = (path: string) => focus.some((prefix) => path.startsWith(prefix));
   for (const file of files.filter(inFocus)) {
     const m = measures.get(file);
@@ -239,38 +255,145 @@ function reportFocus(
   return findings.length > 0 ? 1 : 0;
 }
 
+/** 解析した CLI の引数。 */
+interface CliArgs {
+  reuse: boolean;
+  focus: string[];
+  vitestArgs: string[];
+}
+
+/** CLI の引数を解析する。知らない引数・値の無い --focus・組み合わせの誤りは、理由を出して undefined を返す。 */
+function parseArgs(argv: readonly string[]): CliArgs | undefined {
+  const args: CliArgs = { reuse: false, focus: [], vitestArgs: [] };
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg === "--") {
+      args.vitestArgs.push(...argv.slice(i + 1));
+      break;
+    }
+    if (arg === "--reuse") args.reuse = true;
+    else if (arg === "--focus" && argv[i + 1] !== undefined && argv[i + 1] !== "")
+      args.focus.push(argv[++i] ?? "");
+    else {
+      console.error(`run-coverage: 知らない引数か、値の無い --focus: ${arg}`);
+      return undefined;
+    }
+  }
+  if (args.vitestArgs.length > 0 && args.focus.length === 0) {
+    console.error(
+      "run-coverage: テストを絞るときは --focus も指定する（絞った実行で全体の閾値は比べられない）",
+    );
+    return undefined;
+  }
+  if (args.reuse && args.focus.length > 0) {
+    console.error("run-coverage: --reuse と --focus は一緒に使えない");
+    return undefined;
+  }
+  return args;
+}
+
+/**
+ * 結果の置き場所を用意して、そのパスを返す。用意できなければ、理由を出して undefined を返す。
+ * --focus は実行ごとに一意なディレクトリを作り、通常の実行は前回の結果を消してから測る。
+ */
+function prepareCache(root: string, { focus, reuse }: CliArgs): string | undefined {
+  let cache = join(root, CACHE);
+  try {
+    if (focus.length > 0) {
+      sweepFocusDirs(root);
+      mkdirSync(dirname(cache), { recursive: true });
+      cache = mkdtempSync(`${cache}-focus-${process.pid}-`);
+    } else if (!reuse) {
+      rmSync(cache, { recursive: true, force: true });
+    }
+  } catch (error) {
+    // 置き場所を用意できないのは、閾値を下回ったこと（exit 1）ではなく、判定できないこと（exit 2）である。
+    console.error(
+      `run-coverage: 判定できない: 結果の置き場所を用意できない: ${errorMessage(error)}`,
+    );
+    return undefined;
+  }
+  return cache;
+}
+
+/** c8 の要約とシェルの要約を読み、ファイルごとの測定値にまとめる。形が誤っていれば Error を投げる。 */
+function readMeasures(root: string, c8Path: string, shPath: string): Map<string, FileMeasure> {
+  const measures = readC8Summary(root, JSON.parse(readFileSync(c8Path, "utf8")));
+  const sh: unknown = JSON.parse(readFileSync(shPath, "utf8"));
+  if (!isRecord(sh) || !isRecord(sh.files)) throw new Error(`${shPath} に files が無い`);
+  for (const [file, entry] of Object.entries(sh.files)) {
+    if (!isRecord(entry) || typeof entry.pct !== "number")
+      throw new Error(`${shPath} の ${file} に pct が無い`);
+    measures.set(file, { lines: entry.pct });
+  }
+  if (typeof sh.unresolved === "number" && sh.unresolved > 0) {
+    console.log(
+      `run-coverage: ファイルに解決できなかったシェルの記録 ${sh.unresolved} 件（テストが消した一時ファイルなど）`,
+    );
+  }
+  return measures;
+}
+
+/** 測り（--reuse なら測らず）、測定値を読む。テストの失敗と判定できないことは、終了コードの数値で返す。 */
+function measureAndRead(
+  { root, cache, files, vitestArgs }: MeasureOptions,
+  reuse: boolean,
+): { ok: true; measures: Map<string, FileMeasure> } | { ok: false; code: number } {
+  const c8Path = join(cache, "report", "coverage-summary.json");
+  const shPath = join(cache, "shell-summary.json");
+  if (!reuse) {
+    try {
+      const status = measure({ root, cache, files, vitestArgs });
+      if (status !== 0) {
+        console.error(`run-coverage: テストが失敗した（exit ${status}）。カバレッジは比べない`);
+        return { ok: false, code: 1 };
+      }
+    } catch (error) {
+      console.error(`run-coverage: 判定できない: 測定に失敗した: ${errorMessage(error)}`);
+      return { ok: false, code: 2 };
+    }
+  }
+  if (!existsSync(c8Path) || !existsSync(shPath)) {
+    console.error(`run-coverage: 判定できない: 測定の結果が無い（${c8Path}・${shPath}）`);
+    return { ok: false, code: 2 };
+  }
+  try {
+    return { ok: true, measures: readMeasures(root, c8Path, shPath) };
+  } catch (error) {
+    console.error(`run-coverage: 判定できない: 測定の結果を読めない: ${errorMessage(error)}`);
+    return { ok: false, code: 2 };
+  }
+}
+
+/** 全体の実行の結果を出す。閾値を下回るものと、比べたファイルの件数を出す。 */
+function reportAll(
+  config: Config,
+  files: readonly string[],
+  measures: ReadonlyMap<string, FileMeasure>,
+): number {
+  const findings = evaluate(config, files, measures);
+  for (const f of findings) console.error(describe(f));
+  const checked = files.filter((f) => !config.exclude.some((e) => e.path === f)).length;
+  if (findings.length > 0) {
+    console.error(
+      `run-coverage: ${findings.length} 件（対象 ${files.length} ファイル、比べた ${checked} ファイル）`,
+    );
+    return 1;
+  }
+  console.log(
+    `run-coverage: 対象 ${files.length} ファイルのうち ${checked} ファイルが閾値以上（除外 ${files.length - checked}）`,
+  );
+  return 0;
+}
+
 /** CLI の本体。`root` はリポジトリの直下で、テストが一時ディレクトリに作った最小のリポジトリを渡す。 */
 export function main(
   argv: readonly string[],
   root = fileURLToPath(new URL("../../", import.meta.url)),
 ): number {
-  let reuse = false;
-  const focus: string[] = [];
-  const vitestArgs: string[] = [];
-  for (let i = 0; i < argv.length; i++) {
-    const arg = argv[i];
-    if (arg === "--") {
-      vitestArgs.push(...argv.slice(i + 1));
-      break;
-    }
-    if (arg === "--reuse") reuse = true;
-    else if (arg === "--focus" && argv[i + 1] !== undefined && argv[i + 1] !== "")
-      focus.push(argv[++i] ?? "");
-    else {
-      console.error(`run-coverage: 知らない引数か、値の無い --focus: ${arg}`);
-      return 2;
-    }
-  }
-  if (vitestArgs.length > 0 && focus.length === 0) {
-    console.error(
-      "run-coverage: テストを絞るときは --focus も指定する（絞った実行で全体の閾値は比べられない）",
-    );
-    return 2;
-  }
-  if (reuse && focus.length > 0) {
-    console.error("run-coverage: --reuse と --focus は一緒に使えない");
-    return 2;
-  }
+  const args = parseArgs(argv);
+  if (args === undefined) return 2;
+  const { focus, vitestArgs } = args;
   let config;
   let files;
   try {
@@ -286,75 +409,13 @@ export function main(
     return 2;
   }
   // 結果の置き場所は、測ると決まってから作る（引数・設定・対象の誤りで止まる実行に、空のディレクトリを残さない）。
-  // --focus は実行ごとに一意なディレクトリを作り、通常の実行は前回の結果を消してから測る。
-  let cache = join(root, CACHE);
-  try {
-    if (focus.length > 0) {
-      sweepFocusDirs(root);
-      mkdirSync(dirname(cache), { recursive: true });
-      cache = mkdtempSync(`${cache}-focus-${process.pid}-`);
-    } else if (!reuse) {
-      rmSync(cache, { recursive: true, force: true });
-    }
-  } catch (error) {
-    // 置き場所を用意できないのは、閾値を下回ったこと（exit 1）ではなく、判定できないこと（exit 2）である。
-    console.error(
-      `run-coverage: 判定できない: 結果の置き場所を用意できない: ${errorMessage(error)}`,
-    );
-    return 2;
-  }
-  const c8Path = join(cache, "report", "coverage-summary.json");
-  const shPath = join(cache, "shell-summary.json");
-  if (!reuse) {
-    try {
-      const status = measure(root, cache, files, vitestArgs);
-      if (status !== 0) {
-        console.error(`run-coverage: テストが失敗した（exit ${status}）。カバレッジは比べない`);
-        return 1;
-      }
-    } catch (error) {
-      console.error(`run-coverage: 判定できない: 測定に失敗した: ${errorMessage(error)}`);
-      return 2;
-    }
-  }
-  if (!existsSync(c8Path) || !existsSync(shPath)) {
-    console.error(`run-coverage: 判定できない: 測定の結果が無い（${c8Path}・${shPath}）`);
-    return 2;
-  }
-  let measures: Map<string, FileMeasure>;
-  try {
-    measures = readC8Summary(root, JSON.parse(readFileSync(c8Path, "utf8")));
-    const sh: unknown = JSON.parse(readFileSync(shPath, "utf8"));
-    if (!isRecord(sh) || !isRecord(sh.files)) throw new Error(`${shPath} に files が無い`);
-    for (const [file, entry] of Object.entries(sh.files)) {
-      if (!isRecord(entry) || typeof entry.pct !== "number")
-        throw new Error(`${shPath} の ${file} に pct が無い`);
-      measures.set(file, { lines: entry.pct });
-    }
-    if (typeof sh.unresolved === "number" && sh.unresolved > 0) {
-      console.log(
-        `run-coverage: ファイルに解決できなかったシェルの記録 ${sh.unresolved} 件（テストが消した一時ファイルなど）`,
-      );
-    }
-  } catch (error) {
-    console.error(`run-coverage: 判定できない: 測定の結果を読めない: ${errorMessage(error)}`);
-    return 2;
-  }
-
-  if (focus.length > 0) return reportFocus(config, files, measures, focus, cache);
-  const findings = evaluate(config, files, measures);
-  for (const f of findings) console.error(describe(f));
-  const checked = files.filter((f) => !config.exclude.some((e) => e.path === f)).length;
-  if (findings.length > 0) {
-    console.error(
-      `run-coverage: ${findings.length} 件（対象 ${files.length} ファイル、比べた ${checked} ファイル）`,
-    );
-    return 1;
-  }
-  console.log(
-    `run-coverage: 対象 ${files.length} ファイルのうち ${checked} ファイルが閾値以上（除外 ${files.length - checked}）`,
-  );
-  return 0;
+  const cache = prepareCache(root, args);
+  if (cache === undefined) return 2;
+  const measured = measureAndRead({ root, cache, files, vitestArgs }, args.reuse);
+  if (!measured.ok) return measured.code;
+  const { measures } = measured;
+  if (focus.length > 0) return reportFocus({ config, files, measures, focus, cache });
+  return reportAll(config, files, measures);
 }
 
 function isCliEntry(): boolean {

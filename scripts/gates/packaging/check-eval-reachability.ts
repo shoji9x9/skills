@@ -62,163 +62,193 @@ export function listShippedEvalDirs(root: string) {
     .filter((p) => existsSync(p));
 }
 
+/** 形を確かめた 1 件の eval。 */
+type EvalShape = {
+  where: string;
+  id: string | number;
+  prompt: string;
+  assertions: string[];
+  ev: Record<string, unknown>;
+};
+
 /**
- * 1 ファイルを検査する。
- * @returns {{ evals: number, violations: string[], keys: string[] }}
+ * eval の id・prompt・assertions の形を確かめる。id が重複していなければ seenIds に足す。
+ * id を足すのは prompt と assertions を確かめる前なので、それらに不備がある eval の id も重複の判定に使う（main の時点と同じ）。
+ * @returns 形が正しければ EvalShape、不備があれば違反の文
  */
-export function checkEvalFile(
-  path: string,
-  source: string,
-  backlog: Record<string, string>,
-  label = path,
+function checkEvalShape(ev: unknown, where: string, seenIds: Set<string>): EvalShape | string {
+  if (!isRecord(ev)) return `${where}: eval がオブジェクトでない`;
+  const id = ev.id;
+  if (typeof id !== "number" && (typeof id !== "string" || id === "")) {
+    return `${where}: id が無い（backlog と対応づけられない）`;
+  }
+  if (String(id).includes(":")) return `${where}: id に ":" を含む（backlog の鍵が潰れる）`;
+  if (seenIds.has(String(id))) return `${where}: id が重複している`;
+  seenIds.add(String(id));
+
+  const prompt = ev.prompt;
+  if (typeof prompt !== "string" || prompt.trim() === "") {
+    return `${where}: prompt が空（到達性を判定できない）`;
+  }
+  const assertions = ev.assertions;
+  if (!isArray(assertions) || assertions.length === 0) return `${where}: assertions が空`;
+  if (!assertions.every(isNonBlankString)) {
+    return `${where}: assertions に空・非文字列の要素がある`;
+  }
+  if (new Set(assertions).size !== assertions.length) {
+    return `${where}: assertions のテキストが重複している（テキストで対応づけられない）`;
+  }
+  return { where, id, prompt, assertions, ev };
+}
+
+/**
+ * reachability の有無と backlog の免除を突き合わせ、違反を返す。
+ * hasReachability は呼び出し元が 1 回だけ求め、要素を続けて検査するかにも同じ値を使う。
+ */
+function backlogViolations(
+  { where, ev }: EvalShape,
+  {
+    key,
+    exemptFingerprint,
+    hasReachability,
+  }: { key: string; exemptFingerprint: string | undefined; hasReachability: boolean },
+): string[] {
+  const fingerprint = evalFingerprint(ev);
+  if (!hasReachability) {
+    if (exemptFingerprint === undefined) {
+      return [
+        `${where}: reachability が無い。各 assertion に { "assertion", "prompt_quote" } を書く` +
+          `（既存 eval を触らずに通すなら ${BACKLOG_PATH} へ "${key}": "${fingerprint}" を足す）`,
+      ];
+    }
+    if (exemptFingerprint !== fingerprint) {
+      return [
+        `${where}: backlog の指紋が古い（宣言 ${exemptFingerprint} / 実際 ${fingerprint}）。` +
+          "prompt か assertions を変えたので、この eval は reachability を書いて backlog から外す",
+      ];
+    }
+    return [];
+  }
+  if (exemptFingerprint !== undefined) {
+    return [`${where}: reachability があるのに ${BACKLOG_PATH} に残っている（項目を消す）`];
+  }
+  return [];
+}
+
+/**
+ * reachability の 1 要素を確かめる。
+ * @returns 違反の文。対応づけた assertion は covered に足す
+ */
+function checkReachabilityItem(
+  item: unknown,
+  at: string,
+  { shape, covered }: { shape: EvalShape; covered: Set<string> },
 ) {
+  if (!isRecord(item)) return `${at}: 要素がオブジェクトでない`;
+  const { assertion, prompt_quote: quote } = item;
+  if (typeof assertion !== "string" || assertion === "") return `${at}: assertion が空`;
+  if (!shape.assertions.some((a) => a === assertion)) {
+    return `${at}: assertion が assertions に実在しない（テキストが一致しない）`;
+  }
+  if (covered.has(assertion)) return `${at}: 同じ assertion が 2 回宣言されている`;
+  covered.add(assertion);
+  if (typeof quote !== "string" || quote.trim() === "") {
+    return `${at}: prompt_quote が空（引用を書けない assertion は prompt 側に問いを足すか落とす）`;
+  }
+  if (!shape.prompt.includes(quote)) {
+    return `${at}: prompt_quote が prompt の部分文字列でない: ${JSON.stringify(quote.slice(0, 60))}`;
+  }
+  return undefined;
+}
+
+/** reachability の要素を 1 つずつ確かめ、対応要素の無い assertion を違反にする。 */
+function reachabilityViolations(shape: EvalShape): string[] {
+  const { where, ev, assertions } = shape;
+  const reach = ev.reachability;
+  if (!isArray(reach)) return [`${where}: reachability が配列でない`];
   const violations: string[] = [];
-  const keys: string[] = [];
+  const covered = new Set<string>();
+  for (const [i, item] of reach.entries()) {
+    const violation = checkReachabilityItem(item, `${where} reachability[${i}]`, {
+      shape,
+      covered,
+    });
+    if (violation !== undefined) violations.push(violation);
+  }
+  for (const a of assertions) {
+    if (!covered.has(a)) {
+      violations.push(`${where}: 対応要素の無い assertion: ${JSON.stringify(a.slice(0, 60))}`);
+    }
+  }
+  return violations;
+}
+
+/**
+ * evals.json のトップレベルを読み、skill_name と evals を取り出す。
+ * @returns 形が正しければ { skill, evals }、不備があれば違反の文
+ */
+function parseEvalTop(source: string, label: string) {
   // 形はこの後の検査で確かめる。
   let parsed: unknown;
   try {
     parsed = JSON.parse(source);
   } catch (error) {
-    return {
-      evals: 0,
-      violations: [`${label}: JSON として読めない: ${errorMessage(error)}`],
-      keys,
-    };
+    return `${label}: JSON として読めない: ${errorMessage(error)}`;
   }
 
   // トップレベルの形を先に確かめる。`null` や配列を素通りさせると `parsed.skill_name` が
   // TypeError で落ち、違反として報告されずに検査そのものが停止する（免除の鍵に skill_name が
   // 要るので、配列形式はそもそも受理できない）。
   if (!isRecord(parsed)) {
-    violations.push(`${label}: トップレベルが { "skill_name", "evals" } のオブジェクトでない`);
-    return { evals: 0, violations, keys };
+    return `${label}: トップレベルが { "skill_name", "evals" } のオブジェクトでない`;
   }
 
   const skill = parsed.skill_name;
   if (typeof skill !== "string" || skill === "" || skill.includes(":")) {
-    violations.push(`${label}: skill_name が文字列でないか ":" を含む（backlog の鍵が潰れる）`);
-    return { evals: 0, violations, keys };
+    return `${label}: skill_name が文字列でないか ":" を含む（backlog の鍵が潰れる）`;
   }
 
   const evals = parsed.evals;
-  if (!isArray(evals)) {
-    violations.push(`${label}: evals が配列でない`);
-    return { evals: 0, violations, keys };
-  }
+  if (!isArray(evals)) return `${label}: evals が配列でない`;
+  return { skill, evals };
+}
 
-  const seenIds = new Set();
+/**
+ * 1 ファイルを検査する。
+ * @returns {{ evals: number, violations: string[], keys: string[] }}
+ */
+export function checkEvalFile({
+  path,
+  source,
+  backlog,
+  label = path,
+}: {
+  path: string;
+  source: string;
+  backlog: Record<string, string>;
+  label?: string;
+}) {
+  const violations: string[] = [];
+  const keys: string[] = [];
+  const top = parseEvalTop(source, label);
+  if (typeof top === "string") return { evals: 0, violations: [top], keys };
+  const { skill, evals } = top;
+
+  const seenIds = new Set<string>();
   for (const [index, ev] of evals.entries()) {
     const where = `${label} #${(isRecord(ev) ? ev.id : undefined) ?? `(index ${index})`}`;
-    if (!isRecord(ev)) {
-      violations.push(`${where}: eval がオブジェクトでない`);
+    const shape = checkEvalShape(ev, where, seenIds);
+    if (typeof shape === "string") {
+      violations.push(shape);
       continue;
     }
-    const id = ev.id;
-    if (typeof id !== "number" && (typeof id !== "string" || id === "")) {
-      violations.push(`${where}: id が無い（backlog と対応づけられない）`);
-      continue;
-    }
-    if (String(id).includes(":")) {
-      violations.push(`${where}: id に ":" を含む（backlog の鍵が潰れる）`);
-      continue;
-    }
-    if (seenIds.has(String(id))) {
-      violations.push(`${where}: id が重複している`);
-      continue;
-    }
-    seenIds.add(String(id));
-
-    const prompt = ev.prompt;
-    if (typeof prompt !== "string" || prompt.trim() === "") {
-      violations.push(`${where}: prompt が空（到達性を判定できない）`);
-      continue;
-    }
-    const assertions = ev.assertions;
-    if (!isArray(assertions) || assertions.length === 0) {
-      violations.push(`${where}: assertions が空`);
-      continue;
-    }
-    if (!assertions.every(isNonBlankString)) {
-      violations.push(`${where}: assertions に空・非文字列の要素がある`);
-      continue;
-    }
-    if (new Set(assertions).size !== assertions.length) {
-      violations.push(
-        `${where}: assertions のテキストが重複している（テキストで対応づけられない）`,
-      );
-      continue;
-    }
-
-    const key = backlogKey(skill, id);
+    const key = backlogKey(skill, shape.id);
     keys.push(key);
-    const exemptFingerprint = backlog[key];
-    const fingerprint = evalFingerprint(ev);
-    const hasReachability = Object.hasOwn(ev, "reachability");
-
-    if (!hasReachability) {
-      if (exemptFingerprint === undefined) {
-        violations.push(
-          `${where}: reachability が無い。各 assertion に { "assertion", "prompt_quote" } を書く` +
-            `（既存 eval を触らずに通すなら ${BACKLOG_PATH} へ "${key}": "${fingerprint}" を足す）`,
-        );
-      } else if (exemptFingerprint !== fingerprint) {
-        violations.push(
-          `${where}: backlog の指紋が古い（宣言 ${exemptFingerprint} / 実際 ${fingerprint}）。` +
-            "prompt か assertions を変えたので、この eval は reachability を書いて backlog から外す",
-        );
-      }
-      continue;
-    }
-
-    if (exemptFingerprint !== undefined) {
-      violations.push(
-        `${where}: reachability があるのに ${BACKLOG_PATH} に残っている（項目を消す）`,
-      );
-    }
-
-    const reach = ev.reachability;
-    if (!isArray(reach)) {
-      violations.push(`${where}: reachability が配列でない`);
-      continue;
-    }
-    const covered = new Set();
-    for (const [i, item] of reach.entries()) {
-      const at = `${where} reachability[${i}]`;
-      if (!isRecord(item)) {
-        violations.push(`${at}: 要素がオブジェクトでない`);
-        continue;
-      }
-      const { assertion, prompt_quote: quote } = item;
-      if (typeof assertion !== "string" || assertion === "") {
-        violations.push(`${at}: assertion が空`);
-        continue;
-      }
-      if (!assertions.some((a) => a === assertion)) {
-        violations.push(`${at}: assertion が assertions に実在しない（テキストが一致しない）`);
-        continue;
-      }
-      if (covered.has(assertion)) {
-        violations.push(`${at}: 同じ assertion が 2 回宣言されている`);
-        continue;
-      }
-      covered.add(assertion);
-      if (typeof quote !== "string" || quote.trim() === "") {
-        violations.push(
-          `${at}: prompt_quote が空（引用を書けない assertion は prompt 側に問いを足すか落とす）`,
-        );
-        continue;
-      }
-      if (!prompt.includes(quote)) {
-        violations.push(
-          `${at}: prompt_quote が prompt の部分文字列でない: ${JSON.stringify(quote.slice(0, 60))}`,
-        );
-      }
-    }
-    for (const a of assertions) {
-      if (!covered.has(a)) {
-        violations.push(`${where}: 対応要素の無い assertion: ${JSON.stringify(a.slice(0, 60))}`);
-      }
-    }
+    const hasReachability = Object.hasOwn(shape.ev, "reachability");
+    violations.push(
+      ...backlogViolations(shape, { key, exemptFingerprint: backlog[key], hasReachability }),
+    );
+    if (hasReachability) violations.push(...reachabilityViolations(shape));
   }
 
   return { evals: evals.length, violations, keys };
@@ -278,7 +308,7 @@ export function checkAll(
       violations.push(`${label}: 読めないため検査できていない: ${errorCodeOrMessage(error)}`);
       continue;
     }
-    const r = checkEvalFile(file, source, exempt, label);
+    const r = checkEvalFile({ path: file, source, backlog: exempt, label });
     evals += r.evals;
     violations.push(...r.violations);
     keys.push(...r.keys);

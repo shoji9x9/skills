@@ -80,6 +80,28 @@ function anyDefaultArity(name: ts.Node, checker: ts.TypeChecker): number {
 // 外部のパッケージから作った生成物（同梱した jsonc-parser）は、tsconfig.skills.json の対象から外しているので見ない。
 export const isTarget = (path: string): boolean => TARGET_RE.test(path) && !isVendored(path);
 
+/**
+ * 型引数を省くとデフォルトの any が入りうる型の参照なら、型の名前と、書いた型引数を返す。
+ * `import("x").T` の形（ImportTypeNode）も同じく調べる。`@types/node` の `ReadableStream<R = any>` のように、
+ * import した先の型もデフォルトが any でありうる。
+ * `typeof import("x").C` は値（クラスそのもの）の型で、型引数で具体化しないので対象にしない。
+ */
+function genericTarget(
+  node: ts.Node,
+): { ref: ts.Node; typeArguments: ts.NodeArray<ts.TypeNode> | undefined } | undefined {
+  return ts.isTypeReferenceNode(node)
+    ? { ref: node.typeName, typeArguments: node.typeArguments }
+    : ts.isImportTypeNode(node) && !node.isTypeOf && node.qualifier !== undefined
+      ? { ref: node.qualifier, typeArguments: node.typeArguments }
+      : // `@extends {X}`・`@augments {X}`・`@implements {X}` の X も、省いた型引数に any が入る。
+        // タグの無い `class S extends X {}` は対象にしない。このチェックが調べるのは JSDoc に書いた型で、
+        // 型を書いていない継承（X の型引数はデフォルトになる）は、書き方の誤りとして検出する対象の外にある。
+        ts.isExpressionWithTypeArguments(node) &&
+          (ts.isJSDocAugmentsTag(node.parent) || ts.isJSDocImplementsTag(node.parent))
+        ? { ref: node.expression, typeArguments: node.typeArguments }
+        : undefined;
+}
+
 /** JSDoc の型のうち、`any` として扱われるものなら、その書き方を返す。 */
 function anyLike(node: ts.Node, sf: ts.SourceFile, checker: () => ts.TypeChecker): string | null {
   if (node.kind === ts.SyntaxKind.AnyKeyword) return "any";
@@ -100,20 +122,7 @@ function anyLike(node: ts.Node, sf: ts.SourceFile, checker: () => ts.TypeChecker
   )
     return "Function";
   // 型引数を省くと、デフォルトの any が入るジェネリック型（`Generator<string>` は `Generator<string, any, any>`）。
-  // `import("x").T` の形（ImportTypeNode）も同じく調べる。`@types/node` の `ReadableStream<R = any>` のように、
-  // import した先の型もデフォルトが any でありうる。
-  // `typeof import("x").C` は値（クラスそのもの）の型で、型引数で具体化しないので対象にしない。
-  const target = ts.isTypeReferenceNode(node)
-    ? { ref: node.typeName, typeArguments: node.typeArguments }
-    : ts.isImportTypeNode(node) && !node.isTypeOf && node.qualifier !== undefined
-      ? { ref: node.qualifier, typeArguments: node.typeArguments }
-      : // `@extends {X}`・`@augments {X}`・`@implements {X}` の X も、省いた型引数に any が入る。
-        // タグの無い `class S extends X {}` は対象にしない。このチェックが調べるのは JSDoc に書いた型で、
-        // 型を書いていない継承（X の型引数はデフォルトになる）は、書き方の誤りとして検出する対象の外にある。
-        ts.isExpressionWithTypeArguments(node) &&
-          (ts.isJSDocAugmentsTag(node.parent) || ts.isJSDocImplementsTag(node.parent))
-        ? { ref: node.expression, typeArguments: node.typeArguments }
-        : undefined;
+  const target = genericTarget(node);
   if (target !== undefined) {
     const { ref, typeArguments } = target;
     const arity = anyDefaultArity(ref, checker());

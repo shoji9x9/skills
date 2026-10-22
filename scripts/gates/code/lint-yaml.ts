@@ -77,6 +77,34 @@ export function lintFile(path: string): string | null {
 }
 
 /**
+ * 引数から走査の起点（`--root`）と対象のファイルを取り出す。不正な引数なら usage を出して null を返す。
+ * @param {string[]} argv
+ * @param {(s: string) => void} err
+ * @returns {{ root: string, files: string[] } | null}
+ */
+function parseArgs(argv: string[], err: (s: string) => void) {
+  const usage = "usage: node scripts/gates/code/lint-yaml.ts [--root <dir>] [<file>...]";
+  let root = repoRoot;
+  const files: string[] = [];
+  for (let i = 0; i < argv.length; i += 1) {
+    const a = argv[i];
+    if (a === "--root") {
+      const v = argv[i + 1];
+      if (!v || v.startsWith("--")) {
+        err(`error: --root に値が無い\n${usage}\n`);
+        return null;
+      }
+      root = resolve(v);
+      i += 1;
+    } else if (a.startsWith("-")) {
+      err(`error: 不明な引数 ${a}\n${usage}\n`);
+      return null;
+    } else files.push(resolve(a));
+  }
+  return { root, files };
+}
+
+/**
  * @param {string[]} argv
  * @param {{ out?: (s: string) => void, err?: (s: string) => void }} [io]
  * @returns {number}
@@ -87,24 +115,9 @@ export function main(
 ): number {
   const out = io.out ?? ((s: string) => process.stdout.write(s));
   const err = io.err ?? ((s: string) => process.stderr.write(s));
-  const usage = "usage: node scripts/gates/code/lint-yaml.ts [--root <dir>] [<file>...]";
-  let root = repoRoot;
-  const files: string[] = [];
-  for (let i = 0; i < argv.length; i += 1) {
-    const a = argv[i];
-    if (a === "--root") {
-      const v = argv[i + 1];
-      if (!v || v.startsWith("--")) {
-        err(`error: --root に値が無い\n${usage}\n`);
-        return 2;
-      }
-      root = resolve(v);
-      i += 1;
-    } else if (a.startsWith("-")) {
-      err(`error: 不明な引数 ${a}\n${usage}\n`);
-      return 2;
-    } else files.push(resolve(a));
-  }
+  const parsed = parseArgs(argv, err);
+  if (parsed === null) return 2;
+  const { root, files } = parsed;
   let targets = files;
   if (files.length === 0) {
     try {

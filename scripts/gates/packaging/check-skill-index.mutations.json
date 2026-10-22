@@ -19,8 +19,8 @@
       "id": "SI-PRIV-MARKER",
       "why": ".private-skill の印を見ずに .agents/skills だけのスキルを private とみなす",
       "file": "scripts/gates/packaging/check-skill-index.ts",
-      "find": "(name) => !dist.has(name) && existsSync(join(root, \".agents/skills\", name, \".private-skill\")),",
-      "replace": "(name) => !dist.has(name),",
+      "find": "      !distributed.includes(name) &&\n      existsSync(join(root, \".agents/skills\", name, \".private-skill\")),",
+      "replace": "      !distributed.includes(name),",
       "occurrences": 1,
       "expect_failing": [
         "陽性: .private-skill の印が無い .agents/skills だけのスキルは、AGENTS.md に載っていても実在扱いしない",
@@ -31,8 +31,8 @@
       "id": "SI-PRIV-DIST",
       "why": "skills/ にもあるスキルを private とみなす（README から外すよう求める）",
       "file": "scripts/gates/packaging/check-skill-index.ts",
-      "find": "(name) => !dist.has(name) && existsSync(join(root, \".agents/skills\", name, \".private-skill\")),",
-      "replace": "(name) => existsSync(join(root, \".agents/skills\", name, \".private-skill\")),",
+      "find": "      !distributed.includes(name) &&\n      existsSync(join(root, \".agents/skills\", name, \".private-skill\")),",
+      "replace": "      existsSync(join(root, \".agents/skills\", name, \".private-skill\")),",
       "occurrences": 1,
       "expect_failing": [
         "陰性: 実体と同名で skills/ にもある .private-skill は配布として扱う（README に載せてよい）"
@@ -54,7 +54,7 @@
       "id": "SI-AGENTS-GHOST",
       "why": "AGENTS.md の実在しないスキルを見ない",
       "file": "scripts/gates/packaging/check-skill-index.ts",
-      "find": "      if (!dist.has(name) && !priv.includes(name)) {",
+      "find": "      if (!distributed.includes(name) && !priv.includes(name)) {",
       "replace": "      if (false) {",
       "occurrences": 1,
       "expect_failing": [
@@ -79,7 +79,7 @@
       "id": "SI-README-EXTRA",
       "why": "README.md の実在しないスキル・private skill の掲載を見ない",
       "file": "scripts/gates/packaging/check-skill-index.ts",
-      "find": "      if (dist.has(name)) continue;",
+      "find": "      if (distributed.includes(name)) continue;",
       "replace": "      continue;",
       "occurrences": 1,
       "expect_failing": [

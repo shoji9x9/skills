@@ -16,73 +16,26 @@ export const PENDING_RULES = [
 export type PendingRule = (typeof PENDING_RULES)[number];
 
 export const PENDING_FIXES: Readonly<Record<string, readonly PendingRule[]>> = {
-  ".agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.ts": ["max-params"],
-  "scripts/coverage/run-coverage.ts": ["complexity", "max-lines-per-function", "max-params"],
-  "scripts/coverage/shell-coverage.ts": ["max-lines-per-function"],
   "scripts/eval/build-skill-eval-benchmark.test.ts": [
     "skills-repo/max-lines-per-function-except-describe",
   ],
-  "scripts/eval/build-skill-eval-benchmark.ts": ["complexity", "max-lines-per-function"],
   "scripts/eval/eval-sandbox.test.ts": ["skills-repo/max-lines-per-function-except-describe"],
-  "scripts/eval/generate-parity-component-fixtures.ts": [
-    "max-lines-per-function",
-    "max-depth",
-    "max-params",
-  ],
-  "scripts/eval/normalize-skill-eval-result.ts": [
-    "complexity",
-    "max-lines-per-function",
-    "max-depth",
-    "max-params",
-  ],
   "scripts/eval/parity-component-fixtures.test.ts": [
     "complexity",
     "max-depth",
     "skills-repo/max-lines-per-function-except-describe",
   ],
-  "scripts/eval/reuse-skill-eval-baseline.ts": ["complexity", "max-lines-per-function"],
   "scripts/eval/run-skill-eval.test.ts": [
     "max-params",
     "skills-repo/max-lines-per-function-except-describe",
   ],
   "scripts/eval/skill-eval-fingerprint.test.ts": ["max-params"],
-  "scripts/gates/code/lint-pagination.ts": ["max-lines-per-function"],
-  "scripts/gates/code/lint-yaml.ts": ["max-lines-per-function"],
   "scripts/gates/docs/check-doc-refs.test.ts": ["max-params"],
-  "scripts/gates/docs/check-doc-refs.ts": ["complexity", "max-lines-per-function", "max-params"],
   "scripts/gates/docs/check-kaizen-refs.test.ts": ["max-params"],
-  "scripts/gates/docs/check-kaizen-refs.ts": ["max-lines-per-function"],
-  "scripts/gates/packaging/check-eval-reachability.ts": [
-    "complexity",
-    "max-lines-per-function",
-    "max-params",
-  ],
-  "scripts/gates/packaging/check-skill-checks.ts": [
-    "complexity",
-    "max-lines-per-function",
-    "max-params",
-  ],
-  "scripts/gates/packaging/check-skill-config-vendor.ts": ["max-lines-per-function"],
-  "scripts/gates/packaging/check-skill-configs.ts": ["max-lines-per-function"],
-  "scripts/gates/packaging/check-skill-frontmatter.ts": ["max-lines-per-function"],
-  "scripts/gates/packaging/check-skill-index.ts": ["max-lines-per-function"],
-  "scripts/gates/packaging/copies/check-rule-symlinks.ts": ["max-lines-per-function"],
   "scripts/gates/prose/check-time-sensitive-prose.test.ts": ["max-params"],
-  "scripts/gates/prose/check-time-sensitive-prose.ts": ["max-lines-per-function"],
-  "scripts/gates/prose/lint-prose.ts": ["max-lines-per-function", "max-params"],
   "scripts/gates/tooling/lint-scope.test.ts": ["max-params"],
-  "scripts/gates/types/check-jsdoc-types.ts": ["complexity"],
   "scripts/gates/types/check-type-guard-brands.test.ts": ["max-params"],
-  "scripts/gates/types/check-type-guard-brands.ts": [
-    "complexity",
-    "max-lines-per-function",
-    "max-params",
-  ],
   "scripts/lib/errors.test.ts": ["max-params"],
-  "scripts/lib/testing/child-timeout.ts": ["complexity", "max-lines-per-function"],
-  "scripts/lib/text/code-comments.ts": ["max-lines-per-function", "max-params"],
-  "scripts/lib/text/code-strings.ts": ["max-lines-per-function", "max-depth"],
-  "scripts/mutation/check-mutation-proof.ts": ["complexity", "max-lines-per-function"],
   "scripts/skills/_cross/coverage-record-judge-parity.test.ts": [
     "skills-repo/max-lines-per-function-except-describe",
   ],
@@ -147,7 +100,6 @@ export const PENDING_FIXES: Readonly<Record<string, readonly PendingRule[]>> = {
   "scripts/skills/parity-suite/evidence/coverage-expand.test.ts": [
     "skills-repo/max-lines-per-function-except-describe",
   ],
-  "scripts/skills/parity-suite/evidence/evidence-carry-fixture.ts": ["max-lines-per-function"],
   "scripts/skills/parity-suite/evidence/evidence-carry.test.ts": [
     "skills-repo/max-lines-per-function-except-describe",
   ],
