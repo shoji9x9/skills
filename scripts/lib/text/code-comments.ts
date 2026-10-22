@@ -117,7 +117,8 @@ export function commentMarkdown(path: string, source: string): CommentMarkdown {
   const lines: number[] = [];
   const columns: number[] = [];
   const starts: number[] = [];
-  // start を省いた行（段落の間の空行とディレクティブ）は、文章が桁 column の直後から始まるとして扱う。
+  // start を省いた行（段落の間の空行・ディレクティブ・`//` のコメント・`/**` で始まらないブロックコメント）は、
+  // 文章が桁 column の直後から始まるとして扱う。
   const emit = ({ text, line, column, start = column + 1 }: Omit<Piece, "trailing">) => {
     md.push(text);
     lines.push(line);

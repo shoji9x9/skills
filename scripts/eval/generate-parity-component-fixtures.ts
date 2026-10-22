@@ -226,7 +226,7 @@ function spawnChrome() {
   return { proc, userDir };
 }
 
-/** Chrome の DevTools への接続。接続が閉じるまでは ws を持つ。 */
+/** Chrome の DevTools への接続。socket を開くと ws に入れ、閉じた後も null には戻さない（shutdown が閉じる対象を持つため）。 */
 type Connection = { ws: WebSocket | null };
 /** 起動した Chrome のプロセス。stderr を読むので、spawnChrome が返す stdio の形をそのまま使う。 */
 type ChromeProcess = ReturnType<typeof spawnChrome>["proc"];

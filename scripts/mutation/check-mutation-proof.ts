@@ -1223,7 +1223,7 @@ function selectSpecs(files: string[], changedSince: string | null): Spec[] | nul
  *
  * `--only` は**宣言をまたいで** id で絞る指定。選ばれなかった宣言は飛ばす。
  * 宣言ごとに「1 件も選ばれなかった」で落とすと、宣言が 2 件以上ある時点で
- * `--only <id>` が常に exit 2 になる（実測。宣言は今 3 件ある）。
+ * `--only <id>` が常に exit 2 になる（実測）。
  */
 function buildPlans(specs: Spec[], only: Set<string> | null): { plans: Plan[]; skipped: number } {
   const plans: Plan[] = specs.map((spec) => ({
