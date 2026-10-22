@@ -88,6 +88,7 @@
     "scripts/skills/replace-strategy/procedure-staleness-check.mutations.json": 0.7,
     "scripts/tools/mutation-proof-shards.mutations.json": 2.4,
     "scripts/tools/reinstall-skill.mutations.json": 2.4,
+    "scripts/tools/repo-size.mutations.json": 1.9,
     "scripts/skills/agent-usage/logs.mutations.json": 0.4,
     "scripts/skills/agent-usage/aggregate.mutations.json": 0.8,
     "scripts/skills/agent-usage/github.mutations.json": 0.7,
