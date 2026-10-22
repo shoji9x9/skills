@@ -137,18 +137,12 @@ function inAllowlist(v, allowed) {
 }
 
 /**
- * 操作可能な要素へ発火を確認した absent（`kind: fired-without-response`）の証拠を検査する。
- * 散文 `evidence` の非空だけでは「送り方・発火確認・観測結果」の 3 点を測ったかを区別できず、
- * 0 寸法要素の中心座標で**重なった別要素**が発火した結果も同じ判定で通ってしまう。
- * @param {Record<string, unknown>} evidence
+ * fired-without-response の `action`（操作の送り方）を検査する。
+ * @param {Record<string, unknown>} action
  * @param {string} label
  * @returns {string|null}
  */
-function firedEvidenceProblem(evidence, label) {
-  if (!isPlainObject(evidence.action)) {
-    return `${label}: fired-without-response なのに action が JSON オブジェクトではない`;
-  }
-  const action = evidence.action;
+function firedActionProblem(action, label) {
   if (!nonEmptyString(action.locator) || !nonEmptyString(action.detail)) {
     return `${label}: fired-without-response の action.locator / action.detail が空`;
   }
@@ -182,6 +176,23 @@ function firedEvidenceProblem(evidence, label) {
       return `${label}: 座標操作の hit-test が操作用要素または子孫を指した実測になっていない`;
     }
   }
+  return null;
+}
+
+/**
+ * 操作可能な要素へ発火を確認した absent（`kind: fired-without-response`）の証拠を検査する。
+ * 散文 `evidence` の非空だけでは「送り方・発火確認・観測結果」の 3 点を測ったかを区別できず、
+ * 0 寸法要素の中心座標で**重なった別要素**が発火した結果も同じ判定で通ってしまう。
+ * @param {Record<string, unknown>} evidence
+ * @param {string} label
+ * @returns {string|null}
+ */
+function firedEvidenceProblem(evidence, label) {
+  if (!isPlainObject(evidence.action)) {
+    return `${label}: fired-without-response なのに action が JSON オブジェクトではない`;
+  }
+  const actionProblem = firedActionProblem(evidence.action, label);
+  if (actionProblem !== null) return actionProblem;
   if (!isPlainObject(evidence.fired)) {
     return `${label}: fired-without-response なのに fired が JSON オブジェクトではない`;
   }
@@ -199,34 +210,12 @@ function firedEvidenceProblem(evidence, label) {
 }
 
 /**
- * absent セルの証拠を、証拠の種類（`kind`）ごとに検査する。散文 evidence の非空だけでは、全状態を測ったという
- * 自己申告と実測の構造を区別できないため、`non-renderable` は状態ごとの証拠を必須にする。
- * @param {Record<string, unknown>} row
- * @param {string} label
+ * インスタンスの applicable_states を検査し、状態 id → transition の対応を返す。不備があればその指摘を返す。
  * @param {unknown} stateManifest - components[].instances[].applicable_states
- * @returns {string|null}
+ * @param {string} label
+ * @returns {string|Map<string, string>}
  */
-function absentEvidenceProblem(row, label, stateManifest) {
-  if (!isPlainObject(row.absence_evidence)) {
-    return `${label}: value: absent なのに absence_evidence が JSON オブジェクトではない`;
-  }
-  const evidence = row.absence_evidence;
-  if (evidence.kind === "fired-without-response") return firedEvidenceProblem(evidence, label);
-  if (evidence.kind !== "non-renderable") {
-    return `${label}: absence_evidence.kind が fired-without-response / non-renderable のいずれでもない`;
-  }
-  if (!nonEmptyString(evidence.locator) || !nonEmptyString(evidence.state_source)) {
-    return `${label}: non-renderable の locator / state_source が空`;
-  }
-  // 通常の getByRole は hidden 要素を除外するため、display: none の要素でも一致数は 0 になる。
-  // locator が hidden を含むことを実証しないまま 0 件を「DOM に無い」と読むと、非表示の状態を
-  // 不在として absent に収束できる。includeHidden または構造 locator であることを実測として要求する。
-  if (evidence.locator_includes_hidden !== true) {
-    return `${label}: non-renderable の locator_includes_hidden が実測の true ではない（hidden を含む locator である実証が無い）`;
-  }
-  if (evidence.states_exhaustive !== true) {
-    return `${label}: non-renderable の states_exhaustive が true ではない`;
-  }
+function manifestStatesOf(stateManifest, label) {
   if (!isPlainObject(stateManifest)) {
     return `${label}: non-renderable なのにインスタンスの applicable_states が無い`;
   }
@@ -257,9 +246,135 @@ function absentEvidenceProblem(row, label, stateManifest) {
     if (manifestStates.has(id)) return `${label}: applicable_states.items の id ${id} が重複`;
     manifestStates.set(id, String(item.transition));
   }
-  if (!isArray(evidence.states) || evidence.states.length === 0) {
-    return `${label}: non-renderable の states が空`;
+  return manifestStates;
+}
+
+/**
+ * 状態の矩形が 0 寸法かを返す。矩形が null なら false を返す。不備があればその指摘を返す。
+ * @param {Record<string, unknown>} state
+ * @param {string} stateLabel
+ * @returns {string|boolean}
+ */
+function zeroAreaOf(state, stateLabel) {
+  if (state.bounding_box === null) return false;
+  if (!isPlainObject(state.bounding_box)) {
+    return `${stateLabel}.bounding_box が null または JSON オブジェクトではない`;
   }
+  const box = state.bounding_box;
+  if (![box.x, box.y, box.width, box.height].every((v) => Number.isFinite(v))) {
+    return `${stateLabel}.bounding_box の x / y / width / height が有限の数値ではない`;
+  }
+  // Playwright の矩形に負の幅・高さは無い。負値を通すと、実在しない矩形で 0 寸法判定を迂回できる。
+  if (Number(box.width) < 0 || Number(box.height) < 0) {
+    return `${stateLabel}.bounding_box の width / height が負（実在しない矩形）`;
+  }
+  return box.width === 0 || box.height === 0;
+}
+
+/**
+ * 状態の非表示原因（hidden_by）が検証済みかを返す。hidden_by が null なら false を返す。不備があればその指摘を返す。
+ * @param {Record<string, unknown>} state
+ * @param {string} stateLabel
+ * @param {unknown} targetLocator - non-renderable の証拠の locator
+ * @returns {string|boolean}
+ */
+function hiddenCauseOf(state, stateLabel, targetLocator) {
+  if (state.hidden_by === null) return false;
+  if (!isPlainObject(state.hidden_by)) {
+    return `${stateLabel}.hidden_by が null または JSON オブジェクトではない`;
+  }
+  const hidden = state.hidden_by;
+  const style = isPlainObject(hidden.computed_style) ? hidden.computed_style : null;
+  const hiddenCause =
+    nonEmptyString(hidden.locator) &&
+    hidden.relationship_verified === true &&
+    (hidden.relation === "self" || hidden.relation === "ancestor") &&
+    hidden.target_locator === targetLocator &&
+    style !== null &&
+    (style.display === "none" || style.visibility === "hidden" || style.visibility === "collapse");
+  if (!hiddenCause) {
+    return `${stateLabel}.hidden_by が対象本人／祖先との検証済み関係と非表示 CSS を示さない`;
+  }
+  // display: none の本人／祖先配下では実 DOM の offsetParent は必ず null。
+  // 非 null を通すと、実測していない値の組み合わせを非描画の証拠として収束させられる。
+  if (style !== null && style.display === "none" && state.offset_parent !== null) {
+    return `${stateLabel}: display: none なのに offset_parent が null ではない（矛盾）`;
+  }
+  return true;
+}
+
+/**
+ * locator が 1 件に一致した状態に、0 寸法の矩形か非表示原因の証拠があるかを検査する。
+ * @param {Record<string, unknown>} state
+ * @param {string} stateLabel
+ * @param {unknown} targetLocator - non-renderable の証拠の locator
+ * @returns {string|null}
+ */
+function renderedStateProblem(state, stateLabel, targetLocator) {
+  if (!("bounding_box" in state) || !("offset_parent" in state)) {
+    return `${stateLabel} に bounding_box / offset_parent が無い`;
+  }
+  if (state.offset_parent !== null && !nonEmptyString(state.offset_parent)) {
+    return `${stateLabel}.offset_parent が null または空でない文字列ではない`;
+  }
+  const zeroArea = zeroAreaOf(state, stateLabel);
+  if (typeof zeroArea === "string") return zeroArea;
+  const hiddenCause = hiddenCauseOf(state, stateLabel, targetLocator);
+  if (typeof hiddenCause === "string") return hiddenCause;
+  if (hiddenCause && state.bounding_box !== null) {
+    return `${stateLabel}: hidden_by があるのに bounding_box が null ではない（矛盾）`;
+  }
+  if (!zeroArea && !hiddenCause) {
+    return `${stateLabel} に 0 寸法の矩形または非表示原因の証拠が無い`;
+  }
+  return null;
+}
+
+/**
+ * non-renderable の状態 1 件を検査する。locator が 0 件だった（DOM に無い）かを返す。不備があればその指摘を返す。
+ * @param {unknown} rawState
+ * @param {string} stateLabel
+ * @param {{ manifestStates: Map<string, string>, measuredStates: Set<string>, locator: unknown }} ctx
+ * @returns {string|boolean}
+ */
+function measureState(rawState, stateLabel, ctx) {
+  if (!isPlainObject(rawState)) return `${stateLabel} が JSON オブジェクトではない`;
+  const state = rawState;
+  if (!nonEmptyString(state.name) || !nonEmptyString(state.transition)) {
+    return `${stateLabel} の name / transition が空`;
+  }
+  const stateName = String(state.name);
+  if (ctx.measuredStates.has(stateName)) return `${stateLabel}.name ${stateName} が重複している`;
+  ctx.measuredStates.add(stateName);
+  if (ctx.manifestStates.get(stateName) !== String(state.transition)) {
+    return `${stateLabel} が applicable_states の id / transition と一致しない`;
+  }
+  // locator が対象を一意に引くことは状態ごとに変わる（開く前は 0 件、開くと 1 件など）。
+  // 1 状態だけの一致数では、別状態で 0 件／複数件の locator を非描画の証拠にできてしまう。
+  if (!Number.isInteger(state.locator_match_count) || Number(state.locator_match_count) < 0) {
+    return `${stateLabel}.locator_match_count が 0 以上の整数ではない（一致数を実測していない）`;
+  }
+  const matchCount = Number(state.locator_match_count);
+  if (matchCount > 1) {
+    return `${stateLabel}: locator が ${matchCount} 件に一致する（対象の操作要素を一意に引けていない）`;
+  }
+  if (matchCount === 0) {
+    // その状態では DOM に存在しない＝操作可能な要素が無い。矩形・非表示原因を持つのは矛盾。
+    if (state.bounding_box !== null || state.hidden_by !== null || state.offset_parent !== null) {
+      return `${stateLabel}: locator が 0 件なのに矩形・offset_parent・hidden_by が null ではない（矛盾）`;
+    }
+    return true;
+  }
+  return renderedStateProblem(state, stateLabel, ctx.locator) ?? false;
+}
+
+/**
+ * non-renderable の expected_states を検査して返す。不備があればその指摘を返す。
+ * @param {Record<string, unknown>} evidence
+ * @param {string} label
+ * @returns {string|string[]}
+ */
+function expectedStatesOf(evidence, label) {
   if (
     !isArray(evidence.expected_states) ||
     evidence.expected_states.length === 0 ||
@@ -271,93 +386,65 @@ function absentEvidenceProblem(row, label, stateManifest) {
   if (new Set(expectedStates).size !== expectedStates.length) {
     return `${label}: non-renderable の expected_states が重複している`;
   }
+  return expectedStates;
+}
+
+/**
+ * non-renderable の states を 1 件ずつ検査し、測った状態名と、locator が 0 件だった状態数を返す。
+ * 不備があればその指摘を返す。
+ * @param {unknown[]} states
+ * @param {string} label
+ * @param {{ manifestStates: Map<string, string>, locator: unknown }} ctx
+ * @returns {string|{ measuredStates: Set<string>, domAbsentStates: number }}
+ */
+function measureStates(states, label, ctx) {
   /** @type {Set<string>} */
   const measuredStates = new Set();
   // locator が 0 件だった状態数。全状態が 0 件なら locator の正しさを実証できていない。
   let domAbsentStates = 0;
-  for (const [index, rawState] of evidence.states.entries()) {
-    const stateLabel = `${label}: non-renderable.states[${index}]`;
-    if (!isPlainObject(rawState)) return `${stateLabel} が JSON オブジェクトではない`;
-    const state = rawState;
-    if (!nonEmptyString(state.name) || !nonEmptyString(state.transition)) {
-      return `${stateLabel} の name / transition が空`;
-    }
-    const stateName = String(state.name);
-    if (measuredStates.has(stateName)) return `${stateLabel}.name ${stateName} が重複している`;
-    measuredStates.add(stateName);
-    if (manifestStates.get(stateName) !== String(state.transition)) {
-      return `${stateLabel} が applicable_states の id / transition と一致しない`;
-    }
-    // locator が対象を一意に引くことは状態ごとに変わる（開く前は 0 件、開くと 1 件など）。
-    // 1 状態だけの一致数では、別状態で 0 件／複数件の locator を非描画の証拠にできてしまう。
-    if (!Number.isInteger(state.locator_match_count) || Number(state.locator_match_count) < 0) {
-      return `${stateLabel}.locator_match_count が 0 以上の整数ではない（一致数を実測していない）`;
-    }
-    const matchCount = Number(state.locator_match_count);
-    if (matchCount > 1) {
-      return `${stateLabel}: locator が ${matchCount} 件に一致する（対象の操作要素を一意に引けていない）`;
-    }
-    if (matchCount === 0) {
-      // その状態では DOM に存在しない＝操作可能な要素が無い。矩形・非表示原因を持つのは矛盾。
-      if (state.bounding_box !== null || state.hidden_by !== null || state.offset_parent !== null) {
-        return `${stateLabel}: locator が 0 件なのに矩形・offset_parent・hidden_by が null ではない（矛盾）`;
-      }
-      domAbsentStates += 1;
-      continue;
-    }
-    if (!("bounding_box" in state) || !("offset_parent" in state)) {
-      return `${stateLabel} に bounding_box / offset_parent が無い`;
-    }
-    if (state.offset_parent !== null && !nonEmptyString(state.offset_parent)) {
-      return `${stateLabel}.offset_parent が null または空でない文字列ではない`;
-    }
-    let zeroArea = false;
-    if (state.bounding_box !== null) {
-      if (!isPlainObject(state.bounding_box)) {
-        return `${stateLabel}.bounding_box が null または JSON オブジェクトではない`;
-      }
-      const box = state.bounding_box;
-      if (![box.x, box.y, box.width, box.height].every((v) => Number.isFinite(v))) {
-        return `${stateLabel}.bounding_box の x / y / width / height が有限の数値ではない`;
-      }
-      // Playwright の矩形に負の幅・高さは無い。負値を通すと、実在しない矩形で 0 寸法判定を迂回できる。
-      if (Number(box.width) < 0 || Number(box.height) < 0) {
-        return `${stateLabel}.bounding_box の width / height が負（実在しない矩形）`;
-      }
-      zeroArea = box.width === 0 || box.height === 0;
-    }
-    let hiddenCause = false;
-    if (state.hidden_by !== null) {
-      if (!isPlainObject(state.hidden_by)) {
-        return `${stateLabel}.hidden_by が null または JSON オブジェクトではない`;
-      }
-      const hidden = state.hidden_by;
-      const style = isPlainObject(hidden.computed_style) ? hidden.computed_style : null;
-      hiddenCause =
-        nonEmptyString(hidden.locator) &&
-        hidden.relationship_verified === true &&
-        (hidden.relation === "self" || hidden.relation === "ancestor") &&
-        hidden.target_locator === evidence.locator &&
-        style !== null &&
-        (style.display === "none" ||
-          style.visibility === "hidden" ||
-          style.visibility === "collapse");
-      if (!hiddenCause) {
-        return `${stateLabel}.hidden_by が対象本人／祖先との検証済み関係と非表示 CSS を示さない`;
-      }
-      // display: none の本人／祖先配下では実 DOM の offsetParent は必ず null。
-      // 非 null を通すと、実測していない値の組み合わせを非描画の証拠として収束させられる。
-      if (style !== null && style.display === "none" && state.offset_parent !== null) {
-        return `${stateLabel}: display: none なのに offset_parent が null ではない（矛盾）`;
-      }
-    }
-    if (hiddenCause && state.bounding_box !== null) {
-      return `${stateLabel}: hidden_by があるのに bounding_box が null ではない（矛盾）`;
-    }
-    if (!zeroArea && !hiddenCause) {
-      return `${stateLabel} に 0 寸法の矩形または非表示原因の証拠が無い`;
-    }
+  const stateCtx = { ...ctx, measuredStates };
+  for (const [index, rawState] of states.entries()) {
+    const domAbsent = measureState(rawState, `${label}: non-renderable.states[${index}]`, stateCtx);
+    if (typeof domAbsent === "string") return domAbsent;
+    if (domAbsent) domAbsentStates += 1;
   }
+  return { measuredStates, domAbsentStates };
+}
+
+/**
+ * absent セルの `kind: non-renderable` の証拠を検査する。全状態を測ったという自己申告と実測の構造を
+ * 区別するため、状態ごとの証拠を必須にする。
+ * @param {Record<string, unknown>} evidence
+ * @param {string} label
+ * @param {unknown} stateManifest - components[].instances[].applicable_states
+ * @returns {string|null}
+ */
+function nonRenderableProblem(evidence, label, stateManifest) {
+  if (!nonEmptyString(evidence.locator) || !nonEmptyString(evidence.state_source)) {
+    return `${label}: non-renderable の locator / state_source が空`;
+  }
+  // 通常の getByRole は hidden 要素を除外するため、display: none の要素でも一致数は 0 になる。
+  // locator が hidden を含むことを実証しないまま 0 件を「DOM に無い」と読むと、非表示の状態を
+  // 不在として absent に収束できる。includeHidden または構造 locator であることを実測として要求する。
+  if (evidence.locator_includes_hidden !== true) {
+    return `${label}: non-renderable の locator_includes_hidden が実測の true ではない（hidden を含む locator である実証が無い）`;
+  }
+  if (evidence.states_exhaustive !== true) {
+    return `${label}: non-renderable の states_exhaustive が true ではない`;
+  }
+  const manifestStates = manifestStatesOf(stateManifest, label);
+  if (typeof manifestStates === "string") return manifestStates;
+  if (!isArray(evidence.states) || evidence.states.length === 0) {
+    return `${label}: non-renderable の states が空`;
+  }
+  const expectedStates = expectedStatesOf(evidence, label);
+  if (typeof expectedStates === "string") return expectedStates;
+  const measured = measureStates(evidence.states, label, {
+    manifestStates,
+    locator: evidence.locator,
+  });
+  if (typeof measured === "string") return measured;
+  const { measuredStates, domAbsentStates } = measured;
   // 全状態で 0 件なら locator が正しいことを一度も実証できておらず、誤った locator と区別できない。
   if (domAbsentStates === measuredStates.size) {
     return `${label}: non-renderable の locator がどの状態でも 0 件（locator が対象を引けている実証が無い）`;
@@ -371,6 +458,26 @@ function absentEvidenceProblem(row, label, stateManifest) {
     return `${label}: expected_states / states[].name / applicable_states.items[].id が完全一致しない`;
   }
   return null;
+}
+
+/**
+ * absent セルの証拠を、証拠の種類（`kind`）ごとに検査する。散文 evidence の非空だけでは、全状態を測ったという
+ * 自己申告と実測の構造を区別できないため、`non-renderable` は状態ごとの証拠を必須にする。
+ * @param {Record<string, unknown>} row
+ * @param {string} label
+ * @param {unknown} stateManifest - components[].instances[].applicable_states
+ * @returns {string|null}
+ */
+function absentEvidenceProblem(row, label, stateManifest) {
+  if (!isPlainObject(row.absence_evidence)) {
+    return `${label}: value: absent なのに absence_evidence が JSON オブジェクトではない`;
+  }
+  const evidence = row.absence_evidence;
+  if (evidence.kind === "fired-without-response") return firedEvidenceProblem(evidence, label);
+  if (evidence.kind !== "non-renderable") {
+    return `${label}: absence_evidence.kind が fired-without-response / non-renderable のいずれでもない`;
+  }
+  return nonRenderableProblem(evidence, label, stateManifest);
 }
 /**
  * 集合の出所（`component_inventory` / `components[].instance_inventory`）と

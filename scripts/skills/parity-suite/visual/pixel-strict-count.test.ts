@@ -66,7 +66,7 @@ test("parity-diff の pixel-crops.mjs と同じ画素数・最大チャンネル
   ]);
 
   const mine = counter.countStrictDiff(first, second, 4);
-  const theirs = crops.buildStrictMask(first, second, 4);
+  const theirs = crops.buildStrictMask(first, second, { pixels: 4 });
 
   expect(mine.strict_pixels).toBe(theirs.count);
   expect(mine.strict_max_channel_delta).toBe(theirs.maxChannelDelta);

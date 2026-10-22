@@ -3,6 +3,7 @@ import { assert } from "vitest";
 import {
   STATE_PSEUDO_CLASSES,
   STRUCTURAL_PSEUDO_CLASSES,
+  captureMatchedRules,
   collectMatchedRules,
 } from "../../../skills/parity-component/scripts/css-rules-capture.mjs";
 
@@ -51,6 +52,35 @@ export type FakeElement = {
 // collectMatchedRules の結果と、そのうちの当たった規則 1 件。
 type CaptureResult = ReturnType<typeof collectMatchedRules>;
 export type Match = CaptureResult["matched"][number];
+// 状態擬似クラスと構造擬似クラスの集合。2 通りの呼び方で同じ集合を渡すように、両方を必須にする。
+type CaptureOptions = {
+  statePseudoClasses: readonly string[];
+  structuralPseudoClasses: readonly string[];
+};
+// 採取を呼ぶ関数。テストは、モジュールの関数と、ページへ渡すソースから作った関数の両方を当てる。
+export type Collect = (el: FakeElement, options: CaptureOptions) => Promise<CaptureResult>;
+
+/**
+ * captureMatchedRules に偽の locator を渡し、ページへ渡すのと同じソースから作った関数で採る。
+ * 偽の locator の evaluate は、渡された関数をその場で要素に当てる。結果の形の確認も captureMatchedRules がそのまま行う。
+ * ページ側の関数がヘルパーの一覧を通さずに互いを呼ぶと、モジュールの関数として呼んだときはモジュールのスコープで
+ * 名前が解決されて通るが、こちらでは名前が解決できずに失敗する。
+ */
+async function collectFromSource(el: FakeElement, options: CaptureOptions): Promise<CaptureResult> {
+  const locator = {
+    evaluate: <Arg>(fn: (el: FakeElement, arg: Arg) => unknown, arg: Arg) =>
+      Promise.resolve(fn(el, arg)),
+  };
+  const [captured] = await captureMatchedRules([{ name: "source", locator }], options);
+  return captured;
+}
+
+// describe.each に渡す 2 通りの呼び方。モジュールの関数はカバレッジを記録するために、ソースから作った関数は
+// ページ側の関数が互いをヘルパーの一覧を通して呼ぶ取り決めを確かめるために当てる。
+export const COLLECTORS: [string, Collect][] = [
+  ["モジュールの関数", async (el, options) => collectMatchedRules(el, options)],
+  ["ページへ渡すソース", collectFromSource],
+];
 
 // CSSStyleDeclaration の最小実装（添字アクセス・length・getPropertyValue/Priority）。
 export function decl(properties: Record<string, string>, important: string[] = []) {
@@ -175,12 +205,6 @@ export function fakeElement(
   return el;
 }
 
-export const capture = (overrides?: FakeElementOptions) =>
-  collectMatchedRules(fakeElement(buildSheets(), overrides), {
-    statePseudoClasses: STATE_PSEUDO_CLASSES,
-    structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
-  });
-
 export const findMatch = (result: CaptureResult, predicate: (m: Match) => boolean) =>
   result.matched.find(predicate);
 
@@ -213,16 +237,6 @@ export function naiveCollect(sheets: FakeSheet[]) {
   return selectors;
 }
 
-// --- シャドウツリーの内と外 ---
-
-export const shadowCapture = (overrides: FakeElementOptions & { sheets: FakeSheet[] }) =>
-  collectMatchedRules(fakeElement(overrides.sheets, overrides), {
-    statePseudoClasses: STATE_PSEUDO_CLASSES,
-    structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
-  });
-
-// --- 自分の根にある ::part() / ::slotted()（Issue #354） ---
-
 export const OPTIONS = {
   statePseudoClasses: STATE_PSEUDO_CLASSES,
   structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
@@ -235,20 +249,32 @@ export const verdict = (result: CaptureResult) => ({
   counts: result.counts,
 });
 
-// 1 つの根に 1 規則を置き、指定のスコープで採る。
-export function captureOne(selector: string, scope: string, selectors: string[]) {
-  const sheet: FakeSheet[] = [
-    { href: MAIN_HREF, cssRules: [styleRule(selector, { color: "rgb(1, 1, 1)" })] },
-  ];
-  const empty: FakeSheet[] = [{ href: null, cssRules: [] }];
-  const options = { selectors: new Set(selectors) };
-  if (scope === "document") return collectMatchedRules(fakeElement(sheet, options), OPTIONS);
-  if (scope === "host-target")
-    return collectMatchedRules(fakeElement(sheet, { ...options, hostSheets: empty }), OPTIONS);
-  if (scope === "outer") return shadowCapture({ ...options, sheets: sheet, shadowSheets: empty });
-  if (scope === "host")
-    return collectMatchedRules(fakeElement([], { ...options, hostSheets: sheet }), OPTIONS);
-  if (scope === "slot")
-    return collectMatchedRules(fakeElement([], { ...options, slotSheets: sheet }), OPTIONS);
-  throw new Error(`unknown scope: ${scope}`);
+/** 渡した呼び方で採る、テストの共通の手順を作る。 */
+export function bindCollect(collect: Collect) {
+  const capture = (overrides?: FakeElementOptions) =>
+    collect(fakeElement(buildSheets(), overrides), OPTIONS);
+
+  // --- シャドウツリーの内と外 ---
+  const shadowCapture = (overrides: FakeElementOptions & { sheets: FakeSheet[] }) =>
+    collect(fakeElement(overrides.sheets, overrides), OPTIONS);
+
+  // --- 自分の根にある ::part() / ::slotted()（Issue #354） ---
+  // 1 つの根に 1 規則を置き、指定のスコープで採る。
+  const captureOne = (selector: string, scope: string, selectors: string[]) => {
+    const sheet: FakeSheet[] = [
+      { href: MAIN_HREF, cssRules: [styleRule(selector, { color: "rgb(1, 1, 1)" })] },
+    ];
+    const empty: FakeSheet[] = [{ href: null, cssRules: [] }];
+    const options = { selectors: new Set(selectors) };
+    if (scope === "document") return collect(fakeElement(sheet, options), OPTIONS);
+    if (scope === "host-target")
+      return collect(fakeElement(sheet, { ...options, hostSheets: empty }), OPTIONS);
+    if (scope === "outer") return shadowCapture({ ...options, sheets: sheet, shadowSheets: empty });
+    if (scope === "host")
+      return collect(fakeElement([], { ...options, hostSheets: sheet }), OPTIONS);
+    if (scope === "slot")
+      return collect(fakeElement([], { ...options, slotSheets: sheet }), OPTIONS);
+    throw new Error(`unknown scope: ${scope}`);
+  };
+  return { capture, shadowCapture, captureOne };
 }

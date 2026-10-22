@@ -218,8 +218,8 @@
       "id": "id-range-reason-ignored",
       "why": "実在の列の行の根拠の空欄を落とさない",
       "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
-      "find": "      if (reasonMissing) {\n        findings.push({\n          code: \"id-range-reason-missing\",\n          message: `識別子の値の範囲の ${label} の根拠が「",
-      "replace": "      if (false) {\n        findings.push({\n          code: \"id-range-reason-missing\",\n          message: `識別子の値の範囲の ${label} の根拠が「",
+      "find": "  if (reasonMissing) {\n    findings.push({\n      code: \"id-range-reason-missing\",\n      message: `識別子の値の範囲の ${label} の根拠が「",
+      "replace": "  if (false) {\n    findings.push({\n      code: \"id-range-reason-missing\",\n      message: `識別子の値の範囲の ${label} の根拠が「",
       "occurrences": 1,
       "expect_failing": [
         "識別子の値の範囲の不備: 届くの根拠が空欄（整数変換を届くと書くだけで通さない）",
@@ -413,8 +413,8 @@
       "id": "verification-unclosed-fence-unchecked",
       "why": "verification.md の閉じないフェンスを報告しない",
       "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
-      "find": "    if (verificationUnclosed !== null) {",
-      "replace": "    if (false) {",
+      "find": "  if (verificationUnclosed !== null) {",
+      "replace": "  if (false) {",
       "occurrences": 1,
       "expect_failing": [
         "verification.md の閉じないコードフェンスは、表が無いときと同じく、開いた行の番号を付けて報告する",

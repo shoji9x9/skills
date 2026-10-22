@@ -35,21 +35,23 @@
 // | parity-suite 等  | 実在しない slug | 帰属不明として扱う（担当機能が現れない）       |
 // | （インベントリ未提示） | 任意の slug | 緩和を適用しない（判定できないので全件を対象にする） |
 //
-// 次の変異で、検出できることを確かめた（このファイルを書いた時点で 4 通り実施し、いずれも赤くなることを実測した）。
-//   1. countTriage の `if (inScope(issue, slug))` を `if (true)` に → 2 件 fail。
+// 次の変異を pending-triage-check.mjs に 1 件ずつ当て、いずれもこのファイルのテストが赤くなることを実測した。
+// 件数は、このファイルのテストが 57 件のときに実測した値である。
+//   1. readPendingItems の `addRegistryProblem(sink, issue.message, inScope(issue, slug))` の第 3 引数を `true` に → 2 件 fail。
 //      別機能に帰属する要素の added_at 欠落と、item が読めない要素。緩和する処理が機能していることを測れている。
-//   2. 同じ行を `if (false)` に → 5 件 fail。
-//      この機能・cross-cutting・slug 欠落・item が読めない要素の確認・非オブジェクト。対象内の検出が機能している。
-//   3. 重複文言の `items.some(... inScope ...)` を `true` に → 1 件 fail（重複は別の分岐なので 1・2 では赤くならない）。
-//   4. main の `counted.record_problems.length > 0` の error 行を消す → 1 件 fail（記録側と登録簿側の分離）。
-//   5. normalizePending の `CROSS_CUTTING_ONLY_WRITERS.has(...)` を `false` に（分岐を殺す）→ 2 件 fail。
-//      部品 slug の 2 ケース。名前空間の検出が機能している。
-//   6. 同じ位置を `true` に（全スキルへ広げる）→ 5 件 fail。
-//      別機能に帰属する要素を帰属不明として扱ってしまうケース群。その範囲が広すぎないことを測れている。
-//   7. normalizePending の `namespaceVerified` を `true` に（slug を常に信用する＝修正前の挙動）→ 5 件 fail。
-//   8. 同じ位置を `false` に（帰属を一切信用しない）→ 8 件 fail（#347 の緩和が機能していることを測れている）。
-//   9. normalizePending の `slugInInventory` を `true` に（実在を検証しない＝修正前）→ 2 件 fail。
-//  10. 同じ位置を `false` に（常に不在扱い）→ 7 件 fail。
+//   2. 同じ引数を `false` に → 14 件 fail。
+//      この機能・cross-cutting・slug 欠落・非オブジェクト・名前空間を確認できない slug のケース群。対象内の検出が機能している。
+//   3. readPendingItems の重複文言の `items.some(... inScope ...)` を `true` に → 1 件 fail（重複は別の分岐なので 1・2 では赤くならない）。
+//   4. reportTriage の `counted.record_problems.length > 0` の error 行を消す → 11 件 fail（記録側と登録簿側の分離）。
+//   5. unverifiedSlugReason の `CROSS_CUTTING_ONLY_WRITERS.has(writer)` を `false` に（分岐を殺す）→ 2 件 fail。
+//      部品 slug と、replace-strategy が書いた機能 slug の 2 ケース。診断が「名前空間を確認できない」に戻る。
+//   6. 同じ位置を `true` に（全スキルへ広げる）→ 3 件 fail。
+//      added_by が unknown・未知のスキル名・実在しない slug のケース。診断が「cross-cutting でない」に変わる。
+//      この関数は namespaceVerified が偽の要素の理由だけを返すので、5・6 が変えるのは診断の表現である。
+//   7. slugNamespace の `namespaceVerified` の式を `true` に（slug を常に信用する＝修正前の挙動）→ 8 件 fail。
+//   8. 同じ位置を `false` に（帰属を一切信用しない）→ 15 件 fail（#347 の緩和が機能していることを測れている）。
+//   9. slugNamespace の `slugInInventory` の式を `true` に（実在を検証しない＝修正前）→ 2 件 fail。
+//  10. 同じ位置を `false` に（常に不在扱い）→ 12 件 fail。
 //  11. CROSS_CUTTING_ONLY_WRITERS から `replace-strategy` を外す（Issue #419 の修正前）→ 1 件 fail。
 //      「replace-strategy が機能 slug を書いた…」が「名前空間を確認できない」の診断に戻る。
 //      帰属不明として扱う点は同じなので、差は診断の表現だけである。

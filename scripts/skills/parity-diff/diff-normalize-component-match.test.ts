@@ -190,7 +190,9 @@ test("インスタンス例外の object でない要素は照合に使わず、
   };
   const causes = [{ id: "c1", reason: "popup only", evidence: "ticket-1" }];
   const ctx = { slug: "demo", page: "main", viewport: "1280x800" };
-  expect(matchException(diff("filter-popup", "2px"), [null, "x", ex], ctx, causes)).toEqual({
+  expect(
+    matchException(diff("filter-popup", "2px"), { exceptions: [null, "x", ex], causes }, ctx),
+  ).toEqual({
     ...ex,
     cause_reason: "popup only",
     cause_evidence: "ticket-1",
@@ -218,7 +220,7 @@ test.each([
     ...cause,
   };
   const ctx = { slug: "demo", page: "main", viewport: "1280x800" };
-  expect(matchException(diff("filter-popup", "2px"), [ex], ctx, causes)).toBeNull();
+  expect(matchException(diff("filter-popup", "2px"), { exceptions: [ex], causes }, ctx)).toBeNull();
 });
 
 test("インスタンス例外の原因の reason が文字列でなければ、空の reason で照合する（根拠があれば使う）", () => {
@@ -234,7 +236,7 @@ test("インスタンス例外の原因の reason が文字列でなければ、
   };
   const causes = [{ id: "c1", reason: 1, evidence: " ticket-1 " }];
   const ctx = { slug: "demo", page: "main", viewport: "1280x800" };
-  expect(matchException(diff("filter-popup", "2px"), [ex], ctx, causes)).toEqual({
+  expect(matchException(diff("filter-popup", "2px"), { exceptions: [ex], causes }, ctx)).toEqual({
     ...ex,
     cause_reason: "",
     cause_evidence: "ticket-1",

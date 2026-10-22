@@ -173,93 +173,107 @@ function observationShape(observed, expected) {
  */
 
 /**
- * 操作の結果を突き合わせる（純関数）。
- *
- * @param {{ metadata: unknown, behaviors: Record<string, unknown>, comparison: unknown, target: string }} input 突き合わせの入力（形はここで検査する）。
- *   - metadata: capture の `metadata.json`
- *   - behaviors: インスタンス id → `baseline/<id>/behaviors.json` の中身（読めなければ null）
- *   - comparison: `new/<target>/behavior-comparison.json` の中身（読めなければ null）
- *   - target: 判定の対象の new target 名
- * @returns {{ structural: boolean, judged: boolean, findings: BehaviorFinding[], counts: BehaviorCounts }}
+ * 型崩れの結果を作る。
+ * @param {string} detail
+ * @param {BehaviorCounts} counts
  */
-export function compareBehaviors({ metadata, behaviors, comparison, target }) {
-  /** @type {BehaviorFinding[]} */
-  const findings = [];
-  const counts = {
-    cells: 0,
-    not_compared: 0,
-    matched: 0,
-    mismatched: 0,
-    uncompared: 0,
-    accepted: 0,
-  };
-  /** @param {string} detail */
-  const structural = (detail) => ({
+function structuralResult(detail, counts) {
+  return {
     structural: true,
     judged: false,
     findings: [{ code: "structural", detail }],
     counts,
-  });
+  };
+}
 
+/**
+ * 母集合に入った操作の観測項目。母集合の鍵は observeOf の操作からだけ作るので、無いことは起きない。
+ * @param {Map<string, string[]>} observeOf
+ * @param {string} op
+ * @returns {string[]}
+ */
+function observeFor(observeOf, op) {
+  const observe = observeOf.get(op);
+  if (observe === undefined) throw new Error(`観測項目の無い操作: ${op}`);
+  return observe;
+}
+
+/**
+ * capture.operations の 1 件を検査する。誤っていれば型崩れの理由を返し、正しければ観測項目を observeOf に足す。
+ * @param {unknown} op
+ * @param {Map<string, string[]>} observeOf
+ * @returns {string | undefined}
+ */
+function addOperation(op, observeOf) {
+  const id = field(op, "id");
+  if (!filled(id)) return "capture.operations[].id が空かプレースホルダのまま";
+  if (observeOf.has(id)) return `capture.operations[].id が重複: ${id}`;
+  const observe = field(op, "observe");
+  if (
+    !isArray(observe) ||
+    observe.length === 0 ||
+    !observe.every(filled) ||
+    new Set(observe).size !== observe.length
+  ) {
+    return `capture.operations[${JSON.stringify(id)}].observe が空・重複・非文字列（観測項目を固定しないと空の観測同士が一致する）`;
+  }
+  // 手順が無いと、capture と build が同じ id で別の操作をしても観測が一致すれば通る（一致が挙動の一致を示さない）。
+  if (!filled(field(op, "description")) || !filled(field(op, "steps"))) {
+    return `capture.operations[${JSON.stringify(id)}] の description / steps が空かプレースホルダのまま（両側で同じ操作を再生できない）`;
+  }
+  observeOf.set(id, observe);
+  return undefined;
+}
+
+/**
+ * metadata.json の capture から操作の列挙を読む。
+ * 型崩れなら detail を、操作の無い部品と宣言していれば none: true を、読めれば操作 id → 観測項目を返す。
+ * @param {unknown} metadata
+ * @returns {{ detail: string } | { none: true } | { observeOf: Map<string, string[]> }}
+ */
+function readOperations(metadata) {
   const capture = field(metadata, "capture");
   const operations = field(capture, "operations");
   // operations が配列なら metadata と capture はオブジェクトなので、絞り込みを足しても判定は変わらない。
   if (!isObjectLike(metadata) || !isObjectLike(capture) || !isArray(operations)) {
-    return structural("metadata.json の capture.operations が配列でない（操作の列挙が無い）");
+    return { detail: "metadata.json の capture.operations が配列でない（操作の列挙が無い）" };
   }
   if (operations.length === 0) {
     // 操作を持たない部品（静的なラベル等）だけが判定しないで通れる。理由の無い 0 件は採り忘れと区別できない。
-    if (filled(capture.operations_none_reason)) {
-      return { structural: false, judged: false, findings: [], counts };
-    }
-    return structural(
-      "capture.operations が空で capture.operations_none_reason も無い（操作が無いのか採っていないのか区別できない）",
-    );
+    if (filled(capture.operations_none_reason)) return { none: true };
+    return {
+      detail:
+        "capture.operations が空で capture.operations_none_reason も無い（操作が無いのか採っていないのか区別できない）",
+    };
   }
   // 導出源が無いと、任意の一部だけを列挙した操作の集合が「部品の操作」として完了を示してしまう。
   if (!OPERATION_SOURCES.some((source) => source === capture.operation_source)) {
-    return structural(
-      `capture.operation_source は ${OPERATION_SOURCES.join(" / ")} のいずれか: ${JSON.stringify(capture.operation_source)}`,
-    );
+    return {
+      detail: `capture.operation_source は ${OPERATION_SOURCES.join(" / ")} のいずれか: ${JSON.stringify(capture.operation_source)}`,
+    };
   }
   /** @type {Map<string, string[]>} */
   const observeOf = new Map();
-  /**
-   * 母集合に入った操作の観測項目。母集合の鍵は observeOf の操作からだけ作るので、無いことは起きない。
-   * @param {string} op
-   * @returns {string[]}
-   */
-  const observeFor = (op) => {
-    const observe = observeOf.get(op);
-    if (observe === undefined) throw new Error(`観測項目の無い操作: ${op}`);
-    return observe;
-  };
   for (const op of operations) {
-    const id = field(op, "id");
-    if (!filled(id)) return structural("capture.operations[].id が空かプレースホルダのまま");
-    if (observeOf.has(id)) return structural(`capture.operations[].id が重複: ${id}`);
-    const observe = field(op, "observe");
-    if (
-      !isArray(observe) ||
-      observe.length === 0 ||
-      !observe.every(filled) ||
-      new Set(observe).size !== observe.length
-    ) {
-      return structural(
-        `capture.operations[${JSON.stringify(id)}].observe が空・重複・非文字列（観測項目を固定しないと空の観測同士が一致する）`,
-      );
-    }
-    // 手順が無いと、capture と build が同じ id で別の操作をしても観測が一致すれば通る（一致が挙動の一致を示さない）。
-    if (!filled(field(op, "description")) || !filled(field(op, "steps"))) {
-      return structural(
-        `capture.operations[${JSON.stringify(id)}] の description / steps が空かプレースホルダのまま（両側で同じ操作を再生できない）`,
-      );
-    }
-    observeOf.set(id, observe);
+    const detail = addOperation(op, observeOf);
+    if (detail !== undefined) return { detail };
   }
-  const instances = metadata.instances;
+  return { observeOf };
+}
+
+/**
+ * metadata.json の instances を読む。型崩れなら detail を返す。
+ * @param {unknown} metadata
+ * @returns {{ detail: string } | {
+ *   detail?: undefined,
+ *   instanceIds: string[],
+ *   instanceRecords: { id: string, record: Record<string, unknown> }[],
+ * }}
+ */
+function readInstances(metadata) {
+  const instances = field(metadata, "instances");
   if (!isArray(instances) || instances.length === 0) {
-    return structural("metadata.json の instances が空");
+    return { detail: "metadata.json の instances が空" };
   }
   /** @type {string[]} */
   const instanceIds = [];
@@ -267,53 +281,74 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
   const instanceRecords = [];
   for (const inst of instances) {
     const id = field(inst, "id");
-    if (!filled(id)) return structural("instances[].id が空かプレースホルダのまま");
-    if (instanceIds.includes(id)) return structural(`instances[].id が重複: ${id}`);
+    if (!filled(id)) return { detail: "instances[].id が空かプレースホルダのまま" };
+    if (instanceIds.includes(id)) return { detail: `instances[].id が重複: ${id}` };
     instanceIds.push(id);
     // id が文字列なら inst はオブジェクトなので、isObjectLike は型を絞るためだけにある（判定は変わらない）。
     if (isObjectLike(inst)) instanceRecords.push({ id, record: inst });
   }
-  if (!nonEmptyString(target)) return structural("--target が空");
-  // 部品の照合を省ける形にしない。slug が無いと、別の部品の突き合わせ表がそのまま通る。
-  if (!filled(metadata.slug)) return structural("metadata.json の slug が空かプレースホルダのまま");
+  return { instanceIds, instanceRecords };
+}
 
-  // 母集合: 操作 × インスタンスから、宣言済みの到達できない操作を除いたもの。
-  /** @type {Map<string, { operation: string, instance: string }>} */
-  const population = new Map();
-  /** @type {Set<string>} */
-  const unreachable = new Set();
-  for (const { id: instanceId, record: inst } of instanceRecords) {
-    const declared = isArray(inst.unreachable_operations) ? inst.unreachable_operations : [];
-    if (inst.unreachable_operations !== undefined && !isArray(inst.unreachable_operations)) {
+/**
+ * 突き合わせの途中の状態。
+ * @typedef {{
+ *   findings: BehaviorFinding[],
+ *   counts: BehaviorCounts,
+ *   observeOf: Map<string, string[]>,
+ *   population: Map<string, { operation: string, instance: string }>,
+ *   unreachable: Set<string>,
+ * }} BehaviorContext
+ */
+
+/**
+ * 1 つのインスタンスの unreachable_operations を読み、理由付きで宣言された操作の鍵を unreachable に足す。
+ * @param {{ instanceId: string, inst: Record<string, unknown>, ctx: BehaviorContext }} arg
+ */
+function addUnreachable({ instanceId, inst, ctx }) {
+  const { findings, observeOf, unreachable } = ctx;
+  const declared = isArray(inst.unreachable_operations) ? inst.unreachable_operations : [];
+  if (inst.unreachable_operations !== undefined && !isArray(inst.unreachable_operations)) {
+    findings.push({
+      code: "unreachable-declaration-invalid",
+      instance: instanceId,
+      detail: "unreachable_operations が配列でない",
+    });
+  }
+  for (const u of declared) {
+    const op = field(u, "operation");
+    if (!nonEmptyString(op) || !observeOf.has(op)) {
       findings.push({
         code: "unreachable-declaration-invalid",
         instance: instanceId,
-        detail: "unreachable_operations が配列でない",
+        operation: op ?? null,
+        detail: "列挙に無い操作を到達できないと宣言している",
       });
+      continue;
     }
-    for (const u of declared) {
-      const op = field(u, "operation");
-      if (!nonEmptyString(op) || !observeOf.has(op)) {
-        findings.push({
-          code: "unreachable-declaration-invalid",
-          instance: instanceId,
-          operation: op ?? null,
-          detail: "列挙に無い操作を到達できないと宣言している",
-        });
-        continue;
-      }
-      if (!filled(field(u, "reason"))) {
-        // 理由の無い宣言は除外にしない（採り忘れを誤って除外として扱わない）。母集合に残す。
-        findings.push({
-          code: "unreachable-declaration-invalid",
-          instance: instanceId,
-          operation: op,
-          detail: "到達できない理由が無いかプレースホルダのまま（除外として扱わない）",
-        });
-        continue;
-      }
-      unreachable.add(cellKey(op, instanceId));
+    if (!filled(field(u, "reason"))) {
+      // 理由の無い宣言は除外にしない（採り忘れを誤って除外として扱わない）。母集合に残す。
+      findings.push({
+        code: "unreachable-declaration-invalid",
+        instance: instanceId,
+        operation: op,
+        detail: "到達できない理由が無いかプレースホルダのまま（除外として扱わない）",
+      });
+      continue;
     }
+    unreachable.add(cellKey(op, instanceId));
+  }
+}
+
+/**
+ * 母集合（操作 × インスタンスから、宣言済みの到達できない操作を除いたもの）を作る。
+ * @param {{ id: string, record: Record<string, unknown> }[]} instanceRecords
+ * @param {BehaviorContext} ctx
+ */
+function buildPopulation(instanceRecords, ctx) {
+  const { counts, observeOf, population, unreachable } = ctx;
+  for (const { id: instanceId, record: inst } of instanceRecords) {
+    addUnreachable({ instanceId, inst, ctx });
     for (const op of observeOf.keys()) {
       const key = cellKey(op, instanceId);
       if (unreachable.has(key)) {
@@ -324,8 +359,56 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
     }
   }
   counts.cells = population.size;
+}
 
-  // 現行側の採取結果。
+/**
+ * 現行側の採取物の結果 1 件を読み、基準に足す。
+ * @param {{ r: unknown, id: string, baseline: Map<string, Record<string, unknown> | undefined>, ctx: BehaviorContext }} arg
+ */
+function addBaselineResult({ r, id, baseline, ctx }) {
+  const { findings, observeOf, population, unreachable } = ctx;
+  const op = field(r, "operation");
+  const key = nonEmptyString(op) ? cellKey(op, id) : null;
+  const cell = key === null ? undefined : population.get(key);
+  if (key === null || cell === undefined) {
+    findings.push({
+      code: "behavior-baseline-unknown",
+      instance: id,
+      operation: op ?? null,
+      detail:
+        key !== null && unreachable.has(key)
+          ? "到達できないと宣言した操作に結果がある"
+          : "列挙に無い操作の結果",
+    });
+    return;
+  }
+  if (baseline.has(key)) {
+    findings.push({ code: "behavior-baseline-duplicate", instance: id, operation: op });
+    return;
+  }
+  const shape = observationShape(field(r, "observed"), observeFor(observeOf, cell.operation));
+  if (!shape.ok) {
+    findings.push({
+      code: "behavior-baseline-incomplete",
+      instance: id,
+      operation: op,
+      missing: shape.missing,
+      extra: shape.extra,
+    });
+    // 不備のある基準は比較の相手にしない（未採取として扱う）。
+    baseline.set(key, undefined);
+    return;
+  }
+  baseline.set(key, shape.observed);
+}
+
+/**
+ * 現行側の採取結果を読み、鍵 → 観測値の基準を作る。採取の無い組み合わせは findings に積む。
+ * @param {{ instanceIds: string[], behaviors: Record<string, unknown>, ctx: BehaviorContext }} arg
+ * @returns {Map<string, Record<string, unknown> | undefined>}
+ */
+function readBehaviorBaseline({ instanceIds, behaviors, ctx }) {
+  const { findings, population } = ctx;
   /** @type {Map<string, Record<string, unknown> | undefined>} */
   const baseline = new Map();
   for (const id of instanceIds) {
@@ -350,41 +433,7 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
       continue;
     }
     const results = isArray(doc.results) ? doc.results : [];
-    for (const r of results) {
-      const op = field(r, "operation");
-      const key = nonEmptyString(op) ? cellKey(op, id) : null;
-      const cell = key === null ? undefined : population.get(key);
-      if (key === null || cell === undefined) {
-        findings.push({
-          code: "behavior-baseline-unknown",
-          instance: id,
-          operation: op ?? null,
-          detail:
-            key !== null && unreachable.has(key)
-              ? "到達できないと宣言した操作に結果がある"
-              : "列挙に無い操作の結果",
-        });
-        continue;
-      }
-      if (baseline.has(key)) {
-        findings.push({ code: "behavior-baseline-duplicate", instance: id, operation: op });
-        continue;
-      }
-      const shape = observationShape(field(r, "observed"), observeFor(cell.operation));
-      if (!shape.ok) {
-        findings.push({
-          code: "behavior-baseline-incomplete",
-          instance: id,
-          operation: op,
-          missing: shape.missing,
-          extra: shape.extra,
-        });
-        // 不備のある基準は比較の相手にしない（未採取として扱う）。
-        baseline.set(key, undefined);
-        continue;
-      }
-      baseline.set(key, shape.observed);
-    }
+    for (const r of results) addBaselineResult({ r, id, baseline, ctx });
   }
   for (const [key, cell] of population) {
     if (!baseline.has(key)) {
@@ -397,16 +446,15 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
       });
     }
   }
+  return baseline;
+}
 
-  // 新側（カタログ）の突き合わせ。
-  if (comparison === null || comparison === undefined) {
-    findings.push({
-      code: "comparison-missing",
-      detail: "突き合わせ表が無い・読めない（全組み合わせを未突合として数える）",
-    });
-    counts.uncompared = population.size;
-    return { structural: false, judged: true, findings, counts };
-  }
+/**
+ * 突き合わせ表の target・component・rows を検査し、行の配列を返す。
+ * @param {{ comparison: unknown, target: string, slug: unknown, findings: BehaviorFinding[] }} arg
+ * @returns {unknown[]}
+ */
+function readComparisonRows({ comparison, target, slug, findings }) {
   // オブジェクトでない値は空の表として読む。どの欄も undefined になるので、直後の target の照合で不一致として報告する。
   // target を書き忘れた表と見分けられるよう、オブジェクトでないときは値の型を書く。
   const isTable = isPlainObject(comparison);
@@ -420,18 +468,127 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
         : `突き合わせ表がオブジェクトでない（${valueKind(comparison)}）`,
     });
   }
-  if (table.component !== metadata.slug) {
+  if (table.component !== slug) {
     findings.push({
       code: "comparison-component-mismatch",
       detail: isTable
-        ? `突き合わせ表の component が ${JSON.stringify(table.component)}（採取は ${JSON.stringify(metadata.slug)}）`
+        ? `突き合わせ表の component が ${JSON.stringify(table.component)}（採取は ${JSON.stringify(slug)}）`
         : `突き合わせ表がオブジェクトでない（${valueKind(comparison)}）`,
     });
   }
-  const rows = isArray(table.rows) ? table.rows : [];
   if (!isArray(table.rows)) {
     findings.push({ code: "comparison-rows-invalid", detail: "rows が配列でない" });
+    return [];
   }
+  return table.rows;
+}
+
+/**
+ * 比べないことを選んだ行（disposition あり）を検査し、件数を数える。
+ * @param {{ row: unknown, op: string, inst: string, disposition: unknown, ctx: BehaviorContext }} arg
+ */
+function judgeDisposition({ row, op, inst, disposition, ctx }) {
+  const { findings, counts } = ctx;
+  // DISPOSITIONS は文字列だけなので、typeof は型を絞るためだけにある（判定は変わらない）。
+  if (typeof disposition !== "string" || !DISPOSITIONS.includes(disposition)) {
+    findings.push({
+      code: "behavior-disposition-invalid",
+      operation: op,
+      instance: inst,
+      detail: `disposition は null か ${DISPOSITIONS.join(" / ")}: ${JSON.stringify(disposition)}`,
+    });
+    counts.uncompared += 1;
+    return;
+  }
+  if (
+    !filled(field(row, "reason")) ||
+    !filled(field(row, "approved_by")) ||
+    !isoDateTime(field(row, "approved_at"))
+  ) {
+    findings.push({
+      code: "behavior-acceptance-unapproved",
+      operation: op,
+      instance: inst,
+      detail:
+        "accepted には記入済みの reason / approved_by と ISO 8601 の approved_at が要る（テンプレートのプレースホルダは承認ではない）",
+    });
+    counts.uncompared += 1;
+    return;
+  }
+  counts.accepted += 1;
+}
+
+/**
+ * 比べた行の観測値を、現行の基準と突き合わせて件数を数える。
+ * @param {{
+ *   row: unknown,
+ *   cell: { operation: string, instance: string },
+ *   expected: Record<string, unknown> | undefined,
+ *   ctx: BehaviorContext,
+ * }} arg
+ */
+function judgeObserved({ row, cell, expected, ctx }) {
+  const { findings, counts, observeOf } = ctx;
+  const { operation: op, instance: inst } = cell;
+  // 検査はカタログを駆動しないので、見本の識別子が観測と見本を結ぶ唯一の証拠になる。
+  if (!filled(field(row, "story"))) {
+    findings.push({
+      code: "behavior-story-missing",
+      operation: op,
+      instance: inst,
+      detail: "操作を実施した見本の識別子（story）が空かプレースホルダのまま",
+    });
+    counts.uncompared += 1;
+    return;
+  }
+  const shape = observationShape(field(row, "observed"), observeFor(observeOf, op));
+  if (!shape.ok) {
+    findings.push({
+      code: "behavior-observation-incomplete",
+      operation: op,
+      instance: inst,
+      missing: shape.missing,
+      extra: shape.extra,
+    });
+    counts.uncompared += 1;
+    return;
+  }
+  if (expected === undefined) {
+    // 基準が無い・不備（上で finding 済み）。比べる相手が無いので一致とも不一致とも言わない。
+    counts.uncompared += 1;
+    return;
+  }
+  const differing = observeFor(observeOf, op).filter(
+    (name) => canonical(shape.observed[name]) !== canonical(expected[name]),
+  );
+  if (differing.length > 0) {
+    counts.mismatched += 1;
+    findings.push({
+      code: "behavior-mismatch",
+      operation: op,
+      instance: inst,
+      differing: differing.map((name) => ({
+        observation: name,
+        current: expected[name],
+        new: shape.observed[name],
+      })),
+    });
+    return;
+  }
+  counts.matched += 1;
+}
+
+/**
+ * 突き合わせ表の行を、母集合と基準に照らして判定する。
+ * @param {{
+ *   rows: unknown[],
+ *   baseline: Map<string, Record<string, unknown> | undefined>,
+ *   ctx: BehaviorContext,
+ * }} arg
+ * @returns {Set<string>} 突き合わせ表にあった組み合わせの鍵
+ */
+function judgeRows({ rows, baseline, ctx }) {
+  const { findings, population } = ctx;
   /** @type {Set<string>} */
   const seen = new Set();
   for (const row of rows) {
@@ -455,83 +612,21 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
     seen.add(key);
     const disposition = field(row, "disposition") ?? null;
     if (disposition !== null) {
-      // DISPOSITIONS は文字列だけなので、typeof は型を絞るためだけにある（判定は変わらない）。
-      if (typeof disposition !== "string" || !DISPOSITIONS.includes(disposition)) {
-        findings.push({
-          code: "behavior-disposition-invalid",
-          operation: op,
-          instance: inst,
-          detail: `disposition は null か ${DISPOSITIONS.join(" / ")}: ${JSON.stringify(disposition)}`,
-        });
-        counts.uncompared += 1;
-        continue;
-      }
-      if (
-        !filled(field(row, "reason")) ||
-        !filled(field(row, "approved_by")) ||
-        !isoDateTime(field(row, "approved_at"))
-      ) {
-        findings.push({
-          code: "behavior-acceptance-unapproved",
-          operation: op,
-          instance: inst,
-          detail:
-            "accepted には記入済みの reason / approved_by と ISO 8601 の approved_at が要る（テンプレートのプレースホルダは承認ではない）",
-        });
-        counts.uncompared += 1;
-        continue;
-      }
-      counts.accepted += 1;
+      judgeDisposition({ row, op: cell.operation, inst: cell.instance, disposition, ctx });
       continue;
     }
-    // 検査はカタログを駆動しないので、見本の識別子が観測と見本を結ぶ唯一の証拠になる。
-    if (!filled(field(row, "story"))) {
-      findings.push({
-        code: "behavior-story-missing",
-        operation: op,
-        instance: inst,
-        detail: "操作を実施した見本の識別子（story）が空かプレースホルダのまま",
-      });
-      counts.uncompared += 1;
-      continue;
-    }
-    const shape = observationShape(field(row, "observed"), observeFor(cell.operation));
-    if (!shape.ok) {
-      findings.push({
-        code: "behavior-observation-incomplete",
-        operation: op,
-        instance: inst,
-        missing: shape.missing,
-        extra: shape.extra,
-      });
-      counts.uncompared += 1;
-      continue;
-    }
-    const expected = baseline.get(key);
-    if (expected === undefined) {
-      // 基準が無い・不備（上で finding 済み）。比べる相手が無いので一致とも不一致とも言わない。
-      counts.uncompared += 1;
-      continue;
-    }
-    const differing = observeFor(cell.operation).filter(
-      (name) => canonical(shape.observed[name]) !== canonical(expected[name]),
-    );
-    if (differing.length > 0) {
-      counts.mismatched += 1;
-      findings.push({
-        code: "behavior-mismatch",
-        operation: op,
-        instance: inst,
-        differing: differing.map((name) => ({
-          observation: name,
-          current: expected[name],
-          new: shape.observed[name],
-        })),
-      });
-      continue;
-    }
-    counts.matched += 1;
+    judgeObserved({ row, cell, expected: baseline.get(key), ctx });
   }
+  return seen;
+}
+
+/**
+ * 突き合わせ表に無い組み合わせと、比べる組み合わせが 0 件のことを findings に積む。
+ * @param {Set<string>} seen
+ * @param {BehaviorContext} ctx
+ */
+function reportUncompared(seen, ctx) {
+  const { findings, counts, population } = ctx;
   for (const [key, cell] of population) {
     if (!seen.has(key)) {
       counts.uncompared += 1;
@@ -548,7 +643,102 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
       detail: "全組み合わせが到達できないと宣言されており、比べた操作が 0 件",
     });
   }
-  return { structural: false, judged: true, findings, counts };
+}
+
+/**
+ * 操作の結果を突き合わせる（純関数）。
+ *
+ * @param {{ metadata: unknown, behaviors: Record<string, unknown>, comparison: unknown, target: string }} input 突き合わせの入力（形はここで検査する）。
+ *   - metadata: capture の `metadata.json`
+ *   - behaviors: インスタンス id → `baseline/<id>/behaviors.json` の中身（読めなければ null）
+ *   - comparison: `new/<target>/behavior-comparison.json` の中身（読めなければ null）
+ *   - target: 判定の対象の new target 名
+ * @returns {{ structural: boolean, judged: boolean, findings: BehaviorFinding[], counts: BehaviorCounts }}
+ */
+export function compareBehaviors({ metadata, behaviors, comparison, target }) {
+  /** @type {BehaviorCounts} */
+  const counts = {
+    cells: 0,
+    not_compared: 0,
+    matched: 0,
+    mismatched: 0,
+    uncompared: 0,
+    accepted: 0,
+  };
+  const operations = readOperations(metadata);
+  if ("detail" in operations) return structuralResult(operations.detail, counts);
+  if ("none" in operations) return { structural: false, judged: false, findings: [], counts };
+  const instances = readInstances(metadata);
+  if (instances.detail !== undefined) return structuralResult(instances.detail, counts);
+  if (!nonEmptyString(target)) return structuralResult("--target が空", counts);
+  // 部品の照合を省ける形にしない。slug が無いと、別の部品の突き合わせ表がそのまま通る。
+  const slug = field(metadata, "slug");
+  if (!filled(slug)) {
+    return structuralResult("metadata.json の slug が空かプレースホルダのまま", counts);
+  }
+  /** @type {BehaviorContext} */
+  const ctx = {
+    findings: [],
+    counts,
+    observeOf: operations.observeOf,
+    population: new Map(),
+    unreachable: new Set(),
+  };
+  buildPopulation(instances.instanceRecords, ctx);
+  const baseline = readBehaviorBaseline({ instanceIds: instances.instanceIds, behaviors, ctx });
+  // 新側（カタログ）の突き合わせ。
+  if (comparison === null || comparison === undefined) {
+    ctx.findings.push({
+      code: "comparison-missing",
+      detail: "突き合わせ表が無い・読めない（全組み合わせを未突合として数える）",
+    });
+    counts.uncompared = ctx.population.size;
+    return { structural: false, judged: true, findings: ctx.findings, counts };
+  }
+  const rows = readComparisonRows({ comparison, target, slug, findings: ctx.findings });
+  const seen = judgeRows({ rows, baseline, ctx });
+  reportUncompared(seen, ctx);
+  return { structural: false, judged: true, findings: ctx.findings, counts };
+}
+
+/**
+ * CLI の引数を読む。誤りがあれば error に理由を返す。
+ * @param {string[]} argv
+ * @returns {{ error: string } | { error?: undefined, args: Record<string, string> }}
+ */
+function parseArgs(argv) {
+  /** @type {Record<string, string>} */
+  const args = {};
+  for (let i = 0; i < argv.length; i += 1) {
+    const key = argv[i];
+    if (!key.startsWith("--")) return { error: `不明な引数: ${key}` };
+    const value = argv[i + 1];
+    if (typeof value !== "string" || value.startsWith("--")) return { error: `${key} に値がない` };
+    if (args[key] !== undefined) return { error: `${key} が複数ある` };
+    args[key] = value;
+    i += 1;
+  }
+  const known = ["--baseline", "--comparison", "--target"];
+  const unknown = Object.keys(args).filter((k) => !known.includes(k));
+  if (unknown.length > 0) return { error: `不明な引数: ${unknown.join(", ")}` };
+  for (const key of known) {
+    // 空白だけの値を通さない。`--target " "` を受けると target の照合が別環境の記録を通す。
+    if (!nonEmptyString(args[key])) return { error: `${key} は必須（空白だけの値も不可）` };
+  }
+  return { args };
+}
+
+/**
+ * 突き合わせ表を読む。無い・読めないのは「まだ突き合わせていない」と区別できないので、null を返して未突合として数える。
+ * @param {string} path
+ * @returns {unknown}
+ */
+function readComparison(path) {
+  try {
+    return JSON.parse(readFileSync(path, "utf8"));
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -576,37 +766,16 @@ export function main(
     writeErr(`error: ${message}\n${usage}\n`);
     return 2;
   };
-  /** @type {Record<string, string>} */
-  const args = {};
-  for (let i = 0; i < argv.length; i += 1) {
-    const key = argv[i];
-    if (!key.startsWith("--")) return fail(`不明な引数: ${key}`);
-    const value = argv[i + 1];
-    if (typeof value !== "string" || value.startsWith("--")) return fail(`${key} に値がない`);
-    if (args[key] !== undefined) return fail(`${key} が複数ある`);
-    args[key] = value;
-    i += 1;
-  }
-  const known = ["--baseline", "--comparison", "--target"];
-  const unknown = Object.keys(args).filter((k) => !known.includes(k));
-  if (unknown.length > 0) return fail(`不明な引数: ${unknown.join(", ")}`);
-  for (const key of known) {
-    // 空白だけの値を通さない。`--target " "` を受けると target の照合が別環境の記録を通す。
-    if (!nonEmptyString(args[key])) return fail(`${key} は必須（空白だけの値も不可）`);
-  }
+  const parsed = parseArgs(argv);
+  if (parsed.error !== undefined) return fail(parsed.error);
+  const { args } = parsed;
   let loaded;
   try {
     loaded = loadBaseline(resolve(cwd, args["--baseline"]), "behaviors.json");
   } catch (error) {
     return fail(`採取物を読めない: ${field(error, "message")}`);
   }
-  let comparison = null;
-  try {
-    comparison = JSON.parse(readFileSync(resolve(cwd, args["--comparison"]), "utf8"));
-  } catch {
-    // 無い・読めないのは「まだ突き合わせていない」と区別できないので、未突合として数える。
-    comparison = null;
-  }
+  const comparison = readComparison(resolve(cwd, args["--comparison"]));
   const result = compareBehaviors({
     metadata: loaded.metadata,
     behaviors: loaded.byInstance,

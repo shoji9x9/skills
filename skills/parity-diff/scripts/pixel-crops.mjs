@@ -93,16 +93,16 @@ export function hexToRgb(hex) {
 /**
  * 画素が差分色（target）に近いかを判定する。各チャンネルが tol 以内なら差分画素とみなす。
  *
- * @param {number} r
- * @param {number} g
- * @param {number} b
- * @param {{ r:number, g:number, b:number }} target
- * @param {number} tol
+ * @param {Uint8Array | Buffer} data - RGBA
+ * @param {number} o - 画素のバイトオフセット
+ * @param {{ target: { r:number, g:number, b:number }, tol: number }} color - 差分色と許容差
  * @returns {boolean}
  */
-export function isDiffPixel(r, g, b, target, tol) {
+export function isDiffPixel(data, o, { target, tol }) {
   return (
-    Math.abs(r - target.r) <= tol && Math.abs(g - target.g) <= tol && Math.abs(b - target.b) <= tol
+    Math.abs(data[o] - target.r) <= tol &&
+    Math.abs(data[o + 1] - target.g) <= tol &&
+    Math.abs(data[o + 2] - target.b) <= tol
   );
 }
 
@@ -110,19 +110,38 @@ export function isDiffPixel(r, g, b, target, tol) {
  * RGBA バッファ（pngjs の data）から差分マスク（0/1 の Uint8Array）を作る。
  *
  * @param {Uint8Array | Buffer} data - 長さ width*height*4 の RGBA
- * @param {number} width
- * @param {number} height
- * @param {{ r:number, g:number, b:number }} target
- * @param {number} tol
+ * @param {{ width:number, height:number }} size
+ * @param {{ target: { r:number, g:number, b:number }, tol: number }} color - 差分色と許容差
  * @returns {Uint8Array}
  */
-export function buildDiffMask(data, width, height, target, tol) {
+export function buildDiffMask(data, { width, height }, color) {
   const mask = new Uint8Array(width * height);
   for (let i = 0; i < width * height; i += 1) {
-    const o = i * 4;
-    mask[i] = isDiffPixel(data[o], data[o + 1], data[o + 2], target, tol) ? 1 : 0;
+    mask[i] = isDiffPixel(data, i * 4, color) ? 1 : 0;
   }
   return mask;
+}
+
+/**
+ * 1 画素の最大チャンネル差を返す。両方が完全な透明なら 0 にする。
+ *
+ * @param {Uint8Array | Buffer} currentData
+ * @param {Uint8Array | Buffer} nextData
+ * @param {number} o - 画素のバイトオフセット
+ * @returns {number}
+ */
+function pixelChannelDelta(currentData, nextData, o) {
+  // 両方が完全な透明なら、隠れている RGB が違っても画面には同じものが出る。
+  // 生の 4 チャンネル比較のままだと見た目が同じ画素を strict の差として数え、
+  // 見分けの付かない crop 対を候補にしてしまう（マスクした領域・要素切り出しで起きる）。
+  const bothTransparent = currentData[o + 3] === 0 && nextData[o + 3] === 0;
+  if (bothTransparent) return 0;
+  let pixelDelta = 0;
+  for (let c = 0; c < 4; c += 1) {
+    const delta = Math.abs(currentData[o + c] - nextData[o + c]);
+    if (delta > pixelDelta) pixelDelta = delta;
+  }
+  return pixelDelta;
 }
 
 /**
@@ -136,28 +155,17 @@ export function buildDiffMask(data, width, height, target, tol) {
  *
  * @param {Uint8Array | Buffer} currentData - 長さ width*height*4 の RGBA
  * @param {Uint8Array | Buffer} nextData - 同上
- * @param {number} pixels - width*height
- * @param {Uint8Array | null} [thresholdMask] - 差分画像から作ったマスク（しきい値の内側を切り分けるため）
+ * @param {{ pixels: number, thresholdMask?: Uint8Array | null }} options - pixels は width*height。
+ *   thresholdMask は差分画像から作ったマスク（しきい値の内側を切り分けるため）
  * @returns {{ mask: Uint8Array, count: number, maxChannelDelta: number, maxStrictOnlyChannelDelta: (number|null) }}
  */
-export function buildStrictMask(currentData, nextData, pixels, thresholdMask = null) {
+export function buildStrictMask(currentData, nextData, { pixels, thresholdMask = null }) {
   const mask = new Uint8Array(pixels);
   let count = 0;
   let maxChannelDelta = 0;
   let maxStrictOnlyChannelDelta = 0;
   for (let i = 0; i < pixels; i += 1) {
-    const o = i * 4;
-    let pixelDelta = 0;
-    // 両方が完全な透明なら、隠れている RGB が違っても画面には同じものが出る。
-    // 生の 4 チャンネル比較のままだと見た目が同じ画素を strict の差として数え、
-    // 見分けの付かない crop 対を候補にしてしまう（マスクした領域・要素切り出しで起きる）。
-    const bothTransparent = currentData[o + 3] === 0 && nextData[o + 3] === 0;
-    if (!bothTransparent) {
-      for (let c = 0; c < 4; c += 1) {
-        const delta = Math.abs(currentData[o + c] - nextData[o + c]);
-        if (delta > pixelDelta) pixelDelta = delta;
-      }
-    }
+    const pixelDelta = pixelChannelDelta(currentData, nextData, i * 4);
     const differs = pixelDelta > 0 ? 1 : 0;
     mask[i] = differs;
     count += differs;
@@ -187,17 +195,16 @@ export function buildStrictMask(currentData, nextData, pixels, thresholdMask = n
  *
  * @param {Uint8Array} thresholdMask - 差分画像から作ったマスク
  * @param {Uint8Array} strictMask - 厳密比較のマスク
- * @param {number} maxChannelDelta - 差がある画素**全体**の最大チャンネル差
- * @param {number|null} [maxStrictOnlyChannelDelta] - **しきい値の内側だけ**の最大チャンネル差
- *   （`buildStrictMask` に `thresholdMask` を渡した呼び出しでのみ定まる。渡していなければ null）
+ * @param {{ maxChannelDelta: number, maxStrictOnlyChannelDelta?: number|null }} deltas -
+ *   maxChannelDelta は差がある画素**全体**の最大チャンネル差。maxStrictOnlyChannelDelta は**しきい値の内側だけ**の
+ *   最大チャンネル差（`buildStrictMask` に `thresholdMask` を渡した呼び出しでのみ定まる。渡していなければ null）
  *
  * @returns {PixelSummary}
  */
 export function summarizePixels(
   thresholdMask,
   strictMask,
-  maxChannelDelta,
-  maxStrictOnlyChannelDelta = null,
+  { maxChannelDelta, maxStrictOnlyChannelDelta = null },
 ) {
   const total = thresholdMask.length;
   let thresholdPixels = 0;
@@ -284,6 +291,29 @@ export function countInBbox(mask, width, bbox) {
 }
 
 /**
+ * 8 近傍のうち、mask が立っていてまだ訪れていない画素を stack に積み、訪れた印を付ける。
+ *
+ * @param {number} x
+ * @param {number} y
+ * @param {{ mask: Uint8Array, visited: Uint8Array, width: number, height: number, stack: number[] }} state
+ */
+function pushUnvisitedNeighbors(x, y, { mask, visited, width, height, stack }) {
+  for (let dy = -1; dy <= 1; dy += 1) {
+    for (let dx = -1; dx <= 1; dx += 1) {
+      if (dx === 0 && dy === 0) continue;
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+      const nIdx = ny * width + nx;
+      if (mask[nIdx] === 1 && visited[nIdx] === 0) {
+        visited[nIdx] = 1;
+        stack.push(nIdx);
+      }
+    }
+  }
+}
+
+/**
  * 差分マスクを 8 近傍で連結成分にクラスタリングする。ラスタ走査順にシードするため決定論的。
  *
  * @param {Uint8Array} mask
@@ -315,19 +345,7 @@ export function clusterComponents(mask, width, height) {
       if (y < minY) minY = y;
       if (x > maxX) maxX = x;
       if (y > maxY) maxY = y;
-      for (let dy = -1; dy <= 1; dy += 1) {
-        for (let dx = -1; dx <= 1; dx += 1) {
-          if (dx === 0 && dy === 0) continue;
-          const nx = x + dx;
-          const ny = y + dy;
-          if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
-          const nIdx = ny * width + nx;
-          if (mask[nIdx] === 1 && visited[nIdx] === 0) {
-            visited[nIdx] = 1;
-            stack.push(nIdx);
-          }
-        }
-      }
+      pushUnvisitedNeighbors(x, y, { mask, visited, width, height, stack });
     }
     components.push({
       pixels,
@@ -372,70 +390,58 @@ function unionBbox(a, b) {
 }
 
 /**
- * しきい値つきの領域に、芯を pad だけ広げた範囲にある strict-only の**画素**を取り込む。
+ * 1 つの芯を pad だけ広げた範囲にある strict-only の画素を取り込み、remainingMask から外す。
  *
- * 同じ場所の 1 つの差（芯はしきい値を超え、縁はしきい値の内側）を 1 つの候補にするための段。
- * **取り込むのは画素単位で、芯（しきい値つきの領域の bbox）を pad だけ広げた範囲の内側にある画素だけである**。
- * 連結成分・マージした塊・外接 bbox を単位にすると、まばらに散った差の塊や、ページ全体に広がる 1 つの差
- * （背景色の 1 階調のずれなど）が丸ごと取り込まれる。
- * すると領域の bbox が画面の大きさまで広がり、離れた領域まで 1 件にまとまってしまう。
- * 画素単位なら、取り込み後の領域の bbox は常に「芯＋pad」の内側に収まり、範囲の外の画素は strict-only に残る。
- *
- * 芯を広げた範囲が重なる画素は、入力順で先の領域が取る（二重に数えない）。
- * 取り込み後、構成要素（芯と取り込んだ画素の bbox）同士が pad 以内の領域は 1 つにまとめる
- * （どちらも「芯＋pad」の内側なので、まとめる範囲も有界）。
- *
- * @param {Array<{ pixels:number, bbox:{ x:number, y:number, width:number, height:number } }>} regions - しきい値つきの領域
- * @param {Uint8Array} strictOnlyMask - しきい値の内側にだけ差がある画素のマスク
- * @param {number} width
- * @param {number} height
- * @param {number} pad
- * @returns {{ regions: Array<{ pixels:number, bbox:{ x:number, y:number, width:number, height:number },
- *                              threshold_bbox:{ x:number, y:number, width:number, height:number },
- *                              absorbed_strict_only_pixels:number }>,
- *             remainingMask: Uint8Array, absorbedPixels:number }}
+ * @param {{ pixels:number, bbox:Rect }} r - しきい値つきの領域
+ * @param {{ remainingMask: Uint8Array, width:number, height:number, pad:number }} area
+ * @returns {{ pixels:number, bbox:Rect, threshold_bbox:Rect, members:Rect[], absorbed_strict_only_pixels:number }}
  */
-export function absorbStrictIntoRegions(regions, strictOnlyMask, width, height, pad) {
-  const remainingMask = Uint8Array.from(strictOnlyMask);
-  let absorbedPixels = 0;
-  let groups = regions.map((r) => {
-    const x0 = Math.max(0, r.bbox.x - pad);
-    const y0 = Math.max(0, r.bbox.y - pad);
-    const x1 = Math.min(width - 1, r.bbox.x + r.bbox.width - 1 + pad);
-    const y1 = Math.min(height - 1, r.bbox.y + r.bbox.height - 1 + pad);
-    let count = 0;
-    let minX = width;
-    let minY = height;
-    let maxX = -1;
-    let maxY = -1;
-    for (let y = y0; y <= y1; y += 1) {
-      for (let x = x0; x <= x1; x += 1) {
-        const idx = y * width + x;
-        if (remainingMask[idx] !== 1) continue;
-        remainingMask[idx] = 0;
-        count += 1;
-        if (x < minX) minX = x;
-        if (y < minY) minY = y;
-        if (x > maxX) maxX = x;
-        if (y > maxY) maxY = y;
-      }
+function absorbAroundCore(r, { remainingMask, width, height, pad }) {
+  const x0 = Math.max(0, r.bbox.x - pad);
+  const y0 = Math.max(0, r.bbox.y - pad);
+  const x1 = Math.min(width - 1, r.bbox.x + r.bbox.width - 1 + pad);
+  const y1 = Math.min(height - 1, r.bbox.y + r.bbox.height - 1 + pad);
+  let count = 0;
+  let minX = width;
+  let minY = height;
+  let maxX = -1;
+  let maxY = -1;
+  for (let y = y0; y <= y1; y += 1) {
+    for (let x = x0; x <= x1; x += 1) {
+      const idx = y * width + x;
+      if (remainingMask[idx] !== 1) continue;
+      remainingMask[idx] = 0;
+      count += 1;
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x > maxX) maxX = x;
+      if (y > maxY) maxY = y;
     }
-    absorbedPixels += count;
-    const members = [r.bbox];
-    let bbox = r.bbox;
-    if (count > 0) {
-      const halo = { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 };
-      members.push(halo);
-      bbox = unionBbox(bbox, halo);
-    }
-    return {
-      pixels: r.pixels,
-      bbox,
-      threshold_bbox: r.bbox,
-      members,
-      absorbed_strict_only_pixels: count,
-    };
-  });
+  }
+  const members = [r.bbox];
+  let bbox = r.bbox;
+  if (count > 0) {
+    const halo = { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 };
+    members.push(halo);
+    bbox = unionBbox(bbox, halo);
+  }
+  return {
+    pixels: r.pixels,
+    bbox,
+    threshold_bbox: r.bbox,
+    members,
+    absorbed_strict_only_pixels: count,
+  };
+}
+
+/**
+ * 構成要素が pad 以内か、bbox が重なる領域を、まとめる相手が無くなるまで 1 つにまとめる。
+ *
+ * @param {Array<{ pixels:number, bbox:Rect, threshold_bbox:Rect, members:Rect[], absorbed_strict_only_pixels:number }>} initial
+ * @param {number} pad
+ */
+function mergeNearGroups(initial, pad) {
+  let groups = initial;
   /**
    * @param {Rect[]} xs
    * @param {Rect[]} ys
@@ -468,9 +474,19 @@ export function absorbStrictIntoRegions(regions, strictOnlyMask, width, height, 
       }
     }
   }
-  // まとめた領域の bbox は各「芯＋pad」を包む矩形なので、その角にはどの芯の範囲にも入らない画素が残りうる。
-  // 残すと候補の bbox の内側に別の strict-only 候補が出て、同じ場所の差が 2 件に分かれる。
-  // bbox の内側だけを取るので bbox は広がらない（有界のまま・これ以上まとめる相手も増えない）。
+  return groups;
+}
+
+/**
+ * まとめた領域の bbox の内側に残る strict-only の画素を、その領域に取り込む。取り込んだ画素数を返す。
+ *
+ * @param {Array<{ bbox:Rect, absorbed_strict_only_pixels:number }>} groups
+ * @param {Uint8Array} remainingMask
+ * @param {number} width
+ * @returns {number}
+ */
+function sweepGroupBboxes(groups, remainingMask, width) {
+  let swept = 0;
   for (const g of groups) {
     for (let y = g.bbox.y; y < g.bbox.y + g.bbox.height; y += 1) {
       for (let x = g.bbox.x; x < g.bbox.x + g.bbox.width; x += 1) {
@@ -478,10 +494,46 @@ export function absorbStrictIntoRegions(regions, strictOnlyMask, width, height, 
         if (remainingMask[idx] !== 1) continue;
         remainingMask[idx] = 0;
         g.absorbed_strict_only_pixels += 1;
-        absorbedPixels += 1;
+        swept += 1;
       }
     }
   }
+  return swept;
+}
+
+/**
+ * しきい値つきの領域に、芯を pad だけ広げた範囲にある strict-only の**画素**を取り込む。
+ *
+ * 同じ場所の 1 つの差（芯はしきい値を超え、縁はしきい値の内側）を 1 つの候補にするための段。
+ * **取り込むのは画素単位で、芯（しきい値つきの領域の bbox）を pad だけ広げた範囲の内側にある画素だけである**。
+ * 連結成分・マージした塊・外接 bbox を単位にすると、まばらに散った差の塊や、ページ全体に広がる 1 つの差
+ * （背景色の 1 階調のずれなど）が丸ごと取り込まれる。
+ * すると領域の bbox が画面の大きさまで広がり、離れた領域まで 1 件にまとまってしまう。
+ * 画素単位なら、取り込み後の領域の bbox は常に「芯＋pad」の内側に収まり、範囲の外の画素は strict-only に残る。
+ *
+ * 芯を広げた範囲が重なる画素は、入力順で先の領域が取る（二重に数えない）。
+ * 取り込み後、構成要素（芯と取り込んだ画素の bbox）同士が pad 以内の領域は 1 つにまとめる
+ * （どちらも「芯＋pad」の内側なので、まとめる範囲も有界）。
+ *
+ * @param {Array<{ pixels:number, bbox:{ x:number, y:number, width:number, height:number } }>} regions - しきい値つきの領域
+ * @param {Uint8Array} strictOnlyMask - しきい値の内側にだけ差がある画素のマスク
+ * @param {{ width:number, height:number, pad:number }} area - 画像の寸法と、芯を広げる幅
+ * @returns {{ regions: Array<{ pixels:number, bbox:{ x:number, y:number, width:number, height:number },
+ *                              threshold_bbox:{ x:number, y:number, width:number, height:number },
+ *                              absorbed_strict_only_pixels:number }>,
+ *             remainingMask: Uint8Array, absorbedPixels:number }}
+ */
+export function absorbStrictIntoRegions(regions, strictOnlyMask, { width, height, pad }) {
+  const remainingMask = Uint8Array.from(strictOnlyMask);
+  const absorbedGroups = regions.map((r) =>
+    absorbAroundCore(r, { remainingMask, width, height, pad }),
+  );
+  let absorbedPixels = absorbedGroups.reduce((sum, g) => sum + g.absorbed_strict_only_pixels, 0);
+  const groups = mergeNearGroups(absorbedGroups, pad);
+  // まとめた領域の bbox は各「芯＋pad」を包む矩形なので、その角にはどの芯の範囲にも入らない画素が残りうる。
+  // 残すと候補の bbox の内側に別の strict-only 候補が出て、同じ場所の差が 2 件に分かれる。
+  // bbox の内側だけを取るので bbox は広がらない（有界のまま・これ以上まとめる相手も増えない）。
+  absorbedPixels += sweepGroupBboxes(groups, remainingMask, width);
   groups.sort((a, b) => a.bbox.y - b.bbox.y || a.bbox.x - b.bbox.x);
   // members は判定用の内部状態なので出力に出さない（threshold_bbox が芯を包む bbox として残る）。
   return {
@@ -586,10 +638,9 @@ export function filterAndMerge(components, minCluster, pad) {
  *
  * @param {{ width:number, height:number, data:Uint8Array }} img - pngjs の PNG インスタンス相当
  * @param {{ x:number, y:number, width:number, height:number }} bbox
- * @param {number} margin
- * @param {new (opts:{ width:number, height:number }) => { width:number, height:number, data:Uint8Array }} PngCtor
+ * @param {{ margin:number, PngCtor: new (opts:{ width:number, height:number }) => { width:number, height:number, data:Uint8Array } }} options
  */
-function cropImage(img, bbox, margin, PngCtor) {
+function cropImage(img, bbox, { margin, PngCtor }) {
   const x0 = Math.max(0, Math.min(bbox.x - margin, img.width - 1));
   const y0 = Math.max(0, Math.min(bbox.y - margin, img.height - 1));
   const w = Math.max(1, Math.min(bbox.width + (bbox.x - x0) + margin, img.width - x0));
@@ -608,6 +659,375 @@ function cropImage(img, bbox, margin, PngCtor) {
   return out;
 }
 
+const USAGE =
+  "usage: node pixel-crops.mjs <current.png> <new.png> <diff.png> --out <dir> [--min-cluster <count>] [--pad <px>] [--crop-margin <px>] [--diff-color <hex>] [--strict-min-cluster <count>] [--strict-max-regions <count>]\n";
+
+/** 数で受けるオプション（フラグ → 設定の名前）。 */
+/** @type {Map<string, "minCluster" | "pad" | "cropMargin" | "strictMinCluster" | "strictMaxRegions">} */
+const NUMBER_FLAGS = new Map([
+  ["--min-cluster", "minCluster"],
+  ["--pad", "pad"],
+  ["--crop-margin", "cropMargin"],
+  ["--strict-min-cluster", "strictMinCluster"],
+  ["--strict-max-regions", "strictMaxRegions"],
+]);
+
+/**
+ * @typedef {{ positionals: string[], out?: string, minCluster:number, pad:number, cropMargin:number,
+ *   diffColor: string, strictMinCluster:number, strictMaxRegions:number }} CliOptions
+ */
+
+/**
+ * 引数を読む。値の検査は validateOptions が行う。
+ *
+ * @param {string[]} argv
+ * @returns {CliOptions}
+ */
+function parseCliArgs(argv) {
+  /** @type {CliOptions} */
+  const options = {
+    positionals: [],
+    out: undefined,
+    minCluster: 1,
+    pad: 8,
+    cropMargin: 24,
+    diffColor: "ff0000",
+    // strict-only はアンチエイリアスの孤立画素まで拾うため、既定のクラスタ下限を threshold 側より高くする。
+    strictMinCluster: 4,
+    strictMaxRegions: 20,
+  };
+  for (let i = 0; i < argv.length; i += 1) {
+    const a = argv[i];
+    if (a === "--out") {
+      options.out = argv[i + 1];
+      i += 1;
+    } else if (NUMBER_FLAGS.has(a)) {
+      const key = NUMBER_FLAGS.get(a);
+      if (key !== undefined) options[key] = Number(argv[i + 1]);
+      i += 1;
+    } else if (a === "--diff-color") {
+      options.diffColor = argv[i + 1];
+      i += 1;
+    } else {
+      options.positionals.push(a);
+    }
+  }
+  return options;
+}
+
+/**
+ * 数のオプションと差分色を確かめる。誤りは stderr に出す 1 行で返す。
+ *
+ * @param {CliOptions} options
+ * @returns {{ error: string } | { target: { r:number, g:number, b:number } }}
+ */
+function validateOptions({
+  minCluster,
+  pad,
+  cropMargin,
+  strictMinCluster,
+  strictMaxRegions,
+  diffColor,
+}) {
+  if (
+    !Number.isFinite(minCluster) ||
+    minCluster < 1 ||
+    !Number.isFinite(pad) ||
+    pad < 0 ||
+    !Number.isFinite(cropMargin) ||
+    cropMargin < 0
+  ) {
+    return { error: "error: --min-cluster must be >= 1, --pad and --crop-margin must be >= 0\n" };
+  }
+  if (
+    !Number.isFinite(strictMinCluster) ||
+    strictMinCluster < 1 ||
+    !Number.isFinite(strictMaxRegions) ||
+    strictMaxRegions < 1
+  ) {
+    return { error: "error: --strict-min-cluster and --strict-max-regions must be >= 1\n" };
+  }
+  const target = hexToRgb(diffColor);
+  if (!target) {
+    return { error: "error: --diff-color must be a 6-digit hex color (e.g. ff0000)\n" };
+  }
+  return { target };
+}
+
+/**
+ * current / new / diff の PNG を読み、寸法が揃うかを確かめる。誤りは stderr に出す 1 行で返す。
+ *
+ * @param {string[]} paths - current, new, diff の順
+ * @param {{ sync: { read: (buf: Buffer) => PngImage } }} PNG
+ * @returns {{ error: string } | { current: PngImage, next: PngImage, diff: PngImage }}
+ */
+function readImages(paths, PNG) {
+  let current;
+  let next;
+  let diff;
+  try {
+    current = PNG.sync.read(readFileSync(paths[0]));
+    next = PNG.sync.read(readFileSync(paths[1]));
+    diff = PNG.sync.read(readFileSync(paths[2]));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { error: `error: cannot read PNG inputs: ${message}\n` };
+  }
+  if (
+    current.width !== next.width ||
+    current.height !== next.height ||
+    current.width !== diff.width ||
+    current.height !== diff.height
+  ) {
+    return {
+      error: `error: PNG dimensions differ (must match): current ${current.width}x${current.height}, new ${next.width}x${next.height}, diff ${diff.width}x${diff.height}\n`,
+    };
+  }
+  return { current, next, diff };
+}
+
+/**
+ * @typedef {{ PNG: { new (opts:{ width:number, height:number }): PngImage, sync: { write(png: PngImage): Uint8Array } },
+ *   current: PngImage, next: PngImage, out: string, cropMargin: number }} CropContext
+ */
+
+/**
+ * 1 つの bbox の crop 対を書き出し、パスを返す。書けなければ例外を投げる。
+ *
+ * @param {string | number} id
+ * @param {Rect} bbox
+ * @param {CropContext} context
+ * @returns {{ cropCurrentPath: string, cropNewPath: string }}
+ */
+function writeCropPair(id, bbox, { PNG, current, next, out, cropMargin }) {
+  const cropCurrentPath = join(out, `crop-${id}-current.png`);
+  const cropNewPath = join(out, `crop-${id}-new.png`);
+  const options = { margin: cropMargin, PngCtor: PNG };
+  writeFileSync(cropCurrentPath, PNG.sync.write(cropImage(current, bbox, options)));
+  writeFileSync(cropNewPath, PNG.sync.write(cropImage(next, bbox, options)));
+  return { cropCurrentPath, cropNewPath };
+}
+
+/**
+ * しきい値つきの領域ごとに crop 対を書き出し、候補の一覧にする。書けなければ例外を投げる。
+ *
+ * @param {Array<{ pixels:number, bbox:Rect, threshold_bbox:Rect, absorbed_strict_only_pixels:number }>} regions
+ * @param {Uint8Array} strictMask
+ * @param {CropContext} context
+ */
+function writeRegionCrops(regions, strictMask, context) {
+  return regions.map((region, i) => {
+    const id = i + 1;
+    const { cropCurrentPath, cropNewPath } = writeCropPair(id, region.bbox, context);
+    return {
+      id,
+      bbox: region.bbox,
+      pixels: region.pixels,
+      strict_pixels: countInBbox(strictMask, context.current.width, region.bbox),
+      threshold_bbox: region.threshold_bbox,
+      absorbed_strict_only_pixels: region.absorbed_strict_only_pixels,
+      crop_current: cropCurrentPath,
+      crop_new: cropNewPath,
+    };
+  });
+}
+
+/**
+ * strict-only の領域ごとに crop 対を書き出し、候補の一覧にする。書けなければ例外を投げる。
+ *
+ * @param {Array<{ id:string, pixels:number, bbox:Rect }>} selected
+ * @param {CropContext} context
+ * @returns {Array<{ id:string, bbox:Rect, strict_pixels:number, crop_current:string, crop_new:string,
+ *   overlaps_regions?:number[] }>}
+ */
+function writeStrictCrops(selected, context) {
+  return selected.map((region) => {
+    const { cropCurrentPath, cropNewPath } = writeCropPair(region.id, region.bbox, context);
+    return {
+      id: region.id,
+      bbox: region.bbox,
+      strict_pixels: region.pixels,
+      crop_current: cropCurrentPath,
+      crop_new: cropNewPath,
+    };
+  });
+}
+
+/**
+ * 差分画像のマスクから、しきい値つきの領域（strict-only の縁を取り込んだもの）と strict-only のクラスタを作る。
+ *
+ * @param {Uint8Array} mask - 差分画像から作ったマスク
+ * @param {Uint8Array} strictMask - 厳密比較のマスク
+ * @param {{ width:number, height:number, minCluster:number, pad:number, strictMinCluster:number }} options
+ */
+function buildCandidates(mask, strictMask, { width, height, minCluster, pad, strictMinCluster }) {
+  const thresholdRegions = filterAndMerge(clusterComponents(mask, width, height), minCluster, pad);
+  // しきい値の内側にだけ差がある画素も候補として出す。数だけ報告するとトリアージが
+  // 「crop 対のある候補」を受け取れず、検出した差を分類も差し戻しもできないまま閉じてしまう。
+  // ただし、しきい値つきの領域と重なる分はその領域の縁（同じ場所の同じ差）なので、領域へ取り込んで
+  // 1 つの候補にする（分けると同じ差が別の bbox で 2 件になり、台帳の照合が片方にしか当たらない）。
+  const strictOnlyMask = buildStrictOnlyMask(mask, strictMask);
+  const absorbed = absorbStrictIntoRegions(thresholdRegions, strictOnlyMask, {
+    width,
+    height,
+    pad,
+  });
+  const strictClustered = mergeThenFilter(
+    clusterComponents(absorbed.remainingMask, width, height),
+    strictMinCluster,
+    pad,
+  );
+  return { absorbed, strictClustered };
+}
+
+/**
+ * 候補を作った結果を警告として stderr に出す。
+ *
+ * @param {{ summary: PixelSummary, strictClusters: unknown[], emitted: number, splitCount: number,
+ *   absorbedPixels: number, droppedClusters: number, droppedPixels: number,
+ *   options: { pad:number, strictMinCluster:number, strictMaxRegions:number } }} report
+ */
+function warnStrictOnly({
+  summary,
+  strictClusters,
+  emitted,
+  splitCount,
+  absorbedPixels,
+  droppedClusters,
+  droppedPixels,
+  options: { pad, strictMinCluster, strictMaxRegions },
+}) {
+  // しきい値の内側に差が隠れていることは、差分領域が 0 件でも起きる。stdout の summary だけでなく
+  // stderr にも出して、「差分領域なし」を「一致」と読めないようにする。
+  if (summary.strict_only_pixels > 0) {
+    process.stderr.write(
+      `warning: ${summary.strict_only_pixels} pixels differ below the recorded threshold ` +
+        `(max channel delta among them ${summary.strict_only_max_channel_delta}, ` +
+        `overall ${summary.strict_max_channel_delta}); ` +
+        `${strictClusters.length} cluster(s) >= ${strictMinCluster}px, ` +
+        `${emitted} emitted as candidates, ` +
+        `${absorbedPixels} pixel(s) within --pad of a threshold region merged into it; ` +
+        `report both numbers and compare the strict counts with the noise baseline\n`,
+    );
+  }
+  if (splitCount > 0) {
+    process.stderr.write(
+      `warning: ${splitCount} strict-only candidate(s) overlap or touch a threshold region ` +
+        `(see overlaps_regions): the fringe of the same difference extends beyond --pad ${pad}; ` +
+        `triage them together with those regions as one place\n`,
+    );
+  }
+  if (strictClusters.length > emitted) {
+    process.stderr.write(
+      `warning: ${strictClusters.length - emitted} strict-only cluster(s) were not ` +
+        `emitted (--strict-max-regions ${strictMaxRegions}); raise the limit to triage them\n`,
+    );
+  }
+  if (droppedClusters > 0) {
+    process.stderr.write(
+      `warning: ${droppedClusters} strict-only cluster(s) ` +
+        `(${droppedPixels} pixels) stayed below --strict-min-cluster ` +
+        `${strictMinCluster} after merging; lower the limit to turn them into candidates\n`,
+    );
+  }
+}
+
+/**
+ * 入力を読み、確かめる。誤りは stderr に出す 1 行で返す。
+ *
+ * @param {string[]} argv
+ */
+async function prepareInputs(argv) {
+  const options = parseCliArgs(argv);
+  const { positionals, out } = options;
+  if (positionals.length !== 3 || !out) return { error: USAGE };
+  const validated = validateOptions(options);
+  if ("error" in validated) return validated;
+  const PNG = await loadPng();
+  if (!PNG) {
+    return {
+      error:
+        "error: pngjs is not installed. install it in the project or confirm with the user before proceeding\n",
+    };
+  }
+  const images = readImages(positionals, PNG);
+  if ("error" in images) return images;
+  return { options, out, target: validated.target, PNG, ...images };
+}
+
+/**
+ * 出力のディレクトリを作り、しきい値つきの候補と strict-only の候補の crop 対を書き出す。
+ * 誤りは stderr に出す 1 行で返す。
+ *
+ * @param {{ regions: Array<{ pixels:number, bbox:Rect, threshold_bbox:Rect, absorbed_strict_only_pixels:number }>,
+ *   strictMask: Uint8Array, strictSelected: Array<{ id:string, pixels:number, bbox:Rect }>, context: CropContext }} input
+ * @returns {{ error: string } | { result: ReturnType<typeof writeRegionCrops>, strictResult: ReturnType<typeof writeStrictCrops> }}
+ */
+function writeAllCrops({ regions, strictMask, strictSelected, context }) {
+  try {
+    mkdirSync(context.out, { recursive: true });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { error: `error: cannot create out dir: ${message}\n` };
+  }
+  try {
+    const result = writeRegionCrops(regions, strictMask, context);
+    const strictResult = writeStrictCrops(strictSelected, context);
+    return { result, strictResult };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { error: `error: cannot write crops: ${message}\n` };
+  }
+}
+
+/**
+ * 差分画像と 2 枚の画像から、マスク・summary・候補の領域を作る。
+ *
+ * @param {{ options: CliOptions, target: { r:number, g:number, b:number }, current: PngImage, next: PngImage, diff: PngImage }} inputs
+ */
+function analyzeImages({ options, target, current, next, diff }) {
+  const mask = buildDiffMask(diff.data, diff, { target, tol: DEFAULT_COLOR_TOLERANCE });
+  const strict = buildStrictMask(current.data, next.data, {
+    pixels: current.width * current.height,
+    thresholdMask: mask,
+  });
+  /**
+   * 候補を作った後に、strict-only の件数を書き足す。
+   *
+   * @type {PixelSummary & { strict_only_regions_total?:number, strict_only_regions_emitted?:number,
+   *   strict_only_dropped_clusters?:number, strict_only_dropped_pixels?:number,
+   *   strict_min_cluster?:number, strict_only_absorbed_pixels?:number,
+   *   strict_only_overlapping_regions?:number }}
+   */
+  const summary = summarizePixels(mask, strict.mask, strict);
+  const { absorbed, strictClustered } = buildCandidates(mask, strict.mask, {
+    width: diff.width,
+    height: diff.height,
+    minCluster: options.minCluster,
+    pad: options.pad,
+    strictMinCluster: options.strictMinCluster,
+  });
+  return { strict, summary, absorbed, strictClustered };
+}
+
+/**
+ * strict-only の候補に、隣り合うしきい値つきの候補の id（overlaps_regions）を書き足す。
+ * 隣り合う相手を持つ候補の数を返す。
+ *
+ * @param {Array<{ bbox:Rect, overlaps_regions?:number[] }>} strictResult
+ * @param {Array<{ id:number, bbox:Rect }>} result
+ * @returns {number}
+ */
+function markAdjacentRegions(strictResult, result) {
+  const adjacency = adjacentRegionIds(strictResult, result);
+  strictResult.forEach((s, i) => {
+    s.overlaps_regions = adjacency[i];
+  });
+  return strictResult.filter(
+    (s) => s.overlaps_regions !== undefined && s.overlaps_regions.length > 0,
+  ).length;
+}
+
 /**
  * CLI エントリ。
  * `node pixel-crops.mjs <current.png> <new.png> <diff.png> --out <dir> [--min-cluster <count>] [--pad <px>] [--crop-margin <px>] [--diff-color <hex>]`
@@ -623,261 +1043,44 @@ function cropImage(img, bbox, margin, PngCtor) {
  * @returns {Promise<number>} exit code
  */
 export async function main(argv) {
-  const usage =
-    "usage: node pixel-crops.mjs <current.png> <new.png> <diff.png> --out <dir> [--min-cluster <count>] [--pad <px>] [--crop-margin <px>] [--diff-color <hex>] [--strict-min-cluster <count>] [--strict-max-regions <count>]\n";
-  const positionals = [];
-  let out;
-  let minCluster = 1;
-  let pad = 8;
-  let cropMargin = 24;
-  let diffColor = "ff0000";
-  // strict-only はアンチエイリアスの孤立画素まで拾うため、既定のクラスタ下限を threshold 側より高くする。
-  let strictMinCluster = 4;
-  let strictMaxRegions = 20;
-  for (let i = 0; i < argv.length; i += 1) {
-    const a = argv[i];
-    if (a === "--out") {
-      out = argv[i + 1];
-      i += 1;
-    } else if (a === "--min-cluster") {
-      minCluster = Number(argv[i + 1]);
-      i += 1;
-    } else if (a === "--pad") {
-      pad = Number(argv[i + 1]);
-      i += 1;
-    } else if (a === "--crop-margin") {
-      cropMargin = Number(argv[i + 1]);
-      i += 1;
-    } else if (a === "--diff-color") {
-      diffColor = argv[i + 1];
-      i += 1;
-    } else if (a === "--strict-min-cluster") {
-      strictMinCluster = Number(argv[i + 1]);
-      i += 1;
-    } else if (a === "--strict-max-regions") {
-      strictMaxRegions = Number(argv[i + 1]);
-      i += 1;
-    } else {
-      positionals.push(a);
-    }
-  }
-  if (positionals.length !== 3 || !out) {
-    process.stderr.write(usage);
+  const inputs = await prepareInputs(argv);
+  if ("error" in inputs) {
+    process.stderr.write(inputs.error);
     return 2;
   }
-  if (
-    !Number.isFinite(minCluster) ||
-    minCluster < 1 ||
-    !Number.isFinite(pad) ||
-    pad < 0 ||
-    !Number.isFinite(cropMargin) ||
-    cropMargin < 0
-  ) {
-    process.stderr.write(
-      "error: --min-cluster must be >= 1, --pad and --crop-margin must be >= 0\n",
-    );
-    return 2;
-  }
-  if (
-    !Number.isFinite(strictMinCluster) ||
-    strictMinCluster < 1 ||
-    !Number.isFinite(strictMaxRegions) ||
-    strictMaxRegions < 1
-  ) {
-    process.stderr.write("error: --strict-min-cluster and --strict-max-regions must be >= 1\n");
-    return 2;
-  }
-  const target = hexToRgb(diffColor);
-  if (!target) {
-    process.stderr.write("error: --diff-color must be a 6-digit hex color (e.g. ff0000)\n");
-    return 2;
-  }
-  const PNG = await loadPng();
-  if (!PNG) {
-    process.stderr.write(
-      "error: pngjs is not installed. install it in the project or confirm with the user before proceeding\n",
-    );
-    return 2;
-  }
-  let current;
-  let next;
-  let diff;
-  try {
-    current = PNG.sync.read(readFileSync(positionals[0]));
-    next = PNG.sync.read(readFileSync(positionals[1]));
-    diff = PNG.sync.read(readFileSync(positionals[2]));
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    process.stderr.write(`error: cannot read PNG inputs: ${message}\n`);
-    return 2;
-  }
-  if (
-    current.width !== next.width ||
-    current.height !== next.height ||
-    current.width !== diff.width ||
-    current.height !== diff.height
-  ) {
-    process.stderr.write(
-      `error: PNG dimensions differ (must match): current ${current.width}x${current.height}, new ${next.width}x${next.height}, diff ${diff.width}x${diff.height}\n`,
-    );
-    return 2;
-  }
-  const mask = buildDiffMask(diff.data, diff.width, diff.height, target, DEFAULT_COLOR_TOLERANCE);
-  const strict = buildStrictMask(current.data, next.data, current.width * current.height, mask);
-  /**
-   * 候補を作った後に、strict-only の件数を書き足す。
-   *
-   * @type {PixelSummary & { strict_only_regions_total?:number, strict_only_regions_emitted?:number,
-   *   strict_only_dropped_clusters?:number, strict_only_dropped_pixels?:number,
-   *   strict_min_cluster?:number, strict_only_absorbed_pixels?:number,
-   *   strict_only_overlapping_regions?:number }}
-   */
-  const summary = summarizePixels(
-    mask,
-    strict.mask,
-    strict.maxChannelDelta,
-    strict.maxStrictOnlyChannelDelta,
-  );
-  const thresholdRegions = filterAndMerge(
-    clusterComponents(mask, diff.width, diff.height),
-    minCluster,
-    pad,
-  );
-  // しきい値の内側にだけ差がある画素も候補として出す。数だけ報告するとトリアージが
-  // 「crop 対のある候補」を受け取れず、検出した差を分類も差し戻しもできないまま閉じてしまう。
-  // ただし、しきい値つきの領域と重なる分はその領域の縁（同じ場所の同じ差）なので、領域へ取り込んで
-  // 1 つの候補にする（分けると同じ差が別の bbox で 2 件になり、台帳の照合が片方にしか当たらない）。
-  const strictOnlyMask = buildStrictOnlyMask(mask, strict.mask);
-  const absorbed = absorbStrictIntoRegions(
-    thresholdRegions,
-    strictOnlyMask,
-    diff.width,
-    diff.height,
-    pad,
-  );
-  const strictClustered = mergeThenFilter(
-    clusterComponents(absorbed.remainingMask, diff.width, diff.height),
-    strictMinCluster,
-    pad,
-  );
-  const regions = absorbed.regions;
-  try {
-    mkdirSync(out, { recursive: true });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    process.stderr.write(`error: cannot create out dir: ${message}\n`);
-    return 2;
-  }
-  const result = [];
-  for (let i = 0; i < regions.length; i += 1) {
-    const id = i + 1;
-    const cropCurrentPath = join(out, `crop-${id}-current.png`);
-    const cropNewPath = join(out, `crop-${id}-new.png`);
-    try {
-      writeFileSync(
-        cropCurrentPath,
-        PNG.sync.write(cropImage(current, regions[i].bbox, cropMargin, PNG)),
-      );
-      writeFileSync(cropNewPath, PNG.sync.write(cropImage(next, regions[i].bbox, cropMargin, PNG)));
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      process.stderr.write(`error: cannot write crops: ${message}\n`);
-      return 2;
-    }
-    result.push({
-      id,
-      bbox: regions[i].bbox,
-      pixels: regions[i].pixels,
-      strict_pixels: countInBbox(strict.mask, current.width, regions[i].bbox),
-      threshold_bbox: regions[i].threshold_bbox,
-      absorbed_strict_only_pixels: regions[i].absorbed_strict_only_pixels,
-      crop_current: cropCurrentPath,
-      crop_new: cropNewPath,
-    });
-  }
+  const { options, out, PNG, current, next } = inputs;
+  const { pad, cropMargin, strictMinCluster, strictMaxRegions } = options;
+  const { strict, summary, absorbed, strictClustered } = analyzeImages(inputs);
   const strictClusters = strictClustered.kept;
-  const strictSelected = selectStrictRegions(strictClusters, strictMaxRegions);
-  /**
-   * overlaps_regions は全件を作った後に書き足す。
-   *
-   * @type {Array<{ id:string, bbox:Rect, strict_pixels:number, crop_current:string, crop_new:string,
-   *   overlaps_regions?:number[] }>}
-   */
-  const strictResult = [];
-  for (let i = 0; i < strictSelected.length; i += 1) {
-    const id = strictSelected[i].id;
-    const cropCurrentPath = join(out, `crop-${id}-current.png`);
-    const cropNewPath = join(out, `crop-${id}-new.png`);
-    try {
-      writeFileSync(
-        cropCurrentPath,
-        PNG.sync.write(cropImage(current, strictSelected[i].bbox, cropMargin, PNG)),
-      );
-      writeFileSync(
-        cropNewPath,
-        PNG.sync.write(cropImage(next, strictSelected[i].bbox, cropMargin, PNG)),
-      );
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      process.stderr.write(`error: cannot write crops: ${message}\n`);
-      return 2;
-    }
-    strictResult.push({
-      id,
-      bbox: strictSelected[i].bbox,
-      strict_pixels: strictSelected[i].pixels,
-      crop_current: cropCurrentPath,
-      crop_new: cropNewPath,
-    });
+  const written = writeAllCrops({
+    regions: absorbed.regions,
+    strictMask: strict.mask,
+    strictSelected: selectStrictRegions(strictClusters, strictMaxRegions),
+    context: { PNG, current, next, out, cropMargin },
+  });
+  if ("error" in written) {
+    process.stderr.write(written.error);
+    return 2;
   }
+  const { result, strictResult } = written;
   summary.strict_only_regions_total = strictClusters.length;
   summary.strict_only_regions_emitted = strictResult.length;
   summary.strict_only_dropped_clusters = strictClustered.droppedClusters;
   summary.strict_only_dropped_pixels = strictClustered.droppedPixels;
   summary.strict_min_cluster = strictMinCluster;
   summary.strict_only_absorbed_pixels = absorbed.absorbedPixels;
-  const adjacency = adjacentRegionIds(strictResult, result);
-  strictResult.forEach((s, i) => {
-    s.overlaps_regions = adjacency[i];
-  });
-  const splitCount = strictResult.filter(
-    (s) => s.overlaps_regions !== undefined && s.overlaps_regions.length > 0,
-  ).length;
+  const splitCount = markAdjacentRegions(strictResult, result);
   summary.strict_only_overlapping_regions = splitCount;
-
-  // しきい値の内側に差が隠れていることは、差分領域が 0 件でも起きる。stdout の summary だけでなく
-  // stderr にも出して、「差分領域なし」を「一致」と読めないようにする。
-  if (summary.strict_only_pixels > 0) {
-    process.stderr.write(
-      `warning: ${summary.strict_only_pixels} pixels differ below the recorded threshold ` +
-        `(max channel delta among them ${summary.strict_only_max_channel_delta}, ` +
-        `overall ${summary.strict_max_channel_delta}); ` +
-        `${strictClusters.length} cluster(s) >= ${strictMinCluster}px, ` +
-        `${strictResult.length} emitted as candidates, ` +
-        `${absorbed.absorbedPixels} pixel(s) within --pad of a threshold region merged into it; ` +
-        `report both numbers and compare the strict counts with the noise baseline\n`,
-    );
-  }
-  if (splitCount > 0) {
-    process.stderr.write(
-      `warning: ${splitCount} strict-only candidate(s) overlap or touch a threshold region ` +
-        `(see overlaps_regions): the fringe of the same difference extends beyond --pad ${pad}; ` +
-        `triage them together with those regions as one place\n`,
-    );
-  }
-  if (strictClusters.length > strictResult.length) {
-    process.stderr.write(
-      `warning: ${strictClusters.length - strictResult.length} strict-only cluster(s) were not ` +
-        `emitted (--strict-max-regions ${strictMaxRegions}); raise the limit to triage them\n`,
-    );
-  }
-  if (strictClustered.droppedClusters > 0) {
-    process.stderr.write(
-      `warning: ${strictClustered.droppedClusters} strict-only cluster(s) ` +
-        `(${strictClustered.droppedPixels} pixels) stayed below --strict-min-cluster ` +
-        `${strictMinCluster} after merging; lower the limit to turn them into candidates\n`,
-    );
-  }
+  warnStrictOnly({
+    summary,
+    strictClusters,
+    emitted: strictResult.length,
+    splitCount,
+    absorbedPixels: absorbed.absorbedPixels,
+    droppedClusters: strictClustered.droppedClusters,
+    droppedPixels: strictClustered.droppedPixels,
+    options: { pad, strictMinCluster, strictMaxRegions },
+  });
   process.stdout.write(
     JSON.stringify({ summary, regions: result, strict_only_regions: strictResult }, null, 2) + "\n",
   );

@@ -174,6 +174,93 @@ function differs(a, b) {
 }
 
 /**
+ * 在る標本の量が有限の数でないときの、読めない理由。
+ * @param {string} key
+ * @returns {{ ok: false, reason: string }}
+ */
+function notFinite(key) {
+  return { ok: false, reason: `在る標本の ${key} が有限の数でない` };
+}
+
+/**
+ * 標本 1 件を検査し、検査を通った形を返す（読めなければ理由）。
+ * @param {unknown} raw
+ * @param {number} previousT 直前の標本の時刻（最初の標本では -Infinity）
+ * @returns {{ ok: true, sample: MotionSample } | { ok: false, reason: string }}
+ */
+function checkSample(raw, previousT) {
+  if (!isObjectLike(raw) || typeof raw.present !== "boolean") {
+    return { ok: false, reason: "標本の present が真偽値でない" };
+  }
+  const t = raw.t;
+  if (!isFiniteNumber(t) || t < previousT) {
+    return { ok: false, reason: "標本の t が有限の非減少列でない" };
+  }
+  if (!raw.present) return { ok: true, sample: { t, present: false } };
+  const { x, y, width, height, opacity } = raw;
+  if (!isFiniteNumber(x)) return notFinite("x");
+  if (!isFiniteNumber(y)) return notFinite("y");
+  if (!isFiniteNumber(width)) return notFinite("width");
+  if (!isFiniteNumber(height)) return notFinite("height");
+  if (!isFiniteNumber(opacity)) return notFinite("opacity");
+  return { ok: true, sample: { t, present: true, x, y, width, height, opacity } };
+}
+
+/**
+ * 標本の列を検査する。最初に読めなかった標本の理由で止める。
+ * @param {unknown[]} samples
+ * @returns {{ ok: true, checked: MotionSample[] } | { ok: false, reason: string }}
+ */
+function checkSamples(samples) {
+  /** @type {MotionSample[]} 検査を通った標本（並びは samples のまま） */
+  const checked = [];
+  let previousT = -Infinity;
+  for (const raw of samples) {
+    const read = checkSample(raw, previousT);
+    if (!read.ok) return read;
+    checked.push(read.sample);
+    previousT = read.sample.t;
+  }
+  return { ok: true, checked };
+}
+
+/**
+ * 直前の標本と違う標本のうち、最初と最後の位置を返す（変化が無ければ両方 null）。
+ * @param {MotionSample[]} checked
+ * @returns {{ firstChange: number | null, lastChange: number | null }}
+ */
+function findChanges(checked) {
+  let firstChange = null;
+  let lastChange = null;
+  for (let i = 1; i < checked.length; i += 1) {
+    if (differs(checked[i - 1], checked[i])) {
+      if (firstChange === null) firstChange = i;
+      lastChange = i;
+    }
+  }
+  return { firstChange, lastChange };
+}
+
+/**
+ * 起点からの標本を、起点からの時刻と基準の矩形からのずれの列にする。
+ * @param {MotionSample[]} fromOrigin 起点（最初の変化の直前の標本）から後の標本
+ * @param {{ x: number, y: number, width: number, height: number }} reference 基準の矩形
+ * @returns {MotionPoint[]}
+ */
+function toSeries(fromOrigin, reference) {
+  const origin = fromOrigin[0].t;
+  return fromOrigin.map((s) => ({
+    t: s.t - origin,
+    present: s.present,
+    dx: s.present ? s.x - reference.x : null,
+    dy: s.present ? s.y - reference.y : null,
+    dw: s.present ? s.width - reference.width : null,
+    dh: s.present ? s.height - reference.height : null,
+    opacity: s.present ? s.opacity : null,
+  }));
+}
+
+/**
  * 時系列を読み、比較に使う要約を返す（読めなければ理由）。
  * 記録された要約値は信用せず、標本から組み立て直す（書き手の不変条件を読み手で検査する）。
  * @param {unknown} timeline motion-probe.mjs の出力（形はここで検査する）
@@ -193,61 +280,20 @@ export function summarizeTimeline(timeline) {
   if (!isArray(samples) || samples.length === 0) {
     return { ok: false, reason: "samples が空" };
   }
-  /**
-   * @param {string} key
-   * @returns {{ ok: false, reason: string }}
-   */
-  const notFinite = (key) => ({ ok: false, reason: `在る標本の ${key} が有限の数でない` });
-  /** @type {MotionSample[]} 検査を通った標本（並びは samples のまま） */
-  const checked = [];
-  let previousT = -Infinity;
-  for (const raw of samples) {
-    if (!isObjectLike(raw) || typeof raw.present !== "boolean") {
-      return { ok: false, reason: "標本の present が真偽値でない" };
-    }
-    const t = raw.t;
-    if (!isFiniteNumber(t) || t < previousT) {
-      return { ok: false, reason: "標本の t が有限の非減少列でない" };
-    }
-    previousT = t;
-    if (!raw.present) {
-      checked.push({ t, present: false });
-      continue;
-    }
-    const { x, y, width, height, opacity } = raw;
-    if (!isFiniteNumber(x)) return notFinite("x");
-    if (!isFiniteNumber(y)) return notFinite("y");
-    if (!isFiniteNumber(width)) return notFinite("width");
-    if (!isFiniteNumber(height)) return notFinite("height");
-    if (!isFiniteNumber(opacity)) return notFinite("opacity");
-    checked.push({ t, present: true, x, y, width, height, opacity });
-  }
+  const read = checkSamples(samples);
+  if (!read.ok) return read;
+  const checked = read.checked;
   const first = checked[0];
   const last = checked[checked.length - 1];
   const reference = last.present ? last : first.present ? first : checked.find((s) => s.present);
   if (!reference) {
     return { ok: false, reason: "要素が一度も在らなかった（セレクタが対象を引けていない疑い）" };
   }
-  let firstChange = null;
-  let lastChange = null;
-  for (let i = 1; i < checked.length; i += 1) {
-    if (differs(checked[i - 1], checked[i])) {
-      if (firstChange === null) firstChange = i;
-      lastChange = i;
-    }
-  }
+  const { firstChange, lastChange } = findChanges(checked);
   // 最初の変化の直前の標本を起点にする（変化はその次のフレームで初めて見えるため）。
   const originIndex = firstChange === null ? 0 : firstChange - 1;
   const origin = checked[originIndex].t;
-  const series = checked.slice(originIndex).map((s) => ({
-    t: s.t - origin,
-    present: s.present,
-    dx: s.present ? s.x - reference.x : null,
-    dy: s.present ? s.y - reference.y : null,
-    dw: s.present ? s.width - reference.width : null,
-    dh: s.present ? s.height - reference.height : null,
-    opacity: s.present ? s.opacity : null,
-  }));
+  const series = toSeries(checked.slice(originIndex), reference);
   return {
     ok: true,
     summary: {
@@ -397,89 +443,110 @@ export function judgeMotion(base, noise, candidate) {
 }
 
 /**
- * 動きを突き合わせる（純関数）。
- *
- * @param {{ metadata: unknown, motions: Record<string, unknown>, comparison: unknown, target: string }} input 突き合わせの入力（形はここで検査する）。
- *   - metadata: capture の `metadata.json`
- *   - motions: インスタンス id → `baseline/<id>/motions.json` の中身（読めなければ null）
- *   - comparison: `new/<target>/motion-comparison.json` の中身（読めなければ null）
- *   - target: 判定対象の new target 名
- * @returns {{ structural: boolean, judged: boolean, findings: MotionFinding[], counts: MotionCounts }}
+ * metadata.json から読んだ動きの宣言（compareMotions が母集合と基準を組むのに使う）。
+ * @typedef {{
+ *   slug: unknown,
+ *   transitionIds: Set<string>,
+ *   instanceIds: string[],
+ *   instanceRecords: { id: string, record: Record<string, unknown> }[],
+ *   probeVersion: unknown,
+ * }} MotionDeclaration
  */
-export function compareMotions({ metadata, motions, comparison, target }) {
-  /** @type {MotionFinding[]} */
-  const findings = [];
-  const counts = {
-    cells: 0,
-    not_compared: 0,
-    matched: 0,
-    mismatched: 0,
-    uncompared: 0,
-    accepted: 0,
-  };
-  /** @param {string} detail */
-  const structural = (detail) => ({
-    structural: true,
-    judged: false,
-    findings: [{ code: "structural", detail }],
-    counts,
-  });
 
+/**
+ * 突き合わせの途中の状態（compareMotions の各段が読み書きする）。
+ * baseline の値が undefined の組み合わせは、時系列はあったが基準にできなかったもの。
+ * @typedef {{
+ *   findings: MotionFinding[],
+ *   counts: MotionCounts,
+ *   probeVersion: unknown,
+ *   population: Map<string, { transition: string, instance: string }>,
+ *   unreachable: Set<string>,
+ *   baseline: Map<string, [MotionSummary, MotionSummary] | undefined>,
+ * }} MotionContext
+ */
+
+/**
+ * capture.motions の枠（source_scan・transitions・none_reason）を検査する。
+ * @param {unknown} metadata
+ * @returns {{ error: string } | { none: true } | { capture: Record<string, unknown>, transitions: unknown[] }}
+ */
+function readMotionsBlock(metadata) {
   const capture = field(metadata, "capture");
   const declared = field(capture, "motions");
   // declared がオブジェクトなら metadata と capture もオブジェクトなので、絞り込みを足しても判定は変わらない。
   if (!isObjectLike(metadata) || !isObjectLike(capture) || !isPlainObject(declared)) {
-    return structural(
-      "metadata.json の capture.motions が無い（動きが無いのか数えていないのか区別できない）",
-    );
+    return {
+      error:
+        "metadata.json の capture.motions が無い（動きが無いのか数えていないのか区別できない）",
+    };
   }
   if (!isArray(declared.source_scan)) {
-    return structural(
-      "capture.motions.source_scan が配列でない（現行のソースで動きを数えた記録が無い）",
-    );
+    return {
+      error: "capture.motions.source_scan が配列でない（現行のソースで動きを数えた記録が無い）",
+    };
   }
   const transitions = declared.transitions;
   if (!isArray(transitions)) {
-    return structural("capture.motions.transitions が配列でない");
+    return { error: "capture.motions.transitions が配列でない" };
   }
   if (transitions.length === 0) {
-    if (filled(declared.none_reason)) return { structural: false, judged: false, findings, counts };
-    return structural(
-      "capture.motions.transitions が空で none_reason も無い（動きが無いのか採っていないのか区別できない）",
-    );
+    if (filled(declared.none_reason)) return { none: true };
+    return {
+      error:
+        "capture.motions.transitions が空で none_reason も無い（動きが無いのか採っていないのか区別できない）",
+    };
   }
   if (declared.none_reason !== null && declared.none_reason !== undefined) {
-    return structural("capture.motions は transitions と none_reason を同時に持てない");
+    return { error: "capture.motions は transitions と none_reason を同時に持てない" };
   }
+  return { capture, transitions };
+}
+
+/**
+ * 遷移の列挙を検査し、遷移の id の集合を返す（読めなければ理由）。
+ * @param {unknown[]} transitions
+ * @param {Record<string, unknown>} capture
+ * @returns {{ error: string } | { ids: Set<string> }}
+ */
+function readTransitionIds(transitions, capture) {
   const operationIds = new Set(
     (isArray(capture.operations) ? capture.operations : []).map((op) => field(op, "id")),
   );
   /** @type {Set<string>} */
-  const transitionIds = new Set();
+  const ids = new Set();
   for (const tr of transitions) {
     const id = field(tr, "id");
     if (!filled(id))
-      return structural("capture.motions.transitions[].id が空かプレースホルダのまま");
-    if (transitionIds.has(id)) return structural(`capture.motions.transitions[].id が重複: ${id}`);
+      return { error: "capture.motions.transitions[].id が空かプレースホルダのまま" };
+    if (ids.has(id)) return { error: `capture.motions.transitions[].id が重複: ${id}` };
     // 手順が無いと、capture と build が同じ id で別の操作から動きを起こしても通る。
     if (!filled(field(tr, "description")) || !filled(field(tr, "trigger"))) {
-      return structural(
-        `capture.motions.transitions[${JSON.stringify(id)}] の description / trigger が空かプレースホルダのまま（両側で同じ操作を再生できない）`,
-      );
+      return {
+        error: `capture.motions.transitions[${JSON.stringify(id)}] の description / trigger が空かプレースホルダのまま（両側で同じ操作を再生できない）`,
+      };
     }
     const onComplete = field(tr, "on_complete");
     if (onComplete !== undefined) {
       if (!isArray(onComplete) || !onComplete.every((op) => operationIds.has(op))) {
-        return structural(
-          `capture.motions.transitions[${JSON.stringify(id)}].on_complete は capture.operations の id の配列（動きの完了で始まる処理は操作として列挙する）`,
-        );
+        return {
+          error: `capture.motions.transitions[${JSON.stringify(id)}].on_complete は capture.operations の id の配列（動きの完了で始まる処理は操作として列挙する）`,
+        };
       }
     }
-    transitionIds.add(id);
+    ids.add(id);
   }
-  const instances = metadata.instances;
+  return { ids };
+}
+
+/**
+ * インスタンスの列挙を検査する（読めなければ理由）。
+ * @param {unknown} instances
+ * @returns {{ error: string } | { instanceIds: string[], instanceRecords: { id: string, record: Record<string, unknown> }[] }}
+ */
+function readInstances(instances) {
   if (!isArray(instances) || instances.length === 0) {
-    return structural("metadata.json の instances が空");
+    return { error: "metadata.json の instances が空" };
   }
   /** @type {string[]} */
   const instanceIds = [];
@@ -487,71 +554,241 @@ export function compareMotions({ metadata, motions, comparison, target }) {
   const instanceRecords = [];
   for (const inst of instances) {
     const id = field(inst, "id");
-    if (!filled(id)) return structural("instances[].id が空かプレースホルダのまま");
-    if (instanceIds.includes(id)) return structural(`instances[].id が重複: ${id}`);
+    if (!filled(id)) return { error: "instances[].id が空かプレースホルダのまま" };
+    if (instanceIds.includes(id)) return { error: `instances[].id が重複: ${id}` };
     instanceIds.push(id);
     // id が文字列なら inst はオブジェクトなので、isObjectLike は型を絞るためだけにある（判定は変わらない）。
     if (isObjectLike(inst)) instanceRecords.push({ id, record: inst });
   }
-  if (!nonEmptyString(target)) return structural("--target が空");
-  if (!filled(metadata.slug)) return structural("metadata.json の slug が空かプレースホルダのまま");
+  return { instanceIds, instanceRecords };
+}
+
+/**
+ * metadata.json の動きの宣言と --target を検査する。
+ * 動きの無い部品（transitions が空で none_reason がある）は none を返す。
+ * @param {unknown} metadata
+ * @param {string} target
+ * @returns {{ error: string } | { none: true } | { declaration: MotionDeclaration }}
+ */
+function readMotionDeclaration(metadata, target) {
+  const block = readMotionsBlock(metadata);
+  if (!("capture" in block)) return block;
+  const { capture } = block;
+  const transitionRead = readTransitionIds(block.transitions, capture);
+  if ("error" in transitionRead) return transitionRead;
+  // readMotionsBlock が capture を返したなら metadata はオブジェクトなので、field で読んだ値は metadata.instances と同じ。
+  const instanceRead = readInstances(field(metadata, "instances"));
+  if ("error" in instanceRead) return instanceRead;
+  if (!nonEmptyString(target)) return { error: "--target が空" };
+  const slug = field(metadata, "slug");
+  if (!filled(slug)) return { error: "metadata.json の slug が空かプレースホルダのまま" };
   const probeVersion = field(capture.tools, "motion_probe_version");
   if (!filled(probeVersion)) {
-    return structural(
-      "capture.tools.motion_probe_version が空（どの版のプローブで採った時系列かを照合できない）",
-    );
+    return {
+      error:
+        "capture.tools.motion_probe_version が空（どの版のプローブで採った時系列かを照合できない）",
+    };
   }
+  return {
+    declaration: {
+      slug,
+      transitionIds: transitionRead.ids,
+      instanceIds: instanceRead.instanceIds,
+      instanceRecords: instanceRead.instanceRecords,
+      probeVersion,
+    },
+  };
+}
 
-  // 母集合: 遷移 × インスタンスから、宣言済みの到達できない遷移を除いたもの。
-  /** @type {Map<string, { transition: string, instance: string }>} */
-  const population = new Map();
-  /** @type {Set<string>} */
-  const unreachable = new Set();
-  for (const { id: instanceId, record: inst } of instanceRecords) {
-    if (inst.unreachable_motions !== undefined && !isArray(inst.unreachable_motions)) {
+/**
+ * インスタンス 1 件の到達できない遷移の宣言を読み、除外する組み合わせを unreachable に足す。
+ * 読めない宣言は指摘にし、除外しない。
+ * @param {MotionContext} ctx
+ * @param {{ id: string, record: Record<string, unknown> }} instance
+ * @param {Set<string>} transitionIds
+ */
+function addUnreachable(ctx, { id: instanceId, record: inst }, transitionIds) {
+  const { findings, unreachable } = ctx;
+  if (inst.unreachable_motions !== undefined && !isArray(inst.unreachable_motions)) {
+    findings.push({
+      code: "unreachable-declaration-invalid",
+      instance: instanceId,
+      detail: "unreachable_motions が配列でない",
+    });
+  }
+  const list = isArray(inst.unreachable_motions) ? inst.unreachable_motions : [];
+  for (const u of list) {
+    const tr = field(u, "transition");
+    if (!nonEmptyString(tr) || !transitionIds.has(tr)) {
       findings.push({
         code: "unreachable-declaration-invalid",
         instance: instanceId,
-        detail: "unreachable_motions が配列でない",
+        transition: tr ?? null,
+        detail: "列挙に無い遷移を到達できないと宣言している",
       });
+      continue;
     }
-    const list = isArray(inst.unreachable_motions) ? inst.unreachable_motions : [];
-    for (const u of list) {
-      const tr = field(u, "transition");
-      if (!nonEmptyString(tr) || !transitionIds.has(tr)) {
-        findings.push({
-          code: "unreachable-declaration-invalid",
-          instance: instanceId,
-          transition: tr ?? null,
-          detail: "列挙に無い遷移を到達できないと宣言している",
-        });
-        continue;
-      }
-      if (!filled(field(u, "reason"))) {
-        findings.push({
-          code: "unreachable-declaration-invalid",
-          instance: instanceId,
-          transition: tr,
-          detail: "到達できない理由が無いかプレースホルダのまま（除外として扱わない）",
-        });
-        continue;
-      }
-      unreachable.add(cellKey(tr, instanceId));
+    if (!filled(field(u, "reason"))) {
+      findings.push({
+        code: "unreachable-declaration-invalid",
+        instance: instanceId,
+        transition: tr,
+        detail: "到達できない理由が無いかプレースホルダのまま（除外として扱わない）",
+      });
+      continue;
     }
-    for (const tr of transitionIds) {
-      const key = cellKey(tr, instanceId);
+    unreachable.add(cellKey(tr, instanceId));
+  }
+}
+
+/**
+ * 母集合（遷移 × インスタンスから、宣言済みの到達できない遷移を除いたもの）を組む。
+ * @param {MotionContext} ctx
+ * @param {MotionDeclaration} declaration
+ */
+function buildPopulation(ctx, declaration) {
+  const { counts, population, unreachable } = ctx;
+  for (const instance of declaration.instanceRecords) {
+    addUnreachable(ctx, instance, declaration.transitionIds);
+    for (const tr of declaration.transitionIds) {
+      const key = cellKey(tr, instance.id);
       if (unreachable.has(key)) {
         counts.not_compared += 1;
         continue;
       }
-      population.set(key, { transition: tr, instance: instanceId });
+      population.set(key, { transition: tr, instance: instance.id });
     }
   }
   counts.cells = population.size;
+}
 
-  // 現行側: 各組み合わせに、比較に使える時系列の要約を 2 つ（基準と揺れ）。
-  /** @type {Map<string, [MotionSummary, MotionSummary] | undefined>} */
-  const baseline = new Map();
+/**
+ * 現行の 1 つの組み合わせの時系列（runs）を読み、比較に使える要約を返す。読めない時系列は指摘にして外す。
+ * @param {MotionContext} ctx
+ * @param {unknown} runs
+ * @param {{ instance: string, transition: string }} cell
+ * @returns {MotionSummary[]}
+ */
+function readBaselineRuns(ctx, runs, { instance: id, transition: tr }) {
+  const { findings, probeVersion } = ctx;
+  /** @type {MotionSummary[]} */
+  const summaries = [];
+  for (const [index, run] of (isArray(runs) ? runs : []).entries()) {
+    const read = summarizeTimeline(run);
+    if (!read.ok) {
+      findings.push({
+        code: "motion-timeline-invalid",
+        side: "current",
+        instance: id,
+        transition: tr,
+        run: index,
+        detail: read.reason,
+      });
+      continue;
+    }
+    if (read.summary.probe_version !== probeVersion) {
+      findings.push({
+        code: "motion-probe-version-mismatch",
+        side: "current",
+        instance: id,
+        transition: tr,
+        run: index,
+        detail: `probe_version ${JSON.stringify(read.summary.probe_version)}（記録は ${JSON.stringify(probeVersion)}）`,
+      });
+      continue;
+    }
+    summaries.push(read.summary);
+  }
+  return summaries;
+}
+
+/**
+ * 現行の要約から基準（基準と揺れの 2 回）を決める。決められなければ指摘を足して undefined を返す。
+ * @param {MotionContext} ctx
+ * @param {MotionSummary[]} summaries
+ * @param {{ instance: string, transition: string }} cell
+ * @returns {[MotionSummary, MotionSummary] | undefined}
+ */
+function pickBaselinePair(ctx, summaries, { instance: id, transition: tr }) {
+  const { findings } = ctx;
+  if (summaries.length < 2) {
+    findings.push({
+      code: "motion-noise-missing",
+      instance: id,
+      transition: tr,
+      detail: `比較に使える現行の時系列が ${summaries.length} 回分（揺れを測るには同じ条件で 2 回以上要る）`,
+    });
+    return undefined;
+  }
+  // 遷移に入れるのは、プローブが採れる動き（矩形か実効の不透明度が変わるもの）だけである。そのため、現行で一度も
+  // 変化しなかったのは、プローブが動きを捉えていない疑いが濃い（アニメーションを止めたまま採った、セレクタが
+  // 静止した別の要素に当たった、など）。ソースに宣言の無い、実機でだけ見つかった動きも同じく失敗にする。
+  // 基準にすると、新側も動かなければ「動きなし」同士で一致してしまう。
+  if (!summaries[0].changed) {
+    findings.push({
+      code: "motion-baseline-static",
+      instance: id,
+      transition: tr,
+      detail:
+        "現行の時系列が一度も変化していない（止めたまま採った・別の要素を探した疑い。色だけの動きのようにプローブで採れない動きなら、遷移に入れず gaps.md へ残す）",
+    });
+    return undefined;
+  }
+  // 揺れは最初の 2 回の差から測る（3 回目以降は使わない）。
+  const unstable = baselineInstability(summaries[0], summaries[1]);
+  if (unstable.length > 0) {
+    // 現行の 2 回で在る／無い・動く／動かないが割れた・揺れが上限を超えたなら、どちらを基準にするかを決められない。
+    findings.push({
+      code: "motion-baseline-unstable",
+      instance: id,
+      transition: tr,
+      detail: `現行の 2 回で ${unstable.join(" / ")} が割れた（遷移の手順か初期状態が揃っていない）`,
+    });
+    return undefined;
+  }
+  return [summaries[0], summaries[1]];
+}
+
+/**
+ * motions.json の results の 1 件を、母集合の組み合わせの基準として登録する。
+ * @param {MotionContext} ctx
+ * @param {string} id インスタンスの id
+ * @param {unknown} r results の 1 件
+ */
+function registerBaselineResult(ctx, id, r) {
+  const { findings, population, unreachable, baseline } = ctx;
+  const tr = field(r, "transition");
+  const key = nonEmptyString(tr) ? cellKey(tr, id) : null;
+  if (key === null || !population.has(key)) {
+    findings.push({
+      code: "motion-baseline-unknown",
+      instance: id,
+      transition: tr ?? null,
+      detail:
+        key !== null && unreachable.has(key)
+          ? "到達できないと宣言した遷移に時系列がある"
+          : "列挙に無い遷移の時系列",
+    });
+    return;
+  }
+  if (baseline.has(key)) {
+    findings.push({ code: "motion-baseline-duplicate", instance: id, transition: tr });
+    return;
+  }
+  // key が null でないなら tr は空でない文字列なので、String は型を絞るためだけにある。
+  const cell = { instance: id, transition: String(tr) };
+  const summaries = readBaselineRuns(ctx, field(r, "runs"), cell);
+  baseline.set(key, pickBaselinePair(ctx, summaries, cell));
+}
+
+/**
+ * 現行側の基準を組む。各組み合わせに、比較に使える時系列の要約を 2 つ（基準と揺れ）。
+ * @param {MotionContext} ctx
+ * @param {Record<string, unknown>} motions インスタンス id → motions.json の中身
+ * @param {string[]} instanceIds
+ */
+function buildBaseline(ctx, motions, instanceIds) {
+  const { findings, population, baseline } = ctx;
   for (const id of instanceIds) {
     const raw = motions[id];
     if (raw === null || raw === undefined) continue;
@@ -574,95 +811,7 @@ export function compareMotions({ metadata, motions, comparison, target }) {
       continue;
     }
     const results = isArray(doc.results) ? doc.results : [];
-    for (const r of results) {
-      const tr = field(r, "transition");
-      const key = nonEmptyString(tr) ? cellKey(tr, id) : null;
-      if (key === null || !population.has(key)) {
-        findings.push({
-          code: "motion-baseline-unknown",
-          instance: id,
-          transition: tr ?? null,
-          detail:
-            key !== null && unreachable.has(key)
-              ? "到達できないと宣言した遷移に時系列がある"
-              : "列挙に無い遷移の時系列",
-        });
-        continue;
-      }
-      if (baseline.has(key)) {
-        findings.push({ code: "motion-baseline-duplicate", instance: id, transition: tr });
-        continue;
-      }
-      const declaredRuns = field(r, "runs");
-      const runs = isArray(declaredRuns) ? declaredRuns : [];
-      /** @type {MotionSummary[]} */
-      const summaries = [];
-      for (const [index, run] of runs.entries()) {
-        const read = summarizeTimeline(run);
-        if (!read.ok) {
-          findings.push({
-            code: "motion-timeline-invalid",
-            side: "current",
-            instance: id,
-            transition: tr,
-            run: index,
-            detail: read.reason,
-          });
-          continue;
-        }
-        if (read.summary.probe_version !== probeVersion) {
-          findings.push({
-            code: "motion-probe-version-mismatch",
-            side: "current",
-            instance: id,
-            transition: tr,
-            run: index,
-            detail: `probe_version ${JSON.stringify(read.summary.probe_version)}（記録は ${JSON.stringify(probeVersion)}）`,
-          });
-          continue;
-        }
-        summaries.push(read.summary);
-      }
-      if (summaries.length < 2) {
-        findings.push({
-          code: "motion-noise-missing",
-          instance: id,
-          transition: tr,
-          detail: `比較に使える現行の時系列が ${summaries.length} 回分（揺れを測るには同じ条件で 2 回以上要る）`,
-        });
-        baseline.set(key, undefined);
-        continue;
-      }
-      // 遷移に入れるのは、プローブが採れる動き（矩形か実効の不透明度が変わるもの）だけである。そのため、現行で一度も
-      // 変化しなかったのは、プローブが動きを捉えていない疑いが濃い（アニメーションを止めたまま採った、セレクタが
-      // 静止した別の要素に当たった、など）。ソースに宣言の無い、実機でだけ見つかった動きも同じく失敗にする。
-      // 基準にすると、新側も動かなければ「動きなし」同士で一致してしまう。
-      if (!summaries[0].changed) {
-        findings.push({
-          code: "motion-baseline-static",
-          instance: id,
-          transition: tr,
-          detail:
-            "現行の時系列が一度も変化していない（止めたまま採った・別の要素を探した疑い。色だけの動きのようにプローブで採れない動きなら、遷移に入れず gaps.md へ残す）",
-        });
-        baseline.set(key, undefined);
-        continue;
-      }
-      // 揺れは最初の 2 回の差から測る（3 回目以降は使わない）。
-      const unstable = baselineInstability(summaries[0], summaries[1]);
-      if (unstable.length > 0) {
-        // 現行の 2 回で在る／無い・動く／動かないが割れた・揺れが上限を超えたなら、どちらを基準にするかを決められない。
-        findings.push({
-          code: "motion-baseline-unstable",
-          instance: id,
-          transition: tr,
-          detail: `現行の 2 回で ${unstable.join(" / ")} が割れた（遷移の手順か初期状態が揃っていない）`,
-        });
-        baseline.set(key, undefined);
-        continue;
-      }
-      baseline.set(key, [summaries[0], summaries[1]]);
-    }
+    for (const r of results) registerBaselineResult(ctx, id, r);
   }
   for (const [key, cell] of population) {
     if (!baseline.has(key)) {
@@ -674,17 +823,19 @@ export function compareMotions({ metadata, motions, comparison, target }) {
       });
     }
   }
+}
 
-  if (comparison === null || comparison === undefined) {
-    findings.push({
-      code: "comparison-missing",
-      detail: "突き合わせ表が無い・読めない（全組み合わせを未突合として数える）",
-    });
-    counts.uncompared = population.size;
-    return { structural: false, judged: true, findings, counts };
-  }
-  // オブジェクトでない値は空の表として読む。どの欄も undefined になるので、直後の target の照合で不一致として報告する。
-  // target を書き忘れた表と見分けられるよう、オブジェクトでないときは値の型を書く。
+/**
+ * 突き合わせ表の target と component を照合し、行の配列を返す。
+ * オブジェクトでない値は空の表として読む。どの欄も undefined になるので、target の照合で不一致として報告する。
+ * target を書き忘れた表と見分けられるよう、オブジェクトでないときは値の型を書く。
+ * @param {MotionContext} ctx
+ * @param {unknown} comparison
+ * @param {{ target: string, slug: unknown }} expected
+ * @returns {unknown[]}
+ */
+function readComparisonRows(ctx, comparison, { target, slug }) {
+  const { findings } = ctx;
   const isTable = isPlainObject(comparison);
   /** @type {Record<string, unknown>} */
   const table = isTable ? comparison : {};
@@ -696,20 +847,136 @@ export function compareMotions({ metadata, motions, comparison, target }) {
         : `突き合わせ表がオブジェクトでない（${valueKind(comparison)}）`,
     });
   }
-  if (table.component !== metadata.slug) {
+  if (table.component !== slug) {
     findings.push({
       code: "comparison-component-mismatch",
       detail: isTable
-        ? `突き合わせ表の component が ${JSON.stringify(table.component)}（採取は ${JSON.stringify(metadata.slug)}）`
+        ? `突き合わせ表の component が ${JSON.stringify(table.component)}（採取は ${JSON.stringify(slug)}）`
         : `突き合わせ表がオブジェクトでない（${valueKind(comparison)}）`,
     });
   }
-  const rows = isArray(table.rows) ? table.rows : [];
   if (!isArray(table.rows)) {
     findings.push({ code: "comparison-rows-invalid", detail: "rows が配列でない" });
+    return [];
   }
-  /** @type {Set<string>} */
-  const seen = new Set();
+  return table.rows;
+}
+
+/**
+ * disposition を持つ行（比べずに受け入れる行）を数える。語彙と承認を確かめる。
+ * @param {MotionContext} ctx
+ * @param {unknown} row
+ * @param {{ transition: unknown, instance: unknown, disposition: unknown }} cell
+ */
+function countDisposedRow(ctx, row, { transition: tr, instance: inst, disposition }) {
+  const { findings, counts } = ctx;
+  // DISPOSITIONS は文字列だけなので、typeof は型を絞るためだけにある（判定は変わらない）。
+  if (typeof disposition !== "string" || !DISPOSITIONS.includes(disposition)) {
+    findings.push({
+      code: "motion-disposition-invalid",
+      transition: tr,
+      instance: inst,
+      detail: `disposition は null か ${DISPOSITIONS.join(" / ")}: ${JSON.stringify(disposition)}`,
+    });
+    counts.uncompared += 1;
+    return;
+  }
+  if (
+    !filled(field(row, "reason")) ||
+    !filled(field(row, "approved_by")) ||
+    !isoDateTime(field(row, "approved_at"))
+  ) {
+    findings.push({
+      code: "motion-acceptance-unapproved",
+      transition: tr,
+      instance: inst,
+      detail:
+        "accepted には記入済みの reason / approved_by と ISO 8601 の approved_at が要る（テンプレートのプレースホルダは承認ではない）",
+    });
+    counts.uncompared += 1;
+    return;
+  }
+  counts.accepted += 1;
+}
+
+/**
+ * 新側の時系列を読む。読めなければ指摘を足して null を返す。
+ * @param {MotionContext} ctx
+ * @param {unknown} row
+ * @param {{ transition: unknown, instance: unknown }} cell
+ * @returns {MotionSummary | null}
+ */
+function readCandidate(ctx, row, { transition: tr, instance: inst }) {
+  const { findings, probeVersion } = ctx;
+  if (!filled(field(row, "story"))) {
+    findings.push({
+      code: "motion-story-missing",
+      transition: tr,
+      instance: inst,
+      detail: "動きを採った見本の識別子（story）が空かプレースホルダのまま",
+    });
+    return null;
+  }
+  const read = summarizeTimeline(field(row, "timeline"));
+  if (!read.ok) {
+    findings.push({
+      code: "motion-timeline-invalid",
+      side: "new",
+      transition: tr,
+      instance: inst,
+      detail: read.reason,
+    });
+    return null;
+  }
+  if (read.summary.probe_version !== probeVersion) {
+    findings.push({
+      code: "motion-probe-version-mismatch",
+      side: "new",
+      transition: tr,
+      instance: inst,
+      detail: `probe_version ${JSON.stringify(read.summary.probe_version)}（現行は ${JSON.stringify(probeVersion)}）`,
+    });
+    return null;
+  }
+  return read.summary;
+}
+
+/**
+ * 比べる行（disposition が null の行）を、新側の時系列と現行の基準で判定して数える。
+ * @param {MotionContext} ctx
+ * @param {unknown} row
+ * @param {{ key: string, transition: unknown, instance: unknown }} cell
+ */
+function judgeRow(ctx, row, { key, transition: tr, instance: inst }) {
+  const { findings, counts, baseline } = ctx;
+  const candidate = readCandidate(ctx, row, { transition: tr, instance: inst });
+  const pair = baseline.get(key);
+  if (candidate === null || pair === undefined) {
+    counts.uncompared += 1;
+    return;
+  }
+  const verdict = judgeMotion(pair[0], pair[1], candidate);
+  if (verdict.differing.length > 0) {
+    counts.mismatched += 1;
+    findings.push({
+      code: "motion-mismatch",
+      transition: tr,
+      instance: inst,
+      differing: verdict.differing,
+    });
+    return;
+  }
+  counts.matched += 1;
+}
+
+/**
+ * 突き合わせ表の行を 1 件ずつ母集合と照合して判定する。照合した組み合わせを seen に足す。
+ * @param {MotionContext} ctx
+ * @param {unknown[]} rows
+ * @param {Set<string>} seen
+ */
+function judgeRows(ctx, rows, seen) {
+  const { findings, population } = ctx;
   for (const row of rows) {
     const tr = field(row, "transition");
     const inst = field(row, "instance");
@@ -730,86 +997,25 @@ export function compareMotions({ metadata, motions, comparison, target }) {
     seen.add(key);
     const disposition = field(row, "disposition") ?? null;
     if (disposition !== null) {
-      // DISPOSITIONS は文字列だけなので、typeof は型を絞るためだけにある（判定は変わらない）。
-      if (typeof disposition !== "string" || !DISPOSITIONS.includes(disposition)) {
-        findings.push({
-          code: "motion-disposition-invalid",
-          transition: tr,
-          instance: inst,
-          detail: `disposition は null か ${DISPOSITIONS.join(" / ")}: ${JSON.stringify(disposition)}`,
-        });
-        counts.uncompared += 1;
-        continue;
-      }
-      if (
-        !filled(field(row, "reason")) ||
-        !filled(field(row, "approved_by")) ||
-        !isoDateTime(field(row, "approved_at"))
-      ) {
-        findings.push({
-          code: "motion-acceptance-unapproved",
-          transition: tr,
-          instance: inst,
-          detail:
-            "accepted には記入済みの reason / approved_by と ISO 8601 の approved_at が要る（テンプレートのプレースホルダは承認ではない）",
-        });
-        counts.uncompared += 1;
-        continue;
-      }
-      counts.accepted += 1;
+      countDisposedRow(ctx, row, { transition: tr, instance: inst, disposition });
       continue;
     }
-    if (!filled(field(row, "story"))) {
-      findings.push({
-        code: "motion-story-missing",
-        transition: tr,
-        instance: inst,
-        detail: "動きを採った見本の識別子（story）が空かプレースホルダのまま",
-      });
-      counts.uncompared += 1;
-      continue;
-    }
-    const read = summarizeTimeline(field(row, "timeline"));
-    if (!read.ok) {
-      findings.push({
-        code: "motion-timeline-invalid",
-        side: "new",
-        transition: tr,
-        instance: inst,
-        detail: read.reason,
-      });
-      counts.uncompared += 1;
-      continue;
-    }
-    if (read.summary.probe_version !== probeVersion) {
-      findings.push({
-        code: "motion-probe-version-mismatch",
-        side: "new",
-        transition: tr,
-        instance: inst,
-        detail: `probe_version ${JSON.stringify(read.summary.probe_version)}（現行は ${JSON.stringify(probeVersion)}）`,
-      });
-      counts.uncompared += 1;
-      continue;
-    }
-    const pair = baseline.get(key);
-    if (pair === undefined) {
-      counts.uncompared += 1;
-      continue;
-    }
-    const verdict = judgeMotion(pair[0], pair[1], read.summary);
-    if (verdict.differing.length > 0) {
-      counts.mismatched += 1;
-      findings.push({
-        code: "motion-mismatch",
-        transition: tr,
-        instance: inst,
-        differing: verdict.differing,
-      });
-      continue;
-    }
-    counts.matched += 1;
+    judgeRow(ctx, row, { key, transition: tr, instance: inst });
   }
+}
+
+/**
+ * 突き合わせ表を母集合と照合する。表に無い組み合わせは未突合として数える。
+ * @param {MotionContext} ctx
+ * @param {unknown} comparison
+ * @param {{ target: string, slug: unknown }} expected
+ */
+function judgeComparison(ctx, comparison, expected) {
+  const { findings, counts, population } = ctx;
+  const rows = readComparisonRows(ctx, comparison, expected);
+  /** @type {Set<string>} */
+  const seen = new Set();
+  judgeRows(ctx, rows, seen);
   for (const [key, cell] of population) {
     if (!seen.has(key)) {
       counts.uncompared += 1;
@@ -826,7 +1032,101 @@ export function compareMotions({ metadata, motions, comparison, target }) {
       detail: "全組み合わせが到達できないと宣言されており、比べた遷移が 0 件",
     });
   }
+}
+
+/**
+ * 動きを突き合わせる（純関数）。
+ *
+ * @param {{ metadata: unknown, motions: Record<string, unknown>, comparison: unknown, target: string }} input 突き合わせの入力（形はここで検査する）。
+ *   - metadata: capture の `metadata.json`
+ *   - motions: インスタンス id → `baseline/<id>/motions.json` の中身（読めなければ null）
+ *   - comparison: `new/<target>/motion-comparison.json` の中身（読めなければ null）
+ *   - target: 判定対象の new target 名
+ * @returns {{ structural: boolean, judged: boolean, findings: MotionFinding[], counts: MotionCounts }}
+ */
+export function compareMotions({ metadata, motions, comparison, target }) {
+  /** @type {MotionFinding[]} */
+  const findings = [];
+  const counts = {
+    cells: 0,
+    not_compared: 0,
+    matched: 0,
+    mismatched: 0,
+    uncompared: 0,
+    accepted: 0,
+  };
+  const read = readMotionDeclaration(metadata, target);
+  if ("error" in read) {
+    return {
+      structural: true,
+      judged: false,
+      findings: [{ code: "structural", detail: read.error }],
+      counts,
+    };
+  }
+  if ("none" in read) return { structural: false, judged: false, findings, counts };
+  const { declaration } = read;
+  /** @type {MotionContext} */
+  const ctx = {
+    findings,
+    counts,
+    probeVersion: declaration.probeVersion,
+    population: new Map(),
+    unreachable: new Set(),
+    baseline: new Map(),
+  };
+  buildPopulation(ctx, declaration);
+  buildBaseline(ctx, motions, declaration.instanceIds);
+
+  if (comparison === null || comparison === undefined) {
+    findings.push({
+      code: "comparison-missing",
+      detail: "突き合わせ表が無い・読めない（全組み合わせを未突合として数える）",
+    });
+    counts.uncompared = ctx.population.size;
+    return { structural: false, judged: true, findings, counts };
+  }
+  judgeComparison(ctx, comparison, { target, slug: declaration.slug });
   return { structural: false, judged: true, findings, counts };
+}
+
+/**
+ * 引数を読む。値の無い引数・重複・不明な引数・必須の欠落は、理由を返す。
+ * @param {string[]} argv
+ * @returns {{ args: Record<string, string> } | { error: string }}
+ */
+function parseArgs(argv) {
+  /** @type {Record<string, string>} */
+  const args = {};
+  for (let i = 0; i < argv.length; i += 1) {
+    const key = argv[i];
+    if (!key.startsWith("--")) return { error: `不明な引数: ${key}` };
+    const value = argv[i + 1];
+    if (typeof value !== "string" || value.startsWith("--")) return { error: `${key} に値がない` };
+    if (args[key] !== undefined) return { error: `${key} が複数ある` };
+    args[key] = value;
+    i += 1;
+  }
+  const known = ["--baseline", "--comparison", "--target"];
+  const unknown = Object.keys(args).filter((k) => !known.includes(k));
+  if (unknown.length > 0) return { error: `不明な引数: ${unknown.join(", ")}` };
+  for (const key of known) {
+    if (!nonEmptyString(args[key])) return { error: `${key} は必須（空白だけの値も不可）` };
+  }
+  return { args };
+}
+
+/**
+ * 突き合わせ表を読む（読めなければ null。compareMotions が comparison-missing として数える）。
+ * @param {string} path
+ * @returns {unknown}
+ */
+function readComparison(path) {
+  try {
+    return JSON.parse(readFileSync(path, "utf8"));
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -853,39 +1153,19 @@ export function main(
     writeErr(`error: ${message}\n${usage}\n`);
     return 2;
   };
-  /** @type {Record<string, string>} */
-  const args = {};
-  for (let i = 0; i < argv.length; i += 1) {
-    const key = argv[i];
-    if (!key.startsWith("--")) return fail(`不明な引数: ${key}`);
-    const value = argv[i + 1];
-    if (typeof value !== "string" || value.startsWith("--")) return fail(`${key} に値がない`);
-    if (args[key] !== undefined) return fail(`${key} が複数ある`);
-    args[key] = value;
-    i += 1;
-  }
-  const known = ["--baseline", "--comparison", "--target"];
-  const unknown = Object.keys(args).filter((k) => !known.includes(k));
-  if (unknown.length > 0) return fail(`不明な引数: ${unknown.join(", ")}`);
-  for (const key of known) {
-    if (!nonEmptyString(args[key])) return fail(`${key} は必須（空白だけの値も不可）`);
-  }
+  const parsed = parseArgs(argv);
+  if ("error" in parsed) return fail(parsed.error);
+  const { args } = parsed;
   let loaded;
   try {
     loaded = loadBaseline(resolve(cwd, args["--baseline"]), "motions.json");
   } catch (error) {
     return fail(`採取物を読めない: ${field(error, "message")}`);
   }
-  let comparison = null;
-  try {
-    comparison = JSON.parse(readFileSync(resolve(cwd, args["--comparison"]), "utf8"));
-  } catch {
-    comparison = null;
-  }
   const result = compareMotions({
     metadata: loaded.metadata,
     motions: loaded.byInstance,
-    comparison,
+    comparison: readComparison(resolve(cwd, args["--comparison"])),
     target: args["--target"],
   });
   if (result.structural) {

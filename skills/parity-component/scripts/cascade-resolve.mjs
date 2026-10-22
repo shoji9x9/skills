@@ -158,6 +158,226 @@ export class UndecidableSelector extends Error {}
  * }} CascadeResult
  */
 
+/** 識別子を構成する 1 文字（エスケープは別に扱う）。 */
+const IDENT_CHAR = /[-\w -￿]/;
+
+/**
+ * エスケープを飛ばした次の位置。
+ * CSS のエスケープは `\` ＋ 1 文字とは限らない。16 進エスケープは `\` ＋ 16 進数 1〜6 桁で、
+ * 直後の空白 1 つが終端記号として消費される（`.\31 23` は「123」というクラス 1 つ）。
+ * 2 文字固定で進めると残りの桁を型セレクタとして数え、詳細度が狂う（`.\31 23` が [0,1,1] になる）。
+ * @param {string} s
+ * @param {number} start `\` の位置
+ * @returns {number}
+ */
+function skipEscape(s, start) {
+  let j = start + 1;
+  if (j >= s.length) throw new UndecidableSelector(`dangling escape at ${start}`);
+  let hex = 0;
+  while (j < s.length && hex < 6 && /[0-9a-fA-F]/.test(s[j])) {
+    j += 1;
+    hex += 1;
+  }
+  if (hex === 0) return j + 1; // `\.` のような 1 文字エスケープ
+  if (j < s.length && /\s/.test(s[j])) j += 1; // 終端の空白 1 つを消費する
+  return j;
+}
+
+/**
+ * 識別子を飛ばした次の位置（識別子が無ければ投げる）。
+ * @param {string} s
+ * @param {number} start
+ * @returns {number}
+ */
+function skipIdent(s, start) {
+  let j = start;
+  if (j >= s.length) throw new UndecidableSelector(`identifier expected at ${start}`);
+  while (j < s.length) {
+    const ch = s[j];
+    if (ch === "\\") {
+      j = skipEscape(s, j);
+      continue;
+    }
+    if (IDENT_CHAR.test(ch)) {
+      j += 1;
+      continue;
+    }
+    break;
+  }
+  if (j === start) throw new UndecidableSelector(`identifier expected at ${start}`);
+  return j;
+}
+
+/**
+ * 文字列を飛ばした次の位置（閉じていなければ投げる）。
+ * @param {string} s
+ * @param {number} start 開きの引用符の位置
+ * @returns {number}
+ */
+function skipString(s, start) {
+  const quote = s[start];
+  let j = start + 1;
+  while (j < s.length) {
+    if (s[j] === "\\") {
+      j += 2;
+      continue;
+    }
+    if (s[j] === quote) return j + 1;
+    j += 1;
+  }
+  throw new UndecidableSelector("unterminated string in selector");
+}
+
+/**
+ * 対応する閉じ括弧の位置（開き括弧を含む入れ子・文字列を飛ばす）。
+ * @param {string} s
+ * @param {number} start 開き括弧の位置
+ * @param {string} brackets 開き括弧と閉じ括弧の 2 文字（`"[]"`・`"()"`）
+ * @returns {number}
+ */
+function matchClose(s, start, brackets) {
+  const [open, close] = brackets;
+  let depth = 0;
+  let j = start;
+  while (j < s.length) {
+    const ch = s[j];
+    if (ch === "\\") {
+      j += 2;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      j = skipString(s, j);
+      continue;
+    }
+    if (ch === open) depth += 1;
+    else if (ch === close) {
+      depth -= 1;
+      if (depth === 0) return j;
+    }
+    j += 1;
+  }
+  throw new UndecidableSelector(`unbalanced ${open} in selector`);
+}
+
+/**
+ * トップレベルのカンマで分割する（入れ子の括弧・文字列の中は分割しない）。
+ * @param {string} text
+ * @returns {string[]}
+ */
+function splitTopLevel(text) {
+  /** @type {string[]} */
+  const parts = [];
+  let depth = 0;
+  let start = 0;
+  let j = 0;
+  while (j < text.length) {
+    const ch = text[j];
+    if (ch === "\\") {
+      j += 2;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      const quote = ch;
+      j += 1;
+      while (j < text.length && text[j] !== quote) j += text[j] === "\\" ? 2 : 1;
+      j += 1;
+      continue;
+    }
+    if (ch === "(" || ch === "[") depth += 1;
+    else if (ch === ")" || ch === "]") depth -= 1;
+    else if (ch === "," && depth === 0) {
+      parts.push(text.slice(start, j));
+      start = j + 1;
+    }
+    j += 1;
+  }
+  parts.push(text.slice(start));
+  return parts;
+}
+
+/**
+ * 引数の中で最も詳細度の高い枝の詳細度（`:is()` などの MAX_OF_ARGUMENT の擬似クラス）。
+ * @param {string} name 擬似クラスの名前
+ * @param {string | null} argument 括弧の中身（括弧が無ければ null）
+ * @returns {[number, number, number]}
+ */
+function maxOfArgument(name, argument) {
+  if (argument === null || argument.trim() === "") {
+    throw new UndecidableSelector(`:${name}() has no argument`);
+  }
+  /** @type {[number, number, number] | null} */
+  let best = null;
+  for (const branch of splitTopLevel(argument)) {
+    if (branch.trim() === "") throw new UndecidableSelector(`:${name}() has an empty branch`);
+    const value = specificity(branch.trim());
+    if (best === null || compareSpecificity(value, best) > 0) best = value;
+  }
+  // splitTopLevel は 1 件以上を返し、各枝は値を決めるか投げるので、ここで null にはならない（型の絞り込みのため）。
+  if (best === null) throw new UndecidableSelector(`:${name}() has no branch`);
+  return best;
+}
+
+/**
+ * `:` で始まる擬似クラス・擬似要素 1 つの詳細度と、その次の位置。
+ * @param {string} s
+ * @param {number} i `:` の位置
+ * @returns {{ value: [number, number, number], next: number }}
+ */
+function pseudoSpecificity(s, i) {
+  const doubled = s[i + 1] === ":";
+  const nameStart = i + (doubled ? 2 : 1);
+  const nameEnd = skipIdent(s, nameStart);
+  const name = s.slice(nameStart, nameEnd).toLowerCase();
+  let argument = null;
+  let next = nameEnd;
+  if (s[nameEnd] === "(") {
+    const close = matchClose(s, nameEnd, "()");
+    argument = s.slice(nameEnd + 1, close);
+    next = close + 1;
+  }
+  if (doubled || LEGACY_PSEUDO_ELEMENTS.has(name)) return { value: [0, 0, 1], next };
+  if (ZERO_SPECIFICITY.has(name)) return { value: [0, 0, 0], next };
+  if (MAX_OF_ARGUMENT.has(name)) return { value: maxOfArgument(name, argument), next };
+  if (argument !== null && /\bof\b/i.test(argument)) {
+    // `:nth-child(2n of .a)` は引数側の詳細度を足すが、`of` の中身をここでは数えない。
+    throw new UndecidableSelector(`:${name}() uses the \`of\` form; resolve it by hand`);
+  }
+  return { value: [0, 1, 0], next };
+}
+
+/**
+ * セレクタの i の位置から始まるトークン 1 つの詳細度と、その次の位置。
+ * @param {string} s
+ * @param {number} i
+ * @returns {{ value: [number, number, number], next: number }}
+ */
+function tokenSpecificity(s, i) {
+  const ch = s[i];
+  // エスケープされた先頭文字は型セレクタの一部として数える。
+  if (ch === "\\") return { value: [0, 0, 1], next: skipIdent(s, i) };
+  // 以降のトークン判定は skipIdent がエスケープ全体を消費する前提で進む。
+  if (ch === '"' || ch === "'") return { value: [0, 0, 0], next: skipString(s, i) };
+  if (/\s/.test(ch) || ch === ">" || ch === "+" || ch === "~" || ch === "|") {
+    return { value: [0, 0, 0], next: i + 1 };
+  }
+  if (ch === ",") {
+    // どの枝が当たったかは css-rules.json に無い（matched は規則単位で、枝は記録されない）。
+    throw new UndecidableSelector(
+      "selector is a selector list; which branch matched is not recorded",
+    );
+  }
+  if (ch === "&") {
+    throw new UndecidableSelector("selector still contains an unresolved nesting `&`");
+  }
+  if (ch === "*") return { value: [0, 0, 0], next: i + 1 };
+  if (ch === "#") return { value: [1, 0, 0], next: skipIdent(s, i + 1) };
+  if (ch === ".") return { value: [0, 1, 0], next: skipIdent(s, i + 1) };
+  if (ch === "[") return { value: [0, 1, 0], next: matchClose(s, i, "[]") + 1 };
+  if (ch === ":") return pseudoSpecificity(s, i);
+  if (IDENT_CHAR.test(ch)) return { value: [0, 0, 1], next: skipIdent(s, i) };
+  throw new UndecidableSelector(`unreadable token ${JSON.stringify(ch)} at ${i}`);
+}
+
 /**
  * セレクタ文字列の詳細度 [id, class, type] を数える。
  * 決められない形は `UndecidableSelector` を投げる（推測で数えない）。
@@ -171,230 +391,12 @@ export function specificity(selector) {
   /** @type {[number, number, number]} */
   const counts = [0, 0, 0];
   let i = 0;
-  const s = selector;
-
-  // CSS のエスケープは `\` ＋ 1 文字とは限らない。16 進エスケープは `\` ＋ 16 進数 1〜6 桁で、
-  // 直後の空白 1 つが終端記号として消費される（`.\31 23` は「123」というクラス 1 つ）。
-  // 2 文字固定で進めると残りの桁を型セレクタとして数え、詳細度が狂う（`.\31 23` が [0,1,1] になる）。
-  /** @param {number} start */
-  const skipEscape = (start) => {
-    let j = start + 1;
-    if (j >= s.length) throw new UndecidableSelector(`dangling escape at ${start}`);
-    let hex = 0;
-    while (j < s.length && hex < 6 && /[0-9a-fA-F]/.test(s[j])) {
-      j += 1;
-      hex += 1;
-    }
-    if (hex === 0) return j + 1; // `\.` のような 1 文字エスケープ
-    if (j < s.length && /\s/.test(s[j])) j += 1; // 終端の空白 1 つを消費する
-    return j;
-  };
-
-  /** @param {number} start */
-  const skipIdent = (start) => {
-    let j = start;
-    if (j >= s.length) throw new UndecidableSelector(`identifier expected at ${start}`);
-    while (j < s.length) {
-      const ch = s[j];
-      if (ch === "\\") {
-        j = skipEscape(j);
-        continue;
-      }
-      if (/[-\w -￿]/.test(ch)) {
-        j += 1;
-        continue;
-      }
-      break;
-    }
-    if (j === start) throw new UndecidableSelector(`identifier expected at ${start}`);
-    return j;
-  };
-
-  /**
-   * 対応する閉じ括弧の位置（開き括弧を含む入れ子・文字列を飛ばす）。
-   * @param {number} start
-   * @param {string} open
-   * @param {string} close
-   * @returns {number}
-   */
-  const matchClose = (start, open, close) => {
-    let depth = 0;
-    let j = start;
-    while (j < s.length) {
-      const ch = s[j];
-      if (ch === "\\") {
-        j += 2;
-        continue;
-      }
-      if (ch === '"' || ch === "'") {
-        j = skipString(j);
-        continue;
-      }
-      if (ch === open) depth += 1;
-      else if (ch === close) {
-        depth -= 1;
-        if (depth === 0) return j;
-      }
-      j += 1;
-    }
-    throw new UndecidableSelector(`unbalanced ${open} in selector`);
-  };
-
-  /** @param {number} start */
-  const skipString = (start) => {
-    const quote = s[start];
-    let j = start + 1;
-    while (j < s.length) {
-      if (s[j] === "\\") {
-        j += 2;
-        continue;
-      }
-      if (s[j] === quote) return j + 1;
-      j += 1;
-    }
-    throw new UndecidableSelector("unterminated string in selector");
-  };
-
-  /**
-   * トップレベルのカンマで分割する（入れ子の括弧・文字列の中は分割しない）。
-   * @param {string} text
-   * @returns {string[]}
-   */
-  const splitTopLevel = (text) => {
-    /** @type {string[]} */
-    const parts = [];
-    let depth = 0;
-    let start = 0;
-    let j = 0;
-    while (j < text.length) {
-      const ch = text[j];
-      if (ch === "\\") {
-        j += 2;
-        continue;
-      }
-      if (ch === '"' || ch === "'") {
-        const quote = ch;
-        j += 1;
-        while (j < text.length && text[j] !== quote) j += text[j] === "\\" ? 2 : 1;
-        j += 1;
-        continue;
-      }
-      if (ch === "(" || ch === "[") depth += 1;
-      else if (ch === ")" || ch === "]") depth -= 1;
-      else if (ch === "," && depth === 0) {
-        parts.push(text.slice(start, j));
-        start = j + 1;
-      }
-      j += 1;
-    }
-    parts.push(text.slice(start));
-    return parts;
-  };
-
-  /** @param {[number, number, number]} other */
-  const add = (other) => {
-    counts[0] += other[0];
-    counts[1] += other[1];
-    counts[2] += other[2];
-  };
-
-  while (i < s.length) {
-    const ch = s[i];
-    if (ch === "\\") {
-      // エスケープされた先頭文字は型セレクタの一部として数える。
-      counts[2] += 1;
-      i = skipIdent(i);
-      continue;
-    }
-    // 以降のトークン判定は skipIdent がエスケープ全体を消費する前提で進む。
-    if (ch === '"' || ch === "'") {
-      i = skipString(i);
-      continue;
-    }
-    if (/\s/.test(ch) || ch === ">" || ch === "+" || ch === "~" || ch === "|") {
-      i += 1;
-      continue;
-    }
-    if (ch === ",") {
-      // どの枝が当たったかは css-rules.json に無い（matched は規則単位で、枝は記録されない）。
-      throw new UndecidableSelector(
-        "selector is a selector list; which branch matched is not recorded",
-      );
-    }
-    if (ch === "&") {
-      throw new UndecidableSelector("selector still contains an unresolved nesting `&`");
-    }
-    if (ch === "*") {
-      i += 1;
-      continue;
-    }
-    if (ch === "#") {
-      counts[0] += 1;
-      i = skipIdent(i + 1);
-      continue;
-    }
-    if (ch === ".") {
-      counts[1] += 1;
-      i = skipIdent(i + 1);
-      continue;
-    }
-    if (ch === "[") {
-      counts[1] += 1;
-      i = matchClose(i, "[", "]") + 1;
-      continue;
-    }
-    if (ch === ":") {
-      const doubled = s[i + 1] === ":";
-      const nameStart = i + (doubled ? 2 : 1);
-      const nameEnd = skipIdent(nameStart);
-      const name = s.slice(nameStart, nameEnd).toLowerCase();
-      let argument = null;
-      let next = nameEnd;
-      if (s[nameEnd] === "(") {
-        const close = matchClose(nameEnd, "(", ")");
-        argument = s.slice(nameEnd + 1, close);
-        next = close + 1;
-      }
-      if (doubled || LEGACY_PSEUDO_ELEMENTS.has(name)) {
-        counts[2] += 1;
-        i = next;
-        continue;
-      }
-      if (ZERO_SPECIFICITY.has(name)) {
-        i = next;
-        continue;
-      }
-      if (MAX_OF_ARGUMENT.has(name)) {
-        if (argument === null || argument.trim() === "") {
-          throw new UndecidableSelector(`:${name}() has no argument`);
-        }
-        /** @type {[number, number, number] | null} */
-        let best = null;
-        for (const branch of splitTopLevel(argument)) {
-          if (branch.trim() === "") throw new UndecidableSelector(`:${name}() has an empty branch`);
-          const value = specificity(branch.trim());
-          if (best === null || compareSpecificity(value, best) > 0) best = value;
-        }
-        // splitTopLevel は 1 件以上を返し、各枝は値を決めるか投げるので、ここで null にはならない（型の絞り込みのため）。
-        if (best === null) throw new UndecidableSelector(`:${name}() has no branch`);
-        add(best);
-        i = next;
-        continue;
-      }
-      if (argument !== null && /\bof\b/i.test(argument)) {
-        // `:nth-child(2n of .a)` は引数側の詳細度を足すが、`of` の中身をここでは数えない。
-        throw new UndecidableSelector(`:${name}() uses the \`of\` form; resolve it by hand`);
-      }
-      counts[1] += 1;
-      i = next;
-      continue;
-    }
-    if (/[-\w -￿]/.test(ch)) {
-      counts[2] += 1;
-      i = skipIdent(i);
-      continue;
-    }
-    throw new UndecidableSelector(`unreadable token ${JSON.stringify(ch)} at ${i}`);
+  while (i < selector.length) {
+    const { value, next } = tokenSpecificity(selector, i);
+    counts[0] += value[0];
+    counts[1] += value[1];
+    counts[2] += value[2];
+    i = next;
   }
   return counts;
 }
@@ -525,25 +527,28 @@ function unknownOrderReason(tierName, candidates) {
 }
 
 /**
- * `css-rules.json` の内容を読み、プロパティ × 擬似要素ごとに勝者を確定する。
- *
- * @param {unknown} document - css-rules.json をパースしたもの（形はここで検査する）。
- * @param {{ states: string[], properties?: string[]|null, source?: string, allowIncomplete?: boolean }} options 次のオプション。
- * states: いま採っている状態で成立している状態擬似クラスの集合（`default` は空集合と同じ意味）。
- * properties: 解決するプロパティ名（省略時は候補に現れるすべてのプロパティ）。
- * allowIncomplete: `inaccessible` / `unresolved` が 0 でなくても解決する（デフォルトは止まる）。
- * @returns {{ source:(string|null), tool_version:(string|null), cascade_resolve_version:string,
- *             capture_completeness:{inaccessible:number, unresolved:number, waived:boolean},
- *             active_states:string[],
- *             results:CascadeResult[], counts:{resolved:number, undecidable:number, absent:number} }}
+ * 候補を集める入れ物（resolveCascade の各段が読み書きする）。
+ * buckets のキーは `${pseudo}\u0000${property}`。
+ * wildcards は `all` の宣言（擬似要素ごと）。**ブラウザは `all` を longhand へ展開しない**
+ * （Chrome 149 で実測: `margin` / `background` / `font` は展開されるが `all: unset` は `all` のまま）。
+ * そのためプロパティ名で振り分けるだけでは、`all` が勝つ場面でも個別プロパティの宣言を勝者にしてしまう。
+ * どのプロパティにも当たりうる候補として別に持ち、勝ちうるなら undecidable にする。
+ * wildcards のキーは擬似要素の値（css-rules.json の値のまま。要素自身は ""）。
+ * @typedef {{ buckets: Map<string, CascadeBucket>, wildcards: Map<unknown, CascadeCandidate[]> }} CandidateStore
  */
-export function resolveCascade(document, options) {
-  if (!isPlainObject(document)) {
-    throw new UsageError("css-rules.json must be a JSON object");
-  }
-  if (!isArray(document.matched)) {
-    throw new UsageError("css-rules.json has no `matched` array (is it css-rules-capture output?)");
-  }
+
+/**
+ * 採っている状態の集合（resolveCascade が規則の状態の成否を決めるのに使う）。
+ * active は渡された状態、coOccurring は渡された状態と共起しうる一時的な状態（渡されていなくても不成立とは言えない側）。
+ * @typedef {{ active: Set<string>, coOccurring: Set<string> }} StateContext
+ */
+
+/**
+ * css-rules.json の版を確かめ、tool_version を返す。
+ * @param {Record<string, unknown>} document
+ * @returns {string}
+ */
+function readToolVersion(document) {
   const toolVersion = typeof document.tool_version === "string" ? document.tool_version : null;
   if (toolVersion === null || !SUPPORTED_CSS_RULES_VERSIONS.includes(toolVersion)) {
     throw new UsageError(
@@ -551,10 +556,20 @@ export function resolveCascade(document, options) {
         `(supported: ${SUPPORTED_CSS_RULES_VERSIONS.join(", ")}); re-capture with the bundled css-rules-capture.mjs`,
     );
   }
-  // 採取が不完全なら、見えている部分集合から勝者を確定しない。
-  // `inaccessible` は「そのスタイルシートの規則が 1 件も見えていない」、
-  // `unresolved` は「そのセレクタが当たるかを判定していない」の実測で、
-  // どちらも matched の全候補より強い宣言を隠しうる（0 件を「関係する規則が無い」と読まない規律と同じ）。
+  return toolVersion;
+}
+
+/**
+ * 採取の完全さを確かめる。
+ * 採取が不完全なら、見えている部分集合から勝者を確定しない。
+ * `inaccessible` は「そのスタイルシートの規則が 1 件も見えていない」、
+ * `unresolved` は「そのセレクタが当たるかを判定していない」の実測で、
+ * どちらも matched の全候補より強い宣言を隠しうる（0 件を「関係する規則が無い」と読まない規律と同じ）。
+ * @param {Record<string, unknown>} document
+ * @param {boolean | undefined} allowIncomplete
+ * @returns {{ inaccessible: number, unresolved: number, incomplete: boolean }}
+ */
+function readCompleteness(document, allowIncomplete) {
   const inaccessible = isArray(document.inaccessible) ? document.inaccessible.length : null;
   const unresolved = isArray(document.unresolved) ? document.unresolved.length : null;
   if (inaccessible === null || unresolved === null) {
@@ -563,7 +578,7 @@ export function resolveCascade(document, options) {
     );
   }
   const incomplete = inaccessible > 0 || unresolved > 0;
-  if (incomplete && options.allowIncomplete !== true) {
+  if (incomplete && allowIncomplete !== true) {
     throw new UsageError(
       `css-rules.json records an incomplete capture (inaccessible: ${inaccessible}, unresolved: ${unresolved}); ` +
         "a declaration stronger than every matched candidate can hide there, so the visible subset does not " +
@@ -571,61 +586,78 @@ export function resolveCascade(document, options) {
         "to waive it explicitly and record the waiver in component-api.md",
     );
   }
+  return { inaccessible, unresolved, incomplete };
+}
 
-  const inline = isArray(document.inline_declarations) ? document.inline_declarations : null;
-  if (inline === null) {
-    throw new UsageError(
-      "css-rules.json has no `inline_declarations` (captured with tool_version 1); re-capture",
-    );
-  }
-
-  const active = new Set(options.states.filter((s) => s !== "default"));
+/**
+ * 渡された状態から、状態の成否を決める集合を作る。
+ * @param {string[]} states
+ * @returns {StateContext}
+ */
+function stateContext(states) {
+  const active = new Set(states.filter((s) => s !== "default"));
   // 渡された状態から共起しうる一時的な状態を導く（渡されていなくても不成立とは言えない側）。
+  /** @type {Set<string>} */
   const coOccurring = new Set();
   for (const state of active) {
     for (const other of CO_OCCURRING_STATES[state] ?? []) {
       if (!active.has(other)) coOccurring.add(other);
     }
   }
-  /** @type {Map<string, CascadeBucket>} key = `${pseudo}\u0000${property}` */
-  const buckets = new Map();
-  /**
-   * `all` の宣言（擬似要素ごと）。**ブラウザは `all` を longhand へ展開しない**
-   * （Chrome 149 で実測: `margin` / `background` / `font` は展開されるが `all: unset` は `all` のまま）。
-   * そのためプロパティ名で振り分けるだけでは、`all` が勝つ場面でも個別プロパティの宣言を勝者にしてしまう。
-   * どのプロパティにも当たりうる候補として別に持ち、勝ちうるなら undecidable にする。
-   * キーは擬似要素の値（css-rules.json の値のまま。要素自身は ""）。
-   * @type {Map<unknown, CascadeCandidate[]>}
-   */
-  const wildcards = new Map();
-  /**
-   * @param {unknown} pseudo
-   * @param {string} property
-   * @returns {CascadeBucket}
-   */
-  const bucket = (pseudo, property) => {
-    const key = `${pseudo === null ? "" : pseudo}\u0000${property}`;
-    let entry = buckets.get(key);
-    if (entry === undefined) {
-      entry = {
-        property,
-        pseudo_element: pseudo,
-        applying: [],
-        conditional: [],
-        state_unknown: [],
-        state_gated: 0,
-        reasons: [],
-      };
-      buckets.set(key, entry);
-    }
-    return entry;
-  };
+  return { active, coOccurring };
+}
 
-  // 規則は css-rules-capture.mjs がオブジェクトで記録する。オブジェクトでない要素は、より強い宣言を隠しうるのに
-  // 中身を読めないので、読み飛ばさずに判定できないとして止める（inaccessible・unresolved と同じ規律）。
+/**
+ * プロパティ × 擬似要素のバケット（無ければ作る）。
+ * @param {CandidateStore} store
+ * @param {unknown} pseudo
+ * @param {string} property
+ * @returns {CascadeBucket}
+ */
+function bucketFor(store, pseudo, property) {
+  const key = `${pseudo === null ? "" : pseudo}\u0000${property}`;
+  let entry = store.buckets.get(key);
+  if (entry === undefined) {
+    entry = {
+      property,
+      pseudo_element: pseudo,
+      applying: [],
+      conditional: [],
+      state_unknown: [],
+      state_gated: 0,
+      reasons: [],
+    };
+    store.buckets.set(key, entry);
+  }
+  return entry;
+}
+
+/**
+ * `all` の候補を擬似要素ごとの一覧に足す。
+ * @param {CandidateStore} store
+ * @param {unknown} key 擬似要素の値（要素自身は ""）
+ * @param {CascadeCandidate} candidate
+ */
+function addWildcard(store, key, candidate) {
+  let list = store.wildcards.get(key);
+  if (list === undefined) {
+    list = [];
+    store.wildcards.set(key, list);
+  }
+  list.push(candidate);
+}
+
+/**
+ * matched の要素がすべてオブジェクトであることを確かめる。
+ * 規則は css-rules-capture.mjs がオブジェクトで記録する。オブジェクトでない要素は、より強い宣言を隠しうるのに
+ * 中身を読めないので、読み飛ばさずに判定できないとして止める（inaccessible・unresolved と同じ規律）。
+ * @param {unknown[]} matched
+ * @returns {Record<string, unknown>[]}
+ */
+function readRules(matched) {
   /** @type {Record<string, unknown>[]} */
   const rules = [];
-  for (const [i, rule] of document.matched.entries()) {
+  for (const [i, rule] of matched.entries()) {
     if (!isPlainObject(rule)) {
       throw new UsageError(
         `css-rules.json \`matched[${i}]\` is not an object; re-capture with the bundled css-rules-capture.mjs`,
@@ -633,88 +665,128 @@ export function resolveCascade(document, options) {
     }
     rules.push(rule);
   }
-  for (let ruleIndex = 0; ruleIndex < rules.length; ruleIndex += 1) {
-    const rule = rules[ruleIndex];
-    // 状態の名前は css-rules-capture.mjs が文字列で記録する（形はここでは検査しない）。
-    // 文字列でない要素は成否を決められないので、名前の判定には入れず「不明」として持つ。
-    const declaredStates = isArray(rule.states) ? rule.states : [];
-    const states = declaredStates.filter((state) => typeof state === "string");
-    const malformedStates = declaredStates.filter((state) => typeof state !== "string");
-    const conditions = isArray(rule.conditions) ? rule.conditions : [];
-    const layers = isArray(rule.layers) ? rule.layers : [];
-    const declarations = isArray(rule.declarations) ? rule.declarations : [];
-    // 一時的な状態は「作っていないなら不成立」と言い切れる。恒常状態（`:enabled` 等）は
-    // ディレクトリ名から成否が決まらないので、不成立と判定せず「不明」として持つ。
-    const inactive = states.filter((state) => !active.has(state));
-    // 主語の外に付いた状態は、名前が一致しても「いまその状態か」を採取ディレクトリ名が決めない
-    // （`.trigger:hover + .target` の `hover` は隣の要素の話）。不成立とも成立とも判定せず、不明にする。
-    const foreign = statesOutsideSubject(String(rule.selector ?? ""), states);
-    // 渡された状態と共起しうる一時的な状態は、「不成立」と判定しない（下記 CO_OCCURRING_STATES）。
-    const gated = inactive.some(
-      (state) => TRANSIENT_STATES.has(state) && !coOccurring.has(state) && !foreign.includes(state),
-    );
-    const unknownStates = [
-      ...new Set([
-        ...inactive.filter((state) => !TRANSIENT_STATES.has(state) || coOccurring.has(state)),
-        ...foreign,
-        ...malformedStates,
-      ]),
-    ];
-    let spec = null;
-    let specError = null;
-    try {
-      spec = specificity(String(rule.selector));
-    } catch (err) {
-      if (!(err instanceof UndecidableSelector)) throw err;
-      specError = err.message;
-    }
-    for (let declIndex = 0; declIndex < declarations.length; declIndex += 1) {
-      const decl = declarations[declIndex];
-      if (!isObjectLike(decl) || typeof decl.property !== "string") continue;
-      // `all` はプロパティ名の振り分けに入れない（どのプロパティにも当たりうるので別に持つ）。
-      const wildcard = decl.property === "all";
-      const entry = wildcard ? null : bucket(rule.pseudo_element ?? null, decl.property);
-      if (gated) {
-        if (entry !== null) entry.state_gated += 1;
-        continue;
-      }
-      /** @type {CascadeCandidate} */
-      const candidate = {
-        source: "rule",
-        selector: rule.selector,
-        origin: rule.href ?? null,
-        value: decl.value,
-        important: Boolean(decl.important),
-        specificity: spec,
-        specificity_error: specError,
-        // 有限の数でない order（NaN など）は、比較がすべて偽になり順を決められないので、読めないもの（null）にする。
-        order: typeof rule.order === "number" && Number.isFinite(rule.order) ? rule.order : null,
-        // どの規則の宣言か（matched の位置）。order が無くても、同じ規則の宣言どうしは declaration_index で比べられる。
-        rule_index: ruleIndex,
-        // 同じ規則の中では後に書いた宣言が勝つ。`order` は規則単位なので、規則内の順序を別に持たないと
-        // `.x { color: red; all: unset }` のように同一規則で競合する形が同点になる。
-        declaration_index: declIndex,
-        layers,
-        conditions,
-      };
-      // entry が null になるのは wildcard のときだけなので、entry の判定は型の絞り込みのため。
-      if (wildcard || entry === null) {
-        const key = rule.pseudo_element ?? "";
-        let list = wildcards.get(key);
-        if (list === undefined) {
-          list = [];
-          wildcards.set(key, list);
-        }
-        list.push({ ...candidate, unknown_states: unknownStates });
-        continue;
-      }
-      if (conditions.length > 0) entry.conditional.push(candidate);
-      else if (unknownStates.length > 0) {
-        entry.state_unknown.push({ ...candidate, unknown_states: unknownStates });
-      } else entry.applying.push(candidate);
-    }
-  }
+  return rules;
+}
 
+/**
+ * 規則が要求する状態の成否を決める。
+ * gated は「作っていない一時的な状態を要求するので不成立」、unknownStates は成否を決められない状態の名前。
+ * @param {Record<string, unknown>} rule
+ * @param {StateContext} stateCtx
+ * @returns {{ gated: boolean, unknownStates: unknown[] }}
+ */
+function ruleStates(rule, { active, coOccurring }) {
+  // 状態の名前は css-rules-capture.mjs が文字列で記録する（形はここでは検査しない）。
+  // 文字列でない要素は成否を決められないので、名前の判定には入れず「不明」として持つ。
+  const declaredStates = isArray(rule.states) ? rule.states : [];
+  const states = declaredStates.filter((state) => typeof state === "string");
+  const malformedStates = declaredStates.filter((state) => typeof state !== "string");
+  // 一時的な状態は「作っていないなら不成立」と言い切れる。恒常状態（`:enabled` 等）は
+  // ディレクトリ名から成否が決まらないので、不成立と判定せず「不明」として持つ。
+  const inactive = states.filter((state) => !active.has(state));
+  // 主語の外に付いた状態は、名前が一致しても「いまその状態か」を採取ディレクトリ名が決めない
+  // （`.trigger:hover + .target` の `hover` は隣の要素の話）。不成立とも成立とも判定せず、不明にする。
+  const foreign = statesOutsideSubject(String(rule.selector ?? ""), states);
+  // 渡された状態と共起しうる一時的な状態は、「不成立」と判定しない（下記 CO_OCCURRING_STATES）。
+  const gated = inactive.some(
+    (state) => TRANSIENT_STATES.has(state) && !coOccurring.has(state) && !foreign.includes(state),
+  );
+  const unknownStates = [
+    ...new Set([
+      ...inactive.filter((state) => !TRANSIENT_STATES.has(state) || coOccurring.has(state)),
+      ...foreign,
+      ...malformedStates,
+    ]),
+  ];
+  return { gated, unknownStates };
+}
+
+/**
+ * 規則のセレクタの詳細度（決められなければ理由）。
+ * @param {unknown} selector
+ * @returns {{ spec: [number, number, number] | null, specError: string | null }}
+ */
+function ruleSpecificity(selector) {
+  try {
+    return { spec: specificity(String(selector)), specError: null };
+  } catch (err) {
+    if (!(err instanceof UndecidableSelector)) throw err;
+    return { spec: null, specError: err.message };
+  }
+}
+
+/**
+ * 規則の宣言 1 件の候補を、バケットか `all` の一覧に振り分ける。
+ * @param {CandidateStore} store
+ * @param {{ rule: Record<string, unknown>, candidate: CascadeCandidate, property: string }} declared
+ * @param {{ gated: boolean, unknownStates: unknown[] }} ruleState
+ */
+function placeRuleCandidate(store, { rule, candidate, property }, { gated, unknownStates }) {
+  // `all` はプロパティ名の振り分けに入れない（どのプロパティにも当たりうるので別に持つ）。
+  if (property === "all") {
+    if (!gated)
+      addWildcard(store, rule.pseudo_element ?? "", {
+        ...candidate,
+        unknown_states: unknownStates,
+      });
+    return;
+  }
+  const entry = bucketFor(store, rule.pseudo_element ?? null, property);
+  if (gated) {
+    entry.state_gated += 1;
+    return;
+  }
+  const conditions = candidate.conditions;
+  if (conditions.length > 0) entry.conditional.push(candidate);
+  else if (unknownStates.length > 0) {
+    entry.state_unknown.push({ ...candidate, unknown_states: unknownStates });
+  } else entry.applying.push(candidate);
+}
+
+/**
+ * 規則 1 件の宣言を候補にして集める。
+ * @param {CandidateStore} store
+ * @param {{ rule: Record<string, unknown>, ruleIndex: number }} matchedRule
+ * @param {StateContext} stateCtx
+ */
+function collectRule(store, { rule, ruleIndex }, stateCtx) {
+  const conditions = isArray(rule.conditions) ? rule.conditions : [];
+  const layers = isArray(rule.layers) ? rule.layers : [];
+  const declarations = isArray(rule.declarations) ? rule.declarations : [];
+  const ruleState = ruleStates(rule, stateCtx);
+  const { spec, specError } = ruleSpecificity(rule.selector);
+  for (let declIndex = 0; declIndex < declarations.length; declIndex += 1) {
+    const decl = declarations[declIndex];
+    if (!isObjectLike(decl) || typeof decl.property !== "string") continue;
+    /** @type {CascadeCandidate} */
+    const candidate = {
+      source: "rule",
+      selector: rule.selector,
+      origin: rule.href ?? null,
+      value: decl.value,
+      important: Boolean(decl.important),
+      specificity: spec,
+      specificity_error: specError,
+      // 有限の数でない order（NaN など）は、比較がすべて偽になり順を決められないので、読めないもの（null）にする。
+      order: typeof rule.order === "number" && Number.isFinite(rule.order) ? rule.order : null,
+      // どの規則の宣言か（matched の位置）。order が無くても、同じ規則の宣言どうしは declaration_index で比べられる。
+      rule_index: ruleIndex,
+      // 同じ規則の中では後に書いた宣言が勝つ。`order` は規則単位なので、規則内の順序を別に持たないと
+      // `.x { color: red; all: unset }` のように同一規則で競合する形が同点になる。
+      declaration_index: declIndex,
+      layers,
+      conditions,
+    };
+    placeRuleCandidate(store, { rule, candidate, property: decl.property }, ruleState);
+  }
+}
+
+/**
+ * インラインの宣言を候補にして集める。
+ * @param {CandidateStore} store
+ * @param {unknown[]} inline
+ */
+function collectInline(store, inline) {
   for (let i = 0; i < inline.length; i += 1) {
     const decl = inline[i];
     if (!isObjectLike(decl) || typeof decl.property !== "string") continue;
@@ -738,19 +810,59 @@ export function resolveCascade(document, options) {
     // インラインの `all` も規則側と同じくワイルドカードとして扱う
     // （プロパティ名で振り分けると、後続の `all` が個別宣言を reset するのを見落とす）。
     if (decl.property === "all") {
-      let list = wildcards.get("");
-      if (list === undefined) {
-        list = [];
-        wildcards.set("", list);
-      }
-      list.push({ ...candidate, unknown_states: [] });
+      addWildcard(store, "", { ...candidate, unknown_states: [] });
       continue;
     }
     // インラインは擬似要素に当たらないので、要素自身のバケットにだけ入れる。
-    bucket(null, decl.property).applying.push(candidate);
+    bucketFor(store, null, decl.property).applying.push(candidate);
   }
+}
 
-  const requested = options.properties ?? null;
+/**
+ * 要求したのに宣言の無いプロパティの結果（`all` があれば undecidable、無ければ absent）。
+ * @param {string} property
+ * @param {CascadeCandidate[]} wildcardsForOwn 要素自身の `all` の候補
+ * @returns {CascadeResult}
+ */
+function missingPropertyResult(property, wildcardsForOwn) {
+  // `all` があるなら「宣言が無い」とは言えない（all が値を与える）。
+  if (wildcardsForOwn.length > 0) {
+    return {
+      property,
+      pseudo_element: null,
+      status: "undecidable",
+      winner: null,
+      losers: [],
+      conditional: [],
+      state_unknown: [],
+      wildcard: wildcardsForOwn,
+      state_gated: 0,
+      reasons: [
+        "no declaration names this property, but an `all` declaration applies to every property " +
+          "and browsers do not expand `all` into longhands (measured in Chrome 149), so the value is not settled here",
+      ],
+    };
+  }
+  return {
+    property,
+    pseudo_element: null,
+    status: "absent",
+    winner: null,
+    losers: [],
+    conditional: [],
+    state_gated: 0,
+    reasons: ["no declaration for this property in matched or inline_declarations"],
+  };
+}
+
+/**
+ * 集めた候補から、プロパティ × 擬似要素ごとの結果を作る。
+ * @param {CandidateStore} store
+ * @param {string[] | null} requested 解決するプロパティ名（null ならすべて）
+ * @returns {CascadeResult[]}
+ */
+function collectResults(store, requested) {
+  const { buckets, wildcards } = store;
   /** @type {CascadeResult[]} */
   const results = [];
   // `all` しか宣言が無い採取物では buckets が空になる。keys を buckets だけから作ると
@@ -759,7 +871,7 @@ export function resolveCascade(document, options) {
   for (const pseudoKey of wildcards.keys()) {
     const pseudo = pseudoKey === "" ? null : pseudoKey;
     const hasBucket = [...buckets.values()].some((e) => (e.pseudo_element ?? "") === pseudoKey);
-    if (!hasBucket) bucket(pseudo, "all");
+    if (!hasBucket) bucketFor(store, pseudo, "all");
   }
   const keys = [...buckets.keys()].sort();
   for (const key of keys) {
@@ -768,43 +880,56 @@ export function resolveCascade(document, options) {
     if (requested !== null && !requested.includes(entry.property)) continue;
     results.push(decide(entry, wildcards.get(entry.pseudo_element ?? "") ?? []));
   }
-  if (requested !== null) {
-    const seen = new Set(results.map((r) => r.property));
-    for (const property of requested) {
-      if (seen.has(property)) continue;
-      // `all` があるなら「宣言が無い」とは言えない（all が値を与える）。
-      const wildcardsForOwn = wildcards.get("") ?? [];
-      if (wildcardsForOwn.length > 0) {
-        results.push({
-          property,
-          pseudo_element: null,
-          status: "undecidable",
-          winner: null,
-          losers: [],
-          conditional: [],
-          state_unknown: [],
-          wildcard: wildcardsForOwn,
-          state_gated: 0,
-          reasons: [
-            "no declaration names this property, but an `all` declaration applies to every property " +
-              "and browsers do not expand `all` into longhands (measured in Chrome 149), so the value is not settled here",
-          ],
-        });
-        continue;
-      }
-      results.push({
-        property,
-        pseudo_element: null,
-        status: "absent",
-        winner: null,
-        losers: [],
-        conditional: [],
-        state_gated: 0,
-        reasons: ["no declaration for this property in matched or inline_declarations"],
-      });
-    }
-    results.sort((a, b) => (a.property < b.property ? -1 : a.property > b.property ? 1 : 0));
+  if (requested === null) return results;
+  const seen = new Set(results.map((r) => r.property));
+  for (const property of requested) {
+    if (seen.has(property)) continue;
+    results.push(missingPropertyResult(property, wildcards.get("") ?? []));
   }
+  results.sort((a, b) => (a.property < b.property ? -1 : a.property > b.property ? 1 : 0));
+  return results;
+}
+
+/**
+ * `css-rules.json` の内容を読み、プロパティ × 擬似要素ごとに勝者を確定する。
+ *
+ * @param {unknown} document - css-rules.json をパースしたもの（形はここで検査する）。
+ * @param {{ states: string[], properties?: string[]|null, source?: string, allowIncomplete?: boolean }} options 次のオプション。
+ * states: いま採っている状態で成立している状態擬似クラスの集合（`default` は空集合と同じ意味）。
+ * properties: 解決するプロパティ名（省略時は候補に現れるすべてのプロパティ）。
+ * allowIncomplete: `inaccessible` / `unresolved` が 0 でなくても解決する（デフォルトは止まる）。
+ * @returns {{ source:(string|null), tool_version:(string|null), cascade_resolve_version:string,
+ *             capture_completeness:{inaccessible:number, unresolved:number, waived:boolean},
+ *             active_states:string[],
+ *             results:CascadeResult[], counts:{resolved:number, undecidable:number, absent:number} }}
+ */
+export function resolveCascade(document, options) {
+  if (!isPlainObject(document)) {
+    throw new UsageError("css-rules.json must be a JSON object");
+  }
+  if (!isArray(document.matched)) {
+    throw new UsageError("css-rules.json has no `matched` array (is it css-rules-capture output?)");
+  }
+  const toolVersion = readToolVersion(document);
+  const { inaccessible, unresolved, incomplete } = readCompleteness(
+    document,
+    options.allowIncomplete,
+  );
+  const inline = isArray(document.inline_declarations) ? document.inline_declarations : null;
+  if (inline === null) {
+    throw new UsageError(
+      "css-rules.json has no `inline_declarations` (captured with tool_version 1); re-capture",
+    );
+  }
+  const stateCtx = stateContext(options.states);
+  /** @type {CandidateStore} */
+  const store = { buckets: new Map(), wildcards: new Map() };
+  const rules = readRules(document.matched);
+  for (let ruleIndex = 0; ruleIndex < rules.length; ruleIndex += 1) {
+    collectRule(store, { rule: rules[ruleIndex], ruleIndex }, stateCtx);
+  }
+  collectInline(store, inline);
+  const results = collectResults(store, options.properties ?? null);
 
   const counts = { resolved: 0, undecidable: 0, absent: 0 };
   for (const r of results) counts[r.status] += 1;
@@ -813,10 +938,253 @@ export function resolveCascade(document, options) {
     tool_version: toolVersion,
     cascade_resolve_version: VERSION,
     capture_completeness: { inaccessible, unresolved, waived: incomplete ? true : false },
-    active_states: [...active].sort(),
+    active_states: [...stateCtx.active].sort(),
     results,
     counts,
   };
+}
+
+/**
+ * 段（tiers）の名前と、その段で競う候補。並びは強い順。
+ * @typedef {{ name: string, candidates: CascadeCandidate[] }} CascadeTier
+ */
+
+/**
+ * 適用される宣言が 1 件も無いバケットの結果を out に書く。
+ * @param {CascadeBucket} entry
+ * @param {CascadeCandidate[]} wildcard
+ * @param {CascadeResult} out
+ * @returns {CascadeResult}
+ */
+function decideWithoutApplying(entry, wildcard, out) {
+  const { reasons } = out;
+  if (wildcard.length > 0) {
+    reasons.push(
+      "an `all` declaration applies to every property and browsers do not expand it into longhands " +
+        "(measured in Chrome 149), so no individual declaration settles this property",
+    );
+    return out;
+  }
+  if (entry.conditional.length > 0) {
+    reasons.push(
+      "only conditional (@media / @supports / @container) declarations remain; " +
+        "css-rules-capture records conditions without evaluating them, so applicability is unknown",
+    );
+    return out;
+  }
+  if (entry.state_unknown.length > 0) {
+    reasons.push(
+      "only declarations gated by persistent state pseudo-classes remain " +
+        `(${[...new Set(entry.state_unknown.flatMap((c) => c.unknown_states))].sort().join(", ")}); ` +
+        "these describe the element itself, not the capture directory, so applicability is unknown. " +
+        "pass --state <name> for the ones you know were active",
+    );
+    return out;
+  }
+  out.status = "absent";
+  reasons.push(
+    entry.state_gated > 0
+      ? `all ${entry.state_gated} declaration(s) need a state that is not active`
+      : "no declaration for this property",
+  );
+  return out;
+}
+
+/**
+ * 適用される候補を段に分ける。段（強い順）: インラインの `!important` → 規則の `!important` → インライン → 規則
+ * @param {CascadeCandidate[]} applying
+ * @returns {CascadeTier[]}
+ */
+function buildTiers(applying) {
+  return [
+    {
+      name: "inline !important",
+      candidates: applying.filter((c) => c.source === "inline" && c.important),
+    },
+    {
+      name: "rule !important",
+      candidates: applying.filter((c) => c.source === "rule" && c.important),
+    },
+    { name: "inline", candidates: applying.filter((c) => c.source === "inline" && !c.important) },
+    { name: "rule", candidates: applying.filter((c) => c.source === "rule" && !c.important) },
+  ];
+}
+
+/**
+ * レイヤをまたぐ競合はここでは決められない（レイヤの宣言順が入力に無い）。
+ * @param {CascadeCandidate[]} candidates
+ * @returns {boolean}
+ */
+function layerSpread(candidates) {
+  const paths = new Set(candidates.map((c) => JSON.stringify(c.layers)));
+  return paths.size > 1;
+}
+
+/**
+ * 無名レイヤ（`@layer { … }`）の名前は `css-rules-capture.mjs` で空文字になる。
+ * 別々の無名レイヤが同じ `[""]` として記録されるため、**同じパスに見えても同一レイヤとは限らない**。
+ * レイヤの順序は詳細度より強く `!important` で逆転するので、同一視すると、警告なしに誤った勝者になる。
+ * @param {CascadeCandidate} c
+ * @returns {boolean}
+ */
+function isAnonymous(c) {
+  return c.layers.some((name) => name === "");
+}
+
+/**
+ * 段を強い順に見て、勝者を決める。決められなければ理由を reasons に足して null を返す。
+ * @param {CascadeTier[]} tiers
+ * @param {boolean} anonymousAmbiguity
+ * @param {string[]} reasons
+ * @returns {{ won: CascadeCandidate, tier: string } | null}
+ */
+function pickWinner(tiers, anonymousAmbiguity, reasons) {
+  for (const tier of tiers) {
+    if (tier.candidates.length === 0) continue;
+    if (anonymousAmbiguity) {
+      reasons.push(
+        `a candidate for this property sits in an anonymous cascade layer (tier: ${tier.name}); ` +
+          "css-rules-capture records every anonymous layer as an empty name, so two different layers " +
+          "are indistinguishable here and layer order outranks specificity",
+      );
+      return null;
+    }
+    if (layerSpread(tier.candidates)) {
+      reasons.push(
+        `competing ${tier.name} declarations sit in different cascade layers` +
+          `(${[...new Set(tier.candidates.map((c) => JSON.stringify(c.layers)))].join(" vs ")});` +
+          "the order in which the layers were declared is not recorded in css-rules.json",
+      );
+      return null;
+    }
+    // 規則の order は、書かれた順を表す。order を読めない規則（null）が、最も強い詳細度に別の宣言と並ぶと、
+    // どちらが後に書かれたかを決められない。null を 0 として比べると規則をまたいで宣言の位置を比べることになり、
+    // 勝者が正しく決まる保証が無いので、判定できないとして扱う（追い越しの判定の couldOutrank も同じ規則にする）。
+    const unordered = unorderedTie(tier.candidates);
+    if (unordered !== null) {
+      reasons.push(unknownOrderReason(tier.name, unordered));
+      return null;
+    }
+    return { won: strongest(tier.candidates), tier: tier.name };
+  }
+  // applying が空でないので、どれかの段で勝者が決まるか、上で返している（型の絞り込みのため）。
+  throw new Error(
+    "cascade-resolve: 適用される宣言があるのに勝者が決まらない（このツールの不具合）",
+  );
+}
+
+/**
+ * 同じ段の規則どうしで、候補が勝者を追い越しうるか。決められないときは "unknown-order"。
+ * @param {CascadeCandidate} c
+ * @param {CascadeCandidate} won
+ * @returns {boolean | "unknown-order"}
+ */
+function ruleOutranks(c, won) {
+  if (JSON.stringify(c.layers) !== JSON.stringify(won.layers)) return true;
+  if (c.specificity === null) return true;
+  // 勝者は規則で、詳細度を読めない規則は上で返しているので、ここで null にはならない
+  // （元は compareSpecificity が null を読んで TypeError になる）。
+  if (won.specificity === null) throw new TypeError("winner has no specificity");
+  const bySpec = compareSpecificity(c.specificity, won.specificity);
+  if (bySpec !== 0) return bySpec > 0;
+  if (c.rule_index !== won.rule_index) {
+    // 同じ詳細度で、別々の規則のどちらかの order を読めなければ、どちらが後に書かれたかを決められない。
+    // 勝者を選ぶときと同じく、判定できないとして呼び出し側に返す（理由も order が無いことを書く）。
+    if (c.order === null || won.order === null) return "unknown-order";
+    const byOrder = c.order - won.order;
+    if (byOrder !== 0) return byOrder > 0;
+  }
+  // 同じ規則の中では後に書いた宣言が勝つ（`.x { color: red; all: unset }` の形）。
+  return (c.declaration_index ?? 0) > (won.declaration_index ?? 0);
+}
+
+/**
+ * 候補が勝者を追い越しうるか。同じ詳細度で別々の規則のどちらかに order が無く、決められないときは "unknown-order"。
+ * @param {CascadeCandidate} c
+ * @param {{ won: CascadeCandidate, tierRank: number }} winner
+ * @returns {boolean | "unknown-order"}
+ */
+function outranks(c, { won, tierRank }) {
+  // 段（tiers）の並びに合わせて候補の段を決める。候補が規則である前提で書くと、
+  // インラインの候補（インラインの `all` 等）が常に下の段と判定されて追い越しを見落とす。
+  const rank = c.source === "inline" ? (c.important ? 0 : 2) : c.important ? 1 : 3;
+  if (rank < tierRank) return true;
+  if (rank > tierRank) return false;
+  // 同じ段でインライン同士なら、`style` 属性の中の並び順で決まる（詳細度もレイヤも無い）。
+  if (c.source === "inline" && won.source === "inline") {
+    return (c.declaration_index ?? 0) > (won.declaration_index ?? 0);
+  }
+  if (won.source === "inline" || c.source === "inline") return true;
+  return ruleOutranks(c, won);
+}
+
+/**
+ * 勝者を追い越しうる候補（条件付き・`all`・状態不明）があれば、決められない理由を返す（無ければ null）。
+ * @param {CascadeBucket} entry
+ * @param {CascadeCandidate[]} wildcard
+ * @param {{ won: CascadeCandidate, tier: string, tierRank: number }} winner
+ * @returns {string | null}
+ */
+function rivalReason(entry, wildcard, winner) {
+  const unknownOrderRivals = [...entry.conditional, ...wildcard, ...entry.state_unknown].filter(
+    (c) => outranks(c, winner) === "unknown-order",
+  );
+  if (unknownOrderRivals.length > 0) {
+    return unknownOrderReason(winner.tier, [winner.won, ...unknownOrderRivals]);
+  }
+  /** @param {CascadeCandidate} c */
+  const couldOutrank = (c) => outranks(c, winner) === true;
+  if (entry.conditional.some(couldOutrank)) {
+    return (
+      "a conditional (@media / @supports / @container) declaration would outrank the winner if its " +
+      "condition holds; css-rules-capture does not evaluate conditions, so this cannot be decided here"
+    );
+  }
+  if (wildcard.some(couldOutrank)) {
+    return (
+      "an `all` declaration would outrank the winner; browsers do not expand `all` into longhands " +
+      "(measured in Chrome 149), so which value this property ends up with is not settled here"
+    );
+  }
+  if (entry.state_unknown.some(couldOutrank)) {
+    return (
+      "a declaration gated by a persistent state pseudo-class " +
+      `(${[...new Set(entry.state_unknown.filter(couldOutrank).flatMap((c) => c.unknown_states))].sort().join(", ")}) ` +
+      "would outrank the winner if that state was active during capture; the capture directory name " +
+      "does not settle it. pass --state <name> if you know it was active"
+    );
+  }
+  return null;
+}
+
+/**
+ * 詳細度を読めない規則の候補ごとの理由（無ければ空）。
+ * @param {CascadeCandidate[]} applying
+ * @returns {string[]}
+ */
+function unreadableReasons(applying) {
+  return applying
+    .filter((c) => c.source === "rule" && c.specificity_error !== null)
+    .map((c) => `cannot read specificity of ${JSON.stringify(c.selector)}: ${c.specificity_error}`);
+}
+
+/**
+ * 無名レイヤのために、同じパスに見えるレイヤを同一と見なせないか。
+ * 判定は `applying` に閉じない。条件付き・状態不明・`all` の候補も同じレイヤ順の曖昧さを持ち、
+ * 無名レイヤに入っていれば「同じ `[""]` に見えるが別レイヤ」の可能性が残る
+ * （`@media` 配下の無名レイヤの `!important` は、後段の無名レイヤの `!important` に逆順で勝ちうる）。
+ * @param {CascadeBucket} entry
+ * @param {CascadeCandidate[]} wildcard
+ * @returns {boolean}
+ */
+function hasAnonymousAmbiguity(entry, wildcard) {
+  const anonymousPool = [
+    ...entry.applying,
+    ...entry.conditional,
+    ...entry.state_unknown,
+    ...wildcard,
+  ];
+  return anonymousPool.length > 1 && anonymousPool.some(isAnonymous);
 }
 
 /**
@@ -840,200 +1208,29 @@ function decide(entry, wildcard = []) {
     state_gated: entry.state_gated,
     reasons,
   };
-  if (entry.applying.length === 0) {
-    if (wildcard.length > 0) {
-      reasons.push(
-        "an `all` declaration applies to every property and browsers do not expand it into longhands " +
-          "(measured in Chrome 149), so no individual declaration settles this property",
-      );
-      return out;
-    }
-    if (entry.conditional.length > 0) {
-      reasons.push(
-        "only conditional (@media / @supports / @container) declarations remain; " +
-          "css-rules-capture records conditions without evaluating them, so applicability is unknown",
-      );
-      return out;
-    }
-    if (entry.state_unknown.length > 0) {
-      reasons.push(
-        "only declarations gated by persistent state pseudo-classes remain " +
-          `(${[...new Set(entry.state_unknown.flatMap((c) => c.unknown_states))].sort().join(", ")}); ` +
-          "these describe the element itself, not the capture directory, so applicability is unknown. " +
-          "pass --state <name> for the ones you know were active",
-      );
-      return out;
-    }
-    out.status = "absent";
-    reasons.push(
-      entry.state_gated > 0
-        ? `all ${entry.state_gated} declaration(s) need a state that is not active`
-        : "no declaration for this property",
-    );
-    return out;
-  }
+  if (entry.applying.length === 0) return decideWithoutApplying(entry, wildcard, out);
 
-  const unreadable = entry.applying.filter(
-    (c) => c.source === "rule" && c.specificity_error !== null,
-  );
+  const unreadable = unreadableReasons(entry.applying);
   if (unreadable.length > 0) {
-    for (const c of unreadable) {
-      reasons.push(
-        `cannot read specificity of ${JSON.stringify(c.selector)}: ${c.specificity_error}`,
-      );
-    }
+    reasons.push(...unreadable);
     return out;
   }
-
-  // 段（強い順）: インラインの `!important` → 規則の `!important` → インライン → 規則
-  const inlineImportant = entry.applying.filter((c) => c.source === "inline" && c.important);
-  const ruleImportant = entry.applying.filter((c) => c.source === "rule" && c.important);
-  const inlineNormal = entry.applying.filter((c) => c.source === "inline" && !c.important);
-  const ruleNormal = entry.applying.filter((c) => c.source === "rule" && !c.important);
-
-  /**
-   * レイヤをまたぐ競合はここでは決められない（レイヤの宣言順が入力に無い）。
-   * @param {CascadeCandidate[]} candidates
-   */
-  const layerSpread = (candidates) => {
-    const paths = new Set(candidates.map((c) => JSON.stringify(c.layers)));
-    return paths.size > 1;
-  };
-  /**
-   * 無名レイヤ（`@layer { … }`）の名前は `css-rules-capture.mjs` で空文字になる。
-   * 別々の無名レイヤが同じ `[""]` として記録されるため、**同じパスに見えても同一レイヤとは限らない**。
-   * レイヤの順序は詳細度より強く `!important` で逆転するので、同一視すると、警告なしに誤った勝者になる。
-   * @param {CascadeCandidate} c
-   */
-  const isAnonymous = (c) => c.layers.some((name) => name === "");
-  // 判定は `applying` に閉じない。条件付き・状態不明・`all` の候補も同じレイヤ順の曖昧さを持ち、
-  // 無名レイヤに入っていれば「同じ `[""]` に見えるが別レイヤ」の可能性が残る
-  // （`@media` 配下の無名レイヤの `!important` は、後段の無名レイヤの `!important` に逆順で勝ちうる）。
-  const anonymousPool = [
-    ...entry.applying,
-    ...entry.conditional,
-    ...entry.state_unknown,
-    ...wildcard,
-  ];
-  const anonymousAmbiguity = anonymousPool.length > 1 && anonymousPool.some(isAnonymous);
-
-  const tiers = [
-    { name: "inline !important", candidates: inlineImportant },
-    { name: "rule !important", candidates: ruleImportant },
-    { name: "inline", candidates: inlineNormal },
-    { name: "rule", candidates: ruleNormal },
-  ];
-
-  let winner = null;
-  let winningTier = null;
-  for (const tier of tiers) {
-    if (tier.candidates.length === 0) continue;
-    if (anonymousAmbiguity) {
-      reasons.push(
-        `a candidate for this property sits in an anonymous cascade layer (tier: ${tier.name}); ` +
-          "css-rules-capture records every anonymous layer as an empty name, so two different layers " +
-          "are indistinguishable here and layer order outranks specificity",
-      );
-      return out;
-    }
-    if (layerSpread(tier.candidates)) {
-      reasons.push(
-        `competing ${tier.name} declarations sit in different cascade layers` +
-          `(${[...new Set(tier.candidates.map((c) => JSON.stringify(c.layers)))].join(" vs ")});` +
-          "the order in which the layers were declared is not recorded in css-rules.json",
-      );
-      return out;
-    }
-    // 規則の order は、書かれた順を表す。order を読めない規則（null）が、最も強い詳細度に別の宣言と並ぶと、
-    // どちらが後に書かれたかを決められない。null を 0 として比べると規則をまたいで宣言の位置を比べることになり、
-    // 勝者が正しく決まる保証が無いので、判定できないとして扱う（追い越しの判定の couldOutrank も同じ規則にする）。
-    const unordered = unorderedTie(tier.candidates);
-    if (unordered !== null) {
-      reasons.push(unknownOrderReason(tier.name, unordered));
-      return out;
-    }
-    winner = strongest(tier.candidates);
-    winningTier = tier.name;
-    break;
-  }
-  // applying が空でないので、どれかの段で勝者が決まるか、上で返している（型の絞り込みのため）。
-  if (winner === null || winningTier === null) {
-    throw new Error(
-      "cascade-resolve: 適用される宣言があるのに勝者が決まらない（このツールの不具合）",
-    );
-  }
-  const won = winner;
+  const anonymousAmbiguity = hasAnonymousAmbiguity(entry, wildcard);
+  const tiers = buildTiers(entry.applying);
+  const picked = pickWinner(tiers, anonymousAmbiguity, reasons);
+  if (picked === null) return out;
+  const { won, tier } = picked;
 
   // 条件付きの候補が、決まった勝者より強い段にいるなら結論を出せない。
-  const tierRank = tiers.findIndex((t) => t.name === winningTier);
-  /**
-   * 候補が勝者を追い越しうるか。同じ詳細度で別々の規則のどちらかに order が無く、決められないときは "unknown-order"。
-   * @param {CascadeCandidate} c
-   * @returns {boolean | "unknown-order"}
-   */
-  const outrank = (c) => {
-    // 段（tiers）の並びに合わせて候補の段を決める。候補が規則である前提で書くと、
-    // インラインの候補（インラインの `all` 等）が常に下の段と判定されて追い越しを見落とす。
-    const rank = c.source === "inline" ? (c.important ? 0 : 2) : c.important ? 1 : 3;
-    if (rank < tierRank) return true;
-    if (rank > tierRank) return false;
-    // 同じ段でインライン同士なら、`style` 属性の中の並び順で決まる（詳細度もレイヤも無い）。
-    if (c.source === "inline" && won.source === "inline") {
-      return (c.declaration_index ?? 0) > (won.declaration_index ?? 0);
-    }
-    if (won.source === "inline" || c.source === "inline") return true;
-    if (JSON.stringify(c.layers) !== JSON.stringify(won.layers)) return true;
-    if (c.specificity === null) return true;
-    // 勝者は規則で、詳細度を読めない規則は上で返しているので、ここで null にはならない
-    // （元は compareSpecificity が null を読んで TypeError になる）。
-    if (won.specificity === null) throw new TypeError("winner has no specificity");
-    const bySpec = compareSpecificity(c.specificity, won.specificity);
-    if (bySpec !== 0) return bySpec > 0;
-    if (c.rule_index !== won.rule_index) {
-      // 同じ詳細度で、別々の規則のどちらかの order を読めなければ、どちらが後に書かれたかを決められない。
-      // 勝者を選ぶときと同じく、判定できないとして呼び出し側に返す（理由も order が無いことを書く）。
-      if (c.order === null || won.order === null) return "unknown-order";
-      const byOrder = c.order - won.order;
-      if (byOrder !== 0) return byOrder > 0;
-    }
-    // 同じ規則の中では後に書いた宣言が勝つ（`.x { color: red; all: unset }` の形）。
-    return (c.declaration_index ?? 0) > (won.declaration_index ?? 0);
-  };
-  const unknownOrderRivals = [...entry.conditional, ...wildcard, ...entry.state_unknown].filter(
-    (c) => outrank(c) === "unknown-order",
-  );
-  if (unknownOrderRivals.length > 0) {
-    reasons.push(unknownOrderReason(winningTier, [won, ...unknownOrderRivals]));
-    return out;
-  }
-  /** @param {CascadeCandidate} c */
-  const couldOutrank = (c) => outrank(c) === true;
-  if (entry.conditional.some(couldOutrank)) {
-    reasons.push(
-      "a conditional (@media / @supports / @container) declaration would outrank the winner if its " +
-        "condition holds; css-rules-capture does not evaluate conditions, so this cannot be decided here",
-    );
-    return out;
-  }
-  if (wildcard.some(couldOutrank)) {
-    reasons.push(
-      "an `all` declaration would outrank the winner; browsers do not expand `all` into longhands " +
-        "(measured in Chrome 149), so which value this property ends up with is not settled here",
-    );
-    return out;
-  }
-  if (entry.state_unknown.some(couldOutrank)) {
-    reasons.push(
-      "a declaration gated by a persistent state pseudo-class " +
-        `(${[...new Set(entry.state_unknown.filter(couldOutrank).flatMap((c) => c.unknown_states))].sort().join(", ")}) ` +
-        "would outrank the winner if that state was active during capture; the capture directory name " +
-        "does not settle it. pass --state <name> if you know it was active",
-    );
+  const tierRank = tiers.findIndex((t) => t.name === tier);
+  const rival = rivalReason(entry, wildcard, { won, tier, tierRank });
+  if (rival !== null) {
+    reasons.push(rival);
     return out;
   }
 
   out.status = "resolved";
-  out.winner = { ...won, tier: winningTier };
+  out.winner = { ...won, tier };
   out.losers = entry.applying.filter((c) => c !== won);
   return out;
 }
@@ -1057,6 +1254,80 @@ const USAGE = [
   "exit 0=全て resolved / absent、1=undecidable が 1 件以上、2=入力エラー",
 ].join("\n");
 
+/** 値として受け取らない既知のフラグ名。 */
+const FLAGS = new Set(["--css-rules", "--state", "--property", "--all"]);
+
+/**
+ * フラグの値を読む。値が無い・空・フラグに見えるなら投げる。
+ * CSS カスタムプロパティ（`--brand-color`）は `--property` の値として正当なので、
+ * 「`--` で始まる」だけでは弾かない（弾くと custom property の勝者を確定できない）。
+ * 取り違えを拾うため、既知のフラグ名そのものは値として受け取らない。
+ * @param {string} name フラグ名
+ * @param {string | undefined} value フラグの次の引数
+ * @returns {string}
+ */
+function flagValue(name, value) {
+  const looksLikeFlag =
+    value !== undefined && value.startsWith("--") && (name !== "--property" || FLAGS.has(value));
+  if (value === undefined || value.trim() === "" || looksLikeFlag) {
+    throw new UsageError(`${name} requires a value`);
+  }
+  return value;
+}
+
+/**
+ * 引数を読む（誤りは UsageError を投げる）。
+ * @param {string[]} argv
+ * @returns {{ cssRules: string, states: string[], properties: string[], all: boolean, allowIncomplete: boolean }}
+ */
+function parseArgs(argv) {
+  let cssRules = null;
+  const states = [];
+  const properties = [];
+  let all = false;
+  let allowIncomplete = false;
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    const takesValue = arg === "--css-rules" || arg === "--state" || arg === "--property";
+    const value = takesValue ? flagValue(arg, argv[i + 1]) : "";
+    if (takesValue) i += 1;
+    if (arg === "--css-rules") cssRules = value;
+    else if (arg === "--state") states.push(value);
+    else if (arg === "--property") properties.push(value);
+    else if (arg === "--all") all = true;
+    else if (arg === "--allow-incomplete") allowIncomplete = true;
+    else throw new UsageError(`unknown argument ${JSON.stringify(arg)}`);
+  }
+  if (cssRules === null) throw new UsageError("--css-rules is required");
+  if (states.length === 0) {
+    throw new UsageError(
+      "--state is required; css-rules.json does not record which state it was captured in, " +
+        "and matched[] contains rules that only apply in other states",
+    );
+  }
+  if (properties.length === 0 && !all) {
+    throw new UsageError("pass --property <name> at least once, or --all");
+  }
+  if (properties.length > 0 && all) {
+    throw new UsageError("--all and --property are mutually exclusive");
+  }
+  return { cssRules, states, properties, all, allowIncomplete };
+}
+
+/**
+ * css-rules.json を読む（読めなければ UsageError を投げる）。
+ * @param {string} cssRules
+ * @returns {unknown}
+ */
+function readCssRules(cssRules) {
+  try {
+    return JSON.parse(readFileSync(cssRules, "utf8"));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new UsageError(`cannot read ${cssRules}: ${message}`);
+  }
+}
+
 /**
  * CLI エントリ。
  * @param {string[]} argv - process.argv.slice(2)
@@ -1064,62 +1335,8 @@ const USAGE = [
  */
 export function main(argv) {
   try {
-    const FLAGS = new Set(["--css-rules", "--state", "--property", "--all"]);
-    let cssRules = null;
-    const states = [];
-    const properties = [];
-    let all = false;
-    let allowIncomplete = false;
-    for (let i = 0; i < argv.length; i += 1) {
-      const arg = argv[i];
-      /**
-       * @param {string} name
-       * @returns {string}
-       */
-      const need = (name) => {
-        const value = argv[i + 1];
-        // CSS カスタムプロパティ（`--brand-color`）は `--property` の値として正当なので、
-        // 「`--` で始まる」だけでは弾かない（弾くと custom property の勝者を確定できない）。
-        // 取り違えを拾うため、既知のフラグ名そのものは値として受け取らない。
-        const looksLikeFlag =
-          value !== undefined &&
-          value.startsWith("--") &&
-          (name !== "--property" || FLAGS.has(value));
-        if (value === undefined || value.trim() === "" || looksLikeFlag) {
-          throw new UsageError(`${name} requires a value`);
-        }
-        i += 1;
-        return value;
-      };
-      if (arg === "--css-rules") cssRules = need(arg);
-      else if (arg === "--state") states.push(need(arg));
-      else if (arg === "--property") properties.push(need(arg));
-      else if (arg === "--all") all = true;
-      else if (arg === "--allow-incomplete") allowIncomplete = true;
-      else throw new UsageError(`unknown argument ${JSON.stringify(arg)}`);
-    }
-    if (cssRules === null) throw new UsageError("--css-rules is required");
-    if (states.length === 0) {
-      throw new UsageError(
-        "--state is required; css-rules.json does not record which state it was captured in, " +
-          "and matched[] contains rules that only apply in other states",
-      );
-    }
-    if (properties.length === 0 && !all) {
-      throw new UsageError("pass --property <name> at least once, or --all");
-    }
-    if (properties.length > 0 && all) {
-      throw new UsageError("--all and --property are mutually exclusive");
-    }
-
-    let parsed;
-    try {
-      parsed = JSON.parse(readFileSync(cssRules, "utf8"));
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      throw new UsageError(`cannot read ${cssRules}: ${message}`);
-    }
-    const report = resolveCascade(parsed, {
+    const { cssRules, states, properties, all, allowIncomplete } = parseArgs(argv);
+    const report = resolveCascade(readCssRules(cssRules), {
       states,
       properties: all ? null : properties,
       source: cssRules,

@@ -196,19 +196,25 @@ test("複数の領域は和集合で扱う", () => {
 });
 
 test("画像の範囲に切り詰める・小数の矩形は外側へ丸める", () => {
-  expect(verify.expandRegion({ x: -3, y: 8, width: 5, height: 10 }, 2, 10, 10)).toEqual({
+  expect(
+    verify.expandRegion({ x: -3, y: 8, width: 5, height: 10 }, 2, { width: 10, height: 10 }),
+  ).toEqual({
     x: 0,
     y: 6,
     width: 4,
     height: 4,
   });
-  expect(verify.expandRegion({ x: 1.5, y: 2.2, width: 2, height: 1.1 }, 0, 10, 10)).toEqual({
+  expect(
+    verify.expandRegion({ x: 1.5, y: 2.2, width: 2, height: 1.1 }, 0, { width: 10, height: 10 }),
+  ).toEqual({
     x: 1,
     y: 2,
     width: 3,
     height: 2,
   });
-  expect(verify.expandRegion({ x: 20, y: 0, width: 5, height: 5 }, 1, 10, 10)).toBeNull();
+  expect(
+    verify.expandRegion({ x: 20, y: 0, width: 5, height: 5 }, 1, { width: 10, height: 10 }),
+  ).toBeNull();
 });
 
 test("切り詰めた領域はマスクと記録に反映され、画像と重ならない領域だけなら fail", () => {

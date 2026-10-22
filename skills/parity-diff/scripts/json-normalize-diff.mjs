@@ -134,37 +134,48 @@ export function sortArrayAtPath(node, segs) {
 }
 
 /**
- * 2 つの値を深く比較し、差分パスと both 値を out へ積む。決定論的（キーは昇順）。
+ * 2 つの値を深く比較し、差分のパスと、現行と新側の値の組の配列を返す。キーは昇順にたどるので、結果の順序は入力で決まる。
  *
  * @param {unknown} a
  * @param {unknown} b
- * @param {string} path
- * @param {Array<{ path:string, current:unknown, new:unknown }>} out
+ * @returns {Array<{ path:string, current:unknown, new:unknown }>}
  */
-export function deepDiff(a, b, path, out) {
-  // 両方が配列か、両方が JSON オブジェクトのときだけ中へ進む。片方だけが配列なら、下で値ごと比べる。
-  if (isArray(a) && isArray(b)) {
-    const len = Math.max(a.length, b.length);
-    for (let i = 0; i < len; i += 1) {
-      const childPath = path ? `${path}.${i}` : String(i);
-      deepDiff(i < a.length ? a[i] : MISSING, i < b.length ? b[i] : MISSING, childPath, out);
+export function deepDiff(a, b) {
+  /** @type {Array<{ path:string, current:unknown, new:unknown }>} */
+  const out = [];
+  // 再帰ごとに変わるのはパスだけなので、out はこの関数の中に置き、内側の関数はパスだけを受け取る。
+  /**
+   * @param {unknown} x
+   * @param {unknown} y
+   * @param {string} path - 比べる位置のパス
+   */
+  const walk = (x, y, path) => {
+    // 両方が配列か、両方が JSON オブジェクトのときだけ中へ進む。片方だけが配列なら、下で値ごと比べる。
+    if (isArray(x) && isArray(y)) {
+      const len = Math.max(x.length, y.length);
+      for (let i = 0; i < len; i += 1) {
+        const childPath = path ? `${path}.${i}` : String(i);
+        walk(i < x.length ? x[i] : MISSING, i < y.length ? y[i] : MISSING, childPath);
+      }
+      return;
     }
-    return;
-  }
-  if (isPlainObject(a) && isPlainObject(b)) {
-    const keys = [...new Set([...Object.keys(a), ...Object.keys(b)])].sort();
-    for (const key of keys) {
-      const childPath = path ? `${path}.${key}` : key;
-      const av = Object.prototype.hasOwnProperty.call(a, key) ? a[key] : MISSING;
-      const bv = Object.prototype.hasOwnProperty.call(b, key) ? b[key] : MISSING;
-      deepDiff(av, bv, childPath, out);
+    if (isPlainObject(x) && isPlainObject(y)) {
+      const keys = [...new Set([...Object.keys(x), ...Object.keys(y)])].sort();
+      for (const key of keys) {
+        const childPath = path ? `${path}.${key}` : key;
+        const xv = Object.prototype.hasOwnProperty.call(x, key) ? x[key] : MISSING;
+        const yv = Object.prototype.hasOwnProperty.call(y, key) ? y[key] : MISSING;
+        walk(xv, yv, childPath);
+      }
+      return;
     }
-    return;
-  }
-  // JSON.stringify(MISSING) は undefined なので、片側だけに無い値は、もう片方が "(absent)" という文字列でも差分になる。
-  if (JSON.stringify(a) !== JSON.stringify(b)) {
-    out.push({ path, current: a === MISSING ? ABSENT : a, new: b === MISSING ? ABSENT : b });
-  }
+    // JSON.stringify(MISSING) は undefined なので、片側だけに無い値は、もう片方が "(absent)" という文字列でも差分になる。
+    if (JSON.stringify(x) !== JSON.stringify(y)) {
+      out.push({ path, current: x === MISSING ? ABSENT : x, new: y === MISSING ? ABSENT : y });
+    }
+  };
+  walk(a, b, "");
+  return out;
 }
 
 /**
@@ -217,9 +228,7 @@ export function main(argv) {
     current = sortArrayAtPath(current, segments(p));
     next = sortArrayAtPath(next, segments(p));
   }
-  /** @type {Array<{ path:string, current:unknown, new:unknown }>} */
-  const out = [];
-  deepDiff(current, next, "", out);
+  const out = deepDiff(current, next);
   process.stdout.write(JSON.stringify(out, null, 2) + "\n");
   return out.length > 0 ? 1 : 0;
 }

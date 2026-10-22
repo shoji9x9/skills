@@ -402,35 +402,7 @@ for (const viewport of shots) {
 
           mkdirSync(outDir, { recursive: true });
 
-          // browser が cdp なら、共通のフィクスチャが接続した印を確かめる（import の差し替えを忘れて、起動したブラウザのまま撮らない）
-          if (browserMode === "cdp" && process.env.PARITY_CDP_CONNECTED !== "1") {
-            throw new Error(
-              "capture_conditions.browser is cdp but the browser was not connected over CDP: import test from the shared fixtures",
-            );
-          }
-          // cdp では、現側が撮った利用者環境と同じブラウザへ接続したかを確かめる（モードだけが揃って別の機械で撮ると、環境の差が差分に出る）
-          if (browserMode === "cdp") {
-            const identity = metadata.capture_conditions.browser_identity;
-            const product = page.context().browser()?.version();
-            const userAgent = await page.evaluate(() => navigator.userAgent);
-            // reduced UA は OS の版を固定値に縮めるので、product と userAgent だけでは OS の版・アーキテクチャが違う機械を見分けられない
-            const os = await readBrowserOs(page.context().browser());
-            if (identity && !Object.hasOwn(identity, "browser_os")) {
-              throw new Error(
-                "current side browser_identity has no browser_os: parity-suite で現側を撮り直す（描画するブラウザ側の OS を照合できない。手順の改訂 5）",
-              );
-            }
-            if (
-              !identity ||
-              identity.product !== product ||
-              identity.user_agent !== userAgent ||
-              !sameBrowserOs(identity.browser_os, os)
-            ) {
-              throw new Error(
-                `connected browser differs from the current side (current: ${JSON.stringify(identity)}, new: ${JSON.stringify({ product, user_agent: userAgent, browser_os: os })}): 新側 target の browser.cdp_url を現側と同じ利用者環境へ向ける`,
-              );
-            }
-          }
+          await verifyCdpBrowser(page);
           await page.goto(pageDef.path);
           // 表示の軸の値は状態へ遷移する前に当てる（基準の組も既定値を明示して当てる。ブラウザや OS の既定に委ねない）
           if (axes.length > 0) await applyDisplayAxes(page, { ...defaults, ...viewport.values });
@@ -440,31 +412,72 @@ for (const viewport of shots) {
           // 出現直後に撮ると 1 画素の上下で結果が 2 値に転び、自己ノイズの 2 回撮りでは検出できない
           await applyState(page, state);
 
-          // 撮影条件（アニメーション無効・マスク）は現側と同一。
-          // 出典: https://playwright.dev/docs/api/class-page#page-screenshot（animations / mask）
-          await page.screenshot({
-            path: join(outDir, "screenshot.png"),
-            // 現側が全画面で撮ったかビューポート内で撮ったかは capture_conditions.full_page が持つ。
-            // ここを決め打ちすると画像サイズが違い、条件一致検証を通り抜けたまま全ページが全面差分になる
-            fullPage: fullPage,
-            animations: "disabled",
-            mask: masks.map((m: { name: string }) => resolveLocator(page, m.name)),
-          });
-
-          // 特性は論理名 1 件ずつ渡して採る（まとめて渡すと 1 件の失敗で既採取分ごと失う）
-          const traits = [];
-          for (const name of metadata.traits.elements) {
-            traits.push(...(await captureTraits([{ name, locator: resolveLocator(page, name) }])));
-          }
-          writeJson(join(outDir, "traits.json"), traits);
-
-          // aria スナップショット（構造比較用）。出典: https://playwright.dev/docs/api/class-locator#locator-aria-snapshot
-          const aria = await page.locator("body").ariaSnapshot();
-          writeText(join(outDir, "aria.yaml"), aria);
+          await captureArtifacts(page, outDir);
         });
       }
     }
   });
+}
+
+// browser が cdp のときに、接続したブラウザを確かめる
+async function verifyCdpBrowser(page: import("@playwright/test").Page): Promise<void> {
+  // browser が cdp なら、共通のフィクスチャが接続した印を確かめる（import の差し替えを忘れて、起動したブラウザのまま撮らない）
+  if (browserMode === "cdp" && process.env.PARITY_CDP_CONNECTED !== "1") {
+    throw new Error(
+      "capture_conditions.browser is cdp but the browser was not connected over CDP: import test from the shared fixtures",
+    );
+  }
+  // cdp では、現側が撮った利用者環境と同じブラウザへ接続したかを確かめる（モードだけが揃って別の機械で撮ると、環境の差が差分に出る）
+  if (browserMode === "cdp") {
+    const identity = metadata.capture_conditions.browser_identity;
+    const product = page.context().browser()?.version();
+    const userAgent = await page.evaluate(() => navigator.userAgent);
+    // reduced UA は OS の版を固定値に縮めるので、product と userAgent だけでは OS の版・アーキテクチャが違う機械を見分けられない
+    const os = await readBrowserOs(page.context().browser());
+    if (identity && !Object.hasOwn(identity, "browser_os")) {
+      throw new Error(
+        "current side browser_identity has no browser_os: parity-suite で現側を撮り直す（描画するブラウザ側の OS を照合できない。手順の改訂 5）",
+      );
+    }
+    if (
+      !identity ||
+      identity.product !== product ||
+      identity.user_agent !== userAgent ||
+      !sameBrowserOs(identity.browser_os, os)
+    ) {
+      throw new Error(
+        `connected browser differs from the current side (current: ${JSON.stringify(identity)}, new: ${JSON.stringify({ product, user_agent: userAgent, browser_os: os })}): 新側 target の browser.cdp_url を現側と同じ利用者環境へ向ける`,
+      );
+    }
+  }
+}
+
+// 1 つの組の成果物（スクリーンショット・特性・aria スナップショット）を書き出す
+async function captureArtifacts(
+  page: import("@playwright/test").Page,
+  outDir: string,
+): Promise<void> {
+  // 撮影条件（アニメーション無効・マスク）は現側と同一。
+  // 出典: https://playwright.dev/docs/api/class-page#page-screenshot（animations / mask）
+  await page.screenshot({
+    path: join(outDir, "screenshot.png"),
+    // 現側が全画面で撮ったかビューポート内で撮ったかは capture_conditions.full_page が持つ。
+    // ここを決め打ちすると画像サイズが違い、条件一致検証を通り抜けたまま全ページが全面差分になる
+    fullPage: fullPage,
+    animations: "disabled",
+    mask: masks.map((m: { name: string }) => resolveLocator(page, m.name)),
+  });
+
+  // 特性は論理名 1 件ずつ渡して採る（まとめて渡すと 1 件の失敗で既採取分ごと失う）
+  const traits = [];
+  for (const name of metadata.traits.elements) {
+    traits.push(...(await captureTraits([{ name, locator: resolveLocator(page, name) }])));
+  }
+  writeJson(join(outDir, "traits.json"), traits);
+
+  // aria スナップショット（構造比較用）。出典: https://playwright.dev/docs/api/class-locator#locator-aria-snapshot
+  const aria = await page.locator("body").ariaSnapshot();
+  writeText(join(outDir, "aria.yaml"), aria);
 }
 
 function requireEnv(name: string): string {
