@@ -469,7 +469,7 @@ function assetProbeInPage() {
     resources: classified.resources,
     unclassifiedResources: classified.unclassified,
     resourceEntryCount: classified.entryCount,
-    // Resource Timing のバッファ容量は API から読めず（既定 250 件だが setResourceTimingBufferSize で変わる）、
+    // Resource Timing のバッファ容量は API から読めず（デフォルトは 250 件だが setResourceTimingBufferSize で変わる）、
     // 取得後に溢れの有無を証明する手段が無い。件数だけを返し、網羅性は unknown として扱わせる。
     resourcesCompleteness: "unknown",
     shadowRoots: roots.length - 1,

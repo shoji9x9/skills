@@ -14,9 +14,12 @@ import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import vm from "node:vm";
 import ts from "typescript";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import { runOxlint } from "../../gates/code/oxlint-plugin/run-oxlint.ts";
-import { pageFunctionSource } from "../../../skills/replace-strategy/scripts/lib/page-function.mjs";
+import {
+  pageFunctionSource,
+  runProbeCli,
+} from "../../../skills/replace-strategy/scripts/lib/page-function.mjs";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
@@ -467,4 +470,25 @@ test("role-probe の CLI: aria-labelledby・label・button の value・内容テ
 test("page/*.page.mjs: oxlint が宣言していない名前の参照と使われないヘルパーを報告しない（ページ用の override が当たる）", () => {
   const files = ["role-probe.page.mjs", "asset-probe.page.mjs"].map((f) => SCRIPTS + "page/" + f);
   expect(runOxlint(files, { timeout: CHILD_TIMEOUT_MS })).toEqual([]);
+});
+
+test("プローブの CLI: ソースを組み立てられないと、スタックトレースを出さずに理由を stderr に出して exit 2 で終わる", () => {
+  const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+  const stdout = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+  try {
+    const code = runProbeCli([], {
+      source: () => {
+        throw new Error("page/x.page.mjs が無い");
+      },
+      usage: "usage: x",
+    });
+    expect(code).toBe(2);
+    expect(stderr.mock.calls.map((c) => String(c[0]))).toEqual([
+      "ページ用のソースを組み立てられない: page/x.page.mjs が無い\n",
+    ]);
+    expect(stdout).not.toHaveBeenCalled();
+  } finally {
+    stderr.mockRestore();
+    stdout.mockRestore();
+  }
 });

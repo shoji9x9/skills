@@ -1950,7 +1950,7 @@ function readManifestArtifact(a, i, seenIds) {
   if (!nonEmptyString(a.id) || !nonEmptyString(a.pattern)) {
     throw new UsageError(`artifacts[${i}] の id / pattern が空`);
   }
-  // **id は一覧の中で一意**。重複を許すと「同じ id なら同じ項目」という前提が崩れ、
+  // **id は一覧の中で一意**。重複を許すと「同じ id なら同じ項目」という前提が成り立たなくなり、
   // 同じファイルに当たった突き合わせ方の違う 2 項目が無音で先勝ちに決まる
   // （緩い規則＝mutable_columns の多い方が先に来ると、厳しい規則が守るはずの列への破壊的編集が検出から外れる）。
   const id = String(a.id).trim();

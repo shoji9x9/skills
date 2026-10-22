@@ -469,23 +469,36 @@ function unreadableArtifact(slug, problem) {
 }
 
 /**
- * パスの状態を、在る（present）・リンク先の無いシンボリックリンク（dangling-link）・無い（missing）に分ける。
+ * パスの状態を、在る（present）・リンク先の無いシンボリックリンク（dangling-link）・無い（missing）・
+ * 調べられない（unreadable）に分ける。
  * statSync はリンクを辿るので、リンク先が無いと例外を投げる。そのときだけ lstatSync でパス自身がリンクかを見る。
- * 読めないパス（権限が無いなど）は、どちらの stat も例外を投げるので missing にする。
+ * 無いと言えるのは ENOENT・ENOTDIR のときだけで、それ以外の失敗（権限が無いなど）は unreadable にする。
+ * missing にすると、読めない成果物や台帳が「無い」として扱われ、判定から警告なしに外れる。
  * @param {string} path
- * @returns {"present" | "dangling-link" | "missing"}
+ * @returns {"present" | "dangling-link" | "missing" | "unreadable"}
  */
 export function pathState(path) {
   try {
     statSync(path);
     return "present";
-  } catch {
+  } catch (error) {
+    if (!isNotFound(error)) return "unreadable";
     try {
       return lstatSync(path).isSymbolicLink() ? "dangling-link" : "missing";
-    } catch {
-      return "missing";
+    } catch (lstatError) {
+      return isNotFound(lstatError) ? "missing" : "unreadable";
     }
   }
+}
+
+/**
+ * fs の例外が「パスが無い」ことを表すか。
+ * @param {unknown} error
+ * @returns {boolean}
+ */
+function isNotFound(error) {
+  const code = error instanceof Error && "code" in error ? error.code : undefined;
+  return code === "ENOENT" || code === "ENOTDIR";
 }
 
 /**
@@ -582,6 +595,9 @@ function readArtifact(parityDir, name, latestRevision) {
   const metadataState = pathState(path);
   if (metadataState === "dangling-link") {
     return unreadableArtifact(name, "metadata.json がリンク先の無いシンボリックリンク");
+  }
+  if (metadataState === "unreadable") {
+    return unreadableArtifact(name, "metadata.json の有無を調べられない（権限が無いなど）");
   }
   if (metadataState === "missing") return null;
   /** @type {unknown} */
@@ -785,6 +801,8 @@ function loadLedger({ ledgerPath, explicit, skillChangeIds, io: { out, fail } })
   if (!ledgerExists) {
     if (ledgerState === "dangling-link")
       return { code: fail(`${ledgerPath} がリンク先の無いシンボリックリンク`) };
+    if (ledgerState === "unreadable")
+      return { code: fail(`${ledgerPath} の有無を調べられない（権限が無いなど）`) };
     // 明示したパスが無いのは綴り・cwd の誤り。「台帳なし」として読むと台帳の未判断が警告なしに消える（--parity-dir と同じ扱い）。
     if (explicit) return { code: fail(`--ledger に渡した ${ledgerPath} が無い`) };
     return { ledger: { changes: [], records: [] }, ledgerExists };

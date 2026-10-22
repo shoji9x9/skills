@@ -125,6 +125,17 @@
       "expect_failing": [
         "pageFunctionSource: 最後の export の行と行全体がコメントの行を外して関数式で包み、トップレベルの宣言を同じ名前で呼び合って本体の返り値を返す"
       ]
+    },
+    {
+      "id": "probe-cli-source-error-uncaught",
+      "why": "ソースを組み立てられないときの例外を捕まえず、スタックトレースで終わる（使い方の終了コード 0 か 2 から外れる）",
+      "file": "skills/replace-strategy/scripts/lib/page-function.mjs",
+      "find": "  } catch (error) {\n    // ページ用のファイルが無い",
+      "replace": "  } catch (error) {\n    throw error;\n    // ページ用のファイルが無い",
+      "occurrences": 1,
+      "expect_failing": [
+        "プローブの CLI: ソースを組み立てられないと、スタックトレースを出さずに理由を stderr に出して exit 2 で終わる"
+      ]
     }
   ]
 }

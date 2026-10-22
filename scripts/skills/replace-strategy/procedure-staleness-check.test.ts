@@ -6,7 +6,7 @@
 // 最新の改訂で作った成果物・追加日より後に作った成果物・判断済みの組み合わせが exit 0 になることも確かめる。
 // これが無いと「常に落とす」実装と区別できない。
 
-import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { assert, test, expect } from "vitest";
 import {
@@ -564,3 +564,20 @@ test("pathState: ファイル・リンク先のあるリンクを present、リ�
   expect(pathState(join(dir, "target.md"))).toBe("present");
   expect(pathState(join(dir, "missing.md"))).toBe("missing");
 });
+
+// root は権限を無視して stat できるので、権限の無い状態を作れない。
+test.skipIf(process.getuid?.() === 0)(
+  "pathState: 権限が無くて調べられないパスを、無い（missing）ではなく unreadable にする",
+  () => {
+    const dir = makeTempDir("unreadable-");
+    const locked = join(dir, "locked");
+    mkdirSync(locked);
+    writeFileSync(join(locked, "metadata.json"), "{}");
+    chmodSync(locked, 0o000);
+    try {
+      expect(pathState(join(locked, "metadata.json"))).toBe("unreadable");
+    } finally {
+      chmodSync(locked, 0o755);
+    }
+  },
+);

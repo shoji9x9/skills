@@ -86,7 +86,18 @@ function runProbeCli(argv, { source, usage }) {
     process.stderr.write(`未知の引数: ${argv[0]}\n${usage}\n`);
     return 2;
   }
-  process.stdout.write(`${source()}\n`);
+  /** @type {string} */
+  let text;
+  try {
+    text = source();
+  } catch (error) {
+    // ページ用のファイルが無い・最後の行の export の形が違うなど。スタックトレースで終わらせず、理由を出して 2 を返す。
+    process.stderr.write(
+      `ページ用のソースを組み立てられない: ${error instanceof Error ? error.message : String(error)}\n`,
+    );
+    return 2;
+  }
+  process.stdout.write(`${text}\n`);
   return 0;
 }
 

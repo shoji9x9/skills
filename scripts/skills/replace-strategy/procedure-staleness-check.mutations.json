@@ -235,7 +235,7 @@
       "id": "dangling-metadata-skipped",
       "why": "metadata.json が壊れたリンクの機能を特性化前として黙って外す",
       "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
-      "find": "  if (metadataState === \"dangling-link\") {\n    return unreadableArtifact(name, \"metadata.json がリンク先の無いシンボリックリンク\");\n  }\n  if (metadataState === \"missing\") return null;",
+      "find": "  if (metadataState === \"dangling-link\") {\n    return unreadableArtifact(name, \"metadata.json がリンク先の無いシンボリックリンク\");\n  }\n  if (metadataState === \"unreadable\") {\n    return unreadableArtifact(name, \"metadata.json の有無を調べられない（権限が無いなど）\");\n  }\n  if (metadataState === \"missing\") return null;",
       "replace": "  if (metadataState !== \"present\") return null;",
       "occurrences": 1,
       "expect_failing": ["成果物を読めず対象かを決められない機能は合格として扱わず exit 3 にする"]
@@ -472,6 +472,17 @@
       "occurrences": 1,
       "expect_failing": [
         "pathState: ファイル・リンク先のあるリンクを present、リンク先の無いリンクを dangling-link、無いパスを missing にする"
+      ]
+    },
+    {
+      "id": "unreadable-path-as-missing",
+      "why": "権限が無くて stat できないパスを、無いパス（missing）として扱う（読めない成果物や台帳が判定から警告なしに外れる）",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "  return code === \"ENOENT\" || code === \"ENOTDIR\";",
+      "replace": "  return true;",
+      "occurrences": 1,
+      "expect_failing": [
+        "pathState: 権限が無くて調べられないパスを、無い（missing）ではなく unreadable にする"
       ]
     }
   ]
