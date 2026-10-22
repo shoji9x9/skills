@@ -223,7 +223,11 @@ jobs:
           effort: ${{ steps.settings.outputs.effort }}
 
       # `node-version` を省くと setup-node は何も入れず、ランナーの既定 Node に依存する。
-      # Copilot CLI は Node 22 以上を要求するので明示する。
+      # Copilot CLI は Node 22 以上を要求するので明示する。メジャーは、その条件を満たす LTS の 24 にする。
+      # `check-latest` が false（デフォルト）だと、setup-node はランナーのキャッシュに 24.x があればそれを使う。
+      # その場合、ランナーのイメージが更新されるまで、公開済みのセキュリティリリースより古い Node で
+      # Copilot CLI を動かし、Copilot の API へ接続する。
+      # true にして、キャッシュのバージョンが最新の 24.x でなければ取得させる。
       # `continue-on-error` を落とさない。カスタム `if:` でも暗黙の `success() &&` は外れないので、
       # ここが落ちるとジョブが失敗状態になり、後続の Issue 更新まで丸ごと skip される。
       # その結果、pending 一覧はできているのに、その週の追跡 Issue が作成も更新もクローズもされない。
@@ -232,7 +236,8 @@ jobs:
         continue-on-error: true
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "22"
+          node-version: "24"
+          check-latest: true
 
       - name: Run Copilot CLI
         id: run-copilot
