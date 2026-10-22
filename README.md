@@ -3,6 +3,21 @@
 Claude Code・Codex・GitHub Copilot に対応した、マルチエージェント向けの汎用スキル集。
 エージェントによる自律的な開発（Issue の起票・着手から実装・レビュー対応・リリースまで）に必要なスキルを提供する。
 
+リポジトリと各スキルは、章ごとのスライドで説明している。スライドの元のファイルと直し方は [`docs/slides/`](docs/slides/README.md) にある。
+
+| 章 | 日本語 | English |
+| --- | --- | --- |
+| 1. リポジトリの概要 | [スライド](https://shoji9x9.github.io/skills/docs/slides/#/ja/01-overview/1) | [Slides](https://shoji9x9.github.io/skills/docs/slides/#/en/01-overview/1) |
+| 2. multiagent-setup | [スライド](https://shoji9x9.github.io/skills/docs/slides/#/ja/02-multiagent-setup/1) | [Slides](https://shoji9x9.github.io/skills/docs/slides/#/en/02-multiagent-setup/1) |
+| 3. writing-style | [スライド](https://shoji9x9.github.io/skills/docs/slides/#/ja/03-writing-style/1) | [Slides](https://shoji9x9.github.io/skills/docs/slides/#/en/03-writing-style/1) |
+| 4. Issue から merge まで | [スライド](https://shoji9x9.github.io/skills/docs/slides/#/ja/04-issue-to-merge/1) | [Slides](https://shoji9x9.github.io/skills/docs/slides/#/en/04-issue-to-merge/1) |
+| 5. 依存の更新と脆弱性 | [スライド](https://shoji9x9.github.io/skills/docs/slides/#/ja/05-dependencies/1) | [Slides](https://shoji9x9.github.io/skills/docs/slides/#/en/05-dependencies/1) |
+| 6. 仕様を変えないリプレイス | [スライド](https://shoji9x9.github.io/skills/docs/slides/#/ja/06-replace/1) | [Slides](https://shoji9x9.github.io/skills/docs/slides/#/en/06-replace/1) |
+| 7. browser-test | [スライド](https://shoji9x9.github.io/skills/docs/slides/#/ja/07-browser-test/1) | [Slides](https://shoji9x9.github.io/skills/docs/slides/#/en/07-browser-test/1) |
+| 8. aws-architecture-diagram | [スライド](https://shoji9x9.github.io/skills/docs/slides/#/ja/08-aws-architecture-diagram/1) | [Slides](https://shoji9x9.github.io/skills/docs/slides/#/en/08-aws-architecture-diagram/1) |
+| 9. box | [スライド](https://shoji9x9.github.io/skills/docs/slides/#/ja/09-box/1) | [Slides](https://shoji9x9.github.io/skills/docs/slides/#/en/09-box/1) |
+| 10. リポジトリの工夫 | [スライド](https://shoji9x9.github.io/skills/docs/slides/#/ja/10-repository-practices/1) | [Slides](https://shoji9x9.github.io/skills/docs/slides/#/en/10-repository-practices/1) |
+
 ## 利用可能なスキル
 
 | スキル | 説明 |

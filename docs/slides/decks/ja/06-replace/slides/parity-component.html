@@ -1,0 +1,17 @@
+<section id="parity-component" style="background:#f6f7f4;color:#17202a;font-family:'IBM Plex Sans JP', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:48px">
+<h2 style="font-size:56px;font-weight:700;line-height:1.3">parity-component</h2>
+<p style="font-size:36px;font-weight:500;line-height:1.5">共通の UI 部品を画面より先に作るときに、現行から見た目の基準を採り、実装して照合する。</p>
+<div style="display:flex;flex-direction:row;gap:48px;align-items:start">
+<ul style="flex:1.4;font-size:30px;line-height:1.7">
+<li>部品 × ページの単位で、要素のスクリーンショットと状態ごとのスタイルを採る</li>
+<li>同じ部品をページごとに採って比べる。ページによって違う見た目（幅や色など）は部品の引数にし、どのページでも同じ見た目は部品の中に固定する</li>
+<li>実装した部品をカタログに置いて同じ条件で採り、差分がゼロになるまで照合する</li>
+<li>1 回で 1 部品を扱う</li>
+</ul>
+<div style="flex:1;display:flex;flex-direction:column;gap:12px">
+<p style="font-size:24px;font-weight:600;color:#5b6670">呼び出し方</p>
+<p style="font-family:'IBM Plex Mono', 'Courier New', monospace;font-size:28px;line-height:1.5;background:#ffffff;padding:24px;border:1px solid #c9cec7;border-radius:8px">parity-component capture<br>parity-component build</p>
+<p style="font-size:24px;line-height:1.5;color:#5b6670">部品を先に作らない方針なら使わない。機能ごとに parity-replace が作る</p>
+</div>
+</div>
+</section>

@@ -1,0 +1,17 @@
+<section id="parity-suite" style="background:#f6f7f4;color:#17202a;font-family:'IBM Plex Sans JP', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:48px">
+<h2 style="font-size:56px;font-weight:700;line-height:1.3">parity-suite</h2>
+<p style="font-size:36px;font-weight:500;line-height:1.5">Builds pass/fail criteria with Playwright against the current app, usable on both apps.</p>
+<div style="display:flex;flex-direction:row;gap:48px;align-items:start">
+<ul style="flex:1.4;font-size:30px;line-height:1.7">
+<li>Elements are referenced by logical name, so the new app only needs a mapping to reuse the criteria</li>
+<li>Records and replays API responses to pin down behavior</li>
+<li>Injects faults on purpose to confirm the criteria are strong enough to catch them</li>
+<li>Captures visual baselines and noise ranges, and hands them to parity-diff</li>
+</ul>
+<div style="flex:1;display:flex;flex-direction:column;gap:12px">
+<p style="font-size:24px;font-weight:600;color:#5b6670">How to invoke</p>
+<p style="font-family:'IBM Plex Mono', 'Courier New', monospace;font-size:28px;line-height:1.5;background:#ffffff;padding:24px;border:1px solid #c9cec7;border-radius:8px">parity-suite --feature &lt;slug&gt;</p>
+<p style="font-size:24px;line-height:1.5;color:#5b6670">Handles one feature per run. Does not touch the new app</p>
+</div>
+</div>
+</section>

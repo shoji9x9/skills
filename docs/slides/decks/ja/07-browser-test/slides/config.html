@@ -1,0 +1,12 @@
+<section id="config" style="background:#f6f7f4;color:#17202a;font-family:'IBM Plex Sans JP', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:48px">
+<h2 style="font-size:56px;font-weight:700;line-height:1.3">設定</h2>
+<p style="font-size:36px;font-weight:500;line-height:1.5">環境ごとに、URL・起動の方法・禁止する操作を設定ファイルの environments に書く。</p>
+<table style="font-size:26px;color:#17202a;background:#ffffff;border:1px solid #c9cec7">
+<tr><th style="width:26%">キー</th><th style="width:74%">書くもの</th></tr>
+<tr><td>name・default</td><td>環境の名前と、引数を省いたときに使う環境か</td></tr>
+<tr><td>url・check_urls</td><td>開く URL と、サーバーが動いているかを確かめる URL</td></tr>
+<tr><td>pre_commands・start</td><td>起動の前に実行するコマンド（build など）と、起動のコマンド。スキルは実行せず、利用者に示す</td></tr>
+<tr><td>auth</td><td>認証が要るか（none か user）</td></tr>
+<tr><td>forbidden_actions</td><td>その環境で実行しない画面の操作</td></tr>
+</table>
+</section>

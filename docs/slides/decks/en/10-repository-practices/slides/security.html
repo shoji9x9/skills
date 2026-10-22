@@ -1,0 +1,10 @@
+<section id="security" style="background:#f6f7f4;color:#17202a;font-family:'IBM Plex Sans JP', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:48px">
+<h2 style="font-size:56px;font-weight:700;line-height:1.3">Security</h2>
+<table style="font-size:26px;color:#17202a;background:#ffffff;border:1px solid #c9cec7">
+<tr><th style="width:28%">Target</th><th style="width:72%">How it works</th></tr>
+<tr><td>Secrets</td><td>gitleaks scans before each commit and in CI</td></tr>
+<tr><td>GitHub Actions</td><td>pinact pins each Action to a SHA. ghalint and actionlint check the workflows</td></tr>
+<tr><td>Dependencies</td><td>CI checks that they match the lockfile and verifies registry signatures. The Chapter 5 skills file issues for vulnerabilities</td></tr>
+<tr><td>main branch</td><td>A ruleset forbids force push and deletion, and requires the required checks to pass before merge</td></tr>
+</table>
+</section>

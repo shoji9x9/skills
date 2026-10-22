@@ -1,0 +1,17 @@
+<section id="parity-replace" style="background:#f6f7f4;color:#17202a;font-family:'IBM Plex Sans JP', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:48px">
+<h2 style="font-size:56px;font-weight:700;line-height:1.3">parity-replace</h2>
+<p style="font-size:36px;font-weight:500;line-height:1.5">Implements the new app against parity-suite's logical names. A thin layer that handles only what is specific to replacement.</p>
+<div style="display:flex;flex-direction:row;gap:48px;align-items:start">
+<ul style="flex:1.4;font-size:30px;line-height:1.7">
+<li>Splits a feature into phases by page</li>
+<li>Maps new app elements only where they differ from the logical names</li>
+<li>A reviewer separate from the implementer reviews the uncommitted changes</li>
+<li>Done when the suite passes on the new app, the verify commands pass, and the acceptance criteria are checked</li>
+</ul>
+<div style="flex:1;display:flex;flex-direction:column;gap:12px">
+<p style="font-size:24px;font-weight:600;color:#5b6670">How to invoke</p>
+<p style="font-family:'IBM Plex Mono', 'Courier New', monospace;font-size:28px;line-height:1.5;background:#ffffff;padding:24px;border:1px solid #c9cec7;border-radius:8px">parity-replace --feature &lt;slug&gt;</p>
+<p style="font-size:24px;line-height:1.5;color:#5b6670">issue-start handles the branch, commits, and PR</p>
+</div>
+</div>
+</section>

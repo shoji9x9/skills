@@ -1,0 +1,54 @@
+{
+  "v": 4,
+  "createdOnFiles": { "v": 1, "at": "2026-10-22T12:30:00Z" },
+  "lists": "css",
+  "title": "Chapter 6 Replacement without changing behavior",
+  "cover": "cover",
+  "order": [
+    "cover",
+    "problem",
+    "idea",
+    "order",
+    "replace-strategy",
+    "current-environment-bootstrap",
+    "golden-dataset",
+    "parity-component",
+    "parity-suite",
+    "parity-replace",
+    "parity-diff",
+    "human",
+    "output",
+    "next"
+  ],
+  "sections": {
+    "s1": { "description": "The problem, approach, overall order", "start": "cover" },
+    "s2": {
+      "description": "Measure, then prepare the baseline environment and data",
+      "start": "replace-strategy"
+    },
+    "s3": {
+      "description": "For each feature, build pass/fail criteria, implement the new app, check the differences",
+      "start": "parity-component"
+    },
+    "s4": { "description": "Where people decide, outputs, related skills", "start": "human" }
+  },
+  "faces": {
+    "ibm-plex-sans-jp": {
+      "family": "IBM Plex Sans JP",
+      "href": "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap"
+    },
+    "ibm-plex-mono": {
+      "family": "IBM Plex Mono",
+      "href": "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&display=swap"
+    }
+  },
+  "designSystems": [
+    {
+      "title": "shoji9x9 Skills",
+      "namespace": "shoji9x9skills",
+      "artifact": "https://claude.ai/artifact/QpiRXnJkvxeKg5dceqA325",
+      "version": "1792660505-b42b",
+      "copiedAt": "2026-10-22T12:30:00Z"
+    }
+  ]
+}

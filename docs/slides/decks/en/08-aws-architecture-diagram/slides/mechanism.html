@@ -1,0 +1,30 @@
+<section id="mechanism" style="background:#f6f7f4;color:#17202a;font-family:'IBM Plex Sans JP', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:48px">
+<h2 style="font-size:56px;font-weight:700;line-height:1.3">How it works</h2>
+<p style="font-size:36px;font-weight:500;line-height:1.5">The agent writes the spec, and the bundled engine creates the SVG.</p>
+<div style="display:flex;flex-direction:row;gap:16px;align-items:center">
+<div style="flex:1;align-self:stretch;display:flex;flex-direction:column;gap:12px;background:#ffffff;padding:32px 24px;border:1px solid #c9cec7;border-radius:8px">
+<p style="font-size:24px;font-weight:600;color:#5b6670">Source</p>
+<p style="font-size:30px;line-height:1.5">IaC or a description</p>
+<p style="font-size:24px;line-height:1.5;color:#5b6670">CDK, Terraform, CloudFormation, existing diagrams</p>
+</div>
+<svg aria-label="To the next step" width="56" height="32" viewBox="0 0 56 32" style="width:56px;height:32px"><path d="M 4 16 L 40 16" fill="none" stroke="#1f5fbf" stroke-width="4"/><path d="M 36 6 L 52 16 L 36 26 Z" fill="#1f5fbf"/></svg>
+<div style="flex:1;align-self:stretch;display:flex;flex-direction:column;gap:12px;background:#ffffff;padding:32px 24px;border:1px solid #c9cec7;border-radius:8px">
+<p style="font-size:24px;font-weight:600;color:#1f5fbf">spec</p>
+<p style="font-size:30px;line-height:1.5">Nodes, edges, groups</p>
+<p style="font-size:24px;line-height:1.5;color:#5b6670">The agent reads the source and writes it by the diagram rules</p>
+</div>
+<svg aria-label="To the next step" width="56" height="32" viewBox="0 0 56 32" style="width:56px;height:32px"><path d="M 4 16 L 40 16" fill="none" stroke="#1f5fbf" stroke-width="4"/><path d="M 36 6 L 52 16 L 36 26 Z" fill="#1f5fbf"/></svg>
+<div style="flex:1;align-self:stretch;display:flex;flex-direction:column;gap:12px;background:#ffffff;padding:32px 24px;border:1px solid #c9cec7;border-radius:8px">
+<p style="font-size:24px;font-weight:600;color:#2f7d4f">SVG</p>
+<p style="font-size:30px;line-height:1.5">One diagram per environment</p>
+<p style="font-size:24px;line-height:1.5;color:#5b6670">The bundled engine generates it from the spec</p>
+</div>
+<svg aria-label="To the next step" width="56" height="32" viewBox="0 0 56 32" style="width:56px;height:32px"><path d="M 4 16 L 40 16" fill="none" stroke="#1f5fbf" stroke-width="4"/><path d="M 36 6 L 52 16 L 36 26 Z" fill="#1f5fbf"/></svg>
+<div style="flex:1;align-self:stretch;display:flex;flex-direction:column;gap:12px;background:#ffffff;padding:32px 24px;border:1px solid #c9cec7;border-radius:8px">
+<p style="font-size:24px;font-weight:600;color:#5b6670">Review</p>
+<p style="font-size:30px;line-height:1.5">Check it visually as PNG</p>
+<p style="font-size:24px;line-height:1.5;color:#5b6670">If the layout is off, fix spec coordinates and regenerate</p>
+</div>
+</div>
+<p style="font-size:26px;line-height:1.5;color:#5b6670">The skill does not parse IaC automatically, so it works the same with CDK or Terraform. Image-reading tools cannot render SVG, so the skill converts to PNG first.</p>
+</section>

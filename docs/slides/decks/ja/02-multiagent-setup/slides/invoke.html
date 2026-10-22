@@ -1,0 +1,12 @@
+<section id="invoke" style="background:#f6f7f4;color:#17202a;font-family:'IBM Plex Sans JP', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:40px">
+<h2 style="font-size:56px;font-weight:700;line-height:1.3">呼び出し方</h2>
+<p style="font-size:36px;font-weight:500;line-height:1.5">「プロジェクトを初期化して」「ルールを追加して」のように頼む。対象ごとに作るものが決まっている。</p>
+<table style="font-size:26px;color:#17202a;background:#ffffff;border:1px solid #c9cec7">
+<tr><th style="width:18%">対象</th><th style="width:82%">作るもの</th></tr>
+<tr><td>スキル</td><td>.agents/skills/ に実体を置き、.claude/skills/ からリンクする</td></tr>
+<tr><td>ルール</td><td>.agents/rules/ に実体を置き、.claude/rules/ と .github/instructions/ からリンクする</td></tr>
+<tr><td>Hooks</td><td>.agents/hooks/scripts/ に共通のスクリプトを置き、各エージェントの設定ファイルから呼ぶ</td></tr>
+<tr><td>ドキュメント</td><td>AGENTS.md を決まった構成で書き、どれにするかの判断の基準と、応答の方針の節を足す。CLAUDE.md と .github/copilot-instructions.md には差分だけを書く</td></tr>
+<tr><td>全体</td><td>プロジェクトの初期化。上の 4 つをまとめて作る</td></tr>
+</table>
+</section>

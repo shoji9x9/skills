@@ -1,0 +1,10 @@
+<section id="merge-judge" style="background:#f6f7f4;color:#17202a;font-family:'IBM Plex Sans JP', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:48px">
+<h2 style="font-size:56px;font-weight:700;line-height:1.3">マージするかの判断</h2>
+<p style="font-size:36px;font-weight:500;line-height:1.5">更新の種類ごとに、確かめることを分ける。CI が通っていなければ、どれもマージしない。</p>
+<table style="font-size:26px;color:#17202a;background:#ffffff;border:1px solid #c9cec7">
+<tr><th style="width:24%">更新の種類</th><th style="width:40%">確かめること</th><th style="width:36%">扱い</th></tr>
+<tr><td>1.0 以上のマイナー・パッチ</td><td>changelog がバグ修正や小さな改善の中心か</td><td>比較的安全な側</td></tr>
+<tr><td>0.x のマイナー・パッチ</td><td>API の変更・削除・挙動の変更があるか</td><td>判断できなければ、マージせずに確かめる</td></tr>
+<tr><td>major</td><td>挙げられた破壊的な変更が、使用箇所に当たるか</td><td>当たれば、マージせずに必要な修正を PR に書く</td></tr>
+</table>
+</section>

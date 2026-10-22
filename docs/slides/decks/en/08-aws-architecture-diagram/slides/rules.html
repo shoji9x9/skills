@@ -1,0 +1,12 @@
+<section id="rules" style="background:#f6f7f4;color:#17202a;font-family:'IBM Plex Sans JP', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:48px">
+<h2 style="font-size:56px;font-weight:700;line-height:1.3">Diagram rules</h2>
+<p style="font-size:36px;font-weight:500;line-height:1.5">The agent always checks the diagram rules when it writes the spec or fixes a diagram.</p>
+<table style="font-size:26px;color:#17202a;background:#ffffff;border:1px solid #c9cec7">
+<tr><th style="width:26%">Aspect</th><th style="width:74%">Rule</th></tr>
+<tr><td>Crossings</td><td>Minimizing crossings comes first. A remaining crossing gets a jump mark to show the lines do not connect</td></tr>
+<tr><td>Line shape</td><td>Lines are horizontal or vertical only. The engine stops with an error on diagonal lines</td></tr>
+<tr><td>Alignment</td><td>Nodes in the same layer share x or y and sit on a grid</td></tr>
+<tr><td>Labels</td><td>Node labels go on a side with no lines. Line labels avoid bend points</td></tr>
+<tr><td>Spacing</td><td>Parallel lines are at least 20px apart. The canvas has at least 50px of margin</td></tr>
+</table>
+</section>

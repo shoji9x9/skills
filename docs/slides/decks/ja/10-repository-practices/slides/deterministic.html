@@ -1,0 +1,12 @@
+<section id="deterministic" style="background:#f6f7f4;color:#17202a;font-family:'IBM Plex Sans JP', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:48px">
+<h2 style="font-size:56px;font-weight:700;line-height:1.3">確率的な挙動に頼らない</h2>
+<p style="font-size:36px;font-weight:500;line-height:1.5">エージェントの挙動は確率的なので、守らせたいことは指示だけで済ませず、ツールの決定論的な挙動に寄せる。</p>
+<table style="font-size:26px;color:#17202a;background:#ffffff;border:1px solid #c9cec7">
+<tr><th style="width:30%">守らせたいこと</th><th style="width:70%">決定論的な仕組み</th></tr>
+<tr><td>リポジトリの規約</td><td>pre-commit と CI のチェックで確かめる</td></tr>
+<tr><td>使わない語</td><td>文書は textlint で、人への応答は Stop の Hook で検出する</td></tr>
+<tr><td>失敗からの学び</td><td>commit の前の Hook が、学びの抽出を促す</td></tr>
+<tr><td>新旧の差分（第 6 章）</td><td>差分はツールが検出し、モデルは分類だけを行う</td></tr>
+<tr><td>構成図（第 8 章）</td><td>エージェントは spec を書き、図はエンジンが描く</td></tr>
+</table>
+</section>

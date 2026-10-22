@@ -1,0 +1,12 @@
+<section id="rules" style="background:#f6f7f4;color:#17202a;font-family:'IBM Plex Sans JP', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:48px">
+<h2 style="font-size:56px;font-weight:700;line-height:1.3">Safety rules</h2>
+<p style="font-size:36px;font-weight:500;line-height:1.5">Per-environment configuration and human approval decide which operations may run.</p>
+<table style="font-size:26px;color:#17202a;background:#ffffff;border:1px solid #c9cec7">
+<tr><th style="width:30%">Operation</th><th style="width:70%">Handling</th></tr>
+<tr><td>No side effects</td><td>Runs without approval (navigating, typing a search, switching tabs, choosing a filter, and so on)</td></tr>
+<tr><td>Operations with side effects</td><td>For operations that write, charge, create, or notify ("Save", "Delete", "Send"), the skill explains what and why, and runs them after approval</td></tr>
+<tr><td>Forbidden operations</td><td>Operations matching the environment's forbidden_actions do not run. The skill asks the user to do them</td></tr>
+<tr><td>Unconfigured environment</td><td>Treated as read-only</td></tr>
+</table>
+<p style="font-size:26px;line-height:1.5;color:#5b6670">A local environment may still use a shared DB or external APIs. Unless the skill can confirm they are separate, it assumes the shared environment is affected and asks for approval.</p>
+</section>

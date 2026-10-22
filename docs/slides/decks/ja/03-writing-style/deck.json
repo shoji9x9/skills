@@ -1,0 +1,32 @@
+{
+  "v": 4,
+  "createdOnFiles": { "v": 1, "at": "2026-10-22T11:00:00Z" },
+  "lists": "css",
+  "title": "第 3 章 writing-style",
+  "cover": "cover",
+  "order": ["cover", "problem", "invoke", "rules", "reread", "extend", "flow", "output", "next"],
+  "sections": {
+    "s1": { "description": "困りごとと呼び出し方", "start": "cover" },
+    "s2": { "description": "規則と読み直し", "start": "rules" },
+    "s3": { "description": "拡張・流れ・成果物・つながるスキル", "start": "extend" }
+  },
+  "faces": {
+    "ibm-plex-sans-jp": {
+      "family": "IBM Plex Sans JP",
+      "href": "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap"
+    },
+    "ibm-plex-mono": {
+      "family": "IBM Plex Mono",
+      "href": "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&display=swap"
+    }
+  },
+  "designSystems": [
+    {
+      "title": "shoji9x9 Skills",
+      "namespace": "shoji9x9skills",
+      "artifact": "https://claude.ai/artifact/QpiRXnJkvxeKg5dceqA325",
+      "version": "1792660505-b42b",
+      "copiedAt": "2026-10-22T11:00:00Z"
+    }
+  ]
+}

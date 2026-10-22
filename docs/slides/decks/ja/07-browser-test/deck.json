@@ -1,0 +1,33 @@
+{
+  "v": 4,
+  "createdOnFiles": { "v": 1, "at": "2026-10-22T12:00:00Z" },
+  "lists": "css",
+  "title": "第 7 章 browser-test",
+  "cover": "cover",
+  "order": ["cover", "problem", "invoke", "flow", "rules", "config", "human", "output", "next"],
+  "sections": {
+    "s1": { "description": "困りごと", "start": "cover" },
+    "s2": { "description": "呼び出し方と流れ", "start": "invoke" },
+    "s3": { "description": "安全のための決まりと設定", "start": "rules" },
+    "s4": { "description": "人が判断する点・成果物・つながるスキル", "start": "human" }
+  },
+  "faces": {
+    "ibm-plex-sans-jp": {
+      "family": "IBM Plex Sans JP",
+      "href": "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap"
+    },
+    "ibm-plex-mono": {
+      "family": "IBM Plex Mono",
+      "href": "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&display=swap"
+    }
+  },
+  "designSystems": [
+    {
+      "title": "shoji9x9 Skills",
+      "namespace": "shoji9x9skills",
+      "artifact": "https://claude.ai/artifact/QpiRXnJkvxeKg5dceqA325",
+      "version": "1792660505-b42b",
+      "copiedAt": "2026-10-22T12:00:00Z"
+    }
+  ]
+}
