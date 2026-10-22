@@ -367,8 +367,7 @@ function expectationsOf({
     );
   }
 
-  const expectations = assertions.map((text) => ({ text, ...verdicts.get(text) }));
-  return expectations;
+  return assertions.map((text) => ({ text, ...verdicts.get(text) }));
 }
 
 /** 採点の内訳を数え、`grading.summary` の件数と `pass_rate` が内訳と一致することを確かめる。 */
@@ -670,8 +669,7 @@ function runsPerConfigurationOf(perPair: Map<string, number>): number {
         "）。揃えるか iteration を分ける",
     );
   }
-  const runsPerConfiguration = [...counts][0];
-  return runsPerConfiguration;
+  return [...counts][0];
 }
 
 /** 同じ (eval_id, configuration, run_number) の run が 2 つのディレクトリから来ていないことを確かめる。 */

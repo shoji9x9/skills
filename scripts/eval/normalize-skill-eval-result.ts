@@ -1279,20 +1279,20 @@ function skillContentSeen(outputs: string[], contentIndex: SkillContentIndex): s
   return [...seen].sort();
 }
 
-// A symlink is followed: `isDirectory()` on the entry reports the link itself, so a
-// linked skill directory would drop out of the lines taken out of the index without a
-// word (build-skill-eval-benchmark.ts `listDirs` hit the same). A dangling link throws.
-// `ancestors` holds the real paths above the current one, so a link back to itself or
-// an ancestor is not walked again (it would recurse until ELOOP). It is not a global
-// visited set: two sibling links to one directory must both be listed
-// (check-skill-checks.ts `listFiles` keeps the same rule).
+/** root の下のファイルを、root からの相対パスで返す（シンボリックリンクの扱いは collectFiles）。 */
 function listFiles(root: string): string[] {
   const files: string[] = [];
   collectFiles({ root, files }, root, new Set<string>());
   return files;
 }
 
-/** current の下のファイルを、walk.root からの相対パスにして walk.files に足す。 */
+/**
+ * current の下のファイルを、walk.root からの相対パスにして walk.files に足す。
+ * シンボリックリンクはたどる。エントリの `isDirectory()` はリンク自身を見るので、たどらないとリンクしたスキルのディレクトリが警告なしに抜ける。
+ * build-skill-eval-benchmark.ts の `listDirs` も同じ問題に当たった。リンク先の無いリンクは例外にする。
+ * `ancestors` は今の位置より上の実パスで、自分か祖先を指すリンクは歩き直さない（ELOOP まで再帰するため）。
+ * 全体で 1 つの訪問済みの集合にはしない。同じディレクトリを指す兄弟のリンクは、どちらも挙げる（check-skill-checks.ts の `listFiles` と同じ規則）。
+ */
 function collectFiles(
   walk: { root: string; files: string[] },
   current: string,

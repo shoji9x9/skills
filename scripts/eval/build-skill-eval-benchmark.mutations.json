@@ -9,8 +9,8 @@
       "id": "TEXT-KEY",
       "why": "判定をテキストではなく位置（index）で対応づける",
       "file": "scripts/eval/build-skill-eval-benchmark.ts",
-      "find": "  const expectations = assertions.map((text) => ({ text, ...verdicts.get(text) }));",
-      "replace": "  const ordered = [...verdicts.values()];\n  const expectations = assertions.map((text, i) => ({ text, ...ordered[i] }));",
+      "find": "  return assertions.map((text) => ({ text, ...verdicts.get(text) }));",
+      "replace": "  const ordered = [...verdicts.values()];\n  return assertions.map((text, i) => ({ text, ...ordered[i] }));",
       "occurrences": 1,
       "expect_failing": ["集計（揃った iteration） 判定が並べ替わっていてもテキストで対応づける"]
     },
@@ -90,8 +90,8 @@
       "id": "RPC",
       "why": "runs_per_configuration を 3 に決め打ちする",
       "file": "scripts/eval/build-skill-eval-benchmark.ts",
-      "find": "  const runsPerConfiguration = [...counts][0];",
-      "replace": "  const runsPerConfiguration = 3;",
+      "find": "  return [...counts][0];",
+      "replace": "  return 3;",
       "occurrences": 1,
       "expect_failing": [
         "集計（揃った iteration） run の並び・evals_run・統計・Delta を固定する",
