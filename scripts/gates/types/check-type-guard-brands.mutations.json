@@ -95,8 +95,8 @@
       "id": "OR-LEFT-ONLY",
       "why": "|| の右側の種類を数えない",
       "file": "scripts/gates/types/check-type-guard-brands.ts",
-      "find": "acceptedKinds(e.right, name, params, checker, seen),",
-      "replace": "new Set<string>(),",
+      "find": "acceptedKinds(e.right, name, ctx)",
+      "replace": "new Set<string>()",
       "occurrences": 1,
       "expect_failing": [
         "判定が型と一致するものと対象外のものは検出しない（TypeScript）: typeof と null",
@@ -242,8 +242,8 @@
       "id": "PARAM-BY-NAME",
       "why": "型述語の引数を、位置ではなく型述語に書いた名前で本体に対応づける",
       "file": "scripts/gates/types/check-type-guard-brands.ts",
-      "find": "acceptedKinds(body, param.name.text, params, checker, new Set([node]))",
-      "replace": "acceptedKinds(body, pred.parameterName, params, checker, new Set([node]))",
+      "find": "acceptedKinds(body, param.name.text, { params, checker, seen: new Set([node]) })",
+      "replace": "acceptedKinds(body, pred.parameterName, { params, checker, seen: new Set([node]) })",
       "occurrences": 1,
       "expect_failing": [
         "判定が型と一致する型ガードを誤って検出しない: 文脈の型の引数名が実装と違う",
@@ -375,8 +375,8 @@
       "id": "NAMED-NEGATION-BY-PARAM",
       "why": "名前で渡した型ガードの否定を、その型ガードの引数の宣言した型から差し引いて読む",
       "file": "scripts/gates/types/check-type-guard-brands.ts",
-      "find": "acceptedKinds(body, param.name.text, null, checker, new Set([...seen, fn]))",
-      "replace": "acceptedKinds(body, param.name.text, new Set([\"string\", \"null\"]), checker, new Set([...seen, fn]))",
+      "find": "acceptedKinds(body, param.name.text, { checker, seen: new Set([...seen, fn]) })",
+      "replace": "acceptedKinds(body, param.name.text, { params: new Set([\"string\", \"null\"]), checker, seen: new Set([...seen, fn]) })",
       "occurrences": 1,
       "expect_failing": [
         "every に名前で渡した型ガードの判定が型と一致しなければ違反にする: 引数の型から null を除く否定の要素の型ガード（要素はどの種類でもありうる）"

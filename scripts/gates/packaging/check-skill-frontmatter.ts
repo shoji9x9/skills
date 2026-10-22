@@ -57,36 +57,36 @@ export function checkFrontmatter(path: string, content: string) {
     return violations;
   }
 
-  // (b) description の UTF-8 バイト長。
-  if (!("description" in data)) {
-    violations.push("description が無い");
-  } else if (typeof data.description !== "string") {
-    violations.push("description が文字列でない");
-  } else {
-    const bytes = Buffer.byteLength(data.description, "utf8");
-    if (bytes > DESCRIPTION_MAX_BYTES) {
-      violations.push(
-        `description の UTF-8 バイト長が ${bytes} で上限 ${DESCRIPTION_MAX_BYTES} を超過（${bytes - DESCRIPTION_MAX_BYTES} バイト超過）`,
-      );
-    }
-  }
+  violations.push(...descriptionViolations(data), ...nameViolations(data));
+  return violations;
+}
 
-  // (c) name の必須・形式。
-  if (!("name" in data)) {
-    violations.push("name が無い");
-  } else if (typeof data.name !== "string") {
-    violations.push("name が文字列でない");
-  } else {
-    if (!NAME_RE.test(data.name)) {
-      violations.push(`name「${data.name}」は小文字英数字とハイフンのみ使える`);
-    }
-    if (data.name.length > NAME_MAX_LENGTH) {
-      violations.push(
-        `name「${data.name}」が ${data.name.length} 文字で上限 ${NAME_MAX_LENGTH} 文字を超過`,
-      );
-    }
+/** (b) description の有無・型と、UTF-8 バイト長を確かめる。 */
+function descriptionViolations(data: Record<string, unknown>): string[] {
+  if (!("description" in data)) return ["description が無い"];
+  if (typeof data.description !== "string") return ["description が文字列でない"];
+  const bytes = Buffer.byteLength(data.description, "utf8");
+  if (bytes > DESCRIPTION_MAX_BYTES) {
+    return [
+      `description の UTF-8 バイト長が ${bytes} で上限 ${DESCRIPTION_MAX_BYTES} を超過（${bytes - DESCRIPTION_MAX_BYTES} バイト超過）`,
+    ];
   }
+  return [];
+}
 
+/** (c) name の有無・型と、形式（小文字英数字とハイフン・64 文字以内）を確かめる。 */
+function nameViolations(data: Record<string, unknown>): string[] {
+  if (!("name" in data)) return ["name が無い"];
+  if (typeof data.name !== "string") return ["name が文字列でない"];
+  const violations: string[] = [];
+  if (!NAME_RE.test(data.name)) {
+    violations.push(`name「${data.name}」は小文字英数字とハイフンのみ使える`);
+  }
+  if (data.name.length > NAME_MAX_LENGTH) {
+    violations.push(
+      `name「${data.name}」が ${data.name.length} 文字で上限 ${NAME_MAX_LENGTH} 文字を超過`,
+    );
+  }
   return violations;
 }
 

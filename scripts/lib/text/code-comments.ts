@@ -117,7 +117,8 @@ export function commentMarkdown(path: string, source: string): CommentMarkdown {
   const lines: number[] = [];
   const columns: number[] = [];
   const starts: number[] = [];
-  const emit = (text: string, line: number, column: number, start = column + 1) => {
+  // start を省いた行（段落の間の空行とディレクティブ）は、文章が桁 column の直後から始まるとして扱う。
+  const emit = ({ text, line, column, start = column + 1 }: Omit<Piece, "trailing">) => {
     md.push(text);
     lines.push(line);
     columns.push(column);
@@ -127,9 +128,10 @@ export function commentMarkdown(path: string, source: string): CommentMarkdown {
     const directive = directiveOf(block[0]);
     // 置き換える前の文章で見る（JSDoc の型を置き換えた `` `型` `` を日本語として数えない）。
     if (!directive && !block.some((p) => JAPANESE.test(p.original ?? p.text))) continue;
-    if (md.length) emit("", block[0].line, 0);
-    if (directive) emit(`<!-- textlint-${directive} -->`, block[0].line, 0);
-    else for (const p of block) emit(p.text, p.line, p.column, p.start);
+    const line = block[0].line;
+    if (md.length) emit({ text: "", line, column: 0 });
+    if (directive) emit({ text: `<!-- textlint-${directive} -->`, line, column: 0 });
+    else for (const p of block) emit(p);
   }
   return { markdown: md.join("\n"), lines, columns, starts };
 }
@@ -201,74 +203,97 @@ export function jsCommentRanges(source: string, path: string): ts.CommentRange[]
   return outer;
 }
 
+/** 位置（0 始まり）を含む行の番号（0 始まり）。starts は lineStarts の表で、二分探索で探す。 */
+function lineIndexOf(starts: readonly number[], pos: number): number {
+  let lo = 0;
+  let hi = starts.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (starts[mid] <= pos) lo = mid;
+    else hi = mid - 1;
+  }
+  return lo;
+}
+
+/** JavaScript・TypeScript のコメントを、1 行分ずつの部分にする。 */
 function jsComments(source: string, path: string): Piece[] {
   const starts = lineStarts(source);
-  const lineOf = (pos: number) => {
-    let lo = 0;
-    let hi = starts.length - 1;
-    while (lo < hi) {
-      const mid = (lo + hi + 1) >> 1;
-      if (starts[mid] <= pos) lo = mid;
-      else hi = mid - 1;
-    }
-    return lo;
-  };
   const pieces: Piece[] = [];
   for (const r of jsCommentRanges(source, path)) {
-    const raw = source.slice(r.pos, r.end);
-    const first = lineOf(r.pos);
-    if (r.kind === ts.SyntaxKind.SingleLineCommentTrivia) {
-      const m = raw.match(/^\/\/ ?/);
-      if (!m) throw new Error(`${path}: 1 行のコメントが // で始まらない（${first + 1} 行目）`);
-      pieces.push({
-        line: first,
-        column: r.pos - starts[first] + m[0].length,
-        text: raw.slice(m[0].length),
-        trailing: afterCode(source, starts[first], r.pos),
-      });
-      continue;
-    }
-    // ブロックコメント: 開始の `/*`・`/**`、終わりの `*/`、各行の先頭の ` * ` を外す。
-    // `/**/` の `/**` を開始として読まない（残った `/` が本文になる）。
-    const opened = raw.match(/^\/\*(?:\*(?!\/))?/);
-    if (!opened)
-      throw new Error(`${path}: ブロックコメントが /* で始まらない（${first + 1} 行目）`);
-    const open = opened[0];
-    const body = " ".repeat(open.length) + raw.slice(open.length).replace(/\*\/$/, "");
-    let typeDepth = 0;
-    body.split("\n").forEach((part, i) => {
-      const lead = i === 0 ? part.match(/^\s*/) : part.match(/^\s*(?:\*(?!\*) ?)?/);
-      // どちらの正規表現も空の文字列に一致できるので、必ず一致する。
-      if (!lead)
-        throw new Error(`${path}: 行頭の空白の正規表現が一致しない（${first + i + 1} 行目）`);
-      const text = part.slice(lead[0].length).trimEnd();
-      if (!text) return;
-      const column = i === 0 ? r.pos - starts[first] + lead[0].length : lead[0].length;
-      const trailing = i === 0 && afterCode(source, starts[first], r.pos);
-      // JSDoc のタグは `/**` のコメントにだけ書く。`//` や `/*` の行頭の `@` は文章として読む。
-      // `/**` なら置き換えた結果（Replaced）にする。代入した後は Replaced として読む（depth がある）。
-      let piece: Replaced | { text: string; column: number; start?: undefined; tag?: undefined } = {
-        text,
-        column,
-      };
-      if (open === "/**") {
-        piece =
-          typeDepth > 0
-            ? typeContinuationAsCode(text, column, typeDepth)
-            : jsdocTypeAsCode(text, column);
-        typeDepth = piece.depth;
-      }
-      pieces.push({
-        line: first + i,
-        text: piece.text,
-        original: text,
-        column: piece.column,
-        start: piece.start,
-        tag: piece.tag,
-        trailing,
-      });
-    });
+    const comment = { source, path, starts, range: r };
+    if (r.kind === ts.SyntaxKind.SingleLineCommentTrivia) pieces.push(lineCommentPiece(comment));
+    else pieces.push(...blockCommentPieces(comment));
   }
+  return pieces;
+}
+
+/** 1 つのコメントの範囲と、それを読むのに使うファイルの中身・パス・行の開始位置の表。 */
+type JsComment = {
+  source: string;
+  path: string;
+  starts: readonly number[];
+  range: ts.CommentRange;
+};
+
+/** `//` の 1 行のコメントを、`//` と直後の空白 1 つを外した部分にする。 */
+function lineCommentPiece({ source, path, starts, range: r }: JsComment): Piece {
+  const raw = source.slice(r.pos, r.end);
+  const first = lineIndexOf(starts, r.pos);
+  const m = raw.match(/^\/\/ ?/);
+  if (!m) throw new Error(`${path}: 1 行のコメントが // で始まらない（${first + 1} 行目）`);
+  return {
+    line: first,
+    column: r.pos - starts[first] + m[0].length,
+    text: raw.slice(m[0].length),
+    trailing: afterCode(source, starts[first], r.pos),
+  };
+}
+
+/**
+ * ブロックコメントを、行ごとの部分にする。開始の `/*`・`/**`、終わりの `*\/`、各行の先頭の ` * ` を外す。
+ * `/**\/` の `/**` を開始として読まない（残った `/` が本文になる）。
+ */
+function blockCommentPieces({ source, path, starts, range: r }: JsComment): Piece[] {
+  const raw = source.slice(r.pos, r.end);
+  const first = lineIndexOf(starts, r.pos);
+  const opened = raw.match(/^\/\*(?:\*(?!\/))?/);
+  if (!opened) throw new Error(`${path}: ブロックコメントが /* で始まらない（${first + 1} 行目）`);
+  const open = opened[0];
+  const body = " ".repeat(open.length) + raw.slice(open.length).replace(/\*\/$/, "");
+  const pieces: Piece[] = [];
+  let typeDepth = 0;
+  body.split("\n").forEach((part, i) => {
+    const lead = i === 0 ? part.match(/^\s*/) : part.match(/^\s*(?:\*(?!\*) ?)?/);
+    // どちらの正規表現も空の文字列に一致できるので、必ず一致する。
+    if (!lead)
+      throw new Error(`${path}: 行頭の空白の正規表現が一致しない（${first + i + 1} 行目）`);
+    const text = part.slice(lead[0].length).trimEnd();
+    if (!text) return;
+    const column = i === 0 ? r.pos - starts[first] + lead[0].length : lead[0].length;
+    const trailing = i === 0 && afterCode(source, starts[first], r.pos);
+    // JSDoc のタグは `/**` のコメントにだけ書く。`//` や `/*` の行頭の `@` は文章として読む。
+    // `/**` なら置き換えた結果（Replaced）にする。代入した後は Replaced として読む（depth がある）。
+    let piece: Replaced | { text: string; column: number; start?: undefined; tag?: undefined } = {
+      text,
+      column,
+    };
+    if (open === "/**") {
+      piece =
+        typeDepth > 0
+          ? typeContinuationAsCode(text, column, typeDepth)
+          : jsdocTypeAsCode(text, column);
+      typeDepth = piece.depth;
+    }
+    pieces.push({
+      line: first + i,
+      text: piece.text,
+      original: text,
+      column: piece.column,
+      start: piece.start,
+      tag: piece.tag,
+      trailing,
+    });
+  });
   return pieces;
 }
 
@@ -292,13 +317,16 @@ function jsdocTypeAsCode(text: string, column: number): Replaced {
   const { end, depth } = open
     ? closingBrace(text, tag[0].length + open[0].length - 1, 0)
     : { end: tag[0].length, depth: 0 };
-  return { ...replaceWithCode(text, end, column, tag[0]), tag: true, depth };
+  return { ...replaceWithCode({ text, end, column, label: tag[0] }), tag: true, depth };
 }
 
 /** 前の行から続く型の行を、括弧が閉じるところまで `` `型` `` に置き換える。 */
 function typeContinuationAsCode(text: string, column: number, depth: number): Replaced {
   const closed = closingBrace(text, 0, depth);
-  return { ...replaceWithCode(text, closed.end, column, "型"), depth: closed.depth };
+  return {
+    ...replaceWithCode({ text, end: closed.end, column, label: "型" }),
+    depth: closed.depth,
+  };
 }
 
 /** from から読み、括弧の深さが 0 に戻った直後の位置を返す。行の中で戻らなければ、行の長さと残りの深さを返す。 */
@@ -311,12 +339,17 @@ function closingBrace(text: string, from: number, depth: number): { end: number;
 }
 
 /** 先頭から end までを、label だけのインラインコードに置き換える。 */
-function replaceWithCode(
-  text: string,
-  end: number,
-  column: number,
-  label: string,
-): { text: string; column: number; start: number } {
+function replaceWithCode({
+  text,
+  end,
+  column,
+  label,
+}: {
+  text: string;
+  end: number;
+  column: number;
+  label: string;
+}): { text: string; column: number; start: number } {
   const replaced = `\`${label}\`${text.slice(end)}`;
   return { text: replaced, column: column - (replaced.length - text.length), start: column + 1 };
 }
@@ -379,15 +412,11 @@ type ShObject =
   | { Hash?: undefined; [key: string]: ShValue | undefined };
 type ShValue = ShObject | ShValue[] | string | number | boolean | null;
 
-function shellComments(source: string, path: string): Piece[] {
-  const problem = shfmtProblem();
-  // 起動できないのはファイルではなく実行環境の問題なので、ファイルごとの解析の失敗と分ける。
-  // 呼び出し元が実行そのものを止められるように missingTool を付ける。
-  if (problem) throw Object.assign(new Error(problem), { missingTool: true });
-  let json: string;
+/** `shfmt --to-json` でシェルを解析した構文木（JSON の文字列）。解析できなければ Error を投げる。 */
+function shfmtToJson(source: string, path: string): string {
   try {
     // --filename は方言（bash・posix など）の判定に使う。拡張子とシバンから決まる。
-    json = execFileSync("shfmt", ["--to-json", "--filename", path], {
+    return execFileSync("shfmt", ["--to-json", "--filename", path], {
       input: source,
       encoding: "utf8",
       stdio: ["pipe", "pipe", "pipe"],
@@ -399,6 +428,15 @@ function shellComments(source: string, path: string): Piece[] {
       `シェルを解析できないので、コメントを判定できない（shfmt --to-json: ${detail}）`,
     );
   }
+}
+
+/** シェルのコメントを、shfmt の構文木から 1 行分ずつの部分にする。1 行目の `#!` は外す。 */
+function shellComments(source: string, path: string): Piece[] {
+  const problem = shfmtProblem();
+  // 起動できないのはファイルではなく実行環境の問題なので、ファイルごとの解析の失敗と分ける。
+  // 呼び出し元が実行そのものを止められるように missingTool を付ける。
+  if (problem) throw Object.assign(new Error(problem), { missingTool: true });
+  const json = shfmtToJson(source, path);
   // コメントのノードは `Comments` のほか、ファイルやブロックの末尾の `Last` にも入る。
   // 置き場所のキーを並べると取りこぼすので、`Hash`（`#` の位置。コメントのノードだけが持つ）を持つノードをすべて集める。
   // 空のコメント（`#` だけの行）は `Text` が省かれるので、`Text` の有無では判定しない。

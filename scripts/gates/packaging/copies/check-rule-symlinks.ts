@@ -116,6 +116,99 @@ const canonBase = (file: string) => file.replace(/\.md$/, "");
 const baseFromWiring = (name: string, suffix: string) =>
   name.endsWith(suffix) ? name.slice(0, -suffix.length) : null;
 
+/** リンクを置く 1 か所（WIRINGS の 1 要素）。 */
+type Wiring = (typeof WIRINGS)[number];
+
+/** 1 本のリンクを検査するときに使う値。base はリンクの名前、canonPath は原本の絶対パス。 */
+type LinkSpec = { wiring: Wiring; wiringDir: string; base: string; canonPath: string };
+
+/**
+ * 原本 → symlink の向きで 1 本を確かめる（欠落・実ファイル・誤った指し先・リンク先の無い symlink）。
+ * @returns 違反の文。問題が無ければ undefined
+ */
+function linkViolation({ wiring, wiringDir, base, canonPath }: LinkSpec): string | undefined {
+  const { dir, suffix, agent } = wiring;
+  const linkPath = join(wiringDir, `${base}${suffix}`);
+  const expected = relative(wiringDir, canonPath);
+  if (!lstatSafe(linkPath)) {
+    return `${dir}/${base}${suffix}: 欠落（${agent} で自動適用されない）。期待する指し先: ${expected}`;
+  }
+  if (!lstatSync(linkPath).isSymbolicLink()) {
+    return `${dir}/${base}${suffix}: symlink ではない（実体のコピーは原本と drift する）`;
+  }
+  const actual = readlinkSync(linkPath);
+  if (actual !== expected) {
+    return `${dir}/${base}${suffix}: 指し先が違う（実際: ${actual} / 期待: ${expected}）`;
+  }
+  if (!existsSync(linkPath)) return `${dir}/${base}${suffix}: symlink の指し先が存在しない`;
+  if (realpathSync(linkPath) !== realpathSync(canonPath)) {
+    return `${dir}/${base}${suffix}: 解決先が原本と一致しない`;
+  }
+  return undefined;
+}
+
+/** symlink → 原本の向きで、命名規則に合わないリンクと孤児のリンクを挙げる。 */
+function orphanViolations(wiring: Wiring, wiringDir: string, targets: Map<string, string>) {
+  const { dir, suffix } = wiring;
+  const out: string[] = [];
+  for (const name of readdirSync(wiringDir)) {
+    const base = baseFromWiring(name, suffix);
+    if (base === null) {
+      out.push(`${dir}/${name}: 命名規則（<name>${suffix}）に合わない`);
+      continue;
+    }
+    if (!targets.has(base)) {
+      out.push(`${dir}/${name}: 対応する原本 ${CANON_DIR}/${base}.md が無い（孤児）`);
+    }
+  }
+  return out;
+}
+
+/** 1 か所のリンクの置き先について、原本との対応を両方向で確かめる。 */
+function wiringViolations(
+  root: string,
+  wiring: Wiring,
+  { bases, docInstructions }: { bases: string[]; docInstructions: DocInstruction[] },
+): string[] {
+  const { dir, agent, docs } = wiring;
+  const canonDir = join(root, CANON_DIR);
+  const wiringDir = join(root, dir);
+  if (!existsSync(wiringDir)) {
+    return [`${resolve(wiringDir)}: リンクのディレクトリが無い（${agent} は rule を読めない）`];
+  }
+
+  // この置き先に置くリンク: 名前 → 原本の絶対パス
+  const targets = new Map(bases.map((b) => [b, join(canonDir, `${b}.md`)]));
+  if (docs) for (const doc of docInstructions) targets.set(doc.name, join(root, doc.canon));
+
+  const out: string[] = [];
+  for (const [base, canonPath] of targets) {
+    const violation = linkViolation({ wiring, wiringDir, base, canonPath });
+    if (violation !== undefined) out.push(violation);
+  }
+  out.push(...orphanViolations(wiring, wiringDir, targets));
+  return out;
+}
+
+/** instructions として読ませる文書の宣言を、名前の重なり・実在・形について確かめる。 */
+function docDeclarationViolations(
+  root: string,
+  bases: string[],
+  docInstructions: DocInstruction[],
+): string[] {
+  const out: string[] = [];
+  for (const doc of docInstructions) {
+    if (bases.includes(doc.name)) {
+      out.push(`${doc.canon}: rule の ${CANON_DIR}/${doc.name}.md と名前が重なる`);
+    }
+    if (!existsSync(join(root, doc.canon))) {
+      out.push(`${doc.canon}: instructions として宣言した文書が無い`);
+    }
+    out.push(...checkDocShape(root, doc));
+  }
+  return out;
+}
+
 /**
  * @param {string} root リポジトリルート（テストでは一時ディレクトリ）
  * @param docInstructions rule ではない文書を instructions として読ませる宣言（テストでは差し替える）
@@ -125,7 +218,6 @@ export function checkRuleSymlinks(
   root: string,
   docInstructions: DocInstruction[] = DOC_INSTRUCTIONS,
 ) {
-  const violations: string[] = [];
   const canonDir = join(root, CANON_DIR);
 
   if (!existsSync(canonDir)) {
@@ -138,72 +230,9 @@ export function checkRuleSymlinks(
     .sort();
   const rules = bases.map((b) => resolve(join(canonDir, `${b}.md`)));
 
-  for (const doc of docInstructions) {
-    if (bases.includes(doc.name)) {
-      violations.push(`${doc.canon}: rule の ${CANON_DIR}/${doc.name}.md と名前が重なる`);
-    }
-    if (!existsSync(join(root, doc.canon))) {
-      violations.push(`${doc.canon}: instructions として宣言した文書が無い`);
-    }
-    violations.push(...checkDocShape(root, doc));
-  }
-
-  for (const { dir, suffix, agent, docs } of WIRINGS) {
-    const wiringDir = join(root, dir);
-    if (!existsSync(wiringDir)) {
-      violations.push(
-        `${resolve(wiringDir)}: リンクのディレクトリが無い（${agent} は rule を読めない）`,
-      );
-      continue;
-    }
-
-    // この置き先に置くリンク: 名前 → 原本の絶対パス
-    const targets = new Map(bases.map((b) => [b, join(canonDir, `${b}.md`)]));
-    if (docs) for (const doc of docInstructions) targets.set(doc.name, join(root, doc.canon));
-
-    // 原本 → symlink（欠落・実ファイル・誤った指し先・リンク先の無い symlink）
-    for (const [base, canonPath] of targets) {
-      const linkPath = join(wiringDir, `${base}${suffix}`);
-      const expected = relative(wiringDir, canonPath);
-      if (!lstatSafe(linkPath)) {
-        violations.push(
-          `${dir}/${base}${suffix}: 欠落（${agent} で自動適用されない）。期待する指し先: ${expected}`,
-        );
-        continue;
-      }
-      if (!lstatSync(linkPath).isSymbolicLink()) {
-        violations.push(
-          `${dir}/${base}${suffix}: symlink ではない（実体のコピーは原本と drift する）`,
-        );
-        continue;
-      }
-      const actual = readlinkSync(linkPath);
-      if (actual !== expected) {
-        violations.push(
-          `${dir}/${base}${suffix}: 指し先が違う（実際: ${actual} / 期待: ${expected}）`,
-        );
-        continue;
-      }
-      if (!existsSync(linkPath)) {
-        violations.push(`${dir}/${base}${suffix}: symlink の指し先が存在しない`);
-        continue;
-      }
-      if (realpathSync(linkPath) !== realpathSync(canonPath)) {
-        violations.push(`${dir}/${base}${suffix}: 解決先が原本と一致しない`);
-      }
-    }
-
-    // symlink → 原本（孤児）
-    for (const name of readdirSync(wiringDir)) {
-      const base = baseFromWiring(name, suffix);
-      if (base === null) {
-        violations.push(`${dir}/${name}: 命名規則（<name>${suffix}）に合わない`);
-        continue;
-      }
-      if (!targets.has(base)) {
-        violations.push(`${dir}/${name}: 対応する原本 ${CANON_DIR}/${base}.md が無い（孤児）`);
-      }
-    }
+  const violations = docDeclarationViolations(root, bases, docInstructions);
+  for (const wiring of WIRINGS) {
+    violations.push(...wiringViolations(root, wiring, { bases, docInstructions }));
   }
 
   return { rules, violations };

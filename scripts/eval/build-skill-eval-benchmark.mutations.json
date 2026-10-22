@@ -227,8 +227,8 @@
       "id": "DERIVED-RATE",
       "why": "出力・統計へ採点内訳の導出値でなく保存値を載せる（集計が採点と食い違う）",
       "file": "scripts/eval/build-skill-eval-benchmark.ts",
-      "find": "        pass_rate: computedRate,",
-      "replace": "        pass_rate: summary.pass_rate,",
+      "find": "  return { passed, failed, computedRate };",
+      "replace": "  return { passed, failed, computedRate: summary.pass_rate };",
       "occurrences": 1,
       "expect_failing": [
         "受理しない入力（exit 2） 保存された pass_rate の桁が粗くても内訳が合っていれば受理する",
@@ -252,8 +252,8 @@
       "id": "NOTES-JSON",
       "why": "notes の JSON を成果物と同じ読み方（plain object 要求）に戻す（文字列配列が落ちる）",
       "file": "scripts/eval/build-skill-eval-benchmark.ts",
-      "find": "      ? parseNotesJson(path, raw)",
-      "replace": "      ? readJson(path)",
+      "find": "    ? parseNotesJson(path, raw)",
+      "replace": "    ? readJson(path)",
       "occurrences": 1,
       "expect_failing": ["集計（揃った iteration） notes は JSON の文字列配列でも受け取れる"]
     },

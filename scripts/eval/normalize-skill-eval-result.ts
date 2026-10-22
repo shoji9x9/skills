@@ -252,31 +252,21 @@ function lastPathSegment(word: string): string {
   return segments[segments.length - 1];
 }
 
-function readOperands(command: string): string[] {
-  const trimmed = command.trim();
-  const words = trimmed.split(/\s+/u).filter(Boolean);
+/** 先頭の環境変数の代入と `sudo` のような前置きを飛ばし、実行するユーティリティの語の位置を返す。 */
+function utilityIndex(words: string[]): number {
   // Skip leading env assignments and `sudo`-style prefixes to find the utility.
   let index = 0;
   while (index < words.length && (/^\w+=/u.test(words[index]) || words[index] === "sudo")) {
     index += 1;
   }
-  const utility = lastPathSegment(words[index] ?? "");
-  if (!READ_UTILITIES.has(utility) || SHELL_CONTROL_FLOW.test(trimmed)) {
-    return [];
-  }
-  const afterUtility = words.slice(index + 1);
-  const endOfOptions = afterUtility.indexOf("--");
-  const options = endOfOptions === -1 ? afterUtility : afterUtility.slice(0, endOfOptions);
-  if (options.some((word) => TERMINAL_OPTIONS.has(word))) {
-    return [];
-  }
+  return index;
+}
 
-  // Only the file operands are evidence. An option's VALUE goes with the option:
-  // `diff --label <skill path> a b` exits zero having read only a and b, and dropping
-  // just the `--label` token would leave its value looking like a file. Knowing each
-  // option's arity means shipping a table per utility, so the token after an option is
-  // treated as its value — over-consuming there only ever drops evidence.
-  const rest = words.slice(index + 1);
+/**
+ * ユーティリティの後の語から、オプションとその値を除いた被演算子を返す。
+ * consumedOptionValue は、オプションの直後の語を値として読み飛ばしたかを表す。
+ */
+function operandsAfterOptions(rest: string[], utility: string) {
   const operands: string[] = [];
   let endOfFlags = false;
   let consumedOptionValue = false;
@@ -301,6 +291,30 @@ function readOperands(command: string): string[] {
     }
     operands.push(stripQuotes(word));
   }
+  return { operands, consumedOptionValue };
+}
+
+function readOperands(command: string): string[] {
+  const trimmed = command.trim();
+  const words = trimmed.split(/\s+/u).filter(Boolean);
+  const index = utilityIndex(words);
+  const utility = lastPathSegment(words[index] ?? "");
+  if (!READ_UTILITIES.has(utility) || SHELL_CONTROL_FLOW.test(trimmed)) {
+    return [];
+  }
+  const afterUtility = words.slice(index + 1);
+  const endOfOptions = afterUtility.indexOf("--");
+  const options = endOfOptions === -1 ? afterUtility : afterUtility.slice(0, endOfOptions);
+  if (options.some((word) => TERMINAL_OPTIONS.has(word))) {
+    return [];
+  }
+
+  // Only the file operands are evidence. An option's VALUE goes with the option:
+  // `diff --label <skill path> a b` exits zero having read only a and b, and dropping
+  // just the `--label` token would leave its value looking like a file. Knowing each
+  // option's arity means shipping a table per utility, so the token after an option is
+  // treated as its value — over-consuming there only ever drops evidence.
+  const { operands, consumedOptionValue } = operandsAfterOptions(words.slice(index + 1), utility);
   // grep/sed/awk name their pattern or script in the first operand. When an option
   // already swallowed it, skipping again would eat the file itself.
   const leadingNonFile = NON_FILE_LEADING_OPERANDS.get(utility) ?? 0;
@@ -316,94 +330,131 @@ function readOperands(command: string): string[] {
 // or backticks belongs to that inner word, not to the list. Whatever this scanner
 // cannot place (an unbalanced quote or paren) rejects the whole script.
 function splitAndList(script: string): string[] | null {
-  const elements: string[] = [];
-  let current = "";
-  let quote: string | null = null;
-  let substitutionDepth = 0;
-  let inBackticks = false;
+  const state: AndListScan = {
+    elements: [],
+    current: "",
+    quote: null,
+    substitutionDepth: 0,
+    inBackticks: false,
+  };
   for (let index = 0; index < script.length; index += 1) {
     const char = script[index];
     const next = script[index + 1];
-    if (quote === "'") {
-      current += char;
-      if (char === "'") {
-        quote = null;
-      }
-      continue;
-    }
-    if (char === "\\") {
-      current += char + (next ?? "");
-      index += 1;
-      continue;
-    }
-    if (quote === '"') {
-      // `"$(…)"` may nest quotes of its own; rather than track that, give up.
-      if (char === "`" || (char === "$" && next === "(")) {
-        return null;
-      }
-      current += char;
-      if (char === '"') {
-        quote = null;
-      }
-      continue;
-    }
-    if (char === "'" || char === '"') {
-      quote = char;
-      current += char;
-      continue;
-    }
-    if (inBackticks) {
-      current += char;
-      if (char === "`") {
-        inBackticks = false;
-      }
-      continue;
-    }
-    if (char === "`") {
-      inBackticks = true;
-      current += char;
-      continue;
-    }
-    if (char === "$" && next === "(") {
-      substitutionDepth += 1;
-      current += "$(";
-      index += 1;
-      continue;
-    }
-    if (substitutionDepth > 0) {
-      if (char === "(") {
-        substitutionDepth += 1;
-      } else if (char === ")") {
-        substitutionDepth -= 1;
-      }
-      current += char;
-      continue;
-    }
-    // Top level from here on.
-    if (char === "&" && next === "&") {
-      elements.push(current);
-      current = "";
-      index += 1;
-      continue;
-    }
-    // `2>&1`, `>&2` and `&>` are redirects, not a background `&`.
-    const redirect = char === "&" && (/[<>]/u.test(script[index - 1] ?? "") || next === ">");
-    const commentStart = char === "#" && (current === "" || /\s/u.test(current.slice(-1)));
-    if (
-      (char === "&" && !redirect) ||
-      (char === "|" && next === "|") ||
-      ";\n(){}".includes(char) ||
-      commentStart
-    ) {
+    const step =
+      scanQuoteChar(state, char, next) ??
+      scanNestedChar(state, char, next) ??
+      scanTopLevelChar(state, script, index);
+    if (step === "reject") {
       return null;
     }
-    current += char;
+    index += step;
   }
-  if (quote !== null || inBackticks || substitutionDepth !== 0) {
+  if (state.quote !== null || state.inBackticks || state.substitutionDepth !== 0) {
     return null;
   }
-  elements.push(current);
-  return elements.every((element) => element.trim() !== "") ? elements : null;
+  state.elements.push(state.current);
+  return state.elements.every((element) => element.trim() !== "") ? state.elements : null;
+}
+
+// splitAndList が 1 文字ずつ進めながら持つ状態。current は組み立て中の要素。
+type AndListScan = {
+  elements: string[];
+  current: string;
+  quote: string | null;
+  substitutionDepth: number;
+  inBackticks: boolean;
+};
+
+// 1 文字の処理の結果。数は今の文字の後に読み進めた文字数、"reject" はスクリプト全体を拒否すること、
+// undefined はその処理が受け持たない文字であることを表す。
+type ScanStep = number | "reject" | undefined;
+
+/** 引用符の中の文字・バックスラッシュ・引用符の開始を処理する。 */
+function scanQuoteChar(state: AndListScan, char: string, next: string | undefined): ScanStep {
+  if (state.quote === "'") {
+    state.current += char;
+    if (char === "'") {
+      state.quote = null;
+    }
+    return 0;
+  }
+  if (char === "\\") {
+    state.current += char + (next ?? "");
+    return 1;
+  }
+  if (state.quote === '"') {
+    // `"$(…)"` may nest quotes of its own; rather than track that, give up.
+    if (char === "`" || (char === "$" && next === "(")) {
+      return "reject";
+    }
+    state.current += char;
+    if (char === '"') {
+      state.quote = null;
+    }
+    return 0;
+  }
+  if (char === "'" || char === '"') {
+    state.quote = char;
+    state.current += char;
+    return 0;
+  }
+  return undefined;
+}
+
+/** バッククォートと `$( )` の中の文字と、その開始を処理する。 */
+function scanNestedChar(state: AndListScan, char: string, next: string | undefined): ScanStep {
+  if (state.inBackticks) {
+    state.current += char;
+    if (char === "`") {
+      state.inBackticks = false;
+    }
+    return 0;
+  }
+  if (char === "`") {
+    state.inBackticks = true;
+    state.current += char;
+    return 0;
+  }
+  if (char === "$" && next === "(") {
+    state.substitutionDepth += 1;
+    state.current += "$(";
+    return 1;
+  }
+  if (state.substitutionDepth > 0) {
+    if (char === "(") {
+      state.substitutionDepth += 1;
+    } else if (char === ")") {
+      state.substitutionDepth -= 1;
+    }
+    state.current += char;
+    return 0;
+  }
+  return undefined;
+}
+
+/** 引用符や置換の外の文字を処理する。`&&` で要素を区切り、`&&` 以外の区切りやコメントがあれば拒否する。 */
+function scanTopLevelChar(state: AndListScan, script: string, index: number): number | "reject" {
+  const char = script[index];
+  const next = script[index + 1];
+  if (char === "&" && next === "&") {
+    state.elements.push(state.current);
+    state.current = "";
+    return 1;
+  }
+  // `2>&1`, `>&2` and `&>` are redirects, not a background `&`.
+  const redirect = char === "&" && (/[<>]/u.test(script[index - 1] ?? "") || next === ">");
+  const commentStart =
+    char === "#" && (state.current === "" || /\s/u.test(state.current.slice(-1)));
+  if (
+    (char === "&" && !redirect) ||
+    (char === "|" && next === "|") ||
+    ";\n(){}".includes(char) ||
+    commentStart
+  ) {
+    return "reject";
+  }
+  state.current += char;
+  return 0;
 }
 
 // `cd <one literal directory>`. Anything the shell would expand first (`~`, `$VAR`,
@@ -634,12 +685,18 @@ function isShellCFlag(word: string): boolean {
 }
 
 // Returns where a shell call may leave the directory (see analyzeShellCommand).
-function collectReadEvidence(
-  toolName: string,
-  input: ToolInput | undefined,
-  sink: string[],
-  cwd: Cwd,
-): Cwd | undefined {
+// toolName と input は呼び出し 1 件、sink は読んだ証拠を足す先、cwd は呼び出しの前の作業ディレクトリ。
+function collectReadEvidence({
+  toolName,
+  input,
+  sink,
+  cwd,
+}: {
+  toolName: string;
+  input: ToolInput | undefined;
+  sink: string[];
+  cwd: Cwd;
+}): Cwd | undefined {
   if (typeof input !== "object" || input === null) {
     return undefined;
   }
@@ -669,16 +726,47 @@ function toolResultText(content: unknown): string {
     .join("\n");
 }
 
-// `--output-format json` writes one object; `--output-format stream-json --verbose`
-// writes one event per line and ends with the same `result` object. Both are accepted
-// so traces captured before the stream-json switch still normalize.
-export function parseClaudeTrace(rawText: string): ParsedTrace {
+// What a Claude stream has recorded so far, while parseClaudeTrace walks its events.
+type ClaudeTraceState = {
+  visibleSkills: string[] | null;
+  invokedSkills: string[];
+  toolInputTexts: string[];
+  toolOutputTexts: string[];
+  toolCalls: Record<string, number>;
+  totalToolCalls: number;
+  // tool_use id -> evidence awaiting its result. Anything still here at the end was
+  // issued but never completed, so it is dropped.
+  pendingEvidence: Map<unknown, PendingEvidence>;
+  // The Bash tool keeps one shell across calls, so `cd <skill dir>` followed by
+  // `cat SKILL.md` reads the skill without its path ever appearing in one command.
+  // `null` = not known: before init states it, after a call that may have moved it
+  // anywhere, and after the tool reports resetting it. Unknown leaves relative
+  // operands unresolved, which only ever loses evidence.
+  cwd: Cwd;
+};
+
+/** まだ何も記録していない状態を作る。作業ディレクトリは init のイベントが示すまで分からない。 */
+function emptyClaudeTraceState(): ClaudeTraceState {
+  return {
+    visibleSkills: null,
+    invokedSkills: [],
+    toolInputTexts: [],
+    toolOutputTexts: [],
+    toolCalls: {},
+    totalToolCalls: 0,
+    pendingEvidence: new Map(),
+    cwd: null,
+  };
+}
+
+/** トレースの各行を JSON のオブジェクトとして読む。読めない行があれば、その行番号を添えて throw する。 */
+function parseClaudeEvents(rawText: string): ClaudeEvent[] {
   const lines = rawText.split(/\r?\n/u).filter((line) => line.trim() !== "");
   if (lines.length === 0) {
     throw new Error("Claude trace is empty");
   }
 
-  const events = lines.map((line, index) => {
+  return lines.map((line, index) => {
     let parsed: ClaudeEvent;
     try {
       parsed = parseJsonAs<ClaudeEvent>(line);
@@ -692,6 +780,151 @@ export function parseClaudeTrace(rawText: string): ParsedTrace {
     }
     return parsed;
   });
+}
+
+/** init のイベントから、提示されたスキルの一覧と開始時の作業ディレクトリを読む。 */
+function applyInitEvent(state: ClaudeTraceState, event: ClaudeEvent): void {
+  if (isArray(event.skills)) {
+    state.visibleSkills = event.skills.filter((name) => typeof name === "string");
+  }
+  if (typeof event.cwd === "string" && event.cwd.startsWith("/")) {
+    state.cwd = event.cwd;
+  }
+}
+
+/**
+ * tool_result の 1 件を、待っている tool_use の証拠と突き合わせる。
+ * エラーなしで返った呼び出しだけを証拠に数え、作業ディレクトリを呼び出しの結果に合わせる。
+ */
+function applyToolResult(state: ClaudeTraceState, block: ContentBlock): void {
+  // What a call printed counts whatever its status: `cat X; false` fails having
+  // shown X (see skillContentSeen).
+  state.toolOutputTexts.push(toolResultText(block.content));
+  const pending = state.pendingEvidence.get(block.tool_use_id);
+  if (pending === undefined) {
+    return;
+  }
+  state.pendingEvidence.delete(block.tool_use_id);
+  if (block.is_error !== true) {
+    state.toolInputTexts.push(...pending.texts);
+    if (pending.invoked !== null) {
+      state.invokedSkills.push(pending.invoked);
+    }
+  }
+  // A failed `cd X && …` may have stopped before or after the cd, and a move that
+  // ran alongside another may have run either first or last.
+  if (pending.cwdAfter !== undefined) {
+    state.cwd = block.is_error === true || pending.concurrentMove ? null : pending.cwdAfter;
+  }
+  if (/^Shell cwd was reset to /mu.test(toolResultText(block.content))) {
+    state.cwd = null;
+  }
+}
+
+/**
+ * ディレクトリを移しうる呼び出しが出たときに、まだ結果を待っている呼び出しの証拠を作り直す。
+ * 待っている呼び出しにもディレクトリを移しうるものがあれば true を返す。
+ */
+function settleConcurrentMoves(state: ClaudeTraceState): boolean {
+  // The order runs both ways: a call already out may run after this move, so its
+  // relative reads lose the directory they were resolved against, and two moves out
+  // together leave whichever ran last.
+  let concurrentMove = false;
+  for (const pending of state.pendingEvidence.values()) {
+    if (pending.cwdAfter !== undefined) {
+      pending.concurrentMove = true;
+      concurrentMove = true;
+    }
+    const unresolved: string[] = [];
+    collectReadEvidence({
+      toolName: pending.name,
+      input: pending.input,
+      sink: unresolved,
+      cwd: null,
+    });
+    pending.texts = unresolved;
+  }
+  return concurrentMove;
+}
+
+/** tool_use の 1 件を数え、読んだ証拠と呼び出したスキルを、結果を待つ一覧に入れる。 */
+function applyToolUse(state: ClaudeTraceState, block: ContentBlock): void {
+  const name = typeof block.name === "string" ? block.name : "unknown";
+  state.totalToolCalls += 1;
+  state.toolCalls[name] = (state.toolCalls[name] ?? 0) + 1;
+  const candidate: string[] = [];
+  let invoked: string | null = null;
+  // An invocation that errored or never returned did not hand the skill over
+  // either, so it waits on its result exactly like a file read does.
+  if (name === "Skill" && typeof block.input?.skill === "string") {
+    invoked = block.input.skill;
+  }
+  // Calls issued together may run in any order, so while one that may move the
+  // directory is still out, where the others ran is not known.
+  const movePending = [...state.pendingEvidence.values()].some(
+    (pending) => pending.cwdAfter !== undefined,
+  );
+  const cwdAfter = collectReadEvidence({
+    toolName: name,
+    input: block.input,
+    sink: candidate,
+    cwd: movePending ? null : state.cwd,
+  });
+  const concurrentMove = cwdAfter !== undefined && settleConcurrentMoves(state);
+  const shell = SHELL_TOOLS.has(name);
+  if (candidate.length === 0 && invoked === null && !shell) {
+    return;
+  }
+  // Without an id the result cannot be correlated, so the call never becomes
+  // evidence — an uncorrelated call is exactly the case this guard exists for.
+  // Every shell call waits too: its result is where a cwd reset is reported.
+  if (typeof block.id === "string") {
+    state.pendingEvidence.set(block.id, {
+      texts: candidate,
+      invoked,
+      cwdAfter,
+      concurrentMove,
+      name,
+      input: block.input,
+    });
+  } else if (cwdAfter !== undefined) {
+    state.cwd = null;
+  }
+}
+
+/** result 以外のイベント 1 件を、種類（init・tool_result・tool_use）に応じて記録に反映する。 */
+function applyClaudeEvent(state: ClaudeTraceState, event: ClaudeEvent): void {
+  if (event.type === "system" && event.subtype === "init") {
+    applyInitEvent(state, event);
+    return;
+  }
+  // A call's evidence counts only once its result comes back without an error.
+  // `cat <absent path>` and `false && cat <path>` both name the path in a reading
+  // segment but never return its contents, and crediting them marks a clean
+  // baseline contaminated.
+  if (event.type === "user" && isArray(event.message?.content)) {
+    for (const block of event.message.content) {
+      if (typeof block === "object" && block !== null && block.type === "tool_result") {
+        applyToolResult(state, block);
+      }
+    }
+    return;
+  }
+  if (event.type !== "assistant" || !isArray(event.message?.content)) {
+    return;
+  }
+  for (const block of event.message.content) {
+    if (typeof block === "object" && block !== null && block.type === "tool_use") {
+      applyToolUse(state, block);
+    }
+  }
+}
+
+// `--output-format json` writes one object; `--output-format stream-json --verbose`
+// writes one event per line and ends with the same `result` object. Both are accepted
+// so traces captured before the stream-json switch still normalize.
+export function parseClaudeTrace(rawText: string): ParsedTrace {
+  const events = parseClaudeEvents(rawText);
 
   // `--output-format json` emits the very same `{"type":"result"}` object that ends a
   // stream, so the number of lines cannot tell the two apart. What separates them is
@@ -699,21 +932,7 @@ export function parseClaudeTrace(rawText: string): ParsedTrace {
   // there is no tool record, and the skill axes must stay undeterminable rather than
   // be computed as an empty list — an empty list would read as a measured "not read".
   let resultEvent: ClaudeEvent | null = null;
-  let visibleSkills: string[] | null = null;
-  const invokedSkills: string[] = [];
-  const toolInputTexts: string[] = [];
-  const toolOutputTexts: string[] = [];
-  const toolCalls: Record<string, number> = {};
-  let totalToolCalls = 0;
-  // tool_use id -> evidence awaiting its result. Anything still here at the end was
-  // issued but never completed, so it is dropped.
-  const pendingEvidence = new Map<unknown, PendingEvidence>();
-  // The Bash tool keeps one shell across calls, so `cd <skill dir>` followed by
-  // `cat SKILL.md` reads the skill without its path ever appearing in one command.
-  // `null` = not known: before init states it, after a call that may have moved it
-  // anywhere, and after the tool reports resetting it. Unknown leaves relative
-  // operands unresolved, which only ever loses evidence.
-  let cwd: Cwd = null;
+  const state = emptyClaudeTraceState();
 
   let sawNonResultEvent = false;
   for (const event of events) {
@@ -722,107 +941,7 @@ export function parseClaudeTrace(rawText: string): ParsedTrace {
       continue;
     }
     sawNonResultEvent = true;
-    if (event.type === "system" && event.subtype === "init") {
-      if (isArray(event.skills)) {
-        visibleSkills = event.skills.filter((name) => typeof name === "string");
-      }
-      if (typeof event.cwd === "string" && event.cwd.startsWith("/")) {
-        cwd = event.cwd;
-      }
-      continue;
-    }
-    // A call's evidence counts only once its result comes back without an error.
-    // `cat <absent path>` and `false && cat <path>` both name the path in a reading
-    // segment but never return its contents, and crediting them marks a clean
-    // baseline contaminated.
-    if (event.type === "user" && isArray(event.message?.content)) {
-      for (const block of event.message.content) {
-        if (typeof block !== "object" || block === null || block.type !== "tool_result") {
-          continue;
-        }
-        // What a call printed counts whatever its status: `cat X; false` fails having
-        // shown X (see skillContentSeen).
-        toolOutputTexts.push(toolResultText(block.content));
-        const pending = pendingEvidence.get(block.tool_use_id);
-        if (pending === undefined) {
-          continue;
-        }
-        pendingEvidence.delete(block.tool_use_id);
-        if (block.is_error !== true) {
-          toolInputTexts.push(...pending.texts);
-          if (pending.invoked !== null) {
-            invokedSkills.push(pending.invoked);
-          }
-        }
-        // A failed `cd X && …` may have stopped before or after the cd, and a move that
-        // ran alongside another may have run either first or last.
-        if (pending.cwdAfter !== undefined) {
-          cwd = block.is_error === true || pending.concurrentMove ? null : pending.cwdAfter;
-        }
-        if (/^Shell cwd was reset to /mu.test(toolResultText(block.content))) {
-          cwd = null;
-        }
-      }
-      continue;
-    }
-    if (event.type !== "assistant" || !isArray(event.message?.content)) {
-      continue;
-    }
-    for (const block of event.message.content) {
-      if (typeof block !== "object" || block === null || block.type !== "tool_use") {
-        continue;
-      }
-      const name = typeof block.name === "string" ? block.name : "unknown";
-      totalToolCalls += 1;
-      toolCalls[name] = (toolCalls[name] ?? 0) + 1;
-      const candidate: string[] = [];
-      let invoked: string | null = null;
-      // An invocation that errored or never returned did not hand the skill over
-      // either, so it waits on its result exactly like a file read does.
-      if (name === "Skill" && typeof block.input?.skill === "string") {
-        invoked = block.input.skill;
-      }
-      // Calls issued together may run in any order, so while one that may move the
-      // directory is still out, where the others ran is not known.
-      const movePending = [...pendingEvidence.values()].some(
-        (pending) => pending.cwdAfter !== undefined,
-      );
-      const cwdAfter = collectReadEvidence(name, block.input, candidate, movePending ? null : cwd);
-      // The order runs both ways: a call already out may run after this move, so its
-      // relative reads lose the directory they were resolved against, and two moves out
-      // together leave whichever ran last.
-      let concurrentMove = false;
-      if (cwdAfter !== undefined) {
-        for (const pending of pendingEvidence.values()) {
-          if (pending.cwdAfter !== undefined) {
-            pending.concurrentMove = true;
-            concurrentMove = true;
-          }
-          const unresolved: string[] = [];
-          collectReadEvidence(pending.name, pending.input, unresolved, null);
-          pending.texts = unresolved;
-        }
-      }
-      const shell = SHELL_TOOLS.has(name);
-      if (candidate.length === 0 && invoked === null && !shell) {
-        continue;
-      }
-      // Without an id the result cannot be correlated, so the call never becomes
-      // evidence — an uncorrelated call is exactly the case this guard exists for.
-      // Every shell call waits too: its result is where a cwd reset is reported.
-      if (typeof block.id === "string") {
-        pendingEvidence.set(block.id, {
-          texts: candidate,
-          invoked,
-          cwdAfter,
-          concurrentMove,
-          name,
-          input: block.input,
-        });
-      } else if (cwdAfter !== undefined) {
-        cwd = null;
-      }
-    }
+    applyClaudeEvent(state, event);
   }
 
   // Tolerate the pre-stream-json shape, which had no `type` at all.
@@ -834,11 +953,12 @@ export function parseClaudeTrace(rawText: string): ParsedTrace {
     throw new Error("Claude trace has no result event");
   }
 
+  const { visibleSkills, invokedSkills, toolInputTexts, toolOutputTexts } = state;
   return {
     finalResponse: typeof resultEvent.result === "string" ? resultEvent.result : "",
     usage: normalizeUsage("claude-code", resultEvent.usage),
-    toolCalls: sawNonResultEvent ? toolCalls : null,
-    totalToolCalls: sawNonResultEvent ? totalToolCalls : null,
+    toolCalls: sawNonResultEvent ? state.toolCalls : null,
+    totalToolCalls: sawNonResultEvent ? state.totalToolCalls : null,
     totalSteps: numberOrZero(resultEvent.num_turns),
     errors: resultEvent.is_error === true ? 1 : 0,
     fatalErrors: resultEvent.is_error === true ? 1 : 0,
@@ -848,6 +968,69 @@ export function parseClaudeTrace(rawText: string): ParsedTrace {
       ? { visibleSkills, invokedSkills, toolInputTexts, toolOutputTexts }
       : emptySkillEvidence(),
   };
+}
+
+// What a Codex stream has recorded so far, while parseCodexTrace walks its events.
+type CodexTraceState = {
+  finalResponse: string;
+  usage: NormalizedUsage;
+  toolCalls: Record<string, number>;
+  toolInputTexts: string[];
+  toolOutputTexts: string[];
+  totalToolCalls: number;
+  totalSteps: number;
+  errors: number;
+  fatalErrors: number;
+};
+
+/** command_execution の項目 1 件を数え、出力と、成功したコマンドが読んだ証拠を記録する。 */
+function applyCommandExecution(state: CodexTraceState, item: CodexItem): void {
+  state.totalToolCalls += 1;
+  state.toolCalls.command_execution = (state.toolCalls.command_execution ?? 0) + 1;
+  if (typeof item.aggregated_output === "string") {
+    state.toolOutputTexts.push(item.aggregated_output);
+  }
+  // Codex emits item.started and item.completed for the same command; only the
+  // completed side is counted here, so the command text is collected once too.
+  // Same rule as the claude side, plus the same success requirement: only a
+  // command that ran a content-reading utility AND exited zero is evidence.
+  // `cat` of a path a baseline expects to be absent exits nonzero and must not
+  // count as having read it.
+  if (typeof item.command === "string" && item.exit_code === 0) {
+    // Codex starts every command afresh in its workdir, so a `cd` carries only
+    // through the rest of the same command, never into the next one.
+    state.toolInputTexts.push(...analyzeShellCommand(item.command, null).reads);
+  }
+  if (typeof item.exit_code === "number" && item.exit_code !== 0) {
+    state.errors += 1;
+  }
+}
+
+/** イベント 1 件を、種類（turn の完了・失敗、項目の完了）に応じて記録に反映する。 */
+function applyCodexEvent(state: CodexTraceState, event: CodexEvent): void {
+  if (event.type === "turn.completed") {
+    state.usage = normalizeUsage("codex", event.usage);
+  }
+  if (event.type === "turn.failed") {
+    state.errors += 1;
+    state.fatalErrors += 1;
+  }
+  if (event.type !== "item.completed" || typeof event.item !== "object" || event.item === null) {
+    return;
+  }
+  state.totalSteps += 1;
+  if (event.item.type === "error") {
+    state.errors += 1;
+    state.fatalErrors += 1;
+    return;
+  }
+  if (event.item.type === "agent_message" && typeof event.item.text === "string") {
+    state.finalResponse = event.item.text;
+    return;
+  }
+  if (event.item.type === "command_execution") {
+    applyCommandExecution(state, event.item);
+  }
 }
 
 export function parseCodexTrace(rawText: string): ParsedTrace {
@@ -862,68 +1045,30 @@ export function parseCodexTrace(rawText: string): ParsedTrace {
       }
     });
 
-  let finalResponse = "";
-  let usage = normalizeUsage("codex");
-  const toolCalls: Record<string, number> = {};
-  const toolInputTexts: string[] = [];
-  const toolOutputTexts: string[] = [];
-  let totalToolCalls = 0;
-  let totalSteps = 0;
-  let errors = 0;
-  let fatalErrors = 0;
-
+  const state: CodexTraceState = {
+    finalResponse: "",
+    usage: normalizeUsage("codex"),
+    toolCalls: {},
+    toolInputTexts: [],
+    toolOutputTexts: [],
+    totalToolCalls: 0,
+    totalSteps: 0,
+    errors: 0,
+    fatalErrors: 0,
+  };
   for (const event of events) {
-    if (event.type === "turn.completed") {
-      usage = normalizeUsage("codex", event.usage);
-    }
-    if (event.type === "turn.failed") {
-      errors += 1;
-      fatalErrors += 1;
-    }
-    if (event.type !== "item.completed" || typeof event.item !== "object" || event.item === null) {
-      continue;
-    }
-    totalSteps += 1;
-    if (event.item.type === "error") {
-      errors += 1;
-      fatalErrors += 1;
-      continue;
-    }
-    if (event.item.type === "agent_message" && typeof event.item.text === "string") {
-      finalResponse = event.item.text;
-      continue;
-    }
-    if (event.item.type === "command_execution") {
-      totalToolCalls += 1;
-      toolCalls.command_execution = (toolCalls.command_execution ?? 0) + 1;
-      if (typeof event.item.aggregated_output === "string") {
-        toolOutputTexts.push(event.item.aggregated_output);
-      }
-      // Codex emits item.started and item.completed for the same command; only the
-      // completed side is counted here, so the command text is collected once too.
-      // Same rule as the claude side, plus the same success requirement: only a
-      // command that ran a content-reading utility AND exited zero is evidence.
-      // `cat` of a path a baseline expects to be absent exits nonzero and must not
-      // count as having read it.
-      if (typeof event.item.command === "string" && event.item.exit_code === 0) {
-        // Codex starts every command afresh in its workdir, so a `cd` carries only
-        // through the rest of the same command, never into the next one.
-        toolInputTexts.push(...analyzeShellCommand(event.item.command, null).reads);
-      }
-      if (typeof event.item.exit_code === "number" && event.item.exit_code !== 0) {
-        errors += 1;
-      }
-    }
+    applyCodexEvent(state, event);
   }
 
+  const { toolInputTexts, toolOutputTexts } = state;
   return {
-    finalResponse,
-    usage,
-    toolCalls,
-    totalToolCalls,
-    totalSteps,
-    errors,
-    fatalErrors,
+    finalResponse: state.finalResponse,
+    usage: state.usage,
+    toolCalls: state.toolCalls,
+    totalToolCalls: state.totalToolCalls,
+    totalSteps: state.totalSteps,
+    errors: state.errors,
+    fatalErrors: state.fatalErrors,
     // Codex has no init event listing offered skills and no skill-invocation tool;
     // it reads a skill through the shell. Those two axes stay undeterminable.
     // A trace with no events at all recorded nothing, so an empty command list there
@@ -1139,27 +1284,32 @@ function skillContentSeen(outputs: string[], contentIndex: SkillContentIndex): s
 // an ancestor is not walked again (it would recurse until ELOOP). It is not a global
 // visited set: two sibling links to one directory must both be listed
 // (check-skill-checks.ts `listFiles` keeps the same rule).
-function listFiles(
-  root: string,
-  current = root,
-  files: string[] = [],
-  ancestors = new Set<string>(),
-): string[] {
+function listFiles(root: string): string[] {
+  const files: string[] = [];
+  collectFiles({ root, files }, root, new Set<string>());
+  return files;
+}
+
+/** current の下のファイルを、walk.root からの相対パスにして walk.files に足す。 */
+function collectFiles(
+  walk: { root: string; files: string[] },
+  current: string,
+  ancestors: Set<string>,
+): void {
   const real = realpathSync(current);
   if (ancestors.has(real)) {
-    return files;
+    return;
   }
   const above = new Set(ancestors).add(real);
   for (const entry of readdirSync(current, { withFileTypes: true })) {
     const path = join(current, entry.name);
     const kind = entry.isSymbolicLink() ? statSync(path) : entry;
     if (kind.isDirectory()) {
-      listFiles(root, path, files, above);
+      collectFiles(walk, path, above);
     } else if (kind.isFile()) {
-      files.push(relative(root, path).replaceAll("\\", "/"));
+      walk.files.push(relative(walk.root, path).replaceAll("\\", "/"));
     }
   }
-  return files;
 }
 
 export function loadSkillContentIndex({
@@ -1201,25 +1351,16 @@ export function loadSkillContentIndex({
   return buildSkillContentIndex({ skillFiles, otherSkillTexts, givenTexts });
 }
 
-// Answers "did this run actually read the subject skill?" so a with_skill run that
-// never opened it can be excluded from the comparison instead of silently scoring
-// as if the skill were weak (#377). Every axis is tri-state: true / false / null,
-// where null means this executor's trace cannot answer it.
-export function buildSkillUsage({
-  config,
+/** 判定できる軸（visible・invoked・files_read・content_seen）の値と、判定できない軸の名前を集める。 */
+function skillAxes({
   skill,
   evidence,
-  contentIndex = null,
+  contentIndex,
 }: {
-  config?: string;
-  skill?: string;
+  skill: string;
   evidence?: SkillEvidence | null;
-  contentIndex?: SkillContentIndex | null;
-}): SkillUsage | null {
-  if (!skill || !config) {
-    return null;
-  }
-
+  contentIndex: SkillContentIndex | null;
+}) {
   const undeterminable = [];
   let visible = null;
   if (isArray(evidence?.visibleSkills)) {
@@ -1248,7 +1389,15 @@ export function buildSkillUsage({
   } else {
     undeterminable.push("content_seen");
   }
+  return { visible, invoked, filesRead, contentSeen, undeterminable };
+}
 
+/** 軸の値から、スキルを読んだか（true・false・判定できない null）を決める。 */
+function skillRead(
+  invoked: boolean | null,
+  filesRead: string[] | null,
+  contentSeen: string[] | null,
+): boolean | null {
   // `invoked === false` alone never settles this: a shell-only read leaves no Skill
   // call. Only a complete tool-input list can turn the answer negative.
   let read = null;
@@ -1261,6 +1410,34 @@ export function buildSkillUsage({
   } else if (filesRead !== null) {
     read = false;
   }
+  return read;
+}
+
+// Answers "did this run actually read the subject skill?" so a with_skill run that
+// never opened it can be excluded from the comparison instead of silently scoring
+// as if the skill were weak (#377). Every axis is tri-state: true / false / null,
+// where null means this executor's trace cannot answer it.
+export function buildSkillUsage({
+  config,
+  skill,
+  evidence,
+  contentIndex = null,
+}: {
+  config?: string;
+  skill?: string;
+  evidence?: SkillEvidence | null;
+  contentIndex?: SkillContentIndex | null;
+}): SkillUsage | null {
+  if (!skill || !config) {
+    return null;
+  }
+
+  const { visible, invoked, filesRead, contentSeen, undeterminable } = skillAxes({
+    skill,
+    evidence,
+    contentIndex,
+  });
+  const read = skillRead(invoked, filesRead, contentSeen);
 
   const usage: SkillUsage = {
     schema_version: SCHEMA_VERSION,
@@ -1323,23 +1500,8 @@ type NormalizedMetrics = {
   files_created?: string[];
 };
 
-export function normalizeTrace({
-  executor,
-  rawText,
-  exitCode,
-  model,
-  reasoningEffort,
-  cliVersion,
-  harnessVersion,
-  rawTrace,
-  durationMs,
-  startedAt,
-  endedAt,
-  filesCreated,
-  skill,
-  config,
-  contentIndex = null,
-}: NormalizeTraceOptions) {
+/** トレースを executor に合わせて読む。読めなければ、何も判定できない結果と理由を返す。 */
+function parseTraceOrFallback(executor: string, rawText: string) {
   let parsed: ParsedTrace;
   let normalizationError = null;
   try {
@@ -1359,20 +1521,79 @@ export function normalizeTrace({
     };
   }
 
-  if (exitCode === 0 && parsed.finalResponse === "" && normalizationError === null) {
-    normalizationError = "executor produced no final response";
-    parsed.errors += 1;
+  return { parsed, normalizationError };
+}
+
+/** 終了コードが 0 でも、最終の応答が無いときと致命的なエラーを記録したときは、失敗の理由を返す。 */
+function successFailureReason(exitCode: number, parsed: ParsedTrace): string | null {
+  if (exitCode === 0 && parsed.finalResponse === "") return "executor produced no final response";
+  if (exitCode === 0 && parsed.fatalErrors > 0) {
+    return `executor trace reported ${parsed.fatalErrors} fatal error item(s)`;
   }
-  if (exitCode === 0 && parsed.fatalErrors > 0 && normalizationError === null) {
-    normalizationError = `executor trace reported ${parsed.fatalErrors} fatal error item(s)`;
+  return null;
+}
+
+/** metrics.json の内容を作る。ツールの呼び出しの数は、トレースが記録したときだけ載せる。 */
+function buildMetrics(
+  parsed: ParsedTrace,
+  {
+    exitCode,
+    rawText,
+    filesCreated,
+  }: Pick<NormalizeTraceOptions, "exitCode" | "rawText" | "filesCreated">,
+): NormalizedMetrics {
+  const metrics: NormalizedMetrics = {
+    total_steps: parsed.totalSteps,
+    errors_encountered: parsed.errors + (exitCode === 0 ? 0 : 1),
+    output_chars: parsed.finalResponse.length,
+    transcript_chars: rawText.length,
+  };
+  if (parsed.toolCalls !== null && parsed.totalToolCalls !== null) {
+    metrics.tool_calls = parsed.toolCalls;
+    metrics.total_tool_calls = parsed.totalToolCalls;
   }
+  if (isArray(filesCreated)) {
+    metrics.files_created = filesCreated;
+  }
+  return metrics;
+}
+
+/** timing.json の内容を作る。 */
+function buildTiming(
+  parsed: ParsedTrace,
+  executorMetadata: NormalizedResult["executor"],
+  {
+    durationMs,
+    startedAt,
+    endedAt,
+  }: Pick<NormalizeTraceOptions, "durationMs" | "startedAt" | "endedAt">,
+) {
+  const durationSeconds = durationMs / 1000;
+  return {
+    schema_version: SCHEMA_VERSION,
+    executor: executorMetadata,
+    total_tokens: parsed.usage.total_tokens,
+    duration_ms: durationMs,
+    total_duration_seconds: durationSeconds,
+    executor_start: startedAt,
+    executor_end: endedAt,
+    executor_duration_seconds: durationSeconds,
+  };
+}
+
+export function normalizeTrace(options: NormalizeTraceOptions) {
+  const { executor, rawText, exitCode, rawTrace, skill, config, contentIndex = null } = options;
+  const { parsed, normalizationError: parseError } = parseTraceOrFallback(executor, rawText);
+  const normalizationError = parseError ?? successFailureReason(exitCode, parsed);
+  // 最終応答の無い成功は、エラーの件数にも数える。trace を読めなかったとき（parseError がある）は数えない。
+  if (parseError === null && exitCode === 0 && parsed.finalResponse === "") parsed.errors += 1;
 
   const executorMetadata = {
     name: executor,
-    model: model || null,
-    reasoning_effort: reasoningEffort || null,
-    cli_version: cliVersion || null,
-    harness_version: harnessVersion,
+    model: options.model || null,
+    reasoning_effort: options.reasoningEffort || null,
+    cli_version: options.cliVersion || null,
+    harness_version: options.harnessVersion,
   };
   const status = exitCode === 0 && normalizationError === null ? "succeeded" : "failed";
   const result: NormalizedResult = {
@@ -1397,31 +1618,8 @@ export function normalizeTrace({
     result.normalization_error = normalizationError;
   }
 
-  const durationSeconds = durationMs / 1000;
-  const timing = {
-    schema_version: SCHEMA_VERSION,
-    executor: executorMetadata,
-    total_tokens: parsed.usage.total_tokens,
-    duration_ms: durationMs,
-    total_duration_seconds: durationSeconds,
-    executor_start: startedAt,
-    executor_end: endedAt,
-    executor_duration_seconds: durationSeconds,
-  };
-  const metrics: NormalizedMetrics = {
-    total_steps: parsed.totalSteps,
-    errors_encountered: parsed.errors + (exitCode === 0 ? 0 : 1),
-    output_chars: parsed.finalResponse.length,
-    transcript_chars: rawText.length,
-  };
-  if (parsed.toolCalls !== null && parsed.totalToolCalls !== null) {
-    metrics.tool_calls = parsed.toolCalls;
-    metrics.total_tool_calls = parsed.totalToolCalls;
-  }
-  if (isArray(filesCreated)) {
-    metrics.files_created = filesCreated;
-  }
-
+  const timing = buildTiming(parsed, executorMetadata, options);
+  const metrics = buildMetrics(parsed, options);
   return { result, timing, metrics, normalizationError };
 }
 
@@ -1488,8 +1686,8 @@ function writeEvalMetadata(args: Record<string, string>): void {
   }
 }
 
-function main() {
-  const args = parseArgs(process.argv.slice(2));
+/** 必須の引数がそろい、値の組み合わせが受け付けられるものであることを確かめる。 */
+function validateArgs(args: Record<string, string>): void {
   const required = [
     "executor",
     "raw",
@@ -1525,6 +1723,33 @@ function main() {
   if (args.fixture !== undefined && args["skills-root"] === undefined) {
     throw new Error("--fixture needs --skills-root");
   }
+}
+
+/** codex のトレースから、汚染の走査が読む面を --contamination-surface に書く。指定が無ければ何もしない。 */
+function writeContaminationSurface(args: Record<string, string>, rawText: string): void {
+  // Written before normalization so a trace that fails to normalize is still scanned.
+  if (args["contamination-surface"] !== undefined) {
+    if (args.executor !== "codex") {
+      throw new Error("--contamination-surface is only defined for the codex executor");
+    }
+    atomicWrite(args["contamination-surface"], codexContaminationSurface(rawText));
+  }
+}
+
+/** 正規化した結果・計時・指標・最終の応答を、それぞれの出力先のファイルに書く。 */
+function writeOutputs(
+  args: Record<string, string>,
+  normalized: ReturnType<typeof normalizeTrace>,
+): void {
+  atomicWrite(args.result, `${JSON.stringify(normalized.result, null, 2)}\n`);
+  atomicWrite(args.timing, `${JSON.stringify(normalized.timing, null, 2)}\n`);
+  atomicWrite(args.metrics, `${JSON.stringify(normalized.metrics, null, 2)}\n`);
+  atomicWrite(args.response, normalized.result.result ? `${normalized.result.result}\n` : "");
+}
+
+function main() {
+  const args = parseArgs(process.argv.slice(2));
+  validateArgs(args);
   const contentIndex =
     args["skills-root"] === undefined
       ? null
@@ -1536,13 +1761,7 @@ function main() {
         });
 
   const rawText = readFileSync(args.raw, "utf8");
-  // Written before normalization so a trace that fails to normalize is still scanned.
-  if (args["contamination-surface"] !== undefined) {
-    if (args.executor !== "codex") {
-      throw new Error("--contamination-surface is only defined for the codex executor");
-    }
-    atomicWrite(args["contamination-surface"], codexContaminationSurface(rawText));
-  }
+  writeContaminationSurface(args, rawText);
   if ((args["project-files"] === undefined) !== (args["initial-files"] === undefined)) {
     throw new Error("--project-files and --initial-files must be provided together");
   }
@@ -1569,10 +1788,7 @@ function main() {
     contentIndex,
   });
 
-  atomicWrite(args.result, `${JSON.stringify(normalized.result, null, 2)}\n`);
-  atomicWrite(args.timing, `${JSON.stringify(normalized.timing, null, 2)}\n`);
-  atomicWrite(args.metrics, `${JSON.stringify(normalized.metrics, null, 2)}\n`);
-  atomicWrite(args.response, normalized.result.result ? `${normalized.result.result}\n` : "");
+  writeOutputs(args, normalized);
   writeEvalMetadata(args);
 
   if (normalized.normalizationError !== null) {

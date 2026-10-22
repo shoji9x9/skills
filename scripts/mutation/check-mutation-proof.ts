@@ -146,6 +146,10 @@ type RawMutation = {
 };
 /** 宣言と、そのうち測る変異（`--only` と `--shard` で絞った後）。 */
 type Plan = { spec: Spec; targeted: Mutation[] };
+/** 宣言ごとの、テストファイルを 1 回実行する秒数の見積もり（`loadDurations` が返す）。 */
+type Durations = { defaultSeconds: number; seconds: Map<string, number> };
+/** 宣言 1 件の見積もり（`estimatePlans`）。`perRun` は 1 回の実行の秒数、`cost` は基準 run を含めた合計。 */
+type Estimate = { plan: Plan; specRel: string; perRun: number; cost: number };
 /** `--shard` で割り当てる単位。宣言 1 件か、重い宣言を変異で分けた一部。 */
 type Piece = { plan: Plan; mutations: Mutation[]; cost: number };
 /** `settleTarget` の分類。 */
@@ -154,6 +158,10 @@ type SettleState = "mutated" | "original" | "removed" | "foreign" | "unrestored"
 type RunResult =
   | { ran: false; reason: string }
   | { ran: true; results: Map<string, string>; failed: Set<string> };
+/** vitest の JSON レポータの結果のうち、`runTests` が読む部分。 */
+type VitestReport = {
+  testResults?: { assertionResults?: { fullName: string; status: string }[] }[];
+};
 /** 1 変異の判定（`proveMutation`）。 */
 type ProveResult =
   | { ok: false; reason: string }
@@ -192,35 +200,52 @@ const stateDir = join(repoRoot, "node_modules", ".cache", "mutation-proof");
 const lockPath = process.env.MUTATION_PROOF_LOCK ?? join(stateDir, "lock");
 let lockHeld = false;
 
+/**
+ * pid を書いた一時ファイル `staging` を、`linkSync` でロックとして公開する。ロックが既にあれば EEXIST を投げる。
+ * 公開できた後の一時ファイルの後片付けは、失敗しても出力するだけで、例外を投げない。
+ */
+function publishLock(staging: string) {
+  writeFileSync(staging, `${process.pid}\n`);
+  linkSync(staging, lockPath); // 既にあれば EEXIST（アトミック）
+  // **公開できた時点で所有を記録する。** staging の後片付けの失敗で catch へ落ちると、
+  // ロックは公開済みなのに `lockHeld` が false のままで解放されず、しかも
+  // 「ロックを作れない」という実態と違う理由で終わる。
+  lockHeld = true;
+  try {
+    unlinkSync(staging);
+  } catch (cleanupErr) {
+    console.error(
+      `mutation-proof: 一時ファイルを消せなかった（${staging}）: ${errorMessage(cleanupErr)}`,
+    );
+  }
+}
+
+/** 公開に失敗した一時ファイルを消す。作れていなければ何もしない。 */
+function discardStaging(staging: string) {
+  try {
+    unlinkSync(staging);
+  } catch {
+    /* 作れていなければ消すものが無い */
+  }
+}
+
+/**
+ * ロックを取る。取れなければ、生きている持ち主がいるか、競合が続いたときに exit 2 で止める。
+ *
+ * **pid を書き終えてから公開する。** `openSync(wx)` → `writeFileSync` の 2 段だと、
+ * 作成した直後の短い間はロックが**空**になる。そこに入った 2 本目は「pid が読めない＝残骸」と判定し、
+ * 生きている持ち主のロックを奪える。`Number("")` は NaN ではなく 0 なので、`pid > 0` が false になる。
+ * 一時ファイルへ pid を書いてから `linkSync` で公開すると、公開されたロックは常に pid を持つ。
+ */
 function takeLock() {
   mkdirSync(dirname(lockPath), { recursive: true });
-  // **pid を書き終えてから公開する。** `openSync(wx)` → `writeFileSync` の 2 段だと、
-  // 作成した直後の短い間はロックが**空**になる。そこに入った 2 本目は「pid が読めない＝残骸」と判定し、
-  // 生きている持ち主のロックを奪える。`Number("")` は NaN ではなく 0 なので、`pid > 0` が false になる。
-  // 一時ファイルへ pid を書いてから `linkSync` で公開すると、公開されたロックは常に pid を持つ。
   const staging = `${lockPath}.${process.pid}.staging`;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      writeFileSync(staging, `${process.pid}\n`);
-      linkSync(staging, lockPath); // 既にあれば EEXIST（アトミック）
-      // **公開できた時点で所有を記録する。** staging の後片付けの失敗で catch へ落ちると、
-      // ロックは公開済みなのに `lockHeld` が false のままで解放されず、しかも
-      // 「ロックを作れない」という実態と違う理由で終わる。
-      lockHeld = true;
-      try {
-        unlinkSync(staging);
-      } catch (cleanupErr) {
-        console.error(
-          `mutation-proof: 一時ファイルを消せなかった（${staging}）: ${errorMessage(cleanupErr)}`,
-        );
-      }
+      publishLock(staging);
       return;
     } catch (err) {
-      try {
-        unlinkSync(staging);
-      } catch {
-        /* 作れていなければ消すものが無い */
-      }
+      discardStaging(staging);
       if (errnoCode(err) !== "EEXIST") {
         die(`ロックを作れない（${lockPath}）: ${errorMessage(err)}`);
       }
@@ -628,7 +653,7 @@ function parseShard(value: string | undefined): { index: number; total: number }
  * `MUTATION_PROOF_DURATIONS` で差し替えられる（**テスト用の seam**。使ったら必ず出力する）。
  */
 const DURATIONS_FILE = "scripts/mutation/mutation-durations.json";
-function loadDurations(): { defaultSeconds: number; seconds: Map<string, number> } {
+function loadDurations(): Durations {
   const injected = process.env.MUTATION_PROOF_DURATIONS;
   if (injected !== undefined) {
     console.error(`所要時間の見積もり: MUTATION_PROOF_DURATIONS=${injected}（テスト用の注入）`);
@@ -679,9 +704,35 @@ function loadDurations(): { defaultSeconds: number; seconds: Map<string, number>
 function assignShard(
   plans: Plan[],
   shard: { index: number; total: number },
-  durations: { defaultSeconds: number; seconds: Map<string, number> },
+  durations: Durations,
 ): Mutation[][] {
-  let estimated = 0;
+  const whole = estimatePlans(plans, durations);
+  const budget = whole.reduce((sum, { cost }) => sum + cost, 0) / shard.total;
+  const pieces = splitPieces(whole, budget, shard);
+  // 見積もりが同じものは、作った順（宣言の並びと、分けた一部の順）を保つ（sort は安定）。宣言の並びはどのシャードも同じなので、
+  // パスやロケールで比べ直さない（`localeCompare` は LANG で、絶対パスは worktree ごとに変わる）。
+  const order = (a: Piece, b: Piece) => b.cost - a.cost;
+  const loads: number[] = Array.from({ length: shard.total }, () => 0);
+  const mine = new Set<Mutation>();
+  for (const piece of [...pieces].sort(order)) {
+    let target = 0;
+    for (let i = 1; i < loads.length; i++) if (loads[i] < loads[target]) target = i;
+    loads[target] += piece.cost;
+    if (target === shard.index - 1) for (const m of piece.mutations) mine.add(m);
+  }
+  console.log(
+    // 全体は、分けた一部の基準 run を含めた合計（シャードの見積もりの合計と一致する）。
+    `見積もり: 全体 ${loads.reduce((sum, load) => sum + load, 0).toFixed(0)} 秒、このシャード ${loads[shard.index - 1].toFixed(0)} 秒` +
+      `（最大のシャード ${Math.max(...loads).toFixed(0)} 秒）`,
+  );
+  return plans.map((plan) => plan.targeted.filter((m) => mine.has(m)));
+}
+
+/**
+ * 測る変異がある宣言ごとに、テストファイルを 1 回実行する秒数と、基準 run を含めた見積もりを返す（`plans` の並び）。
+ * 見積もりが無い宣言は `durations.defaultSeconds` で見積もり、その一覧を出力する。
+ */
+function estimatePlans(plans: Plan[], durations: Durations): Estimate[] {
   const unknown: string[] = [];
   const whole = plans
     .filter((plan) => plan.targeted.length > 0)
@@ -693,7 +744,6 @@ function assignShard(
         perRun = durations.defaultSeconds;
       }
       const cost = (plan.targeted.length + 1) * perRun;
-      estimated += cost;
       return { plan, specRel, perRun, cost };
     });
   if (unknown.length) {
@@ -701,7 +751,18 @@ function assignShard(
       `所要時間の見積もりが無い宣言 ${unknown.length} 件は、1 回 ${durations.defaultSeconds} 秒と見積もる: ${unknown.join(", ")}`,
     );
   }
-  const budget = estimated / shard.total;
+  return whole;
+}
+
+/**
+ * 1 シャードの目安 `budget` を超える宣言を、変異で分けた一部にする（分け方は `assignShard` の説明にある）。
+ * 目安に収まる宣言は、1 つの一部のまま返す。
+ */
+function splitPieces(
+  whole: Estimate[],
+  budget: number,
+  shard: { index: number; total: number },
+): Piece[] {
   const pieces: Piece[] = [];
   for (const { plan, specRel, perRun, cost } of whole) {
     const n = plan.targeted.length;
@@ -720,23 +781,7 @@ function assignShard(
       pieces.push({ plan, mutations, cost: (size + 1) * perRun });
     }
   }
-  // 見積もりが同じものは、作った順（宣言の並びと、分けた一部の順）を保つ（sort は安定）。宣言の並びはどのシャードも同じなので、
-  // パスやロケールで比べ直さない（`localeCompare` は LANG で、絶対パスは worktree ごとに変わる）。
-  const order = (a: Piece, b: Piece) => b.cost - a.cost;
-  const loads: number[] = Array.from({ length: shard.total }, () => 0);
-  const mine = new Set<Mutation>();
-  for (const piece of [...pieces].sort(order)) {
-    let target = 0;
-    for (let i = 1; i < loads.length; i++) if (loads[i] < loads[target]) target = i;
-    loads[target] += piece.cost;
-    if (target === shard.index - 1) for (const m of piece.mutations) mine.add(m);
-  }
-  console.log(
-    // 全体は、分けた一部の基準 run を含めた合計（シャードの見積もりの合計と一致する）。
-    `見積もり: 全体 ${loads.reduce((sum, load) => sum + load, 0).toFixed(0)} 秒、このシャード ${loads[shard.index - 1].toFixed(0)} 秒` +
-      `（最大のシャード ${Math.max(...loads).toFixed(0)} 秒）`,
-  );
-  return plans.map((plan) => plan.targeted.filter((m) => mine.has(m)));
+  return pieces;
 }
 
 /** 宣言ファイルの一覧。**0 件は成功として扱わない**（チェックが何も見なかっただけの成功を根拠にしない）。 */
@@ -816,8 +861,8 @@ function asString(value: unknown, label: string): string {
   return value;
 }
 
-/** 宣言を読んで形を検証する（実行前に落とす。実行してから気づくと、一部だけ適用した状態が残る）。 */
-function loadSpec(specPath: string): Spec {
+/** 宣言ファイルを JSON として読み、JSON オブジェクトであることを確かめる。読めないか形が違えば exit 2 で止める。 */
+function readRawSpec(specPath: string): RawSpec {
   let raw: RawSpec;
   try {
     raw = parseJsonAs<RawSpec>(readFileSync(specPath, "utf8"));
@@ -829,6 +874,12 @@ function loadSpec(specPath: string): Spec {
   if (typeof raw !== "object" || raw === null || isArray(raw)) {
     die(`${specPath} が JSON オブジェクトでない（${isArray(raw) ? "配列" : String(raw)}）`);
   }
+  return raw;
+}
+
+/** 宣言を読んで形を検証する（実行前に落とす。実行してから気づくと、一部だけ適用した状態が残る）。 */
+function loadSpec(specPath: string): Spec {
+  const raw = readRawSpec(specPath);
   const testFile = asString(raw.test_file, `${specPath}: test_file`);
   const testPath = resolve(repoRoot, testFile);
   if (!existsSync(testPath)) die(`${specPath}: test_file が実在しない: ${testPath}`);
@@ -870,16 +921,7 @@ function loadSpec(specPath: string): Spec {
           `合成した入力のテストで検出を示す）: ${realRepo.join(" / ")}`,
       );
     }
-    return {
-      id,
-      why,
-      file,
-      target,
-      find,
-      replace: m.replace,
-      occurrences,
-      expect,
-    };
+    return { id, why, file, target, find, replace: m.replace, occurrences, expect };
   });
   return { specPath, testFile, testPath, mutations };
 }
@@ -928,13 +970,38 @@ function testCommand(): { file: string; prefix: string[] } {
 }
 
 /**
+ * JSON レポータの結果から、テスト名 → 状態のマップを作る。
+ * 同じ名前のテストが 2 件以上あれば、名前で合否を判定できないので exit 2 で止める。
+ */
+function collectResults(report: VitestReport): Map<string, string> {
+  const results = new Map<string, string>();
+  const duplicated: string[] = [];
+  for (const file of report.testResults ?? []) {
+    for (const a of file.assertionResults ?? []) {
+      // **名前をキーにする設計なので、名前が一意であることが前提。** 同名（`test.each` の展開が
+      // 同じ文字列になる等）があると、後の状態が前を上書きする。すると「1 件目だけ落ちた」変異が、
+      // 誤って「落ちなかった」と判定される（逆向きなら、機能していない assertion が PASS になる）。
+      if (results.has(a.fullName)) duplicated.push(a.fullName);
+      results.set(a.fullName, a.status);
+    }
+  }
+  if (duplicated.length > 0) {
+    die(
+      `テスト名が重複している（名前で合否を判定できない）: ${[...new Set(duplicated)].join(" / ")}`,
+    );
+  }
+  return results;
+}
+
+/**
  * テストファイルを 1 回実行し、テスト名 → 状態のマップを返す。
  * **終了コードでは判定しない**。実行されなかった（収集で落ちた）のか、狙ったテストが落ちたのかを
  * 区別できないため、JSON レポータの結果から名前で読む。
+ *
+ * **`die()` は `process.exit` なので finally を飛ばす。** 変異の復元と同じく exit ハンドラで
+ * 二重化して、起動失敗・重複検出で落ちたときに一時ディレクトリを残さない。
  */
 function runTests(testFile: string): RunResult {
-  // **`die()` は `process.exit` なので finally を飛ばす。** 変異の復元と同じく exit ハンドラで
-  // 二重化して、起動失敗・重複検出で落ちたときに一時ディレクトリを残さない。
   const dir = mkdtempSync(join(tmpdir(), "mutation-proof-"));
   tempDirs.add(dir);
   const outFile = join(dir, "result.json");
@@ -963,30 +1030,13 @@ function runTests(testFile: string): RunResult {
         reason: `vitest が結果を出さなかった: ${tail(res.stderr || res.stdout)}`,
       };
     }
-    let report: {
-      testResults?: { assertionResults?: { fullName: string; status: string }[] }[];
-    };
+    let report: VitestReport;
     try {
-      report = parseJsonAs<typeof report>(readFileSync(outFile, "utf8"));
+      report = parseJsonAs<VitestReport>(readFileSync(outFile, "utf8"));
     } catch (err) {
       return { ran: false, reason: `vitest の結果を読めない: ${errorMessage(err)}` };
     }
-    const results = new Map<string, string>();
-    const duplicated: string[] = [];
-    for (const file of report.testResults ?? []) {
-      for (const a of file.assertionResults ?? []) {
-        // **名前をキーにする設計なので、名前が一意であることが前提。** 同名（`test.each` の展開が
-        // 同じ文字列になる等）があると、後の状態が前を上書きする。すると「1 件目だけ落ちた」変異が、
-        // 誤って「落ちなかった」と判定される（逆向きなら、機能していない assertion が PASS になる）。
-        if (results.has(a.fullName)) duplicated.push(a.fullName);
-        results.set(a.fullName, a.status);
-      }
-    }
-    if (duplicated.length > 0) {
-      die(
-        `テスト名が重複している（名前で合否を判定できない）: ${[...new Set(duplicated)].join(" / ")}`,
-      );
-    }
+    const results = collectResults(report);
     if (results.size === 0) {
       return {
         ran: false,
@@ -1053,39 +1103,60 @@ function proveMutation(mutation: Mutation, testFile: string): ProveResult {
     thrown = err;
     throw err;
   } finally {
-    // 扱いは settleTarget で決める（exit ハンドラ・次回起動と同じ）。
-    //
-    // 変異を書いた後で、対象が自分の書いた変異のままでなかったら、結果を出さずに止める。
-    // 元の内容に戻されていた・消されていた場合も、テストは変異を最後まで測れていないので、その結果を
-    // PASS / FAIL として出すと誤った実証になる（PR #585 のレビューで 3 回議論し、止める側に決めた）。
-    // 変異を書く前に失敗したとき（対象は元の内容のまま）は、何も書かずに元の例外を返す。
-    //
-    // 止める理由を先に決め、出力と exit は最後の 1 か所で行う。
-    let stopMessage = null;
-    try {
-      const state = settleTarget(mutation.target, original, mutated);
-      if (state !== "mutated" && (wroteMutation || state in UNSETTLED)) {
-        const why =
-          UNSETTLED[state] ?? "が元の内容へ戻された。測定が無効なので結果を出さずに止める";
-        stopMessage = `実行中に ${mutation.target} ${why}`;
-      }
-    } catch (err) {
-      // 後始末の失敗も止める。対象は変異のまま残り、復元情報も残るので、次回の起動が戻す。
-      stopMessage = `${mutation.target} を後始末できない: ${errorMessage(err)}`;
-    }
-    // 止めるときも、exit ハンドラで同じ後始末を繰り返さない（この照合で済んでいる）。
-    pending = null;
-    if (stopMessage !== null) {
-      console.error(`mutation-proof: ${stopMessage}`);
-      // 後始末の結果で、テストの実行中の元の例外を置き換えない（両方を出して止める）。
-      // 元の例外は、テストの実行中のものとは限らない（変異の書き込みの失敗もここに来る）。
-      if (thrown)
-        console.error(
-          `mutation-proof: 元の例外: ${(thrown instanceof Error ? thrown.stack : undefined) ?? thrown}`,
-        );
-      process.exit(2);
-    }
+    settleAfterRun({ mutation, original, mutated, wroteMutation, thrown });
   }
+  return judgeRun(mutation, run);
+}
+
+/**
+ * `proveMutation` の finally で、変異を当てた対象を後始末する。扱いは settleTarget で決める（exit ハンドラ・次回起動と同じ）。
+ *
+ * 変異を書いた後で、対象が自分の書いた変異のままでなかったら、結果を出さずに止める。
+ * 元の内容に戻されていた・消されていた場合も、テストは変異を最後まで測れていないので、その結果を
+ * PASS / FAIL として出すと誤った実証になる（PR #585 のレビューで 3 回議論し、止める側に決めた）。
+ * 変異を書く前に失敗したとき（対象は元の内容のまま）は、何も書かずに元の例外を返す。
+ */
+function settleAfterRun({
+  mutation,
+  original,
+  mutated,
+  wroteMutation,
+  thrown,
+}: {
+  mutation: Mutation;
+  original: string;
+  mutated: string;
+  wroteMutation: boolean;
+  thrown: unknown;
+}) {
+  // 止める理由を先に決め、出力と exit は最後の 1 か所で行う。
+  let stopMessage = null;
+  try {
+    const state = settleTarget(mutation.target, original, mutated);
+    if (state !== "mutated" && (wroteMutation || state in UNSETTLED)) {
+      const why = UNSETTLED[state] ?? "が元の内容へ戻された。測定が無効なので結果を出さずに止める";
+      stopMessage = `実行中に ${mutation.target} ${why}`;
+    }
+  } catch (err) {
+    // 後始末の失敗も止める。対象は変異のまま残り、復元情報も残るので、次回の起動が戻す。
+    stopMessage = `${mutation.target} を後始末できない: ${errorMessage(err)}`;
+  }
+  // 止めるときも、exit ハンドラで同じ後始末を繰り返さない（この照合で済んでいる）。
+  pending = null;
+  if (stopMessage !== null) {
+    console.error(`mutation-proof: ${stopMessage}`);
+    // 後始末の結果で、テストの実行中の元の例外を置き換えない（両方を出して止める）。
+    // 元の例外は、テストの実行中のものとは限らない（変異の書き込みの失敗もここに来る）。
+    if (thrown)
+      console.error(
+        `mutation-proof: 元の例外: ${(thrown instanceof Error ? thrown.stack : undefined) ?? thrown}`,
+      );
+    process.exit(2);
+  }
+}
+
+/** 変異を当てた実行の結果を、宣言した assertion と突き合わせて判定する。 */
+function judgeRun(mutation: Mutation, run: RunResult): ProveResult {
   if (!run.ran) return { ok: false, reason: run.reason };
   const expected = new Set(mutation.expect);
   const missing = sorted([...expected].filter((n) => !run.failed.has(n)));
@@ -1104,10 +1175,12 @@ function proveMutation(mutation: Mutation, testFile: string): ProveResult {
   return { ok: true, failed: sorted([...run.failed].filter((n) => expected.has(n))), ignored };
 }
 
-function main() {
-  const { files, only, changedSince, shard, list } = parseArgs(process.argv.slice(2));
-  // `--list` は作業ツリーに触れない（ロックを取らず、前回の中断で残った変異も戻さない）。測定の実行中でも割り当てを確かめられる。
-  // ただし、そのときは変異が入ったままのファイル（このランナー自身を含む）を読んでいる可能性があるので、知らせる。
+/**
+ * 測る前に作業ツリーを整える。`--list` 以外は、ロックを取ってから、前回の中断で残った変異を戻す。
+ * `--list` は作業ツリーに触れない（ロックを取らず、前回の中断で残った変異も戻さない）。測定の実行中でも割り当てを確かめられる。
+ * ただし、そのときは変異が入ったままのファイル（このランナー自身を含む）を読んでいる可能性があるので、知らせる。
+ */
+function prepareWorkTree(list: boolean) {
   if (!list) {
     // 宣言の検証より先にロックを取る（並行実行が互いのファイルを読むのを防ぐ）。
     takeLock();
@@ -1119,28 +1192,40 @@ function main() {
         "割り当てを計算している可能性がある。測定の後か、別の worktree で確かめ直す",
     );
   }
-  let specs = specPaths(files).map(loadSpec);
+}
+
+/**
+ * 宣言を読み、`--changed-since` があれば差分に当たる宣言に絞る。
+ * 差分に当たる宣言が無ければ、そのことを出力して null を返す（呼び出し側は測らずに終わる）。
+ */
+function selectSpecs(files: string[], changedSince: string | null): Spec[] | null {
+  const specs = specPaths(files).map(loadSpec);
   if (changedSince) {
     if (files.length > 0) {
       die("--changed-since と宣言ファイルの指定は併用しない（選び方が二重になる）");
     }
-    const declared = specs.length;
-    specs = selectChangedSpecs(specs, changedSince);
-    if (specs.length === 0) {
-      // **0 件は「測るものが無い」**（宣言 `declared` 件すべてが差分の外）。全件は定期実行が測る。
+    const selected = selectChangedSpecs(specs, changedSince);
+    if (selected.length === 0) {
+      // **0 件は「測るものが無い」**（宣言 `specs.length` 件すべてが差分の外）。全件は定期実行が測る。
       console.log(
-        `mutation-proof: この差分に当たる宣言は無い（宣言 ${declared} 件はいずれも対象・検査が未変更）。` +
+        `mutation-proof: この差分に当たる宣言は無い（宣言 ${specs.length} 件はいずれも対象・検査が未変更）。` +
           "全件は定期実行（.github/workflows/mutation-proof.yml）で測る",
       );
-      return;
+      return null;
     }
+    return selected;
   }
-  let proven = 0;
-  let failures = 0;
+  return specs;
+}
 
-  // `--only` は**宣言をまたいで** id で絞る指定。選ばれなかった宣言は飛ばす。
-  // 宣言ごとに「1 件も選ばれなかった」で落とすと、宣言が 2 件以上ある時点で
-  // `--only <id>` が常に exit 2 になる（実測。宣言は今 3 件ある）。
+/**
+ * 宣言ごとに、測る変異を `--only` で絞る。`skipped` は、絞って外した変異の数。
+ *
+ * `--only` は**宣言をまたいで** id で絞る指定。選ばれなかった宣言は飛ばす。
+ * 宣言ごとに「1 件も選ばれなかった」で落とすと、宣言が 2 件以上ある時点で
+ * `--only <id>` が常に exit 2 になる（実測。宣言は今 3 件ある）。
+ */
+function buildPlans(specs: Spec[], only: Set<string> | null): { plans: Plan[]; skipped: number } {
   const plans: Plan[] = specs.map((spec) => ({
     spec,
     targeted: spec.mutations.filter((m) => !only || only.has(m.id)),
@@ -1153,26 +1238,121 @@ function main() {
     const unmatched = sorted([...only].filter((id) => !selected.has(id)));
     if (unmatched.length) die(`--only で 1 件も選ばれなかった: ${unmatched.join(" / ")}`);
   }
+  return { plans, skipped };
+}
 
-  // `--shard i/N` は、選んだ変異を N 個のシャードに分け、i 番目だけを測る（分け方は `assignShard`）。
-  // どの変異もちょうど 1 つのシャードに入る（N 本を合わせると全件）。選び方（`--changed-since`・`--only`）は変えない。
-  if (shard) {
-    const total = plans.reduce((n, p) => n + p.targeted.length, 0);
-    const assigned = assignShard(plans, shard, loadDurations());
-    plans.forEach((p, i) => (p.targeted = assigned[i]));
-    const mine = plans.reduce((n, p) => n + p.targeted.length, 0);
+/**
+ * `--shard i/N` で、選んだ変異を N 個のシャードに分け、i 番目だけを `plans` に残す（分け方は `assignShard`）。
+ * どの変異もちょうど 1 つのシャードに入る（N 本を合わせると全件）。選び方（`--changed-since`・`--only`）は変えない。
+ * このシャードに割り当てられた変異が無ければ、そのことを出力して false を返す（呼び出し側は測らずに終わる）。
+ */
+function applyShard(plans: Plan[], shard: { index: number; total: number }): boolean {
+  const total = plans.reduce((n, p) => n + p.targeted.length, 0);
+  const assigned = assignShard(plans, shard, loadDurations());
+  plans.forEach((p, i) => (p.targeted = assigned[i]));
+  const mine = plans.reduce((n, p) => n + p.targeted.length, 0);
+  console.log(
+    `シャード ${shard.index}/${shard.total}: 選んだ変異 ${total} 件のうち ${mine} 件を測る`,
+  );
+  if (mine === 0) {
+    // 割り当ての単位（宣言か、重い宣言を分けた一部）がシャード数より少ないときに起きる。残りは他のシャードが測る
+    // （選んだ変異 0 件はここへ来る前に扱う）。
     console.log(
-      `シャード ${shard.index}/${shard.total}: 選んだ変異 ${total} 件のうち ${mine} 件を測る`,
+      `mutation-proof: このシャードに割り当てられた変異は無い（選んだ ${total} 件を ${shard.total} 分割）`,
     );
-    if (mine === 0) {
-      // 割り当ての単位（宣言か、重い宣言を分けた一部）がシャード数より少ないときに起きる。残りは他のシャードが測る
-      // （選んだ変異 0 件はここへ来る前に扱う）。
-      console.log(
-        `mutation-proof: このシャードに割り当てられた変異は無い（選んだ ${total} 件を ${shard.total} 分割）`,
-      );
-      return;
+    return false;
+  }
+  return true;
+}
+
+/** 基準 run（変異を入れない実行）を測り、緑であることと、宣言したテスト名が実在することを確かめる。 */
+function checkBaseline(spec: Spec, targeted: Mutation[]) {
+  // **基準は先に測る。** 変異前が緑でなければ、落ちた原因を変異に帰属できない。
+  const baseline = runTests(spec.testFile);
+  if (!baseline.ran) die(`基準 run を実行できなかった: ${baseline.reason}`);
+  if (baseline.failed.size > 0) {
+    die(`基準 run が緑でない（先に直す）: ${sorted(baseline.failed).join(" / ")}`);
+  }
+  console.log(`baseline: ${baseline.results.size} tests passed`);
+
+  // 宣言したテスト名が実在すること。**名前が古くなっていたら実証にならない**。テストを
+  // リネームすると、`expect_failing` は決して失敗しない名前を指し、このチェックが何も見なくなる。
+  for (const m of targeted) {
+    const unknown = m.expect.filter((name) => !baseline.results.has(name));
+    if (unknown.length) {
+      die(`${m.id}: expect_failing に実在しないテスト名がある: ${unknown.join(" / ")}`);
     }
   }
+}
+
+/** 1 変異を測って、PASS か FAIL を出力する。実証できたら true を返す。 */
+function measureMutation(m: Mutation, testFile: string): boolean {
+  let res: ProveResult;
+  try {
+    res = proveMutation(m, testFile);
+  } catch (err) {
+    // 変異を当てられない（ENOSPC・EACCES・ハードリンクなど）のは環境や前提の誤りで、変異の判定ではない。
+    // 捕捉しないと node が exit 1（実証できない変異がある）で終わり、呼び出し側が判定を取り違える。
+    // それ以外の例外（ランナーの不具合や、テストの結果の形の変化）も判定ではないので exit 2 にし、スタックを残す。
+    if (!(err instanceof MutationWriteError)) {
+      console.error((err instanceof Error ? err.stack : undefined) ?? String(err));
+      die(`${m.id} の測定中に予期しない例外が起きた（上のスタックを見る）`);
+    }
+    die(`${m.id} の変異を当てられない: ${err.cause.message}`);
+  }
+  if (res.ok) {
+    console.log(`PASS ${m.id}: ${m.why}`);
+    console.log(`     → 落ちた: ${res.failed.join(" / ")}`);
+    if (res.ignored.length) {
+      console.log(`     → 数えなかった（実リポジトリを読む）: ${res.ignored.join(" / ")}`);
+    }
+    return true;
+  }
+  console.log(`FAIL ${m.id}: ${m.why}`);
+  console.log(`     → ${res.reason}`);
+  return false;
+}
+
+/** 宣言ごとの所要時間（基準 run を含む）。 */
+type Timing = { spec: string; count: number; seconds: number };
+
+/** 宣言ごとに基準 run と各変異を測り、実証できた数・できなかった数・宣言ごとの所要時間を返す。 */
+function measurePlans(plans: Plan[]): { proven: number; failures: number; timings: Timing[] } {
+  let proven = 0;
+  let failures = 0;
+  // 宣言ごとの所要時間（基準 run を含む）。全件の実行で、次に縮める宣言を数字で選ぶために出す（Issue #588）。
+  const timings: Timing[] = [];
+  for (const { spec, targeted } of plans) {
+    if (targeted.length === 0) continue;
+    const specStart = performance.now();
+    console.log(`\n=== ${relative(repoRoot, spec.specPath)} → ${spec.testFile}`);
+    checkBaseline(spec, targeted);
+    for (const m of targeted) {
+      if (measureMutation(m, spec.testFile)) proven++;
+      else failures++;
+    }
+    const seconds = (performance.now() - specStart) / 1000;
+    timings.push({ spec: relative(repoRoot, spec.specPath), count: targeted.length, seconds });
+    console.log(`時間: ${seconds.toFixed(1)} 秒（${targeted.length} 変異、基準 run を含む）`);
+  }
+  return { proven, failures, timings };
+}
+
+/** 宣言ごとの所要時間を、長い順に出力する。 */
+function printTimings(timings: Timing[]) {
+  console.log("\n宣言ごとの時間（長い順）:");
+  for (const t of [...timings].sort((a, b) => b.seconds - a.seconds)) {
+    console.log(`  ${t.seconds.toFixed(1).padStart(8)} 秒  ${t.spec}（${t.count} 変異）`);
+  }
+}
+
+function main() {
+  const { files, only, changedSince, shard, list } = parseArgs(process.argv.slice(2));
+  prepareWorkTree(list);
+  const specs = selectSpecs(files, changedSince);
+  if (specs === null) return;
+  const { plans, skipped } = buildPlans(specs, only);
+  if (shard && !applyShard(plans, shard)) return;
 
   if (list) {
     // 測る変異を 1 行に 1 件ずつ出して終わる（基準 run も変異も実行しない）。
@@ -1182,68 +1362,9 @@ function main() {
     return;
   }
 
-  // 宣言ごとの所要時間（基準 run を含む）。全件の実行で、次に縮める宣言を数字で選ぶために出す（Issue #588）。
-  const timings: { spec: string; count: number; seconds: number }[] = [];
-  for (const { spec, targeted } of plans) {
-    if (targeted.length === 0) continue;
-    const specStart = performance.now();
-    console.log(`\n=== ${relative(repoRoot, spec.specPath)} → ${spec.testFile}`);
-
-    // **基準は先に測る。** 変異前が緑でなければ、落ちた原因を変異に帰属できない。
-    const baseline = runTests(spec.testFile);
-    if (!baseline.ran) die(`基準 run を実行できなかった: ${baseline.reason}`);
-    if (baseline.failed.size > 0) {
-      die(`基準 run が緑でない（先に直す）: ${sorted(baseline.failed).join(" / ")}`);
-    }
-    console.log(`baseline: ${baseline.results.size} tests passed`);
-
-    // 宣言したテスト名が実在すること。**名前が古くなっていたら実証にならない**。テストを
-    // リネームすると、`expect_failing` は決して失敗しない名前を指し、このチェックが何も見なくなる。
-    for (const m of targeted) {
-      const unknown = m.expect.filter((name) => !baseline.results.has(name));
-      if (unknown.length) {
-        die(`${m.id}: expect_failing に実在しないテスト名がある: ${unknown.join(" / ")}`);
-      }
-    }
-
-    for (const m of targeted) {
-      let res: ProveResult;
-      try {
-        res = proveMutation(m, spec.testFile);
-      } catch (err) {
-        // 変異を当てられない（ENOSPC・EACCES・ハードリンクなど）のは環境や前提の誤りで、変異の判定ではない。
-        // 捕捉しないと node が exit 1（実証できない変異がある）で終わり、呼び出し側が判定を取り違える。
-        // それ以外の例外（ランナーの不具合や、テストの結果の形の変化）も判定ではないので exit 2 にし、スタックを残す。
-        if (!(err instanceof MutationWriteError)) {
-          console.error((err instanceof Error ? err.stack : undefined) ?? String(err));
-          die(`${m.id} の測定中に予期しない例外が起きた（上のスタックを見る）`);
-        }
-        die(`${m.id} の変異を当てられない: ${err.cause.message}`);
-      }
-      if (res.ok) {
-        proven++;
-        console.log(`PASS ${m.id}: ${m.why}`);
-        console.log(`     → 落ちた: ${res.failed.join(" / ")}`);
-        if (res.ignored.length) {
-          console.log(`     → 数えなかった（実リポジトリを読む）: ${res.ignored.join(" / ")}`);
-        }
-      } else {
-        failures++;
-        console.log(`FAIL ${m.id}: ${m.why}`);
-        console.log(`     → ${res.reason}`);
-      }
-    }
-    const seconds = (performance.now() - specStart) / 1000;
-    timings.push({ spec: relative(repoRoot, spec.specPath), count: targeted.length, seconds });
-    console.log(`時間: ${seconds.toFixed(1)} 秒（${targeted.length} 変異、基準 run を含む）`);
-  }
-
+  const { proven, failures, timings } = measurePlans(plans);
   // 集計の行（mutation-proof: ...）を最後の行に保つため、その前に出す。
-  console.log("\n宣言ごとの時間（長い順）:");
-  for (const t of [...timings].sort((a, b) => b.seconds - a.seconds)) {
-    console.log(`  ${t.seconds.toFixed(1).padStart(8)} 秒  ${t.spec}（${t.count} 変異）`);
-  }
-
+  printTimings(timings);
   console.log(
     `\nmutation-proof: ${proven} proven / ${failures} failed` +
       (skipped ? ` / ${skipped} skipped（--only）` : ""),

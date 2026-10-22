@@ -113,12 +113,11 @@ function parseReadme(root: string, violations: string[]) {
   return collect(entries, "README.md", violations);
 }
 
-/**
- * @param {string} root リポジトリルート（テストでは一時ディレクトリ）
- * @returns {{ distributed: string[], private: string[], violations: string[] }}
- */
-export function checkSkillIndex(root: string) {
-  const violations: string[] = [];
+/** 実在するスキル。distributed は skills/ の配布スキル、priv は .private-skill を持つ private skill。 */
+type SkillSets = { distributed: string[]; dist: Set<string>; priv: string[] };
+
+/** skills/ と .agents/skills/ からスキルを列挙する。SKILL.md の無いディレクトリは違反にする。 */
+function listSkills(root: string, violations: string[]): SkillSets {
   const distributed = listDirs(join(root, "skills"));
   for (const name of distributed) {
     if (!existsSync(join(root, "skills", name, "SKILL.md"))) {
@@ -137,7 +136,15 @@ export function checkSkillIndex(root: string) {
         `.agents/skills/${name}/: .private-skill はあるが SKILL.md が無い（スキルの実体として読めない）`,
       );
   }
+  return { distributed, dist, priv };
+}
 
+/** AGENTS.md の索引が、配布スキルと private skill をちょうど載せているかを確かめる。 */
+function checkAgentsIndex(
+  root: string,
+  { distributed, dist, priv }: SkillSets,
+  violations: string[],
+) {
   const agents = parseAgents(root, violations);
   if (agents) {
     for (const name of [...distributed, ...priv]) {
@@ -153,7 +160,14 @@ export function checkSkillIndex(root: string) {
       }
     }
   }
+}
 
+/** README.md の索引が、配布スキルだけをちょうど載せているかを確かめる。 */
+function checkReadmeIndex(
+  root: string,
+  { distributed, dist, priv }: SkillSets,
+  violations: string[],
+) {
   const readme = parseReadme(root, violations);
   if (readme) {
     for (const name of distributed) {
@@ -168,8 +182,18 @@ export function checkSkillIndex(root: string) {
       );
     }
   }
+}
 
-  return { distributed, private: priv, violations };
+/**
+ * @param {string} root リポジトリルート（テストでは一時ディレクトリ）
+ * @returns {{ distributed: string[], private: string[], violations: string[] }}
+ */
+export function checkSkillIndex(root: string) {
+  const violations: string[] = [];
+  const skills = listSkills(root, violations);
+  checkAgentsIndex(root, skills, violations);
+  checkReadmeIndex(root, skills, violations);
+  return { distributed: skills.distributed, private: skills.priv, violations };
 }
 
 export function main(argv: string[]) {

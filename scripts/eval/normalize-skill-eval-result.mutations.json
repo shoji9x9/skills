@@ -22,8 +22,8 @@
       "id": "reset-ignored",
       "why": "Bash ツールが報告した cwd のリセットを読まない",
       "file": "scripts/eval/normalize-skill-eval-result.ts",
-      "find": "        if (/^Shell cwd was reset to /mu.test(",
-      "replace": "        if (false && /^Shell cwd was reset to /mu.test(",
+      "find": "  if (/^Shell cwd was reset to /mu.test(",
+      "replace": "  if (false && /^Shell cwd was reset to /mu.test(",
       "occurrences": 1,
       "expect_failing": [
         "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory once the tool reports resetting the cwd"
@@ -33,8 +33,8 @@
       "id": "parallel-uses-cwd",
       "why": "同じメッセージで並行に出た cd の結果を待たずに cwd を使う",
       "file": "scripts/eval/normalize-skill-eval-result.ts",
-      "find": "movePending ? null : cwd",
-      "replace": "cwd",
+      "find": "movePending ? null : state.cwd",
+      "replace": "state.cwd",
       "occurrences": 1,
       "expect_failing": [
         "skill eval result normalization skill read detection reads relative to the shell's working directory does not resolve a read issued alongside a cd that may run first"
@@ -146,8 +146,8 @@
       "id": "init-cwd-ignored",
       "why": "init が示す開始ディレクトリを使わない",
       "file": "scripts/eval/normalize-skill-eval-result.ts",
-      "find": "        cwd = event.cwd;\n",
-      "replace": "        cwd = null;\n",
+      "find": "    state.cwd = event.cwd;\n",
+      "replace": "    state.cwd = null;\n",
       "occurrences": 1,
       "expect_failing": [
         "skill eval result normalization skill read detection reads relative to the shell's working directory counts a relative read after a cd relative to the start"
@@ -179,7 +179,7 @@
       "id": "earlier-read-keeps-cwd",
       "why": "移動より先に発行され結果待ちの読み取りを、移動前の cwd で解決したまま残す",
       "file": "scripts/eval/normalize-skill-eval-result.ts",
-      "find": "          pending.texts = unresolved;\n",
+      "find": "    pending.texts = unresolved;\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
@@ -576,8 +576,8 @@
       "id": "content-claude-output-dropped",
       "why": "claude-code の tool_result の出力を集めない",
       "file": "scripts/eval/normalize-skill-eval-result.ts",
-      "find": "        toolOutputTexts.push(toolResultText(block.content));\n",
-      "replace": "        void 0;\n",
+      "find": "  state.toolOutputTexts.push(toolResultText(block.content));\n",
+      "replace": "  void 0;\n",
       "occurrences": 1,
       "expect_failing": [
         "skill eval result normalization skill read detection skill text in tool output counts skill text printed by a ;-joined read the command parser skips",
@@ -596,8 +596,8 @@
       "id": "content-codex-output-dropped",
       "why": "codex の command_execution の出力を集めない",
       "file": "scripts/eval/normalize-skill-eval-result.ts",
-      "find": "        toolOutputTexts.push(event.item.aggregated_output);\n",
-      "replace": "        void 0;\n",
+      "find": "    state.toolOutputTexts.push(item.aggregated_output);\n",
+      "replace": "    void 0;\n",
       "occurrences": 1,
       "expect_failing": [
         "skill eval result normalization skill read detection skill text in tool output reads Codex command output whatever the command's exit code"

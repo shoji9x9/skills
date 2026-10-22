@@ -175,13 +175,10 @@ export function gitFiles(root: string, ...args: string[]) {
 }
 
 /**
- * @param {string} root リポジトリルート（テストでは一時ディレクトリ）
- * @returns {{ files: string[], refs: number, violations: string[] }}
+ * 走査するファイルと、追跡しているファイルの集合を返す。
+ * @param {string} root リポジトリルート
  */
-export function checkKaizenRefs(
-  root: string,
-  { exemptions = loadExemptions(root) }: { exemptions?: Exemption[] } = {},
-) {
+function listScannedFiles(root: string) {
   const tracked = gitFiles(root, "--cached");
   const trackedSet = new Set(tracked);
   const listed = [...tracked, ...gitFiles(root, "--others", "--exclude-standard")];
@@ -193,6 +190,35 @@ export function checkKaizenRefs(
       existsSync(join(root, f)) &&
       !lstatSync(join(root, f)).isSymbolicLink(),
   );
+  return { files, trackedSet };
+}
+
+/** 1 ファイルの、行末で切れて復元できない参照と、形の崩れた参照を違反の文にする。 */
+function shapeViolations(file: string, found: ReturnType<typeof findRefs>) {
+  const out: string[] = [];
+  for (const { fragment, line } of found.broken) {
+    out.push(
+      `${file}:${line}: 行末で切れた参照を次行とつないで復元できない（${fragment}…）。1 行に収める`,
+    );
+  }
+  for (const { text: shown, line, wrapped } of found.malformed) {
+    out.push(
+      `${file}:${line}${wrapped ? "（折り返し）" : ""}: 参照の形が崩れている（${shown}）。` +
+        "学びへのパスは .md で終わる 1 つのパスとして書く",
+    );
+  }
+  return out;
+}
+
+/**
+ * @param {string} root リポジトリルート（テストでは一時ディレクトリ）
+ * @returns {{ files: string[], refs: number, violations: string[] }}
+ */
+export function checkKaizenRefs(
+  root: string,
+  { exemptions = loadExemptions(root) }: { exemptions?: Exemption[] } = {},
+) {
+  const { files, trackedSet } = listScannedFiles(root);
   const violations: string[] = [];
   const usedExemptions = new Set<Exemption>();
   let refs = 0;
@@ -210,19 +236,9 @@ export function checkKaizenRefs(
       continue;
     }
     const found = findRefs(text);
-    for (const { fragment, line } of found.broken) {
-      violations.push(
-        `${file}:${line}: 行末で切れた参照を次行とつないで復元できない（${fragment}…）。1 行に収める`,
-      );
-    }
+    violations.push(...shapeViolations(file, found));
     // 形の崩れた参照も走査した参照に数える（それしか無いファイルを「参照 0 件」と取り違えない）。
     refs += found.malformed.length;
-    for (const { text: shown, line, wrapped } of found.malformed) {
-      violations.push(
-        `${file}:${line}${wrapped ? "（折り返し）" : ""}: 参照の形が崩れている（${shown}）。` +
-          "学びへのパスは .md で終わる 1 つのパスとして書く",
-      );
-    }
     for (const { ref, line, wrapped } of found.refs) {
       refs += 1;
       const where = `${file}:${line}${wrapped ? "（折り返し）" : ""}`;

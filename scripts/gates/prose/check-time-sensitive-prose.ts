@@ -209,6 +209,30 @@ export function checkTimeWords(root: string) {
   return { files: files.length, found, ...applyPending(found, list, TIME_RULES) };
 }
 
+/** ミューテーションテストの件数・所要時間の記述を、直し方と一緒に stderr に出す。 */
+function reportMutationCounts(scanned: number, violations: string[]) {
+  console.error(
+    `time-sensitive-prose: ${scanned} 件を走査し、${violations.length} 件の件数・所要時間の記述:`,
+  );
+  for (const v of violations) console.error(`  - ${v}`);
+  console.error(
+    "Fix: 変異の件数と全件の実測値は .github/workflows/mutation-proof.yml のコメントにだけ置き、" +
+      "散文からはそこを指す（例:「実測値は mutation-proof.yml のコメント」）。",
+  );
+}
+
+/** 時間の語・日付の違反と古い保留を、直し方と一緒に stderr に出す。 */
+function reportTimeWords(scanned: number, failures: string[]) {
+  console.error(
+    `time-sensitive-prose: ${scanned} 件を走査し、${failures.length} 件の時間の語・日付:`,
+  );
+  for (const f of failures) console.error(`  - ${f}`);
+  console.error(
+    "Fix: 時点や経過は Tier 4（.kaizen/・Issue・PR）に書き、文書からは消す。" +
+      "後の段階で直すものだけを scripts/gates/docs/doc-pending.json の pending に、正しい記述は allowed に理由付きで書く。",
+  );
+}
+
 export function main(argv: string[]) {
   const args = argv.filter((a) => a !== "--");
   const prune = args.includes("--prune");
@@ -236,26 +260,8 @@ export function main(argv: string[]) {
     console.log(`time-sensitive-prose: 古い保留を ${prunePending(root, time.stale)} 件消した`);
     failures = failures.filter((f) => !f.startsWith("古い保留: "));
   }
-  if (violations.length) {
-    console.error(
-      `time-sensitive-prose: ${files.length} 件を走査し、${violations.length} 件の件数・所要時間の記述:`,
-    );
-    for (const v of violations) console.error(`  - ${v}`);
-    console.error(
-      "Fix: 変異の件数と全件の実測値は .github/workflows/mutation-proof.yml のコメントにだけ置き、" +
-        "散文からはそこを指す（例:「実測値は mutation-proof.yml のコメント」）。",
-    );
-  }
-  if (failures.length) {
-    console.error(
-      `time-sensitive-prose: ${time.files} 件を走査し、${failures.length} 件の時間の語・日付:`,
-    );
-    for (const f of failures) console.error(`  - ${f}`);
-    console.error(
-      "Fix: 時点や経過は Tier 4（.kaizen/・Issue・PR）に書き、文書からは消す。" +
-        "後の段階で直すものだけを scripts/gates/docs/doc-pending.json の pending に、正しい記述は allowed に理由付きで書く。",
-    );
-  }
+  if (violations.length) reportMutationCounts(files.length, violations);
+  if (failures.length) reportTimeWords(time.files, failures);
   if (violations.length || failures.length) return 1;
   console.log(
     `time-sensitive-prose: OK（ミューテーションテストの件数 ${files.length} 件、時間の語と日付 ${time.files} 件。保留 ${time.pendingCount} 件）`,

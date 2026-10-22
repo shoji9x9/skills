@@ -139,56 +139,61 @@ export function symlinkOnPath(root: string, rel: string): string | null {
   return null;
 }
 
-/** 食い違いを列挙する。fix なら vendor/ を書き直す。 */
-export async function check(root: string, fix: boolean): Promise<Finding[]> {
-  const { withSchema, withReader } = skillsWithConfig(root);
-  if (withSchema.length === 0) throw new Error(`skills/*/${SCHEMA_DIR}/ を持つスキルが 0 件`);
-  const expected = await renderVendor(root);
+/** 設定を読むスキルが、読み取りのスクリプトと共有の文書を持つかを確かめる。 */
+function missingSharedFiles(root: string, name: string): Finding[] {
   const findings: Finding[] = [];
-  for (const name of withReader.filter((n) => !withSchema.includes(n))) {
+  const reader = `skills/${name}/${READER}`;
+  if (!existsSync(join(root, reader))) {
     findings.push({
-      path: `skills/${name}/scripts/skill-config`,
-      message: `${SCHEMA_DIR}/ が無いのに同梱している（設定を読まないなら消す）`,
+      path: reader,
+      message: "無い（他のスキルの skill-config.mjs をコピーする）",
     });
   }
-  for (const name of withSchema) {
-    const reader = `skills/${name}/${READER}`;
-    if (!existsSync(join(root, reader))) {
-      findings.push({
-        path: reader,
-        message: "無い（他のスキルの skill-config.mjs をコピーする）",
-      });
-    }
-    const doc = `skills/${name}/${SHARED_DOC}`;
-    if (!existsSync(join(root, doc))) {
-      findings.push({ path: doc, message: "無い（他のスキルの config-files.md をコピーする）" });
-    }
-    for (const file of VENDOR_FILES) {
-      const rel = `skills/${name}/${VENDOR_DIR}/${file}`;
-      const abs = join(root, rel);
-      const actual = existsSync(abs) ? readFileSync(abs, "utf8") : null;
-      if (actual === expected[file]) continue;
-      // 書き込み先か途中のディレクトリがシンボリックリンクなら、リンク先（リポジトリの外もありうる）を書き換えずに挙げる
-      const link = fix ? symlinkOnPath(root, rel) : null;
-      if (link !== null) {
-        findings.push({
-          path: rel,
-          message: `${link} がシンボリックリンクなので --fix で書かない`,
-        });
-        continue;
-      }
-      if (fix) {
-        mkdirSync(dirname(abs), { recursive: true });
-        writeFileSync(abs, expected[file]);
-        continue;
-      }
+  const doc = `skills/${name}/${SHARED_DOC}`;
+  if (!existsSync(join(root, doc))) {
+    findings.push({ path: doc, message: "無い（他のスキルの config-files.md をコピーする）" });
+  }
+  return findings;
+}
+
+/** 1 スキルの vendor/ を、作るべき内容と突き合わせる。fix なら食い違うファイルを書き直す。 */
+function vendorFindings(
+  root: string,
+  name: string,
+  { expected, fix }: { expected: Awaited<ReturnType<typeof renderVendor>>; fix: boolean },
+): Finding[] {
+  const findings: Finding[] = [];
+  for (const file of VENDOR_FILES) {
+    const rel = `skills/${name}/${VENDOR_DIR}/${file}`;
+    const abs = join(root, rel);
+    const actual = existsSync(abs) ? readFileSync(abs, "utf8") : null;
+    if (actual === expected[file]) continue;
+    // 書き込み先か途中のディレクトリがシンボリックリンクなら、リンク先（リポジトリの外もありうる）を書き換えずに挙げる
+    const link = fix ? symlinkOnPath(root, rel) : null;
+    if (link !== null) {
       findings.push({
         path: rel,
-        message:
-          actual === null ? "無い" : "devDependency の jsonc-parser から作った内容と一致しない",
+        message: `${link} がシンボリックリンクなので --fix で書かない`,
       });
+      continue;
     }
+    if (fix) {
+      mkdirSync(dirname(abs), { recursive: true });
+      writeFileSync(abs, expected[file]);
+      continue;
+    }
+    findings.push({
+      path: rel,
+      message:
+        actual === null ? "無い" : "devDependency の jsonc-parser から作った内容と一致しない",
+    });
   }
+  return findings;
+}
+
+/** スキルの間で同じであるべきファイル（読み取り・共有の文書・スキーマ）が、コピーの組に載っているかを確かめる。 */
+function groupFindings(root: string, withSchema: string[]): Finding[] {
+  const findings: Finding[] = [];
   const groups = copyGroups(root);
   for (const rel of [READER, SHARED_DOC]) {
     const paths = withSchema
@@ -206,6 +211,26 @@ export async function check(root: string, fix: boolean): Promise<Finding[]> {
   }
   for (const [file, paths] of schemas)
     findings.push(...missingFromGroup(paths, groups, ` ${file} `));
+  return findings;
+}
+
+/** 食い違いを列挙する。fix なら vendor/ を書き直す。 */
+export async function check(root: string, fix: boolean): Promise<Finding[]> {
+  const { withSchema, withReader } = skillsWithConfig(root);
+  if (withSchema.length === 0) throw new Error(`skills/*/${SCHEMA_DIR}/ を持つスキルが 0 件`);
+  const expected = await renderVendor(root);
+  const findings: Finding[] = [];
+  for (const name of withReader.filter((n) => !withSchema.includes(n))) {
+    findings.push({
+      path: `skills/${name}/scripts/skill-config`,
+      message: `${SCHEMA_DIR}/ が無いのに同梱している（設定を読まないなら消す）`,
+    });
+  }
+  for (const name of withSchema) {
+    findings.push(...missingSharedFiles(root, name));
+    findings.push(...vendorFindings(root, name, { expected, fix }));
+  }
+  findings.push(...groupFindings(root, withSchema));
   return findings;
 }
 

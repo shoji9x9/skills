@@ -90,7 +90,7 @@
       "id": "CS-DIRECTIVE",
       "why": "ディレクティブの行を Markdown に入れない",
       "file": "scripts/lib/text/code-strings.ts",
-      "find": "const directives = isEvals ? [] : commentDirectives(path, source);",
+      "find": "const directives = isEvals ? [] : commentDirectives(sf.fileName, source);",
       "replace": "const directives = [];",
       "expect_failing": [
         "ディレクティブ コメントだけの行の textlint-disable と textlint-enable を、文字列の間の位置に置く"
@@ -127,7 +127,7 @@
       "why": "文字列の前の空行を、2 つ目以降の文字列にだけ置く（先頭の --- を front matter として読み、語のチェックから外す）",
       "file": "scripts/lib/text/code-strings.ts",
       "find": "    emit(\"\", start.line, 0);\n    text.split",
-      "replace": "    if (md.length) emit(\"\", start.line, 0);\n    text.split",
+      "replace": "    if (build().lines.length) emit(\"\", start.line, 0);\n    text.split",
       "expect_failing": [
         "Markdown の書式 先頭の --- を front matter として読ませない（Markdown の先頭は空行にする）"
       ]

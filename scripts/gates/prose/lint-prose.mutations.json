@@ -118,8 +118,8 @@
       "id": "LP-COMMENTS",
       "why": "コメントの文章を textlint に渡さない",
       "file": "scripts/gates/prose/lint-prose.ts",
-      "find": "    const comments = hasComments(rel) ? await lintExtracted(linter, root, rel, \"comments\") : [];",
-      "replace": "    const comments = [];",
+      "find": "  const comments = hasComments(rel) ? await lintExtracted(linter, at, \"comments\") : [];",
+      "replace": "  const comments = [];",
       "occurrences": 1,
       "expect_failing": [
         "陽性: コメントの指摘を、元のファイルの行と桁で報告する",
@@ -245,8 +245,8 @@
       "id": "LP-STRINGS",
       "why": "文字列を textlint に渡さない（テスト名・メッセージ・eval の旧称を見逃す）",
       "file": "scripts/gates/prose/lint-prose.ts",
-      "find": "    const strings = hasStrings(rel) ? await lintExtracted(linter, root, rel, \"strings\") : [];",
-      "replace": "    const strings = [];",
+      "find": "  const strings = hasStrings(rel) ? await lintExtracted(linter, at, \"strings\") : [];",
+      "replace": "  const strings = [];",
       "expect_failing": [
         "陽性: JS の文字列とテンプレートの語を、元のファイルの行と桁で報告する",
         "陽性: evals.json の prompt・expected_output・assertions の語を報告し、他のキーは見ない",

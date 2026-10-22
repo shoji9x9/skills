@@ -266,12 +266,20 @@ export function fromAdvisory(advisory: AuditRecord): Finding {
   };
 }
 
-function fromVulnerability(
-  packageName: string,
-  vulnerability: AuditRecord,
-  via: unknown,
-  packages: Packages | undefined,
-): Finding {
+/** `fromVulnerability` が受け取る、パッケージの名前・vulnerabilities の 1 件・advisory を表す `via`・packages の欄。 */
+interface VulnerabilitySource {
+  packageName: string;
+  vulnerability: AuditRecord;
+  via: unknown;
+  packages: Packages | undefined;
+}
+
+function fromVulnerability({
+  packageName,
+  vulnerability,
+  via,
+  packages,
+}: VulnerabilitySource): Finding {
   const advisory = advisoryFromVia(via);
   const fix: AuditRecord = isObjectLike(vulnerability.fixAvailable)
     ? vulnerability.fixAvailable
@@ -313,10 +321,10 @@ export function findingsFromVulnerability(
     if (typeof via === "object" && via) return true;
     return typeof via === "string" && isAdvisoryViaString(via);
   });
-  if (advisories.length === 0) return [fromVulnerability(packageName, vulnerability, {}, packages)];
-  return advisories.map((advisory) =>
-    fromVulnerability(packageName, vulnerability, advisory, packages),
-  );
+  if (advisories.length === 0) {
+    return [fromVulnerability({ packageName, vulnerability, via: {}, packages })];
+  }
+  return advisories.map((via) => fromVulnerability({ packageName, vulnerability, via, packages }));
 }
 
 /** advisories・vulnerabilities・packages の欄の項目。欄が無い（null を含む）なら 0 件、object でなければ Error にする。 */

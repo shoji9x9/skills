@@ -113,8 +113,7 @@ export function listTargets(root: string): string[] {
  */
 async function lintExtracted(
   linter: Linter,
-  root: string,
-  rel: string,
+  { root, rel }: { root: string; rel: string },
   kind: "comments" | "strings",
 ): Promise<LintMessage[]> {
   const abs = join(root, rel);
@@ -142,6 +141,39 @@ async function lintExtracted(
     // sentence-length は Markdown の行番号を本文に書くので、元のファイルの行と食い違う。番号を外す。
     message: kind === "strings" ? `（文字列）${m.message}` : m.message.replace(/^Line \d+ /, ""),
   }));
+}
+
+/** `.md` 以外のファイルのコメントと文字列を lint し、指摘を行と桁の順に並べて返す。 */
+async function lintSource(linter: Linter, at: { root: string; rel: string }) {
+  const { rel } = at;
+  const comments = hasComments(rel) ? await lintExtracted(linter, at, "comments") : [];
+  const strings = hasStrings(rel) ? await lintExtracted(linter, at, "strings") : [];
+  return [...comments, ...strings].sort((a, b) => a.line - b.line || a.column - b.column);
+}
+
+/**
+ * ファイルごとの指摘を、報告する違反と古い保留に分ける。
+ * 保留したファイルでは、コメントを取り出せない指摘だけを違反にし、指摘が 0 件なら古い保留にする。
+ */
+function classify(targets: string[], byPath: Map<string, LintMessage[]>, pending: Set<string>) {
+  const violations: string[] = [];
+  const stale: string[] = [];
+  for (const rel of targets) {
+    // 結果が無いファイルを「指摘 0 件」として扱わない（保留の判定が逆転する）。
+    const messages = byPath.get(rel);
+    if (!messages) throw new Error(`${rel} の textlint の結果が無い`);
+    if (pending.has(rel)) {
+      if (messages.length === 0)
+        stale.push(`${rel}: 指摘が 0 件になった。${PENDING_PATH} から外す`);
+      // コメントを取り出せないことは、書き換えの保留と関係が無いので、保留したファイルでも報告する。
+      for (const m of messages.filter((m) => m.ruleId === PARSE_RULE))
+        violations.push(`${rel}:${m.line}:${m.column} ${m.message} (${m.ruleId})`);
+      continue;
+    }
+    for (const m of messages)
+      violations.push(`${rel}:${m.line}:${m.column} ${m.message} (${m.ruleId})`);
+  }
+  return { violations, stale };
 }
 
 /**
@@ -180,31 +212,9 @@ export async function lintProse({
     results.map((r) => [relative(root, r.filePath).split(sep).join("/"), r.messages]),
   );
   for (const rel of targets.filter((t) => !t.endsWith(".md"))) {
-    const comments = hasComments(rel) ? await lintExtracted(linter, root, rel, "comments") : [];
-    const strings = hasStrings(rel) ? await lintExtracted(linter, root, rel, "strings") : [];
-    byPath.set(
-      rel,
-      [...comments, ...strings].sort((a, b) => a.line - b.line || a.column - b.column),
-    );
+    byPath.set(rel, await lintSource(linter, { root, rel }));
   }
-
-  const violations: string[] = [];
-  const stale: string[] = [];
-  for (const rel of targets) {
-    // 結果が無いファイルを「指摘 0 件」として扱わない（保留の判定が逆転する）。
-    const messages = byPath.get(rel);
-    if (!messages) throw new Error(`${rel} の textlint の結果が無い`);
-    if (pending.has(rel)) {
-      if (messages.length === 0)
-        stale.push(`${rel}: 指摘が 0 件になった。${PENDING_PATH} から外す`);
-      // コメントを取り出せないことは、書き換えの保留と関係が無いので、保留したファイルでも報告する。
-      for (const m of messages.filter((m) => m.ruleId === PARSE_RULE))
-        violations.push(`${rel}:${m.line}:${m.column} ${m.message} (${m.ruleId})`);
-      continue;
-    }
-    for (const m of messages)
-      violations.push(`${rel}:${m.line}:${m.column} ${m.message} (${m.ruleId})`);
-  }
+  const { violations, stale } = classify(targets, byPath, pending);
   if (whole) {
     for (const rel of pending) {
       if (!existsSync(join(root, rel)))

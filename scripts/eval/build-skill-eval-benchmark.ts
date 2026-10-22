@@ -296,18 +296,8 @@ function undirNamed(parent: string, names: readonly string[]): string[] {
   return names.filter((name) => present.has(name) && !dirs.has(name)).sort();
 }
 
-/** run 1 件を読み、集計に使う形へ正規化する。 */
-function loadRun(runDir: string, configuration: string, evalDir: string) {
-  const metaPath = join(runDir, "eval_metadata.json");
-  const gradingPath = join(runDir, "grading.json");
-  const timingPath = join(runDir, "timing.json");
-  if (!existsSync(metaPath))
-    die(`${runDir}: eval_metadata.json が無い（assertion テキストの原本）`);
-  if (!existsSync(timingPath)) die(`${runDir}: timing.json が無い（時間・トークンの原本）`);
-  const meta = readJson(metaPath);
-  const grading = readJson(gradingPath);
-  const timing = readJson(timingPath);
-
+/** `meta.eval_id` が整数で、eval ディレクトリ名の番号と一致することを確かめて返す。 */
+function evalIdOf(meta: JsonObject, metaPath: string, evalDir: string): number {
   const evalId = meta.eval_id;
   if (typeof evalId !== "number" || !Number.isInteger(evalId)) {
     die(`${metaPath}: eval_id が整数でない`);
@@ -328,6 +318,11 @@ function loadRun(runDir: string, configuration: string, evalDir: string) {
   if (Number(named[1]) !== evalId) {
     die(`${metaPath}: eval_id=${evalId} がディレクトリ名（${evalDir}）と違う`);
   }
+  return evalId;
+}
+
+/** `meta.assertions` が重複の無い非空の文字列の配列であることを確かめて返す。 */
+function assertionsOf(meta: JsonObject, metaPath: string): string[] {
   if (!isArray(meta.assertions) || meta.assertions.length === 0) {
     die(`${metaPath}: assertions が空`);
   }
@@ -340,7 +335,21 @@ function loadRun(runDir: string, configuration: string, evalDir: string) {
   if (new Set(assertions).size !== assertions.length) {
     die(`${metaPath}: assertions のテキストが重複している（テキストでキーにできない）`);
   }
+  return assertions;
+}
 
+/** 採点の判定を assertion テキストで突き合わせ、宣言の順に並べた判定の一覧を返す。 */
+function expectationsOf({
+  assertions,
+  grading,
+  gradingPath,
+  metaPath,
+}: {
+  assertions: string[];
+  grading: JsonObject;
+  gradingPath: string;
+  metaPath: string;
+}) {
   const verdicts = verdictsFromGrading(grading, gradingPath);
   // **キー集合で突き合わせる。** 件数だけ見ると、1 件の取り違えが相殺で通る。
   const missing = assertions.filter((t) => !verdicts.has(t));
@@ -359,6 +368,15 @@ function loadRun(runDir: string, configuration: string, evalDir: string) {
   }
 
   const expectations = assertions.map((text) => ({ text, ...verdicts.get(text) }));
+  return expectations;
+}
+
+/** 採点の内訳を数え、`grading.summary` の件数と `pass_rate` が内訳と一致することを確かめる。 */
+function tallyGrading(
+  grading: JsonObject,
+  gradingPath: string,
+  expectations: { passed?: boolean }[],
+) {
   const passed = expectations.filter((e) => e.passed).length;
   const failed = expectations.length - passed;
   const summary = grading.summary;
@@ -388,7 +406,11 @@ function loadRun(runDir: string, configuration: string, evalDir: string) {
       `${gradingPath}: summary.pass_rate=${summary.pass_rate} が採点内訳（${computedRate}）と違う`,
     );
   }
+  return { passed, failed, computedRate };
+}
 
+/** `timing.json` の時間とトークン、`outputs/metrics.json` を読み、型を確かめて返す。 */
+function measurementsOf(runDir: string, timing: JsonObject, timingPath: string) {
   const seconds = timing.total_duration_seconds;
   if (typeof seconds !== "number") die(`${timingPath}: total_duration_seconds が数値でない`);
   // **記録が無いトークンを 0 で埋めない。** 0 として mean / min / max / Delta に混ぜると、
@@ -412,6 +434,26 @@ function loadRun(runDir: string, configuration: string, evalDir: string) {
       die(`${metricsPath}: ${key} が数値でも null でもない`);
     }
   }
+  return { seconds, tokens, metrics };
+}
+
+/** run 1 件を読み、集計に使う形へ正規化する。 */
+function loadRun(runDir: string, configuration: string, evalDir: string) {
+  const metaPath = join(runDir, "eval_metadata.json");
+  const gradingPath = join(runDir, "grading.json");
+  const timingPath = join(runDir, "timing.json");
+  if (!existsSync(metaPath))
+    die(`${runDir}: eval_metadata.json が無い（assertion テキストの原本）`);
+  if (!existsSync(timingPath)) die(`${runDir}: timing.json が無い（時間・トークンの原本）`);
+  const meta = readJson(metaPath);
+  const grading = readJson(gradingPath);
+  const timing = readJson(timingPath);
+
+  const evalId = evalIdOf(meta, metaPath, evalDir);
+  const assertions = assertionsOf(meta, metaPath);
+  const expectations = expectationsOf({ assertions, grading, gradingPath, metaPath });
+  const { passed, failed, computedRate } = tallyGrading(grading, gradingPath, expectations);
+  const { seconds, tokens, metrics } = measurementsOf(runDir, timing, timingPath);
 
   return {
     runDir,
@@ -448,8 +490,12 @@ function runNumber(runDir: string): number {
   return Number(m[1]);
 }
 
-function main() {
-  const opts = parseArgs(process.argv.slice(2));
+type Options = ReturnType<typeof parseArgs>;
+
+type LoadedRun = ReturnType<typeof loadRun>;
+
+/** iteration 直下の `eval-*` ディレクトリを列挙し、辿れないエントリと 0 件を落とす。 */
+function evalDirsOf(opts: Options): string[] {
   const evalDirs = listDirs(opts.dir, "eval-");
   // **iteration 直下の `eval-*` も「辿れないから消える」を作らない。** リンク先が無いリンクやファイルは
   // `listDirs` が落とすだけなので、ここで報告して落とす（実測: リンク先が無い eval が無警告で消えた）。
@@ -464,7 +510,11 @@ function main() {
   }
   if (evalDirs.length === 0)
     die(`${opts.dir}: eval-* ディレクトリが無い（対象 0 件を成功として扱わない）`);
+  return evalDirs;
+}
 
+/** eval ディレクトリの直下に、configuration として使えない子ディレクトリが無いことを確かめる。 */
+function checkConfigurationDirs(opts: Options, evalDirs: string[]): void {
   // **実在する子ディレクトリを列挙して、知らない名前を警告なしに捨てない。** 既知の 2 名だけを
   // `existsSync` で拾う形だと、`without-skill` のような 1 文字違いの成果物が誰にも告げられずに
   // 集計から消え、「片側だけの iteration」として exit 0 で通る（実測）。除外は人が明示する。
@@ -487,8 +537,11 @@ function main() {
         `名前を ${CONFIGURATIONS.join(" / ")} に揃えるか、iteration から外す`,
     );
   }
+}
 
-  const loaded: ReturnType<typeof loadRun>[] = [];
+/** 全 eval × configuration の run を読む。採点の無い run は別に集め、pair ごとの採点済みの件数を数える。 */
+function loadRuns(opts: Options, evalDirs: string[]) {
+  const loaded: LoadedRun[] = [];
   const ungraded: string[] = [];
   const perPair = new Map<string, number>();
   const presentByEval = new Map<string, string[]>(evalDirs.map((d) => [d, []]));
@@ -525,7 +578,11 @@ function main() {
       perPair.set(`${evalDir}/${configuration}`, graded);
     }
   }
+  return { loaded, ungraded, perPair, presentByEval };
+}
 
+/** 採点の無い run を報告し、`--ungraded fail` なら落とす。採点済みの run が 0 件のときも落とす。 */
+function reportUngraded(opts: Options, ungraded: string[], loaded: LoadedRun[]): void {
   if (ungraded.length > 0) {
     console.error(`採点の無い run が ${ungraded.length} 件ある:`);
     for (const p of ungraded) console.error(`  ${p}`);
@@ -537,7 +594,10 @@ function main() {
     console.error("--ungraded skip: 上記を集計から除外した（除外の経緯は notes に残す）");
   }
   if (loaded.length === 0) die(`${opts.dir}: 採点済みの run が 1 件も無い`);
+}
 
+/** 全 run の executor / model / effort が記録されていて、1 種類に揃っていることを確かめる。 */
+function checkExecutors(loaded: LoadedRun[]): void {
   // executor / model が混在する run を同じ母集団へ集計しない（iteration を分ける）。
   const executorKeys = new Set(
     loaded.map((r) =>
@@ -564,7 +624,10 @@ function main() {
     );
   }
   console.error(`executor（timing.json 実測）: ${[...executorKeys][0]}`);
+}
 
+/** 全 eval が同じ configuration の組を持つことを確かめる。 */
+function checkConfigurationShapes(presentByEval: Map<string, string[]>): void {
   // **configuration の欠落を「揃っている」として扱わない。** `perPair` には、存在しない
   // configuration のエントリが立たない。そのため片側だけの eval は run 数の突き合わせを素通りする。
   // すると Delta が**eval 集合の違う母集団同士**の比較になる（with は 2 eval・without は 1 eval でも、
@@ -584,7 +647,10 @@ function main() {
         "）。揃えるか iteration を分ける",
     );
   }
+}
 
+/** eval × configuration ごとの採点済みの run 数が 1 以上で揃っていることを確かめ、その数を返す。 */
+function runsPerConfigurationOf(perPair: Map<string, number>): number {
   // **採点済み 0 件の pair を 0 のまま捨てない。** `--ungraded skip` で片側の run が全部
   // 未採点になった pair は、`graded` が 0 になる。その 0 を集合から消すと、run 数の突き合わせを
   // 素通りする（ディレクトリは在るので、上の configuration 検査も通る）。実測で、with_skill が
@@ -605,7 +671,11 @@ function main() {
     );
   }
   const runsPerConfiguration = [...counts][0];
+  return runsPerConfiguration;
+}
 
+/** 同じ (eval_id, configuration, run_number) の run が 2 つのディレクトリから来ていないことを確かめる。 */
+function checkDuplicateRuns(loaded: LoadedRun[]): void {
   // **同じ (eval_id, configuration, run_number) の run が 2 件あれば落とす。**
   // 置き直したコピー（`eval-1` と `eval-1-retry` が同じ eval_id）や、`run-1` と `run-01` の同居がありうる。
   // そのとき片方の eval が 2 倍の重みで mean に入るのを防ぐ（成果物からは判別できない）。
@@ -620,8 +690,10 @@ function main() {
     }
     seenRuns.set(key, r.runDir);
   }
+}
 
-  // **同じ eval の run が同じ assertion 集合を採点していることを確かめる。**
+/** 同じ eval の run が同じ assertion 集合を採点していることを確かめる。 */
+function checkAssertionSets(loaded: LoadedRun[]): void {
   // run の合間に `evals.json` を編集すると、各 run は自分の宣言と整合したまま assertion 数が変わる。
   // すると `pass_rate` の分母が run 間で違い、mean / stddev / delta が別の採点基準の混合平均になる。
   // eval_id とディレクトリ名・executor の混在と同じく、母集団を混在させないための検査。
@@ -650,10 +722,10 @@ function main() {
       );
     }
   }
+}
 
-  const runs = loaded.map((r) => r.run);
-  const evalsRun = [...new Set(runs.map((r) => r.eval_id))].sort((a, b) => a - b);
-
+/** configuration ごとの統計と、両方の configuration があるときの Delta を作る。 */
+function summarizeRuns(runs: LoadedRun["run"][]): RunSummary {
   const runSummary: RunSummary = {};
   for (const configuration of CONFIGURATIONS) {
     const rows = runs.filter((r) => r.configuration === configuration);
@@ -672,39 +744,30 @@ function main() {
       tokens: signed(runSummary[a].tokens.mean - runSummary[b].tokens.mean, 0),
     };
   }
+  return runSummary;
+}
 
-  let notes: unknown = [];
-  if (opts.notesFile) {
-    const path = resolve(opts.notesFile);
-    if (!existsSync(path)) die(`--notes-file が無い: ${path}`);
-    const raw = readFileSync(path, "utf8");
-    // notes は**文字列配列**なので `readJson`（plain object を要求する）は通さない。
-    notes = path.endsWith(".json")
-      ? parseNotesJson(path, raw)
-      : raw
-          .split("\n")
-          .map((l) => l.trim())
-          .filter(Boolean);
-    if (!isArray(notes) || notes.some((n) => typeof n !== "string")) {
-      die(`--notes-file は 1 行 1 note のテキストか、文字列配列の JSON`);
-    }
+/** `--notes-file` を読み、文字列の配列として返す。指定が無ければ空の配列を返す。 */
+function readNotes(opts: Options): string[] {
+  if (!opts.notesFile) return [];
+  const path = resolve(opts.notesFile);
+  if (!existsSync(path)) die(`--notes-file が無い: ${path}`);
+  const raw = readFileSync(path, "utf8");
+  // notes は**文字列配列**なので `readJson`（plain object を要求する）は通さない。
+  const notes: unknown = path.endsWith(".json")
+    ? parseNotesJson(path, raw)
+    : raw
+        .split("\n")
+        .map((l) => l.trim())
+        .filter(Boolean);
+  if (!isArray(notes) || !notes.every((n): n is string => typeof n === "string")) {
+    die(`--notes-file は 1 行 1 note のテキストか、文字列配列の JSON`);
   }
+  return notes;
+}
 
-  const benchmark = {
-    metadata: {
-      skill_name: opts.skillName,
-      skill_path: opts.skillPath,
-      executor_model: opts.executorModel,
-      analyzer_model: opts.analyzerModel,
-      timestamp: opts.timestamp ?? `${new Date().toISOString().slice(0, 19)}Z`,
-      evals_run: evalsRun,
-      runs_per_configuration: runsPerConfiguration,
-    },
-    runs,
-    run_summary: runSummary,
-    notes,
-  };
-
+/** benchmark を stdout か、`--out`（無ければ iteration 直下の benchmark.json）に書く。 */
+function writeBenchmark(opts: Options, benchmark: ReturnType<typeof buildBenchmark>): void {
   const json = `${JSON.stringify(benchmark, null, 2)}\n`;
   if (opts.stdout) {
     process.stdout.write(json);
@@ -717,8 +780,43 @@ function main() {
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, json);
   console.log(
-    `${out}: runs=${runs.length} evals=${evalsRun.length} runs_per_configuration=${runsPerConfiguration}`,
+    `${out}: runs=${benchmark.runs.length} evals=${benchmark.metadata.evals_run.length} runs_per_configuration=${benchmark.metadata.runs_per_configuration}`,
   );
+}
+
+function main() {
+  const opts = parseArgs(process.argv.slice(2));
+  const evalDirs = evalDirsOf(opts);
+  checkConfigurationDirs(opts, evalDirs);
+  const { loaded, ungraded, perPair, presentByEval } = loadRuns(opts, evalDirs);
+  reportUngraded(opts, ungraded, loaded);
+  checkExecutors(loaded);
+  checkConfigurationShapes(presentByEval);
+  const runsPerConfiguration = runsPerConfigurationOf(perPair);
+  checkDuplicateRuns(loaded);
+  checkAssertionSets(loaded);
+
+  writeBenchmark(opts, buildBenchmark(opts, loaded, runsPerConfiguration));
+}
+
+/** 読み込んだ run から、benchmark.json の中身を組み立てる。 */
+function buildBenchmark(opts: Options, loaded: LoadedRun[], runsPerConfiguration: number) {
+  const runs = loaded.map((r) => r.run);
+  const evalsRun = [...new Set(runs.map((r) => r.eval_id))].sort((a, b) => a - b);
+  return {
+    metadata: {
+      skill_name: opts.skillName,
+      skill_path: opts.skillPath,
+      executor_model: opts.executorModel,
+      analyzer_model: opts.analyzerModel,
+      timestamp: opts.timestamp ?? `${new Date().toISOString().slice(0, 19)}Z`,
+      evals_run: evalsRun,
+      runs_per_configuration: runsPerConfiguration,
+    },
+    runs,
+    run_summary: summarizeRuns(runs),
+    notes: readNotes(opts),
+  };
 }
 
 main();

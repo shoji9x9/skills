@@ -262,20 +262,10 @@ export function amendVerifyPair(root: string, pair: string, options: { pass?: bo
 }
 
 /**
- * 持ち越しの fixture 一式を作る。
- *
- * 新側リポジトリ（<root>/app）の履歴: base（初期）→ component（Button.tsx を宣言どおり直す）。以降のコミットは各テストが積む。
- * 変更宣言 hover-shadow は base → component。記録の版 base・今の版 component が既定。
- * `root` を渡すと既存のプロジェクト（artifact-health-check.test.ts の makeProject 等）へ足し、
- * 機能の metadata.json は書かない（呼び出し側が featureMetadata の capture_conditions をコピーする）。
- * `makeDir` は `root` を渡さないときにプロジェクトを作る関数で、デフォルトは `makeTempDir`。
- * 並べて実行するテストは `makeTempDirFactory` で作った関数を渡す（`makeTempDir` は並べたテストの中では例外になる）。
- * @param {{ scope?: [string, string, string][], root?: string, makeDir?: (prefix: string) => string }} [options]
+ * 新側リポジトリ（<root>/app）を作り、base（初期）と component（Button.tsx を宣言どおり直す）の 2 つのコミットを積む。
+ * 戻り値はリポジトリのパスと、2 つのコミットの SHA。
  */
-export function makeCarryProject(
-  options: { scope?: ScopeTuple[]; root?: string; makeDir?: (prefix: string) => string } = {},
-) {
-  const root = options.root ?? (options.makeDir ?? makeTempDir)("evidence-carry-");
+function makeCarryRepo(root: string): { repo: string; base: string; component: string } {
   const repo = join(root, "app");
   mkdirSync(repo, { recursive: true });
   git(repo, ["init", "-q"]);
@@ -294,6 +284,25 @@ export function makeCarryProject(
     { "src/components/Button.tsx": "export const Button = () => <button className='shadow' />;\n" },
     "button hover shadow",
   );
+  return { repo, base, component };
+}
+
+/**
+ * 持ち越しの fixture 一式を作る。
+ *
+ * 新側リポジトリ（<root>/app）の履歴: base（初期）→ component（Button.tsx を宣言どおり直す）。以降のコミットは各テストが積む。
+ * 変更宣言 hover-shadow は base → component。記録の版 base・今の版 component が既定。
+ * `root` を渡すと既存のプロジェクト（artifact-health-check.test.ts の makeProject 等）へ足し、
+ * 機能の metadata.json は書かない（呼び出し側が featureMetadata の capture_conditions をコピーする）。
+ * `makeDir` は `root` を渡さないときにプロジェクトを作る関数で、デフォルトは `makeTempDir`。
+ * 並べて実行するテストは `makeTempDirFactory` で作った関数を渡す（`makeTempDir` は並べたテストの中では例外になる）。
+ * @param {{ scope?: [string, string, string][], root?: string, makeDir?: (prefix: string) => string }} [options]
+ */
+export function makeCarryProject(
+  options: { scope?: ScopeTuple[]; root?: string; makeDir?: (prefix: string) => string } = {},
+) {
+  const root = options.root ?? (options.makeDir ?? makeTempDir)("evidence-carry-");
+  const { repo, base, component } = makeCarryRepo(root);
   const replaceRoot = join(root, ".replace");
   const slugDir = join(replaceRoot, "parity", FEATURE);
   const stageDir = join(slugDir, "new", TARGET);
