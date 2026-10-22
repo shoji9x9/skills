@@ -3,12 +3,12 @@
     "check-agents-md-size.test.ts の検出能力を示す変異の一覧。",
     "散文コメントで持つと古くなるため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。"
   ],
-  "test_file": "scripts/gates/docs/check-agents-md-size.test.ts",
+  "test_file": "scripts/gates/docs/agents-md/check-agents-md-size.test.ts",
   "mutations": [
     {
       "id": "AS-HISTORY",
       "why": "ブランチの履歴で limit を超えたことを数えない（縮めきらずに通る）",
-      "file": "scripts/gates/docs/check-agents-md-size.ts",
+      "file": "scripts/gates/docs/agents-md/check-agents-md-size.ts",
       "find": "  const exceeded = rangeCommits(root, base).some((c) => (sizeAt(root, c) ?? 0) > limit);",
       "replace": "  const exceeded = false;",
       "occurrences": 1,
@@ -23,7 +23,7 @@
     {
       "id": "AS-TARGET",
       "why": "limit を超えた後も target を求めない",
-      "file": "scripts/gates/docs/check-agents-md-size.ts",
+      "file": "scripts/gates/docs/agents-md/check-agents-md-size.ts",
       "find": "  if (size > limit || (exceeded && size > target)) {",
       "replace": "  if (size > limit) {",
       "occurrences": 1,
@@ -36,7 +36,7 @@
     {
       "id": "AS-LIMIT",
       "why": "CI で limit 超の HEAD を通す",
-      "file": "scripts/gates/docs/check-agents-md-size.ts",
+      "file": "scripts/gates/docs/agents-md/check-agents-md-size.ts",
       "find": "  if (size > limit || (exceeded && size > target)) {",
       "replace": "  if (exceeded && size > target && false) {",
       "occurrences": 1,
@@ -51,7 +51,7 @@
     {
       "id": "AS-FIRST",
       "why": "初めて超えた commit も失敗させる（履歴に残らず、縮めきらずに通る）",
-      "file": "scripts/gates/docs/check-agents-md-size.ts",
+      "file": "scripts/gates/docs/agents-md/check-agents-md-size.ts",
       "find": "  if (preCommit && !exceeded && size > limit) {",
       "replace": "  if (false) {",
       "occurrences": 1,
@@ -62,7 +62,7 @@
     {
       "id": "AS-BASE",
       "why": "分岐点を使わず、base 側の履歴まで数える",
-      "file": "scripts/gates/docs/check-agents-md-size.ts",
+      "file": "scripts/gates/docs/agents-md/check-agents-md-size.ts",
       "find": "  const out = git(root, [\"rev-list\", `${mergeBase}..HEAD`]);",
       "replace": "  const out = git(root, [\"rev-list\", \"HEAD\"]);",
       "occurrences": 1,
@@ -71,7 +71,7 @@
     {
       "id": "AS-INDEX",
       "why": "pre-commit でも HEAD を測る",
-      "file": "scripts/gates/docs/check-agents-md-size.ts",
+      "file": "scripts/gates/docs/agents-md/check-agents-md-size.ts",
       "find": "  const size = sizeAt(root, preCommit ? \"\" : \"HEAD\");",
       "replace": "  const size = sizeAt(root, \"HEAD\");",
       "occurrences": 1,
@@ -87,7 +87,7 @@
     {
       "id": "AS-BOUNDS",
       "why": "target と limit の大小を確かめない",
-      "file": "scripts/gates/docs/check-agents-md-size.ts",
+      "file": "scripts/gates/docs/agents-md/check-agents-md-size.ts",
       "find": "  if (!isInteger(limit) || !isInteger(target) || target <= 0 || target >= limit) {",
       "replace": "  if (!isInteger(limit) || !isInteger(target)) {",
       "occurrences": 1,

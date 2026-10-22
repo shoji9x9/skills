@@ -4,7 +4,7 @@
 // append-only-check.mjs・asset-delivery-check.mjs・evidence-gap-check.mjs は、toError で自分の UsageError と文言を作る。
 
 import { expect, test, vi } from "vitest";
-import { parseJsonOrThrow } from "../../../skills/replace-strategy/scripts/lib/json.mjs";
+import { parseJsonOrThrow } from "../../../../skills/replace-strategy/scripts/lib/json.mjs";
 
 class StubError extends Error {}
 

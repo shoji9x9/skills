@@ -2,11 +2,11 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { cpSync, readFileSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { afterEach, expect, test } from "vitest";
-import { parseJsonAs } from "../lib/parse-as.ts";
-import { makeTempDir } from "../lib/testing/test-tmpdir.ts";
-import { CHILD_TIMEOUT_MS } from "../lib/testing/child-timeout.ts";
+import { parseJsonAs } from "../../lib/parse-as.ts";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
-const repository = resolve(import.meta.dirname, "..", "..");
+const repository = resolve(import.meta.dirname, "..", "..", "..");
 const fixturesRoot = join(repository, "evals", "issue-start", "fixtures");
 const temporaryDirectories: string[] = [];
 

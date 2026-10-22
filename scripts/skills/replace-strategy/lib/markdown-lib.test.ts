@@ -5,11 +5,11 @@
 // #598 では読み方の違いを呼び出し元のオプションで残していたが、#611 で 1 つにそろえた。
 
 import { expect, test } from "vitest";
-import { readAssetLedger } from "../../../skills/replace-strategy/scripts/asset-delivery-check.mjs";
-import { readRow } from "../../../skills/replace-strategy/scripts/evidence-gap-check.mjs";
-import { stepFence } from "../../../skills/replace-strategy/scripts/lib/fence.mjs";
-import { parseTables } from "../../../skills/replace-strategy/scripts/lib/markdown.mjs";
-import { readProcedureLedger } from "../../../skills/replace-strategy/scripts/procedure-staleness-check.mjs";
+import { readAssetLedger } from "../../../../skills/replace-strategy/scripts/asset-delivery-check.mjs";
+import { readRow } from "../../../../skills/replace-strategy/scripts/evidence-gap-check.mjs";
+import { stepFence } from "../../../../skills/replace-strategy/scripts/lib/fence.mjs";
+import { parseTables } from "../../../../skills/replace-strategy/scripts/lib/markdown.mjs";
+import { readProcedureLedger } from "../../../../skills/replace-strategy/scripts/procedure-staleness-check.mjs";
 
 const lines = (...xs: string[]) => [...xs, ""].join("\n");
 

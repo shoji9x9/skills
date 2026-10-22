@@ -1,0 +1,5 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+ci:39720977129:1,ci,2026-10-22T04:18:11.189Z,p-cdee4961,github-actions,,,,2026-10-22T04:11:24.000Z,2026-10-22T04:15:25.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:39716648202:1,ci,2026-10-22T04:18:11.189Z,p-cdee4961,github-actions,,,,2026-10-22T03:24:23.000Z,2026-10-22T03:24:24.000Z,Asia/Tokyo,feature/756-fix-scripts-function-size,756,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:39716648184:1,ci,2026-10-22T04:18:11.189Z,p-cdee4961,github-actions,,,,2026-10-22T03:24:23.000Z,2026-10-22T03:40:54.000Z,Asia/Tokyo,feature/756-fix-scripts-function-size,756,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-21T03:22:08.029Z:2026-10-22T04:18:11.189Z,coverage,2026-10-22T04:18:11.189Z,p-cdee4961,,,,,2026-10-21T03:22:08.029Z,2026-10-22T04:18:11.189Z,Asia/Tokyo,,,,,,,,,,,,ok,

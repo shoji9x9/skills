@@ -21,10 +21,10 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { errorMessage } from "../../lib/errors.ts";
-import { isRecord } from "../../lib/guards.ts";
+import { errorMessage } from "../../../lib/errors.ts";
+import { isRecord } from "../../../lib/guards.ts";
 
-export const CONFIG_PATH = "scripts/gates/docs/agents-md-size.json";
+export const CONFIG_PATH = "scripts/gates/docs/agents-md/agents-md-size.json";
 export const TARGET_PATH = "AGENTS.md";
 
 /** 整数か（`Number.isInteger` を、number への絞り込みとして使う）。 */

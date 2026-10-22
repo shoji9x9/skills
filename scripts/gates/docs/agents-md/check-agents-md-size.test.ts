@@ -11,17 +11,17 @@
 // | 設定のファイル           | 在る / 無い / JSON でない / limit・target が不正                          |
 // | AGENTS.md                | 在る / 測る版に無い                                                    |
 import { expect, test } from "vitest";
-import { parseJsonAs } from "../../lib/parse-as.ts";
+import { parseJsonAs } from "../../../lib/parse-as.ts";
 import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CONFIG_PATH, checkAgentsMdSize, main } from "./check-agents-md-size.ts";
-import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
-import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
+import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
+import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
 
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const script = join(repoRoot, "scripts/gates/docs/check-agents-md-size.ts");
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
+const script = join(repoRoot, "scripts/gates/docs/agents-md/check-agents-md-size.ts");
 const LIMIT = 100;
 const TARGET = 80;
 

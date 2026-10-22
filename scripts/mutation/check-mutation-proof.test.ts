@@ -1213,7 +1213,9 @@ require("node:module").syncBuiltinESMExports();
     expect(res.out).toContain("この差分に当たる宣言は無い");
     // 警告なしに成功にしない。注入を使ったことと、飛ばした宣言が出ていることを確かめる。
     expect(res.out).toContain("テスト用の注入");
-    expect(res.out).toContain("飛ばす: scripts/skills/kaizen/tracking-issue-title.mutations.json");
+    expect(res.out).toContain(
+      "飛ばす: scripts/skills/kaizen/schedule/tracking-issue-title.mutations.json",
+    );
   });
 
   test("ランナーが変わったら全宣言を測る", async () => {

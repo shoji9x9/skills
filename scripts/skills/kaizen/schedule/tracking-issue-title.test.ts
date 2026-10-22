@@ -3,10 +3,10 @@ import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { loadYamlAs } from "../../lib/text/yaml-as.ts";
-import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
-import { coverageEnv } from "../../lib/testing/coverage-env.ts";
-import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
+import { loadYamlAs } from "../../../lib/text/yaml-as.ts";
+import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
+import { coverageEnv } from "../../../lib/testing/coverage-env.ts";
+import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
 
 // 週次ワークフローの追跡 Issue は、タイトルが固定文字列だと手動クローズのたびに
 // 同名の Issue が open / closed に並び、一覧で世代を区別できない（Issue #417）。
@@ -25,10 +25,10 @@ import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 //
 // **ミューテーションテストの結果は散文で持たない。** 以前はこの位置に A〜U のコメントとして置いていた。
 // しかし、テストを直した瞬間に検証されない主張になる（実際に 3 通りの食い違い方をした。Issue #420）。
-// 変異は `scripts/skills/kaizen/tracking-issue-title.mutations.json` にデータとして持つ。
+// 変異は `scripts/skills/kaizen/schedule/tracking-issue-title.mutations.json` にデータとして持つ。
 // `node scripts/mutation/check-mutation-proof.ts` が、「置換が当たったこと」と「狙ったテストが
 // 失敗したこと」の両方を機械で確かめる。
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 
 const LIB = "skills/kaizen/scripts/tracking-issue-lib.sh";
 const libPath = join(repoRoot, LIB);

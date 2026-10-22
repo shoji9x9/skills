@@ -5,7 +5,7 @@
     "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
     "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
   ],
-  "test_file": "scripts/skills/kaizen/tracking-issue-title.test.ts",
+  "test_file": "scripts/skills/kaizen/schedule/tracking-issue-title.test.ts",
   "mutations": [
     {
       "id": "A",

@@ -10,7 +10,7 @@
 //   - `parity-component` の css-rules-capture.mjs（当たっている CSS 規則）
 //   - 要素単位のスクリーンショット（element.png）
 // を採り、`axis-diff.mjs --baseline` 相当で axes.json を組み立て、metadata.json のツール版・
-// プロパティ集合・軸の件数を実物の値で更新する。整合は scripts/eval/parity-component-fixtures.test.ts が CI で検査する。
+// プロパティ集合・軸の件数を実物の値で更新する。整合は scripts/eval/fixtures/parity-component-fixtures.test.ts が CI で検査する。
 //
 // ページは HTTP で配信せず文書として流し込む。開発環境（WSL2 上の headless Chrome 149）で
 // http(s) へのナビゲーションが開始すらしない（data: は通る）ことを実測したため。
@@ -20,7 +20,7 @@
 // CI では実行しない（ブラウザが無い）。書き出した JSON の整形はこのスクリプトが自分で行う
 // （書いたファイルを列挙して oxfmt へ渡し、同じディレクトリの既存の JSON を書き換えないため）。
 //
-// 使い方: node scripts/eval/generate-parity-component-fixtures.ts
+// 使い方: node scripts/eval/fixtures/generate-parity-component-fixtures.ts
 
 import { spawn, spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -28,14 +28,14 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
-import { errorMessage } from "../lib/errors.ts";
-import { parseJsonAs } from "../lib/parse-as.ts";
-import * as traitCapture from "../../skills/parity-suite/scripts/trait-capture.mjs";
-import * as cssRules from "../../skills/parity-component/scripts/css-rules-capture.mjs";
-import * as axisDiff from "../../skills/parity-component/scripts/axis-diff.mjs";
-import * as elementShot from "../../skills/parity-suite/scripts/element-shot.mjs";
+import { errorMessage } from "../../lib/errors.ts";
+import { parseJsonAs } from "../../lib/parse-as.ts";
+import * as traitCapture from "../../../skills/parity-suite/scripts/trait-capture.mjs";
+import * as cssRules from "../../../skills/parity-component/scripts/css-rules-capture.mjs";
+import * as axisDiff from "../../../skills/parity-component/scripts/axis-diff.mjs";
+import * as elementShot from "../../../skills/parity-suite/scripts/element-shot.mjs";
 
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 
 const fixtureDir = (name: string) =>
   join(repoRoot, "evals/parity-component/fixtures", name, ".replace/components/button");

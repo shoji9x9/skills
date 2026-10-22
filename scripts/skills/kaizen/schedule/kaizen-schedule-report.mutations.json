@@ -4,7 +4,7 @@
     "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。",
     "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
   ],
-  "test_file": "scripts/skills/kaizen/kaizen-schedule-report.test.ts",
+  "test_file": "scripts/skills/kaizen/schedule/kaizen-schedule-report.test.ts",
   "mutations": [
     {
       "id": "SR-DEFAULT-ON-BASH",

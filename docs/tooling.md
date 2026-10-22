@@ -121,7 +121,7 @@ pre-commit の検査は、他のジョブと同じく作業ツリーの内容に
 | `packaging/check-skill-index.ts` | スキルガイド・README とスキルの実体の対応 |
 | `prose/lint-prose.ts` | 人が読む Markdown の文章と、JavaScript・TypeScript・シェル・YAML のコメントの文章。JavaScript・TypeScript の文字列と `evals/<name>/evals.json` の prompt・expected_output・assertions には、使わない語の規則だけを当てる（取り出し方は `scripts/lib/text/code-strings.ts`）。シェルのコメントは `shfmt --to-json` の構文木から取り出すので、shfmt（`mise.toml` で版を固定）が要る。書き換え前のファイルは `scripts/gates/prose/prose-lint-pending.json` に書く |
 | `prose/check-word-list.ts` | `.textlint/word-list.md` と `.textlint/words.json` の一致 |
-| `docs/check-agents-md-size.ts` | `AGENTS.md` のサイズ。ブランチで 30 KiB を超えたら、24 KiB 以下まで縮めさせる。超えたかは履歴で判定し、上限は `scripts/gates/docs/agents-md-size.json` に書く |
+| `docs/agents-md/check-agents-md-size.ts` | `AGENTS.md` のサイズ。ブランチで 30 KiB を超えたら、24 KiB 以下まで縮めさせる。超えたかは履歴で判定し、上限は `scripts/gates/docs/agents-md/agents-md-size.json` に書く |
 
 ### カバレッジ（pre-push と CI で実行）
 

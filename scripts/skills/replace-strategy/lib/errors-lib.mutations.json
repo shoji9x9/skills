@@ -3,7 +3,7 @@
     "errors-lib.test.ts のうち、lib/errors.mjs の errorMessage が Error とそれ以外の値を分けて文字列にすることを示す変異の一覧。",
     "テスト名を変えたら expect_failing も直す。"
   ],
-  "test_file": "scripts/skills/replace-strategy/errors-lib.test.ts",
+  "test_file": "scripts/skills/replace-strategy/lib/errors-lib.test.ts",
   "mutations": [
     {
       "id": "error-branch-never-taken",

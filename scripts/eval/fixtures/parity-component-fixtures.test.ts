@@ -2,7 +2,7 @@
 //
 // 手で作った採取物は、次の形で不正になってきた。metadata.json の `traits_property_set` が実物の
 // FIXED_PROPERTIES と違う・css-rules.json の宣言が traits.json の計算値と食い違う・element.png がプレースホルダ。`build` の前提検証はこれらを突き合わせるので、不正な fixture では eval が目的の分岐へ届かない。
-// 採取物は scripts/eval/generate-parity-component-fixtures.ts で生成し、ここでは生成物どうしの整合だけを見る
+// 採取物は scripts/eval/fixtures/generate-parity-component-fixtures.ts で生成し、ここでは生成物どうしの整合だけを見る
 // （CI にブラウザが無いので再生成はしない）。各検査は、わざと不正にしたコピーで赤くなることを併せて確かめる。
 
 import { assert, expect, test } from "vitest";
@@ -10,19 +10,19 @@ import { cpSync, existsSync, readdirSync, readFileSync, rmSync, writeFileSync } 
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
-import { makeTempDir } from "../lib/testing/test-tmpdir.ts";
-import { errorMessage } from "../lib/errors.ts";
-import { parseJsonAs } from "../lib/parse-as.ts";
-import { invalidInput, removeField } from "../lib/testing/test-input.ts";
-import * as traitCapture from "../../skills/parity-suite/scripts/trait-capture.mjs";
-import * as cssRules from "../../skills/parity-component/scripts/css-rules-capture.mjs";
-import * as axisDiff from "../../skills/parity-component/scripts/axis-diff.mjs";
-import * as behaviorCompare from "../../skills/parity-component/scripts/behavior-compare.mjs";
-import { loadBaseline } from "../../skills/parity-component/scripts/lib/baseline.mjs";
-import * as elementShot from "../../skills/parity-suite/scripts/element-shot.mjs";
-import { isArray } from "../lib/is-array.ts";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { errorMessage } from "../../lib/errors.ts";
+import { parseJsonAs } from "../../lib/parse-as.ts";
+import { invalidInput, removeField } from "../../lib/testing/test-input.ts";
+import * as traitCapture from "../../../skills/parity-suite/scripts/trait-capture.mjs";
+import * as cssRules from "../../../skills/parity-component/scripts/css-rules-capture.mjs";
+import * as axisDiff from "../../../skills/parity-component/scripts/axis-diff.mjs";
+import * as behaviorCompare from "../../../skills/parity-component/scripts/behavior-compare.mjs";
+import { loadBaseline } from "../../../skills/parity-component/scripts/lib/baseline.mjs";
+import * as elementShot from "../../../skills/parity-suite/scripts/element-shot.mjs";
+import { isArray } from "../../lib/is-array.ts";
 
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const fixturesRoot = join(repoRoot, "evals/parity-component/fixtures");
 
 // The parts of the capture files this reads. Fields a check validates itself are `unknown`.

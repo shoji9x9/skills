@@ -7,8 +7,8 @@ import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterEach, beforeEach, expect, test } from "vitest";
-import { isCliEntry } from "../../../skills/replace-strategy/scripts/lib/cli.mjs";
-import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
+import { isCliEntry } from "../../../../skills/replace-strategy/scripts/lib/cli.mjs";
+import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 
 let savedArgv: string[];
 beforeEach(() => {

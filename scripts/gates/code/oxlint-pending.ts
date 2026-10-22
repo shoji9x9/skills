@@ -20,7 +20,7 @@ export const PENDING_FIXES: Readonly<Record<string, readonly PendingRule[]>> = {
     "skills-repo/max-lines-per-function-except-describe",
   ],
   "scripts/eval/eval-sandbox.test.ts": ["skills-repo/max-lines-per-function-except-describe"],
-  "scripts/eval/parity-component-fixtures.test.ts": [
+  "scripts/eval/fixtures/parity-component-fixtures.test.ts": [
     "complexity",
     "max-depth",
     "skills-repo/max-lines-per-function-except-describe",
@@ -73,7 +73,7 @@ export const PENDING_FIXES: Readonly<Record<string, readonly PendingRule[]>> = {
   "scripts/skills/kaizen/kaizen-candidate-scan.test.ts": ["max-params"],
   "scripts/skills/kaizen/kaizen-kedb-match.test.ts": ["max-params"],
   "scripts/skills/kaizen/kaizen-precommit-gate.test.ts": ["max-params"],
-  "scripts/skills/kaizen/tracking-issue-title.test.ts": [
+  "scripts/skills/kaizen/schedule/tracking-issue-title.test.ts": [
     "max-params",
     "skills-repo/max-lines-per-function-except-describe",
   ],
@@ -116,7 +116,7 @@ export const PENDING_FIXES: Readonly<Record<string, readonly PendingRule[]>> = {
     "max-params",
     "skills-repo/max-lines-per-function-except-describe",
   ],
-  "scripts/skills/replace-strategy/markdown-lib.test.ts": ["max-params"],
+  "scripts/skills/replace-strategy/lib/markdown-lib.test.ts": ["max-params"],
   "scripts/skills/replace-strategy/procedure-staleness-check.test.ts": [
     "skills-repo/max-lines-per-function-except-describe",
   ],

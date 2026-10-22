@@ -3,10 +3,10 @@ import { spawnSync } from "node:child_process";
 import { chmodSync, copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
-import { coverageEnv } from "../../lib/testing/coverage-env.ts";
-import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
-import { kaizenEnv, pathWithout, writeKaizenConfig } from "./kaizen-config-env.ts";
+import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
+import { coverageEnv } from "../../../lib/testing/coverage-env.ts";
+import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
+import { kaizenEnv, pathWithout, writeKaizenConfig } from "../kaizen-config-env.ts";
 
 // kaizen-schedule-report.sh は **CI から無人で実行され、出力がそのまま Issue になる**。
 // 判定が狂っても人が見ているのは結果の Issue だけなので、狂ったこと自体は出力に現れない。
@@ -35,7 +35,7 @@ import { kaizenEnv, pathWithout, writeKaizenConfig } from "./kaizen-config-env.t
 // 機能した」のか「既定の false として扱われただけ」なのかを区別できず、変異で赤くならない。
 //
 // 判定の行を無効にした変異で赤くなることは、kaizen-schedule-report.mutations.json が確かめる。
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 const scriptDir = join(repoRoot, "skills/kaizen/scripts");
 const script = join(scriptDir, "kaizen-schedule-report.sh");
 

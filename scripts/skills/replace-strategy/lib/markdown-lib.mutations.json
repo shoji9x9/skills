@@ -3,7 +3,7 @@
     "markdown-lib.test.ts のうち、replace-strategy の表のパーサがフェンス行と HTML コメントを 3 本で同じに扱うこと（Issue #611）を示す変異の一覧。",
     "テスト名を変えたら expect_failing も直す。"
   ],
-  "test_file": "scripts/skills/replace-strategy/markdown-lib.test.ts",
+  "test_file": "scripts/skills/replace-strategy/lib/markdown-lib.test.ts",
   "mutations": [
     {
       "id": "fence-not-ending-table",

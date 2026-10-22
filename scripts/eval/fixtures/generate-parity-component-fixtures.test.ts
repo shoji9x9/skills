@@ -9,7 +9,7 @@ import { chmodSync, existsSync, readFileSync, readdirSync, rmSync, writeFileSync
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, expect, test } from "vitest";
-import { makeTempDir } from "../lib/testing/test-tmpdir.ts";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 
 const script = join(
   dirname(fileURLToPath(import.meta.url)),

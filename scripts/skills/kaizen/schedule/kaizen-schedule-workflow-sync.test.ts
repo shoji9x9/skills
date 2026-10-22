@@ -3,10 +3,10 @@ import { spawnSync } from "node:child_process";
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { loadYamlAs } from "../../lib/text/yaml-as.ts";
-import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
-import { coverageEnv } from "../../lib/testing/coverage-env.ts";
-import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
+import { loadYamlAs } from "../../../lib/text/yaml-as.ts";
+import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
+import { coverageEnv } from "../../../lib/testing/coverage-env.ts";
+import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
 
 // kaizen の定期実行ワークフローは、配布スキルに同梱したテンプレート
 // （skills/kaizen/assets/kaizen-schedule.yml）を原本とし、本リポの
@@ -16,7 +16,7 @@ import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 // 見ないため。テンプレート側だけを直すと、配布先へ配られる内容が誰にも検査されない
 // まま本リポの実物と食い違う（逆も同じ）。プレースホルダを持たない設計にして
 // バイト単位で一致させ、ここで決定論的に検査する。
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 
 const CANON = "skills/kaizen/assets/kaizen-schedule.yml";
 const WIRED = ".github/workflows/kaizen-schedule.yml";

@@ -108,11 +108,11 @@ fixture をさらに削っても、差は戻らない。items と evidence は�
 
 **採取物（`baseline/`・`axes.json`・`metadata.json` のツール版とプロパティ集合・軸の件数）は、手で書かない。** 手で作った採取物は、次の形で不正になっていた（Issue #354）。
 `traits_property_set` が実物の `FIXED_PROPERTIES` と違う、`css-rules.json` の宣言が `traits.json` の計算値と食い違う、`element.png` がプレースホルダ、の 3 つである。
-`catalog-unset` / `breaking-change-request` の `button` は、リポジトリの `scripts/eval/generate-parity-component-fixtures.ts` で生成した。
+`catalog-unset` / `breaking-change-request` の `button` は、リポジトリの `scripts/eval/fixtures/generate-parity-component-fixtures.ts` で生成した。
 このスクリプトは、headless Chrome で最小のページに trait-capture.mjs・css-rules-capture.mjs・要素のスクリーンショットを当てる（2 回採って一致を確かめている）。
 ツールや採取条件を変えたら、同じスクリプトで採り直す。
 書き出した JSON の整形は同じスクリプトが対象のファイルを列挙して行うので、手で `oxfmt` を当てない（`oxfmt` に `.md` やディレクトリを渡すと、fixture の Markdown の表が桁揃えされる）。
-生成物どうしの整合（プロパティ集合・ツール版・計算値と規則の宣言・PNG の寸法・`axes.json` の再導出）は、`scripts/eval/parity-component-fixtures.test.ts` が CI で検査する。
+生成物どうしの整合（プロパティ集合・ツール版・計算値と規則の宣言・PNG の寸法・`axes.json` の再導出）は、`scripts/eval/fixtures/parity-component-fixtures.test.ts` が CI で検査する。
 `component-api.md` / `parity.md` などエージェントが書く成果物は、生成物の値（幅・ツール版）に合わせて手で揃える。
 
 **`build` の前段には、姉妹スキル `parity-suite` もある。** 陳腐化の判定（`traits_version` / `traits_property_set` の突き合わせ）は、インストール済みの `parity-suite` の同梱ツールを読む。

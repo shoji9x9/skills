@@ -5,7 +5,7 @@
 // Error でない値（偽の値・文字列・オブジェクト・関数）が投げられたときも、常に文字列を返すことを確かめる。
 
 import { expect, test } from "vitest";
-import { errorMessage } from "../../../skills/replace-strategy/scripts/lib/errors.mjs";
+import { errorMessage } from "../../../../skills/replace-strategy/scripts/lib/errors.mjs";
 
 test("Error とそのサブクラスからは message を返す", () => {
   expect(errorMessage(new Error("読めない"))).toBe("読めない");

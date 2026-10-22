@@ -7,7 +7,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 const agents = readFileSync(join(repoRoot, "AGENTS.md"), "utf8");
 const imports = [...agents.matchAll(/^@(\S+)$/gm)].map((m) => m[1]);
 
