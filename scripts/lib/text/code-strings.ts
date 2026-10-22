@@ -101,7 +101,7 @@ export function stringMarkdown(path: string, source: string): CommentMarkdown {
   if (!hasStrings(path)) throw new Error(`${path}: 文字列を取り出せないファイル`);
   const { sf, isEvals } = parseSource(path, source);
   const { emit, build } = markdownBuilder();
-  for (const entry of sortedEntries({ source, sf, isEvals })) {
+  for (const entry of sortedEntries({ path, source, sf, isEvals })) {
     if (entry.d) {
       emit("", entry.d.line, 0);
       emit(`<!-- textlint-${entry.d.directive} -->`, entry.d.line, 0);
@@ -165,16 +165,18 @@ function parseSource(path: string, source: string): { sf: ParsedSourceFile; isEv
 
 /** 取り出した文字列と、ディレクティブの行を、位置の順に並べる。ディレクティブは Markdown のコメントにする。 */
 function sortedEntries({
+  path,
   source,
   sf,
   isEvals,
 }: {
+  path: string;
   source: string;
   sf: ParsedSourceFile;
   isEvals: boolean;
 }): Entry[] {
   const items = isEvals ? evalStrings(sf) : jsStrings(sf);
-  const directives = isEvals ? [] : commentDirectives(sf.fileName, source);
+  const directives = isEvals ? [] : commentDirectives(path, source);
   const entries: Entry[] = [
     ...items.map((node) => ({ pos: node.getStart(sf), node })),
     ...directives.map((d) => ({ pos: sf.getPositionOfLineAndCharacter(d.line, 0), d })),

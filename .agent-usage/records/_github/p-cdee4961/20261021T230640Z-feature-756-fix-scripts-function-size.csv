@@ -5,3 +5,6 @@ ci:39609556527:1,ci,2026-10-21T23:06:40.113Z,p-cdee4961,github-actions,,,,2026-1
 coverage:github:2026-10-20T13:34:15.091Z:2026-10-21T23:06:40.113Z,coverage,2026-10-21T23:06:40.113Z,p-cdee4961,,,,,2026-10-20T13:34:15.091Z,2026-10-21T23:06:40.113Z,Asia/Tokyo,,,,,,,,,,,,ok,
 ci:39691018405:1,ci,2026-10-22T00:06:13.786Z,p-cdee4961,github-actions,,,,2026-10-21T23:04:54.000Z,2026-10-21T23:08:46.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
 coverage:github:2026-10-20T23:06:40.113Z:2026-10-22T00:06:13.786Z,coverage,2026-10-22T00:06:13.786Z,p-cdee4961,,,,,2026-10-20T23:06:40.113Z,2026-10-22T00:06:13.786Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:39697968117:1,ci,2026-10-22T00:22:02.488Z,p-cdee4961,github-actions,,,,2026-10-22T00:09:31.000Z,2026-10-22T00:09:32.000Z,Asia/Tokyo,feature/756-fix-scripts-function-size,756,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:39697968133:1,ci,2026-10-22T00:22:02.488Z,p-cdee4961,github-actions,,,,2026-10-22T00:09:31.000Z,2026-10-22T00:22:02.488Z,Asia/Tokyo,feature/756-fix-scripts-function-size,756,,,,,,,,,,CI;pull_request;open,
+coverage:github:2026-10-21T00:06:13.786Z:2026-10-22T00:22:02.488Z,coverage,2026-10-22T00:22:02.488Z,p-cdee4961,,,,,2026-10-21T00:06:13.786Z,2026-10-22T00:22:02.488Z,Asia/Tokyo,,,,,,,,,,,,ok,

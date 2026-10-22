@@ -195,9 +195,11 @@ interface MeasureOptions {
 
 /** c8 で vitest を実行して測り、シェルの記録を集計して shell-summary.json に書く。テストの終了コードを返す。 */
 function measure({ root, cache, files, vitestArgs }: MeasureOptions): number {
+  // private skill の列挙で例外が出ても空のディレクトリを残さないよう、記録の置き場所を作る前に求める。
+  const privates = privateSkillDirs(root);
   const traceDir = join(cache, "shell-trace");
   mkdirSync(traceDir, { recursive: true });
-  const res = spawnSync("pnpm", c8Args(privateSkillDirs(root), cache, vitestArgs), {
+  const res = spawnSync("pnpm", c8Args(privates, cache, vitestArgs), {
     cwd: root,
     stdio: ["ignore", "inherit", "inherit"],
     env: {

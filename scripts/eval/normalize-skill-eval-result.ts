@@ -1525,8 +1525,12 @@ function parseTraceOrFallback(executor: string, rawText: string) {
 }
 
 /** 終了コードが 0 でも、最終の応答が無いときと致命的なエラーを記録したときは、失敗の理由を返す。 */
+/** 成功で終わったのに、最終の応答が無いか。 */
+const noFinalResponse = (exitCode: number, parsed: ParsedTrace): boolean =>
+  exitCode === 0 && parsed.finalResponse === "";
+
 function successFailureReason(exitCode: number, parsed: ParsedTrace): string | null {
-  if (exitCode === 0 && parsed.finalResponse === "") return "executor produced no final response";
+  if (noFinalResponse(exitCode, parsed)) return "executor produced no final response";
   if (exitCode === 0 && parsed.fatalErrors > 0) {
     return `executor trace reported ${parsed.fatalErrors} fatal error item(s)`;
   }
@@ -1586,7 +1590,7 @@ export function normalizeTrace(options: NormalizeTraceOptions) {
   const { parsed, normalizationError: parseError } = parseTraceOrFallback(executor, rawText);
   const normalizationError = parseError ?? successFailureReason(exitCode, parsed);
   // 最終応答の無い成功は、エラーの件数にも数える。trace を読めなかったとき（parseError がある）は数えない。
-  if (parseError === null && exitCode === 0 && parsed.finalResponse === "") parsed.errors += 1;
+  if (parseError === null && noFinalResponse(exitCode, parsed)) parsed.errors += 1;
 
   const executorMetadata = {
     name: executor,

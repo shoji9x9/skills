@@ -114,7 +114,7 @@ function parseReadme(root: string, violations: string[]) {
 }
 
 /** 実在するスキル。distributed は skills/ の配布スキル、priv は .private-skill を持つ private skill。 */
-type SkillSets = { distributed: string[]; dist: Set<string>; priv: string[] };
+type SkillSets = { distributed: string[]; priv: string[] };
 
 /** skills/ と .agents/skills/ からスキルを列挙する。SKILL.md の無いディレクトリは違反にする。 */
 function listSkills(root: string, violations: string[]): SkillSets {
@@ -124,9 +124,10 @@ function listSkills(root: string, violations: string[]): SkillSets {
       violations.push(`skills/${name}/: SKILL.md が無い（スキルの実体として読めない）`);
     }
   }
-  const dist = new Set(distributed);
   const marked = listDirs(join(root, ".agents/skills")).filter(
-    (name) => !dist.has(name) && existsSync(join(root, ".agents/skills", name, ".private-skill")),
+    (name) =>
+      !distributed.includes(name) &&
+      existsSync(join(root, ".agents/skills", name, ".private-skill")),
   );
   const priv: string[] = [];
   for (const name of marked) {
@@ -136,15 +137,11 @@ function listSkills(root: string, violations: string[]): SkillSets {
         `.agents/skills/${name}/: .private-skill はあるが SKILL.md が無い（スキルの実体として読めない）`,
       );
   }
-  return { distributed, dist, priv };
+  return { distributed, priv };
 }
 
 /** AGENTS.md の索引が、配布スキルと private skill をちょうど載せているかを確かめる。 */
-function checkAgentsIndex(
-  root: string,
-  { distributed, dist, priv }: SkillSets,
-  violations: string[],
-) {
+function checkAgentsIndex(root: string, { distributed, priv }: SkillSets, violations: string[]) {
   const agents = parseAgents(root, violations);
   if (agents) {
     for (const name of [...distributed, ...priv]) {
@@ -153,7 +150,7 @@ function checkAgentsIndex(
       }
     }
     for (const name of agents) {
-      if (!dist.has(name) && !priv.includes(name)) {
+      if (!distributed.includes(name) && !priv.includes(name)) {
         violations.push(
           `AGENTS.md「${AGENTS_SECTION}」: ${name} は実在しないスキル（skills/ にも private skill にも無い）`,
         );
@@ -163,18 +160,14 @@ function checkAgentsIndex(
 }
 
 /** README.md の索引が、配布スキルだけをちょうど載せているかを確かめる。 */
-function checkReadmeIndex(
-  root: string,
-  { distributed, dist, priv }: SkillSets,
-  violations: string[],
-) {
+function checkReadmeIndex(root: string, { distributed, priv }: SkillSets, violations: string[]) {
   const readme = parseReadme(root, violations);
   if (readme) {
     for (const name of distributed) {
       if (!readme.has(name)) violations.push(`README.md「${README_SECTION}」: ${name} が未掲載`);
     }
     for (const name of readme) {
-      if (dist.has(name)) continue;
+      if (distributed.includes(name)) continue;
       violations.push(
         priv.includes(name)
           ? `README.md「${README_SECTION}」: ${name} は private skill（配布しないので載せない）`

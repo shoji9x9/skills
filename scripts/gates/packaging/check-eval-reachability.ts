@@ -101,41 +101,34 @@ function checkEvalShape(ev: unknown, where: string, seenIds: Set<string>): EvalS
 }
 
 /**
- * reachability の有無と backlog の免除を突き合わせる。
- * @returns reachability の要素を続けて検査するなら true
+ * reachability の有無と backlog の免除を突き合わせ、違反を返す。
+ * reachability を持つ eval だけが、続けて要素を検査する対象になる（呼び出し元が `Object.hasOwn` で決める）。
  */
-function checkBacklogEntry(
-  shape: EvalShape,
-  {
-    key,
-    exemptFingerprint,
-    violations,
-  }: {
-    key: string;
-    exemptFingerprint: string | undefined;
-    violations: string[];
-  },
-) {
-  const { where, ev } = shape;
+function backlogViolations(
+  { where, ev }: EvalShape,
+  key: string,
+  exemptFingerprint: string | undefined,
+): string[] {
   const fingerprint = evalFingerprint(ev);
   if (!Object.hasOwn(ev, "reachability")) {
     if (exemptFingerprint === undefined) {
-      violations.push(
+      return [
         `${where}: reachability が無い。各 assertion に { "assertion", "prompt_quote" } を書く` +
           `（既存 eval を触らずに通すなら ${BACKLOG_PATH} へ "${key}": "${fingerprint}" を足す）`,
-      );
-    } else if (exemptFingerprint !== fingerprint) {
-      violations.push(
+      ];
+    }
+    if (exemptFingerprint !== fingerprint) {
+      return [
         `${where}: backlog の指紋が古い（宣言 ${exemptFingerprint} / 実際 ${fingerprint}）。` +
           "prompt か assertions を変えたので、この eval は reachability を書いて backlog から外す",
-      );
+      ];
     }
-    return false;
+    return [];
   }
   if (exemptFingerprint !== undefined) {
-    violations.push(`${where}: reachability があるのに ${BACKLOG_PATH} に残っている（項目を消す）`);
+    return [`${where}: reachability があるのに ${BACKLOG_PATH} に残っている（項目を消す）`];
   }
-  return true;
+  return [];
 }
 
 /**
@@ -248,9 +241,8 @@ export function checkEvalFile({
     }
     const key = backlogKey(skill, shape.id);
     keys.push(key);
-    if (checkBacklogEntry(shape, { key, exemptFingerprint: backlog[key], violations })) {
-      checkReachability(shape, violations);
-    }
+    violations.push(...backlogViolations(shape, key, backlog[key]));
+    if (Object.hasOwn(shape.ev, "reachability")) checkReachability(shape, violations);
   }
 
   return { evals: evals.length, violations, keys };

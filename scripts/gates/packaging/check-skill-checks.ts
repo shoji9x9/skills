@@ -239,11 +239,8 @@ function checkEntryScript(e: Record<string, unknown>, ctx: EntryCtx, scripts: st
 }
 
 /** by_stage で値を与える params の 1 項目を検査する。 */
-function checkByStageParam(
-  p: Record<string, unknown>,
-  pat: string,
-  { stages, v }: { stages: unknown; v: string[] },
-) {
+function byStageViolations(p: Record<string, unknown>, pat: string, stages: unknown): string[] {
+  const v: string[] = [];
   if (Object.keys(p).length !== 1) v.push(`${pat}: by_stage は他のキーと併用しない`);
   const bs = p.by_stage;
   const want = isArray(stages) ? [...stages].sort().join(",") : "";
@@ -258,6 +255,7 @@ function checkByStageParam(
   } else if (Object.keys(bs).sort().join(",") !== want) {
     v.push(`${pat}.by_stage のキーが stages と一致しない`);
   }
+  return v;
 }
 
 /** config_key で値を与える params の 1 項目を検査する。 */
@@ -288,7 +286,7 @@ function checkParams(params: unknown, stages: unknown, ctx: EntryCtx) {
       v.push(`${pat} がオブジェクトでない`);
       continue;
     }
-    if ("by_stage" in p) checkByStageParam(p, pat, { stages, v });
+    if ("by_stage" in p) v.push(...byStageViolations(p, pat, stages));
     else checkConfigKeyParam(p, pat, ctx);
   }
 }

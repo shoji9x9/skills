@@ -226,6 +226,9 @@ function spawnChrome() {
   return { proc, userDir };
 }
 
+/** Chrome の DevTools への接続。接続が閉じるまでは ws を持つ。 */
+type Connection = { ws: WebSocket | null };
+
 /**
  * Chrome とプロファイルを片付ける関数を返す。`connection.ws` は、開いた後に呼び出し側が入れる。
  *
@@ -233,7 +236,7 @@ function spawnChrome() {
  * （待たずに消すと ENOTEMPTY で finally が throw し、成功した生成が非 0 の終了になってしまう）。
  * 起動・ハンドシェイクの途中で失敗したときも同じ片付けを通す（通さないと Chrome とプロファイルが残る）。
  */
-function makeShutdown(proc: ChildProcess, userDir: string, connection: { ws: WebSocket | null }) {
+function makeShutdown(proc: ChildProcess, userDir: string, connection: Connection) {
   return async () => {
     if (connection.ws) connection.ws.close();
     let stuck = false;
@@ -281,7 +284,7 @@ function waitForDevToolsUrl(proc: ReturnType<typeof spawnChrome>["proc"]) {
  * DevTools の HTTP エンドポイントからページのターゲットとブラウザの版を取得し、ページへの WebSocket を開く。
  * 開く前の socket も `connection.ws` に入れ、shutdown が閉じられるようにする。
  */
-async function openPageSocket(wsUrl: string, connection: { ws: WebSocket | null }) {
+async function openPageSocket(wsUrl: string, connection: Connection) {
   const port = new URL(wsUrl).port;
   // The endpoint decides the shape of what it returns.
   const getJson = async <T>(path: string) =>
@@ -365,7 +368,7 @@ function createSender(socket: WebSocket) {
 
 async function launchChrome() {
   const { proc, userDir } = spawnChrome();
-  const connection: { ws: WebSocket | null } = { ws: null };
+  const connection: Connection = { ws: null };
   const shutdown = makeShutdown(proc, userDir, connection);
 
   try {

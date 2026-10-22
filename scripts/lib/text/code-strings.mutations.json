@@ -90,7 +90,7 @@
       "id": "CS-DIRECTIVE",
       "why": "ディレクティブの行を Markdown に入れない",
       "file": "scripts/lib/text/code-strings.ts",
-      "find": "const directives = isEvals ? [] : commentDirectives(sf.fileName, source);",
+      "find": "const directives = isEvals ? [] : commentDirectives(path, source);",
       "replace": "const directives = [];",
       "expect_failing": [
         "ディレクティブ コメントだけの行の textlint-disable と textlint-enable を、文字列の間の位置に置く"
