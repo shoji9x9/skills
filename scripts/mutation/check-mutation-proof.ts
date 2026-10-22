@@ -893,19 +893,20 @@ function loadPreProcess(): PreProcess {
   }
 }
 
-/**
- * 差分に当たる宣言だけを返す。当たり方は 3 通り:
- *   - ランナー（このファイル）が変わった → **全宣言**（判定の仕組みが変わったので全部測り直す）
- *   - 宣言ファイル自身が変わった
- *   - その宣言の `test_file`、`test_file` が import する `scripts/` のファイル（`scripts/lib/` を除く。`supportFiles`）、いずれかの変異の対象ファイルが変わった
- *
- * それ以外の宣言は PR では測らない。共有のライブラリや依存の版の変更で検査が変わった宣言も含むので、週次の全件の実行で確かめる。
- * **選んだ／飛ばした理由は必ず出力する**（0 件を警告なしに成功にしない）。
- */
 // 差分選択が見るファイルを、選ばなかったときの表示に使う。
 const UNCHANGED_INPUTS =
   "定義・test_file・変異の対象と、test_file から import をたどった scripts/ の .ts（scripts/lib/ を除く）が変わっていない";
 
+/**
+ * 差分に当たる宣言だけを返す。当たり方は 3 通り:
+ *   - ランナー（このファイル）が変わった → **全宣言**（判定の仕組みが変わったので全部測り直す）
+ *   - 宣言ファイル自身が変わった
+ *   - その宣言の `test_file`、`test_file` から相対の import を間接のものまでたどった `scripts/` の `.ts`（`scripts/lib/` を除く。`supportFiles`）、いずれかの変異の対象ファイルが変わった
+ *
+ * それ以外の宣言は PR では測らない。たどらないファイル（`scripts/lib/`・`scripts/` の外のコード・テストが実行時に読む fixture）や
+ * 依存の版の変更で検査が変わった宣言も含むので、週次の全件の実行で確かめる（docs/tooling.md）。
+ * **選んだ／飛ばした理由は必ず出力する**（0 件を警告なしに成功にしない）。
+ */
 function selectChangedSpecs(specs: Spec[], ref: string): Spec[] {
   const changed = new Set(changedFiles(ref));
   const runnerPath = relative(repoRoot, fileURLToPath(import.meta.url));

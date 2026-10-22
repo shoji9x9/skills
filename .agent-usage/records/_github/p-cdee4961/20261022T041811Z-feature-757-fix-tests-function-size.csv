@@ -44,3 +44,6 @@ ci:39761158465:1,ci,2026-10-22T10:33:39.171Z,p-cdee4961,github-actions,,,,2026-1
 ci:39761158200:1,ci,2026-10-22T10:33:39.171Z,p-cdee4961,github-actions,,,,2026-10-22T10:10:57.000Z,2026-10-22T10:27:20.000Z,Asia/Tokyo,feature/757-fix-tests-function-size,757,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-10-21T10:08:25.833Z:2026-10-22T10:33:39.171Z,coverage,2026-10-22T10:33:39.171Z,p-cdee4961,,,,,2026-10-21T10:08:25.833Z,2026-10-22T10:33:39.171Z,Asia/Tokyo,,,,,,,,,,,,ok,
 coverage:github:2026-10-21T10:33:39.171Z:2026-10-22T10:34:29.895Z,coverage,2026-10-22T10:34:29.895Z,p-cdee4961,,,,,2026-10-21T10:33:39.171Z,2026-10-22T10:34:29.895Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:39764486757:1,ci,2026-10-22T10:48:00.284Z,p-cdee4961,github-actions,,,,2026-10-22T10:37:27.000Z,2026-10-22T10:37:36.000Z,Asia/Tokyo,feature/757-fix-tests-function-size,757,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:39764486404:1,ci,2026-10-22T10:48:00.284Z,p-cdee4961,github-actions,,,,2026-10-22T10:37:27.000Z,2026-10-22T10:48:00.284Z,Asia/Tokyo,feature/757-fix-tests-function-size,757,,,,,,,,,,CI;pull_request;open,
+coverage:github:2026-10-21T10:34:29.895Z:2026-10-22T10:48:00.284Z,coverage,2026-10-22T10:48:00.284Z,p-cdee4961,,,,,2026-10-21T10:34:29.895Z,2026-10-22T10:48:00.284Z,Asia/Tokyo,,,,,,,,,,,,ok,
