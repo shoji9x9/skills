@@ -161,13 +161,11 @@ function checkReachabilityItem(
 }
 
 /** reachability の要素を 1 つずつ確かめ、対応要素の無い assertion を違反にする。 */
-function checkReachability(shape: EvalShape, violations: string[]) {
+function reachabilityViolations(shape: EvalShape): string[] {
   const { where, ev, assertions } = shape;
   const reach = ev.reachability;
-  if (!isArray(reach)) {
-    violations.push(`${where}: reachability が配列でない`);
-    return;
-  }
+  if (!isArray(reach)) return [`${where}: reachability が配列でない`];
+  const violations: string[] = [];
   const covered = new Set<string>();
   for (const [i, item] of reach.entries()) {
     const violation = checkReachabilityItem(item, `${where} reachability[${i}]`, {
@@ -181,6 +179,7 @@ function checkReachability(shape: EvalShape, violations: string[]) {
       violations.push(`${where}: 対応要素の無い assertion: ${JSON.stringify(a.slice(0, 60))}`);
     }
   }
+  return violations;
 }
 
 /**
@@ -248,7 +247,7 @@ export function checkEvalFile({
     violations.push(
       ...backlogViolations(shape, { key, exemptFingerprint: backlog[key], hasReachability }),
     );
-    if (hasReachability) checkReachability(shape, violations);
+    if (hasReachability) violations.push(...reachabilityViolations(shape));
   }
 
   return { evals: evals.length, violations, keys };

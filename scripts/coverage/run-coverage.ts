@@ -195,8 +195,7 @@ interface MeasureOptions {
 
 /** c8 で vitest を実行して測り、シェルの記録を集計して shell-summary.json に書く。テストの終了コードを返す。 */
 function measure({ root, cache, files, vitestArgs }: MeasureOptions): number {
-  // private skill の列挙で例外が出ても空の shell-trace を残さないよう、shell-trace を作る前に求める
-  // （置き場所の cache そのものは呼び出し元が先に作っている）。
+  // private skill の列挙で例外が出ても空のディレクトリを残さないよう、shell-trace（と、まだ無ければ cache）を作る前に求める。
   const privates = privateSkillDirs(root);
   const traceDir = join(cache, "shell-trace");
   mkdirSync(traceDir, { recursive: true });

@@ -117,7 +117,7 @@ export function commentMarkdown(path: string, source: string): CommentMarkdown {
   const lines: number[] = [];
   const columns: number[] = [];
   const starts: number[] = [];
-  // start を省いた行（段落の間の空行・ディレクティブ・`//` のコメント・`/**` で始まらないブロックコメント）は、
+  // start を持たない部分（段落の間の空行・ディレクティブ・`//` や `#` のコメント・JSDoc のタグの無い行など）は、
   // 文章が桁 column の直後から始まるとして扱う。
   const emit = ({ text, line, column, start = column + 1 }: Omit<Piece, "trailing">) => {
     md.push(text);
@@ -250,10 +250,8 @@ function lineCommentPiece({ source, path, starts, range: r }: JsComment): Piece 
   };
 }
 
-/**
- * ブロックコメントを、行ごとの部分にする。開始の `/*`・`/**`、終わりの `*\/`、各行の先頭の ` * ` を外す。
- * `/**\/` の `/**` を開始として読まない（残った `/` が本文になる）。
- */
+// ブロックコメントを、行ごとの部分にする。開始の `/*`・`/**`、終わりの `*/`、各行の先頭の ` * ` を外す。
+// `/**/` の `/**` を開始として読まない（残った `/` が本文になる）。
 function blockCommentPieces({ source, path, starts, range: r }: JsComment): Piece[] {
   const raw = source.slice(r.pos, r.end);
   const first = lineIndexOf(starts, r.pos);

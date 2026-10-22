@@ -235,7 +235,7 @@ type Connection = { ws: WebSocket | null };
 type ChromeProcess = ReturnType<typeof spawnChrome>["proc"];
 
 /**
- * Chrome とプロファイルを片付ける関数を返す。`connection.ws` は、開いた後に呼び出し側が入れる。
+ * Chrome とプロファイルを片付ける関数を返す。`connection.ws` には、openPageSocket が開く前の socket を入れる。
  *
  * Chrome は SIGTERM 後もしばらくプロファイルへ書くので、終了を待ってから消す
  * （待たずに消すと ENOTEMPTY で finally が throw し、成功した生成が非 0 の終了になってしまう）。
@@ -304,7 +304,7 @@ async function openPageSocket(wsUrl: string, connection: Connection) {
   const browser = (await getJson<{ Browser: string }>("/json/version")).Browser;
   const page = targets.find((t) => t.type === "page");
   if (!page) throw new Error("CDP のページターゲットが見つからない");
-  // shutdown が閉じられるよう外側の ws にも入れ、ここから先は null でない socket を使う。
+  // shutdown が閉じられるよう connection.ws にも入れ、ここから先は null でない socket を使う。
   const socket = new WebSocket(page.webSocketDebuggerUrl);
   connection.ws = socket;
   await new Promise<void>((resolve, reject) => {

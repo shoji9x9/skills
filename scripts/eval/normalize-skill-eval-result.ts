@@ -892,6 +892,12 @@ function applyToolUse(state: ClaudeTraceState, block: ContentBlock): void {
   }
 }
 
+/** trace の状態から、スキルの証拠（提示・起動・ツールの入出力の文字列）を取り出す。 */
+function skillEvidenceOf(state: ClaudeTraceState) {
+  const { visibleSkills, invokedSkills, toolInputTexts, toolOutputTexts } = state;
+  return { visibleSkills, invokedSkills, toolInputTexts, toolOutputTexts };
+}
+
 /** result 以外のイベント 1 件を、種類（init・tool_result・tool_use）に応じて記録に反映する。 */
 function applyClaudeEvent(state: ClaudeTraceState, event: ClaudeEvent): void {
   if (event.type === "system" && event.subtype === "init") {
@@ -953,7 +959,6 @@ export function parseClaudeTrace(rawText: string): ParsedTrace {
     throw new Error("Claude trace has no result event");
   }
 
-  const { visibleSkills, invokedSkills, toolInputTexts, toolOutputTexts } = state;
   return {
     finalResponse: typeof resultEvent.result === "string" ? resultEvent.result : "",
     usage: normalizeUsage("claude-code", resultEvent.usage),
@@ -964,9 +969,7 @@ export function parseClaudeTrace(rawText: string): ParsedTrace {
     fatalErrors: resultEvent.is_error === true ? 1 : 0,
     // The init event lists what was offered, so an absent list is "not stated",
     // not "nothing was offered".
-    skillEvidence: sawNonResultEvent
-      ? { visibleSkills, invokedSkills, toolInputTexts, toolOutputTexts }
-      : emptySkillEvidence(),
+    skillEvidence: sawNonResultEvent ? skillEvidenceOf(state) : emptySkillEvidence(),
   };
 }
 
@@ -1060,7 +1063,6 @@ export function parseCodexTrace(rawText: string): ParsedTrace {
     applyCodexEvent(state, event);
   }
 
-  const { toolInputTexts, toolOutputTexts } = state;
   return {
     finalResponse: state.finalResponse,
     usage: state.usage,
@@ -1077,8 +1079,8 @@ export function parseCodexTrace(rawText: string): ParsedTrace {
     skillEvidence: {
       visibleSkills: null,
       invokedSkills: null,
-      toolInputTexts: events.length > 0 ? toolInputTexts : null,
-      toolOutputTexts: events.length > 0 ? toolOutputTexts : null,
+      toolInputTexts: events.length > 0 ? state.toolInputTexts : null,
+      toolOutputTexts: events.length > 0 ? state.toolOutputTexts : null,
     },
   };
 }
