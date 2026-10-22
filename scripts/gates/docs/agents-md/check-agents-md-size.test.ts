@@ -13,8 +13,9 @@
 import { expect, test } from "vitest";
 import { parseJsonAs } from "../../../lib/parse-as.ts";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { write } from "../../../lib/testing/repo-file.ts";
 import { fileURLToPath } from "node:url";
 import { CONFIG_PATH, checkAgentsMdSize, main } from "./check-agents-md-size.ts";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
@@ -24,11 +25,6 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..",
 const script = join(repoRoot, "scripts/gates/docs/agents-md/check-agents-md-size.ts");
 const LIMIT = 100;
 const TARGET = 80;
-
-function write(root: string, path: string, text: string) {
-  mkdirSync(dirname(join(root, path)), { recursive: true });
-  writeFileSync(join(root, path), text);
-}
 
 const git = (root: string, ...args: string[]) =>
   execFileSync("git", args, { timeout: CHILD_TIMEOUT_MS, cwd: root, encoding: "utf8" });

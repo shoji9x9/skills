@@ -19,8 +19,9 @@
 // | 範囲の内容       | 一致して範囲の外だけ違う / 範囲の中の差 / 基準のファイルの印が崩れている |
 import { expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { write } from "../../../lib/testing/repo-file.ts";
 import { fileURLToPath } from "node:url";
 import {
   DECLARATION_PATH,
@@ -35,11 +36,6 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..",
 const script = join(repoRoot, "scripts/gates/packaging/copies/check-identical-copies.ts");
 
 const BODY = "# 手順\n\n1 行目\n2 行目\n3 行目\n";
-
-function write(root: string, path: string, text: string) {
-  mkdirSync(dirname(join(root, path)), { recursive: true });
-  writeFileSync(join(root, path), text);
-}
 
 /** `files` を置き、`groups` を宣言した一時リポジトリ。 */
 // groups は宣言の形の誤りのテストで、わざと配列でない値や不正な組を受け取るので unknown にする。

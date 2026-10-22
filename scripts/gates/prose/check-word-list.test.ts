@@ -11,8 +11,9 @@
 // | --fix           | なし / あり                                                               |
 import { expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { write } from "../../lib/testing/repo-file.ts";
 import { fileURLToPath } from "node:url";
 import { WORDS_PATH } from "../../lib/text/textlint-word-rule.ts";
 import { LIST_PATH, checkWordList, main, renderWordList } from "./check-word-list.ts";
@@ -27,11 +28,6 @@ const ENTRIES = [
   { message: "同じ語の別の形", tokens: [] },
   { term: "古い名前", instead: "新しい名前", message: "m", tokens: [] },
 ];
-
-function write(root: string, path: string, text: string) {
-  mkdirSync(dirname(join(root, path)), { recursive: true });
-  writeFileSync(join(root, path), text);
-}
 
 /** words.json と一覧のファイルを置いた一時リポジトリ。list が null なら一覧を置かない。 */
 type RepoOptions = { entries?: unknown[]; words?: string | null; list?: string | null };

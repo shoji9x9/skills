@@ -19,6 +19,7 @@ import { expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { write } from "../../lib/testing/repo-file.ts";
 import { fileURLToPath } from "node:url";
 import {
   UNWIRED_PATH,
@@ -33,11 +34,6 @@ import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repoRoot, "scripts/gates/packaging/check-skill-checks.ts");
-
-function write(root: string, path: string, text: string) {
-  mkdirSync(dirname(join(root, path)), { recursive: true });
-  writeFileSync(join(root, path), text);
-}
 
 const entry = (over: Record<string, unknown> = {}) => ({
   id: "a-wait",

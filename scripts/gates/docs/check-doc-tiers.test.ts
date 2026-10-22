@@ -14,6 +14,7 @@ import { expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { write } from "../../lib/testing/repo-file.ts";
 import { fileURLToPath } from "node:url";
 import {
   BEGIN,
@@ -49,11 +50,6 @@ const CONFIG = {
   ],
   outside: [{ glob: "evals/*/fixtures/**", note: "eval の入力" }],
 };
-
-function write(root: string, path: string, text: string) {
-  mkdirSync(dirname(join(root, path)), { recursive: true });
-  writeFileSync(join(root, path), text);
-}
 
 /** 原本と表を持つ一時リポジトリ。table を省くと生成した表を置く。 */
 function makeRepo(

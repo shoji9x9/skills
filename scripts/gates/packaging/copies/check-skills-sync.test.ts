@@ -11,8 +11,9 @@
 // | .agents/skills だけにある名前 | 印あり（リンクも見る）/ 印なし                                                 |
 import { expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, symlinkSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { write } from "../../../lib/testing/repo-file.ts";
 import { fileURLToPath } from "node:url";
 import { makeTempDir } from "../../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../../lib/testing/child-timeout.ts";
@@ -23,11 +24,6 @@ const SRC_SKILL = '---\nname: a\ndescription: "x"\n---\n\n# A\n\n本文\n';
 // gh skill install が書き換えた形（キーの順・metadata.local-path・閉じた後の空行）。
 const INSTALLED_SKILL =
   '---\ndescription: "x"\nname: a\nmetadata:\n  local-path: skills/a\n---\n# A\n\n本文\n';
-
-function write(root: string, path: string, text: string) {
-  mkdirSync(dirname(join(root, path)), { recursive: true });
-  writeFileSync(join(root, path), text);
-}
 
 function link(root: string, path: string, target: string) {
   mkdirSync(dirname(join(root, path)), { recursive: true });
