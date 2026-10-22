@@ -232,7 +232,7 @@ function namedGuardKinds(
   const body = bodyExpression(fn);
   if (body === null) return null;
   // every に渡る要素は、isArray が unknown を any[] に絞るので、どの種類の値でもありうる。
-  // そのため、否定（`!==`・`!=`）を型ガードの引数の宣言した型から差し引いて読まない（params に null を渡す）。
+  // そのため、否定（`!==`・`!=`）を型ガードの引数の宣言した型から差し引いて読まない（params を渡さない。acceptedKinds の中で null として扱う）。
   const accepted = acceptedKinds(body, param.name.text, { checker, seen: new Set([...seen, fn]) });
   return accepted !== null && sameSet(accepted, target) ? target : null;
 }

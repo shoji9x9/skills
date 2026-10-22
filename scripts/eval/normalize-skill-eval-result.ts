@@ -1524,14 +1524,21 @@ function parseTraceOrFallback(executor: string, rawText: string) {
   return { parsed, normalizationError };
 }
 
-/** 成功で終わったのに最終の応答が無いときの理由。呼び出し元は、この理由を返したときにエラーの件数も数える。 */
-const NO_FINAL_RESPONSE = "executor produced no final response";
-
-/** 終了コードが 0 でも、最終の応答が無いときと致命的なエラーを記録したときは、失敗の理由を返す。 */
-function successFailureReason(exitCode: number, parsed: ParsedTrace): string | null {
-  if (exitCode === 0 && parsed.finalResponse === "") return NO_FINAL_RESPONSE;
+/**
+ * 終了コードが 0 でも、最終の応答が無いときと致命的なエラーを記録したときは、失敗の理由を返す。
+ * 最終の応答が無いときだけ、エラーの件数にも数える（countsAsError）。
+ */
+function successFailure(
+  exitCode: number,
+  parsed: ParsedTrace,
+): { reason: string; countsAsError: boolean } | null {
+  if (exitCode === 0 && parsed.finalResponse === "")
+    return { reason: "executor produced no final response", countsAsError: true };
   if (exitCode === 0 && parsed.fatalErrors > 0) {
-    return `executor trace reported ${parsed.fatalErrors} fatal error item(s)`;
+    return {
+      reason: `executor trace reported ${parsed.fatalErrors} fatal error item(s)`,
+      countsAsError: false,
+    };
   }
   return null;
 }
@@ -1587,9 +1594,10 @@ function buildTiming(
 export function normalizeTrace(options: NormalizeTraceOptions) {
   const { executor, rawText, exitCode, rawTrace, skill, config, contentIndex = null } = options;
   const { parsed, normalizationError: parseError } = parseTraceOrFallback(executor, rawText);
-  const normalizationError = parseError ?? successFailureReason(exitCode, parsed);
-  // 最終応答の無い成功は、エラーの件数にも数える。判定は successFailureReason の 1 か所で、ここは返した理由を見る。
-  if (normalizationError === NO_FINAL_RESPONSE) parsed.errors += 1;
+  // trace を読めなかったとき（parseError がある）は、成功の中身を判定しない。
+  const failure = parseError === null ? successFailure(exitCode, parsed) : null;
+  const normalizationError = parseError ?? failure?.reason ?? null;
+  if (failure?.countsAsError) parsed.errors += 1;
 
   const executorMetadata = {
     name: executor,
