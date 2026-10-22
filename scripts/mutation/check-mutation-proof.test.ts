@@ -1235,7 +1235,9 @@ require("node:module").syncBuiltinESMExports();
   });
 
   // テストの組み立てと表明は、test_file が import するヘルパーにもある。ヘルパーだけが変わる差分でも宣言を選ぶ。
-  // 測らずに選択だけを見るので `--list` で終える（`--shard` で外すと、シャードの変異でこのテストも落ちる）。
+  // 測らずに選択だけを見るので `--list` で終える。
+  // `--shard` でこのシャードから外す形にすると、シャードの割り当てを変える変異でもこのテストが失敗する。
+  // 変異の判定は宣言したテストだけが失敗することを求めるので、その変異が FAIL になる。
   test("test_file が import するヘルパーが変わったら、その宣言を測る", async () => {
     const helper = "scripts/skills/kaizen/schedule/tracking-issue-title-helpers.ts";
     const res = await runRunner("--changed-since", "origin/main", "--only", "D", "--list", {
@@ -1244,6 +1246,23 @@ require("node:module").syncBuiltinESMExports();
     expect(res.status, res.out).toBe(0);
     expect(res.out).toContain(
       `測る: scripts/skills/kaizen/schedule/tracking-issue-title.mutations.json（当たった変更: ${helper}）`,
+    );
+  });
+
+  // coverage-expand.test.ts は coverage-fixture-helpers.ts を直接は import せず、coverage-expand-helpers.ts を介して使う。
+  test("ヘルパーが import するヘルパーが変わったら、その宣言を測る", async () => {
+    const helper = "scripts/skills/_cross/coverage-fixture-helpers.ts";
+    const res = await runRunner(
+      "--changed-since",
+      "origin/main",
+      "--only",
+      "required-group-first-only",
+      "--list",
+      { MUTATION_PROOF_CHANGED_FILES: helper },
+    );
+    expect(res.status, res.out).toBe(0);
+    expect(res.out).toContain(
+      `測る: scripts/skills/parity-suite/evidence/coverage-expand.mutations.json（当たった変更: ${helper}）`,
     );
   });
 

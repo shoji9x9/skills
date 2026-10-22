@@ -831,14 +831,15 @@ type PreProcess = (
 ) => { importedFiles: { fileName: string }[] };
 
 /**
- * `test_file` が相対パスで import する `*-helpers.ts` を、ヘルパーどうしの import もたどって返す。
- * テストの組み立てと表明はヘルパーにもあり、そこが変わると検査が変わるからである。
- * 共有のライブラリ（`scripts/lib/` など）と `skills/` のコードはたどらない。それらの変更で影響を受ける定義は、週次の全件の実行で確かめる（Issue #747）。
+ * `test_file` が相対パスで import する `scripts/` の `.ts`（ヘルパー・fixture など、テストの組み立てに使うファイル）を、import をたどって返す。
+ * テストの組み立てと表明はそれらのファイルにもあり、そこが変わると検査が変わるからである。
+ * 共有のライブラリ（`scripts/lib/`）と `skills/` のコードはパスで外す。
+ * それらの変更で影響を受ける定義は、週次の全件の実行で確かめる（Issue #747）。
  * import は TypeScript の構文の解析で取る（コメントや文字列の中の `from "..."` を数えない）。
  * typescript は `--changed-since` のときだけ読む（このファイルだけをリポジトリの外へコピーして起動するテストがある）。
  * 1 つのファイルの直接の import 先は、定義の間で `cache` に入れて共有し、解析を 1 回にする。
  */
-function helperFiles(
+function supportFiles(
   testFile: string,
   preProcess: PreProcess,
   cache: Map<string, string[]>,
@@ -847,7 +848,7 @@ function helperFiles(
   const queue = [testFile];
   while (queue.length > 0) {
     const file = queue.pop() ?? "";
-    for (const helper of directHelpers(file, preProcess, cache)) {
+    for (const helper of directSupportFiles(file, preProcess, cache)) {
       if (seen.has(helper)) continue;
       seen.add(helper);
       queue.push(helper);
@@ -856,8 +857,8 @@ function helperFiles(
   return [...seen];
 }
 
-/** file が相対パスで直接 import する `*-helpers.ts`（リポジトリのルートからのパス）。 */
-function directHelpers(
+/** file が相対パスで直接 import する、`scripts/lib/` の外の `scripts/` の `.ts`（リポジトリのルートからのパス）。 */
+function directSupportFiles(
   file: string,
   preProcess: PreProcess,
   cache: Map<string, string[]>,
@@ -872,8 +873,9 @@ function directHelpers(
   }
   const helpers = preProcess(source, true, true)
     .importedFiles.map(({ fileName }) => fileName)
-    .filter((name) => name.startsWith(".") && name.endsWith("-helpers.ts"))
-    .map((name) => relative(repoRoot, resolve(repoRoot, dirname(file), name)));
+    .filter((name) => name.startsWith(".") && name.endsWith(".ts"))
+    .map((name) => relative(repoRoot, resolve(repoRoot, dirname(file), name)))
+    .filter((rel) => rel.startsWith("scripts/") && !rel.startsWith("scripts/lib/"));
   cache.set(file, helpers);
   return helpers;
 }
@@ -893,9 +895,9 @@ function loadPreProcess(): PreProcess {
  * 差分に当たる宣言だけを返す。当たり方は 3 通り:
  *   - ランナー（このファイル）が変わった → **全宣言**（判定の仕組みが変わったので全部測り直す）
  *   - 宣言ファイル自身が変わった
- *   - その宣言の `test_file`、`test_file` が import する `*-helpers.ts`、いずれかの変異の対象ファイルが変わった
+ *   - その宣言の `test_file`、`test_file` が import するテストの組み立てのファイル（`supportFiles`）、いずれかの変異の対象ファイルが変わった
  *
- * それ以外は対象も検査も変わっていないので、前回の実証がそのまま有効。
+ * それ以外の宣言は PR では測らない。共有のライブラリや依存の版の変更で検査が変わった宣言も含むので、週次の全件の実行で確かめる。
  * **選んだ／飛ばした理由は必ず出力する**（0 件を警告なしに成功にしない）。
  */
 function selectChangedSpecs(specs: Spec[], ref: string): Spec[] {
@@ -912,13 +914,15 @@ function selectChangedSpecs(specs: Spec[], ref: string): Spec[] {
   for (const spec of specs) {
     const specRel = relative(repoRoot, spec.specPath);
     const targets = [...new Set(spec.mutations.map((m) => m.file))];
-    const helpers = helperFiles(spec.testFile, preProcess, cache);
+    const helpers = supportFiles(spec.testFile, preProcess, cache);
     const hits = [specRel, spec.testFile, ...helpers, ...targets].filter((f) => changed.has(f));
     if (hits.length > 0) {
       console.error(`測る: ${specRel}（当たった変更: ${hits.join(", ")}）`);
       selected.push(spec);
     } else {
-      console.error(`飛ばす: ${specRel}（対象も検査も変わっていない）`);
+      console.error(
+        `飛ばす: ${specRel}（定義・test_file・テストの組み立てのファイル・変異の対象が変わっていない）`,
+      );
     }
   }
   return selected;
@@ -1276,7 +1280,7 @@ function selectSpecs(files: string[], changedSince: string | null): Spec[] | nul
     if (selected.length === 0) {
       // **0 件は「測るものが無い」**（宣言 `specs.length` 件すべてが差分の外）。全件は定期実行が測る。
       console.log(
-        `mutation-proof: この差分に当たる宣言は無い（宣言 ${specs.length} 件はいずれも対象・検査が未変更）。` +
+        `mutation-proof: この差分に当たる宣言は無い（宣言 ${specs.length} 件はいずれも、定義・test_file・テストの組み立てのファイル・変異の対象が変わっていない）。` +
           "全件は定期実行（.github/workflows/mutation-proof.yml）で測る",
       );
       return null;

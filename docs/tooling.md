@@ -142,7 +142,7 @@ PR では、差分に関係する定義だけを測る（`--changed-since origin
 
 - ランナーが変わったとき。すべての定義を測る。
 - 定義ファイル自身が変わったとき。
-- その定義の `test_file`、`test_file` が import する `*-helpers.ts`（ヘルパーどうしの import をたどったものを含む）、変異の対象のファイルのどれかが変わったとき。
+- その定義の `test_file`、`test_file` が import する `scripts/` の `.ts`（ヘルパーや fixture。import をたどったものを含み、`scripts/lib/` は除く）、変異の対象のファイルのどれかが変わったとき。
 
 共有のライブラリ（`scripts/lib/` など）や依存の版の変更で影響を受ける定義は、PR では選ばない。週次の全件の実行で確かめる。
 
