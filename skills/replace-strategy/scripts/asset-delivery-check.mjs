@@ -414,7 +414,8 @@ function sha256(bytes) {
  */
 
 /**
- * @typedef {{ currentBase: string, newBase: string, referenced: Set<string>, fetcher: Fetcher, findings: string[] }} FileContext
+ * @typedef {{ newBaseOrigin: string, currentBaseOrigin: string }} BaseOrigins
+ * @typedef {{ currentBase: string, newBase: string, baseOrigins?: BaseOrigins, referenced: Set<string>, fetcher: Fetcher, findings: string[] }} FileContext
  * @typedef {{ newBaseOrigin: string, currentOrigins: Set<string> }} LinkOrigins
  * @typedef {{ kind: string, file: { current: string, new: string }, currentUrl: string, newUrl: string, origins: LinkOrigins | null }} FilePair
  */
@@ -434,6 +435,21 @@ function migrationOrigins(currentBaseOrigin, currentUrl, newBaseOrigin) {
 }
 
 /**
+ * --new-base と --current-base のオリジンを、最初に要るときに 1 回だけ求めて ctx.baseOrigins に残す。
+ * 最初の組を照合するときに求めるので、URL として読めない base の TypeError は、照合する組が無ければ出ない。
+ * 出るときは、最初の組の current・new を解決した後（相対値の UsageError より後）になる。--new-base を先に読む。
+ * @param {FileContext} ctx
+ * @returns {BaseOrigins}
+ */
+function baseOrigins(ctx) {
+  if (ctx.baseOrigins === undefined) {
+    const newBaseOrigin = new URL(ctx.newBase).origin;
+    ctx.baseOrigins = { newBaseOrigin, currentBaseOrigin: new URL(ctx.currentBase).origin };
+  }
+  return ctx.baseOrigins;
+}
+
+/**
  * 直リンクの判定（転送の前と後）に使うオリジンを、1 組につき 1 回だけ求める。
  * 新側と移行元が同じオリジンの構成ではオリジンで見分けられないので、判定しない（null を返す）。
  * @param {FileContext} ctx
@@ -441,8 +457,7 @@ function migrationOrigins(currentBaseOrigin, currentUrl, newBaseOrigin) {
  * @returns {LinkOrigins | null}
  */
 function linkOrigins(ctx, currentUrl) {
-  const newBaseOrigin = new URL(ctx.newBase).origin;
-  const currentBaseOrigin = new URL(ctx.currentBase).origin;
+  const { newBaseOrigin, currentBaseOrigin } = baseOrigins(ctx);
   if (currentBaseOrigin === newBaseOrigin) return null;
   return {
     newBaseOrigin,

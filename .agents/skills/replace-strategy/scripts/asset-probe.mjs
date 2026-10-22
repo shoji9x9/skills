@@ -11,8 +11,8 @@
 // 決定論的: 乱数・時刻に依存せず、document 順に走査する（resources だけは読み込み順）。
 //
 // ページで実行する処理は、本体の assetProbeInPage と、ASSET_PROBE_PAGE に並べたヘルパーに分けて書く。
-// ページへはソースだけが渡るので、ヘルパーはモジュールの名前を参照せず、互いを引数の一覧（`h`）を通して呼ぶ。
-// 1 つの関数式へのまとめ方は lib/page-function.mjs にある。
+// ページへはソースだけが渡るので、本体とヘルパーが参照するトップレベルの関数と定数は、すべて ASSET_PROBE_PAGE に並べる。
+// lib/page-function.mjs が、それらを 1 つの関数式の中のローカルの宣言にまとめ、本体とヘルパーは同じ名前で互いを呼ぶ。
 
 import { isCliEntry } from "./lib/cli.mjs";
 import { pageFunctionSource } from "./lib/page-function.mjs";
@@ -30,7 +30,6 @@ import { pageFunctionSource } from "./lib/page-function.mjs";
 /**
  * 1 回の走査の状態。本体が作り、ヘルパーへ引数で渡す。
  * @typedef {{
- *   h: AssetProbeHelpers,
  *   docWithoutHash: string,
  *   images: Map<string, { src: string, kind: string } & ProbeCounts>,
  *   urlRefs: Map<string, UrlRefInit & ProbeCounts>,
@@ -134,7 +133,7 @@ function urlsIn(run, value, base = document.baseURI) {
   let m;
   while ((m = re.exec(value || ""))) {
     if (!m[2]) continue;
-    out.push(run.h.resolveRef(run, m[2], base));
+    out.push(resolveRef(run, m[2], base));
   }
   return out;
 }
@@ -181,8 +180,8 @@ function bump(run, map, { key, init, el, rendered }) {
   }
   entry.count += 1;
   if (rendered) entry.rendered += 1;
-  if (entry.samples.length < run.h.MAX_SAMPLES) {
-    entry.samples.push({ path: run.h.cssPath(el), rendered });
+  if (entry.samples.length < MAX_SAMPLES) {
+    entry.samples.push({ path: cssPath(el), rendered });
   }
   return entry;
 }
@@ -194,7 +193,7 @@ function bump(run, map, { key, init, el, rendered }) {
  * @param {{ property: string, pseudo: string | null, el: Element, rendered: boolean }} at
  */
 function bumpUrlRef(run, ref, { property, pseudo, el, rendered }) {
-  run.h.bump(run, ref.localFragment ? run.localFragmentRefs : run.urlRefs, {
+  bump(run, ref.localFragment ? run.localFragmentRefs : run.urlRefs, {
     key: JSON.stringify([property, pseudo, ref.url]),
     init: { url: ref.url, property, pseudo },
     el,
@@ -216,16 +215,16 @@ function scanImageElement(run, el, rendered) {
       (typeof el.src === "string" && el.src) ||
       el.getAttribute("src") ||
       "";
-    if (src) run.h.bump(run, run.images, { key: src, init: { src, kind: tag }, el, rendered });
+    if (src) bump(run, run.images, { key: src, init: { src, kind: tag }, el, rendered });
   } else if (tag === "image" || tag === "use") {
     const href = el.getAttribute("href") || el.getAttribute("xlink:href") || "";
     if (!href) return;
-    const ref = run.h.resolveRef(run, href, document.baseURI);
+    const ref = resolveRef(run, href, document.baseURI);
     if (ref.localFragment) {
-      run.h.bumpUrlRef(run, ref, { property: tag, pseudo: null, el, rendered });
+      bumpUrlRef(run, ref, { property: tag, pseudo: null, el, rendered });
     } else {
       const init = { src: ref.url, kind: "svg-" + tag };
-      run.h.bump(run, run.images, { key: ref.url, init, el, rendered });
+      bump(run, run.images, { key: ref.url, init, el, rendered });
     }
   }
 }
@@ -238,10 +237,10 @@ function scanImageElement(run, el, rendered) {
  */
 function scanOwnStyle(run, el, rendered) {
   const style = getComputedStyle(el, null);
-  for (const property of run.h.URL_PROPS) {
+  for (const property of URL_PROPS) {
     if (property === "content") continue;
-    for (const ref of run.h.urlsIn(run, style.getPropertyValue(property))) {
-      run.h.bumpUrlRef(run, ref, { property, pseudo: null, el, rendered });
+    for (const ref of urlsIn(run, style.getPropertyValue(property))) {
+      bumpUrlRef(run, ref, { property, pseudo: null, el, rendered });
     }
   }
 }
@@ -258,22 +257,22 @@ function scanPseudo(run, el, { pseudo, rendered }) {
   if (!content || content === "none" || content === "normal") return;
   // 疑似要素は宿主が描かれていれば描かれる（display: none の疑似要素は除く）。
   const pseudoRendered = rendered && style.display !== "none";
-  const text = run.h.contentText(content);
+  const text = contentText(content);
   if (text.trim()) {
     const family = style.getPropertyValue("font-family");
     const init = {
       pseudo,
       fontFamily: family,
       text,
-      codepoints: run.h.codepoints(text),
-      privateUse: run.h.isPrivateUse(text),
+      codepoints: codepoints(text),
+      privateUse: isPrivateUse(text),
     };
     const key = JSON.stringify([family, text]);
-    run.h.bump(run, run.glyphs, { key, init, el, rendered: pseudoRendered });
+    bump(run, run.glyphs, { key, init, el, rendered: pseudoRendered });
   }
-  for (const property of run.h.URL_PROPS) {
-    for (const ref of run.h.urlsIn(run, style.getPropertyValue(property))) {
-      run.h.bumpUrlRef(run, ref, { property, pseudo, el, rendered: pseudoRendered });
+  for (const property of URL_PROPS) {
+    for (const ref of urlsIn(run, style.getPropertyValue(property))) {
+      bumpUrlRef(run, ref, { property, pseudo, el, rendered: pseudoRendered });
     }
   }
 }
@@ -284,10 +283,10 @@ function scanPseudo(run, el, { pseudo, rendered }) {
  * @param {ProbedElement} el
  */
 function scanElement(run, el) {
-  const rendered = run.h.isRendered(el);
-  run.h.scanImageElement(run, el, rendered);
-  run.h.scanOwnStyle(run, el, rendered);
-  for (const pseudo of ["::before", "::after"]) run.h.scanPseudo(run, el, { pseudo, rendered });
+  const rendered = isRendered(el);
+  scanImageElement(run, el, rendered);
+  scanOwnStyle(run, el, rendered);
+  for (const pseudo of ["::before", "::after"]) scanPseudo(run, el, { pseudo, rendered });
 }
 
 // open な shadow root の内側も走査する（querySelectorAll は shadow 境界を越えないため、
@@ -318,8 +317,7 @@ function fontFaceRow(run, ruleStyle, { sheetHref, base }) {
     family: ruleStyle.getPropertyValue("font-family").trim(),
     weight: ruleStyle.getPropertyValue("font-weight").trim() || null,
     style: ruleStyle.getPropertyValue("font-style").trim() || null,
-    src: run.h
-      .urlsIn(run, ruleStyle.getPropertyValue("src"), base)
+    src: urlsIn(run, ruleStyle.getPropertyValue("src"), base)
       .filter((ref) => !ref.localFragment)
       .map((ref) => ref.url),
     sheet: sheetHref,
@@ -338,11 +336,11 @@ function walkRules(run, rules, sheet) {
       // @font-face の規則（CSSFontFaceRule）は必ず style を持つ。無ければ TypeError を投げて止める。
       const ruleStyle = rule.style;
       if (!ruleStyle) throw new TypeError("@font-face の規則に style がありません");
-      run.fontFaces.push(run.h.fontFaceRow(run, ruleStyle, sheet));
+      run.fontFaces.push(fontFaceRow(run, ruleStyle, sheet));
     } else if (rule.type === CSSRule.IMPORT_RULE && rule.styleSheet) {
-      run.h.visitSheet(run, rule.styleSheet);
+      visitSheet(run, rule.styleSheet);
     } else if (rule.cssRules) {
-      run.h.walkRules(run, rule.cssRules, sheet);
+      walkRules(run, rule.cssRules, sheet);
     }
   }
 }
@@ -366,7 +364,7 @@ function visitSheet(run, sheet) {
     return;
   }
   // インライン・構築済みのシートは href を持たず、相対 URL は文書の URL を基準に解決される。
-  run.h.walkRules(run, rules, {
+  walkRules(run, rules, {
     sheetHref: sheet.href || "(inline)",
     base: sheet.href || document.baseURI,
   });
@@ -383,6 +381,22 @@ function linksWithRel(pattern) {
       .filter((link) => link instanceof HTMLLinkElement)
       .filter((link) => pattern.test(link.rel))
   );
+}
+
+/** アイコンと manifest の link を読む。 */
+function pageLinks() {
+  const icons = linksWithRel(/(^|\s)(icon|apple-touch-icon|mask-icon)(\s|$)/i).map((link) => ({
+    rel: link.rel,
+    href: link.href,
+    sizes: link.getAttribute("sizes") || null,
+  }));
+  // manifest の icons はページの描画では取得されず resources にも出ないことがある。プローブは manifest を開かないので、
+  // 参照だけを返す（中身の icons は読んでいない。manifest の URL をアイコンとして数えない）。
+  const manifests = linksWithRel(/(^|\s)manifest(\s|$)/i).map((link) => ({
+    href: link.href,
+    iconsInspected: false,
+  }));
+  return { icons, manifests };
 }
 
 /**
@@ -419,13 +433,11 @@ function classifyResources(corroborated) {
 
 /**
  * 1 回の走査の状態を作る。
- * @param {AssetProbeHelpers} h
  * @returns {ProbeRun}
  */
-function newRun(h) {
+function newRun() {
   return {
-    h,
-    docWithoutHash: h.documentWithoutHash(),
+    docWithoutHash: documentWithoutHash(),
     images: new Map(),
     urlRefs: new Map(),
     // 同一文書内の断片参照（外部資産ではないが、SVG 定義の所在として棚卸しの手がかりになる）。
@@ -437,30 +449,20 @@ function newRun(h) {
   };
 }
 
-/**
- * ページで実行する本体。ヘルパーの一覧を引数で受け取る。
- * @param {AssetProbeHelpers} h
- */
-export function assetProbeInPage(h) {
-  const run = h.newRun(h);
-  const { roots, elements } = h.collectElements();
-  for (const el of elements) h.scanElement(run, el);
+/** ページで実行する本体。 */
+export function assetProbeInPage() {
+  const run = newRun();
+  const { roots, elements } = collectElements();
+  for (const el of elements) scanElement(run, el);
   for (const root of roots) {
-    for (const sheet of Array.from(root.styleSheets || [])) h.visitSheet(run, sheet);
-    for (const sheet of Array.from(root.adoptedStyleSheets || [])) h.visitSheet(run, sheet);
+    for (const sheet of Array.from(root.styleSheets || [])) visitSheet(run, sheet);
+    for (const sheet of Array.from(root.adoptedStyleSheets || [])) visitSheet(run, sheet);
   }
   const loadedFonts = Array.from(document.fonts || [])
     .filter((face) => face.status === "loaded")
     .map((face) => ({ family: face.family, weight: face.weight, style: face.style }));
-  const icons = h
-    .linksWithRel(/(^|\s)(icon|apple-touch-icon|mask-icon)(\s|$)/i)
-    .map((link) => ({ rel: link.rel, href: link.href, sizes: link.getAttribute("sizes") || null }));
-  // manifest の icons はページの描画では取得されず resources にも出ないことがある。プローブは manifest を開かないので、
-  // 参照だけを返す（中身の icons は読んでいない。manifest の URL をアイコンとして数えない）。
-  const manifests = h
-    .linksWithRel(/(^|\s)manifest(\s|$)/i)
-    .map((link) => ({ href: link.href, iconsInspected: false }));
-  const classified = h.classifyResources(
+  const { icons, manifests } = pageLinks();
+  const classified = classifyResources(
     new Set([
       ...Array.from(run.images.values()).map((row) => row.src),
       ...Array.from(run.urlRefs.values()).map((row) => row.url),
@@ -478,7 +480,7 @@ export function assetProbeInPage(h) {
     loadedFonts,
     icons,
     manifests,
-    urlPropsScanned: h.URL_PROPS,
+    urlPropsScanned: URL_PROPS,
     resources: classified.resources,
     unclassifiedResources: classified.unclassified,
     resourceEntryCount: classified.entryCount,
@@ -492,7 +494,7 @@ export function assetProbeInPage(h) {
 
 /**
  * ページ側のヘルパーと定数。ページへは pageFunctionSource がソースのまま組み込んで渡す。
- * テストが本体とこの一覧を読み、`h` を通した呼び出しがすべて実行されることを確かめるので、export する。
+ * テストが、本体とヘルパーが参照する名前がすべてこの一覧にあることと、各ヘルパーが実行されることを確かめるので、export する。
  */
 export const ASSET_PROBE_PAGE = {
   URL_PROPS,
@@ -516,14 +518,10 @@ export const ASSET_PROBE_PAGE = {
   walkRules,
   visitSheet,
   linksWithRel,
+  pageLinks,
   classifyResources,
   newRun,
 };
-
-/**
- * ページ側のヘルパーの一覧の型。
- * @typedef {typeof ASSET_PROBE_PAGE} AssetProbeHelpers
- */
 
 /**
  * evaluate_script の function 引数に渡す関数式のソースを返す。

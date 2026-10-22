@@ -1,6 +1,6 @@
 {
   "$comment": [
-    "page-probes.test.ts のうち、ページへ渡すソースの組み立て（lib/page-function.mjs）と、プローブの本体とヘルパーのつなぎ方の検出能力を示す変異の一覧。",
+    "page-probes.test.ts のうち、ページへ渡すソースの組み立て（lib/page-function.mjs）と、プローブの本体とヘルパーの一覧の突き合わせの検出能力を示す変異の一覧。",
     "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.ts が再実行する。"
   ],
   "test_file": "scripts/skills/replace-strategy/page-probes.test.ts",
@@ -17,25 +17,88 @@
       ]
     },
     {
-      "id": "asset-helper-called-without-h",
-      "why": "@import の先を読むヘルパーを `h.` を付けずに呼ぶ。Node のモジュールでは名前が解決されるが、ページへ渡したソースでは ReferenceError になる",
-      "file": "skills/replace-strategy/scripts/asset-probe.mjs",
-      "find": "run.h.visitSheet(run, rule.styleSheet);",
-      "replace": "visitSheet(run, rule.styleSheet);",
+      "id": "undeclarable-name-accepted",
+      "why": "識別子にならない名前と予約語を、宣言の名前として通す。ソースの構文の確かめで SyntaxError にはなるが、名前を挙げた例外にならない",
+      "file": "skills/replace-strategy/scripts/lib/page-function.mjs",
+      "find": "if (!/^[A-Za-z_$][\\w$]*$/u.test(name) || RESERVED_WORDS.has(name)) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["pageFunctionSource: 宣言できない名前と、関数の名前と一致しない名前を拒む"]
+    },
+    {
+      "id": "reserved-name-accepted",
+      "why": "予約語（class・await・arguments）を、宣言の名前として通す",
+      "file": "skills/replace-strategy/scripts/lib/page-function.mjs",
+      "find": "if (!/^[A-Za-z_$][\\w$]*$/u.test(name) || RESERVED_WORDS.has(name)) {",
+      "replace": "if (!/^[A-Za-z_$][\\w$]*$/u.test(name)) {",
+      "occurrences": 1,
+      "expect_failing": ["pageFunctionSource: 宣言できない名前と、関数の名前と一致しない名前を拒む"]
+    },
+    {
+      "id": "function-name-mismatch-accepted",
+      "why": "一覧の名前と関数自身の名前が違う関数を通す。ページでは一覧の名前で宣言され、関数の名前で呼ぶ行が ReferenceError になる",
+      "file": "skills/replace-strategy/scripts/lib/page-function.mjs",
+      "find": "if (typeof value === \"function\" && value.name !== name) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["pageFunctionSource: 宣言できない名前と、関数の名前と一致しない名前を拒む"]
+    },
+    {
+      "id": "source-syntax-unchecked",
+      "why": "組み立てたソースの構文を確かめない。式として読めない関数のソースが、ページで初めて SyntaxError になる",
+      "file": "skills/replace-strategy/scripts/lib/page-function.mjs",
+      "find": "new Script(`(${source})`);",
+      "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "asset-probe: 疑似要素・SVG・スタイルシート・link・Resource Timing を持つページで、h を通した呼び出しがすべて実行される"
+        "pageFunctionSource: 式として読めない関数のソース（メソッドの短縮形・組み込みの関数）を、組み立てるときに拒む"
       ]
     },
     {
-      "id": "role-helper-called-without-h",
-      "why": "label の名前を読むヘルパーを `h.` を付けずに呼ぶ。aria-labelledby の名前が無い要素を走査したときだけ、ページで ReferenceError になる",
+      "id": "role-helper-unlisted",
+      "why": "label の名前を読むヘルパーを ROLE_PROBE_PAGE に入れ忘れる。Node のモジュールでは名前が解決されるが、ページでは ReferenceError になる",
       "file": "skills/replace-strategy/scripts/role-probe.mjs",
-      "find": "h.labelledbyName(h, el) || h.labelsName(h, el)",
-      "replace": "h.labelledbyName(h, el) || labelsName(h, el)",
+      "find": "  labelsName,\n",
+      "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "role-probe: aria-labelledby・label・button の value・内容テキスト・(role, name) の重複を持つページで、h を通した呼び出しがすべて実行される"
+        "role-probe: 本体から参照をたどって届くトップレベルの名前が ROLE_PROBE_PAGE と一致する",
+        "role-probe: aria-labelledby・label・button の value・内容テキスト・(role, name) の重複を持つページで、一覧の各ヘルパーが 1 回以上呼ばれる"
+      ]
+    },
+    {
+      "id": "asset-helper-unlisted",
+      "why": "@import の先と文書のスタイルシートを読むヘルパーを ASSET_PROBE_PAGE に入れ忘れる",
+      "file": "skills/replace-strategy/scripts/asset-probe.mjs",
+      "find": "  visitSheet,\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "asset-probe: 本体から参照をたどって届くトップレベルの名前が ASSET_PROBE_PAGE と一致する",
+        "asset-probe: 疑似要素・SVG・スタイルシート・link・Resource Timing を持つページで、一覧の各ヘルパーが 1 回以上呼ばれる"
+      ]
+    },
+    {
+      "id": "role-unlisted-reference-in-unreached-branch",
+      "why": "偽物のページが通らない分岐（alt を持つ要素）で、一覧に無い名前（import した isCliEntry）を参照する。実行のテストでは見つからず、構文木の突き合わせだけが見つける",
+      "file": "skills/replace-strategy/scripts/role-probe.mjs",
+      "find": "if (alt && alt.trim()) return alt.trim();",
+      "replace": "if (alt && alt.trim()) return String(isCliEntry(alt));",
+      "occurrences": 1,
+      "expect_failing": [
+        "role-probe: 本体から参照をたどって届くトップレベルの名前が ROLE_PROBE_PAGE と一致する"
+      ]
+    },
+    {
+      "id": "role-helper-unreferenced",
+      "why": "一覧にある label の名前を読むヘルパーを、どこからも呼ばなくする。一覧に参照されない名前が残る",
+      "file": "skills/replace-strategy/scripts/role-probe.mjs",
+      "find": "const referenced = labelledbyName(el) || labelsName(el);",
+      "replace": "const referenced = labelledbyName(el);",
+      "occurrences": 1,
+      "expect_failing": [
+        "role-probe: 本体から参照をたどって届くトップレベルの名前が ROLE_PROBE_PAGE と一致する",
+        "role-probe: aria-labelledby・label・button の value・内容テキスト・(role, name) の重複を持つページで、一覧の各ヘルパーが 1 回以上呼ばれる"
       ]
     }
   ]

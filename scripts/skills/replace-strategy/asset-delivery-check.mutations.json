@@ -75,7 +75,8 @@
         "通す: 参照があり移行元とバイト一致する資産は exit 0 で、結果を replace-metadata.json に書く（他のキーは残す）",
         "通す: 新側が転送（ハッシュ付きのパスへの 301 等）で配る資産も、参照は転送前の URL・バイトは最終応答で突き合う",
         "通す: 突き合わせる行が全て accepted ならプローブ無しで exit 0",
-        "通す: 記録の種類の表記ゆれ（空白・強調）は台帳と同じ正規化で揃えて突き合わせる"
+        "通す: 記録の種類の表記ゆれ（空白・強調）は台帳と同じ正規化で揃えて突き合わせる",
+        "check: URL として読めない base は、照合する組が無ければ例外にせず、最初の組の相対値の UsageError を先に出す"
       ]
     },
     {
@@ -317,6 +318,17 @@
       "occurrences": 1,
       "expect_failing": [
         "台帳: 旧い方針の値を新しい値と同じ意味に読む（改名する前の台帳を書き直さずに判定する）"
+      ]
+    },
+    {
+      "id": "base-origins-eager",
+      "why": "--new-base と --current-base のオリジンを、組を照合する前に求める。照合する組が無いときと、最初の組の相対値の UsageError より先に、読めない base の TypeError が出る",
+      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "find": "    fetcher: input.fetcher,\n    findings,\n  };\n",
+      "replace": "    fetcher: input.fetcher,\n    findings,\n  };\n  baseOrigins(ctx);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "check: URL として読めない base は、照合する組が無ければ例外にせず、最初の組の相対値の UsageError を先に出す"
       ]
     }
   ]

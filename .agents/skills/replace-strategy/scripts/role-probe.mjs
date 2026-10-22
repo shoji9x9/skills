@@ -9,8 +9,8 @@
 //（references/measurement.md を参照）。決定論的: 乱数・時刻に依存せず、document 順に走査する。
 //
 // ページで実行する処理は、本体の roleProbeInPage と、ROLE_PROBE_PAGE に並べたヘルパーに分けて書く。
-// ページへはソースだけが渡るので、ヘルパーはモジュールの名前を参照せず、互いを引数の一覧（`h`）を通して呼ぶ。
-// 1 つの関数式へのまとめ方は lib/page-function.mjs にある。
+// ページへはソースだけが渡るので、本体とヘルパーが参照するトップレベルの関数と定数は、すべて ROLE_PROBE_PAGE に並べる。
+// lib/page-function.mjs が、それらを 1 つの関数式の中のローカルの宣言にまとめ、本体とヘルパーは同じ名前で互いを呼ぶ。
 
 import { isCliEntry } from "./lib/cli.mjs";
 import { pageFunctionSource } from "./lib/page-function.mjs";
@@ -68,27 +68,25 @@ function text(el) {
 
 /**
  * aria-labelledby が指す要素の内容テキストを空白でつなぐ。指す要素が無い・空なら空文字。
- * @param {RoleProbeHelpers} h
  * @param {Element} el
  */
-function labelledbyName(h, el) {
+function labelledbyName(el) {
   const labelledby = el.getAttribute("aria-labelledby");
   if (!labelledby) return "";
   return labelledby
     .split(/\s+/)
-    .map((id) => h.text(document.getElementById(id)))
+    .map((id) => text(document.getElementById(id)))
     .filter(Boolean)
     .join(" ");
 }
 
 /**
  * 関連付けられた label の内容テキストを空白でつなぐ。label が無い・空なら空文字。
- * @param {RoleProbeHelpers} h
  * @param {ProbedElement} el
  */
-function labelsName(h, el) {
+function labelsName(el) {
   if (!el.labels || !el.labels.length) return "";
-  return Array.from(el.labels).map(h.text).filter(Boolean).join(" ");
+  return Array.from(el.labels).map(text).filter(Boolean).join(" ");
 }
 
 /**
@@ -109,20 +107,17 @@ function buttonValue(el) {
 
 // accname の近似: aria-label > aria-labelledby > label 関連付け > alt > value(button 系) >
 // 内容テキスト > title > placeholder。空文字は「名前なし」。
-/**
- * @param {RoleProbeHelpers} h
- * @param {ProbedElement} el
- */
-function accessibleName(h, el) {
+/** @param {ProbedElement} el */
+function accessibleName(el) {
   const ariaLabel = (el.getAttribute("aria-label") || "").trim();
   if (ariaLabel) return ariaLabel;
-  const referenced = h.labelledbyName(h, el) || h.labelsName(h, el);
+  const referenced = labelledbyName(el) || labelsName(el);
   if (referenced) return referenced;
   const alt = el.getAttribute("alt");
   if (alt && alt.trim()) return alt.trim();
-  const value = h.buttonValue(el);
+  const value = buttonValue(el);
   if (value) return value;
-  const content = h.text(el);
+  const content = text(el);
   if (content) return content;
   const title = (el.getAttribute("title") || "").trim();
   if (title) return title;
@@ -144,14 +139,11 @@ function cssPath(el) {
   return parts.join(" > ");
 }
 
-/**
- * @param {RoleProbeHelpers} h
- * @param {Element} el
- */
-function roleOf(h, el) {
+/** @param {Element} el */
+function roleOf(el) {
   const explicit = (el.getAttribute("role") || "").trim().split(/\s+/)[0];
   if (explicit) return explicit;
-  for (const [selector, role] of h.IMPLICIT_ROLES) {
+  for (const [selector, role] of IMPLICIT_ROLES) {
     if (el.matches(selector)) return role;
   }
   return "";
@@ -159,16 +151,15 @@ function roleOf(h, el) {
 
 /**
  * 要素ごとに role と名前を数える。名前の無い要素は先頭から 20 件まで標本に残す。
- * @param {RoleProbeHelpers} h
  * @param {Element[]} candidates
  * @returns {RoleTally}
  */
-function tally(h, candidates) {
+function tally(candidates) {
   /** @type {RoleTally} */
   const out = { byRole: {}, nameCountByRole: {}, unnamedSamples: [], named: 0 };
   for (const el of candidates) {
-    const role = h.roleOf(h, el);
-    const name = role ? h.accessibleName(h, el) : "";
+    const role = roleOf(el);
+    const name = role ? accessibleName(el) : "";
     const key = role || "(no role)";
     out.byRole[key] = out.byRole[key] || { total: 0, named: 0 };
     out.byRole[key].total += 1;
@@ -181,7 +172,7 @@ function tally(h, candidates) {
       out.unnamedSamples.push({
         tag: el.tagName.toLowerCase(),
         role: role || null,
-        path: h.cssPath(el),
+        path: cssPath(el),
       });
     }
   }
@@ -201,24 +192,21 @@ function duplicatePairs(nameCountByRole) {
   return pairs;
 }
 
-/**
- * ページで実行する本体。ヘルパーの一覧を引数で受け取る。
- * @param {RoleProbeHelpers} h
- */
-export function roleProbeInPage(h) {
+/** ページで実行する本体。 */
+export function roleProbeInPage() {
   const candidates = Array.from(
     document.querySelectorAll(
       "a[href], button, input:not([type=hidden]), select, textarea, summary, h1, h2, h3, h4, h5, h6, table, img[alt]:not([alt='']), [role], [tabindex]",
     ),
-  ).filter((el) => h.isVisible(el));
-  const counts = h.tally(h, candidates);
+  ).filter((el) => isVisible(el));
+  const counts = tally(candidates);
   return {
     url: location.pathname,
     total: candidates.length,
     named: counts.named,
     unnamed: candidates.length - counts.named,
     ratio: candidates.length ? Math.round((counts.named / candidates.length) * 1000) / 1000 : null,
-    duplicatePairs: h.duplicatePairs(counts.nameCountByRole),
+    duplicatePairs: duplicatePairs(counts.nameCountByRole),
     byRole: counts.byRole,
     unnamedSamples: counts.unnamedSamples,
   };
@@ -226,7 +214,7 @@ export function roleProbeInPage(h) {
 
 /**
  * ページ側のヘルパーと定数。ページへは pageFunctionSource がソースのまま組み込んで渡す。
- * テストが本体とこの一覧を読み、`h` を通した呼び出しがすべて実行されることを確かめるので、export する。
+ * テストが、本体とヘルパーが参照する名前がすべてこの一覧にあることと、各ヘルパーが実行されることを確かめるので、export する。
  */
 export const ROLE_PROBE_PAGE = {
   IMPLICIT_ROLES,
@@ -241,11 +229,6 @@ export const ROLE_PROBE_PAGE = {
   tally,
   duplicatePairs,
 };
-
-/**
- * ページ側のヘルパーの一覧の型。
- * @typedef {typeof ROLE_PROBE_PAGE} RoleProbeHelpers
- */
 
 /**
  * evaluate_script の function 引数に渡す関数式のソースを返す。

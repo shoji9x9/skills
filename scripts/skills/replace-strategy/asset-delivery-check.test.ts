@@ -13,6 +13,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import { CHILD_TIMEOUT_MS } from "../../lib/testing/child-timeout.ts";
+import { check } from "../../../skills/replace-strategy/scripts/asset-delivery-check.mjs";
 import {
   faviconOf,
   ledger,
@@ -793,4 +794,37 @@ test("CLI: 引数が無ければ exit 2 と使い方を出す", () => {
   });
   expect(r.stderr).toMatch(/usage: asset-delivery-check.mjs/u);
   expect(r.status).toBe(2);
+});
+
+test("check: URL として読めない base は、照合する組が無ければ例外にせず、最初の組の相対値の UsageError を先に出す", async () => {
+  const run = (files: { current: string; new: string }[], bases: [string, string]) =>
+    check({
+      ledgerText: TEMPLATE,
+      record: { entries: [{ kind: "本文の書体", files }] },
+      probes: [{ label: "probe", doc: FONT_PROBE }],
+      currentBase: bases[0],
+      newBase: bases[1],
+      fetcher: fetcherOf(SAME_FONTS),
+    });
+  const absolute = [
+    { current: `${CUR}/body.woff2`, new: `${NEW}/fonts/body.woff2` },
+    { current: `${CUR}/body.woff`, new: `${NEW}/fonts/body.woff` },
+  ];
+  await expect(run(absolute, [CUR, "not a url"])).rejects.toThrow(TypeError);
+  await expect(run(absolute, ["not a url", NEW])).rejects.toThrow(TypeError);
+  await expect(
+    run([{ current: "body.woff2", new: "/fonts/body.woff2" }], ["x", "y"]),
+  ).rejects.toThrow(/current は http\(s\) の絶対 URL か \/ 始まりのパスで書く/u);
+  const none = await check({
+    ledgerText: TEMPLATE,
+    record: { entries: [] },
+    probes: [],
+    currentBase: "x",
+    newBase: "y",
+    fetcher: fetcherOf({}),
+  });
+  expect(none.counts.files).toBe(0);
+  const twoPairs = await run(absolute, [CUR, NEW]);
+  expect(twoPairs.findings).toEqual([]);
+  expect(twoPairs.files.map((f) => f.bytes_match)).toEqual([true, true]);
 });

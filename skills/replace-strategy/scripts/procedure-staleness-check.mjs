@@ -148,7 +148,7 @@ function readRevisionChange(change, where, { skill, revision, seen, errors }) {
 /**
  * parity-suite の手順の改訂一覧を検証する。
  * @param {unknown} doc
- * @returns {{ ok: true, skill: string, revision: number, changes: Array<{ id: string, revision: number, axis: string, affects: string[] }> } | { ok: false, errors: string[] }}
+ * @returns {{ ok: true, skill: string, revision: number, changes: RevisionChange[] } | { ok: false, errors: string[] }}
  */
 export function readRevisions(doc) {
   /** @type {string[]} */
@@ -437,7 +437,7 @@ function readRecordRows(rows, { changeIds, skillChangeIds, errors }) {
  * プロジェクト側の台帳（.replace/procedure-changes.md）を読む。
  * @param {string} text
  * @param {Set<string>} skillChangeIds 改訂一覧が定める変更 ID（記録の参照先として有効なもの）
- * @returns {{ ok: true, changes: Array<{ id: string, added_at: string, axis: string, origin: string, affects: string[], placement: string }>, records: Array<{ id: string, change: string, slug: string, decision: string, recorded_at: string, basis: string }> } | { ok: false, errors: string[] }}
+ * @returns {{ ok: true, changes: LedgerChange[], records: LedgerRecord[] } | { ok: false, errors: string[] }}
  */
 export function readProcedureLedger(text, skillChangeIds) {
   const { errors, changeTable, recordTable } = findLedgerTables(text);
@@ -469,11 +469,13 @@ function unreadableArtifact(slug, problem) {
 }
 
 /**
- * パスがリンク先の無いシンボリックリンクか（existsSync が偽を返した後に、本当に無いのかと区別するために使う）。
+ * パスがリンク先の無いシンボリックリンクか。リンク先のあるシンボリックリンクと、リンクでないパスには false を返す。
+ * existsSync はリンクを辿るので、リンク先が無いと偽を返す。そのうえで lstatSync でパス自身がリンクかを見る。
  * @param {string} path
  * @returns {boolean}
  */
-function isDanglingLink(path) {
+export function isDanglingLink(path) {
+  if (existsSync(path)) return false;
   try {
     return lstatSync(path).isSymbolicLink();
   } catch {
@@ -594,7 +596,7 @@ function readArtifact(parityDir, name, latestRevision) {
  * .replace/parity/<slug>/metadata.json を集める。
  * @param {string} parityDir
  * @param {number} latestRevision
- * @returns {{ slugs: Array<{ slug: string, mode: string | null, procedure_revision: number | null, finished_on: string | null, problems: string[] }> }}
+ * @returns {{ slugs: ArtifactEntry[] }}
  */
 export function readArtifacts(parityDir, latestRevision) {
   /** @type {ArtifactEntry[]} */
@@ -614,7 +616,7 @@ export function readArtifacts(parityDir, latestRevision) {
 /**
  * 1 つの機能について、当て直しの対象になる変更を集める。日付を読めない組は undeterminable に積む。
  * @param {ArtifactEntry & { mode: string }} entry
- * @param {{ revisionChanges: RevisionChange[], ledgerChanges: Array<{ id: string, added_at: string, axis: string, affects: string[], placement: string }>, undeterminable: Array<{ slug: string, change?: string, reason: string }> }} context
+ * @param {{ revisionChanges: RevisionChange[], ledgerChanges: LedgerChange[], undeterminable: Array<{ slug: string, change?: string, reason: string }> }} context
  * @returns {Hit[]}
  */
 function hitsFor(entry, { revisionChanges, ledgerChanges, undeterminable }) {
@@ -675,9 +677,9 @@ function sortHit(hit, { slug, record, unresolved, resolved }) {
 /**
  * 変更 × 機能の対象を決め、判断の記録と突き合わせる。
  * @param {{
- *   revisions: { changes: Array<{ id: string, revision: number, axis: string, affects: string[] }> },
- *   ledger: { changes: Array<{ id: string, added_at: string, axis: string, affects: string[], placement: string }>, records: Array<{ id: string, change: string, slug: string, decision: string, recorded_at: string, basis: string }> },
- *   slugs: Array<{ slug: string, mode: string | null, procedure_revision: number | null, finished_on: string | null, problems: string[] }>,
+ *   revisions: { changes: RevisionChange[] },
+ *   ledger: { changes: LedgerChange[], records: LedgerRecord[] },
+ *   slugs: ArtifactEntry[],
  * }} input
  */
 export function check(input) {

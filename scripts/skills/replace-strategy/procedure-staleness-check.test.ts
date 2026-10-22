@@ -11,11 +11,13 @@ import { join } from "node:path";
 import { assert, test, expect } from "vitest";
 import {
   countRowLikeLines,
+  isDanglingLink,
   readProcedureLedger,
   readRevisions,
   strayCommentMarkers,
 } from "../../../skills/replace-strategy/scripts/procedure-staleness-check.mjs";
 import { parseJsonAs } from "../../lib/parse-as.ts";
+import { makeTempDir } from "../../lib/testing/test-tmpdir.ts";
 import {
   failedOf,
   ledgerOf,
@@ -550,4 +552,15 @@ test("情報文字列の付いた行でフェンスを閉じず、フェンス�
     lines: [],
     unclosed: false,
   });
+});
+
+test("isDanglingLink: リンク先の無いシンボリックリンクだけを真にし、リンク先のあるリンク・ファイル・無いパスは偽にする", () => {
+  const dir = makeTempDir("dangling-link-");
+  writeFileSync(join(dir, "target.md"), "");
+  symlinkSync(join(dir, "target.md"), join(dir, "linked.md"));
+  symlinkSync(join(dir, "gone.md"), join(dir, "dangling.md"));
+  expect(isDanglingLink(join(dir, "dangling.md"))).toBe(true);
+  expect(isDanglingLink(join(dir, "linked.md"))).toBe(false);
+  expect(isDanglingLink(join(dir, "target.md"))).toBe(false);
+  expect(isDanglingLink(join(dir, "missing.md"))).toBe(false);
 });

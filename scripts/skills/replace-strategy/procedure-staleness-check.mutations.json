@@ -462,6 +462,17 @@
       "replace": "    if (false) return;",
       "occurrences": 1,
       "expect_failing": ["情報文字列の付いた行でフェンスを閉じず、フェンスの中の表の行を数えない"]
+    },
+    {
+      "id": "dangling-link-ignores-existing-target",
+      "why": "isDanglingLink がリンク先の有無を見ず、リンク先のある正常なシンボリックリンクも「リンク先の無いリンク」として扱う",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "if (existsSync(path)) return false;",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "isDanglingLink: リンク先の無いシンボリックリンクだけを真にし、リンク先のあるリンク・ファイル・無いパスは偽にする"
+      ]
     }
   ]
 }
