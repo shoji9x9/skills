@@ -1143,12 +1143,21 @@ function compilePageFunction() {
 }
 
 /**
- * ページへ渡す関数。locator.evaluate は関数を文字列にしてページへ渡すので、モジュールの関数を参照する
- * collectMatchedRules は渡せない。そこで、ページ側の関数のソースを組み込んだ関数を作って渡す。
- * Node で呼んでも、ページで呼ぶのと同じソースが動く。ソースは入力に依らないので、モジュールを読み込むときに 1 回だけ作る。
- * ページ側の関数が互いをヘルパーの一覧を通して呼んでいるかをテストが確かめられるように、公開する。
+ * ページへ渡す関数。captureMatchedRules の最初の呼び出しで作り、以後は同じ関数を使う。
+ * @type {((el: Element, arg: { statePseudoClasses: readonly string[], structuralPseudoClasses: readonly string[] }) => unknown) | undefined}
  */
-export const collectMatchedRulesInPage = compilePageFunction();
+let pageFunction;
+
+/**
+ * ページへ渡す関数を返す。locator.evaluate は関数を文字列にしてページへ渡すので、モジュールの関数を参照する
+ * collectMatchedRules は渡せない。そこで、ページ側の関数のソースを組み込んだ関数を作って渡す。
+ * ソースは入力に依らないので 1 回だけ作る。モジュールを読み込むときには作らないので、定数だけを使う側は new Function を実行しない。
+ * @returns {(el: Element, arg: { statePseudoClasses: readonly string[], structuralPseudoClasses: readonly string[] }) => unknown}
+ */
+function getPageFunction() {
+  pageFunction ??= compilePageFunction();
+  return pageFunction;
+}
 
 /**
  * 論理名を付けた要素ごとに、当たっている CSS 規則を採る。
@@ -1186,9 +1195,10 @@ export async function captureMatchedRules(entries, options = {}) {
     statePseudoClasses: options.statePseudoClasses || STATE_PSEUDO_CLASSES,
     structuralPseudoClasses: options.structuralPseudoClasses || STRUCTURAL_PSEUDO_CLASSES,
   };
+  const inPage = getPageFunction();
   const results = [];
   for (const entry of entries) {
-    const captured = await entry.locator.evaluate(collectMatchedRulesInPage, resolved);
+    const captured = await entry.locator.evaluate(inPage, resolved);
     // collectMatchedRules は常にこの形を返すので、ここで投げることは起きない（型の絞り込みのため）。
     if (!isCapture(captured))
       throw new Error(`css rules capture returned an unexpected shape: ${entry.name}`);

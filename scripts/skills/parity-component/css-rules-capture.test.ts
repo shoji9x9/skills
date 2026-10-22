@@ -38,6 +38,7 @@ import {
 } from "./css-rules-capture-helpers.ts";
 
 // どのテストも、モジュールの関数と、ページへ渡すのと同じソースから作った関数の 2 通りで実行する。
+// ソースから作った関数は、captureMatchedRules に偽の locator を渡して呼ぶ。
 // ページ側の関数がヘルパーの一覧を通さずに互いを呼んでも、モジュールの関数の側はモジュールのスコープで名前が解決されて通る。
 // ソースから作った関数の側は名前を解決できずに失敗するので、取り決めが守られていることはこちらの側で確かめる。
 describe.each(COLLECTORS)("%s", (_label, collect) => {
@@ -45,19 +46,19 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
 
   // --- 検出できることの確認: 素朴な走査が同じ入力で取りこぼすことを実証する ---
 
-  test("検出されることの確認: 素朴な走査は空の cssRules を持つ通常の規則を数えない", () => {
+  test("検出されることの確認: 素朴な走査は空の cssRules を持つ通常の規則を数えない", async () => {
     // `.plain-rule` は入れ子を持たないが cssRules（空）を持つため、素朴な走査では
     // 「グループ規則」と誤認されて中身（0 件）だけが見られる。
     const seen = naiveCollect(buildSheets());
     expect(seen).not.toContain(".plain-rule");
     // 素朴な走査が拾えるのは、cssRules を持たない形の規則だけになる。
-    expect(seen.length).toBeLessThan(capture().counts.style_rules);
+    expect(seen.length).toBeLessThan((await capture()).counts.style_rules);
   });
 
   // --- 本体 ---
 
-  test("@import の先の規則を採る", () => {
-    const result = capture();
+  test("@import の先の規則を採る", async () => {
+    const result = await capture();
     const hit = requireMatch(
       result,
       (m: Match) => m.selector === ".marker-in-imported" && m.states.length === 0,
@@ -69,9 +70,9 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
     expect(result.counts.import_rules).toBe(1);
   });
 
-  test(":hover の宣言と !important を状態付きで採る（計算値では見えない側）", () => {
+  test(":hover の宣言と !important を状態付きで採る（計算値では見えない側）", async () => {
     const hit = requireMatch(
-      capture(),
+      await capture(),
       (m: Match) => m.states.includes("hover") && m.href === IMPORTED_HREF,
     );
     expect(hit.selector).toBe(".marker-in-imported:hover");
@@ -81,52 +82,54 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
     ]);
   });
 
-  test("空の cssRules を持つ通常の規則を採る", () => {
-    expect(findMatch(capture(), (m: Match) => m.selector === ".plain-rule")).toBeDefined();
+  test("空の cssRules を持つ通常の規則を採る", async () => {
+    expect(findMatch(await capture(), (m: Match) => m.selector === ".plain-rule")).toBeDefined();
   });
 
-  test("入れ子の & を親セレクタで解決して採る", () => {
-    const hit = requireMatch(capture(), (m: Match) => m.original_selector === "&:hover");
+  test("入れ子の & を親セレクタで解決して採る", async () => {
+    const hit = requireMatch(await capture(), (m: Match) => m.original_selector === "&:hover");
     expect(hit.selector).toBe(":is(.card):hover");
     expect(hit.states).toEqual(["hover"]);
   });
 
-  test("入れ子でも当たらない規則は採らない（& の解決が素通しになっていない）", () => {
+  test("入れ子でも当たらない規則は採らない（& の解決が素通しになっていない）", async () => {
     // `& .inner` は `:is(.card) .inner` に解決され、対象要素には当たらない。
     // ここが素通りすると、`&` を無視して親の規則として数えていることになる。
-    expect(findMatch(capture(), (m: Match) => m.original_selector === "& .inner")).toBeUndefined();
+    expect(
+      findMatch(await capture(), (m: Match) => m.original_selector === "& .inner"),
+    ).toBeUndefined();
   });
 
-  test("条件・レイヤを規則に付けて採る", () => {
-    const result = capture();
+  test("条件・レイヤを規則に付けて採る", async () => {
+    const result = await capture();
     expect(requireMatch(result, (m: Match) => m.selector === ".in-media").conditions).toEqual([
       "(min-width: 1px)",
     ]);
     expect(requireMatch(result, (m: Match) => m.selector === ".layered").layers).toEqual(["base"]);
   });
 
-  test("@keyframes をレイヤとして数えない", () => {
-    for (const m of capture().matched) expect(m.layers).not.toContain("spin");
+  test("@keyframes をレイヤとして数えない", async () => {
+    for (const m of (await capture()).matched) expect(m.layers).not.toContain("spin");
   });
 
-  test("擬似要素の規則を擬似要素として採る", () => {
-    const hit = requireMatch(capture(), (m: Match) => m.pseudo_element !== null);
+  test("擬似要素の規則を擬似要素として採る", async () => {
+    const hit = requireMatch(await capture(), (m: Match) => m.pseudo_element !== null);
     expect(hit.selector).toBe(".btn::after");
     expect(hit.pseudo_element).toBe("::after");
   });
 
-  test("読めないスタイルシートを警告なしに捨てず inaccessible に残す", () => {
-    const result = capture();
+  test("読めないスタイルシートを警告なしに捨てず inaccessible に残す", async () => {
+    const result = await capture();
     expect(result.inaccessible).toEqual([
       { href: "https://cdn.example/vendor.css", error: "SecurityError" },
     ]);
   });
 
-  test(":is() の中の状態は判定せず unresolved に回す", () => {
+  test(":is() の中の状態は判定せず unresolved に回す", async () => {
     const sheets = [
       { href: MAIN_HREF, cssRules: [styleRule(".card:is(:hover, .forced)", { color: "red" })] },
     ];
-    const result = collect(fakeElement(sheets), {
+    const result = await collect(fakeElement(sheets), {
       statePseudoClasses: STATE_PSEUDO_CLASSES,
       structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
     });
@@ -141,7 +144,7 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
     ]);
   });
 
-  test("matches() が throw するセレクタを unresolved に残す", () => {
+  test("matches() が throw するセレクタを unresolved に残す", async () => {
     const sheets = [{ href: MAIN_HREF, cssRules: [styleRule(".plain-rule", { color: "red" })] }];
     const el = fakeElement(sheets);
     el.matches = () => {
@@ -149,7 +152,7 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
       e.name = "SyntaxError";
       throw e;
     };
-    const result = collect(el, {
+    const result = await collect(el, {
       statePseudoClasses: STATE_PSEUDO_CLASSES,
       structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
     });
@@ -157,9 +160,9 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
     expect(result.unresolved[0].reason).toBe("matches-threw:SyntaxError");
   });
 
-  test("状態だけのセレクタは全称として扱って判定する", () => {
+  test("状態だけのセレクタは全称として扱って判定する", async () => {
     const sheets = [{ href: MAIN_HREF, cssRules: [styleRule(":hover", { cursor: "pointer" })] }];
-    const result = collect(fakeElement(sheets), {
+    const result = await collect(fakeElement(sheets), {
       statePseudoClasses: STATE_PSEUDO_CLASSES,
       structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
     });
@@ -167,11 +170,11 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
     expect(result.matched[0].states).toEqual(["hover"]);
   });
 
-  test("同じスタイルシートを 2 度辿らない（@import の循環で止まらない）", () => {
+  test("同じスタイルシートを 2 度辿らない（@import の循環で止まらない）", async () => {
     const a: FakeSheet = { href: "http://legacy.example/a.css", cssRules: [] };
     const b = { href: "http://legacy.example/b.css", cssRules: [importRule(a)] };
     a.cssRules = [importRule(b), styleRule(".plain-rule", { padding: "1px" })];
-    const result = collect(fakeElement([a]), {
+    const result = await collect(fakeElement([a]), {
       statePseudoClasses: STATE_PSEUDO_CLASSES,
       structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
     });
@@ -179,16 +182,16 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
     expect(findMatch(result, (m: Match) => m.selector === ".plain-rule")).toBeDefined();
   });
 
-  test("adoptedStyleSheets も走査する", () => {
+  test("adoptedStyleSheets も走査する", async () => {
     const adopted = [{ href: null, cssRules: [styleRule(".plain-rule", { padding: "2px" })] }];
-    const result = collect(fakeElement([], { adopted }), {
+    const result = await collect(fakeElement([], { adopted }), {
       statePseudoClasses: STATE_PSEUDO_CLASSES,
       structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
     });
     expect(findMatch(result, (m: Match) => m.selector === ".plain-rule")).toBeDefined();
   });
 
-  test("入れ子の途中に現れた裸の宣言（CSSNestedDeclarations）を警告なしに捨てない", () => {
+  test("入れ子の途中に現れた裸の宣言（CSSNestedDeclarations）を警告なしに捨てない", async () => {
     // `.card { color: red; & .inner { … } background: blue; }` の `background` は Chrome 130+ で
     // CSSNestedDeclarations として返る。selectorText も cssRules も持たないため、
     // 分岐を足さないと matched / unresolved / counts のどこにも残らず、警告なしに消える。
@@ -205,7 +208,7 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
         ],
       },
     ];
-    const result = collect(fakeElement(sheets), {
+    const result = await collect(fakeElement(sheets), {
       statePseudoClasses: STATE_PSEUDO_CLASSES,
       structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
     });
@@ -216,7 +219,7 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
     expect(result.counts.nested_declaration_rules).toBe(1);
   });
 
-  test("@import の layer() とメディア条件を読み込んだ規則へ引き継ぐ", () => {
+  test("@import の layer() とメディア条件を読み込んだ規則へ引き継ぐ", async () => {
     // layerName / media は CSSImportRule 側にしか無い。引き継がないと、読み込んだ規則が
     // 「レイヤ無し・無条件」として記録される（落ちるのではなく誤った条件が付く）。
     const imported = {
@@ -229,7 +232,7 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
         cssRules: [{ styleSheet: imported, layerName: "vendor", media: { mediaText: "screen" } }],
       },
     ];
-    const result = collect(fakeElement(sheets), {
+    const result = await collect(fakeElement(sheets), {
       statePseudoClasses: STATE_PSEUDO_CLASSES,
       structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
     });
@@ -238,13 +241,13 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
     expect(hit.conditions).toEqual(["screen"]);
   });
 
-  test("layer()・media の無い @import には条件を足さない", () => {
-    const hit = requireMatch(capture(), (m: Match) => m.selector === ".marker-in-imported");
+  test("layer()・media の無い @import には条件を足さない", async () => {
+    const hit = requireMatch(await capture(), (m: Match) => m.selector === ".marker-in-imported");
     expect(hit.layers).toEqual([]);
     expect(hit.conditions).toEqual([]);
   });
 
-  test("属性セレクタの中の & を入れ子セレクタとして置換しない", () => {
+  test("属性セレクタの中の & を入れ子セレクタとして置換しない", async () => {
     // `& [data-label="A&B"]` の引用符内の & まで置換すると、属性値に :is(...) が入った
     // 不正なセレクタになる。matches() は throw せず false を返すので、エラーにならずに規則が外れる。
     const child = styleRule('& [data-label="A&B"]', { color: "red" });
@@ -253,7 +256,7 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
     const el = fakeElement(sheets, {
       selectors: new Set([".card", ':is(.card) [data-label="A&B"]']),
     });
-    const result = collect(el, {
+    const result = await collect(el, {
       statePseudoClasses: STATE_PSEUDO_CLASSES,
       structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
     });
@@ -262,7 +265,7 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
     expect(hit.selector).toBe(':is(.card) [data-label="A&B"]');
   });
 
-  test("@scope の中の規則はスコープを評価せず unresolved に残す", () => {
+  test("@scope の中の規則はスコープを評価せず unresolved に残す", async () => {
     // セレクタだけを見ると当たるが、スコープ根の外では適用されない。
     // 当たった側として扱うと、その部品には適用されていない規則を根拠として出すことになる。
     const scopeRule = {
@@ -271,7 +274,7 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
       cssRules: [styleRule(".plain-rule", { padding: "9px" })],
     };
     const sheets = [{ href: MAIN_HREF, cssRules: [scopeRule] }];
-    const result = collect(fakeElement(sheets), {
+    const result = await collect(fakeElement(sheets), {
       statePseudoClasses: STATE_PSEUDO_CLASSES,
       structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
     });
@@ -280,12 +283,12 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
     expect(result.unresolved[0].reason).toBe("scope-not-evaluated:(.dialog)");
   });
 
-  test("エスケープされた区切り文字でセレクタを分割しない", () => {
+  test("エスケープされた区切り文字でセレクタを分割しない", async () => {
     // `.foo\,bar` は 1 つのクラスセレクタ。エスケープを飛ばさずに分割すると
     // 断片が無効セレクタになり、当たるはずの規則がエラーにならずに外れる。
     const sheets = [{ href: MAIN_HREF, cssRules: [styleRule(".foo\\,bar", { color: "red" })] }];
     const el = fakeElement(sheets, { selectors: new Set([".foo\\,bar"]) });
-    const result = collect(el, {
+    const result = await collect(el, {
       statePseudoClasses: STATE_PSEUDO_CLASSES,
       structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
     });
@@ -293,13 +296,13 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
     expect(result.matched[0].selector).toBe(".foo\\,bar");
   });
 
-  test("知らない動的擬似クラスを警告なしに捨てず unresolved に残す", () => {
+  test("知らない動的擬似クラスを警告なしに捨てず unresolved に残す", async () => {
     // `:popover-open` / `:user-valid` / `:fullscreen` を知らないまま base に残すと、
     // その状態でない要素に matches() が false を返し、当たるはずの規則が記録も警告も無く消える。
     const sheets = [
       { href: MAIN_HREF, cssRules: [styleRule(".plain-rule:popover-open", { color: "red" })] },
     ];
-    const result = collect(fakeElement(sheets), {
+    const result = await collect(fakeElement(sheets), {
       statePseudoClasses: STATE_PSEUDO_CLASSES,
       structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
     });
@@ -308,7 +311,7 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
     expect(result.unresolved[0].reason).toBe("unknown-pseudo-class:popover-open");
   });
 
-  test("@import の supports() 条件を引き継ぐ", () => {
+  test("@import の supports() 条件を引き継ぐ", async () => {
     const imported = {
       href: IMPORTED_HREF,
       cssRules: [styleRule(".plain-rule", { padding: "4px" })],
@@ -319,7 +322,7 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
         { styleSheet: imported, supportsText: "display: grid", media: { mediaText: "screen" } },
       ],
     };
-    const result = collect(fakeElement([main]), {
+    const result = await collect(fakeElement([main]), {
       statePseudoClasses: STATE_PSEUDO_CLASSES,
       structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
     });
@@ -329,14 +332,14 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
 
   // --- style 属性（インライン宣言） ---
 
-  test("style 属性の宣言を別の出所として採る", () => {
+  test("style 属性の宣言を別の出所として採る", async () => {
     // インスタンス固有の値が style 属性で来ている部品では、規則走査だけだと出所も
     // `!important` の優先度も残らず、計算後スタイルの結果値しか手掛かりが無くなる。
     const el = fakeElement(buildSheets(), {
       inline: { width: "240px", color: "rgb(9, 9, 9)" },
       inlineImportant: ["color"],
     });
-    const result = collect(el, {
+    const result = await collect(el, {
       statePseudoClasses: STATE_PSEUDO_CLASSES,
       structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
     });
@@ -349,10 +352,10 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
     expect(result.matched.every((m: Match) => m.selector !== undefined)).toBe(true);
   });
 
-  test("style 属性が空でも inline_declarations を空配列で出す", () => {
+  test("style 属性が空でも inline_declarations を空配列で出す", async () => {
     // キーごと落とすと「インライン指定が無い」と「採っていない（旧版の採取物）」が
     // 同じ形になり、再採取の要否を判定できない。
-    const result = capture();
+    const result = await capture();
     expect(result.inline_declarations).toEqual([]);
     expect(result.counts.inline_declarations).toBe(0);
   });
@@ -363,11 +366,11 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
 
   // --- 関数擬似クラスの引数の釣り合い ---
 
-  test("引用符・角括弧を跨ぐ関数引数でも状態擬似クラスを剥がす", () => {
+  test("引用符・角括弧を跨ぐ関数引数でも状態擬似クラスを剥がす", async () => {
     const base = '.button:has([data-label="("])';
     const sheets = [{ href: MAIN_HREF, cssRules: [styleRule(TRICKY_SELECTOR, { color: "red" })] }];
     const el = fakeElement(sheets, { selectors: new Set([base]) });
-    const result = collect(el, {
+    const result = await collect(el, {
       statePseudoClasses: STATE_PSEUDO_CLASSES,
       structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
     });
@@ -380,7 +383,7 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
 
   // --- シャドウツリーの内と外 ---
 
-  test("シャドウツリー内の要素に外側 document の規則を当てない", () => {
+  test("シャドウツリー内の要素に外側 document の規則を当てない", async () => {
     // document のスタイルシートはカプセル化でシャドウツリーの中へ届かないが、
     // el.matches(".btn") は true を返す。外側まで走査すると、適用されていない規則が
     // 部品の基準として記録され、実装がそれを反映して現行と食い違う。
@@ -392,7 +395,7 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
       href: null,
       cssRules: [styleRule(".btn", { color: "rgb(0, 128, 0)" })],
     };
-    const result = shadowCapture({
+    const result = await shadowCapture({
       sheets: [outer],
       shadowSheets: [inner],
       selectors: new Set([".btn"]),
@@ -405,12 +408,12 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
     expect(result.counts.outer_scope_skipped).toBe(1);
   });
 
-  test("外側から届く ::part() は当たった側としても扱わず unresolved に残す", () => {
+  test("外側から届く ::part() は当たった側としても扱わず unresolved に残す", async () => {
     const outer = {
       href: MAIN_HREF,
       cssRules: [styleRule(".host::part(label)", { color: "rgb(1, 1, 1)" })],
     };
-    const result = shadowCapture({
+    const result = await shadowCapture({
       sheets: [outer],
       shadowSheets: [{ href: null, cssRules: [] }],
       selectors: new Set([".btn"]),
@@ -421,9 +424,9 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
     expect(result.counts.outer_scope_skipped).toBe(0);
   });
 
-  test("シャドウでない要素では document を走査する", () => {
+  test("シャドウでない要素では document を走査する", async () => {
     // 上の絞り込みが通常の要素まで巻き込んでいないことを確かめる（過剰修正の検知）。
-    const result = capture();
+    const result = await capture();
     expect(result.shadow_root).toBe(false);
     expect(result.counts.outer_scope_skipped).toBe(0);
     expect(result.matched.length).toBeGreaterThan(0);
@@ -431,10 +434,10 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
 
   // --- 入れ子になった関数擬似クラスの中の状態 ---
 
-  test("入れ子の関数引数に入った状態を unresolved に落とす", () => {
+  test("入れ子の関数引数に入った状態を unresolved に落とす", async () => {
     const selector = ".card:is(:has(:hover))";
     const sheets = [{ href: MAIN_HREF, cssRules: [styleRule(selector, { color: "red" })] }];
-    const result = collect(fakeElement(sheets, { selectors: new Set([selector, ".card"]) }), {
+    const result = await collect(fakeElement(sheets, { selectors: new Set([selector, ".card"]) }), {
       statePseudoClasses: STATE_PSEUDO_CLASSES,
       structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
     });
@@ -443,12 +446,12 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
     expect(result.unresolved[0].reason).toBe("state-inside-functional-pseudo");
   });
 
-  test(":not() の中の状態は unresolved にしない", () => {
+  test(":not() の中の状態は unresolved にしない", async () => {
     // 否定の中の状態は「その状態でないときに当たる」ので、当たっている規則として記録してよい。
     // 再帰を入れた結果ここまで巻き込むと、実装の材料になる規則を毎回失う。
     const selector = ".card:is(:not(:hover))";
     const sheets = [{ href: MAIN_HREF, cssRules: [styleRule(selector, { color: "red" })] }];
-    const result = collect(fakeElement(sheets, { selectors: new Set([selector]) }), {
+    const result = await collect(fakeElement(sheets, { selectors: new Set([selector]) }), {
       statePseudoClasses: STATE_PSEUDO_CLASSES,
       structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
     });
@@ -456,7 +459,7 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
     expect(result.matched).toHaveLength(1);
   });
 
-  test("シャドウと document が同じシートを共有しても外側の走査を飛ばさない", () => {
+  test("シャドウと document が同じシートを共有しても外側の走査を飛ばさない", async () => {
     // seenSheets をシート単位にすると、内側を先に走査した時点で既読になり、外側スコープの
     // 走査が丸ごと消える。::part() が unresolved に残らず outer_scope_skipped も増えない。
     const shared = {
@@ -466,7 +469,7 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
         styleRule(".btn", { color: "rgb(255, 0, 0)" }),
       ],
     };
-    const result = shadowCapture({
+    const result = await shadowCapture({
       sheets: [shared],
       shadowSheets: [],
       shadowAdopted: [shared],
@@ -478,7 +481,7 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
     expect(result.counts.outer_scope_skipped).toBe(1);
   });
 
-  test("カスタム要素のホストでは自分のシャドウルートの :host 規則を残す", () => {
+  test("カスタム要素のホストでは自分のシャドウルートの :host 規則を残す", async () => {
     // getRootNode() は document を返すのでシャドウ判定に入らないが、ホストの見た目を
     // 決めているのは自分のシャドウルートの :host 規則。走査しないと「規則ゼロ」の誤った基準になる。
     const hostSheet = {
@@ -488,7 +491,7 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
         styleRule(".inner-label", { color: "rgb(9, 9, 9)" }),
       ],
     };
-    const result = collect(
+    const result = await collect(
       fakeElement([], { hostSheets: [hostSheet], selectors: new Set([".btn"]) }),
       {
         statePseudoClasses: STATE_PSEUDO_CLASSES,
@@ -503,18 +506,18 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
     expect(result.matched).toHaveLength(0);
   });
 
-  test("ホストでない要素は shadow_host を立てない", () => {
-    const result = capture();
+  test("ホストでない要素は shadow_host を立てない", async () => {
+    const result = await capture();
     expect(result.shadow_host).toBe(false);
     expect(result.counts.host_scope_skipped).toBe(0);
   });
 
-  test("selector を取る構造擬似クラスの中の状態も unresolved に落とす", () => {
+  test("selector を取る構造擬似クラスの中の状態も unresolved に落とす", async () => {
     // `:is` / `:where` / `:has` で名前を絞ると、`:nth-child(... of S:hover)` の中の状態が
     // base に残り、hover していない要素で matched にも unresolved にも残らない。
     for (const selector of [".list:nth-child(2n of .item:hover)", ".x:host(.foo:hover)"]) {
       const sheets = [{ href: MAIN_HREF, cssRules: [styleRule(selector, { color: "red" })] }];
-      const result = collect(fakeElement(sheets, { selectors: new Set([selector]) }), {
+      const result = await collect(fakeElement(sheets, { selectors: new Set([selector]) }), {
         statePseudoClasses: STATE_PSEUDO_CLASSES,
         structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
       });
@@ -524,11 +527,11 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
     }
   });
 
-  test("状態を含まない構造擬似クラスは unresolved にしない", () => {
+  test("状態を含まない構造擬似クラスは unresolved にしない", async () => {
     // 一律に見る形にした結果、状態の無い `:nth-child(2n)` まで巻き込んでいないことの確認。
     const selector = ".plain-rule:nth-child(2n)";
     const sheets = [{ href: MAIN_HREF, cssRules: [styleRule(selector, { color: "red" })] }];
-    const result = collect(fakeElement(sheets, { selectors: new Set([selector]) }), {
+    const result = await collect(fakeElement(sheets, { selectors: new Set([selector]) }), {
       statePseudoClasses: STATE_PSEUDO_CLASSES,
       structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
     });
@@ -536,14 +539,14 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
     expect(result.matched).toHaveLength(1);
   });
 
-  test("読み込めていない @import を警告なしに捨てない", () => {
+  test("読み込めていない @import を警告なしに捨てない", async () => {
     // 失敗・未ロードの @import は styleSheet が null になる。真偽値で分岐すると
     // どの分岐にも掛からず消え、「その @import の先に関係する規則が無い」と区別できなくなる。
     const broken = { styleSheet: null, href: "http://legacy.example/missing.css" };
     const sheets = [
       { href: MAIN_HREF, cssRules: [broken, styleRule(".plain-rule", { padding: "1px" })] },
     ];
-    const result = collect(fakeElement(sheets), {
+    const result = await collect(fakeElement(sheets), {
       statePseudoClasses: STATE_PSEUDO_CLASSES,
       structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
     });
@@ -555,7 +558,7 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
     expect(result.matched.some((m: Match) => m.selector === ".plain-rule")).toBe(true);
   });
 
-  test("スロットに割り当てられた要素では ::slotted() を残す", () => {
+  test("スロットに割り当てられた要素では ::slotted() を残す", async () => {
     // ライト DOM の要素に適用される ::slotted() 規則はスロット側のシャドウルートにある。
     // getRootNode() は document を返すので、辿らないと 1 件も見えない。
     const slotSheet = {
@@ -565,7 +568,7 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
         styleRule(".inner", { color: "rgb(4, 4, 4)" }),
       ],
     };
-    const result = collect(
+    const result = await collect(
       fakeElement([], { slotSheets: [slotSheet], selectors: new Set([".btn"]) }),
       {
         statePseudoClasses: STATE_PSEUDO_CLASSES,
@@ -578,18 +581,18 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
     expect(result.counts.slotted_scope_skipped).toBe(1);
   });
 
-  test("スロットに割り当てられていない要素は slotted を立てない", () => {
-    const result = capture();
+  test("スロットに割り当てられていない要素は slotted を立てない", async () => {
+    const result = await capture();
     expect(result.slotted).toBe(false);
     expect(result.counts.slotted_scope_skipped).toBe(0);
   });
 
-  test("入れ子の中の未知の擬似クラスも unresolved に落とす", () => {
+  test("入れ子の中の未知の擬似クラスも unresolved に落とす", async () => {
     // 外側が構造擬似クラスとして許容され、内側の未知の動的擬似クラスが素通りすると、
     // その状態でない要素で matches() が false を返し、規則が matched にも unresolved にも残らない。
     const selector = ".card:is(.item:popover-open)";
     const sheets = [{ href: MAIN_HREF, cssRules: [styleRule(selector, { color: "red" })] }];
-    const result = collect(fakeElement(sheets, { selectors: new Set([selector]) }), {
+    const result = await collect(fakeElement(sheets, { selectors: new Set([selector]) }), {
       statePseudoClasses: STATE_PSEUDO_CLASSES,
       structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
     });
@@ -598,11 +601,11 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
     expect(result.unresolved[0].reason).toBe("unknown-pseudo-class:popover-open");
   });
 
-  test("入れ子が既知の構造擬似クラスだけなら unresolved にしない", () => {
+  test("入れ子が既知の構造擬似クラスだけなら unresolved にしない", async () => {
     // 再帰を入れた結果、既知の擬似クラスまで未知として落としていないことの確認。
     const selector = ".card:is(.item:first-child)";
     const sheets = [{ href: MAIN_HREF, cssRules: [styleRule(selector, { color: "red" })] }];
-    const result = collect(fakeElement(sheets, { selectors: new Set([selector]) }), {
+    const result = await collect(fakeElement(sheets, { selectors: new Set([selector]) }), {
       statePseudoClasses: STATE_PSEUDO_CLASSES,
       structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
     });
@@ -612,7 +615,7 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
 
   // --- 自分の根にある ::part() / ::slotted()（Issue #354） ---
 
-  test("ホストを対象にしたとき document の ::part() をホストの根拠にしない", () => {
+  test("ホストを対象にしたとき document の ::part() をホストの根拠にしない", async () => {
     // `.host::part(label)` は擬似要素を剥がすと `.host` になり、ホストに対して matches() が真を返す。
     // 飾っているのはシャドウツリー内の部品なので、matched に入るとホストの偽の根拠になる。
     // selectors に `.host` を入れてあるので、分岐を外すと matched へ入る（検出できることの確認を兼ねる）。
@@ -625,7 +628,7 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
         ],
       },
     ];
-    const result = collect(
+    const result = await collect(
       fakeElement(sheets, {
         hostSheets: [{ href: null, cssRules: [] }],
         selectors: new Set([".host"]),
@@ -640,7 +643,7 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
     ]);
   });
 
-  test("ホストに当たる通常の規則と擬似要素の規則は ::part() の除外に巻き込まない", () => {
+  test("ホストに当たる通常の規則と擬似要素の規則は ::part() の除外に巻き込まない", async () => {
     // 過剰修正の検知: `::part(` を含まない規則は従来どおり判定する。
     const sheets = [
       {
@@ -652,7 +655,7 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
         ],
       },
     ];
-    const result = collect(
+    const result = await collect(
       fakeElement(sheets, {
         hostSheets: [{ href: null, cssRules: [] }],
         selectors: new Set([".host", '.host[data-label="::part(x)"]']),
@@ -667,10 +670,10 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
     ]);
   });
 
-  test("シャドウツリー内の要素に自分の根の ::slotted() を当てない", () => {
+  test("シャドウツリー内の要素に自分の根の ::slotted() を当てない", async () => {
     // `::slotted(*)` は剥がすと `*` になり、どの要素にも当たる。飾るのはスロットへ割り当てられた
     // ライト DOM の要素で、同じシャドウツリーの要素ではない。
-    const result = shadowCapture({
+    const result = await shadowCapture({
       sheets: [],
       shadowSheets: [
         {
@@ -787,7 +790,7 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
     },
   ])(
     "$label を大文字小文字を区別せずに判定する",
-    ({ lower, mixed, scope, selectors, expected }) => {
+    async ({ lower, mixed, scope, selectors, expected }) => {
       const run = (selector: string) =>
         scope === "outer-shadow-self"
           ? shadowCapture({
@@ -796,22 +799,22 @@ describe.each(COLLECTORS)("%s", (_label, collect) => {
               selectors: new Set(selectors),
             })
           : captureOne(selector, scope, selectors);
-      const lowerResult = verdict(run(lower));
+      const lowerResult = verdict(await run(lower));
       expect(lowerResult).toMatchObject({ matched: [], unresolved: [], ...expected });
-      expect(verdict(run(mixed))).toEqual(lowerResult);
+      expect(verdict(await run(mixed))).toEqual(lowerResult);
     },
   );
 
-  test("属性値の中の擬似クラス風の文字列はスコープの判定に使わない", () => {
+  test("属性値の中の擬似クラス風の文字列はスコープの判定に使わない", async () => {
     // 文字列の部分一致で判定していた頃は、属性値の中の `:host` / `::part(` / `::slotted(` を
     // 擬似クラスとして数え、飛ばすべき規則を unresolved に残していた。
-    const host = captureOne('.x[data-note=":host"]', "host", [".btn"]);
+    const host = await captureOne('.x[data-note=":host"]', "host", [".btn"]);
     expect(host.unresolved).toHaveLength(0);
     expect(host.counts.host_scope_skipped).toBe(1);
-    const outer = captureOne('.btn[data-note="::part(x)"]', "outer", [".btn"]);
+    const outer = await captureOne('.btn[data-note="::part(x)"]', "outer", [".btn"]);
     expect(outer.unresolved).toHaveLength(0);
     expect(outer.counts.outer_scope_skipped).toBe(1);
-    const slot = captureOne('.btn[data-note="::slotted(x)"]', "slot", [".btn"]);
+    const slot = await captureOne('.btn[data-note="::slotted(x)"]', "slot", [".btn"]);
     expect(slot.unresolved).toHaveLength(0);
     expect(slot.counts.slotted_scope_skipped).toBe(1);
   });

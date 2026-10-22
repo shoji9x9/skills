@@ -1,11 +1,10 @@
 // css-rules-capture.test.ts が使うヘルパーと fixture。
 import { assert } from "vitest";
-import { isArray } from "../../lib/is-array.ts";
 import {
   STATE_PSEUDO_CLASSES,
   STRUCTURAL_PSEUDO_CLASSES,
+  captureMatchedRules,
   collectMatchedRules,
-  collectMatchedRulesInPage,
 } from "../../../skills/parity-component/scripts/css-rules-capture.mjs";
 
 // CSSOM の偽物の形（テストが組む範囲だけ）。
@@ -53,38 +52,33 @@ export type FakeElement = {
 // collectMatchedRules の結果と、そのうちの当たった規則 1 件。
 type CaptureResult = ReturnType<typeof collectMatchedRules>;
 export type Match = CaptureResult["matched"][number];
-// 状態擬似クラスと構造擬似クラスの集合。ページへ渡す関数は両方を必須にするので、その型に合わせる。
-type CaptureOptions = Parameters<typeof collectMatchedRulesInPage>[1];
+// 状態擬似クラスと構造擬似クラスの集合。2 通りの呼び方で同じ集合を渡すように、両方を必須にする。
+type CaptureOptions = {
+  statePseudoClasses: readonly string[];
+  structuralPseudoClasses: readonly string[];
+};
 // 採取を呼ぶ関数。テストは、モジュールの関数と、ページへ渡すソースから作った関数の両方を当てる。
-export type Collect = (el: FakeElement, options: CaptureOptions) => CaptureResult;
-
-/** 採取の結果の形か（collectMatchedRulesInPage は unknown を返すので、結果の型に絞る）。 */
-function isCaptureResult(value: unknown): value is CaptureResult {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "matched" in value &&
-    isArray(value.matched) &&
-    "unresolved" in value &&
-    isArray(value.unresolved) &&
-    "counts" in value
-  );
-}
+export type Collect = (el: FakeElement, options: CaptureOptions) => Promise<CaptureResult>;
 
 /**
- * ページへ渡すのと同じソースから作った関数で採る。ページ側の関数がヘルパーの一覧を通さずに互いを呼ぶと、
- * モジュールの関数として呼んだときはモジュールのスコープで名前が解決されて通るが、こちらでは名前が解決できずに失敗する。
+ * captureMatchedRules に偽の locator を渡し、ページへ渡すのと同じソースから作った関数で採る。
+ * 偽の locator の evaluate は、渡された関数をその場で要素に当てる。結果の形の確認も captureMatchedRules がそのまま行う。
+ * ページ側の関数がヘルパーの一覧を通さずに互いを呼ぶと、モジュールの関数として呼んだときはモジュールのスコープで
+ * 名前が解決されて通るが、こちらでは名前が解決できずに失敗する。
  */
-function collectFromSource(el: FakeElement, options: CaptureOptions): CaptureResult {
-  const result = collectMatchedRulesInPage(el, options);
-  assert(isCaptureResult(result), "ページへ渡す関数が採取の結果の形を返さない");
-  return result;
+async function collectFromSource(el: FakeElement, options: CaptureOptions): Promise<CaptureResult> {
+  const locator = {
+    evaluate: <Arg>(fn: (el: FakeElement, arg: Arg) => unknown, arg: Arg) =>
+      Promise.resolve(fn(el, arg)),
+  };
+  const [captured] = await captureMatchedRules([{ name: "source", locator }], options);
+  return captured;
 }
 
 // describe.each に渡す 2 通りの呼び方。モジュールの関数はカバレッジを記録するために、ソースから作った関数は
 // ページ側の関数が互いをヘルパーの一覧を通して呼ぶ取り決めを確かめるために当てる。
 export const COLLECTORS: [string, Collect][] = [
-  ["モジュールの関数", collectMatchedRules],
+  ["モジュールの関数", async (el, options) => collectMatchedRules(el, options)],
   ["ページへ渡すソース", collectFromSource],
 ];
 

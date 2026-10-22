@@ -134,7 +134,7 @@ export function sortArrayAtPath(node, segs) {
 }
 
 /**
- * 2 つの値を深く比較し、差分パスと both 値の配列を返す。決定論的（キーは昇順）。
+ * 2 つの値を深く比較し、差分のパスと、現行と新側の値の組の配列を返す。キーは昇順にたどるので、結果の順序は入力で決まる。
  *
  * @param {unknown} a
  * @param {unknown} b
