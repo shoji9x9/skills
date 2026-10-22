@@ -11,7 +11,7 @@ import { join } from "node:path";
 import { assert, test, expect } from "vitest";
 import {
   countRowLikeLines,
-  isDanglingLink,
+  pathState,
   readProcedureLedger,
   readRevisions,
   strayCommentMarkers,
@@ -554,13 +554,13 @@ test("情報文字列の付いた行でフェンスを閉じず、フェンス�
   });
 });
 
-test("isDanglingLink: リンク先の無いシンボリックリンクだけを真にし、リンク先のあるリンク・ファイル・無いパスは偽にする", () => {
+test("pathState: ファイル・リンク先のあるリンクを present、リンク先の無いリンクを dangling-link、無いパスを missing にする", () => {
   const dir = makeTempDir("dangling-link-");
   writeFileSync(join(dir, "target.md"), "");
   symlinkSync(join(dir, "target.md"), join(dir, "linked.md"));
   symlinkSync(join(dir, "gone.md"), join(dir, "dangling.md"));
-  expect(isDanglingLink(join(dir, "dangling.md"))).toBe(true);
-  expect(isDanglingLink(join(dir, "linked.md"))).toBe(false);
-  expect(isDanglingLink(join(dir, "target.md"))).toBe(false);
-  expect(isDanglingLink(join(dir, "missing.md"))).toBe(false);
+  expect(pathState(join(dir, "dangling.md"))).toBe("dangling-link");
+  expect(pathState(join(dir, "linked.md"))).toBe("present");
+  expect(pathState(join(dir, "target.md"))).toBe("present");
+  expect(pathState(join(dir, "missing.md"))).toBe("missing");
 });

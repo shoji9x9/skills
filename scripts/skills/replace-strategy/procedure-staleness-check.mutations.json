@@ -23,7 +23,7 @@
       "id": "affects-ignored",
       "why": "改訂の affects を見ず、対象外の mode の機能まで旧手順として出す",
       "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
-      "find": "    if (!change.affects.includes(entry.mode)) continue;\n    if (entry.procedure_revision === null) continue;",
+      "find": "    if (!change.affects.includes(mode)) continue;\n    if (entry.procedure_revision === null) continue;",
       "replace": "    if (entry.procedure_revision === null) continue;",
       "occurrences": 1,
       "expect_failing": [
@@ -235,8 +235,8 @@
       "id": "dangling-metadata-skipped",
       "why": "metadata.json が壊れたリンクの機能を特性化前として黙って外す",
       "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
-      "find": "    if (linked) {\n",
-      "replace": "    if (false) {\n",
+      "find": "  if (metadataState === \"dangling-link\") {\n    return unreadableArtifact(name, \"metadata.json がリンク先の無いシンボリックリンク\");\n  }\n  if (metadataState === \"missing\") return null;",
+      "replace": "  if (metadataState !== \"present\") return null;",
       "occurrences": 1,
       "expect_failing": ["成果物を読めず対象かを決められない機能は合格として扱わず exit 3 にする"]
     },
@@ -286,8 +286,8 @@
       "id": "dangling-ledger-as-absent",
       "why": "壊れたシンボリックリンクの台帳を「台帳なし」として読み、記録された変更を黙って捨てる",
       "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
-      "find": "    if (linked) return { code: fail(",
-      "replace": "    if (false) return { code: fail(",
+      "find": "    if (ledgerState === \"dangling-link\")\n",
+      "replace": "    if (false)\n",
       "occurrences": 1,
       "expect_failing": [
         "成果物の置き場・台帳を読めないときは合格としても未判断としても扱わず exit 2 にする"
@@ -465,13 +465,13 @@
     },
     {
       "id": "dangling-link-ignores-existing-target",
-      "why": "isDanglingLink がリンク先の有無を見ず、リンク先のある正常なシンボリックリンクも「リンク先の無いリンク」として扱う",
+      "why": "pathState がリンク先の有無を見ず、リンク先のある正常なシンボリックリンクも「リンク先の無いリンク」として扱う",
       "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
-      "find": "if (existsSync(path)) return false;",
-      "replace": "",
+      "find": "    statSync(path);\n    return \"present\";",
+      "replace": "    return lstatSync(path).isSymbolicLink() ? \"dangling-link\" : \"present\";",
       "occurrences": 1,
       "expect_failing": [
-        "isDanglingLink: リンク先の無いシンボリックリンクだけを真にし、リンク先のあるリンク・ファイル・無いパスは偽にする"
+        "pathState: ファイル・リンク先のあるリンクを present、リンク先の無いリンクを dangling-link、無いパスを missing にする"
       ]
     }
   ]

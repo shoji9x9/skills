@@ -37,6 +37,18 @@
         "skills/replace-strategy/scripts/asset-probe.mjs: シンボリックリンク経由でも引数なしの起動で結果を出す",
         "skills/replace-strategy/scripts/role-probe.mjs: シンボリックリンク経由でも引数なしの起動で結果を出す"
       ]
+    },
+    {
+      "id": "probe-cli-args-ignored",
+      "why": "引数を取らないプローブの CLI が、引数を読まずにソースを出して exit 0 で終わる（ほかの CLI と違い、未知の引数を usage と exit 2 で知らせない）",
+      "file": "skills/replace-strategy/scripts/lib/page-function.mjs",
+      "find": "  if (argv.length > 0) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "skills/replace-strategy/scripts/asset-probe.mjs: シンボリックリンク経由でも引数なしの起動で結果を出す",
+        "skills/replace-strategy/scripts/role-probe.mjs: シンボリックリンク経由でも引数なしの起動で結果を出す"
+      ]
     }
   ]
 }

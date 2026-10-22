@@ -27,7 +27,7 @@
 // 決定論的: 乱数・現在時刻に依存しない。slug は名前順、記録は台帳の順で読む。
 // TypeScript 構文は使わない（型は JSDoc）。
 
-import { existsSync, lstatSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { lstatSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { isArray } from "./lib/is-array.mjs";
 import { isCliEntry } from "./lib/cli.mjs";
@@ -469,17 +469,22 @@ function unreadableArtifact(slug, problem) {
 }
 
 /**
- * パスがリンク先の無いシンボリックリンクか。リンク先のあるシンボリックリンクと、リンクでないパスには false を返す。
- * existsSync はリンクを辿るので、リンク先が無いと偽を返す。そのうえで lstatSync でパス自身がリンクかを見る。
+ * パスの状態を、在る（present）・リンク先の無いシンボリックリンク（dangling-link）・無い（missing）に分ける。
+ * statSync はリンクを辿るので、リンク先が無いと例外を投げる。そのときだけ lstatSync でパス自身がリンクかを見る。
+ * 読めないパス（権限が無いなど）は、どちらの stat も例外を投げるので missing にする。
  * @param {string} path
- * @returns {boolean}
+ * @returns {"present" | "dangling-link" | "missing"}
  */
-export function isDanglingLink(path) {
-  if (existsSync(path)) return false;
+export function pathState(path) {
   try {
-    return lstatSync(path).isSymbolicLink();
+    statSync(path);
+    return "present";
   } catch {
-    return false;
+    try {
+      return lstatSync(path).isSymbolicLink() ? "dangling-link" : "missing";
+    } catch {
+      return "missing";
+    }
   }
 }
 
@@ -573,15 +578,12 @@ function readArtifact(parityDir, name, latestRevision) {
   // metadata.json の無い slug は特性化前（未着手）であって、旧手順で閉じた機能ではない。
   // 中身のあるディレクトリでも同じ扱いにする。parity-suite は metadata.json を終盤（手順 8）で書くので、
   // 対応表・スペックだけがある形は特性化中の正常な状態で、判定不能にすると特性化中の機能 1 つで検査が止まる。
-  if (!existsSync(path)) {
-    // existsSync はリンクを辿るので、リンク先の無いシンボリックリンクも「無い」になる。
-    // 特性化前（metadata.json が本当に無い）と区別し、リンク先の無いリンクは、読めない成果物として残す。
-    const linked = isDanglingLink(path);
-    if (linked) {
-      return unreadableArtifact(name, "metadata.json がリンク先の無いシンボリックリンク");
-    }
-    return null;
+  // 特性化前（metadata.json が本当に無い）と区別し、リンク先の無いリンクは、読めない成果物として残す。
+  const metadataState = pathState(path);
+  if (metadataState === "dangling-link") {
+    return unreadableArtifact(name, "metadata.json がリンク先の無いシンボリックリンク");
   }
+  if (metadataState === "missing") return null;
   /** @type {unknown} */
   let doc;
   try {
@@ -615,22 +617,23 @@ export function readArtifacts(parityDir, latestRevision) {
 
 /**
  * 1 つの機能について、当て直しの対象になる変更を集める。日付を読めない組は undeterminable に積む。
- * @param {ArtifactEntry & { mode: string }} entry
+ * @param {ArtifactEntry} entry
+ * @param {string} mode 成果物の mode（読めない成果物は呼び出し側で除く）
  * @param {{ revisionChanges: RevisionChange[], ledgerChanges: LedgerChange[], undeterminable: Array<{ slug: string, change?: string, reason: string }> }} context
  * @returns {Hit[]}
  */
-function hitsFor(entry, { revisionChanges, ledgerChanges, undeterminable }) {
+function hitsFor(entry, mode, { revisionChanges, ledgerChanges, undeterminable }) {
   /** @type {Hit[]} */
   const hits = [];
   for (const change of revisionChanges) {
-    if (!change.affects.includes(entry.mode)) continue;
+    if (!change.affects.includes(mode)) continue;
     if (entry.procedure_revision === null) continue; // 読めない改訂番号は problems に出ている
     if (entry.procedure_revision < change.revision) {
       hits.push({ id: change.id, axis: change.axis, placement: null, source: "skill" });
     }
   }
   for (const change of ledgerChanges) {
-    if (!change.affects.includes(entry.mode)) continue;
+    if (!change.affects.includes(mode)) continue;
     if (entry.finished_on === null) {
       // 日付を読めないと、追加より前に閉じたかを決められない。対象外として扱わない。
       undeterminable.push({
@@ -707,7 +710,7 @@ export function check(input) {
       undeterminable.push({ slug: entry.slug, reason: problem });
     const { mode } = entry;
     if (mode === null) continue;
-    for (const hit of hitsFor({ ...entry, mode }, context)) {
+    for (const hit of hitsFor(entry, mode, context)) {
       const key = `${hit.id}\u0000${entry.slug}`;
       targeted.add(key);
       sortHit(hit, { slug: entry.slug, record: latest.get(key), unresolved, resolved });
@@ -776,12 +779,12 @@ function loadRevisions(revisionsPath, { out, fail }) {
  */
 function loadLedger({ ledgerPath, explicit, skillChangeIds, io: { out, fail } }) {
   // 台帳が無いのは「プロジェクト側で観点を足していない」。ただし出力に残してパスの誤りと区別できるようにする。
-  const ledgerExists = existsSync(ledgerPath);
-  // existsSync はリンクを辿るので、リンク先の無いシンボリックリンクの台帳も「無い」になる。
-  // 台帳が無い（プロジェクト側で軸を足していない）と、台帳を失った状態を区別して後者を落とす。
+  const ledgerState = pathState(ledgerPath);
+  const ledgerExists = ledgerState === "present";
+  // 台帳が無い（プロジェクト側で軸を足していない）と、台帳を失った状態（リンク先の無いシンボリックリンク）を区別して後者を落とす。
   if (!ledgerExists) {
-    const linked = isDanglingLink(ledgerPath);
-    if (linked) return { code: fail(`${ledgerPath} がリンク先の無いシンボリックリンク`) };
+    if (ledgerState === "dangling-link")
+      return { code: fail(`${ledgerPath} がリンク先の無いシンボリックリンク`) };
     // 明示したパスが無いのは綴り・cwd の誤り。「台帳なし」として読むと台帳の未判断が警告なしに消える（--parity-dir と同じ扱い）。
     if (explicit) return { code: fail(`--ledger に渡した ${ledgerPath} が無い`) };
     return { ledger: { changes: [], records: [] }, ledgerExists };
@@ -870,16 +873,6 @@ function exitCode(result, artifactCount) {
 }
 
 /**
- * --change に渡した変更 ID が、台帳か改訂一覧の変更にあるか。
- * @param {string} only
- * @param {Array<{ id: string }>} changes
- * @returns {boolean}
- */
-function knownChange(only, changes) {
-  return changes.some((change) => change.id === only);
-}
-
-/**
  * 出力の artifacts に載せる、成果物 1 件の要約（problems は undeterminable に出すので載せない）。
  * @param {ArtifactEntry} entry
  */
@@ -925,7 +918,9 @@ export function main(argv, deps = {}) {
   const { slugs } = artifacts;
   const all = check({ revisions, ledger, slugs });
   const only = args["--change"];
-  if (only !== undefined && !knownChange(only, [...revisions.changes, ...ledger.changes])) {
+  // --change に渡した変更 ID は、改訂一覧か台帳の変更にあるものだけを受け付ける。
+  const changes = [...revisions.changes, ...ledger.changes];
+  if (only !== undefined && !changes.some((change) => change.id === only)) {
     return fail(`--change の変更 ID が台帳にも改訂一覧にも無い: ${only}`);
   }
   const result = selectResults(all, only);

@@ -47,6 +47,7 @@ const allCliScripts = findCliScripts();
 /**
  * 引数を取らず、起動すると stdout に結果を出して exit 0 で終わる CLI（repo からの相対パス）。
  * 引数不足の usage が無いので、stdout が空でないことと、起動のしかたで出力が変わらないことで確かめる。
+ * 引数を付けたときは、ほかの CLI と同じく usage と exit 2 で知らせることも確かめる。
  */
 const NO_ARG_CLIS = new Set([
   "skills/replace-strategy/scripts/asset-probe.mjs",
@@ -112,5 +113,13 @@ test.each(noArgScripts.map((p) => [relPath(p), p]))(
     expect(viaLink.stdout).toBe(viaReal.stdout);
     expect(viaLinkPreserve.status).toBe(0);
     expect(viaLinkPreserve.stdout).toBe(viaReal.stdout);
+    // 引数を付けると、ソースを出さずに usage と exit 2 で知らせる。
+    const withArg = spawnSync(process.execPath, [scriptPath, "--url"], {
+      timeout: CHILD_TIMEOUT_MS,
+      encoding: "utf8",
+    });
+    expect(withArg.status).toBe(2);
+    expect(withArg.stdout).toBe("");
+    expect(withArg.stderr).toMatch(/^usage: /m);
   },
 );

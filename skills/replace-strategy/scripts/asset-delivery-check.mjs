@@ -530,9 +530,10 @@ function pushResponseFindings({ kind, currentUrl, newUrl }, { cur, neu }, findin
 /**
  * 転送の後の指摘（移行元への転送・新側への転送・同じ転送先）を findings に足す。
  * @param {FilePair} pair
- * @param {{ cur: Awaited<ReturnType<Fetcher>>, neu: Awaited<ReturnType<Fetcher>>, findings: string[] }} responses
+ * @param {{ cur: Awaited<ReturnType<Fetcher>>, neu: Awaited<ReturnType<Fetcher>> }} responses
+ * @param {string[]} findings
  */
-function pushRedirectFindings({ kind, file, origins }, { cur, neu, findings }) {
+function pushRedirectFindings({ kind, file, origins }, { cur, neu }, findings) {
   // 転送そのものは正規の配り方（ハッシュ付きのパスへの 301・署名付き URL への 302 等）なので落とさない。
   // 参照はプローブが記録する転送前の URL（記録の new）で判定し、バイトと HTML かどうかは最終応答で見る
   // （ログイン画面への転送は最終応答が HTML になるので上で落ちる）。
@@ -609,7 +610,7 @@ async function checkFile(kind, file, ctx) {
   };
   const fetchFindingsBefore = findings.length;
   pushResponseFindings(pair, { cur, neu }, findings);
-  pushRedirectFindings(pair, { cur, neu, findings });
+  pushRedirectFindings(pair, { cur, neu }, findings);
   result.current_redirected = cur.redirected === true;
   result.new_redirected = neu.redirected === true;
   const match = result.current_sha256 !== null && result.current_sha256 === result.new_sha256;
