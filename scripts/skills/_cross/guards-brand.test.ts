@@ -32,6 +32,10 @@ test("値の判定: 空白だけの文字列・プレースホルダ・.. と、
   expect(positiveNumber(0)).toBe(false);
 });
 
+test("true の側で、絞った型になる", () => {
+  narrow({ s: "a", f: "a", seg: "a", n: 1, p: 1 });
+});
+
 test("false の側に、絞る型の値が残る", () => {
   narrow({ s: "", f: "TODO", seg: "..", n: Number.NaN, p: 0 });
 });

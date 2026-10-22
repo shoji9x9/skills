@@ -63,6 +63,10 @@ describe("timelineRows", () => {
     ]);
   });
 
+  test("gh を呼ばない計算に渡す偽の gh は、呼ばれると例外を投げる", () => {
+    expect(() => noGh(["api", "x"], {})).toThrow("呼ばれない想定");
+  });
+
   test("自分のレビューとコメントは活動にし、エージェントの gh の直後のものは除く", () => {
     const o = options(noGh, { commands: [{ ts: ms(4), text: "gh pr comment 7 --body-file x" }] });
     const rows = timelineRows(
