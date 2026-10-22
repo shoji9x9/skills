@@ -144,7 +144,7 @@ test.each([
   [
     "最後の行のほかに export がある",
     ["export const extra = 1;", "function mainInPage() { return 1; }", "export { mainInPage };"],
-    /ほかの import か export がある: export const extra = 1;/u,
+    /構文として読めない/u,
   ],
   [
     "import がある",
@@ -153,10 +153,34 @@ test.each([
       "function mainInPage() { return a; }",
       "export { mainInPage };",
     ],
-    /ほかの import か export がある: import \{ a \}/u,
+    /構文として読めない/u,
+  ],
+  [
+    "行の途中に export がある",
+    ["const a = 1; export { a };", "function mainInPage() { return a; }", "export { mainInPage };"],
+    /構文として読めない/u,
+  ],
+  [
+    "import.meta を参照する",
+    ["function mainInPage() { return import.meta.url; }", "export { mainInPage };"],
+    /構文として読めない/u,
   ],
 ])("pageFunctionSource: 例外を投げる（%s）", (_label, lines, message) => {
   expect(() => pageFunctionSource(writePageFile(lines), "mainInPage")).toThrow(message);
+});
+
+test("pageFunctionSource: 複数行のテンプレートリテラルの中で行頭に export と書いた行は、構文として読めるので受け付ける", () => {
+  const source = pageFunctionSource(
+    writePageFile([
+      "function mainInPage() {",
+      "  return `一覧",
+      "export は文字列の中`;",
+      "}",
+      "export { mainInPage };",
+    ]),
+    "mainInPage",
+  );
+  expect(vm.runInNewContext(`(${source})()`)).toBe("一覧\nexport は文字列の中");
 });
 
 test.each([

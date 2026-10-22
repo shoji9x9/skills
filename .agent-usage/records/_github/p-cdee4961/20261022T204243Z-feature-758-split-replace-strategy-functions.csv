@@ -23,3 +23,6 @@ coverage:github:2026-10-21T22:40:51.019Z:2026-10-22T23:04:31.598Z,coverage,2026-
 ci:39869692295:1,ci,2026-10-22T23:24:45.764Z,p-cdee4961,github-actions,,,,2026-10-22T23:07:24.000Z,2026-10-22T23:07:25.000Z,Asia/Tokyo,feature/758-split-replace-strategy-functions,758,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
 ci:39869691955:1,ci,2026-10-22T23:24:45.764Z,p-cdee4961,github-actions,,,,2026-10-22T23:07:24.000Z,2026-10-22T23:11:20.000Z,Asia/Tokyo,feature/758-split-replace-strategy-functions,758,,,,,,,,,,CI;pull_request;success,
 coverage:github:2026-10-21T23:04:31.598Z:2026-10-22T23:24:45.764Z,coverage,2026-10-22T23:24:45.764Z,p-cdee4961,,,,,2026-10-21T23:04:31.598Z,2026-10-22T23:24:45.764Z,Asia/Tokyo,,,,,,,,,,,,ok,
+ci:39871912801:1,ci,2026-10-22T23:33:58.788Z,p-cdee4961,github-actions,,,,2026-10-22T23:27:33.000Z,2026-10-22T23:27:41.000Z,Asia/Tokyo,feature/758-split-replace-strategy-functions,758,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:39871912803:1,ci,2026-10-22T23:33:58.788Z,p-cdee4961,github-actions,,,,2026-10-22T23:27:33.000Z,2026-10-22T23:31:33.000Z,Asia/Tokyo,feature/758-split-replace-strategy-functions,758,,,,,,,,,,CI;pull_request;success,
+coverage:github:2026-10-21T23:24:45.764Z:2026-10-22T23:33:58.788Z,coverage,2026-10-22T23:33:58.788Z,p-cdee4961,,,,,2026-10-21T23:24:45.764Z,2026-10-22T23:33:58.788Z,Asia/Tokyo,,,,,,,,,,,,ok,

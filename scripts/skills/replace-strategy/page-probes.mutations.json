@@ -81,14 +81,16 @@
     },
     {
       "id": "page-stray-module-syntax-unchecked",
-      "why": "最後の行のほかの import・export を確かめない。関数式の中で構文の誤りになるソースを出す",
+      "why": "包んだソースの構文解析を外し、最後の行のほかの import・export や import.meta を持つソースを出す（ページで実行した時点で SyntaxError になる）",
       "file": "skills/replace-strategy/scripts/lib/page-function.mjs",
-      "find": "  if (stray !== undefined) {",
-      "replace": "  if (false) {",
+      "find": "    new vm.Script(`(${source})`);",
+      "replace": "    void source;",
       "occurrences": 1,
       "expect_failing": [
         "pageFunctionSource: 例外を投げる（最後の行のほかに export がある）",
-        "pageFunctionSource: 例外を投げる（import がある）"
+        "pageFunctionSource: 例外を投げる（import がある）",
+        "pageFunctionSource: 例外を投げる（行の途中に export がある）",
+        "pageFunctionSource: 例外を投げる（import.meta を参照する）"
       ]
     },
     {
