@@ -1,6 +1,12 @@
 // motion-probe.test.ts が使うヘルパーと fixture。
+import { runInThisContext } from "node:vm";
 import { assert } from "vitest";
 import { summarizeTimeline } from "../../../skills/parity-component/scripts/motion-compare.mjs";
+import {
+  SAMPLER_HELPERS,
+  SAMPLER_SCRIPT_HEAD,
+  installSampler,
+} from "../../../skills/parity-component/scripts/motion-probe.mjs";
 
 export const FRAME = 16.7;
 
@@ -79,8 +85,30 @@ function fakeElement(current: () => ElementState | null, ancestorOpacity: number
   };
 }
 
+/**
+ * 偽のページで、文字列で渡された式を評価する。
+ * evalScripts が偽なら、samplerScript の式から条件を取り出し、installSampler をモジュールの関数のまま呼ぶ。
+ * 文字列のまま評価すると、モジュールの行がカバレッジに記録されないためである。
+ * evalScripts が真なら、Playwright と同じく式のソースを大域のスコープで評価する。
+ */
+function evaluateScript(script: string, evalScripts: boolean): unknown {
+  if (evalScripts) return runInThisContext(script);
+  assert(
+    script.startsWith(SAMPLER_SCRIPT_HEAD) && script.endsWith(")"),
+    `fake page: samplerScript の式でない: ${script.slice(0, 80)}`,
+  );
+  const config: unknown = JSON.parse(script.slice(SAMPLER_SCRIPT_HEAD.length, -1));
+  assert(isSamplerConfig(config), "fake page: 採取の条件の形が違う");
+  return installSampler(SAMPLER_HELPERS, config);
+}
+
+/** samplerScript に渡した採取の条件の形か。 */
+function isSamplerConfig(value: unknown): value is Parameters<typeof installSampler>[1] {
+  return typeof value === "object" && value !== null && "selector" in value && "epsilon" in value;
+}
+
 /** waitForFunction の判定を待つ間、1 回ごとに時計を frame 進めて積まれたコールバックを呼ぶ偽のページ。 */
-function fakePage(env: FakeEnv, frame: number) {
+function fakePage(env: FakeEnv, frame: number, evalScripts: boolean) {
   const tick = () => {
     env.now += frame;
     const callbacks = env.queue;
@@ -88,7 +116,8 @@ function fakePage(env: FakeEnv, frame: number) {
     for (const cb of callbacks) cb();
   };
   return {
-    evaluate: async <A, R>(fn: (arg: A) => R, arg: A) => fn(arg),
+    evaluate: async <A, R>(fn: string | ((arg?: A) => R), arg?: A): Promise<unknown> =>
+      typeof fn === "string" ? evaluateScript(fn, evalScripts) : fn(arg),
     waitForFunction: async (fn: () => unknown) => {
       for (let i = 0; i < 100000; i += 1) {
         if (fn()) return true;
@@ -105,11 +134,13 @@ export function installEnv({
   matches = 1,
   ancestorOpacity = 1,
   frame = FRAME,
+  evalScripts = false,
 }: {
   model: (elapsed: number) => ElementState | null;
   matches?: number;
   ancestorOpacity?: number;
   frame?: number;
+  evalScripts?: boolean;
 }) {
   const env: FakeEnv = { now: 1000, triggerAt: null, queue: [] };
   const current = () => model(env.triggerAt === null ? -1 : env.now - env.triggerAt);
@@ -125,7 +156,7 @@ export function installEnv({
     configurable: true,
     writable: true,
   });
-  const page = fakePage(env, frame);
+  const page = fakePage(env, frame, evalScripts);
   const trigger = async () => {
     env.triggerAt = env.now;
   };

@@ -138,16 +138,18 @@ export function sortArrayAtPath(node, segs) {
  *
  * @param {unknown} a
  * @param {unknown} b
- * @param {string} path
- * @param {Array<{ path:string, current:unknown, new:unknown }>} out
+ * @param {{ path: string, out: Array<{ path:string, current:unknown, new:unknown }> }} at - 比べる位置のパスと、差分を積む配列
  */
-export function deepDiff(a, b, path, out) {
+export function deepDiff(a, b, { path, out }) {
   // 両方が配列か、両方が JSON オブジェクトのときだけ中へ進む。片方だけが配列なら、下で値ごと比べる。
   if (isArray(a) && isArray(b)) {
     const len = Math.max(a.length, b.length);
     for (let i = 0; i < len; i += 1) {
       const childPath = path ? `${path}.${i}` : String(i);
-      deepDiff(i < a.length ? a[i] : MISSING, i < b.length ? b[i] : MISSING, childPath, out);
+      deepDiff(i < a.length ? a[i] : MISSING, i < b.length ? b[i] : MISSING, {
+        path: childPath,
+        out,
+      });
     }
     return;
   }
@@ -157,7 +159,7 @@ export function deepDiff(a, b, path, out) {
       const childPath = path ? `${path}.${key}` : key;
       const av = Object.prototype.hasOwnProperty.call(a, key) ? a[key] : MISSING;
       const bv = Object.prototype.hasOwnProperty.call(b, key) ? b[key] : MISSING;
-      deepDiff(av, bv, childPath, out);
+      deepDiff(av, bv, { path: childPath, out });
     }
     return;
   }
@@ -219,7 +221,7 @@ export function main(argv) {
   }
   /** @type {Array<{ path:string, current:unknown, new:unknown }>} */
   const out = [];
-  deepDiff(current, next, "", out);
+  deepDiff(current, next, { path: "", out });
   process.stdout.write(JSON.stringify(out, null, 2) + "\n");
   return out.length > 0 ? 1 : 0;
 }

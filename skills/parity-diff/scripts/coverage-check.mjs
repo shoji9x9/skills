@@ -104,18 +104,12 @@ function inAllowlist(v, allowed) {
 }
 
 /**
- * 操作可能な要素へ発火を確認した absent（`kind: fired-without-response`）の証拠を検査する。
- * 散文 `evidence` の非空だけでは「送り方・発火確認・観測結果」の 3 点を測ったかを区別できず、
- * 0 寸法要素の中心座標で**重なった別要素**が発火した結果も同じ判定で通ってしまう。
- * @param {Record<string, unknown>} evidence
+ * fired-without-response の `action`（操作の送り方）を検査する。
+ * @param {Record<string, unknown>} action
  * @param {string} label
  * @returns {string|null}
  */
-function firedEvidenceProblem(evidence, label) {
-  if (!isPlainObject(evidence.action)) {
-    return `${label}: fired-without-response なのに action が JSON オブジェクトではない`;
-  }
-  const action = evidence.action;
+function firedActionProblem(action, label) {
   if (!nonEmptyString(action.locator) || !nonEmptyString(action.detail)) {
     return `${label}: fired-without-response の action.locator / action.detail が空`;
   }
@@ -149,6 +143,23 @@ function firedEvidenceProblem(evidence, label) {
       return `${label}: 座標操作の hit-test が操作用要素または子孫を指した実測になっていない`;
     }
   }
+  return null;
+}
+
+/**
+ * 操作可能な要素へ発火を確認した absent（`kind: fired-without-response`）の証拠を検査する。
+ * 散文 `evidence` の非空だけでは「送り方・発火確認・観測結果」の 3 点を測ったかを区別できず、
+ * 0 寸法要素の中心座標で**重なった別要素**が発火した結果も同じ判定で通ってしまう。
+ * @param {Record<string, unknown>} evidence
+ * @param {string} label
+ * @returns {string|null}
+ */
+function firedEvidenceProblem(evidence, label) {
+  if (!isPlainObject(evidence.action)) {
+    return `${label}: fired-without-response なのに action が JSON オブジェクトではない`;
+  }
+  const actionProblem = firedActionProblem(evidence.action, label);
+  if (actionProblem !== null) return actionProblem;
   if (!isPlainObject(evidence.fired)) {
     return `${label}: fired-without-response なのに fired が JSON オブジェクトではない`;
   }
@@ -166,34 +177,12 @@ function firedEvidenceProblem(evidence, label) {
 }
 
 /**
- * absent セルの証拠を、証拠の種類（`kind`）ごとに検査する。散文 evidence の非空だけでは、全状態を測ったという
- * 自己申告と実測の構造を区別できないため、`non-renderable` は状態ごとの証拠を必須にする。
- * @param {Record<string, unknown>} row
- * @param {string} label
+ * インスタンスの applicable_states を検査し、状態 id → transition の対応を返す。不備があればその指摘を返す。
  * @param {unknown} stateManifest - components[].instances[].applicable_states
- * @returns {string|null}
+ * @param {string} label
+ * @returns {string|Map<string, string>}
  */
-function absentEvidenceProblem(row, label, stateManifest) {
-  if (!isPlainObject(row.absence_evidence)) {
-    return `${label}: value: absent なのに absence_evidence が JSON オブジェクトではない`;
-  }
-  const evidence = row.absence_evidence;
-  if (evidence.kind === "fired-without-response") return firedEvidenceProblem(evidence, label);
-  if (evidence.kind !== "non-renderable") {
-    return `${label}: absence_evidence.kind が fired-without-response / non-renderable のいずれでもない`;
-  }
-  if (!nonEmptyString(evidence.locator) || !nonEmptyString(evidence.state_source)) {
-    return `${label}: non-renderable の locator / state_source が空`;
-  }
-  // 通常の getByRole は hidden 要素を除外するため、display: none の要素でも一致数は 0 になる。
-  // locator が hidden を含むことを実証しないまま 0 件を「DOM に無い」と読むと、非表示の状態を
-  // 不在として absent に収束できる。includeHidden または構造 locator であることを実測として要求する。
-  if (evidence.locator_includes_hidden !== true) {
-    return `${label}: non-renderable の locator_includes_hidden が実測の true ではない（hidden を含む locator である実証が無い）`;
-  }
-  if (evidence.states_exhaustive !== true) {
-    return `${label}: non-renderable の states_exhaustive が true ではない`;
-  }
+function manifestStatesOf(stateManifest, label) {
   if (!isPlainObject(stateManifest)) {
     return `${label}: non-renderable なのにインスタンスの applicable_states が無い`;
   }
@@ -224,9 +213,135 @@ function absentEvidenceProblem(row, label, stateManifest) {
     if (manifestStates.has(id)) return `${label}: applicable_states.items の id ${id} が重複`;
     manifestStates.set(id, String(item.transition));
   }
-  if (!isArray(evidence.states) || evidence.states.length === 0) {
-    return `${label}: non-renderable の states が空`;
+  return manifestStates;
+}
+
+/**
+ * 状態の矩形が 0 寸法かを返す。矩形が null なら false を返す。不備があればその指摘を返す。
+ * @param {Record<string, unknown>} state
+ * @param {string} stateLabel
+ * @returns {string|boolean}
+ */
+function zeroAreaOf(state, stateLabel) {
+  if (state.bounding_box === null) return false;
+  if (!isPlainObject(state.bounding_box)) {
+    return `${stateLabel}.bounding_box が null または JSON オブジェクトではない`;
   }
+  const box = state.bounding_box;
+  if (![box.x, box.y, box.width, box.height].every((v) => Number.isFinite(v))) {
+    return `${stateLabel}.bounding_box の x / y / width / height が有限の数値ではない`;
+  }
+  // Playwright の矩形に負の幅・高さは無い。負値を通すと、実在しない矩形で 0 寸法判定を迂回できる。
+  if (Number(box.width) < 0 || Number(box.height) < 0) {
+    return `${stateLabel}.bounding_box の width / height が負（実在しない矩形）`;
+  }
+  return box.width === 0 || box.height === 0;
+}
+
+/**
+ * 状態の非表示原因（hidden_by）が検証済みかを返す。hidden_by が null なら false を返す。不備があればその指摘を返す。
+ * @param {Record<string, unknown>} state
+ * @param {string} stateLabel
+ * @param {unknown} targetLocator - non-renderable の証拠の locator
+ * @returns {string|boolean}
+ */
+function hiddenCauseOf(state, stateLabel, targetLocator) {
+  if (state.hidden_by === null) return false;
+  if (!isPlainObject(state.hidden_by)) {
+    return `${stateLabel}.hidden_by が null または JSON オブジェクトではない`;
+  }
+  const hidden = state.hidden_by;
+  const style = isPlainObject(hidden.computed_style) ? hidden.computed_style : null;
+  const hiddenCause =
+    nonEmptyString(hidden.locator) &&
+    hidden.relationship_verified === true &&
+    (hidden.relation === "self" || hidden.relation === "ancestor") &&
+    hidden.target_locator === targetLocator &&
+    style !== null &&
+    (style.display === "none" || style.visibility === "hidden" || style.visibility === "collapse");
+  if (!hiddenCause) {
+    return `${stateLabel}.hidden_by が対象本人／祖先との検証済み関係と非表示 CSS を示さない`;
+  }
+  // display: none の本人／祖先配下では実 DOM の offsetParent は必ず null。
+  // 非 null を通すと、実測していない値の組み合わせを非描画の証拠として収束させられる。
+  if (style !== null && style.display === "none" && state.offset_parent !== null) {
+    return `${stateLabel}: display: none なのに offset_parent が null ではない（矛盾）`;
+  }
+  return true;
+}
+
+/**
+ * locator が 1 件に一致した状態に、0 寸法の矩形か非表示原因の証拠があるかを検査する。
+ * @param {Record<string, unknown>} state
+ * @param {string} stateLabel
+ * @param {unknown} targetLocator - non-renderable の証拠の locator
+ * @returns {string|null}
+ */
+function renderedStateProblem(state, stateLabel, targetLocator) {
+  if (!("bounding_box" in state) || !("offset_parent" in state)) {
+    return `${stateLabel} に bounding_box / offset_parent が無い`;
+  }
+  if (state.offset_parent !== null && !nonEmptyString(state.offset_parent)) {
+    return `${stateLabel}.offset_parent が null または空でない文字列ではない`;
+  }
+  const zeroArea = zeroAreaOf(state, stateLabel);
+  if (typeof zeroArea === "string") return zeroArea;
+  const hiddenCause = hiddenCauseOf(state, stateLabel, targetLocator);
+  if (typeof hiddenCause === "string") return hiddenCause;
+  if (hiddenCause && state.bounding_box !== null) {
+    return `${stateLabel}: hidden_by があるのに bounding_box が null ではない（矛盾）`;
+  }
+  if (!zeroArea && !hiddenCause) {
+    return `${stateLabel} に 0 寸法の矩形または非表示原因の証拠が無い`;
+  }
+  return null;
+}
+
+/**
+ * non-renderable の状態 1 件を検査する。locator が 0 件だった（DOM に無い）かを返す。不備があればその指摘を返す。
+ * @param {unknown} rawState
+ * @param {string} stateLabel
+ * @param {{ manifestStates: Map<string, string>, measuredStates: Set<string>, locator: unknown }} ctx
+ * @returns {string|boolean}
+ */
+function measureState(rawState, stateLabel, ctx) {
+  if (!isPlainObject(rawState)) return `${stateLabel} が JSON オブジェクトではない`;
+  const state = rawState;
+  if (!nonEmptyString(state.name) || !nonEmptyString(state.transition)) {
+    return `${stateLabel} の name / transition が空`;
+  }
+  const stateName = String(state.name);
+  if (ctx.measuredStates.has(stateName)) return `${stateLabel}.name ${stateName} が重複している`;
+  ctx.measuredStates.add(stateName);
+  if (ctx.manifestStates.get(stateName) !== String(state.transition)) {
+    return `${stateLabel} が applicable_states の id / transition と一致しない`;
+  }
+  // locator が対象を一意に引くことは状態ごとに変わる（開く前は 0 件、開くと 1 件など）。
+  // 1 状態だけの一致数では、別状態で 0 件／複数件の locator を非描画の証拠にできてしまう。
+  if (!Number.isInteger(state.locator_match_count) || Number(state.locator_match_count) < 0) {
+    return `${stateLabel}.locator_match_count が 0 以上の整数ではない（一致数を実測していない）`;
+  }
+  const matchCount = Number(state.locator_match_count);
+  if (matchCount > 1) {
+    return `${stateLabel}: locator が ${matchCount} 件に一致する（対象の操作要素を一意に引けていない）`;
+  }
+  if (matchCount === 0) {
+    // その状態では DOM に存在しない＝操作可能な要素が無い。矩形・非表示原因を持つのは矛盾。
+    if (state.bounding_box !== null || state.hidden_by !== null || state.offset_parent !== null) {
+      return `${stateLabel}: locator が 0 件なのに矩形・offset_parent・hidden_by が null ではない（矛盾）`;
+    }
+    return true;
+  }
+  return renderedStateProblem(state, stateLabel, ctx.locator) ?? false;
+}
+
+/**
+ * non-renderable の expected_states を検査して返す。不備があればその指摘を返す。
+ * @param {Record<string, unknown>} evidence
+ * @param {string} label
+ * @returns {string|string[]}
+ */
+function expectedStatesOf(evidence, label) {
   if (
     !isArray(evidence.expected_states) ||
     evidence.expected_states.length === 0 ||
@@ -238,93 +353,65 @@ function absentEvidenceProblem(row, label, stateManifest) {
   if (new Set(expectedStates).size !== expectedStates.length) {
     return `${label}: non-renderable の expected_states が重複している`;
   }
+  return expectedStates;
+}
+
+/**
+ * non-renderable の states を 1 件ずつ検査し、測った状態名と、locator が 0 件だった状態数を返す。
+ * 不備があればその指摘を返す。
+ * @param {unknown[]} states
+ * @param {string} label
+ * @param {{ manifestStates: Map<string, string>, locator: unknown }} ctx
+ * @returns {string|{ measuredStates: Set<string>, domAbsentStates: number }}
+ */
+function measureStates(states, label, ctx) {
   /** @type {Set<string>} */
   const measuredStates = new Set();
   // locator が 0 件だった状態数。全状態が 0 件なら locator の正しさを実証できていない。
   let domAbsentStates = 0;
-  for (const [index, rawState] of evidence.states.entries()) {
-    const stateLabel = `${label}: non-renderable.states[${index}]`;
-    if (!isPlainObject(rawState)) return `${stateLabel} が JSON オブジェクトではない`;
-    const state = rawState;
-    if (!nonEmptyString(state.name) || !nonEmptyString(state.transition)) {
-      return `${stateLabel} の name / transition が空`;
-    }
-    const stateName = String(state.name);
-    if (measuredStates.has(stateName)) return `${stateLabel}.name ${stateName} が重複している`;
-    measuredStates.add(stateName);
-    if (manifestStates.get(stateName) !== String(state.transition)) {
-      return `${stateLabel} が applicable_states の id / transition と一致しない`;
-    }
-    // locator が対象を一意に引くことは状態ごとに変わる（開く前は 0 件、開くと 1 件など）。
-    // 1 状態だけの一致数では、別状態で 0 件／複数件の locator を非描画の証拠にできてしまう。
-    if (!Number.isInteger(state.locator_match_count) || Number(state.locator_match_count) < 0) {
-      return `${stateLabel}.locator_match_count が 0 以上の整数ではない（一致数を実測していない）`;
-    }
-    const matchCount = Number(state.locator_match_count);
-    if (matchCount > 1) {
-      return `${stateLabel}: locator が ${matchCount} 件に一致する（対象の操作要素を一意に引けていない）`;
-    }
-    if (matchCount === 0) {
-      // その状態では DOM に存在しない＝操作可能な要素が無い。矩形・非表示原因を持つのは矛盾。
-      if (state.bounding_box !== null || state.hidden_by !== null || state.offset_parent !== null) {
-        return `${stateLabel}: locator が 0 件なのに矩形・offset_parent・hidden_by が null ではない（矛盾）`;
-      }
-      domAbsentStates += 1;
-      continue;
-    }
-    if (!("bounding_box" in state) || !("offset_parent" in state)) {
-      return `${stateLabel} に bounding_box / offset_parent が無い`;
-    }
-    if (state.offset_parent !== null && !nonEmptyString(state.offset_parent)) {
-      return `${stateLabel}.offset_parent が null または空でない文字列ではない`;
-    }
-    let zeroArea = false;
-    if (state.bounding_box !== null) {
-      if (!isPlainObject(state.bounding_box)) {
-        return `${stateLabel}.bounding_box が null または JSON オブジェクトではない`;
-      }
-      const box = state.bounding_box;
-      if (![box.x, box.y, box.width, box.height].every((v) => Number.isFinite(v))) {
-        return `${stateLabel}.bounding_box の x / y / width / height が有限の数値ではない`;
-      }
-      // Playwright の矩形に負の幅・高さは無い。負値を通すと、実在しない矩形で 0 寸法判定を迂回できる。
-      if (Number(box.width) < 0 || Number(box.height) < 0) {
-        return `${stateLabel}.bounding_box の width / height が負（実在しない矩形）`;
-      }
-      zeroArea = box.width === 0 || box.height === 0;
-    }
-    let hiddenCause = false;
-    if (state.hidden_by !== null) {
-      if (!isPlainObject(state.hidden_by)) {
-        return `${stateLabel}.hidden_by が null または JSON オブジェクトではない`;
-      }
-      const hidden = state.hidden_by;
-      const style = isPlainObject(hidden.computed_style) ? hidden.computed_style : null;
-      hiddenCause =
-        nonEmptyString(hidden.locator) &&
-        hidden.relationship_verified === true &&
-        (hidden.relation === "self" || hidden.relation === "ancestor") &&
-        hidden.target_locator === evidence.locator &&
-        style !== null &&
-        (style.display === "none" ||
-          style.visibility === "hidden" ||
-          style.visibility === "collapse");
-      if (!hiddenCause) {
-        return `${stateLabel}.hidden_by が対象本人／祖先との検証済み関係と非表示 CSS を示さない`;
-      }
-      // display: none の本人／祖先配下では実 DOM の offsetParent は必ず null。
-      // 非 null を通すと、実測していない値の組み合わせを非描画の証拠として収束させられる。
-      if (style !== null && style.display === "none" && state.offset_parent !== null) {
-        return `${stateLabel}: display: none なのに offset_parent が null ではない（矛盾）`;
-      }
-    }
-    if (hiddenCause && state.bounding_box !== null) {
-      return `${stateLabel}: hidden_by があるのに bounding_box が null ではない（矛盾）`;
-    }
-    if (!zeroArea && !hiddenCause) {
-      return `${stateLabel} に 0 寸法の矩形または非表示原因の証拠が無い`;
-    }
+  const stateCtx = { ...ctx, measuredStates };
+  for (const [index, rawState] of states.entries()) {
+    const domAbsent = measureState(rawState, `${label}: non-renderable.states[${index}]`, stateCtx);
+    if (typeof domAbsent === "string") return domAbsent;
+    if (domAbsent) domAbsentStates += 1;
   }
+  return { measuredStates, domAbsentStates };
+}
+
+/**
+ * absent セルの `kind: non-renderable` の証拠を検査する。全状態を測ったという自己申告と実測の構造を
+ * 区別するため、状態ごとの証拠を必須にする。
+ * @param {Record<string, unknown>} evidence
+ * @param {string} label
+ * @param {unknown} stateManifest - components[].instances[].applicable_states
+ * @returns {string|null}
+ */
+function nonRenderableProblem(evidence, label, stateManifest) {
+  if (!nonEmptyString(evidence.locator) || !nonEmptyString(evidence.state_source)) {
+    return `${label}: non-renderable の locator / state_source が空`;
+  }
+  // 通常の getByRole は hidden 要素を除外するため、display: none の要素でも一致数は 0 になる。
+  // locator が hidden を含むことを実証しないまま 0 件を「DOM に無い」と読むと、非表示の状態を
+  // 不在として absent に収束できる。includeHidden または構造 locator であることを実測として要求する。
+  if (evidence.locator_includes_hidden !== true) {
+    return `${label}: non-renderable の locator_includes_hidden が実測の true ではない（hidden を含む locator である実証が無い）`;
+  }
+  if (evidence.states_exhaustive !== true) {
+    return `${label}: non-renderable の states_exhaustive が true ではない`;
+  }
+  const manifestStates = manifestStatesOf(stateManifest, label);
+  if (typeof manifestStates === "string") return manifestStates;
+  if (!isArray(evidence.states) || evidence.states.length === 0) {
+    return `${label}: non-renderable の states が空`;
+  }
+  const expectedStates = expectedStatesOf(evidence, label);
+  if (typeof expectedStates === "string") return expectedStates;
+  const measured = measureStates(evidence.states, label, {
+    manifestStates,
+    locator: evidence.locator,
+  });
+  if (typeof measured === "string") return measured;
+  const { measuredStates, domAbsentStates } = measured;
   // 全状態で 0 件なら locator が正しいことを一度も実証できておらず、誤った locator と区別できない。
   if (domAbsentStates === measuredStates.size) {
     return `${label}: non-renderable の locator がどの状態でも 0 件（locator が対象を引けている実証が無い）`;
@@ -338,6 +425,26 @@ function absentEvidenceProblem(row, label, stateManifest) {
     return `${label}: expected_states / states[].name / applicable_states.items[].id が完全一致しない`;
   }
   return null;
+}
+
+/**
+ * absent セルの証拠を、証拠の種類（`kind`）ごとに検査する。散文 evidence の非空だけでは、全状態を測ったという
+ * 自己申告と実測の構造を区別できないため、`non-renderable` は状態ごとの証拠を必須にする。
+ * @param {Record<string, unknown>} row
+ * @param {string} label
+ * @param {unknown} stateManifest - components[].instances[].applicable_states
+ * @returns {string|null}
+ */
+function absentEvidenceProblem(row, label, stateManifest) {
+  if (!isPlainObject(row.absence_evidence)) {
+    return `${label}: value: absent なのに absence_evidence が JSON オブジェクトではない`;
+  }
+  const evidence = row.absence_evidence;
+  if (evidence.kind === "fired-without-response") return firedEvidenceProblem(evidence, label);
+  if (evidence.kind !== "non-renderable") {
+    return `${label}: absence_evidence.kind が fired-without-response / non-renderable のいずれでもない`;
+  }
+  return nonRenderableProblem(evidence, label, stateManifest);
 }
 /**
  * 集合の出所（`component_inventory` / `components[].instance_inventory`）と
@@ -743,17 +850,57 @@ function readJustifiedElementAbsences(raw) {
 }
 
 /**
+ * @typedef {object} Tally
+ * @property {number} cells 期待セル数
+ * @property {number} present
+ * @property {number} absent
+ * @property {number} unmeasured
+ */
+
+/**
+ * @typedef {object} CellIndex
+ * @property {Map<string, Record<string, unknown>>} byKey セル行の索引
+ * @property {Set<string>} duplicated 行が複数あったセルのキー
+ * @property {(c: string, i: string, n: string) => string} keyOf セルのキーを作る
+ * @property {Set<string>} expected 期待セルのキー集合
+ * @property {string[]} problems
+ */
+
+/**
+ * 未測定のセルを n 件足す（期待セルにも数える）。
+ *
+ * @param {Tally} tally
+ * @param {number} n
+ */
+function addUnmeasured(tally, n) {
+  tally.cells += n;
+  tally.unmeasured += n;
+}
+
+/**
+ * 採点の結果を数える（期待セル数は呼び出し側が数える）。
+ *
+ * @param {Tally} tally
+ * @param {'present'|'absent'|'unmeasured'} graded
+ */
+function addGraded(tally, graded) {
+  if (graded === "present") tally.present += 1;
+  else if (graded === "absent") tally.absent += 1;
+  else tally.unmeasured += 1;
+}
+
+/**
  * セル 1 件を採点する。判定の規則は parity-suite の references/coverage.md「部品網羅表」で定義する。
  *
  * @param {Record<string, unknown>|undefined} row
- * @param {boolean} duplicated
- * @param {string} label - 問題文に付けるセルの識別子
+ * @param {{ duplicated: boolean, label: string, stateManifest: unknown }} cell
+ *   label は問題文に付けるセルの識別子
  * @param {string[]} problems
- * @param {unknown} stateManifest
  * @returns {'present'|'absent'|'unmeasured'}
  */
-function gradeCell(row, duplicated, label, problems, stateManifest) {
-  if (duplicated) {
+function gradeCell(row, cell, problems) {
+  const { label } = cell;
+  if (cell.duplicated) {
     problems.push(`セル ${label}: 同じ組み合わせの行が複数ある（先勝ちにしない）`);
     return "unmeasured";
   }
@@ -778,12 +925,78 @@ function gradeCell(row, duplicated, label, problems, stateManifest) {
     }
     return "present";
   }
-  const absenceProblem = absentEvidenceProblem(row, label, stateManifest);
+  const absenceProblem = absentEvidenceProblem(row, label, cell.stateManifest);
   if (absenceProblem) {
     problems.push(absenceProblem);
     return "unmeasured";
   }
   return "absent";
+}
+
+/**
+ * 期待セル 1 件を、索引から取得した行で採点する。
+ * 採点の規則は、プロファイルを使う処理と使わない処理で共有する（片方だけを緩めない）。
+ *
+ * @param {CellIndex} index
+ * @param {string} key
+ * @param {{ label: string, stateManifest: unknown }} cell
+ * @returns {'present'|'absent'|'unmeasured'}
+ */
+function gradeIndexedCell(index, key, cell) {
+  return gradeCell(
+    index.byKey.get(key),
+    { duplicated: index.duplicated.has(key), ...cell },
+    index.problems,
+  );
+}
+
+/**
+ * 同値クラス 1 件の根拠・メンバー・代表を検査し、メンバーの所属を記録する。
+ *
+ * @param {unknown} cls
+ * @param {number} i
+ * @param {{ cid: string, problems: string[], candidateKeys: Set<string>, owner: Map<string, string> }} state
+ */
+function checkEquivalenceClass(cls, i, state) {
+  const { cid, problems, owner } = state;
+  if (!isPlainObject(cls)) {
+    problems.push(`部品 ${cid}: equivalence_classes[${i}] が JSON オブジェクトではない`);
+    return;
+  }
+  const klass = cls;
+  const kid = nonEmptyString(klass.id) ? String(klass.id) : `#${i}`;
+  if (!nonEmptyString(klass.rationale)) {
+    problems.push(`部品 ${cid}: 同値クラス ${kid}: rationale が空（分類根拠が残らない）`);
+  }
+  const members = (isArray(klass.members) ? klass.members : []).filter(nonEmptyString).map(String);
+  if (members.length === 0) {
+    problems.push(`部品 ${cid}: 同値クラス ${kid}: members が空`);
+    return;
+  }
+  for (const member of members) {
+    if (!state.candidateKeys.has(member)) {
+      problems.push(`部品 ${cid}: 同値クラス ${kid}: 候補に無いメンバー ${member} を参照している`);
+      continue;
+    }
+    const previous = owner.get(member);
+    if (previous !== undefined) {
+      problems.push(
+        `部品 ${cid}: 候補 ${member} が同値クラス ${previous} と ${kid} の両方に属している`,
+      );
+      continue;
+    }
+    owner.set(member, kid);
+  }
+  const representative = nonEmptyString(klass.representative) ? String(klass.representative) : null;
+  if (!representative) {
+    problems.push(
+      `部品 ${cid}: 同値クラス ${kid}: representative が空（採取する候補が決まらない）`,
+    );
+  } else if (!members.includes(representative)) {
+    problems.push(
+      `部品 ${cid}: 同値クラス ${kid}: representative ${representative} が members に含まれていない`,
+    );
+  }
 }
 
 /**
@@ -793,61 +1006,17 @@ function gradeCell(row, duplicated, label, problems, stateManifest) {
  *
  * @param {unknown} classes - components[].equivalence_classes
  * @param {Set<string>} candidateKeys - "<インスタンス id>/<候補 id>" の集合
- * @param {string} cid
- * @param {string[]} problems
+ * @param {{ cid: string, problems: string[] }} ctx
  */
-function checkEquivalenceMembership(classes, candidateKeys, cid, problems) {
+function checkEquivalenceMembership(classes, candidateKeys, ctx) {
+  const { cid, problems } = ctx;
   const list = isArray(classes) ? classes : [];
   // 宣言が空なら削減していない（全候補を個別に採取した）とみなす。1 つでも宣言されたら全候補の所属が要る。
   if (list.length === 0) return;
   /** @type {Map<string, string>} */
   const owner = new Map();
-  list.forEach((cls, i) => {
-    if (!isPlainObject(cls)) {
-      problems.push(`部品 ${cid}: equivalence_classes[${i}] が JSON オブジェクトではない`);
-      return;
-    }
-    const klass = cls;
-    const kid = nonEmptyString(klass.id) ? String(klass.id) : `#${i}`;
-    if (!nonEmptyString(klass.rationale)) {
-      problems.push(`部品 ${cid}: 同値クラス ${kid}: rationale が空（分類根拠が残らない）`);
-    }
-    const members = (isArray(klass.members) ? klass.members : [])
-      .filter(nonEmptyString)
-      .map(String);
-    if (members.length === 0) {
-      problems.push(`部品 ${cid}: 同値クラス ${kid}: members が空`);
-      return;
-    }
-    for (const member of members) {
-      if (!candidateKeys.has(member)) {
-        problems.push(
-          `部品 ${cid}: 同値クラス ${kid}: 候補に無いメンバー ${member} を参照している`,
-        );
-        continue;
-      }
-      const previous = owner.get(member);
-      if (previous !== undefined) {
-        problems.push(
-          `部品 ${cid}: 候補 ${member} が同値クラス ${previous} と ${kid} の両方に属している`,
-        );
-        continue;
-      }
-      owner.set(member, kid);
-    }
-    const representative = nonEmptyString(klass.representative)
-      ? String(klass.representative)
-      : null;
-    if (!representative) {
-      problems.push(
-        `部品 ${cid}: 同値クラス ${kid}: representative が空（採取する候補が決まらない）`,
-      );
-    } else if (!members.includes(representative)) {
-      problems.push(
-        `部品 ${cid}: 同値クラス ${kid}: representative ${representative} が members に含まれていない`,
-      );
-    }
-  });
+  const state = { cid, problems, candidateKeys, owner };
+  list.forEach((cls, i) => checkEquivalenceClass(cls, i, state));
   for (const key of candidateKeys) {
     if (!owner.has(key)) {
       problems.push(
@@ -858,199 +1027,596 @@ function checkEquivalenceMembership(classes, candidateKeys, cid, problems) {
 }
 
 /**
+ * @typedef {object} ProfiledState
+ * @property {string} cid 部品 id
+ * @property {CellIndex} index
+ * @property {Tally} tally
+ * @property {Map<string, Record<string, string>>} itemAxes 項目 id → 軸の値
+ * @property {Set<string>} candidateKeys "<インスタンス id>/<候補 id>" の集合
+ * @property {Set<string>} seenInstances
+ */
+
+/**
+ * プロファイルを宣言した部品のインスタンスを識別する。識別できなければ指摘を返す。
+ *
+ * @param {unknown} instance
+ * @param {number} i
+ * @param {ProfiledState} state
+ * @returns {string|{ inst: Record<string, unknown>, iid: string }}
+ */
+function profiledInstanceIdentity(instance, i, state) {
+  const { cid, seenInstances } = state;
+  if (!isPlainObject(instance)) return `部品 ${cid}: instances[${i}] が JSON オブジェクトではない`;
+  if (!nonEmptyString(instance.id)) {
+    return `部品 ${cid}: instances[${i}]: id が空（識別できないので未測定として数える）`;
+  }
+  const iid = String(instance.id);
+  // インスタンス id は同値クラスの members（"<インスタンス id>/<候補 id>"）の前半になる。
+  // 区切り文字を含むと前半と後半を切り分けられず、所属検査が別の組み合わせと突き合う。
+  if (iid.includes(ID_SEPARATOR)) {
+    return `部品 ${cid}: インスタンス id ${iid} に "${ID_SEPARATOR}" を含む（同値クラスの members が切り分けられない）`;
+  }
+  if (seenInstances.has(iid)) {
+    return `部品 ${cid}: インスタンス id ${iid} が重複している（先勝ちにしない）`;
+  }
+  seenInstances.add(iid);
+  return { inst: instance, iid };
+}
+
+/**
+ * インスタンスの列挙（enumeration）が、候補を信用できる記録かを検査する。
+ * 列挙が未完了なら候補は信用できない。候補ゼロで素通りさせず 1 件の未測定として数えるため、指摘を返す。
+ *
+ * @param {Record<string, unknown>} enumeration
+ * @param {string} label
+ * @returns {string[]}
+ */
+function profiledEnumerationProblems(enumeration, label) {
+  if (enumeration.complete !== true) {
+    return [
+      `${label}: enumeration.complete が true ではない（列挙が未完了のまま確認済みにしない）`,
+    ];
+  }
+  // 読み切れたのに理由が残っている記録は、同じ表の中で「完全」と「未完了」を同時に主張する。
+  // 集合の出所と同じように失敗にする（記録する側の readEnumeration も同じ関数で見る）。
+  const staleProblems = staleIncompleteReasonProblems(enumeration, label);
+  if (staleProblems.length > 0) return staleProblems;
+  if (!isPlainObject(enumeration.source)) {
+    return [`${label}: enumeration.source が無い（どの版のどこから何を条件に抜いたか残らない）`];
+  }
+  // 出所の語彙と「一次情報源を使わなかった理由」は、記録する側（coverage-expand.mjs）と同じ関数で見る。
+  // 出所不明の kind や、受領ソースが読めるのに実 UI の歩行だけで列挙した記録を通さない。
+  return enumerationSourceProblems(enumeration, label);
+}
+
+/**
+ * 候補に対応する項目の candidate.axes から、**軸ごと**の値集合を作る。
+ * 軸の値を取得できない候補があると、軸ごとの突き合わせが成り立たない。和集合として扱わず、未測定にする。
+ *
+ * @param {string[]} candidates
+ * @param {string} label
+ * @param {ProfiledState} state
+ * @returns {{ valuesByAxis: Map<string, Set<string>>, axesResolvable: boolean }}
+ */
+function valuesByAxisOf(candidates, label, state) {
+  /** @type {Map<string, Set<string>>} */
+  const valuesByAxis = new Map();
+  let axesResolvable = true;
+  for (const candidateId of candidates) {
+    const axes = state.itemAxes.get(candidateId);
+    if (axes === undefined) {
+      state.index.problems.push(
+        `${label}: 候補 ${candidateId} に対応する項目の candidate.axes が無い（軸ごとの突き合わせができない）`,
+      );
+      addUnmeasured(state.tally, 1);
+      axesResolvable = false;
+      continue;
+    }
+    for (const [axisId, value] of Object.entries(axes)) {
+      let values = valuesByAxis.get(axisId);
+      if (values === undefined) {
+        values = new Set();
+        valuesByAxis.set(axisId, values);
+      }
+      values.add(value);
+    }
+  }
+  return { valuesByAxis, axesResolvable };
+}
+
+/**
+ * 「40 列を列挙したが候補は代表 1 列だけ」を落とす。列挙した要素が、自分の軸の候補に現れるかを見る。
+ *
+ * @param {Record<string, unknown>} enumeration
+ * @param {{ label: string, valuesByAxis: Map<string, Set<string>>, axesResolvable: boolean }} axes
+ * @param {ProfiledState} state
+ */
+function checkEnumeratedElements(enumeration, axes, state) {
+  const { label } = axes;
+  const { problems } = state.index;
+  const elements = isPlainObject(enumeration.elements) ? enumeration.elements : {};
+  const justified = readJustifiedElementAbsences(enumeration.justified_absences);
+  for (const [axisId, list] of Object.entries(elements)) {
+    if (!isArray(list)) {
+      problems.push(`${label}: enumeration.elements.${axisId} が配列ではない`);
+      continue;
+    }
+    if (!axes.axesResolvable) continue; // 軸値が欠けている状態での判定は誤検出になる（上で未測定に数えている）
+    const seen = axes.valuesByAxis.get(axisId) ?? new Set();
+    for (const el of list) {
+      if (!isPlainObject(el) || !nonEmptyString(el.id)) continue;
+      const elementId = String(el.id);
+      if (seen.has(elementId)) continue;
+      // 「その要素はどの候補にもならない」と主張するには、根拠が要る（根拠を書けば先へ進めるようにする）。
+      if (justified.has(`${axisId}${ID_SEPARATOR}${elementId}`)) continue;
+      problems.push(
+        `${label}: 列挙した ${axisId} の要素 ${elementId} がどの候補にも現れない（代表だけを確認していないか。意図的なら enumeration.justified_absences に根拠を残す）`,
+      );
+      addUnmeasured(state.tally, 1);
+    }
+  }
+}
+
+/**
+ * インスタンスの候補を期待セルにして採点する。
+ *
+ * @param {string[]} candidates
+ * @param {{ iid: string, label: string, stateManifest: unknown }} instance
+ * @param {ProfiledState} state
+ */
+function gradeCandidates(candidates, instance, state) {
+  const { index, tally } = state;
+  const { iid, label } = instance;
+  /** @type {Set<string>} */
+  const seenCandidates = new Set();
+  for (const candidateId of candidates) {
+    if (seenCandidates.has(candidateId)) {
+      index.problems.push(
+        `${label}: 候補 ${candidateId} が重複している（期待セルを二重に数えない）`,
+      );
+      continue;
+    }
+    seenCandidates.add(candidateId);
+    state.candidateKeys.add(`${iid}${ID_SEPARATOR}${candidateId}`);
+    const key = index.keyOf(state.cid, candidateId, iid);
+    index.expected.add(key);
+    tally.cells += 1;
+    addGraded(
+      tally,
+      gradeIndexedCell(index, key, {
+        label: `${label} / ${candidateId}`,
+        stateManifest: instance.stateManifest,
+      }),
+    );
+  }
+}
+
+/**
+ * プロファイルを宣言した部品のインスタンス 1 件を数え直す。
+ *
+ * @param {unknown} instance
+ * @param {number} i
+ * @param {ProfiledState} state
+ */
+function countProfiledInstance(instance, i, state) {
+  const { problems } = state.index;
+  /** @param {string[]} found */
+  const reject = (found) => {
+    problems.push(...found);
+    addUnmeasured(state.tally, 1);
+  };
+  const identity = profiledInstanceIdentity(instance, i, state);
+  if (typeof identity === "string") {
+    reject([identity]);
+    return;
+  }
+  const { inst, iid } = identity;
+  const label = `部品 ${state.cid} / インスタンス ${iid}`;
+  const enumeration = isPlainObject(inst.enumeration) ? inst.enumeration : null;
+  if (enumeration === null) {
+    reject([`${label}: enumeration が無い（候補の出所が残らない）`]);
+    return;
+  }
+  const enumerationProblems = profiledEnumerationProblems(enumeration, label);
+  if (enumerationProblems.length > 0) {
+    reject(enumerationProblems);
+    return;
+  }
+  const candidates = (isArray(inst.candidates) ? inst.candidates : [])
+    .filter(nonEmptyString)
+    .map(String);
+  if (candidates.length === 0) {
+    reject([`${label}: candidates が空（プロファイルからの展開が記録されていない）`]);
+    return;
+  }
+  // 「40 列を列挙したが候補は代表 1 列だけ」を落とす。プロファイルは読まないので、
+  // 候補に対応する項目の candidate.axes から**軸ごと**の値集合を作って突き合わせる。
+  const axes = valuesByAxisOf(candidates, label, state);
+  checkEnumeratedElements(enumeration, { label, ...axes }, state);
+  gradeCandidates(candidates, { iid, label, stateManifest: inst.applicable_states }, state);
+}
+
+/**
  * プロファイルを宣言した部品を数え直す。期待セルは「項目 × インスタンス」ではなく
  * インスタンスごとに記録された候補（instances[].candidates）で、プロファイル本体は読まない。
  *
  * @param {Record<string, unknown>} c - 部品
  * @param {string} cid - 部品 id
- * @param {Map<string, Record<string, unknown>>} byKey
- * @param {Set<string>} duplicated
- * @param {(c: string, i: string, n: string) => string} keyOf
- * @param {Set<string>} expected - 期待セルのキー集合（呼び出し側と共有）
- * @param {string[]} problems
- * @returns {{cells: number, present: number, absent: number, unmeasured: number}}
+ * @param {CellIndex} index - 期待セルのキー集合（index.expected）は呼び出し側と共有する
+ * @returns {Tally}
  */
-function countProfiledComponent(c, cid, byKey, duplicated, keyOf, expected, problems) {
-  let cells = 0;
-  let present = 0;
-  let absent = 0;
-  let unmeasured = 0;
+function countProfiledComponent(c, cid, index) {
   const instances = isArray(c.instances) ? c.instances : [];
   if (instances.length === 0) {
-    problems.push(`部品 ${cid}: instances が空（列挙が起きていない）`);
+    index.problems.push(`部品 ${cid}: instances が空（列挙が起きていない）`);
     return { cells: 1, present: 0, absent: 0, unmeasured: 1 };
   }
-  const itemAxes = readItemAxes(c.items);
+  /** @type {ProfiledState} */
+  const state = {
+    cid,
+    index,
+    tally: { cells: 0, present: 0, absent: 0, unmeasured: 0 },
+    itemAxes: readItemAxes(c.items),
+    candidateKeys: new Set(),
+    seenInstances: new Set(),
+  };
+  instances.forEach((instance, i) => countProfiledInstance(instance, i, state));
+  checkEquivalenceMembership(c.equivalence_classes, state.candidateKeys, {
+    cid,
+    problems: index.problems,
+  });
+  return state.tally;
+}
+
+/**
+ * 撮影状態の要約が、いま読んでいる表と撮影条件についてのものかを指紋で確かめる。
+ * 要約は記録時点の入力についての主張でしかない。いま読んでいる表・撮影条件と結び付けないと、
+ * --write の後に表を書き換えても（項目に visual_states を足す、撮影状態を metadata から消す等）
+ * 古い要約がそのまま通る。指紋で「何を照合した要約か」を現在の入力へ固定する。
+ *
+ * @param {Record<string, unknown>} visual - conformance.visual_states
+ * @param {Record<string, unknown>} cov - 網羅表
+ * @param {string|null} captureFingerprintNow
+ * @returns {string[]}
+ */
+function visualFingerprintProblems(visual, cov, captureFingerprintNow) {
+  /** @type {string[]} */
+  const problems = [];
+  if (!nonEmptyString(visual.table_fingerprint)) {
+    problems.push(
+      "conformance.visual_states.table_fingerprint が無い（撮影状態の要約がどの表についてのものか確かめられない。coverage-expand.mjs を通し直す）",
+    );
+  } else if (String(visual.table_fingerprint) !== coverageFingerprint(cov)) {
+    problems.push(
+      "conformance.visual_states.table_fingerprint が網羅表の内容と一致しない（照合後に表が書き換えられた。coverage-expand.mjs を通し直す）",
+    );
+  }
+  if (!nonEmptyString(visual.capture_fingerprint)) {
+    problems.push(
+      "conformance.visual_states.capture_fingerprint が無い（撮影状態の要約がどの撮影条件についてのものか確かめられない。coverage-expand.mjs を --metadata 付きで通し直す）",
+    );
+  } else if (captureFingerprintNow === null) {
+    // 「いまの撮影条件を読めない」を「比較しない」として扱わない。そう扱うと、記録が正常でも、
+    // metadata から capture_conditions を消しただけで古い要約が収束を通る。
+    // checked: true は撮影条件と突き合わせたという主張なので、突き合わせる相手が読めない時点で成立しない。
+    problems.push(
+      "metadata.json の撮影条件（capture_conditions の pages / states / popup_inventory）を読めないので、conformance.visual_states.capture_fingerprint と突き合わせられない（checked: true の要約を照合せずに通さない）",
+    );
+  } else if (String(visual.capture_fingerprint) !== captureFingerprintNow) {
+    problems.push(
+      "conformance.visual_states.capture_fingerprint が metadata.json の撮影条件と一致しない（照合後に撮影条件が書き換えられた。coverage-expand.mjs を --metadata 付きで通し直す）",
+    );
+  }
+  return problems;
+}
+
+/**
+ * 照合済みの撮影状態の要約に、未決・撮影条件に無い状態が残っていないかと、指紋の一致を確かめる。
+ *
+ * @param {Record<string, unknown>} visual - conformance.visual_states
+ * @param {Record<string, unknown>} cov - 網羅表
+ * @param {string|null} captureFingerprintNow
+ * @returns {string[]}
+ */
+function visualStatesProblems(visual, cov, captureFingerprintNow) {
+  /** @type {string[]} */
+  const problems = [];
+  if (typeof visual.undecided !== "number" || visual.undecided !== 0) {
+    problems.push(
+      `conformance.visual_states.undecided が 0 ではない（撮る／撮れない理由が未決の撮影状態が残っている: ${String(visual.undecided)}）`,
+    );
+  }
+  const missing = isArray(visual.missing_states) ? visual.missing_states : null;
+  if (missing === null) {
+    problems.push("conformance.visual_states.missing_states が配列ではない");
+  } else if (missing.length > 0) {
+    problems.push(
+      `導いた撮影状態が撮影条件に無い（capture_conditions.states、opens-container は popup_inventory[].captured も）: ${missing.map(String).join(", ")}`,
+    );
+  }
+  problems.push(...visualFingerprintProblems(visual, cov, captureFingerprintNow));
+  return problems;
+}
+
+/**
+ * 撮影状態の要約が、照合済みで、信頼できる版の coverage-expand が書いたものかを確かめる。
+ * 確かめられなければ指摘を返す。
+ *
+ * @param {Record<string, unknown>} conf - conformance
+ * @param {Record<string, unknown>} visual - conformance.visual_states
+ * @returns {string|null}
+ */
+function visualStatesOriginProblem(conf, visual) {
+  if (visual.checked !== true) {
+    return "conformance.visual_states.checked が true ではない（--metadata 無しの実行では撮影状態を capture_conditions.states と照合していない）";
+  }
+  if (String(conf.tool) !== COVERAGE_EXPAND_TOOL) {
+    // 生成した側を確かめずに、要約を信頼しない（別のツールの記録や欠落を「照合済み」として扱わない）。
+    return `conformance.tool が ${COVERAGE_EXPAND_TOOL} ではない（撮影状態の要約を誰が書いたか確かめられない): ${nonEmptyString(conf.tool) ? String(conf.tool) : "（空）"}`;
+  }
+  if (
+    !nonEmptyString(conf.tool_version) ||
+    !Number.isInteger(Number(conf.tool_version)) ||
+    Number(conf.tool_version) < MIN_COVERAGE_EXPAND_VERSION
+  ) {
+    // 指紋が示すのは「その表を忠実に転記したか」だけである。誤った意味論で作られた要約も指紋は一致するので、
+    // 版を見ないと、スキルを上げても既知の欠陥を持つ要約が通り続ける。
+    // 欠落と数値でない値は「判定しない」として扱わず、失敗にする（検証できないことは、満たしたことにならない）。
+    return `conformance.visual_states は ${COVERAGE_EXPAND_TOOL} ${MIN_COVERAGE_EXPAND_VERSION} 以降の導出規則で作られている必要がある（記録: ${nonEmptyString(conf.tool_version) ? String(conf.tool_version) : "（空）"}）。15 以前は要求元をルール id でまとめて縮約してはいけない軸まで畳み、19 以前は操作を終えた後に残る見た目（after-operation）の候補を導かないか、途中の規則で導いていた。coverage-expand.mjs を --metadata 付きで通し直す`;
+  }
+  return null;
+}
+
+/**
+ * プロファイル適合の記録（conformance）を確かめる。展開ルールの解釈は parity-suite 側の coverage-expand.mjs が
+ * 行うため、ここではその実行結果だけを求める。無いときと ok: false のときは、合格にしない
+ * （declared: true は網羅表の取り決めに従うという宣言なので、記録の欠落は「旧成果物」ではなく未実行である）。
+ *
+ * @param {Record<string, unknown>} cov - 網羅表
+ * @param {string|null} captureFingerprintNow
+ * @returns {string[]}
+ */
+function conformanceProblems(cov, captureFingerprintNow) {
+  if (!isPlainObject(cov.conformance)) {
+    return [
+      "conformance が無い（parity-suite の coverage-expand.mjs を実行してプロファイル適合を記録する）",
+    ];
+  }
+  /** @type {string[]} */
+  const problems = [];
+  const conf = cov.conformance;
+  if (conf.ok !== true) {
+    problems.push(
+      `conformance.ok が true ではない（プロファイル適合が未達のまま。${nonEmptyString(conf.tool) ? String(conf.tool) : "coverage-expand"} の問題を解消する）`,
+    );
+  }
+  // 撮影状態の導出は --metadata を渡した実行でしか capture_conditions.states と突き合わせられない。
+  // 照合していない記録（checked: false・キーの欠落）を合格として扱うと、撮る状態が足りない機能が
+  // 「差 0 件」のまま収束する。差分ツールは撮った 2 枚しか比べないので、撮っていない状態は差 0 件と同じに見える。
+  const visual = isPlainObject(conf.visual_states) ? conf.visual_states : null;
+  if (visual === null) {
+    problems.push(
+      "conformance.visual_states が無い（parity-suite の coverage-expand.mjs を --metadata 付きで実行し、網羅表から導いた撮影状態を capture_conditions.states と突き合わせる）",
+    );
+    return problems;
+  }
+  const originProblem = visualStatesOriginProblem(conf, visual);
+  if (originProblem !== null) problems.push(originProblem);
+  else problems.push(...visualStatesProblems(visual, cov, captureFingerprintNow));
+  return problems;
+}
+
+/**
+ * セル行を 部品／項目／インスタンス で索引する。重複は先勝ちにせず記録する。
+ * キーは JSON 配列にして区切り文字を含む id でも衝突しないようにする。
+ *
+ * @param {unknown} rawRows - 網羅表の cells
+ * @param {string[]} problems
+ * @returns {CellIndex}
+ */
+function indexCellRows(rawRows, problems) {
+  const rows = isArray(rawRows) ? rawRows : [];
+  /** @type {Map<string, Record<string, unknown>>} */
+  const byKey = new Map();
   /** @type {Set<string>} */
-  const candidateKeys = new Set();
-  /** @type {Set<string>} */
-  const seenInstances = new Set();
+  const duplicated = new Set();
+  /**
+   * @param {string} c
+   * @param {string} i
+   * @param {string} n
+   */
+  const keyOf = (c, i, n) => JSON.stringify([c, i, n]);
+  rows.forEach((row, index) => {
+    if (!isPlainObject(row)) {
+      problems.push(`cells[${index}]: JSON オブジェクトでない要素がある`);
+      return;
+    }
+    const r = row;
+    if (!nonEmptyString(r.component) || !nonEmptyString(r.item) || !nonEmptyString(r.instance)) {
+      // どのセルの行か決まらない行は、索引に入れない（空欄がすべてのセルに当たる事故を防ぐ）。
+      problems.push(`cells[${index}]: component / item / instance のいずれかが空`);
+      return;
+    }
+    const key = keyOf(String(r.component), String(r.item), String(r.instance));
+    if (byKey.has(key)) duplicated.add(key);
+    else byKey.set(key, r);
+  });
+  return { byKey, duplicated, keyOf, expected: new Set(), problems };
+}
 
-  for (const [index, instance] of instances.entries()) {
-    if (!isPlainObject(instance)) {
-      problems.push(`部品 ${cid}: instances[${index}] が JSON オブジェクトではない`);
-      cells += 1;
-      unmeasured += 1;
-      continue;
-    }
-    const inst = instance;
-    if (!nonEmptyString(inst.id)) {
-      problems.push(
-        `部品 ${cid}: instances[${index}]: id が空（識別できないので未測定として数える）`,
-      );
-      cells += 1;
-      unmeasured += 1;
-      continue;
-    }
-    const iid = String(inst.id);
-    // インスタンス id は同値クラスの members（"<インスタンス id>/<候補 id>"）の前半になる。
-    // 区切り文字を含むと前半と後半を切り分けられず、所属検査が別の組み合わせと突き合う。
-    if (iid.includes(ID_SEPARATOR)) {
-      problems.push(
-        `部品 ${cid}: インスタンス id ${iid} に "${ID_SEPARATOR}" を含む（同値クラスの members が切り分けられない）`,
-      );
-      cells += 1;
-      unmeasured += 1;
-      continue;
-    }
-    if (seenInstances.has(iid)) {
-      problems.push(`部品 ${cid}: インスタンス id ${iid} が重複している（先勝ちにしない）`);
-      cells += 1;
-      unmeasured += 1;
-      continue;
-    }
-    seenInstances.add(iid);
-    const label = `部品 ${cid} / インスタンス ${iid}`;
-
-    // 列挙が未完了なら候補は信用できない。候補ゼロで素通りさせず 1 件の未測定として数える。
-    const enumeration = isPlainObject(inst.enumeration) ? inst.enumeration : null;
-    if (!enumeration) {
-      problems.push(`${label}: enumeration が無い（候補の出所が残らない）`);
-      cells += 1;
-      unmeasured += 1;
-      continue;
-    }
-    if (enumeration.complete !== true) {
-      problems.push(
-        `${label}: enumeration.complete が true ではない（列挙が未完了のまま確認済みにしない）`,
-      );
-      cells += 1;
-      unmeasured += 1;
-      continue;
-    }
-    // 読み切れたのに理由が残っている記録は、同じ表の中で「完全」と「未完了」を同時に主張する。
-    // 集合の出所と同じように失敗にする（記録する側の readEnumeration も同じ関数で見る）。
-    const staleProblems = staleIncompleteReasonProblems(enumeration, label);
-    if (staleProblems.length > 0) {
-      problems.push(...staleProblems);
-      cells += 1;
-      unmeasured += 1;
-      continue;
-    }
-    if (!isPlainObject(enumeration.source)) {
-      problems.push(
-        `${label}: enumeration.source が無い（どの版のどこから何を条件に抜いたか残らない）`,
-      );
-      cells += 1;
-      unmeasured += 1;
-      continue;
-    }
-    // 出所の語彙と「一次情報源を使わなかった理由」は、記録する側（coverage-expand.mjs）と同じ関数で見る。
-    // 出所不明の kind や、受領ソースが読めるのに実 UI の歩行だけで列挙した記録を通さない。
-    const enumerationProblems = enumerationSourceProblems(enumeration, label);
-    if (enumerationProblems.length > 0) {
-      problems.push(...enumerationProblems);
-      cells += 1;
-      unmeasured += 1;
-      continue;
-    }
-
-    const candidates = (isArray(inst.candidates) ? inst.candidates : [])
-      .filter(nonEmptyString)
-      .map(String);
-    if (candidates.length === 0) {
-      problems.push(`${label}: candidates が空（プロファイルからの展開が記録されていない）`);
-      cells += 1;
-      unmeasured += 1;
-      continue;
-    }
-
-    // 「40 列を列挙したが候補は代表 1 列だけ」を落とす。プロファイルは読まないので、
-    // 候補に対応する項目の candidate.axes から**軸ごと**の値集合を作って突き合わせる。
-    /** @type {Map<string, Set<string>>} */
-    const valuesByAxis = new Map();
-    let axesResolvable = true;
-    for (const candidateId of candidates) {
-      const axes = itemAxes.get(candidateId);
-      if (axes === undefined) {
-        // 軸の値を取得できない候補があると、軸ごとの突き合わせが成り立たない。和集合として扱わず、未測定にする。
-        problems.push(
-          `${label}: 候補 ${candidateId} に対応する項目の candidate.axes が無い（軸ごとの突き合わせができない）`,
-        );
-        cells += 1;
-        unmeasured += 1;
-        axesResolvable = false;
-        continue;
-      }
-      for (const [axisId, value] of Object.entries(axes)) {
-        let values = valuesByAxis.get(axisId);
-        if (values === undefined) {
-          values = new Set();
-          valuesByAxis.set(axisId, values);
-        }
-        values.add(value);
-      }
-    }
-    const elements = isPlainObject(enumeration.elements) ? enumeration.elements : {};
-    const justified = readJustifiedElementAbsences(enumeration.justified_absences);
-    for (const [axisId, list] of Object.entries(elements)) {
-      if (!isArray(list)) {
-        problems.push(`${label}: enumeration.elements.${axisId} が配列ではない`);
-        continue;
-      }
-      if (!axesResolvable) continue; // 軸値が欠けている状態での判定は誤検出になる（上で未測定に数えている）
-      const seen = valuesByAxis.get(axisId) ?? new Set();
-      for (const el of list) {
-        if (!isPlainObject(el) || !nonEmptyString(el.id)) continue;
-        const elementId = String(el.id);
-        if (seen.has(elementId)) continue;
-        // 「その要素はどの候補にもならない」と主張するには、根拠が要る（根拠を書けば先へ進めるようにする）。
-        if (justified.has(`${axisId}${ID_SEPARATOR}${elementId}`)) continue;
-        problems.push(
-          `${label}: 列挙した ${axisId} の要素 ${elementId} がどの候補にも現れない（代表だけを確認していないか。意図的なら enumeration.justified_absences に根拠を残す）`,
-        );
-        cells += 1;
-        unmeasured += 1;
-      }
-    }
-
-    /** @type {Set<string>} */
-    const seenCandidates = new Set();
-    for (const candidateId of candidates) {
-      if (seenCandidates.has(candidateId)) {
-        problems.push(`${label}: 候補 ${candidateId} が重複している（期待セルを二重に数えない）`);
-        continue;
-      }
-      seenCandidates.add(candidateId);
-      candidateKeys.add(`${iid}${ID_SEPARATOR}${candidateId}`);
-      const key = keyOf(cid, candidateId, iid);
-      expected.add(key);
-      cells += 1;
-      const graded = gradeCell(
-        byKey.get(key),
-        duplicated.has(key),
-        `${label} / ${candidateId}`,
-        problems,
-        inst.applicable_states,
-      );
-      if (graded === "present") present += 1;
-      else if (graded === "absent") absent += 1;
-      else unmeasured += 1;
+/**
+ * id からインスタンスを引く索引を作る。collectIds が弾いた要素（id が空・重複）は、索引にも入れない。
+ * String(undefined) が "undefined" と衝突すると、文字列の id "undefined" を持つ正規のインスタンスのセルを
+ * id の欠けた要素から読み、present と absent の集計まで誤る。
+ * あわせて、項目 × インスタンスのループの中の線形探索（O(items × instances²)）も避ける。
+ *
+ * @param {unknown[]} instances
+ * @returns {Map<string, Record<string, unknown>>}
+ */
+function indexInstancesById(instances) {
+  /** @type {Map<string, Record<string, unknown>>} */
+  const instanceById = new Map();
+  for (const entry of instances) {
+    if (!isPlainObject(entry)) continue;
+    const raw = entry.id;
+    if (!nonEmptyString(raw)) continue;
+    const id = String(raw);
+    // collectIds は重複 id の 2 件目以降を弾き 1 件目を残すため、索引も先勝ちで揃える。
+    if (!instanceById.has(id)) {
+      instanceById.set(id, entry);
     }
   }
+  return instanceById;
+}
 
-  checkEquivalenceMembership(c.equivalence_classes, candidateKeys, cid, problems);
-  return { cells, present, absent, unmeasured };
+/**
+ * プロファイルを宣言しない（profile: null の）部品を、「項目 × インスタンス」の期待セルで数え直す。
+ *
+ * @param {Record<string, unknown>} c - 部品
+ * @param {string} cid - 部品 id
+ * @param {{ index: CellIndex, tally: Tally }} ctx
+ */
+function countGenericComponent(c, cid, ctx) {
+  const { index, tally } = ctx;
+  const { problems } = index;
+  const items = isArray(c.items) ? c.items : [];
+  const instances = isArray(c.instances) ? c.instances : [];
+  if (!nonEmptyString(c.profile_absent_reason)) {
+    // 「適合プロファイルが無い」を主張するには根拠が要る（未検証として残すため）。
+    problems.push(
+      `部品 ${cid}: profile: null なのに profile_absent_reason が空（未検証の根拠が残らない）`,
+    );
+  }
+  if (items.length === 0 || instances.length === 0) {
+    // 空の列挙は期待セル 0、つまり未測定 0 と誤って判定されるので、1 件の未測定として数える。
+    problems.push(`部品 ${cid}: items または instances が空（列挙が起きていない）`);
+    addUnmeasured(tally, 1);
+    return;
+  }
+  const { ids: itemIds, rejected: itemRejected } = collectIds(
+    items,
+    `部品 ${cid} の items`,
+    problems,
+  );
+  const { ids: instanceIds, rejected: instanceRejected } = collectIds(
+    instances,
+    `部品 ${cid} の instances`,
+    problems,
+  );
+  // 期待セル数は定義どおり「項目数 × インスタンス数」で数える。id が空・重複の要素も項目／インスタンスとしては
+  // 実在するので、その要素が関わるセルは全て期待セルであり、識別できない以上すべて未測定になる
+  // （rejected を 1 セルとして数えると、件数が定義より小さく出て収束レポートが過小になる）。
+  const itemTotal = itemIds.length + itemRejected;
+  const instanceTotal = instanceIds.length + instanceRejected;
+  const instanceById = indexInstancesById(instances);
+  tally.cells += itemTotal * instanceTotal;
+  tally.unmeasured += itemTotal * instanceTotal - itemIds.length * instanceIds.length;
+  for (const iid of itemIds) {
+    for (const nid of instanceIds) {
+      const key = index.keyOf(cid, iid, nid);
+      index.expected.add(key);
+      const instance = instanceById.get(nid);
+      addGraded(
+        tally,
+        gradeIndexedCell(index, key, {
+          label: key,
+          stateManifest: instance === undefined ? undefined : instance.applicable_states,
+        }),
+      );
+    }
+  }
+}
+
+/**
+ * 部品 1 件を数え直す。
+ *
+ * @param {unknown} component
+ * @param {number} componentIndex
+ * @param {{ index: CellIndex, tally: Tally, seenComponents: Set<string> }} ctx
+ */
+function countComponent(component, componentIndex, ctx) {
+  const { tally } = ctx;
+  const { problems } = ctx.index;
+  // object でない要素は欄を持たないので、空のオブジェクトと同じに読む（id が空として未測定に数える）。
+  const c = isPlainObject(component) ? component : {};
+  const declaredCells = declaredCellsOf(c);
+  if (!nonEmptyString(c.id)) {
+    problems.push(`components[${componentIndex}]: id が空（識別できないので未測定として数える）`);
+    addUnmeasured(tally, declaredCells);
+    return;
+  }
+  const cid = String(c.id);
+  if (ctx.seenComponents.has(cid)) {
+    problems.push(`components[${componentIndex}]: id ${cid} が重複している（先勝ちにしない）`);
+    addUnmeasured(tally, declaredCells);
+    return;
+  }
+  ctx.seenComponents.add(cid);
+
+  // インスタンスの集合（この部品をどの画面に何個置いたか）の出所と完全性。抜けたインスタンスも
+  // 期待セルに現れないので、行の側ではなく集合の側で宣言させる。
+  // あわせて、項目の集合の出所（components[].source）の語彙とキーの欠落も見る。報告しないと、
+  // 語彙の外の値でも、キーごと無くても通り、「書けたこと」が機能している証拠にならない。
+  const setProblems = [
+    ...setInventoryProblems(c.instance_inventory, `部品 ${cid} の instance_inventory`),
+    ...itemSourceProblems(c.source, `部品 ${cid}`),
+  ];
+  if (setProblems.length > 0) {
+    problems.push(...setProblems);
+    addUnmeasured(tally, 1);
+  }
+
+  countByProfile(c, cid, ctx);
+}
+
+/**
+ * 部品の期待セル数を「項目数 × インスタンス数」で返す。部品を識別できなくても使う。
+ * 部品側の id が空・重複でもセルは実在するので、1 セルに丸めるとレポート値が定義より小さく出る
+ * （列挙が空のときだけ 0 になってしまうので、未測定を数えるための下限として 1 を取る）。
+ *
+ * @param {Record<string, unknown>} c - 部品
+ * @returns {number}
+ */
+function declaredCellsOf(c) {
+  const items = isArray(c.items) ? c.items : [];
+  const instances = isArray(c.instances) ? c.instances : [];
+  return Math.max(items.length * instances.length, 1);
+}
+
+/**
+ * 識別できた部品を、profile の宣言に従って数え直す。
+ *
+ * @param {Record<string, unknown>} c - 部品
+ * @param {string} cid - 部品 id
+ * @param {{ index: CellIndex, tally: Tally }} ctx
+ */
+function countByProfile(c, cid, ctx) {
+  const { index, tally } = ctx;
+  const { problems } = index;
+  const declaredCells = declaredCellsOf(c);
+  // profile キーの欠落を「汎用」として扱わない。プロファイル無しを選ぶには理由が要る
+  // （parity-suite の references/coverage-profiles.md「プロファイルの選択」で定義する）。
+  if (!("profile" in c)) {
+    problems.push(
+      `部品 ${cid}: profile キーが無い（適合プロファイルが無いなら profile: null ＋ profile_absent_reason を書く。暗黙の汎用扱いにしない）`,
+    );
+    addUnmeasured(tally, declaredCells);
+    return;
+  }
+  if (c.profile === null) {
+    countGenericComponent(c, cid, ctx);
+    return;
+  }
+  if (!nonEmptyString(c.profile)) {
+    problems.push(`部品 ${cid}: profile が空でない文字列でも null でもない`);
+    addUnmeasured(tally, declaredCells);
+    return;
+  }
+  const counted = countProfiledComponent(c, cid, index);
+  tally.cells += counted.cells;
+  tally.present += counted.present;
+  tally.absent += counted.absent;
+  tally.unmeasured += counted.unmeasured;
 }
 
 /**
@@ -1086,390 +1652,167 @@ export function countCoverage(coverage, slug, captureFingerprintNow = null) {
   if (components.length === 0) {
     problems.push("components が空（declared: true なら 1 つ以上の部品が要る）");
   }
+  problems.push(...conformanceProblems(cov, captureFingerprintNow));
 
-  // プロファイル適合の記録。展開ルールの解釈は parity-suite 側の coverage-expand.mjs が行うため、
-  // ここではその実行結果だけを求める。無いときと ok: false のときは、合格にしない
-  // （declared: true は網羅表の取り決めに従うという宣言なので、記録の欠落は「旧成果物」ではなく未実行である）。
-  if (!isPlainObject(cov.conformance)) {
-    problems.push(
-      "conformance が無い（parity-suite の coverage-expand.mjs を実行してプロファイル適合を記録する）",
-    );
-  } else {
-    const conf = cov.conformance;
-    if (conf.ok !== true) {
-      problems.push(
-        `conformance.ok が true ではない（プロファイル適合が未達のまま。${nonEmptyString(conf.tool) ? String(conf.tool) : "coverage-expand"} の問題を解消する）`,
-      );
-    }
-    // 撮影状態の導出は --metadata を渡した実行でしか capture_conditions.states と突き合わせられない。
-    // 照合していない記録（checked: false・キーの欠落）を合格として扱うと、撮る状態が足りない機能が
-    // 「差 0 件」のまま収束する。差分ツールは撮った 2 枚しか比べないので、撮っていない状態は差 0 件と同じに見える。
-    const visual = isPlainObject(conf.visual_states) ? conf.visual_states : null;
-    if (!visual) {
-      problems.push(
-        "conformance.visual_states が無い（parity-suite の coverage-expand.mjs を --metadata 付きで実行し、網羅表から導いた撮影状態を capture_conditions.states と突き合わせる）",
-      );
-    } else if (visual.checked !== true) {
-      problems.push(
-        "conformance.visual_states.checked が true ではない（--metadata 無しの実行では撮影状態を capture_conditions.states と照合していない）",
-      );
-    } else if (String(conf.tool) !== COVERAGE_EXPAND_TOOL) {
-      // 生成した側を確かめずに、要約を信頼しない（別のツールの記録や欠落を「照合済み」として扱わない）。
-      problems.push(
-        `conformance.tool が ${COVERAGE_EXPAND_TOOL} ではない（撮影状態の要約を誰が書いたか確かめられない): ${nonEmptyString(conf.tool) ? String(conf.tool) : "（空）"}`,
-      );
-    } else if (
-      !nonEmptyString(conf.tool_version) ||
-      !Number.isInteger(Number(conf.tool_version)) ||
-      Number(conf.tool_version) < MIN_COVERAGE_EXPAND_VERSION
-    ) {
-      // 指紋が示すのは「その表を忠実に転記したか」だけである。誤った意味論で作られた要約も指紋は一致するので、
-      // 版を見ないと、スキルを上げても既知の欠陥を持つ要約が通り続ける。
-      // 欠落と数値でない値は「判定しない」として扱わず、失敗にする（検証できないことは、満たしたことにならない）。
-      problems.push(
-        `conformance.visual_states は ${COVERAGE_EXPAND_TOOL} ${MIN_COVERAGE_EXPAND_VERSION} 以降の導出規則で作られている必要がある（記録: ${nonEmptyString(conf.tool_version) ? String(conf.tool_version) : "（空）"}）。15 以前は要求元をルール id でまとめて縮約してはいけない軸まで畳み、19 以前は操作を終えた後に残る見た目（after-operation）の候補を導かないか、途中の規則で導いていた。coverage-expand.mjs を --metadata 付きで通し直す`,
-      );
-    } else {
-      if (typeof visual.undecided !== "number" || visual.undecided !== 0) {
-        problems.push(
-          `conformance.visual_states.undecided が 0 ではない（撮る／撮れない理由が未決の撮影状態が残っている: ${String(visual.undecided)}）`,
-        );
-      }
-      const missing = isArray(visual.missing_states) ? visual.missing_states : null;
-      if (missing === null) {
-        problems.push("conformance.visual_states.missing_states が配列ではない");
-      } else if (missing.length > 0) {
-        problems.push(
-          `導いた撮影状態が撮影条件に無い（capture_conditions.states、opens-container は popup_inventory[].captured も）: ${missing.map(String).join(", ")}`,
-        );
-      }
-      // 要約は記録時点の入力についての主張でしかない。いま読んでいる表・撮影条件と結び付けないと、
-      // --write の後に表を書き換えても（項目に visual_states を足す、撮影状態を metadata から消す等）
-      // 古い要約がそのまま通る。指紋で「何を照合した要約か」を現在の入力へ固定する。
-      if (!nonEmptyString(visual.table_fingerprint)) {
-        problems.push(
-          "conformance.visual_states.table_fingerprint が無い（撮影状態の要約がどの表についてのものか確かめられない。coverage-expand.mjs を通し直す）",
-        );
-      } else if (String(visual.table_fingerprint) !== coverageFingerprint(cov)) {
-        problems.push(
-          "conformance.visual_states.table_fingerprint が網羅表の内容と一致しない（照合後に表が書き換えられた。coverage-expand.mjs を通し直す）",
-        );
-      }
-      if (!nonEmptyString(visual.capture_fingerprint)) {
-        problems.push(
-          "conformance.visual_states.capture_fingerprint が無い（撮影状態の要約がどの撮影条件についてのものか確かめられない。coverage-expand.mjs を --metadata 付きで通し直す）",
-        );
-      } else if (captureFingerprintNow === null) {
-        // 「いまの撮影条件を読めない」を「比較しない」として扱わない。そう扱うと、記録が正常でも、
-        // metadata から capture_conditions を消しただけで古い要約が収束を通る。
-        // checked: true は撮影条件と突き合わせたという主張なので、突き合わせる相手が読めない時点で成立しない。
-        problems.push(
-          "metadata.json の撮影条件（capture_conditions の pages / states / popup_inventory）を読めないので、conformance.visual_states.capture_fingerprint と突き合わせられない（checked: true の要約を照合せずに通さない）",
-        );
-      } else if (String(visual.capture_fingerprint) !== captureFingerprintNow) {
-        problems.push(
-          "conformance.visual_states.capture_fingerprint が metadata.json の撮影条件と一致しない（照合後に撮影条件が書き換えられた。coverage-expand.mjs を --metadata 付きで通し直す）",
-        );
-      }
-    }
-  }
-
-  // セル行を 部品／項目／インスタンス で索引する。重複は先勝ちにせず記録する。
-  // キーは JSON 配列にして区切り文字を含む id でも衝突しないようにする。
-  const rows = isArray(cov.cells) ? cov.cells : [];
-  /** @type {Map<string, Record<string, unknown>>} */
-  const byKey = new Map();
-  /** @type {Set<string>} */
-  const duplicated = new Set();
-  /**
-   * @param {string} c
-   * @param {string} i
-   * @param {string} n
-   */
-  const keyOf = (c, i, n) => JSON.stringify([c, i, n]);
-  rows.forEach((row, index) => {
-    if (!isPlainObject(row)) {
-      problems.push(`cells[${index}]: JSON オブジェクトでない要素がある`);
-      return;
-    }
-    const r = row;
-    if (!nonEmptyString(r.component) || !nonEmptyString(r.item) || !nonEmptyString(r.instance)) {
-      // どのセルの行か決まらない行は、索引に入れない（空欄がすべてのセルに当たる事故を防ぐ）。
-      problems.push(`cells[${index}]: component / item / instance のいずれかが空`);
-      return;
-    }
-    const key = keyOf(String(r.component), String(r.item), String(r.instance));
-    if (byKey.has(key)) duplicated.add(key);
-    else byKey.set(key, r);
-  });
-
-  let cells = 0;
-  let present = 0;
-  let absent = 0;
-  let unmeasured = 0;
-  /** @type {Set<string>} */
-  const expected = new Set();
+  const index = indexCellRows(cov.cells, problems);
+  /** @type {Tally} */
+  const tally = { cells: 0, present: 0, absent: 0, unmeasured: 0 };
 
   // 部品の集合の出所と完全性。列挙しなかった部品は期待セルにも現れないので、宣言が無いと
   // 「載せなかった部品」が未測定 0 のまま収束する（測り忘れと「本当に無い」が同じに見える）。
   const inventoryProblems = setInventoryProblems(cov.component_inventory, "component_inventory");
   if (inventoryProblems.length > 0) {
     problems.push(...inventoryProblems);
-    cells += 1;
-    unmeasured += 1;
+    addUnmeasured(tally, 1);
   }
 
-  /** @type {Set<string>} */
-  const seenComponents = new Set();
+  const ctx = { index, tally, seenComponents: new Set() };
+  components.forEach((component, componentIndex) => countComponent(component, componentIndex, ctx));
 
-  for (const [componentIndex, component] of components.entries()) {
-    // object でない要素は欄を持たないので、空のオブジェクトと同じに読む（id が空として未測定に数える）。
-    const c = isPlainObject(component) ? component : {};
-    const items = isArray(c.items) ? c.items : [];
-    const instances = isArray(c.instances) ? c.instances : [];
-    // 期待セル数は部品を識別できるかに依らず「項目数 × インスタンス数」で数える。部品側の id が
-    // 空・重複でもセルは実在するので、1 セルに丸めるとレポート値が定義より小さく出る（列挙が
-    // 空のときだけ 0 になってしまうので、未測定を数えるための下限として 1 を取る）。
-    const declaredCells = Math.max(items.length * instances.length, 1);
-    if (!nonEmptyString(c.id)) {
-      problems.push(`components[${componentIndex}]: id が空（識別できないので未測定として数える）`);
-      cells += declaredCells;
-      unmeasured += declaredCells;
-      continue;
-    }
-    const cid = String(c.id);
-    if (seenComponents.has(cid)) {
-      problems.push(`components[${componentIndex}]: id ${cid} が重複している（先勝ちにしない）`);
-      cells += declaredCells;
-      unmeasured += declaredCells;
-      continue;
-    }
-    seenComponents.add(cid);
-
-    // インスタンスの集合（この部品をどの画面に何個置いたか）の出所と完全性。抜けたインスタンスも
-    // 期待セルに現れないので、行の側ではなく集合の側で宣言させる。
-    // あわせて、項目の集合の出所（components[].source）の語彙とキーの欠落も見る。報告しないと、
-    // 語彙の外の値でも、キーごと無くても通り、「書けたこと」が機能している証拠にならない。
-    const setProblems = [
-      ...setInventoryProblems(c.instance_inventory, `部品 ${cid} の instance_inventory`),
-      ...itemSourceProblems(c.source, `部品 ${cid}`),
-    ];
-    if (setProblems.length > 0) {
-      problems.push(...setProblems);
-      cells += 1;
-      unmeasured += 1;
-    }
-
-    // profile キーの欠落を「汎用」として扱わない。プロファイル無しを選ぶには理由が要る
-    // （parity-suite の references/coverage-profiles.md「プロファイルの選択」で定義する）。
-    if (!("profile" in c)) {
-      problems.push(
-        `部品 ${cid}: profile キーが無い（適合プロファイルが無いなら profile: null ＋ profile_absent_reason を書く。暗黙の汎用扱いにしない）`,
-      );
-      cells += declaredCells;
-      unmeasured += declaredCells;
-      continue;
-    }
-    if (c.profile !== null) {
-      if (!nonEmptyString(c.profile)) {
-        problems.push(`部品 ${cid}: profile が空でない文字列でも null でもない`);
-        cells += declaredCells;
-        unmeasured += declaredCells;
-        continue;
-      }
-      const counted = countProfiledComponent(c, cid, byKey, duplicated, keyOf, expected, problems);
-      cells += counted.cells;
-      present += counted.present;
-      absent += counted.absent;
-      unmeasured += counted.unmeasured;
-      continue;
-    }
-    if (!nonEmptyString(c.profile_absent_reason)) {
-      // 「適合プロファイルが無い」を主張するには根拠が要る（未検証として残すため）。
-      problems.push(
-        `部品 ${cid}: profile: null なのに profile_absent_reason が空（未検証の根拠が残らない）`,
-      );
-    }
-
-    if (items.length === 0 || instances.length === 0) {
-      // 空の列挙は期待セル 0、つまり未測定 0 と誤って判定されるので、1 件の未測定として数える。
-      problems.push(`部品 ${cid}: items または instances が空（列挙が起きていない）`);
-      cells += 1;
-      unmeasured += 1;
-      continue;
-    }
-    const { ids: itemIds, rejected: itemRejected } = collectIds(
-      items,
-      `部品 ${cid} の items`,
-      problems,
-    );
-    const { ids: instanceIds, rejected: instanceRejected } = collectIds(
-      instances,
-      `部品 ${cid} の instances`,
-      problems,
-    );
-    // 期待セル数は定義どおり「項目数 × インスタンス数」で数える。id が空・重複の要素も項目／インスタンスとしては
-    // 実在するので、その要素が関わるセルは全て期待セルであり、識別できない以上すべて未測定になる
-    // （rejected を 1 セルとして数えると、件数が定義より小さく出て収束レポートが過小になる）。
-    const itemTotal = itemIds.length + itemRejected;
-    const instanceTotal = instanceIds.length + instanceRejected;
-    // id からインスタンスを引く索引。collectIds が弾いた要素（id が空・重複）は、索引にも入れない。
-    // String(undefined) が "undefined" と衝突すると、文字列の id "undefined" を持つ正規のインスタンスのセルを
-    // id の欠けた要素から読み、present と absent の集計まで誤る。
-    // あわせて、項目 × インスタンスのループの中の線形探索（O(items × instances²)）も避ける。
-    /** @type {Map<string, Record<string, unknown>>} */
-    const instanceById = new Map();
-    for (const entry of instances) {
-      if (!isPlainObject(entry)) continue;
-      const raw = entry.id;
-      if (!nonEmptyString(raw)) continue;
-      const id = String(raw);
-      // collectIds は重複 id の 2 件目以降を弾き 1 件目を残すため、索引も先勝ちで揃える。
-      if (!instanceById.has(id)) {
-        instanceById.set(id, entry);
-      }
-    }
-    cells += itemTotal * instanceTotal;
-    unmeasured += itemTotal * instanceTotal - itemIds.length * instanceIds.length;
-    for (const iid of itemIds) {
-      for (const nid of instanceIds) {
-        const key = keyOf(cid, iid, nid);
-        expected.add(key);
-        // 採点の規則は、プロファイルを使う処理と共有する（片方だけを緩めない）。
-        const instance = instanceById.get(nid);
-        const graded = gradeCell(
-          byKey.get(key),
-          duplicated.has(key),
-          key,
-          problems,
-          instance === undefined ? undefined : instance.applicable_states,
-        );
-        if (graded === "present") present += 1;
-        else if (graded === "absent") absent += 1;
-        else unmeasured += 1;
-      }
-    }
-  }
-
-  for (const key of byKey.keys()) {
-    if (!expected.has(key)) {
+  for (const key of index.byKey.keys()) {
+    if (!index.expected.has(key)) {
       problems.push(`セル ${key}: components に無い 部品／項目／インスタンス を参照している`);
     }
   }
 
-  return { cells, present, absent, unmeasured, problems };
+  return { ...tally, problems };
 }
 
+const USAGE =
+  "usage: node coverage-check.mjs --metadata <metadata.json> [--coverage <component-coverage.json>]\n";
+
 /**
- * CLI 本体。
- * `node coverage-check.mjs --metadata <.replace/parity/<slug>/metadata.json> [--coverage <path>]`
- * 判定結果を JSON で標準出力へ、問題を stderr へ出す。
- * 終了コード: 0 ＝ 収束条件を満たす（判定しない場合を含む）／1 ＝ 未測定・不整合が残る／2 ＝ 使い方の誤り。
+ * 引数を読む。使い方の誤りなら stderr に書いて null を返す。
  *
- * @param {string[]} argv - process.argv.slice(2)
- * @param {{readFile?: (p: string) => string}} [deps]
- * @returns {number}
+ * @param {string[]} argv
+ * @returns {Record<string, string>|null}
  */
-export function main(argv, deps = {}) {
-  const readFile = deps.readFile ?? ((p) => readFileSync(p, "utf8"));
-  const usage =
-    "usage: node coverage-check.mjs --metadata <metadata.json> [--coverage <component-coverage.json>]\n";
+function parseArgs(argv) {
   /** @type {Record<string, string>} */
   const opts = {};
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
-    if (a === "--metadata" || a === "--coverage") {
-      const v = argv[i + 1];
-      if (v === undefined) {
-        process.stderr.write(usage);
-        return 2;
-      }
-      if (opts[a.slice(2)] !== undefined) {
-        // 同じフラグを重ねて指定したときに、警告なしに後のものを採らない（どちらを読んだかが出力から分からなくなる）。
-        process.stderr.write(`error: ${a} が複数回指定されている\n${usage}`);
-        return 2;
-      }
-      opts[a.slice(2)] = v;
-      i += 1;
-      continue;
+    if (a !== "--metadata" && a !== "--coverage") {
+      process.stderr.write(`unknown argument: ${a}\n${USAGE}`);
+      return null;
     }
-    process.stderr.write(`unknown argument: ${a}\n${usage}`);
-    return 2;
+    const v = argv[i + 1];
+    if (v === undefined) {
+      process.stderr.write(USAGE);
+      return null;
+    }
+    if (opts[a.slice(2)] !== undefined) {
+      // 同じフラグを重ねて指定したときに、警告なしに後のものを採らない（どちらを読んだかが出力から分からなくなる）。
+      process.stderr.write(`error: ${a} が複数回指定されている\n${USAGE}`);
+      return null;
+    }
+    opts[a.slice(2)] = v;
+    i += 1;
   }
   if (!opts.metadata) {
-    process.stderr.write(usage);
-    return 2;
+    process.stderr.write(USAGE);
+    return null;
   }
+  return opts;
+}
 
-  /** @type {unknown} */
-  let metadata;
-  try {
-    metadata = JSON.parse(readFile(opts.metadata));
-  } catch (e) {
-    process.stderr.write(`error: metadata.json を読めない: ${opts.metadata}: ${String(e)}\n`);
-    return 2;
-  }
-  const slug =
-    isPlainObject(metadata) && nonEmptyString(metadata.slug) ? String(metadata.slug) : null;
+/**
+ * 判定の結果を JSON で標準出力へ書く。
+ *
+ * @param {Record<string, unknown>} fields
+ */
+function writeResult(fields) {
+  process.stdout.write(
+    `${JSON.stringify({ tool: "coverage-check", version: VERSION, ...fields }, null, 2)}\n`,
+  );
+}
 
-  const decl = readDeclaration(metadata);
+/**
+ * 網羅表を判定に入れない宣言のときの出力を書き、終了コードを返す。判定に入れるなら null を返す。
+ *
+ * @param {ReturnType<typeof readDeclaration>} decl
+ * @param {Record<string, string>} opts
+ * @returns {number|null}
+ */
+function reportUnjudged(decl, opts) {
   if (decl.malformed) {
     // 型の誤りは後方互換（judged: false → exit 0）として扱わず、使い方の誤りとして失敗にする。
-    process.stdout.write(
-      `${JSON.stringify({ tool: "coverage-check", version: VERSION, judged: false, malformed: true, reason: decl.reason, source: null, cells: 0, unmeasured: null }, null, 2)}\n`,
-    );
+    writeResult({
+      judged: false,
+      malformed: true,
+      reason: decl.reason,
+      source: null,
+      cells: 0,
+      unmeasured: null,
+    });
     process.stderr.write(`error: ${decl.reason} — 旧成果物として扱わない（${opts.metadata}）\n`);
     return 2;
   }
-  if (!decl.judged) {
-    // 判定に入れないことを出力に残す（警告なしに合格にしない）。
-    process.stdout.write(
-      `${JSON.stringify({ tool: "coverage-check", version: VERSION, judged: false, reason: decl.reason, source: null, cells: 0, unmeasured: 0 }, null, 2)}\n`,
-    );
+  if (decl.judged) return null;
+  // 判定に入れないことを出力に残す（警告なしに合格にしない）。
+  writeResult({ judged: false, reason: decl.reason, source: null, cells: 0, unmeasured: 0 });
+  process.stderr.write(
+    `note: 網羅表を判定に入れない（${decl.reason}）。diff-metadata.json と diff.md の未検証領域へ残す\n`,
+  );
+  if (opts.coverage) {
+    // 明示的に渡された網羅表を、警告なしに読み飛ばさない（何もせずに終わらない）。
     process.stderr.write(
-      `note: 網羅表を判定に入れない（${decl.reason}）。diff-metadata.json と diff.md の未検証領域へ残す\n`,
+      `note: --coverage ${opts.coverage} は読んでいない（宣言が無い／declared: false のため）。判定に入れるなら現側 metadata.json に component_coverage.declared: true を書くのは parity-suite の仕事\n`,
     );
-    if (opts.coverage) {
-      // 明示的に渡された網羅表を、警告なしに読み飛ばさない（何もせずに終わらない）。
-      process.stderr.write(
-        `note: --coverage ${opts.coverage} は読んでいない（宣言が無い／declared: false のため）。判定に入れるなら現側 metadata.json に component_coverage.declared: true を書くのは parity-suite の仕事\n`,
-      );
-    }
-    return 0;
   }
+  return 0;
+}
 
-  const source = opts.coverage ?? decl.path;
+/**
+ * declared: true の網羅表を読む。読めなければ判定した記録を出力して、終了コード 1 を返す（合格にしない）。
+ *
+ * @param {string|null|undefined} source
+ * @param {(p: string) => string} readFile
+ * @returns {{ exit: number } | { coverage: unknown, source: string }}
+ */
+function loadCoverage(source, readFile) {
   if (!source) {
     // declared: true なら、判定した記録を必ず残す（ほかの場合と同じ形で出力する）。
     const problem =
       "declared: true なのに component_coverage.path が無く --coverage も渡されていない";
-    process.stdout.write(
-      `${JSON.stringify({ tool: "coverage-check", version: VERSION, judged: true, reason: null, source: null, cells: 0, unmeasured: null, problems: [problem] }, null, 2)}\n`,
-    );
+    writeResult({
+      judged: true,
+      reason: null,
+      source: null,
+      cells: 0,
+      unmeasured: null,
+      problems: [problem],
+    });
     process.stderr.write(`error: ${problem}\n`);
-    return 1;
+    return { exit: 1 };
   }
-  /** @type {unknown} */
-  let coverage;
   try {
-    coverage = JSON.parse(readFile(source));
+    return { coverage: JSON.parse(readFile(source)), source };
   } catch (e) {
     // declared: true なのに読めないときは、合格にしない。
-    process.stdout.write(
-      `${JSON.stringify({ tool: "coverage-check", version: VERSION, judged: true, reason: null, source, cells: 0, unmeasured: null, problems: [`網羅表を読めない: ${String(e)}`] }, null, 2)}\n`,
-    );
+    writeResult({
+      judged: true,
+      reason: null,
+      source,
+      cells: 0,
+      unmeasured: null,
+      problems: [`網羅表を読めない: ${String(e)}`],
+    });
     process.stderr.write(`error: 網羅表を読めない: ${source}: ${String(e)}\n`);
-    return 1;
+    return { exit: 1 };
   }
+}
 
-  // いま読んでいる metadata の撮影条件から指紋を取り、記録側が残した値と突き合わせる。
-  // 撮影条件を読めない metadata では照合できないので null を渡す（読めたことにしない）。
-  const captureNow = readCaptureForFingerprint(metadata);
-  const counted = countCoverage(coverage, slug, captureNow);
+/**
+ * 数え直した結果を出力し、終了コードを返す。
+ *
+ * @param {ReturnType<typeof countCoverage>} counted
+ * @param {string} source
+ * @returns {number}
+ */
+function reportCounted(counted, source) {
   const ok = counted.unmeasured === 0 && counted.problems.length === 0;
-  process.stdout.write(
-    `${JSON.stringify({ tool: "coverage-check", version: VERSION, judged: true, reason: null, source, ...counted }, null, 2)}\n`,
-  );
+  writeResult({ judged: true, reason: null, source, ...counted });
   for (const p of counted.problems) process.stderr.write(`warn: ${p}\n`);
   // exit 1 の理由は必ず error 行として出す。problems はあるが未測定 0（components が空など）のとき
   // warn だけだと、終了コードが 1 になった理由が利用者から読めない。
@@ -1484,6 +1827,45 @@ export function main(argv, deps = {}) {
     );
   }
   return ok ? 0 : 1;
+}
+
+/**
+ * CLI 本体。
+ * `node coverage-check.mjs --metadata <.replace/parity/<slug>/metadata.json> [--coverage <path>]`
+ * 判定結果を JSON で標準出力へ、問題を stderr へ出す。
+ * 終了コード: 0 ＝ 収束条件を満たす（判定しない場合を含む）／1 ＝ 未測定・不整合が残る／2 ＝ 使い方の誤り。
+ *
+ * @param {string[]} argv - process.argv.slice(2)
+ * @param {{readFile?: (p: string) => string}} [deps]
+ * @returns {number}
+ */
+export function main(argv, deps = {}) {
+  const readFile = deps.readFile ?? ((p) => readFileSync(p, "utf8"));
+  const opts = parseArgs(argv);
+  if (opts === null) return 2;
+
+  /** @type {unknown} */
+  let metadata;
+  try {
+    metadata = JSON.parse(readFile(opts.metadata));
+  } catch (e) {
+    process.stderr.write(`error: metadata.json を読めない: ${opts.metadata}: ${String(e)}\n`);
+    return 2;
+  }
+  const slug =
+    isPlainObject(metadata) && nonEmptyString(metadata.slug) ? String(metadata.slug) : null;
+
+  const decl = readDeclaration(metadata);
+  const unjudged = reportUnjudged(decl, opts);
+  if (unjudged !== null) return unjudged;
+
+  const loaded = loadCoverage(opts.coverage ?? decl.path, readFile);
+  if ("exit" in loaded) return loaded.exit;
+
+  // いま読んでいる metadata の撮影条件から指紋を取り、記録側が残した値と突き合わせる。
+  // 撮影条件を読めない metadata では照合できないので null を渡す（読めたことにしない）。
+  const captureNow = readCaptureForFingerprint(metadata);
+  return reportCounted(countCoverage(loaded.coverage, slug, captureNow), loaded.source);
 }
 
 if (isCliEntry(import.meta.url)) {

@@ -43,6 +43,31 @@ afterEach(() => {
   }
 });
 
+test("ページへ渡す式をソースのまま評価しても、モジュールの関数を呼んだときと同じ結果になる", async () => {
+  // 偽のページは、ふだん installSampler をモジュールの関数のまま呼ぶ。ここでは Playwright と同じく式のソースを評価し、
+  // ヘルパーが外側の名前を参照せず、関数の宣言のソースが関数式として評価できることを確かめる。
+  // 採った値の正しさはほかのテストが確かめるので、ここでは 2 つの呼び方の結果が同じかだけを比べる。
+  const run = async (evalScripts: boolean) => {
+    delete fakeGlobal.__parityMotionProbe;
+    const { page, trigger } = installEnv({ model: slideIn, evalScripts });
+    return probeMotion(page, { selector: ".msg", trigger });
+  };
+  expect(await run(true)).toEqual(await run(false));
+  // 読み取りが投げたときの処理（ヘルパーの failure を通る）も、2 つの呼び方で同じ結果になる。
+  const runFailing = async (evalScripts: boolean) => {
+    delete fakeGlobal.__parityMotionProbe;
+    const { page, trigger } = installEnv({ model: slideIn, evalScripts });
+    fakeGlobal.document.querySelectorAll = () => {
+      throw new Error("'.msg[' is not a valid selector");
+    };
+    return probeMotion(page, { selector: ".msg[", trigger }).then(
+      (timeline) => ({ resolved: timeline }),
+      (error: unknown) => ({ rejected: String(error) }),
+    );
+  };
+  expect(await runFailing(true)).toEqual(await runFailing(false));
+});
+
 test("出る動きを採り、落ち着いた後に打ち切りでなく終わる", async () => {
   const { page, trigger } = installEnv({ model: slideIn });
   const timeline = await probeMotion(page, { selector: ".msg", trigger });

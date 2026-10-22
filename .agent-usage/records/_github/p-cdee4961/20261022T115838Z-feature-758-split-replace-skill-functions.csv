@@ -1,0 +1,6 @@
+key,kind,observed_at,person,agent,session,subagent,model,start,end,tz,branch,issue,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,messages,cost_usd,cost_source,wait_ms,detail,retracted
+ci:39771128872:1,ci,2026-10-22T11:58:38.607Z,p-cdee4961,github-actions,,,,2026-10-22T11:30:44.000Z,2026-10-22T11:34:39.000Z,Asia/Tokyo,main,,,,,,,,,,,CI;push;success,
+ci:39767704374:1,ci,2026-10-22T11:58:38.607Z,p-cdee4961,github-actions,,,,2026-10-22T11:03:24.000Z,2026-10-22T11:03:25.000Z,Asia/Tokyo,feature/757-fix-tests-function-size,757,,,,,,,,,,Dependabot auto-merge;pull_request;skipped,
+ci:39767704361:1,ci,2026-10-22T11:58:38.607Z,p-cdee4961,github-actions,,,,2026-10-22T11:03:24.000Z,2026-10-22T11:20:09.000Z,Asia/Tokyo,feature/757-fix-tests-function-size,757,,,,,,,,,,CI;pull_request;success,
+ci:39766838259:1,ci,2026-10-22T11:58:38.607Z,p-cdee4961,github-actions,,,,2026-10-22T10:56:27.000Z,2026-10-22T11:03:50.000Z,Asia/Tokyo,feature/757-fix-tests-function-size,757,,,,,,,,,,CI;pull_request;cancelled,
+coverage:github:2026-10-21T11:00:14.377Z:2026-10-22T11:58:38.607Z,coverage,2026-10-22T11:58:38.607Z,p-cdee4961,,,,,2026-10-21T11:00:14.377Z,2026-10-22T11:58:38.607Z,Asia/Tokyo,,,,,,,,,,,,ok,

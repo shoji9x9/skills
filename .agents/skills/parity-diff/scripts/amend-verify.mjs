@@ -83,11 +83,10 @@ export function regionFromJson(value) {
  *
  * @param {Rect} rect
  * @param {number} margin
- * @param {number} imageWidth
- * @param {number} imageHeight
+ * @param {{ width:number, height:number }} image - 画像の寸法
  * @returns {Rect | null}
  */
-export function expandRegion(rect, margin, imageWidth, imageHeight) {
+export function expandRegion(rect, margin, { width: imageWidth, height: imageHeight }) {
   const left = Math.max(0, Math.floor(rect.x - margin));
   const top = Math.max(0, Math.floor(rect.y - margin));
   const right = Math.min(imageWidth, Math.ceil(rect.x + rect.width + margin));
@@ -128,23 +127,13 @@ function strictDiffers(a, b, o) {
 }
 
 /**
- * 1 組を判定する（純関数。デコード済みの RGBA を受ける）。
- * - prev-new と new の寸法が違う → fail（改修で配置が動いた。外の一致を画素で示せない）
- * - current の寸法が new と違う → fail（現行との不一致を同じ座標で数えられない）
- * - 領域が 1 つも画像と重ならない → fail（宣言したインスタンスが画面に無い）
- * - pass = 領域の外がバイト単位で一致し、かつ領域の中の現行との不一致が増えていない
+ * 判定できなかった組の結果。
  *
- * @param {{ prevNew: Image, next: Image, current: Image, regions: Rect[], margin?: number }} input
- * @returns {{ pass:boolean, outside_identical:boolean, outside_diff_pixels:(number|null),
- *             inside_diff_before:(number|null), inside_diff_after:(number|null),
- *             regions: Rect[], reasons: string[] }}
+ * @param {string} reason
+ * @param {Rect[]} [clamped]
  */
-export function judgePair({ prevNew, next, current, regions, margin = 0 }) {
-  /**
-   * @param {string} reason
-   * @param {Rect[]} [clamped]
-   */
-  const failed = (reason, clamped = []) => ({
+function failedJudgement(reason, clamped = []) {
+  return {
     pass: false,
     outside_identical: false,
     outside_diff_pixels: null,
@@ -152,31 +141,20 @@ export function judgePair({ prevNew, next, current, regions, margin = 0 }) {
     inside_diff_after: null,
     regions: clamped,
     reasons: [reason],
-  });
-  if (prevNew.width !== next.width || prevNew.height !== next.height) {
-    return failed(
-      `dimensions changed: prev-new ${prevNew.width}x${prevNew.height} vs new ${next.width}x${next.height}`,
-    );
-  }
-  if (current.width !== next.width || current.height !== next.height) {
-    return failed(
-      `current dimensions differ from new: ${current.width}x${current.height} vs ${next.width}x${next.height}`,
-    );
-  }
-  const { width, height } = next;
-  const clamped = [];
-  for (const r of regions) {
-    const e = expandRegion(r, margin, width, height);
-    if (e) clamped.push(e);
-  }
-  if (clamped.length === 0) {
-    return failed("no region overlaps the image (declared instances are not on this capture)");
-  }
-  const mask = buildRegionMask(clamped, width, height);
+  };
+}
+
+/**
+ * 領域の外で prev-new と new が違う画素と、領域の中で現行と違う画素（改修の前と後）を数える。
+ *
+ * @param {{ prevNew: Image, next: Image, current: Image, mask: Uint8Array }} input
+ * @returns {{ outside:number, before:number, after:number }}
+ */
+function countRegionDiffs({ prevNew, next, current, mask }) {
   let outside = 0;
   let before = 0;
   let after = 0;
-  for (let i = 0; i < width * height; i += 1) {
+  for (let i = 0; i < mask.length; i += 1) {
     const o = i * 4;
     if (mask[i] === 0) {
       if (
@@ -192,6 +170,45 @@ export function judgePair({ prevNew, next, current, regions, margin = 0 }) {
       if (strictDiffers(next.data, current.data, o)) after += 1;
     }
   }
+  return { outside, before, after };
+}
+
+/**
+ * 1 組を判定する（純関数。デコード済みの RGBA を受ける）。
+ * - prev-new と new の寸法が違う → fail（改修で配置が動いた。外の一致を画素で示せない）
+ * - current の寸法が new と違う → fail（現行との不一致を同じ座標で数えられない）
+ * - 領域が 1 つも画像と重ならない → fail（宣言したインスタンスが画面に無い）
+ * - pass = 領域の外がバイト単位で一致し、かつ領域の中の現行との不一致が増えていない
+ *
+ * @param {{ prevNew: Image, next: Image, current: Image, regions: Rect[], margin?: number }} input
+ * @returns {{ pass:boolean, outside_identical:boolean, outside_diff_pixels:(number|null),
+ *             inside_diff_before:(number|null), inside_diff_after:(number|null),
+ *             regions: Rect[], reasons: string[] }}
+ */
+export function judgePair({ prevNew, next, current, regions, margin = 0 }) {
+  if (prevNew.width !== next.width || prevNew.height !== next.height) {
+    return failedJudgement(
+      `dimensions changed: prev-new ${prevNew.width}x${prevNew.height} vs new ${next.width}x${next.height}`,
+    );
+  }
+  if (current.width !== next.width || current.height !== next.height) {
+    return failedJudgement(
+      `current dimensions differ from new: ${current.width}x${current.height} vs ${next.width}x${next.height}`,
+    );
+  }
+  const { width, height } = next;
+  const clamped = [];
+  for (const r of regions) {
+    const e = expandRegion(r, margin, { width, height });
+    if (e) clamped.push(e);
+  }
+  if (clamped.length === 0) {
+    return failedJudgement(
+      "no region overlaps the image (declared instances are not on this capture)",
+    );
+  }
+  const mask = buildRegionMask(clamped, width, height);
+  const { outside, before, after } = countRegionDiffs({ prevNew, next, current, mask });
   const reasons = [];
   if (outside > 0) reasons.push(`${outside} pixels changed outside the declared regions`);
   if (after > before) {
@@ -250,21 +267,63 @@ const USAGE =
   "  pairs.json: [{ pair, prev_new, new, current, regions: [[x,y,w,h] | {x,y,width,height}], margin? }]\n" +
   "  paths are resolved from the working directory and recorded as given\n";
 
+/** @typedef {{ pair:string, prev_new:string, new:string, current:string, regions: Rect[], margin:number }} PairSpec */
 /**
- * 引数を組の指定に直す。誤りは文字列で返す。
+ * @typedef {{ single: { pair?:string, prev_new?:string, new?:string, current?:string, regions: Rect[] },
+ *   pairsPath?: string, margin: number, marginGiven: boolean, changeId?: string, out?: string }} Flags
+ */
+
+const KNOWN_FLAGS = [
+  "--pair",
+  "--prev-new",
+  "--new",
+  "--current",
+  "--region",
+  "--margin",
+  "--pairs",
+  "--change-id",
+  "--out",
+];
+
+/**
+ * 1 つのフラグの値を flags へ入れる。誤りは文字列で返す。
+ *
+ * @param {Flags} flags
+ * @param {string} flag
+ * @param {string} value
+ * @returns {string | undefined}
+ */
+function applyFlag(flags, flag, value) {
+  const { single } = flags;
+  if (flag === "--pair") single.pair = value;
+  else if (flag === "--prev-new") single.prev_new = value;
+  else if (flag === "--new") single.new = value;
+  else if (flag === "--current") single.current = value;
+  else if (flag === "--region") {
+    const r = parseRegion(value);
+    if (!r) return `--region must be x,y,w,h with w,h > 0: ${value}`;
+    single.regions.push(r);
+  } else if (flag === "--margin") {
+    flags.margin = Number(value);
+    flags.marginGiven = true;
+    if (!Number.isFinite(flags.margin) || flags.margin < 0) {
+      return `--margin must be a non-negative number: ${value}`;
+    }
+  } else if (flag === "--pairs") flags.pairsPath = value;
+  else if (flag === "--change-id") flags.changeId = value;
+  else if (flag === "--out") flags.out = value;
+  return undefined;
+}
+
+/**
+ * 引数のフラグを読む。誤りは文字列で返す。
  *
  * @param {string[]} argv
- * @returns {{ error: string } | { specs: Array<{ pair:string, prev_new:string, new:string, current:string,
- *   regions: Rect[], margin:number }>, changeId?: string, out?: string }}
+ * @returns {{ error: string } | Flags}
  */
-export function parseArgs(argv) {
-  /** @type {{ pair?:string, prev_new?:string, new?:string, current?:string, regions: Rect[] }} */
-  const single = { regions: [] };
-  let pairsPath;
-  let margin = 0;
-  let marginGiven = false;
-  let changeId;
-  let out;
+function parseFlags(argv) {
+  /** @type {Flags} */
+  const flags = { single: { regions: [] }, margin: 0, marginGiven: false };
   /** @param {number} i */
   const valueOf = (i) => {
     const v = argv[i + 1];
@@ -273,58 +332,110 @@ export function parseArgs(argv) {
   for (let i = 0; i < argv.length; i += 1) {
     const flag = argv[i];
     const value = valueOf(i);
-    const known = [
-      "--pair",
-      "--prev-new",
-      "--new",
-      "--current",
-      "--region",
-      "--margin",
-      "--pairs",
-      "--change-id",
-      "--out",
-    ];
-    if (!known.includes(flag)) return { error: `unknown argument: ${flag}` };
+    if (!KNOWN_FLAGS.includes(flag)) return { error: `unknown argument: ${flag}` };
     if (value === undefined) return { error: `${flag} requires a value` };
     i += 1;
-    if (flag === "--pair") single.pair = value;
-    else if (flag === "--prev-new") single.prev_new = value;
-    else if (flag === "--new") single.new = value;
-    else if (flag === "--current") single.current = value;
-    else if (flag === "--region") {
-      const r = parseRegion(value);
-      if (!r) return { error: `--region must be x,y,w,h with w,h > 0: ${value}` };
-      single.regions.push(r);
-    } else if (flag === "--margin") {
-      margin = Number(value);
-      marginGiven = true;
-      if (!Number.isFinite(margin) || margin < 0) {
-        return { error: `--margin must be a non-negative number: ${value}` };
-      }
-    } else if (flag === "--pairs") pairsPath = value;
-    else if (flag === "--change-id") changeId = value;
-    else if (flag === "--out") out = value;
+    const error = applyFlag(flags, flag, value);
+    if (error !== undefined) return { error };
   }
-  const singleGiven =
-    single.pair !== undefined ||
-    single.prev_new !== undefined ||
-    single.new !== undefined ||
-    single.current !== undefined ||
-    single.regions.length > 0;
-  if (pairsPath !== undefined && singleGiven) {
-    return { error: "--pairs cannot be combined with --pair/--prev-new/--new/--current/--region" };
+  return flags;
+}
+
+/**
+ * 単一の組のフラグ（--pair など）を組の指定にする。誤りは文字列で返す。
+ *
+ * @param {Flags} flags
+ * @returns {{ error: string } | { specs: PairSpec[], changeId?: string, out?: string }}
+ */
+function singleSpec({ single, margin, changeId, out }) {
+  // 欠けた欄を pair, prev_new, new, current の順に調べる（型を絞るため 1 欄ずつ書く）。
+  const { pair, prev_new, new: next, current, regions } = single;
+  if (pair === undefined) return { error: "--pair is required" };
+  if (prev_new === undefined) return { error: "--prev-new is required" };
+  if (next === undefined) return { error: "--new is required" };
+  if (current === undefined) return { error: "--current is required" };
+  // 領域が無いと「外」が画像全体になり、変更がどこにも反映されていないことになる。宣言の欠落として弾く。
+  if (regions.length === 0) return { error: "at least one --region is required" };
+  return { specs: [{ pair, prev_new, new: next, current, regions, margin }], changeId, out };
+}
+
+/**
+ * --pairs の要素の領域を読む。誤りは文字列で返す。
+ *
+ * @param {unknown} rawRegions
+ * @param {string} where
+ * @returns {{ error: string } | { regions: Rect[] }}
+ */
+function pairRegions(rawRegions, where) {
+  if (!isArray(rawRegions) || rawRegions.length === 0) {
+    return { error: `${where}.regions must be a non-empty array` };
   }
-  if (pairsPath === undefined) {
-    // 欠けた欄を pair, prev_new, new, current の順に調べる（型を絞るため 1 欄ずつ書く）。
-    const { pair, prev_new, new: next, current, regions } = single;
-    if (pair === undefined) return { error: "--pair is required" };
-    if (prev_new === undefined) return { error: "--prev-new is required" };
-    if (next === undefined) return { error: "--new is required" };
-    if (current === undefined) return { error: "--current is required" };
-    // 領域が無いと「外」が画像全体になり、変更がどこにも反映されていないことになる。宣言の欠落として弾く。
-    if (regions.length === 0) return { error: "at least one --region is required" };
-    return { specs: [{ pair, prev_new, new: next, current, regions, margin }], changeId, out };
+  const regions = [];
+  for (const raw of rawRegions) {
+    const r = regionFromJson(raw);
+    if (!r) return { error: `${where}.regions has an unreadable region: ${JSON.stringify(raw)}` };
+    regions.push(r);
   }
+  return { regions };
+}
+
+/**
+ * --pairs の要素の margin を決める。誤りは文字列で返す。
+ *
+ * @param {unknown} rawMargin
+ * @param {{ where: string, margin: number, marginGiven: boolean }} context
+ * @returns {{ error: string } | { margin: number }}
+ */
+function pairMargin(rawMargin, { where, margin, marginGiven }) {
+  if (rawMargin === undefined) return { margin };
+  if (typeof rawMargin !== "number" || !Number.isFinite(rawMargin) || rawMargin < 0) {
+    return { error: `${where}.margin must be a non-negative number` };
+  }
+  // 組ごとの margin と --margin が食い違うなら、どちらを使ったか曖昧になるので弾く。
+  if (marginGiven && rawMargin !== margin) {
+    return { error: `${where}.margin (${rawMargin}) conflicts with --margin (${margin})` };
+  }
+  return { margin: rawMargin };
+}
+
+/**
+ * --pairs の 1 要素を組の指定にする。誤りは文字列で返す。
+ *
+ * @param {unknown} item
+ * @param {{ where: string, seen: Set<string>, margin: number, marginGiven: boolean }} context
+ * @returns {{ error: string } | { spec: PairSpec }}
+ */
+function pairSpecFromItem(item, { where, seen, margin, marginGiven }) {
+  if (!isPlainObject(item)) return { error: `${where} must be an object` };
+  const rec = item;
+  /** @type {Record<string, string>} */
+  const text = {};
+  for (const key of ["pair", "prev_new", "new", "current"]) {
+    const v = rec[key];
+    if (typeof v !== "string" || v.trim() === "") {
+      return { error: `${where}.${key} must be a non-empty string` };
+    }
+    text[key] = v;
+  }
+  const { pair, prev_new, new: next, current } = text;
+  if (seen.has(pair)) return { error: `${where}.pair is duplicated: ${pair}` };
+  seen.add(pair);
+  const regions = pairRegions(rec.regions, where);
+  if ("error" in regions) return regions;
+  const m = pairMargin(rec.margin, { where, margin, marginGiven });
+  if ("error" in m) return m;
+  return {
+    spec: { pair, prev_new, new: next, current, regions: regions.regions, margin: m.margin },
+  };
+}
+
+/**
+ * --pairs のファイルを組の指定にする。誤りは文字列で返す。
+ *
+ * @param {Flags & { pairsPath: string }} flags
+ * @returns {{ error: string } | { specs: PairSpec[], changeId?: string, out?: string }}
+ */
+function pairsFileSpecs({ pairsPath, margin, marginGiven, changeId, out }) {
   let list;
   try {
     list = JSON.parse(readFileSync(pairsPath, "utf8"));
@@ -335,54 +446,137 @@ export function parseArgs(argv) {
     return { error: "--pairs must be a non-empty JSON array" };
   }
   const specs = [];
+  /** @type {Set<string>} */
   const seen = new Set();
   for (const [n, item] of list.entries()) {
-    const where = `--pairs[${n}]`;
-    if (!isPlainObject(item)) return { error: `${where} must be an object` };
-    const rec = item;
-    /** @type {Record<string, string>} */
-    const text = {};
-    for (const key of ["pair", "prev_new", "new", "current"]) {
-      const v = rec[key];
-      if (typeof v !== "string" || v.trim() === "") {
-        return { error: `${where}.${key} must be a non-empty string` };
-      }
-      text[key] = v;
-    }
-    const { pair, prev_new, new: next, current } = text;
-    if (seen.has(pair)) return { error: `${where}.pair is duplicated: ${pair}` };
-    seen.add(pair);
-    const { regions: rawRegions, margin: rawMargin } = rec;
-    if (!isArray(rawRegions) || rawRegions.length === 0) {
-      return { error: `${where}.regions must be a non-empty array` };
-    }
-    const regions = [];
-    for (const raw of rawRegions) {
-      const r = regionFromJson(raw);
-      if (!r) return { error: `${where}.regions has an unreadable region: ${JSON.stringify(raw)}` };
-      regions.push(r);
-    }
-    let m = margin;
-    if (rawMargin !== undefined) {
-      if (typeof rawMargin !== "number" || !Number.isFinite(rawMargin) || rawMargin < 0) {
-        return { error: `${where}.margin must be a non-negative number` };
-      }
-      // 組ごとの margin と --margin が食い違うなら、どちらを使ったか曖昧になるので弾く。
-      if (marginGiven && rawMargin !== margin) {
-        return { error: `${where}.margin (${rawMargin}) conflicts with --margin (${margin})` };
-      }
-      m = rawMargin;
-    }
-    specs.push({
-      pair,
-      prev_new,
-      new: next,
-      current,
-      regions,
-      margin: m,
-    });
+    const read = pairSpecFromItem(item, { where: `--pairs[${n}]`, seen, margin, marginGiven });
+    if ("error" in read) return read;
+    specs.push(read.spec);
   }
   return { specs, changeId, out };
+}
+
+/**
+ * 引数を組の指定に直す。誤りは文字列で返す。
+ *
+ * @param {string[]} argv
+ * @returns {{ error: string } | { specs: PairSpec[], changeId?: string, out?: string }}
+ */
+export function parseArgs(argv) {
+  const flags = parseFlags(argv);
+  if ("error" in flags) return flags;
+  const { single, pairsPath } = flags;
+  const singleGiven =
+    single.pair !== undefined ||
+    single.prev_new !== undefined ||
+    single.new !== undefined ||
+    single.current !== undefined ||
+    single.regions.length > 0;
+  if (pairsPath !== undefined && singleGiven) {
+    return { error: "--pairs cannot be combined with --pair/--prev-new/--new/--current/--region" };
+  }
+  if (pairsPath === undefined) return singleSpec(flags);
+  return pairsFileSpecs({ ...flags, pairsPath });
+}
+
+/**
+ * --out の既存の記録を読む。無ければ null。誤りは文字列で返す。
+ *
+ * @param {string | undefined} out
+ * @param {string | undefined} changeId
+ * @returns {{ error: string } | { existing: Record<string, unknown> | null }}
+ */
+function readExistingRecord(out, changeId) {
+  if (out === undefined || !existsSync(out)) return { existing: null };
+  /** @type {unknown} */
+  let read;
+  try {
+    read = JSON.parse(readFileSync(out, "utf8"));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { error: `cannot read existing --out record: ${message}` };
+  }
+  // 既存の記録は、pairs の配列を持つ JSON オブジェクトだけを受け付ける（配列と null は弾く）。
+  if (!isPlainObject(read) || !isArray(read.pairs)) {
+    return { error: "existing --out record has no pairs array" };
+  }
+  // 別の変更宣言の記録へ混ぜない（どの変更で持ち越したかが読めなくなる）。
+  if (changeId !== undefined && read.change_id !== undefined && read.change_id !== changeId) {
+    return {
+      error: `--change-id ${changeId} differs from the existing record's change_id ${read.change_id}`,
+    };
+  }
+  return { existing: read };
+}
+
+/**
+ * 1 組の画像を読んで判定し、記録の 1 件にする。画像を読めなければ誤りを文字列で返す。
+ *
+ * @param {PairSpec} spec
+ * @param {{ sync: { read: (buf: Buffer) => Image } }} PNG
+ */
+function verifyPair(spec, PNG) {
+  /** @type {Record<string, Image>} */
+  const images = {};
+  /** @type {Record<string, { path:string, sha256:string }>} */
+  const inputs = {};
+  try {
+    /** @type {Array<"prev_new" | "new" | "current">} */
+    const imageKeys = ["prev_new", "new", "current"];
+    for (const key of imageKeys) {
+      const buf = readFileSync(spec[key]);
+      images[key] = PNG.sync.read(buf);
+      inputs[key] = {
+        path: spec[key],
+        sha256: createHash("sha256").update(buf).digest("hex"),
+      };
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { error: `cannot read PNG inputs of pair ${spec.pair}: ${message}` };
+  }
+  const judged = judgePair({
+    prevNew: images.prev_new,
+    next: images.new,
+    current: images.current,
+    regions: spec.regions,
+    margin: spec.margin,
+  });
+  return {
+    entry: {
+      pair: spec.pair,
+      pass: judged.pass,
+      outside_identical: judged.outside_identical,
+      outside_diff_pixels: judged.outside_diff_pixels,
+      inside_diff_before: judged.inside_diff_before,
+      inside_diff_after: judged.inside_diff_after,
+      margin: spec.margin,
+      declared_regions: spec.regions,
+      regions: judged.regions,
+      inputs,
+      reasons: judged.reasons,
+    },
+  };
+}
+
+/**
+ * 記録を --out へ書き、組ごとの判定を stdout に出す。--out が無ければ記録を stdout に出す。
+ *
+ * @param {string} text - 記録の JSON
+ * @param {{ out?: string, entries: Array<{ pair:string, pass:boolean, reasons:string[] }> }} target
+ */
+function writeRecord(text, { out, entries }) {
+  if (out === undefined) {
+    process.stdout.write(text);
+    return;
+  }
+  mkdirSync(dirname(out), { recursive: true });
+  writeFileSync(out, text);
+  for (const e of entries) {
+    process.stdout.write(
+      `${e.pass ? "pass" : "FAIL"} ${e.pair}${e.reasons.length ? `: ${e.reasons.join("; ")}` : ""}\n`,
+    );
+  }
 }
 
 /**
@@ -398,35 +592,10 @@ export async function main(argv) {
     return 2;
   }
   const { specs, changeId, out } = parsed;
-  /** @type {Record<string, unknown> | null} */
-  let existing = null;
-  if (out !== undefined && existsSync(out)) {
-    /** @type {unknown} */
-    let read;
-    try {
-      read = JSON.parse(readFileSync(out, "utf8"));
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      process.stderr.write(`error: cannot read existing --out record: ${message}\n`);
-      return 2;
-    }
-    // 既存の記録は、pairs の配列を持つ JSON オブジェクトだけを受け付ける（配列と null は弾く）。
-    if (!isPlainObject(read) || !isArray(read.pairs)) {
-      process.stderr.write("error: existing --out record has no pairs array\n");
-      return 2;
-    }
-    existing = read;
-    // 別の変更宣言の記録へ混ぜない（どの変更で持ち越したかが読めなくなる）。
-    if (
-      changeId !== undefined &&
-      existing.change_id !== undefined &&
-      existing.change_id !== changeId
-    ) {
-      process.stderr.write(
-        `error: --change-id ${changeId} differs from the existing record's change_id ${existing.change_id}\n`,
-      );
-      return 2;
-    }
+  const existing = readExistingRecord(out, changeId);
+  if ("error" in existing) {
+    process.stderr.write(`error: ${existing.error}\n`);
+    return 2;
   }
   const PNG = await loadPng();
   if (!PNG) {
@@ -437,60 +606,15 @@ export async function main(argv) {
   }
   const entries = [];
   for (const spec of specs) {
-    /** @type {Record<string, Image>} */
-    const images = {};
-    /** @type {Record<string, { path:string, sha256:string }>} */
-    const inputs = {};
-    try {
-      /** @type {Array<"prev_new" | "new" | "current">} */
-      const imageKeys = ["prev_new", "new", "current"];
-      for (const key of imageKeys) {
-        const buf = readFileSync(spec[key]);
-        images[key] = PNG.sync.read(buf);
-        inputs[key] = {
-          path: spec[key],
-          sha256: createHash("sha256").update(buf).digest("hex"),
-        };
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      process.stderr.write(`error: cannot read PNG inputs of pair ${spec.pair}: ${message}\n`);
+    const verified = verifyPair(spec, PNG);
+    if ("error" in verified) {
+      process.stderr.write(`error: ${verified.error}\n`);
       return 2;
     }
-    const judged = judgePair({
-      prevNew: images.prev_new,
-      next: images.new,
-      current: images.current,
-      regions: spec.regions,
-      margin: spec.margin,
-    });
-    entries.push({
-      pair: spec.pair,
-      pass: judged.pass,
-      outside_identical: judged.outside_identical,
-      outside_diff_pixels: judged.outside_diff_pixels,
-      inside_diff_before: judged.inside_diff_before,
-      inside_diff_after: judged.inside_diff_after,
-      margin: spec.margin,
-      declared_regions: spec.regions,
-      regions: judged.regions,
-      inputs,
-      reasons: judged.reasons,
-    });
+    entries.push(verified.entry);
   }
-  const record = mergeRecord(existing, entries, changeId);
-  const text = JSON.stringify(record, null, 2) + "\n";
-  if (out !== undefined) {
-    mkdirSync(dirname(out), { recursive: true });
-    writeFileSync(out, text);
-    for (const e of entries) {
-      process.stdout.write(
-        `${e.pass ? "pass" : "FAIL"} ${e.pair}${e.reasons.length ? `: ${e.reasons.join("; ")}` : ""}\n`,
-      );
-    }
-  } else {
-    process.stdout.write(text);
-  }
+  const record = mergeRecord(existing.existing, entries, changeId);
+  writeRecord(JSON.stringify(record, null, 2) + "\n", { out, entries });
   return entries.every((e) => e.pass) ? 0 : 1;
 }
 

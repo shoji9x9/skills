@@ -529,12 +529,12 @@ export function validateExceptions(exceptions, causes, slug) {
  * 合致したら解決済みの原因を cause_reason / cause_evidence として添えて返す。
  *
  * @param {TraitDiff} diff
- * @param {unknown} exceptions - registries.component_diff_exceptions（読んだままの値）
+ * @param {{ exceptions: unknown, causes: unknown }} declared - registries.component_diff_exceptions と
+ *   registries.component_diff_exception_causes（どちらも読んだままの値）
  * @param {{ slug:string, page?:string, state?:string, viewport?:string }} ctx
- * @param {unknown} causes - registries.component_diff_exception_causes（読んだままの値）
  * @returns {MatchedException | null}
  */
-export function matchException(diff, exceptions, ctx, causes) {
+export function matchException(diff, { exceptions, causes }, ctx) {
   // object でない要素は validateExceptions が「not an object」として警告し、照合に使わない。
   const list = isArray(exceptions) ? exceptions.filter(isObjectLike) : [];
   for (const ex of list) {
@@ -659,93 +659,109 @@ export function classifyDiff(diff, registries, ctx) {
   if (t) return { classification: t.status, matched_rule: t.rule };
   const ex = matchException(
     diff,
-    registries.component_diff_exceptions,
+    {
+      exceptions: registries.component_diff_exceptions,
+      causes: registries.component_diff_exception_causes,
+    },
     ctx,
-    registries.component_diff_exception_causes,
   );
   if (ex) return { classification: "absorbed_exception", matched_rule: ex };
   return { classification: "unexplained", matched_rule: null };
 }
 
 /**
- * CLI エントリ。
+ * JSON の値の種類（エラーの表示に使う）。
  *
- * `node diff-normalize.mjs <trait-diffs.json> --registries <registries.json> --slug <slug> [--page <p> --state <s> --viewport <v>] [--noise <metadata.json>]`
- *
- * unexplained / deviates_T / pending_review があれば exit 1、全て吸収なら exit 0、入力エラーは exit 2。
- *
- * @param {string[]} argv - process.argv.slice(2)
- * @returns {number} exit code
+ * @param {unknown} v JSON の値
  */
-export function main(argv) {
-  const usage =
-    "usage: node diff-normalize.mjs <trait-diffs.json> --registries <registries.json> --slug <slug> [--page <p> --state <s> --viewport <v>] [--noise <metadata.json>]\n";
+function jsonKind(v) {
+  return v === null ? "null" : isArray(v) ? "array" : typeof v;
+}
+
+const VALUE_FLAGS = ["--registries", "--slug", "--page", "--state", "--viewport", "--noise"];
+
+/**
+ * 引数を位置引数と値を取るオプションに分ける。
+ *
+ * @param {string[]} argv
+ * @returns {{ positionals: string[], opts: Record<string, string | undefined> }}
+ */
+function splitArgs(argv) {
   const positionals = [];
   /** @type {Record<string, string | undefined>} */
   const opts = {};
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
-    if (
-      a === "--registries" ||
-      a === "--slug" ||
-      a === "--page" ||
-      a === "--state" ||
-      a === "--viewport" ||
-      a === "--noise"
-    ) {
+    if (VALUE_FLAGS.includes(a)) {
       opts[a.slice(2)] = argv[i + 1];
       i += 1;
     } else {
       positionals.push(a);
     }
   }
-  if (positionals.length !== 1 || !opts.registries || !opts.slug) {
-    process.stderr.write(usage);
-    return 2;
+  return { positionals, opts };
+}
+
+/**
+ * --noise の metadata.json からノイズ基準値の行を読む。形が誤っていれば TypeError を投げる。
+ *
+ * @param {string} path
+ * @returns {unknown[]}
+ */
+function readNoiseBaseline(path) {
+  const meta = JSON.parse(readFileSync(path, "utf8"));
+  // metadata.json はオブジェクトである。それ以外（null・配列・数値・文字列・真偽値）を基準値 0 件として
+  // 読むと、渡したファイルの誤りに気づけないので、呼び出し側の catch で入力エラーにする。
+  if (!isPlainObject(meta)) {
+    throw new TypeError(`--noise must be a JSON object (got ${jsonKind(meta)})`);
   }
+  // noise_baseline が無い metadata.json は、基準値をまだ採っていない成果物なので 0 件として読む。
+  // 在るのに配列でなければ、基準値を読めないことに気づけるよう入力エラーにする。
+  const declared = meta.noise_baseline;
+  if (declared !== undefined && !isArray(declared)) {
+    throw new TypeError(`--noise noise_baseline must be a JSON array (got ${jsonKind(declared)})`);
+  }
+  return declared ?? [];
+}
+
+/**
+ * 入力のファイルを読み、形を確かめる。誤りは stderr に出す 1 行で返す。
+ *
+ * @param {string} diffsPath
+ * @param {Record<string, string | undefined>} opts
+ * @returns {{ error: string } | { diffs: Record<string, unknown>[], registries: Record<string, unknown>, noiseBaseline: unknown[] }}
+ */
+function readInputs(diffsPath, opts) {
   let diffs;
   let registries;
-  /** @param {unknown} v JSON の値 */
-  const jsonKind = (v) => (v === null ? "null" : isArray(v) ? "array" : typeof v);
   /** @type {unknown[]} */
   let noiseBaseline = [];
   try {
-    diffs = JSON.parse(readFileSync(positionals[0], "utf8"));
-    registries = JSON.parse(readFileSync(opts.registries, "utf8"));
-    if (opts.noise) {
-      const meta = JSON.parse(readFileSync(opts.noise, "utf8"));
-      // metadata.json はオブジェクトである。それ以外（null・配列・数値・文字列・真偽値）を基準値 0 件として
-      // 読むと、渡したファイルの誤りに気づけないので、下の catch で入力エラーにする。
-      if (!isPlainObject(meta)) {
-        throw new TypeError(`--noise must be a JSON object (got ${jsonKind(meta)})`);
-      }
-      // noise_baseline が無い metadata.json は、基準値をまだ採っていない成果物なので 0 件として読む。
-      // 在るのに配列でなければ、基準値を読めないことに気づけるよう入力エラーにする。
-      const declared = meta.noise_baseline;
-      if (declared !== undefined && !isArray(declared)) {
-        throw new TypeError(
-          `--noise noise_baseline must be a JSON array (got ${jsonKind(declared)})`,
-        );
-      }
-      noiseBaseline = declared ?? [];
-    }
+    diffs = JSON.parse(readFileSync(diffsPath, "utf8"));
+    registries = JSON.parse(readFileSync(String(opts.registries), "utf8"));
+    if (opts.noise) noiseBaseline = readNoiseBaseline(opts.noise);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    process.stderr.write(`error: cannot read inputs: ${message}\n`);
-    return 2;
+    return { error: `error: cannot read inputs: ${message}\n` };
   }
   // 要素が object でない（配列を含む）Diff は分類する欄を持たないので、配列でない入力と同じ入力エラーにする。
   if (!isArray(diffs) || !diffs.every(isPlainObject)) {
-    process.stderr.write("error: <trait-diffs.json> must be a JSON array of trait diffs\n");
-    return 2;
+    return { error: "error: <trait-diffs.json> must be a JSON array of trait diffs\n" };
   }
   if (!isPlainObject(registries)) {
-    process.stderr.write(
-      `error: --registries must be a JSON object (got ${jsonKind(registries)})\n`,
-    );
-    return 2;
+    return { error: `error: --registries must be a JSON object (got ${jsonKind(registries)})\n` };
   }
-  const ctx = { slug: opts.slug, page: opts.page, state: opts.state, viewport: opts.viewport };
+  return { diffs, registries, noiseBaseline };
+}
+
+/**
+ * レジストリとノイズ基準値の形の問題を警告として出す。
+ *
+ * @param {Record<string, unknown>} registries
+ * @param {unknown[]} noiseBaseline
+ * @param {string} slug
+ */
+function warnInvalidDeclarations(registries, noiseBaseline, slug) {
   // match が不正な意図的差異の宣言は照合に使わない。警告なしに無効にせず、理由を出す。
   for (const problem of validateIntentionalDiffs(registries.intentional_diffs)) {
     process.stderr.write(`warning: ${problem}\n`);
@@ -759,13 +775,22 @@ export function main(argv) {
   for (const problem of validateExceptions(
     registries.component_diff_exceptions,
     registries.component_diff_exception_causes,
-    ctx.slug,
+    slug,
   )) {
     process.stderr.write(`warning: ${problem}\n`);
   }
   for (const problem of validateNoiseBaseline(noiseBaseline)) {
     process.stderr.write(`warning: ${problem}\n`);
   }
+}
+
+/**
+ * --page / --viewport を省いたために照合できない宣言と例外を、警告として出す。
+ *
+ * @param {Record<string, unknown>} registries
+ * @param {{ slug:string, page?:string, state?:string, viewport?:string }} ctx
+ */
+function warnMissingCtx(registries, ctx) {
   // 照合に使わないだけでなく、そのことが見えるようにする。--page / --viewport を省くと
   // 照合キーを確かめられず、例外は 1 件も当たらない。警告なしに 0 件にせず、理由を出す。
   const exceptionCount = isArray(registries.component_diff_exceptions)
@@ -788,11 +813,15 @@ export function main(argv) {
         `none of the ${exceptionCount} instance exception(s) can be matched (treated as not matched)\n`,
     );
   }
-  const classified = applyNoiseBaseline(
-    diffs.map((diff) => ({ ...diff, ...classifyDiff(diff, registries, ctx) })),
-    noiseBaseline,
-    ctx,
-  );
+}
+
+/**
+ * 照合に使われなかった散文だけの宣言の数を、未説明の差分が残るときに警告として出す。
+ *
+ * @param {{ registries: Record<string, unknown>, diffs: Record<string, unknown>[],
+ *   classified: Array<{ classification:string }>, ctx: { slug:string, page?:string, state?:string, viewport?:string } }} input
+ */
+function warnUnusedProse({ registries, diffs, classified, ctx }) {
   // 散文だけの宣言は文全体の包含でしか当たらない（理由を添えた文は原理的に当たらない）。
   // 宣言があるのに照合に使われなかったことを数えて出し、宣言の書き方の誤りと本物の未説明の差を区別できるようにする。
   const residual = classified.filter(
@@ -807,6 +836,41 @@ export function main(argv) {
         `add match: { element, property } to use a declaration for matching\n`,
     );
   }
+}
+
+/**
+ * CLI エントリ。
+ *
+ * `node diff-normalize.mjs <trait-diffs.json> --registries <registries.json> --slug <slug> [--page <p> --state <s> --viewport <v>] [--noise <metadata.json>]`
+ *
+ * unexplained / deviates_T / pending_review があれば exit 1、全て吸収なら exit 0、入力エラーは exit 2。
+ *
+ * @param {string[]} argv - process.argv.slice(2)
+ * @returns {number} exit code
+ */
+export function main(argv) {
+  const usage =
+    "usage: node diff-normalize.mjs <trait-diffs.json> --registries <registries.json> --slug <slug> [--page <p> --state <s> --viewport <v>] [--noise <metadata.json>]\n";
+  const { positionals, opts } = splitArgs(argv);
+  if (positionals.length !== 1 || !opts.registries || !opts.slug) {
+    process.stderr.write(usage);
+    return 2;
+  }
+  const inputs = readInputs(positionals[0], opts);
+  if ("error" in inputs) {
+    process.stderr.write(inputs.error);
+    return 2;
+  }
+  const { diffs, registries, noiseBaseline } = inputs;
+  const ctx = { slug: opts.slug, page: opts.page, state: opts.state, viewport: opts.viewport };
+  warnInvalidDeclarations(registries, noiseBaseline, ctx.slug);
+  warnMissingCtx(registries, ctx);
+  const classified = applyNoiseBaseline(
+    diffs.map((diff) => ({ ...diff, ...classifyDiff(diff, registries, ctx) })),
+    noiseBaseline,
+    ctx,
+  );
+  warnUnusedProse({ registries, diffs, classified, ctx });
   process.stdout.write(JSON.stringify(classified, null, 2) + "\n");
   const actionable = classified.some(
     (d) =>

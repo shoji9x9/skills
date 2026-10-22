@@ -11,7 +11,7 @@
       "id": "malformed-states-unknown",
       "why": "文字列でない状態名を持つ規則を、条件の無い規則として勝者にしない",
       "file": "skills/parity-component/scripts/cascade-resolve.mjs",
-      "find": "        ...malformedStates,\n",
+      "find": "      ...malformedStates,\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": ["文字列でない状態名を持つ規則は、勝者にせず状態が不明な候補にする"]

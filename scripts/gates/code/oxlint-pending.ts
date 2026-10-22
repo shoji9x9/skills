@@ -91,11 +91,6 @@ export const PENDING_FIXES: Readonly<Record<string, readonly PendingRule[]>> = {
     "max-lines-per-function",
     "max-params",
   ],
-  "skills/golden-dataset/scripts/predicate-coverage-check.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-depth",
-  ],
   "skills/golden-dataset/scripts/skill-config/skill-config.mjs": [
     "complexity",
     "max-lines-per-function",
@@ -121,52 +116,9 @@ export const PENDING_FIXES: Readonly<Record<string, readonly PendingRule[]>> = {
     "max-lines-per-function",
     "max-params",
   ],
-  "skills/parity-component/scripts/axis-diff.mjs": ["complexity", "max-lines-per-function"],
-  "skills/parity-component/scripts/behavior-compare.mjs": ["complexity", "max-lines-per-function"],
-  "skills/parity-component/scripts/cascade-resolve.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-depth",
-  ],
-  "skills/parity-component/scripts/css-rules-capture.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-params",
-  ],
-  "skills/parity-component/scripts/lifecycle-check.mjs": ["complexity", "max-lines-per-function"],
-  "skills/parity-component/scripts/motion-compare.mjs": ["complexity", "max-lines-per-function"],
-  "skills/parity-component/scripts/motion-probe.mjs": ["max-lines-per-function"],
   "skills/parity-component/scripts/skill-config/skill-config.mjs": [
     "complexity",
     "max-lines-per-function",
-    "max-params",
-  ],
-  "skills/parity-diff/assets/capture-new.spec.template.ts": ["max-lines-per-function"],
-  "skills/parity-diff/scripts/amend-verify.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-params",
-  ],
-  "skills/parity-diff/scripts/coverage-check.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-params",
-  ],
-  "skills/parity-diff/scripts/diff-normalize.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-params",
-  ],
-  "skills/parity-diff/scripts/json-normalize-diff.mjs": ["max-params"],
-  "skills/parity-diff/scripts/pending-triage-check.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-params",
-  ],
-  "skills/parity-diff/scripts/pixel-crops.mjs": [
-    "complexity",
-    "max-lines-per-function",
-    "max-depth",
     "max-params",
   ],
   "skills/parity-diff/scripts/skill-config/skill-config.mjs": [

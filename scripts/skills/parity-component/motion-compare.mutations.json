@@ -99,8 +99,8 @@
       "id": "acceptance-approval",
       "why": "承認の無い accepted を承認として数える",
       "file": "skills/parity-component/scripts/motion-compare.mjs",
-      "find": "      if (\n        !filled(field(row, \"reason\")) ||\n        !filled(field(row, \"approved_by\")) ||\n        !isoDateTime(field(row, \"approved_at\"))\n      ) {",
-      "replace": "      if (false) {",
+      "find": "  if (\n    !filled(field(row, \"reason\")) ||\n    !filled(field(row, \"approved_by\")) ||\n    !isoDateTime(field(row, \"approved_at\"))\n  ) {",
+      "replace": "  if (false) {",
       "occurrences": 1,
       "expect_failing": ["比べないことを選ぶには承認が要る（プレースホルダは承認ではない）"]
     },

@@ -137,6 +137,131 @@ export function parseFeatureSlugs(markdown) {
 }
 
 /**
+ * ただの文字列の pending 要素を正規化する（旧形式。帰属不明にする）。
+ *
+ * @param {string} entry
+ * @param {number} index
+ * @returns {{ item: ({key:string, slug:(string|null), index:number}|null), issues: {index:number, slug:(string|null), message:string}[] }}
+ */
+function normalizeStringEntry(entry, index) {
+  const key = matchKey(entry);
+  if (key === "") {
+    return {
+      item: null,
+      issues: [
+        {
+          index,
+          slug: null,
+          message: `intentional_diffs.pending[${index}]: 空の要素（照合に使えない）`,
+        },
+      ],
+    };
+  }
+  return { item: { key, slug: null, index }, issues: [] };
+}
+
+/**
+ * pending 要素の書き手と slug を読み、slug の名前空間を確認できるかを決める。
+ *
+ * @param {Record<string, unknown>} rec
+ * @param {Set<string>|null} knownSlugs
+ * @returns {{ writer: (string|null), writerWritesFeatureSlug: boolean, namespaceVerified: boolean, attribution: (string|null), knownSlugs: (Set<string>|null) }}
+ */
+function slugNamespace(rec, knownSlugs) {
+  const writer = nonEmptyString(rec.added_by) ? String(rec.added_by).trim() : null;
+  const rawSlug = nonEmptyString(rec.slug) ? String(rec.slug).trim() : null;
+  // 帰属を信用できるのは、書き手が読めていてその書き手が機能 slug を書け、かつその slug が
+  // 機能インベントリに実在する場合だけ。書き手が読めない要素（added_by の欠落・unknown・未知の名前）も、
+  // 実在しない slug（綴り違い・部品 slug）も、別機能に帰属すると読めていることにならない。
+  // どちらもその「担当機能」が現れないまま永久に棚卸しされない。
+  // インベントリを読めていない（knownSlugs が null）ときは何も検証できないので緩和を適用しない。
+  // cross-cutting は書き手に依らず帰属不明と同じ範囲（全機能）なのでそのまま信用してよい。
+  const writerWritesFeatureSlug = writer !== null && FEATURE_SLUG_WRITERS.has(writer);
+  const slugInInventory = knownSlugs !== null && rawSlug !== null && knownSlugs.has(rawSlug);
+  const namespaceVerified =
+    rawSlug === null || rawSlug === CROSS_CUTTING || (writerWritesFeatureSlug && slugInInventory);
+  // 形の不備を報告するときの帰属。slug が読めない・名前空間を確認できない要素は
+  // 帰属不明（＝全機能の棚卸し対象）として扱う。
+  const attribution = namespaceVerified ? rawSlug : null;
+  return { writer, writerWritesFeatureSlug, namespaceVerified, attribution, knownSlugs };
+}
+
+/**
+ * 名前空間を確認できない slug について、確認できない理由を返す。
+ *
+ * @param {ReturnType<typeof slugNamespace>} ns
+ * @returns {string}
+ */
+function unverifiedSlugReason(ns) {
+  const { writer } = ns;
+  if (writer !== null && CROSS_CUTTING_ONLY_WRITERS.has(writer)) {
+    return `added_by が ${writer} なのに slug が ${CROSS_CUTTING} でない`;
+  }
+  if (!ns.writerWritesFeatureSlug) {
+    return `slug の名前空間を確認できない（${writer === null ? "added_by が無い" : `added_by が ${writer}`}）`;
+  }
+  if (ns.knownSlugs === null) {
+    return "機能インベントリを読めていないので slug の実在を確認できない";
+  }
+  return "slug が機能インベントリに無い";
+}
+
+/**
+ * slug を帰属として使えない理由を返す。使えるなら null を返す。
+ *
+ * @param {Record<string, unknown>} rec
+ * @param {string} key
+ * @param {ReturnType<typeof slugNamespace>} ns
+ * @returns {string|null}
+ */
+function slugIssue(rec, key, ns) {
+  if (rec.slug === undefined) {
+    // slug の欠落は帰属不明として扱い、どの機能の棚卸しでも提示する（警告なしに対象外にしない）。
+    return `slug が無い（${key}）— 帰属不明として全機能の棚卸し対象になる`;
+  }
+  if (!nonEmptyString(rec.slug)) return `slug が空／文字列でない（${key}）`;
+  // 名前空間を確認できない slug は、どの機能の inScope にも入らず、いつまでも棚卸しされない。
+  // 帰属不明（slug: null）として扱い、すべての機能の対象にする（合格として扱わない）。
+  if (!ns.namespaceVerified) {
+    return `${unverifiedSlugReason(ns)}（${key}）— 機能 slug と読めないため帰属不明として全機能の棚卸し対象になる`;
+  }
+  return null;
+}
+
+/**
+ * オブジェクトの pending 要素を正規化する。item・slug・added_by・added_at を検証する。
+ *
+ * @param {Record<string, unknown>} rec
+ * @param {number} index
+ * @param {Set<string>|null} knownSlugs
+ * @returns {{ item: ({key:string, slug:(string|null), index:number}|null), issues: {index:number, slug:(string|null), message:string}[] }}
+ */
+function normalizeObjectEntry(rec, index, knownSlugs) {
+  /** @type {{index:number, slug:(string|null), message:string}[]} */
+  const issues = [];
+  /**
+   * @param {string|null} slug
+   * @param {string} message
+   */
+  const push = (slug, message) =>
+    issues.push({ index, slug, message: `intentional_diffs.pending[${index}]: ${message}` });
+  const key = matchKey(intentionalEntryText(rec));
+  const ns = slugNamespace(rec, knownSlugs);
+  if (key === "") {
+    push(ns.attribution, "item が空／文字列でない（照合に使えない）");
+    return { item: null, issues };
+  }
+  if (!nonEmptyString(rec.added_by)) push(ns.attribution, `added_by が無い（${key}）`);
+  if (!nonEmptyString(rec.added_at)) push(ns.attribution, `added_at が無い（${key}）`);
+  const issue = slugIssue(rec, key, ns);
+  if (issue !== null) {
+    push(null, issue);
+    return { item: { key, slug: null, index }, issues };
+  }
+  return { item: { key, slug: String(rec.slug).trim(), index }, issues };
+}
+
+/**
  * registries.json の intentional_diffs.pending を正規化する。
  *
  * ただの文字列は旧形式として読むが、帰属不明にする（slug: null）。
@@ -164,108 +289,25 @@ export function normalizePending(entries, knownSlugs = null) {
   /** @type {{index:number, slug:(string|null), message:string}[]} */
   const issues = [];
   entries.forEach((entry, index) => {
+    let normalized;
     if (typeof entry === "string") {
-      const key = matchKey(entry);
-      if (key === "") {
-        issues.push({
-          index,
-          slug: null,
-          message: `intentional_diffs.pending[${index}]: 空の要素（照合に使えない）`,
-        });
-        return;
-      }
-      items.push({ key, slug: null, index });
-      return;
+      normalized = normalizeStringEntry(entry, index);
+    } else if (isPlainObject(entry)) {
+      normalized = normalizeObjectEntry(entry, index, knownSlugs);
+    } else {
+      normalized = {
+        item: null,
+        issues: [
+          {
+            index,
+            slug: null,
+            message: `intentional_diffs.pending[${index}]: 文字列でもオブジェクトでもない（要素の形は replace-strategy の references/project-config.md「pending 要素の形」で定義する）`,
+          },
+        ],
+      };
     }
-    if (!isPlainObject(entry)) {
-      issues.push({
-        index,
-        slug: null,
-        message: `intentional_diffs.pending[${index}]: 文字列でもオブジェクトでもない（要素の形は replace-strategy の references/project-config.md「pending 要素の形」で定義する）`,
-      });
-      return;
-    }
-    const rec = entry;
-    const key = matchKey(intentionalEntryText(entry));
-    const writer = nonEmptyString(rec.added_by) ? String(rec.added_by).trim() : null;
-    const rawSlug = nonEmptyString(rec.slug) ? String(rec.slug).trim() : null;
-    // 帰属を信用できるのは、書き手が読めていてその書き手が機能 slug を書け、かつその slug が
-    // 機能インベントリに実在する場合だけ。書き手が読めない要素（added_by の欠落・unknown・未知の名前）も、
-    // 実在しない slug（綴り違い・部品 slug）も、別機能に帰属すると読めていることにならない。
-    // どちらもその「担当機能」が現れないまま永久に棚卸しされない。
-    // インベントリを読めていない（knownSlugs が null）ときは何も検証できないので緩和を適用しない。
-    // cross-cutting は書き手に依らず帰属不明と同じ範囲（全機能）なのでそのまま信用してよい。
-    const writerWritesFeatureSlug = writer !== null && FEATURE_SLUG_WRITERS.has(writer);
-    const slugInInventory = knownSlugs !== null && rawSlug !== null && knownSlugs.has(rawSlug);
-    const namespaceVerified =
-      rawSlug === null || rawSlug === CROSS_CUTTING || (writerWritesFeatureSlug && slugInInventory);
-    // 形の不備を報告するときの帰属。slug が読めない・名前空間を確認できない要素は
-    // 帰属不明（＝全機能の棚卸し対象）として扱う。
-    const attribution = namespaceVerified ? rawSlug : null;
-    if (key === "") {
-      issues.push({
-        index,
-        slug: attribution,
-        message: `intentional_diffs.pending[${index}]: item が空／文字列でない（照合に使えない）`,
-      });
-      return;
-    }
-    if (!nonEmptyString(rec.added_by)) {
-      issues.push({
-        index,
-        slug: attribution,
-        message: `intentional_diffs.pending[${index}]: added_by が無い（${key}）`,
-      });
-    }
-    if (!nonEmptyString(rec.added_at)) {
-      issues.push({
-        index,
-        slug: attribution,
-        message: `intentional_diffs.pending[${index}]: added_at が無い（${key}）`,
-      });
-    }
-    if (rec.slug === undefined) {
-      // slug の欠落は帰属不明として扱い、どの機能の棚卸しでも提示する（警告なしに対象外にしない）。
-      issues.push({
-        index,
-        slug: null,
-        message: `intentional_diffs.pending[${index}]: slug が無い（${key}）— 帰属不明として全機能の棚卸し対象になる`,
-      });
-      items.push({ key, slug: null, index });
-      return;
-    }
-    if (!nonEmptyString(rec.slug)) {
-      issues.push({
-        index,
-        slug: null,
-        message: `intentional_diffs.pending[${index}]: slug が空／文字列でない（${key}）`,
-      });
-      items.push({ key, slug: null, index });
-      return;
-    }
-    const entrySlug = String(rec.slug).trim();
-    // 名前空間を確認できない slug は、どの機能の inScope にも入らず、いつまでも棚卸しされない。
-    // 帰属不明（slug: null）として扱い、すべての機能の対象にする（合格として扱わない）。
-    if (!namespaceVerified) {
-      let reason;
-      if (writer !== null && CROSS_CUTTING_ONLY_WRITERS.has(writer)) {
-        reason = `added_by が ${writer} なのに slug が ${CROSS_CUTTING} でない`;
-      } else if (!writerWritesFeatureSlug) {
-        reason = `slug の名前空間を確認できない（${writer === null ? "added_by が無い" : `added_by が ${writer}`}）`;
-      } else if (knownSlugs === null) {
-        reason = "機能インベントリを読めていないので slug の実在を確認できない";
-      } else {
-        reason = "slug が機能インベントリに無い";
-      }
-      issues.push({
-        index,
-        slug: null,
-        message: `intentional_diffs.pending[${index}]: ${reason}（${key}）— 機能 slug と読めないため帰属不明として全機能の棚卸し対象になる`,
-      });
-      items.push({ key, slug: null, index });
-      return;
-    }
-    items.push({ key, slug: entrySlug, index });
+    issues.push(...normalized.issues);
+    if (normalized.item !== null) items.push(normalized.item);
   });
   return { items, problems: issues.map((issue) => issue.message), issues };
 }
@@ -301,6 +343,252 @@ function targetKeys(registry, group) {
 }
 
 /**
+ * @typedef {object} ProblemSink
+ * @property {string[]} problems すべての不整合
+ * @property {string[]} registry 登録簿（設定ファイル）側の不整合で、棚卸しの対象範囲に入るもの
+ * @property {string[]} record 棚卸し記録（成果物）側の不整合
+ * @property {string[]} outOfScope 別機能に帰属すると読めている要素の形の不備（報告のみ）
+ */
+
+/**
+ * 棚卸し記録の側の不整合を足す。
+ *
+ * @param {ProblemSink} sink
+ * @param {string} message
+ */
+function addRecordProblem(sink, message) {
+  sink.problems.push(message);
+  sink.record.push(message);
+}
+
+/**
+ * 登録簿の側の不整合を、棚卸しの対象範囲に入るかで分けて足す。
+ *
+ * @param {ProblemSink} sink
+ * @param {string} message
+ * @param {boolean} inTarget
+ */
+function addRegistryProblem(sink, message, inTarget) {
+  sink.problems.push(message);
+  if (inTarget) sink.registry.push(message);
+  else sink.outOfScope.push(message);
+}
+
+/**
+ * 設定ファイルの pending を読み、形の不備と、同じ文言の重複を不整合として足す。
+ *
+ * @param {unknown} intentional registries.json の intentional_diffs
+ * @param {{ slug: string, knownSlugs: (Set<string>|null), sink: ProblemSink }} ctx
+ * @returns {{key:string, slug:(string|null), index:number}[]}
+ */
+function readPendingItems(intentional, ctx) {
+  const { slug, sink } = ctx;
+  const rawPending = isPlainObject(intentional) ? intentional.pending : undefined;
+  if (rawPending !== undefined && !isArray(rawPending)) {
+    // 登録簿そのものが読めない。帰属を決められないので対象範囲に入れる。
+    addRegistryProblem(sink, "intentional_diffs.pending が配列でない", true);
+  }
+  const { items, issues: shapeIssues } = normalizePending(
+    isArray(rawPending) ? rawPending : [],
+    ctx.knownSlugs,
+  );
+  for (const issue of shapeIssues) addRegistryProblem(sink, issue.message, inScope(issue, slug));
+
+  // 同じ文言が pending に複数あると、どの要素を棚卸ししたのか決められない（先勝ちにしない）。
+  /** @type {Map<string, number>} */
+  const pendingCount = new Map();
+  for (const item of items) pendingCount.set(item.key, (pendingCount.get(item.key) ?? 0) + 1);
+  for (const [key, n] of pendingCount) {
+    if (n > 1) {
+      // 1 件でも対象に入る要素があれば、この機能の照合が決まらない。全て別機能なら報告だけにする。
+      addRegistryProblem(
+        sink,
+        `intentional_diffs.pending に同じ文言が ${n} 件ある（${key}）`,
+        items.some((item) => item.key === key && inScope(item, slug)),
+      );
+    }
+  }
+  return items;
+}
+
+/**
+ * @typedef {object} TriageState
+ * @property {string} slug 対象機能の slug
+ * @property {Map<string, (string|null)>} pendingSlugs 照合キー → 設定ファイル側の帰属
+ * @property {Set<string>} pendingKeys 設定ファイルの pending の照合キー
+ * @property {Set<string>} keepKeys
+ * @property {Set<string>} mayChangeKeys
+ * @property {Set<string>} triaged 記録済みの照合キー
+ * @property {{attributed:number, cross_cutting:number, unattributed:number, resolved:number, carried_over:number}} tally
+ * @property {ProblemSink} sink
+ */
+
+/**
+ * @typedef {object} EntryContext
+ * @property {string} key 記録の照合キー
+ * @property {(message: string) => void} fail 記録の位置を添えて不整合を足す
+ */
+
+/**
+ * 記録した帰属を確かめて数える。記録が不整合なら false を返す。
+ *
+ * @param {Record<string, unknown>} rec
+ * @param {EntryContext} ctx
+ * @param {TriageState} state
+ * @returns {boolean}
+ */
+function tallyAttribution(rec, ctx, state) {
+  const { key, fail } = ctx;
+  if (rec.slug !== undefined && rec.slug !== null && typeof rec.slug !== "string") {
+    fail(`slug が文字列でない（${key}）`);
+    return false;
+  }
+  const entrySlug = rec.slug === undefined || rec.slug === null ? null : matchKey(rec.slug) || null;
+  // 設定ファイル側にまだ残っている要素は、記録した帰属が設定ファイルの帰属と一致することまで確かめる
+  // （別機能に帰属する保留を自機能の slug で記録すると、その機能の棚卸しを素通りで閉じられる）。
+  if (state.pendingSlugs.has(key)) {
+    const registrySlug = state.pendingSlugs.get(key) ?? null;
+    if (registrySlug !== entrySlug) {
+      fail(
+        `記録した帰属（${entrySlug ?? "帰属不明"}）が設定ファイルの pending の帰属（${registrySlug ?? "帰属不明"}）と違う（${key}）`,
+      );
+      return false;
+    }
+  }
+  if (entrySlug === null) state.tally.unattributed += 1;
+  else if (entrySlug === CROSS_CUTTING) state.tally.cross_cutting += 1;
+  else if (entrySlug === state.slug) state.tally.attributed += 1;
+  else {
+    fail(`対象外の slug（${entrySlug}）を棚卸しに記録している（${key}）`);
+    return false;
+  }
+  return true;
+}
+
+/**
+ * 持ち越しの記録を確かめて数える。
+ *
+ * @param {Record<string, unknown>} rec
+ * @param {EntryContext} ctx
+ * @param {TriageState} state
+ */
+function checkCarriedOver(rec, ctx, state) {
+  const { key, fail } = ctx;
+  state.tally.carried_over += 1;
+  if (!nonEmptyString(rec.reason)) {
+    fail(`持ち越しの理由が空（${key}）— 理由の記録が通過の条件`);
+  }
+  if (!state.pendingKeys.has(key)) {
+    fail(`持ち越しと記録されているが pending に無い（${key}）`);
+  }
+}
+
+/**
+ * keep / may_change へ移したという記録を、実際に移っていることまで確かめて数える。
+ *
+ * @param {Record<string, unknown>} rec
+ * @param {EntryContext & { disposition: string }} ctx
+ * @param {TriageState} state
+ */
+function checkPromoted(rec, ctx, state) {
+  const { key, fail, disposition } = ctx;
+  state.tally.resolved += 1;
+  const promoted =
+    rec.promoted_as === undefined || rec.promoted_as === null ? key : matchKey(rec.promoted_as);
+  if (promoted === "") {
+    fail(`promoted_as が空文字列（${key}）`);
+    return;
+  }
+  if (state.pendingKeys.has(key)) {
+    fail(`${disposition} へ移したと記録されているが pending に残っている（${key}）`);
+  }
+  const dest = disposition === "keep" ? state.keepKeys : state.mayChangeKeys;
+  if (!dest.has(promoted)) {
+    fail(
+      `${disposition} に見つからない（${promoted}）— 文言を変えて移したなら promoted_as に移動後の文言を書く`,
+    );
+  }
+}
+
+/**
+ * 棚卸しの記録 1 件を確かめて数える。
+ *
+ * @param {unknown} entry
+ * @param {number} index
+ * @param {TriageState} state
+ */
+function triageEntry(entry, index, state) {
+  /** @param {string} message */
+  const fail = (message) =>
+    addRecordProblem(state.sink, `intentional_diffs_pending.entries[${index}]: ${message}`);
+  if (!isPlainObject(entry)) {
+    fail("オブジェクトでない");
+    return;
+  }
+  // 文字列以外は matchKey で "[object Object]" などに潰れ、誤って照合キーとして使われる。そのため型で弾く
+  // （registries の側の intentionalEntryText と同じ扱い。潰れたキーは、pending と偶然に一致や不一致を起こす）。
+  const key = typeof entry.item === "string" ? matchKey(entry.item) : "";
+  if (key === "") {
+    fail("item が空／文字列でない");
+    return;
+  }
+  if (state.triaged.has(key)) {
+    fail(`同じ item が二重に記録されている（${key}）`);
+    return;
+  }
+  state.triaged.add(key);
+  const ctx = { key, fail };
+  if (!tallyAttribution(entry, ctx, state)) return;
+
+  const disposition = typeof entry.disposition === "string" ? entry.disposition : "";
+  if (!DISPOSITIONS.includes(disposition)) {
+    fail(`disposition が ${DISPOSITIONS.join(" / ")} のいずれでもない（${key}）`);
+    return;
+  }
+  if (disposition === "carried_over") checkCarriedOver(entry, ctx, state);
+  else checkPromoted(entry, { ...ctx, disposition }, state);
+}
+
+/**
+ * 宣言された件数を、数え直した値と突き合わせる（宣言は信用しない）。
+ *
+ * @param {unknown} record
+ * @param {TriageState["tally"]} tally
+ * @param {ProblemSink} sink
+ */
+function checkDeclaredCounts(record, tally, sink) {
+  /** @type {Record<string, unknown>} */
+  const declared = isPlainObject(record) ? record : {};
+  for (const [name, value] of Object.entries(tally)) {
+    if (declared[name] !== undefined && declared[name] !== value) {
+      addRecordProblem(
+        sink,
+        `intentional_diffs_pending.${name}: 宣言 ${JSON.stringify(declared[name])} と数え直した ${value} が一致しない`,
+      );
+    }
+  }
+}
+
+/**
+ * countTriage の戻り値を組み立てる。
+ *
+ * @param {TriageState["tally"]} tally
+ * @param {{ inScope: number, untriaged: number }} scope
+ * @param {ProblemSink} sink
+ */
+function triageResult(tally, scope, sink) {
+  return {
+    ...tally,
+    in_scope: scope.inScope,
+    untriaged: scope.untriaged,
+    problems: sink.problems,
+    registry_problems: sink.registry,
+    record_problems: sink.record,
+    out_of_scope_problems: sink.outOfScope,
+  };
+}
+
+/**
  * 棚卸しの記録と設定ファイルの pending を突き合わせて数え直す。
  *
  * 不整合は、不備のある場所で分けて返す。`registry_problems` は設定ファイルの登録簿
@@ -309,380 +597,266 @@ function targetKeys(registry, group) {
  * 別機能に帰属すると読めている要素の形の不備は `out_of_scope_problems` として報告だけする
  * （棚卸しの対象範囲と終了コードの範囲を揃える。対象 0 件の機能が、無関係な要素で閉じられなくならないため）。
  *
- * @param {unknown} registries registries.json の内容
- * @param {unknown} record diff-metadata.json の intentional_diffs_pending
- * @param {string} slug 対象機能の slug
- * @param {Set<string>|null} knownSlugs 機能インベントリの slug 集合（読めなければ null）
+ * @param {object} input
+ * @param {unknown} input.registries registries.json の内容
+ * @param {unknown} input.record diff-metadata.json の intentional_diffs_pending
+ * @param {string} input.slug 対象機能の slug
+ * @param {Set<string>|null} [input.knownSlugs] 機能インベントリの slug 集合（読めなければ null）
  * @returns {{attributed:number, cross_cutting:number, unattributed:number, resolved:number, carried_over:number, in_scope:number, untriaged:number, problems:string[], registry_problems:string[], record_problems:string[], out_of_scope_problems:string[]}}
  */
-export function countTriage(registries, record, slug, knownSlugs = null) {
-  /** @type {string[]} */
-  const problems = [];
-  /** @type {string[]} 登録簿（設定ファイル）側の不整合で、棚卸しの対象範囲に入るもの */
-  const registryProblems = [];
-  /** @type {string[]} 棚卸し記録（成果物）側の不整合 */
-  const recordProblems = [];
-  /** @type {string[]} 別機能に帰属すると読めている要素の形の不備（報告のみ） */
-  const outOfScopeProblems = [];
-  /** @param {string} message */
-  const addRecordProblem = (message) => {
-    problems.push(message);
-    recordProblems.push(message);
-  };
+export function countTriage({ registries, record, slug, knownSlugs = null }) {
+  /** @type {ProblemSink} */
+  const sink = { problems: [], registry: [], record: [], outOfScope: [] };
   const intentional = isPlainObject(registries) ? registries.intentional_diffs : null;
-  const rawPending = isPlainObject(intentional) ? intentional.pending : undefined;
-  if (rawPending !== undefined && !isArray(rawPending)) {
-    // 登録簿そのものが読めない。帰属を決められないので対象範囲に入れる。
-    problems.push("intentional_diffs.pending が配列でない");
-    registryProblems.push("intentional_diffs.pending が配列でない");
-  }
-  const { items, issues: shapeIssues } = normalizePending(
-    isArray(rawPending) ? rawPending : [],
-    knownSlugs,
-  );
-  for (const issue of shapeIssues) {
-    problems.push(issue.message);
-    if (inScope(issue, slug)) registryProblems.push(issue.message);
-    else outOfScopeProblems.push(issue.message);
-  }
-
-  // 同じ文言が pending に複数あると、どの要素を棚卸ししたのか決められない（先勝ちにしない）。
-  /** @type {Map<string, number>} */
-  const pendingCount = new Map();
-  for (const item of items) pendingCount.set(item.key, (pendingCount.get(item.key) ?? 0) + 1);
-  for (const [key, n] of pendingCount) {
-    if (n > 1) {
-      const message = `intentional_diffs.pending に同じ文言が ${n} 件ある（${key}）`;
-      problems.push(message);
-      // 1 件でも対象に入る要素があれば、この機能の照合が決まらない。全て別機能なら報告だけにする。
-      if (items.some((item) => item.key === key && inScope(item, slug))) {
-        registryProblems.push(message);
-      } else {
-        outOfScopeProblems.push(message);
-      }
-    }
-  }
-
+  const items = readPendingItems(intentional, { slug, knownSlugs, sink });
   const scoped = items.filter((item) => inScope(item, slug));
-  const pendingKeys = new Set(items.map((item) => item.key));
-  // 照合キー → 設定ファイル側の帰属。重複キーは上で不整合として報告するが、全て別機能に帰属する重複は
-  // 報告だけ（out_of_scope）なので終了コードには出ない。その場合ここは後勝ちになる。ただし、
-  // その帰属を記録した棚卸しは「対象外の slug」または「帰属が違う」で落ちるため、素通りにはならない。
-  /** @type {Map<string, (string|null)>} */
-  const pendingSlugs = new Map(items.map((item) => [item.key, item.slug]));
-  const keepKeys = targetKeys(intentional, "keep");
-  const mayChangeKeys = targetKeys(intentional, "may_change");
+  const tally = { attributed: 0, cross_cutting: 0, unattributed: 0, resolved: 0, carried_over: 0 };
 
   const entries = isPlainObject(record) ? record.entries : undefined;
   if (!isArray(entries)) {
     // CLI はこの形を exit 2 で先に落とすため、ここへは main() を経由しない呼び出しだけが来る。
-    addRecordProblem("intentional_diffs_pending.entries が配列でない（棚卸しの記録が読めない）");
-    return {
-      attributed: 0,
-      cross_cutting: 0,
-      unattributed: 0,
-      resolved: 0,
-      carried_over: 0,
-      in_scope: scoped.length,
-      untriaged: scoped.length,
-      problems,
-      registry_problems: registryProblems,
-      record_problems: recordProblems,
-      out_of_scope_problems: outOfScopeProblems,
-    };
+    addRecordProblem(
+      sink,
+      "intentional_diffs_pending.entries が配列でない（棚卸しの記録が読めない）",
+    );
+    return triageResult(tally, { inScope: scoped.length, untriaged: scoped.length }, sink);
   }
 
-  let attributed = 0;
-  let crossCutting = 0;
-  let unattributed = 0;
-  let resolved = 0;
-  let carriedOver = 0;
-  /** @type {Set<string>} */
-  const triaged = new Set();
-
-  entries.forEach((entry, index) => {
-    if (!isPlainObject(entry)) {
-      addRecordProblem(`intentional_diffs_pending.entries[${index}]: オブジェクトでない`);
-      return;
-    }
-    const rec = entry;
-    // 文字列以外は matchKey で "[object Object]" などに潰れ、誤って照合キーとして使われる。そのため型で弾く
-    // （registries の側の intentionalEntryText と同じ扱い。潰れたキーは、pending と偶然に一致や不一致を起こす）。
-    const key = typeof rec.item === "string" ? matchKey(rec.item) : "";
-    if (key === "") {
-      addRecordProblem(`intentional_diffs_pending.entries[${index}]: item が空／文字列でない`);
-      return;
-    }
-    if (triaged.has(key)) {
-      addRecordProblem(
-        `intentional_diffs_pending.entries[${index}]: 同じ item が二重に記録されている（${key}）`,
-      );
-      return;
-    }
-    triaged.add(key);
-
-    if (rec.slug !== undefined && rec.slug !== null && typeof rec.slug !== "string") {
-      addRecordProblem(
-        `intentional_diffs_pending.entries[${index}]: slug が文字列でない（${key}）`,
-      );
-      return;
-    }
-    const entrySlug =
-      rec.slug === undefined || rec.slug === null ? null : matchKey(rec.slug) || null;
-    // 設定ファイル側にまだ残っている要素は、記録した帰属が設定ファイルの帰属と一致することまで確かめる
-    // （別機能に帰属する保留を自機能の slug で記録すると、その機能の棚卸しを素通りで閉じられる）。
-    if (pendingSlugs.has(key)) {
-      const registrySlug = pendingSlugs.get(key) ?? null;
-      if (registrySlug !== entrySlug) {
-        addRecordProblem(
-          `intentional_diffs_pending.entries[${index}]: 記録した帰属（${entrySlug ?? "帰属不明"}）が設定ファイルの pending の帰属（${registrySlug ?? "帰属不明"}）と違う（${key}）`,
-        );
-        return;
-      }
-    }
-    if (entrySlug === null) unattributed += 1;
-    else if (entrySlug === CROSS_CUTTING) crossCutting += 1;
-    else if (entrySlug === slug) attributed += 1;
-    else {
-      addRecordProblem(
-        `intentional_diffs_pending.entries[${index}]: 対象外の slug（${entrySlug}）を棚卸しに記録している（${key}）`,
-      );
-      return;
-    }
-
-    const disposition = typeof rec.disposition === "string" ? rec.disposition : "";
-    if (!DISPOSITIONS.includes(disposition)) {
-      addRecordProblem(
-        `intentional_diffs_pending.entries[${index}]: disposition が ${DISPOSITIONS.join(" / ")} のいずれでもない（${key}）`,
-      );
-      return;
-    }
-
-    if (disposition === "carried_over") {
-      carriedOver += 1;
-      if (!nonEmptyString(rec.reason)) {
-        addRecordProblem(
-          `intentional_diffs_pending.entries[${index}]: 持ち越しの理由が空（${key}）— 理由の記録が通過の条件`,
-        );
-      }
-      if (!pendingKeys.has(key)) {
-        addRecordProblem(
-          `intentional_diffs_pending.entries[${index}]: 持ち越しと記録されているが pending に無い（${key}）`,
-        );
-      }
-      return;
-    }
-
-    // keep / may_change は「移した」記録なので、実際に移っていることまで確かめる。
-    resolved += 1;
-    const promoted =
-      rec.promoted_as === undefined || rec.promoted_as === null ? key : matchKey(rec.promoted_as);
-    if (promoted === "") {
-      addRecordProblem(
-        `intentional_diffs_pending.entries[${index}]: promoted_as が空文字列（${key}）`,
-      );
-      return;
-    }
-    if (pendingKeys.has(key)) {
-      addRecordProblem(
-        `intentional_diffs_pending.entries[${index}]: ${disposition} へ移したと記録されているが pending に残っている（${key}）`,
-      );
-    }
-    const dest = disposition === "keep" ? keepKeys : mayChangeKeys;
-    if (!dest.has(promoted)) {
-      addRecordProblem(
-        `intentional_diffs_pending.entries[${index}]: ${disposition} に見つからない（${promoted}）— 文言を変えて移したなら promoted_as に移動後の文言を書く`,
-      );
-    }
-  });
-
-  // 宣言された件数は信用せず、数え直した値と突き合わせる。
-  /** @type {Record<string, unknown>} */
-  const declared = isPlainObject(record) ? record : {};
-  const counted = {
-    attributed,
-    cross_cutting: crossCutting,
-    unattributed,
-    resolved,
-    carried_over: carriedOver,
+  /** @type {TriageState} */
+  const state = {
+    slug,
+    // 照合キー → 設定ファイル側の帰属。重複キーは上で不整合として報告するが、全て別機能に帰属する重複は
+    // 報告だけ（out_of_scope）なので終了コードには出ない。その場合ここは後勝ちになる。ただし、
+    // その帰属を記録した棚卸しは「対象外の slug」または「帰属が違う」で落ちるため、素通りにはならない。
+    pendingSlugs: new Map(items.map((item) => [item.key, item.slug])),
+    pendingKeys: new Set(items.map((item) => item.key)),
+    keepKeys: targetKeys(intentional, "keep"),
+    mayChangeKeys: targetKeys(intentional, "may_change"),
+    triaged: new Set(),
+    tally,
+    sink,
   };
-  for (const [name, value] of Object.entries(counted)) {
-    if (declared[name] !== undefined && declared[name] !== value) {
-      addRecordProblem(
-        `intentional_diffs_pending.${name}: 宣言 ${JSON.stringify(declared[name])} と数え直した ${value} が一致しない`,
-      );
-    }
-  }
+  entries.forEach((entry, index) => triageEntry(entry, index, state));
+  checkDeclaredCounts(record, tally, sink);
 
-  const untriagedItems = scoped.filter((item) => !triaged.has(item.key));
+  const untriagedItems = scoped.filter((item) => !state.triaged.has(item.key));
   for (const item of untriagedItems) {
-    problems.push(
+    sink.problems.push(
       `未棚卸し: intentional_diffs.pending[${item.index}]（${item.slug ?? "帰属不明"}）— ${item.key}`,
     );
   }
-
-  return {
-    ...counted,
-    in_scope: scoped.length,
-    untriaged: untriagedItems.length,
-    problems,
-    registry_problems: registryProblems,
-    record_problems: recordProblems,
-    out_of_scope_problems: outOfScopeProblems,
-  };
+  return triageResult(tally, { inScope: scoped.length, untriaged: untriagedItems.length }, sink);
 }
 
+const USAGE =
+  "usage: node pending-triage-check.mjs --registries <registries.json> --metadata <diff-metadata.json> --features <features.md>\n";
+
 /**
- * CLI 本体。
+ * 引数を読む。使い方の誤りなら stderr に書いて null を返す。
  *
  * @param {string[]} argv
- * @param {{ readFile?: (p:string)=>string }} [deps]
- * @returns {number} 終了コード
+ * @returns {Record<string, string>|null}
  */
-export function main(argv, deps = {}) {
-  const readFile = deps.readFile ?? ((p) => readFileSync(p, "utf8"));
-  const usage =
-    "usage: node pending-triage-check.mjs --registries <registries.json> --metadata <diff-metadata.json> --features <features.md>\n";
+function parseArgs(argv) {
   /** @type {Record<string, string>} */
   const opts = {};
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
-    if (a === "--registries" || a === "--metadata" || a === "--features") {
-      const v = argv[i + 1];
-      if (v === undefined) {
-        process.stderr.write(usage);
-        return 2;
-      }
-      if (opts[a.slice(2)] !== undefined) {
-        // 同じフラグを重ねて指定したときに、警告なしに後のものを採らない（どちらを読んだかが出力から分からなくなる）。
-        process.stderr.write(`error: ${a} が複数回指定されている\n${usage}`);
-        return 2;
-      }
-      opts[a.slice(2)] = v;
-      i += 1;
-      continue;
+    if (a !== "--registries" && a !== "--metadata" && a !== "--features") {
+      process.stderr.write(`unknown argument: ${a}\n${USAGE}`);
+      return null;
     }
-    process.stderr.write(`unknown argument: ${a}\n${usage}`);
-    return 2;
+    const v = argv[i + 1];
+    if (v === undefined) {
+      process.stderr.write(USAGE);
+      return null;
+    }
+    if (opts[a.slice(2)] !== undefined) {
+      // 同じフラグを重ねて指定したときに、警告なしに後のものを採らない（どちらを読んだかが出力から分からなくなる）。
+      process.stderr.write(`error: ${a} が複数回指定されている\n${USAGE}`);
+      return null;
+    }
+    opts[a.slice(2)] = v;
+    i += 1;
   }
   if (!opts.registries || !opts.metadata) {
-    process.stderr.write(usage);
-    return 2;
+    process.stderr.write(USAGE);
+    return null;
   }
+  return opts;
+}
 
-  // 機能インベントリ。渡されなければ何も検証できないので、別の機能への緩和を当てない。
-  /** @type {Set<string>|null} */
-  let knownSlugs = null;
-  if (opts.features) {
-    /** @type {string} */
-    let featuresText;
-    try {
-      featuresText = readFile(opts.features);
-    } catch (e) {
-      process.stderr.write(`error: features.md を読めない: ${opts.features}: ${String(e)}\n`);
-      return 2;
-    }
-    knownSlugs = parseFeatureSlugs(featuresText);
-    if (knownSlugs === null) {
-      // 読めたのに slug 表が無いのは、別のファイルを渡したか形式が変わったかのどちらか。
-      // 警告なしに緩和を当てないと、緩和が当たらない理由が出力から分からない。
-      process.stderr.write(
-        `error: features.md に slug 列の表が無い（機能インベントリとして読めない）: ${opts.features}\n`,
-      );
-      return 2;
-    }
+/**
+ * stderr にエラーを書いて、使い方や入力の誤りを表す終了コード 2 を返す。
+ *
+ * @param {string} message
+ * @returns {{ exit: number }}
+ */
+function exit2(message) {
+  process.stderr.write(message);
+  return { exit: 2 };
+}
+
+/**
+ * 機能インベントリを読む。渡されなければ何も検証できないので、別の機能への緩和を当てない（null）。
+ *
+ * @param {string|undefined} path
+ * @param {(p:string)=>string} readFile
+ * @returns {{ exit: number } | { value: (Set<string>|null) }}
+ */
+function loadFeatureSlugs(path, readFile) {
+  if (!path) return { value: null };
+  /** @type {string} */
+  let featuresText;
+  try {
+    featuresText = readFile(path);
+  } catch (e) {
+    return exit2(`error: features.md を読めない: ${path}: ${String(e)}\n`);
   }
+  const knownSlugs = parseFeatureSlugs(featuresText);
+  if (knownSlugs === null) {
+    // 読めたのに slug 表が無いのは、別のファイルを渡したか形式が変わったかのどちらか。
+    // 警告なしに緩和を当てないと、緩和が当たらない理由が出力から分からない。
+    return exit2(
+      `error: features.md に slug 列の表が無い（機能インベントリとして読めない）: ${path}\n`,
+    );
+  }
+  return { value: knownSlugs };
+}
 
+/**
+ * registries.json を読み、棚卸しの対象を決められる形かを確かめる。
+ *
+ * @param {string} path
+ * @param {(p:string)=>string} readFile
+ * @returns {{ exit: number } | { value: Record<string, unknown> }}
+ */
+function loadRegistries(path, readFile) {
   /** @type {unknown} */
   let registries;
   try {
-    registries = JSON.parse(readFile(opts.registries));
+    registries = JSON.parse(readFile(path));
   } catch (e) {
-    process.stderr.write(`error: registries.json を読めない: ${opts.registries}: ${String(e)}\n`);
-    return 2;
+    return exit2(`error: registries.json を読めない: ${path}: ${String(e)}\n`);
   }
   // 空集合として扱うと「対象 0 件で合格」になり、間違ったファイルやキーの欠けた設定が警告なしに通る。
   if (!isPlainObject(registries)) {
-    process.stderr.write(`error: registries.json がオブジェクトでない: ${opts.registries}\n`);
-    return 2;
+    return exit2(`error: registries.json がオブジェクトでない: ${path}\n`);
   }
   const intentionalDiffs = registries.intentional_diffs;
   if (!isPlainObject(intentionalDiffs)) {
-    process.stderr.write(
-      `error: registries.json に intentional_diffs が無い／オブジェクトでない（棚卸しの対象を決められない）: ${opts.registries}\n`,
+    return exit2(
+      `error: registries.json に intentional_diffs が無い／オブジェクトでない（棚卸しの対象を決められない）: ${path}\n`,
     );
-    return 2;
   }
   if (!isArray(intentionalDiffs.pending)) {
-    process.stderr.write(
-      `error: registries.json の intentional_diffs.pending が無い／配列でない（設定ファイルでは空でも [] を書く）: ${opts.registries}\n`,
+    return exit2(
+      `error: registries.json の intentional_diffs.pending が無い／配列でない（設定ファイルでは空でも [] を書く）: ${path}\n`,
     );
-    return 2;
   }
+  return { value: registries };
+}
+
+/**
+ * diff-metadata.json を読み、slug を取り出す。
+ *
+ * @param {string} path
+ * @param {(p:string)=>string} readFile
+ * @returns {{ exit: number } | { value: { slug: string, meta: Record<string, unknown> } }}
+ */
+function loadMetadata(path, readFile) {
   /** @type {unknown} */
   let metadata;
   try {
-    metadata = JSON.parse(readFile(opts.metadata));
+    metadata = JSON.parse(readFile(path));
   } catch (e) {
-    process.stderr.write(`error: diff-metadata.json を読めない: ${opts.metadata}: ${String(e)}\n`);
-    return 2;
+    return exit2(`error: diff-metadata.json を読めない: ${path}: ${String(e)}\n`);
   }
   if (!isPlainObject(metadata)) {
-    process.stderr.write(`error: diff-metadata.json がオブジェクトでない: ${opts.metadata}\n`);
-    return 2;
+    return exit2(`error: diff-metadata.json がオブジェクトでない: ${path}\n`);
   }
-  const meta = metadata;
-  if (!nonEmptyString(meta.slug)) {
+  if (!nonEmptyString(metadata.slug)) {
     // slug が無いと棚卸しの対象を決められない。空集合として扱うと、全件が警告なしに対象外になる。
-    process.stderr.write(`error: diff-metadata.json に slug が無い: ${opts.metadata}\n`);
-    return 2;
+    return exit2(`error: diff-metadata.json に slug が無い: ${path}\n`);
   }
-  const slug = String(meta.slug).trim();
+  return { value: { slug: String(metadata.slug).trim(), meta: metadata } };
+}
 
-  const record = meta.intentional_diffs_pending;
-  if (record === undefined) {
-    // 旧成果物として合格にしない（棚卸しは、対象が 0 件でも記録を求める）。
-    process.stdout.write(
-      `${JSON.stringify({ tool: "pending-triage-check", version: VERSION, slug, recorded: false, in_scope: null, attributed: 0, cross_cutting: 0, unattributed: 0, resolved: 0, carried_over: 0, untriaged: null, problems: ["intentional_diffs_pending が無い（棚卸し未実施）"], registry_problems: [], record_problems: ["intentional_diffs_pending が無い（棚卸し未実施）"], out_of_scope_problems: [] }, null, 2)}\n`,
-    );
-    process.stderr.write(
-      `error: diff-metadata.json に intentional_diffs_pending が無い（棚卸し未実施）。収束させずに棚卸しする: ${opts.metadata}\n`,
-    );
-    return 1;
-  }
+/**
+ * 棚卸しの記録が無いときの出力を書き、終了コード 1 を返す（旧成果物として合格にしない）。
+ *
+ * @param {string} slug
+ * @param {string} metadataPath
+ * @returns {{ exit: number }}
+ */
+function reportMissingRecord(slug, metadataPath) {
+  // 旧成果物として合格にしない（棚卸しは、対象が 0 件でも記録を求める）。
+  process.stdout.write(
+    `${JSON.stringify({ tool: "pending-triage-check", version: VERSION, slug, recorded: false, in_scope: null, attributed: 0, cross_cutting: 0, unattributed: 0, resolved: 0, carried_over: 0, untriaged: null, problems: ["intentional_diffs_pending が無い（棚卸し未実施）"], registry_problems: [], record_problems: ["intentional_diffs_pending が無い（棚卸し未実施）"], out_of_scope_problems: [] }, null, 2)}\n`,
+  );
+  process.stderr.write(
+    `error: diff-metadata.json に intentional_diffs_pending が無い（棚卸し未実施）。収束させずに棚卸しする: ${metadataPath}\n`,
+  );
+  return { exit: 1 };
+}
+
+/**
+ * 棚卸しの記録（intentional_diffs_pending）を取り出し、読める形かを確かめる。
+ *
+ * @param {{ slug: string, meta: Record<string, unknown> }} metadata
+ * @param {string} metadataPath
+ * @returns {{ exit: number } | { value: Record<string, unknown> }}
+ */
+function readTriageRecord(metadata, metadataPath) {
+  const record = metadata.meta.intentional_diffs_pending;
+  if (record === undefined) return reportMissingRecord(metadata.slug, metadataPath);
   if (!isPlainObject(record)) {
-    process.stderr.write(
-      `error: intentional_diffs_pending がオブジェクトでない: ${opts.metadata}\n`,
-    );
-    return 2;
+    return exit2(`error: intentional_diffs_pending がオブジェクトでない: ${metadataPath}\n`);
   }
   if (!isArray(record.entries)) {
     // 成果物の型の誤りは「未棚卸し」(exit 1) とまとめず、型の誤りや使い方の誤り (exit 2) として返す
     // （両方を 1 で返すと、自動化が「棚卸しをやり直せば直る」と「成果物が不正」を区別できない）。
-    process.stderr.write(
-      `error: intentional_diffs_pending.entries が配列でない（棚卸しの記録が読めない）: ${opts.metadata}\n`,
+    return exit2(
+      `error: intentional_diffs_pending.entries が配列でない（棚卸しの記録が読めない）: ${metadataPath}\n`,
     );
-    return 2;
   }
+  return { value: record };
+}
 
+/**
+ * 入力をすべて読み、数え直しに渡せる形にする。
+ *
+ * @param {Record<string, string>} opts
+ * @param {(p:string)=>string} readFile
+ * @returns {{ exit: number } | { value: { registries: unknown, record: unknown, slug: string, knownSlugs: (Set<string>|null) } }}
+ */
+function loadInputs(opts, readFile) {
+  const features = loadFeatureSlugs(opts.features, readFile);
+  if ("exit" in features) return features;
+  const registries = loadRegistries(opts.registries, readFile);
+  if ("exit" in registries) return registries;
+  const metadata = loadMetadata(opts.metadata, readFile);
+  if ("exit" in metadata) return metadata;
+  const record = readTriageRecord(metadata.value, opts.metadata);
+  if ("exit" in record) return record;
+  const knownSlugs = features.value;
+  const { slug } = metadata.value;
   // 対象の機能の slug そのものがインベントリに無いなら、比較の基準が誤っている（綴りが違えば、
   // すべての帰属が「別の機能」に見え、対象 0 件で閉じられる）。合格にせず、成果物の不整合として失敗にする。
   if (knownSlugs !== null && !knownSlugs.has(slug)) {
-    process.stderr.write(
-      `error: 対象 slug が機能インベントリに無い（${slug}）: ${opts.features}\n`,
-    );
-    return 2;
+    return exit2(`error: 対象 slug が機能インベントリに無い（${slug}）: ${opts.features}\n`);
   }
-  const counted = countTriage(registries, record, slug, knownSlugs);
-  // 終了コードへ入れるのは棚卸しの対象範囲だけ（未棚卸し・登録簿側の対象内の不整合・棚卸し記録の不整合）。
-  // 別機能に帰属すると読めている要素の形の不備は warn として出すが、この機能の収束は妨げない。
-  const ok =
-    counted.untriaged === 0 &&
-    counted.registry_problems.length === 0 &&
-    counted.record_problems.length === 0;
-  process.stdout.write(
-    `${JSON.stringify({ tool: "pending-triage-check", version: VERSION, slug, recorded: true, ...counted }, null, 2)}\n`,
-  );
+  return { value: { registries: registries.value, record: record.value, slug, knownSlugs } };
+}
+
+/**
+ * 数え直した結果の要約と、収束させない理由を stderr に書く。
+ *
+ * @param {ReturnType<typeof countTriage>} counted
+ * @param {Record<string, string>} opts
+ * @param {boolean} hasFeatures
+ */
+function reportTriage(counted, opts, hasFeatures) {
   for (const p of counted.problems) process.stderr.write(`warn: ${p}\n`);
   // 対象 0 件でも「何を何件見たか」を必ず出す（0 件と未実行を同じ出力にしない）。
   // 内訳（この機能 / 横断 / 帰属不明）は棚卸しの記録から、in_scope は設定ファイルの pending から数えており
@@ -697,7 +871,7 @@ export function main(argv, deps = {}) {
       `note: 別機能に帰属する pending の形の不備 ${counted.out_of_scope_problems.length} 件は warn のみ（その機能の棚卸しが落とす）: ${opts.registries}\n`,
     );
   }
-  if (knownSlugs === null) {
+  if (!hasFeatures) {
     // 緩和が当たらない理由を出す（--features が無いと、「別の機能へ回す」判断ができない）。
     process.stderr.write(
       "note: --features を渡していないので、別機能に帰属する要素の緩和を適用していない（slug の実在を確認できないため全件を対象にした）\n",
@@ -719,7 +893,33 @@ export function main(argv, deps = {}) {
       `error: 棚卸し記録の不整合（intentional_diffs_pending.entries。上の warn を参照）— 収束させず直す: ${opts.metadata}\n`,
     );
   }
+}
 
+/**
+ * CLI 本体。
+ *
+ * @param {string[]} argv
+ * @param {{ readFile?: (p:string)=>string }} [deps]
+ * @returns {number} 終了コード
+ */
+export function main(argv, deps = {}) {
+  const readFile = deps.readFile ?? ((p) => readFileSync(p, "utf8"));
+  const opts = parseArgs(argv);
+  if (opts === null) return 2;
+  const inputs = loadInputs(opts, readFile);
+  if ("exit" in inputs) return inputs.exit;
+  const { slug, knownSlugs } = inputs.value;
+  const counted = countTriage(inputs.value);
+  // 終了コードへ入れるのは棚卸しの対象範囲だけ（未棚卸し・登録簿側の対象内の不整合・棚卸し記録の不整合）。
+  // 別機能に帰属すると読めている要素の形の不備は warn として出すが、この機能の収束は妨げない。
+  const ok =
+    counted.untriaged === 0 &&
+    counted.registry_problems.length === 0 &&
+    counted.record_problems.length === 0;
+  process.stdout.write(
+    `${JSON.stringify({ tool: "pending-triage-check", version: VERSION, slug, recorded: true, ...counted }, null, 2)}\n`,
+  );
+  reportTriage(counted, opts, knownSlugs !== null);
   return ok ? 0 : 1;
 }
 

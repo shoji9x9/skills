@@ -125,6 +125,74 @@ export function flattenTraits(traits) {
  */
 
 /**
+ * 値がパスの 1 セグメントとして使えるかを確かめ、使えなければ投げる。
+ * id と状態名はそのままパスの 1 セグメントになる。検証しないと `id: "../../outside"` や
+ * `state: "../secret"` が baseline の外のファイルを読み、その値が axes.json に入る。
+ * @param {unknown} value
+ * @param {string} what
+ * @returns {string}
+ */
+function pathSegment(value, what) {
+  if (
+    typeof value !== "string" ||
+    value === "" ||
+    value === "." ||
+    value === ".." ||
+    /[/\\\0]/.test(value)
+  ) {
+    throw new Error(`${what} がパスの 1 セグメントとして不正: ${JSON.stringify(value)}`);
+  }
+  return value;
+}
+
+/**
+ * baseline/<id>/<state>/traits.json を読む。解決後のパスが baseline の外を指せば投げる。
+ * @param {{ baselineRoot: string, id: string, state: string }} arg
+ * @returns {unknown}
+ */
+function readStateTraits({ baselineRoot, id, state }) {
+  // 包含の判定は両辺を実パスに解決してから行う。字句上の resolve / relative だけだと、
+  // `baseline/<id>` がシンボリックリンクで外を指すとき判定を通り、readFileSync が
+  // リンクを辿って外のファイルを読む。片側だけ解決すると、baseline 自体がリンク経由の
+  // 正当な構成を外と誤判定するので、根と候補の両方を realpath に揃える。
+  // 実在しないパスは realpathSync が投げる（採取物の欠落として従来どおり読めない扱い）。
+  const path = resolve(baselineRoot, id, state, "traits.json");
+  const realRoot = realpathSync(baselineRoot);
+  const realPath = realpathSync(path);
+  const rel = relative(realRoot, realPath);
+  if (rel === "" || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
+    throw new Error(`採取物のパスが baseline の外を指す: ${path} → ${realPath}`);
+  }
+  return JSON.parse(readFileSync(realPath, "utf8"));
+}
+
+/**
+ * metadata.json のインスタンス 1 件から、マニフェストのインスタンスを組み立てる。
+ * @param {{ inst: unknown, stateNames: string[], baselineRoot: string }} arg
+ * @returns {{ id: string, unreachable_states: unknown, states: { state: string, traits: unknown }[] }}
+ */
+function assembleInstance({ inst, stateNames, baselineRoot }) {
+  const id = field(inst, "id");
+  if (typeof id !== "string" || id === "") throw new Error("instances[].id が無い");
+  pathSegment(id, "instances[].id");
+  const declaredUnreachable = field(inst, "unreachable_states");
+  const unreachable = new Set(
+    (isArray(declaredUnreachable) ? declaredUnreachable : [])
+      .map((/** @type {unknown} */ u) => field(u, "state"))
+      .filter((/** @type {unknown} */ st) => typeof st === "string" && st !== ""),
+  );
+  return {
+    id,
+    unreachable_states: declaredUnreachable,
+    // 到達不能と宣言された状態は、採取物が無いのが正しいので読みに行かない。
+    // 宣言の無い欠落は読みに行って失敗させる（採り忘れを警告なしに除外しない）。
+    states: stateNames
+      .filter((st) => !unreachable.has(st))
+      .map((st) => ({ state: st, traits: readStateTraits({ baselineRoot, id, state: st }) })),
+  };
+}
+
+/**
  * 採取物のディレクトリ（`.replace/components/<slug>/`）からマニフェストを組み立てる。
  *
  * マニフェストを手で組めると、`axes.json` が採取物と対応している保証が無くなる。
@@ -147,91 +215,36 @@ export function assembleFromBaseline(dir) {
   const declaredInstances = field(meta, "instances");
   const instances = isArray(declaredInstances) ? declaredInstances : [];
   if (instances.length === 0) throw new Error("metadata.json の instances が空");
-  // id と状態名はそのままパスの 1 セグメントになる。検証しないと `id: "../../outside"` や
-  // `state: "../secret"` が baseline の外のファイルを読み、その値が axes.json に入る。
-  // 区切り文字・`.`・`..`・空名を弾いたうえで、解決後のパスが baseline 配下にあることも確かめる。
+  // 区切り文字・`.`・`..`・空名を弾いたうえで、解決後のパスが baseline 配下にあることも確かめる（readStateTraits）。
   const baselineRoot = resolve(dir, "baseline");
-  /**
-   * @param {unknown} value
-   * @param {string} what
-   * @returns {string}
-   */
-  const segment = (value, what) => {
-    if (
-      typeof value !== "string" ||
-      value === "" ||
-      value === "." ||
-      value === ".." ||
-      /[/\\\0]/.test(value)
-    ) {
-      throw new Error(`${what} がパスの 1 セグメントとして不正: ${JSON.stringify(value)}`);
-    }
-    return value;
-  };
-  const stateNames = states.map((st) => segment(st, "capture.states[]"));
+  const stateNames = states.map((st) => pathSegment(st, "capture.states[]"));
   // 採取ツールのプロパティ集合（記録されていれば）。計算後スタイルのキーと突き合わせて、
   // 集合の外の軸名（空文字・typo）や採り忘れを diffAxes の problems に入れる。
   const propertySet = field(field(field(meta, "capture"), "tools"), "traits_property_set");
   return {
     component: field(meta, "component") || null,
     ...(propertySet === undefined ? {} : { property_set: propertySet }),
-    instances: instances.map((inst) => {
-      const id = field(inst, "id");
-      if (typeof id !== "string" || id === "") throw new Error("instances[].id が無い");
-      segment(id, "instances[].id");
-      const declaredUnreachable = field(inst, "unreachable_states");
-      const unreachable = new Set(
-        (isArray(declaredUnreachable) ? declaredUnreachable : [])
-          .map((/** @type {unknown} */ u) => field(u, "state"))
-          .filter((/** @type {unknown} */ st) => typeof st === "string" && st !== ""),
-      );
-      return {
-        id,
-        unreachable_states: declaredUnreachable,
-        // 到達不能と宣言された状態は、採取物が無いのが正しいので読みに行かない。
-        // 宣言の無い欠落は読みに行って失敗させる（採り忘れを警告なしに除外しない）。
-        states: stateNames
-          .filter((st) => !unreachable.has(st))
-          .map((st) => {
-            // 包含の判定は両辺を実パスに解決してから行う。字句上の resolve / relative だけだと、
-            // `baseline/<id>` がシンボリックリンクで外を指すとき判定を通り、readFileSync が
-            // リンクを辿って外のファイルを読む。片側だけ解決すると、baseline 自体がリンク経由の
-            // 正当な構成を外と誤判定するので、根と候補の両方を realpath に揃える。
-            // 実在しないパスは realpathSync が投げる（採取物の欠落として従来どおり読めない扱い）。
-            const path = resolve(baselineRoot, id, st, "traits.json");
-            const realRoot = realpathSync(baselineRoot);
-            const realPath = realpathSync(path);
-            const rel = relative(realRoot, realPath);
-            if (rel === "" || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
-              throw new Error(`採取物のパスが baseline の外を指す: ${path} → ${realPath}`);
-            }
-            return { state: st, traits: JSON.parse(readFileSync(realPath, "utf8")) };
-          }),
-      };
-    }),
+    instances: instances.map((inst) => assembleInstance({ inst, stateNames, baselineRoot })),
   };
 }
 
 /**
- * マニフェストから固定軸・可変軸を割り出す。
- * @param {unknown} manifest AxisManifest の形を期待する（形はここで検査する）
- * @returns {{component: unknown, tool_version: string, instances: number, states: string[],
- *            fixed: FixedAxis[], variable: VariableAxis[], measured: number,
- *            not_compared: { instance: string, state: string }[], problems: string[], ok: boolean}}
- *   component はマニフェストの値のまま（無ければ null）。
+ * problems に書くインスタンスの名前。id が無ければ `#<番号>` にする。
+ * @param {string[]} ids
+ * @param {number} i
+ * @returns {string}
  */
-export function diffAxes(manifest) {
-  /** @type {string[]} */
-  const problems = [];
-  const declaredInstances = field(manifest, "instances");
-  const instances = isArray(declaredInstances) ? declaredInstances : [];
+function instanceLabel(ids, i) {
+  return ids[i] || `#${i}`;
+}
 
-  if (instances.length < 2) {
-    problems.push(
-      `インスタンスが ${instances.length} 件。固定と可変は 2 件以上を突き合わせないと区別できない`,
-    );
-  }
-
+/**
+ * インスタンスの id を読み、空と重複を problems に積む。
+ * @param {unknown[]} instances
+ * @param {string[]} problems
+ * @returns {string[]} 前後の空白を除いた id（無ければ空文字）
+ */
+function readInstanceIds(instances, problems) {
   const ids = instances.map((i) =>
     isObjectLike(i) && typeof i.id === "string" ? i.id.trim() : "",
   );
@@ -241,12 +254,19 @@ export function diffAxes(manifest) {
   if (duplicated.length > 0) {
     problems.push(`id が重複している: ${[...new Set(duplicated)].join(", ")}`);
   }
+  return ids;
+}
 
-  // 状態の集合が一致するかを先に確かめる。片方に無い状態を「割れない」として扱うと、未測定が誤って固定軸と判定される。
-  // 名前が不正な採取（null・文字列でない・空文字）は、**警告なしに捨てず問題として数える**。捨ててから
-  // 突き合わせると、全インスタンスの状態名が不正な入力が「状態 0 件・軸 0 件・問題 0 件」になる。
-  // すると、1 件も測っていないのに ok: true を返す（このツールが防ごうとしている、判定できない入力を合格とする振る舞いそのもの）。
-  const stateSets = instances.map((instance, i) => {
+/**
+ * インスタンスごとに、採れた状態の名前を読む。名前が不正な採取は problems に積む。
+ * 名前が不正な採取（null・文字列でない・空文字）は、**警告なしに捨てず問題として数える**。捨ててから
+ * 突き合わせると、全インスタンスの状態名が不正な入力が「状態 0 件・軸 0 件・問題 0 件」になる。
+ * すると、1 件も測っていないのに ok: true を返す（このツールが防ごうとしている、判定できない入力を合格とする振る舞いそのもの）。
+ * @param {{ instances: unknown[], ids: string[], problems: string[] }} arg
+ * @returns {string[][]}
+ */
+function readStateSets({ instances, ids, problems }) {
+  return instances.map((instance, i) => {
     const declaredStates = field(instance, "states");
     const entries = isArray(declaredStates) ? declaredStates : [];
     const names = [];
@@ -265,49 +285,75 @@ export function diffAxes(manifest) {
     }
     if (invalid > 0) {
       problems.push(
-        `${ids[i] || `#${i}`}: 状態名が不正な採取が ${invalid} 件（null・非文字列・空文字）`,
+        `${instanceLabel(ids, i)}: 状態名が不正な採取が ${invalid} 件（null・非文字列・空文字）`,
       );
     }
     return names;
   });
-  // 宣言された到達不能な状態（そのインスタンスでは作れない状態）は、欠落ではなく既知の除外として扱う。
-  // 宣言が無い欠落は採り忘れと区別できないので、従来どおり問題にする（判定できない入力を失敗とする扱いは変えない）。
-  /** @type {{ instance: number, value: unknown }[]} */
-  const invalidUnreachable = [];
-  /** @type {Set<string>[]} */
-  const declaredUnreachable = instances.map((instance, i) => {
-    const declared = field(instance, "unreachable_states");
-    if (!isArray(declared)) return new Set();
-    // 成果物の形（metadata.json / references/instances.md で定義する）は `{ state, reason }` のオブジェクトである。
-    // **欠落を比較対象から外す緩和は、ここにしか無い**。そのため、通す入力を閉じた集合として列挙する。
-    // `reason` を持つオブジェクトだけを受け付け、裸の文字列や理由の無い宣言は問題にする。
-    // 広く受けると、typo や理由なしの宣言でも、欠落が `not_compared` として扱われ、誤って ok: true と判定される。
-    /** @type {Set<string>} */
-    const names = new Set();
-    for (const d of declared) {
-      if (
-        isObjectLike(d) &&
-        typeof d.state === "string" &&
-        d.state !== "" &&
-        typeof d.reason === "string" &&
-        d.reason.trim() !== ""
-      ) {
-        names.add(d.state);
-        continue;
-      }
-      invalidUnreachable.push({ instance: i, value: d });
+}
+
+/**
+ * 1 つのインスタンスの unreachable_states から、仕様の形の宣言の状態名を集める。
+ * 成果物の形（metadata.json / references/instances.md で定義する）は `{ state, reason }` のオブジェクトである。
+ * **欠落を比較対象から外す緩和は、ここにしか無い**。そのため、通す入力を閉じた集合として列挙する。
+ * `reason` を持つオブジェクトだけを受け付け、裸の文字列や理由の無い宣言は invalid に数える。
+ * 広く受けると、typo や理由なしの宣言でも、欠落が `not_compared` として扱われ、誤って ok: true と判定される。
+ * @param {unknown} declared
+ * @returns {{ names: Set<string>, invalid: number }} invalid は仕様の形でない宣言の件数
+ */
+function unreachableNames(declared) {
+  /** @type {Set<string>} */
+  const names = new Set();
+  let invalid = 0;
+  if (!isArray(declared)) return { names, invalid };
+  for (const d of declared) {
+    if (
+      isObjectLike(d) &&
+      typeof d.state === "string" &&
+      d.state !== "" &&
+      typeof d.reason === "string" &&
+      d.reason.trim() !== ""
+    ) {
+      names.add(d.state);
+      continue;
     }
+    invalid += 1;
+  }
+  return { names, invalid };
+}
+
+/**
+ * インスタンスごとに、宣言された到達不能な状態（そのインスタンスでは作れない状態）を読む。
+ * 欠落ではなく既知の除外として扱う。宣言が無い欠落は採り忘れと区別できないので、従来どおり問題にする
+ * （判定できない入力を失敗とする扱いは変えない）。
+ * @param {{ instances: unknown[], ids: string[], problems: string[] }} arg
+ * @returns {Set<string>[]}
+ */
+function readDeclaredUnreachable({ instances, ids, problems }) {
+  /** @type {number[]} 仕様の形でない宣言を持つインスタンスの番号（宣言 1 件ごとに 1 つ） */
+  const invalidAt = [];
+  const declaredUnreachable = instances.map((instance, i) => {
+    const { names, invalid } = unreachableNames(field(instance, "unreachable_states"));
+    for (let k = 0; k < invalid; k++) invalidAt.push(i);
     return names;
   });
-  for (const bad of invalidUnreachable) {
+  for (const i of invalidAt) {
     problems.push(
-      `${ids[bad.instance] || `#${bad.instance}`}: unreachable_states の宣言が仕様の形でない（{ state, reason } で reason は非空）`,
+      `${instanceLabel(ids, i)}: unreachable_states の宣言が仕様の形でない（{ state, reason } で reason は非空）`,
     );
   }
-  // 候補となる状態は「採れた状態 ∪ 成果物の形で宣言された到達不能な状態」である。
-  // 採取した側の和集合だけで作ると、**全インスタンスで到達できない状態が候補から消える**。
-  // どのインスタンスにとっても「欠けている状態」でなくなるので、not_compared に 1 件も残らない。
-  // すると、除外した組み合わせを成果物から追えない（宣言の typo も、突き合わせる候補が無いので誰も気付かない）。
+  return declaredUnreachable;
+}
+
+/**
+ * 候補となる状態（採れた状態 ∪ 成果物の形で宣言された到達不能な状態）を作る。
+ * 採取した側の和集合だけで作ると、**全インスタンスで到達できない状態が候補から消える**。
+ * どのインスタンスにとっても「欠けている状態」でなくなるので、not_compared に 1 件も残らない。
+ * すると、除外した組み合わせを成果物から追えない（宣言の typo も、突き合わせる候補が無いので誰も気付かない）。
+ * @param {{ stateSets: string[][], declaredUnreachable: Set<string>[], problems: string[] }} arg
+ * @returns {string[]}
+ */
+function candidateStates({ stateSets, declaredUnreachable, problems }) {
   const states = [
     ...new Set([...stateSets.flat(), ...declaredUnreachable.flatMap((d) => [...d])]),
   ].sort();
@@ -326,205 +372,295 @@ export function diffAxes(manifest) {
       `どのインスタンスでも到達できない状態が宣言されている（${unreachableEverywhere.join(", ")}）。採取条件から外すか状態名を確かめる`,
     );
   }
+  return states;
+}
 
+/**
+ * インスタンスごとの状態の集合を候補と突き合わせ、矛盾・未採取・重複を problems に積む。
+ * @param {{
+ *   ids: string[],
+ *   states: string[],
+ *   stateSets: string[][],
+ *   declaredUnreachable: Set<string>[],
+ *   problems: string[],
+ * }} arg
+ * @returns {{ instance: string, state: string }[]} 到達不能と宣言されて突き合わせない組み合わせ
+ */
+function checkStateCoverage({ ids, states, stateSets, declaredUnreachable, problems }) {
   // 実際に採れている状態を「到達できない」と宣言している矛盾を、問題として報告する。
   // 母集合はこの宣言を除いて作るので、放置すると、採取済みの基準が見本も照合も無いまま隠れる。
   declaredUnreachable.forEach((declared, i) => {
     const contradicted = [...declared].filter((st) => stateSets[i].includes(st));
     if (contradicted.length > 0) {
       problems.push(
-        `${ids[i] || `#${i}`}: 採取済みの状態を unreachable_states に宣言している（${contradicted.join(", ")}）`,
+        `${instanceLabel(ids, i)}: 採取済みの状態を unreachable_states に宣言している（${contradicted.join(", ")}）`,
       );
     }
   });
   /** @type {{ instance: string, state: string }[]} */
   const notCompared = [];
-  instances.forEach((instance, i) => {
-    const missing = states.filter((s) => !stateSets[i].includes(s));
+  stateSets.forEach((names, i) => {
+    const missing = states.filter((s) => !names.includes(s));
     const undeclared = missing.filter((s) => !declaredUnreachable[i].has(s));
     if (undeclared.length > 0) {
-      problems.push(`${ids[i] || `#${i}`}: 未採取の状態 ${undeclared.join(", ")}`);
+      problems.push(`${instanceLabel(ids, i)}: 未採取の状態 ${undeclared.join(", ")}`);
     }
     for (const s of missing) {
       if (declaredUnreachable[i].has(s))
-        notCompared.push({ instance: ids[i] || `#${i}`, state: s });
+        notCompared.push({ instance: instanceLabel(ids, i), state: s });
     }
-    const duplicatedStates = stateSets[i].filter((s, j) => stateSets[i].indexOf(s) !== j);
+    const duplicatedStates = names.filter((s, j) => names.indexOf(s) !== j);
     if (duplicatedStates.length > 0) {
       problems.push(
-        `${ids[i] || `#${i}`}: 状態が重複している ${[...new Set(duplicatedStates)].join(", ")}`,
+        `${instanceLabel(ids, i)}: 状態が重複している ${[...new Set(duplicatedStates)].join(", ")}`,
       );
     }
   });
+  return notCompared;
+}
 
-  // 採取ツールのプロパティ集合（`--baseline` では metadata.json の `capture.tools.traits_property_set`）。
-  // 渡されたときだけ、計算後スタイルと擬似要素のキーがこの集合と一致することを求める。
-  // 集合そのものが不正なら突き合わせの根拠にならないので、照合を警告なしに飛ばさず問題にする。
-  /** @type {Set<string> | null} */
-  let propertySet = null;
+/**
+ * 採取ツールのプロパティ集合（`--baseline` では metadata.json の `capture.tools.traits_property_set`）を読む。
+ * 渡されたときだけ、計算後スタイルと擬似要素のキーがこの集合と一致することを求める。
+ * 集合そのものが不正なら突き合わせの根拠にならないので、照合を警告なしに飛ばさず問題にする。
+ * @param {unknown} manifest
+ * @param {string[]} problems
+ * @returns {Set<string> | null}
+ */
+function readPropertySet(manifest, problems) {
   /** @type {(p: unknown) => p is string & { readonly __isPropertyName: true }} 空でなく、前後に空白の無い文字列か。 */
   const isPropertyName = (p) => typeof p === "string" && p !== "" && p.trim() === p;
-  if (isObjectLike(manifest) && manifest.property_set !== undefined) {
-    const declared = manifest.property_set;
-    if (
-      !isArray(declared) ||
-      declared.length === 0 ||
-      !declared.every(isPropertyName) ||
-      new Set(declared).size !== declared.length
-    ) {
-      problems.push(
-        "採取ツールのプロパティ集合（traits_property_set）が仕様の形でない（重複の無い非空の文字列の配列）",
-      );
-    } else propertySet = new Set(declared);
+  if (!isObjectLike(manifest) || manifest.property_set === undefined) return null;
+  const declared = manifest.property_set;
+  if (
+    !isArray(declared) ||
+    declared.length === 0 ||
+    !declared.every(isPropertyName) ||
+    new Set(declared).size !== declared.length
+  ) {
+    problems.push(
+      "採取ツールのプロパティ集合（traits_property_set）が仕様の形でない（重複の無い非空の文字列の配列）",
+    );
+    return null;
   }
+  return new Set(declared);
+}
 
-  // 状態 × 軸名 → インスタンスごとの値。
+/**
+ * レコードのキー（軸名）の不備を挙げる。
+ * 値だけでなく**キー（軸名）**も見る。`{ "": "x" }` は値の検証を通り、空の軸名が
+ * 可変軸として ok: true の axes.json に載る。CSS のプロパティ名は空白を含まないので、
+ * 空文字と空白を含む名前を弾く。集合が渡されていれば、その集合との一致まで求める。
+ * @param {Record<string, unknown>} record
+ * @param {string} label
+ * @param {Set<string> | null} propertySet
+ * @returns {string[]}
+ */
+function keyProblems(record, label, propertySet) {
+  const keys = Object.keys(record);
+  const out = [];
+  const bad = keys.filter((k) => k === "" || /\s/.test(k));
+  if (bad.length > 0) out.push(`${label} の軸名（空・空白を含むものが ${bad.length} 件）`);
+  if (propertySet) {
+    const extra = keys.filter((k) => !propertySet.has(k) && !bad.includes(k));
+    const absent = [...propertySet].filter((p) => !Object.hasOwn(record, p));
+    if (extra.length > 0) {
+      out.push(`プロパティ集合と一致する ${label}（集合外: ${extra.join(", ")}）`);
+    }
+    if (absent.length > 0) {
+      out.push(`プロパティ集合と一致する ${label}（欠落: ${absent.join(", ")}）`);
+    }
+  }
+  return out;
+}
+
+/**
+ * computed の不備を挙げる。
+ * `typeof [] === "object"` なので、配列を明示的に弾く（isPlainObject）。`computed: ["x"]` は数値のキーを
+ * 軸として通してしまい、不正な採取物でも ok: true になりうる（どちらもレコードの形が仕様である）。
+ * 値の型まで見る。trait-capture.mjs は計算後スタイルを**非空の文字列**で返すので、
+ * `{}` や `""` は採取物ではない。ここを通すと flattenTraits がそのまま軸の値にし、
+ * オブジェクトは同一性比較で必ず「割れている」と判定されて**偽の可変軸**になる
+ * （引数として実装へ渡るところまで行く）。キーの有無だけを見る検証では止まらない。
+ * @param {unknown} computed
+ * @param {Set<string> | null} propertySet
+ * @returns {string[]}
+ */
+function computedProblems(computed, propertySet) {
+  if (!isPlainObject(computed) || Object.keys(computed).length === 0) return ["computed"];
+  const out = [];
+  const bad = badValues(computed);
+  if (bad > 0) {
+    out.push(`computed の値（非空の文字列でないものが ${bad} 件）`);
+  }
+  out.push(...keyProblems(computed, "computed", propertySet));
+  return out;
+}
+
+/**
+ * rect の不備を挙げる。
+ * trait-capture.mjs は x / y / width / height を常に数値で返す。キーの有無だけを見ると
+ * `{ width: null }` のような不正な採取が通り、軸を作って、誤って ok: true と判定される。
+ * @param {unknown} rect
+ * @returns {string[]}
+ */
+function rectProblems(rect) {
+  if (!isPlainObject(rect) || !isFiniteNumber(rect.width) || !isFiniteNumber(rect.height)) {
+    return ["rect"];
+  }
+  if (Object.values(rect).some((v) => !isFiniteNumber(v))) {
+    // rect は flattenTraits が String() で文字列にするので、不正な値も
+    // `"[object Object]"` という空でない文字列になって検証を通ってしまう。数値のまま見る。
+    return ["rect の値（有限の数値でないものがある）"];
+  }
+  if (Object.keys(rect).some((k) => !["x", "y", "width", "height"].includes(k))) {
+    // trait-capture.mjs の rect は x / y / width / height だけ。それ以外のキー（空文字を含む）は
+    // `rect/<キー>` の軸になるので、キーの側でも閉じた集合で受ける。
+    return ["rect のキー（x / y / width / height 以外がある）"];
+  }
+  return [];
+}
+
+/**
+ * 擬似要素の不備を挙げる。
+ * 擬似要素は「測っていない（キーが無い）」「無い（null）」「在る（レコード）」の 3 値が仕様である。
+ * 形を見ずに flattenTraits へ渡すと、`before: "x"` は `::before/0 = "x"` という軸を作る。
+ * `after: []` は `::after/<present> = "true"` だけを作る。こうして不正な採取物が measured を増やし、誤って ok: true と判定される。
+ * computed と rect には同じ検証があり、擬似要素の側だけが検証を通っていた。
+ * @param {Record<string, unknown>} traits
+ * @param {Set<string> | null} propertySet
+ * @returns {string[]}
+ */
+function pseudoProblems(traits, propertySet) {
+  const out = [];
+  for (const pseudo of ["before", "after"]) {
+    if (!Object.hasOwn(traits, pseudo)) continue;
+    const captured = traits[pseudo];
+    if (captured === null) continue;
+    if (!isPlainObject(captured) || Object.keys(captured).length === 0) {
+      out.push(`::${pseudo} の形（null か非空のレコード）`);
+    } else {
+      if (badValues(captured) > 0) {
+        out.push(`::${pseudo} の値（非空の文字列でないものがある）`);
+      }
+      out.push(...keyProblems(captured, `::${pseudo}`, propertySet));
+    }
+  }
+  return out;
+}
+
+/**
+ * 採取物の形を、採取ツール（`parity-suite` の trait-capture.mjs）が必ず返すフィールドで検証し、不備を挙げる。
+ * 「軸が 1 件以上取れたか」だけを見ると、`{ before: null, after: null }` のように擬似要素の
+ * 有無だけが立つ採取が measured 2 を作って通る（本体のスタイルも幾何も測っていない）。
+ * 数えた軸の**中身を問わない**条件は、退化形が新しく現れるたびに破られる。
+ * @param {Record<string, unknown>} traits
+ * @param {Set<string> | null} propertySet
+ * @returns {string[]}
+ */
+function traitsProblems(traits, propertySet) {
+  return [
+    ...computedProblems(traits.computed, propertySet),
+    ...rectProblems(traits.rect),
+    ...pseudoProblems(traits, propertySet),
+  ];
+}
+
+/**
+ * 1 つの採取を検査し、軸の値を表（状態 × 軸名 → インスタンスごとの値）に足す。
+ * @param {{
+ *   traits: unknown,
+ *   state: string,
+ *   label: string,
+ *   propertySet: Set<string> | null,
+ *   table: Map<string, Map<string, string>>,
+ *   problems: string[],
+ * }} arg
+ */
+function addEntryAxes({ traits, state, label, propertySet, table, problems }) {
+  if (!isObjectLike(traits)) {
+    problems.push(`${label} / ${state}: traits が無い`);
+    return;
+  }
+  const missing = traitsProblems(traits, propertySet);
+  if (missing.length > 0) {
+    problems.push(
+      `${label} / ${state}: 採取に ${missing.join(" と ")} が無い（trait-capture.mjs は常に返す）`,
+    );
+    return;
+  }
+  const flat = Object.entries(flattenTraits(traits));
+  // 空の traits（`{}`・computed も rect も空）は 0 軸を返す。そのまま進めると表が空のまま
+  // problems も空になり、比較対象が 1 つも無いのに ok: true を返す（`build` は axes.ok だけを
+  // 前提に進むので、突き合わせていないベースラインが有効化される）。
+  if (flat.length === 0) {
+    problems.push(`${label} / ${state}: traits から軸が 1 つも取れない（空の採取）`);
+    return;
+  }
+  for (const [axis, value] of flat) {
+    const key = `${state}${SEPARATOR}${axis}`;
+    let byInstance = table.get(key);
+    if (byInstance === undefined) {
+      byInstance = new Map();
+      table.set(key, byInstance);
+    }
+    byInstance.set(label, value);
+  }
+}
+
+/**
+ * 状態 × 軸名 → インスタンスごとの値の表を作る。採取の不備は problems に積む。
+ * @param {{ instances: unknown[], ids: string[], propertySet: Set<string> | null, problems: string[] }} arg
+ * @returns {Map<string, Map<string, string>>}
+ */
+function buildAxisTable({ instances, ids, propertySet, problems }) {
+  /** @type {Map<string, Map<string, string>>} */
   const table = new Map();
   instances.forEach((instance, i) => {
     const declaredStates = field(instance, "states");
     for (const entry of isArray(declaredStates) ? declaredStates : []) {
       if (!isObjectLike(entry) || typeof entry.state !== "string" || entry.state === "") continue;
-      const traits = entry.traits;
-      if (!isObjectLike(traits)) {
-        problems.push(`${ids[i] || `#${i}`} / ${entry.state}: traits が無い`);
-        continue;
-      }
-      // 採取物の形を、採取ツール（`parity-suite` の trait-capture.mjs）が必ず返すフィールドで検証する。
-      // 「軸が 1 件以上取れたか」だけを見ると、`{ before: null, after: null }` のように擬似要素の
-      // 有無だけが立つ採取が measured 2 を作って通る（本体のスタイルも幾何も測っていない）。
-      // 数えた軸の**中身を問わない**条件は、退化形が新しく現れるたびに破られる。
-      const missing = [];
-      // `typeof [] === "object"` なので、配列を明示的に弾く（isPlainObject）。`computed: ["x"]` は数値のキーを
-      // 軸として通してしまい、不正な採取物でも ok: true になりうる（どちらもレコードの形が仕様である）。
-      // 値の型まで見る。trait-capture.mjs は計算後スタイルを**非空の文字列**で返すので、
-      // `{}` や `""` は採取物ではない。ここを通すと flattenTraits がそのまま軸の値にし、
-      // オブジェクトは同一性比較で必ず「割れている」と判定されて**偽の可変軸**になる
-      // （引数として実装へ渡るところまで行く）。キーの有無だけを見る検証では止まらない。
-      // 値だけでなく**キー（軸名）**も見る。`{ "": "x" }` は値の検証を通り、空の軸名が
-      // 可変軸として ok: true の axes.json に載る。CSS のプロパティ名は空白を含まないので、
-      // 空文字と空白を含む名前を弾く。集合が渡されていれば、その集合との一致まで求める。
-      /**
-       * @param {Record<string, unknown>} record
-       * @param {string} label
-       * @returns {string[]}
-       */
-      const keyProblems = (record, label) => {
-        const keys = Object.keys(record);
-        const out = [];
-        const bad = keys.filter((k) => k === "" || /\s/.test(k));
-        if (bad.length > 0) out.push(`${label} の軸名（空・空白を含むものが ${bad.length} 件）`);
-        if (propertySet) {
-          const extra = keys.filter((k) => !propertySet.has(k) && !bad.includes(k));
-          const absent = [...propertySet].filter((p) => !Object.hasOwn(record, p));
-          if (extra.length > 0) {
-            out.push(`プロパティ集合と一致する ${label}（集合外: ${extra.join(", ")}）`);
-          }
-          if (absent.length > 0) {
-            out.push(`プロパティ集合と一致する ${label}（欠落: ${absent.join(", ")}）`);
-          }
-        }
-        return out;
-      };
-      const computed = traits.computed;
-      if (!isPlainObject(computed) || Object.keys(computed).length === 0) {
-        missing.push("computed");
-      } else {
-        const bad = badValues(computed);
-        if (bad > 0) {
-          missing.push(`computed の値（非空の文字列でないものが ${bad} 件）`);
-        }
-        missing.push(...keyProblems(computed, "computed"));
-      }
-      // trait-capture.mjs は x / y / width / height を常に数値で返す。キーの有無だけを見ると
-      // `{ width: null }` のような不正な採取が通り、軸を作って、誤って ok: true と判定される。
-      const rect = traits.rect;
-      if (!isPlainObject(rect) || !isFiniteNumber(rect.width) || !isFiniteNumber(rect.height)) {
-        missing.push("rect");
-      } else if (Object.values(rect).some((v) => !isFiniteNumber(v))) {
-        // rect は flattenTraits が String() で文字列にするので、不正な値も
-        // `"[object Object]"` という空でない文字列になって検証を通ってしまう。数値のまま見る。
-        missing.push("rect の値（有限の数値でないものがある）");
-      } else if (Object.keys(rect).some((k) => !["x", "y", "width", "height"].includes(k))) {
-        // trait-capture.mjs の rect は x / y / width / height だけ。それ以外のキー（空文字を含む）は
-        // `rect/<キー>` の軸になるので、キーの側でも閉じた集合で受ける。
-        missing.push("rect のキー（x / y / width / height 以外がある）");
-      }
-      // 擬似要素は「測っていない（キーが無い）」「無い（null）」「在る（レコード）」の 3 値が仕様である。
-      // 形を見ずに flattenTraits へ渡すと、`before: "x"` は `::before/0 = "x"` という軸を作る。
-      // `after: []` は `::after/<present> = "true"` だけを作る。こうして不正な採取物が measured を増やし、誤って ok: true と判定される。
-      // computed と rect には同じ検証があり、擬似要素の側だけが検証を通っていた。
-      for (const pseudo of ["before", "after"]) {
-        if (!Object.hasOwn(traits, pseudo)) continue;
-        const captured = traits[pseudo];
-        if (captured === null) continue;
-        if (!isPlainObject(captured) || Object.keys(captured).length === 0) {
-          missing.push(`::${pseudo} の形（null か非空のレコード）`);
-        } else {
-          if (badValues(captured) > 0) {
-            missing.push(`::${pseudo} の値（非空の文字列でないものがある）`);
-          }
-          missing.push(...keyProblems(captured, `::${pseudo}`));
-        }
-      }
-      if (missing.length > 0) {
-        problems.push(
-          `${ids[i] || `#${i}`} / ${entry.state}: 採取に ${missing.join(" と ")} が無い（trait-capture.mjs は常に返す）`,
-        );
-        continue;
-      }
-      const flat = Object.entries(flattenTraits(traits));
-      // 空の traits（`{}`・computed も rect も空）は 0 軸を返す。そのまま進めると表が空のまま
-      // problems も空になり、比較対象が 1 つも無いのに ok: true を返す（`build` は axes.ok だけを
-      // 前提に進むので、突き合わせていないベースラインが有効化される）。
-      if (flat.length === 0) {
-        problems.push(
-          `${ids[i] || `#${i}`} / ${entry.state}: traits から軸が 1 つも取れない（空の採取）`,
-        );
-        continue;
-      }
-      for (const [axis, value] of flat) {
-        const key = `${entry.state}${SEPARATOR}${axis}`;
-        if (!table.has(key)) table.set(key, new Map());
-        table.get(key).set(ids[i] || `#${i}`, value);
-      }
+      addEntryAxes({
+        traits: entry.traits,
+        state: entry.state,
+        label: instanceLabel(ids, i),
+        propertySet,
+        table,
+        problems,
+      });
     }
   });
+  return table;
+}
 
-  /** @type {FixedAxis[]} */
-  const fixed = [];
-  /** @type {VariableAxis[]} */
-  const variable = [];
-  // インスタンスが 1 件だと、全軸が「割れていない」＝固定として並ぶ。`ok: false` は付くが、
-  // 読み手が problems を見ずに fixed だけを引くと「この部品に可変軸は無い」と読める。
-  // これは本ツールが防ごうとしている取りこぼしそのものなので、割り出し自体を行わない。
-  if (instances.length < 2) {
-    return {
-      component: field(manifest, "component") || null,
-      tool_version: VERSION,
-      instances: instances.length,
-      states,
-      fixed,
-      variable,
-      measured: 0,
-      not_compared: [],
-      problems,
-      ok: false,
-    };
-  }
+/**
+ * 表の軸を固定と可変に分ける。
+ * @param {{
+ *   table: Map<string, Map<string, string>>,
+ *   states: string[],
+ *   stateSets: string[][],
+ *   problems: string[],
+ * }} arg
+ * @returns {{ fixed: FixedAxis[], variable: VariableAxis[] }}
+ */
+function splitAxes({ table, states, stateSets, problems }) {
+  const instanceCount = stateSets.length;
   // 軸の割り出しは「全インスタンスで到達できる状態」だけを対象にする。あるインスタンスで作れない状態は
   // 突き合わせる相手がいないので、固定とも可変とも言えない（その組み合わせは照合の母集合からも
   // 外れる。到達できないので基準が無く、見本も作らない。母集合は SKILL.md「比較の母集合」で定義する）。
   const comparableStates = new Set(
-    states.filter((st) => instances.every((_, i) => stateSets[i].includes(st))),
+    states.filter((st) => stateSets.every((set) => set.includes(st))),
   );
+  /** @type {FixedAxis[]} */
+  const fixed = [];
+  /** @type {VariableAxis[]} */
+  const variable = [];
   for (const [key, byInstance] of [...table.entries()].sort(([a], [b]) => (a < b ? -1 : 1))) {
     const [state, axis] = key.split(SEPARATOR);
     if (!comparableStates.has(state)) continue;
     // 全インスタンスで採れていない軸は、値が揃っていても固定と呼べない。
-    if (byInstance.size !== instances.length) {
-      problems.push(
-        `${state} / ${axis}: ${byInstance.size}/${instances.length} 件でしか採れていない`,
-      );
+    if (byInstance.size !== instanceCount) {
+      problems.push(`${state} / ${axis}: ${byInstance.size}/${instanceCount} 件でしか採れていない`);
       continue;
     }
     const values = [...byInstance.values()];
@@ -538,7 +674,52 @@ export function diffAxes(manifest) {
       });
     }
   }
+  return { fixed, variable };
+}
 
+/**
+ * diffAxes の返り値。
+ * @typedef {{component: unknown, tool_version: string, instances: number, states: string[],
+ *            fixed: FixedAxis[], variable: VariableAxis[], measured: number,
+ *            not_compared: { instance: string, state: string }[], problems: string[], ok: boolean}} AxisDiffResult
+ */
+
+/**
+ * マニフェストから固定軸・可変軸を割り出す。
+ * @param {unknown} manifest AxisManifest の形を期待する（形はここで検査する）
+ * @returns {AxisDiffResult} component はマニフェストの値のまま（無ければ null）。
+ */
+export function diffAxes(manifest) {
+  /** @type {string[]} */
+  const problems = [];
+  const declaredInstances = field(manifest, "instances");
+  const instances = isArray(declaredInstances) ? declaredInstances : [];
+  if (instances.length < 2) {
+    problems.push(
+      `インスタンスが ${instances.length} 件。固定と可変は 2 件以上を突き合わせないと区別できない`,
+    );
+  }
+  const ids = readInstanceIds(instances, problems);
+  // 状態の集合が一致するかを先に確かめる。片方に無い状態を「割れない」として扱うと、未測定が誤って固定軸と判定される。
+  const stateSets = readStateSets({ instances, ids, problems });
+  const declaredUnreachable = readDeclaredUnreachable({ instances, ids, problems });
+  const states = candidateStates({ stateSets, declaredUnreachable, problems });
+  const notCompared = checkStateCoverage({ ids, states, stateSets, declaredUnreachable, problems });
+  const propertySet = readPropertySet(manifest, problems);
+  const table = buildAxisTable({ instances, ids, propertySet, problems });
+  const base = {
+    component: field(manifest, "component") || null,
+    tool_version: VERSION,
+    instances: instances.length,
+    states,
+  };
+  // インスタンスが 1 件だと、全軸が「割れていない」＝固定として並ぶ。`ok: false` は付くが、
+  // 読み手が problems を見ずに fixed だけを引くと「この部品に可変軸は無い」と読める。
+  // これは本ツールが防ごうとしている取りこぼしそのものなので、割り出し自体を行わない。
+  if (instances.length < 2) {
+    return { ...base, fixed: [], variable: [], measured: 0, not_compared: [], problems, ok: false };
+  }
+  const { fixed, variable } = splitAxes({ table, states, stateSets, problems });
   // 合格は「問題が無いこと」ではなく「測れたことの積極的な証拠」で定義する。
   // problems が無いことだけを見ると、退化した入力（インスタンス 1 件・状態名がすべて不正・空の traits）が
   // 「表が空 → 突き合わせる相手が無い → problems も空 → ok: true」で通る。
@@ -547,12 +728,8 @@ export function diffAxes(manifest) {
   if (measured === 0) {
     problems.push("突き合わせられた軸が 0 件。測れたことの証拠が無いので合格にしない");
   }
-
   return {
-    component: field(manifest, "component") || null,
-    tool_version: VERSION,
-    instances: instances.length,
-    states,
+    ...base,
     fixed,
     variable,
     measured,
@@ -563,68 +740,84 @@ export function diffAxes(manifest) {
 }
 
 /**
- * CLI 本体。
- * @param {string[]} argv
- * @returns {number} 終了コード
+ * CLI の引数を読む。
+ * 受け付けるオプションは `--baseline <dir>` と `--out <path>` だけである。`--` で始まるトークンをまとめて読み飛ばすと、
+ * `--otu=result.json` のような綴りの誤りや `--out=path` の等号の形が、警告なしに無視される。
+ * すると、成果物を作らないまま標準出力へ書いて exit 0 になる。--out が軸の成果物を作る前提の工程は、
+ * ファイルが無いことに気付かないまま次へ進む。そのため、知らないオプションは受け付けない。
+ * @param {string[]} args 空文字を除いた引数
+ * @returns {{ positionals: string[], baseline: string | null, out: string | null, badOption: string | null }}
+ *   badOption は最初に見つかった誤り（無ければ null）
  */
-export function main(argv) {
-  const args = argv.filter((a) => a !== "");
-  // 受け付けるオプションは `--out <path>` だけである。`--` で始まるトークンをまとめて読み飛ばすと、
-  // `--otu=result.json` のような綴りの誤りや `--out=path` の等号の形が、警告なしに無視される。
-  // すると、成果物を作らないまま標準出力へ書いて exit 0 になる。--out が軸の成果物を作る前提の工程は、
-  // ファイルが無いことに気付かないまま次へ進む。そのため、知らないオプションは受け付けない。
+function parseCliArgs(args) {
   const positionals = [];
-  let baseline = null;
-  let out = null;
-  let outSeen = false;
+  /** @type {{ baseline: string | null, out: string | null }} */
+  const values = { baseline: null, out: null };
+  /** @type {Set<string>} */
+  const seen = new Set();
+  /** @type {string | null} */
   let badOption = null;
+  /** @type {Record<string, { key: "baseline" | "out", what: string }>} */
+  const options = {
+    "--baseline": { key: "baseline", what: "採取物のディレクトリ" },
+    "--out": { key: "out", what: "出力先パス" },
+  };
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (!a.startsWith("-") || a === "-") {
       positionals.push(a);
       continue;
     }
-    if (a === "--baseline") {
-      if (baseline !== null) badOption = badOption || "--baseline は 1 回だけ指定する";
-      const value = args[i + 1];
-      if (value === undefined || value.startsWith("-")) {
-        badOption = badOption || "--baseline には採取物のディレクトリを続ける";
-      } else {
-        baseline = value;
-        i++;
-      }
+    const option = Object.hasOwn(options, a) ? options[a] : undefined;
+    if (option === undefined) {
+      badOption = badOption || `未知のオプション: ${a}`;
       continue;
     }
-    if (a === "--out") {
-      if (outSeen) badOption = badOption || "--out は 1 回だけ指定する";
-      outSeen = true;
-      const value = args[i + 1];
-      if (value === undefined || value.startsWith("-")) {
-        badOption = badOption || "--out には出力先パスを続ける";
-      } else {
-        out = value;
-        i++;
-      }
-      continue;
+    if (seen.has(a)) badOption = badOption || `${a} は 1 回だけ指定する`;
+    seen.add(a);
+    const value = args[i + 1];
+    if (value === undefined || value.startsWith("-")) {
+      badOption = badOption || `${a} には${option.what}を続ける`;
+    } else {
+      values[option.key] = value;
+      i++;
     }
-    badOption = badOption || `未知のオプション: ${a}`;
   }
+  return { positionals, ...values, badOption };
+}
+
+/**
+ * 使い方の誤りを stderr に書く。
+ * @param {{ positionals: string[], baseline: string | null, badOption: string | null }} parsed
+ */
+function writeUsageError({ positionals, baseline, badOption }) {
+  process.stderr.write(
+    "usage: node axis-diff.mjs (<manifest.json> | --baseline <dir>) [--out <path>]\n",
+  );
+  if (badOption) process.stderr.write(`error: ${badOption}\n`);
+  if (baseline !== null && positionals.length > 0) {
+    process.stderr.write(
+      `error: --baseline とマニフェストは併用しない: ${positionals.join(", ")}\n`,
+    );
+  } else if (positionals.length > 1) {
+    process.stderr.write(`error: マニフェストは 1 つだけ指定する: ${positionals.join(", ")}\n`);
+  } else if (positionals.length === 0) {
+    process.stderr.write("error: マニフェストか --baseline を指定する\n");
+  }
+}
+
+/**
+ * CLI 本体。
+ * @param {string[]} argv
+ * @returns {number} 終了コード
+ */
+export function main(argv) {
+  const parsed = parseCliArgs(argv.filter((a) => a !== ""));
+  const { positionals, baseline, out, badOption } = parsed;
   const input = positionals[0];
   const expectedPositionals = baseline === null ? 1 : 0;
   if (positionals.length !== expectedPositionals || badOption) {
-    process.stderr.write(
-      "usage: node axis-diff.mjs (<manifest.json> | --baseline <dir>) [--out <path>]\n",
-    );
-    if (badOption) process.stderr.write(`error: ${badOption}\n`);
-    if (baseline !== null && positionals.length > 0) {
-      process.stderr.write(
-        `error: --baseline とマニフェストは併用しない: ${positionals.join(", ")}\n`,
-      );
-    } else if (positionals.length > 1) {
-      process.stderr.write(`error: マニフェストは 1 つだけ指定する: ${positionals.join(", ")}\n`);
-    } else if (positionals.length === 0) {
-      process.stderr.write("error: マニフェストか --baseline を指定する\n");
-    }
+    writeUsageError(parsed);
     return 2;
   }
 

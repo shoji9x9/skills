@@ -76,14 +76,9 @@ test("しきい値が飲んだ 1/255 の差は strict_only_pixels に出る", ()
 
   const red = hexToRgb("ff0000");
   assert.exists(red, "ff0000 を色に変換できない");
-  const thresholdMask = buildDiffMask(diff, 3, 1, red, 96);
-  const strict = buildStrictMask(current, next, 3, thresholdMask);
-  const summary = summarizePixels(
-    thresholdMask,
-    strict.mask,
-    strict.maxChannelDelta,
-    strict.maxStrictOnlyChannelDelta,
-  );
+  const thresholdMask = buildDiffMask(diff, { width: 3, height: 1 }, { target: red, tol: 96 });
+  const strict = buildStrictMask(current, next, { pixels: 3, thresholdMask });
+  const summary = summarizePixels(thresholdMask, strict.mask, strict);
 
   expect(summary.threshold_pixels).toBe(1);
   expect(summary.strict_pixels).toBe(3);
@@ -108,13 +103,8 @@ test("1 本だけでは「ほぼ一致」に見える差でも、しきい値な
     [0, 0, 0, 255],
   ]);
   const thresholdMask = new Uint8Array(4); // ツールは 1 画素も出さない
-  const strict = buildStrictMask(current, next, 4, thresholdMask);
-  const summary = summarizePixels(
-    thresholdMask,
-    strict.mask,
-    strict.maxChannelDelta,
-    strict.maxStrictOnlyChannelDelta,
-  );
+  const strict = buildStrictMask(current, next, { pixels: 4, thresholdMask });
+  const summary = summarizePixels(thresholdMask, strict.mask, strict);
 
   expect(summary.threshold_pixels).toBe(0);
   expect(summary.threshold_ratio).toBe(0);
@@ -131,13 +121,8 @@ test("完全一致なら両方 0（「隠れた差がある」を常に言わな
     [4, 5, 6, 255],
   ]);
   const thresholdMask = new Uint8Array(2);
-  const strict = buildStrictMask(image, image, 2, thresholdMask);
-  const summary = summarizePixels(
-    thresholdMask,
-    strict.mask,
-    strict.maxChannelDelta,
-    strict.maxStrictOnlyChannelDelta,
-  );
+  const strict = buildStrictMask(image, image, { pixels: 2, thresholdMask });
+  const summary = summarizePixels(thresholdMask, strict.mask, strict);
 
   expect(summary).toEqual({
     total_pixels: 2,
@@ -154,7 +139,7 @@ test("完全一致なら両方 0（「隠れた差がある」を常に言わな
 test("透明度だけの差も厳密比較では差として数える", () => {
   const current = rgba([[10, 10, 10, 255]]);
   const next = rgba([[10, 10, 10, 128]]);
-  const strict = buildStrictMask(current, next, 1);
+  const strict = buildStrictMask(current, next, { pixels: 1 });
 
   expect(strict.count).toBe(1);
   expect(strict.maxChannelDelta).toBe(127);
@@ -174,7 +159,7 @@ test("crop の bbox ごとに、しきい値の内側の差を含む画素数を
     [50, 50, 50, 255],
     [162, 102, 36, 255],
   ]);
-  const strict = buildStrictMask(current, next, 4);
+  const strict = buildStrictMask(current, next, { pixels: 4 });
 
   expect(countInBbox(strict.mask, 2, { x: 0, y: 0, width: 1, height: 1 })).toBe(1);
   expect(countInBbox(strict.mask, 2, { x: 1, y: 1, width: 1, height: 1 })).toBe(1);
@@ -197,7 +182,7 @@ test("しきい値の内側だけの差もクラスタになり、候補とし�
   for (const idx of [0, 1, 4, 5]) next[idx * 4 + 1] = 102; // 緑だけ 1/255 違う
 
   const thresholdMask = new Uint8Array(w * h);
-  const strict = buildStrictMask(cur, next, w * h);
+  const strict = buildStrictMask(cur, next, { pixels: w * h });
   const strictOnly = buildStrictOnlyMask(thresholdMask, strict.mask);
 
   expect([...strictOnly]).toEqual([1, 1, 0, 0, 1, 1, 0, 0]);
@@ -290,7 +275,7 @@ test("両方が完全な透明なら、隠れている RGB が違っても差に
     [1, 2, 3, 255],
   ]);
 
-  const strict = buildStrictMask(current, next, 2);
+  const strict = buildStrictMask(current, next, { pixels: 2 });
   expect(strict.count).toBe(0);
   expect(strict.maxChannelDelta).toBe(0);
 });
@@ -299,7 +284,7 @@ test("片側だけ透明なら差として残る（透明化そのものは見�
   const current = rgba([[10, 20, 30, 255]]);
   const next = rgba([[10, 20, 30, 0]]);
 
-  expect(buildStrictMask(current, next, 1).count).toBe(1);
+  expect(buildStrictMask(current, next, { pixels: 1 }).count).toBe(1);
 });
 
 test("候補の id は上限を上げても振り直されない", () => {
@@ -552,7 +537,11 @@ test("まとめた領域の bbox の角に残る画素も取り込み、候補�
     [9, 1],
   ]);
 
-  const out = absorbStrictIntoRegions(thresholdRegions, strictOnly, w, h, 4);
+  const out = absorbStrictIntoRegions(thresholdRegions, strictOnly, {
+    width: w,
+    height: h,
+    pad: 4,
+  });
 
   expect(out.regions.map((r) => r.bbox)).toEqual([{ x: 0, y: 0, width: 11, height: 11 }]);
   expect(out.absorbedPixels).toBe(4);
@@ -571,7 +560,11 @@ test("縁が --pad より外まで続く差は、外側の strict-only 候補に
     maskWith(w, h, [{ x: 12, y: 12, w: 16, h: 16 }]),
   );
   const thresholdRegions = filterAndMerge(clusterComponents(thresholdMask, w, h), 1, 2);
-  const absorbed = absorbStrictIntoRegions(thresholdRegions, strictOnly, w, h, 2);
+  const absorbed = absorbStrictIntoRegions(thresholdRegions, strictOnly, {
+    width: w,
+    height: h,
+    pad: 2,
+  });
   const strict = mergeThenFilter(clusterComponents(absorbed.remainingMask, w, h), 4, 2);
   const regions = absorbed.regions.map((r, i) => ({ ...r, id: i + 1 }));
 
@@ -604,7 +597,7 @@ test("まとめた bbox に別の領域が入るなら、その領域もまと�
     [22, 22],
   ]);
 
-  const out = absorbStrictIntoRegions(regions, strictOnly, w, h, 10);
+  const out = absorbStrictIntoRegions(regions, strictOnly, { width: w, height: h, pad: 10 });
 
   expect(out.regions.map((r) => r.bbox)).toEqual([{ x: 0, y: 0, width: 36, height: 36 }]);
   expect(out.regions[0].pixels).toBe(286);

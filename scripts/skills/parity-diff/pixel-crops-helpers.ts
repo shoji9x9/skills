@@ -197,7 +197,11 @@ export function candidates(
     const strict = mergeThenFilter(clusterComponents(strictOnlyMask, width, height), minCluster, 8);
     return { regions: thresholdRegions, strict, absorbedPixels: 0 };
   }
-  const absorbed = absorbStrictIntoRegions(thresholdRegions, strictOnlyMask, width, height, 8);
+  const absorbed = absorbStrictIntoRegions(thresholdRegions, strictOnlyMask, {
+    width,
+    height,
+    pad: 8,
+  });
   const strict = mergeThenFilter(
     clusterComponents(absorbed.remainingMask, width, height),
     minCluster,
