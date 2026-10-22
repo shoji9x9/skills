@@ -1,0 +1,10 @@
+<section id="merge-judge" style="background:#f6f7f4;color:#17202a;font-family:'IBM Plex Sans JP', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:48px">
+<h2 style="font-size:56px;font-weight:700;line-height:1.3">Deciding whether to merge</h2>
+<p style="font-size:36px;font-weight:500;line-height:1.5">What to check depends on the update type. If CI fails, nothing is merged.</p>
+<table style="font-size:26px;color:#17202a;background:#ffffff;border:1px solid #c9cec7">
+<tr><th style="width:24%">Update type</th><th style="width:40%">What to check</th><th style="width:36%">Handling</th></tr>
+<tr><td>Minor or patch, 1.0 and later</td><td>Is the changelog mostly bug fixes and small improvements?</td><td>Relatively safe</td></tr>
+<tr><td>Minor or patch, 0.x</td><td>Are APIs changed or removed, or does behavior change?</td><td>If unclear, check before merging</td></tr>
+<tr><td>major</td><td>Do the listed breaking changes affect the code?</td><td>If so, do not merge; write the needed fixes on the PR</td></tr>
+</table>
+</section>

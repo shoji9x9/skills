@@ -1,0 +1,16 @@
+<section id="dependabot-merge" style="background:#f6f7f4;color:#17202a;font-family:'IBM Plex Sans JP', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:48px">
+<h2 style="font-size:56px;font-weight:700;line-height:1.3">dependabot-merge</h2>
+<p style="font-size:36px;font-weight:500;line-height:1.5">Checks the impact of a Dependabot PR, records the decision, then merges.</p>
+<div style="display:flex;flex-direction:row;gap:48px;align-items:start">
+<ul style="flex:1.4;font-size:30px;line-height:1.7">
+<li>Confirms that the required CI checks pass</li>
+<li>Reads the changelog and release notes for impact on the code that uses the package</li>
+<li>Comments the decision to merge (or not) and the reasons on the PR</li>
+<li>With --all, processes every open Dependabot PR in turn</li>
+</ul>
+<div style="flex:1;display:flex;flex-direction:column;gap:12px">
+<p style="font-size:24px;font-weight:600;color:#5b6670">How to invoke</p>
+<p style="font-family:'IBM Plex Mono', 'Courier New', monospace;font-size:28px;line-height:1.5;background:#ffffff;padding:24px;border:1px solid #c9cec7;border-radius:8px">dependabot-merge &lt;PR&gt;<br>dependabot-merge --all</p>
+</div>
+</div>
+</section>

@@ -1,0 +1,10 @@
+<section id="auth" style="background:#f6f7f4;color:#17202a;font-family:'IBM Plex Sans JP', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:48px">
+<h2 style="font-size:56px;font-weight:700;line-height:1.3">Authentication</h2>
+<p style="font-size:36px;font-weight:500;line-height:1.5">The environment variables you set decide which of two methods it uses.</p>
+<table style="font-size:26px;color:#17202a;background:#ffffff;border:1px solid #c9cec7">
+<tr><th style="width:22%">Method</th><th style="width:78%">Characteristics</th></tr>
+<tr><td>Dev Token</td><td>Issued in the Box Developer Console and valid for 60 minutes. Works right away with no admin approval, but you issue a new one each time it expires</td></tr>
+<tr><td>OAuth refresh</td><td>Gets an access token from the refresh token each time. Lasts long. The refresh token changes on every use, so the script saves the new one. A person authorizes once, the first time</td></tr>
+</table>
+<p style="font-size:26px;line-height:1.5;color:#5b6670">Keep the token, client secret, and refresh token in environment variables or in a file outside the repository. The agent does not write the values to logs or output, and does not repeat values the user shows it.</p>
+</section>

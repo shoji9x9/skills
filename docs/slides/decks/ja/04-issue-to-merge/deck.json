@@ -1,0 +1,52 @@
+{
+  "v": 4,
+  "createdOnFiles": { "v": 1, "at": "2026-10-22T11:30:00Z" },
+  "lists": "css",
+  "title": "第 4 章 Issue から merge まで",
+  "cover": "cover",
+  "order": [
+    "cover",
+    "problem",
+    "overview",
+    "issue-create",
+    "issue-start",
+    "git-worktree",
+    "kaizen",
+    "agent-usage",
+    "pr-review-handle",
+    "pr-finalize-loop",
+    "issue-batch",
+    "human",
+    "output",
+    "next"
+  ],
+  "sections": {
+    "s1": { "description": "困りごとと全体の流れ", "start": "cover" },
+    "s2": { "description": "起票・着手・隔離", "start": "issue-create" },
+    "s3": { "description": "commit の前に記録する", "start": "kaizen" },
+    "s4": {
+      "description": "PR の後のレビュー対応と、まとめて回す仕組み",
+      "start": "pr-review-handle"
+    },
+    "s5": { "description": "人が判断する点・成果物・つながるスキル", "start": "human" }
+  },
+  "faces": {
+    "ibm-plex-sans-jp": {
+      "family": "IBM Plex Sans JP",
+      "href": "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap"
+    },
+    "ibm-plex-mono": {
+      "family": "IBM Plex Mono",
+      "href": "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&display=swap"
+    }
+  },
+  "designSystems": [
+    {
+      "title": "shoji9x9 Skills",
+      "namespace": "shoji9x9skills",
+      "artifact": "https://claude.ai/artifact/QpiRXnJkvxeKg5dceqA325",
+      "version": "1792660505-b42b",
+      "copiedAt": "2026-10-22T11:30:00Z"
+    }
+  ]
+}

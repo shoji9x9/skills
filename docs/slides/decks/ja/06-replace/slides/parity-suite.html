@@ -1,0 +1,17 @@
+<section id="parity-suite" style="background:#f6f7f4;color:#17202a;font-family:'IBM Plex Sans JP', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:48px">
+<h2 style="font-size:56px;font-weight:700;line-height:1.3">parity-suite</h2>
+<p style="font-size:36px;font-weight:500;line-height:1.5">新旧どちらにも当てられる合否の基準を、現行に対して Playwright で作る。</p>
+<div style="display:flex;flex-direction:row;gap:48px;align-items:start">
+<ul style="flex:1.4;font-size:30px;line-height:1.7">
+<li>要素を論理名で指すので、新側では対応する要素を書くだけで同じ基準を当てられる</li>
+<li>API の応答を記録して再生し、挙動を固定する</li>
+<li>わざと故障を入れ、基準が故障を検出できる強さかを確かめる</li>
+<li>見た目の基準とノイズの幅を採り、parity-diff に渡す</li>
+</ul>
+<div style="flex:1;display:flex;flex-direction:column;gap:12px">
+<p style="font-size:24px;font-weight:600;color:#5b6670">呼び出し方</p>
+<p style="font-family:'IBM Plex Mono', 'Courier New', monospace;font-size:28px;line-height:1.5;background:#ffffff;padding:24px;border:1px solid #c9cec7;border-radius:8px">parity-suite --feature &lt;slug&gt;</p>
+<p style="font-size:24px;line-height:1.5;color:#5b6670">1 回で 1 機能を扱う。新側には触れない</p>
+</div>
+</div>
+</section>

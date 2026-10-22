@@ -1,0 +1,45 @@
+{
+  "v": 4,
+  "createdOnFiles": { "v": 1, "at": "2026-10-22T12:00:00Z" },
+  "lists": "css",
+  "title": "第 10 章 リポジトリの工夫",
+  "cover": "cover",
+  "order": [
+    "cover",
+    "scale",
+    "autonomous",
+    "deterministic",
+    "kaizen",
+    "multiagent",
+    "tests",
+    "checks",
+    "prose",
+    "security",
+    "summary"
+  ],
+  "sections": {
+    "s1": { "description": "規模・自律的な開発と、確率的な挙動に頼らない考え方", "start": "cover" },
+    "s2": { "description": "失敗から学び、複数のエージェントで共有する", "start": "kaizen" },
+    "s3": { "description": "品質を保つ仕組み", "start": "tests" },
+    "s4": { "description": "セキュリティとまとめ", "start": "security" }
+  },
+  "faces": {
+    "ibm-plex-sans-jp": {
+      "family": "IBM Plex Sans JP",
+      "href": "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap"
+    },
+    "ibm-plex-mono": {
+      "family": "IBM Plex Mono",
+      "href": "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&display=swap"
+    }
+  },
+  "designSystems": [
+    {
+      "title": "shoji9x9 Skills",
+      "namespace": "shoji9x9skills",
+      "artifact": "https://claude.ai/artifact/QpiRXnJkvxeKg5dceqA325",
+      "version": "1792660505-b42b",
+      "copiedAt": "2026-10-22T12:00:00Z"
+    }
+  ]
+}

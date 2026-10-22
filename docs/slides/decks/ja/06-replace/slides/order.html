@@ -1,0 +1,43 @@
+<section id="order" style="background:#f6f7f4;color:#17202a;font-family:'IBM Plex Sans JP', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:40px">
+<h2 style="font-size:56px;font-weight:700;line-height:1.3">全体の順序</h2>
+<div style="display:flex;flex-direction:column;gap:16px">
+<p style="font-size:24px;font-weight:600;color:#5b6670">最初に 1 回</p>
+<div style="display:flex;flex-direction:row;gap:8px;align-items:center">
+<div style="flex:1;align-self:stretch;display:flex;flex-direction:column;gap:8px;background:#ffffff;padding:20px;border:1px solid #c9cec7;border-radius:8px">
+<p style="font-size:24px;font-weight:600">replace-strategy</p>
+<p style="font-size:24px;line-height:1.4;color:#5b6670">setup の始め</p>
+</div>
+<svg aria-label="次へ" width="40" height="32" viewBox="0 0 40 32" style="width:40px;height:32px"><path d="M 2 16 L 26 16" fill="none" stroke="#1f5fbf" stroke-width="4"/><path d="M 22 6 L 38 16 L 22 26 Z" fill="#1f5fbf"/></svg>
+<div style="flex:1.3;align-self:stretch;display:flex;flex-direction:column;gap:8px;background:#f6f7f4;padding:20px;border:2px dashed #5b6670;border-radius:8px">
+<p style="font-size:24px;font-weight:600">current-environment-<br>bootstrap</p>
+<p style="font-size:24px;line-height:1.4;color:#5b6670">受け取った資産から作り直すときだけ</p>
+</div>
+<svg aria-label="次へ" width="40" height="32" viewBox="0 0 40 32" style="width:40px;height:32px"><path d="M 2 16 L 26 16" fill="none" stroke="#1f5fbf" stroke-width="4"/><path d="M 22 6 L 38 16 L 22 26 Z" fill="#1f5fbf"/></svg>
+<div style="flex:1;align-self:stretch;display:flex;flex-direction:column;gap:8px;background:#ffffff;padding:20px;border:1px solid #c9cec7;border-radius:8px">
+<p style="font-size:24px;font-weight:600">replace-strategy</p>
+<p style="font-size:24px;line-height:1.4;color:#5b6670">測定・戦略・機能の一覧</p>
+</div>
+<svg aria-label="次へ" width="40" height="32" viewBox="0 0 40 32" style="width:40px;height:32px"><path d="M 2 16 L 26 16" fill="none" stroke="#1f5fbf" stroke-width="4"/><path d="M 22 6 L 38 16 L 22 26 Z" fill="#1f5fbf"/></svg>
+<div style="flex:1;align-self:stretch;display:flex;flex-direction:column;gap:8px;background:#ffffff;padding:20px;border:1px solid #c9cec7;border-radius:8px">
+<p style="font-size:24px;font-weight:600">golden-dataset</p>
+<p style="font-size:24px;line-height:1.4;color:#5b6670">フェーズ A（現行に投入）</p>
+</div>
+<svg aria-label="次へ" width="40" height="32" viewBox="0 0 40 32" style="width:40px;height:32px"><path d="M 2 16 L 26 16" fill="none" stroke="#1f5fbf" stroke-width="4"/><path d="M 22 6 L 38 16 L 22 26 Z" fill="#1f5fbf"/></svg>
+<div style="flex:1;align-self:stretch;display:flex;flex-direction:column;gap:8px;background:#f6f7f4;padding:20px;border:2px dashed #5b6670;border-radius:8px">
+<p style="font-size:24px;font-weight:600">parity-component</p>
+<p style="font-size:24px;line-height:1.4;color:#5b6670">部品を画面より先に作るときだけ</p>
+</div>
+</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:16px;background:#ffffff;padding:32px;border:3px solid #1f5fbf;border-radius:16px">
+<p style="font-size:24px;font-weight:600;color:#1f5fbf">機能ごとに繰り返す</p>
+<div style="display:flex;flex-direction:row;gap:16px;align-items:center">
+<p style="flex:1;font-size:28px;font-weight:600;text-align:center;background:#f6f7f4;padding:20px;border:1px solid #c9cec7;border-radius:8px">parity-suite</p>
+<svg aria-label="次へ" width="56" height="32" viewBox="0 0 56 32" style="width:56px;height:32px"><path d="M 4 16 L 40 16" fill="none" stroke="#1f5fbf" stroke-width="4"/><path d="M 36 6 L 52 16 L 36 26 Z" fill="#1f5fbf"/></svg>
+<p style="flex:1;font-size:28px;font-weight:600;text-align:center;background:#f6f7f4;padding:20px;border:1px solid #c9cec7;border-radius:8px">parity-replace</p>
+<svg aria-label="往復する" width="72" height="40" viewBox="0 0 72 40" style="width:72px;height:40px"><path d="M 16 12 L 56 12" fill="none" stroke="#1f5fbf" stroke-width="4"/><path d="M 52 2 L 68 12 L 52 22 Z" fill="#1f5fbf"/><path d="M 56 28 L 16 28" fill="none" stroke="#1f5fbf" stroke-width="4"/><path d="M 20 18 L 4 28 L 20 38 Z" fill="#1f5fbf"/></svg>
+<p style="flex:1;font-size:28px;font-weight:600;text-align:center;background:#f6f7f4;padding:20px;border:1px solid #c9cec7;border-radius:8px">parity-diff</p>
+</div>
+<p style="font-size:24px;line-height:1.5;color:#5b6670">parity-replace は、新側のスキーマが決まった後に golden-dataset のフェーズ B（新側に投入）を呼ぶ</p>
+</div>
+</section>

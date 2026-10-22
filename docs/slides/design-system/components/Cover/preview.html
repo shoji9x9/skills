@@ -1,0 +1,42 @@
+<!-- @dsCard height=300 -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400&display=swap">
+<style>
+  html, body { margin: 0; background: var(--paper); }
+  .cover { position: relative; width: 960px; height: 300px; background: var(--paper); overflow: hidden; font-family: var(--font-sans); }
+  .cover svg { position: absolute; left: 0; top: 0; }
+  .ink { fill: var(--ink); }
+  .flow { fill: var(--flow); }
+  .human { fill: var(--human); }
+  .output { fill: var(--output); }
+  .surface { fill: var(--surface); }
+  .arrow { stroke: var(--paper); stroke-width: 4; fill: none; }
+  .md { rx: var(--radius-md); }
+  .lg { rx: var(--radius-lg); }
+  .text { position: absolute; left: 64px; bottom: 56px; width: 400px; }
+  .name { margin: 0; color: var(--ink); font-weight: 700; font-size: 72px; line-height: .95; letter-spacing: -0.01em; }
+  .tagline { margin: 16px 0 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
+</style>
+<div class="cover">
+  <svg width="960" height="300" viewBox="0 0 960 300" aria-hidden="true">
+    <!--
+      blocks: ink 480×236 (slab, bleeds off top/right), flow 192×96, human 96×96, output 96×96, surface tint 192×64
+      arrangement: one tall ink slab right of x=480 with the three meaning colours set into it as a left-to-right row, like a flow chart
+      pattern: geometric, modular → node tiles cut by radius-md joined by paper arrows (the slides' own flow diagrams: 呼び出し → 人が判断 → 成果物)
+      steps and radii: space-2 16px gaps, space-3 32px insets, space-4 64px; radius-md 6px tiles, radius-lg 12px slab
+    -->
+    <rect class="ink lg" x="496" y="-12" width="476" height="248"/>
+    <rect class="flow md" x="528" y="64" width="160" height="96"/>
+    <rect class="human md" x="720" y="64" width="96" height="96"/>
+    <rect class="output md" x="848" y="64" width="96" height="96"/>
+    <path class="arrow" d="M688 112 H712 M704 104 L712 112 L704 120"/>
+    <path class="arrow" d="M816 112 H840 M832 104 L840 112 L832 120"/>
+    <rect class="surface md" x="528" y="192" width="160" height="16"/>
+    <rect class="surface md" x="720" y="192" width="64" height="16"/>
+    <rect class="flow md" x="496" y="252" width="320" height="32"/>
+    <rect class="human md" x="832" y="252" width="64" height="32"/>
+  </svg>
+  <div class="text">
+    <p class="name">shoji9x9 Skills</p>
+    <p class="tagline">Claude Code・Codex・GitHub Copilot で同じ手順を使うためのスキル集</p>
+  </div>
+</div>

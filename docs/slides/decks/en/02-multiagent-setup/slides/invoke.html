@@ -1,0 +1,12 @@
+<section id="invoke" style="background:#f6f7f4;color:#17202a;font-family:'IBM Plex Sans JP', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:40px">
+<h2 style="font-size:56px;font-weight:700;line-height:1.3">How to invoke</h2>
+<p style="font-size:36px;font-weight:500;line-height:1.5">Ask with requests like "Initialize the project" or "Add a rule". Each target has a fixed set of outputs.</p>
+<table style="font-size:26px;color:#17202a;background:#ffffff;border:1px solid #c9cec7">
+<tr><th style="width:18%">Target</th><th style="width:82%">What it creates</th></tr>
+<tr><td>Skills</td><td>Puts the source in .agents/skills/ and links to it from .claude/skills/</td></tr>
+<tr><td>Rules</td><td>Puts the source in .agents/rules/ and links to it from .claude/rules/ and .github/instructions/</td></tr>
+<tr><td>Hooks</td><td>Puts shared scripts in .agents/hooks/scripts/ and calls them from each agent's configuration file</td></tr>
+<tr><td>Docs</td><td>Writes AGENTS.md in a fixed structure and adds sections on choosing the type and on response policy. CLAUDE.md and .github/copilot-instructions.md get only the differences</td></tr>
+<tr><td>All</td><td>Initializes the project. Creates all four of the above at once</td></tr>
+</table>
+</section>

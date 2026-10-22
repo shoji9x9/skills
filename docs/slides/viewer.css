@@ -1,0 +1,204 @@
+/* 閲覧ページの枠と、スライドの基本のスタイル。色と大きさは design-system/tokens.json に合わせる。 */
+:root {
+  --paper: #f6f7f4;
+  --surface: #ffffff;
+  --ink: #17202a;
+  --muted: #5b6670;
+  --line: #c9cec7;
+  --flow: #1f5fbf;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--ink);
+  color: var(--ink);
+  font-family: "IBM Plex Sans JP", "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+}
+
+a {
+  color: var(--flow);
+}
+
+/* 章の一覧 */
+.index {
+  min-height: 100vh;
+  background: var(--paper);
+  padding: 48px 16px;
+}
+
+.index-inner {
+  max-width: 880px;
+  margin: 0 auto;
+}
+
+.index h1 {
+  margin: 0 0 8px;
+  font-size: 32px;
+}
+
+.index p {
+  margin: 0 0 24px;
+  color: var(--muted);
+}
+
+.index ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 12px;
+}
+
+.index li a {
+  display: block;
+  padding: 16px 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 18px;
+}
+
+.index li a:hover {
+  border-color: var(--flow);
+}
+
+.index-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.index-header h1 {
+  margin: 0;
+}
+
+.index-links {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+/* スライドの表示 */
+.viewer {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 16px;
+  background: var(--ink);
+  color: var(--line);
+  font-size: 14px;
+}
+
+.toolbar a {
+  color: var(--line);
+}
+
+.toolbar .title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.toolbar button {
+  font: inherit;
+  color: var(--ink);
+  background: var(--paper);
+  border: 0;
+  border-radius: 4px;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+
+.toolbar button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.screen {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+/* 1920×1080 の枠を、画面に収まるように縮める。 */
+.slide-stage {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 1920px;
+  height: 1080px;
+  transform-origin: center center;
+}
+
+/* Slides の Artifact が描くときの基本の扱いに合わせる。 */
+.slide-stage section {
+  width: 1920px;
+  height: 1080px;
+  position: relative;
+  overflow: hidden;
+}
+
+.slide-stage h1,
+.slide-stage h2,
+.slide-stage h3,
+.slide-stage p,
+.slide-stage ul,
+.slide-stage ol,
+.slide-stage table {
+  margin: 0;
+}
+
+.slide-stage div {
+  display: flex;
+  flex-direction: column;
+}
+
+.slide-stage ul {
+  padding-left: 1.2em;
+  list-style: disc;
+}
+
+.slide-stage ol {
+  padding-left: 1.4em;
+  list-style: decimal;
+}
+
+.slide-stage table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.slide-stage th,
+.slide-stage td {
+  border: 1px solid var(--line);
+  padding: 0.35em 0.6em;
+  text-align: left;
+  vertical-align: top;
+}
+
+.slide-stage th {
+  font-weight: 600;
+}
+
+.slide-stage img {
+  display: block;
+}
+
+.slide-stage svg {
+  flex: none;
+}

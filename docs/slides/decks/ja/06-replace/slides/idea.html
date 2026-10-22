@@ -1,0 +1,23 @@
+<section id="idea" style="background:#f6f7f4;color:#17202a;font-family:'IBM Plex Sans JP', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:48px">
+<h2 style="font-size:56px;font-weight:700;line-height:1.3">考え方</h2>
+<p style="font-size:36px;font-weight:500;line-height:1.5">現行の挙動を証拠として固定し、別の実装で再現し、差分がゼロであることを確かめる。これをループで回す。</p>
+<div style="display:flex;flex-direction:row;gap:16px;align-items:center">
+<div style="flex:1;align-self:stretch;display:flex;flex-direction:column;gap:12px;background:#ffffff;padding:32px;border:1px solid #c9cec7;border-radius:8px">
+<p style="font-size:24px;font-weight:600;color:#1f5fbf">1</p>
+<p style="font-size:30px;font-weight:600">固定する</p>
+<p style="font-size:26px;line-height:1.5;color:#5b6670">現行の挙動を測り、合否の基準にする</p>
+</div>
+<svg aria-label="次へ" width="56" height="32" viewBox="0 0 56 32" style="width:56px;height:32px"><path d="M 4 16 L 40 16" fill="none" stroke="#1f5fbf" stroke-width="4"/><path d="M 36 6 L 52 16 L 36 26 Z" fill="#1f5fbf"/></svg>
+<div style="flex:1;align-self:stretch;display:flex;flex-direction:column;gap:12px;background:#ffffff;padding:32px;border:1px solid #c9cec7;border-radius:8px">
+<p style="font-size:24px;font-weight:600;color:#1f5fbf">2</p>
+<p style="font-size:30px;font-weight:600">再現する</p>
+<p style="font-size:26px;line-height:1.5;color:#5b6670">新しい実装を、同じ基準が通るように作る</p>
+</div>
+<svg aria-label="次へ" width="56" height="32" viewBox="0 0 56 32" style="width:56px;height:32px"><path d="M 4 16 L 40 16" fill="none" stroke="#1f5fbf" stroke-width="4"/><path d="M 36 6 L 52 16 L 36 26 Z" fill="#1f5fbf"/></svg>
+<div style="flex:1;align-self:stretch;display:flex;flex-direction:column;gap:12px;background:#ffffff;padding:32px;border:1px solid #c9cec7;border-radius:8px">
+<p style="font-size:24px;font-weight:600;color:#1f5fbf">3</p>
+<p style="font-size:30px;font-weight:600">確かめる</p>
+<p style="font-size:26px;line-height:1.5;color:#5b6670">差分を検出し、残っていれば 2 に戻る</p>
+</div>
+</div>
+</section>

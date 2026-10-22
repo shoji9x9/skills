@@ -1,0 +1,30 @@
+<section id="mechanism" style="background:#f6f7f4;color:#17202a;font-family:'IBM Plex Sans JP', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:48px">
+<h2 style="font-size:56px;font-weight:700;line-height:1.3">仕組み</h2>
+<p style="font-size:36px;font-weight:500;line-height:1.5">エージェントが spec を書き、同梱のエンジンが SVG を作る。</p>
+<div style="display:flex;flex-direction:row;gap:16px;align-items:center">
+<div style="flex:1;align-self:stretch;display:flex;flex-direction:column;gap:12px;background:#ffffff;padding:32px 24px;border:1px solid #c9cec7;border-radius:8px">
+<p style="font-size:24px;font-weight:600;color:#5b6670">情報源</p>
+<p style="font-size:30px;line-height:1.5">IaC か説明</p>
+<p style="font-size:24px;line-height:1.5;color:#5b6670">CDK・Terraform・CloudFormation、既存の図</p>
+</div>
+<svg aria-label="次の手順へ" width="56" height="32" viewBox="0 0 56 32" style="width:56px;height:32px"><path d="M 4 16 L 40 16" fill="none" stroke="#1f5fbf" stroke-width="4"/><path d="M 36 6 L 52 16 L 36 26 Z" fill="#1f5fbf"/></svg>
+<div style="flex:1;align-self:stretch;display:flex;flex-direction:column;gap:12px;background:#ffffff;padding:32px 24px;border:1px solid #c9cec7;border-radius:8px">
+<p style="font-size:24px;font-weight:600;color:#1f5fbf">spec</p>
+<p style="font-size:30px;line-height:1.5">ノード・エッジ・グループ</p>
+<p style="font-size:24px;line-height:1.5;color:#5b6670">エージェントが情報源を読み、作図ルールに沿って書く</p>
+</div>
+<svg aria-label="次の手順へ" width="56" height="32" viewBox="0 0 56 32" style="width:56px;height:32px"><path d="M 4 16 L 40 16" fill="none" stroke="#1f5fbf" stroke-width="4"/><path d="M 36 6 L 52 16 L 36 26 Z" fill="#1f5fbf"/></svg>
+<div style="flex:1;align-self:stretch;display:flex;flex-direction:column;gap:12px;background:#ffffff;padding:32px 24px;border:1px solid #c9cec7;border-radius:8px">
+<p style="font-size:24px;font-weight:600;color:#2f7d4f">SVG</p>
+<p style="font-size:30px;line-height:1.5">環境ごとの構成図</p>
+<p style="font-size:24px;line-height:1.5;color:#5b6670">同梱のエンジンが spec から生成する</p>
+</div>
+<svg aria-label="次の手順へ" width="56" height="32" viewBox="0 0 56 32" style="width:56px;height:32px"><path d="M 4 16 L 40 16" fill="none" stroke="#1f5fbf" stroke-width="4"/><path d="M 36 6 L 52 16 L 36 26 Z" fill="#1f5fbf"/></svg>
+<div style="flex:1;align-self:stretch;display:flex;flex-direction:column;gap:12px;background:#ffffff;padding:32px 24px;border:1px solid #c9cec7;border-radius:8px">
+<p style="font-size:24px;font-weight:600;color:#5b6670">確認</p>
+<p style="font-size:30px;line-height:1.5">PNG にして目で確かめる</p>
+<p style="font-size:24px;line-height:1.5;color:#5b6670">崩れていれば spec の座標を直して、生成し直す</p>
+</div>
+</div>
+<p style="font-size:26px;line-height:1.5;color:#5b6670">IaC を自動ではパースしないので、CDK でも Terraform でも同じように使える。画像を読むツールは SVG を描画できないので、PNG への変換を挟む。</p>
+</section>
