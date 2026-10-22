@@ -168,10 +168,13 @@ function orphanViolations(wiring: Wiring, wiringDir: string, targets: Map<string
 function wiringViolations(
   root: string,
   wiring: Wiring,
-  { bases, docInstructions }: { bases: string[]; docInstructions: DocInstruction[] },
+  {
+    bases,
+    docInstructions,
+    canonDir,
+  }: { bases: string[]; docInstructions: DocInstruction[]; canonDir: string },
 ): string[] {
   const { dir, agent, docs } = wiring;
-  const canonDir = join(root, CANON_DIR);
   const wiringDir = join(root, dir);
   if (!existsSync(wiringDir)) {
     return [`${resolve(wiringDir)}: リンクのディレクトリが無い（${agent} は rule を読めない）`];
@@ -232,7 +235,7 @@ export function checkRuleSymlinks(
 
   const violations = docDeclarationViolations(root, bases, docInstructions);
   for (const wiring of WIRINGS) {
-    violations.push(...wiringViolations(root, wiring, { bases, docInstructions }));
+    violations.push(...wiringViolations(root, wiring, { bases, docInstructions, canonDir }));
   }
 
   return { rules, violations };

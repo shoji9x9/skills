@@ -22,7 +22,7 @@
 //
 // 使い方: node scripts/eval/generate-parity-component-fixtures.ts
 
-import { type ChildProcess, spawn, spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -180,7 +180,7 @@ const CALL_TIMEOUT_MS = 30000;
 const SHUTDOWN_TIMEOUT_MS = Number(process.env.PARITY_FIXTURES_SHUTDOWN_TIMEOUT_MS) || 10000;
 
 // `exit` を ms 以内に待つ。来れば true、上限を超えたら false。
-const waitForExit = (proc: ChildProcess, ms: number) =>
+const waitForExit = (proc: ChromeProcess, ms: number) =>
   new Promise<boolean>((resolve) => {
     if (proc.exitCode !== null || proc.signalCode !== null) {
       resolve(true);
@@ -228,6 +228,8 @@ function spawnChrome() {
 
 /** Chrome の DevTools への接続。接続が閉じるまでは ws を持つ。 */
 type Connection = { ws: WebSocket | null };
+/** 起動した Chrome のプロセス。stderr を読むので、spawnChrome が返す stdio の形をそのまま使う。 */
+type ChromeProcess = ReturnType<typeof spawnChrome>["proc"];
 
 /**
  * Chrome とプロファイルを片付ける関数を返す。`connection.ws` は、開いた後に呼び出し側が入れる。
@@ -236,7 +238,7 @@ type Connection = { ws: WebSocket | null };
  * （待たずに消すと ENOTEMPTY で finally が throw し、成功した生成が非 0 の終了になってしまう）。
  * 起動・ハンドシェイクの途中で失敗したときも同じ片付けを通す（通さないと Chrome とプロファイルが残る）。
  */
-function makeShutdown(proc: ChildProcess, userDir: string, connection: Connection) {
+function makeShutdown(proc: ChromeProcess, userDir: string, connection: Connection) {
   return async () => {
     if (connection.ws) connection.ws.close();
     let stuck = false;
@@ -257,7 +259,7 @@ function makeShutdown(proc: ChildProcess, userDir: string, connection: Connectio
 }
 
 /** Chrome の stderr から DevTools の WebSocket の URL を読む。起動しないときや終了したときは reject する。 */
-function waitForDevToolsUrl(proc: ReturnType<typeof spawnChrome>["proc"]) {
+function waitForDevToolsUrl(proc: ChromeProcess) {
   return new Promise<string>((resolve, reject) => {
     let buf = "";
     const timer = setTimeout(() => reject(new Error(`Chrome が起動しない: ${buf}`)), 20000);

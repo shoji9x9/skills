@@ -153,7 +153,8 @@ function isArrayCall(e: ts.Expression, name: string): boolean {
 function everyKinds(
   e: ts.Expression,
   name: string,
-  { checker = null, seen = new Set() }: KindContext,
+  // params は受け取らない。every のコールバックの判定は、型ガードの引数からの否定を差し引かない。
+  { checker = null, seen = new Set() }: Omit<KindContext, "params">,
 ): Set<string> | null {
   const u = unwrap(e);
   if (!ts.isCallExpression(u) || u.arguments.length !== 1) return null;

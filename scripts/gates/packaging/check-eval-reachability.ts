@@ -102,15 +102,18 @@ function checkEvalShape(ev: unknown, where: string, seenIds: Set<string>): EvalS
 
 /**
  * reachability の有無と backlog の免除を突き合わせ、違反を返す。
- * reachability を持つ eval だけが、続けて要素を検査する対象になる（呼び出し元が `Object.hasOwn` で決める）。
+ * hasReachability は呼び出し元が 1 回だけ求め、要素を続けて検査するかにも同じ値を使う。
  */
 function backlogViolations(
   { where, ev }: EvalShape,
-  key: string,
-  exemptFingerprint: string | undefined,
+  {
+    key,
+    exemptFingerprint,
+    hasReachability,
+  }: { key: string; exemptFingerprint: string | undefined; hasReachability: boolean },
 ): string[] {
   const fingerprint = evalFingerprint(ev);
-  if (!Object.hasOwn(ev, "reachability")) {
+  if (!hasReachability) {
     if (exemptFingerprint === undefined) {
       return [
         `${where}: reachability が無い。各 assertion に { "assertion", "prompt_quote" } を書く` +
@@ -241,8 +244,11 @@ export function checkEvalFile({
     }
     const key = backlogKey(skill, shape.id);
     keys.push(key);
-    violations.push(...backlogViolations(shape, key, backlog[key]));
-    if (Object.hasOwn(shape.ev, "reachability")) checkReachability(shape, violations);
+    const hasReachability = Object.hasOwn(shape.ev, "reachability");
+    violations.push(
+      ...backlogViolations(shape, { key, exemptFingerprint: backlog[key], hasReachability }),
+    );
+    if (hasReachability) checkReachability(shape, violations);
   }
 
   return { evals: evals.length, violations, keys };
